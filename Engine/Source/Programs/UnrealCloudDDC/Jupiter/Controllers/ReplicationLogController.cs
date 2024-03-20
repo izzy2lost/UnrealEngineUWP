@@ -45,7 +45,7 @@ namespace Jupiter.Controllers
 			[Required] NamespaceId ns
 		)
 		{
-			ActionResult? result = await _requestHelper.HasAccessToNamespaceAsync(User, Request, ns, new [] { JupiterAclAction.ReadTransactionLog });
+			ActionResult? result = await _requestHelper.HasAccessToNamespaceAsync(User, Request, ns, new[] { JupiterAclAction.ReadTransactionLog });
 			if (result != null)
 			{
 				return result;
@@ -54,7 +54,7 @@ namespace Jupiter.Controllers
 			return Ok(new ReplicationLogSnapshots(await _replicationLog.GetSnapshotsAsync(ns).ToListAsync()));
 		}
 
-		
+
 		[HttpPost("snapshots/{ns}/create")]
 		[ProducesDefaultResponseType]
 		[ProducesResponseType(type: typeof(ProblemDetails), 400)]
@@ -62,7 +62,7 @@ namespace Jupiter.Controllers
 			[Required] NamespaceId ns
 		)
 		{
-			ActionResult? result = await _requestHelper.HasAccessToNamespaceAsync(User, Request, ns, new [] { JupiterAclAction.WriteTransactionLog });
+			ActionResult? result = await _requestHelper.HasAccessToNamespaceAsync(User, Request, ns, new[] { JupiterAclAction.WriteTransactionLog });
 			if (result != null)
 			{
 				return result;
@@ -83,7 +83,7 @@ namespace Jupiter.Controllers
 			[FromQuery] int count = 1000
 		)
 		{
-			ActionResult? result = await _requestHelper.HasAccessToNamespaceAsync(User, Request, ns, new [] { JupiterAclAction.ReadTransactionLog });
+			ActionResult? result = await _requestHelper.HasAccessToNamespaceAsync(User, Request, ns, new[] { JupiterAclAction.ReadTransactionLog });
 			if (result != null)
 			{
 				return result;
@@ -115,7 +115,7 @@ namespace Jupiter.Controllers
 					{
 						Title = $"Log file is not available, use snapshot {snapshot.SnapshotBlob} instead",
 						Type = ProblemTypes.UseSnapshot,
-						Extensions = { { "SnapshotId", snapshot.SnapshotBlob }, { "BlobNamespace", snapshot.BlobNamespace },  }
+						Extensions = { { "SnapshotId", snapshot.SnapshotBlob }, { "BlobNamespace", snapshot.BlobNamespace }, }
 					});
 				}
 

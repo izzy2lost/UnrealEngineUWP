@@ -23,7 +23,7 @@ namespace Jupiter.Implementation
 		public VersionFile()
 		{
 			FileInfo assemblyFile = new FileInfo(typeof(VersionFile).Assembly.Location);
-			FileInfo fi = new FileInfo( Path.Combine(assemblyFile!.Directory!.FullName, "version.yaml"));
+			FileInfo fi = new FileInfo(Path.Combine(assemblyFile!.Directory!.FullName, "version.yaml"));
 			IDeserializer deserializer = new DeserializerBuilder()
 				.WithNamingConvention(CamelCaseNamingConvention.Instance)
 				.Build();

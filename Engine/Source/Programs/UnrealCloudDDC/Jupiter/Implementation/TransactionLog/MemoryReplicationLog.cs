@@ -15,9 +15,9 @@ namespace Jupiter.Implementation
 	internal class MemoryReplicationLog : IReplicationLog
 	{
 		private readonly ConcurrentDictionary<NamespaceId, SortedList<string, List<(TimeUuid, ReplicationLogEvent)>>> _replicationEvents = new();
-		private readonly ConcurrentDictionary<NamespaceId, List<SnapshotInfo>>  _snapshots = new();
+		private readonly ConcurrentDictionary<NamespaceId, List<SnapshotInfo>> _snapshots = new();
 
-		private readonly ConcurrentDictionary<NamespaceId, ConcurrentDictionary<string, ReplicatorState>>  _replicatorState = new();
+		private readonly ConcurrentDictionary<NamespaceId, ConcurrentDictionary<string, ReplicatorState>> _replicatorState = new();
 
 		public IAsyncEnumerable<NamespaceId> GetNamespacesAsync()
 		{
@@ -42,7 +42,7 @@ namespace Jupiter.Implementation
 
 				_replicationEvents.AddOrUpdate(ns, _ =>
 				{
-					SortedList<string, List<(TimeUuid, ReplicationLogEvent)>> l = new() { { bucketId, new () { (eventId, logEvent) } } };
+					SortedList<string, List<(TimeUuid, ReplicationLogEvent)>> l = new() { { bucketId, new() { (eventId, logEvent) } } };
 					return l;
 				}, (_, buckets) =>
 				{
@@ -57,7 +57,7 @@ namespace Jupiter.Implementation
 						}
 						else
 						{
-							buckets.Add(bucketId, new () {(eventId, logEvent) });
+							buckets.Add(bucketId, new() { (eventId, logEvent) });
 						}
 					}
 
@@ -70,7 +70,7 @@ namespace Jupiter.Implementation
 
 		public Task<(string, Guid)> InsertDeleteEventAsync(NamespaceId ns, BucketId bucket, RefId key, DateTime? timestamp)
 		{
-			return DoInsertAsync(ns, bucket, key, null, ReplicationLogEvent.OpType.Deleted, timestamp); 
+			return DoInsertAsync(ns, bucket, key, null, ReplicationLogEvent.OpType.Deleted, timestamp);
 		}
 
 		public async IAsyncEnumerable<ReplicationLogEvent> GetAsync(NamespaceId ns, string? lastBucket, Guid? lastEvent)

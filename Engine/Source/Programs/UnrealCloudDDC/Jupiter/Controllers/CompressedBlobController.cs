@@ -10,8 +10,8 @@ using System.Threading.Tasks;
 using EpicGames.AspNet;
 using EpicGames.Horde.Storage;
 using EpicGames.Serialization;
-using Jupiter.Implementation;
 using Jupiter.Common.Implementation;
+using Jupiter.Implementation;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Primitives;
@@ -19,8 +19,8 @@ using ContentId = Jupiter.Implementation.ContentId;
 
 namespace Jupiter.Controllers
 {
-	using IDiagnosticContext = Serilog.IDiagnosticContext;
 	using BlobNotFoundException = BlobNotFoundException;
+	using IDiagnosticContext = Serilog.IDiagnosticContext;
 
 	[ApiController]
 	[Authorize]
@@ -53,7 +53,7 @@ namespace Jupiter.Controllers
 			[Required] NamespaceId ns,
 			[Required] ContentId id)
 		{
-			ActionResult? result = await _requestHelper.HasAccessToNamespaceAsync(User, Request, ns, new [] { JupiterAclAction.ReadObject });
+			ActionResult? result = await _requestHelper.HasAccessToNamespaceAsync(User, Request, ns, new[] { JupiterAclAction.ReadObject });
 			if (result != null)
 			{
 				return result;
@@ -90,14 +90,14 @@ namespace Jupiter.Controllers
 				return NotFound(new ValidationProblemDetails { Title = $"Content Id {e.ContentId} not found" });
 			}
 		}
-		
+
 		[HttpHead("{ns}/{id}")]
 		[ProducesDefaultResponseType]
 		public async Task<IActionResult> HeadAsync(
 			[Required] NamespaceId ns,
 			[Required] ContentId id)
 		{
-			ActionResult? result = await _requestHelper.HasAccessToNamespaceAsync(User, Request, ns, new [] { JupiterAclAction.ReadObject });
+			ActionResult? result = await _requestHelper.HasAccessToNamespaceAsync(User, Request, ns, new[] { JupiterAclAction.ReadObject });
 			if (result != null)
 			{
 				return result;
@@ -131,9 +131,9 @@ namespace Jupiter.Controllers
 		[ProducesDefaultResponseType]
 		public async Task<IActionResult> ExistsMultipleAsync(
 			[Required] NamespaceId ns,
-			[Required] [FromQuery] List<ContentId> id)
+			[Required][FromQuery] List<ContentId> id)
 		{
-			ActionResult? result = await _requestHelper.HasAccessToNamespaceAsync(User, Request, ns, new [] { JupiterAclAction.ReadObject });
+			ActionResult? result = await _requestHelper.HasAccessToNamespaceAsync(User, Request, ns, new[] { JupiterAclAction.ReadObject });
 			if (result != null)
 			{
 				return result;
@@ -165,8 +165,8 @@ namespace Jupiter.Controllers
 
 			List<ContentId> needs = new List<ContentId>(invalidContentIds);
 			needs.AddRange(partialContentIds);
-			 
-			return Ok(new ExistCheckMultipleContentIdResponse { Needs = needs.ToArray()});
+
+			return Ok(new ExistCheckMultipleContentIdResponse { Needs = needs.ToArray() });
 		}
 
 		[HttpPost("{ns}/exist")]
@@ -175,7 +175,7 @@ namespace Jupiter.Controllers
 			[Required] NamespaceId ns,
 			[FromBody] ContentId[] bodyIds)
 		{
-			ActionResult? result = await _requestHelper.HasAccessToNamespaceAsync(User, Request, ns, new [] { JupiterAclAction.ReadObject });
+			ActionResult? result = await _requestHelper.HasAccessToNamespaceAsync(User, Request, ns, new[] { JupiterAclAction.ReadObject });
 			if (result != null)
 			{
 				return result;
@@ -207,8 +207,8 @@ namespace Jupiter.Controllers
 
 			List<ContentId> needs = new List<ContentId>(invalidContentIds);
 			needs.AddRange(partialContentIds);
-			 
-			return Ok(new ExistCheckMultipleContentIdResponse { Needs = needs.ToArray()});
+
+			return Ok(new ExistCheckMultipleContentIdResponse { Needs = needs.ToArray() });
 		}
 
 		[HttpPut("{ns}/{id}")]
@@ -218,7 +218,7 @@ namespace Jupiter.Controllers
 			[Required] NamespaceId ns,
 			[Required] ContentId id)
 		{
-			ActionResult? result = await _requestHelper.HasAccessToNamespaceAsync(User, Request, ns, new [] { JupiterAclAction.WriteObject });
+			ActionResult? result = await _requestHelper.HasAccessToNamespaceAsync(User, Request, ns, new[] { JupiterAclAction.WriteObject });
 			if (result != null)
 			{
 				return result;
@@ -254,7 +254,7 @@ namespace Jupiter.Controllers
 		public async Task<IActionResult> PostAsync(
 			[Required] NamespaceId ns)
 		{
-			ActionResult? result = await _requestHelper.HasAccessToNamespaceAsync(User, Request, ns, new [] { JupiterAclAction.WriteObject });
+			ActionResult? result = await _requestHelper.HasAccessToNamespaceAsync(User, Request, ns, new[] { JupiterAclAction.WriteObject });
 			if (result != null)
 			{
 				return result;

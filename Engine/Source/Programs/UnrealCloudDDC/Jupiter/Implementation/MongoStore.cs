@@ -22,7 +22,7 @@ public class MongoStore
 		);
 		if (settings.CurrentValue.RequireTls12)
 		{
-			mongoClientSettings.SslSettings = new SslSettings {EnabledSslProtocols = SslProtocols.None};
+			mongoClientSettings.SslSettings = new SslSettings { EnabledSslProtocols = SslProtocols.None };
 		}
 
 		_client = new MongoClient(mongoClientSettings);
@@ -49,7 +49,7 @@ public class MongoStore
 		{
 			if (e.CodeName != "NamespaceExists")
 			{
-				throw ;
+				throw;
 			}
 		}
 	}

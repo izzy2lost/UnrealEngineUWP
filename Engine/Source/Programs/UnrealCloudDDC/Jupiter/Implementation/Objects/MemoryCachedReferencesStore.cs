@@ -82,7 +82,7 @@ namespace Jupiter.Implementation.Objects
 		{
 			RefRecord objectRecord = new RefRecord(ns, bucket, key, DateTime.Now, blob, blobHash, isFinalized);
 			AddCacheEntry(ns, bucket, key, objectRecord);
-			
+
 			return _actualStore.PutAsync(ns, bucket, key, blobHash, blob, isFinalized);
 		}
 
@@ -241,7 +241,7 @@ namespace Jupiter.Implementation.Objects
 
 		public NamespaceId Namespace { get; }
 		public BucketId Bucket { get; }
-		public RefId Name { get;}
+		public RefId Name { get; }
 		public byte[]? Blob { get; }
 		public BlobId BlobIdentifier { get; }
 		public int Size { get; }

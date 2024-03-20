@@ -30,7 +30,7 @@ namespace Jupiter.Implementation
 		// delete the whole namespace
 		Task DeleteNamespaceAsync(NamespaceId ns);
 
-		IAsyncEnumerable<(BlobId,DateTime)> ListObjectsAsync(NamespaceId ns);
+		IAsyncEnumerable<(BlobId, DateTime)> ListObjectsAsync(NamespaceId ns);
 		Task<Uri?> PutObjectWithRedirectAsync(NamespaceId ns, BlobId identifier);
 		Task<Uri?> GetObjectByRedirectAsync(NamespaceId ns, BlobId blob);
 		Task<BlobMetadata> GetObjectMetadataAsync(NamespaceId ns, BlobId blobId);

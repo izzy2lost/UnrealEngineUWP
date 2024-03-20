@@ -212,7 +212,7 @@ namespace Jupiter.Implementation
 		public BlobId BlobHash { get; }
 
 		public DateTime LastAccessTime { get; private set; }
-		public bool IsFinalized { get; private set;}
+		public bool IsFinalized { get; private set; }
 
 		public void FinalizeObject()
 		{

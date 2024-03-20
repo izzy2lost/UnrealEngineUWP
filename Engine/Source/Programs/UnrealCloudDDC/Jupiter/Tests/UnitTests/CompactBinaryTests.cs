@@ -27,13 +27,13 @@ namespace Jupiter.Tests.Unit
 			Assert.AreEqual(new Utf8String("Constants"), buildActionFields[1].Name);
 			Assert.AreEqual(new Utf8String("Inputs"), buildActionFields[2].Name);
 
-			List<CbField>  constantsFields = buildActionFields[1].ToList();
+			List<CbField> constantsFields = buildActionFields[1].ToList();
 			Assert.AreEqual(3, constantsFields.Count);
 			Assert.AreEqual(new Utf8String("TextureBuildSettings"), constantsFields[0].Name);
 			Assert.AreEqual(new Utf8String("TextureOutputSettings"), constantsFields[1].Name);
 			Assert.AreEqual(new Utf8String("TextureSource"), constantsFields[2].Name);
 
-			List<CbField>  inputsFields = buildActionFields[2].ToList();
+			List<CbField> inputsFields = buildActionFields[2].ToList();
 			Assert.AreEqual(1, inputsFields.Count);
 			Assert.AreEqual(new Utf8String("7587B323422942733DDD048A91709FDE"), inputsFields[0].Name);
 			Assert.IsTrue(inputsFields[0].IsBinaryAttachment());
@@ -42,7 +42,7 @@ namespace Jupiter.Tests.Unit
 			Assert.AreEqual(IoHash.Parse("f855382171a0b1e5a1c653aa6c5121a05cbf4ba0"), inputsFields[0].AsHash());
 		}
 
-		
+
 		[TestMethod]
 		public void ReferenceOutput()
 		{
@@ -102,7 +102,7 @@ namespace Jupiter.Tests.Unit
 			CbField? needs = o["needs"];
 			List<CbField> blobList = needs!.AsArray().ToList();
 			IoHash[] blobs = blobList.Select(field => field!.AsHash()).ToArray();
-			CollectionAssert.AreEqual(new IoHash[] {hash1, hash2}, blobs);
+			CollectionAssert.AreEqual(new IoHash[] { hash1, hash2 }, blobs);
 		}
 
 		[TestMethod]

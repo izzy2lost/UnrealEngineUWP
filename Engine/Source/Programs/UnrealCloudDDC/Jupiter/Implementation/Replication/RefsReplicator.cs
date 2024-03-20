@@ -15,12 +15,12 @@ using System.Threading;
 using System.Threading.Tasks;
 using EpicGames.Core;
 using EpicGames.Horde.Storage;
+using Jupiter.Common.Implementation;
 using Jupiter.Controllers;
 using Jupiter.Implementation.TransactionLog;
-using Jupiter.Common.Implementation;
 using Microsoft.AspNetCore.Mvc;
-using OpenTelemetry.Trace;
 using Microsoft.Extensions.Logging;
+using OpenTelemetry.Trace;
 
 namespace Jupiter.Implementation
 {
@@ -401,7 +401,7 @@ namespace Jupiter.Implementation
 						.SetAttribute("time-bucket", @event.Timestamp.ToString(CultureInfo.InvariantCulture));
 
 					_logger.LogDebug("{Name} New transaction to replicate found. Ref: {Namespace} {Bucket} {Key} in {TimeBucket} ({TimeDate}) with id {EventId}. Count of running replications: {CurrentReplications}", _name, @event.Namespace, @event.Bucket, @event.Key, @event.TimeBucket, @event.Timestamp, @event.EventId, replicationTasks.Count);
-				
+
 					Info.CountOfRunningReplications = replicationTasks.Count;
 					LogReplicationHeartbeat(replicationTasks.Count);
 					long currentOffset = Interlocked.Increment(ref countOfReplicationsDone);
@@ -571,8 +571,8 @@ namespace Jupiter.Implementation
 							lastException = e;
 						}
 					}
-					
-					
+
+
 					if (blobResponse == null)
 					{
 						throw new Exception("Blob response never set", lastException);
@@ -624,7 +624,7 @@ namespace Jupiter.Implementation
 					throw new Exception($"Failed to find state to resume from after first page of ref events, lastBucket: {lastBucket} lastEvent: {lastEvent}");
 				}
 				StringBuilder url = new StringBuilder($"/api/v1/replication-log/incremental/{ns}");
-				
+
 				// number of records in a single page (response)
 				int pageSize = _replicatorSettings.PageSize;
 				url.Append($"?count={pageSize}");
@@ -694,7 +694,7 @@ namespace Jupiter.Implementation
 						NamespaceId? blobNamespace = problemDetailsWithSnapshots.BlobNamespace;
 						throw new UseSnapshotException(snapshotBlob, blobNamespace!.Value);
 					}
-				
+
 					throw new Exception($"Unknown bad request response. Body: {body}");
 				}
 

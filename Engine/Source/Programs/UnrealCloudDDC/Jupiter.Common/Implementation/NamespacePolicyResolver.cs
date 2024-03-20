@@ -80,7 +80,7 @@ namespace Jupiter.Common
 			// if auth is disabled add a default namespace policy that allows access to everything unless something else exists to override it
 			if (!authSettings.CurrentValue.Enabled)
 			{
-				_namespaceSettings.CurrentValue.Policies.TryAdd("*", new NamespacePolicy() { Acls = new List<AclEntry> { new() { Claims = new List<string> {"*"} } } });
+				_namespaceSettings.CurrentValue.Policies.TryAdd("*", new NamespacePolicy() { Acls = new List<AclEntry> { new() { Claims = new List<string> { "*" } } } });
 			}
 		}
 
@@ -98,7 +98,7 @@ namespace Jupiter.Common
 			{
 				return settings;
 			}
-			
+
 			// attempt to find the default mapping
 			if (_namespaceSettings.CurrentValue.Policies.TryGetValue("*", out NamespacePolicy? defaultSettings))
 			{

@@ -110,7 +110,7 @@ namespace Jupiter.Implementation
 						}
 
 						Interlocked.Increment(ref countOfBlobsChecked);
-						
+
 						BlobContents contents = await blobStore.GetObjectAsync(ns, blob, LastAccessTrackingFlags.SkipTracking);
 						await using Stream s = contents.Stream;
 
@@ -118,7 +118,7 @@ namespace Jupiter.Implementation
 						BlobId newHash = await BlobId.FromStreamAsync(s);
 						if (!blob.Equals(newHash))
 						{
-							_logger.LogError("Mismatching hash for {Blob} in {Namespace} stored in {BlobStore}, new hash has {NewHash}. Deleting incorrect blob.", blob, ns, blobStoreName,newHash);
+							_logger.LogError("Mismatching hash for {Blob} in {Namespace} stored in {BlobStore}, new hash has {NewHash}. Deleting incorrect blob.", blob, ns, blobStoreName, newHash);
 
 							Interlocked.Increment(ref countOfIncorrectBlobsFound);
 							await blobStore.DeleteObjectAsync(ns, blob);

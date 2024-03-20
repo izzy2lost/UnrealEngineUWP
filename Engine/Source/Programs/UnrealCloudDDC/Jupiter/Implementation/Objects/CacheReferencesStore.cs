@@ -42,7 +42,7 @@ namespace Jupiter.Implementation
 			{
 				// not cached, we check the upstream for it
 			}
- 
+
 			RefRecord record = await _upstreamReferenceStore.GetAsync(ns, bucket, key, fieldFlags, opFlags);
 			await _mongoReferenceStore.PutAsync(record.Namespace, record.Bucket, record.Name, record.BlobIdentifier, record.InlinePayload, record.IsFinalized);
 			return record;

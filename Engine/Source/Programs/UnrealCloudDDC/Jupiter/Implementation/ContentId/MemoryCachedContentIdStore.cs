@@ -54,7 +54,7 @@ namespace Jupiter.Implementation
 		public Task PutAsync(NamespaceId ns, ContentId contentId, BlobId blobIdentifier, int contentWeight)
 		{
 			Task actualPutTask = _actualContentIdStore.PutAsync(ns, contentId, blobIdentifier, contentWeight);
-			AddCacheEntry(ns, contentId, new BlobId[] {blobIdentifier});
+			AddCacheEntry(ns, contentId, new BlobId[] { blobIdentifier });
 			return actualPutTask;
 		}
 

@@ -30,7 +30,7 @@ namespace Jupiter.Tests.Unit
 			BufferedPayloadFactory bufferedPayloadFactory = new BufferedPayloadFactory(payloadOptionsMock, tracer);
 			CompressedBufferUtils bufferUtils = new(tracer, bufferedPayloadFactory);
 
-			using MemoryStream ms = new MemoryStream(); 
+			using MemoryStream ms = new MemoryStream();
 			IoHash uncompressedHash = bufferUtils.CompressContent(ms, OoodleCompressorMethod.Mermaid, OoodleCompressionLevel.VeryFast, bytes);
 			ms.Position = 0;
 

@@ -5,15 +5,15 @@ using System.Net;
 using System.Net.Http;
 using System.Text;
 using System.Threading.Tasks;
+using EpicGames.Horde.Storage;
 using Jupiter.Implementation;
 using Microsoft.AspNetCore.Hosting;
+using Microsoft.AspNetCore.TestHost;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using Serilog;
 using Logger = Serilog.Core.Logger;
-using EpicGames.Horde.Storage;
-using Microsoft.AspNetCore.TestHost;
-using Microsoft.Extensions.DependencyInjection;
 
 namespace Jupiter.FunctionalTests.Storage
 {
@@ -85,7 +85,7 @@ namespace Jupiter.FunctionalTests.Storage
 		{
 			// the second namespace is configured to fallback to a namespace we lack access to
 			NamespaceId TestNamespace2 = new NamespaceId("second-namespace");
-			
+
 			// we request the data from the first namespace but it only exists in the fallback namespace
 			HttpResponseMessage result = await _httpClient!.GetAsync(new Uri($"api/v1/blobs/{TestNamespace2}/{FileHash}", UriKind.Relative));
 			Assert.AreEqual(HttpStatusCode.Forbidden, result.StatusCode);

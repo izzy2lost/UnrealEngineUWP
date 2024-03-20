@@ -12,8 +12,8 @@ using Amazon.S3.Model;
 using Azure.Storage.Blobs;
 using EpicGames.Horde.Storage;
 using Jupiter.Implementation;
-using Microsoft.AspNetCore.TestHost;
 using Microsoft.AspNetCore.Hosting;
+using Microsoft.AspNetCore.TestHost;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
@@ -58,7 +58,7 @@ namespace Jupiter.FunctionalTests.Storage
 			await _s3.PutObjectAsync(new PutObjectRequest { BucketName = s3BucketName, Key = SmallFileHash.AsS3Key(), ContentBody = SmallFileContents });
 			await _s3.PutObjectAsync(new PutObjectRequest { BucketName = s3BucketName, Key = AnotherFileHash.AsS3Key(), ContentBody = AnotherFileContents });
 			await _s3.PutObjectAsync(new PutObjectRequest { BucketName = s3BucketName, Key = DeleteFileHash.AsS3Key(), ContentBody = DeletableFileContents });
-			await _s3.PutObjectAsync(new PutObjectRequest {BucketName = s3BucketName, Key = OldBlobFileHash.AsS3Key(), ContentBody = OldFileContents});
+			await _s3.PutObjectAsync(new PutObjectRequest { BucketName = s3BucketName, Key = OldBlobFileHash.AsS3Key(), ContentBody = OldFileContents });
 		}
 	}
 
@@ -114,7 +114,7 @@ namespace Jupiter.FunctionalTests.Storage
 		private const string DefaultContainerName = "tests-test-namespace-list";
 	}
 
-	
+
 	[TestClass]
 	public class FileSystemStoreListTests : StorageListTests
 	{
@@ -126,7 +126,7 @@ namespace Jupiter.FunctionalTests.Storage
 		}
 		protected override IEnumerable<KeyValuePair<string, string?>> GetSettings()
 		{
-			return new[] { 
+			return new[] {
 				new KeyValuePair<string, string?>("UnrealCloudDDC:StorageImplementations:0", UnrealCloudDDCSettings.StorageBackendImplementations.FileSystem.ToString()),
 				new KeyValuePair<string, string?>("Filesystem:RootDir", _localTestDir)
 			};
@@ -135,7 +135,7 @@ namespace Jupiter.FunctionalTests.Storage
 		protected override async Task Seed(IServiceProvider provider)
 		{
 			NamespaceId folderName = TestListNamespaceName;
-			
+
 			Directory.CreateDirectory(_localTestDir);
 
 			FileInfo smallFileInfo = FileSystemStore.GetFilesystemPath(_localTestDir, folderName, SmallFileHash);
@@ -151,7 +151,7 @@ namespace Jupiter.FunctionalTests.Storage
 				anotherFileInfo.FullName,
 				Encoding.ASCII.GetBytes(AnotherFileContents)
 			);
-			
+
 			FileInfo deleteFileInfo = FileSystemStore.GetFilesystemPath(_localTestDir, folderName, DeleteFileHash);
 			deleteFileInfo.Directory?.Create();
 			await File.WriteAllBytesAsync(

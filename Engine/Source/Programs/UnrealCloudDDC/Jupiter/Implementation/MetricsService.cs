@@ -104,7 +104,7 @@ namespace Jupiter.Implementation
 			}
 			catch (Exception e)
 			{
-				_logger.LogError("Error calculating metrics. {Exception}",  e);
+				_logger.LogError("Error calculating metrics. {Exception}", e);
 			}
 		}
 	}
@@ -152,8 +152,8 @@ namespace Jupiter.Implementation
 			_blobSizeCountGauge.Record(stats.CountOfBlobs, tags);
 			_refsInBucketGauge.Record(stats.CountOfRefs, tags);
 			_blobSizeTotalGauge.Record(stats.TotalSize, tags);
-				_logger.LogInformation("Stats calculated for {Namespace} {Bucket}. {CountOfRefs} {CountOfBlobs} {TotalSize} {AvgSize} {MaxSize} {MinSize}",
-				ns, bucket, stats.CountOfRefs, stats.CountOfBlobs, stats.TotalSize, stats.AvgSize, stats.LargestBlob, stats.SmallestBlobFound);
+			_logger.LogInformation("Stats calculated for {Namespace} {Bucket}. {CountOfRefs} {CountOfBlobs} {TotalSize} {AvgSize} {MaxSize} {MinSize}",
+			ns, bucket, stats.CountOfRefs, stats.CountOfBlobs, stats.TotalSize, stats.AvgSize, stats.LargestBlob, stats.SmallestBlobFound);
 
 			return stats;
 		}

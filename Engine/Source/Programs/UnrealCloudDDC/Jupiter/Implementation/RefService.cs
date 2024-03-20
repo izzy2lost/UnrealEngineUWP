@@ -201,13 +201,13 @@ namespace Jupiter.Implementation
 			return await DoFinalizeAsync(ns, bucket, key, blobHash, payload);
 		}
 
-		
+
 		private async Task<(ContentId[], BlobId[])> DoFinalizeAsync(NamespaceId ns, BucketId bucket, RefId key, BlobId blobHash, CbObject payload)
 		{
 			IServerTiming? serverTiming = _httpContextAccessor.HttpContext?.RequestServices.GetService<IServerTiming>();
 			using ServerTimingMetricScoped? serverTimingScope = serverTiming?.CreateServerTimingMetricScope("ref.finalize", "Finalizing the ref");
 
-			Task addRefToBlobsTask = _blobIndex.AddRefToBlobsAsync(ns, bucket, key, new [] {blobHash});
+			Task addRefToBlobsTask = _blobIndex.AddRefToBlobsAsync(ns, bucket, key, new[] { blobHash });
 			Task addToBucketListTask = _cloudDDCSettings.CurrentValue.EnableBucketStatsTracking
 				? _blobIndex.AddBlobToBucketListAsync(ns, bucket, key, blobHash, (long)payload.GetView().Length)
 				: Task.CompletedTask;
@@ -229,7 +229,7 @@ namespace Jupiter.Implementation
 					{
 						if (_cloudDDCSettings.CurrentValue.EnableBucketStatsTracking)
 						{
-							addToBucketTasks.Add(Task.Run( async () =>
+							addToBucketTasks.Add(Task.Run(async () =>
 							{
 								// if a blob is missing its not a error, the finalize will report this as missing and it will be uploaded and finalize ran again
 								try
@@ -243,7 +243,7 @@ namespace Jupiter.Implementation
 							}));
 						}
 
-						addRefMappingTasks.Add(_blobIndex.AddRefToBlobsAsync(ns, bucket, key, new BlobId[] {blobId}));
+						addRefMappingTasks.Add(_blobIndex.AddRefToBlobsAsync(ns, bucket, key, new BlobId[] { blobId }));
 					}
 				}
 				catch (PartialReferenceResolveException e)
@@ -293,7 +293,7 @@ namespace Jupiter.Implementation
 		{
 			try
 			{
-				(RefRecord, BlobContents?) _ = await GetAsync(ns, bucket, key, new string[] {"name"}, doLastAccessTracking: false, skipCache: true);
+				(RefRecord, BlobContents?) _ = await GetAsync(ns, bucket, key, new string[] { "name" }, doLastAccessTracking: false, skipCache: true);
 			}
 			catch (NamespaceNotFoundException)
 			{

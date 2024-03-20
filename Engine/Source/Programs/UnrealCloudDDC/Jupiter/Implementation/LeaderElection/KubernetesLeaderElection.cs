@@ -9,8 +9,8 @@ using k8s;
 using k8s.Autorest;
 using k8s.LeaderElection;
 using k8s.LeaderElection.ResourceLock;
-using Microsoft.Extensions.Options;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 
 namespace Jupiter.Implementation.LeaderElection
 {
@@ -51,7 +51,7 @@ namespace Jupiter.Implementation.LeaderElection
 			// As we are determining if we are the leader we just assume we are running in a kubernetes cluster
 			KubernetesClientConfiguration config = KubernetesClientConfiguration.InClusterConfig();
 			_client = new Kubernetes(config);
-			
+
 			_identity = System.Net.Dns.GetHostName();
 			_logger.LogInformation("Participating in kubernetes leadership election as {Identity} using {Resource} under {Namespace}", _identity, settings.ConfigMapName, settings.Namespace);
 			_configMapLock = new ConfigMapLock(_client, settings.Namespace, settings.ConfigMapName, _identity);

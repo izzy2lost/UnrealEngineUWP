@@ -2,16 +2,16 @@
 
 using System;
 using System.Collections.Generic;
+using System.Diagnostics.Metrics;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using EpicGames.Horde.Storage;
-using Jupiter.Implementation.Blob;
 using Jupiter.Common;
+using Jupiter.Implementation.Blob;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using OpenTelemetry.Trace;
-using Microsoft.Extensions.Logging;
-using System.Diagnostics.Metrics;
 
 namespace Jupiter.Implementation
 {
@@ -115,14 +115,14 @@ namespace Jupiter.Implementation
 				TimeSpan storagePoolGcDuration = DateTime.Now - startTime;
 				_logger.LogInformation("Finished running Orphan GC For StoragePool: {StoragePool}. Took {Duration}", policy.StoragePool, storagePoolGcDuration);
 			}
-			
+
 			_logger.LogInformation("Finished running Orphan GC");
 			return countOfBlobsRemoved;
 		}
 
 		private async Task<bool> GCBlobAsync(string storagePool, List<NamespaceId> namespacesThatSharePool, BlobId blob, DateTime lastModifiedTime, CancellationToken cancellationToken)
 		{
-			string storagePoolName = string.IsNullOrEmpty(storagePool) ? "default" : storagePool; 
+			string storagePoolName = string.IsNullOrEmpty(storagePool) ? "default" : storagePool;
 			using TelemetrySpan removeBlobScope = _tracer.StartActiveSpan("gc.blob")
 				.SetAttribute("operation.name", "gc.blob")
 				.SetAttribute("resource.name", $"{storagePoolName}.{blob}");

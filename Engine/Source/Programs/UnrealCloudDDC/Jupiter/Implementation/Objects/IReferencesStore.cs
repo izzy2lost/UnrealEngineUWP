@@ -9,7 +9,7 @@ namespace Jupiter.Implementation
 {
 	public interface IReferencesStore
 	{
-		Task<RefRecord> GetAsync(NamespaceId ns, BucketId bucket, RefId key, FieldFlags fieldFlags, OperationFlags opFlags );
+		Task<RefRecord> GetAsync(NamespaceId ns, BucketId bucket, RefId key, FieldFlags fieldFlags, OperationFlags opFlags);
 
 		[Flags]
 		public enum FieldFlags
@@ -63,7 +63,7 @@ namespace Jupiter.Implementation
 		public DateTime LastAccess { get; }
 		public byte[]? InlinePayload { get; set; }
 		public BlobId BlobIdentifier { get; set; }
-		public bool IsFinalized {get;}
+		public bool IsFinalized { get; }
 	}
 
 	public class RefNotFoundException : Exception

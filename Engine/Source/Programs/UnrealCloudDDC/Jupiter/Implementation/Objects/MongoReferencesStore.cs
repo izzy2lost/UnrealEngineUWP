@@ -27,21 +27,21 @@ namespace Jupiter.Implementation
 					indexKeysDefinitionBuilder.Ascending(m => m.Ns),
 					indexKeysDefinitionBuilder.Ascending(m => m.Bucket),
 					indexKeysDefinitionBuilder.Ascending(m => m.Key)
-				), new CreateIndexOptions {Name = "CompoundIndex"}
+				), new CreateIndexOptions { Name = "CompoundIndex" }
 			);
 
 			CreateIndexModel<MongoReferencesModelV0> indexModelNamespace = new CreateIndexModel<MongoReferencesModelV0>(
 				indexKeysDefinitionBuilder.Ascending(m => m.Ns),
-				new CreateIndexOptions {Name = "NamespaceIndex"}
+				new CreateIndexOptions { Name = "NamespaceIndex" }
 			);
 
-			AddIndexFor<MongoReferencesModelV0>().CreateMany(new[] { 
-				indexModelClusteredKey, 
+			AddIndexFor<MongoReferencesModelV0>().CreateMany(new[] {
+				indexModelClusteredKey,
 				indexModelNamespace
 			});
 
 			CreateIndexModel<MongoReferencesModelV0> indexTTL = new CreateIndexModel<MongoReferencesModelV0>(
-				indexKeysDefinitionBuilder.Ascending(m => m.ExpireAt), new CreateIndexOptions {Name = "ExpireAtTTL", ExpireAfter = TimeSpan.Zero}
+				indexKeysDefinitionBuilder.Ascending(m => m.ExpireAt), new CreateIndexOptions { Name = "ExpireAtTTL", ExpireAfter = TimeSpan.Zero }
 			);
 
 			AddIndexFor<MongoReferencesModelV0>().CreateOne(indexTTL);
@@ -80,7 +80,7 @@ namespace Jupiter.Implementation
 
 			Task addNamespaceTask = AddNamespaceIfNotExistAsync(ns);
 			MongoReferencesModelV0 model = new MongoReferencesModelV0(ns, bucket, key, blobHash, blob, isFinalized, DateTime.Now);
-			
+
 			NamespacePolicy policy = _namespacePolicyResolver.GetPoliciesForNs(ns);
 			NamespacePolicy.StoragePoolGCMethod gcMethod = policy.GcMethod ?? NamespacePolicy.StoragePoolGCMethod.LastAccess;
 			if (gcMethod == NamespacePolicy.StoragePoolGCMethod.TTL)
@@ -194,7 +194,7 @@ namespace Jupiter.Implementation
 			IMongoCollection<MongoReferencesModelV0> collection = GetCollection<MongoReferencesModelV0>();
 
 			IAsyncCursor<MongoReferencesModelV0> cursor = await collection.FindAsync(m => m.Ns == ns.ToString());
-			
+
 			HashSet<BucketId> buckets = new HashSet<BucketId>();
 			while (await cursor.MoveNextAsync())
 			{
@@ -259,14 +259,14 @@ namespace Jupiter.Implementation
 		{
 			IndexKeysDefinitionBuilder<MongoReferencesModelV0> indexKeysDefinitionBuilder = Builders<MongoReferencesModelV0>.IndexKeys;
 			CreateIndexModel<MongoReferencesModelV0> indexTTL = new CreateIndexModel<MongoReferencesModelV0>(
-				indexKeysDefinitionBuilder.Ascending(m => m.LastAccessTime), new CreateIndexOptions {Name = "LastAccessTTL", ExpireAfter = duration}
+				indexKeysDefinitionBuilder.Ascending(m => m.LastAccessTime), new CreateIndexOptions { Name = "LastAccessTTL", ExpireAfter = duration }
 			);
 
 			AddIndexFor<MongoReferencesModelV0>().CreateOne(indexTTL);
 		}
 	}
 
-	
+
 	// we do versioning by writing a discriminator into object
 	[BsonDiscriminator("ref.v0")]
 	[BsonIgnoreExtraElements]
@@ -317,7 +317,7 @@ namespace Jupiter.Implementation
 
 		public RefRecord ToRefRecord()
 		{
-			return new RefRecord(new NamespaceId(Ns), new BucketId(Bucket), new RefId(Key), 
+			return new RefRecord(new NamespaceId(Ns), new BucketId(Bucket), new RefId(Key),
 				LastAccessTime,
 				InlineBlob, new BlobId(BlobIdentifier), IsFinalized);
 		}

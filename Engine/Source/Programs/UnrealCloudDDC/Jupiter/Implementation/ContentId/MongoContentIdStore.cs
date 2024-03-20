@@ -25,7 +25,7 @@ namespace Jupiter.Implementation
 			IndexKeysDefinitionBuilder<MongoContentIdModelV0> indexKeysDefinitionBuilder = Builders<MongoContentIdModelV0>.IndexKeys;
 			CreateIndexModel<MongoContentIdModelV0> indexModel = new CreateIndexModel<MongoContentIdModelV0>(
 				indexKeysDefinitionBuilder.Combine(
-					indexKeysDefinitionBuilder.Ascending(m => m.Ns), 
+					indexKeysDefinitionBuilder.Ascending(m => m.Ns),
 					indexKeysDefinitionBuilder.Ascending(m => m.ContentId)
 					)
 				, new CreateIndexOptions()

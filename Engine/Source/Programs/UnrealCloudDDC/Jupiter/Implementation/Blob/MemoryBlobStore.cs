@@ -80,7 +80,7 @@ namespace Jupiter.Implementation
 		public async Task<BlobContents> GetObjectAsync(NamespaceId ns, BlobId blob, LastAccessTrackingFlags flags = LastAccessTrackingFlags.DoTracking, bool supportsRedirectUri = false)
 		{
 			BlobContents? contents = await GetBackend(ns).TryReadAsync(GetPath(blob), flags);
-			if(contents == null)
+			if (contents == null)
 			{
 				throw new BlobNotFoundException(ns, blob);
 			}
@@ -100,7 +100,7 @@ namespace Jupiter.Implementation
 			return Task.CompletedTask;
 		}
 
-		public async IAsyncEnumerable<(BlobId,DateTime)> ListObjectsAsync(NamespaceId ns)
+		public async IAsyncEnumerable<(BlobId, DateTime)> ListObjectsAsync(NamespaceId ns)
 		{
 			IStorageBackend backend = GetBackend(ns);
 			await foreach ((string path, DateTime time) in backend.ListAsync())

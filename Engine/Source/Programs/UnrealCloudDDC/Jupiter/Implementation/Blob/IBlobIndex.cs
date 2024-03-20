@@ -33,7 +33,7 @@ namespace Jupiter.Implementation.Blob
 		Task RemoveReferencesAsync(NamespaceId ns, BlobId id, List<BaseBlobReference>? referencesToRemove);
 		Task<List<string>> GetBlobRegionsAsync(NamespaceId ns, BlobId blob);
 		Task AddBlobReferencesAsync(NamespaceId ns, BlobId sourceBlob, BlobId targetBlob);
-		
+
 		Task AddBlobToBucketListAsync(NamespaceId ns, BucketId bucket, RefId key, BlobId blobId, long blobSize);
 		Task RemoveBlobFromBucketListAsync(NamespaceId ns, BucketId bucket, RefId key, List<BlobId> blobIds);
 		Task<BucketStats> CalculateBucketStatisticsAsync(NamespaceId ns, BucketId bucket);
@@ -53,7 +53,7 @@ namespace Jupiter.Implementation.Blob
 		}
 
 		public BucketId Bucket { get; set; }
-		public RefId Key { get; set;}
+		public RefId Key { get; set; }
 	}
 
 	public class BlobToBlobReference : BaseBlobReference

@@ -11,22 +11,22 @@ using System.Net.Mime;
 using System.Text.Json;
 using System.Threading.Tasks;
 using Cassandra;
+using EpicGames.AspNet;
+using EpicGames.Horde.Storage;
+using EpicGames.Serialization;
 using Jupiter.Controllers;
 using Jupiter.Implementation;
+using Jupiter.Implementation.Objects;
 using Jupiter.Implementation.TransactionLog;
-using Microsoft.AspNetCore.TestHost;
+using Jupiter.Tests.Functional;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.TestHost;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using Serilog;
 using Logger = Serilog.Core.Logger;
-using EpicGames.Horde.Storage;
-using EpicGames.Serialization;
-using EpicGames.AspNet;
-using Jupiter.Implementation.Objects;
-using Jupiter.Tests.Functional;
 
 namespace Jupiter.FunctionalTests.References
 {
@@ -65,7 +65,7 @@ namespace Jupiter.FunctionalTests.References
 			IScyllaSessionManager scyllaSessionManager = provider.GetService<IScyllaSessionManager>()!;
 
 			ISession localKeyspace = scyllaSessionManager.GetSessionForLocalKeyspace();
-			
+
 			await Task.WhenAll(
 				// remove replication log table as we expect it to be empty when starting the tests
 				localKeyspace.ExecuteAsync(new SimpleStatement("DROP TABLE IF EXISTS replication_log;")),
@@ -111,7 +111,7 @@ namespace Jupiter.FunctionalTests.References
 			return Task.CompletedTask;
 		}
 	}
-	
+
 	[DoNotParallelize]
 	public abstract class ReplicationTests
 	{
@@ -172,8 +172,8 @@ namespace Jupiter.FunctionalTests.References
 
 		protected abstract Task SeedDb(IServiceProvider provider);
 		protected abstract Task TeardownDb(IServiceProvider provider);
-		
-		
+
+
 		[TestMethod]
 		public async Task ReplicationLogCreationAsync()
 		{
@@ -206,11 +206,11 @@ namespace Jupiter.FunctionalTests.References
 				HttpResponseMessage result = await _httpClient!.PutAsync(new Uri($"api/v1/refs/{TestNamespace}/{TestBucket}/{thirdObjectKey}.uecb", UriKind.Relative), requestContent);
 				result.EnsureSuccessStatusCode();
 			}
-			
+
 			{
 				HttpResponseMessage result = await _httpClient!.GetAsync(new Uri($"api/v1/replication-log/incremental/{TestNamespace}", UriKind.Relative));
 				result.EnsureSuccessStatusCode();
-				
+
 				Assert.AreEqual(result!.Content.Headers.ContentType!.MediaType, MediaTypeNames.Application.Json);
 
 				string s = await result.Content.ReadAsStringAsync();
@@ -265,7 +265,7 @@ namespace Jupiter.FunctionalTests.References
 			{
 				HttpResponseMessage result = await _httpClient!.GetAsync(new Uri($"api/v1/replication-log/incremental/{TestNamespace}?lastBucket={eventBucket}&lastEvent={eventId}", UriKind.Relative));
 				result.EnsureSuccessStatusCode();
-				
+
 				Assert.AreEqual(result!.Content.Headers.ContentType!.MediaType, MediaTypeNames.Application.Json);
 
 				ReplicationLogEvents? events = await result.Content.ReadFromJsonAsync<ReplicationLogEvents>(JsonTestUtils.DefaultJsonSerializerSettings);
@@ -299,8 +299,8 @@ namespace Jupiter.FunctionalTests.References
 					Assert.AreEqual(objectHash, e.Blob);
 				}
 			}
-		 
-			CollectionAssert.AreEqual(new [] {TestNamespace}, await _replicationLog.GetNamespacesAsync().ToArrayAsync());
+
+			CollectionAssert.AreEqual(new[] { TestNamespace }, await _replicationLog.GetNamespacesAsync().ToArrayAsync());
 		}
 
 		[TestMethod]
@@ -326,7 +326,7 @@ namespace Jupiter.FunctionalTests.References
 			{
 				HttpResponseMessage result = await _httpClient!.GetAsync(new Uri($"api/v1/replication-log/incremental/{TestNamespace}?lastBucket={eventBucket}&lastEvent={eventId}", UriKind.Relative));
 				result.EnsureSuccessStatusCode();
-				
+
 				Assert.AreEqual(result!.Content.Headers.ContentType!.MediaType, MediaTypeNames.Application.Json);
 
 				ReplicationLogEvents? events = await result.Content.ReadFromJsonAsync<ReplicationLogEvents>(JsonTestUtils.DefaultJsonSerializerSettings);
@@ -360,8 +360,8 @@ namespace Jupiter.FunctionalTests.References
 					Assert.AreEqual(objectHash, e.Blob);
 				}
 			}
-		 
-			CollectionAssert.AreEqual(new [] {TestNamespace}, await _replicationLog.GetNamespacesAsync().ToArrayAsync());
+
+			CollectionAssert.AreEqual(new[] { TestNamespace }, await _replicationLog.GetNamespacesAsync().ToArrayAsync());
 		}
 
 		[TestMethod]
@@ -386,7 +386,7 @@ namespace Jupiter.FunctionalTests.References
 			{
 				HttpResponseMessage result = await _httpClient!.GetAsync(new Uri($"api/v1/replication-log/incremental/{TestNamespace}?lastBucket={eventBucket}&lastEvent={eventId}&count={EventsToFetch}", UriKind.Relative));
 				result.EnsureSuccessStatusCode();
-				
+
 				Assert.AreEqual(result!.Content.Headers.ContentType!.MediaType, MediaTypeNames.Application.Json);
 
 				ReplicationLogEvents? events = await result.Content.ReadFromJsonAsync<ReplicationLogEvents>(JsonTestUtils.DefaultJsonSerializerSettings);
@@ -410,8 +410,8 @@ namespace Jupiter.FunctionalTests.References
 					Assert.AreEqual(objectHash, e.Blob);
 				}
 			}
-			
-			CollectionAssert.AreEqual(new [] {TestNamespace}, await _replicationLog.GetNamespacesAsync().ToArrayAsync());
+
+			CollectionAssert.AreEqual(new[] { TestNamespace }, await _replicationLog.GetNamespacesAsync().ToArrayAsync());
 		}
 
 		[TestMethod]
@@ -434,12 +434,12 @@ namespace Jupiter.FunctionalTests.References
 			{
 				HttpResponseMessage result = await _httpClient!.GetAsync(new Uri($"api/v1/replication-log/incremental/{TestNamespace}?lastBucket={eventBucket}&lastEvent={eventId}", UriKind.Relative));
 				Assert.AreEqual(HttpStatusCode.BadRequest, result.StatusCode);
-				
+
 				ProblemDetails? problem = await result.Content.ReadFromJsonAsync<ProblemDetails?>();
 				Assert.IsNotNull(problem);
 			}
 
-			CollectionAssert.AreEqual(new [] {TestNamespace}, await _replicationLog.GetNamespacesAsync().ToArrayAsync());
+			CollectionAssert.AreEqual(new[] { TestNamespace }, await _replicationLog.GetNamespacesAsync().ToArrayAsync());
 		}
 
 		[TestMethod]
@@ -462,12 +462,12 @@ namespace Jupiter.FunctionalTests.References
 			{
 				HttpResponseMessage result = await _httpClient!.GetAsync(new Uri($"api/v1/replication-log/incremental/{TestNamespace}?lastBucket={eventBucket}&lastEvent={eventId}", UriKind.Relative));
 				Assert.AreEqual(HttpStatusCode.BadRequest, result.StatusCode);
-				
+
 				ProblemDetails? problem = await result.Content.ReadFromJsonAsync<ProblemDetails?>();
 				Assert.IsNotNull(problem);
 			}
 
-			CollectionAssert.AreEqual(new [] {TestNamespace}, await _replicationLog.GetNamespacesAsync().ToArrayAsync());
+			CollectionAssert.AreEqual(new[] { TestNamespace }, await _replicationLog.GetNamespacesAsync().ToArrayAsync());
 		}
 
 		[TestMethod]
@@ -706,7 +706,7 @@ namespace Jupiter.FunctionalTests.References
 			{
 				HttpResponseMessage result = await _httpClient!.GetAsync(new Uri($"api/v1/replication-log/incremental/{TestNamespace}?lastBucket={snapshot.LastBucket}&lastEvent={snapshot.LastEvent}", UriKind.Relative));
 				result.EnsureSuccessStatusCode();
-				
+
 				Assert.AreEqual(result!.Content.Headers.ContentType!.MediaType, MediaTypeNames.Application.Json);
 
 				ReplicationLogEvents? events = await result.Content.ReadFromJsonAsync<ReplicationLogEvents>(JsonTestUtils.DefaultJsonSerializerSettings);
@@ -747,7 +747,7 @@ namespace Jupiter.FunctionalTests.References
 			BlobId objectHash = BlobId.FromBlob(objectData);
 
 			List<BlobId> createdSnapshots = new List<BlobId>();
-			for (int i = 0; i < countOfSnapshotsToCreate ; i++)
+			for (int i = 0; i < countOfSnapshotsToCreate; i++)
 			{
 				await _replicationLog.InsertAddEventAsync(TestNamespace, TestBucket, RefId.FromName($"object {i}"), objectHash);
 

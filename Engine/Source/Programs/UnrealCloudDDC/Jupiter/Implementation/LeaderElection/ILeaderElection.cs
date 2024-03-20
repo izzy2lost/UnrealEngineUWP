@@ -22,7 +22,7 @@ namespace Jupiter.Implementation
 
 		event EventHandler<OnLeaderChangedEventArgs>? OnLeaderChanged;
 	}
-	
+
 	public class LeaderElectionStub : ILeaderElection
 	{
 		private readonly bool _isLeader;

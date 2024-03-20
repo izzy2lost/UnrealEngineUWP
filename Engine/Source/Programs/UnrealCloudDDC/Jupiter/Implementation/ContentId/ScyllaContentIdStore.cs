@@ -99,7 +99,7 @@ namespace Jupiter.Implementation
 					}
 				}
 			}
-			
+
 
 			if (!mustBeContentId)
 			{
@@ -111,7 +111,7 @@ namespace Jupiter.Implementation
 					return new[] { contentIdBlob };
 				}
 			}
-			
+
 			// unable to resolve the content id
 			return null;
 		}
@@ -121,12 +121,12 @@ namespace Jupiter.Implementation
 			using TelemetrySpan scope = _tracer.BuildScyllaSpan("ScyllaContentIdStore.PutContentId").SetAttribute("resource.name", contentId.ToString());
 			if (_scyllaSessionManager.IsScylla)
 			{
-				await _mapper.UpdateAsync<ScyllaContentId>("SET chunks = ? WHERE content_id = ? AND content_weight = ?", new [] {new ScyllaBlobIdentifier(blobIdentifier)}, new ScyllaBlobIdentifier(contentId), contentWeight);
+				await _mapper.UpdateAsync<ScyllaContentId>("SET chunks = ? WHERE content_id = ? AND content_weight = ?", new[] { new ScyllaBlobIdentifier(blobIdentifier) }, new ScyllaBlobIdentifier(contentId), contentWeight);
 
 			}
 			else
 			{
-				await _mapper.UpdateAsync<CassandraContentId>("SET chunks = ? WHERE content_id = ? AND content_weight = ?", new [] {blobIdentifier.HashData}, contentId.HashData, contentWeight);
+				await _mapper.UpdateAsync<CassandraContentId>("SET chunks = ? WHERE content_id = ? AND content_weight = ?", new[] { blobIdentifier.HashData }, contentId.HashData, contentWeight);
 			}
 		}
 	}
@@ -157,7 +157,7 @@ namespace Jupiter.Implementation
 		public ScyllaBlobIdentifier[] Chunks { get; set; } = Array.Empty<ScyllaBlobIdentifier>();
 	}
 
-	
+
 	[Cassandra.Mapping.Attributes.Table("content_id")]
 	public class CassandraContentId
 	{

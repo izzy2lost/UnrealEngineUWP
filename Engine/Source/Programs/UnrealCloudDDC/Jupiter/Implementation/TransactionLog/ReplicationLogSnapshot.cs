@@ -57,7 +57,7 @@ namespace Jupiter.Implementation.TransactionLog
 
 		private BinaryReplicationLogSnapshot(NamespaceId ns, string lastBucket, Guid lastEvent, ulong countOfObjects, IBufferedPayload payload) : base(ns, lastBucket, lastEvent, countOfObjects)
 		{
-			_bufferedPayload = payload; 
+			_bufferedPayload = payload;
 		}
 
 		private BinaryReplicationLogSnapshot(NamespaceId ns) : base(ns)
@@ -84,7 +84,7 @@ namespace Jupiter.Implementation.TransactionLog
 			return new BinaryReplicationLogSnapshot(ns, lastBucket, lastEvent, countOfObjects, payload);
 		}
 
-		private static (NamespaceId,string, Guid, ulong) ReadHeader(Stream stream)
+		private static (NamespaceId, string, Guid, ulong) ReadHeader(Stream stream)
 		{
 			byte[] bytes = new byte[4];
 			int bytesRead = stream.Read(bytes, 0, 4);
@@ -319,7 +319,7 @@ namespace Jupiter.Implementation.TransactionLog
 
 		public virtual void Dispose()
 		{
-			
+
 		}
 	}
 }

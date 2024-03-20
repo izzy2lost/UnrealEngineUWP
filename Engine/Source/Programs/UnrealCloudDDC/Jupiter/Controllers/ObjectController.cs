@@ -11,8 +11,8 @@ using System.Threading.Tasks;
 using EpicGames.AspNet;
 using EpicGames.Horde.Storage;
 using EpicGames.Serialization;
-using Jupiter.Implementation;
 using Jupiter.Common.Implementation;
+using Jupiter.Implementation;
 using Jupiter.Utils;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -20,8 +20,8 @@ using Microsoft.Extensions.Logging;
 
 namespace Jupiter.Controllers
 {
-	using IDiagnosticContext = Serilog.IDiagnosticContext;
 	using BlobNotFoundException = Jupiter.Implementation.BlobNotFoundException;
+	using IDiagnosticContext = Serilog.IDiagnosticContext;
 
 	[ApiController]
 	[Route("api/v1/objects", Order = 0)]
@@ -53,7 +53,7 @@ namespace Jupiter.Controllers
 			[Required] NamespaceId ns,
 			[Required] BlobId id)
 		{
-			ActionResult? result = await _requestHelper.HasAccessToNamespaceAsync(User, Request, ns, new [] { JupiterAclAction.ReadObject });
+			ActionResult? result = await _requestHelper.HasAccessToNamespaceAsync(User, Request, ns, new[] { JupiterAclAction.ReadObject });
 			if (result != null)
 			{
 				return result;
@@ -67,7 +67,7 @@ namespace Jupiter.Controllers
 			}
 			catch (BlobNotFoundException e)
 			{
-				return NotFound(new ValidationProblemDetails {Title = $"Object {e.Blob} not found"});
+				return NotFound(new ValidationProblemDetails { Title = $"Object {e.Blob} not found" });
 			}
 		}
 
@@ -77,7 +77,7 @@ namespace Jupiter.Controllers
 			[Required] NamespaceId ns,
 			[Required] BlobId id)
 		{
-			ActionResult? result = await _requestHelper.HasAccessToNamespaceAsync(User, Request, ns, new [] { JupiterAclAction.ReadObject });
+			ActionResult? result = await _requestHelper.HasAccessToNamespaceAsync(User, Request, ns, new[] { JupiterAclAction.ReadObject });
 			if (result != null)
 			{
 				return result;
@@ -87,7 +87,7 @@ namespace Jupiter.Controllers
 
 			if (!exists)
 			{
-				return NotFound(new ValidationProblemDetails {Title = $"Object {id} not found"});
+				return NotFound(new ValidationProblemDetails { Title = $"Object {id} not found" });
 			}
 
 			return Ok();
@@ -97,9 +97,9 @@ namespace Jupiter.Controllers
 		[ProducesDefaultResponseType]
 		public async Task<IActionResult> ExistsMultipleAsync(
 			[Required] NamespaceId ns,
-			[Required] [FromQuery] List<BlobId> id)
+			[Required][FromQuery] List<BlobId> id)
 		{
-			ActionResult? result = await _requestHelper.HasAccessToNamespaceAsync(User, Request, ns, new [] { JupiterAclAction.ReadObject });
+			ActionResult? result = await _requestHelper.HasAccessToNamespaceAsync(User, Request, ns, new[] { JupiterAclAction.ReadObject });
 			if (result != null)
 			{
 				return result;
@@ -116,7 +116,7 @@ namespace Jupiter.Controllers
 			});
 			await Task.WhenAll(tasks);
 
-			return Ok(new HeadMultipleResponse {Needs = missingBlobs.ToArray()});
+			return Ok(new HeadMultipleResponse { Needs = missingBlobs.ToArray() });
 		}
 
 		[HttpPost("{ns}/exist")]
@@ -125,7 +125,7 @@ namespace Jupiter.Controllers
 			[Required] NamespaceId ns,
 			[FromBody] BlobId[] bodyIds)
 		{
-			ActionResult? result = await _requestHelper.HasAccessToNamespaceAsync(User, Request, ns, new [] { JupiterAclAction.ReadObject });
+			ActionResult? result = await _requestHelper.HasAccessToNamespaceAsync(User, Request, ns, new[] { JupiterAclAction.ReadObject });
 			if (result != null)
 			{
 				return result;
@@ -151,7 +151,7 @@ namespace Jupiter.Controllers
 			[Required] NamespaceId ns,
 			[Required] BlobId id)
 		{
-			ActionResult? result = await _requestHelper.HasAccessToNamespaceAsync(User, Request, ns, new [] { JupiterAclAction.WriteObject });
+			ActionResult? result = await _requestHelper.HasAccessToNamespaceAsync(User, Request, ns, new[] { JupiterAclAction.WriteObject });
 			if (result != null)
 			{
 				return result;
@@ -176,7 +176,7 @@ namespace Jupiter.Controllers
 			[Required] NamespaceId ns,
 			[Required] BlobId id)
 		{
-			ActionResult? result = await _requestHelper.HasAccessToNamespaceAsync(User, Request, ns, new [] { JupiterAclAction.ReadObject });
+			ActionResult? result = await _requestHelper.HasAccessToNamespaceAsync(User, Request, ns, new[] { JupiterAclAction.ReadObject });
 			if (result != null)
 			{
 				return result;
@@ -189,9 +189,9 @@ namespace Jupiter.Controllers
 			}
 			catch (BlobNotFoundException e)
 			{
-				return NotFound(new ValidationProblemDetails {Title = $"Object {e.Blob} not found"});
+				return NotFound(new ValidationProblemDetails { Title = $"Object {e.Blob} not found" });
 			}
-		   
+
 			byte[] blobContents = await blob.Stream.ToByteArrayAsync();
 			if (blobContents.Length == 0)
 			{
@@ -215,11 +215,11 @@ namespace Jupiter.Controllers
 			}
 			catch (PartialReferenceResolveException e)
 			{
-				return BadRequest(new ValidationProblemDetails {Title = $"Object {id} is missing content ids", Detail = $"Following content ids are invalid: {string.Join(",", e.UnresolvedReferences)}"});
+				return BadRequest(new ValidationProblemDetails { Title = $"Object {id} is missing content ids", Detail = $"Following content ids are invalid: {string.Join(",", e.UnresolvedReferences)}" });
 			}
 			catch (ReferenceIsMissingBlobsException e)
 			{
-				return BadRequest(new ValidationProblemDetails {Title = $"Object {id} is missing blobs", Detail = $"Following blobs are missing: {string.Join(",", e.MissingBlobs)}"});
+				return BadRequest(new ValidationProblemDetails { Title = $"Object {id} is missing blobs", Detail = $"Following blobs are missing: {string.Join(",", e.MissingBlobs)}" });
 			}
 		}
 
@@ -228,7 +228,7 @@ namespace Jupiter.Controllers
 			[Required] NamespaceId ns,
 			[Required] BlobId id)
 		{
-			ActionResult? result = await _requestHelper.HasAccessToNamespaceAsync(User, Request, ns, new [] { JupiterAclAction.DeleteObject });
+			ActionResult? result = await _requestHelper.HasAccessToNamespaceAsync(User, Request, ns, new[] { JupiterAclAction.DeleteObject });
 			if (result != null)
 			{
 				return result;
@@ -236,7 +236,7 @@ namespace Jupiter.Controllers
 
 			await _storage.DeleteObjectAsync(ns, id);
 
-			return Ok( new DeletedResponse
+			return Ok(new DeletedResponse
 			{
 				DeletedCount = 1
 			});
@@ -246,7 +246,7 @@ namespace Jupiter.Controllers
 		public async Task<IActionResult> DeleteNamespaceAsync(
 			[Required] NamespaceId ns)
 		{
-			ActionResult? result = await _requestHelper.HasAccessToNamespaceAsync(User, Request, ns, new [] { JupiterAclAction.DeleteNamespace });
+			ActionResult? result = await _requestHelper.HasAccessToNamespaceAsync(User, Request, ns, new[] { JupiterAclAction.DeleteNamespace });
 			if (result != null)
 			{
 				return result;

@@ -1,26 +1,26 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.IO;
 using System.Net;
+using System.Runtime.CompilerServices;
+using System.Threading;
 using System.Threading.Tasks;
 using Amazon.S3;
 using Amazon.S3.Model;
-using EpicGames.Horde.Storage;
-using Jupiter.Implementation.Blob;
-using Jupiter.Common;
-using Microsoft.Extensions.Options;
-using KeyNotFoundException = System.Collections.Generic.KeyNotFoundException;
-using System.Threading;
-using System.Runtime.CompilerServices;
-using System.Collections.Concurrent;
 using Amazon.S3.Transfer;
-using Jupiter.Common.Implementation;
-using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.DependencyInjection;
-using OpenTelemetry.Trace;
 using Amazon.S3.Util;
+using EpicGames.Horde.Storage;
+using Jupiter.Common;
+using Jupiter.Common.Implementation;
+using Jupiter.Implementation.Blob;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
+using OpenTelemetry.Trace;
+using KeyNotFoundException = System.Collections.Generic.KeyNotFoundException;
 
 namespace Jupiter.Implementation
 {
@@ -126,7 +126,7 @@ namespace Jupiter.Implementation
 						return new BlobContents(redirectUri);
 					}
 				}
-			
+
 				BlobContents? contents = await GetBackend(ns).TryReadAsync(blob.AsS3Key(), flags);
 				if (contents == null)
 				{
@@ -450,7 +450,7 @@ namespace Jupiter.Implementation
 		Uri? GetPresignedUrl(string path, HttpVerb verb)
 		{
 			using TelemetrySpan span = _tracer.StartActiveSpan("s3.BuildPresignedUrl")
-				.SetAttribute("Path", path) 
+				.SetAttribute("Path", path)
 			;
 
 			try

@@ -16,9 +16,9 @@ namespace Jupiter.Controllers
 		private readonly IOptionsMonitor<MvcOptions> _mvcOptions;
 
 		private readonly string[] _validContentTypes = {
-			MediaTypeNames.Application.Octet, 
-			MediaTypeNames.Application.Json, 
-			CustomMediaTypeNames.UnrealCompactBinary, 
+			MediaTypeNames.Application.Octet,
+			MediaTypeNames.Application.Json,
+			CustomMediaTypeNames.UnrealCompactBinary,
 			CustomMediaTypeNames.JupiterInlinedPayload,
 			CustomMediaTypeNames.UnrealCompressedBuffer,
 			CustomMediaTypeNames.UnrealCompactBinaryPackage
@@ -42,7 +42,7 @@ namespace Jupiter.Controllers
 
 				return typeMapping;
 			}
-			
+
 			StringValues acceptHeader = request.Headers["Accept"];
 
 			if (acceptHeader.Count == 0)
@@ -60,7 +60,7 @@ namespace Jupiter.Controllers
 			foreach (string? header in acceptHeader)
 			{
 				if (header == null)
-			{
+				{
 					continue;
 				}
 

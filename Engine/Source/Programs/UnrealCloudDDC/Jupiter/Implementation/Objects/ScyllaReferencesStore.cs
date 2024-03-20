@@ -34,7 +34,7 @@ namespace Jupiter.Implementation
 		private readonly PreparedStatement _getObjectsInBucketPartitionRangeStatement;
 
 		private readonly ConcurrentDictionary<NamespaceId, ConcurrentBag<BucketId>> _addedBuckets = new ConcurrentDictionary<NamespaceId, ConcurrentBag<BucketId>>();
-		
+
 		public ScyllaReferencesStore(IScyllaSessionManager scyllaSessionManager, IOptionsMonitor<ScyllaSettings> settings, INamespacePolicyResolver namespacePolicyResolver, Tracer tracer, ILogger<ScyllaReferencesStore> logger)
 		{
 			_session = scyllaSessionManager.GetSessionForReplicatedKeyspace();
@@ -68,7 +68,7 @@ namespace Jupiter.Implementation
 					PRIMARY KEY ((namespace, bucket, name))
 				);"
 				));
-				
+
 				_session.Execute(new SimpleStatement(@"CREATE TABLE IF NOT EXISTS buckets_v2 (
 					namespace text, 
 					bucket text, 
@@ -93,7 +93,7 @@ namespace Jupiter.Implementation
 
 			_getObjectsForPartitionRangeStatement = _session.Prepare($"SELECT namespace, bucket, name, last_access_time FROM objects WHERE token(namespace, bucket, name) >= ? AND token(namespace, bucket, name) <= ? {cqlOptions}");
 			_getObjectsLastAccessForPartitionRangeStatement = _session.Prepare($"SELECT namespace, bucket, name, last_access_time FROM object_last_access_v2 WHERE token(namespace, bucket, name) >= ? AND token(namespace, bucket, name) <= ? {cqlOptions}");
-			
+
 			_getObjectsInBucketPartitionRangeStatement = _session.Prepare($"SELECT name, payload_hash FROM objects WHERE namespace = ? AND bucket = ? ALLOW FILTERING {cqlOptions}");
 		}
 
@@ -280,7 +280,7 @@ namespace Jupiter.Implementation
 			}
 		}
 
-		
+
 		public async IAsyncEnumerable<(NamespaceId, BucketId, RefId)> GetRecordsWithoutAccessTimeAsync()
 		{
 			using TelemetrySpan scope = _tracer.BuildScyllaSpan("scylla.get_records_no_access_time");
@@ -389,7 +389,7 @@ namespace Jupiter.Implementation
 		private async IAsyncEnumerable<(NamespaceId, BucketId, RefId, DateTime)> GetRecordsPerShardAsync(bool? forceUseLastAccessTable = null)
 		{
 			using TelemetrySpan scope = _tracer.BuildScyllaSpan("scylla.get_records_per_shard");
-			
+
 			bool useLastAccessTable = forceUseLastAccessTable ?? _settings.CurrentValue.ListObjectsFromLastAccessTable;
 			PreparedStatement getObjectStatement = useLastAccessTable
 				? _getObjectsLastAccessForPartitionRangeStatement
@@ -408,7 +408,7 @@ namespace Jupiter.Implementation
 			{
 				ConcurrentQueue<(NamespaceId, BucketId, RefId, DateTime)> foundRecords = new ConcurrentQueue<(NamespaceId, BucketId, RefId, DateTime)>();
 
-				Task scanTask = Parallel.ForEachAsync(tableRangeIndices, new ParallelOptions {MaxDegreeOfParallelism = (int)_settings.CurrentValue.CountOfNodes},
+				Task scanTask = Parallel.ForEachAsync(tableRangeIndices, new ParallelOptions { MaxDegreeOfParallelism = (int)_settings.CurrentValue.CountOfNodes },
 					async (index, token) =>
 					{
 						(long, long) range = tableRanges[index];
@@ -610,11 +610,11 @@ namespace Jupiter.Implementation
 			Hash = hash.HashData;
 		}
 
-		public byte[]? Hash { get;set; }
+		public byte[]? Hash { get; set; }
 
 		public BlobId AsBlobIdentifier()
 		{
-			return new BlobId(Hash!); 
+			return new BlobId(Hash!);
 		}
 	}
 
@@ -633,7 +633,7 @@ namespace Jupiter.Implementation
 			Key = key.ToString();
 		}
 
-		public string Bucket { get;set; }
+		public string Bucket { get; set; }
 		public string Key { get; set; }
 
 		public (BucketId, RefId) AsTuple()
@@ -676,10 +676,10 @@ namespace Jupiter.Implementation
 		public ScyllaBlobIdentifier? PayloadHash { get; set; }
 
 		[Cassandra.Mapping.Attributes.Column("inline_payload")]
-		public byte[]? InlinePayload {get; set; }
+		public byte[]? InlinePayload { get; set; }
 
 		[Cassandra.Mapping.Attributes.Column("is_finalized")]
-		public bool? IsFinalized { get;set; }
+		public bool? IsFinalized { get; set; }
 		[Cassandra.Mapping.Attributes.Column("last_access_time")]
 		public DateTime LastAccessTime { get; set; }
 
@@ -732,7 +732,7 @@ namespace Jupiter.Implementation
 		public string? Bucket { get; set; }
 	}
 
-	
+
 	[Cassandra.Mapping.Attributes.Table("object_last_access_v2")]
 	public class ScyllaObjectLastAccess
 	{

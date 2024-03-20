@@ -66,7 +66,7 @@ namespace Jupiter.Implementation
 					_logger.LogWarning("Content length missing in response from peer blob store. This is not supported, ignoring response");
 					return null;
 				}
-					
+
 				return new BlobContents(await response.Content.ReadAsStreamAsync(), contentLength.Value);
 			}
 			catch (Exception e)
@@ -250,7 +250,7 @@ namespace Jupiter.Implementation
 		}
 	}
 
-	public sealed class KubernetesPeerServiceDiscovery: IPeerServiceDiscovery, IDisposable
+	public sealed class KubernetesPeerServiceDiscovery : IPeerServiceDiscovery, IDisposable
 	{
 		private readonly IOptionsMonitor<KubernetesLeaderElectionSettings> _leaderSettings;
 		private readonly Kubernetes _client;

@@ -40,7 +40,7 @@ namespace Jupiter.Common.Implementation
 
 		public void Dispose()
 		{
-			
+
 		}
 
 		public Stream GetStream()
@@ -133,7 +133,7 @@ namespace Jupiter.Common.Implementation
 				await using FileStream fs = payload._tempFile.OpenWrite();
 				await s.CopyToAsync(fs);
 			}
-			
+
 			payload._tempFile.Refresh();
 			payload._length = payload._tempFile.Length;
 

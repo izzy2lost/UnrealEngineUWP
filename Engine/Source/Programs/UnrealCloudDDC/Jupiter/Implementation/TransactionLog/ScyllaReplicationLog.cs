@@ -47,13 +47,13 @@ namespace Jupiter.Implementation
 					blob_snapshot blob_identifier,
 					blob_namespace varchar,
 					PRIMARY KEY ((namespace), id)
-				) WITH CLUSTERING ORDER BY (id DESC);"  
+				) WITH CLUSTERING ORDER BY (id DESC);"
 				));
 
 				_session.Execute(new SimpleStatement(@"CREATE TABLE IF NOT EXISTS replication_namespace (
 					namespace varchar,
 					PRIMARY KEY ((namespace))
-				);"  
+				);"
 				));
 
 				_session.Execute(new SimpleStatement(@"CREATE TABLE IF NOT EXISTS replication_state (
@@ -62,7 +62,7 @@ namespace Jupiter.Implementation
 					last_bucket varchar,
 					last_event uuid,
 					PRIMARY KEY ((namespace), name)
-				);"  
+				);"
 				));
 			}
 		}
@@ -84,7 +84,7 @@ namespace Jupiter.Implementation
 			Task addNamespaceTask = PotentiallyAddNamespaceAsync(ns);
 			DateTime timeBucket = timestamp.GetValueOrDefault(DateTime.UtcNow);
 			ScyllaReplicationLogEvent log = new ScyllaReplicationLogEvent(ns.ToString(), bucket.ToString(), key.ToString(), timeBucket, ScyllaReplicationLogEvent.OpType.Added, objectBlob);
-			await _mapper.InsertAsync<ScyllaReplicationLogEvent>(log, insertNulls: false,  ttl: (int)_settings.CurrentValue.ReplicationLogTimeToLive.TotalSeconds);
+			await _mapper.InsertAsync<ScyllaReplicationLogEvent>(log, insertNulls: false, ttl: (int)_settings.CurrentValue.ReplicationLogTimeToLive.TotalSeconds);
 
 			await addNamespaceTask;
 			return (log.GetReplicationBucketIdentifier(), log.ReplicationId);
@@ -92,12 +92,12 @@ namespace Jupiter.Implementation
 
 		public async Task<(string, Guid)> InsertDeleteEventAsync(NamespaceId ns, BucketId bucket, RefId key, DateTime? timestamp)
 		{
-			using TelemetrySpan scope =  _tracer.BuildScyllaSpan("scylla.insert_delete_event");
+			using TelemetrySpan scope = _tracer.BuildScyllaSpan("scylla.insert_delete_event");
 
 			Task addNamespaceTask = PotentiallyAddNamespaceAsync(ns);
 			DateTime timeBucket = timestamp.GetValueOrDefault(DateTime.UtcNow);
 			ScyllaReplicationLogEvent log = new ScyllaReplicationLogEvent(ns.ToString(), bucket.ToString(), key.ToString(), timeBucket, ScyllaReplicationLogEvent.OpType.Deleted, null);
-			await _mapper.InsertAsync<ScyllaReplicationLogEvent>(log, insertNulls: false,  ttl: (int)_settings.CurrentValue.ReplicationLogTimeToLive.TotalSeconds);
+			await _mapper.InsertAsync<ScyllaReplicationLogEvent>(log, insertNulls: false, ttl: (int)_settings.CurrentValue.ReplicationLogTimeToLive.TotalSeconds);
 
 			await addNamespaceTask;
 			return (log.GetReplicationBucketIdentifier(), log.ReplicationId);
@@ -176,7 +176,7 @@ namespace Jupiter.Implementation
 				{
 					throw new NamespaceNotFoundException(ns);
 				}
-				
+
 				throw new IncrementalLogNotAvailableException();
 			}
 		}
@@ -214,7 +214,7 @@ namespace Jupiter.Implementation
 
 			// we returned the start bucket earlier so now we start with the next one
 			DateTime bucketTime = startBucketTime.AddHours(1.0).ToHourlyBucket();
-			while(bucketTime < DateTime.UtcNow && bucketTime > oldCutoff)
+			while (bucketTime < DateTime.UtcNow && bucketTime > oldCutoff)
 			{
 				using TelemetrySpan determineBucketExistsScope = _tracer.BuildScyllaSpan("scylla.determine_replication_bucket_exists");
 				// fetch all the buckets that exists and sort them based on time
@@ -306,7 +306,7 @@ namespace Jupiter.Implementation
 		}
 	}
 
-	
+
 	[Cassandra.Mapping.Attributes.Table("replication_log")]
 	class ScyllaReplicationLogEvent
 	{
@@ -335,7 +335,7 @@ namespace Jupiter.Implementation
 		}
 
 		[Cassandra.Mapping.Attributes.PartitionKey]
-		public string Namespace { get;set; }
+		public string Namespace { get; set; }
 
 		// we store bucket as a long (datetime converted to filetime bucketed per hour) to make sure it sorts oldest first
 		[Cassandra.Mapping.Attributes.PartitionKey]
@@ -415,7 +415,7 @@ namespace Jupiter.Implementation
 		}
 
 		[Cassandra.Mapping.Attributes.PartitionKey]
-		public string Namespace { get;set; }
+		public string Namespace { get; set; }
 	}
 
 	[Cassandra.Mapping.Attributes.Table("replication_state")]

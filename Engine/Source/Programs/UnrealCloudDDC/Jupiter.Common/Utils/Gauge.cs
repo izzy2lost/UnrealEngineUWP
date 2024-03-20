@@ -8,7 +8,8 @@ namespace Jupiter.Common
 {
 	public class Gauge<T> where T : struct
 	{
-		[System.Diagnostics.CodeAnalysis.SuppressMessage("CodeQuality", "IDE0052:Remove unread private members", Justification = "Needed to keep the callback alive")] [UsedImplicitly]
+		[System.Diagnostics.CodeAnalysis.SuppressMessage("CodeQuality", "IDE0052:Remove unread private members", Justification = "Needed to keep the callback alive")]
+		[UsedImplicitly]
 		private readonly ObservableGauge<T> _observableGauge;
 		private readonly List<Measurement<T>> _measurements = new List<Measurement<T>>();
 		private readonly object _lock = new object();

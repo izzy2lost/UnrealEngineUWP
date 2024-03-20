@@ -9,6 +9,7 @@ using System.Net.Http.Headers;
 using System.Net.Mime;
 using System.Text;
 using System.Threading.Tasks;
+using EpicGames.AspNet;
 using EpicGames.Horde.Storage;
 using EpicGames.Serialization;
 using Jupiter.Implementation;
@@ -20,7 +21,6 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using Serilog;
 using Logger = Serilog.Core.Logger;
-using EpicGames.AspNet;
 
 namespace Jupiter.FunctionalTests.Storage
 {
@@ -74,7 +74,7 @@ namespace Jupiter.FunctionalTests.Storage
 			await Teardown(_server!.Services);
 		}
 
-		
+
 		[TestMethod]
 		public async Task PutBlobToIndexAsync()
 		{
@@ -189,7 +189,7 @@ namespace Jupiter.FunctionalTests.Storage
 			}
 
 			{
-				(NamespaceId, BlobId)[] blobInfos =  await index.GetAllBlobsAsync().Where(tuple => tuple.Item1 == _testNamespaceListName).ToArrayAsync();
+				(NamespaceId, BlobId)[] blobInfos = await index.GetAllBlobsAsync().Where(tuple => tuple.Item1 == _testNamespaceListName).ToArrayAsync();
 				Assert.AreEqual(2, blobInfos.Length);
 
 				Assert.IsNotNull(blobInfos.FirstOrDefault(info => info.Item2.Equals(compressedPayloadIdentifier)));

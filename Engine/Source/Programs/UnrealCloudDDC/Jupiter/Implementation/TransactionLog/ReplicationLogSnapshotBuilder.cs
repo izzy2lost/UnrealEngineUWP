@@ -116,13 +116,13 @@ namespace Jupiter.Implementation.TransactionLog
 
 				// upload the attachment first so we are not missing any references when we go to create the ref
 				await _blobService.PutObjectAsync(storeInNamespace, payload, blobIdentifier);
-			
+
 				(ContentId[] missingContentIds, BlobId[] missingBlobs) = await _refService.PutAsync(storeInNamespace, new BucketId("snapshot"), new RefId(blobIdentifier.ToString()), cbBlobId, new CbObject(cbObjectBytes));
 				List<ContentHash> missingHashes = new List<ContentHash>(missingContentIds);
 				missingHashes.AddRange(missingBlobs);
 				if (missingHashes.Count != 0)
 				{
-					throw new Exception($"Failed to upload snapshot to object service, missing references {string.Join(',' , missingHashes.Select(b => b.ToString()))}");
+					throw new Exception($"Failed to upload snapshot to object service, missing references {string.Join(',', missingHashes.Select(b => b.ToString()))}");
 				}
 
 				if (cancellationToken.IsCancellationRequested)

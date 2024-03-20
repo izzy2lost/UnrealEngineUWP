@@ -11,17 +11,17 @@ using System.Net.Mime;
 using System.Text;
 using System.Threading.Tasks;
 using Blake3;
+using EpicGames.AspNet;
+using EpicGames.Core;
 using Jupiter.FunctionalTests.Storage;
 using Jupiter.Implementation;
-using Microsoft.AspNetCore.TestHost;
 using Microsoft.AspNetCore.Hosting;
+using Microsoft.AspNetCore.TestHost;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using Serilog;
 using Serilog.Core;
-using EpicGames.AspNet;
-using EpicGames.Core;
 
 namespace Jupiter.FunctionalTests.CompressedBlobs
 {
@@ -294,7 +294,7 @@ namespace Jupiter.FunctionalTests.CompressedBlobs
 					// verify we can fetch the blob again
 					HttpResponseMessage result = await Client!.GetAsync(new Uri($"api/v1/compressed-blobs/{TestNamespace}/{blobIdentifier}", UriKind.Relative), HttpCompletionOption.ResponseHeadersRead);
 					result.EnsureSuccessStatusCode();
-					
+
 					{
 						await using Stream s = await result.Content.ReadAsStreamAsync();
 
@@ -330,7 +330,7 @@ namespace Jupiter.FunctionalTests.CompressedBlobs
 			ContentId uncompressedPayloadIdentifier = new ContentId("A2AC0ECED768698F7413F131D064D36B7EC6F7DA");
 			byte[] texturePayloadSmaller = await File.ReadAllBytesAsync("ContentId/Payloads/smallerfile");
 			BlobId compressedPayloadIdentifierSmaller = BlobId.FromBlob(texturePayloadSmaller);
-		   
+
 			{
 				using ByteArrayContent content = new(texturePayloadSmaller);
 				content.Headers.ContentType = new MediaTypeHeaderValue(CustomMediaTypeNames.UnrealCompressedBuffer);
@@ -434,7 +434,7 @@ namespace Jupiter.FunctionalTests.CompressedBlobs
 			}
 		}
 
-		
+
 		[TestMethod]
 		public async Task GetUncompressedContentAsCompressedBufferAsync()
 		{

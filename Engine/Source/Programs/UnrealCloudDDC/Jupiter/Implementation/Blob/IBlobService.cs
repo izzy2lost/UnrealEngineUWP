@@ -22,7 +22,7 @@ public interface IBlobService
 	Task<Uri?> MaybePutObjectWithRedirectAsync(NamespaceId ns, BlobId identifier);
 
 	Task<BlobContents> GetObjectAsync(NamespaceId ns, BlobId blob, List<string>? storageLayers = null, bool supportsRedirectUri = false, bool allowOndemandReplication = true);
-	
+
 	Task<Uri?> GetObjectWithRedirectAsync(NamespaceId ns, BlobId blobIdentifier, List<string>? storageLayers = null);
 
 	Task<BlobMetadata> GetObjectMetadataAsync(NamespaceId ns, BlobId blobId);
@@ -45,7 +45,7 @@ public interface IBlobService
 	// delete the whole namespace
 	Task DeleteNamespaceAsync(NamespaceId ns);
 
-	IAsyncEnumerable<(BlobId,DateTime)> ListObjectsAsync(NamespaceId ns);
+	IAsyncEnumerable<(BlobId, DateTime)> ListObjectsAsync(NamespaceId ns);
 	Task<BlobId[]> FilterOutKnownBlobsAsync(NamespaceId ns, IEnumerable<BlobId> blobs);
 	Task<BlobId[]> FilterOutKnownBlobsAsync(NamespaceId ns, IAsyncEnumerable<BlobId> blobs);
 	Task<BlobContents> GetObjectsAsync(NamespaceId ns, BlobId[] refRequestBlobReferences);

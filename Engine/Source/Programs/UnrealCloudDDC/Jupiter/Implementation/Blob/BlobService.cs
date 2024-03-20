@@ -12,15 +12,15 @@ using System.Security.Claims;
 using System.Threading.Tasks;
 using EpicGames.AspNet;
 using EpicGames.Horde.Storage;
-using Jupiter.Controllers;
-using Jupiter.Implementation.Blob;
 using Jupiter.Common;
 using Jupiter.Common.Implementation;
+using Jupiter.Controllers;
+using Jupiter.Implementation.Blob;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Options;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using OpenTelemetry.Trace;
 
 namespace Jupiter.Implementation;
@@ -265,7 +265,7 @@ public class BlobService : IBlobService
 					throw;
 				}
 
-				ActionResult? result = await _requestHelper.HasAccessToNamespaceAsync(user, request, policy.FallbackNamespace.Value, new [] { JupiterAclAction.ReadObject });
+				ActionResult? result = await _requestHelper.HasAccessToNamespaceAsync(user, request, policy.FallbackNamespace.Value, new[] { JupiterAclAction.ReadObject });
 				if (result != null)
 				{
 					_logger.LogInformation("Authorization error when attempting to fallback to namespace {FallbackNamespace}. This may be confusing for users that as they had access to original namespace {Namespace}", policy.FallbackNamespace.Value, ns);
@@ -278,7 +278,7 @@ public class BlobService : IBlobService
 
 					// read the content from the fallback namespace
 					BlobContents fallbackContent = await GetObjectFromStoresAsync(policy.FallbackNamespace.Value, blob, storageLayers);
-					
+
 					// populate the primary namespace with the content
 					using TelemetrySpan _ = _tracer.StartActiveSpan("HierarchicalStore.Populate").SetAttribute("operation.name", "HierarchicalStore.Populate");
 					using ServerTimingMetricScoped? serverTimingScope = serverTiming?.CreateServerTimingMetricScope($"blob.populate", "Populating caches with blob contents");
@@ -359,7 +359,7 @@ public class BlobService : IBlobService
 
 			using TelemetrySpan scope = _tracer.StartActiveSpan("HierarchicalStore.GetObject")
 				.SetAttribute("operation.name", "HierarchicalStore.GetObject")
-				.SetAttribute("resource.name",  blob.ToString())
+				.SetAttribute("resource.name", blob.ToString())
 				.SetAttribute("BlobStore", store.GetType().ToString())
 				.SetAttribute("ObjectFound", false.ToString())
 				;
@@ -432,7 +432,7 @@ public class BlobService : IBlobService
 			blobContents = new BlobContents(bufferedPayload);
 #pragma warning restore CA2000 // Dispose objects before losing scope
 		}
-		
+
 		return blobContents;
 	}
 
@@ -469,7 +469,7 @@ public class BlobService : IBlobService
 
 			using TelemetrySpan scope = _tracer.StartActiveSpan("HierarchicalStore.GetObjectRedirect")
 				.SetAttribute("operation.name", "HierarchicalStore.GetObject")
-				.SetAttribute("resource.name",  blob.ToString())
+				.SetAttribute("resource.name", blob.ToString())
 				.SetAttribute("BlobStore", store.GetType().ToString())
 				.SetAttribute("ObjectFound", false.ToString())
 				;
@@ -850,7 +850,7 @@ public class BlobService : IBlobService
 		throw new NamespaceNotFoundException(ns);
 	}
 
-	public IAsyncEnumerable<(BlobId,DateTime)> ListObjectsAsync(NamespaceId ns)
+	public IAsyncEnumerable<(BlobId, DateTime)> ListObjectsAsync(NamespaceId ns)
 	{
 		// as this is a hierarchy of blob stores the last blob store should contain the superset of all stores
 		return _blobStores.Last().ListObjectsAsync(ns);

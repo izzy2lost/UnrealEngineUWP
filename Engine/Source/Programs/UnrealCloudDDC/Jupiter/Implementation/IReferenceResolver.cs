@@ -107,7 +107,7 @@ namespace Jupiter.Implementation
 			List<BlobId> unresolvedBlobReferences = new List<BlobId>();
 
 			List<Task<CbObject>> pendingCompactBinaryAttachments = new();
-			List<Task< (ContentId, BlobId[]?)>> pendingContentIdResolves = new();
+			List<Task<(ContentId, BlobId[]?)>> pendingContentIdResolves = new();
 
 			while (pendingCompactBinaryAttachments.Count != 0 || pendingContentIdResolves.Count != 0 || objectsToVisit.Count != 0)
 			{

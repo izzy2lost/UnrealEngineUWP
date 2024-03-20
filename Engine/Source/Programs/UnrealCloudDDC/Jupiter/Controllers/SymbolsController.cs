@@ -1,6 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 using System;
+using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
 using System.IO;
 using System.Linq;
@@ -18,11 +19,10 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Http.Extensions;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using OpenTelemetry.Trace;
 using Serilog;
-using Microsoft.Extensions.DependencyInjection;
-using System.Collections.Generic;
 using BinaryReader = System.IO.BinaryReader;
 
 namespace Jupiter.Controllers
@@ -65,10 +65,10 @@ namespace Jupiter.Controllers
 		/// <param name="fileName">The specific file to fetch, either pdb or ptrs</param>
 		[HttpGet("{ns}/{moduleName}/{identifier}/{fileName}", Order = 500)]
 		public async Task<IActionResult> GetAsync(
-			[FromRoute] [Required] NamespaceId ns,
-			[FromRoute] [Required] string moduleName,
-			[FromRoute] [Required] string identifier,
-			[FromRoute] [Required] string fileName)
+			[FromRoute][Required] NamespaceId ns,
+			[FromRoute][Required] string moduleName,
+			[FromRoute][Required] string identifier,
+			[FromRoute][Required] string fileName)
 		{
 			ActionResult? accessResult = await _requestHelper.HasAccessToNamespaceAsync(User, Request, ns, new[] { JupiterAclAction.ReadObject });
 			if (accessResult != null)
@@ -85,7 +85,7 @@ namespace Jupiter.Controllers
 			{
 				return NotFound("Symbol not found");
 			}
-	
+
 			if (refContents == null)
 			{
 				// TODO: is a large blob that is not inlined, we need to read this back from blob storage
@@ -165,8 +165,8 @@ namespace Jupiter.Controllers
 		[DisableRequestSizeLimit]
 		[RequiredContentType(CustomMediaTypeNames.UnrealCompressedBuffer, MediaTypeNames.Application.Octet)]
 		public async Task<IActionResult> PutSymbolsAsync(
-			[FromRoute] [Required] NamespaceId ns,
-			[FromRoute] [Required] string moduleName)
+			[FromRoute][Required] NamespaceId ns,
+			[FromRoute][Required] string moduleName)
 		{
 			ActionResult? accessResult = await _requestHelper.HasAccessToNamespaceAsync(User, Request, ns, new[] { JupiterAclAction.WriteObject });
 			if (accessResult != null)
@@ -245,7 +245,7 @@ namespace Jupiter.Controllers
 
 			using BinaryReader reader = new BinaryReader(s);
 			// extract magic
-			const string MagicHeader= "Microsoft C/C++ MSF 7.00\r\n\u001aDS\0\0\0";
+			const string MagicHeader = "Microsoft C/C++ MSF 7.00\r\n\u001aDS\0\0\0";
 			byte[] magicBytes = reader.ReadBytes(MagicHeader.Length);
 			string magicString = Encoding.ASCII.GetString(magicBytes);
 			if (!string.Equals(magicString, MagicHeader, StringComparison.OrdinalIgnoreCase))
@@ -318,7 +318,7 @@ namespace Jupiter.Controllers
 				{
 					reader.BaseStream.Seek(streamBlocks[index] * blockSize, SeekOrigin.Begin);
 					byte[] buf = reader.ReadBytes(blockSize);
-					
+
 					Array.Copy(buf, 0, streamBuffer, destinationIndex, buf.Length);
 					destinationIndex += blockSize;
 				}
@@ -333,7 +333,7 @@ namespace Jupiter.Controllers
 						pdbVersion = streamReader.ReadInt32();
 						pdbSignature = streamReader.ReadInt32();
 						pdbAge = streamReader.ReadInt32();
-						
+
 						pdbGuid = new Guid(streamReader.ReadBytes(16));
 
 						infoFound = true;

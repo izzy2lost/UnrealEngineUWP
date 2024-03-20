@@ -13,7 +13,7 @@ namespace Jupiter.Implementation
 		public Task<string?> AuthenticateAsync();
 	}
 
-	public class ClientCredentialOAuthAuthenticator: IAuthenticator
+	public class ClientCredentialOAuthAuthenticator : IAuthenticator
 	{
 		public ClientCredentialOAuthAuthenticator(IHttpClientFactory httpClientFactory, Uri authUrl, string clientId, string clientSecret, string scope)
 		{
@@ -92,7 +92,7 @@ namespace Jupiter.Implementation
 		public string? access_token { get; set; }
 
 		public string? token_type { get; set; }
-		
+
 		public int? expires_in { get; set; }
 
 		public string? scope { get; set; }

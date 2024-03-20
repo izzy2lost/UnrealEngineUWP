@@ -8,8 +8,8 @@ using System.Threading.Tasks;
 using EpicGames.Horde.Storage;
 using Jupiter.Common;
 using Jupiter.Implementation.Blob;
-using Microsoft.Extensions.Options;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using OpenTelemetry.Trace;
 
 namespace Jupiter.Implementation
@@ -32,8 +32,8 @@ namespace Jupiter.Implementation
 		private readonly Gauge<long> _cleanupRefsConsidered;
 		private readonly IOptionsMonitor<UnrealCloudDDCSettings> _cloudDDCSettings;
 
-		public RefLastAccessCleanup(IOptionsMonitor<GCSettings> settings, IOptionsMonitor<UnrealCloudDDCSettings> cloudDDCSettings, 
-			IReferencesStore referencesStore, IRefService objectService, IBlobIndex blobIndex, 
+		public RefLastAccessCleanup(IOptionsMonitor<GCSettings> settings, IOptionsMonitor<UnrealCloudDDCSettings> cloudDDCSettings,
+			IReferencesStore referencesStore, IRefService objectService, IBlobIndex blobIndex,
 			IReplicationLog replicationLog, INamespacePolicyResolver namespacePolicyResolver, Meter meter, Tracer tracer, ILogger<RefLastAccessCleanup> logger)
 		{
 			_settings = settings;
@@ -84,7 +84,7 @@ namespace Jupiter.Implementation
 				_logger.LogWarning("Unknown namespace {Namespace} when attempting to GC References. To opt in to deleting the old namespace add a policy for it with the GcMethod set to always", ns);
 				return false;
 			}
-			
+
 			return false;
 		}
 
@@ -112,7 +112,7 @@ namespace Jupiter.Implementation
 					_logger.LogDebug(
 						"Considering object in {Namespace} {Bucket} {Name} for deletion, was last updated {LastAccessTime}",
 						ns, bucket, name, lastAccessTime);
-					
+
 					Interlocked.Increment(ref consideredCount);
 					_cleanupRefsConsidered.Record(consideredCount, Array.Empty<KeyValuePair<string, object?>>());
 
@@ -123,7 +123,7 @@ namespace Jupiter.Implementation
 							ns, bucket, name, lastAccessTime, cutoffTime);
 
 						await DeleteRefAsync(ns, bucket, name);
-					
+
 						Interlocked.Increment(ref countOfDeletedRecords);
 
 						return;

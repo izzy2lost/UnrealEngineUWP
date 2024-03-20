@@ -11,7 +11,7 @@ namespace Jupiter.Implementation
 	{
 		private readonly IBlobService _blobStore;
 		private readonly ConcurrentDictionary<NamespaceId, ConcurrentDictionary<ContentId, SortedList<int, BlobId[]>>> _contentIds = new ConcurrentDictionary<NamespaceId, ConcurrentDictionary<ContentId, SortedList<int, BlobId[]>>>();
-		
+
 		public MemoryContentIdStore(IBlobService blobStore)
 		{
 			_blobStore = blobStore;

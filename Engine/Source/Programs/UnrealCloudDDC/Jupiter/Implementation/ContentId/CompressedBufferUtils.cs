@@ -8,8 +8,8 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using Blake3;
-using EpicGames.Core;
 using EpicGames.Compression;
+using EpicGames.Core;
 using Force.Crc32;
 using Jupiter.Common.Implementation;
 using K4os.Compression.LZ4;
@@ -79,7 +79,7 @@ namespace Jupiter.Implementation
 			_tracer = tracer;
 			_payloadFactory = payloadFactory;
 		}
-		
+
 		private static (CompressedBufferHeader, uint[]) ExtractHeader(BinaryReader br)
 		{
 			byte[] headerData = br.ReadBytes((int)CompressedBufferHeader.HeaderLength);
@@ -133,7 +133,7 @@ namespace Jupiter.Implementation
 				Array.Copy(blocksData, 0, crcData, headerData.Length, blocksData.Length);
 
 				blocks = new uint[header.BlockCount];
-				
+
 				for (int i = 0; i < header.BlockCount; i++)
 				{
 					ReadOnlySpan<byte> memory = new ReadOnlySpan<byte>(blocksData, i * sizeof(uint), sizeof(uint));
@@ -149,7 +149,7 @@ namespace Jupiter.Implementation
 				throw new InvalidHashException(header.Crc32, calculatedCrc);
 			}
 
-			
+
 			return (header, blocks);
 		}
 
@@ -304,7 +304,7 @@ namespace Jupiter.Implementation
 
 				blocks.Add(bufferToCompress.ToArray());
 			}
-			
+
 			return CompressContent(s, method, compressionLevel, blocks, blockSize);
 		}
 

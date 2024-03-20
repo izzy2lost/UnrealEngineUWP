@@ -20,7 +20,7 @@ namespace Jupiter
 		[Required]
 		[Range(15, int.MaxValue)]
 		public int ReplicationPollFrequencySeconds { get; set; } = 15;
-		
+
 		[Required]
 		[System.Diagnostics.CodeAnalysis.SuppressMessage("Usage", "CA2227:Collection properties should be read only", Justification = "Used by serialization")]
 		// ReSharper disable once CollectionNeverUpdated.Global

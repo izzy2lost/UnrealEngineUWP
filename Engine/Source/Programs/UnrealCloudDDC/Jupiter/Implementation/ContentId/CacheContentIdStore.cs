@@ -13,7 +13,7 @@ namespace Jupiter.Implementation
 {
 	public class CacheContentIdStore : RelayStore, IContentIdStore
 	{
-		
+
 		public CacheContentIdStore(IOptionsMonitor<UpstreamRelaySettings> settings, IHttpClientFactory httpClientFactory, IServiceCredentials serviceCredentials) : base(settings, httpClientFactory, serviceCredentials)
 		{
 		}

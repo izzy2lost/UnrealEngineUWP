@@ -5,11 +5,11 @@ using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
 using EpicGames.Horde.Storage;
-using Jupiter.Implementation.Blob;
 using Jupiter.Common;
+using Jupiter.Implementation.Blob;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using OpenTelemetry.Trace;
-using Microsoft.Extensions.Logging;
 
 namespace Jupiter.Implementation
 {
@@ -71,9 +71,9 @@ namespace Jupiter.Implementation
 			ulong countOfIncorrectBlobsFound = 0;
 			string currentRegion = _jupiterSettings.CurrentValue.CurrentSite;
 			await Parallel.ForEachAsync(_blobIndex.GetAllBlobsAsync(), new ParallelOptions
-				{
-					MaxDegreeOfParallelism = _settings.CurrentValue.BlobIndexMaxParallelOperations,
-				},
+			{
+				MaxDegreeOfParallelism = _settings.CurrentValue.BlobIndexMaxParallelOperations,
+			},
 				async (tuple, token) =>
 				{
 					(NamespaceId ns, BlobId blobIdentifier) = tuple;
@@ -97,7 +97,7 @@ namespace Jupiter.Implementation
 							{
 								Interlocked.Increment(ref countOfIncorrectBlobsFound);
 								issueFound = true;
-								
+
 								if (regions.Count > 1)
 								{
 									_logger.LogWarning("Blob {Blob} in namespace {Namespace} did not exist in root store but is tracked as doing so in the blob index. Attempting to replicate it.", blobIdentifier, ns);

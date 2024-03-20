@@ -18,14 +18,16 @@ using System.Threading.Tasks;
 using Amazon.S3;
 using Amazon.S3.Model;
 using Azure.Storage.Blobs;
+using EpicGames.AspNet;
 using EpicGames.Core;
 using EpicGames.Horde.Storage;
 using EpicGames.Serialization;
 using Jupiter.Controllers;
 using Jupiter.Implementation;
-using Microsoft.AspNetCore.TestHost;
+using Jupiter.Tests.Functional;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.TestHost;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
@@ -34,8 +36,6 @@ using Serilog;
 using Serilog.Core;
 using ContentHash = Jupiter.Implementation.ContentHash;
 using IBlobStore = Jupiter.Implementation.IBlobStore;
-using EpicGames.AspNet;
-using Jupiter.Tests.Functional;
 
 namespace Jupiter.FunctionalTests.Storage
 {
@@ -234,7 +234,7 @@ namespace Jupiter.FunctionalTests.Storage
 			await _s3.PutObjectAsync(new PutObjectRequest { BucketName = s3BucketName, Key = SmallFileHash.AsS3Key(), ContentBody = SmallFileContents });
 			await _s3.PutObjectAsync(new PutObjectRequest { BucketName = s3BucketName, Key = AnotherFileHash.AsS3Key(), ContentBody = AnotherFileContents });
 			await _s3.PutObjectAsync(new PutObjectRequest { BucketName = s3BucketName, Key = DeleteFileHash.AsS3Key(), ContentBody = DeletableFileContents });
-			await _s3.PutObjectAsync(new PutObjectRequest {BucketName = s3BucketName, Key = OldBlobFileHash.AsS3Key(), ContentBody = OldFileContents});
+			await _s3.PutObjectAsync(new PutObjectRequest { BucketName = s3BucketName, Key = OldBlobFileHash.AsS3Key(), ContentBody = OldFileContents });
 		}
 
 		[TestMethod]
@@ -258,7 +258,7 @@ namespace Jupiter.FunctionalTests.Storage
 
 		protected override IEnumerable<KeyValuePair<string, string?>> GetSettings()
 		{
-			return new[] {new KeyValuePair<string, string?>("UnrealCloudDDC:StorageImplementations:0", UnrealCloudDDCSettings.StorageBackendImplementations.Azure.ToString())};
+			return new[] { new KeyValuePair<string, string?>("UnrealCloudDDC:StorageImplementations:0", UnrealCloudDDCSettings.StorageBackendImplementations.Azure.ToString()) };
 		}
 
 		protected override async Task Seed(IServiceProvider provider)
@@ -306,7 +306,7 @@ namespace Jupiter.FunctionalTests.Storage
 		}
 	}
 
-	
+
 	[TestClass]
 	public class FileSystemStoreTests : StorageTests
 	{
@@ -319,7 +319,7 @@ namespace Jupiter.FunctionalTests.Storage
 		}
 		protected override IEnumerable<KeyValuePair<string, string?>> GetSettings()
 		{
-			return new[] { 
+			return new[] {
 				new KeyValuePair<string, string?>("UnrealCloudDDC:StorageImplementations:0", UnrealCloudDDCSettings.StorageBackendImplementations.FileSystem.ToString()),
 				new KeyValuePair<string, string?>("Filesystem:RootDir", _localTestDir)
 			};
@@ -328,7 +328,7 @@ namespace Jupiter.FunctionalTests.Storage
 		protected override async Task Seed(IServiceProvider provider)
 		{
 			NamespaceId folderName = TestNamespaceName;
-			
+
 			Directory.CreateDirectory(_localTestDir);
 
 			FileInfo smallFileInfo = FileSystemStore.GetFilesystemPath(_localTestDir, folderName, SmallFileHash);
@@ -344,7 +344,7 @@ namespace Jupiter.FunctionalTests.Storage
 				anotherFileInfo.FullName,
 				Encoding.ASCII.GetBytes(AnotherFileContents)
 			);
-			
+
 			FileInfo deleteFileInfo = FileSystemStore.GetFilesystemPath(_localTestDir, folderName, DeleteFileHash);
 			deleteFileInfo.Directory?.Create();
 			await File.WriteAllBytesAsync(
@@ -393,9 +393,9 @@ namespace Jupiter.FunctionalTests.Storage
 
 			List<NamespaceId> namespaces = await fsStore.ListNamespaces().ToListAsync();
 			Assert.AreEqual(1, namespaces.Count);
-			
+
 			await fsStore.PutObjectAsync(_fooNamespace, Encoding.ASCII.GetBytes(SmallFileContents), SmallFileHash);
-			
+
 			namespaces = await fsStore.ListNamespaces().ToListAsync();
 			Assert.AreEqual(2, namespaces.Count);
 		}
@@ -406,7 +406,7 @@ namespace Jupiter.FunctionalTests.Storage
 			// Remove data added from test seeding
 			Directory.Delete(_localTestDir, true);
 			Directory.CreateDirectory(_localTestDir);
-			
+
 			FilesystemSettings fsSettings = Server!.Services.GetService<IOptionsMonitor<FilesystemSettings>>()!.CurrentValue;
 			fsSettings.MaxSizeBytes = 600;
 			FileSystemStore? fsStore = Server!.Services.GetService<FileSystemStore>();
@@ -414,7 +414,7 @@ namespace Jupiter.FunctionalTests.Storage
 
 			using CancellationTokenSource cts = new CancellationTokenSource();
 			Assert.IsTrue(await fsStore.CleanupInternalAsync(cts.Token, batchSize: 2) == 0); // No garbage to collect, should return false
-			
+
 			FileInfo[] fooFiles = CreateFilesInNamespace(_fooNamespace, 10);
 
 			Assert.AreEqual(10 * 100, await fsStore.CalculateDiskSpaceUsedAsync());
@@ -431,7 +431,7 @@ namespace Jupiter.FunctionalTests.Storage
 			Assert.IsFalse(fooFiles[8].Exists);
 			Assert.IsFalse(fooFiles[9].Exists); // Least recently accessed/modified
 		}
-		
+
 		[TestMethod]
 		public void GetLeastRecentlyAccessedObjects()
 		{
@@ -467,7 +467,6 @@ namespace Jupiter.FunctionalTests.Storage
 			Assert.AreEqual(fooFiles[9].LastAccessTime, results[1].LastAccessTime);
 			Assert.AreEqual(fooFiles[7].LastAccessTime, results[2].LastAccessTime);
 		}
-		
 		[TestMethod]
 		public async Task CalculateUsedDiskSpaceAsync()
 		{
@@ -475,10 +474,10 @@ namespace Jupiter.FunctionalTests.Storage
 			Assert.IsNotNull(fsStore);
 			await fsStore.PutObjectAsync(_fooNamespace, Encoding.ASCII.GetBytes(SmallFileContents), SmallFileHash);
 			await fsStore.PutObjectAsync(_fooNamespace, Encoding.ASCII.GetBytes(AnotherFileContents), AnotherFileHash);
-			
+
 			Assert.AreEqual(SmallFileContents.Length + AnotherFileContents.Length, await fsStore.CalculateDiskSpaceUsedAsync(_fooNamespace));
 		}
-		
+
 		private FileInfo[] CreateFilesInNamespace(NamespaceId ns, int numFiles)
 		{
 			FileInfo[] files = new FileInfo[numFiles];
@@ -622,7 +621,7 @@ namespace Jupiter.FunctionalTests.Storage
 		[TestMethod]
 		public async Task DeleteBlobAsync()
 		{
-			HttpResponseMessage result = await  _httpClient!.DeleteAsync(new Uri($"api/v1/s/{TestNamespaceName}/{DeleteFileHash}", UriKind.Relative));
+			HttpResponseMessage result = await _httpClient!.DeleteAsync(new Uri($"api/v1/s/{TestNamespaceName}/{DeleteFileHash}", UriKind.Relative));
 			result.EnsureSuccessStatusCode();
 
 			Assert.AreEqual(HttpStatusCode.NoContent, result.StatusCode);
@@ -639,7 +638,7 @@ namespace Jupiter.FunctionalTests.Storage
 
 			{
 				ContentHash newContent = ContentHash.FromBlob(Encoding.ASCII.GetBytes("this content has never been submitted"));
-				using HttpRequestMessage message = new (HttpMethod.Head, new Uri($"api/v1/s/{TestNamespaceName}/{newContent}", UriKind.Relative));
+				using HttpRequestMessage message = new(HttpMethod.Head, new Uri($"api/v1/s/{TestNamespaceName}/{newContent}", UriKind.Relative));
 				HttpResponseMessage resultNew = await _httpClient!.SendAsync(message);
 				Assert.AreEqual(HttpStatusCode.NotFound, resultNew.StatusCode);
 				string content = await resultNew.Content.ReadAsStringAsync();
@@ -896,7 +895,7 @@ namespace Jupiter.FunctionalTests.Storage
 		/// <summary>
 		/// write a large file (bigger then that C# can have in memory)
 		/// </summary>
-		
+
 		[TestMethod]
 		[TestCategory("SlowTests")]
 		public async Task PutGetLargePayloadAsync()
@@ -946,7 +945,7 @@ namespace Jupiter.FunctionalTests.Storage
 					Assert.IsNotNull(response);
 					Assert.AreEqual(blobIdentifier, response.Identifier);
 				}
-				
+
 				{
 					// verify we can fetch the blob again
 					HttpResponseMessage result = await _httpClient!.GetAsync(new Uri($"api/v1/blobs/{TestNamespaceName}/{blobIdentifier}", UriKind.Relative), HttpCompletionOption.ResponseHeadersRead);

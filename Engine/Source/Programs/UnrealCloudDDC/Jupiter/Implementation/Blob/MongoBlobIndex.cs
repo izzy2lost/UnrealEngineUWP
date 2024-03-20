@@ -25,7 +25,7 @@ public class MongoBlobIndex : MongoStore, IBlobIndex
 		IndexKeysDefinitionBuilder<MongoBlobIndexModelV0> indexKeysDefinitionBuilder = Builders<MongoBlobIndexModelV0>.IndexKeys;
 		CreateIndexModel<MongoBlobIndexModelV0> indexModel = new CreateIndexModel<MongoBlobIndexModelV0>(
 			indexKeysDefinitionBuilder.Combine(
-				indexKeysDefinitionBuilder.Ascending(m => m.Ns), 
+				indexKeysDefinitionBuilder.Ascending(m => m.Ns),
 				indexKeysDefinitionBuilder.Ascending(m => m.BlobId)
 			)
 			, new CreateIndexOptions()
@@ -33,9 +33,9 @@ public class MongoBlobIndex : MongoStore, IBlobIndex
 				Name = "CompoundIndex"
 			});
 
-		
-		AddIndexFor<MongoBlobIndexModelV0>().CreateMany(new[] { 
-			indexModel, 
+
+		AddIndexFor<MongoBlobIndexModelV0>().CreateMany(new[] {
+			indexModel,
 		});
 	}
 
@@ -58,7 +58,7 @@ public class MongoBlobIndex : MongoStore, IBlobIndex
 		IMongoCollection<MongoBlobIndexModelV0> collection = GetCollection<MongoBlobIndexModelV0>();
 		MongoBlobIndexModelV0 model = new MongoBlobIndexModelV0(ns, id);
 		model.Regions.Add(region);
-			
+
 		FilterDefinition<MongoBlobIndexModelV0> filter = Builders<MongoBlobIndexModelV0>.Filter.Where(m => m.Ns == ns.ToString() && m.BlobId == id.ToString());
 		await collection.FindOneAndReplaceAsync(filter, model, new FindOneAndReplaceOptions<MongoBlobIndexModelV0, MongoBlobIndexModelV0>
 		{
@@ -100,7 +100,7 @@ public class MongoBlobIndex : MongoStore, IBlobIndex
 				string bucket = reference["bucket"];
 				string key = reference["key"];
 				yield return new RefBlobReference(new BucketId(bucket), new RefId(key));
-			} 
+			}
 			else if (reference.ContainsKey("blob_id"))
 			{
 				string blobId = reference["blob_id"];
@@ -130,7 +130,7 @@ public class MongoBlobIndex : MongoStore, IBlobIndex
 			BlobId id = blobs[i];
 			refUpdateTasks[i] = Task.Run(async () =>
 			{
-				UpdateDefinition<MongoBlobIndexModelV0> update = Builders<MongoBlobIndexModelV0>.Update.AddToSet(m => m.References, new Dictionary<string, string> { {"bucket", bucket.ToString()}, {"key", key.ToString()}});
+				UpdateDefinition<MongoBlobIndexModelV0> update = Builders<MongoBlobIndexModelV0>.Update.AddToSet(m => m.References, new Dictionary<string, string> { { "bucket", bucket.ToString() }, { "key", key.ToString() } });
 				FilterDefinition<MongoBlobIndexModelV0> filter = Builders<MongoBlobIndexModelV0>.Filter.Where(m => m.Ns == nsAsString && m.BlobId == id.ToString());
 
 				await collection.FindOneAndUpdateAsync(filter, update);
@@ -190,7 +190,7 @@ public class MongoBlobIndex : MongoStore, IBlobIndex
 			UpdateDefinition<MongoBlobIndexModelV0> update = Builders<MongoBlobIndexModelV0>.Update.PullAll(m => m.References, refs);
 			FilterDefinition<MongoBlobIndexModelV0> filter = Builders<MongoBlobIndexModelV0>.Filter.Where(m => m.Ns == nsAsString && m.BlobId == id.ToString());
 
-			await collection.FindOneAndUpdateAsync(filter, update);	
+			await collection.FindOneAndUpdateAsync(filter, update);
 		}
 	}
 
@@ -210,7 +210,7 @@ public class MongoBlobIndex : MongoStore, IBlobIndex
 
 		string nsAsString = ns.ToString();
 
-		UpdateDefinition<MongoBlobIndexModelV0> update = Builders<MongoBlobIndexModelV0>.Update.AddToSet(m => m.References, new Dictionary<string, string> {{ "blob_id", targetBlob.ToString()}});
+		UpdateDefinition<MongoBlobIndexModelV0> update = Builders<MongoBlobIndexModelV0>.Update.AddToSet(m => m.References, new Dictionary<string, string> { { "blob_id", targetBlob.ToString() } });
 		FilterDefinition<MongoBlobIndexModelV0> filter = Builders<MongoBlobIndexModelV0>.Filter.Where(m => m.Ns == nsAsString && m.BlobId == sourceBlob.ToString());
 
 		await collection.FindOneAndUpdateAsync(filter, update);
@@ -221,7 +221,7 @@ public class MongoBlobIndex : MongoStore, IBlobIndex
 		IMongoCollection<MongoBucketBlobV0> collection = GetCollection<MongoBucketBlobV0>();
 
 		FilterDefinition<MongoBucketBlobV0> filter = Builders<MongoBucketBlobV0>.Filter.Where(m => m.Ns == ns.ToString() && m.BucketId == bucket.ToString() && m.RefId == key.ToString() && m.BlobId == blobId.ToString());
-		await collection.ReplaceOneAsync(filter, new MongoBucketBlobV0(ns, bucket, key, blobId, blobSize), new ReplaceOptions() {IsUpsert = true});
+		await collection.ReplaceOneAsync(filter, new MongoBucketBlobV0(ns, bucket, key, blobId, blobSize), new ReplaceOptions() { IsUpsert = true });
 	}
 
 	public async Task RemoveBlobFromBucketListAsync(NamespaceId ns, BucketId bucket, RefId key, List<BlobId> blobIds)
@@ -242,12 +242,12 @@ public class MongoBlobIndex : MongoStore, IBlobIndex
 			.Group(
 				a => a.BucketId,
 				r => new
-			{
-				TotalSize = r.Sum(a => a.Size),
-				SmallestBlob = r.Min(a => a.Size),
-				LargestBlob = r.Max(a => a.Size),
-				CountOfBlobs = r.Count(),
-			}).ToListAsync();
+				{
+					TotalSize = r.Sum(a => a.Size),
+					SmallestBlob = r.Min(a => a.Size),
+					LargestBlob = r.Max(a => a.Size),
+					CountOfBlobs = r.Count(),
+				}).ToListAsync();
 
 		var blobStat = blobStats.FirstOrDefault();
 
@@ -298,7 +298,7 @@ class MongoBlobIndexModelV0
 	public string Ns { get; set; }
 
 	[BsonRequired]
-	public string BlobId { get;set; }
+	public string BlobId { get; set; }
 
 	public List<string> Regions { get; set; } = new List<string>();
 
@@ -335,14 +335,14 @@ class MongoBucketBlobV0
 	public string Ns { get; set; }
 
 	[BsonRequired]
-	public string BucketId { get;set; }
+	public string BucketId { get; set; }
 
 	[BsonRequired]
-	public string RefId { get;set; }
+	public string RefId { get; set; }
 
 	[BsonRequired]
-	public string BlobId { get;set; }
+	public string BlobId { get; set; }
 
 	[BsonRequired]
-	public long Size { get;set; }
+	public long Size { get; set; }
 }

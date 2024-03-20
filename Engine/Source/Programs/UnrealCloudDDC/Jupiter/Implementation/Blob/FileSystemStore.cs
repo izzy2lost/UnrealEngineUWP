@@ -10,13 +10,13 @@ using System.Threading.Tasks;
 using EpicGames.Core;
 using EpicGames.Horde.Storage;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Options;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using OpenTelemetry.Trace;
 
 namespace Jupiter.Implementation
 {
-	public class FileSystemStore : IBlobStore, IBlobCleanup 
+	public class FileSystemStore : IBlobStore, IBlobCleanup
 	{
 		private readonly IServiceProvider _provider;
 		private readonly IOptionsMonitor<FilesystemSettings> _settings;
@@ -142,7 +142,7 @@ namespace Jupiter.Implementation
 			return Task.CompletedTask;
 		}
 
-		public async IAsyncEnumerable<(BlobId,DateTime)> ListObjectsAsync(NamespaceId ns)
+		public async IAsyncEnumerable<(BlobId, DateTime)> ListObjectsAsync(NamespaceId ns)
 		{
 			IStorageBackend backend = GetBackend(ns);
 			await foreach ((string path, DateTime time) in backend.ListAsync())
@@ -176,8 +176,8 @@ namespace Jupiter.Implementation
 				.SetAttribute("operation.name", "gc.filesystem");
 
 			ulong maxSizeBytes = _settings.CurrentValue.MaxSizeBytes;
-			long triggerSize = (long) (maxSizeBytes * _settings.CurrentValue.TriggerThresholdPercentage);
-			long targetSize = (long) (maxSizeBytes * _settings.CurrentValue.TargetThresholdPercentage); // Target to shrink to if triggered
+			long triggerSize = (long)(maxSizeBytes * _settings.CurrentValue.TriggerThresholdPercentage);
+			long targetSize = (long)(maxSizeBytes * _settings.CurrentValue.TargetThresholdPercentage); // Target to shrink to if triggered
 			ulong countOfBlobsRemoved = 0;
 
 			// Perform a maximum of 5 clean up runs
@@ -199,7 +199,7 @@ namespace Jupiter.Implementation
 
 					return countOfBlobsRemoved;
 				}
-				
+
 				_logger.LogInformation("Filesystem cleanup running. Disksize used: {UsedDiskSize} . Trigger size was {TriggerSize}", size, triggerSize);
 
 				// define progressively shorter windows of how long we keep data around for, based on their last write time
@@ -282,7 +282,7 @@ namespace Jupiter.Implementation
 
 			return di.EnumerateFiles("*", SearchOption.AllDirectories).Take(maxCountOfObjectsScanned).OrderBy(x => x.LastWriteTime).Take(maxResults);
 		}
-		
+
 		/// <summary>
 		/// Calculate the total size of blobs on disk for given namespace
 		/// </summary>
@@ -299,7 +299,7 @@ namespace Jupiter.Implementation
 			{
 				return 0;
 			}
-			
+
 			return await Task.Run(() => di.EnumerateFiles("*", SearchOption.AllDirectories).Sum(x =>
 			{
 				try
@@ -313,7 +313,7 @@ namespace Jupiter.Implementation
 				}
 			}));
 		}
-		
+
 		public IAsyncEnumerable<NamespaceId> ListNamespaces()
 		{
 			DirectoryInfo di = new DirectoryInfo(GetRootDir());

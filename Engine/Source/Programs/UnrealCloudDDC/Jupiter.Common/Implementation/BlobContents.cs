@@ -19,7 +19,7 @@ namespace Jupiter.Implementation
 			Length = length;
 			LocalPath = localPath;
 		}
-		
+
 		public BlobContents(byte[] payload)
 		{
 			_stream = new MemoryStream(payload);
@@ -42,8 +42,8 @@ namespace Jupiter.Implementation
 
 		public Uri? RedirectUri { get; }
 
-		public Stream Stream 
-		{ 
+		public Stream Stream
+		{
 			get
 			{
 				if (_stream == null)

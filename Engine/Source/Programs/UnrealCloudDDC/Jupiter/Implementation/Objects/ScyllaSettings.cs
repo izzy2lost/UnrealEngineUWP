@@ -33,8 +33,8 @@ public class ScyllaSettings : IValidatableObject
 	/// </summary>
 	[Required]
 	public string LocalDatacenterName { get; set; } = null!;
-		
-	[Required] 
+
+	[Required]
 	public string LocalKeyspaceSuffix { get; set; } = null!;
 
 	/// <summary>

@@ -44,8 +44,8 @@ namespace Jupiter
 				if (!accessRequest.Actions.Any())
 				{
 					throw new Exception("At least 1 AclAction has to be specified for the namespace access request");
-				} 
-				
+				}
+
 				NamespacePolicy policy = _namespacePolicyResolver.GetPoliciesForNs(namespaceName);
 
 				List<JupiterAclAction> allowedActions = new List<JupiterAclAction>();

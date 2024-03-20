@@ -8,11 +8,11 @@ using System.Net.Sockets;
 using System.Threading;
 using System.Threading.Tasks;
 using Jupiter.Implementation;
+using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using Moq;
 using Moq.Contrib.HttpClient;
-using Microsoft.Extensions.Logging.Abstractions;
 
 namespace Jupiter.FunctionalTests.Status
 {

@@ -4,9 +4,9 @@ using System;
 using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
-using Microsoft.Extensions.Options;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 
 namespace Jupiter.Implementation
 {
@@ -36,7 +36,7 @@ namespace Jupiter.Implementation
 		{
 			_settings = settings;
 			_logger = logger;
-			
+
 			if (settings.CurrentValue.CleanOldBlobs)
 			{
 				OrphanBlobCleanupRefs orphanBlobCleanupRefs = provider.GetService<OrphanBlobCleanupRefs>()!;

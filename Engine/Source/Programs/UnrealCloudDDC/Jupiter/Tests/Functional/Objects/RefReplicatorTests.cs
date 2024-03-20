@@ -10,12 +10,13 @@ using System.Text;
 using System.Text.Json;
 using System.Threading.Tasks;
 using Cassandra;
+using EpicGames.Horde.Storage;
 using Jupiter.Controllers;
 using Jupiter.Implementation;
 using Jupiter.Implementation.TransactionLog;
-using Microsoft.AspNetCore.TestHost;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.TestHost;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
@@ -23,7 +24,6 @@ using Moq;
 using Moq.Contrib.HttpClient;
 using Serilog;
 using Logger = Serilog.Core.Logger;
-using EpicGames.Horde.Storage;
 
 namespace Jupiter.FunctionalTests.Replication
 {
@@ -80,7 +80,7 @@ namespace Jupiter.FunctionalTests.Replication
 			await Task.CompletedTask;
 			IScyllaSessionManager scyllaSessionManager = provider.GetService<IScyllaSessionManager>()!;
 			ISession session = scyllaSessionManager.GetSessionForLocalKeyspace();
-			
+
 			// remove replication log table as we expect it to be empty when starting the tests
 			await session.ExecuteAsync(new SimpleStatement("DROP TABLE IF EXISTS replication_log;"));
 
@@ -96,7 +96,7 @@ namespace Jupiter.FunctionalTests.Replication
 				await TeardownDbAsync(_server.Services);
 			}
 		}
-		
+
 		[TestMethod]
 		public async Task ReplicationIncrementalStateAsync()
 		{
@@ -195,7 +195,7 @@ namespace Jupiter.FunctionalTests.Replication
 			BlobId snapshotBlob = BlobId.FromBlob(snapshotContent);
 
 			Mock<HttpMessageHandler> handler = new Mock<HttpMessageHandler>();
-			string s = JsonSerializer.Serialize(new ReplicationLogSnapshots(new List<SnapshotInfo>{new SnapshotInfo(TestNamespace, SnapshotNamespace, snapshotBlob, DateTime.Now)}));
+			string s = JsonSerializer.Serialize(new ReplicationLogSnapshots(new List<SnapshotInfo> { new SnapshotInfo(TestNamespace, SnapshotNamespace, snapshotBlob, DateTime.Now) }));
 			handler.SetupRequest($"http://localhost/api/v1/replication-log/snapshots/{TestNamespace}").ReturnsResponse(s, "application/json");
 
 			// after processing a snapshot it will attempt to incrementally replicate from there, which should be empty
@@ -251,7 +251,7 @@ namespace Jupiter.FunctionalTests.Replication
 				byte[] blobContents = Encoding.UTF8.GetBytes($"random content in snapshot {i}");
 				BlobId blob = BlobId.FromBlob(blobContents);
 				blobs.Add(blob, blobContents);
-				snapshotEvents.Add(new ReplicationLogEvent(TestNamespace, TestBucket,RefId.FromName($"event-{i}"), blob, Guid.NewGuid(), "refs-000", DateTime.Now, ReplicationLogEvent.OpType.Added));
+				snapshotEvents.Add(new ReplicationLogEvent(TestNamespace, TestBucket, RefId.FromName($"event-{i}"), blob, Guid.NewGuid(), "refs-000", DateTime.Now, ReplicationLogEvent.OpType.Added));
 			}
 
 			for (int i = 0; i < CountOfTestEvents; i++)
@@ -261,7 +261,7 @@ namespace Jupiter.FunctionalTests.Replication
 				blobs.Add(blob, blobContents);
 				incrementalEvents.Add(new ReplicationLogEvent(TestNamespace, TestBucket, RefId.FromName($"incremental-event-{i}"), blob, Guid.NewGuid(), "refs-000", DateTime.Now, ReplicationLogEvent.OpType.Added));
 			}
-			
+
 			// Build snapshot
 			ReplicationLogSnapshot snapshot = ReplicationLogFactory.CreateEmptySnapshot(TestNamespace);
 			foreach (ReplicationLogEvent logEvent in snapshotEvents)
@@ -279,7 +279,7 @@ namespace Jupiter.FunctionalTests.Replication
 			BlobId snapshotBlob = BlobId.FromBlob(snapshotContent);
 
 			Mock<HttpMessageHandler> handler = new Mock<HttpMessageHandler>();
-			string s = JsonSerializer.Serialize(new ReplicationLogSnapshots(new List<SnapshotInfo>{new SnapshotInfo(TestNamespace, SnapshotNamespace, snapshotBlob, DateTime.Now)}));
+			string s = JsonSerializer.Serialize(new ReplicationLogSnapshots(new List<SnapshotInfo> { new SnapshotInfo(TestNamespace, SnapshotNamespace, snapshotBlob, DateTime.Now) }));
 			handler.SetupRequest($"http://localhost/api/v1/replication-log/snapshots/{TestNamespace}").ReturnsResponse(s, "application/json");
 
 			// when the snapshot has been processed we have a set of incremental events as well
@@ -315,7 +315,7 @@ namespace Jupiter.FunctionalTests.Replication
 			BlobId[] missingBlobs = await BlobStore.FilterOutKnownBlobsAsync(TestNamespace, blobs.Keys.ToArray());
 			Assert.IsFalse(missingBlobs.Any());
 		}
-		
+
 		[TestMethod]
 		public async Task ReplicationStateSnapshotFallbackAsync()
 		{
@@ -360,7 +360,7 @@ namespace Jupiter.FunctionalTests.Replication
 			Guid missingId = Guid.NewGuid();
 
 			Mock<HttpMessageHandler> handler = new Mock<HttpMessageHandler>();
-			string s = JsonSerializer.Serialize(new ReplicationLogSnapshots(new List<SnapshotInfo>{new SnapshotInfo(TestNamespace, SnapshotNamespace, snapshotBlob, DateTime.Now)}));
+			string s = JsonSerializer.Serialize(new ReplicationLogSnapshots(new List<SnapshotInfo> { new SnapshotInfo(TestNamespace, SnapshotNamespace, snapshotBlob, DateTime.Now) }));
 			handler.SetupRequest($"http://localhost/api/v1/replication-log/snapshots/{TestNamespace}").ReturnsResponse(s, "application/json");
 
 			// mock a error being generated due to the lastBucket/event being to old

@@ -1,23 +1,23 @@
 ﻿// Copyright Epic Games, Inc. All Rights Reserved.
 
 using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
+using System.Runtime.CompilerServices;
+using System.Threading;
 using System.Threading.Tasks;
 using Azure;
-using Microsoft.Extensions.Options;
 using Azure.Storage.Blobs;
 using Azure.Storage.Blobs.Models;
-using EpicGames.Horde.Storage;
-using Jupiter.Common.Implementation;
-using System.Threading;
-using System.Runtime.CompilerServices;
-using System.Collections.Concurrent;
 using Azure.Storage.Sas;
+using EpicGames.Horde.Storage;
 using Jupiter.Common;
+using Jupiter.Common.Implementation;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using OpenTelemetry.Trace;
 
 namespace Jupiter.Implementation
@@ -127,7 +127,7 @@ namespace Jupiter.Implementation
 					return new BlobContents(redirectUri);
 				}
 			}
-			
+
 			BlobContents? contents = await GetBackend(ns).TryReadAsync(GetPath(blobIdentifier), flags, CancellationToken.None);
 			if (contents == null)
 			{

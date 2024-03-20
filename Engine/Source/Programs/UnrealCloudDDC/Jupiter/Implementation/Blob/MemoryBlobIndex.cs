@@ -45,8 +45,8 @@ public class MemoryBlobIndex : IBlobIndex
 		}
 	}
 
-	private readonly ConcurrentDictionary<NamespaceId, ConcurrentDictionary<BlobId, MemoryBlobInfo>> _index = new ();
-	private readonly ConcurrentDictionary<NamespaceId, ConcurrentDictionary<BucketId, MemoryBucketInfo>> _bucketIndex = new ();
+	private readonly ConcurrentDictionary<NamespaceId, ConcurrentDictionary<BlobId, MemoryBlobInfo>> _index = new();
+	private readonly ConcurrentDictionary<NamespaceId, ConcurrentDictionary<BucketId, MemoryBucketInfo>> _bucketIndex = new();
 	private readonly IOptionsMonitor<JupiterSettings> _jupiterSettings;
 
 	public MemoryBlobIndex(IOptionsMonitor<JupiterSettings> settings)

@@ -233,7 +233,7 @@ namespace Jupiter
 					policy.AuthenticationSchemes = availableSchemes;
 					policy.Requirements.Add(new NamespaceAccessRequirement());
 				});
-				
+
 				options.AddPolicy(GlobalAccessRequirement.Name, policy =>
 				{
 					policy.AuthenticationSchemes = availableSchemes;
@@ -446,10 +446,10 @@ namespace Jupiter
 				app.UseDeveloperExceptionPage();
 			}
 			else
-			{ 
+			{
 				app.UseExceptionHandler("/error");
 			}
-				
+
 			app.UseRouting();
 
 			app.UseAuthentication();
@@ -508,7 +508,7 @@ namespace Jupiter
 
 		protected virtual void OnConfigureApp(IApplicationBuilder app, IWebHostEnvironment env)
 		{
-			
+
 		}
 	}
 
@@ -586,12 +586,12 @@ namespace Jupiter
 		ServiceAccount
 	};
 
-	public class AuthSchemeEntry: IValidatableObject
+	public class AuthSchemeEntry : IValidatableObject
 	{
 		/// <summary>
 		/// The implementation to use, this controls which other configuration values needs to be set. For most servers JWTBearer should work fine.
 		/// </summary>
-		[Required] 
+		[Required]
 		public SchemeImplementations Implementation { get; set; } = SchemeImplementations.JWTBearer;
 
 		/// <summary>
@@ -627,7 +627,7 @@ namespace Jupiter
 				{
 					validationResults.Add(new ValidationResult("JWT Audience must be specified when using JWTBearer implementation"));
 				}
-			} 
+			}
 			else if (Implementation == SchemeImplementations.Okta)
 			{
 				if (string.IsNullOrEmpty(OktaDomain))

@@ -23,7 +23,7 @@ namespace Jupiter.Implementation
 		private readonly ILogger _logger;
 		private Timer? _timer;
 		private readonly UnrealCloudDDCSettings _settings;
-		
+
 		public bool Running { get; private set; }
 
 		public LastAccessServiceReferences(IOptionsMonitor<UnrealCloudDDCSettings> settings, ILastAccessCache<LastAccessRecord> lastAccessCache, IReferencesStore referencesStore, INamespacePolicyResolver namespacePolicyResolver, Tracer tracer, ILogger<LastAccessServiceReferences> logger)
