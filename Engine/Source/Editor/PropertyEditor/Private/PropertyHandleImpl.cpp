@@ -514,9 +514,9 @@ FPropertyAccess::Result FPropertyValueImpl::ImportText( const TArray<FObjectBase
 					(CurObject->HasAnyFlags(RF_DefaultSubObject) && CurObject->GetOuter()->HasAnyFlags(RF_ClassDefaultObject | RF_ArchetypeObject))) &&
 					!bIsGameWorld)
 				{
-					// propagate the changes to instances unless we're modifying class shared data
-					// or the object is using overridable serialization, the propagation is done via reinstantiation
-					if (!bIsSparseClassData && !FOverridableManager::Get().IsEnabled(*CurObject))
+					// propagate the changes to instances unless the object is using overridable serialization, 
+					// the propagation is done via reinstantiation
+					if (!FOverridableManager::Get().IsEnabled(*CurObject))
 					{
 						InPropertyNode->PropagatePropertyChange(CurObject, *NewValue, PreviousContainerValue.IsEmpty() ? PreviousValue : PreviousContainerValue);
 					}

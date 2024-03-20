@@ -3961,7 +3961,25 @@ void FPropertyNode::PropagatePropertyChange( UObject* ModifiedObject, const TCHA
 	FPropertyNode* SubobjectPropertyNode = NULL;
 	UObject* Object = ModifiedObject;
 
-	if (Object->HasAnyFlags(RF_ClassDefaultObject|RF_ArchetypeObject))
+	if (HasNodeFlags(EPropertyNodeFlags::IsSparseClassData))
+	{
+		// Propagate only to child types with the CDO serving as a 'dummy' object to identify
+		// the class (and consequently edit the SCD)
+		if (ensure(Object->HasAnyFlags(RF_ClassDefaultObject)))
+		{
+			TArray<UClass*> Children;
+			GetDerivedClasses(Object->GetClass(), Children);
+			for (UClass* ChildClass : Children)
+			{
+				if (ChildClass->ClassDefaultObject &&
+					!ChildClass->GetPackage()->HasAnyFlags(RF_Transient))
+				{
+					ArchetypeInstances.Add(ChildClass->ClassDefaultObject);
+				}
+			}
+		}
+	}
+	else if (Object->HasAnyFlags(RF_ClassDefaultObject|RF_ArchetypeObject))
 	{
 		// Object is a default subobject, collect all instances.
 		Object->GetArchetypeInstances(ArchetypeInstances);
