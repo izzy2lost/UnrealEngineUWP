@@ -5417,28 +5417,44 @@ void PreCollectGarbageImpl(EObjectFlags KeepFlags)
 	// Reset GC skip counter
 	GNumAttemptsSinceLastGC = 0;
 
-	// Flush streaming before GC if requested
-	if (!GIsIncrementalReachabilityPending && GFlushStreamingOnGC && IsAsyncLoading())
-	{
-		UE_LOG(LogGarbage, Log, TEXT("CollectGarbageInternal() is flushing async loading"));
-		ReleaseGCLock();
-		FlushAsyncLoading();
-		AcquireGCLock();
-
-		GGCStats.bFlushedAsyncLoading = true;
-	}
-
-	// Route callbacks so we can ensure that we are e.g. not in the middle of loading something by flushing
-	// the async loading, etc...
 	if (!GIsIncrementalReachabilityPending)
 	{
-		TRACE_CPUPROFILER_EVENT_SCOPE(BroadcastPreGarbageCollect);
-		FCoreUObjectDelegates::GetPreGarbageCollectDelegate().Broadcast();
+		// Do not hold the lock during flush async loading and calling into user code through a delegate
+		// because this could cause deadlocks easily.
+		ReleaseGCLock();
+
+		// Flush streaming before GC if requested
+		if (GFlushStreamingOnGC && IsAsyncLoading())
+		{
+			UE_LOG(LogGarbage, Log, TEXT("CollectGarbageInternal() is flushing async loading"));
+			FlushAsyncLoading();
+			GGCStats.bFlushedAsyncLoading = true;
+		}
+		{
+			TRACE_CPUPROFILER_EVENT_SCOPE(BroadcastPreGarbageCollect);
+			FCoreUObjectDelegates::GetPreGarbageCollectDelegate().Broadcast();
+		}
+		// User code in PreGarbageCollect could have triggered new loading... need to flush that too.
+		if (GFlushStreamingOnGC && IsAsyncLoading())
+		{
+			UE_LOG(LogGarbage, Log, TEXT("CollectGarbageInternal() is flushing async loading because PreGarbageCollect triggered new loads"));
+			FlushAsyncLoading();
+			GGCStats.bFlushedAsyncLoading = true;
+		}
+
+		AcquireGCLock();
 	}
+
 	GLastGCFrame = GFrameCounter;
 
 	{
 		GIsGarbageCollecting = true;
+
+		if (!GIsIncrementalReachabilityPending)
+		{
+			TRACE_CPUPROFILER_EVENT_SCOPE(BroadcastGarbageCollectStarted);
+			FCoreUObjectDelegates::GetGarbageCollectStartedDelegate().Broadcast();
+		}
 
 		// Make sure previous incremental purge has finished or we do a full purge pass in case we haven't kicked one
 		// off yet since the last call to garbage collection.

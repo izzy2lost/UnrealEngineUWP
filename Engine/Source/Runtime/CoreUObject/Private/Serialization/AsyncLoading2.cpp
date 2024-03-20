@@ -3692,7 +3692,7 @@ public:
 	}
 
 private:
-	void OnPreGarbageCollect();
+	void OnGarbageCollectStarted();
 
 	void CollectUnreachableObjects(TArrayView<FUObjectItem*> UnreachableObjectItems, FUnreachableObjects& OutUnreachableObjects);
 
@@ -8163,7 +8163,7 @@ FAsyncLoadingThread2::FAsyncLoadingThread2(FIoDispatcher& InIoDispatcher, IAsync
 	ThreadResumedEvent = FPlatformProcess::GetSynchEventFromPool();
 	AsyncLoadingTickCounter = 0;
 
-	FCoreUObjectDelegates::GetPreGarbageCollectDelegate().AddRaw(this, &FAsyncLoadingThread2::OnPreGarbageCollect);
+	FCoreUObjectDelegates::GetGarbageCollectStartedDelegate().AddRaw(this, &FAsyncLoadingThread2::OnGarbageCollectStarted);
 
 	FAsyncLoadingThreadState2::TlsSlot = FPlatformTLS::AllocTlsSlot();
 	GameThreadState = MakeUnique<FAsyncLoadingThreadState2>(GraphAllocator, IoDispatcher);
@@ -8637,9 +8637,9 @@ void FAsyncLoadingThread2::CollectUnreachableObjects(
 	}
 }
 
-void FAsyncLoadingThread2::OnPreGarbageCollect()
+void FAsyncLoadingThread2::OnGarbageCollectStarted()
 {
-	TRACE_CPUPROFILER_EVENT_SCOPE(FAsyncLoadingThread2::OnPreGarbageCollect);
+	TRACE_CPUPROFILER_EVENT_SCOPE(FAsyncLoadingThread2::OnGarbageCollectStarted);
 	// Flush the delete queue so that we don't prevent packages from being garbage collected if we're done with them
 	ProcessDeferredDeletePackagesQueue();
 }

@@ -3244,8 +3244,11 @@ struct FCoreUObjectDelegates
 	/** Sent when a network replay has started */
 	static COREUOBJECT_API FSimpleMulticastDelegate PostDemoPlay;
 
-	/** Called before garbage collection */
+	/** Called before garbage collection, before the GC lock is acquired. */
 	static COREUOBJECT_API FSimpleMulticastDelegate& GetPreGarbageCollectDelegate();
+
+	/** Called at the very beginning of garbage collection, once the GC lock is held. */
+	static COREUOBJECT_API FSimpleMulticastDelegate& GetGarbageCollectStartedDelegate();
 
 	/** Delegate type for reachability analysis external roots callback. First parameter is FGarbageCollectionTracer to use for tracing, second is flags with which objects should be kept alive regardless, third is whether to force single threading */
 	DECLARE_MULTICAST_DELEGATE_ThreeParams(FTraceExternalRootsForReachabilityAnalysisDelegate, FGarbageCollectionTracer&, EObjectFlags, bool);

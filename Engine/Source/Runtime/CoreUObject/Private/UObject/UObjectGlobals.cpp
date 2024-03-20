@@ -188,6 +188,12 @@ FSimpleMulticastDelegate& FCoreUObjectDelegates::GetPreGarbageCollectDelegate()
 	return Delegate;
 }
 
+FSimpleMulticastDelegate& FCoreUObjectDelegates::GetGarbageCollectStartedDelegate()
+{
+	static FSimpleMulticastDelegate Delegate;
+	return Delegate;
+}
+
 FSimpleMulticastDelegate& FCoreUObjectDelegates::GetPostGarbageCollect()
 {
 	static FSimpleMulticastDelegate Delegate;
