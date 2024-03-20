@@ -49,7 +49,7 @@ void FJsonSerializable::ToJson(TSharedRef< TJsonWriter< TCHAR, TCondensedJsonPri
 
 bool FJsonSerializable::FromJson(const FString& Json)
 {
-	return FromJson(CopyTemp(Json));
+	return FromJsonStringView(FStringView(Json));
 }
 
 bool FJsonSerializable::FromJson(FString&& Json)
@@ -65,6 +65,37 @@ bool FJsonSerializable::FromJson(FString&& Json)
 	}
 	UE_LOG(LogJson, Warning, TEXT("Failed to parse Json from a string: %s"), *JsonReader->GetErrorMessage());
 	return false;
+}
+
+namespace UE::JsonSerializable::Private
+{
+
+template<typename CharType>
+bool FromJsonStringView(FJsonSerializable* Serializable, TStringView<CharType> JsonStringView)
+{
+	TSharedPtr<FJsonObject> JsonObject;
+	TSharedRef<TJsonReader<CharType> > JsonReader = TJsonReaderFactory<CharType>::CreateFromView(JsonStringView);
+	if (FJsonSerializer::Deserialize(JsonReader,JsonObject) &&
+		JsonObject.IsValid())
+	{
+		FJsonSerializerReader Serializer(JsonObject);
+		Serializable->Serialize(Serializer, false);
+		return true;
+	}
+	UE_LOG(LogJson, Warning, TEXT("Failed to parse Json from a string: %s"), *JsonReader->GetErrorMessage());
+	return false;
+}
+
+}
+
+bool FJsonSerializable::FromJsonStringView(FUtf8StringView JsonStringView)
+{
+	return UE::JsonSerializable::Private::FromJsonStringView(this, JsonStringView);
+}
+
+bool FJsonSerializable::FromJsonStringView(FWideStringView JsonStringView)
+{
+	return UE::JsonSerializable::Private::FromJsonStringView(this, JsonStringView);
 }
 
 bool FJsonSerializable::FromJson(TSharedPtr<FJsonObject> JsonObject)
