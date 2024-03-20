@@ -2,6 +2,7 @@
 
 #pragma once
 
+#include "IStateTreeSchemaProvider.h"
 #include "StateTreeEditorNode.h"
 #include "StateTreeEditorTypes.h"
 #include "StateTreeEvents.h"
@@ -187,7 +188,7 @@ struct STATETREEEDITORMODULE_API FStateTreeStateParameters
  * Editor representation of a state in StateTree
  */
 UCLASS(BlueprintType, EditInlineNew, CollapseCategories)
-class STATETREEEDITORMODULE_API UStateTreeState : public UObject
+class STATETREEEDITORMODULE_API UStateTreeState : public UObject, public IStateTreeSchemaProvider
 {
 	GENERATED_BODY()
 
@@ -294,6 +295,14 @@ public:
 	}
 
 	// ~StateTree Builder API
+
+	// IStateTreeSchemaProvider API
+	/**
+	* @return Class of schema used by the state tree containing this state.
+	*/
+	virtual TSubclassOf<UStateTreeSchema> GetSchema() const override;
+
+	// ~IStateTreeSchemaProvider API
 
 	/** Display name of the State */
 	UPROPERTY(EditDefaultsOnly, Category = "State")

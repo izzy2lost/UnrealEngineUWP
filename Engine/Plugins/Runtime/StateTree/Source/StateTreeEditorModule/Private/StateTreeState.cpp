@@ -534,3 +534,15 @@ FStateTreeStateLink UStateTreeState::GetLinkToState() const
 	Link.ID = ID;
 	return Link;
 }
+
+TSubclassOf<UStateTreeSchema> UStateTreeState::GetSchema() const
+{
+	if (const UStateTreeEditorData* EditorData = GetTypedOuter<UStateTreeEditorData>())
+	{
+		if (EditorData->Schema)
+		{
+			return EditorData->Schema->GetClass();
+		}
+	}
+	return nullptr;
+}

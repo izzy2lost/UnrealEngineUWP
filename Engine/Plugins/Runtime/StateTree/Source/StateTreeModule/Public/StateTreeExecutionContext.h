@@ -91,6 +91,8 @@ struct STATETREEMODULE_API FStateTreeExecutionContext
 {
 public:
 	FStateTreeExecutionContext(UObject& InOwner, const UStateTree& InStateTree, FStateTreeInstanceData& InInstanceData, const FOnCollectStateTreeExternalData& CollectExternalDataCallback = {});
+	/** Construct an execution context from a parent context and another tree. Useful to run a subtree from the parent context with the same schema. */
+	FStateTreeExecutionContext(const FStateTreeExecutionContext& InContextToCopy, const UStateTree& InStateTree, FStateTreeInstanceData& InInstanceData);
 	virtual ~FStateTreeExecutionContext();
 
 	/** Updates data view of the parameters by using the default values defined in the StateTree asset. */

@@ -121,6 +121,25 @@ FStateTreeExecutionContext::FStateTreeExecutionContext(UObject& InOwner, const U
 }
 
 
+FStateTreeExecutionContext::FStateTreeExecutionContext(const FStateTreeExecutionContext& InContextToCopy, const UStateTree& InStateTree, FStateTreeInstanceData& InInstanceData)
+	: FStateTreeExecutionContext(InContextToCopy.Owner, InStateTree, InInstanceData, InContextToCopy.CollectExternalDataDelegate)
+{
+	const bool bIsSameSchema = RootStateTree.GetSchema()->GetClass() == InContextToCopy.GetStateTree()->GetSchema()->GetClass();
+	if (bIsSameSchema)
+	{
+		for (const FStateTreeExternalDataDesc& TargetDataDesc : GetContextDataDescs())
+		{
+			const int32 TargetIndex = TargetDataDesc.Handle.DataHandle.GetIndex();
+			ContextAndExternalDataViews[TargetIndex] = InContextToCopy.ContextAndExternalDataViews[TargetIndex];
+		}
+	}
+	else
+	{
+		STATETREE_LOG(Error, TEXT("%hs: '%s' using StateTree '%s' trying to run subtree '%s' but their schemas don't match"),
+			__FUNCTION__, *GetNameSafe(&Owner), *GetFullNameSafe(InContextToCopy.GetStateTree()), *GetFullNameSafe(&RootStateTree));
+	}
+}
+
 FStateTreeExecutionContext::~FStateTreeExecutionContext()
 {
 	// Mark external data indices as invalid
