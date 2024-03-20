@@ -75,10 +75,6 @@ bool FSkinWeightsUtilities::ImportAlternateSkinWeight(USkeletalMesh* SkeletalMes
 	FScopedSuspendAlternateSkinWeightPreview ScopedSuspendAlternateSkinnWeightPreview(SkeletalMesh);
 	FScopedSkeletalMeshPostEditChange ScopePostEditChange(SkeletalMesh);
 
-	//If Interchange is enable use it if not use the old path
-
-	bool bUseInterchangeFramework = UInterchangeManager::IsInterchangeImportEnabled();
-	UInterchangeManager& InterchangeManager = UInterchangeManager::GetInterchangeManager();
 	const FString FileExtension = FPaths::GetExtension(AbsoluteFilePath);
 
 	FAssetToolsModule& AssetToolsModule = FModuleManager::LoadModuleChecked<FAssetToolsModule>("AssetTools");
@@ -112,10 +108,19 @@ bool FSkinWeightsUtilities::ImportAlternateSkinWeight(USkeletalMesh* SkeletalMes
 	UObject* ImportedObject = nullptr;
 
 	bool bCreateTransaction = false;
-	//Only use interchange if the base skeletal mesh was imported with interchange
-	const UInterchangeAssetImportData* SelectedInterchangeAssetImportData = Cast<UInterchangeAssetImportData>(SkeletalMesh->GetAssetImportData());
-	if (bUseInterchangeFramework && SelectedInterchangeAssetImportData)
+
+	UInterchangeManager& InterchangeManager = UInterchangeManager::GetInterchangeManager();
+	const UInterchangeSourceData* SourceData = InterchangeManager.CreateSourceData(AbsoluteFilePath);
+	const bool bInterchangeCanImportSourceData = InterchangeManager.CanTranslateSourceData(SourceData);
+	if (bInterchangeCanImportSourceData)
 	{
+		UInterchangeAssetImportData* SelectedInterchangeAssetImportData = Cast<UInterchangeAssetImportData>(SkeletalMesh->GetAssetImportData());
+		if (!SelectedInterchangeAssetImportData)
+		{
+			//Try to convert the asset import data
+			InterchangeManager.ConvertImportData(SkeletalMesh->GetAssetImportData(), UInterchangeAssetImportData::StaticClass(), reinterpret_cast<UObject**>(&SelectedInterchangeAssetImportData));
+		}
+
 		UE::Interchange::FScopedSourceData ScopedSourceData(AbsoluteFilePath);
 		const UInterchangeProjectSettings* InterchangeProjectSettings = GetDefault<UInterchangeProjectSettings>();
 		FImportAssetParameters ImportAssetParameters;
@@ -124,14 +129,17 @@ bool FSkinWeightsUtilities::ImportAlternateSkinWeight(USkeletalMesh* SkeletalMes
 		if (const UClass* GenericPipelineClass = InterchangeProjectSettings->GenericPipelineClass.LoadSynchronous())
 		{
 			UInterchangePipelineBase* GenericPipeline = nullptr;
-			for (UObject* PipelineObject : SelectedInterchangeAssetImportData->GetPipelines())
+			if (SelectedInterchangeAssetImportData)
 			{
-				if (PipelineObject->GetClass()->IsChildOf(GenericPipelineClass))
+				for (UObject* PipelineObject : SelectedInterchangeAssetImportData->GetPipelines())
 				{
-					if (UInterchangePipelineBase* ImportPipeline = Cast<UInterchangePipelineBase>(PipelineObject))
+					if (PipelineObject->GetClass()->IsChildOf(GenericPipelineClass))
 					{
-						GenericPipeline = Cast<UInterchangePipelineBase>(StaticDuplicateObject(ImportPipeline, GetTransientPackage()));
-						break;
+						if (UInterchangePipelineBase* ImportPipeline = Cast<UInterchangePipelineBase>(PipelineObject))
+						{
+							GenericPipeline = Cast<UInterchangePipelineBase>(StaticDuplicateObject(ImportPipeline, GetTransientPackage()));
+							break;
+						}
 					}
 				}
 			}
@@ -160,12 +168,32 @@ bool FSkinWeightsUtilities::ImportAlternateSkinWeight(USkeletalMesh* SkeletalMes
 	}
 	else if(FileExtension.Equals(TEXT("fbx"), ESearchCase::IgnoreCase))
 	{
+		UFbxSkeletalMeshImportData* OriginalSkeletalMeshImportData = Cast<UFbxSkeletalMeshImportData>(SkeletalMesh->GetAssetImportData());
+		if (!OriginalSkeletalMeshImportData)
+		{
+			//Convert the data if its Interchange import data
+			if (UInterchangeAssetImportData* InterchangeAssetImportData = Cast<UInterchangeAssetImportData>(SkeletalMesh->GetAssetImportData()))
+			{
+				UFbxImportUI* FbxImportUI = nullptr;
+				InterchangeManager.ConvertImportData(InterchangeAssetImportData, UFbxImportUI::StaticClass(), reinterpret_cast<UObject**>(&FbxImportUI));
+				if (FbxImportUI)
+				{
+					OriginalSkeletalMeshImportData = FbxImportUI->SkeletalMeshImportData;
+				}
+			}
+
+			if (!OriginalSkeletalMeshImportData)
+			{
+				//This will reset the import data
+				OriginalSkeletalMeshImportData = UFbxSkeletalMeshImportData::GetImportDataForSkeletalMesh(SkeletalMesh, nullptr);
+			}
+		}
+
 		//Import the alternate fbx into a temporary skeletal mesh using the same import options
 		UFbxFactory* FbxFactory = NewObject<UFbxFactory>(UFbxFactory::StaticClass());
 		FbxFactory->AddToRoot();
 
 		FbxFactory->ImportUI = NewObject<UFbxImportUI>(FbxFactory);
-		UFbxSkeletalMeshImportData* OriginalSkeletalMeshImportData = UFbxSkeletalMeshImportData::GetImportDataForSkeletalMesh(SkeletalMesh, nullptr);
 		if (OriginalSkeletalMeshImportData != nullptr)
 		{
 			//Copy the skeletal mesh import data options

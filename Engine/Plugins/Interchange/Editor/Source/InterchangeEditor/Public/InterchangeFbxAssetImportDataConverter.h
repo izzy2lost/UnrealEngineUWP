@@ -15,6 +15,8 @@ class INTERCHANGEEDITOR_API UInterchangeFbxAssetImportDataConverter : public UIn
 	GENERATED_BODY()
 
 public:
-	virtual bool ConvertImportData(UObject* Object, const FString& ToExtension) const override;
-	virtual bool ConvertImportData(const UObject* SourceImportData, UObject** DestinationImportDataClass) const override;
+	virtual bool CanConvertClass(const UClass* SourceClass, const UClass* DestinationClass) const override;
+
+	virtual bool ConvertImportData(UObject* Asset, const FString& ToExtension) const override;
+	virtual bool ConvertImportData(const UObject* SourceImportData, UObject** DestinationImportData) const override;
 };

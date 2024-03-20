@@ -199,14 +199,20 @@ class UInterchangeAssetImportDataConverterBase : public UObject
 {
 	GENERATED_BODY()
 public:
+
+	/* Converter must return which class they can convert to and from UInterchangeAssetImportData. */
+	virtual bool CanConvertClass(const UClass* SourceClass, const UClass* DestinationClass) const { return false; }
+
 	/**
 	 * Convert the asset import data from the one that is in the Object to
 	 * one that supports the target extension (for example, legacy FBX to Interchange or vice-versa)
 	 * The function should return true only if it has converted the asset import data, or false otherwise.
 	 * 
 	 * The system will call all objects that derive from this class until one converts the data.
+	 * 
+	 * @Param Asset - Represent an asset that have a member AssetImportData (StaticMesh, SkeletalMesh, Texture....)
 	 */
-	virtual bool ConvertImportData(UObject* Object, const FString& TargetExtension) const
+	virtual bool ConvertImportData(UObject* Asset, const FString& TargetExtension) const
 	{
 		return false;
 	}
@@ -217,7 +223,7 @@ public:
 	 *
 	 * The system will call all object deriving from this class until one convert the data.
 	 */
-	virtual bool ConvertImportData(const UObject* SourceImportData, UObject** DestinationImportDataClass) const
+	virtual bool ConvertImportData(const UObject* SourceImportData, UObject** DestinationImportData) const
 	{
 		return false;
 	}

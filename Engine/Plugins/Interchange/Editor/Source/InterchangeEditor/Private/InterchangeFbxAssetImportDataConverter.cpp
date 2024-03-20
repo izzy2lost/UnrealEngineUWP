@@ -98,6 +98,126 @@ namespace UE::Interchange::Private
 		}
 	}
 
+	void FillFbxStaticMeshImportData(const UInterchangeGenericAssetsPipeline* GenericAssetPipeline, UFbxStaticMeshImportData* DestinationStaticMeshImportData)
+	{
+		DestinationStaticMeshImportData->bAutoGenerateCollision = GenericAssetPipeline->MeshPipeline->bImportCollision;
+		DestinationStaticMeshImportData->bBuildNanite = GenericAssetPipeline->MeshPipeline->bBuildNanite;
+		DestinationStaticMeshImportData->bBuildReversedIndexBuffer = GenericAssetPipeline->MeshPipeline->bBuildReversedIndexBuffer;
+		DestinationStaticMeshImportData->bCombineMeshes = GenericAssetPipeline->MeshPipeline->bCombineStaticMeshes;
+		DestinationStaticMeshImportData->bGenerateLightmapUVs = GenericAssetPipeline->MeshPipeline->bGenerateLightmapUVs;
+		DestinationStaticMeshImportData->bOneConvexHullPerUCX = GenericAssetPipeline->MeshPipeline->bOneConvexHullPerUCX;
+		DestinationStaticMeshImportData->bRemoveDegenerates = GenericAssetPipeline->CommonMeshesProperties->bRemoveDegenerates;
+		DestinationStaticMeshImportData->DistanceFieldResolutionScale = GenericAssetPipeline->MeshPipeline->DistanceFieldResolutionScale;
+		DestinationStaticMeshImportData->StaticMeshLODGroup = GenericAssetPipeline->MeshPipeline->LodGroup;
+		if (GenericAssetPipeline->CommonMeshesProperties->VertexColorImportOption == EInterchangeVertexColorImportOption::IVCIO_Ignore)
+		{
+			DestinationStaticMeshImportData->VertexColorImportOption = EVertexColorImportOption::Ignore;
+		}
+		else if (GenericAssetPipeline->CommonMeshesProperties->VertexColorImportOption == EInterchangeVertexColorImportOption::IVCIO_Override)
+		{
+			DestinationStaticMeshImportData->VertexColorImportOption = EVertexColorImportOption::Override;
+		}
+		else if (GenericAssetPipeline->CommonMeshesProperties->VertexColorImportOption == EInterchangeVertexColorImportOption::IVCIO_Replace)
+		{
+			DestinationStaticMeshImportData->VertexColorImportOption = EVertexColorImportOption::Replace;
+		}
+		DestinationStaticMeshImportData->VertexOverrideColor = GenericAssetPipeline->CommonMeshesProperties->VertexOverrideColor;
+	}
+
+	void FillFbxSkeletalMeshImportData(const UInterchangeGenericAssetsPipeline* GenericAssetPipeline, UFbxSkeletalMeshImportData* DestinationSkeletalMeshImportData)
+	{
+		DestinationSkeletalMeshImportData->bImportMeshesInBoneHierarchy = GenericAssetPipeline->CommonSkeletalMeshesAndAnimationsProperties->bImportMeshesInBoneHierarchy;
+		DestinationSkeletalMeshImportData->bImportMorphTargets = GenericAssetPipeline->MeshPipeline->bImportMorphTargets;
+		DestinationSkeletalMeshImportData->bImportVertexAttributes = GenericAssetPipeline->MeshPipeline->bImportVertexAttributes;
+		DestinationSkeletalMeshImportData->bKeepSectionsSeparate = GenericAssetPipeline->CommonMeshesProperties->bKeepSectionsSeparate;
+		DestinationSkeletalMeshImportData->bPreserveSmoothingGroups = true;
+		DestinationSkeletalMeshImportData->bUpdateSkeletonReferencePose = GenericAssetPipeline->MeshPipeline->bUpdateSkeletonReferencePose;
+		DestinationSkeletalMeshImportData->bUseT0AsRefPose = GenericAssetPipeline->CommonSkeletalMeshesAndAnimationsProperties->bUseT0AsRefPose;
+		if (GenericAssetPipeline->MeshPipeline->SkeletalMeshImportContentType == EInterchangeSkeletalMeshContentType::All)
+		{
+			DestinationSkeletalMeshImportData->ImportContentType = EFBXImportContentType::FBXICT_All;
+		}
+		else if (GenericAssetPipeline->MeshPipeline->SkeletalMeshImportContentType == EInterchangeSkeletalMeshContentType::Geometry)
+		{
+			DestinationSkeletalMeshImportData->ImportContentType = EFBXImportContentType::FBXICT_Geometry;
+		}
+		else if (GenericAssetPipeline->MeshPipeline->SkeletalMeshImportContentType == EInterchangeSkeletalMeshContentType::SkinningWeights)
+		{
+			DestinationSkeletalMeshImportData->ImportContentType = EFBXImportContentType::FBXICT_SkinningWeights;
+		}
+
+		if (GenericAssetPipeline->MeshPipeline->LastSkeletalMeshImportContentType == EInterchangeSkeletalMeshContentType::All)
+		{
+			DestinationSkeletalMeshImportData->LastImportContentType = EFBXImportContentType::FBXICT_All;
+		}
+		else if (GenericAssetPipeline->MeshPipeline->LastSkeletalMeshImportContentType == EInterchangeSkeletalMeshContentType::Geometry)
+		{
+			DestinationSkeletalMeshImportData->LastImportContentType = EFBXImportContentType::FBXICT_Geometry;
+		}
+		else if (GenericAssetPipeline->MeshPipeline->LastSkeletalMeshImportContentType == EInterchangeSkeletalMeshContentType::SkinningWeights)
+		{
+			DestinationSkeletalMeshImportData->LastImportContentType = EFBXImportContentType::FBXICT_SkinningWeights;
+		}
+
+		DestinationSkeletalMeshImportData->MorphThresholdPosition = GenericAssetPipeline->MeshPipeline->MorphThresholdPosition;
+		DestinationSkeletalMeshImportData->ThresholdPosition = GenericAssetPipeline->MeshPipeline->ThresholdPosition;
+		DestinationSkeletalMeshImportData->ThresholdTangentNormal = GenericAssetPipeline->MeshPipeline->ThresholdTangentNormal;
+		DestinationSkeletalMeshImportData->ThresholdUV = GenericAssetPipeline->MeshPipeline->ThresholdUV;
+
+		if (GenericAssetPipeline->CommonMeshesProperties->VertexColorImportOption == EInterchangeVertexColorImportOption::IVCIO_Ignore)
+		{
+			DestinationSkeletalMeshImportData->VertexColorImportOption = EVertexColorImportOption::Ignore;
+		}
+		else if (GenericAssetPipeline->CommonMeshesProperties->VertexColorImportOption == EInterchangeVertexColorImportOption::IVCIO_Override)
+		{
+			DestinationSkeletalMeshImportData->VertexColorImportOption = EVertexColorImportOption::Override;
+		}
+		else if (GenericAssetPipeline->CommonMeshesProperties->VertexColorImportOption == EInterchangeVertexColorImportOption::IVCIO_Replace)
+		{
+			DestinationSkeletalMeshImportData->VertexColorImportOption = EVertexColorImportOption::Replace;
+		}
+		DestinationSkeletalMeshImportData->VertexOverrideColor = GenericAssetPipeline->CommonMeshesProperties->VertexOverrideColor;
+	}
+
+	void FillFbxAnimSequenceImportData(const UInterchangeGenericAssetsPipeline* GenericAssetPipeline, UFbxAnimSequenceImportData* DestinationAnimSequenceImportData)
+	{
+		switch (GenericAssetPipeline->AnimationPipeline->AnimationRange)
+		{
+		case EInterchangeAnimationRange::Timeline:
+		{
+			DestinationAnimSequenceImportData->AnimationLength = EFBXAnimationLengthImportType::FBXALIT_ExportedTime;
+			break;
+		}
+		case EInterchangeAnimationRange::Animated:
+		{
+			DestinationAnimSequenceImportData->AnimationLength = EFBXAnimationLengthImportType::FBXALIT_AnimatedKey;
+			break;
+		}
+		case EInterchangeAnimationRange::SetRange:
+		{
+			DestinationAnimSequenceImportData->AnimationLength = EFBXAnimationLengthImportType::FBXALIT_SetRange;
+			break;
+		}
+		}
+		DestinationAnimSequenceImportData->bAddCurveMetadataToSkeleton = GenericAssetPipeline->AnimationPipeline->bAddCurveMetadataToSkeleton;
+		DestinationAnimSequenceImportData->bDeleteExistingCustomAttributeCurves = GenericAssetPipeline->AnimationPipeline->bDeleteExistingCustomAttributeCurves;
+		DestinationAnimSequenceImportData->bDeleteExistingMorphTargetCurves = GenericAssetPipeline->AnimationPipeline->bDeleteExistingMorphTargetCurves;
+		DestinationAnimSequenceImportData->bDeleteExistingNonCurveCustomAttributes = GenericAssetPipeline->AnimationPipeline->bDeleteExistingNonCurveCustomAttributes;
+		DestinationAnimSequenceImportData->bDoNotImportCurveWithZero = GenericAssetPipeline->AnimationPipeline->bDoNotImportCurveWithZero;
+		DestinationAnimSequenceImportData->bImportBoneTracks = GenericAssetPipeline->AnimationPipeline->bImportBoneTracks;
+		DestinationAnimSequenceImportData->bImportCustomAttribute = GenericAssetPipeline->AnimationPipeline->bImportCustomAttribute;
+		DestinationAnimSequenceImportData->bImportMeshesInBoneHierarchy = GenericAssetPipeline->CommonSkeletalMeshesAndAnimationsProperties->bImportMeshesInBoneHierarchy;
+		DestinationAnimSequenceImportData->bPreserveLocalTransform = false;
+		DestinationAnimSequenceImportData->bRemoveRedundantKeys = GenericAssetPipeline->AnimationPipeline->bRemoveCurveRedundantKeys;
+		DestinationAnimSequenceImportData->bSetMaterialDriveParameterOnCustomAttribute = GenericAssetPipeline->AnimationPipeline->bSetMaterialDriveParameterOnCustomAttribute;
+		DestinationAnimSequenceImportData->bSnapToClosestFrameBoundary = GenericAssetPipeline->AnimationPipeline->bSnapToClosestFrameBoundary;
+		DestinationAnimSequenceImportData->bUseDefaultSampleRate = GenericAssetPipeline->AnimationPipeline->bUse30HzToBakeBoneAnimation;
+		DestinationAnimSequenceImportData->CustomSampleRate = GenericAssetPipeline->AnimationPipeline->CustomBoneAnimationSampleRate;
+		DestinationAnimSequenceImportData->FrameImportRange = GenericAssetPipeline->AnimationPipeline->FrameImportRange;
+		DestinationAnimSequenceImportData->MaterialCurveSuffixes = GenericAssetPipeline->AnimationPipeline->MaterialCurveSuffixes;
+		DestinationAnimSequenceImportData->SourceAnimationName = GenericAssetPipeline->AnimationPipeline->SourceAnimationName;
+	}
+
 	void FillInterchangeGenericAssetsPipelineFromFbxMeshImportData(UInterchangeGenericAssetsPipeline* GenericAssetPipeline, const UFbxMeshImportData* LegacyMeshImportData)
 	{
 		if (!LegacyMeshImportData || !GenericAssetPipeline)
@@ -119,20 +239,20 @@ namespace UE::Interchange::Private
 			GenericAssetPipeline->CommonMeshesProperties->bUseMikkTSpace = false;
 		}
 
-		if (LegacyMeshImportData->NormalImportMethod == EFBXNormalImportMethod::FBXNIM_ComputeNormals)
+		if (LegacyMeshImportData->NormalImportMethod == EFBXNormalImportMethod::FBXNIM_ImportNormalsAndTangents)
+		{
+			GenericAssetPipeline->CommonMeshesProperties->bRecomputeNormals = false;
+			GenericAssetPipeline->CommonMeshesProperties->bRecomputeTangents = false;
+		}
+		else if (LegacyMeshImportData->NormalImportMethod == EFBXNormalImportMethod::FBXNIM_ImportNormals)
+		{
+			GenericAssetPipeline->CommonMeshesProperties->bRecomputeNormals = false;
+			GenericAssetPipeline->CommonMeshesProperties->bRecomputeTangents = true;
+		}
+		else if (LegacyMeshImportData->NormalImportMethod == EFBXNormalImportMethod::FBXNIM_ComputeNormals)
 		{
 			GenericAssetPipeline->CommonMeshesProperties->bRecomputeNormals = true;
-		}
-		else
-		{
-			if (LegacyMeshImportData->NormalImportMethod == EFBXNormalImportMethod::FBXNIM_ImportNormals)
-			{
-				GenericAssetPipeline->CommonMeshesProperties->bRecomputeTangents = true;
-			}
-			else
-			{
-				GenericAssetPipeline->CommonMeshesProperties->bRecomputeTangents = false;
-			}
+			GenericAssetPipeline->CommonMeshesProperties->bRecomputeTangents = true;
 		}
 	}
 
@@ -314,30 +434,7 @@ namespace UE::Interchange::Private
 
 				FillFbxAssetImportData(InterchangeFbxTranslatorSettings, GenericAssetPipeline, DestinationStaticMeshImportData);
 				FillFbxMeshImportData(GenericAssetPipeline, DestinationStaticMeshImportData);
-
-				DestinationStaticMeshImportData->bAutoGenerateCollision = GenericAssetPipeline->MeshPipeline->bImportCollision;
-				DestinationStaticMeshImportData->bBuildNanite = GenericAssetPipeline->MeshPipeline->bBuildNanite;
-				DestinationStaticMeshImportData->bBuildReversedIndexBuffer = GenericAssetPipeline->MeshPipeline->bBuildReversedIndexBuffer;
-				DestinationStaticMeshImportData->bCombineMeshes = GenericAssetPipeline->MeshPipeline->bCombineStaticMeshes;
-				DestinationStaticMeshImportData->bGenerateLightmapUVs = GenericAssetPipeline->MeshPipeline->bGenerateLightmapUVs;
-				DestinationStaticMeshImportData->bOneConvexHullPerUCX = GenericAssetPipeline->MeshPipeline->bOneConvexHullPerUCX;
-				DestinationStaticMeshImportData->bRemoveDegenerates = GenericAssetPipeline->CommonMeshesProperties->bRemoveDegenerates;
-				DestinationStaticMeshImportData->DistanceFieldResolutionScale = GenericAssetPipeline->MeshPipeline->DistanceFieldResolutionScale;
-				DestinationStaticMeshImportData->StaticMeshLODGroup = GenericAssetPipeline->MeshPipeline->LodGroup;
-				if (GenericAssetPipeline->CommonMeshesProperties->VertexColorImportOption == EInterchangeVertexColorImportOption::IVCIO_Ignore)
-				{
-					DestinationStaticMeshImportData->VertexColorImportOption = EVertexColorImportOption::Ignore;
-				}
-				else if (GenericAssetPipeline->CommonMeshesProperties->VertexColorImportOption == EInterchangeVertexColorImportOption::IVCIO_Override)
-				{
-					DestinationStaticMeshImportData->VertexColorImportOption = EVertexColorImportOption::Override;
-				}
-				else if (GenericAssetPipeline->CommonMeshesProperties->VertexColorImportOption == EInterchangeVertexColorImportOption::IVCIO_Replace)
-				{
-					DestinationStaticMeshImportData->VertexColorImportOption = EVertexColorImportOption::Replace;
-				}
-				DestinationStaticMeshImportData->VertexOverrideColor = GenericAssetPipeline->CommonMeshesProperties->VertexOverrideColor;
-
+				FillFbxStaticMeshImportData(GenericAssetPipeline, DestinationStaticMeshImportData);
 				//Fill the reimport material match data and section data
 				FImportMeshLodSectionsData SectionData;
 				for (const FStaticMaterial& Material : StaticMesh->GetStaticMaterials())
@@ -378,58 +475,7 @@ namespace UE::Interchange::Private
 			{
 				FillFbxAssetImportData(InterchangeFbxTranslatorSettings, GenericAssetPipeline, DestinationSkeletalMeshImportData);
 				FillFbxMeshImportData(GenericAssetPipeline, DestinationSkeletalMeshImportData);
-				DestinationSkeletalMeshImportData->bImportMeshesInBoneHierarchy = GenericAssetPipeline->CommonSkeletalMeshesAndAnimationsProperties->bImportMeshesInBoneHierarchy;
-				DestinationSkeletalMeshImportData->bImportMorphTargets = GenericAssetPipeline->MeshPipeline->bImportMorphTargets;
-				DestinationSkeletalMeshImportData->bImportVertexAttributes = GenericAssetPipeline->MeshPipeline->bImportVertexAttributes;
-				DestinationSkeletalMeshImportData->bKeepSectionsSeparate = GenericAssetPipeline->CommonMeshesProperties->bKeepSectionsSeparate;
-				DestinationSkeletalMeshImportData->bPreserveSmoothingGroups = true;
-				DestinationSkeletalMeshImportData->bUpdateSkeletonReferencePose = GenericAssetPipeline->MeshPipeline->bUpdateSkeletonReferencePose;
-				DestinationSkeletalMeshImportData->bUseT0AsRefPose = GenericAssetPipeline->CommonSkeletalMeshesAndAnimationsProperties->bUseT0AsRefPose;
-				if (GenericAssetPipeline->MeshPipeline->SkeletalMeshImportContentType == EInterchangeSkeletalMeshContentType::All)
-				{
-					DestinationSkeletalMeshImportData->ImportContentType = EFBXImportContentType::FBXICT_All;
-				}
-				else if (GenericAssetPipeline->MeshPipeline->SkeletalMeshImportContentType == EInterchangeSkeletalMeshContentType::Geometry)
-				{
-					DestinationSkeletalMeshImportData->ImportContentType = EFBXImportContentType::FBXICT_Geometry;
-				}
-				else if (GenericAssetPipeline->MeshPipeline->SkeletalMeshImportContentType == EInterchangeSkeletalMeshContentType::SkinningWeights)
-				{
-					DestinationSkeletalMeshImportData->ImportContentType = EFBXImportContentType::FBXICT_SkinningWeights;
-				}
-
-				if (GenericAssetPipeline->MeshPipeline->LastSkeletalMeshImportContentType == EInterchangeSkeletalMeshContentType::All)
-				{
-					DestinationSkeletalMeshImportData->LastImportContentType = EFBXImportContentType::FBXICT_All;
-				}
-				else if (GenericAssetPipeline->MeshPipeline->LastSkeletalMeshImportContentType == EInterchangeSkeletalMeshContentType::Geometry)
-				{
-					DestinationSkeletalMeshImportData->LastImportContentType = EFBXImportContentType::FBXICT_Geometry;
-				}
-				else if (GenericAssetPipeline->MeshPipeline->LastSkeletalMeshImportContentType == EInterchangeSkeletalMeshContentType::SkinningWeights)
-				{
-					DestinationSkeletalMeshImportData->LastImportContentType = EFBXImportContentType::FBXICT_SkinningWeights;
-				}
-
-				DestinationSkeletalMeshImportData->MorphThresholdPosition = GenericAssetPipeline->MeshPipeline->MorphThresholdPosition;
-				DestinationSkeletalMeshImportData->ThresholdPosition = GenericAssetPipeline->MeshPipeline->ThresholdPosition;
-				DestinationSkeletalMeshImportData->ThresholdTangentNormal = GenericAssetPipeline->MeshPipeline->ThresholdTangentNormal;
-				DestinationSkeletalMeshImportData->ThresholdUV = GenericAssetPipeline->MeshPipeline->ThresholdUV;
-
-				if (GenericAssetPipeline->CommonMeshesProperties->VertexColorImportOption == EInterchangeVertexColorImportOption::IVCIO_Ignore)
-				{
-					DestinationSkeletalMeshImportData->VertexColorImportOption = EVertexColorImportOption::Ignore;
-				}
-				else if (GenericAssetPipeline->CommonMeshesProperties->VertexColorImportOption == EInterchangeVertexColorImportOption::IVCIO_Override)
-				{
-					DestinationSkeletalMeshImportData->VertexColorImportOption = EVertexColorImportOption::Override;
-				}
-				else if (GenericAssetPipeline->CommonMeshesProperties->VertexColorImportOption == EInterchangeVertexColorImportOption::IVCIO_Replace)
-				{
-					DestinationSkeletalMeshImportData->VertexColorImportOption = EVertexColorImportOption::Replace;
-				}
-				DestinationSkeletalMeshImportData->VertexOverrideColor = GenericAssetPipeline->CommonMeshesProperties->VertexOverrideColor;
-
+				FillFbxSkeletalMeshImportData(GenericAssetPipeline, DestinationSkeletalMeshImportData);
 				//Fill the reimport material match data and section data
 				FImportMeshLodSectionsData SectionData;
 				for (const FSkeletalMaterial& Material : SkeletalMesh->GetMaterials())
@@ -469,45 +515,115 @@ namespace UE::Interchange::Private
 			if (const UInterchangeGenericAssetsPipeline* GenericAssetPipeline = Cast<UInterchangeGenericAssetsPipeline>(Pipeline))
 			{
 				FillFbxAssetImportData(InterchangeFbxTranslatorSettings, GenericAssetPipeline, DestinationAnimSequenceImportData);
-
-				switch (GenericAssetPipeline->AnimationPipeline->AnimationRange)
-				{
-				case EInterchangeAnimationRange::Timeline:
-				{
-					DestinationAnimSequenceImportData->AnimationLength = EFBXAnimationLengthImportType::FBXALIT_ExportedTime;
-					break;
-				}
-				case EInterchangeAnimationRange::Animated:
-				{
-					DestinationAnimSequenceImportData->AnimationLength = EFBXAnimationLengthImportType::FBXALIT_AnimatedKey;
-					break;
-				}
-				case EInterchangeAnimationRange::SetRange:
-				{
-					DestinationAnimSequenceImportData->AnimationLength = EFBXAnimationLengthImportType::FBXALIT_SetRange;
-					break;
-				}
-				}
-				DestinationAnimSequenceImportData->bAddCurveMetadataToSkeleton = GenericAssetPipeline->AnimationPipeline->bAddCurveMetadataToSkeleton;
-				DestinationAnimSequenceImportData->bDeleteExistingCustomAttributeCurves = GenericAssetPipeline->AnimationPipeline->bDeleteExistingCustomAttributeCurves;
-				DestinationAnimSequenceImportData->bDeleteExistingMorphTargetCurves = GenericAssetPipeline->AnimationPipeline->bDeleteExistingMorphTargetCurves;
-				DestinationAnimSequenceImportData->bDeleteExistingNonCurveCustomAttributes = GenericAssetPipeline->AnimationPipeline->bDeleteExistingNonCurveCustomAttributes;
-				DestinationAnimSequenceImportData->bDoNotImportCurveWithZero = GenericAssetPipeline->AnimationPipeline->bDoNotImportCurveWithZero;
-				DestinationAnimSequenceImportData->bImportBoneTracks = GenericAssetPipeline->AnimationPipeline->bImportBoneTracks;
-				DestinationAnimSequenceImportData->bImportCustomAttribute = GenericAssetPipeline->AnimationPipeline->bImportCustomAttribute;
-				DestinationAnimSequenceImportData->bImportMeshesInBoneHierarchy = GenericAssetPipeline->CommonSkeletalMeshesAndAnimationsProperties->bImportMeshesInBoneHierarchy;
-				DestinationAnimSequenceImportData->bPreserveLocalTransform = false;
-				DestinationAnimSequenceImportData->bRemoveRedundantKeys = GenericAssetPipeline->AnimationPipeline->bRemoveCurveRedundantKeys;
-				DestinationAnimSequenceImportData->bSetMaterialDriveParameterOnCustomAttribute = GenericAssetPipeline->AnimationPipeline->bSetMaterialDriveParameterOnCustomAttribute;
-				DestinationAnimSequenceImportData->bSnapToClosestFrameBoundary = GenericAssetPipeline->AnimationPipeline->bSnapToClosestFrameBoundary;
-				DestinationAnimSequenceImportData->bUseDefaultSampleRate = GenericAssetPipeline->AnimationPipeline->bUse30HzToBakeBoneAnimation;
-				DestinationAnimSequenceImportData->CustomSampleRate = GenericAssetPipeline->AnimationPipeline->CustomBoneAnimationSampleRate;
-				DestinationAnimSequenceImportData->FrameImportRange = GenericAssetPipeline->AnimationPipeline->FrameImportRange;
-				DestinationAnimSequenceImportData->MaterialCurveSuffixes = GenericAssetPipeline->AnimationPipeline->MaterialCurveSuffixes;
-				DestinationAnimSequenceImportData->SourceAnimationName = GenericAssetPipeline->AnimationPipeline->SourceAnimationName;
+				FillFbxAnimSequenceImportData(GenericAssetPipeline, DestinationAnimSequenceImportData);
 			}
 		}
 		return DestinationAnimSequenceImportData;
+	}
+
+	UFbxImportUI* ConvertToLegacyFbx(UObject* Owner, const UInterchangeAssetImportData* InterchangeSourceData)
+	{
+		if (!InterchangeSourceData || !Owner)
+		{
+			return nullptr;
+		}
+		//Create a fbx asset import data and fill the options
+		UFbxImportUI* DestinationData = NewObject<UFbxImportUI>(Owner);
+
+		if (!DestinationData)
+		{
+			return nullptr;
+		}
+
+		const UInterchangeFbxTranslatorSettings* InterchangeFbxTranslatorSettings = Cast<UInterchangeFbxTranslatorSettings>(InterchangeSourceData->GetTranslatorSettings());
+		const UInterchangeGenericAssetsPipeline* GenericAssetPipeline = nullptr;
+		//Now find the generic asset pipeline
+		for (UObject* Pipeline : InterchangeSourceData->GetPipelines())
+		{
+			if (const UInterchangeGenericAssetsPipeline* AssetPipeline = Cast<UInterchangeGenericAssetsPipeline>(Pipeline))
+			{
+				GenericAssetPipeline = AssetPipeline;
+			}
+		}
+
+		if (!GenericAssetPipeline)
+		{
+			//Since we did not find any generic asset pipeline we fallback on the generic pipeline CDO settings
+			GenericAssetPipeline = NewObject<UInterchangeGenericAssetsPipeline>(GetTransientPackage());
+		}
+
+		FillFbxAssetImportData(InterchangeFbxTranslatorSettings, GenericAssetPipeline, DestinationData->StaticMeshImportData);
+		FillFbxAssetImportData(InterchangeFbxTranslatorSettings, GenericAssetPipeline, DestinationData->SkeletalMeshImportData);
+		FillFbxAssetImportData(InterchangeFbxTranslatorSettings, GenericAssetPipeline, DestinationData->AnimSequenceImportData);
+		FillFbxAssetImportData(InterchangeFbxTranslatorSettings, GenericAssetPipeline, DestinationData->TextureImportData);
+
+		FillFbxMeshImportData(GenericAssetPipeline, DestinationData->StaticMeshImportData);
+		FillFbxMeshImportData(GenericAssetPipeline, DestinationData->SkeletalMeshImportData);
+
+		FillFbxStaticMeshImportData(GenericAssetPipeline, DestinationData->StaticMeshImportData);
+		FillFbxSkeletalMeshImportData(GenericAssetPipeline, DestinationData->SkeletalMeshImportData);
+
+		FillFbxAnimSequenceImportData(GenericAssetPipeline, DestinationData->AnimSequenceImportData);
+
+		DestinationData->bOverrideFullName = GenericAssetPipeline->bUseSourceNameForAsset;
+
+		//Material Options
+		DestinationData->bImportMaterials = GenericAssetPipeline->MaterialPipeline->bImportMaterials;
+		switch (GenericAssetPipeline->MaterialPipeline->SearchLocation)
+		{
+		case EInterchangeMaterialSearchLocation::Local:
+			DestinationData->TextureImportData->MaterialSearchLocation = EMaterialSearchLocation::Local;
+			break;
+		case EInterchangeMaterialSearchLocation::UnderParent:
+			DestinationData->TextureImportData->MaterialSearchLocation = EMaterialSearchLocation::UnderParent;
+			break;
+		case EInterchangeMaterialSearchLocation::UnderRoot:
+			DestinationData->TextureImportData->MaterialSearchLocation = EMaterialSearchLocation::UnderRoot;
+			break;
+		case EInterchangeMaterialSearchLocation::AllAssets:
+			DestinationData->TextureImportData->MaterialSearchLocation = EMaterialSearchLocation::AllAssets;
+			break;
+		case EInterchangeMaterialSearchLocation::DoNotSearch:
+			DestinationData->TextureImportData->MaterialSearchLocation = EMaterialSearchLocation::DoNotSearch;
+			break;
+		}
+
+		if (GenericAssetPipeline->MaterialPipeline->ParentMaterial.IsAsset())
+		{
+			DestinationData->TextureImportData->bUseBaseMaterial = true;
+			DestinationData->TextureImportData->BaseMaterialName = GenericAssetPipeline->MaterialPipeline->ParentMaterial;
+		}
+		else
+		{
+			DestinationData->TextureImportData->bUseBaseMaterial = false;
+			DestinationData->TextureImportData->BaseMaterialName.Reset();
+		}
+
+		//Texture Options
+		DestinationData->bImportTextures = GenericAssetPipeline->MaterialPipeline->TexturePipeline->bImportTextures;
+		DestinationData->TextureImportData->bInvertNormalMaps = GenericAssetPipeline->MaterialPipeline->TexturePipeline->bFlipNormalMapGreenChannel;
+
+		//Discover if we must import something in particular
+		if (GenericAssetPipeline->MeshPipeline->CommonMeshesProperties->ForceAllMeshAsType == EInterchangeForceMeshType::IFMT_SkeletalMesh)
+		{
+			DestinationData->MeshTypeToImport = EFBXImportType::FBXIT_SkeletalMesh;
+			DestinationData->bImportAsSkeletal = true;
+			DestinationData->bImportAnimations = GenericAssetPipeline->AnimationPipeline->bImportAnimations;
+		}
+		else if (GenericAssetPipeline->MeshPipeline->CommonMeshesProperties->ForceAllMeshAsType == EInterchangeForceMeshType::IFMT_StaticMesh)
+		{
+			DestinationData->MeshTypeToImport = EFBXImportType::FBXIT_StaticMesh;
+
+			DestinationData->bImportAsSkeletal = false;
+			DestinationData->bImportAnimations = false;
+		}
+		else
+		{
+			DestinationData->bAutomatedImportShouldDetectType = true;
+		}
+		DestinationData->Skeleton = GenericAssetPipeline->CommonSkeletalMeshesAndAnimationsProperties->Skeleton.Get();
+
+		return DestinationData;
 	}
 
 	UAssetImportData* ConvertToInterchange(UObject* Obj, const UFbxAssetImportData* FbxAssetImportData)
@@ -806,7 +922,7 @@ namespace UE::Interchange::Private
 	}
 } //ns: UE::Interchange::Private
 
-bool UInterchangeFbxAssetImportDataConverter::ConvertImportData(UObject* Obj, const FString& TargetExtension) const
+bool UInterchangeFbxAssetImportDataConverter::ConvertImportData(UObject* Asset, const FString& TargetExtension) const
 {
 	bool bResult = false;
 	const FString TargetExtensionLower = TargetExtension.ToLower();
@@ -815,11 +931,11 @@ bool UInterchangeFbxAssetImportDataConverter::ConvertImportData(UObject* Obj, co
 	
 	UAssetImportData* OldAssetData = nullptr;
 	TArray<FString> InterchangeSupportedExtensions;
-	if (Obj->IsA(UStaticMesh::StaticClass()) || Obj->IsA(USkeletalMesh::StaticClass()))
+	if (Asset->IsA(UStaticMesh::StaticClass()) || Asset->IsA(USkeletalMesh::StaticClass()))
 	{
 		InterchangeSupportedExtensions = InterchangeManager.GetSupportedAssetTypeFormats(EInterchangeTranslatorAssetType::Meshes);
 	}
-	else if (Obj->IsA(UAnimSequence::StaticClass()))
+	else if (Asset->IsA(UAnimSequence::StaticClass()))
 	{
 		InterchangeSupportedExtensions = InterchangeManager.GetSupportedAssetTypeFormats(EInterchangeTranslatorAssetType::Animations);
 	}
@@ -837,7 +953,7 @@ bool UInterchangeFbxAssetImportDataConverter::ConvertImportData(UObject* Obj, co
 	
 	if (TargetExtensionLower.Equals(TEXT("fbx")) || bInterchangeSupportTargetExtension)
 	{
-		if (UStaticMesh* StaticMesh = Cast<UStaticMesh>(Obj))
+		if (UStaticMesh* StaticMesh = Cast<UStaticMesh>(Asset))
 		{
 			if (UAssetImportData* ConvertedAssetData = UE::Interchange::Private::ConvertData(StaticMesh, StaticMesh->GetAssetImportData(), bInterchangeSupportTargetExtension))
 			{
@@ -846,7 +962,7 @@ bool UInterchangeFbxAssetImportDataConverter::ConvertImportData(UObject* Obj, co
 				bResult = true;
 			}
 		}
-		else if (USkeletalMesh* SkeletalMesh = Cast<USkeletalMesh>(Obj))
+		else if (USkeletalMesh* SkeletalMesh = Cast<USkeletalMesh>(Asset))
 		{
 			if (UAssetImportData* ConvertedAssetData = UE::Interchange::Private::ConvertData(SkeletalMesh, SkeletalMesh->GetAssetImportData(), bInterchangeSupportTargetExtension))
 			{
@@ -855,7 +971,7 @@ bool UInterchangeFbxAssetImportDataConverter::ConvertImportData(UObject* Obj, co
 				bResult = true;
 			}
 		}
-		else if (UAnimSequence* AnimSequence = Cast<UAnimSequence>(Obj))
+		else if (UAnimSequence* AnimSequence = Cast<UAnimSequence>(Asset))
 		{
 			if (UAssetImportData* ConvertedAssetData = UE::Interchange::Private::ConvertData(AnimSequence, AnimSequence->AssetImportData, bInterchangeSupportTargetExtension))
 			{
@@ -891,11 +1007,98 @@ bool UInterchangeFbxAssetImportDataConverter::ConvertImportData(const UObject* S
 		*DestinationImportData = UE::Interchange::Private::ConvertToInterchange(GetTransientPackage(), Cast<UFbxImportUI>(SourceImportData));
 		bResult = true;
 	}
+	else if (SourceImportData->IsA<UFbxAssetImportData>())
+	{
+		//We convert the UFbxAssetImportData into a UFbxImportUI
+		auto FillFbxAssetImportData = [](const UFbxAssetImportData* SourceAssetImportData, UFbxAssetImportData* DestinationAssetImportData)
+			{
+				DestinationAssetImportData->bConvertScene = SourceAssetImportData->bConvertScene;
+				DestinationAssetImportData->bConvertSceneUnit = SourceAssetImportData->bConvertSceneUnit;
+				DestinationAssetImportData->bForceFrontXAxis = SourceAssetImportData->bForceFrontXAxis;
+				DestinationAssetImportData->bImportAsScene = SourceAssetImportData->bImportAsScene;
+				DestinationAssetImportData->ImportRotation = SourceAssetImportData->ImportRotation;
+				DestinationAssetImportData->ImportTranslation = SourceAssetImportData->ImportTranslation;
+				DestinationAssetImportData->ImportUniformScale = SourceAssetImportData->ImportUniformScale;
+			};
+
+		UFbxImportUI* TempFbxImportUI = NewObject<UFbxImportUI>(GetTransientPackage());
+		TempFbxImportUI->bImportMaterials = false;
+		TempFbxImportUI->bImportAsSkeletal = false;
+		TempFbxImportUI->bImportMesh = false;
+		TempFbxImportUI->bImportAnimations = false;
+		TempFbxImportUI->bImportRigidMesh = false;
+		TempFbxImportUI->bImportTextures = false;
+		TempFbxImportUI->bIsObjImport = false;
+		TempFbxImportUI->bIsReimport = false;
+		TempFbxImportUI->bCreatePhysicsAsset = false;
+		TempFbxImportUI->PhysicsAsset = nullptr;
+		TempFbxImportUI->Skeleton = nullptr;
+		if (SourceImportData->IsA<UFbxSkeletalMeshImportData>())
+		{
+			TempFbxImportUI->SkeletalMeshImportData = const_cast<UFbxSkeletalMeshImportData*>(Cast<UFbxSkeletalMeshImportData>(SourceImportData));
+			TempFbxImportUI->MeshTypeToImport = EFBXImportType::FBXIT_SkeletalMesh;
+			TempFbxImportUI->bImportAsSkeletal = true;
+			TempFbxImportUI->bImportMesh = true;
+
+			FillFbxAssetImportData(TempFbxImportUI->SkeletalMeshImportData, TempFbxImportUI->StaticMeshImportData);
+			FillFbxAssetImportData(TempFbxImportUI->SkeletalMeshImportData, TempFbxImportUI->AnimSequenceImportData);
+			FillFbxAssetImportData(TempFbxImportUI->SkeletalMeshImportData, TempFbxImportUI->TextureImportData);
+		}
+		else if (SourceImportData->IsA<UFbxStaticMeshImportData>())
+		{
+			TempFbxImportUI->MeshTypeToImport = EFBXImportType::FBXIT_StaticMesh;
+			TempFbxImportUI->bImportMesh = true;
+
+			TempFbxImportUI->StaticMeshImportData = const_cast<UFbxStaticMeshImportData*>(Cast<UFbxStaticMeshImportData>(SourceImportData));
+			FillFbxAssetImportData(TempFbxImportUI->StaticMeshImportData, TempFbxImportUI->SkeletalMeshImportData);
+			FillFbxAssetImportData(TempFbxImportUI->StaticMeshImportData, TempFbxImportUI->AnimSequenceImportData);
+			FillFbxAssetImportData(TempFbxImportUI->StaticMeshImportData, TempFbxImportUI->TextureImportData);
+		}
+		else if (SourceImportData->IsA<UFbxAnimSequenceImportData>())
+		{
+			TempFbxImportUI->MeshTypeToImport = EFBXImportType::FBXIT_Animation;
+			TempFbxImportUI->bImportAsSkeletal = true;
+			TempFbxImportUI->bImportMesh = false;
+			TempFbxImportUI->AnimSequenceImportData = const_cast<UFbxAnimSequenceImportData*>(Cast<UFbxAnimSequenceImportData>(SourceImportData));
+			FillFbxAssetImportData(TempFbxImportUI->AnimSequenceImportData, TempFbxImportUI->SkeletalMeshImportData);
+			FillFbxAssetImportData(TempFbxImportUI->AnimSequenceImportData, TempFbxImportUI->StaticMeshImportData);
+			FillFbxAssetImportData(TempFbxImportUI->AnimSequenceImportData, TempFbxImportUI->TextureImportData);
+		}
+		else
+		{
+			ensureMsgf(false, TEXT("Fbx interchange converter: miss match between CanConvertClass and the convertion capacity"));
+		}
+		*DestinationImportData = UE::Interchange::Private::ConvertToInterchange(GetTransientPackage(), TempFbxImportUI);
+		bResult = true;
+	}
 	else if (SourceImportData->IsA<UInterchangeAssetImportData>())
 	{
-		//TODO Convert Interchange to Legacy Fbx
-		//*DestinationImportData = UE::Interchange::Private::ConvertToLegacyFbx(GetTransientPackage(), Cast<UInterchangeAssetImportData>(SourceImportData));
+		*DestinationImportData = UE::Interchange::Private::ConvertToLegacyFbx(GetTransientPackage(), Cast<UInterchangeAssetImportData>(SourceImportData));
+		bResult = true;
 	}
 	return bResult;
 }
 
+bool UInterchangeFbxAssetImportDataConverter::CanConvertClass(const UClass* SourceClass, const UClass* DestinationClass) const
+{
+	if (SourceClass->IsChildOf(UFbxImportUI::StaticClass()))
+	{
+		return DestinationClass->IsChildOf(UInterchangeAssetImportData::StaticClass());
+	}
+
+	if (SourceClass->IsChildOf(UFbxAssetImportData::StaticClass()))
+	{
+		if (SourceClass->IsChildOf(UFbxSkeletalMeshImportData::StaticClass())
+			|| SourceClass->IsChildOf(UFbxStaticMeshImportData::StaticClass())
+			|| SourceClass->IsChildOf(UFbxAnimSequenceImportData::StaticClass()))
+		{
+			return DestinationClass->IsChildOf(UInterchangeAssetImportData::StaticClass());
+		}
+	}
+
+	if (SourceClass->IsChildOf(UInterchangeAssetImportData::StaticClass()))
+	{
+		return DestinationClass->IsChildOf(UFbxImportUI::StaticClass());
+	}
+	return false;
+}

@@ -1052,16 +1052,39 @@ bool UInterchangeManager::ConvertImportData(UObject* Object, const FString& Exte
 	return false;
 }
 
+bool UInterchangeManager::ConvertImportData(const UObject* SourceImportData, const UClass* DestinationClass, UObject** DestinationImportData) const
+{
+	for (TPair<TObjectPtr<const UClass>, TObjectPtr<UInterchangeAssetImportDataConverterBase>> RegisteredConverter : RegisteredConverters)
+	{
+		if (RegisteredConverter.Value->CanConvertClass(SourceImportData->GetClass(), DestinationClass))
+		{
+			if (RegisteredConverter.Value->ConvertImportData(SourceImportData, DestinationImportData))
+			{
+				break;
+			}
+		}
+	}
+
+	if (!(*DestinationImportData))
+	{
+		return false;
+	}
+	return true;
+}
+
 bool UInterchangeManager::ConvertImportData(const UObject* SourceImportData, FImportAssetParameters& ImportAssetParameters) const
 {
 	UObject* DestinationImportData = nullptr;
-	for (TPair<TObjectPtr<const UClass>, TObjectPtr<UInterchangeAssetImportDataConverterBase>> RegisteredConverter : RegisteredConverters)
+	if (!ConvertImportData(SourceImportData, UInterchangeAssetImportData::StaticClass(), &DestinationImportData))
 	{
-		if (!RegisteredConverter.Value->ConvertImportData(SourceImportData, &DestinationImportData))
-		{
-			return false;
-		}
+		return false;
 	}
+
+	if (!ensure(DestinationImportData))
+	{
+		return false;
+	}
+
 	if (UInterchangeAssetImportData* AssetImportData = Cast<UInterchangeAssetImportData>(DestinationImportData))
 	{
 		//We can use the default pipeline stack, if it contain a pipeline that match the converted pipeline class
@@ -1520,7 +1543,10 @@ UInterchangeManager::ImportInternal(const FString& ContentPath, const UInterchan
 	auto EarlyExit = [&PreReturn]()
 	{
 		PreReturn();
-		return TTuple<UE::Interchange::FAssetImportResultRef, UE::Interchange::FSceneImportResultRef>{ MakeShared< UE::Interchange::FImportResult, ESPMode::ThreadSafe >(), MakeShared< UE::Interchange::FImportResult, ESPMode::ThreadSafe >() };
+		TTuple<UE::Interchange::FAssetImportResultRef, UE::Interchange::FSceneImportResultRef> ImportResult = TTuple<UE::Interchange::FAssetImportResultRef, UE::Interchange::FSceneImportResultRef>{ MakeShared< UE::Interchange::FImportResult, ESPMode::ThreadSafe >(), MakeShared< UE::Interchange::FImportResult, ESPMode::ThreadSafe >() };
+		ImportResult.Key->SetDone();
+		ImportResult.Value->SetDone();
+		return ImportResult;
 	};
 
 	if (FEngineAnalytics::IsAvailable())

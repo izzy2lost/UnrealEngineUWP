@@ -485,19 +485,28 @@ public:
 
 	/**
 	 * Call all the registered converters to see if any converter can convert the data.
-	 * @Param Object - The Object to convert the import data.
+	 * @Param Asset - The asset we want to convert the import data.
 	 * @Param Extension - The file extension we want to import.
 	 * @return true if one of the converter has converted the data, or false otherwise.
 	 */
-	INTERCHANGEENGINE_API bool ConvertImportData(UObject* Object, const FString& Extension) const;
+	INTERCHANGEENGINE_API bool ConvertImportData(UObject* Asset, const FString& Extension) const;
 
 	/**
-	 * Call all the registered converter, if one converter want
+	 * Call all the registered converter, until one can convert the source import data to UInterchangeAssetImportData
 	 * @Param SourceImportData - The source import data options.
-	 * @Param DestinationImportData - The destination import data options.
+	 * @Param ImportAssetParameters - The interchange import asset parameters.
 	 * @return true if one of the converter has convert the data. False otherwise.
 	 */
 	INTERCHANGEENGINE_API bool ConvertImportData(const UObject* SourceImportData, FImportAssetParameters& ImportAssetParameters) const;
+
+	/**
+	 * Call all the registered converter, until one can convert the source data to the destination
+	 * @Param SourceImportData - The source import data options.
+	 * @Param DestinationImportData - The destination import data options we have to create and fill.
+	 * @Param DestinationClass - The class representing the DestinationImportData
+	 * @return true if one of the converter has convert the data. False otherwise.
+	 */
+	INTERCHANGEENGINE_API bool ConvertImportData(const UObject* SourceImportData, const UClass* DestinationClass, UObject** DestinationImportData) const;
 
 	/**
 	 * Returns the list of supported formats for a given translator type.

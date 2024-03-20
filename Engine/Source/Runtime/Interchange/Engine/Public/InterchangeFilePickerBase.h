@@ -25,6 +25,10 @@ struct FInterchangeFilePickerParameters
 	//Set the default open path that the dialog will show to the user.
 	UPROPERTY(EditAnywhere, Category = "Interchange | File Picker")
 	FString DefaultPath = TEXT("");
+
+	//If true, the user will be able to select any unreal editor factory + interchange file types.
+	UPROPERTY(EditAnywhere, Category = "Interchange | File Picker")
+	bool bShowAllFactoriesExtension = false;
 };
 
 UCLASS(Abstract, BlueprintType, Blueprintable, MinimalAPI)

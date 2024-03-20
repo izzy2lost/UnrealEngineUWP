@@ -97,60 +97,6 @@ bool FInterchangeSkeletalMeshAlternateSkinWeightPostImportTask::AddLodToReimport
 	return true;
 }
 
-TFuture<bool> UInterchangeMeshUtilities::ImportCustomLod(UObject* MeshObject, const int32 LodIndex)
-{
-	TSharedPtr<TPromise<bool>> Promise = MakeShared<TPromise<bool>>();
-	if (!MeshObject)
-	{
-		UE_LOG(LogInterchangeEngine, Warning, TEXT("FInterchangeMeshUtilities::ImportCustomLod: The MeshObject parameter cannot be null."));
-		Promise->SetValue(false);
-		return Promise->GetFuture();
-	}
-	if (!IsInGameThread())
-	{
-		UE_LOG(LogInterchangeEngine, Warning, TEXT("FInterchangeMeshUtilities::ImportCustomLod: Cannot ask the user for a file path outside of the game thread."));
-		Promise->SetValue(false);
-		return Promise->GetFuture();
-	}
-	UInterchangeManager& InterchangeManager = UInterchangeManager::GetInterchangeManager();
-
-	//Ask the user for a file path
-	const UInterchangeProjectSettings* InterchangeProjectSettings = GetDefault<UInterchangeProjectSettings>();
-	UInterchangeFilePickerBase* FilePicker = nullptr;
-
-	//In runtime we do not have any pipeline configurator
-#if WITH_EDITORONLY_DATA
-	TSoftClassPtr <UInterchangeFilePickerBase> FilePickerClass = InterchangeProjectSettings->FilePickerClass;
-	if (FilePickerClass.IsValid())
-	{
-		UClass* FilePickerClassLoaded = FilePickerClass.LoadSynchronous();
-		if (FilePickerClassLoaded)
-		{
-			FilePicker = NewObject<UInterchangeFilePickerBase>(GetTransientPackage(), FilePickerClassLoaded, NAME_None, RF_NoFlags);
-		}
-	}
-#endif
-	if(FilePicker)
-	{
-		FInterchangeFilePickerParameters Parameters;
-		Parameters.bAllowMultipleFiles = false;
-		Parameters.Title = FText::Format(NSLOCTEXT("Interchange", "ImportCustomLodAsync_FilePickerTitle", "Choose a file to import a custom LOD for LOD{0}"), FText::AsNumber(LodIndex));
-		TArray<FString> Filenames;
-		if (FilePicker->ScriptedFilePickerForTranslatorAssetType(EInterchangeTranslatorAssetType::Meshes, Parameters, Filenames))
-		{
-			//We set bAllowMultipleFile to false, we should have only one result
-			if (ensure(Filenames.Num() == 1))
-			{
-				const UInterchangeSourceData* SourceData = InterchangeManager.CreateSourceData(Filenames[0]);
-				return InternalImportCustomLod(Promise, MeshObject, LodIndex, SourceData);
-			}
-		}
-	}
-
-	Promise->SetValue(false);
-	return Promise->GetFuture();
-}
-
 TFuture<bool> UInterchangeMeshUtilities::ImportCustomLod(UObject* MeshObject, const int32 LodIndex, const UInterchangeSourceData* SourceData)
 {
 	TSharedPtr<TPromise<bool>> Promise = MakeShared<TPromise<bool>>();
@@ -168,10 +114,12 @@ TFuture<bool> UInterchangeMeshUtilities::InternalImportCustomLod(TSharedPtr<TPro
 	UStaticMesh* StaticMesh = Cast<UStaticMesh>(MeshObject);
 	EInterchangePipelineContext ImportType = EInterchangePipelineContext::AssetCustomLODImport;
 	bool bInvalidLodIndex = false;
+	UObject* SourceImportData = nullptr;
 	if (SkeletalMesh)
 	{
-		InterchangeAssetImportData = Cast<UInterchangeAssetImportData>(SkeletalMesh->GetAssetImportData());
-		if (SkeletalMesh->GetLODNum() > LodIndex && InterchangeAssetImportData)
+		SourceImportData = SkeletalMesh->GetAssetImportData();
+		InterchangeAssetImportData = Cast<UInterchangeAssetImportData>(SourceImportData);
+		if (SkeletalMesh->GetLODNum() > LodIndex)
 		{
 			ImportType = EInterchangePipelineContext::AssetCustomLODReimport;
 		}
@@ -182,8 +130,9 @@ TFuture<bool> UInterchangeMeshUtilities::InternalImportCustomLod(TSharedPtr<TPro
 	}
 	else if (StaticMesh)
 	{
-		InterchangeAssetImportData = Cast<UInterchangeAssetImportData>(StaticMesh->GetAssetImportData());
-		if (StaticMesh->GetNumSourceModels() > LodIndex && InterchangeAssetImportData)
+		SourceImportData = StaticMesh->GetAssetImportData();
+		InterchangeAssetImportData = Cast<UInterchangeAssetImportData>(SourceImportData);
+		if (StaticMesh->GetNumSourceModels() > LodIndex)
 		{
 			ImportType = EInterchangePipelineContext::AssetCustomLODReimport;
 		}
@@ -206,6 +155,22 @@ TFuture<bool> UInterchangeMeshUtilities::InternalImportCustomLod(TSharedPtr<TPro
 		return Promise->GetFuture();
 	}
 
+	const bool bInterchangeCanImportSourceData = InterchangeManager.CanTranslateSourceData(SourceData);
+
+	if (!bInterchangeCanImportSourceData)
+	{
+		UE_LOG(LogInterchangeEngine, Warning, TEXT("FInterchangeMeshUtilities::InternalImportCustomLod: Cannot import mesh LOD index %d, no interchange translator support this source file. [%s]"), LodIndex, *(SourceData->GetFilename()));
+		Promise->SetValue(false);
+		return Promise->GetFuture();
+	}
+
+	//Convert the asset import data if needed
+	if (!InterchangeAssetImportData)
+	{
+		//Try to convert the asset import data
+		InterchangeManager.ConvertImportData(SourceImportData, UInterchangeAssetImportData::StaticClass(), reinterpret_cast<UObject**>(&InterchangeAssetImportData));
+	}
+
 	FImportAssetParameters ImportAssetParameters;
 	ImportAssetParameters.bIsAutomated = true;
 	if (InterchangeAssetImportData)
@@ -226,6 +191,22 @@ TFuture<bool> UInterchangeMeshUtilities::InternalImportCustomLod(TSharedPtr<TPro
 			{
 				GeneratedPipeline->AdjustSettingsForContext(ImportType, nullptr);
 				ImportAssetParameters.OverridePipelines.Add(GeneratedPipeline);
+			}
+		}
+	}
+	else
+	{
+		//Create import data
+		InterchangeAssetImportData = NewObject<UInterchangeAssetImportData>();
+		const UInterchangeProjectSettings* InterchangeProjectSettings = GetDefault<UInterchangeProjectSettings>();
+
+		if (const UClass* GenericPipelineClass = InterchangeProjectSettings->GenericPipelineClass.LoadSynchronous())
+		{
+			if (UInterchangePipelineBase* GenericPipeline = NewObject<UInterchangePipelineBase>(GetTransientPackage(), GenericPipelineClass))
+			{
+				GenericPipeline->ClearFlags(EObjectFlags::RF_Standalone | EObjectFlags::RF_Public);
+				GenericPipeline->AdjustSettingsForContext(ImportType, nullptr);
+				ImportAssetParameters.OverridePipelines.Add(GenericPipeline);
 			}
 		}
 	}
