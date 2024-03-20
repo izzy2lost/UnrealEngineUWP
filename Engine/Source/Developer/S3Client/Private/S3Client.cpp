@@ -34,8 +34,6 @@
 
 IMPLEMENT_MODULE(FDefaultModuleImpl, S3Client);
 
-DEFINE_LOG_CATEGORY_STATIC(LogS3Client, Log, All);
-
 namespace UE
 {
 
@@ -327,69 +325,7 @@ FS3CredentialsProfileStore FS3CredentialsProfileStore::FromFile(const FString& F
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-
-FS3Response::FS3Response() = default;
-
-FS3Response::FS3Response(const FS3Response& Other) = default;
-
-FS3Response::FS3Response(FS3Response&& Other)
-	: HttpStatusCode(Other.HttpStatusCode)
-	, ApiStatusCode(Other.ApiStatusCode)
-	, Body(MoveTemp(Other.Body))
-{
-
-}
-
-FS3Response::FS3Response(uint32 InHttpStatusCode, uint32 InApiStatusCode)
-	: HttpStatusCode(InHttpStatusCode)
-	, ApiStatusCode(InApiStatusCode)
-{
-
-}
-
-FS3Response::FS3Response(uint32 InHttpStatusCode, uint32 InApiStatusCode, FSharedBuffer&& InBody)
-	: HttpStatusCode(InHttpStatusCode)
-	, ApiStatusCode(InApiStatusCode)
-	, Body(MoveTemp(InBody))
-{
-
-}
-
-FS3Response::FS3Response(uint32 InHttpStatusCode, FS3Response&& Other)
-	: HttpStatusCode(InHttpStatusCode)
-	, ApiStatusCode(Other.ApiStatusCode)
-	, Body(MoveTemp(Other.Body))
-{
-
-}
-
-FS3Response& FS3Response::operator=(const FS3Response& Other) = default;
-
-FS3Response& FS3Response::operator=(FS3Response&& Other)
-{
-	HttpStatusCode = Other.HttpStatusCode;
-	ApiStatusCode = Other.ApiStatusCode;
-	Body = MoveTemp(Other.Body);
-
-	return *this;
-}
-
-bool FS3Response::IsOk() const
-{
-	return ApiStatusCode == CURLE_OK && HttpStatusCode > 199 && HttpStatusCode < 299;
-}
-
-FSharedBuffer FS3Response::GetBody() const
-{
-	return Body;
-}
-
-FString FS3Response::ToString() const
-{
-	return FString(reinterpret_cast<const ANSICHAR*>(Body.GetData()));
-}
-
-void FS3Response::GetErrorResponse(FStringBuilderBase& OutErrorMsg) const
+void FS3Response::GetErrorMsg(FStringBuilderBase& OutErrorMsg) const
 {
 	OutErrorMsg.Reset();
 
@@ -399,66 +335,37 @@ void FS3Response::GetErrorResponse(FStringBuilderBase& OutErrorMsg) const
 		return;
 	}
 
-	if(ApiStatusCode != CURLE_OK)
+	const FString BodyResponseString = ToString();
+
+	FXmlFile XmlFile;
+	if (!XmlFile.LoadFile(BodyResponseString, EConstructMethod::ConstructFromBuffer))
 	{
-		OutErrorMsg << curl_easy_strerror(static_cast<CURLcode>(ApiStatusCode));
-	}
-	else
-	{
-		OutErrorMsg << TEXT("StatusCode: ") << HttpStatusCode << TEXT("Error: ");
-
-		const FString BodyResponseString = ToString();
-
-		FXmlFile XmlFile;
-		if (!XmlFile.LoadFile(BodyResponseString, EConstructMethod::ConstructFromBuffer))
-		{
-			OutErrorMsg << TEXT("Unknown");
-			return;
-		}
-
-		const FXmlNode* RootNode = XmlFile.GetRootNode();
-		if (!RootNode)
-		{
-			OutErrorMsg << TEXT("Unknown");
-			return;
-		}
-
-		const FXmlNode* CodeNode = RootNode->FindChildNode(TEXT("Code"));
-		if (!CodeNode)
-		{
-			OutErrorMsg << TEXT("Unknown");
-			return;
-		}
-
-		const FXmlNode* MessageNode = RootNode->FindChildNode(TEXT("Message"));
-		if (!MessageNode)
-		{
-			OutErrorMsg << TEXT("Unknown");
-			return;
-		}
-
-		OutErrorMsg << CodeNode->GetContent() << TEXT(": ") << MessageNode->GetContent();
-	}
-}
-
-FString FS3Response:: GetErrorStatus() const
-{
-	TStringBuilder<256> ErrorStatus;
-
-	if (IsOk())
-	{
-		ErrorStatus << TEXT("Successs");
-	}
-	else if (ApiStatusCode != CURLE_OK)
-	{
-		ErrorStatus << curl_easy_strerror(static_cast<CURLcode>(ApiStatusCode));
-	}
-	else
-	{
-		ErrorStatus << TEXT("StatusCode: ") << HttpStatusCode << TEXT("Error: ");
+		OutErrorMsg << TEXT("Unknown");
+		return;
 	}
 
-	return FString(ErrorStatus);
+	const FXmlNode* RootNode = XmlFile.GetRootNode();
+	if (!RootNode)
+	{
+		OutErrorMsg << TEXT("Unknown");
+		return;
+	}
+
+	const FXmlNode* CodeNode = RootNode->FindChildNode(TEXT("Code"));
+	if (!CodeNode)
+	{
+		OutErrorMsg << TEXT("Unknown");
+		return;
+	}
+
+	const FXmlNode* MessageNode = RootNode->FindChildNode(TEXT("Message"));
+	if (!MessageNode)
+	{
+		OutErrorMsg << TEXT("Unknown");
+		return;
+	}
+
+	OutErrorMsg << CodeNode->GetContent() << TEXT(": ") << MessageNode->GetContent();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -676,10 +583,6 @@ FS3Response FS3Client::FS3Request::Perform(EMethod Method, const ANSICHAR* Url, 
 	curl_easy_setopt(Curl, CURLOPT_WRITEDATA, this);
 	curl_easy_setopt(Curl, CURLOPT_WRITEFUNCTION, &WriteBodyCallback);
 
-	// Errors and logging
-	ANSICHAR ErrorBuffer[CURL_ERROR_SIZE] = {0};
-	curl_easy_setopt(Curl, CURLOPT_ERRORBUFFER, ErrorBuffer);
-
 	// SSL options
 	curl_easy_setopt(Curl, CURLOPT_USE_SSL, CURLUSESSL_ALL);
 	curl_easy_setopt(Curl, CURLOPT_SSL_VERIFYPEER, 1);
@@ -704,31 +607,17 @@ FS3Response FS3Client::FS3Request::Perform(EMethod Method, const ANSICHAR* Url, 
 	{
 		CurlResult = curl_easy_getinfo(Curl, CURLINFO_RESPONSE_CODE, &ResponseCode);
 	}
-	
-	if (CurlResult != CURLE_OK)
-	{
-		UE_LOG(LogS3Client, Error, TEXT("%hs"), ErrorBuffer);
-	}
-
-	const char* ErrorMsg = curl_easy_strerror(CurlResult);
 
 	if (const uint64 Size = ResponseBody.TotalSize(); Size > 0)
 	{
 		return FS3Response
 		{
 			static_cast<uint32>(ResponseCode),
-			static_cast<uint32>(CurlResult),
 			FSharedBuffer::TakeOwnership(ResponseBody.ReleaseOwnership(), Size, FMemory::Free)
 		};
 	}
-	else
-	{
-		return FS3Response
-		{
-			static_cast<uint32>(ResponseCode),
-			static_cast<uint32>(CurlResult)
-		};
-	}
+
+	return FS3Response{static_cast<uint32>(ResponseCode)};
 }
 
 int FS3Client::FS3Request::StatusCallback(void* Ptr, curl_off_t TotalDownloadSize, curl_off_t CurrentDownloadSize, curl_off_t TotalUploadSize, curl_off_t CurrentUploadSize)
@@ -945,25 +834,25 @@ FS3ListObjectResponse FS3Client::ListObjects(const FS3ListObjectsRequest& ListRe
 
 	FS3Request Request(*this);
 	FS3Response Response = Request.Perform(FS3Request::EMethod::Get, Url.ToString(), FSharedBuffer());
-	if (!Response.IsOk())
+	if (Response.StatusCode != 200)
 	{
-		return FS3ListObjectResponse(MoveTemp(Response));
+		return FS3ListObjectResponse{{Response.StatusCode, MoveTemp(Response.Body)}};
 	}
 
-	FString Body(Response.ToString());
+	FString Body(reinterpret_cast<const ANSICHAR*>(Response.Body.GetData()));
 
 	FXmlFile XmlFile(Body, EConstructMethod::ConstructFromBuffer);
 	if (!XmlFile.IsValid())
 	{
 		//TODO: Better error message
-		return FS3ListObjectResponse{{500, MoveTemp(Response)}};
+		return FS3ListObjectResponse{{500, MoveTemp(Response.Body)}};
 	}
 
 	const FXmlNode* Root = XmlFile.GetRootNode();
 	if (!Root)
 	{
 		//TODO: Better error message
-		return FS3ListObjectResponse{{500, MoveTemp(Response)}};
+		return FS3ListObjectResponse{{500, MoveTemp(Response.Body)}};
 	}
 
 	FString BucketName;
@@ -999,7 +888,7 @@ FS3ListObjectResponse FS3Client::ListObjects(const FS3ListObjectsRequest& ListRe
 		}
 	}
 
-	return FS3ListObjectResponse{{200, 0, FSharedBuffer()}, MoveTemp(BucketName), MoveTemp(Objects)};
+	return FS3ListObjectResponse{{200, FSharedBuffer()}, MoveTemp(BucketName), MoveTemp(Objects)};
 }
 
 FS3DeleteObjectResponse FS3Client::DeleteObject(const FS3DeleteObjectRequest& DeleteRequest)

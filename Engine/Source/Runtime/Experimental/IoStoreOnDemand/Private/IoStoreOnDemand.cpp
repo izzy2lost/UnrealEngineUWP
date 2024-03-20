@@ -897,9 +897,9 @@ void FS3UploadQueue::ThreadEntry()
 		else
 		{
 			TStringBuilder<256> ErrorResponse;
-			Response.GetErrorResponse(ErrorResponse);
+			Response.GetErrorMsg(ErrorResponse);
 
-			UE_LOG(LogIas, Warning, TEXT("Failed to upload chunk '%s/%s/%s' (%s)"), *Client.GetConfig().ServiceUrl, *Bucket, *Entry.Key, ErrorResponse.ToString());
+			UE_LOG(LogIas, Warning, TEXT("Failed to upload chunk '%s/%s/%s', StatusCode: %u, Error: %s"), *Client.GetConfig().ServiceUrl, *Bucket, *Entry.Key, Response.StatusCode, ErrorResponse.ToString());
 			ErrorCount++;
 			break;
 		}
@@ -1268,13 +1268,13 @@ TIoStatusOr<FIoStoreUploadResult> UploadContainerFiles(
 			}
 
 			FOnDemandToc Toc;
-			FMemoryReaderView Ar(TocResponse.GetBody().GetView());
+			FMemoryReaderView Ar(TocResponse.Body.GetView());
 			Ar << Toc;
 
 			if (Ar.IsError()) 
 			{
 				Toc = FOnDemandToc{};
-				if (LoadFromCompactBinary(FCbFieldView(TocResponse.GetBody().GetData()), Toc) == false)
+				if (LoadFromCompactBinary(FCbFieldView(TocResponse.Body.GetData()), Toc) == false)
 				{
 					UE_LOG(LogIas, Warning, TEXT("Failed to load TOC '%s/%s/%s'"), *Client.GetConfig().ServiceUrl, *UploadParams.Bucket, *TocInfo.Key);
 					continue;
@@ -1456,7 +1456,7 @@ TIoStatusOr<FIoStoreUploadResult> UploadContainerFiles(
 
 			if (!Response.IsOk())
 			{
-				return FIoStatus(EIoErrorCode::WriteError, FString::Printf(TEXT("Failed to upload '%s' (%s)"), *UTocFilePath, *Response.GetErrorStatus()));
+				return FIoStatus(EIoErrorCode::WriteError, FString::Printf(TEXT("Failed to upload '%s', StatusCode: %u"), *UTocFilePath, Response.StatusCode));
 			}
 			
 			UTocPaths.Add(ContainerEntry.UTocHash, UTocFilePath);
@@ -1519,7 +1519,7 @@ TIoStatusOr<FIoStoreUploadResult> UploadContainerFiles(
 		}
 		else
 		{
-			UE_LOG(LogIas, Warning, TEXT("Failed to upload TOC '%s/%s/%s' (%s)"), *Client.GetConfig().ServiceUrl, *UploadParams.Bucket, Key.ToString(), *Response.GetErrorStatus());
+			UE_LOG(LogIas, Warning, TEXT("Failed to upload TOC '%s/%s/%s', StatusCode: %u"), *Client.GetConfig().ServiceUrl, *UploadParams.Bucket, Key.ToString(), Response.StatusCode);
 			return FIoStatus(EIoErrorCode::WriteError, TEXT("Failed to upload TOC"));
 		}
 
@@ -1716,7 +1716,7 @@ FIoStatus DownloadContainerFiles(const FIoStoreDownloadParams& DownloadParams, c
 	}
 
 	FOnDemandToc OnDemandToc;
-	if (LoadFromCompactBinary(FCbFieldView(TocResponse.GetBody().GetData()), OnDemandToc) == false)
+	if (LoadFromCompactBinary(FCbFieldView(TocResponse.Body.GetData()), OnDemandToc) == false)
 	{
 		return FIoStatus(EIoErrorCode::ReadError, TEXT("Failed to load on demand TOC"));
 	}
@@ -1755,12 +1755,12 @@ FIoStatus DownloadContainerFiles(const FIoStoreDownloadParams& DownloadParams, c
 		const FString UTocPath = FString::Printf(TEXT("%s/%s.utoc"), *DownloadParams.Directory, *ContainerEntry.ContainerName);
 		const FString UCasPath = FPaths::ChangeExtension(UTocPath, TEXT(".ucas")); 
 		FContainerStats& ContainerStats = ContainerSummary.FindOrAdd(ContainerEntry.ContainerName);
-		ContainerStats.TocRawSize = Response.GetBody().GetSize();
+		ContainerStats.TocRawSize = Response.Body.GetSize();
 
 		if (TUniquePtr<FArchive> TocFile(IFileManager::Get().CreateFileWriter(*UTocPath)); TocFile.IsValid())
 		{
 			UE_LOG(LogIas, Display, TEXT("Writing '%s'"), *UTocPath);
-			TocFile->Serialize((void*)Response.GetBody().GetData(), Response.GetBody().GetSize());
+			TocFile->Serialize((void*)Response.Body.GetData(), Response.Body.GetSize());
 		}
 		else
 		{
@@ -1850,10 +1850,10 @@ FIoStatus DownloadContainerFiles(const FIoStoreDownloadParams& DownloadParams, c
 			}
 
 			UE_LOG(LogIas, Display, TEXT("Serializing chunk %d/%d '%s' -> '%s' (%llu B)"),
-				Idx + 1, TocEntryCount, *HashString, *LexToString(ChunkId), ChunkResponse.GetBody().GetSize());
+				Idx + 1, TocEntryCount, *HashString, *LexToString(ChunkId), ChunkResponse.Body.GetSize());
 
 			check(CasFile->Tell() == FirstBlock.GetOffset());
-			CasFile->Serialize((void*)ChunkResponse.GetBody().GetData(), ChunkResponse.GetBody().GetSize());
+			CasFile->Serialize((void*)ChunkResponse.Body.GetData(), ChunkResponse.Body.GetSize());
 		}
 
 		ContainerStats.CompressedSize = CasFile->Tell();
@@ -2119,7 +2119,7 @@ FIoStatus ListTocs(const FIoStoreListTocsParams& Params)
 
 		if (Response.Objects.IsEmpty())
 		{
-			UE_LOG(LogIas, Display, TEXT("Not TOC's found at '%s/%s/%s' (%s)"), *Client.GetConfig().ServiceUrl, *Params.Bucket, Path.ToString(), *Response.GetErrorStatus());
+			UE_LOG(LogIas, Display, TEXT("Not TOC's found at '%s/%s/%s' (StatusCode: %u)"), *Client.GetConfig().ServiceUrl, *Params.Bucket, Path.ToString(), Response.StatusCode);
 			return FIoStatus(EIoErrorCode::NotFound);
 		}
 
@@ -2150,7 +2150,7 @@ FIoStatus ListTocs(const FIoStoreListTocsParams& Params)
 			}
 
 			FOnDemandToc Toc;
-			FMemoryReaderView Ar(TocResponse.GetBody().GetView());
+			FMemoryReaderView Ar(TocResponse.Body.GetView());
 			Ar << Toc;
 
 			if (Toc.Header.Magic != FOnDemandTocHeader::ExpectedMagic)
@@ -2196,7 +2196,7 @@ FIoStatus ListTocs(const FIoStoreListTocsParams& Params)
 		if (TocResponse.IsOk())
 		{
 			FOnDemandToc Toc;
-			FMemoryReaderView Ar(TocResponse.GetBody().GetView());
+			FMemoryReaderView Ar(TocResponse.Body.GetView());
 			Ar << Toc;
 
 			if (Toc.Header.Magic == FOnDemandTocHeader::ExpectedMagic)
@@ -2207,7 +2207,7 @@ FIoStatus ListTocs(const FIoStoreListTocsParams& Params)
 					.Toc = MoveTemp(Toc),
 					.DateTime = DateTime,
 					.Key = Params.TocKey,
-					.Size = TocResponse.GetBody().GetSize()
+					.Size = TocResponse.Body.GetSize()
 				});
 			}
 			else
