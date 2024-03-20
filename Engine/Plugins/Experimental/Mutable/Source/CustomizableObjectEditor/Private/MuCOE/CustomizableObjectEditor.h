@@ -197,7 +197,7 @@ public:
 	virtual UCustomizableObjectInstance* GetPreviewInstance() override;
 	virtual bool CanPasteNodes() const override;
 	virtual void PasteNodesHere(const FVector2D& Location) override;
-	virtual void SelectNode(const UCustomizableObjectNode* Node) override;
+	virtual void SelectNode(const UEdGraphNode* Node) override;
 	virtual void ReconstructAllChildNodes(UCustomizableObjectNode& StartNode, const UClass& NodeType) override;
 	virtual UProjectorParameter* GetProjectorParameter() override;
 	virtual UCustomSettings* GetCustomSettings() override;
@@ -351,12 +351,12 @@ private:
 	void OnEnterText(const FText& NewText, ETextCommit::Type TextType);
 
 	/** Logs the search results of the search
-	 * @param Node The Customizable Object Node we have found to be related with the searched string.
+	 * @param Context The UObject we have found to be related with the searched string.
 	 * @param Type The type of relation with the searched word. It is a node, a value or maybe a variable?
 	 * @param bIsFirst Is this the first time we encountered something during our search?
 	 * @param Result The string containing the search word we are looking for in Node
 	 */
-	void LogSearchResult(UCustomizableObjectNode* Node, FString Type, bool bIsFirst, FString Result) const;
+	void LogSearchResult(const UObject& Context, const FString& Type, bool bIsFirst, const FString& Result) const;
 
 	/** Open the Texture Analyzer tab */
 	void OpenTextureAnalyzerTab();
@@ -367,6 +367,14 @@ private:
 	/** Creates the necessary components for the preview of the CO instance */
 	void CreatePreviewComponents();
 
+	/** Recursively find any property that its name or value contains the given string.
+	  * @param Property Root property.
+	  * @param Container Root property container (address of the property value).
+	  * @param FindString String to find for.
+	  * @param Context UObject Context where this string has been found.
+	  * @param bFound Mark as true if any property has been found. */
+	void FindProperty(const FProperty* Property, const void* Container, const FString& FindString, const UObject& Context, bool& bFound);
+	
 public:
 	void OnCustomizableObjectStatusChanged(FCustomizableObjectStatus::EState PreviousState, FCustomizableObjectStatus::EState CurrentState);
 

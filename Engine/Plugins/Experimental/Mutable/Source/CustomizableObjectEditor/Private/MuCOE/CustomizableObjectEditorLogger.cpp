@@ -10,6 +10,7 @@
 #include "MuCOE/CustomizableObjectGraph.h"
 #include "MuCOE/ICustomizableObjectEditor.h"
 #include "MuCOE/Nodes/CustomizableObjectNode.h"
+#include "Toolkits/ToolkitManager.h"
 #include "Widgets/Notifications/SNotificationList.h"
 
 #define LOCTEXT_NAMESPACE "CustomizableObject"
@@ -24,7 +25,7 @@ class FCustomizableObjectToken : public IMessageToken
 {
 public:
 	/** Factory method, tokens can only be constructed as shared refs */
-	CUSTOMIZABLEOBJECTEDITOR_API static TSharedRef<IMessageToken> Create(const UCustomizableObjectNode* Node)
+	CUSTOMIZABLEOBJECTEDITOR_API static TSharedRef<IMessageToken> Create(const UEdGraphNode* Node)
 	{
 		return MakeShareable(new FCustomizableObjectToken(Node));
 	}
@@ -36,46 +37,14 @@ public:
 	}
 
 	// Own interface
-	CUSTOMIZABLEOBJECTEDITOR_API const UCustomizableObjectNode* GetNode() const
+	CUSTOMIZABLEOBJECTEDITOR_API const UEdGraphNode* GetNode() const
 	{
-		return Cast<UCustomizableObjectNode>(NodeBeingReferenced.Get());
+		return Cast<UEdGraphNode>(NodeBeingReferenced.Get());
 	}
 
-	static void OnMessageLogLinkActivated(const class TSharedRef<IMessageToken>& Token)
-	{
-		// Just an object link
-		if (Token->GetType() == EMessageToken::Object)
-		{
-			const TSharedRef<FUObjectToken> UObjectToken = StaticCastSharedRef<FUObjectToken>(Token);
-			if (UObjectToken->GetObject().IsValid())
-			{
-				UObject* Object = UObjectToken->GetObject().Get();
-				GEditor->GetEditorSubsystem<UAssetEditorSubsystem>()->OpenEditorForAsset(Object);
-			}
-		}
-
-		// Fake type, but no possibility for custom types
-		else if (Token->GetType() == EMessageToken::Text)
-		{
-			const TSharedRef<FCustomizableObjectToken> UObjectToken = StaticCastSharedRef<FCustomizableObjectToken>(Token);
-			if (UObjectToken->GetNode())
-			{
-				const UCustomizableObjectNode* Node = UObjectToken->GetNode();
-				UObject* Object = Node->GetCustomizableObjectGraph()->GetOuter();
-
-				// Make sure the editor exists for this asset
-				GEditor->GetEditorSubsystem<UAssetEditorSubsystem>()->OpenEditorForAsset(Object);
-
-				// Find it
-				const TSharedPtr<ICustomizableObjectEditor> Editor = Node->GetGraphEditor();
-				Editor->SelectNode(Node);
-			}
-		}
-	}
-	
 private:
 	/** Private constructor */
-	explicit FCustomizableObjectToken(const UCustomizableObjectNode* Node) : NodeBeingReferenced(Node)
+	explicit FCustomizableObjectToken(const UEdGraphNode* Node) : NodeBeingReferenced(Node)
 	{
 		const FString String = Node ? *Node->GetName() : TEXT("<None>");
 		CachedText = FText::FromString(String);
@@ -86,7 +55,7 @@ private:
 };
 
 
-void OnMessageLogLinkActivated(const class TSharedRef<IMessageToken>& Token)
+void OnMessageLogLinkActivated(const TSharedRef<IMessageToken>& Token)
 {
 	// Just an object link
 	if (Token->GetType() == EMessageToken::Object)
@@ -105,15 +74,20 @@ void OnMessageLogLinkActivated(const class TSharedRef<IMessageToken>& Token)
 		const TSharedRef<FCustomizableObjectToken> UObjectToken = StaticCastSharedRef<FCustomizableObjectToken>(Token);
 		if (UObjectToken->GetNode())
 		{
-			const UCustomizableObjectNode* Node = UObjectToken->GetNode();
-			UObject* Object = Node->GetCustomizableObjectGraph()->GetOuter();
+			const UEdGraphNode* Node = UObjectToken->GetNode();
+			UObject* Object = Node->GetOuter()->GetOuter();
 
 			// Make sure the editor exists for this asset
 			GEditor->GetEditorSubsystem<UAssetEditorSubsystem>()->OpenEditorForAsset(Object);
 
 			// Find it
-			const TSharedPtr<ICustomizableObjectEditor> Editor = Node->GetGraphEditor();
-			Editor->SelectNode(Node);
+			if (const UCustomizableObject* CustomizableObject = Cast<UCustomizableObject>(Object))
+			{
+				if (const TSharedPtr<IToolkit> FoundAssetEditor = FToolkitManager::Get().FindEditorForAsset(CustomizableObject))
+				{
+					StaticCastSharedPtr<ICustomizableObjectEditor>(FoundAssetEditor)->SelectNode(Node);
+				}
+			}
 		}
 	}
 }
@@ -242,12 +216,12 @@ void FCustomizableObjectEditorLogger::Log(FLogParameters& LogParameters)
 
 	for (const UObject* Context : LogParameters.ParamContext)
 	{
-		if (const UCustomizableObjectNode* Node = Cast<const UCustomizableObjectNode>(Context))
+		if (const UEdGraphNode* Node = Cast<const UEdGraphNode>(Context))
 		{
 			if (LogParameters.bParamBaseObject)
 			{
 				Message->AddToken(FTextToken::Create(FText::FromString(TEXT(" "))));
-				const UObject* Asset = Node->GetCustomizableObjectGraph()->GetOuter();
+				const UObject* Asset = Node->GetOuter()->GetOuter();
 				Message->AddToken(FUObjectToken::Create(Asset)->OnMessageTokenActivated(FOnMessageTokenActivated::CreateStatic(&OnMessageLogLinkActivated)));
 			}
 

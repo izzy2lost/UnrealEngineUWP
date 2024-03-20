@@ -36,6 +36,8 @@ bool UCustomizableObjectNode::IsSingleOutputNode() const
 UEdGraphPin* UCustomizableObjectNode::CustomCreatePin(EEdGraphPinDirection Direction, const FName& Type, const FName& Name, bool bIsArray)
 {
 	UEdGraphPin* Pin = CreatePin(Direction, Type, Name);
+
+	Pin->PinFriendlyName = FText::FromName(Name);
 	if (bIsArray)
 	{
 		Pin->PinType.ContainerType = EPinContainerType::Array;
