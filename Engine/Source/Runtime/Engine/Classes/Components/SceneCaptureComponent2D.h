@@ -34,9 +34,13 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category=Projection)
 	float OrthoWidth;
 
-	/** Automatically determine a min/max Near/Far clip plane position depending on OrthoWidth value*/
+	/** Automatically determine a min/max Near/Far clip plane position depending on OrthoWidth value */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category=Projection)
 	bool bAutoCalculateOrthoPlanes;
+
+	/** Adjusts the view origin to the near plane location, and forces near plane to 0. Helps with artefacting when auto-adjusting the plane range. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category=Projection)
+	bool bUpdateOrthoPlanes;
 
 	/** Output render target of the scene capture that can be read in materials. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category=SceneCapture)

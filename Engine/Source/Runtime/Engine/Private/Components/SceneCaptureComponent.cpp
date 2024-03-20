@@ -569,6 +569,7 @@ USceneCaptureComponent2D::USceneCaptureComponent2D(const FObjectInitializer& Obj
 
 	OrthoWidth = DEFAULT_ORTHOWIDTH;
 	bAutoCalculateOrthoPlanes = true;
+	bUpdateOrthoPlanes = false;
 
 	bUseCustomProjectionMatrix = false;
 	bAutoActivate = true;
