@@ -19,6 +19,8 @@
 #include "Tracks/MovieSceneSpawnTrack.h"
 #include "UObject/Class.h"
 #include "UObject/UnrealNames.h"
+#include "MovieSceneBindingReferences.h"
+#include "Bindings/MovieSceneSpawnableBinding.h"
 
 class ISequencerTrackEditor;
 
@@ -56,9 +58,29 @@ void FSpawnTrackEditor::BuildObjectBindingTrackMenu(FMenuBuilder& MenuBuilder, c
 {
 	UMovieSceneSequence* MovieSequence = GetSequencer()->GetFocusedMovieSceneSequence();
 
-	if (!MovieSequence || MovieSequence->GetClass()->GetName() != TEXT("LevelSequence") || !MovieSequence->GetMovieScene()->FindSpawnable(ObjectBindings[0]))
+	if (!MovieSequence || MovieSequence->GetClass()->GetName() != TEXT("LevelSequence"))
 	{
 		return;
+	}
+	else
+	{
+		bool bSpawnable = false;
+		if (MovieSequence->GetMovieScene()->FindSpawnable(ObjectBindings[0]))
+		{
+			bSpawnable = true;
+		}
+		else if (const FMovieSceneBindingReferences* BindingReferences = MovieSequence->GetBindingReferences())
+		{
+			if (Algo::AnyOf(BindingReferences->GetReferences(ObjectBindings[0]), [](const FMovieSceneBindingReference& BindingReference) { return BindingReference.CustomBinding && BindingReference.CustomBinding->IsA<UMovieSceneSpawnableBindingBase>(); }))
+			{
+				bSpawnable = true;
+			}
+		}
+
+		if (!bSpawnable)
+		{
+			return;
+		}
 	}
 
 	MenuBuilder.AddMenuEntry(
