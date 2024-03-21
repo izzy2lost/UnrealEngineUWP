@@ -68,7 +68,8 @@ void FMobilityCustomization::GenerateHeaderRowContent(FDetailWidgetRow& WidgetRo
 	.MaxDesiredWidth(0)
 	[
 		ButtonOptionsPanel
-	];
+	]
+	.FilterString(LOCTEXT("Mobility", "Mobility"));
 
 	bool bShowStatic = !( RestrictedMobilityBits & StaticMobilityBitMask );
 	bool bShowStationary = !( RestrictedMobilityBits & StationaryMobilityBitMask );

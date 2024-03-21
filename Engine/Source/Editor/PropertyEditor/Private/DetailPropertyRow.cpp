@@ -909,6 +909,7 @@ void FDetailPropertyRow::SetWidgetRowProperties(FDetailWidgetRow& Row) const
 		Row.PasteMenuAction = CustomPropertyWidget->PasteMenuAction;
 		Row.CustomMenuItems = CustomPropertyWidget->CustomMenuItems;
         Row.OnPasteFromTextDelegate = CustomPropertyWidget->OnPasteFromTextDelegate;
+		Row.FilterTextString = CustomPropertyWidget->FilterTextString;
 
 		if (CustomPropertyWidget->CustomResetToDefault.IsSet())
 		{

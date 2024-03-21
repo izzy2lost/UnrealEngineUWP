@@ -138,7 +138,17 @@ void FDetailItemNode::GetFilterStrings(TArray<FString>& OutFilterStrings) const
 			{
 				OutFilterStrings.Add(PropertyNode->GetProperty()->GetName());
 			}
+
+			if (!Customization.GetWidgetRow().FilterTextString.IsEmpty())
+			{
+				OutFilterStrings.Add(Customization.GetWidgetRow().FilterTextString.ToString());
+			}
 		}
+	}
+
+	if (Customization.HasCustomBuilder() && Customization.CustomBuilderRow->GetWidgetRow())
+	{
+		OutFilterStrings.Add(Customization.CustomBuilderRow->GetWidgetRow()->FilterTextString.ToString());
 	}
 }
 
@@ -698,7 +708,8 @@ static bool PassesAllFilters( FDetailItemNode* ItemNode, const FDetailLayoutCust
 			const bool bIsSeenDueToFiltering = PropertyNodePin->HasNodeFlags(EPropertyNodeFlags::IsSeenDueToFiltering) != 0;
 			const bool bIsParentSeenDueToFiltering = PropertyNodePin->HasNodeFlags(EPropertyNodeFlags::IsParentSeenDueToFiltering) != 0;
 
-			const bool bPassesSearchFilter = bPassesCategoryFilter || bPassesValueFilter || bSearchFilterIsEmpty || ( bIsNotBeingFiltered || bIsSeenDueToFiltering || bIsParentSeenDueToFiltering );
+			const bool bPassesTextFilter = bPassesCategoryFilter || bPassesValueFilter || Local::StringPassesFilter(InFilter, InCustomization.GetWidgetRow().FilterTextString.ToString());
+			const bool bPassesSearchFilter = bPassesTextFilter || bSearchFilterIsEmpty || ( bIsNotBeingFiltered || bIsSeenDueToFiltering || bIsParentSeenDueToFiltering );
 
 			bool bPassesModifiedFilter = true;
 			if (bPassesSearchFilter && InFilter.bShowOnlyModified)
