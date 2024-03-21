@@ -256,6 +256,7 @@ protected:
 	void AllocateResources() override;
 	void ReleaseResources() override;
 	void EnqueueWork(FEnqueueWorkDesc const& InDesc) override;
+	EMeshDeformerOutputBuffer GetOutputBuffers() const override;
 
 private:
 	/** The Mesh Component that owns this Mesh Deformer Instance. */

@@ -13,6 +13,7 @@
 #include "SkeletalMeshDeformerHelpers.h"
 #include "SkeletalRenderPublic.h"
 #include "DataDrivenShaderPlatformInfo.h"
+#include "Animation/MeshDeformerInstance.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(OptimusDataInterfaceSkinnedMeshWrite)
 
@@ -117,6 +118,25 @@ UComputeDataProvider* UOptimusSkinnedMeshWriteDataInterface::CreateDataProvider(
 	Provider->SkinnedMesh = Cast<USkinnedMeshComponent>(InBinding);
 	Provider->OutputMask = InOutputMask;
 	return Provider;
+}
+
+EMeshDeformerOutputBuffer UOptimusSkinnedMeshWriteDataInterface::GetOutputBuffer(int32 InBoundOutputFunctionIndex) const
+{
+	// Maps to the index of functions in GetSupportedOutputs
+	if (InBoundOutputFunctionIndex == 0)
+	{
+		return EMeshDeformerOutputBuffer::SkinnedMeshPosition;
+	}
+	if (InBoundOutputFunctionIndex == 1 || InBoundOutputFunctionIndex == 2)
+	{
+		return EMeshDeformerOutputBuffer::SkinnedMeshTangents;
+	}
+	if (InBoundOutputFunctionIndex == 3)
+	{
+		return EMeshDeformerOutputBuffer::SkinnedMeshVertexColor;
+	}
+
+	return EMeshDeformerOutputBuffer::None;
 }
 
 

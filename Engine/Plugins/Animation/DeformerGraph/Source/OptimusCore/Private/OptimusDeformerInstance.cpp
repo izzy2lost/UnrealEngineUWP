@@ -563,6 +563,21 @@ void UOptimusDeformerInstance::EnqueueWork(FEnqueueWorkDesc const& InDesc)
 	}
 }
 
+EMeshDeformerOutputBuffer UOptimusDeformerInstance::GetOutputBuffers() const
+{
+	EMeshDeformerOutputBuffer Result = EMeshDeformerOutputBuffer::None;
+
+	for (const FOptimusDeformerInstanceExecInfo& ExecInfo : ComputeGraphExecInfos)
+	{
+		if (const UOptimusComputeGraph* ComputeGraph = Cast<UOptimusComputeGraph>(ExecInfo.ComputeGraph))
+		{
+			Result |= ComputeGraph->GetOutputBuffers();
+		}
+	}
+
+	return Result;
+}
+
 namespace
 {
 	template <typename T>

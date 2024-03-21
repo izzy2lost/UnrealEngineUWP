@@ -7,6 +7,15 @@
 
 class FSceneInterface;
 
+enum class EMeshDeformerOutputBuffer : uint8
+{
+	None = 0,
+	SkinnedMeshPosition = 1 << 0,
+	SkinnedMeshTangents = 1 << 1,
+	SkinnedMeshVertexColor = 1 << 2,
+};
+
+ENUM_CLASS_FLAGS(EMeshDeformerOutputBuffer);
 
 /**
  * Base class for mesh deformers instance settings.
@@ -29,6 +38,8 @@ class UMeshDeformerInstance : public UObject
 	GENERATED_BODY()
 
 public:
+
+
 	/** Called to allocate any persistent render resources */
 	ENGINE_API virtual void AllocateResources() PURE_VIRTUAL(, );
 
@@ -65,4 +76,7 @@ public:
 
 	/** Enqueue the mesh deformer workload on a scene. */
 	ENGINE_API virtual void EnqueueWork(FEnqueueWorkDesc const& InDesc) PURE_VIRTUAL(, );
+	
+	/** Return the buffers that this deformer can potentially write to */
+	ENGINE_API virtual EMeshDeformerOutputBuffer GetOutputBuffers() const PURE_VIRTUAL(, return EMeshDeformerOutputBuffer::None; );
 };

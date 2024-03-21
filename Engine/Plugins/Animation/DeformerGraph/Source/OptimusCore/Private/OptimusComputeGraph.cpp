@@ -2,6 +2,7 @@
 
 #include "OptimusComputeGraph.h"
 
+#include "IOptimusOutputBufferWriter.h"
 #include "Components/MeshComponent.h"
 #include "ComputeFramework/ComputeKernelCompileResult.h"
 #include "HAL/FileManager.h"
@@ -14,6 +15,7 @@
 #include "OptimusHelpers.h"
 #include "OptimusNode.h"
 #include "OptimusObjectVersion.h"
+#include "Animation/MeshDeformerInstance.h"
 #include "Misc/UObjectToken.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(OptimusComputeGraph)
@@ -130,6 +132,25 @@ void UOptimusComputeGraph::OnKernelCompilationComplete(int32 InKernelIndex, FCom
 			Node->SetDiagnosticLevel(DiagnosticLevel);
 		}
 	}
+}
+
+EMeshDeformerOutputBuffer UOptimusComputeGraph::GetOutputBuffers() const
+{
+	EMeshDeformerOutputBuffer Result = EMeshDeformerOutputBuffer::None;
+	
+	for (const FComputeGraphEdge& GraphEdge : GraphEdges)
+	{
+		if (!GraphEdge.bKernelInput)
+		{
+			const UComputeDataInterface* DataInterface = DataInterfaces[GraphEdge.DataInterfaceIndex];
+			if (const IOptimusOutputBufferWriter* BufferOverrider = Cast<const IOptimusOutputBufferWriter>(DataInterface))
+			{
+				Result |= BufferOverrider->GetOutputBuffer(GraphEdge.DataInterfaceBindingIndex);
+			}
+		}
+	}
+
+	return Result;
 }
 
 #undef LOCTEXT_NAMESPACE

@@ -2,6 +2,7 @@
 
 #pragma once
 
+#include "IOptimusOutputBufferWriter.h"
 #include "OptimusComputeDataInterface.h"
 #include "ComputeFramework/ComputeDataProvider.h"
 
@@ -15,7 +16,9 @@ class USkinnedMeshComponent;
 
 /** Compute Framework Data Interface for writing skinned mesh. */
 UCLASS(Category = ComputeFramework)
-class OPTIMUSCORE_API UOptimusSkinnedMeshWriteDataInterface : public UOptimusComputeDataInterface
+class OPTIMUSCORE_API UOptimusSkinnedMeshWriteDataInterface :
+	public UOptimusComputeDataInterface,
+	public IOptimusOutputBufferWriter
 {
 	GENERATED_BODY()
 
@@ -39,6 +42,9 @@ public:
 	UComputeDataProvider* CreateDataProvider(TObjectPtr<UObject> InBinding, uint64 InInputMask, uint64 InOutputMask) const override;
 	//~ End UComputeDataInterface Interface
 
+	//~ Begin IOptimusOutputBufferWriter Interface
+	EMeshDeformerOutputBuffer GetOutputBuffer(int32 InBoundOutputFunctionIndex) const override;
+	//~ End IOptimusOutputBufferWriter Interface 
 private:
 	static TCHAR const* TemplateFilePath;
 };
