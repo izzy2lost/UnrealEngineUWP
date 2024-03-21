@@ -400,6 +400,7 @@ void FStarshipEditorStyle::FStyle::SetupGeneralStyles()
 		Set( "Symbols.DownArrow", new IMAGE_BRUSH( "Common/DownArrow", Icon8x8 ) );
 		Set( "Symbols.DoubleDownArrow", new IMAGE_BRUSH( "Common/DownArrow2", Icon8x8 ) );
 		Set( "Symbols.RightArrow", new IMAGE_BRUSH("Common/SubmenuArrow", Icon8x8));
+		Set( "Symbols.LeftArrow", new IMAGE_BRUSH("Common/LeftArrow", Icon8x8));
 		Set( "Symbols.Check", new IMAGE_BRUSH( "Common/Check", Icon16x16 ) );
 	}
 

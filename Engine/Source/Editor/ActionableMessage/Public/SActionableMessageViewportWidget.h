@@ -37,6 +37,7 @@ public:
 
 private:
 	TSharedPtr<SListView<TSharedPtr<FActionableMessage>>> ActionableMessageList;
+	TSharedPtr<STextBlock> TextBlock;
 	TArray<TSharedPtr<FActionableMessage>> ActionableMessages;
 	uint32 CachedStateID = 0;
 	bool bExpanded = false;
