@@ -191,11 +191,7 @@ class FSimpleElectraAudioPlayer : public ISimpleElectraAudioPlayer, public IAdap
 			FSimpleElectraAudioPlayer::TickAllInstances(DeltaTime);
 		}
 		ETickableTickType GetTickableTickType() const override
-		{ return ETickableTickType::Conditional; }
-		bool IsTickable() const override
-		{ return true; }
-		bool IsAllowedToTick() const override
-		{ return true; }
+		{ return ETickableTickType::Always; }
 		TStatId GetStatId() const override
 		{ RETURN_QUICK_DECLARE_CYCLE_STAT(FSimpleElectraAudioPlayer, STATGROUP_Tickables); }
 		bool IsTickableWhenPaused() const override

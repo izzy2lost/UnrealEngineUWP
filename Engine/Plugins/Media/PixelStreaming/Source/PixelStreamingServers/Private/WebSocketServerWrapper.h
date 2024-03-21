@@ -66,8 +66,8 @@ namespace UE::PixelStreamingServers
 		/* Begin FTickableGameObject */
 		virtual bool IsTickableWhenPaused() const { return true; }
 		virtual bool IsTickableInEditor() const { return true; }
+		virtual ETickableTickType GetTickableTickType() const override { return ETickableTickType::Always; }
 		virtual void Tick(float DeltaTime) override;
-		virtual bool IsAllowedToTick() const { return true; }
 		TStatId GetStatId() const { RETURN_QUICK_DECLARE_CYCLE_STAT(FWebSocketServerWrapper, STATGROUP_Tickables); }
 		/* End FTickableGameObject */
 

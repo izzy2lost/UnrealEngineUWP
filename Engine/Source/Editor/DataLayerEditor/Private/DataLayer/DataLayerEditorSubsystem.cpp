@@ -406,7 +406,7 @@ ETickableTickType UDataLayerEditorSubsystem::GetTickableTickType() const
 	return IsTemplate() ? ETickableTickType::Never : ETickableTickType::Conditional;
 }
 
-bool UDataLayerEditorSubsystem::IsAllowedToTick() const
+bool UDataLayerEditorSubsystem::IsTickable() const
 {
 	return GetWorld() && (bAsyncBroadcastDataLayerChanged || bAsyncUpdateAllActorsVisibility || bAsyncInvalidateViewports || LastWarningNotification.IsSet());
 }

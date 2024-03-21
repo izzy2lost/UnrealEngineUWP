@@ -141,7 +141,7 @@ public:
 	//~ Begin FTickableGameObject interface	
 	ENGINE_API virtual UWorld* GetTickableGameObjectWorld() const override;
 	ENGINE_API virtual ETickableTickType GetTickableTickType() const override;
-	ENGINE_API virtual bool IsAllowedToTick() const override;
+	ENGINE_API virtual bool IsTickable() const override;
 	ENGINE_API virtual bool IsTickableInEditor() const override;
 	ENGINE_API virtual TStatId GetStatId() const override;
 	ENGINE_API virtual void Tick(float InDeltaTime) override;

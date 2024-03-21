@@ -89,7 +89,7 @@ ETickableTickType UEnhancedInputEditorSubsystem::GetTickableTickType() const
 	return IsTemplate() ? ETickableTickType::Never : ETickableTickType::Conditional;
 }
 
-bool UEnhancedInputEditorSubsystem::IsAllowedToTick() const
+bool UEnhancedInputEditorSubsystem::IsTickable() const
 {
 	// Only tick if we have created a valid player input (i.e. we have been initalized)
 	return PlayerInput != nullptr && bIsCurrentlyConsumingInput;

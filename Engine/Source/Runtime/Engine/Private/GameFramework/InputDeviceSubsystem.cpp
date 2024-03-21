@@ -271,7 +271,7 @@ ETickableTickType UInputDeviceSubsystem::GetTickableTickType() const
 	return (IsTemplate() ? ETickableTickType::Never : ETickableTickType::Conditional);
 }
 
-bool UInputDeviceSubsystem::IsAllowedToTick() const
+bool UInputDeviceSubsystem::IsTickable() const
 {
 	// Only tick when there are active device properties or ones we want to remove
 	const bool bWantsTick = !ActiveProperties.IsEmpty() || !PropertiesPendingRemoval.IsEmpty();

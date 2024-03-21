@@ -28,7 +28,7 @@ namespace UE::PixelStreamingServers
 		virtual bool IsTickableWhenPaused() const override;
 		virtual bool IsTickableInEditor() const override;
 		virtual void Tick(float DeltaTime) override;
-		virtual bool IsAllowedToTick() const override;
+		virtual bool IsTickable() const override;
 		TStatId GetStatId() const { RETURN_QUICK_DECLARE_CYCLE_STAT(PixelStreamingServers, STATGROUP_Tickables); }
 		/* End FTickableGameObject */
 	

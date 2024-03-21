@@ -140,12 +140,11 @@ void UWebAPISubsystem::Deinitialize()
 
 ETickableTickType UWebAPISubsystem::GetTickableTickType() const
 {
-	return FTickableGameObject::GetTickableTickType();
-}
-
-bool UWebAPISubsystem::IsAllowedToTick() const
-{
-	return FTickableGameObject::IsAllowedToTick();
+	if (IsTemplate())
+	{
+		return ETickableTickType::Never;
+	}
+	return ETickableTickType::Always;
 }
 
 void UWebAPISubsystem::Tick(float DeltaTime)
