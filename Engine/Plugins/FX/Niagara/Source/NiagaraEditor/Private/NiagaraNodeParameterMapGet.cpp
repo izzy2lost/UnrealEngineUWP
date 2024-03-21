@@ -595,11 +595,19 @@ bool UNiagaraNodeParameterMapGet::CommitEditablePinName(const FText& InName, UEd
 		Modify();
 		InGraphPinObj->Modify();
 
+		if (bSuppressEvents == false)
+		{
+			// we refresh the parameter references before changing the pin name, otherwise we might run into weird edge cases where a dirty graph tries to rename the wrong pin or doesn't copy the metadata correctly
+			GetNiagaraGraph()->ConditionalRefreshParameterReferences();
+		}
+
 		InGraphPinObj->PinName = *InName.ToString();
 		InGraphPinObj->PinFriendlyName = InName;
 
 		if (!bSuppressEvents)
+		{
 			OnPinRenamed(InGraphPinObj, OldPinName);
+		}
 
 		return true;
 	}
