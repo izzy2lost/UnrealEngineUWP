@@ -2116,10 +2116,12 @@ FZenServiceInstance::Initialize()
 		FString ExecutableInstallPath = ConditionalUpdateLocalInstall();
 		if (!ExecutableInstallPath.IsEmpty())
 		{
+			int LaunchAttempts = 0;
 			const FTimespan MaximumWaitForHealth = FTimespan::FromSeconds(20);
 			FDateTime StartedWaitingForHealth = FDateTime::UtcNow();
 			while (true)
 			{
+				++LaunchAttempts;
 				bHasLaunchedLocal = AutoLaunch(Settings.SettingsVariant.Get<FServiceAutoLaunchSettings>(), *ExecutableInstallPath, HostName, Port);
 				if (bHasLaunchedLocal)
 				{
@@ -2138,7 +2140,7 @@ FZenServiceInstance::Initialize()
 				}
 
 				FTimespan WaitForHealth = FDateTime::UtcNow() - StartedWaitingForHealth;
-				if (WaitForHealth > MaximumWaitForHealth)
+				if ((WaitForHealth > MaximumWaitForHealth) && (LaunchAttempts > 1))
 				{
 					bHasLaunchedLocal = false;
 					bIsRunningLocally = false;
