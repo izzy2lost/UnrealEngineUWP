@@ -3602,6 +3602,7 @@ public:
 	FORCEINLINE_DEBUGGABLE void RHIInvalidateCachedState()
 	{}
 
+	UE_DEPRECATED(5.5, "DiscardRenderTargets is deprecated and will be removed in future engine versions.")
 	FORCEINLINE void DiscardRenderTargets(bool Depth, bool Stencil, uint32 ColorBitMask)
 	{
 		if (Bypass())
