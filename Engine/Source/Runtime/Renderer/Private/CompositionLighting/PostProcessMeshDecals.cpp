@@ -30,22 +30,6 @@ static TAutoConsoleVariable<int32> CVarParallelMeshDecal(
 	ECVF_RenderThreadSafe
 );
 
-static TAutoConsoleVariable<int32> CVarDecalUseCachedMDCs(
-	TEXT("r.Decal.UseCachedMDCs"),
-	1,
-	TEXT("Use cached MDCs for decal rendering."),
-	FConsoleVariableDelegate::CreateLambda([](IConsoleVariable* InVariable)
-	{
-		FGlobalComponentRecreateRenderStateContext Context;
-	}),
-	ECVF_RenderThreadSafe
-);
-
-bool UseDecalCachedMDCs()
-{
-	return CVarDecalUseCachedMDCs.GetValueOnRenderThread() != 0;
-}
-
 class FMeshDecalsVS : public FMeshMaterialShader
 {
 public:
@@ -217,12 +201,6 @@ FMeshDecalMeshProcessor::FMeshDecalMeshProcessor(const FScene* Scene,
 
 void FMeshDecalMeshProcessor::AddMeshBatch(const FMeshBatch& RESTRICT MeshBatch, uint64 BatchElementMask, const FPrimitiveSceneProxy* RESTRICT PrimitiveSceneProxy, int32 StaticMeshId)
 {
-	// Early out if not using cached MDCs and there is no valid ViewIfDynamicMeshCommand (means we are caching the static MDCs)
-	if (CVarDecalUseCachedMDCs.GetValueOnRenderThread() == 0 && ViewIfDynamicMeshCommand == nullptr)
-	{
-		return;
-	}
-
 	if (MeshBatch.bUseForMaterial && MeshBatch.IsDecal(FeatureLevel))
 	{
 		const FMaterialRenderProxy* MaterialRenderProxy = MeshBatch.MaterialRenderProxy;
@@ -514,43 +492,6 @@ void DrawDecalMeshCommands(
 	auto* PassParameters = GraphBuilder.AllocParameters<FDeferredDecalPassParameters>();
 	GetDeferredDecalPassParameters(GraphBuilder, View, DecalPassTextures, RenderTargetMode, *PassParameters);
 
-	// If decal cached MDCs is enabled then mesh decal batches will be empty
-	// Cached decals are rendered below using the parallel mesh draw command passes
-	if (View.MeshDecalBatches.Num() > 0)
-	{
-		AddSimpleMeshPass(
-			GraphBuilder,
-			PassParameters,
-			&Scene,
-			View,
-			&InstanceCullingManager,
-			RDG_EVENT_NAME("MeshDecals"),
-			View.ViewRect,
-			[&View, DecalRenderStage, RenderTargetMode](FDynamicPassMeshDrawListContext* DynamicMeshPassContext)
-			{
-				TRACE_CPUPROFILER_EVENT_SCOPE(MeshDecalCommands);
-
-				check(DecalRenderStage == DecalRendering::GetRenderStage(RenderTargetMode, EShadingPath::Deferred));
-
-				FMeshDecalMeshProcessor PassMeshProcessor(
-					View.Family->Scene->GetRenderScene(),
-					View.GetFeatureLevel(),
-					&View,
-					RenderTargetMode,
-					EShadingPath::Deferred,
-					DynamicMeshPassContext);
-
-				for (int32 MeshBatchIndex = 0; MeshBatchIndex < View.MeshDecalBatches.Num(); ++MeshBatchIndex)
-				{
-					const FMeshBatch* Mesh = View.MeshDecalBatches[MeshBatchIndex].Mesh;
-					const FPrimitiveSceneProxy* PrimitiveSceneProxy = View.MeshDecalBatches[MeshBatchIndex].Proxy;
-					const uint64 DefaultBatchElementMask = ~0ull;
-
-					PassMeshProcessor.AddMeshBatch(*Mesh, DefaultBatchElementMask, PrimitiveSceneProxy);
-				}
-			});
-	}
-
 	EMeshPass::Type DecalMeshPassType = DecalRendering::GetMeshPassType(RenderTargetMode);
 	if (View.ParallelMeshDrawCommandPasses[DecalMeshPassType].HasAnyDraw())
 	{
@@ -664,33 +605,4 @@ void RenderMeshDecals(
 		DrawDecalMeshCommands(GraphBuilder, Scene, View, DecalPassTextures, InstanceCullingManager, DecalRenderStage, EDecalRenderTargetMode::AmbientOcclusion);
 		break;
 	}
-}
-
-void RenderMeshDecalsMobile(FRHICommandList& RHICmdList, FViewInfo& View, EDecalRenderStage DecalRenderStage, EDecalRenderTargetMode RenderTargetMode)
-{
-	FGraphicsPipelineStateInitializer GraphicsPSOInit;
-	RHICmdList.SetViewport(View.ViewRect.Min.X, View.ViewRect.Min.Y, 0, View.ViewRect.Max.X, View.ViewRect.Max.Y, 1);
-	RHICmdList.ApplyCachedRenderTargets(GraphicsPSOInit);
-
-	DrawDynamicMeshPass(View, RHICmdList, [&View, DecalRenderStage, RenderTargetMode](FDynamicPassMeshDrawListContext* DynamicMeshPassContext)
-	{
-		check(DecalRenderStage == DecalRendering::GetRenderStage(RenderTargetMode, EShadingPath::Mobile));
-
-		FMeshDecalMeshProcessor PassMeshProcessor(
-			View.Family->Scene->GetRenderScene(),
-			View.GetFeatureLevel(),
-			&View,
-			RenderTargetMode,
-			EShadingPath::Mobile,
-			DynamicMeshPassContext);
-
-		for (int32 MeshBatchIndex = 0; MeshBatchIndex < View.MeshDecalBatches.Num(); ++MeshBatchIndex)
-		{
-			const FMeshBatch* Mesh = View.MeshDecalBatches[MeshBatchIndex].Mesh;
-			const FPrimitiveSceneProxy* PrimitiveSceneProxy = View.MeshDecalBatches[MeshBatchIndex].Proxy;
-			const uint64 DefaultBatchElementMask = ~0ull;
-
-			PassMeshProcessor.AddMeshBatch(*Mesh, DefaultBatchElementMask, PrimitiveSceneProxy);
-		}
-	}, true);
 }

@@ -20,7 +20,6 @@
 #include "CompositionLighting/PostProcessDeferredDecals.h"
 #include "DBufferTextures.h"
 
-void RenderMeshDecalsMobile(FRHICommandList& RHICmdList, FViewInfo& View, EDecalRenderStage DecalRenderStage, EDecalRenderTargetMode RenderTargetMode);
 extern void RenderDeferredDecalsMobile(FRHICommandList& RHICmdList, const FScene& Scene, const FViewInfo& View, EDecalRenderStage DecalRenderStage, EDecalRenderTargetMode RenderTargetMode);
 
 static bool DoesPlatformSupportDecals(EShaderPlatform ShaderPlatform)
@@ -63,22 +62,6 @@ void FMobileSceneRenderer::RenderDecals(FRHICommandList& RHICmdList, FViewInfo& 
 	{
 		SCOPED_DRAW_EVENT(RHICmdList, Decals);
 		RenderDeferredDecalsMobile(RHICmdList, *Scene, View, DecalRenderStage, RenderTargetMode);
-	}
-
-	// Mesh decals
-	if (View.MeshDecalBatches.Num() > 0)
-	{
-		SCOPED_DRAW_EVENT(RHICmdList, MeshDecals);
-		RenderMeshDecalsMobile(RHICmdList, View, DecalRenderStage, RenderTargetMode);
-
-		// MeshDecals use DrawDynamicMeshPass which may change BatchedPrimitive binding, so we need to restore it
-		FUniformBufferStaticSlot BatchedPrimitiveSlot = FInstanceCullingContext::GetUniformBufferViewStaticSlot(View.GetShaderPlatform());
-		if (IsUniformBufferStaticSlotValid(BatchedPrimitiveSlot) && InstanceCullingDrawParams->BatchedPrimitive)
-		{
-			FRHIUniformBuffer* BatchedPrimitiveBufferRHI = InstanceCullingDrawParams->BatchedPrimitive.GetUniformBuffer()->GetRHI();
-			check(BatchedPrimitiveBufferRHI);
-			RHICmdList.SetStaticUniformBuffer(BatchedPrimitiveSlot, BatchedPrimitiveBufferRHI);
-		}
 	}
 
 	EMeshPass::Type DecalMeshPassType = DecalRendering::GetMeshPassType(RenderTargetMode);

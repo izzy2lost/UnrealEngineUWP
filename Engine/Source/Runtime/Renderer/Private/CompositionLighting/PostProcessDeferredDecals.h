@@ -107,8 +107,6 @@ bool HasAnyDrawCommandDecalCount(
 	EDecalRenderStage DecalRenderStage, 
 	FViewInfo& View);
 
-bool UseDecalCachedMDCs();
-
 void ExtractNormalsForNextFrameReprojection(
 	FRDGBuilder& GraphBuilder,
 	const FSceneTextures& SceneTextures,

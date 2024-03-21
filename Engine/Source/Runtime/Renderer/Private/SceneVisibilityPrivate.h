@@ -746,7 +746,6 @@ private:
 	TArray<uint32> EditorSelectedNaniteHitProxyIds;
 #endif
 
-	TArray<FMeshDecalBatch, SceneRenderingAllocator> MeshDecalBatches;
 	TArray<FVolumetricMeshBatch, SceneRenderingAllocator> VolumetricMeshBatches;
 	TArray<FVolumetricMeshBatch, SceneRenderingAllocator> HeterogeneousVolumesMeshBatches;
 	TArray<FSkyMeshBatch, SceneRenderingAllocator> SkyMeshBatches;

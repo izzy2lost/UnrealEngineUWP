@@ -1229,7 +1229,6 @@ void FRelevancePacket::Finalize()
 	WriteView.SubstrateViewData.bUsesComplexSpecialRenderPath |= bUsesComplexSpecialRenderPath;
 	DirtyIndirectLightingCacheBufferPrimitives.AppendTo(WriteView.DirtyIndirectLightingCacheBufferPrimitives);
 
-	WriteView.MeshDecalBatches.Append(MeshDecalBatches);
 	WriteView.VolumetricMeshBatches.Append(VolumetricMeshBatches);
 	WriteView.HeterogeneousVolumesMeshBatches.Append(HeterogeneousVolumesMeshBatches);
 	WriteView.SkyMeshBatches.Append(SkyMeshBatches);
@@ -1319,8 +1318,7 @@ void FRelevancePacket::ComputeRelevance(FDynamicPrimitiveIndexList& DynamicPrimi
 	const FHLODVisibilityState* const HLODState = bHLODActive && ViewState ? &ViewState->HLODVisibilityState : nullptr;
 	float MaxDrawDistanceScale = GetCachedScalabilityCVars().ViewDistanceScale;
 	MaxDrawDistanceScale *= GetCachedScalabilityCVars().CalculateFieldOfViewDistanceScale(View.DesiredFOV);
-	const bool bUseDecalCachedMDCs = UseDecalCachedMDCs();
-
+	
 	const auto AddEditorDynamicPrimitive = [this, &DynamicPrimitiveIndexList](int32 PrimitiveIndex)
 	{
 #if WITH_EDITOR
@@ -1730,24 +1728,13 @@ void FRelevancePacket::ComputeRelevance(FDynamicPrimitiveIndexList& DynamicPrimi
 						// Because ViewRelevance is a sum of all material relevances in the primitive
 						if (ViewRelevance.bRenderInMainPass && ViewRelevance.bDecal && StaticMeshRelevance.bUseForMaterial)
 						{
-							if (bUseDecalCachedMDCs)
+							for (uint8 DecalRenderTargetMode = 0; DecalRenderTargetMode < (uint8)EDecalRenderTargetMode::Num; ++DecalRenderTargetMode)
 							{
-								for (uint8 DecalRenderTargetMode = 0; DecalRenderTargetMode < (uint8)EDecalRenderTargetMode::Num; ++DecalRenderTargetMode)
+								if (DecalRendering::IsCompatibleWithRenderTargetMode(StaticMeshRelevance.DecalRenderTargetModeMask, (EDecalRenderTargetMode)DecalRenderTargetMode))
 								{
-									if (DecalRendering::IsCompatibleWithRenderTargetMode(StaticMeshRelevance.DecalRenderTargetModeMask, (EDecalRenderTargetMode)DecalRenderTargetMode))
-									{
-										EMeshPass::Type DecalMeshPassType = DecalRendering::GetMeshPassType((EDecalRenderTargetMode)DecalRenderTargetMode);
-										DrawCommandPacket.AddCommandsForMesh(PrimitiveIndex, PrimitiveSceneInfo, StaticMeshRelevance, StaticMesh, CullingPayloadFlags, Scene, bCanCache, DecalMeshPassType);
-									}
+									EMeshPass::Type DecalMeshPassType = DecalRendering::GetMeshPassType((EDecalRenderTargetMode)DecalRenderTargetMode);
+									DrawCommandPacket.AddCommandsForMesh(PrimitiveIndex, PrimitiveSceneInfo, StaticMeshRelevance, StaticMesh, CullingPayloadFlags, Scene, bCanCache, DecalMeshPassType);
 								}
-							}
-							else
-							{
-								MeshDecalBatches.AddUninitialized(1);
-								FMeshDecalBatch& BatchAndProxy = MeshDecalBatches.Last();
-								BatchAndProxy.Mesh = &StaticMesh;
-								BatchAndProxy.Proxy = PrimitiveSceneProxy;
-								BatchAndProxy.SortKey = PrimitiveSceneProxy->GetTranslucencySortPriority();
 							}
 						}
 					}
@@ -2413,28 +2400,17 @@ static void ComputeDynamicMeshRelevance(
 
 	if (ViewRelevance.bRenderInMainPass && ViewRelevance.bDecal)
 	{
-		if (UseDecalCachedMDCs())
+		// DecalRenderTargetModeMask could be cached in FMeshBatchAndRelevance as well
+		const FMaterial& Material = MeshBatch.Mesh->MaterialRenderProxy->GetIncompleteMaterialWithFallback(View.FeatureLevel);
+		uint8 DecalRenderTargetModeMask = DecalRendering::GetDecalRenderTargetModeMask(Material, View.FeatureLevel);
+		for (uint8 DecalRenderTargetMode = 0; DecalRenderTargetMode < (uint8)EDecalRenderTargetMode::Num; ++DecalRenderTargetMode)
 		{
-			// DecalRenderTargetModeMask could be cached in FMeshBatchAndRelevance as well
-			const FMaterial& Material = MeshBatch.Mesh->MaterialRenderProxy->GetIncompleteMaterialWithFallback(View.FeatureLevel);
-			uint8 DecalRenderTargetModeMask = DecalRendering::GetDecalRenderTargetModeMask(Material, View.FeatureLevel);
-			for (uint8 DecalRenderTargetMode = 0; DecalRenderTargetMode < (uint8)EDecalRenderTargetMode::Num; ++DecalRenderTargetMode)
+			if (DecalRendering::IsCompatibleWithRenderTargetMode(DecalRenderTargetModeMask, (EDecalRenderTargetMode)DecalRenderTargetMode))
 			{
-				if (DecalRendering::IsCompatibleWithRenderTargetMode(DecalRenderTargetModeMask, (EDecalRenderTargetMode)DecalRenderTargetMode))
-				{
-					EMeshPass::Type DecalMeshPassType = DecalRendering::GetMeshPassType((EDecalRenderTargetMode)DecalRenderTargetMode);
-					PassMask.Set(DecalMeshPassType);
-					View.NumVisibleDynamicMeshElements[DecalMeshPassType] += NumElements;
-				}
+				EMeshPass::Type DecalMeshPassType = DecalRendering::GetMeshPassType((EDecalRenderTargetMode)DecalRenderTargetMode);
+				PassMask.Set(DecalMeshPassType);
+				View.NumVisibleDynamicMeshElements[DecalMeshPassType] += NumElements;
 			}
-		}
-		else
-		{
-			View.MeshDecalBatches.AddUninitialized(1);
-			FMeshDecalBatch& BatchAndProxy = View.MeshDecalBatches.Last();
-			BatchAndProxy.Mesh = MeshBatch.Mesh;
-			BatchAndProxy.Proxy = MeshBatch.PrimitiveSceneProxy;
-			BatchAndProxy.SortKey = MeshBatch.PrimitiveSceneProxy->GetTranslucencySortPriority();
 		}
 	}
 
@@ -4468,7 +4444,6 @@ void FVisibilityTaskData::SetupMeshPasses(FExclusiveDepthStencil::Type BasePassD
 	for (int32 ViewIndex = 0; ViewIndex < Views.Num(); ViewIndex++)
 	{
 		FViewInfo& View = *Views[ViewIndex];
-		View.MeshDecalBatches.Sort();
 
 	#if WITH_EDITOR
 		{

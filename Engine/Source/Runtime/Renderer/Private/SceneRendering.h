@@ -872,18 +872,6 @@ struct FSortedTrianglesMeshBatch
 	const FPrimitiveSceneProxy* Proxy = nullptr;
 };
 
-struct FMeshDecalBatch
-{
-	const FMeshBatch* Mesh;
-	const FPrimitiveSceneProxy* Proxy;
-	int16 SortKey;
-
-	FORCEINLINE bool operator<(const FMeshDecalBatch& rhs) const
-	{
-		return SortKey < rhs.SortKey;
-	}
-};
-
 // DX11 maximum 2d texture array size is D3D11_REQ_TEXTURE2D_ARRAY_AXIS_DIMENSION = 2048, and 2048/6 = 341.33.
 UE_DEPRECATED(5.4, "Using GMaxNumReflectionCaptures directly is deprecated. Please use GetMaxNumReflectionCaptures(EShaderPlatform) instead")
 static const int32 GMaxNumReflectionCaptures = 341;
@@ -1301,9 +1289,6 @@ public:
 
 	/** Get the GPU Scene instance ranges of visible Nanite primitives writing custom depth. */
 	TArray<FPrimitiveInstanceRange, SceneRenderingAllocator> NaniteCustomDepthInstances;
-
-	/** Mesh batches with for mesh decal rendering. */
-	TArray<FMeshDecalBatch, SceneRenderingAllocator> MeshDecalBatches;
 
 	/** Mesh batches with a volumetric material. */
 	TArray<FVolumetricMeshBatch, SceneRenderingAllocator> VolumetricMeshBatches;
