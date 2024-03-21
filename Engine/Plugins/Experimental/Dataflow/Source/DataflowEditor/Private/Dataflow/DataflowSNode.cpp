@@ -131,6 +131,29 @@ TArray<FOverlayWidgetInfo> SDataflowEdNode::GetOverlayWidgets(bool bSelected, co
 	return Widgets;
 }
 
+
+void SDataflowEdNode::UpdateErrorInfo()
+{
+	if (DataflowGraphNode)
+	{
+		if (const TSharedPtr<FDataflowNode> DataflowNode = DataflowGraphNode->GetDataflowNode())
+		{
+			if (DataflowNode->IsExperimental())
+			{
+				ErrorMsg = FString(TEXT("Experimental"));
+				ErrorColor = FAppStyle::GetColor("ErrorReporting.WarningBackgroundColor");
+			} 
+			else if (DataflowNode->IsDeprecated())
+			{
+				ErrorMsg = FString(TEXT("Deprecated"));
+				ErrorColor = FAppStyle::GetColor("ErrorReporting.WarningBackgroundColor");
+			}
+		}
+	}
+	
+}
+
+
 FReply SDataflowEdNode::OnMouseButtonDoubleClick(const FGeometry& InMyGeometry, const FPointerEvent& InMouseEvent)
 {
 	if (GraphNode)
