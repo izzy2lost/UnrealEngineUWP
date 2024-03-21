@@ -300,6 +300,23 @@ void UWalkingMode::OnSimulationTick(const FSimulationTickParams& Params, FMoverT
 
 }
 
+UObject* UWalkingMode::GetTurnGenerator()
+{
+	return TurnGenerator;
+}
+
+void UWalkingMode::SetTurnGeneratorClass(TSubclassOf<UObject> TurnGeneratorClass)
+{
+	if (TurnGeneratorClass)
+	{
+		TurnGenerator = NewObject<UObject>(this, TurnGeneratorClass);
+	}
+	else
+	{
+		TurnGenerator = nullptr; // Clearing the turn generator is valid - will go back to the default turn generation
+	}
+}
+
 
 void UWalkingMode::OnRegistered(const FName ModeName)
 {
