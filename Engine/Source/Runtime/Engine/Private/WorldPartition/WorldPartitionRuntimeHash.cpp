@@ -94,11 +94,11 @@ void URuntimeHashExternalStreamingObjectBase::OnStreamingObjectLoaded(UWorld* In
 #if WITH_EDITOR
 UWorldPartitionRuntimeCell* URuntimeHashExternalStreamingObjectBase::GetCellForCookPackage(const FString& InCookPackageName) const
 {
-	if (UWorldPartitionRuntimeCell* const* MatchingCell = PackagesToGenerateForCook.Find(InCookPackageName))
+	if (const TObjectPtr<UWorldPartitionRuntimeCell>* MatchingCell = PackagesToGenerateForCook.Find(InCookPackageName))
 	{
 		if (ensure(*MatchingCell))
 		{
-			return const_cast<UWorldPartitionRuntimeCell*>(*MatchingCell);
+			return const_cast<UWorldPartitionRuntimeCell*>(ToRawPtr(*MatchingCell));
 		}
 	}
 	return nullptr;
@@ -356,11 +356,11 @@ void UWorldPartitionRuntimeHash::PopulateRuntimeCell(UWorldPartitionRuntimeCell*
 
 UWorldPartitionRuntimeCell* UWorldPartitionRuntimeHash::GetCellForCookPackage(const FString& InCookPackageName) const
 {
-	if (UWorldPartitionRuntimeCell* const* MatchingCell = PackagesToGenerateForCook.Find(InCookPackageName))
+	if (const TObjectPtr<UWorldPartitionRuntimeCell>* MatchingCell = PackagesToGenerateForCook.Find(InCookPackageName))
 	{
 		if (ensure(*MatchingCell))
 		{
-			return const_cast<UWorldPartitionRuntimeCell*>(*MatchingCell);
+			return const_cast<UWorldPartitionRuntimeCell*>(ToRawPtr(*MatchingCell));
 		}
 	}
 	return nullptr;

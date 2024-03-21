@@ -1061,7 +1061,14 @@ void UClusterUnionComponent::SyncClusterUnionFromProxy(const FTransform& NewTran
 
 	if (OnClusterUnionPostSyncBodiesEvent.IsBound())
 	{
-		OnClusterUnionPostSyncBodiesEvent.Broadcast({ this,GetPrimitiveComponents() });
+		TArray<TObjectPtr<UPrimitiveComponent>> PrimitiveComponents;
+		PrimitiveComponents.Reserve(PerComponentData.Num());
+
+		for (auto Iter = PerComponentData.CreateIterator(); Iter; ++Iter)
+		{
+			PrimitiveComponents.Add(Iter.Key().ResolveObjectPtr());
+		}
+		OnClusterUnionPostSyncBodiesEvent.Broadcast({ this,PrimitiveComponents });
 	}
 }
 
