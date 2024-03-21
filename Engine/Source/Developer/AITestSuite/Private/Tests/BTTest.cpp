@@ -1,14 +1,15 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#include "CoreMinimal.h"
+#include "AITestsCommon.h"
+#include "BTBuilder.h"
 #include "BehaviorTree/BTCompositeNode.h"
 #include "BehaviorTree/Decorators/BTDecorator_ForceSuccess.h"
-#include "BTBuilder.h"
-#include "AITestsCommon.h"
-#include "MockAI_BT.h"
+#include "BehaviorTree/Decorators/BTDecorator_TimeLimit.h"
 #include "BehaviorTree/TestBTDecorator_CantExecute.h"
 #include "BehaviorTree/TestBTTask_TimerBasedLatent.h"
-#include "BehaviorTree/Decorators/BTDecorator_TimeLimit.h"
+#include "Engine/World.h"
+#include "MockAI_BT.h"
+#include "TimerManager.h"
 
 #define LOCTEXT_NAMESPACE "AITestSuite_BTTest"
 
@@ -54,8 +55,16 @@ struct FAITest_SimpleBT : public FAITestBase
 	{
 		FAITestHelpers::UpdateFrameCounter();
 
-		if (AIBTUser != NULL)
+		if (AIBTUser != nullptr)
 		{
+			// Some tests rely on timers, so we need to manually tick the world timer manager
+			// if it was not ticked in the frame (e.g., the editor world not ticking if viewport is not set to 'realtime')
+			FTimerManager& TimerManager = GetWorld().GetTimerManager();
+			if (!TimerManager.HasBeenTickedThisFrame())
+			{
+				TimerManager.Tick(FAITestHelpers::TickInterval);
+			}
+
 			if (bUseSystemTicking == false)
 			{
 				AIBTUser->TickMe(FAITestHelpers::TickInterval);
