@@ -134,13 +134,10 @@ public:
 	virtual void GetOutputVariables(TArray<FNiagaraVariableBase>& OutVariables) const override
 	{
 		const FNiagaraStatelessGlobals& StatelessGlobals = FNiagaraStatelessGlobals::Get();
-		if (IsModuleEnabled())
+		//-TODO: Channel masking, etc
+		if (GetParameterChannelMask(0) != 0)
 		{
-			//-TODO: Channel masking, etc
-			if (GetParameterChannelMask(0) != 0)
-			{
-				OutVariables.AddUnique(StatelessGlobals.DynamicMaterialParameters0Variable);
-			}
+			OutVariables.AddUnique(StatelessGlobals.DynamicMaterialParameters0Variable);
 		}
 	}
 #endif

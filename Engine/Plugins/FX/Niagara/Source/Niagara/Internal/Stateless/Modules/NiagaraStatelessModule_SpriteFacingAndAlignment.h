@@ -42,18 +42,15 @@ public:
 	virtual void GetOutputVariables(TArray<FNiagaraVariableBase>& OutVariables) const override
 	{
 		const FNiagaraStatelessGlobals& StatelessGlobals = FNiagaraStatelessGlobals::Get();
-		if (IsModuleEnabled())
+		if (bSpriteFacingEnabled)
 		{
-			if (bSpriteFacingEnabled)
-			{
-				OutVariables.AddUnique(StatelessGlobals.SpriteFacingVariable);
-				OutVariables.AddUnique(StatelessGlobals.PreviousSpriteFacingVariable);
-			}
-			if (bSpriteAlignmentEnabled)
-			{
-				OutVariables.AddUnique(StatelessGlobals.SpriteAlignmentVariable);
-				OutVariables.AddUnique(StatelessGlobals.PreviousSpriteAlignmentVariable);
-			}
+			OutVariables.AddUnique(StatelessGlobals.SpriteFacingVariable);
+			OutVariables.AddUnique(StatelessGlobals.PreviousSpriteFacingVariable);
+		}
+		if (bSpriteAlignmentEnabled)
+		{
+			OutVariables.AddUnique(StatelessGlobals.SpriteAlignmentVariable);
+			OutVariables.AddUnique(StatelessGlobals.PreviousSpriteAlignmentVariable);
 		}
 	}
 #endif
