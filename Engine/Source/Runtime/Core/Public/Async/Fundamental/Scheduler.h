@@ -124,6 +124,14 @@ namespace LowLevelTasks
 		static thread_local FSchedulerTls* ActiveScheduler;
 		static thread_local FLocalQueueType* LocalQueue;
 		static thread_local EWorkerType WorkerType;
+	
+	private:
+		// Hide the member to avoid clashing with local variables
+		// already named bIsStandbyWorker.
+		struct Impl
+		{
+			static thread_local bool bIsStandbyWorker;
+		};
 
 	public:
 		CORE_API bool IsWorkerThread() const;
@@ -139,6 +147,16 @@ namespace LowLevelTasks
 		inline static bool IsBackgroundWorker()
 		{
 			return WorkerType == EWorkerType::Background;
+		}
+
+		inline static bool IsStandbyWorker()
+		{
+			return Impl::bIsStandbyWorker;
+		}
+
+		inline static void SetStandbyWorker(bool bInIsStandbyWorker)
+		{
+			Impl::bIsStandbyWorker = bInIsStandbyWorker;
 		}
 	};
 
