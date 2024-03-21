@@ -353,8 +353,6 @@ FCachedVertex LoadVertexFromLDS( uint VertexIndex )
 	return Result;
 }
 
-groupshared uint GroupRefillCheckTriIndex;
-
 void ClusterRasterize( uint VisibleIndex, uint GroupThreadIndex ) 
 {
 	FTriRange TriRange = GetIndexAndTriRangeSW( VisibleIndex );
@@ -520,22 +518,14 @@ void ClusterRasterize( uint VisibleIndex, uint GroupThreadIndex )
 
 #elif NANITE_PIXEL_PROGRAMMABLE
 
-	const bool bSingleWave = ( WaveGetLaneCount() >= 32 );
-	
-	BRANCH
-	if (!bSingleWave)
-	{
-		if( GroupThreadIndex == 0)
-			GroupRefillCheckTriIndex = 0xFFFFFFFFu;
-		GroupMemoryBarrierWithGroupSync();
-	}
+	// We can assume wave size >= 32 here as we force HW raster for hardware that can use smaller wave sizes
 
 	FCachedVertex TriangleVerts[3];
 	FNaniteTransformedVert CachedTransformedVerts[2];
 
 	// TODO: DXC doesn't manage to strip all the unused groupshared arrays, which is very bad for performance.
 	//       When manually stripped, the groupshared version is faster, so we should revisit once this has been fixed.
-	const bool bGroupsharedCache = !COMPILER_DXC; // || !bSingleWave;	// TODO: !SingleWave check also keeps LDS allocations alive with DXC
+	const bool bGroupsharedCache = !COMPILER_DXC;
 
 	uint NumCachedVerts = 0;
 	for( uint FirstTriIndex = 0; FirstTriIndex < TriRange.Num; FirstTriIndex += 32 )
@@ -580,33 +570,8 @@ void ClusterRasterize( uint VisibleIndex, uint GroupThreadIndex )
 
 		const uint MaxVertIndex = max( VertIndexes.y, VertIndexes.z );
 
-        while(true)
+        while( WaveActiveAnyTrue( MaxVertIndex >= NumCachedVerts ) )
 		{
-			const bool bWaveNeedsVertexRefill = WaveActiveAnyTrue( MaxVertIndex >= NumCachedVerts  );
-
-			BRANCH
-			if (bSingleWave)
-			{
-				if( !bWaveNeedsVertexRefill )
-					break;
-			}
-			else
-			{
-				// Multi-wave path: Gets compiled out for wave size >= 32.
-				// Ensure multi-wave groups are non-divergent, so it is safe to use group syncs.
-				
-				if( bWaveNeedsVertexRefill && WaveIsFirstLane() )
-					GroupRefillCheckTriIndex = FirstTriIndex;
-
-				GroupMemoryBarrierWithGroupSync();
-
-				if( GroupRefillCheckTriIndex != FirstTriIndex )
-				{
-					GroupMemoryBarrierWithGroupSync();
-					break;
-				}
-			}
-
 			// Transform and store next batch of vertices
 			{
 				const uint LaneVertIndex = NumCachedVerts + GroupThreadIndex;
@@ -620,12 +585,12 @@ void ClusterRasterize( uint VisibleIndex, uint GroupThreadIndex )
 					Vert.PointSubpixelClip = CalculateSubpixelCoordinates( Raster, Vert.TransformedVert.PointClip );
 				}
 
+				GroupMemoryBarrierWithGroupSync();
+
 				BRANCH
 				if( bGroupsharedCache )
 				{
-					GroupMemoryBarrierWithGroupSync();
 					StoreVertexToLDS( LaneVertIndex, Vert );
-					GroupMemoryBarrierWithGroupSync();
 				}
 				else
 				{
@@ -634,6 +599,7 @@ void ClusterRasterize( uint VisibleIndex, uint GroupThreadIndex )
 
 					VertexCache_PointSubpixelClip[LaneVertIndex & 63] = Vert.PointSubpixelClip;
 				}
+				GroupMemoryBarrierWithGroupSync();
 			}
             
             UNROLL

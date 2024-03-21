@@ -55,6 +55,7 @@
 #endif
 
 uint MeshPassIndex;
+uint MinSupportedWaveSize;
 
 RWStructuredBuffer<FNaniteRasterBinMeta> OutRasterBinMeta;
 
@@ -328,6 +329,13 @@ uint AllocateRasterBinCluster(uint BinIndex, bool bSoftware, uint BatchCount)
 void ExportRasterBin(uint RasterBin, uint ClusterIndex, uint RangeStart, uint RangeEnd, uint BatchCount, uint BatchInfoOffset, FCluster Cluster, bool bBatchInfoInlined, bool bSoftware)
 {
 	const FNaniteMaterialFlags BinMaterialFlags = GetRasterBinMaterialFlags(RasterBin);
+	
+	if (MinSupportedWaveSize < 32 && BinMaterialFlags.bPixelProgrammable)
+	{
+		// SW pixel programmable path requires wave size >= 32. Fall back to HW raster when that is not guaranteed.
+		bSoftware = false;
+	}
+
 #if FORCE_BATCHING
 	const bool bForceBatching = true;
 #else
