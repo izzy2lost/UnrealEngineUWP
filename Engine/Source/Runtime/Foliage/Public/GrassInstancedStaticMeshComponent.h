@@ -21,6 +21,8 @@ public:
 
 	FOLIAGE_API bool SupportsWorldPositionOffsetVelocity() const override;
 
+	int32 GetNumRenderInstances() const override { return NumBuiltRenderInstances; }
+
 private:
 	virtual void BuildComponentInstanceData(ERHIFeatureLevel::Type FeatureLevel, FInstanceUpdateComponentDesc& OutData) override final;
 };
