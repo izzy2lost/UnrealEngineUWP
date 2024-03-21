@@ -5,6 +5,7 @@
 #include "ChaosClothAsset/ClothAssetBuilder.h"
 #include "ChaosClothAsset/ClothAsset.h"
 #include "ChaosClothAsset/ClothSimulationModel.h"
+#include "ChaosClothAsset/ClothCollectionGroup.h"
 #include "ChaosClothAsset/CollectionClothFacade.h"
 #include "ChaosClothAsset/ClothAssetPrivate.h"
 #include "Chaos/CollectionPropertyFacade.h"
@@ -174,6 +175,8 @@ void UChaosClothAsset::FBuilder::BuildLod(FSkeletalMeshLODModel& LODModel, const
 	FScopedSlowTask SlowTask((float)ClothFacade.GetNumRenderFaces(), LOCTEXT("ClothAssetBuildLOD", "Building Cloth Asset LOD sections..."));
 	SlowTask.MakeDialogDelayed(1.f);
 
+	const TConstArrayView<int32> RecomputeTangent = ClothFacade.GetUserDefinedAttribute<int32>(TEXT("RecomputeTangents"), ClothCollectionGroup::RenderPatterns);
+
 	int32 BaseIndex = 0;
 	for (int32 SectionIndex = 0; SectionIndex < NumSections; ++SectionIndex)
 	{
@@ -195,6 +198,9 @@ void UChaosClothAsset::FBuilder::BuildLod(FSkeletalMeshLODModel& LODModel, const
 
 		// Build the section face data (indices)
 		Section.MaterialIndex = (uint16)MaterialIndex;
+
+		Section.bRecomputeTangent = RecomputeTangent.IsValidIndex(MaterialIndex) && RecomputeTangent[MaterialIndex];
+		Section.RecomputeTangentsVertexMaskChannel = ESkinVertexColorChannel::None;
 
 		Section.BaseIndex = (uint32)BaseIndex;
 		BaseIndex += NumIndices;

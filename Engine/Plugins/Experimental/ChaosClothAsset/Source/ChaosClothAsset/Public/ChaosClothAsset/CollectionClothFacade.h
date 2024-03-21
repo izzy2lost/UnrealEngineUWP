@@ -157,6 +157,7 @@ namespace UE::Chaos::ClothAsset
 	protected:
 		TSharedRef<const class FClothCollection> ClothCollection;
 
+		friend class FCollectionClothFacade;  // To enable access from a different instance
 		friend class FCollectionClothSeamFacade;
 		friend class FCollectionClothSeamConstFacade;
 		friend class FCollectionClothFabricFacade;
