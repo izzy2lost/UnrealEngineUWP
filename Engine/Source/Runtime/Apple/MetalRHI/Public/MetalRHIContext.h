@@ -155,7 +155,6 @@ public:
 	virtual void RHIEndTransitions(TArrayView<const FRHITransition*> Transitions);
 
 	virtual void RHIBeginRenderPass(const FRHIRenderPassInfo& InInfo, const TCHAR* InName) final override;
-
 	virtual void RHIEndRenderPass() final override;
 	
 	virtual void RHINextSubpass() final override;
@@ -229,14 +228,6 @@ class FMetalRHIImmediateCommandContext : public FMetalRHICommandContext
 {
 public:
 	FMetalRHIImmediateCommandContext(class FMetalProfiler* InProfiler, FMetalDeviceContext* WrapContext);
-
-	// FRHICommandContext API accessible only on the immediate device context
-	virtual void RHIBeginDrawingViewport(FRHIViewport* Viewport, FRHITexture* RenderTargetRHI) final override;
-	virtual void RHIEndDrawingViewport(FRHIViewport* Viewport, bool bPresent, bool bLockToVsync) final override;
-	virtual void RHIBeginFrame() final override;
-	virtual void RHIEndFrame() final override;
-	virtual void RHIBeginScene() final override;
-	virtual void RHIEndScene() final override;
 	
 protected:
 	friend class FMetalDynamicRHI;

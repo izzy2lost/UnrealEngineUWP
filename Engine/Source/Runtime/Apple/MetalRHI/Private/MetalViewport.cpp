@@ -778,11 +778,6 @@ void FMetalDynamicRHI::RHITick( float DeltaTime )
 
 void FMetalRHICommandContext::RHIBeginDrawingViewport(FRHIViewport* ViewportRHI, FRHITexture* RenderTargetRHI)
 {
-	check(false);
-}
-
-void FMetalRHIImmediateCommandContext::RHIBeginDrawingViewport(FRHIViewport* ViewportRHI, FRHITexture* RenderTargetRHI)
-{
     MTL_SCOPED_AUTORELEASE_POOL;
 	FMetalViewport* Viewport = ResourceCast(ViewportRHI);
 	check(Viewport);
@@ -803,11 +798,6 @@ void FMetalRHIImmediateCommandContext::RHIBeginDrawingViewport(FRHIViewport* Vie
 }
 
 void FMetalRHICommandContext::RHIEndDrawingViewport(FRHIViewport* ViewportRHI,bool bPresent,bool bLockToVsync)
-{
-	check(false);
-}
-
-void FMetalRHIImmediateCommandContext::RHIEndDrawingViewport(FRHIViewport* ViewportRHI,bool bPresent,bool bLockToVsync)
 {
     MTL_SCOPED_AUTORELEASE_POOL;
     

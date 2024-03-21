@@ -1205,54 +1205,34 @@ void FMetalDynamicRHI::Init()
 	GIsRHIInitialized = true;
 }
 
-void FMetalRHIImmediateCommandContext::RHIBeginFrame()
-{
-    MTL_SCOPED_AUTORELEASE_POOL;
-#if ENABLE_METAL_GPUPROFILE
-	Profiler->BeginFrame();
-#endif
-	((FMetalDeviceContext*)Context)->BeginFrame();
-}
-
 void FMetalRHICommandContext::RHIBeginFrame()
 {
-	check(false);
-}
-
-void FMetalRHIImmediateCommandContext::RHIEndFrame()
-{
     MTL_SCOPED_AUTORELEASE_POOL;
 #if ENABLE_METAL_GPUPROFILE
-	Profiler->EndFrame();
+    Profiler->BeginFrame();
 #endif
-	((FMetalDeviceContext*)Context)->EndFrame();
+    ((FMetalDeviceContext*)Context)->BeginFrame();
 }
 
 void FMetalRHICommandContext::RHIEndFrame()
 {
-	check(false);
+    MTL_SCOPED_AUTORELEASE_POOL;
+#if ENABLE_METAL_GPUPROFILE
+    Profiler->EndFrame();
+#endif
+    ((FMetalDeviceContext*)Context)->EndFrame();
 }
 
-void FMetalRHIImmediateCommandContext::RHIBeginScene()
+void FMetalRHICommandContext::RHIBeginScene()
 {
     MTL_SCOPED_AUTORELEASE_POOL;
 	((FMetalDeviceContext*)Context)->BeginScene();
 }
 
-void FMetalRHICommandContext::RHIBeginScene()
-{
-	check(false);
-}
-
-void FMetalRHIImmediateCommandContext::RHIEndScene()
+void FMetalRHICommandContext::RHIEndScene()
 {
     MTL_SCOPED_AUTORELEASE_POOL;
 	((FMetalDeviceContext*)Context)->EndScene();
-}
-
-void FMetalRHICommandContext::RHIEndScene()
-{
-	check(false);
 }
 
 #if WITH_RHI_BREADCRUMBS
