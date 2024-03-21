@@ -10,7 +10,7 @@ and process events sent by the Unreal Editor.
 Horde aggregates telemetry events into **metrics** for discrete time intervals, which can then be charted by the Horde
 dashboard to give valuable insights into the bottlenecks experienced by your team.
 
-![Analytics](../Images/Intro-Analytics.png)
+![Analytics](../Images/Analytics-Main.png)
 
 ## Prerequisites
 
