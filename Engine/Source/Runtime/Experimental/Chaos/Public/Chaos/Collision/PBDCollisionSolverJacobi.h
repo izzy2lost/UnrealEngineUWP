@@ -60,7 +60,7 @@ namespace Chaos
 
 			FORCEINLINE_DEBUGGABLE int32 AddManifoldPoint()
 			{
-				return ManifoldPoints.Add();
+				return ManifoldPoints.AddUninitialized();
 			}
 
 			FORCEINLINE_DEBUGGABLE void SetWorldContact(

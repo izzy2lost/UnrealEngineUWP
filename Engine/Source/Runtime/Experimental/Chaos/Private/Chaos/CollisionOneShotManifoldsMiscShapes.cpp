@@ -268,7 +268,7 @@ namespace Chaos
 						const FReal ConvexContactDistance = Utilities::RaySphereIntersectionDistance(ConvexPlaneVertex, ClosestContactPoint.ShapeContactNormal, SpherePos, SphereRadius);
 						if (ConvexContactDistance < CullDistance)
 						{
-							FContactPoint& ConvexContactPoint = ContactPoints[ContactPoints.Add()];
+							FContactPoint& ConvexContactPoint = ContactPoints[ContactPoints.AddUninitialized()];
 							ConvexContactPoint.ShapeContactPoints[0] = SphereToConvexTransform.InverseTransformPositionNoScale(ConvexPlaneVertex + ClosestContactPoint.ShapeContactNormal * ConvexContactDistance);
 							ConvexContactPoint.ShapeContactPoints[1] = ConvexPlaneVertex;
 							ConvexContactPoint.ShapeContactNormal = ClosestContactPoint.ShapeContactNormal;

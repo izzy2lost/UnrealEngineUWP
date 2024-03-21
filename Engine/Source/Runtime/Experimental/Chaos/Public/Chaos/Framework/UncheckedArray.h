@@ -144,7 +144,16 @@ namespace Chaos
 		/**
 		 * @brief Increase the size of the array without re-initializing the new element
 		*/
+		UE_DEPRECATED(5.5, "Renamed to AddUinitialized() to match TArray API")
 		inline int32 Add()
+		{
+			return AddUninitialized();
+		}
+
+		/**
+		 * @brief Increase the size of the array without re-initializing the new element
+		*/
+		inline int32 AddUninitialized()
 		{
 			check(NumElements < MaxElements);
 			CheckSentinels();

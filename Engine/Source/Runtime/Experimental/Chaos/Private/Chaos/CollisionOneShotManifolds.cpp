@@ -1151,7 +1151,7 @@ namespace Chaos
 							const FReal ConvexContactPointDistance = FVec3::DotProduct((ConvexPlanePosition - CapsuleContactPoint), ConvexPlaneNormal) * ConvexDistanceMultiplier;
 							const FVec3 ConvexContactPoint = CapsuleContactPoint + ConvexContactPointDistance * CapsulePlaneNormal;
 
-							FContactPoint& ContactPoint = OutContactPoints[OutContactPoints.Add()];
+							FContactPoint& ContactPoint = OutContactPoints[OutContactPoints.AddUninitialized()];
 							ContactPoint.ShapeContactPoints[0] = CapsuleToConvexTransform.InverseTransformPositionNoScale(CapsuleContactPoint);
 							ContactPoint.ShapeContactPoints[1] = ConvexContactPoint;
 							ContactPoint.ShapeContactNormal = CapsulePlaneNormal;
@@ -1205,7 +1205,7 @@ namespace Chaos
 						{
 							const FVec3 ConvexContactPoint = CapsuleContactPoint - FVec3::DotProduct(CapsuleContactPoint - ConvexPlanePosition, ConvexPlaneNormal) * ConvexPlaneNormal;
 
-							FContactPoint& ContactPoint = OutContactPoints[OutContactPoints.Add()];
+							FContactPoint& ContactPoint = OutContactPoints[OutContactPoints.AddUninitialized()];
 							ContactPoint.ShapeContactPoints[0] = CapsuleToConvexTransform.InverseTransformPositionNoScale(CapsuleContactPoint);
 							ContactPoint.ShapeContactPoints[1] = ConvexContactPoint;
 							ContactPoint.ShapeContactNormal = ConvexPlaneNormal;
@@ -1444,7 +1444,7 @@ namespace Chaos
 				// Triangle face contact (clipped vertices are convex vertices)
 				for (int32 ContactPointIndex = 0; ContactPointIndex < ContactPointCount; ++ContactPointIndex)
 				{
-					FContactPoint& ContactPoint = OutContactPoints[OutContactPoints.Add()];
+					FContactPoint& ContactPoint = OutContactPoints[OutContactPoints.AddUninitialized()];
 					const FVec3& ConvexContactPoint = ClippedVertices[ContactPointIndex];
 					const FVec3 TriangleContactPoint = ConvexContactPoint - FVec3::DotProduct(ConvexContactPoint - TrianglePlanePosition, TrianglePlaneNormal) * TrianglePlaneNormal;
 
@@ -1460,7 +1460,7 @@ namespace Chaos
 				// Convex face contact (clipped vertices are triangle vertices)
 				for (int32 ContactPointIndex = 0; ContactPointIndex < ContactPointCount; ++ContactPointIndex)
 				{
-					FContactPoint& ContactPoint = OutContactPoints[OutContactPoints.Add()];
+					FContactPoint& ContactPoint = OutContactPoints[OutContactPoints.AddUninitialized()];
 					const FVec3& TriangleContactPoint = ClippedVertices[ContactPointIndex];
 					const FVec3 ConvexContactPoint = TriangleContactPoint - FVec3::DotProduct(TriangleContactPoint - ConvexPlanePosition, ConvexPlaneNormal) * ConvexPlaneNormal;
 

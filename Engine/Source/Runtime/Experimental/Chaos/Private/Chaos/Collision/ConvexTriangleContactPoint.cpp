@@ -466,7 +466,7 @@ namespace Chaos
 		{
 			if (Distance < CullDistance)
 			{
-				FContactPoint& ContactPoint = OutContactPoints[OutContactPoints.Add()];
+				FContactPoint& ContactPoint = OutContactPoints[OutContactPoints.AddUninitialized()];
 				ContactPoint.ShapeContactPoints[0] = ConvexX;
 				ContactPoint.ShapeContactPoints[1] = TriX;
 				ContactPoint.ShapeContactNormal = SeparatingAxis;

@@ -15,6 +15,15 @@ namespace Chaos
 {
 	namespace Utilities
 	{
+		// Get the signed square of the input, i.e. (A * Abs(A)) or (Sign(A) * Square(A))
+		// SignedSquare(2) -> 4
+		// SignedSquare(-2) -> -4
+		template<typename TRealType>
+		inline TRealType SignedSquare(TRealType A)
+		{
+			return A * FMath::Abs(A);
+		}
+
 		//! Take the factorial of \p Num, which should be of integral type.
 		template<class TINT = uint64>
 		TINT Factorial(TINT Num)

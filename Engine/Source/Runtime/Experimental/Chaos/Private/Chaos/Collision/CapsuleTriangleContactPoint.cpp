@@ -211,7 +211,7 @@ namespace Chaos
 		const bool bInsideAll1 = ((EdgeD1s[0] <= DistanceTolerance) & (EdgeD1s[1] <= DistanceTolerance) & (EdgeD1s[2] <= DistanceTolerance)) != 0;
 		if ((bInsideAll0 & (FaceD0 < RejectDistance) & (FaceD0 < FaceD1 + DistanceTolerance)) != 0)
 		{
-			FContactPoint& ContactPoint = OutContactPoints[OutContactPoints.Add()];
+			FContactPoint& ContactPoint = OutContactPoints[OutContactPoints.AddUninitialized()];
 			ContactPoint.ShapeContactPoints[0] = P0 - R * FaceN;
 			ContactPoint.ShapeContactPoints[1] = P0 - FaceD0 * FaceN;
 			ContactPoint.ShapeContactNormal = FaceN;
@@ -222,7 +222,7 @@ namespace Chaos
 		}
 		if ((bInsideAll1 & (FaceD1 < RejectDistance) & (FaceD1 < FaceD0 + DistanceTolerance)) != 0)
 		{
-			FContactPoint& ContactPoint = OutContactPoints[OutContactPoints.Add()];
+			FContactPoint& ContactPoint = OutContactPoints[OutContactPoints.AddUninitialized()];
 			ContactPoint.ShapeContactPoints[0] = P1 - R * FaceN;
 			ContactPoint.ShapeContactPoints[1] = P1 - FaceD1 * FaceN;
 			ContactPoint.ShapeContactNormal = FaceN;
@@ -300,7 +300,7 @@ namespace Chaos
 					{
 						const FReal CylinderFaceD = FVec3::DotProduct(CylinderP - FaceP, FaceN);
 
-						FContactPoint& ContactPoint = OutContactPoints[OutContactPoints.Add()];
+						FContactPoint& ContactPoint = OutContactPoints[OutContactPoints.AddUninitialized()];
 						ContactPoint.ShapeContactPoints[0] = CylinderP;
 						ContactPoint.ShapeContactPoints[1] = CylinderP - CylinderFaceD * FaceN;
 						ContactPoint.ShapeContactNormal = FaceN;
@@ -429,7 +429,7 @@ namespace Chaos
 					const FVec3 CapsuleP = SegmentP - R * SegmentEdgeN;
 					const FReal CapsuleDist = FVec3::DotProduct(CapsuleP - FaceP, FaceN);
 
-					FContactPoint& ContactPoint = OutContactPoints[OutContactPoints.Add()];
+					FContactPoint& ContactPoint = OutContactPoints[OutContactPoints.AddUninitialized()];
 					ContactPoint.ShapeContactPoints[0] = CapsuleP;
 					ContactPoint.ShapeContactPoints[1] = CapsuleP - CapsuleDist * FaceN;
 					ContactPoint.ShapeContactNormal = FaceN;
@@ -439,7 +439,7 @@ namespace Chaos
 				}
 				else
 				{
-					FContactPoint& ContactPoint = OutContactPoints[OutContactPoints.Add()];
+					FContactPoint& ContactPoint = OutContactPoints[OutContactPoints.AddUninitialized()];
 					ContactPoint.ShapeContactPoints[0] = SegmentP - R * SegmentEdgeN;
 					ContactPoint.ShapeContactPoints[1] = EdgeP;
 					ContactPoint.ShapeContactNormal = SegmentEdgeN;
@@ -465,7 +465,7 @@ namespace Chaos
 				const FReal SegmentEdgeDist = FMath::Sqrt(SegmentEdgeDistSq);
 				const FVec3 SegmentEdgeN = SegmentEdgeDelta / SegmentEdgeDist;
 
-				FContactPoint& ContactPoint = OutContactPoints[OutContactPoints.Add()];
+				FContactPoint& ContactPoint = OutContactPoints[OutContactPoints.AddUninitialized()];
 				ContactPoint.ShapeContactPoints[0] = SegmentEdgeC + (SegmentEdgeDist - R) * SegmentEdgeN;
 				ContactPoint.ShapeContactPoints[1] = SegmentEdgeC;
 				ContactPoint.ShapeContactNormal = SegmentEdgeN;
