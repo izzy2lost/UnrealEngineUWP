@@ -27,6 +27,9 @@ private:
 	{
 		Source.SetNumUninitialized(Num + ShaderSourceSimdPadding, AllowShrinking);
 		FMemory::Memzero(Source.GetData() + Num, sizeof(CharType) * ShaderSourceSimdPadding);
+
+		SourceCompressed.Empty();
+		DecompressedSize = 0;
 	}
 
 public:
@@ -96,15 +99,23 @@ public:
 		ShrinkToLen(Num, bShrink ? EAllowShrinking::Yes : EAllowShrinking::No);
 	}
 
-	/* String view accessor.
+	/* String view accessor. Will decompress data if it was previously compressed.
 	 * @return a string view pointing to the source contents, excluding padding.
 	 */
-	inline FViewType GetView() const { return { Source.GetData(), Len() }; }
+	inline FViewType GetView() const
+	{ 
+		checkf(!IsCompressed(), TEXT("FShaderSource is compressed; must decompress prior to calling GetView"));
+		return { Source.GetData(), Len() }; 
+	}
 
-	/* Direct data pointer accessor
+	/* Direct data pointer accessor. Will decompress data if it was previously compressed.
 	 * @return a pointer to the source data; will be null terminated by the SIMD padding.
 	 */
-	inline CharType* GetData() { return Source.GetData(); }
+	inline CharType* GetData()
+	{
+		checkf(!IsCompressed(), TEXT("FShaderSource is compressed; must decompress prior to calling GetData"));
+		return Source.GetData();
+	}
 
 	/* IsEmpty predicate
 	 * @return true if this source object is empty excluding the SIMD padding, false otherwise.
@@ -114,13 +125,25 @@ public:
 	/* Length accessor.
 	 * @return the non-padded length of the source (also excluding null terminator)
 	 */
-	inline int32 Len() const { return Source.Num() - ShaderSourceSimdPadding; };
+	inline int32 Len() const
+	{ 
+		checkf(!IsCompressed(), TEXT("Len should not be called on compressed FShaderSource."))
+		return Source.Num() - ShaderSourceSimdPadding;
+	};
+
+	inline bool IsCompressed() const
+	{
+		return DecompressedSize != 0; // DecompressedSize member is only set when compression occurs
+	}
 
 	/* FArchive serialization operator. Note this currently serializes padding for simplicity's sake.
 	 * @param Ar The archive to serialize from/to
 	 * @param ShaderSource the source object to serialize
 	 */
 	friend FArchive& operator<<(FArchive& Ar, FShaderSource& ShaderSource);
+
+	RENDERCORE_API void Compress();
+	RENDERCORE_API void Decompress();
 	
 private:
 #if SHADER_SOURCE_ANSI
@@ -129,5 +152,7 @@ private:
 	static constexpr int32 ShaderSourceSimdPadding = 7;
 #endif
 	TArray<CharType> Source;
+	TArray<uint8> SourceCompressed;
+	int32 DecompressedSize = 0;
 };
 
