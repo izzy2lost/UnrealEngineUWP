@@ -1577,6 +1577,7 @@ FStreamingSourceVelocity::FStreamingSourceVelocity(const FName& InSourceName)
 	: bIsValid(false)
 	, SourceName(InSourceName)
 	, LastUpdateTime(-1.0)
+	, LastPosition(FVector::Zero())
 {}
 
 FVector FStreamingSourceVelocity::GetAverageVelocity(const FVector& NewPosition, double CurrentTime)
