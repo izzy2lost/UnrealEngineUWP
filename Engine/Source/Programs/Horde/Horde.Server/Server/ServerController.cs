@@ -140,8 +140,16 @@ namespace Horde.Server.Server
 			GetAuthConfigResponse response = new GetAuthConfigResponse();
 			response.Method = settings.AuthMethod;
 			response.ProfileName = settings.OidcProfileName;
-			response.ServerUrl = settings.OidcAuthority;
-			response.ClientId = settings.OidcClientId;
+			if (settings.AuthMethod == AuthMethod.Horde)
+			{
+				response.ServerUrl = new Uri(_globalConfig.Value.ServerSettings.ServerUrl, "api/v1/oauth2").ToString();
+				response.ClientId = "default";
+			}
+			else
+			{
+				response.ServerUrl = settings.OidcAuthority;
+				response.ClientId = settings.OidcClientId;
+			}
 			response.LocalRedirectUrls = settings.OidcLocalRedirectUrls;
 			return response;
 		}

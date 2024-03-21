@@ -785,12 +785,8 @@ namespace Horde.Server
 				case AuthMethod.Horde:
 					authBuilder.AddHordeOpenId(settings, OpenIdConnectDefaults.AuthenticationScheme, OpenIdConnectDefaults.DisplayName, options =>
 					{
-						options.Authority = "/api/v1/oauth2";
+						options.Authority = new Uri(settings.ServerUrl, "api/v1/oauth2").ToString();
 						options.ClientId = "default";
-						if (settings.HttpsPort == 0)
-						{
-							options.RequireHttpsMetadata = false;
-						}
 						foreach (string scope in settings.OidcRequestedScopes)
 						{
 							options.Scope.Add(scope);

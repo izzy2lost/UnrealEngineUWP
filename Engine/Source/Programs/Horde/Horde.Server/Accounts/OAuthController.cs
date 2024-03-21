@@ -59,7 +59,7 @@ namespace Horde.Server.Accounts
 
 			return Ok(new
 			{
-				issuer = _serverSettings.JwtIssuer,
+				issuer = new Uri(_serverSettings.ServerUrl, "api/v1/oauth2"),
 				authorization_endpoint = new Uri(_serverSettings.ServerUrl, "api/v1/oauth2/authorize"),
 				token_endpoint = new Uri(_serverSettings.ServerUrl, "api/v1/oauth2/token"),
 				userinfo_endpoint = new Uri(_serverSettings.ServerUrl, "api/v1/oauth2/userinfo"),
@@ -241,47 +241,14 @@ namespace Horde.Server.Accounts
 		{
 			// Validate the supplied token
 			IGlobals globals = await _globalsService.GetAsync(cancellationToken);
-			TokenValidationParameters validationParameters = new TokenValidationParameters()
-			{
-				ValidAudience = _serverSettings.JwtIssuer,
-				ValidIssuer = _serverSettings.JwtIssuer,
-				IssuerSigningKey = globals.RsaSigningKey
-			};
 
-			JwtSecurityTokenHandler tokenHandler = new JwtSecurityTokenHandler();
-
-			TokenValidationResult result = await tokenHandler.ValidateTokenAsync(request.AuthorizationToken, validationParameters);
-			if (!result.IsValid)
-			{
-				throw result.Exception;
-			}
-
-			JwtPayload payload = ((JwtSecurityToken)result.SecurityToken).Payload;
-
-			// Get the matching account and check the session key is still valid
-			AccountId accountId;
-			if (!TryParseAccountIdFromSubject(payload, out accountId))
-			{
-				return Unauthorized("Missing account-id subject");
-			}
-
-			IAccount? account = await _accountCollection.GetAsync(accountId, cancellationToken);
-			if (account == null)
-			{
-				return Unauthorized($"Invalid account-id ({accountId})");
-			}
-
-			string? session = GetClaimOrDefault(payload, SessionClaim);
-			if (session != account.SessionKey)
-			{
-				return Unauthorized($"Invalid session key ('{session}')");
-			}
-
-			// Check the supplied token is correct for the operation we're performing
-			string? purpose = GetClaimOrDefault(payload, PurposeClaim);
+			JwtPayload payload;
 			if (request.GrantType == "authorization_code")
 			{
-				// Validate that we have an auth code
+				payload = await ValidateTokenAsync(globals, request.AuthorizationToken);
+
+				// Check the supplied token is correct for the operation we're performing
+				string? purpose = GetClaimOrDefault(payload, PurposeClaim);
 				if (purpose != AuthorizationCodePurpose)
 				{
 					return BadRequest($"Expected authorization token, not {purpose}");
@@ -302,7 +269,10 @@ namespace Horde.Server.Accounts
 			}
 			else if (request.GrantType == "refresh_token")
 			{
+				payload = await ValidateTokenAsync(globals, request.RefreshToken);
+
 				// Validate that we have a refresh token
+				string? purpose = GetClaimOrDefault(payload, PurposeClaim);
 				if (purpose != RefreshTokenPurpose)
 				{
 					return BadRequest($"Expected refresh token, not {purpose}");
@@ -311,6 +281,25 @@ namespace Horde.Server.Accounts
 			else
 			{
 				return BadRequest($"Unsupported grant type: '{request.GrantType}'");
+			}
+
+			// Get the matching account and check the session key is still valid
+			AccountId accountId;
+			if (!TryParseAccountIdFromSubject(payload, out accountId))
+			{
+				return Unauthorized("Missing account-id subject");
+			}
+
+			IAccount? account = await _accountCollection.GetAsync(accountId, cancellationToken);
+			if (account == null)
+			{
+				return Unauthorized($"Invalid account-id ({accountId})");
+			}
+
+			string? session = GetClaimOrDefault(payload, SessionClaim);
+			if (session != account.SessionKey)
+			{
+				return Unauthorized($"Invalid session key ('{session}')");
 			}
 
 			// Create the tokens and response object
@@ -326,6 +315,26 @@ namespace Horde.Server.Accounts
 			response.RefreshToken = CreateRefreshToken(globals, account, response.RefreshTokenExpiresIn.Value, nonce);
 			response.IdToken = CreateIdToken(globals, account, nonce);
 			return response;
+		}
+
+		async Task<JwtPayload> ValidateTokenAsync(IGlobals globals, string? token)
+		{
+			TokenValidationParameters validationParameters = new TokenValidationParameters()
+			{
+				ValidAudience = _serverSettings.JwtIssuer,
+				ValidIssuer = _serverSettings.JwtIssuer,
+				IssuerSigningKey = globals.RsaSigningKey
+			};
+
+			JwtSecurityTokenHandler tokenHandler = new JwtSecurityTokenHandler();
+
+			TokenValidationResult result = await tokenHandler.ValidateTokenAsync(token, validationParameters);
+			if (!result.IsValid)
+			{
+				throw result.Exception;
+			}
+
+			return ((JwtSecurityToken)result.SecurityToken).Payload;
 		}
 
 		/// <summary>
