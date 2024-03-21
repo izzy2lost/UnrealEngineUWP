@@ -45,10 +45,18 @@ bool ILevelInstanceInterface::SupportsPartialEditorLoading() const
 				return false;
 			}
 
-			// If the level is loaded, check that it has editor streaming enabled
+			// If the level is loaded
 			if (ULevel* Level = GetLoadedLevel())
 			{
-				if (UWorldPartition* WorldPartition = Level->GetWorldPartition(); WorldPartition && WorldPartition->IsInitialized() && !WorldPartition->IsStreamingEnabledInEditor())
+				UWorldPartition* WorldPartition = Level->GetWorldPartition();
+
+				// Disable partial loading for non WP levels
+				if (!WorldPartition)
+				{
+					return false;
+				}
+				// Check that it has editor streaming enabled
+				else if (WorldPartition->IsInitialized() && !WorldPartition->IsStreamingEnabledInEditor())
 				{
 					return false;
 				}
