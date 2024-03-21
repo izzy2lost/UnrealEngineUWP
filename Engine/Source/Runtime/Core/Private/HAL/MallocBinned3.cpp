@@ -1352,11 +1352,11 @@ void FMallocBinned3::SetupTLSCachesOnCurrentThread()
 	{
 		return;
 	}
-	if (!FMallocBinned3::BinnedTlsSlot)
+	if (!FPlatformTLS::IsValidTlsSlot(FMallocBinned3::BinnedTlsSlot))
 	{
 		FMallocBinned3::BinnedTlsSlot = FPlatformTLS::AllocTlsSlot();
 	}
-	check(FMallocBinned3::BinnedTlsSlot);
+	check(FPlatformTLS::IsValidTlsSlot(FMallocBinned3::BinnedTlsSlot));
 	FPerThreadFreeBlockLists::SetTLS();
 }
 
