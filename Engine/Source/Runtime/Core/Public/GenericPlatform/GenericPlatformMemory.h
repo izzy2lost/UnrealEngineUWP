@@ -35,10 +35,6 @@ namespace UE::Memory::Private
 }
 #endif
 
-#ifndef UE_ENABLE_PLATFORM_MEMORY_CSV_STATS
-#define UE_ENABLE_PLATFORM_MEMORY_CSV_STATS 0
-#endif
-
 /**
 * Platform-dependent "bucket" for memory size, where Default is the normal, or possibly the largest.
 * This is generally used for texture LOD settings for how to fit in smaller memory devices
