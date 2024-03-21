@@ -88,10 +88,8 @@ public:
 	PHYSICSCORE_API FChaosScene(
 		UObject* OwnerPtr
 		, Chaos::FReal InAsyncDt
-#if CHAOS_DEBUG_NAME
-	, const FName& DebugName=NAME_None
-#endif
-);
+		, const FName& DebugName = NAME_None
+	);
 
 	PHYSICSCORE_API virtual ~FChaosScene();
 

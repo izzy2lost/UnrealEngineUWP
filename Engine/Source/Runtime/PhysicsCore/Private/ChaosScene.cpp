@@ -54,9 +54,7 @@ TAutoConsoleVariable<int32> CVar_ApplyProjectSettings(TEXT("p.Chaos.Simulation.A
 FChaosScene::FChaosScene(
 	UObject* OwnerPtr
 	, Chaos::FReal InAsyncDt
-#if CHAOS_DEBUG_NAME
 	, const FName& DebugName
-#endif
 )
 	: SolverAccelerationStructure(nullptr)
 	, ChaosModule(nullptr)
@@ -72,11 +70,7 @@ FChaosScene::FChaosScene(
 
 	Chaos::EThreadingMode ThreadingMode = bForceSingleThread ? Chaos::EThreadingMode::SingleThread : Chaos::EThreadingMode::TaskGraph;
 
-	SceneSolver = ChaosModule->CreateSolver(OwnerPtr, InAsyncDt, ThreadingMode
-#if CHAOS_DEBUG_NAME
-		,DebugName
-#endif
-		);
+	SceneSolver = ChaosModule->CreateSolver(OwnerPtr, InAsyncDt, ThreadingMode, DebugName);
 	check(SceneSolver);
 
 #if WITH_CHAOS_VISUAL_DEBUGGER
@@ -89,14 +83,11 @@ FChaosScene::FChaosScene(
 	SimCallback = SceneSolver->CreateAndRegisterSimCallbackObject_External<FChaosSceneSimCallback>();
 
 	// Apply project settings to the solver
-	if(CVar_ApplyProjectSettings.GetValueOnAnyThread() != 0)
+	if (CVar_ApplyProjectSettings.GetValueOnAnyThread() != 0)
 	{
 		UPhysicsSettingsCore* Settings = UPhysicsSettingsCore::Get();
-		SceneSolver->RegisterSimOneShotCallback([InSolver = SceneSolver, SolverConfigCopy = Settings->SolverOptions, bIsDeterministic = Settings->bEnableEnhancedDeterminism]()
-		{
-			InSolver->ApplyConfig(SolverConfigCopy);
-			InSolver->SetIsDeterministic(bIsDeterministic);
-		});
+		SceneSolver->ApplyConfig(Settings->SolverOptions);
+		SceneSolver->SetIsDeterministic(Settings->bEnableEnhancedDeterminism);
 	}
 
 	// Make sure we have initialized structure on game thread, evolution has already initialized structure, just need to copy.

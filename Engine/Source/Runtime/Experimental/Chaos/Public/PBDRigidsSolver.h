@@ -359,6 +359,8 @@ namespace Chaos
 		CHAOS_API virtual void PushPhysicsState(const FReal ExternalDt, const int32 NumSteps, const int32 NumExternalSteps) override;
 		CHAOS_API virtual void SetExternalTimestampConsumed_Internal(const int32 Timestamp) override;
 
+		CHAOS_API void ApplyCVars();
+
 		CHAOS_API void UpdateIsDeterministic();
 
 		CHAOS_API void DebugDrawShapes(const bool bShowStatic, const bool bShowKinematic, const bool bShowDynamic) const;

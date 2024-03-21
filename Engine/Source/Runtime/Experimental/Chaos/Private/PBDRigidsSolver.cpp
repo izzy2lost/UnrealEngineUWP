@@ -1281,90 +1281,8 @@ namespace Chaos
 
 	void FPBDRigidsSolver::PrepareAdvanceBy(const FReal DeltaTime)
 	{
-		MEvolution->GetCollisionConstraints().SetCollisionsEnabled(bChaosSolverCollisionEnabled);
-
-		FCollisionDetectorSettings CollisionDetectorSettings = MEvolution->GetCollisionConstraints().GetDetectorSettings();
-		CollisionDetectorSettings.bAllowManifoldReuse = (ChaosSolverCollisionAllowManifoldUpdate != 0);
-		CollisionDetectorSettings.bDeferNarrowPhase = (ChaosSolverCollisionDeferNarrowPhase != 0);
-		CollisionDetectorSettings.bAllowManifolds = (ChaosSolverCollisionUseManifolds != 0);
-		CollisionDetectorSettings.bAllowCCD = bChaosUseCCD;
-		CollisionDetectorSettings.bAllowMACD = bChaosUseMACD;
-		MEvolution->GetCollisionConstraints().SetDetectorSettings(CollisionDetectorSettings);
-		
-		FPBDJointSolverSettings JointsSettings = MEvolution->GetJointConstraints().GetSettings();
-		JointsSettings.MinSolverStiffness = ChaosSolverJointMinSolverStiffness;
-		JointsSettings.MaxSolverStiffness = ChaosSolverJointMaxSolverStiffness;
-		JointsSettings.NumIterationsAtMaxSolverStiffness = ChaosSolverJointNumIterationsAtMaxSolverStiffness;
-		JointsSettings.PositionTolerance = ChaosSolverJointPositionTolerance;
-		JointsSettings.AngleTolerance = ChaosSolverJointAngleTolerance;
-		JointsSettings.MinParentMassRatio = ChaosSolverJointMinParentMassRatio;
-		JointsSettings.MaxInertiaRatio = ChaosSolverJointMaxInertiaRatio;
-		JointsSettings.bSolvePositionLast = bChaosSolverJointSolvePositionLast;
-		JointsSettings.bUsePositionBasedDrives = bChaosSolverJointUsePositionBasedDrives;
-		JointsSettings.NumShockPropagationIterations = ChaosSolverJointNumShockProagationIterations;
-		JointsSettings.ShockPropagationOverride = ChaosSolverJointShockPropagation;
-		JointsSettings.bUseLinearSolver = bChaosSolverJointUseLinearSolver;
-		JointsSettings.bSortEnabled = false;
-		MEvolution->GetJointConstraints().SetSettings(JointsSettings);
-
-		// Apply CVAR overrides if set
-		{
-			// To enable runtime support for switching collision features on/off we need to update existing constraints when config changes.
-			if (bChaosCollisionConfigChanged)
-			{
-				// For now destroy the collisions. This is a bit over the top and causes problems for sleeping islands, but it's only for debugging/testing.
-				GetEvolution()->DestroyTransientConstraints();
-				bChaosCollisionConfigChanged = false;
-			}
-
-			if (ChaosSolverCollisionPositionFrictionIterations >= 0)
-			{
-				MEvolution->GetCollisionConstraints().SetPositionFrictionIterations(ChaosSolverCollisionPositionFrictionIterations);
-			}
-			if (ChaosSolverCollisionVelocityFrictionIterations >= 0)
-			{
-				MEvolution->GetCollisionConstraints().SetVelocityFrictionIterations(ChaosSolverCollisionVelocityFrictionIterations);
-			}
-			{
-				MEvolution->SetShockPropagationIterations(ChaosSolverCollisionPositionShockPropagationIterations, ChaosSolverCollisionVelocityShockPropagationIterations);
-			}
-			if (ChaosSolverPositionIterations >= 0)
-			{
-				SetPositionIterations(ChaosSolverPositionIterations);
-			}
-			if (ChaosSolverVelocityIterations >= 0)
-			{
-				SetVelocityIterations(ChaosSolverVelocityIterations);
-			}
-			if (ChaosSolverProjectionIterations >= 0)
-			{
-				SetProjectionIterations(ChaosSolverProjectionIterations);
-			}
-			if (ChaosSolverCullDistance >= 0.0f)
-			{
-				SetCollisionCullDistance(ChaosSolverCullDistance);
-			}
-			if ((ChaosSolverVelocityBoundsMultiplier >= 0.0f) && (ChaosSolverMaxVelocityBoundsExpansion >= 0.0f))
-			{
-				SetVelocityBoundsExpansion(ChaosSolverVelocityBoundsMultiplier, ChaosSolverMaxVelocityBoundsExpansion);
-			}
-			if ((ChaosSolverVelocityBoundsMultiplierMACD >= 0.0f) && (ChaosSolverMaxVelocityBoundsExpansionMACD >= 0.0f))
-			{
-				SetVelocityBoundsExpansionMACD(ChaosSolverVelocityBoundsMultiplierMACD, ChaosSolverMaxVelocityBoundsExpansionMACD);
-			}
-			if (ChaosSolverMaxPushOutVelocity >= 0.0f)
-			{
-				SetCollisionMaxPushOutVelocity(ChaosSolverMaxPushOutVelocity);
-			}
-			if (ChaosSolverDepenetrationVelocity >= 0.0f)
-			{
-				SetCollisionDepenetrationVelocity(ChaosSolverDepenetrationVelocity);
-			}
-			if (ChaosSolverDeterministic >= 0)
-			{
-				UpdateIsDeterministic();
-			}
-		}
+		// Handle runtime cvar changes for debugging
+		ApplyCVars();
 
 		UE_LOG(LogPBDRigidsSolver, Verbose, TEXT("PBDRigidsSolver::Tick(%3.5f)"), DeltaTime);
 		MLastDt = DeltaTime;
@@ -2758,11 +2676,18 @@ TRACE_COUNTER_SET(ChaosTraceCounter_##Name, Value)
 			Rigid->SetInertiaConditioningDirty();
 		}
 
+		// A negative depenetration velocity means use the solver setting
+		FRealSingle DepenetrationVelocity = DynamicMisc.InitialOverlapDepenetrationVelocity();
+		if (DepenetrationVelocity < 0)
+		{
+			DepenetrationVelocity = GetEvolution()->GetCollisionConstraints().GetSolverSettings().DepenetrationVelocity;
+		}
+
 		Rigid->SetLinearEtherDrag(DynamicMisc.LinearEtherDrag());
 		Rigid->SetAngularEtherDrag(DynamicMisc.AngularEtherDrag());
 		Rigid->SetMaxLinearSpeedSq(DynamicMisc.MaxLinearSpeedSq());
 		Rigid->SetMaxAngularSpeedSq(DynamicMisc.MaxAngularSpeedSq());
-		Rigid->SetInitialOverlapDepenetrationVelocity(DynamicMisc.InitialOverlapDepenetrationVelocity());
+		Rigid->SetInitialOverlapDepenetrationVelocity(DepenetrationVelocity);
 		Rigid->SetSleepThresholdMultiplier(DynamicMisc.SleepThresholdMultiplier());
 		Rigid->SetCollisionGroup(DynamicMisc.CollisionGroup());
 		Rigid->SetDisabled(DynamicMisc.Disabled());
@@ -2810,6 +2735,96 @@ TRACE_COUNTER_SET(ChaosTraceCounter_##Name, Value)
 		SetCollisionFilterSettings(InConfig.CollisionFilterSettings);
 		SetBreakingFilterSettings(InConfig.BreakingFilterSettings);
 		SetTrailingFilterSettings(InConfig.TrailingFilterSettings);
+
+		ApplyCVars();
+	}
+
+	void FPBDRigidsSolver::ApplyCVars()
+	{
+		MEvolution->GetCollisionConstraints().SetCollisionsEnabled(bChaosSolverCollisionEnabled);
+
+		FCollisionDetectorSettings CollisionDetectorSettings = MEvolution->GetCollisionConstraints().GetDetectorSettings();
+		CollisionDetectorSettings.bAllowManifoldReuse = (ChaosSolverCollisionAllowManifoldUpdate != 0);
+		CollisionDetectorSettings.bDeferNarrowPhase = (ChaosSolverCollisionDeferNarrowPhase != 0);
+		CollisionDetectorSettings.bAllowManifolds = (ChaosSolverCollisionUseManifolds != 0);
+		CollisionDetectorSettings.bAllowCCD = bChaosUseCCD;
+		CollisionDetectorSettings.bAllowMACD = bChaosUseMACD;
+		MEvolution->GetCollisionConstraints().SetDetectorSettings(CollisionDetectorSettings);
+
+		FPBDJointSolverSettings JointsSettings = MEvolution->GetJointConstraints().GetSettings();
+		JointsSettings.MinSolverStiffness = ChaosSolverJointMinSolverStiffness;
+		JointsSettings.MaxSolverStiffness = ChaosSolverJointMaxSolverStiffness;
+		JointsSettings.NumIterationsAtMaxSolverStiffness = ChaosSolverJointNumIterationsAtMaxSolverStiffness;
+		JointsSettings.PositionTolerance = ChaosSolverJointPositionTolerance;
+		JointsSettings.AngleTolerance = ChaosSolverJointAngleTolerance;
+		JointsSettings.MinParentMassRatio = ChaosSolverJointMinParentMassRatio;
+		JointsSettings.MaxInertiaRatio = ChaosSolverJointMaxInertiaRatio;
+		JointsSettings.bSolvePositionLast = bChaosSolverJointSolvePositionLast;
+		JointsSettings.bUsePositionBasedDrives = bChaosSolverJointUsePositionBasedDrives;
+		JointsSettings.NumShockPropagationIterations = ChaosSolverJointNumShockProagationIterations;
+		JointsSettings.ShockPropagationOverride = ChaosSolverJointShockPropagation;
+		JointsSettings.bUseLinearSolver = bChaosSolverJointUseLinearSolver;
+		JointsSettings.bSortEnabled = false;
+		MEvolution->GetJointConstraints().SetSettings(JointsSettings);
+
+		// Apply CVAR overrides if set
+		{
+			// To enable runtime support for switching collision features on/off we need to update existing constraints when config changes.
+			if (bChaosCollisionConfigChanged)
+			{
+				// For now destroy the collisions. This is a bit over the top and causes problems for sleeping islands, but it's only for debugging/testing.
+				GetEvolution()->DestroyTransientConstraints();
+				bChaosCollisionConfigChanged = false;
+			}
+
+			if (ChaosSolverCollisionPositionFrictionIterations >= 0)
+			{
+				MEvolution->GetCollisionConstraints().SetPositionFrictionIterations(ChaosSolverCollisionPositionFrictionIterations);
+			}
+			if (ChaosSolverCollisionVelocityFrictionIterations >= 0)
+			{
+				MEvolution->GetCollisionConstraints().SetVelocityFrictionIterations(ChaosSolverCollisionVelocityFrictionIterations);
+			}
+			{
+				MEvolution->SetShockPropagationIterations(ChaosSolverCollisionPositionShockPropagationIterations, ChaosSolverCollisionVelocityShockPropagationIterations);
+			}
+			if (ChaosSolverPositionIterations >= 0)
+			{
+				SetPositionIterations(ChaosSolverPositionIterations);
+			}
+			if (ChaosSolverVelocityIterations >= 0)
+			{
+				SetVelocityIterations(ChaosSolverVelocityIterations);
+			}
+			if (ChaosSolverProjectionIterations >= 0)
+			{
+				SetProjectionIterations(ChaosSolverProjectionIterations);
+			}
+			if (ChaosSolverCullDistance >= 0.0f)
+			{
+				SetCollisionCullDistance(ChaosSolverCullDistance);
+			}
+			if ((ChaosSolverVelocityBoundsMultiplier >= 0.0f) && (ChaosSolverMaxVelocityBoundsExpansion >= 0.0f))
+			{
+				SetVelocityBoundsExpansion(ChaosSolverVelocityBoundsMultiplier, ChaosSolverMaxVelocityBoundsExpansion);
+			}
+			if ((ChaosSolverVelocityBoundsMultiplierMACD >= 0.0f) && (ChaosSolverMaxVelocityBoundsExpansionMACD >= 0.0f))
+			{
+				SetVelocityBoundsExpansionMACD(ChaosSolverVelocityBoundsMultiplierMACD, ChaosSolverMaxVelocityBoundsExpansionMACD);
+			}
+			if (ChaosSolverMaxPushOutVelocity >= 0.0f)
+			{
+				SetCollisionMaxPushOutVelocity(ChaosSolverMaxPushOutVelocity);
+			}
+			if (ChaosSolverDepenetrationVelocity >= 0.0f)
+			{
+				SetCollisionDepenetrationVelocity(ChaosSolverDepenetrationVelocity);
+			}
+			if (ChaosSolverDeterministic >= 0)
+			{
+				UpdateIsDeterministic();
+			}
+		}
 	}
 
 	FPBDRigidsSolver::~FPBDRigidsSolver()
