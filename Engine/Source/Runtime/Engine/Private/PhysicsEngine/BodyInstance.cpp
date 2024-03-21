@@ -3730,7 +3730,7 @@ void FBodyInstance::SetUseMACD(bool bInUseMACD)
 			{
 				if (FPhysicsInterface::IsValid(Actor) && FPhysicsInterface::IsRigidBody(Actor))
 				{
-					FPhysicsInterface::SetCcdEnabled_AssumesLocked(Actor, bInUseMACD);
+					FPhysicsInterface::SetMACDEnabled_AssumesLocked(Actor, bInUseMACD);
 				}
 			});
 	}

@@ -2711,6 +2711,14 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Physics")
 	ENGINE_API virtual void SetAllUseCCD(bool InUseCCD);
 
+	/** [EXPERIMENTAL] Set whether this component should use Motion-Aware Collision Detection */
+	UFUNCTION(BlueprintCallable, Category = "Physics")
+	ENGINE_API virtual void SetUseMACD(bool InUseMACD, FName BoneName = NAME_None);
+
+	/** [EXPERIMENTAL] Set whether all bodies in this component should use Motion-Aware Collision Detection */
+	UFUNCTION(BlueprintCallable, Category = "Physics")
+	ENGINE_API virtual void SetAllUseMACD(bool InUseMACD);
+
 	/**
 	 *	Force all bodies in this component to sleep.
 	 */

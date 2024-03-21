@@ -669,6 +669,21 @@ void UPrimitiveComponent::SetAllUseCCD(bool bInUseCCD)
 	SetUseCCD(bInUseCCD, NAME_None);
 }
 
+
+void UPrimitiveComponent::SetUseMACD(bool bInUseMACD, FName BoneName)
+{
+	FBodyInstance* BI = GetBodyInstance(BoneName);
+	if (BI)
+	{
+		BI->SetUseMACD(bInUseMACD);
+	}
+}
+
+void UPrimitiveComponent::SetAllUseMACD(bool bInUseMACD)
+{
+	SetUseMACD(bInUseMACD, NAME_None);
+}
+
 void UPrimitiveComponent::PutRigidBodyToSleep(FName BoneName)
 {
 	FBodyInstance* BI = GetBodyInstance(BoneName);
