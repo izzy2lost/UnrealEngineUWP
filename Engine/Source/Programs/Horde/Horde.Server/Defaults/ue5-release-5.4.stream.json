@@ -466,7 +466,19 @@
 							"default": false
 						}
 					]
-				}
+				},
+				{
+					"type": "Text",
+					"label": "Device Manager URL",
+					"default": "http://localhost:13340",
+					"argument": "-GauntletDeviceService="
+				},
+				{
+					"type": "Text",
+					"label": "Device Pool",
+					"default": "UE5",
+					"argument": "-GauntletDevicePool="
+				}				
 			]
 		},
 		{
