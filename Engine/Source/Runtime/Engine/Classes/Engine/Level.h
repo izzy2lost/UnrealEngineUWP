@@ -64,7 +64,7 @@ private:
 
 // Actor container class used to duplicate actors during cells streaming in PIE
 UCLASS()
-class UActorContainer : public UObject
+class ENGINE_API UActorContainer : public UObject
 {
 	GENERATED_BODY()
 
