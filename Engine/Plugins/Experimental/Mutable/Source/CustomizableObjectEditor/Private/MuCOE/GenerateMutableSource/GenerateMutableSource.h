@@ -720,14 +720,14 @@ struct FMutableGraphGenerationContext
 	};
 	TArray< ObjectParent > ComponentNewNode;
 
-	uint8 FromLOD = 0; // LOD to append to the CurrentLOD when using AutomaticLODs. 
-	uint8 CurrentLOD = 0;
+	int32 FromLOD = 0; // LOD to append to the CurrentLOD when using AutomaticLODs. 
+	int32 CurrentLOD = 0;
+	int32 NumLODsInRoot = 0;
 	int32 CurrentMeshComponent = 0;
+	int32 NumMeshComponentsInRoot = 0;
 
-	uint8 NumLODsInRoot = 0;
-	uint8 NumMeshComponentsInRoot = 0;
-	uint8 FirstLODAvailable = MAX_MESH_LOD_COUNT;
-	uint8 NumMaxLODsToStream = MAX_MESH_LOD_COUNT;
+	int32 FirstLODAvailable = MAX_MESH_LOD_COUNT;
+	int32 NumMaxLODsToStream = MAX_MESH_LOD_COUNT;
 
 	bool bEnableLODStreaming = true;
 
@@ -870,7 +870,7 @@ uint32 ComputeLODBiasForTexture(const FMutableGraphGenerationContext& Generation
 int32 GetMaxTextureSize(const UTexture2D& ReferenceTexture, const UTextureLODSettings& LODSettings);
 
 // Max texture size of the texture with per platform MaxTextureSize and LODBias applied.
-int32 GetTextureSizeInGame(const UTexture2D& Texture, const UTextureLODSettings& LODSettings, uint8 SurfaceLODBias = 0);
+int32 GetTextureSizeInGame(const UTexture2D& Texture, const UTextureLODSettings& LODSettings, int32 SurfaceLODBias = 0);
 
 mu::Ptr<mu::Image> GenerateImageConstant( UTexture*, FMutableGraphGenerationContext&, bool bIsReference);
 

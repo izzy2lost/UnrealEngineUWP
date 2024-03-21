@@ -222,10 +222,10 @@ void UCustomizableInstancePrivate::InitCustomizableObjectData(const UCustomizabl
 	}
 
 	// Init LOD Data
-	const FModelResources& ModelResources = InCustomizableObject->GetPrivate()->GetModelResources();
-	NumLODsAvailable = ModelResources.NumLODs;
-	FirstLODAvailable = ModelResources.FirstLODAvailable;
-	FirstResidentLOD = FMath::Clamp(ModelResources.NumLODsToStream, FirstLODAvailable, NumLODsAvailable);
+	NumLODsAvailable = InCustomizableObject->GetNumLODs();
+	FirstLODAvailable = InCustomizableObject->LODSettings.FirstLODAvailable;
+	FirstResidentLOD = InCustomizableObject->LODSettings.bLODStreamingEnabled ? InCustomizableObject->LODSettings.NumLODsToStream : 0;
+	FirstResidentLOD = FMath::Clamp(FirstResidentLOD, FirstLODAvailable, NumLODsAvailable);
 
 	// Init Component Data
 	FCustomizableInstanceComponentData TemplateComponentData;
@@ -6356,6 +6356,11 @@ void UCustomizableObjectInstance::SetRequestedLODs(int32 InMinLOD, int32 , const
 		return;
 	}
 
+	if (!GetCustomizableObject()->LODSettings.bLODStreamingEnabled)
+	{
+		return;
+	}
+
 	if (GetPrivate()->SkeletalMeshStatus == ESkeletalMeshStatus::Error)
 	{
 		return;
@@ -6823,7 +6828,7 @@ void CalculateBonesToRemove(const FSkeletalMeshLODRenderData& LODResource, const
 		}
 
 		const int32 ParentIndex = RefSkeleton.GetParentIndex(BoneIndex);
-		if (RemovedBones.IsValidIndex(ParentIndex) && !RemovedBones[ParentIndex])
+		if (!RemovedBones.IsValidIndex(ParentIndex) || !RemovedBones[ParentIndex])
 		{
 			OutBonesToRemove.Add(RefSkeleton.GetBoneName(BoneIndex));
 		}
