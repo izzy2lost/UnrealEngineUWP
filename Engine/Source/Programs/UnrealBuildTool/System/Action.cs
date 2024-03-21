@@ -462,10 +462,10 @@ namespace UnrealBuildTool
 				Action.bCanExecuteRemotelyWithXGE = bCanExecuteRemotelyWithXGE;
 			}
 
-			bool bCanExecuteInBox;
-			if (Object.TryGetBoolField("bCanExecuteInUBA", out bCanExecuteInBox))
+			bool bCanExecuteInUBA;
+			if (Object.TryGetBoolField("bCanExecuteInUBA", out bCanExecuteInUBA))
 			{
-				Action.bCanExecuteInUBA = bCanExecuteInBox;
+				Action.bCanExecuteInUBA = bCanExecuteInUBA;
 			}
 
 			bool bIsGCCCompiler;

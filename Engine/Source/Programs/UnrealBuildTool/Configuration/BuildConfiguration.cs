@@ -8,6 +8,7 @@ namespace UnrealBuildTool
 	/// <summary>
 	/// Global settings for building. Should not contain any target-specific settings.
 	/// </summary>
+	[System.Diagnostics.CodeAnalysis.SuppressMessage("Style", "IDE1006:Naming Styles", Justification = "UnrealBuildTool naming style")]
 	internal sealed class BuildConfiguration
 	{
 		/// <summary>
@@ -40,22 +41,13 @@ namespace UnrealBuildTool
 		public bool bAllowHybridExecutor { get; set; } = false;
 
 		/// <summary>
-		/// Priority order for remote executors (XGE, SNDBS, FASTBuild, UBAExecutor)
+		/// Priority order for remote executors (XGE, SNDBS, FASTBuild, UBA)
 		/// </summary>
 		[XmlConfigFile]
 		public string[] RemoteExecutorPriority { get; set; } = new string[] { "XGE", "SNDBS", "FASTBuild", "UBA" };
 
 		/// <summary>
-		/// This property is being renamed and should not be used
-		/// </summary>
-		[XmlConfigFile]
-		[CommandLine("-Box", Value = "true")]
-		[CommandLine("-NoBox", Value = "false")]
-		[Obsolete("Replace with bAllowUBAExecutor")]
-		public bool bAllowBoxExecutor { get => bAllowUBAExecutor; set => bAllowUBAExecutor = value; }
-
-		/// <summary>
-		/// Whether the experimental UnrealBuildAccelerator executor will be used.
+		/// Whether the UnrealBuildAccelerator executor will be used.
 		/// </summary>
 		[XmlConfigFile]
 		[CommandLine("-UBA", Value = "true")]
@@ -63,16 +55,7 @@ namespace UnrealBuildTool
 		public bool bAllowUBAExecutor { get; set; } = false;
 
 		/// <summary>
-		/// This property is being renamed and should not be used
-		/// </summary>
-		[XmlConfigFile]
-		[CommandLine("-BoxLocal", Value = "true")]
-		[CommandLine("-NoBoxLocal", Value = "false")]
-		[Obsolete("Replace with bAllowUBALocalExecutor")]
-		public bool bAllowBoxLocalExecutor { get => bAllowUBALocalExecutor; set => bAllowUBALocalExecutor = value; }
-
-		/// <summary>
-		/// Whether the experimental UnrealBuildAccelerator (local only) executor will be used.
+		/// Whether the UnrealBuildAccelerator (local only) executor will be used.
 		/// </summary>
 		[XmlConfigFile]
 		[CommandLine("-UBALocal", Value = "true")]
@@ -92,14 +75,14 @@ namespace UnrealBuildTool
 		public bool bAllowXGE { get; set; } = true;
 
 		/// <summary>
-		/// Whether FASTBuild may be used if availabe, default is true.
+		/// Whether FASTBuild may be used if available, default is true.
 		/// </summary>
 		[XmlConfigFile]
 		[CommandLine("-NoFASTBuild", Value = "false")]
 		public bool bAllowFASTBuild { get; set; } = true;
 
 		/// <summary>
-		/// Whether SN-DBS may be used if availabe, default is true.
+		/// Whether SN-DBS may be used if available, default is true.
 		/// </summary>
 		[XmlConfigFile]
 		[CommandLine("-NoSNDBS", Value = "false")]
@@ -213,7 +196,7 @@ namespace UnrealBuildTool
 		public int MaxRootPathLength { get; set; } = 50;
 
 		/// <summary>
-		/// Maximum length of a path relative to the root directory. Used on Windows to ensure paths are portable between machines. Defaults to off.
+		/// Maximum length of a path relative to the root directory. Used on Windows to ensure paths are portable between machines.
 		/// </summary>
 		[XmlConfigFile(Category = "WindowsPlatform")]
 		public int MaxNestedPathLength { get; set; } = 200;
