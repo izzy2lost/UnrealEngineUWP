@@ -217,7 +217,7 @@ public:
 
 	/** Sets the first material of the instance as the default section to draw in the UVs Overlay (when there is no material selected in the combobox)
 		Param bIsCompilation: true if this function is called during a CO compilation, false when is called from an instance update	*/
-	void SetDrawDefaultUVMaterial();
+	void SetDrawDefaultUVMaterial(bool bIsCompilation);
 
 	/** Sets the bones visibility */
 	void SetShowBones();
@@ -254,35 +254,26 @@ private:
 	// The currently selected view mode.
 	EViewModeIndex CurrentViewMode = VMI_Lit;
 
-	/** Section identifier. */
-	struct FSection
-	{
-		int32 ComponentIndex = -1;
-		int32 LODIndex = -1;
-		int32 SectionIndex = -1;
-	};
-	
-	// Selection for the section to filter when showing UVs
-	TArray<TSharedPtr<FString>> UVSectionOptionString;
-	TArray<FSection> UVSectionOption;
+	// Selection for the material to filter when showing UVs
+	TArray<TSharedPtr<FString>> ArrayUVMaterialOptionString;
 
-	// Combo box for UV section selection
-	TSharedPtr<STextComboBox> UVSectionOptionCombo;
+	// Combo box for UV material selection
+	TSharedPtr< STextComboBox> UVMaterialOptionCombo;
 
 	// Selection for the channel to filter when showing UVs
-	TArray<TSharedPtr<FString>> UVChannelOptionString;
+	TArray<TSharedPtr<FString>> ArrayUVChannelOptionString;
 
 	// Combo box for UV channel selection
-	TSharedPtr<STextComboBox> UVChannelOptionCombo;
+	TSharedPtr< STextComboBox> UVChannelOptionCombo;
 
 	// Generates the Combobox options for each UV Channel
-	void GenerateUVSectionOptions();
+	void GenerateUVMaterialOptions();
 
 	// Generates the Combobox options for each UV Channel
 	void GenerateUVChannelOptions();
 
 	// Selected option of the UV Material ComboBox
-	TSharedPtr<FString> SelectedUVSection;
+	TSharedPtr<FString> SelectedUVMaterial;
 	
 	// Selected option of the UV Channel ComboBox
 	TSharedPtr<FString> SelectedUVChannel;
@@ -291,7 +282,8 @@ private:
 	TArray< TSharedPtr< FString > > MaterialNames;
 
 	// Slate callbacks to manage the material combo
-	void OnSectionChanged(TSharedPtr<FString> Selected, ESelectInfo::Type SelectInfo);
+	bool IsMaterialsComboEnabled() const;
+	void OnMaterialChanged(TSharedPtr<FString> Selected, ESelectInfo::Type SelectInfo);
 	void OnUVChannelChanged(TSharedPtr<FString> Selected, ESelectInfo::Type SelectInfo);
 
 	/** Current LOD selection*/

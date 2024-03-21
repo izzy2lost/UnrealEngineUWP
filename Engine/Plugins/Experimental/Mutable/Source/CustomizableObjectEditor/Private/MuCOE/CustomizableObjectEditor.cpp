@@ -1543,7 +1543,7 @@ void FCustomizableObjectEditor::OnObjectModified(UObject* Object)
 void FCustomizableObjectEditor::CompileObject()
 {
 	// Resetting viewport parameters
-	Viewport->SetDrawDefaultUVMaterial();
+	Viewport->SetDrawDefaultUVMaterial(true);
 
 	UE_LOG(LogMutable, Verbose, TEXT("PROFILE: -----------------------------------------------------------"));
 	UE_LOG(LogMutable, Verbose, TEXT("PROFILE: [ %16.8f ] FCustomizableObjectEditor::CompileObject start."), FPlatformTime::Seconds());
@@ -2275,7 +2275,7 @@ void FCustomizableObjectEditor::OnUpdatePreviewInstance()
 	}
 	
 	Viewport->SetPreviewComponents(PreviewSkeletalMeshComponents);
-	Viewport->SetDrawDefaultUVMaterial();
+	Viewport->SetDrawDefaultUVMaterial(false);
 	ViewportClient->Invalidate();
 	ViewportClient->ReSetAnimation();
 	ViewportClient->SetReferenceMeshMissingWarningMessage(false);

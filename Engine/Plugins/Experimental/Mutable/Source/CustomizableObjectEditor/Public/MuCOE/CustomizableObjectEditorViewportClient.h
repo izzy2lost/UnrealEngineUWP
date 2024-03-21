@@ -112,7 +112,7 @@ public:
 	 *	@param	InCanvas					The canvas to draw to
 	 *	@param	InTextYPos					The Y-position to begin drawing the UV-Overlay at (due to text displayed above it).
 	 */
-	void DrawUVs(FViewport* InViewport, FCanvas* InCanvas, int32 InTextYPos);
+	void DrawUVs(FViewport* InViewport, FCanvas* InCanvas, int32 InTextYPos, const FString& MaterialName);
 
 	/**
 	 * Bake the instance currently present in the editor. Internally will schedule the update of the instance before baking it's resources
@@ -138,8 +138,8 @@ public:
 	/** Callback for checking the UV overlay show flag. */
 	bool IsSetDrawUVOverlayChecked() const;
 
-	/** Specify which UV to draw. -1 values will not draw anything. */
-	void SetDrawUV(const int32 ComponentIndex, const int32 LODIndex, const int32 SectionIndex, const int32 UVIndex);
+	// Set the material index whose UVs will be drawn.
+	void SetDrawUVOverlayMaterial(const FString& MaterialName, const FString& UVChannel);
 
 	/** Callback for toggling the grid show flag. */
 	void UpdateShowGridFromButton();
@@ -306,11 +306,12 @@ private:
 	bool bDrawUVs;
 	bool bDrawSky;
 
-	// UV to draw
-	int32 UVDrawComponentIndex = 0;
-	int32 UVDrawSectionIndex = 0;
-	int32 UVDrawLODIndex = 0;
-	int32 UVDrawUVIndex = 0;
+	// Material index to draw in the uv preview.
+	FString MaterialToDrawInUVs;
+	int32 MaterialToDrawInUVsLOD;
+	int32 MaterialToDrawInUVsIndex;
+	int32 UVChannelToDrawInUVs;
+	int32 MaterialToDrawInUVsComponent;
 
 	bool bReferenceMeshMissingWarningMessageVisible;
 
