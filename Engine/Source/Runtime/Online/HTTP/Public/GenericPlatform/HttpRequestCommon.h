@@ -30,6 +30,8 @@ public:
 	HTTP_API virtual TOptional<float> GetTimeout() const override;
 	HTTP_API float GetTimeoutOrDefault() const;
 
+	HTTP_API virtual void SetActivityTimeout(float InTimeoutSecs) override;
+
 	HTTP_API virtual const FHttpResponsePtr GetResponse() const override;
 
 	// Can be called on game thread or http thread depend on the delegate thread policy
@@ -83,6 +85,8 @@ protected:
 	HTTP_API bool PassReceivedDataToStream(void* Ptr, int64 Length);
 	HTTP_API void StopPassingReceivedData();
 
+	HTTP_API float GetActivityTimeoutOrDefault() const;
+
 protected:
 	/** Current status of request being processed */
 	EHttpRequestStatus::Type CompletionStatus = EHttpRequestStatus::NotStarted;
@@ -95,6 +99,9 @@ protected:
 
 	/** Timeout in seconds for the entire HTTP request to complete */
 	TOptional<float> TimeoutSecs;
+
+	/** Timeout in seconds for the HTTP request activity timeout */
+	TOptional<float> ActivityTimeoutSecs;
 
 	/** Indicate the request is timed out, it should quit and fail with EHttpFailureReason::TimedOut */
 	std::atomic<bool> bTimedOut = false;

@@ -140,6 +140,11 @@ namespace BuildPatchServices
 			return TOptional<float>();
 		}
 
+		virtual void SetActivityTimeout(float InTimeoutSecs) override
+		{
+			MOCK_FUNC_NOT_IMPLEMENTED("FMockHttpRequest::SetActivityTimeout");
+		}
+
 		virtual void ProcessRequestUntilComplete() override
 		{
 		}

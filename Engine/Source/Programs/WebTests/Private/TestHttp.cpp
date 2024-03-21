@@ -929,16 +929,26 @@ TEST_CASE_METHOD(FWaitUntilCompleteHttpFixture, "Http request activity timeout",
 {
 	DisableWarningsInThisTest();
 
-	float ReceiveTimeoutSetting = 3.0f;
-	HttpModule->HttpActivityTimeout = ReceiveTimeoutSetting;
+	float ActivityTimeoutSetting = 3.0f;
+	HttpModule->HttpActivityTimeout = ActivityTimeoutSetting;
 
 	TSharedPtr<IHttpRequest> HttpRequest = CreateRequest();
+
+	SECTION("By default activity timeout from http module")
+	{
+	}
+	SECTION("By customized activity timeout per http request which will override default settings from http module")
+	{
+		ActivityTimeoutSetting = 4.0f;
+		HttpRequest->SetActivityTimeout(ActivityTimeoutSetting);
+	}
+
 	HttpRequest->SetURL(UrlStreamDownload(3/*Chunks*/, HTTP_TEST_TIMEOUT_CHUNK_SIZE, 5/*ChunkLatency*/));
 	HttpRequest->SetVerb(TEXT("GET"));
 
 	const double StartTime = FPlatformTime::Seconds();
 
-	HttpRequest->OnProcessRequestComplete().BindLambda([StartTime, ReceiveTimeoutSetting](FHttpRequestPtr HttpRequest, FHttpResponsePtr HttpResponse, bool bSucceeded) {
+	HttpRequest->OnProcessRequestComplete().BindLambda([StartTime, ActivityTimeoutSetting](FHttpRequestPtr HttpRequest, FHttpResponsePtr HttpResponse, bool bSucceeded) {
 		CHECK(!bSucceeded);
 		CHECK(HttpRequest->GetStatus() == EHttpRequestStatus::Failed);
 		CHECK(HttpRequest->GetFailureReason() == EHttpFailureReason::ConnectionError);
@@ -950,9 +960,9 @@ TEST_CASE_METHOD(FWaitUntilCompleteHttpFixture, "Http request activity timeout",
 		// In a similar way on MacOS/iOS we don't get any notification until some data is received
 		// So it takes 5s to receive the first chunk to be considered as connected, then start response timer and
 		// take 3s to response timeout
-		CHECK(FMath::IsNearlyEqual(DurationInSeconds, ReceiveTimeoutSetting + 5, HTTP_TIME_DIFF_TOLERANCE_OF_REQUEST));
+		CHECK(FMath::IsNearlyEqual(DurationInSeconds, ActivityTimeoutSetting + 5, HTTP_TIME_DIFF_TOLERANCE_OF_REQUEST));
 #else
-		CHECK(FMath::IsNearlyEqual(DurationInSeconds, ReceiveTimeoutSetting, HTTP_TIME_DIFF_TOLERANCE_OF_REQUEST));
+		CHECK(FMath::IsNearlyEqual(DurationInSeconds, ActivityTimeoutSetting, HTTP_TIME_DIFF_TOLERANCE_OF_REQUEST));
 #endif
 
 	});

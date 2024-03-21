@@ -173,7 +173,7 @@ void FNullHttpRequest::Tick(float DeltaSeconds)
 	if (CompletionStatus == EHttpRequestStatus::Processing)
 	{
 		ElapsedTime += DeltaSeconds;
-		const float HttpTimeout = GetTimeout().Get(FHttpModule::Get().GetHttpActivityTimeout());
+		const float HttpTimeout = GetTimeout().Get(FHttpModule::Get().GetHttpTotalTimeout());
 		if (HttpTimeout > 0 && ElapsedTime >= HttpTimeout)
 		{
 			UE_LOG(LogHttp, Warning, TEXT("Timeout processing Http request. %p"),
@@ -222,6 +222,10 @@ void FNullHttpRequest::ClearTimeout()
 TOptional<float> FNullHttpRequest::GetTimeout() const 
 { 
 	return TimeoutSecs; 
+}
+
+void FNullHttpRequest::SetActivityTimeout(float InTimeoutSecs)
+{
 }
 
 void FNullHttpRequest::ProcessRequestUntilComplete()

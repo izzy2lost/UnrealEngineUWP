@@ -269,6 +269,16 @@ public:
 	virtual void SetTimeout(float InTimeoutSecs) = 0;
 
 	/**
+	 * Sets an optional activity timeout in seconds for this HTTP request. After connecting to 
+	 * web server, if there is no activity(send or receive) happen for this time period, it will
+	 * trigger activity timeout
+	 * If set, this value overrides the default HTTP activity timeout
+	 *
+	 * @param InTimeoutSecs - Timeout for this HTTP request instance, in seconds
+	 */
+	virtual void SetActivityTimeout(float InTimeoutSecs) = 0;
+
+	/**
 	 * Clears the optional timeout in seconds for this HTTP request, causing the default value
 	 * from FHttpModule::GetTimeout() to be used.
 	 */

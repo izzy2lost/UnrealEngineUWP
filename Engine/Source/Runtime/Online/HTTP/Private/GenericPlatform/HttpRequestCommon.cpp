@@ -205,6 +205,11 @@ float FHttpRequestCommon::GetTimeoutOrDefault() const
 	return GetTimeout().Get(FHttpModule::Get().GetHttpTotalTimeout());
 }
 
+void FHttpRequestCommon::SetActivityTimeout(float InTimeoutSecs)
+{
+	ActivityTimeoutSecs = InTimeoutSecs;
+}
+
 const FHttpResponsePtr FHttpRequestCommon::GetResponse() const
 {
 	return ResponseCommon;
@@ -254,7 +259,7 @@ void FHttpRequestCommon::StartActivityTimeoutTimer()
 		return;
 	}
 
-	float HttpActivityTimeout = FHttpModule::Get().GetHttpActivityTimeout();
+	float HttpActivityTimeout = GetActivityTimeoutOrDefault();
 	if (HttpActivityTimeout == 0)
 	{
 		return;
@@ -306,7 +311,7 @@ void FHttpRequestCommon::OnActivityTimeoutTimerTaskTrigger()
 	QUICK_SCOPE_CYCLE_COUNTER(STAT_FHttpRequestCommon_AbortRequest);
 	bActivityTimedOut = true;
 	AbortRequest();
-	UE_LOG(LogHttp, Log, TEXT("Request [%s] timed out at [%s] because of no responding for %0.2f seconds"), *GetURL(), *FDateTime::Now().ToString(TEXT("%H:%M:%S:%s")), FHttpModule::Get().GetHttpActivityTimeout());
+	UE_LOG(LogHttp, Log, TEXT("Request [%s] timed out at [%s] because of no responding for %0.2f seconds"), *GetURL(), *FDateTime::Now().ToString(TEXT("%H:%M:%S:%s")), GetActivityTimeoutOrDefault());
 }
 
 void FHttpRequestCommon::ResetActivityTimeoutTimer(FStringView Reason)
@@ -323,7 +328,7 @@ void FHttpRequestCommon::ResetActivityTimeoutTimer(FStringView Reason)
 		return;
 	}
 
-	ActivityTimeoutAt = FPlatformTime::Seconds() + FHttpModule::Get().GetHttpActivityTimeout();
+	ActivityTimeoutAt = FPlatformTime::Seconds() + GetActivityTimeoutOrDefault();
 	UE_LOG(LogHttp, VeryVerbose, TEXT("Request [%p] reset response timeout timer at %s: %s"), this, *FDateTime::Now().ToString(TEXT("%H:%M:%S:%s")), Reason.GetData());
 }
 
@@ -490,4 +495,10 @@ void FHttpRequestCommon::StopPassingReceivedData()
 	const FScopeLock StreamLock(&ResponseBodyReceiveStreamCriticalSection);
 
 	ResponseBodyReceiveStream = nullptr;
+}
+
+float FHttpRequestCommon::GetActivityTimeoutOrDefault() const
+{
+	return ActivityTimeoutSecs.Get(FHttpModule::Get().GetHttpActivityTimeout());
+
 }

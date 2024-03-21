@@ -112,6 +112,11 @@ TOptional<float> FHttpRequestAdapterBase::GetTimeout() const
 	return HttpRequest->GetTimeout(); 
 }
 
+void FHttpRequestAdapterBase::SetActivityTimeout(float InTimeoutSecs)
+{
+	return HttpRequest->SetActivityTimeout(InTimeoutSecs);
+}
+
 void FHttpRequestAdapterBase::ProcessRequestUntilComplete() 
 { 
 	return HttpRequest->ProcessRequestUntilComplete(); 
