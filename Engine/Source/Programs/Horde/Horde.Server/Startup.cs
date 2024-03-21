@@ -311,7 +311,7 @@ namespace Horde.Server
 					|| actionDescriptor?.MethodInfo?.DeclaringType?.GetCustomAttribute<ObsoleteAttribute>() != null)
 				{
 					ILogger? logger = context.HttpContext.RequestServices.GetService<ILogger<ObsoleteLoggingFilter>>();
-					logger?.LogWarning("Using obsolete endpoint for request: {Request}", context.HttpContext.Request.GetDisplayUrl());
+					logger?.LogWarning("Using obsolete endpoint: {RequestPath}", context.HttpContext.Request.Path);
 				}
 			}
 		}
