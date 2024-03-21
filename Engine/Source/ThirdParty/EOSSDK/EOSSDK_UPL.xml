@@ -41,7 +41,7 @@
 					}
 				</insert>
 
-				<insertValue value="dependencies.implementation files ('$S(AbsEngineDir)/Source/ThirdParty/EOSSDK/SDK/Bin/Android/static-stdc++/aar/eos-sdk.aar')"/>
+				<insertValue value="dependencies.implementation files ('$S(AbsEngineDir)/Source/ThirdParty/EOSSDK/SDK/Bin/Android/static-stdc++/aar/eossdk-StaticSTDC-release.aar')"/>
 				<insertNewline/>
 				<insert>
 					dependencies {
