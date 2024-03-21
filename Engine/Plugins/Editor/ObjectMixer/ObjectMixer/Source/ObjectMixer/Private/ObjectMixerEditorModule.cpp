@@ -95,6 +95,14 @@ void FObjectMixerEditorModule::Teardown()
 
 	FLevelEditorSequencerIntegration::Get().GetOnSequencersChanged().RemoveAll(this);
 
+	if (FModuleManager::Get().IsModuleLoaded(TEXT("ObjectMixer")))
+	{
+		if (UObjectMixerEditorSettings* Settings = GetMutableDefault<UObjectMixerEditorSettings>())
+		{
+			Settings->OnSettingChanged().RemoveAll(this);
+		}
+	}
+
 	for (FDelegateHandle& Delegate : DelegateHandles)
 	{
 		Delegate.Reset();
@@ -382,9 +390,18 @@ void FObjectMixerEditorModule::BindDelegates()
 	}));
 	
 	DelegateHandles.Add(FLevelEditorSequencerIntegration::Get().GetOnSequencersChanged().AddLambda(
-		[this]
+	[this]
+	{
+		RegenerateListWidget();
+	}));
+
+	DelegateHandles.Add(GetMutableDefault<UObjectMixerEditorSettings>()->OnSettingChanged().AddLambda(
+		[this](UObject*, FPropertyChangedEvent& Event)
 		{
-			RegenerateListWidget();
+			if (UObjectMixerEditorSettings::DoesPropertyChangeRequireListRebuild(Event))
+			{
+				RequestRebuildList();
+			}
 		}));
 }
 

@@ -119,7 +119,21 @@ namespace ObjectMixerOutliner
 					return true;
 				}
 			}
+			else if (FObjectMixerEditorListRowActor* ActorItem = ItemPtr->CastTo<FObjectMixerEditorListRowActor>())
+			{
+				if (ActorItem->IsValid())
+				{
+					// Get the component from a hybrid row if we're in HybridComponent mode
+					if (GetDefault<UObjectMixerEditorSettings>()->HybridRowPolicy == EObjectMixerHybridMode::HybridComponent &&
+						ActorItem->RowData.GetHybridComponent())
+					{
+						DataOut = ActorItem->RowData.GetHybridComponent();
+						return true;
+					}
+				}
+			}
 		}
+		
 		return false;
 	}
 
@@ -143,10 +157,17 @@ namespace ObjectMixerOutliner
 	{
 		if (TSharedPtr<ISceneOutlinerTreeItem> ItemPtr = Item.Pin())
 		{
-			if (FActorTreeItem* ActorItem = ItemPtr->CastTo<FActorTreeItem>())
+			if (FObjectMixerEditorListRowActor* ActorItem = ItemPtr->CastTo<FObjectMixerEditorListRowActor>())
 			{
 				if (ActorItem->IsValid())
 				{
+					// Skip hybrid rows here if in HybridComponent mode, we'll get the components from them in FComponentSelector
+					if (GetDefault<UObjectMixerEditorSettings>()->HybridRowPolicy == EObjectMixerHybridMode::HybridComponent &&
+						ActorItem->RowData.GetIsHybridRow())
+					{
+						return false;
+					}
+					
 					AActor* Actor = ActorItem->Actor.Get();
 					if (Actor)
 					{
@@ -1340,7 +1361,19 @@ void FObjectMixerOutlinerMode::CreateViewContent(FMenuBuilder& MenuBuilder)
 	}
 	MenuBuilder.EndSection();
 
-	MenuBuilder.BeginSection("AssetThumbnails", LOCTEXT("ShowWorldHeading", "World"));
+	MenuBuilder.BeginSection("ProjectSettings", LOCTEXT("ShowProjectSettingsHeading", "Project Settings"));
+	{
+		FDetailsViewArgs DetailsViewArgs;
+		DetailsViewArgs.bAllowSearch = false;
+		DetailsViewArgs.bShowOptions = false;
+		FPropertyEditorModule & PropertyEditorModule = FModuleManager::LoadModuleChecked<FPropertyEditorModule>("PropertyEditor");
+		const TSharedRef<IDetailsView> DetailsView = PropertyEditorModule.CreateDetailView(DetailsViewArgs);
+		DetailsView->SetObject(GetMutableDefault<UObjectMixerEditorSettings>());
+		MenuBuilder.AddWidget(DetailsView, FText::GetEmpty(), true, false);
+	}
+	MenuBuilder.EndSection();
+
+	MenuBuilder.BeginSection("WorldPicker", LOCTEXT("ShowWorldHeading", "World"));
 	{
 		MenuBuilder.AddSubMenu(
 			LOCTEXT("ChooseWorldSubMenu", "Choose World"),

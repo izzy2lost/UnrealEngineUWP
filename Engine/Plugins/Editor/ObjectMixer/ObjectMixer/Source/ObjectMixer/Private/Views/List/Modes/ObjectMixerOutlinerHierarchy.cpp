@@ -19,6 +19,7 @@
 #include "EditorActorFolders.h"
 #include "ISceneOutlinerMode.h"
 #include "LevelTreeItem.h"
+#include "ObjectMixerEditorSettings.h"
 #include "WorldTreeItem.h"
 #include "Engine/Engine.h"
 #include "Engine/Level.h"
@@ -606,8 +607,9 @@ TArray<FSceneOutlinerTreeItemPtr> FObjectMixerOutlinerHierarchy::ConditionallyCr
 		if (const FSceneOutlinerTreeItemPtr ActorItem =
 			Mode->CreateItemFor<FObjectMixerEditorListRowActor>(
 				FObjectMixerEditorListRowActor(Actor, GetCastedMode()->GetSceneOutliner())))
-		{	
-			if (ComponentRows.Num() == 1) // Create hybrid row
+		{
+			const bool bIsHybridModeEnabled = GetDefault<UObjectMixerEditorSettings>()->IsHybridRowModeEnabled();
+			if (bIsHybridModeEnabled && ComponentRows.Num() == 1) // Create hybrid row
 			{
 				if (FObjectMixerEditorListRowActor* AsActorRow = FObjectMixerUtils::AsActorRow(ActorItem))
 				{

@@ -38,11 +38,6 @@ namespace ObjectMixerOutliner
 	{
 		bool operator()(const TWeakPtr<ISceneOutlinerTreeItem>& Item, AActor*& ActorPtrOut) const;
 	};
-		
-	struct UE_DEPRECATED(5.4, "Use FActorHandleSelector instead") FActorDescSelector
-	{
-		bool operator()(const TWeakPtr<ISceneOutlinerTreeItem>& Item, FWorldPartitionActorDesc*& ActorDescPtrOut) const { return false; }
-	};
 
 	/** Functor which can be used to get actor descriptors from a selection  */
 	struct FActorHandleSelector

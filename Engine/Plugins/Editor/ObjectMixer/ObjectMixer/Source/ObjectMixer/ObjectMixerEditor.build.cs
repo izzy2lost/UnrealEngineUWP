@@ -35,6 +35,7 @@ public class ObjectMixerEditor : ModuleRules
 				"AssetTools",
 				"CoreUObject",
 				"ContentBrowser",
+				"DeveloperSettings",
 				"Engine",
 				"EditorConfig",
 				"EditorStyle",
