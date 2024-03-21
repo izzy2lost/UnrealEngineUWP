@@ -895,7 +895,7 @@ void LumenRadiosity::AddRadiosityPass(
 			FLumenRadiositySpatialFilterProbeRadiance::FParameters* PassParameters = GraphBuilder.AllocParameters<FLumenRadiositySpatialFilterProbeRadiance::FParameters>();
 			PassParameters->RWFilteredTraceRadianceAtlas = FilteredTraceRadianceAtlasUAV;
 			PassParameters->IndirectArgs = RadiosityIndirectArgs;
-			PassParameters->View = FrameTemporaries.ViewOrigins[OriginIndex].ViewUniformBuffer;
+			PassParameters->View = FrameTemporaries.ViewOrigins[OriginIndex].ReferenceView->ViewUniformBuffer;
 			PassParameters->LumenCardScene = FrameTemporaries.LumenCardSceneUniformBuffer;
 			PassParameters->RadiosityTexelTraceParameters = RadiosityTexelTraceParameters;
 			PassParameters->RadiosityTexelTraceParameters.ViewIndex = OriginIndex;
@@ -932,7 +932,7 @@ void LumenRadiosity::AddRadiosityPass(
 		PassParameters->RWRadiosityProbeSHGreenAtlas = RadiosityProbeSHGreenAtlasUAV;
 		PassParameters->RWRadiosityProbeSHBlueAtlas = RadiosityProbeSHBlueAtlasUAV;
 		PassParameters->IndirectArgs = RadiosityIndirectArgs;
-		PassParameters->View = FrameTemporaries.ViewOrigins[OriginIndex].ViewUniformBuffer;
+		PassParameters->View = FrameTemporaries.ViewOrigins[OriginIndex].ReferenceView->ViewUniformBuffer;
 		PassParameters->LumenCardScene = FrameTemporaries.LumenCardSceneUniformBuffer;
 		PassParameters->RadiosityTexelTraceParameters = RadiosityTexelTraceParameters;
 		PassParameters->RadiosityTexelTraceParameters.ViewIndex = OriginIndex;
@@ -958,7 +958,7 @@ void LumenRadiosity::AddRadiosityPass(
 
 		FLumenRadiosityIntegrateCS::FParameters* PassParameters = GraphBuilder.AllocParameters<FLumenRadiosityIntegrateCS::FParameters>();
 		PassParameters->IndirectArgs = RadiosityIndirectArgs;
-		PassParameters->View = ViewOrigin.ViewUniformBuffer;
+		PassParameters->View = ViewOrigin.ReferenceView->ViewUniformBuffer;
 		PassParameters->LumenCardScene = FrameTemporaries.LumenCardSceneUniformBuffer;
 		PassParameters->RadiosityTexelTraceParameters = RadiosityTexelTraceParameters;
 		PassParameters->RadiosityTexelTraceParameters.ViewIndex = OriginIndex;
@@ -968,7 +968,7 @@ void LumenRadiosity::AddRadiosityPass(
 		PassParameters->RadiosityProbeSHGreenAtlas = RadiosityFrameTemporaries.ProbeSHGreenAtlas;
 		PassParameters->RadiosityProbeSHBlueAtlas = RadiosityFrameTemporaries.ProbeSHBlueAtlas;
 		PassParameters->ProbePlaneWeightingDepthScale = GRadiosityProbePlaneWeightingDepthScale;
-		PassParameters->Substrate = ViewOrigin.SubstrateGlobalUniformParameters;
+		PassParameters->Substrate = Substrate::BindSubstrateGlobalUniformParameters(*ViewOrigin.ReferenceView);
 
 		FLumenRadiosityIntegrateCS::FPermutationDomain PermutationVector;
 		PermutationVector.Set<FLumenRadiosityIntegrateCS::FPlaneWeighting>(GRadiosityFilteringProbePlaneWeighting != 0);

@@ -2413,9 +2413,6 @@ void FLumenViewOrigin::Init(const FViewInfo& View)
 	PreViewTranslation = FVector4f((FVector3f)View.ViewMatrices.GetPreViewTranslation(), 0.0f);
 	FrustumWorldToClip = FMatrix44f(View.ViewMatrices.GetViewProjectionMatrix());
 
-	ViewUniformBuffer = View.ViewUniformBuffer;
-	SubstrateGlobalUniformParameters = Substrate::BindSubstrateGlobalUniformParameters(View);
-
 	OrthoMaxDimension = View.ViewMatrices.GetOrthoDimensions().GetMax();			// Returns zero if not orthographic
 	LastEyeAdaptationExposure = View.GetLastEyeAdaptationExposure();
 	MaxTraceDistance = Lumen::GetMaxTraceDistance(View);

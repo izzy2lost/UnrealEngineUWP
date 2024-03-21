@@ -26,7 +26,6 @@ class FLumenMeshCards;
 class FLumenViewState;
 class FMeshCardsBuildData;
 class FPrimitiveSceneInfo;
-class FSubstrateGlobalUniformParameters;
 class FViewUniformShaderParameters;
 struct FLumenPageTableEntry;
 
@@ -582,17 +581,6 @@ struct FLumenViewOrigin
 	// have an omnidirectional projection, and use a trivial matrix that will pass any point as in-frustum.
 	FMatrix44f FrustumWorldToClip;
 
-	// The View uniform buffer is used to access some data assumed to be invariant for views that share an origin:
-	//		View.StateFrameIndex			shared origin views are created on same frame and always render together
-	//		View.StateFrameIndexMod8		""
-	//		View.PreExposure				shared origin views share exposure
-	//		View.OneOverPreExposure			""
-	TUniformBufferRef<FViewUniformShaderParameters> ViewUniformBuffer;
-
-	// The (optional) Substrate uniform buffer doesn't include any view dependent data.  Looking at InitialiseSubstrateViewData,
-	// it uses SceneTexturesConfig.Extent (as opposed to a view rect), and View.GetShaderPlatform().
-	TRDGUniformBufferRef<FSubstrateGlobalUniformParameters> SubstrateGlobalUniformParameters;
-
 	float OrthoMaxDimension;				// If orthographic projection, max dimension, otherwise zero
 	float LastEyeAdaptationExposure;		// Shared origin views share exposure
 	float MaxTraceDistance;					// Shared origin views share post process settings, which control these values
@@ -600,12 +588,23 @@ struct FLumenViewOrigin
 	float LumenSceneDetail;
 
 	// Ideally this structure would contain a mirror of all view origin specific data, so Lumen scene updates don't end up with
-	// dependencies on FViewInfo, but there are still a few code paths that pull data from the FViewInfo structure, which are messy
+	// dependencies on FViewInfo, but there are still some code paths that pull data from the FViewInfo structure, which are messy
 	// to refactor.  So this reference view is included to allow fetching an FViewInfo to send to those code paths.
 	// 
 	// The first is the "GetDeferredLightParameters" utility function, which uses a bunch of data from the FViewInfo structure, which
 	// will be invariant across shared origin views in practice.  This includes fields originally copied from CVars, post process
 	// settings, and projection type.  In the future, we could add an API variation that takes those all values as loose parameters.
+	//
+	// The View uniform buffer is used to access some data assumed to be invariant for views that share an origin:
+	//		View.StateFrameIndex			shared origin views are created on same frame and always render together
+	//		View.StateFrameIndexMod8		""
+	//		View.PreExposure				shared origin views share exposure
+	//		View.OneOverPreExposure			""
+	//
+	// The Substrate global uniform buffer is accessed from FViewInfo, but doesn't include any view dependent data.  Looking at
+	// InitialiseSubstrateViewData, it uses SceneTexturesConfig.Extent (as opposed to a view rect), and View.GetShaderPlatform().
+	// The Substrate uniforms aren't initialized until mid render, while the view origin is created early in render.  We could
+	// copy those into the Lumen view origin later, but it works well enough to grab it from the view when it's needed.
 	//
 	// Messier are the uses of FViewInfo in FDeferredShadingSceneRenderer::RenderDirectLightingForLumenScene, where view specific
 	// forward lighting data, volumetric cloud shadows, ray tracing TLAS, miscellaneous post process settings, shader map, view
