@@ -95,7 +95,7 @@ UInstancedActorsSubsystem* UInstancedActorsSubsystem::Get(UObject* WorldContextO
 {
 	if (UWorld* World = GEngine->GetWorldFromContextObject(WorldContextObject, EGetWorldErrorMode::LogAndReturnNull))
 	{
-		return World->GetSubsystem<UInstancedActorsSubsystem>();
+		return UE::InstancedActors::Utils::GetInstancedActorsSubsystem(*World);
 	}
 
 	return nullptr;
@@ -104,7 +104,8 @@ UInstancedActorsSubsystem* UInstancedActorsSubsystem::Get(UObject* WorldContextO
 UInstancedActorsSubsystem& UInstancedActorsSubsystem::GetChecked(UObject* WorldContextObject)
 {
 	UWorld* World = GEngine->GetWorldFromContextObject(WorldContextObject, EGetWorldErrorMode::Assert);
-	UInstancedActorsSubsystem* Subsystem = World->GetSubsystem<UInstancedActorsSubsystem>();
+	check(World);
+	UInstancedActorsSubsystem* Subsystem = UE::InstancedActors::Utils::GetInstancedActorsSubsystem(*World);
 	check(Subsystem);
 	return *Subsystem;
 }
