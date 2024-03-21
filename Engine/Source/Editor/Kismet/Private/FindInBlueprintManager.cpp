@@ -77,6 +77,7 @@ const FText FFindInBlueprintSearchTags::FiB_UberGraphs = LOCTEXT("Uber", "Uber")
 const FText FFindInBlueprintSearchTags::FiB_Functions = LOCTEXT("Functions", "Functions");
 const FText FFindInBlueprintSearchTags::FiB_Macros = LOCTEXT("Macros", "Macros");
 const FText FFindInBlueprintSearchTags::FiB_SubGraphs = LOCTEXT("Sub", "Sub");
+const FText FFindInBlueprintSearchTags::FiB_ExtensionGraphs = LOCTEXT("ExtGraphs", "ExtGraphs");
 const FText FFindInBlueprintSearchTags::FiB_Extensions = LOCTEXT("Extensions", "Extensions");
 
 const FText FFindInBlueprintSearchTags::FiB_Name = LOCTEXT("Name", "Name");
@@ -1282,6 +1283,17 @@ namespace BlueprintSearchMetaDataHelpers
 
 		// Gather normal event graphs
 		GatherGraphSearchData(InWriter, Blueprint, Blueprint->UbergraphPages, FFindInBlueprintSearchTags::FiB_UberGraphs, &SubGraphs);
+
+		// Gather extension graphs
+		for (UBlueprintExtension* Extension : Blueprint->GetExtensions())
+		{
+			if (Extension)
+			{
+				TArray<UEdGraph*> ExtensionGraphs;
+				Extension->GetAllGraphs(ExtensionGraphs);
+				GatherGraphSearchData(InWriter, Blueprint, ExtensionGraphs, FFindInBlueprintSearchTags::FiB_ExtensionGraphs, &SubGraphs);
+			}
+		}
 
 		// We have interface graphs and function graphs to put into the Functions category. We cannot do them separately, so we must compile the full list
 		{
