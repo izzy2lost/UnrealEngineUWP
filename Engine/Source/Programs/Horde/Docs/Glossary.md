@@ -5,6 +5,14 @@
 * `Agent` - A service on a remote machine that connects to the Horde server and can be sent work to execute.
 * `Lease` - A unit of work that an agent is given to execute.
 
+## Analytics
+
+* `Analytics` - Umbrella term for data gathering and analysis.
+* `Metrics` - Aggregated data computed from telemetry events
+matching a set of configured criteria for a particular time interval.
+* `Telemetry` - Individual events sent by an application to the Horde server. Horde processes telemetry events as
+schema-less JSON objects.
+
 ## Storage
 
 * `Namespace` - A logical partition of the storage system that can have custom permissions, behaviors, and garbage collection policies.

@@ -4,7 +4,7 @@
 
 ## Introduction
 
-**Horde** implements a platform for generic remote execution workloads, allowing clients to leverage idle CPU cycles on
+Horde implements a platform for generic remote execution workloads, allowing clients to leverage idle CPU cycles on
 other machines to accelerate workloads that would otherwise be executed locally. With Horde's remote execution platform,
 you can issue explicit commands to remote agents sequentially, such as "upload these files", "run this process",
 "send these files back", and so on.
@@ -18,7 +18,7 @@ remote machine behind the scenes as necessary.
 **Unreal Build Tool** can use Unreal Build Accelerator with Horde to offload compilation tasks to connected agents,
 spreading the workload over multiple machines.
 
-> Note: Unreal Build Accelerator only supports Windows in Unreal Engine 5.4. Support for Mac and Linux are planned for 
+> **Note:** Unreal Build Accelerator only supports Windows in Unreal Engine 5.4. Support for Mac and Linux are planned for 
   a future release.
 
 ## Prerequisites
@@ -86,9 +86,9 @@ spreading the workload over multiple machines.
    </UnrealBuildAccelerator>
    ```
 
-> Note: It is not recommended to run a Horde Agent on the same machine as the Horde Server for performance reasons.
+> **Note:** It is not recommended to run a Horde Agent on the same machine as the Horde Server for performance reasons.
 
-> Note: When using Horde's build automation functionality, be mindful of mixing pools of agents for UBA and 
+> **Note:** When using Horde's build automation functionality, be mindful of mixing pools of agents for UBA and 
   pools of agents for build automation. Agents used for build automation typically have higher requirements 
   and are a more scarce resource than compute helpers.
 
