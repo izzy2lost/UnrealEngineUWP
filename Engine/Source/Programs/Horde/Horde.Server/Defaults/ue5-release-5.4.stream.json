@@ -179,6 +179,11 @@
 		{
 			"pool": "win-ue5",
 			"workspace": "IncrementalCompileOnly"
+		},
+		"DevkitAutomation":
+		{
+			"pool": "win-devkitautomation",
+			"workspace": "Full"			
 		}
 	},
 	"workspaceTypes":
