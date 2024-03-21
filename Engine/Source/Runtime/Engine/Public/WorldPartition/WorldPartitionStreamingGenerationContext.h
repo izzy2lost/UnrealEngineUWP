@@ -16,6 +16,7 @@ class FWorldPartitionStreamingGenerator;
 class FStreamingGenerationContainerInstanceCollection;
 class UActorDescContainer;
 class UDataLayerInstance;
+class FWorldDataLayersActorDesc;
 struct FWorldPartitionRuntimeContainerResolver;
 
 #if WITH_EDITOR
@@ -56,6 +57,7 @@ public:
 	{
 		FActorSetContainerInstance()
 			: ActorDescViewMap(nullptr)
+			, DataLayerResolvers(nullptr)
 			, ContainerInstanceCollection(nullptr)
 		{}
 
@@ -64,6 +66,7 @@ public:
 		FActorSetContainerInstance& operator=(const FActorSetContainerInstance&) = delete;
 
 		const FStreamingGenerationActorDescViewMap* ActorDescViewMap;
+		const TArray<const FWorldDataLayersActorDesc*>* DataLayerResolvers;
 		const FStreamingGenerationContainerInstanceCollection* ContainerInstanceCollection; // Only used by UWorldPartitionRuntimeSpatialHash::SetupHLODActors
 		TArray<TUniquePtr<FActorSet>> ActorSets;
 	};
