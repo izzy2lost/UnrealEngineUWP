@@ -299,7 +299,7 @@ Information about a cluster of Perforce servers.
 Name | Description
 ---- | -----------
 `name` | `string`<br>Name of the cluster
-`serviceAccount` | `string`<br>Username for Horde to log in to this server. Will use the default user if not set.
+`serviceAccount` | `string`<br>Username for Horde to log in to this server. Will use the first account specified below if not overridden.
 `canImpersonate` | `boolean`<br>Whether the service account can impersonate other users
 `supportsPartitionedWorkspaces` | `boolean`<br>Whether to use partitioned workspaces on this server
 `servers` | [`PerforceServer`](#perforceserver)`[]`<br>List of servers

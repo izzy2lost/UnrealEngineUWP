@@ -319,7 +319,6 @@ Configuration for the telemetry sink
 
 Name | Description
 ---- | -----------
-`id` | `string`<br>Unique ID for this sink config (any arbitrary string)
 `type` | [`TelemetrySinkType`](#telemetrysinktype-enum)<br>Type of telemetry sink
 
 ## TelemetrySinkType (Enum)
