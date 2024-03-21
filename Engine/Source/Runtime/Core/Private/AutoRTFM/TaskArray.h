@@ -47,15 +47,15 @@ public:
 		Latest.Push(TTaskArrayKeyValuePair(SKey{}, MoveTemp(Value)));
     }
 
+	void Add(const InElementType& Value)
+	{
+		Latest.Push(TTaskArrayKeyValuePair(SKey{}, Value));
+	}
+
 	void AddKeyed(SKey Key, InElementType&& Value)
     {
 		ASSERT(Key != SKey{});
 		Latest.Push(TTaskArrayKeyValuePair(Key, MoveTemp(Value)));
-    }
-
-    void Add(const InElementType& Value)
-    {
-		Latest.Push(TTaskArrayKeyValuePair(SKey{}, Value));
     }
 
 	void AddKeyed(SKey Key, const InElementType& Value)
@@ -64,35 +64,53 @@ public:
 		Latest.Push(TTaskArrayKeyValuePair(Key, Value));
     }
 
-	void DeleteKey(SKey Key)
+	bool DeleteKey(SKey Key)
 	{
 		ASSERT(Key != SKey{});
 
-		auto EraseKeyFromArray = [Key](FInternalArray& Array) -> void
+		auto EraseLastAddedKeyFromArray = [Key](FInternalArray& Array) -> bool
 		{
-			uint64 WriteIdx = 0;
-			for(uint64 ReadIdx = 0; ReadIdx < Array.Num(); ReadIdx++)
+			for(uint64 Idx = 0; Idx < Array.Num(); Idx++)
 			{
-				if(Array[ReadIdx].Key != Key)
+				uint64 BackwardsIdx = Array.Num() - 1 - Idx;
+
+				if(Array[BackwardsIdx].Key != Key)
 				{
-					// keep it
-					if(WriteIdx != ReadIdx) // the common case will be WriteIdx==ReadIdx so don't invoke an unnecessary copy-to-self
-					{
-						Array[WriteIdx] = MoveTemp(Array[ReadIdx]);
-					}
-					WriteIdx++;
+					continue;
 				}
+
+				// We found our key to erase! Nuke it.
+
+				// We start at the element just after our element.
+				BackwardsIdx++;
+
+				for (; BackwardsIdx < Array.Num(); BackwardsIdx++)
+				{
+					Array[BackwardsIdx - 1] = MoveTemp(Array[BackwardsIdx]);
+				}
+
+				Array.SetNum(Array.Num() - 1, EAllowShrinking::No);
+
+				return true;
 			}
 
-			Array.SetNum(WriteIdx, EAllowShrinking::No);
+			return false;
 		};
 
-		for(FInternalArray& Array : Stash)
+		if (EraseLastAddedKeyFromArray(Latest))
 		{
-			EraseKeyFromArray(Array);
+			return true;
 		}
 
-		EraseKeyFromArray(Latest);
+		for (FInternalArray& StashedVectorBox : TBackwards(Stash))
+		{
+			if (EraseLastAddedKeyFromArray(StashedVectorBox))
+			{
+				return true;
+			}
+		}
+
+		return false;
 	}
 
     void AddAll(TTaskArray&& Other)

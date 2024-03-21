@@ -167,9 +167,9 @@ UE_AUTORTFM_FORCEINLINE void FTransaction::PushDeferUntilAbortHandler(const void
     AbortTasks.AddKeyed(Key, MoveTemp(Copy));
 }
 
-UE_AUTORTFM_FORCEINLINE void FTransaction::PopDeferUntilAbortHandler(const void* Key)
+UE_AUTORTFM_FORCEINLINE bool FTransaction::PopDeferUntilAbortHandler(const void* Key)
 {
-    AbortTasks.DeleteKey(Key);
+    return AbortTasks.DeleteKey(Key);
 }
 
 UE_AUTORTFM_FORCEINLINE void FTransaction::CollectStats() const

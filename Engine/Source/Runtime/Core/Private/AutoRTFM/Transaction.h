@@ -64,7 +64,7 @@ public:
     void DeferUntilCommit(TFunction<void()>&&);
     void DeferUntilAbort(TFunction<void()>&&);
     void PushDeferUntilAbortHandler(const void* Key, TFunction<void()>&&);
-    void PopDeferUntilAbortHandler(const void* Key);
+    bool PopDeferUntilAbortHandler(const void* Key);
 
     void AbortAndThrow();
     void AbortWithoutThrowing();

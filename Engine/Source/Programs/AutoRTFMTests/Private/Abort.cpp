@@ -292,7 +292,9 @@ TEST_CASE("Abort.PushOnAbortHandler_Duplicates1")
 	});
 
 	REQUIRE(AutoRTFM::ETransactionResult::AbortedByRequest == Result);
-	REQUIRE(Value == 55);
+
+	// The first push on abort will still go through.
+	REQUIRE(Value == 77);
 }
 
 TEST_CASE("Abort.PushOnAbortHandler_Duplicates2")
@@ -302,8 +304,8 @@ TEST_CASE("Abort.PushOnAbortHandler_Duplicates2")
 	const AutoRTFM::ETransactionResult Result = AutoRTFM::Transact([&]
 	{
 		Value = 66;
-		AutoRTFM::PushOnAbortHandler(UIntToPointer(747), [&Value](){ Value = 77; });
-		AutoRTFM::PushOnAbortHandler(UIntToPointer(747), [&Value](){ Value = 88; });
+		AutoRTFM::PushOnAbortHandler(UIntToPointer(747), [&Value](){ Value += 12; });
+		AutoRTFM::PushOnAbortHandler(UIntToPointer(747), [&Value](){ Value = 65; });
 		Value = 99;
 
 		AutoRTFM::AbortTransaction();
@@ -313,22 +315,129 @@ TEST_CASE("Abort.PushOnAbortHandler_Duplicates2")
 	REQUIRE(Value == 77);
 }
 
-TEST_CASE("Abort.PushOnAbortHandler_MultiplePops")
+TEST_CASE("Abort.PushOnAbortHandler_Order")
 {
-	int Value = 55;
-
-	const AutoRTFM::ETransactionResult Result = AutoRTFM::Transact([&]
+	SECTION("HandlerSandwich")
 	{
-		Value = 66;
-		AutoRTFM::PopOnAbortHandler(UIntToPointer(747));
-		AutoRTFM::PopOnAbortHandler(UIntToPointer(747));
-		AutoRTFM::PopOnAbortHandler(UIntToPointer(747));
-		AutoRTFM::PopOnAbortHandler(UIntToPointer(747));
-		Value = 99;
+		SECTION("WithoutPop")
+		{
+			int Value = 37;
 
-		AutoRTFM::AbortTransaction();
-	});
+			const AutoRTFM::ETransactionResult Result = AutoRTFM::Transact([&]
+				{
+					AutoRTFM::OnAbort([&Value] { REQUIRE(42 == Value); Value += 1; });
+					AutoRTFM::PushOnAbortHandler(UIntToPointer(747), [&Value]() { REQUIRE(40 == Value); Value += 2; });
+					AutoRTFM::OnAbort([&Value] { REQUIRE(37 == Value); Value += 3; });
 
-	REQUIRE(AutoRTFM::ETransactionResult::AbortedByRequest == Result);
-	REQUIRE(Value == 55);
+					Value = 99;
+
+					AutoRTFM::AbortTransaction();
+				});
+
+			REQUIRE(AutoRTFM::ETransactionResult::AbortedByRequest == Result);
+			REQUIRE(Value == 43);
+		}
+
+		SECTION("WithPop")
+		{
+			int Value = 37;
+
+			const AutoRTFM::ETransactionResult Result = AutoRTFM::Transact([&]
+				{
+					AutoRTFM::OnAbort([&Value] { REQUIRE(40 == Value); Value += 1; });
+					AutoRTFM::PushOnAbortHandler(UIntToPointer(747), [&Value]() { REQUIRE(false); });
+					AutoRTFM::OnAbort([&Value] { REQUIRE(37 == Value); Value += 3; });
+
+					AutoRTFM::PopOnAbortHandler(UIntToPointer(747));
+
+					Value = 99;
+
+					AutoRTFM::AbortTransaction();
+				});
+
+			REQUIRE(AutoRTFM::ETransactionResult::AbortedByRequest == Result);
+			REQUIRE(Value == 41);
+		}
+	}
+
+	SECTION("HandlerInChild")
+	{
+		SECTION("WithoutPop")
+		{
+			int Value = 37;
+
+			const AutoRTFM::ETransactionResult Result = AutoRTFM::Transact([&]
+				{
+					AutoRTFM::OnAbort([&Value] { REQUIRE(42 == Value); Value += 1; });
+
+					// Make a child transaction.
+					AutoRTFM::Commit([&]
+						{
+							AutoRTFM::PushOnAbortHandler(UIntToPointer(747), [&Value]() { REQUIRE(40 == Value); Value += 2; });
+						});
+
+					AutoRTFM::OnAbort([&Value] { REQUIRE(37 == Value); Value += 3; });
+
+					Value = 99;
+
+					AutoRTFM::AbortTransaction();
+				});
+
+			REQUIRE(AutoRTFM::ETransactionResult::AbortedByRequest == Result);
+			REQUIRE(Value == 43);
+		}
+
+		SECTION("WithPop")
+		{
+			int Value = 37;
+
+			const AutoRTFM::ETransactionResult Result = AutoRTFM::Transact([&]
+				{
+					AutoRTFM::OnAbort([&Value] { REQUIRE(40 == Value); Value += 1; });
+					
+					// Make a child transaction.
+					AutoRTFM::Commit([&]
+						{
+							AutoRTFM::PushOnAbortHandler(UIntToPointer(747), [&Value]() { REQUIRE(false); });
+						});
+
+					AutoRTFM::OnAbort([&Value] { REQUIRE(37 == Value); Value += 3; });
+
+					// Bit funky, but we can pop the child's push here!
+					AutoRTFM::PopOnAbortHandler(UIntToPointer(747));
+
+					Value = 99;
+
+					AutoRTFM::AbortTransaction();
+				});
+
+			REQUIRE(AutoRTFM::ETransactionResult::AbortedByRequest == Result);
+			REQUIRE(Value == 41);
+		}
+
+		SECTION("AbortInChild")
+		{
+			int Value = 99;
+
+			AutoRTFM::ETransactionResult Result = AutoRTFM::ETransactionResult::Committed;
+			AutoRTFM::Commit([&]
+				{
+					AutoRTFM::OnCommit([&Value] { REQUIRE(37 == Value); Value += 1; });
+
+					// Make a child transaction.
+					Result = AutoRTFM::Transact([&]
+						{
+							AutoRTFM::PushOnAbortHandler(UIntToPointer(747), [&Value]() { REQUIRE(38 == Value); Value += 2; });
+							AutoRTFM::AbortTransaction();
+						});
+
+					AutoRTFM::OnCommit([&Value] { REQUIRE(40 == Value); Value += 3; });
+
+					Value = 37;
+				});
+
+			REQUIRE(AutoRTFM::ETransactionResult::AbortedByRequest == Result);
+			REQUIRE(Value == 43);
+		}
+	}
 }
