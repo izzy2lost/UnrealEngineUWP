@@ -112,7 +112,7 @@ mu::Ptr<ASTOp> Sink_MeshFormatAST::Apply(const ASTOpMeshFormat* root)
 {
 	m_root = root;
 
-	OldToNew.Empty();
+	OldToNew.Reset();
 
 	m_initialSource = m_root->Source.child();
 	mu::Ptr<ASTOp> newSource = Visit(m_initialSource, m_root);

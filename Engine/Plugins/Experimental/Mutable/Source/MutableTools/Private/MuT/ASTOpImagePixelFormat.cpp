@@ -329,7 +329,7 @@ namespace mu
 	mu::Ptr<ASTOp> Sink_ImagePixelFormatAST::Apply(const ASTOpImagePixelFormat* root)
 	{
 		m_root = root;
-		OldToNew.Empty();
+		OldToNew.Reset();
 
 		check(root->GetOpType() == OP_TYPE::IM_PIXELFORMAT);
 
