@@ -1762,6 +1762,66 @@ void UCommonButtonBase::SetLockedHoveredSoundOverride(USoundBase* Sound)
 	}
 }
 
+void UCommonButtonBase::SetPressedSlateSoundOverride(const FSlateSound& InPressedSlateSoundOverride)
+{
+	const bool bBuildStyles = InPressedSlateSoundOverride.GetResourceObject() != PressedSlateSoundOverride.GetResourceObject();
+	PressedSlateSoundOverride = InPressedSlateSoundOverride;
+	if (bBuildStyles)
+	{
+		BuildStyles();
+	}
+}
+
+void UCommonButtonBase::SetHoveredSlateSoundOverride(const FSlateSound& InHoveredSlateSoundOverride)
+{
+	const bool bBuildStyles = InHoveredSlateSoundOverride.GetResourceObject() != HoveredSlateSoundOverride.GetResourceObject();
+	HoveredSlateSoundOverride = InHoveredSlateSoundOverride;
+	if (bBuildStyles)
+	{
+		BuildStyles();
+	}
+}
+
+void UCommonButtonBase::SetSelectedPressedSlateSoundOverride(const FSlateSound& InSelectedPressedSlateSoundOverride)
+{
+	const bool bBuildStyles = InSelectedPressedSlateSoundOverride.GetResourceObject() != SelectedPressedSlateSoundOverride.GetResourceObject();
+	SelectedPressedSlateSoundOverride = InSelectedPressedSlateSoundOverride;
+	if (bBuildStyles)
+	{
+		BuildStyles();
+	}
+}
+
+void UCommonButtonBase::SetSelectedHoveredSlateSoundOverride(const FSlateSound& InSelectedHoveredSlateSoundOverride)
+{
+	const bool bBuildStyles = InSelectedHoveredSlateSoundOverride.GetResourceObject() != SelectedHoveredSlateSoundOverride.GetResourceObject();
+	SelectedHoveredSlateSoundOverride = InSelectedHoveredSlateSoundOverride;
+	if (bBuildStyles)
+	{
+		BuildStyles();
+	}
+}
+
+void UCommonButtonBase::SetLockedPressedSlateSoundOverride(const FSlateSound& InLockedPressedSlateSoundOverride)
+{
+	const bool bBuildStyles = InLockedPressedSlateSoundOverride.GetResourceObject() != LockedPressedSlateSoundOverride.GetResourceObject();
+	LockedPressedSlateSoundOverride = InLockedPressedSlateSoundOverride;
+	if (bBuildStyles)
+	{
+		BuildStyles();
+	}
+}
+
+void UCommonButtonBase::SetLockedHoveredSlateSoundOverride(const FSlateSound& InLockedHoveredSlateSoundOverride)
+{
+	const bool bBuildStyles = InLockedHoveredSlateSoundOverride.GetResourceObject() != LockedHoveredSlateSoundOverride.GetResourceObject();
+	LockedHoveredSlateSoundOverride = InLockedHoveredSlateSoundOverride;
+	if (bBuildStyles)
+	{
+		BuildStyles();
+	}
+}
+
 void UCommonButtonBase::UpdateInputActionWidgetVisibility()
 {
 	if (InputActionWidget)
