@@ -62,6 +62,7 @@
 #include "WidgetBlueprintEditorUtils.h"
 
 #include "ObjectEditorUtils.h"
+#include "PreviewScene.h"
 #include "ScopedTransaction.h"
 #include "Components/NamedSlot.h"
 
@@ -2408,6 +2409,19 @@ void SDesignerView::Tick( const FGeometry& AllottedGeometry, const double InCurr
 
 void SDesignerView::OnPaintBackground(const FGeometry& AllottedGeometry, const FSlateRect& MyCullingRect, FSlateWindowElementList& OutDrawElements, int32 LayerId) const
 {
+	// In order to get material parameter collections to function properly, we need the editor preview world's Scene
+	// properly propagated through to any widgets that depend on that functionality. 
+	if (TSharedPtr<FWidgetBlueprintEditor> BlueprintEditorPtr = BlueprintEditor.Pin())
+	{
+		if (FPreviewScene* Preview = BlueprintEditorPtr->GetPreviewScene())
+		{
+			if (FSceneInterface* Scene = Preview->GetWorld()->Scene)
+			{
+				FSlateApplication::Get().GetRenderer()->RegisterCurrentScene(Scene);
+			}
+		}
+	}
+
 	SDesignSurface::OnPaintBackground(AllottedGeometry, MyCullingRect, OutDrawElements, LayerId);
 
 	if (bShowResolutionOutlines)

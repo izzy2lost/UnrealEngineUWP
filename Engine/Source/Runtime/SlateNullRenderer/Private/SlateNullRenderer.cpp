@@ -131,6 +131,11 @@ int32 FSlateNullRenderer::GetCurrentSceneIndex() const
 	return -1;
 }
 
+void FSlateNullRenderer::SetCurrentSceneIndex(int32 InIndex)
+{
+	// This is a no-op
+}
+
 void FSlateNullRenderer::ClearScenes() 
 {
 	// This is a no-op

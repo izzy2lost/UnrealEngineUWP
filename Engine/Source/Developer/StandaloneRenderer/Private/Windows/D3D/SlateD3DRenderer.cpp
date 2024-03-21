@@ -282,6 +282,11 @@ int32 FSlateD3DRenderer::GetCurrentSceneIndex() const
 	return -1;
 }
 
+void FSlateD3DRenderer::SetCurrentSceneIndex(int32 InIndex)
+{
+	// This is a no-op
+}
+
 void FSlateD3DRenderer::ClearScenes() 
 {
 	// This is a no-op

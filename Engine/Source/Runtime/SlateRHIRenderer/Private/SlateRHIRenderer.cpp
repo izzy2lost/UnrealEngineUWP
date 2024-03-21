@@ -2289,6 +2289,11 @@ int32 FSlateRHIRenderer::GetCurrentSceneIndex() const
 	return CurrentSceneIndex;
 }
 
+void FSlateRHIRenderer::SetCurrentSceneIndex(int32 InIndex)
+{
+	CurrentSceneIndex = InIndex;
+}
+
 void FSlateRHIRenderer::ClearScenes()
 {
 	if (!IsInSlateThread())

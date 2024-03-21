@@ -74,6 +74,7 @@ public:
 	virtual FCriticalSection* GetResourceCriticalSection() override;
 	virtual int32 RegisterCurrentScene(FSceneInterface* Scene) override;
 	virtual int32 GetCurrentSceneIndex() const override;
+	virtual void SetCurrentSceneIndex(int32 InIndex) override;
 	virtual void ClearScenes() override;
 	
 	bool CreateDevice();

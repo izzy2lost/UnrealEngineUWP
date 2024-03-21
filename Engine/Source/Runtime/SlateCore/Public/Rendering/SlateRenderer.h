@@ -538,6 +538,9 @@ public:
 	/** Get the currently registered scene index (set by RegisterCurrentScene)*/
 	virtual int32 GetCurrentSceneIndex() const  = 0;
 
+	/** Set currently registered scene index */
+	virtual void SetCurrentSceneIndex(int32 InIndex) = 0;
+
 	/** Reset the internal Scene tracking.*/
 	virtual void ClearScenes() = 0;
 
