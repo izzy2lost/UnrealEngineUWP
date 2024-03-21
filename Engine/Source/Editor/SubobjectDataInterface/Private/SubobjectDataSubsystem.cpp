@@ -861,11 +861,17 @@ FSubobjectDataHandle USubobjectDataSubsystem::AddNewSubobject(const FAddNewSubob
 	{
 		Asset = nullptr;
 	}
-	
-	if(Params.BlueprintContext)
+
+	UBlueprint* Blueprint = Params.BlueprintContext;
+	if (!Blueprint)
 	{
-		UBlueprint* Blueprint = Params.BlueprintContext;
-		check(Blueprint != nullptr && Blueprint->SimpleConstructionScript != nullptr);
+		// maybe the parent handle has a bp for context:
+		Blueprint = ParentObjHandle.GetData()->GetBlueprintBeingEdited();
+	}
+	
+	if(Blueprint)
+	{
+		check(Blueprint->SimpleConstructionScript != nullptr);
 		Blueprint->Modify();
 		SaveSCSCurrentState(Blueprint->SimpleConstructionScript);
 		UActorComponent* NewComponent = nullptr;

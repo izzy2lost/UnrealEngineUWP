@@ -324,6 +324,26 @@ UBlueprint* FSubobjectData::GetBlueprint() const
 	return nullptr;
 }
 
+UBlueprint* FSubobjectData::GetBlueprintBeingEdited() const
+{
+	UObject* Object = WeakObjectPtr.Get();
+	if (!Object)
+	{
+		return nullptr;
+	}
+
+	if (UBlueprint* BP = Cast<UBlueprint>(Object))
+	{
+		return BP;
+	}
+	else if (Object->IsTemplate())
+	{
+		return GetBlueprint();
+	}
+
+	return nullptr;
+}
+
 FString FSubobjectData::GetDisplayString(bool bShowNativeComponentNames /* = true */) const
 {
 	FName VariableName = GetVariableName();

@@ -115,6 +115,7 @@ public:
 	inline const UActorComponent* FindComponentInstanceInActor(const AActor* InActor) const { return FindMutableComponentInstanceInActor(InActor); }
 
 	UBlueprint* GetBlueprint() const;
+	UBlueprint* GetBlueprintBeingEdited() const;
 
 	bool IsInstancedComponent() const;
 	bool IsInstancedActor() const;
