@@ -387,10 +387,10 @@ static FString Join(const TSet<FString>& Tokens, const FString& Delimeter)
 	return Result.RightChop(Delimeter.Len());
 }
 
-FString FLauncherWorker::CreateUATCommand( const ILauncherProfileRef& InProfile, const TArray<FString>& InPlatforms, TArray<FCommandDesc>& OutCommands, FString& CommandStart )
+FString FLauncherWorker::CreateUATCommand( const ILauncherProfileRef& InProfile, const TArray<FString>& InPlatforms, TArray<FCommandDesc>& OutCommands, FString& CommandStart, bool bForTurnkeyCustomBuild )
 {
 	CommandStart = TEXT("");
-	FString UATCommand = TEXT(" -utf8output");
+	FString UATCommand = bForTurnkeyCustomBuild ? TEXT("") : TEXT(" -utf8output");
 	FGuid SessionId(FGuid::NewGuid());
 	FString InitialMap = InProfile->GetDefaultLaunchRole()->GetInitialMap();
 	if (InitialMap.IsEmpty() && InProfile->GetCookedMaps().Num() == 1)
@@ -420,6 +420,10 @@ FString FLauncherWorker::CreateUATCommand( const ILauncherProfileRef& InProfile,
 	{
 		// Platform info for the given platform
 		const PlatformInfo::FTargetPlatformInfo* PlatformInfo = PlatformInfo::FindPlatformInfo(FName(*InPlatforms[PlatformIndex]));
+		if (bForTurnkeyCustomBuild && PlatformInfo == nullptr)
+		{
+			continue;
+		}
 
 		if (ensure(PlatformInfo))
 		{
@@ -510,7 +514,7 @@ FString FLauncherWorker::CreateUATCommand( const ILauncherProfileRef& InProfile,
 
 	bool bVsyncAdded = false;
 
-	if (DeviceGroup.IsValid())
+	if (DeviceGroup.IsValid() && DeviceProxyManager.IsValid())
 	{
 		const TArray<FString>& Devices = DeviceGroup->GetDeviceIDs();
 
@@ -552,8 +556,13 @@ FString FLauncherWorker::CreateUATCommand( const ILauncherProfileRef& InProfile,
 	}
 
 	// game command line
-	FString CommandLine = FString::Printf(TEXT(" -cmdline=\"%s -Messaging\""),
-		*InitialMap);
+	FString CommandLine = FString::Printf(TEXT(" -cmdline=\"%s%s\""),
+		*InitialMap, 
+		bForTurnkeyCustomBuild ? TEXT("") : TEXT(" -Messaging") );
+	if (CommandLine.EndsWith(TEXT("\"\"")))
+	{
+		CommandLine.Reset(); // don't bother with -cmdline if it's empty
+	}
 
 	// localization command line
 	FString LocalizationCommands;
@@ -567,22 +576,33 @@ FString FLauncherWorker::CreateUATCommand( const ILauncherProfileRef& InProfile,
 #endif	// WITH_EDITOR
 
 	// to reduce UECommandLine.txt churn (timestamp causing extra work), for LaunchOn (ie iterative deploy) we use a single session guid
-	if (InProfile->GetDeploymentMode() == ELauncherProfileDeploymentModes::CopyToDevice && Profile->IsDeployingIncrementally())
+	if (InProfile->GetDeploymentMode() == ELauncherProfileDeploymentModes::CopyToDevice && InProfile->IsDeployingIncrementally())
 	{
 		static FGuid StaticGuid(FGuid::NewGuid());
 		SessionId = StaticGuid;
 	}
 
 	// additional commands to be sent to the commandline
-	FString SessionName = InProfile->GetName().Replace(TEXT("\'"), TEXT("_")).Replace(TEXT("\'"), TEXT("_"));
-	FString SessionOwner = FString(FPlatformProcess::UserName(false)).Replace(TEXT("\'"), TEXT("_")).Replace(TEXT("\'"), TEXT("_"));;
-	FString AdditionalCommandLine = FString::Printf(TEXT(" -addcmdline=\"-SessionId=%s -SessionOwner='%s' -SessionName='%s'%s%s %s\""),
+	FString SessionCommands;
+	if (!bForTurnkeyCustomBuild)
+	{
+		FString SessionName = InProfile->GetName().Replace(TEXT("\'"), TEXT("_")).Replace(TEXT("\'"), TEXT("_"));
+		FString SessionOwner = FString(FPlatformProcess::UserName(false)).Replace(TEXT("\'"), TEXT("_")).Replace(TEXT("\'"), TEXT("_"));;
+		SessionCommands = FString::Printf(TEXT("-SessionId=%s -SessionOwner='%s' -SessionName='%s' "),
 		*SessionId.ToString(),
 		*SessionOwner,
-		*SessionName,
+		*SessionName);
+	}
+	FString AdditionalCommandLine = FString::Printf(TEXT(" -addcmdline=\"%s%s %s %s\""),
+		*SessionCommands,
 		*RoleCommands,
 		*LocalizationCommands,
 		*InProfile->GetAdditionalCommandLineParameters());
+	if (AdditionalCommandLine.EndsWith(TEXT("\"  \"")))
+	{
+		AdditionalCommandLine.Reset(); // don't bother with -addcmdline if it's empty
+	}
+
 
 	// map list
 	FString MapList;
@@ -921,7 +941,7 @@ FString FLauncherWorker::CreateUATCommand( const ILauncherProfileRef& InProfile,
 
 		case ELauncherProfileDeploymentModes::CopyToDevice:
 			{
-				if (Profile->IsDeployingIncrementally())
+				if (InProfile->IsDeployingIncrementally())
 				{
 					UATCommand += " -iterativedeploy";
 				}
@@ -995,7 +1015,7 @@ FString FLauncherWorker::CreateUATCommand( const ILauncherProfileRef& InProfile,
 
 		if (InProfile->IsArchiving())
 		{
-			UATCommand += FString::Printf(TEXT(" -archive -archivedirectory=\"%s\""), *Profile->GetArchiveDirectory());
+			UATCommand += FString::Printf(TEXT(" -archive -archivedirectory=\"%s\""), *InProfile->GetArchiveDirectory());
 
 			FCommandDesc Desc;
 			FText Command = FText::Format(LOCTEXT("LauncherArchiveDesc", "Archiving content for {0}"), FText::FromString(Platforms.RightChop(1)));
@@ -1020,6 +1040,50 @@ FString FLauncherWorker::CreateUATCommand( const ILauncherProfileRef& InProfile,
 
 	return UATCommand;
 }
+
+FString FLauncherWorker::MakeBuildCookRunParamsForProjectCustomBuild(const ILauncherProfileRef& InProfile, const TArray<FString>& InPlatforms)
+{
+	// get the basic UAT command line
+	FLauncherWorker TempWorker(NoInit);
+	TArray<FCommandDesc> Commands;
+	FString CommandStart;
+	FString BuildCookRunParams = TempWorker.CreateUATCommand(InProfile, InPlatforms, Commands, CommandStart, true);
+
+	// optional project
+	if (InProfile->HasProjectSpecified())
+	{
+		BuildCookRunParams += FString::Printf( TEXT(" -project=%s"), *FPaths::ConvertRelativePathToFull(InProfile->GetProjectPath()) );
+	}
+	else
+	{
+		BuildCookRunParams += TEXT(" -project={project}");
+	}
+
+	// optional platform
+	if (InPlatforms.Num() == 0)
+	{
+		BuildCookRunParams += TEXT(" -platform={platform}");
+	}
+
+	// optional device
+	if ( InProfile->GetDeploymentMode() == ELauncherProfileDeploymentModes::CopyToDevice || 
+		 InProfile->GetLaunchMode() != ELauncherProfileLaunchModes::DoNotLaunch ||
+		 InProfile->GetDeployedDeviceGroup() != nullptr )
+	{
+		BuildCookRunParams += TEXT(" -device={DeviceId}");
+	}
+
+	// configuration
+	if (InProfile->GetBuildConfiguration() != EBuildConfiguration::Unknown)
+	{
+		BuildCookRunParams += FString::Printf( TEXT(" -configuration=%s"), LexToString(InProfile->GetBuildConfiguration()) );
+	}
+
+	return BuildCookRunParams;
+}
+
+
+
 
 /* FLauncherWorker implementation
  *****************************************************************************/

@@ -112,6 +112,10 @@ public:
 	UPROPERTY(EditAnywhere, config, Category = Tools, meta = (ConfigRestartRequired = true))
 	bool bFacialAnimationImporter;
 
+	/** Shows the option to import a custom project launcher profile in the project packaging 'custom builds' section */
+	UPROPERTY(EditAnywhere, config, Category = Tools, meta = (DisplayName = "Enable tools in Packaging Settings -> Additional builds for this project"))
+	bool bProjectCustomBuildTools;
+
 	/** Enable experimental PIE preview device launch */
 	UPROPERTY(EditAnywhere, config, Category = PIE, meta = (DisplayName = "Enable mobile PIE with preview device launch options."))
 	bool bMobilePIEPreviewDeviceLaunch;

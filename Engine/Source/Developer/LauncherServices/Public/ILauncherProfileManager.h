@@ -289,6 +289,12 @@ public:
 	*/
 	virtual const TArray<ILauncherProfileWizardPtr>& GetProfileWizards() const = 0;
 
+	/**
+	 * Returns best-guess BuildCookRun parameters for the given profile in the format expected by FProjectBuidSettings::BuildCookRunParams
+	 *  Used by the Project custom Build's "import from Project Launcher" menu
+	 */
+	virtual FString MakeBuildCookRunParamsForProjectCustomBuild(const ILauncherProfileRef& InProfile, const TArray<FString>& InPlatforms) const = 0;
+
 public:
 
 	/**

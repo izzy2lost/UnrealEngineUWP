@@ -163,6 +163,8 @@ struct FProjectBuildSettings
 	 *   {iniif:-iostore:bUseIoStore}
 	 * Additionally, the ini settings can have an optional search and replace modifier, to easily modify the string. The Replace can be blank:
 	 *   {inivalue:BuildConfiguration|PPBC_=} - This will get the BuildConfiguration from the settings, and then remove the PPBC_ enum prefix from the string, to just get say Development
+	 * 
+	 * Adding -device={DeviceId} will show the command per-device in the platforms menu
 	 */
 	UPROPERTY(EditAnywhere, Category="Packaging")
 	FString BuildCookRunParams;
@@ -633,7 +635,7 @@ public:
 	/**
 	 * A list of custom builds that will show up in the Platforms menu to allow customized builds that make sense for your project. Will show up near Package Project in the Platforms menu.
 	 */
-	UPROPERTY(config, EditAnywhere, Category=Packaging, meta=(DisplayName = "Additional builds for this project."))
+	UPROPERTY(config, EditAnywhere, Category=CustomBuilds, meta=(DisplayName = "Additional builds for this project.", TitleProperty="Name"))
 	TArray<FProjectBuildSettings> ProjectCustomBuilds;
 
 	/** If set, platforms that destructively edit the iostore containers during packaging will save a copy prior to doing so. */

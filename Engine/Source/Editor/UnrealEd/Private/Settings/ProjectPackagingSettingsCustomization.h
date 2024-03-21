@@ -10,12 +10,14 @@
 #include "Widgets/SWidget.h"
 #include "Widgets/SCompoundWidget.h"
 #include "Widgets/SBoxPanel.h"
+#include "Widgets/Input/SComboButton.h"
 #include "Styling/SlateTypes.h"
 #include "Misc/Paths.h"
 #include "Styling/CoreStyle.h"
 #include "HAL/FileManager.h"
 #include "Styling/AppStyle.h"
 #include "IDetailCustomization.h"
+#include "IPropertyUtilities.h"
 #include "PropertyHandle.h"
 #include "DetailLayoutBuilder.h"
 #include "DetailCategoryBuilder.h"
@@ -25,9 +27,12 @@
 #include "Widgets/Images/SImage.h"
 #include "Widgets/Input/SCheckBox.h"
 #include "Settings/ProjectPackagingSettings.h"
+#include "Settings/EditorExperimentalSettings.h"
 #include "PropertyRestriction.h"
 #include "Widgets/Views/SMultipleOptionTable.h"
 #include "DesktopPlatformModule.h"
+#include "ILauncherServicesModule.h"
+
 
 #define LOCTEXT_NAMESPACE "FProjectPackagingSettingsCustomization"
 
@@ -102,6 +107,7 @@ public:
 	{
 		CustomizeProjectCategory(LayoutBuilder);
 		CustomizePackagingCategory(LayoutBuilder);
+		CustomizeCustomBuildsCategory(LayoutBuilder);
 	}
 
 public:
@@ -407,6 +413,143 @@ protected:
 
 		return false;
 	}
+
+
+	/**
+	 * Customizes the Custom Builds property category.
+	 *
+	 * @param LayoutBuilder The layout builder.
+	 */
+	void CustomizeCustomBuildsCategory( IDetailLayoutBuilder& LayoutBuilder )
+	{
+		TSharedPtr<IPropertyUtilities> PropertyUtilities = LayoutBuilder.GetPropertyUtilities();
+		ILauncherServicesModule& LauncherServicesModule = FModuleManager::LoadModuleChecked<ILauncherServicesModule>("LauncherServices");
+		ILauncherProfileManagerRef LauncherProfileManager = LauncherServicesModule.GetProfileManager();
+
+		IDetailCategoryBuilder& CustomBuildsCategory = LayoutBuilder.EditCategory("CustomBuilds", FText::GetEmpty(), ECategoryPriority::Important);
+		{
+			CustomBuildsCategory.AddCustomRow(FText::GetEmpty(), false)
+				.WholeRowWidget
+				[
+					SNew(SBorder)
+					.BorderImage(FAppStyle::GetBrush("ToolPanel.GroupBorder"))
+					[
+						SNew(SHorizontalBox)
+
+						// combo button to import from project launcher. hidden if there are no custom laucher profiles
+						+SHorizontalBox::Slot()
+						.AutoWidth()
+						.VAlign(VAlign_Center)
+						.Padding(8.4)
+						[
+							SNew(SComboButton)
+							.ComboButtonStyle(FAppStyle::Get(), "SimpleComboButton")
+							.OnGetMenuContent_Lambda( [this, PropertyUtilities] { return CreateImportFromProjectLauncherMenu(PropertyUtilities); } )
+							.Visibility_Lambda( [LauncherProfileManager] { return LauncherProfileManager->GetAllProfiles().IsEmpty() ? EVisibility::Collapsed : EVisibility::Visible; })
+							.ButtonContent()
+							[
+								SNew(SHorizontalBox)
+
+								+SHorizontalBox::Slot()
+								.AutoWidth()
+								.VAlign(VAlign_Center)
+								.HAlign(HAlign_Center)
+								[
+									SNew(SImage)
+									.Image(FAppStyle::GetBrush("Launcher.TabIcon"))
+								]
+
+								+SHorizontalBox::Slot()
+								.AutoWidth()
+								.VAlign(VAlign_Center)
+								.Padding(4,0,0,0)
+								[
+									SNew(STextBlock)
+									.Text(LOCTEXT("ImportProjectLauncher", "Import From Project Launcher"))
+								]
+							]
+						]
+					]
+				]
+				.Visibility(TAttribute<EVisibility>::Create(TAttribute<EVisibility>::FGetter::CreateLambda([]() 
+				{
+					// only visible if the user has enabled this in the experimental settings
+					return GetDefault<UEditorExperimentalSettings>()->bProjectCustomBuildTools ? EVisibility::Visible : EVisibility::Collapsed; 
+				})))
+				;				
+		}
+	}
+
+	TSharedRef<SWidget> CreateImportFromProjectLauncherMenu( TSharedPtr<IPropertyUtilities> PropertyUtilities )
+	{
+		const bool bCloseAfterSelection = true;
+		FMenuBuilder MenuBuilder(bCloseAfterSelection, nullptr, nullptr, true);
+
+		ILauncherServicesModule& LauncherServicesModule = FModuleManager::LoadModuleChecked<ILauncherServicesModule>("LauncherServices");
+		for (const ILauncherProfilePtr& LauncherProfilePtr : LauncherServicesModule.GetProfileManager()->GetAllProfiles())
+		{
+			MenuBuilder.AddMenuEntry(
+				FText::FromString(LauncherProfilePtr->GetName()),
+				FText::FromString(LauncherProfilePtr->GetDescription()),
+				FSlateIcon(),
+				FUIAction
+				(
+					FExecuteAction::CreateRaw( this, &FProjectPackagingSettingsCustomization::ImportFromLauncherProfile, LauncherProfilePtr, PropertyUtilities )
+				),
+				NAME_None,
+				EUserInterfaceActionType::Button);
+		}
+
+		return MenuBuilder.MakeWidget();
+	}
+
+	void ImportFromLauncherProfile( const ILauncherProfilePtr LauncherProfilePtr, TSharedPtr<IPropertyUtilities> PropertyUtilities )
+	{
+		ILauncherServicesModule& LauncherServicesModule = FModuleManager::LoadModuleChecked<ILauncherServicesModule>("LauncherServices");
+
+		// grab the project packaging settings
+		UProjectPackagingSettings* ProjectPackagingSettings = UProjectPackagingSettings::StaticClass()->GetDefaultObject<UProjectPackagingSettings>();
+		if (ProjectPackagingSettings == nullptr)
+		{
+			return;
+		}
+
+		// ensure the name is unique (Turnkey builds a dictionary using the Name)
+		FString ProfileName = LauncherProfilePtr->GetName();
+		int UniqueId = 1;
+		while (ProjectPackagingSettings->ProjectCustomBuilds.ContainsByPredicate( [ProfileName](const FProjectBuildSettings& Other) { return ProfileName == Other.Name; } ) )
+		{
+			ProfileName = FString::Printf( TEXT("%s %d"), *LauncherProfilePtr->GetName(), UniqueId++ );
+		}
+
+		// add a new item
+		FProjectBuildSettings& ProjectBuildSettings = ProjectPackagingSettings->ProjectCustomBuilds.AddDefaulted_GetRef();
+		ProjectBuildSettings.Name               = ProfileName;
+		ProjectBuildSettings.HelpText           = LauncherProfilePtr->GetDescription().IsEmpty() ? LauncherProfilePtr->GetName() : LauncherProfilePtr->GetDescription();
+		ProjectBuildSettings.SpecificPlatforms  = LauncherProfilePtr->GetCookedPlatforms();
+		if (ProjectBuildSettings.SpecificPlatforms.Num() == 0 && !LauncherProfilePtr->GetDefaultDeployPlatform().IsNone())
+		{
+			ProjectBuildSettings.SpecificPlatforms.Add(LauncherProfilePtr->GetDefaultDeployPlatform().ToString());
+		}
+		ProjectBuildSettings.BuildCookRunParams = LauncherServicesModule.GetProfileManager()->MakeBuildCookRunParamsForProjectCustomBuild(LauncherProfilePtr.ToSharedRef(), ProjectBuildSettings.SpecificPlatforms);
+
+
+		// signal that the property has changed
+		FNotifyHook* NotifyHook = PropertyUtilities->GetNotifyHook();
+		FProperty* Property = UProjectPackagingSettings::StaticClass()->FindPropertyByName("ProjectCustomBuilds");
+		if (NotifyHook != nullptr && Property != nullptr)
+		{
+			TArray<const UObject*> NotifyTopLevelObjects;
+			NotifyTopLevelObjects.Add(ProjectPackagingSettings);
+
+			FEditPropertyChain PropertyChain;
+			PropertyChain.AddHead(Property);
+
+			FPropertyChangedEvent ChangeEvent(Property, EPropertyChangeType::ValueSet, MakeArrayView(NotifyTopLevelObjects));
+			NotifyHook->NotifyPostChange(ChangeEvent, &PropertyChain);
+		}
+	}
+
 
 private:
 	TArray<FCulturePtr> CultureList;
