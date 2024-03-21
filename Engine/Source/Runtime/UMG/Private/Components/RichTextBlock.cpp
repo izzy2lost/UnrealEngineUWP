@@ -391,18 +391,51 @@ void URichTextBlock::SetDefaultStrikeBrush(const FSlateBrush& InStrikeBrush)
 	DefaultTextStyleOverride.StrikeBrush = InStrikeBrush;
 	ApplyUpdatedDefaultTextStyle();
 }
-PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
-void URichTextBlock::SetJustification(ETextJustify::Type InJustification)
+void URichTextBlock::OnShapedTextOptionsChanged(FShapedTextOptions InShapedTextOptions)
 {
-	Super::SetJustification(InJustification);
+	Super::OnShapedTextOptionsChanged(InShapedTextOptions);
+	if (MyRichTextBlock.IsValid())
+	{
+		InShapedTextOptions.SynchronizeShapedTextProperties(*MyRichTextBlock);
+	}
+}
+
+void URichTextBlock::OnJustificationChanged(ETextJustify::Type InJustification)
+{
+	Super::OnJustificationChanged(InJustification);
 	if (MyRichTextBlock.IsValid())
 	{
 		MyRichTextBlock->SetJustification(InJustification);
 	}
 }
 
-PRAGMA_DISABLE_DEPRECATION_WARNINGS
+void URichTextBlock::OnWrappingPolicyChanged(ETextWrappingPolicy InWrappingPolicy)
+{
+	Super::OnWrappingPolicyChanged(InWrappingPolicy);
+	if (MyRichTextBlock.IsValid())
+	{
+		MyRichTextBlock->SetWrappingPolicy(InWrappingPolicy);
+	}
+}
+
+void URichTextBlock::OnAutoWrapTextChanged(bool InAutoWrapText)
+{
+	Super::OnAutoWrapTextChanged(InAutoWrapText);
+	if (MyRichTextBlock.IsValid())
+	{
+		MyRichTextBlock->SetAutoWrapText(InAutoWrapText);
+	}
+}
+
+void URichTextBlock::OnWrapTextAtChanged(float InWrapTextAt)
+{
+	Super::OnWrapTextAtChanged(InWrapTextAt);
+	if (MyRichTextBlock.IsValid())
+	{
+		MyRichTextBlock->SetWrapTextAt(InWrapTextAt);
+	}
+}
 
 void URichTextBlock::OnLineHeightPercentageChanged(float InLineHeightPercentage)
 {

@@ -132,10 +132,6 @@ public:
 	//TODO UMG Add Set Font
 
 public:
-	//~ Begin UTextLayoutWidget Interface
-	UMG_API virtual void SetJustification(ETextJustify::Type InJustification) override;
-	//~ End UTextLayoutWidget Interface
-
 	//~ Begin UWidget Interface
 	UMG_API virtual void SynchronizeProperties() override;
 	//~ End UWidget Interface
@@ -151,6 +147,11 @@ public:
 
 protected:
 	//~ Begin UTextLayoutWidget Interface
+	UMG_API virtual void OnShapedTextOptionsChanged(FShapedTextOptions InShapedTextOptions) override;
+	UMG_API virtual void OnJustificationChanged(ETextJustify::Type InJustification) override;
+	UMG_API virtual void OnWrappingPolicyChanged(ETextWrappingPolicy InWrappingPolicy) override;
+	UMG_API virtual void OnAutoWrapTextChanged(bool InAutoWrapText) override;
+	UMG_API virtual void OnWrapTextAtChanged(float InWrapTextAt) override;
 	UMG_API virtual void OnLineHeightPercentageChanged(float InLineHeightPercentage) override;
 	UMG_API virtual void OnApplyLineHeightToBottomLineChanged(bool InApplyLineHeightToBottomLine) override;
 	UMG_API virtual void OnMarginChanged(const FMargin& InMargin) override;
