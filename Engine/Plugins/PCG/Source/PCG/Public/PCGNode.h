@@ -37,7 +37,6 @@ public:
 	virtual void BeginDestroy() override;
 
 #if WITH_EDITOR
-	virtual void PostEditImport() override;
 	virtual void PreEditUndo() override;
 	virtual void PostEditUndo() override;
 	/** ~End UObject interface */
@@ -50,6 +49,8 @@ public:
 
 	/** If a node does require structural changes, this will apply them */
 	virtual void ApplyStructuralDeprecation();
+
+	virtual void RebuildAfterPaste();
 #endif
 
 	/** Returns the owning graph */

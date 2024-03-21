@@ -183,18 +183,34 @@ void UPCGNode::ApplyStructuralDeprecation()
 	}
 }
 
-#endif
-
-#if WITH_EDITOR
-void UPCGNode::PostEditImport()
+void UPCGNode::RebuildAfterPaste()
 {
-	Super::PostEditImport();
+	// When Pasting a node it will get created through NewObject which will create a DefaultNodeSettings object but if
+	// the Source of the Copy has its own non-DefaultNodeSettings this is what is actually going to be pasted on this node through ImportObjectProperties
+	// leaving this DefaultNodeSettings outered to the new node but unused. Here we make sure to find the orphaned UPCGSettingsInterface objects under the node and
+	// if they aren't the one that we are actually using (SettingsInterface member) then we just discard them
+	TArray<UObject*> Objects;
+	GetObjectsWithOuter(this, Objects, false, RF_NoFlags, EInternalObjectFlags::Garbage);
+
+	for (UObject* Object : Objects)
+	{
+		if (UPCGSettingsInterface* OuteredSettingsInterface = Cast<UPCGSettingsInterface>(Object); OuteredSettingsInterface && SettingsInterface != OuteredSettingsInterface)
+		{
+			OuteredSettingsInterface->OnSettingsChangedDelegate.RemoveAll(this);
+			OuteredSettingsInterface->Rename(nullptr, GetTransientPackage(), REN_ForceNoResetLoaders | REN_DoNotDirty | REN_DontCreateRedirectors | REN_NonTransactional);
+			OuteredSettingsInterface->MarkAsGarbage();
+		}
+	}
+
 	if (SettingsInterface)
 	{
 		SettingsInterface->OnSettingsChangedDelegate.AddUObject(this, &UPCGNode::OnSettingsChanged);
 	}
 }
 
+#endif
+
+#if WITH_EDITOR
 void UPCGNode::PreEditUndo()
 {
 	if (SettingsInterface)
