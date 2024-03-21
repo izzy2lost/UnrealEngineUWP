@@ -10945,8 +10945,15 @@ bool UEngine::PerformError(const TCHAR* Cmd, FOutputDevice& Ar)
 			FGenericCrashContext::SetCrashTrigger(ECrashTrigger::Debug);
 			while (1)
 			{
-				void* Eat = FMemory::Malloc(65536);
-				FMemory::Memset(Eat, 0, 65536);
+#				if PLATFORM_WINDOWS
+					/* Windows does not allow overcommitting, so allocating the memory is sufficient to cause an OOM.
+					   Running memset on the memory block will cause Windows to start swapping memory to/from the page file
+					   and will ultimately result in an application hang instead of OOM. */
+					(void)FMemory::Malloc(65536 * 1024);
+#				else
+					void* Eat = FMemory::Malloc(65536);
+					FMemory::Memset(Eat, 0, 65536);
+#				endif
 			}
 		}
 
