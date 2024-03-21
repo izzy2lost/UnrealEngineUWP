@@ -59,7 +59,7 @@ void FAvaOutlinerSaveState::Serialize(FAvaOutliner& InOutliner, FArchive& Ar)
 	if (Ar.IsSaving())
 	{
 		SaveSceneTree(InOutliner, /*bInResetTree*/true);
-		InOutliner.ForEachOutlinerView([InOutliner, this](const TSharedPtr<FAvaOutlinerView>& InOutlinerView)
+		InOutliner.ForEachOutlinerView([&InOutliner, this](const TSharedPtr<FAvaOutlinerView>& InOutlinerView)
 		{
 			SaveOutlinerViewState(InOutliner, *InOutlinerView);
 		});
@@ -106,7 +106,7 @@ void FAvaOutlinerSaveState::Serialize(FAvaOutliner& InOutliner, FArchive& Ar)
 		ensure(SceneTree || OutlinerVersion < FAvaOutlinerVersion::SceneTree);
 		LoadSceneTree(InOutliner.GetTreeRoot(), SceneTree, OutlinerWorld);
 
-		InOutliner.ForEachOutlinerView([InOutliner, this](const TSharedPtr<FAvaOutlinerView>& InOutlinerView)
+		InOutliner.ForEachOutlinerView([&InOutliner, this](const TSharedPtr<FAvaOutlinerView>& InOutlinerView)
 		{
 			LoadOutlinerViewState(InOutliner, *InOutlinerView);
 		});
