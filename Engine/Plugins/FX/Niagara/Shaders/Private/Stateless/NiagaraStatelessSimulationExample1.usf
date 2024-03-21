@@ -19,6 +19,7 @@
 #define PARTICLE_ATTRIBUTES_TRANSIENT \
 	PARTICLE_ATTRIBUTE(float,	CameraOffset) \
 	PARTICLE_ATTRIBUTE(float4,	DynamicMaterialParameter0) \
+	PARTICLE_ATTRIBUTE(int,		MeshIndex) \
 	PARTICLE_ATTRIBUTE(float4,	MeshOrientation) \
 	PARTICLE_ATTRIBUTE(float3,	SpriteFacing) \
 	PARTICLE_ATTRIBUTE(float3,	SpriteAlignment) \
