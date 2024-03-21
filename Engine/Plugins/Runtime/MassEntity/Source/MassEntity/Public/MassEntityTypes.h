@@ -242,8 +242,6 @@ struct FMassArchetypeCompositionDescriptor
 
 struct MASSENTITY_API FMassArchetypeSharedFragmentValues
 {
-	static constexpr uint32 EmptyInstanceHash = 0;
-
 	FMassArchetypeSharedFragmentValues() = default;
 	FMassArchetypeSharedFragmentValues(const FMassArchetypeSharedFragmentValues& OtherFragmentValues) = default;
 	FMassArchetypeSharedFragmentValues(FMassArchetypeSharedFragmentValues&& OtherFragmentValues) = default;
@@ -263,6 +261,17 @@ struct MASSENTITY_API FMassArchetypeSharedFragmentValues
 	FORCEINLINE bool IsEquivalent(const FMassArchetypeSharedFragmentValues& OtherSharedFragmentValues) const
 	{
 		return GetTypeHash(*this) == GetTypeHash(OtherSharedFragmentValues);
+	}
+
+	FORCEINLINE bool ContainsType(const UScriptStruct* FragmentType) const
+	{
+		return FragmentType != nullptr && SharedFragmentBitSet.Contains(*FragmentType);
+	}
+
+	template<typename T>
+	FORCEINLINE bool ContainsType() const
+	{
+		return SharedFragmentBitSet.Contains(*T::StaticStruct());
 	}
 
 	FORCEINLINE FConstSharedStruct& AddConstSharedFragment(const FConstSharedStruct& Fragment)
