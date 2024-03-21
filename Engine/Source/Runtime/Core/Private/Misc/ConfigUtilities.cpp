@@ -9,6 +9,7 @@
 #include "Tasks/Pipe.h"
 
 #if PLATFORM_WRITES_ARE_SLOW
+#include "Async/Async.h"
 #include "Misc/QueuedThreadPool.h"
 #endif
 
