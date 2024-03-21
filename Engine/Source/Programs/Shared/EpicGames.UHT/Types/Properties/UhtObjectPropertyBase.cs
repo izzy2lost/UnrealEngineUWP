@@ -224,21 +224,24 @@ namespace EpicGames.UHT.Types
 		/// <summary>
 		/// Logs message for Object pointers to convert UObject* to TObjectPtr or the reverse
 		/// </summary>
+		/// <param name="propertySettings">Property settings</param>
 		/// <param name="engineBehavior">Expected behavior for engine types</param>
 		/// <param name="enginePluginBehavior">Expected behavior for engine plugin types</param>
 		/// <param name="nonEngineBehavior">Expected behavior for non-engine types</param>
 		/// <param name="pointerTypeDesc">Description of the pointer type</param>
+		/// <param name="tokenReader">Token reader for type being parsed</param>
+		/// <param name="typeStartPos">Starting character position of the type</param>
 		/// <param name="alternativeTypeDesc">Suggested alternate declaration</param>
 		/// <exception cref="UhtIceException">Thrown if the behavior type is unexpected</exception>
-		protected void ConditionalLogPointerUsage(UhtIssueBehavior engineBehavior, UhtIssueBehavior enginePluginBehavior,
-			UhtIssueBehavior nonEngineBehavior, string pointerTypeDesc, string? alternativeTypeDesc)
+		public static void ConditionalLogPointerUsage(UhtPropertySettings propertySettings, UhtIssueBehavior engineBehavior, UhtIssueBehavior enginePluginBehavior,
+			UhtIssueBehavior nonEngineBehavior, string pointerTypeDesc, IUhtTokenReader tokenReader, int typeStartPos, string? alternativeTypeDesc)
 		{
-			UhtPackage? package = Outer?.Package;
-			if(Outer == null || package == null)
+			if (propertySettings.PropertyCategory != UhtPropertyCategory.Member)
 			{
 				return;
 			}
 
+			UhtPackage package = propertySettings.Outer.Package;
 			UhtIssueBehavior behavior = nonEngineBehavior;
 			if (package.IsPartOfEngine)
 			{
@@ -257,27 +260,32 @@ namespace EpicGames.UHT.Types
 				return;
 			}
 
+			string type = tokenReader.GetStringView(typeStartPos, tokenReader.InputPos - typeStartPos).ToString();
+			type = type.Replace("\n", "\\n", StringComparison.Ordinal);
+			type = type.Replace("\r", "\\r", StringComparison.Ordinal);
+			type = type.Replace("\t", "\\t", StringComparison.Ordinal);
+
 			switch (behavior)
 			{
 				case UhtIssueBehavior.Disallow:
 					if (!String.IsNullOrEmpty(alternativeTypeDesc))
 					{
-						this.LogError($"{pointerTypeDesc} usage in member declaration detected [[[{Outer.EngineName}]]].  This is disallowed for the target/module, consider {alternativeTypeDesc} as an alternative.");
+						tokenReader.LogError($"{pointerTypeDesc} usage in member declaration detected [[[{type}]]].  This is disallowed for the target/module, consider {alternativeTypeDesc} as an alternative.");
 					}
 					else
 					{
-						this.LogError($"{pointerTypeDesc} usage in member declaration detected [[[{Outer.EngineName}]]].");
+						tokenReader.LogError($"{pointerTypeDesc} usage in member declaration detected [[[{type}]]].");
 					}
 					break;
 
 				case UhtIssueBehavior.AllowAndLog:
 					if (!String.IsNullOrEmpty(alternativeTypeDesc))
 					{
-						this.LogInfo($"{pointerTypeDesc} usage in member declaration detected [[[{Outer.EngineName}]]].  Consider {alternativeTypeDesc} as an alternative.");
+						tokenReader.LogInfo($"{pointerTypeDesc} usage in member declaration detected [[[{type}]]].  Consider {alternativeTypeDesc} as an alternative.");
 					}
 					else
 					{
-						this.LogInfo($"{pointerTypeDesc} usage in member declaration detected [[[{Outer.EngineName}]]].");
+						tokenReader.LogInfo("{PointerTypeDesc} usage in member declaration detected [[[{Type}]]].");
 					}
 					break;
 

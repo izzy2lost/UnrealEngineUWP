@@ -116,16 +116,10 @@ namespace EpicGames.UHT.Types
 			{
 				this.LogError($"UPROPERTY pointers cannot be interfaces - did you mean TScriptInterface<{Class.SourceName}>?");
 			}
-			else
-			{
-				// Use to reverse migration from TObjectPtr<UObject> Member; back to UObject* Member;
-				ConditionalLogPointerUsage(Session.Config!.EngineObjectPtrMemberBehavior, Session.Config!.EnginePluginObjectPtrMemberBehavior,
-				Session.Config!.NonEngineObjectPtrMemberBehavior, "ObjectPtr", null);
-			}
 		}
 
-			#region Keyword
-			[UhtPropertyType(Keyword = "TObjectPtr")]
+		#region Keyword
+		[UhtPropertyType(Keyword = "TObjectPtr")]
 		[SuppressMessage("CodeQuality", "IDE0051:Remove unused private members", Justification = "Attribute accessed method")]
 		[SuppressMessage("Style", "IDE0060:Remove unused parameter", Justification = "Attribute accessed method")]
 		private static UhtProperty? ObjectPtrProperty(UhtPropertyResolvePhase resolvePhase, UhtPropertySettings propertySettings, IUhtTokenReader tokenReader, UhtToken matchedToken)
@@ -138,6 +132,9 @@ namespace EpicGames.UHT.Types
 			{
 				return null;
 			}
+
+			ConditionalLogPointerUsage(propertySettings, session.Config!.EngineObjectPtrMemberBehavior, session.Config!.EnginePluginObjectPtrMemberBehavior,
+				session.Config!.NonEngineObjectPtrMemberBehavior, "ObjectPtr", tokenReader, typeStartPos, null);
 
 			if (propertyClass.IsChildOf(propertyClass.Session.UClass))
 			{

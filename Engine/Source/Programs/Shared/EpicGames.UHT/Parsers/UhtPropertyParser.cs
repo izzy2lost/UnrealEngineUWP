@@ -1313,6 +1313,7 @@ namespace EpicGames.UHT.Parsers
 		{
 			UhtProperty? property;
 			UhtSession session = propertySettings.Outer.Session;
+			int typeStartPos = tokenReader.PeekToken().InputStartPos;
 
 			bool gotConst = tokenReader.TryOptional("const");
 
@@ -1387,6 +1388,10 @@ namespace EpicGames.UHT.Parsers
 					propertySettings.MetaData.Add(UhtNames.NativeConst, "");
 				}
 				tokenReader.Require('*');
+
+				// Optionally emit messages about native pointer members and swallow trailing 'const' after pointer properties
+				UhtObjectPropertyBase.ConditionalLogPointerUsage(propertySettings, session.Config!.EngineNativePointerMemberBehavior,
+					session.Config!.EnginePluginNativePointerMemberBehavior, session.Config!.NonEngineNativePointerMemberBehavior, "Native pointer", tokenReader, typeStartPos, "TObjectPtr");
 
 				if (propertySettings.PropertyCategory == UhtPropertyCategory.Member)
 				{
