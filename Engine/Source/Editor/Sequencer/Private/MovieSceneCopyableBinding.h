@@ -54,5 +54,5 @@ public:
 	TArray<FName> Tags;
 
 	UPROPERTY()
-	TArray<UMovieSceneCustomBinding*> CustomBindings;
+	TArray<TObjectPtr<UMovieSceneCustomBinding>> CustomBindings;
 };
