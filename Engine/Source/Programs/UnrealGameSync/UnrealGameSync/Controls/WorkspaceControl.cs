@@ -3362,11 +3362,11 @@ namespace UnrealGameSync
 
 				if (_hordeClient.IsConnected())
 				{
-					statusLine.AddText("Connected to Horde.");
+					statusLine.AddLink("Connected to Horde", FontStyle.Regular, (p, r) => Utility.OpenUrl(_hordeClient.ServerUrl.ToString()));
 				}
 				else
 				{
-					statusLine.AddLink("Connect to Horde", FontStyle.Bold | FontStyle.Underline, (p, r) => ConnectToHorde(_hordeClient));
+					statusLine.AddLink("Connect to Horde...", FontStyle.Bold | FontStyle.Underline, (p, r) => ConnectToHorde(_hordeClient));
 				}
 			}
 		}

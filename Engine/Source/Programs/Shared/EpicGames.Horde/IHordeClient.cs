@@ -1,5 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
+using System;
 using System.Threading;
 using System.Threading.Tasks;
 using EpicGames.Horde.Storage;
@@ -12,6 +13,11 @@ namespace EpicGames.Horde
 	/// </summary>
 	public interface IHordeClient
 	{
+		/// <summary>
+		/// Base URL of the horde server
+		/// </summary>
+		Uri ServerUrl { get; }
+
 		/// <summary>
 		/// Connect to the Horde server
 		/// </summary>
