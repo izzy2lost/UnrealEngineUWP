@@ -88,7 +88,7 @@ enum class EInstallBundleManagerInitErrorHandlerResult
 	StopInitialization, // Stop trying to initialize
 };
 
-using FInstallBundleSourceOrCache = TUnion<EInstallBundleSourceType, FName>;
+using FInstallBundleSourceOrCache = TUnion<FInstallBundleSourceType, FName>;
 
 DECLARE_DELEGATE_RetVal_OneParam(EInstallBundleManagerInitErrorHandlerResult, FInstallBundleManagerInitErrorHandler, EInstallBundleManagerInitResult);
 DECLARE_MULTICAST_DELEGATE_OneParam(FInstallBundleManagerInitCompleteMultiDelegate, EInstallBundleManagerInitResult);
@@ -121,9 +121,9 @@ public:
 
 	virtual void Initialize() {}
 
-	virtual bool HasBundleSource(EInstallBundleSourceType SourceType) const = 0;
+	virtual bool HasBundleSource(FInstallBundleSourceType SourceType) const = 0;
 
-	INSTALLBUNDLEMANAGER_API virtual const TSharedPtr<IInstallBundleSource> GetBundleSource(EInstallBundleSourceType SourceType) const;
+	INSTALLBUNDLEMANAGER_API virtual const TSharedPtr<IInstallBundleSource> GetBundleSource(FInstallBundleSourceType SourceType) const;
 
 
 	virtual FDelegateHandle PushInitErrorCallback(FInstallBundleManagerInitErrorHandler Callback) = 0;

@@ -18,7 +18,7 @@ DECLARE_LOG_CATEGORY_EXTERN(LogDefaultInstallBundleManager, Display, All);
 
 namespace InstallBundleManagerUtil
 {
-	DEFAULTINSTALLBUNDLEMANAGER_API TSharedPtr<IInstallBundleSource> MakeBundleSource(EInstallBundleSourceType Type);
+	DEFAULTINSTALLBUNDLEMANAGER_API TSharedPtr<IInstallBundleSource> MakeBundleSource(FInstallBundleSourceType Type);
 
 #if WITH_PLATFORM_INSTALL_BUNDLE_SOURCE
 	DEFAULTINSTALLBUNDLEMANAGER_API TSharedPtr<IInstallBundleSource> MakePlatformBundleSource();
@@ -30,7 +30,7 @@ namespace InstallBundleManagerUtil
 
 	// Fills out a FInstallBundleSourceBundleInfo from the specified config section
 	// Returns false if the provided config section is not a bundle definition section.
-	DEFAULTINSTALLBUNDLEMANAGER_API bool LoadBundleSourceBundleInfoFromConfig(EInstallBundleSourceType SourceType, const FConfigFile& InstallBundleConfig, const FString& Section, FInstallBundleSourcePersistentBundleInfo& OutInfo);
+	DEFAULTINSTALLBUNDLEMANAGER_API bool LoadBundleSourceBundleInfoFromConfig(FInstallBundleSourceType SourceType, const FConfigFile& InstallBundleConfig, const FString& Section, FInstallBundleSourcePersistentBundleInfo& OutInfo);
 
 	// Traverses bundle config sections and loads all dependencies for InBundleName, including InBundleName
 	// Sets bSkippedUnknownBundles if a config section for InBundleName or a dependency can't be found.
@@ -71,7 +71,7 @@ namespace InstallBundleManagerUtil
 		void AddRequiredBundlesForSession(const FString& SessionName, const TArray<FName>& BundleNames);
 
 		void UpdateForContentState(const FInstallBundleCombinedContentState& ContentState, const FString& SessionName);
-		void UpdateForBundleSource(const FInstallBundleSourceUpdateContentResultInfo& BundleSourceResult, EInstallBundleSourceType SourceType, const FString& BundleName);
+		void UpdateForBundleSource(const FInstallBundleSourceUpdateContentResultInfo& BundleSourceResult, FInstallBundleSourceType SourceType, const FString& BundleName);
 		
 	private:
 		void SendEnteringBackgroundAnalytic();
@@ -166,7 +166,7 @@ namespace InstallBundleManagerUtil
 		{
 		public:
 			//Store if each bundle source type did any work for this bundle. If its in this map it did work.
-			TSet<EInstallBundleSourceType> BundleSourcesThatDidWorkMap;
+			TSet<FInstallBundleSourceType> BundleSourcesThatDidWorkMap;
 			
 			FBundleAnalyticsData()
 			: BundleSourcesThatDidWorkMap()

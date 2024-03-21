@@ -26,7 +26,7 @@ public:
 	virtual ~IInstallBundleSource() {}
 
 	// Returns a unique id for this source
-	virtual EInstallBundleSourceType GetSourceType() const = 0;
+	virtual FInstallBundleSourceType GetSourceType() const = 0;
 
 	// Returns the how this source should be weighted when combined with other sources
 	virtual float GetSourceWeight() const { return 1.0f; }

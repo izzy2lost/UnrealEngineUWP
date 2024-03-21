@@ -56,6 +56,54 @@ namespace InstallBundleUtil
 		return Prefix;
 	}
 
+	bool GetConfiguredBundleSources(TArray<FString>& OutSources, TMap<FString, FString>& OutFallbackSources)
+	{
+#ifdef INSTALL_BUNDLE_SOURCES_FALLBACK_CONFIG_SECTION
+		const TCHAR* BundleSourceFallbackSection = TEXT(INSTALL_BUNDLE_SOURCES_FALLBACK_CONFIG_SECTION);
+#else
+		const TCHAR* BundleSourceFallbackSection = TEXT("InstallBundleManager.FallbackBundleSources");
+#endif // INSTALL_BUNDLE_SOURCES_FALLBACK_CONFIG_SECTION
+
+		TArray<FString> ConfigBundleFallbacks;
+		if (GConfig->GetArray(BundleSourceFallbackSection, TEXT("FallbackBundleSources"), ConfigBundleFallbacks, GInstallBundleIni))
+		{
+			OutFallbackSources.Empty(ConfigBundleFallbacks.Num());
+			for (FString& ConfigFallback : ConfigBundleFallbacks)
+			{
+				// Remove parentheses
+				ConfigFallback.ReplaceInline(TEXT("("), TEXT(""));
+				ConfigFallback.ReplaceInline(TEXT(")"), TEXT(""));
+
+				TArray<FString> Tokens;
+				if (2 != ConfigFallback.ParseIntoArrayWS(Tokens, TEXT(",")))
+				{
+					ensureAlwaysMsgf(false, TEXT("Malformed entry in InstallBundleManager.FallbackBundleSources"));
+					return false;
+				}
+
+				OutFallbackSources.Add(MoveTemp(Tokens[0]), MoveTemp(Tokens[1]));
+			}
+		}
+
+#ifdef INSTALL_BUNDLE_SOURCES_CONFIG_SECTION
+		const TCHAR* BundleSourceSection = TEXT(INSTALL_BUNDLE_SOURCES_CONFIG_SECTION);
+#else
+		const TCHAR* BundleSourceSection = TEXT("InstallBundleManager.BundleSources");
+#endif // INSTALL_BUNDLE_SOURCE_CONFIG_SECTION
+
+		TArray<FString> ConfigBundleSources;
+		if (ensureAlways(GConfig->GetArray(BundleSourceSection, TEXT("DefaultBundleSources"), ConfigBundleSources, GInstallBundleIni)))
+		{
+			OutSources = MoveTemp(ConfigBundleSources);
+		}
+		else
+		{
+			return false;
+		}
+
+		return true;
+	}
+
 	bool HasInstallBundleInConfig(const FString& BundleName)
 	{
 		const FConfigFile* InstallBundleConfig = GConfig->FindConfigFile(GInstallBundleIni);

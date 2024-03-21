@@ -137,7 +137,7 @@ protected:
 
 	struct FBundleSourceRelevance
 	{
-		EInstallBundleSourceType SourceType;
+		FInstallBundleSourceType SourceType;
 		bool bIsRelevant = true;
 
 		bool operator==(const FBundleSourceRelevance& Other) const { return SourceType == Other.SourceType; }
@@ -211,7 +211,7 @@ protected:
 
 	struct FGetContentStateRequest
 	{
-		TMap<EInstallBundleSourceType, FInstallBundleCombinedContentState> BundleSourceContentStates;
+		TMap<FInstallBundleSourceType, FInstallBundleCombinedContentState> BundleSourceContentStates;
 
 		TArray<FName> BundleNames;
 
@@ -322,7 +322,7 @@ protected:
 
 	struct FCacheEvictionRequestor
 	{
-		TMap<FName, TArray<EInstallBundleSourceType>> BundlesToEvictFromSourcesMap;
+		TMap<FName, TArray<FInstallBundleSourceType>> BundlesToEvictFromSourcesMap;
 
 		virtual ~FCacheEvictionRequestor() {}
 
@@ -347,9 +347,9 @@ protected:
 			{
 				return FString::Printf(TEXT("CacheFlush(%s)"), *SourceOrCache.GetSubtype<FName>().ToString());
 			}
-			else if (SourceOrCache.HasSubtype<EInstallBundleSourceType>())
+			else if (SourceOrCache.HasSubtype<FInstallBundleSourceType>())
 			{
-				return FString::Printf(TEXT("CacheFlush(%s)"), LexToString(SourceOrCache.GetSubtype<EInstallBundleSourceType>()));
+				return FString::Printf(TEXT("CacheFlush(%s)"), LexToString(SourceOrCache.GetSubtype<FInstallBundleSourceType>()));
 			}
 			else
 			{
@@ -387,7 +387,7 @@ protected:
 
 		FName BundleName;
 
-		TMap<EInstallBundleSourceType, EInstallBundlePauseFlags> SourcePauseFlags;
+		TMap<FInstallBundleSourceType, EInstallBundlePauseFlags> SourcePauseFlags;
 		EInstallBundlePauseFlags LastSentPauseFlags = EInstallBundlePauseFlags::None;
 		bool bForcePauseCallback = false;
 
@@ -396,11 +396,11 @@ protected:
 		// how many results we are expected to have in the SourceRequestResults array
 		int RequiredSourceRequestResultsCount = 0;
 		// completion results from each bundle source
-		TMap<EInstallBundleSourceType, FInstallBundleSourceUpdateContentResultInfo> SourceRequestResults;
+		TMap<FInstallBundleSourceType, FInstallBundleSourceUpdateContentResultInfo> SourceRequestResults;
 		FText OptionalErrorText;
 		FString OptionalErrorCode;
 
-		TMap<EInstallBundleSourceType, FInstallBundleSourceProgress> CachedSourceProgress;
+		TMap<FInstallBundleSourceType, FInstallBundleSourceProgress> CachedSourceProgress;
 
 		InstallBundleUtil::FContentRequestSharedContextPtr RequestSharedContext;
 
@@ -456,8 +456,8 @@ protected:
 		
 		FName BundleName;
 
-		TMap<EInstallBundleSourceType, TOptional<FInstallBundleSourceReleaseContentResultInfo>> SourceReleaseRequestResults;
-		TMap<EInstallBundleSourceType, TOptional<FInstallBundleSourceReleaseContentResultInfo>> SourceRemoveRequestResults;
+		TMap<FInstallBundleSourceType, TOptional<FInstallBundleSourceReleaseContentResultInfo>> SourceReleaseRequestResults;
+		TMap<FInstallBundleSourceType, TOptional<FInstallBundleSourceReleaseContentResultInfo>> SourceRemoveRequestResults;
 
 		ELogVerbosity::Type LogVerbosityOverride = ELogVerbosity::NoLogging;
 
@@ -470,16 +470,16 @@ protected:
 
 	struct FContentPatchCheckSharedContext
 	{
-		TMap<EInstallBundleSourceType, bool> Results;
+		TMap<FInstallBundleSourceType, bool> Results;
 	};
 	using FContentPatchCheckSharedContextRef = TSharedRef<FContentPatchCheckSharedContext>;
 
 public:
-	typedef TFunction<TSharedPtr<IInstallBundleSource>(EInstallBundleSourceType)> FInstallBundleSourceFactoryFunction;
+	typedef TUniqueFunction<TSharedPtr<IInstallBundleSource>(FInstallBundleSourceType)> FInstallBundleSourceFactoryFunction;
 
 	UE_DEPRECATED(5.4, "GInstallBundleManagerIni is deprecated, use InstallBundle.ini hierarchy instead.")
 	FDefaultInstallBundleManager(const TCHAR* InConfigBaseName, FInstallBundleSourceFactoryFunction InBundleSourceFactory = nullptr)
-		: FDefaultInstallBundleManager(InBundleSourceFactory)
+		: FDefaultInstallBundleManager(MoveTemp(InBundleSourceFactory))
 	{}
 
 	FDefaultInstallBundleManager(FInstallBundleSourceFactoryFunction InBundleSourceFactory = nullptr);
@@ -596,7 +596,7 @@ protected:
 
 	TSet<FName> GatherBundlesForRequest(TArrayView<const FName> InBundleNames);
 
-	EInstallBundleSourceType GetBundleSourceFallback(EInstallBundleSourceType Type) const;
+	FInstallBundleSourceType GetBundleSourceFallback(FInstallBundleSourceType Type) const;
 
 	EInstallBundleSourceUpdateBundleInfoResult OnUpdateBundleInfoFromSource(TSharedRef<IInstallBundleSource> Source, FInstallBundleSourceUpdateBundleInfoResult Result);
 	void OnBundleLostRelevanceForSource(TSharedRef<IInstallBundleSource> Source, TSet<FName> BundleNames);
@@ -612,9 +612,9 @@ protected:
 
 	// IInstallBundleManager interface
 public:
-	virtual bool HasBundleSource(EInstallBundleSourceType SourceType) const override;
+	virtual bool HasBundleSource(FInstallBundleSourceType SourceType) const override;
 
-	virtual const TSharedPtr<IInstallBundleSource> GetBundleSource(EInstallBundleSourceType SourceType) const override;
+	virtual const TSharedPtr<IInstallBundleSource> GetBundleSource(FInstallBundleSourceType SourceType) const override;
 
 
 	virtual FDelegateHandle PushInitErrorCallback(FInstallBundleManagerInitErrorHandler Callback) override;
@@ -694,9 +694,9 @@ protected:
 	// Initialization state machine
 protected:
 	EInstallBundleManagerInitResult Init_DefaultBundleSources();
-	EInstallBundleManagerInitResult Init_TryCreateBundleSources(TArray<EInstallBundleSourceType> SourcesToCreate, TArray<TSharedPtr<IInstallBundleSource>>* OutNewSources = nullptr);
+	EInstallBundleManagerInitResult Init_TryCreateBundleSources(TArray<FInstallBundleSourceType> SourcesToCreate, TArray<TSharedPtr<IInstallBundleSource>>* OutNewSources = nullptr);
 
-	EInstallBundleSourceType FindFallbackSource(EInstallBundleSourceType SourceType);
+	FInstallBundleSourceType FindFallbackSource(FInstallBundleSourceType SourceType);
 	void AsyncInit_InitBundleSources();
 	void AsyncInit_OnBundleSourceInitComplete(TSharedRef<IInstallBundleSource> Source, FInstallBundleSourceAsyncInitInfo InInitInfo);
 	void AsyncInit_InitBundleCaches();
@@ -721,19 +721,19 @@ protected:
 	TMap<FName, FBundleInfo> BundleInfoMap;
 	TSet<FName> BundlesInfosToPrune;
 
-	TMap<EInstallBundleSourceType, TSharedPtr<IInstallBundleSource>> BundleSources;
-	TMap<EInstallBundleSourceType, EInstallBundleSourceType> BundleSourceFallbacks;
+	TMap<FInstallBundleSourceType, TSharedPtr<IInstallBundleSource>> BundleSources;
+	TMap<FInstallBundleSourceType, FInstallBundleSourceType> BundleSourceFallbacks;
 
 	TMap<FName, TSharedRef<FInstallBundleCache>> BundleCaches;
-	TMap<EInstallBundleSourceType, FName> BundleSourceCaches;
+	TMap<FInstallBundleSourceType, FName> BundleSourceCaches;
 	TMap<FName, uint64> BundleCacheSizeOverrides;
 
-	TMap<TTuple<EInstallBundleSourceType, FName>, TArray<FCacheEvictionRequestorRef>> PendingCacheEvictions; // (Source, Bundle) -> List of requestors
-	TMap<TTuple<FName, FName>, TArray<EInstallBundleSourceType>> CachesPendingEvictToSources; // (Cache, Bundle) -> List of Sources
+	TMap<TTuple<FInstallBundleSourceType, FName>, TArray<FCacheEvictionRequestorRef>> PendingCacheEvictions; // (Source, Bundle) -> List of requestors
+	TMap<TTuple<FName, FName>, TArray<FInstallBundleSourceType>> CachesPendingEvictToSources; // (Cache, Bundle) -> List of Sources
 
 	// Only used during Init
-	TMap<EInstallBundleSourceType, TOptional<FInstallBundleSourceAsyncInitInfo>> BundleSourceInitResults;
-	TMap<EInstallBundleSourceType, FInstallBundleSourceBundleInfoQueryResult> BundleSourceBundleInfoQueryResults;
+	TMap<FInstallBundleSourceType, TOptional<FInstallBundleSourceAsyncInitInfo>> BundleSourceInitResults;
+	TMap<FInstallBundleSourceType, FInstallBundleSourceBundleInfoQueryResult> BundleSourceBundleInfoQueryResults;
 
 	// Init
 	EInstallBundleManagerInitState InitState = EInstallBundleManagerInitState::NotInitialized;

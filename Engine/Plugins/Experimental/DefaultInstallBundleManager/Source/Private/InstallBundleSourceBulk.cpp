@@ -451,6 +451,11 @@ EInstallBundleInstallState FInstallBundleSourceBulk::GetBundleInstallState(FName
 	return EInstallBundleInstallState::UpToDate;
 }
 
+FInstallBundleSourceType FInstallBundleSourceBulk::GetSourceType() const
+{ 
+	return FInstallBundleSourceType(TEXT("Bulk")); 
+}
+
 FInstallBundleSourceInitInfo FInstallBundleSourceBulk::Init(
 	TSharedRef<InstallBundleUtil::FContentRequestStatsMap> InRequestStats,
 	TSharedPtr<IAnalyticsProviderET> InAnalyticsProvider,

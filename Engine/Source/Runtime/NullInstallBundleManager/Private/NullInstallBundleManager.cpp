@@ -4,9 +4,9 @@
 #include "InstallBundleManagerModule.h"
 #include "Modules/ModuleManager.h"
 
-class FNullInstallBundleManager : public IInstallBundleManager
+class FNullInstallBundleManager final : public IInstallBundleManager
 {
-	virtual bool HasBundleSource(EInstallBundleSourceType SourceType) const override
+	virtual bool HasBundleSource(FInstallBundleSourceType SourceType) const override
 	{
 		return false;
 	}

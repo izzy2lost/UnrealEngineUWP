@@ -21,7 +21,7 @@ public:
 
 	// IInstallBundleSource Interface
 public:
-	virtual EInstallBundleSourceType GetSourceType() const override;
+	virtual FInstallBundleSourceType GetSourceType() const override;
 
 	virtual FInstallBundleSourceInitInfo Init(
 		TSharedRef<InstallBundleUtil::FContentRequestStatsMap> InRequestStats,

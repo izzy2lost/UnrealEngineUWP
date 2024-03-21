@@ -48,7 +48,7 @@ TSharedPtr<IInstallBundleManager> IInstallBundleManager::GetPlatformInstallBundl
 	return {};
 }
 
-const TSharedPtr<IInstallBundleSource> IInstallBundleManager::GetBundleSource(EInstallBundleSourceType SourceType) const
+const TSharedPtr<IInstallBundleSource> IInstallBundleManager::GetBundleSource(FInstallBundleSourceType SourceType) const
 {
 	return {};
 }

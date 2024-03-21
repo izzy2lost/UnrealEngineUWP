@@ -37,6 +37,8 @@ namespace InstallBundleUtil
 
 	INSTALLBUNDLEMANAGER_API const FString& GetInstallBundleSectionPrefix();
 
+	INSTALLBUNDLEMANAGER_API bool GetConfiguredBundleSources(TArray<FString>& OutSources, TMap<FString, FString>& OutFallbackSources);
+
 	// returns true if the given BundleName exists in the InstallBundle.ini config
 	INSTALLBUNDLEMANAGER_API bool HasInstallBundleInConfig(const FString& BundleName);
 
@@ -65,7 +67,7 @@ namespace InstallBundleUtil
 	constexpr auto& CastAsUnderlying(EnumType &Type)
 	{
 		static_assert(TIsEnum<EnumType>::Value, "");
-		using UnderType = __underlying_type(EnumType);
+		using UnderType = std::underlying_type_t<EnumType>;
 		return *reinterpret_cast<UnderType*>(&Type);
 	}
 
@@ -73,7 +75,7 @@ namespace InstallBundleUtil
 	constexpr const auto& CastAsUnderlying(const EnumType &Type)
 	{
 		static_assert(TIsEnum<EnumType>::Value, "");
-		using UnderType = __underlying_type(EnumType);
+		using UnderType = std::underlying_type_t<EnumType>;
 		return *reinterpret_cast<const UnderType*>(&Type);
 	}
 
@@ -81,14 +83,14 @@ namespace InstallBundleUtil
 	constexpr auto CastToUnderlying(EnumType Type)
 	{
 		static_assert(TIsEnum<EnumType>::Value, "");
-		using UnderType = __underlying_type(EnumType);
+		using UnderType = std::underlying_type_t<EnumType>;
 		return static_cast<UnderType>(Type);
 	}
 
-	template<typename EnumType, typename StringArrType>
+	template<typename EnumType, typename StringArrType, EnumType EnumCount = EnumType::Count>
 	const TCHAR* TLexToString(EnumType E, const StringArrType& Strings)
 	{
-		constexpr auto Count = InstallBundleUtil::CastToUnderlying(EnumType::Count);
+		constexpr auto Count = InstallBundleUtil::CastToUnderlying(EnumCount);
 		static_assert(Count == UE_ARRAY_COUNT(Strings), "");
 
 		auto Idx = InstallBundleUtil::CastToUnderlying(E);
@@ -634,7 +636,7 @@ namespace InstallBundleUtil
 		FContentRequestSharedContext& operator=(const FContentRequestSharedContext& Other) = delete;
 		FContentRequestSharedContext& operator=(FContentRequestSharedContext&& Other) = default;
 
-		TMap<EInstallBundleSourceType, TUniquePtr<IBundleSourceContentRequestSharedContext>> BundleSourceSharedContext;
+		TMap<FInstallBundleSourceType, TUniquePtr<IBundleSourceContentRequestSharedContext>> BundleSourceSharedContext;
 	};
 	using FContentRequestSharedContextPtr = TSharedPtr<FContentRequestSharedContext>;
 }

@@ -20,7 +20,7 @@
 	#define WITH_PLATFORM_INSTALL_BUNDLE_SOURCE 0
 #endif
 
-enum class EInstallBundleSourceType : int
+enum class UE_DEPRECATED(5.5, "Use FInstallBundleSourceType") EInstallBundleSourceType : int
 {
 	Bulk,
 	Launcher,
@@ -32,9 +32,46 @@ enum class EInstallBundleSourceType : int
 	Streaming,
 	Count,
 };
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
 ENUM_RANGE_BY_COUNT(EInstallBundleSourceType, EInstallBundleSourceType::Count);
+UE_DEPRECATED(5.5, "Use FInstallBundleSourceType")
 INSTALLBUNDLEMANAGER_API const TCHAR* LexToString(EInstallBundleSourceType Type);
+UE_DEPRECATED(5.5, "Use FInstallBundleSourceType")
 INSTALLBUNDLEMANAGER_API void LexFromString(EInstallBundleSourceType& OutType, const TCHAR* String);
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
+
+
+class FInstallBundleSourceType
+{
+private:
+	FStringView NameStr;
+
+public:
+	INSTALLBUNDLEMANAGER_API explicit FInstallBundleSourceType(FStringView InNameStr);
+
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
+	INSTALLBUNDLEMANAGER_API FInstallBundleSourceType(EInstallBundleSourceType InLegacySourceType);
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
+
+	FStringView GetName() const { return NameStr; }
+	FString GetNameStr() const { return FString(NameStr); }
+	const TCHAR* GetNameCStr() const { return NameStr.GetData(); }
+
+	bool IsValid() const { return !NameStr.IsEmpty(); }
+
+	bool operator==(const FInstallBundleSourceType Other) const
+	{
+		// These should always point to constant strings
+		return NameStr.GetData() == Other.NameStr.GetData();
+	}
+
+	friend inline uint32 GetTypeHash(FInstallBundleSourceType In)
+	{
+		// These should always point to constant strings
+		return PointerHash(In.NameStr.GetData());
+	}
+};
+INSTALLBUNDLEMANAGER_API const TCHAR* LexToString(FInstallBundleSourceType Type);
 
 enum class EInstallBundleManagerInitState : int
 {
@@ -84,13 +121,13 @@ struct FInstallBundleContentState
 {
 	EInstallBundleInstallState State = EInstallBundleInstallState::NotInstalled;
 	float Weight = 0.0f;
-	TMap<EInstallBundleSourceType, FString> Version;
+	TMap<FInstallBundleSourceType, FString> Version;
 };
 
 struct FInstallBundleCombinedContentState
 {
 	TMap<FName, FInstallBundleContentState> IndividualBundleStates;
-	TMap<EInstallBundleSourceType, FString> CurrentVersion;
+	TMap<FInstallBundleSourceType, FString> CurrentVersion;
 	uint64 DownloadSize = 0;
 	uint64 InstallSize = 0;
 	uint64 InstallOverheadSize = 0;

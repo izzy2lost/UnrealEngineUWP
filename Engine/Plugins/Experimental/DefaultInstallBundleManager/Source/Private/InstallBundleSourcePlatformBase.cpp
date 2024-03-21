@@ -24,9 +24,9 @@ FInstallBundleSourcePlatformBase::~FInstallBundleSourcePlatformBase()
 }
 
 
-EInstallBundleSourceType FInstallBundleSourcePlatformBase::GetSourceType() const
+FInstallBundleSourceType FInstallBundleSourcePlatformBase::GetSourceType() const
 {
-	return EInstallBundleSourceType::Platform;
+	return FInstallBundleSourceType(TEXT("Platform"));
 }
 
 FInstallBundleSourceInitInfo FInstallBundleSourcePlatformBase::Init(
