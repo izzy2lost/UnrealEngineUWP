@@ -6,6 +6,10 @@
 #include "Editor.h"
 #include "EditorUndoClient.h"
 #include "NiagaraEditorStyle.h"
+#include "NiagaraNodeParameterMapBase.h"
+#include "NiagaraParameterMapHistory.h"
+#include "NiagaraScriptSource.h"
+#include "NiagaraSystem.h"
 #include "PropertyHandle.h"
 #include "ScopedTransaction.h"
 
@@ -16,6 +20,7 @@
 #include "Widgets/NiagaraDistributionEditorUtilities.h"
 #include "Widgets/SBoxPanel.h"
 #include "Widgets/SCompoundWidget.h"
+#include "Widgets/SNiagaraParameterName.h"
 #include "Widgets/INiagaraDistributionAdapter.h"
 #include "Widgets/Input/SComboButton.h"
 #include "Widgets/Input/SNumericEntryBox.h"
@@ -72,7 +77,13 @@ class SNiagaraDistributionIntPropertyWidget : public SCompoundWidget
 		UObject* OwnerObject = WeakOwnerObject.Get();
 		if (PropertyHandle.IsValid() && OwnerObject && Distribution)
 		{
-			return Distribution->Mode == ENiagaraDistributionMode::UniformConstant ? ENiagaraDistributionEditorMode::UniformConstant : ENiagaraDistributionEditorMode::UniformRange;
+			switch (Distribution->Mode)
+			{
+				case ENiagaraDistributionMode::Binding:			return ENiagaraDistributionEditorMode::Binding;
+				case ENiagaraDistributionMode::UniformConstant: return ENiagaraDistributionEditorMode::UniformConstant;
+				case ENiagaraDistributionMode::UniformRange:	return ENiagaraDistributionEditorMode::UniformRange;
+				default:										break;
+			}
 		}
 		return ENiagaraDistributionEditorMode::UniformConstant;
 	}
@@ -87,7 +98,13 @@ class SNiagaraDistributionIntPropertyWidget : public SCompoundWidget
 			OwnerObject->Modify();
 			PropertyHandle->NotifyPreChange();
 
-			Distribution->Mode = NewMode == ENiagaraDistributionEditorMode::UniformConstant ? ENiagaraDistributionMode::UniformConstant : ENiagaraDistributionMode::UniformRange;
+			switch (NewMode)
+			{
+				case ENiagaraDistributionEditorMode::Binding:			Distribution->Mode = ENiagaraDistributionMode::Binding; break;
+				case ENiagaraDistributionEditorMode::UniformConstant:	Distribution->Mode = ENiagaraDistributionMode::UniformConstant; break;
+				case ENiagaraDistributionEditorMode::UniformRange:		Distribution->Mode = ENiagaraDistributionMode::UniformRange; break;
+				default:												break;
+			}
 			ContentBox->SetContent(ConstructContentForMode());
 
 			PropertyHandle->NotifyPostChange(bContinuousChangeActive ? EPropertyChangeType::Interactive : EPropertyChangeType::ValueSet);
@@ -102,7 +119,21 @@ class SNiagaraDistributionIntPropertyWidget : public SCompoundWidget
 	TSharedRef<SWidget> OnGetDistributionModeMenuContent()
 	{
 		FMenuBuilder MenuBuilder(true, nullptr);
-		TArray<ENiagaraDistributionEditorMode> SupportedModes { ENiagaraDistributionEditorMode::UniformConstant, ENiagaraDistributionEditorMode::UniformRange };
+
+		TArray<ENiagaraDistributionEditorMode, TInlineAllocator<3>> SupportedModes;
+
+		TSharedPtr<IPropertyHandle> PropertyHandle = WeakPropertyHandle.Pin();
+		if (PropertyHandle.IsValid())
+		{
+			const FName DisableBindingDistributionName("DisableBindingDistribution");
+			if (!PropertyHandle->HasMetaData(DisableBindingDistributionName))
+			{
+				SupportedModes.Add(ENiagaraDistributionEditorMode::Binding);
+			}
+			SupportedModes.Add(ENiagaraDistributionEditorMode::UniformConstant);
+			SupportedModes.Add(ENiagaraDistributionEditorMode::UniformRange);
+		}
+
 		for (ENiagaraDistributionEditorMode SupportedMode : SupportedModes)
 		{
 			MenuBuilder.AddMenuEntry(
@@ -135,7 +166,15 @@ class SNiagaraDistributionIntPropertyWidget : public SCompoundWidget
 	TSharedRef<SWidget> ConstructContentForMode()
 	{
 		const ENiagaraDistributionEditorMode Mode = GetDistributionMode();
-		if (Mode == ENiagaraDistributionEditorMode::UniformConstant)
+		if (Mode == ENiagaraDistributionEditorMode::Binding)
+		{
+			return SNew(SHorizontalBox)
+				+ SHorizontalBox::Slot()
+				[
+					ConstructBindingWidget()
+				];
+		}
+		else if (Mode == ENiagaraDistributionEditorMode::UniformConstant)
 		{
 			return SNew(SHorizontalBox)
 				+ SHorizontalBox::Slot()
@@ -143,7 +182,7 @@ class SNiagaraDistributionIntPropertyWidget : public SCompoundWidget
 					ConstructIntWidget(0, FText())
 				];
 		}
-		else
+		else if (Mode == ENiagaraDistributionEditorMode::UniformRange)
 		{
 			return SNew(SHorizontalBox)
 				+ SHorizontalBox::Slot()
@@ -155,6 +194,7 @@ class SNiagaraDistributionIntPropertyWidget : public SCompoundWidget
 					ConstructIntWidget(1, LOCTEXT("MaxLabel", "Max"))
 				];
 		}
+		return SNullWidget::NullWidget;
 	}
 
 	TSharedRef<SWidget> ConstructIntWidget(int32 ValueIndex, FText LabelText)
@@ -234,6 +274,99 @@ class SNiagaraDistributionIntPropertyWidget : public SCompoundWidget
 	void EndValueSliderMovement(int32 Value)
 	{
 		bContinuousChangeActive = false;
+	}
+
+	TSharedRef<SWidget> ConstructBindingWidget()
+	{
+		return SNew(SComboButton)
+			.ButtonStyle(FAppStyle::Get(), "HoverHintOnly")
+			.ContentPadding(FMargin(0))
+			.OnGetMenuContent(this, &SNiagaraDistributionIntPropertyWidget::OnGetBindingMenuContent)
+			.ButtonContent()
+			[
+				SNew(SNiagaraParameterName)
+				.ParameterName(this, &SNiagaraDistributionIntPropertyWidget::GetBindingValueName)
+				.IsReadOnly(true)
+			];
+	}
+
+	virtual TArray<FNiagaraVariableBase> GetAvailableBindings() const
+	{
+		TArray<FNiagaraVariableBase> AvailableBindings;
+		
+		UObject* OwnerObject = WeakOwnerObject.Get();
+		UNiagaraSystem* OwnerSystem = OwnerObject ? OwnerObject->GetTypedOuter<UNiagaraSystem>() : nullptr;
+		const FNiagaraTypeDefinition AllowedTypeDef = Distribution->GetBindingTypeDef();
+		if (OwnerSystem && AllowedTypeDef.IsValid())
+		{
+			if (UNiagaraScriptSource* Source = Cast<UNiagaraScriptSource>(OwnerSystem->GetSystemUpdateScript()->GetLatestSource()))
+			{
+				TArray<FNiagaraParameterMapHistory> Histories = UNiagaraNodeParameterMapBase::GetParameterMaps(Source->NodeGraph);
+				for (const FNiagaraParameterMapHistory& History : Histories)
+				{
+					for (const FNiagaraVariable& Variable : History.Variables)
+					{
+						if (Variable.GetType() == AllowedTypeDef && Variable.IsInNameSpace(FNiagaraConstants::SystemNamespaceString))
+						{
+							AvailableBindings.Add(Variable);
+						}
+					}
+				}
+			}
+
+			for (const FNiagaraVariableBase& Variable : OwnerSystem->GetExposedParameters().ReadParameterVariables())
+			{
+				if (Variable.GetType() == AllowedTypeDef)
+				{
+					AvailableBindings.Add(Variable);
+				}
+			}
+		}
+		return AvailableBindings;
+	}
+
+	TSharedRef<SWidget> OnGetBindingMenuContent()
+	{
+		FMenuBuilder MenuBuilder(true, nullptr);
+		for (const FNiagaraVariableBase& Variable : GetAvailableBindings())
+		{
+			TSharedRef<SWidget> Widget = SNew(SNiagaraParameterName)
+				.ParameterName(Variable.GetName())
+				.IsReadOnly(true);
+
+			MenuBuilder.AddMenuEntry(
+				FUIAction(
+					FExecuteAction::CreateSP(this, &SNiagaraDistributionIntPropertyWidget::SetBindingValue, Variable)
+				),
+				Widget
+			);
+		}
+
+		return MenuBuilder.MakeWidget();
+	}
+
+	FName GetBindingValueName() const
+	{
+		UObject* OwnerObject = WeakOwnerObject.Get();
+		return OwnerObject ? Distribution->ParameterBinding.GetName() : NAME_None;
+	}
+
+	void SetBindingValue(FNiagaraVariableBase Binding)
+	{
+		UObject* OwnerObject = WeakOwnerObject.Get();
+		TSharedPtr<IPropertyHandle> PropertyHandle = WeakPropertyHandle.Pin();
+		if (OwnerObject == nullptr || !PropertyHandle.IsValid())
+		{
+			return;
+		}
+
+		const FScopedTransaction Transaction(LOCTEXT("SetBinding", "Set binding value"));
+		OwnerObject->Modify();
+		PropertyHandle->NotifyPreChange();
+
+		Distribution->ParameterBinding = Binding;
+
+		PropertyHandle->NotifyPostChange(bContinuousChangeActive ? EPropertyChangeType::Interactive : EPropertyChangeType::ValueSet);
 	}
 
 private:
