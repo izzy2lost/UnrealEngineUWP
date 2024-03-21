@@ -5041,6 +5041,13 @@ void FEngineLoop::Exit()
 #endif // WITH_EDITOR
 	FModuleManager::Get().UnloadModule("WorldBrowser", true);
 
+	// Clean up all cached pipelines, before the garbage collector shuts down.
+	ENQUEUE_RENDER_COMMAND(ShutdownPipelineStateCache)([](FRHICommandListImmediate& RHICmdList)
+	{
+		PipelineStateCache::Shutdown();
+	});
+	FlushRenderingCommands();
+
 	AppPreExit();
 
 	TermGamePhys();
@@ -5057,7 +5064,7 @@ void FEngineLoop::Exit()
 
 	// Stop the rendering thread.
 	ShutdownRenderingThread();
-	
+
 	// Disable the PSO cache
 	FShaderPipelineCache::Shutdown();
 
