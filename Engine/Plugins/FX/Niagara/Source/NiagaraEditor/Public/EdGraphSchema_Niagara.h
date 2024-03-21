@@ -207,7 +207,17 @@ public:
 	FNiagaraConnectionDrawingPolicy(int32 InBackLayerID, int32 InFrontLayerID, float InZoomFactor, const FSlateRect& InClippingRect, FSlateWindowElementList& InDrawElements, UEdGraph* InGraph);
 	virtual void DetermineWiringStyle(UEdGraphPin* OutputPin, UEdGraphPin* InputPin, /*inout*/ FConnectionParams& Params) override;
 
-private:
-	class UNiagaraGraph* Graph;
+protected:
+	bool ShouldChangeTangentForReroute(class UNiagaraNodeReroute* Node);
+	bool GetAverageConnectedPosition(class UNiagaraNodeReroute* Reroute, EEdGraphPinDirection Direction, FVector2D& OutPos) const;
+	bool FindPinCenter(UEdGraphPin* Pin, FVector2D& OutCenter) const;
+protected:
+	class UNiagaraGraph* GraphObj;
+	
+	float DefaultDataWireThickness;
+	float DefaultExecutionWireThickness;
+	
+	// Each time a Reroute is encountered, input geometry is compared to output geometry to see if the pins on the reroute need to be reversed
+	TMap<class UNiagaraNodeReroute*, bool> RerouteToReversedDirectionMap;
 };
 
