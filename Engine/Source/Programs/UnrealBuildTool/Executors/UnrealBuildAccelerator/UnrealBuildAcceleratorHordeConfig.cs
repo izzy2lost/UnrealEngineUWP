@@ -21,7 +21,7 @@ namespace UnrealBuildTool
 		public string? HordeServer { get; set; }
 
 		/// <summary>
-		/// Uri of the Horde server
+		/// Auth token for the Horde server
 		/// </summary>
 		[XmlConfigFile(Category = "Horde", Name = "Token")]
 		[CommandLine("-BoxHordeToken=")]
@@ -31,6 +31,7 @@ namespace UnrealBuildTool
 		/// <summary>
 		/// OIDC id for the login to use
 		/// </summary>
+		[Obsolete("The OidcProvider option is no longer used")]
 		[XmlConfigFile(Category = "Horde", Name = "OidcProvider")]
 		[CommandLine("-BoxHordeOidc=")]
 		[CommandLine("-UBAHordeOidc=")]
