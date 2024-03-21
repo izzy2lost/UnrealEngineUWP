@@ -9,6 +9,7 @@
 
 class UCustomizableObjectInstance;
 class UTexture2D;
+struct FCustomizableObjectInstanceDescriptor;
 
 
 /** Stat which automatically gets updated to Insights when modified. */
@@ -87,7 +88,7 @@ public:
 	/** Gathers update stats when it has finished. */
 	void FinishUpdateMesh(const TSharedRef<FUpdateContextPrivate>& Context);
 
-	void FinishUpdateImage(const FString& CustomizableObjectPathName, const FString& InstancePathName, double TaskUpdateImageTime, const int64 TaskUpdateImageMemoryPeak, const int64 TaskUpdateImageRealMemoryPeak) const;
+	void FinishUpdateImage(const FString& CustomizableObjectPathName, const FString& InstancePathName, const FString& InstanceDescriptor, double TaskUpdateImageTime, const int64 TaskUpdateImageMemoryPeak, const int64 TaskUpdateImageRealMemoryPeak) const;
 	
 	DECLARE_BENCHMARK_STAT(NumAllocatedTextures, uint32);
 	DECLARE_BENCHMARK_STAT(TextureGPUSize, uint64);

@@ -533,6 +533,7 @@ public:
 	TArray<bool> MeshChanged;
 	
 	bool UpdateStarted = false;
+	bool bLevelBegunPlay = false;
 
 	// Update stats
 	double StartQueueTime = 0.0;

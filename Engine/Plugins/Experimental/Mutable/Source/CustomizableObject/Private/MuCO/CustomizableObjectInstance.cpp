@@ -5591,6 +5591,12 @@ void UCustomizableInstancePrivate::BuildMaterials(const TSharedRef<FUpdateContex
 		CustomizableObject->GetPrivate()->GetModel(),
 		OperationData->Parameters,
 	    OperationData->GetCapturedDescriptor().GetState());
+
+	// Cache the descriptor as a string if we want to later report it using our benchmark utility. 
+	if (CVarEnableBenchmark.GetValueOnAnyThread())
+	{
+		UpdateContext->CapturedDescriptor = OperationData->GetCapturedDescriptor().ToString();
+	}
 	
 	const bool bReuseTextures = OperationData->bReuseInstanceTextures;
 

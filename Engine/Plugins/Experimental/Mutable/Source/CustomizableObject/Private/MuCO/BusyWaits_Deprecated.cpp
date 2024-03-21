@@ -554,9 +554,11 @@ namespace CustomizableObjectMipDataProvider::ImplDeprecated
 
 			const FString& CustomizableObjectPathName = OperationData->UpdateContext->GetCustomizableObjectPathName();
 			const FString& InstancePathName = OperationData->UpdateContext->GetInstancePathName();
-			
+
+			const FString& Descriptor = OperationData->UpdateContext->CapturedDescriptor;
+
 			FFunctionGraphTask::CreateAndDispatchWhenReady(
-			[CustomizableObjectPathName, InstancePathName, Time, PeakMemory, RealMemoryPeak]()
+			[CustomizableObjectPathName, InstancePathName, Time, PeakMemory, RealMemoryPeak, Descriptor]()
 			{
 				if (!UCustomizableObjectSystem::IsCreated()) // We are shutting down
 				{
@@ -569,7 +571,7 @@ namespace CustomizableObjectMipDataProvider::ImplDeprecated
 					return;
 				}
 
-				System->GetPrivate()->LogBenchmarkUtil.FinishUpdateImage(CustomizableObjectPathName, InstancePathName, Time, PeakMemory, RealMemoryPeak);
+				System->GetPrivate()->LogBenchmarkUtil.FinishUpdateImage(CustomizableObjectPathName, InstancePathName, Descriptor, Time, PeakMemory, RealMemoryPeak);
 			},
 			TStatId{},
 			nullptr,

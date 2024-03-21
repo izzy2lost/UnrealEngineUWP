@@ -281,9 +281,11 @@ namespace Impl
 
 						const FString& CustomizableObjectPathName = OperationData->UpdateContext->GetCustomizableObjectPathName();
 						const FString& InstancePathName = OperationData->UpdateContext->GetInstancePathName();
-					
+
+						const FString& Descriptor = OperationData->UpdateContext->CapturedDescriptor;
+
 						ExecuteOnGameThread(UE_SOURCE_LOCATION, 
-						[CustomizableObjectPathName, InstancePathName, Time, PeakMemory, RealMemoryPeak]()
+						[CustomizableObjectPathName, InstancePathName, Time, PeakMemory, RealMemoryPeak, Descriptor ]
 						{
 							if (!UCustomizableObjectSystem::IsCreated()) // We are shutting down
 							{
@@ -296,7 +298,7 @@ namespace Impl
 								return;
 							}
 
-							System->GetPrivate()->LogBenchmarkUtil.FinishUpdateImage(CustomizableObjectPathName, InstancePathName, Time, PeakMemory, RealMemoryPeak);
+							System->GetPrivate()->LogBenchmarkUtil.FinishUpdateImage(CustomizableObjectPathName, InstancePathName, Descriptor, Time, PeakMemory, RealMemoryPeak);
 						});
 					}
 
@@ -336,7 +338,7 @@ int32 FMutableTextureMipDataProvider::GetMips(const FTextureUpdateContext& Conte
 	check(!Texture->NeverStream);
 	const TIndirectArray<FTexture2DMipMap>& OwnerMips = Texture->GetPlatformMips();
 
-	int32 NumMips = OwnerMips.Num();
+	const int32 NumMips = OwnerMips.Num();
 	check(ImageRef.ImageID > 0);
 
 	// Maximum value to skip, will be minimized by the first mip level requested
