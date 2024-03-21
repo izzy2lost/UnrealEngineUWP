@@ -195,6 +195,14 @@ IMediaView& FImgMediaPlayer::GetView()
 
 bool FImgMediaPlayer::Open(const FString& Url, const IMediaOptions* Options)
 {
+	UE_LOG(LogImgMedia, Log, TEXT("Open() called without player options, smart caching will not be available."));
+	FMediaPlayerOptions NoOptions;
+	NoOptions.SetAllAsOptional();
+	return Open(Url, Options, &NoOptions);
+}
+
+bool FImgMediaPlayer::Open(const FString& Url, const IMediaOptions* Options, const FMediaPlayerOptions* PlayerOptions)
+{
 	Close();
 
 	if (Url.IsEmpty() || !Url.StartsWith(TEXT("img://")))
@@ -218,19 +226,28 @@ bool FImgMediaPlayer::Open(const FString& Url, const IMediaOptions* Options)
 		Proxy = GetDefault<UImgMediaSettings>()->GetDefaultProxy();
 	}
 
+	auto GetBoolOption = [](const FMediaPlayerOptions* InPlayerOptions, const FName& InOptionName, bool bInDefaultValue) -> bool
+	{
+		const FVariant* Var = InPlayerOptions ? InPlayerOptions->InternalCustomOptions.Find(InOptionName) : nullptr;
+		return Var && Var->GetType() == EVariantTypes::Bool ? Var->GetValue<bool>() : bInDefaultValue;
+	};
+	auto GetDoubleOption = [](const FMediaPlayerOptions* InPlayerOptions, const FName& InOptionName, double InDefaultValue) -> double
+	{
+		const FVariant* Var = InPlayerOptions ? InPlayerOptions->InternalCustomOptions.Find(InOptionName) : nullptr;
+		return Var && Var->GetType() == EVariantTypes::Float ? (double)Var->GetValue<float>() : Var && Var->GetType() == EVariantTypes::Double ? Var->GetValue<double>() : InDefaultValue;
+	};
+
 	// get frame rate override, if any
 	FFrameRate FrameRateOverride(0, 0);
 	TSharedPtr<FImgMediaMipMapInfo, ESPMode::ThreadSafe> MipMapInfo;
 	bool bFillGapsInSequence = true;
-	bool bIsSmartCacheEnabled = false;
-	float SmartCacheTimeToLookAhead = 0.0f;
+	bool bIsSmartCacheEnabled = GetBoolOption(PlayerOptions, MediaPlayerOptionValues::ImgMediaSmartCacheEnabled(), false);
+	double SmartCacheTimeToLookAhead = GetDoubleOption(PlayerOptions, MediaPlayerOptionValues::ImgMediaSmartCacheTimeToLookAhead(), 0.0);
 	if (Options != nullptr)
 	{
 		FrameRateOverride.Denominator = Options->GetMediaOption(ImgMedia::FrameRateOverrideDenonimatorOption, 0LL);
 		FrameRateOverride.Numerator = Options->GetMediaOption(ImgMedia::FrameRateOverrideNumeratorOption, 0LL);
 		bFillGapsInSequence = Options->GetMediaOption(ImgMedia::FillGapsInSequenceOption, true);
-		bIsSmartCacheEnabled = Options->GetMediaOption(ImgMedia::SmartCacheEnabled, false);
-		SmartCacheTimeToLookAhead = Options->GetMediaOption(ImgMedia::SmartCacheTimeToLookAhead, 0.0f);
 		TSharedPtr<IMediaOptions::FDataContainer, ESPMode::ThreadSafe> DefaultValue;
 		TSharedPtr<IMediaOptions::FDataContainer, ESPMode::ThreadSafe> DataContainer = Options->GetMediaOption(ImgMedia::MipMapInfoOption, DefaultValue);
 		if (DataContainer.IsValid())
@@ -266,7 +283,7 @@ bool FImgMediaPlayer::Open(const FString& Url, const IMediaOptions* Options)
 	}
 
 	// initialize image loader on a separate thread
-	FImgMediaLoaderSmartCacheSettings SmartCacheSettings(bIsSmartCacheEnabled, SmartCacheTimeToLookAhead);
+	FImgMediaLoaderSmartCacheSettings SmartCacheSettings(bIsSmartCacheEnabled, (float)SmartCacheTimeToLookAhead);
 	Loader = MakeShared<FImgMediaLoader, ESPMode::ThreadSafe>(Scheduler.ToSharedRef(),
 		GlobalCache.ToSharedRef(), MipMapInfo, bFillGapsInSequence, SmartCacheSettings);
 	Scheduler->RegisterLoader(Loader.ToSharedRef());

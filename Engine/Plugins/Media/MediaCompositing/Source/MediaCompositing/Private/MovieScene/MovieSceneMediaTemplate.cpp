@@ -9,6 +9,7 @@
 #include "MediaPlayerProxyInterface.h"
 #include "MediaSoundComponent.h"
 #include "MediaSource.h"
+#include "MediaSourceOptions.h"
 #include "MediaTexture.h"
 #include "UObject/Package.h"
 #include "UObject/GCObject.h"
@@ -26,14 +27,45 @@
 /* Local helpers
  *****************************************************************************/
 
+struct FMediaSectionBaseMediaSourceOptions
+{
+	FMediaSourceCacheSettings CacheSettings;
+};
+
+namespace FMediaSectionBaseMediaUtils
+{
+	FMediaSourceCacheSettings GetCurrentCacheSettingsFromPlayer(const UMediaPlayer* InPlayer)
+	{
+		FMediaSourceCacheSettings cs;
+		if (InPlayer)
+		{
+			TOptional<FMediaPlayerOptions> ActivePlayerOptions = InPlayer->GetPlayerFacade()->ActivePlayerOptions;
+			if (ActivePlayerOptions.IsSet() 
+				&& ActivePlayerOptions.GetValue().InternalCustomOptions.Contains(MediaPlayerOptionValues::ImgMediaSmartCacheEnabled())
+				&& ActivePlayerOptions.GetValue().InternalCustomOptions.Contains(MediaPlayerOptionValues::ImgMediaSmartCacheTimeToLookAhead()))
+			{
+				FVariant vEnabled = ActivePlayerOptions.GetValue().InternalCustomOptions[MediaPlayerOptionValues::ImgMediaSmartCacheEnabled()];
+				FVariant vTTLA = ActivePlayerOptions.GetValue().InternalCustomOptions[MediaPlayerOptionValues::ImgMediaSmartCacheTimeToLookAhead()];
+				if (vEnabled.GetType() == EVariantTypes::Bool && (vTTLA.GetType() == EVariantTypes::Float || vTTLA.GetType() == EVariantTypes::Double))
+				{
+					cs.bOverride = vEnabled.GetValue<bool>();
+					cs.TimeToLookAhead = vTTLA.GetType() == EVariantTypes::Float ? (double)vTTLA.GetValue<float>() : vTTLA.GetValue<double>();
+				}
+			}
+		}
+		return cs;
+	}
+}
+
 /** Base struct for exectution tokens. */
 struct FMediaSectionBaseExecutionToken
 	: IMovieSceneExecutionToken
 {
-	FMediaSectionBaseExecutionToken(UMediaSource* InMediaSource, const FMovieSceneObjectBindingID& InMediaSourceProxy, int32 InMediaSourceProxyIndex)
+	FMediaSectionBaseExecutionToken(UMediaSource* InMediaSource, const FMediaSectionBaseMediaSourceOptions& InMediaSourceOptions, const FMovieSceneObjectBindingID& InMediaSourceProxy, int32 InMediaSourceProxyIndex)
 		: BaseMediaSource(InMediaSource)
 		, MediaSourceProxy(InMediaSourceProxy)
 		, MediaSourceProxyIndex(InMediaSourceProxyIndex)
+		, BaseMediaSourceOptions(InMediaSourceOptions)
 	{
 	}
 
@@ -56,17 +88,23 @@ struct FMediaSectionBaseExecutionToken
 	 */
 	bool IsMediaSourceProxyValid() const { return MediaSourceProxy.IsValid(); }
 
+	/**
+	 * Gets the media source options
+	 */
+	const FMediaSectionBaseMediaSourceOptions& GetBaseMediaSourceOptions() const { return BaseMediaSourceOptions; }
+
 private:
 	UMediaSource* BaseMediaSource;
 	FMovieSceneObjectBindingID MediaSourceProxy;
 	int32 MediaSourceProxyIndex = 0;
+	FMediaSectionBaseMediaSourceOptions BaseMediaSourceOptions;
 };
 
 struct FMediaSectionPreRollExecutionToken
 	: FMediaSectionBaseExecutionToken
 {
-	FMediaSectionPreRollExecutionToken(UMediaSource* InMediaSource, FMovieSceneObjectBindingID InMediaSourceProxy, int32 InMediaSourceProxyIndex, FTimespan InStartTimeSeconds)
-		: FMediaSectionBaseExecutionToken(InMediaSource, InMediaSourceProxy, InMediaSourceProxyIndex)
+	FMediaSectionPreRollExecutionToken(UMediaSource* InMediaSource, const FMediaSectionBaseMediaSourceOptions& InMediaSourceOptions, FMovieSceneObjectBindingID InMediaSourceProxy, int32 InMediaSourceProxyIndex, FTimespan InStartTimeSeconds)
+		: FMediaSectionBaseExecutionToken(InMediaSource, InMediaSourceOptions, InMediaSourceProxy, InMediaSourceProxyIndex)
 		, StartTime(InStartTimeSeconds)
 	{ }
 
@@ -87,16 +125,19 @@ struct FMediaSectionPreRollExecutionToken
 		// open the media source if necessary
 		if (MediaPlayer->GetUrl().IsEmpty())
 		{
-			FMediaPlayerOptions Options;
-			Options.SetAllAsOptional();
-
-			if (PlayerProxyInterface != nullptr)
-			{
-				MediaSource->SetCacheSettings(PlayerProxyInterface->GetCacheSettings());
-			}
 			SectionData.SeekOnOpen(StartTime);
 
+			FMediaPlayerOptions Options;
+			Options.SetAllAsOptional();
 			Options.InternalCustomOptions.Emplace(MediaPlayerOptionValues::Environment(), MediaPlayerOptionValues::Environment_Sequencer());
+			if (PlayerProxyInterface != nullptr)
+			{
+				// Set cache settings.
+				const FMediaSourceCacheSettings& CacheSettings = PlayerProxyInterface->GetCacheSettings();
+				Options.InternalCustomOptions.Emplace(MediaPlayerOptionValues::ImgMediaSmartCacheEnabled(), FVariant(CacheSettings.bOverride));
+				Options.InternalCustomOptions.Emplace(MediaPlayerOptionValues::ImgMediaSmartCacheTimeToLookAhead(), FVariant(CacheSettings.TimeToLookAhead));
+			}
+
 			MediaPlayer->OpenSourceWithOptions(MediaSource, Options);
 			return;
 		}
@@ -119,8 +160,8 @@ private:
 struct FMediaSectionExecutionToken
 	: FMediaSectionBaseExecutionToken
 {
-	FMediaSectionExecutionToken(UMediaSource* InMediaSource, FMovieSceneObjectBindingID InMediaSourceProxy, int32 InMediaSourceProxyIndex, float InProxyTextureBlend, bool bInCanPlayerBeOpen, FTimespan InCurrentTime, FTimespan InFrameDuration)
-		: FMediaSectionBaseExecutionToken(InMediaSource, InMediaSourceProxy, InMediaSourceProxyIndex)
+	FMediaSectionExecutionToken(UMediaSource* InMediaSource, const FMediaSectionBaseMediaSourceOptions& InMediaSourceOptions, FMovieSceneObjectBindingID InMediaSourceProxy, int32 InMediaSourceProxyIndex, float InProxyTextureBlend, bool bInCanPlayerBeOpen, FTimespan InCurrentTime, FTimespan InFrameDuration)
+		: FMediaSectionBaseExecutionToken(InMediaSource, InMediaSourceOptions, InMediaSourceProxy, InMediaSourceProxyIndex)
 		, CurrentTime(InCurrentTime)
 		, FrameDuration(InFrameDuration)
 		, PlaybackRate(1.0f)
@@ -170,26 +211,27 @@ struct FMediaSectionExecutionToken
 			return;
 		}
 
-		bool bCacheSettingsChanged = false;
-		FMediaSourceCacheSettings CurrentCacheSettings;
-		if (PlayerProxyInterface != nullptr && MediaSource->GetCacheSettings(CurrentCacheSettings))
-		{
-			bCacheSettingsChanged = (CurrentCacheSettings != PlayerProxyInterface->GetCacheSettings());
-		}
+
+		// Check if the cache options have changed mid playback.
+		//const FMediaSourceCacheSettings CurrentCacheSettings = GetBaseMediaSourceOptions().CacheSettings;
+		const FMediaSourceCacheSettings CurrentCacheSettings = FMediaSectionBaseMediaUtils::GetCurrentCacheSettingsFromPlayer(MediaPlayer);
+		bool bCacheSettingsChanged = PlayerProxyInterface ? CurrentCacheSettings != PlayerProxyInterface->GetCacheSettings() : false;
 
 		// open the media source if necessary
 		if (MediaPlayer->GetUrl().IsEmpty() || bCacheSettingsChanged)
 		{
-			FMediaPlayerOptions Options;
-			Options.SetAllAsOptional();
-
-			if (PlayerProxyInterface != nullptr)
-			{
-				MediaSource->SetCacheSettings(PlayerProxyInterface->GetCacheSettings());
-			}
 			SectionData.SeekOnOpen(CurrentTime);
 
+			FMediaPlayerOptions Options;
+			Options.SetAllAsOptional();
 			Options.InternalCustomOptions.Emplace(MediaPlayerOptionValues::Environment(), MediaPlayerOptionValues::Environment_Sequencer());
+			if (PlayerProxyInterface != nullptr)
+			{
+				const FMediaSourceCacheSettings& CacheSettings = PlayerProxyInterface->GetCacheSettings();
+				Options.InternalCustomOptions.Emplace(MediaPlayerOptionValues::ImgMediaSmartCacheEnabled(), FVariant(CacheSettings.bOverride));
+				Options.InternalCustomOptions.Emplace(MediaPlayerOptionValues::ImgMediaSmartCacheTimeToLookAhead(), FVariant(CacheSettings.TimeToLookAhead));
+			}
+
 			// Setup an initial blocking range - MediaFramework will block (even through the opening process) in its next tick...
 			MediaPlayer->SetBlockOnTimeRange(TRange<FTimespan>(CurrentTime, CurrentTime + FrameDuration));
 			MediaPlayer->OpenSourceWithOptions(MediaSource, Options);
@@ -307,10 +349,7 @@ FMovieSceneMediaSectionTemplate::FMovieSceneMediaSectionTemplate(const UMovieSce
 	Params.MediaSoundComponent = InSection.MediaSoundComponent;
 	Params.bLooping = InSection.bLooping;
 	Params.StartFrameOffset = InSection.StartFrameOffset;
-	if (Params.MediaSource != nullptr)
-	{
-		Params.MediaSource->SetCacheSettings(InSection.CacheSettings);
-	}
+	Params.CacheSettings = InSection.CacheSettings;
 
 	// If using an external media player link it here so we don't automatically create it later.
 	Params.MediaPlayer = InSection.bUseExternalMediaPlayer ? InSection.ExternalMediaPlayer : nullptr;
@@ -348,7 +387,9 @@ void FMovieSceneMediaSectionTemplate::Evaluate(const FMovieSceneEvaluationOperan
 		const double StartFrameInSeconds = FrameRate.AsSeconds(StartFrame);
 		const int64 StartTicks = static_cast<int64>(StartFrameInSeconds * ETimespan::TicksPerSecond);
 
-		ExecutionTokens.Add(FMediaSectionPreRollExecutionToken(MediaSource, Params.MediaSourceProxy, Params.MediaSourceProxyIndex, FTimespan(StartTicks)));
+		FMediaSectionBaseMediaSourceOptions Options;
+		Options.CacheSettings = Params.CacheSettings;
+		ExecutionTokens.Add(FMediaSectionPreRollExecutionToken(MediaSource, Options, Params.MediaSourceProxy, Params.MediaSourceProxyIndex, FTimespan(StartTicks)));
 	}
 	else if (!Context.IsPostRoll() && (Context.GetTime().FrameNumber < Params.SectionEndFrame))
 	{
@@ -377,7 +418,9 @@ void FMovieSceneMediaSectionTemplate::Evaluate(const FMovieSceneEvaluationOperan
 			);
 		#endif
 
-		ExecutionTokens.Add(FMediaSectionExecutionToken(MediaSource, Params.MediaSourceProxy, Params.MediaSourceProxyIndex, ProxyTextureBlend, bCanPlayerBeOpen, FTimespan(FrameTicks), FTimespan(FrameDurationTicks)));
+		FMediaSectionBaseMediaSourceOptions Options;
+		Options.CacheSettings = Params.CacheSettings;
+		ExecutionTokens.Add(FMediaSectionExecutionToken(MediaSource, Options, Params.MediaSourceProxy, Params.MediaSourceProxyIndex, ProxyTextureBlend, bCanPlayerBeOpen, FTimespan(FrameTicks), FTimespan(FrameDurationTicks)));
 	}
 }
 

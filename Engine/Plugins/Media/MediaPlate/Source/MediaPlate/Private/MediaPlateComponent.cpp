@@ -564,9 +564,6 @@ bool UMediaPlateComponent::PlayMediaSource(UMediaSource* InMediaSource, bool bIn
 
 	if (InMediaSource != nullptr)
 	{
-		// Set cache settings.
-		InMediaSource->SetCacheSettings(CacheSettings);
-
 		// Set media options.
 		if (MediaPlayer != nullptr)
 		{
@@ -578,8 +575,11 @@ bool UMediaPlateComponent::PlayMediaSource(UMediaSource* InMediaSource, bool bIn
 			Options.PlayOnOpen = bInPlayOnOpen ? EMediaPlayerOptionBooleanOverride::Enabled : EMediaPlayerOptionBooleanOverride::Disabled;
 			Options.Loop = (bLoop && (bIsPlaylist == false)) ? EMediaPlayerOptionBooleanOverride::Enabled : EMediaPlayerOptionBooleanOverride::Disabled;
 			Options.InternalCustomOptions.Emplace(MediaPlayerOptionValues::Environment(), MediaPlayerOptionValues::Environment_Preview());
-			bIsPlaying = MediaPlayer->OpenSourceWithOptions(InMediaSource, Options);
+			// Set cache settings.
+			Options.InternalCustomOptions.Emplace(MediaPlayerOptionValues::ImgMediaSmartCacheEnabled(), FVariant(CacheSettings.bOverride));
+			Options.InternalCustomOptions.Emplace(MediaPlayerOptionValues::ImgMediaSmartCacheTimeToLookAhead(), FVariant(CacheSettings.TimeToLookAhead));
 
+			bIsPlaying = MediaPlayer->OpenSourceWithOptions(InMediaSource, Options);
 			// Did we play anything?
 			if (bIsPlaying)
 			{

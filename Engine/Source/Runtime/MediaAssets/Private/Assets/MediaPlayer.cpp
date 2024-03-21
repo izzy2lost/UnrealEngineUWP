@@ -532,7 +532,6 @@ bool UMediaPlayer::IsClosed() const
 
 bool UMediaPlayer::IsReady() const
 {
-	UE_LOG(LogMediaAssets, VeryVerbose, TEXT("%s.IsReady"), *GetFName().ToString());
 	return PlayerFacade->IsReady();
 }
 

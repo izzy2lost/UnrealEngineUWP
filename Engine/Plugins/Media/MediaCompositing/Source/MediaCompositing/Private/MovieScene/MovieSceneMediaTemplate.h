@@ -6,6 +6,7 @@
 #include "Evaluation/MovieSceneEvalTemplate.h"
 #include "Evaluation/MovieScenePropertyTemplate.h"
 #include "MovieSceneObjectBindingID.h"
+#include "MediaSourceOptions.h"
 
 #include "MovieSceneMediaTemplate.generated.h"
 
@@ -54,6 +55,9 @@ struct FMovieSceneMediaSectionParams
 
 	UPROPERTY()
 	FMovieSceneFloatChannel ProxyTextureBlend;
+
+	UPROPERTY()
+	FMediaSourceCacheSettings CacheSettings;
 
 	FMovieSceneMediaSectionParams()
 		: MediaSoundComponent(nullptr)
