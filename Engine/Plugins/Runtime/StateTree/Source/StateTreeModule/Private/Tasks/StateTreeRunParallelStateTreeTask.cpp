@@ -69,4 +69,12 @@ void FStateTreeRunParallelStateTreeTask::PostEditInstanceDataChangeChainProperty
 		InstanceDataView.GetMutable<FInstanceDataType>().StateTree.SyncParameters();
 	}
 }
+
+void FStateTreeRunParallelStateTreeTask::PostLoad(FStateTreeDataView InstanceDataView)
+{
+	if (FInstanceDataType* DataType = InstanceDataView.GetMutablePtr<FInstanceDataType>())
+	{
+		DataType->StateTree.SyncParameters();
+	}
+}
 #endif // WITH_EDITOR

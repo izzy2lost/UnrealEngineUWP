@@ -331,6 +331,29 @@ void UStateTree::PostLoad()
 {
 	Super::PostLoad();
 
+#if WITH_EDITOR
+	for (int32 NodeIndex = 0; NodeIndex < Nodes.Num(); ++NodeIndex)
+	{
+		FStructView NodeView = Nodes[NodeIndex];
+		if (FStateTreeNodeBase* Node = NodeView.GetPtr<FStateTreeNodeBase>())
+		{
+			if (Node->InstanceTemplateIndex.IsValid())
+			{
+				FStateTreeInstanceData& SourceInstanceData = NodeView.GetPtr<FStateTreeConditionBase>() != nullptr ? SharedInstanceData : DefaultInstanceData;
+				if (SourceInstanceData.IsObject(Node->InstanceTemplateIndex.Get()))
+				{
+					Node->PostLoad(SourceInstanceData.GetMutableObject(Node->InstanceTemplateIndex.Get()));
+				}
+				else
+				{
+					Node->PostLoad(SourceInstanceData.GetMutableStruct(Node->InstanceTemplateIndex.Get()));
+				}
+			}
+			
+		}
+	}
+#endif // WITH_EDITOR
+
 	const int32 CurrentVersion = GetLinkerCustomVersion(FStateTreeCustomVersion::GUID);
 
 	if (CurrentVersion < FStateTreeCustomVersion::LatestVersion)

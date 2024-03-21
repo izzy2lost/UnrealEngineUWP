@@ -43,5 +43,6 @@ protected:
 
 #if WITH_EDITOR
 	virtual void PostEditInstanceDataChangeChainProperty(const FPropertyChangedChainEvent& PropertyChangedEvent, FStateTreeDataView InstanceDataView) override;
+	virtual void PostLoad(FStateTreeDataView InstanceDataView) override;
 #endif // WITH_EDITOR
 };

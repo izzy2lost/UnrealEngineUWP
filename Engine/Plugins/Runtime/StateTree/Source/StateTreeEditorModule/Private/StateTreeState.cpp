@@ -396,6 +396,29 @@ void UStateTreeState::PostLoad()
 	
 #endif // WITH_EDITORONLY_DATA
 
+#if WITH_EDITOR
+	for (FStateTreeEditorNode& EnterConditionEditorNode : EnterConditions)
+	{
+		if (FStateTreeNodeBase* ConditionNode = EnterConditionEditorNode.Node.GetMutablePtr<FStateTreeNodeBase>())
+		{
+			ConditionNode->PostLoad(EnterConditionEditorNode.GetInstance());
+		}
+	}
+
+	for (FStateTreeEditorNode& TaskEditorNode : Tasks)
+	{
+		if (FStateTreeNodeBase* TaskNode = TaskEditorNode.Node.GetMutablePtr<FStateTreeNodeBase>())
+		{
+			TaskNode->PostLoad(TaskEditorNode.GetInstance());
+		}
+	}
+
+	if (FStateTreeNodeBase* SingleTaskNode = SingleTask.Node.GetMutablePtr<FStateTreeNodeBase>())
+	{
+		SingleTaskNode->PostLoad(SingleTask.GetInstance());
+	}
+#endif // WITH_EDITOR
+
 }
 
 void UStateTreeState::UpdateParametersFromLinkedSubtree()

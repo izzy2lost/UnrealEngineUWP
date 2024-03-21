@@ -252,6 +252,7 @@ private:
 	void FixObjectNodes();
 	void FixDuplicateIDs();
 	void UpdateBindingsInstanceStructs();
+	void CallPostLoadOnNodes();
 
 #if WITH_EDITORONLY_DATA
 	FDelegateHandle OnObjectsReinstancedHandle;

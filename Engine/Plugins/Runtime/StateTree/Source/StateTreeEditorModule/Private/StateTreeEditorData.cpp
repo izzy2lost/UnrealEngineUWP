@@ -147,6 +147,7 @@ void UStateTreeEditorData::PostLoad()
 	FixObjectNodes();
 	FixDuplicateIDs();
 	UpdateBindingsInstanceStructs();
+	CallPostLoadOnNodes();
 }
 
 void UStateTreeEditorData::PostEditChangeChainProperty(FPropertyChangedChainEvent& PropertyChangedEvent)
@@ -754,6 +755,25 @@ void UStateTreeEditorData::UpdateBindingsInstanceStructs()
 		if (AllValues.Contains(Binding.GetTargetPath().GetStructID()))
 		{
 			Binding.GetMutableTargetPath().UpdateSegmentsFromValue(AllValues[Binding.GetTargetPath().GetStructID()]);
+		}
+	}
+}
+
+void UStateTreeEditorData::CallPostLoadOnNodes()
+{
+	for (FStateTreeEditorNode& EvaluatorEditorNode : Evaluators)
+	{
+		if (FStateTreeNodeBase* EvaluatorNode = EvaluatorEditorNode.Node.GetMutablePtr<FStateTreeNodeBase>())
+		{
+			EvaluatorNode->PostLoad(EvaluatorEditorNode.GetInstance());
+		}
+	}
+
+	for (FStateTreeEditorNode& GlobalTaskEditorNode : GlobalTasks)
+	{
+		if (FStateTreeNodeBase* GlobalTaskNode = GlobalTaskEditorNode.Node.GetMutablePtr<FStateTreeNodeBase>())
+		{
+			GlobalTaskNode->PostLoad(GlobalTaskEditorNode.GetInstance());
 		}
 	}
 }
