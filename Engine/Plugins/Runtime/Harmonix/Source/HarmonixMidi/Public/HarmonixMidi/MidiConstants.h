@@ -63,6 +63,8 @@ namespace Harmonix::Midi::Constants
 	inline constexpr uint8 GMeta_KeySig          = 0x59;
 	inline constexpr uint8 GMeta_Special         = 0x7f;
 
+	HARMONIXMIDI_API FString GetMetaEventTypeName(uint8 Type);
+
 	// if FMidiMsg type is "Runtime" these are the possible status byte.
 	// note: runtime messages are not serialized!
 	inline constexpr uint8 GRuntimeAllNotesOffStatus = 0x01;  // Receiver should feel free to allow notes to "adsr release"
@@ -190,6 +192,8 @@ namespace Harmonix::Midi::Constants
 
 	HARMONIXMIDI_API FString GetControllerName(EControllerID ControllerId);
 	HARMONIXMIDI_API void GetControllerNames(TArray<FString>& Names);
+
+	HARMONIXMIDI_API FString MakeStdMsgString(uint8 Status, uint8 Data1, uint8 Data2);
 
 	// allows choice between various naming conventions for enharmonic notes
 	enum class ENoteNameEnharmonicStyle : uint8
