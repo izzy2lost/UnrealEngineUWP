@@ -228,6 +228,18 @@ public:
 	virtual void CheckValidity(const FNiagaraValidationContext& Context, TArray<FNiagaraValidationResult>& OutResults) const override;
 };
 
+/** This validation rule will check if a system has an effect type assigned. Useful for default validation set rules that are enforced globally. */
+UCLASS(Category = "Validation", DisplayName = "Has Effect Type")
+class UNiagaraValidationRule_HasEffectType : public UNiagaraValidationRule
+{
+	GENERATED_BODY()
+public:
+	UPROPERTY(EditAnywhere, Category = Validation)
+	ENiagaraValidationSeverity Severity = ENiagaraValidationSeverity::Warning;
+	
+	virtual void CheckValidity(const FNiagaraValidationContext& Context, TArray<FNiagaraValidationResult>& OutResults) const override;
+};
+
 /** This validation rule checks for various common issue with Large World Coordinates like mixing vector and position types. */
 UCLASS(Category = "Validation", DisplayName = "Large World Coordinates")
 class UNiagaraValidationRule_LWC : public UNiagaraValidationRule

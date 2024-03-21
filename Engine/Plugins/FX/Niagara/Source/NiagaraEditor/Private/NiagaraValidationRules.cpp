@@ -986,6 +986,41 @@ void UNiagaraValidationRule_InvalidEffectType::CheckValidity(const FNiagaraValid
 	Results.Add(Result);
 }
 
+void UNiagaraValidationRule_HasEffectType::CheckValidity(const FNiagaraValidationContext& Context, TArray<FNiagaraValidationResult>& OutResults) const
+{
+	const UNiagaraSettings* Settings = GetDefault<UNiagaraSettings>();
+	UNiagaraSystem* System = &Context.ViewModel->GetSystem();
+	
+	if(System->GetEffectType() == nullptr)
+	{
+		UNiagaraStackSystemPropertiesItem* SystemProperties = NiagaraValidation::GetStackEntry<UNiagaraStackSystemPropertiesItem>(Context.ViewModel->GetSystemStackViewModel());
+
+		FNiagaraValidationResult Result(
+			Severity,
+			LOCTEXT("SystemNotUsingEffectTypeIssue", "No Effect Type Specified"),
+			LOCTEXT("SystemNotUsingEffectTypeIssueLong", "This system does not have an Effect Type assigned."),
+			SystemProperties);
+
+		if(Settings->GetDefaultEffectType() != nullptr)
+		{
+			TWeakObjectPtr<UNiagaraSystem> SystemWeak = System;
+			TWeakObjectPtr<UNiagaraEffectType> DefaultEffectTypeWeak = Settings->GetDefaultEffectType();
+			
+			FNiagaraValidationFix& Fix = Result.Fixes.AddDefaulted_GetRef();
+			Fix.Description = LOCTEXT("SwitchToDefaultEffectType", "Switch to the default effect type for this project.");
+			Fix.FixDelegate = FNiagaraValidationFixDelegate::CreateLambda([SystemWeak, DefaultEffectTypeWeak]()
+			{
+				if (SystemWeak.IsValid() && DefaultEffectTypeWeak.IsValid())
+				{
+					SystemWeak->SetEffectType(DefaultEffectTypeWeak.Get()); 
+				}
+			});
+		}
+
+		OutResults.Add(Result);
+	}
+}
+
 void UNiagaraValidationRule_LWC::CheckValidity(const FNiagaraValidationContext& Context, TArray<FNiagaraValidationResult>& Results)  const
 {
 	const UNiagaraSettings* Settings = GetDefault<UNiagaraSettings>();

@@ -61,9 +61,5 @@ UNiagaraEffectType* UNiagaraSettings::GetDefaultEffectType() const
 	return Cast<UNiagaraEffectType>(DefaultEffectType.TryLoad());
 }
 
-UNiagaraEffectType* UNiagaraSettings::GetRequiredEffectType() const
-{
-	return Cast<UNiagaraEffectType>(RequiredEffectType.TryLoad());
-}
 #endif
 

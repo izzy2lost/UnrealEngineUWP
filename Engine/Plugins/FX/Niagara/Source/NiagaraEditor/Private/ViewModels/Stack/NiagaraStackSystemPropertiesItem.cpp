@@ -115,34 +115,6 @@ void UNiagaraStackSystemPropertiesItem::RefreshChildrenInternal(const TArray<UNi
 		}
 	}
 
-	const UNiagaraSettings* Settings = GetDefault<UNiagaraSettings>();
-	if (System.IsValid() && Settings->GetRequiredEffectType() != nullptr)
-	{
-		UNiagaraEffectType* RequiredEffectType = Settings->GetRequiredEffectType();
-		if (System->GetEffectType() != RequiredEffectType)
-		{
-			TWeakObjectPtr<UNiagaraSystem> SystemWeak = System;
-			TWeakObjectPtr<UNiagaraEffectType> RequiredEffectTypeWeak = RequiredEffectType;
-			NewIssues.Add(FStackIssue(
-				EStackIssueSeverity::Error,
-				LOCTEXT("SystemNotUsingRequiredEffectTypeIssue", "Incorrect Effect Type In Use"),
-				LOCTEXT("SystemNotUsingRequiredEffectTypeIssueLong", "This project has a required effect type specified and this system is not currently using it."),
-				GetStackEditorDataKey(),
-				false,
-				{
-					FStackIssueFix(
-						LOCTEXT("SwitchToRequiredEffectType", "Switch to the required effect type for this project."),
-						FStackIssueFixDelegate::CreateLambda([SystemWeak, RequiredEffectTypeWeak]() 
-						{ 
-							if (SystemWeak.IsValid() && RequiredEffectTypeWeak.IsValid())
-							{
-								SystemWeak->SetEffectType(RequiredEffectTypeWeak.Get()); 
-							}
-						}))
-				}));
-		}
-	}
-
 	Super::RefreshChildrenInternal(CurrentChildren, NewChildren, NewIssues);
 }
 

@@ -194,10 +194,6 @@ class UNiagaraSettings : public UDeveloperSettings
 	UPROPERTY(config, EditAnywhere, Category = Niagara, meta = (AllowedClasses = "/Script/Niagara.NiagaraEffectType"))
 	FSoftObjectPath DefaultEffectType;
 
-	/** Specifies a required effect type which must be used for effects in the project. */
-	UPROPERTY(config, EditAnywhere, Category = Niagara, meta = (AllowedClasses = "/Script/Niagara.NiagaraEffectType"))
-	FSoftObjectPath RequiredEffectType;
-
 	/** Position pin type color. The other pin colors are defined in the general editor settings. */
 	UPROPERTY(config, EditAnywhere, Category=Niagara)
 	FLinearColor PositionPinTypeColor;
@@ -309,8 +305,6 @@ class UNiagaraSettings : public UDeveloperSettings
 	// END UDeveloperSettings Interface
 
 	NIAGARA_API UNiagaraEffectType* GetDefaultEffectType() const;
-
-	NIAGARA_API UNiagaraEffectType* GetRequiredEffectType() const;
 
 	NIAGARA_API virtual void PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent) override;
 
