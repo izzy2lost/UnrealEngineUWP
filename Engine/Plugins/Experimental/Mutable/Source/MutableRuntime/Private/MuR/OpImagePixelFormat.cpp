@@ -125,6 +125,8 @@ namespace ImagePixelFormatInternal
 			const int32 ResultLOD = ResultLODBegin + L;
 			FIntVector2 MipSize = Result->CalculateMipSize(ResultLOD);
 			
+			check(Base->CalculateMipSize(BaseLOD) == MipSize);
+			
 			DecFunc(MipSize.X, MipSize.Y, Base->GetLODData(BaseLOD), Result->GetLODData(ResultLOD));
 		}
 	}
@@ -142,7 +144,9 @@ namespace ImagePixelFormatInternal
 			const int32 BaseLOD = BaseLODBegin + L;
 			const int32 ResultLOD = ResultLODBegin + L;
 			FIntVector2 MipSize = Result->CalculateMipSize(ResultLOD);
-			
+		
+			check(Base->CalculateMipSize(BaseLOD) == MipSize);
+
 			CompFunc(MipSize.X, MipSize.Y, Base->GetLODData(BaseLOD), Result->GetLODData(ResultLOD), Quality);
 		}
 	}
