@@ -505,7 +505,7 @@ void UMassLookAtProcessor::BuildTrajectory(const UZoneGraphSubsystem& ZoneGraphS
 			FVector PrevPoint = StartPoint;
 			for (int32 j = 0; j < NumTicks; j++)
 			{
-				const float T = (j + 1) * DeltaT;
+				const float T = static_cast<float>(j + 1) * DeltaT;
 				const FVector Point = UE::CubicBezier::Eval(StartPoint, StartControlPoint, EndControlPoint, EndPoint, T);
 				UE_VLOG_SEGMENT_THICK(this, LogMassBehavior, Display, PrevPoint + ZOffset, Point + ZOffset, FColor::White, /*Thickness*/3, TEXT(""));
 				PrevPoint = Point;

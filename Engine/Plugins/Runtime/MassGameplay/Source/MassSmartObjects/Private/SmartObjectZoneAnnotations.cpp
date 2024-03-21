@@ -325,12 +325,12 @@ void USmartObjectZoneAnnotations::RebuildForSingleGraph(FSmartObjectAnnotationDa
 
 			UE_VLOG_UELOG(this, LogSmartObject, Verbose, TEXT("Adding ZG annotation for SmartObject '%s' on lane '%s'"), *LexToString(Handle), *LaneLocation.LaneHandle.ToString());
 			UE_VLOG_SEGMENT(this, LogSmartObject, Display, ObjectLocation, LaneLocation.Position, FColor::Green, TEXT(""));
-			UE_VLOG_LOCATION(this, LogSmartObject, Display, ObjectLocation, 50.f /*radius*/, FColor::Green, TEXT("%s"), *LexToString(Handle));
+			UE_VLOG_LOCATION(this, LogSmartObject, Display, ObjectLocation, 50 /*radius*/, FColor::Green, TEXT("%s"), *LexToString(Handle));
 		}
 		else
 		{
 			NumDiscarded++;
-			UE_VLOG_LOCATION(this, LogSmartObject, Display, ObjectLocation, 75.f /*radius*/, FColor::Red, TEXT("%s"), *LexToString(Handle));
+			UE_VLOG_LOCATION(this, LogSmartObject, Display, ObjectLocation, 75 /*radius*/, FColor::Red, TEXT("%s"), *LexToString(Handle));
 		}
 	}
 

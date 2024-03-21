@@ -343,7 +343,7 @@ void AMassSpawner::DoSpawning()
 			if (Generator.GeneratorInstance)
 			{
 				const float ProportionRatio = FMath::Min(Generator.Proportion / ProportionRemaining, 1.0f);
-				const int32 SpawnCount = FMath::CeilToInt(SpawnCountRemaining * ProportionRatio);
+				const int32 SpawnCount = FMath::CeilToInt(static_cast<float>(SpawnCountRemaining) * ProportionRatio);
 				
 				FFinishedGeneratingSpawnDataSignature Delegate = FFinishedGeneratingSpawnDataSignature::CreateUObject(this, &AMassSpawner::OnSpawnDataGenerationFinished, &Generator);
 				Generator.GeneratorInstance->Generate(*this, EntityTypes, SpawnCount, Delegate);
@@ -394,7 +394,7 @@ void AMassSpawner::OnSpawnDataGenerationFinished(TConstArrayView<FMassEntitySpaw
 int32 AMassSpawner::GetSpawnCount() const
 {
 	const float FinalSpawningCountScale = SpawningCountScale * UE::MassSpawner::ScalabilitySpawnDensityMultiplier;
-	return int32(FinalSpawningCountScale * Count);
+	return static_cast<int32>(FinalSpawningCountScale * static_cast<float>(Count));
 }
 
 UMassProcessor* AMassSpawner::GetPostSpawnProcessor(TSubclassOf<UMassProcessor> ProcessorClass)

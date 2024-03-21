@@ -433,7 +433,7 @@ void USmartObjectComponent::OnRuntimeEventReceived(const FSmartObjectEventData& 
 	}
 					
 	UE_CVLOG_LOCATION(Interactor != nullptr, USmartObjectSubsystem::GetCurrent(GetWorld()), LogSmartObject, Display,
-		Interactor->GetActorLocation(), /*Radius*/25.f, FColor::Green, TEXT("%s: %s. Interactor: %s"),
+		Interactor->GetActorLocation(), /*Radius*/25, FColor::Green, TEXT("%s: %s. Interactor: %s"),
 		*GetNameSafe(GetOwner()), *UEnum::GetValueAsString(Event.Reason), *GetNameSafe(Interactor));
 
 	ReceiveOnEvent(Event, Interactor);

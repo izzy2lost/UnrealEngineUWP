@@ -48,11 +48,11 @@ int32 SStateTreeDebuggerEventTimelineView::PaintEvents(const FGeometry& Allotted
 			{
 				const FTimelineEventData::EventWindow& Window = TimelineEventData->Windows[i];
 
-				FVector2D EventSize = EventBrush->GetImageSize();
+				FVector2f EventSize = EventBrush->GetImageSize();
 
 				const float XStart = RangeToScreen.InputToLocalX(static_cast<float>(Window.TimeStart));
 				const float XEnd = RangeToScreen.InputToLocalX(static_cast<float>(Window.TimeEnd));
-				const float Y = static_cast<float>(AllottedGeometry.Size.Y - EventSize.Y) / 2.f;
+				const float Y = (AllottedGeometry.Size.Y - EventSize.Y) / 2.f;
 
 				// window bar
 				constexpr float HSizeReduction = 2.f;
@@ -112,8 +112,8 @@ int32 SStateTreeDebuggerEventTimelineView::PaintEvents(const FGeometry& Allotted
 				{
 					OverlappingPointCount++;
 
-					static constexpr int OverlapOffsetAmount = 2;
-					Y += OverlapOffsetAmount * OverlappingPointCount;
+					static constexpr float OverlapOffsetAmount = 2.0f;
+					Y += OverlapOffsetAmount * static_cast<float>(OverlappingPointCount);
 				}
 				else
 				{

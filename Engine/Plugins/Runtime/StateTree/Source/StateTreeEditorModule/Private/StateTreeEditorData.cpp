@@ -392,7 +392,7 @@ FStateTreeBindableStructDesc UStateTreeEditorData::FindContextData(const UStruct
 			return 1.0f;
 		}
 		const float WorstCase = static_cast<float>(Name.Len() + CandidateName.Len());
-		return 1.0f - (Algo::LevenshteinDistance(Name, CandidateName) / WorstCase);
+		return 1.0f - (static_cast<float>(Algo::LevenshteinDistance(Name, CandidateName)) / WorstCase);
 	};
 	
 	const FString ObjectNameLowerCase = ObjectNameHint.ToLower();

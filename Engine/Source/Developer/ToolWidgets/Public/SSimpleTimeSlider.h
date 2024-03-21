@@ -26,7 +26,7 @@ public:
 		, _AllowZoom (true)
 		, _AllowPan (true)
 		, _CursorSize(0)
-		, _ClampRangeHighlightColor(FLinearColor(0.05,0.05,0.05,1.0))
+		, _ClampRangeHighlightColor(FLinearColor(0.05f,0.05f,0.05f,1.0f))
 		, _ClampRangeHighlightSize(1.0)
 		, _DesiredSize(100,22)
 	{}

@@ -993,7 +993,7 @@ void FStateTreeEditorNodeDetails::FindOuterObjects()
 
 FOptionalSize FStateTreeEditorNodeDetails::GetIndentSize() const
 {
-	return FOptionalSize(15.0f + GetIndent() * 30.0f);
+	return FOptionalSize(15.0f + static_cast<float>(GetIndent()) * 30.0f);
 }
 
 TSharedRef<SWidget> FStateTreeEditorNodeDetails::OnGetIndentContent() const
@@ -1904,9 +1904,9 @@ TSharedRef<SWidget> FStateTreeEditorNodeDetails::GeneratePicker()
 
 	TSharedRef<SWidget> MenuWidget = 
 		SNew(SBox)
-		.MinDesiredWidth(400)
-		.MinDesiredHeight(300)
-		.MaxDesiredHeight(300)
+		.MinDesiredWidth(400.f)
+		.MinDesiredHeight(300.f)
+		.MaxDesiredHeight(300.f)
 		.Padding(2)	
 		[
 			SNew(SVerticalBox)

@@ -6,6 +6,8 @@ namespace UnrealBuildTool.Rules
 	{
 		public SmartObjectsEditorModule(ReadOnlyTargetRules Target) : base(Target)
 		{
+			UnsafeTypeCastWarningLevel = WarningLevel.Warning;
+
 			PublicIncludePaths.AddRange(
 			new string[] {
 			}

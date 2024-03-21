@@ -107,7 +107,7 @@ private:
 
 		friend inline uint32 GetTypeHash(FUniqueContactPairKey const& P)
 		{
-			return (PTRINT)P.Body0 ^ ((PTRINT)P.Body1 << 18);
+			return uint32((PTRINT)P.Body0 ^ ((PTRINT)P.Body1 << 18));
 		}
 	};
 

@@ -176,7 +176,7 @@ void FSmartObjectDefinitionDataProxyDetails::CustomizeHeader(TSharedRef<class IP
 					SAssignNew(ComboButton, SComboButton)
 					.ButtonStyle(&FAppStyle::Get().GetWidgetStyle<FButtonStyle>("SimpleButton"))
 					.OnGetMenuContent(this, &FSmartObjectDefinitionDataProxyDetails::GenerateStructPicker)
-					.ContentPadding(0)
+					.ContentPadding(0.f)
 					.ButtonContent()
 					[
 						SNew(SHorizontalBox)
@@ -368,12 +368,12 @@ TSharedRef<SWidget> FSmartObjectDefinitionDataProxyDetails::GenerateStructPicker
 	FOnStructPicked OnPicked(FOnStructPicked::CreateSP(this, &FSmartObjectDefinitionDataProxyDetails::OnStructPicked));
 
 	return SNew(SBox)
-		.WidthOverride(280)
+		.WidthOverride(280.f)
 		[
 			SNew(SVerticalBox)
 			+ SVerticalBox::Slot()
 			.AutoHeight()
-			.MaxHeight(500)
+			.MaxHeight(500.f)
 			[
 				FModuleManager::LoadModuleChecked<FStructViewerModule>("StructViewer").CreateStructViewer(Options, OnPicked)
 			]

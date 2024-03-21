@@ -606,7 +606,7 @@ void FPImplRecastNavMesh::Serialize( FArchive& Ar, int32 NavMeshVersion )
 			DefaultCellSize = NavMeshOwner->CellSize;
 		}
 		PRAGMA_ENABLE_DEPRECATION_WARNINGS
-		const FVector::FReal ActorsTileSize = FVector::FReal(int32(NavMeshOwner->TileSizeUU / DefaultCellSize) * DefaultCellSize);
+		const FVector::FReal ActorsTileSize = (NavMeshOwner->TileSizeUU / DefaultCellSize) * DefaultCellSize;
 
 		if (ActorsTileSize != Params.tileWidth)
 		{
@@ -1877,8 +1877,8 @@ bool FPImplRecastNavMesh::ProjectPointToNavMesh(const FVector& Point, FNavLocati
 			{
 				const UObject* LogOwner = Owner ? Owner : NavMeshOwner;
 				UE_VLOG(LogOwner, LogNavigation, Error, TEXT("ProjectPointToNavMesh failed due to ClosestPoint being too far away from projected point."));
-				UE_VLOG_LOCATION(LogOwner, LogNavigation, Error, Point, 30.f, FColor::Blue, TEXT("Requested point"));
-				UE_VLOG_LOCATION(LogOwner, LogNavigation, Error, UnrealClosestPoint, 30.f, FColor::Red, TEXT("Projection result"));
+				UE_VLOG_LOCATION(LogOwner, LogNavigation, Error, Point, 30, FColor::Blue, TEXT("Requested point"));
+				UE_VLOG_LOCATION(LogOwner, LogNavigation, Error, UnrealClosestPoint, 30, FColor::Red, TEXT("Projection result"));
 				UE_VLOG_SEGMENT(LogOwner, LogNavigation, Error, Point, UnrealClosestPoint, FColor::Red, TEXT(""));
 			}
 		}
@@ -3268,9 +3268,9 @@ void FPImplRecastNavMesh::GetNavMeshTilesIn(const TArray<FBox>& InclusionBounds,
 	}
 }
 
-float FPImplRecastNavMesh::GetTotalDataSize() const
+SIZE_T FPImplRecastNavMesh::GetTotalDataSize() const
 {
-	float TotalBytes = sizeof(*this);
+	SIZE_T TotalBytes = sizeof(*this);
 
 	if (DetourNavMesh)
 	{

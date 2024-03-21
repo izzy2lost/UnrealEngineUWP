@@ -1203,7 +1203,7 @@ FORCEINLINE void GrowConvexHull(const FVector::FReal ExpandBy, const TArray<FVec
 	AllVerts.Add(Verts[1]);
 
 	const int32 VertsCount = AllVerts.Num();
-	const FQuat Rotation90(FVector(0, 0, 1), FMath::DegreesToRadians(90));
+	const FQuat Rotation90(FVector(0, 0, 1), FMath::DegreesToRadians(90.0));
 
 	FVector::FReal RotationAngle = TNumericLimits<FVector::FReal>::Max();
 	for (int32 Index = 0; Index < VertsCount - 2; ++Index)
@@ -1462,7 +1462,7 @@ struct FTileCacheCompressor : public dtTileCacheCompressor
 		}
 		else
 		{
-			return FMath::TruncToInt(bufferSize * 1.1f) + sizeof(FCompressedCacheHeader);
+			return FMath::TruncToInt(static_cast<float>(bufferSize) * 1.1f) + sizeof(FCompressedCacheHeader);
 		}
 	}
 
@@ -3106,7 +3106,7 @@ bool FRecastTileGenerator::RecastErodeWalkable(FNavMeshBuildContext& BuildContex
 	// TileConfig.walkableHeight is set to 1 when marking low spans, calculate real value for filtering
 	const int32 FilterWalkableHeight = FMath::CeilToInt(TileConfig.AgentHeight / static_cast<float>(TileConfig.ch));
 
-	if (TileConfig.walkableRadius > RECAST_VERY_SMALL_AGENT_RADIUS)
+	if (static_cast<float>(TileConfig.walkableRadius) > RECAST_VERY_SMALL_AGENT_RADIUS)
 	{
 		uint8 FilterFlags = 0;
 		if (TileConfig.bFilterLowSpanSequences)
@@ -3257,8 +3257,13 @@ bool FRecastTileGenerator::RecastBuildTileCache(FNavMeshBuildContext& BuildConte
 
 		const int32 UncompressedSize = ((sizeof(dtTileCacheLayerHeader) + 3) & ~3) + (3 * header.width * header.height);
 		const float Inv1kB = 1.0f / 1024.0f;
-		BuildContext.log(RC_LOG_PROGRESS, ">> Cache[%d,%d:%d] = %.2fkB (full:%.2fkB rate:%.2f%%)", TileX, TileY, i,
-			TileDataSize * Inv1kB, UncompressedSize * Inv1kB, 1.0f * TileDataSize / UncompressedSize);
+		BuildContext.log(RC_LOG_PROGRESS, ">> Cache[%d,%d:%d] = %.2fkB (full:%.2fkB rate:%.2f%%)",
+			TileX,
+			TileY,
+			i,
+			static_cast<float>(TileDataSize) * Inv1kB,
+			static_cast<float>(UncompressedSize) * Inv1kB,
+			static_cast<float>(TileDataSize) / static_cast<float>(UncompressedSize));
 	}
 	CompressedLayers = MoveTemp(RasterContext.Layers);
 	return true;
@@ -3839,7 +3844,7 @@ bool FRecastTileGenerator::GenerateNavigationDataLayer(FNavMeshBuildContext& Bui
 			OffMeshData.AreaClassToIdMap = &AdditionalCachedData.AreaClassToIdMap;
 			OffMeshData.FlagsPerArea = AdditionalCachedData.FlagsPerOffMeshLinkArea;
 			const FSimpleLinkNavModifier* LinkModifier = OffmeshLinks.GetData();
-			const float DefaultSnapHeight = TileConfig.walkableClimb * static_cast<float>(TileConfig.ch);
+			const float DefaultSnapHeight = static_cast<float>(TileConfig.walkableClimb) * static_cast<float>(TileConfig.ch);
 
 			for (int32 LinkModifierIndex = 0; LinkModifierIndex < OffmeshLinks.Num(); ++LinkModifierIndex, ++LinkModifier)
 			{
@@ -3910,7 +3915,8 @@ bool FRecastTileGenerator::GenerateNavigationDataLayer(FNavMeshBuildContext& Bui
 	const float ModkB = 1.0f / 1024.0f;
 	BuildContext.log(RC_LOG_PROGRESS, ">> Layer[%d] = Verts(%d) Polys(%d) Memory(%.2fkB) Cache(%.2fkB)",
 		LayerIdx, GenerationContext.PolyMesh->nverts, GenerationContext.PolyMesh->npolys,
-		GenerationContext.NavigationData.Last().DataSize * ModkB, CompressedLayers[LayerIdx].DataSize * ModkB);
+		static_cast<float>(GenerationContext.NavigationData.Last().DataSize) * ModkB,
+		static_cast<float>(CompressedLayers[LayerIdx].DataSize) * ModkB);
 
 	return true;
 }
@@ -4587,11 +4593,11 @@ int32 CalculateMaxTilesCount(const TNavStatArray<FBox>& NavigableAreas, FVector:
 			// Support old navmesh versions
 			int64 XSize = FMath::CeilToInt(RCBox.GetSize().X/TileSizeInWorldUnits) + 1;
 			int64 YSize = FMath::CeilToInt(RCBox.GetSize().Z/TileSizeInWorldUnits) + 1;
-			GridCellsCount+= (XSize*YSize);
+			GridCellsCount += (XSize*YSize);
 		}
 	}
 	
-	return IntCastChecked<int32>(FMath::CeilToInt(GridCellsCount * AvgLayersPerGridCell));
+	return IntCastChecked<int32>(FMath::CeilToInt(static_cast<FVector::FReal>(GridCellsCount) * AvgLayersPerGridCell));
 }
 } // UE::NavMesh::Private
 
@@ -4708,7 +4714,7 @@ void FRecastNavMeshGenerator::ConfigureBuildProperties(FRecastBuildConfig& OutCo
 				"Use AgentMaxStepHeight bigger than %f or a smaller AgentMaxSlope to avoid undesirable navmesh holes in steep slopes. "
 				"This can also be avoided by using smaller CellSize and CellHeight."),
 				*GetNameSafe(DestNavMesh), MaxStepHeight,
-				*UEnum::GetDisplayValueAsText(Resolution).ToString(), AgentMaxSlope, (RequiredClimbVx-1)*TempCellHeight);	
+				*UEnum::GetDisplayValueAsText(Resolution).ToString(), AgentMaxSlope, static_cast<float>(RequiredClimbVx-1)*TempCellHeight);
 		}
 	}
 	
@@ -4783,7 +4789,7 @@ void FRecastNavMeshGenerator::Init()
 	else
 	{
 		// Deprecated
-		BBoxGrowth = FVector(2.0f * Config.borderSize * Config.cs);
+		BBoxGrowth = FVector(2.0 * static_cast<rcReal>(Config.borderSize) * Config.cs);
 	}
 	RcNavMeshOrigin = Unreal2RecastPoint(DestNavMesh->NavMeshOriginOffset);
 	

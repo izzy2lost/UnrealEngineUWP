@@ -320,7 +320,7 @@ TSharedRef<SWidget> CreateDebugOptionsWidget(const TSharedRef<SWidget>& ContentW
 	return SNew(SComboButton)
 		.ToolTipText(LOCTEXT("DebugOptions", "Debug Options"))
 		.HasDownArrow(false)
-		.ContentPadding(0)
+		.ContentPadding(0.f)
 		.ButtonStyle(FAppStyle::Get(), "SimpleButton")
 		.MenuContent()
 		[

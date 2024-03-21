@@ -86,9 +86,9 @@ inline int32 CalcLevel(float Size)
 	return int32(FMath::FloorLog2(uint32(Size)));
 };
 
-inline int32 CalcLevelFromRadius(float Radius)
+inline int32 CalcLevelFromRadius(double Radius)
 {
-	return CalcLevel(Radius * 2.0f);
+	return CalcLevel(Radius * 2.0);
 };
 
 inline double GetCellSize(int32 Level)
@@ -126,7 +126,7 @@ inline FLocation64 CalcLevelAndLocation(const FVector4d& Sphere)
 	return ToCellLoc(Level, FVector(Sphere));
 };
 
-inline FLocation64 CalcLevelAndLocationClamped(const FVector3d& Center, float Radius, int32 FirstLevel)
+inline FLocation64 CalcLevelAndLocationClamped(const FVector3d& Center, double Radius, int32 FirstLevel)
 {
 	// Can't be lower than this, or the footprint might be larger than 2x2x2, globally the same, can pre-calc.
 	int32 Level = CalcLevelFromRadius(Radius);

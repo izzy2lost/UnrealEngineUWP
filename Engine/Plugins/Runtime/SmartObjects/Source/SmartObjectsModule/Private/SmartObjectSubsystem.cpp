@@ -642,7 +642,7 @@ void USmartObjectSubsystem::AbortAll(const FSmartObjectHandle Handle, FSmartObje
 					OnSlotChanged(SmartObjectRuntime, *RuntimeSlot, SlotHandle, ESmartObjectChangeReason::OnReleased, Payload);
 
 					UE_VLOG_UELOG(this, LogSmartObject, Verbose, TEXT("Slot %s released by an abort"), *LexToString(ClaimHandle.SlotHandle));
-					UE_VLOG_LOCATION(this, LogSmartObject, Display, SmartObjectRuntime.Transform.TransformPosition(FVector(RuntimeSlot->Offset)), /*Radius*/50.f, FColor::Red, TEXT("Released by abort"));
+					UE_VLOG_LOCATION(this, LogSmartObject, Display, SmartObjectRuntime.Transform.TransformPosition(FVector(RuntimeSlot->Offset)), /*Radius*/50, FColor::Red, TEXT("Released by abort"));
 				}
 				break;
 			}
@@ -1296,7 +1296,7 @@ FSmartObjectClaimHandle USmartObjectSubsystem::MarkSlotAsClaimed(const FSmartObj
 		ensureMsgf(Slot->Release(ExistingClaim, /*bAborted*/ true), TEXT("Expecting the release to always succeed, since the slot can be claimed based on earlier check."));
 			
 		UE_VLOG_UELOG(this, LogSmartObject, Verbose, TEXT("Released using handle '%s' due to claim override"), *LexToString(ExistingClaim));
-		UE_VLOG_LOCATION(this, LogSmartObject, Display, GetSlotLocation(ExistingClaim).GetValue(), 50.f, FColor::White, TEXT("Released (Override)"));
+		UE_VLOG_LOCATION(this, LogSmartObject, Display, GetSlotLocation(ExistingClaim).GetValue(), 50, FColor::White, TEXT("Released (Override)"));
 		OnSlotChanged(*SmartObjectRuntime, *Slot, ExistingClaim.SlotHandle, ESmartObjectChangeReason::OnReleased, Payload);
 
 		bIsClaimOverridden = true;
@@ -1310,7 +1310,7 @@ FSmartObjectClaimHandle USmartObjectSubsystem::MarkSlotAsClaimed(const FSmartObj
 		bClaimed ? TEXT("SUCCEEDED") : TEXT("FAILED"),
 		*LexToString(ClaimHandle),
 		*UEnum::GetValueAsString(Slot->GetState()));
-	UE_CVLOG_LOCATION(bClaimed, this, LogSmartObject, Display, GetSlotLocation(ClaimHandle).GetValue(), 50.f, FColor::Yellow, TEXT("Claim %s"), bIsClaimOverridden ? TEXT("[Override]") : TEXT(""));
+	UE_CVLOG_LOCATION(bClaimed, this, LogSmartObject, Display, GetSlotLocation(ClaimHandle).GetValue(), 50, FColor::Yellow, TEXT("Claim %s"), bIsClaimOverridden ? TEXT("[Override]") : TEXT(""));
 
 	if (bClaimed)
 	{
@@ -1411,7 +1411,7 @@ const USmartObjectBehaviorDefinition* USmartObjectSubsystem::MarkSlotAsOccupied(
 	}
 
 	UE_VLOG_UELOG(this, LogSmartObject, Verbose, TEXT("Start using handle '%s'"), *LexToString(ClaimHandle));
-	UE_VLOG_LOCATION(this, LogSmartObject, Display, GetSlotLocation(ClaimHandle).GetValue(), 50.f, FColor::Green, TEXT("Use"));
+	UE_VLOG_LOCATION(this, LogSmartObject, Display, GetSlotLocation(ClaimHandle).GetValue(), 50, FColor::Green, TEXT("Use"));
 
 	FSmartObjectRuntimeSlot& Slot = SmartObjectRuntime.Slots[ClaimHandle.SlotHandle.GetSlotIndex()];
 
@@ -1443,7 +1443,7 @@ bool USmartObjectSubsystem::MarkSlotAsFree(const FSmartObjectClaimHandle& ClaimH
 	if (bSuccess)
 	{
 		UE_VLOG_UELOG(this, LogSmartObject, Verbose, TEXT("Released using handle '%s'"), *LexToString(ClaimHandle));
-		UE_VLOG_LOCATION(this, LogSmartObject, Display, GetSlotLocation(ClaimHandle).GetValue(), 50.f, FColor::White, TEXT("Released"));
+		UE_VLOG_LOCATION(this, LogSmartObject, Display, GetSlotLocation(ClaimHandle).GetValue(), 50, FColor::White, TEXT("Released"));
 		OnSlotChanged(*SmartObjectRuntime, *Slot, ClaimHandle.SlotHandle, ESmartObjectChangeReason::OnReleased, Payload);
 	}
 

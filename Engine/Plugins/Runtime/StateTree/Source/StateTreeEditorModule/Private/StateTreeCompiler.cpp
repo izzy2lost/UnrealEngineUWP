@@ -249,7 +249,12 @@ bool FStateTreeCompiler::Compile(UStateTree& InStateTree)
 		} 
 	}
 
-	StateTree->NumContextData = ContextDataIndex;
+	if (const UE::StateTree::Compiler::FValidationResult Validation = UE::StateTree::Compiler::IsValidIndex16(ContextDataIndex); Validation.DidFail())
+	{
+		Validation.Log(Log, TEXT("NumContextData"), ParametersDesc);
+		return false;
+	}
+	StateTree->NumContextData = static_cast<uint16>(ContextDataIndex);
 	
 	if (!CreateStates())
 	{

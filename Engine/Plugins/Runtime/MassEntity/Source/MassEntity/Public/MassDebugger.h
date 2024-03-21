@@ -36,7 +36,7 @@ namespace UE::Mass::Debug
 		/** How much memory allocated for entities is being unused */
 		SIZE_T WastedEntityMemory = 0;
 		/** Total amount of memory needed by a single entity */
-		int32 BytesPerEntity = 0;
+		SIZE_T BytesPerEntity = 0;
 	};
 } // namespace UE::Mass::Debug
 

@@ -862,7 +862,7 @@ void FNavMeshPath::DescribeSelfToVisLog(FVisualLogEntry* Snapshot) const
 			AreaMarkElem.Description = AreaClass->GetName();
 
 			AreaMarkElem.Points.Add(CenterPt + CorridorOffset);
-			AreaMarkElem.Points.Add(CenterPt + CorridorOffset + FVector(0,0,100.0f + NumAreaMark * 50.0f));
+			AreaMarkElem.Points.Add(CenterPt + CorridorOffset + FVector(0,0,100 + static_cast<double>(NumAreaMark) * 50));
 			Snapshot->ElementsToDraw.Add(AreaMarkElem);
 
 			NumAreaMark = (NumAreaMark + 1) % 5;

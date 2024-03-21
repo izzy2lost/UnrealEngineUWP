@@ -35,7 +35,7 @@ TSharedRef<ITableRow> SStateTreeDebuggerInstanceTree::GenerateTreeRow(TSharedPtr
 	return SNew(STableRow<TSharedPtr<RewindDebugger::FRewindDebuggerTrack>>, OwnerTable)
 		[
 			SNew(SHorizontalBox)
-			+SHorizontalBox::Slot().AutoWidth().Padding(2)
+			+SHorizontalBox::Slot().AutoWidth().Padding(2.f)
 			[
 				LayeredIcons
 			]

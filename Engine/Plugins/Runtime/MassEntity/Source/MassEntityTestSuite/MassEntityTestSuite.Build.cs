@@ -11,6 +11,8 @@ namespace UnrealBuildTool.Rules
 		{
 			PCHUsage = ModuleRules.PCHUsageMode.UseExplicitOrSharedPCHs;
 
+			UnsafeTypeCastWarningLevel = WarningLevel.Warning;
+
 			PrivateIncludePaths.Add(Path.Combine(GetModuleDirectory("MassEntity"), "Private")); 
 
 			PublicDependencyModuleNames.AddRange(

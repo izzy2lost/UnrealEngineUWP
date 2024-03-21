@@ -146,18 +146,18 @@ void FMassArchetypeData::ConfigureFragments()
 	}
 
 	TotalBytesPerEntity = FragmentSizeTallyBytes;
-	int32 ChunkAvailableSize = GetChunkAllocSize() - AlignmentPadding;
+	const SIZE_T ChunkAvailableSize = GetChunkAllocSize() - AlignmentPadding;
 	check(TotalBytesPerEntity <= ChunkAvailableSize);
 
-	NumEntitiesPerChunk = ChunkAvailableSize / TotalBytesPerEntity;
+	NumEntitiesPerChunk = static_cast<int32>(ChunkAvailableSize / TotalBytesPerEntity);
 
 	// Set up the offsets for each fragment into the chunk data
-	SIZE_T CurrentOffset = NumEntitiesPerChunk * sizeof(FMassEntityHandle);
+	int32 CurrentOffset = NumEntitiesPerChunk * sizeof(FMassEntityHandle);
 	for (FMassArchetypeFragmentConfig& FragmentData : FragmentConfigs)
 	{
 		CurrentOffset = Align(CurrentOffset, FragmentData.FragmentType->GetMinAlignment());
 		FragmentData.ArrayOffsetWithinChunk = CurrentOffset;
-		const SIZE_T SizeOfThisFragmentArray = NumEntitiesPerChunk * FragmentData.FragmentType->GetStructureSize();
+		const int32 SizeOfThisFragmentArray = NumEntitiesPerChunk * FragmentData.FragmentType->GetStructureSize();
 		CurrentOffset += SizeOfThisFragmentArray;
 	}
 }
@@ -907,7 +907,7 @@ void FMassArchetypeData::DebugPrintArchetype(FOutputDevice& Ar)
 	Ar.Logf(ELogVerbosity::Log, TEXT("\tEntity Capacity : %d"), CurrentEntityCapacity);
 	if (Chunks.Num() > 1)
 	{
-		const float Scaler = 100.0f / (float)CurrentEntityCapacity;
+		const float Scaler = 100.0f / static_cast<float>(CurrentEntityCapacity);
 		// count non-last chunks to see how occupied they are
 		int EntitiesPerChunkMin = CurrentEntityCapacity;
 		int EntitiesPerChunkMax = 0;
@@ -917,16 +917,20 @@ void FMassArchetypeData::DebugPrintArchetype(FOutputDevice& Ar)
 			EntitiesPerChunkMin = FMath::Min(Population, EntitiesPerChunkMin);
 			EntitiesPerChunkMax = FMath::Max(Population, EntitiesPerChunkMax);
 		}
-		Ar.Logf(ELogVerbosity::Log, TEXT("\tEntity Occupancy: %.1f%% (min: %.1f%%, max: %.1f%%)"), Scaler * EntityMap.Num(), Scaler * EntitiesPerChunkMin, Scaler * EntitiesPerChunkMax);
+		Ar.Logf(ELogVerbosity::Log, TEXT("\tEntity Occupancy: %.1f%% (min: %.1f%%, max: %.1f%%)"),
+			Scaler * static_cast<float>(EntityMap.Num()),
+			Scaler * static_cast<float>(EntitiesPerChunkMin),
+			Scaler * static_cast<float>(EntitiesPerChunkMax));
 	}
 	else 
 	{
-		Ar.Logf(ELogVerbosity::Log, TEXT("\tEntity Occupancy: %.1f%%"), CurrentEntityCapacity > 0 ? ((EntityMap.Num() * 100.0f) / (float)CurrentEntityCapacity) : 0.f);
+		Ar.Logf(ELogVerbosity::Log, TEXT("\tEntity Occupancy: %.1f%%"),
+			CurrentEntityCapacity > 0 ? ((static_cast<float>(EntityMap.Num()) * 100.0f) / static_cast<float>(CurrentEntityCapacity)) : 0.f);
 	}
 	Ar.Logf(ELogVerbosity::Log, TEXT("\tBytes / Entity  : %zu"), TotalBytesPerEntity);
 	Ar.Logf(ELogVerbosity::Log, TEXT("\tEntities / Chunk: %d"), NumEntitiesPerChunk);
 
-	Ar.Logf(ELogVerbosity::Log, TEXT("\tOffset 0x%04X: Entity[] (%d bytes each)"), EntityListOffsetWithinChunk, sizeof(FMassEntityHandle));
+	Ar.Logf(ELogVerbosity::Log, TEXT("\tOffset 0x%04X: Entity[] (%llu bytes each)"), EntityListOffsetWithinChunk, sizeof(FMassEntityHandle));
 	int32 TotalBytesOfValidData = sizeof(FMassEntityHandle) * NumEntitiesPerChunk;
 	for (const FMassArchetypeFragmentConfig& FragmentConfig : FragmentConfigs)
 	{
@@ -937,7 +941,7 @@ void FMassArchetypeData::DebugPrintArchetype(FOutputDevice& Ar)
 	//@TODO: Print out padding in between things?
 
 	const SIZE_T UnusuablePaddingOffset = TotalBytesPerEntity * NumEntitiesPerChunk;
-	const int32 UnusuablePaddingAmount = GetChunkAllocSize() - UnusuablePaddingOffset;
+	const SIZE_T UnusuablePaddingAmount = GetChunkAllocSize() - UnusuablePaddingOffset;
 	if (UnusuablePaddingAmount > 0)
 	{
 		Ar.Logf(ELogVerbosity::Log, TEXT("\tOffset 0x%04X: WastePadding[] (%d bytes total)"), UnusuablePaddingOffset, UnusuablePaddingAmount);

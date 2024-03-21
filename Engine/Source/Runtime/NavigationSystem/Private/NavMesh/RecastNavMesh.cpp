@@ -3533,7 +3533,11 @@ bool ARecastNavMesh::HasCompleteDataInRadius(const FVector& TestLocation, FVecto
 	{
 		for (int32 TileY = MinTileY; TileY <= MaxTileY; TileY++)
 		{
-			const FVector RcTileCenter(RcNavOrigin.X + ((TileX + 0.5f) * NavTileSize), RcTestLocation.Y, RcNavOrigin.Z + ((TileY + 0.5f) * NavTileSize));
+			const FVector RcTileCenter(
+				RcNavOrigin.X + ((static_cast<FVector::FReal>(TileX) + 0.5) * NavTileSize),
+				RcTestLocation.Y,
+				RcNavOrigin.Z + ((static_cast<FVector::FReal>(TileY) + 0.5) * NavTileSize));
+
 			const bool bInside = FMath::SphereAABBIntersection(RcTestLocation, RadiusSq, FBox::BuildAABB(RcTileCenter, RcTileExtent2D));
 			if (bInside)
 			{
@@ -3592,7 +3596,7 @@ void ARecastNavMesh::UpdateActiveTiles(const TArray<FNavigationInvokerRaw>& Invo
 		TilesInMaxDistance.Reset();
 		TileToAppend.Reset();
 
-		const int32 ShrinkThreshold = 1.2*ActiveTilesCount;
+		const int32 ShrinkThreshold = static_cast<int32>(1.2 * ActiveTilesCount);
 		if (TilesInMinDistance.Max() > ShrinkThreshold)
 		{
 			TilesInMinDistance.Shrink();

@@ -124,7 +124,7 @@ namespace FNavMeshRenderingHelpers
 		return Pt;
 	}
 
-	void CacheArc(TArray<FDebugRenderSceneProxy::FDebugLine>& DebugLines, const FVector& Start, const FVector& End, const float Height, const uint32 Segments, const FLinearColor& Color, float LineThickness = 0)
+	void CacheArc(TArray<FDebugRenderSceneProxy::FDebugLine>& DebugLines, const FVector& Start, const FVector& End, const FVector::FReal Height, const uint32 Segments, const FLinearColor& Color, float LineThickness = 0)
 	{
 		if (Segments == 0)
 		{
@@ -146,9 +146,9 @@ namespace FNavMeshRenderingHelpers
 		}
 	}
 
-	void CacheArrowHead(TArray<FDebugRenderSceneProxy::FDebugLine>& DebugLines, const FVector& Tip, const FVector& Origin, const float Size, const FLinearColor& Color, float LineThickness = 0)
+	void CacheArrowHead(TArray<FDebugRenderSceneProxy::FDebugLine>& DebugLines, const FVector& Tip, const FVector& Origin, const FVector::FReal Size, const FLinearColor& Color, float LineThickness = 0)
 	{
-		const FVector Az(0.f, 1.f, 0.f);
+		const FVector Az(0.0, 1.0, 0.0);
 		const FVector Ay = (Origin - Tip).GetSafeNormal();
 		const FVector Ax = FVector::CrossProduct(Az, Ay);
 
@@ -168,14 +168,15 @@ namespace FNavMeshRenderingHelpers
 		}
 	}
 
-	void DrawWireCylinder(TArray<FDebugRenderSceneProxy::FDebugLine>& DebugLines, const FVector& Base, const FVector& X, const FVector& Y, const FVector& Z, FColor Color, float Radius, float HalfHeight, int32 NumSides, uint8 DepthPriority, float LineThickness = 0)
+	void DrawWireCylinder(TArray<FDebugRenderSceneProxy::FDebugLine>& DebugLines, const FVector& Base, const FVector& X, const FVector& Y, const FVector& Z, FColor Color, FVector::FReal Radius, FVector::FReal HalfHeight, int32 NumSides, uint8 DepthPriority, float LineThickness = 0)
 	{
-		const float	AngleDelta = 2.0f * PI / NumSides;
+		const FVector::FReal AngleDelta = 2.0 * PI / static_cast<FVector::FReal>(NumSides);
 		FVector	LastVertex = Base + X * Radius;
 
 		for (int32 SideIndex = 0; SideIndex < NumSides; SideIndex++)
 		{
-			const FVector Vertex = Base + (X * FMath::Cos(AngleDelta * (SideIndex + 1)) + Y * FMath::Sin(AngleDelta * (SideIndex + 1))) * Radius;
+			const FVector Vertex = Base +
+				(X * FMath::Cos(AngleDelta * static_cast<FVector::FReal>(SideIndex + 1)) + Y * FMath::Sin(AngleDelta * static_cast<FVector::FReal>(SideIndex + 1))) * Radius;
 
 			DebugLines.Add(FDebugRenderSceneProxy::FDebugLine(LastVertex - Z * HalfHeight, Vertex - Z * HalfHeight, Color));
 			DebugLines.Add(FDebugRenderSceneProxy::FDebugLine(LastVertex + Z * HalfHeight, Vertex + Z * HalfHeight, Color));
@@ -187,7 +188,7 @@ namespace FNavMeshRenderingHelpers
 
 	inline uint8 GetBit(int32 v, uint8 bit)
 	{
-		return (v & (1 << bit)) >> bit;
+		return static_cast<uint8>((v & (1 << bit)) >> bit);
 	}
 
 	FColor GetClusterColor(int32 Idx)
@@ -1661,7 +1662,7 @@ void FNavMeshDebugDrawDelegateHelper::DrawDebugLabels(UCanvas* Canvas, APlayerCo
 			}
 			else
 			{
-				ScreenY += Font->GetStringHeightSize(*DebugText->Text);
+				ScreenY += static_cast<float>(Font->GetStringHeightSize(*DebugText->Text));
 			}
 		}
 		else

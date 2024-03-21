@@ -65,8 +65,8 @@ namespace UE::Mass::Representation::Debug
 				int32 CurrentRepresentationIdx = (int32)Representation.CurrentRepresentation;
 				int32 PrevRepresentationIdx = (int32)Representation.PrevRepresentation;
 				// Add 20cm +Z offset to draw above mass.debug.RepresentationLOD so they can be viewed together
-				UE_CVLOG_LOCATION(Representation.CurrentRepresentation == Representation.PrevRepresentation, LogOwner, LogMassRepresentation, Verbose, EntityLocation.GetTransform().GetLocation() + FVector(0.0f, 0.0f, 20.0f), 20.0f, UE::Mass::Representation::Debug::RepresentationColors[CurrentRepresentationIdx], TEXT("%s %d"), *Context.GetEntity(EntityIdx).DebugGetDescription(), CurrentRepresentationIdx);
-				UE_CVLOG_LOCATION(Representation.CurrentRepresentation != Representation.PrevRepresentation, LogOwner, LogMassRepresentation, Verbose, EntityLocation.GetTransform().GetLocation() + FVector(0.0f, 0.0f, 20.0f), 20.0f, UE::Mass::Representation::Debug::RepresentationColors[CurrentRepresentationIdx], TEXT("%s %d -> %d"), *Context.GetEntity(EntityIdx).DebugGetDescription(), PrevRepresentationIdx, CurrentRepresentationIdx);
+				UE_CVLOG_LOCATION(Representation.CurrentRepresentation == Representation.PrevRepresentation, LogOwner, LogMassRepresentation, Verbose, EntityLocation.GetTransform().GetLocation() + FVector(0.0f, 0.0f, 20.0f), 20, UE::Mass::Representation::Debug::RepresentationColors[CurrentRepresentationIdx], TEXT("%s %d"), *Context.GetEntity(EntityIdx).DebugGetDescription(), CurrentRepresentationIdx);
+				UE_CVLOG_LOCATION(Representation.CurrentRepresentation != Representation.PrevRepresentation, LogOwner, LogMassRepresentation, Verbose, EntityLocation.GetTransform().GetLocation() + FVector(0.0f, 0.0f, 20.0f), 20, UE::Mass::Representation::Debug::RepresentationColors[CurrentRepresentationIdx], TEXT("%s %d -> %d"), *Context.GetEntity(EntityIdx).DebugGetDescription(), PrevRepresentationIdx, CurrentRepresentationIdx);
 			}
 		}
 #endif // ENABLE_VISUAL_LOG

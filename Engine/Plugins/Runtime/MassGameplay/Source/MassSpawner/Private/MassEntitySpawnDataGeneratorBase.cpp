@@ -21,7 +21,7 @@ void UMassEntitySpawnDataGeneratorBase::BuildResultsFromEntityTypes(const int32 
 	for (int32 i = 0; i < EntityTypes.Num(); i++)
 	{
 		const FMassSpawnedEntityType& EntityType = EntityTypes[i];
-		const int32 EntityCount = int32(SpawnCount * EntityType.Proportion / TotalProportion);
+		const int32 EntityCount = static_cast<int32>(static_cast<float>(SpawnCount) * EntityType.Proportion / TotalProportion);
 		if (EntityCount > 0 && EntityType.GetEntityConfig() != nullptr)
 		{
 			FMassEntitySpawnDataGeneratorResult& Res = OutResults.AddDefaulted_GetRef();

@@ -30,7 +30,7 @@ FNavigationDataHandler::FNavigationDataHandler(FNavigationOctreeController& InOc
 		: OctreeController(InOctreeController), DirtyAreasController(InDirtyAreasController)
 {}
 
-void FNavigationDataHandler::ConstructNavOctree(const FVector& Origin, const float Radius, const ENavDataGatheringModeConfig DataGatheringMode, const float GatheringNavModifiersWarningLimitTime)
+void FNavigationDataHandler::ConstructNavOctree(const FVector& Origin, const double Radius, const ENavDataGatheringModeConfig DataGatheringMode, const float GatheringNavModifiersWarningLimitTime)
 {
 	UE_LOG(LogNavOctree, Log, TEXT("CREATE (Origin:%s Radius:%.2f)"), *Origin.ToString(), Radius);
 

@@ -207,7 +207,7 @@ public:
 	UE_DEPRECATED(5.3, "Please use GetNavLinkUserId() instead. This function only returns Invalid.")
 	uint32 GetLinkUserId(NavNodeRef LinkPolyID) const
 	{
-		return FNavLinkId::Invalid.GetId();
+		return static_cast<int32>(FNavLinkId::Invalid.GetId());
 	}
 	NAVIGATIONSYSTEM_API FNavLinkId GetNavLinkUserId(NavNodeRef LinkPolyID) const;
 	/** Retrieves start and end point of offmesh link */
@@ -248,7 +248,7 @@ public:
 	 */
 	NAVIGATIONSYSTEM_API void SetRecastMesh(dtNavMesh* NavMesh);
 
-	NAVIGATIONSYSTEM_API float GetTotalDataSize() const;
+	NAVIGATIONSYSTEM_API SIZE_T GetTotalDataSize() const;
 
 	/** Gets the size of the compressed tile cache, this is slow */
 #if !UE_BUILD_SHIPPING

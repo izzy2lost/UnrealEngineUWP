@@ -483,7 +483,7 @@ FNavRegenTimeSliceManager::FNavRegenTimeSliceManager()
 	: MinTimeSliceDuration(0.00075)
 	, MaxTimeSliceDuration(0.004)
 	, FrameNumOld(TNumericLimits<int64>::Max() - 1)
-	, MaxDesiredTileRegenDuration(0.7)
+	, MaxDesiredTileRegenDuration(0.7f)
 	, TimeLastCall(-1.f)
 	, NavDataIdx(0)
 #if WITH_RECAST && TIME_SLICE_NAV_REGEN
@@ -1000,7 +1000,7 @@ void UNavigationSystemV1::ConstructNavOctree()
 {
 	// Default values to keep previous behavior.
 	FVector NavOctreeCenter = FVector::ZeroVector;
-	float NavOctreeRadius = 64000;
+	double NavOctreeRadius = 64000;
 
 	const FBox Bounds = GetNavigableWorldBounds();
 	if(Bounds.IsValid)

@@ -569,9 +569,9 @@ bool TMassLODCalculator<FLODLogic>::AdjustDistancesFromCountForRuntimeData(const
 					ProcessingLODIdx++;
 
 					// Adjust distance for this LOD
-					Data.AdjustedBaseLODDistance[ProcessingLODIdx] = BaseLODDistance[BucketLODIdx] + (BucketIdx * BaseBucketSize[BucketLODIdx]);
+					Data.AdjustedBaseLODDistance[ProcessingLODIdx] = BaseLODDistance[BucketLODIdx] + (static_cast<float>(BucketIdx) * BaseBucketSize[BucketLODIdx]);
 					Data.AdjustedBaseLODDistanceSq[ProcessingLODIdx] = FMath::Square(Data.AdjustedBaseLODDistance[ProcessingLODIdx]);
-					Data.AdjustedVisibleLODDistance[ProcessingLODIdx] = VisibleLODDistance[BucketLODIdx] + (BucketIdx * VisibleBucketSize[BucketLODIdx]);
+					Data.AdjustedVisibleLODDistance[ProcessingLODIdx] = VisibleLODDistance[BucketLODIdx] + (static_cast<float>(BucketIdx) * VisibleBucketSize[BucketLODIdx]);
 					Data.AdjustedVisibleLODDistanceSq[ProcessingLODIdx] = FMath::Square(Data.AdjustedVisibleLODDistance[ProcessingLODIdx]);
 
 					// Check if we are done
@@ -602,11 +602,11 @@ bool TMassLODCalculator<FLODLogic>::AdjustDistancesFromCountForRuntimeData(const
 				ProcessingLODIdx++;
 
 				// Adjust distance for this LOD
-				Data.AdjustedBaseLODDistance[ProcessingLODIdx] = BaseLODDistance[BucketLODIdx] + (BucketIdx * BaseBucketSize[BucketLODIdx]);
+				Data.AdjustedBaseLODDistance[ProcessingLODIdx] = BaseLODDistance[BucketLODIdx] + (static_cast<float>(BucketIdx) * BaseBucketSize[BucketLODIdx]);
 				Data.AdjustedBaseLODDistanceSq[ProcessingLODIdx] = FMath::Square(Data.AdjustedBaseLODDistance[ProcessingLODIdx]);
 				if (bCalculateVisibility)
 				{
-					Data.AdjustedVisibleLODDistance[ProcessingLODIdx] = VisibleLODDistance[BucketLODIdx] + ((BucketIdx + 1) * VisibleBucketSize[BucketLODIdx]);
+					Data.AdjustedVisibleLODDistance[ProcessingLODIdx] = VisibleLODDistance[BucketLODIdx] + (static_cast<float>(BucketIdx + 1) * VisibleBucketSize[BucketLODIdx]);
 					Data.AdjustedVisibleLODDistanceSq[ProcessingLODIdx] = FMath::Square(Data.AdjustedVisibleLODDistance[ProcessingLODIdx]);
 				}
 
@@ -852,7 +852,7 @@ void TMassLODCalculator<FLODLogic>::VisLogSignificantLOD(FMassExecutionContext& 
 		{
 			const TTransformFragment& EntityLocation = LocationList[EntityIdx];
 			int32 LODIdx = (int32)EntityLOD.LOD;
-			UE_VLOG_LOCATION(LogOwner, LogMassLOD, Verbose, EntityLocation.GetTransform().GetLocation(), 20.0f, UE::MassLOD::LODColors[LODIdx], TEXT("%s %d"), *Context.GetEntity(EntityIdx).DebugGetDescription(), LODIdx);
+			UE_VLOG_LOCATION(LogOwner, LogMassLOD, Verbose, EntityLocation.GetTransform().GetLocation(), 20, UE::MassLOD::LODColors[LODIdx], TEXT("%s %d"), *Context.GetEntity(EntityIdx).DebugGetDescription(), LODIdx);
 		}
 	}
 #endif

@@ -6,6 +6,8 @@ namespace UnrealBuildTool.Rules
 	{
 		public MassAIBehavior(ReadOnlyTargetRules Target) : base(Target)
 		{
+			UnsafeTypeCastWarningLevel = WarningLevel.Warning;
+
 			PrivateIncludePathModuleNames.AddRange(
 				new string[] {
 					"AIModule"

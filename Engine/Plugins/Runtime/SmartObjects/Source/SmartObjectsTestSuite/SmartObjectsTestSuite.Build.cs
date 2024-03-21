@@ -6,6 +6,8 @@ namespace UnrealBuildTool.Rules
 	{
 		public SmartObjectsTestSuite(ReadOnlyTargetRules Target) : base(Target)
 		{
+			UnsafeTypeCastWarningLevel = WarningLevel.Warning;
+
 			PublicIncludePaths.AddRange(
 				new string[] {
 				}

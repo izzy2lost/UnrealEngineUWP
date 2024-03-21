@@ -1322,7 +1322,7 @@ public:
 	UE_DEPRECATED(5.3, "Please use GetNavLinkUserId() instead. This function only returns Invalid.")
 	int32 GetLinkUserId(NavNodeRef LinkPolyID) const
 	{
-		return FNavLinkId::Invalid.GetId();
+		return static_cast<int32>(FNavLinkId::Invalid.GetId());
 	}
 
 	/** Retrieves LinkUserID associated with indicated PolyID */

@@ -8,6 +8,8 @@ namespace UnrealBuildTool.Rules
     {
         public NavigationSystem(ReadOnlyTargetRules Target) : base(Target)
         {
+	        UnsafeTypeCastWarningLevel = WarningLevel.Warning;
+
             PublicDependencyModuleNames.AddRange(
                 new string[] {
 					"Chaos",

@@ -74,7 +74,7 @@ struct FCommands_FragmentMemoryCleanup : FEntityTestBase
 		const FMassArchetypeHandle ArrayArchetype = EntityManager->CreateArchetype(MakeArrayView(ArrayFragmentTypes, 1));
 		const FMassArchetypeHandle ArrayIntArchetype = EntityManager->CreateArchetype(MakeArrayView(ArrayFragmentTypes, 2));
 		const int32 EntitiesPerChunk = EntityManager->DebugGetArchetypeEntitiesCountPerChunk(ArrayArchetype);
-		const int32 Count = (int32)(EntitiesPerChunk * 2.5f);
+		const int32 Count = static_cast<int32>(static_cast<float>(EntitiesPerChunk) * 2.5f);
 		
 		TArray<FMassEntityHandle> Entities;
 		EntityManager->BatchCreateEntities(ArrayArchetype, Count, Entities);
@@ -114,7 +114,7 @@ struct FCommands_BuildEntitiesWithFragments : FEntityTestBase
 	virtual bool InstantTest() override
 	{
 		const int32 EntitiesPerChunk = EntityManager->DebugGetArchetypeEntitiesCountPerChunk(FloatsIntsArchetype);
-		const int32 Count = (int32)(EntitiesPerChunk * 2.5f);
+		const int32 Count = static_cast<int32>(static_cast<float>(EntitiesPerChunk) * 2.5f);
 
 		TArray<FMassEntityHandle> Entities;
 		for (int i = 0; i < Count; ++i)
@@ -144,7 +144,7 @@ struct FCommands_BuildEntitiesInHoles : FEntityTestBase
 	virtual bool InstantTest() override
 	{
 		const int32 EntitiesPerChunk = EntityManager->DebugGetArchetypeEntitiesCountPerChunk(FloatsIntsArchetype);
-		const int32 Count = int(EntitiesPerChunk * 1.25f) * 2; // making sure it's even
+		const int32 Count = static_cast<int32>(static_cast<float>(EntitiesPerChunk) * 1.25f) * 2; // making sure it's even
 
 		TArray<FMassEntityHandle> Entities;
 		EntityManager->BatchCreateEntities(FloatsIntsArchetype, Count, Entities);
@@ -180,7 +180,7 @@ struct FCommands_BuildEntitiesWithFragmentInstances : FEntityTestBase
 	virtual bool InstantTest() override
 	{
 		const int32 EntitiesPerChunk = EntityManager->DebugGetArchetypeEntitiesCountPerChunk(FloatsIntsArchetype);
-		const int32 Count = (int32)(EntitiesPerChunk * 2.5f);
+		const int32 Count = static_cast<int32>(static_cast<float>(EntitiesPerChunk) * 2.5f);
 
 		TArray<FMassEntityHandle> Entities;
 		for (int i = 0; i < Count; ++i)
