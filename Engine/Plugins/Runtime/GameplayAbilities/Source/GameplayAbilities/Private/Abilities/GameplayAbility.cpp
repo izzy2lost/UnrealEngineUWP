@@ -215,6 +215,14 @@ EDataValidationResult UGameplayAbility::IsDataValid(FDataValidationContext& Cont
 			Result = EDataValidationResult::Invalid;
 		}
 	}
+	else
+	{
+		if (GetInstancingPolicy() != EGameplayAbilityInstancingPolicy::InstancedPerActor)
+		{
+			Context.AddError(FText::Format(LOCTEXT("ReplicatedInstancePolicyNotSupported", "Instancing Policy '{0}' is not supported for Replication.  Either change the Replication Policy or the Instancing Policy"), UEnum::GetDisplayValueAsText(GetInstancingPolicy())));
+			Result = EDataValidationResult::Invalid;
+		}
+	}
 
 	for (TFieldIterator<const UFunction> FuncIter(GetClass(), EFieldIterationFlags::IncludeSuper); FuncIter; ++FuncIter)
 	{

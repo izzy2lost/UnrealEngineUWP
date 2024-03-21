@@ -48,7 +48,7 @@ namespace EGameplayAbilityInstancingPolicy
 		// Each actor gets their own instance of this ability. State can be saved, replication is possible.
 		InstancedPerActor,
 
-		// We instance this ability each time it is executed. Replication possible but not recommended.
+		// We instance this ability each time it is executed. Replication currently unsupported.
 		InstancedPerExecution,
 	};
 }
