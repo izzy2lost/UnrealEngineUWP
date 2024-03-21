@@ -1,13 +1,16 @@
 ![Horde](Images/Logo.png#gh-light-mode-only)![Horde](Images/Logo-DarkMode.png#gh-dark-mode-only)
 
-**Horde** has been installed successfully. To continue setting up your installation, see the following guides:
+## Getting Started
 
-* **[Installing Horde](Tutorials/InstallHorde.md)**
-* **[Set up remote C++ compilation](Tutorials/RemoteCompilation.md)**
-* **[Set up build automation](Tutorials/BuildAutomation.md)**
-* **[Set up test automation](Tutorials/TestAutomation.md)**
-* **[Set up studio analytics](Tutorials/Analytics.md)**
-* **[Set up device manager](Tutorials/DeviceManager.md)**
+**Horde** has been installed successfully. To continue setting up your deployment, check out the following guides:
+
+* **[Installing the Horde Agent software](Tutorials/InstallHorde.md#horde-agents)**
+* **[Setting up remote C++ compilation with Unreal Build Accelerator](Tutorials/RemoteCompilation.md)**
+* **[Setting up build automation](Tutorials/BuildAutomation.md)**
+* **[Setting up test automation](Tutorials/TestAutomation.md)**
+* **[Setting up analytics for your team](Tutorials/Analytics.md)**
+* **[Setting up mobile and console devices](Tutorials/DeviceManager.md)**
+* **[Setting up UnrealGameSync and getting Unreal Editor builds to content creators](Tutorials/UnrealGameSync.md)**
 
 Alternatively, check out the full documentation through the `Help` menu at the top right of the page.
 

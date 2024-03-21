@@ -6,20 +6,20 @@ Unreal Engine, and other titles.
 It is provided with full source code to Unreal Engine licensees, and is meant for licensees to host and configure
 themselves. We provide pre-built Docker images for deployment on Linux, and an MSI installer for Windows.
 
-Horde offers the following functionality, each of which may be enabled or disabled independently:
+Horde offers the following functionality, most of which may be enabled or disabled independently:
 
 * **[Remote Execution](Docs/Tutorials/RemoteCompilation.md)**: Functionality to offload compute work to other machines,
   including C++ compilation with **Unreal Build Accelerator**.
 * **[Build Automation (CI/CD)](Docs/Tutorials/BuildAutomation.md)**: A build automation system designed for teams working
   with large Perforce repositories.
-* **[Studio Analytics](Docs/Config/Analytics.md)**: Receives telemetry from Unreal Editor, and shows charts for
+* **[Test Automation](Docs/Config/AutomationHub.md)**: A frontend for querying automation results across streams and
+  projects, integrated with AutomationTool and Gauntlet.
+* **[Studio Analytics](Docs/Tutorials/Analytics.md)**: Receives telemetry from Unreal Editor, and shows charts for
   key workflow metrics.
 * **[UnrealGameSync Metadata Server](Docs/Config/UgsMetadataServer.md)**: Various features for teams using
   UnrealGameSync, including build status reporting, comment aggregation, and crowdsourced build health functionality.
-* **[Device Manager](Docs/Config/Devices.md)**: A system for allocating and managing a farm of development kits and
+* **[Mobile/Console Device Management](Docs/Tutorials/DeviceManager.md)**: Tools for managing a farm of development kits and
   mobile devices.
-* **[Automation Hub](Docs/Config/AutomationHub.md)**: A frontend for querying automation results across streams and
-  projects, integrated with AutomationTool and Gauntlet.
 
 Read more about our [goals and philosophy](Docs/Goals.md), or check out the [FAQ](Docs/Faq.md).
 
@@ -34,11 +34,12 @@ See also: [Feature Status](Docs/Features.md)
 ## Getting Started
 
 * **[Installing Horde](Docs/Tutorials/InstallHorde.md)**
-* **[Set up remote C++ compilation](Docs/Tutorials/RemoteCompilation.md)**
-* **[Set up build automation](Docs/Tutorials/BuildAutomation.md)**
-* **[Set up test automation](Docs/Tutorials/TestAutomation.md)**
-* **[Set up studio analytics](Docs/Tutorials/Analytics.md)**
-* **[Set up device manager](Docs/Tutorials/DeviceManager.md)**
+* **[Setting up remote C++ compilation with Unreal Build Accelerator](Docs/Tutorials/RemoteCompilation.md)**
+* **[Setting up build automation](Docs/Tutorials/BuildAutomation.md)**
+* **[Setting up test automation](Docs/Tutorials/TestAutomation.md)**
+* **[Setting up studio analytics](Docs/Tutorials/Analytics.md)**
+* **[Setting up mobile and console devices](Docs/Tutorials/DeviceManager.md)**
+* **[Setting up UnrealGameSync and getting Unreal Editor builds to content creators](Tutorials/UnrealGameSync.md)**
 
 ## Reference
 
