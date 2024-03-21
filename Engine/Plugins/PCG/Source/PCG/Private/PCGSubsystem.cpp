@@ -157,9 +157,7 @@ void UPCGSubsystem::Deinitialize()
 	PCGWorldActor = nullptr;
 	bHasTickedOnce = false;
 
-#if WITH_EDITOR
-	ActorAndComponentMapping.TeardownTrackingCallbacks();
-#endif // WITH_EDITOR
+	ActorAndComponentMapping.Deinitialize();
 
 	Super::Deinitialize();
 }
@@ -168,9 +166,7 @@ void UPCGSubsystem::PostInitialize()
 {
 	Super::PostInitialize();
 
-#if WITH_EDITOR
-	ActorAndComponentMapping.RegisterTrackingCallbacks();
-#endif // WITH_EDITOR
+	ActorAndComponentMapping.Initialize(GetWorld());
 
 	// Initialize graph executor
 	check(!GraphExecutor);

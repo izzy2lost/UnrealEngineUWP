@@ -171,6 +171,7 @@ private:
 	void OnLandscapeMoved(AActor* InActor);
 	void OnLandscapeAdded(AActor* Actor);
 	void OnLandscapeDeleted(AActor* Actor);
+	void OnLandscapeLoaded(AActor& Actor);
 	void CacheLayerNames(ALandscapeProxy* InLandscape);
 	void CacheLayerNames();
 	void RemoveComponentFromCache(const ALandscapeProxy* LandscapeProxy);

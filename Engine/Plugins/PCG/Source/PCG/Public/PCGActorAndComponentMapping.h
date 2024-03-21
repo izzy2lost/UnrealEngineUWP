@@ -26,6 +26,7 @@ class UObject;
 class UPCGComponent;
 class UPCGGraph;
 class UPCGSubsystem;
+class UWorld;
 
 /**
 * This class handle any necessary mapping between actors and pcg components.
@@ -42,6 +43,12 @@ public:
 	friend FPCGRuntimeGenScheduler;
 
 	~FPCGActorAndComponentMapping() = default;
+
+	/** Initializes callbacks, etc, tied to the PCG subsystem */
+	void Initialize(UWorld* World);
+
+	/** Deinitializes callbacks, etc, tied to the PCG subsystem */
+	void Deinitialize();
 	
 	/** Should be called by the subsystem to handle delayed operations. */
 	void Tick();

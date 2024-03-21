@@ -880,7 +880,7 @@ void UPCGLandscapeCache::SampleMetadataOnPoint(ALandscapeProxy* Landscape, FPCGP
 		return;
 	}
 
-	const FVector2D ComponentLocalPoint(LocalPoint.X - ComponentMapKey.X * LandscapeInfo->ComponentSizeQuads, LocalPoint.Y - ComponentMapKey.Y * LandscapeInfo->ComponentSizeQuads);	
+	const FVector2D ComponentLocalPoint(LocalPoint.X - ComponentMapKey.X * LandscapeInfo->ComponentSizeQuads, LocalPoint.Y - ComponentMapKey.Y * LandscapeInfo->ComponentSizeQuads);
 	CacheEntry->GetInterpolatedPointMetadataOnly(ComponentLocalPoint, InOutPoint, OutMetadata);
 }
 
@@ -915,6 +915,12 @@ void UPCGLandscapeCache::SetupLandscapeCallbacks()
 		GEngine->OnLevelActorAdded().AddUObject(this, &UPCGLandscapeCache::OnLandscapeAdded);
 		GEngine->OnLevelActorDeleted().AddUObject(this, &UPCGLandscapeCache::OnLandscapeDeleted);
 	}
+
+	// In editor, loading from the persistent level should add it to the cache. Note that we don't need to track unloaded landscapes
+	if (!World->IsPlayInEditor() && World->IsPartitionedWorld() && World->PersistentLevel)
+	{
+		World->PersistentLevel->OnLoadedActorAddedToLevelEvent.AddUObject(this, &UPCGLandscapeCache::OnLandscapeLoaded);
+	}
 }
 
 void UPCGLandscapeCache::TeardownLandscapeCallbacks()
@@ -932,6 +938,14 @@ void UPCGLandscapeCache::TeardownLandscapeCallbacks()
 		GEngine->OnActorMoved().RemoveAll(this);
 		GEngine->OnLevelActorAdded().RemoveAll(this);
 		GEngine->OnLevelActorDeleted().RemoveAll(this);
+	}
+
+	if (UWorld* World = GetWorld())
+	{
+		if (!World->IsPlayInEditor() && World->IsPartitionedWorld() && World->PersistentLevel)
+		{
+			World->PersistentLevel->OnLoadedActorAddedToLevelEvent.RemoveAll(this);
+		}
 	}
 }
 
@@ -1001,12 +1015,21 @@ void UPCGLandscapeCache::OnLandscapeDeleted(AActor* Actor)
 	CacheLock.WriteUnlock();
 }
 
+void UPCGLandscapeCache::OnLandscapeLoaded(AActor& Actor)
+{
+	OnLandscapeAdded(&Actor);
+}
+
 void UPCGLandscapeCache::OnLandscapeAdded(AActor* Actor)
 {
 	if (ALandscapeProxy* LandscapeProxy = Cast<ALandscapeProxy>(Actor))
 	{
 		Landscapes.Add(LandscapeProxy);
-		LandscapeProxy->OnComponentDataChanged.AddUObject(this, &UPCGLandscapeCache::OnLandscapeChanged);
+		if (!LandscapeProxy->OnComponentDataChanged.IsBoundToObject(this))
+		{
+			LandscapeProxy->OnComponentDataChanged.AddUObject(this, &UPCGLandscapeCache::OnLandscapeChanged);
+		}
+
 		// Note: Landscape Proxies have no components at this stage, so they will need to be added on demand
 	}
 }
