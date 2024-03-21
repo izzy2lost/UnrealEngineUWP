@@ -11,15 +11,14 @@
 
 FWindowsEOSSDKManager::FWindowsEOSSDKManager()
 {
-	PlatformSteamOptions =
-	{
-		2, //EOS_INTEGRATEDPLATFORM_STEAM_OPTIONS_API_LATEST
-		nullptr,
-		1,
-		57
-	};
+	PlatformSteamOptions.ApiVersion = 3; //EOS_INTEGRATEDPLATFORM_STEAM_OPTIONS_API_LATEST;
+	PlatformSteamOptions.OverrideLibraryPath = nullptr;
+	PlatformSteamOptions.SteamMajorVersion = 1;
+	PlatformSteamOptions.SteamMinorVersion = 57;
+	PlatformSteamOptions.SteamApiInterfaceVersionsArray = nullptr;
+	PlatformSteamOptions.SteamApiInterfaceVersionsArrayBytes = 0;
 
-	UE_EOS_CHECK_API_MISMATCH(EOS_INTEGRATEDPLATFORM_STEAM_OPTIONS_API_LATEST, 2);
+	UE_EOS_CHECK_API_MISMATCH(EOS_INTEGRATEDPLATFORM_STEAM_OPTIONS_API_LATEST, 3);
 }
 
 FWindowsEOSSDKManager::~FWindowsEOSSDKManager()

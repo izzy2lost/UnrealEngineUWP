@@ -132,8 +132,8 @@ void FEOSVoiceChat::Initialize(const FOnVoiceChatInitializeCompleteDelegate& Ini
 					const FTCHARToUTF8 Utf8OverrideLocaleCode(*ConfigOverrideLocaleCode);
 
 					EOS_Platform_Options PlatformOptions = {};
-					PlatformOptions.ApiVersion = 13;
-					UE_EOS_CHECK_API_MISMATCH(EOS_PLATFORM_OPTIONS_API_LATEST, 13);
+					PlatformOptions.ApiVersion = 14;
+					UE_EOS_CHECK_API_MISMATCH(EOS_PLATFORM_OPTIONS_API_LATEST, 14);
 					PlatformOptions.Reserved = nullptr;
 					PlatformOptions.SystemSpecificOptions = nullptr;
 					PlatformOptions.ProductId = ConfigProductId.IsEmpty() ? nullptr : Utf8ProductId.Get();
@@ -149,6 +149,7 @@ void FEOSVoiceChat::Initialize(const FOnVoiceChatInitializeCompleteDelegate& Ini
 					PlatformOptions.CacheDirectory = nullptr;
 					PlatformOptions.TickBudgetInMilliseconds = 1;
 					PlatformOptions.IntegratedPlatformOptionsContainerHandle = nullptr;
+					PlatformOptions.TaskNetworkTimeoutSeconds = nullptr;
 #if UE_EDITOR
 					//PlatformCreateOptions.Flags |= EOS_PF_LOADING_IN_EDITOR;
 #endif
