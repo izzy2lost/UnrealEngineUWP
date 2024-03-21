@@ -16,6 +16,7 @@
 
 struct FAssetData;
 class FAssetRegistryTagsContext;
+namespace UE::AssetRegistry { class FAssetRegistryImpl; }
 class FConfigCacheIni;
 class FCustomPropertyConditionState;
 class FEditPropertyChain;
@@ -33,6 +34,7 @@ struct FObjectInstancingGraph;
 struct FPropertyChangedChainEvent;
 struct FTopLevelAssetPath;
 class UClass;
+
 #if UE_WITH_IRIS
 namespace UE::Net
 {
@@ -907,15 +909,44 @@ public:
 
 #if WITH_EDITOR
 
+	UE_DEPRECATED(5.5, "This function is no longer called. If you require this functionality, please implement ThreadedPostLoadAssetRegistryTagsOverride. \
+Note that this function MUST be safe to call on a background thread. If you have functionality that doesn't meet that requirement, \
+consider using the AssetRegistry's AssetAddedEvent which fires on the game thread.")
+	COREUOBJECT_API virtual void PostLoadAssetRegistryTags(const FAssetData& InAssetData, TArray<FAssetRegistryTag>& OutTagsAndValuesToUpdate) const final {}
+
+	/** Contains an AssetData referencing the asset to be processed and an array of tags and values to be updated on that asset */
+	struct FPostLoadAssetRegistryTagsContext
+	{
+		FPostLoadAssetRegistryTagsContext(const FAssetData& InAssetData, TArray<FAssetRegistryTag>& InTagsAndValuesToUpdate)
+		: AssetData(InAssetData), TagsAndValuesToUpdate(InTagsAndValuesToUpdate) {}
+
+		const FAssetData& GetAssetData() const { return AssetData; }
+		void AddTagToUpdate(const FAssetRegistryTag& Tag) { TagsAndValuesToUpdate.Add(Tag); }
+
+	private:
+		/** The AssetData being considered */
+		const FAssetData& AssetData;
+		/** The asset registry tags to be updated for this asset data */
+		TArray<FAssetRegistryTag>& TagsAndValuesToUpdate;
+	};
+
+protected:
 	/**
-	 * Performs fixup on loaded asset registry data. 
-	 * This function is called from inside the AssetRegistry CriticalSection. DO NOT CALL ASSETREGISTRY FUNCTIONS FROM THIS FUNCTION, IT WILL DEADLOCK.
+	 * Performs fixup on loaded asset registry data.
+	 *
+	 * DO NOT CALL ASSETREGISTRY FUNCTIONS FROM THIS FUNCTION, IT WILL DEADLOCK because this function is called from inside the AssetRegistry CriticalSection. 
+	 * IT MUST BE SAFE TO CALL IN MULTITHREADED BACKGROUND THREADS because the AssetRegistry can call this function from a background thread.
+	 * 
 	 * Note that this function is only called on Class Default Objects where the actual object instance data used to generate 
 	 * the asset data is not available.
-	 * @param InAssetData Asset data loaded from the AssetRegistry
-	 * @return Pointer to new asset data after fixup or nullptr if no fixup was required
+	 * @param Context Contains input and receives output from the function. @see FPostloadAssetRegistryTagsContext
 	 */
-	COREUOBJECT_API virtual void PostLoadAssetRegistryTags(const FAssetData& InAssetData, TArray<FAssetRegistryTag>& OutTagsAndValuesToUpdate) const;
+	COREUOBJECT_API virtual void ThreadedPostLoadAssetRegistryTagsOverride(FPostLoadAssetRegistryTagsContext& Context) const {}
+
+public:
+
+	/** Internal use function for the AssetRegistry. Performs general fixup required by UObject and invokes ThreadedPostLoadAssetRegistryTagsOverride */
+	COREUOBJECT_API void ThreadedPostLoadAssetRegistryTags(FPostLoadAssetRegistryTagsContext& Context) const;
 
 	/**
 	 * Additional data pertaining to asset registry tags used by the editor

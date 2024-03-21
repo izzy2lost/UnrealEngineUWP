@@ -32,6 +32,10 @@ namespace UE::AssetRegistry::Premade { struct FAsyncConsumer; }
 namespace UE::AssetRegistry::Impl { struct FInitializeContext; }
 namespace UE::AssetRegistry::Impl { struct FScanPathContext; }
 namespace UE::AssetRegistry::Impl { struct FClassInheritanceContext; }
+namespace UE::AssetRegistry { template<typename TScopeLockType> class TRWScopeLockWithPriority; }
+namespace UE::AssetRegistry { using FInterfaceReadScopeLock = TRWScopeLockWithPriority<FReadScopeLock>; }
+namespace UE::AssetRegistry { using FInterfaceWriteScopeLock = TRWScopeLockWithPriority<FWriteScopeLock>; }
+namespace UE::AssetRegistry { using FInterfaceRWScopeLock = class FRWScopeLockWithPriority; }
 
 #if WITH_EDITOR
 namespace UE::AssetDependencyGatherer::Private { class FRegisteredAssetDependencyGatherer; }
@@ -50,10 +54,11 @@ struct FAsyncConsumer
 	/** Sets the Consumer into need-to-wait mode; Wait will block until Consume is called. */
 	void PrepareForConsume();
 	/**
-	 * Does not return until after the Premade AssetRegistryState has been added into the target AssetRegistry, or it has been decided not to be used.
-	 * For performance reasons, this must be called within the WriteScopeLock, and the caller must handle the possibility that it leaves and reenters the lock.
+	 * Does not return until after the Premade AssetRegistryState has been added into the target AssetRegistry, or it has 
+	 * been decided not to be used. For performance reasons, this must be called within the WriteScopeLock, and the caller 
+	 * must handle the possibility that it leaves and reenters the lock.
 	 */
-	void Wait(UAssetRegistryImpl& UARI, FWriteScopeLock& ScopeLock);
+	void Wait(UAssetRegistryImpl& UARI, FInterfaceWriteScopeLock& ScopeLock);
 	/** Callback from the async thread to consume the Premade ARState */
 	void Consume(UAssetRegistryImpl& UARI, UE::AssetRegistry::Impl::FEventContext& EventContext, ELoadResult LoadResult, FAssetRegistryState&& ARState);
 
@@ -70,6 +75,34 @@ private:
 
 namespace UE::AssetRegistry
 {
+
+namespace Private
+{
+	/** Custom lock class that can prioritize waiters upon request. This is used to allow threads with critical requests 
+	 *  to request that the gatherer thread pause its work and allow the higher pri threads to jump in. Note that for this
+	 *  to work correctly it must be used with the associated TPriorityScopeLock types 
+	 *  (TScopeLockWithPriority and FRWScopeLockWithPriority)
+	 */
+	class FRWLockWithPriority : public FRWLock
+	{
+	public:
+		bool HasWaiters() const { return HighPriorityWaitersCount.load(std::memory_order_relaxed) > 0; }
+	
+	private:
+		friend FInterfaceReadScopeLock;
+		friend FInterfaceWriteScopeLock;
+		friend FInterfaceRWScopeLock;
+		std::atomic<int32> HighPriorityWaitersCount;
+	};
+
+	enum ELockPriority : uint8
+	{
+		PriorityLow,
+		PriorityHigh
+	};
+
+	using FInterfaceRWLock = FRWLockWithPriority;
+}
 
 namespace Impl
 {
@@ -94,14 +127,16 @@ namespace Impl
 	};
 
 	/** Status of gathering, returned from the Tick function */
-	enum EGatherStatus : uint8
+	enum class EGatherStatus : uint8
 	{
-		Active,
+		TickActiveGatherActive,
+		TickActiveGatherIdle,
+		TickGameThreadActiveGatherIdle,
 		Complete,
 		UnableToProgress,
 		WaitingForEvents,
 	};
-
+	
 	/** Affects how rules are applied to improve loading/runtime performance */
 	enum EPerformanceMode : uint8
 	{
@@ -111,7 +146,51 @@ namespace Impl
 		// Not changing, optimize for runtime queries
 		MostlyStatic,
 	};
+
+	/** Provides handling for time slicing during TickGatherer */
+	struct FInterruptionContext
+	{
+	public:
+		typedef TFunction<bool(void)> ShouldExitEarlyCallbackType;
+
+		explicit FInterruptionContext(double InTickStartTime, double InMaxRunningTime)
+			: TickStartTime(InTickStartTime)
+			, MaxRunningTime(InMaxRunningTime) {}
+
+		FInterruptionContext(double InTickStartTime, double InMaxRunningTime, ShouldExitEarlyCallbackType& Callback)
+			: TickStartTime(InTickStartTime)
+			, MaxRunningTime(InMaxRunningTime)
+			, EarlyExitCallback(Callback) {}
+
+		double GetTickStartTime() const { return TickStartTime; }
+		bool IsTimeSlicingEnabled() const { return TickStartTime > 0; }
+		bool WasInterrupted() const { return OutInterrupted; }
+		bool ShouldExitEarly();
+		void RequestEarlyExit() { OutInterrupted = true; }
+
+	private:
+		// A negative value disables time slicing
+		const double TickStartTime;
+		// The maximum time should allow before interruption. If TickStartTime is negative, this is ignored
+		const double MaxRunningTime;
+		// If provided, this is always checked
+		ShouldExitEarlyCallbackType EarlyExitCallback;
+		// True if we ran out of time, EarlyExitCallback returned true, or RequestEarlyExit() was called
+		bool OutInterrupted = false;
+	};
 }
+}
+
+/** Returns true if ANY work remains to be done. This work might require the game thread. */
+FORCEINLINE bool IsTickActive(UE::AssetRegistry::Impl::EGatherStatus Status) 
+{ 
+	return (Status == UE::AssetRegistry::Impl::EGatherStatus::TickGameThreadActiveGatherIdle) 
+		|| (Status == UE::AssetRegistry::Impl::EGatherStatus::TickActiveGatherActive)
+		|| (Status == UE::AssetRegistry::Impl::EGatherStatus::TickActiveGatherIdle);
+}
+
+namespace UE::AssetRegistry
+{
 
 /**
  * Threading helper class for UAssetRegistryImpl that holds all of the data.
@@ -128,7 +207,6 @@ public:
 	FAssetRegistryImpl();
 	/** Construct the AssetRegistryImpl, including initial scans if applicable. */
 	void Initialize(Impl::FInitializeContext& Context);
-	void OnEnginePreExit();
 
 	// Helpers for functions of the same name from UAssetRegistryImpl
 
@@ -195,8 +273,9 @@ public:
 	typedef TFunctionRef<void(const TMultiMap<FName, FAssetData*>&)> FAssetsFoundCallback;
 	/** Consume any results from the gatherer and return its status */
 	Impl::EGatherStatus TickGatherer(Impl::FEventContext& EventContext,
-		Impl::FClassInheritanceContext& InheritanceContext, const double TickStartTime, bool& bOutInterrupted,
+		Impl::FClassInheritanceContext& InheritanceContext, Impl::FInterruptionContext& InOutInterruptionContext,
 		TOptional<FAssetsFoundCallback> AssetsFoundCallback = TOptional<FAssetsFoundCallback>());
+
 	/** Send a log message with the search statistics. 
 	 *  StartTime is used to report wall clock search time in the case of background scan
 	 */
@@ -211,12 +290,20 @@ public:
 	void PushProcessLoadedAssetsBatch(Impl::FEventContext& EventContext,
 		TArrayView<FAssetData> LoadedAssetDatas, TArrayView<const UObject*> UnprocessedFromBatch);
 	/** Call LoadCalculatedDependencies on each Package updated after the last LoadCalculatedDependencies. */
-	void LoadCalculatedDependencies(TArray<FName>* AssetPackageNamessToCalculate, double TickStartTime, 
-		Impl::FClassInheritanceContext& InheritanceContext, bool& bOutInterrupted);
-	/**
-	 * Look for a CalculatedDependencies function registered for the asset(s) in the given package
-	 * and call that function to add calculated dependencies. Calculated dependencies are added only after
-	 * all normal dependencies gathered from the AssetRegistry data stored in the package have been loaded.
+	void LoadCalculatedDependencies(TArray<FName>* AssetPackageNamessToCalculate, Impl::FClassInheritanceContext& InheritanceContext, 
+		TSet<FName>* InPackagesNeedingDependencyCalculation, Impl::FInterruptionContext& InOutInterruptionContext);
+	/** For each package in BackgroundPackages, if there is a registered gatherer for its asset class, this function will 
+	 *  move the package to GameThreadPackages otherwise it will be removed from the set. Any entries in GameThreadPackages that
+	 *  do not have a corresponding registered gatherer will likewise be removed. The end condition for this function is that 
+	 *  BackgroundPackages is empty and GameThreadPackages contains only those packages which require LoadCalculatedDependencies to
+	 *  be called on them
+	 */
+	void PruneAndCoalescePackagesRequiringDependencyCalculation(TSet<FName>& BackgroundPackages, TSet<FName>& GameThreadPackages,
+		Impl::FInterruptionContext& InOutInterruptionContext);
+
+	/** Look for a CalculatedDependencies function registered for the asset(s) in the given package
+	 *  and call that function to add calculated dependencies. Calculated dependencies are added only after
+	 *  all normal dependencies gathered from the AssetRegistry data stored in the package have been loaded.
 	 */
 	void LoadCalculatedDependencies(FName PackageName, Impl::FClassInheritanceContext& InheritanceContext,
 		bool& bOutHadActivity);
@@ -281,10 +368,22 @@ public:
 
 	/**
 	 * Block until the Premade AssetRegistry finishes loading, if there is one still loading.
-	 * For performance reasons, this must be called within the WriteScopeLock, and the caller must handle the possibility that it leaves and reenters the lock.
+	 * For performance reasons, this must be called within the WriteScopeLock, and the caller 
+	 * must handle the possibility that it leaves and reenters the lock.
 	 */
-	void ConditionalLoadPremadeAssetRegistry(UAssetRegistryImpl& UARI, UE::AssetRegistry::Impl::FEventContext& EventContext, FWriteScopeLock& ScopeLock);
+	void ConditionalLoadPremadeAssetRegistry(UAssetRegistryImpl& UARI, 
+		UE::AssetRegistry::Impl::FEventContext& EventContext, FInterfaceWriteScopeLock& ScopeLock);
 
+#if WITH_EDITOR
+	/** Request to pause or resume background processing of scan results.
+	 *  This can be used to allow a priority thread to perform along sequence of operations
+	 *  without having to contend with the background thread for data access
+	 */
+	void RequestPauseBackgroundProcessing();
+	void RequestResumeBackgroundProcessing();
+	bool IsBackgroundProcessingPaused() const;
+
+#endif
 private:
 
 	/**
@@ -298,15 +397,19 @@ private:
 		bool& bOutRedirectorsNeedSubscribe);
 	/** If collecting dependencies, create an FAssetPackageData for every script package, to make sure dependencies can find a data for them. */
 	void ReadScriptPackages();
-	/* Construct the gatherer if it does not already exist */
-	void ConstructGatherer();
+	/* Try to construct the gatherer if it does not already exist. If that is not possible (e.g., because we are shutting down)
+	 * return false. If it was successfully created or already existed, return true.
+	 */
+	bool TryConstructGathererIfNeeded();
 	/**  Called to set up timing variables and launch the on-constructor SearchAllAssets async call */
 	void SearchAllAssetsInitialAsync(Impl::FEventContext& EventContext, Impl::FClassInheritanceContext& InheritanceContext);
 	/**
 	 * Called every tick to when data is retrieved by the background asset search.
 	 * If TickStartTime is < 0, the entire list of gathered assets will be cached. Also used in sychronous searches
+	 * The DeferredResults array contains assets that were not ready for processing due to required UClass's not being loaded
 	 */
-	void AssetSearchDataGathered(Impl::FEventContext& EventContext, const double TickStartTime, TMultiMap<FName, FAssetData*>& AssetResults);
+	void AssetSearchDataGathered(Impl::FEventContext& EventContext, TMultiMap<FName, TUniquePtr<FAssetData>>& AssetResults, 
+		TMultiMap<FName, TUniquePtr<FAssetData>>& OutDeferredResults, Impl::FInterruptionContext& InOutInterruptionContext);
 	/** Validate assets gathered from disk before adding them to the AssetRegistry. */
 	bool ShouldSkipGatheredAsset(FAssetData& AssetData);
 
@@ -314,17 +417,19 @@ private:
 	 * Called every tick when data is retrieved by the background path search.
 	 * If TickStartTime is < 0, the entire list of gathered assets will be cached. Also used in sychronous searches
 	 */
-	void PathDataGathered(Impl::FEventContext& EventContext, const double TickStartTime, TRingBuffer<FString>& PathResults);
+	void PathDataGathered(Impl::FEventContext& EventContext, TRingBuffer<FString>& PathResults, Impl::FInterruptionContext& InOutInterruptionContext);
 
 	/** Called every tick when data is retrieved by the background dependency search */
-	void DependencyDataGathered(const double TickStartTime, TMultiMap<FName, FPackageDependencyData>& DependsResults);
+	void DependencyDataGathered(TMultiMap<FName, FPackageDependencyData>& DependsResults, 
+		TMultiMap<FName, FPackageDependencyData>& OutDeferredDependencyResults,	TSet<FName>* OutPackagesNeedingDependencyCalculation, 
+		Impl::FInterruptionContext& InOutInterruptionContext);
 
 	/** Called every tick when data is retrieved by the background search for cooked packages that do not contain asset data */
-	void CookedPackageNamesWithoutAssetDataGathered(Impl::FEventContext& EventContext, const double TickStartTime,
-		TRingBuffer<FString>& CookedPackageNamesWithoutAssetDataResults, bool& bOutInterrupted);
+	void CookedPackageNamesWithoutAssetDataGathered(Impl::FEventContext& EventContext, 
+		TRingBuffer<FString>& CookedPackageNamesWithoutAssetDataResults, Impl::FInterruptionContext& InOutInterruptionContext);
 
 	/** Called every tick when data is retrieved by the background dependency search */
-	void VerseFilesGathered(Impl::FEventContext& EventContext, const double TickStartTime, TRingBuffer<FName>& VerseResults);
+	void VerseFilesGathered(Impl::FEventContext& EventContext, TRingBuffer<FName>& VerseResults, Impl::FInterruptionContext& InOutInterruptionContext);
 
 	/** Adds the asset data to the lookup maps */
 	void AddAssetData(Impl::FEventContext& EventContext, FAssetData* AssetData);
@@ -341,10 +446,11 @@ private:
 
 #if WITH_EDITOR
 	/** 
-	 * Calls PostLoadAssetRegistryTags on the CDO of the asset class this data represents 
+	 * Calls PostLoadAssetRegistryTags on the CDO of the asset class this data represents.
 	 * @param AssetData Existing asset data
+	 * @return Returns false if the required parent UClass is not yet available
 	 */
-	void PostLoadAssetRegistryTags(FAssetData* AssetData);
+	bool TryPostLoadAssetRegistryTags(FAssetData* AssetData);
 
 	/** Update Redirect collector with redirects loaded from asset registry */
 	void UpdateRedirectCollector();
@@ -372,6 +478,19 @@ private:
 	/** Add MountPoints of all AssetDatas currently registered in this->State to the list of PersistentMountPoints. */
 	void UpdatePersistentMountPoints();
 	void OnInitialSearchCompleted(Impl::FEventContext& EventContext);
+
+	/** This function is not called and, currently, will always return 'true'. See the commented out call in
+	 *	FAssetDataGatherer::TickInternal for further details on how it could be used. 
+	 */
+	friend FAssetDataGatherer;
+	bool ClassRequiresGameThreadProcessing(const UClass* Class) const;
+
+	friend UAssetRegistryImpl;
+	/** This exists purely for use during shutdown to enable the UAssetRegistryImpl to
+	 *  avoid waiting for the gatherer to terminate while holding the interface lock.
+	 *  See UAssetRegistryImpl::OnEnginePreExit 
+	 */
+	TUniquePtr<FAssetDataGatherer>& AccessGlobalGatherer() { return GlobalGatherer; }
 
 private:
 
@@ -410,8 +529,14 @@ private:
 	/** Async task that gathers asset information from disk */
 	TUniquePtr<FAssetDataGatherer> GlobalGatherer;
 
-	/** Lists of results from the background thread that are waiting to get processed by the main thread */
+	/** Lists of results from the gatherer thread that are waiting to get processed */
 	FAssetDataGatherer::FResults BackgroundResults;
+
+	/** Assets and dependencies that are not ready for processing because they can't yet run PostLoadAssetRegistrytags */
+	TMultiMap<FName, TUniquePtr<FAssetData>> DeferredAssets;
+	TMultiMap<FName, TUniquePtr<FAssetData>> DeferredAssetsForGameThread;
+	TMultiMap<FName, FPackageDependencyData> DeferredDependencies;
+	TMultiMap<FName, FPackageDependencyData> DeferredDependenciesForGameThread;
 
 #if !NO_LOGGING
 	/** Memory profiling information: How much memory is being used by the tags for each class. */
@@ -456,6 +581,8 @@ private:
 
 	bool bVerboseLogging;
 
+	bool bForceCompletionEvenIfPostLoadsFail = false;
+
 	/** List of all class names derived from Blueprint (including Blueprint itself) */
 	TSet<FTopLevelAssetPath> ClassGeneratorNames;
 
@@ -472,23 +599,25 @@ private:
 	TArray<FAssetRegistryPackageRedirect> PackageRedirects;
 
 #if WITH_EDITOR
+	/**
+	 * The set of object paths that have had their dependencies gathered since the last idle,
+	 * and that need to check for calculated dependencies at the next idle.
+	 */
+	TSet<FName> PackagesNeedingDependencyCalculation;
+	TSet<FName> PackagesNeedingDependencyCalculationOnGameThread;
+
 	/** List of objects that need to be processed because they were loaded or saved */
 	TRingBuffer<TWeakObjectPtr<const UObject>> LoadedAssetsToProcess;
 
 	/** The set of object paths that have had their disk cache updated from the in memory version */
 	TSet<FSoftObjectPath> AssetDataObjectPathsUpdatedOnLoad;
 
-	/**
-	 * The set of object paths that have had their dependencies gathered since the last idle,
-	 * and that need to check for calculated dependencies at the next idle.
-	 */
-	TSet<FName> PackagesNeedingDependencyCalculation;
-
 	/** A map from directoryname to packagename of Packages that have CalculatedDependencies on packages in the directory. */
 	TMultiMap<FString, FName> DirectoryReferencers;
 
 	/** A map of per asset class dependency gatherer called in LoadCalculatedDependencies */
 	TMultiMap<FTopLevelAssetPath, UE::AssetDependencyGatherer::Private::FRegisteredAssetDependencyGatherer*> RegisteredDependencyGathererClasses;
+	mutable FRWLock RegisteredDependencyGathererClassesLock;
 	bool bRegisteredDependencyGathererClassesDirty;
 #endif
 #if WITH_ENGINE && WITH_EDITOR
@@ -579,7 +708,7 @@ struct FScanPathContext
 	int32 NumFoundAssets = 0;
 	bool bForceRescan = false;
 	bool bIgnoreDenyListScanFilters = false;
-	EGatherStatus Status = EGatherStatus::Active;
+	EGatherStatus Status = EGatherStatus::TickActiveGatherActive;
 };
 
 }
@@ -658,7 +787,7 @@ void EnumerateMemoryAssetsHelper(const FARCompiledFilter& InFilter, TSet<FName>&
  * Fills in OutPackageNamesWithAssets with names of all packages tested.
 */
 void EnumerateMemoryAssets(const FARCompiledFilter& InFilter, TSet<FName>& OutPackageNamesWithAssets,
-	bool& bOutStopIteration, FRWLock& InterfaceLock, const FAssetRegistryState& GuardedDataState,
+	bool& bOutStopIteration, UE::AssetRegistry::Private::FInterfaceRWLock& InterfaceLock, const FAssetRegistryState& GuardedDataState,
 	TFunctionRef<bool(FAssetData&&)> Callback, bool bSkipARFilteredAssets);
 
 }

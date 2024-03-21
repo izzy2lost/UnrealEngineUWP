@@ -52,8 +52,8 @@ namespace Utils
 		}
 
 		const bool bIsCooked = (PackageFlags & PKG_FilterEditorOnly);
-		if ((bIsCooked && SkipCookedClasses.Contains(AssetClass)) ||
-			(!bIsCooked && SkipUncookedClasses.Contains(AssetClass)))
+		if ((bIsCooked && InSkipCookedClasses.Contains(AssetClass)) ||
+			(!bIsCooked && InSkipUncookedClasses.Contains(AssetClass)))
 		{
 			return true;
 		}

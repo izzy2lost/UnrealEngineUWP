@@ -268,18 +268,18 @@ void UTemplateSequence::GetAssetRegistryTags(FAssetRegistryTagsContext Context) 
 
 #if WITH_EDITOR
 
-void UTemplateSequence::PostLoadAssetRegistryTags(const FAssetData& InAssetData, TArray<FAssetRegistryTag>& OutTagsAndValuesToUpdate) const
+void UTemplateSequence::ThreadedPostLoadAssetRegistryTagsOverride(FPostLoadAssetRegistryTagsContext& Context) const
 {
-	Super::PostLoadAssetRegistryTags(InAssetData, OutTagsAndValuesToUpdate);
+	Super::ThreadedPostLoadAssetRegistryTagsOverride(Context);
 
 	static const FName BoundActorClassTagName(TEXT("BoundActorClass"));
-	FString BoundActorClassTagValue = InAssetData.GetTagValueRef<FString>(BoundActorClassTagName);
+	FString BoundActorClassTagValue = Context.GetAssetData().GetTagValueRef<FString>(BoundActorClassTagName);
 	if (!BoundActorClassTagValue.IsEmpty() && FPackageName::IsShortPackageName(BoundActorClassTagValue))
 	{
-		FTopLevelAssetPath BoundActorClassPathName = UClass::TryConvertShortTypeNameToPathName<UStruct>(BoundActorClassTagValue, ELogVerbosity::Warning, TEXT("UTemplateSequence::PostLoadAssetRegistryTags"));
+		FTopLevelAssetPath BoundActorClassPathName = UClass::TryConvertShortTypeNameToPathName<UStruct>(BoundActorClassTagValue, ELogVerbosity::Warning, TEXT("UTemplateSequence::ThreadedPostLoadAssetRegistryTagsOverride"));
 		if (!BoundActorClassPathName.IsNull())
 		{
-			OutTagsAndValuesToUpdate.Add(FAssetRegistryTag(BoundActorClassTagName, BoundActorClassPathName.ToString(), FAssetRegistryTag::TT_Alphabetical));
+			Context.AddTagToUpdate(FAssetRegistryTag(BoundActorClassTagName, BoundActorClassPathName.ToString(), FAssetRegistryTag::TT_Alphabetical));
 		}
 	}
 }

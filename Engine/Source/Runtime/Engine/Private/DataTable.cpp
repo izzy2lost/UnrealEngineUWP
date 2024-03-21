@@ -380,18 +380,18 @@ void UDataTable::PostLoad()
 #endif // WITH_EDITORONLY_DATA
 
 #if WITH_EDITOR
-void UDataTable::PostLoadAssetRegistryTags(const FAssetData& InAssetData, TArray<FAssetRegistryTag>& OutTagsAndValuesToUpdate) const
+void UDataTable::ThreadedPostLoadAssetRegistryTagsOverride(FPostLoadAssetRegistryTagsContext& Context) const
 {
-	Super::PostLoadAssetRegistryTags(InAssetData, OutTagsAndValuesToUpdate);
+	Super::ThreadedPostLoadAssetRegistryTagsOverride(Context);
 
 	static const FName RowStructureTag(TEXT("RowStructure"));
-	FString TagValue = InAssetData.GetTagValueRef<FString>(RowStructureTag);
+	FString TagValue = Context.GetAssetData().GetTagValueRef<FString>(RowStructureTag);
 	if (!TagValue.IsEmpty() && FPackageName::IsShortPackageName(TagValue))
 	{
-		FTopLevelAssetPath PathName = UClass::TryConvertShortTypeNameToPathName<UField>(TagValue, ELogVerbosity::Warning, TEXT("UDataTable::PostLoadAssetRegistryTags"));
+		FTopLevelAssetPath PathName = UClass::TryConvertShortTypeNameToPathName<UField>(TagValue, ELogVerbosity::Warning, TEXT("UDataTable::ThreadedPostLoadAssetRegistryTagsOverride"));
 		if (!PathName.IsNull())
 		{
-			OutTagsAndValuesToUpdate.Add(FAssetRegistryTag(RowStructureTag, PathName.ToString(), FAssetRegistryTag::TT_Alphabetical));
+			Context.AddTagToUpdate(FAssetRegistryTag(RowStructureTag, PathName.ToString(), FAssetRegistryTag::TT_Alphabetical));
 		}
 	}
 }

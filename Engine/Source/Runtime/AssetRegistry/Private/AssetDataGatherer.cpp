@@ -2,6 +2,7 @@
 
 #include "AssetDataGatherer.h"
 #include "AssetDataGathererPrivate.h"
+#include "AssetRegistry.h"
 
 #include "Algo/AnyOf.h"
 #include "Algo/Find.h"
@@ -83,6 +84,14 @@ static FAutoConsoleVariableRef CVarIgnoreEmptyDirectories(
 	TEXT("AssetRegistry.IgnoreEmptyDirectories"),
 	bIgnoreEmptyDirectories,
 	TEXT("If true, completely empty leaf directories are ignored by the asset registry while scanning"));
+
+//@TODO This should be set to false (enabling multithreaded processing) only after resolving UE-209921 
+// (relating to the GC lock).
+bool bTickGatherOnGTOnly = true;
+static FAutoConsoleVariableRef CVarTickGatherOnGTOnly(
+	TEXT("AssetRegistry.TickGatherOnGTOnly"),
+	bTickGatherOnGTOnly,
+	TEXT("If true, TickGatherer will only be called from the game thread."));
 
 void LexFromString(EFeatureEnabledReadWrite& OutValue, FStringView Text)
 {
@@ -3572,12 +3581,14 @@ FPreloader GPreloader;
 } // namespace UE::AssetDataGather::Private
 
 FAssetDataGatherer::FAssetDataGatherer(const TArray<FString>& InLongPackageNamesDenyList,
-	const TArray<FString>& InMountRelativePathsDenyList, bool bInAsyncEnabled)
-	: Thread(nullptr)
+	const TArray<FString>& InMountRelativePathsDenyList, bool bInAsyncEnabled, UE::AssetRegistry::FAssetRegistryImpl& InRegistryImpl)
+	: AssetRegistry(InRegistryImpl)
+	, Thread(nullptr)
 	, bAsyncEnabled(bInAsyncEnabled)
 	, GatherStartTime(FDateTime::Now())
 	, IsStopped(0)
-	, IsPaused(0)
+	, IsGatheringPaused(0)
+	, IsProcessingPaused(0)
 	, bInitialPluginsLoaded(false)
 	, bSaveAsyncCacheTriggered(false)
 	, CurrentSearchTime(0.)
@@ -3709,15 +3720,26 @@ uint32 FAssetDataGatherer::Run()
 			bool bLocalIdle = false;
 			{
 				FGathererScopeLock ResultsScopeLock(&ResultsLock); // bIsIdle requires the lock
-				if (IsStopped || bSaveAsyncCacheTriggered || (!IsPaused && !bIsIdle))
+				if (IsStopped || bSaveAsyncCacheTriggered || (!IsGatheringPaused && !bIsIdle))
 				{
 					break;
 				}
 				bLocalIdle = bIsIdle;
 			}
-			// No work to do. Sleep for a little and try again later.
-			// TODO: Need IsPaused to be a condition variable so we avoid sleeping while waiting for it and then taking a long time to wake after it is unset.
-			FPlatformProcess::Sleep(bLocalIdle ? IdleSleepTime : PausedSleepTime);
+
+			UE::AssetRegistry::Impl::EGatherStatus Status = UE::AssetRegistry::Impl::EGatherStatus::Complete;
+			if (bLocalIdle && !UE::AssetDataGather::Private::bTickGatherOnGTOnly 
+				&& (IsProcessingPaused.load(std::memory_order_relaxed) == 0))
+			{
+				Status = Cast<UAssetRegistryImpl>(IAssetRegistry::Get())->TickOnBackgroundThread();
+			}
+
+			// TODO: Need IsGatheringPaused to be a condition variable so we avoid sleeping while waiting for it and then taking a long time to wake after it is unset.
+			if ((Status != UE::AssetRegistry::Impl::EGatherStatus::TickActiveGatherActive)
+				&& (Status != UE::AssetRegistry::Impl::EGatherStatus::TickActiveGatherIdle))
+			{
+				FPlatformProcess::Sleep(bLocalIdle ? IdleSleepTime : PausedSleepTime);
+			}
 		}
 	}
 	return 0;
@@ -3750,7 +3772,7 @@ void FAssetDataGatherer::InnerTickLoop(bool bInSynchronousTick, bool bContribute
 			{
 				break;
 			}
-			if (IsStopped || (!bInSynchronousTick && IsPaused))
+			if (IsStopped || (!bInSynchronousTick && IsGatheringPaused))
 			{
 				break;
 			}
@@ -3897,7 +3919,7 @@ void FAssetDataGatherer::SaveMonolithicCacheFile(const TArray<TPair<FName,FDiskC
 		}
 	}
 
-	FScopedPause ScopedPause(*this);
+	FScopedGatheringPause ScopedPause(*this);
 	FGathererScopeLock TickScopeLock(&TickLock);
 	bIsSavingAsyncCache = false;
 	check(CacheInUseCount > 0);
@@ -3906,21 +3928,21 @@ void FAssetDataGatherer::SaveMonolithicCacheFile(const TArray<TPair<FName,FDiskC
 	LastCacheWriteTime = FPlatformTime::Seconds();
 }
 
-FAssetDataGatherer::FScopedPause::FScopedPause(const FAssetDataGatherer& InOwner)
+FAssetDataGatherer::FScopedGatheringPause::FScopedGatheringPause(const FAssetDataGatherer& InOwner)
 	:Owner(InOwner)
 {
 	if (!Owner.IsSynchronous())
 	{
-		Owner.IsPaused++;
+		Owner.IsGatheringPaused++;
 	}
 }
 
-FAssetDataGatherer::FScopedPause::~FScopedPause()
+FAssetDataGatherer::FScopedGatheringPause::~FScopedGatheringPause()
 {
 	if (!Owner.IsSynchronous())
 	{
-		check(Owner.IsPaused > 0)
-		Owner.IsPaused--;
+		check(Owner.IsGatheringPaused > 0)
+		Owner.IsGatheringPaused--;
 	}
 }
 
@@ -3965,8 +3987,10 @@ FAssetDataGatherer::ETickResult FAssetDataGatherer::TickInternal(double& TickSta
 	typedef TInlineAllocator<AssetDataGathererConstants::ExpectedMaxBatchSize> FBatchInlineAllocator;
 
 	TArray<FGatheredPathData, FBatchInlineAllocator> LocalFilesToSearch;
-	TArray<FAssetData*, FBatchInlineAllocator> LocalAssetResults;
+	TArray<TUniquePtr<FAssetData>, FBatchInlineAllocator> LocalAssetResults;
+	TArray<TUniquePtr<FAssetData>, FBatchInlineAllocator> LocalAssetResultsForGameThread;
 	TArray<FPackageDependencyData, FBatchInlineAllocator> LocalDependencyResults;
+	TArray<FPackageDependencyData, FBatchInlineAllocator> LocalDependencyResultsForGameThread;
 	TArray<FString, FBatchInlineAllocator> LocalCookedPackageNamesWithoutAssetDataResults;
 	TArray<FName, FBatchInlineAllocator> LocalVerseResults;
 	TArray<FString, FBatchInlineAllocator> LocalBlockedResults;
@@ -4172,13 +4196,34 @@ FAssetDataGatherer::ETickResult FAssetDataGatherer::TickInternal(double& TickSta
 			DiskCachedAssetData->DependencyData.bHasPackageData = bGatherAssetPackageData;
 			DiskCachedAssetData->DependencyData.bHasDependencyData = bGatherDependsData;
 
-			LocalAssetResults.Reserve(LocalAssetResults.Num() + DiskCachedAssetData->AssetDataList.Num());
+			bool MustBeHandledByGameThread = false;
+			// 
+			// In the future, we may need to process certain assets on the game thread because, e.g.,
+			// we may need to support PostLoadAssetRegistryTags running on the game thread. 
+			// The infrastructure is provided here to handle that case. In order to do so,
+			// implement ClassRequiresGameThreadProcessing in UAssetRegistryImpl and call it as shown below
+			// The rest of the functions in the asset registry respect the separation of data into general and 
+			// ForGameThread containers. In particular, these are consumed in FAssetRegistryImpl::TickGatherer.
+			// 
+			//for (const FAssetData& AssetData : DiskCachedAssetData->AssetDataList)
+			//{
+			//	if (AssetRegistry.ClassRequiresGameThreadProcessing(AssetData.GetClass()))
+			//	{
+			//		MustBeHandledByGameThread = true;
+			//		break;
+			//	}
+			//}
+
+			TArray<TUniquePtr<FAssetData>, FBatchInlineAllocator>& TargetAssetResults = MustBeHandledByGameThread ? LocalAssetResultsForGameThread : LocalAssetResults;
+			TArray<FPackageDependencyData, FBatchInlineAllocator>& TargetDependencyResults = MustBeHandledByGameThread ? LocalDependencyResultsForGameThread : LocalDependencyResults;
+
+			TargetAssetResults.Reserve(TargetAssetResults.Num() + DiskCachedAssetData->AssetDataList.Num());
 			for (const FAssetData& AssetData : DiskCachedAssetData->AssetDataList)
 			{
-				LocalAssetResults.Add(new FAssetData(AssetData));
+				TargetAssetResults.Add(MakeUnique<FAssetData>(AssetData));
 			}
+			TargetDependencyResults.Add(DiskCachedAssetData->DependencyData);
 
-			LocalDependencyResults.Add(DiskCachedAssetData->DependencyData);
 
 			AddToCache(PackageName, DiskCachedAssetData);
 		}
@@ -4209,7 +4254,7 @@ FAssetDataGatherer::ETickResult FAssetDataGatherer::TickInternal(double& TickSta
 		[this, &ReadContexts](int32 Index)
 		{
 			FReadContext& ReadContext = ReadContexts[Index];
-			if (!bSynchronousTick && IsPaused)
+			if (!bSynchronousTick && IsGatheringPaused)
 			{
 				ReadContext.bCanceled = true;
 				return;
@@ -4268,9 +4313,30 @@ FAssetDataGatherer::ETickResult FAssetDataGatherer::TickInternal(double& TickSta
 				AddToCache(ReadContext.PackageName, NewData);
 			}
 
+			bool MustBeHandledByGameThread = false;
+			// 
+			// In the future, we may need to process certain assets on the game thread because, e.g.,
+			// we may need to support PostLoadAssetRegistryTags running on the game thread. 
+			// The infrastructure is provided here to handle that case. In order to do so,
+			// implement ClassRequiresGameThreadProcessing in UAssetRegistryImpl and call it as shown below
+			// The rest of the functions in the asset registry respect the separation of data into general and 
+			// ForGameThread containers. In particular, these are consumed in FAssetRegistryImpl::TickGatherer.
+			// 
+			//for (const FAssetData* BackgroundAssetData : ReadContext.AssetDataFromFile)
+			//{
+			//	if (AssetRegistry.ClassRequiresGameThreadProcessing(BackgroundAssetData->GetClass()))
+			//	{
+			//		MustBeHandledByGameThread = true;
+			//		break;
+			//	}
+			//}
+
+			TArray<TUniquePtr<FAssetData>, FBatchInlineAllocator>& TargetAssetResults = MustBeHandledByGameThread ? LocalAssetResultsForGameThread : LocalAssetResults;
+			TArray<FPackageDependencyData, FBatchInlineAllocator>& TargetDependencyResults = MustBeHandledByGameThread ? LocalDependencyResultsForGameThread : LocalDependencyResults;
+
 			// Add the results from the package into our output results
-			LocalAssetResults.Append(MoveTemp(ReadContext.AssetDataFromFile));
-			LocalDependencyResults.Add(MoveTemp(ReadContext.DependencyData));
+			TargetAssetResults.Append(MoveTemp(ReadContext.AssetDataFromFile));
+			TargetDependencyResults.Add(MoveTemp(ReadContext.DependencyData));
 		}
 		else if (ReadContext.bCanAttemptAssetRetry)
 		{
@@ -4285,7 +4351,9 @@ FAssetDataGatherer::ETickResult FAssetDataGatherer::TickInternal(double& TickSta
 
 		// Submit the results into the thread-shared lists
 		AssetResults.Append(MoveTemp(LocalAssetResults));
+		AssetResultsForGameThread.Append(MoveTemp(LocalAssetResultsForGameThread));
 		DependencyResults.Append(MoveTemp(LocalDependencyResults));
+		DependencyResultsForGameThread.Append(MoveTemp(LocalDependencyResultsForGameThread));
 		CookedPackageNamesWithoutAssetDataResults.Append(MoveTemp(LocalCookedPackageNamesWithoutAssetDataResults));
 		VerseResults.Append(MoveTemp(LocalVerseResults));
 		BlockedResults.Append(MoveTemp(LocalBlockedResults));
@@ -4435,26 +4503,20 @@ void FAssetDataGatherer::AddToCache(FName PackageName, FDiskCachedAssetData* Dis
 
 void FAssetDataGatherer::GetAndTrimSearchResults(FResults& InOutResults, FResultContext& OutContext)
 {
-	FGathererScopeLock ResultsScopeLock(&ResultsLock);
-
 	auto MoveAppendRangeToRingBuffer = [](auto& InOutRingBuffer, auto& InArray)
 	{
 		InOutRingBuffer.MoveAppendRange(InArray.GetData(), InArray.Num());
 		InArray.Reset();
 	};
 
-	for (FAssetData* AssetData : AssetResults)
-	{
-		InOutResults.Assets.Add(AssetData->PackageName, AssetData);
-	}
-	AssetResults.Reset();
+	// GetPackageResults takes its own lock.
+	GetPackageResults(InOutResults);
+
+	FGathererScopeLock ResultsScopeLock(&ResultsLock);
+
 	MoveAppendRangeToRingBuffer(InOutResults.Paths, DiscoveredPaths);
-	for (FPackageDependencyData& DependencyData : DependencyResults)
-	{
-		FName PackageName = DependencyData.PackageName;
-		InOutResults.Dependencies.Add(PackageName, MoveTemp(DependencyData));
-	}
-	DependencyResults.Reset();
+
+
 	MoveAppendRangeToRingBuffer(InOutResults.CookedPackageNamesWithoutAssetData, CookedPackageNamesWithoutAssetDataResults);
 	MoveAppendRangeToRingBuffer(InOutResults.VerseFiles, VerseResults);
 
@@ -4491,21 +4553,32 @@ FAssetGatherDiagnostics FAssetDataGatherer::GetDiagnostics()
 	return Diag;
 }
 
-void FAssetDataGatherer::GetPackageResults(TMultiMap<FName, FAssetData*>& OutAssetResults, TMultiMap<FName, FPackageDependencyData>& OutDependencyResults)
+void FAssetDataGatherer::GetPackageResults(FResults& InOutResults)
 {
 	FGathererScopeLock ResultsScopeLock(&ResultsLock);
 
-	for (FAssetData* AssetData : AssetResults)
+	for (TUniquePtr<FAssetData>& AssetData : AssetResults)
 	{
-		OutAssetResults.Add(AssetData->PackageName, AssetData);
+		InOutResults.Assets.Add(AssetData->PackageName, MoveTemp(AssetData));
 	}
 	AssetResults.Reset();
+	for (TUniquePtr<FAssetData>& AssetData : AssetResultsForGameThread)
+	{
+		InOutResults.AssetsForGameThread.Add(AssetData->PackageName, MoveTemp(AssetData));
+	}
+	AssetResultsForGameThread.Reset();
 	for (FPackageDependencyData& DependencyData : DependencyResults)
 	{
 		FName PackageName = DependencyData.PackageName;
-		OutDependencyResults.Add(PackageName, MoveTemp(DependencyData));
+		InOutResults.Dependencies.Add(PackageName, MoveTemp(DependencyData));
 	}
 	DependencyResults.Reset();
+	for (FPackageDependencyData& DependencyData : DependencyResultsForGameThread)
+	{
+		FName PackageName = DependencyData.PackageName;
+		InOutResults.DependenciesForGameThread.Add(PackageName, MoveTemp(DependencyData));
+	}
+	DependencyResultsForGameThread.Reset();
 }
 
 void FAssetDataGatherer::WaitOnPath(FStringView InPath)
@@ -4602,7 +4675,7 @@ void FAssetDataGatherer::WaitOnPathsInternal(TArrayView<UE::AssetDataGather::Pri
 	LLM_SCOPE(ELLMTag::AssetRegistry);
 
 	// Request a halt to the async tick
-	FScopedPause ScopedPause(*this);
+	FScopedGatheringPause ScopedPause(*this);
 	CHECK_IS_NOT_LOCKED_CURRENT_THREAD(ResultsLock);
 	{
 		FGathererScopeLock TickScopeLock(&TickLock);
@@ -4681,7 +4754,7 @@ void FAssetDataGatherer::WaitForIdle(float TimeoutSeconds)
 	CHECK_IS_NOT_LOCKED_CURRENT_THREAD(ResultsLock);
 
 	// Request a halt to the async tick
-	FScopedPause ScopedPause(*this);
+	FScopedGatheringPause ScopedPause(*this);
 	// Tick until idle
 	for (;;)
 	{
@@ -4763,7 +4836,7 @@ void FAssetDataGatherer::LoadCacheFiles(TConstArrayView<FString> CacheFilenames)
 	}
 
 	TArray<FCachePayload> Payloads = UE::AssetDataGather::Private::LoadCacheFiles(CacheFilenames, false /* bIsMonolithicCache */);
-	FScopedPause ScopedPause(*this);
+	FScopedGatheringPause ScopedPause(*this);
 	CHECK_IS_NOT_LOCKED_CURRENT_THREAD(ResultsLock);
 	FGathererScopeLock TickScopeLock(&TickLock);
 	ConsumeCacheFiles(MoveTemp(Payloads));
@@ -5108,7 +5181,7 @@ SIZE_T FAssetDataGatherer::GetAllocatedSize() const
 
 	Result += sizeof(*Discovery) + Discovery->GetAllocatedSize();
 
-	FScopedPause ScopedPause(*this);
+	FScopedGatheringPause ScopedPause(*this);
 	CHECK_IS_NOT_LOCKED_CURRENT_THREAD(ResultsLock);
 	FGathererScopeLock TickScopeLock(&TickLock);
 	FGathererScopeLock ResultsScopeLock(&ResultsLock);
@@ -5117,7 +5190,7 @@ SIZE_T FAssetDataGatherer::GetAllocatedSize() const
 
 	Result += AssetResults.GetAllocatedSize();
 	FAssetDataTagMapSharedView::FMemoryCounter TagMemoryUsage;
-	for (FAssetData* Value : AssetResults)
+	for (const TUniquePtr<FAssetData>& Value : AssetResults)
 	{
 		Result += sizeof(*Value);
 		TagMemoryUsage.Include(Value->TagsAndValues);

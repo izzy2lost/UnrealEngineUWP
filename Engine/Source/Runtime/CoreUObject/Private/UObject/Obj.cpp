@@ -2422,7 +2422,7 @@ const FName& UObject::SourceFileTagName()
 
 #if WITH_EDITOR
 
-static void PostLoadAssetRegistryTagProperty(FProperty* Prop, const FAssetData& AssetData, TArray<UObject::FAssetRegistryTag>& OutTagsAndValuesToUpdate)
+static void PostLoadAssetRegistryTagProperty(FProperty* Prop, UObject::FPostLoadAssetRegistryTagsContext& Context)
 {
 	// This TagType is ignored by the asset registry
 	UObject::FAssetRegistryTag::ETagType TagType = UObject::FAssetRegistryTag::ETagType::TT_Alphabetical;
@@ -2433,37 +2433,42 @@ static void PostLoadAssetRegistryTagProperty(FProperty* Prop, const FAssetData& 
 		{
 			// Old files may contain legacy format of FSofObjectPtr::ToString() which used to return 
 			// an export path (ClassName'/Package/Name.ObjectName') however it now returns just a pathname (/Package/Name.ObjectName)
-			FString ExportPath = AssetData.GetTagValueRef<FString>(Prop->GetFName());
+			FString ExportPath = Context.GetAssetData().GetTagValueRef<FString>(Prop->GetFName());
 			int32 ClassSeparatorIndex = -1;
 			if (!ExportPath.IsEmpty() && ExportPath[0] != '/' && ExportPath.FindChar('\'', ClassSeparatorIndex))
 			{
 				// Strip the class name and leave just the pathname of an object
 				FString ObjectPath = FPackageName::ExportTextPathToObjectPath(ExportPath);
-				OutTagsAndValuesToUpdate.Add(UObject::FAssetRegistryTag(Prop->GetFName(), ObjectPath, TagType));
+				Context.AddTagToUpdate(UObject::FAssetRegistryTag(Prop->GetFName(), ObjectPath, TagType));
 			}
 		}
 		else if (Prop->IsA<FObjectPropertyBase>())
 		{
 			// Update the export path for short class names, but leave None alone to match save behavior
 			FObjectPropertyBase* PropertyObject = CastFieldChecked<FObjectPropertyBase>(Prop);
-			FString ExportPath = AssetData.GetTagValueRef<FString>(Prop->GetFName());
+			FString ExportPath = Context.GetAssetData().GetTagValueRef<FString>(Prop->GetFName());
 			if (!ExportPath.IsEmpty() && ExportPath[0] != '/' && ExportPath != TEXT("None"))
 			{
 				FString ObjectPath = FPackageName::ExportTextPathToObjectPath(ExportPath);
 				ExportPath = FObjectPropertyBase::GetExportPath(PropertyObject->PropertyClass->GetClassPathName(), ObjectPath);
-				OutTagsAndValuesToUpdate.Add(UObject::FAssetRegistryTag(Prop->GetFName(), ExportPath, TagType));
+				Context.AddTagToUpdate(UObject::FAssetRegistryTag(Prop->GetFName(), ExportPath, TagType));
 			}
 		}
 	}
 }
 
-void UObject::PostLoadAssetRegistryTags(const FAssetData& InAssetData, TArray<FAssetRegistryTag>& OutTagsAndValuesToUpdate) const
+void UObject::ThreadedPostLoadAssetRegistryTags(FPostLoadAssetRegistryTagsContext& Context) const
 {
+	ensureMsgf(GetClass()->HasAnyClassFlags(CLASS_Native), TEXT("ThreadedPostLoadAssetRegistryTags should not be called on non-native types. Detected a call on type '%s'"),
+		*GetClass()->GetName());
+
+	ThreadedPostLoadAssetRegistryTagsOverride(Context);
+
 	if (GetClass()->HasAssetRegistrySearchableProperties())
 	{
 		for (TFieldIterator<FProperty> PropertyIt(GetClass()); PropertyIt; ++PropertyIt)
 		{
-			PostLoadAssetRegistryTagProperty(*PropertyIt, InAssetData, OutTagsAndValuesToUpdate);
+			PostLoadAssetRegistryTagProperty(*PropertyIt, Context);
 		}
 
 		UScriptStruct* SparseClassDataStruct = GetClass()->GetSparseClassDataStruct();
@@ -2472,7 +2477,7 @@ void UObject::PostLoadAssetRegistryTags(const FAssetData& InAssetData, TArray<FA
 			const void* SparseClassData = GetClass()->GetSparseClassData(EGetSparseClassDataMethod::ArchetypeIfNull);
 			for (TFieldIterator<FProperty> PropertyIt(SparseClassDataStruct); PropertyIt; ++PropertyIt)
 			{
-				PostLoadAssetRegistryTagProperty(*PropertyIt, InAssetData, OutTagsAndValuesToUpdate);
+				PostLoadAssetRegistryTagProperty(*PropertyIt, Context);
 			}
 		}
 	}

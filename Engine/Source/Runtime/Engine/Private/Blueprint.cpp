@@ -1103,23 +1103,29 @@ void UBlueprint::GetAssetRegistryTags(FAssetRegistryTagsContext Context) const
 #endif
 }
 
-void UBlueprint::PostLoadAssetRegistryTags(const FAssetData& InAssetData, TArray<FAssetRegistryTag>& OutTagsAndValuesToUpdate) const
+void UBlueprint::ThreadedPostLoadAssetRegistryTagsOverride(FPostLoadAssetRegistryTagsContext& Context) const
 {
-	Super::PostLoadAssetRegistryTags(InAssetData, OutTagsAndValuesToUpdate);
-	PostLoadBlueprintAssetRegistryTags(InAssetData, OutTagsAndValuesToUpdate);
+	Super::ThreadedPostLoadAssetRegistryTagsOverride(Context);
+	PostLoadBlueprintAssetRegistryTags(Context);
 }
 
 void UBlueprint::PostLoadBlueprintAssetRegistryTags(const FAssetData& InAssetData, TArray<FAssetRegistryTag>& OutTagsAndValuesToUpdate)
 {
-	auto FixTagValueShortClassName = [&InAssetData, &OutTagsAndValuesToUpdate](FName TagName, FAssetRegistryTag::ETagType TagType)
+	FPostLoadAssetRegistryTagsContext Context(InAssetData, OutTagsAndValuesToUpdate);
+	PostLoadBlueprintAssetRegistryTags(Context);
+}
+
+void UBlueprint::PostLoadBlueprintAssetRegistryTags(FPostLoadAssetRegistryTagsContext& Context)
+{
+	auto FixTagValueShortClassName = [&Context](FName TagName, FAssetRegistryTag::ETagType TagType)
 	{
-		FString TagValue = InAssetData.GetTagValueRef<FString>(TagName);
+		FString TagValue = Context.GetAssetData().GetTagValueRef<FString>(TagName);
 		if (!TagValue.IsEmpty() && TagValue != TEXT("None"))
 		{
 			if (UClass::TryFixShortClassNameExportPath(TagValue, ELogVerbosity::Warning,
-				TEXT("UBlueprint::PostLoadAssetRegistryTags"), true /* bClearOnError */))
+				TEXT("UBlueprint::PostLoadBlueprintAssetRegistryTags"), true /* bClearOnError */))
 			{
-				OutTagsAndValuesToUpdate.Add(FAssetRegistryTag(TagName, TagValue, TagType));
+				Context.AddTagToUpdate(FAssetRegistryTag(TagName, TagValue, TagType));
 			}
 		}
 	};

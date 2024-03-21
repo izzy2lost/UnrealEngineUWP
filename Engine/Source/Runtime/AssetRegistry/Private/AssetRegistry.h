@@ -7,7 +7,6 @@
 
 #include "AssetRegistry.generated.h"
 
-class FRWScopeLock;
 namespace UE::AssetRegistry::Premade { struct FAsyncConsumer; }
 
 /**
@@ -201,6 +200,8 @@ public:
 
 	virtual bool IsPathBeautificationNeeded(const FString& InAssetPath) const override;
 
+	UE::AssetRegistry::Impl::EGatherStatus TickOnBackgroundThread();
+
 protected:
 	virtual void SetManageReferences(const TMultiMap<FAssetIdentifier, FAssetIdentifier>& ManagerMap, bool bClearExisting, UE::AssetRegistry::EDependencyCategory RecurseType, TSet<FDependsNode*>& ExistingManagedNodes, ShouldSetManagerPredicate ShouldSetManager = nullptr) override;
 	virtual bool SetPrimaryAssetIdForObjectPath(const FSoftObjectPath& ObjectPath, FPrimaryAssetId PrimaryAssetId) override;
@@ -256,7 +257,7 @@ private:
 #if WITH_EDITOR
 	/** Create FAssetData from any loaded UObject assets and store the updated AssetData in the state */
 	void ProcessLoadedAssetsToUpdateCache(UE::AssetRegistry::Impl::FEventContext& EventContext,
-		const double TickStartTime, UE::AssetRegistry::Impl::EGatherStatus Status);
+		UE::AssetRegistry::Impl::EGatherStatus Status, UE::AssetRegistry::Impl::FInterruptionContext& InOutInterruptionContext);
 #endif
 	/**
 	 * Remain under the given lock and return an InheritanceContext based on the appropriate choice of the persistent
@@ -264,10 +265,10 @@ private:
 	 * before being used. If the buffer needs to be updated and its the persistent buffer (which is protected data),
 	 * convert the given lock to a write lock if not one already.
 	 */
-	void GetInheritanceContextWithRequiredLock(FRWScopeLock& InOutScopeLock,
+	void GetInheritanceContextWithRequiredLock(UE::AssetRegistry::FInterfaceRWScopeLock& InOutScopeLock,
 		UE::AssetRegistry::Impl::FClassInheritanceContext& InheritanceContext,
 		UE::AssetRegistry::Impl::FClassInheritanceBuffer& StackBuffer);
-	void GetInheritanceContextWithRequiredLock(FWriteScopeLock& InOutScopeLock,
+	void GetInheritanceContextWithRequiredLock(UE::AssetRegistry::FInterfaceWriteScopeLock& InOutScopeLock,
 		UE::AssetRegistry::Impl::FClassInheritanceContext& InheritanceContext,
 		UE::AssetRegistry::Impl::FClassInheritanceBuffer& StackBuffer);
 	void GetInheritanceContextAfterVerifyingLock(uint64 CurrentGeneratorClassesVersionNumber,
@@ -290,12 +291,33 @@ private:
 	bool IsDirAlreadyWatchedByRootWatchers(const FString& Directory) const;
 #endif
 
+	/** Request to pause or resume background processing of scan results.
+	 *  This can be used to allow a priority thread to perform along sequence of operations
+	 *  without having to contend with the background thread for data access
+	 */
+	virtual void RequestPauseBackgroundProcessing();
+	virtual void RequestResumeBackgroundProcessing();
+	bool IsBackgroundProcessingPaused() const 
+	{ 
+#if WITH_EDITOR 
+		return GuardedData.IsBackgroundProcessingPaused(); 
+#else
+		return true;
+#endif
+	}
+
 private:
 
 	UE::AssetRegistry::FAssetRegistryImpl GuardedData;
 
 	/** Lock guarding the GuardedData */
-	mutable FRWLock InterfaceLock;
+	mutable UE::AssetRegistry::Private::FRWLockWithPriority InterfaceLock;
+
+	/** This lock doesn't strictly protect any data (the InterfaceLock does that). Instead, 
+	 *	it is used to let the main thread know when the gatherer thread is doing processing work
+	 *  so that the main thread does not end up blocking on the InterfaceLock in Tick(). 
+	 */
+	FCriticalSection GatheredDataProcessingLock;
 
 #if WITH_EDITOR
 	/** Handles to all registered OnDirectoryChanged delegates */

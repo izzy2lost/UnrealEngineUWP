@@ -4885,18 +4885,24 @@ void UClass::GetAssetRegistryTags(FAssetRegistryTagsContext Context) const
 }
 
 #if WITH_EDITOR
-void UClass::PostLoadAssetRegistryTags(const FAssetData& InAssetData, TArray<FAssetRegistryTag>& OutTagsAndValuesToUpdate) const
+void UClass::ThreadedPostLoadAssetRegistryTagsOverride(FPostLoadAssetRegistryTagsContext& Context) const
 {
-	Super::PostLoadAssetRegistryTags(InAssetData, OutTagsAndValuesToUpdate);
+	//@TODO this is not actually thread safe and should be guarded to avoid execution in parallel with BP compilation
+	// the ensure should help catch this via TSAN. UE-209240
+	// Unfortunately, we cannot simply limit the PostLoadAssetRegistryTags fixup to native classes because the base
+	// UObject::ThreadedPostLoadAssetRegistryTags iterates over the properties of non-native types and performs fixup.
+	ensure(!bLayoutChanging);
+
+	Super::ThreadedPostLoadAssetRegistryTagsOverride(Context);
 
 	static const FName ParentClassFName(TEXT("ParentClass"));
-	FString ParentClassTagValue = InAssetData.GetTagValueRef<FString>(ParentClassFName);
+	FString ParentClassTagValue = Context.GetAssetData().GetTagValueRef<FString>(ParentClassFName);
 	if (!ParentClassTagValue.IsEmpty() && FPackageName::IsShortPackageName(ParentClassTagValue))
 	{
-		FTopLevelAssetPath ParentClassPathName = UClass::TryConvertShortTypeNameToPathName<UStruct>(ParentClassTagValue, ELogVerbosity::Warning, TEXT("UClass::PostLoadAssetRegistryTags"));
+		FTopLevelAssetPath ParentClassPathName = UClass::TryConvertShortTypeNameToPathName<UStruct>(ParentClassTagValue, ELogVerbosity::Warning, TEXT("UClass::ThreadedPostLoadAssetRegistryTagsOverride"));
 		if (!ParentClassPathName.IsNull())
 		{
-			OutTagsAndValuesToUpdate.Add(FAssetRegistryTag(ParentClassFName, ParentClassPathName.ToString(), FAssetRegistryTag::TT_Alphabetical));
+			Context.AddTagToUpdate(FAssetRegistryTag(ParentClassFName, ParentClassPathName.ToString(), FAssetRegistryTag::TT_Alphabetical));
 		}
 	}
 }

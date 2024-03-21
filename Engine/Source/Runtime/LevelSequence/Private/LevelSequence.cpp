@@ -210,12 +210,12 @@ void ULevelSequence::GetAssetRegistryTagMetadata(TMap<FName, FAssetRegistryTagMe
 	Super::GetAssetRegistryTagMetadata(OutMetadata);
 }
 
-void ULevelSequence::PostLoadAssetRegistryTags(const FAssetData& InAssetData, TArray<FAssetRegistryTag>& OutTagsAndValuesToUpdate) const
+void ULevelSequence::ThreadedPostLoadAssetRegistryTagsOverride(FPostLoadAssetRegistryTagsContext& Context) const
 {
-	Super::PostLoadAssetRegistryTags(InAssetData, OutTagsAndValuesToUpdate);
+	Super::ThreadedPostLoadAssetRegistryTagsOverride(Context);
 
-	// GetAssetRegistryTags appends the DirectorBlueprint tags to the World's tags, so we also have to run the Blueprint PostLoadAssetRegistryTags
-	UBlueprint::PostLoadBlueprintAssetRegistryTags(InAssetData, OutTagsAndValuesToUpdate);
+	// GetAssetRegistryTags appends the DirectorBlueprint tags to the World's tags, so we also have to run the Blueprint ThreadedPostLoadAssetRegistryTagsOverride
+	UBlueprint::PostLoadBlueprintAssetRegistryTags(Context);
 }
 
 void PurgeLegacyBlueprints(UObject* InObject, UPackage* Package)

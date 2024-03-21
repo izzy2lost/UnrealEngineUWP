@@ -29,6 +29,8 @@ struct FAssetData;
 class FDiskCachedAssetData;
 class FAssetRegistryReader;
 class FAssetRegistryWriter; // Not defined if !ALLOW_NAME_BATCH_SAVING
+namespace UE::AssetRegistry { class FAssetRegistryImpl; }
+
 namespace UE::AssetDataGather::Private
 {
 class FAssetDataDiscovery;
@@ -77,7 +79,7 @@ class FAssetDataGatherer : public FRunnable
 {
 public:
 	FAssetDataGatherer(const TArray<FString>& InLongPackageNamesDenyList,
-		const TArray<FString>& InMountRelativePathsDenyList, bool bInAsyncEnabled);
+		const TArray<FString>& InMountRelativePathsDenyList, bool bInAsyncEnabled, UE::AssetRegistry::FAssetRegistryImpl& InRegistryImpl);
 	virtual ~FAssetDataGatherer();
 
 	void OnInitialSearchCompleted();
@@ -108,24 +110,28 @@ public:
 	// Receiving Results (possibly while tick is running)
 	struct FResults
 	{
-		TMultiMap<FName, FAssetData*> Assets;
+		TMultiMap<FName, TUniquePtr<FAssetData>> Assets;
+		TMultiMap<FName, TUniquePtr<FAssetData>> AssetsForGameThread;
 		TRingBuffer<FString> Paths;
 		TMultiMap<FName, FPackageDependencyData> Dependencies;
+		TMultiMap<FName, FPackageDependencyData> DependenciesForGameThread;
 		TRingBuffer<FString> CookedPackageNamesWithoutAssetData;
 		TRingBuffer<FName> VerseFiles;
 		TArray<FString> BlockedFiles;
 
 		SIZE_T GetAllocatedSize() const
 		{
-			return Assets.GetAllocatedSize() + Paths.GetAllocatedSize() + Dependencies.GetAllocatedSize() +
-				CookedPackageNamesWithoutAssetData.GetAllocatedSize() + VerseFiles.GetAllocatedSize() +
+			return Assets.GetAllocatedSize() + AssetsForGameThread.GetAllocatedSize() + Paths.GetAllocatedSize() + Dependencies.GetAllocatedSize() +
+				DependenciesForGameThread.GetAllocatedSize() + 	CookedPackageNamesWithoutAssetData.GetAllocatedSize() + VerseFiles.GetAllocatedSize() +
 				BlockedFiles.GetAllocatedSize();
 		}
 		void Shrink()
 		{
 			Assets.Shrink();
+			AssetsForGameThread.Shrink();
 			Paths.Trim();
 			Dependencies.Shrink();
+			DependenciesForGameThread.Shrink();
 			CookedPackageNamesWithoutAssetData.Trim();
 			VerseFiles.Trim();
 			BlockedFiles.Shrink();
@@ -144,9 +150,8 @@ public:
 	void GetAndTrimSearchResults(FResults& InOutResults, FResultContext& OutContext);
 	/** Get diagnostics for telemetry or logging. */
 	FAssetGatherDiagnostics GetDiagnostics();
-	/** Gets just the AssetResults and DependencyResults from the data gatherer. */
-	void GetPackageResults(TMultiMap<FName, FAssetData*>& OutAssetResults,
-		TMultiMap<FName, FPackageDependencyData>& OutDependencyResults);
+	/** Gets just the Assets, AssetsForGameThread, Dependencies, and DependenciesForGameThread from the data gatherer. */
+	void GetPackageResults(FResults& InOutResults);
 	/**
 	 * Wait for all monitored assets under the given path to be added to search results.
 	 * Returns immediately if the given path is not monitored.
@@ -245,6 +250,13 @@ public:
 	static bool ReadAssetFile(FPackageReader& PackageReader, TArray<FAssetData*>& AssetDataList,
 		FPackageDependencyData& DependencyData, TArray<FString>& CookedPackagesToLoadUponDiscovery,
 		FPackageReader::EReadOptions Options);
+
+	/** Callable by the main thread to request that this thread pause/resume processing data. Gathering can 
+	 *  still proceed during this time.
+	 */
+	void PauseProcessing() { IsProcessingPaused.fetch_add(1, std::memory_order_relaxed); }
+	void ResumeProcessing() { IsProcessingPaused.fetch_sub(1, std::memory_order_relaxed); }
+	bool IsProcessingPauseRequested() const { return IsProcessingPaused.load(std::memory_order_relaxed) != 0; }
 
 private:
 	enum class ETickResult
@@ -348,10 +360,10 @@ private:
 	void Shrink();
 
 	/** Scoped guard for pausing the asynchronous tick. */
-	struct FScopedPause
+	struct FScopedGatheringPause
 	{
-		FScopedPause(const FAssetDataGatherer& InOwner);
-		~FScopedPause();
+		FScopedGatheringPause(const FAssetDataGatherer& InOwner);
+		~FScopedGatheringPause();
 		const FAssetDataGatherer& Owner;
 	};
 
@@ -374,8 +386,8 @@ private:
 	 */
 	mutable FGathererCriticalSection ResultsLock;
 
-
 	// Variable section for variables that are constant during threading.
+	UE::AssetRegistry::FAssetRegistryImpl& AssetRegistry;
 
 	/**
 	 * Thread to run async Ticks on. Constant during threading.
@@ -400,10 +412,14 @@ private:
 
 	// Variable section for variables that are atomics read/writable from outside critical sections.
 
-	/** > 0 if we've been asked to abort work in progress at the next opportunity. */
+	/** > 0 if we've been asked to abort gathering work in progress at the next opportunity. */
 	std::atomic<uint32> IsStopped;
-	/** > 0 if we've been asked to pause the worker thread so a synchronous function can take over the tick. */
-	mutable std::atomic<uint32> IsPaused;
+	/** > 0 if we've been asked to pause the worker thread gathering work so a synchronous function can take over the tick. */
+	mutable std::atomic<uint32> IsGatheringPaused;
+	
+	/** > 0 if we've been asked to pause processing work (but not gathering work) at the next opportunity */
+	mutable std::atomic<uint32> IsProcessingPaused;
+
 	/**
 	 * Discovery subsystem; decides which paths to search and queries the FileManager to search directories.
 	 * Pointer is constant during threading. Object pointed to internally provides threadsafety.
@@ -424,9 +440,13 @@ private:
 	TUniquePtr<UE::AssetDataGather::Private::FFilesToSearch> FilesToSearch;
 
 	/** The asset data gathered from the searched files. */
-	TArray<FAssetData*> AssetResults;
+	TArray<TUniquePtr<FAssetData>> AssetResults;
+	/** Like AssetResults but for assets that must be processed on the game thread */
+	TArray<TUniquePtr<FAssetData>> AssetResultsForGameThread;
 	/** Dependency data gathered from the searched files packages. */
 	TArray<FPackageDependencyData> DependencyResults;
+	/** Like DependencyResults but for assets that must be processed on the game thread */
+	TArray<FPackageDependencyData> DependencyResultsForGameThread;
 	/**
 	 * A list of cooked packages that did not have asset data in them.
 	 * These assets may still contain assets (if they were older for example). 

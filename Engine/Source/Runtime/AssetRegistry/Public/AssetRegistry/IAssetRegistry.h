@@ -778,6 +778,14 @@ public:
 		{
 		}
 
+		bool operator==(const FFileLoadProgressUpdateData& Other) const
+		{
+			return NumTotalAssets == Other.NumTotalAssets 
+				&& NumAssetsProcessedByAssetRegistry == Other.NumAssetsProcessedByAssetRegistry
+				&& NumAssetsPendingDataLoad == Other.NumAssetsPendingDataLoad
+				&& bIsDiscoveringAssetFiles == Other.bIsDiscoveringAssetFiles;
+		}
+
 		int32 NumTotalAssets;
 		int32 NumAssetsProcessedByAssetRegistry;
 		int32 NumAssetsPendingDataLoad;
@@ -888,7 +896,22 @@ public:
 	 */
 	virtual bool IsPathBeautificationNeeded(const FString& InAssetPath) const = 0;
 
+	/** Request to pause background processing of scan results while this object is in scope
+	 *  This can be used to allow a priority thread to perform along sequence of operations
+	 *  without having to contend with the background thread for data access
+	 */
+	struct FPauseBackgroundProcessingScope
+	{
+		FPauseBackgroundProcessingScope() { IAssetRegistry::GetChecked().RequestPauseBackgroundProcessing(); }
+		~FPauseBackgroundProcessingScope() { IAssetRegistry::GetChecked().RequestResumeBackgroundProcessing(); }
+	};
+
 protected:
+
+	// Implementation methods for FPauseBackgroundProcessingScope
+	virtual void RequestPauseBackgroundProcessing() {}
+	virtual void RequestResumeBackgroundProcessing() {}
+
 	// Functions specifically for calling from the asset manager
 	friend class UAssetManager;
 

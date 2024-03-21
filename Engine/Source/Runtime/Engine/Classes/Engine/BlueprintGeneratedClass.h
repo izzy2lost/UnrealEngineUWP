@@ -778,7 +778,9 @@ public:
 #if WITH_EDITOR
 	ENGINE_API virtual void GetAdditionalAssetDataObjectsForCook(FArchiveCookContext& CookContext, 
 		TArray<UObject*>& OutObjects) const override;
-	ENGINE_API virtual void PostLoadAssetRegistryTags(const FAssetData& InAssetData, TArray<FAssetRegistryTag>& OutTagsAndValuesToUpdate) const;
+protected:
+	ENGINE_API virtual void ThreadedPostLoadAssetRegistryTagsOverride(FPostLoadAssetRegistryTagsContext& Context) const;
+public:
 #endif //~ WITH_EDITOR
 	ENGINE_API virtual FPrimaryAssetId GetPrimaryAssetId() const override;
 	ENGINE_API virtual bool NeedsLoadForServer() const override;

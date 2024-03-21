@@ -1764,6 +1764,8 @@ void UContentBrowserAssetDataSource::EnumerateFoldersMatchingFilter(UContentBrow
 
 		if (bStartingPathIsFullyVirtual)
 		{
+			IAssetRegistry::FPauseBackgroundProcessingScope PauseBackgroundProcessingScope;
+
 			// Virtual paths not supported by PathPassesCompiledDataFilter, enumerate internal paths in hierarchy and propagate results to virtual parents
 			TSet<FName> VirtualPathsPassedFilter;
 			VirtualPathsPassedFilter.Reserve(DataSource->GetRootPathVirtualTree().NumPaths());
