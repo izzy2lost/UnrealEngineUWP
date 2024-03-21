@@ -839,7 +839,7 @@ bool FAppleHttpRequest::SetupRequest()
 	Request.timeoutInterval = HttpConnectionTimeout;
 	
 	UE_CLOG(
-		HttpConnectionTimeout < FHttpModule::Get().GetHttpActivityTimeout(), 
+		HttpConnectionTimeout < GetActivityTimeoutOrDefault(),
 		LogHttp,
 		Warning, 
 		TEXT(
@@ -847,7 +847,7 @@ bool FAppleHttpRequest::SetupRequest()
 			"unexpectedly with ConnectionError after %.2f(HttpConnectionTimeout) seconds without activity, "
 			"instead of intended %.2f(HttpActivityTimeout) seconds"
 		), 
-		HttpConnectionTimeout, FHttpModule::Get().GetHttpActivityTimeout());
+		HttpConnectionTimeout, GetActivityTimeoutOrDefault());
 
 	Task = [Session dataTaskWithRequest: Request];
 	
