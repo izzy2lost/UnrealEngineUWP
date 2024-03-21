@@ -13,6 +13,7 @@ RWBuffer<BUFFER_TYPE> Output2;
 int NumElemBeforeAxis;
 int AxisSize;
 int NumElemAfterAxis;
+uint4 DispatchIdxAndStride;
 float Epsilon;
 
 // Must correspond to EReduceOperatorType defined in NNEHlslShadersReduceCS.h
@@ -130,8 +131,8 @@ float Epsilon;
 [numthreads(THREADGROUP_SIZE, 1, 1)]
 void Reduce(in const uint3 DispatchThreadID : SV_DispatchThreadID, in const uint3 GroupThreadID : SV_GroupThreadID)
 {
-	const uint IdxAfterAxis = DispatchThreadID.y;
-	const uint IdxBeforeAxis = DispatchThreadID.z;
+	const uint IdxAfterAxis = DispatchIdxAndStride.x * DispatchIdxAndStride.z +  DispatchThreadID.y;
+	const uint IdxBeforeAxis =  DispatchIdxAndStride.y * DispatchIdxAndStride.w +  DispatchThreadID.z;
 	const int InputStartIdx = (IdxBeforeAxis * AxisSize * NumElemAfterAxis) + IdxAfterAxis;
 	const int OutputIdx     = (IdxBeforeAxis * 1        * NumElemAfterAxis) + IdxAfterAxis;
 

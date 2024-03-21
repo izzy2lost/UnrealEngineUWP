@@ -7,6 +7,7 @@
 #include "RenderGraphFwd.h"
 #include "RenderGraphUtils.h"
 #include "ShaderParameterUtils.h"
+#include "RHIGlobals.h"
 
 namespace UE::NNE::Internal { class FTensor; }
 
@@ -30,7 +31,7 @@ namespace UE::NNEHlslShaders::Internal
 	class FReduceConstants
 	{
 	public:
-		static const int32 NUM_GROUP_THREADS{ 768 };
+		static const int32 THREADGROUP_SIZE{ 768 };
 	};
 
 	class NNEHLSLSHADERS_API TReduceCS : public FHlslShaderBase
@@ -47,6 +48,7 @@ namespace UE::NNEHlslShaders::Internal
 			SHADER_PARAMETER(int32, NumElemBeforeAxis)
 			SHADER_PARAMETER(int32, AxisSize)
 			SHADER_PARAMETER(int32, NumElemAfterAxis)
+			SHADER_PARAMETER(FUintVector4, DispatchIdxAndStride)
 			SHADER_PARAMETER(float, Epsilon)
 			SHADER_PARAMETER_RDG_BUFFER_SRV(Buffer<float>, Input)
 			SHADER_PARAMETER_RDG_BUFFER_UAV(RWBuffer<float>, Output)
