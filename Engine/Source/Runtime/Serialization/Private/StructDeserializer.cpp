@@ -3,6 +3,7 @@
 #include "StructDeserializer.h"
 #include "UObject/UnrealType.h"
 #include "IStructDeserializerBackend.h"
+#include "UObject/PropertyOptional.h"
 #include "UObject/PropertyPortFlags.h"
 
 
@@ -259,6 +260,17 @@ bool FStructDeserializer::Deserialize( void* OutStruct, UStruct& TypeInfo, IStru
 						UE_LOG(LogSerialization, Verbose, TEXT("An item in map '%s' could not be read (%s)"), *PropertyName, *Backend.GetDebugString());
 					}
 				}
+				else if ((CurrentState.Property != nullptr) && (CurrentState.Property->GetClass() == FOptionalProperty::StaticClass()))
+				{
+					FOptionalProperty* OptionalProperty = CastField<FOptionalProperty>(CurrentState.Property);
+					FProperty* Property = OptionalProperty->GetValueProperty();
+					void* ValueData = OptionalProperty->MarkSetAndGetInitializedValuePointerToReplace(CurrentState.Data);
+
+					if (!Backend.ReadProperty(Property, CurrentState.Property, ValueData, CurrentState.ArrayIndex))
+					{
+						UE_LOG(LogSerialization, Verbose, TEXT("An item in optional '%s' could not be read (%s)"), *PropertyName, *Backend.GetDebugString());
+					}
+				}
 				else
 				{
 					// handle scalar property
@@ -364,6 +376,13 @@ bool FStructDeserializer::Deserialize( void* OutStruct, UStruct& TypeInfo, IStru
 
 					MapProperty->KeyProp->ImportText_Direct(*PropertyName, PairPtr, nullptr, PPF_None);
 				}
+				// handle map or struct element inside optional
+				else if ((CurrentState.Property != nullptr) && (CurrentState.Property->GetClass() == FOptionalProperty::StaticClass()))
+				{
+					FOptionalProperty* OptionalProperty = CastFieldChecked<FOptionalProperty>(CurrentState.Property);
+					NewState.Property = OptionalProperty->GetValueProperty();
+					NewState.Data = OptionalProperty->MarkSetAndGetInitializedValuePointerToReplace(CurrentState.Data);
+				}
 				else
 				{
 					NewState.Property = FindFProperty<FProperty>(CurrentState.TypeInfo, *PropertyName);
@@ -388,6 +407,12 @@ bool FStructDeserializer::Deserialize( void* OutStruct, UStruct& TypeInfo, IStru
 						NewState.Data = MapProperty->ContainerPtrToValuePtr<void>(CurrentState.Data, CurrentState.ArrayIndex);
 						FScriptMapHelper MapHelper(MapProperty, NewState.Data);
 						MapHelper.EmptyValues();
+					}
+					// handle optional property start
+					else if (FOptionalProperty* OptionalProperty = CastField<FOptionalProperty>(NewState.Property))
+					{
+						NewState.Data = OptionalProperty->ContainerPtrToValuePtr<void>(CurrentState.Data, CurrentState.ArrayIndex);
+						OptionalProperty->MarkUnset(NewState.Data);
 					}
 					// handle struct property
 					else
@@ -617,6 +642,17 @@ bool FStructDeserializer::DeserializeElement(void* OutAddress, UStruct& OwnerInf
 				
 				++CurrentState.ArrayIndex;
 			}
+			else if ((CurrentState.Property != nullptr) && (CurrentState.Property->GetClass() == FOptionalProperty::StaticClass()))
+			{
+				FOptionalProperty* OptionalProperty = CastField<FOptionalProperty>(CurrentState.Property);
+				FProperty* Property = OptionalProperty->GetValueProperty();
+				void* ValueData = OptionalProperty->MarkSetAndGetInitializedValuePointerToReplace(CurrentState.Data);
+
+				if (!Backend.ReadProperty(Property, CurrentState.Property, ValueData, CurrentState.ArrayIndex))
+				{
+					UE_LOG(LogSerialization, Verbose, TEXT("An item in optional '%s' could not be read (%s)"), *PropertyName, *Backend.GetDebugString());
+				}
+			}
 			// Otherwise we are dealing with dynamic or static array
 			else if (PropertyName.IsEmpty())
 			{
@@ -774,6 +810,26 @@ bool FStructDeserializer::DeserializeElement(void* OutAddress, UStruct& OwnerInf
 							continue;
 						}
 					}
+					else if (FOptionalProperty* OptionalProperty = CastField<FOptionalProperty>(Property))
+					{
+						void* Data = OptionalProperty->ContainerPtrToValuePtr<void>(CurrentState.Data);
+
+						if (void* ValueData = OptionalProperty->GetValuePointerForReadOrReplaceIfSet(Data))
+						{
+							Property = OptionalProperty->GetValueProperty();
+
+							//Offset the pointer directly and give index 0 to be read so no offsetting is done during deserialization
+							CurrentState.Data = ValueData;
+							CurrentState.ArrayIndex = 0;
+						}
+						else
+						{
+							// Not set
+							UE_LOG(LogSerialization, Verbose, TEXT("TOptional %s is not set and is trying to be read"), *OptionalProperty->GetFName().ToString());
+							Backend.SkipStructure();
+							continue;
+						}
+					}
 
 					if (!Backend.ReadProperty(Property, nullptr, CurrentState.Data, CurrentState.ArrayIndex))
 					{
@@ -894,6 +950,14 @@ bool FStructDeserializer::DeserializeElement(void* OutAddress, UStruct& OwnerInf
 						continue;
 					}
 				}
+				// handle struct element inside optional
+				else if (FOptionalProperty* OptionalProperty = CastField<FOptionalProperty>(CurrentState.Property))
+				{
+					void* Data = OptionalProperty->ContainerPtrToValuePtr<void>(CurrentState.Data);
+					NewState.Property = OptionalProperty->GetValueProperty();
+					NewState.Data = OptionalProperty->MarkSetAndGetInitializedValuePointerToReplace(Data);
+					NewState.ArrayIndex = 0;
+				}
 				else
 				{
 					//Property was found so we might be in a static array of struct
@@ -912,6 +976,13 @@ bool FStructDeserializer::DeserializeElement(void* OutAddress, UStruct& OwnerInf
 						continue;
 					}
 				}
+			}
+			// handle map or struct element inside optional
+			else if ((CurrentState.Property != nullptr) && (CurrentState.Property->GetClass() == FOptionalProperty::StaticClass()))
+			{
+				FOptionalProperty* OptionalProperty = CastFieldChecked<FOptionalProperty>(CurrentState.Property);
+				NewState.Property = OptionalProperty->GetValueProperty();
+				NewState.Data = OptionalProperty->MarkSetAndGetInitializedValuePointerToReplace(CurrentState.Data);
 			}
 			else
 			{
@@ -1008,6 +1079,12 @@ bool FStructDeserializer::DeserializeElement(void* OutAddress, UStruct& OwnerInf
 							continue;
 						}
 					}
+				}
+				// handle optional property entry
+				else if (FOptionalProperty* OptionalProperty = CastField<FOptionalProperty>(NewState.Property))
+				{
+					NewState.Data = OptionalProperty->ContainerPtrToValuePtr<void>(CurrentState.Data, CurrentState.ArrayIndex);
+					OptionalProperty->MarkUnset(NewState.Data);
 				}
 				// handle struct property
 				else

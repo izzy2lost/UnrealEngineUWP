@@ -146,6 +146,18 @@ namespace StructSerializerTest
 		CHECK_MESSAGE(TEXT("Sets.StructSet must be the same before and after de-/serialization"), Struct1.StructSet.Num() == Struct2.StructSet.Num() && Struct1.StructSet.Difference(Struct2.StructSet).Num() == 0);
 	}
 
+	void ValidateOptionals(const FStructSerializerOptionalTestStruct& Struct1, const FStructSerializerOptionalTestStruct& Struct2)
+	{
+		CHECK_EQUALS(TEXT("Optionals.StrOptional must be the same before and after de-/serialization"), Struct1.StrOptional, Struct2.StrOptional);
+		CHECK_EQUALS(TEXT("Optionals.StrOptionalUnset must be the same before and after de-/serialization"), Struct1.StrOptionalUnset, Struct2.StrOptionalUnset);
+		CHECK_EQUALS(TEXT("Optionals.IntOptional must be the same before and after de-/serialization"), Struct1.IntOptional, Struct2.IntOptional);
+		CHECK_EQUALS(TEXT("Optionals.IntOptionalUnset must be the same before and after de-/serialization"), Struct1.IntOptionalUnset, Struct2.IntOptionalUnset);
+		CHECK_EQUALS(TEXT("Optionals.NameOptional must be the same before and after de-/serialization"), Struct1.NameOptional, Struct2.NameOptional);
+		CHECK_EQUALS(TEXT("Optionals.NameOptionalUnset must be the same before and after de-/serialization"), Struct1.NameOptionalUnset, Struct2.NameOptionalUnset);
+		CHECK_EQUALS(TEXT("Optionals.StructOptional must be the same before and after de-/serialization"), Struct1.StructOptional, Struct2.StructOptional);
+		CHECK_EQUALS(TEXT("Optionals.StructOptionalUnset must be the same before and after de-/serialization"), Struct1.StructOptionalUnset, Struct2.StructOptionalUnset);
+	}
+
 	void ValidateLWCSerializationBackwardCompatibility(const FStructSerializerLWCTypesTest& Struct1, const FStructSerializerNonLWCTypesTest& Struct2)
 	{
 		//Make comparison by casting the double (lwc) version down to float (non-lwc) since this is what will happen during serialization
@@ -503,6 +515,39 @@ namespace StructSerializerTest
 				ValidateSets(TestStruct.Sets, TestStruct2.Sets);
 			}
 
+			//Optionals
+			{
+				TArray<uint8> Buffer;
+				FMemoryReader Reader(Buffer);
+				FMemoryWriter Writer(Buffer);
+
+				TSerializerBackend SerializerBackend(Writer, EStructSerializerBackendFlags::Default);
+				TDeserializerBackend DeserializerBackend(Reader);
+
+				FStructSerializerTestStruct TestStruct = OriginalStruct;
+				const FName Member = GET_MEMBER_NAME_CHECKED(FStructSerializerTestStruct, Optionals);
+				FProperty* Property = FindFProperty<FProperty>(FStructSerializerTestStruct::StaticStruct(), Member);
+				FStructSerializer::SerializeElement(&TestStruct, Property, INDEX_NONE, SerializerBackend, Policies);
+
+				// Inputs:
+				// - TestStruct: all the properties will be defaulted - "Unset" properties unset, and the rest set.
+				// - TestStruct2: all the "Unset" properties will be set, and the rest will be unset.
+				// Expected Output:
+				// - TestStruct2: all the "Unset" properties will be unset, and the rest will be set.
+				// Goal:
+				// - Validate that unset properties are populated when data is available for deserialization.
+				// - Validate that set properties are cleared when data isn't available for deserialization.
+				FStructSerializerTestStruct TestStruct2(NoInit);
+				TestStruct2.Optionals.StrOptionalUnset = TestStruct.Optionals.StrOptional;
+				TestStruct2.Optionals.IntOptionalUnset = TestStruct.Optionals.IntOptional;
+				TestStruct2.Optionals.NameOptionalUnset = TestStruct.Optionals.NameOptional;
+				TestStruct2.Optionals.StructOptionalUnset = TestStruct.Optionals.StructOptional;
+
+				CHECK_MESSAGE(TEXT("Deserialization must succeed"), FStructDeserializer::DeserializeElement(&TestStruct2, *FStructSerializerTestStruct::StaticStruct(), INDEX_NONE, DeserializerBackend, DeserializerPolicies));
+
+				ValidateOptionals(TestStruct.Optionals, TestStruct2.Optionals);
+			}
+
 			//TArray<uint8> element
 			{
 				TArray<uint8> Buffer;
@@ -736,6 +781,9 @@ namespace StructSerializerTest
 
 		// test sets
 		ValidateSets(TestStruct.Sets, TestStruct2.Sets);
+
+		// test optionals
+		ValidateOptionals(TestStruct.Optionals, TestStruct2.Optionals);
 
 		//Test LWC types with standard de-serialization
 		ValidateLWCTypes(TestStruct.LWCTypes, TestStruct2.LWCTypes);

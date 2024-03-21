@@ -2,6 +2,7 @@
 
 #include "StructSerializer.h"
 #include "UObject/UnrealType.h"
+#include "UObject/PropertyOptional.h"
 #include "IStructSerializerBackend.h"
 
 
@@ -140,6 +141,33 @@ namespace StructSerializer
 		{
 			//Close iteratable only if we were not targeting a single element
 			EndIteratable(Backend, CurrentState, Policies);
+		}
+	}
+
+	void SerializeOptional(FStructSerializerState& CurrentState, TArray<FStructSerializerState>& StateStack, IStructSerializerBackend& Backend)
+	{
+		if (!CurrentState.HasBeenProcessed)
+		{
+			Backend.BeginStructure(CurrentState);
+
+			CurrentState.HasBeenProcessed = true;
+			StateStack.Push(CurrentState);
+
+			const FOptionalProperty* OptionalProperty = CastFieldChecked<FOptionalProperty>(CurrentState.ValueProperty);
+			FProperty* InnerProperty = OptionalProperty->GetValueProperty();
+			const void* ValueData = CurrentState.ValueProperty->ContainerPtrToValuePtr<void>(CurrentState.ValueData);
+			if (const void* InnerValue = OptionalProperty->GetValuePointerForReadIfSet(ValueData))
+			{
+				FStructSerializerState NewState;
+				NewState.ValueData = InnerValue;
+				NewState.ValueProperty = InnerProperty;
+				NewState.FieldType = InnerProperty->GetClass();
+				StateStack.Add(NewState);
+			}
+		}
+		else
+		{
+			Backend.EndStructure(CurrentState);
 		}
 	}
 
@@ -341,6 +369,12 @@ namespace StructSerializer
 			else if (CastField<FSetProperty>(CurrentState.ValueProperty))
 			{
 				SerializeIterable<FSetProperty>(CurrentState, StateStack, Backend, Policies);
+			}
+
+			// Optionals
+			else if (CastField<FOptionalProperty>(CurrentState.ValueProperty))
+			{
+				SerializeOptional(CurrentState, StateStack, Backend);
 			}
 
 			// Static arrays

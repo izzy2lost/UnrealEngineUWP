@@ -689,7 +689,64 @@ struct FStructSerializerSetTestStruct
 	FStructSerializerSetTestStruct( ENoInit ) { }
 };
 
+/**
+ * Test structure for optional properties.
+ */
+USTRUCT()
+struct FStructSerializerOptionalTestStruct
+{
+	GENERATED_BODY()
 
+	UPROPERTY()
+	TOptional<FString> StrOptional;
+
+	UPROPERTY()
+	TOptional<FString> StrOptionalUnset;
+
+	UPROPERTY()
+	TOptional<int32> IntOptional;
+
+	UPROPERTY()
+	TOptional<int32> IntOptionalUnset;
+
+	UPROPERTY()
+	TOptional<FName> NameOptional;
+
+	UPROPERTY()
+	TOptional<FName> NameOptionalUnset;
+
+	UPROPERTY(meta=(IgnoreForMemberInitializationTest))
+	TOptional<FStructSerializerBuiltinTestStruct> StructOptional;
+
+	UPROPERTY()
+	TOptional<FStructSerializerBuiltinTestStruct> StructOptionalUnset;
+
+	// At the time of writing, optionals can not be used as keys/values in containers (optionals/arrays/sets/maps).
+
+	// UPROPERTY()
+	// TOptional<TOptional<int32>> OptionalOptionalInt;
+
+	// UPROPERTY()
+	// TArray<TOptional<int32>> ArrayOptionalInt;
+
+	// UPROPERTY()
+	// TSet<TOptional<int32>> SetOptionalInt;
+
+	// UPROPERTY()
+	// TMap<TOptional<int32>, TOptional<int32>> MapOptionalIntOptionalInt;
+
+	/** Default constructor. */
+	FStructSerializerOptionalTestStruct()
+		: StrOptional(TEXT("Test String"))
+		, IntOptional(1234)
+		, NameOptional(TEXT("Test Name"))
+		, StructOptional(FStructSerializerBuiltinTestStruct())
+	{
+	}
+
+	/** Creates an uninitialized instance. */
+	FStructSerializerOptionalTestStruct( ENoInit ) { }
+};
 
 /**
  * Test structure for all supported types.
@@ -721,6 +778,9 @@ struct FStructSerializerTestStruct
 	FStructSerializerSetTestStruct Sets;
 
 	UPROPERTY()
+	FStructSerializerOptionalTestStruct Optionals;
+
+	UPROPERTY()
 	FStructSerializerLWCTypesTest LWCTypes;
 
 	/** Default constructor. */
@@ -735,6 +795,7 @@ struct FStructSerializerTestStruct
 		, Arrays(NoInit)
 		, Maps(NoInit)
 		, Sets(NoInit)
+		, Optionals(NoInit)
 		, LWCTypes(NoInit)
 	{ }
 };
