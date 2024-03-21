@@ -29,6 +29,8 @@ void UActionableMessageSubsystem::SetActionableMessage(FName InProvider, const F
 
 void UActionableMessageSubsystem::ClearActionableMessage(FName InProvider)
 {
-	ProviderActionableMessageMap.Remove(InProvider);
-	++StateID;
+	if (ProviderActionableMessageMap.Remove(InProvider) > 0)
+	{
+		++StateID;
+	}
 }
