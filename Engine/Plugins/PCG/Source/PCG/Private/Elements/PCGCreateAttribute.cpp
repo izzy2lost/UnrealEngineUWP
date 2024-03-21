@@ -161,6 +161,8 @@ void UPCGAddAttributeSettings::PostLoad()
 		OutputTarget.SetAttributeName(OutputAttributeName_DEPRECATED);
 		OutputAttributeName_DEPRECATED = NAME_None;
 	}
+
+	AttributeTypes.OnPostLoad();
 #endif // WITH_EDITOR
 }
 
@@ -222,6 +224,8 @@ void UPCGCreateAttributeSetSettings::PostLoad()
 		OutputTarget.SetAttributeName(OutputAttributeName_DEPRECATED);
 		OutputAttributeName_DEPRECATED = NAME_None;
 	}
+
+	AttributeTypes.OnPostLoad();
 #endif // WITH_EDITOR
 }
 
