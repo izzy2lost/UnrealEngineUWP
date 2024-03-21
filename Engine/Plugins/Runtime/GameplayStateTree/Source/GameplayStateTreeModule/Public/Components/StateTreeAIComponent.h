@@ -11,7 +11,7 @@
 * It uses the StateTreeAIComponentSchema that guarantees access to the AIController.
 */
 UCLASS(ClassGroup = AI, meta = (BlueprintSpawnableComponent))
-class UStateTreeAIComponent : public UStateTreeComponent
+class GAMEPLAYSTATETREEMODULE_API UStateTreeAIComponent : public UStateTreeComponent
 {
 	GENERATED_BODY()
 public:
