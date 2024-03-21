@@ -5611,7 +5611,8 @@ UObject* FLinkerLoad::CreateImport( int32 Index )
 							else if( OuterImport.OuterIndex.IsNull() )
 							{
 								FName ObjectName = InstancingContext.RemapPackage(OuterImport.ObjectName);
-								UPackage* Pkg = CreatePackage(*ObjectName.ToString());
+								// Instancing context supports remapping editor-only references to none, handle this case here as well.
+								UPackage* Pkg = !ObjectName.IsNone() ? CreatePackage(*ObjectName.ToString()) : nullptr;
 								if (IsPackageReferenceAllowed(Pkg))
 								{
 									FindOuter = Pkg;
