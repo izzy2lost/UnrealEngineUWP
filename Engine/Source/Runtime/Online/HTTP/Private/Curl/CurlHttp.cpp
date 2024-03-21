@@ -323,15 +323,11 @@ void FCurlHttpRequest::SetContentAsString(const FString& ContentString)
 
 bool FCurlHttpRequest::SetContentAsStreamedFile(const FString& Filename)
 {
-	UE_LOG(LogHttp, Verbose, TEXT("FCurlHttpRequest::SetContentAsStreamedFile() - %s"), *Filename);
-
-	if (CompletionStatus == EHttpRequestStatus::Processing)
+	if (!SetContentAsStreamedFileDefaultImpl(Filename))
 	{
-		UE_LOG(LogHttp, Warning, TEXT("FCurlHttpRequest::SetContentAsStreamedFile() - attempted to set content on a request that is inflight"));
 		return false;
 	}
 
-	RequestPayload = MakeUnique<FRequestPayloadInFileStream>(*Filename);
 	bIsRequestPayloadSeekable = false;
 	return true;
 }
@@ -808,23 +804,14 @@ bool FCurlHttpRequest::SetupRequest()
 	QUICK_SCOPE_CYCLE_COUNTER(STAT_FCurlHttpRequest_SetupRequest);
 	check(EasyHandle);
 
-	// set up request
-
 	if (!RequestPayload.IsValid())
 	{
 		RequestPayload = MakeUnique<FRequestPayloadInMemory>(TArray<uint8>());
 		bIsRequestPayloadSeekable = true;
 	}
 
-	if (!RequestPayload->Open())
+	if (!OpenRequestPayloadDefaultImpl())
 	{
-		UE_LOG(LogHttp, Warning, TEXT("Failed to open request payload."));
-		return false;
-	}
-
-	if ((GetVerb().IsEmpty() || GetVerb().Equals(TEXT("GET"), ESearchCase::IgnoreCase)) && RequestPayload->GetContentLength() > 0)
-	{
-		UE_LOG(LogHttp, Warning, TEXT("An HTTP Get request cannot contain a payload."));
 		return false;
 	}
 
@@ -1347,12 +1334,9 @@ float FCurlHttpRequest::GetElapsedTime() const
 
 void FCurlHttpRequest::CleanupRequest()
 {
-	if (RequestPayload.IsValid())
-	{
-		RequestPayload->Close();
-	}
-
 	curl_easy_setopt(EasyHandle, CURLOPT_SHARE, nullptr);
+
+	CloseRequestPayloadDefaultImpl();
 }
 
 // FCurlHttpRequest
