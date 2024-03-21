@@ -190,7 +190,7 @@ namespace Jupiter.Controllers
 
 			try
 			{
-				Uri? uri = await _storage.MaybePutObjectWithRedirectAsync(ns, id);
+				Uri? uri = await _storage.MaybePutObjectWithRedirectAsync(ns, id, HttpContext.RequestAborted);
 				if (uri != null)
 				{
 					return Ok(new
@@ -199,9 +199,9 @@ namespace Jupiter.Controllers
 						RedirectUri = uri,
 					});
 				}
-				using IBufferedPayload payload = await _bufferedPayloadFactory.CreateFromRequestAsync(Request);
+				using IBufferedPayload payload = await _bufferedPayloadFactory.CreateFromRequestAsync(Request, HttpContext.RequestAborted);
 
-				BlobId identifier = await _storage.PutObjectAsync(ns, payload, id);
+				BlobId identifier = await _storage.PutObjectAsync(ns, payload, id, HttpContext.RequestAborted);
 				return Ok(new
 				{
 					Identifier = identifier.ToString()
@@ -232,12 +232,12 @@ namespace Jupiter.Controllers
 			_diagnosticContext.Set("Content-Length", Request.ContentLength ?? -1);
 			try
 			{
-				using IBufferedPayload payload = await _bufferedPayloadFactory.CreateFromRequestAsync(Request);
+				using IBufferedPayload payload = await _bufferedPayloadFactory.CreateFromRequestAsync(Request, HttpContext.RequestAborted);
 
 				await using Stream stream = payload.GetStream();
 
-				BlobId id = await BlobId.FromStreamAsync(stream);
-				await _storage.PutObjectKnownHashAsync(ns, payload, id);
+				BlobId id = await BlobId.FromStreamAsync(stream, HttpContext.RequestAborted);
+				await _storage.PutObjectKnownHashAsync(ns, payload, id, HttpContext.RequestAborted);
 
 				return Ok(new
 				{
@@ -276,14 +276,14 @@ namespace Jupiter.Controllers
 				return result;
 			}
 
-			await _storage.DeleteNamespaceAsync(ns);
+			await _storage.DeleteNamespaceAsync(ns, HttpContext.RequestAborted);
 
 			return NoContent();
 		}
 
 		private async Task DeleteImplAsync(NamespaceId ns, BlobId id)
 		{
-			await _storage.DeleteObjectAsync(ns, id);
+			await _storage.DeleteObjectAsync(ns, id, HttpContext.RequestAborted);
 		}
 
 		// ReSharper disable UnusedAutoPropertyAccessor.Global
@@ -401,7 +401,7 @@ namespace Jupiter.Controllers
 							}
 
 							using MemoryBufferedPayload payload = new MemoryBufferedPayload(op.Content);
-							tasks[index] = _storage.PutObjectAsync(op.Namespace.Value, payload, op.Id).ContinueWith((t, _) => (object?)t.Result, null, TaskScheduler.Current);
+							tasks[index] = _storage.PutObjectAsync(op.Namespace.Value, payload, op.Id, HttpContext.RequestAborted).ContinueWith((t, _) => (object?)t.Result, null, TaskScheduler.Current);
 							break;
 						}
 					case BatchOp.Operation.DELETE:

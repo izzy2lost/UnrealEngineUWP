@@ -4,6 +4,8 @@ using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
+using System.Runtime.CompilerServices;
+using System.Threading;
 using System.Threading.Tasks;
 using EpicGames.Horde.Storage;
 
@@ -19,7 +21,7 @@ namespace Jupiter.Implementation
 
 		}
 
-		public Task<RefRecord> GetAsync(NamespaceId ns, BucketId bucket, RefId key, IReferencesStore.FieldFlags fieldFlags, IReferencesStore.OperationFlags opFlags)
+		public Task<RefRecord> GetAsync(NamespaceId ns, BucketId bucket, RefId key, IReferencesStore.FieldFlags fieldFlags, IReferencesStore.OperationFlags opFlags, CancellationToken cancellationToken)
 		{
 			if (_objects.TryGetValue(BuildKey(ns, bucket, key), out MemoryStoreObject? o))
 			{
@@ -29,7 +31,7 @@ namespace Jupiter.Implementation
 			throw new RefNotFoundException(ns, bucket, key);
 		}
 
-		public Task PutAsync(NamespaceId ns, BucketId bucket, RefId key, BlobId blobHash, byte[] blob, bool isFinalized)
+		public Task PutAsync(NamespaceId ns, BucketId bucket, RefId key, BlobId blobHash, byte[] blob, bool isFinalized, CancellationToken cancellationToken)
 		{
 			lock (_namespaces)
 			{
@@ -43,7 +45,7 @@ namespace Jupiter.Implementation
 			return Task.FromResult(o);
 		}
 
-		public Task FinalizeAsync(NamespaceId ns, BucketId bucket, RefId key, BlobId blobIdentifier)
+		public Task FinalizeAsync(NamespaceId ns, BucketId bucket, RefId key, BlobId blobIdentifier, CancellationToken cancellationToken)
 		{
 			if (!_objects.TryGetValue(BuildKey(ns, bucket, key), out MemoryStoreObject? o))
 			{
@@ -54,7 +56,7 @@ namespace Jupiter.Implementation
 			return Task.CompletedTask;
 		}
 
-		public Task<DateTime?> GetLastAccessTimeAsync(NamespaceId ns, BucketId bucket, RefId key)
+		public Task<DateTime?> GetLastAccessTimeAsync(NamespaceId ns, BucketId bucket, RefId key, CancellationToken cancellationToken)
 		{
 			DateTime? lastAccessTime = null;
 			if (_objects.TryGetValue(BuildKey(ns, bucket, key), out MemoryStoreObject? o))
@@ -65,7 +67,7 @@ namespace Jupiter.Implementation
 			return Task.FromResult(lastAccessTime);
 		}
 
-		public Task UpdateLastAccessTimeAsync(NamespaceId ns, BucketId bucket, RefId key, DateTime lastAccessTime)
+		public Task UpdateLastAccessTimeAsync(NamespaceId ns, BucketId bucket, RefId key, DateTime lastAccessTime, CancellationToken cancellationToken)
 		{
 			if (!_objects.TryGetValue(BuildKey(ns, bucket, key), out MemoryStoreObject? o))
 			{
@@ -76,16 +78,16 @@ namespace Jupiter.Implementation
 			return Task.CompletedTask;
 		}
 
-		public async IAsyncEnumerable<(NamespaceId, BucketId, RefId)> GetRecordsWithoutAccessTimeAsync()
+		public async IAsyncEnumerable<(NamespaceId, BucketId, RefId)> GetRecordsWithoutAccessTimeAsync([EnumeratorCancellation] CancellationToken cancellationToken)
 		{
-			await foreach ((NamespaceId namespaceId, BucketId bucketId, RefId refId, DateTime _) in GetRecordsAsync())
+			await foreach ((NamespaceId namespaceId, BucketId bucketId, RefId refId, DateTime _) in GetRecordsAsync(cancellationToken))
 			{
 				await Task.CompletedTask;
 				yield return (namespaceId, bucketId, refId);
 			}
 		}
 
-		public async IAsyncEnumerable<(NamespaceId, BucketId, RefId, DateTime)> GetRecordsAsync()
+		public async IAsyncEnumerable<(NamespaceId, BucketId, RefId, DateTime)> GetRecordsAsync([EnumeratorCancellation] CancellationToken cancellationToken)
 		{
 			foreach (MemoryStoreObject o in _objects.Values.OrderBy(o => o.LastAccessTime))
 			{
@@ -94,7 +96,7 @@ namespace Jupiter.Implementation
 			}
 		}
 
-		public async IAsyncEnumerable<(RefId, BlobId)> GetRecordsInBucketAsync(NamespaceId ns, BucketId bucket)
+		public async IAsyncEnumerable<(RefId, BlobId)> GetRecordsInBucketAsync(NamespaceId ns, BucketId bucket, [EnumeratorCancellation] CancellationToken cancellationToken)
 		{
 			foreach (MemoryStoreObject o in _objects.Values.Where(o => o.Namespace == ns && o.Bucket == bucket))
 			{
@@ -103,12 +105,12 @@ namespace Jupiter.Implementation
 			}
 		}
 
-		public IAsyncEnumerable<NamespaceId> GetNamespacesAsync()
+		public IAsyncEnumerable<NamespaceId> GetNamespacesAsync(CancellationToken cancellationToken)
 		{
 			return _namespaces.ToAsyncEnumerable();
 		}
 
-		public async IAsyncEnumerable<BucketId> GetBucketsAsync(NamespaceId ns)
+		public async IAsyncEnumerable<BucketId> GetBucketsAsync(NamespaceId ns, [EnumeratorCancellation] CancellationToken cancellationToken)
 		{
 			HashSet<BucketId> buckets = new HashSet<BucketId>();
 			foreach (MemoryStoreObject o in _objects.Values.Where(o => o.Namespace == ns))
@@ -123,7 +125,7 @@ namespace Jupiter.Implementation
 			}
 		}
 
-		public Task<bool> DeleteAsync(NamespaceId ns, BucketId bucket, RefId key)
+		public Task<bool> DeleteAsync(NamespaceId ns, BucketId bucket, RefId key, CancellationToken cancellationToken)
 		{
 			if (!_objects.TryRemove(BuildKey(ns, bucket, key), out MemoryStoreObject? _))
 			{
@@ -133,7 +135,7 @@ namespace Jupiter.Implementation
 			return Task.FromResult(true);
 		}
 
-		public Task<long> DropNamespaceAsync(NamespaceId ns)
+		public Task<long> DropNamespaceAsync(NamespaceId ns, CancellationToken cancellationToken)
 		{
 			lock (_namespaces)
 			{
@@ -162,7 +164,7 @@ namespace Jupiter.Implementation
 			return Task.FromResult(removedCount);
 		}
 
-		public Task<long> DeleteBucketAsync(NamespaceId ns, BucketId bucket)
+		public Task<long> DeleteBucketAsync(NamespaceId ns, BucketId bucket, CancellationToken cancellationToken)
 		{
 			List<string> objectToRemove = new List<string>();
 

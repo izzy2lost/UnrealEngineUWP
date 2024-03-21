@@ -47,7 +47,7 @@ namespace Jupiter.Implementation
 			_policyResolver = policyResolver;
 		}
 
-		public override async Task<bool> OnPollAsync(ConsistencyState state, CancellationToken cancellationToken)
+		public override async Task<bool> OnPollAsync(ConsistencyState state, CancellationToken cancellationToken = default)
 		{
 			if (!_settings.CurrentValue.EnableRefStoreChecks)
 			{
@@ -55,12 +55,12 @@ namespace Jupiter.Implementation
 				return false;
 			}
 
-			await RunConsistencyCheckAsync();
+			await RunConsistencyCheckAsync(cancellationToken);
 
 			return true;
 		}
 
-		public async Task RunConsistencyCheckAsync()
+		public async Task RunConsistencyCheckAsync(CancellationToken cancellationToken = default)
 		{
 			if (!_leaderElection.IsThisInstanceLeader())
 			{
@@ -70,17 +70,17 @@ namespace Jupiter.Implementation
 
 			ulong countOfRefsChecked = 0;
 			ulong countOfMissingLastAccessTime = 0;
-			await foreach ((NamespaceId ns, BucketId bucket, RefId refId) in _referencesStore.GetRecordsWithoutAccessTimeAsync())
+			await foreach ((NamespaceId ns, BucketId bucket, RefId refId) in _referencesStore.GetRecordsWithoutAccessTimeAsync(cancellationToken))
 			{
 				using TelemetrySpan scope = _tracer.StartActiveSpan("consistency_check.ref_store")
 					.SetAttribute("operation.name", "consistency_check.ref_store")
 					.SetAttribute("resource.name", $"{ns}.{bucket}.{refId}");
 
-				DateTime? lastAccessTime = await _referencesStore.GetLastAccessTimeAsync(ns, bucket, refId);
+				DateTime? lastAccessTime = await _referencesStore.GetLastAccessTimeAsync(ns, bucket, refId, cancellationToken);
 				if (!lastAccessTime.HasValue)
 				{
 					// if there is no last access time record we add one so that the two tables are consistent, this will make the ref record be considered by the GC and thus cleanup anything that might be very old (but its added as a new record so it will take until the configured cleanup time has passed)
-					await _referencesStore.UpdateLastAccessTimeAsync(ns, bucket, refId, DateTime.Now);
+					await _referencesStore.UpdateLastAccessTimeAsync(ns, bucket, refId, DateTime.Now, cancellationToken);
 
 					Interlocked.Increment(ref countOfMissingLastAccessTime);
 				}

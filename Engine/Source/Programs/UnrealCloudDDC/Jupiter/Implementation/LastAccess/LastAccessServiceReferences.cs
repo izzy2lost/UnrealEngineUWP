@@ -55,7 +55,7 @@ namespace Jupiter.Implementation
 			Running = false;
 
 			// process the last records we have built up
-			await ProcessLastAccessRecordsAsync();
+			await ProcessLastAccessRecordsAsync(cancellationToken);
 		}
 
 		private void OnUpdate(object? state)
@@ -63,7 +63,7 @@ namespace Jupiter.Implementation
 			try
 			{
 				// call results to make sure we join the task
-				ProcessLastAccessRecordsAsync().Wait();
+				ProcessLastAccessRecordsAsync(CancellationToken.None).Wait();
 			}
 			catch (Exception e)
 			{
@@ -73,7 +73,7 @@ namespace Jupiter.Implementation
 			}
 		}
 
-		internal async Task<List<(LastAccessRecord, DateTime)>> ProcessLastAccessRecordsAsync()
+		internal async Task<List<(LastAccessRecord, DateTime)>> ProcessLastAccessRecordsAsync(CancellationToken cancellationToken)
 		{
 			_logger.LogInformation("Running Last Access Aggregation for refs");
 			List<(LastAccessRecord, DateTime)> records = await _lastAccessCacheRecord.GetLastAccessedRecords();
@@ -88,9 +88,9 @@ namespace Jupiter.Implementation
 					.SetAttribute("operation.name", "lastAccess.update")
 					.SetAttribute("resource.name", $"{record.Namespace}:{record.Bucket}.{record.Key}");
 				_logger.LogDebug("Updating last access time to {LastAccessTime} for {Record}", lastAccessTime, record);
-				await _referencesStore.UpdateLastAccessTimeAsync(record.Namespace, record.Bucket, record.Key, lastAccessTime);
+				await _referencesStore.UpdateLastAccessTimeAsync(record.Namespace, record.Bucket, record.Key, lastAccessTime, cancellationToken);
 				// delay 10ms between each record to distribute the load more evenly for the db
-				await Task.Delay(10);
+				await Task.Delay(10, cancellationToken);
 			}
 
 			return records;

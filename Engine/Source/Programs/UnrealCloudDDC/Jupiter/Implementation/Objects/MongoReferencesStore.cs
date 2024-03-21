@@ -2,6 +2,8 @@
 
 using System;
 using System.Collections.Generic;
+using System.Runtime.CompilerServices;
+using System.Threading;
 using System.Threading.Tasks;
 using EpicGames.Horde.Storage;
 using Jupiter.Common;
@@ -47,12 +49,12 @@ namespace Jupiter.Implementation
 			AddIndexFor<MongoReferencesModelV0>().CreateOne(indexTTL);
 		}
 
-		public async Task<RefRecord> GetAsync(NamespaceId ns, BucketId bucket, RefId key, IReferencesStore.FieldFlags fieldFlags, IReferencesStore.OperationFlags opFlags)
+		public async Task<RefRecord> GetAsync(NamespaceId ns, BucketId bucket, RefId key, IReferencesStore.FieldFlags fieldFlags, IReferencesStore.OperationFlags opFlags, CancellationToken cancellationToken)
 		{
 			bool includePayload = (fieldFlags & IReferencesStore.FieldFlags.IncludePayload) != 0;
 			IMongoCollection<MongoReferencesModelV0> collection = GetCollection<MongoReferencesModelV0>();
-			IAsyncCursor<MongoReferencesModelV0>? cursor = await collection.FindAsync(m => m.Ns == ns.ToString() && m.Bucket == bucket.ToString() && m.Key == key.ToString());
-			MongoReferencesModelV0? model = await cursor.FirstOrDefaultAsync();
+			IAsyncCursor<MongoReferencesModelV0>? cursor = await collection.FindAsync(m => m.Ns == ns.ToString() && m.Bucket == bucket.ToString() && m.Key == key.ToString(), cancellationToken: cancellationToken);
+			MongoReferencesModelV0? model = await cursor.FirstOrDefaultAsync(cancellationToken);
 			if (model == null)
 			{
 				throw new RefNotFoundException(ns, bucket, key);
@@ -67,7 +69,7 @@ namespace Jupiter.Implementation
 			return model.ToRefRecord();
 		}
 
-		public async Task PutAsync(NamespaceId ns, BucketId bucket, RefId key, BlobId blobHash, byte[]? blob, bool isFinalized)
+		public async Task PutAsync(NamespaceId ns, BucketId bucket, RefId key, BlobId blobHash, byte[]? blob, bool isFinalized, CancellationToken cancellationToken)
 		{
 			IMongoCollection<MongoReferencesModelV0> collection = GetCollection<MongoReferencesModelV0>();
 
@@ -78,7 +80,7 @@ namespace Jupiter.Implementation
 				blob = Array.Empty<byte>();
 			}
 
-			Task addNamespaceTask = AddNamespaceIfNotExistAsync(ns);
+			Task addNamespaceTask = AddNamespaceIfNotExistAsync(ns, cancellationToken);
 			MongoReferencesModelV0 model = new MongoReferencesModelV0(ns, bucket, key, blobHash, blob, isFinalized, DateTime.Now);
 
 			NamespacePolicy policy = _namespacePolicyResolver.GetPoliciesForNs(ns);
@@ -93,46 +95,48 @@ namespace Jupiter.Implementation
 			{
 				IsUpsert = true
 			};
-			await collection.FindOneAndReplaceAsync(filter, model, options);
+			await collection.FindOneAndReplaceAsync(filter, model, options, cancellationToken);
 
 			await addNamespaceTask;
 		}
 
-		public async Task FinalizeAsync(NamespaceId ns, BucketId bucket, RefId key, BlobId blobIdentifier)
+		public async Task FinalizeAsync(NamespaceId ns, BucketId bucket, RefId key, BlobId blobIdentifier, CancellationToken cancellationToken)
 		{
 			IMongoCollection<MongoReferencesModelV0> collection = GetCollection<MongoReferencesModelV0>();
 
 			UpdateResult _ = await collection.UpdateOneAsync(
 				model => model.Ns == ns.ToString() && model.Bucket == bucket.ToString() && model.Key == key.ToString(),
-				Builders<MongoReferencesModelV0>.Update.Set(model => model.IsFinalized, true)
+				Builders<MongoReferencesModelV0>.Update.Set(model => model.IsFinalized, true),
+				cancellationToken: cancellationToken
 			);
 		}
 
-		public async Task<DateTime?> GetLastAccessTimeAsync(NamespaceId ns, BucketId bucket, RefId key)
+		public async Task<DateTime?> GetLastAccessTimeAsync(NamespaceId ns, BucketId bucket, RefId key, CancellationToken cancellationToken)
 		{
 			IMongoCollection<MongoReferencesModelV0> collection = GetCollection<MongoReferencesModelV0>();
-			IAsyncCursor<MongoReferencesModelV0>? cursor = await collection.FindAsync(m => m.Ns == ns.ToString() && m.Bucket == bucket.ToString() && m.Key == key.ToString());
-			MongoReferencesModelV0? model = await cursor.FirstOrDefaultAsync();
+			IAsyncCursor<MongoReferencesModelV0>? cursor = await collection.FindAsync(m => m.Ns == ns.ToString() && m.Bucket == bucket.ToString() && m.Key == key.ToString(), cancellationToken: cancellationToken);
+			MongoReferencesModelV0? model = await cursor.FirstOrDefaultAsync(cancellationToken);
 
 			return model?.LastAccessTime;
 		}
 
-		public async Task UpdateLastAccessTimeAsync(NamespaceId ns, BucketId bucket, RefId key, DateTime newLastAccessTime)
+		public async Task UpdateLastAccessTimeAsync(NamespaceId ns, BucketId bucket, RefId key, DateTime newLastAccessTime, CancellationToken cancellationToken)
 		{
 			IMongoCollection<MongoReferencesModelV0> collection = GetCollection<MongoReferencesModelV0>();
 
 			UpdateResult _ = await collection.UpdateOneAsync(
 				model => model.Ns == ns.ToString() && model.Bucket == bucket.ToString() && model.Key == key.ToString(),
-				Builders<MongoReferencesModelV0>.Update.Set(model => model.LastAccessTime, newLastAccessTime)
+				Builders<MongoReferencesModelV0>.Update.Set(model => model.LastAccessTime, newLastAccessTime), 
+				cancellationToken: cancellationToken
 			);
 		}
 
-		public async IAsyncEnumerable<(NamespaceId, BucketId, RefId, DateTime)> GetRecordsAsync()
+		public async IAsyncEnumerable<(NamespaceId, BucketId, RefId, DateTime)> GetRecordsAsync([EnumeratorCancellation] CancellationToken cancellationToken)
 		{
 			IMongoCollection<MongoReferencesModelV0> collection = GetCollection<MongoReferencesModelV0>();
-			IAsyncCursor<MongoReferencesModelV0>? cursor = await collection.FindAsync(FilterDefinition<MongoReferencesModelV0>.Empty);
+			IAsyncCursor<MongoReferencesModelV0>? cursor = await collection.FindAsync(FilterDefinition<MongoReferencesModelV0>.Empty, cancellationToken: cancellationToken);
 
-			while (await cursor.MoveNextAsync())
+			while (await cursor.MoveNextAsync(cancellationToken))
 			{
 				foreach (MongoReferencesModelV0 model in cursor.Current)
 				{
@@ -141,20 +145,20 @@ namespace Jupiter.Implementation
 			}
 		}
 
-		public async IAsyncEnumerable<(NamespaceId, BucketId, RefId)> GetRecordsWithoutAccessTimeAsync()
+		public async IAsyncEnumerable<(NamespaceId, BucketId, RefId)> GetRecordsWithoutAccessTimeAsync([EnumeratorCancellation] CancellationToken cancellationToken)
 		{
-			await foreach ((NamespaceId ns, BucketId bucket, RefId key, DateTime _) in GetRecordsAsync())
+			await foreach ((NamespaceId ns, BucketId bucket, RefId key, DateTime _) in GetRecordsAsync(cancellationToken))
 			{
 				yield return (ns, bucket, key);
 			}
 		}
 
-		public async IAsyncEnumerable<(RefId, BlobId)> GetRecordsInBucketAsync(NamespaceId ns, BucketId bucket)
+		public async IAsyncEnumerable<(RefId, BlobId)> GetRecordsInBucketAsync(NamespaceId ns, BucketId bucket, [EnumeratorCancellation] CancellationToken cancellationToken)
 		{
 			IMongoCollection<MongoReferencesModelV0> collection = GetCollection<MongoReferencesModelV0>();
-			IAsyncCursor<MongoReferencesModelV0>? cursor = await collection.FindAsync(m => m.Ns == ns.ToString() && m.Bucket == bucket.ToString());
+			IAsyncCursor<MongoReferencesModelV0>? cursor = await collection.FindAsync(m => m.Ns == ns.ToString() && m.Bucket == bucket.ToString(), cancellationToken: cancellationToken);
 
-			while (await cursor.MoveNextAsync())
+			while (await cursor.MoveNextAsync(cancellationToken))
 			{
 				foreach (MongoReferencesModelV0 model in cursor.Current)
 				{
@@ -163,7 +167,7 @@ namespace Jupiter.Implementation
 			}
 		}
 
-		public async Task AddNamespaceIfNotExistAsync(NamespaceId ns)
+		public async Task AddNamespaceIfNotExistAsync(NamespaceId ns, CancellationToken cancellationToken)
 		{
 			FilterDefinition<MongoNamespacesModelV0> filter = Builders<MongoNamespacesModelV0>.Filter.Where(m => m.Ns == ns.ToString());
 			FindOneAndReplaceOptions<MongoNamespacesModelV0, MongoNamespacesModelV0> options = new FindOneAndReplaceOptions<MongoNamespacesModelV0, MongoNamespacesModelV0>
@@ -172,15 +176,15 @@ namespace Jupiter.Implementation
 			};
 
 			IMongoCollection<MongoNamespacesModelV0> collection = GetCollection<MongoNamespacesModelV0>();
-			await collection.FindOneAndReplaceAsync(filter, new MongoNamespacesModelV0(ns), options);
+			await collection.FindOneAndReplaceAsync(filter, new MongoNamespacesModelV0(ns), options, cancellationToken);
 		}
 
-		public async IAsyncEnumerable<NamespaceId> GetNamespacesAsync()
+		public async IAsyncEnumerable<NamespaceId> GetNamespacesAsync([EnumeratorCancellation] CancellationToken cancellationToken)
 		{
 			IMongoCollection<MongoNamespacesModelV0> collection = GetCollection<MongoNamespacesModelV0>();
 
-			IAsyncCursor<MongoNamespacesModelV0> cursor = await collection.FindAsync(FilterDefinition<MongoNamespacesModelV0>.Empty);
-			while (await cursor.MoveNextAsync())
+			IAsyncCursor<MongoNamespacesModelV0> cursor = await collection.FindAsync(FilterDefinition<MongoNamespacesModelV0>.Empty, cancellationToken: cancellationToken);
+			while (await cursor.MoveNextAsync(cancellationToken))
 			{
 				foreach (MongoNamespacesModelV0? document in cursor.Current)
 				{
@@ -189,14 +193,14 @@ namespace Jupiter.Implementation
 			}
 		}
 
-		public async IAsyncEnumerable<BucketId> GetBucketsAsync(NamespaceId ns)
+		public async IAsyncEnumerable<BucketId> GetBucketsAsync(NamespaceId ns, [EnumeratorCancellation] CancellationToken cancellationToken)
 		{
 			IMongoCollection<MongoReferencesModelV0> collection = GetCollection<MongoReferencesModelV0>();
 
-			IAsyncCursor<MongoReferencesModelV0> cursor = await collection.FindAsync(m => m.Ns == ns.ToString());
+			IAsyncCursor<MongoReferencesModelV0> cursor = await collection.FindAsync(m => m.Ns == ns.ToString(), cancellationToken: cancellationToken);
 
 			HashSet<BucketId> buckets = new HashSet<BucketId>();
-			while (await cursor.MoveNextAsync())
+			while (await cursor.MoveNextAsync(cancellationToken))
 			{
 				foreach (MongoReferencesModelV0? document in cursor.Current)
 				{
@@ -210,22 +214,23 @@ namespace Jupiter.Implementation
 			}
 		}
 
-		public async Task<bool> DeleteAsync(NamespaceId ns, BucketId bucket, RefId key)
+		public async Task<bool> DeleteAsync(NamespaceId ns, BucketId bucket, RefId key, CancellationToken cancellationToken)
 		{
 			IMongoCollection<MongoReferencesModelV0> collection = GetCollection<MongoReferencesModelV0>();
 
 			DeleteResult result = await collection.DeleteOneAsync(model =>
-				model.Ns == ns.ToString() && model.Bucket == bucket.ToString() && model.Key == key.ToString());
+				model.Ns == ns.ToString() && model.Bucket == bucket.ToString() && model.Key == key.ToString(),
+				cancellationToken);
 
 			return result.DeletedCount != 0;
 		}
 
-		public async Task<long> DropNamespaceAsync(NamespaceId ns)
+		public async Task<long> DropNamespaceAsync(NamespaceId ns, CancellationToken cancellationToken)
 		{
 			IMongoCollection<MongoReferencesModelV0> collection = GetCollection<MongoReferencesModelV0>();
 
 			DeleteResult result = await collection.DeleteManyAsync(model =>
-				model.Ns == ns.ToString());
+				model.Ns == ns.ToString(), cancellationToken);
 
 			long deletedCount = 0;
 			if (result.IsAcknowledged)
@@ -234,17 +239,17 @@ namespace Jupiter.Implementation
 			}
 
 			IMongoCollection<MongoNamespacesModelV0> namespaceCollection = GetCollection<MongoNamespacesModelV0>();
-			await namespaceCollection.DeleteOneAsync(m => m.Ns == ns.ToString());
+			await namespaceCollection.DeleteOneAsync(m => m.Ns == ns.ToString(), cancellationToken);
 			return deletedCount;
 
 		}
 
-		public async Task<long> DeleteBucketAsync(NamespaceId ns, BucketId bucket)
+		public async Task<long> DeleteBucketAsync(NamespaceId ns, BucketId bucket, CancellationToken cancellationToken)
 		{
 			IMongoCollection<MongoReferencesModelV0> collection = GetCollection<MongoReferencesModelV0>();
 
 			DeleteResult result = await collection.DeleteManyAsync(model =>
-				model.Ns == ns.ToString() && model.Bucket == bucket.ToString());
+				model.Ns == ns.ToString() && model.Bucket == bucket.ToString(), cancellationToken);
 
 			if (result.IsAcknowledged)
 			{

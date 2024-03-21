@@ -92,7 +92,7 @@ namespace Jupiter.Controllers
 				return BadRequest("No Blob Contents found");
 			}
 
-			byte[] blobMemory = await refContents.Stream.ToByteArrayAsync();
+			byte[] blobMemory = await refContents.Stream.ToByteArrayAsync(HttpContext.RequestAborted);
 			CbObject cb = new CbObject(blobMemory);
 			IoHash payloadHash = cb["pdbPayload"].AsBinaryAttachment().Hash;
 
@@ -146,7 +146,7 @@ namespace Jupiter.Controllers
 				case MediaTypeNames.Application.Octet:
 					{
 						CompressedBufferUtils utils = new CompressedBufferUtils(_tracer, _bufferedPayloadFactory);
-						using IBufferedPayload payload = await utils.DecompressContentAsync(referencedBlobContents.Stream, (ulong)referencedBlobContents.Length);
+						using IBufferedPayload payload = await utils.DecompressContentAsync(referencedBlobContents.Stream, (ulong)referencedBlobContents.Length, HttpContext.RequestAborted);
 						await using Stream s = payload.GetStream();
 						await using BlobContents contents = new BlobContents(s, s.Length);
 						await WriteBody(contents, MediaTypeNames.Application.Octet);
@@ -177,23 +177,23 @@ namespace Jupiter.Controllers
 			_diagnosticContext.Set("Content-Length", Request.ContentLength ?? -1);
 			CompressedBufferUtils utils = new CompressedBufferUtils(_tracer, _bufferedPayloadFactory);
 
-			IBufferedPayload payloadToUse = await _bufferedPayloadFactory.CreateFromRequestAsync(Request);
+			IBufferedPayload payloadToUse = await _bufferedPayloadFactory.CreateFromRequestAsync(Request, HttpContext.RequestAborted);
 			if (Request.ContentType == MediaTypeNames.Application.Octet)
 			{
 				await using Stream s = payloadToUse.GetStream();
 				using MemoryStream compressedStream = new MemoryStream();
 
 				// compress the content so we can use our normal path for processing content
-				utils.CompressContent(compressedStream, OoodleCompressorMethod.Kraken, OoodleCompressionLevel.VeryFast, await s.ToByteArrayAsync());
+				utils.CompressContent(compressedStream, OoodleCompressorMethod.Kraken, OoodleCompressionLevel.VeryFast, await s.ToByteArrayAsync(HttpContext.RequestAborted));
 
 				compressedStream.Seek(0, SeekOrigin.Begin);
-				payloadToUse = await _bufferedPayloadFactory.CreateFromStreamAsync(compressedStream, compressedStream.Length);
+				payloadToUse = await _bufferedPayloadFactory.CreateFromStreamAsync(compressedStream, compressedStream.Length, HttpContext.RequestAborted);
 			}
 
 			using IBufferedPayload payload = payloadToUse;
 			await using Stream hashStream = payload.GetStream();
-			BlobId attachmentHash = await BlobId.FromStreamAsync(hashStream);
-			IBufferedPayload decompressedContent = await utils.DecompressContentAsync(payload.GetStream(), (ulong)payload.Length);
+			BlobId attachmentHash = await BlobId.FromStreamAsync(hashStream, HttpContext.RequestAborted);
+			IBufferedPayload decompressedContent = await utils.DecompressContentAsync(payload.GetStream(), (ulong)payload.Length, HttpContext.RequestAborted);
 
 			(string pdbIdentifier, int pdbAge) = ExtractModuleInformation(moduleName, decompressedContent);
 
@@ -210,9 +210,9 @@ namespace Jupiter.Controllers
 			byte[] blob = writer.ToByteArray();
 			CbObject o = new CbObject(blob);
 			BlobId blobHeader = BlobId.FromBlob(blob);
-			await _blobStore.PutObjectKnownHashAsync(ns, payload, attachmentHash);
+			await _blobStore.PutObjectKnownHashAsync(ns, payload, attachmentHash, HttpContext.RequestAborted);
 
-			(ContentId[], BlobId[]) missingHashes = await _refService.PutAsync(ns, new BucketId(moduleName), RefId.FromName($"{moduleName}.{pdbIdentifier}{pdbAge}.{filename}"), blobHeader, o);
+			(ContentId[], BlobId[]) missingHashes = await _refService.PutAsync(ns, new BucketId(moduleName), RefId.FromName($"{moduleName}.{pdbIdentifier}{pdbAge}.{filename}"), blobHeader, o, HttpContext.RequestAborted);
 
 			if (missingHashes.Item1.Any() || missingHashes.Item2.Any())
 			{

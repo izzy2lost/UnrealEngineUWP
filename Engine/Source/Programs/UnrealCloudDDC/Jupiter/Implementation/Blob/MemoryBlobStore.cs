@@ -153,7 +153,7 @@ namespace Jupiter.Implementation
 
 		public async Task WriteAsync(string path, Stream stream, CancellationToken cancellationToken)
 		{
-			byte[] blob = await stream.ToByteArrayAsync();
+			byte[] blob = await stream.ToByteArrayAsync(cancellationToken);
 
 			// we do not split the blob into smaller parts when storing in memory, this is only for test purposes
 			// so there is no need to add that complexity

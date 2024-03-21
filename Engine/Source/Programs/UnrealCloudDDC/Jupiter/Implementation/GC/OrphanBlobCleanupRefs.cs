@@ -88,7 +88,7 @@ namespace Jupiter.Implementation
 				// only consider blobs that have been around for 60 minutes
 				// this due to cases were blobs are uploaded first
 				DateTime cutoff = DateTime.Now.AddMinutes(-60);
-				await Parallel.ForEachAsync(_blobService.ListObjectsAsync(@namespace),
+				await Parallel.ForEachAsync(_blobService.ListObjectsAsync(@namespace, cancellationToken),
 					new ParallelOptions { MaxDegreeOfParallelism = _gcSettings.CurrentValue.OrphanGCMaxParallelOperations, CancellationToken = cancellationToken },
 					async (tuple, ctx) =>
 					{
@@ -142,7 +142,7 @@ namespace Jupiter.Implementation
 					break;
 				}
 
-				IAsyncEnumerable<BaseBlobReference> references = _blobIndex.GetBlobReferencesAsync(blobNamespace, blob);
+				IAsyncEnumerable<BaseBlobReference> references = _blobIndex.GetBlobReferencesAsync(blobNamespace, blob, cancellationToken);
 
 				List<BaseBlobReference> oldReferences = new List<BaseBlobReference>();
 
@@ -160,7 +160,7 @@ namespace Jupiter.Implementation
 
 						try
 						{
-							found = await _refService.ExistsAsync(blobNamespace, bucket, key);
+							found = await _refService.ExistsAsync(blobNamespace, bucket, key, cancellationToken);
 							break;
 						}
 						catch (RefNotFoundException)
@@ -172,7 +172,7 @@ namespace Jupiter.Implementation
 					else if (baseBlobReference is BlobToBlobReference blobReference)
 					{
 						BlobId referringBlob = blobReference.Blob;
-						bool blobFound = await _blobService.ExistsAsync(blobNamespace, referringBlob);
+						bool blobFound = await _blobService.ExistsAsync(blobNamespace, referringBlob, cancellationToken: cancellationToken);
 						if (blobFound)
 						{
 							found = true;
@@ -192,7 +192,7 @@ namespace Jupiter.Implementation
 				if (found)
 				{
 					// if the object is still alive but had old references we remove the old references to keep the size of the references array more reasonable
-					await _blobIndex.RemoveReferencesAsync(blobNamespace, blob, oldReferences);
+					await _blobIndex.RemoveReferencesAsync(blobNamespace, blob, oldReferences, cancellationToken);
 				}
 			}
 
@@ -215,19 +215,19 @@ namespace Jupiter.Implementation
 			_logger.LogInformation("GC Orphan blob {Blob} from {StoragePool} which was last modified at {LastModifiedTime}", blob, storagePoolName, lastModifiedTime);
 
 			// if the blob was not found to have a reference in any of the namespace that share a storage pool then the blob is not used anymore and should be deleted from all the namespaces
-			await Parallel.ForEachAsync(namespacesThatSharePool, cancellationToken, async (ns, _) =>
+			await Parallel.ForEachAsync(namespacesThatSharePool, cancellationToken, async (ns, ctx) =>
 			{
-				await RemoveBlobAsync(ns, blob);
+				await RemoveBlobAsync(ns, blob, ctx);
 			});
 			return true;
 
 		}
 
-		private async Task RemoveBlobAsync(NamespaceId ns, BlobId blob)
+		private async Task RemoveBlobAsync(NamespaceId ns, BlobId blob, CancellationToken cancellationToken)
 		{
 			try
 			{
-				await _blobService.DeleteObjectAsync(ns, blob);
+				await _blobService.DeleteObjectAsync(ns, blob, cancellationToken);
 			}
 			catch (BlobNotFoundException)
 			{
@@ -241,7 +241,7 @@ namespace Jupiter.Implementation
 
 		private IAsyncEnumerable<NamespaceId> ListNamespaces()
 		{
-			return _refService.GetNamespacesAsync();
+			return _refService.GetNamespacesAsync(CancellationToken.None);
 		}
 	}
 }

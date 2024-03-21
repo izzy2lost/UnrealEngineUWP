@@ -2,6 +2,7 @@
 
 using System;
 using System.Linq;
+using System.Threading;
 using System.Threading.Tasks;
 using Cassandra;
 using Cassandra.Mapping;
@@ -41,7 +42,7 @@ namespace Jupiter.Implementation
 			}
 		}
 
-		public async Task<BlobId[]?> ResolveAsync(NamespaceId ns, ContentId contentId, bool mustBeContentId)
+		public async Task<BlobId[]?> ResolveAsync(NamespaceId ns, ContentId contentId, bool mustBeContentId, CancellationToken cancellationToken)
 		{
 			using TelemetrySpan scope = _tracer.BuildScyllaSpan("ScyllaContentIdStore.ResolveContentId").SetAttribute("resource.name", contentId.ToString());
 
@@ -65,7 +66,7 @@ namespace Jupiter.Implementation
 						{
 							using TelemetrySpan _ = _tracer.StartActiveSpan("ScyllaContentIdStore.FindMissingBlobs").SetAttribute("operation.name", "ScyllaContentIdStore.FindMissingBlobs");
 
-							BlobId[] missingBlobs = await _blobStore.FilterOutKnownBlobsAsync(ns, blobs);
+							BlobId[] missingBlobs = await _blobStore.FilterOutKnownBlobsAsync(ns, blobs, cancellationToken);
 							if (missingBlobs.Length == 0)
 							{
 								return blobs;
@@ -89,7 +90,7 @@ namespace Jupiter.Implementation
 						{
 							using TelemetrySpan _ = _tracer.StartActiveSpan("ScyllaContentIdStore.FindMissingBlobs").SetAttribute("operation.name", "ScyllaContentIdStore.FindMissingBlobs");
 
-							BlobId[] missingBlobs = await _blobStore.FilterOutKnownBlobsAsync(ns, blobs);
+							BlobId[] missingBlobs = await _blobStore.FilterOutKnownBlobsAsync(ns, blobs, cancellationToken);
 							if (missingBlobs.Length == 0)
 							{
 								return blobs;
@@ -103,7 +104,7 @@ namespace Jupiter.Implementation
 			if (!mustBeContentId)
 			{
 				// if no content id is found, but we have a blob that matches the content id (so a unchunked and uncompressed version of the data) we use that instead
-				bool contentIdBlobExists = await _blobStore.ExistsAsync(ns, contentIdBlob)!;
+				bool contentIdBlobExists = await _blobStore.ExistsAsync(ns, contentIdBlob, cancellationToken: cancellationToken)!;
 
 				if (contentIdBlobExists)
 				{
@@ -115,7 +116,7 @@ namespace Jupiter.Implementation
 			return null;
 		}
 
-		public async Task PutAsync(NamespaceId ns, ContentId contentId, BlobId blobIdentifier, int contentWeight)
+		public async Task PutAsync(NamespaceId ns, ContentId contentId, BlobId blobIdentifier, int contentWeight, CancellationToken cancellationToken)
 		{
 			using TelemetrySpan scope = _tracer.BuildScyllaSpan("ScyllaContentIdStore.PutContentId").SetAttribute("resource.name", contentId.ToString());
 			if (_scyllaSessionManager.IsScylla)

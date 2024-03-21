@@ -6,6 +6,7 @@ using System.IO;
 using System.IO.Compression;
 using System.Text;
 using System.Text.Json;
+using System.Threading;
 using EpicGames.Horde.Storage;
 using JetBrains.Annotations;
 using Jupiter.Common.Implementation;
@@ -76,7 +77,7 @@ namespace Jupiter.Implementation.TransactionLog
 
 		public static ReplicationLogSnapshot FromStream(BufferedPayloadFactory payloadFactory, Stream stream)
 		{
-			IBufferedPayload payload = payloadFactory.CreateFilesystemBufferedPayloadAsync(stream).Result;
+			IBufferedPayload payload = payloadFactory.CreateFilesystemBufferedPayloadAsync(stream, CancellationToken.None).Result;
 
 			using Stream payloadStream = payload.GetStream();
 			(NamespaceId ns, string lastBucket, Guid lastEvent, ulong countOfObjects) = ReadHeader(payloadStream);

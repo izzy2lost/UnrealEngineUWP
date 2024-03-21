@@ -541,7 +541,7 @@ namespace Jupiter.Implementation
 			Array.Copy(refs.References, potentialBlobs, refs.References.Length);
 			potentialBlobs[^1] = objectToReplicate;
 
-			BlobId[] missingBlobs = await _blobService.FilterOutKnownBlobsAsync(ns, potentialBlobs);
+			BlobId[] missingBlobs = await _blobService.FilterOutKnownBlobsAsync(ns, potentialBlobs, cancellationToken);
 			Task[] blobReplicationTasks = new Task[missingBlobs.Length];
 			for (int i = 0; i < missingBlobs.Length; i++)
 			{
@@ -597,9 +597,9 @@ namespace Jupiter.Implementation
 						throw new Exception("Expected content-length on blob response");
 					}
 
-					using IBufferedPayload payload = await _bufferedPayloadFactory.CreateFromStreamAsync(s, contentLength.Value);
+					using IBufferedPayload payload = await _bufferedPayloadFactory.CreateFromStreamAsync(s, contentLength.Value, cancellationToken);
 
-					await _blobService.PutObjectAsync(ns, payload, blobToReplicate);
+					await _blobService.PutObjectAsync(ns, payload, blobToReplicate, cancellationToken);
 				}, cancellationToken);
 			}
 

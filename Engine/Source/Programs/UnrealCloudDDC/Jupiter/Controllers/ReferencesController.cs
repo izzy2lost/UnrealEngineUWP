@@ -80,7 +80,7 @@ namespace Jupiter.Controllers
 		[ProducesResponseType(type: typeof(ProblemDetails), 400)]
 		public async Task<IActionResult> GetNamespacesAsync()
 		{
-			NamespaceId[] namespaces = await _refService.GetNamespacesAsync().ToArrayAsync();
+			NamespaceId[] namespaces = await _refService.GetNamespacesAsync(HttpContext.RequestAborted).ToArrayAsync(HttpContext.RequestAborted);
 
 			// filter namespaces down to only the namespaces the user has access to
 			List<NamespaceId> namespacesWithAccess = new();
@@ -174,7 +174,7 @@ namespace Jupiter.Controllers
 						}
 					case MediaTypeNames.Application.Octet:
 						{
-							byte[] blobMemory = await blob.Stream.ToByteArrayAsync();
+							byte[] blobMemory = await blob.Stream.ToByteArrayAsync(HttpContext.RequestAborted);
 							CbObject cb = new CbObject(blobMemory);
 
 							(int, CbField?) CountFields(CbObject o)
@@ -223,7 +223,7 @@ namespace Jupiter.Controllers
 							byte[] blobMemory;
 							{
 								using TelemetrySpan scope = _tracer.StartActiveSpan("json.readblob").SetAttribute("operation.name", "json.readblob");
-								blobMemory = await blob.Stream.ToByteArrayAsync();
+								blobMemory = await blob.Stream.ToByteArrayAsync(HttpContext.RequestAborted);
 							}
 							CbObject cb = new CbObject(blobMemory);
 							string s = cb.ToJson();
@@ -235,10 +235,10 @@ namespace Jupiter.Controllers
 					case CustomMediaTypeNames.UnrealCompactBinaryPackage:
 						{
 							using TelemetrySpan packageScope = _tracer.StartActiveSpan("cbpackage.fetch").SetAttribute("operation.name", "cbpackage.fetch");
-							byte[] blobMemory = await blob.Stream.ToByteArrayAsync();
+							byte[] blobMemory = await blob.Stream.ToByteArrayAsync(HttpContext.RequestAborted);
 							CbObject cb = new CbObject(blobMemory);
 
-							IAsyncEnumerable<Attachment> attachments = _referenceResolver.GetAttachmentsAsync(ns, cb);
+							IAsyncEnumerable<Attachment> attachments = _referenceResolver.GetAttachmentsAsync(ns, cb, HttpContext.RequestAborted);
 
 							using CbPackageBuilder writer = new CbPackageBuilder();
 							writer.AddAttachment(objectRecord.BlobIdentifier.AsIoHash(), CbPackageAttachmentFlags.IsObject, blobMemory);
@@ -254,19 +254,19 @@ namespace Jupiter.Controllers
 									if (attachment is BlobAttachment blobAttachment)
 									{
 										BlobId referencedBlob = blobAttachment.Identifier;
-										attachmentContents = await _blobStore.GetObjectAsync(ns, referencedBlob);
+										attachmentContents = await _blobStore.GetObjectAsync(ns, referencedBlob, cancellationToken: HttpContext.RequestAborted);
 									}
 									else if (attachment is ObjectAttachment objectAttachment)
 									{
 										flags |= CbPackageAttachmentFlags.IsObject;
 										BlobId referencedBlob = objectAttachment.Identifier;
-										attachmentContents = await _blobStore.GetObjectAsync(ns, referencedBlob);
+										attachmentContents = await _blobStore.GetObjectAsync(ns, referencedBlob, cancellationToken: HttpContext.RequestAborted);
 									}
 									else if (attachment is ContentIdAttachment contentIdAttachment)
 									{
 
 										ContentId contentId = contentIdAttachment.Identifier;
-										(attachmentContents, string mime) = await _blobStore.GetCompressedObjectAsync(ns, contentId, HttpContext.RequestServices);
+										(attachmentContents, string mime) = await _blobStore.GetCompressedObjectAsync(ns, contentId, HttpContext.RequestServices, cancellationToken: HttpContext.RequestAborted);
 										if (mime == CustomMediaTypeNames.UnrealCompressedBuffer)
 										{
 											flags |= CbPackageAttachmentFlags.IsCompressed;
@@ -305,7 +305,7 @@ namespace Jupiter.Controllers
 						}
 					case CustomMediaTypeNames.JupiterInlinedPayload:
 						{
-							byte[] blobMemory = await blob.Stream.ToByteArrayAsync();
+							byte[] blobMemory = await blob.Stream.ToByteArrayAsync(HttpContext.RequestAborted);
 							CbObject cb = new CbObject(blobMemory);
 
 							static (int, int) CountFields(CbObject o)
@@ -503,7 +503,7 @@ namespace Jupiter.Controllers
 
 				// we have to verify the blobs are available locally, as the record of the key is replicated a head of the content
 				// TODO: Once we support inline replication this step is not needed as at least one region as this blob, just maybe not this current one
-				byte[] blobContents = await blob.Stream.ToByteArrayAsync();
+				byte[] blobContents = await blob.Stream.ToByteArrayAsync(HttpContext.RequestAborted);
 				CbObject compactBinaryObject = new CbObject(blobContents);
 				// the reference resolver will throw if any blob is missing, so no need to do anything other then process each reference
 				IAsyncEnumerable<BlobId> references = _referenceResolver.GetReferencedBlobsAsync(ns, compactBinaryObject);
@@ -511,7 +511,7 @@ namespace Jupiter.Controllers
 
 				// we have to verify the blobs are available locally, as the record of the key is replicated a head of the content
 				// TODO: Once we support inline replication this step is not needed as at least one region as this blob, just maybe not this current one
-				BlobId[] unknownBlobs = await _blobStore.FilterOutKnownBlobsAsync(ns, new BlobId[] { record.BlobIdentifier });
+				BlobId[] unknownBlobs = await _blobStore.FilterOutKnownBlobsAsync(ns, new BlobId[] { record.BlobIdentifier }, HttpContext.RequestAborted);
 				if (unknownBlobs.Length != 0)
 				{
 					return NotFound(new ProblemDetails { Title = $"Object {bucket} {key} in namespace {ns} had at least one missing blob." });
@@ -581,7 +581,7 @@ namespace Jupiter.Controllers
 
 					// we have to verify the blobs are available locally, as the record of the key is replicated a head of the content
 					// TODO: Once we support inline replication this step is not needed as at least one region as this blob, just maybe not this current one
-					byte[] blobContents = await blob.Stream.ToByteArrayAsync();
+					byte[] blobContents = await blob.Stream.ToByteArrayAsync(HttpContext.RequestAborted);
 					CbObject cb = new CbObject(blobContents);
 					// the reference resolver will throw if any blob is missing, so no need to do anything other then process each reference
 					IAsyncEnumerable<BlobId> references = _referenceResolver.GetReferencedBlobsAsync(ns, cb);
@@ -629,7 +629,7 @@ namespace Jupiter.Controllers
 
 			try
 			{
-				using IBufferedPayload payload = await _bufferedPayloadFactory.CreateFromRequestAsync(Request);
+				using IBufferedPayload payload = await _bufferedPayloadFactory.CreateFromRequestAsync(Request, HttpContext.RequestAborted);
 
 				BlobId headerHash;
 				if (Request.Headers.TryGetValue(CommonHeaders.HashHeaderName, out StringValues headers))
@@ -662,7 +662,7 @@ namespace Jupiter.Controllers
 						{
 							// TODO: define a scheme for how a json object specifies references
 
-							blobHeader = await _blobStore.PutObjectAsync(ns, payload, headerHash);
+							blobHeader = await _blobStore.PutObjectAsync(ns, payload, headerHash, HttpContext.RequestAborted);
 
 							// TODO: convert the json object into a compact binary instead
 							CbWriter writer = new CbWriter();
@@ -685,7 +685,7 @@ namespace Jupiter.Controllers
 						}
 					case MediaTypeNames.Application.Octet:
 						{
-							blobHeader = await _blobStore.PutObjectAsync(ns, payload, headerHash);
+							blobHeader = await _blobStore.PutObjectAsync(ns, payload, headerHash, HttpContext.RequestAborted);
 
 							CbWriter writer = new CbWriter();
 							writer.BeginObject();
@@ -714,7 +714,7 @@ namespace Jupiter.Controllers
 				return Problem(e.Message, null, (int)HttpStatusCode.RequestTimeout);
 			}
 
-			(ContentId[] missingReferences, BlobId[] missingBlobs) = await _refService.PutAsync(ns, bucket, key, blobHeader, payloadObject);
+			(ContentId[] missingReferences, BlobId[] missingBlobs) = await _refService.PutAsync(ns, bucket, key, blobHeader, payloadObject, HttpContext.RequestAborted);
 
 			{
 				using TelemetrySpan scope = _tracer.StartActiveSpan("ref.put").SetAttribute("operation.name", "ref.put");
@@ -762,11 +762,11 @@ namespace Jupiter.Controllers
 #pragma warning disable CA2000 // Dispose objects before losing scope
 						using MemoryBufferedPayload payload = new MemoryBufferedPayload(blob);
 #pragma warning restore CA2000 // Dispose objects before losing scope
-						await _blobStore.PutCompressedObjectAsync(ns, payload, ContentId.FromIoHash(entry.AttachmentHash), HttpContext.RequestServices);
+						await _blobStore.PutCompressedObjectAsync(ns, payload, ContentId.FromIoHash(entry.AttachmentHash), HttpContext.RequestServices, HttpContext.RequestAborted);
 					}
 					else
 					{
-						await _blobStore.PutObjectAsync(ns, blob, BlobId.FromIoHash(entry.AttachmentHash));
+						await _blobStore.PutObjectAsync(ns, blob, BlobId.FromIoHash(entry.AttachmentHash), HttpContext.RequestAborted);
 					}
 				}
 			}
@@ -781,7 +781,7 @@ namespace Jupiter.Controllers
 			CbObject rootObject = packageReader.RootObject;
 			BlobId rootObjectHash = BlobId.FromIoHash(packageReader.RootHash);
 
-			(ContentId[] missingReferences, BlobId[] missingBlobs) = await _refService.PutAsync(ns, bucket, key, rootObjectHash, rootObject);
+			(ContentId[] missingReferences, BlobId[] missingBlobs) = await _refService.PutAsync(ns, bucket, key, rootObjectHash, rootObject, HttpContext.RequestAborted);
 
 			List<ContentHash> missingHashes = new List<ContentHash>(missingReferences);
 			missingHashes.AddRange(missingBlobs);
@@ -803,7 +803,7 @@ namespace Jupiter.Controllers
 
 			try
 			{
-				(ContentId[] missingReferences, BlobId[] missingBlobs) = await _refService.FinalizeAsync(ns, bucket, key, hash);
+				(ContentId[] missingReferences, BlobId[] missingBlobs) = await _refService.FinalizeAsync(ns, bucket, key, hash, HttpContext.RequestAborted);
 				List<ContentHash> missingHashes = new List<ContentHash>(missingReferences);
 				missingHashes.AddRange(missingBlobs);
 
@@ -877,7 +877,7 @@ namespace Jupiter.Controllers
 						throw new Exception();
 					}
 
-					CbObject cb = new CbObject(await blob.Stream.ToByteArrayAsync());
+					CbObject cb = new CbObject(await blob.Stream.ToByteArrayAsync(HttpContext.RequestAborted));
 
 					if (op.ResolveAttachments ?? false)
 					{
@@ -914,7 +914,7 @@ namespace Jupiter.Controllers
 
 					if (op.ResolveAttachments ?? false)
 					{
-						byte[] blobContents = await blob.Stream.ToByteArrayAsync();
+						byte[] blobContents = await blob.Stream.ToByteArrayAsync(HttpContext.RequestAborted);
 						CbObject cb = new CbObject(blobContents);
 						// the reference resolver will throw if any blob is missing, so no need to do anything other then process each reference
 						IAsyncEnumerable<BlobId> references = _referenceResolver.GetReferencedBlobsAsync(ns, cb);
@@ -959,7 +959,7 @@ namespace Jupiter.Controllers
 						throw new HashMismatchException(headerHash, objectHash);
 					}
 
-					(ContentId[] missingReferences, BlobId[] missingBlobs) = await _refService.PutAsync(ns, op.Bucket, op.Key, objectHash, op.Payload);
+					(ContentId[] missingReferences, BlobId[] missingBlobs) = await _refService.PutAsync(ns, op.Bucket, op.Key, objectHash, op.Payload, HttpContext.RequestAborted);
 					List<ContentHash> missingHashes = new List<ContentHash>(missingReferences);
 
 					return (CbSerializer.Serialize(new PutObjectResponse(missingHashes.ToArray())), HttpStatusCode.OK);
@@ -1048,7 +1048,7 @@ namespace Jupiter.Controllers
 
 			try
 			{
-				await _refService.DropNamespaceAsync(ns);
+				await _refService.DropNamespaceAsync(ns, HttpContext.RequestAborted);
 			}
 			catch (NamespaceNotFoundException e)
 			{
@@ -1078,7 +1078,7 @@ namespace Jupiter.Controllers
 			long countOfDeletedRecords;
 			try
 			{
-				countOfDeletedRecords = await _refService.DeleteBucketAsync(ns, bucket);
+				countOfDeletedRecords = await _refService.DeleteBucketAsync(ns, bucket, HttpContext.RequestAborted);
 			}
 			catch (NamespaceNotFoundException e)
 			{
@@ -1110,7 +1110,7 @@ namespace Jupiter.Controllers
 
 			try
 			{
-				bool deleted = await _refService.DeleteAsync(ns, bucket, key);
+				bool deleted = await _refService.DeleteAsync(ns, bucket, key, HttpContext.RequestAborted);
 				return Ok(new RefDeletedResponse(deleted ? 1 : 0));
 			}
 			catch (NamespaceNotFoundException e)

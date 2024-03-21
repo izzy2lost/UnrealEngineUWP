@@ -3,6 +3,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Threading;
 using System.Threading.Tasks;
 using EpicGames.AspNet;
 using EpicGames.Horde.Storage;
@@ -47,13 +48,13 @@ namespace Jupiter.Implementation
 			_cloudDDCSettings = cloudDDCSettings;
 		}
 
-		public Task<(RefRecord, BlobContents?)> GetAsync(NamespaceId ns, BucketId bucket, RefId key, string[]? fields = null, bool doLastAccessTracking = true)
+		public Task<(RefRecord, BlobContents?)> GetAsync(NamespaceId ns, BucketId bucket, RefId key, string[]? fields = null, bool doLastAccessTracking = true, CancellationToken cancellationToken = default)
 		{
-			return GetAsync(ns, bucket, key, fields, doLastAccessTracking, skipCache: false);
+			return GetAsync(ns, bucket, key, fields, doLastAccessTracking, skipCache: false, cancellationToken: cancellationToken);
 		}
 
 		// ReSharper disable once MethodOverloadWithOptionalParameter - this private overload exists only for bypassing cache for internal use within this service
-		private async Task<(RefRecord, BlobContents?)> GetAsync(NamespaceId ns, BucketId bucket, RefId key, string[]? fields = null, bool doLastAccessTracking = true, bool skipCache = false)
+		private async Task<(RefRecord, BlobContents?)> GetAsync(NamespaceId ns, BucketId bucket, RefId key, string[]? fields = null, bool doLastAccessTracking = true, bool skipCache = false, CancellationToken cancellationToken = default)
 		{
 			// if no field filtering is being used we assume everything is needed
 			IReferencesStore.FieldFlags flags = IReferencesStore.FieldFlags.All;
@@ -84,7 +85,7 @@ namespace Jupiter.Implementation
 			{
 				using ServerTimingMetricScoped? serverTimingScope = serverTiming?.CreateServerTimingMetricScope("ref.get", "Fetching Ref from DB");
 
-				o = await _referencesStore.GetAsync(ns, bucket, key, flags, opFlags);
+				o = await _referencesStore.GetAsync(ns, bucket, key, flags, opFlags, cancellationToken);
 			}
 
 			if (doLastAccessTracking)
@@ -116,14 +117,14 @@ namespace Jupiter.Implementation
 				{
 					using ServerTimingMetricScoped? serverTimingScope = serverTiming?.CreateServerTimingMetricScope("blob.get", "Downloading blob from store");
 
-					blobContents = await _blobService.GetObjectAsync(ns, o.BlobIdentifier);
+					blobContents = await _blobService.GetObjectAsync(ns, o.BlobIdentifier, cancellationToken: cancellationToken);
 				}
 			}
 
 			return (o, blobContents);
 		}
 
-		public async Task<(ContentId[], BlobId[])> PutAsync(NamespaceId ns, BucketId bucket, RefId key, BlobId blobHash, CbObject payload)
+		public async Task<(ContentId[], BlobId[])> PutAsync(NamespaceId ns, BucketId bucket, RefId key, BlobId blobHash, CbObject payload, CancellationToken cancellationToken = default)
 		{
 			IServerTiming? serverTiming = _httpContextAccessor.HttpContext?.RequestServices.GetService<IServerTiming>();
 			using ServerTimingMetricScoped? serverTimingScope = serverTiming?.CreateServerTimingMetricScope("ref.put", "Inserting ref");
@@ -133,12 +134,12 @@ namespace Jupiter.Implementation
 			// if we have no references we are always finalized, e.g. there are no referenced blobs to upload
 			bool isFinalized = !hasReferences;
 
-			Task objectStorePut = _referencesStore.PutAsync(ns, bucket, key, blobHash, payload.GetView().ToArray(), isFinalized);
+			Task objectStorePut = _referencesStore.PutAsync(ns, bucket, key, blobHash, payload.GetView().ToArray(), isFinalized, cancellationToken);
 
 			Task<BlobId>? blobStorePut = null;
 			if (_cloudDDCSettings.CurrentValue.EnablePutRefBodyIntoBlobStore)
 			{
-				blobStorePut = _blobService.PutObjectAsync(ns, payload.GetView().ToArray(), blobHash);
+				blobStorePut = _blobService.PutObjectAsync(ns, payload.GetView().ToArray(), blobHash, cancellationToken);
 			}
 
 			await objectStorePut;
@@ -147,7 +148,7 @@ namespace Jupiter.Implementation
 				await blobStorePut;
 			}
 
-			return await DoFinalizeAsync(ns, bucket, key, blobHash, payload);
+			return await DoFinalizeAsync(ns, bucket, key, blobHash, payload, cancellationToken);
 		}
 
 		private bool HasAttachments(CbObject payload)
@@ -181,16 +182,16 @@ namespace Jupiter.Implementation
 			return payload.Any(FieldHasAttachments);
 		}
 
-		public async Task<(ContentId[], BlobId[])> FinalizeAsync(NamespaceId ns, BucketId bucket, RefId key, BlobId blobHash)
+		public async Task<(ContentId[], BlobId[])> FinalizeAsync(NamespaceId ns, BucketId bucket, RefId key, BlobId blobHash, CancellationToken cancellationToken = default)
 		{
 			// finalize is intended to verify the state of the object in the db, so we bypass any caches to make sure the object we are working on is not stale
-			(RefRecord o, BlobContents? blob) = await GetAsync(ns, bucket, key, skipCache: true);
+			(RefRecord o, BlobContents? blob) = await GetAsync(ns, bucket, key, skipCache: true, cancellationToken: cancellationToken);
 			if (blob == null)
 			{
 				throw new InvalidOperationException("No blob when attempting to finalize");
 			}
 
-			byte[] blobContents = await blob.Stream.ToByteArrayAsync();
+			byte[] blobContents = await blob.Stream.ToByteArrayAsync(cancellationToken);
 			CbObject payload = new CbObject(blobContents);
 
 			if (!o.BlobIdentifier.Equals(blobHash))
@@ -198,17 +199,17 @@ namespace Jupiter.Implementation
 				throw new ObjectHashMismatchException(ns, bucket, key, blobHash, o.BlobIdentifier);
 			}
 
-			return await DoFinalizeAsync(ns, bucket, key, blobHash, payload);
+			return await DoFinalizeAsync(ns, bucket, key, blobHash, payload, cancellationToken);
 		}
 
-		private async Task<(ContentId[], BlobId[])> DoFinalizeAsync(NamespaceId ns, BucketId bucket, RefId key, BlobId blobHash, CbObject payload)
+		private async Task<(ContentId[], BlobId[])> DoFinalizeAsync(NamespaceId ns, BucketId bucket, RefId key, BlobId blobHash, CbObject payload, CancellationToken cancellationToken = default)
 		{
 			IServerTiming? serverTiming = _httpContextAccessor.HttpContext?.RequestServices.GetService<IServerTiming>();
 			using ServerTimingMetricScoped? serverTimingScope = serverTiming?.CreateServerTimingMetricScope("ref.finalize", "Finalizing the ref");
 
-			Task addRefToBlobsTask = _blobIndex.AddRefToBlobsAsync(ns, bucket, key, new[] { blobHash });
+			Task addRefToBlobsTask = _blobIndex.AddRefToBlobsAsync(ns, bucket, key, new[] { blobHash }, cancellationToken);
 			Task addToBucketListTask = _cloudDDCSettings.CurrentValue.EnableBucketStatsTracking
-				? _blobIndex.AddBlobToBucketListAsync(ns, bucket, key, blobHash, (long)payload.GetView().Length)
+				? _blobIndex.AddBlobToBucketListAsync(ns, bucket, key, blobHash, (long)payload.GetView().Length, cancellationToken)
 				: Task.CompletedTask;
 			ContentId[] missingReferences = Array.Empty<ContentId>();
 			BlobId[] missingBlobs = Array.Empty<BlobId>();
@@ -222,7 +223,7 @@ namespace Jupiter.Implementation
 				using TelemetrySpan _ = _tracer.StartActiveSpan("ObjectService.ResolveReferences").SetAttribute("operation.name", "ObjectService.ResolveReferences");
 				try
 				{
-					IAsyncEnumerable<BlobId> references = _referenceResolver.GetReferencedBlobsAsync(ns, payload);
+					IAsyncEnumerable<BlobId> references = _referenceResolver.GetReferencedBlobsAsync(ns, payload, cancellationToken: cancellationToken);
 
 					await foreach (BlobId blobId in references)
 					{
@@ -233,16 +234,16 @@ namespace Jupiter.Implementation
 								// if a blob is missing its not a error, the finalize will report this as missing and it will be uploaded and finalize ran again
 								try
 								{
-									BlobMetadata result = await _blobService.GetObjectMetadataAsync(ns, blobId);
-									await _blobIndex.AddBlobToBucketListAsync(ns, bucket, key, blobId, result.Length);
+									BlobMetadata result = await _blobService.GetObjectMetadataAsync(ns, blobId, cancellationToken);
+									await _blobIndex.AddBlobToBucketListAsync(ns, bucket, key, blobId, result.Length, cancellationToken);
 								}
 								catch (BlobNotFoundException)
 								{
 								}
-							}));
+							}, cancellationToken));
 						}
 
-						addRefMappingTasks.Add(_blobIndex.AddRefToBlobsAsync(ns, bucket, key, new BlobId[] { blobId }));
+						addRefMappingTasks.Add(_blobIndex.AddRefToBlobsAsync(ns, bucket, key, new BlobId[] { blobId }, cancellationToken));
 					}
 				}
 				catch (PartialReferenceResolveException e)
@@ -259,7 +260,7 @@ namespace Jupiter.Implementation
 
 			if (missingReferences.Length == 0 && missingBlobs.Length == 0)
 			{
-				await _referencesStore.FinalizeAsync(ns, bucket, key, blobHash);
+				await _referencesStore.FinalizeAsync(ns, bucket, key, blobHash, cancellationToken);
 				await _replicationLog.InsertAddEventAsync(ns, bucket, key, blobHash);
 			}
 
@@ -268,31 +269,31 @@ namespace Jupiter.Implementation
 			return (missingReferences, missingBlobs);
 		}
 
-		public IAsyncEnumerable<NamespaceId> GetNamespacesAsync()
+		public IAsyncEnumerable<NamespaceId> GetNamespacesAsync(CancellationToken cancellationToken)
 		{
-			return _referencesStore.GetNamespacesAsync();
+			return _referencesStore.GetNamespacesAsync(cancellationToken);
 		}
 
-		public Task<bool> DeleteAsync(NamespaceId ns, BucketId bucket, RefId key)
+		public Task<bool> DeleteAsync(NamespaceId ns, BucketId bucket, RefId key, CancellationToken cancellationToken)
 		{
-			return _referencesStore.DeleteAsync(ns, bucket, key);
+			return _referencesStore.DeleteAsync(ns, bucket, key, cancellationToken);
 		}
 
-		public Task<long> DropNamespaceAsync(NamespaceId ns)
+		public Task<long> DropNamespaceAsync(NamespaceId ns, CancellationToken cancellationToken)
 		{
-			return _referencesStore.DropNamespaceAsync(ns);
+			return _referencesStore.DropNamespaceAsync(ns, cancellationToken);
 		}
 
-		public Task<long> DeleteBucketAsync(NamespaceId ns, BucketId bucket)
+		public Task<long> DeleteBucketAsync(NamespaceId ns, BucketId bucket, CancellationToken cancellationToken)
 		{
-			return _referencesStore.DeleteBucketAsync(ns, bucket);
+			return _referencesStore.DeleteBucketAsync(ns, bucket, cancellationToken);
 		}
 
-		public async Task<bool> ExistsAsync(NamespaceId ns, BucketId bucket, RefId key)
+		public async Task<bool> ExistsAsync(NamespaceId ns, BucketId bucket, RefId key, CancellationToken cancellationToken)
 		{
 			try
 			{
-				(RefRecord, BlobContents?) _ = await GetAsync(ns, bucket, key, new string[] { "name" }, doLastAccessTracking: false, skipCache: true);
+				(RefRecord, BlobContents?) _ = await GetAsync(ns, bucket, key, new string[] { "name" }, doLastAccessTracking: false, skipCache: true, cancellationToken: cancellationToken);
 			}
 			catch (NamespaceNotFoundException)
 			{
@@ -318,23 +319,23 @@ namespace Jupiter.Implementation
 			return true;
 		}
 
-		public async Task<List<BlobId>> GetReferencedBlobsAsync(NamespaceId ns, BucketId bucket, RefId name, bool ignoreMissingBlobs = false)
+		public async Task<List<BlobId>> GetReferencedBlobsAsync(NamespaceId ns, BucketId bucket, RefId name, bool ignoreMissingBlobs = false, CancellationToken cancellationToken = default)
 		{
 			byte[] blob;
-			RefRecord o = await _referencesStore.GetAsync(ns, bucket, name, IReferencesStore.FieldFlags.IncludePayload, IReferencesStore.OperationFlags.None);
+			RefRecord o = await _referencesStore.GetAsync(ns, bucket, name, IReferencesStore.FieldFlags.IncludePayload, IReferencesStore.OperationFlags.None, cancellationToken);
 			if (o.InlinePayload != null && o.InlinePayload.Length != 0)
 			{
 				blob = o.InlinePayload;
 			}
 			else
 			{
-				BlobContents blobContents = await _blobService.GetObjectAsync(ns, o.BlobIdentifier);
-				blob = await blobContents.Stream.ToByteArrayAsync();
+				BlobContents blobContents = await _blobService.GetObjectAsync(ns, o.BlobIdentifier, cancellationToken: cancellationToken);
+				blob = await blobContents.Stream.ToByteArrayAsync(cancellationToken);
 			}
 
 			CbObject cbObject = new CbObject(blob);
 
-			List<BlobId> referencedBlobs = await _referenceResolver.GetReferencedBlobsAsync(ns, cbObject, ignoreMissingBlobs).ToListAsync();
+			List<BlobId> referencedBlobs = await _referenceResolver.GetReferencedBlobsAsync(ns, cbObject, ignoreMissingBlobs, cancellationToken).ToListAsync(cancellationToken);
 			return referencedBlobs;
 		}
 	}

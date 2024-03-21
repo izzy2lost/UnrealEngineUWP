@@ -4,6 +4,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Net.Mime;
+using System.Threading;
 using System.Threading.Tasks;
 using EpicGames.AspNet;
 using EpicGames.Horde.Storage;
@@ -15,40 +16,41 @@ namespace Jupiter.Implementation;
 
 public interface IBlobService
 {
-	Task<ContentHash> VerifyContentMatchesHashAsync(Stream content, ContentHash identifier);
-	Task<BlobId> PutObjectKnownHashAsync(NamespaceId ns, IBufferedPayload content, BlobId identifier);
-	Task<BlobId> PutObjectAsync(NamespaceId ns, IBufferedPayload payload, BlobId identifier);
-	Task<BlobId> PutObjectAsync(NamespaceId ns, byte[] payload, BlobId identifier);
-	Task<Uri?> MaybePutObjectWithRedirectAsync(NamespaceId ns, BlobId identifier);
+	Task<ContentHash> VerifyContentMatchesHashAsync(Stream content, ContentHash identifier, CancellationToken cancellationToken = default);
+	Task<BlobId> PutObjectKnownHashAsync(NamespaceId ns, IBufferedPayload content, BlobId identifier, CancellationToken cancellationToken = default);
+	Task<BlobId> PutObjectAsync(NamespaceId ns, IBufferedPayload payload, BlobId identifier, CancellationToken cancellationToken = default);
+	Task<BlobId> PutObjectAsync(NamespaceId ns, byte[] payload, BlobId identifier, CancellationToken cancellationToken = default);
+	Task<Uri?> MaybePutObjectWithRedirectAsync(NamespaceId ns, BlobId identifier, CancellationToken cancellationToken = default);
 
-	Task<BlobContents> GetObjectAsync(NamespaceId ns, BlobId blob, List<string>? storageLayers = null, bool supportsRedirectUri = false, bool allowOndemandReplication = true);
+	Task<BlobContents> GetObjectAsync(NamespaceId ns, BlobId blob, List<string>? storageLayers = null, bool supportsRedirectUri = false, bool allowOndemandReplication = true, CancellationToken cancellationToken = default);
 
-	Task<Uri?> GetObjectWithRedirectAsync(NamespaceId ns, BlobId blobIdentifier, List<string>? storageLayers = null);
+	Task<Uri?> GetObjectWithRedirectAsync(NamespaceId ns, BlobId blobIdentifier, List<string>? storageLayers = null, CancellationToken cancellationToken = default);
 
-	Task<BlobMetadata> GetObjectMetadataAsync(NamespaceId ns, BlobId blobId);
+	Task<BlobMetadata> GetObjectMetadataAsync(NamespaceId ns, BlobId blobId, CancellationToken cancellationToken = default);
 
-	Task<BlobContents> ReplicateObjectAsync(NamespaceId ns, BlobId blob, bool force = false);
+	Task<BlobContents> ReplicateObjectAsync(NamespaceId ns, BlobId blob, bool force = false, CancellationToken cancellationToken = default);
 
-	Task<bool> ExistsAsync(NamespaceId ns, BlobId blob, List<string>? storageLayers = null);
+	Task<bool> ExistsAsync(NamespaceId ns, BlobId blob, List<string>? storageLayers = null, CancellationToken cancellationToken = default);
 
 	/// <summary>
 	/// Checks that the blob exists in the root store, the store which is last in the list and thus is intended to have every blob in it
 	/// </summary>
 	/// <param name="ns">The namespace</param>
 	/// <param name="blob">The identifier of the blob</param>
+	/// <param name="cancellationToken"></param>
 	/// <returns></returns>
-	Task<bool> ExistsInRootStoreAsync(NamespaceId ns, BlobId blob);
+	Task<bool> ExistsInRootStoreAsync(NamespaceId ns, BlobId blob, CancellationToken cancellationToken = default);
 
 	// Delete a object
-	Task DeleteObjectAsync(NamespaceId ns, BlobId blob);
+	Task DeleteObjectAsync(NamespaceId ns, BlobId blob, CancellationToken cancellationToken = default);
 
 	// delete the whole namespace
-	Task DeleteNamespaceAsync(NamespaceId ns);
+	Task DeleteNamespaceAsync(NamespaceId ns, CancellationToken cancellationToken = default);
 
-	IAsyncEnumerable<(BlobId, DateTime)> ListObjectsAsync(NamespaceId ns);
-	Task<BlobId[]> FilterOutKnownBlobsAsync(NamespaceId ns, IEnumerable<BlobId> blobs);
-	Task<BlobId[]> FilterOutKnownBlobsAsync(NamespaceId ns, IAsyncEnumerable<BlobId> blobs);
-	Task<BlobContents> GetObjectsAsync(NamespaceId ns, BlobId[] refRequestBlobReferences);
+	IAsyncEnumerable<(BlobId, DateTime)> ListObjectsAsync(NamespaceId ns, CancellationToken cancellationToken = default);
+	Task<BlobId[]> FilterOutKnownBlobsAsync(NamespaceId ns, IEnumerable<BlobId> blobs, CancellationToken cancellationToken = default);
+	Task<BlobId[]> FilterOutKnownBlobsAsync(NamespaceId ns, IAsyncEnumerable<BlobId> blobs, CancellationToken cancellationToken = default);
+	Task<BlobContents> GetObjectsAsync(NamespaceId ns, BlobId[] refRequestBlobReferences, CancellationToken cancellationToken = default);
 
 	bool ShouldFetchBlobOnDemand(NamespaceId ns);
 }
@@ -67,7 +69,7 @@ public class BlobMetadata
 
 public static class BlobServiceExtensions
 {
-	public static async Task<ContentId> PutCompressedObjectAsync(this IBlobService blobService, NamespaceId ns, IBufferedPayload payload, ContentId? id, IServiceProvider provider)
+	public static async Task<ContentId> PutCompressedObjectAsync(this IBlobService blobService, NamespaceId ns, IBufferedPayload payload, ContentId? id, IServiceProvider provider, CancellationToken cancellationToken)
 	{
 		IContentIdStore contentIdStore = provider.GetService<IContentIdStore>()!;
 		CompressedBufferUtils compressedBufferUtils = provider.GetService<CompressedBufferUtils>()!;
@@ -76,20 +78,20 @@ public static class BlobServiceExtensions
 		// decompress the content and generate a identifier from it to verify the identifier we got
 		await using Stream decompressStream = payload.GetStream();
 
-		using IBufferedPayload bufferedPayload = await compressedBufferUtils.DecompressContentAsync(decompressStream, (ulong)payload.Length);
+		using IBufferedPayload bufferedPayload = await compressedBufferUtils.DecompressContentAsync(decompressStream, (ulong)payload.Length, cancellationToken);
 		await using Stream decompressedStream = bufferedPayload.GetStream();
 
 		ContentId identifierDecompressedPayload;
 		if (id != null)
 		{
-			identifierDecompressedPayload = ContentId.FromContentHash(await blobService.VerifyContentMatchesHashAsync(decompressedStream, id));
+			identifierDecompressedPayload = ContentId.FromContentHash(await blobService.VerifyContentMatchesHashAsync(decompressedStream, id, cancellationToken));
 		}
 		else
 		{
 			ContentHash blobHash;
 			{
 				using TelemetrySpan _ = tracer.StartActiveSpan("web.hash").SetAttribute("operation.name", "web.hash");
-				blobHash = await BlobId.FromStreamAsync(decompressedStream);
+				blobHash = await BlobId.FromStreamAsync(decompressedStream, cancellationToken);
 			}
 
 			identifierDecompressedPayload = ContentId.FromContentHash(blobHash);
@@ -99,17 +101,17 @@ public static class BlobServiceExtensions
 		{
 			using TelemetrySpan _ = tracer.StartActiveSpan("web.hash").SetAttribute("operation.name", "web.hash");
 			await using Stream hashStream = payload.GetStream();
-			identifierCompressedPayload = await BlobId.FromStreamAsync(hashStream);
+			identifierCompressedPayload = await BlobId.FromStreamAsync(hashStream, cancellationToken);
 		}
 
 		// commit the mapping from the decompressed hash to the compressed hash, we run this in parallel with the blob store submit
 		// TODO: let users specify weight of the blob compared to previously submitted content ids
 		int contentIdWeight = (int)payload.Length;
-		Task contentIdStoreTask = contentIdStore.PutAsync(ns, identifierDecompressedPayload, identifierCompressedPayload, contentIdWeight);
+		Task contentIdStoreTask = contentIdStore.PutAsync(ns, identifierDecompressedPayload, identifierCompressedPayload, contentIdWeight, cancellationToken);
 
 		// we still commit the compressed buffer to the object store using the hash of the compressed content
 		{
-			await blobService.PutObjectKnownHashAsync(ns, payload, identifierCompressedPayload);
+			await blobService.PutObjectKnownHashAsync(ns, payload, identifierCompressedPayload, cancellationToken);
 		}
 
 		await contentIdStoreTask;
@@ -117,12 +119,12 @@ public static class BlobServiceExtensions
 		return identifierDecompressedPayload;
 	}
 
-	public static async Task<(BlobContents, string)> GetCompressedObjectAsync(this IBlobService blobService, NamespaceId ns, ContentId contentId, IServiceProvider provider, bool supportsRedirectUri = false)
+	public static async Task<(BlobContents, string)> GetCompressedObjectAsync(this IBlobService blobService, NamespaceId ns, ContentId contentId, IServiceProvider provider, bool supportsRedirectUri = false, CancellationToken cancellationToken = default)
 	{
 		IContentIdStore contentIdStore = provider.GetService<IContentIdStore>()!;
 		Tracer tracer = provider.GetService<Tracer>()!;
 
-		BlobId[]? chunks = await contentIdStore.ResolveAsync(ns, contentId, mustBeContentId: false);
+		BlobId[]? chunks = await contentIdStore.ResolveAsync(ns, contentId, mustBeContentId: false, cancellationToken);
 		if (chunks == null || chunks.Length == 0)
 		{
 			throw new ContentIdResolveException(contentId);
@@ -139,7 +141,7 @@ public static class BlobServiceExtensions
 				mimeType = MediaTypeNames.Application.Octet;
 			}
 
-			return (await blobService.GetObjectAsync(ns, blobToReturn, supportsRedirectUri: supportsRedirectUri), mimeType);
+			return (await blobService.GetObjectAsync(ns, blobToReturn, supportsRedirectUri: supportsRedirectUri, cancellationToken: cancellationToken), mimeType);
 		}
 
 		// chunked content, combine the chunks into a single stream
@@ -148,7 +150,7 @@ public static class BlobServiceExtensions
 		for (int i = 0; i < chunks.Length; i++)
 		{
 			// even if it was requested to support redirect, since we need to combine the chunks using redirects is not possible
-			tasks[i] = blobService.GetObjectAsync(ns, chunks[i], supportsRedirectUri: false);
+			tasks[i] = blobService.GetObjectAsync(ns, chunks[i], supportsRedirectUri: false, cancellationToken: cancellationToken);
 		}
 
 		MemoryStream ms = new MemoryStream();
@@ -156,7 +158,7 @@ public static class BlobServiceExtensions
 		{
 			BlobContents blob = await task;
 			await using Stream s = blob.Stream;
-			await s.CopyToAsync(ms);
+			await s.CopyToAsync(ms, cancellationToken);
 		}
 
 		ms.Seek(0, SeekOrigin.Begin);

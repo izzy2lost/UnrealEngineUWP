@@ -4,6 +4,8 @@ using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
+using System.Runtime.CompilerServices;
+using System.Threading;
 using System.Threading.Tasks;
 using EpicGames.Horde.Storage;
 using Microsoft.Extensions.Options;
@@ -59,7 +61,7 @@ public class MemoryBlobIndex : IBlobIndex
 		return _index.GetOrAdd(ns, id => new ConcurrentDictionary<BlobId, MemoryBlobInfo>());
 	}
 
-	public Task AddBlobToIndexAsync(NamespaceId ns, BlobId id, string? region = null)
+	public Task AddBlobToIndexAsync(NamespaceId ns, BlobId id, string? region = null, CancellationToken cancellationToken = default)
 	{
 		region ??= _jupiterSettings.CurrentValue.CurrentSite;
 		ConcurrentDictionary<BlobId, MemoryBlobInfo> index = GetNamespaceContainer(ns);
@@ -79,7 +81,7 @@ public class MemoryBlobIndex : IBlobIndex
 		return Task.FromResult<MemoryBlobInfo?>(blobInfo);
 	}
 
-	public Task RemoveBlobFromRegionAsync(NamespaceId ns, BlobId id, string? region = null)
+	public Task RemoveBlobFromRegionAsync(NamespaceId ns, BlobId id, string? region = null, CancellationToken cancellationToken = default)
 	{
 		region ??= _jupiterSettings.CurrentValue.CurrentSite;
 		ConcurrentDictionary<BlobId, MemoryBlobInfo> index = GetNamespaceContainer(ns);
@@ -96,14 +98,14 @@ public class MemoryBlobIndex : IBlobIndex
 		return Task.CompletedTask;
 	}
 
-	public async Task<bool> BlobExistsInRegionAsync(NamespaceId ns, BlobId blobIdentifier, string? region = null)
+	public async Task<bool> BlobExistsInRegionAsync(NamespaceId ns, BlobId blobIdentifier, string? region = null, CancellationToken cancellationToken = default)
 	{
 		string expectedRegion = region ?? _jupiterSettings.CurrentValue.CurrentSite;
 		MemoryBlobInfo? blobInfo = await GetBlobInfo(ns, blobIdentifier);
 		return blobInfo?.Regions.Contains(expectedRegion) ?? false;
 	}
 
-	public async IAsyncEnumerable<BaseBlobReference> GetBlobReferencesAsync(NamespaceId ns, BlobId id)
+	public async IAsyncEnumerable<BaseBlobReference> GetBlobReferencesAsync(NamespaceId ns, BlobId id, [EnumeratorCancellation] CancellationToken cancellationToken)
 	{
 		MemoryBlobInfo? blobInfo = await GetBlobInfo(ns, id);
 
@@ -116,7 +118,7 @@ public class MemoryBlobIndex : IBlobIndex
 		}
 	}
 
-	public Task AddRefToBlobsAsync(NamespaceId ns, BucketId bucket, RefId key, BlobId[] blobs)
+	public Task AddRefToBlobsAsync(NamespaceId ns, BucketId bucket, RefId key, BlobId[] blobs, CancellationToken cancellationToken)
 	{
 		foreach (BlobId id in blobs)
 		{
@@ -137,7 +139,7 @@ public class MemoryBlobIndex : IBlobIndex
 		return Task.CompletedTask;
 	}
 
-	public async IAsyncEnumerable<(NamespaceId, BlobId)> GetAllBlobsAsync()
+	public async IAsyncEnumerable<(NamespaceId, BlobId)> GetAllBlobsAsync([EnumeratorCancellation] CancellationToken cancellationToken)
 	{
 		await Task.CompletedTask;
 
@@ -150,7 +152,7 @@ public class MemoryBlobIndex : IBlobIndex
 		}
 	}
 
-	public Task RemoveReferencesAsync(NamespaceId ns, BlobId id, List<BaseBlobReference>? referencesToRemove)
+	public Task RemoveReferencesAsync(NamespaceId ns, BlobId id, List<BaseBlobReference>? referencesToRemove, CancellationToken cancellationToken)
 	{
 		ConcurrentDictionary<BlobId, MemoryBlobInfo> index = GetNamespaceContainer(ns);
 
@@ -172,7 +174,7 @@ public class MemoryBlobIndex : IBlobIndex
 		return Task.CompletedTask;
 	}
 
-	public async Task<List<string>> GetBlobRegionsAsync(NamespaceId ns, BlobId blob)
+	public async Task<List<string>> GetBlobRegionsAsync(NamespaceId ns, BlobId blob, CancellationToken cancellationToken)
 	{
 		MemoryBlobInfo? blobInfo = await GetBlobInfo(ns, blob);
 
@@ -184,7 +186,7 @@ public class MemoryBlobIndex : IBlobIndex
 		throw new BlobNotFoundException(ns, blob);
 	}
 
-	public async Task AddBlobReferencesAsync(NamespaceId ns, BlobId sourceBlob, BlobId targetBlob)
+	public async Task AddBlobReferencesAsync(NamespaceId ns, BlobId sourceBlob, BlobId targetBlob, CancellationToken cancellationToken)
 	{
 		MemoryBlobInfo? blobInfo = await GetBlobInfo(ns, sourceBlob);
 
@@ -196,7 +198,7 @@ public class MemoryBlobIndex : IBlobIndex
 		blobInfo.References.Add(new BlobToBlobReference(targetBlob));
 	}
 
-	public Task AddBlobToBucketListAsync(NamespaceId ns, BucketId bucket, RefId key, BlobId blobId, long blobSize)
+	public Task AddBlobToBucketListAsync(NamespaceId ns, BucketId bucket, RefId key, BlobId blobId, long blobSize, CancellationToken cancellationToken)
 	{
 		ConcurrentDictionary<BucketId, MemoryBucketInfo> bucketDict = _bucketIndex.GetOrAdd(ns, id => new ConcurrentDictionary<BucketId, MemoryBucketInfo>());
 		MemoryBucketInfo bucketInfo = bucketDict.GetOrAdd(bucket, id => new MemoryBucketInfo());
@@ -205,7 +207,7 @@ public class MemoryBlobIndex : IBlobIndex
 		return Task.CompletedTask;
 	}
 
-	public Task RemoveBlobFromBucketListAsync(NamespaceId ns, BucketId bucket, RefId key, List<BlobId> blobIds)
+	public Task RemoveBlobFromBucketListAsync(NamespaceId ns, BucketId bucket, RefId key, List<BlobId> blobIds, CancellationToken cancellationToken)
 	{
 		if (_bucketIndex.TryGetValue(ns, out ConcurrentDictionary<BucketId, MemoryBucketInfo>? bucketDict))
 		{
@@ -218,7 +220,7 @@ public class MemoryBlobIndex : IBlobIndex
 		return Task.CompletedTask;
 	}
 
-	public Task<BucketStats> CalculateBucketStatisticsAsync(NamespaceId ns, BucketId bucket)
+	public Task<BucketStats> CalculateBucketStatisticsAsync(NamespaceId ns, BucketId bucket, CancellationToken cancellationToken)
 	{
 		HashSet<RefId> foundRefs = new HashSet<RefId>();
 		int countOfBlobs = 0;

@@ -2,6 +2,7 @@
 
 using System;
 using System.Collections.Concurrent;
+using System.Threading;
 using System.Threading.Tasks;
 using EpicGames.Horde.Storage;
 using Microsoft.Extensions.Caching.Memory;
@@ -31,7 +32,7 @@ namespace Jupiter.Implementation
 			_contentIdCaches.Clear();
 		}
 
-		public async Task<BlobId[]?> ResolveAsync(NamespaceId ns, ContentId contentId, bool mustBeContentId)
+		public async Task<BlobId[]?> ResolveAsync(NamespaceId ns, ContentId contentId, bool mustBeContentId, CancellationToken cancellationToken)
 		{
 			MemoryCache cache = GetCacheForNamespace(ns);
 			if (cache.TryGetValue(contentId, out CachedContentIdEntry? cachedResult))
@@ -39,7 +40,7 @@ namespace Jupiter.Implementation
 				return cachedResult?.ReferencedBlobs;
 			}
 
-			BlobId[]? referencedBlobs = await _actualContentIdStore.ResolveAsync(ns, contentId, mustBeContentId);
+			BlobId[]? referencedBlobs = await _actualContentIdStore.ResolveAsync(ns, contentId, mustBeContentId, cancellationToken);
 			// we do not cache unresolvable content ids
 			if (referencedBlobs == null)
 			{
@@ -51,9 +52,9 @@ namespace Jupiter.Implementation
 			return referencedBlobs;
 		}
 
-		public Task PutAsync(NamespaceId ns, ContentId contentId, BlobId blobIdentifier, int contentWeight)
+		public Task PutAsync(NamespaceId ns, ContentId contentId, BlobId blobIdentifier, int contentWeight, CancellationToken cancellationToken)
 		{
-			Task actualPutTask = _actualContentIdStore.PutAsync(ns, contentId, blobIdentifier, contentWeight);
+			Task actualPutTask = _actualContentIdStore.PutAsync(ns, contentId, blobIdentifier, contentWeight, cancellationToken);
 			AddCacheEntry(ns, contentId, new BlobId[] { blobIdentifier });
 			return actualPutTask;
 		}

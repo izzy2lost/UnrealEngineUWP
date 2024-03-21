@@ -4,6 +4,7 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
+using System.Runtime.CompilerServices;
 using System.Threading;
 using System.Threading.Tasks;
 using Cassandra;
@@ -91,7 +92,7 @@ public class ScyllaBlobIndex : IBlobIndex
 		_getBucketStatsRefsStatement = _session.Prepare("select count(reference_id) from bucket_referenced_ref WHERE namespace = ? AND bucket_id = ?  AND hash_prefix = ?");
 	}
 
-	public async Task AddBlobToIndexAsync(NamespaceId ns, BlobId id, string? region = null)
+	public async Task AddBlobToIndexAsync(NamespaceId ns, BlobId id, string? region = null, CancellationToken cancellationToken = default)
 	{
 		region ??= _jupiterSettings.CurrentValue.CurrentSite;
 		using TelemetrySpan scope = _tracer.BuildScyllaSpan("scylla.insert_blob_index").SetAttribute("resource.name", $"{ns}.{id}");
@@ -135,7 +136,7 @@ public class ScyllaBlobIndex : IBlobIndex
 		}
 	}
 
-	public async Task RemoveBlobFromRegionAsync(NamespaceId ns, BlobId id, string? region = null)
+	public async Task RemoveBlobFromRegionAsync(NamespaceId ns, BlobId id, string? region = null, CancellationToken cancellationToken = default)
 	{
 		region ??= _jupiterSettings.CurrentValue.CurrentSite;
 		using TelemetrySpan scope = _tracer.BuildScyllaSpan("scylla.remove_blob_index_region").SetAttribute("resource.name", $"{ns}.{id}");
@@ -143,7 +144,7 @@ public class ScyllaBlobIndex : IBlobIndex
 		await _mapper.DeleteAsync<ScyllaBlobIndexEntry>(new ScyllaBlobIndexEntry(ns.ToString(), id, region));
 	}
 
-	public async Task<bool> BlobExistsInRegionAsync(NamespaceId ns, BlobId blobIdentifier, string? region = null)
+	public async Task<bool> BlobExistsInRegionAsync(NamespaceId ns, BlobId blobIdentifier, string? region = null, CancellationToken cancellationToken = default)
 	{
 		region ??= _jupiterSettings.CurrentValue.CurrentSite;
 		ScyllaBlobIndexEntry? entry = await _mapper.SingleOrDefaultAsync<ScyllaBlobIndexEntry>("WHERE namespace = ? AND blob_id = ? AND region = ?", ns.ToString(), blobIdentifier.HashData, region);
@@ -160,7 +161,7 @@ public class ScyllaBlobIndex : IBlobIndex
 
 			foreach (string oldRegion in regions)
 			{
-				await AddBlobToIndexAsync(ns, blobIdentifier, oldRegion);
+				await AddBlobToIndexAsync(ns, blobIdentifier, oldRegion, cancellationToken);
 			}
 
 			// blob has been migrated so it existed
@@ -169,7 +170,7 @@ public class ScyllaBlobIndex : IBlobIndex
 
 		return !blobMissing;
 	}
-	public async IAsyncEnumerable<(NamespaceId, BlobId)> GetAllBlobsAsync()
+	public async IAsyncEnumerable<(NamespaceId, BlobId)> GetAllBlobsAsync([EnumeratorCancellation] CancellationToken cancellationToken)
 	{
 		using TelemetrySpan scope = _tracer.BuildScyllaSpan("scylla.get_all_blobs");
 
@@ -181,7 +182,7 @@ public class ScyllaBlobIndex : IBlobIndex
 		}
 	}
 
-	public async Task<List<string>> GetBlobRegionsAsync(NamespaceId ns, BlobId blob)
+	public async Task<List<string>> GetBlobRegionsAsync(NamespaceId ns, BlobId blob, CancellationToken cancellationToken)
 	{
 		List<string> regions = new List<string>();
 		foreach (ScyllaBlobIndexEntry blobIndex in await _mapper.FetchAsync<ScyllaBlobIndexEntry>("WHERE namespace = ? AND blob_id = ?", ns.ToString(), blob.HashData))
@@ -200,7 +201,7 @@ public class ScyllaBlobIndex : IBlobIndex
 
 			foreach (string oldRegion in oldRegions)
 			{
-				await AddBlobToIndexAsync(ns, blob, oldRegion);
+				await AddBlobToIndexAsync(ns, blob, oldRegion, cancellationToken);
 			}
 
 			// blob has been migrated lets return the old region list
@@ -209,7 +210,7 @@ public class ScyllaBlobIndex : IBlobIndex
 		return regions;
 	}
 
-	public async Task AddBlobReferencesAsync(NamespaceId ns, BlobId sourceBlob, BlobId targetBlob)
+	public async Task AddBlobReferencesAsync(NamespaceId ns, BlobId sourceBlob, BlobId targetBlob, CancellationToken cancellationToken)
 	{
 		using TelemetrySpan scope = _tracer.BuildScyllaSpan("scylla.add_blob_to_blob_ref");
 
@@ -219,7 +220,7 @@ public class ScyllaBlobIndex : IBlobIndex
 		await _mapper.InsertAsync<ScyllaBlobIncomingReference>(incomingReference);
 	}
 
-	public async IAsyncEnumerable<BaseBlobReference> GetBlobReferencesAsync(NamespaceId ns, BlobId id)
+	public async IAsyncEnumerable<BaseBlobReference> GetBlobReferencesAsync(NamespaceId ns, BlobId id, [EnumeratorCancellation] CancellationToken cancellationToken)
 	{
 		using TelemetrySpan scope = _tracer.BuildScyllaSpan("scylla.get_blob_references").SetAttribute("resource.name", $"{ns}.{id}");
 
@@ -258,14 +259,14 @@ public class ScyllaBlobIndex : IBlobIndex
 				{
 					BucketId bucket = new BucketId(scyllaObjectReference.Bucket);
 					RefId key = new RefId(scyllaObjectReference.Key);
-					await AddRefToBlobsAsync(ns, bucket, key, new[] { id });
+					await AddRefToBlobsAsync(ns, bucket, key, new[] { id }, cancellationToken);
 					yield return new RefBlobReference(bucket, key);
 				}
 			}
 		}
 	}
 
-	public async Task AddRefToBlobsAsync(NamespaceId ns, BucketId bucket, RefId key, BlobId[] blobs)
+	public async Task AddRefToBlobsAsync(NamespaceId ns, BucketId bucket, RefId key, BlobId[] blobs, CancellationToken cancellationToken)
 	{
 		using TelemetrySpan scope = _tracer.BuildScyllaSpan("scylla.add_ref_blobs");
 
@@ -282,7 +283,7 @@ public class ScyllaBlobIndex : IBlobIndex
 		await Task.WhenAll(refUpdateTasks);
 	}
 
-	public async Task RemoveReferencesAsync(NamespaceId ns, BlobId id, List<BaseBlobReference>? referencesToRemove)
+	public async Task RemoveReferencesAsync(NamespaceId ns, BlobId id, List<BaseBlobReference>? referencesToRemove, CancellationToken cancellationToken)
 	{
 		using TelemetrySpan scope = _tracer.BuildScyllaSpan("scylla.remove_ref_blobs");
 
@@ -321,7 +322,7 @@ public class ScyllaBlobIndex : IBlobIndex
 		}
 	}
 
-	public async Task AddBlobToBucketListAsync(NamespaceId ns, BucketId bucket, RefId key, BlobId blobId, long blobSize)
+	public async Task AddBlobToBucketListAsync(NamespaceId ns, BucketId bucket, RefId key, BlobId blobId, long blobSize, CancellationToken cancellationToken)
 	{
 		using TelemetrySpan scope = _tracer.BuildScyllaSpan("scylla.add_bucket_blob");
 
@@ -343,7 +344,7 @@ public class ScyllaBlobIndex : IBlobIndex
 		await Task.WhenAll(insertRefRefTask, insertBlobRefTask);
 	}
 
-	public async Task RemoveBlobFromBucketListAsync(NamespaceId ns, BucketId bucket, RefId key, List<BlobId> blobIds)
+	public async Task RemoveBlobFromBucketListAsync(NamespaceId ns, BucketId bucket, RefId key, List<BlobId> blobIds, CancellationToken cancellationToken)
 	{
 		using TelemetrySpan scope = _tracer.BuildScyllaSpan("scylla.remove_bucket_blob");
 
@@ -362,7 +363,7 @@ public class ScyllaBlobIndex : IBlobIndex
 		await deleteRefRefTask;
 	}
 
-	public async Task<BucketStats> CalculateBucketStatisticsAsync(NamespaceId ns, BucketId bucket)
+	public async Task<BucketStats> CalculateBucketStatisticsAsync(NamespaceId ns, BucketId bucket, CancellationToken cancellationToken)
 	{
 		string nsAsString = ns.ToString();
 		string bucketAsString = bucket.ToString();

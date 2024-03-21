@@ -6,6 +6,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
 using Blake3;
 using EpicGames.Compression;
@@ -183,7 +184,7 @@ namespace Jupiter.Implementation
 			}
 		}
 
-		public async Task<IBufferedPayload> DecompressContentAsync(Stream sourceStream, ulong streamSize)
+		public async Task<IBufferedPayload> DecompressContentAsync(Stream sourceStream, ulong streamSize, CancellationToken cancellationToken = default)
 		{
 			using BinaryReader br = new BinaryReader(sourceStream);
 			(CompressedBufferHeader header, uint[] compressedBlockSizes) = ExtractHeader(br);
@@ -226,7 +227,7 @@ namespace Jupiter.Implementation
 				}
 				else
 				{
-					await sourceStream.CopyToAsync(targetStream);
+					await sourceStream.CopyToAsync(targetStream, cancellationToken);
 				}
 			}
 
@@ -250,7 +251,7 @@ namespace Jupiter.Implementation
 
 					BlobId headerIdentifier = new BlobId(slicedHash);
 					await using Stream hashStream = finalizedBufferedPayload.GetStream();
-					BlobId contentHash = await BlobId.FromStreamAsync(hashStream);
+					BlobId contentHash = await BlobId.FromStreamAsync(hashStream, cancellationToken);
 
 					if (!headerIdentifier.Equals(contentHash))
 					{

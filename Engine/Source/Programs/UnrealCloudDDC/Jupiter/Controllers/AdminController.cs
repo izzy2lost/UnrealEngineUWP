@@ -49,7 +49,7 @@ namespace Jupiter.Controllers
 				return result;
 			}
 
-			List<(LastAccessRecord, DateTime)>? updatedRecords = await _lastAccessService.ProcessLastAccessRecordsAsync();
+			List<(LastAccessRecord, DateTime)>? updatedRecords = await _lastAccessService.ProcessLastAccessRecordsAsync(HttpContext.RequestAborted);
 
 			return Ok(new UpdatedRecordsResponse(
 				updatedRecords?.Select(tuple => new UpdatedRecordsResponse.UpdatedRecord(tuple.Item1, tuple.Item2))

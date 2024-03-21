@@ -95,7 +95,7 @@ namespace Jupiter.Implementation
 			long consideredCount = 0;
 			DateTime cleanupStart = DateTime.Now;
 
-			await Parallel.ForEachAsync(_referencesStore.GetRecordsAsync(),
+			await Parallel.ForEachAsync(_referencesStore.GetRecordsAsync(cancellationToken),
 				new ParallelOptions
 				{
 					MaxDegreeOfParallelism = _settings.CurrentValue.OrphanRefMaxParallelOperations,
@@ -122,7 +122,7 @@ namespace Jupiter.Implementation
 							"Attempting to delete object {Namespace} {Bucket} {Name} as it was last updated {LastAccessTime} which is older then {CutoffTime}",
 							ns, bucket, name, lastAccessTime, cutoffTime);
 
-						await DeleteRefAsync(ns, bucket, name);
+						await DeleteRefAsync(ns, bucket, name, cancellationToken);
 
 						Interlocked.Increment(ref countOfDeletedRecords);
 
@@ -134,12 +134,12 @@ namespace Jupiter.Implementation
 					{
 						try
 						{
-							RefRecord refRecord = await _referencesStore.GetAsync(ns, bucket, name, IReferencesStore.FieldFlags.None, IReferencesStore.OperationFlags.BypassCache);
+							RefRecord refRecord = await _referencesStore.GetAsync(ns, bucket, name, IReferencesStore.FieldFlags.None, IReferencesStore.OperationFlags.BypassCache, cancellationToken);
 							if (!refRecord.IsFinalized)
 							{
 								_logger.LogInformation("Deleting object {Namespace} {Bucket} {Name} as it is not finalized. Was last accessed at {LastAccessTime}", ns, bucket, name, lastAccessTime);
 
-								await DeleteRefAsync(ns, bucket, name);
+								await DeleteRefAsync(ns, bucket, name, cancellationToken);
 								return;
 							}
 						}
@@ -157,7 +157,7 @@ namespace Jupiter.Implementation
 			return countOfDeletedRecords;
 		}
 
-		private async Task<bool> DeleteRefAsync(NamespaceId ns, BucketId bucket, RefId name)
+		private async Task<bool> DeleteRefAsync(NamespaceId ns, BucketId bucket, RefId name, CancellationToken cancellationToken)
 		{
 			using TelemetrySpan scope = _tracer.StartActiveSpan("gc.ref")
 				.SetAttribute("operation.name", "gc.ref")
@@ -173,12 +173,12 @@ namespace Jupiter.Implementation
 				{
 					bucketStatsCleanupTask = Task.Run(async () =>
 					{
-						List<BlobId> blobs = await _objectService.GetReferencedBlobsAsync(ns, bucket, name, ignoreMissingBlobs: true);
-						await _blobIndex.RemoveBlobFromBucketListAsync(ns, bucket, name, blobs);
-					});
+						List<BlobId> blobs = await _objectService.GetReferencedBlobsAsync(ns, bucket, name, ignoreMissingBlobs: true, cancellationToken: cancellationToken);
+						await _blobIndex.RemoveBlobFromBucketListAsync(ns, bucket, name, blobs, cancellationToken);
+					}, cancellationToken);
 				}
 
-				storeDelete = await _referencesStore.DeleteAsync(ns, bucket, name);
+				storeDelete = await _referencesStore.DeleteAsync(ns, bucket, name, cancellationToken);
 				if (storeDelete && _settings.CurrentValue.WriteDeleteToReplicationLog)
 				{
 					// insert a delete event into the transaction log

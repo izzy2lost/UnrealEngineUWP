@@ -2,6 +2,7 @@
 
 using System;
 using System.IO;
+using System.Threading;
 using System.Threading.Tasks;
 using Jupiter.Utils;
 using Microsoft.AspNetCore.Http;
@@ -28,12 +29,12 @@ namespace Jupiter.Common.Implementation
 			_buffer = source;
 		}
 
-		public static async Task<MemoryBufferedPayload> CreateAsync(Tracer tracer, Stream s)
+		public static async Task<MemoryBufferedPayload> CreateAsync(Tracer tracer, Stream s, CancellationToken cancellationToken)
 		{
 			using TelemetrySpan scope = tracer.StartActiveSpan("payload.buffer")
 				.SetAttribute("operation.name", "payload.buffer")
 				.SetAttribute("bufferType", "Memory");
-			MemoryBufferedPayload payload = new MemoryBufferedPayload(await s.ToByteArrayAsync());
+			MemoryBufferedPayload payload = new MemoryBufferedPayload(await s.ToByteArrayAsync(cancellationToken));
 
 			return payload;
 		}
@@ -122,7 +123,7 @@ namespace Jupiter.Common.Implementation
 			_length = _tempFile.Length;
 		}
 
-		public static async Task<FilesystemBufferedPayload> CreateAsync(Tracer tracer, Stream s, string filesystemRoot)
+		public static async Task<FilesystemBufferedPayload> CreateAsync(Tracer tracer, Stream s, string filesystemRoot, CancellationToken cancellationToken)
 		{
 			FilesystemBufferedPayload payload = new FilesystemBufferedPayload(filesystemRoot);
 
@@ -131,7 +132,7 @@ namespace Jupiter.Common.Implementation
 					.SetAttribute("operation.name", "payload.buffer")
 					.SetAttribute("bufferType", "Filesystem");
 				await using FileStream fs = payload._tempFile.OpenWrite();
-				await s.CopyToAsync(fs);
+				await s.CopyToAsync(fs, cancellationToken);
 			}
 
 			payload._tempFile.Refresh();
@@ -182,7 +183,7 @@ namespace Jupiter.Common.Implementation
 			Directory.CreateDirectory(options.CurrentValue.FilesystemTempPayloadRoot);
 		}
 
-		public Task<IBufferedPayload> CreateFromRequestAsync(HttpRequest request)
+		public Task<IBufferedPayload> CreateFromRequestAsync(HttpRequest request, CancellationToken cancellationToken)
 		{
 			long? contentLength = request.ContentLength;
 
@@ -191,23 +192,23 @@ namespace Jupiter.Common.Implementation
 				throw new Exception("Expected content-length on all requests");
 			}
 
-			return CreateFromStreamAsync(request.Body, contentLength.Value);
+			return CreateFromStreamAsync(request.Body, contentLength.Value, cancellationToken);
 		}
 
-		public async Task<IBufferedPayload> CreateFromStreamAsync(Stream s, long contentLength)
+		public async Task<IBufferedPayload> CreateFromStreamAsync(Stream s, long contentLength, CancellationToken cancellationToken)
 		{
 			// blob is small enough to fit into memory we just read it as is
 			if (contentLength < _options.CurrentValue.MemoryBufferSize)
 			{
-				return await MemoryBufferedPayload.CreateAsync(_tracer, s);
+				return await MemoryBufferedPayload.CreateAsync(_tracer, s, cancellationToken);
 			}
 
-			return await FilesystemBufferedPayload.CreateAsync(_tracer, s, _options.CurrentValue.FilesystemTempPayloadRoot);
+			return await FilesystemBufferedPayload.CreateAsync(_tracer, s, _options.CurrentValue.FilesystemTempPayloadRoot, cancellationToken);
 		}
 
-		public async Task<IBufferedPayload> CreateFilesystemBufferedPayloadAsync(Stream s)
+		public async Task<IBufferedPayload> CreateFilesystemBufferedPayloadAsync(Stream s, CancellationToken cancellationToken)
 		{
-			return await FilesystemBufferedPayload.CreateAsync(_tracer, s, _options.CurrentValue.FilesystemTempPayloadRoot);
+			return await FilesystemBufferedPayload.CreateAsync(_tracer, s, _options.CurrentValue.FilesystemTempPayloadRoot, cancellationToken);
 		}
 
 		public FilesystemBufferedPayloadWriter CreateFilesystemBufferedPayloadWriter()

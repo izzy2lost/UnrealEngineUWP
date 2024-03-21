@@ -2,6 +2,7 @@
 
 using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.Threading;
 using System.Threading.Tasks;
 using EpicGames.Horde.Storage;
 
@@ -17,7 +18,7 @@ namespace Jupiter.Implementation
 			_blobStore = blobStore;
 		}
 
-		public async Task<BlobId[]?> ResolveAsync(NamespaceId ns, ContentId contentId, bool mustBeContentId)
+		public async Task<BlobId[]?> ResolveAsync(NamespaceId ns, ContentId contentId, bool mustBeContentId, CancellationToken cancellationToken)
 		{
 			if (_contentIds.TryGetValue(ns, out ConcurrentDictionary<ContentId, SortedList<int, BlobId[]>>? contentIdsForNamespace))
 			{
@@ -25,7 +26,7 @@ namespace Jupiter.Implementation
 				{
 					foreach ((int _, BlobId[] blobs) in contentIdMappings)
 					{
-						BlobId[] missingBlobs = await _blobStore.FilterOutKnownBlobsAsync(ns, blobs);
+						BlobId[] missingBlobs = await _blobStore.FilterOutKnownBlobsAsync(ns, blobs, cancellationToken);
 						if (missingBlobs.Length == 0)
 						{
 							return blobs;
@@ -37,7 +38,7 @@ namespace Jupiter.Implementation
 
 			BlobId uncompressedBlobIdentifier = contentId.AsBlobIdentifier();
 			// if no content id is found, but we have a blob that matches the content id (so a unchunked and uncompressed version of the data) we use that instead
-			if (!mustBeContentId && await _blobStore.ExistsAsync(ns, uncompressedBlobIdentifier))
+			if (!mustBeContentId && await _blobStore.ExistsAsync(ns, uncompressedBlobIdentifier, cancellationToken: cancellationToken))
 			{
 				return new[] { uncompressedBlobIdentifier };
 			}
@@ -45,7 +46,7 @@ namespace Jupiter.Implementation
 			return null;
 		}
 
-		public Task PutAsync(NamespaceId ns, ContentId contentId, BlobId blobIdentifier, int contentWeight)
+		public Task PutAsync(NamespaceId ns, ContentId contentId, BlobId blobIdentifier, int contentWeight, CancellationToken cancellationToken)
 		{
 			_contentIds.AddOrUpdate(ns, (_) =>
 			{

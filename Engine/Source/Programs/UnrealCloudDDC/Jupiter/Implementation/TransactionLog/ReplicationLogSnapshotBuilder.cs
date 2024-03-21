@@ -46,13 +46,13 @@ namespace Jupiter.Implementation.TransactionLog
 			if (snapshotInfo != null)
 			{
 				// append to the previous snapshot if one is available
-				await using BlobContents blobContents = await _blobService.GetObjectAsync(snapshotInfo.BlobNamespace, snapshotInfo.SnapshotBlob);
+				await using BlobContents blobContents = await _blobService.GetObjectAsync(snapshotInfo.BlobNamespace, snapshotInfo.SnapshotBlob, cancellationToken: cancellationToken);
 				if (cancellationToken.IsCancellationRequested)
 				{
 					throw new TaskCanceledException();
 				}
 
-				using IBufferedPayload snapshotPayload = await _bufferedPayloadFactory.CreateFilesystemBufferedPayloadAsync(blobContents.Stream);
+				using IBufferedPayload snapshotPayload = await _bufferedPayloadFactory.CreateFilesystemBufferedPayloadAsync(blobContents.Stream, cancellationToken);
 				await using Stream s = snapshotPayload.GetStream();
 				snapshot = _replicationLogFactory.DeserializeSnapshotFromStream(s);
 				lastBucket = snapshot.LastBucket;
@@ -89,7 +89,7 @@ namespace Jupiter.Implementation.TransactionLog
 			}
 
 			Stream tempFileStream = tempFile.OpenRead();
-			using IBufferedPayload payload = await _bufferedPayloadFactory.CreateFromStreamAsync(tempFileStream, tempFile.Length);
+			using IBufferedPayload payload = await _bufferedPayloadFactory.CreateFromStreamAsync(tempFileStream, tempFile.Length, cancellationToken);
 			tempFileStream.Close();
 			tempFile.Delete();
 
@@ -97,7 +97,7 @@ namespace Jupiter.Implementation.TransactionLog
 				BlobId blobIdentifier;
 				{
 					await using Stream stream = payload.GetStream();
-					blobIdentifier = await BlobId.FromStreamAsync(stream);
+					blobIdentifier = await BlobId.FromStreamAsync(stream, cancellationToken);
 				}
 
 				CbWriter writer = new CbWriter();
@@ -115,9 +115,9 @@ namespace Jupiter.Implementation.TransactionLog
 				}
 
 				// upload the attachment first so we are not missing any references when we go to create the ref
-				await _blobService.PutObjectAsync(storeInNamespace, payload, blobIdentifier);
+				await _blobService.PutObjectAsync(storeInNamespace, payload, blobIdentifier, cancellationToken);
 
-				(ContentId[] missingContentIds, BlobId[] missingBlobs) = await _refService.PutAsync(storeInNamespace, new BucketId("snapshot"), new RefId(blobIdentifier.ToString()), cbBlobId, new CbObject(cbObjectBytes));
+				(ContentId[] missingContentIds, BlobId[] missingBlobs) = await _refService.PutAsync(storeInNamespace, new BucketId("snapshot"), new RefId(blobIdentifier.ToString()), cbBlobId, new CbObject(cbObjectBytes), cancellationToken);
 				List<ContentHash> missingHashes = new List<ContentHash>(missingContentIds);
 				missingHashes.AddRange(missingBlobs);
 				if (missingHashes.Count != 0)
