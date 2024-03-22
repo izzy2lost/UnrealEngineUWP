@@ -27,6 +27,7 @@
 #include "WorldPartition/WorldPartitionEditorPerProjectUserSettings.h"
 #include "WorldPartition/DataLayer/WorldDataLayersActorDesc.h"
 #include "LevelInstance/LevelInstanceSubsystem.h"
+#include "Interfaces/IPluginManager.h"
 #include "Algo/Find.h"
 #include "Misc/MessageDialog.h"
 #include "Editor.h"
@@ -1369,7 +1370,33 @@ bool AWorldDataLayers::CanReferenceDataLayerAsset(const UDataLayerAsset* InDataL
 
 	const UExternalDataLayerAsset* RootExternalDataLayerAsset = GetRootExternalDataLayerAsset();
 	const UObject* ReferencingObject = RootExternalDataLayerAsset ? Cast<UObject>(RootExternalDataLayerAsset) : Cast<UObject>(this);
-	return PassesAssetReferenceFiltering(ReferencingObject, InDataLayerAsset, OutFailureReason);
+	if (!PassesAssetReferenceFiltering(ReferencingObject, InDataLayerAsset, OutFailureReason))
+	{
+		return false;
+	}
+	else if (InDataLayerAsset)
+	{
+		IPluginManager& PluginManager = IPluginManager::Get();
+		const FString AssetMountPoint = FPackageName::GetPackageMountPoint(InDataLayerAsset->GetPackage()->GetName()).ToString();
+		const FString ThisMountPoint = FPackageName::GetPackageMountPoint(GetPackage()->GetName()).ToString();
+		TSharedPtr<IPlugin> AssetPlugin = PluginManager.FindPluginFromPath(AssetMountPoint);
+		TSharedPtr<IPlugin> ThisPlugin = PluginManager.FindPluginFromPath(ThisMountPoint);
+		if (AssetPlugin != ThisPlugin)
+		{
+			if (OutFailureReason)
+			{
+				*OutFailureReason = FText::Format(LOCTEXT("WorldDataLayerAndDataLayerAssetPluginMismatch", "{0} part of {1}'{2}' cannot be referenced by {3} part of {4}'{5}'."),
+					FText::FromString(InDataLayerAsset->GetName()),
+					FText::FromString(AssetPlugin.IsValid() ? TEXT("plugin ") : TEXT("")),
+					FText::FromString(AssetMountPoint),
+					FText::FromString(GetActorLabel()),
+					FText::FromString(ThisPlugin.IsValid() ? TEXT("plugin ") : TEXT("")),
+					FText::FromString(ThisMountPoint));
+			}
+			return false;
+		}
+	}
+	return true;
 }
 
 void AWorldDataLayers::RemoveEditorDataLayers()

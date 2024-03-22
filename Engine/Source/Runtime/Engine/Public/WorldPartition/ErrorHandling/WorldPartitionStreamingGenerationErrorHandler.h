@@ -5,6 +5,7 @@
 #include "CoreMinimal.h"
 #include "WorldPartition/WorldPartitionActorDescInstanceViewInterface.h"
 
+class AWorldDataLayers;
 class UDataLayerAsset;
 class UDataLayerInstance;
 class UDataLayerInstanceWithAsset;
@@ -78,6 +79,11 @@ public:
 	 * Called when a data layer is not of the same type as its parent
 	 */
 	virtual void OnDataLayerHierarchyTypeMismatch(const UDataLayerInstance* DataLayerInstance, const UDataLayerInstance* Parent, EDataLayerHierarchyInvalidReason Reason) = 0;
+
+	/**
+ 	 * Called when there's an error with a data layer used by a WorldDataLayers actor
+ 	 */
+	virtual void OnInvalidWorldDataLayersReference(const AWorldDataLayers* WorldDataLayers, const UDataLayerInstance* DataLayerInstance, const FText& Reason) = 0;
 
 	/**
 	 * Called when two data layer instances share the same asset

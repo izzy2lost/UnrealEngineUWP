@@ -8,6 +8,7 @@
 #include "Misc/MapErrors.h"
 #include "WorldPartition/DataLayer/DataLayerAsset.h"
 #include "WorldPartition/DataLayer/DataLayerInstanceWithAsset.h"
+#include "WorldPartition/DataLayer/WorldDataLayers.h"
 
 #define LOCTEXT_NAMESPACE "WorldPartition"
 
@@ -165,6 +166,20 @@ void ITokenizedMessageErrorHandler::OnDataLayerHierarchyTypeMismatch(const UData
 		break;
 	}
 	
+	HandleTokenizedMessage(MoveTemp(Message));
+}
+
+void ITokenizedMessageErrorHandler::OnInvalidWorldDataLayersReference(const AWorldDataLayers* WorldDataLayers, const UDataLayerInstance* DataLayerInstance, const FText& Reason)
+{
+	TSharedRef<FTokenizedMessage> Message = FTokenizedMessage::Create(EMessageSeverity::Error);
+	Message->AddToken(FTextToken::Create(LOCTEXT("TokenMessage_DataLayers_Actor", "Actor")))
+		->AddToken(FTextToken::Create(FText::FromString(WorldDataLayers->GetName())))
+		->AddToken(FTextToken::Create(LOCTEXT("TokenMessage_DataLayers_CantReferenceDataLayer", "can't reference data layer")))
+		->AddToken(FTextToken::Create(FText::FromString(DataLayerInstance->GetDataLayerShortName())))
+		->AddToken(FTextToken::Create(LOCTEXT("TokenMessage_DataLayers_AssetReferenceRestrictions", "because of asset reference restrictions")))
+		->AddToken(FTextToken::Create(Reason))
+		->AddToken(FMapErrorToken::Create(TEXT("DataLayers_HierarchyTypeMismatch_CheckForErrors")));
+
 	HandleTokenizedMessage(MoveTemp(Message));
 }
 

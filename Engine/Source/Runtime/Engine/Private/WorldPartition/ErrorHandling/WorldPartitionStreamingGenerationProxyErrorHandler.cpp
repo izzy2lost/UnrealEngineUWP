@@ -48,6 +48,11 @@ void FStreamingGenerationProxyErrorHandler::OnDataLayerHierarchyTypeMismatch(con
 	InnerErrorHandler->OnDataLayerHierarchyTypeMismatch(DataLayerInstance, Parent, Reason);
 }
 
+void FStreamingGenerationProxyErrorHandler::OnInvalidWorldDataLayersReference(const AWorldDataLayers* WorldDataLayers, const UDataLayerInstance* DataLayerInstance, const FText& Reason)
+{
+	InnerErrorHandler->OnInvalidWorldDataLayersReference(WorldDataLayers, DataLayerInstance, Reason);
+}
+
 void FStreamingGenerationProxyErrorHandler::OnDataLayerAssetConflict(const UDataLayerInstanceWithAsset* DataLayerInstance, const UDataLayerInstanceWithAsset* ConflictingDataLayerInstance)
 {
 	InnerErrorHandler->OnDataLayerAssetConflict(DataLayerInstance, ConflictingDataLayerInstance);

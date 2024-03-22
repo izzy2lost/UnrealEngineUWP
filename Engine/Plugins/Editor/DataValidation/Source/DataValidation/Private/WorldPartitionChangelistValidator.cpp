@@ -126,6 +126,10 @@ void UWorldPartitionChangelistValidator::ValidateActorsAndDataLayersFromChangeLi
 		
 					RelevantDataLayerAssets.Add(AssetData.PackageName.ToString());
 				}
+				else if (AssetClass->IsChildOf<UDataLayerInstance>())
+				{
+					RelevantExternalPackageDataLayerInstances.Add(AssetData.PackageName.ToString());
+				}
 				else if (AssetClass->IsChildOf<UWorld>())
 				{
 					if (ULevel::GetIsLevelPartitionedFromPackage(PackageName))
@@ -273,7 +277,17 @@ bool UWorldPartitionChangelistValidator::Filter(const IWorldPartitionActorDescIn
 bool UWorldPartitionChangelistValidator::Filter(const UDataLayerInstance* InDataLayerInstance)
 {
 	const UDataLayerInstanceWithAsset* DataLayerWithAsset = Cast<UDataLayerInstanceWithAsset>(InDataLayerInstance);
-	return DataLayerWithAsset != nullptr && DataLayerWithAsset->GetAsset() != nullptr && RelevantDataLayerAssets.Contains(DataLayerWithAsset->GetAsset()->GetPathName());
+	if (DataLayerWithAsset && DataLayerWithAsset->GetAsset() && RelevantDataLayerAssets.Contains(DataLayerWithAsset->GetAsset()->GetPackage()->GetName()))
+	{
+		return true;
+	}
+
+	if (InDataLayerInstance->IsPackageExternal() && RelevantExternalPackageDataLayerInstances.Contains(InDataLayerInstance->GetPackage()->GetName()))
+	{
+		return true;
+	}
+
+	return false;
 }
 
 void UWorldPartitionChangelistValidator::OnInvalidRuntimeGrid(const IWorldPartitionActorDescInstanceView& ActorDescView, FName GridName)
@@ -427,6 +441,19 @@ void UWorldPartitionChangelistValidator::OnDataLayerHierarchyTypeMismatch(const 
 			}
 			break;
 		}
+	}
+}
+
+void UWorldPartitionChangelistValidator::OnInvalidWorldDataLayersReference(const AWorldDataLayers* WorldDataLayers, const UDataLayerInstance* DataLayerInstance, const FText& Reason)
+{
+	if (RelevantActorGuids.Find(WorldDataLayers->GetActorGuid()) || Filter(DataLayerInstance))
+	{
+		FText CurrentError = FText::Format(LOCTEXT("DataValidation.Changelist.WorldPartition.DataLayerAssetReferenceRestrictions", "Actor {0} can't reference data layer {1} because of asset reference restrictions ({2})"),
+			FText::FromString(WorldDataLayers->GetName()),
+			FText::FromString(DataLayerInstance->GetDataLayerFullName()),
+			Reason);
+
+		AssetFails(CurrentAsset, CurrentError);
 	}
 }
 

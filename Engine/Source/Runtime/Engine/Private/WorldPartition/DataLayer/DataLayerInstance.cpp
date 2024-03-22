@@ -534,6 +534,13 @@ FText UDataLayerInstance::GetDataLayerText(const UDataLayerInstance* InDataLayer
 
 bool UDataLayerInstance::Validate(IStreamingGenerationErrorHandler* ErrorHandler) const
 {
+	// No need to run the validation for game worlds
+	UWorld* World = GetOuterWorld();
+	if (World->IsGameWorld())
+	{
+		return true;
+	}
+
 	if (GetParent() != nullptr)
 	{
 		FText ReasonText;
