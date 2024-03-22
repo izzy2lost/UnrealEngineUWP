@@ -161,12 +161,18 @@ void ULoadingScreenManager::Tick(float DeltaTime)
 
 ETickableTickType ULoadingScreenManager::GetTickableTickType() const
 {
+	if (IsTemplate())
+	{
+		return ETickableTickType::Never;
+	}
 	return ETickableTickType::Conditional;
 }
 
 bool ULoadingScreenManager::IsTickable() const
 {
-	return !HasAnyFlags(RF_ClassDefaultObject);
+	// Don't tick if we don't have a game viewport client, this catches cases that ShouldCreateSubsystem does not
+	UGameInstance* GameInstance = GetGameInstance();
+	return (GameInstance && GameInstance->GetGameViewportClient());
 }
 
 TStatId ULoadingScreenManager::GetStatId() const
