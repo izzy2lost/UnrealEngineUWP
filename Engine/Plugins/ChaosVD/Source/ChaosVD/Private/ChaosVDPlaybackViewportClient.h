@@ -15,7 +15,7 @@ class FChaosVDPlaybackViewportClient : public FEditorViewportClient
 {
 public:
 
-	FChaosVDPlaybackViewportClient(const TSharedPtr<FEditorModeTools>& InModeTools);
+	FChaosVDPlaybackViewportClient(const TSharedPtr<FEditorModeTools>& InModeTools, const TSharedPtr<SEditorViewport>& InEditorViewportWidget);
 	virtual ~FChaosVDPlaybackViewportClient() override;
 
 	virtual void ProcessClick(FSceneView& View, HHitProxy* HitProxy, FKey Key, EInputEvent Event, uint32 HitX, uint32 HitY) override;

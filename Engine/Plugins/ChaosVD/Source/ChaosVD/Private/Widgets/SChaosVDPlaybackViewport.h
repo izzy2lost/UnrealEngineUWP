@@ -40,6 +40,8 @@ public:
 	virtual void OnFloatingButtonClicked() override {};
 	// END ICommonEditorViewportToolbarInfoProvider interface
 
+	virtual EVisibility GetTransformToolbarVisibility() const override;
+
 protected:
 
 	virtual TSharedRef<FEditorViewportClient> MakeEditorViewportClient() override;
