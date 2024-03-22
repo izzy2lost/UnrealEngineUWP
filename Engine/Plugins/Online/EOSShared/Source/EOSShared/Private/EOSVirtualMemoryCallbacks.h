@@ -2,6 +2,8 @@
 
 #pragma once
 
+#if WITH_EOS_SDK
+
 #if defined(EOS_PLATFORM_BASE_FILE_NAME)
 #include EOS_PLATFORM_BASE_FILE_NAME
 #endif
@@ -17,3 +19,5 @@ namespace EOSVirtualMemoryCallbacks
 	EOS_Bool EOS_MEMORY_CALL Commit(void* Address, size_t SizeInBytes, void* ContextData);
 	EOS_Bool EOS_MEMORY_CALL Decommit(void* Address, size_t SizeInBytes, void* ContextData);
 }
+
+#endif // WITH_EOS_SDK

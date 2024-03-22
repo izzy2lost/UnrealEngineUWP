@@ -2,6 +2,8 @@
 
 #include "EOSVirtualMemoryCallbacks.h"
 
+#if WITH_EOS_SDK
+
 #include "HAL/PlatformMemory.h"
 
 namespace EOSVirtualMemoryCallbacks
@@ -37,3 +39,5 @@ EOS_Bool EOS_MEMORY_CALL Decommit(void* Address, size_t SizeInBytes, void* Conte
 }
 
 } // namespace EOSVirtualMemoryCallbacks
+
+#endif // WITH_EOS_SDK
