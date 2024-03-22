@@ -18,6 +18,7 @@
 #include "ObjectEditorUtils.h"
 #include "PhysicsEngine/BodySetup.h"
 #include "PhysicsEngine/PhysicsAsset.h"
+#include "PhysicsEngine/SkeletalBodySetup.h"
 #include "PropertyEditorModule.h"
 #include "PropertyHandle.h"
 #include "SlotBase.h"

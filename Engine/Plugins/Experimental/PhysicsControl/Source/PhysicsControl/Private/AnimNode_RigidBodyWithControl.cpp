@@ -6,6 +6,7 @@
 #include "Animation/AnimInstanceProxy.h"
 #include "ClothCollisionSource.h"
 #include "Engine/OverlapResult.h"
+#include "Engine/SkeletalMesh.h"
 #include "GameFramework/Pawn.h"
 #include "HAL/Event.h"
 #include "HAL/LowLevelMemTracker.h"
@@ -21,6 +22,7 @@
 #include "Chaos/PBDJointConstraints.h"
 #include "PhysicsField/PhysicsFieldComponent.h"
 #include "PhysicsEngine/PhysicsSettings.h"
+#include "PhysicsEngine/SkeletalBodySetup.h"
 #include "Logging/MessageLog.h"
 
 #include "PhysicsProxy/SingleParticlePhysicsProxy.h"

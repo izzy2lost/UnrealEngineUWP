@@ -13,6 +13,8 @@
 #include "GeometryCollection/Facades/CollectionVertexBoneWeightsFacade.h"
 #include "GeometryCollection/TransformCollection.h"
 #include "PhysicsEngine/PhysicsAsset.h"
+#include "PhysicsEngine/SkeletalBodySetup.h"
+#include "PhysicsEngine/SphylElem.h"
 #include "Rendering/SkeletalMeshRenderData.h"
 #include "BoneWeights.h"
 

@@ -6,6 +6,7 @@
 #include "PhysicsControlLimbData.h"
 #include "PhysicsControlRecord.h"
 #include "PhysicsEngine/PhysicsAsset.h"
+#include "PhysicsEngine/SkeletalBodySetup.h"
 
 #include "ReferenceSkeleton.h"
 

@@ -2,7 +2,9 @@
 
 #include "PhysicsAssetGraph/PhysicsAssetGraphNode_Bone.h"
 #include "PhysicsAssetGraph/SBoneNode.h"
+#include "PhysicsEngine/AggregateGeom.h"
 #include "PhysicsEngine/PhysicsAsset.h"
+#include "PhysicsEngine/SkeletalBodySetup.h"
 
 #define LOCTEXT_NAMESPACE "UPhysicsAssetGraphNode_Bone"
 

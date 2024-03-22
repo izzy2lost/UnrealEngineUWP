@@ -10,6 +10,7 @@
 #include "PhysicsEngine/PhysicsAsset.h"
 #include "PhysicsEngine/PhysicsConstraintTemplate.h"
 #include "PhysicsEngine/PhysicsSettings.h"
+#include "PhysicsEngine/SkeletalBodySetup.h"
 #include "Preferences/PhysicsAssetEditorOptions.h"
 #include "IPersonaPreviewScene.h"
 #include "PhysicsAssetEditor.h"

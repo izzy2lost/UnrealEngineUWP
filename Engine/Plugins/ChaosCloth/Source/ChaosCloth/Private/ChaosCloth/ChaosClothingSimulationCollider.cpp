@@ -17,6 +17,7 @@
 #include "Engine/SkeletalMesh.h"
 #include "PhysicsEngine/PhysicsAsset.h"
 #include "PhysicsEngine/AggregateGeom.h"
+#include "PhysicsEngine/SkeletalBodySetup.h"
 #include "HAL/PlatformMath.h"
 #include "Containers/ArrayView.h"
 #include "Containers/BitArray.h"

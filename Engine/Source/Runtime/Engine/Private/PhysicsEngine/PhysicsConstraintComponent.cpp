@@ -9,6 +9,7 @@
 #include "PhysicsEngine/PhysicsAsset.h"
 #include "PhysicsEngine/ConstraintUtils.h"
 #include "PhysicsEngine/PhysicsObjectExternalInterface.h"
+#include "PhysicsEngine/SkeletalBodySetup.h"
 #include "PhysicsProxy/SingleParticlePhysicsProxy.h"
 #include "Components/BillboardComponent.h"
 #include "UObject/ICookInfo.h"

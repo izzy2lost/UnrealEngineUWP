@@ -4,6 +4,7 @@
 #include "Styling/AppStyle.h"
 #include "PhysicsAssetRenderUtils.h"
 #include "PhysicsEngine/PhysicsAsset.h"
+#include "PhysicsEngine/SkeletalBodySetup.h"
 
 #define LOCTEXT_NAMESPACE "FSkeletonTreePhysicsBodyItem"
 

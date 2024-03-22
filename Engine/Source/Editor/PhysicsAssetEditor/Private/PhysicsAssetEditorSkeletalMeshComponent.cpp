@@ -15,6 +15,7 @@
 #include "PhysicsAssetRenderUtils.h"
 #include "PhysicsEngine/PhysicsConstraintTemplate.h"
 #include "PhysicsEngine/PhysicsAsset.h"
+#include "PhysicsEngine/SkeletalBodySetup.h"
 #include "Chaos/Core.h"
 #include "SkeletalMeshTypes.h"
 #include "AnimPreviewInstance.h"

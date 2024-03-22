@@ -12,7 +12,7 @@
 
 namespace EAggCollisionShape
 {
-	enum Type
+	enum Type : int
 	{
 		Sphere,
 		Box,

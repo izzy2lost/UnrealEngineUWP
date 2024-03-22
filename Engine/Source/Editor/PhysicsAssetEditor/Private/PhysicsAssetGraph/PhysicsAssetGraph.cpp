@@ -6,6 +6,7 @@
 #include "PhysicsEngine/PhysicsAsset.h"
 #include "IEditableSkeleton.h"
 #include "PhysicsEngine/PhysicsConstraintTemplate.h"
+#include "PhysicsEngine/SkeletalBodySetup.h"
 #include "PhysicsAssetGraph/PhysicsAssetGraphNode_Bone.h"
 #include "PhysicsAssetGraph/PhysicsAssetGraphNode_Constraint.h"
 #include "Algo/Transform.h"

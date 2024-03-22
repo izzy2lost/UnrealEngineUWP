@@ -1,6 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "PhysicsAssetEditorMode.h"
+#include "Engine/SkeletalMesh.h"
 #include "PhysicsAssetEditor.h"
 #include "ISkeletonTree.h"
 #include "IPersonaPreviewScene.h"
@@ -9,6 +10,7 @@
 #include "PhysicsAssetGraph/PhysicsAssetGraphSummoner.h"
 #include "PhysicsEngine/PhysicsAsset.h"
 #include "PhysicsEngine/PhysicsConstraintTemplate.h"
+#include "PhysicsEngine/SkeletalBodySetup.h"
 #include "PhysicsAssetEditorActions.h"
 #include "SEditorViewportToolBarMenu.h"
 #include "PhysicsAssetEditorProfilesSummoner.h"

@@ -26,6 +26,7 @@
 #include "PhysicsEngine/PhysicsConstraintTemplate.h"
 #include "PhysicsEngine/PhysicalAnimationComponent.h"
 #include "PhysicsEngine/PhysicsAsset.h"
+#include "PhysicsEngine/SkeletalBodySetup.h"
 #include "PhysicsAssetEditorAnimInstance.h"
 #include "IPersonaPreviewScene.h"
 #include "PhysicsPublic.h"

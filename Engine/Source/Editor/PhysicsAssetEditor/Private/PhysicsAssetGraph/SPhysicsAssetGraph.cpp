@@ -14,6 +14,7 @@
 #include "PhysicsAssetGraph/PhysicsAssetGraphNode_Constraint.h"
 #include "PhysicsEngine/PhysicsAsset.h"
 #include "PhysicsEngine/PhysicsConstraintTemplate.h"
+#include "PhysicsEngine/SkeletalBodySetup.h"
 #include "ISkeletonTree.h"
 #include "ISkeletonTreeItem.h"
 #include "PhysicsAssetEditor.h"

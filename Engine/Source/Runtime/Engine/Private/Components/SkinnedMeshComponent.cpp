@@ -21,6 +21,7 @@
 #include "Engine/SkeletalMeshSocket.h"
 #include "Engine/SkinnedAssetCommon.h"
 #include "PhysicsEngine/PhysicsAsset.h"
+#include "PhysicsEngine/SkeletalBodySetup.h"
 #include "Engine/CollisionProfile.h"
 #include "SkeletalMeshSceneProxy.h"
 #include "Animation/MeshDeformer.h"

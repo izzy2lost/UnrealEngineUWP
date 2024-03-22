@@ -13,6 +13,7 @@
 #include "Animation/AnimationAsset.h"
 #endif
 #include "Engine/RendererSettings.h"
+#include "Engine/SkeletalMesh.h"
 #include "Engine/SkinnedAssetAsyncCompileUtils.h"
 #include "Features/IModularFeatures.h"
 #include "GeometryCollection/ManagedArrayCollection.h"

@@ -11,6 +11,7 @@
 #include "Rendering/SkeletalMeshModel.h"
 #include "PhysicsEngine/PhysicsAsset.h"
 #include "PhysicsEngine/PhysicsConstraintTemplate.h"
+#include "PhysicsEngine/SkeletalBodySetup.h"
 #include "GroomAsset.h"
 #include "UObject/Package.h"
 
