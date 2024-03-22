@@ -151,7 +151,7 @@ protected:
 private:
 
 	UPROPERTY()
-		TObjectPtr<AActor> ActorTemplate;
+	TObjectPtr<AActor> ActorTemplate;
 
 
 };
