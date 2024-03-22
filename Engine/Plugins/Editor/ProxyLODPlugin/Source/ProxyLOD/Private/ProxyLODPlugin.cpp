@@ -676,7 +676,7 @@ void FVoxelizeMeshMerging::ProxyLOD(FMeshDescriptionArrayAdapter& InSrcGeometryA
 		{
 			const auto& BBox = InSrcGeometryAdapter.GetBBox();
 
-			if (BBoxMajorAxisLength(BBox) == 0.f)
+			if (!BBox.hasVolume())
 			{
 				UE_LOG(LogProxyLODMeshReduction, Warning, TEXT("Empty bounding box for all static meshes input, no output mesh will be generated."));
 
