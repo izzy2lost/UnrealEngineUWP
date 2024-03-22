@@ -32,6 +32,7 @@ public:
 	virtual float GetShadowStepFactor() const = 0;
 	virtual float GetShadowBiasFactor() const = 0;
 	virtual float GetLightingDownsampleFactor() const = 0;
+	virtual float GetMipBias() const = 0;
 
 	// Debug
 	virtual FString GetReadableName() const = 0;
@@ -51,6 +52,7 @@ public:
 		, ShadowStepFactor(8.0)
 		, ShadowBiasFactor(0.0)
 		, LightingDownsampleFactor(1.0)
+		, MipBias(0.0)
 	{}
 
 	FHeterogeneousVolumeData(const FPrimitiveSceneProxy* SceneProxy, FString Name)
@@ -62,6 +64,7 @@ public:
 		, ShadowStepFactor(8.0)
 		, ShadowBiasFactor(0.0)
 		, LightingDownsampleFactor(1.0)
+		, MipBias(0.0)
 		, bPivotAtCentroid(false)
 #if ACTOR_HAS_LABELS
 		, ReadableName(Name)
@@ -88,6 +91,7 @@ public:
 	virtual float GetShadowStepFactor() const { return ShadowStepFactor; }
 	virtual float GetShadowBiasFactor() const { return ShadowBiasFactor; }
 	virtual float GetLightingDownsampleFactor() const { return LightingDownsampleFactor; }
+	virtual float GetMipBias() const { return MipBias; }
 
 	const FPrimitiveSceneProxy* PrimitiveSceneProxy;
 	FMatrix InstanceToLocal;
@@ -97,6 +101,7 @@ public:
 	float ShadowStepFactor;
 	float ShadowBiasFactor;
 	float LightingDownsampleFactor;
+	float MipBias;
 	bool bPivotAtCentroid;
 
 #if ACTOR_HAS_LABELS

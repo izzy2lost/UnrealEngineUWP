@@ -452,6 +452,7 @@ static void RenderLightingCacheWithLiveShading(
 	// Note must be done in the same scope as we add the pass otherwise the UB lifetime will not be guaranteed
 	FDeferredLightUniformStruct DeferredLightUniform = GetDeferredLightParameters(View, *LightSceneInfo);
 	TUniformBufferRef<FDeferredLightUniformStruct> DeferredLightUB = CreateUniformBufferImmediate(DeferredLightUniform, UniformBuffer_SingleDraw);
+	float LODFactor = HeterogeneousVolumes::CalcLODFactor(View, HeterogeneousVolumeInterface);
 
 	FRenderLightingCacheWithLiveShadingCS::FParameters* PassParameters = GraphBuilder.AllocParameters<FRenderLightingCacheWithLiveShadingCS::FParameters>();
 	{
@@ -486,7 +487,7 @@ static void RenderLightingCacheWithLiveShading(
 
 		// Transmittance volume
 		PassParameters->VoxelResolution = HeterogeneousVolumeInterface->GetVoxelResolution();
-		PassParameters->LightingCache.LightingCacheResolution = HeterogeneousVolumes::GetLightingCacheResolution(HeterogeneousVolumeInterface);
+		PassParameters->LightingCache.LightingCacheResolution = HeterogeneousVolumes::GetLightingCacheResolution(HeterogeneousVolumeInterface, LODFactor);
 		PassParameters->LightingCache.LightingCacheVoxelBias = HeterogeneousVolumeInterface->GetShadowBiasFactor();
 		//PassParameters->LightingCache.LightingCacheTexture = GraphBuilder.CreateSRV(LightingCacheTexture);
 		PassParameters->LightingCache.LightingCacheTexture = FRDGSystemTextures::Get(GraphBuilder).VolumetricBlack;
@@ -495,9 +496,9 @@ static void RenderLightingCacheWithLiveShading(
 		PassParameters->MaxTraceDistance = HeterogeneousVolumes::GetMaxTraceDistance();
 		PassParameters->MaxShadowTraceDistance = HeterogeneousVolumes::GetMaxShadowTraceDistance();
 		PassParameters->StepSize = HeterogeneousVolumes::GetStepSize();
-		PassParameters->StepFactor = HeterogeneousVolumeInterface->GetStepFactor();
+		PassParameters->StepFactor = HeterogeneousVolumeInterface->GetStepFactor() * LODFactor;
 		PassParameters->ShadowStepSize = HeterogeneousVolumes::GetShadowStepSize();
-		PassParameters->ShadowStepFactor = HeterogeneousVolumeInterface->GetShadowStepFactor();
+		PassParameters->ShadowStepFactor = HeterogeneousVolumeInterface->GetShadowStepFactor() * LODFactor;
 		PassParameters->MaxStepCount = HeterogeneousVolumes::GetMaxStepCount();
 		PassParameters->bJitter = HeterogeneousVolumes::ShouldJitter();
 
@@ -544,7 +545,7 @@ static void RenderLightingCacheWithLiveShading(
 #endif // WANTS_DRAW_MESH_EVENTS
 
 	PassParameters->VoxelMin = FIntVector::ZeroValue;
-	PassParameters->VoxelMax = HeterogeneousVolumes::GetLightingCacheResolution(HeterogeneousVolumeInterface) - FIntVector(1);
+	PassParameters->VoxelMax = HeterogeneousVolumes::GetLightingCacheResolution(HeterogeneousVolumeInterface, LODFactor) - FIntVector(1);
 	
 	bool bShouldBoundsCull = HeterogeneousVolumes::ShouldBoundsCull();
 	if (LightType != LightType_Directional && bShouldBoundsCull)
@@ -664,6 +665,7 @@ static void RenderSingleScatteringWithLiveShading(
 		PassParameters->BlueNoise = CreateUniformBufferImmediate(BlueNoise, EUniformBufferUsage::UniformBuffer_SingleDraw);
 
 		// Light data
+		float LODFactor = HeterogeneousVolumes::CalcLODFactor(View, HeterogeneousVolumeInterface);
 		PassParameters->bApplyEmissionAndTransmittance = bApplyEmissionAndTransmittance;
 		PassParameters->bApplyDirectLighting = bApplyDirectLighting;
 		PassParameters->bApplyShadowTransmittance = bApplyShadowTransmittance;
@@ -678,7 +680,7 @@ static void RenderSingleScatteringWithLiveShading(
 		PassParameters->DeferredLight = DeferredLightUB;
 		PassParameters->LightType = LightType;
 		PassParameters->ShadowStepSize = HeterogeneousVolumes::GetShadowStepSize();
-		PassParameters->ShadowStepFactor = HeterogeneousVolumeInterface->GetShadowStepFactor();
+		PassParameters->ShadowStepFactor = HeterogeneousVolumeInterface->GetShadowStepFactor() * LODFactor;
 
 		// Object data
 		// TODO: Convert to relative-local space
@@ -701,7 +703,7 @@ static void RenderSingleScatteringWithLiveShading(
 		// Ray data
 		PassParameters->MaxTraceDistance = HeterogeneousVolumes::GetMaxTraceDistance();
 		PassParameters->StepSize = HeterogeneousVolumes::GetStepSize();
-		PassParameters->StepFactor = HeterogeneousVolumeInterface->GetStepFactor();
+		PassParameters->StepFactor = HeterogeneousVolumeInterface->GetStepFactor() * LODFactor;
 		PassParameters->MaxStepCount = HeterogeneousVolumes::GetMaxStepCount();
 		PassParameters->bJitter = HeterogeneousVolumes::ShouldJitter();
 
@@ -747,7 +749,7 @@ static void RenderSingleScatteringWithLiveShading(
 		// Volume data
 		if ((HeterogeneousVolumes::UseLightingCacheForTransmittance() && bApplyShadowTransmittance) || HeterogeneousVolumes::UseLightingCacheForInscattering())
 		{
-			PassParameters->LightingCache.LightingCacheResolution = HeterogeneousVolumes::GetLightingCacheResolution(HeterogeneousVolumeInterface);
+			PassParameters->LightingCache.LightingCacheResolution = HeterogeneousVolumes::GetLightingCacheResolution(HeterogeneousVolumeInterface, LODFactor);
 			PassParameters->LightingCache.LightingCacheVoxelBias = HeterogeneousVolumeInterface->GetShadowBiasFactor();
 			PassParameters->LightingCache.LightingCacheTexture = LightingCacheTexture;
 		}
@@ -1368,8 +1370,9 @@ bool RenderVolumetricShadowMapForLightForHeterogeneousVolumeWithLiveShading(
 		PassParameters->VoxelResolution = HeterogeneousVolumeInterface->GetVoxelResolution();
 
 		// Ray Data
+		float LODFactor = HeterogeneousVolumes::CalcLODFactor(View, HeterogeneousVolumeInterface);
 		PassParameters->ShadowStepSize = HeterogeneousVolumes::GetShadowStepSize();
-		PassParameters->ShadowStepFactor = HeterogeneousVolumeInterface->GetShadowStepFactor();
+		PassParameters->ShadowStepFactor = HeterogeneousVolumeInterface->GetShadowStepFactor() * LODFactor;
 		PassParameters->MaxTraceDistance = HeterogeneousVolumes::GetMaxTraceDistance();
 		PassParameters->MaxStepCount = HeterogeneousVolumes::GetMaxStepCount();
 		PassParameters->bJitter = HeterogeneousVolumes::ShouldJitter();
@@ -1490,6 +1493,20 @@ bool RenderVolumetricShadowMapForLightWithLiveShading(
 	{
 		return false;
 	}
+
+	// Adjust shadow resolution based on minimum MipLevel
+	float LODValue = FMath::CeilLogTwo(ShadowMapResolution.X);
+	for (auto VolumetricMeshBatch : HeterogeneousVolumesMeshBatches)
+	{
+		int32 VolumeCount = VolumetricMeshBatch.Mesh->Elements.Num();
+		for (int32 VolumeIndex = 0; VolumeIndex < VolumeCount; ++VolumeIndex)
+		{
+			const IHeterogeneousVolumeInterface* HeterogeneousVolumeInterface = (IHeterogeneousVolumeInterface*)VolumetricMeshBatch.Mesh->Elements[VolumeIndex].UserData;
+			LODValue = FMath::Min(LODValue, HeterogeneousVolumes::CalcLOD(View, HeterogeneousVolumeInterface));
+		}
+	}
+	float LODFactor = HeterogeneousVolumes::CalcLODFactor(LODValue);
+	ShadowMapResolution /= LODFactor;
 
 	// Build shadow transform
 	NumShadowMatrices = ProjectedShadowInfo->OnePassShadowViewProjectionMatrices.Num();
