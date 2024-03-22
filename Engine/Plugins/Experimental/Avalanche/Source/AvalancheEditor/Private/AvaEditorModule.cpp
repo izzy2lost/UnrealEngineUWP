@@ -135,9 +135,9 @@ void FAvaEditorModule::ShutdownModule()
 		{
 			IAvaOutlinerModule::Get().UnregisterOverriddenIcon<FAvaOutlinerActor>(AAvaShapeActor::StaticClass()->GetFName());
 		}
-	}
 
-	UAvaSceneRigSubsystem::UnregisterSupportedActorClasses(DefaultSceneRigActorClasses());
+		UAvaSceneRigSubsystem::UnregisterSupportedActorClasses(DefaultSceneRigActorClasses());
+	}
 }
 
 void FAvaEditorModule::CreateAvaLevelEditor()
