@@ -98,6 +98,7 @@ TSharedRef<SWidget> UCommonActivatableWidgetContainerBase::RebuildWidget()
 			.TransitionCurveType(TransitionCurveType)
 			.TransitionDuration(TransitionDuration)
 			.TransitionType(TransitionType)
+			.TransitionFallbackStrategy(TransitionFallbackStrategy)
 			.OnActiveIndexChanged_UObject(this, &UCommonActivatableWidgetContainerBase::HandleActiveIndexChanged)
 			.OnIsTransitioningChanged_UObject(this, &UCommonActivatableWidgetContainerBase::HandleSwitcherIsTransitioningChanged)
 		]
