@@ -258,6 +258,8 @@ bool FPluginDescriptor::Read(const FJsonObject& Object, FText* OutFailReason /*=
 
 	Object.TryGetBoolField(TEXT("EnableVerseAssetReflection"), bEnableVerseAssetReflection);
 
+	Object.TryGetBoolField(TEXT("EnableIAD"), bEnableIAD);
+
 	bool bEnabledByDefault;
 	if(Object.TryGetBoolField(TEXT("EnabledByDefault"), bEnabledByDefault))
 	{
@@ -425,6 +427,15 @@ void FPluginDescriptor::UpdateJson(FJsonObject& JsonObject) const
 	else
 	{
 		JsonObject.RemoveField(TEXT("EnableVerseAssetReflection"));
+	}
+
+	if (bEnableIAD)
+	{
+		JsonObject.SetBoolField(TEXT("EnableIAD"), bEnableIAD);
+	}
+	else
+	{
+		JsonObject.RemoveField(TEXT("EnableIAD"));
 	}
 
 	if (EnabledByDefault != EPluginEnabledByDefault::Unspecified)

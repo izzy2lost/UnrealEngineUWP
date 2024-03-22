@@ -104,6 +104,9 @@ struct FPluginDescriptor
 	/** If to generate Verse source code definitions from assets contained in this plugin */
 	bool bEnableVerseAssetReflection = false;
 
+	/** Use IAD for this plugin */
+	bool bEnableIAD = false;
+
 	/** Whether this plugin should be enabled by default for all projects */
 	EPluginEnabledByDefault EnabledByDefault;
 

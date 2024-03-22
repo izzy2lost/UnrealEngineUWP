@@ -569,6 +569,7 @@ TSharedPtr<IPlugin> FPluginUtils::CreateAndLoadNewPlugin(const FString& PluginNa
 	ExCreationParams.Descriptor.VersePath = CreationParams.VersePath;
 	ExCreationParams.Descriptor.VerseVersion = CreationParams.VerseVersion;
 	ExCreationParams.Descriptor.bEnableVerseAssetReflection = CreationParams.bEnableVerseAssetReflection;
+	ExCreationParams.Descriptor.bEnableIAD = CreationParams.bEnableIAD;
 
 	if (CreationParams.bHasModules)
 	{
