@@ -227,6 +227,7 @@ struct FSimulationParameters
 		, UserData(nullptr)
 		, bEnableStrainOnCollision(true)
 		, bUseStaticMeshCollisionForTraces(false)
+		, bOptimizeConvexes(true)
 	{}
 
 	FSimulationParameters(const FSimulationParameters& Other)
@@ -291,6 +292,7 @@ struct FSimulationParameters
 		, UserData(Other.UserData)
 		, bEnableStrainOnCollision(Other.bEnableStrainOnCollision)
 		, bUseStaticMeshCollisionForTraces(Other.bUseStaticMeshCollisionForTraces)
+		, bOptimizeConvexes(Other.bOptimizeConvexes)
 	{
 	}
 
@@ -388,4 +390,6 @@ struct FSimulationParameters
 	bool bEnableStrainOnCollision;
 
 	bool bUseStaticMeshCollisionForTraces;
+
+	bool bOptimizeConvexes = true;
 };

@@ -68,6 +68,14 @@ FAutoConsoleVariableRef CVarGeometryCollectionAlwaysRecreateSimulationData(
 	bGeometryCollectionAlwaysRecreateSimulationData,
 	TEXT("always recreate the simulation data even if the simulation data is not marked as dirty - this has runtime cost in editor - only use as a last resort if default has issues [def:false]"));
 
+namespace Chaos
+{
+	namespace CVars
+	{
+		extern CHAOS_API bool bChaosConvexSimplifyUnion;
+	}
+}
+
 
 #if ENABLE_COOK_STATS
 namespace GeometryCollectionCookStats
@@ -116,6 +124,7 @@ UGeometryCollection::UGeometryCollection(const FObjectInitializer& ObjectInitial
 	, Mass(2500.0f)
 	, MinimumMassClamp(0.1f)
 	, bImportCollisionFromSource(false)
+	, bOptimizeConvexes(Chaos::CVars::bChaosConvexSimplifyUnion)
 	, bScaleOnRemoval(true)
 	, bRemoveOnMaxSleep(false)
 	, MaximumSleepTime(5.0, 10.0)
@@ -1987,3 +1996,22 @@ const TArray<UAssetUserData*>* UGeometryCollection::GetAssetUserDataArray() cons
 {
 	return &ToRawPtrTArrayUnsafe(AssetUserData);
 }
+
+#if WITH_EDITOR
+bool UGeometryCollection::CanEditChange(const FProperty* InProperty) const
+{
+	if (!Super::CanEditChange(InProperty))
+	{
+		return false;
+	}
+
+	const FName& Name = InProperty->GetFName();
+
+	if (Name == GET_MEMBER_NAME_CHECKED(ThisClass, bOptimizeConvexes))
+	{
+		return Chaos::CVars::bChaosConvexSimplifyUnion == true;
+	}
+
+	return true;
+}
+#endif

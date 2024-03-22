@@ -60,7 +60,7 @@ namespace Private
 
 		// Simplify all the convexes in the hierarchy 
 		CHAOS_API void SimplifyRootConvexes(const Chaos::FImplicitObjectUnionPtr& UnionGeometry, const FShapesArray& UnionShapes,
-			const EObjectStateType ObjectState);
+			const EObjectStateType ObjectState, const TBitArray<>& bOptimizeConvexes);
 
 		// Check if the manager is valid or not
 		CHAOS_API bool IsValid() const {return !SimplifiedConvexes.IsEmpty();}
@@ -86,10 +86,10 @@ namespace Private
 		void MergeConnectedShapes(const Chaos::FImplicitObjectUnionPtr& UnionGeometry, TArray<FTriboxNode>& MergedNodes);
 
 		// Build a single convex
-		void BuildSingleConvex(const Chaos::FImplicitObjectUnionPtr& UnionGeometry, const FShapesArray& UnionShapes);
+		void BuildSingleConvex(const Chaos::FImplicitObjectUnionPtr& UnionGeometry, const FShapesArray& UnionShapes, const TBitArray<>& bOptimizeConvexes);
 
 		// Build several convexes 
-		void BuildMultipleConvex(const Chaos::FImplicitObjectUnionPtr& UnionGeometry, const FShapesArray& UnionShapes, const bool bEnableMerging);
+		void BuildMultipleConvex(const Chaos::FImplicitObjectUnionPtr& UnionGeometry, const FShapesArray& UnionShapes, const bool bEnableMerging, const TBitArray<>& bOptimizeConvexes);
 
 		// Build the simplified shapes
 		void BuildConvexShapes(const FShapesArray& UnionShapes);
