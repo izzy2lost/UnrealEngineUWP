@@ -1039,7 +1039,7 @@ bool UNiagaraDataInterfaceGrid2D::GetFunctionHLSL(const FNiagaraDataInterfaceGPU
 			void {FunctionName}(out float2 Out_Unit)
 			{
 				#if NIAGARA_DISPATCH_TYPE == NIAGARA_DISPATCH_TYPE_TWO_D || NIAGARA_DISPATCH_TYPE == NIAGARA_DISPATCH_TYPE_CUSTOM
-					Out_Unit = (float2(GDispatchThreadId.x, GDispatchThreadId.y) + .5) * {UnitToUVName};			
+					Out_Unit = (float2(GDispatchThreadId.x, GDispatchThreadId.y) + .5) * rcp(1.f/{NumCellsName});
 				#else
 					const uint Linear = GLinearThreadId;
 					const uint IndexX = Linear % {NumCellsName}.x;
