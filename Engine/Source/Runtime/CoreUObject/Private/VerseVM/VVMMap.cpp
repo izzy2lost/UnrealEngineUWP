@@ -56,7 +56,7 @@ uint32 VMapBase::GetTypeHashImpl()
 	uint32 Result = 0;
 	for (VMapBaseInternal::TConstIterator MapIt = InternalMap.CreateConstIterator(); MapIt; ++MapIt)
 	{
-		::HashCombineFast(Result, ::HashCombineFast(GetTypeHash(MapIt.Key()), GetTypeHash(MapIt.Value())));
+		Result = ::HashCombineFast(Result, ::HashCombineFast(GetTypeHash(MapIt.Key()), GetTypeHash(MapIt.Value())));
 	}
 	return Result;
 }

@@ -210,7 +210,7 @@ inline uint32 GetTypeHash(const VHeapInt& HeapInt)
 
 	for (uint32 I = 0; I < HeapInt.GetLength(); I++)
 	{
-		::HashCombineFast(Result, ::GetTypeHash(HeapInt.GetDigit(I)));
+		Result = ::HashCombineFast(Result, ::GetTypeHash(HeapInt.GetDigit(I)));
 	}
 
 	return Result;

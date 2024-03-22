@@ -88,10 +88,17 @@ uint32 VObject::GetTypeHashImpl()
 	for (VShape::FieldsMap::TConstIterator It = GetEmergentType()->Shape->Fields; It; ++It)
 	{
 		// Hash Field Name
-		::HashCombineFast(Result, GetTypeHash(It.Key()));
+		Result = ::HashCombineFast(Result, GetTypeHash(It.Key()));
 
 		// Hash Value
-		It.Value().Type == EFieldType::Constant ? ::HashCombineFast(Result, GetTypeHash(It.Value().Value)) : ::HashCombineFast(Result, GetTypeHash(Data[It.Value().Index]));
+		if (It.Value().Type == EFieldType::Constant)
+		{
+			Result = ::HashCombineFast(Result, GetTypeHash(It.Value().Value));
+		}
+		else
+		{
+			Result = ::HashCombineFast(Result, GetTypeHash(Data[It.Value().Index]));
+		}
 	}
 	return Result;
 }
