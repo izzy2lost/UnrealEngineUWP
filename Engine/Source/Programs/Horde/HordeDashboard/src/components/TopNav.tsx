@@ -531,13 +531,13 @@ export const TopNav: React.FC<{ suppressServer?: boolean }> = observer(({ suppre
             text: "User Accounts",
             link: `/accounts`
          });
-         resourceItems.push({
-            key: "admin_service_accounts",
-            text: "Service Accounts",
-            link: `/accounts/service`
-         });
-
       }
+
+      resourceItems.push({
+         key: "admin_service_accounts",
+         text: "Service Accounts",
+         link: `/accounts/service`
+      });
 
       if (resourceItems.length) {
          subItems.push({
