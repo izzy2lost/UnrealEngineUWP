@@ -1,5 +1,5 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
-#include "Chaos/Deformable/GaussSeidelMasterConstraint.h"
+#include "Chaos/Deformable/GaussSeidelMainConstraint.h"
 #include "Chaos/Math/Krylov.h"
 
 namespace Chaos::Softs
@@ -13,7 +13,7 @@ namespace Chaos::Softs
 	FAutoConsoleVariableRef CVarClothCGTol(TEXT("p.Chaos.Cloth.CGTol"), MaxItCG, TEXT("CG Tolerance [def: 1e-4]"));
 
 	template <typename T, typename ParticleType>
-	void FGaussSeidelMasterConstraint<T, ParticleType>::AddStaticConstraints(const TArray<TArray<int32>>& ExtraConstraints, TArray<TArray<int32>>& ExtraIncidentElements, TArray<TArray<int32>>& ExtraIncidentElementsLocal)
+	void FGaussSeidelMainConstraint<T, ParticleType>::AddStaticConstraints(const TArray<TArray<int32>>& ExtraConstraints, TArray<TArray<int32>>& ExtraIncidentElements, TArray<TArray<int32>>& ExtraIncidentElementsLocal)
 	{	
 		if (!IsClean(ExtraConstraints, ExtraIncidentElements, ExtraIncidentElementsLocal))
 		{
@@ -44,7 +44,7 @@ namespace Chaos::Softs
 	}
 
 	template <typename T, typename ParticleType>
-	void FGaussSeidelMasterConstraint<T, ParticleType>::AddDynamicConstraints(const TArray<TArray<int32>>& ExtraConstraints, TArray<TArray<int32>>& ExtraIncidentElements, TArray<TArray<int32>>& ExtraIncidentElementsLocal, bool CheckIncidentElements)
+	void FGaussSeidelMainConstraint<T, ParticleType>::AddDynamicConstraints(const TArray<TArray<int32>>& ExtraConstraints, TArray<TArray<int32>>& ExtraIncidentElements, TArray<TArray<int32>>& ExtraIncidentElementsLocal, bool CheckIncidentElements)
 	{
 		if (CheckIncidentElements)
 		{
@@ -79,7 +79,7 @@ namespace Chaos::Softs
 	}
 
 	template <typename T, typename ParticleType>
-	TArray<TVec3<T>> FGaussSeidelMasterConstraint<T, ParticleType>::ComputeNewtonResiduals(const ParticleType& Particles, const T Dt, const bool Write2File, TArray<PMatrix<T, 3, 3>>* AllParticleHessian)
+	TArray<TVec3<T>> FGaussSeidelMainConstraint<T, ParticleType>::ComputeNewtonResiduals(const ParticleType& Particles, const T Dt, const bool Write2File, TArray<PMatrix<T, 3, 3>>* AllParticleHessian)
 	{
 		TRACE_CPUPROFILER_EVENT_SCOPE(STAT_ChaosGaussSeidelComputeNewtonResidual);
 
@@ -165,7 +165,7 @@ namespace Chaos::Softs
 	}
 
 	template <typename T, typename ParticleType>
-	void FGaussSeidelMasterConstraint<T, ParticleType>::ApplyCG(ParticleType& Particles, const T Dt)
+	void FGaussSeidelMainConstraint<T, ParticleType>::ApplyCG(ParticleType& Particles, const T Dt)
 	{
 		TRACE_CPUPROFILER_EVENT_SCOPE(STAT_ChaosGaussSeidelApplyCG);
 		TFunction<void(TArray<FSolverVec3>&)> ProjectBCs = [&Particles](TArray<FSolverVec3>& y)
@@ -222,8 +222,8 @@ namespace Chaos::Softs
 }
 
 
-template class Chaos::Softs::FGaussSeidelMasterConstraint<Chaos::Softs::FSolverReal, Chaos::Softs::FSolverParticles>;
+template class Chaos::Softs::FGaussSeidelMainConstraint<Chaos::Softs::FSolverReal, Chaos::Softs::FSolverParticles>;
 
-template CHAOS_API void Chaos::Softs::FGaussSeidelMasterConstraint<Chaos::FRealDouble, Chaos::TDynamicParticles<Chaos::FRealDouble, 3>>::AddStaticConstraints(const TArray<TArray<int32>>& ExtraConstraints, TArray<TArray<int32>>& ExtraIncidentElements, TArray<TArray<int32>>& ExtraIncidentElementsLocal);
+template CHAOS_API void Chaos::Softs::FGaussSeidelMainConstraint<Chaos::FRealDouble, Chaos::TDynamicParticles<Chaos::FRealDouble, 3>>::AddStaticConstraints(const TArray<TArray<int32>>& ExtraConstraints, TArray<TArray<int32>>& ExtraIncidentElements, TArray<TArray<int32>>& ExtraIncidentElementsLocal);
 
-template CHAOS_API void Chaos::Softs::FGaussSeidelMasterConstraint<Chaos::FRealDouble, Chaos::TDynamicParticles<Chaos::FRealDouble, 3>>::AddDynamicConstraints(const TArray<TArray<int32>>& ExtraConstraints, TArray<TArray<int32>>& ExtraIncidentElements, TArray<TArray<int32>>& ExtraIncidentElementsLocal, bool CheckIncidentElements);
+template CHAOS_API void Chaos::Softs::FGaussSeidelMainConstraint<Chaos::FRealDouble, Chaos::TDynamicParticles<Chaos::FRealDouble, 3>>::AddDynamicConstraints(const TArray<TArray<int32>>& ExtraConstraints, TArray<TArray<int32>>& ExtraIncidentElements, TArray<TArray<int32>>& ExtraIncidentElementsLocal, bool CheckIncidentElements);
