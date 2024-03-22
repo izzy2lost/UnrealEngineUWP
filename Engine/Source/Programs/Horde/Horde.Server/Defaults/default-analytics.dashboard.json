@@ -85,8 +85,8 @@
 									"threshold": 360
 								},
 								{
-									"id": "core-loading-user-editorstartuptime-percentile",
-									"alias": "Editor Startup",
+									"id": "core-loading-user-editorboottime-percentile",
+									"alias": "Editor Boot",
 									"threshold": 120
 								},
 								{
@@ -113,7 +113,7 @@
 								},
 								{
 									"id": "core-loading-user-editorstartuptime",
-									"alias": "Editor Startup",
+									"alias": "Editor Boot",
 									"threshold": 120
 								},
 								{
@@ -141,6 +141,10 @@
 						{
 							"name": "User Loading Time (KPIs)",
 							"metrics": [
+								{
+									"id": "core-loading-user-editorbottime-kpi",
+									"alias": "EditorBoot"
+								},
 								{
 									"id": "core-loading-user-editorstartuptime-kpi",
 									"alias": "TotalEditorStartup"

@@ -2,7 +2,7 @@
 	"metrics": [
 		{
 			"id": "editor-performance-cache-warning",
-			"filter": "$[?(@.Payload.EventName == 'Editor.PerformanceWarning' && @.Payload.KPI_Category=='Cache' && @.Payload.KPI_DisplayType=='Percent')]",
+			"filter": "$[?(@.Payload.EventName == 'Editor.Performance.Warning' && @.Payload.KPI_Category=='Cache' && @.Payload.KPI_DisplayType=='Percent')]",
 			"groupBy": "$.Payload.Build_BranchName,$.Payload.ProjectName,$.Payload.KPI_Name",
 			"property": "$.Payload.KPI_CurrentValue",
 			"function": "Average",
@@ -10,7 +10,7 @@
 		},
 		{
 			"id": "editor-performance-editor-warning",
-			"filter": "$[?(@.Payload.EventName == 'Editor.PerformanceWarning' && @.Payload.KPI_Category=='Editor')]",
+			"filter": "$[?(@.Payload.EventName == 'Editor.Performance.Warning' && @.Payload.KPI_Category=='Editor')]",
 			"groupBy": "$.Payload.Build_BranchName,$.Payload.ProjectName,$.Payload.MapName,$.Payload.KPI_Name",
 			"property": "$.Payload.KPI_CurrentValue",
 			"function": "Average",
@@ -18,7 +18,7 @@
 		},
 		{
 			"id": "editor-performance-pie-warning",
-			"filter": "$[?(@.Payload.EventName == 'Editor.PerformanceWarning' && @.Payload.KPI_Category=='PIE')]",
+			"filter": "$[?(@.Payload.EventName == 'Editor.Performance.Warning' && @.Payload.KPI_Category=='PIE')]",
 			"groupBy": "$.Payload.Build_BranchName,$.Payload.ProjectName,$.Payload.MapName,$.Payload.KPI_Name",
 			"property": "$.Payload.KPI_CurrentValue",
 			"function": "Average",
@@ -26,7 +26,7 @@
 		},
 		{
 			"id": "editor-performance-warning-count",
-			"filter": "$[?(@.Payload.EventName == 'Editor.PerformanceWarning')]",
+			"filter": "$[?(@.Payload.EventName == 'Editor.Performance.Warning')]",
 			"groupBy": "$.Payload.Build_BranchName,$.Payload.ProjectName,$.Payload.KPI_Category,$.Payload.KPI_Name",
 			"function": "Count",
 			"interval": "00:15:00"
@@ -44,6 +44,14 @@
 			"filter": "$[?(@.Payload.EventName == 'Core.Loading' &&@.Payload.Config_IsBuildMachine==false )]",
 			"groupBy": "$.Payload.Build_BranchName,$.Payload.ProjectName,$.Payload.LoadingName",
 			"function": "Count",
+			"interval": "00:15:00"
+		},
+		{
+			"id": "core-loading-user-editorboottime",
+			"filter": "$[?(@.Payload.EventName == 'Core.Loading' && @.Payload.LoadingName=='BootEditor' && @.Payload.Config_IsBuildMachine==false && @.Payload.Config_IsRunningCommandlet==false && @.Payload.LoadingSeconds>5 && @.Payload.LoadingSeconds<3600)]",
+			"property": "$.Payload.LoadingSeconds",
+			"groupBy": "$.Payload.Build_BranchName,$.Payload.ProjectName,$.Payload.ProjectName",
+			"function": "Average",
 			"interval": "00:15:00"
 		},
 		{
@@ -92,6 +100,14 @@
 			"groupBy": "$.Payload.Build_BranchName,$.Payload.ProjectName,$.Payload.MapName",
 			"function": "Average",
 			"interval": "00:15:00"
+		},
+		{
+			"id": "core-loading-user-editorboottime-kpi",
+			"filter": "$[?(@.Payload.EventName == 'Core.Loading' && @.Payload.LoadingName=='BootEditor' && @.Payload.Config_IsBuildMachine==false && @.Payload.Config_IsRunningCommandlet==false && @.Payload.LoadingSeconds>5 && @.Payload.LoadingSeconds<3600)]",
+			"property": "$.Payload.LoadingSeconds",
+			"groupBy": "$.Payload.Build_BranchName,$.Payload.ProjectName",
+			"function": "Average",
+			"interval": "01:00:00"
 		},
 		{
 			"id": "core-loading-user-editorstartuptime-kpi",
@@ -169,6 +185,15 @@
 			"id": "core-loading-user-timetopie-percentile",
 			"filter": "$[?(@.Payload.EventName == 'Core.Loading' && @.Payload.LoadingName=='TimeToPIE' && @.Payload.Config_IsBuildMachine==false && @.Payload.Config_IsRunningCommandlet==false && @.Payload.LoadingSeconds>5 && @.Payload.LoadingSeconds<3600)]",
 			"groupBy": "$.Payload.Build_BranchName,$.Payload.ProjectName,$.Payload.MapName",
+			"property": "$.Payload.LoadingSeconds",
+			"function": "Percentile",
+			"percentile": 75,
+			"interval": "00:15:00"
+		},
+		{
+			"id": "core-loading-user-editorboottime-percentile",
+			"filter": "$[?(@.Payload.EventName == 'Core.Loading' && @.Payload.LoadingName=='BootEditor' && @.Payload.Config_IsBuildMachine==false && @.Payload.Config_IsRunningCommandlet==false && @.Payload.LoadingSeconds>5 && @.Payload.LoadingSeconds<3600 )]",
+			"groupBy": "$.Payload.Build_BranchName,$.Payload.ProjectName",
 			"property": "$.Payload.LoadingSeconds",
 			"function": "Percentile",
 			"percentile": 75,
