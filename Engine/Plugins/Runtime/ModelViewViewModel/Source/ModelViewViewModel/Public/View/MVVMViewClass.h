@@ -492,7 +492,7 @@ private:
 	FMVVMViewClass_SourceKey SourceToReevaluate;
 	
 	UPROPERTY()
-	uint64 SourceBitField;
+	uint64 SourceBitField = 0;
 };
 
 
