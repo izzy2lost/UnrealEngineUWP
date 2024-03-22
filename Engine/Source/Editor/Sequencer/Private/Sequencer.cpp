@@ -10630,6 +10630,12 @@ void FSequencer::BindCommands()
 		FExecuteAction::CreateSP(this, &FSequencer::SortAllNodesAndDescendants));
 
 	SequencerCommandBindings->MapAction(
+		Commands.ToggleShowMarkedFrames,
+		FExecuteAction::CreateLambda([this] { Settings->SetShowMarkedFrames(!Settings->GetShowMarkedFrames()); }),
+		FCanExecuteAction::CreateLambda([] { return true; }),
+		FIsActionChecked::CreateLambda([this] { return Settings->GetShowMarkedFrames(); }));
+
+	SequencerCommandBindings->MapAction(
 		Commands.ToggleShowMarkedFramesGlobally,
 		FExecuteAction::CreateSP(this, &FSequencer::ToggleShowMarkedFramesGlobally),
 		FCanExecuteAction::CreateLambda([this] { return GetFocusedMovieSceneSequence() != nullptr; }),

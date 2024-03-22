@@ -105,6 +105,19 @@ void UMovieScene::PostLoad()
 {
 	SortMarkedFrames();
 
+#if WITH_EDITORONLY_DATA
+	for (FMovieSceneMarkedFrame& MarkedFrame : MarkedFrames)
+	{
+		const FLinearColor DefaultDeprecatedColor(0.f, 1.f, 1.f, 0.4f);
+
+		if (MarkedFrame.Color_DEPRECATED != DefaultDeprecatedColor)
+		{
+			MarkedFrame.bUseCustomColor = true;
+			MarkedFrame.CustomColor = MarkedFrame.Color_DEPRECATED;
+		}
+	}
+#endif
+
 	Super::PostLoad();
 }
 

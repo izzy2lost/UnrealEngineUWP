@@ -55,6 +55,7 @@ USequencerSettings::USequencerSettings( const FObjectInitializer& ObjectInitiali
 	KeyAreaHeightWithCurves = SequencerLayoutConstants::KeyAreaHeight;
 	bDeleteKeysWhenTrimming = true;
 	bDisableSectionsAfterBaking = true;
+	MarkedFrameColor = FLinearColor(0.f, 1.f, 1.f, 0.4f);
 	bCleanPlaybackMode = true;
 	bActivateRealtimeViewports = true;
 	bEvaluateSubSequencesInIsolation = false;
@@ -67,6 +68,7 @@ USequencerSettings::USequencerSettings( const FObjectInitializer& ObjectInitiali
 	TreeViewWidth = 0.3f;
 	bShowTickLines = true;
 	bShowSequencerToolbar = true;
+	bShowMarkedFrames = true;
 	ViewDensity = "Relaxed";
 
 	SectionColorTints.Add(FColor(88, 102, 142, 255)); // blue
@@ -668,6 +670,20 @@ void USequencerSettings::SetShowSequencerToolbar(bool bInShowSequencerToolbar)
 	}
 }
 
+bool USequencerSettings::GetShowMarkedFrames() const
+{
+	return bShowMarkedFrames;
+}
+
+void USequencerSettings::SetShowMarkedFrames(bool bInShowMarkedFrames)
+{
+	if (bShowMarkedFrames != bInShowMarkedFrames)
+	{
+		bShowMarkedFrames = bInShowMarkedFrames;
+		SaveConfig();
+	}
+}
+
 bool USequencerSettings::HasKeyAreaCurveExtents(const FString& ChannelName) const
 {
 	TArray<FString> ChannelsArray;
@@ -792,6 +808,20 @@ void USequencerSettings::SetDisableSectionsAfterBaking(bool bInDisableSectionsAf
 	if (bDisableSectionsAfterBaking != bInDisableSectionsAfterBaking)
 	{
 		bDisableSectionsAfterBaking = bInDisableSectionsAfterBaking;
+		SaveConfig();
+	}
+}
+
+FLinearColor USequencerSettings::GetMarkedFrameColor() const
+{
+	return MarkedFrameColor;
+}
+
+void USequencerSettings::SetMarkedFrameColor(const FLinearColor& InMarkedFrameColor)
+{
+	if (MarkedFrameColor != InMarkedFrameColor)
+	{
+		MarkedFrameColor = InMarkedFrameColor;
 		SaveConfig();
 	}
 }

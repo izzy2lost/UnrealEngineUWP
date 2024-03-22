@@ -342,6 +342,11 @@ public:
 	/** Set whether to show sequencer toolbar bar */
 	void SetShowSequencerToolbar(bool bInDrawTickLines);
 
+	/** @return true if showing marked frames */
+	bool GetShowMarkedFrames() const;
+	/** Set whether to show marked frames */
+	void SetShowMarkedFrames(bool bShowMarkedFrames);
+
 	/** @return Whether the given channel has curve extents */
 	bool HasKeyAreaCurveExtents(const FString& ChannelName) const;
 	/** @ Remove curve extents for the given channel */
@@ -370,6 +375,11 @@ public:
 	bool GetDisableSectionsAfterBaking() const;
 	/** Set whether to disable sections when baking, as opposed to deleting */
 	void SetDisableSectionsAfterBaking(bool bInDisableSectionsAfterBaking);
+
+	/** @return the default marked frame color */
+	FLinearColor GetMarkedFrameColor() const;
+	/** Set the default marked frame color */
+	void SetMarkedFrameColor(const FLinearColor& InColor);
 
 	/** @return the section color tints */
 	TArray<FColor> GetSectionColorTints() const;
@@ -650,6 +660,10 @@ protected:
 	UPROPERTY(config, EditAnywhere, Category = Timeline)
 	bool bShowSequencerToolbar;
 
+	/** Enable or disable showing marked frames */
+	UPROPERTY(config, EditAnywhere, Category = Timeline)
+	bool bShowMarkedFrames;
+
 	/** The key area curve extents, stored per channel name */
 	UPROPERTY(config, EditAnywhere, Category = Timeline)
 	FString KeyAreaCurveExtents;
@@ -669,6 +683,10 @@ protected:
 	/** Whether to disable sections after baking as opposed to deleting. */
 	UPROPERTY(config, EditAnywhere, Category = Timeline)
 	bool bDisableSectionsAfterBaking;
+	
+	/** Default marked frame color */
+	UPROPERTY(config, EditAnywhere, Category = Timeline)
+	FLinearColor MarkedFrameColor;
 
 	/** Section color tints */
 	UPROPERTY(config, EditAnywhere, Category = General)

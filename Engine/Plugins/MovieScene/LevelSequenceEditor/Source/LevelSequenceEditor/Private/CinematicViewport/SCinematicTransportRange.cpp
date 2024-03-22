@@ -263,6 +263,7 @@ int32 SCinematicTransportRange::OnPaint(const FPaintArgs& Args, const FGeometry&
 	}
 
 	// Draw the marked frames
+	const FLinearColor DefaultMarkedFrameColor = Sequencer->GetSequencerSettings()->GetMarkedFrameColor();
 	TArray<FMovieSceneMarkedFrame> MarkedFrames = Sequencer->GetMarkedFrames();
 	if (MarkedFrames.Num())
 	{
@@ -287,8 +288,9 @@ int32 SCinematicTransportRange::OnPaint(const FPaintArgs& Args, const FGeometry&
 		while ( Index < MarkedFrames.Num() )
 		{
 			FFrameNumber PredicateTime = MarkedFrames[Index].FrameNumber;
+			FLinearColor MarkedFrameColor = MarkedFrames[Index].bUseCustomColor ? MarkedFrames[Index].CustomColor : DefaultMarkedFrameColor;
 			GroupedTimes.Add(PredicateTime);
-			KeyColors.Add(MarkedFrames[Index].Color);
+			KeyColors.Add(MarkedFrameColor);
 			KeyColors[KeyColors.Num()-1].A = 0.8f; // make the alpha consistent across all markers
 
 			while (Index < MarkedFrames.Num() && FMath::Abs(MarkedFrames[Index].FrameNumber - PredicateTime) <= ThresholdFrames)

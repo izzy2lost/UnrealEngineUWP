@@ -325,6 +325,11 @@ void FSequencerTimeSliderController::DrawTicks( FSlateWindowElementList& OutDraw
 
 int32 FSequencerTimeSliderController::DrawMarkedFrames( const FGeometry& AllottedGeometry, const FScrubRangeToScreen& RangeToScreen, FSlateWindowElementList& OutDrawElements, int32 LayerId, const ESlateDrawEffect& DrawEffects, const FWidgetStyle& InWidgetStyle, bool bDrawLabels ) const
 {
+	if (!WeakSequencer.Pin()->GetSequencerSettings()->GetShowMarkedFrames())
+	{
+		return LayerId;
+	}
+
 	using namespace UE::Sequencer;
 
 	const TArray<FMovieSceneMarkedFrame> & MarkedFrames = TimeSliderArgs.MarkedFrames.Get();
@@ -337,6 +342,7 @@ int32 FSequencerTimeSliderController::DrawMarkedFrames( const FGeometry& Allotte
 	const FMarkedFrameSelection& SelectedMarkedFrames = WeakSequencer.Pin()->GetViewModel()->GetSelection()->MarkedFrames;
 	//const FLinearColor SelectedColor = FLinearColor::White; //FAppStyle::GetSlateColor("SelectionColor").GetColor(InWidgetStyle);
 	const FLinearColor WhiteColorHSV = FLinearColor::White.LinearRGBToHSV();
+	const FLinearColor DefaultMarkedFrameColor = WeakSequencer.Pin()->GetSequencerSettings()->GetMarkedFrameColor();
 
 	auto DrawFrameMarkers = ([=, this](const TArray<FMovieSceneMarkedFrame> & InMarkedFrames, FSlateWindowElementList& DrawElements, bool bIsGlobal)
 	{
@@ -350,7 +356,8 @@ int32 FSequencerTimeSliderController::DrawMarkedFrames( const FGeometry& Allotte
 
 			// Get a selected color that's the marked frame color but at full opacity, full brightness, and a bit desaturated if it's
 			// already bright to begin with.
-			const FLinearColor MarkedFrameColorHSV = MarkedFrame.Color.CopyWithNewOpacity(1.f).LinearRGBToHSV();
+			const FLinearColor MarkedFrameColor = MarkedFrame.bUseCustomColor ? MarkedFrame.CustomColor : DefaultMarkedFrameColor;
+			const FLinearColor MarkedFrameColorHSV = MarkedFrameColor.CopyWithNewOpacity(1.f).LinearRGBToHSV();
 			const FLinearColor SelectedColor = FLinearColor::LerpUsingHSV(
 				MarkedFrameColorHSV, 
 				FLinearColor(
@@ -360,7 +367,7 @@ int32 FSequencerTimeSliderController::DrawMarkedFrames( const FGeometry& Allotte
 				0.5f)
 				.HSVToLinearRGB();
 
-			FLinearColor DrawColor = bIsGlobal ? MarkedFrame.Color.Desaturate(0.25f) : (bIsSelected ? SelectedColor : MarkedFrame.Color);
+			FLinearColor DrawColor = bIsGlobal ? MarkedFrameColor.Desaturate(0.25f) : (bIsSelected ? SelectedColor : MarkedFrameColor);
 			const float  LinePos = RangeToScreen.InputToLocalX(Seconds);
 			TArray<FVector2D> LinePoints;
 			LinePoints.AddUninitialized(2);

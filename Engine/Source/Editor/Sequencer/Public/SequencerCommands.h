@@ -286,6 +286,9 @@ public:
 	/** Set mode to key all. */
 	TSharedPtr< FUICommandInfo > SetKeyAll;
 
+	/** Toggle showing marked frames */
+	TSharedPtr< FUICommandInfo> ToggleShowMarkedFrames;
+
 	/** Toggle on/off a Mark at the current time **/
 	TSharedPtr< FUICommandInfo> ToggleMarkAtPlayPosition;
 
