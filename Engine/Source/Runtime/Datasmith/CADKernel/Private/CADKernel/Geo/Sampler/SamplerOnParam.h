@@ -324,21 +324,21 @@ public:
 		CandidatePoints.Empty(100);
 
 		// Initialization of the algorithm with the not derivable coordinates of the curve and at least 5 temporary points
-		int32 ComplementatyPointCount = 0;
+		int32 ComplementaryPointOffset = 0;
 		{
 			TArray<double> LocalNotDerivableCoordinates;
 			GetNotDerivableCoordinates(LocalNotDerivableCoordinates);
 			LocalNotDerivableCoordinates.Insert(Boundary.Min, 0);
 			LocalNotDerivableCoordinates.Add(Boundary.Max);
 
-			ComplementatyPointCount = LocalNotDerivableCoordinates.Num() < 5 ? 5 : 1;
+			ComplementaryPointOffset = LocalNotDerivableCoordinates.Num() < 5 ? 5 : 1;
 
-			NextCoordinates.Empty(LocalNotDerivableCoordinates.Num() * (ComplementatyPointCount + 1));
+			NextCoordinates.Empty(LocalNotDerivableCoordinates.Num() * (ComplementaryPointOffset + 1));
 			NextCoordinates.Add(Boundary.Min);
 
 			for (int32 Index = 0; Index < LocalNotDerivableCoordinates.Num() - 1; ++Index)
 			{
-				AddIntermediateCoordinates(LocalNotDerivableCoordinates[Index], LocalNotDerivableCoordinates[Index + 1], ComplementatyPointCount);
+				AddIntermediateCoordinates(LocalNotDerivableCoordinates[Index], LocalNotDerivableCoordinates[Index + 1], ComplementaryPointOffset);
 				NextCoordinates.Add(LocalNotDerivableCoordinates[Index + 1]);
 			}
 		}
@@ -347,18 +347,15 @@ public:
 		EvaluatesNewCandidatePoints();
 
 		// Not Derivable point initialize the sampling
-		ComplementatyPointCount++;
-		for (int32 Index = 0, ISampling = 0; Index < CandidatePoints.Size(); Index += ComplementatyPointCount, ++ISampling)
+		ComplementaryPointOffset++;
+		for (int32 Index = 0, ISampling = 0; Index < CandidatePoints.Size(); Index += ComplementaryPointOffset, ++ISampling)
 		{
 			Sampling.EmplaceAt(ISampling, CandidatePoints, Index);
 			IsOptimalSegments.Add(false);
 		}
 		IsOptimalSegments.Pop();
 
-		for (int32 Index = CandidatePoints.Size() - 1; Index >= 0; Index -= ComplementatyPointCount)
-		{
-			CandidatePoints.RemoveAt(Index);
-		}
+		CandidatePoints.RemoveComplementaryPoints(ComplementaryPointOffset);
 
 		// first segment is not optimal
 

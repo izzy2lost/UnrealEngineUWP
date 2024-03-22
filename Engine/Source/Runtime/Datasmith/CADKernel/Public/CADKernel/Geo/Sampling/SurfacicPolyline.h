@@ -394,18 +394,47 @@ public:
 		}
 	}
 
-	void RemoveAt(int32 Index)
+	void RemoveComplementaryPoints(int32 Offset)
 	{
-		Coordinates.RemoveAt(Index);
-		Points2D.RemoveAt(Index);
-		Points3D.RemoveAt(Index);
+		const int32 Count = Points2D.Num();
+
+		TBitArray<> Markers(true, Count);
+
+		for (int32 Index = Count - 1; Index >= 0; Index -= Offset)
+		{
+			Markers[Index] = false;
+		}
+
+		int32 CurrentIndex = 0;
+		for (int32 Index = 0; Index < Count; ++Index)
+		{
+			if (Markers[Index])
+			{
+				Coordinates[CurrentIndex] = Coordinates[Index];
+				Points2D[CurrentIndex] = Points2D[Index];
+				Points3D[CurrentIndex] = Points3D[Index];
+				if (bWithNormals)
+				{
+					Normals[CurrentIndex] = Normals[Index];
+				}
+				if (bWithTangent)
+				{
+					Tangents[CurrentIndex] = Tangents[Index];
+				}
+				++CurrentIndex;
+			}
+		}
+
+		Coordinates.SetNum(CurrentIndex, EAllowShrinking::No);
+		Points2D.SetNum(CurrentIndex, EAllowShrinking::No);
+		Points3D.SetNum(CurrentIndex, EAllowShrinking::No);
 		if (bWithNormals)
 		{
-			Normals.RemoveAt(Index);
+			Normals.SetNum(CurrentIndex, EAllowShrinking::No);
 		}
 		if (bWithTangent)
 		{
-			Tangents.RemoveAt(Index);
+			Tangents.SetNum(CurrentIndex, EAllowShrinking::No);
 		}
 	}
 

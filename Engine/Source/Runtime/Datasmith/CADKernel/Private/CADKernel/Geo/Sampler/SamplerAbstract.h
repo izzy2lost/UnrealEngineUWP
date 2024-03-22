@@ -101,7 +101,7 @@ protected:
 		CandidatePoints.Empty(100);
 
 		// Initialization of the algorithm with the not derivable coordinates of the curve and at least 5 temporary points
-		int32 ComplementatyPointCount = 0;
+		int32 ComplementaryPointOffset = 0;
 		{
 			TArray<double> NotDerivableCoordinates;
 			GetNotDerivableCoordinates(NotDerivableCoordinates);
@@ -109,34 +109,32 @@ protected:
 			NotDerivableCoordinates.Insert(Boundary.Min, 0);
 			NotDerivableCoordinates.Add(Boundary.Max);
 
-			ComplementatyPointCount = NotDerivableCoordinates.Num() < 10 ? 10 : 1;
+			ComplementaryPointOffset = NotDerivableCoordinates.Num() < 10 ? 10 : 1;
 
-			NextCoordinates.Empty(NotDerivableCoordinates.Num() * (ComplementatyPointCount + 1));
+			NextCoordinates.Empty(NotDerivableCoordinates.Num() * (ComplementaryPointOffset + 1));
 			NextCoordinates.Add(Boundary.Min);
 
 			for (int32 Index = 0; Index < NotDerivableCoordinates.Num() - 1; ++Index)
 			{
-				AddIntermediateCoordinates(NotDerivableCoordinates[Index], NotDerivableCoordinates[Index + 1], ComplementatyPointCount);
+				AddIntermediateCoordinates(NotDerivableCoordinates[Index], NotDerivableCoordinates[Index + 1], ComplementaryPointOffset);
 				NextCoordinates.Add(NotDerivableCoordinates[Index + 1]);
 			}
 		}
 
+		// #cadkernel_check: Could we do a MoveTem?
 		CandidatePoints.SwapCoordinates(NextCoordinates);
 		EvaluatesNewCandidatePoints();
 
 		// Not Derivable point initialize the sampling
-		ComplementatyPointCount++;
-		for (int32 Index = 0, ISampling = 0; Index < CandidatePoints.Size(); Index += ComplementatyPointCount, ++ISampling)
+		ComplementaryPointOffset++;
+		for (int32 Index = 0, ISampling = 0; Index < CandidatePoints.Size(); Index += ComplementaryPointOffset, ++ISampling)
 		{
 			Sampling.EmplaceAt(ISampling, CandidatePoints, Index);
 			IsOptimalSegments.Add(false);
 		}
 		IsOptimalSegments.Pop();
 
-		for (int32 Index = CandidatePoints.Size() - 1; Index >= 0; Index -= ComplementatyPointCount)
-		{
-			CandidatePoints.RemoveAt(Index);
-		}
+		CandidatePoints.RemoveComplementaryPoints(ComplementaryPointOffset);
 
 		// first segment is not optimal
 

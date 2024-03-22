@@ -154,10 +154,31 @@ public:
 		Points.EmplaceAt(Index, Polyline.Points[PointIndex]);
 	}
 
-	void RemoveAt(int32 Index)
+
+	void RemoveComplementaryPoints(int32 Offset)
 	{
-		Coordinates.RemoveAt(Index);
-		Points.RemoveAt(Index);
+		const int32 Count = Points.Num();
+
+		TBitArray<> Markers(true, Count);
+
+		for (int32 Index = Count - 1; Index >= 0; Index -= Offset)
+		{
+			Markers[Index] = false;
+		}
+
+		int32 CurrentIndex = 0;
+		for (int32 Index = 0; Index < Count; ++Index)
+		{
+			if (Markers[Index])
+			{
+				Coordinates[CurrentIndex] = Coordinates[Index];
+				Points[CurrentIndex] = Points[Index];
+				++CurrentIndex;
+			}
+		}
+
+		Coordinates.SetNum(CurrentIndex, EAllowShrinking::No);
+		Points.SetNum(CurrentIndex, EAllowShrinking::No);
 	}
 
 	void Pop()
