@@ -1531,6 +1531,10 @@ namespace UnrealGameSync
 			{
 				_updateMonitor.TriggerUpdate(UpdateType.UserInitiated, true);
 			}
+			else if (result == ApplicationSettingsWindow.Result.Quit)
+			{
+				ForceClose();
+			}
 
 			for (int idx = 0; idx < TabControl.GetTabCount(); idx++)
 			{
