@@ -174,6 +174,13 @@ bool FAnimationSequenceAsyncCacheTask::BuildData() const
 {	
 	// This is where we should do the compression parts
 	TRACE_CPUPROFILER_EVENT_SCOPE_TEXT(*(FString(TEXT("FAnimationSequenceAsyncCacheTask::BuildData ") + CompressibleAnimPtr->Name)));
+
+	// Early out before logging if we are canceled (could be retracting this task)
+	if (Owner.IsCanceled())
+	{
+		return false;
+	}
+
 	UE_LOG(LogAnimationCompression, Display, TEXT("Building compressed animation data for %s (Required Memory Estimate: %.2f MB)"),
 		*CompressibleAnimPtr->FullName, double(GetRequiredMemoryEstimate()) / (1024.0 * 1024.0));
 
@@ -201,11 +208,12 @@ bool FAnimationSequenceAsyncCacheTask::BuildData() const
 		return false;
 	}
 	const bool bCurveCompressionOk = FAnimationUtils::CompressAnimCurves(DataToCompress, OutData);
-				
+	const bool bIsCanceled = Owner.IsCanceled();
+
 	const bool bCompressionSuccessful = bBoneCompressionOk && bCurveCompressionOk;
 	const FString CompressionName = DataToCompress.BoneCompressionSettings->GetFullName();
-	
-	if (bCompressionSuccessful && !Owner.IsCanceled())
+
+	if (bCompressionSuccessful && !bIsCanceled)
 	{
 		OutData.CompressedByteStream = MoveTemp(CompressionResult.CompressedByteStream);
 		OutData.CompressedDataStructure = MoveTemp(CompressionResult.AnimData);
@@ -215,7 +223,7 @@ bool FAnimationSequenceAsyncCacheTask::BuildData() const
 		
 		return true;
 	}
-	else
+	else if(!bIsCanceled)
 	{
 		UE_LOG(LogAnimationCompression, Error, TEXT("Failed to generate compressed animation data for %s with compression scheme %s for target platform %s"), *CompressibleAnimPtr->FullName, *CompressionName, *TargetPlatform->DisplayName().ToString());
 	}
