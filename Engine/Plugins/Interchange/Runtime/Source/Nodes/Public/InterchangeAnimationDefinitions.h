@@ -3,6 +3,7 @@
 #pragma once
 
 #include "UObject/NameTypes.h"
+#include "Types/AttributeStorage.h"
 
 #include "InterchangeAnimationDefinitions.generated.h"
 
@@ -11,6 +12,7 @@ enum class EInterchangePropertyTracks : int32
 {
 	/** Common Properties*/
 	Visibility,
+	AutoActivate,
 
 	/** Light Properties */
 	LightColor,
@@ -20,15 +22,21 @@ enum class EInterchangePropertyTracks : int32
 	LightUseTemperature,
 
 	/** Camera Properties*/
-	CameraAutoActivate,
+	CameraAspectRatio,
+	CameraAutoCalculateOrthoPlanes,
 	CameraAspectRatioAxisConstraint,
 	CameraConstrainAspectRatio,
 	CameraCurrentAperture,
 	CameraCurrentFocalLength,
 	CameraCustomNearClippingPlane,
 	CameraFieldOfView,
+	CameraFilmbackSensorAspectRatio,
+	CameraFilmbackSensorHeight,
+	CameraFilmbackSensorWidth,
+	CameraFocusSettingsManualFocusDistance,
 	CameraMobility,
 	CameraOrthoFarClipPlane,
+	CameraOrthoNearClipPlane,
 	CameraOrthoWidth,
 	CameraPostProcessBlendWeight,
 	CameraProjectionMode,
@@ -42,39 +50,19 @@ namespace UE
 {
 	namespace Interchange
 	{
-		namespace Animation
+		template<> struct TAttributeTypeTraits<EInterchangePropertyTracks>
 		{
-			namespace PropertyTracks
+			static constexpr EAttributeTypes GetType()
 			{
-				const FName Visibility = TEXT("Actor.bHidden");
-
-				namespace Light
-				{
-					const FName Color = TEXT("Light.LightColor");
-					const FName Intensity = TEXT("Light.Intensity");
-					const FName IntensityUnits = TEXT("Light.IntensityUnits");
-					const FName Temperature = TEXT("Light.Temperature");
-					const FName UseTemperature = TEXT("Light.bUseTemperature");
-				}
-
-				namespace Camera
-				{
-					const FName AutoActivate = TEXT("Camera.bAutoActivate");
-					const FName AspectRatioAxisConstraint = TEXT("Camera.AspectRatioAxisConstraint");
-					const FName ConstrainAspectRatio = TEXT("Camera.bConstrainAspectRatio");
-					const FName CurrentAperture = TEXT("Camera.CurrentAperture");
-					const FName CurrentFocalLength = TEXT("Camera.CurrentFocalLength");
-					const FName CustomNearClippingPlane = TEXT("Camera.CustomNearClippingPlane");
-					const FName FieldOfView = TEXT("Camera.FieldOfView");
-					const FName Mobility = TEXT("Camera.Mobility");
-					const FName OrthoFarClipPlane = TEXT("Camera.OrthoFarClipPlane");
-					const FName OrthoWidth = TEXT("Camera.OrthoWidth");
-					const FName PostProcessBlendWeight = TEXT("Camera.PostProcessBlendWeight");
-					const FName ProjectionMode = TEXT("Camera.ProjectionMode");
-					const FName ShouldUpdatePhysicsVolume = TEXT("Camera.bShouldUpdatePhysicsVolume");
-					const FName UseFieldOfViewForLOD = TEXT("Camera.bUseFieldOfViewForLOD");
-				}
+				return EAttributeTypes::Int32;
 			}
-		}
+			static FString ToString(const uint16& Value)
+			{
+				int32 ValueConv = Value;
+				FStringFormatOrderedArguments OrderedArguments;
+				OrderedArguments.Add(FStringFormatArg(ValueConv));
+				return FString::Format(TEXT("{0}"), OrderedArguments);
+			}
+		};
 	}
 }

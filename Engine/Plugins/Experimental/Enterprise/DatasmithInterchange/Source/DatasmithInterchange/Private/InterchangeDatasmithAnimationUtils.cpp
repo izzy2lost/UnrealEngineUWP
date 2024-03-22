@@ -138,7 +138,7 @@ namespace UE::DatasmithInterchange::AnimUtils
 		const FString ActorNodeUid = NodeUtils::GetActorUid(VisibilityAnimation.GetName());
 		TrackNode->SetCustomActorDependencyUid(ActorNodeUid);
 
-		TrackNode->SetCustomPropertyTrack(UE::Interchange::Animation::PropertyTracks::Visibility);
+		TrackNode->SetCustomPropertyTrack(EInterchangePropertyTracks::Visibility);
 		TrackNode->SetCustomAnimationPayloadKey(TrackNode->GetUniqueID(), EInterchangeAnimationPayLoadType::STEPCURVE);
 
 		LevelSequenceNode->AddCustomAnimationTrackUid(TrackNode->GetUniqueID());

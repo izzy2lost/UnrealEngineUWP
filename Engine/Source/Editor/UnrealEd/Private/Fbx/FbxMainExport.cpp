@@ -3409,6 +3409,7 @@ void FFbxExporter::ExportLevelSequenceTrackChannels( FbxNode* FbxNode, UMovieSce
 	}
 
 	FbxCamera* FbxCamera = FbxNode->GetCamera();
+	FbxLight* FbxLight = FbxNode->GetLight();
 	FFrameRate TickResolution = Track.GetTypedOuter<UMovieScene>()->GetTickResolution();
 
 	const FName BoolChannelTypeName = FMovieSceneBoolChannel::StaticStruct()->GetFName();
@@ -3457,9 +3458,9 @@ void FFbxExporter::ExportLevelSequenceTrackChannels( FbxNode* FbxNode, UMovieSce
 			FString PropertyName = MetaData.Name.IsNone() ? Track.GetTrackName().ToString() : MetaData.Name.ToString();
 			bool IsFoV = false;
 			// most properties are created as user property, only FOV of camera in FBX supports animation
-			if (PropertyName == "Intensity")
+			if (PropertyName == "Intensity" && FbxLight)
 			{
-				Property = FbxNode->FindProperty("UE_Intensity", false);
+				Property = FbxLight->Intensity;
 			}
 			else if (PropertyName == "FalloffExponent")
 			{
@@ -3471,7 +3472,7 @@ void FFbxExporter::ExportLevelSequenceTrackChannels( FbxNode* FbxNode, UMovieSce
 			}
 			else if (PropertyName == "FieldOfView" && FbxCamera)
 			{
-				Property = FbxCamera->FocalLength;
+				Property = FbxCamera->FieldOfView;
 				IsFoV = true;
 			}
 			else if (PropertyName == "FOVAngle" && FbxCamera)
@@ -3502,6 +3503,18 @@ void FFbxExporter::ExportLevelSequenceTrackChannels( FbxNode* FbxNode, UMovieSce
 			else if(PropertyName == "IntensityUnits")
 			{
 				Property = FbxNode->FindProperty("UE_IntensityUnits", false);
+			}
+			else if(PropertyName == "Filmback.SensorAspectRatio" && FbxCamera)
+			{
+				Property = FbxCamera->FilmAspectRatio;
+			}
+			else if(PropertyName == "Filmback.SensorHeight" && FbxCamera)
+			{
+				Property = FbxCamera->FilmHeight;
+			}
+			else if(PropertyName == "Filmback.SensorWidth" && FbxCamera)
+			{
+				Property = FbxCamera->FilmWidth;
 			}
 
 			if (Property == 0)

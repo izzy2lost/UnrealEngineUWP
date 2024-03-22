@@ -370,7 +370,7 @@ namespace UE
 					}
 				}
 				
-				auto AddAnimationTrackNode = [&](const FName& PropertyTrack, const FString& CurveNodeName, const FString& PayloadKey, EInterchangeAnimationPayLoadType PayloadType)
+				auto AddAnimationTrackNode = [&](EInterchangePropertyTracks PropertyTrack, const FString& CurveNodeName, const FString& PayloadKey, EInterchangeAnimationPayLoadType PayloadType)
 				{
 					UInterchangeAnimationTrackNode* AnimTrackNode = NewObject< UInterchangeAnimationTrackNode >(&NodeContainer);
 					const FString AnimTrackNodeName = FString::Printf(TEXT("%s"), *UnrealNode->GetDisplayLabel()) + CurveNodeName;
@@ -381,6 +381,30 @@ namespace UE
 					AnimTrackNode->SetCustomAnimationPayloadKey(PayloadKey, PayloadType);
 					AnimTrackNode->SetCustomPropertyTrack(PropertyTrack);
 					NodeContainer.AddNode(AnimTrackNode);
+				};
+
+				//Bool/Enum/Integer curves are treated as StepCurves, otherwise it's a floating point curve
+				auto GetPropertyPayloadType = [](EFbxType FbxType)
+				{
+					switch(FbxType)
+					{
+					case EFbxType::eFbxBool:
+					case EFbxType::eFbxChar:
+					case EFbxType::eFbxUChar:
+					case EFbxType::eFbxShort:
+					case EFbxType::eFbxUShort:
+					case EFbxType::eFbxInt:
+					case EFbxType::eFbxUInt:
+					case EFbxType::eFbxLongLong:
+					case EFbxType::eFbxULongLong:
+					case EFbxType::eFbxEnum:
+					case EFbxType::eFbxEnumM:
+					case EFbxType::eFbxString:
+						return EInterchangeAnimationPayLoadType::STEPCURVE;
+
+					default:
+						return EInterchangeAnimationPayLoadType::CURVE;
+					}
 				};
 
 				const UInterchangeFbxSettings* InterchangeFbxSettings = GetDefault<UInterchangeFbxSettings>();
@@ -404,9 +428,9 @@ namespace UE
 							if(PayloadKey.IsSet())
 							{
 								const char* CurveNodeName = CurveNode->GetName();								
-								if(FInterchangePropertyTracksSettings PropertyTrack = InterchangeFbxSettings->GetPropertyTrack(CurveNodeName); PropertyTrack.Property != EInterchangePropertyTracks::None)
+								if(EInterchangePropertyTracks PropertyTrack = InterchangeFbxSettings->GetPropertyTrack(CurveNodeName); PropertyTrack != EInterchangePropertyTracks::None)
 								{
-									AddAnimationTrackNode(PropertyTrack.GetPropertyName(), CurveNodeName, *PayloadKey, PropertyTrack.Type);
+									AddAnimationTrackNode(PropertyTrack, CurveNodeName, *PayloadKey, GetPropertyPayloadType(PropertyType));
 								}
 							}
 						}
@@ -433,9 +457,9 @@ namespace UE
 							if(PayloadKey.IsSet())
 							{
 								const char* CurveNodeName = CurveNode->GetName();
-								if(FInterchangePropertyTracksSettings PropertyTrack = InterchangeFbxSettings->GetPropertyTrack(CurveNodeName); PropertyTrack.Property != EInterchangePropertyTracks::None)
+								if(EInterchangePropertyTracks PropertyTrack = InterchangeFbxSettings->GetPropertyTrack(CurveNodeName); PropertyTrack != EInterchangePropertyTracks::None)
 								{
-									AddAnimationTrackNode(PropertyTrack.GetPropertyName(), CurveNodeName, *PayloadKey, PropertyTrack.Type);
+									AddAnimationTrackNode(PropertyTrack, CurveNodeName, *PayloadKey, GetPropertyPayloadType(PropertyType));
 								}
 							}
 						}

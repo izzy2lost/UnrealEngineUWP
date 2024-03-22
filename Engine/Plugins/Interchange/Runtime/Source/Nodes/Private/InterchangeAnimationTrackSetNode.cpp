@@ -180,24 +180,24 @@ bool UInterchangeAnimationTrackNode::SetCustomFrameCount(const int32& AttributeV
 	IMPLEMENT_NODE_ATTRIBUTE_SETTER_NODELEGATE(FrameCount, int32);
 }
 
-bool UInterchangeAnimationTrackNode::GetCustomTargetedProperty(int32& AttributeValue) const
-{
-	IMPLEMENT_NODE_ATTRIBUTE_GETTER(TargetedProperty, int32);
-}
-
 bool UInterchangeAnimationTrackNode::GetCustomPropertyTrack(FName& AttributeValue) const
 {
-	IMPLEMENT_NODE_ATTRIBUTE_GETTER(PropertyTrack, FName);
-}
-
-bool UInterchangeAnimationTrackNode::SetCustomTargetedProperty(const int32& AttributeValue)
-{
-	IMPLEMENT_NODE_ATTRIBUTE_SETTER_NODELEGATE(TargetedProperty, int32);
+	return false;
 }
 
 bool UInterchangeAnimationTrackNode::SetCustomPropertyTrack(const FName& AttributeValue)
 {
-	IMPLEMENT_NODE_ATTRIBUTE_SETTER_NODELEGATE(PropertyTrack, FName);
+	return false;
+}
+
+bool UInterchangeAnimationTrackNode::SetCustomPropertyTrack(EInterchangePropertyTracks AttributeValue)
+{
+	IMPLEMENT_NODE_ATTRIBUTE_SETTER_NODELEGATE(PropertyTrack, EInterchangePropertyTracks);
+}
+
+bool UInterchangeAnimationTrackNode::GetCustomPropertyTrack(EInterchangePropertyTracks& AttributeValue) const
+{
+	IMPLEMENT_NODE_ATTRIBUTE_GETTER(PropertyTrack, EInterchangePropertyTracks);
 }
 
 // UInterchangeAnimationTrackSetInstanceNode

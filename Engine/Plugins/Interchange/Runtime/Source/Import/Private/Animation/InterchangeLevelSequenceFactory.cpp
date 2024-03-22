@@ -430,7 +430,7 @@ namespace UE::Interchange::Private
 
 	void FLevelSequenceHelper::PopulateAnimationTrack(const UInterchangeAnimationTrackNode& AnimationTrackNode)
 	{
-		FName PropertyTrack;
+		EInterchangePropertyTracks PropertyTrack;
 		if(!AnimationTrackNode.GetCustomPropertyTrack(PropertyTrack))
 		{
 			return;
@@ -461,7 +461,7 @@ namespace UE::Interchange::Private
 		}
 
 		FGuid ObjectBinding;
-		if(PropertyTrack == UE::Interchange::Animation::PropertyTracks::Visibility)
+		if(PropertyTrack == EInterchangePropertyTracks::Visibility)
 		{
 			ObjectBinding = BindActorToLevelSequence(Actor);
 		}

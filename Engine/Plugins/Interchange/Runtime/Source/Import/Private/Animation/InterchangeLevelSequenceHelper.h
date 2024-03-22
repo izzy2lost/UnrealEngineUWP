@@ -50,7 +50,7 @@ namespace UE::Interchange::Private
 	{
 		static FInterchangePropertyTracksHelper& GetInstance();
 
-		UMovieSceneSection* GetSection(UMovieScene* MovieScene, const UInterchangeAnimationTrackNode& AnimationTrackNode, const FGuid& ObjectBinding, const FName& Property) const;
+		UMovieSceneSection* GetSection(UMovieScene* MovieScene, const UInterchangeAnimationTrackNode& AnimationTrackNode, const FGuid& ObjectBinding, EInterchangePropertyTracks Property) const;
 
 	private:
 		FInterchangePropertyTracksHelper();
@@ -63,6 +63,6 @@ namespace UE::Interchange::Private
 			UEnum* EnumClass = nullptr; // Only used for Enum property tracks
 		};
 
-		TMap<FName, FInterchangeProperty> PropertyTracks;
+		TMap<EInterchangePropertyTracks, FInterchangeProperty> PropertyTracks;
 	};
 }

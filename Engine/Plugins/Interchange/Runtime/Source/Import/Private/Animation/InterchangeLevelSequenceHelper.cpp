@@ -19,26 +19,36 @@ namespace UE::Interchange::Private
 {
 	FInterchangePropertyTracksHelper::FInterchangePropertyTracksHelper()
 		: PropertyTracks{
+			//Common
+			{EInterchangePropertyTracks::Visibility, {UMovieSceneVisibilityTrack::StaticClass()->GetName(), AActor::GetHiddenPropertyName().ToString(), TEXT("Visibility")}},
+			{EInterchangePropertyTracks::AutoActivate, {UMovieSceneBoolTrack::StaticClass()->GetName(), GET_MEMBER_NAME_STRING_CHECKED(UActorComponent, bAutoActivate), TEXT("Auto Activate")}},
+
 			// Light
-			{UE::Interchange::Animation::PropertyTracks::Light::Color, {UMovieSceneColorTrack::StaticClass()->GetName(), GET_MEMBER_NAME_STRING_CHECKED(ULocalLightComponent, LightColor), TEXT("Light Color")}},
-			{UE::Interchange::Animation::PropertyTracks::Light::Intensity, {UMovieSceneFloatTrack::StaticClass()->GetName(), GET_MEMBER_NAME_STRING_CHECKED(ULightComponent, Intensity), TEXT("Intensity")}},
-			{UE::Interchange::Animation::PropertyTracks::Light::IntensityUnits, {UMovieSceneByteTrack::StaticClass()->GetName(), GET_MEMBER_NAME_STRING_CHECKED(ULocalLightComponent, IntensityUnits), TEXT("Intensity Units"), StaticEnum<ELightUnits>()}},
-			{UE::Interchange::Animation::PropertyTracks::Light::Temperature, {UMovieSceneFloatTrack::StaticClass()->GetName(), GET_MEMBER_NAME_STRING_CHECKED(ULocalLightComponent, Temperature), TEXT("Temperature")}},
-			{UE::Interchange::Animation::PropertyTracks::Light::UseTemperature, {UMovieSceneBoolTrack::StaticClass()->GetName(), GET_MEMBER_NAME_STRING_CHECKED(ULocalLightComponent, bUseTemperature), TEXT("Use Temperature")}},
-			{UE::Interchange::Animation::PropertyTracks::Visibility, {UMovieSceneVisibilityTrack::StaticClass()->GetName(), AActor::GetHiddenPropertyName().ToString(), TEXT("Visibility")}},
+			{EInterchangePropertyTracks::LightColor, {UMovieSceneColorTrack::StaticClass()->GetName(), GET_MEMBER_NAME_STRING_CHECKED(ULocalLightComponent, LightColor), TEXT("Light Color")}},
+			{EInterchangePropertyTracks::LightIntensity, {UMovieSceneFloatTrack::StaticClass()->GetName(), GET_MEMBER_NAME_STRING_CHECKED(ULightComponent, Intensity), TEXT("Intensity")}},
+			{EInterchangePropertyTracks::LightIntensityUnits, {UMovieSceneByteTrack::StaticClass()->GetName(), GET_MEMBER_NAME_STRING_CHECKED(ULocalLightComponent, IntensityUnits), TEXT("Intensity Units"), StaticEnum<ELightUnits>()}},
+			{EInterchangePropertyTracks::LightTemperature, {UMovieSceneFloatTrack::StaticClass()->GetName(), GET_MEMBER_NAME_STRING_CHECKED(ULocalLightComponent, Temperature), TEXT("Temperature")}},
+			{EInterchangePropertyTracks::LightUseTemperature, {UMovieSceneBoolTrack::StaticClass()->GetName(), GET_MEMBER_NAME_STRING_CHECKED(ULocalLightComponent, bUseTemperature), TEXT("Use Temperature")}},
 
 			// Camera
-			{UE::Interchange::Animation::PropertyTracks::Camera::AspectRatioAxisConstraint, {UMovieSceneByteTrack::StaticClass()->GetName(), GET_MEMBER_NAME_STRING_CHECKED(UCameraComponent, AspectRatioAxisConstraint), TEXT("Aspect Ratio Axis Constraint"), StaticEnum<EAspectRatioAxisConstraint>()}},
-			{UE::Interchange::Animation::PropertyTracks::Camera::ConstrainAspectRatio, {UMovieSceneBoolTrack::StaticClass()->GetName(), GET_MEMBER_NAME_STRING_CHECKED(UCameraComponent, bConstrainAspectRatio), TEXT("Constrain Aspect Ratio")}},
-			{UE::Interchange::Animation::PropertyTracks::Camera::CurrentAperture, {UMovieSceneFloatTrack::StaticClass()->GetName(), GET_MEMBER_NAME_STRING_CHECKED(UCineCameraComponent, CurrentAperture), TEXT("Current Aperture")}},
-			{UE::Interchange::Animation::PropertyTracks::Camera::CurrentFocalLength, {UMovieSceneFloatTrack::StaticClass()->GetName(), GET_MEMBER_NAME_STRING_CHECKED(UCineCameraComponent, CurrentFocalLength), TEXT("Current Focal Length")}},
-			{UE::Interchange::Animation::PropertyTracks::Camera::CustomNearClippingPlane, {UMovieSceneFloatTrack::StaticClass()->GetName(), GET_MEMBER_NAME_STRING_CHECKED(UCineCameraComponent, CustomNearClippingPlane), TEXT("Custom Near Clipping Plane")}},
-			{UE::Interchange::Animation::PropertyTracks::Camera::FieldOfView, {UMovieSceneFloatTrack::StaticClass()->GetName(), GET_MEMBER_NAME_STRING_CHECKED(UCameraComponent, FieldOfView), TEXT("Field of View")}},
-			{UE::Interchange::Animation::PropertyTracks::Camera::OrthoFarClipPlane, {UMovieSceneFloatTrack::StaticClass()->GetName(), GET_MEMBER_NAME_STRING_CHECKED(UCameraComponent, OrthoFarClipPlane), TEXT("Ortho Far Clip Plane")}},
-			{UE::Interchange::Animation::PropertyTracks::Camera::OrthoWidth, {UMovieSceneFloatTrack::StaticClass()->GetName(), GET_MEMBER_NAME_STRING_CHECKED(UCameraComponent, OrthoWidth), TEXT("Ortho Width")}},
-			{UE::Interchange::Animation::PropertyTracks::Camera::PostProcessBlendWeight, {UMovieSceneFloatTrack::StaticClass()->GetName(), GET_MEMBER_NAME_STRING_CHECKED(UCameraComponent, PostProcessBlendWeight), TEXT("PostProcess Blend Weight")}},
-			{UE::Interchange::Animation::PropertyTracks::Camera::ProjectionMode, {UMovieSceneByteTrack::StaticClass()->GetName(), GET_MEMBER_NAME_STRING_CHECKED(UCameraComponent, ProjectionMode), TEXT("Projection Mode"), StaticEnum<ECameraProjectionMode::Type>()}},
-			{UE::Interchange::Animation::PropertyTracks::Camera::UseFieldOfViewForLOD, {UMovieSceneBoolTrack::StaticClass()->GetName(), GET_MEMBER_NAME_STRING_CHECKED(UCameraComponent, bUseFieldOfViewForLOD), TEXT("Use Field Of View For LOD")}},
+			{EInterchangePropertyTracks::CameraAutoCalculateOrthoPlanes, {UMovieSceneBoolTrack::StaticClass()->GetName(), GET_MEMBER_NAME_STRING_CHECKED(UCameraComponent, bAutoCalculateOrthoPlanes), TEXT("Auto Calculate Ortho Planes")}},
+			{EInterchangePropertyTracks::CameraAspectRatio, {UMovieSceneFloatTrack::StaticClass()->GetName(), GET_MEMBER_NAME_STRING_CHECKED(UCameraComponent, AspectRatio), TEXT("Aspect Ratio")}},
+			{EInterchangePropertyTracks::CameraAspectRatioAxisConstraint, {UMovieSceneByteTrack::StaticClass()->GetName(), GET_MEMBER_NAME_STRING_CHECKED(UCameraComponent, AspectRatioAxisConstraint), TEXT("Aspect Ratio Axis Constraint"), StaticEnum<EAspectRatioAxisConstraint>()}},
+			{EInterchangePropertyTracks::CameraConstrainAspectRatio, {UMovieSceneBoolTrack::StaticClass()->GetName(), GET_MEMBER_NAME_STRING_CHECKED(UCameraComponent, bConstrainAspectRatio), TEXT("Constrain Aspect Ratio")}},
+			{EInterchangePropertyTracks::CameraCurrentAperture, {UMovieSceneFloatTrack::StaticClass()->GetName(), GET_MEMBER_NAME_STRING_CHECKED(UCineCameraComponent, CurrentAperture), TEXT("Current Aperture")}},
+			{EInterchangePropertyTracks::CameraCurrentFocalLength, {UMovieSceneFloatTrack::StaticClass()->GetName(), GET_MEMBER_NAME_STRING_CHECKED(UCineCameraComponent, CurrentFocalLength), TEXT("Current Focal Length")}},
+			{EInterchangePropertyTracks::CameraCustomNearClippingPlane, {UMovieSceneFloatTrack::StaticClass()->GetName(), GET_MEMBER_NAME_STRING_CHECKED(UCineCameraComponent, CustomNearClippingPlane), TEXT("Custom Near Clipping Plane")}},
+			{EInterchangePropertyTracks::CameraFieldOfView, {UMovieSceneFloatTrack::StaticClass()->GetName(), GET_MEMBER_NAME_STRING_CHECKED(UCameraComponent, FieldOfView), TEXT("Field of View")}},
+			{EInterchangePropertyTracks::CameraFilmbackSensorAspectRatio, {UMovieSceneFloatTrack::StaticClass()->GetName(), GET_MEMBER_NAME_STRING_CHECKED(UCineCameraComponent, Filmback) + FString{TEXT(".")} + GET_MEMBER_NAME_STRING_CHECKED(FCameraFilmbackSettings, SensorAspectRatio) , TEXT("Sensor Aspect Ratio (Filmback)")}},
+			{EInterchangePropertyTracks::CameraFilmbackSensorHeight, {UMovieSceneFloatTrack::StaticClass()->GetName(), GET_MEMBER_NAME_STRING_CHECKED(UCineCameraComponent, Filmback) + FString{TEXT(".")} + GET_MEMBER_NAME_STRING_CHECKED(FCameraFilmbackSettings, SensorHeight) , TEXT("Sensor Height (Filmback)")}},
+			{EInterchangePropertyTracks::CameraFilmbackSensorWidth, {UMovieSceneFloatTrack::StaticClass()->GetName(), GET_MEMBER_NAME_STRING_CHECKED(UCineCameraComponent, Filmback) + FString{TEXT(".")} + GET_MEMBER_NAME_STRING_CHECKED(FCameraFilmbackSettings, SensorWidth) , TEXT("Sensor Width (Filmback)")}},
+			{EInterchangePropertyTracks::CameraFocusSettingsManualFocusDistance, {UMovieSceneFloatTrack::StaticClass()->GetName(), GET_MEMBER_NAME_STRING_CHECKED(UCineCameraComponent, FocusSettings) + FString{TEXT(".")} + GET_MEMBER_NAME_STRING_CHECKED(FCameraFocusSettings, ManualFocusDistance), TEXT("Manuel Focus Distance (Focus Settings)")}},
+			{EInterchangePropertyTracks::CameraOrthoFarClipPlane, {UMovieSceneFloatTrack::StaticClass()->GetName(), GET_MEMBER_NAME_STRING_CHECKED(UCameraComponent, OrthoFarClipPlane), TEXT("Ortho Far Clip Plane")}},
+			{EInterchangePropertyTracks::CameraOrthoNearClipPlane, {UMovieSceneFloatTrack::StaticClass()->GetName(), GET_MEMBER_NAME_STRING_CHECKED(UCameraComponent, OrthoNearClipPlane), TEXT("Ortho Near Clip Plane")}},
+			{EInterchangePropertyTracks::CameraOrthoWidth, {UMovieSceneFloatTrack::StaticClass()->GetName(), GET_MEMBER_NAME_STRING_CHECKED(UCameraComponent, OrthoWidth), TEXT("Ortho Width")}},
+			{EInterchangePropertyTracks::CameraPostProcessBlendWeight, {UMovieSceneFloatTrack::StaticClass()->GetName(), GET_MEMBER_NAME_STRING_CHECKED(UCameraComponent, PostProcessBlendWeight), TEXT("PostProcess Blend Weight")}},
+			{EInterchangePropertyTracks::CameraProjectionMode, {UMovieSceneByteTrack::StaticClass()->GetName(), GET_MEMBER_NAME_STRING_CHECKED(UCameraComponent, ProjectionMode), TEXT("Projection Mode"), StaticEnum<ECameraProjectionMode::Type>()}},
+			{EInterchangePropertyTracks::CameraUseFieldOfViewForLOD, {UMovieSceneBoolTrack::StaticClass()->GetName(), GET_MEMBER_NAME_STRING_CHECKED(UCameraComponent, bUseFieldOfViewForLOD), TEXT("Use Field Of View For LOD")}},
 		}
 	{}
 
@@ -48,7 +58,7 @@ namespace UE::Interchange::Private
 		return Instance;
 	}
 
-	UMovieSceneSection* FInterchangePropertyTracksHelper::GetSection(UMovieScene* MovieScene, const UInterchangeAnimationTrackNode& AnimationTrackNode, const FGuid& ObjectBinding, const FName& Property) const
+	UMovieSceneSection* FInterchangePropertyTracksHelper::GetSection(UMovieScene* MovieScene, const UInterchangeAnimationTrackNode& AnimationTrackNode, const FGuid& ObjectBinding, EInterchangePropertyTracks Property) const
 	{
 		const FInterchangeProperty* InterchangePropertyTrack = PropertyTracks.Find(Property);
 
