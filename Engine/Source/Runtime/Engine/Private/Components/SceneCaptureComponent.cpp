@@ -569,7 +569,9 @@ USceneCaptureComponent2D::USceneCaptureComponent2D(const FObjectInitializer& Obj
 
 	OrthoWidth = DEFAULT_ORTHOWIDTH;
 	bAutoCalculateOrthoPlanes = true;
+	AutoPlaneShift = 0.0f;
 	bUpdateOrthoPlanes = false;
+	bUseCameraHeightAsViewTarget = false;
 
 	bUseCustomProjectionMatrix = false;
 	bAutoActivate = true;
@@ -702,7 +704,11 @@ void USceneCaptureComponent2D::GetCameraView(float DeltaTime, FMinimalViewInfo& 
 	OutMinimalViewInfo.bConstrainAspectRatio = false;
 	OutMinimalViewInfo.ProjectionMode = ProjectionType;
 	OutMinimalViewInfo.OrthoWidth = OrthoWidth;
-	OutMinimalViewInfo.bAutoCalculateOrthoPlanes = bAutoCalculateOrthoPlanes;		
+	OutMinimalViewInfo.bAutoCalculateOrthoPlanes = bAutoCalculateOrthoPlanes;
+	OutMinimalViewInfo.AutoPlaneShift = AutoPlaneShift;
+	OutMinimalViewInfo.bUpdateOrthoPlanes = bUpdateOrthoPlanes;
+	OutMinimalViewInfo.bUseCameraHeightAsViewTarget = bUseCameraHeightAsViewTarget;
+
 	if (bAutoCalculateOrthoPlanes)
 	{
 		if(const AActor* ViewTarget = GetOwner())

@@ -847,7 +847,7 @@ static FSceneRenderer* CreateSceneRendererForSceneCapture(
 	{
 		if (!SceneCaptureViewInfo.IsPerspectiveProjection() && SceneCaptureComponent2D->bUpdateOrthoPlanes)
 		{
-			SceneCaptureViewInfo.UpdateOrthoPlanes();
+			SceneCaptureViewInfo.UpdateOrthoPlanes(SceneCaptureComponent2D->bUseCameraHeightAsViewTarget);
 		}
 	}
 

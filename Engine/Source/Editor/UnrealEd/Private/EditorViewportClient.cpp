@@ -1200,12 +1200,16 @@ FSceneView* FEditorViewportClient::CalcSceneView(FSceneViewFamily* ViewFamily, c
 			if(!ViewFamily->EngineShowFlags.Wireframe)
 			{
 				FMinimalViewInfo CalculatePlanesViewInfo;
-				CalculatePlanesViewInfo.ProjectionMode = ECameraProjectionMode::Orthographic;
-				CalculatePlanesViewInfo.bAutoCalculateOrthoPlanes = true;
-				CalculatePlanesViewInfo.OrthoWidth = OrthoWidth;
 				CalculatePlanesViewInfo.Rotation = ViewInitOptions.ViewRotationMatrix.Rotator();
 				CalculatePlanesViewInfo.AspectRatio = AspectRatio;
 				CalculatePlanesViewInfo.bConstrainAspectRatio = false;
+
+				CalculatePlanesViewInfo.ProjectionMode = ECameraProjectionMode::Orthographic;				
+				CalculatePlanesViewInfo.OrthoWidth = OrthoWidth;
+				CalculatePlanesViewInfo.bAutoCalculateOrthoPlanes = true;
+				CalculatePlanesViewInfo.AutoPlaneShift = 0.0f;
+				CalculatePlanesViewInfo.bUpdateOrthoPlanes = true;
+				CalculatePlanesViewInfo.bUseCameraHeightAsViewTarget = true;
 				CalculatePlanesViewInfo.OrthoNearClipPlane = OrthoWidth * -CVarOrthoEditorDebugClipPlaneScale.GetValueOnAnyThread();
 				CalculatePlanesViewInfo.OrthoFarClipPlane = FarPlane - NearPlane + CalculatePlanesViewInfo.OrthoNearClipPlane;
 

@@ -41,6 +41,9 @@ APlayerCameraManager::APlayerCameraManager(const FObjectInitializer& ObjectIniti
 	bDefaultConstrainAspectRatio = false;
 	DefaultOrthoWidth = 512.0f;
 	bAutoCalculateOrthoPlanes = true;
+	AutoPlaneShift = 0.0f;
+	bUpdateOrthoPlanes = true;
+	bUseCameraHeightAsViewTarget = true;
 	SetHidden(true);
 	bReplicates = false;
 	FreeCamDistance = 256.0f;
@@ -366,6 +369,9 @@ void APlayerCameraManager::UpdateViewTarget(FTViewTarget& OutVT, float DeltaTime
 	OutVT.POV.ProjectionMode = bIsOrthographic ? ECameraProjectionMode::Orthographic : ECameraProjectionMode::Perspective;
 	OutVT.POV.PostProcessBlendWeight = 1.0f;
 	OutVT.POV.bAutoCalculateOrthoPlanes = bAutoCalculateOrthoPlanes;
+	OutVT.POV.AutoPlaneShift = AutoPlaneShift;
+	OutVT.POV.bUpdateOrthoPlanes = bUpdateOrthoPlanes;
+	OutVT.POV.bUseCameraHeightAsViewTarget = bUseCameraHeightAsViewTarget;
 
 	bool bDoNotApplyModifiers = false;
 

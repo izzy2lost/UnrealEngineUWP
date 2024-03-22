@@ -48,6 +48,9 @@ UCameraComponent::UCameraComponent(const FObjectInitializer& ObjectInitializer)
 	AspectRatio = 1.777778f;
 	OrthoWidth = DEFAULT_ORTHOWIDTH;
 	bAutoCalculateOrthoPlanes = true;
+	AutoPlaneShift = 0.0f;
+	bUpdateOrthoPlanes = true;
+	bUseCameraHeightAsViewTarget = true;
 	OrthoNearClipPlane = DEFAULT_ORTHONEARPLANE;
 	OrthoFarClipPlane = DEFAULT_ORTHOFARPLANE;
 	bConstrainAspectRatio = false;
@@ -420,6 +423,10 @@ void UCameraComponent::GetCameraView(float DeltaTime, FMinimalViewInfo& DesiredV
 	DesiredView.OrthoNearClipPlane = OrthoNearClipPlane;
 	DesiredView.OrthoFarClipPlane = OrthoFarClipPlane;
 	DesiredView.bAutoCalculateOrthoPlanes = bAutoCalculateOrthoPlanes;
+	DesiredView.AutoPlaneShift = AutoPlaneShift;
+	DesiredView.bUpdateOrthoPlanes = bUpdateOrthoPlanes;
+	DesiredView.bUseCameraHeightAsViewTarget = bUseCameraHeightAsViewTarget;
+	
 	if (bAutoCalculateOrthoPlanes)
 	{
 		if (const AActor* ViewTarget = GetOwner())
