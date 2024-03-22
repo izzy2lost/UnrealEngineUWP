@@ -29,7 +29,10 @@ void FStormSyncTransportServerModule::StartupModule()
 
 	// Create server endpoint and start tcp listening if configured to do so
 	ServerEndpoint = CreateServerLocalEndpoint(TEXT("Server"));
-	const bool bIsCommandLineAutoStartDisabled = UE::StormSync::Transport::Private::IsServerAutoStartDisabled();
+
+	// Auto-start is disabled if running commandlet
+	const bool bIsCommandLineAutoStartDisabled = IsRunningCommandlet() || UE::StormSync::Transport::Private::IsServerAutoStartDisabled();
+
 	if (!bIsCommandLineAutoStartDisabled && Settings->IsAutoStartServer())
 	{
 		if (ServerEndpoint->StartTcpListener() && IsRunning())
