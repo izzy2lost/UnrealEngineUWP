@@ -7,7 +7,6 @@
 #include "HAL/ThreadSafeCounter.h"
 #include "IHttpThreadedRequest.h"
 #include "Containers/SpscQueue.h"
-#include "GenericPlatform/HttpRequestPayload.h"
 #include "GenericPlatform/HttpResponseCommon.h"
 #include "HAL/ThreadSafeBool.h"
 
