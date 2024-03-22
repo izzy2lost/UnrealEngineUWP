@@ -21,6 +21,8 @@ namespace UE::StateTree
 	inline constexpr int32 MaxConditionIndent = 4;
 
 	inline const FName SchemaTag(TEXT("Schema"));
+
+	inline const FName SchemaCanBeOverridenTag(TEXT("SchemaCanBeOverriden"));
 }; // UE::StateTree
 
 enum class EStateTreeRunStatus : uint8;

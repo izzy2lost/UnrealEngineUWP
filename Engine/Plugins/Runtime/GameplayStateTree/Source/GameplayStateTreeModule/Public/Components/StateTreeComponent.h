@@ -100,7 +100,7 @@ protected:
 	TObjectPtr<UStateTree> StateTree_DEPRECATED;
 #endif
 
-	UPROPERTY(EditAnywhere, Category = AI, meta=(Schema="/Script/GameplayStateTreeModule.StateTreeComponentSchema"))
+	UPROPERTY(EditAnywhere, Category = AI, meta=(Schema="/Script/GameplayStateTreeModule.StateTreeComponentSchema", SchemaCanBeOverriden))
 	FStateTreeReference StateTreeRef;
 
 	/** If true, the StateTree logic is started on begin play. Otherwise StartLogic() needs to be called. */

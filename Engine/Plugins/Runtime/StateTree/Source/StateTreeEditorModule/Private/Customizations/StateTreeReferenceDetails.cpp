@@ -202,16 +202,19 @@ void FStateTreeReferenceDetails::SyncParameters(const UStateTree* StateTreeToSyn
 
 FString FStateTreeReferenceDetails::GetSchemaPath(IPropertyHandle& StructPropertyHandle)
 {
-	TArray<UObject*> OuterObjects;
-	StructPropertyHandle.GetOuterObjects(OuterObjects);
-
-	for (const UObject* OuterObject : OuterObjects)
+	if (StructPropertyHandle.HasMetaData(UE::StateTree::SchemaCanBeOverridenTag))
 	{
-		if (const IStateTreeSchemaProvider* SchemaProvider = Cast<IStateTreeSchemaProvider>(OuterObject))
+		TArray<UObject*> OuterObjects;
+		StructPropertyHandle.GetOuterObjects(OuterObjects);
+
+		for (const UObject* OuterObject : OuterObjects)
 		{
-			if (const UClass* SchemaClass = SchemaProvider->GetSchema().Get())
+			if (const IStateTreeSchemaProvider* SchemaProvider = Cast<IStateTreeSchemaProvider>(OuterObject))
 			{
-				return SchemaClass->GetPathName();
+				if (const UClass* SchemaClass = SchemaProvider->GetSchema().Get())
+				{
+					return SchemaClass->GetPathName();
+				}
 			}
 		}
 	}

@@ -14,7 +14,7 @@ struct FStateTreeRunParallelStateTreeTaskInstanceData
 	GENERATED_BODY()
 
 	/** State tree and parameters that will be run when this task is started. */
-	UPROPERTY(EditAnywhere, Category = "Parameter")
+	UPROPERTY(EditAnywhere, Category = "Parameter", meta=(SchemaCanBeOverriden))
 	FStateTreeReference StateTree;
 
 	UPROPERTY(Transient)

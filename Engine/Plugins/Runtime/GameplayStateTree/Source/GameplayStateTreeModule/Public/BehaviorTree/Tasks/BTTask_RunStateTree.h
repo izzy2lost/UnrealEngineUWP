@@ -32,7 +32,7 @@ protected:
 	virtual TSubclassOf<UStateTreeSchema> GetSchema() const override;
 
 	/** State tree that will be run when the task is selected. */
-	UPROPERTY(EditAnywhere, Category = Task, meta = (Schema = "/Script/GameplayStateTreeModule.StateTreeAIComponentSchema"))
+	UPROPERTY(EditAnywhere, Category = Task, meta = (Schema = "/Script/GameplayStateTreeModule.StateTreeAIComponentSchema", SchemaCanBeOverriden))
 	FStateTreeReference StateTreeRef;
 
 	UPROPERTY(Transient)
