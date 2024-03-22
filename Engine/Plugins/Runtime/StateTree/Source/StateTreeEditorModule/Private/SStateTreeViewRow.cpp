@@ -1135,7 +1135,7 @@ FText SStateTreeViewRow::GetTransitionsIcon(const UStateTreeState& State, const 
 		case IconLevelUp:
 			return FEditorFontGlyphs::Level_Up;
 		default:
-			break;
+			return FText::GetEmpty();
 	}
 }
 
