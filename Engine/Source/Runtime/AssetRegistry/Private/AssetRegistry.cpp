@@ -2538,6 +2538,10 @@ void EnumerateMemoryAssets(const FARCompiledFilter& InFilter, TSet<FName>& OutPa
 	TFunctionRef<bool(FAssetData&&)> Callback, bool bSkipARFilteredAssets)
 {
 	check(!InFilter.IsEmpty() && Utils::IsFilterValid(InFilter));
+
+	// Avoid contending with the background thread every time we take the interface lock below.
+	IAssetRegistry::FPauseBackgroundProcessingScope PauseProcessingScopeGuard;
+
 	EnumerateMemoryAssetsHelper(InFilter, OutPackageNamesWithAssets, bOutStopIteration,
 		[&InFilter, &Callback, &InterfaceLock, &GuardedDataState](const UObject* Object, FAssetData&& PartialAssetData)
 		{
@@ -5893,6 +5897,15 @@ bool FAssetRegistryImpl::TryPostLoadAssetRegistryTags(FAssetData* AssetData)
 					}
 					AssetData->TagsAndValues = FAssetDataTagMapSharedView(MoveTemp(TagsAndValues));
 				}
+			}
+			else if (!bForceCompletionEvenIfPostLoadsFail)
+			{
+				CouldPostLoadAssetRegistryTags = false;
+			}
+			else 
+			{
+				ensureMsgf(!MakeFinalChecks, TEXT("Unable to PostLoadAssetRegistryTags for '%s' because the CDO for ancestor class '%s' could not be found."),
+					*AssetData->GetObjectPathString(), *AssetClassPath.ToString());
 			}
 		}
 	}
