@@ -170,7 +170,7 @@ mu::NodeModifierPtr GenerateMutableSourceModifier(const UEdGraphPin * Pin, FMuta
 		}
 		else
 		{
-			FText ErrorMsg = LOCTEXT("Clipping mesh", "The clip mesh with mesh node requires an input clip mesh.");
+			FText ErrorMsg = LOCTEXT("Clipping mesh missing", "The clip mesh with mesh node requires an input clip mesh.");
 			GenerationContext.Compiler->CompilerLog(ErrorMsg, TypedNodeClipMesh, EMessageSeverity::Error);
 			Result = nullptr;
 		}
