@@ -70,6 +70,7 @@ public:                                                                         
 	::Verse::VCppClassInfo CellType::StaticCppClassInfo = {                                                                                                                     \
 		TEXT(#CellType),                                                                                                                                                        \
 		(SuperClassInfoPtr),                                                                                                                                                    \
+		sizeof(CellType),                                                                                                                                                       \
 		[](::Verse::VCell* This, ::Verse::FMarkStackVisitor& Visitor) -> void {                                                                                                 \
 			This->StaticCast<CellType>().VisitInheritedAndNonInheritedReferences(Visitor);                                                                                      \
 		},                                                                                                                                                                      \
@@ -144,6 +145,7 @@ struct VCppClassInfo
 {
 	const TCHAR* Name;
 	VCppClassInfo* SuperClass;
+	size_t SizeWithoutFields;
 	void (*MarkReferencesImpl)(VCell* This, FMarkStackVisitor&);
 	void (*VisitReferencesImpl)(VCell* This, FAbstractVisitor&);
 	void (*ConductCensus)(VCell* This);

@@ -19,9 +19,9 @@ namespace Verse
 struct FOp;
 struct VFailureContext;
 
-struct VTask : VHeapValue
+struct VTask : VObject
 {
-	DECLARE_DERIVED_VCPPCLASSINFO(COREUOBJECT_API, VHeapValue);
+	DECLARE_DERIVED_VCPPCLASSINFO(COREUOBJECT_API, VObject);
 	COREUOBJECT_API static TGlobalHeapPtr<VEmergentType> EmergentType;
 
 	// Tasks to resume on completion.
@@ -48,7 +48,7 @@ struct VTask : VHeapValue
 
 	static VTask& New(FAllocationContext Context, FOp* YieldPC, VFrame* YieldFrame, VTask* YieldTask, VFailureContext* FailureContext)
 	{
-		return *new (Context.AllocateFastCell(sizeof(VTask))) VTask(Context, YieldPC, YieldFrame, YieldTask, FailureContext);
+		return *new (AllocateFastCell(Context, *EmergentType)) VTask(Context, YieldPC, YieldFrame, YieldTask, FailureContext);
 	}
 
 	static FOpResult AwaitImpl(FRunningContext Context, VTask* Task, VValue Scope, VNativeFunction::Args Arguments)
@@ -92,7 +92,7 @@ struct VTask : VHeapValue
 
 private:
 	VTask(FAllocationContext Context, FOp* YieldPC, VFrame* YieldFrame, VTask* YieldTask, VFailureContext* FailureContext)
-		: VHeapValue(Context, EmergentType.Get())
+		: VObject(Context, *EmergentType)
 		, YieldPC(YieldPC)
 		, YieldFrame(Context, YieldFrame)
 		, YieldTask(Context, YieldTask)

@@ -1538,16 +1538,18 @@ class FInterpreter
 		REQUIRE_CONCRETE(ObjectOperand);
 		VUniqueString& FieldName = *Op.Name.Get();
 		VValue FieldValue;
-		if (ObjectOperand.IsCell())
+		if (VObject* Object = ObjectOperand.DynamicCast<VObject>())
 		{
-			VShape* Shape = ObjectOperand.StaticCast<VCell>().GetEmergentType()->Shape.Get();
+			const VEmergentType* EmergentType = Object->GetEmergentType();
+			VShape* Shape = EmergentType->Shape.Get();
 			V_DIE_IF(Shape == nullptr);
 			const VShape::VEntry* Field = Shape->GetField(Context, FieldName);
 			V_DIE_IF(Field == nullptr);
 			switch (Field->Type)
 			{
 				case EFieldType::Offset:
-					FieldValue = ObjectOperand.StaticCast<VObject>().Data[Field->Index].Get(Context);
+					V_DIE_IF(EmergentType->CppClassInfo == nullptr);
+					FieldValue = Object->GetData(*EmergentType->CppClassInfo)[Field->Index].Get(Context);
 					break;
 				case EFieldType::Constant:
 					FieldValue = Field->Value.Get();
@@ -1557,13 +1559,18 @@ class FInterpreter
 					break;
 			}
 		}
-		else if (ensure(ObjectOperand.IsUObject()))
+		else if (ObjectOperand.IsUObject())
 		{
-			UObject* Object = ObjectOperand.AsUObject();
-			UVerseVMClass* Class = CastChecked<UVerseVMClass>(Object->GetClass());
+			UObject* UeObject = ObjectOperand.AsUObject();
+			UVerseVMClass* Class = CastChecked<UVerseVMClass>(UeObject->GetClass());
 			FVRestValueProperty* FieldProperty = Class->GetPropertyForField(Context, FieldName);
-			FieldValue = FieldProperty->ContainerPtrToValuePtr<VRestValue>(Object)->Get(Context);
+			FieldValue = FieldProperty->ContainerPtrToValuePtr<VRestValue>(UeObject)->Get(Context);
 		}
+		else
+		{
+			V_DIE("Unsupported operand to a `LoadField` operation!");
+		}
+
 		if (FieldValue.IsCellOfType<VProcedure>())
 		{
 			FieldValue = VFunction::New(Context, FieldValue.StaticCast<VProcedure>(), ObjectOperand);
@@ -1586,16 +1593,18 @@ class FInterpreter
 		VUniqueString& FieldName = *Op.Name.Get();
 
 		bool bSucceeded = false;
-		if (ObjectOperand.IsCell())
+		if (VObject* Object = ObjectOperand.DynamicCast<VObject>())
 		{
-			VShape* Shape = ObjectOperand.StaticCast<VCell>().GetEmergentType()->Shape.Get();
+			const VEmergentType* EmergentType = Object->GetEmergentType();
+			VShape* Shape = EmergentType->Shape.Get();
 			V_DIE_IF(Shape == nullptr);
 			const VShape::VEntry* Field = Shape->GetField(Context, FieldName);
 			V_DIE_IF(Field == nullptr);
 			switch (Field->Type)
 			{
 				case EFieldType::Offset:
-					bSucceeded = Def(ObjectOperand.StaticCast<VObject>().Data[Field->Index], ValueOperand);
+					V_DIE_IF(EmergentType->CppClassInfo == nullptr);
+					bSucceeded = Def(Object->GetData(*EmergentType->CppClassInfo)[Field->Index], ValueOperand);
 					break;
 				case EFieldType::Constant:
 					bSucceeded = Def(Field->Value.Get(), ValueOperand);
@@ -1605,13 +1614,17 @@ class FInterpreter
 					break;
 			}
 		}
-		else if (ensure(ObjectOperand.IsUObject()))
+		else if (ObjectOperand.IsUObject())
 		{
-			UObject* Object = ObjectOperand.AsUObject();
-			UVerseVMClass* Class = CastChecked<UVerseVMClass>(Object->GetClass());
+			UObject* UeObject = ObjectOperand.AsUObject();
+			UVerseVMClass* Class = CastChecked<UVerseVMClass>(UeObject->GetClass());
 			FVRestValueProperty* FieldProperty = Class->GetPropertyForField(Context, FieldName);
-			VRestValue& Slot = *FieldProperty->ContainerPtrToValuePtr<VRestValue>(Object);
+			VRestValue& Slot = *FieldProperty->ContainerPtrToValuePtr<VRestValue>(UeObject);
 			bSucceeded = Def(Slot, ValueOperand);
+		}
+		else
+		{
+			V_DIE("Unsupported operand to a `UnifyField` operation!");
 		}
 
 		return bSucceeded ? FOpResult{FOpResult::Return} : FOpResult{FOpResult::Fail};

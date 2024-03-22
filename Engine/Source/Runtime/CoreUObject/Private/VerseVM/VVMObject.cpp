@@ -22,16 +22,18 @@ DEFINE_DERIVED_VCPPCLASSINFO(VObject);
 template <typename TVisitor>
 void VObject::VisitReferencesImpl(TVisitor& Visitor)
 {
+	const VEmergentType* EmergentType = GetEmergentType();
+	VRestValue* Data = GetData(*EmergentType->CppClassInfo);
+	uint64 NumIndexedFields = EmergentType->Shape->NumIndexedFields;
 	if constexpr (TVisitor::bIsAbstractVisitor)
 	{
-		uint64 ScratchNumIndexedFields = GetEmergentType()->Shape->NumIndexedFields;
-		Visitor.BeginArray(TEXT("Data"), ScratchNumIndexedFields);
-		Visitor.Visit(Data, Data + ScratchNumIndexedFields);
+		Visitor.BeginArray(TEXT("Data"), NumIndexedFields);
+		Visitor.Visit(Data, Data + NumIndexedFields);
 		Visitor.EndArray();
 	}
 	else
 	{
-		Visitor.Visit(Data, Data + GetEmergentType()->Shape->NumIndexedFields);
+		Visitor.Visit(Data, Data + NumIndexedFields);
 	}
 }
 
@@ -83,9 +85,12 @@ uint32 VObject::GetTypeHashImpl()
 		return PointerHash(this);
 	}
 
+	const VEmergentType* EmergentType = GetEmergentType();
+	VRestValue* Data = GetData(*EmergentType->CppClassInfo);
+
 	// Hash nominal type
-	uint32 Result = PointerHash(GetEmergentType()->Type.Get());
-	for (VShape::FieldsMap::TConstIterator It = GetEmergentType()->Shape->Fields; It; ++It)
+	uint32 Result = PointerHash(EmergentType->Type.Get());
+	for (VShape::FieldsMap::TConstIterator It = EmergentType->Shape->Fields; It; ++It)
 	{
 		// Hash Field Name
 		Result = ::HashCombineFast(Result, GetTypeHash(It.Key()));

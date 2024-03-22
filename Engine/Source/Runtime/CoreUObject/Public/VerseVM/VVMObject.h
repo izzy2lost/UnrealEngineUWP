@@ -34,13 +34,17 @@ struct VObject : VHeapValue
 
 	bool IsStruct() const { return !!(Misc2 & IsStructBit); };
 
-private:
+protected:
 	COREUOBJECT_API bool EqualImpl(FRunningContext Context, VCell* Other, const TFunction<void(::Verse::VValue, ::Verse::VValue)>& HandlePlaceholder);
 	COREUOBJECT_API uint32 GetTypeHashImpl();
 
 	VObject(FAllocationContext Context, VEmergentType& InEmergentType);
 
 	friend class FInterpreter;
+
+	static size_t FieldsOffset(const VCppClassInfo& CppClassInfo);
+
+	static std::byte* AllocateFastCell(FAllocationContext Context, VEmergentType& EmergentType);
 
 	/*
 	 * Mutable variables store their data as a `VRestValue`.
@@ -61,7 +65,7 @@ private:
 	 * caches for retrieving fields on objects. It also helps reduce memory usage because multiple objects can share
 	 * the same hash table that describes their layouts.
 	 */
-	VRestValue Data[];
+	VRestValue* GetData(const VCppClassInfo& CppClassInfo);
 };
 } // namespace Verse
 #endif // WITH_VERSE_VM
