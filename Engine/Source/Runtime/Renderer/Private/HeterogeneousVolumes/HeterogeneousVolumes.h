@@ -102,7 +102,7 @@ namespace HeterogeneousVolumes
 	bool UseSparseVoxelPerTileCulling();
 	bool UseLightingCacheForInscattering();
 	bool UseLightingCacheForTransmittance();
-	bool UseAdaptiveVolumetricShadowMapForSelfShadowing();
+	bool UseAdaptiveVolumetricShadowMapForSelfShadowing(const FPrimitiveSceneProxy* PrimitiveSceneProxy);
 	bool ShouldApplyHeightFog();
 	bool ShouldApplyVolumetricFog();
 
