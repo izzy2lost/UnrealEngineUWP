@@ -39,7 +39,8 @@ See also: [Feature Status](Docs/Features.md)
 * **[Setting up test automation](Docs/Tutorials/TestAutomation.md)**
 * **[Setting up studio analytics](Docs/Tutorials/Analytics.md)**
 * **[Setting up mobile and console devices](Docs/Tutorials/DeviceManager.md)**
-* **[Setting up UnrealGameSync and getting Unreal Editor builds to content creators](Tutorials/UnrealGameSync.md)**
+* **[Setting up UnrealGameSync and distributing Unreal Editor to content creators](Docs/Tutorials/UnrealGameSync.md)**
+* **[Setting up authorization](Docs/Tutorials/Authorization.md)**
 
 ## Reference
 

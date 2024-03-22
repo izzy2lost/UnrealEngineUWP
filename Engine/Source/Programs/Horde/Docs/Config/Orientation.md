@@ -2,8 +2,8 @@
 
 # Orientation
 
-Horde is almost exclusively configured through JSON config files. Despite the initial learning curve for some of the conventions 
-and concepts involved, we strongly believe this is a feature over UI-driven configuration. By
+Horde is almost exclusively configured through JSON config files. Despite the initial learning curve for some of the
+conventions and concepts involved, we strongly believe this is a feature over UI-driven configuration. By
 storing configuration in text files, it's easier to diff and version changes, track down changes causing issues, and
 provide a clear specification of the feature set.
 

@@ -182,7 +182,13 @@ Settings for port usage are defined in [Server.json](ServerSettings.md):
 To serve data over HTTPS, set the `HttpsPort` property in the [Server.json](ServerSettings.md) file. The server
 machine must have a correctly configured certificate to serve data correctly.
 
-Both HTTP/1.1 and HTTP/2.0 traffic can be served over the `HttpsPort`.
+Both HTTP/1.1 and HTTP/2.0 traffic can be served over the `HttpsPort`. Unencrypted traffic can be disabled by
+setting `HttpPort` and `Http2Port` to zero.
+
+There are occasions where the server provides links back to itself (the OIDC discovery document used when using
+Horde's internal account system, for example), and it's important that these URLs match the HTTPS certificate.
+By default, this URL is derived from the server's reported DNS name, but this can be overridden through the
+`ServerUrl` property.
 
 ### Monitoring
 
@@ -199,13 +205,16 @@ telemetry capture are [listed here](ServerSettings.md#opentelemetrysettings).
 In order to separate lighter request traffic from heavier background operations, the Horde server can be configured to
 run in different RunModes. You can configure these via the [RunMode](ServerSettings.md) setting.
 
-### Authentication
+### Authorization
 
 Horde supports [OpenID Connect (OIDC)](https://openid.net/developers/how-connect-works/) for authentication using
 an external identity provider. OIDC is a widely used auth standard, and Okta, AWS, Azure, Google, Facebook, and
 many others implement identity providers compatible with it.
 
-The following settings in [Server.json](ServerSettings.md) are required to configure an OIDC provider:
+The [Getting Started > Authorization](../Tutorials/Authorization.md) page explains how to configure Horde's internal
+account system and OIDC provider.
+
+The following settings in [Server.json](ServerSettings.md) are required to configure an external OIDC provider:
 
 * `AuthMethod`: Set this to `OpenIdConnect`.
 * `OidcAuthority`: URL of the OIDC authority. You can check the URL specified here is correct by navigating to
