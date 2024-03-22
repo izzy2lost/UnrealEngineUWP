@@ -14,17 +14,22 @@ using Horde.Server.Server;
 using Horde.Server.Storage;
 using Horde.Server.Utilities;
 using HordeCommon;
+using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Authorization.Policy;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Mvc.Authorization;
+using Microsoft.AspNetCore.Mvc.Filters;
 using Microsoft.AspNetCore.StaticFiles;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
 namespace Horde.Server.Tools
 {
 	/// <summary>
-	/// Controller for the /api/v1/agents endpoint
+	/// Controller for the /api/v1/tools endpoint
 	/// </summary>
 	[ApiController]
 	[Authorize]
@@ -160,6 +165,7 @@ namespace Horde.Server.Tools
 	/// Public methods available without authorization (or with very custom authorization)
 	/// </summary>
 	[ApiController]
+	[TryAuthorize]
 	[Tags("Tools")]
 	public class PublicToolsController : HordeControllerBase
 	{
@@ -181,6 +187,7 @@ namespace Horde.Server.Tools
 		/// Enumerates all the available tools.
 		/// </summary>
 		[HttpGet]
+		[TryAuthorize]
 		[Route("/api/v1/tools")]
 		public async Task<ActionResult<GetToolsSummaryResponse>> GetToolsAsync()
 		{
