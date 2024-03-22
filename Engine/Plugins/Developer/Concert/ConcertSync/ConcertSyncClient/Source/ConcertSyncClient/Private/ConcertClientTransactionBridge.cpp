@@ -859,7 +859,11 @@ UClass* GetModifiedClass(UObject* InObject)
 	{
 		return AActor::StaticClass();
 	}
-	if (Cast<ULevelInstanceComponent>(InObject) || Cast<USceneComponent>(InObject))
+	if (Cast<ULevelInstanceComponent>(InObject))
+	{
+		return ULevelInstanceComponent::StaticClass();
+	}
+	if (Cast<USceneComponent>(InObject))
 	{
 		return USceneComponent::StaticClass();
 	}
