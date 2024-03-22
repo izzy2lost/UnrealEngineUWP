@@ -1649,6 +1649,11 @@ namespace Audio
 
 	float FMixerSource::GetInheritedSubmixVolumeModulation() const
 	{
+		if (!MixerDevice)
+		{
+			return 1.0f;
+		}
+
 		FAudioDevice::FAudioSpatializationInterfaceInfo SpatializationInfo = MixerDevice->GetCurrentSpatializationPluginInterfaceInfo();
 		// We only hit this condition if, while the sound is playing, the spatializer changes from an external send to a non-external one.
 		// If that happens, the submix will catch all modulation so this function's logic is not needed.
