@@ -2186,6 +2186,16 @@ TEST_CASE_NAMED(FBitArrayTestFindAndSetLastZeroBitTest, "System::Core::Container
 	}
 }
 
+TEST_CASE_NAMED(FScriptBitArrayTestClearPartialSlackBits, "System::Core::Containers::BitArray::ScriptClearPartialSlackBits", "[ApplicationContextMask][SmokeFilter]")
+{
+	TTypeCompatibleBytes<TBitArray<>> Memory;
+	// Inline allocation flags are not initialized and the test requires they are non-zero.
+	FMemory::Memset(Memory, 0xff);
+	TBitArray<>& Array = *new(&Memory) TBitArray<>();
+	((FScriptBitArray&)Array).Add(true);
+	Array.CheckInvariants();
+}
+
 class FBitArrayMemoryTest
 {
 public:

@@ -2136,6 +2136,11 @@ public:
 		{
 			ReallocGrow(NumBits - 1);
 		}
+		else if ((Index % NumBitsPerDWORD) == 0)
+		{
+			// Clear the new word to maintain the ClearPartialSlackBits invariant.
+			GetData()[Index / NumBitsPerDWORD] = 0;
+		}
 		(*this)[Index] = Value;
 		return Index;
 	}
