@@ -165,12 +165,13 @@ namespace UE::Cook
 		CookFilter,
 	};
 	const TCHAR* LexToString(UE::Cook::ESuppressCookReason Reason);
+	EStateChangeReason ConvertToStateChangeReason(ESuppressCookReason Reason);
 
 	/** The type of callback for External Requests that needs to be executed within the Scheduler's lock. */
 	typedef TUniqueFunction<void()> FSchedulerCallback;
 
 	/** Which phase of cooking a Package is in.  */
-	enum class EPackageState
+	enum class EPackageState : uint8
 	{
 		/**
 		 * The Package is not being operated on by the cooker, and is not in any queues. This is the state both for

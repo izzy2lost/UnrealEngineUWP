@@ -173,6 +173,7 @@ namespace UE::Cook
 	class ICookOnTheFlyNetworkServer;
 	class IWorkerRequests;
 	enum class ECachedCookedPlatformDataEvent : uint8;
+	enum class EPackageState : uint8;
 	enum class EPollStatus : uint8;
 	enum class EStateChangeReason : uint8;
 	enum class ESuppressCookReason : uint8;
@@ -1175,7 +1176,8 @@ private:
 	 *        the save again. If true, all data will be wiped.
 	 * @param ReleaseSaveReason Why the save data is being released, allows specifying how much to tear down
 	 */
-	void ReleaseCookedPlatformData(UE::Cook::FPackageData& PackageData, UE::Cook::EStateChangeReason ReleaseSaveReason);
+	void ReleaseCookedPlatformData(UE::Cook::FPackageData& PackageData, UE::Cook::EStateChangeReason ReleaseSaveReason,
+		UE::Cook::EPackageState NewState);
 
 	/**
 	 * Poll the PendingCookedPlatformDatas and release their resources when they are complete.

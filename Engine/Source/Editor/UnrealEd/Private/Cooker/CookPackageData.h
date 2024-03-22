@@ -744,7 +744,7 @@ private:
 	void OnEnterLoadReady();
 	void OnExitLoadReady();
 	void OnEnterSave();
-	void OnExitSave(EStateChangeReason ReleaseSaveReason);
+	void OnExitSave(EStateChangeReason ReleaseSaveReason, EPackageState NewState);
 	/* Entry/Exit gates for Properties shared between multiple states */
 	void OnExitInProgress();
 	void OnEnterInProgress();
@@ -972,7 +972,8 @@ public:
 	 */
 	UObject* FindSplitDataObject() const;
 
-	void ResetSaveState(FCookGenerationInfo& Info, UPackage* Package, UE::Cook::EStateChangeReason ReleaseSaveReason);
+	void ResetSaveState(FCookGenerationInfo& Info, UPackage* Package, UE::Cook::EStateChangeReason ReleaseSaveReason,
+		EPackageState NewState);
 
 	int32& GetNextPopulateIndex() { check(IsInitialized()); return NextPopulateIndex; }
 

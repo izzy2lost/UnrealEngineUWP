@@ -74,6 +74,20 @@ const TCHAR* LexToString(ESuppressCookReason Reason)
 	}
 }
 
+EStateChangeReason ConvertToStateChangeReason(ESuppressCookReason Reason)
+{
+	switch (Reason)
+	{
+	case ESuppressCookReason::OrphanedGenerated: return EStateChangeReason::SaveError;
+	case ESuppressCookReason::LoadError: return EStateChangeReason::SaveError;
+	case ESuppressCookReason::ValidationError: return EStateChangeReason::SaveError;
+	case ESuppressCookReason::SaveError: return EStateChangeReason::SaveError;
+	case ESuppressCookReason::CookCanceled: return EStateChangeReason::CookerShutdown;
+	case ESuppressCookReason::MultiprocessAssignmentError: return EStateChangeReason::ReassignAbortedPackages;
+	case ESuppressCookReason::RetractedByCookDirector: return EStateChangeReason::Retraction;
+	default: return EStateChangeReason::CookSuppressed;
+	}
+}
 
 FCookerTimer::FCookerTimer(float InTimeSlice)
 	: TickStartTime(FPlatformTime::Seconds()), ActionStartTime(TickStartTime)

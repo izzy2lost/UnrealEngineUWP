@@ -630,7 +630,7 @@ void FPackageData::SendToState(EPackageState NextState, ESendFlags SendFlags, ES
 		{
 			ensure(PackageDatas.GetSaveQueue().Remove(this) == 1);
 		}
-		OnExitSave(ReleaseSaveReason);
+		OnExitSave(ReleaseSaveReason, NextState);
 		break;
 	default:
 		check(false);
@@ -877,9 +877,9 @@ void FPackageData::OnEnterSave()
 	CheckCookedPlatformDataEmpty();
 }
 
-void FPackageData::OnExitSave(EStateChangeReason ReleaseSaveReason)
+void FPackageData::OnExitSave(EStateChangeReason ReleaseSaveReason, EPackageState NewState)
 {
-	PackageDatas.GetCookOnTheFlyServer().ReleaseCookedPlatformData(*this, ReleaseSaveReason);
+	PackageDatas.GetCookOnTheFlyServer().ReleaseCookedPlatformData(*this, ReleaseSaveReason, NewState);
 	ClearObjectCache();
 	SetHasPrepareSaveFailed(false);
 	SetIsPrepareSaveRequiresGC(false);
@@ -1999,7 +1999,7 @@ bool FGenerationHelper::IsComplete() const
 }
 
 void FGenerationHelper::ResetSaveState(FCookGenerationInfo& Info, UPackage* Package,
-	EStateChangeReason ReleaseSaveReason)
+	EStateChangeReason ReleaseSaveReason, EPackageState NewState)
 {
 	check(IsInitialized());
 	if (Info.GetSaveState() > FCookGenerationInfo::ESaveState::CallPopulate)
@@ -2062,8 +2062,8 @@ void FGenerationHelper::ResetSaveState(FCookGenerationInfo& Info, UPackage* Pack
 	}
 	if (Info.HasTakenOverCachedCookedPlatformData())
 	{
-		if (Info.PackageData && Info.PackageData->GetCachedObjectsInOuter().Num() != 0 &&
-			IsUseInternalReferenceToAvoidGarbageCollect() &&
+		if (NewState != EPackageState::Idle && Info.PackageData &&
+			Info.PackageData->GetCachedObjectsInOuter().Num() != 0 && IsUseInternalReferenceToAvoidGarbageCollect() &&
 			(ReleaseSaveReason != EStateChangeReason::Completed && ReleaseSaveReason != EStateChangeReason::DoneForNow
 				&& ReleaseSaveReason != EStateChangeReason::SaveError
 				&& ReleaseSaveReason != EStateChangeReason::CookerShutdown))
