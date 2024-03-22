@@ -33,7 +33,7 @@ struct FStateTreeRunEnvQueryInstanceData
 
 	/** determines which item will be stored (All = only first matching) */
 	UPROPERTY(EditAnywhere, Category = Parameter)
-	TEnumAsByte<EEnvQueryRunMode::Type> RunMode;
+	TEnumAsByte<EEnvQueryRunMode::Type> RunMode = EEnvQueryRunMode::SingleResult;
 
 	TSharedPtr<FEnvQueryResult> QueryResult = nullptr;
 
