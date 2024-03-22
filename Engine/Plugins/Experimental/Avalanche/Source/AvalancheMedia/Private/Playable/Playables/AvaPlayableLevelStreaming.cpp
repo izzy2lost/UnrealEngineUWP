@@ -546,7 +546,7 @@ bool UAvaPlayableLevelStreaming::InitPlayable(const FPlayableCreationInfo& InPla
 {
 	// For now, we share all the levels in the same instance group. We may do sub-grouping later.
 	PlayableGroup = InPlayableInfo.PlayableGroup ?
-		InPlayableInfo.PlayableGroup : InPlayableInfo.PlayableGroupManager->GetOrCreateSharedLevelGroup(InPlayableInfo.ChannelName, false);
+		InPlayableInfo.PlayableGroup : InPlayableInfo.PlayableGroupManager->GetOrCreateSharedPlayableGroup(InPlayableInfo.ChannelName, false);
 
 	const bool bInitSuccess = Super::InitPlayable(InPlayableInfo);
 	

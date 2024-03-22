@@ -865,12 +865,12 @@ bool UAvaPlaybackGraph::RefreshPreview(const FAvaSoftAssetPtr& InSourceAsset, FA
 
 	UAvaPlayable* const Playable = FindOrLoadPlayable(InSourceAsset, InChannelName);
 
-	if (!Playable)
+	if (!Playable || !Playable->GetPlayableGroup())
 	{
 		return false;
 	}
 	
-	UTextureRenderTarget2D* RenderTarget = Playable->GetPlayableGroup()->RenderTarget;
+	UTextureRenderTarget2D* RenderTarget = Playable->GetPlayableGroup()->GetManagedRenderTarget();
 
 	if (!RenderTarget)
 	{
@@ -883,7 +883,7 @@ bool UAvaPlaybackGraph::RefreshPreview(const FAvaSoftAssetPtr& InSourceAsset, FA
 			FAvaBroadcastOutputChannel::GetDefaultMediaOutputFormat(),
 			IAvaMediaModule::Get().GetBroadcastSettings().GetChannelClearColor());
 
-		Playable->GetPlayableGroup()->RenderTarget = RenderTarget;
+		Playable->GetPlayableGroup()->SetManagedRenderTarget(RenderTarget);
 	}
 	
 	const FIntPoint ViewportSize = UE::AvaMediaRenderTargetUtils::GetRenderTargetSize(RenderTarget);
@@ -914,7 +914,7 @@ UTextureRenderTarget2D* UAvaPlaybackGraph::UpdatePlaybackRenderTarget(const UAva
 			const FName ChannelName = InChannel.GetChannelName();
 
 			// See if we have a managed render target for this asset in this channel.
-			RenderTarget = InPlayable->GetPlayableGroup()->RenderTarget;
+			RenderTarget = InPlayable->GetPlayableGroup()->GetManagedRenderTarget();
 			
 			if (!IsValid(RenderTarget))
 			{
@@ -922,7 +922,7 @@ UTextureRenderTarget2D* UAvaPlaybackGraph::UpdatePlaybackRenderTarget(const UAva
 				RenderTarget = UE::AvaMediaRenderTargetUtils::CreateDefaultRenderTarget(PlaybackRenderTargetBaseName);
 
 				// This render target is now managed by the playable's instance group.
-				InPlayable->GetPlayableGroup()->RenderTarget = RenderTarget;
+				InPlayable->GetPlayableGroup()->SetManagedRenderTarget(RenderTarget);
 			}
 		}
 		

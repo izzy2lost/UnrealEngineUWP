@@ -3,6 +3,7 @@
 #include "Broadcast/OutputDevices/AvaBroadcastOutputUtils.h"
 
 #include "AvaMediaModule.h"
+#include "Broadcast/OutputDevices/AvaGameViewportMediaOutput.h"
 #include "MediaOutput.h"
 #include "Playback/AvaPlaybackMessages.h"
 #include "Serialization/MemoryReader.h"
@@ -74,6 +75,11 @@ FName UE::AvaBroadcastOutputUtils::GetDeviceProviderName(const UMediaOutput* InM
 	}
 #endif
 	return FName();
+}
+
+bool UE::AvaBroadcastOutputUtils::IsGameViewportOutput(const UMediaOutput* InMediaOutput)
+{
+	return InMediaOutput->IsA<UAvaGameViewportMediaOutput>();
 }
 
 FAvaBroadcastOutputData UE::AvaBroadcastOutputUtils::CreateMediaOutputData(UMediaOutput* InMediaOutput)

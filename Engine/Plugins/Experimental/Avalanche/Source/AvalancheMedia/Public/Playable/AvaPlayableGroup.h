@@ -10,7 +10,6 @@
 #include "UObject/WeakInterfacePtr.h"
 #include "AvaPlayableGroup.generated.h"
 
-class UAvaGameInstance;
 class UAvaPlayable;
 class UAvaPlayableGroupManager;
 class UAvaPlayableTransition;
@@ -19,15 +18,20 @@ class UTextureRenderTarget2D;
 struct FAvaInstancePlaySettings;
 
 /**
- * This defines a game instance playable group.
- * It tracks and manage the game instance and playables state.
+ * This class defines the interface and base of a playable group.
  *
- * The design goal of this class is to remove all the playback management
- * from UAvaGameInstance and move it to the playable framework. This
- * should allow us to hook the playback framework to any game instance, including PIE
- * so it can work with any work flow (editor, PIE, game, nDisplay, etc).
+ * A playable group is intended to group playables according to the
+ * underlying rendering implementation. In most cases, it corresponds
+ * to a game instance, either owned or not, local to the process or remote.
  *
- * Also, ideally, the playable class itself should be "game instance" agnostic
+ * It tracks and manage the playables state, transitions and
+ * visibility constraints.
+ *
+ * The design goal of this class is to allow hooking the playable framework
+ * to any game instance, including PIE so it can work with any work flow
+ * (editor, PIE, game, nDisplay, etc).
+ *
+ * Ideally, the playable class itself should be "game instance" agnostic
  * and do all it's bidding on it's container through this class.
  */
 UCLASS()
@@ -50,8 +54,10 @@ public:
 		FName ChannelName;
 		/** Indicate if the group is for remote proxy playables. */
 		bool bIsRemoteProxy = false;
-		/** Indicate if the group is shared. */
+		/** Indicate if the group is shared for multiple playables. If so, it will be registered in the given playable group manager. */
 		bool bIsSharedGroup = false;
+		/** Existing Game Instance. In this case, the playable group will not own the game instance. */
+		UGameInstance* GameInstance = nullptr;
 	};
 	
 	static UAvaPlayableGroup* MakePlayableGroup(UObject* InOuter, const FPlayableGroupCreationInfo& InPlayableGroupInfo);
@@ -84,46 +90,66 @@ public:
 	 * Creates the game instance's world if it wasn't already.
 	 * @return true if the world was created. false if nothing was done.
 	 */
-	bool ConditionalCreateWorld();
+	virtual bool ConditionalCreateWorld() { return true; }
 
 	/**
 	 * Begin playing the game instance's world if it wasn't already.
 	 * @return true if the BeginPlay was done (i.e. on the state transition only), false otherwise.
 	 */
-	virtual bool ConditionalBeginPlay(const FAvaInstancePlaySettings& InWorldPlaySettings);
+	virtual bool ConditionalBeginPlay(const FAvaInstancePlaySettings& InWorldPlaySettings) { return false; }
 
-	virtual void RequestEndPlayWorld(bool bInForceImmediate);
+	virtual void RequestEndPlayWorld(bool bInForceImmediate) {}
 
 	/** Keep track of the last playable that applied it's camera in the viewport/controller. */
 	void SetLastAppliedCameraPlayable(UAvaPlayable* InPlayable);
 	
-	/** Search for the first remaining playing playable and use it's camera. */
+	/** Determines which camera, from currently playing playables, should be used and use it. */
 	bool UpdateCameraSetup();
 
-	bool IsWorldPlaying() const;
+	virtual bool IsWorldPlaying() const { return true; }
 
-	bool IsRenderTargetReady() const;
+	virtual bool IsRenderTargetReady() const { return true; }
 
 	/**
-	 * Current logic for the render target, use the game instance's if there, fallback to internal one if not.
+	 * Current logic for the render target: use the game instance's if present, fallback to internal one if not.
 	 */
-	UTextureRenderTarget2D* GetRenderTarget() const;
+	virtual UTextureRenderTarget2D* GetRenderTarget() const;
 
-	/** Return a vanilla game instance, we want to eventually support any game instance. */
-	UGameInstance* GetGameInstance() const;
-	
-	UWorld* GetPlayWorld() const;
+	/**
+	 * Returns the currently managed render target.
+	 */
+	virtual UTextureRenderTarget2D* GetManagedRenderTarget() const;
+
+	/**
+	 * The playback graph determines if this playable group will render in a broadcast channel's
+	 * render target or an offscreen one. In the later case, the playable group keeps
+	 * track of that render target.
+	 * 
+	 * @remark The playable group does not automatically render in the current "managed" render target.
+	 * The render target this group will render into is determined by the arguments of ConditionalBeginPlay.
+	 */
+	virtual void SetManagedRenderTarget(UTextureRenderTarget2D* InManageRenderTarget);
+
+	/**
+	 * Returns this group's game instance, if it has one.
+	 */
+	UGameInstance* GetGameInstance() const { return GameInstance; }
+
+	/**
+	* Returns this group's play world, if it has one.
+	*/
+	virtual UWorld* GetPlayWorld() const;
 	
 	/**
 	 * Unloads the game instance's world if no more playables are loaded.
 	 * @return true if the world was unloaded. false if nothing was done.
 	 */ 
-	bool ConditionalRequestUnloadWorld(bool bForceImmediate);
+	virtual bool ConditionalRequestUnloadWorld(bool bForceImmediate) { return true; }
 
 	/**
 	 * @brief Queue a camera cut for the next rendered frame.
 	 */
-	void QueueCameraCut();
+	virtual void QueueCameraCut() {}
 
 	/**
 	 * @brief Notify the playable group that a playable is loading an asset.
@@ -150,21 +176,16 @@ protected:
 	bool DisplayPlayingAssets(FText& OutText, FLinearColor& OutColor);
 	bool DisplayTransitions(FText& OutText, FLinearColor& OutColor);
 
-	static UPackage* MakeGameInstancePackage(const FSoftObjectPath& InSourceAssetPath, const FName& InChannelName);
-	static UPackage* MakeSharedInstancePackage(const FName& InChannelName);
-	static UPackage* MakeInstancePackage(const FString& InInstancePackageName);
-
-public:	
-	UPROPERTY(Transient)
-	TObjectPtr<UTextureRenderTarget2D> RenderTarget;	// Optional
-	
-	UPROPERTY(Transient)
-	TObjectPtr<UAvaGameInstance> GameInstance;
-
-	UPROPERTY(Transient)
-	TObjectPtr<UPackage> GameInstancePackage;
-
 protected:
+	/**
+	 * Managed Render Target for this playable group.
+	 */
+	UPROPERTY(Transient)
+	TObjectPtr<UTextureRenderTarget2D> ManagedRenderTarget;
+
+	UPROPERTY(Transient)
+	TObjectPtr<UGameInstance> GameInstance;
+
 	/** PlayableGroup Manager handling this playable group. */
 	TWeakObjectPtr<UAvaPlayableGroupManager> ParentPlayableGroupManagerWeak;
 	
@@ -207,19 +228,4 @@ protected:
 	TArray<FVisibilityRequest> VisibilityRequests;
 
 	TArray<TWeakInterfacePtr<IAvaPlayableVisibilityConstraint>> VisibilityConstraints;
-};
-
-/**
- *	Remote Proxy Playable Group doesn't have a game instance.
- */
-UCLASS()
-class AVALANCHEMEDIA_API UAvaPlayableRemoteProxyGroup : public UAvaPlayableGroup
-{
-	GENERATED_BODY()
-	
-public:
-	virtual bool ConditionalBeginPlay(const FAvaInstancePlaySettings& InWorldPlaySettings) override;
-	virtual void RequestEndPlayWorld(bool bInForceImmediate) override;
-	
-	bool bIsPlaying = false;
 };

@@ -27,6 +27,11 @@ namespace UE::AvaMediaModule::Private
 		return FParse::Value(FCommandLine::Get(),TEXT("MotionDesignPlaybackServerStart="), OutPlaybackServerName) ||
 		 FParse::Param(FCommandLine::Get(), TEXT("MotionDesignPlaybackServerStart"));
 	}
+
+	bool IsDisplayClusterNode(FString& OutDisplayClusterNodeName)
+	{
+		return FParse::Value(FCommandLine::Get(),TEXT("dc_node="), OutDisplayClusterNodeName);
+	}
 }
 
 FAvaMediaModule::FAvaMediaModule()
@@ -374,6 +379,16 @@ void FAvaMediaModule::PostEngineInit()
 	const bool bIsServerManuallyStarted = IsPlaybackServerManuallyStarted(PlaybackServerName);
 	const bool bIsClientManuallyStarted = FParse::Param(FCommandLine::Get(), TEXT("MotionDesignPlaybackClientStart"));
 
+	FString DisplayClusterNode;
+	if (IsDisplayClusterNode(DisplayClusterNode))
+	{
+		if (PlaybackServerName.IsEmpty())
+		{
+			PlaybackServerName = FPlatformProcess::ComputerName();
+		}
+		PlaybackServerName += FString::Printf(TEXT("_%s"), *DisplayClusterNode);
+	}
+	
 	// Adding a command to suppress the client from auto-starting. This is used when spawning
 	// extra server process from the same project, while preventing extra clients.
 	const bool bIsClientAutoStartSuppressed = FParse::Param(FCommandLine::Get(), TEXT("MotionDesignPlaybackClientSuppress"));

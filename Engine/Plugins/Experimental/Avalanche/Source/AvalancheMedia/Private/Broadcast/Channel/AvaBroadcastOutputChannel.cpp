@@ -768,7 +768,7 @@ void FAvaBroadcastOutputChannel::StopChannelBroadcast()
 UMediaOutput* FAvaBroadcastOutputChannel::AddMediaOutput(const UClass* InMediaOutputClass, const FAvaBroadcastMediaOutputInfo& InOutputInfo)
 {
 	// Don't add a remote output to a local preview channel.
-	if (InOutputInfo.IsValid() && InOutputInfo.IsRemote() && GetChannelType() == EAvaBroadcastChannelType::Preview)
+	if (InOutputInfo.IsRemote() && GetChannelType() == EAvaBroadcastChannelType::Preview)
 	{
 		return nullptr;
 	}
@@ -799,7 +799,15 @@ UMediaOutput* FAvaBroadcastOutputChannel::AddMediaOutput(const UClass* InMediaOu
 			}
 		}
 
-		AddMediaOutput(MediaOutput, InOutputInfo);
+		FAvaBroadcastMediaOutputInfo OutputInfo = InOutputInfo;
+
+		// If the device was not enumerated, we try to get the device name from the MediaOutput object.
+		if (OutputInfo.DeviceName.IsNone())
+		{
+			OutputInfo.DeviceName = FName(UE::AvaBroadcastOutputUtils::GetDeviceName(MediaOutput));
+		}
+
+		AddMediaOutput(MediaOutput, OutputInfo);
 		
 		return MediaOutput;
 	}

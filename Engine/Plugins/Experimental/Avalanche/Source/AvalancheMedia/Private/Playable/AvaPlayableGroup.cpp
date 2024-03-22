@@ -2,10 +2,14 @@
 
 #include "Playable/AvaPlayableGroup.h"
 
+#include "Engine/GameInstance.h"
 #include "Engine/ViewportStatsSubsystem.h"
-#include "Framework/AvaGameInstance.h"
+#include "Engine/World.h"
 #include "Playable/AvaPlayable.h"
 #include "Playable/AvaPlayableGroupManager.h"
+#include "Playable/PlayableGroups/AvaGameInstancePlayableGroup.h"
+#include "Playable/PlayableGroups/AvaGameViewportPlayableGroup.h"
+#include "Playable/PlayableGroups/AvaRemoteProxyPlayableGroup.h"
 #include "Playable/Transition/AvaPlayableTransition.h"
 #include "Playback/AvaPlaybackUtils.h"
 #include "UObject/Package.h"
@@ -27,99 +31,27 @@ namespace UE::AvaMedia::PlayableGroup::Private
 	}
 }
 
-UPackage* UAvaPlayableGroup::MakeGameInstancePackage(const FSoftObjectPath& InSourceAssetPath, const FName& InChannelName)
-{
-	// Remote Control Preset will be registered with the package name.
-	// We want a package name unique to the game instance and that will be
-	// human readable since it will show up in the Web Remote Control page.
-	
-	FString InstancePackageName = TEXT("/Temp/");	// Keep it short for web page.
-
-	// Using channel name, since we should have one instance per channel.
-	InstancePackageName += InChannelName.ToString();
-
-	// In order to keep things short, we remove "/Game" since we added the channel name instead.
-	FString InstanceSubPath;
-	if (!InSourceAssetPath.GetLongPackageName().Split(TEXT("/Game"), nullptr, &InstanceSubPath))
-	{
-		InstanceSubPath = InSourceAssetPath.GetLongPackageName();
-	}
-
-	// This may happen if the original asset path is not specified.
-	if (InstanceSubPath.IsEmpty())
-	{
-		// Add something to get a valid path at least.
-		InstanceSubPath = TEXT("InvalidAssetName");
-	}
-	
-	InstancePackageName += InstanceSubPath;
-
-	return MakeInstancePackage(InstancePackageName);
-}
-
-UPackage* UAvaPlayableGroup::MakeSharedInstancePackage(const FName& InChannelName)
-{
-	// Remote Control Preset will be registered with the package name.
-	// We want a package name unique to the game instance and that will be
-	// human readable since it will show up in the Web Remote Control page.
-	
-	FString SharedPackageName = TEXT("/Temp/");	// Keep it short for web page.
-
-	// Using channel name, since we should have one instance per channel.
-	SharedPackageName += InChannelName.ToString();
-
-	// Shared for all levels.
-	SharedPackageName += TEXT("/SharedLevels");
-	
-	return MakeInstancePackage(SharedPackageName);
-}
-
-UPackage* UAvaPlayableGroup::MakeInstancePackage(const FString& InInstancePackageName)
-{
-	UPackage* InstancePackage = CreatePackage(*InInstancePackageName);
-	if (InstancePackage)
-	{
-		InstancePackage->SetFlags(RF_Transient);
-	}
-	else
-	{
-		// Note: The outer will fallback to GEngine in that case.
-		UE_LOG(LogAvaPlayable, Error, TEXT("Unable to create package \"%s\" for Motion Design Game Instance."), *InInstancePackageName);
-	}
-	return InstancePackage;
-}
-
 UAvaPlayableGroup* UAvaPlayableGroup::MakePlayableGroup(UObject* InOuter, const FPlayableGroupCreationInfo& InPlayableGroupInfo)
 {
 	UObject* Outer = InOuter ? InOuter : GetTransientPackage();
 	
-	UAvaPlayableGroup* GameInstanceGroup;
+	UAvaPlayableGroup* GameInstanceGroup = nullptr;
 	if (InPlayableGroupInfo.bIsRemoteProxy)
 	{
 		// Remote Proxy group doesn't have a game instance.
-		GameInstanceGroup = NewObject<UAvaPlayableRemoteProxyGroup>(Outer);
+		GameInstanceGroup = NewObject<UAvaRemoteProxyPlayableGroup>(Outer);
 		GameInstanceGroup->ParentPlayableGroupManagerWeak = InPlayableGroupInfo.PlayableGroupManager;
 	}
 	else
 	{
-		GameInstanceGroup = NewObject<UAvaPlayableGroup>(Outer);
-		GameInstanceGroup->ParentPlayableGroupManagerWeak = InPlayableGroupInfo.PlayableGroupManager;
-		
-		if (InPlayableGroupInfo.bIsSharedGroup)
+		if (InPlayableGroupInfo.GameInstance)
 		{
-			GameInstanceGroup->GameInstancePackage = MakeSharedInstancePackage(InPlayableGroupInfo.ChannelName);
+			GameInstanceGroup = UAvaGameViewportPlayableGroup::Create(InOuter, InPlayableGroupInfo.GameInstance, InPlayableGroupInfo.PlayableGroupManager);
 		}
 		else
 		{
-			// We can create the package even if the name is null, it will have a generic name. But that will be considered an error.
-			if (!InPlayableGroupInfo.SourceAssetPath.IsNull())
-			{
-				UE_LOG(LogAvaPlayable, Error, TEXT("Creating game instance package for asset with unspecified name."));
-			}
-			GameInstanceGroup->GameInstancePackage = MakeGameInstancePackage(InPlayableGroupInfo.SourceAssetPath, InPlayableGroupInfo.ChannelName);
+			GameInstanceGroup = UAvaGameInstancePlayableGroup::Create(InOuter, InPlayableGroupInfo);
 		}
-		
-		GameInstanceGroup->GameInstance = UAvaGameInstance::Create(GameInstanceGroup->GameInstancePackage);
 	}
 	return GameInstanceGroup;
 }
@@ -273,60 +205,6 @@ bool UAvaPlayableGroup::HasTransitions() const
 	return !PlayableTransitions.IsEmpty();
 }
 
-bool UAvaPlayableGroup::ConditionalCreateWorld()
-{
-	if (!GameInstance)
-	{
-		return false;
-	}
-
-	bool bWorldWasCreated = false;
-
-	if (!GameInstance->IsWorldCreated())
-	{
-		bWorldWasCreated = GameInstance->CreateWorld();
-	}
-	
-	// Make sure we register our delegates to this world.
-	if (GameInstance->GetPlayWorld())
-	{
-		ConditionalRegisterWorldDelegates(GameInstance->GetPlayWorld());
-	}
-	
-	return bWorldWasCreated;
-}
-
-bool UAvaPlayableGroup::ConditionalBeginPlay(const FAvaInstancePlaySettings& InWorldPlaySettings)
-{
-	bool bHasBegunPlay = false;
-	if (!GameInstance)
-	{
-		return bHasBegunPlay;
-	}
-	
-	// Make sure we don't have pending unload or stop requests left over in the game instance.
-	GameInstance->CancelWorldRequests();
-
-	if (!GameInstance->IsWorldPlaying())
-	{
-		bHasBegunPlay = GameInstance->BeginPlayWorld(InWorldPlaySettings);
-	}
-	else
-	{
-		GameInstance->UpdateRenderTarget(InWorldPlaySettings.RenderTarget);
-		GameInstance->UpdateSceneViewportSize(InWorldPlaySettings.ViewportSize);
-	}
-	return bHasBegunPlay;
-}
-
-void UAvaPlayableGroup::RequestEndPlayWorld(bool bInForceImmediate)
-{
-	if (GameInstance)
-	{
-		GameInstance->RequestEndPlayWorld(bInForceImmediate);
-	}
-}
-
 void UAvaPlayableGroup::SetLastAppliedCameraPlayable(UAvaPlayable* InPlayable)
 {
 	LastAppliedCameraPlayableWeak = InPlayable;
@@ -361,56 +239,25 @@ bool UAvaPlayableGroup::UpdateCameraSetup()
 	return false;
 }
 
-bool UAvaPlayableGroup::IsWorldPlaying() const
-{
-	return GameInstance ? GameInstance->IsWorldPlaying() : false;
-}
-
-bool UAvaPlayableGroup::IsRenderTargetReady() const
-{
-	return GameInstance ? GameInstance->IsRenderTargetReady() : false;
-}
-
 UTextureRenderTarget2D* UAvaPlayableGroup::GetRenderTarget() const
 {
-	return GameInstance ? GameInstance->GetRenderTarget() : RenderTarget.Get();
+	return ManagedRenderTarget.Get();
 }
 
-UGameInstance* UAvaPlayableGroup::GetGameInstance() const
+UTextureRenderTarget2D* UAvaPlayableGroup::GetManagedRenderTarget() const
 {
-	return GameInstance;
+	return ManagedRenderTarget.Get();
 }
-	
+
+
+void UAvaPlayableGroup::SetManagedRenderTarget(UTextureRenderTarget2D* InManageRenderTarget)
+{
+	ManagedRenderTarget = InManageRenderTarget;
+}
+
 UWorld* UAvaPlayableGroup::GetPlayWorld() const
 {
-	return GameInstance ? GameInstance->GetPlayWorld() : nullptr;
-}
-
-bool UAvaPlayableGroup::ConditionalRequestUnloadWorld(bool bForceImmediate)
-{
-	if (!GameInstance)
-	{
-		return false;
-	}
-	
-	if (!HasPlayables())
-	{
-		UnregisterWorldDelegates(GameInstance->GetPlayWorld());
-		GameInstance->RequestUnloadWorld(bForceImmediate);
-		return true;
-	}
-	return false;
-}
-
-void UAvaPlayableGroup::QueueCameraCut()
-{
-	if (GameInstance)
-	{
-		if (UAvaGameViewportClient* GameViewportClient = GameInstance->GetAvaGameViewportClient())
-		{
-			GameViewportClient->SetCameraCutThisFrame();
-		}
-	}
+	return GameInstance ? GameInstance->GetWorld() : nullptr;
 }
 
 void UAvaPlayableGroup::NotifyLevelStreaming(UAvaPlayable* InPlayable)
@@ -627,21 +474,6 @@ bool UAvaPlayableGroup::DisplayTransitions(FText& OutText, FLinearColor& OutColo
 		return true;
 	}
 	return false;
-}
-
-bool UAvaPlayableRemoteProxyGroup::ConditionalBeginPlay(const FAvaInstancePlaySettings& InWorldPlaySettings)
-{
-	if (!bIsPlaying)
-	{
-		bIsPlaying = true;
-		return true;
-	}
-	return false;
-}
-
-void UAvaPlayableRemoteProxyGroup::RequestEndPlayWorld(bool bInForceImmediate)
-{
-	bIsPlaying = false;
 }
 
 #undef LOCTEXT_NAMESPACE
