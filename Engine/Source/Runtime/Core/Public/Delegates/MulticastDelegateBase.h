@@ -68,7 +68,6 @@ public:
 			ClearUnchecked();
 			InvocationList = MoveTemp(LocalInvocationList);
 			CompactionThreshold = LocalCompactionThreshold;
-			InvocationListLockCount = 0;
 			checkf(InvocationListLockCount == 0, TEXT("Moving to a multicast delegate while it is mid broadcast"));
 		}
 
