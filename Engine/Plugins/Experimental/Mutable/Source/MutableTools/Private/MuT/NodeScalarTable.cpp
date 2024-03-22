@@ -63,6 +63,11 @@ namespace mu
 		m_pD->bNoneOption = bAddNoneOption;
 	}
 
+	//---------------------------------------------------------------------------------------------
+	void NodeScalarTable::SetDefaultRowName(const FString& RowName)
+	{
+		m_pD->DefaultRowName = RowName;
+	}
 }
 
 

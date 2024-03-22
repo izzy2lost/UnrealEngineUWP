@@ -1149,5 +1149,5 @@ void LogRowGenerationMessage(const UCustomizableObjectNodeTable* TableNode, cons
 	GenerationContext.Compiler->CompilerLog(FText::FromString(FinalMessage), TableNode);
 }
 
-#undef LOCTEXT_NAMESPACE
 
+#undef LOCTEXT_NAMESPACE

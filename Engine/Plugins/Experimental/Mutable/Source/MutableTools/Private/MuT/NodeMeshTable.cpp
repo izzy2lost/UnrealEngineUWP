@@ -108,6 +108,13 @@ namespace mu
 		m_pD->bNoneOption = bAddNoneOption;
 	}
 
+
+	//---------------------------------------------------------------------------------------------
+	void NodeMeshTable::SetDefaultRowName(const FString& RowName)
+	{
+		m_pD->DefaultRowName = RowName;
+	}
+
 }
 
 

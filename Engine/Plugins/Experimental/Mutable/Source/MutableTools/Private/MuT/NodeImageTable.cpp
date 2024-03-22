@@ -84,6 +84,13 @@ namespace mu
 		m_pD->ReferenceImageDesc = ImageDesc;
 	}
 
+
+	//---------------------------------------------------------------------------------------------
+	void NodeImageTable::SetDefaultRowName(const FString& RowName)
+	{
+		m_pD->DefaultRowName = RowName;
+	}
+
 }
 
 

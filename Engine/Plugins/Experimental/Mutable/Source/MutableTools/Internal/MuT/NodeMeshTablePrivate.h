@@ -23,13 +23,14 @@ namespace mu
 		TablePtr Table;
 		FString ColumnName;
 		bool bNoneOption = false;
+		FString DefaultRowName;
 
 		TArray<NodeLayoutPtr> Layouts;
 
 		//!
 		void Serialise( OutputArchive& arch ) const
 		{
-            uint32 ver = 3;
+            uint32 ver = 4;
 			arch << ver;
 
 			arch << ParameterName;
@@ -37,6 +38,7 @@ namespace mu
 			arch << ColumnName;
 			arch << Layouts;
 			arch << bNoneOption;
+			arch << DefaultRowName;
 		}
 
 		//!
@@ -44,7 +46,7 @@ namespace mu
 		{
             uint32 ver;
 			arch >> ver;
-            check(ver>=1 && ver<=3);
+            check(ver>=1 && ver<=4);
 
 			if (ver == 1)
 			{
@@ -79,6 +81,11 @@ namespace mu
 			else
 			{
 				bNoneOption = Table->GetPrivate()->bNoneOption_DEPRECATED;
+			}
+
+			if (ver >= 4)
+			{
+				arch >> DefaultRowName;
 			}
 		}
 

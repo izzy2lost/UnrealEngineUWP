@@ -61,6 +61,9 @@ namespace mu
 		//!
 		void SetNoneOption(bool bAddNoneOption);
 
+		//! Set the row name to be used as default value
+		void SetDefaultRowName(const FString RowName);
+
 		//-----------------------------------------------------------------------------------------
 		// Interface pattern
 		//-----------------------------------------------------------------------------------------

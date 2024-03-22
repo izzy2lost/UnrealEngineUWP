@@ -24,11 +24,12 @@ namespace mu
 		uint16 MaxTextureSize = 0;
 		FImageDesc ReferenceImageDesc;
 		bool bNoneOption = false;
+		FString DefaultRowName;
 
 		//!
 		void Serialise( OutputArchive& arch ) const
 		{
-            uint32_t ver = 5;
+            uint32_t ver = 6;
 			arch << ver;
 
 			arch << ParameterName;
@@ -44,6 +45,7 @@ namespace mu
 			}
 
 			arch << bNoneOption;
+			arch << DefaultRowName;
 		}
 
 		//!
@@ -51,7 +53,7 @@ namespace mu
 		{
             uint32_t ver;
 			arch >> ver;
-			check(ver>=1 && ver<= 5);
+			check(ver>=1 && ver<= 6);
 
 			if (ver == 1)
 			{
@@ -100,6 +102,11 @@ namespace mu
 			if (ver >= 5)
 			{
 				arch >> bNoneOption;
+			}
+
+			if (ver >= 6)
+			{
+				arch >> DefaultRowName;
 			}
 		}
 	};
