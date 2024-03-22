@@ -100,6 +100,15 @@ private:
 	TArray<TSharedPtr<FString>> TextureParameterValueNames;
 	TArray<FName> TextureParameterValues;
 
+	/** Array with all the possible multilayer projector texture options */
+	TArray<TSharedPtr<TArray<TSharedPtr<FString>>>> ProjectorTextureOptions;
+
+	/** Map from ParamIndexInObject to the param's int selector options */
+	TMap<int32, TSharedPtr<TArray<TSharedPtr<FString>>>> IntParameterOptions;
+
+	/** Map from ParamIndexInObject to the projector param pose options  */
+	TMap<int32, TSharedPtr<TArray<TSharedPtr<FString>>>> ProjectorParameterPoseOptions;
+
 	struct FSliderData
 	{
 		FSliderData( TSharedPtr<SSpinBox<float>> InSlider, const FString& InParamName, int32 InRangeIndex, float InLastValueSet)
@@ -168,6 +177,8 @@ private:
 	/** SearchBox OnTextCommitted Callback to search a parameter int by name */
 	void OnIntParameterComboBoxChanged(TSharedPtr<FString> Selection, ESelectInfo::Type SelectInfo, FString ParamName);
 
+	TSharedRef<SWidget> OnGenerateWidgetIntParameter(TSharedPtr<FString> InItem) const;
+
 	/** Gets the name value of a int parameter */
 	FString GetIntParameterValue(FString ParamName, int RangeIndex = -1) const;
 	
@@ -176,6 +187,7 @@ private:
 	
 	/** SearchBox OnTextCommitted Callback to search a parameter texture by name */
 	void OnProjectorTextureParameterComboBoxChanged(TSharedPtr<FString> Selection, ESelectInfo::Type SelectInfo, FString ParamName, int32 RangeIndex) const;
+	TSharedRef<SWidget> OnGenerateWidgetProjectorParameter(TSharedPtr<FString> InItem) const;
 
 	/** Slider OnValueChanged Callbacks for float parameters */
 	void OnProjectorFloatParameterChanged(float Value, int SliderIndex);

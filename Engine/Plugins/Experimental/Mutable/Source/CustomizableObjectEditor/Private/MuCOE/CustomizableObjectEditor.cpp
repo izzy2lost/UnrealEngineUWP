@@ -51,7 +51,6 @@
 #include "MuCOE/SCustomizableObjectEditorViewport.h"
 #include "PropertyEditorModule.h"
 #include "ScopedTransaction.h"
-#include "MuCOE/SCustomizableInstanceProperties.h"
 #include "MuCO/CustomizableObjectInstancePrivate.h"
 #include "MuCO/CustomizableObjectPrivate.h"
 #include "UObject/EnumProperty.h"
