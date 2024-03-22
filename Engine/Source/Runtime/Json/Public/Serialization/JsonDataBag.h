@@ -3,6 +3,7 @@
 #pragma once
 
 #include "Serialization/JsonSerializable.h"
+#include "Misc/Optional.h"
 
 class FJsonSerializerReader;
 
@@ -28,7 +29,19 @@ struct FJsonDataBag : public FJsonSerializable
 	}
 
 	JSON_API void SetFieldJson(const FString& Key, const TSharedPtr<FJsonValue>& Value);
-
 public:
 	TSharedPtr<FJsonObject> JsonObject;
+
+	/* If set, will use TPrettyJsonPrintPolicy */
+	TOptional<int32> NumPrintIndents;
+};
+
+template<int32 PrintIndentCount>
+struct TPrettyJsonBag : public FJsonDataBag
+{
+	TPrettyJsonBag()
+		: FJsonDataBag()
+	{
+		NumPrintIndents.Emplace(PrintIndentCount);
+	}
 };
