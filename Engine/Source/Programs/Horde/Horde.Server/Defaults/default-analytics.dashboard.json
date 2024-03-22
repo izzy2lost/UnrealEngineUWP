@@ -34,7 +34,7 @@
 					"name": "LoadingName",
 					"group": "LoadingName",
 					"defaults": [
-						"TotalEditorStartup",
+						"BootEditor",
 						"LoadMap",
 						"TimeToPIE"
 					]
