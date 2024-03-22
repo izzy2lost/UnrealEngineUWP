@@ -6,7 +6,7 @@
 #include UE_INLINE_GENERATED_CPP_BY_NAME(SimulationStretchConfigNode)
 
 FChaosClothAssetSimulationStretchConfigNode::FChaosClothAssetSimulationStretchConfigNode(const Dataflow::FNodeParameters& InParam, FGuid InGuid)
-	: FChaosClothAssetSimulationFabricConfigNode(InParam, InGuid)
+	: FChaosClothAssetSimulationBaseConfigNode(InParam, InGuid)
 {
 	RegisterCollectionConnections();
 	RegisterInputConnection(&StretchStiffness.WeightMap);
@@ -22,12 +22,6 @@ FChaosClothAssetSimulationStretchConfigNode::FChaosClothAssetSimulationStretchCo
 
 void FChaosClothAssetSimulationStretchConfigNode::AddProperties(FPropertyHelper& PropertyHelper) const
 {
-	UE::Chaos::ClothAsset::FCollectionClothFacade ClothFacade(PropertyHelper.GetClothCollection());
-	if(!ClothFacade.IsValid())
-	{
-		return;
-	}
-	
 	if(SolverType == EChaosClothAssetConstraintSolverType::XPBD)
 	{
 		if (DistributionType == EChaosClothAssetConstraintDistributionType::Anisotropic)
@@ -35,31 +29,31 @@ void FChaosClothAssetSimulationStretchConfigNode::AddProperties(FPropertyHelper&
 			PropertyHelper.SetPropertyBool(FName(TEXT("XPBDAnisoSpringUse3dRestLengths")), bStretchUse3dRestLengths, {
 				FName(TEXT("XPBDAnisoStretchUse3dRestLengths"))}, ECollectionPropertyFlags::None);  // Non animatable
 
-			SetFabricPropertyWeighted(FName(TEXT("XPBDAnisoSpringStiffnessWarp")), StretchStiffnessWarp,ClothFacade, PropertyHelper, [](
+			PropertyHelper.SetFabricPropertyWeighted(FName(TEXT("XPBDAnisoSpringStiffnessWarp")), StretchStiffnessWarp, [](
 				const UE::Chaos::ClothAsset::FCollectionClothFabricFacade& FabricFacade)-> float
 			 {
-				 return FabricFacade.GetXPBDAnisoSpringStiffness().Warp;
+				 return FabricFacade.GetStretchStiffness().Warp;
 			 }, {
 				FName(TEXT("EdgeSpringStiffness")),
 				FName(TEXT("XPBDEdgeSpringStiffness")),
 				FName(TEXT("XPBDAnisoStretchStiffnessWarp"))});
 
-			SetFabricPropertyWeighted(FName(TEXT("XPBDAnisoSpringStiffnessWeft")), StretchStiffnessWeft, ClothFacade, PropertyHelper, [](
+			PropertyHelper.SetFabricPropertyWeighted(FName(TEXT("XPBDAnisoSpringStiffnessWeft")), StretchStiffnessWeft, [](
 				const UE::Chaos::ClothAsset::FCollectionClothFabricFacade& FabricFacade)-> float
 			 {
-				 return FabricFacade.GetXPBDAnisoSpringStiffness().Weft;
+				 return FabricFacade.GetStretchStiffness().Weft;
 			 }, { FName(TEXT("XPBDAnisoStretchStiffnessWeft")) });
 	
-			SetFabricPropertyWeighted(FName(TEXT("XPBDAnisoSpringStiffnessBias")), StretchStiffnessBias, ClothFacade, PropertyHelper, [](
+			PropertyHelper.SetFabricPropertyWeighted(FName(TEXT("XPBDAnisoSpringStiffnessBias")), StretchStiffnessBias, [](
 				const UE::Chaos::ClothAsset::FCollectionClothFabricFacade& FabricFacade)-> float
 			 {
-				 return FabricFacade.GetXPBDAnisoSpringStiffness().Bias;
+				 return FabricFacade.GetStretchStiffness().Bias;
 			 }, { FName(TEXT("XPBDAnisoStretchStiffnessBias")) });
 
-			SetFabricPropertyWeighted(FName(TEXT("XPBDAnisoSpringDamping")), StretchAnisoDamping, ClothFacade, PropertyHelper, [](
+			PropertyHelper.SetFabricPropertyWeighted(FName(TEXT("XPBDAnisoSpringDamping")), StretchAnisoDamping, [](
 				const UE::Chaos::ClothAsset::FCollectionClothFabricFacade& FabricFacade)-> float
 			 {
-				 return FabricFacade.GetXPBDAnisoDamping();
+				 return FabricFacade.GetDamping();
 			 }, { FName(TEXT("XPBDEdgeSpringDamping")),
 				FName(TEXT("XPBDAnisoStretchDamping")) });
 

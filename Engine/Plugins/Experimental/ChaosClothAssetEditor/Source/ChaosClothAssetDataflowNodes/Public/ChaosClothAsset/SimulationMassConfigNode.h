@@ -2,13 +2,13 @@
 
 #pragma once 
 
-#include "ChaosClothAsset/SimulationFabricConfigNode.h"
+#include "ChaosClothAsset/SimulationBaseConfigNode.h"
 #include "ClothConfig.h"  // For EClothMassMode
 #include "SimulationMassConfigNode.generated.h"
 
 /** Mass properties configuration node. */
 USTRUCT(Meta = (DataflowCloth))
-struct FChaosClothAssetSimulationMassConfigNode : public FChaosClothAssetSimulationFabricConfigNode
+struct FChaosClothAssetSimulationMassConfigNode : public FChaosClothAssetSimulationBaseConfigNode
 {
 	GENERATED_USTRUCT_BODY()
 	DATAFLOW_NODE_DEFINE_INTERNAL(FChaosClothAssetSimulationMassConfigNode, "SimulationMassConfig", "Cloth", "Cloth Simulation Mass Config")

@@ -2,14 +2,14 @@
 
 #pragma once 
 
-#include "ChaosClothAsset/SimulationFabricConfigNode.h"
+#include "ChaosClothAsset/SimulationBaseConfigNode.h"
 #include "ChaosClothAsset/WeightedValue.h"
 #include "ChaosClothAsset/SimulationConfigNodePropertyTypes.h"
 #include "SimulationBendingConfigNode.generated.h"
 
 /** Bending constraint property configuration node. */
 USTRUCT(Meta = (DataflowCloth))
-struct FChaosClothAssetSimulationBendingConfigNode : public FChaosClothAssetSimulationFabricConfigNode
+struct FChaosClothAssetSimulationBendingConfigNode : public FChaosClothAssetSimulationBaseConfigNode
 {
 	GENERATED_USTRUCT_BODY()
 	DATAFLOW_NODE_DEFINE_INTERNAL(FChaosClothAssetSimulationBendingConfigNode, "SimulationBendingConfig", "Cloth", "Cloth Simulation Bending Config")

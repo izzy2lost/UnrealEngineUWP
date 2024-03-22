@@ -11,7 +11,16 @@ namespace UE::Chaos::ClothAsset::Private
 	static const TArray<FName> LodsGroupAttributes =
 	{
 		ClothCollectionAttribute::PhysicsAssetPathName,
-		ClothCollectionAttribute::SkeletalMeshPathName
+		ClothCollectionAttribute::SkeletalMeshPathName,
+	};
+
+	// Solvers Group
+	static const TArray<FName> SolverGroupAttributes =
+	{
+		ClothCollectionAttribute::SolverGravity,
+		ClothCollectionAttribute::SolverAirDamping,
+		ClothCollectionAttribute::SolverSubSteps,
+		ClothCollectionAttribute::SolverTimeStep,
 	};
 
 	// Fabrics Group
@@ -21,10 +30,12 @@ namespace UE::Chaos::ClothAsset::Private
 		ClothCollectionAttribute::FabricBucklingStiffness,
 		ClothCollectionAttribute::FabricStretchStiffness,
 		ClothCollectionAttribute::FabricBucklingRatio,
-		ClothCollectionAttribute::FabricClothDensity,
-		ClothCollectionAttribute::FabricClothFriction,
-		ClothCollectionAttribute::FabricClothThickness,
-		ClothCollectionAttribute::FabricClothDamping
+		ClothCollectionAttribute::FabricDensity,
+		ClothCollectionAttribute::FabricFriction,
+		ClothCollectionAttribute::FabricDamping,
+		ClothCollectionAttribute::FabricPressure,
+		ClothCollectionAttribute::FabricLayer,
+		ClothCollectionAttribute::FabricCollisionThickness,
 	};
 
 	// Seam Group
@@ -48,7 +59,8 @@ namespace UE::Chaos::ClothAsset::Private
 		ClothCollectionAttribute::SimVertices2DEnd,
 		ClothCollectionAttribute::SimFacesStart,
 		ClothCollectionAttribute::SimFacesEnd,
-		ClothCollectionAttribute::SimPatternFabric
+		ClothCollectionAttribute::SimPatternFabric,
+		
 	};
 
 	// Render Patterns Group
@@ -128,7 +140,8 @@ namespace UE::Chaos::ClothAsset::Private
 		{ ClothCollectionGroup::SimVertices3D, SimVertices3DGroupAttributes },
 		{ ClothCollectionGroup::RenderFaces, RenderFacesGroupAttributes },
 		{ ClothCollectionGroup::RenderVertices, RenderVerticesGroupAttributes },
-		{ ClothCollectionGroup::Fabrics, SimFabricGroupAttributes }
+		{ ClothCollectionGroup::Fabrics, SimFabricGroupAttributes },
+		{ ClothCollectionGroup::Solvers, SolverGroupAttributes },
 	};
 }  // End namespace UE::Chaos::ClothAsset::Private
 
@@ -142,6 +155,12 @@ namespace UE::Chaos::ClothAsset
 		// LODs Group
 		PhysicsAssetPathName = ManagedArrayCollection->FindAttribute<FString>(ClothCollectionAttribute::PhysicsAssetPathName, ClothCollectionGroup::Lods);
 		SkeletalMeshPathName = ManagedArrayCollection->FindAttribute<FString>(ClothCollectionAttribute::SkeletalMeshPathName, ClothCollectionGroup::Lods);
+
+		// Solvers Group
+		SolverGravity = ManagedArrayCollection->FindAttribute<FVector3f>(ClothCollectionAttribute::SolverGravity, ClothCollectionGroup::Solvers);
+		SolverAirDamping = ManagedArrayCollection->FindAttribute<float>(ClothCollectionAttribute::SolverAirDamping, ClothCollectionGroup::Solvers);
+		SolverSubSteps = ManagedArrayCollection->FindAttribute<int32>(ClothCollectionAttribute::SolverSubSteps, ClothCollectionGroup::Solvers);
+		SolverTimeStep = ManagedArrayCollection->FindAttribute<float>(ClothCollectionAttribute::SolverTimeStep, ClothCollectionGroup::Solvers);
 
 		// Seam Group
 		SeamStitchStart = ManagedArrayCollection->FindAttribute<int32>(ClothCollectionAttribute::SeamStitchStart, ClothCollectionGroup::Seams);
@@ -171,10 +190,12 @@ namespace UE::Chaos::ClothAsset
 		FabricBucklingStiffness = ManagedArrayCollection->FindAttribute<FVector3f>(ClothCollectionAttribute::FabricBucklingStiffness, ClothCollectionGroup::Fabrics);
 		FabricStretchStiffness = ManagedArrayCollection->FindAttribute<FVector3f>(ClothCollectionAttribute::FabricStretchStiffness, ClothCollectionGroup::Fabrics);
 		FabricBucklingRatio = ManagedArrayCollection->FindAttribute<float>(ClothCollectionAttribute::FabricBucklingRatio, ClothCollectionGroup::Fabrics);
-		FabricClothDensity = ManagedArrayCollection->FindAttribute<float>(ClothCollectionAttribute::FabricClothDensity, ClothCollectionGroup::Fabrics);
-		FabricClothFriction = ManagedArrayCollection->FindAttribute<float>(ClothCollectionAttribute::FabricClothFriction, ClothCollectionGroup::Fabrics);
-		FabricClothThickness = ManagedArrayCollection->FindAttribute<float>(ClothCollectionAttribute::FabricClothThickness, ClothCollectionGroup::Fabrics);
-		FabricClothDamping = ManagedArrayCollection->FindAttribute<float>(ClothCollectionAttribute::FabricClothDamping, ClothCollectionGroup::Fabrics);
+		FabricDensity = ManagedArrayCollection->FindAttribute<float>(ClothCollectionAttribute::FabricDensity, ClothCollectionGroup::Fabrics);
+		FabricFriction = ManagedArrayCollection->FindAttribute<float>(ClothCollectionAttribute::FabricFriction, ClothCollectionGroup::Fabrics);
+		FabricDamping = ManagedArrayCollection->FindAttribute<float>(ClothCollectionAttribute::FabricDamping, ClothCollectionGroup::Fabrics);
+		FabricPressure = ManagedArrayCollection->FindAttribute<float>(ClothCollectionAttribute::FabricPressure, ClothCollectionGroup::Fabrics);
+		FabricLayer = ManagedArrayCollection->FindAttribute<int32>(ClothCollectionAttribute::FabricLayer, ClothCollectionGroup::Fabrics);
+		FabricCollisionThickness = ManagedArrayCollection->FindAttribute<float>(ClothCollectionAttribute::FabricCollisionThickness, ClothCollectionGroup::Fabrics);
 		
 		// Sim Faces Group
 		SimIndices2D = ManagedArrayCollection->FindAttribute<FIntVector3>(ClothCollectionAttribute::SimIndices2D, ClothCollectionGroup::SimFaces);
@@ -221,6 +242,13 @@ namespace UE::Chaos::ClothAsset
 			PhysicsAssetPathName &&
 			SkeletalMeshPathName &&
 
+			// Solvers Group
+			(!EnumHasAnyFlags(OptionalSchemas, EClothCollectionOptionalSchemas::Solvers) ||
+				(SolverGravity &&
+				 SolverAirDamping &&
+				 SolverSubSteps &&
+				 SolverTimeStep )) &&
+
 			// Seam Group
 			SeamStitchStart &&
 			SeamStitchEnd &&
@@ -235,6 +263,7 @@ namespace UE::Chaos::ClothAsset
 			SimFacesStart &&
 			SimFacesEnd &&
 			SimPatternFabric &&
+		
 
 			// Render Patterns Group
 			RenderVerticesStart &&
@@ -254,10 +283,12 @@ namespace UE::Chaos::ClothAsset
 			FabricBucklingStiffness &&
 			FabricStretchStiffness &&
 			FabricBucklingRatio &&
-			FabricClothDensity &&
-			FabricClothFriction &&
-			FabricClothThickness &&
-			FabricClothDamping &&
+			FabricDensity &&
+			FabricFriction &&
+			FabricDamping &&
+			FabricPressure &&
+			FabricLayer &&
+			FabricCollisionThickness &&
 
 			// Sim Vertices 2D Group
 			SimPosition2D &&
@@ -313,6 +344,15 @@ namespace UE::Chaos::ClothAsset
 		PhysicsAssetPathName = &ManagedArrayCollection->AddAttribute<FString>(ClothCollectionAttribute::PhysicsAssetPathName, ClothCollectionGroup::Lods);
 		SkeletalMeshPathName = &ManagedArrayCollection->AddAttribute<FString>(ClothCollectionAttribute::SkeletalMeshPathName, ClothCollectionGroup::Lods);
 
+		// Solvers Group
+		if (EnumHasAnyFlags(OptionalSchemas, EClothCollectionOptionalSchemas::Solvers))
+		{
+			SolverGravity = &ManagedArrayCollection->AddAttribute<FVector3f>(ClothCollectionAttribute::SolverGravity, ClothCollectionGroup::Solvers);
+			SolverAirDamping = &ManagedArrayCollection->AddAttribute<float>(ClothCollectionAttribute::SolverAirDamping, ClothCollectionGroup::Solvers);
+			SolverSubSteps = &ManagedArrayCollection->AddAttribute<int32>(ClothCollectionAttribute::SolverSubSteps, ClothCollectionGroup::Solvers);
+			SolverTimeStep = &ManagedArrayCollection->AddAttribute<float>(ClothCollectionAttribute::SolverTimeStep, ClothCollectionGroup::Solvers);
+		}
+		
 		// Seams Group
 		SeamStitchStart = &ManagedArrayCollection->AddAttribute<int32>(ClothCollectionAttribute::SeamStitchStart, ClothCollectionGroup::Seams, SeamStitchesDependency);
 		SeamStitchEnd = &ManagedArrayCollection->AddAttribute<int32>(ClothCollectionAttribute::SeamStitchEnd, ClothCollectionGroup::Seams, SeamStitchesDependency);
@@ -340,10 +380,12 @@ namespace UE::Chaos::ClothAsset
 		FabricBucklingStiffness = &ManagedArrayCollection->AddAttribute<FVector3f>(ClothCollectionAttribute::FabricBucklingStiffness, ClothCollectionGroup::Fabrics);
 		FabricStretchStiffness = &ManagedArrayCollection->AddAttribute<FVector3f>(ClothCollectionAttribute::FabricStretchStiffness, ClothCollectionGroup::Fabrics);
 		FabricBucklingRatio = &ManagedArrayCollection->AddAttribute<float>(ClothCollectionAttribute::FabricBucklingRatio, ClothCollectionGroup::Fabrics);
-		FabricClothDensity = &ManagedArrayCollection->AddAttribute<float>(ClothCollectionAttribute::FabricClothDensity, ClothCollectionGroup::Fabrics);
-		FabricClothFriction = &ManagedArrayCollection->AddAttribute<float>(ClothCollectionAttribute::FabricClothFriction, ClothCollectionGroup::Fabrics);
-		FabricClothThickness = &ManagedArrayCollection->AddAttribute<float>(ClothCollectionAttribute::FabricClothThickness, ClothCollectionGroup::Fabrics);
-		FabricClothDamping = &ManagedArrayCollection->AddAttribute<float>(ClothCollectionAttribute::FabricClothDamping, ClothCollectionGroup::Fabrics);
+		FabricDensity = &ManagedArrayCollection->AddAttribute<float>(ClothCollectionAttribute::FabricDensity, ClothCollectionGroup::Fabrics);
+		FabricFriction = &ManagedArrayCollection->AddAttribute<float>(ClothCollectionAttribute::FabricFriction, ClothCollectionGroup::Fabrics);
+		FabricDamping = &ManagedArrayCollection->AddAttribute<float>(ClothCollectionAttribute::FabricDamping, ClothCollectionGroup::Fabrics);
+		FabricPressure = &ManagedArrayCollection->AddAttribute<float>(ClothCollectionAttribute::FabricPressure, ClothCollectionGroup::Fabrics);
+		FabricLayer = &ManagedArrayCollection->AddAttribute<int32>(ClothCollectionAttribute::FabricLayer, ClothCollectionGroup::Fabrics);
+		FabricCollisionThickness = &ManagedArrayCollection->AddAttribute<float>(ClothCollectionAttribute::FabricCollisionThickness, ClothCollectionGroup::Fabrics);
 		
 		// Sim Faces Group
 		SimIndices2D = &ManagedArrayCollection->AddAttribute<FIntVector3>(ClothCollectionAttribute::SimIndices2D, ClothCollectionGroup::SimFaces, SimVertices2DDependency);

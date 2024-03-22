@@ -13,6 +13,8 @@ namespace UE::Chaos::ClothAsset
 	{
 		/** LOD information (only one LOD per collection). */
 		inline const FName Lods = FName(TEXT("Lods"));
+		/** Solvers information (only one Solver per collection for now). */
+		inline const FName Solvers = FName(TEXT("Solvers"));
 		/** Collection of seam stitches. */
 		inline const FName Seams = FName(TEXT("Seams"));
 		/** Contains pairs of stitched sim vertex indices. */

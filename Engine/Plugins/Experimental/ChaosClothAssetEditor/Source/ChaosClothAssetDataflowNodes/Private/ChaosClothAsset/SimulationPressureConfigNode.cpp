@@ -14,5 +14,9 @@ FChaosClothAssetSimulationPressureConfigNode::FChaosClothAssetSimulationPressure
 
 void FChaosClothAssetSimulationPressureConfigNode::AddProperties(FPropertyHelper& PropertyHelper) const
 {
-	PropertyHelper.SetPropertyWeighted(this, &Pressure);
+	PropertyHelper.SetFabricPropertyWeighted(FName(TEXT("Pressure")), Pressure, [](
+				const UE::Chaos::ClothAsset::FCollectionClothFabricFacade& FabricFacade)-> float
+	{
+		return FabricFacade.GetPressure();
+	}, {});
 }

@@ -15,15 +15,23 @@ namespace UE::Chaos::ClothAsset
 		inline const FName PhysicsAssetPathName(TEXT("PhysicsAssetPathName"));
 		inline const FName SkeletalMeshPathName(TEXT("SkeletalMeshPathName"));
 
+		// Solvers Group
+		inline const FName SolverGravity(TEXT("SolverGravity"));
+		inline const FName SolverAirDamping(TEXT("SolverAirDamping"));
+		inline const FName SolverSubSteps(TEXT("SolverSubSteps"));
+		inline const FName SolverTimeStep(TEXT("SolverTimeStep"));
+
 		// Fabrics Group
 		inline const FName FabricBendingStiffness(TEXT("FabricBendingStiffness"));
 		inline const FName FabricBucklingStiffness(TEXT("FabricBucklingStiffness"));
 		inline const FName FabricStretchStiffness(TEXT("FabricStretchStiffness"));
 		inline const FName FabricBucklingRatio(TEXT("FabricBucklingRatio"));
-		inline const FName FabricClothDensity(TEXT("FabricClothDensity"));
-		inline const FName FabricClothFriction(TEXT("FabricClothFriction"));
-		inline const FName FabricClothThickness(TEXT("FabricClothThickness"));
-		inline const FName FabricClothDamping(TEXT("FabricClothDamping"));
+		inline const FName FabricDensity(TEXT("FabricClothDensity"));
+		inline const FName FabricFriction(TEXT("FabricClothFriction"));
+		inline const FName FabricDamping(TEXT("FabricClothDamping"));
+		inline const FName FabricPressure(TEXT("FabricPressure"));
+		inline const FName FabricLayer(TEXT("FabricLayer"));
+		inline const FName FabricCollisionThickness(TEXT("FabricollisionThickness"));
 
 		// Seam Group
 		inline const FName SeamStitchStart(TEXT("SeamStitchStart"));

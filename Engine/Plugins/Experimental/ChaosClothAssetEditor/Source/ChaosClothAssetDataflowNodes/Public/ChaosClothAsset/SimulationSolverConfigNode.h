@@ -33,8 +33,8 @@ public:
 	 * The number of solver substeps.
 	 * This will increase the precision of the collision inputs and help with constraint resolutions but will increase the CPU cost.
 	 */
-	UPROPERTY(EditAnywhere, Category = Simulation, meta = (UIMin = "1", UIMax = "10", ClampMin = "1", ClampMax = "100"))
-	int32 NumSubsteps = 1;
+	UPROPERTY(EditAnywhere, Category = Simulation, DisplayName = "Num Substeps", meta = (UIMin = "1", UIMax = "10", ClampMin = "1", ClampMax = "100"))
+	FChaosClothAssetImportedIntValue NumSubstepsImported = {UE::Chaos::ClothAsset::FDefaultSolver::SubSteps};
 
 	/**
 	 * Enable dynamic substepping.
@@ -96,5 +96,12 @@ public:
 	virtual void Serialize(FArchive& Ar) override;
 
 private:
+
+	// Deprecated properties
+#if WITH_EDITORONLY_DATA
+
+	UPROPERTY()
+	int32 NumSubsteps_DEPRECATED = UE::Chaos::ClothAsset::FDefaultSolver::SubSteps;
+#endif
 	virtual void AddProperties(FPropertyHelper& PropertyHelper) const override;
 };

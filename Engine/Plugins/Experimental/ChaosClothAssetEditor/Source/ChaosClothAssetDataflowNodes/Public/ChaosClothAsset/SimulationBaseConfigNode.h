@@ -3,9 +3,11 @@
 #pragma once 
 
 #include "Chaos/CollectionPropertyFacade.h"
+#include "ChaosClothAsset/CollectionClothFacade.h"
 #include "ChaosClothAsset/ConnectableValue.h"
 #include "ChaosClothAsset/WeightedValue.h"
 #include "ChaosClothAsset/SimulationConfigNodePropertyTypes.h"
+#include "ChaosClothAsset/ImportedValue.h"
 #include "Dataflow/DataflowNode.h"
 #include "GeometryCollection/ManagedArrayCollection.h"
 #include "SimulationBaseConfigNode.generated.h"
@@ -82,6 +84,37 @@ protected:
         {
         	return ClothCollection;
         }
+
+		/** Set an imported solver value onto the property */
+		template<typename PropertyType>
+		void SetSolverProperty(const FName& PropertyName, const PropertyType& PropertyValue, 
+			const TFunction<typename PropertyType::ImportedType(UE::Chaos::ClothAsset::FCollectionClothFacade&)>& SolverValueFunction,
+			const TArray<FName>& SimilarPropertyNames, ECollectionPropertyFlags PropertyFlags = ECollectionPropertyFlags::None);
+
+		/** Set an imported averaged fabric value onto the property */
+		template<typename PropertyType>
+		void SetFabricProperty(const FName& PropertyName, const PropertyType& PropertyValue, 
+			const TFunction<typename PropertyType::ImportedType(UE::Chaos::ClothAsset::FCollectionClothFabricFacade&)>& FabricValueFunction,
+			const TArray<FName>& SimilarPropertyNames, ECollectionPropertyFlags PropertyFlags = ECollectionPropertyFlags::None);
+
+		/** Set an imported solver value onto the weighted value property (animatable or not) */
+		template<typename PropertyType>
+		void SetSolverPropertyWeighted(const FName& PropertyName, const PropertyType& PropertyValue,
+			const TFunction<float(const UE::Chaos::ClothAsset::FCollectionClothFacade&)>& SolverValueFunction,
+			const TArray<FName>& SimilarPropertyNames, ECollectionPropertyFlags PropertyFlags = ECollectionPropertyFlags::None);
+
+		/** Set an imported fabric value onto the weighted value property (animatable or not) */
+		template<typename PropertyType>
+		void SetFabricPropertyWeighted(const FName& PropertyName, const PropertyType& PropertyValue,
+			const TFunction<float(const UE::Chaos::ClothAsset::FCollectionClothFabricFacade&)>& FabricValueFunction,
+			const TArray<FName>& SimilarPropertyNames, ECollectionPropertyFlags PropertyFlags = ECollectionPropertyFlags::None);
+
+		template<typename MapType, typename PropertyType>
+		void SetFabricPropertyString(
+			const FName& PropertyName, const PropertyType& PropertyValue,
+			const TFunction<MapType(const UE::Chaos::ClothAsset::FCollectionClothFabricFacade&)>& FabricValueFunction,
+			const TArray<FName>& SimilarPropertyNames, ECollectionPropertyFlags PropertyFlags = ECollectionPropertyFlags::None,
+			const FName& GroupName = "");
 		
 	private:
 		

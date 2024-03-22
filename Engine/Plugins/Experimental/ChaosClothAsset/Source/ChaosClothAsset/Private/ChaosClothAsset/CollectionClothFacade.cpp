@@ -45,6 +45,12 @@ namespace UE::Chaos::ClothAsset
 		ResultHash = HashCombineFast(ResultHash, GetTypeHash(GetSkeletalMeshPathName()));
 		ResultHash = HashCombineFast(ResultHash, GetTypeHash(GetPhysicsAssetPathName()));
 
+		//~ Solvers Group
+		ResultHash = HashCombineFast(ResultHash, GetTypeHash(GetSolverGravity()));
+		ResultHash = HashCombineFast(ResultHash, GetTypeHash(GetSolverAirDamping()));
+		ResultHash = HashCombineFast(ResultHash, GetTypeHash(GetSolverSubSteps()));
+		ResultHash = HashCombineFast(ResultHash, GetTypeHash(GetSolverTimeStep()));
+
 		//~ Seam Stitches Group
 		ResultHash = HashCombineFast(ResultHash, ClothCollection->GetElementsTypeHash(ClothCollection->GetSeamStitchStart()));
 		ResultHash = HashCombineFast(ResultHash, ClothCollection->GetElementsTypeHash(ClothCollection->GetSeamStitchEnd()));
@@ -93,8 +99,10 @@ namespace UE::Chaos::ClothAsset
 		ResultHash = HashCombineFast(ResultHash, ClothCollection->GetElementsTypeHash(ClothCollection->GetFabricDamping()));
 		ResultHash = HashCombineFast(ResultHash, ClothCollection->GetElementsTypeHash(ClothCollection->GetFabricDensity()));
 		ResultHash = HashCombineFast(ResultHash, ClothCollection->GetElementsTypeHash(ClothCollection->GetFabricFriction()));
-		ResultHash = HashCombineFast(ResultHash, ClothCollection->GetElementsTypeHash(ClothCollection->GetFabricThickness()));
 		ResultHash = HashCombineFast(ResultHash, ClothCollection->GetElementsTypeHash(ClothCollection->GetFabricStretchStiffness()));
+		ResultHash = HashCombineFast(ResultHash, ClothCollection->GetElementsTypeHash(ClothCollection->GetFabricPressure()));
+		ResultHash = HashCombineFast(ResultHash, ClothCollection->GetElementsTypeHash(ClothCollection->GetFabricLayer()));
+		ResultHash = HashCombineFast(ResultHash, ClothCollection->GetElementsTypeHash(ClothCollection->GetFabricCollisionThickness()));
 
 		//~ Render Faces Group
 		ResultHash = HashCombineFast(ResultHash, ClothCollection->GetElementsTypeHash(ClothCollection->GetRenderIndices()));
@@ -160,6 +168,31 @@ namespace UE::Chaos::ClothAsset
 	{
 		static const FString EmptyString;
 		return ClothCollection->GetSkeletalMeshPathName() && ClothCollection->GetNumElements(ClothCollectionGroup::Lods) > 0 ? (*ClothCollection->GetSkeletalMeshPathName())[0] : EmptyString;
+	}
+
+	bool FCollectionClothConstFacade::HasSolverElement() const
+	{
+		return ClothCollection->GetNumElements(ClothCollectionGroup::Solvers) == 1;
+	}
+
+	const FVector3f& FCollectionClothConstFacade::GetSolverGravity() const
+	{
+		return (ClothCollection->GetSolverGravity() && HasSolverElement()) ? (*ClothCollection->GetSolverGravity())[0] : FDefaultSolver::Gravity;
+	}
+
+	float FCollectionClothConstFacade::GetSolverAirDamping() const
+	{
+		return (ClothCollection->GetSolverAirDamping() && HasSolverElement()) ? (*ClothCollection->GetSolverAirDamping())[0] : FDefaultSolver::AirDamping;
+	}
+
+	int32 FCollectionClothConstFacade::GetSolverSubSteps() const
+	{
+		return (ClothCollection->GetSolverSubSteps() && HasSolverElement()) ? (*ClothCollection->GetSolverSubSteps())[0] : FDefaultSolver::SubSteps;
+	}
+
+	float FCollectionClothConstFacade::GetSolverTimeStep() const
+	{
+		return (ClothCollection->GetSolverTimeStep() && HasSolverElement()) ? (*ClothCollection->GetSolverTimeStep())[0] : FDefaultSolver::TimeStep;
 	}
 
 	int32 FCollectionClothConstFacade::GetNumSimVertices2D() const
@@ -500,6 +533,12 @@ namespace UE::Chaos::ClothAsset
 		SetNumSimPatterns(0);
 		SetNumRenderPatterns(0);
 		SetNumSeams(0); // Do this after removing SimVertices3D and SimPatterns. Otherwise, Seams will do a bunch of unnecessary work to unseam stuff.
+		SetNumFabrics(0); 
+
+		if (IsValid(EClothCollectionOptionalSchemas::Solvers))
+		{
+			GetClothCollection()->SetNumElements(0, ClothCollectionGroup::Solvers);
+		}
 	}
 
 	void FCollectionClothFacade::Initialize(const FCollectionClothConstFacade& Other)
@@ -509,6 +548,15 @@ namespace UE::Chaos::ClothAsset
 		// LODs Group
 		SetPhysicsAssetPathName(Other.GetPhysicsAssetPathName());
 		SetSkeletalMeshPathName(Other.GetSkeletalMeshPathName());
+		
+		// Solvers Group
+		if (Other.IsValid(EClothCollectionOptionalSchemas::Solvers) && Other.HasSolverElement())
+		{
+			SetSolverGravity(Other.GetSolverGravity());
+			SetSolverAirDamping(Other.GetSolverAirDamping());
+			SetSolverSubSteps(Other.GetSolverSubSteps());
+			SetSolverTimeStep(Other.GetSolverTimeStep());
+		}
 		
 		Append(Other);
 	}
@@ -642,14 +690,50 @@ namespace UE::Chaos::ClothAsset
 		{
 			(*GetClothCollection()->GetPhysicsAssetPathName())[0] = PathName;
 		}
-
 	}
+	
 	void FCollectionClothFacade::SetSkeletalMeshPathName(const FString& PathName)
 	{
 		if (ClothCollection->GetNumElements(ClothCollectionGroup::Lods))
 		{
 			(*GetClothCollection()->GetSkeletalMeshPathName())[0] = PathName;
 		}
+	}
+	
+	void FCollectionClothFacade::SetSolverGravity(const FVector3f& SolverGravity)
+	{
+		if (!IsValid(EClothCollectionOptionalSchemas::Solvers))
+		{
+			DefineSchema(EClothCollectionOptionalSchemas::Solvers);
+		}
+		(*GetClothCollection()->GetSolverGravity())[0] = SolverGravity;
+	}
+	
+	void FCollectionClothFacade::SetSolverAirDamping(const float SolverAirDamping)
+	{
+		if (!IsValid(EClothCollectionOptionalSchemas::Solvers))
+		{
+			DefineSchema(EClothCollectionOptionalSchemas::Solvers);
+		}
+		(*GetClothCollection()->GetSolverAirDamping())[0] = SolverAirDamping;
+	}
+	
+	void FCollectionClothFacade::SetSolverTimeStep(const float SolverTimeStep)
+	{
+		if (!IsValid(EClothCollectionOptionalSchemas::Solvers))
+		{
+			DefineSchema(EClothCollectionOptionalSchemas::Solvers);
+		}
+		(*GetClothCollection()->GetSolverTimeStep())[0] = SolverTimeStep;
+	}
+	
+	void FCollectionClothFacade::SetSolverSubSteps(const int32 SolverSubSteps)
+	{
+		if (!IsValid(EClothCollectionOptionalSchemas::Solvers))
+		{
+			DefineSchema(EClothCollectionOptionalSchemas::Solvers);
+		}
+		(*GetClothCollection()->GetSolverSubSteps())[0] = SolverSubSteps;
 	}
 
 	TArrayView<FVector2f> FCollectionClothFacade::GetSimPosition2D()
@@ -1048,6 +1132,16 @@ namespace UE::Chaos::ClothAsset
 	void FCollectionClothFacade::SetDefaults()
 	{
 		GetClothCollection()->SetNumElements(1, ClothCollectionGroup::Lods);
+
+		if (IsValid(EClothCollectionOptionalSchemas::Solvers))
+		{
+			GetClothCollection()->SetNumElements(1, ClothCollectionGroup::Solvers);
+			
+			SetSolverGravity(FDefaultSolver::Gravity);
+			SetSolverAirDamping(FDefaultSolver::AirDamping);
+			SetSolverSubSteps(FDefaultSolver::SubSteps);
+			SetSolverTimeStep(FDefaultSolver::TimeStep);
+		}
 	}
 
 } // End namespace UE::Chaos::ClothAsset

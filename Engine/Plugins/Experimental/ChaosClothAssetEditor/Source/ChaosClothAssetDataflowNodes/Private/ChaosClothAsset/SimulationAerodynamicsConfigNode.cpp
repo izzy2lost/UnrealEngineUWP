@@ -2,6 +2,7 @@
 
 #include "ChaosClothAsset/SimulationAerodynamicsConfigNode.h"
 #include "Chaos/CollectionPropertyFacade.h"
+#include "ChaosClothAsset/SimulationBaseConfigNode.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(SimulationAerodynamicsConfigNode)
 
@@ -16,7 +17,17 @@ FChaosClothAssetSimulationAerodynamicsConfigNode::FChaosClothAssetSimulationAero
 void FChaosClothAssetSimulationAerodynamicsConfigNode::AddProperties(FPropertyHelper& PropertyHelper) const
 {
 	PropertyHelper.SetProperty(this, &FluidDensity);
-	PropertyHelper.SetPropertyWeighted(this, &Drag);
-	PropertyHelper.SetPropertyWeighted(this, &Lift);
 	PropertyHelper.SetProperty(this, &WindVelocity);
+	
+	PropertyHelper.SetSolverPropertyWeighted(FName(TEXT("Drag")), Drag, [](
+				const UE::Chaos::ClothAsset::FCollectionClothFacade& ClothFacade)-> float
+	{
+		return ClothFacade.GetSolverAirDamping();
+	},{});
+
+	PropertyHelper.SetSolverPropertyWeighted(FName(TEXT("Lift")), Lift, [](
+				const UE::Chaos::ClothAsset::FCollectionClothFacade& ClothFacade)-> float
+	{
+		return ClothFacade.GetSolverAirDamping();
+	},{});
 }

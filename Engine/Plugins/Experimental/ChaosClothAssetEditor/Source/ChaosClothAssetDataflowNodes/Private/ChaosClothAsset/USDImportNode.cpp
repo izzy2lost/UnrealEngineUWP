@@ -604,9 +604,9 @@ bool FChaosClothAssetUSDImportNode::ImportFromFile(const FString& UsdFilePath, c
 		}
 	}
 
-	auto FillIntDatas = [](const UE::FUsdPrim& FabricPrim, const FString& DatasName, uint32& IntDatas) 
+	auto FillIntDatas = [](const UE::FUsdPrim& UsdPrim, const FString& DatasName, uint32& IntDatas) 
 	{
-		const UE::FUsdAttribute IntDatasAttr = FabricPrim.GetAttribute(*DatasName);
+		const UE::FUsdAttribute IntDatasAttr = UsdPrim.GetAttribute(*DatasName);
 		if (IntDatasAttr.HasValue() && IntDatasAttr.GetTypeName() == TEXT("uint"))
 		{
 			UE::FVtValue Value;
@@ -615,23 +615,107 @@ bool FChaosClothAssetUSDImportNode::ImportFromFile(const FString& UsdFilePath, c
 			IntDatas = Optional.IsSet() ? Optional.GetValue() : 0;
 		}
 	};
+	auto FillFloatDatas = [](const UE::FUsdPrim& UsdPrim, const FString& DatasName, float& FloatDatas) 
+	{
+		const UE::FUsdAttribute FloatDatasAttr = UsdPrim.GetAttribute(*DatasName);
+		if (FloatDatasAttr.HasValue() && FloatDatasAttr.GetTypeName() == TEXT("float"))
+		{
+			UE::FVtValue Value;
+			FloatDatasAttr.Get(Value);
+			const TOptional<float> Optional = UsdUtils::GetUnderlyingValue<float>(Value);
+			FloatDatas = Optional.IsSet() ? Optional.GetValue() : 0.0f;
+		}
+	};
+	auto FillVectorDatas = [&AxesOrder](const UE::FUsdPrim& UsdPrim, const FString& DatasName, FVector3f& VectorDatas) 
+	{
+		const UE::FUsdAttribute VectorDatasAttr = UsdPrim.GetAttribute(*DatasName);
+		if (VectorDatasAttr.HasValue() && VectorDatasAttr.GetTypeName() == TEXT("float3"))
+		{
+			UE::FVtValue Value;
+			VectorDatasAttr.Get(Value);
+			UsdUtils::FConvertedVtValue ConvertedVtValue;
+			if (UsdToUnreal::ConvertValue(Value, ConvertedVtValue) && !ConvertedVtValue.bIsArrayValued && !ConvertedVtValue.bIsEmpty)
+			{
+				VectorDatas = FVector3f(ConvertedVtValue.Entries[0][AxesOrder[0]].Get<float>(),
+				ConvertedVtValue.Entries[0][AxesOrder[1]].Get<float>(),
+				ConvertedVtValue.Entries[0][AxesOrder[2]].Get<float>());
+			}
+		}
+	};
+
+	auto FillFloatArrayDatas = [](const UE::FUsdPrim& UsdPrim, const FString& DatasName, TArray<float>& FloatArrayDatas) 
+	{
+		const UE::FUsdAttribute FloatArrayDatasAttr = UsdPrim.GetAttribute(*DatasName);
+		if (FloatArrayDatasAttr.HasValue() && FloatArrayDatasAttr.GetTypeName() == TEXT("float[]"))
+		{
+			UE::FVtValue Value;
+			FloatArrayDatasAttr.Get(Value);
+			UsdUtils::FConvertedVtValue ConvertedVtValue;
+			if (UsdToUnreal::ConvertValue(Value, ConvertedVtValue) && ConvertedVtValue.bIsArrayValued && !ConvertedVtValue.bIsEmpty)
+			{
+				if (const int32 NumEntries = ConvertedVtValue.Entries.Num())
+				{
+					for (int32 Index = 0; Index < NumEntries; ++Index)
+					{
+						FloatArrayDatas.Add(ConvertedVtValue.Entries[Index][0].Get<float>());
+					}
+				}
+			}
+		}
+	};
+
+	auto FillIntArrayDatas = [](const UE::FUsdPrim& UsdPrim, const FString& DatasName, TArray<int32>& IntArrayDatas) 
+	{
+		const UE::FUsdAttribute IntArrayDatasAttr = UsdPrim.GetAttribute(*DatasName);
+		if (IntArrayDatasAttr.HasValue() && IntArrayDatasAttr.GetTypeName() == TEXT("int[]"))
+		{
+			UE::FVtValue Value;
+			IntArrayDatasAttr.Get(Value);
+			UsdUtils::FConvertedVtValue ConvertedVtValue;
+			if (UsdToUnreal::ConvertValue(Value, ConvertedVtValue) && ConvertedVtValue.bIsArrayValued && !ConvertedVtValue.bIsEmpty)
+			{
+				if (const int32 NumTriangles = ConvertedVtValue.Entries.Num())
+				{
+					UE_LOG(LogChaosClothAssetDataflowNodes, Log, TEXT("Num Triangles = %d"), NumTriangles);
+					for (int32 Index = 0; Index < NumTriangles; ++Index)
+					{
+						UE_LOG(LogChaosClothAssetDataflowNodes, Log, TEXT("Num Entries[%d] = %d"), Index, ConvertedVtValue.Entries[Index].Num());
+						IntArrayDatas.Add(ConvertedVtValue.Entries[Index][0].Get<int32>());
+					}
+				}
+			}
+		}
+	};
+
+	// Simulation properties
+	const UE::FSdfPath SimulationPropertiesPath = UE::FSdfPath(UE::FSdfPath::AbsoluteRootPath()).AppendChild(TEXT("SimulationData")).AppendChild(TEXT("SimulationProperties"));
+	if (const UE::FUsdPrim SimulationPropertiesPrim = UsdStage.GetPrimAtPath(SimulationPropertiesPath))
+	{
+		float AirDamping = 0.1f;
+		FillFloatDatas(SimulationPropertiesPrim, TEXT("AirDamping"), AirDamping);
+
+		FVector3f Gravity(0.0f, 0.0f, -9810.0f);
+		FillVectorDatas(SimulationPropertiesPrim, TEXT("Gravity"), Gravity);
+
+		float TimeStep = 0.033f;
+		FillFloatDatas(SimulationPropertiesPrim, TEXT("TimeStep"), TimeStep);
+		
+		uint32 SubSteps = 1;
+		FillIntDatas(SimulationPropertiesPrim, TEXT("SubStepCount"), SubSteps);
+
+		static constexpr float GravityScaling = 1e-1f; // from mm to cm
+
+		ClothFacade.SetSolverGravity(Gravity * GravityScaling);
+		ClothFacade.SetSolverAirDamping(AirDamping);
+		ClothFacade.SetSolverTimeStep(TimeStep);
+		ClothFacade.SetSolverSubSteps(SubSteps);
+	}
 
 	// Fabrics
 	TArray<uint32> FabricIds;
 	const UE::FSdfPath FabricsPath = UE::FSdfPath(UE::FSdfPath::AbsoluteRootPath()).AppendChild(TEXT("SimulationData")).AppendChild(TEXT("Fabrics"));
 	if (const UE::FUsdPrim FabricsPrim = UsdStage.GetPrimAtPath(FabricsPath))
 	{
-		auto FillFloatDatas = [](const UE::FUsdPrim& FabricPrim, const FString& DatasName, float& FloatDatas) 
-		{
-			const UE::FUsdAttribute FloatDatasAttr = FabricPrim.GetAttribute(*DatasName);
-			if (FloatDatasAttr.HasValue() && FloatDatasAttr.GetTypeName() == TEXT("float"))
-			{
-				UE::FVtValue Value;
-				FloatDatasAttr.Get(Value);
-				const TOptional<float> Optional = UsdUtils::GetUnderlyingValue<float>(Value);
-				FloatDatas = Optional.IsSet() ? Optional.GetValue() : 0.0f;
-			}
-		};
 		for (const UE::FUsdPrim& FabricPrim : FabricsPrim.GetChildren())
 		{
 			float BendingBiasLeft = 0.0f;
@@ -676,8 +760,8 @@ bool FChaosClothAssetUSDImportNode::ImportFromFile(const FString& UsdFilePath, c
 			float Friction = 0.0f;
 			FillFloatDatas(FabricPrim, TEXT("Friction"), Friction);
 
-			float InternalDamping = 0.0f;
-			FillFloatDatas(FabricPrim, TEXT("InternalDamping"), InternalDamping);
+			float Damping = 0.0f;
+			FillFloatDatas(FabricPrim, TEXT("InternalDamping"), Damping);
 
 			float Thickness = 0.0f;
 			FillFloatDatas(FabricPrim, TEXT("Thickness"), Thickness);
@@ -700,7 +784,7 @@ bool FChaosClothAssetUSDImportNode::ImportFromFile(const FString& UsdFilePath, c
 			FCollectionClothFabricFacade Fabric = ClothFacade.AddGetFabric();
 
 			static constexpr float BendingScaling = 1e-5f; // from g.mm2/s2 to kg.cm2/s2
-			static constexpr float StretchShearScaling = 1e-3f; // from g/s2 to kg.cm/s2
+			static constexpr float StretchShearScaling = 1e-3f; // from g/s2 to kg/s2
 			static constexpr float DensityScaling = 1e+3f; // from g/mm2 to kg/m2
 			static constexpr float ThicknessScaling = 1e-1f; // from mm to cm
 			
@@ -719,7 +803,7 @@ bool FChaosClothAssetUSDImportNode::ImportFromFile(const FString& UsdFilePath, c
 				0.5f * (BucklingRatioBiasLeft+BucklingRatioBiasRight)) / 3.0f;
 
 			Fabric.Initialize(BendingStiffness, BucklingRatio, BucklingStiffness, StretchStiffness,
-				Density * DensityScaling, Friction, InternalDamping, Thickness * ThicknessScaling);
+				Density * DensityScaling, Friction, Damping, 0.0f, 0, Thickness * ThicknessScaling);
 
 			FabricIds.Add(FabricId);
 		}
@@ -918,6 +1002,103 @@ bool FChaosClothAssetUSDImportNode::ImportFromFile(const FString& UsdFilePath, c
 						else
 						{
 							WeightMap[SimVertex3DLookup[Index0]] = WeightMap[SimVertex3DLookup[Index1]] = WeightMap[SimVertex3DLookup[Index2]] = 1.f;
+						}
+					}
+				}
+			}
+		}
+	}
+
+	// Triangles
+	const UE::FSdfPath TrianglesPath = UE::FSdfPath(UE::FSdfPath::AbsoluteRootPath()).AppendChild(TEXT("SimulationData")).AppendChild(TEXT("Triangles"));
+	if (const UE::FUsdPrim TrianglesPrim = UsdStage.GetPrimAtPath(TrianglesPath))
+	{
+		const int32 NumSimFaces = ClothFacade.GetNumSimFaces();
+		
+		TArray<float> TrianglesCollisionThickness;
+		TrianglesCollisionThickness.Reserve(NumSimFaces);
+		FillFloatArrayDatas(TrianglesPrim, TEXT("CollisionThickness"), TrianglesCollisionThickness);
+
+		TArray<int32> TrianglesPatternLayer;
+		TrianglesPatternLayer.Reserve(NumSimFaces);
+		FillIntArrayDatas(TrianglesPrim, TEXT("Layer"), TrianglesPatternLayer);
+
+		TArray<float> TrianglesPatternPressure;
+		TrianglesPatternPressure.Reserve(NumSimFaces);
+		FillFloatArrayDatas(TrianglesPrim, TEXT("Pressure"), TrianglesPatternPressure);
+
+		if(TrianglesCollisionThickness.Num() == TrianglesPatternLayer.Num() &&
+			TrianglesCollisionThickness.Num() == TrianglesPatternPressure.Num() &&
+			TrianglesCollisionThickness.Num() == NumSimFaces)
+		{
+			// Struct datas that will be used to retrieve the correct fabric index
+			struct FFabricPatternDatas
+			{
+				float PatternPressure;
+				int32 PatternLayer;
+				float CollisionThickness;
+				int32 FabricIndex;
+			};
+			const int32 NumPatterns = ClothFacade.GetNumSimPatterns();
+			TArray<TArray<FFabricPatternDatas>> FabricPatternDatas;
+			FabricPatternDatas.SetNum(ClothFacade.GetNumFabrics());
+			for(int32 PatternIndex = 0; PatternIndex < NumPatterns; ++PatternIndex)
+			{
+				FCollectionClothSimPatternFacade PatternFacade = ClothFacade.GetSimPattern(PatternIndex);
+				
+				const int32 PatternFacesStart = PatternFacade.GetSimFacesOffset();
+				const int32 PatternFacesEnd = PatternFacade.GetNumSimFaces() + PatternFacesStart;
+
+				float CollisionThickness = 0.0;
+				float PatternPressure = 0.0;
+				int32 PatternLayer = (PatternFacade.GetNumSimFaces() > 0) ? TrianglesPatternLayer[PatternFacesStart] : INDEX_NONE;
+				bool bHasUniformLayer = true;
+				for(int32 PatternFaceIndex = PatternFacesStart; PatternFaceIndex < PatternFacesEnd; ++PatternFaceIndex)
+				{
+					CollisionThickness += TrianglesCollisionThickness[PatternFaceIndex];
+					PatternPressure += TrianglesPatternPressure[PatternFaceIndex];
+					bHasUniformLayer = (TrianglesPatternLayer[PatternFaceIndex] != PatternLayer) ? false : bHasUniformLayer;
+				}
+				PatternLayer = !bHasUniformLayer ? INDEX_NONE : PatternLayer;
+				CollisionThickness /= PatternFacade.GetNumSimFaces();
+				PatternPressure /= PatternFacade.GetNumSimFaces();
+
+				static constexpr float ThicknessScaling = 1e-1f; // from mm to cm
+				CollisionThickness *= ThicknessScaling;
+
+				const int32 FabricIndex = PatternFacade.GetFabricIndex();
+				if(FabricIndex >= 0 && FabricIndex < ClothFacade.GetNumFabrics())
+				{
+					FCollectionClothFabricFacade OldFabricFacade = ClothFacade.GetFabric(FabricIndex);
+					if(FabricPatternDatas[FabricIndex].IsEmpty())
+					{
+						// If empty we update the existing fabric
+						OldFabricFacade.Initialize(OldFabricFacade, PatternPressure, PatternLayer, CollisionThickness);
+						
+						// Store the existing fabric into the array for future potential reuse
+						FabricPatternDatas[FabricIndex].Add({PatternPressure, PatternLayer, CollisionThickness, FabricIndex});
+					}
+					else
+					{
+						bool bFoundMatchingFabric = false;
+						for(FFabricPatternDatas& PatternDatas : FabricPatternDatas[FabricIndex])
+						{
+							// If the fabric already in use and if the pattern datas are matching, reuse the fabric 
+							if((PatternDatas.CollisionThickness == CollisionThickness) && (PatternDatas.PatternLayer == PatternLayer) && (PatternDatas.PatternPressure == PatternPressure))
+							{
+								bFoundMatchingFabric = true;
+								PatternFacade.SetFabricIndex(PatternDatas.FabricIndex);
+								break;
+							}
+						}
+						if(!bFoundMatchingFabric)
+						{
+							FCollectionClothFabricFacade NewFabricFacade = ClothFacade.AddGetFabric();
+							NewFabricFacade.Initialize(OldFabricFacade, PatternPressure, PatternLayer, CollisionThickness);
+
+							// Store the new fabric into the array for future potential reuse
+							FabricPatternDatas[FabricIndex].Add({PatternPressure, PatternLayer, CollisionThickness, NewFabricFacade.GetElementIndex()});
+							PatternFacade.SetFabricIndex(NewFabricFacade.GetElementIndex());
 						}
 					}
 				}
