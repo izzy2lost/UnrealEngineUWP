@@ -8,6 +8,7 @@
 #include "Engine/GameViewportClient.h"
 #include "Engine/Engine.h"
 #include "Misc/CommandLine.h"
+#include "Misc/Paths.h"
 #include "HAL/FileManager.h"
 
 #if WITH_EDITOR
