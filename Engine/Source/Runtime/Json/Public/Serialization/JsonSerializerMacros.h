@@ -217,6 +217,38 @@
 			Serializer.EndObject(); \
 		}
 
+#define JSON_SERIALIZE_MAP_ARRAY_SERIALIZABLE(JsonName, JsonMap, ElementType) \
+		if (Serializer.IsLoading()) \
+		{ \
+			if (Serializer.GetObject()->HasTypedField<EJson::Object>(TEXTVIEW(JsonName))) \
+			{ \
+				TSharedPtr<FJsonObject> JsonObj = Serializer.GetObject()->GetObjectField(TEXTVIEW(JsonName)); \
+				for (auto MapIt = JsonObj->Values.CreateConstIterator(); MapIt; ++MapIt) \
+				{ \
+					TArray<ElementType> NewEntry; \
+					for (auto ArrayIt : MapIt.Value()->AsArray()) \
+					{ \
+						NewEntry.Add_GetRef(ElementType()).FromJson(ArrayIt->AsObject()); \
+					} \
+					JsonMap.Add(MapIt.Key(), NewEntry); \
+				} \
+			} \
+		} \
+		else \
+		{ \
+			Serializer.StartObject(TEXTVIEW(JsonName)); \
+			for (auto It = JsonMap.CreateIterator(); It; ++It) \
+			{ \
+				Serializer.StartArray(It.Key()); \
+				for (auto ArrayEntry : It.Value()) \
+				{ \
+					ArrayEntry.Serialize(Serializer, false); \
+				} \
+				Serializer.EndArray(); \
+			} \
+			Serializer.EndObject(); \
+		}
+
 #define JSON_SERIALIZE_OBJECT_SERIALIZABLE(JsonName, JsonSerializableObject) \
 		/* Process the JsonName field differently because it is an object */ \
 		if (Serializer.IsLoading()) \
