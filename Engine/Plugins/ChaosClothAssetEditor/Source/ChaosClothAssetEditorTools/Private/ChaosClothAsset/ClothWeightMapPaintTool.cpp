@@ -66,31 +66,6 @@ namespace UE::Chaos::ClothAsset::Private
 
 
 /*
- * ToolBuilder
- */
-
-void UClothEditorWeightMapPaintToolBuilder::GetSupportedViewModes(TArray<UE::Chaos::ClothAsset::EClothPatternVertexType>& Modes) const
-{
-	Modes.Add(UE::Chaos::ClothAsset::EClothPatternVertexType::Sim3D);
-	Modes.Add(UE::Chaos::ClothAsset::EClothPatternVertexType::Sim2D);
-	Modes.Add(UE::Chaos::ClothAsset::EClothPatternVertexType::Render);
-}
-
-UMeshSurfacePointTool* UClothEditorWeightMapPaintToolBuilder::CreateNewTool(const FToolBuilderState& SceneState) const
-{
-	UClothEditorWeightMapPaintTool* PaintTool = NewObject<UClothEditorWeightMapPaintTool>(SceneState.ToolManager);
-	PaintTool->SetWorld(SceneState.World);
-
-	if (UClothEditorContextObject* ContextObject = SceneState.ToolManager->GetContextObjectStore()->FindContext<UClothEditorContextObject>())
-	{
-		PaintTool->SetClothEditorContextObject(ContextObject);
-	}
-
-	return PaintTool;
-}
-
-
-/*
  * ToolActions
  */
 void UClothEditorMeshWeightMapPaintToolActions::PostAction(EClothEditorWeightMapPaintToolActions Action)

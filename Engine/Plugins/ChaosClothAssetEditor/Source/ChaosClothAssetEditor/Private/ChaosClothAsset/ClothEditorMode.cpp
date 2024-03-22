@@ -10,6 +10,7 @@
 #include "ChaosClothAsset/ClothPatternToDynamicMesh.h"
 #include "ChaosClothAsset/ClothEditorPreviewScene.h"
 #include "ChaosClothAsset/ClothEditorContextObject.h"
+#include "ChaosClothAsset/ClothEditorToolBuilders.h"
 #include "ChaosClothAsset/AddWeightMapNode.h"
 #include "ChaosClothAsset/TransferSkinWeightsNode.h"
 #include "ChaosClothAsset/SelectionNode.h"
@@ -36,9 +37,6 @@
 #include "RemeshMeshTool.h"
 #include "AttributeEditorTool.h"
 #include "MeshAttributePaintTool.h"
-#include "ChaosClothAsset/ClothWeightMapPaintTool.h"
-#include "ChaosClothAsset/ClothTransferSkinWeightsTool.h"
-#include "ChaosClothAsset/ClothMeshSelectionTool.h"
 #include "DynamicMesh/DynamicMeshAttributeSet.h"
 #include "DynamicMesh/DynamicVertexSkinWeightsAttribute.h"
 #include "DynamicMeshEditor.h"
@@ -63,9 +61,9 @@
 #include "MaterialDomain.h"
 #include "Dataflow/DataflowSNode.h"
 #include "Components/SkeletalMeshComponent.h"
-#include "ChaosClothAsset/ClothEditorToolBuilder.h"
 #include "ChaosClothAsset/ClothGeometryTools.h"
 #include "DynamicMesh/NonManifoldMappingSupport.h"
+#include "DynamicMesh/MeshNormals.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(ClothEditorMode)
 

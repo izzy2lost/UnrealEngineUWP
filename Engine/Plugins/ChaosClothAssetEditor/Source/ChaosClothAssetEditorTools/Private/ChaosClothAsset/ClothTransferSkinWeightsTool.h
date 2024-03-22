@@ -5,7 +5,6 @@
 #include "BaseTools/SingleSelectionMeshEditingTool.h"
 #include "ModelingOperators.h"
 #include "Transforms/TransformGizmoDataBinder.h"
-#include "ChaosClothAsset/ClothEditorToolBuilder.h"
 #include "ClothTransferSkinWeightsTool.generated.h"
 
 
@@ -40,19 +39,6 @@ public:
 
 	UPROPERTY(EditAnywhere, Category = Source)
 	bool bHideSourceMesh = false;
-};
-
-
-UCLASS()
-class CHAOSCLOTHASSETEDITORTOOLS_API UClothTransferSkinWeightsToolBuilder : public USingleSelectionMeshEditingToolBuilder, public IChaosClothAssetEditorToolBuilder
-{
-	GENERATED_BODY()
-
-private:
-
-	virtual void GetSupportedViewModes(TArray<UE::Chaos::ClothAsset::EClothPatternVertexType>& Modes) const override;
-	virtual USingleSelectionMeshEditingTool* CreateNewTool(const FToolBuilderState& SceneState) const override;	
-
 };
 
 UCLASS()

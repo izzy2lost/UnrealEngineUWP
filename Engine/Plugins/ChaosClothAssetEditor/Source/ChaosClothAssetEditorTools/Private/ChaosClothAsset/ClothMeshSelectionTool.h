@@ -3,7 +3,6 @@
 #pragma once
 
 #include "BaseTools/SingleSelectionMeshEditingTool.h"
-#include "ChaosClothAsset/ClothEditorToolBuilder.h"
 #include "Selection/PolygonSelectionMechanic.h"
 #include "ClothMeshSelectionTool.generated.h"
 
@@ -16,20 +15,6 @@ namespace UE::Geometry
 	class FGroupTopology;
 	struct FGroupTopologySelection;
 }
-
-UCLASS()
-class CHAOSCLOTHASSETEDITORTOOLS_API UClothMeshSelectionToolBuilder : public UInteractiveToolWithToolTargetsBuilder, public IChaosClothAssetEditorToolBuilder
-{
-	GENERATED_BODY()
-
-private:
-
-	virtual void GetSupportedViewModes(TArray<UE::Chaos::ClothAsset::EClothPatternVertexType>& Modes) const override;
-	virtual bool CanBuildTool(const FToolBuilderState& SceneState) const override;
-	virtual UInteractiveTool* BuildTool(const FToolBuilderState& SceneState) const override;
-	virtual const FToolTargetTypeRequirements& GetTargetRequirements() const override;
-	virtual bool CanSetConstructionViewWireframeActive() const { return false; }
-};
 
 UENUM()
 enum class EClothMeshSelectionToolActions
