@@ -196,15 +196,39 @@ FCreateTaskResult CreateTaskFromCommand(const FString& InCommand, const FIPv4End
 	}
 	else if (CommandName == FSwitchboardAuthenticateTask::CommandName)
 	{
-		TSharedPtr<FJsonValue> TokenField = TryGetCommandRequiredField(JsonData, TEXT("token"));
-		if (!TokenField)
+		// TODO: Delete me sometime after SBL 3.1. Not worth the breaking change.
+		const FStringView DeprecatedTokenFieldName = TEXTVIEW("token");
+		const bool bHasDeprecatedTokenField = JsonData->HasTypedField(DeprecatedTokenFieldName, EJson::String);
+
+		const FStringView JwtFieldName = TEXTVIEW("jwt");
+		const FStringView PasswordFieldName = TEXTVIEW("password");
+		const bool bHasJwtField = JsonData->HasTypedField(JwtFieldName, EJson::String);
+		const bool bHasPasswordField = JsonData->HasTypedField(PasswordFieldName, EJson::String);
+		if (!bHasDeprecatedTokenField && !bHasJwtField && !bHasPasswordField)
 		{
 			Result.Status = ECreateTaskStatus::Error_ParsingFailed;
 			return Result;
 		}
 
+		TOptional<FString> JwtField;
+		TOptional<FString> PasswordField;
+
+		if (bHasJwtField)
+		{
+			JwtField = JsonData->GetStringField(JwtFieldName);
+		}
+
+		if (bHasPasswordField)
+		{
+			PasswordField = JsonData->GetStringField(PasswordFieldName);
+		}
+		else if (bHasDeprecatedTokenField)
+		{
+			PasswordField = JsonData->GetStringField(DeprecatedTokenFieldName);
+		}
+
 		Result.Status = ECreateTaskStatus::Success;
-		Result.Task = MakeUnique<FSwitchboardAuthenticateTask>(MessageID, InEndpoint, TokenField->AsString());
+		Result.Task = MakeUnique<FSwitchboardAuthenticateTask>(MessageID, InEndpoint, JwtField, PasswordField);
 		return Result;
 	}
 

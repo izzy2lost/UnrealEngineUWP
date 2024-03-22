@@ -130,7 +130,7 @@ void FSwitchboardListenerMainWindow::OnInit()
 
 	RootWindow->SetContent(CreateRootSwitcher());
 
-	if (Listener.GetAuthPassword().IsEmpty())
+	if (!Listener.IsAuthPasswordSet())
 	{
 		PanelSwitcher->SetActiveWidgetIndex(static_cast<int32>(EPanelIndices::PasswordPanel));
 	}
@@ -257,7 +257,11 @@ void FSwitchboardListenerMainWindow::CustomizeToolMenus_AddPasswordSection(UTool
 {
 	FToolMenuSection& PasswordSection = InMenu->AddSection("SBL_Password", LOCTEXT("SettingsMenu_PasswordSection_Label", "Password"), FToolMenuInsert("SBL_General", EToolMenuInsertType::After));
 
-	PasswordSection.AddMenuEntry("PasswordPanel", LOCTEXT("SettingsMenu_PasswordPanel_Label", "Show/Change Password"), FText(), FSlateIcon(),
+	const FText& PasswordEntryLabel = Listener.GetAuthPassword() != nullptr
+		? LOCTEXT("SettingsMenu_PasswordPanel_CanShow_Label", "Show/Change Password")
+		: LOCTEXT("SettingsMenu_PasswordPanel_NoShow_Label", "Change Password");
+
+	PasswordSection.AddMenuEntry("PasswordPanel", PasswordEntryLabel, FText(), FSlateIcon(),
 		FExecuteAction::CreateLambda([this]()
 			{
 				PasswordTextBox->SetText(FText::FromString(Listener.GetAuthPassword()));
@@ -398,9 +402,9 @@ TSharedRef<SWidget> FSwitchboardListenerMainWindow::CreateSetPasswordPanel()
 					SNew(SButton)
 					.Text_Lambda([this]()
 						{
-							return Listener.GetAuthPassword().IsEmpty()
-								? LOCTEXT("PasswordPanel_SetPasswordButton", "Set Password")
-								: LOCTEXT("PasswordPanel_ChangePasswordButton", "Change Password");
+							return Listener.IsAuthPasswordSet()
+								? LOCTEXT("PasswordPanel_ChangePasswordButton", "Change Password")
+								: LOCTEXT("PasswordPanel_SetPasswordButton", "Set Password");
 						})
 					.IsEnabled_Lambda([this]() { return !PasswordTextBox->GetText().IsEmpty(); })
 					.OnClicked_Raw(this, &FSwitchboardListenerMainWindow::OnSetPasswordClicked)
@@ -415,7 +419,7 @@ TSharedRef<SWidget> FSwitchboardListenerMainWindow::CreateSetPasswordPanel()
 				[
 					SNew(SButton)
 					.Text(LOCTEXT("PasswordPanel_CancelButton", "Cancel"))
-					.Visibility_Lambda([this]() { return Listener.GetAuthPassword().IsEmpty() ? EVisibility::Collapsed : EVisibility::Visible; })
+					.Visibility_Lambda([this]() { return Listener.IsAuthPasswordSet() ? EVisibility::Visible : EVisibility::Collapsed; })
 					.OnClicked_Lambda([this]()
 						{
 							PanelSwitcher->SetActiveWidgetIndex(static_cast<int32>(EPanelIndices::MainPanel));

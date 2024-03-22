@@ -2,6 +2,7 @@
 
 #include "SwitchboardListenerMainCommon.h"
 #include "SwitchboardListener.h"
+#include "SwitchboardAuth.h"
 #include "SwitchboardListenerVersion.h"
 
 #include "RequiredProgramMainCPPInclude.h"
@@ -60,10 +61,22 @@ int32 SwitchboardListenerMain()
 	}
 
 	FSwitchboardListener Listener(Options);
+	Listener.Init();
 
-	if (!Listener.Init())
+	if (!Listener.IsAuthPasswordSet())
 	{
-		RequestEngineExit(TEXT("FSwitchboardListener::Init() failure"));
+		GLog->Flush();
+
+		printf(
+			"\nPlease set a password for Switchboard Listener on this machine.\n"
+			"This password will be used to authenticate and establish a secure connection with Switchboard.\n");
+
+		Listener.SetAuthPassword(UE::SwitchboardListener::ReadPasswordFromStdin());
+	}
+
+	if (!Listener.StartListening())
+	{
+		RequestEngineExit(TEXT("FSwitchboardListener::StartListening() failure"));
 		return 1;
 	}
 

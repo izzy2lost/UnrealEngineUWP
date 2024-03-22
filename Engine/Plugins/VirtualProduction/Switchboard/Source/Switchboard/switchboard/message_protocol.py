@@ -2,18 +2,35 @@
 
 import base64
 import json
+from typing import Optional
 import uuid
 
 
-def create_authenticate_message(token: str):
+def create_authenticate_message(
+    *,
+    jwt: Optional[str] = None,
+    password: Optional[str] = None,
+):
+    assert jwt or password
+
     cmd_id = uuid.uuid4()
     message = {
         'command': 'authenticate',
         'id': str(cmd_id),
-        'token': token,
     }
+
+    if jwt:
+        message['jwt'] = jwt
+
+    if password:
+        message['password'] = password
+
+        # TODO: for backward compatibility with pre-release 5.4, remove
+        message['token'] = password
+
     message_json = json.dumps(message).encode() + b'\x00'
     return (cmd_id, message_json)
+
 
 def create_start_process_message(
     prog_path: str,

@@ -31,8 +31,7 @@ int32 SwitchboardListenerMain()
 	FSwitchboardListener Listener(Options);
 	FSwitchboardListenerMainWindow MainWindow(Listener);
 
-	const bool bStartListeningImmediately = false;
-	if (!Listener.Init(bStartListeningImmediately))
+	if (!Listener.Init())
 	{
 		RequestEngineExit(TEXT("FSwitchboardListener::Init() failure"));
 		return 1;

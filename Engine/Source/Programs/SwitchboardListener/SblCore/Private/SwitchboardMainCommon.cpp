@@ -29,6 +29,8 @@
 DEFINE_LOG_CATEGORY(LogSwitchboard);
 
 
+#if !defined(SWITCHBOARD_LISTENER_EXCLUDE_MAIN)
+
 int32 InitEngine()
 {
 	const TCHAR* CommandLine = FCommandLine::Get();
@@ -249,6 +251,10 @@ bool SwitchboardListenerMainShutdown()
 		GIOThreadPool->Destroy();
 	}
 
+#if STATS
+	FThreadStats::StopThread();
+#endif
+
 	FTaskGraphInterface::Shutdown();
 
 #if WITH_APPLICATION_CORE
@@ -316,3 +322,5 @@ int32 SwitchboardListenerMainWrapper()
 
 	return ExitCode;
 }
+
+#endif // #if !defined(SWITCHBOARD_LISTENER_EXCLUDE_MAIN)

@@ -88,8 +88,15 @@ class SwitchboardClientProtocol(QuicConnectionProtocol):
                 return
 
             if self.client:
+                jwt: Optional[str] = None
+                password: Optional[str] = None
+                if not unsaved and not CREDENTIAL_STORE.encrypted_at_rest():
+                    jwt = cred.blob
+                else:
+                    password = cred.blob
+
                 msgid, msg = message_protocol.create_authenticate_message(
-                    cred.blob)
+                    jwt=jwt, password=password)
 
                 self.client.get_message_response(msgid, msg,
                                                  future=auth_response)
@@ -108,8 +115,13 @@ class SwitchboardClientProtocol(QuicConnectionProtocol):
             auth_succeeded = response['bAuthenticated'] == 'true'
 
             if auth_succeeded:
-                if closure_cred_unsaved and closure_credential:
-                    CREDENTIAL_STORE.set(host, closure_credential)
+                if CREDENTIAL_STORE.encrypted_at_rest():
+                    if closure_cred_unsaved and closure_credential:
+                        CREDENTIAL_STORE.set(host, closure_credential)
+                elif 'jwt' in response:
+                    credential = CredentialStore.Credential(
+                        fingerprint_str, response['jwt'])
+                    CREDENTIAL_STORE.set(host, credential)
             else:
                 # Clear invalid saved credential
                 if not closure_cred_unsaved:

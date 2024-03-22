@@ -3,6 +3,7 @@
 #pragma once
 
 #include "SwitchboardListenerApp.h"
+#include "SwitchboardAuth.h"
 #include "Async/Mutex.h"
 #include "Async/RecursiveMutex.h"
 #include "Containers/Queue.h"
@@ -48,22 +49,6 @@ struct FSwitchboardCommandLineOptions
 
 	TOptional<FIPv4Address> Address;
 	TOptional<uint16> Port;
-
-	enum class ESecureMode : uint8
-	{
-		Unspecified = 0,
-		CertificateFromFile,
-#if PLATFORM_WINDOWS
-		CertificateByHash,
-#endif
-	};
-
-	ESecureMode SecureMode;
-	TOptional<FString> CertificateFile;
-	TOptional<FString> PrivateKeyFile;
-#if PLATFORM_WINDOWS
-	TOptional<FString> CertificateHash;
-#endif
 
 	TOptional<uint32> RedeployFromPid;
 
@@ -128,13 +113,12 @@ class FSwitchboardListener
 	using FByteArrayRef = TSharedRef<TArray<uint8>>;
 
 	static const FIPv4Endpoint InvalidEndpoint;
-	static constexpr const TCHAR* PasswordCredentialName = TEXT("PresharedAuthToken");
 
 public:
 	explicit FSwitchboardListener(const FSwitchboardCommandLineOptions& InOptions);
 	~FSwitchboardListener();
 
-	bool Init(bool bStartListeningImmediately = true);
+	bool Init();
 	void Shutdown();
 
 	void Tick();
@@ -143,7 +127,9 @@ public:
 	bool StopListening();
 	bool IsListening() const { return QuicApi != nullptr; }
 
-	const FString& GetAuthPassword() const { return ExpectedAuthPassword; }
+	/** May be null if the plain text password cannot be stored encrypted at rest on this platform. */
+	const UTF8CHAR* GetAuthPassword() const;
+	bool IsAuthPasswordSet() const;
 	bool SetAuthPassword(const FString& NewPassword);
 
 	TSet<FIPv4Endpoint> GetConnectedClientEndpoints() const;
@@ -249,8 +235,7 @@ private:
 	FSwitchboardCommandLineOptions Options;
 	TUniquePtr<FIPv4Endpoint> ListenerEndpoint;
 
-	TOptional<FString> PrivateKeyPassword;
-	FString ExpectedAuthPassword;
+	FSwitchboardAuthHelper AuthHelper;
 
 	/** MsQuic top level function table for all other API calls. */
 	const QUIC_API_TABLE* QuicApi = nullptr;
