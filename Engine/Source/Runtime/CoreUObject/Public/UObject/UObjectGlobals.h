@@ -1782,16 +1782,7 @@ FUNCTION_NON_NULL_RETURN_END
 	Params.InstanceGraph = InInstanceGraph;
 	Params.ExternalPackage = ExternalPackage;
 
-	T* Result = nullptr;
-
-	// AutoRTFM: the idea here is for us to run the entire UObject creation as uninstrumented, including
-	// the object allocation. If our transaction gets aborted, we leave it up to the GC to realize that this
-	// object is no longer reachable and should be destroyed.
-	UE_AUTORTFM_OPEN(
-	{
-		Result = static_cast<T*>(StaticConstructObject_Internal(Params));
-	});
-
+	T* Result = static_cast<T*>(StaticConstructObject_Internal(Params));
 	return Result;
 }
 
@@ -1806,13 +1797,7 @@ FUNCTION_NON_NULL_RETURN_END
 	FStaticConstructObjectParameters Params(T::StaticClass());
 	Params.Outer = Outer;
 
-	T* Result = nullptr;
-
-	UE_AUTORTFM_OPEN(
-	{
-		Result = static_cast<T*>(StaticConstructObject_Internal(Params));
-	});
-
+	T* Result = static_cast<T*>(StaticConstructObject_Internal(Params));
 	return Result;
 }
 
@@ -1834,13 +1819,7 @@ FUNCTION_NON_NULL_RETURN_END
 	Params.bCopyTransientsFromClassDefaults = bCopyTransientsFromClassDefaults;
 	Params.InstanceGraph = InInstanceGraph;
 
-	T* Result = nullptr;
-
-	UE_AUTORTFM_OPEN(
-	{
-		Result = static_cast<T*>(StaticConstructObject_Internal(Params));
-	});
-
+	T* Result = static_cast<T*>(StaticConstructObject_Internal(Params));
 	return Result;
 }
 

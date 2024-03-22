@@ -160,15 +160,21 @@ public:
 	 */
 	FORCEINLINE bool ThisThreadAtomicallyClearedFlag(EInternalObjectFlags FlagToClear)
 	{
-		FlagToClear &= ~UE::GC::GReachableObjectFlag; // reachability bit can only be cleared by GC through *_ForGC functions
-		if (!!(FlagToClear & EInternalObjectFlags_RootFlags))
+		bool Result = false;
+		UE_AUTORTFM_OPEN(
 		{
-			return ClearRootFlags(FlagToClear);
-		}
-		else
-		{
-			return ThisThreadAtomicallyClearedFlag_ForGC(FlagToClear);
-		}
+			FlagToClear &= ~UE::GC::GReachableObjectFlag; // reachability bit can only be cleared by GC through *_ForGC functions
+			if (!!(FlagToClear & EInternalObjectFlags_RootFlags))
+			{
+				Result = ClearRootFlags(FlagToClear);
+			}
+			else
+			{
+				Result = ThisThreadAtomicallyClearedFlag_ForGC(FlagToClear);
+			}
+		});
+
+		return Result;
 	}
 
 	/**
@@ -203,15 +209,20 @@ public:
 	 * @return True if this call set the flag, false if it has been set by another thread.
 	 */
 	FORCEINLINE bool ThisThreadAtomicallySetFlag(EInternalObjectFlags FlagToSet)
-	{		
-		if (!!(FlagToSet & EInternalObjectFlags_RootFlags))
+	{
+		bool Result = false;
+		UE_AUTORTFM_OPEN(
 		{
-			return SetRootFlags(FlagToSet);
-		}
-		else
-		{
-			return ThisThreadAtomicallySetFlag_ForGC(FlagToSet);
-		}
+			if (!!(FlagToSet & EInternalObjectFlags_RootFlags))
+			{
+				Result = SetRootFlags(FlagToSet);
+			}
+			else
+			{
+				Result = ThisThreadAtomicallySetFlag_ForGC(FlagToSet);
+			}
+		});
+		return Result;
 	}
 
 	FORCEINLINE bool HasAnyFlags(EInternalObjectFlags InFlags) const

@@ -224,21 +224,26 @@ public:
 	FORCEINLINE TAnnotation GetAnnotation(const UObjectBase *Object)
 	{
 		check(Object);
-		FScopeLock AnnotationMapLock(&AnnotationMapCritical);
-		if (Object != AnnotationCacheKey)
-		{			
-			AnnotationCacheKey = Object;
-			TAnnotation* Entry = AnnotationMap.Find(AnnotationCacheKey);
-			if (Entry)
-			{
-				AnnotationCacheValue = *Entry;
+		TAnnotation Result;
+		UE_AUTORTFM_OPEN(
+		{
+			FScopeLock AnnotationMapLock(&AnnotationMapCritical);
+			if (Object != AnnotationCacheKey)
+			{			
+				AnnotationCacheKey = Object;
+				TAnnotation* Entry = AnnotationMap.Find(AnnotationCacheKey);
+				if (Entry)
+				{
+					AnnotationCacheValue = *Entry;
+				}
+				else
+				{
+					AnnotationCacheValue = TAnnotation();
+				}
 			}
-			else
-			{
-				AnnotationCacheValue = TAnnotation();
-			}
-		}
-		return AnnotationCacheValue;
+			Result = AnnotationCacheValue;
+		});
+		return Result;
 	}
 
 	/**

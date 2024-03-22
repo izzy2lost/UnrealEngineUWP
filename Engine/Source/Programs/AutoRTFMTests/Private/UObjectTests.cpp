@@ -6,30 +6,67 @@
 #include "UObject/GCObject.h"
 #include "UObject/ReachabilityAnalysis.h"
 
-TEST_CASE("UObject.Create")
+TEST_CASE("UObject.NewObject")
 {
-	UMyAutoRTFMTestObject* Object = nullptr;
-
-	AutoRTFM::Commit([&]
+	SECTION("Create")
 	{
-		Object = NewObject<UMyAutoRTFMTestObject>();
-	});
+		UMyAutoRTFMTestObject* Object = nullptr;
 
-	REQUIRE(nullptr != Object);
-	REQUIRE(42 == Object->Value);
+		AutoRTFM::Commit([&]
+			{
+				Object = NewObject<UMyAutoRTFMTestObject>();
+			});
+
+		REQUIRE(nullptr != Object);
+		REQUIRE(42 == Object->Value);
+	}
+
+	SECTION("Abort")
+	{
+		UMyAutoRTFMTestObject* Object = nullptr;
+
+		REQUIRE(AutoRTFM::ETransactionResult::AbortedByRequest == AutoRTFM::Transact([&]
+			{
+				Object = NewObject<UMyAutoRTFMTestObject>();
+				AutoRTFM::AbortTransaction();
+			}));
+
+		REQUIRE(nullptr == Object);
+	}
 }
 
-TEST_CASE("UObject.Abort")
+TEST_CASE("UObject.NewObjectWithOuter")
 {
-	UMyAutoRTFMTestObject* Object = nullptr;
-
-	REQUIRE(AutoRTFM::ETransactionResult::AbortedByRequest == AutoRTFM::Transact([&]
+	SECTION("Create")
 	{
-		Object = NewObject<UMyAutoRTFMTestObject>();
-		AutoRTFM::AbortTransaction();
-	}));
+		UMyAutoRTFMTestObject* Outer = NewObject<UMyAutoRTFMTestObject>();
+		UMyAutoRTFMTestObject* Object = nullptr;
 
-	REQUIRE(nullptr == Object);
+		AutoRTFM::Commit([&]
+			{
+				Object = NewObject<UMyAutoRTFMTestObject>(Outer);
+			});
+
+		REQUIRE(nullptr != Object);
+		REQUIRE(42 == Object->Value);
+		REQUIRE(Object->IsInOuter(Outer));
+		REQUIRE(55 == Outer->Value);
+	}
+
+	SECTION("Abort")
+	{
+		UMyAutoRTFMTestObject* Outer = NewObject<UMyAutoRTFMTestObject>();
+		UMyAutoRTFMTestObject* Object = nullptr;
+
+		REQUIRE(AutoRTFM::ETransactionResult::AbortedByRequest == AutoRTFM::Transact([&]
+			{
+				Object = NewObject<UMyAutoRTFMTestObject>(Outer);
+				AutoRTFM::AbortTransaction();
+			}));
+
+		REQUIRE(nullptr == Object);
+		REQUIRE(42 == Outer->Value);
+	}
 }
 
 // This is a copy of the helper function in TestGarbageCollector.cpp.

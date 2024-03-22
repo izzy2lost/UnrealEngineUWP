@@ -80,8 +80,12 @@ UObjectBase* FUObjectAllocator::AllocateUObject(int32 Size, int32 Alignment, boo
 	}
 	else
 	{
-		// Allocate new memory of the appropriate size and alignment.
-		Result = (UObjectBase*)FMemory::Malloc( Size, Alignment );
+		// we want to perform this allocation uninstrumented so the GC can clean this up if the transaction is aborted
+		UE_AUTORTFM_OPEN(
+		{
+			// Allocate new memory of the appropriate size and alignment.
+			Result = (UObjectBase*)FMemory::Malloc( Size, Alignment );
+		});
 	}
 
 #if !UE_BUILD_TEST && !UE_BUILD_SHIPPING

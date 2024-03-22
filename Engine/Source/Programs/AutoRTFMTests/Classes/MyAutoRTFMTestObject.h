@@ -9,8 +9,17 @@ class UMyAutoRTFMTestObject : public UObject
 	GENERATED_BODY()
 
 public:
-	UMyAutoRTFMTestObject() : Value(42)
-	{}
+	UMyAutoRTFMTestObject(const FObjectInitializer& ObjectInitializer = FObjectInitializer::Get()) : Value(42)
+	{
+		UObject* const Obj = ObjectInitializer.GetObj();
+		UObject* const Outer = Obj->GetOuter();
+
+		if (Outer->IsA<UMyAutoRTFMTestObject>())
+		{
+			UMyAutoRTFMTestObject* const OuterAsType = static_cast<UMyAutoRTFMTestObject*>(Outer);
+			OuterAsType->Value += 13;
+		}
+	}
 
 	int Value;
 };

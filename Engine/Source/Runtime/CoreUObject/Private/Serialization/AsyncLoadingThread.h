@@ -19,6 +19,7 @@
 #include "Misc/ConfigCacheIni.h"
 #include "HAL/LowLevelMemTracker.h"
 #include "Serialization/AsyncPackageLoader.h"
+#include "AutoRTFM/AutoRTFM.h"
 
 #include <atomic>
 
@@ -473,7 +474,9 @@ public:
 	/** Gets the current state of async loading */
 	static bool GetIsInAsyncLoadingTick()
 	{
-		return !!AsyncLoadingTickCounter.GetValue();
+		bool Result = false;
+		UE_AUTORTFM_OPEN({ Result = !!AsyncLoadingTickCounter.GetValue(); });
+		return Result;
 	}
 
 	FORCEINLINE bool IsAsyncLoadingPackages() override

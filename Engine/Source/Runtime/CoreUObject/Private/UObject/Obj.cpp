@@ -71,6 +71,7 @@
 #include "Containers/VersePath.h"
 #include "Serialization/LoadTimeTracePrivate.h"
 #include "UObject/PropertyBagRepository.h"
+#include "AutoRTFM/AutoRTFM.h"
 
 DEFINE_LOG_CATEGORY(LogObj);
 
@@ -140,12 +141,14 @@ static UPackage*			GObjTransientPkg								= NULL;
 	UObject::FOnGetPreviewPlatform UObject::OnGetPreviewPlatform;
 #endif // WITH_EDITOR
 
+UE_AUTORTFM_ALWAYS_OPEN
 UObject::UObject( EStaticConstructor, EObjectFlags InFlags )
 : UObjectBaseUtility(InFlags | (RF_MarkAsNative | RF_MarkAsRootSet))
 {
 	EnsureNotRetrievingVTablePtr();
 }
 
+UE_AUTORTFM_ALWAYS_OPEN
 UObject::UObject(FVTableHelper& Helper)
 {
 	EnsureRetrievingVTablePtrDuringCtor(TEXT("UObject(FVTableHelper& Helper)"));
@@ -291,6 +294,7 @@ bool UObject::Rename( const TCHAR* InName, UObject* NewOuter, ERenameFlags Flags
 	bool bCreateRedirector = false;
 	UObject* OldOuter = nullptr;
 
+	AutoRTFM::Open([&]()
 	{
 		// Make sure that for the remainder of the duration of the rename operation nothing else is going to modify the UObject hash tables.
 		FScopedUObjectHashTablesLock HashTablesLock;
@@ -357,7 +361,7 @@ bool UObject::Rename( const TCHAR* InName, UObject* NewOuter, ERenameFlags Flags
 		UE::CoreUObject::Private::UpdateRenamedObject(this, NewName, NewOuter);
 #endif
 		LowLevelRename(NewName, NewOuter);
-	}
+	});
 
 	// Create the redirector AFTER renaming the object. Two objects of different classes may not have the same fully qualified name.
 	if (bCreateRedirector)

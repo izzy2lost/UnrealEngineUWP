@@ -3435,16 +3435,18 @@ UObject* StaticAllocateObject
 	UObject* Obj = NULL;
 	if(InName == NAME_None)
 	{
+		AutoRTFM::Open([&]{
 #if WITH_EDITOR
-		if ( GOutputCookingWarnings && GetTransientPackage() != InOuter->GetOutermost() )
-		{
-			InName = MakeUniqueObjectName(InOuter, InClass, NAME_UniqueObjectNameForCooking);
-		}
-		else
+			if ( GOutputCookingWarnings && GetTransientPackage() != InOuter->GetOutermost() )
+			{
+				InName = MakeUniqueObjectName(InOuter, InClass, NAME_UniqueObjectNameForCooking);
+			}
+			else
 #endif
-		{
-			InName = MakeUniqueObjectName(InOuter, InClass);
-		}
+			{
+				InName = MakeUniqueObjectName(InOuter, InClass);
+			}
+		});
 	}
 	else
 	{
@@ -3603,8 +3605,13 @@ UObject* StaticAllocateObject
 
 	if (!bSubObject)
 	{
-		FMemory::Memzero((void *)Obj, TotalSize);
-		new ((void *)Obj) UObjectBase(const_cast<UClass*>(InClass), InFlags|RF_NeedInitialization, InternalSetFlags, InOuter, InName, OldIndex, OldSerialNumber);
+		// perform the UObjectBase construction in the open - we expect the GC to invoke
+		// the destructor in the case of transaction abort
+		UE_AUTORTFM_OPEN(
+		{
+			FMemory::Memzero((void *)Obj, TotalSize);
+			new ((void *)Obj) UObjectBase(const_cast<UClass*>(InClass), InFlags|RF_NeedInitialization, InternalSetFlags, InOuter, InName, OldIndex, OldSerialNumber);
+		});
 	}
 	else
 	{
@@ -3677,6 +3684,7 @@ void UObject::PostInitProperties()
 	FOverridableManager::Get().ClearOverrides(*this);
 }
 
+UE_AUTORTFM_ALWAYS_OPEN
 UObject::UObject()
 {
 	EnsureNotRetrievingVTablePtr();
@@ -3689,6 +3697,7 @@ UObject::UObject()
 	const_cast<FObjectInitializer&>(ObjectInitializer).FinalizeSubobjectClassInitialization();
 }
 
+UE_AUTORTFM_ALWAYS_OPEN
 UObject::UObject(const FObjectInitializer& ObjectInitializer)
 {
 	EnsureNotRetrievingVTablePtr();
@@ -4016,20 +4025,9 @@ void FObjectInitializer::PostConstructInit()
 	// Allow custom property initialization to happen before PostInitProperties is called
 	if (PropertyInitCallback)
 	{
-		// autortfm todo: if this transaction aborts and we are in a transaction's open nest,
-		// we need to have a way of propagating out that abort
-		if(AutoRTFM::IsTransactional())
-		{
-			AutoRTFM::EContextStatus Status = AutoRTFM::Close([&]
-			{
-				PropertyInitCallback();
-			});
-		}
-		else
-		{
-			PropertyInitCallback();
-		}
+		PropertyInitCallback();
 	}
+
 	// After the call to `PropertyInitCallback` to allow the callback to modify the instancing graph
 	if (bNeedInstancing || bNeedSubobjectInstancing)
 	{
@@ -4076,7 +4074,7 @@ void FObjectInitializer::PostConstructInit()
 		Obj->CheckDefaultSubobjects();
 	}
 
-	Obj->ClearFlags(RF_NeedInitialization);
+	UE_AUTORTFM_OPEN({ Obj->ClearFlags(RF_NeedInitialization); });
 
 	// clear the object pointer so we can guard against running this function again
 	Obj = nullptr;

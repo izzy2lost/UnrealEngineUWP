@@ -11,9 +11,11 @@
 #if UE_AUTORTFM
 #define UE_AUTORTFM_AUTORTFM(F) [[clang::autortfm(F), clang::noinline]]
 #define UE_AUTORTFM_NOAUTORTFM [[clang::noautortfm, clang::noinline]]
+#define UE_AUTORTFM_ALWAYS_OPEN [[clang::autortfm_always_open]]
 #else
 #define UE_AUTORTFM_AUTORTFM(F)
 #define UE_AUTORTFM_NOAUTORTFM
+#define UE_AUTORTFM_ALWAYS_OPEN
 #endif
 
 #if defined(UE_AUTORTFM_STANDALONE)
