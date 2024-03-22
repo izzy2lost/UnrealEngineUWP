@@ -197,9 +197,15 @@ namespace PhysicsReplicationCVars
 		bool bVelocityBased = true;
 		static FAutoConsoleVariableRef CVarVelocityBased(TEXT("np2.PredictiveInterpolation.VelocityBased"), bVelocityBased, TEXT("When true, predictive interpolation replication mode will only apply linear velocity and angular velocity"));
 		
-		bool bPosCorrectionAsVelocity = false;
-		static FAutoConsoleVariableRef CVarPosCorrectionAsVelocity(TEXT("np2.PredictiveInterpolation.PosCorrectionAsVelocity"), bPosCorrectionAsVelocity, TEXT("When true, predictive interpolation will apply positional offset correction as a velocity instead of as a positional change each tick."));
-		
+		bool bCorrectionAsVelocity = false;
+		static FAutoConsoleVariableRef CVarCorrectionAsVelocity(TEXT("np2.PredictiveInterpolation.CorrectionAsVelocity"), bCorrectionAsVelocity, TEXT("When true, predictive interpolation will apply positional and rotational offset correction as a velocity instead of as a transform shift."));
+
+		bool bCorrectConnectedBodies = false;
+		static FAutoConsoleVariableRef CVarCorrectConnectedBodies(TEXT("np2.PredictiveInterpolation.CorrectConnectedBodies"), bCorrectConnectedBodies, TEXT("When true, transform corrections will also apply to any connected physics object."));
+
+		bool bCorrectConnectedBodiesFriction = true;
+		static FAutoConsoleVariableRef CVarCorrectConnectedBodiesFriction(TEXT("np2.PredictiveInterpolation.CorrectConnectedBodiesFriction"), bCorrectConnectedBodiesFriction, TEXT("When true, transform correction on any connected physics object will also recalculate their friction."));
+
 		bool bDisableSoftSnap = false;
 		static FAutoConsoleVariableRef CVarDisableSoftSnap(TEXT("np2.PredictiveInterpolation.DisableSoftSnap"), bDisableSoftSnap, TEXT("When true, predictive interpolation will not use softsnap to correct the replication with when velocity fails. Hardsnap will still eventually kick in if replication can't reach the target."));
 	
@@ -1517,12 +1523,14 @@ bool FPhysicsReplicationAsync::PredictiveInterpolation(Chaos::FPBDRigidParticleH
 		// Get the rotational offset between the blended rotation target and the current rotation
 		const FQuat TargetRotDelta = Target.TargetState.Quaternion * Handle->GetR().Inverse();
 
-		// Convert to angle axis
+		// Convert to angle and axis
 		float Angle;
 		FVector Axis;
 		TargetRotDelta.ToAxisAndAngle(Axis, Angle);
-		Angle = FMath::Abs(FMath::UnwindRadians(Angle));
-		if (Angle < FMath::DegreesToRadians(PhysicsReplicationCVars::PredictiveInterpolationCVars::EarlyOutAngle))
+		Angle = FMath::RadiansToDegrees(FMath::UnwindRadians(Angle));
+		Angle = FMath::Abs(Angle);
+
+		if (Angle < PhysicsReplicationCVars::PredictiveInterpolationCVars::EarlyOutAngle)
 		{
 			// Early Out
 			return EndReplicationHelper(Target, true);
@@ -1604,13 +1612,11 @@ bool FPhysicsReplicationAsync::PredictiveInterpolation(Chaos::FPBDRigidParticleH
 		}
 		else 
 		{
-			// Set XPRQVW to hard snap dynamic object
-			Handle->SetX(Target.PrevPosTarget);
-			Handle->SetP(Target.PrevPosTarget);
-			Handle->SetR(Target.PrevRotTarget);
-			Handle->SetQ(Target.PrevRotTarget);
-			Handle->SetV(Target.TargetState.LinVel);
-			Handle->SetW(FMath::DegreesToRadians(Target.TargetState.AngVel));
+			// Set XRVW to hard snap dynamic object and force recalculation of friction
+			const bool bCorrectConnectedBodies = PhysicsReplicationCVars::PredictiveInterpolationCVars::bCorrectConnectedBodies;
+			RigidsSolver->GetEvolution()->ApplyParticleTransformCorrection(Handle, Target.PrevPosTarget, Target.PrevRotTarget, bCorrectConnectedBodies, /*bInRecalculateFrictionOnConnectedBodies*/ true);
+			Handle->SetV(TargetLinVel);
+			Handle->SetW(FMath::DegreesToRadians(TargetAngVel));
 		}
 
 		// Cache data for next replication
@@ -1632,9 +1638,10 @@ bool FPhysicsReplicationAsync::PredictiveInterpolation(Chaos::FPBDRigidParticleH
 		const float RotCorrectionTime = FMath::Max(SettingsCurrent.PredictiveInterpolationSettings.GetRotCorrectionTimeBase() + AverageReceiveIntervalSeconds + RTT * SettingsCurrent.PredictiveInterpolationSettings.GetRotCorrectionTimeMultiplier(),
 			DeltaSeconds + SettingsCurrent.PredictiveInterpolationSettings.GetRotCorrectionTimeMin());
 
+		FVector CorrectionX = CurrentState.Position;
 		if ((bXCanEarlyOut && SettingsCurrent.PredictiveInterpolationSettings.GetSkipVelocityRepOnPosEarlyOut()) == false)
 		{	// --- Velocity Replication ---
-			
+
 			// Get PosDiff
 			const FVector PosDiff = TargetPos - CurrentState.Position;
 
@@ -1642,10 +1649,10 @@ bool FPhysicsReplicationAsync::PredictiveInterpolation(Chaos::FPBDRigidParticleH
 			const FVector LinVelDiff = -CurrentState.LinVel + TargetLinVel;
 
 			// Calculate velocity blend amount for this tick as an alpha value
-			const float Alpha = FMath::Clamp(DeltaSeconds / InterpolationTime, 0.0f, 1.0f);
+			const float VelocityAlpha = FMath::Clamp(DeltaSeconds / InterpolationTime, 0.0f, 1.0f);
 
 			FVector RepLinVel;
-			if (PhysicsReplicationCVars::PredictiveInterpolationCVars::bPosCorrectionAsVelocity)
+			if (PhysicsReplicationCVars::PredictiveInterpolationCVars::bCorrectionAsVelocity)
 			{
 				// Convert PosDiff to a velocity
 				const FVector PosDiffVelocity = PosDiff / PosCorrectionTime;
@@ -1654,18 +1661,21 @@ bool FPhysicsReplicationAsync::PredictiveInterpolation(Chaos::FPBDRigidParticleH
 				const FVector BlendedTargetVelocity = LinVelDiff + PosDiffVelocity;
 
 				// Add BlendedTargetVelocity onto current velocity
-				RepLinVel = CurrentState.LinVel + (BlendedTargetVelocity * Alpha);
+				RepLinVel = CurrentState.LinVel + (BlendedTargetVelocity * VelocityAlpha); // Same as (BlendedTargetVelocity / InterpolationTime) * DeltaSeconds
 			}
-			else // Positional correction as position shift
+			else // Positional correction as transform shift
 			{
-				// Calculate the PosDiff amount to correct this tick
-				const FVector PosDiffVelocityDelta = PosDiff * (DeltaSeconds / PosCorrectionTime); // Same as (PosDiff / PosCorrectionTime) * DeltaSeconds
-
 				// Add velocity diff onto current velocity
-				RepLinVel = CurrentState.LinVel + (LinVelDiff * Alpha);
-				
-				// Apply positional correction
-				Handle->SetX(Handle->GetX() + PosDiffVelocityDelta);
+				RepLinVel = CurrentState.LinVel + (LinVelDiff * VelocityAlpha); // Same as (LinVelDiff / InterpolationTime) * DeltaSeconds
+
+				// Calculate correction blend amount for this tick as an alpha value
+				const float CorrectionAlpha = FMath::Clamp(DeltaSeconds / PosCorrectionTime, 0.0f, 1.0f);
+
+				// Calculate the PosDiff amount to correct this tick
+				const FVector PosDiffVelocityDelta = PosDiff * CorrectionAlpha; // Same as (PosDiff / PosCorrectionTime) * DeltaSeconds
+
+				// The new position after correction
+				CorrectionX = Handle->GetX() + PosDiffVelocityDelta;
 			}
 
 			// Apply velocity replication
@@ -1692,52 +1702,75 @@ bool FPhysicsReplicationAsync::PredictiveInterpolation(Chaos::FPBDRigidParticleH
 			Target.PrevLinVel = FVector(RepLinVel);
 		}
 
+		FQuat CorrectionR = CurrentState.Quaternion;
 		{	// --- Angular Velocity Replication ---
-			/* Todo, Implement InterpolationTime */
-			/* Todo, Implement the option for rotational offset as rotational shift instead of angular velocity */
 
-			// Extrapolate current rotation along current angular velocity to see where we would end up
-			float CurAngVelSize;
-			FVector CurAngVelAxis;
-			CurrentState.AngVel.FVector::ToDirectionAndLength(CurAngVelAxis, CurAngVelSize);
-			const FQuat CurRotExtrapDelta = FQuat(CurAngVelAxis, CurAngVelSize * DeltaSeconds);
-			const FQuat CurRotExtrap = CurRotExtrapDelta * CurrentState.Quaternion;
+			// Get AngVelDiff by adding inverted CurrentState.AngVel to TargetAngVel
+			const FVector AngVelDiff = -CurrentState.AngVel + FVector::DegreesToRadians(TargetAngVel);
 
-			// Slerp from the extrapolated current rotation towards the target rotation
-			// This takes current angular velocity into account
-			const float RotCorrectionAmount = FMath::Clamp(DeltaSeconds / RotCorrectionTime, 0.0f, 1.0f);
-			const FQuat TargetRotBlended = FQuat::Slerp(CurRotExtrap, TargetRot, RotCorrectionAmount);
+			// Calculate velocity blend amount for this tick as an alpha value
+			const float VelocityAlpha = FMath::Clamp(DeltaSeconds / InterpolationTime, 0.0f, 1.0f);
 
-			// Get the rotational offset between the blended rotation target and the current rotation
-			const FQuat TargetRotDelta = TargetRotBlended * CurrentState.Quaternion.Inverse();
+			FVector RepAngVel;
+			if (PhysicsReplicationCVars::PredictiveInterpolationCVars::bCorrectionAsVelocity)
+			{
+				// Get RotDiff
+				const FQuat RotDiff = TargetRot * CurrentState.Quaternion.Inverse();
 
-			// Convert the rotational delta to angular velocity
-			float WAngle;
-			FVector WAxis;
-			TargetRotDelta.ToAxisAndAngle(WAxis, WAngle);
-			const FVector TargetRotDeltaBlend = FVector(WAxis * (WAngle / (DeltaSeconds * SettingsCurrent.PredictiveInterpolationSettings.GetRotInterpolationTimeMultiplier())));
-			const FVector RepAngVel = FMath::DegreesToRadians(TargetAngVel) + TargetRotDeltaBlend;
+				// Convert RotDiff to a velocity
+				float WAngle;
+				FVector WAxis;
+				RotDiff.ToAxisAndAngle(WAxis, WAngle);
+				WAngle = FMath::UnwindRadians(WAngle);
+				const FVector RotDiffVelocity = FVector(WAxis * (WAngle / RotCorrectionTime));
 
+				// Add RotDiffVelocity to AngVelDiff to get BlendedTargetVelocity
+				const FVector BlendedTargetVelocity = AngVelDiff + RotDiffVelocity;
+
+				// Add BlendedTargetVelocity to CurrentState.AngVel
+				RepAngVel = CurrentState.AngVel + (BlendedTargetVelocity * VelocityAlpha); // Same as (BlendedTargetVelocity / InterpolationTime) * DeltaSeconds
+			}
+			else // Positional correction as transform shift
+			{
+				// Add velocity diff onto current velocity
+				RepAngVel = CurrentState.AngVel + (AngVelDiff * VelocityAlpha); // Same as (AngVelDiff / InterpolationTime) * DeltaSeconds
+
+				// Calculate correction blend amount for this tick as an alpha value
+				const float CorrectionAlpha = FMath::Clamp(DeltaSeconds / RotCorrectionTime, 0.0f, 1.0f);
+
+				// The new position after correction
+				CorrectionR = FQuat::Slerp(Handle->GetR(), TargetRot, CorrectionAlpha);
+			}
+
+			// Apply velocity replication
 			Handle->SetW(RepAngVel);
 		}
 
 		// Cache data for next replication
 		Target.PrevPos = FVector(CurrentState.Position);
 
+		// Apply correction as a transform shift
+		if (!PhysicsReplicationCVars::PredictiveInterpolationCVars::bCorrectionAsVelocity)
+		{	
+			const bool bCorrectConnectedBodies = PhysicsReplicationCVars::PredictiveInterpolationCVars::bCorrectConnectedBodies;
+			const bool bCorrectConnectedBodiesFriction = PhysicsReplicationCVars::PredictiveInterpolationCVars::bCorrectConnectedBodiesFriction;
+			RigidsSolver->GetEvolution()->ApplyParticleTransformCorrection(Handle, CorrectionX, CorrectionR, bCorrectConnectedBodies, bCorrectConnectedBodiesFriction);
+		}
+
 		if (bSoftSnap)
 		{
 			const FVector SoftSnapPos = FMath::Lerp(FVector(CurrentState.Position),
 				SettingsCurrent.PredictiveInterpolationSettings.GetSoftSnapToSource() ? Target.PrevPosTarget : Target.TargetState.Position,
-			FMath::Clamp(SettingsCurrent.PredictiveInterpolationSettings.GetSoftSnapPosStrength(), 0.0f, 1.0f));
-		
+				FMath::Clamp(SettingsCurrent.PredictiveInterpolationSettings.GetSoftSnapPosStrength(), 0.0f, 1.0f));
+
 			const FQuat SoftSnapRot = FQuat::Slerp(CurrentState.Quaternion,
 				SettingsCurrent.PredictiveInterpolationSettings.GetSoftSnapToSource() ? Target.PrevRotTarget : Target.TargetState.Quaternion,
-			FMath::Clamp(SettingsCurrent.PredictiveInterpolationSettings.GetSoftSnapRotStrength(), 0.0f, 1.0f));
-		
-			Handle->SetX(SoftSnapPos);
-			Handle->SetP(SoftSnapPos);
-			Handle->SetR(SoftSnapRot);
-			Handle->SetQ(SoftSnapRot);
+				FMath::Clamp(SettingsCurrent.PredictiveInterpolationSettings.GetSoftSnapRotStrength(), 0.0f, 1.0f));
+
+			// Apply correction as a transform shift
+			const bool bCorrectConnectedBodies = PhysicsReplicationCVars::PredictiveInterpolationCVars::bCorrectConnectedBodies;
+			const bool bCorrectConnectedBodiesFriction = PhysicsReplicationCVars::PredictiveInterpolationCVars::bCorrectConnectedBodiesFriction;
+			RigidsSolver->GetEvolution()->ApplyParticleTransformCorrection(Handle, SoftSnapPos, SoftSnapRot, bCorrectConnectedBodies, bCorrectConnectedBodiesFriction);
 		}
 	}
 
@@ -1783,7 +1816,7 @@ bool FPhysicsReplicationAsync::ResimulationReplication(Chaos::FPBDRigidParticleH
 		if (LocalFrame > 0 && (RewindData->CurrentFrame() - RewindData->GetEarliestFrame_Internal()) == RewindData->Capacity())
 		{
 			UE_LOG(LogPhysics, Warning, TEXT("FPhysicsReplication::ResimulationReplication target frame (%d) out of rewind data bounds (%d,%d)"),
-				LocalFrame,	RewindData->GetEarliestFrame_Internal(), RewindData->CurrentFrame());
+				LocalFrame, RewindData->GetEarliestFrame_Internal(), RewindData->CurrentFrame());
 		}
 		return true;
 	}

@@ -1457,16 +1457,16 @@ void FPBDRigidsEvolutionGBF::OnParticleMoved(FGeometryParticleHandle* InParticle
 	}
 }
 
-void FPBDRigidsEvolutionGBF::ApplyParticleTransformCorrectionDelta(FGeometryParticleHandle* InParticle, const FVec3& InPosDelta, const FVec3& InRotDelta, const bool bApplyToConnectedBodies)
+void FPBDRigidsEvolutionGBF::ApplyParticleTransformCorrectionDelta(FGeometryParticleHandle* InParticle, const FVec3& InPosDelta, const FVec3& InRotDelta, const bool bApplyToConnectedBodies, const bool bInRecalculateFrictionOnConnectedBodies)
 {
 	ApplyParticleTransformCorrection(
 		InParticle, 
 		InParticle->GetX() + InPosDelta, 
 		FRotation3::IntegrateRotationWithAngularVelocity(InParticle->GetR(), InRotDelta, FReal(1.0)),
-		bApplyToConnectedBodies);
+		bApplyToConnectedBodies, bInRecalculateFrictionOnConnectedBodies);
 }
 
-void FPBDRigidsEvolutionGBF::ApplyParticleTransformCorrection(FGeometryParticleHandle* InParticle, const FVec3& InPos, const FRotation3& InRot, const bool bApplyToConnectedBodies)
+void FPBDRigidsEvolutionGBF::ApplyParticleTransformCorrection(FGeometryParticleHandle* InParticle, const FVec3& InPos, const FRotation3& InRot, const bool bApplyToConnectedBodies, const bool bInRecalculateFrictionOnConnectedBodies)
 {
 	const FRigidTransform3 OldParticleTransform = InParticle->GetTransformXR();
 	const FRigidTransform3 NewParticleTransform = FRigidTransform3(InPos, InRot);
@@ -1485,13 +1485,13 @@ void FPBDRigidsEvolutionGBF::ApplyParticleTransformCorrection(FGeometryParticleH
 			{
 				const FRigidTransform3 RelativeTransform = ConnectedParticle->GetTransformXR().GetRelativeTransformNoScale(OldParticleTransform);
 				const FRigidTransform3 NewOtherParticleTransform = RelativeTransform * NewParticleTransform;
-				ApplyParticleTransformCorrectionImpl(ConnectedParticle, NewOtherParticleTransform);
+				ApplyParticleTransformCorrectionImpl(ConnectedParticle, NewOtherParticleTransform, bInRecalculateFrictionOnConnectedBodies);
 			}
 		}
 	}
 }
 
-void FPBDRigidsEvolutionGBF::ApplyParticleTransformCorrectionImpl(FGeometryParticleHandle* InParticle, const FRigidTransform3& InTransform)
+void FPBDRigidsEvolutionGBF::ApplyParticleTransformCorrectionImpl(FGeometryParticleHandle* InParticle, const FRigidTransform3& InTransform, const bool bInRecalculateFriction)
 {
 	FGenericParticleHandle Particle = InParticle;
 
@@ -1500,13 +1500,16 @@ void FPBDRigidsEvolutionGBF::ApplyParticleTransformCorrectionImpl(FGeometryParti
 	Particle->SetR(InTransform.GetRotation());
 	Particle->SetQ(InTransform.GetRotation());
 
-	// We must fix the collision anchors so that friction doesn't undo our move or rotation
-	InParticle->ParticleCollisions().VisitCollisions(
-		[this, InParticle](FPBDCollisionConstraint& Collision)
-		{
-			Collision.UpdateParticleTransform(InParticle);
-			return ECollisionVisitorResult::Continue;
-		});
+	if (bInRecalculateFriction)
+	{
+		// We must fix the collision anchors so that friction doesn't undo our move or rotation
+		InParticle->ParticleCollisions().VisitCollisions(
+			[this, InParticle](FPBDCollisionConstraint& Collision)
+			{
+				Collision.UpdateParticleTransform(InParticle);
+				return ECollisionVisitorResult::Continue;
+			});
+	}
 }
 
 TArray<FGeometryParticleHandle*> FPBDRigidsEvolutionGBF::GetConnectedParticles(FGeometryParticleHandle* InParticle)
