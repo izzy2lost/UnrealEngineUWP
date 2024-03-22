@@ -1,29 +1,45 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
+using EpicGames.Core;
+
 namespace UnrealBuildTool.Rules
 {
+	[SupportedPlatformGroups("Windows")]
 	public class PixWinPlugin : ModuleRules
 	{
 		public PixWinPlugin(ReadOnlyTargetRules Target) : base(Target)
         {
-			PrivateDependencyModuleNames.AddRange(new string[]
-			{
+			PublicDependencyModuleNames.AddAll(
+				"InputDevice",
+				"RenderCore"
+			);
+
+			PrivateDependencyModuleNames.AddAll(
 				"Core",
 				"CoreUObject",
 				"Engine",
-				"RenderCore",
-				"InputDevice",
-				"RHI",
-			});
+				"InputCore",
+				"Projects",
+				"RHI"
+			);
 
-			if (Target.Platform.IsInGroup(UnrealPlatformGroup.Windows))
+			if (Target.Configuration != UnrealTargetConfiguration.Shipping)
 			{
 				PrivateDependencyModuleNames.Add("WinPixEventRuntime");
 			}
 
 			if (Target.bBuildEditor == true)
 			{
-				PrivateDependencyModuleNames.Add("UnrealEd");
+				DynamicallyLoadedModuleNames.Add("LevelEditor");
+
+				PrivateDependencyModuleNames.AddAll(
+					"Slate"
+					, "SlateCore"
+					, "EditorFramework"
+					, "UnrealEd"
+					, "MainFrame"
+					, "GameProjectGeneration"
+				);
 			}
 		}
 	}

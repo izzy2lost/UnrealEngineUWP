@@ -2,9 +2,9 @@
 
 #pragma once
 
-#include "CoreMinimal.h"
 #include "IInputDeviceModule.h"
 #include "IRenderCaptureProvider.h"
+#include "Modules/ModuleManager.h"
 
 /** PIX capture plugin interface. */
 class IPixWinPlugin : public IInputDeviceModule, public IRenderCaptureProvider
