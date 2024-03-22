@@ -29,6 +29,10 @@ struct FInterchangeFilePickerParameters
 	//If true, the user will be able to select any unreal editor factory + interchange file types.
 	UPROPERTY(EditAnywhere, Category = "Interchange | File Picker")
 	bool bShowAllFactoriesExtension = false;
+
+	//Add some extension to the picker. Format text item that way TEXT("fbx;Filmbox")
+	UPROPERTY(EditAnywhere, Category = "Interchange | File Picker")
+	TArray<FString> ExtraFormats;
 };
 
 UCLASS(Abstract, BlueprintType, Blueprintable, MinimalAPI)

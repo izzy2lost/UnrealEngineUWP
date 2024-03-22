@@ -63,13 +63,10 @@ namespace FbxMeshUtils
 			UFbxStaticMeshImportData* ImportData = Cast<UFbxStaticMeshImportData>(BaseStaticMesh->AssetImportData);
 			if (ImportData == nullptr)
 			{
-				//Convert the static mesh import data to legacy fbx import data, because the legacy code will override it if not of the good type
+				//Convert interchange asset import data to legacy fbx static mesh import data.
 				if (UInterchangeAssetImportData* InterchangeAssetImportData = Cast<UInterchangeAssetImportData>(BaseStaticMesh->GetAssetImportData()))
 				{
-					if (UInterchangeManager::GetInterchangeManager().ConvertImportData(BaseStaticMesh, TEXT("fbx")))
-					{
-						ImportData = Cast<UFbxStaticMeshImportData>(BaseStaticMesh->AssetImportData);
-					}
+					UInterchangeManager::GetInterchangeManager().ConvertImportData(InterchangeAssetImportData, UFbxStaticMeshImportData::StaticClass(), reinterpret_cast<UObject**>(&ImportData));
 				}
 			}
 
@@ -197,41 +194,37 @@ namespace FbxMeshUtils
 			return false;
 		}
 
-		//We will use interchange only if interchange is enabled and the mesh we want to add a LOD was imported with interchange
-		const UInterchangeAssetImportData* SelectedInterchangeAssetImportData = Cast<UInterchangeAssetImportData>(BaseStaticMesh->GetAssetImportData());
-		if (UInterchangeManager::IsInterchangeImportEnabled() && SelectedInterchangeAssetImportData)
+		UInterchangeManager& InterchangeManager = UInterchangeManager::GetInterchangeManager();
+		const UInterchangeSourceData* SourceData = InterchangeManager.CreateSourceData(Filename);
+		const bool bInterchangeCanImportSourceData = InterchangeManager.CanTranslateSourceData(SourceData);
+		if (bInterchangeCanImportSourceData)
 		{
-			UInterchangeSourceData* SourceData = UInterchangeManager::GetInterchangeManager().CreateSourceData(Filename);
-			//Only use interchange if we can translate the source data. Use the legacy path in other cases
-			if (UInterchangeManager::GetInterchangeManager().CanTranslateSourceData(SourceData))
-			{
-				//Call interchange mesh utilities to import custom LOD
-				UInterchangeMeshUtilities::ImportCustomLod(BaseStaticMesh, LODLevel, SourceData).Then([BaseStaticMesh, LODLevel](TFuture<bool> Result)
-					{
-						bool bResult = Result.Get();
-						Async(EAsyncExecution::TaskGraphMainThread, [BaseStaticMesh, LODLevel, bResult]()
+			//Call interchange mesh utilities to import custom LOD
+			UInterchangeMeshUtilities::ImportCustomLod(BaseStaticMesh, LODLevel, SourceData).Then([BaseStaticMesh, LODLevel](TFuture<bool> Result)
+				{
+					bool bResult = Result.Get();
+					Async(EAsyncExecution::TaskGraphMainThread, [BaseStaticMesh, LODLevel, bResult]()
+						{
+							if (bResult)
 							{
-								if (bResult)
-								{
-									// Notification of success
-									FNotificationInfo NotificationInfo(FText::GetEmpty());
-									NotificationInfo.Text = FText::Format(NSLOCTEXT("UnrealEd", "StaticMeshLODImportSuccessful", "Static mesh LOD {0} imported successfully!"), FText::AsNumber(LODLevel));
-									NotificationInfo.ExpireDuration = 5.0f;
-									FSlateNotificationManager::Get().AddNotification(NotificationInfo);
-								}
-								else
-								{
-									// Notification of failure
-									FNotificationInfo NotificationInfo(FText::GetEmpty());
-									NotificationInfo.Text = FText::Format(NSLOCTEXT("UnrealEd", "StaticMeshLODImportFail", "Failed to import static mesh LOD {0}!"), FText::AsNumber(LODLevel));
-									NotificationInfo.ExpireDuration = 5.0f;
-									FSlateNotificationManager::Get().AddNotification(NotificationInfo);
-								}
-							});
-					});
+								// Notification of success
+								FNotificationInfo NotificationInfo(FText::GetEmpty());
+								NotificationInfo.Text = FText::Format(NSLOCTEXT("UnrealEd", "StaticMeshLODImportSuccessful", "Static mesh LOD {0} imported successfully!"), FText::AsNumber(LODLevel));
+								NotificationInfo.ExpireDuration = 5.0f;
+								FSlateNotificationManager::Get().AddNotification(NotificationInfo);
+							}
+							else
+							{
+								// Notification of failure
+								FNotificationInfo NotificationInfo(FText::GetEmpty());
+								NotificationInfo.Text = FText::Format(NSLOCTEXT("UnrealEd", "StaticMeshLODImportFail", "Failed to import static mesh LOD {0}!"), FText::AsNumber(LODLevel));
+								NotificationInfo.ExpireDuration = 5.0f;
+								FSlateNotificationManager::Get().AddNotification(NotificationInfo);
+							}
+						});
+				});
 
-				return true;
-			}
+			return true;
 		}
 
 		bool bSuccess = false;
@@ -373,25 +366,28 @@ namespace FbxMeshUtils
 			return false;
 		}
 
-		//We will use interchange only if interchange is enabled and the mesh we want to add a LOD was imported with interchange
-		const UInterchangeAssetImportData* SelectedInterchangeAssetImportData = Cast<UInterchangeAssetImportData>(BaseStaticMesh->GetAssetImportData());
-		if (UInterchangeManager::IsInterchangeImportEnabled() && SelectedInterchangeAssetImportData)
+		UInterchangeManager& InterchangeManager = UInterchangeManager::GetInterchangeManager();
+		const UInterchangeSourceData* SourceData = InterchangeManager.CreateSourceData(Filename);
+		const bool bInterchangeCanImportSourceData = InterchangeManager.CanTranslateSourceData(SourceData);
+		if (bInterchangeCanImportSourceData)
 		{
 			UStaticMesh* TempStaticMesh = NewObject<UStaticMesh>(GetTransientPackage(), NAME_None, RF_Transient | RF_Public | RF_Standalone);
 			TempStaticMesh->AddSourceModel();
-
-			// Since it is Async, any action on the mesh should be locked
-
-			UInterchangeSourceData* SourceData = UInterchangeManager::GetInterchangeManager().CreateSourceData(Filename);
+			//Set the asset import data to pass the correct import options
+			TempStaticMesh->SetAssetImportData(BaseStaticMesh->GetAssetImportData());
 			//Call interchange mesh utilities to import custom LOD
-			UInterchangeMeshUtilities::ImportCustomLod(TempStaticMesh, 0, SourceData).Then([BaseStaticMesh,TempStaticMesh](TFuture<bool> Result)
+			UInterchangeMeshUtilities::ImportCustomLod(TempStaticMesh, 0, SourceData).Then([BaseStaticMesh,TempStaticMesh, Filename](TFuture<bool> Result)
 			{
 				bool bResult = Result.Get();
-				Async(EAsyncExecution::TaskGraphMainThread, [BaseStaticMesh, TempStaticMesh, bResult]()
+				Async(EAsyncExecution::TaskGraphMainThread, [BaseStaticMesh, TempStaticMesh, Filename, bResult]()
 				{
 					// Copy high res mesh from temporary static mesh to targeted one
 					if (bResult && Private::CopyHighResMeshDescription(TempStaticMesh, BaseStaticMesh))
 					{
+						FStaticMeshSourceModel& SourceModel = BaseStaticMesh->GetHiResSourceModel();
+						SourceModel.SourceImportFilename = UAssetImportData::SanitizeImportFilename(Filename, nullptr);
+						SourceModel.bImportWithBaseMesh = false;
+
 						// Notification of success
 						FNotificationInfo NotificationInfo(FText::GetEmpty());
 						NotificationInfo.Text = NSLOCTEXT("UnrealEd", "ImportStaticMeshHiResSourceModelSuccessful", "High res mesh imported successfully!");
@@ -426,11 +422,9 @@ namespace FbxMeshUtils
 		UnFbx::FFbxLoggerSetter Logger(FFbxImporter);
 
 		UnFbx::FBXImportOptions* ImportOptions = FFbxImporter->GetImportOptions();
-		Private::SetupFbxImportOptions(BaseStaticMesh, ImportOptions);
+		UFbxStaticMeshImportData* ImportData = Private::SetupFbxImportOptions(BaseStaticMesh, ImportOptions);
 		ImportOptions->StaticMeshLODGroup = NAME_None;
 		ImportOptions->bImportLOD = false;
-
-		UFbxStaticMeshImportData* ImportData = Cast<UFbxStaticMeshImportData>(BaseStaticMesh->AssetImportData);
 
 		const bool bPreventMaterialNameClash = true;
 		if (!FFbxImporter->ImportFromFile(*Filename, FPaths::GetExtension(Filename), bPreventMaterialNameClash))
@@ -621,40 +615,30 @@ namespace FbxMeshUtils
 			UnFbx::FBXImportOptions* ImportOptions = FFbxImporter->GetImportOptions();
 
 			//Set the skeletal mesh import data from the base mesh, this make sure the import rotation transform is use when importing a LOD
-			UFbxSkeletalMeshImportData* TempAssetImportData = NULL;
-
-			UFbxAssetImportData* FbxAssetImportData = Cast<UFbxAssetImportData>(SelectedSkelMesh->GetAssetImportData());
-			if (!FbxAssetImportData)
+			UFbxSkeletalMeshImportData* FbxImportData = Cast<UFbxSkeletalMeshImportData>(SelectedSkelMesh->GetAssetImportData());
+			if (!FbxImportData)
 			{
-				//Convert the data if its Interchange import data, we convert the full asset in this case since legacy fbx workflow will create one if missing
+				//Convert the data if its Interchange import data
 				if (UInterchangeAssetImportData* InterchangeAssetImportData = Cast<UInterchangeAssetImportData>(SelectedSkelMesh->GetAssetImportData()))
 				{
-					if (InterchangeManager.ConvertImportData(SelectedSkelMesh, TEXT("fbx")))
-					{
-						FbxAssetImportData = Cast<UFbxAssetImportData>(SelectedSkelMesh->GetAssetImportData());
-					}
+					InterchangeManager.ConvertImportData(InterchangeAssetImportData, UFbxSkeletalMeshImportData::StaticClass(), reinterpret_cast<UObject**>(&FbxImportData));
 				}
 			}
 
-			if (FbxAssetImportData)
+			if (FbxImportData)
 			{
-				UFbxSkeletalMeshImportData* ImportData = Cast<UFbxSkeletalMeshImportData>(FbxAssetImportData);
-				if (ImportData)
-				{
-					TempAssetImportData = ImportData;
-					UnFbx::FBXImportOptions::ResetOptions(ImportOptions);
-					// Prepare the import options
-					UFbxImportUI* ReimportUI = NewObject<UFbxImportUI>();
-					ReimportUI->MeshTypeToImport = FBXIT_SkeletalMesh;
-					ReimportUI->Skeleton = SelectedSkelMesh->GetSkeleton();
-					ReimportUI->PhysicsAsset = SelectedSkelMesh->GetPhysicsAsset();
-					// Import data already exists, apply it to the fbx import options
-					ReimportUI->SkeletalMeshImportData = ImportData;
-					//Some options not supported with skeletal mesh
-					ReimportUI->SkeletalMeshImportData->bBakePivotInVertex = false;
-					ReimportUI->SkeletalMeshImportData->bTransformVertexToAbsolute = true;
-					ApplyImportUIToImportOptions(ReimportUI, *ImportOptions);
-				}
+				UnFbx::FBXImportOptions::ResetOptions(ImportOptions);
+				// Prepare the import options
+				UFbxImportUI* ReimportUI = NewObject<UFbxImportUI>();
+				ReimportUI->MeshTypeToImport = FBXIT_SkeletalMesh;
+				ReimportUI->Skeleton = SelectedSkelMesh->GetSkeleton();
+				ReimportUI->PhysicsAsset = SelectedSkelMesh->GetPhysicsAsset();
+				// Import data already exists, apply it to the fbx import options
+				ReimportUI->SkeletalMeshImportData = FbxImportData;
+				//Some options not supported with skeletal mesh
+				ReimportUI->SkeletalMeshImportData->bBakePivotInVertex = false;
+				ReimportUI->SkeletalMeshImportData->bTransformVertexToAbsolute = true;
+				ApplyImportUIToImportOptions(ReimportUI, *ImportOptions);
 				ImportOptions->bImportMaterials = false;
 				ImportOptions->bImportTextures = false;
 			}
@@ -816,7 +800,7 @@ namespace FbxMeshUtils
 					ImportSkeletalMeshArgs.NodeArray = bUseLODs ? SkelMeshNodeArray : *MeshObject;
 					ImportSkeletalMeshArgs.Name = NAME_None;
 					ImportSkeletalMeshArgs.Flags = RF_Transient;
-					ImportSkeletalMeshArgs.TemplateImportData = TempAssetImportData;
+					ImportSkeletalMeshArgs.TemplateImportData = FbxImportData;
 					ImportSkeletalMeshArgs.LodIndex = SelectedLOD;
 					ImportSkeletalMeshArgs.OrderedMaterialNames = OrderedMaterialNames.Num() > 0 ? &OrderedMaterialNames : nullptr;
 					ImportSkeletalMeshArgs.ImportMaterialOriginalNameData = &ImportMaterialOriginalNameData;
@@ -825,7 +809,7 @@ namespace FbxMeshUtils
 
 					TempSkelMesh = (USkeletalMesh*)FFbxImporter->ImportSkeletalMesh(ImportSkeletalMeshArgs);
 					// Add the new imported LOD to the existing model (check skeleton compatibility)
-					if (TempSkelMesh && FFbxImporter->ImportSkeletalMeshLOD(TempSkelMesh, SelectedSkelMesh, SelectedLOD, TempAssetImportData))
+					if (TempSkelMesh && FFbxImporter->ImportSkeletalMeshLOD(TempSkelMesh, SelectedSkelMesh, SelectedLOD, FbxImportData))
 					{
 						//Update the import data for this lod
 						UnFbx::FFbxImporter::UpdateSkeletalMeshImportData(SelectedSkelMesh, nullptr, SelectedLOD, &ImportMaterialOriginalNameData, &ImportMeshLodData);
@@ -1022,7 +1006,9 @@ namespace FbxMeshUtils
 				FInterchangeFilePickerParameters Parameters;
 				Parameters.bAllowMultipleFiles = false;
 				Parameters.Title = FText::Format(NSLOCTEXT("Interchange", "ImportCustomLodAsync_FilePickerTitle", "Choose a file to import a custom LOD for LOD{0}"), FText::AsNumber(LODLevel));
-				Parameters.bShowAllFactoriesExtension = true;
+				Parameters.bShowAllFactoriesExtension = false;
+				//Lod import support interchange format and we force fbx in case it is disabled
+				Parameters.ExtraFormats = { TEXT("fbx;Filmbox") };
 				TArray<FString> Filenames;
 				bool bFilePickerResult = FilePicker->ScriptedFilePickerForTranslatorAssetType(EInterchangeTranslatorAssetType::Meshes, Parameters, Filenames);
 				if (bFilePickerResult)
@@ -1057,7 +1043,6 @@ namespace FbxMeshUtils
 
 		//Convert the import data if necessary
 		UInterchangeAssetImportData* SelectedInterchangeAssetImportData = nullptr;
-		SelectedInterchangeAssetImportData = nullptr;
 		if (SkeletalMesh)
 		{
 			if (SkeletalMesh->IsValidLODIndex(LODLevel))

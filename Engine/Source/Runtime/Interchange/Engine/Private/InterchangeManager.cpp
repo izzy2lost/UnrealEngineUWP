@@ -1058,7 +1058,7 @@ bool UInterchangeManager::ConvertImportData(const UObject* SourceImportData, con
 	{
 		if (RegisteredConverter.Value->CanConvertClass(SourceImportData->GetClass(), DestinationClass))
 		{
-			if (RegisteredConverter.Value->ConvertImportData(SourceImportData, DestinationImportData))
+			if (RegisteredConverter.Value->ConvertImportData(SourceImportData, DestinationClass, DestinationImportData))
 			{
 				break;
 			}

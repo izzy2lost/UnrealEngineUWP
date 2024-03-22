@@ -15,6 +15,7 @@
 #if WITH_ENGINE
 #include "Mesh/InterchangeMeshPayload.h"
 #endif
+#include "Misc/Paths.h"
 #include "Nodes/InterchangeBaseNodeContainer.h"
 #include "Nodes/InterchangeSourceNode.h"
 #include "Misc/SecureHash.h"
@@ -129,6 +130,10 @@ namespace UE
 				}
 
 				bool bStatus = SDKImporter->Import(SDKScene);
+
+				//To be able to re-import legacy fbx imported skeleton hierarchy we need to rename bones the same way legacy was doing, so this rename precede the CleanupFbxData renaming
+				constexpr bool bRemovePath = true;
+				EnsureNodeNameAreValid(FPaths::GetBaseFilename(Filename, bRemovePath));
 
 				//We always convert scene to UE axis and units
 				FFbxConvert::ConvertScene(SDKScene, bConvertScene, bForceFrontXAxis, bConvertSceneUnit, FileDetails.AxisDirection, FileDetails.UnitSystem);
@@ -253,6 +258,60 @@ namespace UE
 					FScopeLock Lock(&PayloadCriticalSection);
 					TSharedPtr<FPayloadContextBase>& PayloadContext = PayloadContexts.FindChecked(PayloadKey);
 					return PayloadContext->FetchAnimationBakeTransformPayloadToFile(*this, BakeFrequency, RangeStartTime, RangeEndTime, PayloadFilepath);
+				}
+			}
+
+			void FFbxParser::EnsureNodeNameAreValid(const FString& BaseFilename)
+			{
+				const bool bKeepNamespace = false;//Todo use: GetDefault<UEditorPerProjectUserSettings>()->bKeepFbxNamespace;
+
+				TSet<FString> AllNodeName;
+				int32 CurrentNameIndex = 1;
+				for (int32 NodeIndex = 0; NodeIndex < SDKScene->GetNodeCount(); ++NodeIndex)
+				{
+					FbxNode* Node = SDKScene->GetNode(NodeIndex);
+					FString NodeName = UTF8_TO_TCHAR(Node->GetName());
+					if (NodeName.IsEmpty())
+					{
+						do
+						{
+							NodeName = TEXT("ncl1_") + FString::FromInt(CurrentNameIndex++);
+						} while (AllNodeName.Contains(NodeName));
+
+						Node->SetName(TCHAR_TO_UTF8(*NodeName));
+						if (!GIsAutomationTesting)
+						{
+							UInterchangeResultDisplay_Generic* Message = AddMessage<UInterchangeResultDisplay_Generic>();
+							Message->Text = FText::Format(LOCTEXT("EnsureNodeNameAreValid_NoNodeName", "Interchange FBX file Loading: Found node with no name, new node name is '{0}'"), FText::FromString(NodeName));
+						}
+					}
+					if (bKeepNamespace)
+					{
+						if (NodeName.Contains(TEXT(":")))
+						{
+							NodeName = NodeName.Replace(TEXT(":"), TEXT("_"));
+							Node->SetName(TCHAR_TO_UTF8(*NodeName));
+						}
+					}
+					// Do not allow node to be named same as filename as this creates problems later on (reimport)
+					if (AllNodeName.Contains(NodeName))
+					{
+						FString UniqueNodeName;
+						do
+						{
+							UniqueNodeName = NodeName + FString::FromInt(CurrentNameIndex++);
+						} while (AllNodeName.Contains(UniqueNodeName));
+
+						FbxString UniqueName(TCHAR_TO_UTF8(*UniqueNodeName));
+						Node->SetName(UniqueName);
+
+						if (!GIsAutomationTesting)
+						{
+							UInterchangeResultDisplay_Generic* Message = AddMessage<UInterchangeResultDisplay_Generic>();
+							Message->Text = FText::Format(LOCTEXT("EnsureNodeNameAreValid_NodeNameClash", "FBX File Loading: Found name clash, node '{0}' was renamed to '{1}'"), FText::FromString(NodeName), FText::FromString(UniqueNodeName));
+						}
+					}
+					AllNodeName.Add(NodeName);
 				}
 			}
 

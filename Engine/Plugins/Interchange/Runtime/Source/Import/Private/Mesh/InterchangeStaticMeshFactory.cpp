@@ -96,13 +96,21 @@ namespace UE::Interchange::Private::StaticMesh
 				bool bFoundMatch = false;
 				for (int32 MaterialIndex = 0; MaterialIndex < Materials.Num(); ++MaterialIndex)
 				{
+					FName MaterialName = Materials[MaterialIndex].ImportedMaterialSlotName;
 					if (RemapMaterialIndexes[MaterialIndex] != INDEX_NONE)
 					{
 						//This material was already matched
+
+						//If the name match say we found the match)
+						if (MaterialName == ImportMaterialName)
+						{
+							bFoundMatch = true;
+							break;
+						}
 						continue;
 					}
 					int32& RemapIndex = RemapMaterialIndexes[MaterialIndex];
-					FName MaterialName = Materials[MaterialIndex].ImportedMaterialSlotName;
+					
 					if (MaterialName == ImportMaterialName)
 					{
 						RemapIndex = ReorderMaterialArray.Add(Materials[MaterialIndex]);

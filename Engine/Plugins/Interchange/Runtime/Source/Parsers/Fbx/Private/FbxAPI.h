@@ -108,6 +108,7 @@ namespace UE
 				FCriticalSection PayloadCriticalSection;
 			private:
 
+				void EnsureNodeNameAreValid(const FString& BaseFilename);
 				void CleanupFbxData();
 				void ProcessExtraInformation(UInterchangeBaseNodeContainer& NodeContainer);
 

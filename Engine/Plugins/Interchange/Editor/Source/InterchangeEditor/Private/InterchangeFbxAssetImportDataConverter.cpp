@@ -992,7 +992,7 @@ bool UInterchangeFbxAssetImportDataConverter::ConvertImportData(UObject* Asset, 
 	return bResult;
 }
 
-bool UInterchangeFbxAssetImportDataConverter::ConvertImportData(const UObject* SourceImportData, UObject** DestinationImportData) const
+bool UInterchangeFbxAssetImportDataConverter::ConvertImportData(const UObject* SourceImportData, const UClass* DestinationClass, UObject** DestinationImportData) const
 {
 	bool bResult = false;
 	if (!SourceImportData || !DestinationImportData)
@@ -1001,80 +1001,113 @@ bool UInterchangeFbxAssetImportDataConverter::ConvertImportData(const UObject* S
 	}
 
 	UInterchangeManager& InterchangeManager = UInterchangeManager::GetInterchangeManager();
-	if (SourceImportData->IsA<UFbxImportUI>())
+	if (SourceImportData->IsA<UInterchangeAssetImportData>())
 	{
-		//Convert Legacy Fbx to Interchange
-		*DestinationImportData = UE::Interchange::Private::ConvertToInterchange(GetTransientPackage(), Cast<UFbxImportUI>(SourceImportData));
-		bResult = true;
-	}
-	else if (SourceImportData->IsA<UFbxAssetImportData>())
-	{
-		//We convert the UFbxAssetImportData into a UFbxImportUI
-		auto FillFbxAssetImportData = [](const UFbxAssetImportData* SourceAssetImportData, UFbxAssetImportData* DestinationAssetImportData)
+		if (UFbxImportUI* FbxImportUI = UE::Interchange::Private::ConvertToLegacyFbx(GetTransientPackage(), Cast<UInterchangeAssetImportData>(SourceImportData)))
+		{
+			bResult = true;
+			if (DestinationClass->IsChildOf<UFbxImportUI>())
 			{
-				DestinationAssetImportData->bConvertScene = SourceAssetImportData->bConvertScene;
-				DestinationAssetImportData->bConvertSceneUnit = SourceAssetImportData->bConvertSceneUnit;
-				DestinationAssetImportData->bForceFrontXAxis = SourceAssetImportData->bForceFrontXAxis;
-				DestinationAssetImportData->bImportAsScene = SourceAssetImportData->bImportAsScene;
-				DestinationAssetImportData->ImportRotation = SourceAssetImportData->ImportRotation;
-				DestinationAssetImportData->ImportTranslation = SourceAssetImportData->ImportTranslation;
-				DestinationAssetImportData->ImportUniformScale = SourceAssetImportData->ImportUniformScale;
-			};
-
-		UFbxImportUI* TempFbxImportUI = NewObject<UFbxImportUI>(GetTransientPackage());
-		TempFbxImportUI->bImportMaterials = false;
-		TempFbxImportUI->bImportAsSkeletal = false;
-		TempFbxImportUI->bImportMesh = false;
-		TempFbxImportUI->bImportAnimations = false;
-		TempFbxImportUI->bImportRigidMesh = false;
-		TempFbxImportUI->bImportTextures = false;
-		TempFbxImportUI->bIsObjImport = false;
-		TempFbxImportUI->bIsReimport = false;
-		TempFbxImportUI->bCreatePhysicsAsset = false;
-		TempFbxImportUI->PhysicsAsset = nullptr;
-		TempFbxImportUI->Skeleton = nullptr;
-		if (SourceImportData->IsA<UFbxSkeletalMeshImportData>())
-		{
-			TempFbxImportUI->SkeletalMeshImportData = const_cast<UFbxSkeletalMeshImportData*>(Cast<UFbxSkeletalMeshImportData>(SourceImportData));
-			TempFbxImportUI->MeshTypeToImport = EFBXImportType::FBXIT_SkeletalMesh;
-			TempFbxImportUI->bImportAsSkeletal = true;
-			TempFbxImportUI->bImportMesh = true;
-
-			FillFbxAssetImportData(TempFbxImportUI->SkeletalMeshImportData, TempFbxImportUI->StaticMeshImportData);
-			FillFbxAssetImportData(TempFbxImportUI->SkeletalMeshImportData, TempFbxImportUI->AnimSequenceImportData);
-			FillFbxAssetImportData(TempFbxImportUI->SkeletalMeshImportData, TempFbxImportUI->TextureImportData);
+				*DestinationImportData = FbxImportUI;
+			}
+			else if (DestinationClass->IsChildOf<UFbxStaticMeshImportData>())
+			{
+				(*DestinationImportData) = FbxImportUI->StaticMeshImportData;
+			}
+			else if (DestinationClass->IsChildOf<UFbxSkeletalMeshImportData>())
+			{
+				(*DestinationImportData) = FbxImportUI->SkeletalMeshImportData;
+			}
+			else if (DestinationClass->IsChildOf<UFbxAnimSequenceImportData>())
+			{
+				(*DestinationImportData) = FbxImportUI->AnimSequenceImportData;
+			}
+			else
+			{
+				bResult = false;
+			}
 		}
-		else if (SourceImportData->IsA<UFbxStaticMeshImportData>())
-		{
-			TempFbxImportUI->MeshTypeToImport = EFBXImportType::FBXIT_StaticMesh;
-			TempFbxImportUI->bImportMesh = true;
-
-			TempFbxImportUI->StaticMeshImportData = const_cast<UFbxStaticMeshImportData*>(Cast<UFbxStaticMeshImportData>(SourceImportData));
-			FillFbxAssetImportData(TempFbxImportUI->StaticMeshImportData, TempFbxImportUI->SkeletalMeshImportData);
-			FillFbxAssetImportData(TempFbxImportUI->StaticMeshImportData, TempFbxImportUI->AnimSequenceImportData);
-			FillFbxAssetImportData(TempFbxImportUI->StaticMeshImportData, TempFbxImportUI->TextureImportData);
-		}
-		else if (SourceImportData->IsA<UFbxAnimSequenceImportData>())
-		{
-			TempFbxImportUI->MeshTypeToImport = EFBXImportType::FBXIT_Animation;
-			TempFbxImportUI->bImportAsSkeletal = true;
-			TempFbxImportUI->bImportMesh = false;
-			TempFbxImportUI->AnimSequenceImportData = const_cast<UFbxAnimSequenceImportData*>(Cast<UFbxAnimSequenceImportData>(SourceImportData));
-			FillFbxAssetImportData(TempFbxImportUI->AnimSequenceImportData, TempFbxImportUI->SkeletalMeshImportData);
-			FillFbxAssetImportData(TempFbxImportUI->AnimSequenceImportData, TempFbxImportUI->StaticMeshImportData);
-			FillFbxAssetImportData(TempFbxImportUI->AnimSequenceImportData, TempFbxImportUI->TextureImportData);
-		}
-		else
-		{
-			ensureMsgf(false, TEXT("Fbx interchange converter: miss match between CanConvertClass and the convertion capacity"));
-		}
-		*DestinationImportData = UE::Interchange::Private::ConvertToInterchange(GetTransientPackage(), TempFbxImportUI);
-		bResult = true;
 	}
-	else if (SourceImportData->IsA<UInterchangeAssetImportData>())
+	else
 	{
-		*DestinationImportData = UE::Interchange::Private::ConvertToLegacyFbx(GetTransientPackage(), Cast<UInterchangeAssetImportData>(SourceImportData));
-		bResult = true;
+		const UFbxImportUI* FbxImportUI = nullptr;
+		if (SourceImportData->IsA<UFbxImportUI>())
+		{
+			FbxImportUI = const_cast<UFbxImportUI*>(Cast<UFbxImportUI>(SourceImportData));
+			
+		}
+		else if (SourceImportData->IsA<UFbxAssetImportData>())
+		{
+			//We convert the UFbxAssetImportData into a UFbxImportUI
+			auto FillFbxAssetImportData = [](const UFbxAssetImportData* SourceAssetImportData, UFbxAssetImportData* DestinationAssetImportData)
+				{
+					DestinationAssetImportData->bConvertScene = SourceAssetImportData->bConvertScene;
+					DestinationAssetImportData->bConvertSceneUnit = SourceAssetImportData->bConvertSceneUnit;
+					DestinationAssetImportData->bForceFrontXAxis = SourceAssetImportData->bForceFrontXAxis;
+					DestinationAssetImportData->bImportAsScene = SourceAssetImportData->bImportAsScene;
+					DestinationAssetImportData->ImportRotation = SourceAssetImportData->ImportRotation;
+					DestinationAssetImportData->ImportTranslation = SourceAssetImportData->ImportTranslation;
+					DestinationAssetImportData->ImportUniformScale = SourceAssetImportData->ImportUniformScale;
+				};
+
+			UFbxImportUI* TempFbxImportUI = NewObject<UFbxImportUI>(GetTransientPackage());
+			TempFbxImportUI->bImportMaterials = false;
+			TempFbxImportUI->bImportAsSkeletal = false;
+			TempFbxImportUI->bImportMesh = false;
+			TempFbxImportUI->bImportAnimations = false;
+			TempFbxImportUI->bImportRigidMesh = false;
+			TempFbxImportUI->bImportTextures = false;
+			TempFbxImportUI->bIsObjImport = false;
+			TempFbxImportUI->bIsReimport = false;
+			TempFbxImportUI->bCreatePhysicsAsset = false;
+			TempFbxImportUI->PhysicsAsset = nullptr;
+			TempFbxImportUI->Skeleton = nullptr;
+			if (SourceImportData->IsA<UFbxSkeletalMeshImportData>())
+			{
+				TempFbxImportUI->SkeletalMeshImportData = const_cast<UFbxSkeletalMeshImportData*>(Cast<UFbxSkeletalMeshImportData>(SourceImportData));
+				TempFbxImportUI->MeshTypeToImport = EFBXImportType::FBXIT_SkeletalMesh;
+				TempFbxImportUI->bImportAsSkeletal = true;
+				TempFbxImportUI->bImportMesh = true;
+
+				FillFbxAssetImportData(TempFbxImportUI->SkeletalMeshImportData, TempFbxImportUI->StaticMeshImportData);
+				FillFbxAssetImportData(TempFbxImportUI->SkeletalMeshImportData, TempFbxImportUI->AnimSequenceImportData);
+				FillFbxAssetImportData(TempFbxImportUI->SkeletalMeshImportData, TempFbxImportUI->TextureImportData);
+			}
+			else if (SourceImportData->IsA<UFbxStaticMeshImportData>())
+			{
+				TempFbxImportUI->MeshTypeToImport = EFBXImportType::FBXIT_StaticMesh;
+				TempFbxImportUI->bImportMesh = true;
+
+				TempFbxImportUI->StaticMeshImportData = const_cast<UFbxStaticMeshImportData*>(Cast<UFbxStaticMeshImportData>(SourceImportData));
+				FillFbxAssetImportData(TempFbxImportUI->StaticMeshImportData, TempFbxImportUI->SkeletalMeshImportData);
+				FillFbxAssetImportData(TempFbxImportUI->StaticMeshImportData, TempFbxImportUI->AnimSequenceImportData);
+				FillFbxAssetImportData(TempFbxImportUI->StaticMeshImportData, TempFbxImportUI->TextureImportData);
+			}
+			else if (SourceImportData->IsA<UFbxAnimSequenceImportData>())
+			{
+				TempFbxImportUI->MeshTypeToImport = EFBXImportType::FBXIT_Animation;
+				TempFbxImportUI->bImportAsSkeletal = true;
+				TempFbxImportUI->bImportMesh = false;
+				TempFbxImportUI->AnimSequenceImportData = const_cast<UFbxAnimSequenceImportData*>(Cast<UFbxAnimSequenceImportData>(SourceImportData));
+				FillFbxAssetImportData(TempFbxImportUI->AnimSequenceImportData, TempFbxImportUI->SkeletalMeshImportData);
+				FillFbxAssetImportData(TempFbxImportUI->AnimSequenceImportData, TempFbxImportUI->StaticMeshImportData);
+				FillFbxAssetImportData(TempFbxImportUI->AnimSequenceImportData, TempFbxImportUI->TextureImportData);
+			}
+			else
+			{
+				ensureMsgf(false, TEXT("Fbx interchange converter: miss match between CanConvertClass and the convertion capacity"));
+				TempFbxImportUI = nullptr;
+			}
+			//Assign to the const pointer we use to convert the data
+			FbxImportUI = TempFbxImportUI;
+		}
+
+		if (FbxImportUI)
+		{
+			//Convert Legacy Fbx to Interchange
+			*DestinationImportData = UE::Interchange::Private::ConvertToInterchange(GetTransientPackage(), FbxImportUI);
+			bResult = true;
+		}
 	}
 	return bResult;
 }
@@ -1098,7 +1131,13 @@ bool UInterchangeFbxAssetImportDataConverter::CanConvertClass(const UClass* Sour
 
 	if (SourceClass->IsChildOf(UInterchangeAssetImportData::StaticClass()))
 	{
-		return DestinationClass->IsChildOf(UFbxImportUI::StaticClass());
+		if (DestinationClass->IsChildOf(UFbxImportUI::StaticClass())
+			|| DestinationClass->IsChildOf(UFbxSkeletalMeshImportData::StaticClass())
+			|| DestinationClass->IsChildOf(UFbxStaticMeshImportData::StaticClass())
+			|| DestinationClass->IsChildOf(UFbxAnimSequenceImportData::StaticClass()))
+		{
+			return true;
+		}
 	}
 	return false;
 }

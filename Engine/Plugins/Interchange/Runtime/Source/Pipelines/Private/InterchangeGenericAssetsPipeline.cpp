@@ -926,7 +926,7 @@ TArray<FInterchangeConflictInfo> UInterchangeGenericAssetsPipeline::GetConflictI
 		CreateMaterialConflict(StaticMesh, SkeletalMesh, TransientBaseNodeContainer);
 	}
 
-	if (SpecifiedSkeleton || SkeletalMesh)
+	if (SpecifiedSkeleton && SkeletalMesh)
 	{
 		CreateSkeletonConflict(SpecifiedSkeleton, SkeletalMesh, TransientBaseNodeContainer);
 	}

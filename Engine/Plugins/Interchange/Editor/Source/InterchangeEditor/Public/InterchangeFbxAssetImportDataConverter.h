@@ -18,5 +18,5 @@ public:
 	virtual bool CanConvertClass(const UClass* SourceClass, const UClass* DestinationClass) const override;
 
 	virtual bool ConvertImportData(UObject* Asset, const FString& ToExtension) const override;
-	virtual bool ConvertImportData(const UObject* SourceImportData, UObject** DestinationImportData) const override;
+	virtual bool ConvertImportData(const UObject* SourceImportData, const UClass* DestinationClass, UObject** DestinationImportData) const override;
 };

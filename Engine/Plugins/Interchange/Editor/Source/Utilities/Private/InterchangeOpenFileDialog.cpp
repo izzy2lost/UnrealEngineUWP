@@ -13,7 +13,7 @@
 
 namespace UE::Interchange::Utilities::Private
 {
-	FString GetOpenFileDialogExtensions(const TArray<FString>& TranslatorFormats, bool bShowAllFactoriesExtension)
+	FString GetOpenFileDialogExtensions(const TArray<FString>& TranslatorFormats, bool bShowAllFactoriesExtension, const TArray<FString>& ExtraFormats)
 	{
 		FString FileTypes;
 		FString Extensions;
@@ -44,6 +44,11 @@ namespace UE::Interchange::Utilities::Private
 		}
 
 		ObjectTools::AppendFormatsFileExtensions(TranslatorFormats, FileTypes, Extensions, FilterIndexToFactory);
+		
+		if (!ExtraFormats.IsEmpty())
+		{
+			ObjectTools::AppendFormatsFileExtensions(ExtraFormats, FileTypes, Extensions, FilterIndexToFactory);
+		}
 
 		const FString FormatString = FString::Printf(TEXT("All Files (%s)|%s|%s"), *Extensions, *Extensions, *FileTypes);
 
@@ -77,12 +82,19 @@ namespace UE::Interchange::Utilities::Private
 
 bool UInterchangeFilePickerGeneric::FilePickerForTranslatorAssetType(const EInterchangeTranslatorAssetType TranslatorAssetType, FInterchangeFilePickerParameters& Parameters, TArray<FString>& OutFilenames)
 {
-	FString Extensions = UE::Interchange::Utilities::Private::GetOpenFileDialogExtensions(UInterchangeManager::GetInterchangeManager().GetSupportedAssetTypeFormats(TranslatorAssetType), Parameters.bShowAllFactoriesExtension);
+	FString Extensions = UE::Interchange::Utilities::Private::GetOpenFileDialogExtensions
+	(
+		UInterchangeManager::GetInterchangeManager().GetSupportedAssetTypeFormats(TranslatorAssetType), Parameters.bShowAllFactoriesExtension, Parameters.ExtraFormats
+	);
+
 	return UE::Interchange::Utilities::Private::FilePickerDialog(Extensions, Parameters, OutFilenames);
 }
 
 bool UInterchangeFilePickerGeneric::FilePickerForTranslatorType(const EInterchangeTranslatorType TranslatorType, FInterchangeFilePickerParameters& Parameters, TArray<FString>& OutFilenames)
 {
-	FString Extensions = UE::Interchange::Utilities::Private::GetOpenFileDialogExtensions(UInterchangeManager::GetInterchangeManager().GetSupportedFormats(TranslatorType), Parameters.bShowAllFactoriesExtension);
+	FString Extensions = UE::Interchange::Utilities::Private::GetOpenFileDialogExtensions
+	(
+		UInterchangeManager::GetInterchangeManager().GetSupportedFormats(TranslatorType), Parameters.bShowAllFactoriesExtension, Parameters.ExtraFormats
+	);
 	return UE::Interchange::Utilities::Private::FilePickerDialog(Extensions, Parameters, OutFilenames);
 }

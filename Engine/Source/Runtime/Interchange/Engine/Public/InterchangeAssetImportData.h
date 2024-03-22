@@ -223,7 +223,7 @@ public:
 	 *
 	 * The system will call all object deriving from this class until one convert the data.
 	 */
-	virtual bool ConvertImportData(const UObject* SourceImportData, UObject** DestinationImportData) const
+	virtual bool ConvertImportData(const UObject* SourceImportData, const UClass* DestinationClass, UObject** DestinationImportData) const
 	{
 		return false;
 	}
