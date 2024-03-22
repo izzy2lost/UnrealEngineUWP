@@ -43,6 +43,7 @@ static FAutoConsoleVariable CVarChaosVDGTimeBetweenFullCaptures(
 
 FChaosVDRecordingStateChangedDelegate FChaosVDRuntimeModule::RecordingStartedDelegate = FChaosVDRecordingStateChangedDelegate();
 FChaosVDRecordingStateChangedDelegate FChaosVDRuntimeModule::RecordingStopDelegate = FChaosVDRecordingStateChangedDelegate();
+FChaosVDRecordingStartFailedDelegate FChaosVDRuntimeModule::RecordingStartFailedDelegate = FChaosVDRecordingStartFailedDelegate();
 FChaosVDCaptureRequestDelegate FChaosVDRuntimeModule::PerformFullCaptureDelegate = FChaosVDCaptureRequestDelegate();
 FRWLock FChaosVDRuntimeModule::DelegatesRWLock = FRWLock();
 
@@ -143,6 +144,9 @@ void FChaosVDRuntimeModule::StartRecording(TConstArrayView<FString> Args)
 	// Start Listening for Trace Stopped events, in case Trace is stopped outside our control so we can gracefully stop CVD recording and log a warning 
 	FTraceAuxiliary::OnTraceStopped.AddRaw(this, &FChaosVDRuntimeModule::HandleTraceStopRequest);
 
+	// Start with a generic Failure reason
+	FText FailureReason = LOCTEXT("SeeLogsForErrorDetailsText","Please see the logs for more details...");
+
 #if UE_TRACE_ENABLED
 
 	// Other tools could bee using trace
@@ -194,6 +198,10 @@ void FChaosVDRuntimeModule::StartRecording(TConstArrayView<FString> Args)
 		*Target,
 		nullptr, &TracingOptions);
 	}
+	else
+	{
+		FailureReason = LOCTEXT("WrongCommandArgumentsError", "The start recording command was called with invalid arguments");
+	}
 #endif
 	
 	AccumulatedRecordingTime = 0.0f;
@@ -216,16 +224,16 @@ void FChaosVDRuntimeModule::StartRecording(TConstArrayView<FString> Args)
 			FMath::Clamp(ConfiguredTimeBetweenCaptures, MinAllowedTimeInSecondsBetweenCaptures, TNumericLimits<int32>::Max()));
 
 		RecordingTimerHandle = FTSTicker::GetCoreTicker().AddTicker(FTickerDelegate::CreateRaw(this, &FChaosVDRuntimeModule::RecordingTimerTick));
-
 	}
 	else
 	{
-		UE_LOG(LogChaosVDRuntime, Error, TEXT("[%s] Failed to start CVD recording..."), ANSI_TO_TCHAR(__FUNCTION__));
+		UE_LOG(LogChaosVDRuntime, Error, TEXT("[%s] Failed to start CVD recording | Reason: [%s]"), ANSI_TO_TCHAR(__FUNCTION__), *FailureReason.ToString());
 
 #if WITH_EDITOR
-		FMessageDialog::Open(EAppMsgType::Ok, LOCTEXT("StartRecordingFailedMessage", "Failed to start CVD recording. Please see the logs for more details... "));
+		FMessageDialog::Open(EAppMsgType::Ok, FText::FormatOrdered(LOCTEXT("StartRecordingFailedMessage", "Failed to start CVD recording. \n\n{0}"), FailureReason));
 #endif
 
+		RecordingStartFailedDelegate.Broadcast(FailureReason);
 	}
 
 }

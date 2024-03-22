@@ -9,6 +9,7 @@
 #include "Misc/ScopeRWLock.h"
 
 struct FChaosVDRecording;
+class FText;
 
 /* Option flags that controls what should be recorded when doing a full capture **/
 enum class EChaosVDFullCaptureFlags : int32
@@ -20,6 +21,7 @@ ENUM_CLASS_FLAGS(EChaosVDFullCaptureFlags)
 
 DECLARE_MULTICAST_DELEGATE(FChaosVDRecordingStateChangedDelegate)
 DECLARE_MULTICAST_DELEGATE_OneParam(FChaosVDCaptureRequestDelegate, EChaosVDFullCaptureFlags)
+DECLARE_MULTICAST_DELEGATE_OneParam(FChaosVDRecordingStartFailedDelegate, const FText&)
 
 class CHAOSVDRUNTIME_API FChaosVDRuntimeModule : public IModuleInterface
 {
@@ -56,6 +58,12 @@ public:
 		FWriteScopeLock WriteLock(DelegatesRWLock);
 		return RecordingStopDelegate.Add(InCallback);
 	}
+
+	static FDelegateHandle RegisterRecordingStartFailedCallback(const FChaosVDRecordingStartFailedDelegate::FDelegate& InCallback)
+	{
+		FWriteScopeLock WriteLock(DelegatesRWLock);
+		return RecordingStartFailedDelegate.Add(InCallback);
+	}
 	
 	static FDelegateHandle RegisterFullCaptureRequestedCallback(const FChaosVDCaptureRequestDelegate::FDelegate& InCallback)
 	{
@@ -73,6 +81,12 @@ public:
 	{
 		FWriteScopeLock WriteLock(DelegatesRWLock);
 		return RecordingStopDelegate.Remove(InDelegateToRemove);
+	}
+
+	static bool RemoveRecordingStartFailedCallback(const FDelegateHandle& InDelegateToRemove)
+	{
+		FWriteScopeLock WriteLock(DelegatesRWLock);
+		return RecordingStartFailedDelegate.Remove(InDelegateToRemove);
 	}
 	
 	static bool RemoveFullCaptureRequestedCallback(const FDelegateHandle& InDelegateToRemove)
@@ -115,6 +129,7 @@ private:
 
 	static FChaosVDRecordingStateChangedDelegate RecordingStartedDelegate;
 	static FChaosVDRecordingStateChangedDelegate RecordingStopDelegate;
+	static FChaosVDRecordingStartFailedDelegate RecordingStartFailedDelegate;
 	static FChaosVDCaptureRequestDelegate PerformFullCaptureDelegate;
 
 	FThreadSafeCounter LastGeneratedID;
