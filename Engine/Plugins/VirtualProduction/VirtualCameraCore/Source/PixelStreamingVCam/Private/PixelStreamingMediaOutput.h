@@ -40,7 +40,6 @@ public:
 
 private:
 	TSharedPtr<IPixelStreamingStreamer> Streamer;
-	TSharedPtr<FPixelStreamingVideoInputVCam> VideoInput;
 
 	/** Broadcasts whenever the layer changes */
 	FRemoteResolutionChangedEvent RemoteResolutionChangedEvent;

@@ -54,7 +54,6 @@ namespace UE::PixelStreamingVCam::Private
 		void SetupCapture(TWeakObjectPtr<UVCamPixelStreamingSession> WeakThisUObjectPtr);
 		void StartCapture(TWeakObjectPtr<UVCamPixelStreamingSession> WeakThisUObjectPtr);
 		void StopCapture();
-		void UpdateVideoInput();
 
 		void OnPreStreaming(IPixelStreamingStreamer* PreConnectionStreamer, TWeakObjectPtr<UVCamPixelStreamingSession> WeakThisUObjectPtr);
 		void StopStreaming();

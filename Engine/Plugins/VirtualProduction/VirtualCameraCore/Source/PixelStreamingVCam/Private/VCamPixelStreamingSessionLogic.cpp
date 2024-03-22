@@ -282,34 +282,6 @@ namespace UE::PixelStreamingVCam::Private
 		MediaCapture = Cast<UPixelStreamingMediaIOCapture>(MediaOutput->CreateMediaCapture());
 		MediaCapture->OnStateChangedNative.AddSP(this, &FVCamPixelStreamingSessionLogic::OnCaptureStateChanged, WeakThisUObjectPtr);
 		StartCapture(WeakThisUObjectPtr);
-
-		// Creating media capture will have created a video input, set that on streamer
-		UpdateVideoInput();
-	}
-
-	void FVCamPixelStreamingSessionLogic::UpdateVideoInput()
-	{
-		if(!MediaCapture)
-		{
-			return;
-		}
-
-		if(TSharedPtr<FPixelStreamingVideoInput> VideoInput = MediaCapture->GetVideoInput().Pin())
-		{
-			TSharedPtr<IPixelStreamingStreamer> Streamer = MediaOutput->GetStreamer();
-			if(!Streamer)
-			{
-				return;
-			}
-
-			TSharedPtr<FPixelStreamingVideoInput> StreamerVideoInput = Streamer->GetVideoInput().Pin();
-
-			// Only update streamer's video input if we don't have one or it is different than the one we already have.
-			if (!StreamerVideoInput || StreamerVideoInput != VideoInput)
-			{
-				Streamer->SetVideoInput(VideoInput);
-			}
-		}
 	}
 
 	void FVCamPixelStreamingSessionLogic::StartCapture(TWeakObjectPtr<UVCamPixelStreamingSession> WeakThisUObjectPtr)

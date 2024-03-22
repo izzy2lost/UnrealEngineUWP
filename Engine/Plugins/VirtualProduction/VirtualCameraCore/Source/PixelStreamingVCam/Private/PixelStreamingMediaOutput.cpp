@@ -31,11 +31,8 @@ UMediaCapture* UPixelStreamingMediaOutput::CreateMediaCaptureImpl()
 	UPixelStreamingMediaIOCapture* Capture = NewObject<UPixelStreamingMediaIOCapture>();
 	Capture->SetMediaOutput(this);
 
-	if (!VideoInput)
-	{
-		VideoInput = FPixelStreamingVideoInputVCam::Create();
-	}
-
+	TSharedPtr<FPixelStreamingVideoInputVCam> VideoInput = FPixelStreamingVideoInputVCam::Create();
+	Streamer->SetVideoInput(VideoInput);
 	Capture->SetVideoInput(VideoInput);
 
 	return Capture;
