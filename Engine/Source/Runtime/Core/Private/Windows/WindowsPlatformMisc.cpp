@@ -871,6 +871,9 @@ void FWindowsPlatformMisc::PlatformPreInit()
 
 	FGenericPlatformMisc::PlatformPreInit();
 
+	FThreadHeartBeat::Get().GetOnThreadStuck().BindStatic(&FGenericCrashContext::OnThreadStuck);
+	FThreadHeartBeat::Get().GetOnThreadUnstuck().BindStatic(&FGenericCrashContext::OnThreadUnstuck);
+
 	// Load the bundled version of dbghelp.dll if necessary
 #if USE_BUNDLED_DBGHELP
 	// Loading newer versions of DbgHelp fails on Windows 7 since it is no longer supported.
