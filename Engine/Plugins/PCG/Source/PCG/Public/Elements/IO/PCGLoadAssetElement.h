@@ -32,7 +32,7 @@ public:
 	virtual FText GetDefaultNodeTitle() const override { return NSLOCTEXT("PCGLoadDataAssetSettings", "NodeTitle", "Load PCG Data Asset"); }
 	virtual FText GetNodeTooltipText() const override { return AssetDescription; }
 	virtual FLinearColor GetNodeTitleColor() const override { return AssetColor; }
-	virtual EPCGSettingsType GetType() const override { return EPCGSettingsType::Generic; } // TODO: change type?
+	virtual EPCGSettingsType GetType() const override { return EPCGSettingsType::InputOutput; }
 	virtual void GetStaticTrackedKeys(FPCGSelectionKeyToSettingsMap& OutKeysToSettings, TArray<TObjectPtr<const UPCGGraph>>& OutVisitedGraphs) const override;
 	virtual bool CanDynamicalyTrackKeys() const override { return true; }
 #endif // WITH_EDITOR

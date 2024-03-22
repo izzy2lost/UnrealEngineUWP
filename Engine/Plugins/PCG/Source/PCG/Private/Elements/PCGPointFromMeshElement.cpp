@@ -16,7 +16,7 @@
 #if WITH_EDITOR
 FText UPCGPointFromMeshSettings::GetDefaultNodeTitle() const
 {
-	return LOCTEXT("NodeTitle", "PointFromMesh");
+	return LOCTEXT("NodeTitle", "Point From Mesh");
 }
 
 FText UPCGPointFromMeshSettings::GetNodeTooltipText() const

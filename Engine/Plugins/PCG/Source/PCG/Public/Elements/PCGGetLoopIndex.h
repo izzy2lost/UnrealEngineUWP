@@ -19,7 +19,7 @@ public:
 	virtual FName GetDefaultNodeName() const override { return FName(TEXT("GetLoopIndex")); }
 	virtual FText GetDefaultNodeTitle() const override { return NSLOCTEXT("PCGGetLoopIndexElement", "NodeTitle", "Get Loop Index"); }
 	virtual FText GetNodeTooltipText() const override;
-	virtual EPCGSettingsType GetType() const override { return EPCGSettingsType::Param; }
+	virtual EPCGSettingsType GetType() const override { return EPCGSettingsType::Generic; }
 #endif // WITH_EDITOR
 
 protected:

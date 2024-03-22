@@ -18,9 +18,8 @@ public:
 	virtual FName GetDefaultNodeName() const override;
 	virtual FText GetDefaultNodeTitle() const override;
 	virtual FText GetNodeTooltipText() const override;
-	virtual EPCGSettingsType GetType() const override { return EPCGSettingsType::Param; }
+	virtual EPCGSettingsType GetType() const override { return EPCGSettingsType::Generic; }
 #endif
-	
 
 protected:
 	virtual TArray<FPCGPinProperties> OutputPinProperties() const override;
