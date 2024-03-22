@@ -4,7 +4,6 @@
 #include "Tasks/Pipe.h"
 
 #include "Async/TaskGraphInterfaces.h"
-#include "HAL/IConsoleManager.h"
 
 namespace UE::Tasks
 {
@@ -74,7 +73,7 @@ namespace UE::Tasks
 
 			if (!IsAwaitable())
 			{
-				UE_LOG(LogTemp, Fatal, TEXT("Deadlock detected! A task can't be waited here, e.g. because it's being executed by the currect thread"));
+				UE_LOG(LogTemp, Fatal, TEXT("Deadlock detected! A task can't be waited here, e.g. because it's being executed by the current thread"));
 				return false;
 			}
 
@@ -119,28 +118,26 @@ namespace UE::Tasks
 				}
 			}
 
+			// If we don't have any more prerequisites, let TryUnlock
+			// execute these to avoid any race condition where we could clear
+			// the last reference before TryUnlock finishes and cause a use-after-free.
+			// These are super fast to process anyway so we can just consider them done
+			// for retraction purpose.
+			if (ExtendedPriority == EExtendedTaskPriority::TaskEvent ||
+				ExtendedPriority == EExtendedTaskPriority::Inline)
+			{
+				return true;
+			}
+
+			if (Timeout)
+			{
+				return IsCompleted();
+			}
+
 			{
 				FThreadLocalRetractionScope ThreadLocalRetractionScope;
 
 				// next we try to execute the task, despite we haven't verified that the task is unlocked. trying to obtain execution permission will fail in this case
-
-				if (ExtendedPriority == EExtendedTaskPriority::TaskEvent)
-				{
-					if (!TrySetExecutionFlag())
-					{
-						return false;
-					}
-
-					// task events have nothing to execute, and so can't have nested task, just close it
-					Close();
-					ReleaseInternalReference();
-					return true;
-				}
-
-				if (Timeout)
-				{
-					return IsCompleted();
-				}
 
 				if (!TryExecuteTask())
 				{
@@ -535,12 +532,5 @@ namespace UE::Tasks
 		}
 
 #endif // !TASKGRAPH_NEW_FRONTEND
-
-		bool GAddReferenceInTryUnlock = true;
-		static FAutoConsoleVariableRef AddReferenceInTryUnlockCVar(
-			TEXT("task.AddReferenceInTryUnlock"),
-			GAddReferenceInTryUnlock,
-			TEXT("Whether to enable the workaround where we add a reference in TryUnlock before decrementing lock count"),
-			ECVF_Default);
 	}
 }
