@@ -131,6 +131,10 @@ protected:
 	UPROPERTY(EditAnywhere, Category = "Target AOE Selection | Data")
 	uint8 bIgnoreInstigatorActor : 1;
 
+	/** When enabled, the trace will be performed against complex collision. */
+	UPROPERTY(EditAnywhere, Category = "Target AOE Selection | Data")
+	uint8 bTraceComplex : 1 = false;
+
 	/** The half extent to use for box and cylinder */
 	UPROPERTY(EditAnywhere, Category = "Target AOE Selection | Box and Cylinder")
 	FVector HalfExtent = FVector::ZeroVector;
