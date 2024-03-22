@@ -28,14 +28,9 @@ void FStreamingGenerationProxyErrorHandler::OnInvalidReferenceRuntimeGrid(const 
 	InnerErrorHandler->OnInvalidReferenceRuntimeGrid(ActorDescView, ReferenceActorDescView);
 }
 
-void FStreamingGenerationProxyErrorHandler::OnInvalidReferenceLevelScriptStreamed(const IWorldPartitionActorDescInstanceView& ActorDescView)
+void FStreamingGenerationProxyErrorHandler::OnInvalidWorldReference(const IWorldPartitionActorDescInstanceView& ActorDescView, EWorldReferenceInvalidReason Reason)
 {
-	InnerErrorHandler->OnInvalidReferenceLevelScriptStreamed(ActorDescView);
-}
-
-void FStreamingGenerationProxyErrorHandler::OnInvalidReferenceLevelScriptDataLayers(const IWorldPartitionActorDescInstanceView& ActorDescView)
-{
-	InnerErrorHandler->OnInvalidReferenceLevelScriptDataLayers(ActorDescView);
+	InnerErrorHandler->OnInvalidWorldReference(ActorDescView, Reason);
 }
 
 void FStreamingGenerationProxyErrorHandler::OnInvalidReferenceDataLayerAsset(const UDataLayerInstanceWithAsset* DataLayerInstance)

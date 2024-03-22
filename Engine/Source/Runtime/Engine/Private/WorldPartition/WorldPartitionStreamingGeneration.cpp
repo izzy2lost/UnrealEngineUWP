@@ -1101,17 +1101,14 @@ class FWorldPartitionStreamingGenerator
 		const bool bIsMainContainerNonContentBundle = ContainerCollectionInstanceDescriptor.ID.IsMainContainer() && !ContainerCollectionInstanceDescriptor.ContentBundleID.IsValid();
 		if (bIsMainContainerNonContentBundle)
 		{
-			TArray<FGuid> LevelScriptReferences;
+			TArray<FGuid> WorldReferences;
 			if (WorldPartitionContext)
 			{
-				// Gather all references to external actors from the level script and make them always loaded
-				if (ULevelScriptBlueprint* LevelScriptBlueprint = WorldPartitionContext->GetTypedOuter<UWorld>()->PersistentLevel->GetLevelScriptBlueprint(true))
-				{
-					const ActorsReferencesUtils::FGetActorReferencesParams Params = ActorsReferencesUtils::FGetActorReferencesParams(LevelScriptBlueprint)
-						.SetRequiredFlags(RF_HasExternalPackage);
-					TArray<ActorsReferencesUtils::FActorReference> LevelScriptExternalActorReferences = ActorsReferencesUtils::GetActorReferences(Params);
-					Algo::Transform(LevelScriptExternalActorReferences, LevelScriptReferences, [](const ActorsReferencesUtils::FActorReference& ActorReference) { return ActorReference.Actor->GetActorGuid(); });
-				}
+				// Gather all references to external actors from the world and make them non-spatially loaded
+				const ActorsReferencesUtils::FGetActorReferencesParams Params = ActorsReferencesUtils::FGetActorReferencesParams(WorldPartitionContext->GetTypedOuter<UWorld>())
+					.SetRequiredFlags(RF_HasExternalPackage);
+				TArray<ActorsReferencesUtils::FActorReference> WorldExternalActorReferences = ActorsReferencesUtils::GetActorReferences(Params);
+				Algo::Transform(WorldExternalActorReferences, WorldReferences, [](const ActorsReferencesUtils::FActorReference& ActorReference) { return ActorReference.Actor->GetActorGuid(); });
 
 				// Validate data layers
 				if (DataLayerManager)
@@ -1125,22 +1122,22 @@ class FWorldPartitionStreamingGenerator
 			}
 			else
 			{
-				ULevel::GetLevelScriptExternalActorsReferencesFromPackage(ContainerCollectionInstanceDescriptor.ContainerInstanceCollection->GetBaseContainerInstancePackageName(), LevelScriptReferences);
+				ULevel::GetWorldExternalActorsReferencesFromPackage(ContainerCollectionInstanceDescriptor.ContainerInstanceCollection->GetBaseContainerInstancePackageName(), WorldReferences);
 			}
 
-			for (const FGuid& LevelScriptReferenceActorGuid : LevelScriptReferences)
+			for (const FGuid& LevelScriptReferenceActorGuid : WorldReferences)
 			{
 				if (FStreamingGenerationActorDescView* ActorDescView = ContainerCollectionInstanceDescriptor.ActorDescViewMap->FindByGuid(LevelScriptReferenceActorGuid))
 				{
 					if (ActorDescView->GetIsSpatiallyLoaded())
 					{
-						ErrorHandler->OnInvalidReferenceLevelScriptStreamed(*ActorDescView);
+						ErrorHandler->OnInvalidWorldReference(*ActorDescView, IStreamingGenerationErrorHandler::EWorldReferenceInvalidReason::ReferencedActorIsSpatiallyLoaded);
 						ActorDescView->SetForcedNonSpatiallyLoaded();
 					}
 
 					if (ActorDescView->GetRuntimeDataLayerInstanceNames().Num())
 					{
-						ErrorHandler->OnInvalidReferenceLevelScriptDataLayers(*ActorDescView);
+						ErrorHandler->OnInvalidWorldReference(*ActorDescView, IStreamingGenerationErrorHandler::EWorldReferenceInvalidReason::ReferencedActorHasDataLayers);
 						ActorDescView->SetForcedNoDataLayers();
 					}
 				}
