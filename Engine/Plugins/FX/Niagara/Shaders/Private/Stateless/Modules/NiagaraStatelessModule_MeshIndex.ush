@@ -21,7 +21,7 @@ void MeshIndex_Simulate(in FStatelessModule_MeshIndex ModuleData, inout FStatele
 	
 	if (bIsParameter)
 	{
-		MeshIndex = asint(GetParameterBufferFloat(MeshIndex, 0));
+		MeshIndex = GetParameterBufferInt(MeshIndex, 0);
 	}
 	else
 	{
