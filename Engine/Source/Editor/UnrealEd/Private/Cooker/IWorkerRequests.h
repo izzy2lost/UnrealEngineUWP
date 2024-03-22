@@ -9,7 +9,6 @@
 
 class FConfigFile;
 namespace UE::Cook { struct FPackageData; }
-namespace UE::Cook { struct FGenerationHelper; }
 
 namespace UE::Cook
 {
@@ -63,7 +62,6 @@ public:
 	// Writing Packages during Cook
 	virtual void QueueDiscoveredPackage(UCookOnTheFlyServer& COTFS, FPackageData& PackageData,
 		FInstigator&& Instigator, FDiscoveredPlatformSet&& ReachablePlatforms, bool bUrgent) = 0;
-	virtual void EndQueueGeneratedPackages(UCookOnTheFlyServer& COTFS, FGenerationHelper& GenerationHelper) = 0;
 
 	// Writing Packages from CookByTheBook
 	virtual void AddStartCookByTheBookRequest(FFilePlatformRequest&& Request) = 0;

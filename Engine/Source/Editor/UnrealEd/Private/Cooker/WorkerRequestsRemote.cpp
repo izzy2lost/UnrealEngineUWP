@@ -61,12 +61,6 @@ void FWorkerRequestsRemote::QueueDiscoveredPackage(UCookOnTheFlyServer& COTFS, F
 	CookWorkerClient.ReportDiscoveredPackage(PackageData, MoveTemp(Instigator), MoveTemp(ReachablePlatforms));
 }
 
-void FWorkerRequestsRemote::EndQueueGeneratedPackages(UCookOnTheFlyServer& COTFS,
-	FGenerationHelper& GenerationHelper)
-{
-	CookWorkerClient.ReportGeneratorQueuedGeneratedPackages(GenerationHelper);
-}
-
 void FWorkerRequestsRemote::AddStartCookByTheBookRequest(FFilePlatformRequest&& Request)
 {
 	LogCalledCookByTheBookError(TEXT("AddStartCookByTheBookRequest"));

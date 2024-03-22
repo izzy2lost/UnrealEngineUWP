@@ -36,25 +36,21 @@ void FWorldPartitionCookPackageSplitter::Teardown(ETeardown Status)
 
 	FWorldDelegates::OnWorldCleanup.RemoveAll(this);
 
-	if (ReferencedWorld != nullptr)
+	// Assume that the world is partitioned as per FWorldPartitionCookPackageSplitter::ShouldSplit
+	UWorldPartition* WorldPartition = ReferencedWorld->PersistentLevel->GetWorldPartition();
+	check(WorldPartition);
+
+	WorldPartition->EndCook(CookContext);
+	WorldPartition->Uninitialize();
+
+	if (bInitializedPhysicsSceneForSave)
 	{
-		// We were destructed without GetGenerateList being called; nothing to teardown
-		// Assume that the world is partitioned as per FWorldPartitionCookPackageSplitter::ShouldSplit
-		UWorldPartition* WorldPartition = ReferencedWorld->PersistentLevel->GetWorldPartition();
-		check(WorldPartition);
-
-		WorldPartition->EndCook(CookContext);
-		WorldPartition->Uninitialize();
-
-		if (bInitializedPhysicsSceneForSave)
-		{
-			GEditor->CleanupPhysicsSceneThatWasInitializedForSave(ReferencedWorld, bForceInitializedWorld);
-			bInitializedPhysicsSceneForSave = false;
-			bForceInitializedWorld = false;
-		}
-
-		ReferencedWorld = nullptr;
+		GEditor->CleanupPhysicsSceneThatWasInitializedForSave(ReferencedWorld, bForceInitializedWorld);
+		bInitializedPhysicsSceneForSave = false;
+		bForceInitializedWorld = false;
 	}
+
+	ReferencedWorld = nullptr;
 }
 
 void FWorldPartitionCookPackageSplitter::OnWorldCleanup(UWorld* InWorld, bool bSessionEnded, bool bCleanupResources)

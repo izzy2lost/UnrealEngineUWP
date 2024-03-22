@@ -155,18 +155,6 @@ ENUM_CLASS_FLAGS(ECookTickFlags);
 
 namespace UE::Cook
 {
-/** MPCook Behavior set from config/commandline that decides where generatedpackages should be assigned. */
-enum class EMPCookGeneratorSplit : uint8
-{
-	AnyWorker,
-	AllOnSameWorker,
-	SomeOnSameWorker,
-	NoneOnSameWorker,
-};
-}
-
-namespace UE::Cook
-{
 	class FAssetRegistryMPCollector;
 	class FBuildDefinitions;
 	class FCachedDependencies;
@@ -1354,11 +1342,13 @@ private:
 	/** Generates long package names for all files to be cooked */
 	void GenerateLongPackageNames(TArray<FName>& FilesInPath, TMap<FName, UE::Cook::FInstigator>& Instigators);
 
+	UE::Cook::EPollStatus ConditionalCreateGeneratorPackage(UE::Cook::FPackageData& PackageData, bool bPrecaching);
+
 	/** Generate the list of cook-time-created packages created by the generator package. */
 	UE::Cook::EPollStatus QueueGeneratedPackages(UE::Cook::FGenerationHelper& GenerationHelper,
 		UE::Cook::FPackageData& PackageData);
-	/** Run additional steps in PrepareSave required when the package is a Generator or a GeneratedPackage. */
-	UE::Cook::EPollStatus PrepareSaveGenerationPackage(UE::Cook::FGenerationHelper& GenerationHelper,
+	/** Run additional steps in PrepareSave that are required when the package has a GenerationHelper. */
+	UE::Cook::EPollStatus PrepareSaveGeneratedPackage(UE::Cook::FGenerationHelper& GenerationHelper,
 		UE::Cook::FPackageData& PackageData, UE::Cook::FCookerTimer& Timer, bool bPrecaching);
 	/**
 	 * Call BeginCacheForCookedPlatformData on objects the CookPackageSplitter plans to move
@@ -1476,7 +1466,6 @@ private:
 	TSet<FName> CookFilterIncludedAssetClasses;
 
 	ELogVerbosity::Type CookerIdleWarningSeverity = ELogVerbosity::Warning;
-	UE::Cook::EMPCookGeneratorSplit MPCookGeneratorSplit = UE::Cook::EMPCookGeneratorSplit::AnyWorker;
 	/** True when PumpLoads has detected it is blocked on async work and CookOnTheFlyServer should do work elsewhere. */
 	bool bLoadBusy = false;
 	/** True when PumpSaves has detected it is blocked on async work and CookOnTheFlyServer should do work elsewhere. */

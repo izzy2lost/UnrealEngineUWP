@@ -17,7 +17,6 @@
 #include "Misc/EnumClassFlags.h"
 #include "Misc/Optional.h"
 #include "Misc/ScopeRWLock.h"
-#include "Templates/RefCounting.h"
 #include "Templates/SharedPointer.h"
 #include "Templates/UniquePtr.h"
 #include "TypedBlockAllocator.h"
@@ -612,59 +611,29 @@ public:
 	/** Swap all ITargetPlatform* stored on this instance according to the mapping in @param Remap. */
 	void RemapTargetPlatforms(const TMap<ITargetPlatform*, ITargetPlatform*>& Remap);
 
-	// GenerationHelper is set on packages that are generator packages: they generate other packages
-	// during cook. The PackageData for the generator package has a pointer to the GenerationHelper to look
-	// it up, but does not keep it in memory. It is kept in memory by its internal state and by
-	// ParentGenerationHelper references from its generated packages.
-	/** Return the GenerationHelper if it already exists, otherwise return nullptr. */
-	TRefCountPtr<FGenerationHelper> GetGenerationHelper() const;
-	/**
-	 * Return the GenerationHelper if it already exists and is initialized and is valid. If not initialized,
-	 * load the package to initialize it. If it is not valid after initialization, return nullptr.
-	 */
-	TRefCountPtr<FGenerationHelper> GetGenerationHelperIfValid();
-	/** Return the GenerationHelper if it already exists, otherwise create it without calling Initialize. */
-	TRefCountPtr<FGenerationHelper> CreateUninitializedGenerationHelper();
-	/**
-	 * Return the GenerationHelper if it already exists, otherwise load the package and check all the objects
-	 * to see whether any of them have a registered CookPackageSplitter. If a split object exists, create the
-	 * GenerationHelper and return it. Otherwise return nullptr.
-	 */
-	TRefCountPtr<FGenerationHelper> TryCreateValidGenerationHelper();
-	/** Helper function for ~FGenerationHelper: clear the pointer this->GenerationHelper. */
-	void OnGenerationHelperDestroyed(FGenerationHelper& InGenerationHelper);
+	/** Create a GenerationHelper struct for this PackageData and the given CookPackageSplitter and return it. */
+	FGenerationHelper& CreateGenerationHelper(const UObject* InSplitDataObject,
+		ICookPackageSplitter* InCookPackageSplitterInstance);
+	/** Destroy this PackageData's GenerationHelper struct. */
+	void DestroyGenerationHelper() { GenerationHelper.Reset(); }
+	/** Get the helper object containing data and functions for packages that need to generate other packages. */
+	FGenerationHelper* GetGenerationHelper() const;
 	/** Get whether the PackageData has done any necessary Generator steps and is ready for BeginCache calls. */
-	bool HasCompletedGeneration() const;
+	bool HasCompletedGeneration() const { return static_cast<bool>(bCompletedGeneration); }
 	/** Set whether the PackageData has done any necessary Generator steps and is ready for BeginCache calls. */
-	void SetCompletedGeneration(bool Value);
+	void SetCompletedGeneration(bool Value) { bCompletedGeneration = Value != 0; }
 	/** Get whether the PackageData has completed the check for whether it is a Generator. */
-	bool HasInitializedGeneratorSave() const;
+	bool HasInitializedGeneratorSave() const { return static_cast<bool>(bInitializedGeneratorSave); }
 	/** Set whether the PackageData has completed the check for whether it is a Generator. */
-	void SetInitializedGeneratorSave(bool Value);
+	void SetInitializedGeneratorSave(bool Value) { bInitializedGeneratorSave = Value != 0; }
 	/** Return whether the PackageData is a generated package created by a owning generator PackageData. */
-	bool IsGenerated() const;
-	/** Mark that the PackageData is a generated package created by a ParentGenerator. */
-	void SetGenerated(FName InParentGenerator);
-	/** Return the name of the generator package that generates this package, or NAME_None if not IsGenerated. */
-	FName GetParentGenerator() const;
-	/**
-	 * Set the owning generator PackageData. Only valid to call with non-null if SetGenerated() has been called. Keeps
-	 * the GenerationHelper referenced until SetParentGenerationHelper(nullptr) is called.
-	 */
-	void SetParentGenerationHelper(FGenerationHelper* InGenerationHelper);
-	/** Return the ParentGenerator's GenerationHelper if the pointer to it has already been set on this. */
-	TRefCountPtr<FGenerationHelper> GetParentGenerationHelper() const;
-	/**
-	 * Return the ParentGenerator's GenerationHelper if the pointer to it has already been set on this, otherwise
-	 * look for it on the ParentGenerator by calling GetGenerationHelper, and if found, store a reference to it
-	 * and return it, otherwise return null.
-	 */
-	TRefCountPtr<FGenerationHelper> GetOrFindParentGenerationHelper();
-	/**
-	 * Return the ParentGenerator's GenerationHelper if the pointer to it has already been set on this, otherwise
-	 * try to find or create it by calling TryCreateValidGenerationHelper on the ParentGenerator.
-	 */
-	TRefCountPtr<FGenerationHelper> TryCreateValidParentGenerationHelper();
+	bool IsGenerated() const { return static_cast<bool>(bGenerated); }
+	/** Set whether the PackageData is a generated package created by a owning generator PackageData. */
+	void SetGenerated(bool Value) { bGenerated = Value != 0; }
+	/** Set the owning generator PackageData. Only valid to call if SetGenerated(true) has been called. */
+	void SetGeneratedOwner(FGenerationHelper* InGeneratedOwner);
+	/** Return the parent generator's GenerationHelper. Will be null if not a generated package or if orphaned. */
+	FGenerationHelper* GetGeneratedOwner() const { return GeneratedOwner; }
 
 	/**
 	 * Return the instigator for this package. The Instigator is the first code location or
@@ -786,8 +755,8 @@ private:
 
 	void OnPackageDataFirstMarkedReachable(FInstigator&& InInstigator);
 
-	FGenerationHelper* GenerationHelper = nullptr;
-	TRefCountPtr<FGenerationHelper> ParentGenerationHelper;
+	TUniquePtr<FGenerationHelper> GenerationHelper;
+	FGenerationHelper* GeneratedOwner;
 	/** Data for each platform that has been interacted with by *this. */
 	TSortedMap<const ITargetPlatform*, FPackagePlatformData, TInlineAllocator<1>> PlatformDatas;
 
@@ -796,7 +765,6 @@ private:
 	TUniquePtr<TMap<FPackageData*, EInstigator>> Unsolicited;
 	FName PackageName;
 	FName FileName;
-	FName ParentGenerator;
 
 	struct FAsyncRequest
 	{
@@ -859,9 +827,10 @@ public:
 	/** State variable for reentrant SplitPackage calls */
 	enum class ESaveState : uint8
 	{
-		StartSave = 0,
+		StartGenerate = 0,
 
-		ClearOldPackagesFirstAttempt = StartSave,
+		GenerateList = StartGenerate,
+		ClearOldPackagesFirstAttempt,
 		ClearOldPackagesLastAttempt,
 		QueueGeneratedPackages,
 
@@ -943,7 +912,7 @@ public:
 	TArray<UPackage*> KeepReferencedPackages;
 	TMap<UObject*, FCachedObjectInOuterGeneratorInfo> CachedObjectsInOuterInfo;
 private:
-	ESaveState GeneratorSaveState = ESaveState::StartSave;
+	ESaveState GeneratorSaveState = ESaveState::StartGenerate;
 	bool bCreateAsMap : 1;
 	bool bHasCreatedPackage : 1;
 	bool bHasSaved : 1;
@@ -953,215 +922,112 @@ private:
 };
 
 /**
- * Helper that wraps an ICookPackageSplitter, gets/caches packages to generate, and is a reference-counted
- * collection of cached data and helper functions to save and list the generated packages.
+ * Helper that wraps a ICookPackageSplitter, gets/caches packages to generate and provide
+ * the necessary to iterate over all of them iteratively.
  */
-struct FGenerationHelper : public FThreadSafeRefCountedObject
+struct FGenerationHelper
 {
 public:
 	/** Store the provided CookPackageSplitter and prepare the packages to generate. */
-	FGenerationHelper(UE::Cook::FPackageData& InOwner);
+	FGenerationHelper(UE::Cook::FPackageData& InOwner, const UObject* InSplitDataObject,
+		ICookPackageSplitter* InCookPackageSplitterInstance);
 	~FGenerationHelper();
+	void InitializeSave(const UObject* InSplitDataObject, ICookPackageSplitter* InCookPackageSplitterInstance);
+	bool IsInitialized() const { return bInitialized; }
+	/** Clear references to owned generated packages, and mark those packages as orphaned */
+	void ClearGeneratedPackages();
 
-	/**
-	 * Early exits if already initialized. Otherwise, loads the package if not loaded and searches it for a
-	 * splitter and creates the splitter.
-	 * If load/search/creation fails, the GenerationHelper will be set to invalid @see IsValid.
-	 * 
-	 * Unless otherwise stated, all public functions call Initialize if not already initialized.
-	 */
-	void Initialize();
-	/**
-	 * Version of Initialize that receives the splitterobject from the caller rather than needing to search
-	 * for it, as an optimization for callers that have it already. If already initialized, the input Splitter
-	 * will be destroyed and the function will early exit.
-	 */
-	void Initialize(const UObject* InSplitDataObject,
-		UE::Cook::Private::FRegisteredCookPackageSplitter* InRegisteredSplitterType,
-		TUniquePtr<ICookPackageSplitter>&& InSplitter);
-	/** Version of Initialize that sets IsValid=false. */
-	void InitializeAsInvalid();
-	/**
-	 * Clear all self references which keep this GenerationHelper from destructing. These could have been set by the
-	 * SetKeep... functions. The Owner PackageData will keep a pointer to this until all references from self, from
-	 * child generated PackageDatas, and other, are released. Note this means that we assert in the owner PackageData's
-	 * destructor if any references remain; PackageDatas can not be deleted until all such references are cleared.
-	 * Does not call Initialize.
-	 */
-	void ClearSelfReferences();
-
-	/**
-	 * GenerationHelpers can be created uninitialized at the start of cook, for incremental cooks. We initialize
-	 * them on demand, which requires loading the package if not already loaded. 
-	 * IsInitialized reports whether initialization has been attempted. @see IsValid.
-	 * Does not call Initialize.
-	 */
-	bool IsInitialized() const;
-	/**
-	 * Since GenerationHelpers can be created before we load the package (@see IsInitialized) we might incorrectly
-	 * create one for a package that does not have a splitter. If so, when we load the package and discover that,
-	 * we set status to invalid. When in this state, all public functions are still valid to call, but will be
-	 * noops and will return empty data.
-	 */
-	bool IsValid();
-
-	/** Accessor for the packages to generate, will be empty if invalid or if TryGenerateList was not yet called. */
-	TArrayView<UE::Cook::FCookGenerationInfo> GetPackagesToGenerate();
-	/** Return the GenerationInfo used to save the generator package's UPackage. Does not call Initialize. */
-	UE::Cook::FCookGenerationInfo& GetOwnerInfo();
-	/** Return owner FPackageData. Does not call Initialize. */
-	UE::Cook::FPackageData& GetOwner();
-	/** Return the GenerationInfo for the given PackageData, or null if not found. */
-	UE::Cook::FCookGenerationInfo* FindInfo(const FPackageData& PackageData);
-	const UE::Cook::FCookGenerationInfo* FindInfo(const FPackageData& PackageData) const;
-	/** Return CookPackageSplitter. Will return null if !IsValid.*/
-	ICookPackageSplitter* GetCookPackageSplitterInstance() const;
-	/** Return RegisteredSplitterType. Will return null if !IsValid. */
-	UE::Cook::Private::FRegisteredCookPackageSplitter* GetRegisteredSplitterType() const;
-	/** Return the SplitDataObject's FullObjectPath. Will return NAME_None if !IsValid. */
-	const FName GetSplitDataObjectName() const;
-	/** Return the Splitter's value for virtual bool UseInternalReferenceToAvoidGarbageCollect(). */
-	bool IsUseInternalReferenceToAvoidGarbageCollect() const;
-	/** Return the cached pointer to the SplitDataObject. Returns null if no longer in memory or marked as garbage. */
-	UObject* GetWeakSplitDataObject() const;
-	/**
-	 * Return our cached pointer to the SplitDataObject if set. If not set, load the package and find it. Can still
-	 * return null if !IsValid or if not found even after loading the package.
-	 */
-	UObject* FindOrLoadSplitDataObject();
-	
-	/** Find the OwnerPackage in memory, returns null if invalid or not already loaded. Does not call Initialize. */
-	UPackage* GetOwnerPackage();
-	/** Load the OwnerPackage if not already loaded. Can still return null if invalid or package fails to load. */
-	UPackage* FindOrLoadOwnerPackage(UCookOnTheFlyServer& COTFS);
-	/**
-	 * Return a reference to ExternalActors that were discovered during save and stored on this.
-	 * Does not call initialize.
-	 */
-	TConstArrayView<FName> GetExternalActorDependencies();
-	/**
-	 * Return the ExternalActors that were discovered during save and stored on this, and clear the values.
-	 * Does not call initialize.
-	 */
-	TArray<FName> ReleaseExternalActorDependencies();
-
-	/** Call the Splitter's GetGenerateList and create the PackageDatas. Logs errors and returns false on failure. */
-	bool TryGenerateList();
-	/**
-	 * Mark that the SavePackage of the Owner is starting. Keeps a reference to keep the generator alive until save
-	 * is finished.
-	 */
-	void StartOwnerSave();
-	/** Update state before we queue the generated packages, e.g. mark whether packages are iteratively skippable. */
-	void StartQueueGeneratedPackages(UCookOnTheFlyServer& COTFS);
-	/**
-	 * Mark that we have started queuing packages. Automatically called from StartQueueGeneratedPackages, but also
-	 * is called on the director in response to a discovered generated package from a CookWorker. It sets the
-	 * WorkerId so that it is available during assignment of the discovered generated packages.
-	 */
-	void NotifyStartQueueGeneratedPackages(UCookOnTheFlyServer& COTFS, FWorkerId SourceWorkerId);
-	/** Update state after we queue generated packages; e.g. register to stay alive until the packages are assigned. */
-	void EndQueueGeneratedPackages(UCookOnTheFlyServer& COTFS);
-	/** Does not call Initialize. */
-	void EndQueueGeneratedPackagesOnDirector(UCookOnTheFlyServer& COTFS, FWorkerId SourceWorkerId);
-	/**
-	 * Called from Director when the RequestFence added from EndQueueGeneratedPackages has passed. Calls
-	 * OnRequestFencePassed locally and on all Workers.
-	 */
-	void OnRequestFencePassedBroadcast(UCookOnTheFlyServer& COTFS);
-	/** Called from when the RequestFence added from EndQueueGeneratedPackages has passed. */
-	void OnRequestFencePassed(UCookOnTheFlyServer& COTFS);
-	/** Call CreatePackage and set the necessary data on the UPackage, and update status. */
-	UPackage* CreateGeneratedUPackage(FCookGenerationInfo& GenerationInfo, const UPackage* OwnerPackage,
-		const TCHAR* GeneratedPackageName);
-	/**
-	 * Clear any data that should only be held when an FPackageData is in the save state, for the given Info. The given
-	 * Info might specify the generator package or one of the generated packages.
-	 */
-	void ResetSaveState(FCookGenerationInfo& Info, UPackage* Package, UE::Cook::EStateChangeReason ReleaseSaveReason);
-
+	/** Call the Splitter's GetGenerateList and create the PackageDatas */
+	bool TryGenerateList(UObject* OwnerObject, FPackageDatas& PackageDatas);
 	/**
 	 * Record all dependencies from the generator package that are ExternalActor dependencies and
 	 * store them on this.
 	 */
 	void FetchExternalActorDependencies();
-	/** Iterative cook: store the list of generated packages from the last cook. Does not call Initialize. */
-	void SetPreviousGeneratedPackages(TMap<FName, FIoHash>&& Packages);
-	/** Return the information set by SetPreviousGeneratedPackages if not yet cleared. Does not call Initialize. */
-	const TMap<FName, FIoHash>& GetPreviousGeneratedPackages() const;
 
-	/** Callback during garbage collection. Does not call initialize. */
+	/** Accessor for the packages to generate */
+	TArrayView<UE::Cook::FCookGenerationInfo> GetPackagesToGenerate()
+	{
+		check(IsInitialized());
+		return PackagesToGenerate;
+	}
+	/** Return the GenerationInfo used to save the generator package's UPackage */
+	UE::Cook::FCookGenerationInfo& GetOwnerInfo() { check(IsInitialized()); return OwnerInfo; }
+	/** Return owner FPackageData. */
+	UE::Cook::FPackageData& GetOwner() { return *OwnerInfo.PackageData; }
+	/** Return the GenerationInfo for the given PackageData, or null if not found. */
+	UE::Cook::FCookGenerationInfo* FindInfo(const FPackageData& PackageData);
+	const UE::Cook::FCookGenerationInfo* FindInfo(const FPackageData& PackageData) const;
+
+	/** Return CookPackageSplitter. */
+	ICookPackageSplitter* GetCookPackageSplitterInstance() const;
+	/** Return the SplitDataObject's FullObjectPath. */
+	const FName GetSplitDataObjectName() const { check(IsInitialized()); return SplitDataObjectName; }
+	/** Return the Splitter's value for virtual bool UseInternalReferenceToAvoidGarbageCollect() */
+	bool IsUseInternalReferenceToAvoidGarbageCollect() const { return bUseInternalReferenceToAvoidGarbageCollect; }
+
+	/**
+	 * Find again the split object from its name, or return null if no longer in memory.
+	 * It may have been GC'd and reloaded since the last time we used it.
+	 */
+	UObject* FindSplitDataObject() const;
+
+	void ResetSaveState(FCookGenerationInfo& Info, UPackage* Package, UE::Cook::EStateChangeReason ReleaseSaveReason);
+
+	int32& GetNextPopulateIndex() { check(IsInitialized()); return NextPopulateIndex; }
+
+	/** Callbacks during garbage collection */
 	void PreGarbageCollect(FCookGenerationInfo& Info, TArray<TObjectPtr<UObject>>& GCKeepObjects,
 		TArray<UPackage*>& GCKeepPackages, TArray<FPackageData*>& GCKeepPackageDatas, bool& bOutShouldDemote);
-	/** Callback during garbage collection. Does not call initialize. */
 	void PostGarbageCollect();
+
+	/** Call CreatePackage and set PackageData for deterministic generated packages, and update status. */
+	UPackage* CreateGeneratedUPackage(FCookGenerationInfo& GenerationInfo,
+		const UPackage* OwnerPackage, const TCHAR* GeneratedPackageName);
 	/**
-	 * Called from PackageData function of the same name to decide whether to demote the package out of save.
-	 * Does not call Initialize.
+	 * Mark that the generator package or a generated package has saved, to keep track of when *this
+	 * is no longer needed.
 	 */
+	void SetPackageSaved(FCookGenerationInfo& Info, FPackageData& PackageData);
+	/** Return whether list has been generated and all generated packages have been populated */
+	bool IsComplete() const;
+
 	void UpdateSaveAfterGarbageCollect(const FPackageData& PackageData, bool& bInOutDemote);
 
-	// Self-references that keep this GenerationHelper in memory and referenced from the packages that use it until
-	// the self-references are cleared. These Set/Clear functions do not call initialize.
-	void SetKeepForIterative();
-	void ClearKeepForIterative();
-	void SetKeepForQueueResults();
-	void ClearKeepForQueueResults();
-	void SetKeepForGeneratorSave();
-	void ClearKeepForGeneratorSave();
-
-	/**
-	 * Helper for assignment of generated packages in MPCook. Return the id of the CookWorker that saved the
-	 * generator, to decide where to assign the generated packages.
-	 */
-	FWorkerId GetWorkerIdThatSavedGenerator() const;
-	/**
-	 * Helper for assignment of generated packages in MPCook. A counter for assigned generated packages that is
-	 * needed by some assignment schemes.
-	 */
-	int32& GetMPCookNextAssignmentIndex();
-
-	/** Helper function for Initialize and for TryCreateValidGenerationHelper. */
-	static void SearchForRegisteredSplitDataObject(UCookOnTheFlyServer& COTFS, FName PackageName, UPackage* Package,
-		TOptional<TConstArrayView<FCachedObjectInOuter>> CachedObjectsInOuter, UObject*& OutSplitDataObject,
-		UE::Cook::Private::FRegisteredCookPackageSplitter*& OutRegisteredSplitterType,
-		TUniquePtr<ICookPackageSplitter>& OutSplitterInstance);
-	/** Helper function for Initialize and for TryCreateValidGenerationHelper. */
-	static UPackage* FindOrLoadPackage(UCookOnTheFlyServer& COTFS, FPackageData& OwnerPackageData);
-
-private:
-	enum class EInitializeStatus : uint8
+	UPackage* GetOwnerPackage() const { return OwnerPackage.Get(); };
+	void SetOwnerPackage(UPackage* InPackage) { OwnerPackage = InPackage; }
+	void SetPreviousGeneratedPackages(TMap<FName, FIoHash>&& Packages)
 	{
-		Uninitialized,
-		Invalid,
-		Valid,
-	};
+		PreviousGeneratedPackages = MoveTemp(Packages);
+	}
+
+	TConstArrayView<FName> GetExternalActorDependencies() { check(IsInitialized()); return ExternalActorDependencies; }
+	TArray<FName> ReleaseExternalActorDependencies()
+	{
+		TArray<FName> Result = MoveTemp(ExternalActorDependencies); return Result;
+	}
 
 private:
-	void ConditionalInitialize() const;
-	void NotifyCompletion(ICookPackageSplitter::ETeardown Status);
+	void ConditionalNotifyCompletion(ICookPackageSplitter::ETeardown Status);
 
-private:
 	/** PackageData for the package that is being split */
 	FCookGenerationInfo OwnerInfo;
-	FWeakObjectPtr SplitDataObject;
 	/** Name of the object that prompted the splitter creation */
 	FName SplitDataObjectName;
-	UE::Cook::Private::FRegisteredCookPackageSplitter* RegisteredSplitterType = nullptr;
+	/** Cached CookPackageSplitter */
 	TUniquePtr<ICookPackageSplitter> CookPackageSplitterInstance;
 	/** Recorded list of packages to generate from the splitter, and data we need about them */
 	TArray<FCookGenerationInfo> PackagesToGenerate;
 	TWeakObjectPtr<UPackage> OwnerPackage;
 	TMap<FName, FIoHash> PreviousGeneratedPackages;
 	TArray<FName> ExternalActorDependencies;
-	TRefCountPtr<FGenerationHelper> ReferenceFromKeepForIterative;
-	TRefCountPtr<FGenerationHelper> ReferenceFromKeepForQueueResults;
-	TRefCountPtr<FGenerationHelper> ReferenceFromKeepForGeneratorSave;
-	int32 MPCookNextAssignmentIndex = 0;
-	FWorkerId WorkerIdThatSavedGenerator = FWorkerId::Invalid();
-	EInitializeStatus InitializeStatus = EInitializeStatus::Uninitialized;
+
+	int32 NextPopulateIndex = 0;
+	int32 RemainingToPopulate = 0;
+
+	bool bInitialized = false;
+	bool bNotifiedCompletion = false;
 	bool bUseInternalReferenceToAvoidGarbageCollect = false;
-	bool bGeneratedList = false;
 };
 
 
@@ -1334,7 +1200,7 @@ public:
 	uint32 Remove(FPackageData* PackageData);
 	bool Contains(const FPackageData* PackageData) const;
 	bool DiscoveryQueueContains(FPackageData* PackageData) const;
-	void Empty(FPackageDatas& PackageDatas);
+	void Empty();
 
 	void AddRequest(FPackageData* PackageData, bool bForceUrgent=false);
 
@@ -1356,19 +1222,10 @@ public:
 	TRingBuffer<FRequestCluster>& GetRequestClusters() { return RequestClusters; }
 	FPackageDataSet& GetReadyRequestsUrgent() { return UrgentRequests; }
 	FPackageDataSet& GetReadyRequestsNormal() { return NormalRequests; }
-	/**
-	 * Add an FPackageData by name that will be notified when all packages that were present in the DiscoveryQueue
-	 * before the fence was created have been assigned or demoted to idle.
-	 */
-	void AddRequestFenceListener(FName PackageName);
-	/** Called when the DiscoveryQueue has been flushed and fence listeners can therefore be notified. */
-	void NotifyRequestFencePassed(FPackageDatas& PackageDatas);
-
 private:
 	FPackageDataSet RestartedRequests;
 	TRingBuffer<FDiscoveryQueueElement> DiscoveryQueue;
 	TRingBuffer<FRequestCluster> RequestClusters;
-	TSet<FName> RequestFencePackageListeners;
 	FPackageDataSet UrgentRequests;
 	FPackageDataSet NormalRequests;
 };
@@ -1774,168 +1631,6 @@ inline void FPackageData::GetReachablePlatforms(ArrayType& OutPlatforms) const
 			OutPlatforms.Add(Pair.Key);
 		}
 	}
-}
-
-inline TRefCountPtr<UE::Cook::FGenerationHelper> FPackageData::GetGenerationHelper() const
-{
-	return GenerationHelper;
-}
-
-inline bool FPackageData::HasCompletedGeneration() const
-{
-	return static_cast<bool>(bCompletedGeneration);
-}
-
-inline void FPackageData::SetCompletedGeneration(bool Value)
-{
-	bCompletedGeneration = Value != 0;
-}
-
-inline bool FPackageData::HasInitializedGeneratorSave() const
-{
-	return static_cast<bool>(bInitializedGeneratorSave);
-}
-
-inline void FPackageData::SetInitializedGeneratorSave(bool Value)
-{
-	bInitializedGeneratorSave = Value != 0;
-}
-
-inline bool FPackageData::IsGenerated() const
-{
-	return static_cast<bool>(bGenerated);
-}
-
-inline FName FPackageData::GetParentGenerator() const
-{
-	return ParentGenerator;
-}
-
-inline TRefCountPtr<FGenerationHelper> FPackageData::GetParentGenerationHelper() const
-{
-	return ParentGenerationHelper;
-}
-
-inline bool FGenerationHelper::IsInitialized() const
-{
-	return InitializeStatus != EInitializeStatus::Uninitialized;
-}
-
-inline void FGenerationHelper::ConditionalInitialize() const
-{
-	if (InitializeStatus == EInitializeStatus::Uninitialized)
-	{
-		// Use a const cast so we can call from getter functions that are otherwise const.
-		const_cast<FGenerationHelper&>(*this).Initialize();
-	}
-}
-
-inline bool FGenerationHelper::IsValid()
-{
-	ConditionalInitialize();
-	return InitializeStatus == EInitializeStatus::Valid;
-}
-
-inline TArrayView<UE::Cook::FCookGenerationInfo> FGenerationHelper::GetPackagesToGenerate()
-{
-	ConditionalInitialize();
-	return PackagesToGenerate;
-}
-
-inline UE::Cook::FCookGenerationInfo& FGenerationHelper::GetOwnerInfo()
-{
-	return OwnerInfo;
-}
-
-inline UE::Cook::FPackageData& FGenerationHelper::GetOwner()
-{
-	return *OwnerInfo.PackageData;
-}
-
-inline ICookPackageSplitter* FGenerationHelper::GetCookPackageSplitterInstance() const
-{
-	ConditionalInitialize();
-	return CookPackageSplitterInstance.Get();
-}
-
-inline UE::Cook::Private::FRegisteredCookPackageSplitter* FGenerationHelper::GetRegisteredSplitterType() const
-{
-	ConditionalInitialize();
-	return RegisteredSplitterType;
-}
-
-inline const FName FGenerationHelper::GetSplitDataObjectName() const
-{
-	ConditionalInitialize();
-	return SplitDataObjectName;
-}
-
-inline bool FGenerationHelper::IsUseInternalReferenceToAvoidGarbageCollect() const
-{
-	ConditionalInitialize();
-	return bUseInternalReferenceToAvoidGarbageCollect;
-}
-
-inline UObject* FGenerationHelper::GetWeakSplitDataObject() const
-{
-	ConditionalInitialize();
-	return SplitDataObject.Get();
-}
-
-inline TConstArrayView<FName> FGenerationHelper::GetExternalActorDependencies()
-{
-	return ExternalActorDependencies;
-}
-
-inline TArray<FName> FGenerationHelper::ReleaseExternalActorDependencies()
-{
-	TArray<FName> Result = MoveTemp(ExternalActorDependencies);
-	return Result;
-}
-
-inline const TMap<FName, FIoHash>& FGenerationHelper::GetPreviousGeneratedPackages() const
-{
-	return PreviousGeneratedPackages;
-}
-
-inline void FGenerationHelper::SetKeepForIterative()
-{
-	ReferenceFromKeepForIterative = this;
-}
-
-inline void FGenerationHelper::ClearKeepForIterative()
-{
-	ReferenceFromKeepForIterative.SafeRelease();
-}
-
-inline void FGenerationHelper::SetKeepForQueueResults()
-{
-	ReferenceFromKeepForQueueResults = this;
-}
-
-inline void FGenerationHelper::ClearKeepForQueueResults()
-{
-	ReferenceFromKeepForQueueResults.SafeRelease();
-}
-
-inline void FGenerationHelper::SetKeepForGeneratorSave()
-{
-	ReferenceFromKeepForGeneratorSave = this;
-}
-
-inline void FGenerationHelper::ClearKeepForGeneratorSave()
-{
-	ReferenceFromKeepForGeneratorSave.SafeRelease();
-}
-
-inline FWorkerId FGenerationHelper::GetWorkerIdThatSavedGenerator() const
-{
-	return WorkerIdThatSavedGenerator;
-}
-
-inline int32& FGenerationHelper::GetMPCookNextAssignmentIndex()
-{
-	return MPCookNextAssignmentIndex;
 }
 
 } // namespace UE::Cook
