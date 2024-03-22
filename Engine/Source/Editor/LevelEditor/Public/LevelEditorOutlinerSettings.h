@@ -29,6 +29,7 @@ struct FLevelEditorOutlinerBuiltInCategories
 	static FName Visual()			 { static FName Name("Visual");				return Name; }
 	static FName Volumes()			 { static FName Name("Volumes");			return Name; }
 	static FName VirtualProduction() { static FName Name("VirtualProduction");	return Name; }
+	static FName SourceControl()	 { static FName Name("RevisionControl");	return Name; }
 };
 
 /** Helper class to manage initalization options specific to the Level Editor Outliners
