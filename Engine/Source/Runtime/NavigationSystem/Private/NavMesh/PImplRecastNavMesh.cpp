@@ -606,7 +606,7 @@ void FPImplRecastNavMesh::Serialize( FArchive& Ar, int32 NavMeshVersion )
 			DefaultCellSize = NavMeshOwner->CellSize;
 		}
 		PRAGMA_ENABLE_DEPRECATION_WARNINGS
-		const FVector::FReal ActorsTileSize = FMath::TruncToInt(NavMeshOwner->TileSizeUU / DefaultCellSize) * DefaultCellSize;
+		const FVector::FReal ActorsTileSize = static_cast<FVector::FReal>(FMath::TruncToInt(NavMeshOwner->TileSizeUU / DefaultCellSize)) * DefaultCellSize;
 
 		if (ActorsTileSize != Params.tileWidth)
 		{
