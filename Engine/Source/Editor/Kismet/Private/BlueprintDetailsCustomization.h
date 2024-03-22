@@ -939,7 +939,7 @@ public:
 
 	}
 	
-	FBlueprintGlobalOptionsDetails(UBlueprint* InBlueprintPtr)
+	FBlueprintGlobalOptionsDetails(TWeakObjectPtr<UBlueprint> InBlueprintPtr)
 		:BlueprintObjOverride(InBlueprintPtr)
 	{
 
@@ -953,7 +953,7 @@ public:
 
 	/** Diff functionality doesn't need access to the FBlueprintEditor so this allows creation without editor access
 	 *  but with limited functionality */
-	static TSharedRef<IDetailCustomization> MakeInstanceForDiff(UBlueprint* InBlueprintPtr)
+	static TSharedRef<IDetailCustomization> MakeInstanceForDiff(TWeakObjectPtr<UBlueprint> InBlueprintPtr)
 	{
 		return MakeShareable(new FBlueprintGlobalOptionsDetails(InBlueprintPtr));
 	}
@@ -1008,8 +1008,8 @@ private:
 	/** Weak reference to the Blueprint editor */
 	TWeakPtr<FBlueprintEditor> BlueprintEditorPtr;
 	
-	/** Weak reference to the Blueprint editor */
-	TObjectPtr<UBlueprint> BlueprintObjOverride;
+	/** Weak reference to a Blueprint override - used to customize a blueprint that is displayed without an editor, e.g. for diff */
+	TWeakObjectPtr<UBlueprint> BlueprintObjOverride;
 
 	/** Combo button used to choose a parent class */
 	TSharedPtr<SComboButton> ParentClassComboButton;

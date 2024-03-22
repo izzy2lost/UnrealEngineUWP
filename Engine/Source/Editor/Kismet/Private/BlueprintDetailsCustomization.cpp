@@ -6651,9 +6651,9 @@ float FBlueprintGlobalOptionsDetails::NamespacePropertyValueCustomization_MinDes
 
 UBlueprint* FBlueprintGlobalOptionsDetails::GetBlueprintObj() const
 {
-	if(BlueprintObjOverride)
+	if(UBlueprint* BP = BlueprintObjOverride.Get())
 	{
-		return BlueprintObjOverride;
+		return BP;
 	}
 	
 	if(BlueprintEditorPtr.IsValid())
