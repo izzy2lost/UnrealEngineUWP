@@ -732,6 +732,8 @@ private:
 	bool bPromptToRetryFailedShaderCompiles;
 	/** If enabled when we enter the prompt to retry we will break in the debugger if one is attached rather than prompting. */
 	bool bDebugBreakOnPromptToRetryShaderCompile = false;
+	/** If true, when relaunching workers will clear out any existing output files. This is only used when workers are abandoned due to an unexpected termination */
+	bool bClearStaleWorkerOutputs = false;
 	/** Whether to log out shader job completion times on the worker thread.  Useful for tracking down which global shader is taking a long time. */
 	bool bLogJobCompletionTimes;
 	/** Target execution time for ProcessAsyncResults.  Larger values speed up async shader map processing but cause more hitchiness while async compiling is happening. */
