@@ -650,7 +650,7 @@ TSharedPtr<FNiagaraEmitterHandleViewModel> FNiagaraSystemViewModel::AddStateless
 		{
 			EmitterHandleNames.Add(EmitterHandle.GetName());
 		}
-		FName NewEmitterName = FName("Stateless");
+		FName NewEmitterName = FName("Lightweight");
 		NewEmitterName = FNiagaraUtilities::GetUniqueName(NewEmitterName, EmitterHandleNames);
 		NewEmitter = NewObject<UNiagaraStatelessEmitter>(&NiagaraSystem, *NewEmitterName.ToString(), RF_Transactional);
 		SetupStatelessEmitter(NewEmitter, NewEmitterName);

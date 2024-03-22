@@ -181,7 +181,7 @@ bool UNiagaraStackStatelessModuleItem::TestCanDeleteWithMessage(FText& OutCanDel
 
 FText UNiagaraStackStatelessModuleItem::GetDeleteTransactionText() const
 {
-	return LOCTEXT("DeleteStatelessModuleTransaction", "Delete module from stateless emitter.");
+	return LOCTEXT("DeleteStatelessModuleTransaction", "Delete module from lightweight emitter.");
 }
 
 void UNiagaraStackStatelessModuleItem::Delete()

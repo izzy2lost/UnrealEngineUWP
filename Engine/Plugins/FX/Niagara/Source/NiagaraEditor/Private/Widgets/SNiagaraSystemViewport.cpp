@@ -369,7 +369,7 @@ void FNiagaraSystemViewportClient::DrawParticleCounts(UNiagaraComponent* Compone
 			const FString EmitterExecutionString = UEnum::GetValueAsString(ExecutionState);
 			const int32 EmitterExecutionStringValueIndex = EmitterExecutionString.Find(TEXT("::"));
 			const TCHAR* EmitterExecutionText = EmitterExecutionStringValueIndex == INDEX_NONE ? *EmitterExecutionString : *EmitterExecutionString + EmitterExecutionStringValueIndex + 2;
-			const TCHAR* EmitterMode = EmitterHandle.GetEmitterMode() == ENiagaraEmitterMode::Stateless ? TEXT("[Stateless]") : TEXT("");
+			const TCHAR* EmitterMode = EmitterHandle.GetEmitterMode() == ENiagaraEmitterMode::Stateless ? TEXT("[Lightweight]") : TEXT("");
 
 			TextItem.Text = FText::FromString(FString::Printf(TEXT("%i Current, %i Max (est.) - [%s] [%s] %s"), CurrentCount, MaxCount, *EmitterName.ToString(), EmitterExecutionText, EmitterMode));
 			TextItem.Position = FVector2D(CurrentX, CurrentY);

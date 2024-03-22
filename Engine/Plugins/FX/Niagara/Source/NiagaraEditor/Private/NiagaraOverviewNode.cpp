@@ -337,8 +337,8 @@ void UNiagaraOverviewNode::GetNodeContextMenuActions(class UToolMenu* Menu, clas
 								);
 								SubMenuSection.AddMenuEntry(
 									"SetEmitterModeStateless",
-									LOCTEXT("SetEmitterStatelessModeMenuLabel", "Stateless Mode"),
-									LOCTEXT("SetEmitterStatelessModeMenuToolTip", "Set this emitter to use stateless mode."),
+									LOCTEXT("SetEmitterStatelessModeMenuLabel", "Lightweight Mode"),
+									LOCTEXT("SetEmitterStatelessModeMenuToolTip", "Set this emitter to use lightweight mode."),
 									FSlateIcon(),
 									FUIAction(
 										FExecuteAction::CreateStatic(&FNiagaraEditorUtilities::SetSelectedEmittersEmitterMode, OwningSystemViewModel.ToSharedRef(), ENiagaraEmitterMode::Stateless),

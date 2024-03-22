@@ -498,7 +498,7 @@ TSharedRef<SWidget> SNiagaraOverviewStackNode::CreateTitleWidget_Default(TShared
 				.AutoHeight()
 				[
 					SNew(STextBlock)
-						.Text(LOCTEXT("StatelessNotEnabled", "Stateless not enabled in project settings."))
+						.Text(LOCTEXT("StatelessNotEnabled", "Lightweight not enabled in project settings."))
 						.Font(FCoreStyle::GetDefaultFontStyle("Regular", 8.f))
 						.OverflowPolicy(ETextOverflowPolicy::Ellipsis)
 						.AutoWrapText(true)
