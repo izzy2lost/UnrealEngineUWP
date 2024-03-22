@@ -321,6 +321,15 @@ void FCustomizableObjectInstanceEditor::InitCustomizableObjectInstanceEditor( co
 		CustomizableObjectPrivate->Status.GetOnStateChangedDelegate().AddRaw(this, &FCustomizableObjectInstanceEditor::OnCustomizableObjectStatusChanged);
 		const FCustomizableObjectStatusTypes::EState CurrentStatus = CustomizableObjectPrivate->Status.Get();
 		OnCustomizableObjectStatusChanged(CurrentStatus, CurrentStatus);
+
+		int32 StateParameterCount = CustomizableObject->GetStateParameterCount(CustomizableObjectInstance->GetCurrentState());
+		int32 ParameterCount = CustomizableObject->GetParameterCount();
+
+		if (StateParameterCount == 0)
+		{
+			bOnlyRuntimeParameters = false;
+			InCustomizableObjectInstance->GetPrivate()->bShowOnlyRuntimeParameters = false;
+		}
 	}
 }
 

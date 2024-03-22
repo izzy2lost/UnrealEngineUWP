@@ -231,7 +231,26 @@ void FCustomizableInstanceDetails::CustomizeDetails(const TSharedPtr<IDetailLayo
 	];
 
 	// Parameters Widgets
-	GenerateParametersView(ParametersCategory);
+	bool bHiddenParamsRuntime = GenerateParametersView(ParametersCategory);
+
+	if (bHiddenParamsRuntime)
+	{
+		FText HiddenParamsRuntimeMessage = LOCTEXT("CustomizableInstanceDetails_HiddemParamsRuntime", "Parameters are hidden due to their Runtime type. \nUncheck the Only Runtime checkbox to see them.");
+
+		ParametersCategory.AddCustomRow(LOCTEXT("CustomizableInstanceDetails_HiddemParamsRuntimeRow", "Parameters are hidden"))
+		[
+			SNew(SHorizontalBox)
+				+ SHorizontalBox::Slot()
+				.FillWidth(2.0f)
+				.Padding(0.0f, 15.0f, 0.0f, 5.0f)
+				[
+					SNew(STextBlock)
+						.Text(HiddenParamsRuntimeMessage)
+						.ToolTipText(HiddenParamsRuntimeMessage)
+						.AutoWrapText(true)
+				]
+		];
+	}
 }
 
 
@@ -539,7 +558,7 @@ struct FParameterInfo
 
 // PARAMETERS WIDGET GENERATION -----------------------------------------------------------------------------------------------------------------
 
-void FCustomizableInstanceDetails::GenerateParametersView(IDetailCategoryBuilder& DetailsCategory)
+bool FCustomizableInstanceDetails::GenerateParametersView(IDetailCategoryBuilder& DetailsCategory)
 {
 	// Make this arrays locals
 	ParamChildren.Empty();
@@ -551,12 +570,19 @@ void FCustomizableInstanceDetails::GenerateParametersView(IDetailCategoryBuilder
 
 	if (!CustomizableObject)
 	{
-		return;
+		return false;
 	}
-	
+
+	bool bParametersHiddenRuntime = false;
+
 	if (CustomInstance->GetPrivate()->bShowOnlyRuntimeParameters)
 	{
 		const int32 NumStateParameters = CustomizableObject->GetStateParameterCount(CustomInstance->GetPrivate()->GetState());
+
+		if (NumStateParameters < CustomizableObject->GetParameterCount())
+		{
+			bParametersHiddenRuntime = true;
+		}
 
 		for (int32 ParamIndexInState = 0; ParamIndexInState < NumStateParameters; ++ParamIndexInState)
 		{
@@ -576,7 +602,7 @@ void FCustomizableInstanceDetails::GenerateParametersView(IDetailCategoryBuilder
 		for (int32 ParamIndex = 0; ParamIndex < ParametersTree.Num(); ++ParamIndex)
 		{
 			const FParameterInfo& ParamInfo = ParametersTree[ParamIndex];
-			
+
 			if (CustomInstance->GetPrivate()->bShowUISections)
 			{
 				IDetailGroup* CurrentSection = GenerateParameterSection(ParamInfo.ParamIndexInObject, DetailsCategory);
@@ -615,7 +641,7 @@ void FCustomizableInstanceDetails::GenerateParametersView(IDetailCategoryBuilder
 	else
 	{
 		const int32 NumObjectParameter = CustomizableObject->GetParameterCount();
-	
+
 		//TODO: get all parameters and sort, then make the next "for" use that sorted list as source of indexes
 		for (int32 ParamIndexInObject = 0; ParamIndexInObject < NumObjectParameter; ++ParamIndexInObject)
 		{
@@ -628,14 +654,14 @@ void FCustomizableInstanceDetails::GenerateParametersView(IDetailCategoryBuilder
 				ParametersTree.Add(ParameterSortInfo);
 			}
 		}
-	
+
 		ParametersTree.Sort();
-	
+
 		for (int32 ParamIndexInObject = 0; ParamIndexInObject < ParametersTree.Num(); ++ParamIndexInObject)
 		{
 			FillChildrenMap(ParametersTree[ParamIndexInObject].ParamIndexInObject);
 		}
-	
+
 		for (int32 ParamIndexInObject = 0; ParamIndexInObject < ParametersTree.Num(); ++ParamIndexInObject)
 		{
 			if (!ParamHasParent.Find(ParametersTree[ParamIndexInObject].ParamIndexInObject))
@@ -644,6 +670,8 @@ void FCustomizableInstanceDetails::GenerateParametersView(IDetailCategoryBuilder
 			}
 		}
 	}
+
+	return bParametersHiddenRuntime;
 }
 
 
