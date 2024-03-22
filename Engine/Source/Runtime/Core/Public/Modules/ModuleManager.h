@@ -510,8 +510,8 @@ public:
 	 *
 	 * @return The multicast delegate.
 	 */
-	using FModulesChangedEvent = TTSMulticastDelegate<void(FName ModuleName, EModuleChangeReason ChangeReason)>;
-	FModulesChangedEvent& OnModulesChanged( )
+	using FModulesChangedEvent UE_DEPRECATED(5.5, "The FModulesChangedEvent typedef has been deprecated - use TTSMulticastDelegateRegistration<void(FName, EModuleChangeReason)> instead.") = TTSMulticastDelegate<void(FName ModuleName, EModuleChangeReason ChangeReason)>;
+	TTSMulticastDelegateRegistration<void(FName ModuleName, EModuleChangeReason ChangeReason)>& OnModulesChanged( )
 	{
 		return ModulesChangedEvent;
 	}
@@ -524,8 +524,8 @@ public:
 	 *
 	 * @return The delegate.
 	 */
-	DECLARE_EVENT_TwoParams(FModuleManager, ProcessLoadedObjectsEvent, FName, bool);
-	ProcessLoadedObjectsEvent& OnProcessLoadedObjectsCallback()
+	using ProcessLoadedObjectsEvent UE_DEPRECATED(5.5, "The ProcessLoadedObjectsEvent typedef has been deprecated - use TMulticastDelegateRegistration<void(FName, bool)> instead.") = TMulticastDelegate<void(FName, bool)>;
+	TMulticastDelegateRegistration<void(FName, bool)>& OnProcessLoadedObjectsCallback()
 	{
 		return ProcessLoadedObjectsCallback;
 	}
@@ -683,10 +683,10 @@ private:
 
 	/** Multicast delegate that will broadcast a notification when modules are loaded, unloaded, or
 		our set of known modules changes */
-	FModulesChangedEvent ModulesChangedEvent;
+	TTSMulticastDelegate<void(FName ModuleName, EModuleChangeReason ChangeReason)> ModulesChangedEvent;
 	
 	/** Multicast delegate called to process any new loaded objects. */
-	ProcessLoadedObjectsEvent ProcessLoadedObjectsCallback;
+	TMulticastDelegate<void(FName, bool)> ProcessLoadedObjectsCallback;
 
 	/** When module manager is linked against an application that supports UObjects, this delegate will be primed
 		at startup to provide information about whether a UObject package is loaded into memory. */

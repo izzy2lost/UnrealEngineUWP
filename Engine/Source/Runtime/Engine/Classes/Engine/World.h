@@ -1530,48 +1530,43 @@ private:
 	/** Timestamp (in FPlatformTime::Seconds) when the next call to BuildStreamingData() should be made, if bDirtyStreamingData is true. */
 	double BuildStreamingDataTimer;
 
-	DECLARE_EVENT_OneParam(UWorld, FOnNetTickEvent, float);
-	DECLARE_EVENT(UWorld, FOnTickFlushEvent);
+	using FOnNetTickEvent UE_DEPRECATED(5.5, "The FOnNetTickEvent typedef has been deprecated - use TMulticastDelegateRegistration<void(float)> instead.") = TMulticastDelegate<void(float)>;
+	using FOnTickFlushEvent UE_DEPRECATED(5.5, "The FOnTickFlushEvent typedef has been deprecated - use TMulticastDelegateRegistration<void()> instead.") = TMulticastDelegate<void()>;
+
 	/** Event to gather up all net drivers and call TickDispatch at once */
-	FOnNetTickEvent TickDispatchEvent;
+	UE_DEPRECATED_FORGAME(5.5, "Public access to TickDispatchEvent has been deprecated - use OnTickDispatch() instead.")
+	TMulticastDelegate<void(float)> TickDispatchEvent;
 
 	/** Event to gather up all net drivers and call PostTickDispatch at once */
-	FOnTickFlushEvent PostTickDispatchEvent;
+	UE_DEPRECATED_FORGAME(5.5, "Public access to PostTickDispatchEvent has been deprecated - use OnPostTickDispatch() instead.")
+	TMulticastDelegate<void()> PostTickDispatchEvent;
 
 	/** Event called prior to calling TickFlush */
-	FOnNetTickEvent PreTickFlushEvent;
+	UE_DEPRECATED_FORGAME(5.5, "Public access to PreTickFlushEvent has been deprecated - use OnPreTickFlush() instead.")
+	TMulticastDelegate<void(float)> PreTickFlushEvent;
 
 	/** Event to gather up all net drivers and call TickFlush at once */
-	FOnNetTickEvent TickFlushEvent;
+	UE_DEPRECATED_FORGAME(5.5, "Public access to TickFlushEvent has been deprecated - use OnTickFlush() instead.")
+	TMulticastDelegate<void(float)> TickFlushEvent;
 	
 	/** Event to gather up all net drivers and call PostTickFlush at once */
-	FOnTickFlushEvent PostTickFlushEvent;
+	UE_DEPRECATED_FORGAME(5.5, "Public access to PostTickFlushEvent has been deprecated - use OnPostTickFlush() instead.")
+	TMulticastDelegate<void()> PostTickFlushEvent;
 
 	/** All registered net drivers TickDispatch() */
-	void BroadcastTickDispatch(float DeltaTime)	
-	{
-		TickDispatchEvent.Broadcast(DeltaTime);
-	}
+	void BroadcastTickDispatch(float DeltaTime);
+
 	/** All registered net drivers PostTickDispatch() */
-	void BroadcastPostTickDispatch()
-	{
-		PostTickDispatchEvent.Broadcast();
-	}
+	void BroadcastPostTickDispatch();
+
 	/** PreTickFlush */
-	void BroadcastPreTickFlush(float DeltaTime)
-	{
-		PreTickFlushEvent.Broadcast(DeltaTime);
-	}
+	void BroadcastPreTickFlush(float DeltaTime);
+
 	/** All registered net drivers TickFlush() */
-	void BroadcastTickFlush(float DeltaTime)
-	{
-		TickFlushEvent.Broadcast(DeltaTime);
-	}
+	void BroadcastTickFlush(float DeltaTime);
+
 	/** All registered net drivers PostTickFlush() */
-	void BroadcastPostTickFlush(float DeltaTime)
-	{
-		PostTickFlushEvent.Broadcast();
-	}
+	void BroadcastPostTickFlush(float DeltaTime);
 
 	/** Called when the number of levels changes. */
 	DECLARE_EVENT(UWorld, FOnLevelsChangedEvent);
@@ -3035,11 +3030,11 @@ public:
 public:
 
 	/** Network Tick events */
-	FOnNetTickEvent& OnTickDispatch() { return TickDispatchEvent; }
-	FOnTickFlushEvent& OnPostTickDispatch() { return PostTickDispatchEvent; }	
-	FOnNetTickEvent& OnPreTickFlush() { return PreTickFlushEvent; }
-	FOnNetTickEvent& OnTickFlush() { return TickFlushEvent; }
-	FOnTickFlushEvent& OnPostTickFlush() { return PostTickFlushEvent; }
+	TMulticastDelegateRegistration<void(float)>& OnTickDispatch();
+	TMulticastDelegateRegistration<void()>& OnPostTickDispatch();
+	TMulticastDelegateRegistration<void(float)>& OnPreTickFlush();
+	TMulticastDelegateRegistration<void(float)>& OnTickFlush();
+	TMulticastDelegateRegistration<void()>& OnPostTickFlush();
 
 	/**
 	 * Update the level after a variable amount of time, DeltaSeconds, has passed.

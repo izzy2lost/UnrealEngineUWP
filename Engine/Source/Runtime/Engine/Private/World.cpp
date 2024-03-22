@@ -9520,6 +9520,56 @@ FAudioDevice* UWorld::GetAudioDeviceRaw() const
 	}
 }
 
+TMulticastDelegateRegistration<void(float)>& UWorld::OnTickDispatch()
+{
+	return TickDispatchEvent;
+}
+
+TMulticastDelegateRegistration<void()>& UWorld::OnPostTickDispatch()
+{
+	return PostTickDispatchEvent;
+}
+
+TMulticastDelegateRegistration<void(float)>& UWorld::OnPreTickFlush()
+{
+	return PreTickFlushEvent;
+}
+
+TMulticastDelegateRegistration<void(float)>& UWorld::OnTickFlush()
+{
+	return TickFlushEvent;
+}
+
+TMulticastDelegateRegistration<void()>& UWorld::OnPostTickFlush()
+{
+	return PostTickFlushEvent;
+}
+
+void UWorld::BroadcastTickDispatch(float DeltaTime)	
+{
+	TickDispatchEvent.Broadcast(DeltaTime);
+}
+
+void UWorld::BroadcastPostTickDispatch()
+{
+	PostTickDispatchEvent.Broadcast();
+}
+
+void UWorld::BroadcastPreTickFlush(float DeltaTime)
+{
+	PreTickFlushEvent.Broadcast(DeltaTime);
+}
+
+void UWorld::BroadcastTickFlush(float DeltaTime)
+{
+	TickFlushEvent.Broadcast(DeltaTime);
+}
+
+void UWorld::BroadcastPostTickFlush(float DeltaTime)
+{
+	PostTickFlushEvent.Broadcast();
+}
+
 /**
 * Dump visible actors in current world.
 */
