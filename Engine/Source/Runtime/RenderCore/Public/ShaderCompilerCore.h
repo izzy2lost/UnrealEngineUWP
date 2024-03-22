@@ -229,6 +229,8 @@ enum class EShaderDebugInfoFlags : uint8
 };
 ENUM_CLASS_FLAGS(EShaderDebugInfoFlags)
 
+using FShaderCompilerInputHash = FBlake3Hash;
+
 /** Struct that gathers all readonly inputs needed for the compilation of a single shader. */
 struct FShaderCompilerInput
 {
@@ -281,7 +283,7 @@ struct FShaderCompilerInput
 	FString DebugDescription;
 
 	// Hash of this input (used as the key for the shader job cache)
-	FBlake3Hash Hash;
+	FShaderCompilerInputHash Hash;
 
 	// Compilation Environment
 	FShaderCompilerEnvironment Environment;

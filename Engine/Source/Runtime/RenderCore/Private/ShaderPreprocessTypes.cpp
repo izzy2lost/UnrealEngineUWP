@@ -9,6 +9,12 @@
 const FShaderSource::CharType* FilenameSentinel = SHADER_SOURCE_LITERAL("__UE_FILENAME_SENTINEL__");
 static const int FilenameSentinelLen = FShaderSource::FCStringType::Strlen(FilenameSentinel);
 static const FShaderSource::FStringType LineDirectiveSentinel = FShaderSource::FStringType::Printf(SHADER_SOURCE_LITERAL("#line 1 \"%s\"\n"), FilenameSentinel);
+static const FShaderSource::FStringType InputHashCommentPlaceholder = FShaderSource::FStringType::Printf
+(
+	SHADER_SOURCE_LITERAL("// %ls%ls\n"),
+	kShaderSourceDebugHashPrefix,
+	*LexToString(FShaderCompilerInputHash())
+);
 
 void FShaderDiagnosticRemapper::Remap(FShaderCompilerError& Diagnostic) const
 {
@@ -153,9 +159,10 @@ inline void SkipNewLine(const FShaderSource::CharType*& Current, const FShaderSo
 void FShaderPreprocessOutput::StripCode(bool bCopyOriginalPreprocessdSource)
 {
 	// Reserve worst case slack (i.e. assuming there is nothing to strip) to avoid reallocation
-	FShaderSource PreprocessedSourceStripped(LineDirectiveSentinel.GetCharArray().GetData(), PreprocessedSource.Len());
+	FShaderSource PreprocessedSourceStripped(InputHashCommentPlaceholder, LineDirectiveSentinel.Len() + PreprocessedSource.Len());
 	FShaderSource::CharType* OutStrippedData = PreprocessedSourceStripped.GetData();
-	FShaderSource::CharType* OutStripped = OutStrippedData + LineDirectiveSentinel.Len();
+	FMemory::Memcpy(OutStrippedData + InputHashCommentPlaceholder.Len(), LineDirectiveSentinel.GetCharArray().GetData(), sizeof(FShaderSource::CharType) * LineDirectiveSentinel.Len());
+	FShaderSource::CharType* OutStripped = OutStrippedData + InputHashCommentPlaceholder.Len() + LineDirectiveSentinel.Len();
 
 	const FShaderSource::CharType* Begin = PreprocessedSource.GetData(), * Current = Begin;
 	const FShaderSource::CharType* End = Current + PreprocessedSource.Len();
