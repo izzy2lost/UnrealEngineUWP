@@ -8,6 +8,7 @@
 #include "MoverExamplesCharacter.generated.h"
 
 class UInputAction;
+class UCharacterMoverComponent;
 struct FInputActionValue;
 
 UCLASS()
@@ -31,7 +32,7 @@ public:
 
 	// Accessor for the actor's movement component
 	UFUNCTION(BlueprintPure, Category = Mover)
-	UMoverComponent* GetMoverComponent() const { return CharacterMotionComponent; }
+	UCharacterMoverComponent* GetMoverComponent() const { return CharacterMotionComponent; }
 
 	// Request the character starts moving with an intended directional magnitude. A length of 1 indicates maximum acceleration.
 	UFUNCTION(BlueprintCallable, Category=MoverExamples)
@@ -94,7 +95,7 @@ public:
 
 protected:
 	UPROPERTY(Category = Movement, VisibleAnywhere, BlueprintReadOnly, meta = (AllowPrivateAccess = "true"))
-	TObjectPtr<UMoverComponent> CharacterMotionComponent;
+	TObjectPtr<UCharacterMoverComponent> CharacterMotionComponent;
 
 private:
 	FVector LastAffirmativeMoveInput = FVector::ZeroVector;	// Movement input (intent or velocity) the last time we had one that wasn't zero

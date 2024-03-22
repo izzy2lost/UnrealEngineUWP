@@ -5,7 +5,7 @@
 #include "Components/InputComponent.h"
 #include "Engine/BlueprintGeneratedClass.h"
 #include "Engine/LocalPlayer.h"
-#include "MoverComponent.h"
+#include "DefaultMovementSet/CharacterMoverComponent.h"
 #include "MoveLibrary/BasedMovementUtils.h"
 #include "CharacterVariants/AbilityInputs.h"
 #include "GameFramework/SpringArmComponent.h"
@@ -21,7 +21,7 @@ static const FName Name_CharacterMotionComponent(TEXT("MoverComponent"));
 AMoverExamplesCharacter::AMoverExamplesCharacter(const FObjectInitializer& ObjectInitializer)
 	: Super(ObjectInitializer)
 {
-	CharacterMotionComponent = CreateDefaultSubobject<UMoverComponent>(Name_CharacterMotionComponent);
+	CharacterMotionComponent = CreateDefaultSubobject<UCharacterMoverComponent>(Name_CharacterMotionComponent);
 	ensure(CharacterMotionComponent);
 
 	PrimaryActorTick.bCanEverTick = true;
@@ -155,7 +155,7 @@ void AMoverExamplesCharacter::OnProduceInput(float DeltaMs, FMoverInputCmdContex
 	{
 		FRotator Rotator = CharacterInputs.ControlRotation;
 		FVector FinalDirectionalIntent;
-		if (const UMoverComponent* MoverComp = GetMoverComponent())
+		if (const UCharacterMoverComponent* MoverComp = GetMoverComponent())
 		{
 			if (MoverComp->IsOnGround() || MoverComp->IsFalling())
 			{
@@ -235,7 +235,7 @@ void AMoverExamplesCharacter::OnProduceInput(float DeltaMs, FMoverInputCmdContex
 
 	if (bUseBaseRelativeMovement)
 	{
-		if (const UMoverComponent* MoverComp = GetComponentByClass<UMoverComponent>())
+		if (const UCharacterMoverComponent* MoverComp = GetComponentByClass<UCharacterMoverComponent>())
 		{
 			if (UPrimitiveComponent* MovementBase = MoverComp->GetMovementBase())
 			{

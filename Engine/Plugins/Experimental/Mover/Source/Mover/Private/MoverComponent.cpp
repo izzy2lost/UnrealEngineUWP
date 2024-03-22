@@ -54,13 +54,6 @@ UMoverComponent::UMoverComponent()
 	bWantsInitializeComponent = true;
 	bAutoActivate = true;
 
-	// Default movement modes
-	MovementModes.Add(DefaultModeNames::Walking, CreateDefaultSubobject<UWalkingMode>(TEXT("DefaultWalkingMode")));
-	MovementModes.Add(DefaultModeNames::Falling, CreateDefaultSubobject<UFallingMode>(TEXT("DefaultFallingMode")));
-	MovementModes.Add(DefaultModeNames::Flying,  CreateDefaultSubobject<UFlyingMode>(TEXT("DefaultFlyingMode")));
-
-	StartingMovementMode = DefaultModeNames::Falling;
-
 	PersistentSyncStateDataTypes.Add(FMoverDataPersistence(FMoverDefaultSyncState::StaticStruct(), true));
 
 	BackendClass = UMoverNetworkPredictionLiaisonComponent::StaticClass();
@@ -1141,50 +1134,6 @@ FVector UMoverComponent::GetUpDirection() const
 	return DeducedUpDir;
 }
 
-
-bool UMoverComponent::IsFalling() const
-{ 
-	if (bHasValidCachedState)
-	{
-		return CachedLastSyncState.MovementMode == DefaultModeNames::Falling;
-	}
-
-	return false;
-}
-
-bool UMoverComponent::IsAirborne() const
-{
-	if (bHasValidCachedState)
-	{
-		return CachedLastSyncState.MovementMode == DefaultModeNames::Flying || CachedLastSyncState.MovementMode == DefaultModeNames::Falling;
-	}
-
-	return false;
-}
-
-bool UMoverComponent::IsOnGround() const
-{
-	if (bHasValidCachedState)
-	{
-		return CachedLastSyncState.MovementMode == DefaultModeNames::Walking;
-	}
-
-	return false;
-}
-
-bool UMoverComponent::IsSlopeSliding() const
-{
-	if (IsAirborne())
-	{
-		FFloorCheckResult HitResult;
-		if (SimBlackboard->TryGet(CommonBlackboard::LastFloorResult, HitResult))
-		{
-			return HitResult.bBlockingHit && !HitResult.bWalkableFloor;
-		}
-	}
-
-	return false;
-}
 
 TArray<FTrajectorySampleInfo> UMoverComponent::GetFutureTrajectory(float FutureSeconds, float SamplesPerSecond) const
 {
