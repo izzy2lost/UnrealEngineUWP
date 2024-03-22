@@ -901,6 +901,7 @@ struct FMaterialShaderParameters
 	EBlendMode BlendMode;
 	ERHIFeatureLevel::Type FeatureLevel;
 	EMaterialQualityLevel::Type QualityLevel;
+	uint16 PreshaderGap;
 	int32 BlendableLocation;
 	int32 NumCustomizedUVs;
 	uint32 StencilCompare;
@@ -2097,6 +2098,7 @@ public:
 	virtual bool CastsRayTracedShadows() const { return true; }
 	virtual bool IsTessellationEnabled() const { return false; }
 	virtual bool HasRenderTracePhysicalMaterialOutputs() const { return false; }
+	virtual uint16 GetPreshaderGap() const { return 0; }
 	virtual EMaterialShadingRate GetShadingRate() const { return MSR_1x1; }
 	virtual int32 GetNeuralProfileId() const { return INDEX_NONE; }
 	virtual bool IsVariableRateShadingAllowed() const { return true; }
@@ -2840,6 +2842,7 @@ public:
 	ENGINE_API virtual bool CastsRayTracedShadows() const override;
 	ENGINE_API virtual bool IsTessellationEnabled() const override;
 	ENGINE_API virtual bool HasRenderTracePhysicalMaterialOutputs() const override;
+	ENGINE_API virtual uint16 GetPreshaderGap() const override;
 	ENGINE_API virtual UMaterialInterface* GetMaterialInterface() const override;
 	ENGINE_API virtual int32 GetNeuralProfileId() const override;
 	/**

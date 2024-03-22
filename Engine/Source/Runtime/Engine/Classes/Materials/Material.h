@@ -1027,6 +1027,10 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = PostProcessMaterial, meta = (DisplayName = "Is Blendable"))
 	uint8 bIsBlendable : 1;
 
+	/** If non-zero, overrides r.Material.PreshaderGapInterval for this material.  Workaround for a platform specific register overflow bug. */
+	UPROPERTY(EditAnywhere, Category = Material, AdvancedDisplay)
+	uint16 PreshaderGap;
+
 	/** true if we have printed a warning about material usage for a given usage flag. */
 	UPROPERTY(transient, duplicatetransient)
 	uint32 UsageFlagWarnings;
