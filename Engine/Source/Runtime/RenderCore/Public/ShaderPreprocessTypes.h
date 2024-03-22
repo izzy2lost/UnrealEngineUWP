@@ -13,8 +13,6 @@ struct FShaderCompilerEnvironment;
 struct FShaderCompilerError;
 struct FShaderCompilerInput;
 
-static constexpr const TCHAR* kShaderSourceDebugHashPrefix = TEXT("DebugHash_");
-
 /*
 * Helper class used to remap compiler diagnostic messages from stripped preprocessed source (i.e. source with all whitespace normalized
 * and comments and line directives removed) back to line numbers/locations from the original source. 

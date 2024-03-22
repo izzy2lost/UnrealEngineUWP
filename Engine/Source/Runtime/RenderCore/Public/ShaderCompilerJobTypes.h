@@ -79,7 +79,7 @@ public:
 	FShaderCommonCompileJob* NextLink = nullptr;
 	FShaderCommonCompileJob** PrevLink = nullptr;
 
-	using FInputHash UE_DEPRECATED(5.5, "Use FShaderCompilerInputHash instead of FShaderCommonCompileJob::FInputHash") = FShaderCompilerInputHash;
+	using FInputHash = FBlake3Hash;
 
 	FPendingShaderMapCompileResultsPtr PendingShaderMap;
 
@@ -113,7 +113,7 @@ public:
 	/** Whether or not we are a global shader. */
 	uint8 bIsGlobalShader : 1;
 	/** Hash of all the job inputs */
-	FShaderCompilerInputHash InputHash;
+	FInputHash InputHash;
 
 	/** In-engine timestamp of being added to a pending queue. Not set for jobs that are satisfied from the jobs cache */
 	double TimeAddedToPendingQueue = 0.0;
@@ -147,7 +147,7 @@ public:
 	}
 
 	/** Returns hash of all inputs for this job (needed for caching). */
-	virtual FShaderCompilerInputHash GetInputHash() { return FShaderCompilerInputHash(); }
+	virtual FInputHash GetInputHash() { return FInputHash(); }
 
 	/** Serializes (and deserializes) the output for caching purposes. */
 	virtual void SerializeOutput(FArchive& Ar) {}
@@ -251,7 +251,7 @@ public:
 	// List of pipelines that are sharing this job.
 	TMap<const FVertexFactoryType*, TArray<const FShaderPipelineType*>> SharingPipelines;
 
-	virtual RENDERCORE_API FShaderCompilerInputHash GetInputHash() override;
+	virtual RENDERCORE_API FInputHash GetInputHash() override;
 	virtual RENDERCORE_API void SerializeOutput(FArchive& Ar) override;
 
 	virtual RENDERCORE_API void OnComplete() override;
@@ -312,7 +312,7 @@ public:
 	FShaderPipelineCompileJobKey Key;
 	TArray<TRefCountPtr<FShaderCompileJob>> StageJobs;
 
-	virtual RENDERCORE_API FShaderCompilerInputHash GetInputHash() override;
+	virtual RENDERCORE_API FInputHash GetInputHash() override;
 	virtual RENDERCORE_API void SerializeOutput(FArchive& Ar) override;
 	virtual RENDERCORE_API void OnComplete() override;
 	virtual RENDERCORE_API void AppendDebugName(FStringBuilderBase& OutName) const override;

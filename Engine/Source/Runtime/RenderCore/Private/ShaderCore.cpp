@@ -1491,17 +1491,6 @@ public:
 			// and blank lines to improve deduplication (and populates data required to remap diagnostic messages to correct line numbers)
 			Job.PreprocessOutput.StripCode(Job.Input.NeedsOriginalShaderSource());
 
-			FShaderCompilerInputHash Hash = Job.GetInputHash();
-			// Replace the placeholder debug hash value appended in StripCode with the real job input hash
-			static const FShaderSource::FStringType DebugHashStr(kShaderSourceDebugHashPrefix);
-			FShaderSource::FViewType SourceView = Job.PreprocessOutput.GetSourceViewAnsi();
-			int32 DebugHashLoc = SourceView.Find(DebugHashStr) + DebugHashStr.Len();
-			int32 NewlineLoc = SourceView.Find(SHADER_SOURCE_VIEWLITERAL("\n"), DebugHashLoc);
-			TAnsiStringBuilder<2 * sizeof(FShaderCompilerInputHash::ByteArray) + 1> HashStr;
-			HashStr << Hash;
-			check(NewlineLoc - DebugHashLoc == HashStr.Len());
-			FMemory::Memcpy(Job.PreprocessOutput.EditSource().GetData() + DebugHashLoc, HashStr.GetData(), sizeof(FShaderSource::CharType) * HashStr.Len());
-
 			// always compress the code after stripping to minimize memory footprint
 			Job.PreprocessOutput.CompressCode();
 		}
@@ -3758,26 +3747,26 @@ FArchive& operator<<(FArchive& Ar, FShaderCompilerInput& Input)
 	return Ar;
 }
 
-FShaderCompilerInputHash FShaderPipelineCompileJob::GetInputHash()
+FShaderCommonCompileJob::FInputHash FShaderPipelineCompileJob::GetInputHash()
 {
 	if (bInputHashSet)
 	{
 		return InputHash;
 	}
-	static_assert(sizeof(FShaderCompilerInputHash) == 32);
+	static_assert(sizeof(FShaderCommonCompileJob::FInputHash) == 32);
 	int256 CombinedHash = 0u;
 	for (int32 Index = 0; Index < StageJobs.Num(); ++Index)
 	{
 		if (StageJobs[Index])
 		{
-			const FShaderCompilerInputHash StageHash = StageJobs[Index]->GetInputHash();
-			const FShaderCompilerInputHash::ByteArray& StageHashBytes = StageHash.GetBytes();
+			const FShaderCommonCompileJob::FInputHash StageHash = StageJobs[Index]->GetInputHash();
+			const FShaderCommonCompileJob::FInputHash::ByteArray& StageHashBytes = StageHash.GetBytes();
 			static_assert(sizeof(StageHashBytes) == sizeof(int256));
 			CombinedHash += int256(StageHashBytes, sizeof(StageHashBytes));
 		}
 	}
 
-	InputHash = FShaderCompilerInputHash(reinterpret_cast<FShaderCompilerInputHash::ByteArray&>(*CombinedHash.GetBits()));
+	InputHash = FShaderCommonCompileJob::FInputHash(reinterpret_cast<FShaderCommonCompileJob::FInputHash::ByteArray&>(*CombinedHash.GetBits()));
 	bInputHashSet = true;
 	return InputHash;
 }
@@ -3818,7 +3807,7 @@ struct FShaderVirtualFileContents
 	{}
 };
 
-FShaderCompilerInputHash FShaderCompileJob::GetInputHash()
+FShaderCommonCompileJob::FInputHash FShaderCompileJob::GetInputHash()
 {
 	if (bInputHashSet)
 	{
