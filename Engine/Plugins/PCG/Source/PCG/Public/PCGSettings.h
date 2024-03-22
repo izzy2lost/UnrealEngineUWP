@@ -278,7 +278,7 @@ public:
 	virtual void ApplyDeprecation(UPCGNode* InOutNode);
 
 	/** If settings require structural changes, this will apply them */
-	virtual void ApplyStructuralDeprecation(UPCGNode* InOutNode) {}
+	virtual void ApplyStructuralDeprecation(UPCGNode* InOutNode);
 
 	virtual FName GetDefaultNodeName() const { return NAME_None; }
 	virtual FText GetDefaultNodeTitle() const { return FText::FromName(GetDefaultNodeName()); }
@@ -372,6 +372,9 @@ public:
 	int Seed = 0xC35A9631; // Default seed is a random prime number, but will be overriden for new settings based on the class type name hash, making each settings class have a different default seed.
 
 #if WITH_EDITORONLY_DATA
+	UPROPERTY()
+	TSet<FString> TagsAppliedOnOutput_DEPRECATED;
+
 	UPROPERTY()
 	EPCGSettingsExecutionMode ExecutionMode_DEPRECATED = EPCGSettingsExecutionMode::Enabled;
 
