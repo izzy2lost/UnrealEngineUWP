@@ -20,7 +20,7 @@ namespace OidcToken
 			{
 				// print help
 				Console.WriteLine("Usage: OidcToken --Service <serviceName> [options]");
-				Console.WriteLine("Service is a required parameter to indicate which OIDC service you intend to connect to. The connection details of the service is configured in appsettings.json");
+				Console.WriteLine("Service is a required parameter to indicate which OIDC service you intend to connect to. The connection details of the service is configured in appsettings.json/oidc-configuration.json");
 				Console.WriteLine();
 				Console.WriteLine("Options: ");
 				Console.WriteLine(" --Mode [Query/GetToken] - Switch mode to allow you to preview operation without triggering user interaction (result can be used to determine if user interaction is required)");
