@@ -256,27 +256,17 @@ public:
 	void SetIsBeingMovedByEditor_GameThread(bool bIsBeingMoved);
 
 	/**
-	 * Force the proxy to render as though it is selected. Shows outlines and overlays.
-	 */
-	void SetSelectionOverride_GameThread(bool bForceSelection);
-	
-	/**
 	 * Enqueue updated selection outline color for the render thread to use.
 	 */
 	void SetSelectionOutlineColorIndex_GameThread(uint8 ColorIndex);
-
-	/**
-	 * Enqueue updated overlay color for the render thread to use.
-	 */
-	void SetOverlayColor_GameThread(FColor OverlayColor);
-#endif	// WITH_EDITOR
+#endif
 
 #if !(UE_BUILD_SHIPPING || UE_BUILD_TEST)
 	/**
 	 * Enqueue and update for the render thread to notify it that the primitive color changed.
 	 */
 	void SetPrimitiveColor_GameThread(const FLinearColor& InPrimitiveColor);
-#endif
+#endif	// WITH_EDITOR
 
 	/** Enqueue and update for the render thread to remove the velocity data for this component from the scene. */
 	ENGINE_API void ResetSceneVelocity_GameThread();
@@ -763,8 +753,6 @@ public:
 
 #if WITH_EDITOR
 	inline uint8 GetSelectionOutlineColorIndex() const { return SelectionOutlineColorIndex; }
-	inline FColor GetOverlayColor() const { return OverlayColor; }
-	inline bool WantsEditorEffects() const { return bWantsEditorEffects; }
 #endif // WITH_EDITOR
 	
 	inline bool UseEditorCompositing(const FSceneView* View) const { return GIsEditor && bUseEditorCompositing && !View->bIsGameView; }
@@ -1395,11 +1383,6 @@ protected:
 
 	uint8 bVerifyUsedMaterials : 1;
 
-#if WITH_EDITOR
-	/** False by default, if true the proxy wants editor-only effects like outlines and overlays. */
-    uint8 bWantsEditorEffects : 1;
-#endif
-    
 	/** If this is True, this primitive doesn't need exact occlusion info. */
 	uint8 bAllowApproximateOcclusion : 1;
 
@@ -1537,10 +1520,6 @@ private:
 	/** A copy of the actor's group membership for handling per-view group hiding */
 	uint64 HiddenEditorViews;
 
-	/** Color to blend over the object as an overlay in the viewport */
-	FColor OverlayColor;
-
-	/** Index of the color to use for the object's outline */
 	uint32 SelectionOutlineColorIndex : 8;
 
 	/** Whether this should only draw in any editing mode*/

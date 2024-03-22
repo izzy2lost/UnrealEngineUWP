@@ -171,6 +171,7 @@ FPrimitiveFlagsCompact::FPrimitiveFlagsCompact(const FPrimitiveSceneProxy* Proxy
 	, bStaticLighting(Proxy->HasStaticLighting())
 	, bCastStaticShadow(Proxy->CastsStaticShadow())
 	, bIsNaniteMesh(Proxy->IsNaniteMesh())
+	, bIsAlwaysVisible(Proxy->IsAlwaysVisible())
 	, bSupportsGPUScene(Proxy->SupportsGPUScene())
 {}
 
