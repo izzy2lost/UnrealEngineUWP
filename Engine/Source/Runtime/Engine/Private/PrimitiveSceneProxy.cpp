@@ -303,7 +303,10 @@ void FPrimitiveSceneProxyDesc::InitializeFrom(const UPrimitiveComponent* InCompo
 	bHiddenInSceneCapture = InComponent->bHiddenInSceneCapture;
 	bRayTracingFarField = InComponent->bRayTracingFarField;
 	bHoldout = InComponent->bHoldout;
-
+#if WITH_EDITORONLY_DATA
+	bWantsEditorEffects = InComponent->bWantsEditorEffects;
+#endif
+	
 	bIsVisible = InComponent->IsVisible();
 	bIsVisibleEditor = InComponent->GetVisibleFlag();
 	bSelected = InComponent->IsSelected();
@@ -373,6 +376,7 @@ void FPrimitiveSceneProxyDesc::InitializeFrom(const UPrimitiveComponent* InCompo
 
 #if WITH_EDITOR
 	HiddenEditorViews = InComponent->GetHiddenEditorViews();
+	OverlayColor = InComponent->OverlayColor;
 #endif
 	bShouldRenderProxyFallbackToDefaultMaterial = InComponent->ShouldRenderProxyFallbackToDefaultMaterial();
 
@@ -479,6 +483,9 @@ FPrimitiveSceneProxy::FPrimitiveSceneProxy(const FPrimitiveSceneProxyDesc& InPro
 ,	bShouldNotifyOnWorldAddRemove(false)
 ,	bWantsSelectionOutline(true)
 ,	bVerifyUsedMaterials(true)
+#if WITH_EDITOR
+,   bWantsEditorEffects(InProxyDesc.bWantsEditorEffects)
+#endif
 ,	bAllowApproximateOcclusion(InProxyDesc.Mobility != EComponentMobility::Movable)
 ,   bHoldout(InProxyDesc.bHoldout)
 ,	bSplineMesh(false)
@@ -514,6 +521,7 @@ FPrimitiveSceneProxy::FPrimitiveSceneProxy(const FPrimitiveSceneProxyDesc& InPro
 #if WITH_EDITOR
 // by default we are always drawn
 ,	HiddenEditorViews(0)
+,   OverlayColor(InProxyDesc.OverlayColor)
 ,   SelectionOutlineColorIndex(0)
 ,	DrawInAnyEditMode(0)
 ,   bIsFoliage(false)
@@ -1000,16 +1008,34 @@ void FPrimitiveSceneProxy::SetSelection_RenderThread(const bool bInParentSelecte
 {
 	check(IsInParallelRenderingThread());
 
-	const bool bWasSelected = IsSelected();
+	const bool bWasParentSelected = bParentSelected;
+	const bool bWasIndividuallySelected = bIndividuallySelected;
+	
 	bParentSelected = bInParentSelected;
 	bIndividuallySelected = bInIndividuallySelected;
-	const bool bIsSelected = IsSelected();
 
-	// The renderer may have cached the selected state, let it know that this primitive is updated
-	if ((bWasSelected && !bIsSelected) || 
-		(bIsSelected && !bWasSelected))
+	const bool bIsNowSelected = bParentSelected || bIndividuallySelected;
+	
+#if WITH_EDITOR
+	// bWantsEditorEffects overrides this state
+	const bool bUpdatePrimitiveState = [&]()
 	{
-		GetScene().UpdatePrimitiveSelectedState_RenderThread(GetPrimitiveSceneInfo(), bIsSelected);
+		if(!bWantsEditorEffects)
+		{
+			return bWasParentSelected != bParentSelected || bWasIndividuallySelected != bIndividuallySelected;
+		}
+		return true;
+	}();
+	const bool bNewValue = bWantsEditorEffects ? true : bIsNowSelected;
+#else
+	const bool bUpdatePrimitiveState = bWasParentSelected != bParentSelected || bWasIndividuallySelected != bIndividuallySelected;
+	const bool bNewValue = bIsNowSelected;
+#endif
+	
+	// The renderer may have cached the selected state, let it know that this primitive is updated
+	if (bUpdatePrimitiveState)
+	{
+		GetScene().UpdatePrimitiveSelectedState_RenderThread(GetPrimitiveSceneInfo(), bNewValue);
 	}
 }
 
@@ -1338,6 +1364,18 @@ void FPrimitiveSceneProxy::SetIsBeingMovedByEditor_GameThread(bool bIsBeingMoved
 		});
 }
 
+void FPrimitiveSceneProxy::SetSelectionOverride_GameThread(bool bForceSelection)
+{
+	check(IsInGameThread());
+
+	ENQUEUE_RENDER_COMMAND(SetSelectionOverride)(
+		[this, bForceSelection](FRHICommandListImmediate&)
+		{
+			bWantsEditorEffects = bForceSelection;
+			SetSelection_RenderThread(bParentSelected, bIndividuallySelected);
+		});
+}
+
 void FPrimitiveSceneProxy::SetSelectionOutlineColorIndex_GameThread(uint8 ColorIndex)
 {
 	check(IsInGameThread());
@@ -1349,6 +1387,17 @@ void FPrimitiveSceneProxy::SetSelectionOutlineColorIndex_GameThread(uint8 ColorI
 		[this, ColorIndex](FRHICommandListImmediate&)
 		{
 			SelectionOutlineColorIndex = ColorIndex;
+		});
+}
+
+void FPrimitiveSceneProxy::SetOverlayColor_GameThread(FColor InOverlayColor)
+{
+	check(IsInGameThread());
+
+	ENQUEUE_RENDER_COMMAND(SetSelectionOutlineColorIndex)(
+		[this, InOverlayColor](FRHICommandListImmediate&)
+		{
+			OverlayColor = InOverlayColor;
 		});
 }
 #endif

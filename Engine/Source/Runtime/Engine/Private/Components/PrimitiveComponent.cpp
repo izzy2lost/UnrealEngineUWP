@@ -320,6 +320,7 @@ UPrimitiveComponent::UPrimitiveComponent(const FObjectInitializer& ObjectInitial
 	bStaticWhenNotMoveable = true;
 	bSelectable = true;
 #if WITH_EDITORONLY_DATA
+	bWantsEditorEffects = false;
 	bConsiderForActorPlacementWhenHidden = false;
 #endif // WITH_EDITORONLY_DATA
 	bFillCollisionUnderneathForNavmesh = false;
@@ -390,6 +391,8 @@ UPrimitiveComponent::UPrimitiveComponent(const FObjectInitializer& ObjectInitial
 #if WITH_EDITOR
 	bAlwaysAllowTranslucentSelect = false;
 
+	OverlayColor = FColor(ForceInitToZero);
+	
 	SelectionOutlineColorIndex = 0;
 #endif
 
@@ -1963,10 +1966,24 @@ void UPrimitiveComponent::SetIsBeingMovedByEditor(bool bIsBeingMoved)
 void UPrimitiveComponent::SetSelectionOutlineColorIndex(uint8 InSelectionOutlineColorIndex)
 {
 	SelectionOutlineColorIndex = InSelectionOutlineColorIndex;
+	bWantsEditorEffects |= InSelectionOutlineColorIndex != 0;
 	
 	if (SceneProxy)
 	{
 		SceneProxy->SetSelectionOutlineColorIndex_GameThread(InSelectionOutlineColorIndex);
+		SceneProxy->SetSelectionOverride_GameThread(bWantsEditorEffects);
+	}
+}
+
+void UPrimitiveComponent::SetOverlayColor(FColor InOverlayColor)
+{
+	OverlayColor = InOverlayColor;
+	bWantsEditorEffects = true;
+
+	if (SceneProxy)
+	{
+		SceneProxy->SetOverlayColor_GameThread(InOverlayColor);
+		SceneProxy->SetSelectionOverride_GameThread(true);
 	}
 }
 

@@ -1474,6 +1474,9 @@ void FStaticMeshSceneProxy::GetDynamicMeshElements(const TArray<const FSceneView
 		|| EngineShowFlags.VisualizeInstanceUpdates
 		|| bProxyIsSelected 
 		|| IsHovered()
+#if WITH_EDITOR
+		|| WantsEditorEffects()
+#endif
 		|| bIsLightmapSettingError);
 
 	// Draw polygon mesh if we are either not in a collision view, or are drawing it as collision.
@@ -2098,6 +2101,7 @@ FPrimitiveViewRelevance FStaticMeshSceneProxy::GetViewRelevance(const FSceneView
 #if WITH_EDITOR
 		(IsSelected() && View->Family->EngineShowFlags.VertexColors) ||
 		(IsSelected() && View->Family->EngineShowFlags.PhysicalMaterialMasks) ||
+		(WantsEditorEffects()) || 
 #endif
 #if STATICMESH_ENABLE_DEBUG_RENDERING
 		bDrawMeshCollisionIfComplex ||

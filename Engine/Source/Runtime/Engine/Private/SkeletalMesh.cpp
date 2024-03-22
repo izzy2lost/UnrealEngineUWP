@@ -6712,6 +6712,10 @@ void FSkeletalMeshSceneProxy::GetDynamicElementsSection(const TArray<const FScen
 	{
 		bIsSelected = true;
 	}
+	if (WantsEditorEffects())
+	{
+		bIsSelected = true;
+	}
 #endif // #if WITH_EDITOR
 
 	const bool bIsWireframe = ViewFamily.EngineShowFlags.Wireframe;
