@@ -79,6 +79,9 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "InitState")
 	virtual bool UnregisterInitStateDelegate(FActorInitStateChangedBPDelegate Delegate);
 
+	/** Returns Current state and any additional debug information for the active state */
+	virtual FString GetDebugState() const;
+
 protected:
 	/** Default handle created from calling BindOnActorInitStateChanged */
 	FDelegateHandle ActorInitStateChangedHandle;
