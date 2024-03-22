@@ -1181,8 +1181,6 @@ VSOut CommonRasterizerVS(FNaniteView NaniteView, FPrimitiveSceneData PrimitiveDa
 	Out.TexCoords.zw = InputVert.RawAttributeData.TexCoords[1];
 #endif
 
-#endif
-
 #if !PIXELSHADER
 	Out.Position = PointClip;
 
