@@ -4,7 +4,7 @@
 
 #include "Algo/Find.h"
 #include "Commandlets/AssetRegistryGenerator.h"
-#include "CompactBinaryTCP.h"
+#include "Cooker/CompactBinaryTCP.h"
 #include "Cooker/CookDirector.h"
 #include "Cooker/CookPackageData.h"
 #include "Cooker/CookPlatformManager.h"
@@ -233,11 +233,15 @@ void FCookWorkerServer::ShutdownRemoteProcess()
 	DetachFromRemoteProcess();
 }
 
-void FCookWorkerServer::AppendAssignments(TArrayView<FPackageData*> Assignments, ECookDirectorThread TickThread)
+void FCookWorkerServer::AppendAssignments(TArrayView<FPackageData*> Assignments,
+	TMap<FPackageData*, FAssignPackageExtraData>&& ExtraDatas, TArrayView<FPackageData*> InfoPackages,
+	ECookDirectorThread TickThread)
 {
 	FCommunicationScopeLock ScopeLock(this, TickThread, ETickAction::Queue);
 	++PackagesAssignedFenceMarker;
 	PackagesToAssign.Append(Assignments);
+	PackagesToAssignExtraDatas.Append(MoveTemp(ExtraDatas));
+	PackagesToAssignInfoPackages.Append(InfoPackages);
 }
 
 void FCookWorkerServer::AbortAllAssignments(TSet<FPackageData*>& OutPendingPackages, ECookDirectorThread TickThread)
@@ -265,6 +269,8 @@ void FCookWorkerServer::AbortAllAssignmentsInLock(TSet<FPackageData*>& OutPendin
 	}
 	OutPendingPackages.Append(PackagesToAssign);
 	PackagesToAssign.Empty();
+	PackagesToAssignExtraDatas.Empty();
+	PackagesToAssignInfoPackages.Empty();
 	++PackagesRetiredFenceMarker;
 }
 
@@ -293,6 +299,9 @@ void FCookWorkerServer::AbortAssignments(TConstArrayView<FPackageData*> PackageD
 		}
 
 		PackagesToAssign.Remove(PackageData);
+		PackagesToAssignExtraDatas.Remove(PackageData);
+		// We don't remove InfoPackages from PackagesToAssignInfoPackages because it would be too hard to calculate,
+		// and it's not a problem to send extra InfoPackages.
 	}
 	++PackagesRetiredFenceMarker;
 	if (!PackageNamesToMessage.IsEmpty())
@@ -460,7 +469,7 @@ void FCookWorkerServer::TickCommunication(ECookDirectorThread TickThread)
 			PumpReceiveMessages();
 			if (ConnectStatus == EConnectStatus::Connected)
 			{
-				SendPendingPackages();
+				SendPendingMessages();
 				PumpSendMessages();
 				return; // Tick duties complete; yield the tick
 			}
@@ -643,10 +652,22 @@ void FCookWorkerServer::PumpSendMessages()
 	}
 }
 
+void FCookWorkerServer::SendPendingMessages()
+{
+	SendPendingPackages();
+	for (UE::CompactBinaryTCP::FMarshalledMessage& MarshalledMessage : QueuedMessagesToSendAfterPackagesToAssign)
+	{
+		UE::CompactBinaryTCP::QueueMessage(SendBuffer, MoveTemp(MarshalledMessage));
+	}
+	QueuedMessagesToSendAfterPackagesToAssign.Empty();
+}
+
 void FCookWorkerServer::SendPendingPackages()
 {
 	if (PackagesToAssign.IsEmpty())
 	{
+		PackagesToAssignExtraDatas.Empty();
+		PackagesToAssignInfoPackages.Empty();
 		return;
 	}
 	LLM_SCOPE_BYTAG(Cooker_MPCook);
@@ -654,11 +675,14 @@ void FCookWorkerServer::SendPendingPackages()
 	TArray<FAssignPackageData> AssignDatas;
 	AssignDatas.Reserve(PackagesToAssign.Num());
 	TBitArray<> SessionPlatformNeedsCook;
+	TArray<FPackageDataExistenceInfo> ExistenceInfos;
+	ExistenceInfos.Reserve(PackagesToAssignInfoPackages.Num());
 
 	for (FPackageData* PackageData : PackagesToAssign)
 	{
 		FAssignPackageData& AssignData = AssignDatas.Emplace_GetRef();
 		AssignData.ConstructData = PackageData->CreateConstructData();
+		AssignData.ParentGenerator = PackageData->GetParentGenerator();
 		AssignData.Instigator = PackageData->GetInstigator();
 		SessionPlatformNeedsCook.Init(false, OrderedSessionPlatforms.Num());
 		int32 PlatformIndex = 0;
@@ -668,10 +692,23 @@ void FCookWorkerServer::SendPendingPackages()
 			SessionPlatformNeedsCook[PlatformIndex++] = PlatformData && PlatformData->NeedsCooking(SessionPlatform);
 		}
 		AssignData.NeedCookPlatforms = FDiscoveredPlatformSet(SessionPlatformNeedsCook);
+		FAssignPackageExtraData* ExtraData = PackagesToAssignExtraDatas.Find(PackageData);
+		if (ExtraData)
+		{
+			AssignData.GeneratorPreviousGeneratedPackages = ExtraData->GeneratorPreviousGeneratedPackages;
+		}
+	}
+	for (FPackageData* PackageData : PackagesToAssignInfoPackages)
+	{
+		FPackageDataExistenceInfo& ExistenceInfo = ExistenceInfos.Emplace_GetRef();
+		ExistenceInfo.ConstructData = PackageData->CreateConstructData();
+		ExistenceInfo.ParentGenerator = PackageData->GetParentGenerator();
 	}
 	PendingPackages.Append(PackagesToAssign);
 	PackagesToAssign.Empty();
-	FAssignPackagesMessage AssignPackagesMessage(MoveTemp(AssignDatas));
+	PackagesToAssignExtraDatas.Empty();
+	PackagesToAssignInfoPackages.Empty();
+	FAssignPackagesMessage AssignPackagesMessage(MoveTemp(AssignDatas), MoveTemp(ExistenceInfos));
 	AssignPackagesMessage.OrderedSessionPlatforms = OrderedSessionPlatforms;
 	SendMessageInLock(MoveTemp(AssignPackagesMessage));
 }
@@ -762,6 +799,18 @@ void FCookWorkerServer::HandleReceiveMessagesInternal()
 				}
 			}
 		}
+		else if (Message.MessageType == FGeneratorEventMessage::MessageType)
+		{
+			FGeneratorEventMessage GeneratorMessage;
+			if (!GeneratorMessage.TryRead(Message.Object))
+			{
+				LogInvalidMessage(TEXT("FGeneratorEventMessage"));
+			}
+			else
+			{
+				HandleGeneratorMessage(GeneratorMessage);
+			}
+		}
 		else
 		{
 			TRefCountPtr<IMPCollector>* Collector = Director.Collectors.Find(Message.MessageType);
@@ -823,6 +872,12 @@ void FCookWorkerServer::SendMessage(const IMPCollectorMessage& Message, ECookDir
 {
 	FCommunicationScopeLock ScopeLock(this, TickThread, ETickAction::Tick);
 	SendMessageInLock(Message);
+}
+
+void FCookWorkerServer::AppendMessage(const IMPCollectorMessage& Message, ECookDirectorThread TickThread)
+{
+	FCommunicationScopeLock ScopeLock(this, TickThread, ETickAction::Queue);
+	QueuedMessagesToSendAfterPackagesToAssign.Add(MarshalToCompactBinaryTCP(Message));
 }
 
 void FCookWorkerServer::SendMessageInLock(const IMPCollectorMessage& Message)
@@ -937,6 +992,18 @@ void FCookWorkerServer::QueueDiscoveredPackage(FDiscoveredPackageReplication&& D
 	FDiscoveredPlatformSet& Platforms = DiscoveredPackage.Platforms;
 	FPackageData& PackageData = PackageDatas.FindOrAddPackageData(DiscoveredPackage.PackageName,
 		DiscoveredPackage.NormalizedFileName);
+	if (!DiscoveredPackage.ParentGenerator.IsNone())
+	{
+		PackageData.SetGenerated(DiscoveredPackage.ParentGenerator);
+		FPackageData* GeneratorPackageData = PackageDatas.FindPackageDataByPackageName(
+			DiscoveredPackage.ParentGenerator);
+		if (GeneratorPackageData)
+		{
+			TRefCountPtr<FGenerationHelper> GenerationHelper =
+				GeneratorPackageData->CreateUninitializedGenerationHelper();
+			GenerationHelper->NotifyStartQueueGeneratedPackages(COTFS, WorkerId);
+		}
+	}
 
 	TArray<const ITargetPlatform*, TInlineAllocator<ExpectedMaxNumPlatforms>> BufferPlatforms;
 	TConstArrayView<const ITargetPlatform*> DiscoveredPlatforms;
@@ -973,15 +1040,44 @@ void FCookWorkerServer::QueueDiscoveredPackage(FDiscoveredPackageReplication&& D
 		return;
 	}
 
-	if (Instigator.Category == EInstigator::GeneratedPackage)
+	if (Instigator.Category == EInstigator::GeneratedPackage
+		&& COTFS.MPCookGeneratorSplit == EMPCookGeneratorSplit::AllOnSameWorker)
 	{
-		PackageData.SetGenerated(true);
 		PackageData.SetWorkerAssignmentConstraint(GetWorkerId());
 	}
 	Director.ResetFinalIdleHeartbeatFence();
 	Platforms.ConvertFromBitfield(OrderedSessionAndSpecialPlatforms);
 	COTFS.QueueDiscoveredPackageOnDirector(PackageData, MoveTemp(Instigator), MoveTemp(Platforms),
 		false /* bUrgent */);
+}
+
+void FCookWorkerServer::HandleGeneratorMessage(FGeneratorEventMessage& GeneratorMessage)
+{
+	FPackageData* PackageData = COTFS.PackageDatas->FindPackageDataByPackageName(GeneratorMessage.PackageName);
+	TRefCountPtr<FGenerationHelper> GenerationHelper;
+	if (PackageData)
+	{
+		GenerationHelper = PackageData->CreateUninitializedGenerationHelper();
+	}
+	if (!GenerationHelper)
+	{
+		// This error should be impossible because GeneratorMessages are only sent in response to assignment from the server.
+		UE_LOG(LogCook, Error,
+			TEXT("CookWorkerServer received unexpected GeneratorMessage for package %s. The PackageData %s on the CookDirector. ")
+			TEXT("\n\tCook of this generator package and its generated packages will be invalid."),
+			*GeneratorMessage.PackageName.ToString(),
+			(!PackageData ? TEXT("does not exist") : TEXT("is not a valid generator")));
+		return;
+	}
+	switch (GeneratorMessage.Event)
+	{
+	case EGeneratorEvent::QueuedGeneratedPackages:
+		GenerationHelper->EndQueueGeneratedPackagesOnDirector(COTFS, GetWorkerId());
+		break;
+	default:
+		// We do not handle the remaining GeneratorEvents on clients
+		break;
+	}
 }
 
 FCookWorkerServer::FTickState::FTickState()
@@ -1021,8 +1117,10 @@ UE::CompactBinaryTCP::FMarshalledMessage MarshalToCompactBinaryTCP(const IMPColl
 	return Marshalled;
 }
 
-FAssignPackagesMessage::FAssignPackagesMessage(TArray<FAssignPackageData>&& InPackageDatas)
+FAssignPackagesMessage::FAssignPackagesMessage(TArray<FAssignPackageData>&& InPackageDatas,
+	TArray<FPackageDataExistenceInfo>&& InExistenceInfos)
 	: PackageDatas(MoveTemp(InPackageDatas))
+	, ExistenceInfos(MoveTemp(InExistenceInfos))
 {
 }
 
@@ -1032,6 +1130,12 @@ void FAssignPackagesMessage::Write(FCbWriter& Writer) const
 	for (const FAssignPackageData& PackageData : PackageDatas)
 	{
 		WriteToCompactBinary(Writer, PackageData, OrderedSessionPlatforms);
+	}
+	Writer.EndArray();
+	Writer.BeginArray("I");
+	for (const FPackageDataExistenceInfo& ExistenceInfo : ExistenceInfos)
+	{
+		Writer << ExistenceInfo;
 	}
 	Writer.EndArray();
 }
@@ -1049,29 +1153,59 @@ bool FAssignPackagesMessage::TryRead(FCbObjectView Object)
 			bOk = false;
 		}
 	}
+	ExistenceInfos.Reset();
+	for (FCbFieldView PackageField : Object["I"])
+	{
+		FPackageDataExistenceInfo& ExistenceInfo = ExistenceInfos.Emplace_GetRef();
+		if (!LoadFromCompactBinary(PackageField, ExistenceInfo))
+		{
+			ExistenceInfos.Pop();
+			bOk = false;
+		}
+	}
 	return bOk;
 }
 
 FGuid FAssignPackagesMessage::MessageType(TEXT("B7B1542B73254B679319D73F753DB6F8"));
 
-void WriteToCompactBinary(FCbWriter& Writer, const FAssignPackageData& AssignData, 
-	TConstArrayView<const ITargetPlatform*> OrderedSessionPlatforms)
+void FAssignPackageData::Write(FCbWriter& Writer,
+	TConstArrayView<const ITargetPlatform*> OrderedSessionPlatforms) const
 {
 	Writer.BeginArray();
-	Writer << AssignData.ConstructData;
-	Writer << AssignData.Instigator;
-	WriteToCompactBinary(Writer, AssignData.NeedCookPlatforms, OrderedSessionPlatforms);
+	Writer << ConstructData;
+	Writer << ParentGenerator;
+	Writer << Instigator;
+	WriteToCompactBinary(Writer, NeedCookPlatforms, OrderedSessionPlatforms);
+	Writer << GeneratorPreviousGeneratedPackages;
 	Writer.EndArray();
 }
 
-bool LoadFromCompactBinary(FCbFieldView Field, FAssignPackageData& AssignData,
-	TConstArrayView<const ITargetPlatform*> OrderedSessionPlatforms)
+bool FAssignPackageData::TryRead(FCbFieldView Field, TConstArrayView<const ITargetPlatform*> OrderedSessionPlatforms)
 {
 	FCbFieldViewIterator It = Field.CreateViewIterator();
 	bool bOk = true;
-	bOk = LoadFromCompactBinary(*It++, AssignData.ConstructData) & bOk;
-	bOk = LoadFromCompactBinary(*It++, AssignData.Instigator) & bOk;
-	bOk = LoadFromCompactBinary(*It++, AssignData.NeedCookPlatforms, OrderedSessionPlatforms) & bOk;
+	bOk = LoadFromCompactBinary(*It++, ConstructData) & bOk;
+	bOk = LoadFromCompactBinary(*It++, ParentGenerator) & bOk;
+	bOk = LoadFromCompactBinary(*It++, Instigator) & bOk;
+	bOk = LoadFromCompactBinary(*It++, NeedCookPlatforms, OrderedSessionPlatforms) & bOk;
+	bOk = LoadFromCompactBinary(*It++, GeneratorPreviousGeneratedPackages) & bOk;
+	return bOk;
+}
+
+void FPackageDataExistenceInfo::Write(FCbWriter& Writer) const
+{
+	Writer.BeginArray();
+	Writer << ConstructData;
+	Writer << ParentGenerator;
+	Writer.EndArray();
+}
+
+bool FPackageDataExistenceInfo::TryRead(FCbFieldView Field)
+{
+	FCbFieldViewIterator It = Field.CreateViewIterator();
+	bool bOk = true;
+	bOk = LoadFromCompactBinary(*It++, ConstructData) & bOk;
+	bOk = LoadFromCompactBinary(*It++, ParentGenerator) & bOk;
 	return bOk;
 }
 
@@ -1224,40 +1358,48 @@ bool FInitialConfigMessage::TryRead(FCbObjectView Object)
 
 FGuid FInitialConfigMessage::MessageType(TEXT("340CDCB927304CEB9C0A66B5F707FC2B"));
 
-void WriteToCompactBinary(FCbWriter& Writer, const FDiscoveredPackageReplication& Package,
-	TConstArrayView<const ITargetPlatform*> OrderedSessionAndSpecialPlatforms)
+void FDiscoveredPackageReplication::Write(FCbWriter& Writer,
+	TConstArrayView<const ITargetPlatform*> OrderedSessionAndSpecialPlatforms) const
 {
-	Writer.BeginObject();
-	Writer << "PackageName" << Package.PackageName;
-	Writer << "NormalizedFileName" << Package.NormalizedFileName;
-	Writer << "Instigator.Category" << static_cast<uint8>(Package.Instigator.Category);
-	Writer << "Instigator.Referencer" << Package.Instigator.Referencer;
-	Writer.SetName("Platforms");
-	WriteToCompactBinary(Writer, Package.Platforms, OrderedSessionAndSpecialPlatforms);
-	Writer.EndObject();
+	Writer.BeginArray();
+	Writer << PackageName;
+	Writer << NormalizedFileName;
+	Writer << ParentGenerator;
+	Writer << static_cast<uint8>(Instigator.Category);
+	Writer << Instigator.Referencer;
+	WriteToCompactBinary(Writer, Platforms, OrderedSessionAndSpecialPlatforms);
+	Writer.EndArray();
 }
 
-bool LoadFromCompactBinary(FCbFieldView Field, FDiscoveredPackageReplication& OutPackage,
+bool FDiscoveredPackageReplication::TryRead(FCbFieldView Field,
 	TConstArrayView<const ITargetPlatform*> OrderedSessionAndSpecialPlatforms)
 {
-	bool bOk = LoadFromCompactBinary(Field["PackageName"], OutPackage.PackageName);
-	bOk = LoadFromCompactBinary(Field["NormalizedFileName"], OutPackage.NormalizedFileName) & bOk;
-	uint8 CategoryInt;
-	if (LoadFromCompactBinary(Field["Instigator.Category"], CategoryInt) &&
-		CategoryInt < static_cast<uint8>(EInstigator::Count))
-
+	FCbArrayView FieldList = Field.AsArrayView();
+	if (Field.HasError())
 	{
-		OutPackage.Instigator.Category = static_cast<EInstigator>(CategoryInt);
+		*this = FDiscoveredPackageReplication();
+		return false;
+	}
+	FCbFieldViewIterator Iter = FieldList.CreateViewIterator();
+
+	bool bOk = LoadFromCompactBinary(Iter++, PackageName);
+	bOk = LoadFromCompactBinary(Iter++, NormalizedFileName) & bOk;
+	bOk = LoadFromCompactBinary(Iter++, ParentGenerator) & bOk;
+	uint8 CategoryInt;
+	if (LoadFromCompactBinary(Iter++, CategoryInt) &&
+		CategoryInt < static_cast<uint8>(EInstigator::Count))
+	{
+		Instigator.Category = static_cast<EInstigator>(CategoryInt);
 	}
 	else
 	{
 		bOk = false;
 	}
-	bOk = LoadFromCompactBinary(Field["Instigator.Referencer"], OutPackage.Instigator.Referencer) & bOk;
-	bOk = LoadFromCompactBinary(Field["Platforms"], OutPackage.Platforms, OrderedSessionAndSpecialPlatforms) & bOk;
+	bOk = LoadFromCompactBinary(Iter++, Instigator.Referencer) & bOk;
+	bOk = LoadFromCompactBinary(Iter++, Platforms, OrderedSessionAndSpecialPlatforms) & bOk;
 	if (!bOk)
 	{
-		OutPackage = FDiscoveredPackageReplication();
+		*this = FDiscoveredPackageReplication();
 	}
 	return bOk;
 }
@@ -1289,6 +1431,38 @@ bool FDiscoveredPackagesMessage::TryRead(FCbObjectView Object)
 }
 
 FGuid FDiscoveredPackagesMessage::MessageType(TEXT("C9F5BC5C11484B06B346B411F1ED3090"));
+
+FGeneratorEventMessage::FGeneratorEventMessage(EGeneratorEvent InEvent, FName InPackageName)
+	: PackageName(InPackageName)
+	, Event(InEvent)
+{
+}
+
+void FGeneratorEventMessage::Write(FCbWriter& Writer) const
+{
+	Writer << "E" << static_cast<uint8>(Event);
+	Writer << "P" << PackageName;
+}
+
+bool FGeneratorEventMessage::TryRead(FCbObjectView Object)
+{
+	bool bOk = true;
+	FCbFieldView EventField = Object["E"];
+	uint8 EventInt = EventField.AsUInt8();
+	if (!EventField.HasError() && EventInt < static_cast<uint8>(EGeneratorEvent::Num))
+	{
+		Event = static_cast<EGeneratorEvent>(EventInt);
+	}
+	else
+	{
+		Event = EGeneratorEvent::Invalid;
+		bOk = false;
+	}
+	bOk = LoadFromCompactBinary(Object["P"], PackageName) & bOk;
+	return bOk;
+}
+
+FGuid FGeneratorEventMessage::MessageType(TEXT("B6EE94CA70EC4F40B0D2214EDC11ED03"));
 
 FCbWriter& operator<<(FCbWriter& Writer, const FReplicatedLogData& Package)
 {

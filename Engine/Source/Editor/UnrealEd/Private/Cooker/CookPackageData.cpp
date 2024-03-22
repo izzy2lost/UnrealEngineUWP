@@ -11,9 +11,11 @@
 #include "AssetRegistry/IAssetRegistry.h"
 #include "Async/ParallelFor.h"
 #include "CompactBinaryTCP.h"
+#include "Cooker/CookDirector.h"
 #include "Cooker/CookPlatformManager.h"
 #include "Cooker/CookRequestCluster.h"
 #include "Cooker/CookWorkerClient.h"
+#include "Cooker/IWorkerRequests.h"
 #include "Cooker/PackageTracker.h"
 #include "CookOnTheSide/CookOnTheFlyServer.h"
 #include "Containers/StringView.h"
@@ -88,7 +90,7 @@ bool FPackagePlatformData::NeedsCooking(const ITargetPlatform* PlatformItBelongs
 }
 
 FPackageData::FPackageData(FPackageDatas& PackageDatas, const FName& InPackageName, const FName& InFileName)
-	: GeneratedOwner(nullptr), PackageName(InPackageName), FileName(InFileName), PackageDatas(PackageDatas)
+	: ParentGenerationHelper(nullptr), PackageName(InPackageName), FileName(InFileName), PackageDatas(PackageDatas)
 	, Instigator(EInstigator::NotYetRequested), bIsUrgent(0), bIsCookLast(0)
 	, bIsVisited(0), bIsPreloadAttempted(0)
 	, bIsPreloaded(0), bHasSaveCache(0), bPrepareSaveFailed(0), bPrepareSaveRequiresGC(0)
@@ -113,7 +115,11 @@ FPackageData::~FPackageData()
 
 void FPackageData::ClearReferences()
 {
-	DestroyGenerationHelper();
+	if (GenerationHelper)
+	{
+		GenerationHelper->ClearSelfReferences();
+	}
+	ParentGenerationHelper.SafeRelease();
 }
 
 const FName& FPackageData::GetPackageName() const
@@ -317,6 +323,15 @@ void FPackageData::ClearInProgressData()
 {
 	SetIsUrgent(false);
 	CompletionCallback = FCompletionCallback();
+	if (GenerationHelper)
+	{
+		// ClearKeepForGeneratorSave is called when finishing the save state, but not when demoting out of the save
+		// state after a garbage collect. Call it here in case we cancel the save of the packagedata after demotion.
+		// The other self-references (iterative, queued packages) should persist even when the packagedata is not
+		// in progress.
+		GenerationHelper->ClearKeepForGeneratorSave();
+	}
+	ParentGenerationHelper.SafeRelease();
 }
 
 void FPackageData::SetPlatformsCooked(
@@ -820,6 +835,14 @@ void FPackageData::OnExitRequest()
 
 void FPackageData::OnEnterAssignedToWorker()
 {
+	if (IsGenerated())
+	{
+		// Clear the referencecount that we added in OnEnterInProgress; we don't want to keep
+		// the GenerationHelper referenced for the entire duration of assigned packages
+		// running on other CookWorkers. If this package gets retracted and moved into
+		// LoadState locally, we will recreate the GenerationHelper if necessary.
+		ParentGenerationHelper.SafeRelease();
+	}
 }
 
 void FPackageData::SetWorkerAssignment(FWorkerId InWorkerAssignment, ESendFlags SendFlags)
@@ -888,6 +911,12 @@ void FPackageData::OnExitSave(EStateChangeReason ReleaseSaveReason)
 void FPackageData::OnEnterInProgress()
 {
 	PackageDatas.GetMonitor().OnInProgressChanged(*this, true);
+	if (IsGenerated())
+	{
+		// Keep a refcount to the ParentGenerationHelper until we are saved so that it does not destruct
+		// and waste time reconstructing when we reach the LoadQueue.
+		GetOrFindParentGenerationHelper();
+	}
 }
 
 void FPackageData::OnExitInProgress()
@@ -1354,11 +1383,13 @@ void FPackageData::CheckCookedPlatformDataEmpty() const
 	check(!GetCookedPlatformDataStarted());
 	check(!GetCookedPlatformDataCalled());
 	check(!GetCookedPlatformDataComplete());
-	check(!GetGenerationHelper() ||
-		GetGenerationHelper()->GetOwnerInfo().GetSaveState() <= FCookGenerationInfo::ESaveState::StartPopulate);
-	if (GetGeneratedOwner())
+	if (GetGenerationHelper())
 	{
-		FCookGenerationInfo* Info = GetGeneratedOwner()->FindInfo(*this);
+		check(GetGenerationHelper()->GetOwnerInfo().GetSaveState() <= FCookGenerationInfo::ESaveState::StartPopulate);
+	}
+	if (ParentGenerationHelper)
+	{
+		FCookGenerationInfo* Info = ParentGenerationHelper->FindInfo(*this);
 		check(!Info || Info->GetSaveState() <= FCookGenerationInfo::ESaveState::StartPopulate);
 	}
 }
@@ -1452,54 +1483,164 @@ void FPackageData::UpdateSaveAfterGarbageCollect(bool& bOutDemote)
 	}
 	else if (IsGenerated())
 	{
-		if (!GeneratedOwner)
+		if (!ParentGenerationHelper)
 		{
 			bOutDemote = true;
 		}
 		else
 		{
-			GeneratedOwner->UpdateSaveAfterGarbageCollect(*this, bOutDemote);
+			ParentGenerationHelper->UpdateSaveAfterGarbageCollect(*this, bOutDemote);
 		}
 	}
 }
 
-void FPackageData::SetGeneratedOwner(FGenerationHelper* InGeneratedOwner)
+void FPackageData::SetGenerated(FName InParentGenerator)
 {
-	check(IsGenerated());
-	check(!(GeneratedOwner && InGeneratedOwner));
-	GeneratedOwner = InGeneratedOwner;
+	bGenerated = true;
+	ParentGenerator = InParentGenerator;
 }
 
-UE::Cook::FGenerationHelper* FPackageData::GetGenerationHelper() const
+void FPackageData::SetParentGenerationHelper(FGenerationHelper* InGenerationHelper)
 {
-	UE::Cook::FGenerationHelper* Result = GenerationHelper.Get();
-	if (Result && Result->IsInitialized())
+	check(InGenerationHelper == nullptr || IsGenerated());
+	check(!(ParentGenerationHelper && InGenerationHelper) || ParentGenerationHelper == InGenerationHelper);
+	ParentGenerationHelper = InGenerationHelper;
+}
+
+TRefCountPtr<FGenerationHelper> FPackageData::GetOrFindParentGenerationHelper()
+{
+	if (ParentGenerationHelper)
 	{
+		return ParentGenerationHelper;
+	}
+	if (!IsGenerated())
+	{
+		return nullptr;
+	}
+
+	FPackageData* OwnerPackageData = PackageDatas.FindPackageDataByPackageName(GetParentGenerator());
+	if (!OwnerPackageData)
+	{
+		return nullptr;
+	}
+
+	ParentGenerationHelper = OwnerPackageData->GetGenerationHelper();
+	return ParentGenerationHelper;
+}
+
+TRefCountPtr<FGenerationHelper> FPackageData::TryCreateValidParentGenerationHelper()
+{
+	if (ParentGenerationHelper)
+	{
+		if (!ParentGenerationHelper->IsValid())
+		{
+			ParentGenerationHelper.SafeRelease();
+		}
+		return ParentGenerationHelper;
+	}
+	if (!IsGenerated())
+	{
+		return nullptr;
+	}
+
+	FPackageData* OwnerPackageData = PackageDatas.FindPackageDataByPackageName(GetParentGenerator());
+	if (!OwnerPackageData)
+	{
+		return nullptr;
+	}
+
+	ParentGenerationHelper = OwnerPackageData->TryCreateValidGenerationHelper();
+
+	return ParentGenerationHelper;
+}
+
+TRefCountPtr<FGenerationHelper> FPackageData::CreateUninitializedGenerationHelper()
+{
+	if (GenerationHelper)
+	{
+		return GenerationHelper;
+	}
+	TRefCountPtr<UE::Cook::FGenerationHelper> Result = new UE::Cook::FGenerationHelper(*this);
+	GenerationHelper = Result.GetReference();
+	return Result;
+}
+
+TRefCountPtr<UE::Cook::FGenerationHelper> FPackageData::TryCreateValidGenerationHelper()
+{
+	if (GenerationHelper && GenerationHelper->IsInitialized())
+	{
+		if (!GenerationHelper->IsValid())
+		{
+			// The GenerationHelper is not valid; we can get here if it was created from iterative cook data but this
+			// package is no longer a generator after syncing. If it has any self-references, clear them so that it
+			// will delete and this non-generator package will set the usual GenerationHelper=nullptr value.
+			GenerationHelper->ClearSelfReferences(); // Might set GenerationHelper=nullptr
+			// this->GenerationHelper might still be non-null, if there are some generated packages
+			// that still have a pointer to it. This will only happen in error-handling edge cases, but we
+			// need to check for invalid GenerationHelper everwhere we use them to cover this case.
+			// Our contract for TryCreateValidGenerationHelper this case is we return nullptr.
+			return nullptr;
+		}
+		return GenerationHelper;
+	}
+
+	UCookOnTheFlyServer& COTFS = PackageDatas.GetCookOnTheFlyServer();
+	UE::Cook::Private::FRegisteredCookPackageSplitter* RegisteredSplitterType = nullptr;
+	TUniquePtr<ICookPackageSplitter> CookPackageSplitterInstance;
+	UObject* SplitDataObject = nullptr;
+	UPackage* LocalPackage = GetPackage();
+	if (!LocalPackage)
+	{
+		LocalPackage = FGenerationHelper::FindOrLoadPackage(COTFS, *this);
+	}
+	if (LocalPackage)
+	{
+		TOptional<TConstArrayView<FCachedObjectInOuter>> LocalCachedObjectsInOuter;
+		if (GetHasSaveCache())
+		{
+			LocalCachedObjectsInOuter.Emplace(GetCachedObjectsInOuter());
+		}
+		FGenerationHelper::SearchForRegisteredSplitDataObject(COTFS, GetPackageName(),
+			LocalPackage, LocalCachedObjectsInOuter, SplitDataObject, RegisteredSplitterType,
+			CookPackageSplitterInstance);
+	}
+	TRefCountPtr<UE::Cook::FGenerationHelper> Result = GenerationHelper;
+	if (!SplitDataObject || !CookPackageSplitterInstance)
+	{
+		if (Result)
+		{
+			// Mark that GenerationHelper is invalid, and clear its references and return nullptr; see comment above.
+			Result->InitializeAsInvalid(); // cannot set GenerationHelper=nullptr because we have a local refcount.
+			Result->ClearSelfReferences();
+		}
+		return nullptr;
+	}
+	else
+	{
+		if (!Result)
+		{
+			Result = new UE::Cook::FGenerationHelper(*this);
+			GenerationHelper = Result.GetReference();
+		}
+
+		Result->Initialize(SplitDataObject, RegisteredSplitterType, MoveTemp(CookPackageSplitterInstance));
 		return Result;
+	}
+}
+
+TRefCountPtr<UE::Cook::FGenerationHelper> FPackageData::GetGenerationHelperIfValid()
+{
+	if (GenerationHelper && GenerationHelper->IsValid())
+	{
+		return GenerationHelper;
 	}
 	return nullptr;
 }
 
-UE::Cook::FGenerationHelper& FPackageData::CreateGenerationHelper(const UObject* InSplitDataObject,
-	ICookPackageSplitter* InCookPackageSplitterInstance)
+void FPackageData::OnGenerationHelperDestroyed(FGenerationHelper& InGenerationHelper)
 {
-	if (!GenerationHelper)
-	{
-		GenerationHelper.Reset(new UE::Cook::FGenerationHelper(*this, InSplitDataObject,
-			InCookPackageSplitterInstance));
-	}
-	else
-	{
-		GenerationHelper->InitializeSave(InSplitDataObject, InCookPackageSplitterInstance);
-		if (GenerationHelper->IsInitialized())
-		{
-			// The earlier exit from SaveState should have reset the progress back to StartGeneratorSave or earlier
-			check(GenerationHelper->GetOwnerInfo().GetSaveState() <= FCookGenerationInfo::ESaveState::StartPopulate);
-		}
-	}
-	FGenerationHelper* Result = GenerationHelper.Get();
-	check(Result);
-	return *Result;
+	check(GenerationHelper == &InGenerationHelper);
+	GenerationHelper = nullptr;
 }
 
 FConstructPackageData FPackageData::CreateConstructData()
@@ -1559,98 +1700,338 @@ namespace UE::Cook
 //////////////////////////////////////////////////////////////////////////
 // FGenerationHelper
 
-FGenerationHelper::FGenerationHelper(UE::Cook::FPackageData& InOwner, const UObject* InSplitDataObject,
-	ICookPackageSplitter* InCookPackageSplitterInstance)
-: OwnerInfo(InOwner, true /* bInGenerated */)
+FGenerationHelper::FGenerationHelper(UE::Cook::FPackageData& InOwner)
+: OwnerInfo(InOwner, true /* bInGenerator */)
 {
-	InitializeSave(InSplitDataObject, InCookPackageSplitterInstance);
-}
-
-void FGenerationHelper::InitializeSave(const UObject* InSplitDataObject,
-	ICookPackageSplitter* InCookPackageSplitterInstance)
-{
-	if (InCookPackageSplitterInstance)
-	{
-		// If we already have a splitter, keep the old and throw out the new. The old one
-		// still contains some state.
-		if (!CookPackageSplitterInstance)
-		{
-			CookPackageSplitterInstance.Reset(InCookPackageSplitterInstance);
-		}
-		else
-		{
-			delete InCookPackageSplitterInstance;
-		}
-
-		bInitialized = true;
-		FName InSplitDataObjectName = *InSplitDataObject->GetFullName();
-		check(SplitDataObjectName.IsNone() || SplitDataObjectName == InSplitDataObjectName);
-		SplitDataObjectName = InSplitDataObjectName;
-		bUseInternalReferenceToAvoidGarbageCollect =
-			CookPackageSplitterInstance->UseInternalReferenceToAvoidGarbageCollect();
-		SetOwnerPackage(GetOwner().GetPackage());
-	}
 }
 
 FGenerationHelper::~FGenerationHelper()
 {
-	if (!IsInitialized())
-	{
-		return;
-	}
-
-	ConditionalNotifyCompletion(ICookPackageSplitter::ETeardown::Canceled);
-	ClearGeneratedPackages();
+	NotifyCompletion(ICookPackageSplitter::ETeardown::Complete);
+	GetOwner().OnGenerationHelperDestroyed(*this);
 }
 
-void FGenerationHelper::ConditionalNotifyCompletion(ICookPackageSplitter::ETeardown Status)
+void FGenerationHelper::NotifyCompletion(ICookPackageSplitter::ETeardown Status)
 {
-	if (!bNotifiedCompletion)
+	if (IsInitialized() && IsValid() && CookPackageSplitterInstance)
 	{
-		bNotifiedCompletion = true;
 		CookPackageSplitterInstance->Teardown(Status);
 		CookPackageSplitterInstance.Reset();
 	}
 }
 
-void FGenerationHelper::ClearGeneratedPackages()
+void FGenerationHelper::Initialize()
 {
-	check(IsInitialized());
-	for (FCookGenerationInfo& Info: PackagesToGenerate)
+	if (InitializeStatus != EInitializeStatus::Uninitialized)
 	{
-		if (Info.PackageData)
-		{
-			check(Info.PackageData->GetGeneratedOwner() == this);
-			Info.PackageData->SetGeneratedOwner(nullptr);
-			Info.PackageData = nullptr;
-		}
+		return;
 	}
-}
-
-bool FGenerationHelper::TryGenerateList(UObject* OwnerObject, FPackageDatas& PackageDatas)
-{
-	check(IsInitialized());
 
 	FPackageData& OwnerPackageData = GetOwner();
-	UPackage* LocalOwnerPackage = OwnerPackageData.GetPackage();
-	check(LocalOwnerPackage);
-	UCookOnTheFlyServer& COTFS = GetOwner().GetPackageDatas().GetCookOnTheFlyServer();
+	FName OwnerPackageName = OwnerPackageData.GetPackageName();
+	UCookOnTheFlyServer& COTFS = OwnerPackageData.GetPackageDatas().GetCookOnTheFlyServer();
+	UPackage* LocalOwnerPackage = FindOrLoadPackage(COTFS, OwnerPackageData);
+	if (!LocalOwnerPackage)
+	{
+		InitializeStatus = EInitializeStatus::Invalid;
+		return;
+	}
+
+	UObject* LocalSplitDataObject;
+	UE::Cook::Private::FRegisteredCookPackageSplitter* LocalRegisteredSplitterType = nullptr;
+	TUniquePtr<ICookPackageSplitter> LocalSplitter;
+	SearchForRegisteredSplitDataObject(COTFS, OwnerPackageName, LocalOwnerPackage,
+		TOptional<TConstArrayView<FCachedObjectInOuter>>(), LocalSplitDataObject, LocalRegisteredSplitterType,
+		LocalSplitter);
+	if (!LocalSplitDataObject || !LocalSplitter)
+	{
+		InitializeStatus = EInitializeStatus::Invalid;
+		return;
+	}
+
+	Initialize(LocalSplitDataObject, LocalRegisteredSplitterType, MoveTemp(LocalSplitter));
+}
+
+void FGenerationHelper::Initialize(const UObject* InSplitDataObject,
+	UE::Cook::Private::FRegisteredCookPackageSplitter* InRegisteredSplitterType,
+	TUniquePtr<ICookPackageSplitter>&& InCookPackageSplitterInstance)
+{
+	check(InSplitDataObject);
+	if (InitializeStatus != EInitializeStatus::Uninitialized)
+	{
+		// If we already have a splitter, keep the old and throw out the new. The old one
+		// still contains some state.
+		return;
+	}
+
+	RegisteredSplitterType = InRegisteredSplitterType;
+	CookPackageSplitterInstance = MoveTemp(InCookPackageSplitterInstance);
+	InitializeStatus = EInitializeStatus::Valid;
+
+	SplitDataObject = InSplitDataObject;
+	SplitDataObjectName = FName(FStringView(InSplitDataObject->GetFullName()));
+	bUseInternalReferenceToAvoidGarbageCollect =
+		CookPackageSplitterInstance->UseInternalReferenceToAvoidGarbageCollect();
+}
+
+void FGenerationHelper::InitializeAsInvalid()
+{
+	if (InitializeStatus != EInitializeStatus::Uninitialized)
+	{
+		return;
+	}
+	InitializeStatus = EInitializeStatus::Invalid;
+}
+
+UPackage* FGenerationHelper::FindOrLoadPackage(UCookOnTheFlyServer& COTFS, FPackageData& OwnerPackageData)
+{
+	// This is the static helper function on FGenerationHelper that loads the package for any FPackageData; for the
+	// member variable function that uses the cached pointer, see FindOrLoadOwnerPackage.
+	FName OwnerPackageName = OwnerPackageData.GetPackageName();
+	UPackage* Result = FindObjectFast<UPackage>(nullptr, OwnerPackageName);
+
+	if (!Result || !Result->IsFullyLoaded())
+	{
+		COTFS.LoadPackageForCooking(OwnerPackageData, Result);
+		if (!Result || !Result->IsFullyLoaded())
+		{
+			return nullptr;
+		}
+	}
+	return Result;
+}
+
+void FGenerationHelper::SearchForRegisteredSplitDataObject(UCookOnTheFlyServer& COTFS,
+	FName PackageName, UPackage* Package,
+	TOptional<TConstArrayView<UE::Cook::FCachedObjectInOuter>> CachedObjectsInOuter,
+	UObject*& OutSplitDataObject, UE::Cook::Private::FRegisteredCookPackageSplitter*& OutRegisteredSplitter,
+	TUniquePtr<ICookPackageSplitter>& OutSplitterInstance)
+{
+	OutSplitDataObject = nullptr;
+	OutRegisteredSplitter = nullptr;
+	OutSplitterInstance = nullptr;
+	check(Package != nullptr || CachedObjectsInOuter.IsSet());
+
+	UObject* LocalSplitDataObject = nullptr;
+	Private::FRegisteredCookPackageSplitter* SplitterType = nullptr;
+	TArray<Private::FRegisteredCookPackageSplitter*> FoundRegisteredSplitters;
+	auto TryLookForSplitterOfObject =
+		[&COTFS, PackageName, &FoundRegisteredSplitters, &SplitterType, &LocalSplitDataObject](UObject* Obj)
+		{
+			FoundRegisteredSplitters.Reset();
+			COTFS.RegisteredSplitDataClasses.MultiFind(Obj->GetClass(), FoundRegisteredSplitters);
+
+			for (Private::FRegisteredCookPackageSplitter* SplitterForObject : FoundRegisteredSplitters)
+			{
+				if (SplitterForObject && SplitterForObject->ShouldSplitPackage(Obj))
+				{
+					if (!Obj->HasAnyFlags(RF_Public))
+					{
+						UE_LOG(LogCook, Error,
+							TEXT("SplitterData object %s must be publicly referenceable so we can keep them from being garbage collected"),
+							*Obj->GetFullName());
+						return false;
+					}
+
+					if (SplitterType)
+					{
+						UE_LOG(LogCook, Error,
+							TEXT("Found more than one registered Cook Package Splitter for package %s."),
+							*PackageName.ToString());
+						return false;
+					}
+
+					SplitterType = SplitterForObject;
+					LocalSplitDataObject = Obj;
+				}
+			}
+			return true;
+		};
+
+	if (CachedObjectsInOuter.IsSet())
+	{
+		// CachedObjectsInOuter might be set but empty for e.g. a generated package that has not been populated
+		for (const FCachedObjectInOuter& CachedObjectInOuter : *CachedObjectsInOuter)
+		{
+			UObject* Obj = CachedObjectInOuter.Object.Get();
+			if (!Obj)
+			{
+				continue;
+			}
+			if (!TryLookForSplitterOfObject(Obj))
+			{
+				return; // error condition, exit the entire search function
+			}
+		}
+	}
+	else
+	{
+		TArray<UObject*> ObjectsInPackage;
+		GetObjectsWithOuter(Package, ObjectsInPackage, true /* bIncludeNestedObjects */,
+			RF_NoFlags, EInternalObjectFlags::Garbage);
+		for (UObject* Obj : ObjectsInPackage)
+		{
+			if (!TryLookForSplitterOfObject(Obj))
+			{
+				return; // error condition, exit the entire search function
+			}
+		}
+	}
+
+	if (!SplitterType)
+	{
+		return;
+	}
+
+	// Create instance of CookPackageSplitter class
+	ICookPackageSplitter* SplitterInstance = SplitterType->CreateInstance(LocalSplitDataObject);
+	if (!SplitterInstance)
+	{
+		UE_LOG(LogCook, Error, TEXT("Error instantiating Cook Package Splitter %s for object %s."),
+			*SplitterType->GetSplitterDebugName(), *LocalSplitDataObject->GetFullName());
+		return;
+	}
+
+	OutSplitDataObject = LocalSplitDataObject;
+	OutRegisteredSplitter = SplitterType;
+	OutSplitterInstance.Reset(SplitterInstance);
+}
+
+void FGenerationHelper::ClearSelfReferences()
+{
+	// Any references we release might be the last reference and cause *this to be deleted,
+	// so create a local reference to keep it alive until the end of the function.
+	TRefCountPtr<FGenerationHelper> LocalRef(this);
+	ClearKeepForIterative();
+	ClearKeepForGeneratorSave();
+	ClearKeepForQueueResults();
+}
+
+FCookGenerationInfo* FGenerationHelper::FindInfo(const FPackageData& PackageData)
+{
+	ConditionalInitialize();
+
+	if (&PackageData == &GetOwner())
+	{
+		return &OwnerInfo;
+	}
+	for (FCookGenerationInfo& Info : PackagesToGenerate)
+	{
+		if (Info.PackageData == &PackageData)
+		{
+			return &Info;
+		}
+	}
+	return nullptr;
+}
+
+const FCookGenerationInfo* FGenerationHelper::FindInfo(const FPackageData& PackageData) const
+{
+	return const_cast<FGenerationHelper*>(this)->FindInfo(PackageData);
+}
+
+UObject* FGenerationHelper::FindOrLoadSplitDataObject()
+{
+	if (!IsValid())
+	{
+		return nullptr;
+	}
+	UObject* Result = SplitDataObject.Get();
+	if (Result)
+	{
+		return Result;
+	}
+
+	FString ObjectPath = GetSplitDataObjectName().ToString();
+	// SplitDataObjectName is a FullObjectPath; strip off the leading <ClassName> in
+	// "<ClassName> <Package>.<Object>:<SubObject>"
+	int32 ClassDelimiterIndex = -1;
+	if (ObjectPath.FindChar(' ', ClassDelimiterIndex))
+	{
+		ObjectPath.RightChopInline(ClassDelimiterIndex + 1);
+	}
+
+	Result = FindObject<UObject>(nullptr, *ObjectPath);
+	if (!Result)
+	{
+		FPackageData& OwnerPackageData = GetOwner();
+		FName OwnerPackageName = OwnerPackageData.GetPackageName();
+		UCookOnTheFlyServer& COTFS = OwnerPackageData.GetPackageDatas().GetCookOnTheFlyServer();
+		UPackage* LocalOwnerPackage;
+		COTFS.LoadPackageForCooking(OwnerPackageData, LocalOwnerPackage);
+
+		Result = FindObject<UObject>(nullptr, *ObjectPath);
+		if (!Result)
+		{
+			return nullptr;
+		}
+	}
+
+	SplitDataObject = Result;
+	return Result;
+}
+
+UPackage* FGenerationHelper::GetOwnerPackage()
+{
+	UPackage* Result = OwnerPackage.Get();
+	if (!Result && !OwnerPackage.GetEvenIfUnreachable())
+	{
+		OwnerPackage = FindObjectFast<UPackage>(nullptr, GetOwner().GetPackageName());
+		Result = OwnerPackage.Get();
+	}
+	return Result;
+}
+
+UPackage* FGenerationHelper::FindOrLoadOwnerPackage(UCookOnTheFlyServer& COTFS)
+{
+	UPackage* Result = GetOwnerPackage();
+	if (!Result)
+	{
+		Result = FindOrLoadPackage(COTFS, GetOwner());
+	}
+	return Result;
+}
+
+bool FGenerationHelper::TryGenerateList()
+{
+	if (bGeneratedList)
+	{
+		return true;
+	}
+	FPackageData& OwnerPackageData = GetOwner();
+	FName OwnerPackageName = OwnerPackageData.GetPackageName();
+	if (!IsValid())
+	{
+		// Unexpected, caller should not call in this case
+		UE_LOG(LogCook, Error, TEXT("TryGenerateList failed for package %s: Called on an invalid FGenerationHelper."),
+			*OwnerPackageName.ToString());
+		FDebug::DumpStackTraceToLog(ELogVerbosity::Warning);
+		return false;
+	}
+
+	FPackageDatas& PackageDatas = OwnerPackageData.GetPackageDatas();
+	UCookOnTheFlyServer& COTFS = PackageDatas.GetCookOnTheFlyServer();
+	UObject* OwnerObject = FindOrLoadSplitDataObject();
+	if (!OwnerObject)
+	{
+		// Unexpected, we found it earlier when we marked valid.
+		UE_LOG(LogCook, Error, TEXT("TryGenerateList failed for package %s: Valid GenerationHelper but could not find OwnerObject."),
+			*OwnerPackageName.ToString());
+		FDebug::DumpStackTraceToLog(ELogVerbosity::Warning);
+		return false;
+	}
+
+	UPackage* LocalOwnerPackage = OwnerObject->GetPackage();
 
 	TArray<ICookPackageSplitter::FGeneratedPackage> GeneratorDatas;
 	{
-		UCookOnTheFlyServer::FScopedActivePackage ScopedActivePackage(COTFS, OwnerPackageData.GetPackageName(),
+		UCookOnTheFlyServer::FScopedActivePackage ScopedActivePackage(COTFS, OwnerPackageName,
 			PackageAccessTrackingOps::NAME_CookerBuildObject);
 		GeneratorDatas = GetCookPackageSplitterInstance()->GetGenerateList(LocalOwnerPackage, OwnerObject);
 	}
 	PackagesToGenerate.Reset(GeneratorDatas.Num());
 	TArray<const ITargetPlatform*, TInlineAllocator<1>> PlatformsToCook;
 	OwnerPackageData.GetPlatformsNeedingCooking(PlatformsToCook);
-	bool bHybridIterativeEnabled = COTFS.bHybridIterativeEnabled;
-
-	int32 NumIterativeUnmodified = 0;
-	int32 NumIterativeModified = 0; 
-	int32 NumIterativeRemoved = 0;
-	int32 NumIterativePrevious = PreviousGeneratedPackages.Num();
 
 	for (ICookPackageSplitter::FGeneratedPackage& SplitterData : GeneratorDatas)
 	{
@@ -1658,13 +2039,13 @@ bool FGenerationHelper::TryGenerateList(UObject* OwnerObject, FPackageDatas& Pac
 		{
 			UE_LOG(LogCook, Error,
 				TEXT("PackageSplitter did not specify whether CreateAsMap is true for generated package. Splitter=%s, Generated=%s."),
-				*this->GetSplitDataObjectName().ToString(), *OwnerPackageData.GetPackageName().ToString());
+				*this->GetSplitDataObjectName().ToString(), *OwnerPackageName.ToString());
 			return false;
 		}
 		bool bCreateAsMap = *SplitterData.GetCreateAsMap();
 
 		FString PackageRoot = SplitterData.GeneratedRootPath.IsEmpty() ?
-			OwnerPackageData.GetPackageName().ToString() : SplitterData.GeneratedRootPath;
+			OwnerPackageName.ToString() : SplitterData.GeneratedRootPath;
 
 		FString PackageName = FPaths::RemoveDuplicateSlashes(FString::Printf(TEXT("/%s/%s/%s"),
 			*PackageRoot, GeneratedPackageSubPath, *SplitterData.RelativePath));
@@ -1678,11 +2059,10 @@ bool FGenerationHelper::TryGenerateList(UObject* OwnerObject, FPackageDatas& Pac
 				*this->GetSplitDataObjectName().ToString(), *PackageName);
 			return false;
 		}
-		PackageData->SetGenerated(true);
-		// No package should be generated by two different splitters. If an earlier run of this splitter generated
-		// the package, the package's owner should have been reset to null when we called ClearGeneratedPackages
-		// between then and now
-		check(PackageData->GetGeneratedOwner() == nullptr);
+		// No package should be generated by two different splitters.
+		check(PackageData->GetParentGenerator().IsNone() ||
+			PackageData->GetParentGenerator() == OwnerPackageName);
+		PackageData->SetGenerated(OwnerPackageName);
 		if (IFileManager::Get().FileExists(*PackageData->GetFileName().ToString()))
 		{
 			UE_LOG(LogCook, Warning,
@@ -1709,47 +2089,285 @@ bool FGenerationHelper::TryGenerateList(UObject* OwnerObject, FPackageDatas& Pac
 			[](const FAssetDependency& A, const FAssetDependency& B) { return A.LexicalLess(B); });
 		GeneratedInfo.PackageDependencies.SetNum(Algo::Unique(GeneratedInfo.PackageDependencies));
 		GeneratedInfo.SetIsCreateAsMap(bCreateAsMap);
-		PackageData->SetGeneratedOwner(this);
-		PackageData->SetWorkerAssignmentConstraint(FWorkerId::Local());
+		if (COTFS.MPCookGeneratorSplit == UE::Cook::EMPCookGeneratorSplit::AllOnSameWorker)
+		{
+			PackageData->SetWorkerAssignmentConstraint(FWorkerId::Local());
+		}
 
 		// Create the Hash from the GenerationHash and Dependencies
 		GeneratedInfo.CreatePackageHash();
-
-		FIoHash PreviousHash;
-		if (PreviousGeneratedPackages.RemoveAndCopyValue(PackageFName, PreviousHash) && !bHybridIterativeEnabled)
-		{
-			bool bIterativelyUnmodified;
-			GeneratedInfo.IterativeCookValidateOrClear(*this, PlatformsToCook, PreviousHash, bIterativelyUnmodified);
-			++(bIterativelyUnmodified ? NumIterativeUnmodified : NumIterativeModified);
-		}
 	}
+
+	bGeneratedList = true;
+	return true;
+}
+
+void FGenerationHelper::StartOwnerSave()
+{
+	if (!IsValid())
+	{
+		return;
+	}
+	UE_LOG(LogCook, Display, TEXT("Splitting Package %s with splitter %s acting on object %s."),
+		*WriteToString<256>(GetOwner().GetPackageName()),
+		*GetRegisteredSplitterType()->GetSplitterDebugName(),
+		*WriteToString<256>(GetSplitDataObjectName()));
+	SetKeepForGeneratorSave();
+}
+
+void FGenerationHelper::StartQueueGeneratedPackages(UCookOnTheFlyServer& COTFS)
+{
+	if (!IsValid())
+	{
+		return;
+	}
+	NotifyStartQueueGeneratedPackages(COTFS, FWorkerId::Local());
+
+	bool bHybridIterativeEnabled = COTFS.bHybridIterativeEnabled;
 	if (!PreviousGeneratedPackages.IsEmpty())
 	{
-		NumIterativeRemoved = PreviousGeneratedPackages.Num();
-		for (TPair<FName, FIoHash>& Pair : PreviousGeneratedPackages)
+		FPackageData& OwnerPackageData = GetOwner();
+		TArray<const ITargetPlatform*, TInlineAllocator<1>> PlatformsToCook;
+		OwnerPackageData.GetPlatformsNeedingCooking(PlatformsToCook);
+
+		int32 NumIterativeUnmodified = 0;
+		int32 NumIterativeModified = 0;
+		int32 NumIterativeRemoved = 0;
+		int32 NumIterativePrevious = PreviousGeneratedPackages.Num();
+
+		for (FCookGenerationInfo& GeneratedInfo : PackagesToGenerate)
 		{
-			for (const ITargetPlatform* TargetPlatform : PlatformsToCook)
+			if (!GeneratedInfo.PackageData)
 			{
-				COTFS.DeleteOutputForPackage(Pair.Key, TargetPlatform);
+				continue;
+			}
+			FIoHash PreviousHash;
+			if (PreviousGeneratedPackages.RemoveAndCopyValue(GeneratedInfo.PackageData->GetPackageName(), PreviousHash)
+				&& !bHybridIterativeEnabled)
+			{
+				bool bIterativelyUnmodified;
+				GeneratedInfo.IterativeCookValidateOrClear(*this, PlatformsToCook, PreviousHash, bIterativelyUnmodified);
+				++(bIterativelyUnmodified ? NumIterativeUnmodified : NumIterativeModified);
 			}
 		}
-		PreviousGeneratedPackages.Empty();
+		if (!PreviousGeneratedPackages.IsEmpty())
+		{
+			NumIterativeRemoved = PreviousGeneratedPackages.Num();
+			for (TPair<FName, FIoHash>& Pair : PreviousGeneratedPackages)
+			{
+				for (const ITargetPlatform* TargetPlatform : PlatformsToCook)
+				{
+					COTFS.DeleteOutputForPackage(Pair.Key, TargetPlatform);
+				}
+			}
+			PreviousGeneratedPackages.Empty();
+		}
+		ClearKeepForIterative();
+
+		if (NumIterativePrevious > 0 && !bHybridIterativeEnabled)
+		{
+			UE_LOG(LogCook, Display, TEXT("Found %d cooked package(s) in package store for generator package %s."),
+				NumIterativePrevious, *WriteToString<256>(GetOwner().GetPackageName()));
+			UE_LOG(LogCook, Display, TEXT("Keeping %d. Recooking %d. Removing %d."),
+				NumIterativeUnmodified, NumIterativeModified, NumIterativeRemoved);
+		}
 	}
-	if (NumIterativePrevious > 0 && !bHybridIterativeEnabled)
+}
+
+void FGenerationHelper::NotifyStartQueueGeneratedPackages(UCookOnTheFlyServer& COTFS, FWorkerId SourceWorkerId)
+{
+	// Note this function can be called on an uninitialized Generator; the generator is only needed
+	// on the director so it can serve as the passer of messages. We have to keep ourselves referenced after
+	// this call, until after we send EGeneratorEvent::QueuedGeneratedPackagesFencePassed, so that we don't destruct
+	// and lose the WorkerIdThatSavedGenerator information.
+	if (COTFS.CookDirector)
 	{
-		UE_LOG(LogCook, Display, TEXT("Found %d cooked package(s) in package store for generator package %s."),
-			NumIterativePrevious, *WriteToString<256>(GetOwner().GetPackageName()));
-		UE_LOG(LogCook, Display, TEXT("Keeping %d. Recooking %d. Removing %d."),
-			NumIterativeUnmodified, NumIterativeModified, NumIterativeRemoved);
+		COTFS.PackageDatas->GetRequestQueue().AddRequestFenceListener(GetOwner().GetPackageName());
+		WorkerIdThatSavedGenerator = SourceWorkerId;
+	}
+	SetKeepForQueueResults();
+}
+
+void FGenerationHelper::EndQueueGeneratedPackages(UCookOnTheFlyServer& COTFS)
+{
+	SetKeepForQueueResults();
+	COTFS.WorkerRequests->EndQueueGeneratedPackages(COTFS, *this);
+}
+
+void FGenerationHelper::EndQueueGeneratedPackagesOnDirector(UCookOnTheFlyServer& COTFS, FWorkerId SourceWorkerId)
+{
+	// Note this function can be called on an uninitialized Generator; the generator is only needed
+	// on the director so it can serve as the passer of messages.
+	COTFS.PackageDatas->GetRequestQueue().AddRequestFenceListener(GetOwner().GetPackageName());
+	SetKeepForQueueResults();
+
+	// Setting the WorkerIdThatSavedGenerator in response to this event is usually not needed because it is also set
+	// from the reported GeneratedPackages, but we set it anyway in case there is an edge condition that skips those
+	// notifications.
+	WorkerIdThatSavedGenerator = SourceWorkerId;
+}
+
+void FGenerationHelper::OnRequestFencePassedBroadcast(UCookOnTheFlyServer& COTFS)
+{
+	if (COTFS.CookDirector)
+	{
+		// Broadcast GenerationMessage API
+		COTFS.CookDirector->BroadcastGeneratorFencePassed(*this);
+	}
+	OnRequestFencePassed(COTFS);
+}
+
+void FGenerationHelper::OnRequestFencePassed(UCookOnTheFlyServer& COTFS)
+{
+	ClearKeepForQueueResults();
+	// We no longer need PreviousGeneratedPackages or KeepForIterative, because they are used (and cleared) in
+	// StartQueueGeneratedPackages. Clear them as well on the director and any CookWorkers that received it to
+	// free memory.
+	ClearKeepForIterative();
+	PreviousGeneratedPackages.Empty();
+}
+
+UPackage* FGenerationHelper::CreateGeneratedUPackage(FCookGenerationInfo& GeneratedInfo,
+	const UPackage* InOwnerPackage, const TCHAR* GeneratedPackageName)
+{
+	if (!IsValid())
+	{
+		return nullptr;
 	}
 
-	RemainingToPopulate = GeneratorDatas.Num() + 1; // GeneratedPackaged plus one for the Generator
-	return true;
+#if ENABLE_COOK_STATS
+	++DetailedCookStats::NumRequestedLoads;
+#endif
+	UPackage* GeneratedPackage = CreatePackage(GeneratedPackageName);
+	GeneratedPackage->SetSavedHash(GeneratedInfo.PackageHash);
+	GeneratedPackage->SetPersistentGuid(InOwnerPackage->GetPersistentGuid());
+	GeneratedPackage->SetPackageFlags(PKG_CookGenerated);
+	GeneratedInfo.SetHasCreatedPackage(true);
+	if (!InOwnerPackage->IsLoadedByEditorPropertiesOnly())
+	{
+		GeneratedPackage->SetLoadedByEditorPropertiesOnly(false);
+	}
+
+	return GeneratedPackage;
+}
+
+void FGenerationHelper::ResetSaveState(FCookGenerationInfo& Info, UPackage* Package,
+	EStateChangeReason ReleaseSaveReason)
+{
+	ConditionalInitialize();
+
+	// We release references to *this in this function so keep a local reference to avoid deletion during the function.
+	TRefCountPtr<FGenerationHelper> LocalRefCount = this;
+
+	if (Info.GetSaveState() > FCookGenerationInfo::ESaveState::CallPopulate)
+	{
+		UObject* SplitObject = GetWeakSplitDataObject();
+		UPackage* LocalOwnerPackage = Info.IsGenerator() ? Package : GetOwnerPackage();
+		if (!SplitObject || !Package || !LocalOwnerPackage)
+		{
+			UE_LOG(LogCook, Warning,
+				TEXT("PackageSplitter: %s on %s was GarbageCollected before we finished saving it. This prevents us from calling PostSave and may corrupt other packages that it altered during Populate. Splitter=%s."),
+				(!Package ? TEXT("UPackage") :
+					(!LocalOwnerPackage ? TEXT("ParentGenerator UPackage") : TEXT("SplitDataObject"))),
+				Info.PackageData ? *Info.PackageData->GetPackageName().ToString() : *Info.RelativePath,
+				*GetSplitDataObjectName().ToString());
+		}
+		else
+		{
+			UCookOnTheFlyServer& COTFS = GetOwner().GetPackageDatas().GetCookOnTheFlyServer();
+			UCookOnTheFlyServer::FScopedActivePackage ScopedActivePackage(COTFS, GetOwner().GetPackageName(),
+				PackageAccessTrackingOps::NAME_CookerBuildObject);
+			if (Info.IsGenerator())
+			{
+				GetCookPackageSplitterInstance()->PostSaveGeneratorPackage(Package, SplitObject);
+			}
+			else
+			{
+				ICookPackageSplitter::FGeneratedPackageForPopulate PopulateInfo;
+				PopulateInfo.RelativePath = Info.RelativePath;
+				PopulateInfo.GeneratedRootPath = Info.GeneratedRootPath;
+				PopulateInfo.bCreatedAsMap = Info.IsCreateAsMap();
+				PopulateInfo.Package = Package;
+				GetCookPackageSplitterInstance()->PostSaveGeneratedPackage(LocalOwnerPackage, SplitObject,
+					PopulateInfo);
+			}
+		}
+	}
+
+	if (ReleaseSaveReason == EStateChangeReason::RecreateObjectCache ||
+		ReleaseSaveReason == EStateChangeReason::DoneForNow)
+	{
+		if (Info.IsGenerator())
+		{
+			if (Info.GetSaveState() >= FCookGenerationInfo::ESaveState::StartPopulate)
+			{
+				Info.SetSaveState(FCookGenerationInfo::ESaveState::StartPopulate);
+			}
+			else
+			{
+				// Redo all the steps since we didn't make it to the FinishCachePreObjectsToMove.
+				// Restarting in the middle of that flow is not robust
+				Info.SetSaveState(FCookGenerationInfo::ESaveState::StartSave);
+			}
+		}
+		else
+		{
+			Info.SetSaveState(FCookGenerationInfo::ESaveState::StartPopulate);
+		}
+	}
+	else
+	{
+		// The save is completed and we will not come back to it; set state back to initial
+		// state and drop our reference keeping this GenerationHelper in memory for the save.
+		if (ReleaseSaveReason == EStateChangeReason::Completed)
+		{
+			Info.SetHasSaved(true);
+		}
+
+		if (Info.IsGenerator())
+		{
+			ClearKeepForGeneratorSave();
+			Info.SetSaveState(FCookGenerationInfo::ESaveState::StartSave);
+		}
+		else
+		{
+			Info.SetSaveState(FCookGenerationInfo::ESaveState::StartPopulate);
+			if (Info.PackageData)
+			{
+				Info.PackageData->SetParentGenerationHelper(nullptr);
+			}
+		}
+	}
+
+	if (Info.HasTakenOverCachedCookedPlatformData())
+	{
+		if (Info.PackageData && Info.PackageData->GetCachedObjectsInOuter().Num() != 0 &&
+			IsUseInternalReferenceToAvoidGarbageCollect() &&
+			(ReleaseSaveReason != EStateChangeReason::Completed && ReleaseSaveReason != EStateChangeReason::DoneForNow
+				&& ReleaseSaveReason != EStateChangeReason::SaveError
+				 && ReleaseSaveReason != EStateChangeReason::CookerShutdown))
+		{
+			UE_LOG(LogCook, Error,
+				TEXT("CookPackageSplitter failure: We are demoting a %s package from save and removing our references that keep its objects loaded.\n")
+				TEXT("This will allow the objects to be garbage collected and cause failures in the splitter which expects them to remain loaded.\n")
+				TEXT("Package=%s, Splitter=%s, ReleaseSaveReason=%s"),
+				Info.IsGenerator() ? TEXT("generator") : TEXT("generated"),
+				Info.PackageData ? *Info.PackageData->GetPackageName().ToString() : *Info.RelativePath,
+				*GetSplitDataObjectName().ToString(), LexToString(ReleaseSaveReason));
+		}
+		Info.CachedObjectsInOuterInfo.Empty();
+		Info.SetHasTakenOverCachedCookedPlatformData(false);
+	}
+	Info.SetHasIssuedUndeclaredMovedObjectsWarning(false);
+	Info.KeepReferencedPackages.Reset();
 }
 
 void FGenerationHelper::FetchExternalActorDependencies()
 {
-	check(IsInitialized());
+	if (!IsValid())
+	{
+		return;
+	}
 
 	// The Generator package declares all its ExternalActor dependencies in its AssetRegistry dependencies
 	// The Generator's generated packages can also include ExternalActors from other maps due to level instancing,
@@ -1772,7 +2390,9 @@ void FGenerationHelper::FetchExternalActorDependencies()
 	FThreadSafeSet<FName>& NeverCookPackageList =
 		GetOwner().GetPackageDatas().GetCookOnTheFlyServer().PackageTracker->NeverCookPackageList;
 
-	// Keep only on-disk PackageDatas that are marked as NeverCook
+	// We are supposed to collect only ExternalActor dependencies, but we collected every dependency from the
+	// generated packages. Remove the packages that are not external actors, which we detect by being on-disk
+	// PackageDatas that are marked as NeverCook
 	ExternalActorDependencies.RemoveAll([&PackageDatas, &NeverCookPackageList](FName PackageName)
 		{
 			FPackageData* PackageData = PackageDatas.TryAddPackageDataByPackageName(PackageName);
@@ -1786,48 +2406,10 @@ void FGenerationHelper::FetchExternalActorDependencies()
 	ExternalActorDependencies.Shrink();
 }
 
-FCookGenerationInfo* FGenerationHelper::FindInfo(const FPackageData& PackageData)
+void FGenerationHelper::SetPreviousGeneratedPackages(TMap<FName, FIoHash>&& Packages)
 {
-	check(IsInitialized());
-
-	if (&PackageData == &GetOwner())
-	{
-		return &OwnerInfo;
-	}
-	for (FCookGenerationInfo& Info : PackagesToGenerate)
-	{
-		if (Info.PackageData == &PackageData)
-		{
-			return &Info;
-		}
-	}
-	return nullptr;
-}
-const FCookGenerationInfo* FGenerationHelper::FindInfo(const FPackageData& PackageData) const
-{
-	return const_cast<FGenerationHelper*>(this)->FindInfo(PackageData);
-}
-
-ICookPackageSplitter* FGenerationHelper::GetCookPackageSplitterInstance() const
-{
-	checkf(!bNotifiedCompletion,
-		TEXT("It is illegal for the cooker to try to access the CookPackageSplitterInstance after calling Teardown on it."));
-	return CookPackageSplitterInstance.Get();
-}
-
-UObject* FGenerationHelper::FindSplitDataObject() const
-{
-	check(IsInitialized());
-	FString ObjectPath = GetSplitDataObjectName().ToString();
-
-	// SplitDataObjectName is a FullObjectPath; strip off the leading <ClassName> in
-	// "<ClassName> <Package>.<Object>:<SubObject>"
-	int32 ClassDelimiterIndex = -1;
-	if (ObjectPath.FindChar(' ', ClassDelimiterIndex))
-	{
-		ObjectPath.RightChopInline(ClassDelimiterIndex + 1);
-	}
-	return FindObject<UObject>(nullptr, *ObjectPath);
+	SetKeepForIterative();
+	PreviousGeneratedPackages = MoveTemp(Packages);
 }
 
 void FGenerationHelper::PreGarbageCollect(FCookGenerationInfo& Info, TArray<TObjectPtr<UObject>>& GCKeepObjects,
@@ -1894,7 +2476,7 @@ void FGenerationHelper::PostGarbageCollect()
 	{
 		// UCookOnTheFlyServer::PreGarbageCollect adds references for the Generator package and all its public
 		// objects, so it should still be loaded
-		if (!Owner.GetPackage() || !FindSplitDataObject())
+		if (!Owner.GetPackage() || !GetWeakSplitDataObject())
 		{
 			UE_LOG(LogCook, Error,
 				TEXT("PackageSplitter object was deleted by garbage collection while generation was still ongoing. This will break the generation.")
@@ -1910,8 +2492,7 @@ void FGenerationHelper::PostGarbageCollect()
 		UPackage* LocalOwnerPackage = FindObject<UPackage>(nullptr, *Owner.GetPackageName().ToString());
 		if (LocalOwnerPackage)
 		{
-			if (RemainingToPopulate > 0 &&
-				!Owner.IsKeepReferencedDuringGC() &&
+			if (!Owner.IsInProgress() && !Owner.IsKeepReferencedDuringGC() &&
 				!IsUseInternalReferenceToAvoidGarbageCollect())
 			{
 				UE_LOG(LogCook, Error,
@@ -1954,132 +2535,6 @@ void FGenerationHelper::PostGarbageCollect()
 			Info.SetHasCreatedPackage(false);
 		}
 	}
-}
-
-UPackage* FGenerationHelper::CreateGeneratedUPackage(FCookGenerationInfo& GeneratedInfo,
-	const UPackage* InOwnerPackage, const TCHAR* GeneratedPackageName)
-{
-	check(IsInitialized());
-#if ENABLE_COOK_STATS
-	++DetailedCookStats::NumRequestedLoads;
-#endif
-	UPackage* GeneratedPackage = CreatePackage(GeneratedPackageName);
-	GeneratedPackage->SetSavedHash(GeneratedInfo.PackageHash);
-	GeneratedPackage->SetPersistentGuid(InOwnerPackage->GetPersistentGuid());
-	GeneratedPackage->SetPackageFlags(PKG_CookGenerated);
-	GeneratedInfo.SetHasCreatedPackage(true);
-	if (!InOwnerPackage->IsLoadedByEditorPropertiesOnly())
-	{
-		GeneratedPackage->SetLoadedByEditorPropertiesOnly(false);
-	}
-
-	return GeneratedPackage;
-}
-
-void FGenerationHelper::SetPackageSaved(FCookGenerationInfo& Info, FPackageData& PackageData)
-{
-	check(IsInitialized());
-	if (Info.HasSaved())
-	{
-		return;
-	}
-	Info.SetHasSaved(true);
-	--RemainingToPopulate;
-	check(RemainingToPopulate >= 0);
-	if (IsComplete())
-	{
-		ConditionalNotifyCompletion(ICookPackageSplitter::ETeardown::Complete);
-	}
-}
-
-bool FGenerationHelper::IsComplete() const
-{
-	check(IsInitialized());
-	return RemainingToPopulate == 0;
-}
-
-void FGenerationHelper::ResetSaveState(FCookGenerationInfo& Info, UPackage* Package,
-	EStateChangeReason ReleaseSaveReason)
-{
-	check(IsInitialized());
-	if (Info.GetSaveState() > FCookGenerationInfo::ESaveState::CallPopulate)
-	{
-		UObject* SplitObject = FindSplitDataObject();
-		if (!SplitObject || !Package)
-		{
-			UE_LOG(LogCook, Warning,
-				TEXT("PackageSplitter: %s on %s was GarbageCollected before we finished saving it. This prevents us from calling PostSave and may corrupt other packages that it altered during Populate. Splitter=%s."),
-				(!Package ? TEXT("UPackage") : TEXT("SplitDataObject")),
-				Info.PackageData ? *Info.PackageData->GetPackageName().ToString() : *Info.RelativePath,
-				*GetSplitDataObjectName().ToString());
-		}
-		else
-		{
-			UCookOnTheFlyServer& COTFS = Info.PackageData->GetPackageDatas().GetCookOnTheFlyServer();
-			UCookOnTheFlyServer::FScopedActivePackage ScopedActivePackage(COTFS, GetOwner().GetPackageName(),
-				PackageAccessTrackingOps::NAME_CookerBuildObject);
-			if (Info.IsGenerator())
-			{
-				GetCookPackageSplitterInstance()->PostSaveGeneratorPackage(Package, SplitObject);
-			}
-			else
-			{
-				ICookPackageSplitter::FGeneratedPackageForPopulate PopulateInfo;
-				PopulateInfo.RelativePath = Info.RelativePath;
-				PopulateInfo.GeneratedRootPath = Info.GeneratedRootPath;
-				PopulateInfo.bCreatedAsMap = Info.IsCreateAsMap();
-				PopulateInfo.Package = Package;
-				GetCookPackageSplitterInstance()->PostSaveGeneratedPackage(GetOwnerPackage(), SplitObject,
-					PopulateInfo);
-			}
-		}
-	}
-
-	if (Info.IsGenerator())
-	{
-		if (ReleaseSaveReason == EStateChangeReason::RecreateObjectCache ||
-			ReleaseSaveReason == EStateChangeReason::DoneForNow)
-		{
-			if (Info.GetSaveState() >= FCookGenerationInfo::ESaveState::StartPopulate)
-			{
-				Info.SetSaveState(FCookGenerationInfo::ESaveState::StartPopulate);
-			}
-			else
-			{
-				// Redo all the steps since we didn't make it to the FinishCachePreObjectsToMove.
-				// Restarting in the middle of that flow is not robust
-				Info.SetSaveState(FCookGenerationInfo::ESaveState::StartGenerate);
-			}
-		}
-		else
-		{
-			Info.SetSaveState(FCookGenerationInfo::ESaveState::StartGenerate);
-		}
-	}
-	else
-	{
-		Info.SetSaveState(FCookGenerationInfo::ESaveState::StartPopulate);
-	}
-	if (Info.HasTakenOverCachedCookedPlatformData())
-	{
-		if (Info.PackageData && Info.PackageData->GetCachedObjectsInOuter().Num() != 0 &&
-			IsUseInternalReferenceToAvoidGarbageCollect() &&
-			(ReleaseSaveReason != EStateChangeReason::Completed && ReleaseSaveReason != EStateChangeReason::DoneForNow
-				&& ReleaseSaveReason != EStateChangeReason::SaveError
-				&& ReleaseSaveReason != EStateChangeReason::CookerShutdown))
-		{
-			UE_LOG(LogCook, Error,
-				TEXT("CookPackageSplitter failure: We are demoting a %s package from save and removing our references that keep its objects loaded.\n")
-				TEXT("This will allow the objects to be garbage collected and cause failures in the splitter which expects them to remain loaded.\n")
-				TEXT("Package=%s, Splitter=%s, ReleaseSaveReason=%s"),
-				Info.IsGenerator() ? TEXT("generator") : TEXT("generated"),
-				Info.PackageData ? *Info.PackageData->GetPackageName().ToString() : *Info.RelativePath,
-				*GetSplitDataObjectName().ToString(), LexToString(ReleaseSaveReason));
-		}
-		Info.SetHasTakenOverCachedCookedPlatformData(false);
-	}
-	Info.SetHasIssuedUndeclaredMovedObjectsWarning(false);
-	Info.KeepReferencedPackages.Reset();
 }
 
 void FGenerationHelper::UpdateSaveAfterGarbageCollect(const FPackageData& PackageData, bool& bInOutDemote)
@@ -2185,7 +2640,7 @@ void FGenerationHelper::UpdateSaveAfterGarbageCollect(const FPackageData& Packag
 
 FCookGenerationInfo::FCookGenerationInfo(FPackageData& InPackageData, bool bInGenerator)
 	: PackageData(&InPackageData)
-	, GeneratorSaveState(bInGenerator ? ESaveState::StartGenerate : ESaveState::StartPopulate)
+	, GeneratorSaveState(bInGenerator ? ESaveState::StartSave : ESaveState::StartPopulate)
 	, bCreateAsMap(false), bHasCreatedPackage(false), bHasSaved(false), bTakenOverCachedCookedPlatformData(false)
 	, bIssuedUndeclaredMovedObjectsWarning(false), bGenerator(bInGenerator)
 {
@@ -3203,8 +3658,7 @@ void FPackageDatas::UpdateThreadsafePackageData(const FPackageData& PackageData)
 		[&PackageData](FThreadsafePackageData& ThreadsafeData, bool bNew)
 		{
 			ThreadsafeData.Instigator = PackageData.GetInstigator();
-			FGenerationHelper* GenerationHelper = PackageData.GetGeneratedOwner();
-			ThreadsafeData.Generator = GenerationHelper ? GenerationHelper->GetOwner().GetPackageName() : NAME_None;
+			ThreadsafeData.Generator = PackageData.GetParentGenerator();
 		});
 }
 
@@ -3242,7 +3696,7 @@ void FPackageDatas::Clear()
 {
 	FWriteScopeLock ExistenceWriteLock(ExistenceLock);
 	PendingCookedPlatformDataLists.Empty(); // These destructors will read/write PackageDatas
-	RequestQueue.Empty();
+	RequestQueue.Empty(*this);
 	SaveQueue.Empty();
 	PackageNameToPackageData.Empty();
 	FileNameToPackageData.Empty();
@@ -3479,8 +3933,12 @@ void FPackageDatas::DebugInstigator(FPackageData& PackageData)
 	UpdateThreadsafePackageData(PackageData);
 }
 
-void FRequestQueue::Empty()
+void FRequestQueue::Empty(FPackageDatas& PackageDatas)
 {
+	RestartedRequests.Empty();
+	DiscoveryQueue.Empty();
+	RequestClusters.Empty();
+	NotifyRequestFencePassed(PackageDatas);
 	NormalRequests.Empty();
 	UrgentRequests.Empty();
 }
@@ -3599,6 +4057,28 @@ void FRequestQueue::AddReadyRequest(FPackageData* PackageData, bool bForceUrgent
 	{
 		NormalRequests.Add(PackageData);
 	}
+}
+
+void FRequestQueue::AddRequestFenceListener(FName PackageName)
+{
+	RequestFencePackageListeners.Add(PackageName);
+}
+
+void FRequestQueue::NotifyRequestFencePassed(FPackageDatas& PackageDatas)
+{
+	for (FName PackageName : RequestFencePackageListeners)
+	{
+		FPackageData* PackageData = PackageDatas.FindPackageDataByPackageName(PackageName);
+		if (PackageData)
+		{
+			TRefCountPtr<FGenerationHelper> GenerationHelper = PackageData->GetGenerationHelper();
+			if (GenerationHelper)
+			{
+				GenerationHelper->OnRequestFencePassedBroadcast(PackageDatas.GetCookOnTheFlyServer());
+			}
+		}
+	}
+	RequestFencePackageListeners.Empty();
 }
 
 bool FLoadPrepareQueue::IsEmpty()

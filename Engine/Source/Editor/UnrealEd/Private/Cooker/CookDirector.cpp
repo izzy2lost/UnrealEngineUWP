@@ -340,13 +340,47 @@ void FCookDirector::AssignRequests(TArrayView<FPackageData*> Requests, TArray<FW
 		WorkerIds.Add(RemoteWorker->GetWorkerId());
 	}
 
-	AssignRequests(MoveTemp(WorkerIds), LocalRemoteWorkers, Requests, OutAssignments, MoveTemp(RequestGraph));
+	AssignRequests(MoveTemp(WorkerIds), LocalRemoteWorkers, Requests, OutAssignments, MoveTemp(RequestGraph),
+		true /* bInitialAssignment */);
+}
+
+TMap<FPackageData*, FAssignPackageExtraData> FCookDirector::GetAssignPackageExtraDatas(
+	TConstArrayView<FPackageData*> Requests) const
+{
+	TMap<FPackageData*, FAssignPackageExtraData> Results;
+	for (FPackageData* Request : Requests)
+	{
+		TRefCountPtr<FGenerationHelper> GenerationHelper = Request->GetGenerationHelper();
+		if (GenerationHelper && !GenerationHelper->GetPreviousGeneratedPackages().IsEmpty())
+		{
+			FAssignPackageExtraData& ExtraData = Results.FindOrAdd(Request);
+			ExtraData.GeneratorPreviousGeneratedPackages = GenerationHelper->GetPreviousGeneratedPackages();
+		}
+	}
+	return Results;
+}
+
+TArray<FPackageData*> FCookDirector::GetInfoPackagesForRequests(TConstArrayView<FPackageData*> Requests) const
+{
+	TSet<FPackageData*> InfoPackages;
+	for (FPackageData* Request : Requests)
+	{
+		if (!Request->GetParentGenerator().IsNone())
+		{
+			FPackageData* Generator = COTFS.PackageDatas->FindPackageDataByPackageName(Request->GetParentGenerator());
+			if (Generator)
+			{
+				InfoPackages.Add(Generator);
+			}
+		}
+	}
+	return InfoPackages.Array();
 }
 
 void FCookDirector::AssignRequests(TArray<FWorkerId>&& InWorkers,
 	TArray<TRefCountPtr<FCookWorkerServer>>& InRemoteWorkers,
-	TArrayView<FPackageData*> Requests, TArray<FWorkerId>& OutAssignments, TMap<FPackageData*,
-	TArray<FPackageData*>>&& RequestGraph)
+	TArrayView<FPackageData*> Requests, TArray<FWorkerId>& OutAssignments,
+	TMap<FPackageData*, TArray<FPackageData*>>&& RequestGraph, bool bInitialAssignment)
 {
 	check(InWorkers.Num() > 0);
 	if (InWorkers.Num() <= 1)
@@ -393,7 +427,8 @@ void FCookDirector::AssignRequests(TArray<FWorkerId>&& InWorkers,
 				RequestBuffer = RequestSet.Array();
 				RequestsToSend = RequestBuffer;
 			}
-			(*RemoteWorker)->AppendAssignments(RequestsToSend, ECookDirectorThread::SchedulerThread);
+			(*RemoteWorker)->AppendAssignments(RequestsToSend, GetAssignPackageExtraDatas(RequestsToSend),
+				GetInfoPackagesForRequests(RequestsToSend), ECookDirectorThread::SchedulerThread);
 		}
 		return;
 	}
@@ -418,21 +453,70 @@ void FCookDirector::AssignRequests(TArray<FWorkerId>&& InWorkers,
 		}
 	}
 
+	// Debug function for generated packages. We want to be able to force their assignment to all,some,none
+	// on the same worker that saved their generator.
+	int32 MPCookGeneratorNextWorker = -1;
+	auto GetNextWorkerForGeneratedPackage = [&MPCookGeneratorNextWorker, &InWorkers](FWorkerId WorkerNotToUse)
+		{
+			MPCookGeneratorNextWorker = (MPCookGeneratorNextWorker + 1) % InWorkers.Num();
+			if (InWorkers[MPCookGeneratorNextWorker] == WorkerNotToUse)
+			{
+				MPCookGeneratorNextWorker = (MPCookGeneratorNextWorker + 1) % InWorkers.Num();
+			}
+			return InWorkers[MPCookGeneratorNextWorker];
+		};
 	for (int32 RequestIndex = 0; RequestIndex < Requests.Num(); ++RequestIndex)
 	{
 		FWorkerId& WorkerId = OutAssignments[RequestIndex];
 		// Override the loadbalancer's assignment if the Package has a WorkerAssignmentConstraint
 		// This allows us to guarantee that generated packages will be cooked on the worker that cooked
 		// their generator package
-		FWorkerId WorkerIdConstraint = Requests[RequestIndex]->GetWorkerAssignmentConstraint();
+		FPackageData* RequestPackage = Requests[RequestIndex];
+		FWorkerId WorkerIdConstraint = RequestPackage->GetWorkerAssignmentConstraint();
 		if (WorkerIdConstraint.IsValid())
 		{
 			WorkerId = WorkerIdConstraint;
 		}
 		// Override the loadbalancer's assignment to force it local if the Package is urgent
-		else if (Requests[RequestIndex]->GetIsUrgent())
+		else if (RequestPackage->GetIsUrgent())
 		{
 			WorkerId = FWorkerId::Local();
+		}
+		else if (RequestPackage->IsGenerated() && bInitialAssignment)
+		{
+			TRefCountPtr<FGenerationHelper> GenerationHelper = RequestPackage->GetParentGenerationHelper();
+			if (GenerationHelper)
+			{
+				FWorkerId GeneratorWorker = GenerationHelper->GetWorkerIdThatSavedGenerator();
+				if (GeneratorWorker.IsValid())
+				{
+					switch (COTFS.MPCookGeneratorSplit)
+					{
+					default: // fallthrough
+					case EMPCookGeneratorSplit::AnyWorker:
+						// If we're allowed to put them on any worker, put them on the GeneratorWorker anyway
+						// for the initial assignment since it already has the GenerationHelper created
+						WorkerId = GeneratorWorker;
+						break;
+					case EMPCookGeneratorSplit::AllOnSameWorker:
+						WorkerId = GeneratorWorker;
+						break;
+					case EMPCookGeneratorSplit::SomeOnSameWorker:
+						if ((GenerationHelper->GetMPCookNextAssignmentIndex()++) % 2 == 0)
+						{
+							WorkerId = GeneratorWorker;
+						}
+						else
+						{
+							WorkerId = GetNextWorkerForGeneratedPackage(GeneratorWorker);
+						}
+						break;
+					case EMPCookGeneratorSplit::NoneOnSameWorker:
+						WorkerId = GetNextWorkerForGeneratedPackage(GeneratorWorker);
+						break;
+					}
+				}
+			}
 		}
 
 		if (!WorkerId.IsLocal())
@@ -464,8 +548,9 @@ void FCookDirector::AssignRequests(TArray<FWorkerId>&& InWorkers,
 			TRefCountPtr<FCookWorkerServer>* RemoteWorker = InRemoteWorkers.FindByPredicate(
 				[&WorkerId](const TRefCountPtr<FCookWorkerServer>& X) { return X->GetWorkerId() == WorkerId; });
 			check(RemoteWorker);
-			(*RemoteWorker)->AppendAssignments(RemoteBatches[WorkerId.GetRemoteIndex()],
-				ECookDirectorThread::SchedulerThread);
+			TArray<FPackageData*>& RemoteBatch = RemoteBatches[WorkerId.GetRemoteIndex()];
+			(*RemoteWorker)->AppendAssignments(RemoteBatch,
+				GetAssignPackageExtraDatas(RemoteBatch), GetInfoPackagesForRequests(RemoteBatch), ECookDirectorThread::SchedulerThread);
 		}
 	}
 
@@ -504,6 +589,21 @@ void FCookDirector::RemoveFromWorker(FPackageData& PackageData)
 	}
 
 	OwningWorker->AbortAssignment(PackageData, ECookDirectorThread::SchedulerThread);
+}
+
+void FCookDirector::BroadcastGeneratorFencePassed(FGenerationHelper& GenerationHelper)
+{
+	FName PackageName = GenerationHelper.GetOwner().GetPackageName();
+	FGeneratorEventMessage Message(EGeneratorEvent::QueuedGeneratedPackagesFencePassed, PackageName);
+	{
+		FScopeLock CommunicationScopeLock(&CommunicationLock);
+		InitializeWorkers();
+	}
+	TArray<TRefCountPtr<FCookWorkerServer>> LocalRemoteWorkers = CopyRemoteWorkers();
+	for (TRefCountPtr<FCookWorkerServer>& RemoteWorker : LocalRemoteWorkers)
+	{
+		RemoteWorker->AppendMessage(Message, ECookDirectorThread::SchedulerThread);
+	}
 }
 
 void FCookDirector::TickFromSchedulerThread()
@@ -1933,7 +2033,7 @@ FCookDirector::FRetractionHandler::ReassignPackages(const FWorkerId& FromWorker,
 	TMap<FPackageData*, TArray<FPackageData*>> RequestGraph;
 	TArray<FWorkerId> Assignments;
 	Director.AssignRequests(MoveTemp(WorkersToSplitOver), LocalRemoteWorkers, AssignmentPackages, Assignments,
-		MoveTemp(RequestGraph));
+		MoveTemp(RequestGraph), false /* bInitialAssignment */);
 	FRequestQueue& RequestQueue = Director.COTFS.PackageDatas->GetRequestQueue();
 	bool bAssignedToLocal = false;
 	for (int32 Index = 0; Index < AssignmentPackages.Num(); ++Index)
