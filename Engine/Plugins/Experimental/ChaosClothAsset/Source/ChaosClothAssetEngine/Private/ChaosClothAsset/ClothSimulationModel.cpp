@@ -3,13 +3,15 @@
 #include "ChaosClothAsset/ClothSimulationModel.h"
 #include "ChaosClothAsset/CollectionClothFacade.h"
 #include "ChaosClothAsset/CollectionClothSelectionFacade.h"
+#include "ChaosClothAsset/ClothAssetPrivate.h"
 #include "ChaosClothAsset/ClothCollectionGroup.h"
 #include "ChaosClothAsset/ClothGeometryTools.h"
 #include "ChaosClothAsset/ClothLodTransitionDataCache.h"
+#include "Chaos/CollectionPropertyFacade.h"
 #include "Utils/ClothingMeshUtils.h"
 #include "ReferenceSkeleton.h"
 
-namespace UE::Chaos::ClothAsset
+namespace UE::Chaos::ClothAsset::Private
 {
 	// Find the root bone for this cloth asset (common bone for all used bones)
 	static int32 CalculateReferenceBoneIndex(const TArray<FChaosClothSimulationLodModel> ClothSimulationLodModels, const FReferenceSkeleton& ReferenceSkeleton, const TArray<int32>& UsedBoneIndices)
@@ -132,12 +134,73 @@ namespace UE::Chaos::ClothAsset
 
 bool FChaosClothSimulationLodModel::Serialize(FArchive& Ar)
 {
+	using namespace UE::Chaos::ClothAsset;
+
 	// Serialize normal tagged property data
 	if (Ar.IsLoading() || Ar.IsSaving())
 	{
 		UScriptStruct* const Struct = FChaosClothSimulationLodModel::StaticStruct();
 		Struct->SerializeTaggedProperties(Ar, (uint8*)this, Struct, nullptr);
 	}
+
+	bool bCooked = Ar.IsCooking();
+	Ar << bCooked;
+
+#if WITH_EDITORONLY_DATA
+	if (bCooked && Ar.IsSaving())
+	{
+		TArray<FName> WeightMapsToRemove;
+		for (TPair<FName, TArray<float>>& WeightMap : WeightMaps)
+		{
+			if (WeightMap.Key.ToString().StartsWith(TEXT("_")))
+			{
+				WeightMapsToRemove.Add(WeightMap.Key);
+			}
+		}
+		for (const FName Key : WeightMapsToRemove)
+		{
+			TArray<float>& Value = WeightMaps.FindChecked(Key);
+			Value.Shrink();
+			const uint64 Size = (uint64)Value.GetAllocatedSize();
+			WeightMaps.Remove(Key);
+			UE_LOG(LogChaosClothAsset, Display, TEXT("TrimOnCook [%s]: Removed WeightMap [%s] (%llu bytes)"), *Ar.GetArchiveName(), *Key.ToString(), Size);
+		}
+
+		TArray<FName> VertexSetsToRemove;
+		for (TPair<FName, TSet<int32>>& VertexSet : VertexSets)
+		{
+			if (VertexSet.Key.ToString().StartsWith(TEXT("_")))
+			{
+				VertexSetsToRemove.Add(VertexSet.Key);
+			}
+		}
+		for (const FName Key : VertexSetsToRemove)
+		{
+			TSet<int32>& Value = VertexSets.FindChecked(Key);
+			Value.Shrink();
+			const uint64 Size = (uint64)Value.GetAllocatedSize();
+			VertexSets.Remove(Key);
+			UE_LOG(LogChaosClothAsset, Display, TEXT("TrimOnCook [%s]: Removed VertexSet [%s] (%llu bytes)"), *Ar.GetArchiveName(), *Key.ToString(), Size);
+		}
+
+		TArray<FName> FaceSetsToRemove;
+		for (TPair<FName, TSet<int32>>& FaceSet : FaceSets)
+		{
+			if (FaceSet.Key.ToString().StartsWith(TEXT("_")))
+			{
+				FaceSetsToRemove.Add(FaceSet.Key);
+			}
+		}
+		for (const FName Key : FaceSetsToRemove)
+		{
+			TSet<int32>& Value = FaceSets.FindChecked(Key);
+			Value.Shrink();
+			const uint64 Size = (uint64)Value.GetAllocatedSize();
+			FaceSets.Remove(Key);
+			UE_LOG(LogChaosClothAsset, Display, TEXT("TrimOnCook [%s]: Removed FaceSet [%s] (%llu bytes)"), *Ar.GetArchiveName(), *Key.ToString(), Size);
+		}
+	}
+#endif
 
 	// Serialize weight maps (not a tagged property)
 	Ar << WeightMaps;
@@ -177,11 +240,32 @@ FChaosClothSimulationModel::FChaosClothSimulationModel(const TArray<TSharedRef<c
 		Cloth.BuildSimulationMesh(LodModel.Positions, LodModel.Normals, LodModel.Indices, LodModel.PatternPositions, LodModel.PatternIndices, LodModel.PatternToWeldedIndices, &WeldedToPatternIndices);
 
 		// Copy weight maps
-		LodModel.WeightMaps.Reserve(WeightMapNames.Num());
+		const ::Chaos::Softs::FCollectionPropertyConstFacade Properties(ClothCollections[LodIndex]);
 
+		auto IsNameUsedInProperties = [&Properties](const FName& WeightMapName)->bool
+			{
+				for (int32 PropertyIndex = 0; PropertyIndex < Properties.Num(); ++PropertyIndex)
+				{
+					if (Properties.GetStringValue(PropertyIndex) == WeightMapName)
+					{
+						return true;
+					}
+				}
+				return false;
+			};
+
+		auto IsNameReserved = [&Properties](const FName& WeightMapName)->bool
+			{
+				return WeightMapName.ToString().StartsWith(TEXT("_"));
+			};
+
+		LodModel.WeightMaps.Reserve(WeightMapNames.Num());
 		for (const FName& WeightMapName : WeightMapNames)
 		{
-			LodModel.WeightMaps.Add(WeightMapName) = Cloth.GetWeightMap(WeightMapName);
+			if (IsNameUsedInProperties(WeightMapName) || IsNameReserved(WeightMapName))  // Only copy weight map used by properties - TODO: Add a switch or flag to disable this behavior when enabling runtime weightmap switching
+			{
+				LodModel.WeightMaps.Add(WeightMapName) = Cloth.GetWeightMap(WeightMapName);
+			}
 		}
 
 		// Copy vertex and face sets
@@ -191,14 +275,17 @@ FChaosClothSimulationModel::FChaosClothSimulationModel(const TArray<TSharedRef<c
 		LodModel.FaceSets.Reserve(SelectionNames.Num());
 		for (const FName& SelectionName : SelectionNames)
 		{
-			const FName SelectionGroup = Selection.GetSelectionGroup(SelectionName);
-			if (SelectionGroup == ClothCollectionGroup::SimVertices3D)
+			if (IsNameUsedInProperties(SelectionName) || IsNameReserved(SelectionName))
 			{
-				LodModel.VertexSets.Add(SelectionName) = Selection.GetSelectionSet(SelectionName);
-			}
-			else if (SelectionGroup == ClothCollectionGroup::SimFaces)
-			{
-				LodModel.FaceSets.Add(SelectionName) = Selection.GetSelectionSet(SelectionName);
+				const FName SelectionGroup = Selection.GetSelectionGroup(SelectionName);
+				if (SelectionGroup == ClothCollectionGroup::SimVertices3D)
+				{
+					LodModel.VertexSets.Add(SelectionName) = Selection.GetSelectionSet(SelectionName);
+				}
+				else if (SelectionGroup == ClothCollectionGroup::SimFaces)
+				{
+					LodModel.FaceSets.Add(SelectionName) = Selection.GetSelectionSet(SelectionName);
+				}
 			}
 		}
 
@@ -207,7 +294,10 @@ FChaosClothSimulationModel::FChaosClothSimulationModel(const TArray<TSharedRef<c
 		LodModel.FaceIntMaps.Reserve(FaceIntMapNames.Num());
 		for (const FName& FaceIntMapName : FaceIntMapNames)
 		{
-			LodModel.FaceIntMaps.Add(FaceIntMapName) = Cloth.GetUserDefinedAttribute<int32>(FaceIntMapName, ClothCollectionGroup::SimFaces);
+			if (IsNameUsedInProperties(FaceIntMapName) || IsNameReserved(FaceIntMapName))
+			{
+				LodModel.FaceIntMaps.Add(FaceIntMapName) = Cloth.GetUserDefinedAttribute<int32>(FaceIntMapName, ClothCollectionGroup::SimFaces);
+			}
 		}
 
 		// Copy bone influences (and track all used sim bones) and gather tether data.
@@ -267,7 +357,7 @@ FChaosClothSimulationModel::FChaosClothSimulationModel(const TArray<TSharedRef<c
 	}
 
 	// Initialize Reference bone index
-	ReferenceBoneIndex = CalculateReferenceBoneIndex(ClothSimulationLodModels, ReferenceSkeleton, UsedBoneIndices);
+	ReferenceBoneIndex = Private::CalculateReferenceBoneIndex(ClothSimulationLodModels, ReferenceSkeleton, UsedBoneIndices);
 
 	CalculateLODTransitionUpDownData(InOutTransitionCache);
 }
@@ -306,7 +396,7 @@ void FChaosClothSimulationModel::CalculateLODTransitionUpDownData(TArray<FChaosC
 
 		for (int32 LODIndex = 0; LODIndex < ClothSimulationLodModels.Num(); ++LODIndex)
 		{
-			const FMD5Hash CurrCacheHash = UE::Chaos::ClothAsset::CalculateTransitionDataHash(ClothSimulationLodModels[LODIndex]);
+			const FMD5Hash CurrCacheHash = UE::Chaos::ClothAsset::Private::CalculateTransitionDataHash(ClothSimulationLodModels[LODIndex]);
 			TransitionCacheHashValid[LODIndex] = (CurrCacheHash == (*InOutTransitionCache)[LODIndex].ModelHash);
 			(*InOutTransitionCache)[LODIndex].ModelHash = CurrCacheHash;
 		}

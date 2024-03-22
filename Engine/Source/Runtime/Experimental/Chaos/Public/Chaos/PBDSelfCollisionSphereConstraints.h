@@ -51,8 +51,6 @@ namespace Chaos::Softs
 		typedef FPBDSelfCollisionSphereConstraintsBase Base;
 
 	public:
-		CHAOS_API static const FString SelectionSetName;
-
 		static bool IsEnabled(const FCollectionPropertyConstFacade& PropertyCollection)
 		{
 			return IsSelfCollisionSphereStiffnessEnabled(PropertyCollection, false);
@@ -65,7 +63,7 @@ namespace Chaos::Softs
 			const FCollectionPropertyConstFacade& PropertyCollection)
 			: Base(InOffset,
 				InNumParticles,
-				VertexSets.FindRef(SelectionSetName, nullptr),
+				VertexSets.FindRef(GetSelfCollisionSphereSetNameString(PropertyCollection, SelfCollisionSphereSetNameName.ToString()), nullptr),
 				nullptr, // No reference positions--using vertex sets instead
 				(FSolverReal)FMath::Max(GetSelfCollisionSphereRadius(PropertyCollection, 0.5f), 0.f),
 				(FSolverReal)FMath::Clamp(GetSelfCollisionSphereStiffness(PropertyCollection, 0.5f), 0.f, 1.f)),
@@ -82,9 +80,9 @@ namespace Chaos::Softs
 		using Base::Stiffness;
 		using Base::VertexSetNoOffset;
 
+		UE_CHAOS_DECLARE_INDEXLESS_PROPERTYCOLLECTION_NAME(SelfCollisionSphereSetName, bool);  // Selection set name string property, the bool value is not actually used
 		UE_CHAOS_DECLARE_PROPERTYCOLLECTION_NAME(SelfCollisionSphereRadius, float);
 		UE_CHAOS_DECLARE_PROPERTYCOLLECTION_NAME(SelfCollisionSphereStiffness, float);
-
 	};
 }
 #endif

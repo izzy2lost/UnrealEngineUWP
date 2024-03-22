@@ -2,11 +2,11 @@
 
 #include "ChaosClothAsset/SimulationSelfCollisionSpheresConfigNode.h"
 #include "Chaos/CollectionPropertyFacade.h"
-
 #include "ChaosClothAsset/CollectionClothFacade.h"
 #include "ChaosClothAsset/CollectionClothSelectionFacade.h"
 #include "ChaosClothAsset/ClothCollectionGroup.h"
 #include "ChaosClothAsset/ClothGeometryTools.h"
+#include "Dataflow/DataflowInputOutput.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(SimulationSelfCollisionSpheresConfigNode)
 
@@ -14,6 +14,7 @@ FChaosClothAssetSimulationSelfCollisionSpheresConfigNode::FChaosClothAssetSimula
 	: FChaosClothAssetSimulationBaseConfigNode(InParam, InGuid)
 {
 	RegisterCollectionConnections();
+	RegisterOutputConnection(&SelfCollisionSphereSetName);
 }
 
 void FChaosClothAssetSimulationSelfCollisionSpheresConfigNode::AddProperties(FPropertyHelper& PropertyHelper) const
@@ -21,6 +22,7 @@ void FChaosClothAssetSimulationSelfCollisionSpheresConfigNode::AddProperties(FPr
 	PropertyHelper.SetProperty(this, &SelfCollisionSphereRadius);
 	PropertyHelper.SetProperty(this, &SelfCollisionSphereRadiusCullMultiplier);
 	PropertyHelper.SetProperty(this, &SelfCollisionSphereStiffness);
+	PropertyHelper.SetPropertyString(this, &SelfCollisionSphereSetName, {}, ECollectionPropertyFlags::None);  // Non animatable
 }
 
 void FChaosClothAssetSimulationSelfCollisionSpheresConfigNode::EvaluateClothCollection(Dataflow::FContext& Context, const TSharedRef<FManagedArrayCollection>& ClothCollection) const
@@ -38,8 +40,18 @@ void FChaosClothAssetSimulationSelfCollisionSpheresConfigNode::EvaluateClothColl
 		FCollectionClothSelectionFacade Selection(ClothCollection);
 		Selection.DefineSchema();
 
-		static const FName SelectionSetName(TEXT("_SelfCollisionSpheres"));
-		Selection.FindOrAddSelectionSet(SelectionSetName, ClothCollectionGroup::SimVertices3D) = VertexSet;
+		Selection.FindOrAddSelectionSet(FName(*SelfCollisionSphereSetName), ClothCollectionGroup::SimVertices3D) = VertexSet;
 	}
+}
 
+void FChaosClothAssetSimulationSelfCollisionSpheresConfigNode::Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const
+{
+	if (Out->IsA<FString>(&SelfCollisionSphereSetName))
+	{
+		SetValue(Context, SelfCollisionSphereSetName, &SelfCollisionSphereSetName);
+	}
+	else
+	{
+		Super::Evaluate(Context, Out);
+	}
 }

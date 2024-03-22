@@ -5,10 +5,8 @@
 #include "Chaos/Framework/Parallel.h"
 #include "Chaos/HierarchicalSpatialHash.h"
 
-namespace Chaos::Softs {
-
-	const FString FPBDSelfCollisionSphereConstraints::SelectionSetName(TEXT("_SelfCollisionSpheres"));
-
+namespace Chaos::Softs
+{
 	namespace Private
 	{
 		struct FSphereSpatialEntry
