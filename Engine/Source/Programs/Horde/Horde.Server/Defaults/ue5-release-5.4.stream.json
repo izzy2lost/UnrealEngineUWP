@@ -249,7 +249,8 @@
 				"-Target=BuildAndTest $(Project)",
 				"-set:ProjectFile=$(ProjectPath)",
 				"-set:TargetName=$(GameTarget)",
-				"-set:EditorTargetName=$(EditorTarget)"
+				"-set:EditorTargetName=$(EditorTarget)",
+				"-set:WithDeviceReservation=false"
 			],
 			"parameters":
 			[
