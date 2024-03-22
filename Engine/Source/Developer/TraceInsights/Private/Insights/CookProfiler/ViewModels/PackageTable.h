@@ -20,10 +20,19 @@ struct FPackageTableColumns
 {
 	static const FName IdColumnId;
 	static const FName NameColumnId;
-	static const FName LoadTimeColumnId;
-	static const FName SaveTimeColumnId;
-	static const FName BeginCacheForCookedPlatformDataTimeColumnId;
-	static const FName GetIsCachedCookedPlatformDataLoadedColumnId;
+
+	static const FName LoadTimeInclColumnId;
+	static const FName LoadTimeExclColumnId;
+
+	static const FName SaveTimeInclColumnId;
+	static const FName SaveTimeExclColumnId;
+
+	static const FName BeginCacheForCookedPlatformDataTimeInclColumnId;
+	static const FName BeginCacheForCookedPlatformDataTimeExclColumnId;
+
+	static const FName GetIsCachedCookedPlatformDataLoadedInclColumnId;
+	static const FName GetIsCachedCookedPlatformDataLoadedExclColumnId;
+
 	static const FName PackageAssetClassColumnId;
 };
 

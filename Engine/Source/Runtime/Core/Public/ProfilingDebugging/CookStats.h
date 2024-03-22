@@ -439,10 +439,48 @@ struct FDerivedDataUsageStats
 
 CORE_API UE_TRACE_CHANNEL_EXTERN(CookChannel);
 
+#define UE_INSIGHTS_COOK_PROFILER_VERSION 2
+
 CORE_API void TracePackage(uint64 InId, const FStringView InName);
-CORE_API void TracePackageStat(uint64 InId, uint64 Duration, EPackageEventStatType StatType);
 CORE_API void TracePackageAssetClass(uint64 InId, const FStringView InName);
 CORE_API bool ShouldTracePackageInfo();
+
+#if UE_INSIGHTS_COOK_PROFILER_VERSION == 2
+
+UE_DEPRECATED(5.5, "TracePackageStat is deprecated, please use TracePackageStatBeginScope and TracePackageStatEndScope instead.")
+CORE_API void TracePackageStat(uint64 InId, uint64 Duration, EPackageEventStatType StatType);
+
+CORE_API void TracePackageStatBeginScope(uint64 InId, uint64 Time, EPackageEventStatType StatType);
+CORE_API void TracePackageStatEndScope(uint64 InId, uint64 Time, EPackageEventStatType StatType);
+
+struct FScopedCookStat
+{
+	FScopedCookStat(const FScopedCookStat&) = delete;
+	FScopedCookStat(FScopedCookStat&&) = delete;
+
+	FScopedCookStat(uint64 Id, EPackageEventStatType InStatType)
+		: Id(Id)
+		, StatType(InStatType)
+	{
+		TracePackageStatBeginScope(Id, FPlatformTime::Cycles64(), StatType);
+	}
+
+	~FScopedCookStat()
+	{
+		TracePackageStatEndScope(Id, FPlatformTime::Cycles64(), StatType);
+	}
+
+private:
+	uint64 Id;
+	EPackageEventStatType StatType;
+};
+
+#endif
+
+#if UE_INSIGHTS_COOK_PROFILER_VERSION == 1
+
+UE_DEPRECATED(5.5, "TracePackageStat is deprecated, please use TracePackageStatBeginScope and TracePackageStatEndScope instead.")
+CORE_API void TracePackageStat(uint64 InId, uint64 Duration, EPackageEventStatType StatType);
 
 struct FScopedCookStat
 {
@@ -458,7 +496,8 @@ struct FScopedCookStat
 
 	~FScopedCookStat()
 	{
-		TracePackageStat(Id, FPlatformTime::Cycles64() - StartTimestamp, StatType);
+		uint64 Duration = FPlatformTime::Cycles64() - StartTimestamp;
+		TracePackageStat(Id, Duration, StatType);
 	}
 
 private:
@@ -466,6 +505,8 @@ private:
 	uint64 StartTimestamp;
 	EPackageEventStatType StatType;
 };
+
+#endif
 
 #define UE_SCOPED_COOK_STAT(Name, StatType) \
 	FScopedCookStat  PREPROCESSOR_JOIN(__CookTimerScope, __LINE__)(Name.ToUnstableInt(), StatType);
@@ -485,6 +526,7 @@ private:
 	__CookStatScope.Reset(); \
 	__PrevPackageName = NAME_None;
 #else
+
 #define COOK_STAT(...)
 #define UE_SCOPED_COOK_STAT(...)
 #define UE_MULTI_SCOPED_COOK_STAT_INIT(...)
@@ -493,6 +535,8 @@ private:
 
 #define TracePackage(...)
 #define TracePackageStat(...)
+#define TracePackageStatBeginScope(...)
+#define TracePackageStatEndScope(...)
 #define TracePackageAssetClass(...)
 #define ShouldTracePackageInfo(...) false
 

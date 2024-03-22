@@ -134,20 +134,21 @@ void SPackageTableTreeView::RebuildTree(bool bResync)
 	{
 		TraceServices::FProviderReadScopeLock ProviderReadScope(*CookProvider);
 
+		TArray64<FPackageData> PackageAggreagation;
+		CookProvider->CreateAggregation(PackageAggreagation);
 		const uint32 NumPackages = CookProvider->GetNumPackages();
 		Packages.Reserve(NumPackages);
 		TableRowNodes.Reserve(NumPackages);
 
 		TArray<FTableTreeNodePtr>* Nodes = &TableRowNodes;
-		CookProvider->EnumeratePackages(0, 0, [&Packages, &PackageTable, Nodes](const TraceServices::FPackageData& Package)
-			{
-				Packages.Emplace(Package);
-				uint32 Index = Packages.Num() - 1;
-				FName NodeName(Package.Name);
-				FPackageNodePtr NodePtr = MakeShared<FPackageNode>(NodeName, PackageTable, Index);
-				Nodes->Add(NodePtr);
-				return true;
-			});
+		for(const TraceServices::FPackageData& Package : PackageAggreagation)
+		{
+			Packages.Emplace(Package);
+			uint32 Index = static_cast<uint32>(Packages.Num() - 1);
+			FName NodeName(Package.Name);
+			FPackageNodePtr NodePtr = MakeShared<FPackageNode>(NodeName, PackageTable, Index);
+			Nodes->Add(NodePtr);
+		};
 	}
 
 	bDataLoaded = true;
@@ -236,12 +237,16 @@ void SPackageTableTreeView::InternalCreateGroupings()
 			if (Grouping->Is<FTreeNodeGroupingByUniqueValue>())
 			{
 				const FName ColumnId = Grouping->As<FTreeNodeGroupingByUniqueValue>().GetColumnId();
-				if (ColumnId == FPackageTableColumns::BeginCacheForCookedPlatformDataTimeColumnId ||
-					ColumnId == FPackageTableColumns::GetIsCachedCookedPlatformDataLoadedColumnId ||
-					ColumnId == FPackageTableColumns::SaveTimeColumnId ||
+				if (ColumnId == FPackageTableColumns::BeginCacheForCookedPlatformDataTimeInclColumnId ||
+					ColumnId == FPackageTableColumns::BeginCacheForCookedPlatformDataTimeExclColumnId ||
+					ColumnId == FPackageTableColumns::GetIsCachedCookedPlatformDataLoadedInclColumnId ||
+					ColumnId == FPackageTableColumns::GetIsCachedCookedPlatformDataLoadedExclColumnId ||
+					ColumnId == FPackageTableColumns::SaveTimeInclColumnId ||
+					ColumnId == FPackageTableColumns::SaveTimeExclColumnId ||
 					ColumnId == FPackageTableColumns::IdColumnId ||
 					ColumnId == FPackageTableColumns::NameColumnId ||
-					ColumnId == FPackageTableColumns::LoadTimeColumnId)
+					ColumnId == FPackageTableColumns::LoadTimeInclColumnId ||
+					ColumnId == FPackageTableColumns::LoadTimeExclColumnId)
 				{
 					return true;
 				}
@@ -302,12 +307,16 @@ void SPackageTableTreeView::InitAvailableViewPresets()
 		{
 			InOutConfigSet.Add({ FTable::GetHierarchyColumnId(), true, 500.0f });
 			InOutConfigSet.Add({ FPackageTableColumns::IdColumnId, true, 80.0f });
-			InOutConfigSet.Add({ FPackageTableColumns::LoadTimeColumnId, true, 100.0f });
-			InOutConfigSet.Add({ FPackageTableColumns::SaveTimeColumnId, true, 100.0f });
-			InOutConfigSet.Add({ FPackageTableColumns::BeginCacheForCookedPlatformDataTimeColumnId, true, 100.0f });
-			InOutConfigSet.Add({ FPackageTableColumns::GetIsCachedCookedPlatformDataLoadedColumnId, true, 100.0f });
+			InOutConfigSet.Add({ FPackageTableColumns::LoadTimeExclColumnId, true, 100.0f });
+			InOutConfigSet.Add({ FPackageTableColumns::SaveTimeExclColumnId, true, 100.0f });
+			InOutConfigSet.Add({ FPackageTableColumns::BeginCacheForCookedPlatformDataTimeExclColumnId, true, 100.0f });
+			InOutConfigSet.Add({ FPackageTableColumns::GetIsCachedCookedPlatformDataLoadedExclColumnId, true, 100.0f });
 			InOutConfigSet.Add({ FPackageTableColumns::PackageAssetClassColumnId, true, 200.0f });
 			InOutConfigSet.Add({ FPackageTableColumns::NameColumnId, false, 400.0f });
+			InOutConfigSet.Add({ FPackageTableColumns::LoadTimeInclColumnId, true, 100.0f });
+			InOutConfigSet.Add({ FPackageTableColumns::SaveTimeInclColumnId, true, 100.0f });
+			InOutConfigSet.Add({ FPackageTableColumns::BeginCacheForCookedPlatformDataTimeInclColumnId, true, 100.0f });
+			InOutConfigSet.Add({ FPackageTableColumns::GetIsCachedCookedPlatformDataLoadedInclColumnId, true, 100.0f });
 		}
 	};
 	AvailableViewPresets.Add(MakeShared<FDefaultViewPreset>());
@@ -357,12 +366,16 @@ void SPackageTableTreeView::InitAvailableViewPresets()
 		{
 			InOutConfigSet.Add({ FTable::GetHierarchyColumnId(), true, 500.0f });
 			InOutConfigSet.Add({ FPackageTableColumns::IdColumnId, true, 80.0f });
-			InOutConfigSet.Add({ FPackageTableColumns::LoadTimeColumnId, true, 100.0f });
-			InOutConfigSet.Add({ FPackageTableColumns::SaveTimeColumnId, true, 100.0f });
-			InOutConfigSet.Add({ FPackageTableColumns::BeginCacheForCookedPlatformDataTimeColumnId, true, 100.0f });
-			InOutConfigSet.Add({ FPackageTableColumns::GetIsCachedCookedPlatformDataLoadedColumnId, true, 100.0f });
+			InOutConfigSet.Add({ FPackageTableColumns::LoadTimeExclColumnId, true, 100.0f });
+			InOutConfigSet.Add({ FPackageTableColumns::SaveTimeExclColumnId, true, 100.0f });
+			InOutConfigSet.Add({ FPackageTableColumns::BeginCacheForCookedPlatformDataTimeExclColumnId, true, 100.0f });
+			InOutConfigSet.Add({ FPackageTableColumns::GetIsCachedCookedPlatformDataLoadedExclColumnId, true, 100.0f });
 			InOutConfigSet.Add({ FPackageTableColumns::PackageAssetClassColumnId, true, 200.0f });
 			InOutConfigSet.Add({ FPackageTableColumns::NameColumnId, false, 400.0f });
+			InOutConfigSet.Add({ FPackageTableColumns::LoadTimeInclColumnId, true, 100.0f });
+			InOutConfigSet.Add({ FPackageTableColumns::SaveTimeInclColumnId, true, 100.0f });
+			InOutConfigSet.Add({ FPackageTableColumns::BeginCacheForCookedPlatformDataTimeInclColumnId, true, 100.0f });
+			InOutConfigSet.Add({ FPackageTableColumns::GetIsCachedCookedPlatformDataLoadedInclColumnId, true, 100.0f });
 		}
 	};
 	AvailableViewPresets.Add(MakeShared<FPackagePathViewPreset>());
@@ -412,12 +425,17 @@ void SPackageTableTreeView::InitAvailableViewPresets()
 		{
 			InOutConfigSet.Add({ FTable::GetHierarchyColumnId(), true, 300.0f });
 			InOutConfigSet.Add({ FPackageTableColumns::IdColumnId, true, 80.0f });
-			InOutConfigSet.Add({ FPackageTableColumns::LoadTimeColumnId, true, 100.0f });
-			InOutConfigSet.Add({ FPackageTableColumns::SaveTimeColumnId, true, 100.0f });
-			InOutConfigSet.Add({ FPackageTableColumns::BeginCacheForCookedPlatformDataTimeColumnId, true, 100.0f });
-			InOutConfigSet.Add({ FPackageTableColumns::GetIsCachedCookedPlatformDataLoadedColumnId, true, 100.0f });
+			InOutConfigSet.Add({ FPackageTableColumns::LoadTimeExclColumnId, true, 100.0f });
+			InOutConfigSet.Add({ FPackageTableColumns::SaveTimeExclColumnId, true, 100.0f });
+			InOutConfigSet.Add({ FPackageTableColumns::BeginCacheForCookedPlatformDataTimeExclColumnId, true, 100.0f });
+			InOutConfigSet.Add({ FPackageTableColumns::GetIsCachedCookedPlatformDataLoadedExclColumnId, true, 100.0f });
 			InOutConfigSet.Add({ FPackageTableColumns::NameColumnId, true, 400.0f });
 			InOutConfigSet.Add({ FPackageTableColumns::PackageAssetClassColumnId, false, 200.0f });
+			InOutConfigSet.Add({ FPackageTableColumns::LoadTimeInclColumnId, true, 100.0f });
+			InOutConfigSet.Add({ FPackageTableColumns::SaveTimeInclColumnId, true, 100.0f });
+			InOutConfigSet.Add({ FPackageTableColumns::BeginCacheForCookedPlatformDataTimeInclColumnId, true, 100.0f });
+			InOutConfigSet.Add({ FPackageTableColumns::GetIsCachedCookedPlatformDataLoadedInclColumnId, true, 100.0f });
+
 		}
 	};
 	AvailableViewPresets.Add(MakeShared<FAssetClassViewPreset>());
