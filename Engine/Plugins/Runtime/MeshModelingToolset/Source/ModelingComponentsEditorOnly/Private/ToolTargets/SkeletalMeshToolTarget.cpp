@@ -2,7 +2,6 @@
 
 #include "ToolTargets/SkeletalMeshToolTarget.h"
 
-#include "LODUtilities.h"
 #include "ConversionUtils/DynamicMeshViaMeshDescriptionUtil.h"
 #include "DynamicMesh/DynamicMesh3.h"
 #include "Engine/SkinnedAssetCommon.h"
@@ -271,10 +270,6 @@ void USkeletalMeshToolTarget::CommitMeshDescription(USkeletalMesh* SkeletalMesh,
 	// Commit the edited mesh description to bulk data.
 	SkeletalMesh->CommitMeshDescription(LODIndex);
 
-	// Update the vertex attribute infos now that we have committed the mesh description
-	// the actual copying from SourceModel to LODModel happens during build time
-	FLODUtilities::UpdateLODInfoVertexAttributes(SkeletalMesh, LODIndex, LODIndex, false);
-	
 	// This call will invoke the skeletal mesh render data rebuild machinery.
 	SkeletalMesh->PostEditChange();
 }
