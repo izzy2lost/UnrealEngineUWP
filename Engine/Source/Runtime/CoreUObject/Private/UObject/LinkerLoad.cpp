@@ -6171,11 +6171,15 @@ FArchive& FLinkerLoad::operator<<( UObject*& Object )
 #if WITH_EDITOR
 	if (Object && UE::FPropertyBagRepository::IsPropertyBagPlaceholderObject(Object))
 	{
-		// This is needed because the pointer's type is checked only at compile time, which may not match the property
-		// bag placeholder object's type at runtime, and so we can't allow it to be dereferenced as the wrong base type.
-		// Note: These currently won't be discovered for replacement at reinstancing time, so it will remain set to NULL.
-		UE_LOG(LogLinker, Warning, TEXT("Serializing reference to \"%s\" as NULL to ensure type safety."), *Object->GetPathName());
-		Object = nullptr;
+		const FObjectProperty* ObjectProperty = CastField<FObjectProperty>(GetSerializedProperty());
+		if (!ObjectProperty || !Object->GetClass()->IsChildOf(ObjectProperty->PropertyClass))
+		{
+			// This is needed because the pointer's type is checked only at compile time, which may not match the property
+			// bag placeholder object's type at runtime, and so we can't allow it to be dereferenced as the wrong base type.
+			// Note: These currently won't be discovered for replacement at reinstancing time, so it will remain set to NULL.
+			UE_LOG(LogLinker, Warning, TEXT("Serializing reference to \"%s\" as NULL to ensure type safety."), *Object->GetPathName());
+			Object = nullptr;
+		}
 	}
 #endif
 	return *this;
@@ -6190,18 +6194,13 @@ FArchive& FLinkerLoad::operator<<(FObjectPtr& ObjectPtr)
 	// Wrapper that only allows pointers to exports with placeholder types when type safety features are enabled.
 	auto AsTypeSafeObjectPtr_Lambda = [](UObject* ResolvedObject)
 	{
-#if WITH_EDITOR
-		// If we can't mask the pointer to the placeholder object instance at access time, resolve it now to NULL.
+#if WITH_EDITOR && !UE_WITH_OBJECT_HANDLE_TYPE_SAFETY
+		// If type safety features are disabled, resolve unsafe references to placeholder-typed objects now to NULL.
 		// Note: Similar to hard references above, this means we won't find it for replacement at reinstancing time.
 		if (ResolvedObject && UE::FPropertyBagRepository::IsPropertyBagPlaceholderObject(ResolvedObject))
 		{
-#if UE_WITH_OBJECT_HANDLE_TYPE_SAFETY
-			// Note: With type safety enabled, unlike other instances of a placeholder type, we won't mark the CDO
-			// as also being a placeholder instance. That's because there are certain paths that need to be able
-			// to resolve the pointer (e.g. - the object initialization path during class construction). However,
-			// it also means we can't resolve other references to a placeholder CDO, as they may not be type-safe.
-			if (UNLIKELY(ResolvedObject->HasAnyFlags(RF_ClassDefaultObject)))
-#endif
+			const FObjectProperty* ObjectProperty = CastField<FObjectProperty>(GetSerializedProperty());
+			if (!ObjectProperty || !ResolvedObject->GetClass()->IsChildOf(ObjectProperty->PropertyClass))
 			{
 				UE_LOG(LogLinker, Warning, TEXT("Serializing reference to \"%s\" as NULL to ensure type safety."), *ResolvedObject->GetPathName());
 				ResolvedObject = nullptr;

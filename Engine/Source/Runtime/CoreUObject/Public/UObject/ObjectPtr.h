@@ -102,23 +102,11 @@ public:
 
 	FORCEINLINE UObject* Get() const
 	{
-#if UE_WITH_OBJECT_HANDLE_TYPE_SAFETY
-		// Ensure the handle is resolved first (for late resolve), even if it's not considered type safe.
-		UObject* ResolvedObject = UE::CoreUObject::Private::ResolveObjectHandle(Handle);
-		return IsObjectHandleTypeSafe(Handle) ? ResolvedObject : nullptr;
-#else
 		return UE::CoreUObject::Private::ResolveObjectHandle(Handle);
-#endif
 	}
 
 	FORCEINLINE UClass* GetClass() const
 	{
-#if UE_WITH_OBJECT_HANDLE_TYPE_SAFETY
-		if (!IsObjectHandleTypeSafe(Handle))
-		{
-			return nullptr;
-		}
-#endif
 		return UE::CoreUObject::Private::ResolveObjectHandleClass(Handle);
 	}
 
@@ -190,13 +178,13 @@ public:
 	FORCEINLINE UObject& operator*() const { return *Get(); }
 
 	UE_DEPRECATED(5.1, "IsNull is deprecated, please use operator bool instead.")
-	FORCEINLINE bool IsNull() const { return IsNullNoResolve_Internal() || (UE::CoreUObject::Private::ResolveObjectHandleNoRead(Handle) == nullptr); }
+	FORCEINLINE bool IsNull() const { return UE::CoreUObject::Private::ResolveObjectHandleNoRead(Handle) == nullptr; }
 	
 	UE_DEPRECATED(5.1, "IsNullNoResolve is deprecated, please use operator bool instead.")
-	FORCEINLINE bool IsNullNoResolve() const { return IsNullNoResolve_Internal(); }
+	FORCEINLINE bool IsNullNoResolve() const { return IsObjectHandleNull(Handle); }
 	
-	FORCEINLINE bool operator!() const { return IsNullNoResolve_Internal(); }
-	explicit FORCEINLINE operator bool() const { return !IsNullNoResolve_Internal(); }
+	FORCEINLINE bool operator!() const { return IsObjectHandleNull(Handle); }
+	explicit FORCEINLINE operator bool() const { return !IsObjectHandleNull(Handle); }
 
 	FORCEINLINE bool IsResolved() const { return IsObjectHandleResolved(Handle); }
 
@@ -311,15 +299,6 @@ private:
 		}
 	}
 #endif // UE_OBJECT_PTR_GC_BARRIER
-
-	FORCEINLINE bool IsNullNoResolve_Internal() const
-	{
-#if UE_WITH_OBJECT_HANDLE_TYPE_SAFETY
-		return IsObjectHandleNull(Handle) || !IsObjectHandleTypeSafe(Handle);
-#else
-		return IsObjectHandleNull(Handle);
-#endif
-	}
 };
 
 template <typename T>
@@ -405,6 +384,65 @@ namespace ObjectPtr_Private
 		// a shallow pointer comparison.
 		return IsObjectPtrEqualToRawPtrOfRelatedType<T>(Ptr, ObjectPtr_Private::CoerceToPointer<T>(Other));
 	}
+
+	/** Check for NULL without resolving the handle. */
+	template <
+		typename T
+#if UE_WITH_OBJECT_HANDLE_TYPE_SAFETY
+		UE_REQUIRES(std::is_same_v<T, UObject>)
+#endif
+	>
+	FORCEINLINE bool IsObjectPtrNull(const FObjectPtr& ObjectPtr)
+	{
+		return !ObjectPtr.operator bool();
+	}
+
+	/** Resolve and return the underlying reference. */
+	template <
+		typename T
+#if UE_WITH_OBJECT_HANDLE_TYPE_SAFETY
+		UE_REQUIRES(std::is_same_v<T, UObject>)
+#endif
+	>
+	FORCEINLINE T* Get(const FObjectPtr& ObjectPtr)
+	{
+		return (T*)ObjectPtr.Get();
+	}
+
+#if UE_WITH_OBJECT_HANDLE_TYPE_SAFETY
+	/** Check for NULL without resolving the handle. Always returns true if the handle is not type safe (only when T != UObject). */
+	template <
+		typename T
+		UE_REQUIRES(!std::is_same_v<T, UObject>)
+	>
+	FORCEINLINE bool IsObjectPtrNull(const FObjectPtr& ObjectPtr)
+	{
+		if (!IsObjectHandleTypeSafe(ObjectPtr.GetHandle()))
+		{
+			// Type is unsafe; this pointer will resolve to NULL.
+			return true;
+		}
+
+		return !ObjectPtr.operator bool();
+	}
+
+	/** Resolve and return the underlying reference. Always returns NULL if the handle is not type safe (only when T != UObject). */
+	template <
+		typename T
+		UE_REQUIRES(!std::is_same_v<T, UObject>)
+	>
+	FORCEINLINE T* Get(const FObjectPtr& ObjectPtr)
+	{
+		// Always resolve the pointer first (for late resolve), even if the handle is not considered type safe.
+		UObject* Result = ObjectPtr.Get();
+		if (!IsObjectHandleTypeSafe(ObjectPtr.GetHandle()))
+		{
+			Result = nullptr;
+		}
+
+		return (T*)Result;
+	}
+#endif
 
 	template <typename T, int = sizeof(T)>
 	char (&ResolveTypeIsComplete(int))[2];
@@ -567,7 +605,7 @@ public:
 #if UE_WITH_OBJECT_HANDLE_TYPE_SAFETY
 		// Do a NULL test first before comparing the underlying handles, in case either side is
 		// a non-NULL, but unsafe type pointer (which would equate to NULL when Get() is called).
-		return !ObjectPtr ? !Other : ObjectPtr == Other.ObjectPtr;
+		return ObjectPtr_Private::IsObjectPtrNull<T>(ObjectPtr) ? ObjectPtr_Private::IsObjectPtrNull<U>(Other.ObjectPtr) : ObjectPtr == Other.ObjectPtr;
 #else
 		return ObjectPtr == Other.ObjectPtr;
 #endif
@@ -576,7 +614,7 @@ public:
 	// Equality/Inequality comparisons against nullptr
 	FORCEINLINE bool operator==(TYPE_OF_NULLPTR) const
 	{
-		return !ObjectPtr.operator bool();
+		return ObjectPtr_Private::IsObjectPtrNull<T>(ObjectPtr);
 	}
 
 	// Equality/Inequality comparisons against another type that can be implicitly converted to the pointer type kept in a TObjectPtr
@@ -603,7 +641,7 @@ public:
 	//			a reference to the wrong type of object which we'll just send back static_casted as the wrong type.  Doing
 	//			a check or checkSlow here could catch this, but it would be better if the check could happen elsewhere that
 	//			isn't called as frequently.
-	FORCEINLINE T* Get() const { return (T*)(ObjectPtr.Get()); }
+	FORCEINLINE T* Get() const { return ObjectPtr_Private::Get<T>(ObjectPtr); }
 	FORCEINLINE UClass* GetClass() const { return ObjectPtr.GetClass(); }
 	FORCEINLINE TObjectPtr<UObject> GetOuter() const
 	{ 
@@ -629,13 +667,13 @@ public:
 	explicit FORCEINLINE operator T*& () { return GetInternalRef(); }
 
 	UE_DEPRECATED(5.1, "IsNull is deprecated, please use operator bool instead.  if (!MyObjectPtr) { ... }")
-	FORCEINLINE bool IsNull() const { return !ObjectPtr.operator bool(); }
+	FORCEINLINE bool IsNull() const { return ObjectPtr_Private::IsObjectPtrNull<T>(ObjectPtr); }
 
 	UE_DEPRECATED(5.1, "IsNullNoResolve is deprecated, please use operator bool instead.  if (!MyObjectPtr) { ... }")
-	FORCEINLINE bool IsNullNoResolve() const { return !ObjectPtr.operator bool(); }
+	FORCEINLINE bool IsNullNoResolve() const { return ObjectPtr_Private::IsObjectPtrNull<T>(ObjectPtr); }
 
-	FORCEINLINE bool operator!() const { return ObjectPtr.operator!(); }
-	explicit FORCEINLINE operator bool() const { return ObjectPtr.operator bool(); }
+	FORCEINLINE bool operator!() const { return ObjectPtr_Private::IsObjectPtrNull<T>(ObjectPtr); }
+	explicit FORCEINLINE operator bool() const { return !ObjectPtr_Private::IsObjectPtrNull<T>(ObjectPtr); }
 	FORCEINLINE bool IsResolved() const { return ObjectPtr.IsResolved(); }
 	FORCEINLINE FString GetPath() const { return ObjectPtr.GetPath(); }
 	FORCEINLINE FString GetPathName() const { return ObjectPtr.GetPathName(); }

@@ -395,7 +395,7 @@ TEST_CASE_METHOD(FObjectHandleTestBase, "CoreUObject::FObjectHandle::Type Safety
 	CHECK(UE::CoreUObject::Private::HasAnyFlags(TestClassDefaults, RF_ClassDefaultObject));
 
 	// construct objects for testing
-	UObject* TestSafeObject = NewObject<UObjectPtrTestClass>(TestPackage, TEXT("TestSafeObject"), RF_Transient);
+	UObjectPtrTestClass* TestSafeObject = NewObject<UObjectPtrTestClass>(TestPackage, TEXT("TestSafeObject"), RF_Transient);
 	UObject* TestUnsafeObject = NewObject<UObject>(TestPackage, TestClass, TEXT("TestUnsafeObject"), RF_Transient | RF_HasPlaceholderType);
 
 	// construct object handles for testing
@@ -433,10 +433,22 @@ TEST_CASE_METHOD(FObjectHandleTestBase, "CoreUObject::FObjectHandle::Type Safety
 	CHECK(TestUnsafeObjectHandle != TestSafeObjectHandle);
 	CHECK(TestUnsafeObjectHandle == TestUnsafeObjectHandle);
 
+	// simulate a placeholder object for type-safe pointer tests
+	TestSafeObject->SetFlags(RF_HasPlaceholderType);
+
 	// construct object pointers for testing
 	TObjectPtr<UObject> NullObjectPtr(nullptr);
-	TObjectPtr<UObject> TestSafeObjectPtr(TestSafeObject);
-	TObjectPtr<UObject> TestUnsafeObjectPtr(TestUnsafeObject);
+	TObjectPtr<UObject> TestSafeObjectPtr(TestSafeObject);									// type safe pointer to placeholder (UObject type)
+	FObjectPtr TestUnsafeObjectPtr_Untyped(TestUnsafeObject);
+	TObjectPtr<UObjectPtrTestClass> TestUnsafeObjectPtr(TestUnsafeObjectPtr_Untyped);		// unsafe pointer to placeholder object (non-UObject type)
+
+	// type safe object pointers should evaluate to true/non-NULL
+	CHECK(TestSafeObjectPtr);
+	CHECK(!!TestSafeObjectPtr);
+	CHECK(NULL != TestSafeObjectPtr);
+	CHECK(TestSafeObjectPtr != NULL);
+	CHECK(nullptr != TestSafeObjectPtr);
+	CHECK(TestSafeObjectPtr != nullptr);
 
 	// unsafe type object pointers should evaluate to NULL/false (for type safety)
 	CHECK(!TestUnsafeObjectPtr);
@@ -459,10 +471,11 @@ TEST_CASE_METHOD(FObjectHandleTestBase, "CoreUObject::FObjectHandle::Type Safety
 	CHECK(TestUnsafeObjectPtr.GetPathName() == TestUnsafeObject->GetPathName());
 	CHECK(TestUnsafeObjectPtr.GetFullName() == TestUnsafeObject->GetFullName());
 	CHECK(TestUnsafeObjectPtr.GetOuter() == TestUnsafeObject->GetOuter());
+	CHECK(TestUnsafeObjectPtr.GetClass() == TestUnsafeObject->GetClass());
 	CHECK(TestUnsafeObjectPtr.GetPackage() == TestUnsafeObject->GetPackage());
 
-	// an unsafe type object should not allow direct access to the underlying type
-	CHECK(TestUnsafeObjectPtr.GetClass() == nullptr);
+	// a type safe object pointer should resolve to a non-NULL value when dereferenced
+	CHECK(TestSafeObjectPtr.Get() == TestSafeObject);
 
 	// an unsafe type object pointer should resolve to NULL when dereferenced (for type safety)
 	CHECK(TestUnsafeObjectPtr.Get() == nullptr);
