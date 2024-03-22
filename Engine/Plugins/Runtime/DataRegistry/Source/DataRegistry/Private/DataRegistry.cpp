@@ -810,6 +810,25 @@ UDataRegistrySource* UDataRegistry::LookupSource(FName& OutResolvedName, const F
 	return nullptr;
 }
 
+void UDataRegistry::GetItemNames(TArray<FName>& ItemNames) const
+{
+	TMap<FDataRegistryId, const uint8*> CachedItemMap;
+	const UScriptStruct* ItemTypeStruct = nullptr;
+
+	const FDataRegistryCacheGetResult Result = GetAllCachedItems(CachedItemMap, ItemTypeStruct);
+	if (!Result.WasFound())
+	{
+		UE_LOG(LogDataRegistry, Warning, TEXT("[%hs] No Registry Data found  Registry:%s"), __FUNCTION__, *GetPathName());
+		return;
+	}
+
+	for (TPair<FDataRegistryId, const uint8*>& CachedItem : CachedItemMap)
+	{
+		const FDataRegistryId& RegistryId = CachedItem.Key;
+		ItemNames.Add(RegistryId.ItemName);
+	}
+}
+
 FDataRegistryCacheGetResult UDataRegistry::GetAllCachedItems(TMap<FDataRegistryId, const uint8*>& OutItemMap, const UScriptStruct*& OutItemStruct) const
 {
 	TSet<FDataRegistryId> IdSet;

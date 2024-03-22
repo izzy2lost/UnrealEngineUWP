@@ -143,6 +143,66 @@ public:
 		return nullptr;
 	}
 
+	/* Method to run the given predicate on all items */
+	template <class T>
+	void ForEachCachedItem(const FString& ContextString, TFunctionRef<void(const FName& Name, const T& Item)> Predicate) const
+	{
+		TMap<FDataRegistryId, const uint8*> CachedItemMap;
+		const UScriptStruct* ItemTypeStruct = nullptr;
+
+		const FDataRegistryCacheGetResult Result = GetAllCachedItems(CachedItemMap, ItemTypeStruct);
+		if (!Result.WasFound())
+		{
+			UE_LOG(LogDataRegistry, Warning, TEXT("[%hs] No Registry Data found (%s)  Registry:%s"), __FUNCTION__, *ContextString, *RegistryType.ToString());
+			return;
+		}
+
+		if (ItemTypeStruct == nullptr || !ItemTypeStruct->IsChildOf(T::StaticStruct()))
+		{
+			UE_LOG(LogDataRegistry, Warning, TEXT("[%hs] Registry has incorrect row type (%s)  Registry:%s"), __FUNCTION__, *ContextString, *RegistryType.ToString());
+			return;
+		}
+
+		for (TPair<FDataRegistryId, const uint8*>& CachedItem : CachedItemMap)
+		{
+			const T* Item = reinterpret_cast<const T*>(CachedItem.Value);
+			if (Item)
+			{
+				Predicate(*ContextString, *Item);
+			}
+		}
+	}
+
+	/* Method to get all items in the registry */
+	template <class T>
+	void GetAllItems(const TCHAR* ContextString, TArray<const T*>& Items) const
+	{
+		TMap<FDataRegistryId, const uint8*> CachedItemMap;
+		const UScriptStruct* ItemTypeStruct = nullptr;
+
+		const FDataRegistryCacheGetResult Result = GetAllCachedItems(CachedItemMap, ItemTypeStruct);
+		if (!Result.WasFound())
+		{
+			UE_LOG(LogDataRegistry, Warning, TEXT("[%hs] No Registry Data found (%s)  Registry:%s"), __FUNCTION__, ContextString, *RegistryType.ToString());
+			return;
+		}
+
+		if (ItemTypeStruct == nullptr || !ItemTypeStruct->IsChildOf(T::StaticStruct()))
+		{
+			UE_LOG(LogDataRegistry, Warning, TEXT("[%hs] Registry has incorrect row type (%s)  Registry:%s"), __FUNCTION__, ContextString, *RegistryType.ToString());
+			return;
+		}
+
+		for (TPair<FDataRegistryId, const uint8*>& CachedItem : CachedItemMap)
+		{
+			const T* Item = reinterpret_cast<const T*>(CachedItem.Value);
+			Items.Add(Item);
+		}
+	}
+
+	/* Method to get all item names in teh registry */
+	void GetItemNames(TArray<FName>& ItemNames) const;
+
 	/** 
 	 * Fills in a map with all cached (and precached) ids and items for fast iteration. 
 	 * This will use the current resolve context so may not always be valid, and multiple ids can map to the same raw pointer

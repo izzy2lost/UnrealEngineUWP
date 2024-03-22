@@ -1,0 +1,133 @@
+// Copyright Epic Games, Inc. All Rights Reserved.
+
+#include "SoftDataRegistryOrTable.h"
+
+#include "DataRegistrySubsystem.h"
+
+#include UE_INLINE_GENERATED_CPP_BY_NAME(SoftDataRegistryOrTable)
+
+bool FSoftDataRegistryOrTable::Serialize(FArchive& Ar)
+{
+	if (Ar.IsSaving() && Ar.IsPersistent())
+	{
+		if (bUseDataRegistry)
+		{
+			// clean out table reference if we are using a data registry
+			Table = nullptr;
+		}
+		else
+		{
+			// clean out the registry type if we aren't using it
+			RegistryType = NAME_None;
+		}
+	}
+	
+	// return false so the normalize serializer will handle the serialization
+	return false;
+}
+
+bool FSoftDataRegistryOrTable::SerializeFromMismatchedTag(const FPropertyTag& Tag, FStructuredArchive::FSlot Slot)
+{
+	// NOTE: this code assumes that the previous soft object ptr was for a UDataTable
+	if (Tag.Type == NAME_SoftObjectProperty)
+	{
+		FSoftObjectPtr OldProperty;
+		Slot << OldProperty;
+
+		bUseDataRegistry = false;
+		Table = OldProperty.ToSoftObjectPath();
+
+		return true;
+	}
+
+	return false;
+}
+
+bool FSoftDataRegistryOrTable::Matches(const UDataTable* InTable) const
+{
+	return (!bUseDataRegistry && (InTable == Table));
+}
+
+bool FSoftDataRegistryOrTable::Matches(const UDataRegistry* InRegistry) const
+{
+	return (bUseDataRegistry && (InRegistry->GetRegistryType() == RegistryType.GetName()));
+}
+
+bool FSoftDataRegistryOrTable::Matches(const FDataRegistryOrTableRow& RegistryOrTableId) const
+{
+	if (RegistryOrTableId.bUseDataRegistryId)
+	{
+		return Matches(RegistryOrTableId.GetDataRegistry());
+	}
+
+	return Matches(RegistryOrTableId.DataTableRow.DataTable);
+}
+
+bool FSoftDataRegistryOrTable::IsValid() const
+{
+	if (bUseDataRegistry)
+	{
+		return (RegistryType.IsValid());
+	}
+
+	return (Table != nullptr);
+}
+
+const UDataRegistry* FSoftDataRegistryOrTable::GetDataRegistry() const
+{
+	if (!bUseDataRegistry)
+	{
+		return nullptr;
+	}
+
+	UDataRegistrySubsystem* RegistrySystem = UDataRegistrySubsystem::Get();
+	if (!ensure(RegistrySystem))
+	{
+		return nullptr;
+	}
+
+	return RegistrySystem->GetRegistryForType(RegistryType);
+}
+
+FDataRegistryOrTableRow::FDataRegistryOrTableRow()
+	: bUseDataRegistryId(false)
+{
+}
+
+FDataRegistryOrTableRow::FDataRegistryOrTableRow(const FDataTableRowHandle& RowHandle)
+	: bUseDataRegistryId(false)
+	, DataTableRow(RowHandle)
+{
+}
+
+FDataRegistryOrTableRow::FDataRegistryOrTableRow(const FDataRegistryId& RegistryId)
+	: bUseDataRegistryId(true)
+	, DataRegistryId(RegistryId)
+{
+}
+
+FString FDataRegistryOrTableRow::ToString() const
+{
+	if (bUseDataRegistryId)
+	{
+		return DataRegistryId.ToString();
+	}
+
+	return DataTableRow.ToDebugString();
+}
+
+const UDataRegistry* FDataRegistryOrTableRow::GetDataRegistry() const
+{
+	if (!bUseDataRegistryId)
+	{
+		return nullptr;
+	}
+
+	UDataRegistrySubsystem* RegistrySystem = UDataRegistrySubsystem::Get();
+	if (!ensure(RegistrySystem))
+	{
+		return nullptr;
+	}
+
+	return RegistrySystem->GetRegistryForType(DataRegistryId.RegistryType);
+}
