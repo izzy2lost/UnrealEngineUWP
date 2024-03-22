@@ -9,7 +9,7 @@
 
 struct FConstraintInstance;
 struct FBodyInstance;
-class UMeshComponent;
+class UPrimitiveComponent;
 
 /**
  * There will be a PhysicsControlRecord created at runtime for every Control that has been created
@@ -19,13 +19,13 @@ struct FPhysicsControlRecord
 	FPhysicsControlRecord(
 		const FPhysicsControl&       InControl,
 		const FPhysicsControlTarget& InControlTarget,
-		UMeshComponent*              InParentMeshComponent,
-		UMeshComponent*              InChildMeshComponent)
+		UPrimitiveComponent*              InParentComponent,
+		UPrimitiveComponent*              InChildComponent)
 		: PhysicsControl(InControl)
 		, ControlTarget(InControlTarget)
 		, ExpectedUpdateCounter(-1)
-		, ParentMeshComponent(InParentMeshComponent)
-		, ChildMeshComponent(InChildMeshComponent)
+		, ParentComponent(InParentComponent)
+		, ChildComponent(InChildComponent)
 	{}
 
 	/** Removes any constraint and resets the state */
@@ -66,10 +66,10 @@ struct FPhysicsControlRecord
 	int64 ExpectedUpdateCounter;
 
 	/**  The mesh that will be doing the driving. Blank/non-existent means it will happen in world space */
-	TWeakObjectPtr<UMeshComponent> ParentMeshComponent;
+	TWeakObjectPtr<UPrimitiveComponent> ParentComponent;
 
 	/** The mesh that the control will be driving. */
-	TWeakObjectPtr<UMeshComponent> ChildMeshComponent;
+	TWeakObjectPtr<UPrimitiveComponent> ChildComponent;
 
 	/** The underlying constraint used to implement the control. */
 	TSharedPtr<FConstraintInstance> ConstraintInstance;
@@ -81,10 +81,10 @@ struct FPhysicsControlRecord
 struct FPhysicsBodyModifierRecord
 {
 	FPhysicsBodyModifierRecord(
-		TWeakObjectPtr<UMeshComponent>  InMeshComponent, 
+		TWeakObjectPtr<UPrimitiveComponent>  InComponent, 
 		const FName&                    InBoneName, 
 		FPhysicsControlModifierData     InBodyModifierData)
-		: MeshComponent(InMeshComponent)
+		: Component(InComponent)
 		, BodyModifier(InBoneName, InBodyModifierData)
 		, KinematicTargetPosition(FVector::ZeroVector)
 		, KinematicTargetOrientation(FQuat::Identity)
@@ -92,7 +92,7 @@ struct FPhysicsBodyModifierRecord
 	{}
 
 	/**  The mesh that will be modified. */
-	TWeakObjectPtr<UMeshComponent> MeshComponent;
+	TWeakObjectPtr<UPrimitiveComponent> Component;
 
 	// The core data
 	FPhysicsBodyModifier BodyModifier;

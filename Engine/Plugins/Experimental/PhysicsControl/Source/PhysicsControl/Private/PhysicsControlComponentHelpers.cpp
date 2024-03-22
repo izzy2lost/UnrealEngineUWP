@@ -4,7 +4,7 @@
 #include "PhysicsControlData.h"
 #include "PhysicsEngine/ConstraintInstance.h"
 
-#include "Components/StaticMeshComponent.h"
+#include "Components/PrimitiveComponent.h"
 #include "Components/SkeletalMeshComponent.h"
 
 namespace UE
@@ -109,15 +109,15 @@ void ConvertConstraintProfileToControlData(
 }
 
 //======================================================================================================================
-FBodyInstance* GetBodyInstance(UMeshComponent* MeshComponent, const FName BoneName)
+FBodyInstance* GetBodyInstance(UPrimitiveComponent* Component, const FName BoneName)
 {
-	if (UStaticMeshComponent* StaticMeshComponent = Cast<UStaticMeshComponent>(MeshComponent))
-	{
-		return StaticMeshComponent->GetBodyInstance();
-	}
-	if (USkeletalMeshComponent* SkeletalMeshComponent = Cast<USkeletalMeshComponent>(MeshComponent))
+	if (USkeletalMeshComponent* SkeletalMeshComponent = Cast<USkeletalMeshComponent>(Component))
 	{
 		return SkeletalMeshComponent->GetBodyInstance(BoneName);
+	}
+	if (Component)
+	{
+		return Component->GetBodyInstance();
 	}
 	return nullptr;
 }

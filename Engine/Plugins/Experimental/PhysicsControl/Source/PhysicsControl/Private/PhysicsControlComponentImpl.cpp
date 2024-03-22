@@ -26,7 +26,7 @@
 static USkeletalMeshComponent* GetValidSkeletalMeshComponentFromControlParent(
 	const FPhysicsControlRecord& Record)
 {
-	return Cast<USkeletalMeshComponent>(Record.ParentMeshComponent.Get());
+	return Cast<USkeletalMeshComponent>(Record.ParentComponent.Get());
 }
 
 //======================================================================================================================
@@ -34,7 +34,7 @@ static USkeletalMeshComponent* GetValidSkeletalMeshComponentFromControlParent(
 static USkeletalMeshComponent* GetValidSkeletalMeshComponentFromControlChild(
 	const FPhysicsControlRecord& Record)
 {
-	return Cast<USkeletalMeshComponent>(Record.ChildMeshComponent.Get());
+	return Cast<USkeletalMeshComponent>(Record.ChildComponent.Get());
 }
 
 //======================================================================================================================
@@ -42,7 +42,7 @@ static USkeletalMeshComponent* GetValidSkeletalMeshComponentFromControlChild(
 static USkeletalMeshComponent* GetValidSkeletalMeshComponentFromBodyModifier(
 	const FPhysicsBodyModifierRecord& PhysicsBodyModifier)
 {
-	return Cast<USkeletalMeshComponent>(PhysicsBodyModifier.MeshComponent.Get());
+	return Cast<USkeletalMeshComponent>(PhysicsBodyModifier.Component.Get());
 }
 
 //======================================================================================================================
@@ -206,7 +206,7 @@ void UPhysicsControlComponent::ApplyKinematicTarget(const FPhysicsBodyModifierRe
 	if (USkeletalMeshComponent* SkeletalMeshComponent = GetValidSkeletalMeshComponentFromBodyModifier(Record))
 	{
 		FBodyInstance* BodyInstance = UE::PhysicsControl::GetBodyInstance(
-			Record.MeshComponent.Get(), Record.BodyModifier.BoneName);
+			Record.Component.Get(), Record.BodyModifier.BoneName);
 		if (!BodyInstance)
 		{
 			return;
@@ -233,14 +233,14 @@ void UPhysicsControlComponent::ApplyKinematicTarget(const FPhysicsBodyModifierRe
 	}
 	else
 	{
-		const FTransform TM = Record.MeshComponent->GetComponentToWorld();
+		const FTransform TM = Record.Component->GetComponentToWorld();
 		const ETeleportType TT = UE::PhysicsControl::DetectTeleport(
 			TM.GetTranslation(), TM.GetRotation(), 
 			Record.KinematicTargetPosition, Record.KinematicTargetOrientation,
 			TeleportDistanceThreshold, TeleportRotationThreshold)
 			? ETeleportType::ResetPhysics : ETeleportType::None;
 		// Note that calling BodyInstance->SetBodyTransform moves the physics, but not the mesh
-		Record.MeshComponent->SetWorldLocationAndRotation(
+		Record.Component->SetWorldLocationAndRotation(
 			Record.KinematicTargetPosition, Record.KinematicTargetOrientation, false, nullptr, TT);
 	}
 }
@@ -249,7 +249,7 @@ void UPhysicsControlComponent::ApplyKinematicTarget(const FPhysicsBodyModifierRe
 void UPhysicsControlComponent::ResetToCachedTarget(const FPhysicsBodyModifierRecord& Record) const
 {
 	FBodyInstance* BodyInstance = UE::PhysicsControl::GetBodyInstance(
-		Record.MeshComponent.Get(), Record.BodyModifier.BoneName);
+		Record.Component.Get(), Record.BodyModifier.BoneName);
 	if (!BodyInstance)
 	{
 		return;
@@ -428,9 +428,9 @@ void UPhysicsControlComponent::CalculateControlTargetData(
 			bHaveParentBoneData = GetBoneData(
 				ParentBoneData, ParentPoseData, ParentSkeletalMeshComponent, Record.PhysicsControl.ParentBoneName);
 		}
-		else if (Record.ParentMeshComponent.IsValid())
+		else if (Record.ParentComponent.IsValid())
 		{
-			const FTransform ParentTM = Record.ParentMeshComponent->GetComponentTransform();
+			const FTransform ParentTM = Record.ParentComponent->GetComponentTransform();
 			ParentBoneData.CurrentTM = ParentTM;
 			bHaveParentBoneData = true;
 		}
@@ -588,10 +588,10 @@ void UPhysicsControlComponent::ApplyControl(FPhysicsControlRecord& Record)
 	ConstraintInstance->SetDisableCollision(Record.PhysicsControl.ControlData.bDisableCollision);
 
 	FBodyInstance* ParentBodyInstance = UE::PhysicsControl::GetBodyInstance(
-		Record.ParentMeshComponent.Get(), Record.PhysicsControl.ParentBoneName);
+		Record.ParentComponent.Get(), Record.PhysicsControl.ParentBoneName);
 
 	FBodyInstance* ChildBodyInstance = UE::PhysicsControl::GetBodyInstance(
-		Record.ChildMeshComponent.Get(), Record.PhysicsControl.ChildBoneName);
+		Record.ChildComponent.Get(), Record.PhysicsControl.ChildBoneName);
 
 	if (!ParentBodyInstance && !ChildBodyInstance)
 	{
@@ -632,7 +632,7 @@ void UPhysicsControlComponent::ApplyBodyModifier(FPhysicsBodyModifierRecord& Rec
 {
 	USkeletalMeshComponent* SKM = GetValidSkeletalMeshComponentFromBodyModifier(Record);
 	FBodyInstance* BodyInstance = UE::PhysicsControl::GetBodyInstance(
-		Record.MeshComponent.Get(), Record.BodyModifier.BoneName);
+		Record.Component.Get(), Record.BodyModifier.BoneName);
 	if (BodyInstance)
 	{
 		switch (Record.BodyModifier.ModifierData.MovementType)

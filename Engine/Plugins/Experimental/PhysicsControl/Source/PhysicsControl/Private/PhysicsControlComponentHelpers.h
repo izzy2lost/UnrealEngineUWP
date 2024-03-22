@@ -9,7 +9,7 @@ struct FBodyInstance;
 struct FPhysicsControlData;
 struct FConstraintProfileProperties;
 
-class UMeshComponent;
+class UPrimitiveComponent;
 class USkeletalMeshComponent;
 
 namespace UE
@@ -33,18 +33,19 @@ void ConvertConstraintProfileToControlData(
 	FPhysicsControlData& OutControlData, const FConstraintProfileProperties& InProfileProperties);
 
 /** 
- * Attempts to find a BodyInstance from the mesh. If it is a static mesh the single body instance
- * will be returned. If it is a skeletal mesh then if BoneName can be found, the body instance corresponding
- * to that bone will be returned. Otherwise it will return nullptr if the bone can't be found.
+ * Attempts to find a BodyInstance from the component. If it is a primitive or static mesh component the 
+ * single body instance will be returned. If it is a skeletal mesh then if BoneName can be found, the 
+ * body instance corresponding to that bone will be returned. Otherwise it will return nullptr if 
+ * the bone can't be found.
  */
-FBodyInstance* GetBodyInstance(UMeshComponent* MeshComponent, const FName BoneName);
+FBodyInstance* GetBodyInstance(UPrimitiveComponent* Component, const FName BoneName);
 
 /**
  * Attempts to find the parent physical bone given a skeletal mesh and starting bone. This walks up
  * the hierarchy, ignoring non-physical bones, until either a physical bone is found, or it has reached
  * the root without finding a physical bone.
  */
-FName GetPhysicalParentBone(USkeletalMeshComponent* SkeletalMeshComponent, FName BoneName);
+FName GetPhysicalParentBone(USkeletalMeshComponent* SkeletalComponent, FName BoneName);
 
 /**
  * Converts strength/damping ratio/extra damping into spring stiffness/damping.

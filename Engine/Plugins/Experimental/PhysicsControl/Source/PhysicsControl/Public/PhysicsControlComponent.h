@@ -101,9 +101,9 @@ public:
 	 */
 	UFUNCTION(BlueprintCallable, Category = PhysicsControl)
 	FName CreateControl(
-		UMeshComponent*               ParentMeshComponent,
+		UPrimitiveComponent*          ParentComponent,
 		FName                         ParentBoneName,
-		UMeshComponent*               ChildMeshComponent,
+		UPrimitiveComponent*          ChildComponent,
 		const FName                   ChildBoneName,
 		const FPhysicsControlData     ControlData,
 		const FPhysicsControlTarget   ControlTarget, 
@@ -126,9 +126,9 @@ public:
 	UFUNCTION(BlueprintCallable, Category = PhysicsControl)
 	bool CreateNamedControl(
 		FName                         Name,
-		UMeshComponent*               ParentMeshComponent,
+		UPrimitiveComponent*          ParentComponent,
 		const FName                   ParentBoneName,
-		UMeshComponent*               ChildMeshComponent,
+		UPrimitiveComponent*          ChildComponent,
 		const FName                   ChildBoneName,
 		const FPhysicsControlData     ControlData, 
 		const FPhysicsControlTarget   ControlTarget, 
@@ -277,7 +277,7 @@ public:
 		const TMap<FName, FPhysicsControlLimbBones>& LimbBones,
 		const EPhysicsControlType                    ControlType,
 		const FPhysicsControlData                    ControlData,
-		UMeshComponent*                              WorldComponent = nullptr,
+		UPrimitiveComponent*                         WorldComponent = nullptr,
 		FName                                        WorldBoneName = NAME_None,
 		FString                                      NamePrefix = TEXT(""));
 
@@ -342,9 +342,9 @@ public:
 	 */
 	UFUNCTION(BlueprintCallable, Category = PhysicsControl)
 	bool SetControlParent(
-		const FName     Name, 
-		UMeshComponent* ParentMeshComponent,
-		const FName     ParentBoneName);
+		const FName          Name, 
+		UPrimitiveComponent* ParentComponent,
+		const FName          ParentBoneName);
 
 	/**
 	 * Updates the parent object part of controls. Note that this won't change the name of the controls (which may
@@ -353,14 +353,14 @@ public:
 	UFUNCTION(BlueprintCallable, Category = PhysicsControl)
 	void SetControlParents(
 		const TArray<FName>& Names,
-		UMeshComponent*      ParentMeshComponent,
+		UPrimitiveComponent* ParentComponent,
 		const FName          ParentBoneName);
 
 	UFUNCTION(BlueprintCallable, Category = PhysicsControl)
 	void SetControlParentsInSet(
-		const FName     Set,
-		UMeshComponent* ParentMeshComponent,
-		const FName     ParentBoneName);
+		const FName          Set,
+		UPrimitiveComponent* ParentComponent,
+		const FName          ParentBoneName);
 
 	/**
 	 * Modifies an existing control data - i.e. the strengths etc of the control driving towards the target
@@ -943,7 +943,7 @@ public:
 	/**
 	 * Creates a new body modifier for mesh components
 	 * 
-	 * @param MeshComponent The Mesh Component used as a target for the modifier
+	 * @param Component The Mesh Component used as a target for the modifier
 	 * @param BoneName The bone name, if a skeletal mesh is used
 	 * @param Set Which set to include the body modifier in (optional). Note that it automatically 
 	 *        gets added to the set "All"
@@ -951,7 +951,7 @@ public:
 	 */
 	UFUNCTION(BlueprintCallable, Category = PhysicsControl)
 	FName CreateBodyModifier(
-		UMeshComponent*                   MeshComponent,
+		UPrimitiveComponent*              Component,
 		const FName                       BoneName,
 		const FName                       Set,
 		const FPhysicsControlModifierData BodyModifierData);
@@ -960,7 +960,7 @@ public:
 	 * Creates a new body modifier for mesh components
 	 * 
 	 * @param The name of the body modifier that will be created. Creation will fail if this name is already in use.
-	 * @param MeshComponent The Mesh Component used as a target for the modifier
+	 * @param Component The Mesh Component used as a target for the modifier
 	 * @param BoneName The bone name, if a skeletal mesh is used
 	 * @param Set Which set to include the body modifier in (optional). Note that it automatically
 	 *        gets added to the set "All"
@@ -969,7 +969,7 @@ public:
 	UFUNCTION(BlueprintCallable, Category = PhysicsControl)
 	bool CreateNamedBodyModifier(
 		const FName                       Name,
-		UMeshComponent*                   MeshComponent,
+		UPrimitiveComponent*              Component,
 		const FName                       BoneName,
 		const FName                       Set,
 		const FPhysicsControlModifierData BodyModifierData);
@@ -1375,7 +1375,7 @@ public:
 		const FPhysicsControlData                   WorldSpaceControlData,
 		const FPhysicsControlData                   ParentSpaceControlData,
 		const FPhysicsControlModifierData           BodyModifierData,
-		UMeshComponent*                             WorldComponent = nullptr,
+		UPrimitiveComponent*                        WorldComponent = nullptr,
 		FName                                       WorldBoneName = NAME_None);
 
 	/**
@@ -1387,7 +1387,7 @@ public:
 	UFUNCTION(BlueprintCallable, Category = PhysicsControl)
 	void CreateControlsAndBodyModifiersFromControlProfileAsset(
 		USkeletalMeshComponent* SkeletalMeshComponent,
-		UMeshComponent*         WorldComponent,
+		UPrimitiveComponent*    WorldComponent,
 		FName                   WorldBoneName);
 
 	/**
@@ -1557,6 +1557,13 @@ public:
 		const USkeletalMeshComponent* SkeletalMeshComponent,
 		const FName                   BoneName, 
 		const FTransform&             TM);
+
+	/**
+	 * This sets cached bone velocities to zero, by forgetting any previously used transform. This may be useful if 
+	 * the pose is changed suddenly and you don't want this change to show up in the simulated velocities.
+	 */
+	UFUNCTION(BlueprintCallable, Category = PhysicsControl)
+	void SetCachedBoneVelocitiesToZero();
 
 	/**
 	 * This flags the body associated with the modifier to set (using teleport) its position and velocity to 

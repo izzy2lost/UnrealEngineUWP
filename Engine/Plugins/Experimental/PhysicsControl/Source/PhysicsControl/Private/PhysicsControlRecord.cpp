@@ -25,8 +25,8 @@ FVector FPhysicsControlRecord::GetControlPoint() const
 		return PhysicsControl.ControlData.CustomControlPoint;
 	}
 
-	FBodyInstance* ChildBodyInstance = UE::PhysicsControl::GetBodyInstance(
-		ChildMeshComponent.Get(), PhysicsControl.ChildBoneName);
+	const FBodyInstance* ChildBodyInstance = UE::PhysicsControl::GetBodyInstance(
+		ChildComponent.Get(), PhysicsControl.ChildBoneName);
 
 	return ChildBodyInstance ? ChildBodyInstance->GetMassSpaceLocal().GetTranslation() : FVector::ZeroVector;
 }
@@ -41,11 +41,11 @@ bool FPhysicsControlRecord::InitConstraint(UObject* ConstraintDebugOwner, FName 
 	check(ConstraintInstance);
 
 	FBodyInstance* ParentBody = UE::PhysicsControl::GetBodyInstance(
-		ParentMeshComponent.Get(), PhysicsControl.ParentBoneName);
+		ParentComponent.Get(), PhysicsControl.ParentBoneName);
 	FBodyInstance* ChildBody = UE::PhysicsControl::GetBodyInstance(
-		ChildMeshComponent.Get(), PhysicsControl.ChildBoneName);
+		ChildComponent.Get(), PhysicsControl.ChildBoneName);
 
-	if (ParentMeshComponent.IsValid() && !PhysicsControl.ParentBoneName.IsNone() && !ParentBody)
+	if (ParentComponent.IsValid() && !PhysicsControl.ParentBoneName.IsNone() && !ParentBody)
 	{
 		UE_LOG(LogPhysicsControl, Warning,
 			TEXT("Failed to find expected parent body %s when making constraint for control %s"),
@@ -53,7 +53,7 @@ bool FPhysicsControlRecord::InitConstraint(UObject* ConstraintDebugOwner, FName 
 			*ControlName.ToString());
 		return false;
 	}
-	if (ChildMeshComponent.IsValid() && !PhysicsControl.ChildBoneName.IsNone() && !ChildBody)
+	if (ChildComponent.IsValid() && !PhysicsControl.ChildBoneName.IsNone() && !ChildBody)
 	{
 		UE_LOG(LogPhysicsControl, Warning,
 			TEXT("Failed to find expected child body %s when making constraint for control %s"),
