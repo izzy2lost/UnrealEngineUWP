@@ -364,23 +364,6 @@ struct FMutableLODSettings
 	FPerPlatformInt NumMaxStreamedLODs = MAX_MESH_LOD_COUNT;
 
 #endif
-
-	/** Number of LODs that the object root has, which can be higher than the reference mesh LOD count. It's set at the end of the compilation process */
-	UPROPERTY()
-	int32 NumLODsInRoot = 0;
-
-	/** First LOD available, some platforms may remove lower LODs when cooking, this MinLOD represents the first LOD we can generate */
-	UPROPERTY()
-	int32 FirstLODAvailable = 0;
-
-	/** Whether we should stream LODs for on the running platform */
-	UPROPERTY()
-	bool bLODStreamingEnabled = false;
-
-	/** If bEnableLODStreaming is true, maximum number of LODs to stream */
-	UPROPERTY()
-	uint32 NumLODsToStream = 0;
-
 };
 
 
@@ -605,10 +588,6 @@ private:
 	TArray<FProfileParameterDat> InstancePropertiesProfiles;
 #endif // WITH_EDITORONLY_DATA
 
-	/** Amount of components in this CO. Set at the end of the model compilation process. */
-	UPROPERTY()
-	int32 NumMeshComponentsInRoot = 0; // TODO UE-205600, move to FModelResources
-
 public:
 	/** Get the number of components this Customizable Object has. */
 	UFUNCTION(BlueprintCallable, Category = CustomizableObject)
@@ -784,10 +763,6 @@ private:
 	UPROPERTY(EditAnywhere, Category = CustomizableObject)
 	TArray<FName> LowPriorityTextures;
 
-	/** Map of Hash to Streaming blocks, used to stream a block of data representing a resource from the BulkData */
-	UPROPERTY()	
-	TMap<uint64, FMutableStreamableBlock> HashToStreamableBlock; // TODO UE-205600, move to FModelResources
-
 	// Customizable Object Population data start ------------------------------------------------------
 	/** Array to store the selected Population Class tags for this Customizable Object */
 	UPROPERTY()
@@ -813,8 +788,10 @@ private:
 #endif
 	
 public:
+#if WITH_EDITORONLY_DATA
 	FPostCompileDelegate& GetPostCompileDelegate() const;
-	
+#endif
+
 	/** Create a new instance of this object. The instance parameters will be initialized with the object default values. */
 	UFUNCTION(BlueprintCallable, Category = CustomizableObject)
 	UCustomizableObjectInstance* CreateInstance();
