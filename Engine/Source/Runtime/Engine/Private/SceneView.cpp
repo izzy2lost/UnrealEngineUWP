@@ -570,7 +570,7 @@ FVector4f CreateInvDeviceZToWorldZTransform(const FMatrix& ProjMatrix)
 	}
 }
 
-bool FSceneViewProjectionData::UpdateOrthoPlanes(FSceneViewProjectionData* InOutProjectionData, float& NearPlane, float& FarPlane)
+bool FSceneViewProjectionData::UpdateOrthoPlanes(FSceneViewProjectionData* InOutProjectionData, float& NearPlane, float& FarPlane, float HalfOrthoWidth)
 {
 	if (!InOutProjectionData || !CVarAllowOrthoNearPlaneCorrection.GetValueOnAnyThread())
 	{
@@ -597,7 +597,11 @@ bool FSceneViewProjectionData::UpdateOrthoPlanes(FSceneViewProjectionData* InOut
 		* Use the height of the camera as a sort of pseudo CameraToViewTarget to remove camera position as much as possible so we minimise the near clip plane distance.
 		* Depends on view direction being top down as when we get to a side view, the scale grows much larger and it becomes redundant.
 		*/
-		float CameraHeightAdjustment = CVarOrthoCameraHeightAsViewTarget.GetValueOnAnyThread() ? FMath::Abs(InOutProjectionData->ViewOrigin.Z) * FMath::Abs((ViewForward.Dot(FVector(0, 0, -1.0f)))) : 0.0f;
+		float CameraHeightAdjustment = 0.0f;
+		if (CVarOrthoCameraHeightAsViewTarget.GetValueOnAnyThread())
+		{
+			CameraHeightAdjustment = FMath::Abs(FMath::Min(InOutProjectionData->ViewOrigin.Z, HalfOrthoWidth)) * FMath::Abs((ViewForward.Dot(FVector(0, 0, -1.0f))));
+		}
 		InOutProjectionData->ViewOrigin += ViewForward * (CameraHeightAdjustment + NearPlane);
 	}
 	NearPlane = GDefaultUpdateOrthoNearPlane;
@@ -608,7 +612,7 @@ bool FSceneViewProjectionData::UpdateOrthoPlanes(FSceneViewProjectionData* InOut
 
 bool FSceneViewProjectionData::UpdateOrthoPlanes(FMinimalViewInfo& MinimalViewInfo)
 {
-	return UpdateOrthoPlanes(MinimalViewInfo.OrthoNearClipPlane, MinimalViewInfo.OrthoFarClipPlane);
+	return UpdateOrthoPlanes(MinimalViewInfo.OrthoNearClipPlane, MinimalViewInfo.OrthoFarClipPlane, MinimalViewInfo.OrthoWidth/2.0f);
 }
 
 bool FSceneViewProjectionData::UpdateOrthoPlanes()
@@ -634,7 +638,12 @@ bool FSceneViewProjectionData::UpdateOrthoPlanes()
 		return false;
 	}
 
-	UpdateOrthoPlanes(NearPlane, FarPlane);
+	float HalfInvOrthoWidth = static_cast<float>(ProjectionMatrix.M[0][0]);
+	if (HalfInvOrthoWidth == 0.0f)
+	{
+		return false;
+	}
+	UpdateOrthoPlanes(NearPlane, FarPlane, 1.0f / HalfInvOrthoWidth);
 
 	const float ZScale = 1.0f / (FarPlane - NearPlane);
 	const float ZOffset = -NearPlane;

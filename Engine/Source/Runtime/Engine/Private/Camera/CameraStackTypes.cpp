@@ -302,7 +302,7 @@ void FMinimalViewInfo::CalculateProjectionMatrixGivenViewRectangle(FMinimalViewI
 			float FarPlane = ViewInfo.OrthoFarClipPlane;
 			float NearPlane = ViewInfo.OrthoNearClipPlane;
 
-			InOutProjectionData.UpdateOrthoPlanes(NearPlane, FarPlane);
+			InOutProjectionData.UpdateOrthoPlanes(NearPlane, FarPlane, OrthoWidth);
 
 			const float ZScale = 1.0f / (FarPlane - NearPlane);
 			const float ZOffset = -NearPlane;
