@@ -625,6 +625,7 @@ void SDMStage::HandleAssetDragDropOperation(FAssetDragDropOp& AssetDragDropOpera
 
 	if (TextureValue)
 	{
+		TextureValue->Modify();
 		TextureValue->SetValue(Texture);
 	}
 }
