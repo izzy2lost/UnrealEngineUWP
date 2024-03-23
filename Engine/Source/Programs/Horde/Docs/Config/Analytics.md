@@ -35,4 +35,4 @@ running metrics for each time interval. This aggregation is performed according 
 ## Charting
 
 The Horde dashboard can render charts showing aggregated metrics collected on the server. These views are configured
-using the `Dashboard.Analytics` section of the globals.json file (see [TelemetryViewConfig](Schema/Telemetry.md#telemetryviewconfig)).
+using the `Dashboard.Analytics` section of the globals.json file (see [TelemetryViewConfig](Schema/Dashboard.md#telemetryviewconfig)).

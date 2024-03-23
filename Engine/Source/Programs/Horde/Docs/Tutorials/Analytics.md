@@ -48,6 +48,7 @@ the following lines:
             "include": [
                 {
                     "path": "$(HordeDir)/Defaults/default-metrics.telemetry.json"
+                }
             ]
         }
     ]
@@ -63,7 +64,7 @@ can be included by adding the following snippet to your [globals.json](../Config
                 "path": "$(HordeDir)/Defaults/default-analytics.dashboard.json"
             }
         ]
-    ]
+    }
     ```
 
 ## See Also
