@@ -29,6 +29,7 @@ using Horde.Server.Utilities;
 using HordeCommon;
 using HordeCommon.Rpc.Tasks;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using MongoDB.Bson;
 using MongoDB.Bson.IO;
 using MongoDB.Bson.Serialization;
@@ -389,20 +390,17 @@ namespace Horde.Server.Jobs
 		readonly ITelemetrySink _telemetrySink;
 		readonly IClock _clock;
 		readonly Tracer _tracer;
+		readonly IOptionsMonitor<GlobalConfig> _globalConfig;
 		readonly ILogger<JobCollection> _logger;
 
 		/// <summary>
 		/// Constructor
 		/// </summary>
-		/// <param name="mongoService">The database service singleton</param>
-		/// <param name="clock"></param>
-		/// <param name="telemetrySink">Telemetry sink for data</param>
-		/// <param name="tracer">Tracer</param>
-		/// <param name="logger">The logger instance</param>
-		public JobCollection(MongoService mongoService, IClock clock, ITelemetrySink telemetrySink, Tracer tracer, ILogger<JobCollection> logger)
+		public JobCollection(MongoService mongoService, IClock clock, ITelemetrySink telemetrySink, IOptionsMonitor<GlobalConfig> globalConfig, Tracer tracer, ILogger<JobCollection> logger)
 		{
 			_clock = clock;
 			_telemetrySink = telemetrySink;
+			_globalConfig = globalConfig;
 			_tracer = tracer;
 			_logger = logger;
 
@@ -450,9 +448,9 @@ namespace Horde.Server.Jobs
 
 			await _jobs.InsertOneAsync(newJob, null, cancellationToken);
 
-			if (_telemetrySink.Enabled)
+			if(_globalConfig.CurrentValue.TryGetStream(streamId, out StreamConfig? streamConfig) && !streamConfig.TelemetryStoreId.IsEmpty)
 			{
-				_telemetrySink.SendEvent(TelemetryStoreId.Default, TelemetryRecordMeta.CurrentHordeInstance, new
+				_telemetrySink.SendEvent(streamConfig.TelemetryStoreId, TelemetryRecordMeta.CurrentHordeInstance, new
 				{
 					EventName = "State.Job",
 					Id = newJob.Id,
