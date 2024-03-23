@@ -162,10 +162,10 @@
 							]
 						},
 						{
-							"name": "User Editor Startup Time (Live)",
+							"name": "User Editor Boot Time (Live)",
 							"metrics": [
 								{
-									"id": "core-loading-user-editorstartuptime"
+									"id": "core-loading-user-editorboottime"
 								}
 							]
 						},
