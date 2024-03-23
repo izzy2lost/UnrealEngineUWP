@@ -1124,21 +1124,6 @@ namespace PyGenUtil
 	/** Get the type that should be used with the Python type registry for an asset (eg, a Blueprint asset should use its generated class) */
 	const UObject* GetAssetTypeRegistryType(const UObject* InObj);
 
-	/** Get the name that should be used with the Python type registry for an asset (this uses the package path name, as assets may not have unique names) */
-	FName GetAssetTypeRegistryName(const UObject* InObj);
-
-	/** Get the name that should be used by the given class when registered with the Python type registry */
-	FName GetTypeRegistryName(const UClass* InClass);
-
-	/** Get the name that should be used by the given struct when registered with the Python type registry */
-	FName GetTypeRegistryName(const UScriptStruct* InStruct);
-
-	/** Get the name that should be used by the given enum when registered with the Python type registry */
-	FName GetTypeRegistryName(const UEnum* InEnum);
-
-	/** Get the name that should be used by the given delegate when registered with the Python type registry */
-	FName GetTypeRegistryName(const UFunction* InDelegateSignature);
-
 	/** Get the native module the given field belongs to */
 	FString GetFieldModule(const UField* InField);
 
@@ -1152,19 +1137,19 @@ namespace PyGenUtil
 	FString GetClassPythonName(const UClass* InClass);
 
 	/** Get the deprecated Python names of the given class */
-	TArray<FString> GetDeprecatedClassPythonNames(const UClass* InClass);
+	TArray<TTuple<FSoftObjectPath, FString>> GetDeprecatedClassPythonNames(const UClass* InClass);
 
 	/** Get the Python name of the given struct */
 	FString GetStructPythonName(const UScriptStruct* InStruct);
 
 	/** Get the deprecated Python names of the given struct */
-	TArray<FString> GetDeprecatedStructPythonNames(const UScriptStruct* InStruct);
+	TArray<TTuple<FSoftObjectPath, FString>> GetDeprecatedStructPythonNames(const UScriptStruct* InStruct);
 
 	/** Get the Python name of the given enum */
 	FString GetEnumPythonName(const UEnum* InEnum);
 
 	/** Get the deprecated Python names of the given enum */
-	TArray<FString> GetDeprecatedEnumPythonNames(const UEnum* InEnum);
+	TArray<TTuple<FSoftObjectPath, FString>> GetDeprecatedEnumPythonNames(const UEnum* InEnum);
 
 	/** Get the Python name of the given enum entry */
 	FString GetEnumEntryPythonName(const UEnum* InEnum, const int32 InEntryIndex);
@@ -1176,25 +1161,25 @@ namespace PyGenUtil
 	FString GetFunctionPythonName(const UFunction* InFunc);
 
 	/** Get the deprecated Python names of the given function */
-	TArray<FString> GetDeprecatedFunctionPythonNames(const UFunction* InFunc);
+	TArray<TTuple<FSoftObjectPath, FString>> GetDeprecatedFunctionPythonNames(const UFunction* InFunc);
 
 	/** Get the Python name of the given function when it's hoisted as a script method */
 	FString GetScriptMethodPythonName(const UFunction* InFunc);
 
 	/** Get the deprecated Python names of the given function it's hoisted as a script method */
-	TArray<FString> GetDeprecatedScriptMethodPythonNames(const UFunction* InFunc);
+	TArray<TTuple<FSoftObjectPath, FString>> GetDeprecatedScriptMethodPythonNames(const UFunction* InFunc);
 
 	/** Get the Python name of the given function when it's hoisted as a script constant */
 	FString GetScriptConstantPythonName(const UFunction* InFunc);
 
 	/** Get the deprecated Python names of the given function it's hoisted as a script constant */
-	TArray<FString> GetDeprecatedScriptConstantPythonNames(const UFunction* InFunc);
+	TArray<TTuple<FSoftObjectPath, FString>> GetDeprecatedScriptConstantPythonNames(const UFunction* InFunc);
 
 	/** Get the Python name of the given property */
 	FString GetPropertyPythonName(const FProperty* InProp);
 
 	/** Get the deprecated Python names of the given property */
-	TArray<FString> GetDeprecatedPropertyPythonNames(const FProperty* InProp);
+	TArray<TTuple<FSoftObjectPath, FString>> GetDeprecatedPropertyPythonNames(const FProperty* InProp);
 
 	/** Get the Python name of the given property */
 	FString GetPropertyTypePythonName(const FProperty* InProp, const bool InIncludeUnrealNamespace = false, const bool InIsForDocString = true, const EPythonizeFlags PythonizeFlags = EPythonizeFlags::None);

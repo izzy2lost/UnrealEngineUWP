@@ -26,6 +26,7 @@
 #include "Misc/PackageName.h"
 #include "Misc/Paths.h"
 #include "Misc/FileHelper.h"
+#include "Misc/ScopedSlowTask.h"
 #include "Misc/StringBuilder.h"
 #include "SourceCodeNavigation.h"
 #include "UObject/UnrealType.h"
@@ -39,6 +40,8 @@
 #if WITH_EDITOR
 #include "Kismet2/ReloadUtilities.h"
 #endif
+
+#define LOCTEXT_NAMESPACE "PyWrapperTypeRegistry"
 
 #if WITH_PYTHON
 
@@ -89,7 +92,7 @@ void SetMakeFunction(FPyWrapperStructMetaData& MetaData, UFunction* MakeFunc)
 
 	if (!bHasValidReturn)
 	{
-		REPORT_PYTHON_GENERATION_ISSUE(Warning, TEXT("Struct '%s' is marked as 'HasNativeMake' but the function '%s' does not return the struct type. Python will use the generic make function to create a Python object of this type."), *MetaData.Struct->GetName(), *MetaData.MakeFunc.Func->GetPathName());
+		REPORT_PYTHON_GENERATION_ISSUE(Warning, TEXT("Struct '%s' is marked as 'HasNativeMake' but the function '%s' does not return the struct type. Python will use the generic make function to create a Python object of this type."), *MetaData.Struct->GetPathName(), *MetaData.MakeFunc.Func->GetPathName());
 		MetaData.MakeFunc.SetFunction(nullptr);
 		return;
 	}
@@ -117,7 +120,7 @@ void SetBreakFunction(FPyWrapperStructMetaData& MetaData, UFunction* BreakFunc)
 
 	if (!bHasValidInput)
 	{
-		REPORT_PYTHON_GENERATION_ISSUE(Warning, TEXT("Struct '%s' is marked as 'HasNativeBreak' but the function '%s' does not have the struct type as its only input argument. Python will use the generic break function to convert a Python object of this type into a tuple."), *MetaData.Struct->GetName(), *MetaData.BreakFunc.Func->GetPathName());
+		REPORT_PYTHON_GENERATION_ISSUE(Warning, TEXT("Struct '%s' is marked as 'HasNativeBreak' but the function '%s' does not have the struct type as its only input argument. Python will use the generic break function to convert a Python object of this type into a tuple."), *MetaData.Struct->GetPathName(), *MetaData.BreakFunc.Func->GetPathName());
 		MetaData.BreakFunc.SetFunction(nullptr);
 	}
 };
@@ -820,11 +823,11 @@ FPyWrapperTypeRegistry::FPyWrapperTypeRegistry()
 	{
 		for (const TPair<FString, TSharedPtr<FPyWrapperStructMetaData>>& UnresolvedMakePair : UnresolvedMakeFuncs)
 		{
-			REPORT_PYTHON_GENERATION_ISSUE(Error, TEXT("Struct '%s' is marked as '%s' but the function '%s' could not be found."), *UnresolvedMakePair.Value->Struct->GetName(), *PyGenUtil::HasNativeMakeMetaDataKey.ToString(), *UnresolvedMakePair.Key);
+			REPORT_PYTHON_GENERATION_ISSUE(Error, TEXT("Struct '%s' is marked as '%s' but the function '%s' could not be found."), *UnresolvedMakePair.Value->Struct->GetPathName(), *PyGenUtil::HasNativeMakeMetaDataKey.ToString(), *UnresolvedMakePair.Key);
 		}
 		for (const TPair<FString, TSharedPtr<FPyWrapperStructMetaData>>& UnresolvedBreakPair : UnresolvedBreakFuncs)
 		{
-			REPORT_PYTHON_GENERATION_ISSUE(Error, TEXT("Struct '%s' is marked as '%s' but the function '%s' could not be found."), *UnresolvedBreakPair.Value->Struct->GetName(), *PyGenUtil::HasNativeBreakMetaDataKey.ToString(), *UnresolvedBreakPair.Key);
+			REPORT_PYTHON_GENERATION_ISSUE(Error, TEXT("Struct '%s' is marked as '%s' but the function '%s' could not be found."), *UnresolvedBreakPair.Value->Struct->GetPathName(), *PyGenUtil::HasNativeBreakMetaDataKey.ToString(), *UnresolvedBreakPair.Key);
 		}
 	});
 }
@@ -846,7 +849,7 @@ void FPyWrapperTypeRegistry::RegisterInlineStructFactory(const TSharedRef<const 
 	InlineStructFactories.Add(InFactory->GetStructName(), InFactory);
 }
 
-const IPyWrapperInlineStructFactory* FPyWrapperTypeRegistry::GetInlineStructFactory(const FName StructName) const
+const IPyWrapperInlineStructFactory* FPyWrapperTypeRegistry::GetInlineStructFactory(const FTopLevelAssetPath& StructName) const
 {
 	return InlineStructFactories.FindRef(StructName).Get();
 }
@@ -867,9 +870,14 @@ void FPyWrapperTypeRegistry::GenerateWrappedTypes()
 		TArray<UObject*> ObjectsToProcess;
 		GetObjectsOfClass(UField::StaticClass(), ObjectsToProcess);
 
+		FScopedSlowTask SlowTask(ObjectsToProcess.Num(), LOCTEXT("GeneratingPythonTypes", "Generating Python Types..."));
+		SlowTask.Visibility = ESlowTaskVisibility::Important; // this function can be very slow, users will benefit from our messages
+
 		FNameBuilder ObjectPackageName;
 		for (UObject* ObjectToProcess : ObjectsToProcess)
 		{
+			SlowTask.EnterProgressFrame();
+
 			ObjectToProcess->GetPackage()->GetFName().ToString(ObjectPackageName);
 			if (FPackageName::IsScriptPackage(ObjectPackageName.ToView()))
 			{
@@ -907,8 +915,16 @@ void FPyWrapperTypeRegistry::GenerateWrappedTypesForModule(const FName ModuleNam
 		TArray<UObject*> ObjectsToProcess;
 		GetObjectsWithPackage(ModulePackage, ObjectsToProcess);
 
+		FScopedSlowTask SlowTask(ObjectsToProcess.Num(), FText::Format(LOCTEXT("GeneratingPythonTypesForModule", "Generating Python Types for {0}..."), FText::FromName(ModuleName)));
+		if (ObjectsToProcess.Num() > 1000)
+		{
+			SlowTask.Visibility = ESlowTaskVisibility::Important; // this function can be very slow, users will benefit from our messages
+		}
+
 		for (UObject* ObjectToProcess : ObjectsToProcess)
 		{
+			SlowTask.EnterProgressFrame();
+
 			GenerateWrappedTypeForObject(ObjectToProcess, GeneratedWrappedTypeReferences, DirtyModules);
 		}
 
@@ -943,11 +959,11 @@ void FPyWrapperTypeRegistry::OrphanWrappedTypesForModule(const FName ModuleName)
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(FPyWrapperTypeRegistry::OrphanWrappedTypesForModule)
 
-	TArray<FName> ModuleTypeNames;
+	TArray<FSoftObjectPath> ModuleTypeNames;
 	GeneratedWrappedTypesForModule.MultiFind(ModuleName, ModuleTypeNames, true);
 	GeneratedWrappedTypesForModule.Remove(ModuleName);
 
-	for (const FName& ModuleTypeName : ModuleTypeNames)
+	for (const FSoftObjectPath& ModuleTypeName : ModuleTypeNames)
 	{
 		TSharedPtr<PyGenUtil::FGeneratedWrappedType> GeneratedWrappedType;
 		if (GeneratedWrappedTypes.RemoveAndCopyValue(ModuleTypeName, GeneratedWrappedType))
@@ -959,6 +975,7 @@ void FPyWrapperTypeRegistry::OrphanWrappedTypesForModule(const FName ModuleName)
 			PythonWrappedClasses.Remove(ModuleTypeName);
 			PythonWrappedStructs.Remove(ModuleTypeName);
 			PythonWrappedEnums.Remove(ModuleTypeName);
+			PythonWrappedDelegates.Remove(ModuleTypeName);
 		}
 	}
 }
@@ -974,25 +991,36 @@ void FPyWrapperTypeRegistry::GenerateWrappedTypesForReferences(const FGeneratedW
 		return;
 	}
 	
+	const int32 TotalNumReferences = InGeneratedWrappedTypeReferences.ClassReferences.Num() + InGeneratedWrappedTypeReferences.StructReferences.Num() + InGeneratedWrappedTypeReferences.EnumReferences.Num() + InGeneratedWrappedTypeReferences.DelegateReferences.Num();
+	FScopedSlowTask SlowTask(TotalNumReferences, LOCTEXT("GeneratingPythonTypes", "Generating Python Types..."));
+	if (TotalNumReferences > 1000)
+	{
+		SlowTask.Visibility = ESlowTaskVisibility::Important; // this function can be very slow, users will benefit from our messages
+	}
+
 	FGeneratedWrappedTypeReferences GeneratedWrappedTypeReferences;
 
 	for (const UClass* Class : InGeneratedWrappedTypeReferences.ClassReferences)
 	{
+		SlowTask.EnterProgressFrame();
 		GenerateWrappedClassType(Class, GeneratedWrappedTypeReferences, OutDirtyModules, ReferenceGenerationFlags);
 	}
 
 	for (const UScriptStruct* Struct : InGeneratedWrappedTypeReferences.StructReferences)
 	{
+		SlowTask.EnterProgressFrame();
 		GenerateWrappedStructType(Struct, GeneratedWrappedTypeReferences, OutDirtyModules, ReferenceGenerationFlags);
 	}
 
 	for (const UEnum* Enum : InGeneratedWrappedTypeReferences.EnumReferences)
 	{
+		SlowTask.EnterProgressFrame();
 		GenerateWrappedEnumType(Enum, GeneratedWrappedTypeReferences, OutDirtyModules, ReferenceGenerationFlags);
 	}
 
 	for (const UFunction* DelegateSignature : InGeneratedWrappedTypeReferences.DelegateReferences)
 	{
+		SlowTask.EnterProgressFrame();
 		checkf(DelegateSignature->HasAnyFunctionFlags(FUNC_Delegate), TEXT("UFunction '%s' was detected as a delegate but doesn't have the 'FUNC_Delegate' flag"), *DelegateSignature->GetPathName());
 		GenerateWrappedDelegateType(DelegateSignature, GeneratedWrappedTypeReferences, OutDirtyModules, ReferenceGenerationFlags);
 	}
@@ -1011,16 +1039,16 @@ void FPyWrapperTypeRegistry::NotifyModulesDirtied(const TSet<FName>& InDirtyModu
 	}
 }
 
-void FPyWrapperTypeRegistry::UpdateGenerateWrappedTypeForRename(const FName InOldTypeRegistryName, const UObject* InObj)
+void FPyWrapperTypeRegistry::UpdateGenerateWrappedTypeForRename(const FSoftObjectPath& InOldTypeRegistryName, const UObject* InObj)
 {
-	const FName TypeRegistryName = PyGenUtil::GetAssetTypeRegistryName(InObj);
+	const FSoftObjectPath TypeRegistryName(InObj);
 
 	TSharedPtr<PyGenUtil::FGeneratedWrappedType> GeneratedWrappedType = GeneratedWrappedTypes.FindAndRemoveChecked(InOldTypeRegistryName);
-	check(!TypeRegistryName.IsNone() && !GeneratedWrappedTypes.Contains(TypeRegistryName));
+	check(TypeRegistryName.IsValid() && !GeneratedWrappedTypes.Contains(TypeRegistryName));
 	GeneratedWrappedTypes.Add(TypeRegistryName, GeneratedWrappedType);
 }
 
-void FPyWrapperTypeRegistry::RemoveGenerateWrappedTypeForDelete(const FName InTypeRegistryName)
+void FPyWrapperTypeRegistry::RemoveGenerateWrappedTypeForDelete(const FSoftObjectPath& InTypeRegistryName)
 {
 	TSharedPtr<PyGenUtil::FGeneratedWrappedType> GeneratedWrappedType = GeneratedWrappedTypes.FindRef(InTypeRegistryName);
 	const FString PythonTypeName = UTF8_TO_TCHAR(GeneratedWrappedType->TypeName.GetData());
@@ -1088,7 +1116,7 @@ bool FPyWrapperTypeRegistry::HasWrappedTypeForObject(const UObject* InObj) const
 	return false;
 }
 
-bool FPyWrapperTypeRegistry::HasWrappedTypeForObjectName(const FName InName) const
+bool FPyWrapperTypeRegistry::HasWrappedTypeForObjectName(const FSoftObjectPath& InName) const
 {
 	return GeneratedWrappedTypes.Contains(InName);
 }
@@ -1127,7 +1155,7 @@ PyTypeObject* FPyWrapperTypeRegistry::GenerateWrappedClassType(const UClass* InC
 	INC_DWORD_STAT(STAT_GenerateWrappedClassCallCount);
 
 	// Already processed? Nothing more to do
-	const FName TypeRegistryName = PyGenUtil::GetTypeRegistryName(InClass);
+	const FSoftObjectPath TypeRegistryName(InClass);
 	if (PyTypeObject* ExistingPyType = PythonWrappedClasses.FindRef(TypeRegistryName))
 	{
 		return ExistingPyType;
@@ -1189,7 +1217,7 @@ PyTypeObject* FPyWrapperTypeRegistry::GenerateWrappedClassType(const UClass* InC
 						const UFunction* GetSetFunc = InClass->FindFunctionByName(*GetSetName);
 						if (!GetSetFunc)
 						{
-							REPORT_PYTHON_GENERATION_ISSUE(Error, TEXT("Property '%s.%s' is marked as '%s' but the function '%s' could not be found."), *InClass->GetName(), *InProp->GetName(), *InKey.ToString(), *GetSetName);
+							REPORT_PYTHON_GENERATION_ISSUE(Error, TEXT("Property '%s.%s' is marked as '%s' but the function '%s' could not be found."), *InClass->GetPathName(), *InProp->GetName(), *InKey.ToString(), *GetSetName);
 						}
 						return GetSetFunc;
 					}
@@ -1212,9 +1240,10 @@ PyTypeObject* FPyWrapperTypeRegistry::GenerateWrappedClassType(const UClass* InC
 				GeneratedWrappedType->FieldTracker.RegisterPythonFieldName(GeneratedPropertyDoc.PythonPropName, InProp);
 			}
 
-			const TArray<FString> DeprecatedPythonPropNames = PyGenUtil::GetDeprecatedPropertyPythonNames(InProp);
-			for (const FString& DeprecatedPythonPropName : DeprecatedPythonPropNames)
+			const TArray<TTuple<FSoftObjectPath, FString>> DeprecatedPythonPropNames = PyGenUtil::GetDeprecatedPropertyPythonNames(InProp);
+			for (const TTuple<FSoftObjectPath, FString>& DeprecatedPythonPropNamePair : DeprecatedPythonPropNames)
 			{
+				const FString& DeprecatedPythonPropName = DeprecatedPythonPropNamePair.Value;
 				FString DeprecationMessage = FString::Printf(TEXT("'%s' was renamed to '%s'."), *DeprecatedPythonPropName, *GeneratedPropertyDoc.PythonPropName);
 				PythonProperties.Add(*DeprecatedPythonPropName, InProp->GetFName());
 				PythonDeprecatedProperties.Add(*DeprecatedPythonPropName, DeprecationMessage);
@@ -1238,7 +1267,7 @@ PyTypeObject* FPyWrapperTypeRegistry::GenerateWrappedClassType(const UClass* InC
 		// Only static functions can be hoisted onto other types
 		if (!InFunc->HasAnyFunctionFlags(FUNC_Static))
 		{
-			REPORT_PYTHON_GENERATION_ISSUE(Error, TEXT("Non-static function '%s.%s' is marked as 'ScriptMethod' but only static functions can be hoisted."), *InFunc->GetOwnerClass()->GetName(), *InFunc->GetName());
+			REPORT_PYTHON_GENERATION_ISSUE(Error, TEXT("Non-static function '%s.%s' is marked as 'ScriptMethod' but only static functions can be hoisted."), *InFunc->GetOwnerClass()->GetPathName(), *InFunc->GetName());
 			return;
 		}
 
@@ -1264,14 +1293,14 @@ PyTypeObject* FPyWrapperTypeRegistry::GenerateWrappedClassType(const UClass* InC
 				break;
 			}
 
-			REPORT_PYTHON_GENERATION_ISSUE(Error, TEXT("Function '%s.%s' is marked as 'ScriptMethod' but doesn't contain a valid struct or object as its first argument.%s"), *InFunc->GetOwnerClass()->GetName(), *InFunc->GetName(), PropertyPossiblyMissingMacro ? TEXT(" UPARAM(ref) may be missing on the first argument.") : TEXT(""));
+			REPORT_PYTHON_GENERATION_ISSUE(Error, TEXT("Function '%s.%s' is marked as 'ScriptMethod' but doesn't contain a valid struct or object as its first argument.%s"), *InFunc->GetOwnerClass()->GetPathName(), *InFunc->GetName(), PropertyPossiblyMissingMacro ? TEXT(" UPARAM(ref) may be missing on the first argument.") : TEXT(""));
 			return;
 		}
 		if (const FObjectPropertyBase* SelfPropObj = CastField<FObjectPropertyBase>(SelfParam.ParamProp))
 		{
 			if (SelfPropObj->PropertyClass->IsChildOf(InFunc->GetOwnerClass()))
 			{
-				REPORT_PYTHON_GENERATION_ISSUE(Error, TEXT("Function '%s.%s' is marked as 'ScriptMethod' but the object argument type (%s) is a child of the the class type of the static function. This is not allowed."), *InFunc->GetOwnerClass()->GetName(), *InFunc->GetName(), *SelfPropObj->PropertyClass->GetName());
+				REPORT_PYTHON_GENERATION_ISSUE(Error, TEXT("Function '%s.%s' is marked as 'ScriptMethod' but the object argument type (%s) is a child of the the class type of the static function. This is not allowed."), *InFunc->GetOwnerClass()->GetPathName(), *InFunc->GetName(), *SelfPropObj->PropertyClass->GetPathName());
 				return;
 			}
 		}
@@ -1310,27 +1339,27 @@ PyTypeObject* FPyWrapperTypeRegistry::GenerateWrappedClassType(const UClass* InC
 		{
 			if (GeneratedWrappedDynamicMethod.SelfReturn.ParamProp)
 			{
-				REPORT_PYTHON_GENERATION_ISSUE(Error, TEXT("Function '%s.%s' is marked as 'ScriptMethodSelfReturn' but the 'self' argument is also marked as UPARAM(ref). This is not allowed."), *InFunc->GetOwnerClass()->GetName(), *InFunc->GetName());
+				REPORT_PYTHON_GENERATION_ISSUE(Error, TEXT("Function '%s.%s' is marked as 'ScriptMethodSelfReturn' but the 'self' argument is also marked as UPARAM(ref). This is not allowed."), *InFunc->GetOwnerClass()->GetPathName(), *InFunc->GetName());
 				return;
 			}
 			else if (GeneratedWrappedDynamicMethod.MethodFunc.OutputParams.Num() == 0 || !GeneratedWrappedDynamicMethod.MethodFunc.OutputParams[0].ParamProp->HasAnyPropertyFlags(CPF_ReturnParm))
 			{
-				REPORT_PYTHON_GENERATION_ISSUE(Error, TEXT("Function '%s.%s' is marked as 'ScriptMethodSelfReturn' but has no return value."), *InFunc->GetOwnerClass()->GetName(), *InFunc->GetName());
+				REPORT_PYTHON_GENERATION_ISSUE(Error, TEXT("Function '%s.%s' is marked as 'ScriptMethodSelfReturn' but has no return value."), *InFunc->GetOwnerClass()->GetPathName(), *InFunc->GetName());
 				return;
 			}
 			else if (!SelfParam.ParamProp->IsA<FStructProperty>())
 			{
-				REPORT_PYTHON_GENERATION_ISSUE(Error, TEXT("Function '%s.%s' is marked as 'ScriptMethodSelfReturn' but the 'self' argument is not a struct."), *InFunc->GetOwnerClass()->GetName(), *InFunc->GetName());
+				REPORT_PYTHON_GENERATION_ISSUE(Error, TEXT("Function '%s.%s' is marked as 'ScriptMethodSelfReturn' but the 'self' argument is not a struct."), *InFunc->GetOwnerClass()->GetPathName(), *InFunc->GetName());
 				return;
 			}
 			else if (!GeneratedWrappedDynamicMethod.MethodFunc.OutputParams[0].ParamProp->IsA<FStructProperty>())
 			{
-				REPORT_PYTHON_GENERATION_ISSUE(Error, TEXT("Function '%s.%s' is marked as 'ScriptMethodSelfReturn' but the return value is not a struct."), *InFunc->GetOwnerClass()->GetName(), *InFunc->GetName());
+				REPORT_PYTHON_GENERATION_ISSUE(Error, TEXT("Function '%s.%s' is marked as 'ScriptMethodSelfReturn' but the return value is not a struct."), *InFunc->GetOwnerClass()->GetPathName(), *InFunc->GetName());
 				return;
 			}
 			else if (CastFieldChecked<const FStructProperty>(GeneratedWrappedDynamicMethod.MethodFunc.OutputParams[0].ParamProp)->Struct != CastFieldChecked<const FStructProperty>(SelfParam.ParamProp)->Struct)
 			{
-				REPORT_PYTHON_GENERATION_ISSUE(Error, TEXT("Function '%s.%s' is marked as 'ScriptMethodSelfReturn' but the return value is not the same type as the 'self' argument."), *InFunc->GetOwnerClass()->GetName(), *InFunc->GetName());
+				REPORT_PYTHON_GENERATION_ISSUE(Error, TEXT("Function '%s.%s' is marked as 'ScriptMethodSelfReturn' but the return value is not the same type as the 'self' argument."), *InFunc->GetOwnerClass()->GetPathName(), *InFunc->GetName());
 				return;
 			}
 			else
@@ -1345,7 +1374,7 @@ PyTypeObject* FPyWrapperTypeRegistry::GenerateWrappedClassType(const UClass* InC
 		{
 			if (!SelfParam.ParamProp->IsA<FStructProperty>())
 			{
-				REPORT_PYTHON_GENERATION_ISSUE(Error, TEXT("Function '%s.%s' is marked as 'ScriptMethodMutable' but the 'self' argument is not a struct."), *InFunc->GetOwnerClass()->GetName(), *InFunc->GetName());
+				REPORT_PYTHON_GENERATION_ISSUE(Error, TEXT("Function '%s.%s' is marked as 'ScriptMethodMutable' but the 'self' argument is not a struct."), *InFunc->GetOwnerClass()->GetPathName(), *InFunc->GetName());
 				return;
 			}
 			GeneratedWrappedDynamicMethod.SelfReturn = SelfParam;
@@ -1377,9 +1406,10 @@ PyTypeObject* FPyWrapperTypeRegistry::GenerateWrappedClassType(const UClass* InC
 		}
 
 		// Add any deprecated variants too
-		const TArray<FString> DeprecatedPythonStructMethodNames = PyGenUtil::GetDeprecatedScriptMethodPythonNames(InFunc);
-		for (const FString& DeprecatedPythonStructMethodName : DeprecatedPythonStructMethodNames)
+		const TArray<TTuple<FSoftObjectPath, FString>> DeprecatedPythonStructMethodNames = PyGenUtil::GetDeprecatedScriptMethodPythonNames(InFunc);
+		for (const TTuple<FSoftObjectPath, FString>& DeprecatedPythonStructMethodNamePair : DeprecatedPythonStructMethodNames)
 		{
+			const FString& DeprecatedPythonStructMethodName = DeprecatedPythonStructMethodNamePair.Value;
 			FString DeprecationMessage = FString::Printf(TEXT("'%s' was renamed to '%s'."), *DeprecatedPythonStructMethodName, *PythonStructMethodName);
 
 			PyGenUtil::FGeneratedWrappedDynamicMethod& DeprecatedGeneratedWrappedMethod = DynamicMethodDefs.AddDefaulted_GetRef().Get();
@@ -1400,7 +1430,7 @@ PyTypeObject* FPyWrapperTypeRegistry::GenerateWrappedClassType(const UClass* InC
 			}
 
 			// Find the wrapped type for the class as that's what we'll actually add the dynamic method to
-			TSharedPtr<PyGenUtil::FGeneratedWrappedClassType> HostedClassGeneratedWrappedType = StaticCastSharedPtr<PyGenUtil::FGeneratedWrappedClassType>(GeneratedWrappedTypes.FindRef(PyGenUtil::GetTypeRegistryName(HostedClass)));
+			TSharedPtr<PyGenUtil::FGeneratedWrappedClassType> HostedClassGeneratedWrappedType = StaticCastSharedPtr<PyGenUtil::FGeneratedWrappedClassType>(GeneratedWrappedTypes.FindRef(HostedClass));
 			check(HostedClassGeneratedWrappedType.IsValid());
 
 			// Add the dynamic methods to the class
@@ -1420,7 +1450,7 @@ PyTypeObject* FPyWrapperTypeRegistry::GenerateWrappedClassType(const UClass* InC
 			}
 
 			// Find the wrapped type for the struct as that's what we'll actually add the dynamic method to
-			TSharedPtr<PyGenUtil::FGeneratedWrappedStructType> HostedStructGeneratedWrappedType = StaticCastSharedPtr<PyGenUtil::FGeneratedWrappedStructType>(GeneratedWrappedTypes.FindRef(PyGenUtil::GetTypeRegistryName(HostedStruct)));
+			TSharedPtr<PyGenUtil::FGeneratedWrappedStructType> HostedStructGeneratedWrappedType = StaticCastSharedPtr<PyGenUtil::FGeneratedWrappedStructType>(GeneratedWrappedTypes.FindRef(HostedStruct));
 			check(HostedStructGeneratedWrappedType.IsValid());
 
 			// Add the dynamic methods to the struct
@@ -1441,7 +1471,7 @@ PyTypeObject* FPyWrapperTypeRegistry::GenerateWrappedClassType(const UClass* InC
 		// Only static functions can be hoisted onto other types
 		if (!InFunc->HasAnyFunctionFlags(FUNC_Static))
 		{
-			REPORT_PYTHON_GENERATION_ISSUE(Error, TEXT("Non-static function '%s.%s' is marked as 'ScriptOperator' but only static functions can be hoisted."), *InFunc->GetOwnerClass()->GetName(), *InFunc->GetName());
+			REPORT_PYTHON_GENERATION_ISSUE(Error, TEXT("Non-static function '%s.%s' is marked as 'ScriptOperator' but only static functions can be hoisted."), *InFunc->GetOwnerClass()->GetPathName(), *InFunc->GetName());
 			return;
 		}
 
@@ -1458,7 +1488,7 @@ PyTypeObject* FPyWrapperTypeRegistry::GenerateWrappedClassType(const UClass* InC
 			PyGenUtil::FGeneratedWrappedOperatorSignature OpSignature;
 			if (!PyGenUtil::FGeneratedWrappedOperatorSignature::StringToSignature(*ScriptOperator, OpSignature))
 			{
-				REPORT_PYTHON_GENERATION_ISSUE(Error, TEXT("Function '%s.%s' is marked as 'ScriptOperator' but uses an unknown operator type '%s'."), *InFunc->GetOwnerClass()->GetName(), *InFunc->GetName(), *ScriptOperator);
+				REPORT_PYTHON_GENERATION_ISSUE(Error, TEXT("Function '%s.%s' is marked as 'ScriptOperator' but uses an unknown operator type '%s'."), *InFunc->GetOwnerClass()->GetPathName(), *InFunc->GetName(), *ScriptOperator);
 				continue;
 			}
 
@@ -1467,7 +1497,7 @@ PyTypeObject* FPyWrapperTypeRegistry::GenerateWrappedClassType(const UClass* InC
 				FString SignatureError;
 				if (!OpFunc.SetFunction(InTypeMethod.MethodFunc, OpSignature, &SignatureError))
 				{
-					REPORT_PYTHON_GENERATION_ISSUE(Error, TEXT("Function '%s.%s' is marked as 'ScriptOperator' but has an invalid signature for the '%s' operator: %s."), *InFunc->GetOwnerClass()->GetName(), *InFunc->GetName(), *ScriptOperator, *SignatureError);
+					REPORT_PYTHON_GENERATION_ISSUE(Error, TEXT("Function '%s.%s' is marked as 'ScriptOperator' but has an invalid signature for the '%s' operator: %s."), *InFunc->GetOwnerClass()->GetPathName(), *InFunc->GetName(), *ScriptOperator, *SignatureError);
 					continue;
 				}
 			}
@@ -1477,7 +1507,7 @@ PyTypeObject* FPyWrapperTypeRegistry::GenerateWrappedClassType(const UClass* InC
 			if (GenerateWrappedStructType(HostedStruct, OutGeneratedWrappedTypeReferences, OutDirtyModules, EPyTypeGenerationFlags::ForceShouldExport))
 			{
 				// Find the wrapped type for the struct as that's what we'll actually add the operator to (via its meta-data)
-				TSharedPtr<PyGenUtil::FGeneratedWrappedStructType> HostedStructGeneratedWrappedType = StaticCastSharedPtr<PyGenUtil::FGeneratedWrappedStructType>(GeneratedWrappedTypes.FindRef(PyGenUtil::GetTypeRegistryName(HostedStruct)));
+				TSharedPtr<PyGenUtil::FGeneratedWrappedStructType> HostedStructGeneratedWrappedType = StaticCastSharedPtr<PyGenUtil::FGeneratedWrappedStructType>(GeneratedWrappedTypes.FindRef(HostedStruct));
 				check(HostedStructGeneratedWrappedType.IsValid());
 				StaticCastSharedPtr<FPyWrapperStructMetaData>(HostedStructGeneratedWrappedType->MetaData)->OpStacks[(int32)OpSignature.OpType].Funcs.Add(MoveTemp(OpFunc));
 			}
@@ -1489,7 +1519,7 @@ PyTypeObject* FPyWrapperTypeRegistry::GenerateWrappedClassType(const UClass* InC
 		// Only static functions can be constants
 		if (!InFunc->HasAnyFunctionFlags(FUNC_Static))
 		{
-			REPORT_PYTHON_GENERATION_ISSUE(Error, TEXT("Non-static function '%s.%s' is marked as 'ScriptConstant' but only static functions can be hoisted."), *InFunc->GetOwnerClass()->GetName(), *InFunc->GetName());
+			REPORT_PYTHON_GENERATION_ISSUE(Error, TEXT("Non-static function '%s.%s' is marked as 'ScriptConstant' but only static functions can be hoisted."), *InFunc->GetOwnerClass()->GetPathName(), *InFunc->GetName());
 			return;
 		}
 
@@ -1505,7 +1535,7 @@ PyTypeObject* FPyWrapperTypeRegistry::GenerateWrappedClassType(const UClass* InC
 			}
 			if (!HostType)
 			{
-				REPORT_PYTHON_GENERATION_ISSUE(Error, TEXT("Function '%s.%s' is marked as 'ScriptConstantHost' but the host '%s' could not be found."), *InFunc->GetOwnerClass()->GetName(), *InFunc->GetName(), *ConstantOwnerName);
+				REPORT_PYTHON_GENERATION_ISSUE(Error, TEXT("Function '%s.%s' is marked as 'ScriptConstantHost' but the host '%s' could not be found."), *InFunc->GetOwnerClass()->GetPathName(), *InFunc->GetName(), *ConstantOwnerName);
 				return;
 			}
 		}
@@ -1513,7 +1543,7 @@ PyTypeObject* FPyWrapperTypeRegistry::GenerateWrappedClassType(const UClass* InC
 		{
 			if (HostClass->IsChildOf(InFunc->GetOwnerClass()))
 			{
-				REPORT_PYTHON_GENERATION_ISSUE(Error, TEXT("Function '%s.%s' is marked as 'ScriptConstantHost' but the host type (%s) is a child of the class type of the static function. This is not allowed."), *InFunc->GetOwnerClass()->GetName(), *InFunc->GetName(), *HostClass->GetName());
+				REPORT_PYTHON_GENERATION_ISSUE(Error, TEXT("Function '%s.%s' is marked as 'ScriptConstantHost' but the host type (%s) is a child of the class type of the static function. This is not allowed."), *InFunc->GetOwnerClass()->GetPathName(), *InFunc->GetName(), *HostClass->GetPathName());
 				return;
 			}
 		}
@@ -1523,7 +1553,7 @@ PyTypeObject* FPyWrapperTypeRegistry::GenerateWrappedClassType(const UClass* InC
 		ConstantFunc.SetFunction(InFunc);
 		if (ConstantFunc.InputParams.Num() != 0 || ConstantFunc.OutputParams.Num() != 1)
 		{
-			REPORT_PYTHON_GENERATION_ISSUE(Error, TEXT("Function '%s.%s' is marked as 'ScriptConstant' but has an invalid signature (it must return a value and take no arguments)."), *InFunc->GetOwnerClass()->GetName(), *InFunc->GetName());
+			REPORT_PYTHON_GENERATION_ISSUE(Error, TEXT("Function '%s.%s' is marked as 'ScriptConstant' but has an invalid signature (it must return a value and take no arguments)."), *InFunc->GetOwnerClass()->GetPathName(), *InFunc->GetName());
 			return;
 		}
 
@@ -1537,9 +1567,10 @@ PyTypeObject* FPyWrapperTypeRegistry::GenerateWrappedClassType(const UClass* InC
 		GeneratedWrappedConstant.ConstantFunc = ConstantFunc;
 
 		// Build any deprecated variants too
-		const TArray<FString> DeprecatedPythonConstantNames = PyGenUtil::GetDeprecatedScriptConstantPythonNames(InFunc);
-		for (const FString& DeprecatedPythonConstantName : DeprecatedPythonConstantNames)
+		const TArray<TTuple<FSoftObjectPath, FString>> DeprecatedPythonConstantNames = PyGenUtil::GetDeprecatedScriptConstantPythonNames(InFunc);
+		for (const TTuple<FSoftObjectPath, FString>& DeprecatedPythonConstantNamePair : DeprecatedPythonConstantNames)
 		{
+			const FString& DeprecatedPythonConstantName = DeprecatedPythonConstantNamePair.Value;
 			FString DeprecationMessage = FString::Printf(TEXT("'%s' was renamed to '%s'."), *DeprecatedPythonConstantName, *PythonConstantName);
 
 			PyGenUtil::FGeneratedWrappedConstant& DeprecatedGeneratedWrappedConstant = ConstantDefs.AddDefaulted_GetRef().Get();
@@ -1562,7 +1593,7 @@ PyTypeObject* FPyWrapperTypeRegistry::GenerateWrappedClassType(const UClass* InC
 				}
 
 				// Find the wrapped type for the class as that's what we'll actually add the constant to
-				TSharedPtr<PyGenUtil::FGeneratedWrappedClassType> HostedClassGeneratedWrappedType = StaticCastSharedPtr<PyGenUtil::FGeneratedWrappedClassType>(GeneratedWrappedTypes.FindRef(PyGenUtil::GetTypeRegistryName(HostClass)));
+				TSharedPtr<PyGenUtil::FGeneratedWrappedClassType> HostedClassGeneratedWrappedType = StaticCastSharedPtr<PyGenUtil::FGeneratedWrappedClassType>(GeneratedWrappedTypes.FindRef(HostClass));
 				check(HostedClassGeneratedWrappedType.IsValid());
 
 				// Add the dynamic constants to the struct
@@ -1583,7 +1614,7 @@ PyTypeObject* FPyWrapperTypeRegistry::GenerateWrappedClassType(const UClass* InC
 				}
 
 				// Find the wrapped type for the struct as that's what we'll actually add the constant to
-				TSharedPtr<PyGenUtil::FGeneratedWrappedStructType> HostedStructGeneratedWrappedType = StaticCastSharedPtr<PyGenUtil::FGeneratedWrappedStructType>(GeneratedWrappedTypes.FindRef(PyGenUtil::GetTypeRegistryName(HostStruct)));
+				TSharedPtr<PyGenUtil::FGeneratedWrappedStructType> HostedStructGeneratedWrappedType = StaticCastSharedPtr<PyGenUtil::FGeneratedWrappedStructType>(GeneratedWrappedTypes.FindRef(HostStruct));
 				check(HostedStructGeneratedWrappedType.IsValid());
 
 				// Add the dynamic constants to the struct
@@ -1665,9 +1696,10 @@ PyTypeObject* FPyWrapperTypeRegistry::GenerateWrappedClassType(const UClass* InC
 
 		const PyGenUtil::FGeneratedWrappedMethod GeneratedWrappedMethodCopy = GeneratedWrappedMethod;
 
-		const TArray<FString> DeprecatedPythonFuncNames = PyGenUtil::GetDeprecatedFunctionPythonNames(InFunc);
-		for (const FString& DeprecatedPythonFuncName : DeprecatedPythonFuncNames)
+		const TArray<TTuple<FSoftObjectPath, FString>> DeprecatedPythonFuncNames = PyGenUtil::GetDeprecatedFunctionPythonNames(InFunc);
+		for (const TTuple<FSoftObjectPath, FString>& DeprecatedPythonFuncNamePair : DeprecatedPythonFuncNames)
 		{
+			const FString& DeprecatedPythonFuncName = DeprecatedPythonFuncNamePair.Value;
 			FString DeprecationMessage = FString::Printf(TEXT("'%s' was renamed to '%s'."), *DeprecatedPythonFuncName, *PythonFunctionName);
 			PythonMethods.Add(*DeprecatedPythonFuncName, InFunc->GetFName());
 			PythonDeprecatedMethods.Add(*DeprecatedPythonFuncName, DeprecationMessage);
@@ -1727,7 +1759,7 @@ PyTypeObject* FPyWrapperTypeRegistry::GenerateWrappedClassType(const UClass* InC
 	FString TypeDocString = PyGenUtil::PythonizeTooltip(PyGenUtil::ParseTooltip(PyGenUtil::GetFieldTooltip(InClass)));
 	if (const UClass* SuperClass = InClass->GetSuperClass())
 	{
-		TSharedPtr<PyGenUtil::FGeneratedWrappedClassType> SuperGeneratedWrappedType = StaticCastSharedPtr<PyGenUtil::FGeneratedWrappedClassType>(GeneratedWrappedTypes.FindRef(PyGenUtil::GetTypeRegistryName(SuperClass)));
+		TSharedPtr<PyGenUtil::FGeneratedWrappedClassType> SuperGeneratedWrappedType = StaticCastSharedPtr<PyGenUtil::FGeneratedWrappedClassType>(GeneratedWrappedTypes.FindRef(SuperClass));
 		if (SuperGeneratedWrappedType.IsValid())
 		{
 			GeneratedWrappedType->PropertyDocs.Append(SuperGeneratedWrappedType->PropertyDocs);
@@ -1779,20 +1811,21 @@ PyTypeObject* FPyWrapperTypeRegistry::GenerateWrappedClassType(const UClass* InC
 		RegisterWrappedClassType(TypeRegistryName, &GeneratedWrappedType->PyType, !bIsBlueprintGeneratedType);
 
 		// Also generate and register any deprecated aliases for this type
-		const TArray<FString> DeprecatedPythonClassNames = PyGenUtil::GetDeprecatedClassPythonNames(InClass);
-		for (const FString& DeprecatedPythonClassName : DeprecatedPythonClassNames)
+		const TArray<TTuple<FSoftObjectPath, FString>> DeprecatedPythonClassNames = PyGenUtil::GetDeprecatedClassPythonNames(InClass);
+		for (const TTuple<FSoftObjectPath, FString>& DeprecatedPythonClassNamePair : DeprecatedPythonClassNames)
 		{
-			const FName DeprecatedClassName = *DeprecatedPythonClassName;
+			const FString& DeprecatedPythonClassName = DeprecatedPythonClassNamePair.Value;
 			FString DeprecationMessage = FString::Printf(TEXT("'%s' was renamed to '%s'."), *DeprecatedPythonClassName, *PythonClassName);
 			
-			if (GeneratedWrappedTypes.Contains(DeprecatedClassName))
+			const FSoftObjectPath& DeprecatedTypeRegistryName = DeprecatedPythonClassNamePair.Key;
+			if (GeneratedWrappedTypes.Contains(DeprecatedTypeRegistryName))
 			{
-				REPORT_PYTHON_GENERATION_ISSUE(Warning, TEXT("Deprecated class name '%s' conflicted with an existing type!"), *DeprecatedPythonClassName);
+				REPORT_PYTHON_GENERATION_ISSUE(Warning, TEXT("Deprecated class name '%s' conflicted with an existing type!"), *DeprecatedTypeRegistryName.ToString());
 				continue;
 			}
 
 			TSharedRef<PyGenUtil::FGeneratedWrappedClassType> DeprecatedGeneratedWrappedType = MakeShared<PyGenUtil::FGeneratedWrappedClassType>();
-			GeneratedWrappedTypes.Add(DeprecatedClassName, DeprecatedGeneratedWrappedType);
+			GeneratedWrappedTypes.Add(DeprecatedTypeRegistryName, DeprecatedGeneratedWrappedType);
 
 			DeprecatedGeneratedWrappedType->TypeName = PyGenUtil::TCHARToUTF8Buffer(*DeprecatedPythonClassName);
 			DeprecatedGeneratedWrappedType->TypeDoc = PyGenUtil::TCHARToUTF8Buffer(*FString::Printf(TEXT("deprecated: %s"), *DeprecationMessage));
@@ -1808,7 +1841,7 @@ PyTypeObject* FPyWrapperTypeRegistry::GenerateWrappedClassType(const UClass* InC
 			{
 				if (!UnrealModuleName.IsNone())
 				{
-					GeneratedWrappedTypesForModule.Add(UnrealModuleName, DeprecatedClassName);
+					GeneratedWrappedTypesForModule.Add(UnrealModuleName, DeprecatedTypeRegistryName);
 					// Execute Python code within this block
 					{
 						FPyScopedGIL GIL;
@@ -1818,22 +1851,22 @@ PyTypeObject* FPyWrapperTypeRegistry::GenerateWrappedClassType(const UClass* InC
 						PyModule_AddObject(PyModule, DeprecatedGeneratedWrappedType->PyType.tp_name, (PyObject*)&DeprecatedGeneratedWrappedType->PyType);
 					}
 				}
-				RegisterWrappedClassType(DeprecatedClassName, &DeprecatedGeneratedWrappedType->PyType, !bIsBlueprintGeneratedType);
+				RegisterWrappedClassType(DeprecatedTypeRegistryName, &DeprecatedGeneratedWrappedType->PyType, !bIsBlueprintGeneratedType);
 			}
 			else
 			{
-				REPORT_PYTHON_GENERATION_ISSUE(Fatal, TEXT("Failed to generate Python glue code for deprecated class '%s'!"), *DeprecatedPythonClassName);
+				REPORT_PYTHON_GENERATION_ISSUE(Fatal, TEXT("Failed to generate Python glue code for deprecated class '%s'!"), *DeprecatedTypeRegistryName.ToString());
 			}
 		}
 
 		return &GeneratedWrappedType->PyType;
 	}
 	
-	REPORT_PYTHON_GENERATION_ISSUE(Fatal, TEXT("Failed to generate Python glue code for class '%s'!"), *InClass->GetName());
+	REPORT_PYTHON_GENERATION_ISSUE(Fatal, TEXT("Failed to generate Python glue code for class '%s'!"), *InClass->GetPathName());
 	return nullptr;
 }
 
-void FPyWrapperTypeRegistry::RegisterWrappedClassType(const FName ClassName, PyTypeObject* PyType, const bool InDetectNameConflicts)
+void FPyWrapperTypeRegistry::RegisterWrappedClassType(const FSoftObjectPath& ClassName, PyTypeObject* PyType, const bool InDetectNameConflicts)
 {
 	if (InDetectNameConflicts)
 {
@@ -1842,7 +1875,7 @@ void FPyWrapperTypeRegistry::RegisterWrappedClassType(const FName ClassName, PyT
 	PythonWrappedClasses.Add(ClassName, PyType);
 }
 
-void FPyWrapperTypeRegistry::UnregisterWrappedClassType(const FName ClassName, PyTypeObject* PyType, const bool InUnregisterName)
+void FPyWrapperTypeRegistry::UnregisterWrappedClassType(const FSoftObjectPath& ClassName, PyTypeObject* PyType, const bool InUnregisterName)
 {
 	if (InUnregisterName)
 	{
@@ -1853,8 +1886,7 @@ void FPyWrapperTypeRegistry::UnregisterWrappedClassType(const FName ClassName, P
 
 bool FPyWrapperTypeRegistry::HasWrappedClassType(const UClass* InClass) const
 {
-	const FName TypeRegistryName = PyGenUtil::GetTypeRegistryName(InClass);
-	return PythonWrappedClasses.Contains(TypeRegistryName);
+	return PythonWrappedClasses.Contains(InClass);
 }
 
 PyTypeObject* FPyWrapperTypeRegistry::GetWrappedClassType(const UClass* InClass) const
@@ -1863,8 +1895,7 @@ PyTypeObject* FPyWrapperTypeRegistry::GetWrappedClassType(const UClass* InClass)
 
 	for (const UClass* Class = InClass; Class; Class = Class->GetSuperClass())
 	{
-		const FName TypeRegistryName = PyGenUtil::GetTypeRegistryName(Class);
-		if (PyTypeObject* ClassPyType = PythonWrappedClasses.FindRef(TypeRegistryName))
+		if (PyTypeObject* ClassPyType = PythonWrappedClasses.FindRef(Class))
 		{
 			PyType = ClassPyType;
 			break;
@@ -1897,7 +1928,7 @@ PyTypeObject* FPyWrapperTypeRegistry::GenerateWrappedStructType(const UScriptStr
 	};
 
 	// Already processed? Nothing more to do
-	const FName TypeRegistryName = PyGenUtil::GetTypeRegistryName(InStruct);
+	const FSoftObjectPath TypeRegistryName(InStruct);
 	if (PyTypeObject* ExistingPyType = PythonWrappedStructs.FindRef(TypeRegistryName))
 	{
 		return ExistingPyType;
@@ -1963,9 +1994,10 @@ PyTypeObject* FPyWrapperTypeRegistry::GenerateWrappedStructType(const UScriptStr
 				GeneratedWrappedType->FieldTracker.RegisterPythonFieldName(GeneratedPropertyDoc.PythonPropName, InProp);
 			}
 
-			const TArray<FString> DeprecatedPythonPropNames = PyGenUtil::GetDeprecatedPropertyPythonNames(InProp);
-			for (const FString& DeprecatedPythonPropName : DeprecatedPythonPropNames)
+			const TArray<TTuple<FSoftObjectPath, FString>> DeprecatedPythonPropNames = PyGenUtil::GetDeprecatedPropertyPythonNames(InProp);
+			for (const TTuple<FSoftObjectPath, FString>& DeprecatedPythonPropNamePair : DeprecatedPythonPropNames)
 			{
+				const FString& DeprecatedPythonPropName = DeprecatedPythonPropNamePair.Value;
 				FString DeprecationMessage = FString::Printf(TEXT("'%s' was renamed to '%s'."), *DeprecatedPythonPropName, *GeneratedPropertyDoc.PythonPropName);
 				PythonProperties.Add(*DeprecatedPythonPropName, InProp->GetFName());
 				PythonDeprecatedProperties.Add(*DeprecatedPythonPropName, DeprecationMessage);
@@ -1996,7 +2028,7 @@ PyTypeObject* FPyWrapperTypeRegistry::GenerateWrappedStructType(const UScriptStr
 	FString TypeDocString = PyGenUtil::PythonizeTooltip(PyGenUtil::ParseTooltip(PyGenUtil::GetFieldTooltip(InStruct)));
 	if (const UScriptStruct* SuperStruct = Cast<UScriptStruct>(InStruct->GetSuperStruct()))
 	{
-		TSharedPtr<PyGenUtil::FGeneratedWrappedStructType> SuperGeneratedWrappedType = StaticCastSharedPtr<PyGenUtil::FGeneratedWrappedStructType>(GeneratedWrappedTypes.FindRef(PyGenUtil::GetTypeRegistryName(SuperStruct)));
+		TSharedPtr<PyGenUtil::FGeneratedWrappedStructType> SuperGeneratedWrappedType = StaticCastSharedPtr<PyGenUtil::FGeneratedWrappedStructType>(GeneratedWrappedTypes.FindRef(SuperStruct));
 		if (SuperGeneratedWrappedType.IsValid())
 		{
 			GeneratedWrappedType->PropertyDocs.Append(SuperGeneratedWrappedType->PropertyDocs);
@@ -2008,7 +2040,7 @@ PyTypeObject* FPyWrapperTypeRegistry::GenerateWrappedStructType(const UScriptStr
 	GeneratedWrappedType->TypeDoc = PyGenUtil::TCHARToUTF8Buffer(*TypeDocString);
 
 	int32 WrappedStructSizeBytes = sizeof(FPyWrapperStruct);
-	if (const IPyWrapperInlineStructFactory* InlineStructFactory = GetInlineStructFactory(TypeRegistryName))
+	if (const IPyWrapperInlineStructFactory* InlineStructFactory = GetInlineStructFactory(InStruct->GetStructPathName()))
 	{
 		WrappedStructSizeBytes = InlineStructFactory->GetPythonObjectSizeBytes();
 	}
@@ -2080,20 +2112,21 @@ PyTypeObject* FPyWrapperTypeRegistry::GenerateWrappedStructType(const UScriptStr
 		RegisterWrappedStructType(TypeRegistryName, &GeneratedWrappedType->PyType, !bIsBlueprintGeneratedType);
 
 		// Also generate and register any deprecated aliases for this type
-		const TArray<FString> DeprecatedPythonStructNames = PyGenUtil::GetDeprecatedStructPythonNames(InStruct);
-		for (const FString& DeprecatedPythonStructName : DeprecatedPythonStructNames)
+		const TArray<TTuple<FSoftObjectPath, FString>> DeprecatedPythonStructNames = PyGenUtil::GetDeprecatedStructPythonNames(InStruct);
+		for (const TTuple<FSoftObjectPath, FString>& DeprecatedPythonStructNamePair : DeprecatedPythonStructNames)
 		{
-			const FName DeprecatedStructName = *DeprecatedPythonStructName;
+			const FString& DeprecatedPythonStructName = DeprecatedPythonStructNamePair.Value;
 			FString DeprecationMessage = FString::Printf(TEXT("'%s' was renamed to '%s'."), *DeprecatedPythonStructName, *PythonStructName);
 
-			if (GeneratedWrappedTypes.Contains(DeprecatedStructName))
+			const FSoftObjectPath& DeprecatedTypeRegistryName = DeprecatedPythonStructNamePair.Key;
+			if (GeneratedWrappedTypes.Contains(DeprecatedTypeRegistryName))
 			{
-				REPORT_PYTHON_GENERATION_ISSUE(Warning, TEXT("Deprecated struct name '%s' conflicted with an existing type!"), *DeprecatedPythonStructName);
+				REPORT_PYTHON_GENERATION_ISSUE(Warning, TEXT("Deprecated struct name '%s' conflicted with an existing type!"), *DeprecatedTypeRegistryName.ToString());
 				continue;
 			}
 
 			TSharedRef<PyGenUtil::FGeneratedWrappedStructType> DeprecatedGeneratedWrappedType = MakeShared<PyGenUtil::FGeneratedWrappedStructType>();
-			GeneratedWrappedTypes.Add(DeprecatedStructName, DeprecatedGeneratedWrappedType);
+			GeneratedWrappedTypes.Add(DeprecatedTypeRegistryName, DeprecatedGeneratedWrappedType);
 
 			DeprecatedGeneratedWrappedType->TypeName = PyGenUtil::TCHARToUTF8Buffer(*DeprecatedPythonStructName);
 			DeprecatedGeneratedWrappedType->TypeDoc = PyGenUtil::TCHARToUTF8Buffer(*FString::Printf(TEXT("deprecated: %s"), *DeprecationMessage));
@@ -2109,7 +2142,7 @@ PyTypeObject* FPyWrapperTypeRegistry::GenerateWrappedStructType(const UScriptStr
 			{
 				if (!UnrealModuleName.IsNone())
 				{
-					GeneratedWrappedTypesForModule.Add(UnrealModuleName, DeprecatedStructName);
+					GeneratedWrappedTypesForModule.Add(UnrealModuleName, DeprecatedTypeRegistryName);
 					// Execute Python code within this block
 					{
 						FPyScopedGIL GIL;
@@ -2119,22 +2152,22 @@ PyTypeObject* FPyWrapperTypeRegistry::GenerateWrappedStructType(const UScriptStr
 						PyModule_AddObject(PyModule, DeprecatedGeneratedWrappedType->PyType.tp_name, (PyObject*)&DeprecatedGeneratedWrappedType->PyType);
 					}
 				}
-				RegisterWrappedStructType(DeprecatedStructName, &DeprecatedGeneratedWrappedType->PyType, !bIsBlueprintGeneratedType);
+				RegisterWrappedStructType(DeprecatedTypeRegistryName, &DeprecatedGeneratedWrappedType->PyType, !bIsBlueprintGeneratedType);
 			}
 			else
 			{
-				REPORT_PYTHON_GENERATION_ISSUE(Fatal, TEXT("Failed to generate Python glue code for deprecated struct '%s'!"), *DeprecatedPythonStructName);
+				REPORT_PYTHON_GENERATION_ISSUE(Fatal, TEXT("Failed to generate Python glue code for deprecated struct '%s'!"), *DeprecatedTypeRegistryName.ToString());
 			}
 		}
 
 		return &GeneratedWrappedType->PyType;
 	}
 
-	REPORT_PYTHON_GENERATION_ISSUE(Fatal, TEXT("Failed to generate Python glue code for struct '%s'!"), *InStruct->GetName());
+	REPORT_PYTHON_GENERATION_ISSUE(Fatal, TEXT("Failed to generate Python glue code for struct '%s'!"), *InStruct->GetPathName());
 	return nullptr;
 }
 
-void FPyWrapperTypeRegistry::RegisterWrappedStructType(const FName StructName, PyTypeObject* PyType, const bool InDetectNameConflicts)
+void FPyWrapperTypeRegistry::RegisterWrappedStructType(const FSoftObjectPath& StructName, PyTypeObject* PyType, const bool InDetectNameConflicts)
 {
 	if (InDetectNameConflicts)
 	{
@@ -2143,7 +2176,7 @@ void FPyWrapperTypeRegistry::RegisterWrappedStructType(const FName StructName, P
 	PythonWrappedStructs.Add(StructName, PyType);
 }
 
-void FPyWrapperTypeRegistry::UnregisterWrappedStructType(const FName StructName, PyTypeObject* PyType, const bool InUnregisterName)
+void FPyWrapperTypeRegistry::UnregisterWrappedStructType(const FSoftObjectPath& StructName, PyTypeObject* PyType, const bool InUnregisterName)
 {
 	if (InUnregisterName)
 	{
@@ -2154,8 +2187,7 @@ void FPyWrapperTypeRegistry::UnregisterWrappedStructType(const FName StructName,
 
 bool FPyWrapperTypeRegistry::HasWrappedStructType(const UScriptStruct* InStruct) const
 {
-	const FName TypeRegistryName = PyGenUtil::GetTypeRegistryName(InStruct);
-	return PythonWrappedStructs.Contains(TypeRegistryName);
+	return PythonWrappedStructs.Contains(InStruct);
 }
 
 PyTypeObject* FPyWrapperTypeRegistry::GetWrappedStructType(const UScriptStruct* InStruct) const
@@ -2164,8 +2196,7 @@ PyTypeObject* FPyWrapperTypeRegistry::GetWrappedStructType(const UScriptStruct* 
 
 	for (const UScriptStruct* Struct = InStruct; Struct; Struct = Cast<UScriptStruct>(Struct->GetSuperStruct()))
 	{
-		const FName TypeRegistryName = PyGenUtil::GetTypeRegistryName(Struct);
-		if (PyTypeObject* StructPyType = PythonWrappedStructs.FindRef(TypeRegistryName))
+		if (PyTypeObject* StructPyType = PythonWrappedStructs.FindRef(InStruct))
 		{
 			PyType = StructPyType;
 			break;
@@ -2183,7 +2214,7 @@ PyTypeObject* FPyWrapperTypeRegistry::GenerateWrappedEnumType(const UEnum* InEnu
 	bool bIsNewType = true;
 
 	// Already processed? Nothing more to do
-	const FName TypeRegistryName = PyGenUtil::GetTypeRegistryName(InEnum);
+	const FSoftObjectPath TypeRegistryName(InEnum);
 	if (PyTypeObject* ExistingPyType = PythonWrappedEnums.FindRef(TypeRegistryName))
 	{
 		if (!EnumHasAnyFlags(InGenerationFlags, EPyTypeGenerationFlags::OverwriteExisting))
@@ -2261,20 +2292,21 @@ PyTypeObject* FPyWrapperTypeRegistry::GenerateWrappedEnumType(const UEnum* InEnu
 			RegisterWrappedEnumType(TypeRegistryName, &GeneratedWrappedType->PyType, !bIsBlueprintGeneratedType);
 
 			// Also generate and register any deprecated aliases for this type
-			const TArray<FString> DeprecatedPythonEnumNames = PyGenUtil::GetDeprecatedEnumPythonNames(InEnum);
-			for (const FString& DeprecatedPythonEnumName : DeprecatedPythonEnumNames)
+			const TArray<TTuple<FSoftObjectPath, FString>> DeprecatedPythonEnumNames = PyGenUtil::GetDeprecatedEnumPythonNames(InEnum);
+			for (const TTuple<FSoftObjectPath, FString>& DeprecatedPythonEnumNamePair : DeprecatedPythonEnumNames)
 			{
-				const FName DeprecatedEnumName = *DeprecatedPythonEnumName;
+				const FString& DeprecatedPythonEnumName = DeprecatedPythonEnumNamePair.Value;
 				FString DeprecationMessage = FString::Printf(TEXT("'%s' was renamed to '%s'."), *DeprecatedPythonEnumName, *PythonEnumName);
 
-				if (GeneratedWrappedTypes.Contains(DeprecatedEnumName))
+				const FSoftObjectPath& DeprecatedTypeRegistryName = DeprecatedPythonEnumNamePair.Key;
+				if (GeneratedWrappedTypes.Contains(DeprecatedTypeRegistryName))
 				{
-					REPORT_PYTHON_GENERATION_ISSUE(Warning, TEXT("Deprecated enum name '%s' conflicted with an existing type!"), *DeprecatedPythonEnumName);
+					REPORT_PYTHON_GENERATION_ISSUE(Warning, TEXT("Deprecated enum name '%s' conflicted with an existing type!"), *DeprecatedTypeRegistryName.ToString());
 					continue;
 				}
 
 				TSharedRef<PyGenUtil::FGeneratedWrappedEnumType> DeprecatedGeneratedWrappedType = MakeShared<PyGenUtil::FGeneratedWrappedEnumType>();
-				GeneratedWrappedTypes.Add(DeprecatedEnumName, DeprecatedGeneratedWrappedType);
+				GeneratedWrappedTypes.Add(DeprecatedTypeRegistryName, DeprecatedGeneratedWrappedType);
 
 				DeprecatedGeneratedWrappedType->TypeName = PyGenUtil::TCHARToUTF8Buffer(*DeprecatedPythonEnumName);
 				DeprecatedGeneratedWrappedType->TypeDoc = PyGenUtil::TCHARToUTF8Buffer(*FString::Printf(TEXT("deprecated: %s"), *DeprecationMessage));
@@ -2291,7 +2323,7 @@ PyTypeObject* FPyWrapperTypeRegistry::GenerateWrappedEnumType(const UEnum* InEnu
 				{
 					if (!UnrealModuleName.IsNone())
 					{
-						GeneratedWrappedTypesForModule.Add(UnrealModuleName, DeprecatedEnumName);
+						GeneratedWrappedTypesForModule.Add(UnrealModuleName, DeprecatedTypeRegistryName);
 						// Execute Python code within this block
 						{
 							FPyScopedGIL GIL;
@@ -2301,11 +2333,11 @@ PyTypeObject* FPyWrapperTypeRegistry::GenerateWrappedEnumType(const UEnum* InEnu
 							PyModule_AddObject(PyModule, DeprecatedGeneratedWrappedType->PyType.tp_name, (PyObject*)&DeprecatedGeneratedWrappedType->PyType);
 						}
 					}
-					RegisterWrappedEnumType(DeprecatedEnumName, &DeprecatedGeneratedWrappedType->PyType, !bIsBlueprintGeneratedType);
+					RegisterWrappedEnumType(DeprecatedTypeRegistryName, &DeprecatedGeneratedWrappedType->PyType, !bIsBlueprintGeneratedType);
 				}
 				else
 				{
-					REPORT_PYTHON_GENERATION_ISSUE(Fatal, TEXT("Failed to generate Python glue code for deprecated enum '%s'!"), *DeprecatedPythonEnumName);
+					REPORT_PYTHON_GENERATION_ISSUE(Fatal, TEXT("Failed to generate Python glue code for deprecated enum '%s'!"), *DeprecatedTypeRegistryName.ToString());
 				}
 			}
 		}
@@ -2313,11 +2345,11 @@ PyTypeObject* FPyWrapperTypeRegistry::GenerateWrappedEnumType(const UEnum* InEnu
 		return &GeneratedWrappedType->PyType;
 	}
 
-	REPORT_PYTHON_GENERATION_ISSUE(Fatal, TEXT("Failed to generate Python glue code for enum '%s'!"), *InEnum->GetName());
+	REPORT_PYTHON_GENERATION_ISSUE(Fatal, TEXT("Failed to generate Python glue code for enum '%s'!"), *InEnum->GetPathName());
 	return nullptr;
 }
 
-void FPyWrapperTypeRegistry::RegisterWrappedEnumType(const FName EnumName, PyTypeObject* PyType, const bool InDetectNameConflicts)
+void FPyWrapperTypeRegistry::RegisterWrappedEnumType(const FSoftObjectPath& EnumName, PyTypeObject* PyType, const bool InDetectNameConflicts)
 {
 	if (InDetectNameConflicts)
 {
@@ -2326,7 +2358,7 @@ void FPyWrapperTypeRegistry::RegisterWrappedEnumType(const FName EnumName, PyTyp
 	PythonWrappedEnums.Add(EnumName, PyType);
 }
 
-void FPyWrapperTypeRegistry::UnregisterWrappedEnumType(const FName EnumName, PyTypeObject* PyType, const bool InUnregisterName)
+void FPyWrapperTypeRegistry::UnregisterWrappedEnumType(const FSoftObjectPath& EnumName, PyTypeObject* PyType, const bool InUnregisterName)
 {
 	if (InUnregisterName)
 	{
@@ -2337,16 +2369,14 @@ void FPyWrapperTypeRegistry::UnregisterWrappedEnumType(const FName EnumName, PyT
 
 bool FPyWrapperTypeRegistry::HasWrappedEnumType(const UEnum* InEnum) const
 {
-	const FName TypeRegistryName = PyGenUtil::GetTypeRegistryName(InEnum);
-	return PythonWrappedEnums.Contains(TypeRegistryName);
+	return PythonWrappedEnums.Contains(InEnum);
 }
 
 PyTypeObject* FPyWrapperTypeRegistry::GetWrappedEnumType(const UEnum* InEnum) const
 {
 	PyTypeObject* PyType = &PyWrapperEnumType;
 
-	const FName TypeRegistryName = PyGenUtil::GetTypeRegistryName(InEnum);
-	if (PyTypeObject* EnumPyType = PythonWrappedEnums.FindRef(TypeRegistryName))
+	if (PyTypeObject* EnumPyType = PythonWrappedEnums.FindRef(InEnum))
 	{
 		PyType = EnumPyType;
 	}
@@ -2360,7 +2390,7 @@ PyTypeObject* FPyWrapperTypeRegistry::GenerateWrappedDelegateType(const UFunctio
 	INC_DWORD_STAT(STAT_GenerateWrappedDelegateCallCount);
 
 	// Already processed? Nothing more to do
-	const FName TypeRegistryName = PyGenUtil::GetTypeRegistryName(InDelegateSignature);
+	const FSoftObjectPath TypeRegistryName(InDelegateSignature);
 	if (PyTypeObject* ExistingPyType = PythonWrappedDelegates.FindRef(TypeRegistryName))
 	{
 		return ExistingPyType;
@@ -2488,11 +2518,11 @@ PyTypeObject* FPyWrapperTypeRegistry::GenerateWrappedDelegateType(const UFunctio
 		return &GeneratedWrappedType->PyType;
 	}
 
-	REPORT_PYTHON_GENERATION_ISSUE(Fatal, TEXT("Failed to generate Python glue code for delegate '%s'!"), *InDelegateSignature->GetName());
+	REPORT_PYTHON_GENERATION_ISSUE(Fatal, TEXT("Failed to generate Python glue code for delegate '%s'!"), *InDelegateSignature->GetPathName());
 	return nullptr;
 }
 
-void FPyWrapperTypeRegistry::RegisterWrappedDelegateType(const FName DelegateName, PyTypeObject* PyType, const bool InDetectNameConflicts)
+void FPyWrapperTypeRegistry::RegisterWrappedDelegateType(const FSoftObjectPath& DelegateName, PyTypeObject* PyType, const bool InDetectNameConflicts)
 {
 	if (InDetectNameConflicts)
 	{
@@ -2501,7 +2531,7 @@ void FPyWrapperTypeRegistry::RegisterWrappedDelegateType(const FName DelegateNam
 	PythonWrappedDelegates.Add(DelegateName, PyType);
 }
 
-void FPyWrapperTypeRegistry::UnregisterWrappedDelegateType(const FName DelegateName, PyTypeObject* PyType, const bool InUnregisterName)
+void FPyWrapperTypeRegistry::UnregisterWrappedDelegateType(const FSoftObjectPath& DelegateName, PyTypeObject* PyType, const bool InUnregisterName)
 {
 	if (InUnregisterName)
 	{
@@ -2512,16 +2542,14 @@ void FPyWrapperTypeRegistry::UnregisterWrappedDelegateType(const FName DelegateN
 
 bool FPyWrapperTypeRegistry::HasWrappedDelegateType(const UFunction* InDelegateSignature) const
 {
-	const FName TypeRegistryName = PyGenUtil::GetTypeRegistryName(InDelegateSignature);
-	return PythonWrappedDelegates.Contains(TypeRegistryName);
+	return PythonWrappedDelegates.Contains(InDelegateSignature);
 }
 
 PyTypeObject* FPyWrapperTypeRegistry::GetWrappedDelegateType(const UFunction* InDelegateSignature) const
 {
 	PyTypeObject* PyType = InDelegateSignature->HasAnyFunctionFlags(FUNC_MulticastDelegate) ? &PyWrapperMulticastDelegateType : &PyWrapperDelegateType;
 
-	const FName TypeRegistryName = PyGenUtil::GetTypeRegistryName(InDelegateSignature);
-	if (PyTypeObject* DelegatePyType = PythonWrappedDelegates.FindRef(TypeRegistryName))
+	if (PyTypeObject* DelegatePyType = PythonWrappedDelegates.FindRef(InDelegateSignature))
 	{
 		PyType = DelegatePyType;
 	}
@@ -2533,7 +2561,7 @@ void FPyWrapperTypeRegistry::GatherWrappedTypesForPropertyReferences(const FProp
 {
 	if (const FObjectProperty* ObjProp = CastField<const FObjectProperty>(InProp))
 	{
-		if (ObjProp->PropertyClass && !PythonWrappedClasses.Contains(PyGenUtil::GetTypeRegistryName(ObjProp->PropertyClass)))
+		if (ObjProp->PropertyClass && !PythonWrappedClasses.Contains(ObjProp->PropertyClass))
 		{
 			OutGeneratedWrappedTypeReferences.ClassReferences.Add(ObjProp->PropertyClass);
 		}
@@ -2542,7 +2570,7 @@ void FPyWrapperTypeRegistry::GatherWrappedTypesForPropertyReferences(const FProp
 
 	if (const FStructProperty* StructProp = CastField<const FStructProperty>(InProp))
 	{
-		if (!PythonWrappedStructs.Contains(PyGenUtil::GetTypeRegistryName(StructProp->Struct)))
+		if (!PythonWrappedStructs.Contains(StructProp->Struct))
 		{
 			OutGeneratedWrappedTypeReferences.StructReferences.Add(StructProp->Struct);
 		}
@@ -2551,7 +2579,7 @@ void FPyWrapperTypeRegistry::GatherWrappedTypesForPropertyReferences(const FProp
 
 	if (const FEnumProperty* EnumProp = CastField<const FEnumProperty>(InProp))
 	{
-		if (!PythonWrappedStructs.Contains(PyGenUtil::GetTypeRegistryName(EnumProp->GetEnum())))
+		if (!PythonWrappedStructs.Contains(EnumProp->GetEnum()))
 		{
 			OutGeneratedWrappedTypeReferences.EnumReferences.Add(EnumProp->GetEnum());
 		}
@@ -2562,7 +2590,7 @@ void FPyWrapperTypeRegistry::GatherWrappedTypesForPropertyReferences(const FProp
 	{
 		if (ByteProp->Enum)
 		{
-			if (!PythonWrappedStructs.Contains(PyGenUtil::GetTypeRegistryName(ByteProp->Enum)))
+			if (!PythonWrappedStructs.Contains(ByteProp->Enum))
 			{
 				OutGeneratedWrappedTypeReferences.EnumReferences.Add(ByteProp->Enum);
 			}
@@ -2572,7 +2600,7 @@ void FPyWrapperTypeRegistry::GatherWrappedTypesForPropertyReferences(const FProp
 
 	if (const FDelegateProperty* DelegateProp = CastField<const FDelegateProperty>(InProp))
 	{
-		if (!PythonWrappedStructs.Contains(PyGenUtil::GetTypeRegistryName(DelegateProp->SignatureFunction)))
+		if (!PythonWrappedStructs.Contains(DelegateProp->SignatureFunction))
 		{
 			OutGeneratedWrappedTypeReferences.DelegateReferences.Add(DelegateProp->SignatureFunction);
 		}
@@ -2581,7 +2609,7 @@ void FPyWrapperTypeRegistry::GatherWrappedTypesForPropertyReferences(const FProp
 
 	if (const FMulticastDelegateProperty* DelegateProp = CastField<const FMulticastDelegateProperty>(InProp))
 	{
-		if (!PythonWrappedStructs.Contains(PyGenUtil::GetTypeRegistryName(DelegateProp->SignatureFunction)))
+		if (!PythonWrappedStructs.Contains(DelegateProp->SignatureFunction))
 		{
 			OutGeneratedWrappedTypeReferences.DelegateReferences.Add(DelegateProp->SignatureFunction);
 		}
@@ -2615,6 +2643,10 @@ void FPyWrapperTypeRegistry::GenerateStubCodeForWrappedTypes(const EPyOnlineDocs
 	// Suspend the hang and hitch heartbeats, as this is a long running task.
 	FSlowHeartBeatScope SuspendHeartBeat;
 	FDisableHitchDetectorScope SuspendGameThreadHitch;
+
+	FScopedSlowTask SlowTask(1, LOCTEXT("GeneratingPythonStubFile", "Generating unreal.py..."));
+	SlowTask.Visibility = ESlowTaskVisibility::Important; // this function can be very slow, users will benefit from our messages
+	SlowTask.MakeDialog();
 
 	FPyScopedGIL GIL;
 	FPyFileWriter PythonScript;
@@ -2781,7 +2813,7 @@ void FPyWrapperTypeRegistry::GenerateStubCodeForWrappedTypes(const EPyOnlineDocs
 	// Process generated glue code
 	// Also excludes types that don't pass the filters specified in InDocGenFlags using the information about
 	// which module it came from and where that module exists on disk.
-	auto ProcessWrappedDataArray = [this, &PythonScript, InDocGenFlags](const TMap<FName, PyTypeObject*>& WrappedData, const TSharedPtr<FPyOnlineDocsSection>& OnlineDocsSection)
+	auto ProcessWrappedDataArray = [this, &PythonScript, InDocGenFlags](const TMap<FSoftObjectPath, PyTypeObject*>& WrappedData, const TSharedPtr<FPyOnlineDocsSection>& OnlineDocsSection)
 	{
 		if (OnlineDocsSection.IsValid())
 		{
@@ -3669,12 +3701,12 @@ void FPyWrapperTypeRegistry::GenerateStubCodeForWrappedType(PyTypeObject* PyType
 	OutPythonScript.WriteNewLine();
 }
 
-void FPyWrapperTypeRegistry::RegisterPythonTypeName(const FString& InPythonTypeName, const FName& InUnrealTypeName)
+void FPyWrapperTypeRegistry::RegisterPythonTypeName(const FString& InPythonTypeName, const FSoftObjectPath& InUnrealTypeName)
 {
-	const FName ExistingUnrealTypeName = PythonWrappedTypeNameToUnrealTypeName.FindRef(InPythonTypeName);
-	if (ExistingUnrealTypeName.IsNone())
+	FSoftObjectPath& ExistingUnrealTypeName = PythonWrappedTypeNameToUnrealTypeName.FindOrAdd(InPythonTypeName);
+	if (ExistingUnrealTypeName.IsNull())
 	{
-		PythonWrappedTypeNameToUnrealTypeName.Add(InPythonTypeName, InUnrealTypeName);
+		ExistingUnrealTypeName = InUnrealTypeName;
 	}
 	else
 	{
@@ -3682,9 +3714,9 @@ void FPyWrapperTypeRegistry::RegisterPythonTypeName(const FString& InPythonTypeN
 	}
 }
 
-void FPyWrapperTypeRegistry::UnregisterPythonTypeName(const FString& InPythonTypeName, const FName& InUnrealTypeName)
+void FPyWrapperTypeRegistry::UnregisterPythonTypeName(const FString& InPythonTypeName, const FSoftObjectPath& InUnrealTypeName)
 {
-	const FName* ExistingUnrealTypeNamePtr = PythonWrappedTypeNameToUnrealTypeName.Find(InPythonTypeName);
+	const FSoftObjectPath* ExistingUnrealTypeNamePtr = PythonWrappedTypeNameToUnrealTypeName.Find(InPythonTypeName);
 	if (ExistingUnrealTypeNamePtr && *ExistingUnrealTypeNamePtr == InUnrealTypeName)
 	{
 		PythonWrappedTypeNameToUnrealTypeName.Remove(InPythonTypeName);
@@ -3692,3 +3724,5 @@ void FPyWrapperTypeRegistry::UnregisterPythonTypeName(const FString& InPythonTyp
 }
 
 #endif	// WITH_PYTHON
+
+#undef LOCTEXT_NAMESPACE

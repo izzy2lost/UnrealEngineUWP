@@ -68,6 +68,8 @@
 
 #define LOCTEXT_NAMESPACE "PythonScriptPlugin"
 
+#define UE_PYTHON_DEFER_INIT (1)
+
 #if WITH_PYTHON
 
 static PyUtil::FPyApiBuffer NullPyArg = PyUtil::TCHARToPyApiBuffer(TEXT(""));
@@ -678,26 +680,32 @@ void FPythonScriptPlugin::StartupModule()
 #if WITH_PYTHON
 	LLM_SCOPE_BYNAME(TEXT("PythonScriptPlugin"));
 
+#if !UE_PYTHON_DEFER_INIT
 	InitializePython();
+#endif
+
 	IModularFeatures::Get().RegisterModularFeature(IConsoleCommandExecutor::ModularFeatureName(), &CmdExec);
 	IModularFeatures::Get().RegisterModularFeature(IConsoleCommandExecutor::ModularFeatureName(), &CmdREPLExec);
 
 	check(!RemoteExecution);
 	RemoteExecution = MakeUnique<FPythonScriptRemoteExecution>(this);
 
-#if WITH_EDITOR
-	FPythonScriptPluginEditorStyle::Get();
 	FCoreDelegates::OnPostEngineInit.AddRaw(this, &FPythonScriptPlugin::OnPostEngineInit);
-#endif // WITH_EDITOR
-
 	FCoreDelegates::OnPreExit.AddRaw(this, &FPythonScriptPlugin::ShutdownPython);
 #endif	// WITH_PYTHON
 }
 
 #if WITH_PYTHON
-#if WITH_EDITOR
 void FPythonScriptPlugin::OnPostEngineInit()
 {
+	LLM_SCOPE_BYNAME(TEXT("PythonScriptPlugin"));
+
+#if UE_PYTHON_DEFER_INIT
+	InitializePython();
+#endif
+
+#if WITH_EDITOR
+	FPythonScriptPluginEditorStyle::Get();
 	if (UToolMenus::IsToolMenuUIEnabled())
 	{
 		check(CmdMenu == nullptr);
@@ -708,9 +716,9 @@ void FPythonScriptPlugin::OnPostEngineInit()
 			ExecPythonCommand(*InString);
 		}));
 	}
+#endif // WITH_EDITOR
 }
 
-#endif // WITH_EDITOR
 #endif // WITH_PYTHON
 
 void FPythonScriptPlugin::ShutdownModule()
@@ -722,12 +730,11 @@ void FPythonScriptPlugin::ShutdownModule()
 
 #if WITH_PYTHON
 	FCoreDelegates::OnPreExit.RemoveAll(this);
+	FCoreDelegates::OnPostEngineInit.RemoveAll(this);
 
 	RemoteExecution.Reset();
 
 #if WITH_EDITOR
-	FCoreDelegates::OnPostEngineInit.RemoveAll(this);
-
 	if (CmdMenu)
 	{
 		CmdMenu->OnShutdownMenu();
@@ -777,6 +784,10 @@ void FPythonScriptPlugin::InitializePython()
 	TRACE_CPUPROFILER_EVENT_SCOPE(FPythonScriptPlugin::InitializePython)
 
 	bInitialized = true;
+
+	FScopedSlowTask SlowTask(1, LOCTEXT("InitializingPython", "Initializing Python..."));
+	SlowTask.Visibility = ESlowTaskVisibility::Important; // this function can be very slow, users will benefit from our messages
+	SlowTask.MakeDialog();
 
 	const UPythonScriptPluginSettings* PythonPluginSettings = GetDefault<UPythonScriptPluginSettings>();
 
@@ -1684,19 +1695,18 @@ void FPythonScriptPlugin::OnAssetRenamed(const FAssetData& Data, const FString& 
 	TRACE_CPUPROFILER_EVENT_SCOPE(FPythonScriptPlugin::OnAssetRenamed)
 
 	FPyWrapperTypeRegistry& PyWrapperTypeRegistry = FPyWrapperTypeRegistry::Get();
-	const FName OldPackageName = *FPackageName::ObjectPathToPackageName(OldName);
 	
 	// If this asset has an associated Python type, then we need to rename it
-	if (PyWrapperTypeRegistry.HasWrappedTypeForObjectName(OldPackageName))
+	if (PyWrapperTypeRegistry.HasWrappedTypeForObjectName(OldName))
 	{
 		if (const UObject* AssetPtr = PyGenUtil::GetAssetTypeRegistryType(Data.GetAsset()))
 		{
-			PyWrapperTypeRegistry.UpdateGenerateWrappedTypeForRename(OldPackageName, AssetPtr);
+			PyWrapperTypeRegistry.UpdateGenerateWrappedTypeForRename(OldName, AssetPtr);
 			OnAssetUpdated(AssetPtr);
 		}
 		else
 		{
-			PyWrapperTypeRegistry.RemoveGenerateWrappedTypeForDelete(OldPackageName);
+			PyWrapperTypeRegistry.RemoveGenerateWrappedTypeForDelete(OldName);
 		}
 	}
 }
@@ -1708,9 +1718,10 @@ void FPythonScriptPlugin::OnAssetRemoved(const FAssetData& Data)
 	FPyWrapperTypeRegistry& PyWrapperTypeRegistry = FPyWrapperTypeRegistry::Get();
 	
 	// If this asset has an associated Python type, then we need to remove it
-	if (PyWrapperTypeRegistry.HasWrappedTypeForObjectName(Data.PackageName))
+	const FSoftObjectPath AssetPath = Data.GetSoftObjectPath();
+	if (PyWrapperTypeRegistry.HasWrappedTypeForObjectName(AssetPath))
 	{
-		PyWrapperTypeRegistry.RemoveGenerateWrappedTypeForDelete(Data.PackageName);
+		PyWrapperTypeRegistry.RemoveGenerateWrappedTypeForDelete(AssetPath);
 	}
 }
 
@@ -1809,6 +1820,8 @@ void FPythonScriptPlugin::PopulatePythonFileContextMenu(UToolMenu* InMenu)
 #endif	// WITH_EDITOR
 
 #endif	// WITH_PYTHON
+
+#undef UE_PYTHON_DEFER_INIT
 
 IMPLEMENT_MODULE(FPythonScriptPlugin, PythonScriptPlugin)
 

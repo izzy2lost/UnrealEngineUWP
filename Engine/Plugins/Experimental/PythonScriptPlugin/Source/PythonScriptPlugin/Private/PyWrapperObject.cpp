@@ -1399,7 +1399,7 @@ public:
 
 		// Map the Unreal class to the Python type
 		NewClass->PyType = FPyTypeObjectPtr::NewReference(PyType);
-		FPyWrapperTypeRegistry::Get().RegisterWrappedClassType(NewClass->GetFName() , PyType);
+		FPyWrapperTypeRegistry::Get().RegisterWrappedClassType(NewClass, PyType);
 
 		// Ensure the CDO exists
 		Py_BEGIN_ALLOW_THREADS
@@ -1935,8 +1935,8 @@ void UPythonGeneratedClass::PostRename(UObject* OldOuter, const FName OldName)
 
 	if (PyType)
 	{
-		FPyWrapperTypeRegistry::Get().UnregisterWrappedClassType(OldName, PyType);
-		FPyWrapperTypeRegistry::Get().RegisterWrappedClassType(GetFName(), PyType, !HasAnyFlags(RF_NewerVersionExists));
+		FPyWrapperTypeRegistry::Get().UnregisterWrappedClassType(FSoftObjectPath(OldOuter->GetFName(), OldName, FString()), PyType);
+		FPyWrapperTypeRegistry::Get().RegisterWrappedClassType(this, PyType, !HasAnyFlags(RF_NewerVersionExists));
 	}
 }
 
@@ -1980,7 +1980,7 @@ void UPythonGeneratedClass::ReleasePythonResources()
 		FPyScopedGIL GIL;
 		if (PyType)
 		{
-			FPyWrapperTypeRegistry::Get().UnregisterWrappedClassType(GetFName(), PyType, !HasAnyFlags(RF_NewerVersionExists));
+			FPyWrapperTypeRegistry::Get().UnregisterWrappedClassType(this, PyType, !HasAnyFlags(RF_NewerVersionExists));
 		}
 		PyType.Reset();
 		PyPostInitFunction.Reset();

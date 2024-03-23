@@ -798,7 +798,7 @@ public:
 
 		// Map the Unreal enum to the Python type
 		NewEnum->PyType = FPyTypeObjectPtr::NewReference(PyType);
-		FPyWrapperTypeRegistry::Get().RegisterWrappedEnumType(NewEnum->GetFName(), PyType, !bDidExist);
+		FPyWrapperTypeRegistry::Get().RegisterWrappedEnumType(NewEnum, PyType, !bDidExist);
 
 		// Null the NewEnum pointer so the destructor doesn't kill it
 		UPythonGeneratedEnum* FinalizedEnum = NewEnum;
@@ -894,7 +894,7 @@ void UPythonGeneratedEnum::ReleasePythonResources()
 		FPyScopedGIL GIL;
 		if (PyType)
 		{
-			FPyWrapperTypeRegistry::Get().UnregisterWrappedEnumType(GetFName(), PyType, !HasAnyFlags(RF_NewerVersionExists));
+			FPyWrapperTypeRegistry::Get().UnregisterWrappedEnumType(this, PyType, !HasAnyFlags(RF_NewerVersionExists));
 		}
 		PyType.Reset();
 	}

@@ -41,7 +41,7 @@ const IPyWrapperStructAllocationPolicy* GetPyWrapperStructAllocationPolicy(UScri
 		}
 	};
 
-	if (const IPyWrapperInlineStructFactory* InlineStructFactory = FPyWrapperTypeRegistry::Get().GetInlineStructFactory(InStruct->GetFName()))
+	if (const IPyWrapperInlineStructFactory* InlineStructFactory = FPyWrapperTypeRegistry::Get().GetInlineStructFactory(InStruct->GetStructPathName()))
 	{
 		return InlineStructFactory->GetPythonObjectAllocationPolicy();
 	}
@@ -1521,7 +1521,7 @@ public:
 
 		// Map the Unreal struct to the Python type
 		NewStruct->PyType = FPyTypeObjectPtr::NewReference(PyType);
-		FPyWrapperTypeRegistry::Get().RegisterWrappedStructType(NewStruct->GetFName(), PyType);
+		FPyWrapperTypeRegistry::Get().RegisterWrappedStructType(NewStruct, PyType);
 
 		// Re-instance the old struct
 		if (OldStruct)
@@ -1620,8 +1620,8 @@ void UPythonGeneratedStruct::PostRename(UObject* OldOuter, const FName OldName)
 
 	if (PyType)
 	{
-		FPyWrapperTypeRegistry::Get().UnregisterWrappedStructType(OldName, PyType);
-		FPyWrapperTypeRegistry::Get().RegisterWrappedStructType(GetFName(), PyType, !HasAnyFlags(RF_NewerVersionExists));
+		FPyWrapperTypeRegistry::Get().UnregisterWrappedStructType(FSoftObjectPath(OldOuter->GetFName(), OldName, FString()), PyType);
+		FPyWrapperTypeRegistry::Get().RegisterWrappedStructType(this, PyType, !HasAnyFlags(RF_NewerVersionExists));
 	}
 }
 
@@ -1670,7 +1670,7 @@ void UPythonGeneratedStruct::ReleasePythonResources()
 		FPyScopedGIL GIL;
 		if (PyType)
 		{
-			FPyWrapperTypeRegistry::Get().UnregisterWrappedStructType(GetFName(), PyType, !HasAnyFlags(RF_NewerVersionExists));
+			FPyWrapperTypeRegistry::Get().UnregisterWrappedStructType(this, PyType, !HasAnyFlags(RF_NewerVersionExists));
 		}
 		PyType.Reset();
 		PyPostInitFunction.Reset();

@@ -253,7 +253,7 @@ class IPyWrapperInlineStructFactory
 {
 public:
 	/** Get the name of the Unreal struct this factory is for */
-	virtual FName GetStructName() const = 0;
+	virtual FTopLevelAssetPath GetStructName() const = 0;
 
 	/** Get the size of the Python object that should be constructed (in bytes) */
 	virtual int32 GetPythonObjectSizeBytes() const = 0;
@@ -281,9 +281,9 @@ private:
 	};
 
 public:
-	virtual FName GetStructName() const override
+	virtual FTopLevelAssetPath GetStructName() const override
 	{
-		return TBaseStructure<InlineType>::Get()->GetFName();
+		return TBaseStructure<InlineType>::Get()->GetStructPathName();
 	}
 
 	virtual int32 GetPythonObjectSizeBytes() const override
