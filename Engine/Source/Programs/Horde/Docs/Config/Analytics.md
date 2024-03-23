@@ -30,9 +30,9 @@ You can configure telemetry sinks through the `Telemetry` property in the server
 
 To provide efficient aggregation of analytics data over large time periods, Horde aggregates telemetry events into
 running metrics for each time interval. This aggregation is performed according to rules specified in the
-`Telemetry.Metrics` section of the globals.json file (see [MetricConfig](Schema/Globals.md#metricconfig)).
+`Telemetry.Metrics` section of the globals.json file (see [MetricConfig](Schema/Telemetry.md#metricconfig)).
 
 ## Charting
 
 The Horde dashboard can render charts showing aggregated metrics collected on the server. These views are configured
-using the `Dashboard.Analytics` section of the globals.json file (see [TelemetryViewConfig](Schema/Globals.md#telemetryviewconfig)).
+using the `Dashboard.Analytics` section of the globals.json file (see [TelemetryViewConfig](Schema/Telemetry.md#telemetryviewconfig)).
