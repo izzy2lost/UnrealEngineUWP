@@ -11,7 +11,7 @@ namespace UE::Chaos::ClothAsset
 	FClothAssetEditorStyle::FClothAssetEditorStyle()
 		: FSlateStyleSet("ClothAssetEditorStyle")
 	{
-		TSharedPtr<IPlugin> ChaosClothAssetPlugin = IPluginManager::Get().FindPlugin("ChaosClothAsset");
+		TSharedPtr<IPlugin> ChaosClothAssetPlugin = IPluginManager::Get().FindPlugin("ChaosClothAssetEditor");
 		if (ChaosClothAssetPlugin.IsValid())
 		{
 			SetContentRoot(ChaosClothAssetPlugin->GetBaseDir() / TEXT("Resources"));
