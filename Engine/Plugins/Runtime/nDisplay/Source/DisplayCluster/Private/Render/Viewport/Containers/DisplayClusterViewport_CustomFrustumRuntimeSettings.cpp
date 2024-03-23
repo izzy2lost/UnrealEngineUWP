@@ -39,6 +39,7 @@ namespace UE::DisplayCluster::Viewport::CustomFrustumHelpers
 ///////////////////////////////////////////////////////////////////////////////////////////
 bool FDisplayClusterViewport_CustomFrustumRuntimeSettings::UpdateProjectionAngles(
 	const FDisplayClusterViewport_CustomFrustumRuntimeSettings& InRuntimeSettings,
+	const FIntPoint& InRenderTargetSize,
 	double& InOutLeft,
 	double& InOutRight,
 	double& InOutTop,
@@ -49,10 +50,13 @@ bool FDisplayClusterViewport_CustomFrustumRuntimeSettings::UpdateProjectionAngle
 		const double Horizontal = InOutRight - InOutLeft;
 		const double Vertical = InOutTop - InOutBottom;
 
-		InOutLeft   -= Horizontal * InRuntimeSettings.CustomFrustumPercent.Left;
-		InOutRight  += Horizontal * InRuntimeSettings.CustomFrustumPercent.Right;
-		InOutBottom -= Vertical * InRuntimeSettings.CustomFrustumPercent.Bottom;
-		InOutTop    += Vertical * InRuntimeSettings.CustomFrustumPercent.Top;
+		// Use the inner region of the texture as the base of the frustum.
+		const FIntPoint InnerSize = InRenderTargetSize - InRuntimeSettings.CustomFrustumPixels.Size();
+
+		InOutLeft -= Horizontal * InRuntimeSettings.CustomFrustumPixels.Left / InnerSize.X;
+		InOutRight += Horizontal * InRuntimeSettings.CustomFrustumPixels.Right / InnerSize.X;
+		InOutBottom -= Vertical * InRuntimeSettings.CustomFrustumPixels.Bottom / InnerSize.Y;
+		InOutTop += Vertical * InRuntimeSettings.CustomFrustumPixels.Top / InnerSize.Y;
 
 		return true;
 	}
