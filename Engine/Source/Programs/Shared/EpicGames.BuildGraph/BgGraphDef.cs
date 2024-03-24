@@ -453,6 +453,13 @@ namespace EpicGames.BuildGraph
 					}
 					jsonWriter.WriteArrayEnd();
 
+					jsonWriter.WriteArrayStart("Metadata");
+					foreach (string metadata in artifact.Metadata)
+					{
+						jsonWriter.WriteValue(metadata);
+					}
+					jsonWriter.WriteArrayEnd();
+
 					jsonWriter.WriteValue("OutputName", artifact.TagName);
 					jsonWriter.WriteObjectEnd();
 				}
