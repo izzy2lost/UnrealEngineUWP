@@ -1,48 +1,83 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "Slate/Properties/SDMTextureUVVisualizerPopout.h"
+
+#include "Components/DMMaterialStage.h"
+#include "Components/DMTextureUV.h"
+#include "CustomDetailsViewArgs.h"
+#include "CustomDetailsViewModule.h"
 #include "DetailLayoutBuilder.h"
+#include "DMWorldSubsystem.h"
+#include "DynamicMaterialEditorModule.h"
+#include "Engine/World.h"
+#include "Generators/DMTextureUVPropertyRowGenerator.h"
+#include "ICustomDetailsView.h"
+#include "Items/ICustomDetailsViewCustomItem.h"
+#include "Items/ICustomDetailsViewItem.h"
+#include "Materials/Material.h"
 #include "Slate/Properties/SDMTextureUVVisualizer.h"
+#include "Slate/SDMEditor.h"
+#include "Styling/SlateIconFinder.h"
 #include "Widgets/Colors/SColorBlock.h"
+#include "Widgets/Docking/SDockTab.h"
 #include "Widgets/Input/SButton.h"
 #include "Widgets/Layout/SBox.h"
 #include "Widgets/Text/STextBlock.h"
 
 #define LOCTEXT_NAMESPACE "SDMTextureUVVisualizerPopout"
 
+const FName SDMTextureUVVisualizerPopout::TabId = TEXT("SDMTextureUVVisualizerPopout");
+
+void SDMTextureUVVisualizerPopout::CreatePopout(UDMMaterialStage* InMaterialStage, UDMTextureUV* InTextureUV)
+{
+	if (!IsValid(InMaterialStage) || !IsValid(InTextureUV))
+	{
+		return;
+	}
+
+	if (!FGlobalTabmanager::Get()->HasTabSpawner(TabId))
+	{
+		FGlobalTabmanager::Get()->RegisterNomadTabSpawner(
+			TabId,
+			FOnSpawnTab::CreateLambda(
+				[](const FSpawnTabArgs& InArgs)
+				{
+					TSharedRef<SDockTab> DockTab = SNew(SDockTab)
+						.Label(FText::FromName(TabId))
+						.LabelSuffix(LOCTEXT("TabSuffix", "[UV Vis]"));
+
+					DockTab->SetTabIcon(FSlateIconFinder::FindIconForClass(UMaterial::StaticClass()).GetIcon());
+
+					return DockTab;
+				}
+			)
+		);
+	}
+
+	TSharedPtr<SDockTab> Tab = FGlobalTabmanager::Get()->TryInvokeTab(TabId);
+
+	if (!Tab.IsValid())
+	{
+		return;
+	}
+
+	Tab->ActivateInParent(ETabActivationCause::SetDirectly);
+	Tab->SetLabel(FText::FromString(InTextureUV->GetPathName()));
+	Tab->SetContent(SNew(SDMTextureUVVisualizerPopout, InMaterialStage, InTextureUV));
+}
+
 void SDMTextureUVVisualizerPopout::Construct(const FArguments& InArgs, UDMMaterialStage* InMaterialStage, UDMTextureUV* InTextureUV)
 {
 	check(InMaterialStage);
 	check(InTextureUV);
 
-	SWindow::Construct(
-		SWindow::FArguments()
-		.Title(LOCTEXT("WindowTitle", "Material Designer Texture UV Visualizer"))
-		.ClientSize(FVector2f(1024, 768))
-		.MinWidth(128)
-		.MinHeight(160)
-	);
-
-	SetContent(
-		SNew(SVerticalBox)
-		+ SVerticalBox::Slot()
-		.AutoHeight()
-		.HAlign(EHorizontalAlignment::HAlign_Fill)
-		[
-			SNew(SButton)
-			.OnClicked(this, &SDMTextureUVVisualizerPopout::OnToggleModeClicked)
-			.Content()
-			[
-				SNew(STextBlock)
-				.Text(this, &SDMTextureUVVisualizerPopout::GetModeButtonText)
-				.Font(IDetailLayoutBuilder::GetDetailFontBold())
-			]
-		]
-		+ SVerticalBox::Slot()
-		.VAlign(EVerticalAlignment::VAlign_Fill)
+	ChildSlot
+	[
+		SNew(SHorizontalBox)
+		+ SHorizontalBox::Slot()
 		.HAlign(EHorizontalAlignment::HAlign_Fill)
 		.VAlign(EVerticalAlignment::VAlign_Fill)
-		.Padding(0.f, 3.f, 0.f, 0.f)
+		.Padding(3.f, 0.f, 0.f, 0.f)
 		[
 			SNew(SOverlay)
 			+ SOverlay::Slot()
@@ -55,6 +90,7 @@ void SDMTextureUVVisualizerPopout::Construct(const FArguments& InArgs, UDMMateri
 				SNew(SBox)
 				.HAlign(EHorizontalAlignment::HAlign_Fill)
 				.VAlign(EVerticalAlignment::VAlign_Top)
+				.Visibility(EVisibility::HitTestInvisible)
 				[
 					SNew(SColorBlock)
 					.Color(FLinearColor(0, 0, 0, 0.5))
@@ -66,6 +102,7 @@ void SDMTextureUVVisualizerPopout::Construct(const FArguments& InArgs, UDMMateri
 				SNew(SBox)
 				.HAlign(EHorizontalAlignment::HAlign_Fill)
 				.VAlign(EVerticalAlignment::VAlign_Bottom)
+				.Visibility(EVisibility::HitTestInvisible)
 				[
 					SNew(SColorBlock)
 					.Color(FLinearColor(0, 0, 0, 0.5))
@@ -77,6 +114,7 @@ void SDMTextureUVVisualizerPopout::Construct(const FArguments& InArgs, UDMMateri
 				SNew(SBox)
 				.HAlign(EHorizontalAlignment::HAlign_Left)
 				.VAlign(EVerticalAlignment::VAlign_Center)
+				.Visibility(EVisibility::HitTestInvisible)
 				[
 					SNew(SColorBlock)
 					.Color(FLinearColor(0, 0, 0, 0.5))
@@ -88,6 +126,7 @@ void SDMTextureUVVisualizerPopout::Construct(const FArguments& InArgs, UDMMateri
 				SNew(SBox)
 				.HAlign(EHorizontalAlignment::HAlign_Right)
 				.VAlign(EVerticalAlignment::VAlign_Center)
+				.Visibility(EVisibility::HitTestInvisible)
 				[
 					SNew(SColorBlock)
 					.Color(FLinearColor(0, 0, 0, 0.5))
@@ -95,7 +134,20 @@ void SDMTextureUVVisualizerPopout::Construct(const FArguments& InArgs, UDMMateri
 				]
 			]
 		]
-	);
+		+ SHorizontalBox::Slot()
+		.AutoWidth()
+		.HAlign(EHorizontalAlignment::HAlign_Fill)
+		.VAlign(EVerticalAlignment::VAlign_Top)
+		[
+			SNew(SBox)
+			.WidthOverride(300.f)
+			.HAlign(EHorizontalAlignment::HAlign_Fill)
+			.VAlign(EVerticalAlignment::VAlign_Top)
+			[
+				CreatePropertyWidget(InTextureUV)
+			]
+		]
+	];
 }
 
 FReply SDMTextureUVVisualizerPopout::OnToggleModeClicked()
@@ -156,6 +208,121 @@ FVector2D SDMTextureUVVisualizerPopout::GetSideBlockSize() const
 	}
 
 	return FVector2D::UnitVector;
+}
+
+TSharedRef<SWidget> SDMTextureUVVisualizerPopout::CreatePropertyWidget(UDMTextureUV* InTextureUV)
+{
+	SDMEditor::ClearPropertyHandles(this);
+
+	FCustomDetailsViewArgs Args;
+	Args.KeyframeHandler = nullptr;
+	Args.bAllowGlobalExtensions = true;
+	Args.bAllowResetToDefault = true;
+	Args.bShowCategories = false;
+
+	if (UWorld* World = InTextureUV->GetWorld())
+	{
+		if (UDMWorldSubsystem* WorldSubsystem = World->GetSubsystem<UDMWorldSubsystem>())
+		{
+			Args.KeyframeHandler = WorldSubsystem->GetKeyframeHandler();
+		}
+	}
+
+	TSharedRef<ICustomDetailsView> DetailsView = ICustomDetailsViewModule::Get().CreateCustomDetailsView(Args);
+	const FCustomDetailsViewItemId RootId = DetailsView->GetRootItem()->GetItemId();
+
+	TArray<FDMPropertyHandle> TextureUVPropertyRows;
+	FDMTextureUVPropertyRowGenerator::AddPopoutComponentProperties(SharedThis(this), InTextureUV, TextureUVPropertyRows);
+
+	FDMPropertyHandle EditModeButtonRow;
+	EditModeButtonRow.ValueName = TEXT("EditMode");
+	EditModeButtonRow.NameOverride = LOCTEXT("EditMode", "Edit Mode");
+	EditModeButtonRow.ValueWidget = SNew(SButton)
+		.OnClicked(this, &SDMTextureUVVisualizerPopout::OnToggleModeClicked)
+		.Content()
+		[
+			SNew(STextBlock)
+			.Text(this, &SDMTextureUVVisualizerPopout::GetModeButtonText)
+			.Font(IDetailLayoutBuilder::GetDetailFontBold())
+		];
+
+	TextureUVPropertyRows.Add(EditModeButtonRow);
+
+	for (const FDMPropertyHandle& EditRow : TextureUVPropertyRows)
+	{
+		const bool bHasValidCustomWidget = EditRow.ValueWidget.IsValid() && !EditRow.ValueName.IsNone() && EditRow.NameOverride.IsSet();
+
+		if (!EditRow.DetailTreeNode && !bHasValidCustomWidget)
+		{
+			continue;
+		}
+
+		ECustomDetailsTreeInsertPosition Position = ECustomDetailsTreeInsertPosition::Child;
+
+		if (EditRow.DetailTreeNode)
+		{
+			if (EditRow.DetailTreeNode->CreatePropertyHandle()->HasMetaData("HighPriority"))
+			{
+				Position = ECustomDetailsTreeInsertPosition::FirstChild;
+			}
+			else if (EditRow.DetailTreeNode->CreatePropertyHandle()->HasMetaData("LowPriority"))
+			{
+				Position = ECustomDetailsTreeInsertPosition::LastChild;
+			}
+		}
+
+		if (bHasValidCustomWidget)
+		{
+			TSharedPtr<ICustomDetailsViewCustomItem> Item = DetailsView->CreateCustomItem(
+				EditRow.ValueName, 
+				EditRow.NameOverride.GetValue(), 
+				EditRow.NameToolTipOverride.Get(FText::GetEmpty())
+			);
+
+			if (!Item.IsValid())
+			{
+				continue;
+			}
+
+			Item->SetValueWidget(EditRow.ValueWidget.ToSharedRef());
+			DetailsView->ExtendTree(RootId, Position, Item->AsItem());
+			continue;
+		}
+
+		if (!EditRow.DetailTreeNode)
+		{
+			continue;
+		}
+
+		TSharedRef<ICustomDetailsViewItem> Item = DetailsView->CreateDetailTreeItem(EditRow.DetailTreeNode.ToSharedRef());
+
+		if (EditRow.NameOverride.IsSet())
+		{
+			Item->SetOverrideWidget(
+				ECustomDetailsViewWidgetType::Name,
+				SNew(STextBlock)
+				.Font(IDetailLayoutBuilder::GetDetailFont())
+				.Text(EditRow.NameOverride.GetValue())
+				.ToolTipText(EditRow.NameToolTipOverride.Get(FText::GetEmpty()))
+			);
+		}
+
+		if (EditRow.DetailTreeNode->CreatePropertyHandle()->HasMetaData("NotKeyframeable"))
+		{
+			Item->SetKeyframeEnabled(false);
+		}
+
+		if (EditRow.ResetToDefaultOverride.IsSet())
+		{
+			Item->SetResetToDefaultOverride(EditRow.ResetToDefaultOverride.GetValue());
+		}
+
+		DetailsView->ExtendTree(RootId, Position, Item);
+	}
+
+	DetailsView->RebuildTree(ECustomDetailsViewBuildType::InstantBuild);
+
+	return DetailsView;
 }
 
 #undef LOCTEXT_NAMESPACE

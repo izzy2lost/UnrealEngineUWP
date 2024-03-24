@@ -4,6 +4,8 @@
 
 #include "Slate/Properties/Generators/DMComponentPropertyRowGenerator.h"
 
+class SWidget;
+
 class FDMTextureUVPropertyRowGenerator : public FDMComponentPropertyRowGenerator
 {
 public:
@@ -14,6 +16,9 @@ public:
 
 	virtual void AddComponentProperties(const TSharedRef<SDMComponentEdit>& InComponentEditWidget, UDMMaterialComponent* InComponent,
 		TArray<FDMPropertyHandle>& InOutPropertyRows, TSet<UDMMaterialComponent*>& InOutProcessedObjects) override;
+
+	static void AddPopoutComponentProperties(const TSharedRef<SWidget>& InParentWidget, UDMMaterialComponent* InComponent,
+		TArray<FDMPropertyHandle>& InOutPropertyRows);
 
 	virtual bool AllowKeyframeButton(UDMMaterialComponent* InComponent, FProperty* InProperty) override;
 };

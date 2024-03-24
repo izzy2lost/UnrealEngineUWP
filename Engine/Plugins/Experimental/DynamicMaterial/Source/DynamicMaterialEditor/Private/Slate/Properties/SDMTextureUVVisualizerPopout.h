@@ -2,9 +2,12 @@
 
 #pragma once
 
-#include "Widgets/SWindow.h"
+#include "Templates/SharedPointerFwd.h"
+#include "Widgets/SCompoundWidget.h"
 
+class ICustomDetailsView;
 class SDMTextureUVVisualizer;
+class SDockTab;
 class UDMMaterialStage;
 class UDMTextureUV;
 
@@ -16,9 +19,12 @@ class UDMTextureUV;
  * The popout specifically expands the visible area of the preview to 3x the normal size
  * on the smallest axis. The other axis is expanded to match the aspect ratio.
  */
-class SDMTextureUVVisualizerPopout : public SWindow
+class SDMTextureUVVisualizerPopout : public SCompoundWidget
 {
 public:
+	static const FName TabId;
+
+	static void CreatePopout(UDMMaterialStage* InMaterialStage, UDMTextureUV* InTextureUV);
 
 	SLATE_BEGIN_ARGS(SDMTextureUVVisualizerPopout) {}
 	SLATE_END_ARGS()
@@ -36,4 +42,6 @@ protected:
 	FVector2D GetHorizontalBarSize() const;
 
 	FVector2D GetSideBlockSize() const;
+
+	TSharedRef<SWidget> CreatePropertyWidget(UDMTextureUV* InTextureUV);
 };

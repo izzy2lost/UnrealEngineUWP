@@ -26,7 +26,6 @@ public:
 
 protected:
 	TSharedPtr<SDMTextureUVVisualizer> Visualizer;
-	TWeakPtr<SDMTextureUVVisualizerPopout> PopoutWindowWeak;
 
 	FReply OnToggleVisualizerClicked();
 
@@ -34,7 +33,6 @@ protected:
 
 	FText GetModeButtonText() const;
 
-	bool IsPopoutEnabled() const;
 	FReply OnOpenPopoutClicked();
 
 	EVisibility GetVisualizerVisibility() const;

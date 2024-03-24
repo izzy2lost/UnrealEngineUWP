@@ -7,6 +7,7 @@
 #include "DynamicMaterialEditorSettings.h"
 #include "Slate/Properties/SDMTextureUVVisualizer.h"
 #include "Slate/Properties/SDMTextureUVVisualizerPopout.h"
+#include "Widgets/Docking/SDockTab.h"
 #include "Widgets/Input/SButton.h"
 #include "Widgets/Layout/SBox.h"
 #include "Widgets/Text/STextBlock.h"
@@ -32,7 +33,6 @@ void SDMTextureUVVisualizerProperty::Construct(const FArguments& InArgs, UDMMate
 			[
 				SNew(SButton)
 				.OnClicked(this, &SDMTextureUVVisualizerProperty::OnOpenPopoutClicked)
-				.IsEnabled(this, &SDMTextureUVVisualizerProperty::IsPopoutEnabled)
 				.Content()
 				[
 					SNew(STextBlock)
@@ -121,19 +121,9 @@ FText SDMTextureUVVisualizerProperty::GetModeButtonText() const
 	return LOCTEXT("VisualizerOffset", "Offset");
 }
 
-bool SDMTextureUVVisualizerProperty::IsPopoutEnabled() const
-{
-	return !PopoutWindowWeak.IsValid();
-}
-
 FReply SDMTextureUVVisualizerProperty::OnOpenPopoutClicked()
 {
 	if (!Visualizer.IsValid())
-	{
-		return FReply::Handled();
-	}
-
-	if (PopoutWindowWeak.IsValid())
 	{
 		return FReply::Handled();
 	}
@@ -146,10 +136,7 @@ FReply SDMTextureUVVisualizerProperty::OnOpenPopoutClicked()
 		return FReply::Handled();
 	}
 
-	TSharedRef<SDMTextureUVVisualizerPopout> PopoutWindow = SNew(SDMTextureUVVisualizerPopout, Stage, TextureUV);
-	FSlateApplication::Get().AddWindow(PopoutWindow, /* Show Immediately */ true);
-
-	PopoutWindowWeak = PopoutWindow;
+	SDMTextureUVVisualizerPopout::CreatePopout(Stage, TextureUV);
 
 	return FReply::Handled();
 }

@@ -331,7 +331,11 @@ TSharedRef<SWidget> SDMComponentEdit::CreateEditWidget()
 
 		if (bHasValidCustomWidget)
 		{
-			TSharedPtr<ICustomDetailsViewCustomItem> Item = DetailsView->CreateCustomItem(EditRow.ValueName, EditRow.NameOverride.GetValue(), EditRow.NameToolTipOverride.GetValue());
+			TSharedPtr<ICustomDetailsViewCustomItem> Item = DetailsView->CreateCustomItem(
+				EditRow.ValueName,
+				EditRow.NameOverride.GetValue(),
+				EditRow.NameToolTipOverride.Get(FText::GetEmpty())
+			);
 
 			if (!Item.IsValid())
 			{
