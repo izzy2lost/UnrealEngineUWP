@@ -55,10 +55,11 @@ public:
 	bool RemoveLayerItem(const TSharedPtr<FDMMaterialLayerReference>& InLayerItem);
 
 	//~ Begin SWidget
-	virtual void Tick(const FGeometry& AllottedGeometry, const double InCurrentTime, const float InDeltaTime) override;
-	virtual FCursorReply OnCursorQuery(const FGeometry& MyGeometry, const FPointerEvent& CursorEvent) const override;
-	virtual FReply OnMouseMove(const FGeometry& MyGeometry, const FPointerEvent& MouseEvent) override;
-	virtual FReply OnMouseButtonUp(const FGeometry& MyGeometry, const FPointerEvent& MouseEvent) override;
+	virtual void Tick(const FGeometry& InAllottedGeometry, const double InCurrentTime, const float InDeltaTime) override;
+	virtual FCursorReply OnCursorQuery(const FGeometry& InGeometry, const FPointerEvent& InCursorEvent) const override;
+	virtual FReply OnMouseMove(const FGeometry& InGeometry, const FPointerEvent& InMouseEvent) override;
+	virtual FReply OnMouseButtonUp(const FGeometry& InGeometry, const FPointerEvent& InMouseEvent) override;
+	virtual FReply OnDrop(const FGeometry& InGeometry, const FDragDropEvent& InDragDropEvent) override;
 	//~ End SWidget
 
 	virtual void RequestListRefresh() override;
@@ -114,4 +115,6 @@ protected:
 	void ExecuteSelectLayerStage(EDMMaterialLayerStage InStageType);
 
 	void OnUndo();
+
+	void HandleAssetDragDropOperation(FAssetDragDropOp& InAssetDragDropOperation);
 };

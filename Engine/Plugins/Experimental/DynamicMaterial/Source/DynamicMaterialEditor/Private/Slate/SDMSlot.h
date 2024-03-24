@@ -87,6 +87,8 @@ public:
 
 	void SetEditedComponent(UDMMaterialComponent* InComponent);
 
+	UDMMaterialLayerObject* AddNewLayer(UDMMaterialStage* InNewBaseStage, UDMMaterialStage* InNewMaskStage = nullptr);
+
 protected:
 	TWeakPtr<SDMEditor> EditorWidgetWeak;
 
@@ -125,8 +127,6 @@ protected:
 	TSharedRef<SWidget> CreateSlotSettingsRow();
 
 	void OnSplitterResized() const;
-
-	UDMMaterialLayerObject* AddNewLayer(UDMMaterialStage* InNewBaseStage, UDMMaterialStage* InNewMaskStage = nullptr);
 
 	void AddPropertyToSlot(EDMMaterialPropertyType Property);
 

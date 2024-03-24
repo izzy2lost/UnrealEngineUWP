@@ -384,8 +384,6 @@ FReply SDMStage::OnDrop(const FGeometry& InMyGeometry, const FDragDropEvent& InD
 		return FReply::Unhandled();
 	}
 
-	SCompoundWidget::OnDrop(InMyGeometry, InDragDropEvent);
-
 	if (!StageWeak.IsValid())
 	{
 		return FReply::Unhandled();
@@ -398,8 +396,7 @@ FReply SDMStage::OnDrop(const FGeometry& InMyGeometry, const FDragDropEvent& InD
 		HandleAssetDragDropOperation(*AssetDragDropOp);
 		Reply = FReply::Handled();
 	}
-
-	if (OnAcceptDropEvent.IsBound())
+	else if (OnAcceptDropEvent.IsBound())
 	{
 		return OnAcceptDropEvent.Execute(InDragDropEvent, SharedThis(this));
 	}
