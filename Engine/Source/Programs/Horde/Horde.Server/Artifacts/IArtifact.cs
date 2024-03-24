@@ -50,6 +50,11 @@ namespace Horde.Server.Artifacts
 		public IReadOnlyList<string> Keys { get; }
 
 		/// <summary>
+		/// Metadata for the artifact
+		/// </summary>
+		public IReadOnlyList<string> Metadata { get; }
+
+		/// <summary>
 		/// Storage namespace containing the data
 		/// </summary>
 		public NamespaceId NamespaceId { get; }

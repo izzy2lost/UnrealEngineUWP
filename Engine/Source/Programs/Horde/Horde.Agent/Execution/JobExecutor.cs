@@ -132,6 +132,7 @@ namespace Horde.Agent.Execution
 			public string? Description { get; set; }
 			public string? BasePath { get; set; }
 			public List<string> Keys { get; set; } = new List<string>();
+			public List<string> Metadata { get; set; } = new List<string>();
 			public string OutputName { get; set; } = String.Empty;
 		}
 
@@ -759,6 +760,7 @@ namespace Horde.Agent.Execution
 				createArtifact.Description = exportedArtifact.Description ?? String.Empty;
 				createArtifact.BasePath = exportedArtifact.BasePath ?? String.Empty;
 				createArtifact.Keys.AddRange(exportedArtifact.Keys);
+				createArtifact.Metadata.AddRange(exportedArtifact.Metadata);
 				createArtifact.OutputName = exportedArtifact.OutputName;
 
 				updateGraph.Artifacts.Add(createArtifact);
@@ -1162,6 +1164,7 @@ namespace Horde.Agent.Execution
 					artifactRequest.Type = graphArtifact.Type;
 					artifactRequest.Description = graphArtifact.Description;
 					artifactRequest.Keys.AddRange(graphArtifact.Keys);
+					artifactRequest.Metadata.AddRange(graphArtifact.Metadata);
 
 					CreateJobArtifactResponseV2 artifact = await jobRpc.Client.CreateArtifactV2Async(artifactRequest, cancellationToken: cancellationToken);
 					logger.LogInformation("Created artifact {ArtifactId} '{ArtifactName}' ({ArtifactType}) with ref {RefName} ({RefUrl})", artifact.Id, artifactRequest.Name, ArtifactType.StepOutput, artifact.RefName, $"{Session.ServerUrl.ToString().TrimEnd('/')}/api/v1/storage/{artifact.NamespaceId}/refs/{artifact.RefName}");
