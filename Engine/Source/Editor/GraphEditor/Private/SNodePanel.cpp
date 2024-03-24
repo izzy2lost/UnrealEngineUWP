@@ -617,6 +617,30 @@ FReply SNodePanel::OnMouseButtonDown( const FGeometry& MyGeometry, const FPointe
 
 	TotalMouseDelta = 0;
 
+	auto PerformMousePan = [this, &MyGeometry, &MouseEvent]()
+	{
+		// Cache current cursor position as zoom origin and software cursor position
+		ZoomStartOffset = MyGeometry.AbsoluteToLocal( MouseEvent.GetLastScreenSpacePosition() );
+		SoftwareCursorPosition = PanelCoordToGraphCoord( ZoomStartOffset );
+
+		FReply ReplyState = FReply::Handled();
+		ReplyState.CaptureMouse( SharedThis(this) );
+		if (GetDefault<UGraphEditorSettings>()->bUseHighPrecisionMouseMovement)
+		{
+			ReplyState.UseHighPrecisionMouseMovement( SharedThis(this) );
+		}
+
+		SoftwareCursorPosition = PanelCoordToGraphCoord( MyGeometry.AbsoluteToLocal( MouseEvent.GetScreenSpacePosition() ) );
+
+		if (!GetDefault<UGraphEditorSettings>()->bUseInterpolationWithManualPanning)
+		{
+			DeferredMovementTargetObject = nullptr; // clear any interpolation when you manually pan
+		}
+		CancelZoomToFit();
+
+		return ReplyState;
+	};
+
 	if ((bIsLeftMouseButtonEffecting && bIsRightMouseButtonDown)
 	||  (bIsRightMouseButtonEffecting && (bIsLeftMouseButtonDown || FSlateApplication::Get().IsUsingTrackpad())))
 	{
@@ -673,39 +697,11 @@ FReply SNodePanel::OnMouseButtonDown( const FGeometry& MyGeometry, const FPointe
 	}
 	else if (bIsRightMouseButtonEffecting && ( GetDefault<UGraphEditorSettings>()->PanningMouseButton == EGraphPanningMouseButton::Right || GetDefault<UGraphEditorSettings>()->PanningMouseButton == EGraphPanningMouseButton::Both ) )
 	{
-		// Cache current cursor position as zoom origin and software cursor position
-		ZoomStartOffset = MyGeometry.AbsoluteToLocal( MouseEvent.GetLastScreenSpacePosition() );
-		SoftwareCursorPosition = PanelCoordToGraphCoord( ZoomStartOffset );
-
-		FReply ReplyState = FReply::Handled();
-		ReplyState.CaptureMouse( SharedThis(this) );
-		ReplyState.UseHighPrecisionMouseMovement( SharedThis(this) );
-
-		SoftwareCursorPosition = PanelCoordToGraphCoord( MyGeometry.AbsoluteToLocal( MouseEvent.GetScreenSpacePosition() ) );
-
-		DeferredMovementTargetObject = nullptr; // clear any interpolation when you manually pan
-		CancelZoomToFit();
-
-		// RIGHT BUTTON is for dragging and Context Menu.
-		return ReplyState;
+		return PerformMousePan();
 	}
 	else if (bIsMiddleMouseButtonEffecting && (GetDefault<UGraphEditorSettings>()->PanningMouseButton == EGraphPanningMouseButton::Middle || GetDefault<UGraphEditorSettings>()->PanningMouseButton == EGraphPanningMouseButton::Both))
 	{
-		// Cache current cursor position as zoom origin and software cursor position
-		ZoomStartOffset = MyGeometry.AbsoluteToLocal(MouseEvent.GetLastScreenSpacePosition());
-		SoftwareCursorPosition = PanelCoordToGraphCoord(ZoomStartOffset);
-
-		FReply ReplyState = FReply::Handled();
-		ReplyState.CaptureMouse(SharedThis(this));
-		ReplyState.UseHighPrecisionMouseMovement(SharedThis(this));
-
-		SoftwareCursorPosition = PanelCoordToGraphCoord(MyGeometry.AbsoluteToLocal(MouseEvent.GetScreenSpacePosition()));
-
-		DeferredMovementTargetObject = nullptr; // clear any interpolation when you manually pan
-		CancelZoomToFit();
-
-		// MIDDLE BUTTON is for dragging only.
-		return ReplyState;
+		return PerformMousePan();
 	}
 	else if ( bIsLeftMouseButtonEffecting )
 	{
