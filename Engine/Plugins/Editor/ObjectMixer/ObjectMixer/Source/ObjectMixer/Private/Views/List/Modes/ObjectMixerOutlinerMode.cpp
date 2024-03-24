@@ -61,6 +61,7 @@
 #include "WorldPartition/WorldPartition.h"
 #include "WorldPartition/WorldPartitionSubsystem.h"
 #include "WorldPartition/WorldPartitionActorDescInstance.h"
+#include "WorldPartition/DataLayer/DataLayerManager.h"
 
 static int32 GSceneOutlinerAutoRepresentingWorldNetModeForObjectMixer = NM_Client;
 static FAutoConsoleVariableRef CVarAutoRepresentingWorldNetMode(
@@ -1418,7 +1419,15 @@ TSharedRef<FSceneOutlinerFilter> FObjectMixerOutlinerMode::CreateIsInCurrentData
 {
 	return MakeShareable(new FActorFilter(FActorTreeItem::FFilterPredicate::CreateStatic([](const AActor* InActor)
 		{
-			return true;
+			for (const UDataLayerInstance* DataLayerInstance : InActor->GetDataLayerInstances())
+				{
+					if (DataLayerInstance->IsInActorEditorContext())
+					{
+						return true;
+					}
+				}
+
+				return false;
 		}), FSceneOutlinerFilter::EDefaultBehaviour::Pass));
 }
 
