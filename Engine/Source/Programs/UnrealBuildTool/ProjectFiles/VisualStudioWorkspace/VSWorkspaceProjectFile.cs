@@ -55,6 +55,8 @@ namespace UnrealBuildTool
 
 			Dictionary<FileReference, (UEBuildTarget BuildTarget, bool bBuildByDefault)> FileToTarget = new();
 
+			HashSet<UnrealTargetPlatform> ServerPlatforms = Utils.GetPlatformsInClass(UnrealPlatformClass.Server).ToHashSet();
+
 			foreach (UnrealTargetPlatform Platform in InPlatforms)
 			{
 				foreach (UnrealTargetConfiguration Configuration in InConfigurations)
@@ -78,6 +80,12 @@ namespace UnrealBuildTool
 						if (ProjectTarget.TargetRules.Type == TargetType.Editor && 
 							(BuildHostPlatform.Current.Platform != Platform || 
 							(Configuration == UnrealTargetConfiguration.Test || Configuration == UnrealTargetConfiguration.Shipping)))
+						{
+							continue;
+						}
+
+						// Skip Server for all invalid platforms
+						if (ProjectTarget.TargetRules.Type == TargetType.Server && !ServerPlatforms.Contains(Platform))
 						{
 							continue;
 						}
