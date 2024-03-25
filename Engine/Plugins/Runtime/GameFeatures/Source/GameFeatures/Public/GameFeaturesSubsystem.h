@@ -394,7 +394,6 @@ struct FGameFeatureInfo
 	FString URL;
 	bool bLoadedAsBuiltIn;
 	EGameFeaturePluginState CurrentState;
-	EGameFeaturePluginState DestinationState;
 };
 
 /** The manager subsystem for game features */
