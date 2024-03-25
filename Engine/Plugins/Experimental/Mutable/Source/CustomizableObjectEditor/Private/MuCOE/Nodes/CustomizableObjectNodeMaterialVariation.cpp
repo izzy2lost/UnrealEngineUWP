@@ -35,3 +35,9 @@ bool UCustomizableObjectNodeMaterialVariation::IsInputPinArray() const
 {
 	return true;
 }
+
+
+bool UCustomizableObjectNodeMaterialVariation::IsSingleOutputNode() const
+{
+	return true;
+}
