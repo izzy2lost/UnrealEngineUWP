@@ -22,6 +22,9 @@
 
 DEFINE_LOG_CATEGORY(LogDataLayerToAssetCommandlet);
 
+// The CommandLet uses deprecated function in AACtor & AWorldDataLayers to perform the conversion of UDEPRECATED_DataLayer -> UDataInstance/UDataLayerAsset
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
+
 void UDataLayerConversionInfo::SetDataLayerToConvert(const UDeprecatedDataLayerInstance* InDataLayerToConvert)
 {
 	DataLayerToConvert = InDataLayerToConvert;
@@ -342,7 +345,7 @@ bool UDataLayerToAssetCommandlet::BuildConversionInfos(TStrongObjectPtr<UDataLay
 
 	TArray<FAssetData> ExistingDataLayerAssets;
 	IAssetRegistry& AssetRegistry = FAssetRegistryModule::GetRegistry();
-	AssetRegistry.GetAssetsByClass(FTopLevelAssetPath(UDataLayerAsset::StaticClass()), ExistingDataLayerAssets);
+	AssetRegistry.GetAssetsByClass(UDataLayerAsset::StaticClass()->GetFName(), ExistingDataLayerAssets);
 	for (FAssetData& AssetData : ExistingDataLayerAssets)
 	{
 		if (IsAssetInConversionFolder(AssetData.GetSoftObjectPath()))
@@ -529,7 +532,6 @@ bool UDataLayerToAssetCommandlet::RemapActorDataLayersToAssets(TStrongObjectPtr<
 
 uint32 UDataLayerToAssetCommandlet::RemapActorDataLayers(TStrongObjectPtr<UDataLayerToAssetCommandletContext>& CommandletContext, AActor* Actor)
 {
-PRAGMA_DISABLE_DEPRECATION_WARNINGS
 	uint32 ErrorCount = 0;
 
 	const TArray<FActorDataLayer>& ActorDataLayers = Actor->GetActorDataLayers();
@@ -567,7 +569,6 @@ PRAGMA_DISABLE_DEPRECATION_WARNINGS
 	}
 
 	return ErrorCount;
-PRAGMA_ENABLE_DEPRECATION_WARNINGS
 }
 
 // Multiple run of the commandlet can lead to Actors referencing Data Layer Assets in different folders. Always remap to the newly created asset.
@@ -755,3 +756,5 @@ bool UDataLayerToAssetCommandlet::IsAssetInConversionFolder(const FSoftObjectPat
 {
 	return DataLayerAsset.GetAssetPathString().StartsWith(ConversionFolder);
 }
+
+PRAGMA_ENABLE_DEPRECATION_WARNINGS

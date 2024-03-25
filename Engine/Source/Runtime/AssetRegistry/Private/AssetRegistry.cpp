@@ -2066,6 +2066,12 @@ static FTopLevelAssetPath TryConvertShortTypeNameToPathName(FName ClassName)
 	return ClassPathName;
 }
 
+bool UAssetRegistryImpl::GetAssetsByClass(FName ClassName, TArray<FAssetData>& OutAssetData, bool bSearchSubClasses) const
+{
+	FTopLevelAssetPath ClassPathName = TryConvertShortTypeNameToPathName(ClassName);
+	return GetAssetsByClass(ClassPathName, OutAssetData, bSearchSubClasses);
+}
+
 bool UAssetRegistryImpl::GetAssetsByClass(FTopLevelAssetPath ClassPathName, TArray<FAssetData>& OutAssetData, bool bSearchSubClasses) const
 {
 	FARFilter Filter;
@@ -2517,6 +2523,13 @@ FAssetData UAssetRegistryImpl::GetAssetByObjectPath(const FSoftObjectPath& Objec
 	}
 }
 
+FAssetData UAssetRegistryImpl::GetAssetByObjectPath(const FName ObjectPath, bool bIncludeOnlyOnDiskAssets) const
+{
+PRAGMA_DISABLE_DEPRECATION_WARNINGS;
+	return GetAssetByObjectPath(FSoftObjectPath(ObjectPath.ToString()), bIncludeOnlyOnDiskAssets);
+PRAGMA_ENABLE_DEPRECATION_WARNINGS;
+}
+
 UE::AssetRegistry::EExists UAssetRegistryImpl::TryGetAssetByObjectPath(const FSoftObjectPath& ObjectPath, FAssetData& OutAssetData) const
 {
 	FReadScopeLock InterfaceScopeLock(InterfaceLock);
@@ -2957,36 +2970,25 @@ bool UAssetRegistryImpl::DoesPackageExistOnDisk(FName PackageName, FString* OutC
 	}
 }
 
-FSoftObjectPath UAssetRegistryImpl::GetRedirectedObjectPath(const FSoftObjectPath& ObjectPath)
+FSoftObjectPath UAssetRegistryImpl::GetRedirectedObjectPath(const FSoftObjectPath& ObjectPath) const
 {
-	if (IsSearchAllAssets())
-	{
-		FReadScopeLock InterfaceScopeLock(InterfaceLock);
-		return GuardedData.GetRedirectedObjectPath(ObjectPath, nullptr, nullptr, /*bNeedsScanning*/ false);
-	}
+	FReadScopeLock InterfaceScopeLock(InterfaceLock);
+	return GuardedData.GetRedirectedObjectPath(ObjectPath);
+}
 
-	FSoftObjectPath RedirectedObjectPath;
-	UE::AssetRegistry::Impl::FEventContext EventContext;
-	UE::AssetRegistry::Impl::FClassInheritanceContext InheritanceContext;
-	UE::AssetRegistry::Impl::FClassInheritanceBuffer InheritanceBuffer;
-	{
-		LLM_SCOPE(ELLMTag::AssetRegistry);
-		FWriteScopeLock WriteScopeLock(InterfaceLock);
-		GetInheritanceContextWithRequiredLock(WriteScopeLock, InheritanceContext, InheritanceBuffer);
-		RedirectedObjectPath = GuardedData.GetRedirectedObjectPath(ObjectPath, &EventContext, &InheritanceContext, /*bNeedsScanning*/ true);
-	}	
-	Broadcast(EventContext);
-
-	return RedirectedObjectPath;
+FName UAssetRegistryImpl::GetRedirectedObjectPath(const FName ObjectPath) const
+{
+	FReadScopeLock InterfaceScopeLock(InterfaceLock);
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
+	return GuardedData.GetRedirectedObjectPath(ObjectPath);
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
 }
 
 namespace UE::AssetRegistry
 {
 
-FSoftObjectPath FAssetRegistryImpl::GetRedirectedObjectPath(const FSoftObjectPath& ObjectPath, UE::AssetRegistry::Impl::FEventContext* EventContext, UE::AssetRegistry::Impl::FClassInheritanceContext* InheritanceContext, bool bNeedsScanning)
+FSoftObjectPath FAssetRegistryImpl::GetRedirectedObjectPath(const FSoftObjectPath& ObjectPath) const
 {
-	check(!bNeedsScanning || (EventContext && InheritanceContext));
-
 	FSoftObjectPath RedirectedPath = ObjectPath;
 
 	// For legacy behavior, for the first object pointed to, we look up the object in memory
@@ -3002,12 +3004,6 @@ FSoftObjectPath FAssetRegistryImpl::GetRedirectedObjectPath(const FSoftObjectPat
 		}
 		// For legacy behavior, for all redirects after the initial request, we only check on-disk assets
 		RedirectedPath = FSoftObjectPath(Redirector->DestinationObject);
-	}
-
-	if (bNeedsScanning)
-	{
-		UE::AssetRegistry::Impl::FScanPathContext Context(*EventContext, *InheritanceContext, {}, { RedirectedPath.ToString() });
-		ScanPathsSynchronous(Context);
 	}
 
 	FString SubPathString;
@@ -3042,12 +3038,6 @@ FSoftObjectPath FAssetRegistryImpl::GetRedirectedObjectPath(const FSoftObjectPat
 			break;
 		}
 
-		if (bNeedsScanning)
-		{
-			UE::AssetRegistry::Impl::FScanPathContext Context(*EventContext, *InheritanceContext, {}, { RedirectedPath.ToString() });
-			ScanPathsSynchronous(Context);
-		}
-
 		SeenPaths.Add(RedirectedPath);
 		AssetData = State.GetAssetByObjectPath(RedirectedPath);
 	}
@@ -3067,6 +3057,25 @@ FSoftObjectPath FAssetRegistryImpl::GetRedirectedObjectPath(const FSoftObjectPat
 	}
 	return RedirectedPath;
 }
+
+UE_DEPRECATED(5.1, "Asset path FNames have been deprecated, use FSoftObjectPath instead.")
+FName FAssetRegistryImpl::GetRedirectedObjectPath(const FName ObjectPath) const
+{
+	return FName(*GetRedirectedObjectPath(FSoftObjectPath(ObjectPath.ToString())).ToString());
+}
+
+}
+
+bool UAssetRegistryImpl::GetAncestorClassNames(FName ClassName, TArray<FName>& OutAncestorClassNames) const
+{
+	FTopLevelAssetPath ClassPathName = TryConvertShortTypeNameToPathName(ClassName);
+	TArray<FTopLevelAssetPath> OutAncestorClassPathNames;
+	bool bResult = GetAncestorClassNames(ClassPathName, OutAncestorClassPathNames);
+	for (FTopLevelAssetPath AncestorPathName : OutAncestorClassPathNames)
+	{
+		OutAncestorClassNames.Add(AncestorPathName.GetAssetName());
+	}
+	return bResult;
 }
 
 bool UAssetRegistryImpl::GetAncestorClassNames(FTopLevelAssetPath ClassName, TArray<FTopLevelAssetPath>& OutAncestorClassNames) const
@@ -3130,6 +3139,28 @@ bool FAssetRegistryImpl::GetAncestorClassNames(Impl::FClassInheritanceContext& I
 
 	return bFoundClass;
 }
+
+}
+
+void UAssetRegistryImpl::GetDerivedClassNames(const TArray<FName>& ClassNames, const TSet<FName>& ExcludedClassNames,
+	TSet<FName>& OutDerivedClassNames) const
+{
+	TArray<FTopLevelAssetPath> ClassPaths;
+	for (FName ClassName : ClassNames)
+	{
+		ClassPaths.Add(TryConvertShortTypeNameToPathName(ClassName));
+	}
+	TSet<FTopLevelAssetPath> ExcludedClassPathNames;
+	for (FName ExcludedClassName : ExcludedClassNames)
+	{
+		ExcludedClassPathNames.Add(TryConvertShortTypeNameToPathName(ExcludedClassName));
+	}
+	TSet<FTopLevelAssetPath> OutDerivedClassPathNames;
+	GetDerivedClassNames(ClassPaths, ExcludedClassPathNames, OutDerivedClassPathNames);
+	for (FTopLevelAssetPath DerivedClassPathName : OutDerivedClassPathNames)
+	{
+		OutDerivedClassNames.Add(DerivedClassPathName.GetAssetName());
+	}
 }
 
 void UAssetRegistryImpl::GetDerivedClassNames(const TArray<FTopLevelAssetPath>& ClassNames, const TSet<FTopLevelAssetPath>& ExcludedClassNames,
@@ -6652,7 +6683,7 @@ void FAssetRegistryImpl::UpdateRedirectCollector()
 	for (const FAssetData* AssetData : RedirectorAssets)
 	{
 		FSoftObjectPath Source = AssetData->GetSoftObjectPath();
-		FSoftObjectPath Destination = GetRedirectedObjectPath(Source, nullptr, nullptr, /*bNeedsScanning*/ false);
+		FSoftObjectPath Destination = GetRedirectedObjectPath(Source);
 
 		if (Destination != Source)
 		{
