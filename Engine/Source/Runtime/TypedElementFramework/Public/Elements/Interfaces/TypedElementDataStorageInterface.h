@@ -386,7 +386,7 @@ public:
 template <typename FactoryT>
 const FactoryT* ITypedElementDataStorageInterface::FindFactory() const
 {
-	return GetFactory(FactoryT::StaticClass());
+	return static_cast<const FactoryT*>(FindFactory(FactoryT::StaticClass()));
 }
 
 template<typename Column>
