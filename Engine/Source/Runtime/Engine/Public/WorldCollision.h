@@ -6,15 +6,15 @@
 #pragma once 
 
 #include "Async/TaskGraphFwd.h"
-#if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_5
+#if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_4
 #include "CoreMinimal.h"
-#endif // UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_5
+#endif // UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_4
 #include "CollisionQueryParams.h"
 #include "CollisionShape.h"
-#if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_5
+#if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_4
 #include "Engine/OverlapResult.h"
 #include "Engine/HitResult.h"
-#endif // UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_5
+#endif // UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_4
 
 #if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_2
 #include "Async/TaskGraphInterfaces.h"
