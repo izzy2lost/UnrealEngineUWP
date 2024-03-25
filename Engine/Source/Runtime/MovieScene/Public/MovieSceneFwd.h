@@ -86,7 +86,7 @@ enum class EUpdateClockSource : uint8
 /**
  * Bitfield flags that define special behavior for any UMovieSceneSequence.
  */
-UENUM()
+UENUM(Flags)
 enum class EMovieSceneSequenceFlags : uint8
 {
 	/** Symbolic entry for no flags */
@@ -118,7 +118,7 @@ ENUM_CLASS_FLAGS(EMovieSceneSequenceFlags);
 /**
  * 
  */
-UENUM(meta=(Bitflags, UseEnumValuesAsMaskValuesInEditor = "true"))
+UENUM(Flags, meta=(Bitflags, UseEnumValuesAsMaskValuesInEditor = "true"))
 enum class EMovieSceneServerClientMask : uint8
 {
 	None           = 0 UMETA(Hidden),

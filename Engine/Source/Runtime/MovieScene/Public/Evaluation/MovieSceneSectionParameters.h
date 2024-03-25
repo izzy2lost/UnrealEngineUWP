@@ -11,7 +11,7 @@
  * Flag structure that can be applied to any sub-section allowing control over various
  * behaviors for the nested sub-sequence.
  */
-UENUM(BlueprintType)
+UENUM(Flags, BlueprintType)
 enum class EMovieSceneSubSectionFlags : uint8
 {
 	None = 0,

@@ -47,6 +47,7 @@ namespace MovieScene
 }
 }
 
+UENUM(Flags)
 enum class EMovieSceneSequenceCompilerMask : uint8
 {
 	Hierarchy               = 1 << 0,
@@ -57,48 +58,6 @@ enum class EMovieSceneSequenceCompilerMask : uint8
 	None                    = 0,
 };
 ENUM_CLASS_FLAGS(EMovieSceneSequenceCompilerMask);
-
-/** Flag struct necessary while flag enums are not supported on UPROPERTY */
-USTRUCT()
-struct FMovieSceneSequenceCompilerMaskStruct
-{
-	GENERATED_BODY()
-
-	FMovieSceneSequenceCompilerMaskStruct()
-		: bHierarchy(0)
-		, bEvaluationTemplate(0)
-		, bEvaluationTemplateField(0)
-		, bEntityComponentField(0)
-	{}
-
-	FMovieSceneSequenceCompilerMaskStruct& operator=(EMovieSceneSequenceCompilerMask InMask)
-	{
-		bHierarchy               = EnumHasAnyFlags(InMask, EMovieSceneSequenceCompilerMask::Hierarchy);
-		bEvaluationTemplate      = EnumHasAnyFlags(InMask, EMovieSceneSequenceCompilerMask::EvaluationTemplate);
-		bEvaluationTemplateField = EnumHasAnyFlags(InMask, EMovieSceneSequenceCompilerMask::EvaluationTemplateField);
-		bEntityComponentField    = EnumHasAnyFlags(InMask, EMovieSceneSequenceCompilerMask::EntityComponentField);
-		return *this;
-	}
-
-	EMovieSceneSequenceCompilerMask AsEnum() const
-	{
-		EMovieSceneSequenceCompilerMask Enum = EMovieSceneSequenceCompilerMask::None;
-		Enum |= bHierarchy               ? EMovieSceneSequenceCompilerMask::Hierarchy               : EMovieSceneSequenceCompilerMask::None;
-		Enum |= bEvaluationTemplate      ? EMovieSceneSequenceCompilerMask::EvaluationTemplate      : EMovieSceneSequenceCompilerMask::None;
-		Enum |= bEvaluationTemplateField ? EMovieSceneSequenceCompilerMask::EvaluationTemplateField : EMovieSceneSequenceCompilerMask::None;
-		Enum |= bEntityComponentField    ? EMovieSceneSequenceCompilerMask::EntityComponentField    : EMovieSceneSequenceCompilerMask::None;
-		return Enum;
-	}
-
-	UPROPERTY()
-	uint8 bHierarchy : 1;
-	UPROPERTY()
-	uint8 bEvaluationTemplate : 1;
-	UPROPERTY()
-	uint8 bEvaluationTemplateField : 1;
-	UPROPERTY()
-	uint8 bEntityComponentField : 1;
-};
 
 /** Flags generated at compile time for a given sequence */
 USTRUCT()
@@ -165,11 +124,11 @@ private:
 
 	/** 1 Byte */
 	UPROPERTY()
-	FMovieSceneSequenceCompilerMaskStruct AccumulatedMask;
+	EMovieSceneSequenceCompilerMask AccumulatedMask;
 
 	/** 1 Byte */
 	UPROPERTY()
-	FMovieSceneSequenceCompilerMaskStruct AllocatedMask;
+	EMovieSceneSequenceCompilerMask AllocatedMask;
 
 	/** 1 Byte */
 	UPROPERTY()

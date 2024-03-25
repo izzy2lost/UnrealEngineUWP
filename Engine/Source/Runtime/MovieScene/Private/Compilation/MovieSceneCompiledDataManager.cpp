@@ -405,25 +405,25 @@ void UMovieSceneCompiledDataManager::CopyCompiledData(UMovieSceneSequence* Seque
 	if (const FMovieSceneSequenceHierarchy* Hierarchy = FindHierarchy(DataID))
 	{
 		CompiledData->Hierarchy = *Hierarchy;
-		CompiledData->AllocatedMask.bHierarchy = true;
+		CompiledData->AllocatedMask |= EMovieSceneSequenceCompilerMask::Hierarchy;
 	}
 	if (const FMovieSceneEvaluationTemplate* TrackTemplate = FindTrackTemplate(DataID))
 	{
 		CompiledData->EvaluationTemplate = *TrackTemplate;
-		CompiledData->AllocatedMask.bEvaluationTemplate = true;
+		CompiledData->AllocatedMask |= EMovieSceneSequenceCompilerMask::EvaluationTemplate;
 	}
 	if (const FMovieSceneEvaluationField* TrackTemplateField = FindTrackTemplateField(DataID))
 	{
 		if (Sequence->IsPlayableDirectly())
 		{
 			CompiledData->TrackTemplateField = *TrackTemplateField;
-			CompiledData->AllocatedMask.bEvaluationTemplateField = true;
+			CompiledData->AllocatedMask  |= EMovieSceneSequenceCompilerMask::EvaluationTemplateField;
 		}
 	}
 	if (const FMovieSceneEntityComponentField* EntityComponentField = FindEntityComponentField(DataID))
 	{
 		CompiledData->EntityComponentField = *EntityComponentField;
-		CompiledData->AllocatedMask.bEntityComponentField = true;
+		CompiledData->AllocatedMask |= EMovieSceneSequenceCompilerMask::EntityComponentField;
 	}
 
 	const FMovieSceneCompiledDataEntry& DataEntry = CompiledDataEntries[DataID.Value];
@@ -451,19 +451,19 @@ void UMovieSceneCompiledDataManager::LoadCompiledData(UMovieSceneSequence* Seque
 			return;
 		}
 
-		if (CompiledData->AllocatedMask.bHierarchy)
+		if (EnumHasAnyFlags(CompiledData->AllocatedMask, EMovieSceneSequenceCompilerMask::Hierarchy))
 		{
 			Hierarchies.Add(DataID.Value, MoveTemp(CompiledData->Hierarchy));
 		}
-		if (CompiledData->AllocatedMask.bEvaluationTemplate)
+		if (EnumHasAnyFlags(CompiledData->AllocatedMask, EMovieSceneSequenceCompilerMask::EvaluationTemplate))
 		{
 			TrackTemplates.Add(DataID.Value, MoveTemp(CompiledData->EvaluationTemplate));
 		}
-		if (CompiledData->AllocatedMask.bEvaluationTemplateField)
+		if (EnumHasAnyFlags(CompiledData->AllocatedMask, EMovieSceneSequenceCompilerMask::EvaluationTemplateField))
 		{
 			TrackTemplateFields.Add(DataID.Value, MoveTemp(CompiledData->TrackTemplateField));
 		}
-		if (CompiledData->AllocatedMask.bEntityComponentField)
+		if (EnumHasAnyFlags(CompiledData->AllocatedMask, EMovieSceneSequenceCompilerMask::EntityComponentField))
 		{
 			EntityComponentFields.Add(DataID.Value, MoveTemp(CompiledData->EntityComponentField));
 		}
@@ -472,7 +472,7 @@ void UMovieSceneCompiledDataManager::LoadCompiledData(UMovieSceneSequence* Seque
 
 		EntryPtr->DeterminismFences = MoveTemp(CompiledData->DeterminismFences);
 		EntryPtr->CompiledSignature = CompiledData->CompiledSignature;
-		EntryPtr->AccumulatedMask = CompiledData->AccumulatedMask.AsEnum();
+		EntryPtr->AccumulatedMask = CompiledData->AccumulatedMask;
 		EntryPtr->AccumulatedFlags = CompiledData->AccumulatedFlags;
 		EntryPtr->CompiledFlags = CompiledData->CompiledFlags;
 
