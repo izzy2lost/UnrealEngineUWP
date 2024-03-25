@@ -8,7 +8,7 @@
 namespace
 {
 
-bool bEnableCompressedMipGenerationMemoryOptimizations = false;
+bool bEnableCompressedMipGenerationMemoryOptimizations = true;
 static FAutoConsoleVariableRef CVarEnableCompressedMipGenerationMemoryOptimizations (
 	TEXT("mutable.EnableCompressedMipGenerationMemoryOptimizations"),
 	bEnableCompressedMipGenerationMemoryOptimizations,

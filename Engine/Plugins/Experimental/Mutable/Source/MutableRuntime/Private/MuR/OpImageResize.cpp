@@ -7,7 +7,7 @@
 namespace
 {
 
-bool bEnableImageResizeMemoryOptimizations = false;
+bool bEnableImageResizeMemoryOptimizations = true;
 static FAutoConsoleVariableRef CVarEnableImageResizeMemoryOptimizations (
 	TEXT("mutable.EnableImageResizeMemoryOptimizations"),
 	bEnableImageResizeMemoryOptimizations,
