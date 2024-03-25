@@ -34,6 +34,7 @@
 #include "Serialization/UnversionedPropertySerialization.h"
 #include "UObject/DebugSerializationFlags.h"
 #include "UObject/EditorObjectVersion.h"
+#include "UObject/InstanceDataObjectUtils.h"
 #include "UObject/LinkerSave.h"
 #include "UObject/Object.h"
 #include "UObject/ObjectMacros.h"
@@ -2941,6 +2942,12 @@ ESavePackageResult InnerSave(FSaveContext& SaveContext)
 	TRefCountPtr<FUObjectSerializeContext> SerializeContext(FUObjectThreadContext::Get().GetSerializeContext());
 	SaveContext.SetSerializeContext(SerializeContext);
 	SaveContext.SetEDLCookChecker(&FEDLCookCheckerThreadState::Get());
+
+	TOptional<TGuardValue<bool>> IDOImpersonationScope;
+	if (UE::IsInstanceDataObjectSupportEnabled())
+	{
+		IDOImpersonationScope.Emplace(SerializeContext->bImpersonateProperties, true);
+	}
 
 	// Create slow task dialog if needed
 	const int32 TotalSaveSteps = 3;

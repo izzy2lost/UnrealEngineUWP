@@ -5,6 +5,7 @@
 #include "UObject/UnrealType.h"
 #include "UObject/EnumProperty.h"
 #include "UObject/Field.h"
+#include "HAL/IConsoleManager.h"
 
 namespace UE
 {
@@ -12,7 +13,11 @@ namespace UE
 	using FWildcardPropertyPathName = FPropertyPathName;
 	
 	static FName Name_ValuesSetBySerialization(TEXT("_ValuesSetBySerialization"));
-	static const FName NAME_StructOrignalTypeMetadata(TEXT("OriginalType"));
+	static const FName NAME_StructOriginalTypeMetadata(TEXT("OriginalType"));
+	static const FName NAME_PresentAsTypeMetadata(TEXT("PresentAsType"));
+	static const FName NAME_IsLooseMetadata(TEXT("IsLoose"));
+	static const FName NAME_CategoryMetadata(TEXT("Category"));
+	static const FName NAME_VerseClass("VerseClass");
 	
 	struct ResolvePropertyPathNameHelperParams
 	{
@@ -23,6 +28,20 @@ namespace UE
 		int32 EndPathIndex = INDEX_NONE; // INDEX_NONE has the same behavior as Path.GetSegmentCount()
 		bool bAddIfNeeded = false;
 	};
+
+	bool bEnableIDOSupport = false;
+	FAutoConsoleVariableRef EnableIDOSupportCVar(
+		TEXT("IDO.Enable"),
+		bEnableIDOSupport,
+		TEXT("Allows property bags and IDOs to be created for supported classes.")
+	);
+
+	bool IsInstanceDataObjectSupportEnabled(UObject* InObject)
+	{
+		return bEnableIDOSupport
+			//@todo FH: change to check trait when available or use config object
+			&& (!InObject || InObject->GetClass()->GetClass()->GetFName() == NAME_VerseClass);
+	}
 
 	static void BuildSegmentTypeFromProperty(const FProperty* Property, FPropertyTypeNameBuilder& OutType)
 	{
@@ -79,7 +98,7 @@ namespace UE
 			if (AsArrayProperty->Inner->IsA<FEnumProperty>())
 			{
 				// enum paths currently don't recurse when they're in containers
-				OutType.AddName(AsArrayProperty->Inner->GetClass()->GetFName());
+				OutType.AddName(AsArrayProperty->Inner->GetID());
 			}
 			else
 			{
@@ -91,15 +110,15 @@ namespace UE
 		{
 			// sets currently don't recurse their element property types
 			OutType.BeginParameters();
-			OutType.AddName(AsSetProperty->ElementProp->GetClass()->GetFName());
+			OutType.AddName(AsSetProperty->ElementProp->GetID());
 			OutType.EndParameters();
 		}
 		else if (const FMapProperty* AsMapProperty = CastField<FMapProperty>(Property))
 		{
 			// maps currently don't recurse their key/value property types
 			OutType.BeginParameters();
-			OutType.AddName(AsMapProperty->KeyProp->GetClass()->GetFName());
-			OutType.AddName(AsMapProperty->ValueProp->GetClass()->GetFName());
+			OutType.AddName(AsMapProperty->KeyProp->GetID());
+			OutType.AddName(AsMapProperty->ValueProp->GetID());
 			OutType.EndParameters();
 		}
 #endif
@@ -258,18 +277,23 @@ namespace UE
 	{
 		if (FStructProperty* AsStructProperty = CastField<FStructProperty>(Property))
 		{
-			const FString* OriginalType = nullptr;
+			if (!AsStructProperty->Struct->UseNativeSerialization())
+			{
+				const FString* OriginalType = nullptr;
 #if WITH_EDITORONLY_DATA
-			//@note: Transfer existing metadata over as we build the InstanceDataObject from the struct or it owner, if any, this is useful for testing purposes
-			OriginalType = AsStructProperty->FindMetaData(NAME_StructOrignalTypeMetadata);
-			FField* OwnerField = OriginalType == nullptr ? AsStructProperty->Owner.ToField() : nullptr;
-			OriginalType = OwnerField ? OwnerField->FindMetaData(NAME_StructOrignalTypeMetadata) : OriginalType;
+				//@note: Transfer existing metadata over as we build the InstanceDataObject from the struct or it owner, if any, this is useful for testing purposes
+				OriginalType = AsStructProperty->FindMetaData(NAME_StructOriginalTypeMetadata);
+				FField* OwnerField = OriginalType == nullptr ? AsStructProperty->Owner.ToField() : nullptr;
+				OriginalType = OwnerField ? OwnerField->FindMetaData(NAME_StructOriginalTypeMetadata) : OriginalType;
 #endif
-			const FName StructOriginalName = OriginalType ? FName(**OriginalType) : AsStructProperty->Struct->GetFName();
-			AsStructProperty->Struct = CreateInstanceDataObjectStructRec<UScriptStruct>(AsStructProperty->Struct, Outer, LooseProperties, Path);
+				const FName StructOriginalName = OriginalType ? FName(**OriginalType) : AsStructProperty->Struct->GetFName();
+				AsStructProperty->Struct = CreateInstanceDataObjectStructRec<UScriptStruct>(AsStructProperty->Struct, Outer, LooseProperties, Path);
 #if WITH_EDITORONLY_DATA
-			AsStructProperty->SetMetaData("OriginalType", StructOriginalName.ToString());
+				AsStructProperty->SetMetaData(NAME_StructOriginalTypeMetadata, StructOriginalName.ToString());
+				AsStructProperty->SetMetaData(NAME_PresentAsTypeMetadata, StructOriginalName.ToString());
+				AsStructProperty->Struct->SetMetaData(NAME_PresentAsTypeMetadata, *StructOriginalName.ToString());
 #endif
+			}
 		}
 		else if (const FArrayProperty* AsArrayProperty = CastField<FArrayProperty>(Property))
 		{
@@ -292,9 +316,9 @@ namespace UE
 		}
 		
 #if WITH_EDITORONLY_DATA
-		if (!Property->HasMetaData(TEXT("category")))
+		if (!Property->HasMetaData(NAME_CategoryMetadata))
 		{
-			Property->SetMetaData(TEXT("category"), TEXT("Verse"));
+			Property->SetMetaData(NAME_CategoryMetadata, TEXT("Verse"));
 		}
 #endif
 	}
@@ -380,8 +404,8 @@ namespace UE
 	static void MarkPropertyAsLoose(FProperty* Property)
 	{
 #if WITH_EDITORONLY_DATA
-		Property->SetMetaData(TEXT("isLoose"), TEXT("True"));
-		Property->SetMetaData(TEXT("category"), TEXT("Loose Properties"));
+		Property->SetMetaData(NAME_IsLooseMetadata, TEXT("True"));
+		Property->SetMetaData(NAME_CategoryMetadata, TEXT("Loose Properties"));
 #endif
 		Property->SetPropertyFlags(CPF_Edit | CPF_EditConst);
 		if (const FArrayProperty* AsArrayProperty = CastField<FArrayProperty>(Property))
@@ -422,7 +446,7 @@ namespace UE
 		if (TemplateStruct)
 		{
 			const FName SuperName(TemplateStruct->GetName() + TEXT("_Super"));
-			Super = NewObject<UStruct>(Outer, StructClass, MakeUniqueObjectName(Outer, StructClass, SuperName));
+			Super = NewObject<UStruct>(Outer, StructClass, MakeUniqueObjectName(nullptr, StructClass, SuperName));
 			
 			// Gather properties for Super Struct
 			TArray<FProperty*> SuperProperties;
@@ -438,9 +462,9 @@ namespace UE
 				FProperty* SuperProperty = CreateInstanceDataObjectProperty(TemplateProperty, Super, LooseProperties, Path);
 				
 #if WITH_EDITORONLY_DATA
-				if (!SuperProperty->HasMetaData(TEXT("category")))
+				if (!SuperProperty->HasMetaData(NAME_CategoryMetadata))
 				{
-					SuperProperty->SetMetaData(TEXT("category"), TEXT("Verse"));
+					SuperProperty->SetMetaData(NAME_CategoryMetadata, TEXT("Verse"));
 				}
 #endif
 				Path.Pop();
@@ -468,7 +492,7 @@ namespace UE
 		}
 
 		const FName InstanceDataObjectName = (TemplateStruct) ? FName(TemplateStruct->GetName() + TEXT("_InstanceDataObject")) : FName(TEXT("InstanceDataObject"));
-		UStruct* Result = NewObject<UStruct>(Outer, StructClass, MakeUniqueObjectName(Outer, StructClass, InstanceDataObjectName));
+		UStruct* Result = NewObject<UStruct>(Outer, StructClass, MakeUniqueObjectName(nullptr, StructClass, InstanceDataObjectName));
 
 		// Gather "loose" properties for child Struct
 		TArray<FProperty*> LooseInstanceDataObjectProperties;

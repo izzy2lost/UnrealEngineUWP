@@ -1857,9 +1857,12 @@ void UObject::SerializeScriptProperties( FStructuredArchive::FSlot Slot ) const
 			ObjClass = ThisObject->GetClass();
 
 			//@todo FH: Support for Default Object needs to be added when using impersonators
-			const UObject* DiffImpersonator = UE::Private::GetDataImpersonator(DiffObject);
+			const UObject* DiffImpersonator = nullptr; //UE::Private::GetDataImpersonator(DiffObject);
 			DiffObject = DiffImpersonator ? const_cast<UObject*>(DiffImpersonator) : ObjClass->GetDefaultObject(false);
-			DiffClass = DiffObject->GetClass();
+			if (DiffObject)
+			{
+				DiffClass = DiffObject->GetClass();
+			}
 			ensureAlwaysMsgf(DiffClass == ObjClass, TEXT("Impersonation of '%s' using a different default class not appropriately supported at the moment. Class: '%s', DefaultClass: '%s'")
 				, *ThisObject->GetPathName(), *ObjClass->GetPathName(), *DiffClass->GetPathName());
 		}

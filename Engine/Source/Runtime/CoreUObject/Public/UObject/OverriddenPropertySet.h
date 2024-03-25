@@ -217,15 +217,15 @@ public:
 	/**
 	 * Retrieve the overridable operation from the specified the edit property chain node
 	 * @param PropertyEvent only needed to know about the container item index in any
-	 * @param PropertyNode in the linked list leading to the property the caller is interested in
-	 * @param bOutInheritedState optional parameter to know if the state returned was inherited from a parent property
+	 * @param PropertyNode leading to the property interested in, null will return the operation of the object itself
+	 * @param bOutInheritedOperation optional parameter to know if the state returned was inherited from a parent property
 	 * @return the current type of override operation on the property */
-	EOverriddenPropertyOperation GetOverriddenPropertyOperation(const FPropertyChangedEvent& PropertyEvent, const FEditPropertyChain::TDoubleLinkedListNode* PropertyNode, bool* bOutInheritedState = nullptr) const;
+	EOverriddenPropertyOperation GetOverriddenPropertyOperation(const FPropertyChangedEvent& PropertyEvent, const FEditPropertyChain::TDoubleLinkedListNode* PropertyNode, bool* bOutInheritedOperation = nullptr) const;
 
 	/**
 	 * Clear any properties from the serialized property chain node
 	 * @param PropertyEvent only needed to know about the container item index in any
-	 * @param PropertyNode in the linked list leading to the property the caller is interested in
+	 * @param PropertyNode leading to the property to clear, null will clear the overrides on the object itself
 	 * @return if the operation was successful */
 	bool ClearOverriddenProperty(const FPropertyChangedEvent& PropertyEvent, const FEditPropertyChain::TDoubleLinkedListNode* PropertyNode);
 
@@ -233,28 +233,28 @@ public:
 	 * Handling and storing modification on a property of an object
 	 * @param Notification type either pre/post property overridden
 	 * @param PropertyEvent information about the type of change
-	 * @param PropertyNode leading to the property that is changing
+	 * @param PropertyNode leading to the property that is changing, null means it is the object itself that is changing
 	 * @param Data memory of the current property */
 	void NotifyPropertyChange(const EPropertyNotificationType Notification, const FPropertyChangedEvent& PropertyEvent, const FEditPropertyChain::TDoubleLinkedListNode* PropertyNode, const void* Data);
 
 	/**
 	 * Retrieve the overridable operation from the specified the serialized property chain and the specified property
-	 * @param CurrentPropertyChain leading to the property being serialized if any
-	 * @param Property being serialized if any, otherwise will fallback on the last property of the chain
+	 * @param CurrentPropertyChain leading to the property being serialized if any, null or empty it will return the node of the object itself
+	 * @param Property being serialized if any, if null it will fallback on the last property of the chain
 	 * @return the current type of override operation on the property */
 	EOverriddenPropertyOperation GetOverriddenPropertyOperation(const FArchiveSerializedPropertyChain* CurrentPropertyChain, FProperty* Property) const;
 
 	/**
 	 * Setup the overridable operation of the current property from the serialized property chain and the specified property
 	 * @param Operation to set for this property
-	 * @param CurrentPropertyChain leading to the property being serialized if any
-	 * @param Property being serialized if any, otherwise will fallback on the last property of the chain
+	 * @param CurrentPropertyChain leading to the property being serialized if any, null or empty it will return the node of the object itself
+	 * @param Property being serialized if any, if null it will fallback on the last property of the chain
 	 * @return the node containing the information of the overridden property */
 	FOverriddenPropertyNode* SetOverriddenPropertyOperation(EOverriddenPropertyOperation Operation, const FArchiveSerializedPropertyChain* CurrentPropertyChain, FProperty* Property);
 
 	/**
 	 * Retrieve the overridden property node from the serialized property chain
-	 * @param CurrentPropertyChain leading to the property being serialized.
+	 * @param CurrentPropertyChain leading to the property being serialized if any, null or empty it will return the node of the object itself
 	 * @return the node containing the information of the overridden property */
 	const FOverriddenPropertyNode* GetOverriddenPropertyNode(const FArchiveSerializedPropertyChain* CurrentPropertyChain) const;
 
@@ -289,8 +289,8 @@ protected:
 
 	FOverriddenPropertyNode& FindOrAddNode(FOverriddenPropertyNode& ParentPropertyNode, FOverriddenPropertyNodeID NodeID);
 
-	FOverriddenPropertyNode* GetOverriddenPropertyNode(FOverriddenPropertyNode& ParentPropertyNode, const FEditPropertyChain::TDoubleLinkedListNode* PropertyNode, bool* bOutInheritedState);
-	const FOverriddenPropertyNode* GetOverriddenPropertyNode(const FOverriddenPropertyNode& ParentPropertyNode, const FEditPropertyChain::TDoubleLinkedListNode* PropertyNode, bool* bOutInheritedState) const;
+	EOverriddenPropertyOperation GetOverriddenPropertyOperation(const FOverriddenPropertyNode& ParentPropertyNode, const FPropertyChangedEvent& PropertyEvent, const FEditPropertyChain::TDoubleLinkedListNode* PropertyNode, bool* bOutInheritedOperation, const void* Data) const;
+	bool ClearOverriddenProperty(FOverriddenPropertyNode& ParentPropertyNode, const FPropertyChangedEvent& PropertyEvent, const FEditPropertyChain::TDoubleLinkedListNode* PropertyNode, const void* Data);
 	void NotifyPropertyChange(FOverriddenPropertyNode* ParentPropertyNode, const EPropertyNotificationType Notification, const FPropertyChangedEvent& PropertyEvent, const FEditPropertyChain::TDoubleLinkedListNode* PropertyNode, const void* Data);
 
 	EOverriddenPropertyOperation GetOverriddenPropertyOperation(const FOverriddenPropertyNode& ParentPropertyNode, const FArchiveSerializedPropertyChain* CurrentPropertyChain, FProperty* Property) const;

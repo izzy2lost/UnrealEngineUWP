@@ -177,7 +177,18 @@ public:
 	 * @param PropertyEvent only needed to know about the container item index in any
 	 * @param PropertyChain to the property to clear from the root of the specified object
 	 * @return true if the property was successfully cleared. */
-	COREUOBJECT_API bool ClearOverriddenProperty(UObject& Object, const FPropertyChangedEvent& PropertyEvent, const FEditPropertyChain& PropertyChain);
+	FORCEINLINE bool ClearOverriddenProperty(UObject& Object, const FPropertyChangedEvent& PropertyEvent, const FEditPropertyChain& PropertyChain)
+	{
+		return ClearOverriddenProperty(Object, PropertyEvent, PropertyChain.GetActiveNode() ? PropertyChain.GetActiveNode() : PropertyChain.GetHead());
+	}
+
+	/**
+	 * Clears an overridden properties specified by the property chain
+	 * @param Object owning the property to clear
+	 * @param PropertyEvent only needed to know about the container item index in any
+	 * @param PropertyNode leading to the property to clear, null means to clear the specified object
+	 * @return true if the property was successfully cleared. */
+	COREUOBJECT_API bool ClearOverriddenProperty(UObject& Object, const FPropertyChangedEvent& PropertyEvent, const FEditPropertyChain::TDoubleLinkedListNode* PropertyNode);
 
 	/**
 	 * To be called prior to override a property of the specified object
@@ -200,7 +211,7 @@ public:
 	 * @param Notification the type of notification (pre or post
 	 * @param Object owning the property
 	 * @param PropertyEvent information about the type of change including any container item index
-	 * @param PropertyNode leading to the property that is changing */
+	 * @param PropertyNode leading to the property that is changing, null indicate that it is the specified object has changed */
 	COREUOBJECT_API void NotifyPropertyChange(const EPropertyNotificationType Notification, UObject& Object, const FPropertyChangedEvent& PropertyEvent, const FEditPropertyChain::TDoubleLinkedListNode* PropertyNode);
 
 	/**
@@ -208,9 +219,21 @@ public:
 	 * @param Object owning the property
 	 * @param PropertyEvent only needed to know about the container item index in any
 	 * @param PropertyChain leading to the property the caller is interested in
-	 * @param bOutInheritedState optional parameter to know if the state returned was inherited from a parent property
+	 * @param bOutInheritedOperation optional parameter to know if the operation returned was inherited from a parent property
 	 * @return the current type of override operation on the property */
-	COREUOBJECT_API EOverriddenPropertyOperation GetOverriddenPropertyOperation(UObject& Object, const FPropertyChangedEvent& PropertyEvent, const FEditPropertyChain& PropertyChain, bool* bOutInheritedState = nullptr);
+	FORCEINLINE EOverriddenPropertyOperation GetOverriddenPropertyOperation(UObject& Object, const FPropertyChangedEvent& PropertyEvent, const FEditPropertyChain& PropertyChain, bool* bOutInheritedOperation = nullptr)
+	{
+		return GetOverriddenPropertyOperation(Object, PropertyEvent, PropertyChain.GetActiveNode() ? PropertyChain.GetActiveNode() : PropertyChain.GetHead(), bOutInheritedOperation);
+	}
+
+	/**
+	 * Retrieve the overridable operation from the specified the edit property chain
+	 * @param Object owning the property
+	 * @param PropertyEvent only needed to know about the container item index in any
+	 * @param PropertyNode leading to the property interested in, null will return the operation on the specified object 
+	 * @param bOutInheritedOperation optional parameter to know if the state returned was inherited from a parent property
+	 * @return the current type of override operation on the property */
+	COREUOBJECT_API EOverriddenPropertyOperation GetOverriddenPropertyOperation(UObject& Object, const FPropertyChangedEvent& PropertyEvent, const FEditPropertyChain::TDoubleLinkedListNode* PropertyNode, bool* bOutInheritedOperation = nullptr);
 
 	/**
 	 * Serializes the overriden properties of the specified object into the record
