@@ -190,10 +190,8 @@ void FHttpThreadBase::Exit()
 	// empty
 }
 
-void FHttpThreadBase::Process(TArray<IHttpThreadedRequest*>& RequestsToCancel, TArray<IHttpThreadedRequest*>& RequestsToComplete)
+void FHttpThreadBase::ConsumeCanceledRequestsAndNewRequests(TArray<IHttpThreadedRequest*>& RequestsToCancel, TArray<IHttpThreadedRequest*>& RequestsToComplete)
 {
-	SCOPE_CYCLE_COUNTER(STAT_HTTPThread_Process);
-
 	// cache all cancelled and new requests
 	{
 		IHttpThreadedRequest* Request = nullptr;
@@ -226,20 +224,10 @@ void FHttpThreadBase::Process(TArray<IHttpThreadedRequest*>& RequestsToCancel, T
 			UE_LOG(LogHttp, Warning, TEXT("Unable to find request (%p) in HttpThread"), Request);
 		}
 	}
+}
 
-	const double AppTime = FPlatformTime::Seconds();
-	const double ElapsedTime = AppTime - LastTime;
-	LastTime = AppTime;
-
-	// Tick any running requests
-	// as long as they properly finish in HttpThreadTick below they are unaffected by a possibly large ElapsedTime above
-	for (IHttpThreadedRequest* Request : RunningThreadedRequests)
-	{
-		SCOPE_CYCLE_COUNTER(STAT_HTTPThread_TickThreadedRequest);
-
-		Request->TickThreadedRequest(ElapsedTime);
-	}
-
+void FHttpThreadBase::StartRequestsWaitingInQueue(TArray<IHttpThreadedRequest*>& RequestsToComplete)
+{
 	// We'll start rate limited requests until we hit the limit
 	// Tick new requests separately from existing RunningThreadedRequests so they get a chance 
 	// to send unaffected by possibly large ElapsedTime above
@@ -278,6 +266,22 @@ void FHttpThreadBase::Process(TArray<IHttpThreadedRequest*>& RequestsToCancel, T
 	{
 		FHttpModule::Get().GetHttpManager().RecordStatRequestsInQueue(RateLimitedThreadedRequests.Num());
 	}
+}
+
+void FHttpThreadBase::MoveCompletingRequestsToCompletedRequests(TArray<IHttpThreadedRequest*>& RequestsToComplete)
+{
+	const double AppTime = FPlatformTime::Seconds();
+	const double ElapsedTime = AppTime - LastTime;
+	LastTime = AppTime;
+
+	// Tick any running requests
+	// as long as they properly finish in HttpThreadTick below they are unaffected by a possibly large ElapsedTime above
+	for (IHttpThreadedRequest* Request : RunningThreadedRequests)
+	{
+		SCOPE_CYCLE_COUNTER(STAT_HTTPThread_TickThreadedRequest);
+
+		Request->TickThreadedRequest(ElapsedTime);
+	}
 
 	{
 		SCOPE_CYCLE_COUNTER(STAT_HTTPThread_HttpThreadTick);
@@ -302,7 +306,10 @@ void FHttpThreadBase::Process(TArray<IHttpThreadedRequest*>& RequestsToCancel, T
 			UE_LOG(LogHttp, Verbose, TEXT("Threaded request (%p) completed. Running threaded requests (%d)"), Request, RunningThreadedRequests.Num());
 		}
 	}
+}
 
+void FHttpThreadBase::FinishRequestsFromHttpThreadWithCallbacks(TArray<IHttpThreadedRequest*>& RequestsToComplete)
+{
 	if (RequestsToComplete.Num() > 0)
 	{
 		for (IHttpThreadedRequest* Request : RequestsToComplete)
@@ -321,6 +328,19 @@ void FHttpThreadBase::Process(TArray<IHttpThreadedRequest*>& RequestsToCancel, T
 		}
 		RequestsToComplete.Reset();
 	}
+}
+
+void FHttpThreadBase::Process(TArray<IHttpThreadedRequest*>& RequestsToCancel, TArray<IHttpThreadedRequest*>& RequestsToComplete)
+{
+	SCOPE_CYCLE_COUNTER(STAT_HTTPThread_Process);
+
+	ConsumeCanceledRequestsAndNewRequests(RequestsToCancel, RequestsToComplete);
+
+	MoveCompletingRequestsToCompletedRequests(RequestsToComplete);
+
+	StartRequestsWaitingInQueue(RequestsToComplete);
+
+	FinishRequestsFromHttpThreadWithCallbacks(RequestsToComplete);
 }
 
 FLegacyHttpThread::FLegacyHttpThread()
