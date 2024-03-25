@@ -5,8 +5,8 @@
 #include "RHIStaticStates.h"
 #include "ShaderParameterUtils.h"
 #include "PipelineStateCache.h"
-#include "ColorManagementDefines.h"
-#include "ColorSpace.h"
+#include "ColorManagement/ColorManagementDefines.h"
+#include "ColorManagement/ColorSpace.h"
 
 FMediaVertexDeclaration::FMediaVertexDeclaration() = default;
 FMediaVertexDeclaration::~FMediaVertexDeclaration() = default;

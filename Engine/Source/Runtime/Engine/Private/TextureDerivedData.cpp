@@ -26,7 +26,7 @@
 #if WITH_EDITOR
 
 #include "ChildTextureFormat.h"
-#include "ColorSpace.h"
+#include "ColorManagement/ColorSpace.h"
 #include "Compression/OodleDataCompressionUtil.h"
 #include "DerivedDataCache.h"
 #include "DerivedDataCacheInterface.h"

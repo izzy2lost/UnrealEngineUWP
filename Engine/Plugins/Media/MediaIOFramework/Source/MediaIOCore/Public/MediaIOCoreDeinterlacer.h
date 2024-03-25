@@ -1,7 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 #pragma once
 
-#include "ColorSpace.h"
+#include "ColorManagement/ColorSpace.h"
 #include "Containers/Array.h"
 #include "MediaIOCoreDefinitions.h"
 #include "MediaIOCoreTextureSampleBase.h"

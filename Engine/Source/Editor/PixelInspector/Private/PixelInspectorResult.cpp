@@ -2,7 +2,7 @@
 
 #include "PixelInspectorResult.h"
 
-#include "ColorSpace.h"
+#include "ColorManagement/ColorSpace.h"
 #include "HAL/PlatformCrt.h"
 #include "Math/Float16.h"
 #include "Math/Float16Color.h"

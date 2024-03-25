@@ -2,13 +2,7 @@
 
 #pragma once
 
-//TODO:Uncomment and deprecate this header a in subsequence change
-// 
-//#ifdef _MSC_VER
-//#pragma message(__FILE__"(9): warning: use ColorManagement/ColorManagementDefines.h from the Core module instead of ColorManagementDefines.h")
-//#else
-//#pragma message("#include use ColorManagement/ColorManagementDefines.h from the Core module instead of ColorManagementDefines.h")
-//#endif
+UE_DEPRECATED_HEADER(5.5, "Use ColorManagement/ColorManagementDefines.h from the Core module instead of ColorManagementDefines.h.")
 
 #include "ColorManagement/ColorManagementDefines.h"
 

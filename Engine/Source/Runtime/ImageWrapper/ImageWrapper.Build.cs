@@ -26,7 +26,6 @@ public class ImageWrapper : ModuleRules
 		PrivateDependencyModuleNames.AddRange(
 			new string[] {
 				"Core",
-				"ColorManagement"
 			}
 		);
 

@@ -15,8 +15,8 @@
 #include "Templates/SharedPointer.h"
 
 #include "HDRHelper.h"
-#include "ColorManagementDefines.h"
-#include "ColorSpace.h"
+#include "ColorManagement/ColorManagementDefines.h"
+#include "ColorManagement/ColorSpace.h"
 #include "MediaShaders.h"
 
 #if WITH_ENGINE

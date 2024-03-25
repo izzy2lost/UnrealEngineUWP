@@ -18,7 +18,7 @@
 #include "IOpenExrRTTIModule.h"
 #include "Modules/ModuleManager.h"
 #include "MoviePipelineUtils.h"
-#include "ColorSpace.h"
+#include "ColorManagement/ColorSpace.h"
 #include "HDRHelper.h"
 
 THIRD_PARTY_INCLUDES_START

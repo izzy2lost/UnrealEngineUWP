@@ -7,7 +7,7 @@
 #include "SkyAtmosphereCommonData.h"
 
 #include "Components/SkyAtmosphereComponent.h"
-#include "ColorSpace.h"
+#include "ColorManagement/ColorSpace.h"
 
 //PRAGMA_DISABLE_OPTIMIZATION
 

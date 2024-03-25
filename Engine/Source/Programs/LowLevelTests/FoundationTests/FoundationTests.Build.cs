@@ -31,7 +31,6 @@ public class FoundationTests : TestModuleRules
 				"CoreUObject",
 				"TelemetryUtils",
 				"AssetRegistry",
-				"ColorManagement",
 				"Serialization",
 			});
 

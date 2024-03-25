@@ -23,7 +23,6 @@ public class PixelInspectorModule : ModuleRules
 
 		PrivateDependencyModuleNames.AddRange(
 			new string[] {
-				"ColorManagement",
 				"Renderer",
 			}
 		);

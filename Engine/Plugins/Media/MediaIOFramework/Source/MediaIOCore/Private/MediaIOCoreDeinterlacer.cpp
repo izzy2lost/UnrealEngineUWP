@@ -3,7 +3,7 @@
 #include "MediaIOCoreDeinterlacer.h"
 
 #include "Async/ParallelFor.h"
-#include "ColorManagementDefines.h"
+#include "ColorManagement/ColorManagementDefines.h"
 
 namespace UE::MediaIOCore
 {

@@ -6,7 +6,7 @@
 
 #include "Components/LightComponent.h"
 
-#include "ColorSpace.h"
+#include "ColorManagement/ColorSpace.h"
 #include "Engine/Level.h"
 #include "Engine/MapBuildDataRegistry.h"
 #include "StaticLightingBuildContext.h"

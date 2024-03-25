@@ -8,7 +8,7 @@
 #include "Containers/StringView.h"
 #include "Containers/UnrealString.h"
 #include "Containers/Map.h"
-#include "ColorSpace.h"
+#include "ColorManagement/ColorSpace.h"
 #include "Engine/TextureDefines.h"
 #include "ImageCore.h"
 #include "ImageParallelFor.h"

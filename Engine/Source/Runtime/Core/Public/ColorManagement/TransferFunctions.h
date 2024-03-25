@@ -2,7 +2,7 @@
 
 #pragma once
 
-#include "ColorManagementDefines.h"
+#include "ColorManagement/ColorManagementDefines.h"
 #include "CoreTypes.h"
 #include "GenericPlatform/GenericPlatformMath.h"
 #include "Math/Color.h"

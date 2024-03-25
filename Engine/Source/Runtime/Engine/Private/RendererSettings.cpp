@@ -2,7 +2,7 @@
 
 #include "Engine/RendererSettings.h"
 #include "GPUSkinVertexFactory.h"
-#include "ColorSpace.h"
+#include "ColorManagement/ColorSpace.h"
 #include "HAL/PlatformFile.h"
 #include "SceneManagement.h"
 #include "Misc/App.h"

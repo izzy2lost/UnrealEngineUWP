@@ -11,7 +11,6 @@ public class DMXPixelMappingRuntime : ModuleRules
 		PublicDependencyModuleNames.AddRange(
 			new string[]
 			{
-				"ColorManagement",
 				"Core",
 				"CoreUObject",
 				"DMXRuntime",

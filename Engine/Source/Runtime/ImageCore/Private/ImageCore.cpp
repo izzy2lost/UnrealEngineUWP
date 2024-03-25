@@ -4,8 +4,8 @@
 #include "Modules/ModuleManager.h"
 #include "Async/ParallelFor.h"
 #include "Serialization/CompactBinaryWriter.h"
-#include "TransferFunctions.h"
-#include "ColorSpace.h"
+#include "ColorManagement/TransferFunctions.h"
+#include "ColorManagement/ColorSpace.h"
 #include "ImageParallelFor.h"
 #include "Tasks/Task.h"
 

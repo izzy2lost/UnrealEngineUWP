@@ -4,7 +4,7 @@
 #include "ImageWrapperPrivate.h"
 #include "Math/GuardedInt.h"
 
-#include "ColorSpace.h"
+#include "ColorManagement/ColorSpace.h"
 #include "Containers/StringConv.h"
 #include "HAL/PlatformTime.h"
 #include "Math/Float16.h"

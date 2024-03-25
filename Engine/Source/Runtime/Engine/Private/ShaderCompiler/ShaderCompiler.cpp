@@ -59,7 +59,7 @@
 #include "UObject/UObjectIterator.h"
 #include "Math/UnitConversion.h"
 #include "UnrealEngine.h"
-#include "ColorSpace.h"
+#include "ColorManagement/ColorSpace.h"
 
 #if WITH_EDITOR
 #include "UObject/ArchiveCookContext.h"

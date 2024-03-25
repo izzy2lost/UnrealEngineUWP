@@ -32,7 +32,7 @@
 #include "Compression/OodleDataCompression.h"
 #include "Engine/TextureCube.h"
 #include "Engine/RendererSettings.h"
-#include "ColorSpace.h"
+#include "ColorManagement/ColorSpace.h"
 #include "ImageCoreBP.h"
 #include "ImageCoreUtils.h"
 #include "ImageUtils.h"

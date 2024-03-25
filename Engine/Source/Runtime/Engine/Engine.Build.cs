@@ -155,7 +155,6 @@ public class Engine : ModuleRules
 				"AudioMixerCore",
 				"IntelISPC",
 				"TraceLog",
-				"ColorManagement",
 				"Icmp",
 				"UniversalObjectLocator",
 				"XmlParser",

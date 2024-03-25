@@ -5,7 +5,7 @@
 #include "BlackmagicLib.h"
 #include "BlackmagicMediaOutput.h"
 #include "BlackmagicMediaOutputModule.h"
-#include "ColorSpace.h"
+#include "ColorManagement/ColorSpace.h"
 #include "GPUTextureTransfer.h"
 #include "GPUTextureTransferModule.h"
 #include "Engine/Engine.h"

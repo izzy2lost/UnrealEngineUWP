@@ -2,7 +2,7 @@
 
 #include "InterchangeTextureFactoryNode.h"
 
-#include "ColorSpace.h"
+#include "ColorManagement/ColorSpace.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(InterchangeTextureFactoryNode)
 

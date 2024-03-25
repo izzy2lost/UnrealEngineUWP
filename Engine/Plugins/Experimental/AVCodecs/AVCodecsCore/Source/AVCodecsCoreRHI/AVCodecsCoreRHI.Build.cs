@@ -16,7 +16,6 @@ public class AVCodecsCoreRHI : ModuleRules
 			"AVCodecsCore",
 			"RHI",
 			"RHICore",
-			"ColorManagement"
 		});
 
 		PublicDependencyModuleNames.AddRange(new string[] {

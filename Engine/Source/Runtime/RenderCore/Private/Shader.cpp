@@ -24,7 +24,7 @@
 #include "Misc/LargeWorldRenderPosition.h"
 #include "DataDrivenShaderPlatformInfo.h"
 #include "ShaderPlatformCachedIniValue.h"
-#include "ColorSpace.h"
+#include "ColorManagement/ColorSpace.h"
 
 #if WITH_EDITORONLY_DATA
 #include "Interfaces/IShaderFormat.h"

@@ -17,7 +17,7 @@
 #include "UObject/ConstructorHelpers.h"
 #include "Components/DirectionalLightComponent.h"
 #include "UObject/UE5MainStreamObjectVersion.h"
-#include "ColorSpace.h"
+#include "ColorManagement/ColorSpace.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(SkyAtmosphereComponent)
 

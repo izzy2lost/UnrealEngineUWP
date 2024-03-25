@@ -5,7 +5,7 @@
 #include "DMXAttribute.h"
 #include "ColorSpace/DMXPixelMappingColorSpace.h"
 
-#include "ColorSpace.h"
+#include "ColorManagement/ColorSpace.h"
 #include "Templates/UniquePtr.h"
 
 #include "DMXPixelMappingColorSpace_RGBCMY.generated.h"

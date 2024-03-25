@@ -16,7 +16,6 @@ public class ImageCore : ModuleRules
 			"Engine",
 		});
 
-		PrivateDependencyModuleNames.Add("ColorManagement");
 		PrivateDependencyModuleNames.Add("CoreUObject"); // for TextureDefines.h
 		PrivateDependencyModuleNames.Add("stb_image_resize2");
 
