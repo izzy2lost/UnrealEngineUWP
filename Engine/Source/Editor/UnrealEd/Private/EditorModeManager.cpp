@@ -262,6 +262,11 @@ bool FEditorModeTools::SelectionHasSceneComponent() const
 	return bSelectionHasSceneComponent;
 }
 
+void FEditorModeTools::SetSelectionHasSceneComponent(bool bHasSceneComponent)
+{
+	bSelectionHasSceneComponent = bHasSceneComponent;
+}
+
 bool FEditorModeTools::IsSelectionAllowed(AActor* InActor, const bool bInSelected) const
 {
 	bool bSelectionAllowed = (ActiveScriptableModes.Num() == 0);

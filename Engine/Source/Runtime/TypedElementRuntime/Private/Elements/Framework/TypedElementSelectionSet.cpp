@@ -388,6 +388,11 @@ bool UTypedElementSelectionSet::AllowSelectionModifiers(const FTypedElementHandl
 	return SelectionSetElement && SelectionSetElement.AllowSelectionModifiers();
 }
 
+void UTypedElementSelectionSet::SetNameForTedsIntegration(FName InNameForIntegration)
+{
+	ListNameForTedsIntegration = InNameForIntegration;
+}
+
 FTypedElementHandle UTypedElementSelectionSet::GetSelectionElement(const FTypedElementHandle& InElementHandle, const ETypedElementSelectionMethod InSelectionMethod) const
 {
 	FTypedElementSelectionSetElement SelectionSetElement = ResolveSelectionSetElement(InElementHandle);
@@ -466,7 +471,9 @@ void UTypedElementSelectionSet::RestoreSelectionState(const FTypedElementSelecti
 				.SetAllowHidden(true)
 				.SetAllowGroups(false)
 				.SetAllowLegacyNotifications(false)
-				.SetWarnIfLocked(false);
+				.SetWarnIfLocked(false)
+				.SetNameForTEDSIntegration(ListNameForTedsIntegration);
+
 
 			// TODO: Work out the intersection of the before and after state instead of clearing and reselecting?
 			SetSelection(SelectedElements, SelectionOptions);
