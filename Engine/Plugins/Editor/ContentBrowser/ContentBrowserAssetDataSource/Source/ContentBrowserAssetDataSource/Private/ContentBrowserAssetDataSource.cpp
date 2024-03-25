@@ -18,6 +18,7 @@
 #include "IAssetTools.h"
 #include "ToolMenus.h"
 #include "Misc/PackageName.h"
+#include "Misc/PathViews.h"
 #include "NewAssetContextMenu.h"
 #include "AssetFolderContextMenu.h"
 #include "AssetFileContextMenu.h"
@@ -2534,7 +2535,8 @@ bool UContentBrowserAssetDataSource::CanHandleDragDropEvent(const FContentBrowse
 				bool bSupportOneFile = false;
 				for (const FString& File : ExternalDragDropOp->GetFiles())
 				{
-					if (AssetTools->IsImportExtensionAllowed(FPaths::GetExtension(File)))
+					FStringView Extension = FPathViews::GetExtension(File);
+					if (Extension.IsEmpty() || AssetTools->IsImportExtensionAllowed(Extension))
 					{
 						bSupportOneFile = true;
 					}
@@ -2578,37 +2580,13 @@ bool UContentBrowserAssetDataSource::HandleDragDropOnItem(const FContentBrowserI
 			FString UnsupportedFiles;
 			if (ExternalDragDropOp->HasFiles() && ContentBrowserAssetData::CanModifyPath(AssetTools, FolderPayload->GetInternalPath(), &ErrorMsg))
 			{
-				TArray<FString> ImportFiles;
-				for (const FString& File : ExternalDragDropOp->GetFiles())
-				{
-					if (AssetTools->IsImportExtensionAllowed(FPaths::GetExtension(File)))
-					{
-						ImportFiles.AddUnique(File);
-					}
-					else
-					{
-						if (!UnsupportedFiles.IsEmpty())
-						{
-							UnsupportedFiles += TEXT("\n");
-						}
-						UnsupportedFiles += File;
-					}
-				}
-				if (ImportFiles.Num() > 0)
+				TArray<FString> ImportFiles = ExternalDragDropOp->GetFiles();
+			
+				if (!ImportFiles.IsEmpty())
 				{
 					// Delay import until next tick to avoid blocking the process that files were dragged from
 					GEditor->GetEditorSubsystem<UImportSubsystem>()->ImportNextTick(ImportFiles, FolderPayload->GetInternalPath().ToString());
 				}
-			}
-
-			if (!UnsupportedFiles.IsEmpty())
-			{
-				ErrorMsg = FText::Format(LOCTEXT("HandleDragDropOnItemUnsupportedFile", "Unsupported file format to import:\n\t{0}"), FText::FromString(UnsupportedFiles));
-			}
-
-			if (!ErrorMsg.IsEmpty())
-			{
-				AssetViewUtils::ShowErrorNotifcation(ErrorMsg);
 			}
 
 			return true; // We handled this drop, even if the result was invalid (eg, read-only folder)

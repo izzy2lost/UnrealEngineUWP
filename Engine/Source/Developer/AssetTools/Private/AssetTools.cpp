@@ -96,6 +96,7 @@
 #include "UObject/LinkerInstancingContext.h"
 #include "PackageMigrationContext.h"
 #include "ComponentReregisterContext.h"
+#include "AssetViewUtils.h"
 
 #if WITH_EDITOR
 #include "Subsystems/AssetEditorSubsystem.h"
@@ -3431,6 +3432,38 @@ TArray<UObject*> UAssetToolsImpl::ImportAssetsInternal(const TArray<FString>& Fi
 		FilesAndDestinations = (*FilesAndDestinationsPtr);
 	}
 
+	{
+		FString UnallowedFilesString;
+		// Check for non allowed extensions
+		FilesAndDestinations.RemoveAll([&UnallowedFilesString, this](const TPair<FString, FString>& InValue)
+			{
+				FStringView Extension = FPathViews::GetExtension(InValue.Key);
+				if (!IsImportExtensionAllowed(Extension))
+				{
+					if (!UnallowedFilesString.IsEmpty())
+					{
+						UnallowedFilesString += TEXT("\n");
+					}
+					UnallowedFilesString += InValue.Key;
+
+					return true;
+				}
+
+				return false;
+			});
+
+		FText ErrorMsg;
+		if (!UnallowedFilesString.IsEmpty())
+		{
+			ErrorMsg = FText::Format(LOCTEXT("UnsupportedFileImport", "Unsupported file format to import:\n{0}"), FText::FromString(UnallowedFilesString));
+		}
+
+		if (!ErrorMsg.IsEmpty())
+		{
+			AssetViewUtils::ShowErrorNotifcation(ErrorMsg);
+		}
+	}
+
 	if(SpecifiedFactory == nullptr)
 	{
 		// First instantiate one factory for each file extension encountered that supports the extension
@@ -6178,10 +6211,10 @@ const TSharedRef<FNamePermissionList>& UAssetToolsImpl::GetImportExtensionPermis
 	return ImportExtensionPermissionList;
 }
 
-bool UAssetToolsImpl::IsImportExtensionAllowed(const FString& Extension) const
+bool UAssetToolsImpl::IsImportExtensionAllowed(const FStringView& Extension) const
 {
 	//Always test the extension in lower case
-	FName NameExtension(*Extension);
+	FName NameExtension(Extension);
 	return ImportExtensionPermissionList->PassesFilter(NameExtension);
 }
 

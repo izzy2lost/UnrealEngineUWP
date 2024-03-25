@@ -139,7 +139,7 @@ public:
 	virtual TArray<UFactory*> GetNewAssetFactories() const override;
 	virtual const TSharedRef<FPathPermissionList>& GetAssetClassPathPermissionList(EAssetClassAction AssetClassAction) const override;
 	virtual const TSharedRef<FNamePermissionList>& GetImportExtensionPermissionList() const override;
-	virtual bool IsImportExtensionAllowed(const FString& Extension) const override;
+	virtual bool IsImportExtensionAllowed(const FStringView& Extension) const override;
 	virtual TSet<EBlueprintType>& GetAllowedBlueprintTypes() override;
 	virtual TSharedRef<FPathPermissionList>& GetFolderPermissionList() override;
 	virtual TSharedRef<FPathPermissionList>& GetWritableFolderPermissionList() override;
