@@ -8,8 +8,8 @@ namespace uba
 	bool AlternateThreadGroupAffinity(void* nativeThreadHandle)
 	{
 #if PLATFORM_WINDOWS
-		static int processorGroupCount = GetActiveProcessorGroupCount();
-		if (processorGroupCount == 1)
+		int processorGroupCount = GetProcessorGroupCount();
+		if (processorGroupCount <= 1)
 			return true;
 		static Atomic<int> processorGroupCounter;
 		u16 processorGroup = u16((processorGroupCounter++) % processorGroupCount);
@@ -19,11 +19,26 @@ namespace uba
 		GROUP_AFFINITY groupAffinity = {};
 		groupAffinity.Mask = ~0ull >> (int)(64 - groupProcessorCount);
 		groupAffinity.Group = processorGroup;
-		return SetThreadGroupAffinity(nativeThreadHandle, &groupAffinity, NULL);
+		return ::SetThreadGroupAffinity(nativeThreadHandle, &groupAffinity, NULL);
 #else
 		return true;
 #endif
 	}
+
+	bool SetThreadGroupAffinity(void* nativeThreadHandle, const GroupAffinity& affinity)
+	{
+#if PLATFORM_WINDOWS
+		if (GetProcessorGroupCount() <= 1)
+			return true;
+		GROUP_AFFINITY groupAffinity = {};
+		groupAffinity.Mask = affinity.mask;
+		groupAffinity.Group = affinity.group;
+		return ::SetThreadGroupAffinity(nativeThreadHandle, &groupAffinity, NULL);
+#else
+		return false;
+#endif
+	}
+
 
 	Thread::Thread()
 	{
@@ -44,7 +59,7 @@ namespace uba
 		m_func = std::move(f);
 #if PLATFORM_WINDOWS
 		m_handle = CreateThread(NULL, 0, [](LPVOID p) -> DWORD { return ((Thread*)p)->m_func(); }, this, 0, NULL);
-		//AlternateThreadGroupAffinity(m_handle);
+		AlternateThreadGroupAffinity(m_handle);
 #else
 		int err = 0;
 
@@ -107,4 +122,21 @@ namespace uba
 		m_handle = nullptr;
 		return true;
 	}
+
+	bool Thread::GetGroupAffinity(GroupAffinity& out)
+	{
+#if PLATFORM_WINDOWS
+		if (GetProcessorGroupCount() <= 1)
+			return true;
+		GROUP_AFFINITY aff;
+		if (!::GetThreadGroupAffinity(m_handle, &aff))
+			return false;
+		out.mask = aff.Mask;
+		out.group = aff.Group;
+		return true;
+#else
+		return false;
+#endif
+	}
+
 }

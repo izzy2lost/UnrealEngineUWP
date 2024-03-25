@@ -331,6 +331,17 @@ namespace uba
 		#endif
 	}
 
+	u32 GetProcessorGroupCount()
+	{
+		#if PLATFORM_WINDOWS
+		static u32 s_processorGroupCount = u32(GetActiveProcessorGroupCount());
+		if (s_processorGroupCount)
+			return s_processorGroupCount;
+		#endif
+		return 1u;
+	}
+
+
 #if !PLATFORM_WINDOWS
 	void GetMappingHandleName(StringBufferBase& out, u64 uid)
 	{

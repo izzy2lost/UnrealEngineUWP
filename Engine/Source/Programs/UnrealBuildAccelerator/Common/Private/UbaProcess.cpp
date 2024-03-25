@@ -1362,10 +1362,21 @@ namespace uba
 			}
 		}
 
-		if (!AlternateThreadGroupAffinity(m_nativeThreadHandle))
+		bool affinitySet = false;
+		if (!m_messageThread.Wait(0))
 		{
-			logger.Error(TC("Failed to set thread group affinity to process"));//% ls. (% ls)"), commandLine.c_str(), LastErrorToText().data);
-			return UBA_EXIT_CODE(10);
+			GroupAffinity aff;
+			if (m_messageThread.GetGroupAffinity(aff))
+				affinitySet = SetThreadGroupAffinity(m_nativeThreadHandle, aff);
+		}
+		
+		if (!affinitySet)
+		{
+			if (!AlternateThreadGroupAffinity(m_nativeThreadHandle))
+			{
+				logger.Error(TC("Failed to set thread group affinity to process"));//% ls. (% ls)"), commandLine.c_str(), LastErrorToText().data);
+				return UBA_EXIT_CODE(10);
+			}
 		}
 
 		m_processStats.startupTime = GetTime() - m_startTime;

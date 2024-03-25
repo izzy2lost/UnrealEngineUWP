@@ -96,6 +96,7 @@ namespace uba
 	u32 GetEnvironmentVariableW(const tchar* name, tchar* buffer, u32 nSize);
 	u32 ExpandEnvironmentStringsW(const tchar* lpSrc, tchar* lpDst, u32 nSize);
 	u32 GetLogicalProcessorCount();
+	u32 GetProcessorGroupCount();
 
 #if PLATFORM_WINDOWS
 	inline constexpr bool CaseInsensitiveFs = true;
