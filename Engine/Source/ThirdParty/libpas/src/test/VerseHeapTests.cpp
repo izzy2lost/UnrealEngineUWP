@@ -1368,20 +1368,21 @@ void testConservativeMarking(size_t size,
     if (expectFreePages) {
         bool foundEmptyPage = false;
         for (void* ptr : deadObjectArray) {
-            verse_heap_chunk_map_entry entry = verse_heap_get_chunk_map_entry(reinterpret_cast<uintptr_t>(ptr));
-            if (verse_heap_chunk_map_entry_is_empty(entry))
+            verse_heap_chunk_map_entry_header header = verse_heap_get_chunk_map_entry_header(reinterpret_cast<uintptr_t>(ptr));
+            if (verse_heap_chunk_map_entry_header_is_empty(header))
                 foundEmptyPage = true;
-            if (verse_heap_chunk_map_entry_is_small_segregated(entry)) {
-                unsigned bitvector;
+            if (verse_heap_chunk_map_entry_header_is_small_segregated(header)) {
+                unsigned* bitvector;
                 size_t index;
 
-                bitvector = verse_heap_chunk_map_entry_small_segregated_ownership_bitvector(entry);
+                bitvector = verse_heap_chunk_map_entry_small_segregated_ownership_bitvector(
+					verse_heap_get_chunk_map_entry_ptr(reinterpret_cast<uintptr_t>(ptr)));
                 index = pas_modulo_power_of_2(reinterpret_cast<uintptr_t>(ptr), VERSE_HEAP_CHUNK_SIZE)
                     / VERSE_HEAP_SMALL_SEGREGATED_PAGE_SIZE;
 
                 CHECK(index);
 
-                if (!pas_bitvector_get_from_one_word(&bitvector, index))
+                if (!pas_bitvector_get(bitvector, index))
                     foundEmptyPage = true;
             }
         }

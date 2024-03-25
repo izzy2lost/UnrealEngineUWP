@@ -27,6 +27,7 @@
 #ifndef PAS_COMMITTED_PAGES_VECTOR_H
 #define PAS_COMMITTED_PAGES_VECTOR_H
 
+#include "pas_log.h"
 #include "pas_utils.h"
 
 #ifndef _WIN32
@@ -67,7 +68,12 @@ PAS_API void pas_committed_pages_vector_destruct(pas_committed_pages_vector* vec
 static inline bool pas_committed_pages_vector_is_committed(pas_committed_pages_vector* vector,
                                                            size_t page_index)
 {
+    static const bool verbose = false;
     PAS_ASSERT(page_index < vector->size);
+    if (verbose) {
+        pas_log("vector->raw_data[%zu] = %u\n",
+                page_index, (unsigned)(unsigned char)vector->raw_data[page_index]);
+    }
 #if PAS_OS(LINUX) || defined(_WIN32)
     return vector->raw_data[page_index];
 #else
