@@ -761,7 +761,10 @@ string CompilerGLSL::compile()
 	backend.supports_extensions = true;
 	backend.use_array_constructor = true;
 	backend.workgroup_size_is_hidden = true;
-	backend.requires_relaxed_precision_analysis = options.es || options.vulkan_semantics;
+	// UE Change Begin: requires_relaxed_precision_analysis causes incorrect variable scoping so disabling for now
+	//backend.requires_relaxed_precision_analysis = options.es || options.vulkan_semantics;
+	backend.requires_relaxed_precision_analysis = false;
+	// UE Change End: requires_relaxed_precision_analysis causes incorrect variable scoping so disabling for now
 	backend.support_precise_qualifier =
 			(!options.es && options.version >= 400) || (options.es && options.version >= 320);
 

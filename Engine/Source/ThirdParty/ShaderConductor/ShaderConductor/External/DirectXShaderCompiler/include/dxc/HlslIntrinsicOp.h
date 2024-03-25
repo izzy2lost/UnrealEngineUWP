@@ -229,6 +229,11 @@ enum class IntrinsicOp {
 #ifdef ENABLE_SPIRV_CODEGEN
   IOP_VkRawBufferLoad,
 #endif // ENABLE_SPIRV_CODEGEN
+// UE Change Begin: Add vk::RawBufferLoad2 intrinsics
+#ifdef ENABLE_SPIRV_CODEGEN
+  IOP_VkRawBufferLoad2,
+#endif // ENABLE_SPIRV_CODEGEN
+// UE Change End: Add vk::RawBufferLoad2 intrinsics
 #ifdef ENABLE_SPIRV_CODEGEN
   IOP_VkRawBufferStore,
 #endif // ENABLE_SPIRV_CODEGEN

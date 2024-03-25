@@ -3485,7 +3485,13 @@ private:
         paramTypes.push_back(context.UnsignedLongLongTy);
         break;
       case LICOMPTYPE_UINT:
-        paramTypes.push_back(context.UnsignedIntTy);
+        // UE Change Begin: Add vk::RawBufferLoad2 intrinsics
+        if (pArgs[i].uLegalTemplates == LITEMPLATE_VECTOR) {
+          paramTypes.push_back(LookupVectorType(HLSLScalarType::HLSLScalarType_uint32, pArgs[i].uCols));
+        } else {
+          paramTypes.push_back(context.UnsignedIntTy);
+        }
+        // UE Change End: Add vk::RawBufferLoad2 intrinsics
         break;
       case LICOMPTYPE_VOID:
         paramTypes.push_back(context.VoidTy);

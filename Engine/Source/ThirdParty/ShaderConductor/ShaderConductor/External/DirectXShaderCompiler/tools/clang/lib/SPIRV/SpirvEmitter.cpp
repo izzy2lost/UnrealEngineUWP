@@ -612,6 +612,19 @@ void forEachSpirvField(
   }
 }
 
+// UE Change Begin: Add vk::RawBufferLoad2 intrinsics
+bool isVkRawBufferLoad2Intrinsic(const clang::FunctionDecl *FD) {
+  if (!FD->getName().equals("RawBufferLoad2"))
+    return false;
+  if (auto *nsDecl = dyn_cast<NamespaceDecl>(FD->getDeclContext())) {
+    if (!nsDecl->getName().equals("vk"))
+      return false;
+  }
+      
+  return true;  
+}
+// UE Change End: Add vk::RawBufferLoad2 intrinsics
+
 } // namespace
 
 SpirvEmitter::SpirvEmitter(CompilerInstance &ci)
@@ -2896,6 +2909,13 @@ SpirvInstruction *SpirvEmitter::doCallExpr(const CallExpr *callExpr,
   if (isVkRawBufferLoadIntrinsic(funcDecl)) {
     return processRawBufferLoad(callExpr);
   }
+
+  // UE Change Begin: Add vk::RawBufferLoad2 intrinsics
+  // Handle 'vk::RawBufferLoad2()'
+  if (isVkRawBufferLoad2Intrinsic(funcDecl)) {
+    return processRawBufferLoad(callExpr);
+  }
+  // UE Change End: Add vk::RawBufferLoad2 intrinsics
 
   // Normal standalone functions
   return processCall(callExpr);
@@ -8801,6 +8821,11 @@ SpirvEmitter::processIntrinsicCallExpr(const CallExpr *callExpr) {
   case hlsl::IntrinsicOp::IOP_VkRawBufferLoad:
     retVal = processRawBufferLoad(callExpr);
     break;
+  // UE Change Begin: Add vk::RawBufferLoad2 intrinsics
+  case hlsl::IntrinsicOp::IOP_VkRawBufferLoad2:
+    retVal = processRawBufferLoad(callExpr);
+    break;
+  // UE Change End: Add vk::RawBufferLoad2 intrinsics
   case hlsl::IntrinsicOp::IOP_VkRawBufferStore:
     retVal = processRawBufferStore(callExpr);
     break;
