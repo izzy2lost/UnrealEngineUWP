@@ -11,6 +11,8 @@
 #include "Stateless/NiagaraStatelessCommon.h"
 #include "Stateless/NiagaraStatelessEmitter.h"
 #include "Stateless/NiagaraStatelessModule.h"
+#include "ViewModels/NiagaraSystemSelectionViewModel.h"
+#include "ViewModels/NiagaraSystemViewModel.h"
 #include "ViewModels/Stack/NiagaraStackItemPropertyHeaderValueShared.h"
 #include "ViewModels/Stack/NiagaraStackObject.h"
 
@@ -138,6 +140,8 @@ void UNiagaraStackStatelessEmitterSimulateGroup::RefreshChildrenInternal(const T
 
 void UNiagaraStackStatelessEmitterSimulateGroup::ModuleAdded(UNiagaraStatelessModule* StatelessModule)
 {
+	GetSystemViewModel()->GetSelectionViewModel()->EmptySelection();
+	GetSystemViewModel()->GetSelectionViewModel()->AddEntryToSelectionByDisplayedObjectDeferred(StatelessModule);
 	OnDataObjectModified().Broadcast({ StatelessModule }, ENiagaraDataObjectChange::Changed);
 	RefreshChildren();
 }
@@ -252,7 +256,7 @@ void UNiagaraStackStatelessModuleItem::RefreshChildrenInternal(const TArray<UNia
 				if (DebugDrawProperty != nullptr)
 				{
 					HeaderValueHandlers.Add(MakeShared<FNiagaraStackItemPropertyHeaderValue>(
-						*ModuleObject, nullptr, *DebugDrawProperty, 
+						*StatelessModule, nullptr, *DebugDrawProperty, 
 						FSimpleDelegate::CreateUObject(this, &UNiagaraStackStatelessModuleItem::OnHeaderValueChanged)));
 				}
 			}

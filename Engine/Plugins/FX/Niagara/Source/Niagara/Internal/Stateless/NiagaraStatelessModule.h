@@ -2,9 +2,9 @@
 
 #pragma once
 
+#include "NiagaraMergeable.h"
 #include "NiagaraStatelessCommon.h"
 #include "NiagaraStatelessDistribution.h"
-
 #include "ShaderParameterStruct.h"
 
 #include "NiagaraStatelessModule.generated.h"
@@ -87,7 +87,7 @@ private:
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 UCLASS(MinimalAPI, abstract, EditInlineNew)
-class UNiagaraStatelessModule : public UObject
+class UNiagaraStatelessModule : public UNiagaraMergeable
 {
 	GENERATED_BODY()
 
@@ -96,7 +96,7 @@ protected:
 	uint32 bModuleEnabled : 1 = true;
 
 #if WITH_EDITORONLY_DATA
-	UPROPERTY(EditAnywhere, Transient, Category = "Parameters", meta = (DisplayPriority = 0, StackItemHeaderIcon = "Icons.Visibility"))
+	UPROPERTY(EditAnywhere, Transient, Category = "Parameters", meta = (DisplayPriority = 0, HideInStack, StackItemHeaderIcon = "Icons.Visibility"))
 	uint32 bDebugDrawEnabled : 1 = false;
 #endif
 
