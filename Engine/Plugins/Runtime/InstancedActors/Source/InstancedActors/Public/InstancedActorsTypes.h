@@ -6,7 +6,7 @@
 #include "GameplayTagContainer.h"
 #include "ISMPartition/ISMComponentDescriptor.h"
 #include "MassRepresentationTypes.h"
-
+#include "InstancedActorsIndex.h"
 #include "InstancedActorsTypes.generated.h"
 
 
@@ -15,8 +15,8 @@ INSTANCEDACTORS_API DECLARE_LOG_CATEGORY_EXTERN(LogInstancedActors, Log, All)
 struct FStaticMeshInstanceVisualizationDesc;
 struct FStreamableHandle;
 struct FMassISMCSharedData;
+class UInstancedActorsData;
 
-// EJunoMassBulkLOD -> EInstancedActorsBulkLOD
 enum class EInstancedActorsBulkLOD : uint8
 {
 	Detailed, // this wil make Mass calculate LOD individually for every instance
@@ -26,7 +26,6 @@ enum class EInstancedActorsBulkLOD : uint8
 	MAX
 };
 
-// EJunoInstancedActorFragmentFlags -> EInstancedActorsFragmentFlags
 enum class EInstancedActorsFragmentFlags : uint8
 {
     None = 0,
@@ -100,9 +99,9 @@ struct INSTANCEDACTORS_API FInstancedActorsVisualizationDesc
 	 * @param AdditionalSetupSteps function called once a new ISMComponentDescriptor is created, allowing custom code to 
 	 *	perform additional set up steps. Note that this function will get called only if ExemplarActor has a 
 	 *	StaticMeshComponent with a valid StaticMesh configured.
-	 * @see UJunoInstancedActorSubsystem::GetOrCreateExemplarActor
+	 * @see UInstancedActorsSubsystem::GetOrCreateExemplarActor
 	 */
-	static FInstancedActorsVisualizationDesc FromActor(const AActor& ExemplarActor, FAdditionalSetupStepsFunction AdditionalSetupSteps);
+	static FInstancedActorsVisualizationDesc FromActor(const AActor& ExemplarActor, const FAdditionalSetupStepsFunction& AdditionalSetupSteps = [](const AActor& /*ExemplarActor*/, FISMComponentDescriptor& /*NewISMComponentDescriptor*/, FInstancedActorsVisualizationDesc& /*OutVisualization*/){});
 
 	FStaticMeshInstanceVisualizationDesc ToMassVisualizationDesc() const;
 
@@ -148,7 +147,7 @@ struct INSTANCEDACTORS_API FInstancedActorsVisualizationInfo
 	GENERATED_BODY()
 
 	/**
-	 * Returns true if this visualization was added view UJunoInstancedActorData::AddVisualizationAsync and streaming is still in-progress.
+	 * Returns true if this visualization was added view UInstancedActorsData::AddVisualizationAsync and streaming is still in-progress.
 	 * Once streaming completes, Desc, ISMComponents and MassStaticMeshDescIndex will be valid and this returns false.
 	 * Note: Until streaming completes, Desc, ISMComponents & MassStaticMeshDescIndex will all be defayult values / unset.
 	 */
@@ -156,7 +155,7 @@ struct INSTANCEDACTORS_API FInstancedActorsVisualizationInfo
 
 	/**
 	 * Cached specification for this visualization, defining ISMCs to create.
-	 * Note: For visualizations added via UJunoInstancedActorData::AddVisualizationAsync using an FInstancedActorsSoftVisualizationDesc
+	 * Note: For visualizations added via UInstancedActorsData::AddVisualizationAsync using an FInstancedActorsSoftVisualizationDesc
 	 *       soft pointer descriptor: whilst IsAsyncLoading() = true, this will be default constructed. Once the async load completes, the
 	 *       soft visualization decriptor will then be resolved to this hard pointer decriptor.
 	 */
@@ -180,7 +179,7 @@ struct INSTANCEDACTORS_API FInstancedActorsVisualizationInfo
 	UPROPERTY(VisibleAnywhere, Category = InstancedActors)
 	FStaticMeshInstanceVisualizationDescHandle MassStaticMeshDescHandle;
 
-	// If this visualization was added with UJunoInstancedActorData::AddVisualizationAsync, this will be set to the async streaming request 
+	// If this visualization was added with UInstancedActorsData::AddVisualizationAsync, this will be set to the async streaming request 
 	// until streaming is complete, whereupon this handle is cleared.
 	TSharedPtr<FStreamableHandle> AssetLoadHandle;
 
@@ -200,7 +199,7 @@ struct FInstancedActorsMeshSwitchFragment : public FMassFragment
 	GENERATED_BODY()
 
 	// The pending Mass static mesh representation index we want to switch to.
-	// @see UJunoInstancedActorVisualizationSwitcherProcessor
+	// @see UInstancedActorsVisualizationSwitcherProcessor
 	UPROPERTY()
 	FStaticMeshInstanceVisualizationDescHandle NewStaticMeshDescHandle;
 };
@@ -260,4 +259,34 @@ private:
 
 	UPROPERTY(Transient)
 	int32 ModifierVolumeID = INDEX_NONE;
+};
+
+/**
+ * Note that we don't really need this type to be a shared fragment. It's used to create FSharedStructs pointing at
+ * UInstancedActorsData and this data is fetched from MassEntityManager by UInstancedActorsStationaryLODBatchProcessor.
+ * @todo This will be addressed in the future by refactoring where this data is stored and how it's used.
+ */
+USTRUCT()
+struct FInstancedActorsDataSharedFragment : public FMassSharedFragment
+{
+	GENERATED_BODY()
+
+	UPROPERTY(Transient)
+	TWeakObjectPtr<UInstancedActorsData> InstanceData;
+
+	EInstancedActorsBulkLOD BulkLOD = EInstancedActorsBulkLOD::MAX;
+};
+
+USTRUCT()
+struct FInstancedActorsFragment : public FMassFragment
+{
+	GENERATED_BODY()
+
+	// InstancedActorData owning the given entity
+	UPROPERTY(Transient)
+	TWeakObjectPtr<UInstancedActorsData> InstanceData;
+
+	// The fixed index of this 'instance' into InstanceData
+	UPROPERTY()
+	FInstancedActorsInstanceIndex InstanceIndex;
 };
