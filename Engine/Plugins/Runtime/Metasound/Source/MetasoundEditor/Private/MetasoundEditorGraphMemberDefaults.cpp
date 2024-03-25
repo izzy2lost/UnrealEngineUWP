@@ -184,12 +184,16 @@ void UMetasoundEditorGraphMemberDefaultFloat::PostEditChangeChainProperty(FPrope
 		SetDefault(Default);
 	}
 	else if (PropertyChangedEvent.GetPropertyName().IsEqual(GET_MEMBER_NAME_CHECKED(UMetasoundEditorGraphMemberDefaultFloat, WidgetType)) ||
-		PropertyChangedEvent.GetPropertyName().IsEqual(GET_MEMBER_NAME_CHECKED(UMetasoundEditorGraphMemberDefaultFloat, WidgetValueType)))
+		PropertyChangedEvent.GetPropertyName().IsEqual(GET_MEMBER_NAME_CHECKED(UMetasoundEditorGraphMemberDefaultFloat, WidgetUnitValueType)))
 	{
 		// Update VolumeWidgetDecibelRange based on current range (it might be stale)
-		if (WidgetValueType == EMetasoundMemberDefaultWidgetValueType::Volume && VolumeWidgetUseLinearOutput)
+		if (WidgetUnitValueType == EAudioUnitsValueType::Volume && VolumeWidgetUseLinearOutput)
 		{
 			VolumeWidgetDecibelRange = FVector2D(Audio::ConvertToDecibels(Range.X), Audio::ConvertToDecibels(Range.Y));
+		}
+		else if (WidgetUnitValueType == EAudioUnitsValueType::Frequency)
+		{
+			SetRange(FVector2D(MIN_FILTER_FREQUENCY, MAX_FILTER_FREQUENCY));
 		}
 		else
 		{
@@ -204,7 +208,7 @@ void UMetasoundEditorGraphMemberDefaultFloat::PostEditChangeChainProperty(FPrope
 		if (PropertyChangedEvent.ChangeType != EPropertyChangeType::Interactive)
 		{
 			if (WidgetType != EMetasoundMemberDefaultWidget::None &&
-				WidgetValueType == EMetasoundMemberDefaultWidgetValueType::Volume)
+				WidgetUnitValueType == EAudioUnitsValueType::Volume)
 			{
 				if (VolumeWidgetUseLinearOutput)
 				{

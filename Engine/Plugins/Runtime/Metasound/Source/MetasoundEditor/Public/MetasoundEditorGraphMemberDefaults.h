@@ -4,6 +4,7 @@
 #include "Algo/Count.h"
 #include "Algo/Transform.h"
 #include "AudioParameterControllerInterface.h"
+#include "AudioWidgetsEnums.h"
 #include "Components/Widget.h"
 #include "Delegates/Delegate.h"
 #include "EdGraph/EdGraphNode.h"
@@ -123,7 +124,7 @@ DECLARE_MULTICAST_DELEGATE_OneParam(FOnMetasoundInputClampDefaultChangedEvent, b
 
 
 UENUM()
-enum class EMetasoundMemberDefaultWidgetValueType : uint8
+enum class UE_DEPRECATED(5.5, "EMetasoundMemberDefaultWidgetValueType is deprecated, use EAudioUnitsValueType instead") EMetasoundMemberDefaultWidgetValueType : uint8
 {
 	Linear,
 	Frequency UMETA(DisplayName = "Frequency (Log)"),
@@ -154,8 +155,16 @@ public:
 	UPROPERTY(EditAnywhere, Category = Widget, meta=(DisplayName = "Orientation", EditCondition = "WidgetType == EMetasoundMemberDefaultWidget::Slider", EditConditionHides))
 	TEnumAsByte<EOrientation> WidgetOrientation = EOrientation::Orient_Horizontal;
 
-	UPROPERTY(EditAnywhere, Category = Widget, meta=(DisplayName = "Value Type", EditCondition = "WidgetType != EMetasoundMemberDefaultWidget::None", EditConditionHides))
-	EMetasoundMemberDefaultWidgetValueType WidgetValueType = EMetasoundMemberDefaultWidgetValueType::Linear;
+#if WITH_EDITORONLY_DATA
+	PRAGMA_DISABLE_DEPRECATION_WARNINGS
+	UE_DEPRECATED(5.5, "WidgetValueType has been deprecated. Use WidgetUnitValueType instead.")
+	UPROPERTY(meta = (DeprecatedProperty, DeprecationMessage = "WidgetValueType has been deprecated. Use WidgetUnitValueType instead."))
+	EMetasoundMemberDefaultWidgetValueType WidgetValueType_DEPRECATED = EMetasoundMemberDefaultWidgetValueType::Linear;
+	PRAGMA_ENABLE_DEPRECATION_WARNINGS
+#endif//WITH_EDITORONLY_DATA
+
+	UPROPERTY(EditAnywhere, Category = Widget, meta = (DisplayName = "Value Type", EditCondition = "WidgetType != EMetasoundMemberDefaultWidget::None", EditConditionHides))
+	EAudioUnitsValueType WidgetUnitValueType = EAudioUnitsValueType::Linear;
 
 	/** If true, output linear value. Otherwise, output dB value. The volume widget itself will always display the value in dB. The Default Value and Range are linear. */
 	UPROPERTY(EditAnywhere, Category = Widget, meta = (DisplayName = "Output Linear"))

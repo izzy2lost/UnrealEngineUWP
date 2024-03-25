@@ -120,7 +120,7 @@ FVector2D SAudioMaterialSlider::ComputeDesiredSize(float) const
 
 void SAudioMaterialSlider::SetValue(TAttribute<float> InValueAttribute)
 {
-	CommitValue(InValueAttribute.Get());
+	ValueAttribute = InValueAttribute;
 }
 
 void SAudioMaterialSlider::SetTuneSpeed(const float InMouseTuneSpeed)

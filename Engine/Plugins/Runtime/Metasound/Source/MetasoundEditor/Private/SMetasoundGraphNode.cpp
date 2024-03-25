@@ -4,6 +4,7 @@
 #include "AudioMaterialSlate/SAudioMaterialLabeledKnob.h"
 #include "AudioMaterialSlate/SAudioMaterialLabeledSlider.h"
 #include "AudioParameterControllerInterface.h"
+#include "AudioWidgetsEnums.h"
 #include "Components/AudioComponent.h"
 #include "GraphEditorSettings.h"
 #include "IAudioParameterTransmitter.h"
@@ -735,20 +736,21 @@ namespace Metasound
 							{
 								SAssignNew(InputWidget, SAudioMaterialLabeledSlider)
 									.Owner(GraphMember->GetOwningGraph())
+									.AudioUnitsValueType(DefaultFloat->WidgetUnitValueType)
+									.bUseLinearOutput(DefaultFloat->VolumeWidgetUseLinearOutput)
 									.OnValueChanged_Lambda(OnValueChangedLambda)
 									.OnValueCommitted_Lambda(OnValueCommittedLambda);
-								InputWidget->SetShowUnitsText(false);
 							}
 							else
 							{
 								// Create slider 
-								if (DefaultFloat->WidgetValueType == EMetasoundMemberDefaultWidgetValueType::Frequency)
+								if (DefaultFloat->WidgetUnitValueType == EAudioUnitsValueType::Frequency)
 								{
 									SAssignNew(InputWidget, SAudioFrequencySlider)
 										.OnValueChanged_Lambda(OnValueChangedLambda)
 										.OnValueCommitted_Lambda(OnValueCommittedLambda);
 								}
-								else if (DefaultFloat->WidgetValueType == EMetasoundMemberDefaultWidgetValueType::Volume)
+								else if (DefaultFloat->WidgetUnitValueType == EAudioUnitsValueType::Volume)
 								{
 									SAssignNew(InputWidget, SAudioVolumeSlider)
 										.OnValueChanged_Lambda(OnValueChangedLambda)
@@ -861,19 +863,18 @@ namespace Metasound
 									.OnValueChanged_Lambda(OnValueChangedLambda)
 									.OnMouseCaptureBegin_Lambda(OnRadialSliderMouseCaptureBeginLambda)
 									.OnMouseCaptureEnd_Lambda(OnRadialSliderMouseCaptureEndLambda);
-								InputWidget->SetShowUnitsText(false);								
 							}
 							else
 							{
 								// Create slider 
-								if (DefaultFloat->WidgetValueType == EMetasoundMemberDefaultWidgetValueType::Frequency)
+								if (DefaultFloat->WidgetUnitValueType == EAudioUnitsValueType::Frequency)
 								{
 									SAssignNew(InputWidget, SAudioFrequencyRadialSlider)
 										.OnValueChanged_Lambda(OnValueChangedLambda)
 										.OnMouseCaptureBegin_Lambda(OnRadialSliderMouseCaptureBeginLambda)
 										.OnMouseCaptureEnd_Lambda(OnRadialSliderMouseCaptureEndLambda);
 								}
-								else if (DefaultFloat->WidgetValueType == EMetasoundMemberDefaultWidgetValueType::Volume)
+								else if (DefaultFloat->WidgetUnitValueType == EAudioUnitsValueType::Volume)
 								{
 									SAssignNew(InputWidget, SAudioVolumeRadialSlider)
 										.OnValueChanged_Lambda(OnValueChangedLambda)

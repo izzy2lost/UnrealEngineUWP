@@ -12,6 +12,7 @@ void SAudioMaterialLabeledSlider::Construct(const SAudioMaterialLabeledSlider::F
 	OnValueChanged = InArgs._OnValueChanged;
 	OnValueCommitted = InArgs._OnValueCommitted;
 	Orientation = InArgs._Orientation;
+	AudioUnitsValueType = InArgs._AudioUnitsValueType;
 	DesiredSizeOverride = InArgs._DesiredSizeOverride;
 
 	if (InArgs._SliderValue.IsSet())
@@ -47,6 +48,33 @@ void SAudioMaterialLabeledSlider::Construct(const SAudioMaterialLabeledSlider::F
 			const float OutputValue = GetOutputValueForText(Value);
 			Label->SetValueText(OutputValue);
 		});
+
+	//Set the Unit processor from Units Type
+	switch (AudioUnitsValueType.Get())
+	{
+		case EAudioUnitsValueType::Linear:
+			if (Label.IsValid())
+			{
+				AudioUnitProcessor = MakeShared<FAudioUnitProcessor>();
+				Label.Get()->SetShowUnitsText(false);
+			}
+			break;
+		case EAudioUnitsValueType::Frequency:
+			AudioUnitProcessor = MakeShared<FFrequencyProcessor>();
+			break;
+		case EAudioUnitsValueType::Volume:
+			AudioUnitProcessor = MakeShared<FVolumeProcessor>(InArgs._bUseLinearOutput);
+			break;
+	}
+
+	if (AudioUnitProcessor.IsValid())
+	{
+		SetOutputRange(AudioUnitProcessor->GetDefaultOutputRange());
+		if (Label.IsValid())
+		{
+			Label.Get()->SetUnitsText(AudioUnitProcessor->GetUnitsText());
+		}
+	}
 
 	ChildSlot
 	[
@@ -92,28 +120,31 @@ void SAudioMaterialLabeledSlider::SetDesiredSizeOverride(const FVector2D Size)
 }
 
 const float SAudioMaterialLabeledSlider::GetOutputValue(const float InSliderValue)
-{
-	return FMath::GetMappedRangeValueClamped(FVector2D(0.0f, 1.0f), OutputRange, InSliderValue);
+{	
+	return AudioUnitProcessor.IsValid() == true ? AudioUnitProcessor->GetOutputValue(OutputRange, InSliderValue) : 0.0f;
 }
 
 const float SAudioMaterialLabeledSlider::GetOutputValueForText(const float InSliderValue)
 {
-	return GetOutputValue(InSliderValue);
+	return AudioUnitProcessor.IsValid() == true ? AudioUnitProcessor->GetOutputValueForText(OutputRange, InSliderValue) : 0.0f;
 }
 
 const float SAudioMaterialLabeledSlider::GetSliderValueForText(const float OutputValue)
 {
-	return GetSliderValue(OutputValue);
+	return AudioUnitProcessor.IsValid() == true ? AudioUnitProcessor->GetSliderValueForText(OutputRange, OutputValue) : 0.0f;
 }
 
 const float SAudioMaterialLabeledSlider::GetSliderValue(const float OutputValue)
 {
-	return FMath::GetMappedRangeValueClamped(OutputRange, FVector2D(0.0f, 1.0f) , OutputValue);
+	return AudioUnitProcessor.IsValid() == true ? AudioUnitProcessor->GetSliderValue(OutputRange, OutputValue) : 0.0f;
 }
 
-void SAudioMaterialLabeledSlider::SetOutputRange(const FVector2D Range)
-{
+void SAudioMaterialLabeledSlider::SetOutputRange(const FVector2D InRange)
+{	
+	//Check the valid range from the processor
+	FVector2D Range = AudioUnitProcessor.IsValid() == true ? AudioUnitProcessor->GetOutputRange(InRange) : InRange;
 	OutputRange = Range;
+
 	// if Range.Y < Range.X, set Range.X to Range.Y
 	OutputRange.X = FMath::Min(Range.X, Range.Y);
 

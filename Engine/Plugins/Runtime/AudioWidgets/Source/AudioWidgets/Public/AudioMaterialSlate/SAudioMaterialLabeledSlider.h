@@ -3,6 +3,7 @@
 #pragma once
 
 #include "AudioMaterialSlate/AudioMaterialSlateTypes.h"
+#include "AudioWidgetsEnums.h"
 #include "Framework/SlateDelegates.h"
 #include "SAudioInputWidget.h"
 #include "Styling/ISlateStyle.h"
@@ -33,7 +34,13 @@ public:
 	SLATE_ATTRIBUTE(float, SliderValue)
 		
 	/** The slider's orientation. */
-	SLATE_ARGUMENT(EOrientation, Orientation)
+	SLATE_ARGUMENT(EOrientation, Orientation)	
+	
+	/** The slider's ValueType. */
+	SLATE_ARGUMENT(EAudioUnitsValueType, AudioUnitsValueType)
+	
+	/** Will the slider use Linear Output. This is used when ValueType is Volume */
+	SLATE_ARGUMENT(bool , bUseLinearOutput)
 	
 	/** When specified, use this as the slider's desired size */
 	SLATE_ATTRIBUTE(TOptional<FVector2D>, DesiredSizeOverride)
@@ -70,7 +77,7 @@ public:
 	virtual void SetDesiredSizeOverride(const FVector2D DesiredSize) override;
 
 	void SetOrientation(EOrientation InOrientation);
-	virtual void SetOutputRange(const FVector2D Range) override;
+	virtual void SetOutputRange(const FVector2D InRange) override;
 
 	// Text label functions 
 	void SetLabelBackgroundColor(FSlateColor InColor) override;
@@ -91,6 +98,9 @@ private:
 
 	// Holds the slider's orientation
 	TAttribute<EOrientation> Orientation;
+	
+	// Holds the slider's unit value type
+	TAttribute<EAudioUnitsValueType> AudioUnitsValueType;
 
 	// Optional override for desired size 
 	TAttribute<TOptional<FVector2D>> DesiredSizeOverride;
@@ -104,10 +114,12 @@ private:
 
 	// Range for output
 	FVector2D OutputRange = FVector2D(0.0f, 1.0f);
-	static const FVector2D NormalizedLinearSliderRange;
 
 	/** Switches between the vertical and horizontal views */
 	TSharedPtr<SWidgetSwitcher> LayoutWidgetSwitcher;
+
+	/**Hold the ref to the current Unit processor */
+	TSharedPtr<FAudioUnitProcessor> AudioUnitProcessor;
 
 private:
 
