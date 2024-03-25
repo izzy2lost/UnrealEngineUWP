@@ -134,9 +134,8 @@ public:
 
 
 	bool HasAssets(const FName PackagePath, const bool bRecursive) const;
-	FSoftObjectPath GetRedirectedObjectPath(const FSoftObjectPath& ObjectPath) const;
-	UE_DEPRECATED(5.1, "Asset path FNames have been deprecated, use FSoftObjectPath instead.")
-	FName GetRedirectedObjectPath(const FName ObjectPath) const;
+	FSoftObjectPath GetRedirectedObjectPath(const FSoftObjectPath& ObjectPath, UE::AssetRegistry::Impl::FEventContext* EventContext, 
+		UE::AssetRegistry::Impl::FClassInheritanceContext* InheritanceContext, bool bNeedsScanning);
 	bool GetAncestorClassNames(Impl::FClassInheritanceContext& InheritanceContext, FTopLevelAssetPath ClassName,
 		TArray<FTopLevelAssetPath>& OutAncestorClassNames) const;
 	void CompileFilter(Impl::FClassInheritanceContext& InheritanceContext, const FARFilter& InFilter,
