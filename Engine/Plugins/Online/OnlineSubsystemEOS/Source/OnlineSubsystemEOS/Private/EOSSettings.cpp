@@ -130,7 +130,8 @@ FEOSArtifactSettings ParseArtifactSettingsFromConfigString(const FString& RawLin
 }
 
 FEOSSettings::FEOSSettings()
-	: RTCBackgroundMode(EOS_ERTCBackgroundMode::EOS_RTCBM_KeepRoomsAlive)
+	: SteamTokenType(TEXT("Session"))
+	, RTCBackgroundMode(EOS_ERTCBackgroundMode::EOS_RTCBM_KeepRoomsAlive)
 	, TickBudgetInMilliseconds(0)
 	, TitleStorageReadChunkLength(0)
 	, bEnableOverlay(false)
@@ -172,6 +173,7 @@ const FEOSSettings& UEOSSettings::ManualGetSettings()
 
 		GConfig->GetString(INI_SECTION, TEXT("CacheDir"), CachedSettings->CacheDir, GEngineIni);
 		GConfig->GetString(INI_SECTION, TEXT("DefaultArtifactName"), CachedSettings->DefaultArtifactName, GEngineIni);
+		GConfig->GetString(INI_SECTION, TEXT("SteamTokenType"), CachedSettings->SteamTokenType, GEngineIni);
 		CachedSettings->RTCBackgroundMode = EOS_ERTCBackgroundMode::EOS_RTCBM_KeepRoomsAlive;
 		FString RTCBackgroundModeStr;
 		GConfig->GetString(INI_SECTION, TEXT("RTCBackgroundMode"), RTCBackgroundModeStr, GEngineIni);
@@ -205,6 +207,7 @@ FEOSSettings UEOSSettings::ToNative() const
 
 	Native.CacheDir = CacheDir;
 	Native.DefaultArtifactName = DefaultArtifactName;
+	Native.SteamTokenType = SteamTokenType;
 	Native.RTCBackgroundMode = EOS_ERTCBackgroundMode::EOS_RTCBM_KeepRoomsAlive;
 	if (!RTCBackgroundMode.IsEmpty())
 	{

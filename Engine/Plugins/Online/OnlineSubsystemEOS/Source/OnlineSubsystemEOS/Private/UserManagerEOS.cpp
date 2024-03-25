@@ -103,6 +103,12 @@ static inline EOS_EExternalCredentialType ToEOS_EExternalCredentialType(FName OS
 #if PLATFORM_DESKTOP
 	if (OSSName == STEAM_SUBSYSTEM)
 	{
+		FEOSSettings Settings = UEOSSettings::GetSettings();
+		if (Settings.SteamTokenType == TEXT("App"))
+		{
+			return EOS_EExternalCredentialType::EOS_ECT_STEAM_APP_TICKET;
+		}
+		// Session, WebApi, and WebApi:remoteserviceidentity are all "Session" tickets.
 		return EOS_EExternalCredentialType::EOS_ECT_STEAM_SESSION_TICKET;
 	}
 #endif
@@ -343,10 +349,10 @@ void FUserManagerEOS::GetPlatformAuthToken(int32 LocalUserNum, const FOnGetLinke
 	}
 
 	FString TokenType;
-	// TODO config map of OSS -> token type?
 	if (PlatformOSS->GetSubsystemName() == STEAM_SUBSYSTEM)
 	{
-		TokenType = TEXT("Session");
+		FEOSSettings Settings = UEOSSettings::GetSettings();
+		TokenType = Settings.SteamTokenType;
 	}
 
 	// Request the auth token from the platform
