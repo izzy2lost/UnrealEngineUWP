@@ -40,7 +40,7 @@ namespace HarmonixMetasound
 	using namespace Metasound;
 	
 	FMidiClock::FMidiClock(const FOperatorSettings& InSettings)
-		: TempoChangesCursor(this)
+		: MidiClockEventCursor(this)
 		, BlockSize(InSettings.GetNumFramesPerBlock())
 		, CurrentBlockFrameIndex(0)
 		, SampleRate(InSettings.GetSampleRate())
@@ -50,14 +50,14 @@ namespace HarmonixMetasound
 	{
 		SpeedChangesInBlock.Add({0, 0.0f, 1.0f});
 		TempoChangesInBlock.Add({0, 0.0f, 120.0f});
-
-		DrivingMidiPlayCursorMgr->RegisterHiResPlayCursor(&TempoChangesCursor);
+		
+		DrivingMidiPlayCursorMgr->RegisterHiResPlayCursor(&MidiClockEventCursor);
 
 		RegisterForGameThreadUpdates();
 	}
 
 	FMidiClock::FMidiClock(const FMidiClock& Other)
-		: TempoChangesCursor(this)
+		: MidiClockEventCursor(this)
 		, BlockSize(Other.BlockSize)
 		, CurrentBlockFrameIndex(Other.CurrentBlockFrameIndex)
 		, SampleRate(Other.SampleRate)
@@ -73,7 +73,7 @@ namespace HarmonixMetasound
 		, SmoothingEnabled(Other.SmoothingEnabled)
 		, DrivingMidiPlayCursorMgr(Other.DrivingMidiPlayCursorMgr)
 	{
-		DrivingMidiPlayCursorMgr->RegisterHiResPlayCursor(&TempoChangesCursor);
+		DrivingMidiPlayCursorMgr->RegisterHiResPlayCursor(&MidiClockEventCursor);
 
 		RegisterForGameThreadUpdates();
 	}
@@ -86,7 +86,7 @@ namespace HarmonixMetasound
 
 			if (DrivingMidiPlayCursorMgr != Other.DrivingMidiPlayCursorMgr)
 			{
-				DrivingMidiPlayCursorMgr->UnregisterPlayCursor(&TempoChangesCursor);
+				DrivingMidiPlayCursorMgr->UnregisterPlayCursor(&MidiClockEventCursor);
 			}
 
 			BlockSize = Other.BlockSize;
@@ -106,7 +106,7 @@ namespace HarmonixMetasound
 			if (DrivingMidiPlayCursorMgr != Other.DrivingMidiPlayCursorMgr)
 			{
 				DrivingMidiPlayCursorMgr = Other.DrivingMidiPlayCursorMgr;
-				DrivingMidiPlayCursorMgr->RegisterHiResPlayCursor(&TempoChangesCursor);
+				DrivingMidiPlayCursorMgr->RegisterHiResPlayCursor(&MidiClockEventCursor);
 			}
 
 			RegisterForGameThreadUpdates();
@@ -119,31 +119,7 @@ namespace HarmonixMetasound
 	{
 		UnregisterForGameThreadUpdates();
 	
-		DrivingMidiPlayCursorMgr->UnregisterPlayCursor(&TempoChangesCursor, false);
-	}
-
-	FMidiClock::FTempoChangesCursor::FTempoChangesCursor(FMidiClock* MidiClock) : MyMidiClock(MidiClock)
-	{
-		check(MyMidiClock);
-		SetMessageFilter(FMidiPlayCursor::EFilterPassFlags::Tempo);
-	}
-
-	void FMidiClock::FTempoChangesCursor::OnTempo(int32 TrackIndex, int32 Tick, int32 Tempo, bool IsPreroll /*= false*/)
-	{
-		check(MyMidiClock);
-		int32 BlockFrameIndex = MyMidiClock->CurrentBlockFrameIndex;
-
-		check(BlockFrameIndex >= MyMidiClock->TempoChangesInBlock.Last().BlockSampleFrameIndex);
-		MyMidiClock->HasTempoChangeInBlock = true;
-		float Bpm = Harmonix::Midi::Constants::MidiTempoToBPM(Tempo);
-		if (MyMidiClock->TempoChangesInBlock.Last().BlockSampleFrameIndex == BlockFrameIndex)
-		{
-			MyMidiClock->TempoChangesInBlock.Last().Tempo = Bpm;
-		}
-		else
-		{ 
-			MyMidiClock->TempoChangesInBlock.Add({BlockFrameIndex, 0.0f, Bpm});
-		}
+		DrivingMidiPlayCursorMgr->UnregisterPlayCursor(&MidiClockEventCursor, false);
 	}
 
 	void FMidiClock::RegisterForGameThreadUpdates()
@@ -479,55 +455,66 @@ namespace HarmonixMetasound
 		return OutMidiData;
 	}
 
-
-	FMidiClockEventCursor::FMidiClockEventCursor(FMidiClockWriteRef InClock)
-		: MidiClock(InClock)
+	FMidiClock::FMidiClockEventCursor::FMidiClockEventCursor(FMidiClock* MidiClock)
+		: MyMidiClock(MidiClock)
 	{
-		MidiClock->RegisterHiResPlayCursor(this);
+		check(MidiClock);
 	}
 
-	FMidiClockEventCursor::~FMidiClockEventCursor()
-	{
-		MidiClock->UnregisterPlayCursor(this);
-	}
-
-	void FMidiClockEventCursor::Reset(bool ForceNoBroadcast /*= false*/)
+	void FMidiClock::FMidiClockEventCursor::Reset(bool ForceNoBroadcast /*= false*/)
 	{
 		const int32 FromTick = CurrentTick;
 		FMidiPlayCursor::Reset(ForceNoBroadcast);
-		AddEvent(FMidiClockEvent::MakeResetEvent(MidiClock->GetCurrentBlockFrameIndex(), FromTick, CurrentTick, ForceNoBroadcast));
+		AddEvent(FMidiClockEvent::MakeResetEvent(MyMidiClock->GetCurrentBlockFrameIndex(), FromTick, CurrentTick, ForceNoBroadcast));
 	}
 
-	void FMidiClockEventCursor::OnLoop(int32 LoopStartTick, int32 LoopEndTick)
+	void FMidiClock::FMidiClockEventCursor::OnLoop(int32 LoopStartTick, int32 LoopEndTick)
 	{
 		FMidiPlayCursor::OnLoop(LoopStartTick, LoopEndTick);
-		AddEvent(FMidiClockEvent::MakeLoopEvent(MidiClock->GetCurrentBlockFrameIndex(), LoopStartTick, LoopEndTick));
+		AddEvent(FMidiClockEvent::MakeLoopEvent(MyMidiClock->GetCurrentBlockFrameIndex(), LoopStartTick, LoopEndTick));
 	}
 
-	void FMidiClockEventCursor::SeekToTick(int32 Tick) 
+	void FMidiClock::FMidiClockEventCursor::SeekToTick(int32 Tick) 
 	{
 		const int32 FromTick = CurrentTick;
 		FMidiPlayCursor::SeekToTick(Tick);
-		AddEvent(FMidiClockEvent::MakeSeekToEvent(MidiClock->GetCurrentBlockFrameIndex(), FromTick, Tick));
+		AddEvent(FMidiClockEvent::MakeSeekToEvent(MyMidiClock->GetCurrentBlockFrameIndex(), FromTick, Tick));
 	}
 
-	void FMidiClockEventCursor::SeekThruTick(int32 Tick)
+	void FMidiClock::FMidiClockEventCursor::SeekThruTick(int32 Tick)
 	{
 		const int32 FromTick = CurrentTick;
 		FMidiPlayCursor::SeekThruTick(Tick);
-		AddEvent(FMidiClockEvent::MakeSeekThruEvent(MidiClock->GetCurrentBlockFrameIndex(), FromTick, Tick));
+		AddEvent(FMidiClockEvent::MakeSeekThruEvent(MyMidiClock->GetCurrentBlockFrameIndex(), FromTick, Tick));
 	}
 
-	void FMidiClockEventCursor::AdvanceThruTick(int32 Tick, bool IsPreRoll)
+	void FMidiClock::FMidiClockEventCursor::AdvanceThruTick(int32 Tick, bool IsPreRoll)
 	{
 		const int32 FromTick = CurrentTick;
 		FMidiPlayCursor::AdvanceThruTick(Tick, IsPreRoll);
-		AddEvent(FMidiClockEvent::MakeAdvanceThruEvent(MidiClock->GetCurrentBlockFrameIndex(), FromTick, Tick, IsPreRoll));
+		AddEvent(FMidiClockEvent::MakeAdvanceThruEvent(MyMidiClock->GetCurrentBlockFrameIndex(), FromTick, Tick, IsPreRoll));
 	}
 
-	void FMidiClockEventCursor::AddEvent(const FMidiClockEvent& InEvent)
+	void FMidiClock::FMidiClockEventCursor::OnTempo(int32 TrackIndex, int32 Tick, int32 Tempo, bool IsPreroll)
 	{
-		TArray<FMidiClockEvent>& Events = MidiClock->MidiClockEventsInBlock;
+		int32 BlockFrameIndex = MyMidiClock->CurrentBlockFrameIndex;
+
+		check(BlockFrameIndex >= MyMidiClock->TempoChangesInBlock.Last().BlockSampleFrameIndex);
+		MyMidiClock->HasTempoChangeInBlock = true;
+		float Bpm = Harmonix::Midi::Constants::MidiTempoToBPM(Tempo);
+		if (MyMidiClock->TempoChangesInBlock.Last().BlockSampleFrameIndex == BlockFrameIndex)
+		{
+			MyMidiClock->TempoChangesInBlock.Last().Tempo = Bpm;
+		}
+		else
+		{ 
+			MyMidiClock->TempoChangesInBlock.Add({BlockFrameIndex, 0.0f, Bpm});
+		}
+	}
+
+	void FMidiClock::FMidiClockEventCursor::AddEvent(const FMidiClockEvent& InEvent)
+	{
+		TArray<FMidiClockEvent>& Events = MyMidiClock->MidiClockEventsInBlock;
 		if (!Events.IsEmpty())
 		{
 			check(Events.Last().BlockFrameIndex <= InEvent.BlockFrameIndex);

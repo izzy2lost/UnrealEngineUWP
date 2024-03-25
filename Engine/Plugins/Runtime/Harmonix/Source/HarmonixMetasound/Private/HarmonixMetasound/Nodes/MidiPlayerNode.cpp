@@ -81,7 +81,6 @@ namespace HarmonixMetasound
 		FMidiClockWriteRef  MidiClockOut;
 
 		//** DATA
-		FMidiClockEventCursor MidiClockEventCursor;
 		FMidiFileProxyPtr CurrentMidiFile;
 		FSampleCount BlockSize      = 0;
 		int32 CurrentBlockSpanStart = 0;
@@ -258,7 +257,6 @@ namespace HarmonixMetasound
 		, bKillVoicesOnMidiChange(bInKillVoicesOnMidiChange)
 		, MidiOutPin(FMidiStreamWriteRef::CreateNew(InSettings))
 		, MidiClockOut(FMidiClockWriteRef::CreateNew(InSettings))
-		, MidiClockEventCursor(MidiClockOut)
 		, BlockSize(InSettings.GetNumFramesPerBlock())
 	{
 		MidiClockOut->RegisterHiResPlayCursor(this);

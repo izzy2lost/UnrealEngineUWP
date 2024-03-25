@@ -191,22 +191,27 @@ namespace HarmonixMetasound
 
 	private:
 		friend class FMidiClockEventCursor;
-		friend class FTempoChangesCursor;
 
-		class FTempoChangesCursor : public FMidiPlayCursor
+		class FMidiClockEventCursor : public FMidiPlayCursor
 		{
 		public:
-			FTempoChangesCursor(FMidiClock* MidiClock);
-
-			//** BEGIN FMidiPlayCursor
-			void OnTempo(int32 TrackIndex, int32 Tick, int32 Tempo, bool IsPreroll = false) override;
-			//** END FMidiPlayCursor
-
+			FMidiClockEventCursor(FMidiClock* MidiClock);
+		
+			//~ BEGIN FMidiPlayCursor Overrides
+			virtual void Reset(bool ForceNoBroadcast = false) override;
+			virtual void OnLoop(int32 LoopStartTick, int32 LoopEndTick) override;
+			virtual void SeekToTick(int32 Tick) override;
+			virtual void SeekThruTick(int32 Tick) override;
+			virtual void AdvanceThruTick(int32 Tick, bool IsPreRoll) override;
+			virtual void OnTempo(int32 TrackIndex, int32 Tick, int32 Tempo, bool IsPreroll = false) override;
+			//~ END FMidiPlayCursor Overrides
+			
+			void AddEvent(const FMidiClockEvent& InEvent);
 		private:
 			FMidiClock* MyMidiClock = nullptr;
 		};
-
-		FTempoChangesCursor TempoChangesCursor;
+		
+		FMidiClockEventCursor MidiClockEventCursor;
 
 	private:
 		void RegisterForGameThreadUpdates();
@@ -236,28 +241,6 @@ namespace HarmonixMetasound
 
 	// Declare aliases IN the namespace...
 	DECLARE_METASOUND_DATA_REFERENCE_ALIAS_TYPES(FMidiClock, FMidiClockTypeInfo, FMidiClockReadRef, FMidiClockWriteRef)
-
-
-	class HARMONIXMETASOUND_API FMidiClockEventCursor : public FMidiPlayCursor
-	{
-	public:
-
-		FMidiClockEventCursor(FMidiClockWriteRef InClock);
-		virtual ~FMidiClockEventCursor();
-
-		//~ BEGIN FMidiPlayCursor Overrides
-		virtual void Reset(bool ForceNoBroadcast = false) override;
-		virtual void OnLoop(int32 LoopStartTick, int32 LoopEndTick) override;
-		virtual void SeekToTick(int32 Tick) override;
-		virtual void SeekThruTick(int32 Tick) override;
-		virtual void AdvanceThruTick(int32 Tick, bool IsPreRoll) override;
-		//~ END FMidiPlayCursor Overrides
-	private:
-
-		void AddEvent(const FMidiClockEvent& InEvent);
-
-		FMidiClockWriteRef MidiClock;
-	};
 }
 
 // Declare reference types OUT of the namespace...

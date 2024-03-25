@@ -75,7 +75,6 @@ namespace HarmonixMetasound
 
 		//** DATA
 		FMidiClock MetronomeClock;
-		FMidiClockEventCursor MidiClockEventCursor;
 		TSharedPtr<FMidiFileData> MidiData;
 		FSampleCount BlockSize;
 		float        SampleRate;
@@ -192,7 +191,6 @@ namespace HarmonixMetasound
 		, SeekPreRollBarsInPin(InPreRollBars)
 		, MidiClockOutPin(FMidiClockWriteRef::CreateNew(InParams.OperatorSettings))
 		, MetronomeClock(InParams.OperatorSettings)
-		, MidiClockEventCursor(MidiClockOutPin)
 		, BlockSize(InParams.OperatorSettings.GetNumFramesPerBlock())
 		, SampleRate(InParams.OperatorSettings.GetSampleRate())
 		, CurrentTempo(*TempoInPin)
