@@ -7,6 +7,7 @@
 #include "UbaSessionClient.h"
 #include "UbaSessionServer.h"
 #include "UbaStorageClient.h"
+#include "UbaStorageProxy.h"
 #include "UbaStorageServer.h"
 #include "UbaPlatform.h"
 #include "UbaVersion.h"
@@ -550,9 +551,55 @@ namespace uba
 			{
 				NetworkClient client(ctorSuccess, { logWriter });
 
+				Event wakeupSessionWait(false);
+				Atomic<u32> targetConnectionCount = 1;
+				u32 maxConnectionCount = 4;
+				struct Proxy
+				{
+					LogWriter& logWriter;
+					NetworkClient* client;
+					Event& wakeupSessionWait;
+					u32& maxConnectionCount;
+					Atomic<u32>& targetConnectionCount;
+					NetworkServer* server = nullptr;
+					StorageProxy* storage = nullptr;
+					StorageClient* storageClient = nullptr;
+					TString serverPrefix;
+				} proxy { g_consoleLogWriter, &client, wakeupSessionWait, maxConnectionCount, targetConnectionCount };
+				auto psg = MakeGuard([&]() { delete proxy.server; });
+				auto pg = MakeGuard([&]() { delete proxy.storage; });
+
+				static auto startProxy = [](void* userData, u16 proxyPort, const Guid& storageServerUid)
+					{
+						auto& proxy = *(Proxy*)userData;
+
+						NetworkServerCreateInfo nsci(proxy.logWriter);
+						nsci.workerCount = 192;
+						nsci.receiveTimeoutSeconds = 60;
+
+						StringBuffer<256> prefix;
+						prefix.Append(TC("UbaProxyServer (")).Append(GuidToString(proxy.client->GetUid()).str).Append(')');
+						proxy.serverPrefix = prefix.data;
+						bool ctorSuccess = true;
+						proxy.server = new NetworkServer(ctorSuccess, nsci, proxy.serverPrefix.c_str());
+						if (!ctorSuccess)
+						{
+							delete proxy.server;
+							return false;
+						}
+						proxy.storage = new StorageProxy(*proxy.server, *proxy.client, storageServerUid, TC("Wooohoo"), proxy.storageClient);
+						proxy.server->StartListen(proxy.client->GetTcpBackend(), proxyPort);
+						proxy.targetConnectionCount = proxy.maxConnectionCount;
+						proxy.wakeupSessionWait.Set();
+						return true;
+					};
+
 				StringBuffer<> clientRootDir;
 				clientRootDir.Append(g_rootDir).Append("Agent");
 				StorageClientCreateInfo storageClientInfo(client, clientRootDir.data);
+				storageClientInfo.zone = TC("FOO");
+				storageClientInfo.startProxyCallback = startProxy;
+				storageClientInfo.startProxyUserData = &proxy;
 				StorageClient storageClient(storageClientInfo);
 
 				SessionClientCreateInfo sessionClientInfo(storageClient, client, logWriter);
@@ -565,7 +612,7 @@ namespace uba
 					if (!client.Connect(networkBackend, TC("127.0.0.1"), port))
 						return logger.Error(TC("Failed to connect"));
 
-				auto cg = MakeGuard([&]() { sessionClient.Stop(); client.Disconnect(); });
+				auto cg = MakeGuard([&]() { sessionClient.Stop(); client.StopAll(); });
 
 				return func();
 			};

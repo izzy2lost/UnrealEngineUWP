@@ -80,7 +80,7 @@ namespace uba
 		sessionClientInfo.rootDir = rootDir.data;
 		SessionClient sessionClient(sessionClientInfo);
 
-		auto cg = MakeGuard([&]() { sessionClient.Stop(); client.Disconnect(); });
+		auto cg = MakeGuard([&]() { sessionClient.Stop(); client.StopAll(); });
 
 		StringBuffer<> workingDir;
 		workingDir.Append(testRootDir).Append(TC("WorkingDir"));
