@@ -389,16 +389,29 @@ void FContextualAnimViewModel::SetDefaultMode()
 		return;
 	}
 
-	TArray<FName> Roles = SceneAsset->GetRoles();
-	for (FName Role : Roles)
+	FContextualAnimSceneSection& ContextualAnimSection = SceneAsset->Sections[ActiveSectionIdx];
+
+	// If the roles asset was edited, our contextual anim asset may have tracks for roles that don't exist in the roles asset.
+	// We allow this, log a warning, and display this in the UI for the user.
+	TArray<FName> ValidRoles = SceneAsset->GetRoles();
+	TArray<FName> ActualRoles;
+	for (int32 AnimSetIdx = 0; AnimSetIdx < ContextualAnimSection.AnimSets.Num(); AnimSetIdx++)
+	{
+		FContextualAnimSet& AnimSet = ContextualAnimSection.AnimSets[AnimSetIdx];
+		for (int32 AnimTrackIdx = 0; AnimTrackIdx < AnimSet.Tracks.Num(); AnimTrackIdx++)
+		{
+			const FContextualAnimTrack& AnimTrack = AnimSet.Tracks[AnimTrackIdx];
+			ActualRoles.AddUnique(AnimTrack.Role);
+		}
+	}
+
+	for (FName Role : ActualRoles)
 	{
 		UContextualAnimMovieSceneTrack* MovieSceneAnimTrack = MovieSceneSequence->GetMovieScene()->AddTrack<UContextualAnimMovieSceneTrack>();
 		check(MovieSceneAnimTrack);
 
 		MovieSceneAnimTrack->Initialize(Role);
 	}
-
-	FContextualAnimSceneSection& ContextualAnimSection = SceneAsset->Sections[ActiveSectionIdx];
 
 	float EmptyAnimSectionLength = 0.f;
 	for (int32 AnimSetIdx = 0; AnimSetIdx < ContextualAnimSection.AnimSets.Num(); AnimSetIdx++)
@@ -457,6 +470,13 @@ void FContextualAnimViewModel::SetDefaultMode()
 
 			MovieSceneTrack->AddSection(*NewSection);
 			MovieSceneTrack->SetTrackRowDisplayName(FText::FromString(FString::Printf(TEXT("%d"), AnimSetIdx)), AnimSetIdx);
+
+			const bool bIsValidRole = ValidRoles.Contains(AnimTrack.Role);
+			if (bIsValidRole == false)
+			{
+				UE_LOG(LogContextualAnim, Warning, TEXT("Scene Asset: %s - Role Asset %s is missing Role %s. Please use Update Roles under settings, or update your roles asset to include this track."), 
+												*GetNameSafe(SceneAsset), *GetNameSafe(SceneAsset->GetRolesAsset()), *AnimTrack.Role.ToString());
+			}
 		}
 	}
 
@@ -1311,6 +1331,31 @@ void FContextualAnimViewModel::DiscardChangeToActorTransformInScene()
 	}
 
 	ModifyingTransformInSceneCachedActor.Reset();
+}
+
+void FContextualAnimViewModel::UpdateRoles()
+{
+	FScopedTransaction Transaction(LOCTEXT("CAS_UpdateRoles", "UpdateRoles"));
+	SceneAsset->Modify();
+
+	TArray<FName> ValidRoles;
+	if (SceneAsset)
+	{
+		ValidRoles = SceneAsset->GetRoles();
+	}
+
+	for(FContextualAnimSceneSection& Section : SceneAsset->Sections)
+	{
+		for (FContextualAnimSet& AnimSet : Section.AnimSets)
+		{
+			AnimSet.Tracks.RemoveAll([&ValidRoles](const FContextualAnimTrack& Track)->bool
+				{
+					return ValidRoles.Contains(Track.Role) == false;
+				});
+		}
+	}
+
+	SetDefaultMode();
 }
 
 void FContextualAnimViewModel::CacheWarpPoints()
