@@ -20,7 +20,7 @@ namespace EpicGames.ProjectStore
 		/// <summary>
 		/// The list of remote host names for zenserver
 		/// </summary>
-		public List<string> RemoteHostNames { get; set; } = new List<string>();
+		public List<string> RemoteHostNames { get; } = new List<string>();
 		/// <summary>
 		/// The port for zenserver on the host
 		/// </summary>
