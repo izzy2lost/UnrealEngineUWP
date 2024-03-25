@@ -408,6 +408,9 @@ public:
 
 	LANDSCAPE_API void EnableNaniteSkirts(bool bInEnable, float InSkirtDepth, bool bInShouldDirtyPackage);
 
+	/** Set the target precision on nanite vertex position.  Precision is set to approximately (2^-InPrecision) in world units. */
+	LANDSCAPE_API void SetNanitePositionPrecision(int32 InPrecision,  bool bInShouldDirtyPackage);
+
 	LANDSCAPE_API void SetDisableRuntimeGrassMapGeneration(bool bInDisableRuntimeGrassMapGeneration);
 
 protected:

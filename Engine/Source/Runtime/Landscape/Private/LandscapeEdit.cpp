@@ -4008,6 +4008,31 @@ TSharedRef<UE::Landscape::Nanite::FAsyncBuildData> ALandscapeProxy::MakeAsyncNan
 	return AsyncBuildData;
 }
 
+LANDSCAPE_API void ALandscape::SetNanitePositionPrecision(int32 InPrecision, bool bInShouldDirtyPackage)
+{
+	NanitePositionPrecision = InPrecision;
+
+	// TODO [chris.tchou] : We should make a consolidated 'value changed' path, unifying this with PostEditChangeProperty
+	InvalidateOrUpdateNaniteRepresentation(/*bInCheckContentId*/true, /*InTargetPlatform*/nullptr);
+	MarkComponentsRenderStateDirty();
+	Modify(bInShouldDirtyPackage);
+
+	if (ULandscapeInfo* LandscapeInfo = GetLandscapeInfo())
+	{
+		LandscapeInfo->ForEachLandscapeProxy([&](ALandscapeProxy* Proxy)
+			{
+				if (Proxy != nullptr)
+				{
+					Proxy->SynchronizeSharedProperties(this);
+					Proxy->InvalidateOrUpdateNaniteRepresentation(/*bInCheckContentId*/true, /*InTargetPlatform*/nullptr);
+					Proxy->MarkComponentsRenderStateDirty();
+					Proxy->Modify(bInShouldDirtyPackage);
+				}
+				return true;
+			});
+	}
+}
+
 bool ALandscapeProxy::ExportToRawMesh(const FRawMeshExportParams& InExportParams, FMeshDescription& OutRawMesh) const
 {
 	FRawMeshExportParams ExportParams = InExportParams;
