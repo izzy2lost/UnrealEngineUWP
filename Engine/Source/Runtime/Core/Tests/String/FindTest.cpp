@@ -57,7 +57,6 @@ TEST_CASE_NAMED(FStringFindTest, "System::Core::String::Find", "[Core][String][S
 
 		CHECK(FindLast(TEXT("AbCABCAbCABC"), TEXT("AbC")) == 6);
 		CHECK(FindLast(TEXT("AbCABCAbCABC"), TEXT("ABC")) == 9);
-		CHECK(FindLast(TEXT("AbCABCAbCABC"), TEXT("Bc"), ESearchCase::IgnoreCase) == 10);
 		CHECK(FindLast(TEXT("AbCABCAbCABC"), TEXT("ab")) == INDEX_NONE);
 		CHECK(FindLast(TEXT("AbCABCAbCABC"), TEXT("CD"), ESearchCase::IgnoreCase) == INDEX_NONE);
 		CHECK(FindLast(TEXT("AbCABCAbCABC"), TEXT("BC")) == 10);
@@ -103,10 +102,18 @@ TEST_CASE_NAMED(FStringFindTest, "System::Core::String::Find", "[Core][String][S
 		CHECK(FindFirstOfAny(TEXT("ABC"), {TEXT("abc"), TEXT("bc")}, ESearchCase::IgnoreCase) == 0);
 		CHECK(FindFirstOfAny(TEXT("AB"), {TEXT("ABC"), TEXT("ABD")}) == INDEX_NONE);
 
-		CHECK(FindFirstOfAny("AbCABCAbCABC", {"CABc", "ABC"}) == 3);
+		CHECK(FindFirstOfAny(ANSITEXTVIEW("AbCABCAbCABC"), {"CABc", "ABC"}) == 3);
 
 		CHECK(FindFirstOfAny(FStringView(nullptr, 0), {TEXT("ABC"), TEXT("ABD")}) == INDEX_NONE); //-V575
 		CHECK(FindFirstOfAny(FStringView(), {TEXT("ABC"), TEXT("ABD")}) == INDEX_NONE);
+
+		int32 MatchIndex = INDEX_NONE;
+		FindFirstOfAny(TEXT("AbCABCAbCABC"), {TEXT("ABC")}, ESearchCase::CaseSensitive, &MatchIndex);
+		CHECK(MatchIndex == 0);
+		FindFirstOfAny(TEXT("AbCABCAbCABC"), {TEXT("CAbC"), TEXT("ABC")}, ESearchCase::CaseSensitive, &MatchIndex);
+		CHECK(MatchIndex == 1);
+		FindFirstOfAny(TEXT("AbCABCAbCABC"), {TEXT("DEF"), TEXT("ABCD"), TEXT("Cab")}, ESearchCase::IgnoreCase, &MatchIndex);
+		CHECK(MatchIndex == 2);
 	}
 
 	SECTION("FindLastOfAny")
@@ -136,10 +143,18 @@ TEST_CASE_NAMED(FStringFindTest, "System::Core::String::Find", "[Core][String][S
 		CHECK(FindLastOfAny(TEXT("ABC"), {TEXT("abc"), TEXT("bc")}, ESearchCase::IgnoreCase) == 1);
 		CHECK(FindLastOfAny(TEXT("AB"), {TEXT("ABC"), TEXT("ABD")}) == INDEX_NONE);
 
-		CHECK(FindLastOfAny("AbCABCAbCABC", {"CABc", "ABC"}) == 9);
+		CHECK(FindLastOfAny(ANSITEXTVIEW("AbCABCAbCABC"), {"CABc", "ABC"}) == 9);
 
 		CHECK(FindLastOfAny(FStringView(nullptr, 0), { TEXT("ABC"), TEXT("ABD") }) == INDEX_NONE); //-V575
 		CHECK(FindLastOfAny(FStringView(), { TEXT("ABC"), TEXT("ABD") }) == INDEX_NONE);
+
+		int32 MatchIndex = INDEX_NONE;
+		FindLastOfAny(TEXT("AbCABCAbCABC"), {TEXT("AbC")}, ESearchCase::CaseSensitive, &MatchIndex);
+		CHECK(MatchIndex == 0);
+		FindLastOfAny(TEXT("AbCABCAbCABC"), {TEXT("CAbC"), TEXT("AbC")}, ESearchCase::CaseSensitive, &MatchIndex);
+		CHECK(MatchIndex == 1);
+		FindLastOfAny(TEXT("AbCABCAbCABC"), {TEXT("DEF"), TEXT("CAB"), TEXT("AbC")}, ESearchCase::IgnoreCase, &MatchIndex);
+		CHECK(MatchIndex == 2);
 	}
 
 	SECTION("FindFirstChar")
@@ -200,6 +215,14 @@ TEST_CASE_NAMED(FStringFindTest, "System::Core::String::Find", "[Core][String][S
 
 		CHECK(FindFirstOfAnyChar(FStringView(nullptr, 0), { TEXT('A'), TEXT('B') }) == INDEX_NONE); //-V575
 		CHECK(FindFirstOfAnyChar(FStringView(), { TEXT('A'), TEXT('B') }) == INDEX_NONE);
+
+		int32 MatchIndex = INDEX_NONE;
+		FindFirstOfAnyChar(TEXT("AbCABCAbCABC"), {TEXT('B')}, ESearchCase::CaseSensitive, &MatchIndex);
+		CHECK(MatchIndex == 0);
+		FindFirstOfAnyChar(TEXT("AbCABCAbCABC"), {TEXT('B'), TEXT('A')}, ESearchCase::CaseSensitive, &MatchIndex);
+		CHECK(MatchIndex == 1);
+		FindFirstOfAnyChar(TEXT("AbCABCAbCABC"), {TEXT('D'), TEXT('C'), TEXT('B')}, ESearchCase::IgnoreCase, &MatchIndex);
+		CHECK(MatchIndex == 2);
 	}
 
 	SECTION("FindLastOfAnyChar")
@@ -220,6 +243,14 @@ TEST_CASE_NAMED(FStringFindTest, "System::Core::String::Find", "[Core][String][S
 
 		CHECK(FindLastOfAnyChar(FStringView(nullptr, 0), { TEXT('A'), TEXT('B') }) == INDEX_NONE); //-V575
 		CHECK(FindLastOfAnyChar(FStringView(), { TEXT('A'), TEXT('B') }) == INDEX_NONE);
+
+		int32 MatchIndex = INDEX_NONE;
+		FindLastOfAnyChar(TEXT("AbCABCAbCABC"), {TEXT('A')}, ESearchCase::CaseSensitive, &MatchIndex);
+		CHECK(MatchIndex == 0);
+		FindLastOfAnyChar(TEXT("AbCABCAbCABC"), {TEXT('b'), TEXT('A')}, ESearchCase::CaseSensitive, &MatchIndex);
+		CHECK(MatchIndex == 1);
+		FindLastOfAnyChar(TEXT("AbCABCAbCABC"), {TEXT('E'), TEXT('D'), TEXT('a')}, ESearchCase::IgnoreCase, &MatchIndex);
+		CHECK(MatchIndex == 2);
 	}
 }
 
