@@ -63,8 +63,13 @@ void UBTDecorator_TimeLimit::TickNode(UBehaviorTreeComponent& OwnerComp, uint8* 
 		DeltaSeconds,
 		TimeLimit);
 
+	// Mark this decorator instance as Elapsed for calls to CalculateRawConditionValue
 	reinterpret_cast<FBTimeLimitMemory*>(NodeMemory)->bElapsed = true;
 
+	// Set our next tick time to large value so we don't get ticked again in case the decorator
+	// is still active after requesting execution (e.g. latent abort)
+	SetNextTickTime(NodeMemory, FLT_MAX);
+	
 	OwnerComp.RequestExecution(this);
 }
 

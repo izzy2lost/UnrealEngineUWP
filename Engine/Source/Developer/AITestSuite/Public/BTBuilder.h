@@ -134,6 +134,15 @@ struct FBTBuilder
 		return *NodeOb;
 	}
 
+	template<class T>
+	static T& AddTask(UBTCompositeNode& ParentNode, UClass* TaskClass = T::StaticClass())
+	{
+		T* TaskNode = NewObject<T>(ParentNode.GetTreeAsset());
+		ParentNode.Children.Emplace_GetRef().ChildTask = TaskNode;
+
+		return *TaskNode;
+	}
+
 	static void AddTask(UBTCompositeNode& ParentNode, int32 LogIndex, EBTNodeResult::Type NodeResult, int32 ExecutionTicks = 0, int32 LogTickIndex = -1)
 	{
 		UTestBTTask_Log* TaskNode = NewObject<UTestBTTask_Log>(ParentNode.GetTreeAsset());
