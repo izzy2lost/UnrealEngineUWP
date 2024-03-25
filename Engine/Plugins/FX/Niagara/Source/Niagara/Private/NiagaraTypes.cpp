@@ -296,6 +296,7 @@ FNiagaraTypeDefinition FNiagaraTypeHelper::VectorDef;
 FNiagaraTypeDefinition FNiagaraTypeHelper::Vector4Def;
 FNiagaraTypeDefinition FNiagaraTypeHelper::QuatDef;
 FNiagaraTypeDefinition FNiagaraTypeHelper::DoubleDef;
+FString FNiagaraTypeHelper::ConvertedSWCStructSuffix = TEXT("_SWC");
 
 FRWLock FNiagaraTypeHelper::RemapTableLock;
 TMap<TWeakObjectPtr<UScriptStruct>, FNiagaraTypeHelper::FRemapEntry> FNiagaraTypeHelper::RemapTable;
@@ -469,7 +470,7 @@ FNiagaraLwcStructConverter BuildSWCStructure(UScriptStruct* NewStruct, UScriptSt
 	return StructConverter;
 }
 
-bool FNiagaraTypeHelper::IsLWCStructure(UStruct* InStruct)
+bool FNiagaraTypeHelper::IsLWCStructure(const UStruct* InStruct)
 {
 	for (const FField* ChildProperty = InStruct->ChildProperties; ChildProperty; ChildProperty = ChildProperty->Next)
 	{
@@ -484,6 +485,30 @@ bool FNiagaraTypeHelper::IsLWCStructure(UStruct* InStruct)
 				 (StructName == NAME_Vector3d) || (StructName == NAME_Vector) ||
 				 (StructName == NAME_Vector4d) || (StructName == NAME_Vector4) ||
 				 (StructName == NAME_Quat4d) || (StructName == NAME_Quat) )
+			{
+				return true;
+			}
+		}
+	}
+	return false;
+}
+
+bool FNiagaraTypeHelper::IsConvertedSWCStructure(const UStruct* InStruct)
+{
+	if (InStruct)
+	{
+		FNameBuilder StructName(InStruct->GetFName());
+		if (!StructName.ToView().EndsWith(ConvertedSWCStructSuffix))
+		{
+			return false;
+		}
+	}
+
+	{
+		FReadScopeLock ReadLock(RemapTableLock);
+		for (auto It = RemapTable.CreateConstIterator(); It; ++It)
+		{
+			if (It->Value.Struct.Get() == InStruct)
 			{
 				return true;
 			}
@@ -576,7 +601,7 @@ UScriptStruct* FNiagaraTypeHelper::GetSWCStruct(UScriptStruct* LWCStruct)
 				//More?
 				else
 				{
-					FName SWCName = FName(LWCStruct->GetName() + TEXT("_SWC"));
+					FName SWCName = FName(LWCStruct->GetName() + ConvertedSWCStructSuffix);
 
 					//check if the remap table contains a previous entry for that struct. This might happen when the lwc struct was changed at runtime.
 					// In that case we want to reuse the existing swc struct object, since it might already be referenced by compile results.

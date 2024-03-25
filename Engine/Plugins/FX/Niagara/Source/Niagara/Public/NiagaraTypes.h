@@ -416,7 +416,8 @@ class FNiagaraTypeHelper
 {
 public:
 	static NIAGARA_API FString ToString(const uint8* ValueData, const UObject* StructOrEnum);
-	static NIAGARA_API bool IsLWCStructure(UStruct* InStruct);
+	static NIAGARA_API bool IsLWCStructure(const UStruct* InStruct);
+	static NIAGARA_API bool IsConvertedSWCStructure(const UStruct* InStruct);
 	static NIAGARA_API bool IsLWCType(const FNiagaraTypeDefinition& InType);
 	static NIAGARA_API UScriptStruct* FindNiagaraFriendlyTopLevelStruct(UScriptStruct* InStruct, ENiagaraStructConversion StructConversion);
 	static NIAGARA_API bool IsNiagaraFriendlyTopLevelStruct(UScriptStruct* InStruct, ENiagaraStructConversion StructConversion);
@@ -468,6 +469,8 @@ private:
 	static FNiagaraTypeDefinition Vector4Def;
 	static FNiagaraTypeDefinition QuatDef;
 	static FNiagaraTypeDefinition DoubleDef;
+
+	static FString ConvertedSWCStructSuffix;
 };
 
 /** Information about how this type should be laid out in an FNiagaraDataSet */

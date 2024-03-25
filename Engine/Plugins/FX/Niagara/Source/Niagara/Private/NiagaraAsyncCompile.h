@@ -72,6 +72,7 @@ public:
 	bool bUsedShaderCompilerWorker = false;
 	bool bFetchedGCObjects = false;
 	bool bCompilableScript = false;
+	bool bResultsFromDDC = false;
 
 	// in order to coordinate between tasks associated with a system CheckDDC can be handled external to the task.
 	// In that case we disable this flag
