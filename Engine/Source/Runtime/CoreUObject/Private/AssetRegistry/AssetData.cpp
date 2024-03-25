@@ -7,6 +7,7 @@
 #include "Algo/Unique.h"
 #include "AssetRegistry/ARFilter.h"
 #include "Containers/Set.h"
+#include "Containers/VersePath.h"
 #include "HAL/CriticalSection.h"
 #include "HAL/PlatformMath.h"
 #include "Misc/AsciiSet.h"
@@ -443,6 +444,11 @@ bool FAssetData::IsTopLevelAsset(UObject* Object)
 		return false;
 	}
 	return Outer->IsA<UPackage>();
+}
+
+UE::Core::FVersePath FAssetData::GetVersePath() const
+{
+	return FPackageName::GetVersePath(GetSoftObjectPath());
 }
 
 UClass* FAssetData::GetClass(EResolveClass ResolveClass) const

@@ -7,17 +7,16 @@
 #include "UObject/UObjectBaseUtility.h"
 #include "UObject/Class.h"
 #include "UObject/Package.h"
+#include "UObject/SoftObjectPath.h"
 #include "UObject/UObjectHash.h"
 #include "Templates/Casts.h"
 #include "UObject/Interface.h"
+#include "Misc/PackageName.h"
 #include "Misc/StringBuilder.h"
 #include "Modules/ModuleManager.h"
 #include "HAL/IConsoleManager.h"
 #include "Misc/ConfigCacheIni.h"
 #include "Containers/VersePath.h"
-
-#include "Misc/PathViews.h"
-#include "Interfaces/IPluginManager.h"
 
 /***********************/
 /******** Names ********/
@@ -206,85 +205,7 @@ UPackage* UObjectBaseUtility::GetPackage() const
 
 UE::Core::FVersePath UObjectBaseUtility::GetVersePath() const
 {
-	UObject* ThisOuter = GetOuter();
-	const UObjectBaseUtility* Outermost = nullptr;
-	const UObjectBaseUtility* Src       = nullptr;
-	if (!ThisOuter)
-	{
-		Outermost = this;
-		Src       = this;
-	}
-	else
-	{
-		UObject* OuterOuter = ThisOuter->GetOuter();
-		if (!OuterOuter)
-		{
-			Outermost = ThisOuter;
-			Src       = this;
-		}
-	}
-
-	// We only handle vpaths at the level of the package and top level objects right now
-	if (!Outermost)
-	{
-		return {};
-	}
-
-	FString PackageName = Outermost->GetPathName();
-	const FStringView MountPointName = FPathViews::GetMountPointNameFromPath(PackageName);
-
-	// If the mount point is of an unexpected form, assume we can't create a vpath from it
-	if (!PackageName.StartsWith(TEXT("/") + FString(MountPointName)))
-	{
-		return {};
-	}
-
-	IPluginManager& PluginManager = IPluginManager::Get();
-
-	// If the object isn't mounted under a plugin, it doesn't have a vpath
-	TSharedPtr<IPlugin> Plugin = PluginManager.FindPlugin(MountPointName);
-	if (!Plugin)
-	{
-		return {};
-	}
-
-	// If the plugin doesn't have a root vpath, it's not a UEFN plugin
-	FString PluginVersePath = Plugin->GetVersePath();
-	if (PluginVersePath.IsEmpty())
-	{
-		return {};
-	}
-
-	FString VerseModule = FPaths::Combine(PluginVersePath, PackageName.RightChop(MountPointName.Len() + 1));
-
-	// If this is not the package, append the name of the object
-	if (this != Outermost)
-	{
-		VerseModule = FPaths::Combine(MoveTemp(VerseModule), Src->GetName());
-	}
-
-	// Hack to reject names containing "$" - currently used for non-user facing vobject names in Verse, e.g. $SolarisSignatureFunctionOuter
-	if (VerseModule.Contains("$"))
-	{
-		return {};
-	}
-
-	UE::Core::FVersePath Result;
-	if (!UE::Core::FVersePath::TryMake(Result, VerseModule))
-	{
-#if !NO_LOGGING
-		static thread_local TSet<FString> AlreadyLogged;
-
-		bool bAlreadyInSet = false;
-		AlreadyLogged.Add(VerseModule, &bAlreadyInSet);
-		if (!bAlreadyInSet)
-		{
-			UE_LOG(LogCore, Display, TEXT("Unable to make a VersePath for object '%s' with path '%s'"), *GetPathName(), *VerseModule);
-		}
-#endif
-	}
-
-	return Result;
+	return FPackageName::GetVersePath(FSoftObjectPath(static_cast<const UObject*>(this)));
 }
 
 /**
