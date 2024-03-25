@@ -8,11 +8,13 @@ using System.Net.Http;
 
 namespace EpicGames.Core.Telemetry
 {
+	/// <summary>
+	/// Static class to set http client defaults
+	/// </summary>
 	public static class HttpClientDefaults
 	{
 		/// <summary>
 		/// When services can be used, utilize this helper to get this policy that handles retries
-		/// ex. ServicesCollection.AddHttpClient<TelemetryService>().AddPolicyHandler(HttpClientDefaults.GetPolicy());
 		/// </summary>
 		/// <returns>The retry policy</returns>
 		public static Polly.Retry.AsyncRetryPolicy<HttpResponseMessage> GetRetryPolicy()
