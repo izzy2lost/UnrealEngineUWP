@@ -3742,7 +3742,11 @@ UE::Cook::EPollStatus UCookOnTheFlyServer::PrepareSave(UE::Cook::FPackageData& P
 	using namespace UE::Cook;
 
 	EPollStatus Result = EPollStatus::Incomplete;
-	if (PackageData.GetCookedPlatformDataComplete())
+	if (bSkipSave)
+	{
+		Result = EPollStatus::Success;
+	}
+	else if (PackageData.GetCookedPlatformDataComplete())
 	{
 		Result = EPollStatus::Success;
 	}
