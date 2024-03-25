@@ -177,10 +177,6 @@ private:
 	TSharedPtr<FMidiFileData> MidiFileData;
 	const FSongMaps* SongMaps;     // <-- This is a pointer to the actual midi song map data... allows for fast access
 
-	mutable FCriticalSection LowResCursorListLock;
-	mutable FCriticalSection HiResCursorListLock;
-	mutable bool TraversingHiResCursors  = false;
-	mutable bool TraversingLowResCursors = false;
 	float LengthMs;
 	int32 LengthTicks;
 	bool  DirectMappedTimeFollower;
