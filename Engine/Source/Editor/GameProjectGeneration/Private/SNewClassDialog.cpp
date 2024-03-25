@@ -271,6 +271,7 @@ void SNewClassDialog::Construct( const FArguments& InArgs )
 		BlueprintPathConfig.bAllowClassesFolder = false;
 		BlueprintPathConfig.bAllowReadOnlyFolders = false;
 		BlueprintPathConfig.OnPathSelected = FOnPathSelected::CreateSP(this, &SNewClassDialog::OnBlueprintPathSelected);
+		BlueprintPathConfig.bNotifyDefaultPathSelected = true;
 	}
 
 	OnAddedToProject = InArgs._OnAddedToProject;
@@ -1100,6 +1101,7 @@ void SNewClassDialog::OnClassPathTextChanged(const FText& NewText)
 
 void SNewClassDialog::OnBlueprintPathSelected(const FString& NewPath)
 {
+	IsBlueprintPathSelected = true;
 	NewClassPath = NewPath;
 	UpdateInputValidity();
 }
@@ -1121,7 +1123,7 @@ void SNewClassDialog::CancelClicked()
 
 bool SNewClassDialog::CanFinish() const
 {
-	return bLastInputValidityCheckSuccessful && ParentClassInfo.IsSet() && (ClassDomain == EClassDomain::Blueprint || FSourceCodeNavigation::IsCompilerAvailable());
+	return bLastInputValidityCheckSuccessful && ParentClassInfo.IsSet() && (ClassDomain == EClassDomain::Blueprint || FSourceCodeNavigation::IsCompilerAvailable()) && (ClassDomain != EClassDomain::Blueprint || IsBlueprintPathSelected);
 }
 
 void SNewClassDialog::FinishClicked()

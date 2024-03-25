@@ -382,6 +382,9 @@ struct FPathPickerConfig
 	/** Whether or not to show the favorites selector. */
 	bool bShowFavorites : 1;
 
+	/** Whether to call OnPathSelected during construction for DefaultPath if DefaultPath is allowed */
+	bool bNotifyDefaultPathSelected : 1;
+
 	FPathPickerConfig()
 		: bFocusSearchBoxWhenOpened(true)
 		, bAllowContextMenu(true)
@@ -390,6 +393,7 @@ struct FPathPickerConfig
 		, bAddDefaultPath(false)
 		, bOnPathSelectedPassesVirtualPaths(false)
 		, bShowFavorites(true)
+		, bNotifyDefaultPathSelected(false)
 	{}
 };
 
