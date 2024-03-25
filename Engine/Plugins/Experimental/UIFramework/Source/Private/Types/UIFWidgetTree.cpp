@@ -167,9 +167,6 @@ void FUIFrameworkWidgetTree::PostReplicatedChange(const TArrayView<int32>& Chang
 	}
 }
 
-void FUIFrameworkWidgetTree::PostReplicatedReceive(FPostReplicatedReceiveParameters Param)
-{}
-
 bool FUIFrameworkWidgetTree::ReplicateSubWidgets(UActorChannel* Channel, FOutBunch* Bunch, FReplicationFlags* RepFlags)
 {
 	bool bWroteSomething = false;
