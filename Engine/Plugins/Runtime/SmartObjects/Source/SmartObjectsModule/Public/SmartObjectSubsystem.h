@@ -1217,6 +1217,31 @@ protected:
 	void DestroyRuntimeInstanceInternal(const FSmartObjectHandle Handle, FSmartObjectRuntime& SmartObjectRuntime);
 
 	/**
+	 * Activate preconditions on the main object.
+	 * @param ContextData The context data to use for conditions evaluation
+	 * @param SmartObjectRuntime Runtime struct associated to the smart object
+	 * @return True if conditions are successfully activated; false otherwise
+	 */
+	bool ActivateObjectPreconditions(const FWorldConditionContextData& ContextData, const FSmartObjectRuntime& SmartObjectRuntime) const;
+
+	/**
+	 * Activate preconditions on the specified slot.
+	 * @param ContextData The context data to fill and use for conditions evaluation
+	 * @param Slot Runtime struct associated to the smart object slot
+	 * @param SlotHandle Handle to the smart object slot
+	 * @return True if all conditions are successfully activated; false otherwise
+	 */
+	bool ActivateSlotPreconditions(FWorldConditionContextData& ContextData, const FSmartObjectRuntimeSlot& Slot, FSmartObjectSlotHandle SlotHandle) const;
+
+	/**
+	 * Activate preconditions on the main object and all its slots.
+	 * Currently the conditions require an actor so this method will try to fetch it if it is currently dehydrated.
+	 * @param SmartObjectRuntime Runtime struct associated to the smart object
+	 * @return True if all conditions are successfully activated; false otherwise
+	 */
+	bool TryActivatePreconditions(const FSmartObjectRuntime& SmartObjectRuntime) const;
+
+	/**
 	 * Fills the provided context data with the smartobject actor and handle associated to 'SmartObjectRuntime' and the subsystem. 
 	 * @param ContextData The context data to fill
 	 * @param SmartObjectRuntime The runtime instance of the SmartObject for which the context must be filled 
