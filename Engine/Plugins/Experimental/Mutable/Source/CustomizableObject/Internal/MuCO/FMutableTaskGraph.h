@@ -47,14 +47,19 @@ public:
 	/** Create and launch a task on the Mutable Thread with Low priority. */
 	uint32 AddMutableThreadTaskLowPriority(const TCHAR* DebugName, TFunction<void()>&& TaskBody);
 
-	/** Cancel, if not already launched, a Mutable Thread with Low priority. */
-	void CancelMutableThreadTaskLowPriority(uint32 Id);
+	/** Cancel, if not already launched, a Mutable Thread with Low priority. 
+	  * Return true if the task has been canceled before launching it.
+	  * Return false if not found or running. */
+	bool CancelMutableThreadTaskLowPriority(uint32 Id);
 	
 	/** Create and launch a task on Any Thread. */
 	void AddAnyThreadTask(const TCHAR* DebugName, TUniqueFunction<void()>&& TaskBody) const;
 
 	/** Wait for all Mutable Thread tasks. */
 	void WaitForMutableTasks();
+
+	/** Wait for the launched low-priority task if it matches the TaskID. */
+	void WaitForLaunchedLowPriorityTask(uint32 TaskID);
 
 	/** Allow or disallow launching Mutable Tasks with Low priority.
 	 @param bFromMutableTask true if called from a Mutable Task. */
@@ -88,6 +93,9 @@ public:
 private:
 	/** Incremental task ID generator. */
 	uint32 TaskIdGenerator = INVALID_ID;
+
+	/** The ID of the Last Mutable Task Low Priority launched to the TaskGraph system. */
+	uint32 LastMutableTaskLowPriorityID = INVALID_ID;
 
 	/** Last Mutable Task Low Priority launched to the TaskGraph system. */
 	UE::Tasks::FTask LastMutableTaskLowPriority = {};
