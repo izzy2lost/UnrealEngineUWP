@@ -19,9 +19,9 @@
 
 struct FPropertyChangedEvent;
 
-namespace CVars
+namespace PhysicalMaterialCVars
 {
-	extern bool bPhysicalMaterial_ShowExperimentalProperties;
+	extern bool bShowExperimentalProperties;
 }
 
 
@@ -190,10 +190,10 @@ class UPhysicalMaterial : public UObject
 	// Experimental properties
 	//
 
-	/** Experimental material properties are enabled via the p.PhysicalMaterial_ShowExperimentalProperties console variable.
+	/** Experimental material properties are enabled via the p.PhysicalMaterial.ShowExperimentalProperties console variable.
 		NOTE: These are _experimental_ properties which may change. Use at your own risk! */
 	UPROPERTY(VisibleAnywhere, Transient, Category = "Experimental")
-	bool bShowExperimentalProperties = CVars::bPhysicalMaterial_ShowExperimentalProperties;
+	bool bShowExperimentalProperties = PhysicalMaterialCVars::bShowExperimentalProperties;
 
 	/** For enable soft collision shell thickness mode */
 	UPROPERTY(EditAnywhere, Category = "Experimental|Softness", meta = (EditCondition = "bShowExperimentalProperties"))

@@ -12,11 +12,11 @@
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(PhysicalMaterial)
 
-namespace CVars
+namespace PhysicalMaterialCVars
 {
-	bool bPhysicalMaterial_ShowExperimentalProperties = false;
+	bool bShowExperimentalProperties = false;
 
-	FAutoConsoleVariableRef CVarPhysicalMaterial_ShowExperimentalProperties(TEXT("p.PhysicalMaterial_ShowExperimentalProperties"), bPhysicalMaterial_ShowExperimentalProperties, TEXT(""));
+	FAutoConsoleVariableRef CVarShowExperimentalProperties(TEXT("p.PhysicalMaterial.ShowExperimentalProperties"), bShowExperimentalProperties, TEXT(""));
 }
 
 UDEPRECATED_PhysicalMaterialPropertyBase::UDEPRECATED_PhysicalMaterialPropertyBase(const FObjectInitializer& ObjectInitializer)
