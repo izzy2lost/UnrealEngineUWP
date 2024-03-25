@@ -4,6 +4,7 @@
 
 #include "ChaosVDPlaybackControllerInstigator.h"
 #include "ChaosVDPlaybackControllerObserver.h"
+#include "Styling/ISlateStyle.h"
 #include "Templates/SharedPointer.h"
 #include "Widgets/SCompoundWidget.h"
 
@@ -42,6 +43,8 @@ private:
 	void OnFrameSelectionUpdated(int32 NewFrameIndex);
 	void OnStepSelectionUpdated(int32 NewStepIndex);
 
+	virtual void RegisterNewController(TWeakPtr<FChaosVDPlaybackController> NewController) override;
+
 	virtual void HandlePlaybackControllerDataUpdated(TWeakPtr<FChaosVDPlaybackController> InController) override;
 	void UpdateStepsWidgetForFrame(const FChaosVDPlaybackController& InCurrentPlaybackController, int32 FrameNumber, int32 StepNumber, EChaosVDStepsWidgetUpdateFlags OptionsFlags = EChaosVDStepsWidgetUpdateFlags::Default);
 	virtual void HandleControllerTrackFrameUpdated(TWeakPtr<FChaosVDPlaybackController> InController, const FChaosVDTrackInfo* UpdatedTrackInfo, FGuid InstigatorGuid) override;
@@ -51,7 +54,15 @@ private:
 
 	void ConditionallyLockPlaybackControl(const TSharedRef<FChaosVDPlaybackController>& InControllerSharedRef);
 
+	void HandleSolverVisibilityChanged(int32 InSolverID, bool bNewVisibility);
+
+	FReply ToggleSolverVisibility() const;
+
+	const FSlateBrush* GetBrushForCurrentVisibility() const;
+
 	const FSlateBrush* GetFrameTypeBadgeBrush() const;
+
+	TSharedPtr<SWidget> CreateVisibilityWidget();
 
 	int32 SolverID = INDEX_NONE;
 	bool bIsReSimFrame = false;
@@ -59,4 +70,8 @@ private:
 	TSharedPtr<SChaosVDTimelineWidget> FramesTimelineWidget;
 	TSharedPtr<SChaosVDTimelineWidget> StepsTimelineWidget;
 	bool bStepsLocked = false;
+	bool bIsVisible = true;
+
+	const FSlateBrush* SolverVisibleIconBrush = nullptr;
+	const FSlateBrush* SolverHiddenIconBrush = nullptr;
 };

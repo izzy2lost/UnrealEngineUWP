@@ -232,6 +232,11 @@ void SChaosVDPlaybackViewport::OnPlaybackSceneUpdated()
 	PlaybackViewportClient->bNeedsRedraw = true;	
 }
 
+void SChaosVDPlaybackViewport::OnSolverVisibilityUpdated(int32 SolverID, bool bNewVisibility)
+{
+	PlaybackViewportClient->bNeedsRedraw = true;	
+}
+
 void SChaosVDPlaybackViewport::RegisterNewController(TWeakPtr<FChaosVDPlaybackController> NewController)
 {
 	if (PlaybackController != NewController)
@@ -241,6 +246,7 @@ void SChaosVDPlaybackViewport::RegisterNewController(TWeakPtr<FChaosVDPlaybackCo
 			if (TSharedPtr<FChaosVDScene> ScenePtr = CurrentPlaybackControllerPtr->GetControllerScene().Pin())
 			{
 				ScenePtr->OnSceneUpdated().RemoveAll(this);
+				ScenePtr->OnSolverVisibilityUpdated().RemoveAll(this);
 			}
 		}
 
@@ -251,6 +257,7 @@ void SChaosVDPlaybackViewport::RegisterNewController(TWeakPtr<FChaosVDPlaybackCo
 			if (TSharedPtr<FChaosVDScene> ScenePtr = NewPlaybackControllerPtr->GetControllerScene().Pin())
 			{
 				ScenePtr->OnSceneUpdated().AddRaw(this, &SChaosVDPlaybackViewport::OnPlaybackSceneUpdated);
+				ScenePtr->OnSolverVisibilityUpdated().AddRaw(this, &SChaosVDPlaybackViewport::OnSolverVisibilityUpdated);
 			}
 		}
 	}

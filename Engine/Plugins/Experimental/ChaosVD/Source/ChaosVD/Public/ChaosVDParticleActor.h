@@ -37,6 +37,18 @@ ENUM_CLASS_FLAGS(EChaosVDActorGeometryUpdateFlags)
 
 DECLARE_DELEGATE(FChaosVDParticleDataUpdatedDelegate)
 
+UENUM()
+enum class EChaosVDHideParticleFlags
+{
+	None = 0,
+	HiddenByVisualizationFlags = 1 << 0,
+	HiddenBySceneOutliner = 1 << 1,
+	HiddenByActiveState = 1 << 2,
+	HiddenBySolverVisibility = 1 << 3,
+	
+};
+ENUM_CLASS_FLAGS(EChaosVDHideParticleFlags)
+
 /** Actor used to represent a Chaos Particle in the Visual Debugger's world */
 UCLASS(HideCategories=(Transform))
 class AChaosVDParticleActor : public AActor, public IChaosVDParticleVisualizationDataProvider,
@@ -69,6 +81,17 @@ public:
 
 	/** Changes the active state of this CVD Particle Actor */
 	void SetIsActive(bool bNewActive);
+
+	void AddHiddenFlag(EChaosVDHideParticleFlags Flag);
+
+	void RemoveHiddenFlag(EChaosVDHideParticleFlags Flag);
+
+	EChaosVDHideParticleFlags GetHideFlags() const { return HideParticleFlags; }
+
+	bool IsVisible() const
+	{
+		return HideParticleFlags == EChaosVDHideParticleFlags::None;
+	}
 
 	/** Returns true if this particle actor is active - Inactive Particle actors are still in the world but with outdated data
 	 * and hidden from the viewport and outliner. They represent particles that were destroyed.
@@ -103,9 +126,6 @@ protected:
 	template<typename TTaskCallback>
 	void VisitGeometryInstances(const TTaskCallback& VisitorCallback);
 
-	UPROPERTY(EditAnywhere, Category = "Viewport Visualization Flags")
-	bool bShowDebugText = false;
-
 	TSharedPtr<FChaosVDParticleDataWrapper> ParticleDataPtr;
 
 	FTransform CachedSimulationTransform;
@@ -121,6 +141,8 @@ protected:
 	bool bIsActive = false;
 
 	bool bIsServer = false;
+
+	EChaosVDHideParticleFlags HideParticleFlags;
 
 	friend FChaosVDParticleActorCustomization;
 };

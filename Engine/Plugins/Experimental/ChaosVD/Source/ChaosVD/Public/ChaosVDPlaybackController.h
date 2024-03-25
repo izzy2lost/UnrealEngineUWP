@@ -238,6 +238,8 @@ public:
 	float GetFrameTimeOverride() const;
 	float GetFrameTimeForTrack(EChaosVDTrackType TrackType, int32 TrackID, const FChaosVDTrackInfo& TrackInfo) const;
 
+	void UpdateTrackVisibility(EChaosVDTrackType Type, int32 TrackID, bool bNewVisibility);
+
 protected:
 
 	/** Updates (or adds) solvers data from the loaded recording to the solver tracks */

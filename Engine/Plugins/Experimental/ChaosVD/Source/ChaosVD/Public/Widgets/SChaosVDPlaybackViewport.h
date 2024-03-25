@@ -52,6 +52,7 @@ protected:
 	virtual void HandlePostSelectionChange(const UTypedElementSelectionSet* ChangesSelectionSet) override;
 
 	void OnPlaybackSceneUpdated();
+	void OnSolverVisibilityUpdated(int32 SolverID, bool bNewVisibility);
 
 	void OnFrameSelectionUpdated(int32 NewFrameIndex) const;
 

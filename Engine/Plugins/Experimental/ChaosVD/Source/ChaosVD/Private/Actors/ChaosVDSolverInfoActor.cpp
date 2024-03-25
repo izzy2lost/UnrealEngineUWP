@@ -23,6 +23,12 @@ AChaosVDSolverInfoActor::AChaosVDSolverInfoActor(const FObjectInitializer& Objec
 	bIsServer = false;
 }
 
+void AChaosVDSolverInfoActor::SetSolverName(const FString& InSolverName)
+{
+	SolverName = InSolverName;
+	SetActorLabel(TEXT("Solver Data Container | ") + InSolverName);
+}
+
 void AChaosVDSolverInfoActor::SetScene(TWeakPtr<FChaosVDScene> InScene)
 {
 	FChaosVDSceneObjectBase::SetScene(InScene);
@@ -43,6 +49,11 @@ void AChaosVDSolverInfoActor::RegisterParticleActor(int32 ParticleID, AChaosVDPa
 	if (!SolverParticlesByID.Contains(ParticleID))
 	{
 		SolverParticlesByID.Add(ParticleID, ParticleActor);
+
+#if WITH_EDITOR
+		ApplySolverVisibilityToParticle(ParticleActor, IsTemporarilyHiddenInEditor());
+#endif
+
 	}
 
 	ParticleActor->SetFolderPath(GetFolderPathForParticleType(ParticleActor->GetParticleData()->Type));
@@ -131,6 +142,54 @@ void AChaosVDSolverInfoActor::RemoveSolverFolders(UWorld* World)
 		FActorFolders::Get().DeleteFolder(*World, ParentFolder.GetValue());
 	}
 }
+
+void AChaosVDSolverInfoActor::ApplySolverVisibilityToParticle(AChaosVDParticleActor* ParticleActor, bool bIsHidden)
+{
+	if (!ParticleActor)
+	{
+		return;
+	}
+
+	if (bIsHidden)
+	{
+		// Note: We should probably add a priority system for the hide requests
+		// For now just clear the HideBySceneOutliner flag when a hide by solver request is done as this has priority
+		ParticleActor->RemoveHiddenFlag(EChaosVDHideParticleFlags::HiddenBySceneOutliner);
+		ParticleActor->AddHiddenFlag(EChaosVDHideParticleFlags::HiddenBySolverVisibility);
+	}
+	else
+	{
+		ParticleActor->RemoveHiddenFlag(EChaosVDHideParticleFlags::HiddenBySolverVisibility);
+	}
+}
+
+#if WITH_EDITOR
+void AChaosVDSolverInfoActor::SetIsTemporarilyHiddenInEditor(bool bIsHidden)
+{
+	if (IsTemporarilyHiddenInEditor() != bIsHidden)
+	{
+		Super::SetIsTemporarilyHiddenInEditor(bIsHidden);
+
+		constexpr float AmountOfWork = 1.0f;
+		const float PercentagePerElement = 1.0f / SolverParticlesByID.Num();
+
+		FScopedSlowTask VisibilityUpdateProgress(AmountOfWork, LOCTEXT("UpdatingParticlesVisisibility", "Updating Particles Visibility ..."));
+		VisibilityUpdateProgress.MakeDialog();
+
+		for (const TPair<int32, AChaosVDParticleActor*>& ParticleVDInstanceWithID : SolverParticlesByID)
+		{
+			ApplySolverVisibilityToParticle(ParticleVDInstanceWithID.Value, bIsHidden);
+
+			VisibilityUpdateProgress.EnterProgressFrame(PercentagePerElement);
+		}
+
+		if (const TSharedPtr<FChaosVDScene> CVDScene = SceneWeakPtr.Pin())
+		{
+			CVDScene->OnSolverVisibilityUpdated().Broadcast(SolverID, !bIsHidden);
+		}
+	}
+}
+#endif
 
 void AChaosVDSolverInfoActor::Destroyed()
 {

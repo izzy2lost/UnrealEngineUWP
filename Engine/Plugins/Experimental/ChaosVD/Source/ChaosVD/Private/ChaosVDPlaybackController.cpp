@@ -8,6 +8,7 @@
 #include "ChaosVDRecording.h"
 #include "ChaosVDRuntimeModule.h"
 #include "ChaosVDScene.h"
+#include "Actors/ChaosVDSolverInfoActor.h"
 #include "Trace/ChaosVDTraceManager.h"
 #include "Trace/ChaosVDTraceProvider.h"
 #include "TraceServices/Model/AnalysisSession.h"
@@ -734,6 +735,28 @@ float FChaosVDPlaybackController::GetFrameTimeForTrack(EChaosVDTrackType TrackTy
 	}
 
 	return CurrentTargetFrameTime;
+}
+
+void FChaosVDPlaybackController::UpdateTrackVisibility(EChaosVDTrackType Type, int32 TrackID, bool bNewVisibility)
+{
+	switch (Type)
+	{
+		case EChaosVDTrackType::Solver:
+			{
+				if (const TSharedPtr<FChaosVDScene> ScenePtr = SceneToControl.Pin())
+				{
+					if (AChaosVDSolverInfoActor* SolverActorInfo = ScenePtr->GetSolverInfoActor(TrackID))
+					{
+						SolverActorInfo->SetIsTemporarilyHiddenInEditor(!bNewVisibility);
+					}
+				}
+				break;
+			}
+		case EChaosVDTrackType::Game:
+		default:
+			ensure(false);
+			break;
+	}
 }
 
 void FChaosVDPlaybackController::UpdateSolverTracksData()

@@ -332,17 +332,17 @@ bool AChaosVDParticleActor::IsSelectedInEditor() const
 	return false;
 }
 
-#if WITH_EDITOR
 void AChaosVDParticleActor::SetIsTemporarilyHiddenInEditor(bool bIsHidden)
 {
-	Super::SetIsTemporarilyHiddenInEditor(bIsHidden);
-
-	VisitGeometryInstances([this, bIsHidden](const TSharedRef<FChaosVDMeshDataInstanceHandle>& MeshDataHandle)
+	if (bIsHidden)
 	{
-		FChaosVDGeometryComponentUtils::UpdateMeshVisibility(MeshDataHandle, ParticleDataPtr ? *ParticleDataPtr.Get() : FChaosVDParticleDataWrapper(), IsActive() && !bIsHidden);
-	});
+		AddHiddenFlag(EChaosVDHideParticleFlags::HiddenBySceneOutliner);
+	}
+	else
+	{
+		RemoveHiddenFlag(EChaosVDHideParticleFlags::HiddenBySceneOutliner);
+	}
 }
-#endif //WITH_EDITOR
 
 FBox AChaosVDParticleActor::GetComponentsBoundingBox(bool bNonColliding, bool bIncludeFromChildActors) const
 {
@@ -457,7 +457,7 @@ void AChaosVDParticleActor::UpdateGeometryComponentsVisibility()
 	{
 		if (ParticleDataPtr)
 		{
-			FChaosVDGeometryComponentUtils::UpdateMeshVisibility(MeshDataHandle, *ParticleDataPtr.Get(), IsActive());
+			FChaosVDGeometryComponentUtils::UpdateMeshVisibility(MeshDataHandle, *ParticleDataPtr.Get(), IsVisible());
 		}
 	});
 }
@@ -485,6 +485,15 @@ void AChaosVDParticleActor::SetIsActive(bool bNewActive)
 		bEditable = bNewActive;
 		bListedInSceneOutliner = bNewActive;
 
+		if (bNewActive)
+		{
+			RemoveHiddenFlag(EChaosVDHideParticleFlags::HiddenByActiveState);
+		}
+		else
+		{
+			AddHiddenFlag(EChaosVDHideParticleFlags::HiddenByActiveState);
+		}
+
 		UpdateGeometryComponentsVisibility();
 
 #endif
@@ -494,6 +503,26 @@ void AChaosVDParticleActor::SetIsActive(bool bNewActive)
 			ScenePtr->OnActorActiveStateChanged().Broadcast(this);
 		}
 	}
+}
+
+void AChaosVDParticleActor::AddHiddenFlag(EChaosVDHideParticleFlags Flag)
+{
+	EnumAddFlags(HideParticleFlags, Flag);
+
+	VisitGeometryInstances([this](const TSharedRef<FChaosVDMeshDataInstanceHandle>& MeshDataHandle)
+	{
+		FChaosVDGeometryComponentUtils::UpdateMeshVisibility(MeshDataHandle, ParticleDataPtr ? *ParticleDataPtr.Get() : FChaosVDParticleDataWrapper(), IsVisible());
+	});
+}
+
+void AChaosVDParticleActor::RemoveHiddenFlag(EChaosVDHideParticleFlags Flag)
+{
+	EnumRemoveFlags(HideParticleFlags, Flag);
+
+	VisitGeometryInstances([this](const TSharedRef<FChaosVDMeshDataInstanceHandle>& MeshDataHandle)
+	{
+		FChaosVDGeometryComponentUtils::UpdateMeshVisibility(MeshDataHandle, ParticleDataPtr ? *ParticleDataPtr.Get() : FChaosVDParticleDataWrapper(), IsVisible());
+	});
 }
 
 #endif //WITH_EDITOR
