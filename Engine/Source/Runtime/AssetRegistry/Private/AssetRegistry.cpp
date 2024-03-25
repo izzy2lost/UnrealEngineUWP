@@ -1904,6 +1904,8 @@ void FAssetRegistryImpl::SearchAllAssets(Impl::FEventContext& EventContext,
 		return;
 	}
 
+	EventContext.bScanStartedEventBroadcast = true;
+
 	FAssetDataGatherer& Gatherer = *GlobalGatherer;
 	if (!Gatherer.IsAsyncEnabled())
 	{
@@ -4884,6 +4886,7 @@ void FAssetRegistryImpl::OnInitialSearchCompleted(Impl::FEventContext& EventCont
 	GlobalGatherer->OnInitialSearchCompleted();
 
 	EventContext.bFileLoadedEventBroadcast = true;
+	EventContext.bScanEndedEventBroadcast = true;
 }
 
 void FAssetRegistryImpl::LogSearchDiagnostics(double StartTime)
@@ -8664,6 +8667,20 @@ void UAssetRegistryImpl::Broadcast(UE::AssetRegistry::Impl::FEventContext& Event
 		FileLoadedEvent.Broadcast();
 		EventContext.bFileLoadedEventBroadcast = false;
 	}
+
+	if (EventContext.bScanStartedEventBroadcast)
+	{
+		// Raise event when the scan is started
+		ScanStartedEvent.Broadcast();
+		EventContext.bScanStartedEventBroadcast = false;
+	}
+
+	if (EventContext.bScanEndedEventBroadcast)
+	{
+		// Raise event when the scan is ended
+		ScanEndedEvent.Broadcast();
+		EventContext.bScanEndedEventBroadcast = false;
+	}
 }
 
 
@@ -8765,6 +8782,16 @@ UAssetRegistryImpl::FFilesLoadedEvent& UAssetRegistryImpl::OnFilesLoaded()
 UAssetRegistryImpl::FFileLoadProgressUpdatedEvent& UAssetRegistryImpl::OnFileLoadProgressUpdated()
 {
 	return FileLoadProgressUpdatedEvent;
+}
+
+UAssetRegistryImpl::FScanStartedEvent& UAssetRegistryImpl::OnScanStarted()
+{
+	return ScanStartedEvent;
+}
+
+UAssetRegistryImpl::FScanEndedEvent& UAssetRegistryImpl::OnScanEnded()
+{
+	return ScanEndedEvent;
 }
 
 namespace UE::AssetRegistry

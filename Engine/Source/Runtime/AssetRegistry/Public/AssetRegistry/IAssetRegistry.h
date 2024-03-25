@@ -767,6 +767,12 @@ public:
 	DECLARE_TS_MULTICAST_DELEGATE( FFilesLoadedEvent );
 	virtual FFilesLoadedEvent& OnFilesLoaded() = 0;
 
+	DECLARE_TS_MULTICAST_DELEGATE(FScanStartedEvent);
+	virtual FScanStartedEvent& OnScanStarted() = 0;
+
+	DECLARE_TS_MULTICAST_DELEGATE(FScanEndedEvent);
+	virtual FScanEndedEvent& OnScanEnded() = 0;
+
 	/** Payload data for a file progress update */
 	struct FFileLoadProgressUpdateData
 	{

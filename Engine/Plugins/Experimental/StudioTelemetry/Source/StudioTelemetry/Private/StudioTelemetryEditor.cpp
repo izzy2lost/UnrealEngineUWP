@@ -453,27 +453,6 @@ void FStudioTelemetryEditor::HeartbeatCallback()
 		HitchSampleCount = 0;
 		HitchAvergageFPS = 0;
 	}
-
-	// Monitor Asset Registry Scan
-	FAssetRegistryModule& AssetRegistryModule = FModuleManager::LoadModuleChecked<FAssetRegistryModule>(TEXT("AssetRegistry"));
-	const bool IsScaningAssets = AssetRegistryModule.Get().IsLoadingAssets() || AssetRegistryModule.Get().IsSearchAllAssets();
-
-	if (IsScaningAssets == false && AssetRegistryScanSpan.IsValid() == true)
-	{
-		// End the span
-		TArray<FAnalyticsEventAttribute> Attributes;
-		Attributes.Emplace(TEXT("MapName"), EditorMapName);
-
-		FStudioTelemetry::Get().EndSpan(AssetRegistryScanSpan, Attributes);
-
-		// No longer need the span for now so reset it
-		AssetRegistryScanSpan.Reset();
-	}
-	else if (IsScaningAssets == true && AssetRegistryScanSpan.IsValid() == false)
-	{
-		// Start the span
-		AssetRegistryScanSpan = FStudioTelemetry::Get().StartSpan(AssetRegistryScanSpanName);
-	}
 }
 
 void FStudioTelemetryEditor::Initialize()
@@ -567,8 +546,66 @@ void FStudioTelemetryEditor::Initialize()
 			FStudioTelemetryEditor::RecordEvent_CoreSystems(TEXT("LoadMap"), EditorLoadMapSpan->GetAttributes());
 		});
 
+	// Install any plugin load/unload callbacks
+	FModuleManager::Get().OnModulesChanged().AddLambda([this](FName ModuleName, EModuleChangeReason ChangeReason)
+		{
+			switch ( ChangeReason )
+			{ 
+				default:
+				{
+					break;
+				}
+				
+				case EModuleChangeReason::ModuleLoaded:
+				{
+					TotalPluginCount++;
+
+					// Hook into Asset Registry Scan callbacks as as soon as it is loaded
+					if (ModuleName == TEXT("AssetRegistry"))
+					{
+						FAssetRegistryModule& AssetRegistryModule = FModuleManager::LoadModuleChecked<FAssetRegistryModule>(TEXT("AssetRegistry"));
+
+						AssetRegistryModule.Get().OnScanStarted().AddLambda([this]()
+							{
+								// End the existing span if it overlaps
+								if (AssetRegistryScanSpan.IsValid())
+								{
+									TArray<FAnalyticsEventAttribute> Attributes;
+									Attributes.Emplace(TEXT("MapName"), EditorMapName);
+									AssetRegistryScanSpan.Reset();
+								}
+
+								// Start the Asset Registry Scan span
+								AssetRegistryScanSpan = FStudioTelemetry::Get().StartSpan(AssetRegistryScanSpanName);
+							});
+
+						AssetRegistryModule.Get().OnScanEnded().AddLambda([this]()
+							{
+								// End the Asset Registry Scan span
+								TArray<FAnalyticsEventAttribute> Attributes;
+								Attributes.Emplace(TEXT("MapName"), EditorMapName);
+								FStudioTelemetry::Get().EndSpan(AssetRegistryScanSpan, Attributes);
+								AssetRegistryScanSpan.Reset();
+							});
+					}
+
+					break;
+				}
+		
+				case EModuleChangeReason::ModuleUnloaded:
+				{
+					TotalPluginCount--;
+					break;
+				}	
+			}
+		});
+
 	FEditorDelegates::OnEditorBoot.AddLambda([this](double)
 		{	
+			TArray<FAnalyticsEventAttribute> Attributes;
+			Attributes.Emplace(TEXT("PluginCount"), TotalPluginCount);
+			EditorBootSpan->AddAttributes(Attributes);
+
 			FStudioTelemetry::Get().EndSpan(EditorBootSpan);
 
 			// Callback is received when the editor has booted but has not been initialized
@@ -585,7 +622,8 @@ void FStudioTelemetryEditor::Initialize()
 			// Editor has initialized
 			TArray<FAnalyticsEventAttribute> Attributes;
 			Attributes.Emplace(TEXT("MapName"), EditorMapName);
-			
+			Attributes.Emplace(TEXT("PluginCount"), TotalPluginCount);
+
 			// Editor has finished initializing so start the Editor Interact span
 			FStudioTelemetry::Get().EndSpan(EditorInitilizeSpan);
 			EditorInteractSpan = FStudioTelemetry::Get().StartSpan(EditorInteractSpanName, EditorSpan);

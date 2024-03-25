@@ -16,6 +16,7 @@
 #include "Editor.h"
 #include "ToolMenus.h"
 #include "Editor/EditorPerformanceSettings.h"
+#include "AssetRegistry/AssetRegistryModule.h"
 #include "DerivedDataCacheUsageStats.h"
 #include "Trace/Trace.h"
 #include "StudioTelemetry.h"
@@ -35,6 +36,7 @@ const FName EditorBootKPIName = TEXT("Boot");
 const FName EditorInitializeKPIName = TEXT("Initialize");
 const FName EditorLoadMapKPIName = TEXT("Load Map");
 const FName EditorHitchrateKPIName = TEXT("Hitch Rate");
+const FName EditorAssetRegistryScanKPIName = TEXT("Asset Registry Scan");
 const FName TotalTimeToEditorKPIName = TEXT("Total Time To Editor");
 const FName TotalTimeToPIEKPIName = TEXT("Total Time To PIE");
 const FName PIEFirstTransitionKPIName = TEXT("First Transition");
@@ -53,6 +55,7 @@ float EditorBootKPILimit = 100;
 float EditorInitializeKPILimit = 160;
 float EditorLoadMapKPILimit = 120;
 float EditorHitchrateKPILimit = 25;
+float EditorAssetRegistryScanKPILimit = 60;
 float TotalTimeToEditorKPILimit = 160;
 float PIEFirstTransitionKPILimit = 220;
 float PIETransitionKPILimit = 40;
@@ -190,6 +193,7 @@ void FEditorPerformanceModule::InitializeKPIs()
 	EditorBootKPI			= KPIRegistry.DeclareKPIValue(EditorCategoryName, EditorBootKPIName, 0.0, EditorBootKPILimit, FKPIValue::LessThan, FKPIValue::Minutes);
 	EditorInitializeKPI		= //KPIRegistry.DeclareKPIValue(EditorCategoryName, EditorInitializeKPIName, 0.0, EditorInitializeKPILimit, FKPIValue::LessThan, FKPIValue::Minutes);
 	EditorLoadMapKPI		= KPIRegistry.DeclareKPIValue(EditorCategoryName, EditorLoadMapKPIName, 0.0, EditorLoadMapKPILimit, FKPIValue::LessThan, FKPIValue::Minutes);
+	AssetRegistryScanKPI	= KPIRegistry.DeclareKPIValue(EditorCategoryName, EditorAssetRegistryScanKPIName, 0.0, EditorAssetRegistryScanKPILimit, FKPIValue::LessThan, FKPIValue::Minutes);
 	TotalTimeToEditorKPI	= KPIRegistry.DeclareKPIValue(EditorCategoryName, TotalTimeToEditorKPIName, 0.0, TotalTimeToEditorKPILimit, FKPIValue::LessThan, FKPIValue::Minutes);
 	PIEFirstTransitionKPI	= KPIRegistry.DeclareKPIValue(PIECategoryName, PIEFirstTransitionKPIName, 0.0, PIEFirstTransitionKPILimit, FKPIValue::LessThan, FKPIValue::Minutes);
 	PIETransitionKPI		= KPIRegistry.DeclareKPIValue(PIECategoryName, PIETransitionKPIName, 0.0, PIETransitionKPILimit, FKPIValue::LessThan, FKPIValue::Minutes);
@@ -232,6 +236,8 @@ void FEditorPerformanceModule::InitializeKPIs()
 	KPIRegistry.SetKPIValue(CoreCountKPI, float(FPlatformMisc::NumberOfCores()));
 	KPIRegistry.SetKPIValue(TotalMemoryKPI, static_cast<float>(FPlatformMemory::GetStats().TotalPhysical) / (1024.0f * 1024.0f * 1024.0f));
 
+	EditorState = EEditorState::Editor_Boot;
+
 	// Register the delegates
 	FEditorDelegates::OnEditorBoot.AddLambda([this](double TimeToBootEditor )
 		{
@@ -256,13 +262,16 @@ void FEditorPerformanceModule::InitializeKPIs()
 	FEditorDelegates::OnMapLoad.AddLambda([this](const FString& MapName, FCanLoadMap& OutCanLoadMap)
 		{
 			LoadMapStartTime = FDateTime::UtcNow();
+			IsLoadingMap = true;
 		});
 
 	FEditorDelegates::OnMapOpened.AddLambda([this](const FString& MapName, bool Unused)
 		{
+			IsLoadingMap = false;
+
 			EditorMapName = FPaths::GetBaseFilename(MapName);
+	
 			EditorLoadMapTime = float((FDateTime::UtcNow() - LoadMapStartTime).GetTotalSeconds());
-			BootToPIETime += EditorLoadMapTime;
 			KPIRegistry.SetKPIValue(EditorLoadMapKPI, EditorLoadMapTime);
 	
 			// Apply any profile that matches the currently loaded map
@@ -281,21 +290,19 @@ void FEditorPerformanceModule::InitializeKPIs()
 	FEditorDelegates::StartPIE.AddLambda([this](bool)
 		{
 			PIEStartTime = FDateTime::UtcNow();
-			EditorState = EEditorState::PIE_Transtion;
+			EditorState = EEditorState::PIE_Startup;
 		});
 
 	FWorldDelegates::OnPIEReady.AddLambda([this](UGameInstance* GameInstance)
-		{
-			static bool IsFirstTimeToPIE = true;
-
+		{	
 			const float PIETransitionTime = float((FDateTime::UtcNow() - PIEStartTime).GetTotalSeconds());
 
 			if (IsFirstTimeToPIE)
 			{
-				BootToPIETime = EditorStartUpTime +  EditorLoadMapTime + PIETransitionTime;
+				BootToPIETime = EditorStartUpTime + EditorLoadMapTime + PIETransitionTime;
+				KPIRegistry.SetKPIValue(TotalTimeToPIEKPI, BootToPIETime);
 
 				KPIRegistry.SetKPIValue(PIEFirstTransitionKPI, PIETransitionTime);
-				KPIRegistry.SetKPIValue(TotalTimeToPIEKPI, BootToPIETime);
 			}
 			else
 			{
@@ -321,6 +328,47 @@ void FEditorPerformanceModule::InitializeKPIs()
 			
 			EditorState = EEditorState::Editor_Interact;
 			EditorHitchCount = 0;
+		});
+
+	FModuleManager::Get().OnModulesChanged().AddLambda([this](FName ModuleName, EModuleChangeReason ChangeReason)
+		{
+			switch ( ChangeReason )
+			{ 
+				default:
+				{
+					break;
+				}
+				
+				case EModuleChangeReason::ModuleLoaded:
+				{
+					TotalPluginCount++;
+
+					// Hook into Asset Registry Scan callbacks as as soon as it is loaded
+					if (ModuleName == TEXT("AssetRegistry"))
+					{
+						FAssetRegistryModule& AssetRegistryModule = FModuleManager::LoadModuleChecked<FAssetRegistryModule>(TEXT("AssetRegistry"));
+
+						AssetRegistryModule.Get().OnScanStarted().AddLambda([this]()
+							{
+								AssetRegistryScanStartTime = FDateTime::UtcNow();
+							});
+
+						AssetRegistryModule.Get().OnScanEnded().AddLambda([this]()
+							{
+								const float AssetRegistryScanTime = float((FDateTime::UtcNow() - AssetRegistryScanStartTime).GetTotalSeconds());
+								KPIRegistry.SetKPIValue(AssetRegistryScanKPI, AssetRegistryScanTime);
+							});
+					}
+
+					break;
+				}
+		
+				case EModuleChangeReason::ModuleUnloaded:
+				{
+					TotalPluginCount--;
+					break;
+				}	
+			}
 		});
 }
 
@@ -441,6 +489,17 @@ void FEditorPerformanceModule::UpdateKPIs(float InDeltaTime)
 		}
 	}
 
+	if (EditorState == EEditorState::PIE_Startup)
+	{
+		const float PIETransitionTime = float((FDateTime::UtcNow() - PIEStartTime).GetTotalSeconds());
+		KPIRegistry.SetKPIValue(IsFirstTimeToPIE? PIEFirstTransitionKPI : PIETransitionKPI, PIETransitionTime);
+	}
+
+	if (IsLoadingMap == true)
+	{
+		EditorLoadMapTime = float((FDateTime::UtcNow() - LoadMapStartTime).GetTotalSeconds());
+		KPIRegistry.SetKPIValue(EditorLoadMapKPI, EditorLoadMapTime);
+	}
 }
 
 bool FEditorPerformanceModule::IsHotLocalCacheCase() const

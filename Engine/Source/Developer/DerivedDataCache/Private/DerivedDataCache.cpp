@@ -106,8 +106,7 @@ namespace UE::DerivedData::CookStats
 				LocalGetMisses += UsageStats.GetStats.GetAccumulatedValueAnyThread(FCookStats::CallStats::EHitOrMiss::Miss, FCookStats::CallStats::EStatType::Counter);
 				LocalSpeedStats = (*LocalNode)->SpeedStats;
 			}
-			const int64 LocalGetTotal = LocalGetHits + LocalGetMisses;
-
+			
 			int64 ZenLocalGetHits = 0;
 			int64 ZenLocalGetMisses = 0;
 			FDerivedDataCacheSpeedStats ZenLocalSpeedStats;
@@ -117,9 +116,15 @@ namespace UE::DerivedData::CookStats
 				ZenLocalGetHits += UsageStats.GetStats.GetAccumulatedValueAnyThread(FCookStats::CallStats::EHitOrMiss::Hit, FCookStats::CallStats::EStatType::Counter);
 				ZenLocalGetMisses += UsageStats.GetStats.GetAccumulatedValueAnyThread(FCookStats::CallStats::EHitOrMiss::Miss, FCookStats::CallStats::EStatType::Counter);
 				ZenLocalSpeedStats = (*ZenLocalNode)->SpeedStats;
+
+				LocalGetHits = ZenLocalGetHits;
+				LocalGetMisses = ZenLocalGetMisses;
+				LocalSpeedStats = ZenLocalSpeedStats;
 			}			
-			const int64 ZenLocalGetTotal = ZenLocalGetHits + ZenLocalGetMisses;
-			
+
+			const int64 ZenLocalGetTotal = ZenLocalGetHits + ZenLocalGetMisses;	
+			const int64 LocalGetTotal = LocalGetHits + LocalGetMisses;
+
 			int64 SharedGetHits = 0;
 			int64 SharedGetMisses = 0;
 			FDerivedDataCacheSpeedStats SharedSpeedStats;

@@ -58,6 +58,7 @@ private:
 	const FName EditorInitilizeSpanName = TEXT("Editor.Initialize");
 	const FName EditorInteractSpanName = TEXT("Editor.Interact");
 	const FName EditorLoadMapSpanName = TEXT("Editor.LoadMap");
+	const FName AssetRegistryScanSpanName = TEXT("Editor.AssetRegistryScan");
 	const FName PIESpanName = TEXT("PIE");
 	const FName PIEStartupSpanName = TEXT("PIE.Startup");
 	const FName PIEPreBeginSpanName = TEXT("PIE.PreBegin");
@@ -67,7 +68,6 @@ private:
 	const FName CookingSpanName = TEXT("Cooking");
 	const FName HitchingSpanName = TEXT("Hitching");
 	const FName OpenAssetEditorSpan = TEXT("Open Asset Editor");
-	const FName AssetRegistryScanSpanName = TEXT("Asset Registry Scan");
 	const float HeartbeatIntervalSeconds = 1.0;
 	const float HitchSamplerIntervalSeconds = 0.1;
 	const float MinFPSForHitching = 5.0;
@@ -85,6 +85,7 @@ private:
 	double TimeToBootEditor;
 	double HitchAvergageFPS = 0;
 	uint32 HitchSampleCount = 0;
+	uint32 TotalPluginCount = 0;
 };
 
 #endif // WITH_EDITOR

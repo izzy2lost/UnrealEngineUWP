@@ -657,6 +657,8 @@ struct FEventContext
 	TArray<FString> RequiredLoads;
 	TArray<FString> BlockedFiles;
 	bool bFileLoadedEventBroadcast = false;
+	bool bScanStartedEventBroadcast = false;
+	bool bScanEndedEventBroadcast = false;
 
 	/** Remove all stored events */
 	void Clear();

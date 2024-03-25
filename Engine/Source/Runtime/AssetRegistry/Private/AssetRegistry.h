@@ -130,6 +130,12 @@ public:
 	DECLARE_DERIVED_EVENT( UAssetRegistryImpl, IAssetRegistry::FPathRemovedEvent, FPathRemovedEvent);
 	virtual FPathRemovedEvent& OnPathRemoved() override;
 
+	DECLARE_DERIVED_EVENT(UAssetRegistryImpl, IAssetRegistry::FScanStartedEvent, FScanStartedEvent);
+	virtual FScanStartedEvent& OnScanStarted() override;
+
+	DECLARE_DERIVED_EVENT(UAssetRegistryImpl, IAssetRegistry::FScanEndedEvent, FScanEndedEvent);
+	virtual FScanEndedEvent& OnScanEnded() override;
+
 	virtual void AssetCreated(UObject* NewAsset) override;
 	virtual void AssetDeleted(UObject* DeletedAsset) override;
 	virtual void AssetRenamed(const UObject* RenamedAsset, const FString& OldObjectPath) override;
@@ -384,6 +390,12 @@ private:
 
 	/** The delegate to execute while loading files to update progress */
 	FFileLoadProgressUpdatedEvent FileLoadProgressUpdatedEvent;
+
+	/** The delegate to execute scanning has begun */
+	FScanStartedEvent ScanStartedEvent;
+
+	/** The delegate to execute scanning has ended */
+	FScanEndedEvent ScanEndedEvent;
 
 	UE::AssetRegistry::Impl::FEventContext DeferredEvents;
 

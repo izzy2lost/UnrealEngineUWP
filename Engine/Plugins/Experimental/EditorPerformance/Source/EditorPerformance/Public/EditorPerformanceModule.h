@@ -28,7 +28,7 @@ public:
 		Editor_Boot,
 		Editor_Initialize,
 		Editor_Interact,
-		PIE_Transtion,
+		PIE_Startup,
 		PIE_Interact,
 		PIE_Shutdown,
 	};
@@ -76,6 +76,9 @@ private:
 	FDateTime						LoadMapStartTime;
 	FDateTime						PIEStartTime;
 	FDateTime						PIEEndTime;
+	FDateTime						AssetRegistryScanStartTime;
+	bool							IsFirstTimeToPIE = true;
+	bool							IsLoadingMap = false;
 	EEditorState					EditorState = EEditorState::Editor_Boot;
 	float							BootToPIETime=0;
 	float							EditorBootTime = 0;
@@ -89,11 +92,13 @@ private:
 	uint32							HitchSampleCount = 0;
 	uint32							EditorHitchCount = 0;
 	uint32							PIEHitchCount = 0;
+	uint32							TotalPluginCount = 0;
 
 	FGuid							EditorBootKPI;
 	FGuid							EditorInitializeKPI;
 	FGuid							EditorLoadMapKPI;
 	FGuid							EditorHitchrateKPI;
+	FGuid							AssetRegistryScanKPI;
 	FGuid							TotalTimeToEditorKPI;
 	FGuid							TotalTimeToPIEKPI;
 	FGuid							PIEFirstTransitionKPI;
