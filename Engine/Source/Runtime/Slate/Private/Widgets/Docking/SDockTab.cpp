@@ -982,10 +982,21 @@ TOptional<FVector2D> SDockTab::GetTabIconSize() const
 
 bool SDockTab::CanCloseTab() const
 {
-	TSharedPtr<FTabManager> Manager = MyTabManager.Pin();
-	const bool bIsTabCloseable = Manager == nullptr || Manager->IsTabCloseable(SharedThis(this));
-	const bool bCanCloseTab = !OnCanCloseTab.IsBound() || OnCanCloseTab.Execute();
-	return bIsTabCloseable && bCanCloseTab;
+	// Check the below conditions separately and early out to prevent the OnCanCloseTab delegate
+	// from being called if we already know we cannot close the tab.
+
+	if (TSharedPtr<FTabManager> Manager = MyTabManager.Pin();
+		Manager && !Manager->IsTabCloseable(SharedThis(this)))
+	{
+		return false;
+	}
+	
+	if (OnCanCloseTab.IsBound() && !OnCanCloseTab.Execute())
+	{
+		return false;
+	}
+	
+	return true;
 }
 
 bool SDockTab::RequestCloseTab()
