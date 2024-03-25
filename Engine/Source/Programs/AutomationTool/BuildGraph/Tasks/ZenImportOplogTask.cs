@@ -1,16 +1,16 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-using AutomationTool;
-using EpicGames.BuildGraph;
+using EpicGames.Core;
+using EpicGames.ProjectStore;
+using Microsoft.Extensions.Logging;
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Text;
+using System.Text.Json;
+using System.Text.Json.Serialization;
 using System.Threading.Tasks;
 using System.Xml;
-using EpicGames.Core;
-using UnrealBuildTool;
-using Microsoft.Extensions.Logging;
-using EpicGames.Serialization;
 
 namespace AutomationTool.Tasks
 {
@@ -219,22 +219,23 @@ namespace AutomationTool.Tasks
 			{
 				DirectoryReference.CreateDirectory(PlatformCookedDirectory);
 			}
+			ProjectStoreData ProjectStore = new ProjectStoreData();
+			ProjectStore.ZenServer = new ZenServerStoreData
+			{
+				ProjectId = Parameters.ProjectName,
+				OplogId = Parameters.OplogName
+			};
+
+			JsonSerializerOptions SerializerOptions = new JsonSerializerOptions
+			{
+				AllowTrailingCommas = true,
+				ReadCommentHandling = JsonCommentHandling.Skip,
+				PropertyNameCaseInsensitive = true
+			};
+			SerializerOptions.Converters.Add(new JsonStringEnumConverter());
+
 			FileReference ProjectStoreFile = FileReference.Combine(PlatformCookedDirectory, "ue.projectstore");
-
-			CbWriter Writer = new CbWriter();
-			Writer.BeginObject();
-			Writer.BeginObject("zenserver");
-
-			Writer.WriteBool("islocalhost", true);
-			Writer.WriteString("hostname", "localhost");
-			Writer.WriteInteger("hostport", 8558);
-			Writer.WriteString("projectid", Parameters.ProjectName);
-			Writer.WriteString("oplogid", Parameters.OplogName);
-
-			Writer.EndObject();
-			Writer.EndObject();
-
-			FileReference.WriteAllBytes(ProjectStoreFile, Writer.ToByteArray());
+			File.WriteAllText(ProjectStoreFile.FullName, JsonSerializer.Serialize(ProjectStore, SerializerOptions), new UTF8Encoding(encoderShouldEmitUTF8Identifier: false));
 		}
 
 		private void ImportFromCloud(FileReference ZenExe)

@@ -14,6 +14,7 @@ using System.Threading.Tasks;
 using System.Xml;
 using EpicGames.Core;
 using EpicGames.Serialization;
+using EpicGames.ProjectStore;
 
 namespace AutomationTool.Tasks
 {
@@ -392,22 +393,15 @@ namespace AutomationTool.Tasks
 				}
 
 				FileReference ProjectStoreFile = FileReference.Combine(PlatformCookedDirectory, "ue.projectstore");
-				if (!FileReference.Exists(ProjectStoreFile))
-				{
-					continue;
-				}
-				
-				byte[] ProjectStoreData = File.ReadAllBytes(ProjectStoreFile.FullName);
-				CbObject ProjectStoreObject = new CbField(ProjectStoreData).AsObject();
-				CbObject ZenServerObject = ProjectStoreObject["zenserver"].AsObject();
-				if (ZenServerObject != CbObject.Empty)
+				ProjectStoreData? ParsedProjectStore = null;
+				if (TryLoadJson(ProjectStoreFile, out ParsedProjectStore) && (ParsedProjectStore != null) && (ParsedProjectStore.ZenServer != null))
 				{
 					ExportSourceData NewExportSource = new ExportSourceData();
-					NewExportSource.IsLocalHost = ZenServerObject["islocalhost"].AsBool();
-					NewExportSource.HostName = ZenServerObject["hostname"].AsString("localhost");
-					NewExportSource.HostPort = ZenServerObject["hostport"].AsInt16(8558);
-					NewExportSource.ProjectId = ZenServerObject["projectid"].AsString();
-					NewExportSource.OplogId = ZenServerObject["oplogid"].AsString();
+					NewExportSource.IsLocalHost = ParsedProjectStore.ZenServer.IsLocalHost;
+					NewExportSource.HostName = ParsedProjectStore.ZenServer.HostName;
+					NewExportSource.HostPort = ParsedProjectStore.ZenServer.HostPort;
+					NewExportSource.ProjectId = ParsedProjectStore.ZenServer.ProjectId;
+					NewExportSource.OplogId = ParsedProjectStore.ZenServer.OplogId;
 					NewExportSource.TargetPlatform = Platform;
 					NewExportSource.SnapshotBaseDescriptor = null;
 
