@@ -272,10 +272,18 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "AI|Logic")
 	AIMODULE_API void AddCooldownTagDuration(FGameplayTag CooldownTag, float CooldownDuration, bool bAddToExistingDuration);
 
-	/** assign subtree to RunBehaviorDynamic task specified by tag */
+	/** assign subtree to RunBehaviorDynamic task specified by tag. */
 	UFUNCTION(BlueprintCallable, Category="AI|Logic")
 	AIMODULE_API virtual void SetDynamicSubtree(FGameplayTag InjectTag, UBehaviorTree* BehaviorAsset);
 
+	/** assign subtree to RunBehaviorDynamic task specified by tag. Optional Starting Node can be given if the location in the tree is known to avoid parsing the whole tree.  */
+	AIMODULE_API virtual void SetDynamicSubtree(FGameplayTag InjectTag, UBehaviorTree* BehaviorAsset, UBTCompositeNode* OptionalStartingNode);
+
+	/** Will call the given functor on each task node in the current instance stacks. */
+	AIMODULE_API void ForEachChildTask(TFunctionRef<void (UBTTaskNode&, const FBehaviorTreeInstance&, int32 InstanceIndex)> Functor);
+
+	/** Will call the given functor on each child node from the given start node. InstanceIndex can be found using FindInstanceContainingNode. */
+	AIMODULE_API void ForEachChildTask(UBTCompositeNode& StartNode, int32 InstanceIndex, TFunctionRef<void(UBTTaskNode&, const FBehaviorTreeInstance&, int32 InstanceIndex)> Functor);
 // Code for timing BT Search for FramePro
 #if !UE_BUILD_SHIPPING
 	static AIMODULE_API void EndFrame();
