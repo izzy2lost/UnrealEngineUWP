@@ -46,12 +46,12 @@ namespace UE::PixelStreaming
 		void UpdateFrameMetadataPrePacketization(IPixelCaptureOutputFrame& Frame);
 		void UpdateFrameMetadataPostPacketization(IPixelCaptureOutputFrame& Frame);
 		webrtc::VideoFrame WrapAdaptedFrame(const webrtc::VideoFrame& ExistingFrame, const IPixelCaptureOutputFrame& AdaptedLayer);
-
+		
 		FVideoEncoderFactorySingleLayer& Factory;
 		EPixelStreamingCodec Codec;
 
 		TUniquePtr<FVideoEncoderConfig> InitialVideoConfig;
-		TSharedPtr<FVideoEncoderHardware> HardwareEncoder;
+		TWeakPtr<FVideoEncoderHardware> HardwareEncoder;
 
 		// We store this so we can restore back to it if the user decides to use then stop using the PixelStreaming.Encoder.TargetBitrate CVar.
 		int32 WebRtcProposedTargetBitrate = 5000000;

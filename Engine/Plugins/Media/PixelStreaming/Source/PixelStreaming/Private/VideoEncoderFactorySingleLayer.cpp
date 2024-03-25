@@ -228,13 +228,15 @@ namespace UE::PixelStreaming
 		// Lock during deleting an encoder
 		FScopeLock Lock(&ActiveEncodersGuard);
 		ActiveEncoders.Remove(Encoder);
+
+		FreeUnusedEncoders();
 	}
 
 	void FVideoEncoderFactorySingleLayer::FreeUnusedEncoders()
 	{
 		// first clear unused encoders.
 		TArray<uint32> DeleteStreamIds;
-		HardwareEncoders.Apply([&DeleteStreamIds](uint32 EncoderStreamId, TSharedPtr<FVideoEncoderHardware> EncoderPtr) {
+		HardwareEncoders.Apply([&DeleteStreamIds](uint32 EncoderStreamId, TSharedPtr<FVideoEncoderHardware>& EncoderPtr) {
 			if (EncoderPtr.IsUnique())
 			{
 				DeleteStreamIds.Add(EncoderStreamId);
