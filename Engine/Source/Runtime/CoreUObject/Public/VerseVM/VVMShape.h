@@ -88,7 +88,7 @@ struct VShape : VCell
 
 	/// Create a new shape. Note that indices for offset-based fields will be discarded and the fields given re-ordered
 	/// indices as part of the new shape created.
-	static VShape* New(FAllocationContext Context, FieldsMap&& InFields);
+	COREUOBJECT_API static VShape* New(FAllocationContext Context, FieldsMap&& InFields);
 
 	const VEntry* GetField(FAllocationContext Context, const VUniqueString& Name) const;
 
