@@ -2003,6 +2003,8 @@ bool SPathView::IsTreeItemSelected(TSharedPtr<FTreeItem> TreeItem) const
 
 void SPathView::HandleItemDataUpdated(TArrayView<const FContentBrowserItemDataUpdate> InUpdatedItems)
 {
+	TRACE_CPUPROFILER_EVENT_SCOPE(SPathView::HandleItemDataUpdated);
+
 	if (InUpdatedItems.Num() == 0)
 	{
 		return;
