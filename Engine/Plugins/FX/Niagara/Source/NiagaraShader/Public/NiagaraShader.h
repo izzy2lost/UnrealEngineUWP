@@ -178,8 +178,7 @@ public:
 		SHADER_PARAMETER_SRV(Buffer<int>,							FreeIDList)
 		SHADER_PARAMETER_UAV(RWBuffer<int>,							RWIDToIndexTable)
 
-		SHADER_PARAMETER(FIntVector4,								SimulationStageIterationInfo)
-		SHADER_PARAMETER(float,										SimulationStageNormalizedIterationIndex)
+		SHADER_PARAMETER(FUintVector4,								SimulationStageIterationInfo)
 
 		SHADER_PARAMETER(FIntVector3,								ParticleIterationStateInfo)
 

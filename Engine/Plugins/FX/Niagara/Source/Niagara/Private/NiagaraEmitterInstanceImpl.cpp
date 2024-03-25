@@ -362,7 +362,7 @@ void FNiagaraEmitterInstanceImpl::Init(int32 InEmitterIndex)
 		if (EmitterData->SimTarget == ENiagaraSimTarget::GPUComputeSim)
 		{
 			GPUExecContext = new FNiagaraComputeExecutionContext();
-			GPUExecContext->InitParams(EmitterData->GetGPUComputeScript(), EmitterData->SimTarget);
+			GPUExecContext->InitParams(EmitterData->GetGPUComputeScript(), EmitterData->GetSimStageExcecutionData(), EmitterData->SimTarget);
 			GPUExecContext->SetDebugSimName(EmitterData->GetDebugSimName());
 			GPUExecContext->ProfilingComponentPtr = ParentSystemInstance ? ParentSystemInstance->GetAttachComponent() : nullptr;
 			GPUExecContext->ProfilingEmitterPtr = VersionedEmitter.ToWeakPtr();
