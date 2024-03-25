@@ -3,9 +3,7 @@
 #include "HarmonixDsp/FusionSampler/FusionSampler.h"
 #include "HarmonixDsp/FusionSampler/FusionVoicePool.h"
 
-#include "HarmonixDsp/AudioData.h"
 #include "HarmonixDsp/AudioDataRenderer.h"
-#include "HarmonixDsp/AudioData/StreamingAudioRenderer.h"
 #include "HarmonixDsp/AudioData/StreamingAudioRendererV2.h"
 #include "HarmonixDsp/AudioUtility.h"
 #include "HarmonixDsp/StretcherAndPitchShifter.h"
@@ -13,6 +11,8 @@
 #include "HarmonixDsp/FusionSampler/Settings/KeyzoneSettings.h"
 
 #include "HAL/IConsoleManager.h"
+
+#include "Sound/SoundWave.h"
 
 DEFINE_LOG_CATEGORY(LogFusionVoice);
 
@@ -23,14 +23,6 @@ namespace FusionVoice
 	static const float kInternalTrimGain = 1.0f; 
 	static const float kVsoAmount = 0.01f;
 	static const float kVsoThresholdMs = 5.0f;
-
-	bool bUseNewStreamingAudioRenderer = true;
-	FAutoConsoleVariableRef CVarMetaSoundProfileAllEnabled(
-		TEXT("au.fusion.usenewstreamingaudiorenderer"),
-		bUseNewStreamingAudioRenderer,
-		TEXT("Use the new StreamingAudioRenderer\n")
-		TEXT("False: Use the old one, True: Use the new one."),
-		ECVF_Default);
 }
 
 const double FFusionVoice::kMaxPitchOffsetCents = 12 * HarmonixDsp::kCentsPerOctave;
@@ -44,14 +36,9 @@ FFusionVoice::FFusionVoice()
 	, MaxAudioLevel(0.0f)
 	, VoicePool(nullptr)
 {
-	if (FusionVoice::bUseNewStreamingAudioRenderer)
-	{
-		ActiveRenderer = MakeShared<FStreamingAudioRendererV2>();
-	}
-	else
-	{
-		ActiveRenderer = MakeShared<FStreamingAudioRenderer>();
-	}
+
+	ActiveRenderer = MakeShared<FStreamingAudioRendererV2>();
+
 	// For now, set the sample rate to a reasonable default.
 	// Sample rate will be set properly when the voice is assigned
 	// to a sampler.
@@ -86,11 +73,7 @@ bool FFusionVoice::AssignIDs(FFusionSampler* InSampler, const FKeyzoneSettings* 
 {
 	check(InSampler);
 	check(InKeyZone);
-	check(InKeyZone->AudioSample);
-	if (InKeyZone->AudioSample->Failed())
-	{
-		return false;
-	}
+	check(InKeyZone->SoundWaveProxy);
 
 #if CPUPROFILERTRACE_ENABLED
 	const IConsoleVariable* ProfilingAllGraphsCheat = IConsoleManager::Get().FindConsoleVariable(TEXT("au.MetaSound.ProfileAllGraphs"));
@@ -128,19 +111,21 @@ bool FFusionVoice::AssignIDs(FFusionSampler* InSampler, const FKeyzoneSettings* 
 	// so in that case set NumInChannels to 0 here and we'll sort this
 	// out later...
 	// 0 because we need to configure to the output buffer we are asked to fill
-	int32 NumInChannels = InKeyZone->TrackMap.Num() == 0 ? KeyZone->AudioSample->GetNumChannels() : 0; 
 	
+	int32 NumInChannels = InKeyZone->TrackMap.Num() == 0 ? KeyZone->SoundWaveProxy->GetNumChannels() : 0; 
+	EAudioBufferChannelLayout ChannelLayout = HarmonixDsp::FAudioBuffer::GetDefaultChannelLayoutForChannelCount(NumInChannels);
+	ESpeakerMask::Type ChannelMask = HarmonixDsp::FAudioBuffer::GetChannelMaskForNumChannels(NumInChannels);
 	Panner.Setup(KeyZone->Pan,
 		NumInChannels,
 		MySampler->GetNumAudioOutputChannels(),
-		KeyZone->AudioSample->GetChannelLayout(),
-		KeyZone->AudioSample->GetChannelMask(),
+		ChannelLayout,
+		ChannelMask,
 		1.0f,
 		MySampler->GetGainTable());
 
 	// compare the audio file's sample rate to the output sample rate
 	// so we can make them match
-	double FileSamplesPerSecond = InKeyZone->AudioSample->GetSampleRate();
+	double FileSamplesPerSecond = InKeyZone->SoundWaveProxy->GetSampleRate();
 	FileToOutputSampleRatio = FileSamplesPerSecond * SecondsPerSample;
 
 	IAudioDataRenderer::FSettings Settings;
@@ -148,9 +133,9 @@ bool FFusionVoice::AssignIDs(FFusionSampler* InSampler, const FKeyzoneSettings* 
 	Settings.TrackChannelInfo = &InKeyZone->TrackMap;
 	Settings.Sampler = MySampler;
 	//TRACE_BOOKMARK(TEXT("Starting Waveform: %s"), *KeyZone->AudioSample->GetName().ToString());
-	ActiveRenderer->SetAudioData(InKeyZone->AudioSample.ToSharedRef(), Settings);
+	ActiveRenderer->SetAudioData(InKeyZone->SoundWaveProxy.ToSharedRef(), Settings);
 
-	OutputBuffer.SetNumValidChannels(InKeyZone->AudioSample->GetNumChannels());
+	OutputBuffer.SetNumValidChannels(InKeyZone->SoundWaveProxy->GetNumChannels());
 
 	VoiceID = InVoiceID;
 	bWaitingForAttack = true;
@@ -392,10 +377,11 @@ void FFusionVoice::AttackWithTargetNote(uint8 InMidiNoteNumber, float InGain, in
 	SamplePos = KeyzoneStartOffset + (OutputSampleOffset * FileToOutputSampleRatio);
 	StartPos = SamplePos;
 	EndOfSampleData = (KeyZone->SampleEndOffset == -1) ?
-		KeyZone->AudioSample->GetNumFrames() :
+		KeyZone->SoundWaveProxy->GetNumFrames() :
 		KeyZone->SampleEndOffset;
 
-	if (SamplePos > EndOfSampleData && !KeyZone->AudioSample->GetHasLoopSection())
+	bool HasLoopSection = KeyZone->SoundWaveProxy->GetLoopRegions().Num() > 0;
+	if (SamplePos > EndOfSampleData && !HasLoopSection)
 	{
 		Kill();
 		return;
@@ -676,7 +662,7 @@ uint32 FFusionVoice::Process(uint32 InSliceIndex, uint32 InSubsliceIndex, float*
 		return 0;
 	}
 
-	if (!KeyZone->AudioSample)
+	if (!KeyZone->SoundWaveProxy)
 	{
 		return 0;
 	}
@@ -765,7 +751,7 @@ uint32 FFusionVoice::Process(uint32 InSliceIndex, uint32 InSubsliceIndex, float*
 					currentSampleFrame -= KeyZone->SampleStartOffset;
 				}
 
-				float ActualElapsedMs = (currentSampleFrame * 1000.0f) / KeyZone->AudioSample->GetSampleRate();
+				float ActualElapsedMs = (currentSampleFrame * 1000.0f) / KeyZone->SoundWaveProxy->GetSampleRate();
 				float ErrorMs = ActualElapsedMs - ExpectedElapsedMs;
 
 				if (!bHasRenderedAnySamples)
@@ -775,11 +761,11 @@ uint32 FFusionVoice::Process(uint32 InSliceIndex, uint32 InSubsliceIndex, float*
 						UE_LOG(LogFusionVoice, Verbose, TEXT("Adjusting start time due to error of %f ms"), ErrorMs);
 					}
 
-					SamplePos = ExpectedElapsedMs / 1000.0f * (float)KeyZone->AudioSample->GetSampleRate();
+					SamplePos = ExpectedElapsedMs / 1000.0f * (float)KeyZone->SoundWaveProxy->GetSampleRate();
 					
 					if (SamplePos > 0.0)
 					{
-						UE_LOG(LogFusionVoice, Verbose, TEXT("SHAVING %f ms from the beginning of %s"), ErrorMs, *KeyZone->AudioSample->GetName().ToString());
+						UE_LOG(LogFusionVoice, Verbose, TEXT("SHAVING %f ms from the beginning of %s"), ErrorMs, *KeyZone->SoundWaveProxy->GetFName().ToString());
 					}
 
 					if (SamplePos < 0.0)
@@ -790,7 +776,7 @@ uint32 FFusionVoice::Process(uint32 InSliceIndex, uint32 InSubsliceIndex, float*
 					{
 						SamplePos += KeyZone->SampleStartOffset;
 					}
-					if (SamplePos > EndOfSampleData && !KeyZone->AudioSample->GetHasLoopSection())
+					if (SamplePos > EndOfSampleData && KeyZone->SoundWaveProxy->GetLoopRegions().IsEmpty())
 					{
 						Kill();
 						return 0;
@@ -802,7 +788,7 @@ uint32 FFusionVoice::Process(uint32 InSliceIndex, uint32 InSubsliceIndex, float*
 				{
 					if (ErrorMs > 20.0f)
 					{
-						UE_LOG(LogFusionVoice, Verbose, TEXT("Fixing %s offset -> %f\n"), *KeyZone->AudioSample->GetName().ToString(), ErrorMs);
+						UE_LOG(LogFusionVoice, Verbose, TEXT("Fixing %s offset -> %f\n"), *KeyZone->SoundWaveProxy->GetFName().ToString(), ErrorMs);
 					}
 					CurrentVso = -(FusionVoice::kVsoAmount * RenderSpeed);
 				}
@@ -810,7 +796,7 @@ uint32 FFusionVoice::Process(uint32 InSliceIndex, uint32 InSubsliceIndex, float*
 				{
 					if (ErrorMs < -20.0f)
 					{
-						UE_LOG(LogFusionVoice, Verbose, TEXT("Fixing %s offset -> %f\n"), *KeyZone->AudioSample->GetName().ToString(), ErrorMs);
+						UE_LOG(LogFusionVoice, Verbose, TEXT("Fixing %s offset -> %f\n"), *KeyZone->SoundWaveProxy->GetFName().ToString(), ErrorMs);
 					}
 					CurrentVso = FusionVoice::kVsoAmount * RenderSpeed;
 				}
@@ -842,7 +828,7 @@ uint32 FFusionVoice::Process(uint32 InSliceIndex, uint32 InSubsliceIndex, float*
 
 		// We probably have a trackmap, and this is the first render call,
 		// so we have to configure the panner for the output buffer setup...
-		int32 NumInChannels = KeyZone->AudioSample->GetNumChannels();
+		int32 NumInChannels = KeyZone->SoundWaveProxy->GetNumChannels();
 		if (NumInChannels != Panner.GetCurrentGainMatrix().GetNumInChannels())
 		{
 			Panner.Configure(NumInChannels, OutputBuffer);

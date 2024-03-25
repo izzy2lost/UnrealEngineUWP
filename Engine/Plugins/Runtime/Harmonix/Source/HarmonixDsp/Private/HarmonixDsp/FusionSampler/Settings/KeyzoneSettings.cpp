@@ -1,16 +1,22 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 #include "HarmonixDsp/FusionSampler/Settings/KeyzoneSettings.h"
 #include "HarmonixDsp/FusionSampler/SingletonFusionVoicePool.h"
-#include "HarmonixDsp/FusionSampler/FusionPatch.h"
 #include "HarmonixDsp/AudioUtility.h"
-#include "HarmonixDsp/AudioData.h"
-#include "HarmonixDsp/AudioData/StreamingAudioData.h"
 
+#include "AudioStreaming.h"
 #include "Sound/SoundWave.h"
 
 #include "HAL/PlatformTime.h"
 
 DEFINE_LOG_CATEGORY(LogKeyzoneSettings);
+
+FKeyzoneSettings::~FKeyzoneSettings()
+{
+	if (SoundWaveProxy && SoundWaveProxy->GetLoadingBehavior() == ESoundWaveLoadingBehavior::ForceInline)
+	{
+		IStreamingManager::Get().GetAudioStreamingManager().RemoveForceInlineSoundWave(SoundWaveProxy);
+	}
+}
 
 void FKeyzoneSettings::InitProxyData(const Audio::FProxyDataInitParams& InitParams)
 {
@@ -24,9 +30,20 @@ void FKeyzoneSettings::InitProxyData(const Audio::FProxyDataInitParams& InitPara
 		return;
 	}
 
-	AudioSample = CreateStreamingAudioData(InitParams);
-
-	check(AudioSample);
+	if (SoundWaveProxy && SoundWaveProxy->GetLoadingBehavior() == ESoundWaveLoadingBehavior::ForceInline)
+	{
+		// I don't think we'de ever hit this code, but let's just do this to be sure.
+		IStreamingManager::Get().GetAudioStreamingManager().RemoveForceInlineSoundWave(SoundWaveProxy);
+	}
+	
+	TSharedPtr<Audio::IProxyData> AudioProxy = SoundWave->CreateProxyData(InitParams);
+	SoundWaveProxy = StaticCastSharedPtr<FSoundWaveProxy>(AudioProxy);
+	check(SoundWaveProxy);
+		
+	if (SoundWaveProxy->GetLoadingBehavior() == ESoundWaveLoadingBehavior::ForceInline)
+	{
+		IStreamingManager::Get().GetAudioStreamingManager().AddForceInlineSoundWave(SoundWaveProxy);
+	}
 
 	// nulling out sound wave asset for this Keyzone
 	// now that we are turning into ProxyData
@@ -40,36 +57,6 @@ void FKeyzoneSettings::InitProxyData(const Audio::FProxyDataInitParams& InitPara
 	{
 		SingletonFusionVoicePool.Reset();
 	}
-}
-
-TSharedPtr<FStreamingAudioData, ESPMode::ThreadSafe> FKeyzoneSettings::CreateStreamingAudioData(const Audio::FProxyDataInitParams& InitParams) const
-{
-	TSharedPtr<FStreamingAudioData, ESPMode::ThreadSafe> StreamingAudioSample = StaticCastSharedPtr<FStreamingAudioData>(AudioSample);
-	if (StreamingAudioSample.IsValid())
-	{
-		return StreamingAudioSample;
-	}
-
-	if (!ensure(SoundWave))
-	{
-		UE_LOG(LogKeyzoneSettings, Error, TEXT("SoundWave asset is null in keyzone settings when making proxy data!!"));
-		return nullptr;
-	}
-
-	TSharedPtr<Audio::IProxyData, ESPMode::ThreadSafe> AudioProxy = SoundWave->CreateProxyData(InitParams);
-
-	FSoundWaveProxyPtr WaveProxy = StaticCastSharedPtr<FSoundWaveProxy>(AudioProxy);
-	if (!ensure(WaveProxy))
-	{
-		UE_LOG(LogKeyzoneSettings, Error, TEXT("Failed to make sound wave proxy data for SoundWave asset!!"));
-		return nullptr;
-	}
-
-	UE_LOG(LogKeyzoneSettings, Verbose, TEXT("Creating new shared AudioData"));
-
-	FStreamingAudioData::FSettings StreamingAudioSettings;
-	StreamingAudioSample = FStreamingAudioData::GetShared<FStreamingAudioData>(WaveProxy.ToSharedRef(), StreamingAudioSettings);
-	return StreamingAudioSample;
 }
 
 bool FKeyzoneSettings::ContainsNoteAndVelocity(uint8 InNote, uint8 InVelocity) const

@@ -11,14 +11,8 @@
 #include "DSP/MultichannelBuffer.h"
 #include "DSP/MultichannelLinearResampler.h"
 
-namespace HarmonixDsp
-{
-	class IAudioData;
-}
-
 class FSoundWaveProxy;
 class FSoundWaveProxyReader;
-class FStreamingAudioData;
 class FFusionSampler;
 class IStretcherAndPitchShifter;
 
@@ -34,10 +28,9 @@ public:
 	~FStreamingAudioRendererV2();
 
 	virtual void Reset() override;
-	virtual void SetAudioData(TSharedRef<HarmonixDsp::IAudioData, ESPMode::ThreadSafe> AudioData, const FSettings& InSettings) override;
-	void SetAudioData(TSharedRef<FStreamingAudioData, ESPMode::ThreadSafe> StreamingAudioData, const FSettings& InSettings);
-	virtual const TSharedPtr<HarmonixDsp::IAudioData, ESPMode::ThreadSafe> GetAudioData() const;
-
+	virtual void SetAudioData(TSharedRef<FSoundWaveProxy> SoundWaveProxy, const FSettings& InSettings) override;
+	virtual const TSharedPtr<FSoundWaveProxy> GetAudioData() const override;
+	
 	virtual void MigrateToSampler(const FFusionSampler* InSampler) override;
 
 	virtual void SetFrame(uint32 InFrameNum) override;
@@ -65,7 +58,11 @@ private:
 
 	uint32 GetSourceAudioFrameIndex();
 
-private:
+	static TUniquePtr<FSoundWaveProxyReader> CreateProxyReader(TSharedRef<FSoundWaveProxy> WaveProxy);
+
+	bool HasLoopSection() const;
+	uint32 GetLoopStartFrame() const;
+	uint32 GetLoopEndFrame() const;
 
 	const FFusionSampler* MySampler = nullptr;
 	const TArray<FTrackChannelInfo>* TrackChannelInfo = nullptr;
@@ -74,7 +71,7 @@ private:
 	// Ref to the actual streaming audio data
 	// this data is a shared instance of audio data
 	// it will get loaded on construction 
-	TSharedPtr<FStreamingAudioData, ESPMode::ThreadSafe> StreamingAudioData;
+	TSharedPtr<FSoundWaveProxy> SoundWaveProxy;
 
 	TUniquePtr<FSoundWaveProxyReader> WaveProxyReader;
 
@@ -90,6 +87,7 @@ private:
 	// needs to be small enough to avoid audio artifacts and syncing issues
 	// but also large enough that we're decoding multiple times per block
 	static constexpr int32 DeinterleaveBlockSizeInFrames = 256;
+	static constexpr uint32 MaxDecodeSizeInFrames = 1024;
 
 	int32 CalculateNumFramesNeeded(const FLerpData* LerpData, int32 NumPoints);
 };

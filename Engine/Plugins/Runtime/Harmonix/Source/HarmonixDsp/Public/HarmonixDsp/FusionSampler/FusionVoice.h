@@ -20,10 +20,6 @@
 
 DECLARE_LOG_CATEGORY_EXTERN(LogFusionVoice, Log, All);
 
-namespace HarmonixDsp
-{
-	class IAudioData;
-}
 class IAudioDataRenderer;
 class IStretcherAndPitchShifter;
 class FFusionSampler;
