@@ -148,154 +148,158 @@ void SSkeletonAnimNotifies::Construct(const FArguments& InArgs, const TSharedPtr
 
 	const bool bSingleType = (bShowNotifies ^ bShowSyncMarkers);
 
-	TSharedRef<SBasicFilterBar<EAnimNotifyFilterFlags>> FilterBar = SNew(SBasicFilterBar<EAnimNotifyFilterFlags>)
-	.CustomFilters(Filters)
-	.bPinAllFrontendFilters(true)
-	.UseSectionsForCategories(true)
-	.OnFilterChanged_Lambda([this]()
 	{
-		for(const TSharedRef<FFilterBase<EAnimNotifyFilterFlags>>& Filter : Filters)
+		TGuardValue<bool> SuspendRefreshFilter(bAllowRefreshFilter, false);
+		
+		TSharedRef<SBasicFilterBar<EAnimNotifyFilterFlags>> FilterBar = SNew(SBasicFilterBar<EAnimNotifyFilterFlags>)
+		.CustomFilters(Filters)
+		.bPinAllFrontendFilters(true)
+		.UseSectionsForCategories(true)
+		.OnFilterChanged_Lambda([this]()
 		{
-			TSharedRef<FSkeletonAnimNotifiesFilter> AnimNotifiesFilter = StaticCastSharedRef<FSkeletonAnimNotifiesFilter>(Filter);
-			if(AnimNotifiesFilter->IsActive())
+			for(const TSharedRef<FFilterBase<EAnimNotifyFilterFlags>>& Filter : Filters)
 			{
-				CurrentFilterFlags |= AnimNotifiesFilter->GetFlags();
+				TSharedRef<FSkeletonAnimNotifiesFilter> AnimNotifiesFilter = StaticCastSharedRef<FSkeletonAnimNotifiesFilter>(Filter);
+				if(AnimNotifiesFilter->IsActive())
+				{
+					CurrentFilterFlags |= AnimNotifiesFilter->GetFlags();
+				}
+				else
+				{
+					CurrentFilterFlags &= ~AnimNotifiesFilter->GetFlags();
+				}
 			}
-			else
-			{
-				CurrentFilterFlags &= ~AnimNotifiesFilter->GetFlags();
-			}
+
+			RefreshNotifiesListWithFilter();
+		});
+		
+		if (EditableSkeleton.IsValid())
+		{
+			CurrentFilterFlags |= EAnimNotifyFilterFlags::CurrentSkeleton;
+
+			TSharedRef<FFilterBase<EAnimNotifyFilterFlags>> Filter = Filters.Add_GetRef(MakeShared<FSkeletonAnimNotifiesFilter>(
+				EAnimNotifyFilterFlags::CurrentSkeleton,
+				"CurrentSkeleton",
+				LOCTEXT("ShowSkeletonItemsLabel", "Skeleton"),
+				LOCTEXT("ShowSkeletonItemsTooltip", "Show items for the current skeleton"),
+				FLinearColor::Blue.Desaturate(0.25f),
+				FilterCategory
+			));
+
+			FilterBar->AddFilter(Filter);
+			Filter->SetActive(true);
 		}
 
-		RefreshNotifiesListWithFilter();
-	});
-	
-	if (EditableSkeleton.IsValid())
-	{
-		CurrentFilterFlags |= EAnimNotifyFilterFlags::CurrentSkeleton;
+		if (bShowNotifies)
+		{
+			CurrentFilterFlags |= EAnimNotifyFilterFlags::Notifies;
+		}
 
-		TSharedRef<FFilterBase<EAnimNotifyFilterFlags>> Filter = Filters.Add_GetRef(MakeShared<FSkeletonAnimNotifiesFilter>(
-			EAnimNotifyFilterFlags::CurrentSkeleton,
-			"CurrentSkeleton",
-			LOCTEXT("ShowSkeletonItemsLabel", "Skeleton"),
-			LOCTEXT("ShowSkeletonItemsTooltip", "Show items for the current skeleton"),
-			FLinearColor::Blue.Desaturate(0.25f),
-			FilterCategory
-		));
+		if (!bSingleType && bShowNotifies)
+		{
+			TSharedRef<FFilterBase<EAnimNotifyFilterFlags>> Filter = Filters.Add_GetRef(MakeShared<FSkeletonAnimNotifiesFilter>(
+				EAnimNotifyFilterFlags::Notifies,
+				"Notifies",
+				LOCTEXT("ShowNotifiesLabel", "Notifies"),
+				LOCTEXT("ShowNotifiesTooltip", "Show notifies"),
+				FLinearColor::Red.Desaturate(0.5f),
+				FilterCategory
+			));
 
-		FilterBar->AddFilter(Filter);
-		Filter->SetActive(true);
-	}
+			FilterBar->AddFilter(Filter);
+			Filter->SetActive(true);
+		}
 
-	if (bShowNotifies)
-	{
-		CurrentFilterFlags |= EAnimNotifyFilterFlags::Notifies;
-	}
+		if (bShowSyncMarkers)
+		{
+			CurrentFilterFlags |= EAnimNotifyFilterFlags::SyncMarkers;
+		}
 
-	if (!bSingleType && bShowNotifies)
-	{
-		TSharedRef<FFilterBase<EAnimNotifyFilterFlags>> Filter = Filters.Add_GetRef(MakeShared<FSkeletonAnimNotifiesFilter>(
-			EAnimNotifyFilterFlags::Notifies,
-			"Notifies",
-			LOCTEXT("ShowNotifiesLabel", "Notifies"),
-			LOCTEXT("ShowNotifiesTooltip", "Show notifies"),
-			FLinearColor::Red.Desaturate(0.5f),
-			FilterCategory
-		));
+		if (!bSingleType && bShowSyncMarkers)
+		{
+			TSharedRef<FFilterBase<EAnimNotifyFilterFlags>> Filter = Filters.Add_GetRef(MakeShared<FSkeletonAnimNotifiesFilter>(
+				EAnimNotifyFilterFlags::SyncMarkers,
+				"SyncMarkers",
+				LOCTEXT("ShowSyncMarkersLabel", "Sync Markers"),
+				LOCTEXT("ShowSyncMarkersTooltip", "Show sync markers"),
+				FLinearColor::Green.Desaturate(0.5f),
+				FilterCategory
+			));
 
-		FilterBar->AddFilter(Filter);
-		Filter->SetActive(true);
-	}
+			FilterBar->AddFilter(Filter);
+			Filter->SetActive(true);
+		}
 
-	if (bShowSyncMarkers)
-	{
-		CurrentFilterFlags |= EAnimNotifyFilterFlags::SyncMarkers;
-	}
+		{
+			CurrentFilterFlags |= bShowOtherAssets ? EAnimNotifyFilterFlags::OtherAssets : EAnimNotifyFilterFlags::None;
 
-	if (!bSingleType && bShowSyncMarkers)
-	{
-		TSharedRef<FFilterBase<EAnimNotifyFilterFlags>> Filter = Filters.Add_GetRef(MakeShared<FSkeletonAnimNotifiesFilter>(
-			EAnimNotifyFilterFlags::SyncMarkers,
-			"SyncMarkers",
-			LOCTEXT("ShowSyncMarkersLabel", "Sync Markers"),
-			LOCTEXT("ShowSyncMarkersTooltip", "Show sync markers"),
-			FLinearColor::Green.Desaturate(0.5f),
-			FilterCategory
-		));
+			TSharedRef<FFilterBase<EAnimNotifyFilterFlags>> Filter = Filters.Add_GetRef(MakeShared<FSkeletonAnimNotifiesFilter>(
+				EAnimNotifyFilterFlags::OtherAssets,
+				"OtherAssets",
+				LOCTEXT("ShowOtherAssetsLabel", "Other Assets"),
+				LOCTEXT("ShowOtherAssetsTooltip", "Show items that are present on other assets"),
+				FLinearColor::Yellow.Desaturate(0.5f),
+				FilterCategory
+			));
 
-		FilterBar->AddFilter(Filter);
-		Filter->SetActive(true);
-	}
+			FilterBar->AddFilter(Filter);
+			Filter->SetActive(bShowOtherAssets);
+		}
 
-	{
-		CurrentFilterFlags |= bShowOtherAssets ? EAnimNotifyFilterFlags::OtherAssets : EAnimNotifyFilterFlags::None;
+		{
+			CurrentFilterFlags |= bShowCompatibleSkeletonAssets ? EAnimNotifyFilterFlags::CompatibleAssets : EAnimNotifyFilterFlags::None;
 
-		TSharedRef<FFilterBase<EAnimNotifyFilterFlags>> Filter = Filters.Add_GetRef(MakeShared<FSkeletonAnimNotifiesFilter>(
-			EAnimNotifyFilterFlags::OtherAssets,
-			"OtherAssets",
-			LOCTEXT("ShowOtherAssetsLabel", "Other Assets"),
-			LOCTEXT("ShowOtherAssetsTooltip", "Show items that are present on other assets"),
-			FLinearColor::Yellow.Desaturate(0.5f),
-			FilterCategory
-		));
+			TSharedRef<FFilterBase<EAnimNotifyFilterFlags>> Filter = Filters.Add_GetRef(MakeShared<FSkeletonAnimNotifiesFilter>(
+				EAnimNotifyFilterFlags::CompatibleAssets,
+				"CompatibleAssets",
+				LOCTEXT("ShowCompatibleAssetsLabel", "Compatible"),
+				LOCTEXT("ShowCompatibleAssetsTooltip", "Show items that are present on other assets that are compatible with the current skeleton"),
+				FLinearColor::Blue.Desaturate(0.5f),
+				FilterCategory
+			));
 
-		FilterBar->AddFilter(Filter);
-		Filter->SetActive(bShowOtherAssets);
-	}
+			FilterBar->AddFilter(Filter);
+			Filter->SetActive(bShowCompatibleSkeletonAssets);
+		}
 
-	{
-		CurrentFilterFlags |= bShowCompatibleSkeletonAssets ? EAnimNotifyFilterFlags::CompatibleAssets : EAnimNotifyFilterFlags::None;
-
-		TSharedRef<FFilterBase<EAnimNotifyFilterFlags>> Filter = Filters.Add_GetRef(MakeShared<FSkeletonAnimNotifiesFilter>(
-			EAnimNotifyFilterFlags::CompatibleAssets,
-			"CompatibleAssets",
-			LOCTEXT("ShowCompatibleAssetsLabel", "Compatible"),
-			LOCTEXT("ShowCompatibleAssetsTooltip", "Show items that are present on other assets that are compatible with the current skeleton"),
-			FLinearColor::Blue.Desaturate(0.5f),
-			FilterCategory
-		));
-
-		FilterBar->AddFilter(Filter);
-		Filter->SetActive(bShowCompatibleSkeletonAssets);
-	}
-
-	TSharedRef<SWidget> AddFilterButton = SBasicFilterBar<EAnimNotifyFilterFlags>::MakeAddFilterButton(FilterBar);
-	
-	ChildSlot
-	[
-		SNew( SVerticalBox )
-
-		+SVerticalBox::Slot()
-		.AutoHeight()
-		.Padding( FMargin( 0.0f, 0.0f, 0.0f, 4.0f ) )
+		TSharedRef<SWidget> AddFilterButton = SBasicFilterBar<EAnimNotifyFilterFlags>::MakeAddFilterButton(FilterBar);
+		
+		ChildSlot
 		[
-			SNew(SHorizontalBox)
-			+SHorizontalBox::Slot()
-			.AutoWidth()
-			.Padding(2.0f,0.0f)
+			SNew( SVerticalBox )
+
+			+SVerticalBox::Slot()
+			.AutoHeight()
+			.Padding( FMargin( 0.0f, 0.0f, 0.0f, 4.0f ) )
 			[
-				AddFilterButton
+				SNew(SHorizontalBox)
+				+SHorizontalBox::Slot()
+				.AutoWidth()
+				.Padding(2.0f,0.0f)
+				[
+					AddFilterButton
+				]
+
+				+SHorizontalBox::Slot()
+				.FillWidth(1.0f)
+				[
+					NameFilterBox.ToSharedRef()
+				]
 			]
 
-			+SHorizontalBox::Slot()
-			.FillWidth(1.0f)
+			+SVerticalBox::Slot()
+			.AutoHeight()
 			[
-				NameFilterBox.ToSharedRef()
+				FilterBar
 			]
-		]
 
-		+SVerticalBox::Slot()
-		.AutoHeight()
-		[
-			FilterBar
-		]
-
-		+SVerticalBox::Slot()
-		.FillHeight( 1.0f )		// This is required to make the scrollbar work, as content overflows Slate containers by default
-		[
-			NotifiesListView.ToSharedRef()
-		]
-	];
+			+SVerticalBox::Slot()
+			.FillHeight( 1.0f )		// This is required to make the scrollbar work, as content overflows Slate containers by default
+			[
+				NotifiesListView.ToSharedRef()
+			]
+		];
+	}
 
 	RefreshNotifiesListWithFilter();
 }
@@ -679,8 +683,11 @@ void SSkeletonAnimNotifies::OnNotifyNameCommitted( const FText& NewName, ETextCo
 
 void SSkeletonAnimNotifies::RefreshNotifiesListWithFilter()
 {
-	CreateNotifiesList();
-	FilterNotifiesList(NameFilterBox->GetText().ToString());
+	if(bAllowRefreshFilter)
+	{
+		CreateNotifiesList();
+		FilterNotifiesList(NameFilterBox->GetText().ToString());
+	}
 }
 
 void SSkeletonAnimNotifies::FilterNotifiesList(const FString& InSearchText)
@@ -708,10 +715,10 @@ void SSkeletonAnimNotifies::FilterNotifiesList(const FString& InSearchText)
 void SSkeletonAnimNotifies::CreateNotifiesList()
 {
 	const USkeleton* CurrentSkeleton = EditableSkeleton.IsValid() ? &EditableSkeleton->GetSkeleton() : nullptr;
-	FString CurrentSkeletonName;
+	FAssetData CurrentSkeletonAsset;
 	if(CurrentSkeleton)
 	{
-		CurrentSkeletonName = FAssetData(CurrentSkeleton).GetExportTextName();
+		CurrentSkeletonAsset = FAssetData(CurrentSkeleton);
 	}
 
 	NotifyList.Empty();
@@ -722,7 +729,9 @@ void SSkeletonAnimNotifies::CreateNotifiesList()
 
 	FARFilter Filter;
 	Filter.bRecursiveClasses = true;
-	Filter.ClassPaths.Append({ UAnimationAsset::StaticClass()->GetClassPathName(), USkeleton::StaticClass()->GetClassPathName() } );
+	Filter.ClassPaths.Append({ UAnimSequenceBase::StaticClass()->GetClassPathName(), USkeleton::StaticClass()->GetClassPathName() } );
+	Filter.TagsAndValues.Add(USkeleton::AnimNotifyTag);
+	Filter.TagsAndValues.Add(USkeleton::AnimSyncMarkerTag);
 
 	TArray<FAssetData> FoundAssetData;
 	AssetRegistryModule.Get().GetAssets(Filter, FoundAssetData);
@@ -734,6 +743,27 @@ void SSkeletonAnimNotifies::CreateNotifiesList()
 	for (const FAssetData& AssetData : FoundAssetData)
 	{
 		EAnimNotifyFilterFlags AssetFlags = EAnimNotifyFilterFlags::None;
+
+		auto HasNotifies = [&AssetData]()
+		{
+			FAssetTagValueRef TagRef = AssetData.TagsAndValues.FindTag(USkeleton::AnimNotifyTag);
+			return TagRef.IsSet() && !TagRef.Equals(USkeleton::AnimNotifyTagDelimiter);
+		};
+
+		auto HasSyncMarkers = [&AssetData]()
+		{
+			FAssetTagValueRef TagRef = AssetData.TagsAndValues.FindTag(USkeleton::AnimSyncMarkerTag);
+			return TagRef.IsSet() && !TagRef.Equals(USkeleton::AnimSyncMarkerTagDelimiter);
+		};
+		
+		bool bHasAssetRegistryData =
+			(EnumHasAnyFlags(CurrentFilterFlags, EAnimNotifyFilterFlags::Notifies) && HasNotifies()) ||
+			(EnumHasAnyFlags(CurrentFilterFlags, EAnimNotifyFilterFlags::SyncMarkers) && HasSyncMarkers());
+
+		if(!bHasAssetRegistryData)
+		{
+			continue;
+		}
 
 		if (AssetData.GetClass() != USkeleton::StaticClass())
 		{
@@ -748,7 +778,7 @@ void SSkeletonAnimNotifies::CreateNotifiesList()
 		}
 		else
 		{
-			if (AssetData.GetExportTextName() == CurrentSkeletonName)
+			if (AssetData == CurrentSkeletonAsset)
 			{
 				AssetFlags |= EAnimNotifyFilterFlags::CurrentSkeleton;
 			}
