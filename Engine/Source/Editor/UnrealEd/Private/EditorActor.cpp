@@ -158,6 +158,8 @@ void UUnrealEdEngine::CopyActors(const TArray<AActor*>& InActorsToCopy, UWorld* 
 			return false;
 		});
 	}
+	// Filter out other actors.
+	OnFilterCopiedActors().Broadcast(ActorsToCopy);
 
 	// Export the actors.
 	FStringOutputDevice Ar;
