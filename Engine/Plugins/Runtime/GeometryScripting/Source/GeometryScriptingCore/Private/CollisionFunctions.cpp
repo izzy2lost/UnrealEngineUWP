@@ -239,6 +239,8 @@ static UE::Geometry::FNegativeSpaceSampleSettings::ESampleMethod ConvertNegative
 		return UE::Geometry::FNegativeSpaceSampleSettings::ESampleMethod::Uniform;
 	case ENegativeSpaceSampleMethod::VoxelSearch:
 		return UE::Geometry::FNegativeSpaceSampleSettings::ESampleMethod::VoxelSearch;
+	case ENegativeSpaceSampleMethod::NavigableVoxelSearch:
+		return UE::Geometry::FNegativeSpaceSampleSettings::ESampleMethod::NavigableVoxelSearch;
 	}
 	return UE::Geometry::FNegativeSpaceSampleSettings::ESampleMethod::Uniform;
 }
@@ -1302,6 +1304,94 @@ FGeometryScriptSphereCovering UGeometryScriptLibrary_CollisionFunctions::Compute
 	ToRet.Spheres->AddNegativeSpace(*MeshBVH.FWNTree, UseSettings, false);
 	return ToRet;
 }
+
+FGeometryScriptSimpleCollision UGeometryScriptLibrary_CollisionFunctions::ComputeNavigableConvexDecomposition(
+	const UDynamicMesh* TargetMesh,
+	const FNavigableConvexDecompositionOptions& NegativeSpaceOptions,
+	UGeometryScriptDebug* Debug)
+{
+	FGeometryScriptSimpleCollision ToReturn;
+	
+	if (!TargetMesh)
+	{
+		UE::Geometry::AppendError(Debug, EGeometryScriptErrorType::InvalidInputs, LOCTEXT("ComputeNavigableConvexDecomposition_NullInput", "ComputeNavigableConvexDecomposition: Dynamic Mesh is Null"));
+		return ToReturn;
+	}
+
+	TargetMesh->ProcessMesh([&NegativeSpaceOptions, &ToReturn](const FDynamicMesh3& Mesh) -> void
+	{
+		FConvexDecomposition3::FPreprocessMeshOptions PreprocessOptions;
+		PreprocessOptions.bMergeEdges = true;
+		PreprocessOptions.CustomPreprocess = [](FDynamicMesh3& ProcessMesh, const FAxisAlignedBox3d& Bounds) -> void
+		{
+			// for solid inputs, flip orientation if the initial volume is negative
+			if (ProcessMesh.IsClosed())
+			{
+				double InitialVolume = TMeshQueries<FDynamicMesh3>::GetVolumeArea(ProcessMesh).X;
+				if (InitialVolume < 0)
+				{
+					ProcessMesh.ReverseOrientation();
+				}
+			}
+			// Note: If we add options to simplify the input mesh, should be applied here.
+		};
+
+		FConvexDecomposition3 ConvexDecomposition(Mesh, PreprocessOptions);
+		const bool bIsSolid = ConvexDecomposition.IsInputSolid();
+		ConvexDecomposition.bTreatAsSolid = bIsSolid;
+
+		FNegativeSpaceSampleSettings NegativeSpaceSettings;
+		NegativeSpaceSettings.ApplyDefaults();
+		NegativeSpaceSettings.SampleMethod = FNegativeSpaceSampleSettings::ESampleMethod::NavigableVoxelSearch;
+		NegativeSpaceSettings.bDeterministic = true;
+		NegativeSpaceSettings.bRequireSearchSampleCoverage = true;
+		NegativeSpaceSettings.bOnlyConnectedToHull = NegativeSpaceOptions.bIgnoreUnreachableInternalSpace;
+		NegativeSpaceSettings.TargetNumSamples = 0;
+		NegativeSpaceSettings.bAllowSamplesInsideMesh = !bIsSolid;
+
+		NegativeSpaceSettings.ReduceRadiusMargin = NegativeSpaceOptions.Tolerance;
+		NegativeSpaceSettings.MinRadius = NegativeSpaceOptions.MinRadius;
+		NegativeSpaceSettings.MinSpacing = 0;
+
+		ConvexDecomposition.InitializeNegativeSpace(NegativeSpaceSettings, NegativeSpaceOptions.CustomNavigablePositions);
+
+		ConvexDecomposition.MaxConvexEdgePlanes = 4;
+		ConvexDecomposition.bSplitDisconnectedComponents = false;
+		ConvexDecomposition.ConvexEdgeAngleMoreSamplesThreshold = 180;
+		ConvexDecomposition.ThickenAfterHullFailure = FMath::Max(FMathd::ZeroTolerance, NegativeSpaceSettings.ReduceRadiusMargin * .01);
+		int32 NumSplits = -1;
+		for (int32 Split = 0; Split < NumSplits || NumSplits < 0; Split++)
+		{
+
+			int32 NumSplit = ConvexDecomposition.SplitWorst(false, -1, true, NegativeSpaceSettings.ReduceRadiusMargin * .5);
+
+			if (NumSplit == 0)
+			{
+				break;
+			}
+		}
+
+		ConvexDecomposition.FixHullOverlapsInNegativeSpace();
+			
+		int32 NumHullsBefore = ConvexDecomposition.NumHulls();
+		constexpr double MinThicknessToleranceWorldSpace = 0;
+		int32 NumMerged = ConvexDecomposition.MergeBest(-1, 0, MinThicknessToleranceWorldSpace, true);
+
+		// transfer to output
+		for (int32 HullIdx = 0; HullIdx < ConvexDecomposition.Decomposition.Num(); ++HullIdx)
+		{
+			const FConvexDecomposition3::FConvexPart& Part = ConvexDecomposition.Decomposition[HullIdx];
+			// Add the merged part
+			FKConvexElem& Convex = ToReturn.AggGeom.ConvexElems.Emplace_GetRef();
+			Convex.VertexData = ConvexDecomposition.GetVertices<double>(HullIdx);
+			Convex.UpdateElemBox(); // Note: In addition to updating the bounding box, this also re-computes hull indices.
+		}
+
+	});
+	return ToReturn;
+
+}
+
 
 TArray<FSphere> UGeometryScriptLibrary_CollisionFunctions::Conv_GeometryScriptSphereCoveringToSphereArray(const FGeometryScriptSphereCovering& SphereCovering)
 {

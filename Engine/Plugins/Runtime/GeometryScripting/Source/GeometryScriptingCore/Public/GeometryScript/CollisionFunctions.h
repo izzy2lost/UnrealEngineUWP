@@ -123,7 +123,9 @@ enum class ENegativeSpaceSampleMethod : uint8
 	// Place sample spheres in a uniform grid pattern
 	Uniform,
 	// Use voxel-based subtraction and offsetting methods to specifically target concavities
-	VoxelSearch
+	VoxelSearch,
+	// A more-principled version of VoxelSearch that attempts to target specifically the space that is reachable by characters at least as large as a MinRadius sphere
+	NavigableVoxelSearch
 };
 
 // Options controlling how to sample the negative space of shapes, e.g. to define a region that must be avoided when merging collision shapes
@@ -165,6 +167,35 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = NegativeSpace, meta = (ClampMin = 0, Units = cm))
 	double MinRadius = 10.0;
 };
+
+
+/**
+ * Settings to define the important regions for a convex decomposition to preserve for a given input shape.
+ * 
+ * Note: this is similar to FComputeNegativeSpaceOptions, but with better default behavior and more intuitive parameters.
+ */
+USTRUCT(BlueprintType)
+struct GEOMETRYSCRIPTINGCORE_API FNavigableConvexDecompositionOptions
+{
+	GENERATED_BODY()
+public:
+	/// Minimum radius of characters/manipulators that should be able to navigate an input shape
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Options)
+	double MinRadius = 100;
+
+	/// Tolerance distance: convex decomposition should be no further than this from an input shape, in the navigable regions
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Options)
+	double Tolerance = 10;
+
+	/// Whether to only consider navigable space that is accessible from outside the shape. (Note this parameter is called bOnlyConnectedToHull elsewhere.)
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Options)
+	bool bIgnoreUnreachableInternalSpace = true;
+
+	/// Optional list of locations that we expect to be navigable
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Options)
+	TArray<FVector> CustomNavigablePositions;
+};
+
 
 // Options controlling how collision shapes can be merged together
 USTRUCT(BlueprintType)
@@ -482,6 +513,22 @@ public:
 		const FComputeNegativeSpaceOptions& NegativeSpaceOptions,
 		UGeometryScriptDebug* Debug = nullptr
 	);
+
+	/**
+	 * Compute the 'navigable' convex decomposition of an input mesh surface, i.e. a convex decomposition 
+	 * appropriate for a character of (or larger than) a given size
+	 *
+	 * @param TargetMesh	Mesh to decompose to convex hulls
+	 * @param Options		Options controlling the convex decomposition
+	 * @return				The resulting convex hulls as simple collision shapes
+	 */
+	UFUNCTION(BlueprintCallable, Category = "GeometryScript|Collision")
+	static UPARAM(DisplayName = "Convex Decomposition") FGeometryScriptSimpleCollision ComputeNavigableConvexDecomposition(
+		const UDynamicMesh* TargetMesh,
+		const FNavigableConvexDecompositionOptions& Options,
+		UGeometryScriptDebug* Debug = nullptr);
+
+
 
 	/**
 	 * @return An array of the spheres in the given Sphere Covering

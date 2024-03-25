@@ -1513,8 +1513,14 @@ void FConvexDecomposition3::FConvexPart::Compact()
 
 void FConvexDecomposition3::InitializeFromMesh(const FDynamicMesh3& SourceMesh, bool bMergeEdges)
 {
+	FPreprocessMeshOptions Options;
+	Options.bMergeEdges = bMergeEdges;
+	InitializeFromMesh(SourceMesh, Options);
+}
+void FConvexDecomposition3::InitializeFromMesh(const FDynamicMesh3& SourceMesh, const FPreprocessMeshOptions& Options)
+{
 	Decomposition.Empty();
-	FConvexPart* Convex = new FConvexPart(SourceMesh, bMergeEdges, ResultTransform);
+	FConvexPart* Convex = new FConvexPart(SourceMesh, Options, ResultTransform);
 	if (Convex->IsFailed())
 	{
 		delete Convex;
@@ -1528,7 +1534,17 @@ FConvexDecomposition3::FConvexPart::FConvexPart(const FDynamicMesh3& SourceMesh,
 	// Copy out the source mesh
 	InternalGeo.Copy(SourceMesh, false, false, false, false);
 
-	InitializeFromInternalGeo(bMergeEdges, TransformOut);
+	FConvexDecomposition3::FPreprocessMeshOptions Options;
+	Options.bMergeEdges = bMergeEdges;
+	InitializeFromInternalGeo(Options, TransformOut);
+}
+
+FConvexDecomposition3::FConvexPart::FConvexPart(const FDynamicMesh3& SourceMesh, const FConvexDecomposition3::FPreprocessMeshOptions& Options, FTransformSRT3d& TransformOut)
+{
+	// Copy out the source mesh
+	InternalGeo.Copy(SourceMesh, false, false, false, false);
+
+	InitializeFromInternalGeo(Options, TransformOut);
 }
 
 FConvexDecomposition3::FConvexPart::FConvexPart(TArrayView<const FVector3f> Vertices, TArrayView<const FIntVector3> Faces, bool bMergeEdges, FTransformSRT3d& TransformOut, int32 FaceVertexOffset)
@@ -1542,28 +1558,44 @@ FConvexDecomposition3::FConvexPart::FConvexPart(TArrayView<const FVector3f> Vert
 		InternalGeo.AppendTriangle(FIndex3i(F.X + FaceVertexOffset, F.Y + FaceVertexOffset, F.Z + FaceVertexOffset));
 	}
 
-	InitializeFromInternalGeo(bMergeEdges, TransformOut);
+	FConvexDecomposition3::FPreprocessMeshOptions Options;
+	Options.bMergeEdges = bMergeEdges;
+	InitializeFromInternalGeo(Options, TransformOut);
 }
 
-void FConvexDecomposition3::FConvexPart::InitializeFromInternalGeo(bool bMergeEdges, FTransformSRT3d& TransformOut)
+void FConvexDecomposition3::FConvexPart::InitializeFromInternalGeo(const FConvexDecomposition3::FPreprocessMeshOptions& Preprocess, FTransformSRT3d& TransformOut)
 {
-	// Transform the mesh to a standard unit-cube-at-origin space, so threshold have a consistent meaning
 	FAxisAlignedBox3d InitialBounds = InternalGeo.GetBounds();
 	double InvScaleFactor = FMath::Clamp(InitialBounds.MaxDim(), KINDA_SMALL_NUMBER, 1e8);
 	double ScaleFactor = 1.0 / InvScaleFactor;
+
+	// Weld close edges so we can sample convex edges
+	if (Preprocess.bMergeEdges)
+	{
+		FMergeCoincidentMeshEdges MergeEdges(&InternalGeo);
+		// scale the tolerance by the bounds size, for consistency across input scales
+		MergeEdges.MergeVertexTolerance = FMath::Max(MergeEdges.MergeVertexTolerance * ScaleFactor, FMathd::Epsilon);
+		MergeEdges.Apply();
+	}
+
+	// Apply any custom preprocessing (e.g., simplification, mesh repair, etc)
+	if (Preprocess.CustomPreprocess)
+	{
+		Preprocess.CustomPreprocess(InternalGeo, InitialBounds);
+		
+		// Re-compute bounds and scale factors, as the preprocess might have changed them
+		InitialBounds = InternalGeo.GetBounds();
+		InvScaleFactor = FMath::Clamp(InitialBounds.MaxDim(), KINDA_SMALL_NUMBER, 1e8);
+		ScaleFactor = 1.0 / InvScaleFactor;
+	}
+
+	// Transform the mesh to a standard unit-cube-at-origin space, so thresholds have a consistent meaning
 	FTransformSRT3d MeshTransform(-ScaleFactor * InitialBounds.Center());
 	MeshTransform.SetScale(ScaleFactor * MeshTransform.GetScale());
 	MeshTransforms::ApplyTransform(InternalGeo, MeshTransform);
 	// Return the inverse transform by reference, so we can put the results back into the original space
 	TransformOut = FTransformSRT3d(InitialBounds.Center());
 	TransformOut.SetScale(FVector3d(InvScaleFactor, InvScaleFactor, InvScaleFactor));
-	
-	// Weld close edges so we can sample convex edges
-	if (bMergeEdges)
-	{
-		FMergeCoincidentMeshEdges MergeEdges(&InternalGeo);
-		MergeEdges.Apply();
-	}
 
 	// Compute hull and standard measurements (volume, center, bounds, etc)
 	ComputeHull();
@@ -1786,7 +1818,7 @@ bool FConvexDecomposition3::SplitWorstHelper(bool bCanSkipUnreliableGeoVolumes, 
 	// stop early if there are no negative-space overlaps, and we're only splitting in those cases
 	if (!bHasOverlapsNegative && bOnlySplitIfNegativeSpaceCovered)
 	{
-		return 0;
+		return true;
 	}
 	for (int32 PartIdx = 0; PartIdx < Decomposition.Num(); PartIdx++)
 	{
