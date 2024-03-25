@@ -480,15 +480,14 @@ FAutoConsoleVariableRef CVarRadianceCacheNumMipmaps(
 	TEXT("r.Lumen.ScreenProbeGather.RadianceCache.NumMipmaps"),
 	GRadianceCacheNumMipmaps,
 	TEXT("Number of radiance cache mipmaps."),
-	ECVF_RenderThreadSafe
+	ECVF_Scalability | ECVF_RenderThreadSafe
 );
 
-int32 GRadianceCacheProbeAtlasResolutionInProbes = 128;
-FAutoConsoleVariableRef CVarRadianceCacheProbeAtlasResolutionInProbes(
+static TAutoConsoleVariable<int32> CVarRadianceCacheProbeAtlasResolutionInProbes(
 	TEXT("r.Lumen.ScreenProbeGather.RadianceCache.ProbeAtlasResolutionInProbes"),
-	GRadianceCacheProbeAtlasResolutionInProbes,
-	TEXT("Number of probes along one dimension of the probe atlas cache texture.  This controls the memory usage of the cache.  Overflow currently results in incorrect rendering."),
-	ECVF_RenderThreadSafe
+	128,
+	TEXT("Number of probes along one dimension of the probe atlas cache texture. This controls the memory usage of the cache. Overflow currently results in incorrect rendering. Aligned to the next power of two."),
+	ECVF_Scalability | ECVF_RenderThreadSafe
 );
 
 float GRadianceCacheReprojectionRadiusScale = 1.5f;
@@ -535,19 +534,24 @@ namespace LumenScreenProbeGatherRadianceCache
 		return FIntVector(GetClipmapGridResolution() * GRadianceCacheNumClipmaps, GetClipmapGridResolution(), GetClipmapGridResolution());
 	}
 
+	int32 GetProbeAtlasResolutionInProbes()
+	{
+		return FMath::RoundUpToPowerOfTwo(FMath::Clamp(CVarRadianceCacheProbeAtlasResolutionInProbes.GetValueOnRenderThread(), 1, 1024));
+	}
+
 	FIntPoint GetProbeAtlasTextureSize()
 	{
-		return FIntPoint(GRadianceCacheProbeAtlasResolutionInProbes * GetProbeResolution());
+		return FIntPoint(GetProbeAtlasResolutionInProbes() * GetProbeResolution());
 	}
 
 	FIntPoint GetFinalRadianceAtlasTextureSize()
 	{
-		return FIntPoint(GRadianceCacheProbeAtlasResolutionInProbes * GetFinalProbeResolution(), GRadianceCacheProbeAtlasResolutionInProbes * GetFinalProbeResolution());
+		return FIntPoint(GetProbeAtlasResolutionInProbes() * GetFinalProbeResolution(), GetProbeAtlasResolutionInProbes() * GetFinalProbeResolution());
 	}
 
 	int32 GetMaxNumProbes()
 	{
-		return GRadianceCacheProbeAtlasResolutionInProbes * GRadianceCacheProbeAtlasResolutionInProbes;
+		return GetProbeAtlasResolutionInProbes() * GetProbeAtlasResolutionInProbes();
 	}
 
 	LumenRadianceCache::FRadianceCacheInputs SetupRadianceCacheInputs(const FViewInfo& View)
@@ -557,7 +561,7 @@ namespace LumenScreenProbeGatherRadianceCache
 		Parameters.ClipmapWorldExtent = GLumenRadianceCacheClipmapWorldExtent;
 		Parameters.ClipmapDistributionBase = GLumenRadianceCacheClipmapDistributionBase;
 		Parameters.RadianceProbeClipmapResolution = GetClipmapGridResolution();
-		Parameters.ProbeAtlasResolutionInProbes = FIntPoint(GRadianceCacheProbeAtlasResolutionInProbes, GRadianceCacheProbeAtlasResolutionInProbes);
+		Parameters.ProbeAtlasResolutionInProbes = FIntPoint(GetProbeAtlasResolutionInProbes(), GetProbeAtlasResolutionInProbes());
 		Parameters.NumRadianceProbeClipmaps = GetNumClipmaps();
 		Parameters.RadianceProbeResolution = FMath::Max(GetProbeResolution(), LumenRadianceCache::MinRadianceProbeResolution);
 		Parameters.FinalProbeResolution = GetFinalProbeResolution();

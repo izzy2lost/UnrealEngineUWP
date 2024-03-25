@@ -165,7 +165,7 @@ FAutoConsoleVariableRef CVarLumenTranslucencyVolumeRadianceCache(
 	TEXT("r.Lumen.TranslucencyVolume.RadianceCache"),
 	GLumenTranslucencyVolumeRadianceCache,
 	TEXT("Whether to use the Radiance Cache for Translucency"),
-	ECVF_RenderThreadSafe
+	ECVF_Scalability | ECVF_RenderThreadSafe
 	);
 
 int32 GTranslucencyVolumeRadianceCacheNumMipmaps = 3;
@@ -173,7 +173,7 @@ FAutoConsoleVariableRef CVarTranslucencyVolumeRadianceCacheNumMipmaps(
 	TEXT("r.Lumen.TranslucencyVolume.RadianceCache.NumMipmaps"),
 	GTranslucencyVolumeRadianceCacheNumMipmaps,
 	TEXT("Number of radiance cache mipmaps."),
-	ECVF_RenderThreadSafe
+	ECVF_Scalability | ECVF_RenderThreadSafe
 );
 
 float GLumenTranslucencyVolumeRadianceCacheClipmapWorldExtent = 2500.0f;
@@ -181,7 +181,7 @@ FAutoConsoleVariableRef CVarLumenTranslucencyVolumeRadianceCacheClipmapWorldExte
 	TEXT("r.Lumen.TranslucencyVolume.RadianceCache.ClipmapWorldExtent"),
 	GLumenTranslucencyVolumeRadianceCacheClipmapWorldExtent,
 	TEXT("World space extent of the first clipmap"),
-	ECVF_RenderThreadSafe
+	ECVF_Scalability | ECVF_RenderThreadSafe
 );
 
 float GLumenTranslucencyVolumeRadianceCacheClipmapDistributionBase = 2.0f;
@@ -205,7 +205,7 @@ FAutoConsoleVariableRef CVarTranslucencyVolumeRadianceCacheResolution(
 	TEXT("r.Lumen.TranslucencyVolume.RadianceCache.GridResolution"),
 	GTranslucencyVolumeRadianceCacheGridResolution,
 	TEXT("Resolution of the probe placement grid within each clipmap"),
-	ECVF_RenderThreadSafe
+	ECVF_Scalability | ECVF_RenderThreadSafe
 );
 
 int32 GTranslucencyVolumeRadianceCacheProbeResolution = 8;
@@ -216,12 +216,11 @@ FAutoConsoleVariableRef CVarTranslucencyVolumeRadianceCacheProbeResolution(
 	ECVF_Scalability | ECVF_RenderThreadSafe
 );
 
-int32 GTranslucencyVolumeRadianceCacheProbeAtlasResolutionInProbes = 128;
-FAutoConsoleVariableRef CVarTranslucencyVolumeRadianceCacheProbeAtlasResolutionInProbes(
+static TAutoConsoleVariable<int32> CVarTranslucencyVolumeRadianceCacheProbeAtlasResolutionInProbes(
 	TEXT("r.Lumen.TranslucencyVolume.RadianceCache.ProbeAtlasResolutionInProbes"),
-	GTranslucencyVolumeRadianceCacheProbeAtlasResolutionInProbes,
-	TEXT("Number of probes along one dimension of the probe atlas cache texture.  This controls the memory usage of the cache.  Overflow currently results in incorrect rendering."),
-	ECVF_RenderThreadSafe
+	128,
+	TEXT("Number of probes along one dimension of the probe atlas cache texture. This controls the memory usage of the cache. Overflow currently results in incorrect rendering. Aligned to the next power of two."),
+	ECVF_Scalability | ECVF_RenderThreadSafe
 );
 
 float GTranslucencyVolumeRadianceCacheReprojectionRadiusScale = 10.0f;
@@ -315,6 +314,11 @@ namespace LumenTranslucencyVolumeRadianceCache
 		return GetProbeResolution() + 2 * (1 << (GetNumMipmaps() - 1));
 	}
 
+	int32 GetProbeAtlasResolutionInProbes()
+	{
+		return FMath::RoundUpToPowerOfTwo(FMath::Clamp(CVarTranslucencyVolumeRadianceCacheProbeAtlasResolutionInProbes.GetValueOnRenderThread(), 1, 1024));
+	}
+
 	LumenRadianceCache::FRadianceCacheInputs SetupRadianceCacheInputs(const FViewInfo& View)
 	{
 		LumenRadianceCache::FRadianceCacheInputs Parameters = LumenRadianceCache::GetDefaultRadianceCacheInputs();
@@ -322,7 +326,7 @@ namespace LumenTranslucencyVolumeRadianceCache
 		Parameters.ClipmapWorldExtent = GLumenTranslucencyVolumeRadianceCacheClipmapWorldExtent;
 		Parameters.ClipmapDistributionBase = GLumenTranslucencyVolumeRadianceCacheClipmapDistributionBase;
 		Parameters.RadianceProbeClipmapResolution = GetClipmapGridResolution();
-		Parameters.ProbeAtlasResolutionInProbes = FIntPoint(GTranslucencyVolumeRadianceCacheProbeAtlasResolutionInProbes, GTranslucencyVolumeRadianceCacheProbeAtlasResolutionInProbes);
+		Parameters.ProbeAtlasResolutionInProbes = FIntPoint(GetProbeAtlasResolutionInProbes(), GetProbeAtlasResolutionInProbes());
 		Parameters.NumRadianceProbeClipmaps = GetNumClipmaps(LumenTranslucencyVolume::GetEndDistanceFromCamera(View));
 		Parameters.RadianceProbeResolution = FMath::Max(GetProbeResolution(), LumenRadianceCache::MinRadianceProbeResolution);
 		Parameters.FinalProbeResolution = GetFinalProbeResolution();
