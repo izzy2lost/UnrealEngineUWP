@@ -3,6 +3,7 @@
 #include "SourceControlViewportOutlineMenu.h"
 #include "RevisionControlStyle/RevisionControlStyle.h"
 #include "HAL/IConsoleManager.h"
+#include "EngineAnalytics.h"
 #include "LevelEditorMenuContext.h"
 #include "LevelEditorViewport.h"
 #include "ToolMenus.h"
@@ -198,6 +199,8 @@ void FSourceControlViewportOutlineMenu::ShowAll(FLevelEditorViewportClient* View
 	SourceControlViewportUtils::SetFeedbackEnabled(ViewportClient, ESourceControlStatus::NotAtHeadRevision, /*bEnabled=*/true);
 	SourceControlViewportUtils::SetFeedbackEnabled(ViewportClient, ESourceControlStatus::CheckedOut, /*bEnabled=*/true);
 	SourceControlViewportUtils::SetFeedbackEnabled(ViewportClient, ESourceControlStatus::OpenForAdd, /*bEnabled=*/true);
+	
+	RecordToggleEvent(TEXT("All"), /*bEnabled=*/true);
 }
 
 void FSourceControlViewportOutlineMenu::HideAll(FLevelEditorViewportClient* ViewportClient)
@@ -208,6 +211,8 @@ void FSourceControlViewportOutlineMenu::HideAll(FLevelEditorViewportClient* View
 	SourceControlViewportUtils::SetFeedbackEnabled(ViewportClient, ESourceControlStatus::NotAtHeadRevision, /*bEnabled=*/false);
 	SourceControlViewportUtils::SetFeedbackEnabled(ViewportClient, ESourceControlStatus::CheckedOut, /*bEnabled=*/false);
 	SourceControlViewportUtils::SetFeedbackEnabled(ViewportClient, ESourceControlStatus::OpenForAdd, /*bEnabled=*/false);
+
+	RecordToggleEvent(TEXT("All"), /*bEnabled=*/false);
 }
 
 void FSourceControlViewportOutlineMenu::ToggleHighlight(FLevelEditorViewportClient* ViewportClient, ESourceControlStatus Status)
@@ -217,6 +222,10 @@ void FSourceControlViewportOutlineMenu::ToggleHighlight(FLevelEditorViewportClie
 	bool bOld = SourceControlViewportUtils::GetFeedbackEnabled(ViewportClient, Status);
 	bool bNew = bOld ? false : true;
 	SourceControlViewportUtils::SetFeedbackEnabled(ViewportClient, Status, bNew);
+
+	FString EnumValueWithoutType = UEnum::GetValueAsString(Status)
+		.Replace(TEXT("ESourceControlStatus::"), TEXT(""));
+	RecordToggleEvent(EnumValueWithoutType, bNew);
 }
 
 bool FSourceControlViewportOutlineMenu::IsHighlighted(FLevelEditorViewportClient* ViewportClient, ESourceControlStatus Status) const
@@ -224,6 +233,16 @@ bool FSourceControlViewportOutlineMenu::IsHighlighted(FLevelEditorViewportClient
 	ensure(ViewportClient);
 
 	return SourceControlViewportUtils::GetFeedbackEnabled(ViewportClient, Status);
+}
+
+void FSourceControlViewportOutlineMenu::RecordToggleEvent(const FString& Param, bool bEnabled) const
+{
+	if (FEngineAnalytics::IsAvailable())
+	{
+		FEngineAnalytics::GetProvider().RecordEvent(
+			TEXT("Editor.Usage.SourceControl.OutlineSettings"), Param, bEnabled ? TEXT("True") : TEXT("False")
+		);
+	}
 }
 
 #undef LOCTEXT_NAMESPACE
