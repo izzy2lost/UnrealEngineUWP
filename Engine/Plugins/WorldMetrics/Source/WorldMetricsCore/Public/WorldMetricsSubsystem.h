@@ -141,6 +141,41 @@ public:
 	WORLDMETRICSCORE_API void ForEachMetric(const TFunctionRef<bool(UWorldMetricInterface*)>& Func);
 
 	/**
+	 * Invokes the parameter function on each metric of the template argument class contained by the subsystem.
+	 * @param Func The function which will be invoked for each metric. The function should return true to continue
+	 * execution, or false otherwise.
+	 */
+	template <typename MetricClass UE_REQUIRES(std::is_base_of_v<UWorldMetricInterface, MetricClass>)>
+	void ForEachMetricOfClass(const TFunctionRef<bool(const MetricClass*)>& Func) const
+	{
+		for (const UWorldMetricInterface* Metric : Metrics)
+		{
+			if (const MetricClass* TypedMetric = Cast<MetricClass>(Metric))
+			{
+				if (!Func(TypedMetric))
+				{
+					break;
+				}
+			}
+		}
+	}
+
+	template <typename MetricClass UE_REQUIRES(std::is_base_of_v<UWorldMetricInterface, MetricClass>)>
+	void ForEachMetricOfClass(const TFunctionRef<bool(MetricClass*)>& Func)
+	{
+		for (UWorldMetricInterface* Metric : Metrics)
+		{
+			if (MetricClass* TypedMetric = Cast<MetricClass>(Metric))
+			{
+				if (!Func(TypedMetric))
+				{
+					break;
+				}
+			}
+		}
+	}
+
+	/**
 	 * Acquires an extension on behalf of a object. The extension will be created the first time it is acquired,
 	 * and conversely it will be disabled once released by all owners.
 	 *
