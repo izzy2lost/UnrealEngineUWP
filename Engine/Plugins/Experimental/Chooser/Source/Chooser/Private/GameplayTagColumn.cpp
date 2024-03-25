@@ -18,6 +18,45 @@ FGameplayTagColumn::FGameplayTagColumn()
 	InputValue.InitializeAs(FGameplayTagContextProperty::StaticStruct());
 }
 
+bool FGameplayTagColumn::TestRow(int32 RowIndex, const FGameplayTagContainer& Value) const
+{
+	if(RowValues.IsValidIndex(RowIndex))
+	{
+		bool bPasses = false;	
+
+		if (RowValues[RowIndex].IsEmpty())
+		{
+			//	An empty container should always pass in inverted mode, but we are going to invert later, so invert here.
+			bPasses = !bInvertMatchingLogic;
+		}
+		else
+		{
+			if (TagMatchType == EGameplayContainerMatchType::All)
+			{
+				if (bMatchExact ? Value.HasAllExact(RowValues[RowIndex]) : Value.HasAll(RowValues[RowIndex]))
+				{
+					bPasses = true;
+				}
+			}
+			else
+			{
+				if (bMatchExact ? Value.HasAnyExact(RowValues[RowIndex]) : Value.HasAny(RowValues[RowIndex]))
+				{
+					bPasses = true;
+				}
+			}
+		}
+
+		if (bInvertMatchingLogic)
+		{
+			bPasses = !bPasses;
+		}
+
+		return bPasses;	
+	}
+	return false;
+}
+
 void FGameplayTagColumn::Filter(FChooserEvaluationContext& Context, const FChooserIndexArray& IndexListIn, FChooserIndexArray& IndexListOut) const
 {
 	const FGameplayTagContainer* Result = nullptr;
@@ -34,30 +73,9 @@ void FGameplayTagColumn::Filter(FChooserEvaluationContext& Context, const FChoos
 
 		for (uint32 Index : IndexListIn)
 		{
-		 
-			if (RowValues.Num() > (int)Index)
+			if (TestRow(Index, *Result))
 			{
-				if (RowValues[Index].IsEmpty())
-				{
-					IndexListOut.Push(Index);
-				}
-				else
-				{
-					if (TagMatchType == EGameplayContainerMatchType::All)
-					{
-						if (Result->HasAll(RowValues[Index]))
-						{
-							IndexListOut.Push(Index);
-						}
-					}
-					else
-					{
-						if (Result->HasAny(RowValues[Index]))
-						{
-							IndexListOut.Push(Index);
-						}
-					}
-				}
+				IndexListOut.Push(Index);
 			}
 		}
 	}

@@ -51,16 +51,25 @@ struct CHOOSER_API FGameplayTagColumn : public FChooserColumnBase
 	UPROPERTY(EditAnywhere, Category="Data")
 	EGameplayContainerMatchType	TagMatchType = EGameplayContainerMatchType::Any;
 
+	//	If true, leaf tags must match exactly.
+	UPROPERTY(EditAnywhere, Category="Data")
+	bool bMatchExact = false;
+
+	//	If true, rows that pass the normal tag filter will be rejected, and vice versa
+	UPROPERTY(EditAnywhere, Category="Data")
+	bool bInvertMatchingLogic = false;
+
 #if WITH_EDITORONLY_DATA
 	UPROPERTY(EditAnywhere, Category=Runtime)
 	FGameplayTagContainer DefaultRowValue;
-
 #endif
 	
 	UPROPERTY(EditAnywhere, Category=Runtime)
 	// array of results (cells for this column for each row in the table)
 	// should match the length of the Results array 
 	TArray<FGameplayTagContainer> RowValues;
+
+	bool TestRow(int32 RowIndex, const FGameplayTagContainer& Value) const;
 	
 	virtual void Filter(FChooserEvaluationContext& Context, const FChooserIndexArray& IndexListIn, FChooserIndexArray& IndexListOut) const override;
 
@@ -68,18 +77,7 @@ struct CHOOSER_API FGameplayTagColumn : public FChooserColumnBase
 	mutable FGameplayTagContainer TestValue;
 	virtual bool EditorTestFilter(int32 RowIndex) const override
 	{
-		if(RowValues.IsValidIndex(RowIndex))
-		{
-			if (TagMatchType == EGameplayContainerMatchType::All)
-			{
-				return TestValue.HasAll(RowValues[RowIndex]);
-			}
-			else
-			{
-				return TestValue.HasAny(RowValues[RowIndex]);
-			}
-		}
-		return false;
+		return TestRow(RowIndex, TestValue);
 	}
 
 	virtual void SetTestValue(TArrayView<const uint8> Value) override
