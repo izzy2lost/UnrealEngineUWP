@@ -173,8 +173,7 @@ namespace AudioModulation
 
 	void FAudioModulationSystem::DeactivateBusMix(const USoundControlBusMix& InBusMix)
 	{
-		FBusMixHandle MixHandle = FBusMixHandle::Get(InBusMix.GetUniqueID(), RefProxies.BusMixes);
-		ActiveBusMixIds.Remove(MixHandle.GetId());
+		ActiveBusMixIds.Remove(InBusMix.GetUniqueID());
 		
 		RunCommandOnProcessingThread([this, BusMixId = static_cast<FBusMixId>(InBusMix.GetUniqueID())]()
 		{
