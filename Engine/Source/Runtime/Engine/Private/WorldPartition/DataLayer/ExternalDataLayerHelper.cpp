@@ -24,12 +24,6 @@ FString FExternalDataLayerHelper::GetExternalStreamingObjectPackageName(const UE
 	return FString::Printf(TEXT("StreamingObject_%X"), (uint32)InExternalDataLayerAsset->GetUID());
 }
 
-FString FExternalDataLayerHelper::GetExternalStreamingObjectName(const UExternalDataLayerAsset* InExternalDataLayerAsset)
-{
-	check(InExternalDataLayerAsset);
-	return SlugStringForValidName(InExternalDataLayerAsset->GetName() + TEXT("_") + InExternalDataLayerAsset->GetUID().ToString() + TEXT("_ExternalStreamingObject"));
-}
-
 bool FExternalDataLayerHelper::BuildExternalDataLayerRootPath(const FString& InEDLMountPoint, const FExternalDataLayerUID& InExternalDataLayerUID, FString& OutExternalDataLayerRootPath)
 {
 	if (InEDLMountPoint.IsEmpty() || !InExternalDataLayerUID.IsValid())

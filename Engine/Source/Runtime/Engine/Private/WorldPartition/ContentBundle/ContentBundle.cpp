@@ -29,9 +29,10 @@ void FContentBundle::DoInitialize()
 	ExternalStreamingObjectPackage = LoadPackage(nullptr, *GetExternalStreamingObjectPackagePath(), LOAD_None);
 	if (ExternalStreamingObjectPackage != nullptr)
 	{
-		if (UObject* Object = StaticFindObjectFast(URuntimeHashExternalStreamingObjectBase::StaticClass(), ExternalStreamingObjectPackage, *GetExternalStreamingObjectName()))
+		ExternalStreamingObject = Cast<URuntimeHashExternalStreamingObjectBase>((UObject*)FindObjectWithOuter(ExternalStreamingObjectPackage, URuntimeHashExternalStreamingObjectBase::StaticClass()));
+
+		if (ExternalStreamingObject)
 		{
-			ExternalStreamingObject = CastChecked<URuntimeHashExternalStreamingObjectBase>(Object);
 			ExternalStreamingObject->OnStreamingObjectLoaded(GetInjectedWorld());
 		}
 		else

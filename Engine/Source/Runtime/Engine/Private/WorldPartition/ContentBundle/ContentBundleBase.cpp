@@ -107,11 +107,6 @@ FString FContentBundleBase::GetExternalStreamingObjectPackagePath() const
 	return ContentBundlePaths::GetCookedContentBundleLevelFolder(*this) + ContentBundlePaths::GetGeneratedFolderName() + TEXT("/") + GetExternalStreamingObjectPackageName();
 }
 
-FString FContentBundleBase::GetExternalStreamingObjectName() const
-{
-	return SlugStringForValidName(GetDisplayName() + TEXT("_") + GetDescriptor()->GetGuid().ToString() + TEXT("_ExternalStreamingObject"));
-}
-
 UWorld* FContentBundleBase::GetInjectedWorld() const
 {
 	return InjectedWorld;

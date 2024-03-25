@@ -2020,9 +2020,9 @@ bool UWorldPartition::HasStreamingContent() const
 	return RuntimeHash && RuntimeHash->HasStreamingContent();
 }
 
-URuntimeHashExternalStreamingObjectBase* UWorldPartition::FlushStreamingToExternalStreamingObject(const FString& ExternalStreamingObjectName)
+URuntimeHashExternalStreamingObjectBase* UWorldPartition::FlushStreamingToExternalStreamingObject()
 {
-	URuntimeHashExternalStreamingObjectBase* ExternalStreamingObject = RuntimeHash->StoreStreamingContentToExternalStreamingObject(*ExternalStreamingObjectName);
+	URuntimeHashExternalStreamingObjectBase* ExternalStreamingObject = RuntimeHash->StoreStreamingContentToExternalStreamingObject();
 	check(ExternalStreamingObject);
 
 	StreamingPolicy->StoreStreamingContentToExternalStreamingObject(*ExternalStreamingObject);

@@ -34,7 +34,6 @@ public:
 	EContentBundleStatus GetStatus() const { return Status; }
 	ENGINE_API FString GetExternalStreamingObjectPackageName() const;
 	ENGINE_API FString GetExternalStreamingObjectPackagePath() const;
-	ENGINE_API FString GetExternalStreamingObjectName() const;
 
 protected:
 	ENGINE_API void SetStatus(EContentBundleStatus NewStatus);

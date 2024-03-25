@@ -134,7 +134,8 @@ bool URuntimeHashExternalStreamingObjectBase::OnPopulateGeneratorPackageForCook(
 
 bool URuntimeHashExternalStreamingObjectBase::OnPopulateGeneratedPackageForCook(UPackage* InPackage, TArray<UPackage*>& OutModifiedPackages)
 {
-	return Rename(nullptr, InPackage, REN_DontCreateRedirectors);
+	// We provide a new name for the URuntimeHashExternalStreamingObjectBase in the package so that we have a stable name (for cook determinism)
+	return Rename(TEXT("RuntimeHashExternalStreamingObjectBase"), InPackage, REN_DontCreateRedirectors);
 }
 
 void URuntimeHashExternalStreamingObjectBase::DumpStateLog(FHierarchicalLogArchive& Ar)
@@ -195,9 +196,9 @@ EWorldPartitionStreamingPerformance UWorldPartitionRuntimeHash::GetStreamingPerf
 	return EWorldPartitionStreamingPerformance::Good;
 }
 
-URuntimeHashExternalStreamingObjectBase* UWorldPartitionRuntimeHash::CreateExternalStreamingObject(TSubclassOf<URuntimeHashExternalStreamingObjectBase> InClass, UObject* InOuter, FName InName, UWorld* InOuterWorld)
+URuntimeHashExternalStreamingObjectBase* UWorldPartitionRuntimeHash::CreateExternalStreamingObject(TSubclassOf<URuntimeHashExternalStreamingObjectBase> InClass, UObject* InOuter, UWorld* InOuterWorld)
 {
-	URuntimeHashExternalStreamingObjectBase* StreamingObject = NewObject<URuntimeHashExternalStreamingObjectBase>(InOuter, InClass, InName, RF_Public);
+	URuntimeHashExternalStreamingObjectBase* StreamingObject = NewObject<URuntimeHashExternalStreamingObjectBase>(InOuter, InClass, NAME_None, RF_Public);
 	StreamingObject->OuterWorld = InOuterWorld;	
 	return StreamingObject;
 }
@@ -366,9 +367,9 @@ UWorldPartitionRuntimeCell* UWorldPartitionRuntimeHash::GetCellForCookPackage(co
 	return nullptr;
 }
 
-URuntimeHashExternalStreamingObjectBase* UWorldPartitionRuntimeHash::StoreStreamingContentToExternalStreamingObject(FName InStreamingObjectName)
+URuntimeHashExternalStreamingObjectBase* UWorldPartitionRuntimeHash::StoreStreamingContentToExternalStreamingObject()
 {
-	URuntimeHashExternalStreamingObjectBase* NewExternalStreamingObject = CreateExternalStreamingObject(GetExternalStreamingObjectClass(), GetOuterUWorldPartition(), InStreamingObjectName, GetTypedOuter<UWorld>());
+	URuntimeHashExternalStreamingObjectBase* NewExternalStreamingObject = CreateExternalStreamingObject(GetExternalStreamingObjectClass(), GetOuterUWorldPartition(), GetTypedOuter<UWorld>());
 	StoreStreamingContentToExternalStreamingObject(NewExternalStreamingObject);
 	return NewExternalStreamingObject;
 }

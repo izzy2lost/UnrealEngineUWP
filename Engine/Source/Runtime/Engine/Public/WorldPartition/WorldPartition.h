@@ -269,7 +269,10 @@ public:
 	ENGINE_API TUniquePtr<IStreamingGenerationContext> GenerateStreamingGenerationContext(const FGenerateStreamingParams& InParams, FGenerateStreamingContext& InContext);
 
 	ENGINE_API void FlushStreaming();
-	ENGINE_API URuntimeHashExternalStreamingObjectBase* FlushStreamingToExternalStreamingObject(const FString& ExternalStreamingObjectName);
+	ENGINE_API URuntimeHashExternalStreamingObjectBase* FlushStreamingToExternalStreamingObject();
+
+	UE_DEPRECATED(5.5, "FlushStreamingToExternalStreamingObject(const FString& ) is deprecated, use FlushStreamingToExternalStreamingObject() instead")
+	URuntimeHashExternalStreamingObjectBase* FlushStreamingToExternalStreamingObject(const FString& ExternalStreamingObjectName) { return FlushStreamingToExternalStreamingObject(); }
 
 	// Event when world partition was enabled/disabled in the world
 	DECLARE_MULTICAST_DELEGATE_OneParam(FWorldPartitionChangedEvent, UWorld*);

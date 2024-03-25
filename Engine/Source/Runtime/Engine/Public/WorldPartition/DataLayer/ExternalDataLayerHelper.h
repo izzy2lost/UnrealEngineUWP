@@ -18,9 +18,6 @@ public:
 	/** Returns the external streaming object package name */
 	static FString GetExternalStreamingObjectPackageName(const UExternalDataLayerAsset* InExternalDataLayerAsset);
 
-	/** Returns the external streaming object name */
-	static FString GetExternalStreamingObjectName(const UExternalDataLayerAsset* InExternalDataLayerAsset);
-
 	/** Return true if succeeds building the external data layer root path (OutExternalDataLayerRootPath) using the provided mount point and EDL UID.
 	 * Format is /{MountPoint}/{ExternalDataLayerFolder}/{EDL_UID}
 	 */

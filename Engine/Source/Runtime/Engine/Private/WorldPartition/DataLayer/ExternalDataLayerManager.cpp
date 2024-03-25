@@ -198,8 +198,8 @@ bool UExternalDataLayerManager::RegisterExternalStreamingObjectForGameWorld(cons
 		return false;
 	}
 
-	const FString ExternalStreamingObjectName = FExternalDataLayerHelper::GetExternalStreamingObjectName(InExternalDataLayerAsset);
-	URuntimeHashExternalStreamingObjectBase* ExternalStreamingObject = FindObject<URuntimeHashExternalStreamingObjectBase>(ExternalStreamingObjectPackage, *ExternalStreamingObjectName);
+	URuntimeHashExternalStreamingObjectBase* ExternalStreamingObject = Cast<URuntimeHashExternalStreamingObjectBase>((UObject*)FindObjectWithOuter(ExternalStreamingObjectPackage, URuntimeHashExternalStreamingObjectBase::StaticClass()));
+
 	if (!ExternalStreamingObject)
 	{
 		UE_LOG(LogWorldPartition, Error, TEXT("[EDL: %s] No external streaming object found in package %s."), *InExternalDataLayerAsset->GetName(), *ExternalStreamingObjectPackagePath);
@@ -890,8 +890,7 @@ URuntimeHashExternalStreamingObjectBase* UExternalDataLayerManager::CreateExtern
 		return nullptr;
 	}
 
-	const FString ExternalStreamingObjectName = FExternalDataLayerHelper::GetExternalStreamingObjectName(InExternalDataLayerAsset);
-	URuntimeHashExternalStreamingObjectBase* ExternalStreamingObject = GetOuterUWorldPartition()->FlushStreamingToExternalStreamingObject(ExternalStreamingObjectName);
+	URuntimeHashExternalStreamingObjectBase* ExternalStreamingObject = GetOuterUWorldPartition()->FlushStreamingToExternalStreamingObject();
 	if (!ExternalStreamingObject)
 	{
 		return nullptr;

@@ -21,6 +21,7 @@
 #include "WorldPartition/WorldPartition.h"
 #include "WorldPartition/WorldPartitionLog.h"
 #include "WorldPartition/WorldPartitionPackageHelper.h"
+#include "WorldPartition/WorldPartitionRuntimeHash.h"
 #include "WorldPartition/ContentBundle/ContentBundleEditor.h"
 #include "WorldPartition/WorldPartitionPropertyOverride.h"
 #include "GameFramework/WorldSettings.h"
@@ -372,7 +373,7 @@ bool FWorldPartitionLevelHelper::RemapLevelCellPathInContentBundle(ULevel* Level
 {
 	FString CellPath = ContentBundleEditor->GetExternalStreamingObjectPackagePath();
 	CellPath += TEXT(".");
-	CellPath += ContentBundleEditor->GetExternalStreamingObjectName();
+	CellPath += ContentBundleEditor->GetStreamingObject()->GetName();
 	CellPath += TEXT(".");
 	CellPath += Cell->GetName();
 	FSetWorldPartitionRuntimeCell SetWorldPartitionRuntimeCell(Level, FSoftObjectPath(CellPath));
