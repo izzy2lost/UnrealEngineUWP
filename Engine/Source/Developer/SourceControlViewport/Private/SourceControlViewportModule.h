@@ -6,6 +6,7 @@
 #include "Modules/ModuleManager.h"
 
 class FSourceControlViewportOutlineMenu;
+class FSourceControlViewportToolTips;
 
 class FSourceControlViewportModule : public IModuleInterface
 {
@@ -33,4 +34,5 @@ public:
 
 private:
 	TSharedPtr<FSourceControlViewportOutlineMenu> ViewportOutlineMenu;
+	TSharedPtr<FSourceControlViewportToolTips> ViewportToolTips;
 };
