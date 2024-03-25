@@ -543,6 +543,7 @@ void UAbilitySystemComponent::OnGiveAbility(FGameplayAbilitySpec& Spec)
 			if (SourceActiveGE)
 			{
 				SourceActiveGE->GrantedAbilityHandles.AddUnique(Spec.Handle);
+				SourceASC->ActiveGameplayEffects.MarkItemDirty(*SourceActiveGE);
 			}
 		}
 	}
@@ -596,6 +597,9 @@ void UAbilitySystemComponent::OnRemoveAbility(FGameplayAbilitySpec& Spec)
 	{
 		return;
 	}
+
+	UE_LOG(LogAbilitySystem, Log, TEXT("%s: Removing Ability [%s] %s Level: %d"), *GetNameSafe(GetOwner()), *Spec.Handle.ToString(), *GetNameSafe(Spec.Ability), Spec.Level);
+	UE_VLOG(GetOwner(), VLogAbilitySystem, Log, TEXT("Removing Ability [%s] %s Level: %d"), *Spec.Handle.ToString(), *GetNameSafe(Spec.Ability), Spec.Level);
 
 	for (const FAbilityTriggerData& TriggerData : Spec.Ability->AbilityTriggers)
 	{
@@ -686,9 +690,6 @@ void UAbilitySystemComponent::OnRemoveAbility(FGameplayAbilitySpec& Spec)
 
 	Spec.ReplicatedInstances.Empty();
 	Spec.NonReplicatedInstances.Empty();
-
-	UE_LOG(LogAbilitySystem, Log, TEXT("%s: Removed Ability %s [%s] Level: %d"), *GetNameSafe(GetOwner()), *GetNameSafe(Spec.Ability), *Spec.Handle.ToString(), Spec.Level);
-	UE_VLOG(GetOwner(), VLogAbilitySystem, Log, TEXT("Removed Ability %s [%s] Level: %d"), *GetNameSafe(Spec.Ability), *Spec.Handle.ToString(), Spec.Level);
 }
 
 void UAbilitySystemComponent::CheckForClearedAbilities()

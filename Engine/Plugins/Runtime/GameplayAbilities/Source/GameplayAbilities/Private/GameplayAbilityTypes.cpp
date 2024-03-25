@@ -232,6 +232,9 @@ void FGameplayAbilitySpec::PreReplicatedRemove(const struct FGameplayAbilitySpec
 {
 	if (InArraySerializer.Owner)
 	{
+		UE_LOG(LogAbilitySystem, Verbose, TEXT("%s: OnRemoveAbility (Non-Auth): [%s] %s. Level: %d"), *GetNameSafe(InArraySerializer.Owner->GetOwner()), *Handle.ToString(), *GetNameSafe(Ability), Level)
+		UE_VLOG(InArraySerializer.Owner->GetOwner(), VLogAbilitySystem, Verbose, TEXT("OnRemoveAbility (Non-Auth): [%s] %s. Level: %d"), *Handle.ToString(), *GetNameSafe(Ability), Level);
+
 		FScopedAbilityListLock AblityListLock(*InArraySerializer.Owner);
 		InArraySerializer.Owner->OnRemoveAbility(*this);
 	}
@@ -241,6 +244,9 @@ void FGameplayAbilitySpec::PostReplicatedAdd(const struct FGameplayAbilitySpecCo
 {
 	if (InArraySerializer.Owner)
 	{
+		UE_LOG(LogAbilitySystem, Verbose, TEXT("%s: OnGiveAbility (Non-Auth): [%s] %s. Level: %d"), *GetNameSafe(InArraySerializer.Owner->GetOwner()), *Handle.ToString(), *GetNameSafe(Ability), Level)
+		UE_VLOG(InArraySerializer.Owner->GetOwner(), VLogAbilitySystem, Verbose, TEXT("OnGiveAbility (Non-Auth): [%s] %s. Level: %d"), *Handle.ToString(), *GetNameSafe(Ability), Level);
+
 		InArraySerializer.Owner->OnGiveAbility(*this);
 	}
 }
