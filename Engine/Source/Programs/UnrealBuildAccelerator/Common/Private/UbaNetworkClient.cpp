@@ -256,13 +256,13 @@ namespace uba
 		if (messageSize == ErrorSize)
 		{
 			msg->m_error = true;
-			msg->m_event.Set();
+			msg->Done();
 			return true;
 		}
 		else if (!messageSize)
 		{
 			connection.recvCount++;
-			msg->m_event.Set();
+			msg->Done();
 			return true;
 		}
 
@@ -282,7 +282,7 @@ namespace uba
 		auto& msg = *(NetworkMessage*)bodyContext;
 		if (recvError)
 			msg.m_error = true;
-		msg.m_event.Set();
+		msg.Done();
 		return true;
 	}
 
@@ -442,7 +442,7 @@ namespace uba
 			{
 				m->m_error = true;
 				//m->m_responseSize = 0; // There is a race here where a message could just have fully arrived when disconnected. Can't set this to zero because we might be passed the m_error check but before setting reader size
-				m->m_event.Set();
+				m->Done();
 			}
 			++messageId;
 		}
@@ -505,13 +505,7 @@ namespace uba
 		}
 
 		UBA_ASSERT(messageId < 65535);
-
-		auto rm = MakeGuard([&]()
-		{
-			if (response)
-				ReturnMessageId(messageId);
-		});
-
+		message.m_id = messageId;
 
 		u32 sendSize = u32(writer.GetPosition());
 		u8* data = writer.GetData();
@@ -534,9 +528,21 @@ namespace uba
 
 		connection.sendBytes += sendSize;
 
+		Event gotResponse;
+
+		if (response)
 		{
-			if (response)
-				message.m_sendContext.flags = NetworkBackend::SendFlags_ExternalWait;
+			message.m_sendContext.flags = NetworkBackend::SendFlags_ExternalWait;
+			if (!async)
+			{
+				gotResponse.Create(true);
+				UBA_ASSERT(!message.m_doneFunc);
+				message.m_doneUserData = &gotResponse;
+				message.m_doneFunc = [](bool error, void* userData) { ((Event*)userData)->Set(); };
+			}
+		}
+
+		{
 			TimerScope ts(connection.sendTimer);
 			if (!connection.backend->Send(m_logger, connection.backendConnection, data, sendSize, message.m_sendContext))
 			{
@@ -546,16 +552,12 @@ namespace uba
 		}
 
 		if (async)
-		{
-			message.m_id = messageId;
-			rm.Cancel();
 			return true;
-		}
 
 		if (response)
 		{
 			u32 timeoutMs = 10 * 60 * 1000;
-			if (!message.m_event.IsSet(timeoutMs))
+			if (!gotResponse.IsSet(timeoutMs))
 			{
 				m_logger.Error(TC("Timed out after 10 minutes waiting for message."));
 				message.m_error = true;
@@ -589,7 +591,6 @@ namespace uba
 	NetworkMessage::NetworkMessage(NetworkClient& client, u8 serviceId, u8 messageType, BinaryWriter& sendWriter)
 	:	m_client(client)
 	,	m_sendWriter(sendWriter)
-	,	m_event(true)
 	{
 		// Header (SendHeaderSize):
 		// 1 byte    - 2 bits for serviceid, 6 bits for messagetype
@@ -604,6 +605,7 @@ namespace uba
 
 	NetworkMessage::~NetworkMessage()
 	{
+		UBA_ASSERT(!m_id);
 	}
 
 	bool NetworkMessage::Send()
@@ -626,21 +628,16 @@ namespace uba
 		return res;
 	}
 
-	bool NetworkMessage::SendAsync(BinaryReader& response)
+	bool NetworkMessage::SendAsync(BinaryReader& response, DoneFunc* func, void* userData)
 	{
+		UBA_ASSERT(!m_doneFunc);
+		m_doneFunc = func;
+		m_doneUserData = userData;
 		return m_client.Send(*this, (u8*)response.GetPositionData(), u32(response.GetLeft()), true);
 	}
 
-	bool NetworkMessage::WaitForAsync(BinaryReader& response)
+	bool NetworkMessage::ProcessAsyncResults(BinaryReader& response)
 	{
-		u32 timeoutMs = 10 * 60 * 1000;
-		bool success = m_event.IsSet(timeoutMs);
-		m_client.ReturnMessageId(m_id);
-		if (!success)
-		{
-			m_client.m_logger.Error(TC("Timed out after 10 minutes waiting for message."));
-			return false;
-		}
 		if (m_error)
 			return false;
 
@@ -653,5 +650,15 @@ namespace uba
 		}
 		response.SetSize(response.GetPosition() + m_responseSize);
 		return true;
+	}
+
+	void NetworkMessage::Done()
+	{
+		if (m_id)
+		{
+			m_client.ReturnMessageId(m_id);
+			m_id = 0;
+		}
+		m_doneFunc(m_error, m_doneUserData);
 	}
 }

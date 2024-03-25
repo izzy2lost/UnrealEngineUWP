@@ -16,13 +16,17 @@ namespace uba
 		bool Send(BinaryReader& response, Timer& outTimer);
 		bool Send();
 
-		bool SendAsync(BinaryReader& response);
-		bool WaitForAsync(BinaryReader& response);
+		using DoneFunc = void(bool error, void* userData);
+		bool SendAsync(BinaryReader& response, DoneFunc* func, void* userData); // Try to minimize work in GetResponseFunc since it is running on receiving thread
+		bool ProcessAsyncResults(BinaryReader& response); // Note, this must be called after GetResponseFunc has been called
 
 	private:
+		void Done();
+
 		NetworkClient& m_client;
 		BinaryWriter& m_sendWriter;
-		Event m_event;
+		DoneFunc* m_doneFunc = nullptr;
+		void* m_doneUserData = nullptr;
 		void* m_response = nullptr;
 		NetworkBackend::SendContext m_sendContext;
 		u32 m_responseSize = 0;

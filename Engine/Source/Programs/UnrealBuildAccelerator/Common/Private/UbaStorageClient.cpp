@@ -785,6 +785,7 @@ namespace uba
 			Entry(NetworkClient& client, u16 fetchId, u8* slot, u32 readIndex, u32 i, u32 messageMaxSize)
 				: message(client, ServiceId, StorageMessageType_FetchSegment, writer)
 				, reader(slot + i * messageMaxSize, 0, SendMaxSize)
+				, done(true)
 			{
 				writer.WriteU16(fetchId);
 				writer.WriteU32(readIndex + i + 1);
@@ -793,6 +794,7 @@ namespace uba
 			StackBinaryWriter<32> writer;
 			NetworkMessage message;
 			BinaryReader reader;
+			Event done;
 		};
 
 		u64 sendCountCapacity = capacity / messageMaxSize;
@@ -819,13 +821,18 @@ namespace uba
 			});
 
 		for (u32 i=0; i!=sendCount; ++i)
-			if (!entries[i].message.SendAsync(entries[i].reader))
+		{
+			auto& entry = entries[i];
+			if (!entry.message.SendAsync(entry.reader, [](bool error, void* userData) { ((Event*)userData)->Set(); }, &entry.done))
 				return false;
+		}
 
 		for (u32 i=0; i!=sendCount; ++i)
 		{
 			Entry& entry = entries[i];
-			if (!entries[i].message.WaitForAsync(entries[i].reader))
+			if (!entry.done.IsSet())
+				return false;
+			if (!entry.message.ProcessAsyncResults(entry.reader))
 				return false;
 			responseSize += u32(entry.reader.GetLeft());
 		}
@@ -841,6 +848,7 @@ namespace uba
 			Entry(NetworkClient& client, u16 fetchId, u8* readBuffer, u32 fetchIndex)
 				: message(client, ServiceId, StorageMessageType_FetchSegment, writer)
 				, reader(readBuffer, 0, SendMaxSize)
+				, done(true)
 			{
 				writer.WriteU16(fetchId);
 				writer.WriteU32(fetchIndex + 1);
@@ -849,6 +857,7 @@ namespace uba
 			StackBinaryWriter<16> writer;
 			NetworkMessage message;
 			BinaryReader reader;
+			Event done;
 		};
 
 		constexpr u32 EntryCount = 128;
@@ -863,7 +872,7 @@ namespace uba
 			if (fetchIndex >= EntryCount)
 			{
 				auto& entry = entries[entryIndex];
-				if (!entry.message.WaitForAsync(entry.reader))
+				if (!entry.done.IsSet())
 				{
 					success = false;
 					break;
@@ -873,7 +882,7 @@ namespace uba
 			}
 
 			auto& entry = *new (entries + entryIndex) Entry(client, fetchId, readBuffer, fetchIndex);
-			if (!entry.message.SendAsync(entry.reader))
+			if (!entry.message.SendAsync(entry.reader, [](bool error, void* userData) { ((Event*)userData)->Set(); }, &entry.done))
 			{
 				entry.~Entry();
 				success = false;
@@ -898,7 +907,9 @@ namespace uba
 		for (u32 i = 0; i != waitCount; ++i)
 		{
 			auto& entry = entries[waitIndex];
-			if (!entry.message.WaitForAsync(entry.reader))
+			if (!entry.done.IsSet())
+				success = false;
+			if (!entry.message.ProcessAsyncResults(entry.reader))
 				success = false;
 			entry.~Entry();
 			waitIndex = (waitIndex + 1) % EntryCount;
