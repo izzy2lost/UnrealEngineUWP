@@ -150,7 +150,7 @@ static const FName NAME_MapValue(ANSITEXTVIEW("Value"));
 IMPLEMENT_FIELD(FMapProperty)
 
 FMapProperty::FMapProperty(FFieldVariant InOwner, const FName& InName, EObjectFlags InObjectFlags, EMapPropertyFlags InMapFlags)
-	: FMapProperty_Super(InOwner, InName, InObjectFlags)
+	: Super(InOwner, InName, InObjectFlags)
 {
 	// These are expected to be set post-construction by AddCppProperty
 	KeyProp = nullptr;
@@ -160,7 +160,7 @@ FMapProperty::FMapProperty(FFieldVariant InOwner, const FName& InName, EObjectFl
 }
 
 FMapProperty::FMapProperty(FFieldVariant InOwner, const UECodeGen_Private::FMapPropertyParams& Prop)
-	: FMapProperty_Super(InOwner, (const UECodeGen_Private::FPropertyParamsBaseWithOffset&)Prop)
+	: Super(InOwner, (const UECodeGen_Private::FPropertyParamsBaseWithOffset&)Prop)
 {
 	// These are expected to be set post-construction by AddCppProperty
 	KeyProp = nullptr;
@@ -171,7 +171,7 @@ FMapProperty::FMapProperty(FFieldVariant InOwner, const UECodeGen_Private::FMapP
 
 #if WITH_EDITORONLY_DATA
 FMapProperty::FMapProperty(UField* InField)
-	: FMapProperty_Super(InField)
+	: Super(InField)
 	, MapFlags(EMapPropertyFlags::None)
 {
 	UMapProperty* SourceProperty = CastChecked<UMapProperty>(InField);

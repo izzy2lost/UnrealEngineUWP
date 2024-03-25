@@ -3287,19 +3287,15 @@ public:
 //
 // Describes a dynamic string variable.
 //
-
-// need to break this out a different type so that the DECLARE_CASTED_CLASS_INTRINSIC macro can digest the comma
-typedef TProperty_WithEqualityAndSerializer<FString, FProperty> FStrProperty_Super;
-
-class COREUOBJECT_API FStrProperty : public FStrProperty_Super
+class COREUOBJECT_API FStrProperty : public TProperty_WithEqualityAndSerializer<FString, FProperty>
 {
-	DECLARE_FIELD(FStrProperty, FStrProperty_Super, CASTCLASS_FStrProperty)
+	DECLARE_FIELD(FStrProperty, (TProperty_WithEqualityAndSerializer<FString, FProperty>), CASTCLASS_FStrProperty)
 public:
-	typedef FStrProperty_Super::TTypeFundamentals TTypeFundamentals;
-	typedef TTypeFundamentals::TCppType TCppType;
+	using TTypeFundamentals = Super::TTypeFundamentals;
+	using TCppType = TTypeFundamentals::TCppType;
 
 	FStrProperty(FFieldVariant InOwner, const FName& InName, EObjectFlags InObjectFlags)
-		: FStrProperty_Super(InOwner, InName, InObjectFlags)
+		: Super(InOwner, InName, InObjectFlags)
 	{
 	}
 
@@ -3312,7 +3308,7 @@ public:
 
 #if WITH_EDITORONLY_DATA
 	explicit FStrProperty(UField* InField)
-		: FStrProperty_Super(InField)
+		: Super(InField)
 	{
 	}
 #endif // WITH_EDITORONLY_DATA
@@ -3343,14 +3339,11 @@ using FFreezableScriptArray = TScriptArray<TMemoryImageAllocator<DEFAULT_ALIGNME
 	static_assert(sizeof(FScriptArray) == sizeof(FFreezableScriptArray) && alignof(FScriptArray) == alignof(FFreezableScriptArray), "FScriptArray and FFreezableScriptArray are expected to be layout-compatible");
 #endif
 
-
-// need to break this out a different type so that the DECLARE_CASTED_CLASS_INTRINSIC macro can digest the comma
-typedef TProperty<FScriptArray, FProperty> FArrayProperty_Super;
 class FScriptArrayHelper;
 
-class COREUOBJECT_API FArrayProperty : public FArrayProperty_Super
+class COREUOBJECT_API FArrayProperty : public TProperty<FScriptArray, FProperty>
 {
-	DECLARE_FIELD(FArrayProperty, FArrayProperty_Super, CASTCLASS_FArrayProperty)
+	DECLARE_FIELD(FArrayProperty, (TProperty<FScriptArray, FProperty>), CASTCLASS_FArrayProperty)
 
 	// Variables.
 	EArrayPropertyFlags ArrayFlags;
@@ -3365,11 +3358,11 @@ public:
 		CPPAlignment = alignof(FScriptArray)
 	};
 
-	typedef FArrayProperty_Super::TTypeFundamentals TTypeFundamentals;
-	typedef TTypeFundamentals::TCppType TCppType;
+	using TTypeFundamentals = Super::TTypeFundamentals;
+	using TCppType = TTypeFundamentals::TCppType;
 
 	FArrayProperty(FFieldVariant InOwner, const FName& InName, EObjectFlags InObjectFlags, EArrayPropertyFlags InArrayPropertyFlags=EArrayPropertyFlags::None)
-		: FArrayProperty_Super(InOwner, InName, InObjectFlags)
+		: Super(InOwner, InName, InObjectFlags)
 		, Inner(nullptr)
 	{
 		ArrayFlags = InArrayPropertyFlags;
@@ -3484,12 +3477,9 @@ using FFreezableScriptMap = TScriptMap<FMemoryImageSetAllocator>;
 //@todo stever sizeof(FScriptMap) is 80 bytes, while sizeof(FFreezableScriptMap) is 56 bytes atm
 //static_assert(sizeof(FScriptMap) == sizeof(FFreezableScriptMap) && alignof(FScriptMap) == alignof(FFreezableScriptMap), "FScriptMap and FFreezableScriptMap are expected to be layout-compatible");
 
-// need to break this out a different type so that the DECLARE_CASTED_CLASS_INTRINSIC macro can digest the comma
-typedef TProperty<FScriptMap, FProperty> FMapProperty_Super;
-
-class COREUOBJECT_API FMapProperty : public FMapProperty_Super
+class COREUOBJECT_API FMapProperty : public TProperty<FScriptMap, FProperty>
 {
-	DECLARE_FIELD(FMapProperty, FMapProperty_Super, CASTCLASS_FMapProperty)
+	DECLARE_FIELD(FMapProperty, (TProperty<FScriptMap, FProperty>), CASTCLASS_FMapProperty)
 
 	// Properties representing the key type and value type of the contained pairs
 	FProperty*       KeyProp;
@@ -3511,8 +3501,8 @@ class COREUOBJECT_API FMapProperty : public FMapProperty_Super
 	}
 
 public:
-	typedef FMapProperty_Super::TTypeFundamentals TTypeFundamentals;
-	typedef TTypeFundamentals::TCppType TCppType;
+	using TTypeFundamentals = Super::TTypeFundamentals;
+	using TCppType = TTypeFundamentals::TCppType;
 
 	FMapProperty(FFieldVariant InOwner, const FName& InName, EObjectFlags InObjectFlags, EMapPropertyFlags InMapFlags=EMapPropertyFlags::None);
 
@@ -3645,20 +3635,17 @@ public:
 #endif
 };
 
-// need to break this out a different type so that the DECLARE_CASTED_CLASS_INTRINSIC macro can digest the comma
-typedef TProperty<FScriptSet, FProperty> FSetProperty_Super;
-
-class COREUOBJECT_API FSetProperty : public FSetProperty_Super
+class COREUOBJECT_API FSetProperty : public TProperty<FScriptSet, FProperty>
 {
-	DECLARE_FIELD(FSetProperty, FSetProperty_Super, CASTCLASS_FSetProperty)
+	DECLARE_FIELD(FSetProperty, (TProperty<FScriptSet, FProperty>), CASTCLASS_FSetProperty)
 
 	// Properties representing the key type and value type of the contained pairs
 	FProperty*       ElementProp;
 	FScriptSetLayout SetLayout;
 
 public:
-	typedef FSetProperty_Super::TTypeFundamentals TTypeFundamentals;
-	typedef TTypeFundamentals::TCppType TCppType;
+	using TTypeFundamentals = Super::TTypeFundamentals;
+	using TCppType = TTypeFundamentals::TCppType;
 
 	FSetProperty(FFieldVariant InOwner, const FName& InName, EObjectFlags InObjectFlags);
 
@@ -5854,22 +5841,19 @@ private:
 /**
  * Describes a pointer to a function bound to an Object.
  */
-// need to break this out a different type so that the DECLARE_CASTED_CLASS_INTRINSIC macro can digest the comma
-typedef TProperty<FScriptDelegate, FProperty> FDelegateProperty_Super;
-
-class COREUOBJECT_API FDelegateProperty : public FDelegateProperty_Super
+class COREUOBJECT_API FDelegateProperty : public TProperty<FScriptDelegate, FProperty>
 {
-	DECLARE_FIELD(FDelegateProperty, FDelegateProperty_Super, CASTCLASS_FDelegateProperty)
+	DECLARE_FIELD(FDelegateProperty, (TProperty<FScriptDelegate, FProperty>), CASTCLASS_FDelegateProperty)
 
 	/** Points to the source delegate function (the function declared with the delegate keyword) used in the declaration of this delegate property. */
 	TObjectPtr<UFunction> SignatureFunction;
 public:
 
-	typedef FDelegateProperty_Super::TTypeFundamentals TTypeFundamentals;
-	typedef TTypeFundamentals::TCppType TCppType;
+	using TTypeFundamentals = Super::TTypeFundamentals;
+	using TCppType = TTypeFundamentals::TCppType;
 
 	FDelegateProperty(FFieldVariant InOwner, const FName& InName, EObjectFlags InObjectFlags)
-		: FDelegateProperty_Super(InOwner, InName, InObjectFlags)
+		: Super(InOwner, InName, InObjectFlags)
 		, SignatureFunction(nullptr)
 	{
 	}

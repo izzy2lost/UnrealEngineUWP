@@ -24,7 +24,7 @@ FArrayProperty::FArrayProperty(FFieldVariant InOwner, const UECodeGen_Private::F
 
 #if WITH_EDITORONLY_DATA
 FArrayProperty::FArrayProperty(UField* InField)
-	: FArrayProperty_Super(InField)
+	: Super(InField)
 	, ArrayFlags(EArrayPropertyFlags::None)
 {
 	UArrayProperty* SourceProperty = CastChecked<UArrayProperty>(InField);

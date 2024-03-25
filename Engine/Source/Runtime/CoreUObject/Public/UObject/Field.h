@@ -13,7 +13,7 @@ Field.h: Declares FField property system fundamentals
 #include "CoreTypes.h"
 #include "Delegates/Delegate.h"
 #include "HAL/PlatformMath.h"
-#include "HAL/ThreadSafeCounter.h"
+#include "HAL/PreprocessorHelpers.h"
 #include "HAL/UnrealMemory.h"
 #include "Internationalization/Text.h"
 #include "Math/RandomStream.h"
@@ -194,8 +194,8 @@ private: \
 	TClass& operator=(TClass&&);   \
 	TClass& operator=(const TClass&);   \
 public: \
-	typedef TSuperClass Super;\
-	typedef TClass ThisClass;\
+	using Super = PREPROCESSOR_REMOVE_OPTIONAL_PARENS(TSuperClass);\
+	using ThisClass = TClass;\
 	TClass(EInternal InInernal, FFieldClass* InClass) \
 		: Super(EC_InternalUseOnlyConstructor, InClass) \
 	{ \

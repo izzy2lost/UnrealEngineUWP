@@ -13,7 +13,7 @@
 IMPLEMENT_FIELD(FStrProperty)
 
 FStrProperty::FStrProperty(FFieldVariant InOwner, const UECodeGen_Private::FStrPropertyParams& Prop)
-	: FStrProperty_Super(InOwner, (const UECodeGen_Private::FPropertyParamsBaseWithOffset&)Prop)
+	: Super(InOwner, (const UECodeGen_Private::FPropertyParamsBaseWithOffset&)Prop)
 {
 }
 

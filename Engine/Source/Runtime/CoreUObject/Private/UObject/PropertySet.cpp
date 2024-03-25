@@ -129,14 +129,14 @@ namespace UESetProperty_Private
 IMPLEMENT_FIELD(FSetProperty)
 
 FSetProperty::FSetProperty(FFieldVariant InOwner, const FName& InName, EObjectFlags InObjectFlags)
-	: FSetProperty_Super(InOwner, InName, InObjectFlags)
+	: Super(InOwner, InName, InObjectFlags)
 {
 	// This is expected to be set post-construction by AddCppProperty
 	ElementProp = nullptr;
 }
 
 FSetProperty::FSetProperty(FFieldVariant InOwner, const UECodeGen_Private::FSetPropertyParams& Prop)
-	: FSetProperty_Super(InOwner, (const UECodeGen_Private::FPropertyParamsBaseWithOffset&)Prop)
+	: Super(InOwner, (const UECodeGen_Private::FPropertyParamsBaseWithOffset&)Prop)
 {
 	// This is expected to be set post-construction by AddCppProperty
 	ElementProp = nullptr;
@@ -144,7 +144,7 @@ FSetProperty::FSetProperty(FFieldVariant InOwner, const UECodeGen_Private::FSetP
 
 #if WITH_EDITORONLY_DATA
 FSetProperty::FSetProperty(UField* InField)
-	: FSetProperty_Super(InField)
+	: Super(InField)
 {
 	USetProperty* SourceProperty = CastChecked<USetProperty>(InField);
 	SetLayout = SourceProperty->SetLayout;
