@@ -98,7 +98,8 @@ FCustomizableObjectEditorViewportClient::FCustomizableObjectEditorViewportClient
 	DrawHelper.GridColorMinor = FColor(128, 128, 128);
 	DrawHelper.PerspectiveGridSize = 2048.0f;
 	DrawHelper.NumCells = DrawHelper.PerspectiveGridSize / (32);
-	SetShowGrid();
+	UpdateShowGrid(true);
+	UpdateShowSky(true);
 
 	SetViewMode(VMI_Lit);
 
@@ -918,7 +919,7 @@ void FCustomizableObjectEditorViewportClient::SetDrawUVOverlay()
 }
 
 
-void FCustomizableObjectEditorViewportClient::SetDrawUVOverlayMaterial(const FString& MaterialName, FString UVChannel)
+void FCustomizableObjectEditorViewportClient::SetDrawUVOverlayMaterial(const FString& MaterialName, const FString& UVChannel)
 {
 	// Get LOD Index
 	FString NameWithLOD, ComponentString;
@@ -955,9 +956,32 @@ bool FCustomizableObjectEditorViewportClient::IsSetDrawUVOverlayChecked() const
 	return bDrawUVs;
 }
 
-void FCustomizableObjectEditorViewportClient::SetShowGrid()
+void FCustomizableObjectEditorViewportClient::UpdateShowGrid(bool bKeepOldValue)
 {
-	DrawHelper.bDrawGrid = !DrawHelper.bDrawGrid;
+	UAssetViewerSettings* Settings = UAssetViewerSettings::Get();
+	int32 ProfileIndex = GetMutableDefault<UEditorPerProjectUserSettings>()->AssetViewerProfileIndex;
+
+	bool bNewShowGridValue = true;
+
+	if (Settings->Profiles.IsValidIndex(ProfileIndex))
+	{
+		bool bOldShowGridValue = Settings->Profiles[ProfileIndex].bShowFloor;
+
+		if (bKeepOldValue)
+		{
+			// Do not toggle the value when the viewport is being constructed
+			bNewShowGridValue = bOldShowGridValue;
+		}
+		else
+		{
+			// Toggle it when actually changing the option
+			bNewShowGridValue = !bOldShowGridValue;
+		}
+
+		Settings->Profiles[ProfileIndex].bShowFloor = bNewShowGridValue;
+	}
+	
+	DrawHelper.bDrawGrid = bNewShowGridValue;
 
 	FAdvancedPreviewScene* AdvancedScene = static_cast<FAdvancedPreviewScene*>(PreviewScene);
 	if (AdvancedScene != nullptr)
@@ -970,20 +994,49 @@ void FCustomizableObjectEditorViewportClient::SetShowGrid()
 	Invalidate();
 }
 
-bool FCustomizableObjectEditorViewportClient::IsSetShowGridChecked() const
+void FCustomizableObjectEditorViewportClient::UpdateShowGridFromButton()
+{
+	UpdateShowGrid(false);
+}
+
+bool FCustomizableObjectEditorViewportClient::IsShowGridChecked() const
 {
 	return DrawHelper.bDrawGrid;
 }
 
-void FCustomizableObjectEditorViewportClient::SetShowSky()
+void FCustomizableObjectEditorViewportClient::UpdateShowSky(bool bKeepOldValue)
 {
-	bDrawSky = !bDrawSky;
+	UAssetViewerSettings* Settings = UAssetViewerSettings::Get();
+	int32 ProfileIndex = GetMutableDefault<UEditorPerProjectUserSettings>()->AssetViewerProfileIndex;
+
+	if (Settings->Profiles.IsValidIndex(ProfileIndex))
+	{
+		bool bOldDrawSky = Settings->Profiles[ProfileIndex].bShowEnvironment;
+
+		if (bKeepOldValue)
+		{
+			bDrawSky = bOldDrawSky;
+		}
+		else
+		{
+			bDrawSky = !bOldDrawSky;
+		}
+
+		Settings->Profiles[ProfileIndex].bShowEnvironment = bDrawSky;
+	}
+
 	FAdvancedPreviewScene* PreviewSceneCasted = static_cast<FAdvancedPreviewScene*>(PreviewScene);
 	PreviewSceneCasted->SetEnvironmentVisibility(bDrawSky, true);
+
 	Invalidate();
 }
 
-bool FCustomizableObjectEditorViewportClient::IsSetShowSkyChecked() const
+void FCustomizableObjectEditorViewportClient::UpdateShowSkyFromButton()
+{
+	UpdateShowSky(false);
+}
+
+bool FCustomizableObjectEditorViewportClient::IsShowSkyChecked() const
 {
 	return bDrawSky;
 }
@@ -1781,14 +1834,43 @@ void FCustomizableObjectEditorViewportClient::SetAdvancedShowFlagsForScene(const
 
 void FCustomizableObjectEditorViewportClient::OnAssetViewerSettingsChanged(const FName& InPropertyName)
 {
+	UAssetViewerSettings* Settings = UAssetViewerSettings::Get();
+	int32 ProfileIndex = GetMutableDefault<UEditorPerProjectUserSettings>()->AssetViewerProfileIndex;
+
 	if (InPropertyName == GET_MEMBER_NAME_CHECKED(FPreviewSceneProfile, bPostProcessingEnabled) || InPropertyName == NAME_None)
 	{
-		UAssetViewerSettings* Settings = UAssetViewerSettings::Get();
-		int32 ProfileIndex = GetMutableDefault<UEditorPerProjectUserSettings>()->AssetViewerProfileIndex;
 		if (Settings->Profiles.IsValidIndex(ProfileIndex))
 		{
 			SetAdvancedShowFlagsForScene(Settings->Profiles[ProfileIndex].bPostProcessingEnabled);
 		}
+	}
+
+	else if (InPropertyName == GET_MEMBER_NAME_CHECKED(FPreviewSceneProfile, bShowEnvironment))
+	{
+		if (Settings->Profiles.IsValidIndex(ProfileIndex))
+		{
+			bDrawSky = Settings->Profiles[ProfileIndex].bShowEnvironment;
+		}
+		else
+		{
+			bDrawSky = !bDrawSky;
+		}
+	}
+
+	else if (InPropertyName == GET_MEMBER_NAME_CHECKED(FPreviewSceneProfile, bShowFloor))
+	{
+		if (Settings->Profiles.IsValidIndex(ProfileIndex))
+		{
+			DrawHelper.bDrawGrid = Settings->Profiles[ProfileIndex].bShowFloor;
+		}
+		else
+		{
+			DrawHelper.bDrawGrid = !DrawHelper.bDrawGrid;
+		}
+
+		EngineShowFlags.Grid = DrawHelper.bDrawGrid;
+
+		Invalidate();
 	}
 }
 

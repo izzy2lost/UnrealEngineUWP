@@ -267,7 +267,7 @@ void SCustomizableObjectHighresScreenshot::OnShowFloorChanged(ECheckBoxState New
 			LevelViewportClient.Pin()->SetFloorVisibility(false);
 			if (GridVisibilityCached)
 			{
-				LevelViewportClient.Pin()->SetShowGrid();
+				LevelViewportClient.Pin()->UpdateShowGrid(true);
 			}
 		}
 		else
@@ -280,7 +280,7 @@ void SCustomizableObjectHighresScreenshot::OnShowFloorChanged(ECheckBoxState New
 			}
 
 			LevelViewportClient.Pin()->SetFloorVisibility(FloorVisibilityCached);
-			LevelViewportClient.Pin()->SetShowGrid();
+			LevelViewportClient.Pin()->UpdateShowGrid(true);
 		}
 
 		LevelViewportClient.Pin()->SetEnvironmentMeshVisibility(NewValue == ECheckBoxState::Checked ? 1 : 0);
@@ -304,7 +304,7 @@ void SCustomizableObjectHighresScreenshot::RestoreViewportValues()
 		// Restore floor and environment mesh visibility
 		if (!LevelViewportClient.Pin()->GetEnvironmentMeshVisibility())
 		{
-			LevelViewportClient.Pin()->SetShowGrid();
+			LevelViewportClient.Pin()->UpdateShowGrid(false);
 			LevelViewportClient.Pin()->SetEnvironmentMeshVisibility(1);
 		}
 	}
