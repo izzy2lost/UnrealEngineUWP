@@ -17,6 +17,7 @@ UCommonTabListWidgetBase::UCommonTabListWidgetBase(const FObjectInitializer& Obj
 	, TabButtonGroup(nullptr)
 	, bIsListeningForInput(false)
 	, RegisteredTabsByID()
+	, TabButtonWidgetPool(*this)
 	, ActiveTabID(NAME_None)
 	, bIsRebuildingList(false)
 	, bPendingRebuild(false)
@@ -67,7 +68,7 @@ bool UCommonTabListWidgetBase::RegisterTab(FName TabNameID, TSubclassOf<UCommonB
 	}
 
 	// There is no PlayerController in Designer
-	UCommonButtonBase* const NewTabButton = IsDesignTime() ? CreateWidget<UCommonButtonBase>(GetWorld(), ButtonWidgetType) : CreateWidget<UCommonButtonBase>(GetOwningPlayer(), ButtonWidgetType);
+	UCommonButtonBase* const NewTabButton = TabButtonWidgetPool.GetOrCreateInstance<UCommonButtonBase>(ButtonWidgetType);
 	if (!ensureMsgf(NewTabButton, TEXT("Failed to create tab button. Aborting tab registration.")))
 	{
 		return false;
@@ -407,6 +408,13 @@ void UCommonTabListWidgetBase::NativeDestruct()
 	}
 }
 
+void UCommonTabListWidgetBase::ReleaseSlateResources(bool bReleaseChildren)
+{
+	Super::ReleaseSlateResources(bReleaseChildren);
+
+	TabButtonWidgetPool.ResetPool();
+}
+
 void UCommonTabListWidgetBase::HandlePreLinkedSwitcherChanged()
 {
 	HandlePreLinkedSwitcherChanged_BP();
@@ -532,6 +540,7 @@ void UCommonTabListWidgetBase::RemoveTab_Internal(const FName TabNameID, const F
 	{
 		TabButtonGroup->RemoveWidget(TabButton);
 		TabButton->RemoveFromParent();
+		TabButtonWidgetPool.Release(TabButton);
 	}
 
 	RegisteredTabsByID.Remove(TabNameID);
