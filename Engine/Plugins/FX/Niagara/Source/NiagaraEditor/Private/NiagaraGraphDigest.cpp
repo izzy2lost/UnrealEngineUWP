@@ -2012,6 +2012,7 @@ FNiagaraCompilationNodeEmitter::FNiagaraCompilationNodeEmitter(const UNiagaraNod
 : FNiagaraCompilationNode(ENodeType::Emitter, InNode, Context)
 {
 	EmitterID = InNode->GetEmitterID();
+	EmitterHandleID = InNode->GetEmitterHandleId();
 	EmitterUniqueName = InNode->GetEmitterUniqueName();
 
 	if (const UNiagaraGraph* DependentGraph = InNode->GetCalledGraph())
@@ -2026,7 +2027,7 @@ FNiagaraCompilationNodeEmitter::FNiagaraCompilationNodeEmitter(const UNiagaraNod
 	Usage = InNode->GetUsage();
 	EmitterName = InNode->GetName();
 	EmitterPathName = InNode->GetPathName();
-	EmitterHandleIdString = InNode->GetEmitterHandleId().ToString(EGuidFormats::Digits);
+	EmitterHandleIdString = EmitterHandleID.ToString(EGuidFormats::Digits);
 	EmitterUniqueFName = *EmitterUniqueName;
 }
 
@@ -2034,6 +2035,7 @@ FNiagaraCompilationNodeEmitter::FNiagaraCompilationNodeEmitter(const UNiagaraNod
 FNiagaraCompilationNodeEmitter::FNiagaraCompilationNodeEmitter(const FNiagaraCompilationNodeEmitter& InNode, FNiagaraCompilationGraphDuplicateContext& Context)
 	: FNiagaraCompilationNode(InNode, Context)
 	, EmitterID(InNode.EmitterID)
+	, EmitterHandleID(InNode.EmitterHandleID)
 	, EmitterUniqueName(InNode.EmitterUniqueName)
 	, EmitterName(InNode.EmitterName)
 	, EmitterPathName(InNode.EmitterPathName)
@@ -2065,6 +2067,21 @@ void FNiagaraCompilationNodeEmitter::BuildParameterMapHistory(FParameterMapHisto
 
 	if (ConditionalRouteParameterMapAroundMe(Builder))
 	{
+		return;
+	}
+
+	if (Builder.ExclusiveEmitterHandle.IsSet() && Builder.ExclusiveEmitterHandle != EmitterHandleID)
+	{
+		RouteParameterMapAroundMe(Builder);
+		return;
+	}
+
+	const FNiagaraFixedConstantResolver* ChildConstantResolver = Builder.ConstantResolver->FindChildResolver(EmitterUniqueFName);
+	if (!ChildConstantResolver)
+	{
+		// if no child resolver was found for the specified emitter, that means that the emitter is likely not enabled and so we can proceed without
+		// processing it
+		RouteParameterMapAroundMe(Builder);
 		return;
 	}
 
@@ -2105,15 +2122,7 @@ void FNiagaraCompilationNodeEmitter::BuildParameterMapHistory(FParameterMapHisto
 
 			// Build up a new parameter map history with all the child graph nodes..
 			FParameterMapHistoryBuilder ChildBuilder;
-			const FNiagaraFixedConstantResolver* ChildConstantResolver = Builder.ConstantResolver->FindChildResolver(EmitterUniqueFName);
-			if (ensure(ChildConstantResolver))
-			{
-				*ChildBuilder.ConstantResolver = *ChildConstantResolver;
-			}
-			else
-			{
-				*ChildBuilder.ConstantResolver = *Builder.ConstantResolver;
-			}
+			*ChildBuilder.ConstantResolver = *ChildConstantResolver;
 			ChildBuilder.RegisterEncounterableVariables(Builder.GetEncounterableVariables());
 			ChildBuilder.EnableScriptAllowList(true, Usage);
 

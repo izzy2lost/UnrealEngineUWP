@@ -394,6 +394,7 @@ public:
 	virtual void Compile(FTranslator* Translator, TArray<int32>& Outputs) const;
 
 	FNiagaraEmitterID EmitterID;
+	FGuid EmitterHandleID;
 	FString EmitterUniqueName;
 	FString EmitterName;
 	FString EmitterPathName;
