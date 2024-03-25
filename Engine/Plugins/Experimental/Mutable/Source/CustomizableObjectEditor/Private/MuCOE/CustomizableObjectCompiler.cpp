@@ -84,9 +84,6 @@ bool FCustomizableObjectCompiler::Tick()
 		UpdateArrayGCProtect();
 
 		CompilationLogsContainer.ClearMessagesArray();
-
-		TRACE_END_REGION(UE_MUTABLE_COMPILE_REGION);
-
 	}
 
 	if (SaveDDTask.IsValid() && SaveDDTask->IsCompleted())
@@ -101,8 +98,6 @@ bool FCustomizableObjectCompiler::Tick()
 
 		UE_LOG(LogMutable, Verbose, TEXT("PROFILE: [ %16.8f ] Finished Saving Derived Data task."), FPlatformTime::Seconds());
 		UE_LOG(LogMutable, Verbose, TEXT("PROFILE: -----------------------------------------------------------"));
-
-		TRACE_END_REGION(UE_MUTABLE_SAVEDD_REGION);
 	}
 
 	if (CompilationLaunchPending)
@@ -1090,8 +1085,8 @@ void FCustomizableObjectCompiler::CompileInternal(UCustomizableObject* Object, c
 
 			if (SaveDDTask.IsValid())
 			{
-				SaveCODerivedData();
-				SaveDDThread->WaitForCompletion();
+				SaveDDTask->Init();
+				SaveDDTask->Run();
 				FinishSavingDerivedData();
 			}
 
@@ -1239,6 +1234,8 @@ void FCustomizableObjectCompiler::FinishCompilation()
 	CompileThread.Reset();
 	CompileTask.Reset();
 
+	TRACE_END_REGION(UE_MUTABLE_COMPILE_REGION);
+
 	if (!Options.bDontUpdateStreamedDataAndCache)
 	{
 		TRACE_BEGIN_REGION(UE_MUTABLE_SAVEDD_REGION);
@@ -1258,6 +1255,8 @@ void FCustomizableObjectCompiler::FinishCompilation()
 
 void FCustomizableObjectCompiler::FinishSavingDerivedData()
 {
+	MUTABLE_CPUPROFILER_SCOPE(FinishSavingDerivedData)
+
 	check(SaveDDTask.IsValid());
 
 	if (Options.bIsCooking)
@@ -1277,6 +1276,9 @@ void FCustomizableObjectCompiler::FinishSavingDerivedData()
 	RemoveCompileNotification();
 
 	NotifyCompilationErrors();
+
+	TRACE_END_REGION(UE_MUTABLE_SAVEDD_REGION);
+
 }
 
 
