@@ -7,6 +7,7 @@
 #include "Engine/InstancedStaticMesh.h"
 #include "Elements/SMInstance/SMInstanceElementId.h"
 #include "Engine/Level.h"
+#include "Engine/OverlapResult.h"
 #include "AI/NavigationSystemBase.h"
 #include "Engine/MapBuildDataRegistry.h"
 #include "Components/LightComponent.h"

@@ -16,6 +16,7 @@
 #include "LandscapeProxy.h"
 #include "Chaos/ChaosEngineInterface.h"
 #include "Chaos/PhysicsObjectCollisionInterface.h"
+#include "Engine/OverlapResult.h"
 #include "Engine/World.h"
 #include "PhysicalMaterials/PhysicalMaterial.h"
 #include "PhysicsEngine/PhysicsObjectExternalInterface.h"

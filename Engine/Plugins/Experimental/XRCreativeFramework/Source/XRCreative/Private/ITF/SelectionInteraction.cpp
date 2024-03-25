@@ -13,6 +13,11 @@
 #endif
 
 
+UXRCreativeSelectionInteraction::UXRCreativeSelectionInteraction()
+ : TraceCallback([this](const FInputDeviceRay& InRay) { return DefaultTrace(InRay); })
+{
+}
+
 void UXRCreativeSelectionInteraction::Initialize(
 	UTypedElementSelectionSet* InSelectionSet,
 	FActorPredicate InCanSelectCallback,

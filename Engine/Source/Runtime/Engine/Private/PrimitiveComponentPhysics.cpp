@@ -3,6 +3,7 @@
 #include "Components/PrimitiveComponent.h"
 #include "AI/NavigationSystemBase.h"
 #include "Collision/CollisionConversions.h"
+#include "Engine/OverlapResult.h"
 #include "EngineLogs.h"
 #include "Logging/MessageLog.h"
 #include "Physics/Experimental/PhysScene_Chaos.h"

@@ -6,6 +6,7 @@
 #include "ChaosModularVehicle/ModularVehicleDefaultAsyncInput.h"
 #include "Engine/Engine.h"
 #include "Engine/Canvas.h"
+#include "Engine/OverlapResult.h"
 #include "PhysicsEngine/PhysicsSettings.h"
 #include "PhysicsEngine/ClusterUnionComponent.h"
 #include "PhysicsEngine/PhysicsObjectExternalInterface.h"

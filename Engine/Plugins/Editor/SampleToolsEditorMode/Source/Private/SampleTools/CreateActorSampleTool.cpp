@@ -2,6 +2,7 @@
 
 #include "CreateActorSampleTool.h"
 #include "InteractiveToolManager.h"
+#include "Engine/HitResult.h"
 #include "Engine/World.h"
 #include "ToolContextInterfaces.h"
 

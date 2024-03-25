@@ -7,6 +7,7 @@
 #include "Settings/LevelEditorViewportSettings.h"
 #include "Editor/UnrealEdEngine.h"
 #include "EngineGlobals.h"
+#include "Engine/OverlapResult.h"
 #include "Engine/StaticMesh.h"
 #include "Materials/MaterialInstanceDynamic.h"
 #include "GameFramework/WorldSettings.h"

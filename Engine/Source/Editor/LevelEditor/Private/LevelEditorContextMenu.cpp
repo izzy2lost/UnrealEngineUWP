@@ -17,6 +17,7 @@
 #include "Components/ActorComponent.h"
 #include "GameFramework/Actor.h"
 #include "Kismet2/ComponentEditorUtils.h"
+#include "Engine/HitResult.h"
 #include "Engine/Selection.h"
 #include "HAL/FileManager.h"
 #include "Modules/ModuleManager.h"
