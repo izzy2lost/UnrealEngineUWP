@@ -1,11 +1,12 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
-using System.Text;
 using System.Text.Json;
+using System.Threading.Tasks;
 using EpicGames.Core;
 using Microsoft.Extensions.Logging;
 using UnrealBuildBase;
@@ -53,13 +54,12 @@ namespace UnrealBuildTool
 		{
 			DirectoryReference ProjectRootFolder = RootPath;
 
-			Dictionary<FileReference, (UEBuildTarget BuildTarget, bool bBuildByDefault)> FileToTarget = new();
-
 			HashSet<UnrealTargetPlatform> ServerPlatforms = Utils.GetPlatformsInClass(UnrealPlatformClass.Server).ToHashSet();
 
-			foreach (UnrealTargetPlatform Platform in InPlatforms)
+			foreach (UnrealTargetConfiguration Configuration in InConfigurations)
 			{
-				foreach (UnrealTargetConfiguration Configuration in InConfigurations)
+				List<Task> Tasks = new List<Task>();
+				foreach (UnrealTargetPlatform Platform in InPlatforms)
 				{
 					foreach (ProjectTarget ProjectTarget in ProjectTargets.OfType<ProjectTarget>())
 					{
@@ -90,61 +90,53 @@ namespace UnrealBuildTool
 							continue;
 						}
 
-						bool bBuildByDefault = ShouldBuildByDefaultForSolutionTargets && ProjectTarget.SupportedPlatforms.Contains(Platform);
-
-						UnrealArchitectures ProjectArchitectures = UEBuildPlatform
-							.GetBuildPlatform(Platform)
-							.ArchitectureConfig.ActiveArchitectures(ProjectTarget.UnrealProjectFilePath, ProjectTarget.Name);
-
-						TargetDescriptor TargetDesc = new(ProjectTarget.UnrealProjectFilePath, ProjectTarget.Name,
-							Platform, Configuration, ProjectArchitectures, Arguments);
-						TargetDesc.IntermediateEnvironment = UnrealIntermediateEnvironment.GenerateProjectFiles;
-
-						try
+						Task CreateTask = Task.Run(async () =>
 						{
-							FileReference OutputFile = FileReference.Combine(ProjectRootFolder, 
-								$"{ProjectTarget.TargetFilePath.GetFileNameWithoutAnyExtensions()}_{Configuration}_{Platform}.json");
+							bool bBuildByDefault = ShouldBuildByDefaultForSolutionTargets && ProjectTarget.SupportedPlatforms.Contains(Platform);
 
-							UEBuildTarget BuildTarget = UEBuildTarget.Create(TargetDesc, false, false, false, UnrealIntermediateEnvironment.GenerateProjectFiles, Logger);
-							FileToTarget.Add(OutputFile, (BuildTarget, bBuildByDefault));
-						}
-						catch (Exception Ex)
-						{
-							Logger.LogWarning("Exception while generating include data for Target:{Target}, Platform: {Platform}, Configuration: {Configuration}", TargetDesc.Name, Platform.ToString(), Configuration.ToString());
-							Logger.LogWarning("{Ex}", Ex.ToString());
-						}
+							UnrealArchitectures ProjectArchitectures = UEBuildPlatform
+								.GetBuildPlatform(Platform)
+								.ArchitectureConfig.ActiveArchitectures(ProjectTarget.UnrealProjectFilePath, ProjectTarget.Name);
+
+							TargetDescriptor TargetDesc = new(ProjectTarget.UnrealProjectFilePath, ProjectTarget.Name,
+								Platform, Configuration, ProjectArchitectures, Arguments);
+							TargetDesc.IntermediateEnvironment = UnrealIntermediateEnvironment.GenerateProjectFiles;
+
+							try
+							{
+								FileReference OutputFile = FileReference.Combine(ProjectRootFolder,
+									$"{ProjectTarget.TargetFilePath.GetFileNameWithoutAnyExtensions()}_{Configuration}_{Platform}.json");
+
+								UEBuildTarget BuildTarget = UEBuildTarget.Create(TargetDesc, false, false, false, UnrealIntermediateEnvironment.GenerateProjectFiles, Logger);
+								BuildTarget.PreBuildSetup(Logger);
+
+								ExportedTargetInfo TargetInfo = ExportTarget(BuildTarget, bBuildByDefault, PlatformProjectGenerators, Logger);
+
+								DirectoryReference.CreateDirectory(OutputFile.Directory);
+								using FileStream Stream = new(OutputFile.FullName, FileMode.Create, FileAccess.Write);
+								await JsonSerializer.SerializeAsync(Stream, TargetInfo, options: new JsonSerializerOptions()
+								{
+									PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+									WriteIndented = Minimize == JsonWriterStyle.Readable,
+								});
+
+								lock (ExportedTargetProjects)
+								{
+									ExportedTargetProjects.Add(TargetInfo);
+								}
+							}
+							catch (Exception Ex)
+							{
+								Logger.LogWarning("Exception while generating include data for Target:{Target}, Platform: {Platform}, Configuration: {Configuration}", TargetDesc.Name, Platform.ToString(), Configuration.ToString());
+								Logger.LogWarning("{Ex}", Ex.ToString());
+							}
+						});
+
+						Tasks.Add(CreateTask);
 					}
 				}
-			}
 
-			foreach (var Entry in FileToTarget)
-			{
-				var OutputFile = Entry.Key;
-				var BuildTarget = Entry.Value.BuildTarget;
-				var bBuildByDefault = Entry.Value.bBuildByDefault;
-
-				try
-				{
-					BuildTarget.PreBuildSetup(Logger);
-
-					ExportedTargetInfo TargetInfo = ExportTarget(BuildTarget, bBuildByDefault, PlatformProjectGenerators, Logger);
-
-					DirectoryReference.CreateDirectory(OutputFile.Directory);
-					using FileStream Stream = new(OutputFile.FullName, FileMode.Create, FileAccess.Write);
-					JsonSerializer.Serialize(Stream, TargetInfo, options: new JsonSerializerOptions()
-					{
-						PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
-						WriteIndented = Minimize == JsonWriterStyle.Readable,
-					});
-
-					ExportedTargetProjects.Add(TargetInfo);
-				}
-				catch (Exception Ex)
-				{
-					Logger.LogWarning("Exception while generating include data for Target:{Target}, Platform: {Platform}, Configuration: {Configuration}",
-						BuildTarget.AppName, BuildTarget.Platform.ToString(), BuildTarget.Configuration.ToString());
-					Logger.LogWarning("{Ex}", Ex.ToString());
-				}
+				Task.WaitAll(Tasks.ToArray());
 			}
 
 			return true;
