@@ -2140,16 +2140,17 @@ namespace mu
 			Runner->m_pSystem->StreamInterface->EndRead(RomLoadOp->m_streamID);									
 
 			const int32 ResIndex = Program.m_roms[RomIndex].ResourceIndex;
-			check(!Program.m_constantMeshes[ResIndex].Value)
+			check(!Program.ConstantMeshes[ResIndex].Value)
 			MUTABLE_CPUPROFILER_SCOPE(Unserialise);
 
-			InputMemoryStream stream(RomLoadOp->m_streamBuffer.GetData(), RomLoadOp->m_streamBuffer.Num());
-			InputArchive arch(&stream);
+			InputMemoryStream Stream(RomLoadOp->m_streamBuffer.GetData(), RomLoadOp->m_streamBuffer.Num());
+			InputArchive Arch(&Stream);
 
-			check(!Program.m_constantMeshes[ResIndex].Value);
-			Ptr<Mesh> Value = Mesh::StaticUnserialise(arch);
-			Program.m_constantMeshes[ResIndex].Value = Value;
-			check(Program.m_constantMeshes[ResIndex].Value);
+			check(!Program.ConstantMeshes[ResIndex].Value);
+			Ptr<Mesh> Value = Mesh::StaticUnserialise(Arch);
+			Program.SetMeshRomValue(RomIndex, Value);
+
+			check(Program.ConstantMeshes[ResIndex].Value);
 
 			Runner->RomLoadOps.Remove(*RomLoadOp);
 		}
@@ -2277,13 +2278,13 @@ namespace mu
 			const int32 CurrentIndexIndex = LODIndexIndex + LODIndex;
 			const int32 CurrentIndex = program.m_constantImageLODIndices[CurrentIndexIndex];
 
-			if (program.m_constantImageLODs[CurrentIndex].Key<0)
+			if (program.ConstantImageLODs[CurrentIndex].Key < 0)
 			{
 				// This data is always resident.
 				continue;
 			}
 
-			int32 RomIndex = program.m_constantImageLODs[CurrentIndex].Key;
+			int32 RomIndex = program.ConstantImageLODs[CurrentIndex].Key;
 			check(RomIndex < program.m_roms.Num());
 
 			++ModelCache->PendingOpsPerRom[RomIndex];
@@ -2379,7 +2380,7 @@ namespace mu
 			return;
 		}
 
-		FProgram& program = Runner->m_pModel->GetPrivate()->m_program;
+		FProgram& Program = Runner->m_pModel->GetPrivate()->m_program;
 		
 		FWorkingMemoryManager::FModelCacheEntry* ModelCache = Runner->m_pSystem->WorkingMemoryManager.FindModelCache(Runner->m_pModel.Get());
 
@@ -2392,16 +2393,17 @@ namespace mu
 
 				MUTABLE_CPUPROFILER_SCOPE(Unserialise);
 
-				InputMemoryStream stream(RomLoadOp->m_streamBuffer.GetData(), RomLoadOp->m_streamBuffer.Num());
-				InputArchive arch(&stream);
+				InputMemoryStream Stream(RomLoadOp->m_streamBuffer.GetData(), RomLoadOp->m_streamBuffer.Num());
+				InputArchive Arch(&Stream);
 
-				const int32 ResIndex = program.m_roms[RomIndex].ResourceIndex;
+				const int32 ResIndex = Program.m_roms[RomIndex].ResourceIndex;
 
 				// TODO: Try to reuse buffer from PooledImages.
-				check(!program.m_constantImageLODs[ResIndex].Value);
-				Ptr<Image> Value = Image::StaticUnserialise(arch);
-				program.m_constantImageLODs[ResIndex].Value = Value;
-				check(program.m_constantImageLODs[ResIndex].Value);
+				check(!Program.ConstantImageLODs[ResIndex].Value);
+				Ptr<Image> Value = Image::StaticUnserialise(Arch);
+
+				Program.SetImageRomValue(RomIndex, Value);
+				check(Program.ConstantImageLODs[ResIndex].Value);
 				
 				Runner->RomLoadOps.Remove(*RomLoadOp);
 			}
@@ -2413,16 +2415,16 @@ namespace mu
 		for (int32 LODIndex = 0; LODIndex < LODIndexCount; ++LODIndex)
 		{
 			int32 CurrentIndexIndex = LODIndexIndex + LODIndex;
-			int32 CurrentIndex = program.m_constantImageLODIndices[CurrentIndexIndex];
+			int32 CurrentIndex = Program.m_constantImageLODIndices[CurrentIndexIndex];
 
-			if (program.m_constantImageLODs[CurrentIndex].Key < 0)
+			if (Program.ConstantImageLODs[CurrentIndex].Key < 0)
 			{
 				// This data is always resident.
 				continue;
 			}
 
-			int32 RomIndex = program.m_constantImageLODs[CurrentIndex].Key;
-			check(RomIndex < program.m_roms.Num());
+			int32 RomIndex = Program.ConstantImageLODs[CurrentIndex].Key;
+			check(RomIndex < Program.m_roms.Num());
 
 			Runner->m_pSystem->WorkingMemoryManager.MarkRomUsed(RomIndex, Runner->m_pModel);
 			--ModelCache->PendingOpsPerRom[RomIndex];
@@ -2516,8 +2518,8 @@ namespace mu
 		case OP_TYPE::ME_CONSTANT:
 		{
 			OP::MeshConstantArgs args = program.GetOpArgs<OP::MeshConstantArgs>(item.At);
-			int32 RomIndex = program.m_constantMeshes[args.value].Key;
-			if (RomIndex >= 0 && !program.m_constantMeshes[args.value].Value )
+			int32 RomIndex = program.ConstantMeshes[args.value].Key;
+			if (RomIndex >= 0 && !program.ConstantMeshes[args.value].Value)
 			{
 				Issued = MakeShared<FLoadMeshRomTask>(item, RomIndex);
 			}
@@ -2565,7 +2567,7 @@ namespace mu
 			//for (int32 i=0; i<LODIndexCount; ++i)
 			//{
 			//	uint32 LODIndex = program.m_constantImageLODIndices[LODIndexIndex+i];
-			//	if ( !program.m_constantImageLODs[LODIndex].Value )
+			//	if ( !program.ConstantImageLODs[LODIndex].Value )
 			//	{
 			//		bAnyMissing = true;
 			//		break;

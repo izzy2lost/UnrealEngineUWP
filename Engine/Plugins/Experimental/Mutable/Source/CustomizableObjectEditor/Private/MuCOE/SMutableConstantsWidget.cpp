@@ -1127,7 +1127,7 @@ void SMutableConstantsWidget::LoadConstantImages()
 
 	for (int32 ImageIndex = 0; ImageIndex < ConstantsCount; ImageIndex++)
 	{
-		TSharedPtr<FMutableConstantImageElement> ConstantImageElement =MakeShared<FMutableConstantImageElement>();
+		TSharedPtr<FMutableConstantImageElement> ConstantImageElement = MakeShared<FMutableConstantImageElement>();
 
 		MutableProgramPtr->GetConstant(ImageIndex, ConstantImageElement->ImagePtr, 0,
 			[this](int32 x, int32 y, int32 m, mu::EImageFormat f, mu::EInitializationType i) { return new mu::Image(x, y, m, f, i); });
@@ -1160,7 +1160,7 @@ void SMutableConstantsWidget::LoadConstantMeshes()
 {
 	check (MutableProgramPtr);
 	
-	const int32 ConstantsCount = MutableProgramPtr->m_constantMeshes.Num();
+	const int32 ConstantsCount = MutableProgramPtr->ConstantMeshes.Num();
 	ConstantMeshElements.Empty(ConstantsCount);
 	
 	uint64 ConstantMeshesAccumulatedSize = 0;
@@ -1168,7 +1168,7 @@ void SMutableConstantsWidget::LoadConstantMeshes()
 	for (int32 MeshIndex = 0; MeshIndex < ConstantsCount; MeshIndex++)
 	{
 		TSharedPtr< FMutableConstantMeshElement> ConstantMeshElement = MakeShared<FMutableConstantMeshElement>();
-		ConstantMeshElement->MeshPtr = MutableProgramPtr->m_constantMeshes[MeshIndex].Value;
+		ConstantMeshElement->MeshPtr = MutableProgramPtr->ConstantMeshes[MeshIndex].Value;
 		ConstantMeshElement->IndexOnSourceVector = MeshIndex;
 		
 		ConstantMeshesAccumulatedSize += ConstantMeshElement->MeshPtr->GetDataSize();

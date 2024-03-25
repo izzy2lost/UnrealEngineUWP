@@ -14,6 +14,8 @@
 #include "MuR/ParametersPrivate.h"
 #include "MuR/MutableTrace.h"
 
+#include "Templates/UnrealTypeTraits.h"
+
 #if !(UE_BUILD_SHIPPING || UE_BUILD_TEST)
 #include "HAL/Thread.h"
 #include "HAL/PlatformTLS.h"
@@ -481,12 +483,23 @@ namespace mu
 		*/
 		CodeContainer<FOpExecutionData> OpExecutionData;
 
+		template<class ResourceType>
+		struct TResourceResult
+		{
+			static_assert(TIsDerivedFrom<ResourceType, Resource>::Value);
+
+			FCacheAddress OpAddress;
+			Ptr<const ResourceType> Value = nullptr;
+		};
+		static_assert(sizeof(TResourceResult<Image>) == 16);
+		static_assert(sizeof(TResourceResult<Mesh>) == 16);
+
 		/** */
 
 		TMemoryTrackedArray<FVector4f> ColorResults;
-		TMemoryTrackedArray<Ptr<const Image>> ImageResults;
+		TMemoryTrackedArray<TResourceResult<Image>> ImageResults;
+		TMemoryTrackedArray<TResourceResult<Mesh>> MeshResults;
 		TMemoryTrackedArray<Ptr<const Layout>> LayoutResults;
-		TMemoryTrackedArray<Ptr<const Mesh>> MeshResults;
 		TMemoryTrackedArray<Ptr<const Instance>> InstanceResults;
 		TMemoryTrackedArray<FProjector> ProjectorResults;
 		TMemoryTrackedArray<Ptr<const String>> StringResults;
@@ -541,9 +554,9 @@ namespace mu
 			{
 				// Insert dafault/null values
 				ColorResults.Add(FVector4f());
-				ImageResults.Add(nullptr);
+				ImageResults.Emplace();
 				LayoutResults.Add(nullptr);
-				MeshResults.Add(nullptr);
+				MeshResults.Emplace();
 				InstanceResults.Add(nullptr);
 				ProjectorResults.Add(FProjector());
 				StringResults.Add(nullptr);
@@ -563,11 +576,11 @@ namespace mu
 				switch ((DATATYPE)Data.DataType)
 				{
 				case DATATYPE::DT_IMAGE:					
-					ImageResults[DataTypeIndex] = nullptr;
+					ImageResults[DataTypeIndex].Value = nullptr;
 					break;
 
 				case DATATYPE::DT_MESH:
-					MeshResults[DataTypeIndex] = nullptr;
+					MeshResults[DataTypeIndex].Value = nullptr;
 					break;
 
 				case DATATYPE::DT_INSTANCE:
@@ -745,7 +758,7 @@ namespace mu
 			if (!Data) return nullptr;
 
 			check(Data->DataType == DATATYPE::DT_IMAGE);
-			Ptr<const Image> Result = ImageResults[Data->DataTypeIndex];
+			Ptr<const Image> Result = ImageResults[Data->DataTypeIndex].Value;
 
 			// We need to decrease the hit-count even if the result is null.
 			check(Data->OpHitCount > 0);
@@ -771,7 +784,7 @@ namespace mu
 			if (!Data) return nullptr;
 
 			check(Data->DataType == DATATYPE::DT_MESH);
-			Ptr<const Mesh> Result = MeshResults[Data->DataTypeIndex];
+			Ptr<const Mesh> Result = MeshResults[Data->DataTypeIndex].Value;
 
 			// We need to decrease the hit-count even if the result is null.
 			check(Data->OpHitCount > 0);
@@ -937,10 +950,10 @@ namespace mu
 			check(Data->DataTypeIndex != 0);
 		}
 
-		void SetImage(FCacheAddress at, Ptr<const Image> v)
+		void SetImage(FCacheAddress At, Ptr<const Image> Value)
 		{
-			check(at.At < OpExecutionData.size_code());
-			FOpExecutionData* Data = OpExecutionData.get_ptr(at);
+			check(At.At < OpExecutionData.size_code());
+			FOpExecutionData* Data = OpExecutionData.get_ptr(At);
 			check(Data->DataType == DATATYPE::DT_IMAGE || Data->DataType == DATATYPE::DT_NONE);
 			Data->DataType = DATATYPE::DT_IMAGE;
 			Data->IsValueValid = true;
@@ -948,21 +961,23 @@ namespace mu
 			if (!Data->DataTypeIndex)
 			{
 				Data->DataTypeIndex = ImageResults.Num();
-				ImageResults.Add(v);
+				ImageResults.Add(TResourceResult<Image>{At, Value});
 			}
 			else
 			{
-				ImageResults[Data->DataTypeIndex] = v;
+				ImageResults[Data->DataTypeIndex].Value = Value;
 			}
 			check(Data->DataTypeIndex != 0);
 
 			mu::UpdateLLMStats();
 		}
 
-		void SetMesh(FCacheAddress at, Ptr<const Mesh> v)
+		void SetMesh(FCacheAddress At, Ptr<const Mesh> Value)
 		{
-			check(at.At < OpExecutionData.size_code());
-			FOpExecutionData* Data = OpExecutionData.get_ptr(at);
+			check(At.At < OpExecutionData.size_code());
+
+			FOpExecutionData* Data = OpExecutionData.get_ptr(At);
+
 			check(Data->DataType == DATATYPE::DT_MESH || Data->DataType == DATATYPE::DT_NONE);
 			Data->DataType = DATATYPE::DT_MESH;
 			Data->IsValueValid = true;
@@ -970,11 +985,11 @@ namespace mu
 			if (!Data->DataTypeIndex)
 			{
 				Data->DataTypeIndex = MeshResults.Num();
-				MeshResults.Add(v);
+				MeshResults.Add(TResourceResult<Mesh>{At, Value});
 			}
 			else
 			{
-				MeshResults[Data->DataTypeIndex] = v;
+				MeshResults[Data->DataTypeIndex].Value = Value;
 			}
 			check(Data->DataTypeIndex != 0);
 
@@ -1565,14 +1580,14 @@ namespace mu
 			{
 				// Count streamable and currently-loaded resources
 				const FProgram& Program = Model->GetPrivate()->m_program;
-				for (const TPair<int32, Ptr<const Image>>& Rom : Program.m_constantImageLODs)
+				for (const TPair<int32, Ptr<const Image>>& Rom : Program.ConstantImageLODs)
 				{
 					if (Rom.Value && Rom.Key >= 0)
 					{
 						Result += Rom.Value->GetDataSize();
 					}
 				}
-				for (const TPair<int32, Ptr<const Mesh>>& Rom : Program.m_constantMeshes)
+				for (const TPair<int32, Ptr<const Mesh>>& Rom : Program.ConstantMeshes)
 				{
 					if (Rom.Value && Rom.Key >= 0)
 					{
@@ -1623,7 +1638,7 @@ namespace mu
 					switch ((*it).DataType)
 					{
 					case DATATYPE::DT_IMAGE:
-						Value = Instance.Cache->ImageResults[(*it).DataTypeIndex].get();
+						Value = Instance.Cache->ImageResults[(*it).DataTypeIndex].Value.get();
 						if (Value)
 						{
 							TargetSet->Add(Value);
@@ -1631,7 +1646,7 @@ namespace mu
 						break;
 
 					case DATATYPE::DT_MESH:
-						Value = Instance.Cache->MeshResults[(*it).DataTypeIndex].get();
+						Value = Instance.Cache->MeshResults[(*it).DataTypeIndex].Value.get();
 						if (Value)
 						{
 							TargetSet->Add(Value);
@@ -1681,20 +1696,20 @@ namespace mu
 				switch (Data.DataType)
 				{
 				case DATATYPE::DT_IMAGE:
-					Value = CurrentInstanceCache->ImageResults[Data.DataTypeIndex].get();
+					Value = CurrentInstanceCache->ImageResults[Data.DataTypeIndex].Value.get();
 					if (Value)
 					{
 						CacheResources.Remove(Value);
-						CurrentInstanceCache->ImageResults[Data.DataTypeIndex] = nullptr;
+						CurrentInstanceCache->ImageResults[Data.DataTypeIndex].Value = nullptr;
 					}
 					break;
 
 				case DATATYPE::DT_MESH:
-					Value = CurrentInstanceCache->MeshResults[Data.DataTypeIndex].get();
+					Value = CurrentInstanceCache->MeshResults[Data.DataTypeIndex].Value.get();
 					if (Value)
 					{
 						CacheResources.Remove(Value);
-						CurrentInstanceCache->MeshResults[Data.DataTypeIndex] = nullptr;
+						CurrentInstanceCache->MeshResults[Data.DataTypeIndex].Value = nullptr;
 					}
 					break;
 
@@ -1739,15 +1754,15 @@ namespace mu
 				switch (Data.DataType)
 				{
 				case DATATYPE::DT_IMAGE:
-					Value = CurrentInstanceCache->ImageResults[Data.DataTypeIndex].get();
+					Value = CurrentInstanceCache->ImageResults[Data.DataTypeIndex].Value.get();
 					CacheResources.Remove(Value);
-					CurrentInstanceCache->ImageResults[Data.DataTypeIndex] = nullptr;
+					CurrentInstanceCache->ImageResults[Data.DataTypeIndex].Value = nullptr;
 					break;
 
 				case DATATYPE::DT_MESH:
-					Value = CurrentInstanceCache->MeshResults[Data.DataTypeIndex].get();
+					Value = CurrentInstanceCache->MeshResults[Data.DataTypeIndex].Value.get();
 					CacheResources.Remove(Value);
-					CurrentInstanceCache->MeshResults[Data.DataTypeIndex] = nullptr;
+					CurrentInstanceCache->MeshResults[Data.DataTypeIndex].Value = nullptr;
 					break;
 
 				case DATATYPE::DT_LAYOUT:

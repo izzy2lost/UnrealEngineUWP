@@ -145,13 +145,13 @@ namespace mu
 
 		mu::FProgram& program = p->m_pD->m_program;
 
-		TArray<TPair<int32, mu::ImagePtrConst>> InitialImages = program.m_constantImageLODs;
-		TArray<TPair<int32, mu::MeshPtrConst>> InitialMeshes = program.m_constantMeshes;
+		TArray<TPair<int32, mu::ImagePtrConst>> InitialImages = program.ConstantImageLODs;
+		TArray<TPair<int32, mu::MeshPtrConst>> InitialMeshes = program.ConstantMeshes;
 
 		// Save images and unload from memory
-		for (int32 ResourceIndex = 0; ResourceIndex < program.m_constantImageLODs.Num(); ++ResourceIndex)
+		for (int32 ResourceIndex = 0; ResourceIndex < program.ConstantImageLODs.Num(); ++ResourceIndex)
 		{
-			TPair<int32, mu::ImagePtrConst>& ResData = program.m_constantImageLODs[ResourceIndex];
+			TPair<int32, mu::ImagePtrConst>& ResData = program.ConstantImageLODs[ResourceIndex];
 
 			// This shouldn't have been serialised with rom support before.
 			if (ResData.Key < 0)
@@ -179,9 +179,9 @@ namespace mu
 		}
 
 		// Save meshes and unload from memory
-		for (int32 ResourceIndex = 0; ResourceIndex < program.m_constantMeshes.Num(); ++ResourceIndex)
+		for (int32 ResourceIndex = 0; ResourceIndex < program.ConstantMeshes.Num(); ++ResourceIndex)
 		{
-			TPair<int32, mu::MeshPtrConst>& ResData = program.m_constantMeshes[ResourceIndex];
+			TPair<int32, mu::MeshPtrConst>& ResData = program.ConstantMeshes[ResourceIndex];
 
 			// This shouldn't have been serialised with rom support before.
 			if (ResData.Key < 0)
@@ -220,8 +220,8 @@ namespace mu
 		}
 
 		// Restore full data
-		program.m_constantImageLODs = InitialImages;
-		program.m_constantMeshes = InitialMeshes;
+		program.ConstantImageLODs = InitialImages;
+		program.ConstantMeshes = InitialMeshes;
 	}
 
 
@@ -251,19 +251,19 @@ namespace mu
     {
 		LLM_SCOPE_BYNAME(TEXT("MutableRuntime"));
 
-		for (int32 ResIndex = 0; ResIndex < m_pD->m_program.m_constantImageLODs.Num(); ++ResIndex)
+		for (int32 ResIndex = 0; ResIndex < m_pD->m_program.ConstantImageLODs.Num(); ++ResIndex)
 		{
-			if (m_pD->m_program.m_constantImageLODs[ResIndex].Key >= 0)
+			if (m_pD->m_program.ConstantImageLODs[ResIndex].Key >= 0)
 			{
-				m_pD->m_program.m_constantImageLODs[ResIndex].Value = nullptr;
+				m_pD->m_program.ConstantImageLODs[ResIndex].Value = nullptr;
 			}
 		}
 
-		for (int32 ResIndex = 0; ResIndex < m_pD->m_program.m_constantMeshes.Num(); ++ResIndex)
+		for (int32 ResIndex = 0; ResIndex < m_pD->m_program.ConstantMeshes.Num(); ++ResIndex)
 		{
-			if (m_pD->m_program.m_constantMeshes[ResIndex].Key >= 0)
+			if (m_pD->m_program.ConstantMeshes[ResIndex].Key >= 0)
 			{
-				m_pD->m_program.m_constantMeshes[ResIndex].Value = nullptr;
+				m_pD->m_program.ConstantMeshes[ResIndex].Value = nullptr;
 			}
 		}
 	}

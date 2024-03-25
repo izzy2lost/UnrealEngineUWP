@@ -130,7 +130,7 @@ namespace mu
 
 				if (MipIndex<0)
 				{
-					MipIndex = Program.m_constantImageLODs.Add(TPair<int32, Ptr<const Image>>(-1, pMip));
+					MipIndex = Program.ConstantImageLODs.Add(TPair<int32, Ptr<const Image>>(-1, pMip));
 					Options.ImageConstantMipMap.Add(pMip, MipIndex);
 				}
 
