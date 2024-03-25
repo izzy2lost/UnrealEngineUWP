@@ -2,6 +2,8 @@
 
 #include "HAL/PlatformString.h"
 
+#include "Misc/CString.h"
+#include "Templates/UnrealTemplate.h"
 #include "Tests/TestHarnessAdapter.h"
 
 #if WITH_TESTS
