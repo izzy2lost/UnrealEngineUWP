@@ -263,7 +263,7 @@ public:
 	 * in the CDO of the UUserWidget, but a copy is stored here so that it's available in the serialized 
 	 * Tag data in the asset header for access in the FAssetData.
 	 */
-	UPROPERTY(AssetRegistrySearchable, AssetRegistrySearchable)
+	UPROPERTY(AssetRegistrySearchable)
 	FString PaletteCategory;
 
 	/** Run the initialize event on widget that doesn't have a player context. */

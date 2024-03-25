@@ -552,6 +552,8 @@ void UMVVMBlueprintView::AddAssetTags(FAssetRegistryTagsContext Context) const
 				{
 					Builder << TEXT(',');
 				}
+				Builder << ViewModelContext.GetViewModelName();
+				Builder << TEXT(';');
 				Builder << ViewModelContext.GetViewModelClass()->GetPathName();
 			}
 		}

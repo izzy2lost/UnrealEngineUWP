@@ -741,6 +741,25 @@ void UWidgetBlueprint::GetAssetRegistryTags(FAssetRegistryTagsContext Context) c
 		Context.AddTag(MoveTemp(Tag));
 	}
 	PRAGMA_ENABLE_DEPRECATION_WARNINGS;
+
+	// Add AvailableNamedSlots,  also available on generated class, to the WidgetBlueprint
+	if (const UWidgetBlueprintGeneratedClass* WidgetBPGeneratedClass = Cast<const UWidgetBlueprintGeneratedClass>(GeneratedClass))
+	{
+		TStringBuilder<512> Builder;
+		for (FName NamedSlot : WidgetBPGeneratedClass->AvailableNamedSlots)
+		{
+			if (!NamedSlot.IsNone())
+			{
+				if (Builder.Len() > 0)
+				{
+					Builder << TEXT(',');
+				}
+				Builder << NamedSlot;
+			}
+		}
+		Context.AddTag(FAssetRegistryTag(FName("AvailableNamedSlots"), Builder.ToString(), FAssetRegistryTag::TT_Hidden));
+	}
+
 	FWidgetBlueprintDelegates::GetAssetTagsWithContext.Broadcast(this, Context);
 }
 
