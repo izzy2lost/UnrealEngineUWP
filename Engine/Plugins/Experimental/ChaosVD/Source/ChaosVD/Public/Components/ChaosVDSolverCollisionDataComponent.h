@@ -2,6 +2,7 @@
 
 #pragma once
 
+#include "ChaosVDConstraintDataHelpers.h"
 #include "Components/ActorComponent.h"
 
 #include "Containers/Array.h"
@@ -12,22 +13,10 @@
 
 #include "ChaosVDSolverCollisionDataComponent.generated.h"
 
-class FChaosVDCollisionDataVisualizer;
-class FChaosVDScene;
-class FPrimitiveDrawInterface;
-class FSceneView;
-
 struct FChaosVDConstraint;
 
 typedef TMap<int32, TArray<TSharedPtr<FChaosVDParticlePairMidPhase>>> FChaosVDMidPhaseByParticleMap;
 typedef TMap<int32, TArray<FChaosVDConstraint*>> FChaosVDConstraintByParticleMap;
-
-enum class EChaosVDCollisionParticlePairSlot
-{
-	Primary,
-	Secondary,
-	Any
-};
 
 UCLASS()
 class UChaosVDSolverCollisionDataComponent : public UActorComponent
@@ -40,20 +29,12 @@ public:
 	void UpdateCollisionData(const TArray<TSharedPtr<FChaosVDParticlePairMidPhase>>& InMidPhaseData);
 
 	const TArray<TSharedPtr<FChaosVDParticlePairMidPhase>>& GetMidPhases() const { return AllMidPhases; }
-	const TArray<TSharedPtr<FChaosVDParticlePairMidPhase>>* GetMidPhasesForParticle(int32 ParticleID, EChaosVDCollisionParticlePairSlot Options) const;
-	const TArray<FChaosVDConstraint*>* GetConstraintsForParticle(int32 ParticleID, EChaosVDCollisionParticlePairSlot Options) const;
-
-	void DrawVisualization(const FSceneView* View, FPrimitiveDrawInterface* PDI);
+	const TArray<TSharedPtr<FChaosVDParticlePairMidPhase>>* GetMidPhasesForParticle(int32 ParticleID, EChaosVDParticlePairSlot Options) const;
+	const TArray<FChaosVDConstraint*>* GetConstraintsForParticle(int32 ParticleID, EChaosVDParticlePairSlot Options) const;
 
 protected:
 
 	void ClearCollisionData();
-
-	template<typename MapType, typename CollisionDataType>
-	void AddCollisionDataToParticleIDMap(MapType& MapToUpdate, const CollisionDataType& MidPhaseData, int32 ParticleID);
-
-	template<typename MapType, typename CollisionDataType>
-	const TArray<CollisionDataType>* GetCollisionDataFromMap(const MapType& Map0ToQuery, const MapType& Map1ToQuery, int32 ParticleID, EChaosVDCollisionParticlePairSlot Options) const;
 
 	TArray<TSharedPtr<FChaosVDParticlePairMidPhase>> AllMidPhases;
 	FChaosVDMidPhaseByParticleMap MidPhasesByParticleID0;
@@ -63,41 +44,3 @@ protected:
 	FChaosVDConstraintByParticleMap ConstraintsByParticleID1;
 
 };
-
-template <typename MapType, typename CollisionDataType>
-void UChaosVDSolverCollisionDataComponent::AddCollisionDataToParticleIDMap(MapType& MapToUpdate, const CollisionDataType& MidPhaseData, int32 ParticleID)
-{
-	if (TArray<CollisionDataType>* ParticleCollisionData = MapToUpdate.Find(ParticleID))
-	{
-		ParticleCollisionData->Add(MidPhaseData);
-	}
-	else
-	{
-		MapToUpdate.Add(ParticleID, { MidPhaseData });
-	}
-}
-
-template <typename MapType, typename CollisionDataType>
-const TArray<CollisionDataType>* UChaosVDSolverCollisionDataComponent::GetCollisionDataFromMap(const MapType& Map0ToQuery, const MapType& Map1ToQuery, int32 ParticleID, EChaosVDCollisionParticlePairSlot Options) const
-{
-	switch (Options)
-	{
-	case EChaosVDCollisionParticlePairSlot::Primary:
-		{
-			return Map0ToQuery.Find(ParticleID);
-			break;
-		}
-	case EChaosVDCollisionParticlePairSlot::Secondary:
-		{
-			return Map1ToQuery.Find(ParticleID);
-			break;
-		}
-	case EChaosVDCollisionParticlePairSlot::Any:
-		{
-			const TArray<CollisionDataType>* FoundMidPhasesContainer = Map0ToQuery.Find(ParticleID);
-			return FoundMidPhasesContainer ? FoundMidPhasesContainer : Map1ToQuery.Find(ParticleID);
-			break;
-		}
-	}
-	return nullptr;
-}

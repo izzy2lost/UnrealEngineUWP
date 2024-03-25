@@ -4,6 +4,9 @@
 
 #if WITH_CHAOS_VISUAL_DEBUGGER
 
+#include "Chaos/PBDJointConstraints.h"
+#include "DataWrappers/ChaosVDJointDataWrappers.h"
+
 #include "Chaos/Collision/ParticlePairMidPhase.h"
 #include "Chaos/Collision/CollisionConstraintAllocator.h"
 #include "Chaos/ParticleHandle.h"
@@ -206,6 +209,158 @@ FChaosVDParticlePairMidPhase FChaosVDDataWrapperUtils::BuildMidPhaseDataWrapperF
 	}, Chaos::ECollisionVisitorFlags::VisitAllCurrent);
 
 	return MoveTemp(WrappedMidPhaseData);
+}
+
+#ifndef CVD_COPY_FIELD_TO_WRAPPER
+	#define CVD_COPY_FIELD_TO_WRAPPER(Source,Target, Field) \
+	Target.Field = Source.Field;
+#endif
+
+#ifndef CVD_COPY_FIELD_TO_WRAPPER_WITH_CAST
+	#define CVD_COPY_FIELD_TO_WRAPPER_WITH_CAST(Source,Target, Field, TargetType) \
+	Target.Field = static_cast<TargetType>(Source.Field);
+#endif
+
+#ifndef CVD_COPY_VECTOR_FIELD_TO_WRAPPER
+	#define CVD_COPY_VECTOR_FIELD_TO_WRAPPER(Source,Target, Field) \
+	Target.Field = FChaosVDDataWrapperUtils::ConvertToFVector(Source.Field);
+#endif
+
+FChaosVDJointConstraint FChaosVDDataWrapperUtils::BuildJointDataWrapper(const Chaos::FPBDJointConstraintHandle* ConstaintHanlde)
+{
+	FChaosVDJointConstraint WrappedJointData;
+
+	if (ConstaintHanlde)
+	{
+		WrappedJointData.ConstraintIndex = ConstaintHanlde->GetConstraintIndex();
+
+		WrappedJointData.ParticleParIndexes[0] = ConstaintHanlde->GetConstrainedParticles()[0]->UniqueIdx().Idx;
+		WrappedJointData.ParticleParIndexes[1] = ConstaintHanlde->GetConstrainedParticles()[1]->UniqueIdx().Idx;
+
+		WrappedJointData.JointState.bBroken = ConstaintHanlde->IsConstraintBroken();
+		WrappedJointData.JointState.bBreaking = ConstaintHanlde->IsConstraintBreaking();
+		WrappedJointData.JointState.bDisabled = !ConstaintHanlde->IsConstraintEnabled();
+		WrappedJointData.JointState.bDriveTargetChanged = ConstaintHanlde->IsDriveTargetChanged();
+
+		//TODO: Island related data getters are deprecated. We need to see where is bet to get that data now and if this should be recorded as part of the CVD Constraint wrapper
+		//WrappedJointData.JointState.Color = ConstaintHanlde->GetConstraintColor();
+		//WrappedJointData.JointState.Island = ConstaintHanlde->GetConstraintIsland();
+		//WrappedJointData.JointState.IslandSize = ConstaintHanlde->GetConstraintIsland();
+		
+		WrappedJointData.JointState.bEnabledDuringResim = ConstaintHanlde->IsEnabledDuringResim();
+		WrappedJointData.JointState.AngularImpulse = ConstaintHanlde->GetAngularImpulse();
+		WrappedJointData.JointState.LinearImpulse = ConstaintHanlde->GetLinearImpulse();
+
+		switch(ConstaintHanlde->ResimType())
+		{
+			case Chaos::EResimType::FullResim:
+				WrappedJointData.JointState.ResimType = EChaosVDJointReSimType::FullResim;
+				break;
+			case Chaos::EResimType::ResimAsFollower:
+				WrappedJointData.JointState.ResimType = EChaosVDJointReSimType::ResimAsFollower;
+				break;
+		}
+
+		switch(ConstaintHanlde->SyncState())
+		{
+			case Chaos::ESyncState::InSync:
+				WrappedJointData.JointState.SyncState = EChaosVDJointSyncType::InSync;
+				break;
+			case Chaos::ESyncState::HardDesync:
+				WrappedJointData.JointState.SyncState = EChaosVDJointSyncType::HardDesync;
+				break;
+		}
+
+		WrappedJointData.JointState.MarkAsValid();
+
+		CVD_COPY_FIELD_TO_WRAPPER(ConstaintHanlde->GetJointSettings(), WrappedJointData.JointSettings, Stiffness);
+		CVD_COPY_FIELD_TO_WRAPPER(ConstaintHanlde->GetJointSettings(), WrappedJointData.JointSettings, LinearProjection);
+		CVD_COPY_FIELD_TO_WRAPPER(ConstaintHanlde->GetJointSettings(), WrappedJointData.JointSettings, AngularProjection);
+		CVD_COPY_FIELD_TO_WRAPPER(ConstaintHanlde->GetJointSettings(), WrappedJointData.JointSettings, AngularProjection);
+		CVD_COPY_FIELD_TO_WRAPPER(ConstaintHanlde->GetJointSettings(), WrappedJointData.JointSettings, TeleportDistance);
+		CVD_COPY_FIELD_TO_WRAPPER(ConstaintHanlde->GetJointSettings(), WrappedJointData.JointSettings, TeleportAngle);
+		CVD_COPY_FIELD_TO_WRAPPER(ConstaintHanlde->GetJointSettings(), WrappedJointData.JointSettings, ParentInvMassScale);
+		CVD_COPY_FIELD_TO_WRAPPER(ConstaintHanlde->GetJointSettings(), WrappedJointData.JointSettings, bCollisionEnabled);
+		CVD_COPY_FIELD_TO_WRAPPER(ConstaintHanlde->GetJointSettings(), WrappedJointData.JointSettings, bMassConditioningEnabled);
+		CVD_COPY_FIELD_TO_WRAPPER(ConstaintHanlde->GetJointSettings(), WrappedJointData.JointSettings, bSoftLinearLimitsEnabled);
+		CVD_COPY_FIELD_TO_WRAPPER(ConstaintHanlde->GetJointSettings(), WrappedJointData.JointSettings, bSoftTwistLimitsEnabled);
+		CVD_COPY_FIELD_TO_WRAPPER(ConstaintHanlde->GetJointSettings(), WrappedJointData.JointSettings, bAngularSLerpPositionDriveEnabled);
+		CVD_COPY_FIELD_TO_WRAPPER(ConstaintHanlde->GetJointSettings(), WrappedJointData.JointSettings, bAngularSLerpVelocityDriveEnabled);
+		CVD_COPY_FIELD_TO_WRAPPER(ConstaintHanlde->GetJointSettings(), WrappedJointData.JointSettings, bAngularTwistPositionDriveEnabled);
+		CVD_COPY_FIELD_TO_WRAPPER(ConstaintHanlde->GetJointSettings(), WrappedJointData.JointSettings, bAngularTwistVelocityDriveEnabled);
+		CVD_COPY_FIELD_TO_WRAPPER(ConstaintHanlde->GetJointSettings(), WrappedJointData.JointSettings, bAngularSwingPositionDriveEnabled);
+		CVD_COPY_FIELD_TO_WRAPPER(ConstaintHanlde->GetJointSettings(), WrappedJointData.JointSettings, bAngularSwingVelocityDriveEnabled);
+
+		WrappedJointData.JointSettings.LinearMotionTypes[0] = static_cast<EChaosVDJointMotionType>(ConstaintHanlde->GetJointSettings().LinearMotionTypes[0]);
+		WrappedJointData.JointSettings.LinearMotionTypes[1] = static_cast<EChaosVDJointMotionType>(ConstaintHanlde->GetJointSettings().LinearMotionTypes[1]);
+		WrappedJointData.JointSettings.LinearMotionTypes[2] = static_cast<EChaosVDJointMotionType>(ConstaintHanlde->GetJointSettings().LinearMotionTypes[2]);
+
+		CVD_COPY_FIELD_TO_WRAPPER(ConstaintHanlde->GetJointSettings(), WrappedJointData.JointSettings, LinearLimit);
+
+		WrappedJointData.JointSettings.AngularMotionTypes[0] = static_cast<EChaosVDJointMotionType>(ConstaintHanlde->GetJointSettings().AngularMotionTypes[0]);
+		WrappedJointData.JointSettings.AngularMotionTypes[1] = static_cast<EChaosVDJointMotionType>(ConstaintHanlde->GetJointSettings().AngularMotionTypes[1]);
+		WrappedJointData.JointSettings.AngularMotionTypes[2] = static_cast<EChaosVDJointMotionType>(ConstaintHanlde->GetJointSettings().AngularMotionTypes[2]);
+
+		CVD_COPY_FIELD_TO_WRAPPER(ConstaintHanlde->GetJointSettings(), WrappedJointData.JointSettings, AngularLimits);
+		CVD_COPY_FIELD_TO_WRAPPER_WITH_CAST(ConstaintHanlde->GetJointSettings(), WrappedJointData.JointSettings, LinearSoftForceMode, EChaosVDJointForceMode);
+		CVD_COPY_FIELD_TO_WRAPPER_WITH_CAST(ConstaintHanlde->GetJointSettings(), WrappedJointData.JointSettings, AngularSoftForceMode, EChaosVDJointForceMode);
+		CVD_COPY_FIELD_TO_WRAPPER(ConstaintHanlde->GetJointSettings(), WrappedJointData.JointSettings, SoftLinearStiffness);
+		CVD_COPY_FIELD_TO_WRAPPER(ConstaintHanlde->GetJointSettings(), WrappedJointData.JointSettings, SoftLinearDamping);
+		CVD_COPY_FIELD_TO_WRAPPER(ConstaintHanlde->GetJointSettings(), WrappedJointData.JointSettings, SoftTwistStiffness);
+		CVD_COPY_FIELD_TO_WRAPPER(ConstaintHanlde->GetJointSettings(), WrappedJointData.JointSettings, SoftTwistDamping);
+		CVD_COPY_FIELD_TO_WRAPPER(ConstaintHanlde->GetJointSettings(), WrappedJointData.JointSettings, SoftSwingStiffness);
+		CVD_COPY_FIELD_TO_WRAPPER(ConstaintHanlde->GetJointSettings(), WrappedJointData.JointSettings, SoftSwingDamping);
+		CVD_COPY_FIELD_TO_WRAPPER(ConstaintHanlde->GetJointSettings(), WrappedJointData.JointSettings, LinearRestitution);
+		CVD_COPY_FIELD_TO_WRAPPER(ConstaintHanlde->GetJointSettings(), WrappedJointData.JointSettings, TwistRestitution);
+		CVD_COPY_FIELD_TO_WRAPPER(ConstaintHanlde->GetJointSettings(), WrappedJointData.JointSettings, TwistRestitution);
+		CVD_COPY_FIELD_TO_WRAPPER(ConstaintHanlde->GetJointSettings(), WrappedJointData.JointSettings, SwingRestitution);
+		CVD_COPY_FIELD_TO_WRAPPER(ConstaintHanlde->GetJointSettings(), WrappedJointData.JointSettings, LinearContactDistance);
+		CVD_COPY_FIELD_TO_WRAPPER(ConstaintHanlde->GetJointSettings(), WrappedJointData.JointSettings, TwistContactDistance);
+		CVD_COPY_FIELD_TO_WRAPPER(ConstaintHanlde->GetJointSettings(), WrappedJointData.JointSettings, SwingContactDistance);
+
+		CVD_COPY_VECTOR_FIELD_TO_WRAPPER(ConstaintHanlde->GetJointSettings(), WrappedJointData.JointSettings, LinearDrivePositionTarget);
+		CVD_COPY_VECTOR_FIELD_TO_WRAPPER(ConstaintHanlde->GetJointSettings(), WrappedJointData.JointSettings, LinearDriveVelocityTarget);
+		
+		WrappedJointData.JointSettings.bLinearPositionDriveEnabled0 = ConstaintHanlde->GetJointSettings().bLinearPositionDriveEnabled[0];
+		WrappedJointData.JointSettings.bLinearPositionDriveEnabled1 = ConstaintHanlde->GetJointSettings().bLinearPositionDriveEnabled[1];
+		WrappedJointData.JointSettings.bLinearPositionDriveEnabled2 = ConstaintHanlde->GetJointSettings().bLinearPositionDriveEnabled[2];
+
+		WrappedJointData.JointSettings.bLinearVelocityDriveEnabled0 = ConstaintHanlde->GetJointSettings().bLinearVelocityDriveEnabled[0];
+		WrappedJointData.JointSettings.bLinearVelocityDriveEnabled1 = ConstaintHanlde->GetJointSettings().bLinearVelocityDriveEnabled[1];
+		WrappedJointData.JointSettings.bLinearVelocityDriveEnabled2 = ConstaintHanlde->GetJointSettings().bLinearVelocityDriveEnabled[2];
+
+		CVD_COPY_FIELD_TO_WRAPPER_WITH_CAST(ConstaintHanlde->GetJointSettings(), WrappedJointData.JointSettings, LinearDriveForceMode, EChaosVDJointForceMode);
+
+		CVD_COPY_VECTOR_FIELD_TO_WRAPPER(ConstaintHanlde->GetJointSettings(), WrappedJointData.JointSettings, LinearDriveStiffness);
+		CVD_COPY_VECTOR_FIELD_TO_WRAPPER(ConstaintHanlde->GetJointSettings(), WrappedJointData.JointSettings, LinearDriveDamping);
+		CVD_COPY_VECTOR_FIELD_TO_WRAPPER(ConstaintHanlde->GetJointSettings(), WrappedJointData.JointSettings, LinearDriveMaxForce);
+		CVD_COPY_FIELD_TO_WRAPPER(ConstaintHanlde->GetJointSettings(), WrappedJointData.JointSettings, AngularDrivePositionTarget);
+		CVD_COPY_VECTOR_FIELD_TO_WRAPPER(ConstaintHanlde->GetJointSettings(), WrappedJointData.JointSettings, AngularDriveVelocityTarget);
+		CVD_COPY_FIELD_TO_WRAPPER_WITH_CAST(ConstaintHanlde->GetJointSettings(), WrappedJointData.JointSettings, AngularDriveForceMode, EChaosVDJointForceMode);
+		CVD_COPY_VECTOR_FIELD_TO_WRAPPER(ConstaintHanlde->GetJointSettings(), WrappedJointData.JointSettings, AngularDriveStiffness);
+		CVD_COPY_VECTOR_FIELD_TO_WRAPPER(ConstaintHanlde->GetJointSettings(), WrappedJointData.JointSettings, AngularDriveDamping);
+		CVD_COPY_VECTOR_FIELD_TO_WRAPPER(ConstaintHanlde->GetJointSettings(), WrappedJointData.JointSettings, AngularDriveMaxTorque);
+
+		CVD_COPY_FIELD_TO_WRAPPER(ConstaintHanlde->GetJointSettings(), WrappedJointData.JointSettings, LinearBreakForce);
+		CVD_COPY_FIELD_TO_WRAPPER(ConstaintHanlde->GetJointSettings(), WrappedJointData.JointSettings, LinearPlasticityLimit);
+
+		CVD_COPY_FIELD_TO_WRAPPER_WITH_CAST(ConstaintHanlde->GetJointSettings(), WrappedJointData.JointSettings, LinearPlasticityType, EChaosVDPlasticityType);
+		
+		CVD_COPY_FIELD_TO_WRAPPER(ConstaintHanlde->GetJointSettings(), WrappedJointData.JointSettings, LinearPlasticityInitialDistanceSquared);
+		CVD_COPY_FIELD_TO_WRAPPER(ConstaintHanlde->GetJointSettings(), WrappedJointData.JointSettings, AngularBreakTorque);
+		CVD_COPY_FIELD_TO_WRAPPER(ConstaintHanlde->GetJointSettings(), WrappedJointData.JointSettings, AngularPlasticityLimit);
+		CVD_COPY_FIELD_TO_WRAPPER(ConstaintHanlde->GetJointSettings(), WrappedJointData.JointSettings, ContactTransferScale);
+		
+		WrappedJointData.JointSettings.ConnectorTransforms[0] = ConstaintHanlde->GetJointSettings().ConnectorTransforms[0];
+		WrappedJointData.JointSettings.ConnectorTransforms[1] = ConstaintHanlde->GetJointSettings().ConnectorTransforms[1];
+	
+		WrappedJointData.JointSettings.MarkAsValid();
+		 
+	}
+	
+	WrappedJointData.MarkAsValid();
+	
+	return MoveTemp(WrappedJointData);
 }
 
 void FChaosVDDataWrapperUtils::CopyShapeDataToWrapper(const Chaos::FShapeInstancePtr& ShapeDataPtr, FChaosVDShapeCollisionData& OutCopyTo)

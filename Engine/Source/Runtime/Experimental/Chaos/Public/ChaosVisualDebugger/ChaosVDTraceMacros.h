@@ -155,6 +155,19 @@
 		FChaosVisualDebuggerTrace::TraceSceneQueryVisit(InQueryVisitData);
 	#endif
 
+	#ifndef CVD_TRACE_JOINT_CONSTRAINTS
+		#define CVD_TRACE_JOINT_CONSTRAINTS(DataChannel, InJointConstraints) \
+			{ \
+				CVD_SCOPED_DATA_CHANNEL_OVERRIDE(DataChannel) \
+				FChaosVisualDebuggerTrace::TraceJointsConstraints(InJointConstraints); \
+			}
+	#endif
+
+	#ifndef CVD_TRACE_CONSTRAINTS_CONTAINER
+		#define CVD_TRACE_CONSTRAINTS_CONTAINER(ContainerView) \
+			FChaosVisualDebuggerTrace::TraceConstraintsContainer(ContainerView);
+	#endif
+
 #else // WITH_CHAOS_VISUAL_DEBUGGER
 
 	#ifndef CVD_TRACE_PARTICLE
@@ -245,6 +258,14 @@
 
 	#ifndef CVD_TRACE_SCENE_QUERY_VISIT
 		#define CVD_TRACE_SCENE_QUERY_VISIT(InQueryVisitData)
+	#endif
+
+	#ifndef CVD_TRACE_JOINT_CONSTRAINTS
+		#define CVD_TRACE_JOINT_CONSTRAINTS(DataChannel, InJointConstraints)
+	#endif
+
+	#ifndef CVD_TRACE_CONSTRAINTS_CONTAINER
+		#define CVD_TRACE_CONSTRAINTS_CONTAINER(ContainerView)
 	#endif
 
 #endif // WITH_CHAOS_VISUAL_DEBUGGER

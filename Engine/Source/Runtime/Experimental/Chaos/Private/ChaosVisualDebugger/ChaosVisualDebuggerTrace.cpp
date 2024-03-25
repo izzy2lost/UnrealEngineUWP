@@ -8,6 +8,7 @@
 #include "Chaos/ImplicitObject.h"
 #include "Chaos/ParticleHandle.h"
 #include "Chaos/PBDCollisionConstraints.h"
+#include "Chaos/PBDJointConstraints.h"
 #include "Chaos/PBDRigidsSOAs.h"
 #include "ChaosVisualDebugger/ChaosVDDataWrapperUtils.h"
 #include "ChaosVisualDebugger/ChaosVDMemWriterReader.h"
@@ -15,6 +16,7 @@
 #include "Compression/OodleDataCompressionUtil.h"
 #include "DataWrappers/ChaosVDCollisionDataWrappers.h"
 #include "DataWrappers/ChaosVDImplicitObjectDataWrapper.h"
+#include "DataWrappers/ChaosVDJointDataWrappers.h"
 #include "DataWrappers/ChaosVDParticleDataWrapper.h"
 #include "DataWrappers/ChaosVDQueryDataWrappers.h"
 #include "HAL/CriticalSection.h"
@@ -318,6 +320,39 @@ void FChaosVisualDebuggerTrace::TraceMidPhasesFromCollisionConstraints(Chaos::FP
 	});
 }
 
+void FChaosVisualDebuggerTrace::TraceJointsConstraints(Chaos::FPBDJointConstraints& InJointConstraints)
+{
+	using namespace Chaos::VisualDebugger::Utils;
+
+	if (!IsTracing())
+	{
+		return;
+	}
+
+	const FChaosVDContext* CVDContextData = FChaosVDThreadContext::Get().GetCurrentContext(EChaosVDContextType::Solver);
+
+	if (!IsContextEnabledAndValid(CVDContextData))
+	{
+		return;
+	}
+
+	const Chaos::FPBDJointConstraints::FHandles& JointHandles = InJointConstraints.GetConstConstraintHandles();
+
+	ParallelFor(JointHandles.Num(), [&JointHandles, CopyContext = *CVDContextData](int32 ConstraintIndex)
+	{
+		CVD_SCOPE_CONTEXT(CopyContext);
+		
+		FChaosVDJointConstraint WrappedJointConstraintData = FChaosVDDataWrapperUtils::BuildJointDataWrapper(JointHandles[ConstraintIndex]);
+
+		WrappedJointConstraintData.SolverID = CopyContext.Id;
+
+		FChaosVDScopedTLSBufferAccessor TLSDataBuffer;
+		Chaos::VisualDebugger::WriteDataToBuffer(TLSDataBuffer.BufferRef, WrappedJointConstraintData);
+
+		TraceBinaryData(TLSDataBuffer.BufferRef, FChaosVDJointConstraint::WrapperTypeName);
+	});
+}
+
 void FChaosVisualDebuggerTrace::TraceCollisionConstraint(const Chaos::FPBDCollisionConstraint* CollisionConstraint)
 {
 	using namespace Chaos::VisualDebugger::Utils;
@@ -363,6 +398,29 @@ void FChaosVisualDebuggerTrace::TraceCollisionConstraintView(TArrayView<Chaos::F
 		CVD_SCOPE_CONTEXT(CopyContext);
 		TraceCollisionConstraint(CollisionConstraintView[ConstraintIndex]);
 	});
+}
+
+void FChaosVisualDebuggerTrace::TraceConstraintsContainer(TConstArrayView<Chaos::FPBDConstraintContainer*> ConstraintContainersView)
+{
+	if (!IsTracing())
+	{
+		return;
+	}
+
+	for (Chaos::FPBDConstraintContainer* ConstraintContainer : ConstraintContainersView)
+	{
+		if (ConstraintContainer)
+		{
+			if (ConstraintContainer->GetConstraintHandleType().IsA(Chaos::FPBDJointConstraintHandle::StaticType()))
+			{
+				CVD_TRACE_JOINT_CONSTRAINTS(CVDDC_JointConstraints, *static_cast<Chaos::FPBDJointConstraints*>(ConstraintContainer));
+			}
+			else if (ConstraintContainer->GetConstraintHandleType().IsA(Chaos::FPBDCollisionConstraint::StaticType()))
+			{
+				CVD_TRACE_STEP_MID_PHASES_FROM_COLLISION_CONSTRAINTS(CVDDC_EndOfEvolutionCollisionConstraints, *static_cast<Chaos::FPBDCollisionConstraints*>(ConstraintContainer));
+			}
+		}
+	}
 }
 
 void FChaosVisualDebuggerTrace::TraceSolverFrameStart(const FChaosVDContext& ContextData, const FString& InDebugName)

@@ -8,8 +8,12 @@
 #include "Chaos/ParticleHandleFwd.h"
 #include "DataWrappers/ChaosVDCollisionDataWrappers.h"
 
+struct FChaosVDJointConstraint;
+
 namespace Chaos
 {
+	class FPBDJointConstraintHandle;
+
 	namespace VisualDebugger
 	{
 		class FChaosVDSerializableNameTable;
@@ -54,6 +58,9 @@ private:
 
 	/** Creates and populates a FChaosVDParticlePairMidPhase with the data of the provided FParticlePairMidPhase */
 	static FChaosVDParticlePairMidPhase BuildMidPhaseDataWrapperFromMidPhase(const Chaos::FParticlePairMidPhase& InMidPhase);
+
+	/** Creates and populates a FChaosVDJointConstraint with the data of the provided FPBDJointConstraintHandle */
+	static FChaosVDJointConstraint BuildJointDataWrapper(const Chaos::FPBDJointConstraintHandle* ConstaintHanlde);
 
 	/** Converts a Chaos::FVec3 to a FVector. It is worth notice that FVector is double precision and FVec3 is single */
 	static FVector ConvertToFVector(const Chaos::FVec3f& VectorRef) { return FVector(VectorRef); }

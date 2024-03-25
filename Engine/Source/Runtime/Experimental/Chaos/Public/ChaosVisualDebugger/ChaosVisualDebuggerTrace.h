@@ -26,6 +26,12 @@
 #include "Trace/Trace.h"
 #include "Trace/Trace.inl"
 
+namespace Chaos
+{
+class FPBDConstraintContainer;
+class FPBDJointConstraints;
+}
+
 UE_TRACE_CHANNEL_EXTERN(ChaosVDChannel, CHAOS_API)
 
 UE_TRACE_EVENT_BEGIN_EXTERN(ChaosVDLogger, ChaosVDSolverFrameStart)
@@ -182,11 +188,17 @@ public:
 	/** Traces a Particle pair MidPhase as binary data from a provided CollisionConstraints object */
 	static CHAOS_API void TraceMidPhasesFromCollisionConstraints(Chaos::FPBDCollisionConstraints& InCollisionConstraints);
 
+	/** Traces all joint constraints in the provided container */
+	static CHAOS_API void TraceJointsConstraints(Chaos::FPBDJointConstraints& InJointConstraints);
+
 	/** Traces a Particle pair MidPhase as binary data */
 	static CHAOS_API void TraceCollisionConstraint(const Chaos::FPBDCollisionConstraint* CollisionConstraint);
 
 	/** Traces a Particle pair MidPhase as binary data in parallel */
 	static CHAOS_API void TraceCollisionConstraintView(TArrayView<Chaos::FPBDCollisionConstraint* const> CollisionConstraintView);
+
+	/** Traces all supported constraints in the provided containers view */
+	static CHAOS_API void TraceConstraintsContainer(TConstArrayView<Chaos::FPBDConstraintContainer*> ConstraintContainersView);
 
 	/** Traces the start of a solver frame and it pushes its context data to the CVD TLS context stack */
 	static CHAOS_API void TraceSolverFrameStart(const FChaosVDContext& ContextData, const FString& InDebugName);

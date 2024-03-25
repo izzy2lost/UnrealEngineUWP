@@ -8,6 +8,7 @@
 #include "GameFramework/Actor.h"
 #include "ChaosVDSolverInfoActor.generated.h"
 
+class UChaosVDSolverJointConstraintDataComponent;
 struct FChaosVDParticleDataWrapper;
 class AChaosVDParticleActor;
 class UChaosVDSolverCollisionDataComponent;
@@ -40,6 +41,7 @@ public:
 
 	UChaosVDSolverCollisionDataComponent* GetCollisionDataComponent() { return CollisionDataComponent; }
 	UChaosVDParticleDataComponent* GetParticleDataComponent() { return ParticleDataComponent; }
+	UChaosVDSolverJointConstraintDataComponent* GetJointsDataComponent() { return JointsDataComponent; }
 
 	void RegisterParticleActor(int32 ParticleID, AChaosVDParticleActor* ParticleActor);
 
@@ -95,6 +97,9 @@ protected:
 
 	UPROPERTY()
 	TObjectPtr<UChaosVDParticleDataComponent> ParticleDataComponent;
+
+	UPROPERTY()
+	TObjectPtr<UChaosVDSolverJointConstraintDataComponent> JointsDataComponent;
 };
 
 template <typename TCallback>
