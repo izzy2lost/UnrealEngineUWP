@@ -470,59 +470,65 @@ void FDeferredShadingSceneRenderer::CommitIndirectLightingState()
 		EReflectionsMethod ReflectionsMethod = EReflectionsMethod::Disabled;
 		EReflectionsMethod ReflectionsMethodWater = EReflectionsMethod::Disabled;
 		IScreenSpaceDenoiser::EMode DiffuseIndirectDenoiser = IScreenSpaceDenoiser::EMode::Disabled;
+		bool bHasPlanarReflections = false;
 
-		if (ShouldRenderLumenDiffuseGI(Scene, View))
+		if (ViewFamily.EngineShowFlags.Lighting)
 		{
-			DiffuseIndirectMethod = EDiffuseIndirectMethod::Lumen;
-		}
-		else if (ScreenSpaceRayTracing::IsScreenSpaceDiffuseIndirectSupported(View))
-		{
-			DiffuseIndirectMethod = EDiffuseIndirectMethod::SSGI;
-			DiffuseIndirectDenoiser = IScreenSpaceDenoiser::GetDenoiserMode(CVarDiffuseIndirectDenoiser);
-		}
-		else if (ShouldRenderPluginGlobalIllumination(View))
-		{
-			DiffuseIndirectMethod = EDiffuseIndirectMethod::Plugin;
-			DiffuseIndirectDenoiser = IScreenSpaceDenoiser::GetDenoiserMode(CVarDiffuseIndirectDenoiser);
-		}
+			if (ShouldRenderLumenDiffuseGI(Scene, View))
+			{
+				DiffuseIndirectMethod = EDiffuseIndirectMethod::Lumen;
+			}
+			else if (ScreenSpaceRayTracing::IsScreenSpaceDiffuseIndirectSupported(View))
+			{
+				DiffuseIndirectMethod = EDiffuseIndirectMethod::SSGI;
+				DiffuseIndirectDenoiser = IScreenSpaceDenoiser::GetDenoiserMode(CVarDiffuseIndirectDenoiser);
+			}
+			else if (ShouldRenderPluginGlobalIllumination(View))
+			{
+				DiffuseIndirectMethod = EDiffuseIndirectMethod::Plugin;
+				DiffuseIndirectDenoiser = IScreenSpaceDenoiser::GetDenoiserMode(CVarDiffuseIndirectDenoiser);
+			}
 		
-		const bool bLumenWantsSSAO = DiffuseIndirectMethod == EDiffuseIndirectMethod::Lumen && ShouldRenderAOWithLumenGI();
+			const bool bLumenWantsSSAO = DiffuseIndirectMethod == EDiffuseIndirectMethod::Lumen && ShouldRenderAOWithLumenGI();
 
-		if (DiffuseIndirectMethod == EDiffuseIndirectMethod::SSGI)
-		{
-			AmbientOcclusionMethod = EAmbientOcclusionMethod::SSGI;
-			DiffuseIndirectDenoiser = IScreenSpaceDenoiser::GetDenoiserMode(CVarDiffuseIndirectDenoiser);
-		}
-		else if (DiffuseIndirectMethod != EDiffuseIndirectMethod::Lumen || bLumenWantsSSAO)
-		{
-			extern bool ShouldRenderScreenSpaceAmbientOcclusion(const FViewInfo& View, bool bLumenWantsSSAO);
-
-			if (ShouldRenderRayTracingAmbientOcclusion(View) && (Views.Num() == 1) && !bLumenWantsSSAO)
+			if (DiffuseIndirectMethod == EDiffuseIndirectMethod::SSGI)
 			{
-				AmbientOcclusionMethod = EAmbientOcclusionMethod::RTAO;
+				AmbientOcclusionMethod = EAmbientOcclusionMethod::SSGI;
+				DiffuseIndirectDenoiser = IScreenSpaceDenoiser::GetDenoiserMode(CVarDiffuseIndirectDenoiser);
 			}
-			else if (ShouldRenderScreenSpaceAmbientOcclusion(View, bLumenWantsSSAO))
+			else if (DiffuseIndirectMethod != EDiffuseIndirectMethod::Lumen || bLumenWantsSSAO)
 			{
-				AmbientOcclusionMethod = EAmbientOcclusionMethod::SSAO;
+				extern bool ShouldRenderScreenSpaceAmbientOcclusion(const FViewInfo& View, bool bLumenWantsSSAO);
+
+				if (ShouldRenderRayTracingAmbientOcclusion(View) && (Views.Num() == 1) && !bLumenWantsSSAO)
+				{
+					AmbientOcclusionMethod = EAmbientOcclusionMethod::RTAO;
+				}
+				else if (ShouldRenderScreenSpaceAmbientOcclusion(View, bLumenWantsSSAO))
+				{
+					AmbientOcclusionMethod = EAmbientOcclusionMethod::SSAO;
+				}
 			}
-		}
+		
+			if (ShouldRenderLumenReflections(View))
+			{
+				ReflectionsMethod = EReflectionsMethod::Lumen;
+			}
+			else if (ScreenSpaceRayTracing::ShouldRenderScreenSpaceReflections(View))
+			{
+				ReflectionsMethod = EReflectionsMethod::SSR;
+			}
 
-		if (ShouldRenderLumenReflections(View))
-		{
-			ReflectionsMethod = EReflectionsMethod::Lumen;
-		}
-		else if (ScreenSpaceRayTracing::ShouldRenderScreenSpaceReflections(View))
-		{
-			ReflectionsMethod = EReflectionsMethod::SSR;
-		}
+			if (ShouldRenderLumenReflectionsWater(View))
+			{
+				ReflectionsMethodWater = EReflectionsMethod::Lumen;
+			}
+			else if (ScreenSpaceRayTracing::ShouldRenderScreenSpaceReflectionsWater(View))
+			{
+				ReflectionsMethodWater = EReflectionsMethod::SSR;
+			}
 
-		if (ShouldRenderLumenReflectionsWater(View))
-		{
-			ReflectionsMethodWater = EReflectionsMethod::Lumen;
-		}
-		else if (ScreenSpaceRayTracing::ShouldRenderScreenSpaceReflectionsWater(View))
-		{
-			ReflectionsMethodWater = EReflectionsMethod::SSR;
+			bHasPlanarReflections = HasDeferredPlanarReflections(View);
 		}
 
 		ViewPipelineState.Set(&FPerViewPipelineState::DiffuseIndirectMethod, DiffuseIndirectMethod);
@@ -531,7 +537,7 @@ void FDeferredShadingSceneRenderer::CommitIndirectLightingState()
 		ViewPipelineState.Set(&FPerViewPipelineState::ReflectionsMethod, ReflectionsMethod);
 		ViewPipelineState.Set(&FPerViewPipelineState::ReflectionsMethodWater, ReflectionsMethodWater);
 
-		ViewPipelineState.Set(&FPerViewPipelineState::bComposePlanarReflections, HasDeferredPlanarReflections(View));
+		ViewPipelineState.Set(&FPerViewPipelineState::bComposePlanarReflections, bHasPlanarReflections);
 	}
 }
 

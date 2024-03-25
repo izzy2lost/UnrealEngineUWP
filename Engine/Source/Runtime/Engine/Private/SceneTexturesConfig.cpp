@@ -180,7 +180,7 @@ static ETextureCreateFlags GetSceneDepthStencilCreateFlags(uint32 NumSamples, bo
 	return DepthCreateFlags;
 }
 
-static uint32 GetEditorPrimitiveNumSamples(ERHIFeatureLevel::Type FeatureLevel)
+uint32 FSceneTexturesConfig::GetEditorPrimitiveNumSamples(ERHIFeatureLevel::Type FeatureLevel)
 {
 	uint32 SampleCount = 1;
 

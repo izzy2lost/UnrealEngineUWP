@@ -456,5 +456,8 @@ SHOWFLAG_FIXED_IN_SHIPPING(0, VisualizeLWCComplexity, SFG_Hidden, NSLOCTEXT("Unr
 /** Enables ShaderPrint functionality that is used for debug printing from shaders (e.g. 'Nanitestats' command). Disable this for certain editor rendering (e.g. thumbnail rendering) */
 SHOWFLAG_ALWAYS_ACCESSIBLE(ShaderPrint, SFG_Developer, NSLOCTEXT("UnrealEd", "ShaderPrint", "Shader Print"))
 
+/** If true, scene depth is copied to the scene capture output depth texture. If false, other depth sources like editor primitives depth are still copied. */
+SHOWFLAG_ALWAYS_ACCESSIBLE(SceneCaptureCopySceneDepth, SFG_Hidden, NSLOCTEXT("UnrealEd", "SceneCaptureCopySceneDepth", "Copy Scene Depth To Scene Capture"))
+
 #undef SHOWFLAG_ALWAYS_ACCESSIBLE
 #undef SHOWFLAG_FIXED_IN_SHIPPING

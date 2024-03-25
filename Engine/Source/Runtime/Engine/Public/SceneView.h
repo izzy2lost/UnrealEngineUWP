@@ -2019,6 +2019,7 @@ public:
 
 		/** The views which make up the family. */
 		const FRenderTarget* RenderTarget;
+		const FRenderTarget* RenderTargetDepth;
 
 		/** The render target which the views are being rendered to. */
 		FSceneInterface* Scene;
@@ -2055,6 +2056,12 @@ public:
 
 		/** True if scene color and depth should be multiview-allocated */
 		uint32 bRequireMultiView:1;
+
+		ConstructionValues& SetRenderTargetDepth(const FRenderTarget* InRenderTargetDepth)
+		{
+			RenderTargetDepth = InRenderTargetDepth;
+			return *this;
+		}
 
 		/** Set the world time and real time independently to handle time dilation. */
 		ConstructionValues& SetTime(const FGameTime& InTime)
@@ -2109,6 +2116,7 @@ public:
 
 	/** The render target which the views are being rendered to. */
 	const FRenderTarget* RenderTarget;
+	const FRenderTarget* RenderTargetDepth;
 
 	/** The scene being viewed. */
 	FSceneInterface* Scene;

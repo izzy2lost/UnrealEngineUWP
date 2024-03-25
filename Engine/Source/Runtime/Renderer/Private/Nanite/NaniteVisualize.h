@@ -50,6 +50,7 @@ void RenderDebugViewMode(
 	const FRasterResults& RasterResults,
 	FRDGTextureRef OutputColorTexture,
 	FRDGTextureRef InputDepthTexture,
+	FRDGTextureRef OutputDepthTexture,
 	FRDGTextureRef QuadOverdrawTexture
 );
 

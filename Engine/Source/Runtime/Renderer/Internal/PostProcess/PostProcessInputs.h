@@ -9,6 +9,7 @@ struct FPostProcessingInputs
 {
 	TRDGUniformBufferRef<FSceneTextureUniformParameters> SceneTextures = nullptr;
 	FRDGTextureRef ViewFamilyTexture = nullptr;
+	FRDGTextureRef ViewFamilyDepthTexture = nullptr;
 	FRDGTextureRef CustomDepthTexture = nullptr;
 	FRDGTextureRef ExposureIlluminance = nullptr;
 	FTranslucencyViewResourcesMap TranslucencyViewResourcesMap;

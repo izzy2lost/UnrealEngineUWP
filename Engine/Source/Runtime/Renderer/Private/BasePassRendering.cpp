@@ -1393,6 +1393,9 @@ void FDeferredShadingSceneRenderer::RenderBasePassInternal(
 	#if WITH_DEBUG_VIEW_MODES
 		if (NaniteDebugViewMode != Nanite::EDebugViewMode::None)
 		{
+			FRDGTextureRef NaniteDepthTargetCopy = GraphBuilder.CreateTexture(NaniteDepthTarget->Desc, TEXT("NaniteDepthTargetCopy"));
+			AddCopyTexturePass(GraphBuilder, NaniteDepthTarget, NaniteDepthTargetCopy);
+
 			Nanite::RenderDebugViewMode(
 				GraphBuilder,
 				NaniteDebugViewMode,
@@ -1401,6 +1404,7 @@ void FDeferredShadingSceneRenderer::RenderBasePassInternal(
 				ViewFamily,
 				RasterResults,
 				NaniteColorTarget,
+				NaniteDepthTargetCopy,
 				NaniteDepthTarget,
 				SceneTextures.QuadOverdraw
 			);

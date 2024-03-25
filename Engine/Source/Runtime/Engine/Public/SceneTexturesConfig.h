@@ -137,6 +137,9 @@ struct FSceneTexturesConfig
 	ENGINE_API uint32 GetGBufferRenderTargetsInfo(FGraphicsPipelineRenderTargetsInfo& RenderTargetsInfo, EGBufferLayout Layout = GBL_Default) const;
 	ENGINE_API void SetupMobileGBufferFlags(bool bRequiresMultiPass);
 
+	// Number of MSAA samples in the Editor.Primitive<Color/Depth> textures. See also r.MSAA.CompositingSampleCount
+	ENGINE_API static uint32 GetEditorPrimitiveNumSamples(ERHIFeatureLevel::Type FeatureLevel);
+
 	FORCEINLINE bool IsValid() const
 	{
 		return ShadingPath != EShadingPath::Num;

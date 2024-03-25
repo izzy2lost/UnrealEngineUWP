@@ -2824,6 +2824,7 @@ FSceneViewFamily::ConstructionValues::ConstructionValues(
 	const FEngineShowFlags& InEngineShowFlags
 	)
 :	RenderTarget(InRenderTarget)
+,	RenderTargetDepth(nullptr)
 ,	Scene(InScene)
 ,	EngineShowFlags(InEngineShowFlags)
 ,	ViewModeParam(-1)
@@ -2852,6 +2853,7 @@ FSceneViewFamily::FSceneViewFamily(const ConstructionValues& CVS)
 	:
 	ViewMode(VMI_Lit),
 	RenderTarget(CVS.RenderTarget),
+	RenderTargetDepth(CVS.RenderTargetDepth),
 	Scene(CVS.Scene),
 	EngineShowFlags(CVS.EngineShowFlags),
 	Time(CVS.Time),

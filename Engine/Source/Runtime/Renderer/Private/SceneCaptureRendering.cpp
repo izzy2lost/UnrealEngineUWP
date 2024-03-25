@@ -202,6 +202,7 @@ void CopySceneCaptureComponentToTarget(
 	FRDGBuilder& GraphBuilder,
 	const FMinimalSceneTextures& SceneTextures,
 	FRDGTextureRef ViewFamilyTexture,
+	FRDGTextureRef ViewFamilyDepthTexture,
 	const FSceneViewFamily& ViewFamily,
 	TConstArrayView<FViewInfo> Views)
 {
@@ -210,13 +211,14 @@ void CopySceneCaptureComponentToTarget(
 	{
 		ViewPtrArray.Add(&View);
 	}
-	CopySceneCaptureComponentToTarget(GraphBuilder, SceneTextures, ViewFamilyTexture, ViewFamily, ViewPtrArray);
+	CopySceneCaptureComponentToTarget(GraphBuilder, SceneTextures, ViewFamilyTexture, ViewFamilyDepthTexture, ViewFamily, ViewPtrArray);
 }
 
 void CopySceneCaptureComponentToTarget(
 	FRDGBuilder& GraphBuilder,
 	const FMinimalSceneTextures& SceneTextures,
 	FRDGTextureRef ViewFamilyTexture,
+	FRDGTextureRef ViewFamilyDepthTexture,
 	const FSceneViewFamily& ViewFamily,
 	const TArray<const FViewInfo*>& Views)
 {
@@ -306,11 +308,18 @@ void CopySceneCaptureComponentToTarget(
 				EDRF_UseTriangleOptimization);
 		});
 	}
+
+	if (ViewFamilyDepthTexture && ViewFamily.EngineShowFlags.SceneCaptureCopySceneDepth)
+	{
+		verify(SceneTextures.Depth.Target->Desc == ViewFamilyDepthTexture->Desc);
+		AddCopyTexturePass(GraphBuilder, SceneTextures.Depth.Target, ViewFamilyDepthTexture);
+	}
 }
 
 void CopySceneCaptureComponentToTarget(
 	FRDGBuilder& GraphBuilder,
 	FRDGTextureRef ViewFamilyTexture,
+	FRDGTextureRef ViewFamilyDepthTexture,
 	const FSceneViewFamily& ViewFamily,
 	TConstStridedView<FSceneView> Views)
 {
@@ -321,7 +330,36 @@ void CopySceneCaptureComponentToTarget(
 
 	TConstArrayView<FViewInfo> ViewInfos = MakeArrayView(static_cast<const FViewInfo*>(&Views[0]), Views.Num());
 
-	CopySceneCaptureComponentToTarget(GraphBuilder, SceneTextures, ViewFamilyTexture, ViewFamily, ViewInfos);
+	CopySceneCaptureComponentToTarget(GraphBuilder, SceneTextures, ViewFamilyTexture, ViewFamilyDepthTexture, ViewFamily, ViewInfos);
+}
+
+void CopySceneCaptureComponentToTarget(
+	FRDGBuilder& GraphBuilder,
+	const FMinimalSceneTextures& SceneTextures,
+	FRDGTextureRef ViewFamilyTexture,
+	const FSceneViewFamily& ViewFamily,
+	const TArray<const FViewInfo*>& Views)
+{
+	CopySceneCaptureComponentToTarget(GraphBuilder, SceneTextures, ViewFamilyTexture, nullptr, ViewFamily, Views);
+}
+
+void CopySceneCaptureComponentToTarget(
+	FRDGBuilder& GraphBuilder,
+	const FMinimalSceneTextures& SceneTextures,
+	FRDGTextureRef ViewFamilyTexture,
+	const FSceneViewFamily& ViewFamily,
+	TConstArrayView<FViewInfo> Views)
+{
+	CopySceneCaptureComponentToTarget(GraphBuilder, SceneTextures, ViewFamilyTexture, nullptr, ViewFamily, Views);
+}
+
+void CopySceneCaptureComponentToTarget(
+	FRDGBuilder& GraphBuilder,
+	FRDGTextureRef ViewFamilyTexture,
+	const FSceneViewFamily& ViewFamily,
+	TConstStridedView<FSceneView> Views)
+{
+	CopySceneCaptureComponentToTarget(GraphBuilder, ViewFamilyTexture, nullptr, ViewFamily, Views);
 }
 
 static void UpdateSceneCaptureContentDeferred_RenderThread(
@@ -766,15 +804,8 @@ void SetupViewFamilyForSceneCapture(
 		ViewInitOptions.OverrideFarClippingPlaneDistance = MaxViewDistance;
 		ViewInitOptions.StereoPass = SceneCaptureViewInfo.StereoPass;
 		ViewInitOptions.StereoViewIndex = SceneCaptureViewInfo.StereoViewIndex;
-		
-		// Use CubemapFaceIndex if in range [0..CubeFace_MAX), otherwise use ViewIndex.  Casting to unsigned treats -1 as a large value, choosing ViewIndex.
-		ViewInitOptions.SceneViewStateInterface = SceneCaptureComponent->GetViewState((uint32)CubemapFaceIndex < CubeFace_MAX ? CubemapFaceIndex : ViewIndex);
-		
 		ViewInitOptions.ProjectionMatrix = SceneCaptureViewInfo.ProjectionMatrix;
-		ViewInitOptions.LODDistanceFactor = FMath::Clamp(SceneCaptureComponent->LODDistanceFactor, .01f, 100.0f);
 		ViewInitOptions.bIsSceneCapture = true;
-		ViewInitOptions.bIsSceneCaptureCube = SceneCaptureComponent->IsCube();
-		ViewInitOptions.bSceneCaptureUsesRayTracing = SceneCaptureComponent->bUseRayTracingIfEnabled;
 		ViewInitOptions.bIsPlanarReflection = bIsPlanarReflection;
 
 		if (ViewFamily.Scene->GetWorld() != nullptr && ViewFamily.Scene->GetWorld()->GetWorldSettings() != nullptr)
@@ -788,10 +819,22 @@ void SetupViewFamilyForSceneCapture(
 			ViewInitOptions.OverlayColor = FLinearColor::Black;
 		}
 
+		if (SceneCaptureComponent)
+		{
+			// Use CubemapFaceIndex if in range [0..CubeFace_MAX), otherwise use ViewIndex.  Casting to unsigned treats -1 as a large value, choosing ViewIndex.
+			ViewInitOptions.SceneViewStateInterface = SceneCaptureComponent->GetViewState((uint32)CubemapFaceIndex < CubeFace_MAX ? CubemapFaceIndex : ViewIndex);
+			ViewInitOptions.LODDistanceFactor = FMath::Clamp(SceneCaptureComponent->LODDistanceFactor, .01f, 100.0f);
+			ViewInitOptions.bIsSceneCaptureCube = SceneCaptureComponent->IsCube();
+			ViewInitOptions.bSceneCaptureUsesRayTracing = SceneCaptureComponent->bUseRayTracingIfEnabled;
+		}
+
 		FSceneView* View = new FSceneView(ViewInitOptions);
-
-		GetShowOnlyAndHiddenComponents(SceneCaptureComponent, View->HiddenPrimitives, View->ShowOnlyPrimitives);
-
+		
+		if (SceneCaptureComponent)
+		{
+			GetShowOnlyAndHiddenComponents(SceneCaptureComponent, View->HiddenPrimitives, View->ShowOnlyPrimitives);
+		}
+		
 		ViewFamily.Views.Add(View);
 
 		View->StartFinalPostprocessSettings(SceneCaptureViewInfo.ViewOrigin);
@@ -803,7 +846,7 @@ void SetupViewFamilyForSceneCapture(
 		// Default surface cache to lower resolution for Scene Capture.  Can be overridden via post process settings.
 		View->FinalPostProcessSettings.LumenSurfaceCacheResolution = 0.5f;
 
-		if (SceneCaptureComponent->IsCube())
+		if (SceneCaptureComponent && SceneCaptureComponent->IsCube())
 		{
 			// Disable vignette by default for cube maps -- darkened borders don't make sense for an omnidirectional projection.
 			View->FinalPostProcessSettings.VignetteIntensity = 0.0f;
@@ -814,7 +857,10 @@ void SetupViewFamilyForSceneCapture(
 			View->FinalPostProcessSettings.LumenFinalGatherScreenTraces = 0;
 		}
 
-		View->OverridePostProcessSettings(*PostProcessSettings, PostProcessBlendWeight);
+		if (PostProcessSettings)
+		{
+			View->OverridePostProcessSettings(*PostProcessSettings, PostProcessBlendWeight);
+		}
 		View->EndFinalPostprocessSettings(ViewInitOptions);
 	}
 }

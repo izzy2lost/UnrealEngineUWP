@@ -22,6 +22,7 @@ FRHITexture* GetMiniFontTexture();
 
 // Creates and returns an RDG texture for the view family output. Returns null if no RHI texture exists.
 FRDGTextureRef RENDERER_API TryCreateViewFamilyTexture(FRDGBuilder& GraphBuilder, const FSceneViewFamily& ViewFamily);
+FRDGTextureRef RENDERER_API TryCreateViewFamilyDepthTexture(FRDGBuilder& GraphBuilder, const FSceneViewFamily& ViewFamily);
 
 // The vertex shader used by DrawScreenPass to draw a rectangle.
 class FScreenPassVS : public FGlobalShader

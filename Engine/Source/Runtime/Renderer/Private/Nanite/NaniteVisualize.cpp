@@ -916,6 +916,7 @@ void RenderDebugViewMode(
 	const FRasterResults& RasterResults,
 	FRDGTextureRef OutputColorTexture,
 	FRDGTextureRef InputDepthTexture,
+	FRDGTextureRef OutputDepthTexture,
 	FRDGTextureRef QuadOverdrawTexture
 )
 {
@@ -978,6 +979,8 @@ void RenderDebugViewMode(
 
 	PassParameters->RenderTargets[0] = FRenderTargetBinding(OutputColorTexture, ERenderTargetLoadAction::ELoad, 0);
 
+	PassParameters->RenderTargets.DepthStencil = FDepthStencilBinding(OutputDepthTexture, ERenderTargetLoadAction::ELoad, ERenderTargetLoadAction::ELoad, FExclusiveDepthStencil::DepthWrite);
+
 #if WITH_EDITOR
 	const uint32 HitProxyIdCount = View.EditorSelectedNaniteHitProxyIds.Num();
 #else
@@ -992,13 +995,18 @@ void RenderDebugViewMode(
 
 	auto PixelShader = View.ShaderMap->GetShader<FExportDebugViewPS>(PermutationVector.ToDimensionValueId());
 
+	FRHIDepthStencilState* DepthStencilState = TStaticDepthStencilState<true, CF_DepthNearOrEqual>::GetRHI();
+
 	FPixelShaderUtils::AddFullscreenPass(
 		GraphBuilder,
 		View.ShaderMap,
 		RDG_EVENT_NAME("Export Debug View"),
 		PixelShader,
 		PassParameters,
-		View.ViewRect
+		View.ViewRect,
+		nullptr,
+		nullptr,
+		DepthStencilState
 	);
 }
 

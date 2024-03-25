@@ -362,6 +362,7 @@ FScreenPassTexture AddEditorPrimitivePass(
 	}
 
 	FScreenPassRenderTarget Output = Inputs.OverrideOutput;
+	FScreenPassRenderTarget DepthOutput = Inputs.OverrideDepthOutput;
 
 	if (!Output.IsValid())
 	{
@@ -375,13 +376,28 @@ FScreenPassTexture AddEditorPrimitivePass(
 
 		FCompositeEditorPrimitivesPS::FParameters* PassParameters = GraphBuilder.AllocParameters<FCompositeEditorPrimitivesPS::FParameters>();
 		PassParameters->RenderTargets[0] = Output.GetRenderTargetBinding();
+
+		bool bOutputIsMSAA = Output.Texture->Desc.NumSamples > 1;
+		if (DepthOutput.IsValid())
+		{
+			PassParameters->RenderTargets.DepthStencil = FDepthStencilBinding(DepthOutput.Texture, ERenderTargetLoadAction::EClear, ERenderTargetLoadAction::EClear, FExclusiveDepthStencil::DepthWrite);
+			verify(Output.Texture->Desc.NumSamples == DepthOutput.Texture->Desc.NumSamples);
+		}
+
 		PassParameters->View = View.ViewUniformBuffer;
 		PassParameters->Color = GetScreenPassTextureViewportParameters(FScreenPassTextureViewport(Inputs.SceneColor));
 		PassParameters->Depth = GetScreenPassTextureViewportParameters(FScreenPassTextureViewport(SceneDepth));
 		PassParameters->Output = GetScreenPassTextureViewportParameters(FScreenPassTextureViewport(Output));
 		PassParameters->ColorTexture = Inputs.SceneColor.Texture;
 		PassParameters->ColorSampler = PointClampSampler;
-		PassParameters->DepthTexture = SceneDepth.Texture;
+		if (View.Family->EngineShowFlags.SceneCaptureCopySceneDepth)
+		{
+			PassParameters->DepthTexture = SceneDepth.Texture;
+		}
+		else
+		{
+			PassParameters->DepthTexture = GSystemTextures.GetDepthDummy(GraphBuilder);
+		}
 		PassParameters->DepthSampler = PointClampSampler;
 		PassParameters->EditorPrimitivesDepth = EditorPrimitiveDepth;
 		PassParameters->EditorPrimitivesColor = EditorPrimitiveColor;
@@ -397,15 +413,26 @@ FScreenPassTexture AddEditorPrimitivePass(
 
 		FCompositeEditorPrimitivesPS::FPermutationDomain PermutationVector;
 		PermutationVector.Set<FCompositeEditorPrimitivesPS::FSampleCountDimension>(NumMSAASamples);
+		PermutationVector.Set<FCompositeEditorPrimitivesPS::FMSAADontResolve>(bOutputIsMSAA);
 
 		TShaderMapRef<FCompositeEditorPrimitivesPS> PixelShader(View.ShaderMap, PermutationVector);
+		
+		FRHIDepthStencilState* DepthStencilState = nullptr;
+		if (DepthOutput.IsValid())
+		{
+			DepthStencilState = TStaticDepthStencilState<true, CF_Always>::GetRHI();
+		}
+
 		FPixelShaderUtils::AddFullscreenPass(
 			GraphBuilder,
 			View.ShaderMap,
 			RDG_EVENT_NAME("Composite %dx%d MSAA=%d", Output.ViewRect.Width(), Output.ViewRect.Height(), NumMSAASamples),
 			PixelShader,
 			PassParameters,
-			Output.ViewRect);
+			Output.ViewRect,
+			nullptr,
+			nullptr,
+			DepthStencilState);
 	}
 
 	// Draws the editor translucent primitives on top of the opaque scene primitives

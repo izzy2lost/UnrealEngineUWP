@@ -492,6 +492,7 @@ private:
 		SetVisualizeVolumetricCloudConservativeDensity(false);
 		SetVisualizeVolumetricCloudEmptySpaceSkipping(false);
 		SetDebugDrawDistantVirtualSMLights(false);
+		SetSceneCaptureCopySceneDepth(true);
 
 		SetLumenScreenTraces(true);
 		SetLumenDetailTraces(true);

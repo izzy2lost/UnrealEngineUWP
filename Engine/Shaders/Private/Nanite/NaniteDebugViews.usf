@@ -168,11 +168,14 @@ FNaniteMaterialDebugViewInfo ReadMaterialDebugViewInfo(uint ShadingBin)
 
 void ExportDebugViewPS(
 	in float4 SvPosition : SV_Position,
-	out float4 OutColor  : SV_Target0
+	out float4 OutColor  : SV_Target0,
+	out float OutDepth   : SV_Depth
 )
 {
 	const uint2 PixelPos = (uint2)SvPosition.xy;
 	const UlongType VisPixel = VisBuffer64[PixelPos];
+
+	OutDepth = 0;
 
 	uint DepthInt = 0;
 	uint VisibleClusterIndex = 0;
@@ -182,6 +185,7 @@ void ExportDebugViewPS(
 	if (VisibleClusterIndex != 0xFFFFFFFFu)
 	{
 		const float NaniteDepth = asfloat(DepthInt);
+		OutDepth = NaniteDepth;
 		float SceneDepthValue = SceneDepth[PixelPos.xy];
 		if (NaniteDepth >= SceneDepthValue)
 		{

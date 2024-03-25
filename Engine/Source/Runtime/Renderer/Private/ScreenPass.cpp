@@ -42,6 +42,22 @@ FRDGTextureRef TryCreateViewFamilyTexture(FRDGBuilder& GraphBuilder, const FScen
 	return Texture;
 }
 
+FRDGTextureRef TryCreateViewFamilyDepthTexture(FRDGBuilder& GraphBuilder, const FSceneViewFamily& ViewFamily)
+{
+	if (!ViewFamily.RenderTargetDepth)
+	{
+		return nullptr;
+	}
+	FRHITexture* TextureRHI = ViewFamily.RenderTargetDepth->GetRenderTargetTexture();
+	FRDGTextureRef Texture = nullptr;
+	if (TextureRHI)
+	{
+		Texture = RegisterExternalTexture(GraphBuilder, TextureRHI, TEXT("ViewFamilyDepthTexture"));
+		GraphBuilder.SetTextureAccessFinal(Texture, ERHIAccess::RTV);
+	}
+	return Texture;
+}
+
 // static
 FScreenPassTexture FScreenPassTexture::CopyFromSlice(FRDGBuilder& GraphBuilder, const FScreenPassTextureSlice& ScreenTextureSlice)
 {
@@ -100,6 +116,11 @@ FScreenPassRenderTarget FScreenPassRenderTarget::CreateFromInput(
 
 FScreenPassRenderTarget FScreenPassRenderTarget::CreateViewFamilyOutput(FRDGTextureRef ViewFamilyTexture, const FViewInfo& View)
 {
+	if (!ViewFamilyTexture)
+	{
+		return FScreenPassRenderTarget{};
+	}
+
 	const FIntRect ViewRect = View.PrimaryScreenPercentageMethod == EPrimaryScreenPercentageMethod::RawOutput ? View.ViewRect : View.UnscaledViewRect;
 
 	ERenderTargetLoadAction LoadAction = ERenderTargetLoadAction::ENoAction;

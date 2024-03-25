@@ -2151,6 +2151,7 @@ void FDeferredShadingSceneRenderer::Render(FRDGBuilder& GraphBuilder)
 	bool bVolumetricRenderTargetRequired = bShouldRenderVolumetricCloud && !bHasRayTracedOverlay;
 
 	FRDGTextureRef ViewFamilyTexture = TryCreateViewFamilyTexture(GraphBuilder, ViewFamily);
+	FRDGTextureRef ViewFamilyDepthTexture = TryCreateViewFamilyDepthTexture(GraphBuilder, ViewFamily);
 	if (RendererOutput == ERendererOutput::DepthPrepassOnly)
 	{
 		RenderOcclusionLambda();
@@ -2160,7 +2161,7 @@ void FDeferredShadingSceneRenderer::Render(FRDGBuilder& GraphBuilder)
 			Nanite::GStreamingManager.SubmitFrameStreamingRequests(GraphBuilder);
 		}
 
-		CopySceneCaptureComponentToTarget(GraphBuilder, SceneTextures, ViewFamilyTexture, ViewFamily, Views);
+		CopySceneCaptureComponentToTarget(GraphBuilder, SceneTextures, ViewFamilyTexture, ViewFamilyDepthTexture, ViewFamily, Views);
 	}
 	else
 	{
@@ -3236,7 +3237,7 @@ void FDeferredShadingSceneRenderer::Render(FRDGBuilder& GraphBuilder)
 
 		RendererModule.RenderPostResolvedSceneColorExtension(GraphBuilder, SceneTextures);
 
-		CopySceneCaptureComponentToTarget(GraphBuilder, SceneTextures, ViewFamilyTexture, ViewFamily, Views);
+		CopySceneCaptureComponentToTarget(GraphBuilder, SceneTextures, ViewFamilyTexture, ViewFamilyDepthTexture, ViewFamily, Views);
 
 		for (int32 ViewIndex = 0; ViewIndex < Views.Num(); ++ViewIndex)
 		{
@@ -3263,6 +3264,7 @@ void FDeferredShadingSceneRenderer::Render(FRDGBuilder& GraphBuilder)
 
 			FPostProcessingInputs PostProcessingInputs;
 			PostProcessingInputs.ViewFamilyTexture = ViewFamilyTexture;
+			PostProcessingInputs.ViewFamilyDepthTexture = ViewFamilyDepthTexture;
 			PostProcessingInputs.CustomDepthTexture = SceneTextures.CustomDepth.Depth;
 			PostProcessingInputs.ExposureIlluminance = ExposureIlluminance;
 			PostProcessingInputs.SceneTextures = SceneTextures.UniformBuffer;

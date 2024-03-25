@@ -18,6 +18,30 @@ RENDERER_API void CopySceneCaptureComponentToTarget(
 	FRDGBuilder& GraphBuilder,
 	const FMinimalSceneTextures& SceneTextures,
 	FRDGTextureRef ViewFamilyTexture,
+	FRDGTextureRef ViewFamilyDepthTexture,
+	const FSceneViewFamily& ViewFamily,
+	const TArray<const FViewInfo*>& Views);
+
+RENDERER_API void CopySceneCaptureComponentToTarget(
+	FRDGBuilder& GraphBuilder,
+	const FMinimalSceneTextures& SceneTextures,
+	FRDGTextureRef ViewFamilyTexture,
+	FRDGTextureRef ViewFamilyDepthTexture,
+	const FSceneViewFamily& ViewFamily,
+	TConstArrayView<FViewInfo> Views);
+
+RENDERER_API void CopySceneCaptureComponentToTarget(
+	FRDGBuilder& GraphBuilder,
+	FRDGTextureRef ViewFamilyTexture,
+	FRDGTextureRef ViewFamilyDepthTexture,
+	const FSceneViewFamily& ViewFamily,
+	TConstStridedView<FSceneView> Views);
+
+
+RENDERER_API void CopySceneCaptureComponentToTarget(
+	FRDGBuilder& GraphBuilder,
+	const FMinimalSceneTextures& SceneTextures,
+	FRDGTextureRef ViewFamilyTexture,
 	const FSceneViewFamily& ViewFamily,
 	const TArray<const FViewInfo*>& Views);
 
