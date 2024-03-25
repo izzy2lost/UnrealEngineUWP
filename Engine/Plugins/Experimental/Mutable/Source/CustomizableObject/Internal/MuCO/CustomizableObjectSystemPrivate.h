@@ -757,7 +757,10 @@ public:
 
 	static void HideOnScreenCompileWarnings(const UCustomizableObjectPrivate& ObjectPrivate);
 #endif
-	
+
+	/** Tick, in the Game Thread, anything that could potentially block the Mutable Thread. */
+	void TickMutableThreadDependencies();
+
 	/** Mutable TaskGraph system (Mutable Thread). */
 	FMutableTaskGraph MutableTaskGraph;
 	

@@ -1397,7 +1397,7 @@ bool UCustomizableObjectSystem::LockObject(const class UCustomizableObject* InOb
 			{
 				while (!Task.IsCompleted())				
 				{
-					GetPrivate()->UpdateResourceStreaming(0, false);
+					GetPrivate()->TickMutableThreadDependencies();
 				}
 			}
 			else
@@ -3135,11 +3135,7 @@ int32 UCustomizableObjectSystem::TickInternal()
 
 #if WITH_EDITOR
 	TickRecompileCustomizableObjects();
-
-	if (GetPrivate()->ImageProvider)
-	{
-		GetPrivate()->ImageProvider->Tick();		
-	}
+	GetPrivate()->TickMutableThreadDependencies();
 #endif
 
 #if WITH_EDITORONLY_DATA
@@ -3721,8 +3717,14 @@ void UCustomizableObjectSystemPrivate::HideOnScreenCompileWarnings(const UCustom
 		GEngine->RemoveOnScreenDebugMessage(reinterpret_cast<uint64>(&ObjectPrivate) + KEY_OFFSET_COMPILATION_OUT_OF_DATE);
 	}
 }
-
 #endif
+
+
+void UCustomizableObjectSystemPrivate::TickMutableThreadDependencies()
+{
+	check(IsInGameThread());
+	ImageProvider->Tick();
+}
 
 
 uint64 UCustomizableObjectSystem::GetMaxChunkSizeForPlatform(const ITargetPlatform* TargetPlatform)
