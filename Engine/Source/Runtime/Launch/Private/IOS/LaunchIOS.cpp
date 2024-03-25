@@ -621,13 +621,25 @@ void FSwiftAppBootstrap::KickoffWithCompositingLayer(CP_OBJECT_cp_layer_renderer
 	{
 		cp_frame_t SwiftLayerFrame = cp_layer_renderer_query_next_frame(Layer);
 		cp_drawable_t SwiftDrawable = cp_frame_query_drawable(SwiftLayerFrame);
+		for (int ViewIndex = 0; ViewIndex < NumViews; ViewIndex++)
 		{
-			cp_view_t View = cp_drawable_get_view(SwiftDrawable, 0);
+			cp_view_t View = cp_drawable_get_view(SwiftDrawable, ViewIndex);
 			cp_view_texture_map_t TextureMap = cp_view_get_view_texture_map(View);
 			MTLViewport Viewport = cp_view_texture_map_get_viewport(TextureMap);
-			
-			NSValue* VPValue = [NSValue valueWithCGRect:CGRectMake(Viewport.originX, Viewport.originY, Viewport.width, Viewport.height)];
+
+			float ScaleDownHack = 0.5;
+			float X = Viewport.originX * ScaleDownHack;
+			float Y = Viewport.originY * ScaleDownHack;
+			float W = Viewport.width * ScaleDownHack;
+			float H = Viewport.height * ScaleDownHack;
+			// both views are at 0? if so, hack the view 1 to be to the right of view 0
+			if (ViewIndex == 1 && X == 0)
+			{
+				X = W;
+			}
+			NSValue* VPValue = [NSValue valueWithCGRect:CGRectMake(X, Y, W, H)];
 			[Viewports addObject:VPValue];
+			FPlatformMisc::LowLevelOutputDebugStringf(TEXT("Adding eye viewport : [%f. %f] / [%f x %f] (scaled by %f\n"), X, Y, W, H, ScaleDownHack);
 		}
 		cp_frame_start_submission(SwiftLayerFrame);
 		id<MTLDevice> Device = cp_layer_renderer_get_device(Layer);
@@ -640,16 +652,6 @@ void FSwiftAppBootstrap::KickoffWithCompositingLayer(CP_OBJECT_cp_layer_renderer
 
 	// cache the viewports in the delegate so code later can get it when asking about the screen bounds
 	AppDelegate.SwiftLayerViewports = Viewports;
-
-	// grab the commandline, skipping over the executable path (index 0), and pass it to unreal
-	NSArray* Arguments = [[NSProcessInfo processInfo] arguments];
-	Arguments = [Arguments subarrayWithRange:NSMakeRange(1, [Arguments count] - 1)];
-	GSavedCommandLine = [Arguments componentsJoinedByString:@" "];
-
-		// Xcode strips quotes, so replace ^ with "
-	GSavedCommandLine = GSavedCommandLine.Replace(TEXT("+"), TEXT("\""));
-	
-	FIOSCommandLineHelper::InitCommandArgs(FString());
 	
 	CGRect FirstViewport = [[AppDelegate.SwiftLayerViewports firstObject] CGRectValue];
 	

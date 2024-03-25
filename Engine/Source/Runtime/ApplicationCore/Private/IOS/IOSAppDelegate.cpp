@@ -260,8 +260,13 @@ static IOSAppDelegate* CachedDelegate = nil;
 -(id)init
 {
 #if UE_USE_SWIFT_UI_MAIN
-	// will get the command later
-	FIOSCommandLineHelper::InitCommandArgs("");
+
+	NSArray* Arguments = [[NSProcessInfo processInfo] arguments];
+	Arguments = [Arguments subarrayWithRange:NSMakeRange(1, [Arguments count] - 1)];
+	FString CmdLine = [Arguments componentsJoinedByString:@" "];
+
+	FIOSCommandLineHelper::InitCommandArgs(*CmdLine);
+
 #endif
 	self = [super init];
 	CachedDelegate = self;

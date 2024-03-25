@@ -6,13 +6,18 @@ struct SwiftUIView: View {
 
 	@Environment(\.openImmersiveSpace) var openImmersiveSpace
 
+	@State private var buttonDisabled = false
+
 	func Open()
 	{
 		Task
 		{
+			buttonDisabled = true
 			await openImmersiveSpace(id: "ImmersiveSpace")
 		}
 	}
+	
+	let timer = Timer.publish(every: 3, on: .main, in: .common).autoconnect()
 	
 	var body: some View {
 		
@@ -23,9 +28,17 @@ struct SwiftUIView: View {
 	  Button(action: {
 		Open()
 //		onClick()
-	  }, label: {
-		Text("Test Button")
-	  })
+	  }
+	  , label: {
+		  Text("Test Button")
+		})
+		.disabled(buttonDisabled)
+
+	}
+	.onReceive(timer) { t2 in
+		print("timer!")
+		timer.upstream.connect().cancel()
+		Open()
 	}
   }
 }

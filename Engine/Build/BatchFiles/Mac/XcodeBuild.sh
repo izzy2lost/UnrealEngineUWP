@@ -83,7 +83,10 @@ case $PLATFORM in
 	"appletvos")
 		PLATFORM="TVOS"
 	;;
-	"xros"|"xrsimulator")
+	"xros")
+		PLATFORM="VisionOS"
+	;;
+	"xrsimulator")
 		PLATFORM="VisionOS"
 		UBT_ARCHFLAG="-architecture=iossimulator" 
 	;;
