@@ -205,14 +205,14 @@ UWorldMetricInterface* UWorldMetricsSubsystem::CreateMetric(const TSubclassOf<UW
 {
 	if (UNLIKELY(!InMetricClass))
 	{
-		UE_LOG(LogWorldMetrics, Error, TEXT("[%hs] Unexpected null metric class"), __FUNCTION__);
+		UE_LOG(LogWorldMetrics, Warning, TEXT("[%hs] Unexpected null metric class"), __FUNCTION__);
 		return nullptr;
 	}
 
 	if (InMetricClass->HasAnyClassFlags(CLASS_Abstract))
 	{
 		UE_LOG(
-			LogWorldMetrics, Error, TEXT("[%hs] Parameter metric class is abstract: %s"), __FUNCTION__,
+			LogWorldMetrics, Warning, TEXT("[%hs] Parameter metric class is abstract: %s"), __FUNCTION__,
 			*InMetricClass->GetFName().ToString());
 		return nullptr;
 	}
@@ -231,7 +231,7 @@ bool UWorldMetricsSubsystem::ContainsMetric(UWorldMetricInterface* InMetric) con
 {
 	if (UNLIKELY(!InMetric))
 	{
-		UE_LOG(LogWorldMetrics, Error, TEXT("[%hs] Unexpected null metric instance"), __FUNCTION__);
+		UE_LOG(LogWorldMetrics, Warning, TEXT("[%hs] Unexpected null metric instance"), __FUNCTION__);
 		return false;
 	}
 	return Algo::IndexOf(Metrics, InMetric) != INDEX_NONE;
@@ -248,7 +248,7 @@ bool UWorldMetricsSubsystem::AddMetric(UWorldMetricInterface* InMetric)
 {
 	if (UNLIKELY(!InMetric))
 	{
-		UE_LOG(LogWorldMetrics, Error, TEXT("[%hs] Unexpected null metric instance"), __FUNCTION__);
+		UE_LOG(LogWorldMetrics, Warning, TEXT("[%hs] Unexpected null metric instance"), __FUNCTION__);
 		return false;
 	}
 
@@ -279,7 +279,7 @@ bool UWorldMetricsSubsystem::RemoveMetric(UWorldMetricInterface* InMetric)
 {
 	if (UNLIKELY(!InMetric))
 	{
-		UE_LOG(LogWorldMetrics, Error, TEXT("[%hs] Unexpected null metric instance"), __FUNCTION__);
+		UE_LOG(LogWorldMetrics, Warning, TEXT("[%hs] Unexpected null metric instance"), __FUNCTION__);
 		return false;
 	}
 
@@ -394,20 +394,20 @@ UWorldMetricsExtension* UWorldMetricsSubsystem::AcquireExtensionInternal(
 {
 	if (UNLIKELY(!InOwner))
 	{
-		UE_LOG(LogWorldMetrics, Error, TEXT("[%hs] Unexpected invalid owner"), __FUNCTION__);
+		UE_LOG(LogWorldMetrics, Warning, TEXT("[%hs] Unexpected invalid owner"), __FUNCTION__);
 		return nullptr;
 	}
 
 	if (UNLIKELY(!InExtensionClass))
 	{
-		UE_LOG(LogWorldMetrics, Error, TEXT("[%hs] Unexpected null extension class"), __FUNCTION__);
+		UE_LOG(LogWorldMetrics, Warning, TEXT("[%hs] Unexpected null extension class"), __FUNCTION__);
 		return nullptr;
 	}
 
 	if (InExtensionClass->HasAnyClassFlags(CLASS_Abstract))
 	{
 		UE_LOG(
-			LogWorldMetrics, Error, TEXT("[%hs] Parameter extension class is abstract: %s"), __FUNCTION__,
+			LogWorldMetrics, Warning, TEXT("[%hs] Parameter extension class is abstract: %s"), __FUNCTION__,
 			*InExtensionClass->GetFName().ToString());
 		return nullptr;
 	}
@@ -437,7 +437,7 @@ UWorldMetricsExtension* UWorldMetricsSubsystem::AcquireExistingExtension(
 
 	if (!ensure(IndexedOwners.IsValidIndex(ExtensionIndex)))
 	{
-		UE_LOG(LogWorldMetrics, Warning, TEXT("[%hs] Unexpected invalid extension's owner list"), __FUNCTION__);
+		UE_LOG(LogWorldMetrics, Error, TEXT("[%hs] Unexpected invalid extension's owner list"), __FUNCTION__);
 		return nullptr;
 	}
 	IndexedOwners[ExtensionIndex].Emplace(InOwner);
@@ -451,8 +451,8 @@ UWorldMetricsExtension* UWorldMetricsSubsystem::AddExtension(
 {
 	check(Extensions.Num() == IndexedOwners.Num());
 	UWorldMetricsExtension* Extension =
-		NewObject<UWorldMetricsExtension>(this, InExtensionClass, NAME_None, RF_Transient);
-	if (Extension == nullptr)
+		NewObject<UWorldMetricsExtension>(this, InExtensionClass, NAME_None, RF_Transient);	
+	if (UNLIKELY(!Extension))
 	{
 		UE_LOG(
 			LogWorldMetrics, Error, TEXT("[%hs] Failed to create extension of class: %s"), __FUNCTION__,
@@ -482,7 +482,7 @@ bool UWorldMetricsSubsystem::ReleaseExtensionInternal(
 
 	if (UNLIKELY(!InExtensionClass))
 	{
-		UE_LOG(LogWorldMetrics, Error, TEXT("[%hs] Unexpected null extension class"), __FUNCTION__);
+		UE_LOG(LogWorldMetrics, Warning, TEXT("[%hs] Unexpected null extension class"), __FUNCTION__);
 		return false;
 	}
 

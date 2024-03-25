@@ -7,6 +7,7 @@
 #endif	// WITH_TESTS
 
 #include "HAL/IConsoleManager.h"
+#include "WorldMetricsLog.h"
 #include "WorldMetricsSubsystem.h"
 #include "WorldMetricsTestTypes.h"
 #include "WorldMetricsTestUtil.h"
@@ -22,8 +23,25 @@ void TestAll(UWorld* World);
 static FAutoConsoleCommandWithWorldAndArgs CmdWorldMetricsSelfTest(
 	TEXT("WorldMetrics.SelfTest"),
 	TEXT("Toggles the World Metrics Subsystem self-test."),
-	FConsoleCommandWithWorldAndArgsDelegate::CreateLambda([](const TArray<FString>& Args, UWorld* World)
-														  { TestAll(World); }),
+	FConsoleCommandWithWorldAndArgsDelegate::CreateLambda(
+		[](const TArray<FString>& Args, UWorld* World)
+		{
+			const UWorldMetricsSubsystem* Subsystem = UWorldMetricsSubsystem::Get(World);
+			if (!ensure(Subsystem))
+			{
+				UE_LOG(LogWorldMetrics, Warning, TEXT("Cannot run SelfTest without a valid World Metrics subsystem."))
+				return;
+			}
+
+			if (Subsystem->HasAnyMetric())
+			{
+				UE_LOG(
+					LogWorldMetrics, Warning,
+					TEXT("Cannot run SelfTest in a World Metrics subsystem with pre-existing metrics."))
+				return;
+			}
+			TestAll(World);
+		}),
 	ECVF_Default);
 
 static const TSubclassOf<UMockWorldMetricBase> MockMetricClasses[] = {
@@ -544,9 +562,6 @@ void TestMultipleMetricIteration(UWorld* World, bool bRandomized)
 
 void TestAll(UWorld* World)
 {
-	UWorldMetricsSubsystem* Subsystem = UWorldMetricsSubsystem::Get(World);
-	REQUIRE_MESSAGE(TEXT("WorldMetricsSubsystem is valid after GetSubsystem."), Subsystem);
-
 	TestZeroState(World);
 
 	// Metrics
@@ -601,7 +616,7 @@ static void ScopedWorldTest(EWorldType::Type WorldType, TFunctionRef<void(UWorld
 }
 }  // namespace Private
 
-TEST_CASE_NAMED(WorldMetricsTestZeroState, "WorldMetrics::TestZeroState", "[WorldMetrics][EngineFilter]")
+TEST_CASE_NAMED(WorldMetricsTestZeroState, "WorldMetrics::TestZeroState", "[WorldMetrics][Core][EngineFilter]")
 {
 	Private::ScopedWorldTest(EWorldType::Editor, [this](UWorld* World) { Private::TestZeroState(World); });
 }
@@ -609,7 +624,7 @@ TEST_CASE_NAMED(WorldMetricsTestZeroState, "WorldMetrics::TestZeroState", "[Worl
 TEST_CASE_NAMED(
 	WorldMetricsTestSingleMetricAddRemove,
 	"WorldMetrics::TestSingleMetricAddRemove",
-	"[WorldMetrics][EngineFilter]")
+	"[WorldMetrics][Core][EngineFilter]")
 {
 	Private::ScopedWorldTest(EWorldType::Editor, [this](UWorld* World) { Private::TestSingleMetricAddRemove(World); });
 }
@@ -617,7 +632,7 @@ TEST_CASE_NAMED(
 TEST_CASE_NAMED(
 	WorldMetricsTestMultipleMetricsAddRemove,
 	"WorldMetrics::TestMultipleMetricsAddRemove",
-	"[WorldMetrics][EngineFilter]")
+	"[WorldMetrics][Core][EngineFilter]")
 {
 	Private::ScopedWorldTest(
 		EWorldType::Editor,
@@ -631,7 +646,7 @@ TEST_CASE_NAMED(
 TEST_CASE_NAMED(
 	WorldMetricsTestMultipleMetricIteration,
 	"WorldMetrics::TestMultipleMetricIteration",
-	"[WorldMetrics][EngineFilter]")
+	"[WorldMetrics][Core][EngineFilter]")
 {
 	Private::ScopedWorldTest(
 		EWorldType::Editor,
@@ -645,7 +660,7 @@ TEST_CASE_NAMED(
 TEST_CASE_NAMED(
 	WorldMetricsTestSingleMetricSingleExtensionAcquireRelease,
 	"WorldMetrics::TestSingleMetricSingleExtensionAcquireRelease",
-	"[WorldMetrics][EngineFilter]")
+	"[WorldMetrics][Core][EngineFilter]")
 {
 	Private::ScopedWorldTest(
 		EWorldType::Editor, [this](UWorld* World) { Private::TestSingleMetricSingleExtensionAcquireRelease(World); });
@@ -654,7 +669,7 @@ TEST_CASE_NAMED(
 TEST_CASE_NAMED(
 	WorldMetricsTestMultipleMetricsSingleExtensionAcquireRelease,
 	"WorldMetrics::TestMultipleMetricsSingleExtensionAcquireRelease",
-	"[WorldMetrics][EngineFilter]")
+	"[WorldMetrics][Core][EngineFilter]")
 {
 	Private::ScopedWorldTest(
 		EWorldType::Editor,
@@ -668,7 +683,7 @@ TEST_CASE_NAMED(
 TEST_CASE_NAMED(
 	WorldMetricsTestMultipleMetricsMultipleExtensionAcquireRelease,
 	"WorldMetrics::TestMultipleMetricsMultipleExtensionAcquireRelease",
-	"[WorldMetrics][EngineFilter]")
+	"[WorldMetrics][Core][EngineFilter]")
 {
 	Private::ScopedWorldTest(
 		EWorldType::Editor,
@@ -682,7 +697,7 @@ TEST_CASE_NAMED(
 TEST_CASE_NAMED(
 	WorldMetricsTestSingleMetricSingleExtensionAutoReleaseOnRemoval,
 	"WorldMetrics::TestSingleMetricSingleExtensionAutoReleaseOnRemoval",
-	"[WorldMetrics][EngineFilter]")
+	"[WorldMetrics][Core][EngineFilter]")
 {
 	Private::ScopedWorldTest(
 		EWorldType::Editor,
@@ -692,7 +707,7 @@ TEST_CASE_NAMED(
 TEST_CASE_NAMED(
 	WorldMetricsTestMultipleMetricsMultipleExtensionAutoReleaseOnRemoval,
 	"WorldMetrics::TestMultipleMetricsMultipleExtensionAutoReleaseOnRemoval",
-	"[WorldMetrics][EngineFilter]")
+	"[WorldMetrics][Core][EngineFilter]")
 {
 	Private::ScopedWorldTest(
 		EWorldType::Editor,
@@ -706,7 +721,7 @@ TEST_CASE_NAMED(
 TEST_CASE_NAMED(
 	WorldMetricsTestSingleMetricOrphanExtensionAutoRemoval,
 	"WorldMetrics::TestSingleMetricOrphanExtensionAutoRemoval",
-	"[WorldMetrics][EngineFilter]")
+	"[WorldMetrics][Core][EngineFilter]")
 {
 	Private::ScopedWorldTest(
 		EWorldType::Editor, [this](UWorld* World) { Private::TestSingleMetricOrphanExtensionAutoRemoval(World); });
