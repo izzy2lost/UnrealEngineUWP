@@ -58,6 +58,11 @@ public:
 	virtual class FRHITexture* GetTexture(EDisplayClusterWarpBlendTextureType InTextureType) const = 0;
 
 	/**
+	* Get texture interface by type
+	*/
+	virtual TSharedPtr<class IDisplayClusterRender_Texture, ESPMode::ThreadSafe> GetTextureInterface(EDisplayClusterWarpBlendTextureType InTextureType) const = 0;
+
+	/**
 	 * Return AlphaMap embedded gamma value
 	 */
 	virtual float GetAlphaMapEmbeddedGamma() const = 0;
