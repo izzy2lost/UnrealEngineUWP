@@ -946,23 +946,30 @@ FScreenPassTexture AddTonemapPass(FRDGBuilder& GraphBuilder, const FViewInfo& Vi
 	{
 		// Due to the way split-screen shares the same render target for all views, make sure
 		// that we use the same texture for saving out the luminance as well to keep the memory
-		// footprint small
-		auto CachedOuputLuminance = GraphBuilder.Blackboard.Get<FOutputLuminance>();
-		if (CachedOuputLuminance == nullptr)
+		// footprint small - but only if we're outputting directly to the final render target for both views
+		// (that is, neither view has any post-processing steps after tonemapping)
+		const FOutputLuminance* CachedOutputLuminance = GraphBuilder.Blackboard.Get<FOutputLuminance>();
+		if (CachedOutputLuminance && Inputs.OverrideOutput.IsValid() &&
+			CachedOutputLuminance->Texture->Desc.Extent == Output.Texture->Desc.Extent)
 		{
-			auto NewOutputLuminance = &GraphBuilder.Blackboard.Create<FOutputLuminance>();
-			auto OutputSize = Output.Texture->Desc.GetSize();
+			OutputLuminance = CachedOutputLuminance->Texture;
+		}
+		else
+		{
+			FIntPoint OutputSize = Output.Texture->Desc.Extent;
 			const FIntPoint SDROutputSize = FIntPoint(OutputSize.X, OutputSize.Y);
 			FRDGTextureDesc Desc = FRDGTextureDesc::Create2D(
 				SDROutputSize,
 				PF_R8,
 				FClearValueBinding::Black,
 				bComputePass ? TexCreate_UAV : TexCreate_RenderTargetable);
-			OutputLuminance = NewOutputLuminance->Texture = GraphBuilder.CreateTexture(Desc, TEXT("Final Luminance"));
-		}
-		else
-		{
-			OutputLuminance = CachedOuputLuminance->Texture;
+			OutputLuminance = GraphBuilder.CreateTexture(Desc, TEXT("Final Luminance"));
+
+			if (CachedOutputLuminance == nullptr)
+			{
+				FOutputLuminance* NewOutputLuminance = &GraphBuilder.Blackboard.Create<FOutputLuminance>();
+				NewOutputLuminance->Texture = OutputLuminance;
+			}
 		}
 	}
 
