@@ -152,19 +152,6 @@ namespace uba
 		shutdown(conn.socket, SD_BOTH);
 	}
 
-	void NetworkBackendTcp::Close(void* connection)
-	{
-		auto& conn = *(Connection*)connection;
-		ScopedCriticalSection lock(conn.shutdownLock);
-		if (conn.socket == INVALID_SOCKET)
-			return;
-		SOCKET s = conn.socket;
-		conn.socket = INVALID_SOCKET;
-		lock.Leave();
-		conn.recvThread.Wait();
-		CloseSocket(m_logger, s);
-	}
-
 	bool NetworkBackendTcp::Send(Logger& logger, void* connection, const void* data, u32 dataSize, SendContext& sendContext)
 	{
 		auto& conn = *(Connection*)connection;
@@ -217,11 +204,6 @@ namespace uba
 
 	void NetworkBackendTcp::SetDisconnectCallback(void* connection, void* context, DisconnectCallback* callback)
 	{
-		{
-			ScopedReadLock lock(m_connectionsLock);
-			if (m_connections.empty())
-				return;
-		}
 		auto& conn = *(Connection*)connection;
 		ScopedCriticalSection lock(conn.shutdownLock);
 		conn.disconnectCallback = callback;
@@ -406,6 +388,7 @@ namespace uba
 			{
 				shutdown(clientSocket, SD_BOTH);
 				conn.ready.Set();
+				conn.recvThread.Wait();
 				ScopedWriteLock lock2(m_connectionsLock);
 				m_connections.erase(it);
 				continue;
@@ -417,7 +400,7 @@ namespace uba
 
 	void NetworkBackendTcp::ThreadRecv(Connection& connection)
 	{
-		if (connection.ready.IsSet(2000))
+		if (connection.ready.IsSet(60000)) // This should never time out!
 		{
 			Guid connectionUid;
 			CreateGuid(connectionUid);
@@ -462,7 +445,7 @@ namespace uba
 		}
 		else
 		{
-			m_logger.Error(TC("Timed out waiting for recv thread to be ready"));
+			m_logger.Warning(TC("Timed out waiting for recv thread to be ready"));
 		}
 
 		ScopedCriticalSection lock2(connection.shutdownLock);
@@ -631,6 +614,8 @@ namespace uba
 		if (!SetKeepAlive(logger, socketFd))
 			return false;
 
+		socketClose.Cancel();
+
 		ScopedWriteLock lock(m_connectionsLock);
 		auto it = m_connections.emplace(m_connections.end(), socketFd);
 		auto& conn = *it;
@@ -639,10 +624,9 @@ namespace uba
 
 		if (!connectedFunc(&conn, remoteSocketAddr, timedOut))
 		{
-			socketFd = conn.socket;
-			conn.socket = INVALID_SOCKET;
-			socketClose.Execute();
+			shutdown(socketFd, SD_BOTH);
 			conn.ready.Set();
+			conn.recvThread.Wait();
 			ScopedWriteLock lock2(m_connectionsLock);
 			m_connections.erase(it);
 			return false;
@@ -653,8 +637,6 @@ namespace uba
 			logger.Detail(TC("Connected to %s:%u"), nameHint, ((sockaddr_in&)remoteSocketAddr).sin_port);
 		else
 			logger.Detail(TC("Connected using sockaddr"));
-
-		socketClose.Cancel();
 
 		return true;
 	}
