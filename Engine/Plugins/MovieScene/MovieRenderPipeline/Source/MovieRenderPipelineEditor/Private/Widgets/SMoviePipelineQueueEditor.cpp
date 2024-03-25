@@ -335,6 +335,16 @@ public:
 		}
 	}
 
+	void OnClearGraph() const
+	{
+		if (UMoviePipelineExecutorJob* Job = WeakJob.Get())
+		{
+			FScopedTransaction Transaction(LOCTEXT("ClearJobGraph_Transaction", "Replace Graph with Config"));
+			
+			Job->SetGraphPreset(nullptr);
+		}
+	}
+
 	EVisibility GetPrimaryConfigModifiedVisibility() const
 	{
 		UMoviePipelineExecutorJob* Job = WeakJob.Get();
@@ -435,7 +445,6 @@ public:
 
 		UClass* ConfigType = Job->IsUsingGraphConfiguration() ? UMovieGraphConfig::StaticClass() : UMoviePipelinePrimaryConfig::StaticClass();
 		constexpr bool bIsShot = false;
-		const FExecuteAction ClearGraphAction = nullptr;
 		
 		return OnGenerateConfigPresetPickerMenuFromClass(
 			ConfigType,
@@ -445,7 +454,7 @@ public:
 			FExecuteAction::CreateRaw(this, &FMoviePipelineQueueJobTreeItem::OnPickNewPreset),
 			FExecuteAction::CreateRaw(this, &FMoviePipelineQueueJobTreeItem::OnReplaceWithRenderGraph),
 			FExecuteAction::CreateRaw(this, &FMoviePipelineQueueJobTreeItem::OnCreateNewGraphAndAssign),
-			ClearGraphAction
+			FExecuteAction::CreateRaw(this, &FMoviePipelineQueueJobTreeItem::OnClearGraph)
 			);
 	}
 
@@ -458,8 +467,8 @@ public:
 
 		FAssetPickerConfig AssetPickerConfig;
 		{
-			const FText NoAssetsFoundWarning = InClass->IsChildOf(UMoviePipelinePrimaryConfig::StaticClass())
-				? LOCTEXT("NoConfigs_Warning", "No Primary Configurations Found")
+			const FText NoAssetsFoundWarning = InClass->IsChildOf(UMoviePipelineConfigBase::StaticClass())
+				? LOCTEXT("NoConfigs_Warning", "No Configurations Found")
 				: LOCTEXT("NoGraphs_Warning", "No Render Graphs Found");
 			
 			AssetPickerConfig.SelectionMode = ESelectionMode::Single;
@@ -552,7 +561,7 @@ public:
 						LOCTEXT("ReplaceWithPreset_Label", "Replace with Preset"),
 						LOCTEXT("ReplaceWithPreset_Tooltip", "Replaces the current configuration with a new default (non-graph) config."),
 						FSlateIcon(),
-						FUIAction(InNewConfig),
+						FUIAction(InClearGraph),
 						NAME_None,
 						EUserInterfaceActionType::Button
 					);
@@ -1087,6 +1096,8 @@ struct FMoviePipelineShotItem : IMoviePipelineQueueTreeItem
 	{
 		if (UMoviePipelineExecutorShot* Shot = WeakShot.Get())
 		{
+			FScopedTransaction Transaction(LOCTEXT("ClearShotGraph_Transaction", "Replace Graph with Config"));
+			
 			Shot->SetGraphPreset(nullptr);
 		}
 	}
@@ -1117,7 +1128,7 @@ struct FMoviePipelineShotItem : IMoviePipelineQueueTreeItem
 	TSharedRef<SWidget> OnGenerateShotConfigPresetPickerMenu()
 	{
 		const UMoviePipelineExecutorShot* Shot = WeakShot.Get();
-		UClass* ConfigType = Shot && Shot->IsUsingGraphConfiguration() ? UMovieGraphConfig::StaticClass() : UMoviePipelinePrimaryConfig::StaticClass();
+		UClass* ConfigType = Shot && Shot->IsUsingGraphConfiguration() ? UMovieGraphConfig::StaticClass() : UMoviePipelineShotConfig::StaticClass();
 		constexpr bool bIsShot = true;
 		const FExecuteAction ReplaceWithGraph = nullptr;
 		

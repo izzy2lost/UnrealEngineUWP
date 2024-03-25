@@ -752,6 +752,8 @@ void UMoviePipelineBlueprintLibrary::UpdateJobShotListFromSequence(ULevelSequenc
 			if (!NewShot)
 			{
 				NewShot = NewObject<UMoviePipelineExecutorShot>(InJob);
+				NewShot->SetFlags(RF_Transactional);
+				
 				UE_LOG(LogMovieRenderPipeline, Log, TEXT("Generated new ShotInfo for Inner: %s Outer: %s (No existing shot found in the job)."), *Entity.Name.Get<0>(), *Entity.Name.Get<1>());
 			}
 			else
