@@ -59,6 +59,10 @@ namespace Chaos
 		// The maximum number of constraints we will attempt to solve (-1 for unlimited)
 		int32 Chaos_Collision_MaxSolverManifoldPoints = -1;
 		FAutoConsoleVariableRef CVarChaosCollisionMaxSolverManifoldPoints(TEXT("p.Chaos.PBDCollisionSolver.MaxManifoldPoints"), Chaos_Collision_MaxSolverManifoldPoints, TEXT(""));
+
+		// Whether to enable the experimental soft collisions
+		bool bChaos_Collision_EnableSoftCollisions = true;
+		FAutoConsoleVariableRef CVarChaosCollisionEnableSoftCollisions(TEXT("p.Chaos.PBDCollisionSolver.EnableSoftCollisions"), bChaos_Collision_EnableSoftCollisions, TEXT(""));
 	}
 
 
@@ -153,6 +157,9 @@ namespace Chaos
 			}
 		}
 
+		// Overlap remaining from the previous frame, estimated from current contact phi and velocity
+		FRealSingle WorldContactResidualPhi = FMath::Min(WorldContactDeltaNormal, FRealSingle(0)) - FMath::Min(ContactVelocityNormal * Dt, FRealSingle(0));
+
 		// Initial Phi for initial-overlap depenetration.
 		// If we have an initial contact, calculate the initial overlap. This will get saved in SetSolverResults
 		FRealSingle WorldContactInitialPhi = 0;
@@ -161,10 +168,7 @@ namespace Chaos
 			if (ManifoldPoint.Flags.bInitialContact)
 			{
 				// This is a new manifold point, capture current Phi as the initial Phi
-				WorldContactInitialPhi = FMath::Min(WorldContactDeltaNormal, FRealSingle(0));
-
-				// Reduce initial penetration depth by any movement towards each other this tick
-				WorldContactInitialPhi -= FMath::Min(ContactVelocityNormal * Dt, FRealSingle(0));
+				WorldContactInitialPhi = WorldContactResidualPhi;
 
 				// If this is a new manifold point on a pre-existing manifold, we limit the initial depth.
 				// This is so that as we are depenetrating and new points are added to the manifold, we don't suddenly pop out, which would
@@ -278,6 +282,7 @@ namespace Chaos
 		FSolverReal PositionStaticFriction = FSolverReal(0);
 		FSolverReal PositionDynamicFriction = FSolverReal(0);
 		FSolverReal VelocityDynamicFriction = FSolverReal(0);
+		FSolverReal MinFrictionPushOut = FSolverReal(Constraint->GetMinFrictionPushOut());
 		if (SolverSettings.NumPositionFrictionIterations > 0)
 		{
 			PositionStaticFriction = StaticFriction;
@@ -298,10 +303,14 @@ namespace Chaos
 			VelocityDynamicFriction = DynamicFriction;
 		}
 
-		Solver.SetFriction(PositionStaticFriction, PositionDynamicFriction, VelocityDynamicFriction);
+		Solver.SetFriction(PositionStaticFriction, PositionDynamicFriction, VelocityDynamicFriction, MinFrictionPushOut);
+
 
 		const FReal SolverStiffness = Constraint->GetStiffness();
+
 		Solver.SetStiffness(FSolverReal(SolverStiffness));
+
+		Solver.SetHardContact();
 
 		Solver.SolverBody0().SetInvMScale(Constraint->GetInvMassScale0());
 		Solver.SolverBody0().SetInvIScale(Constraint->GetInvInertiaScale0());
@@ -313,6 +322,18 @@ namespace Chaos
 		bOutPerIterationCollision = (!Constraint->GetUseManifold() || Constraint->GetUseIncrementalCollisionDetection());
 
 		UpdateCollisionSolverManifoldFromConstraint(Solver, Constraint, Dt, 0, Constraint->NumManifoldPoints(), SolverSettings);
+
+		// Convert to a soft collision if the constraint has a nonzero soft separation
+		// NOTE: must come after UpdateCollisionSolverManifoldFromConstraint because we scale the spring forces by the number of manifold points.
+		if (Constraint->IsSoftContact() && CVars::bChaos_Collision_EnableSoftCollisions)
+		{
+			// NOTE: convert stiffness and damping into XPBD terms
+			if (Solver.NumManifoldPoints() > 0)
+			{
+				const FSolverReal SoftScale = FSolverReal(1) / FSolverReal(Solver.NumManifoldPoints());
+				Solver.SetSoftContact(Constraint->GetSoftSeparation());
+			}
+		}
 	}
 
 	FORCEINLINE_DEBUGGABLE void UpdateCollisionConstraintFromSolver(FPBDCollisionConstraint* Constraint, const Private::FPBDCollisionSolver& Solver, const FSolverReal Dt)

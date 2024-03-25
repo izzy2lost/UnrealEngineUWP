@@ -54,6 +54,9 @@ namespace Chaos
 	FRealSingle CollisionAngularFrictionOverride = -1.0f;
 	FAutoConsoleVariableRef CVarCollisionAngularFrictionOverride(TEXT("p.CollisionAngularFriction"), CollisionAngularFrictionOverride, TEXT("Collision angular friction for all contacts if >= 0"));
 
+	FRealSingle CollisionBaseFrictionImpulseOverride = -1.0f;
+	FAutoConsoleVariableRef CVarCollisionBaseFrictionImpulseOverride(TEXT("p.CollisionBaseFrictionImpulse"), CollisionBaseFrictionImpulseOverride, TEXT("Collision base friction position impulse for all contacts if >= 0"));
+
 	CHAOS_API int32 EnableCollisions = 1;
 	FAutoConsoleVariableRef CVarEnableCollisions(TEXT("p.EnableCollisions"), EnableCollisions, TEXT("Enable/Disable collisions on the Chaos solver."));
 	
@@ -417,6 +420,24 @@ namespace Chaos
 		return ConstraintAllocator.GetConstConstraints();
 	}
 
+	void UpdateSoftCollisionSettings(const FChaosPhysicsMaterial* PhysicsMaterial, const FGeometryParticleHandle* Particle, FReal& InOutThickess)
+	{
+		if ((PhysicsMaterial->SoftCollisionMode != EChaosPhysicsMaterialSoftCollisionMode::None) && (PhysicsMaterial->SoftCollisionThickness > 0))
+		{
+			FReal MaterialThickness = FReal(0);
+			if (PhysicsMaterial->SoftCollisionMode == EChaosPhysicsMaterialSoftCollisionMode::AbsoluteThickness)
+			{
+				MaterialThickness = PhysicsMaterial->SoftCollisionThickness;
+			}
+			else if ((Particle != nullptr) && Particle->HasBounds())
+			{
+				MaterialThickness = FMath::Clamp(PhysicsMaterial->SoftCollisionThickness, 0.0f, 0.5f) * Particle->LocalBounds().Extents().GetAbsMin();
+			}
+
+			InOutThickess = FMath::Max(InOutThickess, MaterialThickness);
+		}
+	}
+
 	void FPBDCollisionConstraints::UpdateConstraintMaterialProperties(FPBDCollisionConstraint& Constraint)
 	{
 		// We only support one material shared by all manifold points for now, even when our 
@@ -435,6 +456,9 @@ namespace Chaos
 		FReal MaterialRestitutionThreshold = 0;
 		FReal MaterialStaticFriction = 0;
 		FReal MaterialDynamicFriction = 0;
+		FReal MaterialSoftThickness = 0;
+		FReal MaterialSoftDivisor = 0;
+		FReal MaterialBaseFrictionImpulse = 0;
 
 		if (PhysicsMaterial0 && PhysicsMaterial1)
 		{
@@ -446,6 +470,13 @@ namespace Chaos
 			const FReal StaticFriction0 = FMath::Max(PhysicsMaterial0->Friction, PhysicsMaterial0->StaticFriction);
 			const FReal StaticFriction1 = FMath::Max(PhysicsMaterial1->Friction, PhysicsMaterial1->StaticFriction);
 			MaterialStaticFriction = FChaosPhysicsMaterial::CombineHelper(StaticFriction0, StaticFriction1, FrictionCombineMode);
+
+			// @todo(chaos): could do with a nicer way to deal with collisions between two soft objects with different softness settings
+			UpdateSoftCollisionSettings(PhysicsMaterial0, Constraint.GetParticle0(), MaterialSoftThickness);
+			UpdateSoftCollisionSettings(PhysicsMaterial1, Constraint.GetParticle1(), MaterialSoftThickness);
+
+			// Combine base friction impulse
+			MaterialBaseFrictionImpulse = FChaosPhysicsMaterial::CombineHelper(PhysicsMaterial0->BaseFrictionImpulse, PhysicsMaterial1->BaseFrictionImpulse, FrictionCombineMode);
 		}
 		else if (PhysicsMaterial0)
 		{
@@ -453,6 +484,8 @@ namespace Chaos
 			MaterialRestitution = PhysicsMaterial0->Restitution;
 			MaterialDynamicFriction = PhysicsMaterial0->Friction;
 			MaterialStaticFriction = StaticFriction0;
+			MaterialBaseFrictionImpulse = PhysicsMaterial0->BaseFrictionImpulse;
+			UpdateSoftCollisionSettings(PhysicsMaterial0, Constraint.GetParticle0(), MaterialSoftThickness);
 		}
 		else if (PhysicsMaterial1)
 		{
@@ -460,6 +493,8 @@ namespace Chaos
 			MaterialRestitution = PhysicsMaterial1->Restitution;
 			MaterialDynamicFriction = PhysicsMaterial1->Friction;
 			MaterialStaticFriction = StaticFriction1;
+			MaterialBaseFrictionImpulse = PhysicsMaterial1->BaseFrictionImpulse;
+			UpdateSoftCollisionSettings(PhysicsMaterial1, Constraint.GetParticle1(), MaterialSoftThickness);
 		}
 		else
 		{
@@ -488,17 +523,25 @@ namespace Chaos
 		{
 			MaterialStaticFriction = CollisionAngularFrictionOverride;
 		}
+		if (CollisionBaseFrictionImpulseOverride >= 0)
+		{
+			MaterialBaseFrictionImpulse = CollisionBaseFrictionImpulseOverride;
+		}
 		if (!bEnableRestitution)
 		{
 			MaterialRestitution = 0.0f;
 		}
 		
-		Constraint.Material.MaterialRestitution = FRealSingle(MaterialRestitution);
+		Constraint.Material.Restitution = FRealSingle(MaterialRestitution);
 		Constraint.Material.RestitutionThreshold = FRealSingle(MaterialRestitutionThreshold);
-		Constraint.Material.MaterialStaticFriction = FRealSingle(MaterialStaticFriction);
-		Constraint.Material.MaterialDynamicFriction = FRealSingle(MaterialDynamicFriction);
-
-		Constraint.Material.ResetMaterialModifications();
+		Constraint.Material.StaticFriction = FRealSingle(MaterialStaticFriction);
+		Constraint.Material.DynamicFriction = FRealSingle(MaterialDynamicFriction);
+		Constraint.Material.SoftSeparation = FRealSingle(-MaterialSoftThickness);	// Negate: convert from penetration to separation
+		Constraint.Material.InvMassScale0 = 1;
+		Constraint.Material.InvMassScale1 = 1;
+		Constraint.Material.InvInertiaScale0 = 1;
+		Constraint.Material.InvInertiaScale1 = 1;
+		Constraint.Material.BaseFrictionImpulse = FRealSingle(MaterialBaseFrictionImpulse);
 	}
 
 	void FPBDCollisionConstraints::BeginFrame()
