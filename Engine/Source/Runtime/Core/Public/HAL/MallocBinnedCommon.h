@@ -6,6 +6,8 @@
 #include "HAL/MemoryBase.h"
 #include "Math/UnrealMathUtility.h"
 #include "HAL/PlatformTLS.h"
+#include "Misc/App.h"
+#include "Async/TaskGraphInterfaces.h"
 #include "Templates/AlignmentTemplates.h"
 
 #if PLATFORM_HAS_FPlatformVirtualMemoryBlock
@@ -306,6 +308,7 @@ protected:
 	static std::atomic<int64> TLSMemory;
 	static std::atomic<int64> ConsolidatedMemory;
 #endif
+	std::atomic<uint64> MemoryTrimEpoch{ 0 };
 };
 
 template <class AllocType, int MinAlign, int MaxAlign, int MinAlignShift, int NumSmallPools, int MaxSmallPoolSize>
@@ -438,8 +441,27 @@ protected:
 				TLSMemory.fetch_add(TLSSize, std::memory_order_relaxed);
 #endif
 				verify(ThreadSingleton);
+				ThreadSingleton->Lock();
 				FPlatformTLS::SetTlsValue(BinnedTlsSlot, ThreadSingleton);
 				AllocType::RegisterThreadFreeBlockLists(ThreadSingleton);
+			}
+		}
+
+		static void UnlockTLS()
+		{
+			FPerThreadFreeBlockLists* ThreadSingleton = (FPerThreadFreeBlockLists*)FPlatformTLS::GetTlsValue(BinnedTlsSlot);
+			if (ThreadSingleton)
+			{
+				ThreadSingleton->Unlock();
+			}
+		}
+
+		static void LockTLS()
+		{
+			FPerThreadFreeBlockLists* ThreadSingleton = (FPerThreadFreeBlockLists*)FPlatformTLS::GetTlsValue(BinnedTlsSlot);
+			if (ThreadSingleton)
+			{
+				ThreadSingleton->Lock();
 			}
 		}
 
@@ -454,7 +476,7 @@ protected:
 				TLSMemory.fetch_sub(TLSSize, std::memory_order_relaxed);
 #endif
 				AllocType::UnregisterThreadFreeBlockLists(ThreadSingleton);
-
+				ThreadSingleton->Unlock();
 				ThreadSingleton->~FPerThreadFreeBlockLists();
 
 				AllocType::FreeMetaDataMemory(ThreadSingleton, TLSSize);
@@ -498,11 +520,40 @@ protected:
 			return FreeLists[InPoolIndex].PopBundles(InPoolIndex);
 		}
 
+		void Lock()
+		{
+			Mutex.Lock();
+		}
+
+		bool TryLock()
+		{
+			return Mutex.TryLock();
+		}
+
+		void Unlock()
+		{
+			Mutex.Unlock();
+		}
+
+		// should only be called from inside the Lock.
+		bool UpdateEpoch(uint64 NewEpoch)
+		{
+			if (MemoryTrimEpoch >= NewEpoch)
+			{
+				return false;
+			}
+
+			MemoryTrimEpoch = NewEpoch;
+			return true;
+		}
+
 #if UE_BINNEDCOMMON_ALLOCATOR_STATS
 	public:
 		int64 AllocatedMemory = 0;
 #endif
 	private:
+		UE::FMutex Mutex;
+		uint64 MemoryTrimEpoch = 0;
 		FFreeBlockList FreeLists[NumSmallPools];
 	};
 
@@ -577,5 +628,105 @@ protected:
 		}
 
 		return false;
+	}
+
+	static void TrimThreadFreeBlockLists(AllocType& Allocator, FPerThreadFreeBlockLists* FreeBlockLists)
+	{
+		if (FreeBlockLists)
+		{
+			TRACE_CPUPROFILER_EVENT_SCOPE(FMallocBinnedCommon::TrimThreadFreeBlockLists);
+
+			for (int32 PoolIndex = 0; PoolIndex != NumSmallPools; ++PoolIndex)
+			{
+				FBundleNode* Bundles = FreeBlockLists->PopBundles(PoolIndex);
+				if (Bundles)
+				{
+					Allocator.FreeBundles(Bundles, PoolIndex);
+				}
+			}
+		}
+	}
+
+	void FlushCurrentThreadCache(AllocType& Allocator, bool bNewEpochOnly = false)
+	{
+		if (FPerThreadFreeBlockLists* Lists = FPerThreadFreeBlockLists::Get())
+		{
+			if (Lists->UpdateEpoch(MemoryTrimEpoch.load(std::memory_order_relaxed)) || !bNewEpochOnly)
+			{
+				TRACE_CPUPROFILER_EVENT_SCOPE(FMallocBinnedCommon::FlushCurrentThreadCache);
+				QUICK_SCOPE_CYCLE_COUNTER(STAT_FMallocBinnedCommon_FlushCurrentThreadCache);
+
+				double StartTimeInner = FPlatformTime::Seconds();
+
+				double WaitForMutexTime = 0.0f;
+				double WaitForMutexAndTrimTime = 0.0f;
+
+				{
+					FScopeLock Lock(&Allocator.GetMutex());
+					WaitForMutexTime = FPlatformTime::Seconds() - StartTimeInner;
+					TrimThreadFreeBlockLists(Allocator, Lists);
+					WaitForMutexAndTrimTime = FPlatformTime::Seconds() - StartTimeInner;
+				}
+
+				// These logs must happen outside the above mutex to avoid deadlocks
+				if (WaitForMutexTime > AllocType::GetFlushThreadCacheMaxWaitTime())
+				{
+					UE_LOG(LogMemory, Warning, TEXT("FMalloc%s took %6.2fms to wait for mutex for trim."), GetDescriptiveName(), WaitForMutexTime * 1000.0f);
+				}
+				if (WaitForMutexAndTrimTime > AllocType::GetFlushThreadCacheMaxWaitTime())
+				{
+					UE_LOG(LogMemory, Warning, TEXT("FMalloc%s took %6.2fms to wait for mutex AND trim."), GetDescriptiveName(), WaitForMutexAndTrimTime * 1000.0f);
+				}
+			}
+		}
+	}
+
+	void TrimImpl(AllocType& Allocator)
+	{
+		// Update the trim epoch so that threads cleanup their thread-local memory when going to sleep.
+		MemoryTrimEpoch.fetch_add(1, std::memory_order_relaxed);
+
+		QUICK_SCOPE_CYCLE_COUNTER(STAT_FMallocBinnedCommon_Trim);
+
+		// Process thread-local memory caches from as many threads as possible without waking them up.
+		// Skip on desktop as we may have too many threads and this could cause some hitches.
+		if (!PLATFORM_DESKTOP)
+		{
+			FScopeLock Lock(&Allocator.GetMutex());
+			FScopeLock FreeBlockLock(&AllocType::GetFreeBlockListsRegistrationMutex());
+			for (FPerThreadFreeBlockLists* BlockList : AllocType::GetRegisteredFreeBlockLists())
+			{
+				// If we're unable to lock, it's because the thread is currently active so it
+				// will do the flush itself when going back to sleep because we incremented the Epoch.
+				if (BlockList->TryLock())
+				{
+					// Only trim if the epoch has been updated, otherwise the thread already
+					// did the trimming when it went to sleep.
+					if (BlockList->UpdateEpoch(MemoryTrimEpoch.load(std::memory_order_relaxed)))
+					{
+						TrimThreadFreeBlockLists(Allocator, BlockList);
+					}
+					BlockList->Unlock();
+				}
+			}
+		}
+
+		TFunction<void(ENamedThreads::Type CurrentThread)> Broadcast =
+			[this, &Allocator](ENamedThreads::Type MyThread)
+			{
+				// We might already have updated the Epoch so we can skip doing anything costly (i.e. Mutex) in that case.
+				const bool bNewEpochOnly = true;
+				FlushCurrentThreadCache(Allocator, bNewEpochOnly);
+			};
+
+		// Skip task threads on desktop platforms as it is too slow and they don't have much memory
+		if (PLATFORM_DESKTOP)
+		{
+			FTaskGraphInterface::BroadcastSlow_OnlyUseForSpecialPurposes(false, false, Broadcast);
+		}
+		else
+		{
+			FTaskGraphInterface::BroadcastSlow_OnlyUseForSpecialPurposes(FPlatformProcess::SupportsMultithreading() && FApp::ShouldUseThreadingForPerformance(), false, Broadcast);
+		}
 	}
 };

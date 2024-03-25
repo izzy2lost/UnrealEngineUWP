@@ -494,6 +494,8 @@ public:
 	CORE_API virtual bool ValidateHeap() override;
 	CORE_API virtual void Trim(bool bTrimThreadCaches) override;
 	CORE_API virtual void SetupTLSCachesOnCurrentThread() override;
+	CORE_API virtual void MarkTLSCachesAsUsedOnCurrentThread() override;
+	CORE_API virtual void MarkTLSCachesAsUnusedOnCurrentThread() override;
 	CORE_API virtual void ClearAndDisableTLSCachesOnCurrentThread() override;
 	CORE_API virtual const TCHAR* GetDescriptiveName() override;
 	CORE_API virtual void UpdateStats() override;
@@ -502,13 +504,12 @@ public:
 	CORE_API virtual void OnPostFork() override;
 	// End FMalloc interface.
 
-	CORE_API void FlushCurrentThreadCache();
 	CORE_API void* MallocExternalSmall(SIZE_T Size, uint32 Alignment);
 	CORE_API void* MallocExternalLarge(SIZE_T Size, uint32 Alignment);
 	CORE_API void* ReallocExternal(void* Ptr, SIZE_T NewSize, uint32 Alignment);
 	CORE_API void FreeExternal(void *Ptr);
 	CORE_API bool GetAllocationSizeExternal(void* Ptr, SIZE_T& SizeOut);
-
+	
 	CORE_API void CanaryTest(const FFreeBlock* Block) const;
 	CORE_API void CanaryFail(const FFreeBlock* Block) const;
 
@@ -528,6 +529,9 @@ public:
 
 	static void RegisterThreadFreeBlockLists(FPerThreadFreeBlockLists* FreeBlockLists);
 	static void UnregisterThreadFreeBlockLists(FPerThreadFreeBlockLists* FreeBlockLists);
+	static float GetFlushThreadCacheMaxWaitTime();
+	static FCriticalSection& GetFreeBlockListsRegistrationMutex();
+	static TArray<FPerThreadFreeBlockLists*>& GetRegisteredFreeBlockLists();
 
 	static void* AllocateMetaDataMemory(SIZE_T Size);
 	static void FreeMetaDataMemory(void* Ptr, SIZE_T Size);
@@ -536,6 +540,9 @@ public:
 	{
 		return SmallBlockSizesReversed[BINNED2_SMALL_POOL_COUNT - PoolIndex - 1];
 	}
+
+	void FreeBundles(FBundleNode* Bundles, uint32 PoolIndex);
+	FCriticalSection& GetMutex() { return Mutex; }
 };
 
 #define BINNED2_INLINE (1)

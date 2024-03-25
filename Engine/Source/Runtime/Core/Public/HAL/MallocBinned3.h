@@ -446,11 +446,12 @@ public:
 	virtual bool ValidateHeap() override;
 	virtual void Trim(bool bTrimThreadCaches) override;
 	virtual void SetupTLSCachesOnCurrentThread() override;
+	virtual void MarkTLSCachesAsUsedOnCurrentThread() override;
+	virtual void MarkTLSCachesAsUnusedOnCurrentThread() override;
 	virtual void ClearAndDisableTLSCachesOnCurrentThread() override;
 	virtual const TCHAR* GetDescriptiveName() override;
 	// End FMalloc interface.
 
-	void FlushCurrentThreadCache();
 	void* MallocExternal(SIZE_T Size, uint32 Alignment);
 	void* ReallocExternal(void* Ptr, SIZE_T NewSize, uint32 Alignment);
 	void FreeExternal(void *Ptr);
@@ -471,6 +472,9 @@ public:
 
 	static void RegisterThreadFreeBlockLists(FPerThreadFreeBlockLists* FreeBlockLists);
 	static void UnregisterThreadFreeBlockLists(FPerThreadFreeBlockLists* FreeBlockLists);
+	static float GetFlushThreadCacheMaxWaitTime();
+	static FCriticalSection& GetFreeBlockListsRegistrationMutex();
+	static TArray<FPerThreadFreeBlockLists*>& GetRegisteredFreeBlockLists();
 
 #if !BINNED3_USE_SEPARATE_VM_PER_POOL
 	static uint8* Binned3BaseVMPtr;
@@ -488,6 +492,9 @@ public:
 	{
 		return uint32(SmallBlockSizesReversedShifted[BINNED3_SMALL_POOL_COUNT - PoolIndex - 1]) << BINNED3_MINIMUM_ALIGNMENT_SHIFT;
 	}
+	
+	void FreeBundles(FBundleNode* Bundles, uint32 PoolIndex);
+	FCriticalSection& GetMutex() { return Mutex; }
 
 	void Commit(uint32 InPoolIndex, void *Ptr, SIZE_T Size);
 	void Decommit(uint32 InPoolIndex, void *Ptr, SIZE_T Size);
