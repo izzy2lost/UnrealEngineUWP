@@ -159,7 +159,8 @@ void UAvaSequencePlayer::Cleanup()
 {
 	if (ensureAlwaysMsgf(!IsEvaluating(), TEXT("Calling UAvaSequencePlayer::Cleanup while still evaluating is not allowed!")))
 	{
-		TearDown();	
+		Stop();
+		TearDown();
 	}
 }
 
