@@ -168,7 +168,7 @@ void SNiagaraGeneratedCodeView::Construct(const FArguments& InArgs, TSharedRef<F
 				+ SVerticalBox::Slot()
 				[
 					SNew(STextBlock)
-					.Text(LOCTEXT("NoDataText", "Failed to compile or has not been compiled."))
+					.Text(LOCTEXT("NoDataText", "Generated code not available.  Either data was pulled from DDC (do a Full Rebuild of the System) or the script failed to be generated."))
 					.Visibility_Lambda([&]() {
 						if (TabHasScriptData())
 							return EVisibility::Collapsed;
