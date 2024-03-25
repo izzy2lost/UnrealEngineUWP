@@ -2193,7 +2193,7 @@ public:
 
 	/** 
 	 *	Iterate over each physics body in the physics for this mesh, and for each 'kinematic' (ie fixed or default if owner isn't simulating) one, update its
-	 *	transform based on the animated transform.
+	 *	transform based on the animated transform. This update is also done for simulating bodies if a teleport is being requested. 
 	 *	@param	InComponentSpaceTransforms	Array of bone transforms in component space
 	 *	@param	Teleport					Whether movement is a 'teleport' (ie infers no physics velocity, but moves simulating bodies) or not
 	 *	@param	bNeedsSkinning				Whether we may need  to send new triangle data for per-poly skeletal mesh collision
