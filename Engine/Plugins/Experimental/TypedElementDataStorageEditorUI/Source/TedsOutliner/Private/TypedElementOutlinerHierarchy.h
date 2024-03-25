@@ -15,8 +15,8 @@
 class FTypedElementOutlinerHierarchy : public ISceneOutlinerHierarchy
 {
 public:
-	FTypedElementOutlinerHierarchy(FTypedElementOutlinerMode* InMode, TArray<TypedElementDataStorage::QueryHandle> InRowHandleQueries);
-	virtual ~FTypedElementOutlinerHierarchy() override = default;
+	FTypedElementOutlinerHierarchy(FTypedElementOutlinerMode* InMode, TypedElementDataStorage::FQueryDescription InInitialQueryDescription);
+	virtual ~FTypedElementOutlinerHierarchy() override;
 			
 	/** Create a linearization of all applicable items in the hierarchy */
 	virtual void CreateItems(TArray<FSceneOutlinerTreeItemPtr>& OutItems) const;
@@ -31,10 +31,30 @@ protected:
 
 	void OnItemAdded(TypedElementRowHandle ItemRowHandle);
 	void OnItemRemoved(TypedElementRowHandle ItemRowHandle);
+	void OnItemMoved(TypedElementRowHandle ItemRowHandle);
+
+	void RecompileQueries();
+	void UnregisterQueries();
 	
 protected:
 
 	FTypedElementOutlinerMode* TEDSOutlinerMode;
-	TArray<TypedElementDataStorage::QueryHandle> RowHandleQueries;
+
+	// Initial query the user requested
+	TypedElementDataStorage::FQueryDescription InitialQueryDescription;
+
+	// Querys to track row handle collection, addition and removal
+	TypedElementDataStorage::QueryHandle RowHandleQuery;
+	TypedElementDataStorage::QueryHandle RowAdditionQuery;
+	TypedElementDataStorage::QueryHandle RowRemovalQuery;
+
+	// Query to get all child rows
+	TypedElementDataStorage::QueryHandle ChildRowHandleQuery;
+
+	// Query to track when a row gets added the parent column
+	TypedElementDataStorage::QueryHandle ParentAddedQuery;
+
+	// Query to track when a row gets removed the parent column
+	TypedElementDataStorage::QueryHandle ParentRemovedQuery;
 
 };

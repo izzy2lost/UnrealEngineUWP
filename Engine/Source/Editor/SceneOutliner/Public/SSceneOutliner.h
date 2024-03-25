@@ -305,6 +305,12 @@ public:
 	 */
 	virtual int32 AddFilter(const TSharedRef<FSceneOutlinerFilter>& Filter) override;
 
+	/** 
+	 * Add a filter to the scene outliner's filter bar
+	 * @param Filter The filter to add
+	 */
+	virtual void AddFilterToFilterBar(const TSharedRef<FFilterBase<SceneOutliner::FilterBarType>>& InFilter) override;
+
 	/**
 	 * Remove a filter from the scene outliner
 	 * @param Filter The Filter to remove
