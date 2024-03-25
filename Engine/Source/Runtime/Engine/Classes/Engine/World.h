@@ -338,7 +338,7 @@ struct ENGINE_API FLevelViewportInfo
 		{
 			I.CamUpdated = true;
 
-			if ( I.CamOrthoZoom == 0.f )
+			if ( I.CamOrthoZoom < MIN_ORTHOZOOM || I.CamOrthoZoom > MAX_ORTHOZOOM )
 			{
 				I.CamOrthoZoom = DEFAULT_ORTHOZOOM;
 			}

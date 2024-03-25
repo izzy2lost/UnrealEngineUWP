@@ -678,7 +678,7 @@ void UWorld::Serialize( FArchive& Ar )
 		{
 			ViewportInfo.CamUpdated = true;
 
-			if ( ViewportInfo.CamOrthoZoom == 0.f )
+			if ( ViewportInfo.CamOrthoZoom < MIN_ORTHOZOOM || ViewportInfo.CamOrthoZoom > MAX_ORTHOZOOM )
 			{
 				ViewportInfo.CamOrthoZoom = DEFAULT_ORTHOZOOM;
 			}

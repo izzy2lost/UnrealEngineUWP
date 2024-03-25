@@ -239,6 +239,7 @@ public:
 	/** Set the ortho zoom amount */
 	void SetOrthoZoom( float InOrthoZoom )
 	{
+		ensure(InOrthoZoom >= MIN_ORTHOZOOM && InOrthoZoom <= MAX_ORTHOZOOM);
 		OrthoZoom = InOrthoZoom;
 	}
 

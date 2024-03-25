@@ -15,10 +15,8 @@ FMatrix CheckMatrixPrecision(const FMatrix& Matrix)
 	const double OriginX = FMath::Abs(Origin.X);
 	const double OriginY = FMath::Abs(Origin.Y);
 	const double OriginZ = FMath::Abs(Origin.Z);
-	if (OriginX > OriginMax || OriginY > OriginMax || OriginZ > OriginMax)
-	{
-		ensure(false);
-	}
+	ensureMsgf(OriginX <= OriginMax && OriginY <= OriginMax && OriginZ <= OriginMax, 
+		TEXT("Found precision loss while converting matrix to GPU format, verify the input transforms."));
 	return Matrix;
 }
 
