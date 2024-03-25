@@ -658,7 +658,6 @@ namespace uba
 				m_encryptTimer.Add(c.m_encryptTimer);
 				m_decryptTimer.Add(c.m_decryptTimer);
 			}
-			m_connections.clear();
 			lock.Leave();
 
 			// If stopping connections fail we need to abort because we will most likely run into a deadlock when deleting the workers.
@@ -683,6 +682,8 @@ namespace uba
 			delete temp;
 		}
 		m_firstAvailableWorker = nullptr;
+
+		m_connections.clear();
 	}
 
 	bool NetworkServer::AddClient(NetworkBackend& backend, const tchar* ip, u16 port, const u8* cryptoKey128)
