@@ -815,5 +815,19 @@ public:
 };
 
 
+namespace impl
+{
+	void CreateMutableInstance(const TSharedRef<FUpdateContextPrivate>& Operation);
+
+	void FixLODs(const TSharedRef<FUpdateContextPrivate>& Operation);
+	
+	void Subtask_Mutable_PrepareSkeletonData(const TSharedRef<FUpdateContextPrivate>& OperationData);
+
+	void Subtask_Mutable_UpdateParameterRelevancy(const TSharedRef<FUpdateContextPrivate>& OperationData);
+	
+	void Subtask_Mutable_PrepareTextures(const TSharedRef<FUpdateContextPrivate>& OperationData);
+}
+
+
 /** Set OnlyLOD to -1 to generate all mips */
 CUSTOMIZABLEOBJECT_API FTexturePlatformData* MutableCreateImagePlatformData(mu::Ptr<const mu::Image> MutableImage, int32 OnlyLOD, uint16 FullSizeX, uint16 FullSizeY);
