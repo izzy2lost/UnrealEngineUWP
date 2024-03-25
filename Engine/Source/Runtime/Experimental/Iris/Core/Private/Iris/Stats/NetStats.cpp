@@ -2,6 +2,7 @@
 
 #include "Iris/Stats/NetStats.h"
 #include "Iris/Stats/NetStatsContext.h"
+#include "Iris/Core/IrisCsv.h"
 #include "Iris/Core/IrisProfiler.h"
 #include "HAL/IConsoleManager.h"
 #include "Misc/ScopeLock.h"
@@ -16,9 +17,6 @@ static FAutoConsoleVariableRef CShouldIncludeSubObjectWithRoot(
 	bCVARShouldIncludeSubObjectWithRoot,
 	TEXT("If enabled SubObjects will reports stats with RootObject, if set to false SubObjects will be treated as separate objects."
 	));
-
-// Enable Iris category by default on servers
-CSV_DEFINE_CATEGORY(Iris, WITH_SERVER_CODE);
 
 // Per type stats
 CSV_DEFINE_CATEGORY(IrisPreUpdateMS, WITH_SERVER_CODE);
@@ -41,6 +39,7 @@ CSV_DEFINE_CATEGORY(IrisWriteExportsCount, WITH_SERVER_CODE);
 
 void FNetSendStats::Accumulate(const FNetSendStats& Other)
 {
+#if UE_NET_IRIS_CSV_STATS
 	FScopeLock Lock(&CS);
 
 	Stats.ScheduledForReplicationRootObjectCount += Other.Stats.ScheduledForReplicationRootObjectCount;
@@ -55,12 +54,15 @@ void FNetSendStats::Accumulate(const FNetSendStats& Other)
 
 	Stats.HugeObjectWaitingForAckTimeInSeconds += Other.Stats.HugeObjectWaitingForAckTimeInSeconds;
 	Stats.HugeObjectStallingTimeInSeconds += Other.Stats.HugeObjectStallingTimeInSeconds;
+#endif 
 }
 
 void FNetSendStats::Reset()
 {
+#if UE_NET_IRIS_CSV_STATS
 	FScopeLock Lock(&CS);
 	Stats = FStats();
+#endif
 }
 
 void FNetSendStats::ReportCsvStats()
@@ -243,4 +245,4 @@ void FNetTypeStats::ReportCSVStats()
 #undef UE_NET_STATS_RECORD_TYPESTATS_COUNT
 #undef UE_NET_STATS_RECORD_TYPESTATS_BITS
 
-}
+} // end namespace UE::Net::Private

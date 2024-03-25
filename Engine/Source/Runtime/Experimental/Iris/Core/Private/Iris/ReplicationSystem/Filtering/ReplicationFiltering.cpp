@@ -6,6 +6,7 @@
 
 #include "Iris/IrisConfigInternal.h"
 #include "Iris/IrisConstants.h"
+#include "Iris/Core/IrisCsv.h"
 #include "Iris/Core/IrisLog.h"
 #include "Iris/Core/IrisProfiler.h"
 #include "Iris/ReplicationSystem/NetRefHandleManager.h"
@@ -297,6 +298,9 @@ void FReplicationFiltering::Init(FReplicationFilteringInitParams& Params)
 
 void FReplicationFiltering::FilterPrePoll()
 {
+#if UE_NET_IRIS_CSV_STATS
+	CSV_SCOPED_TIMING_STAT(Iris, Filter_PrePoll);
+#endif
 	ResetRemovedConnections();
 
 	InitNewConnections();
@@ -395,6 +399,9 @@ void FReplicationFiltering::FilterPostPoll()
 {
 	if (HasFragmentFilters())
 	{
+#if UE_NET_IRIS_CSV_STATS
+		CSV_SCOPED_TIMING_STAT(Iris, Filter_PostPoll);
+#endif
 		UpdateDynamicFilters(ENetFilterType::PostPoll_FragmentBased);
 	}
 }
