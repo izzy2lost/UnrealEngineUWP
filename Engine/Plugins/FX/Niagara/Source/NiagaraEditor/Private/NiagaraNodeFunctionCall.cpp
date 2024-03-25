@@ -338,9 +338,7 @@ void UNiagaraNodeFunctionCall::AllocateDefaultPins()
 	if (FunctionScriptAssetObjectPath != NAME_None && FunctionScript == nullptr)
 	{
 		FAssetRegistryModule& AssetRegistryModule = FModuleManager::LoadModuleChecked<FAssetRegistryModule>(TEXT("AssetRegistry"));
-PRAGMA_DISABLE_DEPRECATION_WARNINGS;
-		FAssetData ScriptAssetData = AssetRegistryModule.Get().GetAssetByObjectPath(FunctionScriptAssetObjectPath);
-PRAGMA_ENABLE_DEPRECATION_WARNINGS;
+		FAssetData ScriptAssetData = AssetRegistryModule.Get().GetAssetByObjectPath(FSoftObjectPath(FunctionScriptAssetObjectPath.ToString()));
 		if (ScriptAssetData.IsValid())
 		{
 			FunctionScript = Cast<UNiagaraScript>(ScriptAssetData.GetAsset());
@@ -557,9 +555,7 @@ bool UNiagaraNodeFunctionCall::CanAddToGraph(UNiagaraGraph* TargetGraph, FString
 	if (FunctionScriptAssetObjectPath != NAME_None && FunctionScript == nullptr)
 	{
 		FAssetRegistryModule& AssetRegistryModule = FModuleManager::LoadModuleChecked<FAssetRegistryModule>(TEXT("AssetRegistry"));
-PRAGMA_DISABLE_DEPRECATION_WARNINGS;
-		FAssetData ScriptAssetData = AssetRegistryModule.Get().GetAssetByObjectPath(FunctionScriptAssetObjectPath);
-PRAGMA_ENABLE_DEPRECATION_WARNINGS;
+		FAssetData ScriptAssetData = AssetRegistryModule.Get().GetAssetByObjectPath(FSoftObjectPath(FunctionScriptAssetObjectPath.ToString()));
 		if (ScriptAssetData.IsValid())
 		{
 			SpawningFunctionScript = Cast<UNiagaraScript>(ScriptAssetData.GetAsset());
