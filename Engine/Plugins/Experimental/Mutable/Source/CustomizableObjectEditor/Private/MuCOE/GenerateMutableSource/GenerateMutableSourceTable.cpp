@@ -741,14 +741,56 @@ void GenerateTableParameterUIData(const UDataTable* DataTable, const UCustomizab
 		RestrictRowNamesToSelectedOption(RowNames, *TableNode, GenerationContext);
 
 		FParameterUIData ParameterUIData(TableNode->ParameterName, TableNode->ParamUIMetadata, EMutableParameterType::Int);
+		ParameterUIData.IntegerParameterGroupType = TableNode->bAddNoneOption ? ECustomizableObjectGroupType::COGT_ONE_OR_NONE : ECustomizableObjectGroupType::COGT_ONE;
+		FParameterUIData& ParameterUIDataRef = GenerationContext.ParameterUIDataMap.Add(TableNode->ParameterName, ParameterUIData);
 
-		for (int32 NameIndex = 0; NameIndex < RowNames.Num(); ++NameIndex)
+		if (TableNode->ParamUIMetadataColumn.IsNone())
 		{
-			ParameterUIData.ArrayIntegerParameterOption.Add(FIntegerParameterUIData(RowNames[NameIndex].ToString(), FMutableParamUIMetadata()));
+			return;
 		}
 
-		ParameterUIData.IntegerParameterGroupType = TableNode->bAddNoneOption ? ECustomizableObjectGroupType::COGT_ONE_OR_NONE : ECustomizableObjectGroupType::COGT_ONE;
-		GenerationContext.ParameterUIDataMap.Add(TableNode->ParameterName, ParameterUIData);
+		FProperty* ColumnProperty = DataTable->FindTableProperty(TableNode->ParamUIMetadataColumn);
+
+		if (!ColumnProperty)
+		{
+			FString msg = "Couldn't find Options UI Metadata Column [" + TableNode->ParamUIMetadataColumn.ToString() + "] in the Structure of the Node.";
+			GenerationContext.Compiler->CompilerLog(FText::FromString(msg), TableNode);
+
+			return;
+		}
+
+		FString WrongTypeMessage = "Column with name [" + TableNode->ParamUIMetadataColumn.ToString() + "] is not a Mutable Param UI Metadata type.";
+
+		if (const FStructProperty* StructProperty = CastField<FStructProperty>(ColumnProperty))
+		{
+			if (StructProperty->Struct != FMutableParamUIMetadata::StaticStruct())
+			{
+				GenerationContext.Compiler->CompilerLog(FText::FromString(WrongTypeMessage), TableNode);
+
+				return;
+			}
+			
+			for (int32 NameIndex = 0; NameIndex < RowNames.Num(); ++NameIndex)
+			{
+				// Getting Row Data
+				if (const uint8* RowData = DataTable->FindRowUnchecked(RowNames[NameIndex]))
+				{
+					// Getting Cell Data
+					if (const uint8* CellData = ColumnProperty->ContainerPtrToValuePtr<uint8>(RowData, 0))
+					{
+						// Getting cell value
+						FMutableParamUIMetadata Value = *(FMutableParamUIMetadata*)CellData;
+						ParameterUIDataRef.ArrayIntegerParameterOption.Add(FIntegerParameterUIData(RowNames[NameIndex].ToString(), Value));
+					}
+				}
+			}
+		}
+		else
+		{
+			GenerationContext.Compiler->CompilerLog(FText::FromString(WrongTypeMessage), TableNode);
+
+			return;
+		}
 	}
 }
 

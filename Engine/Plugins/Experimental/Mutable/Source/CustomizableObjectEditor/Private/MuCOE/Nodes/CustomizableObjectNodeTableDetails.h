@@ -15,6 +15,7 @@ class FReply;
 class SButton;
 class SCustomizableObjectNodeLayoutBlocksEditor;
 class UCustomizableObjectNodeTable;
+struct FSlateColor;
 
 /** Copy Material node details panel. Hides all properties from the inheret Material node. */
 class FCustomizableObjectNodeTableDetails : public IDetailCustomization
@@ -68,6 +69,22 @@ private:
 	// Callback to clear the animation combobox selections
 	FReply OnClearButtonPressed();
 
+	// Generates MutableMetadata columns combobox options
+	// Returns the current selected option or a null pointer
+	TSharedPtr<FString> GenerateMutableMetaDataColumnComboBoxOptions();
+
+	// Callback to regenerate the combobox options
+	void OnOpenMutableMetadataComboBox();
+
+	// OnComboBoxSelectionChanged Callback for Layout ComboBox
+	void OnMutableMetaDataColumnComboBoxSelectionChanged(TSharedPtr<FString> Selection, ESelectInfo::Type SelectInfo);
+
+	// Sets the combo box selection color
+	FSlateColor GetMetadataUIComboBoxTextColor(TArray<TSharedPtr<FString>>* CurrentOptions) const;
+
+	// OnComboBoxSelectionChanged Callback for Layout ComboBox
+	void OnMutableMetaDataColumnComboBoxSelectionReset();
+
 	// Pointer to the node represented in this details
 	TWeakObjectPtr<UCustomizableObjectNodeTable> Node;
 
@@ -100,6 +117,12 @@ private:
 
 	// Array with the name of the Animation Tags columns as combobox options
 	TArray<TSharedPtr<FString>> AnimTagsOptionNames;
+	
+	// Array with the name of the MutableMetaData columns
+	TArray<TSharedPtr<FString>> MutableMetaDataColumnsOptionNames;
+
+	// ComboBox widget to select a MutableMetaDatacolumn from the NodeTable
+	TSharedPtr<STextComboBox> MutableMetaDataComboBox;
 	
 	// Button to clear selections of the animation comboboxes
 	TSharedPtr<SButton> ClearButton;
