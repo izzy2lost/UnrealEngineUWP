@@ -35,6 +35,7 @@
 #include <cassert>
 #include <fstream>
 #include <memory>
+#include <cwchar>
 // UE Change Begin: Allow remapping of variables in glsl
 #include <sstream>
 // UE Change End: Allow remapping of variables in glsl
@@ -969,6 +970,9 @@ namespace
 
     std::wstring ShaderProfileName(ShaderStage stage, Compiler::ShaderModel shaderModel)
     {
+		uint8_t major_ver = shaderModel.major_ver;
+		uint8_t minor_ver = shaderModel.minor_ver;
+
         std::wstring shaderProfile;
         switch (stage)
         {
@@ -1001,7 +1005,10 @@ namespace
         case ShaderStage::RayMiss:
         case ShaderStage::RayHitGroup:
         case ShaderStage::RayCallable:
-            return L"lib_6_3";
+			major_ver = std::max<uint8_t>(major_ver, 6);
+			minor_ver = std::max<uint8_t>(minor_ver, 3);
+			shaderProfile = L"lib";
+			break;
         // UE Change End: Ray tracing shaders use a library profile.
 
         default:
@@ -1009,14 +1016,14 @@ namespace
         }
 
         shaderProfile.push_back(L'_');
-        shaderProfile.push_back(L'0' + shaderModel.major_ver);
+        shaderProfile.push_back(L'0' + major_ver);
         shaderProfile.push_back(L'_');
-        shaderProfile.push_back(L'0' + shaderModel.minor_ver);
+        shaderProfile.push_back(L'0' + minor_ver);
 
         return shaderProfile;
     }
 
-    void ConvertDxcResult(Compiler::ResultDesc& result, IDxcOperationResult* dxcResult, ShadingLanguage targetLanguage, bool asModule)
+    static void ConvertDxcResult(Compiler::ResultDesc& result, IDxcOperationResult* dxcResult, ShadingLanguage targetLanguage, bool asModule, bool isLibrary)
     {
         HRESULT status;
         IFT(dxcResult->GetStatus(&status));
@@ -1045,12 +1052,13 @@ namespace
             }
 
 #ifdef LLVM_ON_WIN32
-            if ((targetLanguage == ShadingLanguage::Dxil) && !asModule)
+            if ((targetLanguage == ShadingLanguage::Dxil) && !asModule && !isLibrary)
             {
                 // Gather reflection information only for ShadingLanguage::Dxil
                 ShaderReflection(result.reflection, program);
             }
 #else
+			(void)isLibrary; // avoids warning-as-error
             SC_UNUSED(targetLanguage);
             SC_UNUSED(asModule);
 #endif
@@ -1078,6 +1086,7 @@ namespace
         {
             shaderProfile = ShaderProfileName(source.stage, options.shaderModel);
         }
+		const bool isLibrary = (shaderProfile.size() > 3 && std::wcsncmp(shaderProfile.c_str(), L"lib", 3) == 0);
 
         std::vector<DxcDefine> dxcDefines;
         std::vector<std::wstring> dxcDefineStrings;
@@ -1292,7 +1301,7 @@ namespace
                                                        static_cast<UINT32>(dxcDefines.size()), includeHandler, &compileResult));
 
         Compiler::ResultDesc ret{};
-        ConvertDxcResult(ret, compileResult, targetLanguage, asModule);
+        ConvertDxcResult(ret, compileResult, targetLanguage, asModule, isLibrary);
 
         return ret;
     }
@@ -2063,7 +2072,7 @@ namespace ShaderConductor
                          static_cast<UINT32>(moduleNamesUtf16.size()), nullptr, 0, &linkResult));
 
         Compiler::ResultDesc binaryResult{};
-        ConvertDxcResult(binaryResult, linkResult, ShadingLanguage::Dxil, false);
+        ConvertDxcResult(binaryResult, linkResult, ShadingLanguage::Dxil, false, true);
 
         Compiler::SourceDesc source{};
         source.entryPoint = modules.entryPoint;

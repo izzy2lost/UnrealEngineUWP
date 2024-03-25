@@ -99,7 +99,36 @@ int main(int argc, char** argv)
     {
         sourceDesc.stage = ShaderStage::ComputeShader;
     }
-    else
+	// UE Change Begin: Add ray tracing stages.
+	else if (stageName == "rgs")
+	{
+		sourceDesc.stage = ShaderStage::RayGen;
+	}
+	else if (stageName == "rms")
+	{
+		sourceDesc.stage = ShaderStage::RayMiss;
+	}
+	else if (stageName == "rhg")
+	{
+		sourceDesc.stage = ShaderStage::RayHitGroup;
+	}
+	else if (stageName == "rcs")
+	{
+		sourceDesc.stage = ShaderStage::RayCallable;
+	}
+	// UE Change End: Add ray tracing stages.
+
+	// UE Change Begin: Add mesh shading stages,
+	else if (stageName == "ms")
+	{
+		sourceDesc.stage = ShaderStage::MeshShader;
+	}
+	else if (stageName == "as")
+	{
+		sourceDesc.stage = ShaderStage::AmplificationShader;
+	}
+	// UE Change Begin: Add mesh shading stages,
+	else
     {
         std::cerr << "Invalid shader stage: " << stageName << std::endl;
         return 1;
