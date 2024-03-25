@@ -21,8 +21,7 @@ namespace UnrealBuildTool.Rules
 					"Slate",
 					"PropertyEditor", 
 					"WorkspaceMenuStructure", 
-					"UnrealEd", 
-					"VerseNative",
+					"UnrealEd",
 				}
 			);
 		}

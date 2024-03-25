@@ -9,7 +9,6 @@
 #include "InstanceDataObjectFixupDetailCustomization.h"
 #include "Modules/ModuleManager.h"
 #include "Editor.h"
-#include "PropertyVerseString.h"
 #include "UObject/PropertyBagRepository.h"
 
 #include "UObject/OverriddenPropertySet.h"
@@ -567,7 +566,8 @@ bool FInstanceDataObjectFixupPanel::FTypeConverter::TryConvert(FProperty* Source
 
 		const auto IsStringType = [](const FProperty* Property)
 		{
-			return Property->IsA<FStrProperty>() || Property->IsA<FTextProperty>() || Property->IsA<FNameProperty>() || Property->IsA<FVerseStringProperty>();
+			static FName VerseStringName = TEXT("VerseStringProperty");
+			return Property->IsA<FStrProperty>() || Property->IsA<FTextProperty>() || Property->IsA<FNameProperty>() || Property->GetID() == VerseStringName;
 		};
 		
 		if (IsStringType(SourceProperty) || IsStringType(DestinationProperty))
