@@ -540,7 +540,7 @@ namespace uba
 				reader.ReadString(name);
 				u32 clientVersion = reader.ReadU32();
 
-				m_logger.Info(TC("Client session %s connected (Id: %u, Uid: %s)"), name.data, connectionInfo.GetId(), GuidToString(connectionInfo.GetUid()).str);
+				m_logger.Detail(TC("Client session %s connected (Id: %u, Uid: %s)"), name.data, connectionInfo.GetId(), GuidToString(connectionInfo.GetUid()).str);
 
 				CasKey clientKeys[2];
 				clientKeys[0] = reader.ReadCasKey();
@@ -955,7 +955,7 @@ namespace uba
 					if (session.enabled)
 						m_availableRemoteSlotCount -= session.processSlotCount - session.usedSlotCount;
 					session.enabled = false;
-					m_logger.Info(TC("Disable remote execution on %s because remote execution has been disabled and queue is empty (will finish %u processes)"), session.name.c_str(), session.usedSlotCount);
+					m_logger.Detail(TC("Disable remote execution on %s because remote execution has been disabled and queue is empty (will finish %u processes)"), session.name.c_str(), session.usedSlotCount);
 				}
 
 				// If this client session has 0 active processes and m_maxRemoteProcessCount < total available compute - client session, then we can disconnect this client
@@ -1680,7 +1680,7 @@ namespace uba
 		u64 entryCount = m_nameToHashLookup.size();
 		lock2.Leave();
 
-		m_logger.Info(TC("Prepopulated NameToHash table with %u entries"), entryCount);
+		m_logger.Debug(TC("Prepopulated NameToHash table with %u entries"), entryCount);
 
 		return true;
 	}

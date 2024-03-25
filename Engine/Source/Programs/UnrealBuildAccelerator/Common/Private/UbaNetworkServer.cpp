@@ -345,7 +345,7 @@ namespace uba
 			{
 				for (auto& entry : m_server.m_onDisconnectFunctions)
 					entry.function(m_client->uid, m_client->id);
-				m_server.m_logger.Info(TC("Client %s disconnected"), GuidToString(m_client->uid).str);
+				m_server.m_logger.Detail(TC("Client %s disconnected"), GuidToString(m_client->uid).str);
 			}
 			m_disconnected = true;
 		}

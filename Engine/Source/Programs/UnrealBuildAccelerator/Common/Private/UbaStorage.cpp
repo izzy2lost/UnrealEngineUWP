@@ -1264,7 +1264,7 @@ namespace uba
 		if (logStats)
 		{
 			u64 duration = GetTime() - startTime;
-			m_logger.Info(TC("Database loaded from %s in %s"), fileName.data, TimeToText(duration).str);
+			m_logger.Detail(TC("Database loaded from %s in %s"), fileName.data, TimeToText(duration).str);
 		}
 
 		return true;

@@ -53,7 +53,7 @@ namespace uba
 		NetworkBackend* networkBackend;
 	};
 
-	#define UBA_USE_SIGNALHANDLER PLATFORM_LINUX
+	#define UBA_USE_SIGNALHANDLER 0//PLATFORM_LINUX // It might be that we can't use signal handlers in c# processes.. so don't set this to 1
 
 	#if UBA_USE_SIGNALHANDLER
 	void SignalHandler(int sig, siginfo_t* si, void* unused)

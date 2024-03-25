@@ -346,7 +346,7 @@ namespace uba
 					u64 startTime = GetTime();
 					if (!proxy->client.Connect(proxyBackend, proxyHost.data, proxyPort))
 					{
-						m_logger.Info(TC("Redirection to proxy %s:%u for cas %s download failed! (%s)"), proxyHost.data, proxyPort, casFile.data, hint);
+						m_logger.Detail(TC("Redirection to proxy %s:%u for cas %s download failed! (%s)"), proxyHost.data, proxyPort, casFile.data, hint);
 						continue;
 					}
 					
