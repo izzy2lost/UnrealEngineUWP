@@ -341,7 +341,7 @@ namespace HarmonixMetasound
 			case EMusicPlayerTransportState::Starting:
 			case EMusicPlayerTransportState::Playing:
 			case EMusicPlayerTransportState::Continuing:
-				MidiClockOut->ResetAndStart(0, true);
+				MidiClockOut->ResetAndStart(0, !ReceivedSeekWhileStopped());
 				return EMusicPlayerTransportState::Playing;
 
 			case EMusicPlayerTransportState::Seeking: // seeking is omitted from init, shouldn't happen
@@ -410,14 +410,9 @@ namespace HarmonixMetasound
 					{
 					case FMidiClockEvent::EType::Reset:
 					{
-						UpdateLoopOffsetTickFromTick(Event.Tick2);
-						int32 Tick = Event.Tick2 - LoopOffsetTick;
-
-						float Ms = MidiClockOut->GetSongMaps().TickToMs(Tick);
-						FMusicSeekTarget SeekTarget;
-						SeekTarget.Type = ESeekPointType::Millisecond;
-						SeekTarget.Ms = Ms;
-						MidiClockOut->SeekTo(Event.BlockFrameIndex, SeekTarget, PrerollBars);
+						// Ignore resets, because every reset event is preceded by a SeekThru event
+						// SeekThru triggers a new reset in the following clock,
+						// resulting in an exponentially growing list of reset and seek thru events
 						break;
 					}
 					case FMidiClockEvent::EType::Loop:
@@ -451,7 +446,20 @@ namespace HarmonixMetasound
 					}
 					case FMidiClockEvent::EType::AdvanceThru:
 					{
-						
+						// if this advance is a preroll, perform a seek instead so we don't trigger events doing an advance
+						// NOTE: This code is/should be identical to the SeekThru event above
+						if (Event.IsPreRoll)
+						{
+							UpdateLoopOffsetTickFromTick(Event.Tick2);
+							int32 Tick = Event.Tick2 - LoopOffsetTick;
+
+							float Ms = MidiClockOut->GetSongMaps().TickToMs(Tick + 1);
+							FMusicSeekTarget SeekTarget;
+							SeekTarget.Type = ESeekPointType::Millisecond;
+							SeekTarget.Ms = Ms;
+							MidiClockOut->SeekTo(Event.BlockFrameIndex, SeekTarget, PrerollBars);
+							break;
+						}
 						// The MidiClock handles looping on its own, so we can conveniently advance it
 						int32 Tick = Event.Tick2 - LoopOffsetTick;
 						float Ms = MidiClockOut->GetSongMaps().TickToMs(Tick);
