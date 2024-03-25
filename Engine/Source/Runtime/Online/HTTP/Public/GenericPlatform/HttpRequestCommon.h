@@ -41,6 +41,8 @@ public:
 
 	HTTP_API virtual void ProcessRequestUntilComplete() override;
 
+	HTTP_API virtual bool SetResponseBodyReceiveStream(TSharedRef<FArchive> Stream) override;
+
 protected:
 	/**
 	 * Check if this request is valid or allowed, before actually process the request
@@ -78,6 +80,9 @@ protected:
 
 	HTTP_API void SetEffectiveURL(const FString& InEffectiveURL);
 
+	HTTP_API bool PassReceivedDataToStream(void* Ptr, int64 Length);
+	HTTP_API void StopPassingReceivedData();
+
 protected:
 	/** Current status of request being processed */
 	EHttpRequestStatus::Type CompletionStatus = EHttpRequestStatus::NotStarted;
@@ -92,9 +97,9 @@ protected:
 	TOptional<float> TimeoutSecs;
 
 	/** Indicate the request is timed out, it should quit and fail with EHttpFailureReason::TimedOut */
-	bool bTimedOut = false;
+	std::atomic<bool> bTimedOut = false;
 	/** Indicate the request is activity timed out, it should quit and fail with EHttpFailureReason::ConnectionError */
-	bool bActivityTimedOut = false;
+	std::atomic<bool> bActivityTimedOut = false;
 	/** Indicate the request is cancelled, it should quit and fail with EHttpFailureReason::Cancelled */
 	std::atomic<bool> bCanceled = false;
 
@@ -125,4 +130,14 @@ protected:
 
 	/** The response object which we will use to pair with this request */
 	TSharedPtr<FHttpResponseCommon> ResponseCommon;
+
+	/** The stream to receive response body */
+	TSharedPtr<FArchive> ResponseBodyReceiveStream;
+
+	/** Critical section for accessing ResponseBodyReceiveStream */
+	FCriticalSection ResponseBodyReceiveStreamCriticalSection;
+
+	// Flag to indicate the request was initialized with stream. In that case even if stream was set to 
+	// null later on internally, the request itself won't cache received data anymore
+	std::atomic<bool> bInitializedWithValidStream = false;
 };

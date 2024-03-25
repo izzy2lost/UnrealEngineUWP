@@ -169,14 +169,14 @@ public:
 	 * @param ContentString - payload to set.
 	 */
 	virtual void SetContentAsString(const FString& ContentString) = 0;
-    
-    /**
-     * Sets the content of the request to stream from a file.
-     *
-     * @param FileName - filename from which to stream the body.
+
+	/**
+	 * Sets the content of the request to stream from a file.
+	 *
+	 * @param FileName - filename from which to stream the body.
 	 * @return True if the file is valid and will be used to stream the request. False otherwise.
-     */
-    virtual bool SetContentAsStreamedFile(const FString& Filename) = 0;
+	 */
+	virtual bool SetContentAsStreamedFile(const FString& Filename) = 0;
 
 	/**
 	 * Sets the content of the request to stream directly from an archive.
@@ -189,8 +189,13 @@ public:
 
 	/**
 	 * Sets the content of the request to stream directly from an delegate.
-	 * NOTE: The delegate will be called from another thread other than the game thread
-	 *
+	 * NOTE: 
+	 *   - The delegate will be called from another thread other than the game thread, make sure 
+	 *     it's thread-safe in there
+	 *   - Make sure the delegate is safe to be called until receiving the process complete callback
+	 *     or after canceling the request
+	 *     For example: don't destroy the instance even if using BindThreadSafeSP, because internally 
+	 *     it's calling Execute to handle error by returned value instead of calling ExecuteIfBound
 	 * @param StreamDelegate - delegate from which the payload should be streamed.
 	 * @return True if the delegate can be used to stream the request. False otherwise.
 	 */
