@@ -71,29 +71,20 @@ namespace uba
 		UnorderedMap<u16, ActiveStore> m_activeStores;
 
 
-		struct ActiveFetchItem
-		{
-			ActiveFetchItem* next = nullptr;
-			u32 index = 0;
-			Event event;
-			ActiveFetchItem* prev = nullptr;
-		};
-
 		struct ActiveFetch
 		{
 			u32 clientId = ~0u;
-			u64 left = 0;
-			FileHandle readFileHandle = InvalidFileHandle;
+			Atomic<u64> left;
 			CasKey casKey;
 			Atomic<u64> sendCasTime;
 
+			FileHandle readFileHandle = InvalidFileHandle;
+			MappedView mappedView;
 			u8* memoryBegin = nullptr;
 			u8* memoryPos = nullptr;
-			MappedView mappedView;
+			bool ownsMapping = false;
 
-			ReaderWriterLock readIndexLock;
-			ActiveFetchItem* firstItem = nullptr;
-			u32 readIndexHandled = 0;
+			void Release(StorageServer& server, const tchar* reason);
 		};
 		ReaderWriterLock m_activeFetchesLock;
 		UnorderedMap<u16, ActiveFetch> m_activeFetches;
