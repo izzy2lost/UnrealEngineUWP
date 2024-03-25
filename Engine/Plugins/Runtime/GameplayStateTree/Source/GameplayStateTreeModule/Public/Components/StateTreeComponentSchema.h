@@ -7,6 +7,11 @@
 #include "StateTreeExecutionTypes.h"
 #include "StateTreeComponentSchema.generated.h"
 
+class UBrainComponent;
+class UStateTree;
+
+struct FStateTreeExecutionContext;
+
 /**
  * StateTree for Actors with StateTree component. 
  */
@@ -20,6 +25,9 @@ public:
 
 	UClass* GetContextActorClass() const { return ContextActorClass; };
 	
+	static bool SetContextRequirements(UBrainComponent& BrainComponent, FStateTreeExecutionContext& Context, bool bLogErrors = false);
+	static bool CollectExternalData(const FStateTreeExecutionContext& Context, const UStateTree* StateTree, TArrayView<const FStateTreeExternalDataDesc> Descs, TArrayView<FStateTreeDataView> OutDataViews);
+
 protected:
 	virtual bool IsStructAllowed(const UScriptStruct* InScriptStruct) const override;
 	virtual bool IsClassAllowed(const UClass* InScriptStruct) const override;
