@@ -237,7 +237,7 @@ public:
 	{
 		using namespace TypedElementDataStorage;
 		
-		TypedElementRowHandle RowHandle = TypedElementInvalidRowHandle;
+		RowHandle RowHandle = InvalidRowHandle;
 
 		TSharedPtr<SWidget> RowWidget;
 
@@ -258,7 +258,9 @@ public:
 			RowWidget = FallbackColumn->ConstructRowWidget(TreeItem, Row);
 		}
 
-		if (RowHandle != TypedElementInvalidRowHandle && Storage.HasColumns(RowHandle, ColumnTypes))
+		if (Storage.HasRowBeenAssigned(RowHandle) && 
+			CellWidgetConstructor->GetQueryConditions() &&
+			Storage.MatchesColumns(RowHandle, *CellWidgetConstructor->GetQueryConditions()))
 		{
 			TypedElementRowHandle UiRowHandle = Storage.AddRow(Storage.FindTable(FTypedElementSceneOutlinerQueryBinder::CellWidgetTableName));
 			Storage.AddColumns(UiRowHandle, CellWidgetConstructor->GetAdditionalColumnsList());
@@ -281,7 +283,7 @@ public:
 			}
 			else
 			{
-				Storage.RemoveRow(RowHandle);
+				Storage.RemoveRow(UiRowHandle);
 			}
 		}
 

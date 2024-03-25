@@ -4,6 +4,7 @@
 
 #include <variant>
 #include "Containers/Map.h"
+#include "Elements/Common/TypedElementQueryConditions.h"
 #include "Elements/Interfaces/TypedElementDataStorageUiInterface.h"
 #include "Logging/LogMacros.h"
 #include "UObject/ObjectMacros.h"
@@ -34,10 +35,10 @@ public:
 
 	bool RegisterWidgetFactory(FName Purpose, const UScriptStruct* Constructor) override;
 	bool RegisterWidgetFactory(FName Purpose, const UScriptStruct* Constructor,
-		TypedElementQueryBuilder::FQueryConditions Columns) override;
+		TypedElementDataStorage::FQueryConditions Columns) override;
 	bool RegisterWidgetFactory(FName Purpose, TUniquePtr<FTypedElementWidgetConstructor>&& Constructor) override;
 	bool RegisterWidgetFactory(FName Purpose, TUniquePtr<FTypedElementWidgetConstructor>&& Constructor,
-		TypedElementQueryBuilder::FQueryConditions Columns) override;
+		TypedElementDataStorage::FQueryConditions Columns) override;
 
 	void CreateWidgetConstructors(FName Purpose,
 		const TypedElementDataStorage::FMetaDataView& Arguments, const WidgetConstructorCallback& Callback) override;
@@ -56,14 +57,14 @@ private:
 	{
 		using ConstructorType = std::variant<const UScriptStruct*, TUniquePtr<FTypedElementWidgetConstructor>>;
 
-		TypedElementQueryBuilder::FQueryConditions Columns;
+		TypedElementDataStorage::FQueryConditions Columns;
 		ConstructorType Constructor;
 
 		FWidgetFactory() = default;
 		explicit FWidgetFactory(const UScriptStruct* InConstructor);
 		explicit FWidgetFactory(TUniquePtr<FTypedElementWidgetConstructor>&& InConstructor);
-		FWidgetFactory(const UScriptStruct* InConstructor, TypedElementQueryBuilder::FQueryConditions&& InColumns);
-		FWidgetFactory(TUniquePtr<FTypedElementWidgetConstructor>&& InConstructor, TypedElementQueryBuilder::FQueryConditions&& InColumns);
+		FWidgetFactory(const UScriptStruct* InConstructor, TypedElementDataStorage::FQueryConditions&& InColumns);
+		FWidgetFactory(TUniquePtr<FTypedElementWidgetConstructor>&& InConstructor, TypedElementDataStorage::FQueryConditions&& InColumns);
 	};
 
 	struct FPurposeInfo
@@ -80,6 +81,7 @@ private:
 		const FWidgetFactory::ConstructorType& Constructor,
 		const TypedElementDataStorage::FMetaDataView& Arguments,
 		TArray<TWeakObjectPtr<const UScriptStruct>> MatchedColumnTypes,
+		const TypedElementDataStorage::FQueryConditions& QueryConditions,
 		const WidgetConstructorCallback& Callback);
 
 	void CreateWidgetInstance(

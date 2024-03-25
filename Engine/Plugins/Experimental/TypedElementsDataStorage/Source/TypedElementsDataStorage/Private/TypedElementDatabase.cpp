@@ -721,6 +721,34 @@ bool UTypedElementDatabase::HasColumns(TypedElementRowHandle Row, TConstArrayVie
 	return false;
 }
 
+bool UTypedElementDatabase::MatchesColumns(TypedElementDataStorage::RowHandle Row, const TypedElementDataStorage::FQueryConditions& Conditions) const
+{
+	FMassEntityHandle Entity = FMassEntityHandle::FromNumber(Row);
+	if (ActiveEditorEntityManager && ActiveEditorEntityManager->IsEntityActive(Entity))
+	{
+		FMassArchetypeHandle Archetype = ActiveEditorEntityManager->GetArchetypeForEntity(Entity);
+		const FMassArchetypeCompositionDescriptor& Composition = ActiveEditorEntityManager->GetArchetypeComposition(Archetype);
+
+		auto Callback = [&Composition](uint8_t ColumnIndex, TWeakObjectPtr<const UScriptStruct> Column)
+		{
+			if (Column.IsValid())
+			{
+				if (Column->IsChildOf(FMassFragment::StaticStruct()))
+				{
+					return Composition.Fragments.Contains(*Column);
+				}
+				else if (Column->IsChildOf(FMassTag::StaticStruct()))
+				{
+					return Composition.Tags.Contains(*Column);
+				}
+			}
+			return false;
+		};
+		return Conditions.Verify(Callback);
+	}
+	return false;
+}
+
 void UTypedElementDatabase::RegisterTickGroup(
 	FName GroupName, EQueryTickPhase Phase, FName BeforeGroup, FName AfterGroup, bool bRequiresMainThread)
 {

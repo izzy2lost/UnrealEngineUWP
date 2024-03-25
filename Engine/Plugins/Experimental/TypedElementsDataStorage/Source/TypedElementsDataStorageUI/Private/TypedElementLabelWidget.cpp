@@ -128,7 +128,7 @@ void UTypedElementLabelWidgetFactory::RegisterQueries(ITypedElementDataStorageIn
 void UTypedElementLabelWidgetFactory::RegisterWidgetConstructors(ITypedElementDataStorageInterface& DataStorage,
 	ITypedElementDataStorageUiInterface& DataStorageUi) const
 {
-	using namespace TypedElementQueryBuilder;
+	using namespace TypedElementDataStorage;
 
 	DataStorageUi.RegisterWidgetFactory<FTypedElementLabelWidgetConstructor>(FName(TEXT("General.Cell")), 
 		FColumn<FTypedElementLabelColumn>() || (FColumn<FTypedElementLabelColumn>() && FColumn<FTypedElementLabelHashColumn>()));

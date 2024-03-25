@@ -95,7 +95,7 @@ bool UTypedElementDatabaseUi::RegisterWidgetFactory(FName Purpose, const UScript
 }
 
 bool UTypedElementDatabaseUi::RegisterWidgetFactory(
-	FName Purpose, const UScriptStruct* Constructor, TypedElementQueryBuilder::FQueryConditions Columns)
+	FName Purpose, const UScriptStruct* Constructor, TypedElementDataStorage::FQueryConditions Columns)
 {
 	if (!Columns.IsEmpty())
 	{
@@ -200,7 +200,7 @@ bool UTypedElementDatabaseUi::RegisterWidgetFactory(FName Purpose, TUniquePtr<FT
 }
 
 bool UTypedElementDatabaseUi::RegisterWidgetFactory(FName Purpose, TUniquePtr<FTypedElementWidgetConstructor>&& Constructor, 
-	TypedElementQueryBuilder::FQueryConditions Columns)
+	TypedElementDataStorage::FQueryConditions Columns)
 {
 	if (!Columns.IsEmpty())
 	{
@@ -268,7 +268,7 @@ void UTypedElementDatabaseUi::CreateWidgetConstructors(FName Purpose,
 	{
 		for (const FWidgetFactory& Factory : PurposeInfo->Factories)
 		{
-			if (!CreateSingleWidgetConstructor(Factory.Constructor, Arguments, {}, Callback))
+			if (!CreateSingleWidgetConstructor(Factory.Constructor, Arguments, {}, Factory.Columns, Callback))
 			{
 				return;
 			}
@@ -359,21 +359,25 @@ void UTypedElementDatabaseUi::ConstructWidgets(FName Purpose, const TypedElement
 bool UTypedElementDatabaseUi::CreateSingleWidgetConstructor(
 	const FWidgetFactory::ConstructorType& Constructor,
 	const TypedElementDataStorage::FMetaDataView& Arguments,
-	TArray<TWeakObjectPtr<const UScriptStruct>> MatchedColumnTypes, 
+	TArray<TWeakObjectPtr<const UScriptStruct>> MatchedColumnTypes,
+	const TypedElementDataStorage::FQueryConditions& QueryConditions,
 	const WidgetConstructorCallback& Callback)
 {
 	struct Visitor
 	{
 		Visitor(
 			TArray<TWeakObjectPtr<const UScriptStruct>>&& InMatchedColumnTypes,
+			const TypedElementDataStorage::FQueryConditions& InQueryConditions,
 			const TypedElementDataStorage::FMetaDataView& InArguments,
 			const WidgetConstructorCallback& InCallback) 
 			: MatchedColumnTypes(MoveTemp(InMatchedColumnTypes))
+			, QueryConditions(InQueryConditions)
 			, Arguments(InArguments)
 			, Callback(InCallback)
 		{}
 
 		TArray<TWeakObjectPtr<const UScriptStruct>> MatchedColumnTypes;
+		const TypedElementDataStorage::FQueryConditions& QueryConditions;
 		const TypedElementDataStorage::FMetaDataView& Arguments;
 		const WidgetConstructorCallback& Callback;
 
@@ -384,7 +388,7 @@ bool UTypedElementDatabaseUi::CreateSingleWidgetConstructor(
 			if (Result)
 			{
 				Target->InitializeStruct(Result.Get());
-				Result->Initialize(Arguments, MoveTemp(MatchedColumnTypes));
+				Result->Initialize(Arguments, MoveTemp(MatchedColumnTypes), QueryConditions);
 				return Callback(MoveTemp(Result), Result->GetMatchedColumns());
 			}
 			return true;
@@ -400,13 +404,13 @@ bool UTypedElementDatabaseUi::CreateSingleWidgetConstructor(
 			{
 				TargetType->InitializeStruct(Result.Get());
 				TargetType->CopyScriptStruct(Result.Get(), Target.Get());
-				Result->Initialize(Arguments, MoveTemp(MatchedColumnTypes));
+				Result->Initialize(Arguments, MoveTemp(MatchedColumnTypes), QueryConditions);
 				return Callback(MoveTemp(Result), Result->GetMatchedColumns());
 			}
 			return true;
 		}
 	};
-	return std::visit(Visitor(MoveTemp(MatchedColumnTypes), Arguments, Callback), Constructor);
+	return std::visit(Visitor(MoveTemp(MatchedColumnTypes), QueryConditions, Arguments, Callback), Constructor);
 }
 
 void UTypedElementDatabaseUi::CreateWidgetInstance(
@@ -492,7 +496,7 @@ void UTypedElementDatabaseUi::CreateWidgetConstructors_LongestMatch(const TArray
 				--ColumnsEnd;
 			}
 			
-			if (!CreateSingleWidgetConstructor(FactoryIt->Constructor, Arguments, MoveTemp(MatchedColumns), Callback))
+			if (!CreateSingleWidgetConstructor(FactoryIt->Constructor, Arguments, MoveTemp(MatchedColumns), FactoryIt->Columns, Callback))
 			{
 				return;
 			}
@@ -524,7 +528,7 @@ void UTypedElementDatabaseUi::CreateWidgetConstructors_ExactMatch(const TArray<F
 			if (MatchedColumns.Num() == Columns.Num())
 			{
 				Columns.Reset();
-				CreateSingleWidgetConstructor(Factory.Constructor, Arguments, MoveTemp(MatchedColumns), Callback);
+				CreateSingleWidgetConstructor(Factory.Constructor, Arguments, MoveTemp(MatchedColumns), Factory.Columns, Callback);
 				return;
 			}
 		}
@@ -558,7 +562,8 @@ void UTypedElementDatabaseUi::CreateWidgetConstructors_SingleMatch(const TArray<
 			if (ColumnData[0] == Columns[ColumnIndex])
 			{
 				Columns.RemoveAt(ColumnIndex);
-				CreateSingleWidgetConstructor((*FactoryIt).Constructor, Arguments, TArray<TWeakObjectPtr<const UScriptStruct>>(ColumnData), Callback);
+				CreateSingleWidgetConstructor((*FactoryIt).Constructor, Arguments, 
+					TArray<TWeakObjectPtr<const UScriptStruct>>(ColumnData), (*FactoryIt).Columns, Callback);
 				// Match was found so move on to the next column in the column.
 				break;
 			}
@@ -585,14 +590,14 @@ UTypedElementDatabaseUi::FWidgetFactory::FWidgetFactory(TUniquePtr<FTypedElement
 }
 
 UTypedElementDatabaseUi::FWidgetFactory::FWidgetFactory(const UScriptStruct* InConstructor, 
-	TypedElementQueryBuilder::FQueryConditions&& InColumns)
+	TypedElementDataStorage::FQueryConditions&& InColumns)
 	: Columns(MoveTemp(InColumns))
 	, Constructor(InConstructor)
 {
 }
 
 UTypedElementDatabaseUi::FWidgetFactory::FWidgetFactory(TUniquePtr<FTypedElementWidgetConstructor>&& InConstructor, 
-	TypedElementQueryBuilder::FQueryConditions&& InColumns)
+	TypedElementDataStorage::FQueryConditions&& InColumns)
 	: Columns(MoveTemp(InColumns))
 	, Constructor(MoveTemp(InConstructor))
 {

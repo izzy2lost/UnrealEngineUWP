@@ -17,7 +17,7 @@
 void UTypedElementPackagePathWidgetFactory::RegisterWidgetConstructors(ITypedElementDataStorageInterface& DataStorage,
 	ITypedElementDataStorageUiInterface& DataStorageUi) const
 {
-	using namespace TypedElementQueryBuilder;
+	using namespace TypedElementDataStorage;
 
 	DataStorageUi.RegisterWidgetFactory<FTypedElementPackagePathWidgetConstructor>(FName(TEXT("General.Cell")), 
 		FColumn<FTypedElementPackagePathColumn>());

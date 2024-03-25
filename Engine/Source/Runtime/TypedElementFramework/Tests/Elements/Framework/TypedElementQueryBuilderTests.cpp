@@ -7,11 +7,11 @@
 #include "CoreTypes.h"
 #include "Containers/Array.h"
 #include "Containers/UnrealString.h"
-#include "Elements/Framework/TypedElementQueryBuilder.h"
+#include "Elements/Common/TypedElementQueryConditions.h"
 #include "Tests/TestHarnessAdapter.h"
 #include "UObject/Class.h"
 
-using namespace TypedElementQueryBuilder;
+using namespace TypedElementDataStorage;
 
 
 static void AppendColumnName(FString& Output, TWeakObjectPtr<const UScriptStruct> TypeInfo)

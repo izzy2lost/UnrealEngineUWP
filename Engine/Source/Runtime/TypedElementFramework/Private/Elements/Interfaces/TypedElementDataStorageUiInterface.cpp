@@ -10,9 +10,10 @@ FTypedElementWidgetConstructor::FTypedElementWidgetConstructor(const UScriptStru
 }
 
 bool FTypedElementWidgetConstructor::Initialize(const TypedElementDataStorage::FMetaDataView& InArguments,
-	TArray<TWeakObjectPtr<const UScriptStruct>> InMatchedColumnTypes)
+	TArray<TWeakObjectPtr<const UScriptStruct>> InMatchedColumnTypes, const TypedElementDataStorage::FQueryConditions& InQueryConditions)
 {
 	MatchedColumnTypes = MoveTemp(InMatchedColumnTypes);
+	QueryConditions = &InQueryConditions;
 	return true;
 }
 
@@ -24,6 +25,11 @@ const UScriptStruct* FTypedElementWidgetConstructor::GetTypeInfo() const
 const TArray<TWeakObjectPtr<const UScriptStruct>>& FTypedElementWidgetConstructor::GetMatchedColumns() const
 {
 	return MatchedColumnTypes;
+}
+
+const TypedElementDataStorage::FQueryConditions* FTypedElementWidgetConstructor::GetQueryConditions() const
+{
+	return QueryConditions;
 }
 
 TConstArrayView<const UScriptStruct*> FTypedElementWidgetConstructor::GetAdditionalColumnsList() const
