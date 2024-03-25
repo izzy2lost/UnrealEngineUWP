@@ -53,14 +53,14 @@ inline const FPropertyTypeNameNode* AppendNode(FStringBuilderBase& Builder, cons
 
 	if (int32 Remaining = Node++->InnerCount)
 	{
-		Builder.AppendChar(TEXT('<'));
+		Builder.AppendChar(TEXT('('));
 		for (; Remaining > 0; --Remaining)
 		{
 			Node = AppendNode(Builder, Node);
 			Builder.AppendChar(TEXT(','));
 		}
 		Builder.RemoveSuffix(1);
-		Builder.AppendChar(TEXT('>'));
+		Builder.AppendChar(TEXT(')'));
 	}
 
 	return Node;
@@ -480,7 +480,7 @@ bool FPropertyTypeNameBuilder::TryParse(FStringView Name)
 	bool bAllowBegin = false;
 	for (FStringView Remaining = Name;; Remaining.RightChopInline(Index + 1))
 	{
-		Index = String::FindFirstOfAnyChar(Remaining, {TEXT('<'), TEXT(','), TEXT('>')});
+		Index = String::FindFirstOfAnyChar(Remaining, {TEXT('('), TEXT(','), TEXT(')')});
 
 		if (Index != 0)
 		{
@@ -489,7 +489,7 @@ bool FPropertyTypeNameBuilder::TryParse(FStringView Name)
 			{
 				if (!bAllowName)
 				{
-					// Names must follow '<' or ',' or be at the root.
+					// Names must follow '(' or ',' or be at the root.
 					break;
 				}
 				AddName(FName(Type));
@@ -504,7 +504,7 @@ bool FPropertyTypeNameBuilder::TryParse(FStringView Name)
 			{
 				return true;
 			}
-			// Missing a '>' and/or missing a name.
+			// Missing a ')' and/or missing a name.
 			break;
 		}
 
@@ -515,22 +515,22 @@ bool FPropertyTypeNameBuilder::TryParse(FStringView Name)
 		}
 
 		const TCHAR C = Remaining[Index];
-		if (C == TEXT('<'))
+		if (C == TEXT('('))
 		{
 			if (!bAllowBegin)
 			{
-				// '<' must follow a name.
+				// '(' must follow a name.
 				break;
 			}
 			++Depth;
 			BeginParameters();
 			bAllowName = true;
 		}
-		else if (C == TEXT('>'))
+		else if (C == TEXT(')'))
 		{
 			if (Depth <= 0)
 			{
-				// '>' must have a matching '<'.
+				// ')' must have a matching '('.
 				break;
 			}
 			EndParameters();

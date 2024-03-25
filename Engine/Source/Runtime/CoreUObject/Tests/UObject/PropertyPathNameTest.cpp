@@ -85,7 +85,7 @@ TEST_CASE_NAMED(FPropertyPathNameTest, "CoreUObject::PropertyPathName", "[Core][
 		PathName.Push({TEXT("X"), IntType});
 
 		CHECK(PathName.GetSegmentCount() == 3);
-		CHECK(TEXTVIEW("TestArray[7] (ArrayProperty<StructProperty<TestType>>) -> Position (StructProperty<IntVector>) -> X (IntProperty)").Equals(WriteToString<128>(PathName)));
+		CHECK(TEXTVIEW("TestArray[7] (ArrayProperty(StructProperty(TestType))) -> Position (StructProperty(IntVector)) -> X (IntProperty)").Equals(WriteToString<128>(PathName)));
 	}
 
 	SECTION("SetType/SetIndex")
