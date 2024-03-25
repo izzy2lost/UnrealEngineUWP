@@ -586,12 +586,6 @@ void FPCGSubgraphElement::PrepareSubgraphUserParameters(const UPCGSubgraphSettin
 	}
 }
 
-bool FPCGSubgraphElement::IsCacheable(const UPCGSettings* InSettings) const
-{
-	const UPCGSubgraphSettings* Settings = Cast<const UPCGSubgraphSettings>(InSettings);
-	return (!Settings || !Settings->IsDynamicGraph());
-}
-
 bool FPCGSubgraphElement::IsPassthrough(const UPCGSettings* InSettings) const
 {
 	const UPCGSubgraphSettings* Settings = Cast<UPCGSubgraphSettings>(InSettings);
