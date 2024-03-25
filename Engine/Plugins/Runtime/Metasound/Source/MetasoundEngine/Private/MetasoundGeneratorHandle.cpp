@@ -146,6 +146,33 @@ namespace Metasound
 		return WatchOutputInternal(OutputName, FWatchOutputUnifiedDelegate(OnOutputValueChanged), AnalyzerName, AnalyzerOutputName);
 	}
 
+	bool FMetasoundGeneratorHandle::UnwatchOutput(
+		FName OutputName,
+		const FOnMetasoundOutputValueChanged& OnOutputValueChanged,
+		FName AnalyzerName,
+		FName AnalyzerOutputName)
+	{
+		return UnwatchOutputInternal(OutputName, FWatchOutputUnifiedDelegate(OnOutputValueChanged), AnalyzerName, AnalyzerOutputName);
+	}
+
+	bool FMetasoundGeneratorHandle::UnwatchOutput(
+		FName OutputName,
+		const FOnMetasoundOutputValueChangedNative& OnOutputValueChanged,
+		FName AnalyzerName,
+		FName AnalyzerOutputName)
+	{
+		return UnwatchOutputInternal(OutputName, FWatchOutputUnifiedDelegate(OnOutputValueChanged), AnalyzerName, AnalyzerOutputName);
+	}
+
+	bool FMetasoundGeneratorHandle::UnwatchOutput(
+		FName OutputName,
+		const FDelegateHandle& OnOutputValueChanged,
+		FName AnalyzerName,
+		FName AnalyzerOutputName)
+	{
+		return UnwatchOutputInternal(OutputName, FWatchOutputUnifiedDelegate(OnOutputValueChanged), AnalyzerName, AnalyzerOutputName);
+	}
+
 	void FMetasoundGeneratorHandle::UpdateOutputWatchers()
 	{
 		METASOUND_LLM_SCOPE;
@@ -346,6 +373,58 @@ namespace Metasound
 			return false;
 		}
 
+		Frontend::FAnalyzerAddress AnalyzerAddress;
+		if (!TryCreateAnalyzerAddress(OutputName, AnalyzerName, AnalyzerOutputName, AnalyzerAddress))
+		{
+			return false;
+		}
+
+		// Create the watcher
+		CreateOutputWatcher(AnalyzerAddress, OnOutputValueChanged);
+
+		// Update the generator's analyzers if necessary
+		FixUpOutputWatchers();
+
+		return true;
+	}
+
+	bool FMetasoundGeneratorHandle::UnwatchOutputInternal(
+		const FName OutputName,
+		const FWatchOutputUnifiedDelegate& OnOutputValueChanged,
+		const FName AnalyzerName,
+		const FName AnalyzerOutputName)
+	{
+		METASOUND_LLM_SCOPE;
+		METASOUND_TRACE_CPUPROFILER_EVENT_SCOPE(FMetasoundGeneratorHandle::UnwatchOutputInternal);
+
+		check(IsInGameThread());
+
+		if (!IsValid())
+		{
+			return false;
+		}
+
+		Frontend::FAnalyzerAddress AnalyzerAddress;
+		if (!TryCreateAnalyzerAddress(OutputName, AnalyzerName, AnalyzerOutputName, AnalyzerAddress))
+		{
+			return false;
+		}
+
+		// Remove the watcher
+		RemoveOutputWatcher(AnalyzerAddress, OnOutputValueChanged);
+
+		// Update the generator's analyzers if necessary
+		FixUpOutputWatchers();
+
+		return true;
+	}
+
+	bool FMetasoundGeneratorHandle::TryCreateAnalyzerAddress(
+		const FName OutputName,
+		const FName AnalyzerName,
+		const FName AnalyzerOutputName,
+		Frontend::FAnalyzerAddress& OutAnalyzerAddress)
+	{
 		// Make the analyzer address.
 		Frontend::FAnalyzerAddress AnalyzerAddress;
 		AnalyzerAddress.InstanceID = GetAudioComponentId();
@@ -405,12 +484,7 @@ namespace Metasound
 			}
 		}
 
-		// Create the watcher
-		CreateOutputWatcher(AnalyzerAddress, OnOutputValueChanged);
-
-		// Update the generator's analyzers if necessary
-		FixUpOutputWatchers();
-
+		OutAnalyzerAddress = AnalyzerAddress;
 		return true;
 	}
 
@@ -430,13 +504,21 @@ namespace Metasound
 		{
 			// For each watcher, make sure the generator has a corresponding analyzer
 			// (will fail gracefully on duplicates or non-existent outputs)
+			// we can also remove any analyzer that has no further bindings
 			for (const auto& Watcher : OutputWatchers)
 			{
-				PinnedGenerator->AddOutputVertexAnalyzer(Watcher.Value.AnalyzerAddress);
+				if (Watcher.Value.OnOutputValueChanged.IsBound())
+				{
+					PinnedGenerator->AddOutputVertexAnalyzer(Watcher.Value.AnalyzerAddress);
+				}
+				else
+				{
+					PinnedGenerator->RemoveOutputVertexAnalyzer(Watcher.Value.AnalyzerAddress);
+				}
 			}
 		}
 	}
-	
+
 	void FMetasoundGeneratorHandle::CreateOutputWatcher(
 		const Frontend::FAnalyzerAddress& AnalyzerAddress,
 		const FWatchOutputUnifiedDelegate& OnOutputValueChanged)
@@ -463,6 +545,29 @@ namespace Metasound
 		{
 			OutputWatchers.Emplace(WatcherKey, { AnalyzerAddress, OnOutputValueChanged });
 		}
+	}
+
+	void FMetasoundGeneratorHandle::RemoveOutputWatcher(
+		const Frontend::FAnalyzerAddress& AnalyzerAddress,
+		const FWatchOutputUnifiedDelegate& OnOutputValueChanged)
+	{
+		METASOUND_LLM_SCOPE;
+		METASOUND_TRACE_CPUPROFILER_EVENT_SCOPE(FMetasoundGeneratorHandle::RemoveOutputWatcher);
+
+		check(IsInGameThread()); // modifying watchers isn't thread-safe
+
+		// Watcher must exist in order to be removed
+		const FOutputWatcherKey WatcherKey
+		{
+			AnalyzerAddress.OutputName,
+			AnalyzerAddress.AnalyzerName,
+			AnalyzerAddress.AnalyzerMemberName
+		};
+
+		if (FOutputWatcher* Watcher = OutputWatchers.Find(WatcherKey))
+		{
+			Watcher->OnOutputValueChanged.Remove(OnOutputValueChanged);
+		}		
 	}
 
 	void FMetasoundGeneratorHandle::HandleGeneratorCreated(
