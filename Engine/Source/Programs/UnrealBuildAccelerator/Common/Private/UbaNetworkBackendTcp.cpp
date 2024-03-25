@@ -400,6 +400,8 @@ namespace uba
 
 	void NetworkBackendTcp::ThreadRecv(Connection& connection)
 	{
+		ElevateCurrentThreadPriority();
+		
 		if (connection.ready.IsSet(60000)) // This should never time out!
 		{
 			Guid connectionUid;

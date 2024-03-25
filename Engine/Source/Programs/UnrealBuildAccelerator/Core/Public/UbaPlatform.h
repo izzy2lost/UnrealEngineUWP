@@ -98,6 +98,8 @@ namespace uba
 	u32 GetLogicalProcessorCount();
 	u32 GetProcessorGroupCount();
 
+	void ElevateCurrentThreadPriority();
+
 #if PLATFORM_WINDOWS
 	inline constexpr bool CaseInsensitiveFs = true;
 	inline constexpr tchar PathSeparator = '\\';
