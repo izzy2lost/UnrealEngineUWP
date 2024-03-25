@@ -186,6 +186,8 @@ TSharedPtr<SWidget> SGraphPinString::TryBuildComboBoxWidget()
 		[
 			SNew(SSearchableComboBox)
 				.OptionsSource(&ComboBoxOptions)
+				.Visibility(this, &SGraphPin::GetDefaultValueVisibility)
+				.IsEnabled(this, &SGraphPin::GetDefaultValueIsEditable)
 				.OnGenerateWidget(this, &SGraphPinString::GenerateComboBoxEntry)
 				.OnSelectionChanged(this, &SGraphPinString::HandleComboBoxSelectionChanged)
 				.ContentPadding(3.0f)
