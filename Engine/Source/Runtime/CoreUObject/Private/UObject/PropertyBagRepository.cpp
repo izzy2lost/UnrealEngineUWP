@@ -24,7 +24,7 @@ DEFINE_LOG_CATEGORY_STATIC(LogPropertyBagRepository, Log, All);
 namespace UE
 {
 
-class FPropertyBagTypeRegistry
+class FPropertyBagPlaceholderTypeRegistry
 {
 public:
 	void AddReferencedObjects(FReferenceCollector& Collector)
@@ -33,15 +33,15 @@ public:
 		Collector.AddReferencedObjects(PlaceholderTypes);
 	}
 
-	void Add(UClass* Class)
+	void Add(UStruct* Type)
 	{
-		PendingPlaceholderTypes.Enqueue(Class);
+		PendingPlaceholderTypes.Enqueue(Type);
 	}
 
-	bool Contains(UClass* Class)
+	bool Contains(UStruct* Type)
 	{
 		ConsumePendingPlaceholderTypes();
-		return PlaceholderTypes.Contains(Class);
+		return PlaceholderTypes.Contains(Type);
 	}
 
 protected:
@@ -51,10 +51,10 @@ protected:
 		{
 			FScopeLock ScopeLock(&CriticalSection);
 
-			TObjectPtr<UClass> Class;
-			while(PendingPlaceholderTypes.Dequeue(Class))
+			TObjectPtr<UStruct> PendingType;
+			while(PendingPlaceholderTypes.Dequeue(PendingType))
 			{
-				PlaceholderTypes.Add(Class);
+				PlaceholderTypes.Add(PendingType);
 			}
 		}
 	}
@@ -63,10 +63,10 @@ private:
 	FCriticalSection CriticalSection;
 
 	// List of types that have been registered.
-	TSet<TObjectPtr<UClass>> PlaceholderTypes;
+	TSet<TObjectPtr<UStruct>> PlaceholderTypes;
 
 	// Types that have been added but not yet registered. Utilizes a thread-safe queue so we can avoid race conditions during an async load.
-	TQueue<TObjectPtr<UClass>> PendingPlaceholderTypes;
+	TQueue<TObjectPtr<UStruct>> PendingPlaceholderTypes;
 };
 
 class FPropertyBagRepositoryLock
@@ -121,7 +121,7 @@ FPropertyBagRepository& FPropertyBagRepository::Get()
 
 FPropertyBagRepository::FPropertyBagRepository()
 {
-	PropertyBagTypeRegistry = MakeUnique<FPropertyBagTypeRegistry>();
+	PropertyBagPlaceholderTypeRegistry = MakeUnique<FPropertyBagPlaceholderTypeRegistry>();
 }
 
 void FPropertyBagRepository::ReassociateObjects(const TMap<UObject*, UObject*>& ReplacedObjects)
@@ -256,7 +256,7 @@ void FPropertyBagRepository::AddReferencedObjects(FReferenceCollector& Collector
 		Collector.AddReferencedObject(Element.Value);
 	}
 
-	PropertyBagTypeRegistry->AddReferencedObjects(Collector);
+	PropertyBagPlaceholderTypeRegistry->AddReferencedObjects(Collector);
 }
 
 FString FPropertyBagRepository::GetReferencerName() const
@@ -330,14 +330,14 @@ void FPropertyBagRepository::ShrinkMaps()
 	AssociatedData.Compact();
 }
 
-void FPropertyBagRepository::AddPropertyBagPlaceholderType(UClass* ClassType)
+bool FPropertyBagRepository::IsPropertyBagPlaceholderType(UStruct* Type)
 {
-	if (!ClassType)
+	if (!Type)
 	{
-		return;
+		return false;
 	}
 
-	FPropertyBagRepository::Get().PropertyBagTypeRegistry->Add(ClassType);
+	return FPropertyBagRepository::Get().PropertyBagPlaceholderTypeRegistry->Contains(Type);
 }
 
 bool FPropertyBagRepository::IsPropertyBagPlaceholderObject(UObject* Object)
@@ -348,7 +348,7 @@ bool FPropertyBagRepository::IsPropertyBagPlaceholderObject(UObject* Object)
 	}
 
 	return Object->HasAnyFlags(RF_HasPlaceholderType|RF_ClassDefaultObject)
-		&& FPropertyBagRepository::Get().PropertyBagTypeRegistry->Contains(Object->GetClass());
+		&& IsPropertyBagPlaceholderType(Object->GetClass());
 }
 
 namespace Private
@@ -378,6 +378,31 @@ bool FPropertyBagRepository::IsPropertyBagPlaceholderObjectSupportEnabled()
 #else
 	return false;
 #endif
+}
+
+UStruct* FPropertyBagRepository::CreatePropertyBagPlaceholderType(UObject* Outer, UClass* Class, FName Name, EObjectFlags Flags, UStruct* SuperStruct)
+{
+	UStruct* PlaceholderType = NewObject<UClass>(Outer, Class, Name, Flags);
+	PlaceholderType->SetSuperStruct(SuperStruct);
+	PlaceholderType->Bind();
+	PlaceholderType->StaticLink(/*bRelinkExistingProperties =*/ true);
+
+	// Extra configuration needed for class types.
+	if (UClass* PlaceholderTypeAsClass = Cast<UClass>(PlaceholderType))
+	{
+		// Create and configure its CDO as if it were loaded - for non-native class types, this is required.
+		UObject* PlaceholderClassDefaults = PlaceholderTypeAsClass->GetDefaultObject();
+		PlaceholderTypeAsClass->PostLoadDefaultObject(PlaceholderClassDefaults);
+
+		// This class is for internal use and should not be exposed for selection or instancing in the editor.
+		PlaceholderTypeAsClass->ClassFlags |= CLASS_Hidden | CLASS_HideDropDown;
+	}
+
+	// Use the property bag repository for now to manage property bag placeholder types (e.g. object lifetime).
+	// Note: The object lifetime of instances of this type will rely on existing references that are serialized.
+	FPropertyBagRepository::Get().PropertyBagPlaceholderTypeRegistry->Add(PlaceholderType);
+
+	return PlaceholderType;
 }
 
 } // UE
