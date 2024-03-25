@@ -14,15 +14,147 @@
 
 #define LOCTEXT_NAMESPACE "InstanceDataObjectFixupDetails"
 
+/////////////////////////////////////////////////////////////////
+// FInstanceDataObjectFixupDetailCustomization
+/////////////////////////////////////////////////////////////////
 
-TSet<FPropertyPath> FInstanceDataObjectFixupDetailNodeBuilder::GetRedirectOptions(const UStruct* Struct, void* Value) const
+FInstanceDataObjectFixupDetailCustomization::FInstanceDataObjectFixupDetailCustomization(const TSharedRef<FInstanceDataObjectFixupPanel>& InDiffPanel)
+	: DiffPanel(InDiffPanel)
+{
+	
+}
+
+FInstanceDataObjectFixupDetailCustomization::~FInstanceDataObjectFixupDetailCustomization()
+{
+}
+
+void FInstanceDataObjectFixupDetailCustomization::CustomizeDetails(IDetailLayoutBuilder& DetailBuilder)
+{
+	const TSharedPtr<FInstanceDataObjectFixupPanel> Panel = DiffPanel.Pin();
+	if (!Panel)
+	{
+		return;
+	}
+	
+	TArray<TWeakObjectPtr<UObject>> Objects;
+	DetailBuilder.GetObjectsBeingCustomized(Objects);
+	if (Objects.IsEmpty())
+	{
+		return;
+	}
+	TArray<FName> CategoryNames;
+	DetailBuilder.GetCategoryNames(CategoryNames);
+	for (const FName CategoryName : CategoryNames)
+	{
+		IDetailCategoryBuilder& Category = DetailBuilder.EditCategory(CategoryName);
+		TArray<TSharedRef<IPropertyHandle>> Handles;
+		Category.GetDefaultProperties(Handles, true, true);
+		for (const TSharedRef<IPropertyHandle>& Handle : Handles)
+		{
+			CustomizeHandle(Handle, DetailBuilder);
+		}
+	}
+}
+
+bool FInstanceDataObjectFixupDetailCustomization::IsHidden(const TSharedPtr<IPropertyHandle>& PropertyHandle) const
+{
+	const TSharedPtr<FInstanceDataObjectFixupPanel> Panel = DiffPanel.Pin();
+	if (!Panel)
+	{
+		return true;
+	}
+
+	if (const FProperty* Property = PropertyHandle->GetProperty())
+	{
+		if (Panel->HasViewFlag(FInstanceDataObjectFixupPanel::EViewFlags::HideLooseProperties) &&
+			Property->GetBoolMetaData(TEXT("isLoose")))
+		{
+			return true;
+		}
+
+		if (Panel->HasViewFlag(FInstanceDataObjectFixupPanel::EViewFlags::IncludeOnlySetBySerialization))
+		{
+			if (!Panel->IsInRedirectedPropertyTree(*PropertyHandle->CreateFPropertyPath()))
+			{
+				return true;
+			}
+		}
+	}
+	return false;
+}
+
+void FInstanceDataObjectFixupDetailCustomization::CustomizeHandle(const TSharedRef<IPropertyHandle>& Handle, IDetailLayoutBuilder& DetailBuilder)
+{
+	if (IsHidden(Handle))
+	{
+		DetailBuilder.HideProperty(Handle);
+	}
+	else
+	{
+		// recurse into children
+		uint32 NumChildren = 0;
+		Handle->GetNumChildren(NumChildren);
+		for (uint32 ChildIndex = 0; ChildIndex < NumChildren; ++ChildIndex)
+		{
+			CustomizeHandle(Handle->GetChildHandle(ChildIndex).ToSharedRef(), DetailBuilder);
+		}
+	}
+}
+
+
+/////////////////////////////////////////////////////////////////
+// FInstanceDataObjectNameWidgetOverride
+/////////////////////////////////////////////////////////////////
+
+FInstanceDataObjectNameWidgetOverride::FInstanceDataObjectNameWidgetOverride(const TSharedRef<FInstanceDataObjectFixupPanel>& InDiffPanel)
+	: DiffPanel(InDiffPanel)
+{
+}
+
+TSharedRef<SWidget> FInstanceDataObjectNameWidgetOverride::CustomizeName(TSharedRef<SWidget> InnerNameContent, FPropertyPath& Path)
+{
+	const TSharedRef<SWidget> NameContent = SNew(SWidgetSwitcher)
+		.WidgetIndex(this, &FInstanceDataObjectNameWidgetOverride::GetNameWidgetIndex, Path)
+		+SWidgetSwitcher::Slot()
+		[
+			InnerNameContent
+		]
+		+SWidgetSwitcher::Slot()
+		[
+			SNew(SHorizontalBox)
+			+SHorizontalBox::Slot()
+			.VAlign(EVerticalAlignment::VAlign_Center)
+			.AutoWidth()
+			[
+				SNew(STextBlock)
+				.Visibility(this, &FInstanceDataObjectNameWidgetOverride::DeletionSymbolVisibility, Path)
+				.Text(LOCTEXT("MarkedForDeletion", "❌"))
+			]
+			+SHorizontalBox::Slot()
+			.VAlign(EVerticalAlignment::VAlign_Center)
+			.AutoWidth()
+			[
+				SNew(SComboButton)
+				.Visibility(EVisibility::Visible)
+				.OnGetMenuContent_Raw(this, &FInstanceDataObjectNameWidgetOverride::GeneratePropertyRedirectMenu, Path)
+				.ButtonContent()
+				[
+					InnerNameContent
+				]
+			]
+		];
+	return NameContent;
+}
+
+
+TSet<FPropertyPath> FInstanceDataObjectNameWidgetOverride::GetRedirectOptions(const UStruct* Struct, void* Value) const
 {
 	TSet<FPropertyPath> Result;
 	GetRedirectOptions(Struct, Value, {}, Result);
 	return Result;
 }
 
-void FInstanceDataObjectFixupDetailNodeBuilder::GetRedirectOptions(const UStruct* Struct, void* Value, const FPropertyPath& Path, TSet<FPropertyPath>& OutPaths) const
+void FInstanceDataObjectNameWidgetOverride::GetRedirectOptions(const UStruct* Struct, void* Value, const FPropertyPath& Path, TSet<FPropertyPath>& OutPaths) const
 {
 	for (FProperty* SubProperty : TFieldRange<FProperty>(Struct))
     {
@@ -42,7 +174,7 @@ void FInstanceDataObjectFixupDetailNodeBuilder::GetRedirectOptions(const UStruct
     }
 }
 
-void FInstanceDataObjectFixupDetailNodeBuilder::GetRedirectOptions(const FProperty* Property, void* Value, const FPropertyPath& Path, TSet<FPropertyPath>& OutPaths) const
+void FInstanceDataObjectNameWidgetOverride::GetRedirectOptions(const FProperty* Property, void* Value, const FPropertyPath& Path, TSet<FPropertyPath>& OutPaths) const
 {
 	if (Property->GetBoolMetaData(TEXT("isLoose")))
 	{
@@ -101,54 +233,138 @@ void FInstanceDataObjectFixupDetailNodeBuilder::GetRedirectOptions(const FProper
 	}
 }
 
-/////////////////////////////////////////////////////////////////
-// FInstanceDataObjectFixupDetailCustomization
-/////////////////////////////////////////////////////////////////
-
-FInstanceDataObjectFixupDetailCustomization::FInstanceDataObjectFixupDetailCustomization(const TSharedRef<FInstanceDataObjectFixupPanel>& InDiffPanel)
-	: DiffPanel(InDiffPanel)
+int32 FInstanceDataObjectNameWidgetOverride::GetNameWidgetIndex(FPropertyPath Path) const
 {
+	if (const TSharedPtr<FInstanceDataObjectFixupPanel> Panel = DiffPanel.Pin())
+	{
+		if (Panel->HasViewFlag(FInstanceDataObjectFixupPanel::EViewFlags::AllowRemapLooseProperties))
+		{
+			if (Panel->RevertInfo.Contains(Path))
+			{
+				return DisplayRedirectMenu;
+			}
+			if (const FProperty* Property = Path.GetLeafMostProperty().Property.Get())
+			{
+				if (Property->GetBoolMetaData(TEXT("isLoose")))
+				{
+					return DisplayRedirectMenu;
+				}
+			}
+		}
+	}
+	return DisplayRegularName;
+}
+
+TSharedRef<SWidget> FInstanceDataObjectNameWidgetOverride::GeneratePropertyRedirectMenu(FPropertyPath Path) const
+{
+	FMenuBuilder MenuBuilder(true, nullptr);
 	
-}
-
-FInstanceDataObjectFixupDetailCustomization::~FInstanceDataObjectFixupDetailCustomization()
-{
-}
-
-void FInstanceDataObjectFixupDetailCustomization::CustomizeDetails(IDetailLayoutBuilder& DetailBuilder)
-{
 	const TSharedPtr<FInstanceDataObjectFixupPanel> Panel = DiffPanel.Pin();
 	if (!Panel)
 	{
-		return;
+		return MenuBuilder.MakeWidget();
 	}
+	const FPropertyPath& OriginalPath = Panel->GetOriginalPath(Path);
+
+	MenuBuilder.BeginSection(NAME_None, LOCTEXT("ResetRedirect", "Reset"));
+	if (OriginalPath != Path || Panel->MarkedForDelete.Contains(OriginalPath))
+	{
+		FText OriginalPathText = FText::FromString(OriginalPath.ToString());
+		FText Tooltip = FText::Format(LOCTEXT("ResetTooltip", "Reset back to {0}"), OriginalPathText);
+		MenuBuilder.AddMenuEntry(OriginalPathText, Tooltip, FSlateIcon()
+						, FUIAction(FExecuteAction::CreateSP(Panel.Get(), &FInstanceDataObjectFixupPanel::OnRedirectProperty, Path, OriginalPath))
+						, NAME_None
+						, EUserInterfaceActionType::RadioButton);
+	}
+	MenuBuilder.EndSection();
+
+	UObject* FirstInstanceDataObject = Panel->Instances[0];
+	TSet<FPropertyPath> RedirectOptions = GetRedirectOptions(FirstInstanceDataObject->GetClass(), FirstInstanceDataObject);
+
+	MenuBuilder.BeginSection(NAME_None, LOCTEXT("MoveProperty", "Move"));
+	{
+		for (const FPropertyPath& Option : RedirectOptions)
+		{
+			FProperty* ThisProperty = Path.GetLeafMostProperty().Property.Get();
+			FProperty* OptionProperty = Option.GetLeafMostProperty().Property.Get();
+			if (ThisProperty->GetFName() == OptionProperty->GetFName())
+			{
+				if (OptionProperty->SameType(ThisProperty))
+				{
+					FText DisplayName = FText::FromString(Option.ToString());
+					FText Tooltip = FText::Format(LOCTEXT("MovePropertyTooltip", "Move property to '{0}'"), DisplayName);
+					MenuBuilder.AddMenuEntry(DisplayName, Tooltip, FSlateIcon()
+					, FUIAction(FExecuteAction::CreateSP(Panel.Get(), &FInstanceDataObjectFixupPanel::OnRedirectProperty, Path, Option))
+					, NAME_None
+					, EUserInterfaceActionType::RadioButton);
+				}
+			}
+		}
+	}
+	MenuBuilder.EndSection();
+
+	MenuBuilder.BeginSection(NAME_None, LOCTEXT("RenameProperty", "Rename"));
+	{
+		for (const FPropertyPath& Option : RedirectOptions)
+		{
+			FProperty* ThisProperty = Path.GetLeafMostProperty().Property.Get();
+			FProperty* OptionProperty = Option.GetLeafMostProperty().Property.Get();
+			if (ThisProperty->GetFName() == OptionProperty->GetFName())
+			{
+				continue; // handled in the "move" category
+			}
+			if (OptionProperty->SameType(ThisProperty))
+			{
+				FText DisplayName = FText::FromString(Option.ToString());
+				FText Tooltip = FText::Format(LOCTEXT("RenamePropertyTooltip", "Rename property to '{0}'"), DisplayName);
+				MenuBuilder.AddMenuEntry(DisplayName, Tooltip, FSlateIcon()
+				, FUIAction(FExecuteAction::CreateSP(Panel.Get(), &FInstanceDataObjectFixupPanel::OnRedirectProperty, Path, Option))
+				, NAME_None
+				, EUserInterfaceActionType::RadioButton);
+			}
+		}
+	}
+	MenuBuilder.EndSection();
+
+	MenuBuilder.BeginSection(NAME_None, LOCTEXT("ChangeToDifferingTypeConversion", "Convert Type (potential data loss)"));
+	{
+		// TODO: Add type conversions?
+	}
+	MenuBuilder.EndSection();
 	
-	TArray<TWeakObjectPtr<UObject>> Objects;
-	DetailBuilder.GetObjectsBeingCustomized(Objects);
-	if (Objects.IsEmpty())
+	MenuBuilder.BeginSection(NAME_None, LOCTEXT("Delete", "Delete"));
 	{
-		return;
-	}
-	TArray<FName> CategoryNames;
-	DetailBuilder.GetCategoryNames(CategoryNames);
-	for (const FName CategoryName : CategoryNames)
-	{
-		IDetailCategoryBuilder& Category = DetailBuilder.EditCategory(CategoryName);
-		TArray<TSharedRef<IPropertyHandle>> NonAdvancedProperties;
-		Category.GetDefaultProperties(NonAdvancedProperties, true, false);
-		for (const TSharedRef<IPropertyHandle>& Handle : NonAdvancedProperties)
+		if (!Panel->MarkedForDelete.Contains(OriginalPath)) // check that it wasn't already marked as deleted
 		{
-			DetailBuilder.HideProperty(Handle);
-			Category.AddCustomBuilder(MakeShared<FInstanceDataObjectFixupDetailNodeBuilder>(Panel.ToSharedRef(), Handle), false);
-		}
-		TArray<TSharedRef<IPropertyHandle>> AdvancedProperties;
-		Category.GetDefaultProperties(AdvancedProperties, false, true);
-		for (const TSharedRef<IPropertyHandle>& Handle : AdvancedProperties)
-		{
-			DetailBuilder.HideProperty(Handle);
-			Category.AddCustomBuilder(MakeShared<FInstanceDataObjectFixupDetailNodeBuilder>(Panel.ToSharedRef(), Handle), true);
+			FText DisplayName = LOCTEXT("MarkForDeletion", "Mark For Deletion");
+			FText Tooltip = LOCTEXT("MarkForDeletionTooltip", "Mark this property for deletion");
+			MenuBuilder.AddMenuEntry(DisplayName, Tooltip, FSlateIcon()
+						, FUIAction(FExecuteAction::CreateSP(Panel.Get(), &FInstanceDataObjectFixupPanel::OnMarkForDelete, Path))
+						, NAME_None
+						, EUserInterfaceActionType::RadioButton);
 		}
 	}
+	MenuBuilder.EndSection();
+	
+	return MenuBuilder.MakeWidget();
+}
+
+EVisibility FInstanceDataObjectNameWidgetOverride::DeletionSymbolVisibility(FPropertyPath Path) const
+{
+	if (const TSharedPtr<FInstanceDataObjectFixupPanel> Panel = DiffPanel.Pin())
+	{
+		return Panel->MarkedForDelete.Contains(Path) ? EVisibility::Visible :  EVisibility::Collapsed;
+	}
+	return EVisibility::Collapsed;
+}
+
+EVisibility FInstanceDataObjectNameWidgetOverride::ValueContentVisibility(FPropertyPath Path) const
+{
+	if (const TSharedPtr<FInstanceDataObjectFixupPanel> Panel = DiffPanel.Pin())
+	{
+		return Panel->MarkedForDelete.Contains(Path) ? EVisibility::Collapsed :  EVisibility::Visible;
+	}
+	return EVisibility::Visible;
 }
 
 /////////////////////////////////////////////////////////////////
@@ -197,313 +413,6 @@ void FHideLoosePropertiesCustomization::CustomizeHandle(const TSharedRef<IProper
 			CustomizeHandle(Handle->GetChildHandle(ChildIndex).ToSharedRef(), DetailBuilder);
 		}
 	}
-}
-
-
-/////////////////////////////////////////////////////////////////
-// FInstanceDataObjectFixupDetailNodeBuilder
-/////////////////////////////////////////////////////////////////
-
-FInstanceDataObjectFixupDetailNodeBuilder::FInstanceDataObjectFixupDetailNodeBuilder(const TSharedRef<FInstanceDataObjectFixupPanel>& InDiffPanel, const TSharedRef<IPropertyHandle>& InPropertyHandle)
-	: DiffPanel(InDiffPanel)
-	, PropertyHandle(InPropertyHandle)
-{}
-
-void FInstanceDataObjectFixupDetailNodeBuilder::GenerateHeaderRowContent(FDetailWidgetRow& NodeRow)
-{	
-	const TSharedPtr<FInstanceDataObjectFixupPanel> Panel = DiffPanel.Pin();
-	if (!Panel)
-	{
-		return;
-	}
-
-	// skip properties that are hidden from this view mode
-	if (IsHidden())
-	{
-		return;
-	}
-
-	// handle categories of sub-objects
-	if (PropertyHandle->IsCategoryHandle())
-	{
-		NodeRow
-		[
-			SNew(SBox)
-			.VAlign(VAlign_Center)
-			[
-				SNew(STextBlock)
-				.Text(PropertyHandle->GetPropertyDisplayName())
-			]
-		];
-		return;
-	}
-	
-	TSharedPtr<SWidget> InnerNameContent = PropertyHandle->CreatePropertyNameWidget();
-	if (PropertyHandle->GetKeyHandle())
-	{
-		// TODO: @jordan.hoffmann this solution for keys only works with basic types. figure out a more robust solution.
-		InnerNameContent = PropertyHandle->GetKeyHandle()->CreatePropertyValueWidget();
-		InnerNameContent->SetEnabled(false);
-	}
-
-	const TSharedRef<SWidget> NameContent = SNew(SWidgetSwitcher)
-		.WidgetIndex(this, &FInstanceDataObjectFixupDetailNodeBuilder::GetNameWidgetIndex)
-		+SWidgetSwitcher::Slot()
-		[
-			InnerNameContent.ToSharedRef()
-		]
-		+SWidgetSwitcher::Slot()
-		[
-			SNew(SHorizontalBox)
-			+SHorizontalBox::Slot()
-			.VAlign(EVerticalAlignment::VAlign_Center)
-			.AutoWidth()
-			[
-				SNew(STextBlock)
-				.Visibility(this, &FInstanceDataObjectFixupDetailNodeBuilder::DeletionSymbolVisibility)
-				.Text(LOCTEXT("MarkedForDeletion", "❌"))
-			]
-			+SHorizontalBox::Slot()
-			.VAlign(EVerticalAlignment::VAlign_Center)
-			.AutoWidth()
-			[
-				SNew(SComboButton)
-				.Visibility(EVisibility::Visible)
-				.OnGetMenuContent_Raw(this, &FInstanceDataObjectFixupDetailNodeBuilder::GeneratePropertyRedirectMenu)
-				.ButtonContent()
-				[
-					InnerNameContent.ToSharedRef()
-				]
-			]
-		];
-	
-	const TSharedRef<SWidget> ValueContent = PropertyHandle->CreatePropertyValueWidget();
-	ValueContent->SetEnabled(!Panel->HasViewFlag(FInstanceDataObjectFixupPanel::EViewFlags::ReadonlyValues));
-	ValueContent->SetVisibility(TAttribute<EVisibility>(this, &FInstanceDataObjectFixupDetailNodeBuilder::ValueContentVisibility));
-	
-	NodeRow
-	.NameContent()
-	[
-		NameContent
-	]
-	.ValueContent()
-	[
-		ValueContent
-	]
-	.PropertyHandleList({PropertyHandle});
-}
-
-void FInstanceDataObjectFixupDetailNodeBuilder::GenerateChildContent(IDetailChildrenBuilder& ChildrenBuilder)
-{
-	const TSharedPtr<FInstanceDataObjectFixupPanel> Panel = DiffPanel.Pin();
-	if (!Panel)
-	{
-		return;
-	}
-
-	// skip properties that are hidden from this view mode
-	if (IsHidden())
-	{
-		return;
-	}
-	
-	uint32 ChildCount;
-	PropertyHandle->GetNumChildren(ChildCount);
-	if (ChildCount == 1 && PropertyHandle->GetProperty() && PropertyHandle->GetProperty()->IsA<FObjectProperty>())
-	{
-		const TSharedRef<IPropertyHandle> ChildHandle = PropertyHandle->GetChildHandle(0).ToSharedRef();
-		if (!ChildHandle->GetProperty())
-		{
-			uint32 GrandChildCount;
-			ChildHandle->GetNumChildren(GrandChildCount);
-			for (uint32 I = 0; I < GrandChildCount; ++I)
-			{
-				const TSharedRef<IPropertyHandle> GrandChildHandle = ChildHandle->GetChildHandle(I).ToSharedRef();
-				ChildrenBuilder.AddCustomBuilder(MakeShared<FInstanceDataObjectFixupDetailNodeBuilder>(Panel.ToSharedRef(), GrandChildHandle));
-			}
-			return;
-		}
-	}
-	
-	for (uint32 I = 0; I < ChildCount; ++I)
-	{
-		const TSharedRef<IPropertyHandle> ChildHandle = PropertyHandle->GetChildHandle(I).ToSharedRef();
-		ChildrenBuilder.AddCustomBuilder(MakeShared<FInstanceDataObjectFixupDetailNodeBuilder>(Panel.ToSharedRef(), ChildHandle));
-	}
-}
-
-FName FInstanceDataObjectFixupDetailNodeBuilder::GetName() const
-{
-	return PropertyHandle->GetProperty()->GetFName();
-}
-
-TSharedPtr<IPropertyHandle> FInstanceDataObjectFixupDetailNodeBuilder::GetPropertyHandle() const
-{
-	return PropertyHandle;
-}
-
-int32 FInstanceDataObjectFixupDetailNodeBuilder::GetNameWidgetIndex() const
-{
-	if (const TSharedPtr<FInstanceDataObjectFixupPanel> Panel = DiffPanel.Pin())
-	{
-		if (Panel->HasViewFlag(FInstanceDataObjectFixupPanel::EViewFlags::AllowRemapLooseProperties))
-		{
-			if (Panel->RevertInfo.Contains(*PropertyHandle->CreateFPropertyPath()))
-			{
-				return DisplayRedirectMenu;
-			}
-			if (const FProperty* Property = PropertyHandle->GetProperty())
-			{
-				if (Property->GetBoolMetaData(TEXT("isLoose")))
-				{
-					return DisplayRedirectMenu;
-				}
-			}
-		}
-	}
-	return DisplayRegularName;
-}
-
-TSharedRef<SWidget> FInstanceDataObjectFixupDetailNodeBuilder::GeneratePropertyRedirectMenu() const
-{
-	FMenuBuilder MenuBuilder(true, nullptr);
-	
-	const TSharedPtr<FInstanceDataObjectFixupPanel> Panel = DiffPanel.Pin();
-	if (!Panel)
-	{
-		return MenuBuilder.MakeWidget();
-	}
-	const FPropertyPath Path = *PropertyHandle->CreateFPropertyPath();
-	const FPropertyPath& OriginalPath = Panel->GetOriginalPath(Path);
-
-	MenuBuilder.BeginSection(NAME_None, LOCTEXT("ResetRedirect", "Reset"));
-	if (OriginalPath != Path || Panel->MarkedForDelete.Contains(OriginalPath))
-	{
-		FText OriginalPathText = FText::FromString(OriginalPath.ToString());
-		FText Tooltip = FText::Format(LOCTEXT("ResetTooltip", "Reset back to {0}"), OriginalPathText);
-		MenuBuilder.AddMenuEntry(OriginalPathText, Tooltip, FSlateIcon()
-						, FUIAction(FExecuteAction::CreateSP(Panel.Get(), &FInstanceDataObjectFixupPanel::OnRedirectProperty, Path, OriginalPath))
-						, NAME_None
-						, EUserInterfaceActionType::RadioButton);
-	}
-	MenuBuilder.EndSection();
-
-	UObject* FirstInstanceDataObject = Panel->Instances[0];
-	TSet<FPropertyPath> RedirectOptions = GetRedirectOptions(FirstInstanceDataObject->GetClass(), FirstInstanceDataObject);
-
-	MenuBuilder.BeginSection(NAME_None, LOCTEXT("MoveProperty", "Move"));
-	{
-		for (const FPropertyPath& Option : RedirectOptions)
-		{
-			FName ThisPropName = PropertyHandle->GetProperty()->GetFName();
-			FName OptionPropName = Option.GetLeafMostProperty().Property->GetFName();
-			if (ThisPropName == OptionPropName)
-			{
-				if (Option.GetLeafMostProperty().Property->SameType(PropertyHandle->GetProperty()))
-				{
-					FText DisplayName = FText::FromString(Option.ToString());
-					FText Tooltip = FText::Format(LOCTEXT("MovePropertyTooltip", "Move property to '{0}'"), DisplayName);
-					MenuBuilder.AddMenuEntry(DisplayName, Tooltip, FSlateIcon()
-					, FUIAction(FExecuteAction::CreateSP(Panel.Get(), &FInstanceDataObjectFixupPanel::OnRedirectProperty, Path, Option))
-					, NAME_None
-					, EUserInterfaceActionType::RadioButton);
-				}
-			}
-		}
-	}
-	MenuBuilder.EndSection();
-
-	MenuBuilder.BeginSection(NAME_None, LOCTEXT("RenameProperty", "Rename"));
-	{
-		for (const FPropertyPath& Option : RedirectOptions)
-		{
-			FName ThisPropName = PropertyHandle->GetProperty()->GetFName();
-			FName OptionPropName = Option.GetLeafMostProperty().Property->GetFName();
-			if (ThisPropName == OptionPropName)
-			{
-				continue; // handled in the "move" category
-			}
-			if (Option.GetLeafMostProperty().Property->SameType(PropertyHandle->GetProperty()))
-			{
-				FText DisplayName = FText::FromString(Option.ToString());
-				FText Tooltip = FText::Format(LOCTEXT("RenamePropertyTooltip", "Rename property to '{0}'"), DisplayName);
-				MenuBuilder.AddMenuEntry(DisplayName, Tooltip, FSlateIcon()
-				, FUIAction(FExecuteAction::CreateSP(Panel.Get(), &FInstanceDataObjectFixupPanel::OnRedirectProperty, Path, Option))
-				, NAME_None
-				, EUserInterfaceActionType::RadioButton);
-			}
-		}
-	}
-	MenuBuilder.EndSection();
-
-	MenuBuilder.BeginSection(NAME_None, LOCTEXT("ChangeToDifferingTypeConversion", "Convert Type (potential data loss)"));
-	{
-		// TODO: Add type conversions?
-	}
-	MenuBuilder.EndSection();
-	
-	MenuBuilder.BeginSection(NAME_None, LOCTEXT("Delete", "Delete"));
-	{
-		if (!Panel->MarkedForDelete.Contains(OriginalPath)) // check that it wasn't already marked as deleted
-		{
-			FText DisplayName = LOCTEXT("MarkForDeletion", "Mark For Deletion");
-			FText Tooltip = LOCTEXT("MarkForDeletionTooltip", "Mark this property for deletion");
-			MenuBuilder.AddMenuEntry(DisplayName, Tooltip, FSlateIcon()
-						, FUIAction(FExecuteAction::CreateSP(Panel.Get(), &FInstanceDataObjectFixupPanel::OnMarkForDelete, Path))
-						, NAME_None
-						, EUserInterfaceActionType::RadioButton);
-		}
-	}
-	MenuBuilder.EndSection();
-	
-	return MenuBuilder.MakeWidget();
-}
-
-EVisibility FInstanceDataObjectFixupDetailNodeBuilder::DeletionSymbolVisibility() const
-{
-	if (const TSharedPtr<FInstanceDataObjectFixupPanel> Panel = DiffPanel.Pin())
-	{
-		const FPropertyPath Path = *PropertyHandle->CreateFPropertyPath();
-		return Panel->MarkedForDelete.Contains(Path) ? EVisibility::Visible :  EVisibility::Collapsed;
-	}
-	return EVisibility::Collapsed;
-}
-
-EVisibility FInstanceDataObjectFixupDetailNodeBuilder::ValueContentVisibility() const
-{
-	if (const TSharedPtr<FInstanceDataObjectFixupPanel> Panel = DiffPanel.Pin())
-	{
-		const FPropertyPath Path = *PropertyHandle->CreateFPropertyPath();
-		return Panel->MarkedForDelete.Contains(Path) ? EVisibility::Collapsed :  EVisibility::Visible;
-	}
-	return EVisibility::Visible;
-}
-
-bool FInstanceDataObjectFixupDetailNodeBuilder::IsHidden() const
-{
-	const TSharedPtr<FInstanceDataObjectFixupPanel> Panel = DiffPanel.Pin();
-	if (!Panel)
-	{
-		return true;
-	}
-
-	if (const FProperty* Property = PropertyHandle->GetProperty())
-	{
-		if (Panel->HasViewFlag(FInstanceDataObjectFixupPanel::EViewFlags::HideLooseProperties) &&
-			Property->GetBoolMetaData(TEXT("isLoose")))
-		{
-			return true;
-		}
-
-		if (Panel->HasViewFlag(FInstanceDataObjectFixupPanel::EViewFlags::IncludeOnlySetBySerialization))
-		{
-			if (!Panel->IsInRedirectedPropertyTree(*PropertyHandle->CreateFPropertyPath()))
-			{
-				return true;
-			}
-		}
-	}
-	return false;
 }
 
 #undef LOCTEXT_NAMESPACE

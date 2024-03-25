@@ -85,7 +85,7 @@ public:
 
 private:
 	friend class FInstanceDataObjectFixupSpecification; // for access to Redirects
-	friend class FInstanceDataObjectFixupDetailNodeBuilder;
+	friend class FInstanceDataObjectNameWidgetOverride;
 	friend class UInstanceDataObjectFixupUndoHandler;
 	
 	void RedirectProperty(const FPropertyPath& From, const FPropertyPath& To);

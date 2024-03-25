@@ -2,6 +2,8 @@
 
 #pragma once
 
+#include <DetailsNameWidgetOverrideCustomization.h>
+
 #include "CoreMinimal.h"
 #include "IDetailCustomization.h"
 #include "IDetailCustomNodeBuilder.h"
@@ -23,7 +25,35 @@ public:
 	virtual void CustomizeDetails(IDetailLayoutBuilder& DetailBuilder) override;
 
 private:
+	bool IsHidden(const TSharedPtr<IPropertyHandle>& PropertyHandle) const;
+	void CustomizeHandle(const TSharedRef<IPropertyHandle>& Handle, IDetailLayoutBuilder& DetailBuilder);
 	TWeakPtr<FInstanceDataObjectFixupPanel> DiffPanel;
+};
+
+class INSTANCEDATAOBJECTFIXUPTOOL_API FInstanceDataObjectNameWidgetOverride : public FDetailsNameWidgetOverrideCustomization
+{
+public:
+	FInstanceDataObjectNameWidgetOverride(const TSharedRef<FInstanceDataObjectFixupPanel>& DiffPanel);
+	virtual ~FInstanceDataObjectNameWidgetOverride() override = default;
+	virtual TSharedRef<SWidget> CustomizeName(TSharedRef<SWidget> InnerNameContent, FPropertyPath& Path) override;
+private:
+	
+	int32 GetNameWidgetIndex(FPropertyPath Path) const;
+	TSharedRef<SWidget> GeneratePropertyRedirectMenu(FPropertyPath Path) const;
+	EVisibility DeletionSymbolVisibility(FPropertyPath Path) const;
+	EVisibility ValueContentVisibility(FPropertyPath Path) const;
+	
+	TSet<FPropertyPath> GetRedirectOptions(const UStruct* Struct, void* Value) const;
+	void GetRedirectOptions(const UStruct* Struct, void* Value, const FPropertyPath& Path, TSet<FPropertyPath>& OutPaths) const;
+	void GetRedirectOptions(const FProperty* Property, void* Value, const FPropertyPath& Path, TSet<FPropertyPath>& OutPaths) const;
+	
+	TWeakPtr<FInstanceDataObjectFixupPanel> DiffPanel;
+
+	enum ENameWidgetIndex : uint8
+	{
+		DisplayRegularName = 0,
+		DisplayRedirectMenu = 1
+	};
 };
 
 class INSTANCEDATAOBJECTFIXUPTOOL_API FHideLoosePropertiesCustomization : public IDetailCustomization, public TSharedFromThis<FInstanceDataObjectFixupDetailCustomization>
@@ -37,34 +67,4 @@ public:
 
 private:
 	TWeakPtr<FInstanceDataObjectFixupPanel> DiffPanel;
-};
-
-class INSTANCEDATAOBJECTFIXUPTOOL_API FInstanceDataObjectFixupDetailNodeBuilder : public IDetailCustomNodeBuilder, public TSharedFromThis<FInstanceDataObjectFixupDetailNodeBuilder>
-{
-public:
-	FInstanceDataObjectFixupDetailNodeBuilder(const TSharedRef<FInstanceDataObjectFixupPanel>& DiffPanel, const TSharedRef<IPropertyHandle>& PropertyHandle);
-	virtual void GenerateHeaderRowContent(FDetailWidgetRow& NodeRow) override;
-	virtual void GenerateChildContent(IDetailChildrenBuilder& ChildrenBuilder) override;
-	virtual FName GetName() const override;
-	virtual TSharedPtr<IPropertyHandle> GetPropertyHandle() const override;
-
-private:
-	int32 GetNameWidgetIndex() const;
-	TSharedRef<SWidget> GeneratePropertyRedirectMenu() const;
-	EVisibility DeletionSymbolVisibility() const;
-	EVisibility ValueContentVisibility() const;
-	bool IsHidden() const;
-	
-	TSet<FPropertyPath> GetRedirectOptions(const UStruct* Struct, void* Value) const;
-	void GetRedirectOptions(const UStruct* Struct, void* Value, const FPropertyPath& Path, TSet<FPropertyPath>& OutPaths) const;
-	void GetRedirectOptions(const FProperty* Property, void* Value, const FPropertyPath& Path, TSet<FPropertyPath>& OutPaths) const;
-	
-	TWeakPtr<FInstanceDataObjectFixupPanel> DiffPanel;
-	TSharedRef<IPropertyHandle> PropertyHandle;
-
-	enum ENameWidgetIndex : uint8
-	{
-		DisplayRegularName = 0,
-		DisplayRedirectMenu = 1
-	};
 };
