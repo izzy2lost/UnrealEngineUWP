@@ -1,6 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 #include "AudioInsightsTraceModule.h"
 
+#include "CoreGlobals.h"
 #include "Insights/IUnrealInsightsModule.h"
 #include "ProfilingDebugging/TraceAuxiliary.h"
 #include "Providers/MixerSourceTraceProvider.h"
@@ -14,11 +15,15 @@ namespace UE::Audio::Insights
 	FTraceModule::FTraceModule()
 		: ChannelManager(MakeShared<FTraceChannelManager>())
 	{
-		TSharedPtr<FMixerSourceTraceProvider> SourceProvider = MakeShared<FMixerSourceTraceProvider>(ChannelManager);
-		TSharedPtr<FVirtualLoopTraceProvider> VirtualLoopProvider = MakeShared<FVirtualLoopTraceProvider>(ChannelManager);
+		// Don't run providers in cook commandlet to avoid additional, unnecessary overhead as audio insights is dormant.
+		if (!IsRunningCookCommandlet())
+		{
+			TSharedPtr<FMixerSourceTraceProvider> SourceProvider = MakeShared<FMixerSourceTraceProvider>(ChannelManager);
+			TSharedPtr<FVirtualLoopTraceProvider> VirtualLoopProvider = MakeShared<FVirtualLoopTraceProvider>(ChannelManager);
 
-		TraceProviders.Add(SourceProvider->GetName(), StaticCastSharedPtr<FTraceProviderBase>(SourceProvider));
-		TraceProviders.Add(VirtualLoopProvider->GetName(), StaticCastSharedPtr<FTraceProviderBase>(VirtualLoopProvider));
+			TraceProviders.Add(SourceProvider->GetName(), StaticCastSharedPtr<FTraceProviderBase>(SourceProvider));
+			TraceProviders.Add(VirtualLoopProvider->GetName(), StaticCastSharedPtr<FTraceProviderBase>(VirtualLoopProvider));
+		}
 	}
 
 	void FTraceModule::GetModuleInfo(TraceServices::FModuleInfo& OutModuleInfo)

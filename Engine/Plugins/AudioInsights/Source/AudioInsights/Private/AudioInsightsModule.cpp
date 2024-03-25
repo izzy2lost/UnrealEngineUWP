@@ -32,30 +32,37 @@ namespace UE::Audio::Insights
 {
 	void FAudioInsightsModule::StartupModule()
 	{
-		IModularFeatures::Get().RegisterModularFeature(TraceServices::ModuleFeatureName, &TraceModule);
+		// Don't run providers in cook commandlet to avoid additional, unnecessary overhead as audio insights is dormant.
+		if (!IsRunningCookCommandlet())
+		{
+			IModularFeatures::Get().RegisterModularFeature(TraceServices::ModuleFeatureName, &TraceModule);
 
-		RegisterMenus();
+			RegisterMenus();
 
-		DashboardFactory = MakeShared<FDashboardFactory>();
-		DashboardFactory->RegisterViewFactory(MakeShared<FViewportDashboardViewFactory>());
-		DashboardFactory->RegisterViewFactory(MakeShared<FLogDashboardViewFactory>());
-		DashboardFactory->RegisterViewFactory(MakeShared<FMixerSourceDashboardViewFactory>());
-		DashboardFactory->RegisterViewFactory(MakeShared<FVirtualLoopDashboardViewFactory>());
-		DashboardFactory->RegisterViewFactory(MakeShared<FSubmixesDashboardViewFactory>());
-		DashboardFactory->RegisterViewFactory(MakeShared<FAudioBusesDashboardViewFactory>());
-		DashboardFactory->RegisterViewFactory(MakeShared<FAudioMetersDashboardViewFactory>());
-		DashboardFactory->RegisterViewFactory(MakeShared<FOutputMeterDashboardViewFactory>());
-		DashboardFactory->RegisterViewFactory(MakeShared<FOutputOscilloscopeDashboardViewFactory>());
+			DashboardFactory = MakeShared<FDashboardFactory>();
+			DashboardFactory->RegisterViewFactory(MakeShared<FViewportDashboardViewFactory>());
+			DashboardFactory->RegisterViewFactory(MakeShared<FLogDashboardViewFactory>());
+			DashboardFactory->RegisterViewFactory(MakeShared<FMixerSourceDashboardViewFactory>());
+			DashboardFactory->RegisterViewFactory(MakeShared<FVirtualLoopDashboardViewFactory>());
+			DashboardFactory->RegisterViewFactory(MakeShared<FSubmixesDashboardViewFactory>());
+			DashboardFactory->RegisterViewFactory(MakeShared<FAudioBusesDashboardViewFactory>());
+			DashboardFactory->RegisterViewFactory(MakeShared<FAudioMetersDashboardViewFactory>());
+			DashboardFactory->RegisterViewFactory(MakeShared<FOutputMeterDashboardViewFactory>());
+			DashboardFactory->RegisterViewFactory(MakeShared<FOutputOscilloscopeDashboardViewFactory>());
 
-		FDashboardAssetCommands::Register();
+			FDashboardAssetCommands::Register();
+		}
 	}
 
 	void FAudioInsightsModule::ShutdownModule()
 	{
-		DashboardFactory.Reset();
-		IModularFeatures::Get().UnregisterModularFeature(TraceServices::ModuleFeatureName, &TraceModule);
+		if (!IsRunningCookCommandlet())
+		{
+			DashboardFactory.Reset();
+			IModularFeatures::Get().UnregisterModularFeature(TraceServices::ModuleFeatureName, &TraceModule);
 
-		FDashboardAssetCommands::Unregister();
+			FDashboardAssetCommands::Unregister();
+		}
 	}
 
 	void FAudioInsightsModule::RegisterDashboardViewFactory(TSharedRef<IDashboardViewFactory> InDashboardFactory)
