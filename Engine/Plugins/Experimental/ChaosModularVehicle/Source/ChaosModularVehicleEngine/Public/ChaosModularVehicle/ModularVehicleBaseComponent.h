@@ -254,6 +254,10 @@ public:
 	UPROPERTY(EditAnywhere, Category = "Game|Components|ModularVehicle")
 	bool bSuspensionTraceComplex;
 
+	/** Wheel suspension trace type, defaults to ray trace */
+	UPROPERTY(EditAnywhere, Category = "Game|Components|ModularVehicle")
+	ETraceType TraceType;
+
 	UPROPERTY(EditAnywhere, Category = "Game|Components|ModularVehicle")
 	bool bKeepVehicleAwake;
 

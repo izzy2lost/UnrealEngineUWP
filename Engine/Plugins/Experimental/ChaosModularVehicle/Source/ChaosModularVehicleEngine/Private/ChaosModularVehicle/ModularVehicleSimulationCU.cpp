@@ -221,7 +221,26 @@ void FModularVehicleSimulationCU::PerformAdditionalSimWork(UWorld* InWorld, cons
 								const FCollisionResponseParams& ResponseParams = InputData.PhysicsInputs.TraceCollisionResponse;
 								if (InWorld)
 								{
-									InWorld->LineTraceSingleByChannel(HitResult, TraceStart, TraceEnd, SpringCollisionChannel, TraceParams, ResponseParams);
+									switch (InputData.PhysicsInputs.TraceType)
+									{
+										case ETraceType::Spherecast:
+										{
+											InWorld->SweepSingleByChannel(HitResult
+												, TraceStart + TraceNormal * WheelRadius
+												, TraceEnd + TraceNormal * WheelRadius
+												, FQuat::Identity, SpringCollisionChannel
+												, FCollisionShape::MakeSphere(WheelRadius), TraceParams
+												, ResponseParams);
+										}
+										break;
+
+										case ETraceType::Raycast:
+										default:
+										{
+											InWorld->LineTraceSingleByChannel(HitResult, TraceStart, TraceEnd, SpringCollisionChannel, TraceParams, ResponseParams);
+										}
+										break;
+									}
 								}
 
 								float Offset = Suspension->Setup().MaxLength;
@@ -324,7 +343,19 @@ void FModularVehicleSimulationCU::PerformAdditionalSimWork(UWorld* InWorld, cons
 #endif
 								Suspension->SetSpringLength(Offset, WheelRadius);
 								FVector Up = ClusterWorldTM.GetUnitAxis(EAxis::Z);
-								Suspension->SetTargetPoint(HitResult.ImpactPoint + Up * WheelRadius, HitResult.ImpactNormal, HitResult.bBlockingHit);
+
+								FVector HitPoint;
+
+								if (InputData.PhysicsInputs.TraceType == ETraceType::Spherecast)
+								{
+									HitPoint = HitResult.Location;
+								}
+								else
+								{
+									HitPoint = HitResult.ImpactPoint + Up * WheelRadius;
+								}
+
+								Suspension->SetTargetPoint(HitPoint, HitResult.ImpactNormal, HitResult.bBlockingHit);
 							}
 
 						}

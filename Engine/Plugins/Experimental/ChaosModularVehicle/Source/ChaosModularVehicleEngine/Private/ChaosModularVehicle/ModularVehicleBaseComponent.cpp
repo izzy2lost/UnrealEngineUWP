@@ -796,6 +796,7 @@ void UModularVehicleBaseComponent::Update(float DeltaTime)
 		TraceParams.bTraceComplex = bSuspensionTraceComplex;
 		AsyncInput->PhysicsInputs.TraceParams = TraceParams;
 		AsyncInput->PhysicsInputs.TraceCollisionResponse = SuspensionTraceCollisionResponses;
+		AsyncInput->PhysicsInputs.TraceType = TraceType;
 	}
 
 

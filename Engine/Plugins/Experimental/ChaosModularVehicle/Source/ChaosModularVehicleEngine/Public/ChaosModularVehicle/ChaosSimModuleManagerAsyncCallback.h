@@ -207,6 +207,15 @@ struct FGameStateInputs
 	//bool IsInAir
 };
 
+UENUM()
+enum class ETraceType : uint8
+{
+	/** Use ray to determine suspension length to ground */
+	Raycast		UMETA(DisplayName = "Raycast"),
+
+	/** Use sphere to determine suspension length to ground */
+	Spherecast	UMETA(DisplayName = "Spherecast"),
+};
 
 /**
  * Per Vehicle input State from Game Thread to Physics Thread
@@ -216,11 +225,13 @@ struct CHAOSMODULARVEHICLEENGINE_API FPhysicsModularVehicleInputs
 	FPhysicsModularVehicleInputs()
 		: TraceParams()
 		, TraceCollisionResponse()
+		, TraceType(ETraceType::Raycast)
 	{
 	}
 	mutable FNetworkModularVehicleInputs NetworkInputs;
 	mutable FCollisionQueryParams TraceParams;
 	mutable FCollisionResponseContainer TraceCollisionResponse;
+	mutable ETraceType TraceType;
 	mutable FGameStateInputs StateInputs;
 };
 
