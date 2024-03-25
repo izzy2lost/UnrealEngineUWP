@@ -263,6 +263,18 @@ FPropertyTypeName FPropertyTypeName::GetParameter(int32 ParamIndex) const
 	return Type;
 }
 
+bool FPropertyTypeName::IsStruct(FName StructName) const
+{
+	const FPropertyTypeNameNode* First = GPropertyTypeNameTable.ResolveByIndex(Index);
+	return First->InnerCount > 0 && First->Name == NAME_StructProperty && First[1].Name == StructName;
+}
+
+bool FPropertyTypeName::IsEnum(FName EnumName) const
+{
+	const FPropertyTypeNameNode* First = GPropertyTypeNameTable.ResolveByIndex(Index);
+	return First->InnerCount > 0 && (First->Name == NAME_EnumProperty || First->Name == NAME_ByteProperty) && First[1].Name == EnumName;
+}
+
 uint32 GetTypeHash(const FPropertyTypeName& TypeName)
 {
 	const FPropertyTypeNameNode* First = GPropertyTypeNameTable.ResolveByIndex(TypeName.Index);
