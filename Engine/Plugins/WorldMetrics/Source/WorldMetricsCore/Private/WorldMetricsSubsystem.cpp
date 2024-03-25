@@ -12,19 +12,14 @@
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(WorldMetricsSubsystem)
 
-namespace UE::WorldMetrics::Private
-{
-
-bool CanHaveWorldMetrics(const UWorld* World)
-{
-	return World && World->IsGameWorld();
-}
-
-}  // namespace UE::WorldMetrics::Private
-
 //---------------------------------------------------------------------------------------------------------------------
 // UWorldMetricsSubsystem
 //---------------------------------------------------------------------------------------------------------------------
+
+bool UWorldMetricsSubsystem::CanHaveWorldMetrics(const UWorld* World)
+{
+	return World && (World->IsGameWorld() || World->WorldType == EWorldType::Editor);
+}
 
 UWorldMetricsSubsystem* UWorldMetricsSubsystem::Get(const UWorld* World)
 {
@@ -37,7 +32,7 @@ UWorldMetricsSubsystem* UWorldMetricsSubsystem::Get(const UWorld* World)
 
 bool UWorldMetricsSubsystem::ShouldCreateSubsystem(UObject* Outer) const
 {
-	return UE::WorldMetrics::Private::CanHaveWorldMetrics(Cast<UWorld>(Outer));
+	return CanHaveWorldMetrics(Cast<UWorld>(Outer));
 }
 
 void UWorldMetricsSubsystem::Initialize(FSubsystemCollectionBase& Collection)
@@ -206,7 +201,7 @@ bool UWorldMetricsSubsystem::HasAnyMetric() const
 	return !Metrics.IsEmpty();
 }
 
-UWorldMetricInterface* UWorldMetricsSubsystem::GetMetric(const TSubclassOf<UWorldMetricInterface>& InMetricClass) const
+UWorldMetricInterface* UWorldMetricsSubsystem::CreateMetric(const TSubclassOf<UWorldMetricInterface>& InMetricClass)
 {
 	if (UNLIKELY(!InMetricClass))
 	{
@@ -222,50 +217,51 @@ UWorldMetricInterface* UWorldMetricsSubsystem::GetMetric(const TSubclassOf<UWorl
 		return nullptr;
 	}
 
-	const int32 MetricIndex = GetMetricIndex(InMetricClass);
-	if (MetricIndex == INDEX_NONE)
+	UWorldMetricInterface* Metric = NewObject<UWorldMetricInterface>(this, InMetricClass, NAME_None, RF_Transient);
+	if (UNLIKELY(!Metric))
 	{
-		return nullptr;
+		UE_LOG(
+			LogWorldMetrics, Error, TEXT("[%hs] Failed to create metric of class: %s"), __FUNCTION__,
+			*InMetricClass->GetFName().ToString());
 	}
-
-	return Metrics[MetricIndex];
+	return Metric;
 }
 
-bool UWorldMetricsSubsystem::AddMetric(const TSubclassOf<UWorldMetricInterface>& InMetricClass)
+bool UWorldMetricsSubsystem::ContainsMetric(UWorldMetricInterface* InMetric) const
 {
-	if (UNLIKELY(!InMetricClass))
+	if (UNLIKELY(!InMetric))
 	{
-		UE_LOG(LogWorldMetrics, Error, TEXT("[%hs] Unexpected null metric class"), __FUNCTION__);
+		UE_LOG(LogWorldMetrics, Error, TEXT("[%hs] Unexpected null metric instance"), __FUNCTION__);
+		return false;
+	}
+	return Algo::IndexOf(Metrics, InMetric) != INDEX_NONE;
+}
+
+UWorldMetricInterface* UWorldMetricsSubsystem::AddMetric(const TSubclassOf<UWorldMetricInterface>& InMetricClass)
+{
+	UWorldMetricInterface* Metric = CreateMetric(InMetricClass);
+	AddMetric(Metric);
+	return Metric;
+}
+
+bool UWorldMetricsSubsystem::AddMetric(UWorldMetricInterface* InMetric)
+{
+	if (UNLIKELY(!InMetric))
+	{
+		UE_LOG(LogWorldMetrics, Error, TEXT("[%hs] Unexpected null metric instance"), __FUNCTION__);
 		return false;
 	}
 
-	if (InMetricClass->HasAnyClassFlags(CLASS_Abstract))
-	{
-		UE_LOG(
-			LogWorldMetrics, Error, TEXT("[%hs] Parameter metric class is abstract: %s"), __FUNCTION__,
-			*InMetricClass->GetFName().ToString());
-		return false;
-	}
-
-	const int32 MetricIndex = GetMetricIndex(InMetricClass);
+	const int32 MetricIndex = Algo::IndexOf(Metrics, InMetric);
 	if (MetricIndex != INDEX_NONE)
 	{
 		return false;
 	}
 
-	UWorldMetricInterface* Metric = NewObject<UWorldMetricInterface>(this, InMetricClass, NAME_None, RF_Transient);
-	if (Metric == nullptr)
-	{
-		UE_LOG(
-			LogWorldMetrics, Error, TEXT("[%hs] Failed to create metric of class: %s"), __FUNCTION__,
-			*InMetricClass->GetFName().ToString());
-		return false;
-	}
-
-	Metrics.Emplace(Metric);
+	Metrics.Emplace(InMetric);
 	if (IsEnabled())
 	{
-		Metric->Initialize();
+		InMetric->Initialize();
 	}
 	else
 	{
@@ -274,31 +270,29 @@ bool UWorldMetricsSubsystem::AddMetric(const TSubclassOf<UWorldMetricInterface>&
 
 	UE_LOG(
 		LogWorldMetrics, Log, TEXT("[%hs] Added metric of class %s."), __FUNCTION__,
-		*InMetricClass->GetFName().ToString());
+		*InMetric->GetClass()->GetFName().ToString());
 
 	return true;
 }
 
-bool UWorldMetricsSubsystem::RemoveMetric(const TSubclassOf<UWorldMetricInterface>& InMetricClass)
+bool UWorldMetricsSubsystem::RemoveMetric(UWorldMetricInterface* InMetric)
 {
-	if (UNLIKELY(!InMetricClass))
+	if (UNLIKELY(!InMetric))
 	{
-		UE_LOG(LogWorldMetrics, Error, TEXT("[%hs] Unexpected null metric class"), __FUNCTION__);
+		UE_LOG(LogWorldMetrics, Error, TEXT("[%hs] Unexpected null metric instance"), __FUNCTION__);
 		return false;
 	}
 
-	const int32 MetricIndex = GetMetricIndex(InMetricClass);
+	const int32 MetricIndex = Algo::IndexOf(Metrics, InMetric);
 	if (MetricIndex == INDEX_NONE)
 	{
 		return false;
 	}
 
-	UWorldMetricInterface* Metric = Metrics[MetricIndex];
 	if (IsEnabled())
 	{
-		Metric->Deinitialize();
-		VerifyMetricReleasedAllExtensions(Metric);
-		Metric->MarkAsGarbage();
+		InMetric->Deinitialize();
+		VerifyMetricReleasedAllExtensions(InMetric);
 	}
 	Metrics.RemoveAt(MetricIndex);
 	if (Metrics.IsEmpty())
@@ -309,7 +303,7 @@ bool UWorldMetricsSubsystem::RemoveMetric(const TSubclassOf<UWorldMetricInterfac
 
 	UE_LOG(
 		LogWorldMetrics, Log, TEXT("[%hs] Removed metric of class %s"), __FUNCTION__,
-		*InMetricClass->GetFName().ToString());
+		*InMetric->GetClass()->GetFName().ToString());
 
 	return true;
 }
@@ -342,17 +336,6 @@ void UWorldMetricsSubsystem::ForEachMetric(const TFunctionRef<bool(const UWorldM
 	}
 }
 
-void UWorldMetricsSubsystem::ForEachMetric(const TFunctionRef<bool(UWorldMetricInterface*)>& Func)
-{
-	for (UWorldMetricInterface* Metric : Metrics)
-	{
-		if (!Func(Metric))
-		{
-			break;
-		}
-	}
-}
-
 void UWorldMetricsSubsystem::OnUpdate(float DeltaTimeInSeconds)
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(UWorldMetricsSubsystem::OnUpdate);
@@ -368,12 +351,6 @@ void UWorldMetricsSubsystem::OnUpdate(float DeltaTimeInSeconds)
 		check(Metric);
 		Metric->Update(DeltaTimeInSeconds);
 	}
-}
-
-int32 UWorldMetricsSubsystem::GetMetricIndex(const TSubclassOf<UWorldMetricInterface>& InMetricClass) const
-{
-	return Algo::IndexOfByPredicate(
-		Metrics, [InMetricClass](UWorldMetricInterface* Metric) { return Metric->GetClass() == InMetricClass; });
 }
 
 UWorldMetricsExtension* UWorldMetricsSubsystem::AcquireExtension(

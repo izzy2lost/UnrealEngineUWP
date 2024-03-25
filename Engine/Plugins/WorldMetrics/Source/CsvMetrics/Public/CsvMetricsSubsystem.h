@@ -27,9 +27,14 @@ public:
 
 	/** The CSV metric collection to add/remove when a CSV profiler capture stats/ends. */
 	UPROPERTY(Config)
-	TArray<TSubclassOf<UWorldMetricInterface>> Metrics;
+	TArray<TSubclassOf<UWorldMetricInterface>> MetricClasses;
 
 private:
+	/**
+	 * The collection of active metrics while a CSV profiler capture is running.
+	 * We rely on the World Metrics Subsystem's ownership for these so we don't keep hard-references. */
+	TArray<UWorldMetricInterface*> Metrics;
+
 	FDelegateHandle ProfileStartHandle;
 	FDelegateHandle ProfileEndHandle;
 
