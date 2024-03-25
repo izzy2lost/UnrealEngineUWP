@@ -907,7 +907,7 @@ namespace uba
 		return true;
 	}
 
-	bool HttpConnection::Get(Logger& logger, StringBufferBase& outResponse, u32& outStatusCode, const char* host, const char* path)
+	bool HttpConnection::Query(Logger& logger, const char* type, StringBufferBase& outResponse, u32& outStatusCode, const char* host, const char* path, const char* header)
 	{
 		// TODO: Fix so we reuse socket connection for multiple queries
 		if (*m_host)// && _stricmp(m_host, host) != 0)
@@ -922,7 +922,7 @@ namespace uba
 				return false;
 
 		char request[512];
-		int requestLen = snprintf(request, 512, "GET /%s HTTP/1.1\r\nHost: %s\r\n\r\n", path, m_host);
+		int requestLen = snprintf(request, 512, "%s /%s HTTP/1.1\r\nHost: %s\r\n%s\r\n", type, path, m_host, header);
 
 		int totalBytesSent = 0;
 		while (totalBytesSent < requestLen) {
