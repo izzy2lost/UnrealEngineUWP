@@ -696,10 +696,13 @@ void FAnimNode_ControlRigBase::UpdateInputOutputMappingIfRequired(UControlRig* I
 					{
 						continue;
 					}
-					const FName& BoneName = InRefSkeleton.GetBoneName(InRequiredBonesArray[InputBoneToTransfer.BoneIndex]);
-					if (NodeNames.Contains(BoneName))
+					if (InRequiredBonesArray.IsValidIndex(InputBoneToTransfer.BoneIndex))
 					{
-						OutMapping.Add(BoneName, InputBoneToTransfer.BoneIndex);
+						const FName& BoneName = InRefSkeleton.GetBoneName(InRequiredBonesArray[InputBoneToTransfer.BoneIndex]);
+						if (NodeNames.Contains(BoneName))
+						{
+							OutMapping.Add(BoneName, InputBoneToTransfer.BoneIndex);
+						}
 					}
 				}
 			}
