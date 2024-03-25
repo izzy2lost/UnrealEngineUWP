@@ -86,11 +86,14 @@ struct MASSENTITY_API FMassSubsystemRequirements
 	friend FMassDebugger;
 	friend FMassRequirementAccessDetector;
 
-public:
 	template<typename T>
 	FMassSubsystemRequirements& AddSubsystemRequirement(const EMassFragmentAccess AccessMode)
 	{
 		check(AccessMode != EMassFragmentAccess::None && AccessMode != EMassFragmentAccess::MAX);
+
+		// Compilation errors here like: 'GameThreadOnly': is not a member of 'TMassExternalSubsystemTraits<USmartObjectSubsystem>
+		// indicate that there is a missing header that defines the subsystem's trait or that you need to define one for that subsystem type.
+		// @see "MassExternalSubsystemTraits.h" for details
 
 		switch (AccessMode)
 		{
