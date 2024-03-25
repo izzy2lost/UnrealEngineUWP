@@ -45,4 +45,4 @@ class FChaosModularVehicleEnginePlugin : public IChaosModularVehicleEnginePlugin
 
 };
 
-IMPLEMENT_MODULE(FChaosModularVehicleEnginePlugin, ModularVehicleEngine)
+IMPLEMENT_MODULE(FChaosModularVehicleEnginePlugin, ChaosModularVehicleEngine)
