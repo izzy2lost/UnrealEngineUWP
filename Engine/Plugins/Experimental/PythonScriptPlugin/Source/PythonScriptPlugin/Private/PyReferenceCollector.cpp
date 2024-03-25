@@ -8,6 +8,7 @@
 #include "PyWrapperEnum.h"
 #include "PyWrapperDelegate.h"
 #include "PyGIL.h"
+#include "UObject/ObjectRedirector.h"
 #include "UObject/UnrealType.h"
 #include "UObject/UObjectHash.h"
 #include "UObject/PurgingReferenceCollector.h"
@@ -83,7 +84,17 @@ void FPyReferenceCollector::PurgeUnrealGeneratedTypes()
 	FPurgingReferenceCollector PurgingReferenceCollector;
 	TArray<FWeakObjectPtr> WeakReferencesToPurgedObjects;
 
-	auto FlagObjectForPurge = [&PurgingReferenceCollector, &WeakReferencesToPurgedObjects](UObject* InObject, const bool bMarkPendingKill)
+	TMap<UObject*, UObjectRedirector*> ReverseRedirectorMapping;
+	ForEachObjectOfClass(UObjectRedirector::StaticClass(), [&ReverseRedirectorMapping](UObject* InObject)
+	{
+		UObjectRedirector* Redirector = CastChecked<UObjectRedirector>(InObject);
+		if (Redirector->DestinationObject)
+		{
+			ReverseRedirectorMapping.Add(Redirector->DestinationObject, Redirector);
+		}
+	});
+
+	auto FlagObjectForPurge = [&PurgingReferenceCollector, &WeakReferencesToPurgedObjects, &ReverseRedirectorMapping](UObject* InObject, const bool bMarkPendingKill)
 	{
 		check(!InObject->HasAnyInternalFlags(EInternalObjectFlags::Native));
 
@@ -100,6 +111,13 @@ void FPyReferenceCollector::PurgeUnrealGeneratedTypes()
 				InObject->MarkAsGarbage();
 			}
 			WeakReferencesToPurgedObjects.Add(InObject);
+		}
+
+		if (UObjectRedirector* Redirector = ReverseRedirectorMapping.FindRef(InObject))
+		{
+			check(Redirector->DestinationObject == InObject);
+			Redirector->DestinationObject = nullptr;
+			Redirector->ClearFlags(RF_Public | RF_Standalone);
 		}
 
 		PurgingReferenceCollector.AddObjectToPurge(InObject);

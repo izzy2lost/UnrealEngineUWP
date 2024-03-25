@@ -7,6 +7,7 @@
 #include "PyReferenceCollector.h"
 #include "UObject/Package.h"
 #include "UObject/Class.h"
+#include "UObject/ObjectRedirector.h"
 #include "UObject/PropertyPortFlags.h"
 #include "Misc/ScopeExit.h"
 #include "Templates/Casts.h"
@@ -1439,13 +1440,14 @@ bool FPyWrapperStructMetaData::IsStructDeprecated(FPyWrapperStruct* Instance, FS
 class FPythonGeneratedStructBuilder
 {
 public:
-	FPythonGeneratedStructBuilder(const FString& InStructName, UScriptStruct* InSuperStruct, PyTypeObject* InPyType)
-		: StructName(InStructName)
+	FPythonGeneratedStructBuilder(UScriptStruct* InSuperStruct, PyTypeObject* InPyType)
+		: StructName()
 		, PyType(InPyType)
 		, OldStruct(nullptr)
 		, NewStruct(nullptr)
 	{
-		UObject* StructOuter = GetPythonTypeContainer();
+		UObject* StructOuter = nullptr;
+		PyUtil::GetGeneratedTypeOuterAndName(PyType, StructOuter, StructName);
 
 		// Find any existing struct with the name we want to use
 		OldStruct = FindObject<UPythonGeneratedStruct>(StructOuter, *StructName);
@@ -1453,6 +1455,7 @@ public:
 		// Create a new struct with a temporary name; we will rename it as part of Finalize
 		const FString NewStructName = MakeUniqueObjectName(StructOuter, UPythonGeneratedStruct::StaticClass(), *FString::Printf(TEXT("%s_NEWINST"), *StructName)).ToString();
 		NewStruct = NewObject<UPythonGeneratedStruct>(StructOuter, *NewStructName, RF_Public | RF_Standalone | RF_Transient);
+		NewStruct->SetMetaData(TEXT("DisplayName"), *PyUtil::GetGeneratedTypeDisplayName(PyType));
 		NewStruct->SetMetaData(TEXT("BlueprintType"), TEXT("true"));
 		NewStruct->SetSuperStruct(InSuperStruct);
 	}
@@ -1511,6 +1514,11 @@ public:
 		{
 			PrepareOldStructForReinstancing();
 		}
+
+		if (UObjectRedirector* StructRedirector = CreatePythonTypeLegacyRedirector(PyUtil::GetCleanTypename(PyType), FTopLevelAssetPath(NewStruct->GetOuter()->GetFName(), *StructName)))
+		{
+			StructRedirector->DestinationObject = NewStruct;
+		}
 		NewStruct->Rename(*StructName, nullptr, REN_DontCreateRedirectors);
 
 		// Finalize the struct
@@ -1524,7 +1532,7 @@ public:
 
 		// Map the Unreal struct to the Python type
 		NewStruct->PyType = FPyTypeObjectPtr::NewReference(PyType);
-		FPyWrapperTypeRegistry::Get().RegisterWrappedStructType(NewStruct, PyType);
+		FPyWrapperTypeRegistry::Get().RegisterWrappedStructType(NewStruct, PyType, false);
 
 		// Re-instance the old struct
 		if (OldStruct)
@@ -1623,8 +1631,8 @@ void UPythonGeneratedStruct::PostRename(UObject* OldOuter, const FName OldName)
 
 	if (PyType)
 	{
-		FPyWrapperTypeRegistry::Get().UnregisterWrappedStructType(FSoftObjectPath(OldOuter->GetFName(), OldName, FString()), PyType);
-		FPyWrapperTypeRegistry::Get().RegisterWrappedStructType(this, PyType, !HasAnyFlags(RF_NewerVersionExists));
+		FPyWrapperTypeRegistry::Get().UnregisterWrappedStructType(FSoftObjectPath(OldOuter->GetFName(), OldName, FString()), PyType, false);
+		FPyWrapperTypeRegistry::Get().RegisterWrappedStructType(this, PyType, false);
 	}
 }
 
@@ -1673,7 +1681,7 @@ void UPythonGeneratedStruct::ReleasePythonResources()
 		FPyScopedGIL GIL;
 		if (PyType)
 		{
-			FPyWrapperTypeRegistry::Get().UnregisterWrappedStructType(this, PyType, !HasAnyFlags(RF_NewerVersionExists));
+			FPyWrapperTypeRegistry::Get().UnregisterWrappedStructType(this, PyType, false);
 		}
 		PyType.Reset();
 		PyPostInitFunction.Reset();
@@ -1704,7 +1712,7 @@ UPythonGeneratedStruct* UPythonGeneratedStruct::GenerateStruct(PyTypeObject* InP
 	}
 
 	// Builder used to generate the struct
-	FPythonGeneratedStructBuilder PythonStructBuilder(PyUtil::GetCleanTypename(InPyType), SuperStruct, InPyType);
+	FPythonGeneratedStructBuilder PythonStructBuilder(SuperStruct, InPyType);
 
 	// Add the fields to this struct
 	{

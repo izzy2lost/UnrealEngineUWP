@@ -9,6 +9,7 @@
 
 #include "Containers/ArrayView.h"
 #include "Internationalization/Text.h"
+#include "UObject/ObjectRedirector.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(PyWrapperEnum)
 
@@ -741,26 +742,30 @@ void FPyWrapperEnumMetaData::AddTypeReferencedObjects(FReferenceCollector& Colle
 class FPythonGeneratedEnumBuilder
 {
 public:
-	FPythonGeneratedEnumBuilder(const FString& InEnumName, PyTypeObject* InPyType)
-		: EnumName(InEnumName)
+	FPythonGeneratedEnumBuilder(PyTypeObject* InPyType)
+		: EnumName()
 		, PyType(InPyType)
 		, NewEnum(nullptr)
-		, bDidExist(false)
 	{
-		UObject* EnumOuter = GetPythonTypeContainer();
+		UObject* EnumOuter = nullptr;
+		PyUtil::GetGeneratedTypeOuterAndName(PyType, EnumOuter, EnumName);
+
+		UObjectRedirector* EnumRedirector = CreatePythonTypeLegacyRedirector(PyUtil::GetCleanTypename(InPyType), FTopLevelAssetPath(EnumOuter->GetFName(), *EnumName));
 
 		// Enum instances are re-used if they already exist
 		NewEnum = FindObject<UPythonGeneratedEnum>(EnumOuter, *EnumName);
-		if (NewEnum)
-		{
-			bDidExist = true;
-		}
-		else
+		if (!NewEnum)
 		{
 			NewEnum = NewObject<UPythonGeneratedEnum>(EnumOuter, *EnumName, RF_Public | RF_Standalone | RF_Transient);
+			NewEnum->SetMetaData(TEXT("DisplayName"), *PyUtil::GetGeneratedTypeDisplayName(PyType));
 			NewEnum->SetMetaData(TEXT("BlueprintType"), TEXT("true"));
 		}
 		NewEnum->EnumValueDefs.Reset();
+
+		if (EnumRedirector)
+		{
+			EnumRedirector->DestinationObject = NewEnum;
+		}
 	}
 
 	~FPythonGeneratedEnumBuilder()
@@ -798,7 +803,7 @@ public:
 
 		// Map the Unreal enum to the Python type
 		NewEnum->PyType = FPyTypeObjectPtr::NewReference(PyType);
-		FPyWrapperTypeRegistry::Get().RegisterWrappedEnumType(NewEnum, PyType, !bDidExist);
+		FPyWrapperTypeRegistry::Get().RegisterWrappedEnumType(NewEnum, PyType, false);
 
 		// Null the NewEnum pointer so the destructor doesn't kill it
 		UPythonGeneratedEnum* FinalizedEnum = NewEnum;
@@ -877,7 +882,6 @@ private:
 	FString EnumName;
 	PyTypeObject* PyType;
 	UPythonGeneratedEnum* NewEnum;
-	bool bDidExist;
 };
 
 void UPythonGeneratedEnum::BeginDestroy()
@@ -894,7 +898,7 @@ void UPythonGeneratedEnum::ReleasePythonResources()
 		FPyScopedGIL GIL;
 		if (PyType)
 		{
-			FPyWrapperTypeRegistry::Get().UnregisterWrappedEnumType(this, PyType, !HasAnyFlags(RF_NewerVersionExists));
+			FPyWrapperTypeRegistry::Get().UnregisterWrappedEnumType(this, PyType, false);
 		}
 		PyType.Reset();
 	}
@@ -911,7 +915,7 @@ void UPythonGeneratedEnum::ReleasePythonResources()
 UPythonGeneratedEnum* UPythonGeneratedEnum::GenerateEnum(PyTypeObject* InPyType)
 {
 	// Builder used to generate the enum
-	FPythonGeneratedEnumBuilder PythonEnumBuilder(PyUtil::GetCleanTypename(InPyType), InPyType);
+	FPythonGeneratedEnumBuilder PythonEnumBuilder(InPyType);
 
 	// Add the values to this enum
 	TArray<FPyUValueDef*> PyValueDefs;

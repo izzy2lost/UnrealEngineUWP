@@ -21,6 +21,16 @@ struct FSlowTask;
 /** Get the object that Python created types should be outered to */
 UObject* GetPythonTypeContainer();
 
+/**
+ * Create a redirector for a Python type, if needed.
+ * This is for backwards compatability, as all types were historically generated under GetPythonTypeContainer() using their short name.
+ * @note The caller must set DestinationObject to point at the generated type.
+ * 
+ * @param ShortName			The short name of the Python generated type.
+ * @param GeneratedPathName The path name that the Python generated type will actually use.
+ */
+UObjectRedirector* CreatePythonTypeLegacyRedirector(const FString& ShortName, const FTopLevelAssetPath& GeneratedPathName);
+
 /** Python type for FPyDelegateHandle */
 extern PyTypeObject PyDelegateHandleType;
 

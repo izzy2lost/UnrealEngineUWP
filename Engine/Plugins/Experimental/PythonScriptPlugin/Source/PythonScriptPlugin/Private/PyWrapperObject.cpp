@@ -11,6 +11,7 @@
 #include "UObject/Package.h"
 #include "UObject/Class.h"
 #include "UObject/MetaData.h"
+#include "UObject/ObjectRedirector.h"
 #include "UObject/UnrealType.h"
 #include "UObject/UObjectHash.h"
 #include "UObject/StructOnScope.h"
@@ -1316,13 +1317,14 @@ bool FPyWrapperObjectMetaData::IsClassDeprecated(FPyWrapperObject* Instance, FSt
 class FPythonGeneratedClassBuilder
 {
 public:
-	FPythonGeneratedClassBuilder(const FString& InClassName, UClass* InSuperClass, PyTypeObject* InPyType)
-		: ClassName(InClassName)
+	FPythonGeneratedClassBuilder(UClass* InSuperClass, PyTypeObject* InPyType)
+		: ClassName()
 		, PyType(InPyType)
 		, OldClass(nullptr)
 		, NewClass(nullptr)
 	{
-		UObject* ClassOuter = GetPythonTypeContainer();
+		UObject* ClassOuter = nullptr;
+		PyUtil::GetGeneratedTypeOuterAndName(PyType, ClassOuter, ClassName);
 
 		// Find any existing class with the name we want to use
 		OldClass = FindObject<UPythonGeneratedClass>(ClassOuter, *ClassName);
@@ -1330,6 +1332,7 @@ public:
 		// Create a new class with a temporary name; we will rename it as part of Finalize
 		const FString NewClassName = MakeUniqueObjectName(ClassOuter, UPythonGeneratedClass::StaticClass(), *FString::Printf(TEXT("%s_NEWINST"), *ClassName)).ToString();
 		NewClass = NewObject<UPythonGeneratedClass>(ClassOuter, *NewClassName, RF_Public | RF_Standalone | RF_Transient);
+		NewClass->SetMetaData(TEXT("DisplayName"), *PyUtil::GetGeneratedTypeDisplayName(PyType));
 		NewClass->SetSuperStruct(InSuperClass);
 		NewClass->ClassFlags |= CLASS_Native;
 	}
@@ -1340,11 +1343,12 @@ public:
 		, OldClass(InOldClass)
 		, NewClass(nullptr)
 	{
-		UObject* ClassOuter = GetPythonTypeContainer();
+		UObject* ClassOuter = InOldClass->GetOuter();
 
 		// Create a new class with a temporary name; we will rename it as part of Finalize
 		const FString NewClassName = MakeUniqueObjectName(ClassOuter, UPythonGeneratedClass::StaticClass(), *FString::Printf(TEXT("%s_NEWINST"), *ClassName)).ToString();
 		NewClass = NewObject<UPythonGeneratedClass>(ClassOuter, *NewClassName, RF_Public | RF_Standalone | RF_Transient);
+		NewClass->SetMetaData(TEXT("DisplayName"), *PyUtil::GetGeneratedTypeDisplayName(PyType));
 		NewClass->SetSuperStruct(InSuperClass);
 		NewClass->ClassFlags |= CLASS_Native;
 	}
@@ -1388,6 +1392,10 @@ public:
 		}
 
 		Py_BEGIN_ALLOW_THREADS
+		if (UObjectRedirector* ClassRedirector = CreatePythonTypeLegacyRedirector(PyUtil::GetCleanTypename(PyType), FTopLevelAssetPath(NewClass->GetOuter()->GetFName(), *ClassName)))
+		{
+			ClassRedirector->DestinationObject = NewClass;
+		}
 		NewClass->Rename(*ClassName, nullptr, REN_DontCreateRedirectors);
 
 		// Finalize the class
@@ -1402,7 +1410,7 @@ public:
 
 		// Map the Unreal class to the Python type
 		NewClass->PyType = FPyTypeObjectPtr::NewReference(PyType);
-		FPyWrapperTypeRegistry::Get().RegisterWrappedClassType(NewClass, PyType);
+		FPyWrapperTypeRegistry::Get().RegisterWrappedClassType(NewClass, PyType, false);
 
 		// Ensure the CDO exists
 		Py_BEGIN_ALLOW_THREADS
@@ -1938,8 +1946,8 @@ void UPythonGeneratedClass::PostRename(UObject* OldOuter, const FName OldName)
 
 	if (PyType)
 	{
-		FPyWrapperTypeRegistry::Get().UnregisterWrappedClassType(FSoftObjectPath(OldOuter->GetFName(), OldName, FString()), PyType);
-		FPyWrapperTypeRegistry::Get().RegisterWrappedClassType(this, PyType, !HasAnyFlags(RF_NewerVersionExists));
+		FPyWrapperTypeRegistry::Get().UnregisterWrappedClassType(FSoftObjectPath(OldOuter->GetFName(), OldName, FString()), PyType, false);
+		FPyWrapperTypeRegistry::Get().RegisterWrappedClassType(this, PyType, false);
 	}
 }
 
@@ -1983,7 +1991,7 @@ void UPythonGeneratedClass::ReleasePythonResources()
 		FPyScopedGIL GIL;
 		if (PyType)
 		{
-			FPyWrapperTypeRegistry::Get().UnregisterWrappedClassType(this, PyType, !HasAnyFlags(RF_NewerVersionExists));
+			FPyWrapperTypeRegistry::Get().UnregisterWrappedClassType(this, PyType, false);
 		}
 		PyType.Reset();
 		PyPostInitFunction.Reset();
@@ -2025,7 +2033,7 @@ UPythonGeneratedClass* UPythonGeneratedClass::GenerateClass(PyTypeObject* InPyTy
 	}
 
 	// Builder used to generate the class
-	FPythonGeneratedClassBuilder PythonClassBuilder(PyUtil::GetCleanTypename(InPyType), SuperClass, InPyType);
+	FPythonGeneratedClassBuilder PythonClassBuilder(SuperClass, InPyType);
 
 	// Add the functions to this class
 	// We have to process these first as properties may reference them as get/set functions

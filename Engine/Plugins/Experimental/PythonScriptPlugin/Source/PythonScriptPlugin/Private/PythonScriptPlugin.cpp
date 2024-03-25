@@ -1428,7 +1428,11 @@ PyObject* FPythonScriptPlugin::EvalString(const TCHAR* InStr, const TCHAR* InCon
 		return nullptr;
 	}
 
-	return PyEval_EvalCode((PyUtil::FPyCodeObjectType*)PyCodeObj.Get(), InGlobalDict, InLocalDict);
+	PyUtil::FEvalStack::Get().PushContext(PyUtil::FEvalStack::FEvalContext{ InContext, InGlobalDict, InLocalDict});
+	PyObject* PyEvalResult = PyEval_EvalCode((PyUtil::FPyCodeObjectType*)PyCodeObj.Get(), InGlobalDict, InLocalDict);
+	PyUtil::FEvalStack::Get().PopContext();
+
+	return PyEvalResult;
 }
 
 bool FPythonScriptPlugin::RunString(FPythonCommandEx& InOutPythonCommand)

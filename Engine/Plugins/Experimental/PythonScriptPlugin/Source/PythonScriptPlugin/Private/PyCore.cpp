@@ -93,6 +93,32 @@ UObject* GetPythonTypeContainer()
 	return GetPythonTypeContainerSingleton().Get();
 }
 
+UObjectRedirector* CreatePythonTypeLegacyRedirector(const FString& ShortName, const FTopLevelAssetPath& GeneratedPathName)
+{
+	UObject* RedirectorOuter = GetPythonTypeContainer();
+	UObjectRedirector* Redirector = FindObject<UObjectRedirector>(RedirectorOuter, *ShortName);
+
+	// If the generated path name matches the redirector path name, then delete any existing redirector as we're about to create an object with that name
+	if (FTopLevelAssetPath(RedirectorOuter->GetFName(), *ShortName) == GeneratedPathName)
+	{
+		if (Redirector)
+		{
+			Redirector->DestinationObject = nullptr;
+			Redirector->ClearFlags(RF_Public | RF_Standalone);
+			Redirector->Rename(*FString::Printf(TEXT("%s_DELETED"), *ShortName), nullptr, REN_DontCreateRedirectors);
+		}
+		return nullptr;
+	}
+	
+	// Otherwise, create a redirector if one doesn't already exist
+	// The caller is responsible for setting DestinationObject
+	if (!Redirector)
+	{
+		Redirector = NewObject<UObjectRedirector>(RedirectorOuter, *ShortName, RF_Public | RF_Standalone | RF_Transient);
+	}
+	return Redirector;
+}
+
 
 FPyDelegateHandle* FPyDelegateHandle::CreateInstance(const FDelegateHandle& InValue)
 {

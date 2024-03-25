@@ -70,6 +70,27 @@ namespace PyUtil
 		return PyBool_FromLong(bResult);
 	}
 
+	/** Stack of context information given when calling PyEval_EvalCode */
+	class FEvalStack
+	{
+	public:
+		struct FEvalContext
+		{
+			const TCHAR* Context = nullptr;
+			PyObject* GlobalDict = nullptr;
+			PyObject* LocalDict = nullptr;
+		};
+
+		static FEvalStack& Get();
+
+		void PushContext(FEvalContext&& Context);
+		void PopContext();
+		const FEvalContext* GetCurrentContext() const;
+
+	private:
+		TArray<FEvalContext> Stack;
+	};
+
 	/** Helper to manage a property pointer that may be potentially owned by a wrapper or stack instance */
 	template <typename TPropType>
 	class TPropOnScope
@@ -567,6 +588,18 @@ namespace PyUtil
 	{
 		return GetCleanTypename((PyObject*)InPyObj);
 	}
+
+	/**
+	 * Get the generated type outer and name to use for the given Python type.
+	 * @note This should only be called when immediately processing the generation request 
+	 *       from Python, as it relies on getting information from the Python exec stack.
+	 */
+	void GetGeneratedTypeOuterAndName(PyTypeObject* InPyType, UObject*& OutOuter, FString& OutName);
+
+	/**
+	 * Get the generated display name to use for the given Python type.
+	 */
+	FString GetGeneratedTypeDisplayName(PyTypeObject* InPyType);
 
 	/**
 	 * Get the error context string of the given object.

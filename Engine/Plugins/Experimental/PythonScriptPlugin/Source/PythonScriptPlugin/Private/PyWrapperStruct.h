@@ -372,7 +372,7 @@ typedef TPyPtr<FPyWrapperStruct> FPyWrapperStructPtr;
 
 /** An Unreal struct that was generated from a Python type */
 UCLASS()
-class UPythonGeneratedStruct : public UScriptStruct, public IPythonResourceOwner
+class UPythonGeneratedStruct final : public UScriptStruct, public IPythonResourceOwner
 {
 	GENERATED_BODY()
 
@@ -382,6 +382,10 @@ public:
 	//~ UObject interface
 	virtual void PostRename(UObject* OldOuter, const FName OldName) override;
 	virtual void BeginDestroy() override;
+	virtual bool IsAsset() const override
+	{
+		return false;
+	}
 
 	//~ UStruct interface
 	virtual void InitializeStruct(void* Dest, int32 ArrayDim = 1) const override;

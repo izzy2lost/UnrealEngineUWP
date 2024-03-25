@@ -18,6 +18,7 @@
 #include "PyWrapperFieldPath.h"
 #include "PyWrapperTypeRegistry.h"
 
+#include "Misc/PackageName.h"
 #include "Misc/Paths.h"
 #include "Misc/PathViews.h"
 #include "Misc/ScopeExit.h"
@@ -94,6 +95,29 @@ FString PyObjectToUEStringRepr(PyObject* InPyObj)
 		return PyStringToUEString(PyReprObj);
 	}
 	return PyObjectToUEString(InPyObj);
+}
+
+FEvalStack& FEvalStack::Get()
+{
+	static FEvalStack Instance;
+	return Instance;
+}
+
+void FEvalStack::PushContext(FEvalContext&& Context)
+{
+	Stack.Push(MoveTemp(Context));
+}
+
+void FEvalStack::PopContext()
+{
+	Stack.Pop();
+}
+
+const FEvalStack::FEvalContext* FEvalStack::GetCurrentContext() const
+{
+	return Stack.Num() > 0
+		? &Stack.Top()
+		: nullptr;
 }
 
 FPropValueOnScope::FPropValueOnScope(FConstPropOnScope&& InProp)
@@ -1239,6 +1263,95 @@ FString GetCleanTypename(PyTypeObject* InPyType)
 FString GetCleanTypename(PyObject* InPyObj)
 {
 	return GetCleanTypename(PyType_Check(InPyObj) ? (PyTypeObject*)InPyObj : Py_TYPE(InPyObj));
+}
+
+void GetGeneratedTypeOuterAndName(PyTypeObject* InPyType, UObject*& OutOuter, FString& OutName)
+{
+	OutOuter = GetPythonTypeContainer();
+	OutName = GetCleanTypename(InPyType);
+
+	FString TypeFilename;
+
+	// Favor "inspect.getfile" if possible, as this will return the correct information for files executed via an import
+	if (FPyObjectPtr PyInspectModule = FPyObjectPtr::StealReference(PyImport_ImportModule("inspect")))
+	{
+		PyObject* PyInspectDict = PyModule_GetDict(PyInspectModule);
+		if (PyObject* PyGetFileFunc = PyDict_GetItemString(PyInspectDict, "getfile"))
+		{
+			if (FPyObjectPtr PyGetFileResult = FPyObjectPtr::StealReference(PyObject_CallFunctionObjArgs(PyGetFileFunc, InPyType, nullptr)))
+			{
+				TypeFilename = PyObjectToUEString(PyGetFileResult);
+			}
+			else
+			{
+				// Clear any exception information if getfile failed
+				PyErr_Clear();
+			}
+		}
+	}
+
+	// If "inspect.getfile" failed then try and access the current "__file__", as that will work for files being directly executed (ie, not an import)
+	if (TypeFilename.IsEmpty())
+	{
+		// Note: This doesn't use PyEval_GetGlobals() as that will return the result for the current "frame", which may be from an intermediate file (eg, unreal_core.py due to the unreal.uthing() decorator)
+		if (const FEvalStack::FEvalContext* CurrentContext = FEvalStack::Get().GetCurrentContext())
+		{
+			if (PyObject* PyGlobalsFile = PyDict_GetItemString(CurrentContext->GlobalDict, "__file__"))
+			{
+				TypeFilename = PyObjectToUEString(PyGlobalsFile);
+			}
+		}
+	}
+
+	// Normalize the found path for consistency (as the absolute path may vary)
+	if (!TypeFilename.IsEmpty())
+	{
+		FString TypePackageName;
+
+		FPaths::NormalizeFilename(TypeFilename);
+		if (!FPackageName::TryConvertFilenameToLongPackageName(TypeFilename, TypePackageName))
+		{
+			if (FPaths::IsUnderDirectory(TypeFilename, FPaths::EngineDir()))
+			{
+				FPaths::MakePathRelativeTo(TypeFilename, *FPaths::EngineDir());
+				TypePackageName = FPaths::Combine(TEXTVIEW("/Engine"), TypeFilename);
+			}
+			else if (FPaths::IsUnderDirectory(TypeFilename, FPaths::ProjectDir()))
+			{
+				FPaths::MakePathRelativeTo(TypeFilename, *FPaths::ProjectDir());
+				TypePackageName = FPaths::Combine(TEXTVIEW("/Game"), TypeFilename);
+			}
+		}
+			
+		if (TypePackageName.IsEmpty())
+		{
+			// This filename is something we can't resolve into a stable package path
+			// Just hash it into the type name to try and keep things unique
+			TypeFilename.ToLowerInline(); // To produce a case-insensitive hash
+			OutName += TStringBuilder<12>().Appendf(TEXT("_0x%08X"), FCrc::StrCrc32(*TypeFilename));
+		}
+		else
+		{
+			// Remove any remaining extension and add the "_PY" suffix
+			TypePackageName = FPaths::ChangeExtension(TypePackageName, TEXT(""));
+			TypePackageName += TEXTVIEW("_PY");
+
+			// This filename resolved into a stable package path, so put the generated type in that package
+			UPackage* TypePackage = FindObject<UPackage>(nullptr, *TypePackageName);
+			if (!TypePackage)
+			{
+				TypePackage = NewObject<UPackage>(nullptr, *TypePackageName, RF_Public | RF_Standalone | RF_Transient);
+				TypePackage->SetPackageFlags(PKG_ContainsScript);
+			}
+			OutOuter = TypePackage;
+		}
+	}
+}
+
+FString GetGeneratedTypeDisplayName(PyTypeObject* InPyType)
+{
+	FString CleanName = GetCleanTypename(InPyType);
+	return FName::NameToDisplayString(CleanName, /*bIsBool*/false);
 }
 
 FString GetErrorContext(PyTypeObject* InPyType)

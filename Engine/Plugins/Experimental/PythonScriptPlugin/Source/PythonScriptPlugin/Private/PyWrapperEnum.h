@@ -113,7 +113,7 @@ typedef TPyPtr<FPyWrapperEnum> FPyWrapperEnumPtr;
 
 /** An Unreal enum that was generated from a Python type */
 UCLASS()
-class UPythonGeneratedEnum : public UEnum, public IPythonResourceOwner
+class UPythonGeneratedEnum final : public UEnum, public IPythonResourceOwner
 {
 	GENERATED_BODY()
 
@@ -122,6 +122,10 @@ class UPythonGeneratedEnum : public UEnum, public IPythonResourceOwner
 public:
 	//~ UObject interface
 	virtual void BeginDestroy() override;
+	virtual bool IsAsset() const override
+	{
+		return false;
+	}
 
 	//~ IPythonResourceOwner interface
 	virtual void ReleasePythonResources() override;
