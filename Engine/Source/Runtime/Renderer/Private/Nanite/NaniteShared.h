@@ -172,7 +172,7 @@ struct FPackedViewParams
 	// Identifies the bit in the GPUScene::InstanceVisibilityMaskBuffer associated with the current view.
 	// Visibility mask buffer may be used if this is non-zero.
 	uint32 InstanceOcclusionQueryMask = 0;
-	uint32 LightingChannelMask = GetDefaultLightingChannelMask();
+	uint32 LightingChannelMask = 0b111; // All channels are visible by default
 };
 
 // Helper function to setup the overrides for a culling view. 
