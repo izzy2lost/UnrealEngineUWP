@@ -164,7 +164,7 @@ DECLARE_DWORD_COUNTER_STAT(TEXT("SharedSerialization Property Miss"), STAT_Share
 
 DEFINE_LOG_CATEGORY_STATIC(LogNetSyncLoads, Log, All);
 
-CSV_DEFINE_CATEGORY(Networking, true);
+CSV_DECLARE_CATEGORY_MODULE_EXTERN(NETCORE_API, Networking);
 
 int32 GNumSaturatedConnections; // Counter for how many connections are skipped/early out due to bandwidth saturation
 int32 GNumSharedSerializationHit;

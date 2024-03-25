@@ -20,6 +20,8 @@
 #include "Net/Core/NetCoreModule.h"
 #include "HAL/IConsoleManager.h"
 #include "Templates/EnableIf.h"
+#include "ProfilingDebugging/CsvProfiler.h"
+
 #include "FastArraySerializer.generated.h"
 
 class Error;
@@ -31,6 +33,8 @@ NETCORE_API DECLARE_LOG_CATEGORY_EXTERN(LogNetFastTArray, Warning, All);
 DECLARE_CYCLE_STAT_EXTERN(TEXT("NetSerializeFast Array"), STAT_NetSerializeFastArray, STATGROUP_ServerCPU, NETCORE_API);
 DECLARE_CYCLE_STAT_EXTERN(TEXT("NetSerializeFast Array BuildMap"), STAT_NetSerializeFastArray_BuildMap, STATGROUP_ServerCPU, NETCORE_API);
 DECLARE_CYCLE_STAT_EXTERN(TEXT("NetSerializeFast Array Delta Struct"), STAT_NetSerializeFastArray_DeltaStruct, STATGROUP_ServerCPU, NETCORE_API);
+
+CSV_DECLARE_CATEGORY_MODULE_EXTERN(NETCORE_API, Networking);
 
 /**
  *	===================== Fast TArray Replication ===================== 
@@ -1083,6 +1087,8 @@ void FFastArraySerializer::TFastArraySerializeHelper<Type, SerializerType>::Post
 	TArray<int32, TInlineAllocator<8>>& AddedIndices,
 	GuidMapType& GuidMap)
 {
+	CSV_SCOPED_TIMING_STAT(Networking, FastArray_Apply);
+
 	// ---------------------------------------------------------
 	// Look for implicit deletes that would happen due to Naks
 	// ---------------------------------------------------------
