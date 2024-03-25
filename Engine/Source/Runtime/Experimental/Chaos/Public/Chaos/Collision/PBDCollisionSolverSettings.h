@@ -28,7 +28,8 @@ namespace Chaos
 		// A value of zero means unlimited.
 		FReal MaxPushOutVelocity;
 
-		// The speed at which initially-overlapping objects depentrate
+		// The speed at which initially-overlapping objects depentrate.
+		// This value is used when particles do not provide an override for their MaxDepenetrationVelocity.
 		FRealSingle DepenetrationVelocity;
 
 		// How many of the position iterations should run static/dynamic friction

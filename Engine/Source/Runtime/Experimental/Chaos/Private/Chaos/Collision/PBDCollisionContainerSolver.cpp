@@ -76,7 +76,7 @@ namespace Chaos
 		FPBDCollisionConstraint* Constraint, 
 		const int32 ConstraintPointIndex, 
 		const FRealSingle Dt, 
-		const FRealSingle MaxDepentrationVelocity,
+		const FRealSingle MaxDepenetrationVelocity,
 		const FRealSingle MaxPushOut,
 		const FConstraintSolverBody& Body0,
 		const FConstraintSolverBody& Body1)
@@ -160,7 +160,7 @@ namespace Chaos
 		// Initial Phi for initial-overlap depenetration.
 		// If we have an initial contact, calculate the initial overlap. This will get saved in SetSolverResults
 		FRealSingle WorldContactInitialPhi = 0;
-		if ((MaxDepentrationVelocity >= 0) && CVars::bChaos_Collision_EnableInitialDepenetration)
+		if ((MaxDepenetrationVelocity >= 0) && CVars::bChaos_Collision_EnableInitialDepenetration)
 		{
 			if (ManifoldPoint.Flags.bInitialContact)
 			{
@@ -183,8 +183,8 @@ namespace Chaos
 			{
 				// This is a pre-existing manifold point with some initial penetration to resolve.
 				// If we are currently penetrating less than the inital overlap, reduce the initial overlap
-				// Also resolve initial overlap over time by reducing allowed penetration by MaxDepentrationVelocity
-				WorldContactInitialPhi = FMath::Max(ManifoldPoint.InitialPhi + MaxDepentrationVelocity * Dt, WorldContactDeltaNormal);
+				// Also resolve initial overlap over time by reducing allowed penetration by MaxDepenetrationVelocity
+				WorldContactInitialPhi = FMath::Max(ManifoldPoint.InitialPhi + MaxDepenetrationVelocity * Dt, WorldContactDeltaNormal);
 			}
 
 			// InitialPhi is only for tracking penetration - cannot be positive

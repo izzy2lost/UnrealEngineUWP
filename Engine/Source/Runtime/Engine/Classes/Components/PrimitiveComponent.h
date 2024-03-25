@@ -2677,6 +2677,24 @@ public:
 	/** Returns the calculated mass in kg. This is not 100% exactly the mass physx will calculate, but it is very close ( difference < 0.1kg ). */
 	ENGINE_API virtual float CalculateMass(FName BoneName = NAME_None);
 
+	/**
+	 * The maximum velocity used to depenetrate this object from others when spawned or teleported with initial overlaps (does not affect overlaps as a result of normal movement).
+	 * A value of zero will allow objects that are spawned overlapping to go to sleep without moving rather than pop out of each other. E.g., use zero if you spawn dynamic rocks
+	 * partially embedded in the ground and want them to be interactive but not pop out of the ground when touched.
+	 * A negative value means that the config setting CollisionInitialOverlapDepenetrationVelocity will be used.
+	*/
+	UFUNCTION(BlueprintCallable, Category = "Physics")
+	ENGINE_API virtual float GetMaxDepenetrationVelocity(FName BoneName = NAME_None);
+
+	/**
+	 * The maximum velocity used to depenetrate this object from others when spawned or teleported with initial overlaps (does not affect overlaps as a result of normal movement).
+	 * A value of zero will allow objects that are spawned overlapping to go to sleep without moving rather than pop out of each other. E.g., use zero if you spawn dynamic rocks
+	 * partially embedded in the ground and want them to be interactive but not pop out of the ground when touched.
+	 * A negative value means that the config setting CollisionInitialOverlapDepenetrationVelocity will be used.
+	*/
+	UFUNCTION(BlueprintCallable, Category = "Physics")
+	ENGINE_API virtual void SetMaxDepenetrationVelocity(FName BoneName = NAME_None, float InMaxDepenetrationVelocity = -1.0f);
+
 	/** Set whether this component should use Continuous Collision Detection */
 	UFUNCTION(BlueprintCallable, Category = "Physics")
 	ENGINE_API virtual void SetUseCCD(bool InUseCCD, FName BoneName = NAME_None);

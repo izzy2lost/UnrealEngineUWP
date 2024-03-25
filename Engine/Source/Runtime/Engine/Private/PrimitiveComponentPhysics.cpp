@@ -614,6 +614,29 @@ float UPrimitiveComponent::CalculateMass(FName)
 	return 0.0f;
 }
 
+float UPrimitiveComponent::GetMaxDepenetrationVelocity(FName BoneName)
+{
+	FBodyInstance* BI = GetBodyInstance(BoneName);
+	if (BI)
+	{
+		return BI->GetMaxDepenetrationVelocity();
+	}
+	// @todo: add PhysicsObject support
+
+	// Negative means the config default value will be used
+	return -1.0f;
+}
+
+void UPrimitiveComponent::SetMaxDepenetrationVelocity(FName BoneName, float InMaxDepenetrationVelocity)
+{
+	FBodyInstance* BI = GetBodyInstance(BoneName);
+	if (BI)
+	{
+		BI->SetMaxDepenetrationVelocity(InMaxDepenetrationVelocity);
+	}
+	// @todo: add PhysicsObject support
+}
+
 void UPrimitiveComponent::SetUseCCD(bool bInUseCCD, FName BoneName)
 {
 	FBodyInstance* BI = GetBodyInstance(BoneName);

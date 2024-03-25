@@ -221,7 +221,7 @@ namespace Chaos
 		, SavedManifoldPoints()
 		, ManifoldPoints()
 		, MinInitialPhi(0)
-		, InitialOverlapDepenetrationVelocity(0)
+		, InitialOverlapDepenetrationVelocity(-1.0f)
 		, CCDTimeOfImpact(0)
 		, SolverBodies{ nullptr, nullptr }
 		, CCDEnablePenetration(0)
@@ -262,7 +262,7 @@ namespace Chaos
 		, SavedManifoldPoints()
 		, ManifoldPoints()
 		, MinInitialPhi(0)
-		, InitialOverlapDepenetrationVelocity(0)
+		, InitialOverlapDepenetrationVelocity(-1.0f)
 		, CCDTimeOfImpact(0)
 		, SolverBodies{ nullptr, nullptr }
 		, CCDEnablePenetration(0)
