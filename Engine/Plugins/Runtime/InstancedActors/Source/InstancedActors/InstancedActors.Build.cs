@@ -27,6 +27,7 @@ namespace UnrealBuildTool.Rules
 					"GameplayTags",
 					"MassEntity",
 					"MassRepresentation",
+					"StructUtils"
 				}
 			);
 
