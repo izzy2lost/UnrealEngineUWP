@@ -1496,26 +1496,25 @@ namespace uba
 						if (session.m_shouldSendLogToServer)
 							session.SendLogFileToServer(*(ProcessImpl*)h.m_process);
 
+						ScopedWriteLock lock(rec->lock);
+
 						auto decreaseWeight = MakeGuard([&]()
 							{
 								ScopedWriteLock weightLock(activeWeightLock);
 								activeWeight -= rec->weight;
+								rec->isDone = true;
 								session.m_waitToSendEvent.Set();
 							});
 
-						ScopedWriteLock lock(rec->lock);
 						if (rec->isKilled)
-						{
-							rec->isDone = true;
 							return;
-						}
+
 						auto& process = *(ProcessImpl*)h.m_process;
 
 						if (session.m_killRandomIndex != ~0u && session.m_killRandomCounter++ == session.m_killRandomIndex)
 						{
 							session.m_loop = false;
 							session.m_logger.Info(TC("Killed random process (%s)"), process.m_description.c_str());
-							rec->isDone = true;
 							return;
 						}
 
@@ -1527,7 +1526,6 @@ namespace uba
 							{
 								if (session.m_loop)
 									session.SendReturnProcess(rec->handle.GetId(), session.m_terminationReason);
-								rec->isDone = true;
 								return;
 							}
 						}
@@ -1543,7 +1541,6 @@ namespace uba
 								session.m_logger.Error(desc);
 								if (session.m_loop)
 									session.SendReturnProcess(rec->handle.GetId(), desc);
-								rec->isDone = true;
 								return;
 							}
 						}
@@ -1554,7 +1551,6 @@ namespace uba
 						{
 							if (session.m_loop)
 								session.SendReturnProcess(rec->handle.GetId(), TC("Cancelled"));
-							rec->isDone = true;
 							return;
 						}
 
@@ -1581,9 +1577,6 @@ namespace uba
 
 						if (session.m_processFinished)
 							session.m_processFinished(&process);
-
-						rec->isDone = true;
-						session.m_waitToSendEvent.Set();
 					};
 
 					process->Start(startInfo, realApplication.data, m_processWorkingDir.data, true, env, true, true);

@@ -2,6 +2,7 @@
 
 #include "UbaNetworkBackendTcp.h"
 #include "UbaFileAccessor.h"
+#include "UbaProtocol.h"
 #include "UbaScheduler.h"
 #include "UbaSessionClient.h"
 #include "UbaSessionServer.h"
@@ -484,7 +485,10 @@ namespace uba
 		//info.shouldWriteToDisk = shouldWriteToDisk;
 		info.rootDir = g_rootDir.data;
 		//info.traceName.Append(TC("TESTTRACE"));
+		#if UBA_DEBUG_LOG_ENABLED
 		info.remoteLogEnabled = true;
+		#endif
+
 		info.deleteSessionsOlderThanSeconds = 1;
 		auto session = new SessionServer(info);
 		auto destroySession = MakeGuard([&]() { delete session; });

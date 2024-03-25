@@ -756,6 +756,9 @@ namespace uba
 				u64 toRead = reader.GetLeft();
 				reader.ReadBytes(activeStore.mappedView.memory + memOffset, toRead);
 				
+				u64 time2 = GetTime();
+				activeStore.recvCasTime += time2 - start;
+
 				u64 totalWritten = activeStore.totalWritten.fetch_add(toRead) + toRead;
 				if (totalWritten == activeStore.fileSize)
 				{
@@ -775,7 +778,7 @@ namespace uba
 					if (isPersistentStore)
 						CasEntryWritten(*activeStore.casEntry, totalWritten);
 
-					activeStore.recvCasTime += GetTime() - start;
+					activeStore.recvCasTime += GetTime() - time2;
 
 					StorageStats& stats = Stats();
 					stats.recvCas.Add(Timer{activeStore.recvCasTime, 1});
@@ -807,8 +810,6 @@ namespace uba
 
 					return true;
 				}
-
-				activeStore.recvCasTime += GetTime() - start;
 
 				if (firstStore)
 				{

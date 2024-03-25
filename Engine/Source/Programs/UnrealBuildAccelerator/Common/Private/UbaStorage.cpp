@@ -532,6 +532,9 @@ namespace uba
 
 	bool StorageImpl::DecompressMemoryToMemory(u8* compressedData, u8* writeData, u64 decompressedSize)
 	{
+		UBA_ASSERT(compressedData);
+		UBA_ASSERT(writeData);
+
 		StorageStats& stats = Stats();
 
 		if (decompressedSize > BufferSlotSize * 4) // Arbitrary size threshold. We want to at least catch the pch here
@@ -615,7 +618,7 @@ namespace uba
 				if (!compressedBlockSize)
 					break;
 				u32 decompressedBlockSize = ((u32*)readPos)[1];
-
+				UBA_ASSERT(decompressedBlockSize <= left);
 				readPos += sizeof(u32) * 2;
 
 				TimerScope ts(stats.decompressToMem);
