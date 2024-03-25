@@ -20,6 +20,10 @@
 		{
 			"Name": "StructUtils",
 			"Enabled": true
+		},
+		{
+			"Name": "Solaris",
+			"Enabled": true
 		}
 	],
 	"Modules" :

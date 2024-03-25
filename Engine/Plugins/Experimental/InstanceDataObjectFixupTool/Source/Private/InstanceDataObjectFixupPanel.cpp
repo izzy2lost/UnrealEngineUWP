@@ -9,10 +9,12 @@
 #include "InstanceDataObjectFixupDetailCustomization.h"
 #include "Modules/ModuleManager.h"
 #include "Editor.h"
+#include "PropertyVerseString.h"
 #include "UObject/PropertyBagRepository.h"
 
 #include "UObject/OverriddenPropertySet.h"
 #include "UObject/OverridableManager.h"
+#include "UObject/TextProperty.h"
 
 #define LOCTEXT_NAMESPACE "InstanceDataObjectFixupPanel"
 
@@ -488,7 +490,161 @@ static FPropertyChangedEvent ConstructChangeEventForRedirect(const FPropertyPath
 	return OutEvent;
 }
 
-void FInstanceDataObjectFixupPanel::RedirectProperty(const FPropertyPath& From, const FPropertyPath& To)
+void FInstanceDataObjectFixupPanel::FTypeConverter::Push(FProperty* SourceProperty, const void* SourceData, FProperty* DestinationProperty, void* DestinationData)
+{
+	InstanceInfo.Push({SourceProperty, SourceData, DestinationProperty, DestinationData});
+	// check if warning was made more severe by this data
+	Warning = FMath::Max(Warning, GenerateWarning(SourceProperty, SourceData, DestinationProperty));
+}
+
+FInstanceDataObjectFixupPanel::FTypeConverter::operator bool() const
+{
+	return Warning != EWarning::InvalidConversion;
+}
+
+void FInstanceDataObjectFixupPanel::FTypeConverter::operator()() const
+{
+	check(Warning != EWarning::InvalidConversion);
+	for (const FInstanceInfo& Info : InstanceInfo)
+	{
+		TryConvert(Info.SourceProperty, Info.SourceData, Info.DestinationProperty, Info.DestinationData);
+	}
+}
+
+FText FInstanceDataObjectFixupPanel::FTypeConverter::GetWarning() const
+{
+	switch(Warning)
+	{
+	case EWarning::NarrowingConversion:
+		return LOCTEXT("NarrowingConversion", "This type conversion is a narrowing conversion. Likely data loss!");
+	case EWarning::NonInvertibleConversion:
+		return LOCTEXT("NonInvertibleConversion", "This type conversion is not an invertable operation. Likely data loss!");
+	case EWarning::InvalidConversion:
+		return LOCTEXT("InvalidConversion", "Invalid Conversion");
+	default:
+		return FText::GetEmpty();
+	}
+}
+
+bool FInstanceDataObjectFixupPanel::FTypeConverter::TryConvert(FProperty* SourceProperty, const void* SourceData, FProperty* DestinationProperty, void* DestinationData)
+{
+	TArray<uint8, TInlineAllocator<64>> Buffer;
+	TMemoryWriterBase<TInlineAllocator<64>> MemoryWriter(Buffer);
+	FStructuredArchiveFromArchive StructuredWriter(MemoryWriter);
+	SourceProperty->SerializeItem(StructuredWriter.GetSlot(), (uint8*)SourceData);
+	FMemoryReaderView MemoryReader(Buffer);
+	FStructuredArchiveFromArchive StructuredReader(MemoryReader);
+
+	// TODO: this breaks for static array elements.
+	void* DestinationContainer = static_cast<uint8*>(DestinationData) - DestinationProperty->GetOffset_ForInternal();
+
+	// todo: handle static arrays
+	FPropertyTag SourceTag(MemoryReader, SourceProperty, 0, (uint8*)SourceData, nullptr);
+
+	bool bResult = false;
+	switch(DestinationProperty->ConvertFromType(SourceTag, StructuredReader.GetSlot(), (uint8*)DestinationContainer, SourceProperty->GetOwnerStruct(), nullptr))
+	{
+	case EConvertFromTypeResult::UseSerializeItem:
+		if (SourceProperty->GetID() == DestinationProperty->GetID())
+		{
+			SourceTag.SerializeTaggedProperty(StructuredReader.GetSlot(), DestinationProperty, (uint8*)DestinationContainer, nullptr);
+			bResult = true;
+		}
+		break;
+	case EConvertFromTypeResult::Serialized:
+		bResult = true;
+		break;
+	case EConvertFromTypeResult::CannotConvert:
+		break;
+	case EConvertFromTypeResult::Converted:
+		bResult = true;
+		break;
+	}
+
+	if (!bResult)
+	{
+		bool bTryTextSerialize = false;
+
+		const auto IsStringType = [](const FProperty* Property)
+		{
+			return Property->IsA<FStrProperty>() || Property->IsA<FTextProperty>() || Property->IsA<FNameProperty>() || Property->IsA<FVerseStringProperty>();
+		};
+		
+		if (IsStringType(SourceProperty) || IsStringType(DestinationProperty))
+		{
+			// if either property is a string, text, or name, use text serialization
+			bTryTextSerialize = true;
+		}
+		else if (FStructProperty* SourceAsStructProperty = CastField<FStructProperty>(SourceProperty))
+		{
+			if (FStructProperty* DestinationAsStructProperty = CastField<FStructProperty>(DestinationProperty))
+			{
+				if (!SourceAsStructProperty->Struct->UseNativeSerialization() && !DestinationAsStructProperty->Struct->UseNativeSerialization())
+				{
+					// attempt to text serialize structs since ConvertFromType doesn't support them usually
+					bTryTextSerialize = true;
+				}
+			}
+		}
+
+		// use ExportText_Direct and ImportText_Direct
+		if (bTryTextSerialize)
+		{
+			FString StrBuffer;
+			SourceProperty->ExportText_Direct(StrBuffer, SourceData, nullptr, nullptr, PPF_None);
+			FStringOutputDevice ErrorOutput;
+			DestinationProperty->ImportText_Direct(*StrBuffer, DestinationData, nullptr, PPF_None, &ErrorOutput);
+			bResult = ErrorOutput.IsEmpty();
+		}
+	}
+
+	
+	return bResult;
+}
+
+FInstanceDataObjectFixupPanel::FTypeConverter::EWarning FInstanceDataObjectFixupPanel::FTypeConverter::GenerateWarning(FProperty* SourceProperty, const void* SourceData, FProperty* DestinationProperty)
+{
+	// convert from source to destination in a temp buffer to see if it's possible
+	TArray<uint8, TInlineAllocator<64>> SourceToDest;
+	SourceToDest.SetNumUninitialized(DestinationProperty->ElementSize);
+	DestinationProperty->InitializeValue(SourceToDest.GetData());
+	if (!TryConvert(SourceProperty, SourceData, DestinationProperty, SourceToDest.GetData()))
+	{
+		return EWarning::InvalidConversion;
+	}
+
+	// convert from destination to source in a temp buffer to see if it's possible
+	TArray<uint8, TInlineAllocator<64>> DestToSource;
+	DestToSource.SetNumUninitialized(SourceProperty->ElementSize);
+	SourceProperty->InitializeValue(DestToSource.GetData());
+	if (!TryConvert(DestinationProperty, SourceToDest.GetData(), SourceProperty, DestToSource.GetData()))
+	{
+		return EWarning::NonInvertibleConversion;
+	}
+
+	// check that the round trip result has the same value as source
+	if (!SourceProperty->Identical(SourceData, DestToSource.GetData(), PPF_None))
+	{
+		return EWarning::NarrowingConversion;
+	}
+	return EWarning::SafeConversion;
+}
+
+FInstanceDataObjectFixupPanel::FTypeConverter FInstanceDataObjectFixupPanel::CreateTypeConverter(const FPropertyPath& From, const FPropertyPath& To)
+{
+	FTypeConverter Result;
+	for (UObject* Instance : Instances)
+	{
+		FProperty* SourceProperty = From.GetLeafMostProperty().Property.Get();
+		const void* SourceData = ResolvePath(From, Instance);
+		FProperty* DestinationProperty = To.GetLeafMostProperty().Property.Get();
+		void* DestinationData = ResolvePath(To, Instance);
+		Result.Push(SourceProperty, SourceData, DestinationProperty, DestinationData);
+	}
+	return Result;
+}
+
+void FInstanceDataObjectFixupPanel::RedirectPropertyHelper(const FPropertyPath& From, const FPropertyPath& To, TOptional<FRevertInfo>& FromRevertInfo, FRevertInfo*& ToRevertInfo)
 {
 	UInstanceDataObjectFixupUndoHandler* Snapshot = NewObject<UInstanceDataObjectFixupUndoHandler>();
 	Snapshot->Init(SharedThis(this));
@@ -497,8 +653,6 @@ void FInstanceDataObjectFixupPanel::RedirectProperty(const FPropertyPath& From, 
 	FProperty* SourceProperty = From.GetLeafMostProperty().Property.Get();
 	check(SourceProperty);
 	FProperty* DestinationProperty = To.IsValid() ? To.GetLeafMostProperty().Property.Get() : nullptr;
-	FRevertInfo* ToRevertInfo = nullptr;
-	TOptional<FRevertInfo> FromRevertInfo;
 	
 	if (const FRevertInfo* Info = RevertInfo.Find(From))
 	{
@@ -558,16 +712,26 @@ void FInstanceDataObjectFixupPanel::RedirectProperty(const FPropertyPath& From, 
 	}
 
 	Snapshot->OnRedirect(From, To);
+}
+
+void FInstanceDataObjectFixupPanel::RedirectProperty(const FPropertyPath& From, const FPropertyPath& To)
+{
+	FProperty* SourceProperty = From.GetLeafMostProperty().Property.Get();
+	check(SourceProperty);
+	FProperty* DestinationProperty = To.IsValid() ? To.GetLeafMostProperty().Property.Get() : nullptr;
 	
-	if (!DestinationProperty)
+	TOptional<FRevertInfo> FromRevertInfo;
+	FRevertInfo* ToRevertInfo = nullptr;
+	RedirectPropertyHelper(From, To, FromRevertInfo, ToRevertInfo);
+	
+	if (!DestinationProperty) // null destination is interpreted as a deletion
 	{
 		MarkedForDelete.Add(From);
 		GEditor->EndTransaction();
-        DetailsView->ForceRefresh();
+		DetailsView->ForceRefresh();
 		return; // delete actions don't need data copied
 	}
 	
-
 	const uint8* FromRevertInfoItr = FromRevertInfo ? FromRevertInfo->OriginalValue.GetData() : nullptr;
 	for (UObject* Instance : Instances)
 	{
@@ -619,6 +783,70 @@ void FInstanceDataObjectFixupPanel::RedirectProperty(const FPropertyPath& From, 
 	}
 
 	GEditor->EndTransaction();
+	DetailsView->ForceRefresh();
+}
+
+void FInstanceDataObjectFixupPanel::RedirectProperty(const FPropertyPath& From, const FPropertyPath& To, const FTypeConverter& TypeConversion)
+{
+	const FProperty* SourceProperty = From.GetLeafMostProperty().Property.Get();
+	const FProperty* DestinationProperty = To.GetLeafMostProperty().Property.Get();
+	check(SourceProperty && DestinationProperty);
+	
+	TOptional<FRevertInfo> FromRevertInfo;
+	FRevertInfo* ToRevertInfo = nullptr;
+	RedirectPropertyHelper(From, To, FromRevertInfo, ToRevertInfo);
+	
+	const uint8* FromRevertInfoItr = FromRevertInfo ? FromRevertInfo->OriginalValue.GetData() : nullptr;
+	TArray<FPropertyChangedEvent> ChangeEvents;
+	TArray<FEditPropertyChain> Chains;
+
+	// call PreEditChange and set up undo handling
+	for (UObject* Instance : Instances)
+	{
+		void* Source = ResolvePath(From, Instance);
+		void* Destination = ResolvePath(To, Instance);
+		
+		if (!ensure(Source && Destination))
+		{
+			continue;
+		}
+		
+		// construct change event
+		Chains.Emplace();
+		TMap<FString, int32> ArrayIndices;
+		ChangeEvents.Add(ConstructChangeEventForRedirect(To, Chains.Last(), ArrayIndices));
+		FOverridableManager::Get().PreOverrideProperty(*Instance, Chains.Last());
+		Instance->PreEditChange(ChangeEvents.Last().Property);
+
+		if (ToRevertInfo)
+		{
+			// cache the destination value so it can be reverted later
+			const int32 Size = DestinationProperty->ArrayDim * DestinationProperty->ElementSize;
+			ToRevertInfo->OriginalValue.AddZeroed(Size);
+			uint8* Buffer = ToRevertInfo->OriginalValue.GetData() + (ToRevertInfo->OriginalValue.Num() - Size);
+			DestinationProperty->CopyCompleteValue(Buffer, Destination);
+		}
+	}
+
+	// applied to all instances at once
+	TypeConversion();
+
+	// call post edit change and apply undo handling
+	for (int32 I = 0; I < Instances.Num(); ++I)
+	{
+		UObject* Instance = Instances[I];
+		void* Source = ResolvePath(From, Instance);
+		if (FromRevertInfo)
+		{
+			// apply FromRevertInfo to From
+			SourceProperty->CopyCompleteValue(Source, FromRevertInfoItr);
+			FromRevertInfoItr += DestinationProperty->ArrayDim * DestinationProperty->ElementSize;
+		}
+		Instance->PostEditChangeProperty(ChangeEvents[I]);
+		FOverridableManager::Get().PostOverrideProperty(*Instance, ChangeEvents[I], Chains[I]);
+	}
+
+	GEditor->EndTransaction();
 	
 	DetailsView->ForceRefresh();
 }
@@ -626,6 +854,11 @@ void FInstanceDataObjectFixupPanel::RedirectProperty(const FPropertyPath& From, 
 void FInstanceDataObjectFixupPanel::OnRedirectProperty(FPropertyPath From, FPropertyPath To)
 {
 	RedirectProperty(From, To);
+}
+
+void FInstanceDataObjectFixupPanel::OnRedirectProperty(FPropertyPath From, FPropertyPath To, FTypeConverter TypeConversion)
+{
+	RedirectProperty(From, To, TypeConversion);
 }
 
 static void InitRedirectedPropertyTreeRec(const TSharedPtr<FRedirectedPropertyNode>& Node, FProperty* Property, void* Value, TSet<UObject*>& EnteredObjects);

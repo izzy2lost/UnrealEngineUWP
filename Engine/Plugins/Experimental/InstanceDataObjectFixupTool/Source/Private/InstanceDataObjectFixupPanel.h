@@ -83,14 +83,68 @@ public:
 	TSharedPtr<IDetailsView> DetailsView;
 	TSharedPtr<SLinkableScrollBar> LinkableScrollBar;
 
+	// functor used to generate warnings about a type conversion (or set of conversions) and invoke that conversion on demand
+	struct FTypeConverter
+	{
+		FTypeConverter() = default;
+		
+		// add a conversion that should be performed call operator is invoked.
+		void Push(FProperty* SourceProperty, const void* SourceData, FProperty* DestinationProperty, void* DestinationData);
+
+		// return whether this is a valid conversion. (only true if all conversions pushed are valid)
+		operator bool() const;
+
+		// run conversion on all pushed data
+		void operator()() const;
+
+		// return the most severe text warning for the conversions pushed.
+		FText GetWarning() const;
+	private:
+		enum class EWarning
+		{
+			// sorted by least severe to most severe.
+			SafeConversion,
+			NarrowingConversion,
+			NonInvertibleConversion,
+			InvalidConversion,
+		};
+		struct FInstanceInfo
+		{
+			FProperty* SourceProperty;
+			const void* SourceData;
+			FProperty* DestinationProperty;
+			void* DestinationData;
+		};
+		
+		static bool TryConvert(FProperty* SourceProperty, const void* SourceData, FProperty* DestinationProperty, void* DestinationData);
+		static EWarning GenerateWarning(FProperty* SourceProperty, const void* SourceData, FProperty* DestinationProperty);
+
+		// most severe conversion warning found in all the pushed data
+		EWarning Warning = EWarning::SafeConversion;
+
+		TArray<FInstanceInfo> InstanceInfo;
+	};
+	
+	FTypeConverter CreateTypeConverter(const FPropertyPath& From, const FPropertyPath& To);
+
 private:
 	friend class FInstanceDataObjectFixupSpecification; // for access to Redirects
 	friend class FInstanceDataObjectNameWidgetOverride;
 	friend class UInstanceDataObjectFixupUndoHandler;
-	
+	struct FRevertInfo
+	{
+		TArray<uint8> OriginalValue;
+		FPropertyPath OriginalPath;
+		bool bWasTransient;
+		bool bWasHidden;
+	};
+
+	void RedirectPropertyHelper(const FPropertyPath& From, const FPropertyPath& To, TOptional<FRevertInfo>& FromRevertInfo, FRevertInfo*& ToRevertInfo);
 	void RedirectProperty(const FPropertyPath& From, const FPropertyPath& To);
+	void RedirectProperty(const FPropertyPath& From, const FPropertyPath& To, const FTypeConverter& TypeConversion);
 	// pass-by-copy version for delegates. Use RedirectProperty when possible
 	void OnRedirectProperty(FPropertyPath From, FPropertyPath To);
+	void OnRedirectProperty(FPropertyPath From, FPropertyPath To, FTypeConverter TypeConversion);
 	
 	void InitRedirectedPropertyTree();
 	
@@ -100,13 +154,6 @@ private:
 	// redirected to from a floating property. The members of the tree are visible in the left panel.
 	TSharedPtr<FRedirectedPropertyNode> RedirectedPropertyTree;
 
-	struct FRevertInfo
-	{
-		TArray<uint8> OriginalValue;
-		FPropertyPath OriginalPath;
-		bool bWasTransient;
-		bool bWasHidden;
-	};
 	
 	TMap<FPropertyPath, FRevertInfo> RevertInfo;
 	TSet<FPropertyPath> MarkedForDelete;
