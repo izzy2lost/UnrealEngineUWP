@@ -836,13 +836,24 @@ bool FUnrealVirtualizationToolApp::LaunchChildProcess(const FCommand& Command, c
 		const bool bLaunchDetached = false;
 		const bool bLaunchHidden = true;
 		const bool bLaunchReallyHidden = true;
-		uint32 ProcessId = INDEX_NONE;
+
 		const int32 Priority = 0;
 		const TCHAR* WorkingDirectory = nullptr;
 
 		FProcessPipes Pipes;
-		FProcHandle Handle = FPlatformProcess::CreateProc(*CurrentExePath, *Args, bLaunchDetached, bLaunchHidden, bLaunchReallyHidden,
-			/*OutProcessID*/ nullptr, Priority, WorkingDirectory, Pipes.GetStdIn(), Pipes.GetStdOut());
+		FProcHandle Handle = FPlatformProcess::CreateProc
+		(
+			*CurrentExePath,
+			*Args,
+			bLaunchDetached,
+			bLaunchHidden,
+			bLaunchReallyHidden,
+			/*OutProcessID*/ nullptr,
+			Priority,
+			WorkingDirectory,
+			Pipes.GetStdOutForProcess(),
+			Pipes.GetStdInForProcess()
+		);
 
 		{
 			TRACE_CPUPROFILER_EVENT_SCOPE(WaitOnChildProcess);

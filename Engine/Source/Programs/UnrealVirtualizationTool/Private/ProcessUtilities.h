@@ -16,29 +16,21 @@ struct FProcessPipes
 {
 	FProcessPipes()
 	{
-		verify(FPlatformProcess::CreatePipe(StdOut, StdIn));
+		verify(FPlatformProcess::CreatePipe(StdOutReadPipe, StdOutWritePipe, false));
+		verify(FPlatformProcess::CreatePipe(StdInReadPipe, StdInWritePipe, true));
 	}
 
 	~FProcessPipes()
 	{
-		FPlatformProcess::ClosePipe(StdOut, StdIn);
-	}
-
-	void* GetStdIn() const
-	{
-		return StdIn;
-	}
-
-	void* GetStdOut() const
-	{
-		return StdOut;
+		FPlatformProcess::ClosePipe(StdOutReadPipe, StdOutWritePipe);
+		FPlatformProcess::ClosePipe(StdInReadPipe, StdInWritePipe);
 	}
 
 	void ProcessStdOut()
 	{
-		check(StdOut != nullptr);
+		check(GetStdOutForReading() != nullptr);
 
-		FString Output = FPlatformProcess::ReadPipe(StdOut);
+		FString Output = FPlatformProcess::ReadPipe(GetStdOutForReading());
 
 		while (!Output.IsEmpty())
 		{
@@ -50,13 +42,37 @@ struct FProcessPipes
 				UE_LOG(LogVirtualizationTool, Display, TEXT("Child Process-> %s"), *Line);
 			}
 
-			Output = FPlatformProcess::ReadPipe(StdOut);
+			Output = FPlatformProcess::ReadPipe(GetStdOutForReading());
 		}
 	}
 
+	void* GetStdInForProcess() const
+	{
+		return StdInReadPipe;
+	}
+
+	void* GetStdInForWriting() const
+	{
+		return StdInWritePipe;
+	}
+
+	void* GetStdOutForProcess() const
+	{
+		return StdOutWritePipe;
+	}
+
+	void* GetStdOutForReading() const
+	{
+		return StdOutReadPipe;
+	}
+
 private:
-	void* StdIn = nullptr;
-	void* StdOut = nullptr;
+
+	void* StdOutReadPipe = nullptr;
+	void* StdOutWritePipe = nullptr;
+
+	void* StdInReadPipe = nullptr;
+	void* StdInWritePipe = nullptr;
 };
 
 } // namespace UE::Virtualization
