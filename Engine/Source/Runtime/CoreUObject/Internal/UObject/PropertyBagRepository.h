@@ -50,7 +50,10 @@ private:
 	// used to make sure IDOs don't have name overlap
 	TMap<const UObjectBase*, TObjectPtr<UObject>> Namespaces;
 
-	FPropertyBagRepository() = default;
+	/** Internal registry that tracks the current set of types for property bag container objects instanced as placeholders for package exports that have invalid or missing class imports on load. */
+	TUniquePtr<class FPropertyBagTypeRegistry> PropertyBagTypeRegistry;
+
+	FPropertyBagRepository();
 
 public:
 	FPropertyBagRepository(const FPropertyBagRepository &) = delete;
@@ -105,8 +108,15 @@ public:
 	// query whether a property in Struct was set when the struct was deserialized
 	COREUOBJECT_API static bool WasPropertySetBySerialization(const UStruct* Struct, const void* StructData, const FProperty* Property, int32 ArrayIndex = 0);
 
+	// FGCObject interface
 	virtual void AddReferencedObjects(FReferenceCollector& Collector) override;
 	virtual FString GetReferencerName() const override;
+	// End FGCObject interface
+
+	// add a new placeholder type to swap in for a missing type on load; this will be associated with a property bag when instances are serialized so we don't lose its data
+	static void AddPropertyBagPlaceholderType(UClass* ClassType);
+	// query for whether or not the given class has been registered as a placeholder type
+	static COREUOBJECT_API bool IsPropertyBagPlaceholderType(UClass* ClassType);
 
 private:
 	void Lock() const { CriticalSection.Lock(); }

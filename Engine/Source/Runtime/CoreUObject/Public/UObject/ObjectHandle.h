@@ -41,6 +41,7 @@ using FObjectHandle = UObject*;
 
 inline bool IsObjectHandleNull(FObjectHandle Handle);
 inline bool IsObjectHandleResolved(FObjectHandle Handle);
+inline bool IsObjectHandleTypeSafe(FObjectHandle Handle);
 
 //Private functions that forced public due to inlining.
 namespace UE::CoreUObject::Private
@@ -109,6 +110,18 @@ inline bool IsObjectHandleResolved(FObjectHandle Handle)
 {
 #if UE_WITH_OBJECT_HANDLE_LATE_RESOLVE
 	return !(Handle.PointerOrRef & 1);
+#else
+	return true;
+#endif
+}
+
+/* return true if a handle is type safe.
+ * null and unresolved handles are considered safe
+ */ 
+inline bool IsObjectHandleTypeSafe(FObjectHandle Handle)
+{
+#if UE_WITH_OBJECT_HANDLE_TYPE_SAFETY
+	return IsObjectHandleNull(Handle) || !IsObjectHandleResolved(Handle) || !UE::CoreUObject::Private::HasAnyFlags(UE::CoreUObject::Private::ReadObjectHandlePointerNoCheck(Handle), static_cast<int32>(RF_HasPlaceholderType));
 #else
 	return true;
 #endif

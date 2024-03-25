@@ -1,7 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "UObject/PropertyBagRepository.h"
-
+#include "Containers/Queue.h"
 #include "Serialization/ObjectReader.h"
 #include "Serialization/ObjectWriter.h"
 #include "UObject/GarbageCollection.h"
@@ -14,11 +14,55 @@
 #include "UObject/InstanceDataObjectUtils.h"
 #include "UObject/Package.h"
 
-
 DEFINE_LOG_CATEGORY_STATIC(LogPropertyBagRepository, Log, All);
 
 namespace UE
 {
+
+class FPropertyBagTypeRegistry
+{
+public:
+	void AddReferencedObjects(FReferenceCollector& Collector)
+	{
+		ConsumePendingPlaceholderTypes();
+		Collector.AddReferencedObjects(PlaceholderTypes);
+	}
+
+	void Add(UClass* Class)
+	{
+		PendingPlaceholderTypes.Enqueue(Class);
+	}
+
+	bool Contains(UClass* Class)
+	{
+		ConsumePendingPlaceholderTypes();
+		return PlaceholderTypes.Contains(Class);
+	}
+
+protected:
+	void ConsumePendingPlaceholderTypes()
+	{
+		if (!PendingPlaceholderTypes.IsEmpty())
+		{
+			FScopeLock ScopeLock(&CriticalSection);
+
+			TObjectPtr<UClass> Class;
+			while(PendingPlaceholderTypes.Dequeue(Class))
+			{
+				PlaceholderTypes.Add(Class);
+			}
+		}
+	}
+
+private:
+	FCriticalSection CriticalSection;
+
+	// List of types that have been registered.
+	TSet<TObjectPtr<UClass>> PlaceholderTypes;
+
+	// Types that have been added but not yet registered. Utilizes a thread-safe queue so we can avoid race conditions during an async load.
+	TQueue<TObjectPtr<UClass>> PendingPlaceholderTypes;
+};
 
 class FPropertyBagRepositoryLock
 {
@@ -68,6 +112,11 @@ FPropertyBagRepository& FPropertyBagRepository::Get()
 {
 	static FPropertyBagRepository Repo;
 	return Repo;
+}
+
+FPropertyBagRepository::FPropertyBagRepository()
+{
+	PropertyBagTypeRegistry = MakeUnique<FPropertyBagTypeRegistry>();
 }
 
 void FPropertyBagRepository::ReassociateObjects(const TMap<UObject*, UObject*>& ReplacedObjects)
@@ -201,6 +250,8 @@ void FPropertyBagRepository::AddReferencedObjects(FReferenceCollector& Collector
 	{
 		Collector.AddReferencedObject(Element.Value);
 	}
+
+	PropertyBagTypeRegistry->AddReferencedObjects(Collector);
 }
 
 FString FPropertyBagRepository::GetReferencerName() const
@@ -272,6 +323,26 @@ void FPropertyBagRepository::ShrinkMaps()
 {
 	FPropertyBagRepositoryLock LockRepo(this);
 	AssociatedData.Compact();
+}
+
+bool FPropertyBagRepository::IsPropertyBagPlaceholderType(UClass* ClassType)
+{
+	if (!ClassType)
+	{
+		return false;
+	}
+
+	return FPropertyBagRepository::Get().PropertyBagTypeRegistry->Contains(ClassType);
+}
+
+void FPropertyBagRepository::AddPropertyBagPlaceholderType(UClass* ClassType)
+{
+	if (!ClassType)
+	{
+		return;
+	}
+
+	FPropertyBagRepository::Get().PropertyBagTypeRegistry->Add(ClassType);
 }
 
 } // UE

@@ -38,6 +38,7 @@
 #include "UObject/LinkerPlaceholderFunction.h"
 #include "UObject/LinkerManager.h"
 #include "UObject/ObjectSerializeAccessScope.h"
+#include "UObject/PropertyBagRepository.h"
 #include "Serialization/DeferredMessageLog.h"
 #include "UObject/UObjectThreadContext.h"
 #include "Serialization/AsyncLoading.h"
@@ -4037,6 +4038,70 @@ UClass* FLinkerLoad::GetExportLoadClass(int32 Index)
 	return dynamic_cast<UClass*>(IndexToObject(Export.ClassIndex));
 }
 
+#if WITH_EDITOR
+UClass* FLinkerLoad::TryCreatePlaceholderTypeForExport(int32 ExportIndex)
+{
+	UClass* LoadClass = nullptr;
+	FObjectExport& Export = ExportMap[ExportIndex];
+
+	// If the class import is missing, create a placeholder for this export. This will allow us to instance and redirect its data into a property bag.
+	// Note: This is only possible if the missing type did not also include any custom serialization, so we currently rely on the load context for this.
+	FUObjectSerializeContext* CurrentLoadContext = GetSerializeContext();
+	if (CurrentLoadContext && CurrentLoadContext->bSerializeUnknownProperty && Export.ClassIndex.IsImport() && !GEventDrivenLoaderEnabled)
+	{
+		FObjectImport& LoadClassImport = Imp(Export.ClassIndex);
+
+		// If the outer package import is also missing, create it now so that the full path remains the same. 
+		UObject* LoadClassParent = IndexToObject(LoadClassImport.OuterIndex);
+		if (!LoadClassParent && LoadClassImport.OuterIndex.IsImport())
+		{
+			FObjectImport& LoadClassParentImport = Imp(LoadClassImport.OuterIndex);
+			if (LoadClassParentImport.OuterIndex.IsNull())
+			{
+				LoadClassParent = CreatePackage(*LoadClassParentImport.ObjectName.ToString());
+
+				// Patch it into the import table so that we resolve to this package for future reference.
+				LoadClassParentImport.XObject = LoadClassParent;
+			}
+		}
+
+		if (LoadClassParent)
+		{
+			if (UObject* LoadClassTypePackage = FindObjectFast<UPackage>(nullptr, LoadClassImport.ClassPackage, /*bExactClass =*/ true))
+			{
+				if (UClass* LoadClassType = FindObjectFast<UClass>(LoadClassTypePackage, LoadClassImport.ClassName, /*bExactClass =*/ false))
+				{
+					// Create an opaque, non-native subtype that has no reflected properties. 
+					LoadClass = NewObject<UClass>(LoadClassParent, LoadClassType, LoadClassImport.ObjectName);
+					LoadClass->SetSuperStruct(UObject::StaticClass());
+					LoadClass->Bind();
+					LoadClass->StaticLink(/*bRelinkExistingProperties =*/ true);
+
+					// Create and configure its CDO as if it were loaded - for non-native class types, this is required.
+					UObject* LoadClassDefaults = LoadClass->GetDefaultObject();
+					LoadClass->PostLoadDefaultObject(LoadClassDefaults);
+
+					// Indicate that the CDO has a placeholder type (in case something has serialized a reference to it).
+					LoadClassDefaults->SetFlags(RF_HasPlaceholderType);
+
+					// This class is for internal use and should not be exposed for selection or instancing in the editor.
+					LoadClass->ClassFlags |= CLASS_Hidden | CLASS_HideDropDown;
+
+					// Patch it into the import table so that we resolve to this class for any future exports of this type.
+					LoadClassImport.XObject = LoadClass;
+
+					// Use the property bag repository for now to manage property bag placeholder types (e.g. object lifetime).
+					// Note: The object lifetime of instances of this type will rely on existing references that are serialized.
+					UE::FPropertyBagRepository::AddPropertyBagPlaceholderType(LoadClass);
+				}
+			}
+		}
+	}
+
+	return LoadClass;
+}
+#endif
+
 #if WITH_EDITORONLY_DATA
 int32 FLinkerLoad::LoadMetaDataFromExportMap(bool bForcePreload)
 {
@@ -4524,10 +4589,21 @@ void FLinkerLoad::Preload( UObject* Object )
 				check(Export.Object==Object);
 
 				const int64 SavedPos = Loader->Tell();
+				int64 StartPos = Export.SerialOffset;
+				int64 ExpectedSerialSize = Export.SerialSize;
+
+				// for placeholder objects that have no explicit type, we only want to serialize the TPS stream
+				const bool bSerializeOnlyScriptProperties = Object->HasAnyFlags(RF_HasPlaceholderType);
+				if (bSerializeOnlyScriptProperties)
+				{
+					// note: script start/end offsets are relative to the export's offset in the file
+					StartPos += Export.ScriptSerializationStartOffset;
+					ExpectedSerialSize = Export.ScriptSerializationEndOffset;
+				}
 
 				// move to the position in the file where this object's data
 				// is stored
-				Seek(Export.SerialOffset);
+				Seek(StartPos);
 
 				FAsyncArchive* AsyncLoader = GetAsyncLoader();
 
@@ -4656,14 +4732,30 @@ void FLinkerLoad::Preload( UObject* Object )
 							{
 								FStructuredArchiveChildReader ChildReader(ExportSlot);
 								FArchiveUObjectFromStructuredArchive Adapter(ChildReader.GetRoot());
-								Object->Serialize(Adapter.GetArchive());
+
+								if (bSerializeOnlyScriptProperties)
+								{
+									Object->SerializeScriptProperties(Adapter.GetArchive());
+								}
+								else
+								{
+									Object->Serialize(Adapter.GetArchive());
+								}
 							}
 						}
 						else
 #endif
 						{
 							UE_SERIALIZE_ACCCESS_SCOPE(Object);
-							Object->Serialize(*this);
+
+							if (bSerializeOnlyScriptProperties)
+							{
+								Object->SerializeScriptProperties(*this);
+							}
+							else
+							{
+								Object->Serialize(*this);
+							}
 						}
 
 						Object->SetFlags(RF_LoadCompleted);
@@ -4736,16 +4828,16 @@ void FLinkerLoad::Preload( UObject* Object )
 
 				// Make sure we serialized the right amount of stuff.
 				int64 Pos = Tell();
-				int64 SizeSerialized = Pos - Export.SerialOffset;
-				if( SizeSerialized != Export.SerialSize )
+				int64 SizeSerialized = Pos - StartPos;
+				if( SizeSerialized != ExpectedSerialSize )
 				{
 					if (Object->GetClass()->HasAnyClassFlags(CLASS_Deprecated))
 					{
-						UE_ASSET_LOG(LogLinker, Warning, PackagePath, TEXT("%s: Serial size mismatch: Got %d, Expected %d"), *Object->GetFullName(), (int32)SizeSerialized, Export.SerialSize);
+						UE_ASSET_LOG(LogLinker, Warning, PackagePath, TEXT("%s: Serial size mismatch: Got %d, Expected %d"), *Object->GetFullName(), (int32)SizeSerialized, ExpectedSerialSize);
 					}
 					else
 					{
-						UE_ASSET_LOG(LogLinker, Fatal, PackagePath, TEXT("%s: Serial size mismatch: Got %d, Expected %d"), *Object->GetFullName(), (int32)SizeSerialized, Export.SerialSize);
+						UE_ASSET_LOG(LogLinker, Fatal, PackagePath, TEXT("%s: Serial size mismatch: Got %d, Expected %d"), *Object->GetFullName(), (int32)SizeSerialized, ExpectedSerialSize);
 					}
 				}
 
@@ -4932,12 +5024,19 @@ UObject* FLinkerLoad::CreateExport( int32 Index )
 		UClass* LoadClass = GetExportLoadClass(Index);
 		if( !LoadClass && !Export.ClassIndex.IsNull() ) // Hack to load packages with classes which do not exist.
 		{
-			Export.bExportLoadFailed = true;
+#if WITH_EDITOR
+			// Try creating a placeholder type for it. This may allow us to instance and redirect its data into a property bag (to avoid data loss).
+			LoadClass = TryCreatePlaceholderTypeForExport(Index);
+			if (!LoadClass)
+#endif
+			{
+				Export.bExportLoadFailed = true;
 
-			FString OuterName = Export.OuterIndex.IsNull() ? LinkerRoot->GetFullName() : GetFullImpExpName(Export.OuterIndex);
-			FString ClassName = GetClassName(Export.ThisIndex).ToString();
-			UE_CLOG(Export.ObjectFlags & EObjectFlags::RF_Public, LogLinker, Warning, TEXT("Unable to load %s with outer %s because its class (%s) does not exist"), *Export.ObjectName.ToString(), *OuterName, *ClassName);
-			return nullptr;
+				FString OuterName = Export.OuterIndex.IsNull() ? LinkerRoot->GetFullName() : GetFullImpExpName(Export.OuterIndex);
+				FString ClassName = GetClassName(Export.ThisIndex).ToString();
+				UE_CLOG(Export.ObjectFlags & EObjectFlags::RF_Public, LogLinker, Warning, TEXT("Unable to load %s with outer %s because its class (%s) does not exist"), *Export.ObjectName.ToString(), *OuterName, *ClassName);
+				return nullptr;
+			}
 		}
 
 #if WITH_EDITOR
@@ -5340,7 +5439,7 @@ UObject* FLinkerLoad::CreateExport( int32 Index )
 			Export.bIsInheritedInstance = false;
 		}
 
-		LoadClass->GetDefaultObject();
+		const UObject* LoadClassDefaultObject = LoadClass->GetDefaultObject();
 
 		FStaticConstructObjectParameters Params(LoadClass);
 		Params.Outer = ThisParent;
@@ -5349,6 +5448,12 @@ UObject* FLinkerLoad::CreateExport( int32 Index )
 		Params.Template = Template;
 		// if our outer is actually an import, then the package we are an export of is not in our outer chain, set our package in that case
 		Params.ExternalPackage = Export.OuterIndex.IsImport() ? LinkerRoot : nullptr;
+
+		// If we're instancing from a placeholder type, set the object flag (so that we can quickly determine that it's a placeholder object).
+		if (LoadClassDefaultObject && LoadClassDefaultObject->HasAnyFlags(RF_HasPlaceholderType))
+		{
+			Params.SetFlags |= RF_HasPlaceholderType;
+		}
 
 		// Propagate relevant properties from the outer package to the external package
 		if (Params.ExternalPackage)
@@ -6047,7 +6152,15 @@ FArchive& FLinkerLoad::operator<<( UObject*& Object )
 	Ar << Index;
 
 	Object = ResolveResource(Index);
-
+#if WITH_EDITOR
+	if (Object && Object->HasAnyFlags(RF_HasPlaceholderType))
+	{
+		// This is needed because the pointer's type is checked only at compile time, which may not match the property
+		// bag placeholder object's type at runtime, and so we can't allow it to be dereferenced as the wrong base type.
+		// Note: These currently won't be discovered for replacement at reinstancing time, so it will remain set to NULL.
+		Object = nullptr;
+	}
+#endif
 	return *this;
 }
 
@@ -6057,28 +6170,41 @@ FArchive& FLinkerLoad::operator<<(FObjectPtr& ObjectPtr)
 	FArchive& Ar = *this;
 	Ar << Index;
 
-#if !UE_WITH_OBJECT_HANDLE_LATE_RESOLVE
-	ObjectPtr = FObjectPtr(ResolveResource(Index));
-	return *this;
+	// Wrapper that only allows pointers to exports with placeholder types when type safety features are enabled.
+	auto AsTypeSafeObjectPtr_Lambda = [](UObject* ResolvedObject)
+	{
+#if WITH_EDITOR && !UE_WITH_OBJECT_HANDLE_TYPE_SAFETY
+		// If we can't mask the reference to the placeholder object instance at resolve time, set it now to NULL.
+		// Note: Similar to hard references above, this means we won't find it for replacement at reinstancing time.
+		if (ResolvedObject && ResolvedObject->HasAnyFlags(RF_HasPlaceholderType))
+		{
+			ResolvedObject = nullptr;
+		}
+#endif
+		return FObjectPtr(ResolvedObject);
+	};
 
-#else
-	auto AssetRegistry = IAssetRegistryInterface::GetPtr();
+#if UE_WITH_OBJECT_HANDLE_LATE_RESOLVE
+	IAssetRegistryInterface* AssetRegistry = IAssetRegistryInterface::GetPtr();
 
 	if (!Index.IsImport() || !AssetRegistry)
 	{
-		ObjectPtr = FObjectPtr(ResolveResource(Index));
-		return *this;
+		ObjectPtr = AsTypeSafeObjectPtr_Lambda(ResolveResource(Index));
 	}
-
-	using namespace UE::LinkerLoad;
-	FObjectImport& Import = Imp(Index);
-	if (!TryLazyImport(*AssetRegistry, Import, *this, ObjectPtr))
+	else
 	{
-		ObjectPtr = FObjectPtr(ResolveResource(Index));
+		using namespace UE::LinkerLoad;
+		FObjectImport& Import = Imp(Index);
+		if (!TryLazyImport(*AssetRegistry, Import, *this, ObjectPtr))
+		{
+			ObjectPtr = AsTypeSafeObjectPtr_Lambda(ResolveResource(Index));
+		}
 	}
-	return *this;
-	
+#else
+	ObjectPtr = AsTypeSafeObjectPtr_Lambda(ResolveResource(Index));
 #endif
+
+	return *this;
 }
 
 FArchive& FLinkerLoad::operator<<(FSoftObjectPath& Value)

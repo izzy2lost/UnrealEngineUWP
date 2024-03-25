@@ -856,6 +856,18 @@ private:
 	 */
 	UClass* GetExportLoadClass(int32 ExportIndex);
 
+#if WITH_EDITOR
+	/**
+	 * Utility function to create a placeholder type for the specified export.
+	 * This will be called if the export could not resolve its LoadClass import.
+	 * In that case, its data might still be serializable (into a property bag).
+	 *
+	 * @param  ExportIndex    Index of the export that's missing its type.
+	 * @return The placeholder type that will be used to load the export's data.
+	 */
+	UClass* TryCreatePlaceholderTypeForExport(int32 ExportIndex);
+#endif
+
 #if WITH_EDITORONLY_DATA
 	/** 
 	 * Looks for and loads meta data object from export map.
