@@ -1512,6 +1512,21 @@ void FPBDRigidsEvolutionGBF::ApplyParticleTransformCorrectionImpl(FGeometryParti
 	}
 }
 
+void FPBDRigidsEvolutionGBF::ApplySleepOnConnectedParticles(FGeometryParticleHandle* InParticle)
+{
+	TArray<FGeometryParticleHandle*> ConnectedParticles = GetConnectedParticles(InParticle);
+	for (FGeometryParticleHandle* ConnectedParticle : ConnectedParticles)
+	{
+		if (FGenericParticleHandle(ConnectedParticle)->ObjectState() == EObjectStateType::Dynamic)
+		{
+			if (FPBDRigidParticleHandle* Rigid = ConnectedParticle->CastToRigidParticle())
+			{
+				SetParticleObjectState(Rigid, EObjectStateType::Sleeping);
+			}
+		}
+	}
+}
+
 TArray<FGeometryParticleHandle*> FPBDRigidsEvolutionGBF::GetConnectedParticles(FGeometryParticleHandle* InParticle)
 {
 	if (InParticle->ParticleConstraints().IsEmpty())

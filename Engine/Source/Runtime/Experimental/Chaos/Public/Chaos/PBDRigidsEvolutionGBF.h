@@ -186,6 +186,11 @@ namespace Chaos
 		 */
 		CHAOS_API void ApplyParticleTransformCorrection(FGeometryParticleHandle* InParticle, const FVec3& InPos, const FRotation3& InRot, const bool bApplyToConnectedBodies, const bool bInRecalculateFrictionOnConnectedBodies = true);
 
+		/*
+		* [EXPERIMENTAL] Apply sleep state on connected particles that are dynamic
+		*/
+		CHAOS_API void ApplySleepOnConnectedParticles(FGeometryParticleHandle* InParticle);
+
 		/**
 		 * Called when a particle is moved. We need to reset some friction properties, sleeping properties, etc
 		 */

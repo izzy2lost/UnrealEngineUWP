@@ -205,6 +205,9 @@ namespace PhysicsReplicationCVars
 
 		bool bCorrectConnectedBodiesFriction = true;
 		static FAutoConsoleVariableRef CVarCorrectConnectedBodiesFriction(TEXT("np2.PredictiveInterpolation.CorrectConnectedBodiesFriction"), bCorrectConnectedBodiesFriction, TEXT("When true, transform correction on any connected physics object will also recalculate their friction."));
+		
+		bool bSleepConnectedBodies = true;
+		static FAutoConsoleVariableRef CVarSleepConnectedBodies(TEXT("np2.PredictiveInterpolation.SleepConnectedBodies"), bSleepConnectedBodies, TEXT("When true, sleep state will be applied to any dynamic physics object connected to the replicated object."));
 
 		bool bDisableSoftSnap = false;
 		static FAutoConsoleVariableRef CVarDisableSoftSnap(TEXT("np2.PredictiveInterpolation.DisableSoftSnap"), bDisableSoftSnap, TEXT("When true, predictive interpolation will not use softsnap to correct the replication with when velocity fails. Hardsnap will still eventually kick in if replication can't reach the target."));
@@ -1492,6 +1495,10 @@ bool FPhysicsReplicationAsync::PredictiveInterpolation(Chaos::FPBDRigidParticleH
 		if (bOkToClear && bShouldSleep && bCanSimulate)
 		{
 			RigidsSolver->GetEvolution()->SetParticleObjectState(Handle, Chaos::EObjectStateType::Sleeping);
+			if (PhysicsReplicationCVars::PredictiveInterpolationCVars::bSleepConnectedBodies)
+			{
+				RigidsSolver->GetEvolution()->ApplySleepOnConnectedParticles(Handle);
+			}
 		}
 
 		// --- Should replication stop? ---
