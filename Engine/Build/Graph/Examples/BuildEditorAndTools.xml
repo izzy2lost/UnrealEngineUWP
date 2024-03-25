@@ -175,7 +175,10 @@
 		</Node>
 
 		<!-- Upload binaries to Horde -->
-		<Artifact Name="editor" Description="Editor PCBs" Type="ugs-pcb" BasePath="$(ArchiveStagingRelativeDir)" Keys="target:$(EditorTarget)" Tag="#PublishBinaries"/>
+		<Property Name="UgsProjectKey" Value=""/>
+		<Property Name="UgsProjectKey" Value="ugs-project=$(Branch)/$(UProjectPath)" If="'$(Branch)' != '' and '$(UProjectPath)' != ''"/>
+		<Property Name="UgsProjectKey" Value="ugs-project=$(Branch)" If="'$(Branch)' != '' and '$(UgsProjectKey)' == ''"/>
+		<Artifact Name="editor" Description="Editor PCBs" Type="ugs-pcb" BasePath="$(ArchiveStagingRelativeDir)" Keys="$(UgsProjectKey)" Metadata="ArchiveType=Editor" Tag="#PublishBinaries"/>
 		
 	</Agent>
 
