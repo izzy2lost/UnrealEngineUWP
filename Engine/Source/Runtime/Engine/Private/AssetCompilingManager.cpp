@@ -29,6 +29,7 @@ LLM_DEFINE_TAG(AssetCompilation, NAME_None, NAME_None, GET_STATFNAME(STAT_AssetC
 #include "DerivedDataThreadPoolTask.h"
 #include "Features/IModularFeatures.h"
 #include "Interfaces/Interface_AsyncCompilation.h"
+#include "Logging/StructuredLog.h"
 #endif
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(AssetCompilingManager)
@@ -292,12 +293,14 @@ public:
 					DebugName = TEXT("No DebugName");
 				}
 
-				UE_LOG(LogAsyncCompilation, Display, TEXT("AssetCompile memory estimate is greater than available, but we're running it [%s] anyway, likely to fail! ")
-					TEXT("RequiredMemory = %.3f MB + %.3f MB MemoryLimit = %.3f MB "),
-					DebugName,
-					NewRequiredMemory/(1024*1024.f),
-					TotalEstimatedMemory/(1024*1024.f),
-					MemoryLimit/(1024*1024.f));
+				UE_LOGFMT_NSLOC(LogAsyncCompilation, Warning, "AsyncAssetCompilation", "MemoryLimitExceeded",
+					"AssetCompile memory estimate is greater than available, but we're running it [{TaskName}] anyway, likely to fail! "
+					"RequiredMemory = {TotalEstimatedMemory} MiB + {RequiredMemory} MiB, MemoryLimit = {MemoryLimit} MiB ",
+					("TaskName", DebugName),
+					("RequiredMemory", FString::SanitizeFloat(NewRequiredMemory / (1024 * 1024.f), 3)),
+					("TotalEstimatedMemory", FString::SanitizeFloat(TotalEstimatedMemory / (1024 * 1024.f), 3)),
+					("MemoryLimit", FString::SanitizeFloat(MemoryLimit / (1024 * 1024.f), 3))
+				);
 
 				// @todo : ? pause the main thread? pause shader compilers? trigger a GC ?
 
