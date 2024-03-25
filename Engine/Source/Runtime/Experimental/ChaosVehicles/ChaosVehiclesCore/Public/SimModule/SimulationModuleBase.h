@@ -187,6 +187,7 @@ namespace Chaos
 			, bAnimationEnabled(true)
 			, AppliedForce(FVector::ZeroVector)
 			, Guid(INDEX_NONE)
+			, CachedParticle(nullptr)
 		{}
 		virtual ~ISimulationModuleBase() {}
 
@@ -371,7 +372,7 @@ namespace Chaos
 		FVector AppliedForce;
 		int Guid; // needed a way of associating internal module with game thread.
 
-		//FPBDRigidClusteredParticleHandle* ClusterParticle;
+		FPBDRigidClusteredParticleHandle* CachedParticle;
 	};
 
 	/**

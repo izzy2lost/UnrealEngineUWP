@@ -56,8 +56,12 @@ ISimulationModuleBase* ISimulationModuleBase::GetFirstChild()
 
 FPBDRigidClusteredParticleHandle* ISimulationModuleBase::GetClusterParticle(Chaos::FClusterUnionPhysicsProxy* Proxy)
 { 
-	// TODO: should store what we need rather than search for it all the time
-	FPBDRigidClusteredParticleHandle* ClusterChild = nullptr;
+	if (ParticleIdx.IsValid() && CachedParticle && (CachedParticle->UniqueIdx() == ParticleIdx))
+	{
+		return CachedParticle;
+	}
+
+	CachedParticle = nullptr;
 
 	FPBDRigidsEvolutionGBF& Evolution = *static_cast<FPBDRigidsSolver*>(Proxy->GetSolver<FPBDRigidsSolver>())->GetEvolution();
 	FClusterUnionManager& ClusterUnionManager = Evolution.GetRigidClustering().GetClusterUnionManager();
@@ -70,11 +74,11 @@ FPBDRigidClusteredParticleHandle* ISimulationModuleBase::GetClusterParticle(Chao
 
 		if (FPBDRigidParticleHandle* Particle = GetParticleFromUniqueIndex(ParticleIdx.Idx, Particles))
 		{
-			ClusterChild = Particle->CastToClustered();
+			CachedParticle = Particle->CastToClustered();
 		}
 	}
 
-	return ClusterChild;
+	return CachedParticle;
 }
 
 FPBDRigidParticleHandle* ISimulationModuleBase::GetParticleFromUniqueIndex(int32 ParticleUniqueIdx, TArray<FPBDRigidParticleHandle*>& Particles)
