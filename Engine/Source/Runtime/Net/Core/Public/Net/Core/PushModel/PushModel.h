@@ -348,6 +348,12 @@ namespace UEPushModelPrivate
 		return bMakeBpPropertiesPushModel;
 	}
 
+	/** Are we allowed to create new push model handles */
+	NETCORE_API bool IsHandleCreationAllowed();
+
+	/** Control if we are allowed to create pushmodel handles */
+	NETCORE_API void SetHandleCreationAllowed(bool bAllow);
+	
 	static FString ToString(const FNetPushObjectId Id)
 	{
 		return FString::Printf(TEXT("0x%" UINT64_X_FMT), Id.GetValue());
