@@ -107,8 +107,8 @@ public:
 		// CreateNode supports any function type that can be used to create delegates with: lambdas, members, static, raw, etc.
 
 		// Since NodeA and NodeB have no dependencies, they run first concurrently.
-		StateGraph->CreateNode("Base.NodeA", this, [](FStateGraphNodeFunctionComplete Complete) {	Complete(); });
-		StateGraph->CreateNode("Base.NodeB", this, [](FStateGraphNodeFunctionComplete Complete) {	ExampleAsync(0.1f, Complete); });
+		StateGraph->CreateNode("Base.NodeA", this, [](FStateGraph& StateGraph, FStateGraphNodeFunctionComplete Complete) { Complete(); });
+		StateGraph->CreateNode("Base.NodeB", this, [](FStateGraph& StateGraph, FStateGraphNodeFunctionComplete Complete) { ExampleAsync(0.1f, Complete); });
 
 		// CreateNode also supports custom node types by explicitly specifying the type and passing arguments to the constructor.
 		FExampleClassNodePtr NodeC = StateGraph->CreateNode<FExampleClassNode>("Base.NodeC");
@@ -125,12 +125,12 @@ public:
 
 protected:
 
-	static void NodeD(FStateGraphNodeFunctionComplete Complete)
+	static void NodeD(FStateGraph& InStateGraph, FStateGraphNodeFunctionComplete Complete)
 	{
 		Complete();
 	}
 
-	void NodeE(FStateGraphNodeFunctionComplete Complete)
+	void NodeE(FStateGraph& InStateGraph, FStateGraphNodeFunctionComplete Complete)
 	{
 		FExampleClassNodePtr NodeC = StateGraph->GetNode<FExampleClassNode>("Base.NodeC");
 		check(NodeC.IsValid());
@@ -154,14 +154,14 @@ public:
 	void Run(const FExampleModuleComplete& ModuleComplete)
 	{
 		// Run nodes in sequence to produce some output that the caller needs, using the same state graph which may be running unrelated nodes.
-		StateGraph->CreateNode("Module.NodeA", this, [](FStateGraphNodeFunctionComplete Complete) { Complete(); })
+		StateGraph->CreateNode("Module.NodeA", this, [](FStateGraph& StateGraph, FStateGraphNodeFunctionComplete Complete) { Complete(); })
 			->Next("Module.NodeB", this, &FExampleModule::NodeB)
-			->Next("Module.NodeC", this, [ModuleComplete](FStateGraphNodeFunctionComplete Complete) { Complete(); ModuleComplete.ExecuteIfBound(42); });
+			->Next("Module.NodeC", this, [ModuleComplete](FStateGraph& StateGraph, FStateGraphNodeFunctionComplete Complete) { Complete(); ModuleComplete.ExecuteIfBound(42); });
 	}
 
 protected:
 
-	void NodeB(FStateGraphNodeFunctionComplete Complete)
+	void NodeB(FStateGraph& InStateGraph, FStateGraphNodeFunctionComplete Complete)
 	{
 		ExampleAsync(0.1f, Complete);
 	}
@@ -194,13 +194,13 @@ public:
 		(*NodeDRef)->Dependencies.Add("Derived.NodeF");
 
 		// Add some additional nodes.
-		StateGraph->CreateNode("Derived.NodeG", this, [](FStateGraphNodeFunctionComplete Complete) { Complete(); })
+		StateGraph->CreateNode("Derived.NodeG", this, [](FStateGraph& InStateGraph, FStateGraphNodeFunctionComplete Complete) { Complete(); })
 			->Next<FExampleClassNode>("Derived.NodeH");
 	}
 
 protected:
 
-	void NodeF(FStateGraphNodeFunctionComplete Complete)
+	void NodeF(FStateGraph& InStateGraph, FStateGraphNodeFunctionComplete Complete)
 	{
 		FExampleModulePtr ModulePtr = MakeShared<FExampleModule>(StateGraph);
 		ModulePtr->Run(FExampleModuleComplete::CreateSPLambda(this, [ModulePtr, Complete](int32 Output)
