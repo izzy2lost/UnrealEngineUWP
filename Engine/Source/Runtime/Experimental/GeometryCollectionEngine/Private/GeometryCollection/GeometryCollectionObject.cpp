@@ -1285,19 +1285,25 @@ void UGeometryCollection::FillAutoInstanceMeshesInstancesIfNeeded()
 		}
 
 		const GeometryCollection::Facades::FCollectionInstancedMeshFacade InstancedMeshFacade(*GeometryCollection);
-
-		const int32 NumTransforms = GeometryCollection->Children.Num();
-		for (int32 TransformIndex = 0; TransformIndex < NumTransforms; TransformIndex++)
+		if (InstancedMeshFacade.IsValid())
 		{
-			// only applies to leaves nodes
-			if (GeometryCollection->Children[TransformIndex].Num() == 0)
+			const int32 NumTransforms = GeometryCollection->Children.Num();
+			for (int32 TransformIndex = 0; TransformIndex < NumTransforms; TransformIndex++)
 			{
-				const int32 AutoInstanceMeshIndex = InstancedMeshFacade.GetIndex(TransformIndex);
-				if (AutoInstanceMeshes.IsValidIndex(AutoInstanceMeshIndex))
+				// only applies to leaves nodes
+				if (GeometryCollection->Children[TransformIndex].Num() == 0)
 				{
-					AutoInstanceMeshes[AutoInstanceMeshIndex].NumInstances++;
+					const int32 AutoInstanceMeshIndex = InstancedMeshFacade.GetIndex(TransformIndex);
+					if (AutoInstanceMeshes.IsValidIndex(AutoInstanceMeshIndex))
+					{
+						AutoInstanceMeshes[AutoInstanceMeshIndex].NumInstances++;
+					}
 				}
 			}
+		}
+		else
+		{
+			UE_LOG(LogGeometryCollectionInternal, Warning, TEXT("[%s] Could not find AutoInstanceMeshIndex attribute but the asset as instanced meshes assigned, you may need to regenerate this asset"), *GetPathName());
 		}
 	}
 }
