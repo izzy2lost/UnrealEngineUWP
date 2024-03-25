@@ -191,6 +191,7 @@ void SLevelViewportToolBar::Construct( const FArguments& InArgs )
 
 	UViewportToolBarContext* ExtensionContextObject = NewObject<UViewportToolBarContext>();
 	ExtensionContextObject->ViewportToolBar = SharedThis(this);
+	ExtensionContextObject->Viewport = Viewport;
 
 	const FMargin ToolbarSlotPadding(4.0f, 1.0f);
 
