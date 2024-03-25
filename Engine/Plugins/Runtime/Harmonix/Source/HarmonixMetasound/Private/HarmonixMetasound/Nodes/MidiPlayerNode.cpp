@@ -529,10 +529,8 @@ namespace HarmonixMetasound
 				{
 					FMidiStreamEvent MidiEvent(this, FMidiMsg::CreateAllNotesOff());
 					MidiEvent.BlockSampleFrameIndex = MidiClockOut->GetCurrentBlockFrameIndex();
-					MidiEvent.BlockSampleFrameOffset = 0.0f;
 					MidiEvent.AuthoredMidiTick = MidiClockOut->GetCurrentHiResTick();
 					MidiEvent.CurrentMidiTick = MidiClockOut->GetCurrentHiResTick();
-					MidiEvent.MsOffset = 0.0f;
 					MidiEvent.TrackIndex = 0;
 					MidiOutPin->AddMidiEvent(MidiEvent);
 				}
@@ -766,10 +764,8 @@ namespace HarmonixMetasound
 		{
 			FMidiStreamEvent MidiEvent(this, bKillVoicesOnSeek ? FMidiMsg::CreateAllNotesKill() : FMidiMsg::CreateAllNotesOff());
 			MidiEvent.BlockSampleFrameIndex = MidiClockOut->GetCurrentBlockFrameIndex();
-			MidiEvent.BlockSampleFrameOffset = 0.0f;
 			MidiEvent.AuthoredMidiTick = MidiClockOut->GetCurrentHiResTick();
 			MidiEvent.CurrentMidiTick = MidiClockOut->GetCurrentHiResTick();
-			MidiEvent.MsOffset = 0.0f;
 			MidiEvent.TrackIndex = 0;
 			MidiOutPin->AddMidiEvent(MidiEvent);
 		}
@@ -784,10 +780,8 @@ namespace HarmonixMetasound
 		{
 			FMidiStreamEvent MidiEvent(this, bKillVoicesOnSeek ? FMidiMsg::CreateAllNotesKill() : FMidiMsg::CreateAllNotesOff());
 			MidiEvent.BlockSampleFrameIndex = MidiClockOut->GetCurrentBlockFrameIndex();
-			MidiEvent.BlockSampleFrameOffset = 0.0f;
 			MidiEvent.AuthoredMidiTick = MidiClockOut->GetCurrentHiResTick();
 			MidiEvent.CurrentMidiTick = MidiClockOut->GetCurrentHiResTick();
-			MidiEvent.MsOffset = 0.0f;
 			MidiEvent.TrackIndex = 0;
 			MidiOutPin->AddMidiEvent(MidiEvent);
 		}
@@ -804,10 +798,8 @@ namespace HarmonixMetasound
 		{
 			FMidiStreamEvent MidiEvent(this, FMidiMsg(Status, Data1, Data2));
 			MidiEvent.BlockSampleFrameIndex = MidiClockOut->GetCurrentBlockFrameIndex();
-			MidiEvent.BlockSampleFrameOffset = 0.0f;
 			MidiEvent.AuthoredMidiTick = Tick;
 			MidiEvent.CurrentMidiTick = Tick;
-			MidiEvent.MsOffset = 0.0f;
 			MidiEvent.TrackIndex = TrackIndex;
 			MidiOutPin->AddMidiEvent(MidiEvent);
 		}
@@ -819,10 +811,8 @@ namespace HarmonixMetasound
 		{
 			FMidiStreamEvent MidiEvent(this, FMidiMsg((int32)tempo));
 			MidiEvent.BlockSampleFrameIndex  = MidiClockOut->GetCurrentBlockFrameIndex();
-			MidiEvent.BlockSampleFrameOffset = 0.0f;
 			MidiEvent.AuthoredMidiTick = Tick;
 			MidiEvent.CurrentMidiTick  = Tick;
-			MidiEvent.MsOffset         = 0.0f;
 			MidiEvent.TrackIndex       = TrackIndex;
 			MidiOutPin->AddMidiEvent(MidiEvent);
 		}
@@ -834,10 +824,8 @@ namespace HarmonixMetasound
 		{
 			FMidiStreamEvent MidiEvent(this, FMidiMsg::CreateText(TextIndex, Type));
 			MidiEvent.BlockSampleFrameIndex = MidiClockOut->GetCurrentBlockFrameIndex();
-			MidiEvent.BlockSampleFrameOffset = 0.0f;
 			MidiEvent.AuthoredMidiTick = Tick;
 			MidiEvent.CurrentMidiTick = Tick;
-			MidiEvent.MsOffset = 0.0f;
 			MidiEvent.TrackIndex = TrackIndex;
 			MidiOutPin->AddMidiEvent(MidiEvent);
 		}
@@ -850,10 +838,8 @@ namespace HarmonixMetasound
 		{
 			FMidiStreamEvent MidiEvent(this, FMidiMsg(InStatus, Data1, Data2));
 			MidiEvent.BlockSampleFrameIndex = MidiClockOut->GetCurrentBlockFrameIndex();
-			MidiEvent.BlockSampleFrameOffset = 0.0f;
 			MidiEvent.AuthoredMidiTick = EventTick;
 			MidiEvent.CurrentMidiTick = InCurrentTick;
-			MidiEvent.MsOffset = InPrerollMs;
 			MidiEvent.TrackIndex = TrackIndex;
 			MidiOutPin->AddMidiEvent(MidiEvent);
 		}
@@ -866,10 +852,8 @@ namespace HarmonixMetasound
 
 		FMidiStreamEvent MidiEvent(this, bKillVoicesOnMidiChange ? FMidiMsg::CreateAllNotesKill() : FMidiMsg::CreateAllNotesOff());
 		MidiEvent.BlockSampleFrameIndex = 0;
-		MidiEvent.BlockSampleFrameOffset = 0.0f;
 		MidiEvent.AuthoredMidiTick = 0;
 		MidiEvent.CurrentMidiTick = 0;
-		MidiEvent.MsOffset = 0.0f;
 		MidiEvent.TrackIndex = 0;
 		MidiOutPin->InsertMidiEvent(MidiEvent);
 

@@ -248,10 +248,8 @@ namespace HarmonixMetasound
 					VoiceId.GetChannelAndNote(MidiCh, MidiNote);
 					FMidiStreamEvent MidiEvent(0u, FMidiMsg::CreateNoteOff(MidiCh, MidiNote)); // Do we need a note? VoiceId should handle the note off
 					MidiEvent.BlockSampleFrameIndex = 0;
-					MidiEvent.BlockSampleFrameOffset = 0.0f;
 					MidiEvent.AuthoredMidiTick = 0;
 					MidiEvent.CurrentMidiTick = 0;
-					MidiEvent.MsOffset = 0.0f;
 					MidiEvent.TrackIndex = 1;
 					MidiEvent.SetVoiceId(VoiceId);
 					MidiStreamOutPin->InsertNoteOffEventOrCancelPendingNoteOn(MidiEvent);

@@ -22,11 +22,9 @@ namespace HarmonixMetasound
 	struct HARMONIXMETASOUND_API FMidiStreamEvent
 	{
 		int32        BlockSampleFrameIndex  = 0;
-		float        BlockSampleFrameOffset = 0.0f;
 		int32        TrackIndex             = 0;
 		int32        AuthoredMidiTick       = 0;
 		int32        CurrentMidiTick        = 0;
-		float        MsOffset               = 0.0f;
 		FMidiMsg     MidiMessage;
 
 		FMidiStreamEvent(const FMidiVoiceGeneratorBase* Owner, const FMidiMsg& Message)

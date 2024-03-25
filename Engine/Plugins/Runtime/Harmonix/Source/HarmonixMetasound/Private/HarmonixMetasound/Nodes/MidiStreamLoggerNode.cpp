@@ -199,13 +199,11 @@ namespace HarmonixMetasound
 
 	void FMidiStreamLoggerOperator::DumpMidiEvent(const FMidiStreamEvent& MidiEvent)
 	{
-		UE_LOG(LogMIDIStreamLogger, Log, TEXT("[%d (%f)] Track: %d, Auth Tick %d, Render Tick %d, Ms Offset %f, Message: %s"),
+		UE_LOG(LogMIDIStreamLogger, Log, TEXT("[%d] Track: %d, Auth Tick %d, Render Tick %d, Message: %s"),
 			MidiEvent.BlockSampleFrameIndex,
-			MidiEvent.BlockSampleFrameOffset,
 			MidiEvent.TrackIndex,
 			MidiEvent.AuthoredMidiTick,
 			MidiEvent.CurrentMidiTick,
-			MidiEvent.MsOffset,
 			*FMidiMsg::ToString(MidiEvent.MidiMessage));
 	}
 }
