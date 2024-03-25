@@ -67,7 +67,14 @@ namespace EpicGames.Horde
 		/// <inheritdoc/>
 		public bool IsConnected()
 		{
-			return _authHandlerState.IsAuthenticated();
+			try
+			{
+				return _authHandlerState.IsAuthenticated();
+			}
+			catch
+			{
+				return false;
+			}
 		}
 
 		/// <inheritdoc/>
