@@ -651,6 +651,7 @@ namespace Horde.Server.Jobs
 					{
 						CreateGraphArtifactRequest stepArtifact = new CreateGraphArtifactRequest { Name = artifact.Name.ToString(), Type = artifact.Type.ToString(), Description = artifact.Description, BasePath = artifact.BasePath, OutputName = artifact.OutputName };
 						stepArtifact.Keys.AddRange(artifact.Keys);
+						stepArtifact.Metadata.AddRange(artifact.Metadata);
 						response.Artifacts.Add(stepArtifact);
 					}
 				}
