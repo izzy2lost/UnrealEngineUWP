@@ -33,6 +33,26 @@ namespace ChaosInterface
 		return UserData ? FChaosUserData::Get<UPhysicalMaterial>(UserData) : nullptr;
 	}
 
+	UPrimitiveComponent* GetPrimitiveComponentFromUserData(const Chaos::FGeometryParticle& Actor)
+	{
+		void* UserData = Actor.UserData();
+		if (UserData)
+		{
+			UPrimitiveComponent* PrimitiveComponent = FChaosUserData::Get<UPrimitiveComponent>(UserData);
+			if (!PrimitiveComponent)
+			{
+				// Check if we appended a custom entity
+				FChaosUserEntityAppend* ChaosUserEntityAppend = FChaosUserData::Get<FChaosUserEntityAppend>(UserData);
+				if (ChaosUserEntityAppend)
+				{
+					PrimitiveComponent = FChaosUserData::Get<UPrimitiveComponent>(ChaosUserEntityAppend->ChaosUserData);
+				}
+			}
+			return PrimitiveComponent;
+		}
+		return nullptr;
+	}
+
 	FScopedSceneReadLock::FScopedSceneReadLock(FPhysScene_Chaos& SceneIn)
 		: Solver(SceneIn.GetSolver())
 	{

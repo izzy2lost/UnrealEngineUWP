@@ -135,6 +135,7 @@ static void SetHitResultFromShapeAndFaceIndex(const FPhysicsShape& Shape,  const
 	OutResult.ElementIndex = (uint8)ShapeIndex;
 	
 	TWeakObjectPtr<UPrimitiveComponent> OwningComponent;
+	OutResult.PhysicsObject = nullptr;
 	if(const FBodyInstance* BodyInst = GetUserData(Actor))
 	{
 		BodyInst = FPhysicsInterface::ShapeToOriginalBodyInstance(BodyInst, &Shape);
@@ -148,13 +149,13 @@ static void SetHitResultFromShapeAndFaceIndex(const FPhysicsShape& Shape,  const
 		}
 
 		OwningComponent = BodyInst->OwnerComponent;
+		OutResult.PhysicsObject = BodyInst->ActorHandle->GetPhysicsObject();
 	}
 	else
 	{
 		// Currently geom collections are registered with a primitive component user data, but maybe custom should be adapted
 		// to be more general so we can support leaf identification #BGTODO
-		void* UserData = Actor.UserData();
-		UPrimitiveComponent* PossibleOwner = FChaosUserData::Get<UPrimitiveComponent>(UserData);
+		UPrimitiveComponent* PossibleOwner = GetPrimitiveComponentFromUserData(Actor);
 
 		if(PossibleOwner)
 		{
@@ -171,6 +172,7 @@ static void SetHitResultFromShapeAndFaceIndex(const FPhysicsShape& Shape,  const
 					const FGeometryCollectionItemIndex ItemIndex = ConcreteProxy->GetItemIndexFromGTParticle_External(Actor.CastToRigidParticle());
 					OutResult.Item = ItemIndex.GetItemIndex();
 					OutResult.BoneName = ConcreteProxy->GetTransformName_External(ItemIndex);
+					OutResult.PhysicsObject = PossibleOwner->GetPhysicsObjectById(OutResult.Item);
 				}
 			}
 		}
@@ -599,7 +601,7 @@ void ConvertQueryOverlap(const FPhysicsShape& Shape, const FPhysicsActor& Actor,
 	using namespace ChaosInterface;
 
 	// Grab actor/component
-	
+	OutOverlap.PhysicsObject = nullptr;
 	// Try body instance
 	if (const FBodyInstance* BodyInst = GetUserData(Actor))
 	{
@@ -611,14 +613,14 @@ void ConvertQueryOverlap(const FPhysicsShape& Shape, const FPhysicsActor& Actor,
 			OutOverlap.OverlapObjectHandle = FActorInstanceHandle::MakeActorHandleToResolve(BodyInst->OwnerComponent, BodyInst->InstanceBodyIndex);
 			OutOverlap.Component = BodyInst->OwnerComponent; // Copying weak pointer is faster than assigning raw pointer.
 			OutOverlap.ItemIndex = OwnerComponent->bMultiBodyOverlap ? BodyInst->InstanceBodyIndex : INDEX_NONE;
+			OutOverlap.PhysicsObject = BodyInst->ActorHandle->GetPhysicsObject();
 		}
 	}
 	else
 	{
 		// Currently geom collections are registered with a primitive component user data, but maybe custom should be adapted
 		// to be more general so we can support leaf identification #BGTODO
-		void* UserData = Actor.UserData();
-		UPrimitiveComponent* PossibleOwner = FChaosUserData::Get<UPrimitiveComponent>(UserData);
+		UPrimitiveComponent* PossibleOwner = GetPrimitiveComponentFromUserData(Actor);
 
 		if(PossibleOwner)
 		{
@@ -786,6 +788,7 @@ FHitResult ConvertOverlapToHitResult(const FOverlapResult& Overlap)
 	Hit.bBlockingHit = Overlap.bBlockingHit;
 	Hit.Item = Overlap.ItemIndex;
 	Hit.Component = Overlap.Component;
+	Hit.PhysicsObject = Overlap.PhysicsObject;
 	Hit.HitObjectHandle = Overlap.OverlapObjectHandle;
 	return Hit;
 }
