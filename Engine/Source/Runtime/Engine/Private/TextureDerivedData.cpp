@@ -3866,28 +3866,23 @@ void UTexture::ForceRebuildPlatformData(uint8 InEncodeSpeedOverride /* =255 ETex
 			EncodeSpeed = GetDesiredEncodeSpeed();
 		}
 
-		TArray<FTextureBuildSettings> BuildSettingsFetch;
-		TArray<FTextureBuildSettings> BuildSettingsFetchOrBuild;
-		TArray<FTexturePlatformData::FTextureEncodeResultMetadata> ResultMetadataFetch;
-		TArray<FTexturePlatformData::FTextureEncodeResultMetadata> ResultMetadataFetchOrBuild;
-
+		// Since we are forcing a rebuild, build what is desired rather than what is available
 		if (EncodeSpeed == ETextureEncodeSpeed::FinalIfAvailable)
 		{
-			GetBuildSettingsForRunningPlatform(*this, ETextureEncodeSpeed::Final, BuildSettingsFetch, &ResultMetadataFetch);
-			GetBuildSettingsForRunningPlatform(*this, ETextureEncodeSpeed::Fast, BuildSettingsFetchOrBuild, &ResultMetadataFetchOrBuild);
+			EncodeSpeed = ETextureEncodeSpeed::Final;
 		}
-		else
-		{
-			GetBuildSettingsForRunningPlatform(*this, EncodeSpeed, BuildSettingsFetchOrBuild, &ResultMetadataFetchOrBuild);
-		}
+
+		TArray<FTextureBuildSettings> BuildSettingsFetchOrBuild;
+		TArray<FTexturePlatformData::FTextureEncodeResultMetadata> ResultMetadataFetchOrBuild;
+		GetBuildSettingsForRunningPlatform(*this, EncodeSpeed, BuildSettingsFetchOrBuild, &ResultMetadataFetchOrBuild);
 		
 		check(BuildSettingsFetchOrBuild.Num() == Source.GetNumLayers());
 
 		PlatformDataLink->Cache(
 			*this,
-			BuildSettingsFetch.GetData(),
+			nullptr,
 			BuildSettingsFetchOrBuild.GetData(),
-			ResultMetadataFetch.GetData(),
+			nullptr,
 			ResultMetadataFetchOrBuild.GetData(),
 			uint32(ETextureCacheFlags::ForceRebuild),
 			nullptr
