@@ -71,6 +71,9 @@ public:
 	FSimpleMulticastDelegate& GetOnLayoutModeChanged() { return OnLayoutModeChanged; }
 
 private:
+	/** Generates a unique name for a user layout */
+	FString GenerateUniqueUserLayoutName(const FString& LayoutName);
+
 	/** Called after the Active Layout has been changed */
 	FDMXControlConsoleEditorLayoutDelegate OnActiveLayoutChanged;
 

@@ -221,6 +221,7 @@ namespace UE::DMX::Private
 			[
 				SNew(SButton)
 				.ButtonStyle(&FAppStyle::Get().GetWidgetStyle<FButtonStyle>(TEXT("SimpleButton")))
+				.ToolTipText(LOCTEXT("LayoutPickerAddNewButton_ToolTip", "Add New"))
 				.OnClicked(this, &SDMXControlConsoleEditorLayoutPicker::OnAddLayoutClicked)
 				[
 					SNew(SImage)
@@ -236,6 +237,7 @@ namespace UE::DMX::Private
 			[
 				SNew(SButton)
 				.ButtonStyle(&FAppStyle::Get().GetWidgetStyle<FButtonStyle>(TEXT("SimpleButton")))
+				.ToolTipText(LOCTEXT("LayoutPickerRenameButton_ToolTip", "Rename"))
 				.OnClicked(this, &SDMXControlConsoleEditorLayoutPicker::OnRenameLayoutClicked)
 				[
 					SNew(SImage)
@@ -251,6 +253,7 @@ namespace UE::DMX::Private
 			[
 				SNew(SButton)
 				.ButtonStyle(&FAppStyle::Get().GetWidgetStyle<FButtonStyle>(TEXT("SimpleButton")))
+				.ToolTipText(LOCTEXT("LayoutPickerDeleteButton_ToolTip","Delete"))
 				.OnClicked(this, &SDMXControlConsoleEditorLayoutPicker::OnDeleteLayoutClicked)
 				[
 					SNew(SImage)
@@ -519,10 +522,20 @@ namespace UE::DMX::Private
 			ControlConsoleLayouts->Modify();
 			ControlConsoleLayouts->DeleteUserLayout(LastSelectedItem.Get());
 
+			int32 LayoutIndexToSelect = INDEX_NONE;
 			if (LayoutIndex > 0)
 			{
+				LayoutIndexToSelect = LayoutIndex - 1;
+			}
+			else if(LayoutIndex == 0 && UserLayouts.Num() > 1)
+			{
+				LayoutIndexToSelect = LayoutIndex + 1;
+			}
+
+			if(LayoutIndexToSelect != INDEX_NONE && UserLayouts.IsValidIndex(LayoutIndexToSelect))
+			{
 				// Select the previous user layout in the array
-				UDMXControlConsoleEditorGlobalLayoutBase* LayoutToSelect = UserLayouts[LayoutIndex - 1];
+				UDMXControlConsoleEditorGlobalLayoutBase* LayoutToSelect = UserLayouts[LayoutIndexToSelect];
 				ControlConsoleLayouts->SetActiveLayout(LayoutToSelect);
 
 				UpdateComboBoxSource();
