@@ -90,7 +90,7 @@ UEdGraphNode* URigVMEdGraphInvokeEntryNodeSpawner::Invoke(UEdGraph* ParentGraph,
 		TArray<FPinInfo> Pins;
 
 		static UScriptStruct* ExecuteScriptStruct = FRigVMExecuteContext::StaticStruct();
-		static const FName ExecuteStructName = *ExecuteScriptStruct->GetStructCPPName();
+		static const FLazyName ExecuteStructName(*ExecuteScriptStruct->GetStructCPPName());
 		Pins.Emplace(FRigVMStruct::ExecuteName, ERigVMPinDirection::IO, ExecuteStructName, ExecuteScriptStruct);
 
 		return SpawnTemplateNode(ParentGraph, Pins, *NodeName);

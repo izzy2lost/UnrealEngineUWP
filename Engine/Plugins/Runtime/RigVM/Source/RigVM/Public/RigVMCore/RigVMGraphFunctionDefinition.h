@@ -566,6 +566,6 @@ struct RIGVM_API FRigVMGraphFunctionData
 
 	bool PatchSharedArgumentOperandsIfRequired();
 
-	static const FString EntryString;
-	static const FString ReturnString;
+	static const inline TCHAR* EntryString = TEXT("Entry");
+	static const inline TCHAR* ReturnString = TEXT("Return");
 };

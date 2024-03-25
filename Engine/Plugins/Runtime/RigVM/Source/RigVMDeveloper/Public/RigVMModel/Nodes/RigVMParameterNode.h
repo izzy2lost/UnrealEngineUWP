@@ -132,9 +132,9 @@ private:
 
 	virtual bool ContributesToResult() const override { return !IsInput(); }
 
-	static const FString ParameterName;
-	static const FString DefaultName;
-	static const FString ValueName;
+	static const inline TCHAR* ParameterName = TEXT("Parameter");
+	static const inline TCHAR* DefaultName = TEXT("Default");
+	static const inline TCHAR* ValueName = TEXT("Value");
 
 	friend class URigVMController;
 	friend class URigVMCompiler;

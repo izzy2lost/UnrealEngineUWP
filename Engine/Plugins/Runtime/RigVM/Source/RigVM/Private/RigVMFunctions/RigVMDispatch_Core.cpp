@@ -6,15 +6,9 @@
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(RigVMDispatch_Core)
 
-
-const FName FRigVMDispatch_CoreEquals::AName = TEXT("A");
-const FName FRigVMDispatch_CoreEquals::BName = TEXT("B");
-const FName FRigVMDispatch_CoreEquals::ResultName = TEXT("Result");
-
-
 FName FRigVMDispatch_CoreEquals::GetArgumentNameForOperandIndex(int32 InOperandIndex, int32 InTotalOperands) const
 {
-	static const FName ArgumentNames[] = {
+	static const FLazyName ArgumentNames[] = {
 		AName,
 		BName,
 		ResultName

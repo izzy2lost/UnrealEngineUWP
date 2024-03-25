@@ -48,8 +48,6 @@
 
 #define LOCTEXT_NAMESPACE "RigVMEditor"
 
-const FName FRigVMEditorModes::RigVMEditorMode = TEXT("RigVM");
-
 FRigVMEditor::FRigVMEditor()
 	: bAnyErrorsLeft(false)
 	, KnownInstructionLimitWarnings()
@@ -415,7 +413,7 @@ void FRigVMEditor::HandleAssetRequestClose(UObject* InObject, EAssetEditorCloseR
 
 const FName FRigVMEditor::GetEditorAppName() const
 {
-	static const FName AppName(TEXT("RigVMEditorApp"));
+	static const FLazyName AppName(TEXT("RigVMEditorApp"));
 	return AppName;
 }
 
@@ -2296,8 +2294,8 @@ TRigVMTypeIndex FRigVMEditor::OnRequestPinTypeSelectionDialog(const TArray<TRigV
 										TRigVMTypeIndex TypeIndex = InTypes[TypeNameToIndex.FindChecked(*InItem.Get())];
 										const FRigVMTemplateArgumentType Type = FRigVMRegistry::Get().GetType(TypeIndex);
 										const bool bIsArray = Type.IsArray();
-										static const FName TypeIcon(TEXT("Kismet.VariableList.TypeIcon"));
-										static const FName ArrayTypeIcon(TEXT("Kismet.VariableList.ArrayTypeIcon"));
+										static const FLazyName TypeIcon(TEXT("Kismet.VariableList.TypeIcon"));
+										static const FLazyName ArrayTypeIcon(TEXT("Kismet.VariableList.ArrayTypeIcon"));
 
 										const FEdGraphPinType PinType = RigVMTypeUtils::PinTypeFromTypeIndex(TypeIndex);
 										const URigVMEdGraphSchema* Schema = CastChecked<URigVMEdGraphSchema>(GetRigVMBlueprint()->GetRigVMEdGraphSchemaClass()->GetDefaultObject());

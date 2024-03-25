@@ -6,9 +6,6 @@
 
 #define LOCTEXT_NAMESPACE "RigVMDispatch_CastEnum"
 
-const FName FRigVMDispatch_CastEnumBase::ValueName = TEXT("Value");
-const FName FRigVMDispatch_CastEnumBase::ResultName = TEXT("Result");
-
 const TArray<FRigVMTemplateArgumentInfo>& FRigVMDispatch_CastEnumToInt::GetArgumentInfos() const
 {
 	static TArray<FRigVMTemplateArgumentInfo> OutInfos;

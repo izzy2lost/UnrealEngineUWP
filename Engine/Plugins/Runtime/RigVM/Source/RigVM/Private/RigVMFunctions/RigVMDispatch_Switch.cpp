@@ -7,12 +7,9 @@
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(RigVMDispatch_Switch)
 
-const FName FRigVMDispatch_SwitchInt32::IndexName = TEXT("Index");
-const FName FRigVMDispatch_SwitchInt32::CasesName = TEXT("Cases");
-
 FName FRigVMDispatch_SwitchInt32::GetArgumentNameForOperandIndex(int32 InOperandIndex, int32 InTotalOperands) const
 {
-	static const FName ArgumentNames[] = {
+	static const FLazyName ArgumentNames[] = {
 		IndexName,
 		FRigVMStruct::ControlFlowBlockToRunName
 	};

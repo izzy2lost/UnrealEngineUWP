@@ -328,7 +328,7 @@ public:
 
 private:
 
-	static const FString NodeColorName;
+	static const inline TCHAR* NodeColorName = TEXT("NodeColor");
 
 	bool IsLinkedToRecursive(URigVMPin* InPin, URigVMNode* InNode) const;
 	void GetLinkedNodesRecursive(URigVMPin* InPin, bool bLookForSources, TArray<URigVMNode*>& OutNodes) const;

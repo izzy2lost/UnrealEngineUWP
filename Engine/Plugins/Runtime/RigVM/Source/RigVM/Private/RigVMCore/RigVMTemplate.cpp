@@ -990,7 +990,7 @@ FLinearColor FRigVMTemplate::GetColor(const TArray<int32>& InPermutationIndices)
 
 	auto VisitPermutation = [&bFirstColorFound, &ResolvedColor, this](int32 InPermutationIndex) -> bool
 	{
-		static const FName NodeColorName = TEXT("NodeColor");
+		static const FLazyName NodeColorName = TEXT("NodeColor");
 		FString NodeColorMetadata;
 
 		// if we can't find one permutation we are not going to find any, so it's ok to return false here

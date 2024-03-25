@@ -581,9 +581,9 @@ bool RigVMTypeUtils::AreCompatible(const FEdGraphPinType& InTypeA, const FEdGrap
 
 namespace RigVMTypeUtils
 {
-	static const FName CastTemplateValueName = TEXT("Value");
-	static const FName CastTemplateResultName = TEXT("Result");
-	static const FName CastTemplateNotation = TEXT("Cast::Execute(in Value,out Result)");
+	static const FLazyName CastTemplateValueName = TEXT("Value");
+	static const FLazyName CastTemplateResultName = TEXT("Result");
+	static const FLazyName CastTemplateNotation = TEXT("Cast::Execute(in Value,out Result)");
 }
 
 const TArray<TRigVMTypeIndex>& RigVMTypeUtils::GetAvailableCasts(const TRigVMTypeIndex& InTypeIndex, bool bAsInput)
@@ -675,17 +675,17 @@ const FRigVMFunction* RigVMTypeUtils::GetCastForTypeIndices(const TRigVMTypeInde
 	return nullptr;
 }
 
-const FName& RigVMTypeUtils::GetCastTemplateValueName()
+const FLazyName& RigVMTypeUtils::GetCastTemplateValueName()
 {
 	return CastTemplateValueName;
 }
 
-const FName& RigVMTypeUtils::GetCastTemplateResultName()
+const FLazyName& RigVMTypeUtils::GetCastTemplateResultName()
 {
 	return CastTemplateResultName;
 }
 
-const FName& RigVMTypeUtils::GetCastTemplateNotation()
+const FLazyName& RigVMTypeUtils::GetCastTemplateNotation()
 {
 	return CastTemplateNotation;
 }

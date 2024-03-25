@@ -15,7 +15,7 @@ DECLARE_MULTICAST_DELEGATE_TwoParams(FRigVMEditorClosed, const FRigVMEditor*, UR
 struct FRigVMEditorModes
 {
 	// Mode constants
-	static const FName RigVMEditorMode;
+	RIGVMEDITOR_API static inline const FLazyName RigVMEditorMode = FLazyName(TEXT("RigVM"));
 	static FText GetLocalizedMode(const FName InMode)
 	{
 		static TMap< FName, FText > LocModes;

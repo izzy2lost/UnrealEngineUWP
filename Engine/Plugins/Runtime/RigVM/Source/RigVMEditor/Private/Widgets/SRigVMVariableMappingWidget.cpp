@@ -8,8 +8,8 @@
 
 #define LOCTEXT_NAMESPACE "SRigVMVariableMappingWidget"
 
-static const FName ColumnId_VarLabel("Variable");
-static const FName ColumnID_MappingLabel("Mapping");
+static const FLazyName ColumnId_VarLabel("Variable");
+static const FLazyName ColumnID_MappingLabel("Mapping");
 
 void SRigVMVariableMappingTreeRow::Construct(const FArguments& InArgs, const TSharedRef<STableViewBase>& InOwnerTableView)
 {

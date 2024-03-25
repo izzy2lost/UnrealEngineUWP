@@ -46,9 +46,6 @@
 #define LOCTEXT_NAMESPACE "ControlRigBlueprint"
 
 TArray<UControlRigBlueprint*> UControlRigBlueprint::sCurrentlyOpenedRigBlueprints;
-#if WITH_EDITOR
-const FName UControlRigBlueprint::ControlRigPanelNodeFactoryName(TEXT("FControlRigGraphPanelPinFactory"));
-#endif
 
 UControlRigBlueprint::UControlRigBlueprint(const FObjectInitializer& ObjectInitializer)
 	: URigVMBlueprint(ObjectInitializer)
@@ -1304,7 +1301,7 @@ void UControlRigBlueprint::GetPreloadDependencies(TArray<UObject*>& OutDeps)
 }
 
 #if WITH_EDITOR
-const FName& UControlRigBlueprint::GetPanelPinFactoryName() const
+const FLazyName& UControlRigBlueprint::GetPanelPinFactoryName() const
 {
 	return ControlRigPanelNodeFactoryName;
 }

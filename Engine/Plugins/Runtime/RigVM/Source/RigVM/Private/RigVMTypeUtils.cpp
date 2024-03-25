@@ -74,7 +74,7 @@ UObject* RigVMTypeUtils::UserDefinedTypeFromCPPType(FString& InOutCPPType, const
 
 		if(OriginalTypeName.Contains(TEXT("FUserDefinedStruct_")))
 		{
-			static const FName GuidTag = GET_MEMBER_NAME_CHECKED(UUserDefinedStruct, Guid);
+			static const FLazyName GuidTag(GET_MEMBER_NAME_CHECKED(UUserDefinedStruct, Guid));
 
 			TArray<FAssetData> AssetDataList;
 			AssetRegistry.GetAssetsByClass(UUserDefinedStruct::StaticClass()->GetClassPathName(), AssetDataList, true);

@@ -36,7 +36,7 @@ void FRigVMExecuteContext::SetWorld(const UWorld* InWorld)
 
 bool FRigVMExecuteContext::SerializeFromMismatchedTag(const FPropertyTag& Tag, FStructuredArchive::FSlot Slot)
 {
-	static const FName ControlRigExecuteContextName("ControlRigExecuteContext");
+	static const FLazyName ControlRigExecuteContextName("ControlRigExecuteContext");
 	if (Tag.GetType().IsStruct(ControlRigExecuteContextName))
 	{
 		static const FString CRExecuteContextPath = TEXT("/Script/ControlRig.ControlRigExecuteContext");

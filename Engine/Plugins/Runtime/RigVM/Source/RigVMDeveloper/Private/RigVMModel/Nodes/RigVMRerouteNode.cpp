@@ -5,9 +5,6 @@
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(RigVMRerouteNode)
 
-const FString URigVMRerouteNode::RerouteName = TEXT("Reroute");
-const FString URigVMRerouteNode::ValueName = TEXT("Value");
-
 URigVMRerouteNode::URigVMRerouteNode()
 {
 }

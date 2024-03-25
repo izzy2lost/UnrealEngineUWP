@@ -39,9 +39,9 @@ protected:
 	}
 	static void Execute(FRigVMExtendedExecuteContext& InContext, FRigVMMemoryHandleArray Handles, FRigVMPredicateBranchArray Predicates);
 
-	static const FName PrefixName;
-	static const FName ValueName;
-	static const FName EnabledName;
-	static const FName ScreenDurationName;
-	static const FName ScreenColorName;
+	static inline const FLazyName PrefixName = FLazyName(TEXT("Prefix"));
+	static inline const FLazyName ValueName = FLazyName(TEXT("Value"));
+	static inline const FLazyName EnabledName = FLazyName(TEXT("Enabled"));
+	static inline const FLazyName ScreenDurationName = FLazyName(TEXT("ScreenDuration"));
+	static inline const FLazyName ScreenColorName = FLazyName(TEXT("ScreenColor"));
 };

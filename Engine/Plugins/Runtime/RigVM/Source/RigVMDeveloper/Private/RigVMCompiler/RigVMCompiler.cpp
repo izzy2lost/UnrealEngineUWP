@@ -4022,7 +4022,9 @@ const FRigVMCompilerWorkData::FRigVMASTProxyArray& URigVMCompiler::FindProxiesWi
 
 FString URigVMCompiler::GetPinNameWithDirectionPrefix(const URigVMPin* Pin)
 {
-	const FString & Prefix = (Pin->GetDirection() == ERigVMPinDirection::Input) ? FRigVMGraphFunctionData::EntryString : (Pin->GetDirection() == ERigVMPinDirection::Output) ? FRigVMGraphFunctionData::ReturnString : "";
+	static const FString EntryString = FRigVMGraphFunctionData::EntryString;
+	static const FString ReturnString = FRigVMGraphFunctionData::ReturnString;
+	const FString & Prefix = (Pin->GetDirection() == ERigVMPinDirection::Input) ? EntryString : (Pin->GetDirection() == ERigVMPinDirection::Output) ? ReturnString : "";
 	const FString NameWithDirectionPrefix = Prefix + "_" + FRigVMPropertyDescription::SanitizeName(FName(Pin->GetName())).ToString();
 	return NameWithDirectionPrefix;
 }

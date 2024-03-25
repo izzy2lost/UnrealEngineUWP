@@ -100,8 +100,8 @@ FText SRigVMGraphVariableBinding::GetBindingText() const
 
 const FSlateBrush* SRigVMGraphVariableBinding::GetBindingImage() const
 {
-	static FName TypeIcon(TEXT("Kismet.VariableList.TypeIcon"));
-	static FName ArrayTypeIcon(TEXT("Kismet.VariableList.ArrayTypeIcon"));
+	static const FLazyName TypeIcon(TEXT("Kismet.VariableList.TypeIcon"));
+	static const FLazyName ArrayTypeIcon(TEXT("Kismet.VariableList.ArrayTypeIcon"));
 
 	if (ModelPins.Num() > 0)
 	{
@@ -311,7 +311,7 @@ void SRigVMGraphVariableBinding::FillLocalVariableMenu(FMenuBuilder& MenuBuilder
 	
 	MenuBuilder.BeginSection("LocalVariables", LOCTEXT("LocalVariables", "Local Variables"));
 	{
-		static FName PropertyIcon(TEXT("Kismet.VariableList.TypeIcon"));
+		static const FLazyName PropertyIcon(TEXT("Kismet.VariableList.TypeIcon"));
 		const URigVMEdGraphSchema* Schema = GetDefault<URigVMEdGraphSchema>();
 
 		for(const FRigVMGraphVariableDescription& LocalVariable : LocalVariables)

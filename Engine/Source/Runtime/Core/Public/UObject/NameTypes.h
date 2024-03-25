@@ -1610,6 +1610,11 @@ public:
 
 	CORE_API FName Resolve() const;
 
+	CORE_API FString ToString() const
+	{
+		return Resolve().ToString();
+	}
+
 private:
 	struct FLiteralOrName
 	{

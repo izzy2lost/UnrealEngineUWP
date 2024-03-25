@@ -32,8 +32,8 @@ public:
 
 private:
 
-	static const FString RerouteName;
-	static const FString ValueName;
+	static const inline TCHAR* RerouteName = TEXT("Reroute");
+	static const inline TCHAR* ValueName = TEXT("Value");
 
 	friend class URigVMController;
 	friend class URigVMCompiler;

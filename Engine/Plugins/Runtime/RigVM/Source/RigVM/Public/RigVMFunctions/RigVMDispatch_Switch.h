@@ -40,7 +40,7 @@ protected:
 	static void Execute(FRigVMExtendedExecuteContext& InContext, FRigVMMemoryHandleArray Handles, FRigVMPredicateBranchArray Predicates);
 	static FName GetCaseName(int32 InIndex);
 	static FName GetCaseDisplayName(int32 InIndex);
-	
-	static const FName IndexName;
-	static const FName CasesName;
+
+	static inline const FLazyName IndexName = FLazyName(TEXT("Index"));
+	static inline const FLazyName CasesName = FLazyName(TEXT("Cases"));
 };

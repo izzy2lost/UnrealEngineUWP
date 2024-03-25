@@ -53,9 +53,9 @@ public:
 
 private:
 
-	static const FString EnumName;
-	static const FString EnumValueName;
-	static const FString EnumIndexName;
+	static const TCHAR* EnumName;
+	static const inline TCHAR* EnumValueName = TEXT("EnumValue");
+	static const inline TCHAR* EnumIndexName = TEXT("EnumIndex");
 	
 	friend class URigVMController;
 	friend class URigVMCompiler;

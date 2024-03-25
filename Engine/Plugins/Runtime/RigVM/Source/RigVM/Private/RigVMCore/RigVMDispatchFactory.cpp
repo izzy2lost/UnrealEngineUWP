@@ -7,14 +7,12 @@
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(RigVMDispatchFactory)
 
-const FString FRigVMDispatchFactory::DispatchPrefix = TEXT("DISPATCH_");
-const FString FRigVMDispatchFactory::TrueString = TEXT("True");
 FCriticalSection FRigVMDispatchFactory::GetTemplateMutex;
 
 FName FRigVMDispatchFactory::GetFactoryName() const
 {
 	static constexpr TCHAR Format[] = TEXT("%s%s");
-	return *FString::Printf(Format, *DispatchPrefix, *GetScriptStruct()->GetName());
+	return *FString::Printf(Format, DispatchPrefix, *GetScriptStruct()->GetName());
 }
 
 #if WITH_EDITOR

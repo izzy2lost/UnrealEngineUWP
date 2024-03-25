@@ -80,7 +80,11 @@ struct RIGVMDEVELOPER_API FRigVMEdGraphSchemaAction_LocalVar : public FEdGraphSc
 public:
 
 	// Simple type info
-	static FName StaticGetTypeId() {static FName Type("FRigVMEdGraphSchemaAction_LocalVar"); return Type;}
+	static FName StaticGetTypeId()
+	{
+		static const FLazyName Type("FRigVMEdGraphSchemaAction_LocalVar");
+		return Type;
+	}
 	virtual FName GetTypeId() const override { return StaticGetTypeId(); } 
 
 	FRigVMEdGraphSchemaAction_LocalVar()
@@ -117,7 +121,11 @@ struct RIGVMDEVELOPER_API FRigVMEdGraphSchemaAction_PromoteToVariable : public F
 public:
 
 	// Simple type info
-	static FName StaticGetTypeId() {static FName Type("FRigVMEdGraphSchemaAction_PromoteToVariable"); return Type;}
+	static FName StaticGetTypeId()
+	{
+		static const FLazyName Type("FRigVMEdGraphSchemaAction_PromoteToVariable");
+		return Type;
+	}
 	virtual FName GetTypeId() const override { return StaticGetTypeId(); } 
 
 	FRigVMEdGraphSchemaAction_PromoteToVariable()
@@ -149,7 +157,11 @@ struct RIGVMDEVELOPER_API FRigVMEdGraphSchemaAction_PromoteToExposedPin : public
 public:
 
 	// Simple type info
-	static FName StaticGetTypeId() {static FName Type("FRigVMEdGraphSchemaAction_PromoteToExposedPin"); return Type;}
+	static FName StaticGetTypeId()
+	{
+		static const FLazyName Type("FRigVMEdGraphSchemaAction_PromoteToExposedPin");
+		return Type;
+	}
 	virtual FName GetTypeId() const override { return StaticGetTypeId(); } 
 
 	FRigVMEdGraphSchemaAction_PromoteToExposedPin()
@@ -179,7 +191,11 @@ struct RIGVMDEVELOPER_API FRigVMEdGraphSchemaAction_Event : public FEdGraphSchem
 public:
 
 	// Simple type info
-	static FName StaticGetTypeId() {static FName Type("FRigVMEdGraphSchemaAction_Event"); return Type;}
+	static FName StaticGetTypeId()
+	{
+		static const FLazyName Type("FRigVMEdGraphSchemaAction_Event");
+		return Type;
+	}
 	virtual FName GetTypeId() const override { return StaticGetTypeId(); } 
 
 	FRigVMEdGraphSchemaAction_Event()
@@ -247,12 +263,12 @@ class RIGVMDEVELOPER_API URigVMEdGraphSchema : public UEdGraphSchema
 
 public:
 	/** Name constants */
-	static const FName GraphName_RigVM;
+	static inline const FLazyName GraphName_RigVM = FLazyName(TEXT("RigVM"));
 
 public:
 	URigVMEdGraphSchema();
 
-	virtual const FName& GetRootGraphName() const { return GraphName_RigVM; }
+	virtual const FLazyName& GetRootGraphName() const { return GraphName_RigVM; }
 
 	// UEdGraphSchema interface
 	virtual void GetGraphContextActions(FGraphContextMenuBuilder& ContextMenuBuilder) const override;

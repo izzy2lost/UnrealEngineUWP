@@ -275,47 +275,6 @@ void FRigVMStructUpgradeInfo::SetDefaultValues(const FRigVMStruct* InNewStructMe
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-const FName FRigVMStruct::DeprecatedMetaName("Deprecated");
-const FName FRigVMStruct::InputMetaName("Input");
-const FName FRigVMStruct::OutputMetaName("Output");
-const FName FRigVMStruct::IOMetaName("IO");
-const FName FRigVMStruct::HiddenMetaName("Hidden");
-const FName FRigVMStruct::VisibleMetaName("Visible");
-const FName FRigVMStruct::DetailsOnlyMetaName("DetailsOnly");
-const FName FRigVMStruct::AbstractMetaName("Abstract");
-const FName FRigVMStruct::CategoryMetaName("Category");
-const FName FRigVMStruct::DisplayNameMetaName("DisplayName");
-const FName FRigVMStruct::MenuDescSuffixMetaName("MenuDescSuffix");
-const FName FRigVMStruct::ShowVariableNameInTitleMetaName("ShowVariableNameInTitle");
-const FName FRigVMStruct::CustomWidgetMetaName("CustomWidget");
-const FName FRigVMStruct::ConstantMetaName("Constant");
-const FName FRigVMStruct::TitleColorMetaName("TitleColor");
-const FName FRigVMStruct::NodeColorMetaName("NodeColor");
-const FName FRigVMStruct::IconMetaName("Icon");
-const FName FRigVMStruct::KeywordsMetaName("Keywords");
-const FName FRigVMStruct::TemplateNameMetaName = FRigVMRegistry::TemplateNameMetaName;
-const FName FRigVMStruct::FixedSizeArrayMetaName("FixedSizeArray");
-const FName FRigVMStruct::ShowOnlySubPinsMetaName("ShowOnlySubPins");
-const FName FRigVMStruct::HideSubPinsMetaName("HideSubPins");
-const FName FRigVMStruct::ArraySizeMetaName("ArraySize");
-const FName FRigVMStruct::AggregateMetaName("Aggregate");
-const FName FRigVMStruct::ExpandPinByDefaultMetaName("ExpandByDefault");
-const FName FRigVMStruct::DefaultArraySizeMetaName("DefaultArraySize");
-const FName FRigVMStruct::VaryingMetaName("Varying");
-const FName FRigVMStruct::SingletonMetaName("Singleton");
-const FName FRigVMStruct::SliceContextMetaName("SliceContext");
-const FName FRigVMStruct::ExecuteName = TEXT("Execute");
-const FName FRigVMStruct::ExecuteContextName = TEXT("ExecuteContext");
-const FName FRigVMStruct::ForLoopCountPinName("Count");
-const FName FRigVMStruct::ForLoopContinuePinName("Continue");
-const FName FRigVMStruct::ForLoopCompletedPinName("Completed");
-const FName FRigVMStruct::ForLoopIndexPinName("Index");
-const FName FRigVMStruct::ComputeLazilyMetaName("Lazy");
-const FName FRigVMStruct::ControlFlowBlockToRunName("BlockToRun");
-const FName FRigVMStruct::ControlFlowCompletedName("Completed");
-const FName FRigVMStruct::ControlFlowCountName("Count");
-const FName FRigVMStruct::ControlFlowIndexName("Index");
-
 float FRigVMStruct::GetRatioFromIndex(int32 InIndex, int32 InCount)
 {
 	if (InCount <= 1)

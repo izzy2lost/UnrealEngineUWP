@@ -4,9 +4,7 @@
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(RigVMEnumNode)
 
-const FString URigVMEnumNode::EnumName = TEXT("Enum");
-const FString URigVMEnumNode::EnumValueName = TEXT("EnumValue");
-const FString URigVMEnumNode::EnumIndexName = TEXT("EnumIndex");
+const TCHAR* URigVMEnumNode::EnumName = TEXT("Enum");
 
 URigVMEnumNode::URigVMEnumNode()
 {

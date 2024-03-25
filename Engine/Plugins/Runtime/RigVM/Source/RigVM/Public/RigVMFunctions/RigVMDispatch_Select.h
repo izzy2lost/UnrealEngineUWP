@@ -35,7 +35,7 @@ protected:
 	virtual FRigVMFunctionPtr GetDispatchFunctionImpl(const FRigVMTemplateTypeMap& InTypes) const override;
 	static void Execute(FRigVMExtendedExecuteContext& InContext, FRigVMMemoryHandleArray Handles, FRigVMPredicateBranchArray Predicates);
 
-	static const FName IndexName;
-	static const FName ValuesName;
-	static const FName ResultName;
+	static inline FLazyName IndexName = FLazyName(TEXT("Index"));
+	static inline FLazyName ValuesName = FLazyName(TEXT("Values"));
+	static inline FLazyName ResultName = FLazyName(TEXT("Result"));
 };

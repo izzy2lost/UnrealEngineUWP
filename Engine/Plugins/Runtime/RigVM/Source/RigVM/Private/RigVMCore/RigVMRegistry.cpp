@@ -16,8 +16,6 @@
 #include "RigVMFunctions/RigVMDispatch_Core.h"
 #include "Interfaces/IPluginManager.h"
 
-const FName FRigVMRegistry::TemplateNameMetaName = TEXT("TemplateName");
-
 FCriticalSection FRigVMRegistry::FindOrAddTypeMutex;
 
 FCriticalSection FRigVMRegistry::FunctionRegistryMutex;
@@ -1488,7 +1486,7 @@ const FRigVMFunction* FRigVMRegistry::FindFunction_NoLock(const TCHAR* InName, c
 		const bool bIsDispatchFactory = StructOrFactoryName.StartsWith(FRigVMDispatchFactory::DispatchPrefix, ESearchCase::CaseSensitive);
 		if(bIsDispatchFactory)
 		{
-			StructOrFactoryName = StructOrFactoryName.Mid(FRigVMDispatchFactory::DispatchPrefix.Len());
+			StructOrFactoryName = StructOrFactoryName.Mid(FCString::Strlen(FRigVMDispatchFactory::DispatchPrefix));
 		}
 		else if(StructOrFactoryName.StartsWith(StructPrefix, ESearchCase::CaseSensitive))
 		{
@@ -1607,7 +1605,7 @@ const FRigVMTemplate* FRigVMRegistry::FindTemplate_NoLock(const FName& InNotatio
 	{
 		const FString OriginalDispatchFactoryName = OriginalNotation
 			.Left(OriginalNotation.Find(TEXT("(")))
-			.RightChop(FRigVMDispatchFactory::DispatchPrefix.Len());
+			.RightChop(FCString::Strlen(FRigVMDispatchFactory::DispatchPrefix));
 
 		const FCoreRedirectObjectName OldObjectName(OriginalDispatchFactoryName);
 		TArray<const FCoreRedirect*> Redirects;
@@ -1830,7 +1828,7 @@ FRigVMDispatchFactory* FRigVMRegistry::FindDispatchFactory_NoLock(const FName& I
 	// if the factory has never been registered - we should try to look it up	
 	if(FactoryName.StartsWith(FRigVMDispatchFactory::DispatchPrefix))
 	{
-		const FString ScriptStructName = FactoryName.Mid(FRigVMDispatchFactory::DispatchPrefix.Len());
+		const FString ScriptStructName = FactoryName.Mid(FCString::Strlen(FRigVMDispatchFactory::DispatchPrefix));
 		if(UScriptStruct* FactoryStruct = FindFirstObject<UScriptStruct>(*ScriptStructName, EFindFirstObjectOptions::NativeFirst | EFindFirstObjectOptions::EnsureIfAmbiguous))
 		{
 			FRigVMRegistry* MutableThis = (FRigVMRegistry*)this;

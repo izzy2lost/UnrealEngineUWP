@@ -7,11 +7,6 @@
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(RigVMDispatch_Select)
 
-const FName FRigVMDispatch_SelectInt32::IndexName = TEXT("Index");
-const FName FRigVMDispatch_SelectInt32::ValuesName = TEXT("Values");
-const FName FRigVMDispatch_SelectInt32::ResultName = TEXT("Result");
-
-
 FName FRigVMDispatch_SelectInt32::GetArgumentNameForOperandIndex(int32 InOperandIndex, int32 InTotalOperands) const
 {
 	if(InOperandIndex > 0 && InOperandIndex < InTotalOperands - 1)

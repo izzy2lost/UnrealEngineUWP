@@ -555,7 +555,7 @@ private:
 	mutable FString LastKnownCPPType;
 	mutable TRigVMTypeIndex LastKnownTypeIndex;
 
-	static const FString OrphanPinPrefix;
+	static const inline TCHAR* OrphanPinPrefix = TEXT("Orphan::");
 
 	friend class URigVMController;
 	friend class URigVMGraph;

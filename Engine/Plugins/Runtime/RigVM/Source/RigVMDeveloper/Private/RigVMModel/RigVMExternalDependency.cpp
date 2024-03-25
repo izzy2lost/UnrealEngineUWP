@@ -4,10 +4,6 @@
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(RigVMExternalDependency)
 
-const FName IRigVMExternalDependencyManager::UserDefinedEnumCategory = TEXT("UserDefinedEnum");
-const FName IRigVMExternalDependencyManager::UserDefinedStructCategory = TEXT("UserDefinedStruct");
-const FName IRigVMExternalDependencyManager::RigVMGraphFunctionCategory = TEXT("RigVMGraphFunction");
-
 TArray<FName> IRigVMExternalDependencyManager::DependencyCategories = {
 	UserDefinedEnumCategory,
 	UserDefinedStructCategory,

@@ -9,7 +9,7 @@
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(RigVMBuildData)
 
-static const FName FunctionReferenceNodeDataName = TEXT("FunctionReferenceNodeData");
+static const FLazyName FunctionReferenceNodeDataName = TEXT("FunctionReferenceNodeData");
 
 // When the object system has been completely loaded, collect all the references between RigVM graphs 
 static FDelayedAutoRegisterHelper GRigVMBuildDataSingletonHelper(EDelayedRegisterRunPhase::EndOfEngineInit, []() -> void

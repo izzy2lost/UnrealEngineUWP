@@ -1460,7 +1460,7 @@ URigVMUnitNode* URigVMController::AddUnitNode(UScriptStruct* InScriptStruct, TSu
 	Node->NodeTitle = InScriptStruct->GetMetaData(TEXT("DisplayName"));
 	
 	FString NodeColorMetadata;
-	InScriptStruct->GetStringMetaDataHierarchical(*URigVMNode::NodeColorName, &NodeColorMetadata);
+	InScriptStruct->GetStringMetaDataHierarchical(URigVMNode::NodeColorName, &NodeColorMetadata);
 	if (!NodeColorMetadata.IsEmpty())
 	{
 		Node->NodeColor = GetColorFromMetadata(NodeColorMetadata);
@@ -1780,14 +1780,14 @@ URigVMVariableNode* URigVMController::AddVariableNode(const FName& InVariableNam
 		AddNodePin(Node, ExecutePin);
 	}
 
-	URigVMPin* VariablePin = NewObject<URigVMPin>(Node, *URigVMVariableNode::VariableName);
+	URigVMPin* VariablePin = NewObject<URigVMPin>(Node, URigVMVariableNode::VariableName);
 	VariablePin->CPPType = RigVMTypeUtils::FNameType;
 	VariablePin->Direction = ERigVMPinDirection::Hidden;
 	VariablePin->DefaultValue = InVariableName.ToString();
 	VariablePin->CustomWidgetName = TEXT("VariableName");
 	AddNodePin(Node, VariablePin);
 
-	URigVMPin* ValuePin = NewObject<URigVMPin>(Node, *URigVMVariableNode::ValueName);
+	URigVMPin* ValuePin = NewObject<URigVMPin>(Node, URigVMVariableNode::ValueName);
 	ValuePin->CPPType = ExternalVariable.TypeName.ToString();
 	ValuePin->CPPTypeObject = ExternalVariable.TypeObject;
 	if (ValuePin->CPPTypeObject)
@@ -3031,7 +3031,7 @@ URigVMRerouteNode* URigVMController::AddRerouteNodeOnPin(const FString& InPinPat
 	URigVMRerouteNode* Node = NewObject<URigVMRerouteNode>(Graph, *Name);
 	Node->Position = InPosition;
 
-	URigVMPin* ValuePin = NewObject<URigVMPin>(Node, *URigVMRerouteNode::ValueName);
+	URigVMPin* ValuePin = NewObject<URigVMPin>(Node, URigVMRerouteNode::ValueName);
 	ConfigurePinFromPin(ValuePin, Pin);
 	ValuePin->Direction = ERigVMPinDirection::IO;
 	AddNodePin(Node, ValuePin);
@@ -12695,7 +12695,7 @@ URigVMRerouteNode* URigVMController::AddFreeRerouteNode(const FString& InCPPType
 	URigVMRerouteNode* Node = NewObject<URigVMRerouteNode>(Graph, *Name);
 	Node->Position = InPosition;
 
-	URigVMPin* ValuePin = NewObject<URigVMPin>(Node, *URigVMRerouteNode::ValueName);
+	URigVMPin* ValuePin = NewObject<URigVMPin>(Node, URigVMRerouteNode::ValueName);
 	ValuePin->CPPType = InCPPType;
 	ValuePin->CPPTypeObjectPath = InCPPTypeObjectPath;
 	ValuePin->bIsConstant = bIsConstant;
@@ -13408,7 +13408,7 @@ URigVMEnumNode* URigVMController::AddEnumNode(const FName& InCPPTypeObjectPath, 
 	URigVMEnumNode* Node = NewObject<URigVMEnumNode>(Graph, *Name);
 	Node->Position = InPosition;
 
-	URigVMPin* EnumValuePin = NewObject<URigVMPin>(Node, *URigVMEnumNode::EnumValueName);
+	URigVMPin* EnumValuePin = NewObject<URigVMPin>(Node, URigVMEnumNode::EnumValueName);
 	EnumValuePin->CPPType = CPPTypeObject->GetName();
 	EnumValuePin->CPPTypeObject = CPPTypeObject;
 	EnumValuePin->CPPTypeObjectPath = InCPPTypeObjectPath;
@@ -13416,7 +13416,7 @@ URigVMEnumNode* URigVMController::AddEnumNode(const FName& InCPPTypeObjectPath, 
 	EnumValuePin->DefaultValue = Enum->GetNameStringByValue(0);
 	AddNodePin(Node, EnumValuePin);
 
-	URigVMPin* EnumIndexPin = NewObject<URigVMPin>(Node, *URigVMEnumNode::EnumIndexName);
+	URigVMPin* EnumIndexPin = NewObject<URigVMPin>(Node, URigVMEnumNode::EnumIndexName);
 	EnumIndexPin->CPPType = RigVMTypeUtils::Int32Type;
 	EnumIndexPin->Direction = ERigVMPinDirection::Output;
 	EnumIndexPin->DisplayName = TEXT("Result");
@@ -13618,7 +13618,7 @@ URigVMInvokeEntryNode* URigVMController::AddInvokeEntryNode(const FName& InEntry
 	ExecutePin->Direction = ERigVMPinDirection::IO;
 	AddNodePin(Node, ExecutePin);
 
-	URigVMPin* EntryNamePin = NewObject<URigVMPin>(Node, *URigVMInvokeEntryNode::EntryName);
+	URigVMPin* EntryNamePin = NewObject<URigVMPin>(Node, URigVMInvokeEntryNode::EntryName);
 	EntryNamePin->CPPType = RigVMTypeUtils::FNameType;
 	EntryNamePin->Direction = ERigVMPinDirection::Input;
 	EntryNamePin->bIsConstant = true;
@@ -14948,7 +14948,7 @@ void URigVMController::OrphanPins(const TArray<FRepopulatePinsNodeData>& NodesPi
 #endif
 				check(Pin->IsRootPin());
 
-				const FString OrphanedName = FString::Printf(TEXT("%s%s"), *URigVMPin::OrphanPinPrefix, *Pin->GetName());
+				const FString OrphanedName = FString::Printf(TEXT("%s%s"), URigVMPin::OrphanPinPrefix, *Pin->GetName());
 				if (!NodeData.Node->FindPin(OrphanedName))
 				{
 					URigVMPin* OrphanPin = NewObject<URigVMPin>(NodeData.Node, *OrphanedName);
@@ -15020,7 +15020,7 @@ bool URigVMController::GenerateNewPinInfos(const FRigVMRegistry& Registry, URigV
 		}
 
 		FString NodeColorMetadata;
-		ScriptStruct->GetStringMetaDataHierarchical(*URigVMNode::NodeColorName, &NodeColorMetadata);
+		ScriptStruct->GetStringMetaDataHierarchical(URigVMNode::NodeColorName, &NodeColorMetadata);
 		if (!NodeColorMetadata.IsEmpty())
 		{
 			UnitNode->NodeColor = GetColorFromMetadata(NodeColorMetadata);
@@ -15531,7 +15531,7 @@ void URigVMController::RepopulatePinsOnNode(const FRigVMRegistry& Registry, cons
 #endif
 			check(Pin->IsRootPin());
 
-			const FString OrphanedName = FString::Printf(TEXT("%s%s"), *URigVMPin::OrphanPinPrefix, *Pin->GetName());
+			const FString OrphanedName = FString::Printf(TEXT("%s%s"), URigVMPin::OrphanPinPrefix, *Pin->GetName());
 			if (InNode->FindPin(OrphanedName) == nullptr)
 			{
 				Pin->DisplayName = Pin->GetFName();
@@ -15758,7 +15758,7 @@ void URigVMController::RemovePinsDuringRepopulate(URigVMNode* InNode, TArray<URi
 		if(bSetupOrphanedPins && !Pin->IsExecuteContext())
 		{
 			URigVMPin* RootPin = Pin->GetRootPin();
-			const FString OrphanedName = FString::Printf(TEXT("%s%s"), *URigVMPin::OrphanPinPrefix, *RootPin->GetName());
+			const FString OrphanedName = FString::Printf(TEXT("%s%s"), URigVMPin::OrphanPinPrefix, *RootPin->GetName());
 
 			URigVMPin* OrphanedRootPin = nullptr;
 			
@@ -17597,7 +17597,7 @@ bool URigVMController::ChangePinType(URigVMPin* InPin, TRigVMTypeIndex InTypeInd
 		{
 			FastBreakLinkedPaths(LinkedPaths);
 
-			const FString OrphanedName = FString::Printf(TEXT("%s%s"), *URigVMPin::OrphanPinPrefix, *InPin->GetName());
+			const FString OrphanedName = FString::Printf(TEXT("%s%s"), URigVMPin::OrphanPinPrefix, *InPin->GetName());
 			if(InPin->GetNode()->FindPin(OrphanedName) == nullptr)
 			{
 				URigVMPin* OrphanedPin = NewObject<URigVMPin>(InPin->GetNode(), *OrphanedName);
@@ -18522,7 +18522,7 @@ TArray<URigVMController::FLinkedPath> URigVMController::RemapLinkedPaths(
 						continue;
 					}
 
-					RemainingPinPath = FString::Printf(TEXT("%s%s"), *URigVMPin::OrphanPinPrefix, *RemainingPinPath);
+					RemainingPinPath = FString::Printf(TEXT("%s%s"), URigVMPin::OrphanPinPrefix, *RemainingPinPath);
 					PinToFind = Node->FindPin(RemainingPinPath);
 
 					if(PinToFind != nullptr)

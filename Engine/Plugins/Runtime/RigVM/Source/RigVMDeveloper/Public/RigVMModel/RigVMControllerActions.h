@@ -118,12 +118,12 @@ struct FRigVMBaseAction
 
 public:
 	
-	inline static const FString RedoPrefix = TEXT("Redo");
-	inline static const FString UndoPrefix = TEXT("Undo");
-	inline static const FString AddActionPrefix = TEXT("Add Action");
-	inline static const FString BeginActionPrefix = TEXT("Begin Action");
-	inline static const FString EndActionPrefix = TEXT("End Action");
-	inline static const FString CancelActionPrefix = TEXT("Cancel Action");
+	static const inline TCHAR* RedoPrefix = TEXT("Redo");
+	static const inline TCHAR* UndoPrefix = TEXT("Undo");
+	static const inline TCHAR* AddActionPrefix = TEXT("Add Action");
+	static const inline TCHAR* BeginActionPrefix = TEXT("Begin Action");
+	static const inline TCHAR* EndActionPrefix = TEXT("End Action");
+	static const inline TCHAR* CancelActionPrefix = TEXT("Cancel Action");
 
 	// Default constructor
 	FRigVMBaseAction(URigVMController* InController)

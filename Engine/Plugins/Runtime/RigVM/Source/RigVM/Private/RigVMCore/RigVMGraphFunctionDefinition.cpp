@@ -6,9 +6,6 @@
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(RigVMGraphFunctionDefinition)
 
-const FString FRigVMGraphFunctionData::EntryString = TEXT("Entry");
-const FString FRigVMGraphFunctionData::ReturnString = TEXT("Return");
-
 FRigVMExternalVariable FRigVMGraphFunctionArgument::GetExternalVariable() const
 {
 	FRigVMExternalVariable Variable;

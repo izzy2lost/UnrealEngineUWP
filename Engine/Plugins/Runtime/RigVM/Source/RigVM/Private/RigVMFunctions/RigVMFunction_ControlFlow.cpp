@@ -10,12 +10,12 @@ FRigVMFunction_ControlFlowBranch_Execute()
 	{
 		if(Condition)
 		{
-			static const FName TrueName = GET_MEMBER_NAME_CHECKED(FRigVMFunction_ControlFlowBranch, True); 
+			static const FLazyName TrueName(GET_MEMBER_NAME_CHECKED(FRigVMFunction_ControlFlowBranch, True)); 
 			BlockToRun = TrueName;
 		}
 		else
 		{
-			static const FName FalseName = GET_MEMBER_NAME_CHECKED(FRigVMFunction_ControlFlowBranch, False); 
+			static const FLazyName FalseName(GET_MEMBER_NAME_CHECKED(FRigVMFunction_ControlFlowBranch, False)); 
 			BlockToRun = FalseName;
 		}
 	}

@@ -76,8 +76,8 @@ FText SRigVMGraphChangePinType::GetBindingText() const
 
 const FSlateBrush* SRigVMGraphChangePinType::GetBindingImage() const
 {
-	static FName TypeIcon(TEXT("Kismet.VariableList.TypeIcon"));
-	static FName ArrayTypeIcon(TEXT("Kismet.VariableList.ArrayTypeIcon"));
+	static const FLazyName TypeIcon(TEXT("Kismet.VariableList.TypeIcon"));
+	static const FLazyName ArrayTypeIcon(TEXT("Kismet.VariableList.ArrayTypeIcon"));
 
 	if(Types.Num() > 0)
 	{
@@ -201,7 +201,7 @@ void SRigVMGraphChangePinType::FillPinTypeMenu(FMenuBuilder& MenuBuilder)
 	
 	MenuBuilder.BeginSection("PinTypes", LOCTEXT("PinTypes", "Pin Types"));
 	{
-		static FName PropertyIcon(TEXT("Kismet.VariableList.TypeIcon"));
+		static const FLazyName PropertyIcon(TEXT("Kismet.VariableList.TypeIcon"));
 		const URigVMEdGraphSchema* Schema = GetDefault<URigVMEdGraphSchema>();
 
 		const bool bHasAllTypes =

@@ -40,8 +40,6 @@
 
 #define LOCTEXT_NAMESPACE "CRigVMGraphSchema"
 
-const FName URigVMEdGraphSchema::GraphName_RigVM(TEXT("RigVM"));
-
 FRigVMLocalVariableNameValidator::FRigVMLocalVariableNameValidator(const UBlueprint* Blueprint, const URigVMGraph* Graph, FName InExistingName)
 	: FStringSetNameValidator(InExistingName.ToString())
 {

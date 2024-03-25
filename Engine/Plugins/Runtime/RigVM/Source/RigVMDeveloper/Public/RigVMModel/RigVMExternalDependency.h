@@ -68,9 +68,9 @@ public:
 	virtual TArray<FRigVMExternalDependency> GetExternalDependenciesForCategory(const FName& InCategory) const = 0;
 	TArray<FRigVMExternalDependency> GetAllExternalDependencies() const;
 
-	static const FName UserDefinedEnumCategory;
-	static const FName UserDefinedStructCategory;
-	static const FName RigVMGraphFunctionCategory;
+	static inline const FLazyName UserDefinedEnumCategory = FLazyName(TEXT("UserDefinedEnum"));
+	static inline const FLazyName UserDefinedStructCategory = FLazyName(TEXT("UserDefinedStruct"));
+	static inline const FLazyName RigVMGraphFunctionCategory = FLazyName(TEXT("RigVMGraphFunction"));
 
 protected:
 

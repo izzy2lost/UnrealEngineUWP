@@ -28,6 +28,6 @@ protected:
 	virtual FRigVMFunctionPtr GetDispatchFunctionImpl(const FRigVMTemplateTypeMap& InTypes) const override { return &FRigVMDispatch_CastObject::Execute; }
 	static void Execute(FRigVMExtendedExecuteContext& InContext, FRigVMMemoryHandleArray Handles, FRigVMPredicateBranchArray RigVMBranches);
 
-	static const FName ValueName;
-	static const FName ResultName;
+	static inline const FLazyName ValueName = FLazyName(TEXT("Value"));
+	static inline const FLazyName ResultName = FLazyName(TEXT("Result"));
 };

@@ -290,9 +290,9 @@ public:
 	uint32 GetHashForEnum(const UEnum* InEnum, bool bCheckTypeIndex = true) const;
 	uint32 GetHashForProperty(const FProperty* InProperty) const;
 
-private:
+	static inline const FLazyName TemplateNameMetaName = FLazyName(TEXT("TemplateName"));
 
-	static const FName TemplateNameMetaName;
+private:
 
 	FRigVMRegistry();
 

@@ -7,8 +7,8 @@
 
 struct FRigVMDispatch_CastEnumBase
 {
-	static const FName ValueName;
-	static const FName ResultName;
+	static inline const FLazyName ValueName = FLazyName(TEXT("Value"));
+	static inline const FLazyName ResultName = FLazyName(TEXT("Result"));
 };
 
 USTRUCT(meta=(DisplayName = "Cast", Category = "Enum", Keywords = "As", NodeColor = "1,1,1,1"))

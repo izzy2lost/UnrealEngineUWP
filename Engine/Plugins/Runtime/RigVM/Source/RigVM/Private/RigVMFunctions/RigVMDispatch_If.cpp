@@ -6,14 +6,9 @@
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(RigVMDispatch_If)
 
-const FName FRigVMDispatch_If::ConditionName = TEXT("Condition");
-const FName FRigVMDispatch_If::TrueName = TEXT("True");
-const FName FRigVMDispatch_If::FalseName = TEXT("False");
-const FName FRigVMDispatch_If::ResultName = TEXT("Result");
-
 FName FRigVMDispatch_If::GetArgumentNameForOperandIndex(int32 InOperandIndex, int32 InTotalOperands) const
 {
-	static const FName ArgumentNames[] = {
+	static const FLazyName ArgumentNames[] = {
 		ConditionName,
 		TrueName,
 		FalseName,

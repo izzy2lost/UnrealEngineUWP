@@ -7,17 +7,9 @@
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(RigVMDispatch_Print)
 
-
-const FName FRigVMDispatch_Print::PrefixName = TEXT("Prefix");
-const FName FRigVMDispatch_Print::ValueName = TEXT("Value");
-const FName FRigVMDispatch_Print::EnabledName = TEXT("Enabled");
-const FName FRigVMDispatch_Print::ScreenDurationName = TEXT("ScreenDuration");
-const FName FRigVMDispatch_Print::ScreenColorName = TEXT("ScreenColor");
-
-
 FName FRigVMDispatch_Print::GetArgumentNameForOperandIndex(int32 InOperandIndex, int32 InTotalOperands) const
 {
-	static const FName ArgumentNames[] = {
+	static const FLazyName ArgumentNames[] = {
 		PrefixName,
 		ValueName,
 		EnabledName,

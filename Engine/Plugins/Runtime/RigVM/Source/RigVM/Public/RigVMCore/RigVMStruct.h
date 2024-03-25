@@ -226,49 +226,48 @@ public:
 	virtual FName GetNextAggregateName(const FName& InLastAggregatePinName) const;
 	virtual FRigVMStructUpgradeInfo GetUpgradeInfo() const { return FRigVMStructUpgradeInfo(); }
 
-	static const FName DeprecatedMetaName;
-	static const FName InputMetaName;
-	static const FName OutputMetaName;
-	static const FName IOMetaName;
-	static const FName HiddenMetaName;
-	static const FName VisibleMetaName;
-	static const FName DetailsOnlyMetaName;
-	static const FName AbstractMetaName;
-	static const FName CategoryMetaName;
-	static const FName DisplayNameMetaName;
-	static const FName MenuDescSuffixMetaName;
-	static const FName ShowVariableNameInTitleMetaName;
-	static const FName CustomWidgetMetaName;
-	static const FName ConstantMetaName;
-	static const FName TitleColorMetaName;
-	static const FName NodeColorMetaName;
+	static inline const FLazyName DeprecatedMetaName = FLazyName(TEXT("Deprecated"));
+	static inline const FLazyName InputMetaName = FLazyName(TEXT("Input"));
+	static inline const FLazyName OutputMetaName = FLazyName(TEXT("Output"));
+	static inline const FLazyName IOMetaName = FLazyName(TEXT("IO"));
+	static inline const FLazyName HiddenMetaName = FLazyName(TEXT("Hidden"));
+	static inline const FLazyName VisibleMetaName = FLazyName(TEXT("Visible"));
+	static inline const FLazyName DetailsOnlyMetaName = FLazyName(TEXT("DetailsOnly"));
+	static inline const FLazyName AbstractMetaName = FLazyName(TEXT("Abstract"));
+	static inline const FLazyName CategoryMetaName = FLazyName(TEXT("Category"));
+	static inline const FLazyName DisplayNameMetaName = FLazyName(TEXT("DisplayName"));
+	static inline const FLazyName MenuDescSuffixMetaName = FLazyName(TEXT("MenuDescSuffix"));
+	static inline const FLazyName ShowVariableNameInTitleMetaName = FLazyName(TEXT("ShowVariableNameInTitle"));
+	static inline const FLazyName CustomWidgetMetaName = FLazyName(TEXT("CustomWidget"));
+	static inline const FLazyName ConstantMetaName = FLazyName(TEXT("Constant"));
+	static inline const FLazyName TitleColorMetaName = FLazyName(TEXT("TitleColor"));
+	static inline const FLazyName NodeColorMetaName = FLazyName(TEXT("NodeColor"));
 	// icon meta name format: StyleSetName|StyleName|SmallStyleName|StatusOverlayStyleName
 	// the last two names are optional, see FSlateIcon() for reference
 	// Example: Icon="EditorStyle|GraphEditor.Sequence_16x"
-	static const FName IconMetaName;
-	static const FName KeywordsMetaName;
-	static const FName TemplateNameMetaName;
-	static const FName FixedSizeArrayMetaName;
-	static const FName ShowOnlySubPinsMetaName;
-	static const FName HideSubPinsMetaName;
-	static const FName ArraySizeMetaName;
-	static const FName AggregateMetaName;
-	static const FName ExpandPinByDefaultMetaName;
-	static const FName DefaultArraySizeMetaName;
-	static const FName VaryingMetaName;
-	static const FName SingletonMetaName;
-	static const FName SliceContextMetaName;
-	static const FName ExecuteName;
-	static const FName ExecuteContextName;
-	static const FName ForLoopCountPinName;
-	static const FName ForLoopContinuePinName;
-	static const FName ForLoopCompletedPinName;
-	static const FName ForLoopIndexPinName;
-	static const FName ComputeLazilyMetaName;
-	static const FName ControlFlowBlockToRunName;
-	static const FName ControlFlowCompletedName;
-	static const FName ControlFlowCountName;
-	static const FName ControlFlowIndexName;
+	static inline const FLazyName IconMetaName = FLazyName(TEXT("Icon"));
+	static inline const FLazyName KeywordsMetaName = FLazyName(TEXT("Keywords"));
+	static inline const FLazyName FixedSizeArrayMetaName = FLazyName(TEXT("FixedSizeArray"));
+	static inline const FLazyName ShowOnlySubPinsMetaName = FLazyName(TEXT("ShowOnlySubPins"));
+	static inline const FLazyName HideSubPinsMetaName = FLazyName(TEXT("HideSubPins"));
+	static inline const FLazyName ArraySizeMetaName = FLazyName(TEXT("ArraySize"));
+	static inline const FLazyName AggregateMetaName = FLazyName(TEXT("Aggregate"));
+	static inline const FLazyName ExpandPinByDefaultMetaName = FLazyName(TEXT("ExpandByDefault"));
+	static inline const FLazyName DefaultArraySizeMetaName = FLazyName(TEXT("DefaultArraySize"));
+	static inline const FLazyName VaryingMetaName = FLazyName(TEXT("Varying"));
+	static inline const FLazyName SingletonMetaName = FLazyName(TEXT("Singleton"));
+	static inline const FLazyName SliceContextMetaName = FLazyName(TEXT("SliceContext"));
+	static inline const FLazyName ExecuteName = FLazyName(TEXT("Execute"));
+	static inline const FLazyName ExecuteContextName = FLazyName(TEXT("ExecuteContext"));
+	static inline const FLazyName ForLoopCountPinName = FLazyName(TEXT("Count"));
+	static inline const FLazyName ForLoopContinuePinName = FLazyName(TEXT("Continue"));
+	static inline const FLazyName ForLoopCompletedPinName = FLazyName(TEXT("Completed"));
+	static inline const FLazyName ForLoopIndexPinName = FLazyName(TEXT("Index"));
+	static inline const FLazyName ComputeLazilyMetaName = FLazyName(TEXT("Lazy"));
+	static inline const FLazyName ControlFlowBlockToRunName = FLazyName(TEXT("BlockToRun"));
+	static inline const FLazyName ControlFlowCompletedName = FLazyName(TEXT("Completed"));
+	static inline const FLazyName ControlFlowCountName = FLazyName(TEXT("Count"));
+	static inline const FLazyName ControlFlowIndexName = FLazyName(TEXT("Index"));
 
 protected:
 

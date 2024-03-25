@@ -15,8 +15,6 @@
 
 #define LOCTEXT_NAMESPACE "ControlRigGraphSchema"
 
-const FName UControlRigGraphSchema::GraphName_ControlRig(TEXT("Rig"));
-
 UControlRigGraphSchema::UControlRigGraphSchema()
 {
 }

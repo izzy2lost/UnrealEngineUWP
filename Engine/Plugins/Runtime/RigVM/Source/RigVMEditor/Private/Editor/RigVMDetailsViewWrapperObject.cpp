@@ -5,6 +5,7 @@
 #include "RigVMModel/Nodes/RigVMUnitNode.h"
 #include "Modules/ModuleManager.h"
 #include "Algo/Sort.h"
+#include "RigVMTypeUtils.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(RigVMDetailsViewWrapperObject)
 
@@ -363,14 +364,6 @@ UClass* URigVMDetailsViewWrapperObject::GetClassForNodes(TArray<URigVMNode*> InN
 
 	for(URigVMPin* Pin : PinsToInspect)
 	{
-		static FString BoolString = TEXT("bool");
-		static FString Int32String = TEXT("int32");
-		static FString IntString = TEXT("int");
-		static FString FloatString = TEXT("float");
-		static FString DoubleString = TEXT("double");
-		static FString StringString = TEXT("FString");
-		static FString NameString = TEXT("FName");
-
 		FProperty* Property = nullptr;
 		FProperty** ElementProperty = &Property;
 		FFieldVariant PropertyOwner = WrapperClass;
@@ -388,28 +381,28 @@ UClass* URigVMDetailsViewWrapperObject::GetClassForNodes(TArray<URigVMNode*> InN
 			PropertyOwner = ArrayProperty;
 		}
 
-		if(BaseCPPType.Equals(BoolString, ESearchCase::IgnoreCase))
+		if(BaseCPPType.Equals(RigVMTypeUtils::BoolType, ESearchCase::IgnoreCase))
 		{
 			(*ElementProperty) = new FBoolProperty(PropertyOwner, Pin->GetFName(), RF_Public);;
 		}
-		else if(BaseCPPType.Equals(Int32String, ESearchCase::IgnoreCase) ||
-			BaseCPPType.Equals(IntString, ESearchCase::IgnoreCase))
+		else if(BaseCPPType.Equals(RigVMTypeUtils::Int32Type, ESearchCase::IgnoreCase) ||
+			BaseCPPType.Equals(RigVMTypeUtils::IntType, ESearchCase::IgnoreCase))
 		{
 			(*ElementProperty) = new FIntProperty(PropertyOwner, Pin->GetFName(), RF_Public);;
 		}
-		else if(BaseCPPType.Equals(FloatString, ESearchCase::IgnoreCase))
+		else if(BaseCPPType.Equals(RigVMTypeUtils::FloatType, ESearchCase::IgnoreCase))
 		{
 			(*ElementProperty) = new FFloatProperty(PropertyOwner, Pin->GetFName(), RF_Public);;
 		}
-		else if(BaseCPPType.Equals(DoubleString, ESearchCase::IgnoreCase))
+		else if(BaseCPPType.Equals(RigVMTypeUtils::DoubleType, ESearchCase::IgnoreCase))
 		{
 			(*ElementProperty) = new FDoubleProperty(PropertyOwner, Pin->GetFName(), RF_Public);;
 		}
-		else if(BaseCPPType.Equals(StringString, ESearchCase::IgnoreCase))
+		else if(BaseCPPType.Equals(RigVMTypeUtils::FStringType, ESearchCase::IgnoreCase))
 		{
 			(*ElementProperty) = new FStrProperty(PropertyOwner, Pin->GetFName(), RF_Public);;
 		}
-		else if(BaseCPPType.Equals(NameString, ESearchCase::IgnoreCase))
+		else if(BaseCPPType.Equals(RigVMTypeUtils::FNameType, ESearchCase::IgnoreCase))
 		{
 			(*ElementProperty) = new FNameProperty(PropertyOwner, Pin->GetFName(), RF_Public);;
 		}

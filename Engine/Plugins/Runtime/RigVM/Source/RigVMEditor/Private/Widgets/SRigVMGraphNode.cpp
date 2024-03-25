@@ -54,8 +54,8 @@ void SRigVMGraphNode::Construct( const FArguments& InArgs )
 {
 	if (CachedImg_CR_Pin_Connected == nullptr)
 	{
-		static const FName NAME_CR_Pin_Connected("ControlRig.Bug.Solid");
-		static const FName NAME_CR_Pin_Disconnected("ControlRig.Bug.Open");
+		static const FLazyName NAME_CR_Pin_Connected("ControlRig.Bug.Solid");
+		static const FLazyName NAME_CR_Pin_Disconnected("ControlRig.Bug.Open");
 		CachedImg_CR_Pin_Connected = FSlateIcon(TEXT("ControlRigEditorStyle"), NAME_CR_Pin_Connected).GetIcon();
 		CachedImg_CR_Pin_Disconnected = FSlateIcon(TEXT("ControlRigEditorStyle"), NAME_CR_Pin_Disconnected).GetIcon();
 	}
@@ -934,7 +934,7 @@ TArray<FOverlayWidgetInfo> SRigVMGraphNode::GetOverlayWidgets(bool bSelected, co
 					if (URigVMUnitNode* VisualDebugNode = Cast<URigVMUnitNode>(Injection->Node))
 					{
 						FString TemplateName;
-					   if (VisualDebugNode->GetScriptStruct()->GetStringMetaDataHierarchical(FRigVMStruct::TemplateNameMetaName, &TemplateName))
+					   if (VisualDebugNode->GetScriptStruct()->GetStringMetaDataHierarchical(FRigVMRegistry::TemplateNameMetaName, &TemplateName))
 					   {
 						   if (TemplateName == TEXT("VisualDebug"))
 						   {

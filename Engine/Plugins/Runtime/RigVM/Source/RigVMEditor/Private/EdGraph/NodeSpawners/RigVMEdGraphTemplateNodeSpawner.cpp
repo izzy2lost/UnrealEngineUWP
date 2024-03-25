@@ -174,7 +174,7 @@ UEdGraphNode* URigVMEdGraphTemplateNodeSpawner::Invoke(UEdGraph* ParentGraph, FB
 				const FRigVMExecuteArgument* Argument = Template->GetExecuteArgument(Index, Context);
 				check(Argument);
 				static UScriptStruct* ExecuteScriptStruct = FRigVMExecuteContext::StaticStruct();
-				static const FName ExecuteStructName = *ExecuteScriptStruct->GetStructCPPName();
+				static const FLazyName ExecuteStructName(*ExecuteScriptStruct->GetStructCPPName());
 				Pins.Emplace(Argument->Name, Argument->Direction, ExecuteStructName, ExecuteScriptStruct);
 			}
 

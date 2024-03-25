@@ -149,8 +149,6 @@ FSoftObjectPath URigVMBlueprint::PreDuplicateAssetPath;
 FSoftObjectPath URigVMBlueprint::PreDuplicateHostPath;
 TArray<URigVMBlueprint*> URigVMBlueprint::sCurrentlyOpenedRigVMBlueprints;
 #if WITH_EDITOR
-const FName URigVMBlueprint::RigVMPanelNodeFactoryName(TEXT("FRigVMEdGraphPanelNodeFactory"));
-const FName URigVMBlueprint::RigVMPanelPinFactoryName(TEXT("FRigVMEdGraphPanelPinFactory"));
 FCriticalSection URigVMBlueprint::QueuedCompilerMessageDelegatesMutex;
 TArray<FOnRigVMReportCompilerMessage::FDelegate> URigVMBlueprint::QueuedCompilerMessageDelegates;
 #endif
@@ -762,12 +760,12 @@ URigVMEditorSettings* URigVMBlueprint::GetRigVMEditorSettings() const
 }
 
 #if WITH_EDITOR
-const FName& URigVMBlueprint::GetPanelNodeFactoryName() const
+const FLazyName& URigVMBlueprint::GetPanelNodeFactoryName() const
 {
 	return RigVMPanelNodeFactoryName;
 }
 
-const FName& URigVMBlueprint::GetPanelPinFactoryName() const
+const FLazyName& URigVMBlueprint::GetPanelPinFactoryName() const
 {
 	return RigVMPanelPinFactoryName;
 }

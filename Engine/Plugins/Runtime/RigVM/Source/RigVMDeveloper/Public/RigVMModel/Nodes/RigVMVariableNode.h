@@ -68,8 +68,8 @@ public:
 
 private:
 
-	static const FString VariableName;
-	static const FString ValueName;
+	static const inline TCHAR* VariableName = TEXT("Variable");
+	static const inline TCHAR* ValueName = TEXT("Value");
 
 	URigVMPin* GetVariableNamePin() const;
 	URigVMPin* GetValuePin() const;

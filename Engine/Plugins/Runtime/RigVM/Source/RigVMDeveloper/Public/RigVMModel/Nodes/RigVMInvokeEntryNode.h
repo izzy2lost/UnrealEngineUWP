@@ -32,7 +32,7 @@ public:
 
 private:
 
-	static const FString EntryName;
+	static const inline TCHAR* EntryName = TEXT("Entry");
 
 	URigVMPin* GetEntryNamePin() const;
 	

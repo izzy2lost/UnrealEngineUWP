@@ -59,8 +59,8 @@ public:
 	virtual UClass* GetRigVMEditorSettingsClass() const override;
 	virtual void GetPreloadDependencies(TArray<UObject*>& OutDeps) override;
 #if WITH_EDITOR
-	virtual const FName& GetPanelPinFactoryName() const override;
-	static const FName ControlRigPanelNodeFactoryName;
+	virtual const FLazyName& GetPanelPinFactoryName() const override;
+	static inline const FLazyName ControlRigPanelNodeFactoryName = FLazyName(TEXT("FControlRigGraphPanelPinFactory"));
 	virtual IRigVMEditorModule* GetEditorModule() const override;
 #endif
 

@@ -248,8 +248,8 @@ protected:
 
 	RIGVM_API virtual const TArray<FName>& GetControlFlowBlocks_Impl(const FRigVMDispatchContext& InContext) const;
 
-	RIGVM_API static const FString DispatchPrefix;
-	RIGVM_API static const FString TrueString;
+	RIGVM_API static const inline TCHAR* DispatchPrefix = TEXT("DISPATCH_");
+	RIGVM_API static const inline TCHAR* TrueString = TEXT("True");
 
 	const TArray<FName>* UpdateArgumentNameCache(int32 InNumberOperands) const;
 	const TArray<FName>* UpdateArgumentNameCache_NoLock(int32 InNumberOperands) const;

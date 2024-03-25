@@ -1443,7 +1443,7 @@ void FRigVMEditorModule::GetPinInjectedNodesContextMenuActions(IRigVMClientHost*
 				FString TemplateName;
 				if (URigVMUnitNode* UnitNode = Cast<URigVMUnitNode>(Injection->Node))
 				{
-					if (UnitNode->GetScriptStruct()->GetStringMetaDataHierarchical(FRigVMStruct::TemplateNameMetaName, &TemplateName))
+					if (UnitNode->GetScriptStruct()->GetStringMetaDataHierarchical(FRigVMRegistry::TemplateNameMetaName, &TemplateName))
 					{
 						if (TemplateName == TEXT("AlphaInterp"))
 						{
@@ -1535,7 +1535,7 @@ void FRigVMEditorModule::GetPinInjectedNodesContextMenuActions(IRigVMClientHost*
 				FString TemplateName;
 				if (URigVMUnitNode* UnitNode = Cast<URigVMUnitNode>(Injection->Node))
 				{
-					if (UnitNode->GetScriptStruct()->GetStringMetaDataHierarchical(FRigVMStruct::TemplateNameMetaName, &TemplateName))
+					if (UnitNode->GetScriptStruct()->GetStringMetaDataHierarchical(FRigVMRegistry::TemplateNameMetaName, &TemplateName))
 					{
 						if (TemplateName == TEXT("VisualDebug"))
 						{

@@ -5,9 +5,6 @@
 
 #define LOCTEXT_NAMESPACE "RigVMDispatch_CastObject"
 
-const FName FRigVMDispatch_CastObject::ValueName = TEXT("Value");
-const FName FRigVMDispatch_CastObject::ResultName = TEXT("Result");
-
 const TArray<FRigVMTemplateArgumentInfo>& FRigVMDispatch_CastObject::GetArgumentInfos() const
 {
 	static TArray<FRigVMTemplateArgumentInfo> OutInfos;

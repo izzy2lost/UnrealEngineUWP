@@ -30,7 +30,7 @@ protected:
 	virtual FRigVMFunctionPtr GetDispatchFunctionImpl(const FRigVMTemplateTypeMap& InTypes) const override { return &FRigVMDispatch_Constant::Execute; }
 	static void Execute(FRigVMExtendedExecuteContext& InContext, FRigVMMemoryHandleArray Handles, FRigVMPredicateBranchArray RigVMBranches);
 
-	static const FName ValueName;
+	static inline const FLazyName ValueName = FLazyName(TEXT("Value"));
 
 	friend class URigVMController;
 };
