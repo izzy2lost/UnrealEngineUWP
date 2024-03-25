@@ -42,6 +42,8 @@ struct CORE_API FFortniteSeasonBranchObjectVersion
 		// Chaos GeometryCollection now saves levels attribute values
 		ChaosGeometryCollectionSaveLevelsAttribute,
 
+		// Serialize actor transform for actor descriptors
+		WorldPartitionActorDescActorTransformSerialization,
 
 		// -----<new versions can be added above this line>-------------------------------------------------
 		VersionPlusOne,

@@ -88,6 +88,8 @@ void FWorldPartitionActorDesc::Init(const AActor* InActor)
 
 	check(Guid.IsValid());
 
+	ActorTransform = InActor->GetActorTransform();
+
 	const FBox StreamingBounds = !bIsDefaultActorDesc ? InActor->GetStreamingBounds() : FBox(ForceInit);
 	StreamingBounds.GetCenterAndExtents(BoundsLocation, BoundsExtent);
 	bIsBoundsValid = StreamingBounds.IsValid == 1;
@@ -276,6 +278,7 @@ bool FWorldPartitionActorDesc::Equals(const FWorldPartitionActorDesc* Other) con
 		ActorPath == Other->ActorPath &&
 		ActorLabel == Other->ActorLabel &&
 		bIsBoundsValid == Other->bIsBoundsValid &&
+		ActorTransform.Equals(Other->ActorTransform, 0.1f) &&
 		BoundsLocation.Equals(Other->BoundsLocation, 0.1f) &&
 		BoundsExtent.Equals(Other->BoundsExtent, 0.1f) &&
 		RuntimeGrid == Other->RuntimeGrid &&
@@ -529,6 +532,11 @@ void FWorldPartitionActorDesc::Serialize(FArchive& Ar)
 	else
 	{
 		Ar << Guid;
+
+		if (Ar.CustomVer(FFortniteSeasonBranchObjectVersion::GUID) >= FFortniteSeasonBranchObjectVersion::WorldPartitionActorDescActorTransformSerialization)
+		{
+			Ar << ActorTransform;
+		}
 	}
 
 	if(Ar.CustomVer(FUE5ReleaseStreamObjectVersion::GUID) < FUE5ReleaseStreamObjectVersion::LargeWorldCoordinates)
