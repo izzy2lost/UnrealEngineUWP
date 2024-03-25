@@ -32,7 +32,7 @@ class FFilterBase : public IFilter<FilterType>
 {
 public:
 
-	FFilterBase(TSharedPtr<FFilterCategory> InCategory) : FilterCategory(InCategory) {}
+	FFilterBase(TSharedPtr<FFilterCategory> InCategory) : FilterCategory(MoveTemp(InCategory)) {}
 
 	/** Returns the system name for this filter */
 	virtual FString GetName() const override = 0;
