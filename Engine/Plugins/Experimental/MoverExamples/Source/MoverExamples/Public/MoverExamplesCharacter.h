@@ -3,15 +3,15 @@
 #pragma once
 
 #include "CoreMinimal.h"
-#include "MoverBasePawn.h"
 #include "MoverSimulationTypes.h"
+#include "GameFramework/Pawn.h"
 #include "MoverExamplesCharacter.generated.h"
 
 class UInputAction;
 struct FInputActionValue;
 
 UCLASS()
-class MOVEREXAMPLES_API AMoverExamplesCharacter : public AMoverBasePawn, public IMoverInputProducerInterface
+class MOVEREXAMPLES_API AMoverExamplesCharacter : public APawn, public IMoverInputProducerInterface
 {
 	GENERATED_BODY()
 
@@ -28,6 +28,10 @@ public:
 
 	// Called to bind functionality to input
 	virtual void SetupPlayerInputComponent(class UInputComponent* PlayerInputComponent) override;
+
+	// Accessor for the actor's movement component
+	UFUNCTION(BlueprintPure, Category = Mover)
+	UMoverComponent* GetMoverComponent() const { return CharacterMotionComponent; }
 
 	// Request the character starts moving with an intended directional magnitude. A length of 1 indicates maximum acceleration.
 	UFUNCTION(BlueprintCallable, Category=MoverExamples)
@@ -87,6 +91,10 @@ public:
 	 */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = MoverExamples)
 	bool bMaintainLastInputOrientation = false;
+
+protected:
+	UPROPERTY(Category = Movement, VisibleAnywhere, BlueprintReadOnly, meta = (AllowPrivateAccess = "true"))
+	TObjectPtr<UMoverComponent> CharacterMotionComponent;
 
 private:
 	FVector LastAffirmativeMoveInput = FVector::ZeroVector;	// Movement input (intent or velocity) the last time we had one that wasn't zero

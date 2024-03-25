@@ -16,9 +16,18 @@
 #include "EnhancedInputComponent.h"
 #include "InputAction.h"
 
+static const FName Name_CharacterMotionComponent(TEXT("MoverComponent"));
+
 AMoverExamplesCharacter::AMoverExamplesCharacter(const FObjectInitializer& ObjectInitializer)
 	: Super(ObjectInitializer)
 {
+	CharacterMotionComponent = CreateDefaultSubobject<UMoverComponent>(Name_CharacterMotionComponent);
+	ensure(CharacterMotionComponent);
+
+	PrimaryActorTick.bCanEverTick = true;
+
+	SetReplicatingMovement(false);	// disable Actor-level movement replication, since our Mover component will handle it
+
 	auto IsImplementedInBlueprint = [](const UFunction* Func) -> bool
 	{
 		return Func && ensure(Func->GetOuter())
@@ -146,11 +155,11 @@ void AMoverExamplesCharacter::OnProduceInput(float DeltaMs, FMoverInputCmdContex
 	{
 		FRotator Rotator = CharacterInputs.ControlRotation;
 		FVector FinalDirectionalIntent;
-		if (const UMoverComponent* MoverComponent = GetMoverComponent())
+		if (const UMoverComponent* MoverComp = GetMoverComponent())
 		{
-			if (MoverComponent->IsOnGround() || MoverComponent->IsFalling())
+			if (MoverComp->IsOnGround() || MoverComp->IsFalling())
 			{
-				const FVector RotationProjectedOntoUpDirection = FVector::VectorPlaneProject(Rotator.Vector(), MoverComponent->GetUpDirection()).GetSafeNormal();
+				const FVector RotationProjectedOntoUpDirection = FVector::VectorPlaneProject(Rotator.Vector(), MoverComp->GetUpDirection()).GetSafeNormal();
 				Rotator = RotationProjectedOntoUpDirection.Rotation();
 			}
 
