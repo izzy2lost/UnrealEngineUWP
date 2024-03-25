@@ -24,7 +24,12 @@ protected:
 
 private:
 	void ToggleInstanceTags();
+	void ToggleSlotDetails();
 	void ToggleAnnotations();
+	
+	bool bDisplayInstanceTags = false;
+	bool bDisplaySlotDetails = false;
+	bool bDisplayAnnotations = false;
 };
 
 #endif // WITH_GAMEPLAY_DEBUGGER && WITH_SMARTOBJECT_DEBUG
