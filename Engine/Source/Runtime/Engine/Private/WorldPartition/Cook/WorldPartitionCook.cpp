@@ -23,6 +23,8 @@ void UWorldPartition::EndCook(IWorldPartitionCookPackageContext& CookContext)
 	OnEndCook.Broadcast(CookContext);
 
 	CookContext.UnregisterPackageCookPackageGenerator(this);
+
+	FlushStreaming();
 }
 
 bool UWorldPartition::GatherPackagesToCook(IWorldPartitionCookPackageContext& CookContext)

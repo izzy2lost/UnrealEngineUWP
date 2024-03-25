@@ -85,8 +85,6 @@ FWorldPartitionUtils::FSimulateCookedSession::~FSimulateCookedSession()
 		}
 
 		WorldPartition->EndCook(*CookContext);
-		WorldPartition->FlushStreaming();
-
 		delete CookContext;
 	}
 }
