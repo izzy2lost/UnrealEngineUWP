@@ -17,6 +17,7 @@
 #include "Framework/Commands/GenericCommands.h"
 #include "Layouts/Controllers/DMXControlConsoleElementController.h"
 #include "Layouts/Controllers/DMXControlConsoleFaderGroupController.h"
+#include "Layouts/Controllers/DMXControlConsoleMatrixCellController.h"
 #include "Layouts/DMXControlConsoleEditorGlobalLayoutBase.h"
 #include "Layouts/DMXControlConsoleEditorLayouts.h"
 #include "Models/DMXControlConsoleEditorModel.h"
@@ -114,10 +115,20 @@ namespace UE::DMX::Private
 			}
 
 			// Remove the controller only if there's no selected element controller or if all its element controllers are selected
-			const TArray<UDMXControlConsoleElementController*> SelectedElementControllersFromController = SelectionHandler->GetSelectedElementControllersFromFaderGroupController(SelectedFaderGroupController);
+			TArray<UDMXControlConsoleElementController*> SelectedElementControllersFromController = SelectionHandler->GetSelectedElementControllersFromFaderGroupController(SelectedFaderGroupController);
+			TArray<UDMXControlConsoleElementController*> AllElementControllers = SelectedFaderGroupController->GetAllElementControllers();
+			const auto RemoveMatrixCellControllersLambda = 
+				[](UDMXControlConsoleElementController* ElementController)
+				{
+					return IsValid(Cast<UDMXControlConsoleMatrixCellController>(ElementController));
+				};
+
+			SelectedElementControllersFromController.RemoveAll(RemoveMatrixCellControllersLambda);
+			AllElementControllers.RemoveAll(RemoveMatrixCellControllersLambda);
+
 			const bool bRemoveController =
 				SelectedElementControllersFromController.IsEmpty() ||
-				SelectedElementControllersFromController.Num() == SelectedFaderGroupController->GetElementControllers().Num();
+				SelectedElementControllersFromController.Num() == AllElementControllers.Num();
 			
 			if (!bRemoveController)
 			{
