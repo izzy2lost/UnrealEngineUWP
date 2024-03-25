@@ -467,14 +467,15 @@ private:
 	TArray<FContentBrowserItemDataUpdate> PendingUpdates;
 
 	/**
+	 * Set of item data updates that are delayed to preserve the editor performance.
+	 * These will be passed to the PendingUpdates when we exit a pie session.
+	 */
+	TMap<FContentBrowserItemKey, FContentBrowserItemDataUpdate> DelayedPendingUpdates;
+
+	/**
 	 * True if an item data refresh notification is pending.
 	 */
 	bool bPendingItemDataRefreshedNotification = false;
-
-	/**
-	 * True if there are currently any ignored changes.
-	 */
-	bool bHasIgnoredItemUpdates = false;
 
 	/**
 	 * True if Play in Editor is active.
