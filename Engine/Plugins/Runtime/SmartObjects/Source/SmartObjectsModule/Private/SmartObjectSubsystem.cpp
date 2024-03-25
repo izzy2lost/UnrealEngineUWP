@@ -1111,7 +1111,7 @@ bool USmartObjectSubsystem::ActivateObjectPreconditions(const FWorldConditionCon
 
 bool USmartObjectSubsystem::ActivateSlotPreconditions(FWorldConditionContextData& ContextData, const FSmartObjectRuntimeSlot& Slot, const FSmartObjectSlotHandle SlotHandle) const
 {
-	if (Slot.PreconditionState.GetNumConditions() > 0)
+	if (Slot.PreconditionState.GetNumConditions() == 0)
 	{
 		// Nothing to activate is considered a success
 		return true;
