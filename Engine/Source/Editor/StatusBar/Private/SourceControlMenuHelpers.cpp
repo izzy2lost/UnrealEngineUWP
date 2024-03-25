@@ -17,7 +17,6 @@
 #include "Widgets/Images/SImage.h"
 #include "Widgets/Layout/SSeparator.h"
 #include "Widgets/Images/SLayeredImage.h"
-#include "LevelEditorActions.h"
 #include "PackageTools.h"
 #include "Editor.h"
 #include "EditorModeManager.h"
@@ -132,7 +131,7 @@ bool FSourceControlCommands::ViewSnapshotHistory_IsVisible()
 
 bool FSourceControlCommands::SubmitContent_IsVisible()
 {
-	if (FSourceControlMenuHelpers::GetSourceControlCheckInStatusVisibility() == EVisibility::Visible)
+	if (SSourceControlControls::GetSourceControlCheckInStatusVisibility() == EVisibility::Visible)
 	{
 		return false;
 	}
@@ -391,39 +390,6 @@ const FSlateBrush* FSourceControlMenuHelpers::GetSourceControlIconBadge()
 	}
 }
 
-FReply FSourceControlMenuHelpers::OnSourceControlSyncClicked()
-{
-	FBookmarkScoped BookmarkScoped;
-	FSourceControlWindows::SyncLatest();
-
-	return FReply::Handled();
-}
-
-FReply FSourceControlMenuHelpers::OnSourceControlCheckInChangesClicked()
-{
-	FSourceControlWindows::ChoosePackagesToCheckIn();
-
-	return FReply::Handled();
-}
-
-EVisibility FSourceControlMenuHelpers::GetSourceControlCheckInStatusVisibility()
-{
-	bool bDisplaySourceControlCheckInStatus = false;
-	GConfig->GetBool(TEXT("SourceControlSettings"), TEXT("DisplaySourceControlCheckInStatus"), bDisplaySourceControlCheckInStatus, GEditorIni);
-
-	if (bDisplaySourceControlCheckInStatus)
-	{
-		ISourceControlModule& SourceControlModule = ISourceControlModule::Get();
-		if (SourceControlModule.IsEnabled() &&
-			SourceControlModule.GetProvider().IsAvailable() &&
-			SourceControlModule.GetProvider().GetNumLocalChanges().IsSet()) // Only providers that implement GetNumLocalChanges are supported.
-		{
-			return EVisibility::Visible;
-		}
-	}
-	return EVisibility::Collapsed;
-}
-
 TSharedRef<SWidget> FSourceControlMenuHelpers::MakeSourceControlStatusWidget()
 {
 	TSharedRef<SLayeredImage> SourceControlIcon =
@@ -456,25 +422,6 @@ TSharedRef<SWidget> FSourceControlMenuHelpers::MakeSourceControlStatusWidget()
 		.Padding(0.f)
 		[
 			SNew(SSourceControlControls)
-			.IsEnabledSyncLatest_Lambda(
-				[] ()
-				{
-					// If there are any interactive tools active, we do not want to allow source control
-					// operations as a (possible) world reload could cause loss of work-in-progress.
-					// 
-					// Piggy-back on the CanAutoSave method here, which checks exactly that for relevant
-					// editor modes.
-					return GLevelEditorModeTools().CanAutoSave();
-				}
-			)
-			.IsEnabledCheckInChanges_Lambda(
-				[]()
-				{
-					return GLevelEditorModeTools().CanAutoSave();
-				}
-			)
-			.OnClickedSyncLatest_Static(&FSourceControlMenuHelpers::OnSourceControlSyncClicked)
-			.OnClickedCheckInChanges_Static(&FSourceControlMenuHelpers::OnSourceControlCheckInChangesClicked)
 			.OnGenerateKebabMenu_Static(&FSourceControlMenuHelpers::GenerateCheckInComboButtonContent)
 		]
 		+ SHorizontalBox::Slot() // Source Control Menu

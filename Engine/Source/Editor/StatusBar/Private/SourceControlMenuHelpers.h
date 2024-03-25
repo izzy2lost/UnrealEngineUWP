@@ -80,11 +80,6 @@ private:
 	static FText GetSourceControlTooltip();
 	static const FSlateBrush* GetSourceControlIconBadge();
 
-	static EVisibility GetSourceControlCheckInStatusVisibility();
-
-	static FReply OnSourceControlSyncClicked();
-	static FReply OnSourceControlCheckInChangesClicked();
-
 private:
 	/** Delegate handles */
 	FDelegateHandle SourceControlProviderChangedHandle;

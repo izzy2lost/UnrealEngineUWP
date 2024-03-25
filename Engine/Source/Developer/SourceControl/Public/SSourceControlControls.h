@@ -11,96 +11,99 @@
 #include "Styling/SlateTypes.h"
 #include "Widgets/SCompoundWidget.h"
 
+DECLARE_DELEGATE_RetVal(bool, FIsVisible);
+DECLARE_DELEGATE_RetVal(bool, FIsEnabled);
+
 /** Widget for displaying Source Control Check in Changes and Sync Latest buttons */
 class SOURCECONTROL_API SSourceControlControls : public SCompoundWidget
 {
 public:
 	SLATE_BEGIN_ARGS(SSourceControlControls) {}
-
-		SLATE_ATTRIBUTE(bool, IsEnabledSyncLatest)
-		SLATE_ATTRIBUTE(bool, IsEnabledCheckInChanges)
-		SLATE_ATTRIBUTE(bool, IsEnabledRestoreAsLatest)
-		SLATE_ATTRIBUTE(bool, IsEnabledSyncLatestSeparator)
-		SLATE_ATTRIBUTE(bool, IsEnabledCheckInChangesSeparator)
-		SLATE_EVENT(FOnClicked, OnClickedSyncLatest)
-		SLATE_EVENT(FOnClicked, OnClickedCheckInChanges)
-		SLATE_EVENT(FOnClicked, OnClickedRestoreAsLatest)
+		SLATE_ATTRIBUTE(bool, IsEnabledMiddleSeparator)
+		SLATE_ATTRIBUTE(bool, IsEnabledRightSeparator)
 		SLATE_EVENT(FOnGetContent, OnGenerateKebabMenu)
-
 	SLATE_END_ARGS()
 
 public:
 	/** Construct this widget */
 	void Construct(const FArguments& InArgs);
 
-private:
+public:
+	/** Separators */
+	EVisibility GetSourceControlMiddleSeparatorVisibility() const;
+	EVisibility GetSourceControlRightSeparatorVisibility() const;
+
 	/** Sync button */
-	bool IsAtLatestRevision() const;
-	bool IsSourceControlSyncEnabled() const;
-	bool HasSourceControlChangesToSync() const;
-	EVisibility GetSourceControlSyncStatusVisibility() const;
-	EVisibility GetSourceControlSyncSeparatorVisibility() const;
-	FText GetSourceControlSyncStatusText() const;
-	FText GetSourceControlSyncStatusTooltipText() const;
-	const FSlateBrush* GetSourceControlSyncStatusIcon() const;
-	FReply OnSourceControlSyncClicked() const;
+	static bool IsAtLatestRevision();
+	static bool IsSourceControlSyncEnabled();
+	static bool HasSourceControlChangesToSync();
+	static EVisibility GetSourceControlSyncStatusVisibility();
+	static FText GetSourceControlSyncStatusText();
+	static FText GetSourceControlSyncStatusToolTipText();
+	static const FSlateBrush* GetSourceControlSyncStatusIcon();
+	static FReply OnSourceControlSyncClicked();
 
 	/** Check-in button */
-	int GetNumLocalChanges() const;
-	bool IsSourceControlCheckInEnabled() const;
-	bool HasSourceControlChangesToCheckIn() const;
-	EVisibility GetSourceControlCheckInStatusVisibility() const;
-	EVisibility GetSourceControlRestoreAsLatestVisibility() const;
-	EVisibility GetSourceControlCheckInSeparatorVisibility() const;
-	FText GetSourceControlCheckInStatusText() const;
-	FText GetSourceControlCheckInStatusTooltipText() const;
-	const FSlateBrush* GetSourceControlCheckInStatusIcon() const;
-	FReply OnSourceControlCheckInChangesClicked() const;
+	static int GetNumLocalChanges();
+	static bool IsSourceControlCheckInEnabled();
+	static bool HasSourceControlChangesToCheckIn();
+	static EVisibility GetSourceControlCheckInStatusVisibility();
+	static FText GetSourceControlCheckInStatusText();
+	static FText GetSourceControlCheckInStatusToolTipText();
+	static const FSlateBrush* GetSourceControlCheckInStatusIcon();
+	static FReply OnSourceControlCheckInChangesClicked();
 
 	/** Restore as latest button */
-	FReply OnSourceControlRestoreAsLatestClicked() const;
+	static bool IsSourceControlRestoreAsLatestEnabled();
+	static EVisibility GetSourceControlRestoreAsLatestVisibility();
+	static FText GetSourceControlRestoreAsLatestText();
+	static FText GetSourceControlRestoreAsLatestToolTipText();
+	static const FSlateBrush* GetSourceControlRestoreAsLatestStatusIcon();
+	static FReply OnSourceControlRestoreAsLatestClicked();
 
-	/** Conflicts */
-	void CheckSourceControlStatus();
 public:
-	bool AreConflictsRemaining() const;
-	int32 GetNumConflictsRemaining() const;
+	static int32 GetNumConflictsRemaining();
 
-	static void SetRewoundMode(bool InRewound) { bRewoundMode = InRewound; }
-	
-	static void SetSyncLatestDisabledOverride(bool InEnabled) { bStaticDisableSyncLatestOverride = InEnabled; }
-	static FOnClicked& GetOnSyncLatestClickedStaticOverride() { return OnSyncLatestClickedStaticOverride; }
-	static FOnClicked& GetOnRestoreAsLatestClickedStaticOverride() { return OnRestoreAsLatestClickedStaticOverride; }
+public:
+	static void SetIsSyncLatestEnabled(const FIsEnabled& InSyncLatestEnabled) { IsSyncLatestEnabled = InSyncLatestEnabled; }
+	static void SetIsCheckInChangesEnabled(const FIsEnabled& InCheckInChangesEnabled) { IsCheckInChangesEnabled = InCheckInChangesEnabled; }
+	static void SetIsRestoreAsLatestEnabled(const FIsEnabled& InRestoreAsLatestEnabled) { IsRestoreAsLatestEnabled = InRestoreAsLatestEnabled; }
+
+	static void SetIsSyncLatestVisible(const FIsVisible& InSyncLatestVisible) { IsSyncLatestVisible = InSyncLatestVisible; }
+	static void SetIsCheckInChangesVisible(const FIsVisible& InCheckInChangesVisible) { IsCheckInChangesVisible = InCheckInChangesVisible; }
+	static void SetIsRestoreAsLatestVisible(const FIsVisible& InRestoreAsLatestVisible) { IsRestoreAsLatestVisible = InRestoreAsLatestVisible; }
+
+	static void SetOnSyncLatestClicked(const FOnClicked& InSyncLatestClicked) { OnSyncLatestClicked = InSyncLatestClicked; }
+	static void SetOnCheckInChangesClicked(const FOnClicked& InCheckInChangesClicked) { OnCheckInChangesClicked = InCheckInChangesClicked; }
+	static void SetOnRestoreAsLatestClicked(const FOnClicked& InRestoreAsLatestClicked) { OnRestoreAsLatestClicked = InRestoreAsLatestClicked; }
 
 private:
 	void OnSourceControlProviderChanged(ISourceControlProvider& OldProvider, ISourceControlProvider& NewProvider);
 	void OnSourceControlStateChanged();
 	
+	void CheckSourceControlStatus();
+
 private:
 	
-	FOnClicked OnSyncLatestClicked;
-	FOnClicked OnCheckInChangesClicked;
-	FOnClicked OnRestoreAsLatestClicked;
-
-	TAttribute<bool> IsSyncLatestEnabled;
-	TAttribute<bool> IsCheckInChangesEnabled;
-	TAttribute<bool> IsRestoreAsLatestEnabled;
-
-	TAttribute<bool> IsSyncLatestSeparatorEnabled;
-	TAttribute<bool> IsCheckInChangesSeparatorEnabled;
-
-	/** Is there a conflict remaining? */
-	bool bConflictsRemaining;
-	int32 NumConflictsRemaining;
+	TAttribute<bool> IsMiddleSeparatorEnabled;
+	TAttribute<bool> IsRightSeparatorEnabled;
 
 	FDelegateHandle SourceControlProviderChangedHandle;
 	FDelegateHandle SourceControlStateChangedHandle;
 
-	static bool bRewoundMode;
+	static int32 NumConflictsRemaining;
 
-	static bool bStaticDisableSyncLatestOverride;
-	static FOnClicked OnSyncLatestClickedStaticOverride;
-	static FOnClicked OnRestoreAsLatestClickedStaticOverride;
+	static FIsEnabled IsSyncLatestEnabled;
+	static FIsEnabled IsCheckInChangesEnabled;
+	static FIsEnabled IsRestoreAsLatestEnabled;
+
+	static FIsVisible IsSyncLatestVisible;
+	static FIsVisible IsCheckInChangesVisible;
+	static FIsVisible IsRestoreAsLatestVisible;
+
+	static FOnClicked OnSyncLatestClicked;
+	static FOnClicked OnCheckInChangesClicked;
+	static FOnClicked OnRestoreAsLatestClicked;
 };
 
 #endif // SOURCE_CONTROL_WITH_SLATE
