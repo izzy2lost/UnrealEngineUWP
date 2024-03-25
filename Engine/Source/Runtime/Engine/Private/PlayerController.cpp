@@ -6257,7 +6257,7 @@ void APlayerController::ServerSendLatestAsyncPhysicsTimestamp_Implementation(FAs
 	{
 		// Get the buffer offset amount that deviates from the target buffer (Note: the buffer is already added to ActualTimestamp.ServerFrame here and in the PredictedServerFrame received from the client)
 		// 0 means buffer is perfect, positive value means the buffer is too large, negative value means the buffer is too small
-		int32 CurrentFrameBufferOffset = PredictedServerFrame - ActualTimestamp.ServerFrame;
+		int32 CurrentFrameBufferOffset = Timestamp.ServerFrame - ActualTimestamp.ServerFrame;
 
 		if (NetworkPhysicsCvars::TimeDilationEscalation == false)
 		{
