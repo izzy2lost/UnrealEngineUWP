@@ -1114,7 +1114,7 @@ UBA_EXPORT int UBA_WRAPPER(access)(const char* pathname, int mode)
 	UBA_INIT_DETOUR(access, pathname, mode);
 
 	StringBuffer<> fixedPath;
-	if (!FixPath(fixedPath, pathname) || fixedPath.StartsWith(g_systemTemp.data))
+	if (!FixPath(fixedPath, pathname) || fixedPath.StartsWith(g_systemTemp.data) || fixedPath.StartsWith("/proc"))
 	{
 		return TRUE_WRAPPER(access)(pathname, mode);
 	}
