@@ -1358,7 +1358,7 @@ void UObject::PostLoadSubobjects( FObjectInstancingGraph* OuterInstanceGraph/*=N
 		// 
 		// @todo_LoadPerf - Consider modifying to bypass this for cooked packages if the class doesn't include any instanced editor-only fields.
 		// Currently we do not have a flag that indicates this scenario, and it might be expensive to iterate over the linked property chain here.
-		if (!FPlatformProperties::RequiresCookedData())
+		if (!FPlatformProperties::RequiresCookedData() || FOverridableManager::Get().NeedSubObjectTemplateInstantiation(*this))
 		{
 			FObjectInstancingGraph CurrentInstanceGraph;
 

@@ -308,4 +308,7 @@ private:
 	TSet<FOverriddenPropertyNode> OverriddenPropertyNodes;
 
 	static inline FOverriddenPropertyNodeID RootNodeID = FOverriddenPropertyNodeID(FName(TEXT("root")));
+
+public:
+	bool bNeedsSubobjectTemplateInstantiation = false;
 };

@@ -107,6 +107,11 @@ public:
 	COREUOBJECT_API void InheritEnabledFrom(UObject& Object, const UObject* DefaultData);
 
 	/**
+	 * Return true if this object needs subobject template instantiation
+	 * @param Object to be querying about */
+	COREUOBJECT_API bool NeedSubObjectTemplateInstantiation(const UObject& Object);
+
+	/**
 	 * Retrieve the overridden properties for the specified object
 	 * @param Object to fetch the overridden properties
 	 * @return the overridden properties if the object have overridable serialization enabled */
