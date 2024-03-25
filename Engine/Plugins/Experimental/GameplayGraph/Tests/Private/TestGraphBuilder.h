@@ -17,13 +17,15 @@ public:
 
 	void FinalizeEdges();
 
-	TArray<FGraphEdgeHandle> GetEdgesForVertex(const FGraphVertexHandle& Handle) const;
+	TArray<FEdgeSpecifier> GetEdgesForVertex(const FGraphVertexHandle& Handle) const;
 
 protected:
 	TObjectPtr<UGraph> Graph;
 	TArray<FGraphVertexHandle> VertexHandles;
 	TArray<FGraphIslandHandle> IslandHandles;
 
-	void GraphSanityCheck();
-	void IslandVertexParentIslandSanityCheck(const FGraphIslandHandle& IslandHandle);
+	void GraphSanityCheck() const;
+	void IslandVertexParentIslandSanityCheck(const FGraphIslandHandle& IslandHandle) const;
+	void VerifyEdges(const TArray<FEdgeSpecifier>& Edges, bool bExist) const;
+	void VertexShouldOnlyHaveEdgesTo(const FGraphVertexHandle& Source, const TArray<FGraphVertexHandle>& Targets) const;
 };

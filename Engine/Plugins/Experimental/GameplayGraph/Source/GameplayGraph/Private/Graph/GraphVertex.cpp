@@ -1,7 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "Graph/GraphVertex.h"
-#include "Graph/GraphEdge.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(GraphVertex)
 
@@ -15,30 +14,20 @@ bool UGraphVertex::HasEdgeTo(const FGraphVertexHandle& Other) const
 	return Edges.Contains(Other);
 }
 
-const FGraphEdgeHandle* UGraphVertex::FindEdgeTo(const FGraphVertexHandle& Other) const
+void UGraphVertex::AddEdgeTo(const FGraphVertexHandle& Node)
 {
-	return Edges.Find(Other);
+	Edges.Add(Node);
 }
 
-void UGraphVertex::AddEdgeTo(const FGraphVertexHandle& Node, const FGraphEdgeHandle& Edge)
+void UGraphVertex::RemoveEdge(const FGraphVertexHandle& AdjacentVertexHandle)
 {
-	Edges.Add(Node, Edge);
-}
-
-void UGraphVertex::RemoveEdge(const FGraphEdgeHandle& EdgeHandle)
-{
-	if (!EdgeHandle.IsValid())
+	UGraphVertex* AdjacentVertex = AdjacentVertexHandle.GetVertex();
+	if (ensure(AdjacentVertex))
 	{
-		return;
+		AdjacentVertex->Edges.Remove(Handle());
 	}
 
-	TObjectPtr<UGraphEdge> Edge = EdgeHandle.GetEdge();
-	if (!Edge || !Edge->ContainsNode(Handle()))
-	{
-		return;
-	}
-
-	Edges.Remove(Edge->GetOtherNode(Handle()));
+	Edges.Remove(AdjacentVertexHandle);
 }
 
 void UGraphVertex::HandleOnVertexRemoved()

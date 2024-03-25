@@ -2,7 +2,6 @@
 #include "Graph/Graph.h"
 
 #include "Graph/Algorithms/Connectivity/ConnectedComponents.h"
-#include "Graph/GraphEdge.h"
 #include "Graph/GraphVertex.h"
 #include "Graph/GraphSerialization.h"
 #include "GenericPlatform/GenericPlatformMath.h"
@@ -10,17 +9,25 @@
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(Graph)
 
-
 namespace Graph
 {
 	static bool bFixupGraphOnLoad = true;
 	static FAutoConsoleVariableRef FixupGraphOnLoadCVar(TEXT("GameplayGraph.FixupGraphOnLoad"), bFixupGraphOnLoad, TEXT("Merge and split islands when loaded from serialization."));
 }
 
+FEdgeSpecifier::FEdgeSpecifier(const FGraphVertexHandle& InVertexHandle1, const FGraphVertexHandle& InVertexHandle2)
+: VertexHandle1(InVertexHandle1)
+, VertexHandle2(InVertexHandle2)
+{
+	if (VertexHandle2 < VertexHandle1)
+	{
+		std::swap(VertexHandle1, VertexHandle2);
+	}
+}
+
 void UGraph::Empty()
 {
 	Vertices.Empty();
-	Edges.Empty();
 	Islands.Empty();
 }
 
@@ -70,18 +77,12 @@ void UGraph::RegisterVertex(TObjectPtr<UGraphVertex> Vertex)
 	Vertices.Add(Handle, Vertex);
 }
 
-FGraphEdgeHandle UGraph::CreateEdge(FGraphVertexHandle Node1, FGraphVertexHandle Node2, FGraphUniqueIndex InUniqueIndex, bool bMergeIslands)
+bool UGraph::CreateEdge(FGraphVertexHandle Node1, FGraphVertexHandle Node2, bool bMergeIslands)
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(UGraph::CreateEdge);
 	if (!Node1.IsComplete() || !Node2.IsComplete())
 	{
-		return {};
-	}
-
-	TObjectPtr<UGraphEdge> Edge = CreateTypedEdge();
-	if (!Edge)
-	{
-		return {};
+		return false;
 	}
 
 	if (Node2 < Node1)
@@ -89,22 +90,17 @@ FGraphEdgeHandle UGraph::CreateEdge(FGraphVertexHandle Node1, FGraphVertexHandle
 		std::swap(Node1, Node2);
 	}
 
-	TObjectPtr<UGraphVertex> Node1Ptr = Node1.GetVertex();
-	TObjectPtr<UGraphVertex> Node2Ptr = Node2.GetVertex();
+	UGraphVertex* Node1Ptr = Node1.GetVertex();
+	UGraphVertex* Node2Ptr = Node2.GetVertex();
 	if (!Node1Ptr || !Node2Ptr)
 	{
-		return {};
+		return false;
 	}
 
 	// For edges, we also need to make sure the edge doesn't already exist.
 	if (Node1Ptr->HasEdgeTo(Node2) || Node2Ptr->HasEdgeTo(Node1))
 	{
-		return {};
-	}
-
-	if (!ensure(InUniqueIndex.IsValid()))
-	{
-		return {};
+		return false;
 	}
 
 	if (Properties.bGenerateIslands)
@@ -112,8 +108,8 @@ FGraphEdgeHandle UGraph::CreateEdge(FGraphVertexHandle Node1, FGraphVertexHandle
 		const FGraphIslandHandle& Island1 = Node1Ptr->GetParentIsland();
 		const FGraphIslandHandle& Island2 = Node2Ptr->GetParentIsland();
 
-		const TObjectPtr<UGraphIsland> Island1Ptr = Island1.GetIsland();
-		const TObjectPtr<UGraphIsland> Island2Ptr = Island2.GetIsland();
+		const UGraphIsland* Island1Ptr = Island1.GetIsland();
+		const UGraphIsland* Island2Ptr = Island2.GetIsland();
 
 		if (Island1Ptr && Island2Ptr)
 		{
@@ -124,7 +120,7 @@ FGraphEdgeHandle UGraph::CreateEdge(FGraphVertexHandle Node1, FGraphVertexHandle
 				return {};
 			}
 		}
-		else if (TObjectPtr<UGraphIsland> RelevantIsland = Island1Ptr ? Island1Ptr : Island2Ptr)
+		else if (const UGraphIsland* RelevantIsland = Island1Ptr ? Island1Ptr : Island2Ptr)
 		{
 			// Regular add scenario.
 			if (!RelevantIsland->IsOperationAllowed(EGraphIslandOperations::Add))
@@ -134,17 +130,9 @@ FGraphEdgeHandle UGraph::CreateEdge(FGraphVertexHandle Node1, FGraphVertexHandle
 		}
 	}
 
-	Edge->OnCreate();
-	Edge->SetUniqueIndex(InUniqueIndex);
-	Edge->SetNodes(Node1, Node2);
-
-	RegisterEdge(Edge);
-
 	// Also need to make sure the nodes are aware of the new edge.
-	Node1Ptr->AddEdgeTo(Node2, Edge->Handle());
-	Node2Ptr->AddEdgeTo(Node1, Edge->Handle());
-
-	OnEdgeCreated.Broadcast(Edge->Handle());
+	Node1Ptr->AddEdgeTo(Node2);
+	Node2Ptr->AddEdgeTo(Node1);
 
 	// If we want to keep track of islands, this is where we need to create/merge islands.
 	if (Properties.bGenerateIslands)
@@ -169,48 +157,31 @@ FGraphEdgeHandle UGraph::CreateEdge(FGraphVertexHandle Node1, FGraphVertexHandle
 
 		if (bMergeIslands)
 		{
-			MergeOrCreateIslands({ Edge->Handle() });
+			const FEdgeSpecifier Edge{ Node1, Node2 };
+			MergeOrCreateIslands({ Edge });
 		}
 	}
 
-	return Edge->Handle();
+	return true;
 }
 
-void UGraph::CreateBulkEdges(TArray<FEdgeCreationParameters>&& NodesToConnect, TArray<FGraphEdgeHandle>* OutEdges)
+void UGraph::CreateBulkEdges(TArray<FEdgeSpecifier>&& NodesToConnect)
 {
-	// Create all edges normally but don't call MergeOrCreateIslands yet. We'll use the bulk function instead.
-	TArray<FGraphEdgeHandle> NewEdges;
-	NewEdges.Reserve(NodesToConnect.Num());
+	TArray<FEdgeSpecifier> FinalEdges;
+	FinalEdges.Reserve(NodesToConnect.Num());
 
-	for (const FEdgeCreationParameters& Params : NodesToConnect)
+	// Create all edges normally but don't call MergeOrCreateIslands yet. We'll use the bulk function instead.
+	for (const FEdgeSpecifier& Params : NodesToConnect)
 	{
-		if (FGraphEdgeHandle Edge = CreateEdge(Params.VertexHandle1, Params.VertexHandle2, Params.EdgeIndex, false); Edge.IsValid())
+		if (CreateEdge(Params.GetVertexHandle1(), Params.GetVertexHandle2(), false))
 		{
-			NewEdges.Add(Edge);
+			FinalEdges.Add(Params);
 		}
 	}
 
 	// MergeOrCreateIslands incrementally determines island connectivity one edge at a time. This is efficient if we're handling a single edge but less
 	// efficient if we're trying to add a bunch of edges all at the same time since it'll cause a vertex to jump between islands. The Bulk function helps prevent that.
-	MergeOrCreateIslands(NewEdges);
-
-	if (OutEdges)
-	{
-		*OutEdges = MoveTemp(NewEdges);
-	}
-}
-
-void UGraph::RegisterEdge(TObjectPtr<UGraphEdge> Edge)
-{
-	TRACE_CPUPROFILER_EVENT_SCOPE(UGraph::RegisterEdge);
-	if (!Edge)
-	{
-		return;
-	}
-
-	Edge->SetParentGraph(this);
-	const FGraphEdgeHandle Handle = Edge->Handle();
-	Edges.Add(Handle, Edge);
+	MergeOrCreateIslands(FinalEdges);
 }
 
 FGraphIslandHandle UGraph::CreateIsland(TArray<FGraphVertexHandle> InputNodes, FGraphUniqueIndex InUniqueIndex)
@@ -271,10 +242,10 @@ void UGraph::RemoveIsland(const FGraphIslandHandle& IslandHandle)
 	Islands.Remove(IslandHandle);
 }
 
-void UGraph::MergeOrCreateIslands(const TArray<FGraphEdgeHandle>& InEdges)
+void UGraph::MergeOrCreateIslands(const TArray<FEdgeSpecifier>& InEdges)
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(UGraph::MergeOrCreateIslands);
-	if (Edges.IsEmpty())
+	if (InEdges.IsEmpty())
 	{
 		return;
 	}
@@ -356,19 +327,13 @@ void UGraph::MergeOrCreateIslands(const TArray<FGraphEdgeHandle>& InEdges)
 		}
 	};
 
-	for (const FGraphEdgeHandle& EdgeHandle : InEdges)
+	for (const FEdgeSpecifier& EdgeHandle : InEdges)
 	{
-		if (!EdgeHandle.IsComplete())
-		{
-			continue;
-		}
+		const FGraphVertexHandle& AHandle = EdgeHandle.GetVertexHandle1();
+		const FGraphVertexHandle& BHandle = EdgeHandle.GetVertexHandle2();
 
-		TObjectPtr<UGraphEdge> Edge = EdgeHandle.GetEdge();
-		const FGraphVertexHandle& AHandle = Edge->NodeA();
-		const FGraphVertexHandle& BHandle = Edge->NodeB();
-
-		TObjectPtr<UGraphVertex> NodeA = AHandle.GetVertex();
-		TObjectPtr<UGraphVertex> NodeB = BHandle.GetVertex();
+		UGraphVertex* NodeA = AHandle.GetVertex();
+		UGraphVertex* NodeB = BHandle.GetVertex();
 		if (!NodeA || !NodeB)
 		{
 			return;
@@ -507,27 +472,27 @@ void UGraph::RemoveBulkVertices(const TArray<FGraphVertexHandle>& InHandles)
 			if (TObjectPtr<UGraphIsland> Island = Node->GetParentIsland().GetIsland())
 			{
 				AffectedIslands.Add(Node->GetParentIsland());
-				Island->RemoveVertex(NodeHandle);
+				Island->RemoveVertex(Node->Handle());
 			}
 
 			// We must remove every edge this node is a part of. Need to make a copy of the edges because
 			// otherwise we're modifying the container during iteration over it in ForEachAdjacentVertex.
-			TArray<FGraphEdgeHandle> EdgeCopy;
+			TArray<FGraphVertexHandle> EdgeCopy;
 			EdgeCopy.Reserve(Node->NumEdges());
 			Node->ForEachAdjacentVertex(
-				[&EdgeCopy](const FGraphVertexHandle& OtherNodeHandle, const FGraphEdgeHandle& EdgeHandle)
+				[&EdgeCopy](const FGraphVertexHandle& OtherNodeHandle)
 				{
-					EdgeCopy.Add(EdgeHandle);
+					EdgeCopy.Add(OtherNodeHandle);
 				}
 			);
 
-			for (const FGraphEdgeHandle& EdgeHandle : EdgeCopy)
+			for (const FGraphVertexHandle& AdjacentVertexHandle : EdgeCopy)
 			{
 				// Don't immediately handle islands. We'll do it later.
-				RemoveEdgeInternal(EdgeHandle, false);
+				RemoveEdgeInternal(Node->Handle(), AdjacentVertexHandle, false);
 			}
 
-			AffectedVertices.Add(NodeHandle);
+			AffectedVertices.Add(Node->Handle());
 		}
 	}
 
@@ -551,48 +516,24 @@ void UGraph::RemoveBulkVertices(const TArray<FGraphVertexHandle>& InHandles)
 	}
 }
 
-void UGraph::RemoveEdge(const FGraphEdgeHandle& EdgeHandle)
-{
-	RemoveEdgeInternal(EdgeHandle, true);
-}
-
-void UGraph::RemoveEdgeInternal(const FGraphEdgeHandle& EdgeHandle, bool bHandleIslands)
+void UGraph::RemoveEdgeInternal(const FGraphVertexHandle& VertexHandleA, const FGraphVertexHandle& VertexHandleB, bool bHandleIslands)
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(UGraph::RemoveEdgeInternal);
-	if (!EdgeHandle.IsValid())
-	{
-		return;
-	}
-
-	TObjectPtr<UGraphEdge> Edge = EdgeHandle.GetEdge();
-	if (!Edge)
-	{
-		return;
-	}
-
 	FGraphIslandHandle IslandHandle;
 
 	// Need to remove the edge reference from both nodes.
-	if (const FGraphVertexHandle& NodeHandleA = Edge->NodeA(); NodeHandleA.IsValid())
+	if (UGraphVertex* NodeA = VertexHandleA.GetVertex())
 	{
-		if (TObjectPtr<UGraphVertex> Node = NodeHandleA.GetVertex(); Node)
-		{
-			Node->RemoveEdge(EdgeHandle);
-			IslandHandle = Node->GetParentIsland();
-		}
+		NodeA->RemoveEdge(VertexHandleB);
+		IslandHandle = NodeA->GetParentIsland();
 	}
 
-	if (const FGraphVertexHandle& NodeHandleB = Edge->NodeB(); NodeHandleB.IsValid())
+	if (UGraphVertex* NodeB = VertexHandleB.GetVertex())
 	{
-		if (TObjectPtr<UGraphVertex> Node = NodeHandleB.GetVertex(); Node)
+		NodeB->RemoveEdge(VertexHandleA);
+		if (!IslandHandle.IsValid())
 		{
-			Node->RemoveEdge(EdgeHandle);
-
-			// Technically shouldn't be necessary but in here just in case.
-			if (!IslandHandle.IsValid())
-			{
-				IslandHandle = Node->GetParentIsland();
-			}
+			IslandHandle = NodeB->GetParentIsland();
 		}
 	}
 	
@@ -602,8 +543,6 @@ void UGraph::RemoveEdgeInternal(const FGraphEdgeHandle& EdgeHandle, bool bHandle
 		// Note that we can assume that both nodes are in the same island.
 		RemoveOrSplitIsland(IslandHandle.GetIsland());
 	}
-
-	Edges.Remove(EdgeHandle);
 }
 
 void UGraph::RemoveOrSplitIsland(TObjectPtr<UGraphIsland> Island)
@@ -689,11 +628,6 @@ TObjectPtr<UGraphVertex> UGraph::CreateTypedVertex() const
 	return NewObject<UGraphVertex>(const_cast<UGraph*>(this), UGraphVertex::StaticClass());
 }
 
-TObjectPtr<UGraphEdge> UGraph::CreateTypedEdge() const
-{
-	return NewObject<UGraphEdge>(const_cast<UGraph*>(this), UGraphEdge::StaticClass());
-}
-
 TObjectPtr<UGraphIsland> UGraph::CreateTypedIsland() const
 {
 	return NewObject<UGraphIsland>(const_cast<UGraph*>(this), UGraphIsland::StaticClass());
@@ -722,16 +656,16 @@ void UGraph::FinalizeVertex(const FGraphVertexHandle& InHandle)
 
 	// Need to iterate through edges to see if any edge was added prior to vertex finalization.
 	// If so, we need to do a merge.
-	TArray<FGraphEdgeHandle> EdgesToMerge;
+	TArray<FEdgeSpecifier> EdgesToMerge;
 	Node->ForEachAdjacentVertex(
-		[&IslandHandle, &EdgesToMerge](const FGraphVertexHandle& NeighborVertexHandle, const FGraphEdgeHandle& EdgeHandle)
+		[&InHandle, &IslandHandle, &EdgesToMerge](const FGraphVertexHandle& NeighborVertexHandle)
 		{
 			if (UGraphVertex* NeighborVertex = NeighborVertexHandle.GetVertex())
 			{
 				const FGraphIslandHandle& NeighborIslandHandle = NeighborVertex->GetParentIsland();
 				if (NeighborIslandHandle.IsComplete() && NeighborIslandHandle != IslandHandle)
 				{
-					EdgesToMerge.Add(EdgeHandle);
+					EdgesToMerge.Add(FEdgeSpecifier{InHandle, NeighborVertexHandle});
 				}
 			}
 		}
@@ -759,11 +693,6 @@ UGraphVertex* UGraph::GetSafeVertexFromHandle(const FGraphVertexHandle& Handle) 
 	return Handle.IsComplete() ? Handle.GetVertex() : Vertices.FindRef(Handle).Get();
 }
 
-UGraphEdge* UGraph::GetSafeEdgeFromHandle(const FGraphEdgeHandle& Handle) const
-{
-	return Handle.IsComplete() ? Handle.GetEdge() : Edges.FindRef(Handle).Get();
-}
-
 UGraphIsland* UGraph::GetSafeIslandFromHandle(const FGraphIslandHandle& Handle) const
 {
 	return Handle.IsComplete() ? Handle.GetIsland() : Islands.FindRef(Handle).Get();
@@ -774,11 +703,6 @@ void UGraph::ReserveVertices(int32 Delta)
 	Vertices.Reserve(Vertices.Num() + Delta);
 }
 
-void UGraph::ReserveEdges(int32 Delta)
-{
-	Edges.Reserve(Edges.Num() + Delta);
-}
-
 void UGraph::ReserveIslands(int32 Delta)
 {
 	Islands.Reserve(Islands.Num() + Delta);
@@ -787,11 +711,16 @@ void UGraph::ReserveIslands(int32 Delta)
 void operator<<(IGraphSerialization& Output, const UGraph& Graph)
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE_STR("Gameplay Graph Serialization");
-	Output.Initialize(Graph.NumVertices(), Graph.NumEdges(), Graph.NumIslands());
+
+	// We don't actually have a good estimate of the number of edges anymore - so just guesstimating number of vertices.
+	Output.Initialize(Graph.NumVertices(), Graph.NumVertices(), Graph.NumIslands());
 	Output.WriteGraphProperties(Graph.GetProperties());
 
 	{
-		TRACE_CPUPROFILER_EVENT_SCOPE_STR("Serialize Vertices");
+		TRACE_CPUPROFILER_EVENT_SCOPE_STR("Serialize Vertices and Edges");
+		TSet<FEdgeSpecifier> SeenEdges;
+		SeenEdges.Reserve(Graph.NumVertices());
+
 		for (const TPair<FGraphVertexHandle, TObjectPtr<UGraphVertex>>& Kvp : Graph.GetVertices())
 		{
 			if (!ensure(Kvp.Key.IsComplete() && Kvp.Value))
@@ -800,19 +729,18 @@ void operator<<(IGraphSerialization& Output, const UGraph& Graph)
 			}
 
 			Output.WriteGraphVertex(Kvp.Key, Kvp.Value);
-		}
-	}
 
-	{
-		TRACE_CPUPROFILER_EVENT_SCOPE_STR("Serialize Edges");
-		for (const TPair<FGraphEdgeHandle, TObjectPtr<UGraphEdge>>& Kvp : Graph.GetEdges())
-		{
-			if (!ensure(Kvp.Key.IsComplete() && Kvp.Value))
-			{
-				continue;
-			}
-
-			Output.WriteGraphEdge(Kvp.Key, Kvp.Value);
+			Kvp.Value->ForEachAdjacentVertex(
+				[&SeenEdges, &Kvp, &Output](const FGraphVertexHandle& AdjacentVertexHandle)
+				{
+					FEdgeSpecifier Edge{ Kvp.Key, AdjacentVertexHandle };
+					if (!SeenEdges.Contains(Edge))
+					{
+						SeenEdges.Add(Edge);
+						Output.WriteGraphEdge(Edge.GetVertexHandle1(), Edge.GetVertexHandle2());
+					}
+				}
+			);
 		}
 	}
 
@@ -841,7 +769,7 @@ void operator>>(const IGraphDeserialization& Input, UGraph& Graph)
 		Input.ForEveryVertex(
 			[&Graph](const FGraphVertexHandle& InHandle)
 			{
-				if (!ensure(InHandle.IsValid()))
+				if (!InHandle.IsValid())
 				{
 					return FGraphVertexHandle{};
 				}
@@ -851,27 +779,27 @@ void operator>>(const IGraphDeserialization& Input, UGraph& Graph)
 		);
 	}
 
-	TArray<FGraphEdgeHandle> AllEdges;
+	TArray<FEdgeSpecifier> AllEdges;
 	AllEdges.Reserve(Input.NumEdges());
 	{
 		TRACE_CPUPROFILER_EVENT_SCOPE_STR("Deserialize Edges");
-		Graph.ReserveEdges(Input.NumEdges());
 		Input.ForEveryEdge(
-			[&Graph, &AllEdges](const FGraphEdgeHandle& InHandle, const IGraphDeserialization::FEdgeConstructionData& Data)
+			[&Graph, &AllEdges](const FEdgeSpecifier& Data)
 			{
-				if (!ensure(InHandle.IsValid()))
-				{
-					return FGraphEdgeHandle{};
-				}
+				const FGraphVertexHandle CompleteHandle1 = Graph.GetCompleteNodeHandle(Data.GetVertexHandle1());
+				const FGraphVertexHandle CompleteHandle2 = Graph.GetCompleteNodeHandle(Data.GetVertexHandle2());
 
-				FGraphEdgeHandle Handle = Graph.CreateEdge(
-					Graph.GetCompleteNodeHandle(Data.Vertex1),
-					Graph.GetCompleteNodeHandle(Data.Vertex2),
-					InHandle.GetUniqueIndex(),
+				const bool bSuccess = Graph.CreateEdge(
+					CompleteHandle1,
+					CompleteHandle2,
 					false
 				);
-				AllEdges.Add(Handle);
-				return Handle;
+
+				if (bSuccess)
+				{
+					AllEdges.Add(FEdgeSpecifier{CompleteHandle1, CompleteHandle2});
+				}
+				return bSuccess;
 			}
 		);
 	}
@@ -879,14 +807,13 @@ void operator>>(const IGraphDeserialization& Input, UGraph& Graph)
 	TArray<FGraphIslandHandle> AllIslands;
 	AllIslands.Reserve(Input.NumIslands());
 
-
 	{
 		TRACE_CPUPROFILER_EVENT_SCOPE_STR("Deserialize Islands");
 		Graph.ReserveIslands(Input.NumIslands());
 		Input.ForEveryIsland(
 			[&Graph, &AllIslands](const FGraphIslandHandle& InHandle, const IGraphDeserialization::FIslandConstructionData& Data)
 			{
-				if (!ensure(InHandle.IsValid()))
+				if (!InHandle.IsValid())
 				{
 					return FGraphIslandHandle{};
 				}

@@ -56,7 +56,7 @@ struct FSerializableGraph
 	TArray<FGraphVertexHandle> Vertices;
 
 	UPROPERTY(SaveGame)
-	TMap<FGraphEdgeHandle, FSerializedEdgeData> Edges;
+	TArray<FSerializedEdgeData> Edges;
 
 	UPROPERTY(SaveGame)
 	TMap<FGraphIslandHandle, FSerializedIslandData> Islands;
@@ -87,17 +87,12 @@ public:
 		Data.Vertices.Add(VertexHandle);
 	}
 
-	virtual void WriteGraphEdge(const FGraphEdgeHandle& EdgeHandle, const UGraphEdge* Edge) override
+	virtual void WriteGraphEdge(const FGraphVertexHandle& VertexHandleA, const FGraphVertexHandle& VertexHandleB) override
 	{
-		if (!ensure(Edge))
-		{
-			return;
-		}
-
 		FSerializedEdgeData Serialized;
-		Serialized.Node1 = Edge->NodeA();
-		Serialized.Node2 = Edge->NodeB();
-		Data.Edges.Emplace(EdgeHandle, MoveTemp(Serialized));
+		Serialized.Node1 = VertexHandleA;
+		Serialized.Node2 = VertexHandleB;
+		Data.Edges.Emplace(MoveTemp(Serialized));
 	}
 
 	virtual void WriteGraphIsland(const FGraphIslandHandle& IslandHandle, const UGraphIsland* Island) override
@@ -145,7 +140,7 @@ public:
 		for (const FGraphVertexHandle& SerializedHandle : Data.Vertices)
 		{
 			const FGraphVertexHandle FinalHandle = Lambda(SerializedHandle);
-			if (ensure(FinalHandle.IsValid()))
+			if (FinalHandle.IsValid())
 			{
 				OnDeserializedVertex(FinalHandle);
 			}
@@ -157,18 +152,14 @@ public:
 		return Data.Edges.Num();
 	}
 
-	virtual void ForEveryEdge(const TFunction<FGraphEdgeHandle(const FGraphEdgeHandle&, const FEdgeConstructionData&)>& Lambda) const override
+	virtual void ForEveryEdge(const TFunction<bool(const FEdgeSpecifier&)>& Lambda) const override
 	{
-		for (const TPair<FGraphEdgeHandle, FSerializedEdgeData>& Serialized : Data.Edges)
+		for (const FSerializedEdgeData& Serialized : Data.Edges)
 		{
-			FEdgeConstructionData Construction;
-			Construction.Vertex1 = Serialized.Value.Node1;
-			Construction.Vertex2 = Serialized.Value.Node2;
-
-			const FGraphEdgeHandle FinalHandle = Lambda(Serialized.Key, Construction);
-			if (ensure(FinalHandle.IsValid()))
+			const FEdgeSpecifier Construction{ Serialized.Node1, Serialized.Node2 };
+			if (Lambda(Construction))
 			{
-				OnDeserializedEdge(FinalHandle);
+				OnDeserializedEdge(Construction);
 			}
 		}
 	}
@@ -186,7 +177,7 @@ public:
 			Construction.Vertices = Serialized.Value.Vertices;
 
 			const FGraphIslandHandle FinalHandle = Lambda(Serialized.Key, Construction);
-			if (ensure(FinalHandle.IsValid()))
+			if (FinalHandle.IsValid())
 			{
 				OnDeserializedIsland(FinalHandle);
 			}
@@ -195,7 +186,7 @@ public:
 
 protected:
 	virtual void OnDeserializedVertex(const FGraphVertexHandle& VertexHandle) const {}
-	virtual void OnDeserializedEdge(const FGraphEdgeHandle& EdgeHandle) const {}
+	virtual void OnDeserializedEdge(const FEdgeSpecifier& Edge) const {}
 	virtual void OnDeserializedIsland(const FGraphIslandHandle& IslandHandle) const {}
 
 	const TSerializableGraph& Data;

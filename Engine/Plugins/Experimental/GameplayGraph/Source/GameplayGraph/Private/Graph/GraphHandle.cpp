@@ -4,7 +4,6 @@
 
 #include "Graph/Graph.h"
 #include "Graph/GraphElement.h"
-#include "Graph/GraphEdge.h"
 #include "Graph/GraphIsland.h"
 #include "Graph/GraphVertex.h"
 #include "Misc/Guid.h"
@@ -14,7 +13,6 @@
 DEFINE_LOG_CATEGORY(LogGameplayGraph)
 
 FGraphVertexHandle FGraphVertexHandle::Invalid;
-FGraphEdgeHandle FGraphEdgeHandle::Invalid;
 FGraphIslandHandle FGraphIslandHandle::Invalid;
 
 FGraphHandle::FGraphHandle(FGraphUniqueIndex InUniqueIndex, UGraph* InGraph)
@@ -74,26 +72,6 @@ bool FGraphVertexHandle::HasElement() const
 	if (UGraph* Graph = GetGraph())
 	{
 		return Graph->GetVertices().Contains(*this);
-	}
-
-	return false;
-}
-
-UGraphEdge* FGraphEdgeHandle::GetEdge() const
-{
-	if (UGraph* Graph = GetGraph())
-	{
-		return Graph->GetEdges().FindRef(*this);
-	}
-
-	return nullptr;
-}
-
-bool FGraphEdgeHandle::HasElement() const
-{
-	if (UGraph* Graph = GetGraph())
-	{
-		return Graph->GetEdges().Contains(*this);
 	}
 
 	return false;

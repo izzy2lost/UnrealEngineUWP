@@ -73,148 +73,6 @@ TEST_CASE_METHOD(FTestGraphBuilder, "Graph::Vertex::Has Edge To", "[graph][verte
 			CHECK(Vertex1->GetEdges().Contains(VertexHandles[0]) == false);
 		}
 	}
-
-	SECTION("Post remove edge")
-	{
-		{
-			UGraphVertex* Vertex0 = VertexHandles[0].GetVertex();
-			REQUIRE(Vertex0 != nullptr);
-			UGraphVertex* Vertex1 = VertexHandles[1].GetVertex();
-			REQUIRE(Vertex1 != nullptr);
-
-			const FGraphEdgeHandle* Edge = Vertex0->FindEdgeTo(VertexHandles[1]);
-			REQUIRE(Edge != nullptr);
-
-			CHECK(Edge->IsComplete() == true);
-			Graph->RemoveEdge(*Edge);
-			CHECK(Edge->IsComplete() == false);
-
-			CHECK(Vertex0->HasEdgeTo(VertexHandles[1]) == false);
-			CHECK(Vertex1->HasEdgeTo(VertexHandles[0]) == false);
-		}
-
-		{
-			for (int32 Index1 = 0; Index1 < NumVertices; ++Index1)
-			{
-				UGraphVertex* Vertex1 = VertexHandles[Index1].GetVertex();
-				REQUIRE(Vertex1 != nullptr);
-
-				for (int32 Index2 = Index1 + 1; Index2 < NumVertices; ++Index2)
-				{
-					if (Index1 == 0 && Index2 == 1)
-					{
-						continue;
-					}
-
-					UGraphVertex* Vertex2 = VertexHandles[Index2].GetVertex();
-					REQUIRE(Vertex2 != nullptr);
-
-					CHECK(Vertex1->HasEdgeTo(VertexHandles[Index2]) == true);
-					CHECK(Vertex1->GetEdges().Contains(VertexHandles[Index2]) == true);
-
-					CHECK(Vertex2->HasEdgeTo(VertexHandles[Index1]) == true);
-					CHECK(Vertex2->GetEdges().Contains(VertexHandles[Index1]) == true);
-				}
-			}
-		}
-	}
-}
-
-TEST_CASE_METHOD(FTestGraphBuilder, "Graph::Vertex::Find Edge To", "[graph][vertex]")
-{
-	constexpr int32 NumVertices = 7;
-	PopulateVertices(NumVertices, true);
-	BuildFullyConnectedEdges(NumVertices);
-
-	SECTION("Post Construction")
-	{
-		for (int32 Index1 = 0; Index1 < NumVertices; ++Index1)
-		{
-			UGraphVertex* Vertex1 = VertexHandles[Index1].GetVertex();
-			REQUIRE(Vertex1 != nullptr);
-
-			for (int32 Index2 = Index1 + 1; Index2 < NumVertices; ++Index2)
-			{
-				UGraphVertex* Vertex2 = VertexHandles[Index2].GetVertex();
-				REQUIRE(Vertex2 != nullptr);
-			
-				const FGraphEdgeHandle* Edge1 = Vertex1->FindEdgeTo(VertexHandles[Index2]);
-				REQUIRE(Edge1 != nullptr);
-				const FGraphEdgeHandle* Edge2 = Vertex2->FindEdgeTo(VertexHandles[Index1]);
-				REQUIRE(Edge2 != nullptr);
-				CHECK(*Edge1 == *Edge2);
-			}
-		}
-	}
-
-	SECTION("Post remove vertex")
-	{
-		Graph->RemoveVertex(VertexHandles[0]);
-		for (int32 Index1 = 1; Index1 < NumVertices; ++Index1)
-		{
-			UGraphVertex* Vertex1 = VertexHandles[Index1].GetVertex();
-			REQUIRE(Vertex1 != nullptr);
-
-			for (int32 Index2 = Index1 + 1; Index2 < NumVertices; ++Index2)
-			{
-				UGraphVertex* Vertex2 = VertexHandles[Index2].GetVertex();
-				REQUIRE(Vertex2 != nullptr);
-
-				const FGraphEdgeHandle* Edge1 = Vertex1->FindEdgeTo(VertexHandles[Index2]);
-				REQUIRE(Edge1 != nullptr);
-				const FGraphEdgeHandle* Edge2 = Vertex2->FindEdgeTo(VertexHandles[Index1]);
-				REQUIRE(Edge2 != nullptr);
-				CHECK(*Edge1 == *Edge2);
-			}
-
-			CHECK(Vertex1->FindEdgeTo(VertexHandles[0]) == nullptr);
-		}
-	}
-
-	SECTION("Post remove edge")
-	{
-		{
-			UGraphVertex* Vertex0 = VertexHandles[0].GetVertex();
-			REQUIRE(Vertex0 != nullptr);
-			UGraphVertex* Vertex1 = VertexHandles[1].GetVertex();
-			REQUIRE(Vertex1 != nullptr);
-
-			const FGraphEdgeHandle* Edge = Vertex0->FindEdgeTo(VertexHandles[1]);
-			REQUIRE(Edge != nullptr);
-
-			CHECK(Edge->IsComplete() == true);
-			Graph->RemoveEdge(*Edge);
-			CHECK(Edge->IsComplete() == false);
-
-			CHECK(Vertex0->FindEdgeTo(VertexHandles[1]) == nullptr);
-			CHECK(Vertex1->FindEdgeTo(VertexHandles[0]) == nullptr);
-		}
-
-		{
-			for (int32 Index1 = 0; Index1 < NumVertices; ++Index1)
-			{
-				UGraphVertex* Vertex1 = VertexHandles[Index1].GetVertex();
-				REQUIRE(Vertex1 != nullptr);
-
-				for (int32 Index2 = Index1 + 1; Index2 < NumVertices; ++Index2)
-				{
-					if (Index1 == 0 && Index2 == 1)
-					{
-						continue;
-					}
-
-					UGraphVertex* Vertex2 = VertexHandles[Index2].GetVertex();
-					REQUIRE(Vertex2 != nullptr);
-
-					const FGraphEdgeHandle* Edge1 = Vertex1->FindEdgeTo(VertexHandles[Index2]);
-					REQUIRE(Edge1 != nullptr);
-					const FGraphEdgeHandle* Edge2 = Vertex2->FindEdgeTo(VertexHandles[Index1]);
-					REQUIRE(Edge2 != nullptr);
-					CHECK(*Edge1 == *Edge2);
-				}
-			}
-		}
-	}
 }
 
 TEST_CASE_METHOD(FTestGraphBuilder, "Graph::Vertex::Num Edges", "[graph][vertex]")
@@ -241,34 +99,6 @@ TEST_CASE_METHOD(FTestGraphBuilder, "Graph::Vertex::Num Edges", "[graph][vertex]
 			UGraphVertex* Vertex1 = VertexHandles[Index1].GetVertex();
 			REQUIRE(Vertex1 != nullptr);
 			CHECK(Vertex1->NumEdges() == 5);
-		}
-	}
-
-	SECTION("Post remove edge")
-	{
-		UGraphVertex* Vertex0 = VertexHandles[0].GetVertex();
-		REQUIRE(Vertex0 != nullptr);
-
-		const FGraphEdgeHandle* Edge = Vertex0->FindEdgeTo(VertexHandles[1]);
-		REQUIRE(Edge != nullptr);
-
-		CHECK(Edge->IsComplete() == true);
-		Graph->RemoveEdge(*Edge);
-		CHECK(Edge->IsComplete() == false);
-
-		for (int32 Index1 = 0; Index1 < NumVertices; ++Index1)
-		{
-			UGraphVertex* Vertex1 = VertexHandles[Index1].GetVertex();
-			REQUIRE(Vertex1 != nullptr);
-
-			if (Index1 == 0 || Index1 == 1)
-			{
-				CHECK(Vertex1->NumEdges() == 5);
-			}
-			else
-			{
-				CHECK(Vertex1->NumEdges() == 6);
-			}
 		}
 	}
 }
@@ -321,22 +151,6 @@ TEST_CASE_METHOD(FTestGraphBuilder, "Graph::Vertex::Get Parent Island", "[graph]
 			CHECK(Vertex0->GetParentIsland() == Vertex1->GetParentIsland());
 		}
 	}
-
-	SECTION("Post remove edge")
-	{
-		UGraphVertex* Vertex0 = VertexHandles[3].GetVertex();
-		REQUIRE(Vertex0 != nullptr);
-
-		const FGraphEdgeHandle* Edge = Vertex0->FindEdgeTo(VertexHandles[4]);
-		REQUIRE(Edge != nullptr);
-
-		CHECK(Edge->IsComplete() == true);
-		Graph->RemoveEdge(*Edge);
-		CHECK(Edge->IsComplete() == false);
-
-		CHECK(Vertex0->GetParentIsland() != VertexHandles[4].GetVertex()->GetParentIsland());
-		CHECK(Vertex0->GetParentIsland() == VertexHandles[2].GetVertex()->GetParentIsland());
-	}
 }
 
 TEST_CASE_METHOD(FTestGraphBuilder, "Graph::Vertex::For Each Adjacent::With Edge", "[graph][vertex]")
@@ -350,17 +164,22 @@ TEST_CASE_METHOD(FTestGraphBuilder, "Graph::Vertex::For Each Adjacent::With Edge
 		UGraphVertex* Vertex1 = VertexHandles[Index1].GetVertex();
 		REQUIRE(Vertex1 != nullptr);
 
-		TMap<FGraphVertexHandle, FGraphEdgeHandle> ConnectedVertices;
+		TSet<FGraphVertexHandle> ConnectedVertices;
 		ConnectedVertices.Reserve(NumVertices - 1);
 
 		Vertex1->ForEachAdjacentVertex(
-			[&ConnectedVertices](const FGraphVertexHandle& NeighborHandle, const FGraphEdgeHandle& EdgeHandle)
+			[&ConnectedVertices](const FGraphVertexHandle& NeighborHandle)
 			{
-				ConnectedVertices.Add(NeighborHandle, EdgeHandle);
+				ConnectedVertices.Add(NeighborHandle);
 			}
 		);
 
-		CHECK(ConnectedVertices == Vertex1->GetEdges());
+		CHECK(ConnectedVertices.Num() == Vertex1->GetEdges().Num());
+		for (const FGraphVertexHandle& Adjacent : Vertex1->GetEdges())
+		{
+			CHECK(ConnectedVertices.Contains(Adjacent) == true);
+		}
+
 		CHECK(ConnectedVertices.Num() == NumVertices - 1);
 		for (int32 Index2 = 0; Index2 < NumVertices; ++Index2)
 		{
@@ -369,10 +188,8 @@ TEST_CASE_METHOD(FTestGraphBuilder, "Graph::Vertex::For Each Adjacent::With Edge
 				continue;
 			}
 			
-			CHECK(ConnectedVertices.Contains(VertexHandles[Index2]));
-			FGraphEdgeHandle* EdgeHandle = ConnectedVertices.Find(VertexHandles[Index2]);
-			REQUIRE(EdgeHandle != nullptr);
-			CHECK(Vertex1->GetEdges().FindRef(VertexHandles[Index2]) == *EdgeHandle);
+			CHECK(ConnectedVertices.Contains(VertexHandles[Index2]) == true);
+			CHECK(Vertex1->GetEdges().Contains(VertexHandles[Index2]) == true);
 			ConnectedVertices.Remove(VertexHandles[Index2]);
 		}
 		CHECK(ConnectedVertices.Num() == 0);
@@ -485,13 +302,9 @@ TEST_CASE_METHOD(FTestGraphBuilder, "Graph::Vertex::Event::Parent Island Set", "
 
 	for (Index = 1; Index < NumVertices; ++Index)
 	{
-		FEdgeCreationParameters Params;
-		Params.VertexHandle1 = VertexHandles[Index-1];
-		Params.VertexHandle2 = VertexHandles[Index];
-
-		TArray<FGraphEdgeHandle> Edges;
-		Graph->CreateBulkEdges({ Params }, &Edges);
-		REQUIRE(Edges.Num() == 1);
+		FEdgeSpecifier Params{ VertexHandles[Index - 1], VertexHandles[Index] };
+		Graph->CreateBulkEdges({ Params });
+		VerifyEdges({ Params }, true);
 
 		for (int32 Index2 = 0; Index2 < NumVertices; ++Index2)
 		{
