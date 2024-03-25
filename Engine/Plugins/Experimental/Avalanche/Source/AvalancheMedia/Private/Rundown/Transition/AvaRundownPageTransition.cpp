@@ -257,7 +257,7 @@ void UAvaRundownPageTransition::Stop()
 	{
 		if (UAvaRundownPagePlayer* PagePlayer = PagePlayerWeak.Get())
 		{
-			PagePlayer->InstancesExcludedFromTransition.Reset();
+			PagePlayer->InstancesBypassingTransition.Reset();
 			UnregisterEnterPagePlayerEvents(PagePlayer);
 		}
 	}
@@ -440,9 +440,9 @@ void UAvaRundownPageTransition::AddPlayersToBuilder(
 		{
 			AddPlayablesToBuilder(InOutBuilder, Player, InCategory, InEntryRole);
 			
-			// Excluded instances are only for current transition.
+			// Bypassed instances are only for current transition.
 			// Todo: Ideally, it would be stored in the transition itself to avoid the clean up.
-			Player->InstancesExcludedFromTransition.Reset();
+			Player->InstancesBypassingTransition.Reset();
 		}
 	}
 }
@@ -453,15 +453,24 @@ void UAvaRundownPageTransition::AddPlayablesToBuilder(FAvaPlayableTransitionBuil
 
 	for (const TObjectPtr<UAvaRundownPlaybackInstancePlayer>& InstancePlayer : InPlayer->InstancePlayers)
 	{
-		if (InPlayer->InstancesExcludedFromTransition.Contains(InstancePlayer->GetPlaybackInstanceId()))
+		EAvaPlayableTransitionEntryRole EntryRole = InEntryRole;
+
+		// -- Special Transition Logic --
+		if (InPlayer->InstancesBypassingTransition.Contains(InstancePlayer->GetPlaybackInstanceId()))
 		{
-			continue;
+			if (EntryRole != EAvaPlayableTransitionEntryRole::Enter)
+			{
+				continue;	// Completely skipping if not an "enter" instance.
+			}
+
+			// Enter instances excluded should still be part as playing pages.
+			EntryRole = EAvaPlayableTransitionEntryRole::Playing;
 		}
 	
 		if (UAvaPlayable* Playable = GetPlayable(InstancePlayer))
 		{
-			const bool bPlayableAdded = InOutBuilder.AddPlayable(Playable, InEntryRole);
-			if (InEntryRole == EAvaPlayableTransitionEntryRole::Enter && bPlayableAdded)
+			const bool bPlayableAdded = InOutBuilder.AddPlayable(Playable, EntryRole);
+			if (EntryRole == EAvaPlayableTransitionEntryRole::Enter && bPlayableAdded)
 			{
 				InOutBuilder.AddEnterPlayableValues(GetRemoteControlValues(InPlayer));
 			}
