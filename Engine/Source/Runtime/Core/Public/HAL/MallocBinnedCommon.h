@@ -158,6 +158,7 @@ extern CORE_API int32 GMallocBinnedBundleCount;
 #	define UE_BINNEDCOMMON_ALLOCATOR_STATS (!UE_BUILD_SHIPPING || WITH_EDITOR)
 #endif
 
+extern CORE_API float GMallocBinnedFlushThreadCacheMaxWaitTime;
 
 class FMallocBinnedCommonBase : public FMalloc
 {
@@ -309,6 +310,9 @@ protected:
 	static std::atomic<int64> ConsolidatedMemory;
 #endif
 	std::atomic<uint64> MemoryTrimEpoch{ 0 };
+
+protected:
+	bool IsAppMultithreaded();
 };
 
 template <class AllocType, int MinAlign, int MaxAlign, int MinAlignShift, int NumSmallPools, int MaxSmallPoolSize>
@@ -669,11 +673,11 @@ protected:
 				}
 
 				// These logs must happen outside the above mutex to avoid deadlocks
-				if (WaitForMutexTime > AllocType::GetFlushThreadCacheMaxWaitTime())
+				if (WaitForMutexTime > GMallocBinnedFlushThreadCacheMaxWaitTime)
 				{
 					UE_LOG(LogMemory, Warning, TEXT("FMalloc%s took %6.2fms to wait for mutex for trim."), GetDescriptiveName(), WaitForMutexTime * 1000.0f);
 				}
-				if (WaitForMutexAndTrimTime > AllocType::GetFlushThreadCacheMaxWaitTime())
+				if (WaitForMutexAndTrimTime > GMallocBinnedFlushThreadCacheMaxWaitTime)
 				{
 					UE_LOG(LogMemory, Warning, TEXT("FMalloc%s took %6.2fms to wait for mutex AND trim."), GetDescriptiveName(), WaitForMutexAndTrimTime * 1000.0f);
 				}
@@ -726,7 +730,7 @@ protected:
 		}
 		else
 		{
-			FTaskGraphInterface::BroadcastSlow_OnlyUseForSpecialPurposes(FPlatformProcess::SupportsMultithreading() && FApp::ShouldUseThreadingForPerformance(), false, Broadcast);
+			FTaskGraphInterface::BroadcastSlow_OnlyUseForSpecialPurposes(IsAppMultithreaded(), false, Broadcast);
 		}
 	}
 };

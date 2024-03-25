@@ -2,6 +2,7 @@
 
 #include "HAL/MallocBinnedCommon.h"
 #include "Algo/Sort.h"
+#include "Misc/App.h"
 #include "Containers/ArrayView.h"
 #include "Misc/AssertionMacros.h"
 #include "Math/NumericLimits.h"
@@ -452,6 +453,19 @@ uint32 FBitTree::CountOnes(uint32 UpTo) const
 }
 
 #endif
+
+bool FMallocBinnedCommonBase::IsAppMultithreaded()
+{
+	return FPlatformProcess::SupportsMultithreading() && FApp::ShouldUseThreadingForPerformance();
+}
+
+float GMallocBinnedFlushThreadCacheMaxWaitTime = 0.2f;
+static FAutoConsoleVariableRef GMallocBinnedFlushThreadCacheMaxWaitTimeCVar(
+	TEXT("MallocBinned.FlushThreadCacheMaxWaitTime"),
+	GMallocBinnedFlushThreadCacheMaxWaitTime,
+	TEXT("The threshold of time before warning about FlushCurrentThreadCache taking too long (seconds)."),
+	ECVF_ReadOnly
+);
 
 #if UE_BINNEDCOMMON_ALLOW_RUNTIME_TWEAKING
 

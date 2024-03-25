@@ -86,15 +86,6 @@ static FAutoConsoleVariableRef GGMallocBinned2MoveOSFreesOffTimeCriticalThreadsC
 #endif
 
 
-
-float GMallocBinned2FlushThreadCacheMaxWaitTime = 0.02f;
-static FAutoConsoleVariableRef GMallocBinned2FlushThreadCacheMaxWaitTimeCVar(
-	TEXT("MallocBinned2.FlushThreadCacheMaxWaitTime"),
-	GMallocBinned2FlushThreadCacheMaxWaitTime,
-	TEXT("The threshold of time before warning about FlushCurrentThreadCache taking too long (seconds)."),
-	ECVF_ReadOnly
-);
-
 #if BINNED2_ALLOCATOR_STATS
 TAtomic<int64> AllocatedSmallPoolMemory(0); // memory that's requested to be allocated by the game
 TAtomic<int64> AllocatedOSSmallPoolMemory(0);
@@ -1209,11 +1200,6 @@ const TCHAR* FMallocBinned2::GetDescriptiveName()
 void FMallocBinned2::FreeBundles(FBundleNode* Bundles, uint32 PoolIndex)
 {
 	Private::FreeBundles(*this, Bundles, PoolIndexToBlockSize(PoolIndex), PoolIndex);
-}
-
-float FMallocBinned2::GetFlushThreadCacheMaxWaitTime()
-{
-	return GMallocBinned2FlushThreadCacheMaxWaitTime;
 }
 
 FCriticalSection& FMallocBinned2::GetFreeBlockListsRegistrationMutex()

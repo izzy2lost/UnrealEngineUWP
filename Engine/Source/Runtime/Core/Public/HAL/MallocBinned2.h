@@ -529,7 +529,6 @@ public:
 
 	static void RegisterThreadFreeBlockLists(FPerThreadFreeBlockLists* FreeBlockLists);
 	static void UnregisterThreadFreeBlockLists(FPerThreadFreeBlockLists* FreeBlockLists);
-	static float GetFlushThreadCacheMaxWaitTime();
 	static FCriticalSection& GetFreeBlockListsRegistrationMutex();
 	static TArray<FPerThreadFreeBlockLists*>& GetRegisteredFreeBlockLists();
 

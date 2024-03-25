@@ -54,14 +54,6 @@ static FAutoConsoleVariableRef GMallocBinned3AllocExtraCVar(
 
 #endif
 
-float GMallocBinned3FlushThreadCacheMaxWaitTime = 0.02f;
-static FAutoConsoleVariableRef GMallocBinned3FlushThreadCacheMaxWaitTimeCVar(
-	TEXT("MallocBinned3.FlushThreadCacheMaxWaitTime"),
-	GMallocBinned3FlushThreadCacheMaxWaitTime,
-	TEXT("The threshold of time before warning about FlushCurrentThreadCache taking too long (seconds)."),
-	ECVF_ReadOnly
-);
-
 #if BINNED3_ALLOCATOR_STATS
 int64 Binned3AllocatedSmallPoolMemory = 0; // memory that's requested to be allocated by the game
 int64 Binned3AllocatedOSSmallPoolMemory = 0;
@@ -1301,11 +1293,6 @@ void FMallocBinned3::Trim(bool bTrimThreadCaches)
 	{
 		TMallocBinnedCommon::TrimImpl(*this);
 	}
-}
-
-float FMallocBinned3::GetFlushThreadCacheMaxWaitTime()
-{
-	return GMallocBinned3FlushThreadCacheMaxWaitTime;
 }
 
 FCriticalSection& FMallocBinned3::GetFreeBlockListsRegistrationMutex()
