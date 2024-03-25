@@ -474,6 +474,18 @@ void FMallocBinnedCommonBase::ConditionalBroadcastSlow(TFunction<void()>& Broadc
 	}
 }
 
+void FMallocBinnedCommonBase::ConditionalLogWarnings(double WaitForMutexTime, double WaitForMutexAndTrimTime)
+{
+	if (WaitForMutexTime > GMallocBinnedFlushThreadCacheMaxWaitTime)
+	{
+		UE_LOG(LogMemory, Warning, TEXT("FMalloc%s took %6.2fms to wait for mutex for trim."), GetDescriptiveName(), WaitForMutexTime * 1000.0f);
+	}
+	if (WaitForMutexAndTrimTime > GMallocBinnedFlushThreadCacheMaxWaitTime)
+	{
+		UE_LOG(LogMemory, Warning, TEXT("FMalloc%s took %6.2fms to wait for mutex AND trim."), GetDescriptiveName(), WaitForMutexAndTrimTime * 1000.0f);
+	}
+}
+
 float GMallocBinnedFlushThreadCacheMaxWaitTime = 0.2f;
 static FAutoConsoleVariableRef GMallocBinnedFlushThreadCacheMaxWaitTimeCVar(
 	TEXT("MallocBinned.FlushThreadCacheMaxWaitTime"),
