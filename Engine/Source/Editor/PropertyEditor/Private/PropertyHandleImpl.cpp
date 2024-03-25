@@ -5244,7 +5244,13 @@ FPropertyAccess::Result FPropertyHandleOptional::SetOptionalValue(FProperty* New
 		// If our OptionalValue is a ptr to an object and we are not setting to a passed in value
 		// we need to initialize a default of that object and set the ptr to it.
 		FObjectProperty* ObjectProperty = CastField<FObjectProperty>(OptionalProperty->GetValueProperty());
-		if (ObjectProperty)
+		FClassProperty* ClassProperty = CastField<FClassProperty>(OptionalProperty->GetValueProperty());
+		if (ClassProperty)
+		{
+			void* ClassPropertyValuePtr = ClassProperty->ContainerPtrToValuePtr<void>(Addr);
+			ClassProperty->SetObjectPropertyValue(ClassPropertyValuePtr, ClassProperty->MetaClass);
+		}
+		else if (ObjectProperty)
 		{
 			UObject* Outer = Obj;
 
