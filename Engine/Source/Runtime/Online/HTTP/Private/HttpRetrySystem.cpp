@@ -70,27 +70,45 @@ TOptional<double> ReadThrottledTimeFromResponseInSeconds(FHttpResponsePtr Respon
 	return LockoutPeriod;
 }
 
+bool FHttpRetrySystem::FExponentialBackoffCurve::IsValid() const
+{
+	return Base > 1.0f
+		&& ExponentBias >= 0.0f
+		&& MinCoefficient <= MaxCoefficient
+		&& MaxCoefficient > 0.001f
+		&& MinCoefficient >= 0.0f;
+}
+
+float FHttpRetrySystem::FExponentialBackoffCurve::Compute(uint32 RetryNumber) const
+{
+	float BackOff = FMath::Pow(Base, static_cast<float>(RetryNumber) + ExponentBias);
+	const float Coefficient = IsValid() ? FMath::RandRange(MinCoefficient, MaxCoefficient) : 1.0f;
+	return FMath::Min(BackOff * Coefficient, MaxBackoffSeconds);
+}
+
 }
 
 FHttpRetrySystem::FRequest::FRequest(
 	TSharedRef<FManager> InManager,
-	const TSharedRef<IHttpRequest, ESPMode::ThreadSafe>& HttpRequest, 
+	const TSharedRef<IHttpRequest, ESPMode::ThreadSafe>& HttpRequest,
 	const FHttpRetrySystem::FRetryLimitCountSetting& InRetryLimitCountOverride,
 	const FHttpRetrySystem::FRetryTimeoutRelativeSecondsSetting& InRetryTimeoutRelativeSecondsOverride,
 	const FHttpRetrySystem::FRetryResponseCodes& InRetryResponseCodes,
 	const FHttpRetrySystem::FRetryVerbs& InRetryVerbs,
 	const FHttpRetrySystem::FRetryDomainsPtr& InRetryDomains,
-	const FRetryLimitCountSetting& InRetryLimitCountForConnectionErrorOverride
-	)
-    : FHttpRequestAdapterBase(HttpRequest)
-    , RetryStatus(FHttpRetrySystem::FRequest::EStatus::NotStarted)
-    , RetryLimitCountOverride(InRetryLimitCountOverride)
-    , RetryLimitCountForConnectionErrorOverride(InRetryLimitCountForConnectionErrorOverride)
-    , RetryTimeoutRelativeSecondsOverride(InRetryTimeoutRelativeSecondsOverride)
+	const FRetryLimitCountSetting& InRetryLimitCountForConnectionErrorOverride,
+	const FExponentialBackoffCurve& InExponentialBackoffCurve
+)
+	: FHttpRequestAdapterBase(HttpRequest)
+	, RetryStatus(FHttpRetrySystem::FRequest::EStatus::NotStarted)
+	, RetryLimitCountOverride(InRetryLimitCountOverride)
+	, RetryLimitCountForConnectionErrorOverride(InRetryLimitCountForConnectionErrorOverride)
+	, RetryTimeoutRelativeSecondsOverride(InRetryTimeoutRelativeSecondsOverride)
 	, RetryResponseCodes(InRetryResponseCodes)
 	, RetryVerbs(InRetryVerbs)
 	, RetryDomains(InRetryDomains)
 	, RetryManager(InManager)
+	, RetryExponentialBackoffCurve(InExponentialBackoffCurve)
 {
     // if the InRetryTimeoutRelativeSecondsOverride override is being used the value cannot be negative
     check(!(InRetryTimeoutRelativeSecondsOverride.IsSet()) || (InRetryTimeoutRelativeSecondsOverride.GetValue() >= 0.0));
@@ -362,26 +380,19 @@ bool FHttpRetrySystem::FManager::ShouldRetry(const FHttpRetryRequestEntry& HttpR
 				// Be default, we will also allow retry for GET and HEAD requests even if they may duplicate on the server
 				static const TSet<FName> DefaultRetryVerbs(TArray<FName>({ FName(TEXT("GET")), FName(TEXT("HEAD")) }));
 
-				const bool bIsRetryVerbsEmpty = HttpRetryRequestEntry.Request->RetryVerbs.Num() == 0;
-				if (bIsRetryVerbsEmpty && DefaultRetryVerbs.Contains(Verb))
-				{
-					bResult = true;
-				}
-				// If retry verbs are specified, only allow retrying the specified list of verbs
-				else if (HttpRetryRequestEntry.Request->RetryVerbs.Contains(Verb))
-				{
-					bResult = true;
-				}
+				const TSet<FName>* RetryVerbsContainer = (
+					HttpRetryRequestEntry.Request->RetryVerbs.Num() == 0
+					? &DefaultRetryVerbs // Use the default list of retry verbs if the request doesn't have a specific set
+					: &HttpRetryRequestEntry.Request->RetryVerbs // Otherwise use the specific set on the request
+				);
+				bResult = RetryVerbsContainer->Contains(Verb);
 			}
 		}
 	}
 	else
 	{
 		// this may be a successful response with one of the explicitly listed response codes we want to retry on
-		if (HttpRetryRequestEntry.Request->RetryResponseCodes.Contains(Response->GetResponseCode()))
-		{
-			bResult = true;
-		}
+		bResult = HttpRetryRequestEntry.Request->RetryResponseCodes.Contains(Response->GetResponseCode());
 	}
 
     return bResult;
@@ -533,23 +544,17 @@ float FHttpRetrySystem::FManager::GetLockoutPeriodSeconds(const FHttpRetryReques
 		LockoutPeriod = static_cast<float>(ResponseLockoutPeriod.GetValue());
 	}
 
-	if (HttpRetryRequestEntry.CurrentRetryCount >= 1)
+	if (LockoutPeriod <= 0.0f)
 	{
-		if (LockoutPeriod <= 0.0f)
+		const bool bFailedToConnect = (HttpRetryRequestEntry.Request->GetStatus() == EHttpRequestStatus::Failed && HttpRetryRequestEntry.Request->GetFailureReason() == EHttpFailureReason::ConnectionError);
+		const bool bHasRetryDomains = HttpRetryRequestEntry.Request->RetryDomains.IsValid();
+		// Skip the lockout period if we failed to connect to a domain and we have other domains to try
+		if (bFailedToConnect && bHasRetryDomains)
 		{
-			const bool bFailedToConnect = (HttpRetryRequestEntry.Request->GetStatus() == EHttpRequestStatus::Failed && HttpRetryRequestEntry.Request->GetFailureReason() == EHttpFailureReason::ConnectionError);
-			const bool bHasRetryDomains = HttpRetryRequestEntry.Request->RetryDomains.IsValid();
-			// Skip the lockout period if we failed to connect to a domain and we have other domains to try
-			const bool bSkipLockoutPeriod = (bFailedToConnect && bHasRetryDomains);
-			if (!bSkipLockoutPeriod)
-			{
-				constexpr const float LockoutPeriodMinimumSeconds = 5.0f;
-				constexpr const float LockoutPeriodEscalationSeconds = 2.5f;
-				constexpr const float LockoutPeriodMaxSeconds = 30.0f;
-				LockoutPeriod = LockoutPeriodMinimumSeconds + LockoutPeriodEscalationSeconds * (HttpRetryRequestEntry.CurrentRetryCount - 1);
-				LockoutPeriod = FMath::Min(LockoutPeriod, LockoutPeriodMaxSeconds);
-			}
+			return 0.0f;
 		}
+		// The first time through this function, the CurrentRetryCount is 0, the second time it's 1, etc. We automatically add 1 to make the input into the backoff function line up with expectations.
+		LockoutPeriod = HttpRetryRequestEntry.Request->RetryExponentialBackoffCurve.Compute(HttpRetryRequestEntry.CurrentRetryCount+1);
 	}
 
 	return LockoutPeriod;
@@ -802,9 +807,9 @@ bool FHttpRetrySystem::FManager::Update(uint32* FileCount, uint32* FailingCount,
 }
 
 FHttpRetrySystem::FManager::FHttpRetryRequestEntry::FHttpRetryRequestEntry(TSharedRef<FHttpRetrySystem::FRequest, ESPMode::ThreadSafe>& InRequest)
-    : bShouldCancel(false)
-    , CurrentRetryCount(0)
-    , CurrentRetryCountForConnectionError(0)
+	: bShouldCancel(false)
+	, CurrentRetryCount(0)
+	, CurrentRetryCountForConnectionError(0)
 	, RequestStartTimeAbsoluteSeconds(FPlatformTime::Seconds())
 	, Request(InRequest)
 {}

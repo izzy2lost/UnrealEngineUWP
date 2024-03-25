@@ -60,6 +60,30 @@ namespace FHttpRetrySystem
 	};
 	typedef TSharedPtr<FRetryDomains, ESPMode::ThreadSafe> FRetryDomainsPtr;
 
+	/** 
+	 * Model for computing exponential backoff using the formula: Base**(CurrentRetryAttempt + Bias) 
+	 * Then applying jitter to the backoff. Jitter application is performed by selecting a random value in the [Min, Max] range and multiplying it against the computed backoff.
+	 * Half jitter can be implemented using { 0.5, 1.0 }, which becomes Backoff' = Backoff * Rand(0.5, 1.0) = Backoff/2 + Rand(0, Backoff/2)
+	 * Full jitter can be implemented using { 0.0, 1.0 }, which becomes Backoff' = Backoff * Rand(0.0, 1.0) = Rand(0.0, Backoff)
+	 * No jitter can be implemented using { 0.0, 0.0 } or any pair that where Min > Max. Backoff' = Backoff
+	*/
+	struct FExponentialBackoffCurve
+	{
+		/** Exponential backoff base */
+		float Base = 2.0f;
+		/** Exponential backoff bias added to the current retry number */
+		float ExponentBias = 1.0f;
+		/** Exponential backoff jitter coefficient minimum value. Defaults to half jitter */
+		float MinCoefficient = 0.5f;
+		/** Exponential backoff jitter coefficient maximum value. Defaults to half jitter */
+		float MaxCoefficient = 1.0f;
+		/** Max back off seconds */
+		float MaxBackoffSeconds = 60.0f;
+
+		bool IsValid() const;
+		float Compute(uint32 RetryNumber) const;
+	};
+
 	/**
 	 * Read the number of seconds a HTTP request is throttled for from the response
 	 * @param Response the HTTP response to read the value from
@@ -111,7 +135,8 @@ namespace FHttpRetrySystem
 			const FRetryResponseCodes& InRetryResponseCodes = FRetryResponseCodes(),
 			const FRetryVerbs& InRetryVerbs = FRetryVerbs(),
 			const FRetryDomainsPtr& InRetryDomains = FRetryDomainsPtr(),
-			const FRetryLimitCountSetting& InRetryLimitCountForConnectionErrorOverride = FRetryLimitCountSetting()
+			const FRetryLimitCountSetting& InRetryLimitCountForConnectionErrorOverride = FRetryLimitCountSetting(),
+			const FExponentialBackoffCurve& InExponentialBackoffCurve = FExponentialBackoffCurve()
 		);
 
 		void HttpOnRequestProgress(FHttpRequestPtr InHttpRequest, uint64 BytesSent, uint64 BytesRcv);
@@ -141,6 +166,9 @@ namespace FHttpRetrySystem
 		/** Save the last response before the retry */
 		FHttpResponsePtr LastResponse;
 		bool bLastSucceeded = false;
+
+		/** Exponential backoff curve */
+		FExponentialBackoffCurve RetryExponentialBackoffCurve;
 	};
 }
 
