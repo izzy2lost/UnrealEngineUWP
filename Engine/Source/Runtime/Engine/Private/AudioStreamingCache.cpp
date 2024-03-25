@@ -1026,25 +1026,47 @@ void FAudioChunkCache::AddForceInlineSoundWave(const FSoundWaveProxyPtr& SoundWa
 	{
 		return;
 	}
-
+	
 	FName Format = SoundWave->GetRuntimeFormat();
 	FByteBulkData* Data = SoundWave->GetCompressedData(Format);
-	ForceInlineMemoryCounterBytes += Data ? Data->GetBulkDataSize() : 0;
-
-	const uint64 MemoryUsageBytes = GetCurrentMemoryUsageBytes();
-	if (TrimCacheWhenOverBudgetCVar != 0 && MemoryUsageBytes > MemoryLimitBytes)
+	int64 MemoryCount = Data ? Data->GetBulkDataSize() : 0;
+	int32 RefCount = 0;
 	{
-		uint64 MemoryToTrim = 0;
-		if (MemoryLimitTrimPercentageCVar > 0.0f)
+		FScopeLock Lock(&SoundWaveMemoryTrackerCritSec);
+		FSoundWaveMemoryTracker& Tracker = SoundWaveTracker.FindOrAdd(SoundWave);
+		checkf(Tracker.RefCount >= 0, TEXT("AudioStreamCache::AddForceInlineSoundWave: ref count for Added sound wave is negative!: %s"), *SoundWave->GetFName().ToString());
+		RefCount = ++Tracker.RefCount;
+		if (RefCount == 1)
 		{
-			MemoryToTrim = MemoryLimitBytes * FMath::Min(MemoryLimitTrimPercentageCVar, 1.0f);
+			// set the tracker memory count to that of the sound wave
+			Tracker.MemoryCount = MemoryCount;
 		}
 		else
 		{
-			MemoryToTrim = MemoryUsageBytes - MemoryLimitBytes;
+			// use the memory count set by the tracker.
+			MemoryCount = Tracker.MemoryCount;
 		}
+	}
 
-		TrimMemory(MemoryToTrim, true);
+	// we only increment memory count for the first time the sound wave is added
+	if (RefCount == 1)
+	{
+		ForceInlineMemoryCounterBytes += MemoryCount;
+		const uint64 MemoryUsageBytes = GetCurrentMemoryUsageBytes();
+		if (TrimCacheWhenOverBudgetCVar != 0 && MemoryUsageBytes > MemoryLimitBytes)
+		{
+			uint64 MemoryToTrim = 0;
+			if (MemoryLimitTrimPercentageCVar > 0.0f)
+			{
+				MemoryToTrim = MemoryLimitBytes * FMath::Min(MemoryLimitTrimPercentageCVar, 1.0f);
+			}
+			else
+			{
+				MemoryToTrim = MemoryUsageBytes - MemoryLimitBytes;
+			}
+
+			TrimMemory(MemoryToTrim, true);
+		}
 	}
 }
 
@@ -1059,9 +1081,30 @@ void FAudioChunkCache::RemoveForceInlineSoundWave(const FSoundWaveProxyPtr& Soun
 		return;
 	}
 
-	FName Format = SoundWave->GetRuntimeFormat();
-	FByteBulkData* Data = SoundWave->GetCompressedData(Format);
-	ForceInlineMemoryCounterBytes -= Data ? Data->GetBulkDataSize() : 0;
+	int64 MemoryCount = 0;
+	int32 RefCount = 0;
+
+	// scope lock
+	{
+		FScopeLock Lock(&SoundWaveMemoryTrackerCritSec);
+		SoundWaveMemoryTrackerCritSec.Lock();
+
+		FSoundWaveMemoryTracker* Tracker = SoundWaveTracker.Find(SoundWave);
+		checkf(Tracker != nullptr, TEXT("AudioStreamCache::RemoveForceInlineSoundWave: Attempted to remove SoundWave that was never added, or has already been removed: %s"), *SoundWave->GetFName().ToString());
+		checkf(Tracker->RefCount > 0, TEXT("AudioStreamCache::RemoveForceInlineSoundWve: Attempted to remove SoundWave that has a ref count of zero or less. Something has gone horribly wrong: %s"), *SoundWave->GetFName().ToString());
+		MemoryCount = Tracker->MemoryCount;
+		RefCount = --Tracker->RefCount;
+		// use the memory count we cached from the last sound wave add
+		if (RefCount == 0)
+		{
+			SoundWaveTracker.Remove(SoundWave);
+		}
+	}
+	
+	if (RefCount == 0)
+	{
+		ForceInlineMemoryCounterBytes -= MemoryCount;
+	}
 }
 
 void FAudioChunkCache::AddMemoryCountedFeature(const FAudioStreamCacheMemoryHandle& Feature)
