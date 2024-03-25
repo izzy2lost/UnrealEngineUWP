@@ -954,13 +954,16 @@ void FSparseDynamicPointOctree3::RangeQuery(
 		const FSparsePointOctreeCell* CurCell = Queue.Pop(EAllowShrinking::No);
 
 		// process elements
-		CellPointLists.Enumerate(CurCell->CellID, [&](int32 PointID)
+		if (CellPointLists.IsAllocated(CurCell->CellID))
 		{
-			if (PredicateFunc(PointID))
+			CellPointLists.Enumerate(CurCell->CellID, [&](int32 PointID)
 			{
-				PointIDs.Add(PointID);
-			}
-		});
+				if (PredicateFunc(PointID))
+				{
+					PointIDs.Add(PointID);
+				}
+			});
+		}
 
 		for (int k = 0; k < 8; ++k)
 		{
