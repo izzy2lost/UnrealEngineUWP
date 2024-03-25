@@ -21,7 +21,7 @@ class FActorSchema : public IObjectSchema
 private:
 
 	void HandleTrackMenuExtensionAddTrack(FMenuBuilder& AddTrackMenuBuilder, TWeakPtr<ISequencer> WeakSequencer, TArray<AActor*> Actors) const;
-	void HandleAddComponentActionExecute(FName ComponentName, TWeakPtr<ISequencer> WeakSequencer, TArray<AActor*> Actors) const;
+	void HandleAddComponentActionExecute(FText ComponentName, TWeakPtr<ISequencer> WeakSequencer, TArray<AActor*> Actors) const;
 };
 
 } // namespace UE::Sequencer

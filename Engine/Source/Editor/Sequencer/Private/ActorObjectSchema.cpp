@@ -3,12 +3,12 @@
 #include "ActorObjectSchema.h"
 #include "GameFramework/Actor.h"
 #include "Modules/ModuleManager.h"
-#include "ClassViewerFilter.h"
-#include "ClassViewerModule.h"
 #include "ISequencer.h"
 #include "ISequencerModule.h"
 #include "Framework/MultiBox/MultiBoxBuilder.h"
 #include "Framework/MultiBox/MultiBoxExtender.h"
+#include "SubobjectData.h"
+#include "SubobjectDataSubsystem.h"
 
 #include "MVVM/ObjectBindingModelStorageExtension.h"
 #include "MVVM/Selection/SequencerOutlinerSelection.h"
@@ -82,72 +82,57 @@ TSharedPtr<FExtender> FActorSchema::ExtendObjectBindingMenu(TSharedRef<FUIComman
 
 void FActorSchema::HandleTrackMenuExtensionAddTrack(FMenuBuilder& AddTrackMenuBuilder, TWeakPtr<ISequencer> WeakSequencer, TArray<AActor*> Actors) const
 {
-	FClassViewerModule& ClassViewerModule = FModuleManager::LoadModuleChecked<FClassViewerModule>("ClassViewer");
-	const TSharedPtr<IClassViewerFilter>& GlobalClassFilter = ClassViewerModule.GetGlobalClassViewerFilter();
-	TSharedRef<FClassViewerFilterFuncs> ClassFilterFuncs = ClassViewerModule.CreateFilterFuncs();
-	FClassViewerInitializationOptions ClassViewerOptions = {};
-
 	TSharedPtr<ISequencer> Sequencer = WeakSequencer.Pin();
 	if (!Sequencer)
 	{
 		return;
 	}
 
-	TSet<FName> AllComponentNames;
+	TArray<FSubobjectDataHandle> ActorComponentData;
+
 	AddTrackMenuBuilder.BeginSection("Components", LOCTEXT("ComponentsSection", "Components"));
 	{
+		USubobjectDataSubsystem* DataSubsystem = USubobjectDataSubsystem::Get();
+		check(DataSubsystem);
+
 		for (AActor* Actor : Actors)
 		{
-			for (UActorComponent* Component : Actor->GetComponents())
+			TArray<FSubobjectDataHandle> SubobjectData;
+			DataSubsystem->GatherSubobjectData(Actor, SubobjectData);
+
+			for (const FSubobjectDataHandle& Handle : SubobjectData)
 			{
-				if (!Component)
-				{
-					continue;
-				}
+				const FSubobjectData* Data = Handle.GetData();
 
-				if (Sequencer->GetHandleToObject(Component, false).IsValid())
+				if (UActorComponent* ActorComponent = const_cast<UActorComponent*>(Data->FindComponentInstanceInActor(Actor)))
 				{
-					continue;
-				}
-
-				bool bValidComponent = !Component->IsVisualizationComponent();
-
-				if (GlobalClassFilter.IsValid())
-				{
-					// Hack - forcibly allow USkeletalMeshComponentBudgeted until FORT-527888
-					static const FName SkeletalMeshComponentBudgetedClassName(TEXT("SkeletalMeshComponentBudgeted"));
-					if (Component->GetClass()->GetName() == SkeletalMeshComponentBudgetedClassName)
+					if (Sequencer->GetHandleToObject(ActorComponent, false).IsValid())
 					{
-						bValidComponent = true;
+						continue;
 					}
-					else
-					{
-						bValidComponent = GlobalClassFilter->IsClassAllowed(ClassViewerOptions, Component->GetClass(), ClassFilterFuncs);
-					}
-				}
 
-				if (bValidComponent)
-				{
-					AllComponentNames.Add(Component->GetFName());
+					ActorComponentData.Add(Handle);
 				}
 			}
 		}
 
-		TArray<FName> SortedComponentNames = AllComponentNames.Array();
-		Algo::Sort(SortedComponentNames, FNameLexicalLess());
-
-		for (FName ComponentName : SortedComponentNames)
+		for (const FSubobjectDataHandle& Handle : ActorComponentData)
 		{
+			FString DisplayString = Handle.GetData()->GetDisplayString(false /*bShowNativeComponentNames*/);
+			FString FullDisplayString = Handle.GetData()->GetDisplayString(true /*bShowNativeComponentNames*/);
+			FText ComponentName = Handle.GetData()->GetDisplayName();
+
 			FUIAction AddComponentAction(FExecuteAction::CreateSP(this, &FActorSchema::HandleAddComponentActionExecute, ComponentName, WeakSequencer, Actors));
-			FText AddComponentLabel = FText::FromName(ComponentName);
-			FText AddComponentToolTip = FText::Format(LOCTEXT("ComponentToolTipFormat", "Add {0} component"), AddComponentLabel);
+			FText AddComponentLabel = FText::FromString(DisplayString);
+			FText AddComponentToolTip = FText::Format(LOCTEXT("ComponentToolTipFormat", "Add {0}"), FText::FromString(FullDisplayString));
+			
 			AddTrackMenuBuilder.AddMenuEntry(AddComponentLabel, AddComponentToolTip, FSlateIcon(), AddComponentAction);
 		}
 	}
 	AddTrackMenuBuilder.EndSection();
 }
 
-void FActorSchema::HandleAddComponentActionExecute(FName ComponentName, TWeakPtr<ISequencer> WeakSequencer, TArray<AActor*> Actors) const
+void FActorSchema::HandleAddComponentActionExecute(FText ComponentName, TWeakPtr<ISequencer> WeakSequencer, TArray<AActor*> Actors) const
 {
 	const FScopedTransaction Transaction(LOCTEXT("AddComponent", "Add Component"));
 
@@ -165,19 +150,31 @@ void FActorSchema::HandleAddComponentActionExecute(FName ComponentName, TWeakPtr
 	FSelectionEventSuppressor SupressEvents = Selection->SuppressEvents();
 	Selection->Outliner.Empty();
 
+	USubobjectDataSubsystem* DataSubsystem = USubobjectDataSubsystem::Get();
+	check(DataSubsystem);
+
 	for (AActor* Actor : Actors)
 	{
-		for (UActorComponent* Component : Actor->GetComponents())
-		{
-			if (Component->GetFName() == ComponentName)
-			{
-				FGuid ObjectId = Sequencer->GetHandleToObject(Component);
+		TArray<FSubobjectDataHandle> SubobjectData;
+		DataSubsystem->GatherSubobjectData(Actor, SubobjectData);
 
-				TSharedPtr<FObjectBindingModel> Model = ObjectStorage->FindModelForObjectBinding(ObjectId);
-				if (Model)
+		for (const FSubobjectDataHandle& Handle : SubobjectData)
+		{
+			const FSubobjectData* Data = Handle.GetData();
+				
+			if (Data->GetDisplayName().EqualTo(ComponentName))
+			{
+				if (UActorComponent* ActorComponent = const_cast<UActorComponent*>(Data->FindComponentInstanceInActor(Actor)))
 				{
-					Selection->Outliner.Select(Model);
+					FGuid ObjectId = Sequencer->GetHandleToObject(ActorComponent);
+
+					TSharedPtr<FObjectBindingModel> Model = ObjectStorage->FindModelForObjectBinding(ObjectId);
+					if (Model)
+					{
+						Selection->Outliner.Select(Model);
+					}
 				}
+				break;
 			}
 		}
 	}
