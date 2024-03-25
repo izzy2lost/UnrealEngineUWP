@@ -125,14 +125,6 @@ void UEditorProjectAppearanceSettings::PostEditChangeProperty( struct FPropertyC
 	{
 		Settings.SetDisplayUnits(EUnitType::Torque, TorqueUnits);
 	}
-	else if (Name == GET_MEMBER_NAME_CHECKED(UEditorProjectAppearanceSettings, ImpulseUnits))
-	{
-		Settings.SetDisplayUnits(EUnitType::Impulse, ImpulseUnits);
-	}
-	else if (Name == GET_MEMBER_NAME_CHECKED(UEditorProjectAppearanceSettings, PositionalImpulseUnits))
-	{
-		Settings.SetDisplayUnits(EUnitType::PositionalImpulse, PositionalImpulseUnits);
-	}
 	else if (Name == GET_MEMBER_NAME_CHECKED(UEditorProjectAppearanceSettings, bDisplayUnits))
 	{
 		Settings.SetShouldDisplayUnits(bDisplayUnits);

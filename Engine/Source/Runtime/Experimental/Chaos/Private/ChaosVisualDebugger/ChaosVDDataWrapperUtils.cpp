@@ -58,6 +58,9 @@ void FChaosVDDataWrapperUtils::CopyManifoldPointResultsToDataWrapper(const Chaos
 void FChaosVDDataWrapperUtils::CopyCollisionMaterialToDataWrapper(const Chaos::FPBDCollisionConstraintMaterial& InCopyFrom, FChaosVDCollisionMaterial& OutCopyTo)
 {
 	OutCopyTo.FaceIndex = InCopyFrom.FaceIndex;
+	OutCopyTo.MaterialDynamicFriction = InCopyFrom.MaterialDynamicFriction;
+	OutCopyTo.MaterialStaticFriction = InCopyFrom.MaterialStaticFriction;
+	OutCopyTo.MaterialRestitution = InCopyFrom.MaterialRestitution;
 	OutCopyTo.DynamicFriction = InCopyFrom.DynamicFriction;
 	OutCopyTo.StaticFriction = InCopyFrom.StaticFriction;
 	OutCopyTo.Restitution = InCopyFrom.Restitution;

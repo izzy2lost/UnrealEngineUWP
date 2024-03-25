@@ -47,14 +47,12 @@ namespace Chaos
 		bool bChaos_PBDCollisionSolver_Velocity_FrictionEnabled = true;
 		float Chaos_PBDCollisionSolver_Velocity_StaticFrictionStiffness = 1.0f;
 		bool bChaos_PBDCollisionSolver_Velocity_AveragePointEnabled = false;
-		bool bChaos_PBDCollisionSolver_Velocity_MinMaxFriction = false;
 
 		FAutoConsoleVariableRef CVarChaos_PBDCollisionSolver_Velocity_SolveEnabled(TEXT("p.Chaos.PBDCollisionSolver.Velocity.SolveEnabled"), bChaos_PBDCollisionSolver_Velocity_SolveEnabled, TEXT(""));
 		FAutoConsoleVariableRef CVarChaos_PBDCollisionSolver_Velocity_MinInvMassScale(TEXT("p.Chaos.PBDCollisionSolver.Velocity.MinInvMassScale"), Chaos_PBDCollisionSolver_Velocity_MinInvMassScale, TEXT(""));
 		FAutoConsoleVariableRef CVarChaos_PBDCollisionSolver_Velocity_FrictionEnabled(TEXT("p.Chaos.PBDCollisionSolver.Velocity.FrictionEnabled"), bChaos_PBDCollisionSolver_Velocity_FrictionEnabled, TEXT(""));
 		FAutoConsoleVariableRef CVarChaos_PBDCollisionSolver_Velocity_StaticFrictionStiffness(TEXT("p.Chaos.PBDCollisionSolver.Velocity.StaticFriction.Stiffness"), Chaos_PBDCollisionSolver_Velocity_StaticFrictionStiffness, TEXT(""));
 		FAutoConsoleVariableRef CVarChaos_PBDCollisionSolver_Velocity_AveragePointEnabled(TEXT("p.Chaos.PBDCollisionSolver.Velocity.AveragePointEnabled"), bChaos_PBDCollisionSolver_Velocity_AveragePointEnabled, TEXT(""));
-		FAutoConsoleVariableRef CVarChaos_PBDCollisionSolver_Velocity_MinMaxFriction(TEXT("p.Chaos.PBDCollisionSolver.Velocity.MinMaxFriction"), bChaos_PBDCollisionSolver_Velocity_MinMaxFriction, TEXT(""));
 	}
 	using namespace CVars;
 

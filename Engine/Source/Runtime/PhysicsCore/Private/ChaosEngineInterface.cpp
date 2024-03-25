@@ -29,7 +29,6 @@ FPhysicsDelegatesCore::FOnUpdatePhysXMaterial FPhysicsDelegatesCore::OnUpdatePhy
 #include "PBDRigidsSolver.h"
 #include "PhysicsProxy/SingleParticlePhysicsProxy.h"
 #include "Chaos/CastingUtilities.h"
-#include "Math/UnitConversion.h"
 
 namespace Chaos
 {
@@ -245,9 +244,6 @@ void FChaosEngineInterface::UpdateMaterial(FPhysicsMaterialHandle& InHandle,UPhy
 		Material->Strength.CompressionStrength = Chaos::MegaPascalToKgPerCmS2(InMaterial->Strength.CompressionStrength);
 		Material->Strength.ShearStrength = Chaos::MegaPascalToKgPerCmS2(InMaterial->Strength.ShearStrength);
 		Material->DamageModifier.DamageThresholdMultiplier = InMaterial->DamageModifier.DamageThresholdMultiplier;
-		Material->BaseFrictionImpulse = InMaterial->BaseFrictionImpulse;
-		Material->SoftCollisionMode = (Chaos::EChaosPhysicsMaterialSoftCollisionMode)InMaterial->SoftCollisionMode;
-		Material->SoftCollisionThickness = InMaterial->SoftCollisionThickness;
 	}
 
 	Chaos::FPhysicalMaterialManager::Get().UpdateMaterial(InHandle);
