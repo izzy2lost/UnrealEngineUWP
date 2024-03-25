@@ -67,10 +67,11 @@ namespace uba
 	private:
 		struct Connection
 		{
-			Connection(NetworkClient& o) : owner(o) {}
+			Connection(NetworkClient& o) : owner(o), disconnectedEvent(true) {}
 			NetworkClient& owner;
 			void* backendConnection = nullptr;
 			Atomic<u32> connected;
+			Event disconnectedEvent;
 			Timer sendTimer;
 			Atomic<u64> sendBytes;
 			u64 recvBytes = 0;
