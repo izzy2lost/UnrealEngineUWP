@@ -561,7 +561,7 @@ namespace UnrealBuildTool
 						bMergeUnityFiles = false;
 					}
 
-					if (Target.StaticAnalyzer != StaticAnalyzer.None && Target.bStaticAnalyzerSkipGenerated)
+					if (Target.StaticAnalyzer != StaticAnalyzer.None && !Target.bStaticAnalyzerIncludeGenerated)
 					{
 						GeneratedCPPCompileEnvironment = new CppCompileEnvironment(GeneratedCPPCompileEnvironment);
 						GeneratedCPPCompileEnvironment.bDisableStaticAnalysis = true;
