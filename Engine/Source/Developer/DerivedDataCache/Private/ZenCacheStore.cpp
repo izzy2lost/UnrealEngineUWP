@@ -570,7 +570,7 @@ public:
 			{
 				FRequestTimer RequestTimer(Requests[0].Stats);
 				const FHttpResponseStats& ResponseStats = HttpResponse->GetStats();
-				Requests[0].Stats.Latency = FMonotonicTimeSpan::FromSeconds(ResponseStats.StartTransferTime - ResponseStats.ConnectTime);
+				Requests[0].Stats.Latency = FMonotonicTimeSpan::FromSeconds(ResponseStats.GetLatency());
 
 				int32 RequestIndex = 0;
 				if (HttpResponse->GetErrorCode() == EHttpErrorCode::None && HttpResponse->GetStatusCode() >= 200 && HttpResponse->GetStatusCode() <= 299)
@@ -967,7 +967,7 @@ public:
 			{
 				FRequestTimer RequestTimer(Requests[0].Stats);
 				const FHttpResponseStats& ResponseStats = HttpResponse->GetStats();
-				Requests[0].Stats.Latency = FMonotonicTimeSpan::FromSeconds(ResponseStats.StartTransferTime - ResponseStats.ConnectTime);
+				Requests[0].Stats.Latency = FMonotonicTimeSpan::FromSeconds(ResponseStats.GetLatency());
 
 				int32 RequestIndex = 0;
 				if (HttpResponse->GetErrorCode() == EHttpErrorCode::None && HttpResponse->GetStatusCode() >= 200 && HttpResponse->GetStatusCode() <= 299)
@@ -1187,7 +1187,7 @@ public:
 			{
 				FRequestTimer RequestTimer(Requests[0].Stats);
 				const FHttpResponseStats& ResponseStats = HttpResponse->GetStats();
-				Requests[0].Stats.Latency = FMonotonicTimeSpan::FromSeconds(ResponseStats.StartTransferTime - ResponseStats.ConnectTime);
+				Requests[0].Stats.Latency = FMonotonicTimeSpan::FromSeconds(ResponseStats.GetLatency());
 
 				int32 RequestIndex = 0;
 				if (HttpResponse->GetErrorCode() == EHttpErrorCode::None && HttpResponse->GetStatusCode() >= 200 && HttpResponse->GetStatusCode() <= 299)
@@ -1254,6 +1254,11 @@ public:
 										}
 									}
 								}
+							}
+							else
+							{
+								FCbFieldView HashView2 = ResultObject[ANSITEXTVIEW("RawHash")];
+								RawHash = HashView2.AsHash();
 							}
 						}
 						Succeeded ? OnHit(RequestWithStats, MoveTemp(RawHash), RawSize, MoveTemp(RequestedBytes)) : OnMiss(RequestWithStats);
@@ -1834,7 +1839,7 @@ void FZenCacheStore::ActivatePerformanceEvaluationThread()
 							return;
 						}
 
-						double LatencySec = (HttpResponse->GetStats().StartTransferTime - HttpResponse->GetStats().ConnectTime);
+						const double LatencySec = HttpResponse->GetStats().GetLatency();
 						StoreStats->AddLatency(StartTime, FMonotonicTimePoint::Now(), FMonotonicTimeSpan::FromSeconds(LatencySec));
 						if (!bTryEvaluatePerformance || (StoreStats->GetAverageLatency() * 1000 <= DeactivateAtMs))
 						{

@@ -1135,6 +1135,7 @@ void FCurlHttpResponse::SetComplete(CURLcode Code)
 	Stats.NameResolveTime = GetDoubleInfo(CURLINFO_NAMELOOKUP_TIME);
 	Stats.ConnectTime = GetDoubleInfo(CURLINFO_CONNECT_TIME);
 	Stats.TlsConnectTime = GetDoubleInfo(CURLINFO_APPCONNECT_TIME);
+	Stats.PreTransferTime = GetDoubleInfo(CURLINFO_PRETRANSFER_TIME);
 	Stats.StartTransferTime = GetDoubleInfo(CURLINFO_STARTTRANSFER_TIME);
 	Stats.TotalTime = GetDoubleInfo(CURLINFO_TOTAL_TIME);
 
