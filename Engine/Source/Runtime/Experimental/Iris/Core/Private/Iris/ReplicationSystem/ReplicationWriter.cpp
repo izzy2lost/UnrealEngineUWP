@@ -65,7 +65,7 @@ static int32 GReplicationWriterMaxHugeObjectsInTransit = 16;
 static FAutoConsoleVariableRef CVarReplicationWriterMaxHugeObjectsInTransit(TEXT("net.Iris.ReplicationWriterMaxHugeObjectsInTransit"), GReplicationWriterMaxHugeObjectsInTransit,
 	TEXT("How many very large objects, one whose payload doesn't fit in a single packet, is allowed to be scheduled for send. Needs to be at least 1."));
 
-static bool bValidateObjectsWithDirtyChanges = false;
+static bool bValidateObjectsWithDirtyChanges = true;
 static FAutoConsoleVariableRef CvarValidateObjectsWithDirtyChanges(TEXT("net.Iris.ReplicationWriter.ValidateObjectsWithDirtyChanges"), bValidateObjectsWithDirtyChanges, TEXT("Ensure that we don't try to mark invalid objects as dirty when they shouldn't."));
 
 static const FName NetError_ObjectStateTooLarge("Object state is too large to be split.");
@@ -299,44 +299,47 @@ bool FReplicationWriter::QueueNetObjectAttachments(FInternalNetRefIndex OwnerInt
 		return false;
 	}
 
-	const bool bObjectInScope = ObjectsInScope.GetBit(OwnerInternalIndex);
-	if (!bObjectInScope && !Parameters.bAllowSendingAttachmentsToObjectsNotInScope)
+	const uint32 TargetIndex = SubObjectInternalIndex != FNetRefHandleManager::InvalidInternalIndex ? SubObjectInternalIndex : OwnerInternalIndex;
+	const bool bTargetObjectInScope = ObjectsInScope.GetBit(TargetIndex);
+	if (!bTargetObjectInScope && !Parameters.bAllowSendingAttachmentsToObjectsNotInScope)
 	{
-		UE_CLOG_REPLICATIONWRITER_WARNING(bWarnAboutDroppedAttachmentsToObjectsNotInScope, TEXT("Dropping %s attachment due to object ( InternalIndex: %u ) not in scope."), (EnumHasAnyFlags(InAttachments[0]->GetCreationInfo().Flags, ENetBlobFlags::Reliable) ? TEXT("reliable") : TEXT("unreliable")), OwnerInternalIndex);
+		UE_CLOG_REPLICATIONWRITER_WARNING(bWarnAboutDroppedAttachmentsToObjectsNotInScope, TEXT("Dropping %s attachment due to object ( InternalIndex: %u ) not in scope."), (EnumHasAnyFlags(InAttachments[0]->GetCreationInfo().Flags, ENetBlobFlags::Reliable) ? TEXT("reliable") : TEXT("unreliable")), TargetIndex);
 		return false;
 	}
 	
-	// Route attachments flagged with ScheduleAsOOB through OOB channel if we have started replicating the owner.
 	const bool bScheduleUsingOOBChannel = EnumHasAnyFlags(SendFlags, ENetObjectAttachmentSendPolicyFlags::ScheduleAsOOB);
-	if (bScheduleUsingOOBChannel && (GetReplicationInfo(OwnerInternalIndex).GetState() < EReplicatedObjectState::WaitOnCreateConfirmation || GetReplicationInfo(OwnerInternalIndex).GetState() >= EReplicatedObjectState::PendingDestroy))
+	if (bScheduleUsingOOBChannel)
 	{
-		UE_CLOG_REPLICATIONWRITER_WARNING(bWarnAboutDroppedAttachmentsToObjectsNotInScope, TEXT("Dropping attachment scheduled as ScheduleAsOOB due to object ( InternalIndex: %u ) not in replicated state."),  OwnerInternalIndex);
+		// Route attachments flagged with ScheduleAsOOB through OOB channel only if we have started replicating the target.
+		const EReplicatedObjectState ReplicationState = GetReplicationInfo(TargetIndex).GetState();
+		if (ReplicationState < EReplicatedObjectState::WaitOnCreateConfirmation || ReplicationState >= EReplicatedObjectState::PendingDestroy)
+		{
+			UE_CLOG_REPLICATIONWRITER_WARNING(bWarnAboutDroppedAttachmentsToObjectsNotInScope, TEXT("Dropping attachment scheduled as ScheduleAsOOB due to object ( InternalIndex: %u ) not in replicated state."),  OwnerInternalIndex);
+			return false;
+		}
+	}
+
+	const uint32 AttachmentQueueIndex = (bTargetObjectInScope && !bScheduleUsingOOBChannel) ? TargetIndex : ObjectIndexForOOBAttachment;
+	const ENetObjectAttachmentType AttachmentType = ((bTargetObjectInScope && !bScheduleUsingOOBChannel) ? ENetObjectAttachmentType::Normal : ENetObjectAttachmentType::OutOfBand);
+	if (!Attachments.Enqueue(AttachmentType, AttachmentQueueIndex, InAttachments))
+	{
 		return false;
 	}
 
-	const uint32 TargetIndex = (bObjectInScope && !bScheduleUsingOOBChannel) ? (SubObjectInternalIndex != FNetRefHandleManager::InvalidInternalIndex ? SubObjectInternalIndex : OwnerInternalIndex) : ObjectIndexForOOBAttachment;
-	ENetObjectAttachmentType AttachmentType = ((bObjectInScope && !bScheduleUsingOOBChannel) ? ENetObjectAttachmentType::Normal : ENetObjectAttachmentType::OutOfBand);
-	if (!Attachments.Enqueue(AttachmentType, TargetIndex, InAttachments))
+	// We do not have to mark anything dirty as there's a special case for out of band attachments
+	if (!IsObjectIndexForOOBAttachment(AttachmentQueueIndex))
 	{
-		return false;
-	}
+		FReplicationInfo& TargetInfo = GetReplicationInfo(AttachmentQueueIndex);
+		TargetInfo.HasAttachments = 1;
 
-	// There's a special case for out of band attachments, we don't need to mark anything dirty.
-	if (IsObjectIndexForOOBAttachment(TargetIndex))
-	{
-		return true;
-	}
+		MarkObjectDirty(AttachmentQueueIndex, "QueueAttachment");
 
-	FReplicationInfo& TargetInfo = GetReplicationInfo(TargetIndex);
-	TargetInfo.HasAttachments = 1;
-
-	MarkObjectDirty(TargetIndex, "QueueAttachment");
-
-	if (OwnerInternalIndex != TargetIndex)
-	{
-		MarkObjectDirty(OwnerInternalIndex, "QueueAttachment2");
-		FReplicationInfo& OwnerInfo = GetReplicationInfo(OwnerInternalIndex);
-		OwnerInfo.HasDirtySubObjects = 1;
+		if (OwnerInternalIndex != AttachmentQueueIndex)
+		{
+			MarkObjectDirty(OwnerInternalIndex, "QueueAttachment2");
+			FReplicationInfo& OwnerInfo = GetReplicationInfo(OwnerInternalIndex);
+			OwnerInfo.HasDirtySubObjects = 1;
+		}
 	}
 
 	return true;
@@ -397,6 +400,12 @@ void FReplicationWriter::StartReplication(uint32 InternalIndex)
 	FReplicationInfo& Info = GetReplicationInfo(InternalIndex);
 
 	ensureMsgf(Info.GetState() == EReplicatedObjectState::Invalid, TEXT("Object ( InternalIndex: %u ) is in state %s in StartReplication."), InternalIndex, LexToString(Info.GetState()));
+	if (InternalIndex != ObjectIndexForOOBAttachment && Attachments.HasUnsentAttachments(ENetObjectAttachmentType::Normal, InternalIndex))
+	{
+		UE_LOG(LogIris, Error, TEXT("FReplicationWriter::StartReplication - Expected object %s to not to have any queued up attachments"), *NetRefHandleManager->PrintObjectFromIndex(InternalIndex));
+		ensure(false);
+		Attachments.DropAllAttachments(ENetObjectAttachmentType::Normal, InternalIndex);
+	}
 
 	// Reset info
 	Info = FReplicationInfo();

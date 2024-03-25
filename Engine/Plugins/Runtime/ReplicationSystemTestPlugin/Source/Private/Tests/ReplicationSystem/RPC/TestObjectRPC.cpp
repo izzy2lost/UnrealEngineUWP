@@ -328,4 +328,47 @@ namespace UE::Net::Private
 		UE_NET_ASSERT_LT(ClientObject->ClientRPCCallOrder, ClientObject->ClientRPCWithParamCallOrder);
 	}
 
+	// This test is specifically written to exercise a path where we would cause bitstream errors by
+	// posting rpc on an object only temporarily in scope, which would be assigned an internal index.
+	// This same internal index would then be reused and would inherit previously posted attachments/rpcs possibly for a different type.
+	// If rpc index would be valid for the new object and it did not have the same signature it would result in a bitstream error.
+	UE_NET_TEST_FIXTURE(FRPCTestFixture, TestShortLivedSubObjectReliableRPC)
+	{
+		// Add a client
+		FReplicationSystemTestClient* Client = CreateClient();
+
+		// Spawn object on server
+		UTestReplicatedObjectWithRPC* ServerRootObject = Server->CreateObject<UTestReplicatedObjectWithRPC>();
+		ServerRootObject->Init(Server->GetReplicationSystem());
+
+		const FNetRefHandle ServerRootObjectHandle = ServerRootObject->NetRefHandle;
+
+		// Send and deliver packet
+		Server->UpdateAndSend({Client});
+
+		// Create subobject
+		UTestReplicatedObjectWithRPC* ServerSubObject = Server->CreateSubObject<UTestReplicatedObjectWithRPC>(ServerRootObjectHandle);
+		ServerSubObject->Init(Server->GetReplicationSystem());
+		ServerSubObject->SetRootObject(ServerRootObject);
+
+		const FNetRefHandle ServerSubObjectHandle = ServerSubObject->NetRefHandle;
+
+		// Call rpc
+		ServerSubObject->ClientRPC();
+
+		// Destroy subobject
+		Server->DestroyObject(ServerSubObject, EEndReplicationFlags::Destroy);
+
+		// Send and deliver packet
+		Server->UpdateAndSend({Client});
+
+		// Spawn object on server
+		UTestReplicatedObjectWithSingleRPC* ServerRootObject2 = Server->CreateObject<UTestReplicatedObjectWithSingleRPC>();
+		ServerRootObject2->Init(Server->GetReplicationSystem());
+		ServerRootObject2->NetMulticast_ReliableMultiCastRPC(3);
+
+		// Send and deliver packet
+		Server->UpdateAndSend({Client});
+	}
+
 }
