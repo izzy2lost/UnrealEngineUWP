@@ -627,6 +627,8 @@ void FNiagaraSystemViewportClient::LoadSharedSettingsFromConfig()
 	FEngineShowFlags EditorShowFlags(ESFIM_Editor);
 	FEngineShowFlags GameShowFlags(ESFIM_Game);
 
+	EditorShowFlags.DisableAdvancedFeatures();
+
 	if(!ViewportSharedSettings.EditorShowFlagsString.IsEmpty())
 	{
 		EditorShowFlags.SetFromString(*ViewportSharedSettings.EditorShowFlagsString);
