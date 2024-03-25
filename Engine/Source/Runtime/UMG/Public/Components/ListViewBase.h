@@ -539,6 +539,10 @@ public:
 	UFUNCTION(BlueprintCallable, Category = ListViewBase)
 	UMG_API void SetScrollbarVisibility(ESlateVisibility InVisibility);
 
+	/** Enable/Disable the ability of the list to scroll. This should be use as a temporary disable. */
+	UFUNCTION(BlueprintCallable, Category = ListViewBase)
+	UMG_API void SetIsPointerScrollingEnabled(bool bInIsPointerScrollingEnabled);
+
 	/**
 	 * Sets the list to refresh on the next tick.
 	 *
@@ -686,6 +690,10 @@ protected:
 	/** True to allow scrolling using touch input. */
 	UPROPERTY(EditAnywhere, Category = Scrolling)
 	bool bEnableTouchScrolling = true;
+
+	/** Enable/Disable scrolling using Touch or Mouse. */
+	UPROPERTY(EditDefaultsOnly, Category = Scrolling)
+	bool bIsPointerScrollingEnabled = true;
 
 	UPROPERTY(EditAnywhere, Category = Scrolling)
 	bool bEnableFixedLineOffset = false;
