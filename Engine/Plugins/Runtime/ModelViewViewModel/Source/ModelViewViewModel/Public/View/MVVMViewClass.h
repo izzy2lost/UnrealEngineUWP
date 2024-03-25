@@ -127,6 +127,7 @@ public:
 		bool bAddFlags = true;
 		bool bAddBindingId = true;
 		bool bAddBindingFields = true;
+		bool bAddSources = true;
 
 		MODELVIEWVIEWMODEL_API static FToStringArgs Short();
 		MODELVIEWVIEWMODEL_API static FToStringArgs All();
@@ -398,6 +399,7 @@ private:
 		HasTickBindings = 1 << 8,
 		IsViewModel = 1 << 9,
 		IsViewModelInstanceExposed = 1 << 10,
+		GlobalViewModelCollectionRetry = 1 << 11,
 	};
 
 	UPROPERTY(VisibleAnywhere, Category = "View")
