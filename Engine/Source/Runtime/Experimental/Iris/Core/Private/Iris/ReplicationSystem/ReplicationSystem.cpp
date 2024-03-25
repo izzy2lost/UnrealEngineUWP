@@ -1710,6 +1710,8 @@ UReplicationSystem* FReplicationSystemFactory::CreateReplicationSystem(const URe
 			MaxReplicationSystemId = ReplicationSystemId;
 		}
 
+		UE_LOG(LogIris, Display, TEXT("Iris ReplicationSystem[%i] is created"), ReplicationSystemId);
+
 		ReplicationSystem->Init(ReplicationSystemId, Params);
 
 		if (GetReplicationSystemCreatedDelegate().IsBound())
@@ -1732,6 +1734,9 @@ void FReplicationSystemFactory::DestroyReplicationSystem(UReplicationSystem* Sys
 	}
 
 	const uint32 Id = System->GetId();
+
+	UE_LOG(LogIris, Display, TEXT("Iris ReplicationSystem[%i] is about to be destroyed"), Id);
+
 	if (Id < MaxReplicationSystemCount)
 	{
 		ReplicationSystems[Id] = nullptr;
