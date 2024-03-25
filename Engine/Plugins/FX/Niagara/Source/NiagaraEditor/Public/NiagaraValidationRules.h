@@ -40,6 +40,10 @@ struct FNiagaraValidationRule_EmitterCountAndPlatformSet
 {
 	GENERATED_BODY()
 
+	/** Name to display if we fail the limit check */
+	UPROPERTY(EditAnywhere, Category = Validation)
+	FString RuleName;
+
 	UPROPERTY(EditAnywhere, Category = Validation)
 	FNiagaraPlatformSet Platforms;
 
@@ -67,6 +71,10 @@ USTRUCT()
 struct FNiagaraValidationRule_RendererCountAndPlatformSet
 {
 	GENERATED_BODY()
+
+	/** Name to display if we fail the limit check */
+	UPROPERTY(EditAnywhere, Category = Validation)
+	FString RuleName;
 
 	UPROPERTY(EditAnywhere, Category = Validation)
 	FNiagaraPlatformSet Platforms;
