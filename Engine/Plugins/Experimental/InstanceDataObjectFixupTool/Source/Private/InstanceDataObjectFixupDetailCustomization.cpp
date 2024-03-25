@@ -458,7 +458,7 @@ void FHideLoosePropertiesCustomization::CustomizeDetails(IDetailLayoutBuilder& D
 	DetailBuilder.GetCategoryNames(CategoryNames);
 	for (const FName CategoryName : CategoryNames)
 	{
-		IDetailCategoryBuilder& Category = DetailBuilder.EditCategory(CategoryName);
+		IDetailCategoryBuilder& Category = DetailBuilder.EditCategoryAllowNone(CategoryName);
 		TArray<TSharedRef<IPropertyHandle>> Handles;
 		Category.GetDefaultProperties(Handles, true, true);
 		for (const TSharedRef<IPropertyHandle>& Handle : Handles)
