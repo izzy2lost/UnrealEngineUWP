@@ -1764,7 +1764,7 @@ TSharedRef<SAssetColumnView> SAssetView::CreateColumnView()
 		.HeaderRow
 		(
 			SNew(SHeaderRow)
-			.ResizeMode(ESplitterResizeMode::FixedSize)
+			.ResizeMode(ESplitterResizeMode::Fill)
 			.CanSelectGeneratedColumn(true)
 			.OnHiddenColumnsListChanged(this, &SAssetView::OnHiddenColumnsChanged)
 
