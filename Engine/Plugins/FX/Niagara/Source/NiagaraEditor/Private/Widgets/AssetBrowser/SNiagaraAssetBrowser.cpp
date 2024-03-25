@@ -233,6 +233,7 @@ void SNiagaraAssetBrowser::PopulateAssetBrowserContentSlot()
 	FAssetPickerConfig Config;
 	Config.Filter = GetCurrentBackendFilter();
 	Config.bCanShowClasses = false;
+	Config.bCanShowFolders = false;
 	Config.bAddFilterUI = true;
 	Config.DefaultFilterMenuExpansion = EAssetTypeCategories::FX;
 	Config.ExtraFrontendFilters = OnGetExtraFrontendFilters();
@@ -250,7 +251,8 @@ void SNiagaraAssetBrowser::PopulateAssetBrowserContentSlot()
 	Config.bForceShowPluginContent = true;
 	Config.SelectionMode = AssetSelectionMode;
 	Config.bAllowDragging = false;
-	Config.OnGetAssetContextMenu = FOnGetAssetContextMenu::CreateSP(this, &SNiagaraAssetBrowser::OnGetAssetContextMenu);
+	// Disabled for now as the only option 'Find in Content Browser' leads to bugs due to modal creation window
+	// Config.OnGetAssetContextMenu = FOnGetAssetContextMenu::CreateSP(this, &SNiagaraAssetBrowser::OnGetAssetContextMenu);
 
 	if(SaveSettingsName.IsSet())
 	{
