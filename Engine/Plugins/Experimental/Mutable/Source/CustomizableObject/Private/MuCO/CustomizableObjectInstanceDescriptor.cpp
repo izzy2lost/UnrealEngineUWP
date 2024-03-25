@@ -742,13 +742,13 @@ FString FCustomizableObjectInstanceDescriptor::ToString() const
 
 void FCustomizableObjectInstanceDescriptor::ReloadParameters()
 {
-	if (!CustomizableObject)
+	if (IsRunningCookCommandlet())
 	{
 		return;
 	}
 
-	if (!CustomizableObject->IsCompiled())
-	{	
+	if (!CustomizableObject || !CustomizableObject->IsCompiled())
+	{
 		return;
 	}
 

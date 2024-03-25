@@ -560,61 +560,10 @@ void UCustomizableObjectInstance::PostLoad()
 
 	// Skip the cost of ReloadParameters in the cook commandlet; it will be reloaded during PreSave. For cooked runtime
 	// and editor UI, reload on load because it will not otherwise reload unless the CustomizableObject recompiles.
-	if (!IsRunningCookCommandlet())
-	{
-		Descriptor.ReloadParameters();
-	}
+	Descriptor.ReloadParameters();
 	PrivateData->InitCustomizableObjectData(GetCustomizableObject());
 }
 
-#if WITH_EDITOR
-void UCustomizableObjectInstance::BeginCacheForCookedPlatformData(const ITargetPlatform* TargetPlatform)
-{
-	UCustomizableObject* CustomizableObject = GetCustomizableObject();
-	if (!CustomizableObject)
-	{
-		return;
-	}
-	CustomizableObject->BeginCacheForCookedPlatformData(TargetPlatform);
-}
-
-bool UCustomizableObjectInstance::IsCachedCookedPlatformDataLoaded(const ITargetPlatform* TargetPlatform)
-{
-	UCustomizableObject* CustomizableObject = GetCustomizableObject();
-	if (!CustomizableObject)
-	{
-		return true;
-	}
-
-	return CustomizableObject->IsCachedCookedPlatformDataLoaded(TargetPlatform);
-}
-
-void UCustomizableObjectInstance::PreSave(FObjectPreSaveContext ObjectSaveContext)
-{
-	Super::PreSave(ObjectSaveContext);
-
-	const ITargetPlatform* TargetPlatform = ObjectSaveContext.GetTargetPlatform();
-	if (!TargetPlatform)
-	{
-		return;
-	}
-
-	UCustomizableObject* CustomizableObject = GetCustomizableObject();
-	if (!CustomizableObject)
-	{
-		return;
-	}
-	if (CustomizableObject->GetPrivate()->TryUpdateIsChildObject() && CustomizableObject->IsChildObject())
-	{
-		UE_LOG(LogMutable, Error,
-			TEXT("CO Instance [%s] has an invalid dependency on CO that is a child object: [%s]. The instance will be unusable at runtime and may crash."),
-			*GetPathName(), *CustomizableObject->GetPathName());
-	}
-
-	CustomizableObject->GetPrivate()->TryLoadCompiledCookDataForPlatform(TargetPlatform);
-	Descriptor.ReloadParameters();
-}
-#endif
 
 FString UCustomizableObjectInstance::GetDesc()
 {
