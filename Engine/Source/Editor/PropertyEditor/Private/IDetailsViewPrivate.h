@@ -8,6 +8,7 @@
 #include "IDetailsView.h"
 #include "PropertyNode.h"
 
+class FDetailsNameWidgetOverrideCustomization;
 class FEditConditionParser;
 class FNotifyHook;
 class IDetailPropertyExtensionHandler;
@@ -210,4 +211,8 @@ public:
 	 */
 	virtual TSharedPtr<FDetailsDisplayManager> GetDisplayManager() = 0;
 
+	virtual TSharedPtr<FDetailsNameWidgetOverrideCustomization> GetDetailsNameWidgetOverrideCustomization()
+	{
+		return nullptr;
+	}
 };

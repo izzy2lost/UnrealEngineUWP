@@ -6,6 +6,7 @@
 #include "DetailsViewStyleKey.h"
 #include "Widgets/Layout/SScrollBar.h"
 
+class FDetailsNameWidgetOverrideCustomization;
 class FDetailsViewObjectFilter;
 class FNotifyHook;
 class FTabManager;
@@ -57,6 +58,8 @@ struct FDetailsViewArgs
 	EHorizontalAlignment ScrollbarAlignment;
 	/** A @code TSharedPtr<FDetailsViewStyleKey> @endcode which provides the key to the Details View's style */
 	TSharedPtr<FDetailsViewStyleKey> StyleKey;
+	/** A Customization that can be applied to all name widgets */
+	TSharedPtr<FDetailsNameWidgetOverrideCustomization> DetailsNameWidgetOverrideCustomization;
 	/** Identifier for this details view; NAME_None if this view is anonymous */
 	FName ViewIdentifier;
 	/** Notify hook to call when properties are changed */
@@ -117,6 +120,7 @@ public:
 	FDetailsViewArgs()
 		: DefaultsOnlyVisibility(EEditDefaultsOnlyNodeVisibility::Show)
 		, ScrollbarAlignment(HAlign_Right)
+	    , DetailsNameWidgetOverrideCustomization(nullptr)
 		, ViewIdentifier(NAME_None)
 		, NotifyHook(nullptr)
 		, NameAreaSettings(ActorsUseNameArea)

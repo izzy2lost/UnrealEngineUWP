@@ -87,6 +87,15 @@ private:
 	bool CanPasteGroup();
 
 	/**
+	 * Returns the TSharedRef<SWidget> for the Name column widget
+	 * 
+	 * @param NameWidget 
+	 * @param Node 
+	 * @return 
+	 */
+	TSharedRef<SWidget> GetNameWidget(TSharedRef<SWidget> NameWidget, const TSharedPtr<FPropertyNode>& Node) const;
+
+	/**
 	 * @return True if the (optionally tagged) input contents can be pasted
 	 */
 	bool CanPasteFromText(const FString& InTag, const FString& InText) const;

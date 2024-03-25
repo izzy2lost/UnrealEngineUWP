@@ -6,6 +6,7 @@
 #include "Settings/EditorStyleSettings.h"
 #include "DetailCategoryBuilderImpl.h"
 #include "DetailLayoutBuilderImpl.h"
+#include "DetailsNameWidgetOverrideCustomization.h"
 #include "DetailsViewGenericObjectFilter.h"
 #include "DetailsViewPropertyGenerationUtilities.h"
 #include "Editor.h"
@@ -56,6 +57,7 @@ SDetailsView::~SDetailsView()
 void SDetailsView::Construct(const FArguments& InArgs, const FDetailsViewArgs& InDetailsViewArgs)
 {
 	DetailsViewArgs = InDetailsViewArgs;
+	DetailsNameWidgetOverrideCustomization = DetailsViewArgs.DetailsNameWidgetOverrideCustomization;
 
 	const FDetailsViewConfig* ViewConfig = GetConstViewConfig();
 	if (ViewConfig != nullptr)
@@ -1510,6 +1512,11 @@ const FSlateBrush* SDetailsView::GetViewOptionsBadgeIcon() const
 bool SDetailsView::IsDefaultStyle() const
 {
 	return StyleKeySP.IsValid() && *StyleKeySP.Get() == GetPrimaryDetailsViewStyleKey();
+}
+
+TSharedPtr<FDetailsNameWidgetOverrideCustomization> SDetailsView::GetDetailsNameWidgetOverrideCustomization()
+{
+	return DetailsNameWidgetOverrideCustomization;
 }
 
 void SDetailsView::UpdateStyleKey()
