@@ -1633,7 +1633,7 @@ void USkeletalMesh::Serialize( FArchive& Ar )
 		FSkinnedAssetCompilingManager::Get().FinishCompilation({ this });
 	}
 
-	if (Ar.IsSaving())
+	if (Ar.IsSaving() && !Ar.IsCooking())
 	{
 		// If saving out to disk, ensure that all source models have had their raw mesh bulk data converted to mesh description,
 		// since the bulk data won't be reloaded.
