@@ -6,7 +6,6 @@
 #include "HAL/MemoryBase.h"
 #include "Math/UnrealMathUtility.h"
 #include "HAL/PlatformTLS.h"
-#include "Misc/App.h"
 #include "Async/TaskGraphInterfaces.h"
 #include "Templates/AlignmentTemplates.h"
 
