@@ -164,7 +164,7 @@ namespace HarmonixMetasound
 			}
 
 			// If the "to" clock is the dummy, and the "from" clock isn't, overwrite the "to" clock
-			if (FromClockIsDummy && !ToClockIsDummy)
+			if (!FromClockIsDummy && ToClockIsDummy)
 			{
 				To.SetClock(*FromClock);
 			}
