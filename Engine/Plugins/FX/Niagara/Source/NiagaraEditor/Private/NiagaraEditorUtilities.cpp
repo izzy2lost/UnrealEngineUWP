@@ -4504,7 +4504,7 @@ void FNiagaraEditorUtilities::GetAllowedUserVariableTypes(TArray<FNiagaraTypeDef
 	const UNiagaraEditorSettings* NiagaraEditorSettings = GetDefault<UNiagaraEditorSettings>();
 	for (const FNiagaraTypeDefinition& RegisteredUserVariableType : FNiagaraTypeRegistry::GetRegisteredUserVariableTypes())
 	{
-		if (NiagaraEditorSettings->IsAllowedTypeDefinition(RegisteredUserVariableType))
+		if (NiagaraEditorSettings->IsVisibleTypeDefinition(RegisteredUserVariableType))
 		{
 			OutAllowedTypes.Add(RegisteredUserVariableType);
 		}
@@ -4516,7 +4516,7 @@ void FNiagaraEditorUtilities::GetAllowedSystemVariableTypes(TArray<FNiagaraTypeD
 	const UNiagaraEditorSettings* NiagaraEditorSettings = GetDefault<UNiagaraEditorSettings>();
 	for (const FNiagaraTypeDefinition& RegisteredSystemVariableType : FNiagaraTypeRegistry::GetRegisteredSystemVariableTypes())
 	{
-		if (NiagaraEditorSettings->IsAllowedTypeDefinition(RegisteredSystemVariableType))
+		if (NiagaraEditorSettings->IsVisibleTypeDefinition(RegisteredSystemVariableType))
 		{
 			OutAllowedTypes.Add(RegisteredSystemVariableType);
 		}
@@ -4528,7 +4528,7 @@ void FNiagaraEditorUtilities::GetAllowedEmitterVariableTypes(TArray<FNiagaraType
 	const UNiagaraEditorSettings* NiagaraEditorSettings = GetDefault<UNiagaraEditorSettings>();
 	for (const FNiagaraTypeDefinition& RegisteredEmitterVariableType : FNiagaraTypeRegistry::GetRegisteredEmitterVariableTypes())
 	{
-		if (NiagaraEditorSettings->IsAllowedTypeDefinition(RegisteredEmitterVariableType))
+		if (NiagaraEditorSettings->IsVisibleTypeDefinition(RegisteredEmitterVariableType))
 		{
 			OutAllowedTypes.Add(RegisteredEmitterVariableType);
 		}
@@ -4540,7 +4540,7 @@ void FNiagaraEditorUtilities::GetAllowedParticleVariableTypes(TArray<FNiagaraTyp
 	const UNiagaraEditorSettings* NiagaraEditorSettings = GetDefault<UNiagaraEditorSettings>();
 	for (const FNiagaraTypeDefinition& RegisteredParticleVariableType : FNiagaraTypeRegistry::GetRegisteredParticleVariableTypes())
 	{
-		if (NiagaraEditorSettings->IsAllowedTypeDefinition(RegisteredParticleVariableType))
+		if (NiagaraEditorSettings->IsVisibleTypeDefinition(RegisteredParticleVariableType))
 		{
 			OutAllowedTypes.Add(RegisteredParticleVariableType);
 		}
@@ -4552,7 +4552,7 @@ void FNiagaraEditorUtilities::GetAllowedParameterTypes(TArray<FNiagaraTypeDefini
 	const UNiagaraEditorSettings* NiagaraEditorSettings = GetDefault<UNiagaraEditorSettings>();
 	for (const FNiagaraTypeDefinition& RegisteredParameterType : FNiagaraTypeRegistry::GetRegisteredParameterTypes())
 	{
-		if (NiagaraEditorSettings->IsAllowedTypeDefinition(RegisteredParameterType))
+		if (NiagaraEditorSettings->IsVisibleTypeDefinition(RegisteredParameterType))
 		{
 			OutAllowedTypes.Add(RegisteredParameterType);
 		}
@@ -4564,7 +4564,7 @@ void FNiagaraEditorUtilities::GetAllowedPayloadTypes(TArray<FNiagaraTypeDefiniti
 	const UNiagaraEditorSettings* NiagaraEditorSettings = GetDefault<UNiagaraEditorSettings>();
 	for (const FNiagaraTypeDefinition& RegisteredPayloadType : FNiagaraTypeRegistry::GetRegisteredPayloadTypes())
 	{
-		if (NiagaraEditorSettings->IsAllowedTypeDefinition(RegisteredPayloadType))
+		if (NiagaraEditorSettings->IsVisibleTypeDefinition(RegisteredPayloadType))
 		{
 			OutAllowedTypes.Add(RegisteredPayloadType);
 		}

@@ -321,7 +321,7 @@ void UNiagaraStackObject::RefreshChildrenInternal(const TArray<UNiagaraStackEntr
 	}
 
 	const UNiagaraEditorSettings* NiagaraEditorSettings = GetDefault<UNiagaraEditorSettings>();
-	if (Object != nullptr && NiagaraEditorSettings->IsAllowedClass(Object->GetClass()) == false)
+	if (Object != nullptr && NiagaraEditorSettings->IsReferenceableClass(Object->GetClass()) == false)
 	{
 		NewIssues.Add(FStackIssue(
 			EStackIssueSeverity::Error,

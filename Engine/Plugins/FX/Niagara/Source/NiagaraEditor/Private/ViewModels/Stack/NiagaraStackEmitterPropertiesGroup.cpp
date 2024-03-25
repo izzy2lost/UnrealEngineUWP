@@ -97,7 +97,7 @@ public:
 		GetDerivedClasses(UNiagaraSimulationStageBase::StaticClass(), SimulationStageClasses);
 		for (UClass* SimulationStageClass : SimulationStageClasses)
 		{
-			if (NiagaraEditorSettings->IsAllowedClass(SimulationStageClass))
+			if (NiagaraEditorSettings->IsVisibleClass(SimulationStageClass))
 			{
 				OutAddActions.Add(MakeShared<FAddEmitterStageAction>(
 					EEmitterAddMode::SimulationStage,

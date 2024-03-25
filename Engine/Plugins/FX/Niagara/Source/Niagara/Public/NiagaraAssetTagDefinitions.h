@@ -77,7 +77,6 @@ public:
 	NIAGARA_API bool DoesAssetDataContainTag(const FAssetData& AssetData) const;
 
 	NIAGARA_API FString GetGuidAsString() const;
-	void AddTagToAssetRegistryTags(TArray<UObject::FAssetRegistryTag>& OutTags) const;
 };
 
 inline uint32 GetTypeHash(const FNiagaraAssetTagDefinition& AssetTagDefinition)
