@@ -450,17 +450,17 @@ public:
 		/** Asset Data, used when PinType.PinSubCategoryObject is not loaded yet */
 		FAssetData CachedAssetData;
 
+		/** The pin type description, localized */
 		FText CachedDescription;
 
+		/** A copy of the localized CachedDescription string, for sorting */
+		TSharedPtr<FString> CachedDescriptionString;
 	public:
 		/** The children of this pin type */
 		TArray< TSharedPtr<FPinTypeTreeInfo> > Children;
 
 		/** Whether or not this pin type is selectable as an actual type, or is just a category, with some subtypes */
 		bool bReadOnly;
-
-		/** Friendly display name of pin type; also used to see if it has subtypes */
-		FText FriendlyName;
 
 		/** Text for regular tooltip */
 		FText Tooltip;
@@ -479,7 +479,13 @@ public:
 		FPinTypeTreeInfo(TSharedPtr<FPinTypeTreeInfo> InInfo);
 		
 		/** Returns a succinct menu description of this type */
-		FText GetDescription() const;
+		const FText& GetDescription() const;
+		
+		/** Returns the localized description as a string, for faster sorting */
+		const FString& GetCachedDescriptionString() const
+		{
+			return *CachedDescriptionString;
+		}
 
 		FText GetToolTip() const
 		{
@@ -509,8 +515,6 @@ public:
 			: PossibleObjectReferenceTypes(0)
 			, bReadOnly(false)
 		{}
-
-		void Init(const FText& FriendlyCategoryName, const FName CategoryName, const UEdGraphSchema_K2* Schema, const FText& InTooltip, bool bInReadOnly, FTypesDatabase* TypesDatabase);
 
 		FText GenerateDescription();
 	};
