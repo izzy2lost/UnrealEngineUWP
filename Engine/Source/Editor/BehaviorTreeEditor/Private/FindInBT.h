@@ -160,5 +160,5 @@ private:
 	TArray<TSharedPtr<FString>> SearchTypeComboBoxItems;
 
 	/** Current search type determines how search occurs */
-	EFindInBTSearchType SearchType = SearchType = EFindInBTSearchType::Node;
+	EFindInBTSearchType SearchType = EFindInBTSearchType::Node;
 };
