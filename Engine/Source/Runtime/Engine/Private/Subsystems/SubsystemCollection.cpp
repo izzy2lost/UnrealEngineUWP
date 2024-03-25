@@ -217,9 +217,10 @@ USubsystem* FSubsystemCollectionBase::InitializeDependency(TSubclassOf<USubsyste
 		{
 			Subsystem = AddAndInitializeSubsystem(SubsystemClass);
 		}
+
+		UE_CLOG(!Subsystem, LogSubsystemCollection, Log, TEXT("Failed to initialize subsystem dependency (%s)"), *SubsystemClass->GetName());
 	}
 
-	UE_CLOG(!Subsystem, LogSubsystemCollection, Log, TEXT("Failed to initialize subsystem dependency (%s)"), *SubsystemClass->GetName());
 	return Subsystem;
 }
 
