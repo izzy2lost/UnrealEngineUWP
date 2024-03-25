@@ -131,4 +131,7 @@ namespace ContentBrowserUtils
 
 	/** Removes FolderPath as a private content edit folder if it's allowed to be toggled as such */
 	void RemoveShowPrivateContentFolder(const FStringView VirtualFolderPath, const FName Owner);
+
+	/** Returns whether we should display icons for custom virtual folders in the content browser */
+	bool ShouldShowCustomVirtualFolderIcon();
 }
