@@ -583,7 +583,7 @@ namespace uba
 				auto mappedViewWrite = m_fileMappingBuffer.AllocAndMapView(MappedView_Transient, size, alignment, fileName);
 				auto unmapGuard = MakeGuard([&](){ m_fileMappingBuffer.UnmapView(mappedViewWrite, fileName); });
 
-				if (!m_storage.DecompressMemoryToMemory(readMemory, mappedViewWrite.memory, size))
+				if (!m_storage.DecompressMemoryToMemory(readMemory, mappedViewWrite.memory, size, fileName))
 					return false;
 				unmapGuard.Execute();
 
@@ -2313,7 +2313,7 @@ namespace uba
 			return m_cpuLoad;
 		totalTime = kernelTime + userTime;
 #elif PLATFORM_LINUX
-		int fd = open("/proc/stat", O_RDONLY);
+		int fd = open("/proc/stat", O_RDONLY | O_CLOEXEC);
 		if (fd != -1)
 		{
 			char buffer[512];
