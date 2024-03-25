@@ -69,8 +69,14 @@ void UCustomizableObjectNodeSwitchBase::AllocateDefaultPins(UCustomizableObjectN
 	OutputPin->bDefaultValueIsIgnored = true;
 
 	OutputPinReference = FEdGraphPinReference(OutputPin);
+
+	UEdGraphPin* SwitchParameterPin = CustomCreatePin(EGPD_Input, Schema->PC_Enum, FName(TEXT("Switch Parameter")));
+	SwitchParameterPin->bDefaultValueIsIgnored = true;
+	SwitchParameterPin->SetOwningNode(this);
+
+	SwitchParameterPinReference = FEdGraphPinReference(SwitchParameterPin);
 	
-	for (int LayerIndex = ReloadingElementsNames.Num() - 1; LayerIndex >= 0; --LayerIndex)
+	for (int32 LayerIndex = 0; LayerIndex < ReloadingElementsNames.Num(); ++LayerIndex)
 	{
 		FString PinName = GetPinPrefix(LayerIndex);
 		UEdGraphPin* InputPin = CustomCreatePin(EGPD_Input, GetCategory(), FName(*PinName));
@@ -79,12 +85,6 @@ void UCustomizableObjectNodeSwitchBase::AllocateDefaultPins(UCustomizableObjectN
 		InputPin->bDefaultValueIsIgnored = true;
 		InputPin->SetOwningNode(this);
 	}
-
-	UEdGraphPin* SwitchParameterPin = CustomCreatePin(EGPD_Input, Schema->PC_Enum, FName(TEXT("Switch Parameter")));
-	SwitchParameterPin->bDefaultValueIsIgnored = true;
-	SwitchParameterPin->SetOwningNode(this);
-
-	SwitchParameterPinReference = FEdGraphPinReference(SwitchParameterPin);
 }
 
 
