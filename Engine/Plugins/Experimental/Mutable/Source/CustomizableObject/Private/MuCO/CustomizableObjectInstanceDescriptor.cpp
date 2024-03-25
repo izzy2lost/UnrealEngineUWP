@@ -682,7 +682,6 @@ void FCustomizableObjectInstanceDescriptor::ReloadParameters()
 
 	SetState(FMath::Clamp(GetState(), 0, CustomizableObject->GetStateCount() - 1));
 	
-	MaxLOD = FMath::Max(0, CustomizableObject->GetNumLODs() - 1);
 	RequestedLODLevels.Init(0, CustomizableObject->GetComponentCount());
 
 	TArray<FCustomizableObjectBoolParameterValue> OldBoolParameters = BoolParameters;
@@ -1079,18 +1078,6 @@ int32 FCustomizableObjectInstanceDescriptor::GetMinLod() const
 void FCustomizableObjectInstanceDescriptor::SetMinLod(int32 InMinLOD)
 {
 	MinLOD = InMinLOD;
-}
-
-
-int32 FCustomizableObjectInstanceDescriptor::GetMaxLod() const
-{
-	return MaxLOD;
-}
-
-
-void FCustomizableObjectInstanceDescriptor::SetMaxLod(int32 InMaxLOD)
-{
-	MaxLOD = InMaxLOD;
 }
 
 

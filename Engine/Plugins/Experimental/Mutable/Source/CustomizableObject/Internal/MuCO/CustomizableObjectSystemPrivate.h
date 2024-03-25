@@ -60,7 +60,6 @@ public:
 
 	// These are the LODs that would be applied if this candidate is chosen
 	int32 MinLOD = 0;
-	int32 MaxLOD = INT32_MAX;
 
 	/** Array of RequestedLODs per component to generate if this candidate is chosen */
 	TArray<uint16> RequestedLODLevels;
@@ -69,13 +68,12 @@ public:
 	{
 		const FCustomizableObjectInstanceDescriptor& Descriptor = InCustomizableObjectInstance->GetDescriptor();
 		MinLOD = Descriptor.GetMinLod();
-		MaxLOD = Descriptor.GetMaxLod();
 		RequestedLODLevels = Descriptor.GetRequestedLODLevels();
 	}
 
-	FMutableUpdateCandidate(const UCustomizableObjectInstance* InCustomizableObjectInstance, const int32 InMinLOD, const int32 InMaxLOD,
+	FMutableUpdateCandidate(const UCustomizableObjectInstance* InCustomizableObjectInstance, const int32 InMinLOD,
 		const TArray<uint16>& InRequestedLODLevels) :
-		CustomizableObjectInstance(const_cast<UCustomizableObjectInstance*>(InCustomizableObjectInstance)), MinLOD(InMinLOD), MaxLOD(InMaxLOD),
+		CustomizableObjectInstance(const_cast<UCustomizableObjectInstance*>(InCustomizableObjectInstance)), MinLOD(InMinLOD),
 		RequestedLODLevels(InRequestedLODLevels) {}
 
 	bool HasBeenIssued() const;
@@ -485,10 +483,6 @@ public:
 	int32 GetMinLOD() const;
 
 	void SetMinLOD(int32 MinLOD);
-
-	int32 GetMaxLOD() const;
-
-	void SetMaxLOD(int32 MaxLOD);
 
 	const TArray<uint16>& GetRequestedLODs() const;
 

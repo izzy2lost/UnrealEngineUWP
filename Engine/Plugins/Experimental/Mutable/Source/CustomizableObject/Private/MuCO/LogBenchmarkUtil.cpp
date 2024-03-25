@@ -94,8 +94,8 @@ void FLogBenchmarkUtil::GetInstancesStats(int32& OutNumInstances, int32& OutNumB
 		
 		++OutNumInstances;
 
-		OutNumInstancesLOD0 += Instance->GetCurrentMinLOD() <= 0 && Instance->GetCurrentMaxLOD() >= 0;
-		OutNumInstancesLOD1 += Instance->GetCurrentMinLOD() <= 1 && Instance->GetCurrentMaxLOD() >= 1;
+		OutNumInstancesLOD0 += Instance->GetCurrentMinLOD() == 0;
+		OutNumInstancesLOD1 += Instance->GetCurrentMinLOD() == 1;
 		OutNumInstancesLOD2 += Instance->GetCurrentMinLOD() >= 2;
 
 		if (Instance->GetPrivate()->SkeletalMeshStatus == ESkeletalMeshStatus::Success)

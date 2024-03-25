@@ -186,19 +186,6 @@ void FUpdateContextPrivate::SetMinLOD(int32 MinLOD)
 }
 
 
-int32 FUpdateContextPrivate::GetMaxLOD() const
-{
-	return CapturedDescriptor.GetMaxLod();
-}
-
-
-void FUpdateContextPrivate::SetMaxLOD(int32 MaxLOD)
-{
-	CapturedDescriptor.SetMaxLod(MaxLOD);
-	CapturedDescriptorHash.MaxLOD = MaxLOD;
-}
-
-
 const TArray<uint16>& FUpdateContextPrivate::GetRequestedLODs() const
 {
 	return CapturedDescriptor.GetRequestedLODLevels();
@@ -1227,7 +1214,7 @@ void UCustomizableObjectSystemPrivate::EnqueueUpdateSkeletalMesh(const TSharedRe
 	{
 		if (InstancePrivate->HasCOInstanceFlags(PendingLODsUpdate))
 		{
-			UE_LOG(LogMutable, Verbose, TEXT("LOD change: %d, %d -> %d, %d"), Instance->GetCurrentMinLOD(), Instance->GetCurrentMaxLOD(), Instance->GetMinLODToLoad(), Instance->GetMaxLODToLoad());
+			UE_LOG(LogMutable, Verbose, TEXT("Min LOD change: %d -> %d"), Instance->GetCurrentMinLOD(), Instance->GetMinLODToLoad());
 		}
 
 		if (const FMutablePendingInstanceUpdate* QueueElem = MutablePendingInstanceWork.GetUpdate(Instance))
@@ -1636,20 +1623,13 @@ namespace impl
 		Operation->NumLODsAvailable = Operation->MutableInstance->GetLODCount();
 
 		int32 CurrentMinLOD = FMath::Max(Operation->GetMinLOD(), Operation->FirstLODAvailable);
-		int32 CurrentMaxLOD = Operation->GetMaxLOD();
 
 		if (CurrentMinLOD >= Operation->NumLODsAvailable)
 		{
 			CurrentMinLOD = Operation->NumLODsAvailable - 1;
-			CurrentMaxLOD = CurrentMinLOD;
-		}
-		else if (CurrentMaxLOD >= Operation->NumLODsAvailable)
-		{
-			CurrentMaxLOD = Operation->NumLODsAvailable - 1;
 		}
 
 		Operation->SetMinLOD(CurrentMinLOD);
-		Operation->SetMaxLOD(CurrentMaxLOD);
 
 		// Initialize RequestedLODs to zero if not set
 		TArray<uint16> RequestedLODs = Operation->GetRequestedLODs();
@@ -1658,7 +1638,7 @@ namespace impl
 		for (int32 ComponentIndex = 0; ComponentIndex < Operation->NumComponents; ++ComponentIndex)
 		{
 			// Ensure we're generating at least one LOD
-			for (int32 LODIndex = CurrentMaxLOD; LODIndex < MAX_MESH_LOD_COUNT; ++LODIndex)
+			for (int32 LODIndex = Operation->NumLODsAvailable - 1; LODIndex < MAX_MESH_LOD_COUNT; ++LODIndex)
 			{
 				RequestedLODs[ComponentIndex] |= (1 << LODIndex);
 			}
@@ -1712,11 +1692,11 @@ namespace impl
 		TArray<int32> SurfacesSharedId;
 
 		// Generate the mesh and gather all the required resource Ids
-		OperationData->InstanceUpdateData.LODs.SetNum(Instance->GetLODCount());
-		for (int32 MutableLODIndex = 0; MutableLODIndex < Instance->GetLODCount(); ++MutableLODIndex)
+		OperationData->InstanceUpdateData.LODs.SetNum(OperationData->NumLODsAvailable);
+		for (int32 MutableLODIndex = 0; MutableLODIndex < OperationData->NumLODsAvailable; ++MutableLODIndex)
 		{
 			// Skip LODs outside the range we want to generate
-			if (MutableLODIndex < OperationData->GetMinLOD() || MutableLODIndex > OperationData->GetMaxLOD())
+			if (MutableLODIndex < OperationData->GetMinLOD())
 			{
 				continue;
 			}
@@ -2631,7 +2611,7 @@ namespace impl
 
 			const TArray<uint16>& RequestedLODs = Operation->GetRequestedLODs();
 			
-			for (int32 LODIndex = Operation->GetMinLOD(); LODIndex <= Operation->GetMaxLOD(); ++LODIndex)
+			for (int32 LODIndex = Operation->GetMinLOD(); LODIndex < Operation->NumLODsAvailable; ++LODIndex)
 			{
 				const bool bGenerateLOD = RequestedLODs.IsValidIndex(ComponentIndex) ? (RequestedLODs[ComponentIndex] & (1 << LODIndex)) != 0 : true;
 				if (bGenerateLOD)

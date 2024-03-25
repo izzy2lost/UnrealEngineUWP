@@ -292,7 +292,6 @@ void UCustomizableInstanceLODManagement::UpdateInstanceDistsAndLODs(FMutableInst
 		struct FLODTracker
 		{
 			int32 MinLOD = MAX_int32;
-			int32 MaxLOD = MAX_int32;
 
 			bool bInitialized = false;
 			TArray<uint16> RequestedLODsPerComponent;
@@ -382,11 +381,6 @@ void UCustomizableInstanceLODManagement::UpdateInstanceDistsAndLODs(FMutableInst
 					{
 						COI->SetMinSquareDistToPlayer(-1.f);
 					}
-					else
-					{
-						LODTracker.MaxLOD = COI->GetNumLODsAvailable() - 1;
-					}
-
 
 					// Use the component minLOD to set the minimum LOD to generate
 					LODTracker.MinLOD = FMath::Min(LODTracker.MinLOD, Parent->bOverrideMinLod ? Parent->MinLodModel : 0);
@@ -418,13 +412,7 @@ void UCustomizableInstanceLODManagement::UpdateInstanceDistsAndLODs(FMutableInst
 				// Limit MinLOD
 				It.Value.MinLOD = FMath::Min(It.Value.MinLOD, CustomizableObject->GetNumLODs() - 1);
 
-				// If it's the player generate only the first LOD
-				if (It.Key->GetMinSquareDistToPlayer() == -1.f && It.Value.MaxLOD == MAX_int32)
-				{
-					It.Value.MaxLOD = It.Value.MinLOD;
-				}
-
-				It.Key->SetRequestedLODs(It.Value.MinLOD, It.Value.MaxLOD, It.Value.RequestedLODsPerComponent, InOutRequestedUpdates);
+				It.Key->SetRequestedLODs(It.Value.MinLOD, 0, It.Value.RequestedLODsPerComponent, InOutRequestedUpdates);
 			}
 		}
 	}

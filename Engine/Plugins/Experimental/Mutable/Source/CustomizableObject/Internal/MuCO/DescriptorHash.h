@@ -28,7 +28,6 @@ private:
 
 public:
 	int32 MinLOD = 0;
-	int32 MaxLOD = INT32_MAX;
 
 	// Array of bitmasks that indicate which LODs of each component have been requested
 	TArray<uint16> RequestedLODsPerComponent;
