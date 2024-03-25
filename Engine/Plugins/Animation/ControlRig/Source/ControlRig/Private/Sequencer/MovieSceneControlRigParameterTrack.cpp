@@ -879,6 +879,7 @@ UControlRig* UMovieSceneControlRigParameterTrack::GetGameWorldControlRig(UWorld*
 	if (GameWorldControlRigs.Find(InWorld) == nullptr && ControlRig)
 	{
 		UControlRig* GameWorldControlRig = NewObject<UControlRig>(this, ControlRig->GetClass(), NAME_None, RF_Transient);
+		GameWorldControlRig->SetIsAdditive(ControlRig->IsAdditive());
 		GameWorldControlRigs.Add(InWorld, GameWorldControlRig);
 	}
 	TObjectPtr<UControlRig> * GameWorldControlRig = GameWorldControlRigs.Find(InWorld);
