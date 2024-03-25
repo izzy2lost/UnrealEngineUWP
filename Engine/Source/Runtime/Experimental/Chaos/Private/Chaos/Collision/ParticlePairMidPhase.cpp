@@ -64,7 +64,7 @@ namespace Chaos
 
 		extern int32 ChaosOneWayInteractionPairCollisionMode;
 
-		extern bool bChaosUseMACD;
+		extern bool bChaosForceMACD;
 	}
 
 	using namespace CVars;
@@ -882,7 +882,7 @@ namespace Chaos
 
 		// Enable Motion-Aware Collision Detection if either particle requests it
 		// (NOTE: MACD also affects how the particle world-space bounds is expanded in the broadphase)
-		const bool bIsMACD = Context.GetSettings().bAllowMACD && (P0->MACDEnabled() || P1->MACDEnabled());
+		const bool bIsMACD = Context.GetSettings().bAllowMACD && (CVars::bChaosForceMACD || P0->MACDEnabled() || P1->MACDEnabled());
 		Flags.bIsMACD = bIsMACD;
 
 		// Initially we allow for convex optimization where available
