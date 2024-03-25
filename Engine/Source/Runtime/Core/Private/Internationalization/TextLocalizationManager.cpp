@@ -11,6 +11,8 @@
 #include "GenericPlatform/GenericPlatformFile.h"
 #include "HAL/FileManager.h"
 #include "HAL/LowLevelMemTracker.h"
+#include "HAL/ThreadHeartBeat.h"
+#include "Misc/FileHelper.h"
 #include "Misc/Parse.h"
 #include "Misc/ScopeLock.h"
 #include "Misc/ScopeRWLock.h"
@@ -80,27 +82,29 @@ static FAutoConsoleCommand CmdDumpLiveTable(
 		TOptional<FString> NamespaceFilter;
 		TOptional<FString> KeyFilter;
 		TOptional<FString> DisplayStringFilter;
+		TOptional<FString> DumpFile;
 
 		for (const FString& Arg : Args)
 		{
 			if (!ParseOptionalStringArg(*Arg, TEXT("Namespace="), NamespaceFilter) &&
 				!ParseOptionalStringArg(*Arg, TEXT("Key="), KeyFilter) &&
-				!ParseOptionalStringArg(*Arg, TEXT("DisplayString="), DisplayStringFilter))
+				!ParseOptionalStringArg(*Arg, TEXT("DisplayString="), DisplayStringFilter) && 
+				!ParseOptionalStringArg(*Arg, TEXT("DumpFile="), DumpFile))
 			{
 				UE_LOG(LogLocalization, Warning, TEXT("Unknown argument '%s' passed to Localization.DumpLiveTable!"), *Arg);
 			}
 		}
 
-		auto GetConsoleResponseLogCategoryPtr = []() -> const FLogCategoryBase*
+		if (DumpFile.IsSet())
 		{
-#if NO_LOGGING
-			return nullptr;
-#else
-			return &LogConsoleResponse;
+			FTextLocalizationManager::Get().DumpLiveTable(DumpFile.GetValue(), NamespaceFilter.GetPtrOrNull(), KeyFilter.GetPtrOrNull(), DisplayStringFilter.GetPtrOrNull());
+		}
+		else
+		{
+#if !NO_LOGGING
+			FTextLocalizationManager::Get().DumpLiveTable(NamespaceFilter.GetPtrOrNull(), KeyFilter.GetPtrOrNull(), DisplayStringFilter.GetPtrOrNull(), &LogConsoleResponse);
 #endif
-		};
-
-		FTextLocalizationManager::Get().DumpLiveTable(NamespaceFilter.GetPtrOrNull(), KeyFilter.GetPtrOrNull(), DisplayStringFilter.GetPtrOrNull(), GetConsoleResponseLogCategoryPtr());
+		}
 	}));
 #endif
 }
@@ -606,31 +610,72 @@ void FTextLocalizationManager::CompactDataStructures()
 }
 
 #if ENABLE_LOC_TESTING
+void FTextLocalizationManager::DumpLiveTableImpl(const FString* NamespaceFilter, const FString* KeyFilter, const FString* DisplayStringFilter, TFunctionRef<void(const FTextId& Id, const FTextConstDisplayStringRef& DisplayString)> Callback) const
+{
+	FSlowHeartBeatScope SuspendHeartBeat;
+
+	FDisplayStringLookupTable DisplayStringLookupTableToDump;
+	{
+		auto PassesFilter = [](const FString& Str, const FString* Filter)
+		{
+			return !Filter || Str.MatchesWildcard(*Filter, ESearchCase::IgnoreCase); // Note: This is case insensitive since its used from a debug command
+		};
+
+		FScopeLock ScopeLock(&DisplayStringLookupTableCS);
+		DisplayStringLookupTableToDump.Reserve(DisplayStringLookupTable.Num());
+		for (const auto& DisplayStringPair : DisplayStringLookupTable)
+		{
+			if (PassesFilter(DisplayStringPair.Key.GetNamespace().GetChars(), NamespaceFilter) &&
+				PassesFilter(DisplayStringPair.Key.GetKey().GetChars(), KeyFilter) &&
+				PassesFilter(**DisplayStringPair.Value.DisplayString, DisplayStringFilter))
+			{
+				DisplayStringLookupTableToDump.Add(DisplayStringPair.Key, DisplayStringPair.Value);
+			}
+		}
+		DisplayStringLookupTableToDump.KeySort([](const FTextId& A, const FTextId& B)
+		{
+			const int32 NamespaceResult = FCString::Strcmp(A.GetNamespace().GetChars(), B.GetNamespace().GetChars());
+			if (NamespaceResult != 0)
+			{
+				return NamespaceResult < 0;
+			}
+			return FCString::Strcmp(A.GetKey().GetChars(), B.GetKey().GetChars()) < 0;
+		});
+	}
+
+	for (const auto& DisplayStringPair : DisplayStringLookupTableToDump)
+	{
+		Callback(DisplayStringPair.Key, DisplayStringPair.Value.DisplayString);
+	}
+}
+
 void FTextLocalizationManager::DumpLiveTable(const FString* NamespaceFilter, const FString* KeyFilter, const FString* DisplayStringFilter, const FLogCategoryBase* CategoryOverride) const
 {
 #if !NO_LOGGING
 	const FLogCategoryBase& Category = CategoryOverride ? *CategoryOverride : LogLocalization;
 
-	auto PassesFilter = [](const FString& Str, const FString* Filter)
-	{
-		return !Filter || Str.MatchesWildcard(*Filter, ESearchCase::IgnoreCase); // Note: This is case insensitive since its used from a debug command
-	};
-
 	UE_LOG_REF(Category, Display, TEXT("----------------------------------------------------------------------"));
 
-	FScopeLock ScopeLock(&DisplayStringLookupTableCS);
-	for (const auto& DisplayStringPair : DisplayStringLookupTable)
+	DumpLiveTableImpl(NamespaceFilter, KeyFilter, DisplayStringFilter, [&Category](const FTextId& Id, const FTextConstDisplayStringRef& DisplayString)
 	{
-		if (PassesFilter(DisplayStringPair.Key.GetNamespace().GetChars(), NamespaceFilter) &&
-			PassesFilter(DisplayStringPair.Key.GetKey().GetChars(), KeyFilter) &&
-			PassesFilter(**DisplayStringPair.Value.DisplayString, DisplayStringFilter))
-		{
-			UE_LOG_REF(Category, Display, TEXT("LiveTableEntry: Namespace: '%s', Key: '%s', DisplayString: '%s'"), DisplayStringPair.Key.GetNamespace().GetChars(), DisplayStringPair.Key.GetKey().GetChars(), **DisplayStringPair.Value.DisplayString);
-		}
-	}
+		UE_LOG_REF(Category, Display, TEXT("LiveTableEntry: Namespace: '%s', Key: '%s', DisplayString: '%s'"), Id.GetNamespace().GetChars(), Id.GetKey().GetChars(), **DisplayString);
+	});
 
 	UE_LOG_REF(Category, Display, TEXT("----------------------------------------------------------------------"));
 #endif // !NO_LOGGING
+}
+
+void FTextLocalizationManager::DumpLiveTable(const FString& OutputFilename, const FString* NamespaceFilter, const FString* KeyFilter, const FString* DisplayStringFilter) const
+{
+	FString DumpString;
+
+	DumpLiveTableImpl(NamespaceFilter, KeyFilter, DisplayStringFilter, [&DumpString](const FTextId& Id, const FTextConstDisplayStringRef& DisplayString)
+	{
+		DumpString += FString::Printf(TEXT("LiveTableEntry: Namespace: '%s', Key: '%s', DisplayString: '%s'"), Id.GetNamespace().GetChars(), Id.GetKey().GetChars(), **DisplayString);
+		DumpString += LINE_TERMINATOR;
+	});
+
+	FFileHelper::SaveStringToFile(DumpString, *OutputFilename, FFileHelper::EEncodingOptions::ForceUTF8WithoutBOM);
 }
 #endif
 
