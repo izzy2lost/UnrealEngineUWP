@@ -45,7 +45,6 @@ class UScriptStruct;
 class UToolMenu;
 struct FAssetData;
 struct FToolMenuSection;
-struct FTypesDatabase;
 template <typename T> struct TObjectPtr;
 
 /** Reference to an structure (only used in 'docked' palette) */
@@ -346,8 +345,6 @@ enum class ETypeTreeFilter : uint8
 
 ENUM_CLASS_FLAGS(ETypeTreeFilter);
 
-struct FTypesDatabase;
-
 UCLASS(config=Editor)
 class BLUEPRINTGRAPH_API UEdGraphSchema_K2 : public UEdGraphSchema
 {
@@ -473,7 +470,7 @@ public:
 			PinType.PinSubCategory = SubCategory;
 		}
 
-		FPinTypeTreeInfo(const FText& InFriendlyName, const FName CategoryName, const UEdGraphSchema_K2* Schema, const FText& InTooltip, bool bInReadOnly = false, FTypesDatabase* TypesDatabase = nullptr);
+		FPinTypeTreeInfo(const FText& InFriendlyName, const FName CategoryName, const UEdGraphSchema_K2* Schema, const FText& InTooltip, bool bInReadOnly = false);
 		FPinTypeTreeInfo(const FName CategoryName, UObject* SubCategoryObject, const FText& InTooltip, bool bInReadOnly = false, uint8 InPossibleObjectReferenceTypes = 0);
 		FPinTypeTreeInfo(const FText& InFriendlyName, const FName CategoryName, const FAssetData& AssetData, const FText& InTooltip, bool bInReadOnly = false, uint8 InPossibleObjectReferenceTypes = 0);
 		FPinTypeTreeInfo(TSharedPtr<FPinTypeTreeInfo> InInfo);
