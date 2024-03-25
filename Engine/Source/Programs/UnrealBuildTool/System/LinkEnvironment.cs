@@ -255,6 +255,11 @@ namespace UnrealBuildTool
 		public string? PGOFilenamePrefix;
 
 		/// <summary>
+		/// Platform specific filename where pre-merged PGO profiling data is saved.
+		/// </summary>
+		public string? PGOMergedFilenamePrefix;
+
+		/// <summary>
 		/// Whether to request the linker create a map file as part of the build
 		/// </summary>
 		public bool bCreateMapFile;

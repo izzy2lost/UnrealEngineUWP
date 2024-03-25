@@ -2711,27 +2711,51 @@ namespace UnrealBuildTool
 
 				// prefer a PGD file that matches the output file
 				string PGDFile = Path.Combine(LinkEnvironment.PGODirectory!, LinkEnvironment.PGOFilenamePrefix + ".pgd");
-				if (!File.Exists(PGDFile))
+				string[] PGCFiles = {};
+				
+				bool bUsingMergedPGD = false;
+				
+				// check if we are using a pre-merged pgd file, if so use it instead
+				if (LinkEnvironment.PGOMergedFilenamePrefix != null)
 				{
-					string[] PGDFiles = Directory.GetFiles(LinkEnvironment.PGODirectory!, "*.pgd");
-					if (PGDFiles.Length > 1)
+					string MergedPGDFile = Path.Combine(LinkEnvironment.PGODirectory!, LinkEnvironment.PGOMergedFilenamePrefix + ".pgd");
+					if (File.Exists(MergedPGDFile))
 					{
-						throw new BuildException("More than one .pgd file found in \"{0}\" and \"{1}\" not found ", LinkEnvironment.PGODirectory, PGDFile);
+						// Only use the merged pgd file if it actually exists, otherwise keep the default behavior
+						PGDFile = MergedPGDFile;
+						bUsingMergedPGD = true;
 					}
-					else if (PGDFiles.Length == 0)
+					else
 					{
-						Logger.LogWarning("No .pgd files found in \"{PgoDir}\".", LinkEnvironment.PGODirectory);
-						return false;
+						Logger.LogWarning("The specified merged .pgd file \"{MergedPgdFile}\" was not found.", LinkEnvironment.PGOMergedFilenamePrefix);
 					}
-
-					PGDFile = PGDFiles.First();
 				}
 
-				string[] PGCFiles = Directory.GetFiles(LinkEnvironment.PGODirectory!, "*.pgc");
-				if (PGCFiles.Length == 0)
+				if (!bUsingMergedPGD)
 				{
-					Logger.LogWarning("No .pgc files found in \"{PgoDir}\".", LinkEnvironment.PGODirectory);
-					return false;
+					if (!File.Exists(PGDFile))
+					{
+						string[] PGDFiles = Directory.GetFiles(LinkEnvironment.PGODirectory!, "*.pgd");
+						if (PGDFiles.Length > 1)
+						{
+							throw new BuildException("More than one .pgd file found in \"{0}\" and \"{1}\" not found ", LinkEnvironment.PGODirectory,
+								PGDFile);
+						}
+						else if (PGDFiles.Length == 0)
+						{
+							Logger.LogWarning("No .pgd files found in \"{PgoDir}\".", LinkEnvironment.PGODirectory);
+							return false;
+						}
+
+						PGDFile = PGDFiles.First();
+					}
+
+					PGCFiles = Directory.GetFiles(LinkEnvironment.PGODirectory!, "*.pgc");
+					if (PGCFiles.Length == 0)
+					{
+						Logger.LogWarning("No .pgc files found in \"{PgoDir}\".", LinkEnvironment.PGODirectory);
+						return false;
+					}
 				}
 
 				// Make sure the destination directory exists!

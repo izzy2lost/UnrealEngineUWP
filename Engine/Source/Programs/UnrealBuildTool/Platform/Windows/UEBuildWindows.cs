@@ -233,6 +233,13 @@ namespace UnrealBuildTool
 		public bool bUseFastGenProfile = false;
 
 		/// <summary>
+		/// If specified along with -PGOOptimize, will use the specified per-merged pgd file instead of the usual pgd file with loose pgc files.
+		/// </summary>
+		[XmlConfigFile(Category = "WindowsPlatform")]
+		[CommandLine("-PGOMergedPGD")]
+		public string? PreMergedPgdFilename = null;
+
+		/// <summary>
 		/// If specified along with -PGOProfile, prevent the usage of extra counters. Please note that by default /FASTGENPROFILE doesnt use extra counters
 		/// </summary>
 		/// <seealso href="https://learn.microsoft.com/en-us/cpp/build/reference/genprofile-fastgenprofile-generate-profiling-instrumented-build">genprofile-fastgenprofile-generate-profiling-instrumented-build</seealso>
@@ -792,6 +799,8 @@ namespace UnrealBuildTool
 		public bool bIgnoreStalePGOData => Inner.bIgnoreStalePGOData;
 
 		public bool bUseFastGenProfile => Inner.bUseFastGenProfile;
+
+		public string? PreMergedPgdFilename => Inner.PreMergedPgdFilename;
 
 		public bool bPGONoExtraCounters => Inner.bPGONoExtraCounters;
 
@@ -1699,6 +1708,7 @@ namespace UnrealBuildTool
 
 				LinkEnvironment.PGODirectory = CompileEnvironment.PGODirectory;
 				LinkEnvironment.PGOFilenamePrefix = CompileEnvironment.PGOFilenamePrefix;
+				LinkEnvironment.PGOMergedFilenamePrefix = Target.Platform == UnrealTargetPlatform.Win64 ? Target.WindowsPlatform.PreMergedPgdFilename : null;
 			}
 
 			CompileEnvironment.Definitions.Add("WINDOWS_MAX_NUM_TLS_SLOTS=" + Target.WindowsPlatform.MaxNumTlsSlots.ToString());
