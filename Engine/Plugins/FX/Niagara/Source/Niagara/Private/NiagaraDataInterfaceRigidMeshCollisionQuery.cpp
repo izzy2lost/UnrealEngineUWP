@@ -87,6 +87,7 @@ static const FName FindActorsName(TEXT("FindActors"));
 static const FName GetNumBoxesName(TEXT("GetNumBoxes"));
 static const FName GetNumSpheresName(TEXT("GetNumSpheres"));
 static const FName GetNumCapsulesName(TEXT("GetNumCapsules"));
+static const FName GetNumElementsName(TEXT("GetNumElements"));
 
 //------------------------------------------------------------------------------------------------------------
 
@@ -1440,6 +1441,19 @@ void UNiagaraDataInterfaceRigidMeshCollisionQuery::GetFunctionsInternal(TArray<F
 	}
 	{
 		FNiagaraFunctionSignature Sig;
+		Sig.Name = GetNumElementsName;
+		Sig.SetDescription(LOCTEXT("GetNumElementsNameDescription", "Returns the number of primitive elements for the collection of static meshes the DI represents."));
+		Sig.SetFunctionVersion(FNiagaraRigidMeshCollisionDIFunctionVersion::LatestVersion);
+		Sig.bSupportsGPU = true;
+		Sig.bSupportsCPU = true;
+		Sig.bMemberFunction = true;
+		Sig.Inputs.Add(FNiagaraVariable(FNiagaraTypeDefinition(GetClass()), TEXT("Collision DI")));
+		Sig.Outputs.Add(FNiagaraVariable(FNiagaraTypeDefinition::GetIntDef(), TEXT("Num Elements")));
+
+		OutFunctions.Add(Sig);
+	}
+	{
+		FNiagaraFunctionSignature Sig;
 		Sig.Name = GetClosestPointName;
 		Sig.SetDescription(LOCTEXT("GetClosestPointDescription", "Given a world space position, computes the static mesh's closest point. Also returns normal and velocity for that point."));
 		Sig.SetFunctionVersion(FNiagaraRigidMeshCollisionDIFunctionVersion::LatestVersion);
@@ -1625,6 +1639,7 @@ void UNiagaraDataInterfaceRigidMeshCollisionQuery::GetFunctionsInternal(TArray<F
 #endif
 
 DEFINE_NDI_DIRECT_FUNC_BINDER(UNiagaraDataInterfaceRigidMeshCollisionQuery, FindActorsCPU);
+DEFINE_NDI_DIRECT_FUNC_BINDER(UNiagaraDataInterfaceRigidMeshCollisionQuery, GetNumElementsCPU);
 
 void UNiagaraDataInterfaceRigidMeshCollisionQuery::GetVMExternalFunction(const FVMExternalFunctionBindingInfo& BindingInfo, void* InstanceData, FVMExternalFunction& OutFunc)
 {
@@ -1633,6 +1648,10 @@ void UNiagaraDataInterfaceRigidMeshCollisionQuery::GetVMExternalFunction(const F
 	if (BindingInfo.Name == FindActorsName)
 	{
 		NDI_FUNC_BINDER(UNiagaraDataInterfaceRigidMeshCollisionQuery, FindActorsCPU)::Bind(this, OutFunc);
+	}
+	else if (BindingInfo.Name == GetNumElementsName)
+	{
+		NDI_FUNC_BINDER(UNiagaraDataInterfaceRigidMeshCollisionQuery, GetNumElementsCPU)::Bind(this, OutFunc);
 	}
 	else
 	{
@@ -1649,6 +1668,7 @@ bool UNiagaraDataInterfaceRigidMeshCollisionQuery::GetFunctionHLSL(const FNiagar
 	if ((FunctionInfo.DefinitionName == GetNumBoxesName) ||
 		(FunctionInfo.DefinitionName == GetNumCapsulesName) ||
 		(FunctionInfo.DefinitionName == GetNumSpheresName) ||
+		(FunctionInfo.DefinitionName == GetNumElementsName) ||
 		(FunctionInfo.DefinitionName == GetClosestPointName) ||
 		(FunctionInfo.DefinitionName == GetClosestPointSimpleName) ||		
 		(FunctionInfo.DefinitionName == GetClosestElementName) ||
@@ -2079,6 +2099,22 @@ void UNiagaraDataInterfaceRigidMeshCollisionQuery::FindActorsCPU(FVectorVMExtern
 	for (int32 i = 0; i < Context.GetNumInstances(); ++i)
 	{
 		ActorsChangedParam.SetAndAdvance(false);
+	}
+}
+
+void UNiagaraDataInterfaceRigidMeshCollisionQuery::GetNumElementsCPU(FVectorVMExternalFunctionContext& Context)
+{
+	VectorVM::FUserPtrHandler<FNDIRigidMeshCollisionData> InstanceData(Context);
+
+	FNDIOutputParam<int32> NumElementsParam(Context);
+
+	if (InstanceData->SystemInstance != nullptr && InstanceData->AssetArrays != nullptr)
+	{
+		NumElementsParam.SetAndAdvance(InstanceData->AssetArrays->ElementOffsets.NumElements);
+	}
+	else
+	{
+		NumElementsParam.SetAndAdvance(0);
 	}
 }
 

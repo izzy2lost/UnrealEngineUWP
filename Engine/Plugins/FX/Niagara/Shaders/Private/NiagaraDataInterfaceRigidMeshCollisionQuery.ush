@@ -12,6 +12,7 @@ NiagaraDataInterfaceRigidMeshCollisionQuery.ush
 #define BOX_INDEX 0
 #define SPHERE_INDEX 1
 #define CAPSULE_INDEX 2
+#define NUM_ELEMENTS_INDEX 3
 
 uint			{ParameterName}_MaxTransforms;
 uint			{ParameterName}_CurrentOffset;
@@ -43,6 +44,11 @@ void GetNumSpheres_{ParameterName}(out int OutNumSpheres)
 void GetNumCapsules_{ParameterName}(out int OutNumCapsules)
 {
 	OutNumCapsules = {ParameterName}_ElementOffsets[CAPSULE_INDEX+1] - {ParameterName}_ElementOffsets[CAPSULE_INDEX];
+}
+
+void GetNumElements_{ParameterName}(out int OutNumElements)
+{
+	OutNumElements = {ParameterName}_ElementOffsets[NUM_ELEMENTS_INDEX];
 }
 
 /* -----------------------------------------------------------------
@@ -550,7 +556,7 @@ void GetClosestPointMeshDistanceFieldAccurate_{ParameterName}(in float3 WorldPos
 	
 	NormalIsValid = false;
 
-	for (int ElementIndex = 0; ElementIndex < {ParameterName}_ElementOffsets[3]; ++ElementIndex)
+	for (int ElementIndex = 0; ElementIndex < {ParameterName}_ElementOffsets[NUM_ELEMENTS_INDEX]; ++ElementIndex)
 	{
 		uint DFIndex = {ParameterName}_DFIndexBuffer[ElementIndex];
 
