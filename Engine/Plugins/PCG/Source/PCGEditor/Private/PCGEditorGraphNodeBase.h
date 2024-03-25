@@ -111,6 +111,9 @@ public:
 	/** Disables renaming, preventing the node from entering editing mode on subsequent updates. */
 	void ExitRenamingMode();
 
+	/** Whether this OutputPin can be connected to this InputPin */
+	virtual bool IsCompatible(const UPCGPin* InputPin, const UPCGPin* OutputPin, FText& OutReason) const;
+
 	DECLARE_DELEGATE(FOnPCGEditorGraphNodeChanged);
 	FOnPCGEditorGraphNodeChanged OnNodeChangedDelegate;
 

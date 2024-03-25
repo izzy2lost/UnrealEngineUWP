@@ -105,6 +105,7 @@ const FPinConnectionResponse UPCGEditorGraphSchema::CanCreateConnection(const UE
 
 	const UPCGEditorGraphNodeBase* EditorNodeA = CastChecked<const UPCGEditorGraphNodeBase>(NodeA);
 	const UPCGEditorGraphNodeBase* EditorNodeB = CastChecked<const UPCGEditorGraphNodeBase>(NodeB);
+	const UPCGEditorGraphNodeBase* EditorNodeWithInput = nullptr;
 
 	// Check type compatibility & whether we can connect more pins
 	const UPCGPin* InputPin = nullptr;
@@ -114,11 +115,13 @@ const FPinConnectionResponse UPCGEditorGraphSchema::CanCreateConnection(const UE
 	{
 		OutputPin = EditorNodeA->GetPCGNode()->GetOutputPin(A->PinName);
 		InputPin = EditorNodeB->GetPCGNode()->GetInputPin(B->PinName);
+		EditorNodeWithInput = EditorNodeB;
 	}
 	else
 	{
 		OutputPin = EditorNodeB->GetPCGNode()->GetOutputPin(B->PinName);
 		InputPin = EditorNodeA->GetPCGNode()->GetInputPin(A->PinName);
+		EditorNodeWithInput = EditorNodeA;
 	}
 
 	if (!InputPin || !OutputPin)
@@ -148,6 +151,12 @@ const FPinConnectionResponse UPCGEditorGraphSchema::CanCreateConnection(const UE
 	if (!InputPin->AllowsMultipleConnections() && InputPin->EdgeCount() > 0)
 	{
 		return FPinConnectionResponse((A->Direction == EGPD_Output) ? CONNECT_RESPONSE_BREAK_OTHERS_B : CONNECT_RESPONSE_BREAK_OTHERS_A, LOCTEXT("ConnectionBreakExisting", "Break existing connection?"));
+	}
+
+	FText Reason;
+	if (!EditorNodeWithInput->IsCompatible(InputPin, OutputPin, Reason))
+	{
+		return FPinConnectionResponse(CONNECT_RESPONSE_DISALLOW, Reason);
 	}
 
 	return FPinConnectionResponse();
