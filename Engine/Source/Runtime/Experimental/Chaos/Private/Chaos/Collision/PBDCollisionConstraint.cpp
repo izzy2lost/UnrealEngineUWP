@@ -1115,7 +1115,7 @@ namespace Chaos
 
 		// When only one shape is quadratic, we only look at the quadratic contact point so we don't identify
 		// a sphere spinning on the spot as a stationary contact
-		// @todo(chaos): handle quadratic shapes better with static friction
+		// @todo(chaos): we don't really need the quadratic special case any more
 		if (IsQuadratic0() && !IsQuadratic1())
 		{
 			return DP0.SizeSquared();

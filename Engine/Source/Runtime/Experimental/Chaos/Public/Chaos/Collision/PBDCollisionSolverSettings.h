@@ -17,7 +17,7 @@ namespace Chaos
 			: MaxPushOutVelocity(0)
 			, DepenetrationVelocity(0)
 			, NumPositionFrictionIterations(4)
-			, NumVelocityFrictionIterations(1)
+			, NumVelocityFrictionIterations(0)
 			, NumPositionShockPropagationIterations(3)
 			, NumVelocityShockPropagationIterations(2)
 		{
@@ -34,9 +34,11 @@ namespace Chaos
 		// How many of the position iterations should run static/dynamic friction
 		int32 NumPositionFrictionIterations;
 
-		// How many of the velocity iterations should run dynamic friction
-		// @todo(chaos): if NumVelocityFrictionIterations > 1, then dynamic friction in the velocity phase will be iteration 
-		// count dependent (velocity-solve friction is currentlyused by quadratic shapes and RBAN)
+		// How many of the velocity iterations should run dynamic friction 
+		// This only applies to quadratic shapes if we have static friction enabled (NumPositionFrictionIterations > 0)
+		// RBAN is the only system that uses velocity-based friction by default (it also disables static friction)
+		// NOTE: velocity-based dynamic friction behaviour is iteration count dependent so generally want (NumVelocityFrictionIterations <= 1)
+		// @todo(chaos): fix iteration count dependence of velocity-based friction, or remove it as a feature
 		int32 NumVelocityFrictionIterations;
 
 		// How many position iterations should have shock propagation enabled

@@ -115,6 +115,9 @@ namespace Chaos
 		float ChaosDebugDrawCollisionDuration = 0.0f;
 		FAutoConsoleVariableRef CVarChaosDebugDrawCollisionDuration(TEXT("p.Chaos.DebugDraw.CollisionDuration"), ChaosDebugDrawCollisionDuration, TEXT("How long Collision debug draw should remain on screen in seconds. 0 for 1 frame."));
 
+		bool bChaosDebugDrawCollisionAnchors = 0.0f;
+		FAutoConsoleVariableRef CVarChaosDebugDrawCollisionAnchors(TEXT("p.Chaos.DebugDraw.ShowCollisionAnchors"), bChaosDebugDrawCollisionAnchors, TEXT(""));
+
 		int32 ChaosConnectionGraphDrawLevelOffset = 0;
 		FAutoConsoleVariableRef CVarChaosConnectionGraphDrawLevelOffset(TEXT("p.Chaos.DebugDraw.ConnectionGraphLevelOffset"), ChaosConnectionGraphDrawLevelOffset, TEXT("If 0, draws the connection graph between children particles of active particles. If 1, draws the connection grpah between grand-children particles of active particles, etc."));
 
@@ -1363,6 +1366,24 @@ namespace Chaos
 					FColor Color = FColor::White;
 					const FVec3 ImpulsePos = SpaceTransform.TransformPosition(WorldActorTransform0.GetTranslation());
 					FDebugDrawQueue::GetInstance().DrawDebugLine(ImpulsePos, ImpulsePos + Settings.DrawScale * Settings.ImpulseScale * SpaceTransform.TransformVectorNoScale(Contact.GetAccumulatedImpulse()), Color, false, Duration, uint8(Settings.DrawPriority), Settings.LineThickness);
+				}
+
+				// Static Friction Anchors (bets viewed with DebugDrawPostIntegrateCollisions)
+				if (bChaosDebugDrawCollisionAnchors)
+				{
+					for (int32 PointIndex = 0; PointIndex < Contact.NumSavedManifoldPoints(); ++PointIndex)
+					{
+						const FSavedManifoldPoint& SavedManifoldPoint = Contact.GetSavedManifoldPoint(PointIndex);
+						const int32 ContactPlaneOwner = 1;
+						const int32 ContactPointOwner = 1 - ContactPlaneOwner;
+						const FRigidTransform3& PlaneTransform = (ContactPlaneOwner == 0) ? Contact.GetShapeRelativeTransform0() * WorldActorTransform0 : Contact.GetShapeRelativeTransform1() * WorldActorTransform1;
+						const FRigidTransform3& PointTransform = (ContactPlaneOwner == 0) ? Contact.GetShapeRelativeTransform1() * WorldActorTransform1 : Contact.GetShapeRelativeTransform0() * WorldActorTransform0;
+						const FVec3 PointLocation = PointTransform.TransformPosition(FVec3(SavedManifoldPoint.ShapeContactPoints[ContactPointOwner]));
+						const FVec3 PlaneLocation = PlaneTransform.TransformPosition(FVec3(SavedManifoldPoint.ShapeContactPoints[ContactPlaneOwner]));
+				
+						FColor Color = FColor::Black;
+						FDebugDrawQueue::GetInstance().DrawDebugLine(PointLocation, PlaneLocation, Color, false, Duration, uint8(Settings.DrawPriority), Settings.LineThickness);
+					}
 				}
 
 				// Show the sphere approximation if enabled
