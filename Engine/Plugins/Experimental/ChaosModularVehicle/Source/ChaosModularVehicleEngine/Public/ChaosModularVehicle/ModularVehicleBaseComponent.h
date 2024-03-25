@@ -170,12 +170,14 @@ class CHAOSMODULARVEHICLEENGINE_API UModularVehicleBaseComponent : public UPawnM
 	friend class FModularVehicleBuilder;
 public:
 	APlayerController* GetPlayerController() const;
+	bool IsLocallyControlled() const;
 
 	virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;
 
 	virtual bool ShouldCreatePhysicsState() const override { return true; }
 	virtual void OnCreatePhysicsState() override;
 	virtual void OnDestroyPhysicsState() override;
+	virtual void SetClusterComponent(UClusterUnionComponent* InPhysicalComponent);
 
 	virtual void BeginPlay() override;
 	virtual void TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction) override;
@@ -191,7 +193,6 @@ public:
 	void UpdateState(float DeltaTime);
 	TUniquePtr<FModularVehicleAsyncInput> SetCurrentAsyncData(int32 InputIdx, FChaosSimModuleManagerAsyncOutput* CurOutput, FChaosSimModuleManagerAsyncOutput* NextOutput, float Alpha, int32 VehicleManagerTimestamp);
 
-	void SetClusterComponent(UClusterUnionComponent* InPhysicalComponent);
 	void ParallelUpdate(float DeltaTime);
 	void Update(float DeltaTime);
 	void FinalizeSimCallbackData(FChaosSimModuleManagerAsyncInput& Input);
@@ -235,6 +236,9 @@ public:
 	/** Removes any associated simulation components from the ModularVehicleSimulation */
 	UFUNCTION()
 	void RemoveComponentFromSimulation(UPrimitiveComponent* Component, const TArray<FClusterUnionBoneData>& RemovedBonesData);
+
+	UFUNCTION(BlueprintCallable, Category = "Game|Components|ModularVehicle")
+	void SetLocallyControlled(bool bLocallyControlledIn);
 
 	// CONTROLS
 	// 
@@ -546,5 +550,7 @@ private:
 
 	TArray<FPhysicsConstraintHandle> ConstraintHandles;
 	int32 ClusteringCount = 0;
+
+	bool bIsLocallyControlled;
 };
 

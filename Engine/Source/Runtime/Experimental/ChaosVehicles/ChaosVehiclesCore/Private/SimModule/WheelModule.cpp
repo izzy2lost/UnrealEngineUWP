@@ -219,7 +219,7 @@ namespace Chaos
 			if (FPBDRigidClusteredParticleHandle* ClusterChild = GetClusterParticle(Proxy))
 			{
 				float Direction = Setup().ReverseDirection ? -1.0f : 1.0f;
-				FQuat Rot = (Setup().Axis == Chaos::EWheelAxis::Y) ? FQuat(FVector(1, 0, 0), -GetAngularPosition() * Direction) : FQuat(FVector(1, 0, 0), GetAngularPosition() * Direction);
+				FQuat Rot = (Setup().Axis == Chaos::EWheelAxis::Y) ? FQuat(FVector(1, 0, 0), -GetAngularPosition() * Direction) : FQuat(FVector(0, 1, 0), GetAngularPosition() * Direction);
 				FQuat Steer = FQuat(FVector(0, 0, 1), FMath::DegreesToRadians(GetSteerAngleDegrees()));
 
 				FTransform InitialTransform = GetInitialParticleTransform();

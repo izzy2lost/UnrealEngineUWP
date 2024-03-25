@@ -16,6 +16,8 @@ struct CHAOSMODULARVEHICLEENGINE_API FModularVehicleSocket
 {
 	GENERATED_USTRUCT_BODY()
 
+	FModularVehicleSocket();
+
 	/**
 	 *	Defines a named attachment location on the Modular vehicle.
 	 */

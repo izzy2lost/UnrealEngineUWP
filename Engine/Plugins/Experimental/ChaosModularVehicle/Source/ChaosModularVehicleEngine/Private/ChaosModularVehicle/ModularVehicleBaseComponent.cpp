@@ -78,6 +78,7 @@ UModularVehicleBaseComponent::UModularVehicleBaseComponent(const FObjectInitiali
 		NetworkPhysicsComponent->SetIsReplicated(true);
 	}
 
+	bIsLocallyControlled = false;
 }
 
 UModularVehicleBaseComponent::~UModularVehicleBaseComponent()
@@ -106,6 +107,22 @@ APlayerController* UModularVehicleBaseComponent::GetPlayerController() const
 	}
 	return nullptr;
 }
+
+
+bool UModularVehicleBaseComponent::IsLocallyControlled() const
+{
+	if (bIsLocallyControlled && !GetWorld()->IsNetMode(NM_DedicatedServer))
+	{
+		return true;
+	}
+
+	if (APlayerController* PlayerController = GetPlayerController())
+	{
+		return PlayerController->IsLocalController();
+	}
+	return false;
+}
+
 
 void UModularVehicleBaseComponent::OnCreatePhysicsState()
 {
@@ -137,6 +154,12 @@ void UModularVehicleBaseComponent::OnCreatePhysicsState()
 			// register interface to handle network prediction callbacks
 			// #Note: in our case we don't yet know what the replication data will be since the modules are built after this point at runtime
 			NetworkPhysicsComponent->CreateDataHistory<FPhysicsModularVehicleTraits>(this);
+
+			if (bIsLocallyControlled)
+			{
+				NetworkPhysicsComponent->SetIsRelayingLocalInputs(bIsLocallyControlled);
+			}
+
 		}
 	}
 
@@ -457,24 +480,15 @@ void UModularVehicleBaseComponent::PreTickGT(float DeltaTime)
 		}
 	}
 
-	if (PVehicleOutput && UpdatedComponent)
-	{
-		APawn* MyOwner = Cast<APawn>(UpdatedComponent->GetOwner());
-		if (MyOwner)
-		{
-			// process control inputs and other data
-			UpdateState(DeltaTime);
-		}
-	}
+	// process control inputs and other data
+	UpdateState(DeltaTime);
 
 }
 
 void UModularVehicleBaseComponent::UpdateState(float DeltaTime)
 {
 	// update input values
-	AController* Controller = GetPlayerController();
-
-	bool bProcessLocally = bRequiresControllerForInputs ? (Controller && Controller->IsLocalController()) : true;
+	bool bProcessLocally = IsLocallyControlled();
 
 	// IsLocallyControlled will fail if the owner is unpossessed (i.e. Controller == nullptr);
 	// Should we remove input instead of relying on replicated state in that case?
@@ -849,10 +863,10 @@ void UModularVehicleBaseComponent::RemoveComponentFromSimulation(UPrimitiveCompo
 
 		Chaos::FSimTreeUpdates LatestTreeUpdates;
 
-		TArray<UActorComponent*> Components;
-		InComponent->GetOwner()->GetComponents(UVehicleSimBaseComponent::StaticClass(), Components, true);
+		TArray<USceneComponent*> Components;
+		InComponent->GetChildrenComponents(true, Components);
 
-		for (UActorComponent* ComponentPart : Components)
+		for (USceneComponent* ComponentPart : Components)
 		{
 			if (UVehicleSimBaseComponent* ChangedComponent = Cast<UVehicleSimBaseComponent>(ComponentPart))
 			{
@@ -879,7 +893,7 @@ void UModularVehicleBaseComponent::RemoveComponentFromSimulation(UPrimitiveCompo
 						if (SimModule->GetSimType() == Chaos::eSimType::Suspension)
 						{
 							Chaos::FSuspensionSimModule* SuspensionModule = static_cast<Chaos::FSuspensionSimModule*>(SimModule);
-							EnableConstraint(SuspensionModule->GetConstraintIndex(), false);
+							DestroyConstraint(SuspensionModule->GetConstraintIndex());
 						}
 
 						break;
@@ -899,6 +913,26 @@ void UModularVehicleBaseComponent::RemoveComponentFromSimulation(UPrimitiveCompo
 					SimModuleTree->AppendTreeUpdates(LatestTreeUpdates);
 				}
 			});
+
+		NextTransformIndex--;
+	}
+
+}
+
+void UModularVehicleBaseComponent::SetLocallyControlled(bool bLocallyControlledIn)
+{
+	bIsLocallyControlled = false;
+	if (UWorld* World = GetWorld())
+	{
+		if (!World->IsNetMode(NM_DedicatedServer))
+		{
+			bIsLocallyControlled = bLocallyControlledIn;
+		}
+	}
+
+	if (bUsingNetworkPhysicsPrediction && NetworkPhysicsComponent)
+	{
+		NetworkPhysicsComponent->SetIsRelayingLocalInputs(bLocallyControlledIn);
 	}
 
 }

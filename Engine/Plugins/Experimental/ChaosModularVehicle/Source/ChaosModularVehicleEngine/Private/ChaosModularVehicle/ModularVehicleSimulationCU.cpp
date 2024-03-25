@@ -154,189 +154,184 @@ void FModularVehicleSimulationCU::PerformAdditionalSimWork(UWorld* InWorld, cons
 		const FClusterUnionIndex& CUI = Proxy->GetClusterUnionIndex();
 		if (FClusterUnion* ClusterUnion = ClusterUnionManager.FindClusterUnion(CUI))
 		{
-			FPBDRigidClusteredParticleHandle* ClusterHandle = ClusterUnion->InternalCluster;
-			TArray<FPBDRigidParticleHandle*> Particles = ClusterUnion->ChildParticles;
-			FRigidTransform3 ClusterWorldTM = FRigidTransform3(ClusterHandle->GetX(), ClusterHandle->GetR());
-
-			//Chaos::FDebugDrawQueue::GetInstance().DrawDebugCoordinateSystem(ClusterHandle->X(), FRotator(ClusterHandle->R()), 200, false, -1.f, 1.f, 3.0f);
-
-			const TArray<Chaos::FSimModuleTree::FSimModuleNode>& ModuleArray = SimModuleTree->GetSimulationModuleTree();
-
-			for (const Chaos::FSimModuleTree::FSimModuleNode& Node : ModuleArray)
+			if (FPBDRigidClusteredParticleHandle* ClusterHandle = ClusterUnion->InternalCluster)
 			{
-				if (Node.IsValid() && Node.SimModule && Node.SimModule->IsEnabled())
+				TArray<FPBDRigidParticleHandle*> Particles = ClusterUnion->ChildParticles;
+				FRigidTransform3 ClusterWorldTM = FRigidTransform3(ClusterHandle->GetX(), ClusterHandle->GetR());
+
+				//Chaos::FDebugDrawQueue::GetInstance().DrawDebugCoordinateSystem(ClusterHandle->GetX(), FRotator(ClusterHandle->R()), 200, false, -1.f, 1.f, 3.0f);
+
+				const TArray<Chaos::FSimModuleTree::FSimModuleNode>& ModuleArray = SimModuleTree->GetSimulationModuleTree();
+
+				for (const Chaos::FSimModuleTree::FSimModuleNode& Node : ModuleArray)
 				{
-					FRigidTransform3 Frame = FRigidTransform3::Identity;
-					int TransformIndex = Node.SimModule->GetTransformIndex();
-
-					if (TransformIndex < 0 || TransformIndex >= Particles.Num())
+					if (Node.IsValid() && Node.SimModule && Node.SimModule->IsEnabled())
 					{
-						continue;
-					}
+						FRigidTransform3 Frame = FRigidTransform3::Identity;
 
-					FPBDRigidParticleHandle* Child = Node.SimModule->GetParticleFromUniqueIndex(Node.SimModule->GetParticleIndex().Idx, Particles);
-					if (Child == nullptr)
-					{
-						continue;
-					}
-
-					if (FPBDRigidClusteredParticleHandle* ClusterChild = Child->CastToClustered(); ClusterChild && ClusterChild->IsChildToParentLocked())
-					{
-						Frame = ClusterChild->ChildToParent();
-					}
-					else
-					{
-						Frame = ClusterChild->ChildToParent();
-
-						const FRigidTransform3 ChildWorldTM(Child->GetX(), Child->GetR());
-						Frame = ChildWorldTM.GetRelativeTransform(ClusterWorldTM);
-					}
-
-					if (ClusterHandle)
-					{
-						AllInputs.VehicleWorldTransform = ClusterWorldTM;
-
-						if (Node.SimModule->IsClustered() && Node.SimModule->IsBehaviourType(Chaos::eSimModuleTypeFlags::Raycast))
+						FPBDRigidParticleHandle* Child = Node.SimModule->GetParticleFromUniqueIndex(Node.SimModule->GetParticleIndex().Idx, Particles);
+						if (Child == nullptr)
 						{
-							Chaos::FSpringTrace OutTrace;
-							Chaos::FSuspensionSimModule* Suspension = static_cast<Chaos::FSuspensionSimModule*>(Node.SimModule);
+							continue;
+						}
 
-							// would be cleaner an faster to just store radius in suspension also
-							float WheelRadius = 0;
-							if (Suspension->GetWheelSimTreeIndex() != Chaos::ISimulationModuleBase::INVALID_IDX)
+						if (FPBDRigidClusteredParticleHandle* ClusterChild = Child->CastToClustered(); ClusterChild && ClusterChild->IsChildToParentLocked())
+						{
+							Frame = ClusterChild->ChildToParent();
+						}
+						else
+						{
+							Frame = ClusterChild->ChildToParent();
+
+							const FRigidTransform3 ChildWorldTM(Child->GetX(), Child->GetR());
+							Frame = ChildWorldTM.GetRelativeTransform(ClusterWorldTM);
+						}
+
+						if (ClusterHandle)
+						{
+							AllInputs.VehicleWorldTransform = ClusterWorldTM;
+
+							if (Node.SimModule->IsClustered() && Node.SimModule->IsBehaviourType(Chaos::eSimModuleTypeFlags::Raycast))
 							{
-								Chaos::FWheelSimModule* Wheel = static_cast<Chaos::FWheelSimModule*>(ModuleArray[Suspension->GetWheelSimTreeIndex()].SimModule);
-								if (Wheel)
-								{
-									WheelRadius = Wheel->Setup().Radius;
-								}
-							}
+								Chaos::FSpringTrace OutTrace;
+								Chaos::FSuspensionSimModule* Suspension = static_cast<Chaos::FSuspensionSimModule*>(Node.SimModule);
 
-							Suspension->GetWorldRaycastLocation(ClusterWorldTM, WheelRadius, OutTrace);
-
-							FVector TraceStart = OutTrace.Start;
-							FVector TraceEnd = OutTrace.End;
-
-							const FCollisionQueryParams& TraceParams = InputData.PhysicsInputs.TraceParams;
-							FVector TraceVector(TraceStart - TraceEnd);
-							FVector TraceNormal = TraceVector.GetSafeNormal();
-
-							FHitResult HitResult = FHitResult();
-							ECollisionChannel SpringCollisionChannel = ECollisionChannel::ECC_WorldDynamic;
-							const FCollisionResponseParams& ResponseParams = InputData.PhysicsInputs.TraceCollisionResponse;
-							if (InWorld)
-							{
-								InWorld->LineTraceSingleByChannel(HitResult, TraceStart, TraceEnd, SpringCollisionChannel, TraceParams, ResponseParams);
-							}
-
-							float Offset = Suspension->Setup().MaxLength;
-							if (HitResult.bBlockingHit && GModularVehicleDebugParams.SuspensionRaycastsEnabled)
-							{
-								Offset = HitResult.Distance - WheelRadius;
-
-								if (Suspension->GetWheelSimTreeIndex() != Chaos::ISimulationModuleBase::INVALID_IDX)
-								{
-									const Chaos::FSimModuleTree::FSimModuleNode& WheelNode = ModuleArray[Suspension->GetWheelSimTreeIndex()];
-
-									Chaos::FWheelSimModule* Wheel = static_cast<Chaos::FWheelSimModule*>(WheelNode.SimModule);
-									if (Wheel && HitResult.PhysMaterial.IsValid())
-									{
-										if (GModularVehicleDebugParams.FrictionOverride > 0)
-										{
-											Wheel->SetSurfaceFriction(GModularVehicleDebugParams.FrictionOverride);
-										}
-										else
-										{
-											Wheel->SetSurfaceFriction(HitResult.PhysMaterial->Friction);
-										}
-									}
-								}
-
-#if CHAOS_DEBUG_DRAW
-								if (GModularVehicleDebugParams.ShowSuspensionRaycasts)
-								{
-									Chaos::FDebugDrawQueue::GetInstance().DrawDebugSphere(HitResult.ImpactPoint, 3, 16, FColor::Red, false, -1.f, 0, 10.f);
-								}
-
+								// would be cleaner an faster to just store radius in suspension also
+								float WheelRadius = 0;
 								if (Suspension->GetWheelSimTreeIndex() != Chaos::ISimulationModuleBase::INVALID_IDX)
 								{
 									Chaos::FWheelSimModule* Wheel = static_cast<Chaos::FWheelSimModule*>(ModuleArray[Suspension->GetWheelSimTreeIndex()].SimModule);
 									if (Wheel)
 									{
-										if (GModularVehicleDebugParams.ShowWheelData)
-										{
-											FString TextOut = FString::Format(TEXT("{0}"), { Wheel->GetForceIntoSurface() });
-											FColor Col = FColor::White;
-											if (InWorld)
-											{
-												if (InWorld->GetNetMode() == ENetMode::NM_Client)
-												{
-													Col = FColor::Blue;
-												}
-												else
-												{
-													Col = FColor::Red;
-												}
-											}
-											Chaos::FDebugDrawQueue::GetInstance().DrawDebugString(HitResult.ImpactPoint + FVec3(0, 50, 50), TextOut, nullptr, Col, -1.f, true, 1.0f);
-										}
+										WheelRadius = Wheel->Setup().Radius;
 									}
 								}
 
-#endif
-							}
+								Suspension->GetWorldRaycastLocation(ClusterWorldTM, WheelRadius, OutTrace);
 
-#if CHAOS_DEBUG_DRAW
-							if (GModularVehicleDebugParams.ShowSuspensionRaycasts)
-							{
-								FColor DrawColor = FColor::Green;
-								DrawColor = (HitResult.bBlockingHit) ? FColor::Red : FColor::Green;
-								Chaos::FDebugDrawQueue::GetInstance().DrawDebugLine(TraceStart, TraceEnd, DrawColor, false, -1.f, 0, 2.f);
-								Chaos::FDebugDrawQueue::GetInstance().DrawDebugSphere(TraceStart, 3, 16, FColor::White, false, -1.f, 0, 10.f);
-								Chaos::FDebugDrawQueue::GetInstance().DrawDebugSphere(HitResult.ImpactPoint, 1, 16, FColor::Red, false, -1.f, 0, 10.f);
-								FString TextOut = FString::Format(TEXT("{0}"), { HitResult.Time});
+								FVector TraceStart = OutTrace.Start;
+								FVector TraceEnd = OutTrace.End;
 
-								FColor Col = FColor::White;
+								const FCollisionQueryParams& TraceParams = InputData.PhysicsInputs.TraceParams;
+								FVector TraceVector(TraceStart - TraceEnd);
+								FVector TraceNormal = TraceVector.GetSafeNormal();
+
+								FHitResult HitResult = FHitResult();
+								ECollisionChannel SpringCollisionChannel = ECollisionChannel::ECC_WorldDynamic;
+								const FCollisionResponseParams& ResponseParams = InputData.PhysicsInputs.TraceCollisionResponse;
 								if (InWorld)
 								{
-									if (InWorld->GetNetMode() == ENetMode::NM_Client)
-									{
-										Col = FColor::Blue;
-									}
-									else
-									{
-										Col = FColor::Red;
-									}
+									InWorld->LineTraceSingleByChannel(HitResult, TraceStart, TraceEnd, SpringCollisionChannel, TraceParams, ResponseParams);
 								}
-								Chaos::FDebugDrawQueue::GetInstance().DrawDebugString(HitResult.ImpactPoint + FVec3(0, 50, 50), TextOut, nullptr, Col, -1.f, true, 1.0f);
-							}
 
-							if (GModularVehicleDebugParams.ShowRaycastMaterial)
-							{
-								if (HitResult.PhysMaterial.IsValid())
+								float Offset = Suspension->Setup().MaxLength;
+								if (HitResult.bBlockingHit && GModularVehicleDebugParams.SuspensionRaycastsEnabled)
 								{
-									FDebugDrawQueue::GetInstance().DrawDebugString(HitResult.ImpactPoint, HitResult.PhysMaterial->GetName(), nullptr, FColor::White, -1.f, true, 1.0f);
-								}
-							}
+									Offset = HitResult.Distance - WheelRadius;
 
-							if (GModularVehicleDebugParams.ShowWheelCollisionNormal)
-							{
-								FVector Pt = HitResult.ImpactPoint;
-								FDebugDrawQueue::GetInstance().DrawDebugLine(Pt, Pt + HitResult.Normal * 20.0f, FColor::Yellow, false, 1.0f, 0, 1.0f);
-								FDebugDrawQueue::GetInstance().DrawDebugSphere(Pt, 5.0f, 4, FColor::White, false, 1.0f, 0, 1.0f);
-							}
+									if (Suspension->GetWheelSimTreeIndex() != Chaos::ISimulationModuleBase::INVALID_IDX)
+									{
+										const Chaos::FSimModuleTree::FSimModuleNode& WheelNode = ModuleArray[Suspension->GetWheelSimTreeIndex()];
+
+										Chaos::FWheelSimModule* Wheel = static_cast<Chaos::FWheelSimModule*>(WheelNode.SimModule);
+										if (Wheel && HitResult.PhysMaterial.IsValid())
+										{
+											if (GModularVehicleDebugParams.FrictionOverride > 0)
+											{
+												Wheel->SetSurfaceFriction(GModularVehicleDebugParams.FrictionOverride);
+											}
+											else
+											{
+												Wheel->SetSurfaceFriction(HitResult.PhysMaterial->Friction);
+											}
+										}
+									}
+
+#if CHAOS_DEBUG_DRAW
+									if (GModularVehicleDebugParams.ShowSuspensionRaycasts)
+									{
+										Chaos::FDebugDrawQueue::GetInstance().DrawDebugSphere(HitResult.ImpactPoint, 3, 16, FColor::Red, false, -1.f, 0, 10.f);
+									}
+
+									if (Suspension->GetWheelSimTreeIndex() != Chaos::ISimulationModuleBase::INVALID_IDX)
+									{
+										Chaos::FWheelSimModule* Wheel = static_cast<Chaos::FWheelSimModule*>(ModuleArray[Suspension->GetWheelSimTreeIndex()].SimModule);
+										if (Wheel)
+										{
+											if (GModularVehicleDebugParams.ShowWheelData)
+											{
+												FString TextOut = FString::Format(TEXT("{0}"), { Wheel->GetForceIntoSurface() });
+												FColor Col = FColor::White;
+												if (InWorld)
+												{
+													if (InWorld->GetNetMode() == ENetMode::NM_Client)
+													{
+														Col = FColor::Blue;
+													}
+													else
+													{
+														Col = FColor::Red;
+													}
+												}
+												Chaos::FDebugDrawQueue::GetInstance().DrawDebugString(HitResult.ImpactPoint + FVec3(0, 50, 50), TextOut, nullptr, Col, -1.f, true, 1.0f);
+											}
+										}
+									}
 
 #endif
-							Suspension->SetSpringLength(Offset, WheelRadius);
-							FVector Up = ClusterWorldTM.GetUnitAxis(EAxis::Z);
-							Suspension->SetTargetPoint(HitResult.ImpactPoint + Up * WheelRadius, HitResult.ImpactNormal, HitResult.bBlockingHit);
+								}
+
+#if CHAOS_DEBUG_DRAW
+								if (GModularVehicleDebugParams.ShowSuspensionRaycasts)
+								{
+									FColor DrawColor = FColor::Green;
+									DrawColor = (HitResult.bBlockingHit) ? FColor::Red : FColor::Green;
+									Chaos::FDebugDrawQueue::GetInstance().DrawDebugLine(TraceStart, TraceEnd, DrawColor, false, -1.f, 0, 2.f);
+									Chaos::FDebugDrawQueue::GetInstance().DrawDebugSphere(TraceStart, 3, 16, FColor::White, false, -1.f, 0, 10.f);
+									Chaos::FDebugDrawQueue::GetInstance().DrawDebugSphere(HitResult.ImpactPoint, 1, 16, FColor::Red, false, -1.f, 0, 10.f);
+									FString TextOut = FString::Format(TEXT("{0}"), { HitResult.Time });
+
+									FColor Col = FColor::White;
+									if (InWorld)
+									{
+										if (InWorld->GetNetMode() == ENetMode::NM_Client)
+										{
+											Col = FColor::Blue;
+										}
+										else
+										{
+											Col = FColor::Red;
+										}
+									}
+									Chaos::FDebugDrawQueue::GetInstance().DrawDebugString(HitResult.ImpactPoint + FVec3(0, 50, 50), TextOut, nullptr, Col, -1.f, true, 1.0f);
+								}
+
+								if (GModularVehicleDebugParams.ShowRaycastMaterial)
+								{
+									if (HitResult.PhysMaterial.IsValid())
+									{
+										FDebugDrawQueue::GetInstance().DrawDebugString(HitResult.ImpactPoint, HitResult.PhysMaterial->GetName(), nullptr, FColor::White, -1.f, true, 1.0f);
+									}
+								}
+
+								if (GModularVehicleDebugParams.ShowWheelCollisionNormal)
+								{
+									FVector Pt = HitResult.ImpactPoint;
+									FDebugDrawQueue::GetInstance().DrawDebugLine(Pt, Pt + HitResult.Normal * 20.0f, FColor::Yellow, false, 1.0f, 0, 1.0f);
+									FDebugDrawQueue::GetInstance().DrawDebugSphere(Pt, 5.0f, 4, FColor::White, false, 1.0f, 0, 1.0f);
+								}
+
+#endif
+								Suspension->SetSpringLength(Offset, WheelRadius);
+								FVector Up = ClusterWorldTM.GetUnitAxis(EAxis::Z);
+								Suspension->SetTargetPoint(HitResult.ImpactPoint + Up * WheelRadius, HitResult.ImpactNormal, HitResult.bBlockingHit);
+							}
+
 						}
-
 					}
+
 				}
-
 			}
-
 		}
 
 	}

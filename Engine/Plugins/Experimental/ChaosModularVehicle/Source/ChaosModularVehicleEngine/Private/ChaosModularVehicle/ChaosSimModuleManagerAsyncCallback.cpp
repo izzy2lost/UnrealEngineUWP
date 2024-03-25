@@ -178,8 +178,7 @@ void FModularVehicleAsyncInput::ProcessInputs()
 		}
 	}
 
-	APlayerController* PlayerController = GetVehicle()->GetPlayerController();
-	if (PlayerController && PlayerController->IsLocalController() && !bIsResimming)
+	if (GetVehicle()->IsLocallyControlled() && !bIsResimming)
 	{
 		VehicleSim->VehicleInputs = PhysicsInputs.NetworkInputs.VehicleInputs;
 	}
