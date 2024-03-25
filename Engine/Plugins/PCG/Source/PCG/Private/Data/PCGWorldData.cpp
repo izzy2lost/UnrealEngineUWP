@@ -15,6 +15,7 @@
 
 #include "LandscapeProxy.h"
 #include "Components/BrushComponent.h"
+#include "Engine/OverlapResult.h"
 #include "Engine/World.h"
 #include "PhysicalMaterials/PhysicalMaterial.h"
 
