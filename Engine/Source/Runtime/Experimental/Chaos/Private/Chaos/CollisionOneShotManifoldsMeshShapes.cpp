@@ -36,6 +36,7 @@ namespace Chaos
 	extern int32 Chaos_Collision_MeshManifoldHashSize;
 	extern bool bChaos_Collision_EnableMeshManifoldOptimizedLoop;
 	extern bool bChaos_Collision_EnableMeshManifoldOptimizedLoop_TriMesh;
+	extern bool bChaos_Collision_EnableMACDFallback;
 
 	extern bool bChaos_Collision_UseCapsuleTriMesh2;
 	extern bool bChaos_Collision_UseConvexTriMesh2;
@@ -160,7 +161,17 @@ namespace Chaos
 		template<typename ConvexType>
 		void GenerateConvexTriangleOneShotManifoldMACD(const ConvexType& Convex, const FRigidTransform3& ConvexTransform, const FVec3& ConvexRelativeMovement, Private::FMeshContactGenerator& ContactGenerator, const int32 TriangleIndex, const FReal CullDistance, FContactPointLargeManifold& OutContactPoints)
 		{
-			const FTriangle& Triangle = ContactGenerator.GetTriangle(TriangleIndex);
+			const FTriangle TriangleAtP = ContactGenerator.GetTriangle(TriangleIndex);
+			const FVec3 TriangleNormal = ContactGenerator.GetTriangleNormal(TriangleIndex);
+
+			FTriangle Triangle = FTriangle(TriangleAtP.GetVertex(0) + ConvexRelativeMovement, TriangleAtP.GetVertex(1) + ConvexRelativeMovement, TriangleAtP.GetVertex(2) + ConvexRelativeMovement);
+
+			// If we started inside the triangle we ignore this triangle
+			const FReal ConvexTriangleDistance = FVec3::DotProduct(Convex.GetCenterOfMass() - Triangle.GetVertex(0), TriangleNormal);
+			if (ConvexTriangleDistance < 0)
+			{
+				return;
+			}
 
 			// Find the closest feature pair on the triangle and convex
 			Private::FConvexContactPoint ClosestContact;
@@ -169,12 +180,27 @@ namespace Chaos
 				ClosestContact.Features[0].ObjectIndex = 0;
 				ClosestContact.Features[1].ObjectIndex = TriangleIndex;
 
+				// Back face culling
+				const FReal TriangleDotNormal = FVec3::DotProduct(TriangleNormal, ClosestContact.ShapeContactNormal);
+				if (TriangleDotNormal < 0)
+				{
+#if CHAOS_DEBUG_DRAW
+					if (CVars::ChaosSolverDebugDrawMeshContacts && FDebugDrawQueue::GetInstance().IsDebugDrawingEnabled())
+					{
+						const FVec3 P = ConvexTransform.TransformPositionNoScale(ClosestContact.ShapeContactPoints[1] - ConvexRelativeMovement);
+						const FVec3 N = ConvexTransform.TransformVectorNoScale(ClosestContact.ShapeContactNormal);
+						FDebugDrawQueue::GetInstance().DrawDebugLine(P, P + 10.0f * N, FColor::Black, false, CVars::ChaosSolverDebugDebugDrawSettings.DrawDuration, (uint8)CVars::ChaosSolverDebugDebugDrawSettings.DrawPriority, 1.25f * CVars::ChaosSolverDebugDebugDrawSettings.LineThickness);
+					}
+#endif
+					return;
+				}
+
 				// Generate a manifold based on the closest features
 				// NOTE: normal points from triangle to convex
 				const FReal ConvexMotionAlongNormal = FVec3::DotProduct(ConvexRelativeMovement, ClosestContact.ShapeContactNormal);
 				const FReal CullDistancePadding = FMath::Max(0, -ConvexMotionAlongNormal);
 				const FReal NetCullDistance = CullDistance + CullDistancePadding;
-				Private::ConvexTriangleManifoldFromContact(Convex, Triangle, ClosestContact, NetCullDistance, OutContactPoints);
+				Private::ConvexTriangleManifoldFromContact(Convex, Triangle, TriangleNormal, ClosestContact, NetCullDistance, OutContactPoints);
 
 				if (OutContactPoints.Num() > 0)
 				{
@@ -184,7 +210,7 @@ namespace Chaos
 						for (int32 ContactIndex = 0; ContactIndex < OutContactPoints.Num(); ++ContactIndex)
 						{
 							FContactPoint& ContactPoint = OutContactPoints[ContactIndex];
-							const FVec3 P = ConvexTransform.TransformPositionNoScale(ContactPoint.ShapeContactPoints[1]);
+							const FVec3 P = ConvexTransform.TransformPositionNoScale(ContactPoint.ShapeContactPoints[1] - ConvexRelativeMovement);
 							const FVec3 N = ConvexTransform.TransformVectorNoScale(ContactPoint.ShapeContactNormal);
 							FColor Color = FColor::Black;
 							switch (ClosestContact.Features[1].FeatureType)
@@ -206,7 +232,7 @@ namespace Chaos
 
 					// Adjust the feature if it is invalid. E.g., if we collide with a triangle edge and the normal is outside the range allowed by
 					// the triangles sharing the edge we will project the normal into the valid range
-					const bool bFeatureChanged = ContactGenerator.FixFeature(TriangleIndex, ClosestContact.Features[1].FeatureType, ClosestContact.Features[1].PlaneFeatureIndex, ClosestContact.ShapeContactNormal, ClosestContact.ShapeContactPoints[1]);
+					const bool bFeatureChanged = ContactGenerator.FixFeature(TriangleIndex, ClosestContact.Features[1].FeatureType, ClosestContact.Features[1].PlaneFeatureIndex, ClosestContact.ShapeContactNormal);
 					if (bFeatureChanged)
 					{
 						for (int32 ContactIndex = 0; ContactIndex < OutContactPoints.Num(); ++ContactIndex)
@@ -229,7 +255,10 @@ namespace Chaos
 					for (int32 ContactIndex = 0; ContactIndex < OutContactPoints.Num(); ++ContactIndex)
 					{
 						FContactPoint& ContactPoint = OutContactPoints[ContactIndex];
-						Private::ApplyContactPointShift(ContactPoint, ConvexRelativeMovement);
+						
+						const FReal ShiftDotNormal = FVec3::DotProduct(ConvexRelativeMovement, ContactPoint.ShapeContactNormal);
+						ContactPoint.ShapeContactPoints[1] += -ShiftDotNormal * ContactPoint.ShapeContactNormal;
+						ContactPoint.Phi += ShiftDotNormal;
 					}
 				}
 			}
@@ -245,37 +274,54 @@ namespace Chaos
 			}
 			else
 			{
-				// We detect collisions as if both shapes were in the pre-movement locations
-				// GenerateConvexTriangleOneShotManifoldWithMotion will correct the contacts to the actual locations
-				const FRigidTransform3 ShiftedConvexTransform = FRigidTransform3(ConvexTransform.GetTranslation() - RelativeMovement, ConvexTransform.GetRotation());
-				FRigidTransform3 ShiftedMeshToConvexTransform = MeshTransform.GetRelativeTransformNoScale(ShiftedConvexTransform);
-				ShiftedMeshToConvexTransform.SetScale3D(MeshScale);
+				FRigidTransform3 MeshToConvexTransform = MeshTransform.GetRelativeTransformNoScale(ConvexTransform);
+				MeshToConvexTransform.SetScale3D(MeshScale);
 
-				// @todo(chaos): add Convex.CalculateInverseTransformed bounds with scale support (to optimize sphere and capsule)
+				// NOTE: Convex bounds is extended backwards to encompass the pre-movement position
 				const FVec3 ConvexRelativeMovement = ConvexTransform.InverseTransformVectorNoScale(RelativeMovement);
-				const FAABB3 ConvexBounds = FAABB3(Convex.BoundingBox()).GrowByVector(ConvexRelativeMovement).Thicken(InCullDistance);
-				const FAABB3 MeshQueryBounds = ConvexBounds.InverseTransformedAABB(ShiftedMeshToConvexTransform);
+				const FAABB3 ConvexBounds = FAABB3(Convex.BoundingBox()).GrowByVector(-ConvexRelativeMovement).Thicken(InCullDistance);
+				const FAABB3 MeshQueryBounds = ConvexBounds.InverseTransformedAABB(MeshToConvexTransform);
 				const FReal CullDistance = InCullDistance;
 
 				// Collect all the triangles that overlap our convex. Triangles will be in Convex space
-				Mesh.CollectTriangles(MeshQueryBounds, ShiftedMeshToConvexTransform, ConvexBounds, ContactGenerator);
+				Mesh.CollectTriangles(MeshQueryBounds, MeshToConvexTransform, ConvexBounds, ContactGenerator);
 
-				FContactPointLargeManifold Contacts;
-				Contacts.Reserve(6);
+				FContactPointManifold Manifold;
+				FContactPointLargeManifold LargeManifold;
+				LargeManifold.Reserve(6);
 
 				const auto& GenerateConvexTriangleContacts =
-					[&Convex, &ShiftedConvexTransform, &ConvexRelativeMovement, CullDistance, &Contacts](Private::FMeshContactGenerator& ContactGenerator, const int32 TriangleIndex)
+					[&Convex, &ConvexTransform, &ConvexRelativeMovement, CullDistance, &Manifold, &LargeManifold](Private::FMeshContactGenerator& ContactGenerator, const int32 TriangleIndex)
 				{
-					Contacts.Reset();
-					GenerateConvexTriangleOneShotManifoldMACD(Convex, ShiftedConvexTransform, ConvexRelativeMovement, ContactGenerator, TriangleIndex, CullDistance, Contacts);
+					// If we are outside the plane of the triangle, just use non-MACD collision
+					const FTriangle& Triangle = ContactGenerator.GetTriangle(TriangleIndex);
+					bool bUseNonMACDPath = false;
+					if (bChaos_Collision_EnableMACDFallback)
+					{
+						const FVec3 TriangleNormal = ContactGenerator.GetTriangleNormal(TriangleIndex);
+						const FReal Distance = FVec3::DotProduct(Convex.GetCenterOfMass() - Triangle.GetVertex(0), TriangleNormal);
+						bUseNonMACDPath = Distance > 0;
+					}
 
-					ContactGenerator.AddTriangleContacts(TriangleIndex, MakeArrayView(Contacts));
+					if (bUseNonMACDPath)
+					{
+						Manifold.Reset();
+						GenerateConvexTriangleOneShotManifold(Convex, Triangle, CullDistance, Manifold);
+						ContactGenerator.AddTriangleContacts(TriangleIndex, MakeArrayView(Manifold));
+						return;
+					}
+					else
+					{
+						LargeManifold.Reset();
+						GenerateConvexTriangleOneShotManifoldMACD(Convex, ConvexTransform, ConvexRelativeMovement, ContactGenerator, TriangleIndex, CullDistance, LargeManifold);
+						ContactGenerator.AddTriangleContacts(TriangleIndex, MakeArrayView(LargeManifold));
+					}
 				};
 
 				ContactGenerator.GenerateMeshContacts(GenerateConvexTriangleContacts);
 
 				// Process the contacts to minimize manifold etc
-				ContactGenerator.ProcessGeneratedContacts(ShiftedConvexTransform, ShiftedMeshToConvexTransform);
+				ContactGenerator.ProcessGeneratedContacts(ConvexTransform, MeshToConvexTransform);
 			}
 		}
 
@@ -444,7 +490,11 @@ namespace Chaos
 			{
 				const FVec3 RelativeMovement = FVec3(Constraint.GetRelativeMovement());
 				Private::FMeshContactGeneratorSettings ContactGeneratorSettings;
-				ContactGeneratorSettings.bFixNormals = RelativeMovement.IsNearlyZero();
+
+				// @todo(chaos): we don't need to enable normal fixup for MACD mode, except when 
+				// fall back to non-MACD (which is a per-triangle decision) so for now it must be enabled.
+				ContactGeneratorSettings.bFixNormals = true;//RelativeMovement.IsNearlyZero();
+
 				Private::FMeshContactGenerator ContactGenerator(ContactGeneratorSettings);
 
 				if (const FImplicitBox3* RawBox = Convex.template GetObject<FImplicitBox3>())
