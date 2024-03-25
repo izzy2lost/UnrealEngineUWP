@@ -447,6 +447,60 @@ public:
 	}
 }; // class FTemporalSuperResolutionShader
 
+int32 SelectWaveSize(EShaderPlatform ShaderPlatform, const TArray<int32>& WaveSizeDomain)
+{
+	check(!WaveSizeDomain.IsEmpty());
+	int32 WaveSizeOps = 0;
+
+	// Whether to use wave ops optimizations.
+	const ERHIFeatureSupport WaveOpsSupport = FTSRShader::SupportsWaveOps(ShaderPlatform);
+	const bool bUseWaveOps = (CVarTSRWaveOps.GetValueOnAnyThread() != 0 && GRHISupportsWaveOperations && (WaveOpsSupport == ERHIFeatureSupport::RuntimeDependent || WaveOpsSupport == ERHIFeatureSupport::RuntimeGuaranteed));
+	const int32 WaveSizeOverride = bUseWaveOps ? CVarTSRWaveSize.GetValueOnAnyThread() : 0;
+
+	if (bUseWaveOps)
+	{
+		if (WaveSizeOverride != 0 && WaveSizeDomain.Contains(WaveSizeOverride) && WaveSizeOverride >= GRHIMinimumWaveSize && WaveSizeOverride <= GRHIMaximumWaveSize)
+		{
+			WaveSizeOps = WaveSizeOverride;
+		}
+		else
+		{
+			const int32 MinimumWaveSizeWithPermutation = FMath::Max(GRHIMinimumWaveSize, WaveSizeDomain[0]);
+			WaveSizeOps = MinimumWaveSizeWithPermutation >= WaveSizeDomain[0] && MinimumWaveSizeWithPermutation <= WaveSizeDomain.Last() ? MinimumWaveSizeWithPermutation : 0;
+		}
+	}
+
+	return WaveSizeOps;
+}
+
+bool Use16BitVALU(EShaderPlatform ShaderPlatform)
+{
+	// Whether to use 16bit VALU
+	const ERHIFeatureSupport VALU16BitSupport = FTSRShader::Supports16BitVALU(ShaderPlatform);
+	bool bUse16BitVALU = (CVarTSR16BitVALU.GetValueOnAnyThread() != 0 && GRHIGlobals.SupportsNative16BitOps && VALU16BitSupport == ERHIFeatureSupport::RuntimeDependent) || VALU16BitSupport == ERHIFeatureSupport::RuntimeGuaranteed;
+
+	// Controls whether to use 16bit ops on per GPU vendor in mean time each driver matures.
+#if PLATFORM_DESKTOP
+	if ((GRHIGlobals.SupportsNative16BitOps && VALU16BitSupport == ERHIFeatureSupport::RuntimeDependent) || VALU16BitSupport == ERHIFeatureSupport::RuntimeGuaranteed)
+	{
+		if (IsRHIDeviceAMD())
+		{
+			bUse16BitVALU = CVarTSR16BitVALUOnAMD.GetValueOnAnyThread() != 0;
+		}
+		else if (IsRHIDeviceIntel())
+		{
+			bUse16BitVALU = CVarTSR16BitVALUOnIntel.GetValueOnAnyThread() != 0;
+		}
+		else if (IsRHIDeviceNVIDIA())
+		{
+			bUse16BitVALU = CVarTSR16BitVALUOnNvidia.GetValueOnAnyThread() != 0;
+		}
+	}
+#endif // PLATFORM_DESKTOP
+
+	return bUse16BitVALU;
+}
+
 class FTSRConvolutionNetworkShader : public FTSRShader
 {
 public:
@@ -516,6 +570,32 @@ public:
 		}
 
 		return true;
+	}
+
+	static EShaderPermutationPrecacheRequest ShouldPrecachePermutation(const FGlobalShaderPermutationParameters& Parameters, FPermutationDomain PermutationVector)
+	{
+		// Whether alpha channel is supported.
+		const bool bSupportsAlpha = CVarTSRAlphaChannel.GetValueOnAnyThread() >= 0 ? (CVarTSRAlphaChannel.GetValueOnAnyThread() > 0) : IsPostProcessingWithAlphaChannelSupported();
+
+		// Whether to use 16bit VALU
+		bool bUse16BitVALU = Use16BitVALU(Parameters.Platform);
+
+		if (PermutationVector.Get<FWaveSizeOps>() != SelectWaveSize(Parameters.Platform, { 16, 32, 64 }))
+		{
+			return EShaderPermutationPrecacheRequest::NotUsed;
+		}
+
+		if (PermutationVector.Get<FTSRShader::F16BitVALUDim>() != bUse16BitVALU)
+		{
+			return EShaderPermutationPrecacheRequest::NotUsed;
+		}
+
+		if (PermutationVector.Get<FTSRShader::FAlphaChannelDim>() != bSupportsAlpha)
+		{
+			return EShaderPermutationPrecacheRequest::NotUsed;
+		}
+
+		return EShaderPermutationPrecacheRequest::Precached;
 	}
 
 	static void ModifyCompilationEnvironment(const FGlobalShaderPermutationParameters& Parameters, const FPermutationDomain& PermutationVector, FShaderCompilerEnvironment& OutEnvironment)
@@ -772,6 +852,12 @@ class FTSRRejectShadingCS : public FTSRConvolutionNetworkShader
 		}
 
 		return true;
+	}
+
+	static EShaderPermutationPrecacheRequest ShouldPrecachePermutation(const FGlobalShaderPermutationParameters& Parameters)
+	{
+		FPermutationDomain PermutationVector(Parameters.PermutationId);
+		return FTSRConvolutionNetworkShader::ShouldPrecachePermutation(Parameters, PermutationVector.Get<FTSRConvolutionNetworkShader::FPermutationDomain>());
 	}
 
 	static void ModifyCompilationEnvironment(const FGlobalShaderPermutationParameters& Parameters, FShaderCompilerEnvironment& OutEnvironment)
@@ -1275,34 +1361,9 @@ FDefaultTemporalUpscaler::FOutputs AddTemporalSuperResolutionPasses(
 		HistorySliceSequence.FrameStoragePeriod = FMath::Clamp(CVarTSRResurrectionPersistentFrameInterval.GetValueOnRenderThread() | 0x1, 1, 1024);
 	}
 	check(HistorySliceSequence.Check());
-
-	// Whether to use wave ops optimizations.
-	const ERHIFeatureSupport WaveOpsSupport = FTSRShader::SupportsWaveOps(View.GetShaderPlatform());
-	const bool bUseWaveOps = (CVarTSRWaveOps.GetValueOnRenderThread() != 0 && GRHISupportsWaveOperations && (WaveOpsSupport == ERHIFeatureSupport::RuntimeDependent || WaveOpsSupport == ERHIFeatureSupport::RuntimeGuaranteed));
-	const int32 WaveSizeOverride = bUseWaveOps ? CVarTSRWaveSize.GetValueOnAnyThread() : 0;
-	
+		
 	// Whether to use 16bit VALU
-	const ERHIFeatureSupport VALU16BitSupport = FTSRShader::Supports16BitVALU(View.GetShaderPlatform());
-	bool bUse16BitVALU = (CVarTSR16BitVALU.GetValueOnRenderThread() != 0 && GRHIGlobals.SupportsNative16BitOps && VALU16BitSupport == ERHIFeatureSupport::RuntimeDependent) || VALU16BitSupport == ERHIFeatureSupport::RuntimeGuaranteed;
-
-	// Controls whether to use 16bit ops on per GPU vendor in mean time each driver matures.
-#if PLATFORM_DESKTOP
-	if ((GRHIGlobals.SupportsNative16BitOps && VALU16BitSupport == ERHIFeatureSupport::RuntimeDependent) || VALU16BitSupport == ERHIFeatureSupport::RuntimeGuaranteed)
-	{
-		if (IsRHIDeviceAMD())
-		{
-			bUse16BitVALU = CVarTSR16BitVALUOnAMD.GetValueOnRenderThread() != 0;
-		}
-		else if (IsRHIDeviceIntel())
-		{
-			bUse16BitVALU = CVarTSR16BitVALUOnIntel.GetValueOnRenderThread() != 0;
-		}
-		else if (IsRHIDeviceNVIDIA())
-		{
-			bUse16BitVALU = CVarTSR16BitVALUOnNvidia.GetValueOnRenderThread() != 0;
-		}
-	}
-#endif // PLATFORM_DESKTOP
+	bool bUse16BitVALU = Use16BitVALU(View.GetShaderPlatform());
 
 	// Whether alpha channel is supported.
 	const bool bSupportsAlpha = CVarTSRAlphaChannel.GetValueOnRenderThread() >= 0 ? (CVarTSRAlphaChannel.GetValueOnRenderThread() > 0) : IsPostProcessingWithAlphaChannelSupported();
@@ -1537,27 +1598,6 @@ FDefaultTemporalUpscaler::FOutputs AddTemporalSuperResolutionPasses(
 		FRDGTextureRef DebugTexture = GraphBuilder.CreateTexture(DebugDesc, DebugName);
 
 		return GraphBuilder.CreateUAV(DebugTexture);
-	};
-
-	auto SelectWaveSize = [&](const TArray<int32>& WaveSizeDomain)
-	{
-		check(!WaveSizeDomain.IsEmpty());
-		int32 WaveSizeOps = 0;
-
-		if (bUseWaveOps)
-		{
-			if (WaveSizeOverride != 0 && WaveSizeDomain.Contains(WaveSizeOverride) && WaveSizeOverride >= GRHIMinimumWaveSize && WaveSizeOverride <= GRHIMaximumWaveSize)
-			{
-				WaveSizeOps = WaveSizeOverride;
-			}
-			else
-			{
-				const int32 MinimumWaveSizeWithPermutation = FMath::Max(GRHIMinimumWaveSize, WaveSizeDomain[0]);
-				WaveSizeOps = MinimumWaveSizeWithPermutation >= WaveSizeDomain[0] && MinimumWaveSizeWithPermutation <= WaveSizeDomain.Last() ? MinimumWaveSizeWithPermutation : 0;
-			}
-		}
-
-		return WaveSizeOps;
 	};
 
 	// Allocate a new history
@@ -2062,7 +2102,7 @@ FDefaultTemporalUpscaler::FOutputs AddTemporalSuperResolutionPasses(
 			SeparateTranslucencyTexture->Desc.Extent, SeparateTranslucencyRect);
 
 		FTSRConvolutionNetworkShader::FPermutationDomain ConvolutionNetworkPermutationVector;
-		ConvolutionNetworkPermutationVector.Set<FTSRConvolutionNetworkShader::FWaveSizeOps>(SelectWaveSize({ 16, 32, 64 }));
+		ConvolutionNetworkPermutationVector.Set<FTSRConvolutionNetworkShader::FWaveSizeOps>(SelectWaveSize(View.GetShaderPlatform(), { 16, 32, 64 }));
 		ConvolutionNetworkPermutationVector.Set<FTSRShader::F16BitVALUDim>(bUse16BitVALU);
 		ConvolutionNetworkPermutationVector.Set<FTSRShader::FAlphaChannelDim>(bSupportsAlpha);
 
@@ -2502,7 +2542,7 @@ FDefaultTemporalUpscaler::FOutputs AddTemporalSuperResolutionPasses(
 		PassParameters->DebugOutput = CreateDebugUAV(OutputExtent, TEXT("Debug.TSR.ResolveHistory"));
 
 		FTSRResolveHistoryCS::FPermutationDomain PermutationVector;
-		PermutationVector.Set<FTSRResolveHistoryCS::FNyquistDim>(bNyquistHistory ? SelectWaveSize({ 16, 32 }) : 0);
+		PermutationVector.Set<FTSRResolveHistoryCS::FNyquistDim>(bNyquistHistory ? SelectWaveSize(View.GetShaderPlatform(), { 16, 32 }) : 0);
 		PermutationVector.Set<FTSRShader::F16BitVALUDim>(bUse16BitVALU);
 		PermutationVector.Set<FTSRShader::FAlphaChannelDim>(bSupportsAlpha);
 		PermutationVector = FTSRResolveHistoryCS::RemapPermutation(PermutationVector);

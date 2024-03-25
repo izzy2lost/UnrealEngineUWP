@@ -330,6 +330,11 @@ public:
 		return DoesPlatformSupportLumenGI(Parameters.Platform);
 	}
 
+	static EShaderPermutationPrecacheRequest ShouldPrecachePermutation(const FGlobalShaderPermutationParameters& Parameters)
+	{
+		return EShaderPermutationPrecacheRequest::NotPrecached;
+	}
+
 	static void ModifyCompilationEnvironment(const FGlobalShaderPermutationParameters& Parameters, FShaderCompilerEnvironment& OutEnvironment)
 	{
 		FGlobalShader::ModifyCompilationEnvironment(Parameters, OutEnvironment);
@@ -801,8 +806,8 @@ void VisualizeLumenScene(
 				MeshSDFGridParameters);
 		}
 
-		const bool bTraceGlobalSDF = Lumen::UseGlobalSDFTracing(*View.Family);
-		const bool bTraceMeshSDF = Lumen::UseMeshSDFTracing(*View.Family)
+		const bool bTraceGlobalSDF = Lumen::UseGlobalSDFTracing(View.Family->EngineShowFlags);
+		const bool bTraceMeshSDF = Lumen::UseMeshSDFTracing(View.Family->EngineShowFlags)
 			&& MeshSDFGridParameters.TracingParameters.DistanceFieldObjectBuffers.NumSceneObjects > 0
 			&& VisualizeParameters.MaxMeshSDFTraceDistance > VisualizeParameters.MinTraceDistance;
 
@@ -818,7 +823,7 @@ void VisualizeLumenScene(
 		PermutationVector.Set<FVisualizeLumenSceneCS::FTraceMeshSDF>(bTraceMeshSDF);
 		PermutationVector.Set<FVisualizeLumenSceneCS::FTraceGlobalSDF>(bTraceGlobalSDF);
 		PermutationVector.Set<FVisualizeLumenSceneCS::FSimpleCoverageBasedExpand>(bTraceGlobalSDF && Lumen::UseGlobalSDFSimpleCoverageBasedExpand());
-		PermutationVector.Set<FVisualizeLumenSceneCS::FRadianceCache>(GVisualizeLumenSceneTraceRadianceCache != 0 && LumenScreenProbeGather::UseRadianceCache(View));
+		PermutationVector.Set<FVisualizeLumenSceneCS::FRadianceCache>(GVisualizeLumenSceneTraceRadianceCache != 0 && LumenScreenProbeGather::UseRadianceCache());
 		PermutationVector.Set<FVisualizeLumenSceneCS::FTraceHeightfields>(Lumen::UseHeightfieldTracing(*View.Family, *Scene->GetLumenSceneData(View)));
 		PermutationVector = FVisualizeLumenSceneCS::RemapPermutation(PermutationVector);
 
@@ -897,7 +902,7 @@ FScreenPassTexture AddVisualizeLumenScenePass(FRDGBuilder& GraphBuilder, const F
 				}
 				else
 				{
-					VisualizeTiles[1].Name = Lumen::UseMeshSDFTracing(ViewFamily) ? TEXT("Reflection View, SWRT with detail tracing") : TEXT("Reflection View, SWRT");
+					VisualizeTiles[1].Name = Lumen::UseMeshSDFTracing(ViewFamily.EngineShowFlags) ? TEXT("Reflection View, SWRT with detail tracing") : TEXT("Reflection View, SWRT");
 				}
 				VisualizeTiles[2].Mode = VISUALIZE_MODE_SURFACE_CACHE;
 				VisualizeTiles[2].Name = TEXT("Lumen Scene, Pink - missing Surface Cache coverage, Yellow - culled Surface Cache");

@@ -1053,6 +1053,36 @@ class FVolumetricFogLightScatteringCS : public FGlobalShader
 		return true;
 	}
 
+	static EShaderPermutationPrecacheRequest ShouldPrecachePermutation(const FShaderPermutationParameters& Parameters)
+	{
+		const bool bSupportsLumenGI = FDataDrivenShaderPlatformInfo::GetSupportsLumenGI(Parameters.Platform);
+
+		FPermutationDomain PermutationVector = RemapPermutation(FPermutationDomain(Parameters.PermutationId), Parameters.Platform);
+
+		if (PermutationVector.Get<FLumenGI>() && !bSupportsLumenGI)
+		{
+			return EShaderPermutationPrecacheRequest::NotUsed;
+		}
+
+		if (PermutationVector.Get<FDistanceFieldSkyOcclusion>() && bSupportsLumenGI)
+		{
+			return EShaderPermutationPrecacheRequest::NotUsed;
+		}
+
+		if (PermutationVector.Get<FTemporalReprojection>() && (GVolumetricFogTemporalReprojection == 0))
+		{
+			return EShaderPermutationPrecacheRequest::NotUsed;
+		}
+
+		const int32 SuperSampleCount = FVolumetricFogLightScatteringCS::GetSuperSampleCount(GVolumetricFogHistoryMissSupersampleCount);
+		if (PermutationVector.Get<FSuperSampleCount>() != SuperSampleCount)
+		{
+			return EShaderPermutationPrecacheRequest::NotUsed;
+		}
+
+		return EShaderPermutationPrecacheRequest::Precached;
+	}
+
 	static void ModifyCompilationEnvironment(const FGlobalShaderPermutationParameters& Parameters, FShaderCompilerEnvironment& OutEnvironment)
 	{
 		FGlobalShader::ModifyCompilationEnvironment(Parameters, OutEnvironment);

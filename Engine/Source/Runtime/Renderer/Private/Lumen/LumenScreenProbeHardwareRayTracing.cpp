@@ -202,7 +202,7 @@ void FDeferredShadingSceneRenderer::PrepareLumenHardwareRayTracingScreenProbeGat
 {
 	if (Lumen::UseHardwareRayTracedScreenProbeGather(*View.Family) && !Lumen::UseHardwareInlineRayTracing(*View.Family))
 	{
-		const bool bUseRadianceCache = LumenScreenProbeGather::UseRadianceCache(View);
+		const bool bUseRadianceCache = LumenScreenProbeGather::UseRadianceCache();
 		const bool bUseFarField = LumenScreenProbeGather::UseFarField(*View.Family);
 
 		// Default trace
@@ -354,7 +354,7 @@ void RenderHardwareRayTracingScreenProbe(
 
 	const bool bFarField = LumenScreenProbeGather::UseFarField(*View.Family);
 	const bool bInlineRayTracing = Lumen::UseHardwareInlineRayTracing(*View.Family);
-	const bool bUseRadianceCache = LumenScreenProbeGather::UseRadianceCache(View);
+	const bool bUseRadianceCache = LumenScreenProbeGather::UseRadianceCache();
 	const bool bUseImportanceSampling = LumenScreenProbeGather::UseImportanceSampling(View);
 
 	// Default tracing for near field with only surface cache

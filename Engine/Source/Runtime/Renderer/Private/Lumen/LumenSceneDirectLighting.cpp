@@ -1276,7 +1276,7 @@ void TraceDistanceFieldShadows(
 	};
 
 	const bool bThreadGroupSize32 = Lumen::UseThreadGroupSize32();
-	const bool bTraceGlobalSDF = Lumen::UseGlobalSDFTracing(*View.Family);
+	const bool bTraceGlobalSDF = Lumen::UseGlobalSDFTracing(View.Family->EngineShowFlags);
 	const bool bSimpleCoverageBasedExpand = bTraceGlobalSDF && Lumen::UseGlobalSDFSimpleCoverageBasedExpand();
 
 	for (const int32 StandaloneLightIndex : StandaloneLightIndices)
@@ -1300,7 +1300,7 @@ void TraceDistanceFieldShadows(
 			&& GLumenDirectLightingOffscreenShadowingTraceMeshSDFs != 0;
 
 		const bool bTraceMeshSDFs = bTraceMeshObjects
-			&& Lumen::UseMeshSDFTracing(*View.Family)
+			&& Lumen::UseMeshSDFTracing(View.Family->EngineShowFlags)
 			&& ObjectBufferParameters.NumSceneObjects > 0;
 
 		const bool bTraceHeighfieldObjects = bTraceMeshObjects 

@@ -223,6 +223,16 @@ class FHairStrandsForwardRasterRasterizeCS : public FGlobalShader
 
 public:
 	static bool ShouldCompilePermutation(const FGlobalShaderPermutationParameters& Parameters) { return IsHairStrandsForwardRasterSupported(Parameters.Platform); }
+	static EShaderPermutationPrecacheRequest ShouldPrecachePermutation(const FGlobalShaderPermutationParameters& Parameters) 
+	{
+		FPermutationDomain PermutationVector(Parameters.PermutationId);
+		if (PermutationVector.Get<FDebug>())
+		{
+			return EShaderPermutationPrecacheRequest::NotPrecached;
+		}
+
+		return EShaderPermutationPrecacheRequest::Precached;
+	}
 	static void ModifyCompilationEnvironment(const FGlobalShaderPermutationParameters& Parameters, FShaderCompilerEnvironment& OutEnvironment)
 	{
 		FGlobalShader::ModifyCompilationEnvironment(Parameters, OutEnvironment);

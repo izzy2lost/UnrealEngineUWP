@@ -863,8 +863,8 @@ void LumenRadiosity::AddRadiosityPass(
 
 			FLumenRadiosityDistanceFieldTracingCS::FPermutationDomain PermutationVector;
 			PermutationVector.Set<FLumenRadiosityDistanceFieldTracingCS::FThreadGroupSize32>(Lumen::UseThreadGroupSize32());
-			PermutationVector.Set<FLumenRadiosityDistanceFieldTracingCS::FTraceGlobalSDF>(Lumen::UseGlobalSDFTracing(*ViewOrigin.Family));
-			PermutationVector.Set<FLumenRadiosityDistanceFieldTracingCS::FSimpleCoverageBasedExpand>(Lumen::UseGlobalSDFTracing(*ViewOrigin.Family) && Lumen::UseGlobalSDFSimpleCoverageBasedExpand());
+			PermutationVector.Set<FLumenRadiosityDistanceFieldTracingCS::FTraceGlobalSDF>(Lumen::UseGlobalSDFTracing(ViewOrigin.Family->EngineShowFlags));
+			PermutationVector.Set<FLumenRadiosityDistanceFieldTracingCS::FSimpleCoverageBasedExpand>(Lumen::UseGlobalSDFTracing(ViewOrigin.Family->EngineShowFlags) && Lumen::UseGlobalSDFSimpleCoverageBasedExpand());
 			auto ComputeShader = GlobalShaderMap->GetShader<FLumenRadiosityDistanceFieldTracingCS>(PermutationVector);
 
 			FComputeShaderUtils::AddPass(

@@ -214,6 +214,40 @@ class FScreenProbeTraceScreenTexturesCS : public FGlobalShader
 		return DoesPlatformSupportLumenGI(Parameters.Platform);
 	}
 
+	static EShaderPermutationPrecacheRequest ShouldPrecachePermutation(const FGlobalShaderPermutationParameters& Parameters)
+	{
+		FPermutationDomain PermutationVector(Parameters.PermutationId);
+
+		const bool bTerminateOnLowOccupancy = GLumenScreenProbeGatherScreenTracesMinimumOccupancy > 0
+			&& GRHISupportsWaveOperations
+			&& GRHIMinimumWaveSize <= 32
+			&& GRHIMaximumWaveSize >= 32
+			&& RHISupportsWaveOperations(Parameters.Platform);
+		const bool bHZBTraversal = GLumenScreenProbeGatherHierarchicalScreenTraces != 0;
+
+		// Force disabled for now because it's unused
+		const bool bTraceLightSamples = false;
+
+		if (PermutationVector.Get<FRadianceCache>() != (LumenScreenProbeGather::UseRadianceCache() && !bTraceLightSamples))
+		{
+			return EShaderPermutationPrecacheRequest::NotUsed;
+		}
+		if (PermutationVector.Get<FHierarchicalScreenTracing>() != bHZBTraversal)
+		{
+			return EShaderPermutationPrecacheRequest::NotUsed;
+		}
+		if (PermutationVector.Get<FTraceFullResDepth>() != (bHZBTraversal && GLumenScreenProbeGatherHierarchicalScreenTracesFullResDepth != 0))
+		{
+			return EShaderPermutationPrecacheRequest::NotUsed;
+		}
+		if (PermutationVector.Get<FTraceLightSamples>() != bTraceLightSamples)
+		{
+			return EShaderPermutationPrecacheRequest::NotUsed;
+		}
+
+		return EShaderPermutationPrecacheRequest::Precached;
+	}
+
 	static void ModifyCompilationEnvironment(const FGlobalShaderPermutationParameters& Parameters, FShaderCompilerEnvironment& OutEnvironment)
 	{
 		FGlobalShader::ModifyCompilationEnvironment(Parameters, OutEnvironment);
@@ -336,6 +370,24 @@ class FScreenProbeTraceMeshSDFsCS : public FGlobalShader
 		return DoesPlatformSupportLumenGI(Parameters.Platform);
 	}
 
+	static EShaderPermutationPrecacheRequest ShouldPrecachePermutation(const FGlobalShaderPermutationParameters& Parameters)
+	{
+		FPermutationDomain PermutationVector = RemapPermutation(FPermutationDomain(Parameters.PermutationId));
+
+		extern int32 GDistanceFieldOffsetDataStructure;
+		if (PermutationVector.Get<FOffsetDataStructure>() != GDistanceFieldOffsetDataStructure)
+		{
+			return EShaderPermutationPrecacheRequest::NotUsed;
+		}
+
+		if (PermutationVector.Get<FThreadGroupSize32>() != Lumen::UseThreadGroupSize32())
+		{
+			return EShaderPermutationPrecacheRequest::NotUsed;
+		}
+
+		return EShaderPermutationPrecacheRequest::Precached;
+	}
+
 	static void ModifyCompilationEnvironment(const FGlobalShaderPermutationParameters& Parameters, FShaderCompilerEnvironment& OutEnvironment)
 	{
 		FGlobalShader::ModifyCompilationEnvironment(Parameters, OutEnvironment);
@@ -397,6 +449,17 @@ class FScreenProbeTraceVoxelsCS : public FGlobalShader
 		}
 
 		return DoesPlatformSupportLumenGI(Parameters.Platform);
+	}
+
+	static EShaderPermutationPrecacheRequest ShouldPrecachePermutation(const FGlobalShaderPermutationParameters& Parameters)
+	{
+		FPermutationDomain PermutationVector(Parameters.PermutationId);
+		if (PermutationVector.Get<FThreadGroupSize32>() != Lumen::UseThreadGroupSize32())
+		{
+			return EShaderPermutationPrecacheRequest::NotUsed;
+		}
+
+		return EShaderPermutationPrecacheRequest::Precached;
 	}
 
 	static void ModifyCompilationEnvironment(const FGlobalShaderPermutationParameters& Parameters, FShaderCompilerEnvironment& OutEnvironment)
@@ -724,7 +787,7 @@ void TraceScreenProbes(
 			const bool bHZBTraversal = GLumenScreenProbeGatherHierarchicalScreenTraces != 0;
 
 			FScreenProbeTraceScreenTexturesCS::FPermutationDomain PermutationVector;
-			PermutationVector.Set< FScreenProbeTraceScreenTexturesCS::FRadianceCache >(LumenScreenProbeGather::UseRadianceCache(View) && !bTraceLightSamples);
+			PermutationVector.Set< FScreenProbeTraceScreenTexturesCS::FRadianceCache >(LumenScreenProbeGather::UseRadianceCache() && !bTraceLightSamples);
 			PermutationVector.Set< FScreenProbeTraceScreenTexturesCS::FHierarchicalScreenTracing >(bHZBTraversal);
 			PermutationVector.Set< FScreenProbeTraceScreenTexturesCS::FTraceFullResDepth >(bHZBTraversal && GLumenScreenProbeGatherHierarchicalScreenTracesFullResDepth != 0);
 			PermutationVector.Set< FScreenProbeTraceScreenTexturesCS::FStructuredImportanceSampling >(LumenScreenProbeGather::UseImportanceSampling(View));
@@ -858,7 +921,7 @@ void TraceScreenProbes(
 
 	auto TraceVoxels = [&](bool bTraceLightSamples)
 	{
-		const bool bRadianceCache = LumenScreenProbeGather::UseRadianceCache(View);
+		const bool bRadianceCache = LumenScreenProbeGather::UseRadianceCache();
 
 		FScreenProbeTraceVoxelsCS::FParameters* PassParameters = GraphBuilder.AllocParameters<FScreenProbeTraceVoxelsCS::FParameters>();
 		PassParameters->RadianceCacheParameters = RadianceCacheParameters;
@@ -877,7 +940,7 @@ void TraceScreenProbes(
 		PermutationVector.Set< FScreenProbeTraceVoxelsCS::FRadianceCache >(bRadianceCache && !bTraceLightSamples);
 		PermutationVector.Set< FScreenProbeTraceVoxelsCS::FStructuredImportanceSampling >(LumenScreenProbeGather::UseImportanceSampling(View));
 		PermutationVector.Set< FScreenProbeTraceVoxelsCS::FHairStrands>(bNeedTraceHairVoxel);
-		PermutationVector.Set< FScreenProbeTraceVoxelsCS::FTraceVoxels>(!bUseHardwareRayTracing && Lumen::UseGlobalSDFTracing(*View.Family));
+		PermutationVector.Set< FScreenProbeTraceVoxelsCS::FTraceVoxels>(!bUseHardwareRayTracing && Lumen::UseGlobalSDFTracing(View.Family->EngineShowFlags));
 		PermutationVector.Set< FScreenProbeTraceVoxelsCS::FSimpleCoverageBasedExpand>(PermutationVector.Get<FScreenProbeTraceVoxelsCS::FTraceVoxels>() && Lumen::UseGlobalSDFSimpleCoverageBasedExpand());
 		PermutationVector.Set< FScreenProbeTraceVoxelsCS::FTraceLightSamples>(bTraceLightSamples);
 		PermutationVector = FScreenProbeTraceVoxelsCS::RemapPermutation(PermutationVector);

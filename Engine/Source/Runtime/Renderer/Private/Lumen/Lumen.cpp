@@ -52,7 +52,7 @@ bool Lumen::UseAsyncCompute(const FViewFamilyInfo& ViewFamily)
 
 bool Lumen::UseThreadGroupSize32()
 {
-	return GRHISupportsWaveOperations && GRHIMinimumWaveSize <= 32 && CVarLumenThreadGroupSize32.GetValueOnRenderThread() != 0;
+	return GRHISupportsWaveOperations && GRHIMinimumWaveSize <= 32 && CVarLumenThreadGroupSize32.GetValueOnAnyThread() != 0;
 }
 
 namespace Lumen

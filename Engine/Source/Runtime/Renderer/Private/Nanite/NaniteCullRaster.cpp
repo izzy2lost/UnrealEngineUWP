@@ -714,6 +714,17 @@ class FInstanceCull_CS : public FNaniteGlobalShader
 		return FNaniteGlobalShader::ShouldCompilePermutation(Parameters);
 	}
 
+	static EShaderPermutationPrecacheRequest ShouldPrecachePermutation(const FGlobalShaderPermutationParameters& Parameters)
+	{
+		FPermutationDomain PermutationVector(Parameters.PermutationId);
+		if (PermutationVector.Get<FDebugFlagsDim>())
+		{
+			return EShaderPermutationPrecacheRequest::NotPrecached;
+		}
+
+		return EShaderPermutationPrecacheRequest::Precached;
+	}
+
 	static void ModifyCompilationEnvironment(const FGlobalShaderPermutationParameters& Parameters, FShaderCompilerEnvironment& OutEnvironment)
 	{
 		FNaniteGlobalShader::ModifyCompilationEnvironment(Parameters, OutEnvironment);
@@ -815,6 +826,12 @@ class FInstanceCullVSM_CS : public FNaniteGlobalShader
 		OutEnvironment.SetDefine( TEXT("VIRTUAL_TEXTURE_TARGET"), 1 );
 	}
 
+	static EShaderPermutationPrecacheRequest ShouldPrecachePermutation(const FGlobalShaderPermutationParameters& Parameters)
+	{
+		// Precache disabled due to AMD driver bug - is this still correct?
+		return EShaderPermutationPrecacheRequest::NotPrecached;
+	}
+
 	BEGIN_SHADER_PARAMETER_STRUCT( FParameters, )
 		SHADER_PARAMETER( uint32, NumInstances )
 		SHADER_PARAMETER( uint32, MaxNodes )
@@ -909,6 +926,32 @@ class FNodeAndClusterCull_CS : public FNaniteGlobalShader
 		}
 
 		return FNaniteGlobalShader::ShouldCompilePermutation(Parameters);
+	}
+
+	static EShaderPermutationPrecacheRequest ShouldPrecachePermutation(const FGlobalShaderPermutationParameters& Parameters)
+	{
+		FPermutationDomain PermutationVector(Parameters.PermutationId);
+
+		if (PermutationVector.Get<FDebugFlagsDim>())
+		{
+			return EShaderPermutationPrecacheRequest::NotPrecached;
+		}
+
+		int CullingType = PermutationVector.Get<FCullingTypeDim>();
+		int PersistentThreadsCulling = CVarNanitePersistentThreadsCulling.GetValueOnAnyThread();
+		if (PersistentThreadsCulling > 0)
+		{
+			if (CullingType != NANITE_CULLING_TYPE_PERSISTENT_NODES_AND_CLUSTERS)
+			{
+				return EShaderPermutationPrecacheRequest::NotUsed;
+			}
+		}
+		else if (CullingType == NANITE_CULLING_TYPE_PERSISTENT_NODES_AND_CLUSTERS)
+		{
+			return EShaderPermutationPrecacheRequest::NotUsed;
+		}
+
+		return EShaderPermutationPrecacheRequest::Precached;
 	}
 
 	static void ModifyCompilationEnvironment(const FGlobalShaderPermutationParameters& Parameters, FShaderCompilerEnvironment& OutEnvironment)

@@ -190,16 +190,16 @@ bool LumenDiffuseIndirect::UseAsyncCompute(const FViewFamilyInfo& ViewFamily)
 	return Lumen::UseAsyncCompute(ViewFamily) && CVarLumenDiffuseIndirectAsyncCompute.GetValueOnRenderThread() != 0;
 }
 
-bool Lumen::UseMeshSDFTracing(const FSceneViewFamily& ViewFamily)
+bool Lumen::UseMeshSDFTracing(const FEngineShowFlags& EngineShowFlags)
 {
 	return GLumenTraceMeshSDFs != 0 
 		&& GLumenAllowTracingMeshSDFs != 0
-		&& ViewFamily.EngineShowFlags.LumenDetailTraces;
+		&& EngineShowFlags.LumenDetailTraces;
 }
 
-bool Lumen::UseGlobalSDFTracing(const FSceneViewFamily& ViewFamily)
+bool Lumen::UseGlobalSDFTracing(const FEngineShowFlags& EngineShowFlags)
 {
-	return ViewFamily.EngineShowFlags.LumenGlobalTraces;
+	return EngineShowFlags.LumenGlobalTraces;
 }
 
 bool Lumen::UseGlobalSDFSimpleCoverageBasedExpand()
@@ -209,7 +209,7 @@ bool Lumen::UseGlobalSDFSimpleCoverageBasedExpand()
 
 bool Lumen::IsUsingGlobalSDF(const FSceneViewFamily& ViewFamily)
 {
-	return UseGlobalSDFTracing(ViewFamily)
+	return UseGlobalSDFTracing(ViewFamily.EngineShowFlags)
 		&& !UseHardwareRayTracing(ViewFamily);
 }
 

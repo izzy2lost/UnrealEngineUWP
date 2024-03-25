@@ -2042,8 +2042,8 @@ void UpdateRadianceCaches(
 				PassParameters->TraceProbesIndirectArgs = TraceProbesIndirectArgs[RadianceCacheIndex];
 
 				FRadianceCacheTraceFromProbesCS::FPermutationDomain PermutationVector;
-				PermutationVector.Set<FRadianceCacheTraceFromProbesCS::FTraceGlobalSDF>(Lumen::UseGlobalSDFTracing(*View.Family));
-				PermutationVector.Set<FRadianceCacheTraceFromProbesCS::FSimpleCoverageBasedExpand>(Lumen::UseGlobalSDFTracing(*View.Family) && Lumen::UseGlobalSDFSimpleCoverageBasedExpand());
+				PermutationVector.Set<FRadianceCacheTraceFromProbesCS::FTraceGlobalSDF>(Lumen::UseGlobalSDFTracing(View.Family->EngineShowFlags));
+				PermutationVector.Set<FRadianceCacheTraceFromProbesCS::FSimpleCoverageBasedExpand>(Lumen::UseGlobalSDFTracing(View.Family->EngineShowFlags) && Lumen::UseGlobalSDFSimpleCoverageBasedExpand());
 				PermutationVector.Set<FRadianceCacheTraceFromProbesCS::FDynamicSkyLight>(Lumen::ShouldHandleSkyLight(Scene, *View.Family));
 				auto ComputeShader = View.ShaderMap->GetShader<FRadianceCacheTraceFromProbesCS>(PermutationVector);
 

@@ -264,6 +264,16 @@ enum EDistanceFieldShadowingType
 	DFS_PointLightTiledCulling
 };
 
+int32 GetDFShadowQuality()
+{
+	return FMath::Clamp(GDFShadowQuality, 0, 3);
+}
+
+int32 GetHFShadowQuality()
+{
+	return FMath::Clamp(GHFShadowQuality, 0, 3);
+}
+
 class FDistanceFieldShadowingCS : public FGlobalShader
 {
 	DECLARE_GLOBAL_SHADER(FDistanceFieldShadowingCS);
@@ -324,6 +334,31 @@ class FDistanceFieldShadowingCS : public FGlobalShader
 		}
 
 		return DoesPlatformSupportDistanceFieldShadowing(Parameters.Platform);
+	}
+
+	static EShaderPermutationPrecacheRequest ShouldPrecachePermutation(const FGlobalShaderPermutationParameters& Parameters)
+	{
+		FPermutationDomain PermutationVector = RemapPermutation(FPermutationDomain(Parameters.PermutationId));
+
+		EDistanceFieldPrimitiveType PrimitiveType = (EDistanceFieldPrimitiveType)PermutationVector.Get<FPrimitiveType>();
+		const int32 DFShadowQuality = (PrimitiveType == DFPT_HeightField ? GetHFShadowQuality() : GetDFShadowQuality()) - 1;
+		if (PermutationVector.Get<FShadowQuality>() != DFShadowQuality)
+		{
+			return EShaderPermutationPrecacheRequest::NotUsed;
+		}
+
+		extern int32 GDistanceFieldOffsetDataStructure;
+		if (PermutationVector.Get<FOffsetDataStructure>() != GDistanceFieldOffsetDataStructure)
+		{
+			return EShaderPermutationPrecacheRequest::NotUsed;
+		}
+
+		if (PermutationVector.Get<FCompactCulledObjects>() != (GDFShadowCompactCulledObjects  != 0))
+		{
+			return EShaderPermutationPrecacheRequest::NotUsed;
+		}
+
+		return EShaderPermutationPrecacheRequest::Precached;
 	}
 
 	static void ModifyCompilationEnvironment(const FGlobalShaderPermutationParameters& Parameters, FShaderCompilerEnvironment& OutEnvironment)
@@ -689,16 +724,6 @@ void CullDistanceFieldObjectsForLight(
 		// Rasterize object bounding shapes and intersect with shadow tiles, and write out intersecting tile indices for the cone tracing pass
 		ScatterObjectsToShadowTiles(GraphBuilder, View, WorldToShadowValue, ShadowBoundingRadius, false, PrimitiveType, LightTileDimensions, ObjectIndirectArguments, ObjectBufferParameters, CulledObjectBufferParameters, LightTileIntersectionParameters);
 	}
-}
-
-int32 GetDFShadowQuality()
-{
-	return FMath::Clamp(GDFShadowQuality, 0, 3);
-}
-
-int32 GetHFShadowQuality()
-{
-	return FMath::Clamp(GHFShadowQuality, 0, 3);
 }
 
 bool SupportsDistanceFieldShadows(ERHIFeatureLevel::Type FeatureLevel, EShaderPlatform ShaderPlatform)

@@ -194,17 +194,17 @@ int32 GetSSSFilter()
 
 int32 GetSSSSampleSet()
 {
-	return CVarSSSSampleSet.GetValueOnRenderThread();
+	return CVarSSSSampleSet.GetValueOnAnyThread();
 }
 
 int32 GetSSSQuality()
 {
-	return CVarSSSQuality.GetValueOnRenderThread();
+	return CVarSSSQuality.GetValueOnAnyThread();
 }
 
 int32 GetSSSBurleyBilateralFilterKernelFunctionType()
 {
-	return CVarSSSBurleyBilateralFilterKernelFunctionType.GetValueOnRenderThread();
+	return CVarSSSBurleyBilateralFilterKernelFunctionType.GetValueOnAnyThread();
 }
 
 // Returns the current subsurface mode required by the current view.
@@ -674,6 +674,21 @@ public:
 	class FDimensionEnableProfileIDCache : SHADER_PERMUTATION_BOOL("ENABLE_PROFILE_ID_CACHE");
 	using FPermutationDomain = TShaderPermutationDomain<FSubsurfacePassFunction, FDimensionQuality, 
 		FBilateralFilterKernelFunctionType, FSubsurfaceType, FDimensionHalfRes, FRunningInSeparable, FDimensionEnableProfileIDCache>;
+
+	static EShaderPermutationPrecacheRequest ShouldPrecachePermutation(const FGlobalShaderPermutationParameters& Parameters)
+	{
+		FPermutationDomain PermutationVector(Parameters.PermutationId);
+		if (PermutationVector.Get<FDimensionQuality>() != GetQuality())
+		{
+			return EShaderPermutationPrecacheRequest::NotUsed;
+		}
+		if (PermutationVector.Get<FBilateralFilterKernelFunctionType>() != GetBilateralFilterKernelFunctionType())
+		{
+			return EShaderPermutationPrecacheRequest::NotUsed;
+		}
+
+		return EShaderPermutationPrecacheRequest::Precached;
+	}
 
 	// Returns the sampler state based on the requested SSS filter CVar setting and half resolution setting.
 	static FRHISamplerState* GetSamplerState(bool bHalfRes)

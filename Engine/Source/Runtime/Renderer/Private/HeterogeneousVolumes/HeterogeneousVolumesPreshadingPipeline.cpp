@@ -355,6 +355,37 @@ class FRenderSingleScatteringWithPreshadingCS : public FGlobalShader
 		return DoesPlatformSupportHeterogeneousVolumes(Parameters.Platform);
 	}
 
+	static EShaderPermutationPrecacheRequest ShouldPrecachePermutation(const FGlobalShaderPermutationParameters& Parameters)
+	{
+		FPermutationDomain PermutationVector(Parameters.PermutationId);
+		if (PermutationVector.Get<FDebugDim>())
+		{
+			return EShaderPermutationPrecacheRequest::NotPrecached;
+		}
+
+		if (PermutationVector.Get<FVoxelCullingDim>() != HeterogeneousVolumes::UseSparseVoxelPerTileCulling())
+		{
+			return EShaderPermutationPrecacheRequest::NotUsed;
+		}
+
+		if (PermutationVector.Get<FSparseVoxelTracingDim>() != HeterogeneousVolumes::UseSparseVoxelPipeline())
+		{
+			return EShaderPermutationPrecacheRequest::NotUsed;
+		}
+
+		if (PermutationVector.Get<FUseTransmittanceVolume>() != HeterogeneousVolumes::UseLightingCacheForTransmittance())
+		{
+			return EShaderPermutationPrecacheRequest::NotUsed;
+		}
+
+		if (PermutationVector.Get<FUseInscatteringVolume>() != HeterogeneousVolumes::UseLightingCacheForInscattering())
+		{
+			return EShaderPermutationPrecacheRequest::NotUsed;
+		}
+
+		return EShaderPermutationPrecacheRequest::Precached;
+	}
+
 	static void ModifyCompilationEnvironment(
 		const FGlobalShaderPermutationParameters& Parameters,
 		FShaderCompilerEnvironment& OutEnvironment

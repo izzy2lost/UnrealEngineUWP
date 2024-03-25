@@ -393,7 +393,7 @@ namespace LumenScreenProbeGather
 		return GLumenScreenProbeGatherReferenceMode ? false : GLumenScreenProbeTemporalFilterProbes != 0;
 	}
 
-	bool UseRadianceCache(const FViewInfo& View)
+	bool UseRadianceCache()
 	{
 		return GLumenScreenProbeGatherReferenceMode ? false : GLumenRadianceCache != 0;
 	}
@@ -897,6 +897,60 @@ class FScreenProbeIntegrateCS : public FGlobalShader
 			return false;
 		}
 		return DoesPlatformSupportLumenGI(Parameters.Platform);
+	}
+
+	static EShaderPermutationPrecacheRequest ShouldPrecachePermutation(const FGlobalShaderPermutationParameters& Parameters)
+	{
+		FPermutationDomain PermutationVector(Parameters.PermutationId);
+		if (PermutationVector.Get<FOverflowTile>() && !Substrate::IsSubstrateEnabled())
+		{
+			return EShaderPermutationPrecacheRequest::NotUsed;
+		}
+
+		if (PermutationVector.Get<FStochasticProbeInterpolation>() != (GLumenScreenProbeStochasticInterpolation != 0))
+		{
+			return EShaderPermutationPrecacheRequest::NotUsed;
+		}
+
+		const bool bUseTileClassification = GLumenScreenProbeIntegrationTileClassification != 0 && LumenScreenProbeGather::GetDiffuseIntegralMethod() != 2;
+		int TileClassificationMode = PermutationVector.Get<FTileClassificationMode>();
+		if (bUseTileClassification)
+		{
+			if (TileClassificationMode == (uint32)EScreenProbeIntegrateTileClassification::Num)
+			{
+				return EShaderPermutationPrecacheRequest::NotUsed;
+			}
+		}
+		else if (TileClassificationMode != (uint32)EScreenProbeIntegrateTileClassification::Num)
+		{
+			return EShaderPermutationPrecacheRequest::NotUsed;
+		}
+
+		const bool bApplyShortRangeAO = LumenScreenProbeGather::ApplyShortRangeAODuringIntegration();
+		if (PermutationVector.Get<FShortRangeAO>() && !bApplyShortRangeAO)
+		{
+			return EShaderPermutationPrecacheRequest::NotUsed;
+		}
+
+		// If derived from engine show flags then precache request is optional if not set because debug modes may allow those permutations to be used
+		FEngineShowFlags DefaultShowEngineFlags(ESFIM_Game);
+		if (PermutationVector.Get<FProbeIrradianceFormat>() != LumenScreenProbeGather::GetScreenProbeIrradianceFormat(DefaultShowEngineFlags))
+		{
+			return EShaderPermutationPrecacheRequest::NotPrecached;
+		}
+
+		if (PermutationVector.Get<FDirectLighting>() && GLumenScreenProbeInjectLightsToProbes == 0)
+		{
+			return EShaderPermutationPrecacheRequest::NotUsed;
+		}
+
+		const int32 RoughSpecularSamplingMode = GLumenScreenProbeRoughSpecularSamplingMode > 0 ? 1 : 0;
+		if (PermutationVector.Get<FRoughSpecularSamplingMode>() != RoughSpecularSamplingMode)
+		{
+			return EShaderPermutationPrecacheRequest::NotUsed;
+		}
+
+		return EShaderPermutationPrecacheRequest::Precached;
 	}
 
 	class FShortRangeAO : SHADER_PERMUTATION_BOOL("SHORT_RANGE_AO");
@@ -2044,7 +2098,7 @@ FSSDSignalTextures FDeferredShadingSceneRenderer::RenderLumenScreenProbeGather(
 
 	const LumenRadianceCache::FRadianceCacheInputs RadianceCacheInputs = LumenScreenProbeGatherRadianceCache::SetupRadianceCacheInputs(View);
 
-	if (LumenScreenProbeGather::UseRadianceCache(View))
+	if (LumenScreenProbeGather::UseRadianceCache())
 	{
 		// Using !View.IsInstancedSceneView() to skip actual secondary stereo views only, View.ShouldRenderView() returns false for empty views as well
 		if (!ShouldUseStereoLumenOptimizations() || !View.IsInstancedSceneView())
@@ -2234,7 +2288,7 @@ FSSDSignalTextures FDeferredShadingSceneRenderer::RenderLumenScreenProbeGather(
 		Scene,
 		View, 
 		FrameTemporaries,
-		GLumenGatherCvars.TraceMeshSDFs != 0 && Lumen::UseMeshSDFTracing(ViewFamily),
+		GLumenGatherCvars.TraceMeshSDFs != 0 && Lumen::UseMeshSDFTracing(ViewFamily.EngineShowFlags),
 		bRenderDirectLighting,
 		SceneTextures,
 		LightingChannelsTexture,
@@ -2313,7 +2367,7 @@ FSSDSignalTextures FDeferredShadingSceneRenderer::RenderLumenScreenProbeGather(
 	}
 
 	// Sample radiance caches for hair strands lighting. Only used wht radiance cache is enabled
-	if (LumenScreenProbeGather::UseRadianceCache(View) && HairStrands::HasViewHairStrandsData(View))
+	if (LumenScreenProbeGather::UseRadianceCache() && HairStrands::HasViewHairStrandsData(View))
 	{
 		RenderHairStrandsLumenLighting(GraphBuilder, Scene, View);
 	}

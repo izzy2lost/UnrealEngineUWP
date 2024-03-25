@@ -435,7 +435,7 @@ namespace HeterogeneousVolumes
 
 	bool UseSparseVoxelPipeline()
 	{
-		return CVarHeterogeneousVolumesSparseVoxel.GetValueOnRenderThread() != 0;
+		return CVarHeterogeneousVolumesSparseVoxel.GetValueOnAnyThread() != 0;
 	}
 
 	bool ShouldRefineSparseVoxels()
@@ -445,7 +445,7 @@ namespace HeterogeneousVolumes
 
 	bool UseSparseVoxelPerTileCulling()
 	{
-		return CVarHeterogeneousVolumesSparseVoxelPerTileCulling.GetValueOnRenderThread() != 0;
+		return CVarHeterogeneousVolumesSparseVoxelPerTileCulling.GetValueOnAnyThread() != 0;
 	}
 
 	int32 GetLightingCacheMode()
@@ -462,12 +462,12 @@ namespace HeterogeneousVolumes
 
 	bool UseLightingCacheForInscattering()
 	{
-		return CVarHeterogeneousVolumesLightingCache.GetValueOnRenderThread() == 2;
+		return CVarHeterogeneousVolumesLightingCache.GetValueOnAnyThread() == 2;
 	}
 
 	bool UseLightingCacheForTransmittance()
 	{
-		return CVarHeterogeneousVolumesLightingCache.GetValueOnRenderThread() == 1;
+		return CVarHeterogeneousVolumesLightingCache.GetValueOnAnyThread() == 1;
 	}
 
 	bool ShouldJitter()

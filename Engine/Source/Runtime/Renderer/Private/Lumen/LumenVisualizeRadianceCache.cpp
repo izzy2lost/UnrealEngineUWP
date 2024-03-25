@@ -138,7 +138,7 @@ void FDeferredShadingSceneRenderer::RenderLumenRadianceCacheVisualization(FRDGBu
 	if (Views.Num() == 1
 		&& View.ViewState
 		&& bAnyLumenActive
-		&& (LumenScreenProbeGather::UseRadianceCache(Views[0]) || (GLumenVisualizeTranslucencyVolumeRadianceCache && GLumenTranslucencyVolume))
+		&& (LumenScreenProbeGather::UseRadianceCache() || (GLumenVisualizeTranslucencyVolumeRadianceCache && GLumenTranslucencyVolume))
 		&& GLumenRadianceCacheVisualize != 0)
 	{
 		RDG_EVENT_SCOPE(GraphBuilder, "VisualizeLumenRadianceCache");

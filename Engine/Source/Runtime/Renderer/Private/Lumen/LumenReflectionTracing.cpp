@@ -528,6 +528,45 @@ class FReflectionTraceVoxelsCS : public FGlobalShader
 		return DoesPlatformSupportLumenGI(Parameters.Platform);
 	}
 
+	static EShaderPermutationPrecacheRequest ShouldPrecachePermutation(const FGlobalShaderPermutationParameters& Parameters)
+	{
+		// If derived from engine show flags then precache request is optional if not set because debug modes may allow those permutations to be used
+		FEngineShowFlags EngineShowFlags(ESFIM_Game);
+		const bool bScreenTraces = GLumenReflectionScreenTraces != 0 && EngineShowFlags.LumenScreenTraces;
+		const bool bSampleSceneColorAtHit = (GLumenReflectionsSampleSceneColorAtHit != 0 && bScreenTraces) || GLumenReflectionsSampleSceneColorAtHit == 2;
+		const bool bDistantScreenTraces = GLumenReflectionsDistantScreenTraces && bScreenTraces;
+
+		const FPermutationDomain PermutationVector(Parameters.PermutationId);
+		if (PermutationVector.Get<FThreadGroupSize32>() != Lumen::UseThreadGroupSize32())
+		{
+			return EShaderPermutationPrecacheRequest::NotUsed;
+		}
+
+		// Different than default game engine show flags then it's a development only feature
+		if (PermutationVector.Get<FTraceGlobalSDF>() != Lumen::UseGlobalSDFTracing(EngineShowFlags))
+		{
+			return EShaderPermutationPrecacheRequest::NotPrecached;
+		}
+
+		// Different than default game engine show flags then it's a development only feature
+		if (PermutationVector.Get<FSimpleCoverageBasedExpand>() != (Lumen::UseGlobalSDFTracing(EngineShowFlags) && Lumen::UseGlobalSDFSimpleCoverageBasedExpand()))
+		{
+			return EShaderPermutationPrecacheRequest::NotPrecached;
+		}
+
+		if (PermutationVector.Get<FSampleSceneColor>() != bSampleSceneColorAtHit)
+		{
+			return EShaderPermutationPrecacheRequest::NotUsed;
+		}
+
+		if (PermutationVector.Get<FDistantScreenTraces>() != bDistantScreenTraces)
+		{
+			return EShaderPermutationPrecacheRequest::NotUsed;
+		}
+
+		return EShaderPermutationPrecacheRequest::Precached;
+	}
+
 	static void ModifyCompilationEnvironment(const FGlobalShaderPermutationParameters& Parameters, FShaderCompilerEnvironment& OutEnvironment)
 	{
 		FGlobalShader::ModifyCompilationEnvironment(Parameters, OutEnvironment);
@@ -1074,8 +1113,8 @@ void TraceReflections(
 
 			FReflectionTraceVoxelsCS::FPermutationDomain PermutationVector;
 			PermutationVector.Set< FReflectionTraceVoxelsCS::FThreadGroupSize32 >(Lumen::UseThreadGroupSize32());
-			PermutationVector.Set< FReflectionTraceVoxelsCS::FTraceGlobalSDF >(Lumen::UseGlobalSDFTracing(*View.Family));
-			PermutationVector.Set< FReflectionTraceVoxelsCS::FSimpleCoverageBasedExpand>(Lumen::UseGlobalSDFTracing(*View.Family) && Lumen::UseGlobalSDFSimpleCoverageBasedExpand());
+			PermutationVector.Set< FReflectionTraceVoxelsCS::FTraceGlobalSDF >(Lumen::UseGlobalSDFTracing(View.Family->EngineShowFlags));
+			PermutationVector.Set< FReflectionTraceVoxelsCS::FSimpleCoverageBasedExpand>(Lumen::UseGlobalSDFTracing(View.Family->EngineShowFlags) && Lumen::UseGlobalSDFSimpleCoverageBasedExpand());
 			PermutationVector.Set< FReflectionTraceVoxelsCS::FHairStrands >(bNeedTraceHairVoxel);
 			PermutationVector.Set< FReflectionTraceVoxelsCS::FRadianceCache >(bUseRadianceCache);
 			PermutationVector.Set< FReflectionTraceVoxelsCS::FSampleSceneColor >(bSampleSceneColorAtHit);

@@ -36,7 +36,7 @@ namespace LumenScreenProbeGather
 	extern bool UseImportanceSampling(const FViewInfo& View);
 	extern bool UseProbeSpatialFilter();
 	extern bool UseProbeTemporalFilter();
-	extern bool UseRadianceCache(const FViewInfo& View);
+	extern bool UseRadianceCache();
 	EScreenProbeIrradianceFormat GetScreenProbeIrradianceFormat(const FEngineShowFlags& ShowFlags);
 
 	// Must match LumenScreenProbeCommon.ush

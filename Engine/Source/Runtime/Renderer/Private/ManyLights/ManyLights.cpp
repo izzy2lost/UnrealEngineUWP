@@ -196,7 +196,7 @@ namespace ManyLights
 
 	FIntPoint GetNumSamplesPerPixel2d()
 	{
-		const uint32 NumSamplesPerPixel1d = FMath::RoundUpToPowerOfTwo(FMath::Clamp(CVarManyLightsNumSamplesPerPixel.GetValueOnRenderThread(), 1, 4));
+		const uint32 NumSamplesPerPixel1d = FMath::RoundUpToPowerOfTwo(FMath::Clamp(CVarManyLightsNumSamplesPerPixel.GetValueOnAnyThread(), 1, 4));
 		return NumSamplesPerPixel1d == 4 ? FIntPoint(2, 2) : (NumSamplesPerPixel1d == 2 ? FIntPoint(2, 1) : FIntPoint(1, 1));
 	}
 
@@ -361,6 +361,37 @@ class FGenerateLightSamplesCS : public FGlobalShader
 		return ManyLights::ShouldCompileShaders(Parameters);
 	}
 
+	static EShaderPermutationPrecacheRequest ShouldPrecachePermutation(const FGlobalShaderPermutationParameters& Parameters)
+	{
+		FPermutationDomain PermutationVector(Parameters.PermutationId);
+
+		// precache all tile types
+
+		if (PermutationVector.Get<FIESProfile>() != (CVarManyLightsIESProfiles.GetValueOnAnyThread() != 0))
+		{
+			return EShaderPermutationPrecacheRequest::NotUsed;
+		}
+		
+		if (PermutationVector.Get<FTexturedRectLights>() != (CVarManyLightsTexturedRectLights.GetValueOnAnyThread() != 0))
+		{
+			return EShaderPermutationPrecacheRequest::NotUsed;
+		}
+
+		int NumSamplesPerPixel1d = PermutationVector.Get<FNumSamplesPerPixel1d>();
+		const FIntPoint NumSamplesPerPixel2d = ManyLights::GetNumSamplesPerPixel2d();
+		if (NumSamplesPerPixel1d != (NumSamplesPerPixel2d.X * NumSamplesPerPixel2d.Y))
+		{
+			return EShaderPermutationPrecacheRequest::NotUsed;
+		}
+		
+		if (PermutationVector.Get<FDebugMode>())
+		{
+			return EShaderPermutationPrecacheRequest::NotPrecached;
+		}
+
+		return EShaderPermutationPrecacheRequest::Precached;
+	}
+
 	static void ModifyCompilationEnvironment(const FGlobalShaderPermutationParameters& Parameters, FShaderCompilerEnvironment& OutEnvironment)
 	{
 		FGlobalShader::ModifyCompilationEnvironment(Parameters, OutEnvironment);
@@ -514,6 +545,28 @@ class FShadeLightSamplesCS : public FGlobalShader
 	static bool ShouldCompilePermutation(const FGlobalShaderPermutationParameters& Parameters)
 	{
 		return ManyLights::ShouldCompileShaders(Parameters);
+	}
+
+	static EShaderPermutationPrecacheRequest ShouldPrecachePermutation(const FGlobalShaderPermutationParameters& Parameters)
+	{
+		FPermutationDomain PermutationVector(Parameters.PermutationId);
+
+		if (PermutationVector.Get<FIESProfile>() != (CVarManyLightsIESProfiles.GetValueOnAnyThread() != 0))
+		{
+			return EShaderPermutationPrecacheRequest::NotUsed;
+		}
+
+		if (PermutationVector.Get<FTexturedRectLights>() != (CVarManyLightsTexturedRectLights.GetValueOnAnyThread() != 0))
+		{
+			return EShaderPermutationPrecacheRequest::NotUsed;
+		}
+
+		if (PermutationVector.Get<FDebugMode>())
+		{
+			return EShaderPermutationPrecacheRequest::NotPrecached;
+		}
+
+		return EShaderPermutationPrecacheRequest::Precached;
 	}
 
 	static void ModifyCompilationEnvironment(const FGlobalShaderPermutationParameters& Parameters, FShaderCompilerEnvironment& OutEnvironment)
