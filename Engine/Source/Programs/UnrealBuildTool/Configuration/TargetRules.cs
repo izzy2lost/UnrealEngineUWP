@@ -1968,6 +1968,13 @@ namespace UnrealBuildTool
 		public StaticAnalyzerMode StaticAnalyzerMode { get; set; } = StaticAnalyzerMode.Deep;
 
 		/// <summary>
+		/// The level of warnings to print when analyzing using PVS-Studio
+		/// </summary>
+		[CommandLine("-StaticAnalyzerPVSPrintLevel")]
+		[XmlConfigFile(Category = "BuildConfiguration")]
+		public int StaticAnalyzerPVSPrintLevel { get; set; } = 1;
+
+		/// <summary>
 		/// Only run static analysis against project modules, skipping engine modules
 		/// </summary>
 		[CommandLine("-StaticAnalyzerProjectOnly")]
