@@ -15,6 +15,8 @@
 #include "MVVMDeveloperProjectSettings.h"
 #include "MVVMEditorSubsystem.h"
 #include "PropertyHandle.h"
+#include "PropertyRestriction.h"
+#include "View/MVVMViewModelContextResolver.h"
 
 #include "Framework/MultiBox/MultiBoxBuilder.h"
 #include "WidgetBlueprintEditor.h"
@@ -133,6 +135,37 @@ namespace Private
 		}
 		return nullptr;
 	}
+
+	class FResolverClassFilter : public IClassViewerFilter
+	{
+	public:
+		const UClass* ViewModelClass = nullptr;
+
+		virtual bool IsClassAllowed(const FClassViewerInitializationOptions& InInitOptions, const UClass* InClass, TSharedRef< FClassViewerFilterFuncs > InFilterFuncs) override
+		{
+			if (ViewModelClass && InClass->IsChildOf(UMVVMViewModelContextResolver::StaticClass()))
+			{
+				return InClass->GetDefaultObject<UMVVMViewModelContextResolver>()->DoesSupportViewModelClass(ViewModelClass);
+			}
+
+			return false;
+		}
+
+		virtual bool IsUnloadedClassAllowed(const FClassViewerInitializationOptions& InInitOptions, const TSharedRef<const IUnloadedBlueprintData> InBlueprint, TSharedRef< FClassViewerFilterFuncs > InFilterFuncs) override
+		{
+			if (ViewModelClass && InBlueprint->IsChildOf(UMVVMViewModelContextResolver::StaticClass()))
+			{
+				// Load the Blueprint
+				FSoftObjectPath BlueprintPath = FSoftObjectPath(InBlueprint->GetClassPathName());
+				if (UClass* LoadedClass = Cast<UClass>(BlueprintPath.TryLoad()))
+				{
+					return LoadedClass->GetDefaultObject<UMVVMViewModelContextResolver>()->DoesSupportViewModelClass(ViewModelClass);
+				}
+			}
+			return false;
+		}
+	};
+
 }
 
 FBlueprintViewModelContextDetailCustomization::FBlueprintViewModelContextDetailCustomization(TWeakPtr<FWidgetBlueprintEditor> InEditor)
@@ -152,6 +185,7 @@ void FBlueprintViewModelContextDetailCustomization::CustomizeChildren(TSharedRef
 		return;
 	}
 
+	UClass* ViewModelClass = nullptr;
 	FGuid ViewModelContextId = ContextPtr->GetViewModelId();
 	FName ViewModelPropertyName = ContextPtr->GetViewModelName();
 	bool bCanEdit = ContextPtr->bCanEdit;
@@ -167,7 +201,7 @@ void FBlueprintViewModelContextDetailCustomization::CustomizeChildren(TSharedRef
 		UObject* Object = nullptr;
 		if (NotifyFieldValueClassHandle->GetValue(Object) == FPropertyAccess::Success)
 		{
-			UClass* ViewModelClass = Cast<UClass>(Object);
+			ViewModelClass = Cast<UClass>(Object);
 			if (ViewModelClass)
 			{
 				AllowedCreationTypes = GetAllowedContextCreationType(ViewModelClass);
@@ -319,6 +353,13 @@ void FBlueprintViewModelContextDetailCustomization::CustomizeChildren(TSharedRef
 		TSharedPtr<IPropertyHandle> ResolverHandle = PropertyHandle->GetChildHandle(GET_MEMBER_NAME_CHECKED(FMVVMBlueprintViewModelContext, Resolver), false);
 		if (ensure(ResolverHandle))
 		{
+			TSharedRef<Private::FResolverClassFilter> ClassFilter = MakeShared<Private::FResolverClassFilter>();
+			ClassFilter->ViewModelClass = ViewModelClass;
+			TSharedRef<FPropertyRestriction> Restriction = MakeShared<FPropertyRestriction>(LOCTEXT("ResolverPropertyRestriction", "Resolver Property Restriction"));
+			Restriction->AddClassFilter(ClassFilter);
+
+			ResolverHandle->AddRestriction(Restriction);
+
 			ChildBuilder.AddProperty(ResolverHandle.ToSharedRef())
 				.IsEnabled(bCanEdit)
 				.Visibility(MakeAttributeLambda([ContextPtr]()
