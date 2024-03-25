@@ -76,6 +76,14 @@ int32 UCustomizableObjectValidationCommandlet::Main(const FString& Params)
 		// Set the target compilation platform based on what the caller wants
 		CompilationOptions.TargetPlatform = TargetCompilationPlatform;
 
+		// Disk cache usage for compilation operation : Override if the user provided an argument with a different value than the default one of the CO
+		bool bUseDiskCacheForCompilation = false;
+		if (FParse::Bool(*Params,TEXT("UseDiskCompilation="),bUseDiskCacheForCompilation))
+		{
+			// Set the disk cache configuration
+			CompilationOptions.bUseDiskCompilation = bUseDiskCacheForCompilation;
+		}
+
 		bWasCoCompilationSuccessful = CompileCustomizableObject(ToTestCustomizableObject, true, &CompilationOptions);
 	}
 	// -------------------------------------------------------------------------------------------------------------- //
