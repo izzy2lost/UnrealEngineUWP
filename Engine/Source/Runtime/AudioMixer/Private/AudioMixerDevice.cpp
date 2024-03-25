@@ -1097,7 +1097,7 @@ namespace Audio
 		if (IsReverbPluginEnabled() && ReverbPluginInterface)
 		{
 			LLM_SCOPE(ELLMTag::AudioMixerPlugins);
-			USoundSubmix* ReverbPluginSubmix = ReverbPluginInterface->GetSubmix();
+			USoundSubmix* ReverbPluginSubmix = ReverbPluginInterface->LoadSubmix();
 			check(ReverbPluginSubmix);
 			ReverbPluginSubmix->AddToRoot();
 

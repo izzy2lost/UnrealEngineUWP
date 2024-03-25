@@ -1653,14 +1653,17 @@ namespace Audio
 		if (SpatializationInfo.bReturnsToSubmixGraph)
 		{
 			USoundSubmix* ReturnSubmix = MixerDevice->ReverbPluginInterface->GetSubmix();
-			FMixerSubmixWeakPtr CurrReturnSubmixWeakPtr = MixerDevice->GetSubmixInstance(ReturnSubmix);
-			FMixerSubmixPtr CurrReturnSubmixPtr = CurrReturnSubmixWeakPtr.Pin();
-			while (CurrReturnSubmixPtr && CurrReturnSubmixPtr->IsValid())
+			if (ReturnSubmix)
 			{
-				ReturnSubmixAncestors.Add(CurrReturnSubmixPtr->GetId());
+				FMixerSubmixWeakPtr CurrReturnSubmixWeakPtr = MixerDevice->GetSubmixInstance(ReturnSubmix);
+				FMixerSubmixPtr CurrReturnSubmixPtr = CurrReturnSubmixWeakPtr.Pin();
+				while (CurrReturnSubmixPtr && CurrReturnSubmixPtr->IsValid())
+				{
+					ReturnSubmixAncestors.Add(CurrReturnSubmixPtr->GetId());
 
-				CurrReturnSubmixWeakPtr = CurrReturnSubmixPtr->GetParent();
-				CurrReturnSubmixPtr = CurrReturnSubmixWeakPtr.Pin();
+					CurrReturnSubmixWeakPtr = CurrReturnSubmixPtr->GetParent();
+					CurrReturnSubmixPtr = CurrReturnSubmixWeakPtr.Pin();
+				}
 			}
 
 		}

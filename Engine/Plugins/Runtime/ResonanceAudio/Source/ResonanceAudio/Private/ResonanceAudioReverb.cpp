@@ -186,7 +186,11 @@ namespace ResonanceAudio
 
 	USoundSubmix* FResonanceAudioReverb::GetSubmix()
 	{
+		return ReverbSubmixPtr;
+	}
 
+	USoundSubmix* FResonanceAudioReverb::LoadSubmix()
+	{
 		if (ReverbSubmixPtr)
 		{
 			return ReverbSubmixPtr;

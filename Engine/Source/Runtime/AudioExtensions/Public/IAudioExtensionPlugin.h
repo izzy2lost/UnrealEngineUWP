@@ -662,6 +662,11 @@ public:
 	/** Returns the plugin-managed effect submix instance */
 	virtual FSoundEffectSubmixPtr GetEffectSubmix() = 0;
 
+	virtual USoundSubmix* LoadSubmix()
+	{
+		return GetSubmix();
+	}
+
 	/** Returns the plugin-managed effect submix */
 	virtual USoundSubmix* GetSubmix() = 0;
 
