@@ -72,6 +72,7 @@ public:
 	const TSharedPtr<FArchive> GetResponseBodyReceiveStream() const;
 
 PACKAGE_SCOPE:
+	using FHttpRequestCommon::BroadcastResponseHeadersReceived;
 	using FHttpRequestCommon::TriggerStatusCodeReceivedDelegate;
 	using FHttpRequestCommon::SetEffectiveURL;
 
