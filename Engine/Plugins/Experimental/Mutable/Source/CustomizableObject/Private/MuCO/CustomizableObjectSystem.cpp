@@ -1637,11 +1637,8 @@ namespace impl
 
 		for (int32 ComponentIndex = 0; ComponentIndex < Operation->NumComponents; ++ComponentIndex)
 		{
-			// Ensure we're generating at least one LOD
-			for (int32 LODIndex = Operation->NumLODsAvailable - 1; LODIndex < MAX_MESH_LOD_COUNT; ++LODIndex)
-			{
-				RequestedLODs[ComponentIndex] |= (1 << LODIndex);
-			}
+			// Clamp value to the valid LOD range.
+			RequestedLODs[ComponentIndex] = FMath::Min(RequestedLODs[ComponentIndex], (uint16)(Operation->NumLODsAvailable - 1));
 		}
 
 		Operation->SetRequestedLODs(RequestedLODs);
@@ -1688,6 +1685,8 @@ namespace impl
 			return;
 		}
 
+		const TArray<uint16>& RequestedLODs = OperationData->GetRequestedLODs();
+
 		// Map SharedSurfaceId to surface index
 		TArray<int32> SurfacesSharedId;
 
@@ -1713,8 +1712,7 @@ namespace impl
 				Component.FirstSurface = OperationData->InstanceUpdateData.Surfaces.Num();
 				Component.SurfaceCount = 0;
 
-				const TArray<uint16>& RequestedLODs = OperationData->GetRequestedLODs();
-				const bool bGenerateLOD = RequestedLODs.IsValidIndex(Component.Id) ? (RequestedLODs[Component.Id] & (1 << MutableLODIndex)) != 0 : true;
+				const bool bGenerateLOD = RequestedLODs.IsValidIndex(Component.Id) ? RequestedLODs[Component.Id] <= MutableLODIndex : true;
 
 				// Mesh
 				if (Instance->GetMeshCount(MutableLODIndex, ComponentIndex) > 0)
@@ -2601,16 +2599,16 @@ namespace impl
 
 		Operation->MeshDescriptors.SetNum(NumComponents);
 
+		const TArray<uint16>& RequestedLODs = Operation->GetRequestedLODs();
 		for (int32 ComponentIndex = 0; ComponentIndex < NumComponents; ++ComponentIndex)
 		{
 			TArray<mu::FResourceID>& MeshId = Operation->MeshDescriptors[ComponentIndex];
 			MeshId.Init(MAX_uint64, MAX_MESH_LOD_COUNT);
 
-			const TArray<uint16>& RequestedLODs = Operation->GetRequestedLODs();
 			
 			for (int32 LODIndex = Operation->GetMinLOD(); LODIndex < Operation->NumLODsAvailable; ++LODIndex)
 			{
-				const bool bGenerateLOD = RequestedLODs.IsValidIndex(ComponentIndex) ? (RequestedLODs[ComponentIndex] & (1 << LODIndex)) != 0 : true;
+				const bool bGenerateLOD = RequestedLODs.IsValidIndex(ComponentIndex) ? RequestedLODs[ComponentIndex] <= LODIndex : true;
 				if (bGenerateLOD)
 				{
 					MeshId[LODIndex] = Operation->MutableInstance->GetMeshId(LODIndex, ComponentIndex, 0);
@@ -2809,7 +2807,7 @@ namespace impl
 			bIsInEditorViewport)
 		{
 			TArray<uint16> RequestedLODs = Operation->GetRequestedLODs();
-			RequestedLODs.Init(MAX_uint8, Operation->NumComponents);
+			RequestedLODs.Init(0, Operation->NumComponents);
 
 			Operation->SetRequestedLODs(RequestedLODs);
 		}

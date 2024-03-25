@@ -3487,7 +3487,7 @@ void UCustomizableInstancePrivate::BuildOrCopyElementData(const TSharedRef<FUpda
 {
 	MUTABLE_CPUPROFILER_SCOPE(UCustomizableInstancePrivate::BuildOrCopyElementData);
 
-	for (int32 LODIndex = OperationData->NumLODsAvailable - 1; LODIndex >= FirstLODAvailable; --LODIndex)
+	for (int32 LODIndex = FirstLODAvailable; LODIndex < OperationData->NumLODsAvailable; ++LODIndex)
 	{
 		const FInstanceUpdateData::FLOD& LOD = OperationData->InstanceUpdateData.LODs[LODIndex];
 
@@ -6347,12 +6347,12 @@ void UCustomizableObjectInstance::SetRequestedLODs(int32 InMinLOD, int32 , const
 
 	// Clamp Min LOD
 	const int32 MinLODIdx = GetCustomizableObject()->GetPrivate()->GetMinLODIndex();
-	InMinLOD = FMath::Min(FMath::Max(InMinLOD, MinLODIdx), (int32)PrivateData->NumMaxLODsToStream);
+	const int32 MaxLODIdx = PrivateData->NumLODsAvailable - 1;
+	InMinLOD = FMath::Clamp(InMinLOD, MinLODIdx, MaxLODIdx);
 
 	const bool bMinLODChanged = Descriptor.MinLOD != InMinLOD;
 
-	const bool bIsDowngradeLODUpdate = GetCurrentMinLOD() >= 0 && InMinLOD > GetCurrentMinLOD();
-	PrivateData->SetCOInstanceFlags(bIsDowngradeLODUpdate ? PendingLODsDowngrade : ECONone);
+	PrivateData->SetCOInstanceFlags(InMinLOD > GetCurrentMinLOD() ? PendingLODsDowngrade : ECONone);
 
 	// Save the new LODs
 	MutableUpdateCandidate.MinLOD = InMinLOD;
@@ -6361,8 +6361,13 @@ void UCustomizableObjectInstance::SetRequestedLODs(int32 InMinLOD, int32 , const
 	bool bUpdateRequestedLODs = false;
 	if (UCustomizableObjectSystem::GetInstance()->IsOnlyGenerateRequestedLODsEnabled())
 	{
+		const uint16 FirstNonStreamedLODIndex = FMath::Clamp(PrivateData->NumMaxLODsToStream, 0, MaxLODIdx);
+
 		const int32 ComponentCount = GetNumComponents();
-		MutableUpdateCandidate.RequestedLODLevels.SetNumZeroed(ComponentCount);
+		if (ComponentCount != MutableUpdateCandidate.RequestedLODLevels.Num())
+		{
+			MutableUpdateCandidate.RequestedLODLevels.Init(FirstNonStreamedLODIndex, ComponentCount);
+		}
 
 		const TArray<uint16>& GeneratedLODsPerComponent = GetPrivate()->CommittedDescriptorHash.RequestedLODsPerComponent;
 
@@ -6375,32 +6380,17 @@ void UCustomizableObjectInstance::SetRequestedLODs(int32 InMinLOD, int32 , const
 			bUpdateRequestedLODs = bIgnoreGeneratedLODs;
 			for (int32 ComponentIndex = 0; ComponentIndex < ComponentCount; ++ComponentIndex)
 			{
-				// Find the first requested LOD. We'll generate [FirstRequestedLOD ... MaxLOD].
-				int32 FirstRequestedLOD = FMath::Max(((int32)PrivateData->NumMaxLODsToStream) - 1, 0);
-				for (int32 LODIndex = 0; LODIndex < FirstRequestedLOD; ++LODIndex)
+				uint16 PredictedLOD = FMath::Min(InRequestedLODsPerComponent[ComponentIndex], FirstNonStreamedLODIndex);
+
+				if (!bIgnoreGeneratedLODs)
 				{
-					if ((!bIgnoreGeneratedLODs && GeneratedLODsPerComponent[ComponentIndex] & (1 << LODIndex))
-						||
-						InRequestedLODsPerComponent[ComponentIndex] & (1 << LODIndex))
-					{
-						// First RequestedLOD that fall within the range
-						FirstRequestedLOD = LODIndex >= MutableUpdateCandidate.MinLOD ? LODIndex : MutableUpdateCandidate.MinLOD;
-					}
+					PredictedLOD = FMath::Min(PredictedLOD, GeneratedLODsPerComponent[ComponentIndex]);
 				}
 
-				// Generate at least the MaxLOD
-				int32 RequestedLODs = 1 << FirstRequestedLOD;
-
-				// Mark all LODs up until MAX_MESH_LOD_COUNT since MaxLOD can be set to Max_int32
-				for (int32 LODIndex = FirstRequestedLOD; LODIndex < MAX_MESH_LOD_COUNT; ++LODIndex)
-				{
-					RequestedLODs |= (1 << LODIndex);
-				}
-				
-				bUpdateRequestedLODs |= (RequestedLODs != MutableUpdateCandidate.RequestedLODLevels[ComponentIndex]);
+				bUpdateRequestedLODs |= (PredictedLOD != MutableUpdateCandidate.RequestedLODLevels[ComponentIndex]);
 
 				// Save new RequestedLODs
-				MutableUpdateCandidate.RequestedLODLevels[ComponentIndex] = RequestedLODs;
+				MutableUpdateCandidate.RequestedLODLevels[ComponentIndex] = PredictedLOD;
 			}
 		}
 	}
