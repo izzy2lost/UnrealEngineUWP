@@ -2789,7 +2789,13 @@ TSharedPtr<SWidget> SAnimNotifyTrack::SummonContextMenu(const FGeometry& MyGeome
 		CreateContextMenuContent(BaseMenuName);
 	}
 
-	TSharedPtr<SWidget> MenuWidget = ToolMenus->GenerateWidget(BaseMenuName, FToolMenuContext(MenuContext));
+	FToolMenuContext ToolMenuContext(MenuContext);
+	if (WeakCommandList.IsValid())
+	{
+		ToolMenuContext.AppendCommandList(WeakCommandList.Pin());
+	}
+
+	TSharedPtr<SWidget> MenuWidget = ToolMenus->GenerateWidget(BaseMenuName, ToolMenuContext);
 
 	if (MenuWidget.IsValid())
 	{
