@@ -200,8 +200,9 @@ struct FSessionContext
 	TCHAR 					GameStateName[CR_MAX_GENERIC_FIELD_CHARS];
 	TCHAR 					CrashConfigFilePath[CR_MAX_DIRECTORY_CHARS];
 	TCHAR					AttendedStatus[CR_MAX_GENERIC_FIELD_CHARS];
-	char					PlatformName[CR_MAX_GENERIC_FIELD_CHARS];
-	char					PlatformNameIni[CR_MAX_GENERIC_FIELD_CHARS];
+	TCHAR					PlatformName[CR_MAX_GENERIC_FIELD_CHARS];
+	TCHAR					PlatformNameIni[CR_MAX_GENERIC_FIELD_CHARS];
+	TCHAR					AnticheatProvider[CR_MAX_GENERIC_FIELD_CHARS];
 	FPlatformMemoryStats	MemoryStats;
 };
 
@@ -549,6 +550,9 @@ public:
 	  * exception and use in crash reporting. 
 	  */
 	CORE_API static void SetMemoryStats(const FPlatformMemoryStats& MemoryStats);
+
+	/** Sets the Anticheat client provider. */
+	CORE_API static void SetAnticheatProvider(const FString& AnticheatProvider);
 
 	/** Attempts to create the output report directory. */
 	CORE_API static bool CreateCrashReportDirectory(const TCHAR* CrashGUIDRoot, int32 CrashIndex, FString& OutCrashDirectoryAbsolute);
