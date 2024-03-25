@@ -75,6 +75,12 @@ namespace AutomationTool.Tasks
 		public bool? Clean = null;
 
 		/// <summary>
+		/// Global flag passed to UBT that can be used to generate target files without fully compiling.
+		/// </summary>
+		[TaskParameter(Optional = true)]
+		public bool SkipBuild = false;
+
+		/// <summary>
 		/// Tag to be applied to build products of this task.
 		/// </summary>
 		[TaskParameter(Optional = true, ValidationType = TaskParameterValidationType.TagList)]
@@ -107,6 +113,11 @@ namespace AutomationTool.Tasks
 		bool bAllowAllCores = false;
 
 		/// <summary>
+		/// Should SkipBuild be passed to UBT so that only .target files are generated.
+		/// </summary>
+		bool bSkipBuild = false;
+
+		/// <summary>
 		/// Constructor
 		/// </summary>
 		/// <param name="Task">Initial task to execute</param>
@@ -128,15 +139,22 @@ namespace AutomationTool.Tasks
 				return false;
 			}
 
-			if(Targets.Count > 0)
+			CompileTaskParameters Parameters = CompileTask.Parameters;
+			if (Targets.Count > 0)
 			{
-				if (bAllowXGE != CompileTask.Parameters.AllowXGE)
+				if (bAllowXGE != Parameters.AllowXGE
+					|| bSkipBuild != Parameters.SkipBuild)
 				{
 					return false;
 				}
 			}
+			else
+			{
+				bAllowXGE = Parameters.AllowXGE;
+				bAllowAllCores = Parameters.AllowAllCores;
+				bSkipBuild = Parameters.SkipBuild;
+			}
 
-			CompileTaskParameters Parameters = CompileTask.Parameters;
 			bAllowXGE &= Parameters.AllowXGE;
 			bAllowAllCores &= Parameters.AllowAllCores;
 
@@ -167,8 +185,8 @@ namespace AutomationTool.Tasks
 			Dictionary<UnrealBuild.BuildTarget, BuildManifest> TargetToManifest = new Dictionary<UnrealBuild.BuildTarget,BuildManifest>();
 			UnrealBuild Builder = new UnrealBuild(Job.OwnerCommand);
 
-			bool bAllCores = (CommandUtils.IsBuildMachine || bAllowAllCores);	// Enable using all cores if this is a build agent or the flag was passed in to the task and XGE is disabled.
-			Builder.Build(Agenda, InDeleteBuildProducts: null, InUpdateVersionFiles: false, InForceNoXGE: !bAllowXGE, InAllCores: bAllCores, InTargetToManifest: TargetToManifest);
+			bool bAllCores = (CommandUtils.IsBuildMachine || bAllowAllCores);   // Enable using all cores if this is a build agent or the flag was passed in to the task and XGE is disabled.
+			Builder.Build(Agenda, InDeleteBuildProducts: null, InUpdateVersionFiles: false, InForceNoXGE: !bAllowXGE, InAllCores: bAllCores, InTargetToManifest: TargetToManifest, InSkipBuild: bSkipBuild);
 
 			UnrealBuild.CheckBuildProducts(Builder.BuildProductFiles);
 

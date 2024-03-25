@@ -146,7 +146,7 @@ namespace AutomationTool
 			}
 		}
 
-		void BuildWithUBT(List<BuildTarget> Targets, Dictionary<BuildTarget, BuildManifest> TargetToManifest, bool DisableXGE, bool AllCores)
+		void BuildWithUBT(List<BuildTarget> Targets, Dictionary<BuildTarget, BuildManifest> TargetToManifest, bool DisableXGE, bool AllCores, bool SkipBuild)
 		{
 			List<FileReference> ManifestFiles = new List<FileReference>(Targets.Count);
 
@@ -174,6 +174,10 @@ namespace AutomationTool
 			if (AllCores)
 			{
 				FullCommandLine.Append(" -AllCores");
+			}
+			if (SkipBuild)
+			{
+				FullCommandLine.Append(" -SkipBuild");
 			}
 
 			PrepareUBT();
@@ -524,7 +528,7 @@ namespace AutomationTool
 		/// <param name="InAllCores">If true AND XGE not present or not being used then ensure UBT uses all available cores</param>
 		/// <param name="InChangelistNumberOverride"></param>
 		/// <param name="InTargetToManifest"></param>
-		public void Build(BuildAgenda Agenda, bool? InDeleteBuildProducts = null, bool InUpdateVersionFiles = true, bool InForceNoXGE = false, bool InAllCores = false, int? InChangelistNumberOverride = null, Dictionary<BuildTarget, BuildManifest> InTargetToManifest = null)
+		public void Build(BuildAgenda InAgenda, bool? InDeleteBuildProducts = null, bool InUpdateVersionFiles = true, bool InForceNoXGE = false, bool InAllCores = false, int? InChangelistNumberOverride = null, Dictionary<BuildTarget, BuildManifest> InTargetToManifest = null, bool InSkipBuild = false)
 		{
 			if (!CommandUtils.CmdEnv.HasCapabilityToCompile)
 			{
@@ -540,7 +544,7 @@ namespace AutomationTool
 
 			// make a set of unique platforms involved
 			var UniquePlatforms = new List<UnrealTargetPlatform>();
-			foreach (var Target in Agenda.Targets)
+			foreach (var Target in InAgenda.Targets)
 			{
 				if (!UniquePlatforms.Contains(Target.Platform))
 				{
@@ -548,21 +552,21 @@ namespace AutomationTool
 				}
 			}
 
-			if (Agenda.SwarmAgentProject != "")
+			if (InAgenda.SwarmAgentProject != "")
 			{
-				string SwarmAgentSolution = Path.Combine(CommandUtils.CmdEnv.LocalRoot, Agenda.SwarmAgentProject);
+				string SwarmAgentSolution = Path.Combine(CommandUtils.CmdEnv.LocalRoot, InAgenda.SwarmAgentProject);
 				CommandUtils.BuildSolution(CommandUtils.CmdEnv, SwarmAgentSolution, "Development", "Mixed Platforms");
 				AddSwarmBuildProducts();
 			}
 
-			if (Agenda.SwarmCoordinatorProject != "")
+			if (InAgenda.SwarmCoordinatorProject != "")
 			{
-				string SwarmCoordinatorSolution = Path.Combine(CommandUtils.CmdEnv.LocalRoot, Agenda.SwarmCoordinatorProject);
+				string SwarmCoordinatorSolution = Path.Combine(CommandUtils.CmdEnv.LocalRoot, InAgenda.SwarmCoordinatorProject);
 				CommandUtils.BuildSolution(CommandUtils.CmdEnv, SwarmCoordinatorSolution, "Development", "Mixed Platforms");
 				AddSwarmBuildProducts();
 			}
 				
-			foreach (var DotNetProject in Agenda.DotNetProjects)
+			foreach (var DotNetProject in InAgenda.DotNetProjects)
 			{
 				string CsProj = Path.Combine(CommandUtils.CmdEnv.LocalRoot, DotNetProject);
 				CommandUtils.BuildCSharpProject(CommandUtils.CmdEnv, CsProj);
@@ -577,7 +581,7 @@ namespace AutomationTool
 			Logger.LogDebug("************************* UseXGE: {bCanUseXGE}", bCanUseXGE);
 
 			// Clean all the targets
-			foreach (BuildTarget Target in Agenda.Targets)
+			foreach (BuildTarget Target in InAgenda.Targets)
 			{
 				bool bClean = Target.Clean ?? DeleteBuildProducts;
 				if (bClean)
@@ -586,7 +590,7 @@ namespace AutomationTool
 				}
 			}
 
-			List<BuildTarget> Targets = new List<BuildTarget>(Agenda.Targets);
+			List<BuildTarget> Targets = new List<BuildTarget>(InAgenda.Targets);
 
 			// Temporary hack: iOS & tvOS configs need to build separately
 			if (Targets.Any(x => x.Platform == UnrealTargetPlatform.IOS || x.Platform == UnrealTargetPlatform.TVOS))
@@ -601,7 +605,7 @@ namespace AutomationTool
 						if (ConfigTargets.Count > 0)
 						{
 							// Build all the targets
-							BuildWithUBT(ConfigTargets, InTargetToManifest, bDisableXGE, InAllCores);
+							BuildWithUBT(ConfigTargets, InTargetToManifest, bDisableXGE, InAllCores, InSkipBuild);
 						}
 					}
 				}
@@ -615,7 +619,7 @@ namespace AutomationTool
 			}
 
 			// Build all the targets
-			BuildWithUBT(Targets, InTargetToManifest, bDisableXGE, InAllCores);
+			BuildWithUBT(Targets, InTargetToManifest, bDisableXGE, InAllCores, InSkipBuild);
 		}
 
 		/// <summary>
