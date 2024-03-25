@@ -27,6 +27,7 @@ namespace UE
 			ActionDataObject->SetBoolField(GetDoesConvertSceneJsonKey(), GetDoesConvertScene());
 			ActionDataObject->SetBoolField(GetDoesForceFrontXAxisJsonKey(), GetDoesForceFrontXAxis());
 			ActionDataObject->SetBoolField(GetDoesConvertSceneUnitJsonKey(), GetDoesConvertSceneUnit());
+			ActionDataObject->SetBoolField(GetDoesKeepFbxNamespaceJsonKey(), GetDoesKeepFbxNamespace());
 			CmdObject->SetObjectField(GetCommandDataJsonKey(), ActionDataObject);
 
 			FString LoadSourceCmd;
@@ -87,6 +88,10 @@ namespace UE
 				return false;
 			}
 			if (!((*ActionDataObject)->TryGetBoolField(GetDoesConvertSceneUnitJsonKey(), bConvertSceneUnit)))
+			{
+				return false;
+			}
+			if (!((*ActionDataObject)->TryGetBoolField(GetDoesKeepFbxNamespaceJsonKey(), bKeepFbxNamespace)))
 			{
 				return false;
 			}

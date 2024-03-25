@@ -95,12 +95,14 @@ namespace UE
 				, const FString& InSourceFilename
 				, const bool InbConvertScene
 				, const bool InbForceFrontXAxis
-				, const bool InbConvertSceneUnit)
+				, const bool InbConvertSceneUnit
+				, const bool InbKeepFbxNamespace)
 				: TranslatorID(InTranslatorID)
 				, SourceFilename(InSourceFilename)
 				, bConvertScene(InbConvertScene)
 				, bForceFrontXAxis(InbForceFrontXAxis)
 				, bConvertSceneUnit(InbConvertSceneUnit)
+				, bKeepFbxNamespace(InbKeepFbxNamespace)
 			{
 				bIsDataInitialize = true;
 			}
@@ -173,6 +175,19 @@ namespace UE
 				return Key;
 			}
 
+			bool GetDoesKeepFbxNamespace() const
+			{
+				//Code should not do query data if the data was not set before
+				ensure(bIsDataInitialize);
+				return bKeepFbxNamespace;
+			}
+
+			static FString GetDoesKeepFbxNamespaceJsonKey()
+			{
+				static const FString Key = TEXT("KeepFbxNamespace");
+				return Key;
+			}
+
 			/**
 			 * Use this class helper to create the cmd result json string and to read it
 			 */
@@ -205,6 +220,7 @@ namespace UE
 			bool bConvertScene = true;
 			bool bForceFrontXAxis = false;
 			bool bConvertSceneUnit = true;
+			bool bKeepFbxNamespace = false;
 		};
 
 		class INTERCHANGEDISPATCHER_API FJsonFetchPayloadCmd : public IJsonCmdBase

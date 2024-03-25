@@ -67,9 +67,9 @@ namespace UE::Interchange
 		FbxParserPrivate->SetResultContainer(Result);
 	}
 
-	void FInterchangeFbxParser::SetConvertSettings(const bool InbConvertScene, const bool InbForceFrontXAxis, const bool InbConvertSceneUnit)
+	void FInterchangeFbxParser::SetConvertSettings(const bool InbConvertScene, const bool InbForceFrontXAxis, const bool InbConvertSceneUnit, const bool InbKeepFbxNamespace)
 	{
-		FbxParserPrivate->SetConvertSettings(InbConvertScene, InbForceFrontXAxis, InbConvertSceneUnit);
+		FbxParserPrivate->SetConvertSettings(InbConvertScene, InbForceFrontXAxis, InbConvertSceneUnit, InbKeepFbxNamespace);
 	}
 
 	void FInterchangeFbxParser::LoadFbxFile(const FString& Filename, const FString& ResultFolder)

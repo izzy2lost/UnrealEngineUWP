@@ -126,30 +126,6 @@ namespace UE
 					//Replace None by Null because None clash with NAME_None and the create asset will instead call the object ClassName_X
 					ObjName = TEXT("Null");
 				}
-				
-				//Material name clash have to be sorted here since the unique ID is only compose of the name.
-				//If we do not do it only one material node will be created.
-				if (Object->Is<FbxSurfaceMaterial>())
-				{
-					const FbxObject* SurfaceMaterialClash = MaterialNameClashMap.FindOrAdd(ObjName);
-					if (SurfaceMaterialClash != nullptr && SurfaceMaterialClash != Object)
-					{
-						int32 UniqueID = 1;
-						FString MaterialNameClash;
-						bool bBreak = false;
-						do
-						{
-							MaterialNameClash = ObjName + TEXT(NAMECLASH1_KEY) + FString::FromInt(UniqueID++);
-							SurfaceMaterialClash = MaterialNameClashMap.FindOrAdd(MaterialNameClash);
-							if (SurfaceMaterialClash == nullptr || SurfaceMaterialClash == Object)
-							{
-								bBreak = true;
-							}
-						} while (!bBreak);
-						ObjName = MaterialNameClash;
-					}
-					MaterialNameClashMap.FindChecked(ObjName) = Object;
-				}
 
 				return ObjName;
 			}

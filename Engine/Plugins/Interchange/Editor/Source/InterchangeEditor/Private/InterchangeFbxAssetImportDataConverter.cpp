@@ -3,6 +3,7 @@
 
 #include "Animation/AnimSequence.h"
 #include "Animation/Skeleton.h"
+#include "Editor/EditorPerProjectUserSettings.h"
 #include "EditorFramework/AssetImportData.h"
 #include "Engine/SkeletalMesh.h"
 #include "Engine/SkinnedAssetCommon.h"
@@ -663,6 +664,7 @@ namespace UE::Interchange::Private
 		InterchangeFbxTranslatorSettings->bConvertScene = FbxAssetImportData->bConvertScene;
 		InterchangeFbxTranslatorSettings->bForceFrontXAxis = FbxAssetImportData->bForceFrontXAxis;
 		InterchangeFbxTranslatorSettings->bConvertSceneUnit = FbxAssetImportData->bConvertSceneUnit;
+		InterchangeFbxTranslatorSettings->bKeepFbxNamespace = GetDefault<UEditorPerProjectUserSettings>()->bKeepFbxNamespace;
 		DestinationData->SetTranslatorSettings(InterchangeFbxTranslatorSettings);
 
 		if (const UFbxStaticMeshImportData* LegacyStaticMeshImportData = Cast<UFbxStaticMeshImportData>(FbxAssetImportData))
@@ -733,6 +735,7 @@ namespace UE::Interchange::Private
 				InterchangeFbxTranslatorSettings->bConvertScene = FbxAssetImportData->bConvertScene;
 				InterchangeFbxTranslatorSettings->bForceFrontXAxis = FbxAssetImportData->bForceFrontXAxis;
 				InterchangeFbxTranslatorSettings->bConvertSceneUnit = FbxAssetImportData->bConvertSceneUnit;
+				InterchangeFbxTranslatorSettings->bKeepFbxNamespace = GetDefault<UEditorPerProjectUserSettings>()->bKeepFbxNamespace;
 				DestinationData->SetTranslatorSettings(InterchangeFbxTranslatorSettings);
 			};
 

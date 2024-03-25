@@ -49,11 +49,12 @@ namespace UE
 					ResultsContainer = Result;
 				}
 
-				void SetConvertSettings(const bool InbConvertScene, const bool InbForceFrontXAxis, const bool InbConvertSceneUnit)
+				void SetConvertSettings(const bool InbConvertScene, const bool InbForceFrontXAxis, const bool InbConvertSceneUnit, const bool InbKeepFbxNamespace)
 				{
 					bConvertScene = InbConvertScene;
 					bForceFrontXAxis = InbForceFrontXAxis;
 					bConvertSceneUnit = InbConvertSceneUnit;
+					bKeepFbxNamespace = InbKeepFbxNamespace;
 				}
 
 				//return the fbx helper for this parser
@@ -129,6 +130,7 @@ namespace UE
 				bool bConvertScene = true;
 				bool bForceFrontXAxis = false;
 				bool bConvertSceneUnit = true;
+				bool bKeepFbxNamespace = false;
 
 				struct FileDetails
 				{

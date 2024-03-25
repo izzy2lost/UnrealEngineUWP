@@ -39,6 +39,10 @@ public:
 	/** Whether to convert the scene from FBX unit to UE unit (centimeter). */
 	UPROPERTY(EditAnywhere, Category = "Fbx Translator")
 	bool bConvertSceneUnit = true;
+
+	/** Whether to keep the name space from FBX name. */
+	UPROPERTY(EditAnywhere, Category = "Fbx Translator")
+	bool bKeepFbxNamespace = false;
 };
 
 UCLASS(BlueprintType)
@@ -102,7 +106,7 @@ public:
 	virtual TFuture<TOptional<UE::Interchange::FAnimationPayloadData>> GetAnimationPayloadData(const FInterchangeAnimationPayLoadKey& PayLoadKey, const double BakeFrequency = 0, const double RangeStartSecond = 0, const double RangeStopSecond = 0) const override;
 	/* IInterchangeAnimationPayloadInterface End */
 private:
-	FString CreateLoadFbxFileCommand(const FString& FbxFilePath, const bool bConvertScene, const bool bForceFrontXAxis, const bool bConvertSceneUnit) const;
+	FString CreateLoadFbxFileCommand(const FString& FbxFilePath, const bool bConvertScene, const bool bForceFrontXAxis, const bool bConvertSceneUnit, const bool bKeepFbxNamespace) const;
 
 	FString CreateFetchMeshPayloadFbxCommand(const FString& FbxPayloadKey, const FTransform& MeshGlobalTransform) const;
 

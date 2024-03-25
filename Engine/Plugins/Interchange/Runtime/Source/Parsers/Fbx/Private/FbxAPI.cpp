@@ -261,10 +261,31 @@ namespace UE
 				}
 			}
 
+			void ManageNamespace(const bool bKeepFbxNamespace, FString& ObjectName, FbxObject* Object)
+			{
+				if (bKeepFbxNamespace)
+				{
+					if (ObjectName.Contains(TEXT(":")))
+					{
+						ObjectName = ObjectName.Replace(TEXT(":"), TEXT("_"));
+						Object->SetName(TCHAR_TO_UTF8(*ObjectName));
+					}
+				}
+				else
+				{
+					// Remove namespaces
+					int32 LastNamespaceTokenIndex = INDEX_NONE;
+					if (ObjectName.FindLastChar(TEXT(':'), LastNamespaceTokenIndex))
+					{
+						//+1 to remove the ':' character we found
+						ObjectName.RightChopInline(LastNamespaceTokenIndex + 1, EAllowShrinking::Yes);
+						Object->SetName(TCHAR_TO_UTF8(*ObjectName));
+					}
+				}
+			}
+
 			void FFbxParser::EnsureNodeNameAreValid(const FString& BaseFilename)
 			{
-				const bool bKeepNamespace = false;//Todo use: GetDefault<UEditorPerProjectUserSettings>()->bKeepFbxNamespace;
-
 				TSet<FString> AllNodeName;
 				int32 CurrentNameIndex = 1;
 				for (int32 NodeIndex = 0; NodeIndex < SDKScene->GetNodeCount(); ++NodeIndex)
@@ -285,14 +306,8 @@ namespace UE
 							Message->Text = FText::Format(LOCTEXT("EnsureNodeNameAreValid_NoNodeName", "Interchange FBX file Loading: Found node with no name, new node name is '{0}'"), FText::FromString(NodeName));
 						}
 					}
-					if (bKeepNamespace)
-					{
-						if (NodeName.Contains(TEXT(":")))
-						{
-							NodeName = NodeName.Replace(TEXT(":"), TEXT("_"));
-							Node->SetName(TCHAR_TO_UTF8(*NodeName));
-						}
-					}
+					ManageNamespace(bKeepFbxNamespace, NodeName, Node);
+					
 					// Do not allow node to be named same as filename as this creates problems later on (reimport)
 					if (AllNodeName.Contains(NodeName))
 					{
@@ -331,10 +346,10 @@ namespace UE
 					UInterchangeResultWarning_Generic* Message = AddMessage<UInterchangeResultWarning_Generic>();
 					Message->Text = LOCTEXT("MissingBindPose", "Missing bind pose - the FBX SDK has created one.");
 				}
-
-				auto MakeFbxObjectNameUnique = [](FbxObject* Object, TMap<FString, int32>& Names)
+				auto MakeFbxObjectNameUnique = [bKeepFbxNamespaceClosure = bKeepFbxNamespace](FbxObject* Object, TMap<FString, int32>& Names)
 					{
 						FString ObjectName = UTF8_TO_TCHAR(Object->GetName());
+						ManageNamespace(bKeepFbxNamespaceClosure, ObjectName, Object);
 						if (int32* Count = Names.Find(ObjectName))
 						{
 							(*Count)++;
@@ -354,6 +369,11 @@ namespace UE
 				for (int32 NodeIndex = 0; NodeIndex < SDKScene->GetNodeCount(); ++NodeIndex)
 				{
 					FbxNode* Node = SDKScene->GetNode(NodeIndex);
+					FString NodeName = UTF8_TO_TCHAR(Node->GetName());
+					if (NodeName.IsEmpty())
+					{
+						Node->SetName(TCHAR_TO_UTF8(TEXT("Node")));
+					}
 					MakeFbxObjectNameUnique(Node, NodeNames);
 				}
 
@@ -373,7 +393,27 @@ namespace UE
 					{
 						continue;
 					}
+					FString MeshName = UTF8_TO_TCHAR(Mesh->GetName());
+					if (MeshName.IsEmpty())
+					{
+						Mesh->SetName(TCHAR_TO_UTF8(TEXT("Mesh")));
+					}
 					MakeFbxObjectNameUnique(Mesh, MeshNames);
+				}
+
+				/////////////////////////////////////////////////////////////////////////
+				// Ensure Material Name Validity (uniqueness)
+				// Name clash must be global because we will build Unique ID from the material name
+				TMap<FString, int32> MaterialNames;
+				for (int32 MaterialIndex = 0; MaterialIndex < SDKScene->GetMaterialCount(); ++MaterialIndex)
+				{
+					FbxSurfaceMaterial* Material = SDKScene->GetMaterial(MaterialIndex);
+					FString MaterialName = UTF8_TO_TCHAR(Material->GetName());
+					if (MaterialName.IsEmpty())
+					{
+						Material->SetName(TCHAR_TO_UTF8(TEXT("Material")));
+					}
+					MakeFbxObjectNameUnique(Material, MaterialNames);
 				}
 			}
 
