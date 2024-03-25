@@ -17,7 +17,7 @@
 
 TAutoConsoleVariable<bool> CVarHttpRetrySystemNonGameThreadSupportEnabled(
 	TEXT("Http.RetrySystemNonGameThreadSupportEnabled"),
-	true,
+	false,
 	TEXT("Enable retry system non-game thread support")
 );
 
