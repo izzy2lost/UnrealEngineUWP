@@ -46,7 +46,6 @@ namespace HarmonixMetasound
 		FMidiStreamReadRef MidiStreamInPin;
 
 		//** DATA
-		void DumpTransportEvent(const FMidiTimestampTransportState& TransportEvent);
 		void DumpMidiEvent(const FMidiStreamEvent& MidiEvent);
 	};
 
@@ -160,41 +159,10 @@ namespace HarmonixMetasound
 			return;
 		}
 
-		const TArray<FMidiTimestampTransportState>& TransportEvents = MidiStreamInPin->GetTransportChangesInBlock();
-		const TArray<FMidiStreamEvent>& MidiEvents = MidiStreamInPin->GetEventsInBlock();
-		auto TransportEventIterator = TransportEvents.begin();
-		auto MidiEventIterator = MidiEvents.begin();
-		while (TransportEventIterator != TransportEvents.end() || MidiEventIterator != MidiEvents.end())
+		for (const FMidiStreamEvent& Event : MidiStreamInPin->GetEventsInBlock())
 		{
-			if (TransportEventIterator != TransportEvents.end() && MidiEventIterator != MidiEvents.end())
-			{
-				if ((*TransportEventIterator).BlockSampleFrameIndex <= (*MidiEventIterator).BlockSampleFrameIndex)
-				{
-					DumpTransportEvent(*TransportEventIterator);
-					++TransportEventIterator;
-				}
-				else
-				{
-					DumpMidiEvent(*MidiEventIterator);
-					++MidiEventIterator;
-				}
-			}
-			else if (TransportEventIterator != TransportEvents.end())
-			{
-				DumpTransportEvent(*TransportEventIterator);
-				++TransportEventIterator;
-			}
-			else
-			{
-				DumpMidiEvent(*MidiEventIterator);
-				++MidiEventIterator;
-			}
+			DumpMidiEvent(Event);
 		}
-	}
-
-	void FMidiStreamLoggerOperator::DumpTransportEvent(const FMidiTimestampTransportState& TransportEvent)
-	{
-		UE_LOG(LogMIDIStreamLogger, Log, TEXT("[%d (%f)] Transport: %s"), TransportEvent.BlockSampleFrameIndex, TransportEvent.BlockSampleFrameOffset, *FMusicTransportControllable::StateToString(TransportEvent.TransportState));
 	}
 
 	void FMidiStreamLoggerOperator::DumpMidiEvent(const FMidiStreamEvent& MidiEvent)

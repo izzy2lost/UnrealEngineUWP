@@ -43,11 +43,6 @@ namespace HarmonixMetasound
 
 		//** OUTPUTS
 		FMidiStreamWriteRef MidiStreamOutPin;
-
-		//** DATA
-		TMap<uint32, FMidiVoiceGeneratorBase> GeneratorMap;
-		
-		bool bNeedsClockRefresh { true };
 	};
 
 	class FMidiStreamMergeNode : public FNodeFacade
@@ -136,8 +131,6 @@ namespace HarmonixMetasound
 
 		InVertexData.BindReadVertex(METASOUND_GET_PARAM_NAME(InputMidiStreamA), MidiStreamAInPin);
 		InVertexData.BindReadVertex(METASOUND_GET_PARAM_NAME(InputMidiStreamB), MidiStreamBInPin);
-
-		bNeedsClockRefresh = true;
 	}
 
 	void FMidiStreamMergeOperator::BindOutputs(FOutputVertexInterfaceData& InVertexData)
@@ -145,47 +138,16 @@ namespace HarmonixMetasound
 		using namespace CommonPinNames;
 
 		InVertexData.BindReadVertex(METASOUND_GET_PARAM_NAME(Outputs::MidiStream), MidiStreamOutPin);
-
-		bNeedsClockRefresh = true;
 	}
 
 	void FMidiStreamMergeOperator::Reset(const FResetParams&)
 	{
-		bNeedsClockRefresh = true;
 	}
 
 	void FMidiStreamMergeOperator::Execute()
 	{
-		// Refresh the clock for the output if inputs may have changed
-		if (bNeedsClockRefresh)
-		{
-			MidiStreamOutPin->ResetClockSource();
-			
-			// If there is a clock on the first stream, use that
-			if (const FMidiClockReadRef* ClockA = MidiStreamAInPin->GetMidiClockSource())
-			{
-				MidiStreamOutPin->SetClockSource(*ClockA);
-			}
-			// If not, and there's a clock on the second stream, use that
-			else if (const FMidiClockReadRef* ClockB = MidiStreamBInPin->GetMidiClockSource())
-			{
-				MidiStreamOutPin->SetClockSource(*ClockB);
-			}
-
-			bNeedsClockRefresh = false;
-		}
-		
 		MidiStreamOutPin->PrepareBlock();
-		TArray<FMidiStreamReadRef> SameClockStreams;
-		MidiStreamOutPin->FilterArrayToStreamsWithTheSameClock({MidiStreamAInPin, MidiStreamBInPin}, SameClockStreams);
-		MidiStreamOutPin->CopyTransportEvents(SameClockStreams);
-		MidiStreamOutPin->MergeMidiEvents(MidiStreamAInPin);
-		for (FMidiStreamEvent Event : MidiStreamBInPin->GetEventsInBlock())
-		{
-			uint32 GenId = Event.GetVoiceId().GetGeneratorId();
-			Event.ReassignOwner(&GeneratorMap.FindOrAdd(GenId));
-			MidiStreamOutPin->InsertMidiEvent(Event);
-		}
+		FMidiStream::Merge(*MidiStreamAInPin, *MidiStreamBInPin, *MidiStreamOutPin);
 		
 	}
 }

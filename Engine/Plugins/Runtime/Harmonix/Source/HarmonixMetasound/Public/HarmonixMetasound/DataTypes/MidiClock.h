@@ -57,7 +57,7 @@ namespace HarmonixMetasound
 
 	constexpr FMidiTimestampTempo InvalidMidiTimestampTempo{ -1, 0.0f, 0.0f };
 
-	class HARMONIXMETASOUND_API FMidiClock
+	class HARMONIXMETASOUND_API FMidiClock : public TSharedFromThis<FMidiClock, ESPMode::NotThreadSafe>
 	{
 	public:
 		static constexpr int32 kMidiGranularity = 128;

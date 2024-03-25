@@ -349,15 +349,12 @@ namespace HarmonixMetasound
 				{
 				case EMusicPlayerTransportState::Invalid:
 				case EMusicPlayerTransportState::Preparing:
-					MidiOutPin->AddTransportStateChangeMessage(StartFrameIndex, EMusicPlayerTransportState::Prepared);
 					return EMusicPlayerTransportState::Prepared;
 				
 				case EMusicPlayerTransportState::Prepared:
-					MidiOutPin->AddTransportStateChangeMessage(StartFrameIndex, CurrentState);
 					return CurrentState;
 				
 				case EMusicPlayerTransportState::Starting:
-					MidiOutPin->AddTransportStateChangeMessage(StartFrameIndex, EMusicPlayerTransportState::Playing);
 					return EMusicPlayerTransportState::Playing;
 
 				case EMusicPlayerTransportState::Playing:
@@ -367,11 +364,9 @@ namespace HarmonixMetasound
 					return GetTransportState();
 
 				case EMusicPlayerTransportState::Continuing:
-					MidiOutPin->AddTransportStateChangeMessage(StartFrameIndex, EMusicPlayerTransportState::Continuing);
 					return EMusicPlayerTransportState::Playing;
 
 				case EMusicPlayerTransportState::Pausing:
-					MidiOutPin->AddTransportStateChangeMessage(StartFrameIndex, EMusicPlayerTransportState::Pausing);
 					return EMusicPlayerTransportState::Paused;
 
 				case EMusicPlayerTransportState::Paused:
@@ -379,12 +374,10 @@ namespace HarmonixMetasound
 
 				case EMusicPlayerTransportState::Stopping:
 					AllNotesOff(StartFrameIndex, MidiClockInPin->GetCurrentMidiTick(), true);
-					MidiOutPin->AddTransportStateChangeMessage(StartFrameIndex, EMusicPlayerTransportState::Stopping);
 					return EMusicPlayerTransportState::Prepared;
 
 				case EMusicPlayerTransportState::Killing:
 					AllNotesOff(StartFrameIndex, MidiClockInPin->GetCurrentMidiTick(), true);
-					MidiOutPin->AddTransportStateChangeMessage(StartFrameIndex, EMusicPlayerTransportState::Killing);
 					return EMusicPlayerTransportState::Prepared;
 
 				default:
@@ -400,7 +393,7 @@ namespace HarmonixMetasound
 	void FStepSequencePlayerOperator::Init()
 	{
 		MidiOutPin->PrepareBlock();
-		MidiOutPin->SetClockSource(MidiClockInPin);
+		MidiOutPin->SetClock(*MidiClockInPin);
 		MidiClockInPin->RegisterHiResPlayCursor(this);
 
 		SequenceTable = SequenceAssetInPin->GetRenderable();
@@ -424,15 +417,12 @@ namespace HarmonixMetasound
 			{
 			case EMusicPlayerTransportState::Invalid:
 			case EMusicPlayerTransportState::Preparing:
-				MidiOutPin->AddTransportStateChangeMessage(0, EMusicPlayerTransportState::Prepared);
 				return EMusicPlayerTransportState::Prepared;
 				
 			case EMusicPlayerTransportState::Prepared:
-				MidiOutPin->AddTransportStateChangeMessage(0, CurrentState);
 				return CurrentState;
 				
 			case EMusicPlayerTransportState::Starting:
-				MidiOutPin->AddTransportStateChangeMessage(0, EMusicPlayerTransportState::Playing);
 				return EMusicPlayerTransportState::Playing;
 
 			case EMusicPlayerTransportState::Playing:
@@ -442,11 +432,9 @@ namespace HarmonixMetasound
 				return GetTransportState();
 
 			case EMusicPlayerTransportState::Continuing:
-				MidiOutPin->AddTransportStateChangeMessage(0, EMusicPlayerTransportState::Continuing);
 				return EMusicPlayerTransportState::Playing;
 
 			case EMusicPlayerTransportState::Pausing:
-				MidiOutPin->AddTransportStateChangeMessage(0, EMusicPlayerTransportState::Pausing);
 				return EMusicPlayerTransportState::Paused;
 
 			case EMusicPlayerTransportState::Paused:
@@ -454,12 +442,10 @@ namespace HarmonixMetasound
 
 			case EMusicPlayerTransportState::Stopping:
 				AllNotesOff(0, MidiClockInPin->GetCurrentMidiTick(), true);
-				MidiOutPin->AddTransportStateChangeMessage(0, EMusicPlayerTransportState::Stopping);
 				return EMusicPlayerTransportState::Prepared;
 
 			case EMusicPlayerTransportState::Killing:
 				AllNotesOff(0, MidiClockInPin->GetCurrentMidiTick(), true);
-				MidiOutPin->AddTransportStateChangeMessage(0, EMusicPlayerTransportState::Killing);
 				return EMusicPlayerTransportState::Prepared;
 
 			default:

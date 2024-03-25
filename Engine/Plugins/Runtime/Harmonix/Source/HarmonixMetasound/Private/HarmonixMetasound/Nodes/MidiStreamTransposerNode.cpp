@@ -127,20 +127,15 @@ namespace HarmonixMetasound::Nodes::MidiNoteTranspose
 			InVertexData.BindReadVertex(METASOUND_GET_PARAM_NAME(Inputs::Enable), Inputs.Enabled);
 			InVertexData.BindReadVertex(METASOUND_GET_PARAM_NAME(Inputs::MidiStream), Inputs.MidiStream);
 			InVertexData.BindReadVertex(METASOUND_GET_PARAM_NAME(Inputs::Transposition), Inputs.Transposition);
-
-			ReassignOutputClock = true;
 		}
 
 		virtual void BindOutputs(FOutputVertexInterfaceData& InVertexData) override
 		{
 			InVertexData.BindReadVertex(METASOUND_GET_PARAM_NAME(Outputs::MidiStream), Outputs.MidiStream);
-
-			ReassignOutputClock = true;
 		}
 
 		void Reset(const FResetParams&)
 		{
-			ReassignOutputClock = true;
 		}
 
 		void Execute()
@@ -148,16 +143,6 @@ namespace HarmonixMetasound::Nodes::MidiNoteTranspose
 			if (!*Inputs.Enabled)
 			{
 				return;
-			}
-			
-			if (ReassignOutputClock)
-			{
-				if (const FMidiClockReadRef* Clock = Inputs.MidiStream->GetMidiClockSource())
-				{
-					Outputs.MidiStream->SetClockSource(*Clock);
-				}
-
-				ReassignOutputClock = false;
 			}
 
 			const int32 Transposition = *Inputs.Transposition;
@@ -173,14 +158,13 @@ namespace HarmonixMetasound::Nodes::MidiNoteTranspose
 				
 				return NewEvent;
 			};
-			
-			Outputs.MidiStream->Copy(Inputs.MidiStream, [](const FMidiStreamEvent&){return true;}, Transformer);
+
+			FMidiStream::Copy(*Inputs.MidiStream, *Outputs.MidiStream, FMidiStream::NoOpFilter, Transformer);
 		}
 		
 	private:
 		FInputs Inputs;
 		FOutputs Outputs;
-		bool ReassignOutputClock = true;
 	};
 
 	class FMidiNoteTransposeNode final : public FNodeFacade
