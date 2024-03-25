@@ -234,6 +234,8 @@ struct FAuthQueryExternalAuthToken
 		FAccountId LocalAccountId;
 		/** The method of external auth to provide. */
 		EExternalAuthTokenMethod Method = EExternalAuthTokenMethod::Primary;
+		/** The Relying Party for the external auth token. */
+		FString RelyingParty;
 	};
 
 	struct Result
@@ -358,6 +360,20 @@ struct FAuthGetAllLocalOnlineUsers
 	};
 };
 
+struct FAuthGetRelyingParty
+{
+	static constexpr TCHAR Name[] = TEXT("GetRelyingParty");
+
+	struct Params
+	{
+	};
+
+	struct Result
+	{
+		FString RelyingParty;
+	};
+};
+
 /** Struct for LoginStatusChanged event */
 struct FAuthLoginStatusChanged
 {
@@ -479,6 +495,11 @@ public:
 	virtual TOnlineResult<FAuthGetAllLocalOnlineUsers> GetAllLocalOnlineUsers(FAuthGetAllLocalOnlineUsers::Params&& Params) const = 0;
 
 	/**
+	 * Retrieve the relying party to use when fetching an external token to authenticate with this interface.
+	 */
+	virtual TOnlineResult<FAuthGetRelyingParty> GetRelyingParty() const = 0;
+
+	/**
 	 * Triggered when the login status for a logged in user changes.
 	 */
 	virtual TOnlineEvent<void(const FAuthLoginStatusChanged&)> OnLoginStatusChanged() = 0;
@@ -499,6 +520,11 @@ public:
 	 * Helper for querying the login status of a local user.
 	 */
 	virtual bool IsLoggedIn(const FAccountId& AccountId) const = 0;
+
+	/**
+	 * Helper for querying the login status of a local user by platform user id.
+	 */
+	virtual bool IsLoggedIn(const FPlatformUserId& PlatformUserId) const = 0;
 };
 
 namespace Meta {
@@ -631,6 +657,13 @@ END_ONLINE_STRUCT_META()
 
 BEGIN_ONLINE_STRUCT_META(FAuthGetAllLocalOnlineUsers::Result)
 	ONLINE_STRUCT_FIELD(FAuthGetAllLocalOnlineUsers::Result, AccountInfo)
+END_ONLINE_STRUCT_META()
+
+BEGIN_ONLINE_STRUCT_META(FAuthGetRelyingParty::Params)
+END_ONLINE_STRUCT_META()
+
+BEGIN_ONLINE_STRUCT_META(FAuthGetRelyingParty::Result)
+	ONLINE_STRUCT_FIELD(FAuthGetRelyingParty::Result, RelyingParty)
 END_ONLINE_STRUCT_META()
 
 BEGIN_ONLINE_STRUCT_META(FAuthLoginStatusChanged)

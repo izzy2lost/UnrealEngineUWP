@@ -21,6 +21,7 @@ struct FEOSSDKPlatformConfig
 	FString ClientId;
 	FString ClientSecret;
 	FString EncryptionKey;
+	FString RelyingPartyURI;
 	FString OverrideCountryCode;
 	FString OverrideLocaleCode;
 	FString DeploymentId;

@@ -182,6 +182,11 @@ TOnlineResult<FAuthGetAllLocalOnlineUsers> FAuthCommon::GetAllLocalOnlineUsers(F
 		GetAccountInfoRegistry().GetAllAccountInfo([](const TSharedRef<FAccountInfo>& AccountInfo) { return IsOnlineStatus(AccountInfo->LoginStatus); }) });
 }
 
+TOnlineResult<FAuthGetRelyingParty> FAuthCommon::GetRelyingParty() const
+{
+	return TOnlineResult<FAuthGetRelyingParty>(Errors::NotImplemented());
+}
+
 TOnlineEvent<void(const FAuthLoginStatusChanged&)> FAuthCommon::OnLoginStatusChanged()
 {
 	return OnAuthLoginStatusChangedEvent;
@@ -200,6 +205,12 @@ TOnlineEvent<void(const FAuthAccountAttributesChanged&)> FAuthCommon::OnAccountA
 bool FAuthCommon::IsLoggedIn(const FAccountId& AccountId) const
 {
 	const TSharedPtr<FAccountInfo> AccountInfo = GetAccountInfoRegistry().Find(AccountId);
+	return (AccountInfo && IsOnlineStatus(AccountInfo->LoginStatus));
+}
+
+bool FAuthCommon::IsLoggedIn(const FPlatformUserId& PlatformUserId) const
+{
+	const TSharedPtr<FAccountInfo> AccountInfo = GetAccountInfoRegistry().Find(PlatformUserId);
 	return (AccountInfo && IsOnlineStatus(AccountInfo->LoginStatus));
 }
 

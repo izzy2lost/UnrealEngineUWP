@@ -807,6 +807,28 @@ TOnlineAsyncOpHandle<FAuthBeginVerifiedAuthSession> FAuthEOSGS::BeginVerifiedAut
 	return Operation->GetHandle();
 }
 
+TOnlineResult<FAuthGetRelyingParty> FAuthEOSGS::GetRelyingParty() const
+{
+	IEOSSDKManager* Manager = IEOSSDKManager::Get();
+	const FString& PlatformConfigName = GetServices<FOnlineServicesEOSGS>().GetEOSPlatformHandle()->GetConfigName();
+	const FEOSSDKPlatformConfig* Config = Manager ? Manager->GetPlatformConfig(PlatformConfigName) : nullptr;
+	if (Config == nullptr)
+	{
+		UE_LOG(LogOnlineServices, Error, TEXT("[%hs]: No configuration found for EOS platform %s."), __FUNCTION__, *PlatformConfigName);
+		return TOnlineResult<FAuthGetRelyingParty>(Errors::NotConfigured());
+	}
+
+	FString OutRelyingParty = Config->RelyingPartyURI;
+	if (OutRelyingParty.IsEmpty())
+	{
+		UE_LOG(LogOnlineServices, Warning, TEXT("[%hs]: Relying party configuration is missing for sandbox %s"), __FUNCTION__, *Config->SandboxId);
+		return TOnlineResult<FAuthGetRelyingParty>(Errors::NotConfigured());
+	}
+
+	UE_LOG(LogOnlineServices, VeryVerbose, TEXT("[%hs]: Using relying party: %s"), __FUNCTION__, *OutRelyingParty);
+	return TOnlineResult<FAuthGetRelyingParty>(FAuthGetRelyingParty::Result{MoveTemp(OutRelyingParty)});
+}
+
 TOnlineAsyncOpHandle<FAuthEndVerifiedAuthSession> FAuthEOSGS::EndVerifiedAuthSession(FAuthEndVerifiedAuthSession::Params&& Params)
 {
 	// Todo
