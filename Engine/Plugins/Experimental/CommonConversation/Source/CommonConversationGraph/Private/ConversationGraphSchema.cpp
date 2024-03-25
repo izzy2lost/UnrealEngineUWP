@@ -31,6 +31,17 @@
 
 #define LOCTEXT_NAMESPACE "ConversationEditor"
 
+namespace ConversationEditorCVar
+{
+	static bool CheckForCyclesCVar = true;
+	FAutoConsoleVariableRef CVarCheckForCycles(
+		TEXT("ConversationEditor.CheckForCycles"),
+		CheckForCyclesCVar,
+		TEXT("This cvar controles if the Conversation Editor should check for cycles when links are created.\n")
+		TEXT("0: Don't Check, 1: Check for Cycles (Default)"),
+		ECVF_Default);
+}
+
 TSharedPtr<FGraphNodeClassHelper> ConversationClassCache;
 
 FGraphNodeClassHelper& GetConversationClassCache()
@@ -83,6 +94,14 @@ void UConversationGraphSchema::CreateDefaultNodesForGraph(UEdGraph& Graph) const
 void UConversationGraphSchema::GetGraphNodeContextActions(FGraphContextMenuBuilder& ContextMenuBuilder, int32 SubNodeFlags) const
 {
 	Super::GetGraphNodeContextActions(ContextMenuBuilder, SubNodeFlags);
+}
+
+bool UConversationGraphSchema::HasSubNodeClasses(int32 SubNodeFlags) const
+{
+	TArray<FGraphNodeClassData> TempClassData;
+	UClass* TempClass = nullptr;
+	GetSubNodeClasses(SubNodeFlags, TempClassData, TempClass);
+	return !TempClassData.IsEmpty();
 }
 
 void UConversationGraphSchema::GetSubNodeClasses(int32 SubNodeFlags, TArray<FGraphNodeClassData>& ClassData, UClass*& GraphNodeClass) const
@@ -314,11 +333,14 @@ const FPinConnectionResponse UConversationGraphSchema::CanCreateConnection(const
 		TSet<UEdGraphNode*> VisitedNodes;
 	};
 
-	// check for cycles
-	FNodeVisitorCycleChecker CycleChecker;
-	if (!CycleChecker.CheckForLoop(PinA->GetOwningNode(), PinB->GetOwningNode()))
+	if (ConversationEditorCVar::CheckForCyclesCVar)
 	{
-		return FPinConnectionResponse(CONNECT_RESPONSE_DISALLOW, LOCTEXT("PinErrorcycle", "Can't create a graph cycle"));
+		// check for cycles
+		FNodeVisitorCycleChecker CycleChecker;
+		if (!CycleChecker.CheckForLoop(PinA->GetOwningNode(), PinB->GetOwningNode()))
+		{
+			return FPinConnectionResponse(CONNECT_RESPONSE_DISALLOW, LOCTEXT("PinErrorcycle", "Can't create a graph cycle"));
+		}
 	}
 
 	const bool bPinASingleLink = bPinAIsSingleComposite || bPinAIsSingleTask || bPinAIsSingleNode;
