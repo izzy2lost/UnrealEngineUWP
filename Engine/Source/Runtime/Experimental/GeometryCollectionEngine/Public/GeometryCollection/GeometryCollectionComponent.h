@@ -1337,6 +1337,12 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Physics")
 	GEOMETRYCOLLECTIONENGINE_API void EnableRootProxyForCustomRenderer(bool bEnable);
 
+	/** Set a specific root proxy local transform */
+	GEOMETRYCOLLECTIONENGINE_API void SetRootProxyLocalTransform(int32 Index, const FTransform3f& RootProxyTransform);
+
+	/** clear all the root proxies local transforms - all proxies will now have the same default transform */
+	GEOMETRYCOLLECTIONENGINE_API void ClearRootProxyLocalTransforms();
+
 	/** Force all GC components to reregister their custom renderer objects. */
 	static GEOMETRYCOLLECTIONENGINE_API void ReregisterAllCustomRenderers();
 
@@ -1750,6 +1756,9 @@ public:
 	/** Updates the custom renderer to the reflect the current state of the Geometry Collection */
 	GEOMETRYCOLLECTIONENGINE_API void RefreshCustomRenderer();
 
+	/** Refresh root proxies whether they are drawn through the custom renderer or normal static mesh components */
+	GEOMETRYCOLLECTIONENGINE_API void RefreshRootProxies();
+
 private:
 
 	GEOMETRYCOLLECTIONENGINE_API void IncrementSleepTimer(float DeltaTime);
@@ -1839,6 +1848,8 @@ private:
 
 	TArray<TObjectPtr<UStaticMeshComponent>> RootProxyStaticMeshComponents;
 	bool bEnableRootProxyStaticMeshComponents = true;
+
+	TArray<FTransform3f> RootProxyLocalTransforms;
 
 private:
 

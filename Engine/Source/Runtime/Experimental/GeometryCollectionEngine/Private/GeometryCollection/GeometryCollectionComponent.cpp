@@ -3625,11 +3625,18 @@ void UGeometryCollectionComponent::UpdateRootProxyComponentsIfNeeded()
 				const FTransform3f RootCurrentTransform = ComponentSpaceTransforms.RequestRootTransform();
 				const FTransform RootTransformFromRestPose = FTransform(RootCurrentTransform.GetRelativeTransform(RootRestTransform));
 
-				for (TObjectPtr<UStaticMeshComponent> StaticMeshComponent : RootProxyStaticMeshComponents)
+				for (int32 MeshIndex = 0; MeshIndex < RootProxyStaticMeshComponents.Num(); MeshIndex++)
 				{
-					if (StaticMeshComponent)
+					if (TObjectPtr<UStaticMeshComponent> StaticMeshComponent = RootProxyStaticMeshComponents[MeshIndex])
 					{
-						StaticMeshComponent->SetRelativeTransform(RootTransformFromRestPose);
+						if (RootProxyLocalTransforms.IsValidIndex(MeshIndex))
+						{
+							StaticMeshComponent->SetRelativeTransform(FTransform(RootProxyLocalTransforms[MeshIndex]) * RootTransformFromRestPose);
+						}
+						else
+						{
+							StaticMeshComponent->SetRelativeTransform(RootTransformFromRestPose);
+						}
 					}
 				}
 			}
@@ -5026,6 +5033,8 @@ void UGeometryCollectionComponent::SetRestCollection(const UGeometryCollection* 
 
 		CreateRootProxyComponentsIfNeeded();
 
+		ClearRootProxyLocalTransforms();
+
 		if (bApplyAssetDefaults)
 		{
 			ApplyAssetDefaults();
@@ -6283,6 +6292,30 @@ void UGeometryCollectionComponent::EnableRootProxyForCustomRenderer(bool bEnable
 	RefreshCustomRenderer();
 }
 
+void UGeometryCollectionComponent::SetRootProxyLocalTransform(int32 Index, const FTransform3f& RootProxyTransform)
+{
+	if (RootProxyLocalTransforms.IsEmpty() && RestCollection)
+	{
+		const int32 NumProxyMeshes = RestCollection->RootProxyData.ProxyMeshes.Num();
+		RootProxyLocalTransforms.Init(FTransform3f::Identity, NumProxyMeshes);
+	}
+	if (RootProxyLocalTransforms.IsValidIndex(Index))
+	{
+		RootProxyLocalTransforms[Index] = RootProxyTransform;
+	}
+}
+
+void UGeometryCollectionComponent::ClearRootProxyLocalTransforms()
+{
+	RootProxyLocalTransforms.Empty();
+}
+
+void UGeometryCollectionComponent::RefreshRootProxies()
+{
+	RefreshCustomRenderer();
+	UpdateRootProxyComponentsIfNeeded();
+}
+
 bool UGeometryCollectionComponent::CanUseCustomRenderer() const 
 {
 	return bChaos_GC_UseCustomRenderer && CustomRenderer != nullptr && GetWorld()->IsGameWorld();
@@ -6325,7 +6358,14 @@ void UGeometryCollectionComponent::RefreshCustomRenderer()
 					if (bRenderRootProxy)
 					{
 						const FTransform CompSpaceRootTransform(ComponentSpaceTransforms.RequestRootTransform());
-						RendererInterface->UpdateRootTransform(*RestCollection, CompSpaceRootTransform);
+						if (RootProxyLocalTransforms.IsEmpty())
+						{
+							RendererInterface->UpdateRootTransform(*RestCollection, CompSpaceRootTransform);
+						}
+						else
+						{
+							RendererInterface->UpdateRootTransforms(*RestCollection, CompSpaceRootTransform, MakeArrayView(RootProxyLocalTransforms));
+						}
 					}
 					else
 					{
