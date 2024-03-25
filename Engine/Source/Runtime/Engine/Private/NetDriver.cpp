@@ -5,6 +5,8 @@
 =============================================================================*/
 
 #include "Engine/NetDriver.h"
+
+#include "AnalyticsEventAttribute.h"
 #include "Engine/GameInstance.h"
 #include "Engine/ServerStatReplicator.h"
 #include "Misc/App.h"
@@ -408,6 +410,11 @@ static FAutoConsoleVariableRef CVarNetResetAckStatePostSeamlessTravel(
 	GNetResetAckStatePostSeamlessTravel,
 	TEXT("If 1, the server will reset the ack state of the package map after seamless travel. Increases bandwidth usage, but may resolve some issues with GUIDs not being available on clients after seamlessly traveling."),
 	ECVF_Default);
+
+static TAutoConsoleVariable<bool> CVarAddNetDriverInfoToNetAnalytics(
+	TEXT("net.AddNetDriverInfoToNetAnalytics"),
+	false,
+	TEXT("Automatically add NetDriver information to the NetAnalytics cache"));
 
 namespace UE::Net
 {
@@ -2097,11 +2104,7 @@ void UNetDriver::Shutdown()
 	// End NetTrace session for this instance
 	UE_NET_TRACE_END_SESSION(GetNetTraceId());
 
-	if (AnalyticsAggregator.IsValid())
-	{
-		AnalyticsAggregator->SendAnalytics();
-		AnalyticsAggregator.Reset();
-	}
+	SendNetAnalytics();
 
 	// Clear repmodel flags for clients or listen servers when shutting down since they are considered offline.
 	// For dedicated servers let's keep the flag in case we crash post-shutdown.
@@ -2123,6 +2126,36 @@ bool UNetDriver::IsServer() const
 	// Client connections ALWAYS set the server connection object in InitConnect()
 	// @todo ONLINE improve this with a bool
 	return ServerConnection == NULL;
+}
+
+void UNetDriver::SendNetAnalytics()
+{
+	if (!AnalyticsAggregator.IsValid())
+	{
+		return;
+	}
+
+	// Add the default NetDriver information if requested
+	if (CVarAddNetDriverInfoToNetAnalytics.GetValueOnAnyThread())
+	{
+		SetNetAnalyticsAttributes(TEXT("NetDriverName"), NetDriverName.ToString());
+		SetNetAnalyticsAttributes(TEXT("NetDriverDefinition"), NetDriverDefinition.ToString());
+		SetNetAnalyticsAttributes(TEXT("ReplicationModel"), GetReplicationModelName());
+		SetNetAnalyticsAttributes(TEXT("NetMode"), ToString(GetNetMode()));
+	}
+
+	auto GameAttributes = [this](TArray<FAnalyticsEventAttribute>& OutAttributes)
+	{
+		OutAttributes.Reserve(OutAttributes.Num() + CachedNetAnalyticsAttributes.Num());
+		for (auto It=CachedNetAnalyticsAttributes.CreateConstIterator(); It; ++It)
+		{
+			OutAttributes.Emplace(FAnalyticsEventAttribute(It.Key(), It.Value()));
+		}
+	};
+
+	AnalyticsAggregator->SetAnalyticsAppender(GameAttributes);
+	AnalyticsAggregator->SendAnalytics();
+	AnalyticsAggregator.Reset();
 }
 
 EEngineNetworkRuntimeFeatures UNetDriver::GetNetworkRuntimeFeatures() const
