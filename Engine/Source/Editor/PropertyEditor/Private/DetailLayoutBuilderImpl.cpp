@@ -38,11 +38,16 @@ IDetailCategoryBuilder& FDetailLayoutBuilderImpl::EditCategory(FName CategoryNam
 	{
 		static const FText GeneralString = NSLOCTEXT("DetailLayoutBuilderImpl", "General", "General");
 		static const FName GeneralName = TEXT("General");
-
+	
 		CategoryName = GeneralName;
 		LocalizedDisplayName = GeneralString;
 	}
 
+	return EditCategoryAllowNone(CategoryName, LocalizedDisplayName, CategoryType);
+}
+
+IDetailCategoryBuilder& FDetailLayoutBuilderImpl::EditCategoryAllowNone(FName CategoryName, const FText& NewLocalizedDisplayName, ECategoryPriority::Type CategoryType)
+{
 	TSharedPtr<FDetailCategoryImpl> CategoryImpl;
 	// If the default category map had a category by the provided name, remove it from the map as it is now customized
 	if (!DefaultCategoryMap.RemoveAndCopyValue(CategoryName, CategoryImpl))
@@ -69,7 +74,7 @@ IDetailCategoryBuilder& FDetailLayoutBuilderImpl::EditCategory(FName CategoryNam
 		const int32 SortOrder = CategoryType * 1000 + (CustomCategoryMap.Num() - 1);
 		CategoryImpl->SetSortOrder( SortOrder );
 	}
-	CategoryImpl->SetDisplayName(CategoryName, LocalizedDisplayName);
+	CategoryImpl->SetDisplayName(CategoryName, NewLocalizedDisplayName);
 
 	return *CategoryImpl;
 }
