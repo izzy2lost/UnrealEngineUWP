@@ -3,12 +3,9 @@
 #pragma once
 
 #include "NetworkPredictionComponent.h"
-#if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_5
 #include "Engine/HitResult.h"
-#endif // UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_5
-#include "BaseMovementComponent.generated.h"
 
-struct FHitResult;
+#include "BaseMovementComponent.generated.h"
 
 // -------------------------------------------------------------------------------------------------------------------------------
 //	Base component for movement. This essentially has the generic glue for selecting an UpdatedComponent and moving it along the world

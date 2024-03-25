@@ -2,9 +2,7 @@
 
 #pragma once
 
-#if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_5
 #include "Engine/HitResult.h"
-#endif // UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_5
 #include "GameplayTagContainer.h"
 #include "UObject/Interface.h"
 
@@ -14,7 +12,6 @@ class UAnimSequenceBase;
 class UObject;
 class USceneComponent;
 struct FFrame;
-struct FHitResult;
 
 /**
  *

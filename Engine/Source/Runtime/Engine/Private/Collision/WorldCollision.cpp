@@ -6,8 +6,6 @@
 
 #include "WorldCollision.h"
 #include "Components/PrimitiveComponent.h"
-#include "Engine/HitResult.h"
-#include "Engine/OverlapResult.h"
 #include "Engine/World.h"
 #include "Framework/Docking/TabManager.h"
 #include "Collision.h"
@@ -50,7 +48,6 @@ FCollisionShape					FCollisionShape::LineShape;
 // default being the 0. That isn't invalid, but ObjectQuery param overrides this 
 ECollisionChannel DefaultCollisionChannel = (ECollisionChannel) 0;
 
-//////////////////////////////////////////////////////////////////////////
 
 /* Set functions for each Shape type */
 void FBaseTraceDatum::Set(UWorld * World, const FCollisionShape& InCollisionShape, const FCollisionQueryParams& Param, const struct FCollisionResponseParams &InResponseParam, const struct FCollisionObjectQueryParams& InObjectQueryParam,
@@ -67,52 +64,6 @@ void FBaseTraceDatum::Set(UWorld * World, const FCollisionShape& InCollisionShap
 	PhysWorld = World;
 }
 
-//////////////////////////////////////////////////////////////////////////
-
-FTraceDatum::FTraceDatum() {}
-
-/** Set Trace Datum for each shape type **/
-FTraceDatum::FTraceDatum(UWorld* World, const FCollisionShape& CollisionShape, const FCollisionQueryParams& Param, const struct FCollisionResponseParams& InResponseParam, const struct FCollisionObjectQueryParams& InObjectQueryParam,
-	ECollisionChannel Channel, uint32 InUserData, EAsyncTraceType InTraceType, const FVector& InStart, const FVector& InEnd, const FQuat& InRot, const FTraceDelegate* InDelegate, int32 FrameCounter)
-{
-	Set(World, CollisionShape, Param, InResponseParam, InObjectQueryParam, Channel, InUserData, FrameCounter);
-	Start = InStart;
-	End = InEnd;
-	Rot = InRot;
-	if (InDelegate)
-	{
-		Delegate = *InDelegate;
-	}
-	else
-	{
-		Delegate.Unbind();
-	}
-	OutHits.Reset();
-	TraceType = InTraceType;
-}
-
-//////////////////////////////////////////////////////////////////////////
-
-FOverlapDatum::FOverlapDatum()
-{}
-
-FOverlapDatum::FOverlapDatum(UWorld* World, const FCollisionShape& CollisionShape, const FCollisionQueryParams& Param, const FCollisionResponseParams& InResponseParam,
-	const FCollisionObjectQueryParams& InObjectQueryParam, ECollisionChannel Channel, uint32 InUserData, const FVector& InPos, const FQuat& InRot,
-	const FOverlapDelegate* InDelegate, int32 FrameCounter)
-{
-	Set(World, CollisionShape, Param, InResponseParam, InObjectQueryParam, Channel, InUserData, FrameCounter);
-	Pos = InPos;
-	Rot = InRot;
-	if (InDelegate)
-	{
-		Delegate = *InDelegate;
-	}
-	else
-	{
-		Delegate.Unbind();
-	}
-	OutOverlaps.Reset();
-}
 
 //////////////////////////////////////////////////////////////////////////
 

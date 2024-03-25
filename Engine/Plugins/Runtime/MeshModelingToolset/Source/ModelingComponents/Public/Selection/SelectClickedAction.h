@@ -5,11 +5,7 @@
 #include "CoreMinimal.h"
 #include "BaseBehaviors/BehaviorTargetInterfaces.h"
 #include "ToolSceneQueriesUtil.h"
-#if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_5
 #include "Engine/HitResult.h"
-#endif // UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_5
-
-struct FHitResult;
 
 /**
  * BehaviorTarget to do world raycast selection from a click
@@ -17,7 +13,21 @@ struct FHitResult;
  */
 class FSelectClickedAction : public IClickBehaviorTarget
 {
-	MODELINGCOMPONENTS_API FInputRayHit DoRayCast(const FInputDeviceRay& ClickPos, bool callbackOnHit);
+	FInputRayHit DoRayCast(const FInputDeviceRay& ClickPos, bool callbackOnHit)
+	{
+		FHitResult Result;
+		const TArray<const UPrimitiveComponent*>* IgnoreComponents = VisibleComponentsToIgnore.Num() == 0 ? nullptr : &VisibleComponentsToIgnore;
+		const TArray<const UPrimitiveComponent*>* InvisibleComponentsToInclude = InvisibleComponentsToHitTest.Num() == 0 ? nullptr : &InvisibleComponentsToHitTest;
+		bool bHitWorld = (SnapManager != nullptr) ?
+			ToolSceneQueriesUtil::FindNearestVisibleObjectHit(SnapManager, Result, ClickPos.WorldRay, IgnoreComponents, InvisibleComponentsToInclude) :
+			ToolSceneQueriesUtil::FindNearestVisibleObjectHit(World, Result, ClickPos.WorldRay, IgnoreComponents, InvisibleComponentsToInclude);
+
+		if (callbackOnHit && bHitWorld && OnClickedPositionFunc != nullptr)
+		{
+			OnClickedPositionFunc(Result);
+		}
+		return (bHitWorld) ? FInputRayHit(Result.Distance) : FInputRayHit();
+	}
 
 public:
 	USceneSnappingManager* SnapManager = nullptr;

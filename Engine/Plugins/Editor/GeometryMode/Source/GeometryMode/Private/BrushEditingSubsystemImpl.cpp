@@ -5,7 +5,6 @@
 #include "EditorGeometry.h"
 #include "EditorModeManager.h"
 #include "Engine/Brush.h"
-#include "Engine/HitResult.h"
 #include "GeometryEdMode.h"
 #include "LevelEditorViewport.h"
 #include "SnappingUtils.h"

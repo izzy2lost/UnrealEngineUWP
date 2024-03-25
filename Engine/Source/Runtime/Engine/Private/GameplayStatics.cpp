@@ -5,7 +5,6 @@
 #include "Engine/Engine.h"
 #include "Engine/GameInstance.h"
 #include "Engine/GameViewportClient.h"
-#include "Engine/OverlapResult.h"
 #include "Serialization/ObjectAndNameAsStringProxyArchive.h"
 #include "EngineLogs.h"
 #include "Misc/PackageName.h"

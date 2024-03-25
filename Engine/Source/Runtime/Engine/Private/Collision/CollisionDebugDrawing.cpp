@@ -3,7 +3,6 @@
 #include "Collision/CollisionDebugDrawing.h"
 #include "Components/PrimitiveComponent.h"
 #include "DrawDebugHelpers.h"
-#include "Engine/OverlapResult.h"
 
 #include "Chaos/Capsule.h"
 #include "WorldCollision.h"

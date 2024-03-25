@@ -9,7 +9,6 @@
 #endif
 
 #include "ClothCollisionSource.h"
-#include "Engine/OverlapResult.h"
 #include "GameFramework/Pawn.h"
 #include "HAL/Event.h"
 #include "HAL/LowLevelMemTracker.h"

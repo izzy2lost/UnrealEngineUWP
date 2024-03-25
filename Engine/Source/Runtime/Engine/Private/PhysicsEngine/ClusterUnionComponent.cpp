@@ -4,7 +4,6 @@
 #include "Chaos/ImplicitObject.h"
 #include "Chaos/Serializable.h"
 #include "Chaos/ShapeInstance.h"
-#include "Engine/OverlapResult.h"
 #include "Engine/World.h"
 #include "Net/Core/PushModel/PushModel.h"
 #include "Net/UnrealNetwork.h"

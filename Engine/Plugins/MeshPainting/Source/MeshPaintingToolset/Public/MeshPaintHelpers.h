@@ -3,7 +3,6 @@
 #pragma once
 
 #include "Engine/Engine.h"
-#include "Engine/HitResult.h"
 #include "Engine/StaticMesh.h"
 #include "Math/Ray.h"
 #include "UObject/Package.h"
