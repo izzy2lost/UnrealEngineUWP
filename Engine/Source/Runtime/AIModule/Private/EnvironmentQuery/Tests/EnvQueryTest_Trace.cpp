@@ -37,6 +37,7 @@ namespace EnvQueryTest_Trace_Helpers
 		else
 		{
 			[] <bool cond = false>() { static_assert(cond, "Unsupported value of EEnvTraceShape received in TraceShape"); }(); // static_assert must be type-dependent to avoid "ill-formed" code
+			return false;
 		}
 	}
 
