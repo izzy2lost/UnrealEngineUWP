@@ -644,6 +644,10 @@ void FCurlHttpClient::SetDefaultOptions(CURL* Curl, FCurlHttpHeaders& Headers) c
 		(Params.bFollow301Post ? CURL_REDIR_POST_301 : 0) |
 		(Params.bFollow302Post ? CURL_REDIR_POST_302 : 0) |
 		(Params.bFollow303Post ? CURL_REDIR_POST_303 : 0)));
+	if (Params.bBypassProxy)
+	{
+		curl_easy_setopt(Curl, CURLOPT_NOPROXY, "*");
+	}
 	curl_easy_setopt(Curl, CURLOPT_VERBOSE, long(Params.bVerbose));
 }
 
