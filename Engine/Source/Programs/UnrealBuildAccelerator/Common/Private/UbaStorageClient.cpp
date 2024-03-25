@@ -657,7 +657,7 @@ namespace uba
 	bool StorageClient::HasCasFile(const CasKey& casKey, CasEntry** out)
 	{
 		CasKey localKey = AsCompressed(casKey, false);
-		ScopedReadLock tempLock(m_localStorageFilesLock);
+		ScopedReadLock lock(m_localStorageFilesLock);
 		auto findIt = m_localStorageFiles.find(localKey);
 		if (findIt != m_localStorageFiles.end())
 		{
@@ -665,6 +665,7 @@ namespace uba
 				*out = &findIt->second.casEntry;
 			return true;
 		}
+		lock.Leave();
 		return StorageImpl::HasCasFile(casKey, out);
 	}
 
