@@ -6,3 +6,8 @@ UObject* FAssetChooser::ChooseObject(FChooserEvaluationContext& Context) const
 {
 	return Asset;
 }
+
+UObject* FSoftAssetChooser::ChooseObject(FChooserEvaluationContext& Context) const
+{
+	return Asset.LoadSynchronous();
+}

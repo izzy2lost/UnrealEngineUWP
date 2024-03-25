@@ -44,6 +44,22 @@ TSharedRef<SWidget> CreateAssetWidget(bool bReadOnly, UObject* TransactionObject
 		});
 }
 	
+TSharedRef<SWidget> CreateSoftAssetWidget(bool bReadOnly, UObject* TransactionObject, void* Value, UClass* ResultBaseClass, FChooserWidgetValueChanged ValueChanged)
+{
+	FSoftAssetChooser* DIAsset = static_cast<FSoftAssetChooser*>(Value);
+
+	return SNew(SObjectPropertyEntryBox)
+		.IsEnabled(!bReadOnly)
+		.AllowedClass(ResultBaseClass ? ResultBaseClass : UObject::StaticClass())
+		.ObjectPath_Lambda([DIAsset](){ return DIAsset->Asset.ToSoftObjectPath().ToString(); })
+		.OnObjectChanged_Lambda([TransactionObject, DIAsset](const FAssetData& AssetData)
+		{
+			const FScopedTransaction Transaction(LOCTEXT("Edit Asset", "Edit Asset"));
+			TransactionObject->Modify(true);
+			DIAsset->Asset = AssetData.GetAsset();
+		});
+}
+	
 TSharedRef<SWidget> CreateClassWidget(bool bReadOnly, UObject* TransactionObject, void* Value, UClass* ResultBaseClass, FChooserWidgetValueChanged ValueChanged)
 {
 	FClassChooser* ClassChooser = static_cast<FClassChooser*>(Value);

@@ -18,6 +18,18 @@ public:
 	TObjectPtr<UObject> Asset;
 };
 
+USTRUCT(DisplayName = "Soft Asset")
+struct CHOOSER_API FSoftAssetChooser : public FObjectChooserBase
+{
+	GENERATED_BODY()
+
+	// FObjectChooserBase interface
+	virtual UObject* ChooseObject(FChooserEvaluationContext& Context) const final override;
+public: 
+	UPROPERTY(EditAnywhere, Category = "Parameters")
+	TSoftObjectPtr<UObject> Asset;
+};
+
 // deprecated class for upgrading old data
 UCLASS(ClassGroup = "LiveLink", deprecated)
 class CHOOSER_API UDEPRECATED_ObjectChooser_Asset : public UObject, public IObjectChooser
