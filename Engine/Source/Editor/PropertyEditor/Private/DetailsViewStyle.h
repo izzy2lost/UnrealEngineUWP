@@ -34,16 +34,31 @@ public:
  * @param InOverriddenPropertyOperation the overridden property operation for which this style is visible
  * @param InOverriddenState the overridden state for components for which this style is visible
  * @param bInStateInherited take into account if the state was inherited or not, not set means anything
+ * @param InCategoryTooltip tooltip for this widget if it is a category
+ * @param InPropertyTooltip tooltip for this widget if it is a property
+
  */
 	PROPERTYEDITOR_API FOverridesWidgetStyleKey(FName InName, 
 												EOverriddenPropertyOperation InOverriddenPropertyOperation,
 												const TOptional<EOverriddenState>& InOverriddenState,
-												const TOptional<bool>& bInStateInherited = TOptional<bool>());
+												const TOptional<bool>& bInStateInherited = TOptional<bool>(),
+												const FText& InCategoryTooltip = FText::GetEmpty(),
+												const FText& InPropertyTooltip = FText::GetEmpty());
 
 	/**
 	 * returns the const FSlateBrush& that creates the icon for this widget style
 	 */
 	const FSlateBrush& GetConstStyleBrush() const;
+
+	/**
+	* returns the const FSlateBrush& that creates the hovered icon for this widget style
+	*/
+	const FSlateBrush& GetConstStyleBrushHovered() const;
+	
+	/**
+	* returns the tooltip for this widget style
+	*/
+	FText GetToolTipText(bool bIsCategory = false) const;
 
 	/**
 	 * Creates a TAttribute<EVisibility> which indicates the EVisibility for this widget style
@@ -70,11 +85,21 @@ public:
 	const TOptional<EOverriddenState> VisibleOverriddenState;
 
 	/**
-	 * Whetever the state was inherited from a parent node or not
+	 * Whether the state was inherited from a parent node or not
 	 */
 	TOptional<bool> bStateInherited;
 
 	const bool bCanBeVisible = false;
+
+	/**
+	 * Tooltip for this widget if it is a category
+	 */
+	FText CategoryTooltip;
+	
+	/**
+	 * tTooltip for this widget if it is a property
+	 */
+	FText PropertyTooltip;
 };
 
 /**s
