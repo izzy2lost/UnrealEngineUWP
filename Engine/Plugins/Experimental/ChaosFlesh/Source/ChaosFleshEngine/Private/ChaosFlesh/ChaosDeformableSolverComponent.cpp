@@ -202,7 +202,6 @@ void UDeformableSolverComponent::Reset()
 			, SolverDebugging.CacheToFile
 			, SolverConstraints.bEnableKinematics
 			, SolverCollisions.bUseFloor
-			, SolverCollisions.bDoSelfCollision
 			, false /*SolverCollisions.SolverGridBasedCollisions.bUseGridBasedConstraints*/
 			, 25. /*SolverCollisions.SolverGridBasedCollisions.GridDx*/
 			, SolverEvolution.SolverQuasistatics.bDoQuasistatics
@@ -217,9 +216,13 @@ void UDeformableSolverComponent::Reset()
 			, SolverConstraints.GaussSeidelConstraints.bUseSOR
 			, SolverConstraints.GaussSeidelConstraints.OmegaSOR
 			, SolverConstraints.GaussSeidelConstraints.bUseGSNeohookean
+			, SolverConstraints.GaussSeidelConstraints.CollisionSpring.bDoSelfCollision
+			, SolverConstraints.GaussSeidelConstraints.CollisionSpring.bDoInComponentSelfCollision
+			, SolverConstraints.GaussSeidelConstraints.CollisionSpring.NRingExcluded
 			, SolverConstraints.GaussSeidelConstraints.CollisionSpring.CollisionSearchRadius
 			, SolverConstraints.GaussSeidelConstraints.CollisionSpring.CollisionSpringStiffness
 			, SolverConstraints.GaussSeidelConstraints.CollisionSpring.bAllowSliding
+			, SolverMuscleActivation.bDoMuscleActivation
 		}));
 
 		for (TObjectPtr<UDeformablePhysicsComponent>& DeformableComponent : ConnectedObjects.DeformableComponents)

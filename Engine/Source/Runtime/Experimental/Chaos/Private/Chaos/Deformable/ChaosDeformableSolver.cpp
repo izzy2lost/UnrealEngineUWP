@@ -25,11 +25,13 @@
 #include "Chaos/Utilities.h"
 #include "Chaos/PBDEvolution.h"
 #include "Containers/StringConv.h"
+#include "Containers/Set.h"
 #include "CoreMinimal.h"
 #include "GeometryCollection/Facades/CollectionKinematicBindingFacade.h"
 #include "GeometryCollection/Facades/CollectionVertexBoneWeightsFacade.h"
 #include "GeometryCollection/Facades/CollectionPositionTargetFacade.h"
 #include "GeometryCollection/Facades/CollectionConstraintOverrideFacade.h"
+#include "GeometryCollection/Facades/CollectionMuscleActivationFacade.h"
 #include "Misc/FileHelper.h"
 #include "HAL/PlatformFileManager.h"
 #include "HAL/IConsoleManager.h"
@@ -61,6 +63,7 @@ DECLARE_CYCLE_STAT(TEXT("Chaos.Deformable.Solver.InitializeSelfCollisionVariable
 DECLARE_CYCLE_STAT(TEXT("Chaos.Deformable.Solver.InitializeGridBasedConstraintVariables"), STAT_ChaosDeformableSolver_InitializeGridBasedConstraintVariables, STATGROUP_Chaos);
 DECLARE_CYCLE_STAT(TEXT("Chaos.Deformable.Solver.InitializeGaussSeidelConstraintVariables"), STAT_ChaosDeformableSolver_InitializeGaussSeidelConstraintVariables, STATGROUP_Chaos);
 DECLARE_CYCLE_STAT(TEXT("Chaos.Deformable.Solver.InitializeGaussSeidelConstraint"), STAT_ChaosDeformableSolver_InitializeGaussSeidelConstraint, STATGROUP_Chaos);
+DECLARE_CYCLE_STAT(TEXT("Chaos.Deformable.Solver.InitializeMuscleActivation"), STAT_ChaosDeformableSolver_InitializeMuscleActivation, STATGROUP_Chaos);
 DECLARE_CYCLE_STAT(TEXT("Chaos.Deformable.Solver.RemoveSimulationObjects"), STAT_ChaosDeformableSolver_RemoveSimulationObjects, STATGROUP_Chaos);
 DECLARE_CYCLE_STAT(TEXT("Chaos.Deformable.Solver.RemoveProxy"), STAT_ChaosDeformableSolver_RemoveProxy, STATGROUP_Chaos);
 DECLARE_CYCLE_STAT(TEXT("Chaos.Deformable.Solver.AddProxy"), STAT_ChaosDeformableSolver_AddProxy, STATGROUP_Chaos);
@@ -142,6 +145,7 @@ namespace Chaos::Softs
 		if (Property.bDoSelfCollision)
 		{
 			SurfaceTriangleMesh.Reset(new Chaos::FTriangleMesh());
+			SurfaceVertices.Reset(new TArray<int32>);
 		}
 		if (Property.bUseGridBasedConstraints)
 		{
@@ -156,6 +160,7 @@ namespace Chaos::Softs
 			AllTetNuMeshArray.Reset(new TArray<FSolverReal>());
 			AllTetAlphaJArray.Reset(new TArray<FSolverReal>());
 			GSWeakConstraints.Reset(new FGaussSeidelWeakConstraints<FSolverReal, FSolverParticles>({}, {}, {}, {}, {}, GDeformableXPBDWeakConstraintParams));
+			MuscleActivationConstraints.Reset(new FMuscleActivationConstraints<FSolverReal, FSolverParticles>());
 		}
 
 		InitializeKinematicConstraint();
@@ -335,6 +340,10 @@ namespace Chaos::Softs
 					{
 						InitializeGaussSeidelConstraintVariables();
 					}
+					if (Property.bDoMuscleActivation)
+					{
+						InitializeMuscleActivationVariables();
+					}
 				}
 				UninitializedProxys_Internal.SetNum(0, EAllowShrinking::Yes);
 			}
@@ -374,6 +383,7 @@ namespace Chaos::Softs
 					InitializeDeformableParticles(*Proxy);
 					InitializeKinematicParticles(*Proxy);
 					InitializeWeakConstraint(*Proxy);
+					InitializeMuscleActivation(*Proxy);
 					InitializeTetrahedralConstraint(*Proxy);
 					InitializeGidBasedConstraints(*Proxy);
 					InitializeGaussSeidelConstraints(*Proxy);
@@ -1137,37 +1147,75 @@ namespace Chaos::Softs
 								}
 							}
 						}
-						int32 Offset = ParticleComponentIndex.Num();
-						ParticleComponentIndex.SetNum(ParticleComponentIndex.Num() + Vertex->Num());
-						for (int32 i = 0; i < Vertex->Num(); i++) {
-							ParticleComponentIndex[i + Offset] = ComponentOffset;
-						}
-						int NewComponentOffset = ComponentOffset;
-						if (const TManagedArray<int32>* ComponentIndex = Rest->FindAttribute<int32>("ComponentIndex", FGeometryCollection::VerticesGroup))
+						VertexOffset += Vertex->Num();
+
+						
+						if (!Property.bDoInComponentSelfCollision) //Component-Component collisions
 						{
-							ensureMsgf(ComponentIndex->Num() == Vertex->Num(), TEXT("ComponentIndex size is not equal to vertex size"));
-							for (int32 i = 0; i < ComponentIndex->Num(); i++) {
-								if ((*ComponentIndex)[i] < 0)
-								{
-									ParticleComponentIndex[i + Offset] = (*ComponentIndex)[i]; //Isolated Nodes
-								}
-								else
-								{
-									ParticleComponentIndex[i + Offset] = ComponentOffset + (*ComponentIndex)[i];
-									NewComponentOffset = NewComponentOffset < ParticleComponentIndex[i + Offset] ? ParticleComponentIndex[i + Offset] : NewComponentOffset;
+							int32 Offset = ParticleComponentIndex.Num();
+							ParticleComponentIndex.SetNum(ParticleComponentIndex.Num() + Vertex->Num());
+							for (int32 i = 0; i < Vertex->Num(); i++) {
+								ParticleComponentIndex[i + Offset] = ComponentOffset;
+							}
+							int NewComponentOffset = ComponentOffset;
+							if (const TManagedArray<int32>* ComponentIndex = Rest->FindAttribute<int32>("ComponentIndex", FGeometryCollection::VerticesGroup))
+							{
+								ensureMsgf(ComponentIndex->Num() == Vertex->Num(), TEXT("ComponentIndex size is not equal to vertex size"));
+								for (int32 i = 0; i < ComponentIndex->Num(); i++) {
+									if ((*ComponentIndex)[i] < 0)
+									{
+										ParticleComponentIndex[i + Offset] = (*ComponentIndex)[i]; //Isolated Nodes
+									}
+									else
+									{
+										ParticleComponentIndex[i + Offset] = ComponentOffset + (*ComponentIndex)[i];
+										NewComponentOffset = NewComponentOffset < ParticleComponentIndex[i + Offset] ? ParticleComponentIndex[i + Offset] : NewComponentOffset;
+									}
 								}
 							}
+							ComponentOffset = NewComponentOffset + 1;
 						}
-						ComponentOffset = NewComponentOffset + 1;
-						VertexOffset += Vertex->Num();
 					}
 				}
 			}
 		}
 
 		SurfaceTriangleMesh->Init(*SurfaceElements);
+		SurfaceTriangleMesh->GetVertexSetAsArray(*SurfaceVertices);
 		TriangleMeshCollisions.Reset(new FPBDTriangleMeshCollisions(
 			0, Evolution->Particles().Size(), *SurfaceTriangleMesh, false, false));
+		ParticleTriangleExclusionMap.Reset();
+		if (Property.bDoInComponentSelfCollision)
+		{	
+			int32 NRadius = Property.NRingExcluded;
+			SurfaceTriangleMesh->GetPointToNeighborsMap();
+			SurfaceTriangleMesh->GetPointToTriangleMap(); //Initialize Maps before parallel
+			ParticleTriangleExclusionMap.Reserve(SurfaceVertices->Num());
+			PhysicsParallelFor(SurfaceVertices->Num(), 
+				[this, &NRadius](int32 i)
+				{
+					int32 VertexId = (*SurfaceVertices)[i];
+					TSet<int32>& TriangleSet = ParticleTriangleExclusionMap.FindOrAdd(VertexId);
+					TSet<int32> NRing;
+					if (NRadius > 1)
+					{
+						NRing = SurfaceTriangleMesh->GetNRing(VertexId, NRadius-1);
+					}
+					else
+					{
+						NRing.Add(VertexId);
+					}
+					for (TSet<int32>::TConstIterator It = NRing.CreateConstIterator(); It; ++It)
+					{
+						TArray<int32> CoincidentTriangles = SurfaceTriangleMesh->GetCoincidentTriangles(*It);
+						for (int32 j = 0; j < CoincidentTriangles.Num(); ++j)
+						{
+							TriangleSet.Add(CoincidentTriangles[j]);
+						}
+					}
+				}
+			);
+		}
 	}
 
 	void FDeformableSolver::InitializeGridBasedConstraintVariables()
@@ -1274,18 +1322,18 @@ namespace Chaos::Softs
 			int32 ConstraintIndex1 = Evolution->AddConstraintRuleRange(1, true);
 			Evolution->ConstraintRules()[ConstraintIndex1] =
 				[this](FSolverParticles& InParticles, const FSolverReal Dt)
-			{
-				this->GSMainConstraint->Apply(InParticles, Dt);
-			};
+				{
+					this->GSMainConstraint->Apply(InParticles, Dt);
+				};
 
 
 			int32 StaticIndex = GSMainConstraint->AddStaticConstraintResidualAndHessianRange(1);
 
 			GSMainConstraint->StaticConstraintResidualAndHessian()[StaticIndex] = [this](const FSolverParticles& Particles, const int32 ElementIndex, const int32 ElementIndexLocal, const FSolverReal Dt, TVec3<FSolverReal>& ParticleResidual, Chaos::PMatrix<FSolverReal, 3, 3>& ParticleHessian)
-			{
-				this->GSCorotatedConstraints->AddHyperelasticResidualAndHessian(Particles, ElementIndex, ElementIndexLocal, Dt, ParticleResidual, ParticleHessian);
-			};
-				
+				{
+					this->GSCorotatedConstraints->AddHyperelasticResidualAndHessian(Particles, ElementIndex, ElementIndexLocal, Dt, ParticleResidual, ParticleHessian);
+				};
+
 
 			if (Property.bEnablePositionTargets)
 			{
@@ -1298,15 +1346,15 @@ namespace Chaos::Softs
 
 				int32 StaticIndex1 = GSMainConstraint->AddStaticConstraintResidualAndHessianRange(1);
 				GSMainConstraint->StaticConstraintResidualAndHessian()[StaticIndex1] = [this](const FSolverParticles& Particles, const int32 ConstraintIndex, const int32 ConstraintIndexLocal, const FSolverReal Dt, TVec3<FSolverReal>& ParticleResidual, Chaos::PMatrix<FSolverReal, 3, 3>& ParticleHessian)
-				{
-					this->GSWeakConstraints->AddWCResidualAndHessian(Particles, ConstraintIndex, ConstraintIndexLocal, Dt, ParticleResidual, ParticleHessian);
-				};
+					{
+						this->GSWeakConstraints->AddWCResidualAndHessian(Particles, ConstraintIndex, ConstraintIndexLocal, Dt, ParticleResidual, ParticleHessian);
+					};
 
 				int32 PerNodeIndex = GSMainConstraint->AddPerNodeHessianRange(1);
 				GSMainConstraint->PerNodeHessian()[PerNodeIndex] = [this](const int32 p, const FSolverReal Dt, Chaos::PMatrix<FSolverReal, 3, 3>& ParticleHessian)
-				{
-					this->GSWeakConstraints->AddWCHessian(p, Dt, ParticleHessian);
-				};
+					{
+						this->GSWeakConstraints->AddWCHessian(p, Dt, ParticleHessian);
+					};
 
 			}
 		}
@@ -1318,58 +1366,99 @@ namespace Chaos::Softs
 			int32 InitIndex1 = Evolution->AddConstraintInitRange(1, true);
 			Evolution->ConstraintInits()[InitIndex1] =
 				[this](FSolverParticles& InParticles, const FSolverReal Dt)
-			{
-				this->GSWeakConstraints->Init(InParticles, Dt);
-			};
+				{
+					this->GSWeakConstraints->Init(InParticles, Dt);
+				};
 		}
 
 		if (Property.bDoSelfCollision)
 		{
 			int32 DynamicIndex = GSMainConstraint->AddDynamicConstraintResidualAndHessianRange(1);
 			GSMainConstraint->DynamicConstraintResidualAndHessian()[DynamicIndex] = [this](const FSolverParticles& Particles, const int32 ConstraintIndex, const int32 ConstraintIndexLocal, const FSolverReal Dt, TVec3<FSolverReal>& ParticleResidual, Chaos::PMatrix<FSolverReal, 3, 3>& ParticleHessian)
-			{
-				this->GSWeakConstraints->AddWCResidualAndHessian(Particles, ConstraintIndex + this->GSWeakConstraints->InitialWCSize, ConstraintIndexLocal, Dt, ParticleResidual, ParticleHessian);
-			};
+				{
+					this->GSWeakConstraints->AddWCResidualAndHessian(Particles, ConstraintIndex + this->GSWeakConstraints->InitialWCSize, ConstraintIndexLocal, Dt, ParticleResidual, ParticleHessian);
+				};
 
 			if (!Property.bEnablePositionTargets)
 			{
 				int32 PerNodeIndex = GSMainConstraint->AddPerNodeHessianRange(1);
 				GSMainConstraint->PerNodeHessian()[PerNodeIndex] = [this](const int32 p, const FSolverReal Dt, Chaos::PMatrix<FSolverReal, 3, 3>& ParticleHessian)
-				{
-					this->GSWeakConstraints->AddWCHessian(p, Dt, ParticleHessian);
-				};
+					{
+						this->GSWeakConstraints->AddWCHessian(p, Dt, ParticleHessian);
+					};
 			}
 
-			this->GSWeakConstraints->UpdateBoundaryVertices(*SurfaceElements);
-			
 			int32 InitIndex = Evolution->AddConstraintInitRange(1, true);
 			Evolution->ConstraintInits()[InitIndex] =
 				[this](FSolverParticles& InParticles, const FSolverReal Dt)
-			{
-				//TODO(Yushan & Joey): Add the collision detection code in here:
-				//this->GSWeakConstraints->CollisionDetection(this->Evolution->Particles(), *SurfaceElements, ParticleComponentIndex, Property.CollisionSearchRadius, Property.CollisionSpringStiffness, Property.bAllowSliding);
-				
-				this->TriangleMeshCollisions->Init(InParticles);
-				TArray<FPBDTriangleMeshCollisions::FGIAColor> EmptyGIAColors;
-				this->GSWeakConstraints->CollisionDetectionSpatialHash(this->Evolution->Particles(), *SurfaceTriangleMesh, ParticleComponentIndex, TriangleMeshCollisions->GetDynamicSpatialHash(), Property.CollisionSearchRadius, Property.CollisionSpringStiffness, Property.bAllowSliding);
-				
-			};
+				{
+					this->TriangleMeshCollisions->Init(InParticles, Property.CollisionSearchRadius);
+					TArray<FPBDTriangleMeshCollisions::FGIAColor> EmptyGIAColors;
+					if (Property.bDoInComponentSelfCollision)
+					{
+						this->GSWeakConstraints->CollisionDetectionSpatialHashInComponent(this->Evolution->Particles(), *SurfaceVertices, *SurfaceTriangleMesh, ParticleTriangleExclusionMap, TriangleMeshCollisions->GetDynamicSpatialHash(), Property.CollisionSearchRadius, Property.CollisionSpringStiffness, Property.bAllowSliding);
+					}
+					else
+					{
+						this->GSWeakConstraints->CollisionDetectionSpatialHash(this->Evolution->Particles(), *SurfaceVertices, *SurfaceTriangleMesh, ParticleComponentIndex, TriangleMeshCollisions->GetDynamicSpatialHash(), Property.CollisionSearchRadius, Property.CollisionSpringStiffness, Property.bAllowSliding);
+					}
+				};
 
 			int32 InitIndex1 = Evolution->AddConstraintInitRange(1, true);
 
 
 			Evolution->ConstraintInits()[InitIndex1] =
 				[this](FSolverParticles& InParticles, const FSolverReal Dt)
-			{
-				TArray<TArray<int32>> WCCollisionConstraints, WCCollisionIncidentElements, WCCollisionIncidentElementsLocal;
-				this->GSWeakConstraints->ComputeCollisionWCDataSimplified(WCCollisionConstraints, WCCollisionIncidentElements, WCCollisionIncidentElementsLocal);
-				this->GSMainConstraint->AddDynamicConstraints(WCCollisionConstraints, WCCollisionIncidentElements, WCCollisionIncidentElementsLocal);
-				this->GSMainConstraint->InitDynamicColor(InParticles);
-			}; 
-			
+				{
+					TArray<TArray<int32>> WCCollisionConstraints, WCCollisionIncidentElements, WCCollisionIncidentElementsLocal;
+					this->GSWeakConstraints->ComputeCollisionWCDataSimplified(WCCollisionConstraints, WCCollisionIncidentElements, WCCollisionIncidentElementsLocal);
+					this->GSMainConstraint->AddDynamicConstraints(WCCollisionConstraints, WCCollisionIncidentElements, WCCollisionIncidentElementsLocal);
+					this->GSMainConstraint->InitDynamicColor(InParticles);
+				};
+
 		}
 	}
+	void FDeformableSolver::InitializeMuscleActivationVariables()
+	{
+		int32 InitIndex = Evolution->AddConstraintInitRange(1, true);
+		Evolution->ConstraintInits()[InitIndex] =
+			[this](FSolverParticles& InParticles, const FSolverReal Dt)
+			{
+				this->MuscleActivationConstraints->UpdateLengthBasedMuscleActivation(InParticles);
+				if (Property.bUseGaussSeidelConstraints)
+				{
+					if (Property.bUseGSNeohookean)
+					{
+						this->MuscleActivationConstraints->ApplyMuscleActivation(*this->GSNeohookeanConstraints);
+					}
+					else
+					{
+						this->MuscleActivationConstraints->ApplyMuscleActivation(*this->GSCorotatedConstraints);
+					}
+				}
+				else
+				{
+					this->MuscleActivationConstraints->ApplyMuscleActivation(*this->CorotatedConstraints[0]);
+				}
+			};
+	}
 
+	void FDeformableSolver::InitializeMuscleActivation(FFleshThreadingProxy& Proxy)
+	{
+		PERF_SCOPE(STAT_ChaosDeformableSolver_InitializeMuscleActivation);
+		if (Property.bDoMuscleActivation)
+		{
+			//Grab MuscleActivationElements, OriginInsertion, FiberDirectionMatrix
+			const FManagedArrayCollection& Rest = Proxy.GetRestCollection();
+			GeometryCollection::Facades::FMuscleActivationFacade MuscleActivationFacade(Rest);
+			if (MuscleActivationFacade.IsValid())
+			{
+				int32 VertexOffset = Proxy.GetSolverParticleRange()[0];
+				int32 ElementOffset = AllElements->Num(); //InitializeMuscleActivation has to go before adding tetrahedrons
+				MuscleActivationConstraints->AddMuscles(MuscleActivationFacade, VertexOffset, ElementOffset);
+			}
+		}
+	}
 
 	void FDeformableSolver::RemoveSimulationObjects()
 	{
@@ -1432,6 +1521,7 @@ namespace Chaos::Softs
 			{
 				if (FFleshThreadingProxy* Proxy = BaseProxyPair.Value->As<FFleshThreadingProxy>())
 				{
+					InitializeMuscleActivation(*Proxy);
 					InitializeTetrahedralConstraint(*Proxy);
 					InitializeGidBasedConstraints(*Proxy);
 					InitializeGaussSeidelConstraints(*Proxy);

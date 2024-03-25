@@ -1255,4 +1255,6 @@ namespace Chaos
 		static const PMatrix<FRealSingle, 3, 3> Zero;
 		static const PMatrix<FRealSingle, 3, 3> Identity;
 	};
+
+	typedef PMatrix<double, 3, 3> PMatrix33d;
 }

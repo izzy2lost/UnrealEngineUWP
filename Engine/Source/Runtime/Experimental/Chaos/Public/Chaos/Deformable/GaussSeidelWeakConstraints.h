@@ -15,7 +15,7 @@
 #include "Chaos/Triangle.h"
 #include "Chaos/TriangleCollisionPoint.h"
 #include "Chaos/TriangleMesh.h"
-
+#include <unordered_map>
 namespace Chaos::Softs
 {
 
@@ -336,17 +336,6 @@ namespace Chaos::Softs
 
 		}
 
-		void UpdateBoundaryVertices(const TArray<TVec3<int32>> Elements)
-		{
-			for (int32 i = 0; i < Elements.Num(); i++)
-			{
-				for (int32 j = 0; j < 3; j++)
-				{
-					BoundaryVertices.AddUnique(Elements[i][j]);
-				}
-			}
-		}
-
 		//CollisionDetectionSpatialHash should be faster than CollisionDetectionBVH
 		void CollisionDetectionBVH(const FSolverParticles& Particles, const TArray<TVec3<int32>>& SurfaceElements, const TArray<int32>& ComponentIndex, float DetectRadius = 1.f, float PositionTargetStiffness = 10000.f, bool UseAnisotropicSpring = true)
 		{
@@ -491,82 +480,105 @@ namespace Chaos::Softs
 		}
 
 		template<typename SpatialAccelerator>
-		void CollisionDetectionSpatialHash(const FSolverParticles& Particles, const FTriangleMesh& TriangleMesh, const TArray<int32>& ComponentIndex, const SpatialAccelerator& Spatial, float DetectRadius = 1.f, float PositionTargetStiffness = 10000.f, bool UseAnisotropicSpring = true)
+		void CollisionDetectionSpatialHash(const FSolverParticles& Particles, const TArray<int32>& SurfaceVertices, const FTriangleMesh& TriangleMesh, const TArray<int32>& ComponentIndex, const SpatialAccelerator& Spatial, float DetectRadius = 1.f, float PositionTargetStiffness = 10000.f, bool UseAnisotropicSpring = true)
 		{
 			TRACE_CPUPROFILER_EVENT_SCOPE(STAT_ChaosGaussSeidelWeakConstraintsCollisionDetectionSpatialHash);
-			constexpr int32 MaxConnectionsPerPoint = 1;
-			Resize(InitialWCSize + Particles.Size() * MaxConnectionsPerPoint);
-			
+			Resize(InitialWCSize + Particles.Size());
 			std::atomic<int32> ConstraintIndex(InitialWCSize);
 			const TArray<TVec3<int32>>& Elements = TriangleMesh.GetSurfaceElements();
-			PhysicsParallelFor(BoundaryVertices.Num(),
-				[this, &Spatial, &Particles, &ConstraintIndex, MaxConnectionsPerPoint, &TriangleMesh, &Elements, &DetectRadius, &ComponentIndex, &PositionTargetStiffness, &UseAnisotropicSpring](int32 i)
+			PhysicsParallelFor(SurfaceVertices.Num(),
+				[this, &Spatial, &Particles, &SurfaceVertices, &ConstraintIndex, &TriangleMesh, &Elements, &DetectRadius, &ComponentIndex, &PositionTargetStiffness, &UseAnisotropicSpring](int32 i)
 				{
-					const int32 Index = BoundaryVertices[i];
-
-					TArray< TTriangleCollisionPoint<FSolverReal> > Result;
-					if (TriangleMesh.PointProximityQuery(Spatial, static_cast<const TArrayView<const FSolverVec3>&>(Particles.XArray()), Index, Particles.GetX(Index), DetectRadius, DetectRadius,
+					const int32 Index = SurfaceVertices[i];
+					TArray< TTriangleCollisionPoint<FSolverReal>> Result;
+					//PointProximityQuery
+					if (TriangleMesh.PointClosestTriangleQuery(Spatial, static_cast<const TArrayView<const FSolverVec3>&>(Particles.XArray()), Index, Particles.GetX(Index), DetectRadius, DetectRadius,
 						[this, &ComponentIndex, &Elements](const int32 PointIndex, const int32 TriangleIndex)->bool
 						{
-							const TVector<int32, 3>& Elem = Elements[TriangleIndex];
-
 							if (ComponentIndex[PointIndex] == ComponentIndex[Elements[TriangleIndex][0]])
 							{
 								return false;
 							}
-
 							return true;
 						},
 						Result))
 					{
-
-						if (Result.Num() > MaxConnectionsPerPoint)
-						{
-							// TODO: once we have a PartialSort, use that instead here.
-							Result.Sort(
-								[](const TTriangleCollisionPoint<FSolverReal>& First, const TTriangleCollisionPoint<FSolverReal>& Second)->bool
-								{
-									return First.Phi < Second.Phi;
-								}
-							);
-							Result.SetNum(MaxConnectionsPerPoint, EAllowShrinking::No);
-						}
-
 						for (const TTriangleCollisionPoint<FSolverReal>& CollisionPoint : Result)
 						{
 							const TVector<int32, 3>& Elem = Elements[CollisionPoint.Indices[1]];
-						
-
-							// NOTE: CollisionPoint.Normal has already been flipped to point toward the Point, so need to recalculate here.
-							const TTriangle<FSolverReal> Triangle(Particles.GetX(Elem[0]), Particles.GetX(Elem[1]), Particles.GetX(Elem[2]));
-							if ((Particles.GetX(Index) - CollisionPoint.Location).Dot(-Triangle.GetNormal()) < 0) //Is point inside boundary? Normal should point outwards
+							// // NOTE: CollisionPoint.Normal has already been flipped to point toward the Point, so need to recalculate here.
+							// const TTriangle<FSolverReal> Triangle(Particles.GetX(Elem[0]), Particles.GetX(Elem[1]), Particles.GetX(Elem[2]));
+							// if ((Particles.GetX(Index) - CollisionPoint.Location).Dot(-Triangle.GetNormal()) < 0) //Is point inside boundary? Normal should point outwards
+							// {
+							const int32 IndexToWrite = ConstraintIndex.fetch_add(1);
+							Indices[IndexToWrite] = { Elem[0], Elem[1] ,Elem[2] };
+							SecondIndices[IndexToWrite] = { Index };
+							Weights[IndexToWrite] = { CollisionPoint.Bary[1], CollisionPoint.Bary[2], CollisionPoint.Bary[3] };
+							SecondWeights[IndexToWrite] = { 1.f };
+							float SpringStiffness = 0.f;
+							for (int32 k = 0; k < 3; k++)
 							{
-								const int32 IndexToWrite = ConstraintIndex.fetch_add(1);
+								SpringStiffness += Weights[IndexToWrite][k] * PositionTargetStiffness * Particles.M(Elem[k]);
+							}
+							SpringStiffness += PositionTargetStiffness * Particles.M(Index);
+							Stiffness[IndexToWrite] = SpringStiffness;
+							IsAnisotropic[IndexToWrite] = UseAnisotropicSpring;
+							Normals[IndexToWrite] = CollisionPoint.Normal;						
+						}
+					}
+				}
+			);
 
-								Indices[IndexToWrite] = { Elem[0], Elem[1] ,Elem[2] };
-								SecondIndices[IndexToWrite] = { Index };
-								Weights[IndexToWrite] = { CollisionPoint.Bary[1], CollisionPoint.Bary[2], CollisionPoint.Bary[3] };
-								SecondWeights[IndexToWrite] = { 1.f };
-								/*
-								Indices[IndexToWrite].Add(Elem[0]);
-								Indices[IndexToWrite].Add(Elem[1]);
-								Indices[IndexToWrite].Add(Elem[2]);
-								SecondIndices[IndexToWrite].Add(Index);
-								Weights[IndexToWrite].Add(ClosestBary[0]);
-								Weights[IndexToWrite].Add(ClosestBary[1]);
-								Weights[IndexToWrite].Add(ClosestBary[2]);
-								SecondWeights[SecondWeights.Num() - 1].Add(1.f);
-								*/
-								float SpringStiffness = 0.f;
-								for (int32 k = 0; k < 3; k++)
-								{
-									SpringStiffness += Weights[IndexToWrite][k] * PositionTargetStiffness * Particles.M(Elem[k]);
-								}
-								SpringStiffness += PositionTargetStiffness * Particles.M(Index);
-								Stiffness[IndexToWrite] = SpringStiffness;
-								IsAnisotropic[IndexToWrite] = UseAnisotropicSpring;
-								Normals[IndexToWrite] = Triangle.GetNormal();
-							}							
+			// Shrink the arrays to the actual number of found constraints.
+			const int32 ConstraintNum = ConstraintIndex.load();
+			Resize(ConstraintNum);
+		}
+
+		template<typename SpatialAccelerator>
+		void CollisionDetectionSpatialHashInComponent(const FSolverParticles& Particles, const TArray<int32>& SurfaceVertices, const FTriangleMesh& TriangleMesh, const TMap<int32, TSet<int32>>& ExcludeMap, const SpatialAccelerator& Spatial, float DetectRadius = 1.f, float PositionTargetStiffness = 10000.f, bool UseAnisotropicSpring = true)
+		{
+			TRACE_CPUPROFILER_EVENT_SCOPE(STAT_ChaosGaussSeidelWeakConstraintsCollisionDetectionSpatialHashInComponent);
+			Resize(InitialWCSize + Particles.Size());
+			std::atomic<int32> ConstraintIndex(InitialWCSize);
+			const TArray<TVec3<int32>>& Elements = TriangleMesh.GetSurfaceElements();
+			PhysicsParallelFor(SurfaceVertices.Num(),
+				[this, &Spatial, &Particles, &SurfaceVertices, &ConstraintIndex, &TriangleMesh, &ExcludeMap, &Elements, &DetectRadius, &PositionTargetStiffness, &UseAnisotropicSpring](int32 i)
+				{
+					const int32 Index = SurfaceVertices[i];
+					TArray< TTriangleCollisionPoint<FSolverReal>> Result;
+					//PointProximityQuery
+					if (TriangleMesh.PointClosestTriangleQuery(Spatial, static_cast<const TArrayView<const FSolverVec3>&>(Particles.XArray()), Index, Particles.GetX(Index), DetectRadius, DetectRadius,
+						[this, &Elements, &ExcludeMap](const int32 PointIndex, const int32 TriangleIndex)->bool
+						{	
+							if (ExcludeMap.Find(PointIndex) && ExcludeMap[PointIndex].Contains(TriangleIndex))
+							{
+								return false;
+							}
+							return true;
+						},
+						Result))
+					{
+						for (const TTriangleCollisionPoint<FSolverReal>& CollisionPoint : Result)
+						{
+							const TVector<int32, 3>& Elem = Elements[CollisionPoint.Indices[1]];
+							// // NOTE: CollisionPoint.Normal has already been flipped to point toward the Point, so need to recalculate here.
+							// const TTriangle<FSolverReal> Triangle(Particles.GetX(Elem[0]), Particles.GetX(Elem[1]), Particles.GetX(Elem[2]));
+							// if ((Particles.GetX(Index) - CollisionPoint.Location).Dot(-Triangle.GetNormal()) < 0) //Is point inside boundary? Normal should point outwards
+							// {
+							const int32 IndexToWrite = ConstraintIndex.fetch_add(1);
+							Indices[IndexToWrite] = { Elem[0], Elem[1] ,Elem[2] };
+							SecondIndices[IndexToWrite] = { Index };
+							Weights[IndexToWrite] = { CollisionPoint.Bary[1], CollisionPoint.Bary[2], CollisionPoint.Bary[3] };
+							SecondWeights[IndexToWrite] = { 1.f };
+							float SpringStiffness = 0.f;
+							for (int32 k = 0; k < 3; k++)
+							{
+								SpringStiffness += Weights[IndexToWrite][k] * PositionTargetStiffness * Particles.M(Elem[k]);
+							}
+							SpringStiffness += PositionTargetStiffness * Particles.M(Index);
+							Stiffness[IndexToWrite] = SpringStiffness;
+							IsAnisotropic[IndexToWrite] = UseAnisotropicSpring;
+							Normals[IndexToWrite] = CollisionPoint.Normal;						
 						}
 					}
 				}
@@ -854,7 +866,6 @@ namespace Chaos::Softs
 		//TArray<TVector<int32, 4>> NoCollisionConstraints;
 		//For debugging
 		bool Detected = false;
-		TArray<int32> BoundaryVertices;
 
 		TArray<TArray<int32>> NoCollisionConstraints;
 		TArray<TArray<int32>> NoCollisionWCIncidentElements;

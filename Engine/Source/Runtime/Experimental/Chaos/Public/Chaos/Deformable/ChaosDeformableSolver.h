@@ -15,6 +15,7 @@
 #include "Chaos/Deformable/GaussSeidelNeohookeanConstraints.h"
 #include "Chaos/Deformable/GaussSeidelWeakConstraints.h"
 #include "Chaos/Deformable/GaussSeidelMainConstraint.h"
+#include "Chaos/Deformable/MuscleActivationConstraints.h"
 #include "Chaos/XPBDWeakConstraints.h"
 #include "Chaos/BlendedXPBDCorotatedConstraints.h"
 #include "Chaos/XPBDGridBasedCorotatedConstraints.h"
@@ -132,6 +133,8 @@ namespace Chaos::Softs
 		CHAOS_API void InitializeSelfCollisionVariables();
 		CHAOS_API void InitializeGridBasedConstraintVariables();
 		CHAOS_API void InitializeGaussSeidelConstraintVariables();
+		CHAOS_API void InitializeMuscleActivationVariables();
+		CHAOS_API void InitializeMuscleActivation(FFleshThreadingProxy& Proxy);
 		CHAOS_API void UpdateCollisionBodies(FCollisionManagerProxy&, FThreadingProxy::FKey, FSolverReal DeltaTime);
 		CHAOS_API void RemoveSimulationObjects();
 		CHAOS_API TArray<Chaos::TVec3<FSolverReal>> ComputeParticleTargets(const TArray<TArray<int32>>& ParticleIndices);
@@ -191,6 +194,7 @@ namespace Chaos::Softs
 		TUniquePtr <TArray<TVec3<int32>>> SurfaceElements;
 		TUniquePtr <TArray<Chaos::TVec4<int32>>> AllElements;
 		TUniquePtr <FTriangleMesh> SurfaceTriangleMesh;
+		TUniquePtr <TArray<int32>> SurfaceVertices;
 		TUniquePtr <TArray<TArray<int32>>> AllIncidentElements;
 		TUniquePtr <TArray<TArray<int32>>> AllIncidentElementsLocal;
 		TUniquePtr <TArray<FSolverReal>> AllTetEMeshArray;
@@ -201,6 +205,10 @@ namespace Chaos::Softs
 		TUniquePtr <TArray<FSolverReal>> AllWeights;
 		TUniquePtr <TArray<FSolverReal>> AllSecondWeights;
 		TArray<int32> ParticleComponentIndex;
+		TMap<int32, TSet<int32>> ParticleTriangleExclusionMap;
+		//Muscle Activation Variables
+		TUniquePtr<Softs::FMuscleActivationConstraints<Softs::FSolverReal, Softs::FSolverParticles>> MuscleActivationConstraints;
+
 		//typedef TMap<int32, TTuple<float, Chaos::Softs::FPAndInvM, FVector3f>> TransientConstraintBufferMap;
 		typedef TMap<int32, TTuple<float, float, FVector3f>> TransientConstraintBufferMap;
 		TransientConstraintBufferMap TransientConstraintBuffer;

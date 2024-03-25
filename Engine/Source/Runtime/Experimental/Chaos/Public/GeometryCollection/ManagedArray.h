@@ -11,6 +11,7 @@
 #include "Chaos/ParticleHandle.h"
 #include "Chaos/BVHParticles.h"
 #include "Math/Vector.h"
+#include "Chaos/Matrix.h"
 #include "Templates/TypeHash.h"
 
 struct FManagedArrayCollection;

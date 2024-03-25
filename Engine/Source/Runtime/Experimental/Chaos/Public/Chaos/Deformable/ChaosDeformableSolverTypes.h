@@ -23,24 +23,27 @@ namespace Chaos::Softs
 			bool InCacheToFile = false,
 			bool InbEnableKinematics = true,
 			bool InbUseFloor = true,
-			bool InbDoSelfCollision = false,
 			bool InbUseGridBasedConstraints = false,
-			FSolverReal InGridDx = (FSolverReal)1. ,
+			FSolverReal InGridDx = (FSolverReal)1.,
 			bool InbDoQuasistatics = false,
 			FSolverReal InEMesh = (FSolverReal)100000.,
 			bool InbDoBlended = false,
 			FSolverReal InBlendedZeta = (FSolverReal).1,
 			FSolverReal InDamping = (FSolverReal)0,
-			bool InbEnableGravity = true, 
-			bool InbEnableCorotatedConstraints = true, 
-			bool InbEnablePositionTargets = true, 
-			bool InbUseGaussSeidelConstraints = false, 
+			bool InbEnableGravity = true,
+			bool InbEnableCorotatedConstraints = true,
+			bool InbEnablePositionTargets = true,
+			bool InbUseGaussSeidelConstraints = false,
 			bool InbUseSOR = true,
-			FSolverReal InOmegaSOR = (FSolverReal)1.6, 
+			FSolverReal InOmegaSOR = (FSolverReal)1.6,
 			bool InbUseGSNeohookean = false,
-			FSolverReal InCollisionSearchRadius = (FSolverReal)10.,
+			bool InbDoSelfCollision = false,
+			bool InbDoInComponentSelfCollision = false,
+			int32 InNRingExcluded = 1,
+			FSolverReal InCollisionSearchRadius = (FSolverReal)0,
 			FSolverReal InCollisionSpringStiffness = (FSolverReal)500.,
-			bool InbAllowSliding = true)
+			bool InbAllowSliding = true,
+			bool InbDoMuscleActivation = false)
 			: NumSolverSubSteps(InNumSolverSubSteps)
 			, NumSolverIterations(InNumSolverIterations)
 			, FixTimeStep(InFixTimeStep)
@@ -48,7 +51,6 @@ namespace Chaos::Softs
 			, CacheToFile(InCacheToFile)
 			, bEnableKinematics(InbEnableKinematics)
 			, bUseFloor(InbUseFloor)
-			, bDoSelfCollision(InbDoSelfCollision)
 			, bUseGridBasedConstraints(InbUseGridBasedConstraints)
 			, GridDx(InGridDx)
 			, bDoQuasistatics(InbDoQuasistatics)
@@ -63,9 +65,13 @@ namespace Chaos::Softs
 			, bUseSOR(InbUseSOR)
 			, OmegaSOR(InOmegaSOR)
 			, bUseGSNeohookean(InbUseGSNeohookean)
+			, bDoSelfCollision(InbDoSelfCollision)
+			, bDoInComponentSelfCollision(InbDoInComponentSelfCollision)
+			, NRingExcluded(InNRingExcluded)
 			, CollisionSearchRadius(InCollisionSearchRadius)
 			, CollisionSpringStiffness(InCollisionSpringStiffness)
 			, bAllowSliding(InbAllowSliding)
+			, bDoMuscleActivation(InbDoMuscleActivation)
 		{}
 
 		int32 NumSolverSubSteps = 5;
@@ -75,7 +81,6 @@ namespace Chaos::Softs
 		bool CacheToFile = false;
 		bool bEnableKinematics = true;
 		bool bUseFloor = true;
-		bool bDoSelfCollision = false;
 		bool bUseGridBasedConstraints = false;
 		FSolverReal GridDx = (FSolverReal)1.;
 		bool bDoQuasistatics = false;
@@ -90,9 +95,13 @@ namespace Chaos::Softs
 		bool bUseSOR = true;
 		FSolverReal OmegaSOR = (FSolverReal)1.6;
 		bool bUseGSNeohookean = false;
-		FSolverReal CollisionSearchRadius = (FSolverReal)10.;
+		bool bDoSelfCollision = false;
+		bool bDoInComponentSelfCollision = false;
+		int32 NRingExcluded = 1;
+		FSolverReal CollisionSearchRadius = (FSolverReal)0;
 		FSolverReal CollisionSpringStiffness = (FSolverReal)500.;
 		bool bAllowSliding = true;
+		bool bDoMuscleActivation = false;
 	};
 
 

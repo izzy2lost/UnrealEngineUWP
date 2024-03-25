@@ -99,10 +99,25 @@ struct FCollisionSpringGroup
 {
 	GENERATED_USTRUCT_BODY()
 	/**
+	* If uses spring self-collision
+	*/
+	UPROPERTY(EditAnywhere, Category = "CollisionSpring")
+	bool bDoSelfCollision = false;
+	/**
+	* If uses in-component self-collision
+	*/
+	UPROPERTY(EditAnywhere, Category = "CollisionSpring")
+	bool bDoInComponentSelfCollision = false;
+	/**
+	* N ring to exclude for in-component self-collision 
+	*/
+	UPROPERTY(EditAnywhere, Category = "CollisionSpring")
+	int32 NRingExcluded = 1;
+	/**
 	* Search radius for point triangle pairs
 	*/
 	UPROPERTY(EditAnywhere, Category = "CollisionSpring")
-	float CollisionSearchRadius = 10.f;
+	float CollisionSearchRadius = 0.f;
 	/**
 	* Collision spring stiffness; larger value will stop penetration better
 	*/
@@ -156,9 +171,6 @@ struct FSolverCollisionsGroup
 {
 	GENERATED_USTRUCT_BODY()
 
-	UPROPERTY(EditAnywhere, Category = "Collisions")
-	bool bDoSelfCollision = false;
-
 	UPROPERTY(EditAnywhere, Category = "Physics")
 	bool bUseFloor = true;
 
@@ -202,7 +214,6 @@ struct FSolverConstraintsGroup
 	FSolverGaussSeidelConstraintsGroup GaussSeidelConstraints;
 };
 
-
 USTRUCT(BlueprintType)
 struct FSolverForcesGroup
 {
@@ -216,6 +227,15 @@ struct FSolverForcesGroup
 
 	UPROPERTY(EditAnywhere, Category = "Forces")
 	bool bEnableGravity = true;
+};
+
+USTRUCT(BlueprintType)
+struct FSolverMuscleActivationGroup
+{
+	GENERATED_USTRUCT_BODY()
+
+	UPROPERTY(EditAnywhere, Category = "MuscleActivation")
+	bool bDoMuscleActivation = false;
 };
 
 /**
@@ -277,6 +297,9 @@ public:
 
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Physics")
 	FSolverDebuggingGroup SolverDebugging;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Physics")
+	FSolverMuscleActivationGroup SolverMuscleActivation;
 
 	// Simulation Variables
 	TUniquePtr<FDeformableSolver> Solver;
