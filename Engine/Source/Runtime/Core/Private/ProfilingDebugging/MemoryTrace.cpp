@@ -191,8 +191,6 @@ private:
 	virtual bool ValidateHeap() override                                    { return InnerMalloc->ValidateHeap(); }
 	virtual bool GetAllocationSize(void* Address, SIZE_T &SizeOut) override { return InnerMalloc->GetAllocationSize(Address, SizeOut); }
 	virtual void SetupTLSCachesOnCurrentThread() override                   { return InnerMalloc->SetupTLSCachesOnCurrentThread(); }
-	virtual void MarkTLSCachesAsUsedOnCurrentThread() override              { InnerMalloc->MarkTLSCachesAsUsedOnCurrentThread(); }
-	virtual void MarkTLSCachesAsUnusedOnCurrentThread() override            { InnerMalloc->MarkTLSCachesAsUnusedOnCurrentThread(); }
 	virtual void OnMallocInitialized() override                             { InnerMalloc->OnMallocInitialized(); }
 	virtual void OnPreFork() override                                       { InnerMalloc->OnPreFork(); }
 	virtual void OnPostFork() override                                      { InnerMalloc->OnPostFork(); }

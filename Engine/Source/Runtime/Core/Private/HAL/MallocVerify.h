@@ -125,15 +125,6 @@ public:
 	{
 		return UsedMalloc->SetupTLSCachesOnCurrentThread();
 	}
-	virtual void MarkTLSCachesAsUsedOnCurrentThread() override
-	{
-		UsedMalloc->MarkTLSCachesAsUsedOnCurrentThread();
-	}
-
-	virtual void MarkTLSCachesAsUnusedOnCurrentThread() override
-	{
-		UsedMalloc->MarkTLSCachesAsUnusedOnCurrentThread();
-	}
 	virtual void ClearAndDisableTLSCachesOnCurrentThread() override
 	{
 		return UsedMalloc->ClearAndDisableTLSCachesOnCurrentThread();

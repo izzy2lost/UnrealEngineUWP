@@ -206,14 +206,6 @@ public:
 	{
 		return UsedMalloc->SetupTLSCachesOnCurrentThread();
 	}
-	virtual void MarkTLSCachesAsUsedOnCurrentThread() override
-	{
-		UsedMalloc->MarkTLSCachesAsUsedOnCurrentThread();
-	}
-	virtual void MarkTLSCachesAsUnusedOnCurrentThread() override
-	{
-		UsedMalloc->MarkTLSCachesAsUnusedOnCurrentThread();
-	}
 	virtual void ClearAndDisableTLSCachesOnCurrentThread() override
 	{
 		return UsedMalloc->ClearAndDisableTLSCachesOnCurrentThread();
@@ -574,22 +566,6 @@ void FMemory::ClearAndDisableTLSCachesOnCurrentThread()
 	if (GMalloc)
 	{
 		GMalloc->ClearAndDisableTLSCachesOnCurrentThread();
-	}
-}
-
-void FMemory::MarkTLSCachesAsUsedOnCurrentThread()
-{
-	if (GMalloc)
-	{
-		GMalloc->MarkTLSCachesAsUsedOnCurrentThread();
-	}
-}
-
-void FMemory::MarkTLSCachesAsUnusedOnCurrentThread()
-{
-	if (GMalloc)
-	{
-		GMalloc->MarkTLSCachesAsUnusedOnCurrentThread();
 	}
 }
 

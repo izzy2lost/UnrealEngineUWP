@@ -103,27 +103,6 @@ namespace LowLevelTasks::Private
 			// The StandbyState stores the active thread count in the waiter bits.
 			return (StandbyState & WaiterMask) >> WaiterShift;
 		}
-
-		void EnterWait(FWaitEvent* Node)
-		{
-			// Flush any open scope before going to sleep so that anything that happened
-			// before appears in UnrealInsights right away. If we don't do this,
-			// the thread buffer will be held to this thread until we wake up and fill it
-			// so it might cause events to appear as missing in UnrealInsights, especially
-			// in case we never wake up again (i.e. deadlock / crash).
-			TRACE_CPUPROFILER_EVENT_FLUSH();
-			Private::FOversubscriptionAllowedScope _(false /* Disallow oversubscription for this wait */);
-
-			// Let the memory manager know we're inactive so it can do whatever it wants with our
-			// thread-local memory cache if we have any.
-			FMemory::MarkTLSCachesAsUnusedOnCurrentThread();
-
-			Node->Event->Wait();
-
-			// Let the memory manager know we're active again and need our
-			// thread-local memory cache back if we have any.
-			FMemory::MarkTLSCachesAsUsedOnCurrentThread();
-		}
 	}
 
 void FWaitingQueue::Init(uint32 InThreadCount, uint32 InMaxThreadCount, TFunction<void()> InCreateThread, uint32 InActiveThreadCount)
@@ -355,7 +334,8 @@ void FWaitingQueue::ConditionalStandby(FWaitEvent* Node)
 		if (StandbyState.compare_exchange_weak(LocalState, NewState))
 		{
 			WAITINGQUEUE_EVENT_SCOPE(Standby);
-			EnterWait(Node);
+			Private::FOversubscriptionAllowedScope _(false /* Disallow oversubscription for this wait */);
+			Node->Event->Wait();
 		}
 		else
 		{
@@ -396,7 +376,14 @@ bool FWaitingQueue::CommitStandby(FWaitEvent* Node, FOutOfWork& OutOfWork)
 	}
 
 	OutOfWork.Stop();
-	EnterWait(Node);
+	// Flush any open scope before going to sleep so that anything that happened
+	// before appears in UnrealInsights right away. If we don't do this,
+	// the thread buffer will be held to this thread until we wake up and fill it
+	// so it might cause events to appear as missing in UnrealInsights, especially
+	// in case we never wake up again (i.e. deadlock / crash).
+	TRACE_CPUPROFILER_EVENT_FLUSH();
+	Private::FOversubscriptionAllowedScope _(false /* Disallow oversubscription for this wait */);
+	Node->Event->Wait();
 	return true;
 }
 
@@ -612,7 +599,14 @@ void FWaitingQueue::Park(FWaitEvent* Node, FOutOfWork& OutOfWork, int32 SpinCycl
 		}
 	}
 
-	EnterWait(Node);
+	// Flush any open scope before going to sleep so that anything that happened
+	// before appears in UnrealInsights right away. If we don't do this,
+	// the thread buffer will be held to this thread until we wake up and fill it
+	// so it might cause events to appear as missing in UnrealInsights, especially
+	// in case we never wake up again (i.e. deadlock / crash).
+	TRACE_CPUPROFILER_EVENT_FLUSH();
+	Private::FOversubscriptionAllowedScope _(false /* Disallow oversubscription for this wait */);
+	Node->Event->Wait();
 }
 
 int32 FWaitingQueue::Unpark(FWaitEvent* Node)

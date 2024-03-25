@@ -245,16 +245,6 @@ struct FMemory
 	static CORE_API void ClearAndDisableTLSCachesOnCurrentThread();
 
 	/**
-	* Mark TLS caches for the current thread as used. Thread has woken up to do some processing and needs its TLS caches back.
-	*/
-	static CORE_API void MarkTLSCachesAsUsedOnCurrentThread();
-
-	/**
-	* Mark TLS caches for current thread as unused. Typically before going to sleep. These are the threads that we can trim without waking them up.
-	*/
-	static CORE_API void MarkTLSCachesAsUnusedOnCurrentThread();
-
-	/**
 	 * A helper function that will perform a series of random heap allocations to test
 	 * the internal validity of the heap. Note, this function will "leak" memory, but another call
 	 * will clean up previously allocated blocks before returning. This will help to A/B testing

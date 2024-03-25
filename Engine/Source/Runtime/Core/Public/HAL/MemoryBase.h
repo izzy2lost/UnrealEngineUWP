@@ -147,20 +147,6 @@ public:
 	}
 
 	/**
-	* Mark TLS caches for the current thread as used. Thread has woken up to do some processing and needs its TLS caches back.
-	*/
-	virtual void MarkTLSCachesAsUsedOnCurrentThread()
-	{
-	}
-
-	/**
-	* Mark TLS caches for current thread as unused. Typically before going to sleep. These are the threads that we can trim without waking them up.
-	*/
-	virtual void MarkTLSCachesAsUnusedOnCurrentThread()
-	{
-	}
-
-	/**
 	* Clears the TLS caches on the current thread and disables any future caching.
 	*/
 	virtual void ClearAndDisableTLSCachesOnCurrentThread()

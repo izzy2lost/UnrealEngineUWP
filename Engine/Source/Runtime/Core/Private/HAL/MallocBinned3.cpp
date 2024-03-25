@@ -54,6 +54,14 @@ static FAutoConsoleVariableRef GMallocBinned3AllocExtraCVar(
 
 #endif
 
+float GMallocBinned3FlushThreadCacheMaxWaitTime = 0.02f;
+static FAutoConsoleVariableRef GMallocBinned3FlushThreadCacheMaxWaitTimeCVar(
+	TEXT("MallocBinned3.FlushThreadCacheMaxWaitTime"),
+	GMallocBinned3FlushThreadCacheMaxWaitTime,
+	TEXT("The threshold of time before warning about FlushCurrentThreadCache taking too long (seconds)."),
+	ECVF_ReadOnly
+);
+
 #if BINNED3_ALLOCATOR_STATS
 int64 Binned3AllocatedSmallPoolMemory = 0; // memory that's requested to be allocated by the game
 int64 Binned3AllocatedOSSmallPoolMemory = 0;
@@ -602,11 +610,6 @@ struct FMallocBinned3::Private
 };
 
 FMallocBinned3::Private::FGlobalRecycler FMallocBinned3::Private::GGlobalRecycler;
-
-void FMallocBinned3::FreeBundles(FBundleNode* Bundles, uint32 PoolIndex)
-{
-	Private::FreeBundles(*this, Bundles, PoolIndexToBlockSize(PoolIndex), PoolIndex);
-}
 
 void FMallocBinned3::RegisterThreadFreeBlockLists(FPerThreadFreeBlockLists* FreeBlockLists)
 {
@@ -1287,22 +1290,60 @@ const TCHAR* FMallocBinned3::GetDescriptiveName()
 	return TEXT("Binned3");
 }
 
-void FMallocBinned3::Trim(bool bTrimThreadCaches)
+void FMallocBinned3::FlushCurrentThreadCache()
 {
-	if (GMallocBinned3PerThreadCaches && bTrimThreadCaches)
+	double StartTimeInner = FPlatformTime::Seconds();
+	TRACE_CPUPROFILER_EVENT_SCOPE(FMallocBinned3::FlushCurrentThreadCache);
+	QUICK_SCOPE_CYCLE_COUNTER(STAT_FMallocBinned3_FlushCurrentThreadCache);
+	FPerThreadFreeBlockLists* Lists = FPerThreadFreeBlockLists::Get();
+
+	float WaitForMutexTime = 0.0f;
+	float WaitForMutexAndTrimTime = 0.0f;
+
+	if (Lists)
 	{
-		TMallocBinnedCommon::TrimImpl(*this);
+		FScopeLock Lock(&Mutex);
+		WaitForMutexTime = FPlatformTime::Seconds() - StartTimeInner;
+		for (int32 PoolIndex = 0; PoolIndex != BINNED3_SMALL_POOL_COUNT; ++PoolIndex)
+		{
+			FBundleNode* Bundles = Lists->PopBundles(PoolIndex);
+			if (Bundles)
+			{
+				Private::FreeBundles(*this, Bundles, PoolIndexToBlockSize(PoolIndex), PoolIndex);
+			}
+		}
+		WaitForMutexAndTrimTime = FPlatformTime::Seconds() - StartTimeInner;
+	}
+
+	// These logs must happen outside the above mutex to avoid deadlocks
+	if (WaitForMutexTime > GMallocBinned3FlushThreadCacheMaxWaitTime)
+	{
+		UE_LOG(LogMemory, Warning, TEXT("FMallocBinned3 took %6.2fms to wait for mutex for trim."), WaitForMutexTime * 1000.0f);
+	}
+	if (WaitForMutexAndTrimTime > GMallocBinned3FlushThreadCacheMaxWaitTime)
+	{
+		UE_LOG(LogMemory, Warning, TEXT("FMallocBinned3 took %6.2fms to wait for mutex AND trim."), WaitForMutexAndTrimTime * 1000.0f);
 	}
 }
 
-FCriticalSection& FMallocBinned3::GetFreeBlockListsRegistrationMutex()
-{
-	return Private::GetFreeBlockListsRegistrationMutex();
-}
+#include "Async/TaskGraphInterfaces.h"
 
-TArray<FMallocBinned3::FPerThreadFreeBlockLists*>& FMallocBinned3::GetRegisteredFreeBlockLists()
+void FMallocBinned3::Trim(bool bTrimThreadCaches)
 {
-	return Private::GetRegisteredFreeBlockLists();
+
+	if (GMallocBinned3PerThreadCaches  &&  bTrimThreadCaches)
+	{
+		QUICK_SCOPE_CYCLE_COUNTER(STAT_FMallocBinned3_Trim);
+		//double StartTime = FPlatformTime::Seconds();
+		TFunction<void(ENamedThreads::Type CurrentThread)> Broadcast =
+			[this](ENamedThreads::Type MyThread)
+		{
+			FlushCurrentThreadCache();
+		};
+		// Skip task threads on desktop platforms as it is too slow and they don't have much memory
+		FTaskGraphInterface::BroadcastSlow_OnlyUseForSpecialPurposes(!PLATFORM_DESKTOP, false, Broadcast);
+		//UE_LOG(LogTemp, Display, TEXT("Trim Broadcast = %6.2fms"), 1000.0f * float(FPlatformTime::Seconds() - StartTime));
+	}
 }
 
 void FMallocBinned3::SetupTLSCachesOnCurrentThread()
@@ -1325,31 +1366,8 @@ void FMallocBinned3::ClearAndDisableTLSCachesOnCurrentThread()
 	{
 		return;
 	}
-	FlushCurrentThreadCache(*this);
+	FlushCurrentThreadCache();
 	FPerThreadFreeBlockLists::ClearTLS();
-}
-
-void FMallocBinned3::MarkTLSCachesAsUsedOnCurrentThread()
-{
-	if (!BINNED3_ALLOW_RUNTIME_TWEAKING && !GMallocBinned3PerThreadCaches)
-	{
-		return;
-	}
-
-	FPerThreadFreeBlockLists::LockTLS();
-}
-
-void FMallocBinned3::MarkTLSCachesAsUnusedOnCurrentThread()
-{
-	if (!BINNED3_ALLOW_RUNTIME_TWEAKING && !GMallocBinned3PerThreadCaches)
-	{
-		return;
-	}
-
-	// Will only flush if memory trimming epoch has been bumped while the thread was active.
-	const bool bNewEpochOnly = true;
-	FlushCurrentThreadCache(*this, bNewEpochOnly);
-	FPerThreadFreeBlockLists::UnlockTLS();
 }
 
 void FMallocBinned3::FFreeBlock::CanaryFail() const
