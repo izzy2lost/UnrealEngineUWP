@@ -208,6 +208,12 @@ bool UWorldMetricsSubsystem::HasAnyMetric() const
 
 UWorldMetricInterface* UWorldMetricsSubsystem::GetMetric(const TSubclassOf<UWorldMetricInterface>& InMetricClass) const
 {
+	if (UNLIKELY(!InMetricClass))
+	{
+		UE_LOG(LogWorldMetrics, Error, TEXT("[%hs] Unexpected null metric class"), __FUNCTION__);
+		return nullptr;
+	}
+
 	if (InMetricClass->HasAnyClassFlags(CLASS_Abstract))
 	{
 		UE_LOG(
@@ -227,6 +233,12 @@ UWorldMetricInterface* UWorldMetricsSubsystem::GetMetric(const TSubclassOf<UWorl
 
 bool UWorldMetricsSubsystem::AddMetric(const TSubclassOf<UWorldMetricInterface>& InMetricClass)
 {
+	if (UNLIKELY(!InMetricClass))
+	{
+		UE_LOG(LogWorldMetrics, Error, TEXT("[%hs] Unexpected null metric class"), __FUNCTION__);
+		return false;
+	}
+
 	if (InMetricClass->HasAnyClassFlags(CLASS_Abstract))
 	{
 		UE_LOG(
@@ -269,6 +281,12 @@ bool UWorldMetricsSubsystem::AddMetric(const TSubclassOf<UWorldMetricInterface>&
 
 bool UWorldMetricsSubsystem::RemoveMetric(const TSubclassOf<UWorldMetricInterface>& InMetricClass)
 {
+	if (UNLIKELY(!InMetricClass))
+	{
+		UE_LOG(LogWorldMetrics, Error, TEXT("[%hs] Unexpected null metric class"), __FUNCTION__);
+		return false;
+	}
+
 	const int32 MetricIndex = GetMetricIndex(InMetricClass);
 	if (MetricIndex == INDEX_NONE)
 	{
@@ -403,6 +421,12 @@ UWorldMetricsExtension* UWorldMetricsSubsystem::AcquireExtensionInternal(
 		return nullptr;
 	}
 
+	if (UNLIKELY(!InExtensionClass))
+	{
+		UE_LOG(LogWorldMetrics, Error, TEXT("[%hs] Unexpected null extension class"), __FUNCTION__);
+		return nullptr;
+	}
+
 	if (InExtensionClass->HasAnyClassFlags(CLASS_Abstract))
 	{
 		UE_LOG(
@@ -476,6 +500,12 @@ bool UWorldMetricsSubsystem::ReleaseExtensionInternal(
 {
 	if (UNLIKELY(!InOwner))
 	{
+		return false;
+	}
+
+	if (UNLIKELY(!InExtensionClass))
+	{
+		UE_LOG(LogWorldMetrics, Error, TEXT("[%hs] Unexpected null extension class"), __FUNCTION__);
 		return false;
 	}
 

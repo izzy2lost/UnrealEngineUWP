@@ -207,7 +207,13 @@ void TestSingleMetricAddRemove(UWorld* World)
 	{
 		UWorldMetricsSubsystem* Subsystem = UWorldMetricsSubsystem::Get(World);
 
+		// Invalid metric add
+		REQUIRE_MESSAGE(TEXT("AddMetric should fail"), !Subsystem->AddMetric(UObject::StaticClass()));
+
 		REQUIRE_MESSAGE(TEXT("AddMetric failed"), Subsystem->AddMetric<UMockWorldMetricA>());
+
+		// Invalid metric get
+		REQUIRE_MESSAGE(TEXT("GetMetric should fail"), !Subsystem->GetMetric(UObject::StaticClass()));
 
 		UMockWorldMetricA* MetricA = Subsystem->GetMetric<UMockWorldMetricA>();
 		REQUIRE_MESSAGE(TEXT("Test Metric initialization failed"), MetricA->InitializeCount == 1);
@@ -219,6 +225,9 @@ void TestSingleMetricAddRemove(UWorld* World)
 
 		REQUIRE_MESSAGE(TEXT("Unexpected AddMetric"), !Subsystem->AddMetric<UMockWorldMetricA>());
 		REQUIRE_MESSAGE(TEXT("WorldMetricsSubsystem should have one metric."), Subsystem->NumMetrics() == 1);
+
+		// Invalid metric remove
+		REQUIRE_MESSAGE(TEXT("RemoveMetric should fail"), !Subsystem->RemoveMetric(UObject::StaticClass()));
 
 		REQUIRE_MESSAGE(TEXT("RemoveMetric failed."), Subsystem->RemoveMetric<UMockWorldMetricA>());
 		REQUIRE_MESSAGE(TEXT("Test Metric deinitialization failed after release."), MetricA->DeinitializeCount == 1);
@@ -273,6 +282,9 @@ void TestSingleMetricSingleExtensionAcquireRelease(UWorld* World)
 
 	// Extension acquire/release
 	{
+		// Invalid metric acquire
+		REQUIRE_MESSAGE(TEXT("AcquireExtension should fail"), !Subsystem->AcquireExtension(MetricA, UObject::StaticClass()));
+
 		UMockWorldMetricsExtensionA* ExtensionA = Subsystem->AcquireExtension<UMockWorldMetricsExtensionA>(MetricA);
 		REQUIRE_MESSAGE(TEXT("Acquire Test Extension failed."), ExtensionA);
 		REQUIRE_MESSAGE(TEXT("Test Extension initialization failed"), ExtensionA->InitializeCount == 1);
@@ -281,6 +293,9 @@ void TestSingleMetricSingleExtensionAcquireRelease(UWorld* World)
 			TEXT("WorldMetricsSubsystem should be enabled by default if there are metrics."), Subsystem->IsEnabled());
 		REQUIRE_MESSAGE(TEXT("WorldMetricsSubsystem should have extensions."), Subsystem->HasAnyExtension());
 		REQUIRE_MESSAGE(TEXT("WorldMetricsSubsystem should have one extension."), Subsystem->NumExtensions() == 1);
+
+		// Invalid metric release
+		REQUIRE_MESSAGE(TEXT("ReleaseExtension should fail"), !Subsystem->ReleaseExtension(MetricA, UObject::StaticClass()));
 
 		REQUIRE_MESSAGE(
 			TEXT("Test Extension release failed."), Subsystem->ReleaseExtension<UMockWorldMetricsExtensionA>(MetricA));

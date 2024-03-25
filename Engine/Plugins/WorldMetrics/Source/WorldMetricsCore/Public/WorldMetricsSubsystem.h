@@ -241,7 +241,7 @@ private:
 	UPROPERTY(Transient)
 	TArray<TObjectPtr<UWorldMetricsExtension>> Extensions;
 
-	using FOwnerList = TSet<UObject*, DefaultKeyFuncs<UObject*>, TFixedSetAllocator<DefaultOwnerListCapacity>>;
+	using FOwnerList = TSet<UObject*, DefaultKeyFuncs<UObject*>, TInlineSetAllocator<DefaultOwnerListCapacity>>;
 	TArray<FOwnerList, TInlineAllocator<DefaultExtensionCapacity>> IndexedOwners;
 
 public:
