@@ -21,6 +21,7 @@
 #include "Misc/FileHelper.h"
 #include "Serialization/JsonSerializer.h"
 #include "Stats/StatsMisc.h"
+#include "String/ParseTokens.h"
 #include "Engine/AssetManager.h"
 #include "Engine/StreamableManager.h"
 #include "Engine/AssetManagerSettings.h"
@@ -53,6 +54,19 @@ namespace UE::GameFeatures
 		const TCHAR* CancelAddonCode = TEXT("_Cancel");
 	}
 
+#define GAME_FEATURE_PLUGIN_PROTOCOL_PREFIX(inEnum, inString) case EGameFeaturePluginProtocol::inEnum: return inString;
+	static const TCHAR* GameFeaturePluginProtocolPrefix(EGameFeaturePluginProtocol Protocol)
+	{
+		switch (Protocol)
+		{
+			GAME_FEATURE_PLUGIN_PROTOCOL_LIST(GAME_FEATURE_PLUGIN_PROTOCOL_PREFIX)
+		}
+
+		check(false);
+		return nullptr;
+	}
+#undef GAME_FEATURE_PLUGIN_PROTOCOL_PREFIX
+
 	static bool GCachePluginDetails = true;
 	static FAutoConsoleVariableRef CVarCachePluginDetails(
 		TEXT("GameFeaturePlugin.CachePluginDetails"),
@@ -83,30 +97,6 @@ namespace UE::GameFeatures
 		ECVF_Default);
 #endif // !UE_BUILD_SHIPPING
 }
-
-#define GAME_FEATURE_PLUGIN_STATE_LEX_TO_STRING(inEnum, inText)  \
-    case(EGameFeaturePluginState::inEnum):                       \
-    {                                                            \
-        return TEXT(#inEnum);                                    \
-    }                                                            
-
-namespace GameFeaturePluginStatePrivate
-{
-	FString LexToString(EGameFeaturePluginState InEnum)
-	{
-		switch (InEnum)
-		{
-			GAME_FEATURE_PLUGIN_STATE_LIST(GAME_FEATURE_PLUGIN_STATE_LEX_TO_STRING)
-
-		default:
-			{
-				ensureAlwaysMsgf(false, TEXT("Logic error causing a missing LexToString value for EGameFeaturePluginState:%d"), static_cast<uint8>(InEnum));
-				return TEXT("ERROR_UNSUPPORTED_ENUM");
-			}
-		}
-	}
-}
-#undef GAME_FEATURE_PLUGIN_STATE_LEX_TO_STRING
 
 const FString LexToString(const EBuiltInAutoState BuiltInAutoState)
 {
@@ -710,7 +700,6 @@ FString GetPluginURL_InstallBundleProtocol(const FString& PluginName, const FIns
 	FString Path;
 	Path += UE::GameFeatures::GameFeaturePluginProtocolPrefix(EGameFeaturePluginProtocol::InstallBundle);
 	Path += PluginName;
-	Path += UE::GameFeatures::PluginURLStructureInfo::OptionSeperator;
 	Path += ProtocolMetadata.ToString();
 	if (AdditionalOptions.Num() > 0)
 	{
@@ -821,6 +810,127 @@ bool UGameFeaturesSubsystem::ParsePluginURL(FStringView PluginURL, EGameFeatureP
 	}
 
 	return false;
+}
+
+namespace GameFeaturesSubsystem
+{
+	static bool SplitOption(FStringView OptionPair, FStringView& OutOptionName, FStringView& OutOptionValue)
+	{
+		int32 TokenCount = 0;
+		FStringView OptionName;
+		FStringView OptionValue;
+		UE::String::ParseTokens(OptionPair, UE::GameFeatures::PluginURLStructureInfo::OptionAssignOperator, 
+		[&TokenCount, &OptionName, &OptionValue](FStringView Token)
+		{
+			++TokenCount;
+			switch (TokenCount)
+			{
+			case 1:
+				OptionName = Token;
+				break;
+			case 2:
+				OptionValue = Token;
+				break;
+			}
+		});
+
+		const bool bSuccess = TokenCount == 2;
+		if (bSuccess)
+		{
+			OutOptionName = OptionName;
+			OutOptionValue = OptionValue;
+		}
+
+		return bSuccess;
+	}
+
+	struct FParsePluginURLOptionsFilter
+	{
+		EGameFeatureURLOptions OptionsFlags;
+		TConstArrayView<FStringView> AdditionalOptions;
+	};
+
+	static bool ParsePluginURLOptions(FStringView URLOptionsString, const FParsePluginURLOptionsFilter* OptionsFilter,
+		TFunctionRef<void(EGameFeatureURLOptions Option, FStringView OptionString, FStringView OptionValue)> Output)
+	{
+		enum class EParseState : uint8
+		{
+			First,
+			OK,
+			Error
+		};
+
+		//Parse through our URLOptions. The first option won't appear until after the first seperator.
+		//We don't care what comes before the first seperator
+		EParseState ParseState = EParseState::First;
+		UE::String::ParseTokens(URLOptionsString, UE::GameFeatures::PluginURLStructureInfo::OptionSeperator, 
+		[OptionsFilter, Output, &ParseState](FStringView Token)
+		{
+			if (ParseState == EParseState::Error)
+			{
+				return;
+			}
+
+			if (ParseState == EParseState::First)
+			{
+				ParseState = EParseState::OK;
+				return;
+			}
+
+			FStringView OptionName;
+			FStringView OptionValue;
+			if (!GameFeaturesSubsystem::SplitOption(Token, OptionName, OptionValue))
+			{
+				ParseState = EParseState::Error;
+				return;
+			}
+
+			EGameFeatureURLOptions OptionEnum = EGameFeatureURLOptions::None;
+
+			if (!OptionsFilter || OptionsFilter->OptionsFlags != EGameFeatureURLOptions::None)
+			{
+				LexFromString(OptionEnum, OptionName);
+			}
+
+			if (!OptionsFilter || EnumHasAnyFlags(OptionsFilter->OptionsFlags, OptionEnum) || OptionsFilter->AdditionalOptions.Contains(OptionName))
+			{
+				UE::String::ParseTokens(OptionValue, UE::GameFeatures::PluginURLStructureInfo::OptionListSeperator,
+				[Output, OptionEnum, OptionName](FStringView ListToken)
+				{
+					Output(OptionEnum, OptionName, ListToken);
+				});
+			}
+		});
+
+		return ParseState == EParseState::OK;
+	}
+}
+
+bool UGameFeaturesSubsystem::ParsePluginURLOptions(FStringView URLOptionsString,
+	TFunctionRef<void(EGameFeatureURLOptions Option, FStringView OptionString, FStringView OptionValue)> Output)
+{
+	return GameFeaturesSubsystem::ParsePluginURLOptions(URLOptionsString, nullptr, Output);
+}
+
+bool UGameFeaturesSubsystem::ParsePluginURLOptions(FStringView URLOptionsString, EGameFeatureURLOptions OptionsFlags,
+	TFunctionRef<void(EGameFeatureURLOptions Option, FStringView OptionString, FStringView OptionValue)> Output)
+{
+	const GameFeaturesSubsystem::FParsePluginURLOptionsFilter OptionsFilter{ OptionsFlags, {} };
+	return GameFeaturesSubsystem::ParsePluginURLOptions(URLOptionsString, &OptionsFilter, Output);
+}
+
+bool UGameFeaturesSubsystem::ParsePluginURLOptions(FStringView URLOptionsString, TConstArrayView<FStringView> AdditionalOptions,
+	TFunctionRef<void(EGameFeatureURLOptions Option, FStringView OptionString, FStringView OptionValue)> Output)
+{
+	const GameFeaturesSubsystem::FParsePluginURLOptionsFilter OptionsFilter{ EGameFeatureURLOptions::None, AdditionalOptions };
+	return GameFeaturesSubsystem::ParsePluginURLOptions(URLOptionsString, &OptionsFilter, Output);
+}
+
+bool UGameFeaturesSubsystem::ParsePluginURLOptions(FStringView URLOptionsString, EGameFeatureURLOptions OptionsFlags, TConstArrayView<FStringView> AdditionalOptions,
+	TFunctionRef<void(EGameFeatureURLOptions Option, FStringView OptionString, FStringView OptionValue)> Output)
+{
+	const GameFeaturesSubsystem::FParsePluginURLOptionsFilter OptionsFilter{ OptionsFlags, AdditionalOptions };
+	return GameFeaturesSubsystem::ParsePluginURLOptions(URLOptionsString, &OptionsFilter, Output);
 }
 
 void UGameFeaturesSubsystem::OnGameFeatureTerminating(const FString& PluginName, const FGameFeaturePluginIdentifier& PluginIdentifier)
@@ -2247,9 +2357,8 @@ struct FGameFeaturePluginPredownloadContext : public FGameFeaturePluginPredownlo
 				continue;
 			}
 
-			FInstallBundlePluginProtocolMetaData InstallBundleOptions;
-			const bool bParsedBundles = FInstallBundlePluginProtocolMetaData::FromString(URL, InstallBundleOptions);
-			if (!bParsedBundles)
+			TValueOrError<FInstallBundlePluginProtocolMetaData, void> MaybeInstallBundleOptions = FInstallBundlePluginProtocolMetaData::FromString(URL);
+			if (MaybeInstallBundleOptions.HasError())
 			{
 				UE_LOGFMT(LogGameFeatures, Error, "GFP Predownload failed to parse URL {URL}", ("URL", URL));
 				UE::GameFeatures::FResult ErrorResult = MakeError(FString::Printf(TEXT("%.*s%s"),
@@ -2259,7 +2368,7 @@ struct FGameFeaturePluginPredownloadContext : public FGameFeaturePluginPredownlo
 				return;
 			}
 
-			GFPs.Emplace(URL, MoveTemp(InstallBundleOptions));
+			GFPs.Emplace(URL, MaybeInstallBundleOptions.StealValue());
 		}
 
 		if (GFPs.Num() == 0)
@@ -3057,7 +3166,7 @@ TSet<FString> UGameFeaturesSubsystem::GetActivePluginNames() const
 
 namespace GameFeaturesSubsystem
 { 
-	bool IsContentWithinActivePlugin(const FString& InObjectOrPackagePath, const TSet<FString>& ActivePluginNames)
+	static bool IsContentWithinActivePlugin(const FString& InObjectOrPackagePath, const TSet<FString>& ActivePluginNames)
 	{
 		// Look for the first slash beyond the first one we start with.
 		const int32 RootEndIndex = InObjectOrPackagePath.Find(TEXT("/"), ESearchCase::IgnoreCase, ESearchDir::FromStart, 1);

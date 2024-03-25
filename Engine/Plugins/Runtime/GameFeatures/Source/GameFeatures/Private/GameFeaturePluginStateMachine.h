@@ -159,11 +159,6 @@ Transition states are expected to transition the machine to another state after 
                              +--------------------+
 */
 
-namespace UE::GameFeatures
-{
-	const TCHAR* GameFeaturePluginProtocolPrefix(EGameFeaturePluginProtocol Protocol);
-}
-
 struct FGameFeaturePluginStateRange
 {
 	EGameFeaturePluginState MinState = EGameFeaturePluginState::Uninitialized;
@@ -230,11 +225,14 @@ inline bool operator>(const FGameFeaturePluginStateRange& StateRange, EGameFeatu
 
 struct FInstallBundlePluginProtocolMetaData
 {
+	FInstallBundlePluginProtocolMetaData() = default;
+	FInstallBundlePluginProtocolMetaData(TArray<FName> InInstallBundles) : InstallBundles(MoveTemp(InInstallBundles)) {}
+
 	TArray<FName> InstallBundles;
 
 	/** Functions to convert to/from the URL FString representation of this metadata **/
 	FString ToString() const;
-	static bool FromString(FStringView URLString, FInstallBundlePluginProtocolMetaData& OutMetadata);
+	static TValueOrError<FInstallBundlePluginProtocolMetaData, void> FromString(FStringView URLOptionsString);
 };
 
 struct FGameFeatureProtocolMetadata : public TUnion<FInstallBundlePluginProtocolMetaData, FNull>
