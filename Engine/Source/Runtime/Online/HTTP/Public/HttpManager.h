@@ -28,7 +28,7 @@ enum class EHttpFlushReason : uint8
 	/** Reasonable, typically higher time limits */
 	Default,
 	/** Shorter time limits depending on platform requirements */
-	Background,
+	Background UE_DEPRECATED(5.5, "Flush when go into background is no longer used and will be removed"),
 	/** Shorter time limits depending on platform requirements */
 	Shutdown,
 	/** Infinite wait, should only be used in non-game scenarios where longer waits are acceptable */
