@@ -125,6 +125,18 @@ void SDataflowGraphEditor::Construct(const FArguments& InArgs, UObject* InAssetO
 				FCanExecuteAction(),
 				FIsActionChecked::CreateSP(this, &SDataflowGraphEditor::GetPinVisibility, SGraphEditor::Pin_HideNoConnectionNoDefault)
 			);
+			GraphEditorCommands->MapAction(
+				FGenericCommands::Get().Copy,
+				FExecuteAction::CreateSP(this, &SDataflowGraphEditor::CopySelectedNodes)
+			);
+			GraphEditorCommands->MapAction(
+				FGenericCommands::Get().Cut,
+				FExecuteAction::CreateSP(this, &SDataflowGraphEditor::CutSelectedNodes)
+			);
+			GraphEditorCommands->MapAction(
+				FGenericCommands::Get().Paste,
+				FExecuteAction::CreateSP(this, &SDataflowGraphEditor::PasteSelectedNodes)
+			);
 		}
 	}
 
@@ -171,9 +183,12 @@ void SDataflowGraphEditor::DeleteNode()
 		}
 
 		const FGraphPanelSelectionSet& SelectedNodes = GetSelectedNodes();
-		FDataflowEditorCommands::DeleteNodes(DataflowAsset.Get(), SelectedNodes);
+		if (SelectedNodes.Num() > 0)
+		{
+			FDataflowEditorCommands::DeleteNodes(DataflowAsset.Get(), SelectedNodes);
 
-		OnNodeDeletedMulticast.Broadcast(SelectedNodes);
+			OnNodeDeletedMulticast.Broadcast(SelectedNodes);
+		}
 	}
 }
 
@@ -537,5 +552,44 @@ void SDataflowGraphEditor::AddReferencedObjects(FReferenceCollector& Collector)
 	Collector.AddReferencedObject(AssetOwner);
 }
 
+void SDataflowGraphEditor::CopySelectedNodes()
+{
+	if (UDataflow* Graph = DataflowAsset.Get())
+	{
+		const TSharedPtr<SDataflowGraphEditor>& DataflowGraphEditor = SharedThis(this);
+		const FGraphPanelSelectionSet& SelectedNodes = GetSelectedNodes();
+
+		if (SelectedNodes.Num() > 0)
+		{
+			FDataflowEditorCommands::CopyNodes(Graph, DataflowGraphEditor, SelectedNodes);
+		}
+	}
+}
+
+void SDataflowGraphEditor::CutSelectedNodes()
+{
+	if (UDataflow* Graph = DataflowAsset.Get())
+	{
+		const TSharedPtr<SDataflowGraphEditor>& DataflowGraphEditor = SharedThis(this);
+		const FGraphPanelSelectionSet& SelectedNodes = GetSelectedNodes();
+
+		if (SelectedNodes.Num() > 0)
+		{
+			FDataflowEditorCommands::CopyNodes(Graph, DataflowGraphEditor, SelectedNodes);
+
+			FDataflowEditorCommands::DeleteNodes(DataflowAsset.Get(), SelectedNodes);
+		}
+	}
+}
+
+void SDataflowGraphEditor::PasteSelectedNodes()
+{
+	if (UDataflow* Graph = DataflowAsset.Get())
+	{
+		const TSharedPtr<SDataflowGraphEditor>& DataflowGraphEditor = SharedThis(this);
+
+		FDataflowEditorCommands::PasteNodes(Graph, DataflowGraphEditor);
+	}
+}
 
 #undef LOCTEXT_NAMESPACE

@@ -114,7 +114,7 @@ struct FDataflowNode
 	DATAFLOWCORE_API FDataflowInput* FindInput(FName Name);
 	DATAFLOWCORE_API FDataflowInput* FindInput(void* Reference);
 	DATAFLOWCORE_API const FDataflowInput* FindInput(const void* Reference) const;
-
+	DATAFLOWCORE_API const FDataflowInput* FindInput(const FGuid& InGuid) const;
 
 	DATAFLOWCORE_API virtual void AddOutput(FDataflowOutput* InPtr);
 	DATAFLOWCORE_API int NumOutputs() const;
@@ -125,6 +125,7 @@ struct FDataflowNode
 	DATAFLOWCORE_API FDataflowOutput* FindOutput(void* Reference);
 	DATAFLOWCORE_API const FDataflowOutput* FindOutput(FName Name) const;
 	DATAFLOWCORE_API const FDataflowOutput* FindOutput(const void* Reference) const;
+	DATAFLOWCORE_API const FDataflowOutput* FindOutput(const FGuid& InGuid) const;
 
 	/** Return a property's byte offset from the dataflow base node address using the full property name (must includes its parent struct property names). */
 	uint32 GetPropertyOffset(const FName& PropertyFullName) const;

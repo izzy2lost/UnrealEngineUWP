@@ -192,5 +192,31 @@ EAssetCommandResult UAssetDefinition_DataflowAsset::OpenAssets(const FAssetOpenA
 	return EAssetCommandResult::Unhandled;
 }
 
+FString FDataflowConnectionData::GetNode(const FString InConnection)
+{
+	FString Left, Right;
+
+	if (InConnection.Split(TEXT(":"), &Left, nullptr, ESearchCase::IgnoreCase, ESearchDir::FromEnd))
+	{
+		if (Left.Split(TEXT("/"), nullptr, &Right, ESearchCase::IgnoreCase, ESearchDir::FromEnd))
+		{
+			return Right;
+		}
+	}
+
+	return FString("");
+}
+
+FString FDataflowConnectionData::GetProperty(const FString InConnection)
+{
+	FString Right;
+
+	if (InConnection.Split(TEXT(":"), nullptr, &Right, ESearchCase::IgnoreCase, ESearchDir::FromEnd))
+	{
+		return Right;
+	}
+
+	return FString("");
+}
 
 #undef LOCTEXT_NAMESPACE

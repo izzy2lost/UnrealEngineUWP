@@ -223,7 +223,7 @@ static UDataflowEdNode* CreateNode(UDataflow* Dataflow, UEdGraphPin* FromPin, co
 				{
 					SDataflowEdNode::CopyDataflowNodeSettings(DataflowNodeToDuplicate, DataflowNode);
 				}
-
+				
 				EdNode->CreateNewGuid();
 				EdNode->PostPlacedNewNode();
 
@@ -328,5 +328,97 @@ UEdGraphNode* FAssetSchemaAction_Dataflow_DuplicateNode_DataflowEdNode::PerformA
 	return nullptr;
 }
 
+//
+// 
+//
+TSharedPtr<FAssetSchemaAction_Dataflow_PasteNode_DataflowEdNode> FAssetSchemaAction_Dataflow_PasteNode_DataflowEdNode::CreateAction(UEdGraph* ParentGraph, const FName& InNodeTypeName)
+{
+	if (Dataflow::FNodeFactory* Factory = Dataflow::FNodeFactory::GetInstance())
+	{
+		const Dataflow::FFactoryParameters& Param = Factory->GetParameters(InNodeTypeName);
+		if (Param.IsValid())
+		{
+			const FText ToolTip = FText::FromString(Param.ToolTip.IsEmpty() ? FString("Add a Dataflow node.") : Param.ToolTip);
+			const FText NodeName = FText::FromString(Param.DisplayName.ToString());
+			const FText Category = FText::FromString(Param.Category.ToString().IsEmpty() ? FString("Dataflow") : Param.Category.ToString());
+			const FText Tags = FText::FromString(Param.Tags);
+			TSharedPtr<FAssetSchemaAction_Dataflow_PasteNode_DataflowEdNode> NewNodeAction(
+				new FAssetSchemaAction_Dataflow_PasteNode_DataflowEdNode(InNodeTypeName, Category, NodeName, ToolTip, Tags));
+			return NewNodeAction;
+		}
+	}
+	return TSharedPtr<FAssetSchemaAction_Dataflow_PasteNode_DataflowEdNode>(nullptr);
+}
+
+static UDataflowEdNode* CreateNodeFromPaste(UDataflow* Dataflow, UEdGraphPin* FromPin, const FVector2D Location, bool bSelectNewNode, const FName NodeUniqueName, const FName NodeTypeName, FString NodeProperties)
+{
+	if (Dataflow::FNodeFactory* Factory = Dataflow::FNodeFactory::GetInstance())
+	{
+		if (TSharedPtr<FDataflowNode> DataflowNode =
+			Factory->NewNodeFromRegisteredType(
+				*Dataflow->GetDataflow(),
+				{ FGuid::NewGuid(), NodeTypeName, NodeUniqueName, Dataflow }))
+		{
+			if (UDataflowEdNode* EdNode = NewObject<UDataflowEdNode>(Dataflow, UDataflowEdNode::StaticClass(), NodeUniqueName))
+			{
+				Dataflow->Modify();
+
+				Dataflow->AddNode(EdNode, true, bSelectNewNode);
+
+				// Copy properties to DataflowNode
+				if (!NodeProperties.IsEmpty())
+				{
+					DataflowNode->TypedScriptStruct()->ImportText(*NodeProperties, DataflowNode.Get(), nullptr, EPropertyPortFlags::PPF_None, nullptr, DataflowNode->TypedScriptStruct()->GetName(), true);
+				}
+
+				EdNode->CreateNewGuid();
+				EdNode->PostPlacedNewNode();
+
+				EdNode->SetDataflowGraph(Dataflow->GetDataflow());
+				EdNode->SetDataflowNodeGuid(DataflowNode->GetGuid());
+				EdNode->AllocateDefaultPins();
+
+				EdNode->NodePosX = Location.X;
+				EdNode->NodePosY = Location.Y;
+
+				EdNode->SetFlags(RF_Transactional);
+
+				return EdNode;
+			}
+		}
+	}
+
+	return nullptr;
+}
+
+//
+//   
+//
+UEdGraphNode* FAssetSchemaAction_Dataflow_PasteNode_DataflowEdNode::PerformAction(class UEdGraph* ParentGraph, UEdGraphPin* FromPin, const FVector2D Location, bool bSelectNewNode)
+{
+	if (UDataflow* Dataflow = Cast<UDataflow>(ParentGraph))
+	{
+		// Append "_copy" to selected node's name if it doesn't have it
+		FString NodeToDuplicateName = NodeName.ToString();
+		if (!NodeToDuplicateName.Contains("_copy"))
+		{
+			NodeToDuplicateName.Append("_copy");
+		}
+
+		// Check if that is unique, if not then make it unique with an index postfix
+		const FString NodeBaseName = NodeToDuplicateName;
+		FName NodeUniqueName{ NodeBaseName };
+		int32 NameIndex = 0;
+		while (Dataflow->GetDataflow()->FindBaseNode(FName(NodeUniqueName)) != nullptr)
+		{
+			NodeUniqueName = FName(NodeBaseName + FString::Printf(TEXT("_%d"), NameIndex));
+			NameIndex++;
+		}
+
+		return CreateNodeFromPaste(Dataflow, FromPin, Location, bSelectNewNode, NodeUniqueName, NodeTypeName, NodeProperties);
+	}
+
+	return nullptr;
+}
 #undef LOCTEXT_NAMESPACE
 

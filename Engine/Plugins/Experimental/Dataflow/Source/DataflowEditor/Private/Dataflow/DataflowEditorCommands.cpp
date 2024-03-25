@@ -2,6 +2,7 @@
 
 #include "Dataflow/DataflowEditorCommands.h"
 
+#include "Dataflow/AssetDefinition_DataflowAsset.h"
 #include "Dataflow/DataflowEdNode.h"
 #include "Dataflow/DataflowContent.h"
 #include "Dataflow/DataflowEditorStyle.h"
@@ -17,6 +18,15 @@
 #include "EdGraph/EdGraphNode.h"
 #include "Editor.h"
 #include "IStructureDetailsView.h"
+#include "Serialization/ObjectWriter.h"
+#include "Serialization/ObjectReader.h"
+#include "Dataflow/DataflowGraph.h"
+#include "Framework/Notifications/NotificationManager.h"
+#include "Widgets/Notifications/SNotificationList.h"
+
+#if WITH_EDITOR
+#include "HAL/PlatformApplicationMisc.h"
+#endif
 
 #define LOCTEXT_NAMESPACE "DataflowEditorCommands"
 
@@ -438,6 +448,20 @@ static UEdGraphPin* GetPin(const UDataflowEdNode* Node, const EEdGraphPinDirecti
 	return nullptr;
 }
 
+static void ShowNotificationMessage(const FText& Message, const SNotificationItem::ECompletionState CompletionState)
+{
+	FNotificationInfo Info(Message);
+	Info.ExpireDuration = 5.0f;
+	Info.bUseLargeFont = false;
+	Info.bUseThrobber = false;
+	Info.bUseSuccessFailIcons = false;
+	TSharedPtr<SNotificationItem> Notification = FSlateNotificationManager::Get().AddNotification(Info);
+	if (Notification.IsValid())
+	{
+		Notification->SetCompletionState(CompletionState);
+	}
+}
+
 void FDataflowEditorCommands::DuplicateNodes(UDataflow* Graph, const TSharedPtr<SDataflowGraphEditor>& DataflowGraphEditor, const FGraphPanelSelectionSet& SelectedNodes)
 {
 	if (ensureMsgf(Graph != nullptr, TEXT("Warning : Failed to find valid graph.")))
@@ -546,6 +570,19 @@ void FDataflowEditorCommands::DuplicateNodes(UDataflow* Graph, const TSharedPtr<
 						}
 					}
 				}
+
+				// Display message stating that nodes were duplicated
+				const int32 NumDuplicatedNodes = SelectedEdNodes.Num();
+				FText MessageFormat;
+				if (NumDuplicatedNodes == 1)
+				{
+					MessageFormat = LOCTEXT("DataflowDuplicatedNodesSingleNode", "{0} node was duplicated");
+				}
+				else
+				{
+					MessageFormat = LOCTEXT("DataflowDuplicatedNodesMultipleNodes", "{0} nodes were duplicated");
+				}
+				ShowNotificationMessage(FText::Format(MessageFormat, NumDuplicatedNodes), SNotificationItem::CS_Success);
 			}
 
 			// Process Comment nodes
@@ -601,5 +638,305 @@ void FDataflowEditorCommands::DuplicateNodes(UDataflow* Graph, const TSharedPtr<
 		}
 	}
 }
+
+void FDataflowEditorCommands::CopyNodes(UDataflow* InGraph, const TSharedPtr<SDataflowGraphEditor>& DataflowGraphEditor, const FGraphPanelSelectionSet& InSelectedNodes)
+{
+	if (ensureMsgf(InGraph != nullptr, TEXT("Warning : Failed to find valid graph.")))
+	{
+		// 
+		if (InSelectedNodes.Num() > 0)
+		{
+			// Separate selected nodes into an array of UDataflowEdNodes and
+			// an array of UEdGraphNode_Comments
+			TSet<UDataflowEdNode*> SelectedEdNodes;
+			TSet<UEdGraphNode_Comment*> SelectedEdCommentNodes;
+
+			for (UObject* Node : InSelectedNodes)
+			{
+				if (UDataflowEdNode* EdNode = dynamic_cast<UDataflowEdNode*>(Node))
+				{
+					SelectedEdNodes.Add(EdNode);
+				}
+				else if (UEdGraphNode_Comment* EdCommentNode = dynamic_cast<UEdGraphNode_Comment*>(Node))
+				{
+					SelectedEdCommentNodes.Add(EdCommentNode);
+				}
+			}
+
+			FDataflowAssetEdit Edit = InGraph->EditDataflow();
+			if (Dataflow::FGraph* DataflowGraph = Edit.GetGraph())
+			{
+				FDataflowCopyPasteContent CopyPasteContent;
+
+				TSet<FGuid> NodeGuids;
+				TArray<FDataflowInput*> NodeInputsToSave;
+
+				// Build node data
+				if (SelectedEdNodes.Num() > 0)
+				{
+					for (UDataflowEdNode* EdNode : SelectedEdNodes)
+					{
+						if (TSharedPtr<FDataflowNode> DataflowNode = DataflowGraph->FindBaseNode(EdNode->DataflowNodeGuid))
+						{
+							NodeGuids.Add(DataflowNode->GetGuid());
+							NodeInputsToSave.Append(DataflowNode->GetInputs());
+
+							FName NodeType = DataflowNode->GetType();
+							FName NodeName = DataflowNode->GetName();
+
+							FDataflowNodeData NodeData;
+
+							NodeData.Type = NodeType.ToString();
+							NodeData.Name = NodeName.ToString();
+							NodeData.Position.X = EdNode->NodePosX;
+							NodeData.Position.Y = EdNode->NodePosY;
+
+							FString ContentString;
+
+							TUniquePtr<FDataflowNode> DefaultElement;
+							DataflowNode->TypedScriptStruct()->ExportText(ContentString, DataflowNode.Get(), DataflowNode.Get(), nullptr, PPF_None, nullptr);
+
+							NodeData.Properties = ContentString;
+
+							CopyPasteContent.NodeData.Add(NodeData);
+						}
+					}				
+				}
+
+				// Build comment node data
+				if (SelectedEdCommentNodes.Num() > 0)
+				{
+					for (UEdGraphNode_Comment* CommentEdNode : SelectedEdCommentNodes)
+					{
+						FDataflowCommentNodeData CommentNodeData;
+
+						CommentNodeData.Name = CommentEdNode->NodeComment;
+						CommentNodeData.Size.X = CommentEdNode->NodeWidth;
+						CommentNodeData.Size.Y = CommentEdNode->NodeHeight;
+						CommentNodeData.Position.X = CommentEdNode->NodePosX;
+						CommentNodeData.Position.Y = CommentEdNode->NodePosY;
+						CommentNodeData.Color = CommentEdNode->CommentColor;
+
+						CopyPasteContent.CommentNodeData.Add(CommentNodeData);
+					}
+				}
+
+				// Build connection data
+				for (FDataflowInput* Input : NodeInputsToSave)
+				{
+					if (!Input) continue;
+
+					const FDataflowNode* InputNode = Input->GetOwningNode();
+					if (!InputNode) continue;
+
+					const FDataflowOutput* Output = Input->GetConnection();
+					if (!Output) continue;
+
+					const FDataflowNode* OutputNode = Output->GetOwningNode();
+					if (!OutputNode) continue;
+
+					if (!NodeGuids.Contains(OutputNode->GetGuid()))
+						continue;
+
+					FString InConnection = FString::Format(TEXT("/{0}:{1}"), {InputNode->GetName().ToString(), Input->GetName().ToString()});
+					FString OutConnection = FString::Format(TEXT("/{0}:{1}"), { OutputNode->GetName().ToString(), Output->GetName().ToString() });
+
+					FDataflowConnectionData DataflowConnectionData;
+
+					DataflowConnectionData.In = InConnection;
+					DataflowConnectionData.Out = OutConnection;
+
+					CopyPasteContent.ConnectionData.Add(DataflowConnectionData);
+				}
+
+				FString ClipboardContent;
+				FDataflowCopyPasteContent DefaultContent;
+
+				FDataflowCopyPasteContent::StaticStruct()->ExportText(ClipboardContent, &CopyPasteContent, &DefaultContent, nullptr, PPF_None, nullptr);
+
+				// Save to clipboard
+				FPlatformApplicationMisc::ClipboardCopy(*ClipboardContent);
+
+				// Display message stating that nodes were copied to clipboard
+				const int32 NumCopiedNodes = CopyPasteContent.NodeData.Num();
+				FText MessageFormat;
+				if (NumCopiedNodes == 1)
+				{
+					MessageFormat = LOCTEXT("DataflowCopiedNodesToClipboardSingleNode", "{0} node was copied to clipboard");
+				}
+				else
+				{
+					MessageFormat = LOCTEXT("DataflowCopiedNodesToClipboardMultipleNodes", "{0} nodes were copied to clipboard");
+				}
+				ShowNotificationMessage(FText::Format(MessageFormat, NumCopiedNodes), SNotificationItem::CS_Success);
+			}
+		}
+	}
+}
+
+void FDataflowEditorCommands::PasteNodes(UDataflow* Graph, const TSharedPtr<SDataflowGraphEditor>& DataflowGraphEditor)
+{
+	FString ClipboardContent;
+	FPlatformApplicationMisc::ClipboardPaste(ClipboardContent);
+
+	if (!ClipboardContent.IsEmpty())
+	{
+		FDataflowCopyPasteContent DefaultContent;
+		FDataflowCopyPasteContent CopyPasteContent;
+
+		FDataflowCopyPasteContent::StaticStruct()->ImportText(*ClipboardContent, &CopyPasteContent, nullptr, EPropertyPortFlags::PPF_None, nullptr, FDataflowCopyPasteContent::StaticStruct()->GetName(), true);
+
+		FVector2D AppliedTranslation; // The translation that being applied to everything. for placing comment nodes
+
+		// Paste nodes
+		TSet<UDataflowEdNode*> PastedEdNodes;
+		TSet<UEdGraphNode*> PastedEdCommentNodes;
+
+		TMap<FString, UDataflowEdNode*> EdNodeMap;	// [NmaeOfNode -> DuplicatedEdNode]
+
+		if (CopyPasteContent.NodeData.Num() > 0)
+		{
+			// Store the location of the first selected node for recreating spatial relationships
+			FVector2D RefLocation;
+			RefLocation.X = CopyPasteContent.NodeData[0].Position.X; RefLocation.Y = CopyPasteContent.NodeData[0].Position.Y;
+
+			int32 Idx = 0;
+			for (FDataflowNodeData NodeData : CopyPasteContent.NodeData)
+			{
+				FName NodeType = *NodeData.Type;
+
+				if (TSharedPtr<FAssetSchemaAction_Dataflow_PasteNode_DataflowEdNode> PasteNodeAction = FAssetSchemaAction_Dataflow_PasteNode_DataflowEdNode::CreateAction(Graph, NodeType))
+				{
+					PasteNodeAction->NodeName = *NodeData.Name;
+					PasteNodeAction->NodeProperties = NodeData.Properties;
+
+					FVector2D NodeLocation(NodeData.Position.X, NodeData.Position.Y);
+					FVector2D DeltaLocation = NodeLocation - RefLocation;
+
+					if (Idx == 0)
+					{
+						AppliedTranslation = DataflowGraphEditor->GetPasteLocation() + DeltaLocation - NodeData.Position;
+					}
+					Idx++;
+
+					if (UDataflowEdNode* NewEdNode = (UDataflowEdNode*)PasteNodeAction->PerformAction(Graph, nullptr, DataflowGraphEditor->GetPasteLocation() + DeltaLocation, false))
+					{
+						PastedEdNodes.Add(NewEdNode);
+
+						EdNodeMap.Add(NodeData.Name, NewEdNode);
+					}
+				}
+			}
+		}
+
+		// Paste Comment nodes
+		if (CopyPasteContent.CommentNodeData.Num() > 0)
+		{ 
+			const TSharedPtr<SGraphEditor>& InGraphEditor = (TSharedPtr<SGraphEditor>)DataflowGraphEditor;
+
+			int32 Idx = 0;
+
+			for (FDataflowCommentNodeData CommentNodeData : CopyPasteContent.CommentNodeData)
+			{
+				if (TSharedPtr<FAssetSchemaAction_Dataflow_PasteCommentNode_DataflowEdNode> PasteCommentNodeAction = FAssetSchemaAction_Dataflow_PasteCommentNode_DataflowEdNode::CreateAction(Graph, InGraphEditor))
+				{
+					if (CopyPasteContent.NodeData.Num() == 0)
+					{
+						if (Idx == 0)
+						{
+							AppliedTranslation = DataflowGraphEditor->GetPasteLocation() - CommentNodeData.Position;
+						}
+					}
+					Idx++;
+
+					PasteCommentNodeAction->NodeName = *CommentNodeData.Name;
+					PasteCommentNodeAction->Size.X = CommentNodeData.Size.X + 50; // Make it longer, because the nodes are longer after copying ('_copy' in their name)
+					PasteCommentNodeAction->Size.Y = CommentNodeData.Size.Y + 30;
+					PasteCommentNodeAction->Color = CommentNodeData.Color;
+
+					FVector2D CommentNodeLocation(CommentNodeData.Position);
+					FVector2D NewLocation = CommentNodeLocation + AppliedTranslation;
+
+					if (UEdGraphNode* NewCommentNode = PasteCommentNodeAction->PerformAction(Graph, nullptr, NewLocation, false))
+					{
+						PastedEdCommentNodes.Add(NewCommentNode);
+					}
+				}
+			}
+		}
+
+		// Recreate connections
+		if (CopyPasteContent.ConnectionData.Num() > 0)
+		{
+			for (FDataflowConnectionData Connection : CopyPasteContent.ConnectionData)
+			{
+				FString NodeIn = FDataflowConnectionData::GetNode(Connection.In);
+				FGuid GuidIn = (EdNodeMap[NodeIn])->DataflowNodeGuid;
+
+				FString PropertyIn = FDataflowConnectionData::GetProperty(Connection.In);
+				const FName InputputName = *PropertyIn;
+
+				FString NodeOut = FDataflowConnectionData::GetNode(Connection.Out);
+				FGuid GuidOut = (EdNodeMap[NodeOut])->DataflowNodeGuid;
+
+				FString PropertyOut = FDataflowConnectionData::GetProperty(Connection.Out);
+				const FName OutputputName = *PropertyOut;
+
+				FDataflowAssetEdit Edit = Graph->EditDataflow();
+				if (Dataflow::FGraph* DataflowGraph = Edit.GetGraph())
+				{
+					if (TSharedPtr<FDataflowNode> DataflowNodeFrom = DataflowGraph->FindBaseNode(GuidOut))
+					{
+						if (TSharedPtr<FDataflowNode> DataflowNodeTo = DataflowGraph->FindBaseNode(GuidIn))
+						{
+							FDataflowInput* InputConnection = DataflowNodeTo->FindInput(InputputName);
+							FDataflowOutput* OutputConnection = DataflowNodeFrom->FindOutput(OutputputName);
+
+							DataflowGraph->Connect(OutputConnection, InputConnection);
+							
+							if (UEdGraphPin* OutputPin = GetPin(EdNodeMap[NodeOut], EEdGraphPinDirection::EGPD_Output, OutputputName))
+							{
+								if (UEdGraphPin* InputPin = GetPin(EdNodeMap[NodeIn], EEdGraphPinDirection::EGPD_Input, InputputName))
+								{
+									OutputPin->MakeLinkTo(InputPin);
+								}
+							}
+						}
+					}
+				}
+			}
+		}
+
+		// Update the selection in the Editor
+		if (PastedEdNodes.Num() > 0 || PastedEdCommentNodes.Num() > 0)
+		{
+			DataflowGraphEditor->ClearSelectionSet();
+
+			for (UDataflowEdNode* Node : PastedEdNodes)
+			{
+				DataflowGraphEditor->SetNodeSelection(Node, true);
+			}
+
+			for (UEdGraphNode* Node : PastedEdCommentNodes)
+			{
+				DataflowGraphEditor->SetNodeSelection(Node, true);
+			}
+		}
+
+		// Display message stating that nodes were pasted from clipboard
+		const int32 NumPastedNodes = CopyPasteContent.NodeData.Num();
+		FText MessageFormat;
+		if (NumPastedNodes == 1)
+		{
+			MessageFormat = LOCTEXT("DataflowPastedNodesFromClipboardSingleNode", "{0} node was pasted from clipboard");
+		}
+		else
+		{
+			MessageFormat = LOCTEXT("DataflowPastedNodesFromClipboardMultipleNodes", "{0} nodes were pasted from clipboard");
+		}
+		ShowNotificationMessage(FText::Format(MessageFormat, NumPastedNodes), SNotificationItem::CS_Success);
+	}
+}
+
 
 #undef LOCTEXT_NAMESPACE

@@ -14,6 +14,8 @@
 
 #define LOCTEXT_NAMESPACE "SDataflowEdNodeComment"
 
+constexpr const char* CopyPostfix = "_copy";
+
 //
 // Add a menu option to create a graph node.
 //
@@ -82,8 +84,13 @@ TSharedPtr<FAssetSchemaAction_Dataflow_DuplicateCommentNode_DataflowEdNode> FAss
 //
 UEdGraphNode* FAssetSchemaAction_Dataflow_DuplicateCommentNode_DataflowEdNode::PerformAction(class UEdGraph* ParentGraph, UEdGraphPin* FromPin, const FVector2D Location, bool bSelectNewNode)
 {
-	FString NewNodeName = CommentNodeToDuplicate->GetFName().ToString();
-	NewNodeName.Append("_copy");
+	FString NewNodeName = CommentNodeToDuplicate->NodeComment;
+
+	// Append "_copy" to selected node's name if it doesn't have it
+	if (!NewNodeName.Contains(CopyPostfix))
+	{
+		NewNodeName.Append(CopyPostfix);
+	}
 
 	UEdGraphNode_Comment* CommentTemplate = NewObject<UEdGraphNode_Comment>(ParentGraph, FName(*NewNodeName));
 
@@ -111,8 +118,9 @@ UEdGraphNode* FAssetSchemaAction_Dataflow_DuplicateCommentNode_DataflowEdNode::P
 	CommentTemplate->NodeWidth = CommentNodeToDuplicate->NodeWidth;
 	CommentTemplate->NodeHeight = CommentNodeToDuplicate->NodeHeight;
 	CommentTemplate->SnapToGrid(GetDefault<UEditorStyleSettings>()->GridSnapSize);
+	CommentTemplate->CommentColor = CommentNodeToDuplicate->CommentColor;
 
-	CommentTemplate->NodeComment = CommentNodeToDuplicate->NodeComment;
+	CommentTemplate->NodeComment = NewNodeName;
 
 	ParentGraph->NotifyGraphChanged();
 
@@ -125,5 +133,54 @@ void FAssetSchemaAction_Dataflow_DuplicateCommentNode_DataflowEdNode::AddReferen
 	Collector.AddReferencedObject(CommentNodeToDuplicate);
 }
 
+TSharedPtr<FAssetSchemaAction_Dataflow_PasteCommentNode_DataflowEdNode> FAssetSchemaAction_Dataflow_PasteCommentNode_DataflowEdNode::CreateAction(UEdGraph* ParentGraph, const TSharedPtr<SGraphEditor>& GraphEditor)
+{
+	return MakeShared<FAssetSchemaAction_Dataflow_PasteCommentNode_DataflowEdNode>(GraphEditor);
+}
+
+//
+//  Paste comment node
+//
+UEdGraphNode* FAssetSchemaAction_Dataflow_PasteCommentNode_DataflowEdNode::PerformAction(class UEdGraph* ParentGraph, UEdGraphPin* FromPin, const FVector2D Location, bool bSelectNewNode)
+{
+	// Append "_copy" to selected node's name if it doesn't have it
+	FString NewNodeName = NodeName.ToString();
+	if (!NewNodeName.Contains(CopyPostfix))
+	{
+		NewNodeName.Append(CopyPostfix);
+	}
+
+	UEdGraphNode_Comment* CommentTemplate = NewObject<UEdGraphNode_Comment>(ParentGraph, FName(*NewNodeName));
+
+	CommentTemplate->bCommentBubbleVisible_InDetailsPanel = false;
+	CommentTemplate->bCommentBubbleVisible = false;
+	CommentTemplate->bCommentBubblePinned = false;
+
+	ParentGraph->Modify();
+
+	CommentTemplate->SetFlags(RF_Transactional);
+
+	// set outer to be the graph so it doesn't go away
+	CommentTemplate->Rename(NULL, ParentGraph, REN_NonTransactional);
+	ParentGraph->AddNode(CommentTemplate, true, bSelectNewNode);
+
+	CommentTemplate->CreateNewGuid();
+	CommentTemplate->PostPlacedNewNode();
+	CommentTemplate->AllocateDefaultPins();
+	CommentTemplate->AutowireNewNode(FromPin);
+
+	CommentTemplate->NodePosX = Location.X;
+	CommentTemplate->NodePosY = Location.Y;
+	CommentTemplate->NodeWidth = Size.X;
+	CommentTemplate->NodeHeight = Size.Y;
+	CommentTemplate->SnapToGrid(GetDefault<UEditorStyleSettings>()->GridSnapSize);
+	CommentTemplate->CommentColor = Color;
+
+	CommentTemplate->NodeComment = NewNodeName;
+
+	ParentGraph->NotifyGraphChanged();
+
+	return CommentTemplate;
+}
 
 #undef LOCTEXT_NAMESPACE

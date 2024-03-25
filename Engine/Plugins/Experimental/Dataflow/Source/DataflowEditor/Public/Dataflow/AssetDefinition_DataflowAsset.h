@@ -22,6 +22,74 @@ namespace DataflowAssetDefinitionHelpers
 	DATAFLOWEDITOR_API UObject* NewOrOpenDataflowAsset(const UObject* Asset);
 }
 
+//
+// Copy/Paste structs
+//
+USTRUCT()
+struct DATAFLOWEDITOR_API FDataflowNodeData
+{
+	GENERATED_BODY()
+
+	UPROPERTY()
+	FString Type;
+
+	UPROPERTY()
+	FString Name;
+
+	UPROPERTY()
+	FString Properties;
+
+	UPROPERTY()
+	FVector2D Position = FVector2D::ZeroVector;
+};
+
+USTRUCT()
+struct DATAFLOWEDITOR_API FDataflowCommentNodeData
+{
+	GENERATED_BODY()
+
+	UPROPERTY()
+	FString Name;
+
+	UPROPERTY()
+	FVector2D Size = FVector2D::ZeroVector;
+
+	UPROPERTY()
+	FLinearColor Color = FLinearColor::White;
+
+	UPROPERTY()
+	FVector2D Position = FVector2D::ZeroVector;
+};
+
+USTRUCT()
+struct DATAFLOWEDITOR_API FDataflowConnectionData
+{
+	GENERATED_BODY()
+
+	UPROPERTY()
+	FString Out;
+
+	UPROPERTY()
+	FString In;
+
+	static FString GetNode(const FString InConnection);
+	static FString GetProperty(const FString InConnection);
+};
+
+USTRUCT()
+struct DATAFLOWEDITOR_API FDataflowCopyPasteContent
+{
+	GENERATED_BODY()
+
+	UPROPERTY()
+	TArray<FDataflowNodeData> NodeData;
+
+	UPROPERTY()
+	TArray<FDataflowCommentNodeData> CommentNodeData;
+
+	UPROPERTY()
+	TArray<FDataflowConnectionData> ConnectionData;
+};
 
 
 UCLASS()
