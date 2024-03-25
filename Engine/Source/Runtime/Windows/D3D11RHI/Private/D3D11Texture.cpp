@@ -874,7 +874,7 @@ void FD3D11DynamicRHI::RHIGenerateMips(FRHITexture* TextureRHI)
 {
 	FD3D11Texture* Texture = ResourceCast(TextureRHI);
 	// Surface must have been created with D3D11_BIND_RENDER_TARGET for GenerateMips to work
-	check(Texture->GetShaderResourceView() && Texture->GetRenderTargetView(0, -1));
+	check(Texture->GetShaderResourceView() && Texture->GetRenderTargetView(0, 0));
 	Direct3DDeviceIMContext->GenerateMips(Texture->GetShaderResourceView());
 
 	GPUProfilingData.RegisterGPUWork(0);

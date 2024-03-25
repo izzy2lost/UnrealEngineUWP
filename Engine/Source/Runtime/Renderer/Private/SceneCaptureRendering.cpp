@@ -1348,6 +1348,9 @@ void FScene::UpdateSceneCaptureContents(USceneCaptureComponentCube* CaptureCompo
 			}
 		}
 
+		const bool bGenerateMips = TextureTarget->bAutoGenerateMips;
+		FGenerateMipsParams GenerateMipsParams{ TextureTarget->MipsSamplerFilter == TF_Nearest ? SF_Point : (TextureTarget->MipsSamplerFilter == TF_Trilinear ? SF_Trilinear : SF_Bilinear), AM_Clamp, AM_Clamp };
+
 		FIntPoint CaptureSize(TextureTarget->GetSurfaceWidth(), TextureTarget->GetSurfaceHeight());
 		const float FOV = 90 * (float)PI / 360.0f;
 
@@ -1409,7 +1412,7 @@ void FScene::UpdateSceneCaptureContents(USceneCaptureComponentCube* CaptureCompo
 				UE::RenderCommandPipe::FSyncScope SyncScope;
 
 				ENQUEUE_RENDER_COMMAND(CaptureCommand)(
-					[SceneRenderer, TextureRenderTarget, EventName, TargetFace](FRHICommandListImmediate& RHICmdList)
+					[SceneRenderer, TextureRenderTarget, EventName, TargetFace, bGenerateMips, GenerateMipsParams](FRHICommandListImmediate& RHICmdList)
 					{
 #if WITH_EDITOR
 						// Scene renderer may be deleted in UpdateSceneCaptureContent_RenderThread, grab view state pointer first
@@ -1418,10 +1421,13 @@ void FScene::UpdateSceneCaptureContents(USceneCaptureComponentCube* CaptureCompo
 
 						VISUALIZE_TEXTURE_BEGIN_VIEW(SceneRenderer->FeatureLevel, SceneRenderer->Views[0].GetViewKey(), *EventName, true);
 
+						// We need to generate mips on last cube face
+						const bool bLastCubeFace = ((int32)TargetFace == (int32)ECubeFace::CubeFace_MAX - 1);
+
 						FRHICopyTextureInfo CopyInfo;
 						CopyInfo.DestSliceIndex = TargetFace;
 						UpdateSceneCaptureContent_RenderThread(RHICmdList, SceneRenderer, TextureRenderTarget, TextureRenderTarget, EventName,
-							TConstArrayView<FRHICopyTextureInfo>(&CopyInfo, 1), false, FGenerateMipsParams(), true, false);
+							TConstArrayView<FRHICopyTextureInfo>(&CopyInfo, 1), bGenerateMips && bLastCubeFace, GenerateMipsParams, true, false);
 
 						VISUALIZE_TEXTURE_END_VIEW();
 
@@ -1587,7 +1593,7 @@ void FScene::UpdateSceneCaptureContents(USceneCaptureComponentCube* CaptureCompo
 			UE::RenderCommandPipe::FSyncScope SyncScope;
 
 			ENQUEUE_RENDER_COMMAND(CaptureAllCubeFaces)(
-				[SceneRenderer, CubeFaceTarget, TextureRenderTarget, EventName, CaptureSize](FRHICommandListImmediate& RHICmdList)
+				[SceneRenderer, CubeFaceTarget, TextureRenderTarget, EventName, CaptureSize, bGenerateMips, GenerateMipsParams](FRHICommandListImmediate& RHICmdList)
 				{
 					TStaticArray<FRHICopyTextureInfo, (int32)ECubeFace::CubeFace_MAX> CopyInfos;
 					for (int32 faceidx = 0; faceidx < (int32)ECubeFace::CubeFace_MAX; faceidx++)
@@ -1613,7 +1619,7 @@ void FScene::UpdateSceneCaptureContents(USceneCaptureComponentCube* CaptureCompo
 					VISUALIZE_TEXTURE_BEGIN_VIEW(SceneRenderer->FeatureLevel, SceneRenderer->Views[0].GetViewKey(), *EventName, true);
 
 					UpdateSceneCaptureContent_RenderThread(RHICmdList, SceneRenderer, CubeFaceTarget, TextureRenderTarget, EventName,
-						CopyInfos, false, FGenerateMipsParams(), true, false);
+						CopyInfos, bGenerateMips, GenerateMipsParams, true, false);
 
 					VISUALIZE_TEXTURE_END_VIEW();
 

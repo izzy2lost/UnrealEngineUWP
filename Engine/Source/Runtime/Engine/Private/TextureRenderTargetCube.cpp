@@ -16,6 +16,7 @@
 #include "Engine/TextureCube.h"
 #include "RHIUtilities.h"
 #include "ProfilingDebugging/AssetMetadataTrace.h"
+#include "GenerateMips.h"
 
 #if WITH_EDITOR
 #include "Components/SceneCaptureComponentCube.h"
@@ -35,6 +36,9 @@ UTextureRenderTargetCube::UTextureRenderTargetCube(const FObjectInitializer& Obj
 	ClearColor = FLinearColor(0.0f, 1.0f, 0.0f, 1.0f);
 	OverrideFormat = PF_Unknown;
 	bForceLinearGamma = true;
+	bAutoGenerateMips = false;
+	MipsSamplerFilter = Filter;
+	NumMips = 0;
 	// note bool SRGB not set
 }
 
@@ -128,6 +132,20 @@ void UTextureRenderTargetCube::GetResourceSizeEx(FResourceSizeEx& CumulativeReso
 
 FTextureResource* UTextureRenderTargetCube::CreateResource()
 {
+	if (bAutoGenerateMips)
+	{
+		NumMips = FMath::FloorLog2(SizeX) + 1;
+
+		if (RHIRequiresComputeGenerateMips())
+		{
+			bCanCreateUAV = 1;
+		}
+	}
+	else
+	{
+		NumMips = 1;
+	}
+
 	return new FTextureRenderTargetCubeResource(this);
 }
 
@@ -149,8 +167,9 @@ void UTextureRenderTargetCube::PostEditChangeProperty(FPropertyChangedEvent& Pro
 
 	// Notify any scene capture components that point to this texture that they may need to refresh
 	static const FName SizeXName = GET_MEMBER_NAME_CHECKED(UTextureRenderTargetCube, SizeX);
+	static const FName AutoGenerateMipsName = GET_MEMBER_NAME_CHECKED(UTextureRenderTargetCube, bAutoGenerateMips);
 
-	if (PropertyChangedEvent.GetPropertyName() == SizeXName)
+	if (PropertyChangedEvent.GetPropertyName() == SizeXName || PropertyChangedEvent.GetPropertyName() == AutoGenerateMipsName)
 	{
 		for (TObjectIterator<USceneCaptureComponentCube> It; It; ++It)
 		{
@@ -259,6 +278,21 @@ void FTextureRenderTargetCubeResource::InitRHI(FRHICommandListBase& RHICmdList)
 		if (Owner->bCanCreateUAV)
 		{
 			TexCreateFlags |= ETextureCreateFlags::UAV;
+		}
+		
+		if (Owner->bAutoGenerateMips)
+		{
+			TexCreateFlags |= ETextureCreateFlags::GenerateMipCapable;
+
+			if (FGenerateMips::WillFormatSupportCompute(Owner->GetFormat()))
+			{
+				TexCreateFlags |= ETextureCreateFlags::UAV;
+			}
+			else
+			{
+				// Required in FGenerateMips::ExecuteRaster for FRenderTargetBinding to work on individual slice
+				TexCreateFlags |= ETextureCreateFlags::TargetArraySlicesIndependently;
+			}
 		}
 
 		{

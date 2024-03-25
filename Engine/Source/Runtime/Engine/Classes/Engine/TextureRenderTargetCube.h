@@ -44,6 +44,14 @@ class UTextureRenderTargetCube : public UTextureRenderTarget
 	UPROPERTY()
 	uint8 bForceLinearGamma:1;
 
+	/** Whether to support Mip maps for this render target texture */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category=TextureRenderTargetCube, AssetRegistrySearchable)
+	uint8 bAutoGenerateMips : 1;
+
+	/** Sampler filter type for AutoGenerateMips. Defaults to match texture filter. */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category=TextureRenderTargetCube, AssetRegistrySearchable, meta = (editcondition = "bAutoGenerateMips"))
+	TEnumAsByte<enum TextureFilter> MipsSamplerFilter;
+
 	/** 
 	* Initialize the settings needed to create a render target texture
 	* and create its resource
@@ -81,7 +89,7 @@ class UTextureRenderTargetCube : public UTextureRenderTarget
 	
 	FORCEINLINE int32 GetNumMips() const
 	{
-		return 1;
+		return NumMips;
 	}
 	//~ Begin UObject Interface
 #if WITH_EDITOR
@@ -100,6 +108,9 @@ class UTextureRenderTargetCube : public UTextureRenderTarget
 	virtual float GetDisplayGamma() const override;
 	virtual ETextureClass GetRenderTargetTextureClass() const override { return ETextureClass::Cube; }
 	//~ End UTextureRenderTarget Interface
+
+private:
+	int32	NumMips;
 };
 
 

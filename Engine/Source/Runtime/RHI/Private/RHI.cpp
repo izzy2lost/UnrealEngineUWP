@@ -1797,8 +1797,20 @@ bool FRHITextureSRVCreateInfo::Validate(const FRHITextureDesc& TextureDesc, cons
 		TEXT("Failed to create SRV at mips %d-%d: the texture %s has only %d mip levels."),
 		TextureSRVDesc.MipLevel, (TextureSRVDesc.MipLevel + TextureSRVDesc.NumMipLevels), TextureName, TextureDesc.NumMips);
 
-	// Validate the array sloces
-	if (TextureDesc.IsTextureArray())
+	// Validate the array slices
+	if (TextureDesc.IsTextureCube() && TextureSRVDesc.DimensionOverride == ETextureDimension::Texture2DArray)
+	{
+		// Either TextureCube or TextureCubeArray, compute array size appropriately
+		int32 CubeArraySize = TextureDesc.Dimension == ETextureDimension::TextureCube ? ECubeFace::CubeFace_MAX : ECubeFace::CubeFace_MAX * TextureDesc.ArraySize;
+
+		ValidateResourceDesc((TextureSRVDesc.FirstArraySlice + TextureSRVDesc.NumArraySlices) <= CubeArraySize,
+			TEXT("Failed to create SRV at array slices %d-%d: the cube map texture %s has only %d slices."),
+			TextureSRVDesc.FirstArraySlice,
+			(TextureSRVDesc.FirstArraySlice + TextureSRVDesc.NumArraySlices),
+			TextureName,
+			CubeArraySize);
+	}
+	else if (TextureDesc.IsTextureArray())
 	{
 		ValidateResourceDesc((TextureSRVDesc.FirstArraySlice + TextureSRVDesc.NumArraySlices) <= TextureDesc.ArraySize,
 			TEXT("Failed to create SRV at array slices %d-%d: the texture array %s has only %d slices."),
