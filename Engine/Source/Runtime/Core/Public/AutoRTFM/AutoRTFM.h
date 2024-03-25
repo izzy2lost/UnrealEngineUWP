@@ -519,13 +519,16 @@ namespace ForTheRuntime
 	enum EAutoRTFMEnabledState
 	{
 		// Disable AutoRTFM.
-		AutoRTFM_Disabled,
+		AutoRTFM_Disabled = 0,
 
 		// Enable AutoRTFM.
 		AutoRTFM_Enabled,
 
 		// Force disable AutoRTFM - once set the AutoRTFM runtime cannot be re-enabled.
 		AutoRTFM_ForcedDisabled,
+
+		// Force enable AutoRTFM - once set the AutoRTFM runtime cannot be re-enabled.
+		AutoRTFM_ForcedEnabled,
 	};
 
 	// Set whether the AutoRTFM runtime is enabled or disabled.

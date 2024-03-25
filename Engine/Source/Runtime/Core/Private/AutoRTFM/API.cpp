@@ -12,7 +12,7 @@ namespace
 
 	void UpdateAutoRTFMRuntimeCrashData()
 	{
-		FGenericCrashContext::SetGameData(TEXT("IsAutoRTFMRuntimeEnabled"), GAutoRTFMRuntimeEnabled == AutoRTFM::EAutoRTFMEnabledState::AutoRTFM_Enabled ? TEXT("true") : TEXT("false"));
+		FGenericCrashContext::SetGameData(TEXT("IsAutoRTFMRuntimeEnabled"), AutoRTFM::ForTheRuntime::IsAutoRTFMRuntimeEnabled() ? TEXT("true") : TEXT("false"));
 	}
 }
 
@@ -39,10 +39,15 @@ namespace AutoRTFM
 		{
 			// #noop if AutoRTFM is not compiled in, as GAutoRTFMRuntimeEnabled is a static constexpr when no AutoRTFM compiled in
 #if UE_AUTORTFM
-		// If we have ForcedDisabled AutoRTFM from the CVar we will not change it from other means
-			if (GAutoRTFMRuntimeEnabled == EAutoRTFMEnabledState::AutoRTFM_ForcedDisabled)
+			switch (GAutoRTFMRuntimeEnabled)
 			{
-				UE_LOG(LogCore, Log, TEXT("Enabling AutoRTFM is disabled due to GAutoRTFMRuntimeEnabled set to forced disabled"));
+			default:
+				break;
+			case EAutoRTFMEnabledState::AutoRTFM_ForcedDisabled:
+				UE_LOG(LogCore, Log, TEXT("Ignoring changing AutoRTFM runtime state due to GAutoRTFMRuntimeEnabled being set to forced disabled."));
+				return false;
+			case EAutoRTFMEnabledState::AutoRTFM_ForcedEnabled:
+				UE_LOG(LogCore, Log, TEXT("Ignoring changing AutoRTFM runtime state due to GAutoRTFMRuntimeEnabled being set to forced enabled."));
 				return false;
 			}
 
@@ -58,7 +63,14 @@ namespace AutoRTFM
 
 		bool IsAutoRTFMRuntimeEnabled()
 		{
-			return GAutoRTFMRuntimeEnabled == EAutoRTFMEnabledState::AutoRTFM_Enabled;
+			switch (GAutoRTFMRuntimeEnabled)
+			{
+			default:
+				return false;
+			case EAutoRTFMEnabledState::AutoRTFM_Enabled:
+			case EAutoRTFMEnabledState::AutoRTFM_ForcedEnabled:
+				return true;
+			}
 		}
 	}
 }
