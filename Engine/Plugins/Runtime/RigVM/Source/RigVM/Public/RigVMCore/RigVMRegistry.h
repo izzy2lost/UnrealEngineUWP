@@ -73,6 +73,9 @@ public:
 	// Register a set of allowed object types
 	void RegisterObjectTypes(TConstArrayView<TPair<UClass*, ERegisterObjectOperation>> InClasses);
 
+	// Register a set of allowed struct types
+	void RegisterStructTypes(TConstArrayView<UScriptStruct*> InStructs);
+
 	// Refreshes the list and finds the function pointers
 	// based on the names.
 	void RefreshEngineTypes();
@@ -398,6 +401,9 @@ private:
 	// All allowed classes
 	TSet<TObjectPtr<const UClass>> AllowedClasses;
 
+	// All allowed structs
+	TSet<TObjectPtr<const UScriptStruct>> AllowedStructs;
+	
 	// Notifies other system that types have been added/removed, and template permutations have been updated
 	FOnRigVMRegistryChanged OnRigVMRegistryChangedDelegate;
 

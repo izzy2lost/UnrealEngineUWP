@@ -364,6 +364,10 @@ void FRigVMRegistry::RefreshEngineTypes_NoLock()
 		{
 			DispatchFactoriesToRegister.Add(ScriptStruct);
 		}
+		else if(AllowedStructs.Contains(ScriptStruct))
+		{
+			FindOrAddType(FRigVMTemplateArgumentType(ScriptStruct));
+		}
 	}
 
 	for (TObjectIterator<UEnum> EnumIt; EnumIt; ++EnumIt)
@@ -1233,6 +1237,16 @@ bool FRigVMRegistry::IsAllowedType(const UStruct* InStruct) const
 		return true;
 	}
 
+	// Allow structs we have explicitly opted into
+	// This is on the understanding that if they have invalid sub-members that any pins representing them will need to be hidden
+	if (const UScriptStruct* ScriptStruct = Cast<UScriptStruct>(InStruct))
+	{
+		if(AllowedStructs.Contains(ScriptStruct))
+		{
+			return true;
+		}
+	}
+
 	for (TFieldIterator<FProperty> It(InStruct); It; ++It)
 	{
 		if(!IsAllowedType(*It))
@@ -1437,6 +1451,17 @@ void FRigVMRegistry::RegisterObjectTypes(TConstArrayView<TPair<UClass*, ERegiste
 				}
 			}
 
+		}
+	}
+}
+
+void FRigVMRegistry::RegisterStructTypes(TConstArrayView<UScriptStruct*> InStructs)
+{
+	for (UScriptStruct* Struct : InStructs)
+	{
+		if(!Struct->IsA<UUserDefinedStruct>())
+		{
+			AllowedStructs.Add(Struct);
 		}
 	}
 }
