@@ -109,6 +109,8 @@ struct FDirtyClusterUnionData : public TBasePullData<FClusterUnionPhysicsProxy, 
 	FQuat R;
 	FVec3 V;
 	FVec3 W;
+	FRealSingle Mass;
+	FVec3f Inertia;
 	EObjectStateType ObjectState = EObjectStateType::Dynamic;
 	bool bIsAnchored = false;
 	TArray<FDirtyClusterUnionParticleData> ChildParticles;

@@ -3469,27 +3469,27 @@ public:
 	}
 
 	const TVec3<FRealSingle>& I() const { return MMassProps.Read().I(); }
-	void SetI(const TVec3<FRealSingle>& InI)
+	void SetI(const TVec3<FRealSingle>& InI, bool bInvalidate = true)
 	{
-		MMassProps.Modify(true,MDirtyFlags,Proxy,[&InI](auto& Data){ Data.SetI(InI);});
+		MMassProps.Modify(bInvalidate,MDirtyFlags,Proxy,[&InI](auto& Data){ Data.SetI(InI);});
 	}
 
 	const TVec3<FRealSingle>& InvI() const { return MMassProps.Read().InvI(); }
-	void SetInvI(const TVec3<FRealSingle>& InInvI)
+	void SetInvI(const TVec3<FRealSingle>& InInvI, bool bInvalidate = true)
 	{
-		MMassProps.Modify(true,MDirtyFlags,Proxy,[&InInvI](auto& Data){ Data.SetInvI(InInvI);});
+		MMassProps.Modify(bInvalidate,MDirtyFlags,Proxy,[&InInvI](auto& Data){ Data.SetInvI(InInvI);});
 	}
 
 	T M() const { return MMassProps.Read().M(); }
-	void SetM(const T& InM)
+	void SetM(const T& InM, bool bInvalidate = true)
 	{
-		MMassProps.Modify(true,MDirtyFlags,Proxy,[InM](auto& Data){ Data.SetM(InM);});
+		MMassProps.Modify(bInvalidate,MDirtyFlags,Proxy,[InM](auto& Data){ Data.SetM(InM);});
 	}
 
 	T InvM() const { return MMassProps.Read().InvM(); }
-	void SetInvM(const T& InInvM)
+	void SetInvM(const T& InInvM, bool bInvalidate = true)
 	{
-		MMassProps.Modify(true,MDirtyFlags,Proxy,[InInvM](auto& Data){ Data.SetInvM(InInvM);});
+		MMassProps.Modify(bInvalidate,MDirtyFlags,Proxy,[InInvM](auto& Data){ Data.SetInvM(InInvM);});
 	}
 	
 	const TVector<T,d>& CenterOfMass() const { return MMassProps.Read().CenterOfMass(); }

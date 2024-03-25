@@ -46,6 +46,8 @@ namespace Chaos
 			BufferData.R = Particle->GetR();
 			BufferData.V = Particle->GetV();
 			BufferData.W = Particle->GetW();
+			BufferData.Mass = FRealSingle(Particle->M());
+			BufferData.Inertia = FVec3f(Particle->I());
 			BufferData.ObjectState = Particle->ObjectState();
 			BufferData.Geometry = nullptr;
 
@@ -461,6 +463,17 @@ namespace Chaos
 			Particle_External->SetGeometry(CurrentPullData.Geometry);
 			SyncedData_External.bDidSyncGeometry = true;
 		}
+
+		FReal M = FReal(CurrentPullData.Mass);
+		FReal InvM = (M > 0.0) ? (1.0 / M) : 0.0;
+		Particle_External->SetM(M, /*bInvalidate=*/false);
+		Particle_External->SetInvM(InvM, /*bInvalidate=*/false);
+
+		FVec3 I = FVec3(CurrentPullData.Inertia);
+		FVec3 InvI = (!I.IsZero()) ? FVec3(1) / I : FVec3(0);
+		Particle_External->SetI(I, /*bInvalidate=*/false);
+		Particle_External->SetInvI(InvI, /*bInvalidate=*/false);
+
 		Particle_External->SetObjectState(CurrentPullData.ObjectState, true, /*bInvalidate=*/false);
 
 		const FShapesArray& ShapeArray = Particle_External->ShapesArray();
