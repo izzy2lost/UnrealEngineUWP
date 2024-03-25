@@ -366,13 +366,6 @@ void APlayerCameraManager::UpdateViewTarget(FTViewTarget& OutVT, float DeltaTime
 	OutVT.POV.ProjectionMode = bIsOrthographic ? ECameraProjectionMode::Orthographic : ECameraProjectionMode::Perspective;
 	OutVT.POV.PostProcessBlendWeight = 1.0f;
 	OutVT.POV.bAutoCalculateOrthoPlanes = bAutoCalculateOrthoPlanes;
-	if (bAutoCalculateOrthoPlanes)
-	{
-		if (OutVT.Target)
-		{
-			OutVT.POV.SetOrthoCameraArmLengthFromOwnerLocation(OutVT.Target->GetActorLocation());
-		}
-	}
 
 	bool bDoNotApplyModifiers = false;
 
@@ -458,6 +451,10 @@ void APlayerCameraManager::UpdateViewTarget(FTViewTarget& OutVT, float DeltaTime
 
 	// Synchronize the actor with the view target results
 	SetActorLocationAndRotation(OutVT.POV.Location, OutVT.POV.Rotation, false);
+	if (bAutoCalculateOrthoPlanes && OutVT.Target)
+	{
+		OutVT.POV.SetOrthoCameraArmLengthFromOwnerLocation(OutVT.Target->GetActorLocation());
+	}
 
 	UpdateCameraLensEffects(OutVT);
 }
