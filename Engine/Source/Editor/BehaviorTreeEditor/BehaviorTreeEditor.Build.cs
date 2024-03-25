@@ -17,6 +17,7 @@ public class BehaviorTreeEditor : ModuleRules
 				"CoreUObject",
 				"Engine",
 				"GraphEditor",
+				"GameplayTags",
 				"InputCore",
 				"KismetWidgets",
 				"Slate",

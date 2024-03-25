@@ -28,6 +28,19 @@ class SWidget;
 class UBehaviorTreeGraphNode;
 class UEdGraphNode;
 
+/** Indicates the kind of search we want to do */
+enum class EFindInBTSearchType : uint8
+{
+	// Search for text on nodes
+	Node,
+
+	// Search through properties with matching Blackboard Key
+	BlackboardKey,
+
+	// Search through properties with matching GameplayTag
+	GameplayTag
+};
+
 /** Item that matched the search results */
 class FFindInBTResult
 {
@@ -64,6 +77,9 @@ public:
 
 	/** Search result parent */
 	TWeakPtr<FFindInBTResult> Parent;
+
+	/** Show in search result row the exact field value found */
+	FString ExactFieldValueFound;
 };
 
 /** Widget for searching for (BT nodes) across focused BehaviorTree */
@@ -109,6 +125,15 @@ private:
 	/** Determines if a string matches the search tokens */
 	static bool StringMatchesSearchTokens(const TArray<FString>& Tokens, const FString& ComparisonString);
 
+	/** Determines if a string matches a node property according to the SearchType */
+	bool NodePropertyMatchesSearchTokens(const TArray<FString>& Tokens, UBehaviorTreeGraphNode* Node, FString& OutExactFieldValueFound) const;
+
+	/** Determines if a string matches a field property according to the SearchType */
+	bool FieldPropertyMatchesSearchTokens(const TArray<FString>& Tokens, const FProperty* Property, void* Data, FString& OutExactFieldValueFound) const;
+
+	/** Initiates search when SearchType changes */
+	void OnSearchTypeSelectedItemChanged(TSharedPtr<FString> NewValue, ESelectInfo::Type SelectInfo);
+
 private:
 	/** Pointer back to the behavior tree editor that owns us */
 	TWeakPtr<class FBehaviorTreeEditor> BehaviorTreeEditorPtr;
@@ -130,4 +155,10 @@ private:
 
 	/** The string to search for */
 	FString	SearchValue;
+
+	/** Shared strings based on the search types */
+	TArray<TSharedPtr<FString>> SearchTypeComboBoxItems;
+
+	/** Current search type determines how search occurs */
+	EFindInBTSearchType SearchType = SearchType = EFindInBTSearchType::Node;
 };
