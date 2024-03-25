@@ -3,6 +3,7 @@
 #include "SoftDataRegistryOrTable.h"
 
 #include "DataRegistrySubsystem.h"
+#include "Engine/AssetManager.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(SoftDataRegistryOrTable)
 
@@ -41,6 +42,38 @@ bool FSoftDataRegistryOrTable::SerializeFromMismatchedTag(const FPropertyTag& Ta
 	}
 
 	return false;
+}
+
+bool FSoftDataRegistryOrTable::IsLoaded() const 
+{ 
+	return bUseDataRegistry || (!Table.IsNull() && !Table.IsPending()); 
+}
+
+void FSoftDataRegistryOrTable::LoadAsync(FStreamableDelegate DelegateToCall)
+{
+	if (bUseDataRegistry || !Table.IsPending())
+	{
+		DelegateToCall.Execute();
+		return;
+	}
+
+	UAssetManager::Get().GetStreamableManager().RequestAsyncLoad(Table.ToSoftObjectPath(), DelegateToCall);
+}
+
+FDataRegistryOrTableRow FSoftDataRegistryOrTable::GetRegistryOrTableRow(FName RowName) const
+{
+	if (bUseDataRegistry)
+	{
+		// make a data registry id
+		return FDataRegistryOrTableRow(FDataRegistryId(RegistryType, RowName));
+	}
+
+	// make a data table row handle
+	FDataTableRowHandle RowHandle;
+	RowHandle.DataTable = Table.Get();
+	RowHandle.RowName = RowName;
+
+	return RowHandle;
 }
 
 bool FSoftDataRegistryOrTable::Matches(const UDataTable* InTable) const
@@ -130,4 +163,9 @@ const UDataRegistry* FDataRegistryOrTableRow::GetDataRegistry() const
 	}
 
 	return RegistrySystem->GetRegistryForType(DataRegistryId.RegistryType);
+}
+
+bool FDataRegistryOrTableRow::IsValid() const
+{
+	return bUseDataRegistryId ? DataRegistryId.IsValid() : !DataTableRow.IsNull();
 }

@@ -5,6 +5,7 @@
 #include "DataRegistry.h"
 #include "DataRegistryTypes.h"
 #include "Engine/DataTable.h"
+#include "Engine/StreamableManager.h"
 
 #include "SoftDataRegistryOrTable.generated.h"
 
@@ -85,7 +86,7 @@ struct DATAREGISTRY_API FSoftDataRegistryOrTable
 
 	/* This function returns an array of all items in the given registry or data table */
 	template <class T>
-	void GetAllRows(const FString& ContextString, TArray<T*>& Items) const
+	void GetAllItems(const FString& ContextString, TArray<T*>& Items) const
 	{
 		GetItems<T>(*ContextString, Items);
 	}
@@ -137,6 +138,15 @@ struct DATAREGISTRY_API FSoftDataRegistryOrTable
 
 	/** Used to upgrade a SoftObjectPtr to a FSoftDataRegistryOrTable */
 	bool SerializeFromMismatchedTag(const FPropertyTag& Tag, FStructuredArchive::FSlot Slot);
+
+	/** Returns whether or not the registry or table is loaded */
+	bool IsLoaded() const;
+
+	/** Async load asset (used for data tables) */
+	void LoadAsync(FStreamableDelegate DelegateToCall);
+
+	/** Method to get a FDataRegistryOrTableRow from the given row name */
+	FDataRegistryOrTableRow GetRegistryOrTableRow(FName RowName) const;
 
 	UPROPERTY(EditAnywhere, Category = DataRegistryOrTable)
 	bool bUseDataRegistry = false;
@@ -198,6 +208,9 @@ struct DATAREGISTRY_API FDataRegistryOrTableRow
 	}
 
 	FString ToString() const;
+
+	// method to check validity of this row
+	bool IsValid() const;
 
 	UPROPERTY(EditAnywhere, Category = DataRegistryOrTable)
 	bool bUseDataRegistryId = false;
