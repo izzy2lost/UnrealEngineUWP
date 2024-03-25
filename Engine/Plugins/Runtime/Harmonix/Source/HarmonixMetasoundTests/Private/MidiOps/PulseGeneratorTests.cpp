@@ -52,6 +52,7 @@ namespace Harmonix::Midi::Ops::Tests
 			while (Clock.GetCurrentMidiTick() < EndTick)
 			{
 				// Advance the clock, which will advance the play cursor in the pulse generator
+				Clock.PrepareBlock();
 				Clock.WriteAdvance(0, OperatorSettings.GetNumFramesPerBlock());
 
 				// Process, which will pop the next notes
