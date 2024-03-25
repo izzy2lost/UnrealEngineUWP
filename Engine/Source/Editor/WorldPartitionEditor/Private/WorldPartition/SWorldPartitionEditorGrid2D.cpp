@@ -1304,7 +1304,7 @@ void SWorldPartitionEditorGrid2D::Tick(const FGeometry& AllottedGeometry, const 
 
 		const IWorldPartitionActorLoaderInterface::ILoaderAdapter* LoaderAdapter = LoaderInterface->GetLoaderAdapter();
 
-		if (LoaderAdapter->GetBoundingBox().IsSet() && !LoaderAdapter->GetBoundingBox()->IsInsideXY(ViewRectWorld))
+		if (LoaderAdapter->GetBoundingBox().IsSet())
 		{
 			if (IsBoundsHovered(MouseCursorPosWorld, *LoaderAdapter->GetBoundingBox()))
 			{
