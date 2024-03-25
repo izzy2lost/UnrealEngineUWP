@@ -8,6 +8,7 @@
 
 class UFunction;
 class UObject;
+namespace UE { class FPropertyTypeName; }
 
 DECLARE_LOG_CATEGORY_EXTERN(LogProperty, Log, All);
 
@@ -72,3 +73,20 @@ namespace DelegatePropertyTools
 	 */
 	COREUOBJECT_API const TCHAR* ImportDelegateFromText( FScriptDelegate& Delegate, const UFunction* SignatureFunction, const TCHAR* Buffer, UObject* Parent, FOutputDevice* ErrorText );
 }
+
+namespace UE
+{
+
+/**
+ * Applies core redirects to type names and paths within the property type.
+ *
+ * Allows partial matches only when a property is given and matches the layout of the type name.
+ * Example: StructProperty(OldName) will not have an OldName redirect applied if Property is an FIntProperty.
+ *
+ * @param OldTypeName   The type name to apply core redirects to.
+ * @param Property      Optional. The property that the type name might correspond to.
+ * @return The new type name, if redirects were applied, otherwise an empty type name.
+ */
+FPropertyTypeName ApplyRedirectsToPropertyType(FPropertyTypeName OldTypeName, const FProperty* Property = nullptr);
+
+} // UE
