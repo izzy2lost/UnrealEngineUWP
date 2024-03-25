@@ -59,9 +59,6 @@ public:
 	virtual bool SupportsAnyThreadCapture() const override;
 	// We override the texture flags because on Mac we want the texture to have the CPU_Readback flag
     virtual ETextureCreateFlags GetOutputTextureFlags() const override;
-	// We override the initialization of the pass output texture as we want to the `CreateRenderTarget` allocator as it doesn't force
-	// the SRV flag
-	virtual TRefCountPtr<IPooledRenderTarget> InitializePassOutputTexture(FRDGTextureDesc TextureDesc, const TCHAR* TextureName) const override;
 	//~ End UMediaCapture interface
 
 	TSharedPtr<FSceneViewport> GetViewport() const { return SceneViewport.Pin(); }

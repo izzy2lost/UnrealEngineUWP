@@ -414,16 +414,6 @@ public:
 
 	static const TSet<EPixelFormat>& GetSupportedRgbaSwizzleFormats();
 
-	virtual TRefCountPtr<IPooledRenderTarget> InitializePassOutputTexture(FRDGTextureDesc TextureDesc, const TCHAR* TextureName) const
-	{
-		return AllocatePooledTexture(TextureDesc, TextureName);
-	}
-
-	virtual TRefCountPtr<FRDGPooledBuffer> InitializePassOutputBuffer(FRDGBufferDesc BufferDesc, const TCHAR* BufferName) const
-	{
-		return AllocatePooledBuffer(BufferDesc, BufferName);
-	}
-
 	/** Get the name of the media output that created this capture. */
 	FString GetMediaOutputName() const
 	{
