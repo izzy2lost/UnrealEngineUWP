@@ -328,6 +328,15 @@ namespace UnrealBuildTool
 			else if (OperatingSystem.IsLinux())
 			{
 				agentFiles.Add("UbaAgent");
+				bool bIsDebug = false;
+				if (bIsDebug)
+				{
+					agentFiles.Add("UbaAgent.debug");
+					agentFiles.Add("UbaAgent.sym");
+					agentFiles.Add("libclang_rt.tsan.so"); // Needs to be copied from autosdk
+					agentFiles.Add("llvm-symbolizer"); // Needs to be copied from autosdk
+				}
+				
 				if (RuntimeInformation.ProcessArchitecture == Architecture.X64)
 				{
 					ubaDir = DirectoryReference.Combine(Unreal.EngineDirectory, "Binaries", "Linux", "UnrealBuildAccelerator");
@@ -697,16 +706,19 @@ namespace UnrealBuildTool
 							arguments.Add("-Log");
 						}
 
-						logger.LogInformation("Executing child process: {Executable} {Arguments}", executable, CommandLineArguments.Join(arguments));
+						LogLevel logLevel = _owner.UBAConfig.bDetailedLog ? LogLevel.Information : LogLevel.Debug;
+
+						logger.Log(logLevel, "Executing child process: {Executable} {Arguments}", executable, CommandLineArguments.Join(arguments));
 
 						ExecuteProcessFlags execFlags = _allowWine ? ExecuteProcessFlags.UseWine : ExecuteProcessFlags.None;
 						await using AgentManagedProcess process = await channel.ExecuteAsync(executable, arguments, null, null, execFlags, cancellationToken);
 						bool shouldConnect = !useListen;
 						self.Started = true;
 						string? line;
+
 						while ((line = await process.ReadLineAsync(cancellationToken)) != null)
 						{
-							logger.LogInformation("{Line}", line);
+							logger.Log(logLevel, "{Line}", line);
 
 							if (shouldConnect && line.Contains("Listening on", StringComparison.OrdinalIgnoreCase)) // This log entry means that the agent is ready for connections.
 							{

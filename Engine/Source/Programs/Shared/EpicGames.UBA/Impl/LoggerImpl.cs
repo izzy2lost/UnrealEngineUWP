@@ -29,7 +29,7 @@ namespace EpicGames.UBA
 		static extern void DestroyCallbackLogWriter(IntPtr logger);
 		#endregion
 
-		public LoggerImpl(Microsoft.Extensions.Logging.ILogger logger)
+		public LoggerImpl(Microsoft.Extensions.Logging.ILogger logger, bool showDetail)
 		{
 			_logger = logger;
 			_beginScopeCallbackDelegate = BeginScope;
@@ -80,7 +80,7 @@ namespace EpicGames.UBA
 				case LogEntryType.Error: _logger.LogError("{Message}", message); break;
 				case LogEntryType.Warning: _logger.LogWarning("{Message}", message); break;
 				case LogEntryType.Info: _logger.LogInformation("{Message}", message); break;
-				case LogEntryType.Detail: _logger.LogInformation("{Message}", message); break;
+				case LogEntryType.Detail: _logger.LogDebug("{Message}", message); break;
 				case LogEntryType.Debug: _logger.LogDebug("{Message}", message); break;
 			}
 		}
