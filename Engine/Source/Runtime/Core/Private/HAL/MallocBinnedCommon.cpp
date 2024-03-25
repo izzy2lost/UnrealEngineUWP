@@ -6,6 +6,7 @@
 #include "Containers/ArrayView.h"
 #include "Misc/AssertionMacros.h"
 #include "Math/NumericLimits.h"
+#include "Async/TaskGraphInterfaces.h"
 #include "Templates/AlignmentTemplates.h"
 #include "Templates/UnrealTemplate.h"
 
@@ -454,9 +455,23 @@ uint32 FBitTree::CountOnes(uint32 UpTo) const
 
 #endif
 
-bool FMallocBinnedCommonBase::IsAppMultithreaded()
+void FMallocBinnedCommonBase::ConditionalBroadcastSlow(TFunction<void()>& Broadcast)
 {
-	return FPlatformProcess::SupportsMultithreading() && FApp::ShouldUseThreadingForPerformance();
+	TFunction<void(ENamedThreads::Type)> ThreadBroadcast =
+		[Broadcast](ENamedThreads::Type)
+		{
+			Broadcast();
+		};
+
+	// Skip task threads on desktop platforms as it is too slow and they don't have much memory
+	if (PLATFORM_DESKTOP)
+	{
+		FTaskGraphInterface::BroadcastSlow_OnlyUseForSpecialPurposes(false, false, ThreadBroadcast);
+	}
+	else
+	{
+		FTaskGraphInterface::BroadcastSlow_OnlyUseForSpecialPurposes(FPlatformProcess::SupportsMultithreading() && FApp::ShouldUseThreadingForPerformance(), false, ThreadBroadcast);
+	}
 }
 
 float GMallocBinnedFlushThreadCacheMaxWaitTime = 0.2f;

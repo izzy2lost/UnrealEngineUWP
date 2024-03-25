@@ -5,8 +5,11 @@
 #include "CoreTypes.h"
 #include "HAL/MemoryBase.h"
 #include "Math/UnrealMathUtility.h"
+#include "Stats/Stats.h"
 #include "HAL/PlatformTLS.h"
-#include "Async/TaskGraphInterfaces.h"
+#include "HAL/PlatformTime.h"
+#include "Async/Mutex.h"
+#include "Misc/ScopeLock.h"
 #include "Templates/AlignmentTemplates.h"
 
 #if PLATFORM_HAS_FPlatformVirtualMemoryBlock
@@ -311,7 +314,7 @@ protected:
 	std::atomic<uint64> MemoryTrimEpoch{ 0 };
 
 protected:
-	bool IsAppMultithreaded();
+	void ConditionalBroadcastSlow(TFunction<void()>& Broadcast);
 };
 
 template <class AllocType, int MinAlign, int MaxAlign, int MinAlignShift, int NumSmallPools, int MaxSmallPoolSize>
@@ -714,22 +717,14 @@ protected:
 			}
 		}
 
-		TFunction<void(ENamedThreads::Type CurrentThread)> Broadcast =
-			[this, &Allocator](ENamedThreads::Type MyThread)
+		TFunction<void()> Broadcast =
+			[this, &Allocator]()
 			{
 				// We might already have updated the Epoch so we can skip doing anything costly (i.e. Mutex) in that case.
 				const bool bNewEpochOnly = true;
 				FlushCurrentThreadCache(Allocator, bNewEpochOnly);
 			};
 
-		// Skip task threads on desktop platforms as it is too slow and they don't have much memory
-		if (PLATFORM_DESKTOP)
-		{
-			FTaskGraphInterface::BroadcastSlow_OnlyUseForSpecialPurposes(false, false, Broadcast);
-		}
-		else
-		{
-			FTaskGraphInterface::BroadcastSlow_OnlyUseForSpecialPurposes(IsAppMultithreaded(), false, Broadcast);
-		}
+		ConditionalBroadcastSlow(Broadcast);
 	}
 };
