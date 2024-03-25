@@ -289,8 +289,9 @@ namespace uba
 #endif
 	}
 
-	FileMappingBuffer::FileMappingBuffer(Logger& logger)
+	FileMappingBuffer::FileMappingBuffer(Logger& logger, WorkManager* workManager)
 	:	m_logger(logger)
+	,	m_workManager(workManager)
 	{
 		m_pageSize = 64*1024;
 	}
@@ -520,37 +521,45 @@ namespace uba
 		return res;
 	}
 
-	void FileMappingBuffer::UnmapView(MappedView view, const tchar* hint, u64 newSize)
+	void FileMappingBuffer::UnmapView(MappedView view, const tchar* hint_, u64 newSize)
 	{
 		if (!view.handle.IsValid())
 			return;
-		u8 storageIndex = 255;
-		File& file = GetFile(view.handle, storageIndex);
 
-		u64 alignedOffsetStart = AlignUp(view.offset - (m_pageSize - 1), m_pageSize);
-		u64 alignedOffsetEnd = AlignUp(view.offset + view.size, m_pageSize);
-
-		u8* memory = view.memory - (view.offset - alignedOffsetStart);
-		u64 mapSize = alignedOffsetEnd - alignedOffsetStart;
-		if (!UnmapViewOfFile(memory, mapSize, hint))
-		{
-			m_logger.Error(TC("%s - Failed to unmap view on address %llx (offset %llu) - %s (%s)"), file.name, u64(memory), view.offset, hint, LastErrorToText().data);
-		}
-
-		if (newSize != InvalidValue)
-		{
-			if (newSize != view.size)
+		auto unmap = [=](const tchar* hint)
 			{
-				UBA_ASSERT(!file.commitOnAlloc);
-				UBA_ASSERTF(newSize < view.size, TC("%s - Reserved too little memory. Reserved %llu, needed %llu for %s"), file.name, view.size, newSize, hint);
-				file.size -= view.size - newSize;
-			}
+				u8 storageIndex = 255;
+				File& file = GetFile(view.handle, storageIndex);
 
-			MappingStorage& storage = m_storage[storageIndex];
-			PushFile(storage, &file);
-		}
+				u64 alignedOffsetStart = AlignUp(view.offset - (m_pageSize - 1), m_pageSize);
+				u64 alignedOffsetEnd = AlignUp(view.offset + view.size, m_pageSize);
 
-		--file.activeMapCount;
+				u8* memory = view.memory - (view.offset - alignedOffsetStart);
+				u64 mapSize = alignedOffsetEnd - alignedOffsetStart;
+				if (!UnmapViewOfFile(memory, mapSize, hint))
+				{
+					m_logger.Error(TC("%s - Failed to unmap view on address %llx (offset %llu) - %s (%s)"), file.name, u64(memory), view.offset, hint, LastErrorToText().data);
+				}
+
+				if (newSize != InvalidValue)
+				{
+					if (newSize != view.size)
+					{
+						UBA_ASSERT(!file.commitOnAlloc);
+						UBA_ASSERTF(newSize < view.size, TC("%s - Reserved too little memory. Reserved %llu, needed %llu for %s"), file.name, view.size, newSize, hint);
+						file.size -= view.size - newSize;
+					}
+
+					MappingStorage& storage = m_storage[storageIndex];
+					PushFile(storage, &file);
+				}
+
+				--file.activeMapCount;
+			};
+		if (m_workManager && newSize == InvalidValue)
+			m_workManager->AddWork([=, h = TString(hint_)]() { unmap(h.c_str()); }, 1, TC("UnmapView"));
+		else
+			unmap(hint_);
 	}
 
 	void FileMappingBuffer::GetSizeAndCount(FileMappingType type, u64& outSize, u32& outCount)

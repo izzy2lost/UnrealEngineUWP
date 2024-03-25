@@ -20,6 +20,7 @@ namespace uba
 	class ProcessHandle;
 	class ProcessImpl;
 	class Storage;
+	class WorkManager;
 	struct ProcessStartInfo;
 	struct ProcessStats;
 	struct InitMessage;
@@ -68,7 +69,7 @@ namespace uba
 		Logger& GetLogger();			// Logger used for logging 
 		LogWriter& GetLogWriter();		// LogWriter used by logger
 
-		Session(const SessionCreateInfo& info, const tchar* logPrefix, bool runningRemote);
+		Session(const SessionCreateInfo& info, const tchar* logPrefix, bool runningRemote, WorkManager* workManager = nullptr);
 		virtual ~Session();
 
 	protected:
@@ -149,6 +150,8 @@ namespace uba
 
 		Storage& m_storage;
 		MutableLogger m_logger;
+
+		WorkManager* m_workManager;
 
 		StringBuffer<32> m_id;
 		StringBuffer<MaxPath> m_rootDir;

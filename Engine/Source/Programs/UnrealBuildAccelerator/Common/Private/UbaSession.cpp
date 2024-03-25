@@ -918,11 +918,12 @@ namespace uba
 		#endif
 	}
 
-	Session::Session(const SessionCreateInfo& info, const tchar* logPrefix, bool runningRemote)
+	Session::Session(const SessionCreateInfo& info, const tchar* logPrefix, bool runningRemote, WorkManager* workManager)
 	:	m_storage(info.storage)
 	,	m_logger(info.logWriter, logPrefix)
+	,	m_workManager(workManager)
 	,	m_directoryTable(&m_directoryTableMemory)
-	,	m_fileMappingBuffer(m_logger)
+	,	m_fileMappingBuffer(m_logger, workManager)
 	,	m_processCommunicationAllocator(m_logger, TC("CommunicationAllocator"))
 	,	m_trace(info.logWriter)
 	{
@@ -1338,6 +1339,7 @@ namespace uba
 			m_trace.ProcessExited(id, exitCode, writer.GetData(), writer.GetPosition(), logLines);
 			SCOPED_WRITE_LOCK(m_processStatsLock, lock);
 			m_processStats.Add(process.m_processStats);
+			m_stats.Add(process.m_sessionStats);
 		}
 
 		SCOPED_WRITE_LOCK(m_processesLock, lock);
@@ -2085,6 +2087,7 @@ namespace uba
 		logger.Info(TC("  MappingTable        %7u %9s"), u32(m_fileMappingTableLookup.size()), BytesToText(GetFileMappingSize()).str);
 		logger.Info(TC("  MappingBuffer       %7u %9s"), mappingBufferCount, BytesToText(mappingBufferSize).str);
 		logger.Info(TC(""));
+		m_stats.Print(logger);
 	}
 
 	void Session::CreateProcessJobObject()

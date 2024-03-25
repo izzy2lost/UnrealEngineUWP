@@ -11,7 +11,7 @@
 namespace uba
 {
 	SessionClient::SessionClient(const SessionClientCreateInfo& info)
-	: Session(info, TC("UbaSessionClient"), true)
+	: Session(info, TC("UbaSessionClient"), true, &info.client)
 	,	m_client(info.client)
 	,	m_name(info.name.data)
 	,	m_terminationTime(~0ull)
@@ -435,7 +435,8 @@ namespace uba
 					casKey = AsCompressed(casKey, false);
 					entry.handled = true;
 					Storage::RetrieveResult result;
-					if (!m_storage.RetrieveCasFile(result, casKey, fileName.data, &m_fileMappingBuffer, memoryMapAlignment, !IsRarelyRead(msg.process, fileName)))
+					bool allowProxy = !IsRarelyRead(msg.process, fileName);
+					if (!m_storage.RetrieveCasFile(result, casKey, fileName.data, &m_fileMappingBuffer, memoryMapAlignment, allowProxy))
 						return m_logger.Error(TC("Error retrieving cas entry %s (%s)"), CasKeyString(casKey).str, fileName.data);
 					entry.success = true;
 					entry.size = result.size;
@@ -1288,8 +1289,8 @@ namespace uba
 			ProcessRec(ProcessImpl* impl) : handle(impl) {}
 			ProcessHandle handle;
 			ReaderWriterLock lock;
-			bool isKilled = false;
-			bool isDone = false;
+			Atomic<bool> isKilled;
+			Atomic<bool> isDone;
 			float weight = 1.0f;
 		};
 		List<ProcessRec> activeProcesses;
@@ -1320,13 +1321,13 @@ namespace uba
 			for (auto it=activeProcesses.begin();it!=activeProcesses.end();)
 			{
 				ProcessRec& r = *it;
-				SCOPED_WRITE_LOCK(r.lock, lock);
 				if (!r.isDone)
 				{
 					++it;
 					continue;
 				}
-				lock.Leave();
+				r.lock.EnterWrite();
+				r.lock.LeaveWrite();
 				it = activeProcesses.erase(it);
 			}
 
@@ -1366,9 +1367,9 @@ namespace uba
 				for (auto it = activeProcesses.rbegin(); it != activeProcesses.rend(); ++it)
 				{
 					ProcessRec& rec = *it;
-					SCOPED_WRITE_LOCK(rec.lock, lock);
 					if (rec.isKilled || rec.isDone)
 						continue;
+					SCOPED_WRITE_LOCK(rec.lock, lock);
 					rec.handle.Cancel(true);
 					rec.isKilled = true;
 					SendReturnProcess(rec.handle.GetId(), TC("Running out of memory"));
@@ -1656,7 +1657,6 @@ namespace uba
 	void SessionClient::PrintSessionStats(Logger& logger)
 	{
 		Session::PrintSessionStats(logger);
-		m_stats.Print(logger);
 	}
 
 	bool SessionClient::GetNextProcess(Process& process, bool& outNewProcess, NextProcessInfo& outNextProcess, u32 prevExitCode, BinaryReader& statsReader)

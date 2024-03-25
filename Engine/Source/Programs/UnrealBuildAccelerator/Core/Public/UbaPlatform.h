@@ -50,6 +50,8 @@
     #define ERROR_SUCCESS 0
 #endif
 
+#define UBA_EXPERIMENTAL 0
+
 namespace uba
 {
 	#ifndef sizeof_array
