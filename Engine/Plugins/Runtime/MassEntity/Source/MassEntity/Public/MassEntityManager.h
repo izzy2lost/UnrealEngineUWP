@@ -427,6 +427,13 @@ public:
 	 */
 	void FlushCommands(const TSharedPtr<FMassCommandBuffer>& InCommandBuffer = TSharedPtr<FMassCommandBuffer>());
 
+	/** 
+	 * Depending on the current state of Manager's command buffer the function will either move all the commands out of 
+	 * InOutCommandBuffer into the main command buffer or append it to the list of command buffers waiting to be flushed.
+	 * @note as a consequence of the call InOutCommandBuffer can get its contents emptied due some of the undelying code using Move semantics
+	 */
+	void AppendCommands(TSharedPtr<FMassCommandBuffer>& InOutCommandBuffer);
+
 	/**
 	 * Shared fragment creation methods
 	 */
