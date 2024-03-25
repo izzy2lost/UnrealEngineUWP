@@ -188,9 +188,8 @@ void UModularVehicleBaseComponent::CreateAssociatedSimComponents(const UPrimitiv
 
 	if (const UVehicleSimBaseComponent* Component = Cast<UVehicleSimBaseComponent>(AttachedComponent))
 	{
-		FTransform ComponentTransform = AttachedComponent->GetComponentTransform();
-		ComponentTransform.SetScale3D(FVector(1.0f, 1.0f, 1.0f));
-		ComponentTransform.SetTranslation(FVector::ZeroVector);
+		FTransform ClusterUnionComponentTransform = ClusterUnionComponent->GetComponentTransform();
+		FTransform ComponentTransform = AttachedComponent->GetComponentTransform().GetRelativeTransform(ClusterUnionComponentTransform);
 
 		int TreeIndex = INDEX_NONE;
 
