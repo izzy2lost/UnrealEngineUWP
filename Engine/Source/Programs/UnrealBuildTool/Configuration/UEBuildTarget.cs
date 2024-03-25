@@ -1111,7 +1111,7 @@ namespace UnrealBuildTool
 		/// </summary>
 		Default,
 		/// <summary>
-		/// Generate clang database environment is non unity but uses the standard intermediate directory
+		/// Generate clang database environment is non unity and needs it own environment
 		/// </summary>
 		GenerateClangDatabase,
 		/// <summary>
@@ -1901,6 +1901,9 @@ namespace UnrealBuildTool
 					break;
 				case UnrealIntermediateEnvironment.Query:
 					TargetFolderName += "QRY";
+					break;
+				case UnrealIntermediateEnvironment.GenerateClangDatabase:
+					TargetFolderName += "GCD";
 					break;
 				case UnrealIntermediateEnvironment.GenerateProjectFiles:
 					TargetFolderName += "GPF";
