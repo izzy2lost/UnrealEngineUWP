@@ -65,6 +65,15 @@ EOverriddenState FOverridableManager::GetOverriddenState(UObject& Object)
 {
 	if(const FOverriddenPropertySet* OverriddenProperties = GetOverriddenProperties(Object))
 	{
+		// Consider any object that its template is a CDO as added.
+		if (UObject* Archetype = Object.GetArchetype())
+		{
+			if (Archetype->HasAnyFlags(RF_ClassDefaultObject))
+			{
+				return EOverriddenState::Added;
+			}
+		}
+
 		const EOverriddenPropertyOperation Operation = OverriddenProperties->GetOverriddenPropertyOperation((FArchiveSerializedPropertyChain*)nullptr, (FProperty*)nullptr);
 		if (Operation != EOverriddenPropertyOperation::None)
 		{
