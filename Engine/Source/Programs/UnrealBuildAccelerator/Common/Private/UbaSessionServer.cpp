@@ -299,6 +299,8 @@ namespace uba
 		
 		ScopedCriticalSection lock(m_remoteProcessAndSessionLock);
 		m_queuedRemoteProcesses.push_back(remoteProcess);
+
+		ScopedReadLock lock2(m_remoteProcessReturnedEventLock);
 		if (m_remoteProcessReturnedEvent)
 		{
 			if (!m_remoteExecutionEnabled)
@@ -392,11 +394,13 @@ namespace uba
 
 	void SessionServer::SetRemoteProcessSlotAvailableEvent(const Function<void()>& remoteProcessSlotAvailableEvent)
 	{
+		ScopedWriteLock lock(m_remoteProcessSlotAvailableEventLock);
 		m_remoteProcessSlotAvailableEvent = remoteProcessSlotAvailableEvent;
 	}
 
 	void SessionServer::SetRemoteProcessReturnedEvent(const Function<void(Process&)>& remoteProcessReturnedEvent)
 	{
+		ScopedWriteLock lock(m_remoteProcessReturnedEventLock);
 		m_remoteProcessReturnedEvent = remoteProcessReturnedEvent;
 	}
 
@@ -1408,6 +1412,7 @@ namespace uba
 
 	SessionServer::RemoteProcess* SessionServer::DequeueProcess(u32 sessionId, u32 clientId)
 	{
+		ScopedReadLock lock(m_remoteProcessSlotAvailableEventLock);
 		bool hasCalledCallback = !m_remoteProcessSlotAvailableEvent;
 		u32 sessionIndex = sessionId - 1;
 

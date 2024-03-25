@@ -27,6 +27,12 @@ namespace uba
 	CriticalSection::~CriticalSection()
 	{
 		#if PLATFORM_WINDOWS
+		#if UBA_DEBUG
+		if (TryEnterCriticalSection((CRITICAL_SECTION*)&data))
+			LeaveCriticalSection((CRITICAL_SECTION*)&data);
+		else
+			UBA_ASSERT(false);
+		#endif
 		DeleteCriticalSection((CRITICAL_SECTION*)&data);
 		#else
 		int res = pthread_mutex_destroy((pthread_mutex_t*)data);(void)res;
@@ -68,7 +74,14 @@ namespace uba
 
 	ReaderWriterLock::~ReaderWriterLock()
 	{
-		#if !PLATFORM_WINDOWS
+		#if PLATFORM_WINDOWS
+		#if UBA_DEBUG
+		if (TryAcquireSRWLockExclusive((SRWLOCK*)&data))
+			ReleaseSRWLockExclusive((SRWLOCK*)&data);
+		else
+			UBA_ASSERT(false);
+		#endif
+		#else
 		int res = pthread_rwlock_destroy((pthread_rwlock_t*)data);(void)res;
 		UBA_ASSERTF(res == 0, TC("pthread_rwlock_destroy failed: %i"), res);
 		#endif

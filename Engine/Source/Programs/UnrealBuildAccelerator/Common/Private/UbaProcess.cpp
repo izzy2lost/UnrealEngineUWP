@@ -472,15 +472,12 @@ namespace uba
 
 		m_hasExited = true;
 
-		#if !PLATFORM_WINDOWS
-		m_cancelEvent.~Event();
-		m_writeEvent.~Event();
-		m_readEvent.~Event();
-		#endif
-
 		{
 			#if !PLATFORM_WINDOWS
 			ScopedWriteLock lock(m_comMemoryLock);
+			m_cancelEvent.~Event();
+			m_writeEvent.~Event();
+			m_readEvent.~Event();
 			#endif
 			m_session.m_processCommunicationAllocator.Free(m_comMemory);
 			m_comMemory = {};

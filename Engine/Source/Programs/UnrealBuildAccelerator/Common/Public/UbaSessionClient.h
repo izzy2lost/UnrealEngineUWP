@@ -26,6 +26,7 @@ namespace uba
 		bool useBinariesAsVersion = false;
 		bool killRandom = false;
 		bool useStorage = true;
+		Function<void(const ProcessHandle&)> processFinished;
 	};
 
 	class SessionClient final : public Session
@@ -40,6 +41,7 @@ namespace uba
 
 		u64 GetBestPing();
 
+	private:
 		bool RetrieveCasFile(CasKey& outNewKey, u64& outSize, const CasKey& casKey, const tchar* hint, bool storeUncompressed, bool allowProxy = true);
 
 		virtual bool PrepareProcess(const ProcessStartInfo& startInfo, bool isChild, StringBufferBase& outRealApplication, const tchar*& outRealWorkingDir) override;
@@ -139,7 +141,7 @@ namespace uba
 
 		SessionSummaryStats m_stats;
 
-		u64 m_bestPing = 0;
+		Atomic<u64> m_bestPing;
 		u64 m_lastPing = 0;
 		u64 m_lastPingSendTime = 0;
 	};

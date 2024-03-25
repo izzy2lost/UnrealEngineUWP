@@ -65,14 +65,6 @@ namespace uba
 		u32 m_prefixLen;
 	};
 
-	struct MutableLogger : public LoggerWithWriter
-	{
-		MutableLogger(LogWriter& writer, const tchar* prefix) : LoggerWithWriter(writer, prefix) {}
-		virtual void Log(LogEntryType type, const tchar* str, u32 strLen) override { if (!isMuted) LoggerWithWriter::Log(type, str, strLen); }
-		bool isMuted = false;
-	};
-
-
 	class FilteredLogWriter : public LogWriter
 	{
 	public:

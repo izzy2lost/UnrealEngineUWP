@@ -25,7 +25,8 @@ namespace uba
 
 	void StorageImpl::CasEntryAccessed(CasEntry& entry)
 	{
-		if (entry.mappingHandle.IsValid())
+		bool hasMapping = entry.lock.ScopedRead([&](){ return entry.mappingHandle.IsValid(); });
+		if (hasMapping)
 			return;
 
 		ScopedWriteLock lock(m_accessLock);
@@ -571,6 +572,7 @@ namespace uba
 						{
 							if (rec->written == rec->decompressedSize)
 								rec->done.Set();
+							lock.Leave();
 							if (!--rec->refCount)
 								delete rec;
 							return 0;

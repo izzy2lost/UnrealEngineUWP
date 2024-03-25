@@ -100,7 +100,10 @@ namespace uba
 
 		static constexpr u8 ServiceId = SessionServiceId;
 
+		ReaderWriterLock m_remoteProcessSlotAvailableEventLock;
 		Function<void()> m_remoteProcessSlotAvailableEvent;
+
+		ReaderWriterLock m_remoteProcessReturnedEventLock;
 		Function<void(Process&)> m_remoteProcessReturnedEvent;
 
 		CriticalSection m_remoteProcessAndSessionLock; // Can be re-entrant.

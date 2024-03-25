@@ -1738,7 +1738,6 @@ namespace uba
 			ScopedWriteLock writtenLock(msg.process.m_writtenFilesLock);
 			auto insres = msg.process.m_writtenFiles.try_emplace(name);
 			WrittenFile& writtenFile = insres.first->second;
-			writtenLock.Leave();
 
 			UBA_ASSERT(writtenFile.owner == nullptr || writtenFile.owner == &msg.process);
 			writtenFile.owner = &msg.process;

@@ -759,8 +759,9 @@ namespace uba
 				u64 time2 = GetTime();
 				activeStore.recvCasTime += time2 - start;
 
+				u64 fileSize = activeStore.fileSize;
 				u64 totalWritten = activeStore.totalWritten.fetch_add(toRead) + toRead;
-				if (totalWritten == activeStore.fileSize)
+				if (totalWritten == fileSize)
 				{
 					m_casDataBuffer.UnmapView(activeStore.mappedView, TC("StoreDone"));
 
