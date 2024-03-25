@@ -301,10 +301,14 @@ void UMoverComponent::SimulationTick(const FMoverTimeStep& InTimeStep, const FMo
 
 	if (const FMoverDefaultSyncState* StartingSyncState = SimInput.SyncState.SyncStateCollection.FindDataByType<FMoverDefaultSyncState>())
 	{
-		ensureMsgf(UpdatedComponent->GetComponentLocation().Equals(StartingSyncState->GetLocation_WorldSpace()) || StartingSyncState->GetMovementBase(),
-			TEXT("Simulation start location (%s) disagrees with actual mover component location (%s). This indicates movement of the component out-of-band with the simulation, and will lead to poor quality motion."),
+		if (!(UpdatedComponent->GetComponentLocation().Equals(StartingSyncState->GetLocation_WorldSpace()) || StartingSyncState->GetMovementBase()))
+		{
+			UE_LOG(LogMover, Warning, TEXT("%s %s: Simulation start location (%s) disagrees with actual mover component location (%s). This indicates movement of the component out-of-band with the simulation, and if happens often will lead to poor quality motion."),
+			*GetNameSafe(GetOwner()),
+			*StaticEnum<ENetRole>()->GetValueAsString(GetOwnerRole()),
 			*StartingSyncState->GetLocation_WorldSpace().ToCompactString(),
 			*UpdatedComponent->GetComponentLocation().ToCompactString());
+		}
 	}
 
 	// Sync state data should carry over between frames
