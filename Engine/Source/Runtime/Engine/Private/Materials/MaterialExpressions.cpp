@@ -23475,7 +23475,7 @@ int32 UMaterialExpressionVolumetricCloudEmptySpaceSkippingOutput::Compile(class 
 
 void UMaterialExpressionVolumetricCloudEmptySpaceSkippingOutput::GetCaption(TArray<FString>& OutCaptions) const
 {
-	OutCaptions.Add(FString(TEXT("Volumetric Cloud Empty Space Skipping Output")));
+	OutCaptions.Add(FString(TEXT("Volumetric Cloud Empty Space Skipping Output <Experimental>")));
 }
 
 uint32 UMaterialExpressionVolumetricCloudEmptySpaceSkippingOutput::GetOutputType(int32 OutputIndex)
@@ -23546,7 +23546,7 @@ int32 UMaterialExpressionVolumetricCloudEmptySpaceSkippingInput::Compile(class F
 
 void UMaterialExpressionVolumetricCloudEmptySpaceSkippingInput::GetCaption(TArray<FString>& OutCaptions) const
 {
-	OutCaptions.Add(TEXT("Volumetric Cloud Empty Space Skipping Input"));
+	OutCaptions.Add(TEXT("Volumetric Cloud Empty Space Skipping Input <Experimental>"));
 }
 
 void UMaterialExpressionVolumetricCloudEmptySpaceSkippingInput::GetConnectorToolTip(int32 InputIndex, int32 OutputIndex, TArray<FString>& OutToolTip)

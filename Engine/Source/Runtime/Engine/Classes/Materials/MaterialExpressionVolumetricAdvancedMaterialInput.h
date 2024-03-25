@@ -21,7 +21,7 @@ class UMaterialExpressionVolumetricAdvancedMaterialInput : public UMaterialExpre
 	//~ End UMaterialExpression Interface
 };
 
-UCLASS()
+UCLASS(Experimental)
 class UMaterialExpressionVolumetricCloudEmptySpaceSkippingInput : public UMaterialExpression
 {
 	GENERATED_UCLASS_BODY()
