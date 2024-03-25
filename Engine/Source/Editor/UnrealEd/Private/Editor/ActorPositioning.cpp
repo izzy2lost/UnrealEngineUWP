@@ -63,6 +63,8 @@ FActorPositionTraceResult FActorPositioning::TraceWorldForPosition(const FViewpo
 /**
  * Prunes list of hit results for actor positioning calculations based on conditions that could be tested
  * on the game thread and returns a list of primitives for the remaining this.
+ * @note If a non-primitive based hit is found and ActorPositioningLocals::bAllowNonPrimitiveComponentHits is true then
+ * an empty weak obj ptr will be added to the result to represent the hit.
  */
 TArray<TWeakObjectPtr<const UPrimitiveComponent>> FilterHitsGameThread(TArray<FHitResult>& InOutHits)
 {
@@ -95,7 +97,13 @@ TArray<TWeakObjectPtr<const UPrimitiveComponent>> FilterHitsGameThread(TArray<FH
 		{
 			// If we don't have a primitive component, either ignore the hit, or pass it through if the CVar is set appropriately.
 			// i.e. ignoring is the inverse of the "allow non primitive hits" CVar.
-			return !ActorPositioningLocals::bAllowNonPrimitiveComponentHits;
+			if (ActorPositioningLocals::bAllowNonPrimitiveComponentHits)
+			{
+				// Keep arrays in sync by adding an invalid weak pointer for that hit.
+				WeakPrimitives.AddDefaulted();
+				return false;
+			}
+			return true;
 		}
 
 		// Ignore volumes and shapes
