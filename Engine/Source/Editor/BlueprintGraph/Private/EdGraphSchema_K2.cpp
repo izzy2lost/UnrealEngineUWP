@@ -295,7 +295,7 @@ UEdGraphSchema_K2::FPinTypeTreeInfo::FPinTypeTreeInfo(const FText& InFriendlyNam
 
 struct FUnloadedAssetData
 {
-	FSoftObjectPath SoftObjectPath;
+	FAssetData AssetData;
 	FText AssetFriendlyName;
 	FText Tooltip;
 	uint8 PossibleObjectReferenceTypes;
@@ -305,7 +305,7 @@ struct FUnloadedAssetData
 	{}
 
 	FUnloadedAssetData(const FAssetData& InAsset, uint8 InPossibleObjectReferenceTypes = 0)
-		: SoftObjectPath(InAsset.ToSoftObjectPath())
+		: AssetData(InAsset)
 		, AssetFriendlyName(FText::FromString(FName::NameToDisplayString(InAsset.AssetName.ToString(), false)))
 		, PossibleObjectReferenceTypes(InPossibleObjectReferenceTypes)
 	{
@@ -552,7 +552,7 @@ public:
 			{
 				FPinTypeTreeInfoPtr TypeTreeInfo = MakeShareable(new UEdGraphSchema_K2::FPinTypeTreeInfo(It.AssetFriendlyName
 					, CategoryName
-					, It.SoftObjectPath
+					, It.AssetData
 					, It.Tooltip
 					, false
 					, It.PossibleObjectReferenceTypes));
@@ -567,13 +567,12 @@ public:
 const FEdGraphPinType& UEdGraphSchema_K2::FPinTypeTreeInfo::GetPinType(bool bForceLoadedSubCategoryObject)
 {
 	// Only attempt to load the sub category object if we need to
-	if (SubCategoryObjectAssetReference.IsValid() && (!PinType.PinSubCategoryObject.IsValid() || FSoftObjectPath(PinType.PinSubCategoryObject.Get()) != SubCategoryObjectAssetReference))
+	if (CachedAssetData.IsValid() && (!PinType.PinSubCategoryObject.IsValid() || FSoftObjectPath(PinType.PinSubCategoryObject.Get()) != CachedAssetData.GetSoftObjectPath()))
 	{
 		const FAssetRegistryModule& AssetRegistryModule = FModuleManager::LoadModuleChecked<FAssetRegistryModule>(TEXT("AssetRegistry"));
-		const FAssetData AssetData = AssetRegistryModule.Get().GetAssetByObjectPath(SubCategoryObjectAssetReference);
-		if (bForceLoadedSubCategoryObject || AssetData.IsAssetLoaded())
+		if (bForceLoadedSubCategoryObject || CachedAssetData.IsAssetLoaded())
 		{
-			UObject* LoadedObject = AssetData.GetAsset();
+			UObject* LoadedObject = CachedAssetData.GetAsset();
 
 			if (UBlueprint* BlueprintObject = Cast<UBlueprint>(LoadedObject))
 			{
@@ -628,21 +627,32 @@ UEdGraphSchema_K2::FPinTypeTreeInfo::FPinTypeTreeInfo(const FName CategoryName, 
 	CachedDescription = GenerateDescription();
 }
 
-UEdGraphSchema_K2::FPinTypeTreeInfo::FPinTypeTreeInfo(const FText& InFriendlyName, const FName CategoryName, const FSoftObjectPath& SubCategoryObject, const FText& InTooltip, bool bInReadOnly, uint8 InPossibleObjectReferenceTypes)
+UEdGraphSchema_K2::FPinTypeTreeInfo::FPinTypeTreeInfo(const FText& InFriendlyName, const FName CategoryName, const FAssetData& AssetData, const FText& InTooltip, bool bInReadOnly, uint8 InPossibleObjectReferenceTypes)
 	: PossibleObjectReferenceTypes(InPossibleObjectReferenceTypes)
 {
 	FriendlyName = InFriendlyName;
 
 	check(!CategoryName.IsNone());
-	check(SubCategoryObject.IsValid());
+	check(AssetData.IsValid());
 
 	Tooltip = InTooltip;
 	PinType.PinCategory = CategoryName;
 
-	SubCategoryObjectAssetReference = SubCategoryObject;
+	CachedAssetData = AssetData;
 
 	bReadOnly = bInReadOnly;
 	CachedDescription = GenerateDescription();
+}
+
+UEdGraphSchema_K2::FPinTypeTreeInfo::FPinTypeTreeInfo(TSharedPtr<FPinTypeTreeInfo> InInfo)
+{
+	PinType = InInfo->PinType;
+	bReadOnly = InInfo->bReadOnly;
+	FriendlyName = InInfo->FriendlyName;
+	CachedAssetData = InInfo->CachedAssetData;
+	Tooltip = InInfo->Tooltip;
+	CachedDescription = InInfo->CachedDescription;
+	PossibleObjectReferenceTypes = InInfo->PossibleObjectReferenceTypes;
 }
 
 FText UEdGraphSchema_K2::FPinTypeTreeInfo::GenerateDescription()
@@ -674,6 +684,11 @@ FText UEdGraphSchema_K2::FPinTypeTreeInfo::GenerateDescription()
 FText UEdGraphSchema_K2::FPinTypeTreeInfo::GetDescription() const
 {
 	return CachedDescription;
+}
+
+const FAssetData& UEdGraphSchema_K2::FPinTypeTreeInfo::GetCachedAssetData() const
+{
+	return CachedAssetData;
 }
 
 const FName UEdGraphSchema_K2::PC_Exec(TEXT("exec"));

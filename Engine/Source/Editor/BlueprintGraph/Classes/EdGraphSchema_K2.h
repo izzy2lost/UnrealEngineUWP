@@ -447,8 +447,8 @@ public:
 		FEdGraphPinType PinType;
 		uint8 PossibleObjectReferenceTypes;
 
-		/** Asset Reference, used when PinType.PinSubCategoryObject is not loaded yet */
-		FSoftObjectPath SubCategoryObjectAssetReference;
+		/** Asset Data, used when PinType.PinSubCategoryObject is not loaded yet */
+		FAssetData CachedAssetData;
 
 		FText CachedDescription;
 
@@ -475,18 +475,8 @@ public:
 
 		FPinTypeTreeInfo(const FText& InFriendlyName, const FName CategoryName, const UEdGraphSchema_K2* Schema, const FText& InTooltip, bool bInReadOnly = false, FTypesDatabase* TypesDatabase = nullptr);
 		FPinTypeTreeInfo(const FName CategoryName, UObject* SubCategoryObject, const FText& InTooltip, bool bInReadOnly = false, uint8 InPossibleObjectReferenceTypes = 0);
-		FPinTypeTreeInfo(const FText& InFriendlyName, const FName CategoryName, const FSoftObjectPath& SubCategoryObject, const FText& InTooltip, bool bInReadOnly = false, uint8 InPossibleObjectReferenceTypes = 0);
-
-		FPinTypeTreeInfo(TSharedPtr<FPinTypeTreeInfo> InInfo)
-		{
-			PinType = InInfo->PinType;
-			bReadOnly = InInfo->bReadOnly;
-			FriendlyName = InInfo->FriendlyName;
-			Tooltip = InInfo->Tooltip;
-			SubCategoryObjectAssetReference = InInfo->SubCategoryObjectAssetReference;
-			CachedDescription = InInfo->CachedDescription;
-			PossibleObjectReferenceTypes = InInfo->PossibleObjectReferenceTypes;
-		}
+		FPinTypeTreeInfo(const FText& InFriendlyName, const FName CategoryName, const FAssetData& AssetData, const FText& InTooltip, bool bInReadOnly = false, uint8 InPossibleObjectReferenceTypes = 0);
+		FPinTypeTreeInfo(TSharedPtr<FPinTypeTreeInfo> InInfo);
 		
 		/** Returns a succinct menu description of this type */
 		FText GetDescription() const;
@@ -511,10 +501,7 @@ public:
 			return PossibleObjectReferenceTypes;
 		}
 
-		const FSoftObjectPath& GetSubCategoryObjectAsset() const
-		{
-			return SubCategoryObjectAssetReference;
-		}
+		const FAssetData& GetCachedAssetData() const;
 
 	private:
 

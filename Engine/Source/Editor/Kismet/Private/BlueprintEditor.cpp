@@ -419,12 +419,11 @@ namespace BlueprintEditorImpl
 		// IPinTypeSelectorFilter interface
 		virtual bool ShouldShowPinTypeTreeItem(FPinTypeTreeItem InItem) const override
 		{
-			const FSoftObjectPath& AssetReference = InItem->GetSubCategoryObjectAsset();
 			FTopLevelAssetPath TopLevelAssetPath;
-
-			if (AssetReference.IsAsset())
+			const FAssetData& AssetData = InItem->GetCachedAssetData();
+			if (AssetData.IsValid())
 			{
-				TopLevelAssetPath = FTopLevelAssetPath(AssetReference.GetLongPackageFName(), *AssetReference.GetAssetName());
+				TopLevelAssetPath = FTopLevelAssetPath(AssetData.PackageName, AssetData.AssetName);
 			}
 
 			// First check pin type permissions
@@ -434,10 +433,8 @@ namespace BlueprintEditorImpl
 			}
 
 			// Then asset permissions
-			if(AssetReferenceFilter.IsValid() && AssetReference.IsValid())
+			if(AssetReferenceFilter.IsValid() && AssetData.IsValid())
 			{
-				FAssetRegistryModule& AssetRegistryModule = FModuleManager::LoadModuleChecked<FAssetRegistryModule>("AssetRegistry");
-				FAssetData AssetData = AssetRegistryModule.Get().GetAssetByObjectPath(AssetReference.GetWithoutSubPath());
 				if (!AssetReferenceFilter->PassesFilter(AssetData))
 				{
 					return false;
