@@ -151,8 +151,8 @@ namespace ResonanceAudio
 
 		FSoundEffectSubmixPtr SubmixEffect;
 
-		// Stub Reverb submix to be used only when Resonance fails to load the submix asset.
-		USoundSubmix* StubSubmixPtr;
+		// Reverb submix to be used only when Resonance fails to load the submix asset.
+		USoundSubmix* ReverbSubmixPtr;
 	};
 
 } // namespace ResonanceAudio

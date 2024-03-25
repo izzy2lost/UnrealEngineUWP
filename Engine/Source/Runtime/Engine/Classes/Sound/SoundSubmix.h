@@ -255,11 +255,9 @@ public:
 
 protected:
 
-#if WITH_EDITOR
 	ENGINE_API virtual void PostDuplicate(EDuplicateMode::Type DuplicateMode) override;
 	ENGINE_API virtual void PreEditChange(FProperty* PropertyAboutToChange) override;
 	ENGINE_API virtual void PostEditChangeProperty(struct FPropertyChangedEvent& PropertyChangedEvent) override;
-#endif // WITH_EDITOR
 	//~ End UObject Interface.
 
 private:
@@ -293,9 +291,10 @@ public:
 	/**
 	* Set the parent submix of this SoundSubmix, removing it as a child from its previous owner
 	*
-	* @param	InParentSubmix	The New Parent Submix of this
+	* @param	InParentSubmix	The New Parent Submix of this submix
+	* @param	bModifyAssets	Whether or not to mark the UObjects as modified.
 	*/
-	ENGINE_API void SetParentSubmix(USoundSubmixBase* InParentSubmix);
+	ENGINE_API void SetParentSubmix(USoundSubmixBase* InParentSubmix, bool bModifyAssets = true);
 
 	ENGINE_API virtual bool DynamicConnect(const UObject* WorldContextObject, USoundSubmixBase* Parent) override;
 	ENGINE_API bool DynamicConnect(FAudioDeviceHandle Handle, USoundSubmixBase* Parent);

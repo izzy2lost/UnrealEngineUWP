@@ -4,6 +4,7 @@
 
 #include "ResonanceAudioReverb.h"
 
+#include "AudioDeviceManager.h"
 #include "ResonanceAudioCommon.h"
 #include "ResonanceAudioModule.h"
 #include "ResonanceAudioSettings.h"
@@ -30,13 +31,20 @@ namespace ResonanceAudio
 		, ResonanceAudioModule(nullptr)
 		, ReverbPluginPreset(nullptr)
 		, TemporaryStereoBuffer()
-		, StubSubmixPtr(nullptr)
+		, ReverbSubmixPtr(nullptr)
 	{
 	}
 
 	FResonanceAudioReverb::~FResonanceAudioReverb()
 	{
 		ReverbPluginPreset = nullptr;
+
+		if (ReverbSubmixPtr)
+		{
+			ReverbSubmixPtr->SetParentSubmix(nullptr, false /* bModifyAssets */);
+			ReverbSubmixPtr->RemoveFromRoot();
+		}
+
 	}
 
 	void FResonanceAudioReverb::Initialize(const FAudioPluginInitializationParams InitializationParams)
@@ -178,36 +186,49 @@ namespace ResonanceAudio
 
 	USoundSubmix* FResonanceAudioReverb::GetSubmix()
 	{
+
+		if (ReverbSubmixPtr)
+		{
+			return ReverbSubmixPtr;
+		}
+
 		const UResonanceAudioSettings* Settings = GetDefault<UResonanceAudioSettings>();
 		check(Settings);
 
-		USoundSubmix* ReverbSubmix = nullptr;
-		
 		if (!IgnoreUserResonanceSubmixCVar)
 		{
-			ReverbSubmix = Cast<USoundSubmix>(Settings->OutputSubmix.TryLoad());
+			ReverbSubmixPtr = Cast<USoundSubmix>(Settings->OutputSubmix.TryLoad());
 		}
 
-		if (!ReverbSubmix)
+		if (!ReverbSubmixPtr)
 		{
-			if (!StubSubmixPtr)
+			if (!IgnoreUserResonanceSubmixCVar)
 			{
 				static const FString DefaultSubmixName = TEXT("Resonance Reverb Submix");
-				UE_LOG(LogResonanceAudio, Error, TEXT("Failed to load Resonance Reverb Submix from object path '%s' in ResonanceSettings. Creating '%s' as stub."),
+				UE_LOG(LogResonanceAudio, Error, TEXT("Couldn't load Resonance Reverb Submix from object path '%s' in ResonanceSettings. Creating stub submix."),
 					*Settings->OutputSubmix.GetAssetPathString(),
 					*DefaultSubmixName);
-
-				StubSubmixPtr = NewObject<USoundSubmix>();
-				StubSubmixPtr->AddToRoot();
-				StubSubmixPtr->bMuteWhenBackgrounded = true;
-
 			}
 
-			ReverbSubmix = StubSubmixPtr;
+			ReverbSubmixPtr = NewObject<USoundSubmix>();
+			ReverbSubmixPtr->AddToRoot();
+			ReverbSubmixPtr->bMuteWhenBackgrounded = true;
+
+			if (const FAudioDeviceManager* DeviceManager = FAudioDeviceManager::Get())
+			{
+				if (const FAudioDevice* MainDevice = DeviceManager->GetMainAudioDeviceRaw())
+				{
+					USoundSubmix* MainSubmixObjectPtr = &MainDevice->GetMainSubmixObject();
+					UE_LOG(LogResonanceAudio, Log, TEXT("Setting Resonance's submix parent to Main Submix %s")
+						, *MainSubmixObjectPtr->GetName());
+
+					ReverbSubmixPtr->SetParentSubmix(MainSubmixObjectPtr, false /* bModifyAssets */);
+				}
+			}
 
 		}
 
-		ReverbSubmix->bAutoDisable = false;
+		ReverbSubmixPtr->bAutoDisable = false;
 
 		// SubmixEffect is required to be initialized for ReverbPluginPreset to be set
 		if (!SubmixEffect.IsValid())
@@ -218,7 +239,7 @@ namespace ResonanceAudio
 		if (ReverbPluginPreset)
 		{
 			bool bFoundPreset = false;
-			for (USoundEffectSubmixPreset* Preset : ReverbSubmix->SubmixEffectChain)
+			for (USoundEffectSubmixPreset* Preset : ReverbSubmixPtr->SubmixEffectChain)
 			{
 				if (UResonanceAudioReverbPluginPreset* PluginPreset = Cast<UResonanceAudioReverbPluginPreset>(Preset))
 				{
@@ -229,15 +250,18 @@ namespace ResonanceAudio
 
 			if (!bFoundPreset)
 			{
-				static const FString DefaultPresetName = TEXT("ResonanceReverbDefault_0");
-				UE_LOG(LogResonanceAudio, Error, TEXT("Failed to find Resonance UResonanceAudioReverbPluginPreset on default reverb submix. Creating stub '%s'."),
-					*Settings->OutputSubmix.GetAssetPathString(),
-					*DefaultPresetName);
-				ReverbSubmix->SubmixEffectChain.Add(ReverbPluginPreset);
+				if (!IgnoreUserResonanceSubmixCVar)
+				{
+					static const FString DefaultPresetName = TEXT("ResonanceReverbDefault_0");
+					UE_LOG(LogResonanceAudio, Error, TEXT("Failed to find Resonance UResonanceAudioReverbPluginPreset on default reverb submix. Creating stub '%s'."),
+						*Settings->OutputSubmix.GetAssetPathString(),
+						*DefaultPresetName);
+				}
+				ReverbSubmixPtr->SubmixEffectChain.Add(ReverbPluginPreset);
 			}
 		}
 
-		return ReverbSubmix;
+		return ReverbSubmixPtr;
 	}
 
 	void FResonanceAudioReverb::SetPreset(UResonanceAudioReverbPluginPreset* InPreset)
