@@ -331,6 +331,7 @@ protected:
 	void ProcessFirstSimTickAfterRollback(const FMoverTimeStep& TimeStep);
 
 	#if WITH_EDITOR
+	virtual void PreSave(FObjectPreSaveContext ObjectSaveContext) override;
 	virtual void PostCDOCompiled(const FPostCDOCompiledContext& Context) override;
 	virtual void PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent) override;
 	virtual void PostTransacted(const FTransactionObjectEvent& TransactionEvent) override;
