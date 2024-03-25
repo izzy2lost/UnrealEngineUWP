@@ -307,6 +307,11 @@ TSharedRef<SWidget> SPropertyEditorEditInline::GenerateClassPicker()
 				DisallowedClassFilters.Add(DisabledClass);
 			}
 		}
+
+		for (TArray<TSharedRef<IClassViewerFilter>>::TConstIterator  Iter = ClassRestriction.Get().GeClassViewFilterIterator(); Iter; ++Iter)
+		{
+			Options.ClassFilters.Add(*Iter);
+		}
 	}
 
 	ClassFilter->AllowedClassFilters = MoveTemp(AllowedClassFilters);
