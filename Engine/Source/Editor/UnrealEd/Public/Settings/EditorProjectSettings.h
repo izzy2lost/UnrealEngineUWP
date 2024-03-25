@@ -270,24 +270,8 @@ public:
 
 };
 
-/**
- * Settings for how developers interact with assets. Stored in default config, per-project
- */
-UCLASS(config = Editor, defaultconfig, meta = (DisplayName = "Assets"), MinimalAPI)
-class UEditorProjectAssetSettings : public UDeveloperSettings
-{
-	GENERATED_BODY()
 
-public:
-	/**
-	 * When performing cleanup operations on redirectors (such as resaving their referencers),
-	 * prompt the user to delete unreferenced redirectors.
-	 */
-	UPROPERTY(EditAnywhere, config, Category = Redirectors)
-	bool bPromptToDeleteUnreferencedRedirectors = true;
-};
-
-UCLASS(config = Editor, meta = (DisplayName = "Derived Data"), defaultconfig, MinimalAPI)
+UCLASS(config=Editor, meta=(DisplayName="Derived Data"), defaultconfig, MinimalAPI)
 class UDDCProjectSettings : public UDeveloperSettings
 {
 	GENERATED_BODY()
