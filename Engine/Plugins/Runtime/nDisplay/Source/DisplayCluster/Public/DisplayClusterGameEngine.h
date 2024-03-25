@@ -43,12 +43,20 @@ public:
 		return OperationMode;
 	}
 
-	/** Resets forced idle mode flag
+	/** Resets forced idle mode flag needed for multiplayer connections to tick the engine side to process handshake
 	 * Used by DisplayClusterNetDriver when all nodes are connected
 	 */
 	void ResetForcedIdleMode()
 	{
 		bForcedTickIdleMode = false;
+	}
+
+	/** This override control either we want to trigger the rendering or not on the frame
+	 * By modifying variable state in BrowseLoadMap when multiplayer connections are being established to prevent Redraw on the client side
+	 */
+	virtual bool IsRenderingSuspended() const override
+	{
+		return bIsRenderingSuspended;
 	}
 
 protected:
@@ -94,4 +102,7 @@ private:
 	// system have to wait for all nodes to be connected before proceeding with rendering otherwise cluster will deadlock itself between GT/RT barriers
 	// Enforced automatically into true on BrowseLoadMap for multiplayer connections
 	bool bForcedTickIdleMode = false;
+
+	// Flag used to suspend rendering and avoid Redraw method that leads to barrier lock among multiplayer client nodes, used in MP mode only
+	bool bIsRenderingSuspended = false;
 };
