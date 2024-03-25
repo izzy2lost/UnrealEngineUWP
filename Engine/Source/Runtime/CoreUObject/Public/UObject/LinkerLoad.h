@@ -465,6 +465,12 @@ private:
 
 	/** Cache if the package is relocated or not */
 	bool bIsPackageRelocated : 1;
+
+	/** Set when the loader is serializing to a property bag placeholder object.											*/
+	bool bIsLoadingToPropertyBagObject : 1;
+
+	/** TRUE when the loader is actively serializing an object's script properties data.									*/
+	bool bIsSerializingScriptProperties : 1;
 #endif // WITH_EDITOR
 
 	/** Call count of IsTimeLimitExceeded.																					*/
@@ -1020,8 +1026,18 @@ private:
 		checkSlow(FPlatformTLS::GetCurrentThreadId() == OwnerThread);
 #if WITH_EDITOR
 		Loader->SetSerializedProperty(GetSerializedProperty());
+
+		// This handles the case where we're only serializing to a property bag and we don't immediately know where the script
+		// property data starts/ends in the object's data stream. Allows for loading from packages saved with an older version.
+		if (UNLIKELY(bIsLoadingToPropertyBagObject && !bIsSerializingScriptProperties))
+		{
+			Loader->Seek(Tell() + Length);
+		}
+		else
 #endif
-		Loader->Serialize(V, Length);
+		{
+			Loader->Serialize(V, Length);
+		}
 	}
 	using FArchiveUObject::operator<<; // For visibility of the overloads we don't override
 	virtual FArchive& operator<<(UObject*& Object) override;

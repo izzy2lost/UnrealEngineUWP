@@ -372,7 +372,7 @@ TEST_CASE_METHOD(FObjectHandleTestBase, "CoreUObject::FObjectHandle::Hash Object
 }
 
 #if UE_WITH_OBJECT_HANDLE_TYPE_SAFETY
-DISABLED_TEST_CASE_METHOD(FObjectHandleTestBase, "CoreUObject::FObjectHandle::Type Safety", "[CoreUObject][ObjectHandle]")
+TEST_CASE_METHOD(FObjectHandleTestBase, "CoreUObject::FObjectHandle::Type Safety", "[CoreUObject][ObjectHandle]")
 {
 	const FName TestPackageName(TEXT("/Engine/Test/ObjectHandle/TypeSafety/Transient"));
 	UPackage* TestPackage = NewObject<UPackage>(nullptr, TestPackageName, RF_Transient);
@@ -389,11 +389,10 @@ DISABLED_TEST_CASE_METHOD(FObjectHandleTestBase, "CoreUObject::FObjectHandle::Ty
 	TestClass->StaticLink(/*bRelinkExistingProperties =*/ true);
 	UObject* TestClassDefaults = TestClass->GetDefaultObject();
 	TestClass->PostLoadDefaultObject(TestClassDefaults);
-	TestClassDefaults->SetFlags(RF_HasPlaceholderType);
 
 	// validate helper method(s)
 	CHECK_FALSE(UE::CoreUObject::Private::HasAnyFlags(TestClassDefaults, RF_NoFlags));
-	CHECK(UE::CoreUObject::Private::HasAnyFlags(TestClassDefaults, RF_HasPlaceholderType));
+	CHECK(UE::CoreUObject::Private::HasAnyFlags(TestClassDefaults, RF_ClassDefaultObject));
 
 	// construct objects for testing
 	UObject* TestSafeObject = NewObject<UObjectPtrTestClass>(TestPackage, TEXT("TestSafeObject"), RF_Transient);
@@ -427,6 +426,13 @@ DISABLED_TEST_CASE_METHOD(FObjectHandleTestBase, "CoreUObject::FObjectHandle::Ty
 	// object handles should resolve/evaluate to the original type object
 	CHECK(UE::CoreUObject::Private::ResolveObjectHandle(TestUnsafeObjectHandle) == TestUnsafeObject);
 
+	// an unsafe type object handle should not equate to other unsafe type object handles except for itself (including NULL)
+	CHECK(NullObjectHandle != TestUnsafeObjectHandle);			// note: this intentionally differs from object *pointers* (see below)
+	CHECK(TestUnsafeObjectHandle != NullObjectHandle);			// see note directly above
+	CHECK(TestSafeObjectHandle != TestUnsafeObjectHandle);
+	CHECK(TestUnsafeObjectHandle != TestSafeObjectHandle);
+	CHECK(TestUnsafeObjectHandle == TestUnsafeObjectHandle);
+
 	// construct object pointers for testing
 	TObjectPtr<UObject> NullObjectPtr(nullptr);
 	TObjectPtr<UObject> TestSafeObjectPtr(TestSafeObject);
@@ -435,11 +441,15 @@ DISABLED_TEST_CASE_METHOD(FObjectHandleTestBase, "CoreUObject::FObjectHandle::Ty
 	// unsafe type object pointers should evaluate to NULL/false (for type safety)
 	CHECK(!TestUnsafeObjectPtr);
 	CHECK_FALSE(!!TestUnsafeObjectPtr);
+	CHECK(NULL == TestUnsafeObjectPtr);
+	CHECK(TestUnsafeObjectPtr == NULL);
 	CHECK(nullptr == TestUnsafeObjectPtr);
 	CHECK(TestUnsafeObjectPtr == nullptr);
 
-	// an unsafe type object pointer should not equate to NULL/other pointers
-	CHECK(TestUnsafeObjectPtr != NullObjectPtr);
+	// an unsafe type object pointer should not equate to other pointers except for NULL and itself
+	CHECK(NullObjectPtr == TestUnsafeObjectPtr);				// note: this intentionally differs from object *handles* (see above)
+	CHECK(TestUnsafeObjectPtr == NullObjectPtr);				// see note directly above
+	CHECK(TestSafeObjectPtr != TestUnsafeObjectPtr);
 	CHECK(TestUnsafeObjectPtr != TestSafeObjectPtr);
 	CHECK(TestUnsafeObjectPtr == TestUnsafeObjectPtr);
 

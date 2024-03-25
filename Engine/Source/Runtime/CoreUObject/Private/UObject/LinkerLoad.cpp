@@ -659,7 +659,7 @@ void FLinkerLoad::PRIVATE_PatchNewObjectIntoExport(UObject* OldObject, UObject* 
 		FObjectExport& ObjExport = OldObjectLinker->ExportMap[CachedLinkerIndex];
 		
 		// Since we don't copy the internal flags, the mirrored flags need can't be set on the new object as well
-		const EObjectFlags OldObjectFlags = OldObject->GetFlags() & ~RF_MirroredGarbage;
+		const EObjectFlags OldObjectFlags = OldObject->GetFlags() & ~(RF_MirroredGarbage | RF_HasPlaceholderType);
 
 		// Detach the old object to make room for the new
 		OldObject->ClearFlags(RF_NeedLoad|RF_NeedPostLoad|RF_NeedPostLoadSubobjects);
@@ -1015,6 +1015,8 @@ FLinkerLoad::FLinkerLoad(UPackage* InParent, const FPackagePath& InPackagePath, 
 #if WITH_EDITOR
 , bExportsDuplicatesFixed(false)
 , bIsPackageRelocated(false)
+, bIsLoadingToPropertyBagObject(false)
+, bIsSerializingScriptProperties(false)
 #endif // WITH_EDITOR
 , IsTimeLimitExceededCallCount(0)
 , TimeLimit(0.0f)
@@ -4041,13 +4043,17 @@ UClass* FLinkerLoad::GetExportLoadClass(int32 Index)
 #if WITH_EDITOR
 UClass* FLinkerLoad::TryCreatePlaceholderTypeForExport(int32 ExportIndex)
 {
+	const bool bAllowPlaceholderImportTypes = UE::FPropertyBagRepository::IsPropertyBagPlaceholderObjectSupportEnabled();
+	if (!bAllowPlaceholderImportTypes)
+	{
+		return nullptr;
+	}
+
 	UClass* LoadClass = nullptr;
 	FObjectExport& Export = ExportMap[ExportIndex];
 
 	// If the class import is missing, create a placeholder for this export. This will allow us to instance and redirect its data into a property bag.
-	// Note: This is only possible if the missing type did not also include any custom serialization, so we currently rely on the load context for this.
-	FUObjectSerializeContext* CurrentLoadContext = GetSerializeContext();
-	if (CurrentLoadContext && CurrentLoadContext->bSerializeUnknownProperty && Export.ClassIndex.IsImport() && !GEventDrivenLoaderEnabled)
+	if (Export.ClassIndex.IsImport() && !GEventDrivenLoaderEnabled)
 	{
 		FObjectImport& LoadClassImport = Imp(Export.ClassIndex);
 
@@ -4081,14 +4087,14 @@ UClass* FLinkerLoad::TryCreatePlaceholderTypeForExport(int32 ExportIndex)
 					UObject* LoadClassDefaults = LoadClass->GetDefaultObject();
 					LoadClass->PostLoadDefaultObject(LoadClassDefaults);
 
-					// Indicate that the CDO has a placeholder type (in case something has serialized a reference to it).
-					LoadClassDefaults->SetFlags(RF_HasPlaceholderType);
-
 					// This class is for internal use and should not be exposed for selection or instancing in the editor.
 					LoadClass->ClassFlags |= CLASS_Hidden | CLASS_HideDropDown;
 
 					// Patch it into the import table so that we resolve to this class for any future exports of this type.
 					LoadClassImport.XObject = LoadClass;
+
+					// Modify the export's object flags for instancing to indicate that its load class is a placeholder type.
+					Export.ObjectFlags |= RF_HasPlaceholderType;
 
 					// Use the property bag repository for now to manage property bag placeholder types (e.g. object lifetime).
 					// Note: The object lifetime of instances of this type will rely on existing references that are serialized.
@@ -4591,16 +4597,18 @@ void FLinkerLoad::Preload( UObject* Object )
 				const int64 SavedPos = Loader->Tell();
 				int64 StartPos = Export.SerialOffset;
 				int64 ExpectedSerialSize = Export.SerialSize;
-
+#if WITH_EDITOR
 				// for placeholder objects that have no explicit type, we only want to serialize the TPS stream
-				const bool bSerializeOnlyScriptProperties = Object->HasAnyFlags(RF_HasPlaceholderType);
-				if (bSerializeOnlyScriptProperties)
+				bool bSerializeOnlyScriptProperties = false;
+				FGuardValue_Bitfield(bIsLoadingToPropertyBagObject, UE::FPropertyBagRepository::IsPropertyBagPlaceholderObject(Object));
+				if (bIsLoadingToPropertyBagObject && UEVer() >= EUnrealEngineObjectUE5Version::SCRIPT_SERIALIZATION_OFFSET)
 				{
 					// note: script start/end offsets are relative to the export's offset in the file
 					StartPos += Export.ScriptSerializationStartOffset;
 					ExpectedSerialSize = Export.ScriptSerializationEndOffset;
+					bSerializeOnlyScriptProperties = true;	// signals that we can safely narrow the load to SerializeScriptProperties()
 				}
-
+#endif
 				// move to the position in the file where this object's data
 				// is stored
 				Seek(StartPos);
@@ -4747,17 +4755,21 @@ void FLinkerLoad::Preload( UObject* Object )
 #endif
 						{
 							UE_SERIALIZE_ACCCESS_SCOPE(Object);
-
+#if WITH_EDITOR
 							if (bSerializeOnlyScriptProperties)
 							{
 								Object->SerializeScriptProperties(*this);
 							}
 							else
+#endif
 							{
 								Object->Serialize(*this);
 							}
 						}
-
+#if WITH_EDITOR
+						// Ensure begin/end marks were hit.
+						check(!bIsSerializingScriptProperties);
+#endif
 						Object->SetFlags(RF_LoadCompleted);
 						CurrentLoadContext->SerializedObject = PrevSerializedObject;
 					}
@@ -5439,7 +5451,7 @@ UObject* FLinkerLoad::CreateExport( int32 Index )
 			Export.bIsInheritedInstance = false;
 		}
 
-		const UObject* LoadClassDefaultObject = LoadClass->GetDefaultObject();
+		LoadClass->GetDefaultObject();
 
 		FStaticConstructObjectParameters Params(LoadClass);
 		Params.Outer = ThisParent;
@@ -5448,12 +5460,6 @@ UObject* FLinkerLoad::CreateExport( int32 Index )
 		Params.Template = Template;
 		// if our outer is actually an import, then the package we are an export of is not in our outer chain, set our package in that case
 		Params.ExternalPackage = Export.OuterIndex.IsImport() ? LinkerRoot : nullptr;
-
-		// If we're instancing from a placeholder type, set the object flag (so that we can quickly determine that it's a placeholder object).
-		if (LoadClassDefaultObject && LoadClassDefaultObject->HasAnyFlags(RF_HasPlaceholderType))
-		{
-			Params.SetFlags |= RF_HasPlaceholderType;
-		}
 
 		// Propagate relevant properties from the outer package to the external package
 		if (Params.ExternalPackage)
@@ -6153,11 +6159,12 @@ FArchive& FLinkerLoad::operator<<( UObject*& Object )
 
 	Object = ResolveResource(Index);
 #if WITH_EDITOR
-	if (Object && Object->HasAnyFlags(RF_HasPlaceholderType))
+	if (Object && UE::FPropertyBagRepository::IsPropertyBagPlaceholderObject(Object))
 	{
 		// This is needed because the pointer's type is checked only at compile time, which may not match the property
 		// bag placeholder object's type at runtime, and so we can't allow it to be dereferenced as the wrong base type.
 		// Note: These currently won't be discovered for replacement at reinstancing time, so it will remain set to NULL.
+		UE_LOG(LogLinker, Warning, TEXT("Serializing reference to \"%s\" as NULL to ensure type safety."), *Object->GetPathName());
 		Object = nullptr;
 	}
 #endif
@@ -6173,12 +6180,22 @@ FArchive& FLinkerLoad::operator<<(FObjectPtr& ObjectPtr)
 	// Wrapper that only allows pointers to exports with placeholder types when type safety features are enabled.
 	auto AsTypeSafeObjectPtr_Lambda = [](UObject* ResolvedObject)
 	{
-#if WITH_EDITOR && !UE_WITH_OBJECT_HANDLE_TYPE_SAFETY
-		// If we can't mask the reference to the placeholder object instance at resolve time, set it now to NULL.
+#if WITH_EDITOR
+		// If we can't mask the pointer to the placeholder object instance at access time, resolve it now to NULL.
 		// Note: Similar to hard references above, this means we won't find it for replacement at reinstancing time.
-		if (ResolvedObject && ResolvedObject->HasAnyFlags(RF_HasPlaceholderType))
+		if (ResolvedObject && UE::FPropertyBagRepository::IsPropertyBagPlaceholderObject(ResolvedObject))
 		{
-			ResolvedObject = nullptr;
+#if UE_WITH_OBJECT_HANDLE_TYPE_SAFETY
+			// Note: With type safety enabled, unlike other instances of a placeholder type, we won't mark the CDO
+			// as also being a placeholder instance. That's because there are certain paths that need to be able
+			// to resolve the pointer (e.g. - the object initialization path during class construction). However,
+			// it also means we can't resolve other references to a placeholder CDO, as they may not be type-safe.
+			if (ResolvedObject->HasAnyFlags(RF_ClassDefaultObject))
+#endif
+			{
+				UE_LOG(LogLinker, Warning, TEXT("Serializing reference to \"%s\" as NULL to ensure type safety."), *ResolvedObject->GetPathName());
+				ResolvedObject = nullptr;
+			}
 		}
 #endif
 		return FObjectPtr(ResolvedObject);
@@ -6260,6 +6277,9 @@ void FLinkerLoad::MarkScriptSerializationStart( const UObject* Obj )
 {
 	if (Obj && Obj->GetLinker() == this)
 	{
+#if WITH_EDITOR
+		bIsSerializingScriptProperties = true;
+#endif
 		int32 Index = Obj->GetLinkerIndex();
 		if (ExportMap.IsValidIndex(Index))
 		{
@@ -6283,6 +6303,9 @@ void FLinkerLoad::MarkScriptSerializationEnd( const UObject* Obj )
 {
 	if (Obj && Obj->GetLinker() == this)
 	{
+#if WITH_EDITOR
+		bIsSerializingScriptProperties = false;
+#endif
 		int32 Index = Obj->GetLinkerIndex();
 		if (ExportMap.IsValidIndex(Index))
 		{

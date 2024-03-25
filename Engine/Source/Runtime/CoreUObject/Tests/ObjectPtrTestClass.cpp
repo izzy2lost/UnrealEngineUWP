@@ -192,4 +192,6 @@ IMPLEMENT_CORE_INTRINSIC_CLASS(UObjectPtrDerrivedTestClass, UObjectPtrTestClass,
 
 IMPLEMENT_CORE_INTRINSIC_CLASS(UObjectPtrNotLazyTestClass, UObject, {});
 
+IMPLEMENT_CORE_INTRINSIC_CLASS(UObjectPtrStressTestClass, UObject, {});
+
 #endif

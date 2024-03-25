@@ -14,6 +14,11 @@
 #include "UObject/InstanceDataObjectUtils.h"
 #include "UObject/Package.h"
 
+#if WITH_EDITOR
+#include "HAL/IConsoleManager.h"
+#include "Misc/CommandLine.h"
+#endif
+
 DEFINE_LOG_CATEGORY_STATIC(LogPropertyBagRepository, Log, All);
 
 namespace UE
@@ -325,16 +330,6 @@ void FPropertyBagRepository::ShrinkMaps()
 	AssociatedData.Compact();
 }
 
-bool FPropertyBagRepository::IsPropertyBagPlaceholderType(UClass* ClassType)
-{
-	if (!ClassType)
-	{
-		return false;
-	}
-
-	return FPropertyBagRepository::Get().PropertyBagTypeRegistry->Contains(ClassType);
-}
-
 void FPropertyBagRepository::AddPropertyBagPlaceholderType(UClass* ClassType)
 {
 	if (!ClassType)
@@ -343,6 +338,46 @@ void FPropertyBagRepository::AddPropertyBagPlaceholderType(UClass* ClassType)
 	}
 
 	FPropertyBagRepository::Get().PropertyBagTypeRegistry->Add(ClassType);
+}
+
+bool FPropertyBagRepository::IsPropertyBagPlaceholderObject(UObject* Object)
+{
+	if (!Object)
+	{
+		return false;
+	}
+
+	return Object->HasAnyFlags(RF_HasPlaceholderType|RF_ClassDefaultObject)
+		&& FPropertyBagRepository::Get().PropertyBagTypeRegistry->Contains(Object->GetClass());
+}
+
+namespace Private
+{
+#if WITH_EDITOR
+	static bool bEnablePropertyBagPlaceholderObjectSupport = 0;
+	static FAutoConsoleVariableRef CVarEnablePropertyBagPlaceholderObjectSupport(
+		TEXT("SceneGraph.EnablePropertyBagPlaceholderObjectSupport"),
+		bEnablePropertyBagPlaceholderObjectSupport,
+		TEXT("If true, allows placeholder types to be created in place of missing types on load in order to redirect serialization into a property bag."),
+		ECVF_Default
+	);
+#endif
+}
+
+bool FPropertyBagRepository::IsPropertyBagPlaceholderObjectSupportEnabled()
+{
+#if WITH_EDITOR && UE_WITH_OBJECT_HANDLE_TYPE_SAFETY
+	static bool bIsInitialized = false;
+	if (!bIsInitialized)
+	{
+		Private::bEnablePropertyBagPlaceholderObjectSupport = FParse::Param(FCommandLine::Get(), TEXT("WithPropertyBagPlaceholderObjects"));
+		bIsInitialized = true;
+	}
+	
+	return Private::bEnablePropertyBagPlaceholderObjectSupport;
+#else
+	return false;
+#endif
 }
 
 } // UE
