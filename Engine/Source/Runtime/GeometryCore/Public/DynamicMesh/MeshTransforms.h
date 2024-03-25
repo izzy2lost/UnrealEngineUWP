@@ -27,10 +27,16 @@ namespace MeshTransforms
 	GEOMETRYCORE_API void Translate(FDynamicMesh3& Mesh, const FVector3d& Translation);
 
 	/**
-	 * Apply Scale to vertex positions of Mesh, relative to given Origin. Does not modify any other attributes (normals/etc)
+	 * Apply Scale to vertex positions of Mesh, relative to given Origin. For non-uniform scale, also scales normals/tangents.
 	 * @param bReverseOrientationIfNeeded		If negative scaling inverts the mesh, also invert the triangle orientations
+	 * @param OnlyPositions						If true, only apply scale positions and do not affect normals/tangents
 	 */
-	GEOMETRYCORE_API void Scale(FDynamicMesh3& Mesh, const FVector3d& Scale, const FVector3d& Origin, bool bReverseOrientationIfNeeded = false);
+	GEOMETRYCORE_API void Scale(FDynamicMesh3& Mesh, const FVector3d& Scale, const FVector3d& Origin, bool bReverseOrientationIfNeeded = false, bool bOnlyPositions = false);
+
+	/**
+	 * Apply Rotation to the vertex positions, relative to the given RotationOrigin.
+	 */
+	GEOMETRYCORE_API void Rotate(FDynamicMesh3& Mesh, const FRotator& Rotation, const FVector3d& RotationOrigin);
 
 	/**
 	 * Transform Mesh into local coordinates of Frame
@@ -66,6 +72,16 @@ namespace MeshTransforms
 	GEOMETRYCORE_API void ApplyTransform(FDynamicMesh3& Mesh, 
 		TFunctionRef<FVector3d(const FVector3d&)> PositionTransform,
 		TFunctionRef<FVector3f(const FVector3f&)> NormalTransform);
+
+	/**
+	 * Apply given Transform to a Mesh.
+	 * Modifies Vertex Positions, Normals, Tangents, and any Per-Triangle Normal Overlays
+	 */
+	GEOMETRYCORE_API void ApplyTransform(FDynamicMesh3& Mesh,
+		TFunctionRef<FVector3d(const FVector3d&)> PositionTransform,
+		TFunctionRef<FVector3f(const FVector3f&)> NormalTransform,
+		TFunctionRef<FVector3f(const FVector3f&)> TangentTransform
+	);
 
 	/**
 	 * If applying Transform would invert Mesh w/ a negative scale, then invert Mesh's triangle orientations.
