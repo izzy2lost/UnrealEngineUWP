@@ -1615,8 +1615,16 @@ void UWorldPartitionRuntimeSpatialHash::FlushStreamingContent()
 	StreamingGrids.Empty();
 }
 
-bool UWorldPartitionRuntimeSpatialHash::IsValidGrid(FName GridName) const
+bool UWorldPartitionRuntimeSpatialHash::IsValidGrid(FName GridName, const UClass* ActorClass) const
 {
+	// We always consider grids from auto-generated HLODs to be valid
+	static const UClass* WorldPartitionHLODClass = FindObjectChecked<UClass>(nullptr, TEXT("/Script/Engine.WorldPartitionHLOD"));
+	if (ActorClass->IsChildOf(WorldPartitionHLODClass))
+	{
+		return true;
+	}
+
+	// None always maps to the default grid
 	if (GridName.IsNone())
 	{
 		return true;
@@ -1629,15 +1637,6 @@ bool UWorldPartitionRuntimeSpatialHash::IsValidGrid(FName GridName) const
 			return true;
 		}
 	}
-
-	/*const UWorldPartition* WorldPartition = GetOuterUWorldPartition();
-	for (FActorDescContainerInstanceCollection::TConstIterator<ASpatialHashRuntimeGridInfo> Iterator(WorldPartition); Iterator; ++Iterator)
-	{
-		if (Iterator->GetRuntimeGrid() == GridName)
-		{
-			return true;
-		}
-	}*/
 
 	return false;
 }

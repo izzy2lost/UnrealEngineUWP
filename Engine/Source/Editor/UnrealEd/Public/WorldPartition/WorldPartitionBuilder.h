@@ -6,7 +6,7 @@
 #include "Engine/World.h"
 #include "WorldPartitionBuilder.generated.h"
 
-typedef UE::Math::TIntVector3<int64> FWorldBuilderCellCoord;
+typedef FInt64Vector3 FWorldBuilderCellCoord;
 
 /**
  * Structure containing information about a World Partition Builder cell

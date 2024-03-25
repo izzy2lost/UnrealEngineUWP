@@ -15,8 +15,8 @@
 #include "WorldPartitionRuntimeSpatialHashGridPreviewer.h"
 #include "WorldPartitionRuntimeSpatialHash.generated.h"
 
-typedef UE::Math::TIntVector3<int64> FGridCellCoord;
-typedef UE::Math::TIntVector2<int64> FGridCellCoord2;
+typedef FInt64Vector3 FGridCellCoord;
+typedef FInt64Vector2 FGridCellCoord2;
 class FWorldPartitionDraw2DContext;
 
 UENUM()
@@ -322,7 +322,7 @@ public:
 	ENGINE_API virtual void SetDefaultValues() override;
 	virtual bool SupportsHLODs() const override { return true; }
 	ENGINE_API virtual bool SetupHLODActors(const IStreamingGenerationContext* StreamingGenerationContext, const UWorldPartition::FSetupHLODActorsParams& Params) const override;
-	ENGINE_API virtual bool IsValidGrid(FName GridName) const override;
+	ENGINE_API virtual bool IsValidGrid(FName GridName, const UClass* ActorClass) const override;
 	ENGINE_API virtual bool IsValidHLODLayer(FName GridName, const FSoftObjectPath& HLODLayerPath) const override { return true; }
 	ENGINE_API virtual void DrawPreview() const override;
 
