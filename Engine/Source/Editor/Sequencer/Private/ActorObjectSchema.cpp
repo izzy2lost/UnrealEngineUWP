@@ -88,7 +88,24 @@ void FActorSchema::HandleTrackMenuExtensionAddTrack(FMenuBuilder& AddTrackMenuBu
 		return;
 	}
 
-	TArray<FSubobjectDataHandle> ActorComponentData;
+	struct FComponentData
+	{
+		FString DisplayString;
+		FString FullDisplayString;
+		FText ComponentName;
+		UActorComponent* ActorComponent;
+
+		bool operator>(const FComponentData& Other) const
+		{
+			return DisplayString.Compare(Other.DisplayString) > 0;
+		}
+		bool operator<(const FComponentData& Other) const
+		{
+			return DisplayString.Compare(Other.DisplayString) < 0;
+		}
+	};
+
+	TArray<FComponentData> ComponentData; 
 
 	AddTrackMenuBuilder.BeginSection("Components", LOCTEXT("ComponentsSection", "Components"));
 	{
@@ -97,30 +114,74 @@ void FActorSchema::HandleTrackMenuExtensionAddTrack(FMenuBuilder& AddTrackMenuBu
 
 		for (AActor* Actor : Actors)
 		{
+			// Prefer to gather the components from the SubobjectDataSubsystem which is where the Details panel gets the list of components.
+			// But FN character parts list is not visible through those means, so for now, just gather all of the components
+			/*
 			TArray<FSubobjectDataHandle> SubobjectData;
 			DataSubsystem->GatherSubobjectData(Actor, SubobjectData);
 
 			for (const FSubobjectDataHandle& Handle : SubobjectData)
 			{
-				const FSubobjectData* Data = Handle.GetData();
-
-				if (UActorComponent* ActorComponent = const_cast<UActorComponent*>(Data->FindComponentInstanceInActor(Actor)))
+				if (UActorComponent* ActorComponent = const_cast<UActorComponent*>(Handle.GetData()->FindComponentInstanceInActor(Actor)))
 				{
 					if (Sequencer->GetHandleToObject(ActorComponent, false).IsValid())
 					{
 						continue;
 					}
 
-					ActorComponentData.Add(Handle);
+					FComponentData Data;
+					Data.DisplayString = Handle.GetData()->GetDisplayString(false);
+					Data.FullDisplayString = Handle.GetData()->GetDisplayString(true);
+					Data.ComponentName = Handle.GetData()->GetDisplayName();
+					Data.ActorComponent = ActorComponent;
+					ComponentData.Add(Data);
+				}
+			}
+			*/
+
+			auto ComponentDataContainsComponent = [ComponentData](UActorComponent* ActorComponent)
+			{
+				for (const FComponentData& Data : ComponentData)
+				{
+					if (Data.ActorComponent == ActorComponent)
+					{
+						return true;
+					}
+				}
+
+				return false;
+			};
+
+			for (UActorComponent* Component : Actor->GetComponents())
+			{
+				if (!Component || 
+					Component->IsVisualizationComponent() ||
+					Sequencer->GetHandleToObject(Component, false).IsValid() ||
+					ComponentDataContainsComponent(Component))
+				{
+					continue;
+				}
+
+				// Hack - forcibly allow USkeletalMeshComponentBudgeted until FORT-527888
+				//static const FName SkeletalMeshComponentBudgetedClassName(TEXT("SkeletalMeshComponentBudgeted"));
+				//if (Component->GetClass()->GetName() == SkeletalMeshComponentBudgetedClassName)
+				{
+					FComponentData Data;
+					Data.DisplayString = Component->GetName();
+					Data.FullDisplayString = Component->GetName();
+					Data.ComponentName = FText::FromString(Component->GetName());
+					ComponentData.Add(Data);
 				}
 			}
 		}
 
-		for (const FSubobjectDataHandle& Handle : ActorComponentData)
+		ComponentData.Sort();
+
+		for (const FComponentData& Data : ComponentData)
 		{
-			FString DisplayString = Handle.GetData()->GetDisplayString(false /*bShowNativeComponentNames*/);
-			FString FullDisplayString = Handle.GetData()->GetDisplayString(true /*bShowNativeComponentNames*/);
-			FText ComponentName = Handle.GetData()->GetDisplayName();
+			FString DisplayString = Data.DisplayString;
+			FString FullDisplayString = Data.FullDisplayString;
+			FText ComponentName = Data.ComponentName;
 
 			FUIAction AddComponentAction(FExecuteAction::CreateSP(this, &FActorSchema::HandleAddComponentActionExecute, ComponentName, WeakSequencer, Actors));
 			FText AddComponentLabel = FText::FromString(DisplayString);
@@ -155,16 +216,18 @@ void FActorSchema::HandleAddComponentActionExecute(FText ComponentName, TWeakPtr
 
 	for (AActor* Actor : Actors)
 	{
+		// See comment above: 
+		// Prefer to gather the components from the SubobjectDataSubsystem which is where the Details panel gets the list of components.
+		// But FN character parts list is not visible through those means, so for now, just gather all of the components
+		/*
 		TArray<FSubobjectDataHandle> SubobjectData;
 		DataSubsystem->GatherSubobjectData(Actor, SubobjectData);
 
 		for (const FSubobjectDataHandle& Handle : SubobjectData)
 		{
-			const FSubobjectData* Data = Handle.GetData();
-				
-			if (Data->GetDisplayName().EqualTo(ComponentName))
+			if (Handle.GetData()->GetDisplayName().EqualTo(ComponentName))
 			{
-				if (UActorComponent* ActorComponent = const_cast<UActorComponent*>(Data->FindComponentInstanceInActor(Actor)))
+				if (UActorComponent* ActorComponent = const_cast<UActorComponent*>(Handle.GetData()->FindComponentInstanceInActor(Actor)))
 				{
 					FGuid ObjectId = Sequencer->GetHandleToObject(ActorComponent);
 
@@ -173,6 +236,22 @@ void FActorSchema::HandleAddComponentActionExecute(FText ComponentName, TWeakPtr
 					{
 						Selection->Outliner.Select(Model);
 					}
+				}
+				break;
+			}
+		}
+		*/
+
+		for (UActorComponent* Component : Actor->GetComponents())
+		{
+			if (Component && Component->GetFName() == ComponentName.ToString())
+			{
+				FGuid ObjectId = Sequencer->GetHandleToObject(Component);
+
+				TSharedPtr<FObjectBindingModel> Model = ObjectStorage->FindModelForObjectBinding(ObjectId);
+				if (Model)
+				{
+					Selection->Outliner.Select(Model);
 				}
 				break;
 			}
