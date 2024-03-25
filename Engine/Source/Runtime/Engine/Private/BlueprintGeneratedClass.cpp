@@ -979,7 +979,13 @@ void UBlueprintGeneratedClass::ConformSparseClassData(UObject* Object)
 			}
 			if (SparseClassDataStructToCopy)
 			{
-				SparseClassDataStructToCopy->CopyScriptStruct(GetOrCreateSparseClassData(), SparseClassDataPendingConform);
+				// Copy all properties from SparseClassDataPendingConform into the current sparse class data struct.
+				// NOTE: Avoids the copy assignment operators of the class properties, as they may not preserve all data.
+				void* const ThisSparseClassData = GetOrCreateSparseClassData();
+				for (TFieldIterator<FProperty> It(SparseClassDataStructToCopy); It; ++It)
+				{
+					It->CopyCompleteValue_InContainer(ThisSparseClassData, SparseClassDataPendingConform);
+				}
 			}
 		}
 
