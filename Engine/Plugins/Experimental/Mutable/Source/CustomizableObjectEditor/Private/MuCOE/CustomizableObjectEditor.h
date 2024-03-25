@@ -276,6 +276,9 @@ public:
 
 	TSharedPtr<class SCustomizableObjectNodeLayoutBlocksEditor> GetLayoutBlocksEditor() { return LayoutBlocksEditor; }
 
+	/** Debug the object as a raw mutable data in the internal tools. */
+	void DebugObject() const;
+	
 private:
 	explicit FCustomizableObjectEditor(UCustomizableObject& ObjectToEdit);
 
@@ -305,9 +308,6 @@ private:
 	void CompileObjectUserPressedButton();
 	void CompileOnlySelectedObjectUserPressedButton();
 	
-	/** Debug the object as a raw mutable data in the internal tools. */
-	void DebugObject();
-
 	// Compile options menu callbacks
 	TSharedRef<SWidget> GenerateCompileOptionsMenuContent(TSharedRef<FUICommandList> InCommandList);
 	void ResetCompileOptions();

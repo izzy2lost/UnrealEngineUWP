@@ -60,6 +60,7 @@
 #include "Widgets/Input/STextComboBox.h"
 #include "Widgets/Layout/SScrollBox.h"
 #include "Widgets/Notifications/SNotificationList.h"
+#include "SMutableObjectViewer.h"
 
 class FAdvancedPreviewScene;
 class FWorkspaceItem;
@@ -1577,18 +1578,16 @@ void FCustomizableObjectEditor::CompileObject()
 }
 
 
-void FCustomizableObjectEditor::DebugObject()
+void FCustomizableObjectEditor::DebugObject() const
 {
-	if (!CustomizableObject)
-	{
-		return;
-	}
-
-	// Open a mutable debugger as a standalone window
-	ICustomizableObjectEditorModule* CustomizableObjectEditorModule = &FModuleManager::LoadModuleChecked<ICustomizableObjectEditorModule>("CustomizableObjectEditor");
-	if (!CustomizableObjectEditorModule) return;
-
-	CustomizableObjectEditorModule->CreateCustomizableObjectDebugger(EToolkitMode::Standalone, nullptr, CustomizableObject);
+	const TSharedPtr<SDockTab> NewMutableObjectTab = SNew(SDockTab)
+	.Label(FText::FromString(TEXT("Debugger")))
+	[
+		SNew(SMutableObjectViewer, CustomizableObject)
+	];
+	
+	// Spawn the debugger tab alongside the Graph Tab 
+	TabManager->InsertNewDocumentTab(GraphTabId, FTabManager::ESearchPreference::PreferLiveTab, NewMutableObjectTab.ToSharedRef());
 }
 
 

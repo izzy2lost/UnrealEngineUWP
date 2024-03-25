@@ -36,7 +36,6 @@ public:
 	 */
 	virtual TSharedRef<ICustomizableObjectEditor> CreateCustomizableObjectEditor( const EToolkitMode::Type Mode, const TSharedPtr< IToolkitHost >& InitToolkitHost, UCustomizableObject* CustomizableObject ) = 0;
 	virtual TSharedRef<ICustomizableObjectInstanceEditor> CreateCustomizableObjectInstanceEditor(const EToolkitMode::Type Mode, const TSharedPtr< IToolkitHost >& InitToolkitHost, UCustomizableObjectInstance* CustomizableObjectInstance) = 0;
-	virtual TSharedRef<ICustomizableObjectDebugger> CreateCustomizableObjectDebugger(const EToolkitMode::Type Mode, const TSharedPtr< IToolkitHost >& InitToolkitHost, UCustomizableObject* CustomizableObjectInstance) = 0;
 	
 	virtual TSharedPtr<class FExtensibilityManager> GetCustomizableObjectEditorToolBarExtensibilityManager() { return nullptr; }
 	virtual TSharedPtr<class FExtensibilityManager> GetCustomizableObjectEditorMenuExtensibilityManager() { return nullptr; }

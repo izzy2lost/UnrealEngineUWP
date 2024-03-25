@@ -14,7 +14,6 @@
 #include "MuCOE/CustomizableInstanceDetails.h"
 #include "MuCOE/CustomizableObjectCustomSettings.h"
 #include "MuCOE/CustomizableObjectCustomSettingsDetails.h"
-#include "MuCOE/CustomizableObjectDebugger.h"
 #include "MuCOE/CustomizableObjectDetails.h"
 #include "MuCOE/CustomizableObjectEditor.h"
 #include "MuCOE/CustomizableObjectEditorLogger.h"
@@ -92,7 +91,6 @@ public:
 	// ICustomizableObjectEditorModule interface
 	TSharedRef<ICustomizableObjectEditor> CreateCustomizableObjectEditor( const EToolkitMode::Type Mode, const TSharedPtr< IToolkitHost >& InitToolkitHost, UCustomizableObject* CustomizableObject ) override;
 	TSharedRef<ICustomizableObjectInstanceEditor> CreateCustomizableObjectInstanceEditor( const EToolkitMode::Type Mode, const TSharedPtr< IToolkitHost >& InitToolkitHost, UCustomizableObjectInstance* CustomizableObjectInstance ) override;
-	TSharedRef<ICustomizableObjectDebugger> CreateCustomizableObjectDebugger(const EToolkitMode::Type Mode, const TSharedPtr< IToolkitHost >& InitToolkitHost, UCustomizableObject* CustomizableObject) override;
 	virtual EAssetTypeCategories::Type GetAssetCategory() const override;
 	virtual FCustomizableObjectEditorLogger& GetLogger() override;
 
@@ -246,12 +244,6 @@ TSharedRef<ICustomizableObjectInstanceEditor> FCustomizableObjectEditorModule::C
 }
 
 
-TSharedRef<ICustomizableObjectDebugger> FCustomizableObjectEditorModule::CreateCustomizableObjectDebugger(const EToolkitMode::Type Mode, const TSharedPtr< IToolkitHost >& InitToolkitHost, UCustomizableObject* CustomizableObject)
-{
-	TSharedRef<FCustomizableObjectDebugger> NewCustomizableObjectDebugger(new FCustomizableObjectDebugger());
-	NewCustomizableObjectDebugger->InitCustomizableObjectDebugger(Mode, InitToolkitHost, CustomizableObject);
-	return NewCustomizableObjectDebugger;
-}
 
 
 FCustomizableObjectEditorLogger& FCustomizableObjectEditorModule::GetLogger()
