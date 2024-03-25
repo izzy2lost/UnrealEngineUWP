@@ -109,8 +109,9 @@ namespace uba
 		bool m_useStorage = true;
 		bool m_shouldSendLogToServer = false;
 		bool m_remoteExecutionEnabled = true;
-		const tchar* m_terminationReason = nullptr;
-		u64 m_terminationTime = ~0ull;
+		
+		Atomic<const tchar*> m_terminationReason;
+		Atomic<u64> m_terminationTime;
 
 		ReaderWriterLock m_handledApplicationEnvironmentsLock;
 		UnorderedSet<TString> m_handledApplicationEnvironments;

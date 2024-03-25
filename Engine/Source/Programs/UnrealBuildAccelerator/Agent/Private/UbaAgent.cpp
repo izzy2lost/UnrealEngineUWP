@@ -1006,7 +1006,7 @@ namespace uba
 				return 0;
 
 			Event wakeupSessionWait(false);
-			u32 targetConnectionCount = 1;
+			Atomic<u32> targetConnectionCount = 1;
 
 			struct Proxy
 			{
@@ -1014,7 +1014,7 @@ namespace uba
 				NetworkClient* client;
 				Event& wakeupSessionWait;
 				u32& maxConnectionCount;
-				u32& targetConnectionCount;
+				Atomic<u32>& targetConnectionCount;
 				NetworkServer* server = nullptr;
 				StorageProxy* storage = nullptr;
 				StorageClient* storageClient = nullptr;
@@ -1128,6 +1128,7 @@ namespace uba
 						LoggerWithWriter(g_consoleLogWriter, TC("")).Info(TC("Proxy timed out waiting for zero active fetches"));
 				if (proxy.server)
 					proxy.server->StopAll();
+				client->StopListen();
 				client->Disconnect();
 				sessionClient->Stop();
 				storageClient->StopProxy();

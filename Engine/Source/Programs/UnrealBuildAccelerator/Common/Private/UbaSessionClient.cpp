@@ -14,6 +14,7 @@ namespace uba
 	: Session(info, TC("UbaSessionClient"), true)
 	,	m_client(info.client)
 	,	m_name(info.name.data)
+	,	m_terminationTime(~0ull)
 	,	m_waitToSendEvent(false)
 	,	m_loop(true)
 	{
@@ -1328,7 +1329,7 @@ namespace uba
 			if (m_remoteExecutionEnabled && m_terminationReason)
 			{
 				m_remoteExecutionEnabled = false;
-				m_logger.Info(TC("%s. Will stop scheduling processes and send failing processes back for retry"), m_terminationReason);
+				m_logger.Info(TC("%s. Will stop scheduling processes and send failing processes back for retry"), m_terminationReason.load());
 			}
 
 			if (!activeProcesses.empty())
