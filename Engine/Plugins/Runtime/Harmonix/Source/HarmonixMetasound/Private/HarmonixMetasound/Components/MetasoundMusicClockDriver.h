@@ -28,6 +28,7 @@ protected:
 	void OnGeneratorAttached();
 	void OnGeneratorDetached();
 	void OnGraphSet();
+	void OnGeneratorIOUpdated();
 
 private:
 	FName MetasoundOutputName;
@@ -45,6 +46,7 @@ private:
 
 	FDelegateHandle GeneratorAttachedCallbackHandle;
 	FDelegateHandle GeneratorDetachedCallbackHandle;
+	FDelegateHandle GeneratorIOUpdatedCallbackHandle;
 	FDelegateHandle GraphChangedCallbackHandle;
 
 	bool AttemptToConnectToAudioComponentsMetasound();
