@@ -65,6 +65,8 @@ private:
 	bool CanCopyCategory() const;
 	void OnPasteCategory();
 	bool CanPasteCategory();
+	void OnResetToDefaultCategory();
+	bool CanResetToDefaultCategory() const;
 
 	virtual FReply OnMouseButtonDown(const FGeometry& MyGeometry, const FPointerEvent& MouseEvent) override;
 	virtual FReply OnMouseButtonDoubleClick(const FGeometry& InMyGeometry, const FPointerEvent& InMouseEvent) override;
@@ -99,6 +101,7 @@ private:
 
 	FUIAction CopyAction;
 	FUIAction PasteAction;
+	FUIAction ResetToDefault;
 
 	/** Delegate handling pasting an optionally tagged text snippet */
 	TSharedPtr<FOnPasteFromText> OnPasteFromTextDelegate;

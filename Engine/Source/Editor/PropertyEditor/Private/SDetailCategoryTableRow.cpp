@@ -53,6 +53,9 @@ void SDetailCategoryTableRow::Construct(const FArguments& InArgs, TSharedRef<FDe
 	
 	PasteAction.ExecuteAction = FExecuteAction::CreateSP(this, &SDetailCategoryTableRow::OnPasteCategory);
 	PasteAction.CanExecuteAction = FCanExecuteAction::CreateSP(this, &SDetailCategoryTableRow::CanPasteCategory);
+
+	ResetToDefault.ExecuteAction = FExecuteAction::CreateSP(this, &SDetailCategoryTableRow::OnResetToDefaultCategory);
+	ResetToDefault.CanExecuteAction = FCanExecuteAction::CreateSP(this, &SDetailCategoryTableRow::CanResetToDefaultCategory);
 	
 	TSharedRef<SHorizontalBox> HeaderBox = SNew(SHorizontalBox)
 		+ SHorizontalBox::Slot()
@@ -107,7 +110,10 @@ void SDetailCategoryTableRow::Construct(const FArguments& InArgs, TSharedRef<FDe
 	OwnerTableViewWeak = InOwnerTableView;
 	PropertyUpdatedWidgetBuilder = DisplayManager->GetPropertyUpdatedWidget(FExecuteAction::CreateLambda( [this]
 		{
-			UE_LOG(LogTemp, Warning, TEXT("DisplayManager->GetPropertyUpdatedWidget reset"));
+			if( ResetToDefault.CanExecute())
+			{
+				ResetToDefault.Execute();
+			}
 		}), true, ObjectName );
 	if (PropertyUpdatedWidgetBuilder.IsValid())
 	{
@@ -513,6 +519,34 @@ bool SDetailCategoryTableRow::CanPasteCategory()
 
 	PreviousClipboardData.PreviousPropertyHandleNum = PropertyHandles.Num();
 	return PreviousClipboardData.bIsApplicable = Algo::Compare(PreviousClipboardData.PropertyNames, PropertyNames);
+}
+
+void SDetailCategoryTableRow::OnResetToDefaultCategory()
+{
+	if (!OwnerTreeNode.IsValid())
+	{
+		return;
+	}
+
+	if (TArray<TSharedPtr<IPropertyHandle>> CategoryProperties = GetPropertyHandles(true);
+		!CategoryProperties.IsEmpty())
+	{
+		for (TSharedPtr<IPropertyHandle> PropertyHandle : CategoryProperties)
+		{
+			PropertyHandle->ResetToDefault();
+		}
+	}
+}
+
+bool SDetailCategoryTableRow::CanResetToDefaultCategory() const
+{
+	if (!OwnerTreeNode.IsValid())
+	{
+		return false;
+	}
+
+	TArray<TSharedPtr<IPropertyHandle>> PropertyHandles = GetPropertyHandles(true);
+	return !PropertyHandles.IsEmpty();
 }
 
 FReply SDetailCategoryTableRow::OnMouseButtonDown(const FGeometry& MyGeometry, const FPointerEvent& MouseEvent)

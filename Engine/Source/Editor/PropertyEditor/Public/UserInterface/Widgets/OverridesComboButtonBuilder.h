@@ -49,6 +49,11 @@ public:
 	PROPERTYEDITOR_API void SetEditPropertyChain(TSharedRef<FEditPropertyChain>& InEditPropertyChain);
 
 	/**
+	 * Gets the FEditPropertyChain for this FOverridesComboButtonBuilder
+	 */
+	PROPERTYEDITOR_API TSharedPtr<FEditPropertyChain> GetEditPropertyChain() const;
+
+	/**
 	 * Implements the generation of the Category Menu button SWidget
 	 */
 	virtual TSharedPtr<SWidget> GenerateWidget() override;
