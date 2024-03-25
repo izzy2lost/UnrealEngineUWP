@@ -578,6 +578,9 @@ public:
 
 	virtual void Serialize(const TCHAR* V, ELogVerbosity::Type Verbosity, const class FName& Category) override
 	{
-		NumErrors++;
+		if(Verbosity <= ELogVerbosity::Error)
+		{
+			NumErrors++;
+		}
 	}
 };
