@@ -59,7 +59,8 @@ UMaterialExpressionMaterialFunctionCall* FDMMaterialFunctionLibrary::MakeExpress
 
 FDMMaterialFunctionLibrary& FDMMaterialFunctionLibrary::Get()
 {
-	return *(FDynamicMaterialEditorModule::Get().GetFunctionLibrary().Get());
+	static FDMMaterialFunctionLibrary FunctionLibrary;
+	return FunctionLibrary;
 }
 
 UMaterialExpressionMaterialFunctionCall* FDMMaterialFunctionLibrary::GetBreakOutFloat2Components(UMaterial* Parent, const FString& InComment)

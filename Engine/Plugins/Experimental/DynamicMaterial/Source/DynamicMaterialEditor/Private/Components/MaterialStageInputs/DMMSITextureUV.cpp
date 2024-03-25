@@ -336,7 +336,7 @@ TArray<UMaterialExpression*> UDMMaterialStageInputTextureUV::CreateTextureUVExpr
 
 	if (InTextureUV->GetMirrorOnX() == false && InTextureUV->GetMirrorOnY() == false)
 	{
-		TextureUVFunc = FDynamicMaterialEditorModule::Get().GetFunctionLibrary()->MakeExpression(
+		TextureUVFunc = FDMMaterialFunctionLibrary::Get().MakeExpression(
 			InBuildState->GetDynamicMaterial(),
 			"MF_DM_TextureUVFunc",
 			MaterialFunc_Name_TextureUV_Mirror_None,
@@ -346,7 +346,7 @@ TArray<UMaterialExpression*> UDMMaterialStageInputTextureUV::CreateTextureUVExpr
 	// GetMirrorOnX() == true
 	else if (InTextureUV->GetMirrorOnY() == false)
 	{
-		TextureUVFunc = FDynamicMaterialEditorModule::Get().GetFunctionLibrary()->MakeExpression(
+		TextureUVFunc = FDMMaterialFunctionLibrary::Get().MakeExpression(
 			InBuildState->GetDynamicMaterial(),
 			"MF_DM_TextureUV_Mirror_X",
 			MaterialFunc_Name_TextureUV_Mirror_X,
@@ -356,7 +356,7 @@ TArray<UMaterialExpression*> UDMMaterialStageInputTextureUV::CreateTextureUVExpr
 	// GetMirrorOnY() == true
 	else if (InTextureUV->GetMirrorOnX() == false)
 	{
-		TextureUVFunc = FDynamicMaterialEditorModule::Get().GetFunctionLibrary()->MakeExpression(
+		TextureUVFunc = FDMMaterialFunctionLibrary::Get().MakeExpression(
 			InBuildState->GetDynamicMaterial(),
 			"MF_DM_TextureUV_Mirror_Y",
 			MaterialFunc_Name_TextureUV_Mirror_Y,
@@ -366,7 +366,7 @@ TArray<UMaterialExpression*> UDMMaterialStageInputTextureUV::CreateTextureUVExpr
 	// GetMirrorOnX() == true && // GetMirrorOnY() == true
 	else
 	{
-		TextureUVFunc = FDynamicMaterialEditorModule::Get().GetFunctionLibrary()->MakeExpression(
+		TextureUVFunc = FDMMaterialFunctionLibrary::Get().MakeExpression(
 			InBuildState->GetDynamicMaterial(),
 			"MF_DM_TextureUV_Mirror_XY",
 			MaterialFunc_Name_TextureUV_Mirror_XY,
