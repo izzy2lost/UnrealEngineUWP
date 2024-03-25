@@ -76,7 +76,6 @@ namespace UE::DMX::Private
 				.AutoWidth()
 				[
 					SAssignNew(ControllerComboBox, SDMXControlConsoleEditorFaderGroupControllerComboBox, WeakFaderGroupControllerModel.Pin(), EditorModel.Get())
-					.IsEnabled(this, &SDMXControlConsoleEditorFaderGroupControllerToolbar::IsControllerComboBoxEnabled)
 				]
 
 				// Expand Arrow button section
@@ -411,12 +410,6 @@ namespace UE::DMX::Private
 			SelectionHandler->AddToSelection(ElementControllersToSelect, bNotifySelection);
 			SelectionHandler->RemoveFromSelection(ElementControllersToUnselect);
 		}
-	}
-
-	bool SDMXControlConsoleEditorFaderGroupControllerToolbar::IsControllerComboBoxEnabled() const
-	{
-		const TSharedPtr<FDMXControlConsoleFaderGroupControllerModel> FaderGroupControllerModel = WeakFaderGroupControllerModel.Pin();
-		return FaderGroupControllerModel.IsValid() && FaderGroupControllerModel->HasSingleFaderGroup();
 	}
 
 	void SDMXControlConsoleEditorFaderGroupControllerToolbar::OnGetInfoPanel()
