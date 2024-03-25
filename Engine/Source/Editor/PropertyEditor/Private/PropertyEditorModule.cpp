@@ -928,6 +928,20 @@ bool FPropertyEditorModule::IsCustomizedStruct(const UStruct* Struct, const FCus
 		{
 			bFound = GlobalPropertyTypeToLayoutMap.Contains( Struct->GetFName() );
 		}
+		
+		if( !bFound )
+		{
+			static const FName NAME_PresentAsTypeMetadata(TEXT("PresentAsType"));
+			if (const FString* DisplayType = Struct->FindMetaData(NAME_PresentAsTypeMetadata))
+			{
+				// try finding DisplayType instead
+				bFound = InstancePropertyTypeLayoutMap.Contains( FName(*DisplayType) );
+				if( !bFound )
+				{
+					bFound = GlobalPropertyTypeToLayoutMap.Contains( FName(*DisplayType) );
+				}
+			}
+		}
 	}
 	
 	return bFound;
@@ -1004,6 +1018,24 @@ FPropertyTypeLayoutCallback FPropertyEditorModule::FindPropertyTypeLayoutCallbac
 		if( !LayoutCallbacks )
 		{
 			LayoutCallbacks = GlobalPropertyTypeToLayoutMap.Find(PropertyTypeName);
+		}
+		
+		if( !LayoutCallbacks )
+		{
+			if (const FStructProperty* AsStructProperty = CastField<FStructProperty>(PropertyHandle.GetProperty()))
+			{
+				static const FName NAME_PresentAsTypeMetadata(TEXT("PresentAsType"));
+				if (const FString* DisplayType = AsStructProperty->Struct->FindMetaData(NAME_PresentAsTypeMetadata))
+				{
+					// try finding DisplayType instead
+					LayoutCallbacks = InstancedPropertyTypeLayoutMap.Find(FName(*DisplayType));
+	
+					if( !LayoutCallbacks )
+					{
+						LayoutCallbacks = GlobalPropertyTypeToLayoutMap.Find(FName(*DisplayType));
+					}
+				}
+			}
 		}
 
 		if ( LayoutCallbacks )
