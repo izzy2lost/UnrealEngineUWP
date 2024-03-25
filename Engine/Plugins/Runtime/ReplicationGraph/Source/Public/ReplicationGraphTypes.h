@@ -7,6 +7,7 @@
 #include "Net/DataBunch.h"
 #include "ProfilingDebugging/CsvProfiler.h"
 #include "Templates/Greater.h"
+#include "UObject/Package.h"
 #include "ReplicationGraphTypes.generated.h"
 
 class AActor;
@@ -581,6 +582,13 @@ struct FNewReplicatedActorInfo
 		StreamingLevelName = GetStreamingLevelNameOfActor(Actor);
 	}
 
+	explicit FNewReplicatedActorInfo(const FActorRepListType& InActor, FName OverrideLevelName)
+		: Actor(InActor)
+		, StreamingLevelName(OverrideLevelName)
+		, Class(InActor->GetClass())
+	{
+	}
+
 	AActor* GetActor() const { return Actor; }
 
 	REPLICATIONGRAPH_API static FName GetStreamingLevelNameOfActor(const AActor* Actor);
@@ -588,6 +596,28 @@ struct FNewReplicatedActorInfo
 	FActorRepListType Actor;
 	FName StreamingLevelName;
 	UClass* Class;
+};
+
+// --------------------------------------------------------------------------------------------------------------------------------------------
+// --------------------------------------------------------------------------------------------------------------------------------------------
+// RenamedReplicatedActorInfo
+// --------------------------------------------------------------------------------------------------------------------------------------------
+// --------------------------------------------------------------------------------------------------------------------------------------------
+
+/** Used to update renamed (changed outer/level) actors in the graph. */
+struct FRenamedReplicatedActorInfo
+{
+	explicit FRenamedReplicatedActorInfo(const FActorRepListType& InActor, FName InPreviousStreamingLevelName)
+		: NewActorInfo(InActor)
+		, OldActorInfo(InActor, InPreviousStreamingLevelName)
+	{
+	}
+
+	/** Info that stores the actor's new level name */
+	FNewReplicatedActorInfo NewActorInfo;
+
+	/** Info that stores the actor's old level name */
+	FNewReplicatedActorInfo OldActorInfo;
 };
 
 // --------------------------------------------------------------------------------------------------------------------------------------------
@@ -619,6 +649,12 @@ struct REPLICATIONGRAPH_API FStreamingLevelActorListCollection
 	* @param Outer Optional pointer to the owner of the list if you want to output the owner name in any log messages
 	*/
 	bool RemoveActorFast(const FNewReplicatedActorInfo& ActorInfo, UObject* Outer=nullptr);
+
+	/**
+ 	* Attempts to remove the actor from the level explicitly provided. Can be used to update the list
+	* if the actor's level changes (by providing the actor's previous level).
+	*/
+	bool RemoveActorFromLevelFast(AActor* Actor, FName LevelName);
 
 	void Reset();
 
@@ -697,6 +733,9 @@ struct REPLICATIONGRAPH_API FLevelBasedActorList
 	void GetAllActors(TArray<AActor*>& OutAllActors) const;
 
 	void CountBytes(FArchive& Ar) const;
+
+	/** Update actor to new level */
+	void UpdateActorLevel(AActor* NetActor, FName PreviousLevelName);
 
 private:
 
@@ -886,6 +925,9 @@ struct FGlobalActorReplicationInfo
 	{
 		DependentActorList.Gather(ConnectionManager, OutGatheredList);
 	}
+
+	/** Update actor to new level */
+	void NotifyActorRenamed(AActor* Actor, FName PreviousLevelName);
 
 	typedef TArray<FActorRepListType> FDependantListType;
 
@@ -1099,6 +1141,9 @@ struct FGlobalActorReplicationInfoMap
 	/** Removes actor data from map */
 	REPLICATIONGRAPH_API int32 Remove(const FActorRepListType& RemovedActor);
 
+	/** Update actor to new level */
+	void NotifyActorRenamed(AActor* Actor, FName PreviousStreamingLevelName);
+	
 	/** Returns ClassInfo for a given class. */
 	FORCEINLINE FClassReplicationInfo& GetClassInfo(UClass* Class) { return ClassMap.GetChecked(Class); }
 

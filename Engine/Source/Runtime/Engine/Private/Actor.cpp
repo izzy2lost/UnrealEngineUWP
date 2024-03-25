@@ -6000,7 +6000,7 @@ void AActor::PostRename(UObject* OldOuter, const FName OldName)
 			{
 				if (Driver.NetDriver != nullptr && Driver.NetDriver->ShouldReplicateActor(this))
 				{
-					Driver.NetDriver->NotifyActorRenamed(this, OldName);
+					Driver.NetDriver->NotifyActorRenamed(this, OldOuter, OldName);
 				}
 			}
 		}

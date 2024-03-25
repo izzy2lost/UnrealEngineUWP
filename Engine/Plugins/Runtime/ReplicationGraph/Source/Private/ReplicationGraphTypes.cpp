@@ -443,6 +443,20 @@ int32 FGlobalActorReplicationInfoMap::Remove(const FActorRepListType& RemovedAct
 	return ActorMap.Remove(RemovedActor);
 }
 
+void FGlobalActorReplicationInfoMap::NotifyActorRenamed(AActor* Actor, FName PreviousStreamingLevelName)
+{
+	if (FGlobalActorReplicationInfo* RenamedActorInfo = Find(Actor))
+	{
+		// Update the dependent lists of this renamed actor's parents
+		for (AActor* ParentActor : RenamedActorInfo->ParentActorList)
+		{
+			if (FGlobalActorReplicationInfo* ParentActorInfo = Find(ParentActor))
+			{
+				ParentActorInfo->DependentActorList.UpdateActorLevel(Actor, PreviousStreamingLevelName);
+			}
+		}
+	}
+}
 
 void FGlobalActorReplicationInfoMap::AddDependentActor(AActor* Parent, AActor* Child, FGlobalActorReplicationInfoMap::EWarnFlag WarnFlag)
 {
@@ -696,4 +710,27 @@ void FLevelBasedActorList::CountBytes(FArchive& Ar) const
 {
 	PermanentLevelActors.CountBytes(Ar);
 	StreamingLevelActors.CountBytes(Ar);
+}
+
+void FLevelBasedActorList::UpdateActorLevel(AActor* NetActor, FName PreviousStreamingLevelName)
+{
+	bool bRemovedActor = false;
+
+	if (PreviousStreamingLevelName == NAME_None)
+	{
+		bRemovedActor = PermanentLevelActors.RemoveFast(NetActor);
+	}
+	else
+	{
+		bRemovedActor = StreamingLevelActors.RemoveActorFromLevelFast(NetActor, PreviousStreamingLevelName);
+	}
+
+	if (bRemovedActor)
+	{
+		AddNetworkActor(NetActor);
+	}
+	else
+	{
+		UE_LOG(LogReplicationGraph, Warning, TEXT("FLevelBasedActorList::UpdateActorLevel did not find existing actor %s in level lists"), *GetFullNameSafe(NetActor));
+	}
 }

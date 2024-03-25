@@ -450,6 +450,17 @@ namespace UE::Net
 		TEXT("Comma-delimited list of NetDriverDefinition's where 'IsEncryptionRequired' will return true, when 'net.AllowEncryption' is 2. ")
 		TEXT("(specifying 'all' will enable this for all NetDriverDefinition's)"),
 		FConsoleVariableDelegate::CreateStatic(&ParseRequiredEncryptionCVars));
+
+	namespace Private
+	{
+		static int32 CleanUpRenamedDynamicActors = 0;
+
+		static FAutoConsoleVariableRef CVarNetCleanUpRenamedDynamicActors(
+			TEXT("net.CleanUpRenamedDynamicActors"),
+			CleanUpRenamedDynamicActors,
+			TEXT("When enabled, dynamic actors that change outers via Rename() on the server will close their channel ")
+			TEXT("or send a destruction info to clients without the actor's new level loaded."));
+	}
 }
 
 
@@ -3674,6 +3685,35 @@ bool UNetDriver::Exec_Dev( UWorld* InWorld, const TCHAR* Cmd, FOutputDevice& Ar 
 	}
 }
 
+bool UNetDriver::SendDestructionInfoForLevelUnloadIfDormant(AActor* ThisActor, UNetConnection* Connection)
+{
+	TSharedPtr<FNetworkObjectInfo> FoundInfo = GetNetworkObjectList().Find(ThisActor);
+	if (FoundInfo && Connection)
+	{
+		const bool bDormantOrRecentlyDormant = FoundInfo->DormantConnections.Contains(Connection) || FoundInfo->RecentlyDormantConnections.Contains(Connection);
+
+		if (bDormantOrRecentlyDormant)
+		{
+			UE_LOG(LogNet, Verbose, TEXT("Sending destruction info for dormant actor level unload: %s, to connection: %s"), *GetFullNameSafe(ThisActor), *Connection->Describe());
+
+			FActorDestructionInfo DestructInfo;
+			DestructInfo.DestroyedPosition = ThisActor->GetActorLocation();
+			DestructInfo.NetGUID = GuidCache->GetNetGUID(ThisActor);
+			DestructInfo.Level = ThisActor->GetLevel();
+			DestructInfo.ObjOuter = ThisActor->GetOuter();
+			DestructInfo.PathName = ThisActor->GetName();
+			DestructInfo.StreamingLevelName = NAME_None; // currently unused
+			DestructInfo.Reason = EChannelCloseReason::LevelUnloaded;
+
+			SendDestructionInfo(Connection, &DestructInfo);
+			GetNetworkObjectList().MarkActive(ThisActor, Connection, this);
+			return true;
+		}
+	}
+
+	return false;
+}
+
 FActorDestructionInfo* UNetDriver::CreateDestructionInfo(AActor* ThisActor, FActorDestructionInfo *DestructionInfo )
 {
 	if (DestructionInfo)
@@ -3857,6 +3897,11 @@ void UNetDriver::TearOffSubObjectOnClients(AActor* Actor, UObject* SubObject)
 
 void UNetDriver::NotifyActorRenamed(AActor* ThisActor, FName PreviousName)
 {
+	NotifyActorRenamed(ThisActor, nullptr, PreviousName);
+}
+
+void UNetDriver::NotifyActorRenamed(AActor* ThisActor, UObject* PreviousOuter, FName PreviousName)
+{
 	LLM_SCOPE_BYTAG(NetDriver);
 
 	const bool bIsServer = IsServer();
@@ -3873,23 +3918,65 @@ void UNetDriver::NotifyActorRenamed(AActor* ThisActor, FName PreviousName)
 	}
 #endif
 
-	if (bIsActorStatic && bActorHasRole)
+	if (bActorHasRole)
 	{
-		if (bIsServer)
+		if (bIsActorStatic)
 		{
-			FName OriginalName = RenamedStartupActors.FindRef(PreviousName);
-			if (OriginalName != NAME_None)
+			if (bIsServer)
 			{
-				PreviousName = OriginalName;
+				FName OriginalName = RenamedStartupActors.FindRef(PreviousName);
+				if (OriginalName != NAME_None)
+				{
+					PreviousName = OriginalName;
+				}
+
+				RenamedStartupActors.Add(ThisActor->GetFName(), PreviousName);
+
+				UE_LOG(LogNet, Log, TEXT("NotifyActorRenamed StartupActor: %s PreviousName: %s"), *ThisActor->GetName(), *PreviousName.ToString());
 			}
-
-			RenamedStartupActors.Add(ThisActor->GetFName(), PreviousName);
-
-			UE_LOG(LogNet, Log, TEXT("NotifyActorRenamed StartupActor: %s PreviousName: %s"), *ThisActor->GetName(), *PreviousName.ToString());
+			else 
+			{
+				UE_LOG(LogNet, Warning, TEXT("NotifyActorRenamed on client, StartupActor: %s"), *ThisActor->GetName());
+			}
 		}
-		else 
+		else
 		{
-			UE_LOG(LogNet, Warning, TEXT("NotifyActorRenamed on client, StartupActor: %s"), *ThisActor->GetName());
+			if (bIsServer)
+			{
+				UE_LOG(LogNet, Log, TEXT("NotifyActorRenamed on server, dynamic actor: %s PreviousOuter: %s PreviousName: %s"), *GetFullNameSafe(ThisActor), *GetFullNameSafe(PreviousOuter), *PreviousName.ToString());
+
+#if UE_WITH_IRIS
+				ensureMsgf(!ReplicationSystem, TEXT("Dynamic actor renaming not supported in Iris. Actor: %s PreviousOuter: %s"), *GetFullNameSafe(ThisActor), *GetFullNameSafe(PreviousOuter));
+#endif
+				// Forward change to ReplicationDriver so it can update its state
+				if (ReplicationDriver)
+				{
+					ReplicationDriver->NotifyActorRenamed(ThisActor, PreviousOuter, PreviousName);
+				}
+
+				if (UE::Net::Private::CleanUpRenamedDynamicActors)
+				{
+					// Close the channel or send destruction info for connections that don't have the new level visible.
+					for (UNetConnection* Connection : ClientConnections)
+					{
+						if (!Connection->ClientHasInitializedLevel(ThisActor->GetLevel()))
+						{
+							UActorChannel* Channel = Connection->FindActorChannelRef(ThisActor);
+							if (Channel)
+							{
+								ensureMsgf(Channel->OpenedLocally, TEXT("Channel for %s not opened locally on rename."), *GetFullNameSafe(ThisActor));
+
+								UE_LOG(LogNet, Verbose, TEXT("Closing channel for renamed actor: %s to connection: %s"), *GetFullNameSafe(ThisActor), *Connection->Describe());
+								Channel->Close(EChannelCloseReason::LevelUnloaded);
+							}
+							else
+							{
+								SendDestructionInfoForLevelUnloadIfDormant(ThisActor, Connection);
+							}
+						}
+					}
+				}
+			}
 		}
 	}
 }

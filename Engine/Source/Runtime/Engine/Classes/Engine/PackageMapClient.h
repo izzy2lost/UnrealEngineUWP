@@ -148,6 +148,9 @@ private:
 
 namespace UE::Net::Private
 {
+	/** Allow other internal systems to check this cvar */
+	extern int32 SerializeNewActorOverrideLevel;
+
 	/** Simple class to manage a reference-counted array of FNetworkGUIDs */
 	class FRefCountedNetGUIDArray
 	{
