@@ -28,7 +28,7 @@ namespace uba
 		u32 m_responseSize = 0;
 		u32 m_responseCapacity = 0;
 		u16 m_id = 0;
-		bool m_error = false;
+		Atomic<bool> m_error;
 		NetworkClient::Connection* m_connection = nullptr;
 		friend NetworkClient;
 		NetworkMessage(const NetworkMessage&) = delete;
