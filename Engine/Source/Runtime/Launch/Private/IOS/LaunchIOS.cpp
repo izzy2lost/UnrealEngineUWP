@@ -627,19 +627,13 @@ void FSwiftAppBootstrap::KickoffWithCompositingLayer(CP_OBJECT_cp_layer_renderer
 			cp_view_texture_map_t TextureMap = cp_view_get_view_texture_map(View);
 			MTLViewport Viewport = cp_view_texture_map_get_viewport(TextureMap);
 
-			float ScaleDownHack = 0.5;
-			float X = Viewport.originX * ScaleDownHack;
-			float Y = Viewport.originY * ScaleDownHack;
-			float W = Viewport.width * ScaleDownHack;
-			float H = Viewport.height * ScaleDownHack;
-			// both views are at 0? if so, hack the view 1 to be to the right of view 0
-			if (ViewIndex == 1 && X == 0)
-			{
-				X = W;
-			}
+			float X = Viewport.originX;
+			float Y = Viewport.originY;
+			float W = Viewport.width;
+			float H = Viewport.height;
 			NSValue* VPValue = [NSValue valueWithCGRect:CGRectMake(X, Y, W, H)];
 			[Viewports addObject:VPValue];
-			FPlatformMisc::LowLevelOutputDebugStringf(TEXT("Adding eye viewport : [%f. %f] / [%f x %f] (scaled by %f\n"), X, Y, W, H, ScaleDownHack);
+			FPlatformMisc::LowLevelOutputDebugStringf(TEXT("Adding eye viewport : [%f. %f] / [%f x %f]\n"), X, Y, W, H);
 		}
 		cp_frame_start_submission(SwiftLayerFrame);
 		id<MTLDevice> Device = cp_layer_renderer_get_device(Layer);

@@ -779,8 +779,9 @@ void FOXRVisionOS::StartupModule()
 
 	OXRVisionOS::BuildFunctionMaps();
 
+	SupportedExtensions.Add(XR_KHR_COMPOSITION_LAYER_DEPTH_EXTENSION_NAME, XR_KHR_composition_layer_depth_SPEC_VERSION);
 	SupportedExtensions.Add(XR_EPIC_OXRVISIONOS_CONTROLLER_NAME, XR_EPIC_oxrvisionos_controller_SPEC_VERSION);
-//	SupportedExtensions.Add(XR_EXT_EYE_GAZE_INTERACTION_EXTENSION_NAME, XR_EXT_eye_gaze_interaction_SPEC_VERSION);
+	//	SupportedExtensions.Add(XR_EXT_EYE_GAZE_INTERACTION_EXTENSION_NAME, XR_EXT_eye_gaze_interaction_SPEC_VERSION);
 }
 
 void FOXRVisionOS::ShutdownModule()

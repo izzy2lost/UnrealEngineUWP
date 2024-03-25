@@ -108,18 +108,9 @@ FOXRVisionOSInstance::FOXRVisionOSInstance(const XrInstanceCreateInfo* CreateInf
     check(NumViewports < 3); // unexpected, and we aren't handling it.
     CGRect LeftRect = OXRVisionOS::GetSwiftViewportRect(0);
     CGRect RightRect = NumViewports > 1 ? OXRVisionOS::GetSwiftViewportRect(1) : CGRectMake(0,0,LeftRect.size.width/4, LeftRect.size.height/4); //TODO CVars around this perhaps???
-    //LeftRect.size.width, LeftRect.size.height
 
-	int32 MaxWidth = LeftRect.size.width + (NumViewports > 1 ? RightRect.size.width : 0);
+	int32 MaxWidth = LeftRect.size.width;
 	int32 MaxHeight = LeftRect.size.height;
-	//if (GConfig->GetInt(TEXT("/Script/OXRVisionOSSettings.OXRVisionOSRuntimeSettings"), TEXT("OXRVisionOSMaxPerEyeWidth"), MaxWidth, GEngineIni))
-	//{
-	//	UE_LOG(LogOXRVisionOS, Log, TEXT("Max texture width read from settings file: %d"), MaxWidth);
-	//}
-	//if (GConfig->GetInt(TEXT("/Script/OXRVisionOSSettings.OXRVisionOSRuntimeSettings"), TEXT("OXRVisionOSMaxPerEyeHeight"), MaxHeight, GEngineIni))
-	//{
-	//	UE_LOG(LogOXRVisionOS, Log, TEXT("Max texture height read from settings file: %d"), MaxHeight);
-	//}
 
 	SystemProperties.graphicsProperties.maxSwapchainImageWidth = MaxWidth;
     SystemProperties.graphicsProperties.maxSwapchainImageHeight = MaxHeight;

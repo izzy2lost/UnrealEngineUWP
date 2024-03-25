@@ -66,25 +66,50 @@ FOXRVisionOSSwapchain::FOXRVisionOSSwapchain(const XrSwapchainCreateInfo* create
 	CreateInfo = *createInfo;
 
 	{
-		ETextureCreateFlags TextureCreateFlags = ETextureCreateFlags::None;
-		TextureCreateFlags |= TexCreate_RenderTargetable;
-		TextureCreateFlags |= TexCreate_UAV;
-		TextureCreateFlags |= TexCreate_ShaderResource;
-
-		check((CreateInfo.usageFlags & XR_SWAPCHAIN_USAGE_COLOR_ATTACHMENT_BIT) != 0);
-		check((CreateInfo.usageFlags & XR_SWAPCHAIN_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT) == 0);
 		check(CreateInfo.faceCount == 1);
 		check(CreateInfo.arraySize == 1);
+		
+		const bool isColor = (CreateInfo.usageFlags & XR_SWAPCHAIN_USAGE_COLOR_ATTACHMENT_BIT) != 0;
+		const bool isDepth = (CreateInfo.usageFlags & XR_SWAPCHAIN_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT) != 0;
+		check((isColor || isDepth) && (isColor != isDepth))
 
+		ETextureCreateFlags TextureCreateFlags = ETextureCreateFlags::None;
+		TextureCreateFlags |= TexCreate_RenderTargetable;
+		TextureCreateFlags |= TexCreate_ShaderResource;
+		if (isColor) 
+		{
+			TextureCreateFlags |= TexCreate_UAV;
+			TextureCreateFlags |= TexCreate_SRGB;
+		} 
+		else
+		{
+			if ((EPixelFormat)CreateInfo.format == PF_DepthStencil) 
+			{
+				TextureCreateFlags |= TexCreate_DepthStencilTargetable;
+				TextureCreateFlags |= TexCreate_DepthStencilResolveTarget;
+				TextureCreateFlags |= TexCreate_InputAttachmentRead;
+			}
+			else if ((EPixelFormat)CreateInfo.format == PF_R32_FLOAT)
+			{
+				TextureCreateFlags |= TexCreate_DepthStencilTargetable;
+				TextureCreateFlags |= TexCreate_ResolveTargetable;
+				TextureCreateFlags |= TexCreate_InputAttachmentRead;
+			}
+			else
+			{
+				check(false);
+			}
+		}
+		const FRHITextureCreateDesc BackBufferDesc =
+			FRHITextureCreateDesc::Create2D(isColor ? TEXT("OXRVisionOSSwapchain") : TEXT("OXRVisionOSSwapchainDepth"),
+											CreateInfo.width, CreateInfo.height,
+											(EPixelFormat)CreateInfo.format)
+			.SetFlags(TextureCreateFlags)
+			.DetermineInititialState();
+		
 		Images.Reserve(SwapchainLength);
 		for (int32 BufferIndex = 0; BufferIndex < SwapchainLength; ++BufferIndex)
 		{
-			// TODO: Add some identifying names?
-			const FRHITextureCreateDesc BackBufferDesc =
-				FRHITextureCreateDesc::Create2D(TEXT("OXRVisionOSSwapchain"), CreateInfo.width, CreateInfo.height, (EPixelFormat)CreateInfo.format)
-				.SetFlags(TextureCreateFlags)
-				.DetermineInititialState();
-				
 			Images.Emplace(RHICreateTexture(BackBufferDesc), EImageState::Released);
 		}
 	}

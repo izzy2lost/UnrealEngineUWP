@@ -43,6 +43,40 @@ struct SwiftUIView: View {
   }
 }
 
+struct UEContentConfiguration: CompositorLayerConfiguration {
+	func makeConfiguration(
+		capabilities: LayerRenderer.Capabilities,
+		configuration: inout LayerRenderer.Configuration
+	)
+	{
+		/*
+		//let supportsFoveation = capabilites.supportsFoveation
+		//let supportedLayouts = supportedLayouts(options: supportsFoveation ? [.foveationEnabled] : [])
+		let supportedColorFormats = capabilities.supportedColorFormats
+		let supportedDepthFormats = capabilities.supportedDepthFormats
+		print("Supported Color Formats: ")
+		supportedColorFormats.forEach { colorFormat in
+			print(colorFormat.rawValue)
+		}
+		print("Supported Depth Formats: ")
+		supportedDepthFormats.forEach { depthFormat in
+			print(depthFormat.rawValue)
+		}
+		*/
+		
+		configuration.layout = .shared
+		//configuration.layout = .dedicated // separate texture for each eye.  We may need to switch when we implement foveated rendering.
+		configuration.isFoveationEnabled = false
+		
+		// HDR support // Might want to switch based on project settings.
+		//configuration.colorFormat = .rgba16Float
+		configuration.colorFormat = .bgra8Unorm_srgb
+		
+		//configuration.depthFormat = .depth32Float  			//PF_R32_FLOAT   			// This is correct for mobile forward
+		configuration.depthFormat = .depth32Float_stencil8 		//PF_DepthStencil   // This is correct for deferred
+//PFSWITCH
+	}
+}
 
 // unused at the moment, but this is how UE can open a SwiftUI view form the Obj-C side
 class HostingViewFactory: NSObject
@@ -72,7 +106,7 @@ struct UESwiftApp: App {
 		ImmersiveSpace(id: "ImmersiveSpace")
 		{
 			// this will make a CompositorLayer that can pull a Metal drawable out for UE to render to
-			CompositorLayer
+			CompositorLayer(configuration: UEContentConfiguration())
 			{
 				// on button click, tell Unreal the layer is ready and can continue
 				layerRenderer in

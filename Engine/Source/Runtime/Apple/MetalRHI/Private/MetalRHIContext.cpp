@@ -227,11 +227,3 @@ void FMetalRHICommandContext::RHIEndOcclusionQueryBatch()
 	check(CommandBufferFence.IsValid());
 	CommandBufferFence.Reset();
 }
-
-#if PLATFORM_VISIONOS
-void FMetalRHICommandContext::BeginRenderingImmersive(const MetalRHIVisionOS::BeginRenderingImmersiveParams& Params)
-{
-    SwiftFrame = Params.SwiftFrame;
-    UE_LOG(LogMetalVisionOS, Verbose, TEXT("SwiftLayerFrame(0x%x) copying from Params in FMetalRHICommandContext::BeginRenderingImmersive"), SwiftFrame);
-}
-#endif

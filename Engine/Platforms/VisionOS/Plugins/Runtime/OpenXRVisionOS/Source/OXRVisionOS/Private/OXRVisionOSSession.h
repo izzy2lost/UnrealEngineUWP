@@ -229,8 +229,9 @@ private:
 	FPipelinedFrameState	PipelinedFrameStateRendering;
 	FPipelinedFrameState	PipelinedFrameStateRHI;
 	int32 CachedBeginFlipFrameCounter = INT32_MAX;
-
-	// TODO Reorganize this class?
+	
+	//TEMP see usages
+	FCriticalSection CriticalSection_ar_world_tracking_provider_query_device_anchor_at_timestamp;
 
 	FOpenXRRenderBridge* RenderBridge = nullptr;
 

@@ -15,7 +15,7 @@
 // Uncomment to make intellisense work better.
 //#include "../../../../../../../../Source/ThirdParty/OpenXR/include/openxr/openxr.h"
 
-DECLARE_LOG_CATEGORY_EXTERN(LogOXRVisionOS, Verbose, All);
+DECLARE_LOG_CATEGORY_EXTERN(LogOXRVisionOS, Log, All);
 // Note: if you are turning this log up to verbose you may also want LogMetalVisionOS turned up to verbose.
 
 class FOXRVisionOSInstance;
