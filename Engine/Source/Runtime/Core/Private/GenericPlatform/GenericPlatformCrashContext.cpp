@@ -1102,18 +1102,18 @@ void FGenericCrashContext::AddGPUBreadcrumbs() const
 	// We use a version indicator for the format used by the breadcrumbs
 	// string, so that parsers can know what to expect and don't break
 	// if changes are made in the format exported by the engine.
-	AddSection(CommonBuffer, TEXT("FormatVersion"), FGPUBreadcrumbCrashData::GetBreadcrumbStringFormatVersion());
+	AddCrashProperty(TEXT("FormatVersion"), FGPUBreadcrumbCrashData::GetBreadcrumbStringFormatVersion());
 
-	AddSection(CommonBuffer, TEXT("Source"), NCached::GPUBreadcrumbsSource);
+	AddCrashProperty(TEXT("Source"), NCached::GPUBreadcrumbsSource);
 
 	for (auto& [Queue, Breadcrumbs] : NCached::GPUBreadcrumbsByQueue)
 	{
 		BeginSection(CommonBuffer, TEXT("Queue"));
 
-		AddSection(CommonBuffer, TEXT("Name"), Queue);
-		AddSection(CommonBuffer, TEXT("FullHash"), Breadcrumbs.GetFullHash().ToString());
-		AddSection(CommonBuffer, TEXT("ActiveHash"), Breadcrumbs.GetActiveHash().ToString());
-		AddSection(CommonBuffer, TEXT("Breadcrumbs"), Breadcrumbs.GetProcessedBreadcrumbString());
+		AddCrashProperty(TEXT("Name"), Queue);
+		AddCrashProperty(TEXT("FullHash"), Breadcrumbs.GetFullHash().ToString());
+		AddCrashProperty(TEXT("ActiveHash"), Breadcrumbs.GetActiveHash().ToString());
+		AddCrashProperty(TEXT("Breadcrumbs"), Breadcrumbs.GetProcessedBreadcrumbString());
 
 		EndSection(CommonBuffer, TEXT("Queue"));
 	}
