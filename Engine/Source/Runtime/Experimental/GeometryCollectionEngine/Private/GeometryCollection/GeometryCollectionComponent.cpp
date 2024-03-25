@@ -3611,6 +3611,32 @@ void UGeometryCollectionComponent::CreateRootProxyComponentsIfNeeded()
 	}
 }
 
+void UGeometryCollectionComponent::UpdateRootProxyComponentsIfNeeded()
+{
+	if (RootProxyStaticMeshComponents.Num() > 0 && !bUpdateComponentTransformToRootBone)
+	{
+		if (RestCollection && DynamicCollection && !IsRootBroken())
+		{
+			const TSharedPtr<FGeometryCollection, ESPMode::ThreadSafe> AssetCollection = RestCollection->GetGeometryCollection();
+			if (AssetCollection)
+			{
+				const int32 RootIndex = RestCollection->GetRootIndex();
+				const FTransform3f RootRestTransform = AssetCollection->Transform[RootIndex];
+				const FTransform3f RootCurrentTransform = ComponentSpaceTransforms.RequestRootTransform();
+				const FTransform RootTransformFromRestPose = FTransform(RootCurrentTransform.GetRelativeTransform(RootRestTransform));
+
+				for (TObjectPtr<UStaticMeshComponent> StaticMeshComponent : RootProxyStaticMeshComponents)
+				{
+					if (StaticMeshComponent)
+					{
+						StaticMeshComponent->SetRelativeTransform(RootTransformFromRestPose);
+					}
+				}
+			}
+		}
+	}
+}
+
 void UGeometryCollectionComponent::ClearRootProxyComponents()
 {
 	for (TObjectPtr<UStaticMeshComponent> StaticMeshComponent : RootProxyStaticMeshComponents)
@@ -4319,6 +4345,12 @@ void UGeometryCollectionComponent::OnPostPhysicsSync()
 			InitializeRemovalDynamicAttributesIfNeeded();
 		}
 
+		if (RootProxyStaticMeshComponents.Num() > 0)
+		{
+			ClearRootProxyComponents();
+			RecreateRenderState_Concurrent();
+		}
+
 		UpdateRemovalIfNeeded();
 
 		CheckFullyDecayed();
@@ -4415,6 +4447,8 @@ void UGeometryCollectionComponent::UpdateRenderSystemsIfNeeded(bool bDynamicColl
 		{
 			RefreshCustomRenderer();
 		}
+
+		UpdateRootProxyComponentsIfNeeded();
 
 		if (SceneProxy != nullptr)
 		{
