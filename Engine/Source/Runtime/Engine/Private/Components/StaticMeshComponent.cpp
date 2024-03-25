@@ -683,9 +683,6 @@ void UStaticMeshComponent::NotifyIfStaticMeshChanged()
 		// Remove delegates from our previous mesh 
 		if (KnownStaticMesh)
 		{
-			KnownStaticMesh->OnPreMeshBuild().Remove(PreMeshBuildDelegateHandle);
-			PreMeshBuildDelegateHandle.Reset();
-
 			if (bMipLevelCallbackRegistered)
 			{
 				KnownStaticMesh->RemoveMipLevelChangeCallback(this);
@@ -694,22 +691,6 @@ void UStaticMeshComponent::NotifyIfStaticMeshChanged()
 		}
 
 		KnownStaticMesh = StaticMesh;
-
-		// Add delegate on our new mesh
-		if (KnownStaticMesh)
-		{
-			PreMeshBuildDelegateHandle = KnownStaticMesh->OnPreMeshBuild().AddWeakLambda(this, [this](UStaticMesh*)
-				{
-					// Our associated mesh is compiling so we are no longer navigation relevant.
-					// This will invalidate any pending add to the octree and dirty tiles until compilation completes.
-					// Note that we force the value instead of calling IsNavigationRelevant since the IsCompiling
-					// condition will not return the proper value in all code paths where OnPreMeshBuild delegate is called.
-					// (e.g. async task created right after calling OnPreMeshBuild)
-					// Member 'bNavigationRelevant' will be updated by PostStaticMeshCompilation.
-					bNavigationRelevant = false;
-					FNavigationSystem::UpdateComponentData(*this);
-				});
-		}
 
 		FObjectCacheEventSink::NotifyStaticMeshChanged_Concurrent(GetStaticMeshComponentInterface());
 
@@ -1875,11 +1856,6 @@ void UStaticMeshComponent::BeginDestroy()
 #if WITH_EDITOR
 	// The object cache needs to be notified when we're getting destroyed
 	FObjectCacheEventSink::NotifyStaticMeshChanged_Concurrent(GetStaticMeshComponentInterface());
-	
-	if (PreMeshBuildDelegateHandle.IsValid())
-	{
-		KnownStaticMesh->OnPreMeshBuild().Remove(PreMeshBuildDelegateHandle);
-	}
 #endif // WITH_EDITOR
 }
 
