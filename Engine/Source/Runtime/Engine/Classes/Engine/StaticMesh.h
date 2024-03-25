@@ -1561,6 +1561,7 @@ private:
 public:
 	ENGINE_API void SetNavCollision(UNavCollisionBase*);
 	ENGINE_API UNavCollisionBase* GetNavCollision() const;
+	ENGINE_API FBox GetNavigationBounds(const FTransform& LocalToWorld) const;
 	ENGINE_API bool IsNavigationRelevant() const;
 
 	/**

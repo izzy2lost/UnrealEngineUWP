@@ -7764,6 +7764,20 @@ UNavCollisionBase* UStaticMesh::GetNavCollision() const
 	PRAGMA_ENABLE_DEPRECATION_WARNINGS
 }
 
+FBox UStaticMesh::GetNavigationBounds(const FTransform& LocalToWorld) const
+{
+	FBox NavBounds = GetBounds().GetBox();
+	if (const UNavCollisionBase* NavCol = GetNavCollision())
+	{
+		const FBox NavCollisionBounds = NavCol->GetBounds();
+		if (NavCollisionBounds.IsValid)
+		{
+			NavBounds = NavCollisionBounds;
+		}
+	}
+	return NavBounds.TransformBy(LocalToWorld);
+}
+
 void UStaticMesh::MarkAsNotHavingNavigationData()
 {
 	bHasNavigationData = false;
