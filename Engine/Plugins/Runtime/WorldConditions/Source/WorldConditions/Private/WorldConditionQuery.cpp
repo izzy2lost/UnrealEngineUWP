@@ -65,7 +65,7 @@ FWorldConditionQueryState::~FWorldConditionQueryState()
 	// Try to clean up the best we can in case things are still running.
 	if (IsInitialized() && SharedDefinition.IsValid())
 	{
-		if (IsValid(Owner))
+		if (IsValid(Owner) && AreConditionsActivated())
 		{
 			// We can call Deactivate(), but we dont know the context data, so some uninitialization can potentially be incomplete.
 			UE_LOG(LogWorldCondition, Warning, TEXT("World Condition: State %p owned by %s is still active on destructor, calling Deactivate() without context data, might leak memory or resources."), this, *GetFullNameSafe(Owner));
@@ -75,7 +75,7 @@ FWorldConditionQueryState::~FWorldConditionQueryState()
 		}
 		else
 		{
-			// The owner is not valid, os we cannot call Deactivate(), the best we can do is to clean up the memory properly, as the shared definition is valid. 
+			// The owner is not valid, so we cannot call Deactivate(), the best we can do is to clean up the memory properly, as the shared definition is valid. 
 			UE_LOG(LogWorldCondition, Warning, TEXT("World Condition: State %p owned by %s is still active on destructor, failed to call Deactivate() due to invalid owner, calling Free(), might leak memory or resources."), this, *GetFullNameSafe(Owner));
 			Free();
 		}

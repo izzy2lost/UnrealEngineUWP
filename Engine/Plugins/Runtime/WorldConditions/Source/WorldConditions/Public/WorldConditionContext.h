@@ -228,7 +228,7 @@ struct WORLDCONDITIONS_API FWorldConditionContext
 		return *CastChecked<typename T::UStateType>(QueryState.GetStateObject(Condition));
 	}
 
-	/** @return Reference to the query state of update wolrd condition query. */
+	/** @return Reference to the query state of update world condition query. */
 	FWorldConditionQueryState& GetQueryState() const { return QueryState; }
 
 	/**
