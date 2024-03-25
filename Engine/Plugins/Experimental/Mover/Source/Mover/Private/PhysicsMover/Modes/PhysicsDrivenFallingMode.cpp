@@ -10,8 +10,15 @@
 #include "MoveLibrary/FloorQueryUtils.h"
 #include "MoveLibrary/WaterMovementUtils.h"
 #include "PhysicsMover/PhysicsMovementUtils.h"
+#if WITH_EDITOR
+#include "Backends/MoverNetworkPhysicsLiaison.h"
+#include "Internationalization/Text.h"
+#include "Misc/DataValidation.h"
+#endif // WITH_EDITOR
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(PhysicsDrivenFallingMode)
+
+#define LOCTEXT_NAMESPACE "PhysicsDrivenFallingMode"
 
 UPhysicsDrivenFallingMode::UPhysicsDrivenFallingMode(const FObjectInitializer& ObjectInitializer)
 	: Super(ObjectInitializer)
@@ -25,6 +32,21 @@ void UPhysicsDrivenFallingMode::UpdateConstraintSettings(Chaos::FCharacterGround
 	Constraint.SetSwingTorqueLimit(FUnitConversion::Convert(SwingTorqueLimit, EUnit::NewtonMeters, EUnit::KilogramCentimetersSquaredPerSecondSquared));
 	Constraint.SetTargetHeight(TargetHeight);
 }
+
+#if WITH_EDITOR
+EDataValidationResult UPhysicsDrivenFallingMode::IsDataValid(FDataValidationContext& Context) const
+{
+	EDataValidationResult Result = Super::IsDataValid(Context);
+	const UClass* BackendClass = GetMoverComponent()->BackendClass;
+	if (BackendClass && !BackendClass->IsChildOf<UMoverNetworkPhysicsLiaisonComponent>())
+	{
+		Context.AddError(LOCTEXT("PhysicsMovementModeHasValidPhysicsLiaison", "Physics movement modes need to have a backend class that supports physics (UMoverNetworkPhysicsLiaisonComponent)."));
+		Result = EDataValidationResult::Invalid;
+	}
+		
+	return Result;
+}
+#endif // WITH_EDITOR
 
 void UPhysicsDrivenFallingMode::OnSimulationTick(const FSimulationTickParams& Params, FMoverTickEndData& OutputState)
 {
@@ -127,3 +149,5 @@ void UPhysicsDrivenFallingMode::OnSimulationTick(const FSimulationTickParams& Pa
 		TargetOrient,
 		TargetVel);
 }
+
+#undef LOCTEXT_NAMESPACE
