@@ -4,7 +4,7 @@
 
 #include "Engine/World.h"
 #include "ProfilingDebugging/CsvProfiler.h"
-#include "WorldMetrics.h"
+#include "WorldMetricsSubsystem.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(CsvMetricsSubsystem)
 
@@ -72,22 +72,24 @@ void UCsvMetricsSubsystem::UnbindProfilerCallbacks()
 
 void UCsvMetricsSubsystem::AddMetrics()
 {
-	UWorld* World = GetWorld();
-	check(World);
-
-	for (const TSubclassOf<UWorldMetricInterface>& MetricClass : Metrics)
+	UWorldMetricsSubsystem* WorldMetricsSubsystem = UWorldMetricsSubsystem::Get(GetWorld());
+	if (ensure(WorldMetricsSubsystem))
 	{
-		UE::WorldMetrics::AddMetric(World, MetricClass);
+		for (const TSubclassOf<UWorldMetricInterface>& MetricClass : Metrics)
+		{
+			WorldMetricsSubsystem->AddMetric(MetricClass);
+		}
 	}
 }
 
 void UCsvMetricsSubsystem::RemoveMetrics()
 {
-	UWorld* World = GetWorld();
-	check(World);
-
-	for (const TSubclassOf<UWorldMetricInterface>& MetricClass : Metrics)
+	UWorldMetricsSubsystem* WorldMetricsSubsystem = UWorldMetricsSubsystem::Get(GetWorld());
+	if (ensure(WorldMetricsSubsystem))
 	{
-		UE::WorldMetrics::RemoveMetric(World, MetricClass);
+		for (const TSubclassOf<UWorldMetricInterface>& MetricClass : Metrics)
+		{
+			WorldMetricsSubsystem->RemoveMetric(MetricClass);
+		}
 	}
 }

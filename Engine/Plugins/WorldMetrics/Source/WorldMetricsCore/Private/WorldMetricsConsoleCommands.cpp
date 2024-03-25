@@ -7,7 +7,6 @@
 #include "HAL/IConsoleManager.h"
 #include "String/LexFromString.h"
 #include "WorldMetricInterface.h"
-#include "WorldMetrics.h"
 #include "WorldMetricsLog.h"
 #include "WorldMetricsSubsystem.h"
 
@@ -20,7 +19,7 @@ static FAutoConsoleCommandWithWorldAndArgs CmdWorldMetricsEnable(
 	FConsoleCommandWithWorldAndArgsDelegate::CreateLambda(
 		[](const TArray<FString>& Args, UWorld* World)
 		{
-			if (UWorldMetricsSubsystem* WorldMetrics = GetSubsystem(World))
+			if (UWorldMetricsSubsystem* WorldMetrics = UWorldMetricsSubsystem::Get(World))
 			{
 				bool bEnable = !WorldMetrics->IsEnabled();
 				if (Args.Num())
@@ -38,7 +37,7 @@ static FAutoConsoleCommandWithWorldAndArgs CmdWorldMetricsClear(
 	FConsoleCommandWithWorldAndArgsDelegate::CreateLambda(
 		[](const TArray<FString>& Args, UWorld* World)
 		{
-			if (UWorldMetricsSubsystem* WorldMetrics = GetSubsystem(World))
+			if (UWorldMetricsSubsystem* WorldMetrics = UWorldMetricsSubsystem::Get(World))
 			{
 				WorldMetrics->Clear();
 			}
@@ -51,7 +50,7 @@ static FAutoConsoleCommandWithWorldAndArgs CmdWorldMetricsSetUpdateRateInSeconds
 	FConsoleCommandWithWorldAndArgsDelegate::CreateLambda(
 		[](const TArray<FString>& Args, UWorld* World)
 		{
-			if (UWorldMetricsSubsystem* WorldMetrics = GetSubsystem(World))
+			if (UWorldMetricsSubsystem* WorldMetrics = UWorldMetricsSubsystem::Get(World))
 			{
 				float UpdateRateInSeconds = 0;
 				if (Args.Num() && Args[0].IsNumeric())
@@ -76,7 +75,13 @@ static void WorldMetricToggleCmdHandler(
 		return;
 	}
 
-	const bool bMetricExists = GetMetric(World, MetricClassPtr) != nullptr;
+	UWorldMetricsSubsystem* WorldMetricsSubsystem = UWorldMetricsSubsystem::Get(World);
+	if (!WorldMetricsSubsystem)
+	{
+		return;
+	}
+
+	const bool bMetricExists = WorldMetricsSubsystem->GetMetric(MetricClassPtr) != nullptr;
 	const FName ClassName = MetricClassPtr->GetFName();
 
 	bool bEnable = !bMetricExists;
@@ -92,13 +97,13 @@ static void WorldMetricToggleCmdHandler(
 		return;
 	}
 
-	if (bEnable && AddMetric(World, MetricClassPtr))
+	if (bEnable && WorldMetricsSubsystem->AddMetric(MetricClassPtr))
 	{
 		Ar.Log(*WriteToString<128>(ClassName, ANSITEXTVIEW(" added.")));
 		return;
 	}
 
-	if (!bEnable && RemoveMetric(World, MetricClassPtr))
+	if (!bEnable && WorldMetricsSubsystem->RemoveMetric(MetricClassPtr))
 	{
 		Ar.Log(*WriteToString<128>(ClassName, ANSITEXTVIEW(" removed.")));
 		return;

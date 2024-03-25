@@ -11,7 +11,7 @@
  *
  * This is the required interface class to implement world metrics.
  */
-UCLASS(abstract, MinimalAPI)
+UCLASS(abstract, MinimalAPI, Within=WorldMetricsSubsystem)
 class UWorldMetricInterface : public UObject
 {
 	GENERATED_BODY()
@@ -23,6 +23,15 @@ public:
 	 */
 	[[nodiscard]] WORLDMETRICSCORE_API virtual SIZE_T GetAllocatedSize() const
 		PURE_VIRTUAL(GetAllocatedSize, return 0;);
+
+	/*
+	 * Returns the owning World Metrics Subsystem which is expected to be valid during this object's lifetime.
+	 * @return a reference to the owning World Metrics Subsystem.
+	 */
+	[[nodiscard]] UWorldMetricsSubsystem& GetOwner() const
+	{
+		return *GetOuterUWorldMetricsSubsystem();
+	}
 
 private:
 	/**

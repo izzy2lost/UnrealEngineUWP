@@ -5,7 +5,6 @@
 #include "GameFramework/Actor.h"
 #include "HAL/IConsoleManager.h"
 #include "ProfilingDebugging/CsvProfiler.h"
-#include "WorldMetrics.h"
 #include "WorldMetricsActorTracker.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(CsvActorCountMetric)
@@ -27,12 +26,12 @@ static TAutoConsoleVariable<int32> CVarCsvRecordActorCountThreshold(
 
 void UCsvActorCountMetric::Initialize()
 {
-	UE::WorldMetrics::AcquireExtension<UWorldMetricsActorTracker>(this);
+	GetOwner().AcquireExtension<UWorldMetricsActorTracker>(this);
 }
 
 void UCsvActorCountMetric::Deinitialize()
 {
-	UE::WorldMetrics::ReleaseExtension<UWorldMetricsActorTracker>(this);
+	GetOwner().ReleaseExtension<UWorldMetricsActorTracker>(this);
 
 	ActorClassNameCounter.Reset();
 	TotalActorCount = 0;
