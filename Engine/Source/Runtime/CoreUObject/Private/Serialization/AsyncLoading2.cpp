@@ -13,6 +13,7 @@
 #include "HAL/PlatformFileManager.h"
 #include "HAL/FileManager.h"
 #include "HAL/Event.h"
+#include "HAL/ThreadManager.h"
 #include "HAL/RunnableThread.h"
 #include "HAL/PlatformMisc.h"
 #include "Misc/ScopeLock.h"
@@ -9344,11 +9345,21 @@ void FAsyncLoadingThread2::FlushLoading(TConstArrayView<int32> RequestIDs)
 #endif
 		ELoaderType LoaderType = GetLoaderType();
 
-		ensureMsgf(bIsFlushSupportedOnCurrentThread, TEXT("The current loader '%s' is unable to FlushAsyncLoading from the current thread."), LexToString(LoaderType));
-
 		if (!bIsFlushSupportedOnCurrentThread)
 		{
-			UE_LOG(LogStreaming, Error, TEXT("The current loader '%s' is unable to FlushAsyncLoading from the current thread. Flush will be ignored."), LexToString(LoaderType));
+			// As there is no ensure for test builds, use custom stacktrace logging so we can see these problems in playtest and fix them.
+			// But just return in shipping build to avoid crashing as the side effect of missing flushes are not always fatal.
+			// Don't forget to adjust unittest in FLoadingTests_InvalidFlush_FromWorker if changing this.
+#if !UE_BUILD_SHIPPING
+			const FString& ThreadName = FThreadManager::GetThreadName(FPlatformTLS::GetCurrentThreadId());
+			const FString Heading = 
+				FString::Printf(
+					TEXT("The current loader '%s' is unable to FlushAsyncLoading from the current thread '%s'. Flush will be ignored."), 
+					LexToString(LoaderType),
+					*ThreadName
+			);
+			FDebug::DumpStackTraceToLog(*Heading, ELogVerbosity::Error);
+#endif
 			return;
 		}
 
