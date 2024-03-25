@@ -410,7 +410,7 @@ void UMassVisualizationProcessor::Execute(FMassEntityManager& InEntityManager, F
 		UpdateVisualization(Context);
 	});
 
-	UE_VLOG(this, LogMassRepresentation, Verbose, TEXT("UMassVisualizationProcessor::Execute processed %d entites"), TotalEntitiesProcessed);
+	UE_VLOG(this, LogMassRepresentation, Verbose, TEXT("UMassVisualizationProcessor::Execute processed %d entities"), TotalEntitiesProcessed);
 }
 
 //----------------------------------------------------------------------//

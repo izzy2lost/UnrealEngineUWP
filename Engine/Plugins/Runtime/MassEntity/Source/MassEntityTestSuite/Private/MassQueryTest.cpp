@@ -232,7 +232,7 @@ struct FQueryTest_ExecuteSparse : FEntityTestBase
 		for (FMassEntityHandle& Entity : EntitiesToIgnore)
 		{
 			const FTestFragment_Float& TestedFragment = EntityManager->GetFragmentDataChecked<FTestFragment_Float>(Entity);
-			AITEST_EQUAL("Untouched entites should retain default fragment value ", TestedFragment.Value, 0.f);
+			AITEST_EQUAL("Untouched entities should retain default fragment value ", TestedFragment.Value, 0.f);
 		}
 
 		return true;
