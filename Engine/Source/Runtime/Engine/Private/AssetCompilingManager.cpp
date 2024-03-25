@@ -293,14 +293,30 @@ public:
 					DebugName = TEXT("No DebugName");
 				}
 
-				UE_LOGFMT_NSLOC(LogAsyncCompilation, Warning, "AsyncAssetCompilation", "MemoryLimitExceeded",
-					"AssetCompile memory estimate is greater than available, but we're running it [{TaskName}] anyway, likely to fail! "
-					"RequiredMemory = {TotalEstimatedMemory} MiB + {RequiredMemory} MiB, MemoryLimit = {MemoryLimit} MiB ",
-					("TaskName", DebugName),
-					("RequiredMemory", FString::SanitizeFloat(NewRequiredMemory / (1024 * 1024.f), 3)),
-					("TotalEstimatedMemory", FString::SanitizeFloat(TotalEstimatedMemory / (1024 * 1024.f), 3)),
-					("MemoryLimit", FString::SanitizeFloat(MemoryLimit / (1024 * 1024.f), 3))
-				);
+				const int64 HardMemoryLimit = GetHardMemoryLimit();
+				if (NewRequiredMemory > HardMemoryLimit)
+				{
+					UE_LOGFMT_NSLOC(LogAsyncCompilation, Warning, "AsyncAssetCompilation", "HardMemoryLimitExceeded",
+						"AssetCompile memory estimate is greater than the hard memory limit, but we're running it [{TaskName}] anyway, likely to fail! "
+						"RequiredMemory = {TotalEstimatedMemory} MiB + {RequiredMemory} MiB, MemoryLimit = {MemoryLimit} MiB, HardMemoryLimit = {HardMemoryLimit} MiB",
+						("TaskName", DebugName),
+						("RequiredMemory", FString::SanitizeFloat(NewRequiredMemory / (1024 * 1024.f), 3)),
+						("TotalEstimatedMemory", FString::SanitizeFloat(TotalEstimatedMemory / (1024 * 1024.f), 3)),
+						("MemoryLimit", FString::SanitizeFloat(MemoryLimit / (1024 * 1024.f), 3)),
+						("HardMemoryLimit", FString::SanitizeFloat(HardMemoryLimit / (1024 * 1024.f), 3))
+					);
+				}
+				else
+				{
+					UE_LOGFMT_NSLOC(LogAsyncCompilation, Display, "AsyncAssetCompilation", "MemoryLimitExceeded",
+						"AssetCompile memory estimate is greater than available, but we're running it [{TaskName}] anyway, likely to fail! "
+						"RequiredMemory = {TotalEstimatedMemory} MiB + {RequiredMemory} MiB, MemoryLimit = {MemoryLimit} MiB ",
+						("TaskName", DebugName),
+						("RequiredMemory", FString::SanitizeFloat(NewRequiredMemory / (1024 * 1024.f), 3)),
+						("TotalEstimatedMemory", FString::SanitizeFloat(TotalEstimatedMemory / (1024 * 1024.f), 3)),
+						("MemoryLimit", FString::SanitizeFloat(MemoryLimit / (1024 * 1024.f), 3))
+					);
+				}
 
 				// @todo : ? pause the main thread? pause shader compilers? trigger a GC ?
 
