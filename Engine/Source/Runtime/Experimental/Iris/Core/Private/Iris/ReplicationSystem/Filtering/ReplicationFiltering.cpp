@@ -340,23 +340,11 @@ void FReplicationFiltering::FilterNonRelevantObjects()
 		return;
 	}
 
-	const uint32* const CurrentFrameScopeData = NetRefHandleManager->GetCurrentFrameScopableInternalIndices().GetData();
-	const uint32* const WithOwnerData = ObjectsWithOwnerFilter.GetData();
-	const uint32* const ConnectionFiltersData = AllConnectionFilteredObjects.GetData();
-	const uint32* const DynamicFilteredData = DynamicFilterEnabledObjects.GetData();
-	const uint32* const GroupFilteredOutData = Groups->GetGroupFilteredOutObjects().GetData();
-
+	// Start by filling the relevant object list with those considered AlwaysRelevant.
 	FNetBitArrayView GlobalRelevantObjects = NetRefHandleManager->GetRelevantObjectsInternalIndices();
-	
-	uint32* GlobalRelevantData = GlobalRelevantObjects.GetData();
+	BuildAlwaysRelevantList(GlobalRelevantObjects, NetRefHandleManager->GetCurrentFrameScopableInternalIndices());
 
-	//$IRIS TODO: Could be worth sampling if it's faster for the AlwaysRelevant list to be kept cached instead of recalculating it here every frame.
-	const uint32 MaxWords = GlobalRelevantObjects.GetNumWords();
-	for (uint32 WordIndex = 0; WordIndex < MaxWords; ++WordIndex)
-	{
-		// Build the list of always relevant objects (objects that have no filters)
-		GlobalRelevantData[WordIndex] = CurrentFrameScopeData[WordIndex] & ~(WithOwnerData[WordIndex] | ConnectionFiltersData[WordIndex] | DynamicFilteredData[WordIndex] | GroupFilteredOutData[WordIndex]);
-	}
+	//$IRIS TODO: Should sample if it's faster for the AlwaysRelevant list to be kept cached instead of recalculating it here every frame.
 
 	// Build the list of currently relevant objects. e.g. always relevant objects + filterable objects relevant to at least one connection.	
 	auto MergeConnectionScopes = [this, &GlobalRelevantObjects](uint32 ConnectionId)
@@ -368,6 +356,27 @@ void FReplicationFiltering::FilterNonRelevantObjects()
 	ValidConnections.ForAllSetBits(MergeConnectionScopes);
 
 	//$IRIS TODO: Need to ensure newly relevant objects are immediately polled similar to calling ForceNetUpdate.
+}
+
+void FReplicationFiltering::BuildAlwaysRelevantList(FNetBitArrayView OutAlwaysRelevantList, const FNetBitArrayView ScopeList) const
+{
+	// The list of all replicated objects
+	const uint32* const ScopeListData = ScopeList.GetData();
+
+	// The different list of filtered objects
+	const uint32* const WithOwnerData = ObjectsWithOwnerFilter.GetData();
+	const uint32* const ConnectionFiltersData = AllConnectionFilteredObjects.GetData();
+	const uint32* const DynamicFilteredData = DynamicFilterEnabledObjects.GetData();
+	const uint32* const GroupFilteredOutData = Groups->GetGroupFilteredOutObjects().GetData();
+
+	uint32* OutAlwaysRelevantListData = OutAlwaysRelevantList.GetData();
+
+	const uint32 MaxWords = OutAlwaysRelevantList.GetNumWords();
+	for (uint32 WordIndex = 0; WordIndex < MaxWords; ++WordIndex)
+	{
+		// Build the list of always relevant objects, e.g. objects that have no filters
+		OutAlwaysRelevantListData[WordIndex] = ScopeListData[WordIndex] & ~(WithOwnerData[WordIndex] | ConnectionFiltersData[WordIndex] | DynamicFilteredData[WordIndex] | GroupFilteredOutData[WordIndex]);
+	}
 }
 
 void FReplicationFiltering::UpdateDynamicFilters(ENetFilterType FilterPass)

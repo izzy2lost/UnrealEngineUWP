@@ -2005,3 +2005,36 @@ void UObjectReplicationBridge::OnErrorWithNetRefHandleReported(uint32 ErrorType,
 		*NetRefHandleManager->PrintObjectFromIndex(ObjectInternalIndex)
 	);
 }
+
+TArray<uint32> UObjectReplicationBridge::FindConnectionsFromArgs(const TArray<FString>& Args) const
+{
+	using namespace UE::Net::Private;
+
+	TArray<uint32> ConnectionList;
+
+	// If ConnectionId=XX was specified
+	if (const FString* ArgConnectionIds = Args.FindByPredicate([](const FString& Str) { return Str.Contains(TEXT("ConnectionId=")); }))
+	{
+		constexpr bool bIgnoreSeperators = false;
+
+		// Find all the Ids passed in the argument
+		FString StrConnectionIds;
+		if (FParse::Value(**ArgConnectionIds, TEXT("ConnectionId="), StrConnectionIds, bIgnoreSeperators))
+		{
+			TArray<FString> StrIds;
+			StrConnectionIds.ParseIntoArray(StrIds, TEXT(","));
+
+			for (const FString& StrId : StrIds)
+			{
+				int32 Id = INDEX_NONE;
+				LexFromString(Id, *StrId);
+				if (Id > INDEX_NONE)
+				{
+					ConnectionList.AddUnique((uint32)Id);
+				}
+			}
+		}
+	}
+
+	return ConnectionList;
+}
