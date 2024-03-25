@@ -3,7 +3,7 @@
 #pragma once
 
 // Change this to force recompilation of all Lumen HWRT shaders
-#pragma message("UESHADERMETADATA_VERSION A21D6780-1B5A-48B7-B9E0-1B61384BECD4")
+#pragma message("UESHADERMETADATA_VERSION B21D6782-AB5A-C8A7-F9E0-1B61384BECD4")
 
 #define SUPPORT_CONTACT_SHADOWS 0
 #define USE_HAIR_LIGHTING 0
@@ -346,6 +346,12 @@ bool LumenMinimalRayAnyHitShader(uint UserData, float HitT, bool bHitBackFace, b
 		return false;
 	}
 
+	// Skip all translucent meshes
+	if (bIsTranslucent && LumenHardwareRayTracingUniformBuffer.SkipTranslucent > 0.0f)
+	{
+		return false;
+	}
+
 	#if AVOID_SELF_INTERSECTIONS
 	{
 		// Avoid self-shadowing by skipping back face hits for some distance
@@ -361,12 +367,6 @@ bool LumenMinimalRayAnyHitShader(uint UserData, float HitT, bool bHitBackFace, b
 		}
 	}
 	#endif
-
-	// Skip all translucent meshes
-	if (bIsTranslucent && LumenHardwareRayTracingUniformBuffer.SkipTranslucent > 0.0f)
-	{
-		return false;
-	}
 
 	return true;
 }
@@ -390,6 +390,8 @@ struct FLumenTraceRayInlineCallback : FDefaultTraceRayInlineCallback
 };
 #endif
 
+uint MeshSectionVisibilityTest;
+
 FLumenMinimalRayResult TraceLumenMinimalRay(
 	in RaytracingAccelerationStructure TLAS,
 	FRayDesc Ray,
@@ -405,12 +407,18 @@ FLumenMinimalRayResult TraceLumenMinimalRay(
 	RayFlags |= Context.bAcceptFirstHitAndEndSearch ? RAY_FLAG_ACCEPT_FIRST_HIT_AND_END_SEARCH : 0;
 	RayFlags |= Context.bSkipClosestHitShader ? RAY_FLAG_SKIP_CLOSEST_HIT_SHADER : 0;
 
-	// If needed force any-hit shader for handling "avoid self intersection" in Lumen minimal AHS
+	if (MeshSectionVisibilityTest == 0)
+	{
+		RayFlags |= RAY_FLAG_FORCE_OPAQUE;
+	}
+
 	#if AVOID_SELF_INTERSECTIONS
 	{
+		// If needed force any-hit shader on all instances for handling "avoid self intersection" in Lumen minimal AHS
 		const float AvoidSelfIntersectionsDistance = max(LumenHardwareRayTracingUniformBuffer.SkipTwoSidedHitDistance, LumenHardwareRayTracingUniformBuffer.SkipBackFaceHitDistance);
 		if (Ray.TMin < AvoidSelfIntersectionsDistance)
 		{
+			RayFlags &= ~RAY_FLAG_FORCE_OPAQUE;
 			RayFlags |= RAY_FLAG_FORCE_NON_OPAQUE;
 		}
 	}

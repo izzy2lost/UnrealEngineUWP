@@ -85,6 +85,15 @@ static TAutoConsoleVariable<int32> CVarManyLightsHardwareRayTracingMaxIterations
 	ECVF_Scalability | ECVF_RenderThreadSafe
 );
 
+static TAutoConsoleVariable<int32> CVarManyLightsHardwareRayTracingMeshSectionVisibilityTest(
+	TEXT("r.ManyLights.HardwareRayTracing.MeshSectionVisibilityTest"),
+	0,
+	TEXT("Whether to test mesh section visibility at runtime.\n")
+	TEXT("When enabled translucent mesh sections are automatically hidden based on the material, but it slows down performance due to extra visibility tests per intersection.\n")
+	TEXT("When disabled translucent meshes can be hidden only if they are fully translucent. Individual mesh sections need to be hidden upfront inside the static mesh editor."),
+	ECVF_RenderThreadSafe | ECVF_Scalability
+);
+
 // #ml_todo: Separate config cvars from Lumen once we support multiple SBT with same RayTracingPipeline or Global Uniform Buffers in Ray Tracing
 static TAutoConsoleVariable<bool> CVarManyLightsHardwareRayTracingAvoidSelfIntersections(
 	TEXT("r.ManyLights.HardwareRayTracing.AvoidSelfIntersections"),
@@ -265,6 +274,7 @@ class FHardwareRayTraceLightSamples : public FLumenHardwareRayTracingShaderBase
 		SHADER_PARAMETER(float, RayTracingNormalBias)
 		// Ray Tracing
 		SHADER_PARAMETER(uint32, MaxTraversalIterations)
+		SHADER_PARAMETER(uint32, MeshSectionVisibilityTest)
 		SHADER_PARAMETER_RDG_BUFFER_SRV(RaytracingAccelerationStructure, TLAS)
 		SHADER_PARAMETER_SRV(StructuredBuffer, RayTracingSceneMetadata)
 		// Inline Ray Tracing
@@ -480,6 +490,7 @@ void ManyLights::SetHardwareRayTracingPassParameters(
 	checkf(View.HasRayTracingScene(), TEXT("TLAS does not exist. Verify that the current pass is represented in Lumen::AnyLumenHardwareRayTracingPassEnabled()."));
 	PassParameters->TLAS = View.GetRayTracingSceneLayerViewChecked(ERayTracingSceneLayer::Base);
 	PassParameters->MaxTraversalIterations = FMath::Max(CVarManyLightsHardwareRayTracingMaxIterations.GetValueOnRenderThread(), 1);
+	PassParameters->MeshSectionVisibilityTest = CVarManyLightsHardwareRayTracingMeshSectionVisibilityTest.GetValueOnRenderThread();
 
 	// Inline
 	PassParameters->HitGroupData = View.GetPrimaryView()->LumenHardwareRayTracingHitDataBuffer ? GraphBuilder.CreateSRV(View.GetPrimaryView()->LumenHardwareRayTracingHitDataBuffer) : nullptr;

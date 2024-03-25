@@ -178,8 +178,9 @@ FRayTracingMaskAndFlags BuildRayTracingInstanceMaskAndFlags(TArrayView<const FMe
 		}
 	}
 
-	Result.bForceOpaque = bAllSegmentsOpaque && bAllSegmentsCastShadow;
-	Result.bDoubleSided = bDoubleSided;
+	// Run AHS for alpha masked and meshes with only some sections casting shadows, which require per mesh section filtering in AHS
+	Result.bForceOpaque = bAllSegmentsOpaque && (bAllSegmentsCastShadow || !bAnySegmentsCastShadow);
+	Result.bDoubleSided = bDoubleSided;	
 	Result.bAnySegmentsDecal = bAnySegmentsDecal;
 	Result.bAllSegmentsDecal = bAllSegmentsDecal;
 

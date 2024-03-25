@@ -1244,7 +1244,8 @@ namespace RayTracing
 
 							RayTracingInstance.Mask = RelevantPrimitive.InstanceMask; // When no cached command is found, InstanceMask == 0 and the instance is effectively filtered out
 
-							if (RelevantPrimitive.bAllSegmentsOpaque && RelevantPrimitive.bAllSegmentsCastShadow)
+							// Run AHS for alpha masked and meshes with only some sections casting shadows, which require per mesh section filtering in AHS
+							if (RelevantPrimitive.bAllSegmentsOpaque && (RelevantPrimitive.bAllSegmentsCastShadow || !RelevantPrimitive.bAnySegmentsCastShadow))
 							{
 								RayTracingInstance.Flags |= ERayTracingInstanceFlags::ForceOpaque;
 							}

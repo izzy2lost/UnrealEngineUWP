@@ -69,6 +69,7 @@ public:
 		// Lumen
 		SHADER_PARAMETER_STRUCT_INCLUDE(FLumenCardTracingParameters, TracingParameters)
 		SHADER_PARAMETER(uint32, MaxTraversalIterations)
+		SHADER_PARAMETER(uint32, MeshSectionVisibilityTest)
 		SHADER_PARAMETER(float, MinTraceDistanceToSampleSurfaceCache)
 		SHADER_PARAMETER(float, SurfaceCacheSamplingDepthBias)
 

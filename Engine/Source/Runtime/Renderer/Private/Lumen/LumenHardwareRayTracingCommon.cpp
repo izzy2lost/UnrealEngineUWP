@@ -74,6 +74,15 @@ static TAutoConsoleVariable<int32> CVarLumenHardwareRayTracingMaxIterations(
 	ECVF_Scalability | ECVF_RenderThreadSafe
 );
 
+static TAutoConsoleVariable<int32> CVarLumenHardwareRayTracingMeshSectionVisibilityTest(
+	TEXT("r.Lumen.HardwareRayTracing.MeshSectionVisibilityTest"),
+	0,
+	TEXT("Whether to test mesh section visibility at runtime.\n")
+	TEXT("When enabled translucent mesh sections are automatically hidden based on the material, but it slows down performance due to extra visibility tests per intersection.\n")
+	TEXT("When disabled translucent meshes can be hidden only if they are fully translucent. Individual mesh sections need to be hidden upfront inside the static mesh editor."),
+	ECVF_RenderThreadSafe | ECVF_Scalability
+);
+
 TAutoConsoleVariable<float> CVarLumenHardwareRayTracingMinTraceDistanceToSampleSurfaceCache(
 	TEXT("r.Lumen.HardwareRayTracing.MinTraceDistanceToSampleSurfaceCache"),
 	10.0f,
@@ -305,6 +314,7 @@ void SetLumenHardwareRayTracingSharedParameters(
 	SharedParameters->MaxTraversalIterations = FMath::Max(CVarLumenHardwareRayTracingMaxIterations.GetValueOnRenderThread(), 1);
 	SharedParameters->MinTraceDistanceToSampleSurfaceCache = CVarLumenHardwareRayTracingMinTraceDistanceToSampleSurfaceCache.GetValueOnRenderThread();
 	SharedParameters->SurfaceCacheSamplingDepthBias = CVarLumenHardwareRayTracingSurfaceCacheSamplingDepthBias.GetValueOnRenderThread();
+	SharedParameters->MeshSectionVisibilityTest = CVarLumenHardwareRayTracingMeshSectionVisibilityTest.GetValueOnRenderThread();
 }
 
 #endif // RHI_RAYTRACING
