@@ -68,7 +68,6 @@ void UK2Node_CallParentFunction::SetFromFunction(const UFunction* Function)
 	if (Function != NULL)
 	{
 		bIsPureFunc = Function->HasAnyFunctionFlags(FUNC_BlueprintPure);
-		bIsConstFunc = Function->HasAnyFunctionFlags(FUNC_Const);
 
 		UClass* OwnerClass = Function->GetOwnerClass();
 

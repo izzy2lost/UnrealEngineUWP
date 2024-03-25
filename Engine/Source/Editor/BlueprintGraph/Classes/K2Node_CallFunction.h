@@ -43,16 +43,14 @@ class BLUEPRINTGRAPH_API UK2Node_CallFunction : public UK2Node
 	UPROPERTY()
 	uint32 bIsPureFunc:1;
 
-	/** Indicates that this is a call to a const function */
-	UPROPERTY()
-	uint32 bIsConstFunc:1;
-
 	/** Indicates that during compile we want to create multiple exec pins from an enum param */
 	UPROPERTY()
 	uint32 bWantsEnumToExecExpansion:1;
 
-	/** Indicates that this is a call to an interface function */
-	UPROPERTY()
+	UE_DEPRECATED(5.5, "bIsConstFunc is deprecated. Check for FUNC_Const on FunctionReference.ResolveMember<UFunction>() instead.")
+	uint32 bIsConstFunc:1;
+
+	UE_DEPRECATED(5.5, "bIsInterfaceCall is deprecated. Check for CLASS_Interface on FunctionReference.GetMemberParentClass() instead.")
 	uint32 bIsInterfaceCall:1;
 
 	UE_DEPRECATED(5.4, "bIsFinalFunction is deprecated.")

@@ -1124,9 +1124,7 @@ bool UK2Node_CallFunction::CreatePinsForFunctionCall(const UFunction* Function)
 
 	UClass* FunctionOwnerClass = Function->GetOuterUClass();
 
-	bIsInterfaceCall = FunctionOwnerClass->HasAnyClassFlags(CLASS_Interface);
 	bIsPureFunc = (Function->HasAnyFunctionFlags(FUNC_BlueprintPure) != false);
-	bIsConstFunc = (Function->HasAnyFunctionFlags(FUNC_Const) != false);
 	DetermineWantsEnumToExecExpansion(Function);
 
 	// Create input pins
@@ -1168,8 +1166,9 @@ bool UK2Node_CallFunction::CreatePinsForFunctionCall(const UFunction* Function)
 			}
 			else
 			{
-				// Hide the self pin if the function is compatible with the blueprint class and pure (the !bIsConstFunc portion should be going away soon too hopefully)
-				SelfPin->bHidden = (bIsFunctionCompatibleWithSelf && bIsPureFunc && !bIsConstFunc);
+				// Pure functions are generally compact looking, so we take advantage of that by hiding the self pin if we can.
+				// In this case, if the function belongs to our current class, then "self" is implied.
+				SelfPin->bHidden = (bIsFunctionCompatibleWithSelf && bIsPureFunc);
 			}
 		}
 	}
@@ -1933,7 +1932,6 @@ void UK2Node_CallFunction::SetFromFunction(const UFunction* Function)
 	if (Function != NULL)
 	{
 		bIsPureFunc = Function->HasAnyFunctionFlags(FUNC_BlueprintPure);
-		bIsConstFunc = Function->HasAnyFunctionFlags(FUNC_Const);
 		DetermineWantsEnumToExecExpansion(Function);
 
 		FunctionReference.SetFromField<UFunction>(Function, GetBlueprintClassFromNode());

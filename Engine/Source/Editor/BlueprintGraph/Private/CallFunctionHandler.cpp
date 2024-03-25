@@ -474,12 +474,16 @@ void FKCHandler_CallFunction::CreateFunctionCallStatement(FKismetFunctionContext
 				// of a cast node). Otherwise, we'll infer the wrong context type at runtime and corrupt the stack by
 				// reading an interface ptr (16 bytes) into an object ptr (8 bytes) when we process the context opcode.
 				const bool bIsInterfaceContextTerm = Target && Target->AssociatedVarProperty && Target->AssociatedVarProperty->IsA<FInterfaceProperty>();
+				
+				UClass* FunctionOwnerClass = Function->GetOuterUClass();
+				check(FunctionOwnerClass);
+				const bool bIsInterfaceFunc = FunctionOwnerClass->HasAnyClassFlags(CLASS_Interface);
 
 				FBlueprintCompiledStatement& Statement = Context.AppendStatementForNode(Node);
 				Statement.FunctionToCall = Function;
 				Statement.FunctionContext = Target;
 				Statement.Type = KCST_CallFunction;
-				Statement.bIsInterfaceContext = IsCalledFunctionFromInterface(Node) || bIsInterfaceContextTerm;
+				Statement.bIsInterfaceContext = bIsInterfaceFunc || bIsInterfaceContextTerm;
 				Statement.bIsParentContext = Node->IsA<UK2Node_CallParentFunction>();
 
 				Statement.LHS = LHSTerm;

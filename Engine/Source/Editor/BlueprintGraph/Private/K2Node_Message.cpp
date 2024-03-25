@@ -188,21 +188,29 @@ void UK2Node_Message::ExpandNode(class FKismetCompilerContext& CompilerContext, 
 	// Skip ourselves if our exec isn't wired up
 	if (bExecPinConnected)
 	{
+		UClass* InterfaceClass = FunctionReference.GetMemberParentClass(GetBlueprintClassFromNode());
+
 		// Make sure our interface is valid
-		if (FunctionReference.GetMemberParentClass(GetBlueprintClassFromNode()) == NULL)
+		if (InterfaceClass == nullptr)
 		{
 			CompilerContext.MessageLog.Error(*LOCTEXT("MessageNodeInvalid_Error", "Message node @@ has an invalid interface.").ToString(), this);
 			return;
 		}
 
-		UFunction* MessageNodeFunction = GetTargetFunction();
-		if (MessageNodeFunction == NULL)
+		if (!InterfaceClass->HasAnyClassFlags(CLASS_Interface))
 		{
-			//@TODO: Why do this here in the compiler, it's already done on AllocateDefaultPins() during on-load node reconstruction
-			MessageNodeFunction = FMemberReference::FindRemappedField<UFunction>(FunctionReference.GetMemberParentClass(GetBlueprintClassFromNode()), FunctionReference.GetMemberName());
+			CompilerContext.MessageLog.Error(*LOCTEXT("MessageNodeClassNotAnInterface_Error", "Message node @@ uses a class that isn't an interface.").ToString(), this);
+			return;
 		}
 
-		if (MessageNodeFunction == NULL)
+		UFunction* MessageNodeFunction = GetTargetFunction();
+		if (MessageNodeFunction == nullptr)
+		{
+			//@TODO: Why do this here in the compiler, it's already done on AllocateDefaultPins() during on-load node reconstruction
+			MessageNodeFunction = FMemberReference::FindRemappedField<UFunction>(InterfaceClass, FunctionReference.GetMemberName());
+		}
+
+		if (MessageNodeFunction == nullptr)
 		{
 			CompilerContext.MessageLog.Error(*FText::Format(LOCTEXT("MessageNodeInvalidFunction_ErrorFmt", "Unable to find function with name {0} for Message node @@."), FText::FromString(FunctionReference.GetMemberName().ToString())).ToString(), this);
 			return;
@@ -255,7 +263,6 @@ void UK2Node_Message::ExpandNode(class FKismetCompilerContext& CompilerContext, 
 
 		// Next, create the function call node
 		UK2Node_CallFunction* FunctionCallNode = CompilerContext.SpawnIntermediateNode<UK2Node_CallFunction>(this, SourceGraph);
-		FunctionCallNode->bIsInterfaceCall = true;
 		FunctionCallNode->FunctionReference = FunctionReference;
 		FunctionCallNode->AllocateDefaultPins();
 
@@ -285,7 +292,8 @@ void UK2Node_Message::ExpandNode(class FKismetCompilerContext& CompilerContext, 
 		UFunction* MapClearFunction = UBlueprintMapLibrary::StaticClass()->FindFunctionByName(FName(TEXT("Map_Clear")));
 		check(MapClearFunction);
 
-		bool const bIsPureMessageFunc = Super::IsNodePure();
+		const bool bIsPureMessageFunc = Super::IsNodePure();
+
 		// Variable pins - Try to associate variable inputs to the message node with the variable inputs and outputs to the call function node
 		for( int32 i = 0; i < Pins.Num(); i++ )
 		{

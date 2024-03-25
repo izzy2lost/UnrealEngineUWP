@@ -51,13 +51,9 @@ public:
 		return false;
 	}
 
+	UE_DEPRECATED(5.5, "IsCalledFunctionFromInterface is deprecated")
 	bool IsCalledFunctionFromInterface(UEdGraphNode* Node)
 	{
-		if (UK2Node_CallFunction* CallFunctionNode = Cast<UK2Node_CallFunction>(Node))
-		{
-			return CallFunctionNode->bIsInterfaceCall;
-		}
-
 		return false;
 	}
 
