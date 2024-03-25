@@ -263,7 +263,17 @@ bool FillTableColumn(const UCustomizableObjectNodeTable* TableNode,	mu::TablePtr
 						}
 
 						const int32 ResourceIndex = GenerationContext.AddAssetUserDataToStreamedResources(AssetUserData);
-						StreamedResources.Add(ResourceIndex);
+						
+						if (ResourceIndex >= 0)
+						{
+							check(ResourceIndex < (1 << 24) - 1);
+
+							FCustomizableObjectStreameableResourceId ResourceId;
+							ResourceId.Id = GenerationContext.AddAssetUserDataToStreamedResources(AssetUserData);
+							ResourceId.Type = (uint8)FCustomizableObjectStreameableResourceId::EType::AssetUserData;
+
+							StreamedResources.Add(BitCast<uint32>(ResourceId));
+						}
 
 						MeshUniqueTags += AssetUserData->GetPathName();
 					}

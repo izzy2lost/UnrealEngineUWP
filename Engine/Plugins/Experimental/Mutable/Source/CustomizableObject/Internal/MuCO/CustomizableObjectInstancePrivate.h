@@ -221,8 +221,8 @@ public:
 
 	void ReuseTexture(UTexture2D* Texture, TSharedRef<FTexturePlatformData, ESPMode::ThreadSafe>& PlatformData);
 
-	// Return an event that will be fired when the assets  have been loaded. It returns null if no asset needs loading.
-	FGraphEventRef LoadAdditionalAssetsAsync(const TSharedRef<FUpdateContextPrivate>& OperationData, FStreamableManager &StreamableManager);
+	/** Returns the task that will be called when all assets and data are loaded, may be already completed if no assets or data needs loading */
+	UE::Tasks::FTask LoadAdditionalAssetsAndDataAsync(const TSharedRef<FUpdateContextPrivate>& OperationData, FStreamableManager &StreamableManager);
 	void AdditionalAssetsAsyncLoaded(UCustomizableObjectInstance* Public);
 
 	void TickUpdateCloseCustomizableObjects(UCustomizableObjectInstance& Public, FMutableInstanceUpdateMap& InOutRequestedUpdates);
@@ -300,7 +300,7 @@ public:
 
 	void SetState(int32 InState);
 
-	void AdditionalAssetsAsyncLoaded(FGraphEventRef CompletionEvent);
+	void AdditionalAssetsAsyncLoaded(UE::Tasks::FTaskEvent CompletionEvent);
 
 	FCustomizableObjectInstanceDescriptor& GetDescriptor() const;
 	

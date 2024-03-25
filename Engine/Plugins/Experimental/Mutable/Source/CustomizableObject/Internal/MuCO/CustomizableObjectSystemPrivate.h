@@ -296,8 +296,7 @@ struct FMutableTask
 	UE::Tasks::FTask Dependency;
 #endif
 
-	/** From the traditional event graph system, still used to wait for async loads. */
-	FGraphEventRef GraphDependency0;
+	UE::Tasks::FTask GraphDependency0;
 	
 #ifdef MUTABLE_USE_NEW_TASKGRAPH
 	UE::Tasks::FTask GraphDependency1;
@@ -311,12 +310,12 @@ struct FMutableTask
 #ifdef MUTABLE_USE_NEW_TASKGRAPH
 		return (!Dependency.IsValid() || Dependency.IsCompleted())
 			&&
-			(!GraphDependency0 || GraphDependency0->IsComplete())
+			(!GraphDependency0.IsValid() || GraphDependency0.IsCompleted())
 			&&
 			(GraphDependency1.IsCompleted());
 #else
 		return 
-			(!GraphDependency0 || GraphDependency0->IsComplete())
+			(!GraphDependency0.IsValid() || GraphDependency0.IsCompleted())
 			&&
 			(!GraphDependency1 || GraphDependency1->IsComplete());
 #endif
@@ -328,7 +327,7 @@ struct FMutableTask
 #ifdef MUTABLE_USE_NEW_TASKGRAPH
 		Dependency = {};
 #endif
-		GraphDependency0 = nullptr;
+		GraphDependency0 = {};
 
 #ifdef MUTABLE_USE_NEW_TASKGRAPH
 		GraphDependency1 = {};
@@ -431,6 +430,8 @@ struct FInstanceUpdateData
 	TArray<FScalar> Scalars;
 
 	TArray<uint16> BoneMaps;
+	
+	TMap<uint32, TArray<FMorphTargetVertexData>> MorphTargetsVertexData;
 
 	struct FSkeletonData
 	{

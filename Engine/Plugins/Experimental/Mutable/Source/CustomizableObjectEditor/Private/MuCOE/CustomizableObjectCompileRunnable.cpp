@@ -263,12 +263,29 @@ FCustomizableObjectSaveDDRunnable::FCustomizableObjectSaveDDRunnable(UCustomizab
 		FMemoryWriter64 MemoryWriter(Bytes);
 		CustomizableObject->GetPrivate()->SaveCompiledData(MemoryWriter, Options.bIsCooking);
 	}
+#if WITH_EDITORONLY_DATA
+	else
+	{
+		// Do a copy of the MorphData generated at compile time. Only needed when cooking.
+		
+		static_assert(TCanBulkSerialize<FMorphTargetVertexData>::Value);
+		constexpr bool bGetCookedFalse = false;
+		const TArray<FMorphTargetVertexData>& MorphVertexData = 
+				CustomizableObject->GetPrivate()->GetModelResources(bGetCookedFalse).EditorOnlyMorphTargetReconstructionData;
+
+		MorphDataBytes.SetNum(MorphVertexData.Num() * sizeof(FMorphTargetVertexData));
+		FMemory::Memcpy(MorphDataBytes.GetData(), MorphVertexData.GetData(), MorphDataBytes.Num());
+	}
+#endif // WITH_EDITORONLY_DATA
 }
 
 
 uint32 FCustomizableObjectSaveDDRunnable::Run()
 {
 	MUTABLE_CPUPROFILER_SCOPE(FCustomizableObjectSaveDDRunnable::Run)
+
+	// MorphDataBytes has data only if cooking. 
+	check(!!Options.bIsCooking || MorphDataBytes.IsEmpty());
 
 	bool bModelSerialized = Model.Get() != nullptr;
 
@@ -283,9 +300,11 @@ uint32 FCustomizableObjectSaveDDRunnable::Run()
 		{
 			FUnrealMutableModelBulkWriter Streamer(&ModelMemoryWriter, &StreamableMemoryWriter);
 			mu::Model::Serialise(Model.Get(), Streamer);
+
+			//MorphData is already in the corresponding buffer copied from the compilation thread.
 		}
 	}
-	else if(bModelSerialized) // Save CO data + mu::Model and streamable resources to disk
+	else if (bModelSerialized) // Save CO data + mu::Model and streamable resources to disk
 	{
 		// Create folder...
 		IFileManager& FileManager = IFileManager::Get();
@@ -311,8 +330,8 @@ uint32 FCustomizableObjectSaveDDRunnable::Run()
 		if (bFilesDeleted)
 		{
 			// Create file writers...
-			TUniquePtr<FArchive> ModelMemoryWriter( FileManager.CreateFileWriter(*CompileDataFullFileName) );
-			TUniquePtr<FArchive> StreamableMemoryWriter( FileManager.CreateFileWriter(*StreamableDataFullFileName) );
+			TUniquePtr<FArchive> ModelMemoryWriter(FileManager.CreateFileWriter(*CompileDataFullFileName));
+			TUniquePtr<FArchive> StreamableMemoryWriter(FileManager.CreateFileWriter(*StreamableDataFullFileName));
 			check(ModelMemoryWriter);
 			check(StreamableMemoryWriter);
 
@@ -361,6 +380,10 @@ TArray64<uint8>& FCustomizableObjectSaveDDRunnable::GetBulkBytes()
 	return BulkDataBytes;
 }
 
+TArray64<uint8>& FCustomizableObjectSaveDDRunnable::GetMorphBytes()
+{
+	return MorphDataBytes;
+}
 
 bool FCustomizableObjectSaveDDRunnable::IsCompleted() const
 {

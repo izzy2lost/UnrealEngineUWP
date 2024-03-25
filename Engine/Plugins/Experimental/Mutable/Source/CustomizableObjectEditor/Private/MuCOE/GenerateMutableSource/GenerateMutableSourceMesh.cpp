@@ -851,7 +851,7 @@ mu::MeshPtr ConvertSkeletalMeshToMutable(const USkeletalMesh* InSkeletalMesh, co
 	MutableMesh->GetVertexBuffers().SetElementCount(VertexCount);
 
 	const int32 VertexBuffersCount = 1 +
-		(GenerationContext.Options.bRealTimeMorphTargetsEnabled ? 2 : 0) +
+		(GenerationContext.Options.bRealTimeMorphTargetsEnabled ? 3 : 0) +
 		(GenerationContext.Options.bClothingEnabled ? 1 : 0);
 
 	MutableMesh->GetVertexBuffers().SetBufferCount(VertexBuffersCount);
@@ -1007,7 +1007,7 @@ mu::MeshPtr ConvertSkeletalMeshToMutable(const USkeletalMesh* InSkeletalMesh, co
 	int32 nextBufferIndex = 1;
 	if (GenerationContext.Options.bRealTimeMorphTargetsEnabled)
 	{
-		nextBufferIndex += 2;
+		nextBufferIndex += 3;
 
 		// This call involves resolving every TObjectPtr<UMorphTarget> to a UMorphTarget*, so
 		// cache the result here to avoid calling it repeatedly.
@@ -1116,51 +1116,76 @@ mu::MeshPtr ConvertSkeletalMeshToMutable(const USkeletalMesh* InSkeletalMesh, co
 			}
 		}
 
-		// MorphTarget vertex info index.
+		// MorphTarget vertex block offset.
 		{
 			using namespace mu;
-			const int ElementSize = sizeof(int32);
-			const int ChannelCount = 1;
+			const int32 ElementSize = sizeof(int32);
+			const int32 ChannelCount = 1;
 			const MESH_BUFFER_SEMANTIC Semantics[ChannelCount] = { MBS_OTHER };
-			const int SemanticIndices[ChannelCount] = { 0 };
+			const int32 SemanticIndices[ChannelCount] = { 0 };
 			const MESH_BUFFER_FORMAT Formats[ChannelCount] = { MBF_INT32 };
-			int Components[ChannelCount] = { 1 };
-			const int Offsets[ChannelCount] = { 0 };
+			int32 Components[ChannelCount] = { 1 };
+			const int32 Offsets[ChannelCount] = { 0 };
 
 			MutableMesh->GetVertexBuffers().SetBuffer(1, ElementSize, ChannelCount, Semantics, SemanticIndices, Formats, Components, Offsets);
 		}
 
-		// MorphTarget vertex info count.
+		// MorphTarget vertex morph count.
 		{
 			using namespace mu;
-			const int ElementSize = sizeof(int32);
-			const int ChannelCount = 1;
+			const int32 ElementSize = sizeof(uint16);
+			const int32 ChannelCount = 1;
 			const MESH_BUFFER_SEMANTIC Semantics[ChannelCount] = { MBS_OTHER };
-			const int SemanticIndices[ChannelCount] = { 1 };
-			const MESH_BUFFER_FORMAT Formats[ChannelCount] = { MBF_INT32 };
-			int Components[ChannelCount] = { 1 };
-			const int Offsets[ChannelCount] = { 0 };
+			const int32 SemanticIndices[ChannelCount] = { 1 };
+			const MESH_BUFFER_FORMAT Formats[ChannelCount] = { MBF_UINT16 };
+			int32 Components[ChannelCount] = { 1 };
+			const int32 Offsets[ChannelCount] = { 0 };
 
 			MutableMesh->GetVertexBuffers().SetBuffer(2, ElementSize, ChannelCount, Semantics, SemanticIndices, Formats, Components, Offsets);
 		}
 
+		// MorphTarget vertex block id.
+		{
+			using namespace mu;
+			const int32 ElementSize = sizeof(uint16);
+			const int32 ChannelCount = 1;
+			const MESH_BUFFER_SEMANTIC Semantics[ChannelCount] = { MBS_OTHER };
+			const int32 SemanticIndices[ChannelCount] = { 2 };
+			const MESH_BUFFER_FORMAT Formats[ChannelCount] = { MBF_UINT16 };
+			int32 Components[ChannelCount] = { 1 };
+			const int32 Offsets[ChannelCount] = { 0 };
+
+			MutableMesh->GetVertexBuffers().SetBuffer(3, ElementSize, ChannelCount, Semantics, SemanticIndices, Formats, Components, Offsets);
+		}
+
+
 		// Setup MorphTarget reconstruction data.
 
-		TArrayView<int32> VertexMorphsCountBufferView(reinterpret_cast<int32*>(MutableMesh->GetVertexBuffers().GetBufferData(2)), VertexCount);
-		for (int32& Elem : VertexMorphsCountBufferView)
+		TArrayView<int32> VertexMorphsOffsetBufferView(reinterpret_cast<int32*>(MutableMesh->GetVertexBuffers().GetBufferData(1)), VertexCount);
+		TArrayView<uint16> VertexMorphsCountBufferView(reinterpret_cast<uint16*>(MutableMesh->GetVertexBuffers().GetBufferData(2)), VertexCount);
+		TArrayView<uint16> VertexMorphsResourceIdBufferView(reinterpret_cast<uint16*>(MutableMesh->GetVertexBuffers().GetBufferData(3)), VertexCount);
+	
+		for (int32& Elem : VertexMorphsOffsetBufferView)
+		{
+			Elem = -1;
+		}
+
+		for (uint16& Elem : VertexMorphsCountBufferView)
 		{
 			Elem = 0;
 		}
 
-		TArrayView<int32>  VertexMorphsInfoIndexBufferView(reinterpret_cast<int32*>(MutableMesh->GetVertexBuffers().GetBufferData(1)), VertexCount);
-		for (int32& Elem : VertexMorphsInfoIndexBufferView)
+		for (uint16& Elem : VertexMorphsResourceIdBufferView)
 		{
-			Elem = -1;
+			Elem = TNumericLimits<uint16>::Max(); 
 		}
 
 		if (UsedMorphTargets.Num())
 		{
 			const double StartTime = FPlatformTime::Seconds();
+
+			TArray<FMorphTargetVertexData> MorphsMeshData;
+			MorphsMeshData.Reserve(32);
 
 			TArray<FMorphTargetVertexData> MorphsUsed;
 			for (int32 VertexIdx = VertexStart; VertexIdx < VertexStart + VertexCount && VertexIdx < Vertices.Num(); ++VertexIdx)
@@ -1176,8 +1201,7 @@ mu::MeshPtr ConvertSkeletalMeshToMutable(const USkeletalMesh* InSkeletalMesh, co
 
 					const TArray<FMorphTargetLODModel>& MorphLODModels = MorphTarget->GetMorphLODModels();
 
-					if (LODIndex >= MorphLODModels.Num()
-						|| !MorphLODModels[LODIndex].SectionIndices.Contains(SectionIndex))
+					if (LODIndex >= MorphLODModels.Num() || !MorphLODModels[LODIndex].SectionIndices.Contains(SectionIndex))
 					{
 						continue;
 					}
@@ -1185,10 +1209,8 @@ mu::MeshPtr ConvertSkeletalMeshToMutable(const USkeletalMesh* InSkeletalMesh, co
 					// The vertices should be sorted by SourceIdx
 					check(MorphLODModels[LODIndex].Vertices.Num() < 2 || MorphLODModels[LODIndex].Vertices[0].SourceIdx < MorphLODModels[LODIndex].Vertices.Last().SourceIdx);
 
-					const int32 VertexFoundIndex = Algo::BinarySearchBy(
-						MorphLODModels[LODIndex].Vertices,
-						(uint32)VertexIdx,
-						[](const FMorphTargetDelta& Element) { return Element.SourceIdx; });
+					const int32 VertexFoundIndex = Algo::BinarySearchBy(MorphLODModels[LODIndex].Vertices, (uint32)VertexIdx,
+							[](const FMorphTargetDelta& Element) { return Element.SourceIdx; });
 
 					if (VertexFoundIndex == INDEX_NONE)
 					{
@@ -1198,27 +1220,40 @@ mu::MeshPtr ConvertSkeletalMeshToMutable(const USkeletalMesh* InSkeletalMesh, co
 					const FMorphTargetDelta& VertexFound = MorphLODModels[LODIndex].Vertices[VertexFoundIndex];
 					const FName MorphTargetName = MorphTarget->GetFName();
 
-					TArray<FMorphTargetInfo>& ContributingMorphTargetsInfo = GenerationContext.ContributingMorphTargetsInfo;
+					TArray<FName>& RealTimeMorphTargetsNames = GenerationContext.RealTimeMorphTargetsNames;
 
-					int32 DestMorphTargetIdx = ContributingMorphTargetsInfo.IndexOfByPredicate(
-						[&MorphTargetName](auto& MorphTargetInfo) { return MorphTargetName == MorphTargetInfo.Name; });
+					int32 MorphTargetNameIndex = RealTimeMorphTargetsNames.Find(MorphTargetName);
 
-					DestMorphTargetIdx = DestMorphTargetIdx != INDEX_NONE
-						? DestMorphTargetIdx
-						: ContributingMorphTargetsInfo.Emplace(FMorphTargetInfo{ MorphTargetName, GenerationContext.CurrentLOD + 1 });
+					MorphTargetNameIndex = MorphTargetNameIndex != INDEX_NONE
+							? MorphTargetNameIndex
+							: RealTimeMorphTargetsNames.Emplace(MorphTargetName);
 
-					FMorphTargetInfo& MorphTargetInfo = ContributingMorphTargetsInfo[DestMorphTargetIdx];
-					MorphTargetInfo.LodNum = FMath::Max(MorphTargetInfo.LodNum, GenerationContext.CurrentLOD + 1);
-
-					MorphsUsed.Emplace(FMorphTargetVertexData{ VertexFound.PositionDelta, VertexFound.TangentZDelta, DestMorphTargetIdx });
+					MorphsUsed.Emplace(FMorphTargetVertexData{VertexFound.PositionDelta, VertexFound.TangentZDelta, (uint32)MorphTargetNameIndex});
 				}
 
 				if (MorphsUsed.Num())
 				{
-					VertexMorphsInfoIndexBufferView[VertexIdx - VertexStart] = GenerationContext.MorphTargetReconstructionData.Num();
-					VertexMorphsCountBufferView[VertexIdx - VertexStart] = MorphsUsed.Num();
 
-					GenerationContext.MorphTargetReconstructionData.Append(MorphsUsed);
+					VertexMorphsOffsetBufferView[VertexIdx - VertexStart] = MorphsMeshData.Num();
+					VertexMorphsCountBufferView[VertexIdx - VertexStart] = (uint16)MorphsUsed.Num();
+					VertexMorphsResourceIdBufferView[VertexIdx - VertexStart] = (uint16)GenerationContext.RealTimeMorphTargetPerMeshData.Num();
+					
+					MorphsMeshData.Append(MorphsUsed);
+				}
+			}
+
+			// Only commit the morph if there is data.
+			if (MorphsMeshData.Num())
+			{
+				if (GenerationContext.RealTimeMorphTargetPerMeshData.Num() < TNumericLimits<uint16>::Max())
+				{
+					FCustomizableObjectStreameableResourceId StreamedMorphResource;
+					StreamedMorphResource.Id = GenerationContext.RealTimeMorphTargetPerMeshData.Num();
+					StreamedMorphResource.Type = static_cast<uint8>(FCustomizableObjectStreameableResourceId::EType::RealTimeMorphTarget);
+
+					MutableMesh->AddStreamedResource(BitCast<uint32>(StreamedMorphResource));
+						
+					GenerationContext.RealTimeMorphTargetPerMeshData.Emplace_GetRef() = MoveTemp(MorphsMeshData);
 				}
 			}
 
@@ -1231,13 +1266,13 @@ mu::MeshPtr ConvertSkeletalMeshToMutable(const USkeletalMesh* InSkeletalMesh, co
 	{
 		{
 			using namespace mu;
-			const int ElementSize = sizeof(int32);
-			const int ChannelCount = 1;
+			const int32 ElementSize = sizeof(int32);
+			const int32 ChannelCount = 1;
 			const MESH_BUFFER_SEMANTIC Semantics[ChannelCount] = { MBS_OTHER };
-			const int SemanticIndices[ChannelCount] = { GenerationContext.Options.bRealTimeMorphTargetsEnabled ? 2 : 0 };
+			const int32 SemanticIndices[ChannelCount] = { GenerationContext.Options.bRealTimeMorphTargetsEnabled ? 3 : 0 };
 			const MESH_BUFFER_FORMAT Formats[ChannelCount] = { MBF_INT32 };
-			int Components[ChannelCount] = { 1 };
-			const int Offsets[ChannelCount] = { 0 };
+			int32 Components[ChannelCount] = { 1 };
+			const int32 Offsets[ChannelCount] = { 0 };
 
 			MutableMesh->GetVertexBuffers().SetBuffer(nextBufferIndex, ElementSize, ChannelCount, Semantics, SemanticIndices, Formats, Components, Offsets);
 		}
@@ -2886,7 +2921,7 @@ mu::NodeMeshPtr GenerateMutableSourceMesh(const UEdGraphPin* Pin,
 				MeshUniqueTags += AnimBPTag;
 			}
 
-			TArray<int32> StreamedResources;
+			TArray<FCustomizableObjectStreameableResourceId> StreamedResources;
 
 			if (GenerationContext.Object->bEnableAssetUserDataMerge)
 			{
@@ -2902,7 +2937,16 @@ mu::NodeMeshPtr GenerateMutableSourceMesh(const UEdGraphPin* Pin,
 						}
 
 						const int32 ResourceIndex = GenerationContext.AddAssetUserDataToStreamedResources(AssetUserData);
-						StreamedResources.Add(ResourceIndex);
+						if (ResourceIndex >= 0)
+						{
+							check(ResourceIndex < (1 << 24) - 1);
+							
+							FCustomizableObjectStreameableResourceId ResourceId;
+							ResourceId.Id = (uint32)ResourceIndex;
+							ResourceId.Type = static_cast<uint8>(FCustomizableObjectStreameableResourceId::EType::AssetUserData);
+
+							StreamedResources.Add(ResourceId);
+						}
 
 						MeshUniqueTags += AssetUserData->GetPathName();
 					}
@@ -2982,9 +3026,9 @@ mu::NodeMeshPtr GenerateMutableSourceMesh(const UEdGraphPin* Pin,
 					AddTagToMutableMeshUnique(*MutableMesh, GamePlayTag);
 				}
 
-				for (int32 ResourceIndex : StreamedResources)
+				for (FCustomizableObjectStreameableResourceId ResourceId : StreamedResources)
 				{
-					MutableMesh->AddStreamedResource(ResourceIndex);
+					MutableMesh->AddStreamedResource(BitCast<uint32>(ResourceId));
 				}
 
 				AddSocketTagsToMesh(TypedNodeSkel->SkeletalMesh, MutableMesh, GenerationContext);

@@ -9,6 +9,7 @@
 #include "MuCO/CustomizableObjectStreamedResourceData.h"
 #include "MuCO/CustomizableObjectParameterTypeDefinitions.h"
 #include "MuCO/CustomizableObjectUIData.h"
+#include "Templates/TypeCompatibleBytes.h"
 
 #include "CustomizableObject.generated.h"
 
@@ -209,58 +210,6 @@ struct FCompilationOptions
 };
 
 
-USTRUCT()
-struct FMorphTargetInfo
-{
-	GENERATED_USTRUCT_BODY()
-
-	UPROPERTY()
-	FName Name;
-
-	UPROPERTY()
-	int32 LodNum = 0;
-
-	friend FArchive& operator<<(FArchive& Ar, FMorphTargetInfo& Info)
-	{
-		Ar << Info.Name;
-		Ar << Info.LodNum;
-
-		return Ar;
-	}
-};
-
-
-USTRUCT()
-struct FMorphTargetVertexData
-{
-	GENERATED_USTRUCT_BODY()
-
-	UPROPERTY()
-	FVector3f PositionDelta = FVector3f::ZeroVector;
-
-	UPROPERTY()
-	FVector3f TangentZDelta = FVector3f::ZeroVector;
-	
-	UPROPERTY()
-	int32 MorphIndex = 0;
-
-	// Unused padding so memory footprint is the same the aligned.
-	int32 Padding = 0;
-
-	friend FArchive& operator<<(FArchive& Ar, FMorphTargetVertexData& Data)
-	{
-		Ar << Data.PositionDelta;
-		Ar << Data.TangentZDelta;
-		Ar << Data.MorphIndex;
-
-		return Ar;
-	}
-};
-template<> struct TCanBulkSerialize<FMorphTargetVertexData> { enum { Value = true }; };
-
-static_assert(sizeof(FMorphTargetVertexData) == 32, "");
-
-
 // A USTRUCT version of FMeshToMeshVertData in SkeletalMeshTypes.h
 // We are taking advantage of the padding data to store from which asset this data comes from
 // maintaining the same memory footprint than the original.
@@ -378,7 +327,7 @@ struct CUSTOMIZABLEOBJECT_API FMutableStreamableBlock
 
 	UPROPERTY()
 	uint32 Size = 0;
-
+	
 	UPROPERTY()
 	uint64 Offset = 0;
 
@@ -392,7 +341,7 @@ struct CUSTOMIZABLEOBJECT_API FMutableStreamableBlock
 	}
 };
 template<> struct TCanBulkSerialize<FMutableStreamableBlock> { enum { Value = true }; };
-
+static_assert(sizeof(FMutableStreamableBlock) == 8*2);
 
 USTRUCT()
 struct FMutableLODSettings
@@ -457,6 +406,8 @@ public:
 
 	/**  */
 	const FString& GetBulkFilePrefix() const { return BulkFilePrefix; }
+	
+	TUniquePtr<IAsyncReadFileHandle> OpenFileAsyncRead(uint32 FileId) const;
 
 #if WITH_EDITOR
 
@@ -475,9 +426,19 @@ private:
 
 #if WITH_EDITOR
 
+	enum class EDataType : uint8
+	{
+		None = 0,
+		Model,
+		RealTimeMorph
+	};
+
 	struct FBlock
 	{
-		// \TODO: needed?
+		/** Data Type*/
+		EDataType DataType;
+	
+		/** Used on some data types as the index to the block stored in the CustomizableObject */
 		uint32 Id;
 
 		/** Size of the data block. */
@@ -489,6 +450,8 @@ private:
 
 	struct FFile
 	{
+		EDataType DataType;
+
 		/** Id generated from a hash of the file content + offset to avoid collisions. */
 		uint32 Id;
 
@@ -501,7 +464,6 @@ private:
 
 	/** Helper to retrieve the BulkData from within the CookAdditionalFilesOverride */
 	TObjectPtr<UCustomizableObject> CustomizableObject;
-
 #endif
 
 	/** Prefix to locate bulkfiles for loading, using the file ids in each FMutableStreamableBlock. */
@@ -540,12 +502,6 @@ public:
 	UPROPERTY(EditAnywhere, Category = CustomizableObject, meta = (DisplayName = "LOD Settings"))
 	FMutableLODSettings LODSettings;
 	
-	UPROPERTY(Transient)
-	TArray<FMorphTargetInfo> ContributingMorphTargetsInfo;
-	
-	UPROPERTY(Transient)
-	TArray<FMorphTargetVertexData> MorphTargetReconstructionData;
-
 	UPROPERTY(Transient)
 	TArray<FCustomizableObjectClothConfigData> ClothSharedConfigsData;	
 
@@ -835,7 +791,7 @@ public:
 	TArray<FName> LowPriorityTextures;
 
 	/** Map of Hash to Streaming blocks, used to stream a block of data representing a resource from the BulkData */
-	UPROPERTY()
+	UPROPERTY()	
 	TMap<uint64, FMutableStreamableBlock> HashToStreamableBlock; // TODO UE-205600, move to FModelResources
 
 	// Customizable Object Population data start ------------------------------------------------------

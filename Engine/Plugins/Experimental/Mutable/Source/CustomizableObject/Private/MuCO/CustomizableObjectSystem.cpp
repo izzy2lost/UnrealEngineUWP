@@ -2495,12 +2495,9 @@ namespace impl
 
 		// Next Task: Load Unreal Assets
 		//-------------------------------------------------------------
-		FGraphEventRef Game_LoadUnrealAssets = ObjectInstancePrivateData->LoadAdditionalAssetsAsync(OperationData, UCustomizableObjectSystem::GetInstance()->GetPrivate()->StreamableManager);
-		if (Game_LoadUnrealAssets)
-		{
-			Game_LoadUnrealAssets->SetDebugName(TEXT("LoadAdditionalAssetsAsync"));
-		}
-
+		UE::Tasks::FTask Game_LoadUnrealAssets = ObjectInstancePrivateData->LoadAdditionalAssetsAndDataAsync(
+				OperationData, UCustomizableObjectSystem::GetInstance()->GetPrivate()->StreamableManager);
+		
 		// Next-next Task: Convert Resources
 		//-------------------------------------------------------------
 		SystemPrivateData->AddGameThreadTask(

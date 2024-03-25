@@ -157,7 +157,6 @@ namespace mu
 	
 	ENUM_CLASS_FLAGS(EMeshCopyFlags);
 
-
     //! \brief Mesh object containing any number of buffers with any number of channels.
     //! The buffers can be per-index or per-vertex.
     //! The mesh also includes layout information for every texture channel for internal usage, and
@@ -285,10 +284,10 @@ namespace mu
         void SetTag( int tagIndex, const FString& Name );
 
 		//!
-		void AddStreamedResource(int32 ResourceIndex);
+		void AddStreamedResource(uint32 ResourceId);
 
 		//!
-		const TArray<int32>& GetStreamedResources() const;
+		const TArray<uint32>& GetStreamedResources() const;
 
 		//!
 		int32 FindBonePose(uint16 BoneId) const;
@@ -386,8 +385,8 @@ namespace mu
 		//!
 		TArray<FString> m_tags;
 
-		//!
-		TArray<int32> StreamedResources;
+		// Opaque handle to external resources.
+		TArray<uint32> StreamedResources;
 
 		struct FBonePose
 		{
@@ -406,8 +405,7 @@ namespace mu
 			//!
 			inline bool operator==(const FBonePose& Other) const
 			{
-				return BoneUsageFlags == Other.BoneUsageFlags
-					&& BoneId == Other.BoneId;
+				return BoneUsageFlags == Other.BoneUsageFlags && BoneId == Other.BoneId;
 			}
 		};
 		// This is the pose used by this mesh fragment, used to update the transforms of the final skeleton

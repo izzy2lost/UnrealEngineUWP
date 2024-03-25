@@ -90,7 +90,7 @@ void SetSurfaceFormat( FMutableGraphGenerationContext& GenerationContext,
 
 	if (bWithRealTimeMorphs)
 	{
-		MutableBufferCount += 2;
+		MutableBufferCount += 3;
 	}
 
 	if (bWithClothing)
@@ -134,29 +134,41 @@ void SetSurfaceFormat( FMutableGraphGenerationContext& GenerationContext,
 	// MorphTarget vertex tracking info buffers
 	if (bWithRealTimeMorphs)
 	{
+		using namespace mu;
 		{
-			using namespace mu;
-			const int ElementSize = sizeof(int32);
-			constexpr int ChannelCount = 1;
+			const int32 ElementSize = sizeof(int32);
+			constexpr int32 ChannelCount = 1;
 			const MESH_BUFFER_SEMANTIC Semantics[ChannelCount] = { MBS_OTHER };
-			const int SemanticIndices[ChannelCount] = { 0 };
+			const int32 SemanticIndices[ChannelCount] = { 0 };
 			const MESH_BUFFER_FORMAT Formats[ChannelCount] = { MBF_INT32 };
-			const int Components[ChannelCount] = { 1 };
-			const int Offsets[ChannelCount] = { 0 };
+			const int32 Components[ChannelCount] = { 1 };
+			const int32 Offsets[ChannelCount] = { 0 };
 
 			OutVertexBufferFormat.SetBuffer(CurrentVertexBuffer, ElementSize, ChannelCount, Semantics, SemanticIndices, Formats, Components, Offsets);
 			++CurrentVertexBuffer;
 		}
 
 		{
-			using namespace mu;
-			const int ElementSize = sizeof(int32);
-			constexpr int ChannelCount = 1;
+			const int32 ElementSize = sizeof(uint16);
+			constexpr int32 ChannelCount = 1;
 			const MESH_BUFFER_SEMANTIC Semantics[ChannelCount] = { MBS_OTHER };
-			const int SemanticIndices[ChannelCount] = { 1 };
-			const MESH_BUFFER_FORMAT Formats[ChannelCount] = { MBF_INT32 };
-			const int Components[ChannelCount] = { 1 };
-			const int Offsets[ChannelCount] = { 0 };
+			const int32 SemanticIndices[ChannelCount] = { 1 };
+			const MESH_BUFFER_FORMAT Formats[ChannelCount] = { MBF_UINT16 };
+			const int32 Components[ChannelCount] = { 1 };
+			const int32 Offsets[ChannelCount] = { 0 };
+
+			OutVertexBufferFormat.SetBuffer(CurrentVertexBuffer, ElementSize, ChannelCount, Semantics, SemanticIndices, Formats, Components, Offsets);
+			++CurrentVertexBuffer;
+		}
+
+		{
+			const int32 ElementSize = sizeof(uint16);
+			constexpr int32 ChannelCount = 1;
+			const MESH_BUFFER_SEMANTIC Semantics[ChannelCount] = { MBS_OTHER };
+			const int32 SemanticIndices[ChannelCount] = { 2 };
+			const MESH_BUFFER_FORMAT Formats[ChannelCount] = { MBF_UINT16 };
+			const int32 Components[ChannelCount] = { 1 };
+			const int32 Offsets[ChannelCount] = { 0 };
 
 			OutVertexBufferFormat.SetBuffer(CurrentVertexBuffer, ElementSize, ChannelCount, Semantics, SemanticIndices, Formats, Components, Offsets);
 			++CurrentVertexBuffer;
@@ -167,13 +179,13 @@ void SetSurfaceFormat( FMutableGraphGenerationContext& GenerationContext,
 	if (bWithClothing)
 	{
 		using namespace mu;
-		const int ElementSize = sizeof(int32);
-		constexpr int ChannelCount = 1;
+		const int32 ElementSize = sizeof(int32);
+		constexpr int32 ChannelCount = 1;
 		const MESH_BUFFER_SEMANTIC Semantics[ChannelCount] = { MBS_OTHER };
-		const int SemanticIndices[ChannelCount] = { bWithRealTimeMorphs ? 2 : 0 };
+		const int32 SemanticIndices[ChannelCount] = { bWithRealTimeMorphs ? 3 : 0 };
 		const MESH_BUFFER_FORMAT Formats[ChannelCount] = { MBF_INT32 };
-		const int Components[ChannelCount] = { 1 };
-		const int Offsets[ChannelCount] = { 0 };
+		const int32 Components[ChannelCount] = { 1 };
+		const int32 Offsets[ChannelCount] = { 0 };
 
 		OutVertexBufferFormat.SetBuffer(CurrentVertexBuffer, ElementSize, ChannelCount, Semantics, SemanticIndices, Formats, Components, Offsets);
 		++CurrentVertexBuffer;
