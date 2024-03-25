@@ -112,19 +112,11 @@ private:
 
 	struct FContributorKey
 	{
-		static constexpr int16 ANY_HBIAS = TNumericLimits<int16>::Max();
-
 		FContributorKey(int32 InPropertyIndex)
 			: PropertyIndex(InPropertyIndex)
-			, HBias(ANY_HBIAS)
-		{}
-		FContributorKey(int32 InPropertyIndex, int16 InHBias)
-			: PropertyIndex(InPropertyIndex)
-			, HBias(InHBias)
 		{}
 
 		int32 PropertyIndex;
-		int16 HBias;
 
 		friend uint32 GetTypeHash(FContributorKey In)
 		{
@@ -133,37 +125,8 @@ private:
 
 		friend bool operator==(FContributorKey A, FContributorKey B)
 		{
-			return A.PropertyIndex == B.PropertyIndex && (
-				A.HBias == B.HBias || A.HBias == ANY_HBIAS || B.HBias == ANY_HBIAS
-			);
+			return A.PropertyIndex == B.PropertyIndex;
 		}
-	};
-
-	struct FHierarchicalMetaData
-	{
-		FHierarchicalMetaData()
-			: NumContributors(0)
-			, HBias(0)
-		{
-			bWantsRestoreState = false;
-			bSupportsFastPath = true;
-			bNeedsInitialValue = false;
-			bBlendHierarchicalBias = false;
-			bInUse = false;
-		}
-
-		UE::MovieScene::FHierarchicalBlendTarget BlendTarget;
-		int32 NumContributors = 0;
-		int16 HBias = 0;
-		uint8 bWantsRestoreState : 1;
-		uint8 bSupportsFastPath : 1;
-		uint8 bNeedsInitialValue : 1;
-		uint8 bBlendHierarchicalBias : 1;
-		uint8 bInUse : 1;
-
-		void CombineWith(const FHierarchicalMetaData& Other);
-
-		void ResetTracking();
 	};
 
 	struct FObjectPropertyInfo
@@ -172,6 +135,9 @@ private:
 			: Property(MoveTemp(InProperty))
 			, BoundObject(nullptr)
 			, BlendChannel(FMovieSceneBlendChannelID::INVALID_BLEND_CHANNEL)
+			, bWantsRestoreState( false)
+			, bSupportsFastPath( true)
+			, bNeedsInitialValue( false)
 			, bMaxHBiasHasChanged(false)
 			, bIsPartiallyAnimated(false)
 		{}
@@ -195,7 +161,10 @@ private:
 		int32 PropertyDefinitionIndex;
 		/** Index of a float-based property if this property has been set for float-to-double conversion */
 		TOptional<int32> ConvertedFromPropertyDefinitionIndex;
-		FHierarchicalMetaData HierarchicalMetaData;
+		int16 HBias = 0;
+		uint8 bWantsRestoreState : 1;
+		uint8 bSupportsFastPath : 1;
+		uint8 bNeedsInitialValue : 1;
 		uint8 bMaxHBiasHasChanged : 1;
 		uint8 bIsPartiallyAnimated : 1;
 	};

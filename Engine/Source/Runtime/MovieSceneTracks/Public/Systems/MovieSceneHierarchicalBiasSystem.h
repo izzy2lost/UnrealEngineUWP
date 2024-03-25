@@ -9,8 +9,9 @@
 
 #include "MovieSceneHierarchicalBiasSystem.generated.h"
 
-class UMovieSceneEntitySystemLinker;
 class UObject;
+class UMovieSceneEntitySystemLinker;
+class UMovieSceneEntityGroupingSystem;
 
 UCLASS()
 class UMovieSceneHierarchicalBiasSystem : public UMovieSceneEntityInstantiatorSystem
@@ -24,5 +25,9 @@ public:
 private:
 
 	virtual bool IsRelevantImpl(UMovieSceneEntitySystemLinker* InLinker) const override;
+	virtual void OnLink() override;
 	virtual void OnRun(FSystemTaskPrerequisites& InPrerequisites, FSystemSubsequentTasks& Subsequents) override;
+
+	UPROPERTY()
+	TObjectPtr<UMovieSceneEntityGroupingSystem> GroupingSystem;
 };

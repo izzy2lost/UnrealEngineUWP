@@ -767,6 +767,7 @@ public:
 
 		FComponentTypeID DontOptimizeConstants;
 
+		UE_DEPRECATED(5.5, "This tag is no longer used. Blend targets are entirely managed by UMovieSceneHierarchicalBiasSystem now.")
 		FComponentTypeID RemoveHierarchicalBlendTarget;
 
 		FComponentTypeID OldStyleSpawnable;

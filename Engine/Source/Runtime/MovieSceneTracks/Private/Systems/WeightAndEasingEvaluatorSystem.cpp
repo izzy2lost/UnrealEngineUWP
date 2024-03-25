@@ -428,13 +428,12 @@ struct FConsumerEasingChannelMutation : FEasingChannelMutationBase
 		TOptionalComponentWriter<uint16>                   ExistingEasingChannels = Allocation->TryWriteComponents(BuiltInComponents->HierarchicalEasingChannel, FEntityAllocationWriteContext::NewAllocation());
 		TOptionalComponentReader<FHierarchicalBlendTarget> BlendTargets           = Allocation->TryReadComponents(BuiltInComponents->HierarchicalBlendTarget);
 
-		const bool bRemoveBlendTarget = Allocation->HasComponent(BuiltInComponents->Tags.RemoveHierarchicalBlendTarget);
 		const bool bHasExistingEasing = ExistingEasingChannels.IsValid();
 
 		// Loop through each entity and check whether it has easing.
 		// If so, either assign the new easing channel or mark it for mutation.
 		// If not, mark it for removal
-		if (BlendTargets && !bRemoveBlendTarget)
+		if (BlendTargets)
 		{
 			check(CachedHierarchicalBlendTargetChannels);
 			TOptionalComponentReader<int16> HierarchicalBias = Allocation->TryReadComponents(BuiltInComponents->HierarchicalBias);
@@ -874,6 +873,9 @@ void UMovieSceneHierarchicalEasingInstantiatorSystem::OnRun(FSystemTaskPrerequis
 
 		ConsumerMutation.RemoveStaleComponents(Linker);
 	}
+
+
+	FinalizeBlendTargets();
 }
 
 void UMovieSceneHierarchicalEasingInstantiatorSystem::FinalizeBlendTargets()
@@ -1021,12 +1023,6 @@ void UMovieSceneHierarchicalEasingInstantiatorSystem::FinalizeBlendTargets()
 		ConsumerMutation.RemoveStaleComponents(Linker);
 	}
 
-	if (Linker->EntityManager.ContainsComponent(BuiltInComponents->Tags.RemoveHierarchicalBlendTarget))
-	{
-		FRemoveSingleMutation RemoveTag(BuiltInComponents->Tags.RemoveHierarchicalBlendTarget);
-		Linker->EntityManager.MutateAll(FEntityComponentFilter().All({ BuiltInComponents->Tags.RemoveHierarchicalBlendTarget }), RemoveTag);
-	}
-
 
 #if UE_MOVIESCENE_EXPENSIVE_CONSISTENCY_CHECKS
 	FHierarchicalEasingChannelBuffer& Buffer = EvaluatorSystem->GetComputationBuffer();
@@ -1049,32 +1045,6 @@ void UMovieSceneHierarchicalEasingInstantiatorSystem::FinalizeBlendTargets()
 UMovieSceneHierarchicalEasingFinalizationSystem::UMovieSceneHierarchicalEasingFinalizationSystem(const FObjectInitializer& ObjInit)
 	: Super(ObjInit)
 {
-	using namespace UE::MovieScene;
-
-	SystemCategories = EEntitySystemCategory::Core;
-	RelevantComponent = FBuiltInComponentTypes::Get()->HierarchicalBlendTarget;
-
-	if (HasAnyFlags(RF_ClassDefaultObject))
-	{
-		// Has to come after property instantiation property instantiation so that initial values get created correctly
-		DefineImplicitPrerequisite(UMovieScenePropertyInstantiatorSystem::StaticClass(), GetClass());
-		DefineImplicitPrerequisite(UMovieSceneMaterialParameterInstantiatorSystem::StaticClass(), GetClass());
-		DefineImplicitPrerequisite(UMovieSceneHierarchicalEasingInstantiatorSystem::StaticClass(), GetClass());
-
-		DefineComponentConsumer(GetClass(), FBuiltInComponentTypes::Get()->HierarchicalBlendTarget);
-		DefineComponentProducer(GetClass(), FBuiltInComponentTypes::Get()->WeightAndEasingResult);
-	}
-}
-
-void UMovieSceneHierarchicalEasingFinalizationSystem::OnLink()
-{
-	InstantiatorSystem = Linker->LinkSystem<UMovieSceneHierarchicalEasingInstantiatorSystem>();
-	Linker->SystemGraph.AddReference(this, InstantiatorSystem);
-}
-
-void UMovieSceneHierarchicalEasingFinalizationSystem::OnRun(FSystemTaskPrerequisites& InPrerequisites, FSystemSubsequentTasks& Subsequents)
-{
-	InstantiatorSystem->FinalizeBlendTargets();
 }
 
 UWeightAndEasingEvaluatorSystem::UWeightAndEasingEvaluatorSystem(const FObjectInitializer& ObjInit)

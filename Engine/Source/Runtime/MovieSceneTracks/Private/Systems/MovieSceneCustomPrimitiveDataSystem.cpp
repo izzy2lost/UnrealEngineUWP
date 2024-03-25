@@ -13,6 +13,7 @@
 #include "Evaluation/PreAnimatedState/MovieScenePreAnimatedStorageID.inl"
 #include "MovieSceneTracksComponentTypes.h"
 #include "Systems/DoubleChannelEvaluatorSystem.h"
+#include "EntitySystem/MovieSceneEntityGroupingSystem.h"
 #include "EntitySystem/MovieSceneEntitySystemRunner.h"
 #include "SceneTypes.h"
 #include "Components/PrimitiveComponent.h"
@@ -21,6 +22,54 @@
 
 namespace UE::MovieScene
 {
+
+	struct FCustomPrimitiveDataGroupingPolicy
+	{
+		using GroupKeyType = TTuple<FObjectKey, FName>;
+
+		void InitializeGroupKeys(
+			TEntityGroupingHandlerBase<FCustomPrimitiveDataGroupingPolicy>& Handler,
+			FEntityGroupBuilder* Builder,
+			FEntityAllocationIteratorItem Item,
+			FReadEntityIDs EntityIDs,
+			TWrite<FEntityGroupID> GroupIDs,
+			TRead<UObject*> BoundObjects,
+			TRead<FName> Names)
+		{
+			FMovieSceneTracksComponentTypes* TracksComponents = FMovieSceneTracksComponentTypes::Get();
+
+			const FComponentMask& AllocationType = Item.GetAllocationType();
+			if (!AllocationType.Contains(TracksComponents->Tags.CustomPrimitiveData))
+			{
+				return;
+			}
+
+			const FEntityAllocation* Allocation = Item.GetAllocation();
+			const int32              Num        = Allocation->Num();
+
+			TComponentReader<FName>    ParameterNames = Allocation->ReadComponents(TracksComponents->ScalarParameterName);
+			for (int32 Index = 0; Index < Num; ++Index)
+			{
+				GroupKeyType Key = MakeTuple(BoundObjects[Index], ParameterNames[Index]);
+
+				const int32    NewGroupIndex = Handler.GetOrAllocateGroupIndex(Key, Builder);
+				FEntityGroupID NewGroupID    = Builder->MakeGroupID(NewGroupIndex);
+
+				Builder->AddEntityToGroup(EntityIDs[Index], NewGroupID);
+				// Write out the group ID component
+				GroupIDs[Index] = NewGroupID;
+			}
+		}
+
+	#if WITH_EDITOR
+		bool OnObjectsReplaced(GroupKeyType& InOutKey, const TMap<UObject*, UObject*>& ReplacementMap)
+		{
+			return false;
+		}
+	#endif
+	};
+
+
 	void CollectGarbageForOutput(FAnimatedCustomPrimitiveDataInfo* Output)
 	{
 		// This should only happen during garbage collection
@@ -208,44 +257,12 @@ namespace UE::MovieScene
 
 				const FComponentTypeID BlenderTypeTag = System->DoubleBlenderSystem->GetBlenderTypeTag();
 
-				struct FBlendInfo
-				{
-					int16 HBias = TNumericLimits<int16>::Min();
-					bool bBlendHierarchicalBias = true;
-				};
-				FBlendInfo IgnoredBlendInfo;
-				FBlendInfo BlendInfo;
 
-				FHierarchicalBlendTarget BlendTarget;
 
-				for (FMovieSceneEntityID Input : Inputs)
-				{
-					FBlendInfo& BlendInfoToUpdate = Linker->EntityManager.HasComponent(Input, BuiltInComponents->Tags.Ignored) ? IgnoredBlendInfo : BlendInfo;
 
-					TOptionalComponentReader<int16> HBiasComponent = Linker->EntityManager.ReadComponent(Input, BuiltInComponents->HierarchicalBias);
-					const int16 HBias = HBiasComponent ? *HBiasComponent : 0;
 
-					BlendTarget.Add(HBias);
 
-					if (HBias > BlendInfoToUpdate.HBias)
-					{
-						BlendInfoToUpdate.HBias = HBias;
-						BlendInfoToUpdate.bBlendHierarchicalBias = Linker->EntityManager.HasComponent(Input, BuiltInComponents->Tags.BlendHierarchicalBias);
-					}
-					else if (HBias == BlendInfoToUpdate.HBias && !BlendInfoToUpdate.bBlendHierarchicalBias)
-					{
-						BlendInfoToUpdate.bBlendHierarchicalBias = Linker->EntityManager.HasComponent(Input, BuiltInComponents->Tags.BlendHierarchicalBias);
-					}
-				}
 
-				if (BlendInfo.HBias == TNumericLimits<int16>::Min())
-				{
-					BlendInfo = IgnoredBlendInfo;
-				}
-				else if (IgnoredBlendInfo.HBias != TNumericLimits<int16>::Min())
-				{
-					BlendInfo.bBlendHierarchicalBias |= IgnoredBlendInfo.bBlendHierarchicalBias;
-				}
 
 				for (FMovieSceneEntityID Input : Inputs)
 				{
@@ -259,21 +276,6 @@ namespace UE::MovieScene
 						Linker->EntityManager.WriteComponentChecked(Input, BuiltInComponents->BlendChannelInput, Output->BlendChannelID);
 					}
 
-					if (BlendInfo.bBlendHierarchicalBias)
-					{
-						if (!Linker->EntityManager.HasComponent(Input, BuiltInComponents->HierarchicalBlendTarget))
-						{
-							Linker->EntityManager.AddComponent(Input, BuiltInComponents->HierarchicalBlendTarget, BlendTarget);
-						}
-						else
-						{
-							Linker->EntityManager.WriteComponentChecked(Input, BuiltInComponents->HierarchicalBlendTarget, BlendTarget);
-						}
-					}
-					else
-					{
-						Linker->EntityManager.RemoveComponent(Input, BuiltInComponents->HierarchicalBlendTarget);
-					}
 
 					// Ensure we have the blender type tag on the inputs.
 					Linker->EntityManager.AddComponent(Input, BlenderTypeTag);
@@ -389,7 +391,7 @@ UMovieSceneCustomPrimitiveDataSystem::UMovieSceneCustomPrimitiveDataSystem(const
 	if (HasAnyFlags(RF_ClassDefaultObject))
 	{
 		DefineComponentConsumer(GetClass(), BuiltInComponents->BoundObject);
-		DefineComponentProducer(GetClass(), BuiltInComponents->HierarchicalBlendTarget);
+		DefineComponentConsumer(GetClass(), BuiltInComponents->HierarchicalBlendTarget);
 
 		DefineImplicitPrerequisite(UFloatChannelEvaluatorSystem::StaticClass(), GetClass());
 		DefineImplicitPrerequisite(UDoubleChannelEvaluatorSystem::StaticClass(), GetClass());
@@ -403,7 +405,6 @@ UMovieSceneCustomPrimitiveDataSystem::UMovieSceneCustomPrimitiveDataSystem(const
 
 		DefineImplicitPrerequisite(UMovieSceneHierarchicalEasingInstantiatorSystem::StaticClass(), GetClass());
 		DefineImplicitPrerequisite(UMovieScenePiecewiseDoubleBlenderSystem::StaticClass(), GetClass());
-		DefineImplicitPrerequisite(GetClass(), UMovieSceneHierarchicalBiasSystem::StaticClass());
 		DefineImplicitPrerequisite(GetClass(), UMovieSceneInitialValueSystem::StaticClass());
 	}
 }
@@ -412,9 +413,15 @@ void UMovieSceneCustomPrimitiveDataSystem::OnLink()
 {
 	using namespace UE::MovieScene;
 
+	FBuiltInComponentTypes*          BuiltInComponents = FBuiltInComponentTypes::Get();
+	FMovieSceneTracksComponentTypes* TracksComponents  = FMovieSceneTracksComponentTypes::Get();
+
 	ScalarParameterTracker.Initialize(this);
 
 	ScalarParameterStorage = Linker->PreAnimatedState.GetOrCreateStorage<FPreAnimatedCustomPrimitiveDataEntryStorage>();
+
+	UMovieSceneEntityGroupingSystem* GroupingSystem = Linker->LinkSystem<UMovieSceneEntityGroupingSystem>();
+	GroupingKey = GroupingSystem->AddGrouping(FCustomPrimitiveDataGroupingPolicy(), BuiltInComponents->BoundObject, TracksComponents->ScalarParameterName);
 }
 
 void UMovieSceneCustomPrimitiveDataSystem::OnUnlink()
@@ -425,6 +432,13 @@ void UMovieSceneCustomPrimitiveDataSystem::OnUnlink()
 	DoubleBlenderSystem = nullptr;
 
 	ScalarParameterTracker.Destroy(TOverlappingCustomPrimitiveDataHandler<FCustomPrimitiveDataMixin>(this));
+
+	UMovieSceneEntityGroupingSystem* GroupingSystem = Linker->FindSystem<UMovieSceneEntityGroupingSystem>();
+	if (ensure(GroupingSystem))
+	{
+		GroupingSystem->RemoveGrouping(GroupingKey);
+	}
+	GroupingKey = FEntityGroupingPolicyKey();
 }
 
 void UMovieSceneCustomPrimitiveDataSystem::OnRun(FSystemTaskPrerequisites& InPrerequisites, FSystemSubsequentTasks& Subsequents)

@@ -52,6 +52,17 @@ bool FEntityGroupBuilder::RemoveEntityFromGroup(const FMovieSceneEntityID& InEnt
 	return false;
 }
 
+int32 FEntityGroupBuilder::AllocateGroupIndex()
+{
+	return Owner->AllocateGroupIndex();
+}
+
+void FEntityGroupBuilder::FreeGroupIndex(int32 InGroupIndex)
+{
+	return Owner->FreeGroupIndex(InGroupIndex);
+}
+
+
 struct FAddGroupMutation : IMovieSceneEntityMutation
 {
 	UMovieSceneEntityGroupingSystem* System;
@@ -108,7 +119,6 @@ struct FUpdateGroupsTask
 
 	UMovieSceneEntityGroupingSystem* System;
 	FBuiltInComponentTypes* BuiltInComponents;
-	TBitArray<> ModifiedGroups;
 	bool bFreeGroupIDs = true;
 
 	FUpdateGroupsTask(UMovieSceneEntityGroupingSystem* InSystem, bool bInFreeGroupIDs = true)
@@ -123,9 +133,15 @@ struct FUpdateGroupsTask
 		BuiltInComponents = FBuiltInComponentTypes::Get();
 
 		// Run the handlers' pre-task callback.
-		for (const UMovieSceneEntityGroupingSystem::FEntityGroupingHandlerInfo& HandlerInfo : System->GroupHandlers)
+		
+		for (int32 HandlerIndex = 0; HandlerIndex < System->GroupHandlers.Num(); ++HandlerIndex)
 		{
-			HandlerInfo.Handler->PreTask();
+			const UMovieSceneEntityGroupingSystem::FEntityGroupingHandlerInfo& HandlerInfo = System->GroupHandlers[HandlerIndex];
+			if (HandlerInfo.Handler.IsValid())
+			{
+				FEntityGroupBuilder Builder(System, FEntityGroupingPolicyKey{ HandlerIndex });
+				HandlerInfo.Handler->PreTask(&Builder);
+			}
 		}
 	}
 
@@ -167,9 +183,14 @@ struct FUpdateGroupsTask
 	void PostTask()
 	{
 		// Run the handlers' post-task callback.
-		for (const UMovieSceneEntityGroupingSystem::FEntityGroupingHandlerInfo& HandlerInfo : System->GroupHandlers)
+		for (int32 HandlerIndex = 0; HandlerIndex < System->GroupHandlers.Num(); ++HandlerIndex)
 		{
-			HandlerInfo.Handler->PostTask(bFreeGroupIDs);
+			const UMovieSceneEntityGroupingSystem::FEntityGroupingHandlerInfo& HandlerInfo = System->GroupHandlers[HandlerIndex];
+			if (HandlerInfo.Handler.IsValid())
+			{
+				FEntityGroupBuilder Builder(System, FEntityGroupingPolicyKey{ HandlerIndex });
+				HandlerInfo.Handler->PostTask(bFreeGroupIDs, &Builder);
+			}
 		}
 	}
 };
@@ -207,6 +228,29 @@ bool UMovieSceneEntityGroupingSystem::IsRelevantImpl(UMovieSceneEntitySystemLink
 {
 	// We are relevant if we have any groupings to do.
 	return !GroupHandlers.IsEmpty();
+}
+
+int32 UMovieSceneEntityGroupingSystem::AllocateGroupIndex()
+{
+	// Find an existing free index
+	int32 NewGroupIndex = AllocatedGroupIndices.Find(false);
+	if (NewGroupIndex == INDEX_NONE)
+	{
+		NewGroupIndex = AllocatedGroupIndices.Add(true);
+	}
+	else
+	{
+		AllocatedGroupIndices[NewGroupIndex] = true;
+	}
+	return NewGroupIndex;
+}
+
+void UMovieSceneEntityGroupingSystem::FreeGroupIndex(int32 InGroupIndex)
+{
+	if (ensure(AllocatedGroupIndices.IsValidIndex(InGroupIndex) && AllocatedGroupIndices[InGroupIndex]))
+	{
+		AllocatedGroupIndices[InGroupIndex] = false;
+	}
 }
 
 void UMovieSceneEntityGroupingSystem::OnRun(FSystemTaskPrerequisites& InPrerequisites, FSystemSubsequentTasks& Subsequents)

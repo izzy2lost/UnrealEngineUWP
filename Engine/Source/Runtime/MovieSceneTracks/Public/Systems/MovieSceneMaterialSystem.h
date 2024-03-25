@@ -105,6 +105,82 @@ public:
 
 protected:
 
+	struct FMaterialGroupingPolicy
+	{
+		using GroupKeyType = TTuple<RequiredComponents..., FMaterialParameterInfo>;
+
+		void InitializeGroupKeys(
+			TEntityGroupingHandlerBase<FMaterialGroupingPolicy>& Handler,
+			FEntityGroupBuilder* Builder,
+			FEntityAllocationIteratorItem Item,
+			FReadEntityIDs EntityIDs,
+			TWrite<FEntityGroupID> GroupIDs,
+			TRead<RequiredComponents>... Components)
+		{
+			const FComponentMask& AllocationType = Item.GetAllocationType();
+
+			FMovieSceneTracksComponentTypes* TracksComponents = FMovieSceneTracksComponentTypes::Get();
+
+			TComponentTypeID<FName> ParameterName;
+			if (AllocationType.Contains(TracksComponents->ScalarParameterName))
+			{
+				ParameterName = TracksComponents->ScalarParameterName;
+			}
+			else if (AllocationType.Contains(TracksComponents->VectorParameterName))
+			{
+				ParameterName = TracksComponents->VectorParameterName;
+			}
+			else if (AllocationType.Contains(TracksComponents->ColorParameterName))
+			{
+				ParameterName = TracksComponents->ColorParameterName;
+			}
+
+			TComponentTypeID<FMaterialParameterInfo> ParameterInfo;
+			if (AllocationType.Contains(TracksComponents->ScalarMaterialParameterInfo))
+			{
+				ParameterInfo = TracksComponents->ScalarMaterialParameterInfo;
+			}
+			else if (AllocationType.Contains(TracksComponents->VectorMaterialParameterInfo))
+			{
+				ParameterInfo = TracksComponents->VectorMaterialParameterInfo;
+			}
+			else if (AllocationType.Contains(TracksComponents->ColorMaterialParameterInfo))
+			{
+				ParameterInfo = TracksComponents->ColorMaterialParameterInfo;
+			}
+
+
+			const FEntityAllocation* Allocation = Item.GetAllocation();
+			const int32              Num        = Allocation->Num();
+
+			TReadOptional<FName>                  ParameterNames = ParameterName ? Allocation->TryReadComponents(ParameterName) : TReadOptional<FName>();
+			TReadOptional<FMaterialParameterInfo> ParameterInfos = ParameterInfo ? Allocation->TryReadComponents(ParameterInfo) : TReadOptional<FMaterialParameterInfo>();
+
+			for (int32 Index = 0; Index < Num; ++Index)
+			{
+				GroupKeyType Key = ParameterInfos
+					? MakeTuple(Components[Index]..., ParameterInfos[Index])
+					: ParameterNames 
+						? MakeTuple(Components[Index]..., FMaterialParameterInfo(ParameterNames[Index]))
+						: MakeTuple(Components[Index]..., FMaterialParameterInfo());
+
+				const int32    NewGroupIndex = Handler.GetOrAllocateGroupIndex(Key, Builder);
+				FEntityGroupID NewGroupID    = Builder->MakeGroupID(NewGroupIndex);
+
+				Builder->AddEntityToGroup(EntityIDs[Index], NewGroupID);
+				// Write out the group ID component
+				GroupIDs[Index] = NewGroupID;
+			}
+		}
+
+	#if WITH_EDITOR
+		bool OnObjectsReplaced(GroupKeyType& InOutKey, const TMap<UObject*, UObject*>& ReplacementMap)
+		{
+			return false;
+		}
+	#endif
+	};
+
 	UE::MovieScene::FEntityGroupingPolicyKey GroupingKey;
 
 	FEntityComponentFilter MaterialSwitcherFilter;
@@ -157,8 +233,13 @@ struct TInitializeBoundMaterials
 
 		if (!ExistingMaterial)
 		{
-			OutDynamicMaterial = FObjectComponent::Null();
-			return true;
+			// If the object was not previously explicitly null, make it so
+			if (OutDynamicMaterial != FObjectComponent::Null())
+			{
+				OutDynamicMaterial = FObjectComponent::Null();
+				return true;
+			}
+			return false;
 		}
 
 		if (UMaterialInstanceDynamic* MID = Cast<UMaterialInstanceDynamic>(ExistingMaterial))
@@ -276,7 +357,7 @@ void TMovieSceneMaterialSystem<AccessorType, RequiredComponents...>::OnLink(UMov
 
 	// Define a grouping for these materials. This will make hierarchical bias work.
 	UMovieSceneEntityGroupingSystem* GroupingSystem = Linker->LinkSystem<UMovieSceneEntityGroupingSystem>();
-	GroupingKey = GroupingSystem->AddGrouping<RequiredComponents...>(InRequiredComponents...);
+	GroupingKey = GroupingSystem->AddGrouping(FMaterialGroupingPolicy(), InRequiredComponents...);
 
 	MaterialSwitcherFilter.Reset();
 	MaterialSwitcherFilter.All({ InRequiredComponents..., BuiltInComponents->ObjectResult });

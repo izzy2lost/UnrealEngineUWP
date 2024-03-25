@@ -151,20 +151,12 @@ private:
  * 
  */
 UCLASS()
-class UMovieSceneHierarchicalEasingFinalizationSystem : public UMovieSceneEntityInstantiatorSystem
+class UE_DEPRECATED(5.5, "This system is no longer functional") UMovieSceneHierarchicalEasingFinalizationSystem : public UMovieSceneEntityInstantiatorSystem
 {
 public:
 	GENERATED_BODY()
 
 	UMovieSceneHierarchicalEasingFinalizationSystem(const FObjectInitializer& ObjInit);
-
-	virtual void OnLink() override;
-	virtual void OnRun(FSystemTaskPrerequisites& InPrerequisites, FSystemSubsequentTasks& Subsequents) override;
-
-private:
-
-	UPROPERTY()
-	TObjectPtr<UMovieSceneHierarchicalEasingInstantiatorSystem> InstantiatorSystem;
 };
 
 /**

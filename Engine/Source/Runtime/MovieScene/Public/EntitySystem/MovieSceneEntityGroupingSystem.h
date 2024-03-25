@@ -25,6 +25,13 @@ namespace UE::MovieScene
 struct FAddGroupMutation;
 struct FUpdateGroupsTask;
 
+/** Concept that checks whether a grouping policy supports batch operations based on the presence of a InitializeGroupKeys function */
+struct CBatchGroupingPolicy
+{
+	template <typename T>
+	auto Requires(T& In) -> decltype(&T::InitializeGroupKeys);
+};
+
 /**
  * Utility class used by the grouping system's policies (see below) to manage groups.
  */
@@ -41,6 +48,9 @@ struct MOVIESCENE_API FEntityGroupBuilder
 	/** Remove the entity from the given group. The entity must already have the group ID component. */
 	bool RemoveEntityFromGroup(const FMovieSceneEntityID& InEntity, const FEntityGroupID& InPreviousGroupID);
 
+	int32 AllocateGroupIndex();
+	void FreeGroupIndex(int32 InGroupIndex);
+
 private:
 	UMovieSceneEntityGroupingSystem* Owner;
 	FEntityGroupingPolicyKey PolicyKey;
@@ -52,9 +62,9 @@ private:
 struct IEntityGroupingHandler
 {
 	virtual ~IEntityGroupingHandler() {}
-	virtual void PreTask() {}
+	virtual void PreTask(FEntityGroupBuilder* Builder) {}
 	virtual void ProcessAllocation(FEntityAllocationIteratorItem Item, FReadEntityIDs EntityIDs, TWrite<FEntityGroupID> GroupIDs, FEntityGroupBuilder* Builder) = 0;
-	virtual void PostTask(bool bFreeGroupIDs) {}
+	virtual void PostTask(bool bFreeGroupIDs, FEntityGroupBuilder* Builder) {}
 
 #if WITH_EDITOR
 	virtual void OnObjectsReplaced(const TMap<UObject*, UObject*>& ReplacementMap) = 0;
@@ -79,8 +89,49 @@ struct TEntityGroupingHandler
 	}
 };
 
+
+
+template<typename GroupingPolicy>
+struct TEntityGroupingHandlerBase
+{
+	using GroupKeyType = typename GroupingPolicy::GroupKeyType;
+
+	int32 GetOrAllocateGroupIndex(typename TCallTraits<GroupKeyType>::ParamType InGroupKey, FEntityGroupBuilder* Builder)
+	{
+		int32& GroupIndex = GroupKeyToIndex.FindOrAdd(InGroupKey, INDEX_NONE);
+		if (GroupIndex == INDEX_NONE)
+		{
+			// This group key isn't known to us... let's allocate a new group index for it.
+			// Try to find an available index first. Otherwise use a new high index.
+			GroupIndex = Builder->AllocateGroupIndex();
+		}
+		else
+		{
+			// We know this group key, so we'll return the group index we already have
+			// associated with it. We just need to "revive" it in case it was scheduled
+			// for being freed.
+			if (EmptyGroupIndices.IsValidIndex(GroupIndex))
+			{
+				EmptyGroupIndices[GroupIndex] = false;
+			}
+		}
+		return GroupIndex;
+	}
+
+protected:
+
+	/** The group keys that we know about, mapped to their corresponding group index */
+	TMap<GroupKeyType, int32> GroupKeyToIndex;
+
+	/** The transient list of groups freed this frame */
+	TBitArray<> EmptyGroupIndices;
+};
+
+
+
+
 template<typename GroupingPolicy, int ...ComponentIndices, typename ...ComponentTypes>
-struct TEntityGroupingHandlerImpl<GroupingPolicy, TIntegerSequence<int, ComponentIndices...>, ComponentTypes...> : IEntityGroupingHandler
+struct TEntityGroupingHandlerImpl<GroupingPolicy, TIntegerSequence<int, ComponentIndices...>, ComponentTypes...> : TEntityGroupingHandlerBase<GroupingPolicy>, IEntityGroupingHandler
 {
 	using GroupKeyType = typename GroupingPolicy::GroupKeyType;
 
@@ -90,69 +141,22 @@ struct TEntityGroupingHandlerImpl<GroupingPolicy, TIntegerSequence<int, Componen
 	/** The components that are required for making up a group key */
 	TTuple<TComponentTypeID<ComponentTypes>...> Components;
 
-	/** The group keys that we know about, mapped to their corresponding group index */
-	TMap<GroupKeyType, int32> GroupKeyToIndex;
-
-	/** The list of group indices in use */
-	TBitArray<> AllocatedGroupIndices;
-	/** The transient list of groups freed this frame */
-	TBitArray<> FreedGroupIndices;
-
 	TEntityGroupingHandlerImpl(GroupingPolicy&& InPolicy, TComponentTypeID<ComponentTypes>... InComponents)
 		: Policy(MoveTemp(InPolicy))
 		, Components(InComponents...)
 	{
 	}
 
-	int32 GetOrAllocateGroupIndex(typename TCallTraits<GroupKeyType>::ParamType InGroupKey)
-	{
-		int32& GroupIndex = GroupKeyToIndex.FindOrAdd(InGroupKey, INDEX_NONE);
-		if (GroupIndex == INDEX_NONE)
-		{
-			// This group key isn't known to us... let's allocate a new group index for it.
-			// Try to find an available index first. Otherwise use a new high index.
-			int32 NewGroupIndex = AllocatedGroupIndices.Find(false);
-			if (NewGroupIndex == INDEX_NONE)
-			{
-				NewGroupIndex = AllocatedGroupIndices.Add(true);
-			}
-			else
-			{
-				AllocatedGroupIndices[NewGroupIndex] = true;
-			}
-			GroupIndex = NewGroupIndex;
-		}
-		else
-		{
-			// We know this group key, so we'll return the group index we already have
-			// associated with it. We just need to "revive" it in case it was scheduled
-			// for being freed.
-			if (FreedGroupIndices.IsValidIndex(GroupIndex))
-			{
-				FreedGroupIndices[GroupIndex] = false;
-			}
-		}
-		return GroupIndex;
-	}
-
-	void FreeGroupIndex(int32 InGroupIndex)
-	{
-		if (ensure(AllocatedGroupIndices.IsValidIndex(InGroupIndex) && AllocatedGroupIndices[InGroupIndex]))
-		{
-			AllocatedGroupIndices[InGroupIndex] = false;
-		}
-	}
-
 	/** Callback on the grouping policy invoked before all grouping happens this frame */
 	static void PreTaskImpl(void*, ...) {}
-	template <typename T> static void PreTaskImpl(T* InPolicy, decltype(&T::PreTask)* = 0)
+	template <typename T> static void PreTaskImpl(T* InPolicy, FEntityGroupBuilder* Builder, decltype(&T::PreTask)* = 0)
 	{
-		InPolicy->PreTask();
+		InPolicy->PreTask(Builder);
 	}
 
-	virtual void PreTask() override
+	virtual void PreTask(FEntityGroupBuilder* Builder) override
 	{
-		PreTaskImpl(&Policy);
+		PreTaskImpl(&Policy, Builder);
 	}
 
 	/**
@@ -195,36 +199,44 @@ struct TEntityGroupingHandlerImpl<GroupingPolicy, TIntegerSequence<int, Componen
 	
 	void VisitLinkedEntities(FEntityAllocationIteratorItem Item, FReadEntityIDs EntityIDs, TWrite<FEntityGroupID> GroupIDs, FEntityGroupBuilder* Builder)
 	{
-		const FEntityAllocation* Allocation = Item.GetAllocation();
-		const int32 Num = Allocation->Num();
-
-		const FEntityGroupID InvalidGroupID = Builder->MakeInvalidGroupID();
-
-		TTuple<TComponentReader<ComponentTypes>...> ComponentReaders(
-				Allocation->ReadComponents(Components.template Get<ComponentIndices>())...);
-
-		for (int32 Index = 0; Index < Num; ++Index)
+		if constexpr (TModels_V<CBatchGroupingPolicy, GroupingPolicy>)
 		{
-			GroupKeyType GroupKey;
-			const bool bValidGroupKey = Policy.GetGroupKey(ComponentReaders.template Get<ComponentIndices>()[Index]..., GroupKey);
+			const FEntityAllocation* Allocation = Item.GetAllocation();
+			Policy.InitializeGroupKeys(*this, Builder, Item, EntityIDs, GroupIDs, Allocation->ReadComponents(Components.template Get<ComponentIndices>())...);
+		}
+		else
+		{
+			const FEntityAllocation* Allocation = Item.GetAllocation();
+			const int32 Num = Allocation->Num();
 
-			const FMovieSceneEntityID EntityID(EntityIDs[Index]);
-			FEntityGroupID& GroupID(GroupIDs[Index]);
+			const FEntityGroupID InvalidGroupID = Builder->MakeInvalidGroupID();
 
-			if (bValidGroupKey)
+			TTuple<TComponentReader<ComponentTypes>...> ComponentReaders(
+					Allocation->ReadComponents(Components.template Get<ComponentIndices>())...);
+
+			for (int32 Index = 0; Index < Num; ++Index)
 			{
-				// Find or create the appropriate group and put the entity in it.
-				int32 NewGroupIndex = GetOrAllocateGroupIndex(GroupKey);
-				FEntityGroupID NewGroupID = Builder->MakeGroupID(NewGroupIndex);
-				Builder->AddEntityToGroup(EntityID, NewGroupID);
-				GroupID = NewGroupID;
-			}
-			else
-			{
-				// This entity doesn't belong to any group.
-				// Let's assign an invalid group ID that nonetheless has a valid policy key
-				// pointing to this grouping.
-				GroupID = InvalidGroupID;
+				GroupKeyType GroupKey;
+				const bool bValidGroupKey = Policy.GetGroupKey(ComponentReaders.template Get<ComponentIndices>()[Index]..., GroupKey);
+
+				const FMovieSceneEntityID EntityID(EntityIDs[Index]);
+				FEntityGroupID& GroupID(GroupIDs[Index]);
+
+				if (bValidGroupKey)
+				{
+					// Find or create the appropriate group and put the entity in it.
+					int32 NewGroupIndex = this->GetOrAllocateGroupIndex(GroupKey, Builder);
+					FEntityGroupID NewGroupID = Builder->MakeGroupID(NewGroupIndex);
+					Builder->AddEntityToGroup(EntityID, NewGroupID);
+					GroupID = NewGroupID;
+				}
+				else
+				{
+					// This entity doesn't belong to any group.
+					// Let's assign an invalid group ID that nonetheless has a valid policy key
+					// pointing to this grouping.
+					GroupID = InvalidGroupID;
+				}
 			}
 		}
 	}
@@ -256,8 +268,8 @@ struct TEntityGroupingHandlerImpl<GroupingPolicy, TIntegerSequence<int, Componen
 					//	  the above situation, and a brand new group that just happens to re-use the
 					//	  recently freed index.
 					//
-					FreedGroupIndices.PadToNum(GroupID.GroupIndex + 1, false);
-					FreedGroupIndices[GroupID.GroupIndex] = true;
+					this->EmptyGroupIndices.PadToNum(GroupID.GroupIndex + 1, false);
+					this->EmptyGroupIndices[GroupID.GroupIndex] = true;
 				}
 				// Leave the GroupID on the entity so that downstream systems can use it to track
 				// that this entity is leaving its group, but flag it so we don't re-free it.
@@ -275,38 +287,39 @@ struct TEntityGroupingHandlerImpl<GroupingPolicy, TIntegerSequence<int, Componen
 	}
 
 	static void PostTaskImpl(void*, ...){}
-	template <typename T> static void PostTaskImpl(T* InPolicy, bool bInFreeGroupIDs, decltype(&T::PostTask)* = 0)
+	template <typename T> static void PostTaskImpl(T* InPolicy, FEntityGroupBuilder* Builder, bool bInFreeGroupIDs, decltype(&T::PostTask)* = 0)
 	{
-		InPolicy->PostTask(bInFreeGroupIDs);
+		InPolicy->PostTask(Builder, bInFreeGroupIDs);
 	}
 	
-	virtual void PostTask(bool bInFreeGroupIDs) override
+	virtual void PostTask(bool bInFreeGroupIDs, FEntityGroupBuilder* Builder) override
 	{
-		if (bInFreeGroupIDs && FreedGroupIndices.Find(true) != INDEX_NONE)
+		if (bInFreeGroupIDs && this->EmptyGroupIndices.Find(true) != INDEX_NONE)
 		{
 			// Build a reverse lookup map to figure out which group keys we don't need anymore
 			// based on the group indices we have freed.
 			TMap<int32, GroupKeyType> GroupIndexToKey;
-			for (const TPair<GroupKeyType, int32>& Pair : GroupKeyToIndex)
+			for (const TPair<GroupKeyType, int32>& Pair : this->GroupKeyToIndex)
 			{
 				GroupIndexToKey.Add(Pair.Value, Pair.Key);
 			}
 
 			// Free the indices we don't use anymore, and free the group key lookup entry too.
-			for (TConstSetBitIterator<> It(FreedGroupIndices); It; ++It)
+			for (TConstSetBitIterator<> It(this->EmptyGroupIndices); It; ++It)
 			{
 				const GroupKeyType* GroupKey = GroupIndexToKey.Find(It.GetIndex());
 				if (ensure(GroupKey))
 				{
-					const int NumRemoved = GroupKeyToIndex.Remove(*GroupKey);
+					const int NumRemoved = this->GroupKeyToIndex.Remove(*GroupKey);
 					ensure(NumRemoved == 1);
 				}
-				FreeGroupIndex(It.GetIndex());
+
+				Builder->FreeGroupIndex(It.GetIndex());
 			}
-			FreedGroupIndices.Reset();
+			this->EmptyGroupIndices.Reset();
 		}
 
-		PostTaskImpl(&Policy);
+		PostTaskImpl(&Policy, Builder, bInFreeGroupIDs);
 	}
 
 #if WITH_EDITOR
@@ -314,7 +327,7 @@ struct TEntityGroupingHandlerImpl<GroupingPolicy, TIntegerSequence<int, Componen
 	{
 		// Get a list of keys that contain replaced objects.
 		TMap<GroupKeyType, GroupKeyType> ReplacedKeys;
-		for (const TPair<GroupKeyType, int32>& Pair : GroupKeyToIndex)
+		for (const TPair<GroupKeyType, int32>& Pair : this->GroupKeyToIndex)
 		{
 			GroupKeyType NewKey = Pair.Key;
 			if (Policy.OnObjectsReplaced(NewKey, ReplacementMap))
@@ -326,10 +339,10 @@ struct TEntityGroupingHandlerImpl<GroupingPolicy, TIntegerSequence<int, Componen
 		for (const TPair<GroupKeyType, GroupKeyType>& Pair : ReplacedKeys)
 		{
 			int32 GroupIndex;
-			const bool bRemoved = GroupKeyToIndex.RemoveAndCopyValue(Pair.Key, GroupIndex);
+			const bool bRemoved = this->GroupKeyToIndex.RemoveAndCopyValue(Pair.Key, GroupIndex);
 			if (ensure(bRemoved))
 			{
-				GroupKeyToIndex.Add(Pair.Value, GroupIndex);
+				this->GroupKeyToIndex.Add(Pair.Value, GroupIndex);
 			}
 		}
 	}
@@ -466,6 +479,27 @@ public:
 	 */
 	TArrayView<const UE::MovieScene::FMovieSceneEntityID> GetGroup(const FEntityGroupID& InGroupID) const;
 
+	/**
+	 * Allocate a new group index used to uniquely identify a collection of entities that animate the same target.
+	 * Group indices are globally unique within this system, regardless of the 'type' of the target.
+	 */
+	int32 AllocateGroupIndex();
+
+
+	/**
+	 * Free a previously allocated group index. Must not be in use or present on any components to be freed.
+	 */
+	void FreeGroupIndex(int32 Index);
+
+
+	/**
+	 * Return the maximum number of groups currently allocated
+	 */
+	int32 NumGroups() const
+	{
+		return AllocatedGroupIndices.Num();
+	}
+
 private:
 
 	virtual bool IsRelevantImpl(UMovieSceneEntitySystemLinker* InLinker) const override;
@@ -474,11 +508,17 @@ private:
 	virtual void OnUnlink() override;
 	virtual void OnCleanTaggedGarbage() override;
 
+	void ProcessModifiedGroups();
+
 #if WITH_EDITOR
 	void OnObjectsReplaced(const TMap<UObject*, UObject*>& ReplacementMap);
 #endif
 
 private:
+
+
+	/** The list of group indices in use */
+	TBitArray<> AllocatedGroupIndices;
 
 	struct FEntityGroupInfo
 	{
