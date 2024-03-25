@@ -1233,6 +1233,17 @@ namespace EpicGames.Core
 			return Ranges.ToArray();
 		}
 
+		public string[] GetStringArrayFromConfig(string Name)
+		{
+			string[]? Results;
+			if (ConfigSDKVersionArrays.TryGetValue(GetHostSpecificVersionName(Name), out Results) || ConfigSDKVersionArrays.TryGetValue(Name, out Results))
+			{
+				return Results;
+			}
+
+			return Array.Empty<string>();
+		}
+
 		#endregion
 
 		// AutoSDKs handling portion
