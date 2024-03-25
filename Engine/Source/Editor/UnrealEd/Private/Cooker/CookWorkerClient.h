@@ -21,6 +21,8 @@ namespace UE::Cook { struct FDirectorConnectionInfo; }
 namespace UE::Cook { struct FDiscoveredPackageReplication; }
 namespace UE::Cook { struct FHeartbeatMessage; }
 namespace UE::Cook { struct FInitialConfigMessage; }
+namespace UE::Cook { struct FGenerationHelper; }
+namespace UE::Cook { struct FGeneratorEventMessage; }
 namespace UE::Cook { struct FPackageRemoteResult; }
 namespace UE::Cook { struct FRetractionRequestMessage; }
 
@@ -67,6 +69,11 @@ public:
 	/** Queue a message to the server that a package was discovered as needed in the cook. Will be sent during Tick. */
 	void ReportDiscoveredPackage(const FPackageData& PackageData, const FInstigator& Instigator,
 		FDiscoveredPlatformSet&& ReachablePlatforms);
+	/**
+	 * Queue a message to the server that a PackageGenerator queued its generated packages for cooking, and will
+	 * keep itself in memory until it receives an EGeneratorEvent::QueuedGeneratedPackagesFencePassed.
+	 */
+	void ReportGeneratorQueuedGeneratedPackages(FGenerationHelper& GenerationHelper);
 
 	/** Register a Collector for periodic ticking that sends messages to the Director. */
 	void Register(IMPCollector* Collector);
@@ -127,6 +134,7 @@ private:
 		FRetractionRequestMessage&& Message);
 	void HandleHeartbeatMessage(FMPCollectorClientMessageContext& Context, bool bReadSuccessful,
 		FHeartbeatMessage&& Message);
+	void HandleGeneratorMessage(FGeneratorEventMessage&& GeneratorMessage);
 
 private:
 	/**
@@ -151,6 +159,7 @@ private:
 	TArray<ITargetPlatform*> OrderedSessionAndSpecialPlatforms;
 	TArray<FDiscoveredPackageReplication> PendingDiscoveredPackages;
 	TMap<FGuid, TRefCountPtr<IMPCollector>> Collectors;
+	TArray<FGeneratorEventMessage> PendingGeneratorEvents;
 	UE::CompactBinaryTCP::FSendBuffer SendBuffer;
 	UE::CompactBinaryTCP::FReceiveBuffer ReceiveBuffer;
 	FString DirectorURI;

@@ -3,6 +3,7 @@
 #include "WorkerRequestsLocal.h"
 
 #include "CookTypes.h"
+#include "Cooker/CookPackageData.h"
 #include "Cooker/CookRequests.h"
 #include "HAL/Event.h"
 #include "HAL/PlatformProcess.h"
@@ -15,7 +16,6 @@ class ITargetPlatform;
 namespace UE::Cook
 {
 struct FInstigator;
-struct FPackageData;
 
 bool FWorkerRequestsLocal::HasExternalRequests() const
 {
@@ -48,6 +48,12 @@ void FWorkerRequestsLocal::QueueDiscoveredPackage(UCookOnTheFlyServer& COTFS, FP
 	FInstigator&& Instigator, FDiscoveredPlatformSet&& ReachablePlatforms, bool bUrgent)
 {
 	COTFS.QueueDiscoveredPackageOnDirector(PackageData, MoveTemp(Instigator), MoveTemp(ReachablePlatforms), bUrgent);
+}
+
+void FWorkerRequestsLocal::EndQueueGeneratedPackages(UCookOnTheFlyServer& COTFS,
+	FGenerationHelper& GenerationHelper)
+{
+	GenerationHelper.EndQueueGeneratedPackagesOnDirector(COTFS, FWorkerId::Local());
 }
 
 void FWorkerRequestsLocal::AddStartCookByTheBookRequest(FFilePlatformRequest&& Request)
