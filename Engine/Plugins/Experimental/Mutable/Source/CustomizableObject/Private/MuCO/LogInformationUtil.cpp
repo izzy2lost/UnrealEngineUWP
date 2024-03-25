@@ -124,13 +124,11 @@ void LogInformationUtil::LogShowInstanceDataFull(const UCustomizableObjectInstan
 	FString LogData = "\n\n";
 
 	LogData += FString::Printf(TEXT("CustomizableObjectInstance %s, "), *CustomizableObjectInstance->GetName());
-	
-	PrintBoolParameters(CustomizableObjectInstance->GetBoolParameters(), LogData);
-	PrintIntParameters(CustomizableObjectInstance->GetIntParameters(), LogData);
-	PrintFloatParameters(CustomizableObjectInstance->GetFloatParameters(), LogData);
-	PrintVectorParameters(CustomizableObjectInstance->GetVectorParameters(), LogData);
-	PrintProjectorParameters(CustomizableObjectInstance->GetProjectorParameters(), LogData);
 
+	LogData += "Descriptor:\n";
+	LogData += CustomizableObjectInstance->GetPrivate()->CommittedDescriptor.ToString();
+	LogData += "\n";
+	
 	if (ShowMaterialInfo)
 	{
 		PrintGeneratedMaterial(CustomizableObjectInstance->GetPrivate()->GeneratedMaterials, LogData);
@@ -200,134 +198,6 @@ void LogInformationUtil::LogShowInstanceDataFull(const UCustomizableObjectInstan
 			PlayerController->ClientMessage(LogData);
 		}
 	}
-}
-
-
-void LogInformationUtil::PrintBoolParameters(const TArray<struct FCustomizableObjectBoolParameterValue>& BoolParameters, FString& Log)
-{
-	if (BoolParameters.Num() == 0)
-	{
-		return;
-	}
-
-	Log += "Boolean parameters:\n";
-
-	const int Max = BoolParameters.Num();
-	int i;
-
-	for (i = 0; i < Max; ++i)
-	{
-		Log += FString::Printf(TEXT("        %s="), *BoolParameters[i].ParameterName);
-		Log += FString::Printf(TEXT("%d\n"), BoolParameters[i].ParameterValue);
-	}
-
-	Log += "\n";
-}
-
-
-void LogInformationUtil::PrintIntParameters(const TArray<struct FCustomizableObjectIntParameterValue>& IntParameters, FString& Log)
-{
-	if (IntParameters.Num() == 0)
-	{
-		return;
-	}
-
-	FString MessageChunk;
-
-	MessageChunk += "\tInt parameters:\n";
-
-	const int Max = IntParameters.Num();
-	int i;
-
-	for (i = 0; i < Max; ++i)
-	{
-		MessageChunk += FString::Printf(TEXT("        %s="), *IntParameters[i].ParameterName);
-		MessageChunk += FString::Printf(TEXT("%s\n"), *IntParameters[i].ParameterValueName);
-		FillToLength(MessageChunk,25);
-	}
-
-	MessageChunk += "\n";
-
-	Log += MessageChunk;
-}
-
-
-void LogInformationUtil::PrintFloatParameters(const TArray<struct FCustomizableObjectFloatParameterValue>& FloatParameters, FString& Log)
-{
-	if (FloatParameters.Num() == 0)
-	{
-		return;
-	}
-
-	Log += "Float parameters:\n";
-
-	const int Max = FloatParameters.Num();
-	int i;
-
-	for (i = 0; i < Max; ++i)
-	{
-		Log += FString::Printf(TEXT("        %s="), *FloatParameters[i].ParameterName);
-		Log += FString::Printf(TEXT("%.2f\n"), FloatParameters[i].ParameterValue);
-	}
-
-	Log += "\n";
-}
-
-
-void LogInformationUtil::PrintVectorParameters(const TArray<struct FCustomizableObjectVectorParameterValue>& VectorParameters, FString& Log)
-{
-	if (VectorParameters.Num() == 0)
-	{
-		return;
-	}
-
-	Log += "Vector parameters:\n";
-
-	const int Max = VectorParameters.Num();
-	int i;
-
-	for (i = 0; i < Max; ++i)
-	{
-		Log += FString::Printf(TEXT("        %s="), *VectorParameters[i].ParameterName);
-		Log += FString::Printf(TEXT("(%.2f,"), VectorParameters[i].ParameterValue.R);
-		Log += FString::Printf(TEXT("%.2f,"), VectorParameters[i].ParameterValue.G);
-		Log += FString::Printf(TEXT("%.2f,"), VectorParameters[i].ParameterValue.B);
-		Log += FString::Printf(TEXT("%.2f)\n"), VectorParameters[i].ParameterValue.A);
-	}
-
-	Log += "\n";
-}
-
-
-void LogInformationUtil::PrintProjectorParameters(const TArray<struct FCustomizableObjectProjectorParameterValue>& ProjectorParameters, FString& Log)
-{
-	if (ProjectorParameters.Num() == 0)
-	{
-		return;
-	}
-
-	Log += "Projector parameters:\n";
-
-	const int Max = ProjectorParameters.Num();
-	int i;
-
-	for (i = 0; i < Max; ++i)
-	{
-		Log += FString::Printf(TEXT("        %s has "), *ProjectorParameters[i].ParameterName);
-		Log += FString::Printf(TEXT(" position=(%.2f,"), ProjectorParameters[i].Value.Position.X);
-		Log += FString::Printf(TEXT("%.2f,"), ProjectorParameters[i].Value.Position.Y);
-		Log += FString::Printf(TEXT("%.2f)"), ProjectorParameters[i].Value.Position.Z);
-		Log += FString::Printf(TEXT(" direction=(%.2f,"), ProjectorParameters[i].Value.Direction.X);
-		Log += FString::Printf(TEXT("%.2f,"), ProjectorParameters[i].Value.Direction.Y);
-		Log += FString::Printf(TEXT("%.2f)"), ProjectorParameters[i].Value.Direction.Z);
-		Log += FString::Printf(TEXT(" up=(%.2f,"), ProjectorParameters[i].Value.Up.X);
-		Log += FString::Printf(TEXT("%.2f,"), ProjectorParameters[i].Value.Up.Y);
-		Log += FString::Printf(TEXT("%.2f)"), ProjectorParameters[i].Value.Up.Z);
-		Log += FString::Printf(TEXT(" scale=(%.2f,"), ProjectorParameters[i].Value.Scale.X);
-		Log += FString::Printf(TEXT("%.2f)\n"), ProjectorParameters[i].Value.Scale.Y);
-	}
-
-	Log += "\n";
 }
 
 
