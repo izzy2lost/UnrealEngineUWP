@@ -91,10 +91,14 @@ bool FMinimalReplicationTagCountMapReplicationFragment::PollReplicatedState(ERep
 		const uint8* ExternalStateBuffer = reinterpret_cast<uint8*>(Owner) + ReplicationStateDescriptor->MemberProperties[0]->GetOffset_ForGC();
 		const FMinimalReplicationTagCountMap* ExternalSourceState = reinterpret_cast<const FMinimalReplicationTagCountMap*>(ExternalStateBuffer);
 
-		const void* CachedStateBuffer = SrcReplicationState->GetStateBuffer();
-		const FMinimalReplicationTagCountMap* CachedState = reinterpret_cast<const FMinimalReplicationTagCountMap*>(static_cast<const uint8*>(CachedStateBuffer) + ReplicationStateDescriptor->MemberDescriptors[0].ExternalMemberOffset);
+		void* CachedStateBuffer = SrcReplicationState->GetStateBuffer();
+		FMinimalReplicationTagCountMap* CachedState = reinterpret_cast<FMinimalReplicationTagCountMap*>(static_cast<uint8*>(CachedStateBuffer) + ReplicationStateDescriptor->MemberDescriptors[0].ExternalMemberOffset);
 
-		return SrcReplicationState->PollPropertyReplicationState(Owner);
+		if (ExternalSourceState->MapID != CachedState->MapID)
+		{
+			CachedState->MapID = ExternalSourceState->MapID;
+			return SrcReplicationState->PollPropertyReplicationState(Owner);
+		}
 	}
 
 	return SrcReplicationState->IsDirty(0);
