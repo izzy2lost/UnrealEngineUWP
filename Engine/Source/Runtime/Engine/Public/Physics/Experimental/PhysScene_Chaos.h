@@ -266,7 +266,7 @@ public:
 			, bValidStateCached(false)
 		{}
 
-		UPrimitiveComponent* GetRootComponent()	{ return RootComponent.Get(); }
+		TObjectPtr<UPrimitiveComponent> GetRootComponent()	{ return RootComponent; }
 		FRigidBodyState& GetState()	{ return State; }
 		void SetAccessTime(Chaos::FReal Time) { AccessTime = Time; }
 		Chaos::FReal GetAccessTime() { return AccessTime; }
@@ -274,7 +274,7 @@ public:
 		bool IsCached() { return bValidStateCached; }
 
 	private:
-		TWeakObjectPtr<UPrimitiveComponent> RootComponent;
+		TObjectPtr<UPrimitiveComponent> RootComponent;
 		Chaos::FReal AccessTime;
 		bool bValidStateCached;
 		FRigidBodyState State;
