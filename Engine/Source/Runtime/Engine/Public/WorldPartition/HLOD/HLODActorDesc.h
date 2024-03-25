@@ -28,10 +28,7 @@ public:
 	inline const TArray<FGuid>& GetChildHLODActors() const { return ChildHLODActors; }
 	inline const FTopLevelAssetPath& GetSourceHLODLayer() const { return SourceHLODLayer; }
 	inline const FStats& GetStats() const { return HLODStats; }
-	inline int64 GetStat(FName InStatName) const { return HLODStats.FindRef(InStatName); }
-
-	ENGINE_API int64 GetPackageSize() const;
-	static ENGINE_API int64 GetPackageSize(const AWorldPartitionHLOD* InHLODActor);
+	int64 GetStat(FName InStatName) const;
 
 	//~ Begin FWorldPartitionActorDesc Interface.
 	virtual bool ShouldValidateRuntimeGrid() const override { return false; }

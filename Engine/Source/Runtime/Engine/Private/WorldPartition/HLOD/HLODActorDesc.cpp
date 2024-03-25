@@ -20,9 +20,18 @@
 
 FHLODActorDesc::FHLODActorDesc()
 	: EditorBounds(ForceInit)
-{
-}
+{}
 
+int64 FHLODActorDesc::GetStat(FName InStatName) const
+{
+	if (InStatName == FWorldPartitionHLODStats::MemoryDiskSizeBytes)
+	{
+		FString PackageFileName = GetActorPackage().ToString();
+		FPackageName::TryConvertLongPackageNameToFilename(GetActorPackage().ToString(), PackageFileName, FPackageName::GetAssetPackageExtension());
+		return IFileManager::Get().FileSize(*PackageFileName);
+	}
+	return HLODStats.FindRef(InStatName);
+}
 
 void FHLODActorDesc::Init(const AActor* InActor)
 {
@@ -143,12 +152,6 @@ void FHLODActorDesc::Serialize(FArchive& Ar)
 			}
 
 			Ar << HLODStats;
-
-			// Update package size stat on load
-			if (Ar.IsLoading())
-			{
-				HLODStats.Add(FWorldPartitionHLODStats::MemoryDiskSizeBytes, GetPackageSize());
-			}
 		}
 
 		if (Ar.CustomVer(FFortniteMainBranchObjectVersion::GUID) >= FFortniteMainBranchObjectVersion::WorldPartitionHLODActorDescSerializeSourceHLODLayer)
@@ -173,30 +176,11 @@ bool FHLODActorDesc::Equals(const FWorldPartitionActorDesc* Other) const
 	{
 		const FHLODActorDesc& HLODActorDesc = *(FHLODActorDesc*)Other;
 		return SourceHLODLayer == HLODActorDesc.SourceHLODLayer &&
-			   HLODStats.OrderIndependentCompareEqual(HLODActorDesc.GetStats()) &&
+			   HLODStats.OrderIndependentCompareEqual(HLODActorDesc.HLODStats) &&
 			   CompareUnsortedArrays(ChildHLODActors, HLODActorDesc.ChildHLODActors) &&
 			   EditorBounds == HLODActorDesc.EditorBounds;
 	}
 	return false;
-}
-
-static int64 GetPackageSize(const FString& InPackageFileName)
-{
-	const int64 PackageSize = IFileManager::Get().FileSize(*InPackageFileName);
-	return PackageSize;
-}
-
-int64 FHLODActorDesc::GetPackageSize() const
-{
-	FString PackageFileName = GetActorPackage().ToString();
-	FPackageName::TryConvertLongPackageNameToFilename(GetActorPackage().ToString(), PackageFileName, FPackageName::GetAssetPackageExtension());
-	return ::GetPackageSize(PackageFileName);
-}
-
-int64 FHLODActorDesc::GetPackageSize(const AWorldPartitionHLOD* InHLODActor)
-{
-	const FString PackageFileName = InHLODActor->GetPackage()->GetLoadedPath().GetLocalFullPath();
-	return ::GetPackageSize(PackageFileName);
 }
 
 bool FHLODActorDesc::IsRuntimeRelevant(const FWorldPartitionActorDescInstance* InActorDescInstance) const

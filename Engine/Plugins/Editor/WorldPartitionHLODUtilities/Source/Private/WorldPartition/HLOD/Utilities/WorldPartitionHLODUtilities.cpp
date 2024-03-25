@@ -605,7 +605,6 @@ void GatherOutputStats(AWorldPartitionHLOD* InHLODActor)
 	// Memory stats
 	InHLODActor->SetStat(FWorldPartitionHLODStats::MemoryMeshResourceSizeBytes, MeshResourceSize);
 	InHLODActor->SetStat(FWorldPartitionHLODStats::MemoryTexturesResourceSizeBytes, TexturesResourceSize);
-	InHLODActor->SetStat(FWorldPartitionHLODStats::MemoryDiskSizeBytes, 0); // Clear disk size as it is unknown at this point. It will be assigned at package loading
 }
 
 // Iterate over the source actors and retrieve HLOD relevant components using GetHLODRelevantComponents()

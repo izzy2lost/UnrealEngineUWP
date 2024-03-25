@@ -25,7 +25,8 @@ class AWorldPartitionHLOD : public AActor
 {
 	GENERATED_UCLASS_BODY()
 
-	typedef TMap<FName, int64>	FStats;
+	friend class FHLODActorDesc;
+	typedef TMap<FName, int64> FStats;
 
 public:
 	ENGINE_API void SetVisibility(bool bInVisible);
@@ -58,10 +59,13 @@ public:
 	ENGINE_API void BuildHLOD(bool bForceBuild = false);
 	ENGINE_API uint32 GetHLODHash() const;
 
-	const FStats& GetStats() const { return HLODStats; }
-	int64 GetStat(FName InStatName) const { return HLODStats.FindRef(InStatName); }
+	ENGINE_API int64 GetStat(FName InStatName) const;
 	void SetStat(FName InStatName, int64 InStatValue) { HLODStats.Add(InStatName, InStatValue); }
 	void ResetStats() { HLODStats.Reset(); }
+
+private:
+	const FStats& GetStats() const { return HLODStats; }
+
 #endif // WITH_EDITOR
 
 protected:
