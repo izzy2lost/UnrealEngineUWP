@@ -428,16 +428,19 @@ EConvertFromTypeResult FEnumProperty::ConvertFromType(const FPropertyTag& Tag, F
 	case NAME_ByteProperty:
 	{
 		uint8 PreviousValue = 0;
-		if (Tag.EnumName == NAME_None)
+		if (Tag.GetType().GetParameterCount() == 0)
 		{
-			// If we're a nested property the EnumName tag got lost. Handle this case for backward compatibility reasons
-			FProperty* const PropertyOwner = GetOwner<FProperty>();
-
-			if (PropertyOwner)
+			// A nested property loses its enum name in the property tag. Handle this case for backward compatibility reasons.
+			if (GetOwner<FProperty>())
 			{
+				UE::FPropertyTypeNameBuilder TypeBuilder;
+				TypeBuilder.AddName(Tag.Type);
+				TypeBuilder.BeginParameters();
+				TypeBuilder.AddPath(Enum);
+				TypeBuilder.EndParameters();
+
 				FPropertyTag InnerPropertyTag;
-				InnerPropertyTag.Type = Tag.Type;
-				InnerPropertyTag.EnumName = Enum->GetFName();
+				InnerPropertyTag.SetType(TypeBuilder.Build());
 				InnerPropertyTag.ArrayIndex = 0;
 
 				PreviousValue = (uint8)FNumericProperty::ReadEnumAsInt64(Slot, DefaultsStruct, InnerPropertyTag);
@@ -632,12 +635,5 @@ bool FEnumProperty::CanSerializeFromTypeName(UE::FPropertyTypeName Type) const
 	}
 
 	const FName EnumName = Type.GetParameterName(0);
-	if (EnumName == LocalEnum->GetFName())
-	{
-		return true;
-	}
-
-	TStringBuilder<256> EnumNameString;
-	LocalEnum->GetPathName(nullptr, EnumNameString);
-	return EnumName == EnumNameString.ToView();
+	return EnumName == LocalEnum->GetFName();
 }

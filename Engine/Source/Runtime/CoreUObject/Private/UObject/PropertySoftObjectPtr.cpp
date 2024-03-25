@@ -1,11 +1,9 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#include "CoreMinimal.h"
-#include "UObject/ObjectMacros.h"
-#include "UObject/SoftObjectPtr.h"
-#include "UObject/PropertyPortFlags.h"
 #include "UObject/UnrealType.h"
+
 #include "UObject/LinkerLoad.h"
+#include "UObject/SoftObjectPtr.h"
 #if WITH_EDITOR
 #include "Misc/EditorPathHelper.h"
 #endif
@@ -241,20 +239,24 @@ EConvertFromTypeResult FSoftObjectProperty::ConvertFromType(const FPropertyTag& 
 		FSerializedPropertyScope SerializedProperty(Archive, this);
 		return PropertyValue->GetUniqueID().SerializeFromMismatchedTag(Tag, Slot) ? EConvertFromTypeResult::Converted : EConvertFromTypeResult::UseSerializeItem;
 	}
-	else if (Tag.Type == NAME_StructProperty && (Tag.StructName == NAME_SoftObjectPath || Tag.StructName == NAME_SoftClassPath || Tag.StructName == NAME_StringAssetReference || Tag.StructName == NAME_StringClassReference))
+	else if (Tag.Type == NAME_StructProperty)
 	{
-		// This property used to be a FSoftObjectPath but is now a TSoftObjectPtr<Foo>
-		FSoftObjectPath PreviousValue;
-		// explicitly call Serialize to ensure that the various delegates needed for cooking are fired
-		FSerializedPropertyScope SerializedProperty(Archive, this);
-		PreviousValue.Serialize(Slot);
+		const FName StructName = Tag.GetType().GetParameterName();
+		if (StructName == NAME_SoftObjectPath || StructName == NAME_SoftClassPath || StructName == NAME_StringAssetReference || StructName == NAME_StringClassReference)
+		{
+			// This property used to be a FSoftObjectPath but is now a TSoftObjectPtr<Foo>
+			FSoftObjectPath PreviousValue;
+			// explicitly call Serialize to ensure that the various delegates needed for cooking are fired
+			FSerializedPropertyScope SerializedProperty(Archive, this);
+			PreviousValue.Serialize(Slot);
 
-		// now copy the value into the object's address space
-		FSoftObjectPtr PreviousValueSoftObjectPtr;
-		PreviousValueSoftObjectPtr = PreviousValue;
-		SetPropertyValue_InContainer(Data, PreviousValueSoftObjectPtr, Tag.ArrayIndex);
+			// now copy the value into the object's address space
+			FSoftObjectPtr PreviousValueSoftObjectPtr;
+			PreviousValueSoftObjectPtr = PreviousValue;
+			SetPropertyValue_InContainer(Data, PreviousValueSoftObjectPtr, Tag.ArrayIndex);
 
-		return EConvertFromTypeResult::Converted;
+			return EConvertFromTypeResult::Converted;
+		}
 	}
 
 	return EConvertFromTypeResult::UseSerializeItem;

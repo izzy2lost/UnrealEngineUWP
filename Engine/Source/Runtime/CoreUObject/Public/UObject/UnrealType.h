@@ -1087,7 +1087,7 @@ public:
 	COREUOBJECT_API virtual void SaveTypeName(UE::FPropertyTypeNameBuilder& Type) const;
 
 	/**
-	 * Returns true if this property can use SerializeItem to load from a property with this type name.
+	 * Returns true if the type of this property matches the type name.
 	 */
 	COREUOBJECT_API virtual bool CanSerializeFromTypeName(UE::FPropertyTypeName Type) const;
 
@@ -1799,7 +1799,7 @@ public:
 				return std::is_same_v<TCppType, int64> ? EConvertFromTypeResult::Serialized : EConvertFromTypeResult::Converted;
 
 			case NAME_ByteProperty:
-				if (!Tag.EnumName.IsNone())
+				if (Tag.GetType().GetParameterCount() >= 1)
 				{
 					int64 PreviousValue = this->ReadEnumAsInt64(Slot, DefaultsStruct, Tag);
 					this->SetPropertyValue_InContainer(Data, (TCppType)PreviousValue, Tag.ArrayIndex);
