@@ -99,7 +99,7 @@ void UTypedElementRevisionControlFactory::RegisterQueries(ITypedElementDataStora
 				Context.RunSubquery(0, PackageReference.Row, CreateSubqueryCallbackBinding(
 					[&Context, &ObjectRow](DSI::ISubqueryContext& SubQueryContext)
 					{
-						Context.AddColumn<FTypedElementViewportOutlineColorColumn>(ObjectRow, { .SelectionOutlineColorIndex = DetermineOutlineColorIndex(SubQueryContext) });
+						Context.AddColumn<FTypedElementViewportColorColumn>(ObjectRow, { .SelectionOutlineColorIndex = DetermineOutlineColorIndex(SubQueryContext) });
 						Context.AddColumns<FTypedElementSyncBackToWorldTag>(ObjectRow);
 					})
 				);

@@ -319,7 +319,6 @@ UPrimitiveComponent::UPrimitiveComponent(const FObjectInitializer& ObjectInitial
 	IndirectLightingCacheQuality = ILCQ_Point;
 	bStaticWhenNotMoveable = true;
 	bSelectable = true;
-	bWantsEditorEffects = false;
 #if WITH_EDITORONLY_DATA
 	bConsiderForActorPlacementWhenHidden = false;
 #endif // WITH_EDITORONLY_DATA
@@ -391,8 +390,6 @@ UPrimitiveComponent::UPrimitiveComponent(const FObjectInitializer& ObjectInitial
 #if WITH_EDITOR
 	bAlwaysAllowTranslucentSelect = false;
 
-	OverlayColor = FColor(ForceInitToZero);
-	
 	SelectionOutlineColorIndex = 0;
 #endif
 
@@ -1936,26 +1933,11 @@ void UPrimitiveComponent::SetIsBeingMovedByEditor(bool bIsBeingMoved)
 
 void UPrimitiveComponent::SetSelectionOutlineColorIndex(uint8 InSelectionOutlineColorIndex)
 {
-	bool bShouldOverride = InSelectionOutlineColorIndex != 0;
 	SelectionOutlineColorIndex = InSelectionOutlineColorIndex;
-	bWantsEditorEffects |= bShouldOverride;
 	
 	if (SceneProxy)
 	{
 		SceneProxy->SetSelectionOutlineColorIndex_GameThread(InSelectionOutlineColorIndex);
-		SceneProxy->SetSelectionOverride_GameThread(bShouldOverride);
-	}
-}
-
-void UPrimitiveComponent::SetOverlayColor(FColor InOverlayColor)
-{
-	OverlayColor = InOverlayColor;
-	bWantsEditorEffects = true;
-
-	if (SceneProxy)
-	{
-		SceneProxy->SetOverlayColor_GameThread(InOverlayColor);
-		SceneProxy->SetSelectionOverride_GameThread(true);
 	}
 }
 

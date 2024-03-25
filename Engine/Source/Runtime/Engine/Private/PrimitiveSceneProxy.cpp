@@ -303,14 +303,13 @@ void FPrimitiveSceneProxyDesc::InitializeFrom(const UPrimitiveComponent* InCompo
 	bHiddenInSceneCapture = InComponent->bHiddenInSceneCapture;
 	bRayTracingFarField = InComponent->bRayTracingFarField;
 	bHoldout = InComponent->bHoldout;
-	bWantsEditorEffects = InComponent->bWantsEditorEffects;
-	
+
 	bIsVisible = InComponent->IsVisible();
 	bIsVisibleEditor = InComponent->GetVisibleFlag();
 	bSelected = InComponent->IsSelected();
 	bIndividuallySelected = InComponent->IsComponentIndividuallySelected();
 	bShouldRenderSelected = InComponent->ShouldRenderSelected();
-	bCollisionEnabled = InComponent->IsCollisionEnabled();
+	bCollisionEnabled = InComponent->IsCollisionEnabled(); 
 	
 	if (const AActor* ActorOwner = InComponent->GetOwner())
 	{
@@ -374,7 +373,6 @@ void FPrimitiveSceneProxyDesc::InitializeFrom(const UPrimitiveComponent* InCompo
 
 #if WITH_EDITOR
 	HiddenEditorViews = InComponent->GetHiddenEditorViews();
-	OverlayColor = InComponent->OverlayColor;
 #endif
 	bShouldRenderProxyFallbackToDefaultMaterial = InComponent->ShouldRenderProxyFallbackToDefaultMaterial();
 
@@ -480,7 +478,6 @@ FPrimitiveSceneProxy::FPrimitiveSceneProxy(const FPrimitiveSceneProxyDesc& InPro
 ,	bShouldNotifyOnWorldAddRemove(false)
 ,	bWantsSelectionOutline(true)
 ,	bVerifyUsedMaterials(true)
-,   bWantsEditorEffects(InProxyDesc.bWantsEditorEffects)
 ,	bAllowApproximateOcclusion(InProxyDesc.Mobility != EComponentMobility::Movable)
 ,   bHoldout(InProxyDesc.bHoldout)
 ,	bSplineMesh(false)
@@ -516,7 +513,6 @@ FPrimitiveSceneProxy::FPrimitiveSceneProxy(const FPrimitiveSceneProxyDesc& InPro
 #if WITH_EDITOR
 // by default we are always drawn
 ,	HiddenEditorViews(0)
-,   OverlayColor(InProxyDesc.OverlayColor)
 ,   SelectionOutlineColorIndex(0)
 ,	DrawInAnyEditMode(0)
 ,   bIsFoliage(false)
@@ -1341,17 +1337,6 @@ void FPrimitiveSceneProxy::SetIsBeingMovedByEditor_GameThread(bool bIsBeingMoved
 		});
 }
 
-void FPrimitiveSceneProxy::SetSelectionOverride_GameThread(bool bForceSelection)
-{
-	check(IsInGameThread());
-
-	ENQUEUE_RENDER_COMMAND(SetSelectionOutlineColorIndex)(
-		[this, bForceSelection](FRHICommandListImmediate&)
-		{
-			bWantsEditorEffects = bForceSelection;
-		});
-}
-
 void FPrimitiveSceneProxy::SetSelectionOutlineColorIndex_GameThread(uint8 ColorIndex)
 {
 	check(IsInGameThread());
@@ -1363,17 +1348,6 @@ void FPrimitiveSceneProxy::SetSelectionOutlineColorIndex_GameThread(uint8 ColorI
 		[this, ColorIndex](FRHICommandListImmediate&)
 		{
 			SelectionOutlineColorIndex = ColorIndex;
-		});
-}
-
-void FPrimitiveSceneProxy::SetOverlayColor_GameThread(FColor InOverlayColor)
-{
-	check(IsInGameThread());
-
-	ENQUEUE_RENDER_COMMAND(SetSelectionOutlineColorIndex)(
-		[this, InOverlayColor](FRHICommandListImmediate&)
-		{
-			OverlayColor = InOverlayColor;
 		});
 }
 #endif

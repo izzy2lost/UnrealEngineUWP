@@ -31,8 +31,6 @@ public:
 		SHADER_PARAMETER_SAMPLER(SamplerState, DepthSampler)
 		SHADER_PARAMETER_RDG_TEXTURE(Texture2D, EditorPrimitivesDepth)
 		SHADER_PARAMETER_RDG_TEXTURE_SRV(Texture2D, EditorPrimitivesStencil)
-		SHADER_PARAMETER_RDG_TEXTURE(Texture2D, OverlayLookupTexture)
-		SHADER_PARAMETER_SAMPLER(SamplerState, OverlayLookupSampler)
 		SHADER_PARAMETER(FScreenTransform, ColorToDepth)
 		SHADER_PARAMETER_ARRAY(FVector4f, OutlineColors, [8])
 		SHADER_PARAMETER(int, OutlineColorIndexBits)
@@ -96,7 +94,6 @@ FScreenPassTexture AddSelectionOutlinePass(
 	// Patch uniform buffers with updated state for rendering the outline mesh draw commands.
 	const bool bIsInstancedStereoView = View.bIsInstancedStereoEnabled && IStereoRendering::IsStereoEyePass(View.StereoPass);
 	const FViewInfo* EditorView = CreateCompositePrimitiveView(View, bIsInstancedStereoView ? View.ViewRect : Inputs.SceneColor.ViewRect, NumSamples);
-	FRDGTextureRef OverlayColorTexture = nullptr;
 
 	// Generate custom depth / stencil for outline shapes.
 	{
@@ -105,17 +102,6 @@ FScreenPassTexture AddSelectionOutlinePass(
 
 		FScene* Scene = View.Family->Scene->GetRenderScene();
 
-		{
-			FRDGTextureDesc OverlayColorDesc = Inputs.SceneColor.Texture->Desc;
-			OverlayColorDesc.Reset();
-			OverlayColorDesc.Format = PF_R8G8B8A8;
-			OverlayColorDesc.ClearValue = FClearValueBinding::Transparent;
-			OverlayColorDesc.Flags = TexCreate_RenderTargetable | TexCreate_ShaderResource;
-			OverlayColorDesc.NumSamples = NumSamples;
-
-			OverlayColorTexture = GraphBuilder.CreateTexture(OverlayColorDesc, TEXT("Editor.ColorOverlay"));
-		}
-		
 		if (View.ShouldRenderView() || !DepthStencilTexture)
 		{
 
@@ -144,7 +130,6 @@ FScreenPassTexture AddSelectionOutlinePass(
 
 				PassParameters->View = EditorView->GetShaderParameters();
 				PassParameters->SceneTextures = Inputs.SceneTextures;
-				PassParameters->RenderTargets[0] = FRenderTargetBinding(OverlayColorTexture, ERenderTargetLoadAction::EClear);
 				PassParameters->RenderTargets.DepthStencil = FDepthStencilBinding(
 					DepthStencilTexture,
 					ERenderTargetLoadAction::EClear,
@@ -274,8 +259,6 @@ FScreenPassTexture AddSelectionOutlinePass(
 		PassParameters->DepthSampler = PointClampSampler;
 		PassParameters->EditorPrimitivesDepth = DepthStencilTexture;
 		PassParameters->EditorPrimitivesStencil = GraphBuilder.CreateSRV(FRDGTextureSRVDesc::CreateWithPixelFormat(DepthStencilTexture, PF_X24_G8));
-		PassParameters->OverlayLookupTexture = OverlayColorTexture;
-		PassParameters->OverlayLookupSampler = PointClampSampler;
 		PassParameters->OutlineColors[0] = View.SelectionOutlineColor;
 		PassParameters->OutlineColors[1] = View.SubduedSelectionOutlineColor;
 		for (int OutlineColorIndex = 2; OutlineColorIndex < PassParameters->OutlineColors.Num(); ++OutlineColorIndex)

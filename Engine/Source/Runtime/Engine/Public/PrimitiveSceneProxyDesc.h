@@ -126,7 +126,6 @@ struct FPrimitiveSceneProxyDesc
 	uint32 bSelected : 1;
 	uint32 bIndividuallySelected : 1;
 	uint32 bShouldRenderSelected : 1;
-	uint32 bWantsEditorEffects : 1;
 	uint32 bCollisionEnabled : 1;
 	uint32 bIsHidden : 1;
 	uint32 bIsHiddenEd : 1;
@@ -182,9 +181,6 @@ struct FPrimitiveSceneProxyDesc
 
 	uint64 HiddenEditorViews = 0;	
 
-#if WITH_EDITOR
-	FColor OverlayColor;
-#endif
 #if MESH_DRAW_COMMAND_STATS
 	FName MeshDrawCommandStatsCategory;
 	FName GetMeshDrawCommandStatsCategory() const { return MeshDrawCommandStatsCategory; }
