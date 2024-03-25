@@ -1591,6 +1591,11 @@ namespace UnrealBuildTool
 
 		protected override CPPOutput CompileCPPFiles(CppCompileEnvironment CompileEnvironment, IEnumerable<FileItem> InputFiles, DirectoryReference OutputDir, string ModuleName, IActionGraphBuilder Graph)
 		{
+			if (Target.StaticAnalyzer != StaticAnalyzer.None && CompileEnvironment.bDisableStaticAnalysis)
+			{
+				return new CPPOutput();
+			}
+
 			VCCompileAction BaseCompileAction = CreateBaseCompileAction(CompileEnvironment);
 
 			// Create a compile action for each source file.

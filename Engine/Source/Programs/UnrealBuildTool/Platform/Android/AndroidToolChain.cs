@@ -1020,7 +1020,7 @@ namespace UnrealBuildTool
 
 		protected override CPPOutput CompileCPPFiles(CppCompileEnvironment CompileEnvironment, IEnumerable<FileItem> InputFiles, DirectoryReference OutputDir, string ModuleName, IActionGraphBuilder Graph)
 		{
-			if (ShouldSkipModule(ModuleName, CompileEnvironment.Architecture))
+			if (ShouldSkipCompile(CompileEnvironment) || ShouldSkipModule(ModuleName, CompileEnvironment.Architecture))
 			{
 				return new CPPOutput();
 			}
