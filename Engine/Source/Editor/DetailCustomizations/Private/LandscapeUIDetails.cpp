@@ -109,12 +109,9 @@ void FLandscapeUIDetails::ToggleCanHaveLayersContent(ALandscape* Landscape)
 	if (Landscape->bCanHaveLayersContent)
 	{
 		bool bHasHiddenLayers = false;
-		for (int32 i = 0; i < Landscape->GetLayerCount(); ++i)
+		for (const FLandscapeLayer& Layer : Landscape->GetLayers())
 		{
-			const FLandscapeLayer* Layer = Landscape->GetLayer(i);
-			check(Layer != nullptr);
-
-			if (!Layer->bVisible)
+			if (!Layer.bVisible)
 			{
 				bHasHiddenLayers = true;
 				break;
@@ -122,7 +119,6 @@ void FLandscapeUIDetails::ToggleCanHaveLayersContent(ALandscape* Landscape)
 		}
 				
 		FText Reason;
-
 		if (bHasHiddenLayers)
 		{
 			Reason = LOCTEXT("LandscapeDisableLayers_HiddenLayers", "Are you sure you want to disable the edit layers on this Landscape?\n\nDoing so, will result in losing the data stored for each edit layer, but the current visual output will be kept. Be aware that some edit layers are currently hidden, continuing will result in their data being lost. Undo/redo buffer will also be cleared.");

@@ -36,7 +36,6 @@ class UMaterialInterface;
 class UTexture2D;
 struct FConvexVolume;
 struct FEngineShowFlags;
-struct FLandscapeEditDataInterface;
 struct FLandscapeTextureDataInfo;
 struct FStaticLightingPrimitiveInfo;
 struct FLandscapeEditDataInterface;
@@ -389,6 +388,7 @@ static const uint32 DefaultSplineHash = 0xFFFFFFFF;
 
 #endif
 
+// TODO [jonathan.bard] : Deprecate : this is now kinda redundant with ELandscapeToolTargetType
 UENUM()
 enum ELandscapeClearMode : int
 {

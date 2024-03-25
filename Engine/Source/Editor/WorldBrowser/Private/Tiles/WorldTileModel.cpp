@@ -1049,7 +1049,7 @@ ALandscapeProxy* FWorldTileModel::ImportLandscapeTile(const FLandscapeImportSett
 
 	// Create landscape components
 	LandscapeProxy->Import(	Settings.LandscapeGuid, 0, 0, Settings.SizeX - 1, Settings.SizeY - 1, Settings.SectionsPerComponent, Settings.QuadsPerSection, HeightmapDataPerLayers, *Settings.HeightmapFilename,	
-							MaterialLayerDataPerLayer,	Settings.ImportLayerType);
+							MaterialLayerDataPerLayer,	Settings.ImportLayerType, TArrayView<const FLandscapeLayer>());
 
 	for (const FLandscapeImportLayerInfo& ImportLayerInfo : Settings.ImportLayers)
 	{

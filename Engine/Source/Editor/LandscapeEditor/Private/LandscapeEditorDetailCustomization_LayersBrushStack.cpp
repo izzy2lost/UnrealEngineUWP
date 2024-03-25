@@ -500,7 +500,7 @@ FReply FLandscapeEditorCustomNodeBuilder_LayersBrushStack::HandleDragDetected(co
 {
 	if (FEdModeLandscape* LandscapeEdMode = GetEditorMode())
 	{
-		FLandscapeLayer* Layer = LandscapeEdMode->GetCurrentLayer();
+		const FLandscapeLayer* Layer = LandscapeEdMode->GetCurrentLayer();
 		if (Layer && !Layer->bLocked)
 		{
 			const TArray<ALandscapeBlueprintBrushBase*>& BrushStack = LandscapeEdMode->GetBrushesForCurrentLayer();

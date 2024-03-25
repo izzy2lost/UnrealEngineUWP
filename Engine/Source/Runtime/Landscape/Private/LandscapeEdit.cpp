@@ -3005,15 +3005,26 @@ ULandscapeLayerInfoObject* ALandscapeProxy::CreateLayerInfo(const TCHAR* InLayer
 #define HEIGHTDATA(X,Y) (HeightData.Num() == 0 ? LandscapeDataAccess::GetTexHeight(0.0f) : HeightData[ FMath::Clamp<int32>(Y,0,VertsY) * VertsX + FMath::Clamp<int32>(X,0,VertsX) ])
 ENGINE_API extern bool GDisableAutomaticTextureMaterialUpdateDependencies;
 
-LANDSCAPE_API void ALandscapeProxy::Import(const FGuid& InGuid, int32 InMinX, int32 InMinY, int32 InMaxX, int32 InMaxY, int32 InNumSubsections, int32 InSubsectionSizeQuads, const TMap<FGuid, TArray<uint16>>& InImportHeightData, 
+void ALandscapeProxy::Import(const FGuid& InGuid, int32 InMinX, int32 InMinY, int32 InMaxX, int32 InMaxY, int32 InNumSubsections, int32 InSubsectionSizeQuads, const TMap<FGuid, TArray<uint16>>& InImportHeightData, 
 										   const TCHAR* const InHeightmapFileName, const TMap<FGuid, TArray<FLandscapeImportLayerInfo>>& InImportMaterialLayerInfos, ELandscapeImportAlphamapType InImportMaterialLayerType, const TArray<FLandscapeLayer>* InImportLayers)
+{
+	TArrayView<const FLandscapeLayer> ImportLayers;
+	if (InImportLayers != nullptr)
+	{
+		ImportLayers = MakeArrayView(static_cast<const FLandscapeLayer*>(InImportLayers->GetData()), InImportLayers->Num());
+	}
+	Import(InGuid, InMinX, InMinY, InMaxX, InMaxY, InNumSubsections, InSubsectionSizeQuads, InImportHeightData, InHeightmapFileName, InImportMaterialLayerInfos, InImportMaterialLayerType, ImportLayers);
+}
+
+void ALandscapeProxy::Import(const FGuid& InGuid, int32 InMinX, int32 InMinY, int32 InMaxX, int32 InMaxY, int32 InNumSubsections, int32 InSubsectionSizeQuads, const TMap<FGuid, TArray<uint16>>& InImportHeightData,
+	const TCHAR* const InHeightmapFileName, const TMap<FGuid, TArray<FLandscapeImportLayerInfo>>& InImportMaterialLayerInfos, ELandscapeImportAlphamapType InImportMaterialLayerType, const TArrayView<const FLandscapeLayer>& InImportLayers)
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(ALandscapeProxy::Import);
 	
 	check(InGuid.IsValid());
 	check(InImportHeightData.Num() == InImportMaterialLayerInfos.Num());
 
-	check(CanHaveLayersContent() || InImportLayers == nullptr);
+	check(CanHaveLayersContent() || InImportLayers.IsEmpty());
 
 	FScopedSlowTask SlowTask(2, LOCTEXT("BeingImportingLandscapeTask", "Importing Landscape"));
 	SlowTask.MakeDialog();
@@ -3639,7 +3650,7 @@ LANDSCAPE_API void ALandscapeProxy::Import(const FGuid& InGuid, int32 InMinX, in
 		// Create the default layer first
 		ALandscape* LandscapeActor = GetLandscapeActor();
 		check(LandscapeActor != nullptr);
-		if (LandscapeActor->GetLayerCount() == 0 && InImportLayers == nullptr)
+		if (LandscapeActor->GetLayerCount() == 0 && InImportLayers.IsEmpty())
 		{
 			LandscapeActor->CreateDefaultLayer();
 		}
@@ -3659,9 +3670,9 @@ LANDSCAPE_API void ALandscapeProxy::Import(const FGuid& InGuid, int32 InMinX, in
 		TArray<FLayerImportSettings> LayerImportSettings;		
 
 		// Only create Layers on main Landscape
-		if (LandscapeActor == this && InImportLayers != nullptr)
+		if (LandscapeActor == this && !InImportLayers.IsEmpty())
 		{
-			for (const FLandscapeLayer& OldLayer : *InImportLayers)
+			for (const FLandscapeLayer& OldLayer : InImportLayers)
 			{
 				FLandscapeLayer* NewLayer = LandscapeActor->DuplicateLayerAndMoveBrushes(OldLayer);
 				check(NewLayer != nullptr);
@@ -3683,7 +3694,7 @@ LANDSCAPE_API void ALandscapeProxy::Import(const FGuid& InGuid, int32 InMinX, in
 			}
 
 			// And we will fill all the landscape components with the provided final layer content put into the default layer (aka layer index 0)
-			const FLandscapeLayer* DefaultLayer = LandscapeActor->GetLayer(0);
+			const FLandscapeLayer* DefaultLayer = LandscapeActor->GetLayerConst(0);
 			check(DefaultLayer != nullptr);
 
 			FLayerImportSettings ImportSettings;
@@ -4015,7 +4026,7 @@ TSharedRef<UE::Landscape::Nanite::FAsyncBuildData> ALandscapeProxy::MakeAsyncNan
 	return AsyncBuildData;
 }
 
-LANDSCAPE_API void ALandscape::SetNanitePositionPrecision(int32 InPrecision, bool bInShouldDirtyPackage)
+void ALandscape::SetNanitePositionPrecision(int32 InPrecision, bool bInShouldDirtyPackage)
 {
 	NanitePositionPrecision = InPrecision;
 
@@ -4608,7 +4619,7 @@ bool ULandscapeInfo::GetLandscapeExtent(int32& MinX, int32& MinY, int32& MaxX, i
 	return (MinX != MAX_int32);
 }
 
-LANDSCAPE_API bool ULandscapeInfo::GetLandscapeXYComponentBounds(FIntRect& OutXYComponentBounds) const
+bool ULandscapeInfo::GetLandscapeXYComponentBounds(FIntRect& OutXYComponentBounds) const
 {
 	OutXYComponentBounds = XYComponentBounds;
 
@@ -4616,7 +4627,7 @@ LANDSCAPE_API bool ULandscapeInfo::GetLandscapeXYComponentBounds(FIntRect& OutXY
 		&& (OutXYComponentBounds.Max.X != MAX_int32) && (OutXYComponentBounds.Max.Y != MAX_int32);
 }
 
-LANDSCAPE_API void ULandscapeInfo::ForAllLandscapeComponents(TFunctionRef<void(ULandscapeComponent*)> Fn) const
+void ULandscapeInfo::ForAllLandscapeComponents(TFunctionRef<void(ULandscapeComponent*)> Fn) const
 {
 	ForEachLandscapeProxy([&](ALandscapeProxy* Proxy)
 	{
@@ -5070,7 +5081,7 @@ void ALandscape::PostRegisterAllComponents()
 
 	auto HasValidBrush = [this]()
 	{
-		for (const FLandscapeLayer& Layer : LandscapeLayers)
+		for (const FLandscapeLayer& Layer : LandscapeEditLayers)
 		{
 			for (const FLandscapeLayerBrush& Brush : Layer.Brushes)
 			{
@@ -5131,7 +5142,7 @@ void ALandscape::PostEditImport()
 	}
 
 	// We need to reparent brushes that may have been part of the copy/pasted actors :
-	for (FLandscapeLayer& Layer : LandscapeLayers)
+	for (FLandscapeLayer& Layer : LandscapeEditLayers)
 	{
 		for (FLandscapeLayerBrush& Brush : Layer.Brushes)
 		{

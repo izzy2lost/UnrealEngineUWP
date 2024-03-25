@@ -335,7 +335,7 @@ public:
 	/**
 	* ILandscapeEditorServices implementation
 	*/
-	virtual int32 GetOrCreateEditLayer(FName InEditLayerName, ALandscape* InTargetLandscape) override;
+	virtual int32 GetOrCreateEditLayer(FName InEditLayerName, ALandscape* InTargetLandscape, const TSubclassOf<ULandscapeEditLayerBase>& InEditLayerClass) override;
 	virtual void RefreshDetailPanel() override;
 
 protected:
@@ -522,14 +522,14 @@ FLandscapeImageFileCache& FLandscapeEditorModule::GetImageFileCache() const
 	return *LandscapeImageFileCache;
 }
 
-int32 FLandscapeEditorModule::GetOrCreateEditLayer(FName InEditLayerName, ALandscape* InTargetLandscape)
+int32 FLandscapeEditorModule::GetOrCreateEditLayer(FName InEditLayerName, ALandscape* InTargetLandscape, const TSubclassOf<ULandscapeEditLayerBase>& InEditLayerClass)
 {
 	// Insertion logic is left to the user through modal drag + drop dialog : 
 	int32 ExistingLayerIndex = InTargetLandscape->GetLayerIndex(InEditLayerName);
 	if (ExistingLayerIndex == INDEX_NONE)
 	{
-		InTargetLandscape->CreateLayer(InEditLayerName);
-		TSharedPtr<SLandscapeLayerListDialog> Dialog = SNew(SLandscapeLayerListDialog, InTargetLandscape->LandscapeLayers);
+		InTargetLandscape->CreateLayer(InEditLayerName, InEditLayerClass);
+		TSharedPtr<SLandscapeLayerListDialog> Dialog = SNew(SLandscapeLayerListDialog, InTargetLandscape);
 		Dialog->ShowModal();
 		ExistingLayerIndex = Dialog->GetInsertedLayerIndex();
 	}

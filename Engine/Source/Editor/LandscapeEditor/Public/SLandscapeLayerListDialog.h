@@ -7,7 +7,7 @@
 #include "Dialog/SCustomDialog.h"		// SLandscapeLayerListDialog
 
 class FWidgetLayerListDragDropOp;
-struct FLandscapeLayer;
+class ALandscape;
 struct FWidgetLayerListItem;
 typedef SListView<TSharedPtr<FWidgetLayerListItem> > SWidgetLayerListView;
 
@@ -28,7 +28,7 @@ public:
 	 * @param InArgs Declaration used by the SNew() macro to construct this widget
 	 * @param InLayers The array of landscape layers which should be displayed
 	 */
-	void Construct(const FArguments& InArgs, TArray<FLandscapeLayer>& InLayers);
+	void Construct(const FArguments& InArgs, const TWeakObjectPtr<ALandscape>& InLandscape);
 
 	int32 GetInsertedLayerIndex() const { return InsertedLayerIndex; }
 
@@ -49,8 +49,7 @@ private:
 	 * Note: This array is a UI reflection of LayerList but the order is the reverse order of LayerList */
 	TArray<TSharedPtr<FWidgetLayerListItem>> WidgetLayerList;
 
-	/* The original list of layers passed in Construct. */
-	TArray<FLandscapeLayer>* LayerList = nullptr;
+	TWeakObjectPtr<ALandscape> Landscape;
 
 	/* Index of the layer which is being inserted into the layer stack */
 	int InsertedLayerIndex = -1;

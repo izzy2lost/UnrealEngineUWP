@@ -2346,15 +2346,11 @@ void FLandscapeEditDataInterface::ReplaceLayer(ULandscapeLayerInfoObject* FromLa
 	if (LandscapeInfo->LandscapeActor.IsValid() && LandscapeInfo->LandscapeActor->HasLayersContent())
 	{
 		LandscapeInfo->LandscapeActor->Modify(GetShouldDirtyPackage());
-		LandscapeInfo->LandscapeActor->ForEachLayer([&](FLandscapeLayer& CurrentLayer)
+		LandscapeInfo->LandscapeActor->ReplaceLayerSubstractiveBlendStatus(FromLayerInfo, ToLayerInfo, GetShouldDirtyPackage());
+		LandscapeInfo->LandscapeActor->ForEachLayerConst([DoReplace](const FLandscapeLayer& CurrentLayer)
 		{
-			bool OutValue;
-			if (CurrentLayer.WeightmapLayerAllocationBlend.RemoveAndCopyValue(FromLayerInfo, OutValue))
-			{
-				CurrentLayer.WeightmapLayerAllocationBlend.Add(ToLayerInfo, OutValue);
-			}
-
 			DoReplace(CurrentLayer.Guid);
+			return true;
 		});
 		LandscapeInfo->LandscapeActor->RequestLayersContentUpdateForceAll(ELandscapeLayerUpdateMode::Update_Weightmap_All);
 	}

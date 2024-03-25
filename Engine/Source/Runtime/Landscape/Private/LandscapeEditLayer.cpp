@@ -1,0 +1,60 @@
+// Copyright Epic Games, Inc. All Rights Reserved.
+
+#include "LandscapeEditLayer.h"
+#include "LandscapeEditTypes.h"
+#include "Landscape.h"
+
+#define LOCTEXT_NAMESPACE "LandscapeEditLayer"
+
+
+// ----------------------------------------------------------------------------------
+
+bool ULandscapeEditLayer::SupportsTargetType(ELandscapeToolTargetType InType) const
+{
+	return (InType == ELandscapeToolTargetType::Heightmap) || (InType == ELandscapeToolTargetType::Weightmap) || (InType == ELandscapeToolTargetType::Visibility);
+}
+
+
+// ----------------------------------------------------------------------------------
+
+bool ULandscapeEditLayerSplines::SupportsTargetType(ELandscapeToolTargetType InType) const
+{
+	return (InType == ELandscapeToolTargetType::Heightmap) || (InType == ELandscapeToolTargetType::Weightmap) || (InType == ELandscapeToolTargetType::Visibility);
+}
+
+void ULandscapeEditLayerSplines::OnLayerCreated(FLandscapeLayer& Layer)
+{
+	// Splines edit layer is always using alpha blend mode
+	Layer.BlendMode = LSBM_AlphaBlend;
+}
+
+TArray<ULandscapeEditLayerSplines::FEditLayerAction> ULandscapeEditLayerSplines::GetActions() const
+{
+	TArray<FEditLayerAction> Actions;
+
+#if WITH_EDITOR
+	// Register an "Update Splines" action :
+	Actions.Add(FEditLayerAction(
+		LOCTEXT("LandscapeEditLayerSplines_UpdateSplines", "Update Splines"),
+		FEditLayerAction::FExecuteDelegate::CreateWeakLambda(this, [](const FEditLayerAction::FExecuteParams& InParams)
+		{
+			InParams.GetLandscape()->UpdateLandscapeSplines(FGuid(), /*bUpdateOnlySelection = */false, /*bForceUpdate =*/true);
+			return FEditLayerAction::FExecuteResult(/*bInSuccess = */true);
+		}),
+		FEditLayerAction::FCanExecuteDelegate::CreateWeakLambda(this, [](const FEditLayerAction::FExecuteParams& InParams, FText& OutReason)
+		{
+			if (InParams.GetLayer()->bLocked)
+			{
+				OutReason = FText::Format(LOCTEXT("LandscapeEditLayerSplines_CannotUpdateSplinesOnLockedLayer", "Cannot update splines on layer '{0}' : the layer is currently locked"), FText::FromName(InParams.GetLayer()->Name));
+				return false;
+			}
+
+			OutReason = LOCTEXT("LandscapeEditLayerSplines_UpdateSplines_Tooltip", "Update Landscape Splines");
+			return true;
+		})));
+#endif // WITH_EDITOR
+
+	return Actions;
+}
+
+#undef LOCTEXT_NAMESPACE

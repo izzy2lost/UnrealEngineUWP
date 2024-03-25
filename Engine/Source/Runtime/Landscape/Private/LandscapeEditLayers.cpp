@@ -6,6 +6,7 @@ LandscapeEditLayers.cpp: Landscape editing layers mode
 
 #include "LandscapeEdit.h"
 #include "Landscape.h"
+#include "LandscapeEditLayer.h"
 #include "LandscapeProxy.h"
 #include "LandscapeStreamingProxy.h"
 #include "LandscapeInfo.h"
@@ -1415,7 +1416,7 @@ public:
 		SHADER_PARAMETER_RDG_BUFFER_SRV(StructuredBuffer<uint>, InPaintLayerInfoIndices)
 		SHADER_PARAMETER_RDG_BUFFER_SRV(StructuredBuffer<FLandscapeWeightmapPaintLayerInfo>, InPaintLayerInfos)
 		RENDER_TARGET_BINDING_SLOTS()
-	END_SHADER_PARAMETER_STRUCT()
+		END_SHADER_PARAMETER_STRUCT()
 
 		static bool ShouldCompilePermutation(const FGlobalShaderPermutationParameters& Parameters)
 	{
@@ -1804,7 +1805,7 @@ bool ALandscape::SupportsEditLayersLocalMerge()
 	ALandscape* Landscape = GetLandscapeActor();
 	check(Landscape);
 
-	for (const FLandscapeLayer& Layer : Landscape->LandscapeLayers)
+	for (const FLandscapeLayer& Layer : Landscape->LandscapeEditLayers)
 	{
 		// No BP brush is supported for local merge of edit layers : 
 		if (Layer.bVisible && Algo::AnyOf(Layer.Brushes, [](const FLandscapeLayerBrush& Brush) { return (Brush.GetBrush() != nullptr) && Brush.GetBrush()->IsVisible(); }))
@@ -1821,7 +1822,7 @@ bool ALandscape::HasNormalCaptureBPBrushLayer()
 	ALandscape* Landscape = GetLandscapeActor();
 	check(Landscape);
 
-	for (const FLandscapeLayer& Layer : Landscape->LandscapeLayers)
+	for (const FLandscapeLayer& Layer : Landscape->LandscapeEditLayers)
 	{
 		if (Layer.bVisible && Algo::AnyOf(Layer.Brushes, [](const FLandscapeLayerBrush& Brush) { return (Brush.GetBrush() != nullptr) && Brush.GetBrush()->IsVisible() && Brush.GetBrush()->GetCaptureBoundaryNormals(); }))
 		{
@@ -1915,8 +1916,8 @@ bool ALandscape::CreateLayersRenderingResource(bool bUseNormalCapture)
 			}
 		};
 
-		for (int32 i = 0; i < (int32)EHeightmapRTType::HeightmapRT_Count; ++i)
-		{
+			for (int32 i = 0; i < (int32)EHeightmapRTType::HeightmapRT_Count; ++i)
+			{
 			if (bCreateFromScratch)
 			{
 				FText DisplayName = StaticEnum<EHeightmapRTType>()->GetDisplayValueAsText((EHeightmapRTType)i);
@@ -1929,23 +1930,23 @@ bool ALandscape::CreateLayersRenderingResource(bool bUseNormalCapture)
 				Landscape->HeightmapRTList[i]->ClearColor = FLinearColor(0.0f, 0.0f, 0.0f, 0.0f);
 			}
 
-			if (i < (int32)EHeightmapRTType::HeightmapRT_Mip1) // Landscape size RT
-			{
+				if (i < (int32)EHeightmapRTType::HeightmapRT_Mip1) // Landscape size RT
+				{
 				InitOrResizeRT(Landscape->HeightmapRTList[i], CurrentMipSizeX, CurrentMipSizeY, bCreateFromScratch);
-			}
-			else // Mips
-			{
-				CurrentMipSizeX >>= 1;
-				CurrentMipSizeY >>= 1;
+				}
+				else // Mips
+				{
+					CurrentMipSizeX >>= 1;
+					CurrentMipSizeY >>= 1;
 				InitOrResizeRT(Landscape->HeightmapRTList[i], CurrentMipSizeX, CurrentMipSizeY, bCreateFromScratch);
-			}
+				}
 
-			// Only generate required mips RT
-			if (CurrentMipSizeX == ComponentCounts.X && CurrentMipSizeY == ComponentCounts.Y)
-			{
-				break;
+				// Only generate required mips RT
+				if (CurrentMipSizeX == ComponentCounts.X && CurrentMipSizeY == ComponentCounts.Y)
+				{
+					break;
+				}
 			}
-		}
 
 		// Weightmap mip size
 		CurrentMipSizeX = ((SubsectionSizeQuads + 1) * NumSubsections) * ComponentCounts.X;
@@ -1953,7 +1954,7 @@ bool ALandscape::CreateLayersRenderingResource(bool bUseNormalCapture)
 		bCreateFromScratch = (Landscape->WeightmapRTList.Num() == 0);
 
 		if (bCreateFromScratch)
-		{
+				{
 			Landscape->WeightmapRTList.Init(nullptr, (int32)EWeightmapRTType::WeightmapRT_Count);
 		}
 
@@ -1977,26 +1978,26 @@ bool ALandscape::CreateLayersRenderingResource(bool bUseNormalCapture)
 				{
 					Landscape->WeightmapRTList[i]->RenderTargetFormat = RTF_R8;
 				}
-			}
+				}
 
 			if (i < (int32)EWeightmapRTType::WeightmapRT_Mip0)
-			{
+				{
 				InitOrResizeRT(Landscape->WeightmapRTList[i], CurrentMipSizeX, CurrentMipSizeY, bCreateFromScratch);
-			}
-			else // Mips
-			{
+				}
+				else // Mips
+				{
 				InitOrResizeRT(Landscape->WeightmapRTList[i], CurrentMipSizeX, CurrentMipSizeY, bCreateFromScratch);
 
-				CurrentMipSizeX >>= 1;
-				CurrentMipSizeY >>= 1;
-			}
+					CurrentMipSizeX >>= 1;
+					CurrentMipSizeY >>= 1;
+				}
 
-			// Only generate required mips RT
-			if (CurrentMipSizeX < ComponentCounts.X && CurrentMipSizeY < ComponentCounts.Y)
-			{
-				break;
+				// Only generate required mips RT
+				if (CurrentMipSizeX < ComponentCounts.X && CurrentMipSizeY < ComponentCounts.Y)
+				{
+					break;
+				}
 			}
-		}
 
 		InitializeLayersWeightmapResources();
 	}
@@ -2155,7 +2156,7 @@ void ALandscape::CopyOldDataToDefaultLayer(ALandscapeProxy* InProxy)
 
 	InProxy->Modify();
 
-	FLandscapeLayer* DefaultLayer = GetLayer(0);
+	const FLandscapeLayer* DefaultLayer = GetLayerConst(0);
 	check(DefaultLayer != nullptr);
 
 	struct FWeightmapTextureData
@@ -2349,8 +2350,7 @@ void ALandscapeProxy::InitializeProxyLayersWeightmapUsage()
 			// Reinitialize the weightmap usages for the base (final) paint layers allocations :
 			Component->InitializeLayersWeightmapUsage(FGuid());
 
-			const FLandscapeLayer* SplinesLayer = Landscape->GetLandscapeSplinesReservedLayer();
-			for (const FLandscapeLayer& Layer : Landscape->LandscapeLayers)
+			for (const FLandscapeLayer& Layer : Landscape->GetLayers())
 			{
 				// Reinitialize each edit layer's weightmap usages list :
 				Component->InitializeLayersWeightmapUsage(Layer.Guid);
@@ -2368,7 +2368,7 @@ void ULandscapeComponent::InitializeLayersWeightmapUsage(const FGuid& InLayerGui
 	check(Proxy);
 	ALandscape* Landscape = GetLandscapeActor();
 	check(Landscape);
-	const FLandscapeLayer* SplinesLayer = Landscape->GetLandscapeSplinesReservedLayer();
+	const FLandscapeLayer* SplinesLayer = Landscape->FindLayerOfType(ULandscapeEditLayerSplines::StaticClass());
 	FGuid SplinesEditLayerGuid = SplinesLayer ? SplinesLayer->Guid : FGuid();
 
 	// Don't consider invalid edit layers : 
@@ -2515,8 +2515,8 @@ void ALandscapeProxy::ValidateProxyLayersWeightmapUsage() const
 
 			// Validate edit layers weightmap allocations : 
 			{
-				const FLandscapeLayer* SplinesLayer = Landscape->GetLandscapeSplinesReservedLayer();
-				for (const FLandscapeLayer& Layer : Landscape->LandscapeLayers)
+				const FLandscapeLayer* SplinesLayer = Landscape->FindLayerOfType(ULandscapeEditLayerSplines::StaticClass());
+				for (const FLandscapeLayer& Layer : Landscape->GetLayers())
 				{
 					FLandscapeLayerComponentData* LayerData = Component->GetLayerData(Layer.Guid);
 
@@ -3594,13 +3594,13 @@ void ALandscape::InvalidateRVTForTextures(const TSet<UTexture2D*>& InTextures)
 						{
 							// Landscape only supports UPrimitiveComponent for the moment
 							if (UPrimitiveComponent* PrimitiveComponent = PrimitiveComponentInterface->GetUObject<UPrimitiveComponent>())
-							{
-								PrimitiveComponentsToInvalidate.Add(PrimitiveComponent);
-							}
+						{
+							PrimitiveComponentsToInvalidate.Add(PrimitiveComponent);
 						}
 					}
 				}
 			}
+		}
 		}
 
 		if (!PrimitiveComponentsToInvalidate.IsEmpty())
@@ -3623,7 +3623,7 @@ void ALandscape::InvalidateRVTForTextures(const TSet<UTexture2D*>& InTextures)
 
 bool ALandscape::PrepareLayersTextureResources(bool bInWaitForStreaming)
 {
-	return PrepareLayersTextureResources(LandscapeLayers, bInWaitForStreaming);
+	return PrepareLayersTextureResources(LandscapeEditLayers, bInWaitForStreaming);
 }
 
 bool ALandscape::PrepareLayersTextureResources(const TArray<FLandscapeLayer>& InLayers, bool bInWaitForStreaming)
@@ -3666,7 +3666,7 @@ bool ALandscape::PrepareLayersBrushResources(ERHIFeatureLevel::Type InFeatureLev
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(LandscapeLayers_PrepareLayersBrushTextureResources);
 	TSet<UObject*> Dependencies;
-	for (const FLandscapeLayer& Layer : LandscapeLayers)
+	for (const FLandscapeLayer& Layer : LandscapeEditLayers)
 	{
 		for (const FLandscapeLayerBrush& Brush : Layer.Brushes)
 		{
@@ -4521,8 +4521,8 @@ void ALandscape::PrepareLayersHeightmapsLocalMergeRenderThreadData(const FUpdate
 	OutRenderThreadData.NumSubsections = NumSubsections;
 
 	// Prepare landscape edit layers data common to all landscape components: 
-	OutRenderThreadData.VisibleEditLayerInfos.Reserve(LandscapeLayers.Num());
-	for (const FLandscapeLayer& Layer : LandscapeLayers)
+	OutRenderThreadData.VisibleEditLayerInfos.Reserve(LandscapeEditLayers.Num());
+	for (const FLandscapeLayer& Layer : LandscapeEditLayers)
 	{
 		if (Layer.bVisible && !InMergeParams.bSkipBrush)
 		{
@@ -4562,7 +4562,7 @@ void ALandscape::PrepareLayersHeightmapsLocalMergeRenderThreadData(const FUpdate
 			const FIntRect ComponentTextureSubregion(HeightmapOffset, HeightmapOffset + OutRenderThreadData.ComponentSizeVerts);
 
 			NewComponentRenderInfo.VisibleLayerHeightmapTextures.Reserve(OutRenderThreadData.VisibleEditLayerInfos.Num());
-			for (const FLandscapeLayer& Layer : LandscapeLayers)
+			for (const FLandscapeLayer& Layer : LandscapeEditLayers)
 			{
 				if (Layer.bVisible && !InMergeParams.bSkipBrush)
 				{
@@ -4863,7 +4863,7 @@ int32 ALandscape::PerformLayersHeightmapsGlobalMerge(const FUpdateLayersContentC
 	UTextureRenderTarget2D* LandscapeScratchRT2 = HeightmapRTList[(int32)EHeightmapRTType::HeightmapRT_Scratch2];
 	UTextureRenderTarget2D* LandscapeScratchRT3 = HeightmapRTList[(int32)EHeightmapRTType::HeightmapRT_Scratch3];
 
-	for (FLandscapeLayer& Layer : LandscapeLayers)
+	for (FLandscapeLayer& Layer : LandscapeEditLayers)
 	{
 		// Draw each Layer's heightmaps to a Combined RT Atlas in LandscapeScratchRT1
 		ShaderParams.ApplyLayerModifiers = false;
@@ -4875,8 +4875,7 @@ int32 ALandscape::PerformLayersHeightmapsGlobalMerge(const FUpdateLayersContentC
 		if (Layer.BlendMode == LSBM_AlphaBlend)
 		{
 			// For now, only Layer reserved for Landscape Splines will use the AlphaBlendMode
-			const FLandscapeLayer* SplinesReservedLayer = GetLandscapeSplinesReservedLayer();
-			check(&Layer == SplinesReservedLayer);
+			check((Layer.EditLayer != nullptr) && Layer.EditLayer->IsA<ULandscapeEditLayerSplines>());
 			ShaderParams.LayerAlpha = 1.0f;
 		}
 		else
@@ -4925,7 +4924,7 @@ int32 ALandscape::PerformLayersHeightmapsGlobalMerge(const FUpdateLayersContentC
 				FLandscapeBrushParameters BrushParameters(ELandscapeToolTargetType::Heightmap, CombinedHeightmapNonAtlasRT);
 
 				UTextureRenderTarget2D* BrushOutputNonAtlasRT = Brush.RenderLayer(LandscapeExtent, BrushParameters);
-				if ((BrushOutputNonAtlasRT == nullptr)
+				if ((BrushOutputNonAtlasRT == nullptr) 
 					|| (BrushOutputNonAtlasRT->SizeX != CombinedHeightmapNonAtlasRT->SizeX)
 					|| (BrushOutputNonAtlasRT->SizeY != CombinedHeightmapNonAtlasRT->SizeY))
 				{
@@ -5348,7 +5347,7 @@ void ALandscape::OnDirtyWeightmap(FTextureToComponentHelper const& MapHelper, UT
 										++NumDifferentPixels;
 									}
 								}
-							}
+					}
 							StrBuilder.Appendf(TEXT("----------------------------------------\n"));
 							StrBuilder.Appendf(TEXT("Num diffs = %u\n"), NumDifferentPixels);
 							StrBuilder.Appendf(TEXT("Max diff = %u (%1.3f%%)\n"), MaxDiff, 100.0 * static_cast<float>(MaxDiff) / MAX_uint8);
@@ -6010,7 +6009,7 @@ void ALandscape::ReallocateLayersWeightmaps(FUpdateLayersContentContext& InUpdat
 
 	// Build a map of all the allocation per components
 	TMap<ULandscapeComponent*, TArray<ULandscapeLayerInfoObject*>> LayerAllocsPerComponent;
-	for (FLandscapeLayer& Layer : LandscapeLayers)
+	for (FLandscapeLayer& Layer : LandscapeEditLayers)
 	{
 		for (ULandscapeComponent* Component : InUpdateLayersContentContext.LandscapeComponentsWeightmapsToResolve)
 		{
@@ -6026,14 +6025,14 @@ void ALandscape::ReallocateLayersWeightmaps(FUpdateLayersContentContext& InUpdat
 			{
 				if (FLandscapeLayerComponentData* LayerComponentData = Component->GetLayerData(Layer.Guid))
 				{
-					for (const FWeightmapLayerAllocationInfo& LayerWeightmapAllocation : LayerComponentData->WeightmapData.LayerAllocations)
+				for (const FWeightmapLayerAllocationInfo& LayerWeightmapAllocation : LayerComponentData->WeightmapData.LayerAllocations)
+				{
+					if (LayerWeightmapAllocation.LayerInfo != nullptr)
 					{
-						if (LayerWeightmapAllocation.LayerInfo != nullptr)
-						{
-							ComponentLayerAlloc->AddUnique(LayerWeightmapAllocation.LayerInfo);
-						}
+						ComponentLayerAlloc->AddUnique(LayerWeightmapAllocation.LayerInfo);
 					}
 				}
+			}
 			}
 
 			// Add the brush alloc also (only if !InMergeParams.bSkipBrush, but InBrushRequiredAllocations should be empty already if InMergeParams.bSkipBrush is true) :
@@ -6791,7 +6790,7 @@ void ALandscape::PrepareLayersWeightmapsLocalMergeRenderThreadData(const FUpdate
 
 			// Build, for each of the paint layers, a list of the weightmaps from each of the edit layers that affect the final result :
 			TMap<ULandscapeLayerInfoObject*, int32> PaintLayerToComponentPaintLayerRenderInfoIndex;
-			for (const FLandscapeLayer& Layer : LandscapeLayers)
+			for (const FLandscapeLayer& Layer : LandscapeEditLayers)
 			{
 				if (Layer.bVisible && !InMergeParams.bSkipBrush)
 				{
@@ -7118,7 +7117,7 @@ int32 ALandscape::PerformLayersWeightmapsGlobalMerge(FUpdateLayersContentContext
 		bool bHasWeightmapData = false;
 		bool bFirstLayer = true;
 
-		for (FLandscapeLayer& Layer : LandscapeLayers)
+		for (FLandscapeLayer& Layer : LandscapeEditLayers)
 		{
 			int8 CurrentWeightmapToProcessIndex = 0;
 			bool HasFoundWeightmapToProcess = true; // try processing at least once
@@ -7243,7 +7242,7 @@ int32 ALandscape::PerformLayersWeightmapsGlobalMerge(FUpdateLayersContentContext
 					int32 LayerIndex = LayerInfoObject.Value;
 					ULandscapeLayerInfoObject* LayerInfoObj = LayerInfoObject.Key;
 
-					SCOPED_DRAW_EVENTF_GAMETHREAD(LandscapeLayers, TEXT("LS Weight: %s PaintLayer: %s"), Layer.Name, LayerInfoObj->LayerName);
+					SCOPED_DRAW_EVENTF_GAMETHREAD(LandscapeEditLayers, TEXT("LS Weight: %s PaintLayer: %s"), Layer.Name, LayerInfoObj->LayerName);
 
 					// Copy the layer we are working on
 					SourceDebugName = FString::Printf(TEXT("Weight: %s PaintLayer: %s, CurrentProcLayerWeightmapAllLayersResource"), *Layer.Name.ToString(), *LayerInfoObj->LayerName.ToString());
@@ -7894,7 +7893,7 @@ void ALandscape::ResolveLayersWeightmapTexture(
 
 bool ALandscape::HasLayersContent() const
 {
-	return LandscapeLayers.Num() > 0;
+	return LandscapeEditLayers.Num() > 0;
 }
 
 void ALandscape::UpdateCachedHasLayersContent(bool bInCheckComponentDataIntegrity)
@@ -7925,7 +7924,7 @@ void ALandscape::RequestLayersInitialization(bool bInRequestContentUpdate)
 
 void ALandscape::RequestSplineLayerUpdate()
 {
-	if (HasLayersContent() && GetLandscapeSplinesReservedLayer() != nullptr)
+	if (HasLayersContent() && FindLayerOfType(ULandscapeEditLayerSplines::StaticClass()) != nullptr)
 	{
 		bSplineLayerUpdateRequested = true;
 	}
@@ -8306,7 +8305,7 @@ void ALandscape::UpdateLayersContent(bool bInWaitForStreaming, bool bInSkipMonit
 	MonitorShaderCompilation();
 
 	// Make sure Brush get a chance to request an update of the landscape
-	for (FLandscapeLayer& Layer : LandscapeLayers)
+	for (FLandscapeLayer& Layer : LandscapeEditLayers)
 	{
 		for (FLandscapeLayerBrush& Brush : Layer.Brushes)
 		{
@@ -8322,7 +8321,7 @@ void ALandscape::UpdateLayersContent(bool bInWaitForStreaming, bool bInSkipMonit
 
 	if (bSplineLayerUpdateRequested)
 	{
-		if (FLandscapeLayer* SplinesLayer = GetLandscapeSplinesReservedLayer())
+		if (const FLandscapeLayer* SplinesLayer = FindLayerOfType(ULandscapeEditLayerSplines::StaticClass()))
 		{
 			// We need the spline layer resources to all be ready before updating it:
 			if (!PrepareLayersTextureResources({ *SplinesLayer }, bInWaitForStreaming))
@@ -8655,9 +8654,9 @@ void ALandscape::InitializeLayers(bool bUseNormalCapture)
 
 	if (CreateLayersRenderingResource(bUseNormalCapture))
 	{
-		InitializeLandscapeLayersWeightmapUsage();
-		bLandscapeLayersAreInitialized = true;
-	}
+	InitializeLandscapeLayersWeightmapUsage();
+	bLandscapeLayersAreInitialized = true;
+}
 }
 
 void ALandscape::OnPreSave()
@@ -8934,7 +8933,7 @@ bool ALandscapeProxy::AddLayer(const FGuid& InLayerGuid)
 	{
 		if ((Component != nullptr) && !Component->GetLayerData(InLayerGuid))
 		{
-			const FLandscapeLayer* EditLayer = GetLandscapeActor() ? GetLandscapeActor()->GetLayer(InLayerGuid) : nullptr;
+			const FLandscapeLayer* EditLayer = GetLandscapeActor() ? GetLandscapeActor()->GetLayerConst(InLayerGuid) : nullptr;
 			Component->AddLayerData(InLayerGuid, FLandscapeLayerComponentData(EditLayer ? EditLayer->Name : FName()));
 			bModified = true;
 		}
@@ -9118,12 +9117,12 @@ bool ALandscape::IsUpToDate() const
 #if WITH_EDITOR
 bool ALandscape::IsLayerNameUnique(const FName& InName) const
 {
-	return Algo::CountIf(LandscapeLayers, [InName](const FLandscapeLayer& Layer) { return (Layer.Name == InName); }) == 0;
+	return Algo::CountIf(LandscapeEditLayers, [InName](const FLandscapeLayer& Layer) { return (Layer.Name == InName); }) == 0;
 }
 
 void ALandscape::SetLayerName(int32 InLayerIndex, const FName& InName)
 {
-	FLandscapeLayer* Layer = GetLayer(InLayerIndex);
+	FLandscapeLayer* Layer = GetLayerInternal(InLayerIndex);
 	ULandscapeInfo* LandscapeInfo = GetLandscapeInfo();
 	if (!LandscapeInfo || !Layer || Layer->Name == InName)
 	{
@@ -9136,13 +9135,14 @@ void ALandscape::SetLayerName(int32 InLayerIndex, const FName& InName)
 	}
 
 	Modify();
-	LandscapeLayers[InLayerIndex].Name = InName;
+	Layer->Name = InName;
 }
 
 float ALandscape::GetLayerAlpha(int32 InLayerIndex, bool bInHeightmap) const
 {
-	const FLandscapeLayer* SplinesReservedLayer = GetLandscapeSplinesReservedLayer();
-	const FLandscapeLayer* Layer = GetLayer(InLayerIndex);
+	// TODO [jonathan.bard] : replace by proper getter virtual GetLayerAlpha implementation on ULandscapeEditLayerSplines
+	const FLandscapeLayer* SplinesReservedLayer = FindLayerOfType(ULandscapeEditLayerSplines::StaticClass());
+	const FLandscapeLayer* Layer = GetLayerConst(InLayerIndex);
 	if (Layer && SplinesReservedLayer != Layer)
 	{
 		return GetClampedLayerAlpha(bInHeightmap ? Layer->HeightmapAlpha : Layer->WeightmapAlpha, bInHeightmap);
@@ -9158,7 +9158,7 @@ float ALandscape::GetClampedLayerAlpha(float InAlpha, bool bInHeightmap) const
 
 void ALandscape::SetLayerAlpha(int32 InLayerIndex, float InAlpha, bool bInHeightmap)
 {
-	FLandscapeLayer* Layer = GetLayer(InLayerIndex);
+	FLandscapeLayer* Layer = GetLayerInternal(InLayerIndex);
 	ULandscapeInfo* LandscapeInfo = GetLandscapeInfo();
 	if (!LandscapeInfo || !Layer)
 	{
@@ -9176,23 +9176,31 @@ void ALandscape::SetLayerAlpha(int32 InLayerIndex, float InAlpha, bool bInHeight
 	RequestLayersContentUpdateForceAll();
 }
 
-void ALandscape::SetLayerVisibility(int32 InLayerIndex, bool bInVisible)
+void ALandscape::SetLayerVisibility(int32 InLayerIndex, bool bInVisible, bool bInForIntermediateRender)
 {
-	FLandscapeLayer* Layer = GetLayer(InLayerIndex);
+	FLandscapeLayer* Layer = GetLayerInternal(InLayerIndex);
 	ULandscapeInfo* LandscapeInfo = GetLandscapeInfo();
 	if (!LandscapeInfo || !Layer || Layer->bVisible == bInVisible)
 	{
 		return;
 	}
 
-	Modify();
+	if (!bInForIntermediateRender)
+	{
+		Modify();
+	}
+
 	Layer->bVisible = bInVisible;
-	RequestLayersContentUpdateForceAll();
+
+	if (!bInForIntermediateRender)
+	{
+		RequestLayersContentUpdateForceAll();
+	}
 }
 
 void ALandscape::SetLayerLocked(int32 InLayerIndex, bool bLocked)
 {
-	FLandscapeLayer* Layer = GetLayer(InLayerIndex);
+	FLandscapeLayer* Layer = GetLayerInternal(InLayerIndex);
 	if (!Layer || Layer->bLocked == bLocked)
 	{
 		return;
@@ -9202,55 +9210,112 @@ void ALandscape::SetLayerLocked(int32 InLayerIndex, bool bLocked)
 	Layer->bLocked = bLocked;
 }
 
+void ALandscape::SetLayerBlendMode(int32 InLayerIndex, ELandscapeBlendMode InBlendMode)
+{
+	FLandscapeLayer* Layer = GetLayerInternal(InLayerIndex);
+	if (!Layer || Layer->BlendMode == InBlendMode)
+	{
+		return;
+	}
+
+	Modify();
+	Layer->BlendMode = InBlendMode;
+}
+
 uint8 ALandscape::GetLayerCount() const
 {
-	return static_cast<uint8>(LandscapeLayers.Num());
+	return static_cast<uint8>(LandscapeEditLayers.Num());
 }
 
-FLandscapeLayer* ALandscape::GetLayer(int32 InLayerIndex)
+FLandscapeLayer* ALandscape::GetLayerInternal(int32 InLayerIndex)
 {
-	if (LandscapeLayers.IsValidIndex(InLayerIndex))
+	if (LandscapeEditLayers.IsValidIndex(InLayerIndex))
 	{
-		return &LandscapeLayers[InLayerIndex];
+		return &LandscapeEditLayers[InLayerIndex];
 	}
 	return nullptr;
 }
 
+// Deprecated
 const FLandscapeLayer* ALandscape::GetLayer(int32 InLayerIndex) const
 {
-	if (LandscapeLayers.IsValidIndex(InLayerIndex))
+	return GetLayerConst(InLayerIndex);
+}
+
+// Deprecated
+const FLandscapeLayer* ALandscape::GetLayer(const FGuid& InLayerGuid) const
+{
+	return GetLayerConst(InLayerGuid);
+}
+
+// Deprecated
+const FLandscapeLayer* ALandscape::GetLayer(const FName& InLayerName) const
+{
+	return GetLayerConst(InLayerName);
+}
+
+const FLandscapeLayer* ALandscape::GetLayerConst(int32 InLayerIndex) const
+{
+	if (LandscapeEditLayers.IsValidIndex(InLayerIndex))
 	{
-		return &LandscapeLayers[InLayerIndex];
+		return &LandscapeEditLayers[InLayerIndex];
 	}
 	return nullptr;
+}
+
+const FLandscapeLayer* ALandscape::GetLayerConst(const FGuid& InLayerGuid) const
+{
+	return LandscapeEditLayers.FindByPredicate([&InLayerGuid](const FLandscapeLayer& Other) { return Other.Guid == InLayerGuid; });
+}
+
+const FLandscapeLayer* ALandscape::GetLayerConst(const FName& InLayerName) const
+{
+	return LandscapeEditLayers.FindByPredicate([InLayerName](const FLandscapeLayer& Layer) { return Layer.Name == InLayerName; });
 }
 
 int32 ALandscape::GetLayerIndex(FName InLayerName) const
 {
-	return LandscapeLayers.IndexOfByPredicate([InLayerName](const FLandscapeLayer& Layer) { return Layer.Name == InLayerName; });
+	return LandscapeEditLayers.IndexOfByPredicate([InLayerName](const FLandscapeLayer& Layer) { return Layer.Name == InLayerName; });
 }
 
-const FLandscapeLayer* ALandscape::GetLayer(const FGuid& InLayerGuid) const
-{
-	return LandscapeLayers.FindByPredicate([&InLayerGuid](const FLandscapeLayer& Other) { return Other.Guid == InLayerGuid; });
-}
-
-const FLandscapeLayer* ALandscape::GetLayer(const FName& InLayerName) const
-{
-	return LandscapeLayers.FindByPredicate([InLayerName](const FLandscapeLayer& Layer) { return Layer.Name == InLayerName; });
-}
-
+// Deprecated
 void ALandscape::ForEachLayer(TFunctionRef<void(struct FLandscapeLayer&)> Fn)
 {
-	for (FLandscapeLayer& Layer : LandscapeLayers)
+	for (FLandscapeLayer& Layer : LandscapeEditLayers)
 	{
 		Fn(Layer);
 	}
 }
 
+void ALandscape::ForEachLayerConst(TFunctionRef<bool(const FLandscapeLayer&)> Fn)
+{
+	for (FLandscapeLayer& Layer : LandscapeEditLayers)
+	{
+		if (!Fn(Layer))
+		{
+			return;
+		}
+	}
+}
+
+const FLandscapeLayer* ALandscape::FindLayerOfType(const TSubclassOf<ULandscapeEditLayerBase>& InLayerClass) const
+{
+	return LandscapeEditLayers.FindByPredicate([&InLayerClass](const FLandscapeLayer& InLayer) { check(InLayer.EditLayer != nullptr); return InLayer.EditLayer->GetClass()->IsChildOf(InLayerClass); });
+}
+
+TArray<const FLandscapeLayer*> ALandscape::GetLayersOfType(const TSubclassOf<ULandscapeEditLayerBase>& InLayerClass) const
+{
+	TArray<const FLandscapeLayer*> Result;
+	Result.Reserve(LandscapeEditLayers.Num());
+	Algo::TransformIf(LandscapeEditLayers, Result,
+		[&InLayerClass](const FLandscapeLayer& InLayer) { check(InLayer.EditLayer != nullptr); return InLayer.EditLayer->GetClass()->IsChildOf(InLayerClass); },
+		[](const FLandscapeLayer& InLayer) { return &InLayer; });
+	return Result;
+}
+
 void ALandscape::DeleteLayers()
 {
-	for (int32 LayerIndex = LandscapeLayers.Num() - 1; LayerIndex >= 0; --LayerIndex)
+	for (int32 LayerIndex = LandscapeEditLayers.Num() - 1; LayerIndex >= 0; --LayerIndex)
 	{
 		DeleteLayer(LayerIndex);
 	}
@@ -9261,7 +9326,7 @@ void ALandscape::DeleteLayer(int32 InLayerIndex)
 	ensure(HasLayersContent());
 
 	ULandscapeInfo* LandscapeInfo = GetLandscapeInfo();
-	const FLandscapeLayer* Layer = GetLayer(InLayerIndex);
+	const FLandscapeLayer* Layer = GetLayerConst(InLayerIndex);
 	if (!LandscapeInfo || !Layer)
 	{
 		return;
@@ -9277,14 +9342,8 @@ void ALandscape::DeleteLayer(int32 InLayerIndex)
 		return true;
 	});
 
-	const FLandscapeLayer* SplinesReservedLayer = GetLandscapeSplinesReservedLayer();
-	if (SplinesReservedLayer == Layer)
-	{
-		LandscapeSplinesTargetLayerGuid.Invalidate();
-	}
-
 	// Remove layer from list
-	LandscapeLayers.RemoveAt(InLayerIndex);
+	LandscapeEditLayers.RemoveAt(InLayerIndex);
 
 	// Request Update
 	RequestLayersContentUpdateForceAll();
@@ -9296,16 +9355,16 @@ void ALandscape::CollapseLayer(int32 InLayerIndex)
 	SlowTask.MakeDialog();
 	TArray<bool> BackupVisibility;
 	TArray<bool> BackupBrushVisibility;
-	for (int32 i = 0; i < LandscapeLayers.Num(); ++i)
+	for (int32 i = 0; i < LandscapeEditLayers.Num(); ++i)
 	{
-		BackupVisibility.Add(LandscapeLayers[i].bVisible);
-		LandscapeLayers[i].bVisible = i == InLayerIndex || i == InLayerIndex - 1;
+		BackupVisibility.Add(LandscapeEditLayers[i].bVisible);
+		LandscapeEditLayers[i].bVisible = i == InLayerIndex || i == InLayerIndex - 1;
 	}
 
-	for (int32 i = 0; i < LandscapeLayers[InLayerIndex].Brushes.Num(); ++i)
+	for (int32 i = 0; i < LandscapeEditLayers[InLayerIndex].Brushes.Num(); ++i)
 	{
-		BackupBrushVisibility.Add(LandscapeLayers[InLayerIndex].Brushes[i].GetBrush()->IsVisible());
-		LandscapeLayers[InLayerIndex].Brushes[i].GetBrush()->SetIsVisible(false);
+		BackupBrushVisibility.Add(LandscapeEditLayers[InLayerIndex].Brushes[i].GetBrush()->IsVisible());
+		LandscapeEditLayers[InLayerIndex].Brushes[i].GetBrush()->SetIsVisible(false);
 	}
 
 	// Call Request Update on all components...
@@ -9324,7 +9383,7 @@ void ALandscape::CollapseLayer(int32 InLayerIndex)
 		DataInterface.SetShouldDirtyPackage(true);
 
 		TSet<UTexture2D*> ProcessedHeightmaps;
-		FScopedSetLandscapeEditingLayer ScopeEditingLayer(this, LandscapeLayers[InLayerIndex - 1].Guid);
+		FScopedSetLandscapeEditingLayer ScopeEditingLayer(this, LandscapeEditLayers[InLayerIndex - 1].Guid);
 		GetLandscapeInfo()->ForAllLandscapeComponents([&](ULandscapeComponent* LandscapeComponent)
 		{
 			SlowTask.EnterProgressFrame(1.f);
@@ -9333,9 +9392,9 @@ void ALandscape::CollapseLayer(int32 InLayerIndex)
 	}
 
 	TArray<ALandscapeBlueprintBrushBase*> BrushesToMove;
-	for (int32 i = 0; i < LandscapeLayers[InLayerIndex].Brushes.Num(); ++i)
+	for (int32 i = 0; i < LandscapeEditLayers[InLayerIndex].Brushes.Num(); ++i)
 	{
-		ALandscapeBlueprintBrushBase* CurrentBrush = LandscapeLayers[InLayerIndex].Brushes[i].GetBrush();
+		ALandscapeBlueprintBrushBase* CurrentBrush = LandscapeEditLayers[InLayerIndex].Brushes[i].GetBrush();
 		CurrentBrush->SetIsVisible(BackupBrushVisibility[i]);
 		BrushesToMove.Add(CurrentBrush);
 	}
@@ -9346,9 +9405,9 @@ void ALandscape::CollapseLayer(int32 InLayerIndex)
 		AddBrushToLayer(InLayerIndex - 1, Brush);
 	}
 
-	for (int32 i = 0; i < LandscapeLayers.Num(); ++i)
+	for (int32 i = 0; i < LandscapeEditLayers.Num(); ++i)
 	{
-		LandscapeLayers[i].bVisible = BackupVisibility[i];
+		LandscapeEditLayers[i].bVisible = BackupVisibility[i];
 	}
 
 	DeleteLayer(InLayerIndex);
@@ -9358,7 +9417,7 @@ void ALandscape::CollapseLayer(int32 InLayerIndex)
 
 void ALandscape::GetUsedPaintLayers(int32 InLayerIndex, TArray<ULandscapeLayerInfoObject*>& OutUsedLayerInfos) const
 {
-	const FLandscapeLayer* Layer = GetLayer(InLayerIndex);
+	const FLandscapeLayer* Layer = GetLayerConst(InLayerIndex);
 	if (Layer)
 	{
 		GetUsedPaintLayers(Layer->Guid, OutUsedLayerInfos);
@@ -9378,7 +9437,7 @@ void ALandscape::GetUsedPaintLayers(const FGuid& InLayerGuid, TArray<ULandscapeL
 
 void ALandscape::ClearPaintLayer(int32 InLayerIndex, ULandscapeLayerInfoObject* InLayerInfo)
 {
-	const FLandscapeLayer* Layer = GetLayer(InLayerIndex);
+	const FLandscapeLayer* Layer = GetLayerConst(InLayerIndex);
 	if (Layer)
 	{
 		ClearPaintLayer(Layer->Guid, InLayerInfo);
@@ -9410,7 +9469,7 @@ void ALandscape::ClearPaintLayer(const FGuid& InLayerGuid, ULandscapeLayerInfoOb
 
 void ALandscape::ClearLayer(int32 InLayerIndex, TSet<TObjectPtr<ULandscapeComponent>>* InComponents, ELandscapeClearMode InClearMode)
 {
-	const FLandscapeLayer* Layer = GetLayer(InLayerIndex);
+	const FLandscapeLayer* Layer = GetLayerConst(InLayerIndex);
 	if (Layer)
 	{
 		ClearLayer(Layer->Guid, InComponents, InClearMode);
@@ -9421,7 +9480,7 @@ void ALandscape::ClearLayer(const FGuid& InLayerGuid, TSet<TObjectPtr<ULandscape
 {
 	ensure(HasLayersContent());
 
-	const FLandscapeLayer* Layer = GetLayer(InLayerGuid);
+	const FLandscapeLayer* Layer = GetLayerConst(InLayerGuid);
 	ULandscapeInfo* LandscapeInfo = GetLandscapeInfo();
 	if (!LandscapeInfo || !Layer)
 	{
@@ -9509,11 +9568,11 @@ void ALandscape::ClearLayer(const FGuid& InLayerGuid, TSet<TObjectPtr<ULandscape
 
 void ALandscape::ShowOnlySelectedLayer(int32 InLayerIndex)
 {
-	const FLandscapeLayer* VisibleLayer = GetLayer(InLayerIndex);
+	const FLandscapeLayer* VisibleLayer = GetLayerConst(InLayerIndex);
 	if (VisibleLayer)
 	{
 		bool bModified = false;
-		for (FLandscapeLayer& Layer : LandscapeLayers)
+		for (FLandscapeLayer& Layer : LandscapeEditLayers)
 		{
 			bool bDesiredVisible = (&Layer == VisibleLayer);
 			if (Layer.bVisible != bDesiredVisible)
@@ -9522,23 +9581,23 @@ void ALandscape::ShowOnlySelectedLayer(int32 InLayerIndex)
 				{
 					Modify();
 					bModified = true;
-				}
+		}
 				Layer.bVisible = bDesiredVisible;
 			}
 		}
 		if (bModified)
 		{
-			RequestLayersContentUpdateForceAll();
-		}
+		RequestLayersContentUpdateForceAll();
 	}
+}
 }
 
 void ALandscape::ShowAllLayers()
 {
-	if (LandscapeLayers.Num() > 0)
+	if (LandscapeEditLayers.Num() > 0)
 	{
 		bool bModified = false;
-		for (FLandscapeLayer& Layer : LandscapeLayers)
+		for (FLandscapeLayer& Layer : LandscapeEditLayers)
 		{
 			if (Layer.bVisible != true)
 			{
@@ -9547,60 +9606,31 @@ void ALandscape::ShowAllLayers()
 					Modify();
 					bModified = true;
 				}
-				Layer.bVisible = true;
-			}
+			Layer.bVisible = true;
+		}
 		}
 		if (bModified)
 		{
-			RequestLayersContentUpdateForceAll();
-		}
+		RequestLayersContentUpdateForceAll();
 	}
 }
+}
 
+// Deprecated
 void ALandscape::SetLandscapeSplinesReservedLayer(int32 InLayerIndex)
 {
-	Modify();
-	FLandscapeLayer* NewLayer = GetLayer(InLayerIndex);
-	FLandscapeLayer* PreviousLayer = GetLandscapeSplinesReservedLayer();
-	if (NewLayer != PreviousLayer)
-	{
-		LandscapeSplinesAffectedComponents.Empty();
-		if (PreviousLayer)
-		{
-			ClearLayer(LandscapeSplinesTargetLayerGuid);
-			PreviousLayer->BlendMode = LSBM_AdditiveBlend;
-		}
-		if (NewLayer)
-		{
-			NewLayer->HeightmapAlpha = 1.0f;
-			NewLayer->WeightmapAlpha = 1.0f;
-			NewLayer->BlendMode = LSBM_AlphaBlend;
-			LandscapeSplinesTargetLayerGuid = NewLayer->Guid;
-			ClearLayer(LandscapeSplinesTargetLayerGuid);
-		}
-		else
-		{
-			LandscapeSplinesTargetLayerGuid.Invalidate();
-		}
-	}
 }
 
+// Deprecated
 const FLandscapeLayer* ALandscape::GetLandscapeSplinesReservedLayer() const
 {
-	if (LandscapeSplinesTargetLayerGuid.IsValid())
-	{
-		return LandscapeLayers.FindByPredicate([this](const FLandscapeLayer& Other) { return Other.Guid == LandscapeSplinesTargetLayerGuid; });
-	}
-	return nullptr;
+	return FindLayerOfType(ULandscapeEditLayerSplines::StaticClass());
 }
 
+// Deprecated
 FLandscapeLayer* ALandscape::GetLandscapeSplinesReservedLayer()
 {
-	if (LandscapeSplinesTargetLayerGuid.IsValid())
-	{
-		return LandscapeLayers.FindByPredicate([this](const FLandscapeLayer& Other) { return Other.Guid == LandscapeSplinesTargetLayerGuid; });
-	}
-	return nullptr;
+	return const_cast<FLandscapeLayer*>(FindLayerOfType(ULandscapeEditLayerSplines::StaticClass()));
 }
 
 LANDSCAPE_API extern bool GDisableUpdateLandscapeMaterialInstances;
@@ -9658,15 +9688,16 @@ void ALandscape::UpdateLandscapeSplines(const FGuid& InTargetLayer, bool bInUpda
 	TRACE_CPUPROFILER_EVENT_SCOPE(LandscapeLayers_UpdateLandscapeSplines);
 	check(CanHaveLayersContent());
 	ULandscapeInfo* LandscapeInfo = GetLandscapeInfo();
-	FGuid TargetLayerGuid = LandscapeSplinesTargetLayerGuid.IsValid() ? LandscapeSplinesTargetLayerGuid : InTargetLayer;
-	const FLandscapeLayer* TargetLayer = GetLayer(TargetLayerGuid);
+	const FLandscapeLayer* SplinesLayer = FindLayerOfType(ULandscapeEditLayerSplines::StaticClass());
+	FGuid TargetLayerGuid = (SplinesLayer != nullptr) ? SplinesLayer->Guid : InTargetLayer;
+	const FLandscapeLayer* TargetLayer = GetLayerConst(TargetLayerGuid);
 	if (LandscapeInfo && TargetLayer)
 	{
 		FScopedSetLandscapeEditingLayer Scope(this, TargetLayerGuid, [this] { this->RequestLayersContentUpdate(ELandscapeLayerUpdateMode::Update_All); });
 		// Temporarily disable material instance updates since it will be done once at the end (requested by RequestLayersContentUpdateForceAll)
 		GDisableUpdateLandscapeMaterialInstances = true;
 		TSet<TObjectPtr<ULandscapeComponent>>* ModifiedComponent = nullptr;
-		if (LandscapeSplinesTargetLayerGuid.IsValid())
+		if (SplinesLayer != nullptr)
 		{
 			// Check that we can modify data
 			if (!LandscapeInfo->AreAllComponentsRegistered())
@@ -9695,7 +9726,7 @@ void ALandscape::UpdateLandscapeSplines(const FGuid& InTargetLayer, bool bInUpda
 
 			// Clear layers without affecting weightmap allocations
 			const bool bMarkPackageDirty = false;
-			ClearLayer(LandscapeSplinesTargetLayerGuid, (!bInForceUpdateAllCompoments && LandscapeSplinesAffectedComponents.Num()) ? &LandscapeSplinesAffectedComponents : nullptr, Clear_All, bMarkPackageDirty);
+			ClearLayer(SplinesLayer->Guid, (!bInForceUpdateAllCompoments && LandscapeSplinesAffectedComponents.Num()) ? &LandscapeSplinesAffectedComponents : nullptr, Clear_All, bMarkPackageDirty);
 			LandscapeSplinesAffectedComponents.Empty();
 			ModifiedComponent = &LandscapeSplinesAffectedComponents;
 			// For now, in Landscape Layer System Mode with a reserved layer for splines, we always update all the splines since we clear the whole layer first
@@ -9752,13 +9783,9 @@ FScopedSetLandscapeEditingLayer::~FScopedSetLandscapeEditingLayer()
 	}
 }
 
+// Deprecated
 bool ALandscape::IsEditingLayerReservedForSplines() const
 {
-	if (CanHaveLayersContent())
-	{
-		const FLandscapeLayer* SplinesReservedLayer = GetLandscapeSplinesReservedLayer();
-		return SplinesReservedLayer && SplinesReservedLayer->Guid == GetEditingLayer();
-	}
 	return false;
 }
 
@@ -9790,7 +9817,7 @@ const FGuid& ALandscape::GetEditingLayer() const
 
 bool ALandscape::IsMaxLayersReached() const
 {
-	return LandscapeLayers.Num() >= GetDefault<ULandscapeSettings>()->MaxNumberOfLayers;
+	return LandscapeEditLayers.Num() >= GetDefault<ULandscapeSettings>()->MaxNumberOfLayers;
 }
 
 void ALandscape::CreateDefaultLayer()
@@ -9801,7 +9828,7 @@ void ALandscape::CreateDefaultLayer()
 		return;
 	}
 
-	check(LandscapeLayers.Num() == 0); // We can only call this function if we have no layers
+	check(LandscapeEditLayers.Num() == 0); // We can only call this function if we have no layers
 
 	CreateLayer(FName(TEXT("Layer")));
 	// Force update rendering resources
@@ -9821,13 +9848,17 @@ FLandscapeLayer* ALandscape::DuplicateLayerAndMoveBrushes(const FLandscapeLayer&
 	FLandscapeLayer NewLayer(InOtherLayer);
 	NewLayer.Guid = FGuid::NewGuid();
 
+	// Duplicate the internal edit layer object by hand : 
+	check(InOtherLayer.EditLayer != nullptr);
+	NewLayer.EditLayer = DuplicateObject(InOtherLayer.EditLayer, this, MakeUniqueObjectName(this, InOtherLayer.EditLayer->GetClass(), InOtherLayer.EditLayer->GetFName()));
+
 	// Update owning landscape and reparent to landscape's level if necessary
 	for (FLandscapeLayerBrush& Brush : NewLayer.Brushes)
 	{
 		Brush.SetOwner(this);
 	}
 
-	int32 AddedIndex = LandscapeLayers.Add(NewLayer);
+	int32 AddedIndex = LandscapeEditLayers.Add(NewLayer);
 
 	// Create associated layer data in each landscape proxy
 	LandscapeInfo->ForEachLandscapeProxy([&NewLayer](ALandscapeProxy* Proxy)
@@ -9836,10 +9867,10 @@ FLandscapeLayer* ALandscape::DuplicateLayerAndMoveBrushes(const FLandscapeLayer&
 		return true;
 	});
 
-	return &LandscapeLayers[AddedIndex];
+	return &LandscapeEditLayers[AddedIndex];
 }
 
-int32 ALandscape::CreateLayer(FName InName)
+int32 ALandscape::CreateLayer(FName InName, const TSubclassOf<ULandscapeEditLayerBase>& InEditLayerClass)
 {
 	ULandscapeInfo* LandscapeInfo = GetLandscapeInfo();
 	if (!LandscapeInfo || IsMaxLayersReached() || !CanHaveLayersContent())
@@ -9848,18 +9879,56 @@ int32 ALandscape::CreateLayer(FName InName)
 	}
 
 	Modify();
-	FLandscapeLayer NewLayer;
+
+	const UClass* EditLayerClass = (InEditLayerClass.Get() != nullptr) ? InEditLayerClass.Get() : ULandscapeEditLayer::StaticClass();
+	int32 LayerIndex = LandscapeEditLayers.Emplace();
+	FLandscapeLayer& NewLayer = LandscapeEditLayers[LayerIndex];
 	NewLayer.Name = GenerateUniqueLayerName(InName);
-	int32 LayerIndex = LandscapeLayers.Add(NewLayer);
+	NewLayer.EditLayer = NewObject<ULandscapeEditLayerBase>(this, EditLayerClass, MakeUniqueObjectName(this, EditLayerClass));
+	OnLayerCreatedInternal(NewLayer);
+	return LayerIndex;
+}
+
+int32 ALandscape::CreateLayerFrom(const FLandscapeLayer& InLayer)
+{
+	ULandscapeInfo* LandscapeInfo = GetLandscapeInfo();
+	if (!LandscapeInfo || IsMaxLayersReached() || !CanHaveLayersContent())
+	{
+		return INDEX_NONE;
+	}
+
+	// Cannot create a layer whose Guid is already taken : 
+	if (GetLayerConst(InLayer.Guid) != nullptr)
+	{
+		return INDEX_NONE;
+	}
+
+	check(InLayer.EditLayer != nullptr);
+
+	int32 LayerIndex = LandscapeEditLayers.Add(InLayer);
+	FLandscapeLayer& NewLayer = LandscapeEditLayers[LayerIndex];
+	NewLayer.EditLayer = DuplicateObject<ULandscapeEditLayerBase>(InLayer.EditLayer, this, MakeUniqueObjectName(this, InLayer.EditLayer->GetClass()));
+	OnLayerCreatedInternal(NewLayer);
+	return LayerIndex;
+}
+
+void ALandscape::OnLayerCreatedInternal(FLandscapeLayer& Layer)
+{
+	ULandscapeInfo* LandscapeInfo = GetLandscapeInfo();
+	check(LandscapeInfo != nullptr); 
+
+	Layer.EditLayer->OnLayerCreated(Layer);
 
 	// Create associated layer data in each landscape proxy
-	LandscapeInfo->ForEachLandscapeProxy([&NewLayer](ALandscapeProxy* Proxy)
+	LandscapeInfo->ForEachLandscapeProxy([&Layer](ALandscapeProxy* Proxy)
 	{
-		Proxy->AddLayer(NewLayer.Guid);
+		Proxy->AddLayer(Layer.Guid);
 		return true;
 	});
 
-	return LayerIndex;
+	// Request Update
+	RequestSplineLayerUpdate(); // Request a spline update as well, in case we already had spline actors and a spline layers was just created
+	RequestLayersContentUpdateForceAll();
 }
 
 void ALandscape::AddLayersToProxy(ALandscapeProxy* InProxy)
@@ -9873,9 +9942,10 @@ void ALandscape::AddLayersToProxy(ALandscapeProxy* InProxy)
 	check(InProxy != this);
 	check(InProxy != nullptr);
 
-	ForEachLayer([&](FLandscapeLayer& Layer)
+	ForEachLayerConst([&](const FLandscapeLayer& Layer)
 	{
 		InProxy->AddLayer(Layer.Guid);
+		return true;
 	});
 
 	// Force update rendering resources
@@ -9885,13 +9955,13 @@ void ALandscape::AddLayersToProxy(ALandscapeProxy* InProxy)
 bool ALandscape::ReorderLayer(int32 InStartingLayerIndex, int32 InDestinationLayerIndex)
 {
 	if (InStartingLayerIndex != InDestinationLayerIndex &&
-		LandscapeLayers.IsValidIndex(InStartingLayerIndex) &&
-		LandscapeLayers.IsValidIndex(InDestinationLayerIndex))
+		LandscapeEditLayers.IsValidIndex(InStartingLayerIndex) &&
+		LandscapeEditLayers.IsValidIndex(InDestinationLayerIndex))
 	{
 		Modify();
-		FLandscapeLayer Layer = LandscapeLayers[InStartingLayerIndex];
-		LandscapeLayers.RemoveAt(InStartingLayerIndex);
-		LandscapeLayers.Insert(Layer, InDestinationLayerIndex);
+		FLandscapeLayer Layer = LandscapeEditLayers[InStartingLayerIndex];
+		LandscapeEditLayers.RemoveAt(InStartingLayerIndex);
+		LandscapeEditLayers.Insert(Layer, InDestinationLayerIndex);
 		RequestLayersContentUpdateForceAll();
 		return true;
 	}
@@ -9901,7 +9971,7 @@ bool ALandscape::ReorderLayer(int32 InStartingLayerIndex, int32 InDestinationLay
 FName ALandscape::GenerateUniqueLayerName(FName InName) const
 {
 	// If we are receiving a unique name, use it.
-	if (InName != NAME_None && !LandscapeLayers.ContainsByPredicate([InName](const FLandscapeLayer& Layer) { return Layer.Name == InName; }))
+	if (InName != NAME_None && !LandscapeEditLayers.ContainsByPredicate([InName](const FLandscapeLayer& Layer) { return Layer.Name == InName; }))
 	{
 		return InName;
 	}
@@ -9913,14 +9983,14 @@ FName ALandscape::GenerateUniqueLayerName(FName InName) const
 	{
 		++LayerIndex;
 		NewName = FName(*FString::Printf(TEXT("%s%d"), *BaseName, LayerIndex));
-	} while (LandscapeLayers.ContainsByPredicate([NewName](const FLandscapeLayer& Layer) { return Layer.Name == NewName; }));
+	} while (LandscapeEditLayers.ContainsByPredicate([NewName](const FLandscapeLayer& Layer) { return Layer.Name == NewName; }));
 
 	return NewName;
 }
 
 bool ALandscape::IsLayerBlendSubstractive(int32 InLayerIndex, const TWeakObjectPtr<ULandscapeLayerInfoObject>& InLayerInfoObj) const
 {
-	const FLandscapeLayer* Layer = GetLayer(InLayerIndex);
+	const FLandscapeLayer* Layer = GetLayerConst(InLayerIndex);
 
 	if (Layer == nullptr)
 	{
@@ -9939,7 +10009,7 @@ bool ALandscape::IsLayerBlendSubstractive(int32 InLayerIndex, const TWeakObjectP
 
 void ALandscape::SetLayerSubstractiveBlendStatus(int32 InLayerIndex, bool InStatus, const TWeakObjectPtr<ULandscapeLayerInfoObject>& InLayerInfoObj)
 {
-	FLandscapeLayer* Layer = GetLayer(InLayerIndex);
+	FLandscapeLayer* Layer = GetLayerInternal(InLayerIndex);
 
 	if (Layer == nullptr)
 	{
@@ -9961,9 +10031,23 @@ void ALandscape::SetLayerSubstractiveBlendStatus(int32 InLayerIndex, bool InStat
 	RequestLayersContentUpdateForceAll(ELandscapeLayerUpdateMode::Update_Weightmap_All);
 }
 
+void ALandscape::ReplaceLayerSubstractiveBlendStatus(ULandscapeLayerInfoObject* InFromLayerInfo, ULandscapeLayerInfoObject* InToLayerInfo, bool bInShouldDirtyPackage)
+{
+	Modify(bInShouldDirtyPackage);
+
+	for (FLandscapeLayer& Layer : LandscapeEditLayers)
+	{
+		bool OutValue;
+		if (Layer.WeightmapLayerAllocationBlend.RemoveAndCopyValue(InFromLayerInfo, OutValue))
+		{
+			Layer.WeightmapLayerAllocationBlend.Add(InToLayerInfo, OutValue);
+		}
+	}
+}
+
 bool ALandscape::ReorderLayerBrush(int32 InLayerIndex, int32 InStartingLayerBrushIndex, int32 InDestinationLayerBrushIndex)
 {
-	if (FLandscapeLayer* Layer = GetLayer(InLayerIndex))
+	if (FLandscapeLayer* Layer = GetLayerInternal(InLayerIndex))
 	{
 		if (InStartingLayerBrushIndex != InDestinationLayerBrushIndex &&
 			Layer->Brushes.IsValidIndex(InStartingLayerBrushIndex) &&
@@ -9982,9 +10066,9 @@ bool ALandscape::ReorderLayerBrush(int32 InLayerIndex, int32 InStartingLayerBrus
 
 int32 ALandscape::GetBrushLayer(class ALandscapeBlueprintBrushBase* InBrush) const
 {
-	for (int32 LayerIndex = 0; LayerIndex < LandscapeLayers.Num(); ++LayerIndex)
+	for (int32 LayerIndex = 0; LayerIndex < LandscapeEditLayers.Num(); ++LayerIndex)
 	{
-		for (const FLandscapeLayerBrush& Brush : LandscapeLayers[LayerIndex].Brushes)
+		for (const FLandscapeLayerBrush& Brush : LandscapeEditLayers[LayerIndex].Brushes)
 		{
 			if (Brush.GetBrush() == InBrush)
 			{
@@ -9999,7 +10083,7 @@ int32 ALandscape::GetBrushLayer(class ALandscapeBlueprintBrushBase* InBrush) con
 void ALandscape::AddBrushToLayer(int32 InLayerIndex, ALandscapeBlueprintBrushBase* InBrush)
 {
 	check(GetBrushLayer(InBrush) == INDEX_NONE);
-	if (FLandscapeLayer* Layer = GetLayer(InLayerIndex))
+	if (FLandscapeLayer* Layer = GetLayerInternal(InLayerIndex))
 	{
 		Modify();
 		Layer->Brushes.Add(FLandscapeLayerBrush(InBrush));
@@ -10028,7 +10112,7 @@ void ALandscape::RemoveBrushFromLayer(int32 InLayerIndex, ALandscapeBlueprintBru
 
 void ALandscape::RemoveBrushFromLayer(int32 InLayerIndex, int32 InBrushIndex)
 {
-	if (FLandscapeLayer* Layer = GetLayer(InLayerIndex))
+	if (FLandscapeLayer* Layer = GetLayerInternal(InLayerIndex))
 	{
 		if (Layer->Brushes.IsValidIndex(InBrushIndex))
 		{
@@ -10046,7 +10130,7 @@ void ALandscape::RemoveBrushFromLayer(int32 InLayerIndex, int32 InBrushIndex)
 
 int32 ALandscape::GetBrushIndexForLayer(int32 InLayerIndex, ALandscapeBlueprintBrushBase* InBrush)
 {
-	if (FLandscapeLayer* Layer = GetLayer(InLayerIndex))
+	if (const FLandscapeLayer* Layer = GetLayerConst(InLayerIndex))
 	{
 		for (int32 i = 0; i < Layer->Brushes.Num(); ++i)
 		{
@@ -10098,7 +10182,7 @@ void ALandscape::OnLayerInfoSplineFalloffModulationChanged(ULandscapeLayerInfoOb
 
 ALandscapeBlueprintBrushBase* ALandscape::GetBrushForLayer(int32 InLayerIndex, int32 InBrushIndex) const
 {
-	if (const FLandscapeLayer* Layer = GetLayer(InLayerIndex))
+	if (const FLandscapeLayer* Layer = GetLayerConst(InLayerIndex))
 	{
 		if (Layer->Brushes.IsValidIndex(InBrushIndex))
 		{
@@ -10111,7 +10195,7 @@ ALandscapeBlueprintBrushBase* ALandscape::GetBrushForLayer(int32 InLayerIndex, i
 TArray<ALandscapeBlueprintBrushBase*> ALandscape::GetBrushesForLayer(int32 InLayerIndex) const
 {
 	TArray<ALandscapeBlueprintBrushBase*> Brushes;
-	if (const FLandscapeLayer* Layer = GetLayer(InLayerIndex))
+	if (const FLandscapeLayer* Layer = GetLayerConst(InLayerIndex))
 	{
 		Brushes.Reserve(Layer->Brushes.Num());
 		for (const FLandscapeLayerBrush& Brush : Layer->Brushes)

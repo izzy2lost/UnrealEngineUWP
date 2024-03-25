@@ -26,7 +26,7 @@ namespace LandscapePatchComponentLocals
 
 	ALandscapePatchManager* FindExistingPatchManagerForLandscape(ALandscape* Landscape)
 	{
-		for (int LayerIndex = 0; LayerIndex < Landscape->LandscapeLayers.Num(); ++LayerIndex)
+		for (int LayerIndex = 0; LayerIndex < Landscape->GetLayers().Num(); ++LayerIndex)
 		{
 			TArray<ALandscapeBlueprintBrushBase*> LayerBrushes = Landscape->GetBrushesForLayer(LayerIndex);
 			ALandscapeBlueprintBrushBase** Found = LayerBrushes.FindByPredicate(

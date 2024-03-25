@@ -21,6 +21,7 @@
 #include "LandscapeSubsystem.h"
 #include "LandscapeSettings.h"
 #include "LandscapeTiledImage.h"
+#include "LandscapeEditLayer.h"
 
 #include "EditorSupportDelegates.h"
 #include "ScopedTransaction.h"
@@ -505,10 +506,7 @@ void FEdModeLandscape::Enter()
 			Landscape->OnBlueprintBrushChangedDelegate().AddRaw(this, &FEdModeLandscape::RefreshDetailPanel);
 			if (Landscape->HasLayersContent())
 			{
-				if (Landscape->GetLandscapeSplinesReservedLayer())
-				{
-					Landscape->RequestSplineLayerUpdate();
-				}
+				Landscape->RequestSplineLayerUpdate();
 				Landscape->RequestLayersContentUpdateForceAll();
 			}
 		}
@@ -1605,11 +1603,11 @@ bool FEdModeLandscape::ProcessEditPaste()
 	bool Result = false;
 
 	
-	FLandscapeLayer* SplinesLayer = nullptr;
+	const FLandscapeLayer* SplinesLayer = nullptr;
 	if (CurrentTool == (FLandscapeTool*)SplinesTool)
 	{
 		ALandscape* Landscape = GetLandscape();
-		SplinesLayer = Landscape ? Landscape->GetLandscapeSplinesReservedLayer() : nullptr;
+		SplinesLayer = Landscape ? Landscape->FindLayerOfType(ULandscapeEditLayerSplines::StaticClass()) : nullptr;
 	}
 	FText Reason;
 	if (!CanEditLayer(&Reason, SplinesLayer))
@@ -3619,7 +3617,7 @@ ALandscape* FEdModeLandscape::ChangeComponentSetting(int32 NumComponentsX, int32
 				{
 					int32 HeightCount = 0;
 
-					for (const FLandscapeLayer& OldLayer : OldLandscape->LandscapeLayers)
+					for (const FLandscapeLayer& OldLayer : OldLandscape->GetLayers())
 					{
 						FScopedSetLandscapeEditingLayer Scope(OldLandscape, OldLayer.Guid);
 
@@ -3722,17 +3720,12 @@ ALandscape* FEdModeLandscape::ChangeComponentSetting(int32 NumComponentsX, int32
 			NewLandscape->bUsedForNavigation = OldLandscape->bUsedForNavigation;
 			NewLandscape->MaxPaintedLayersPerComponent = OldLandscape->MaxPaintedLayersPerComponent;
 
-			TArray<FLandscapeLayer>* LandscapeLayers = CanHaveLandscapeLayersContent() ? &OldLandscape->LandscapeLayers : nullptr;
-
-			NewLandscape->Import(FGuid::NewGuid(), NewMinX, NewMinY, NewMaxX, NewMaxY, NumSubsections, SubsectionSizeQuads, HeightDataPerLayers, *OldLandscape->ReimportHeightmapFilePath, ImportMaterialLayerInfosPerLayers, ELandscapeImportAlphamapType::Additive, LandscapeLayers);
-
-			// Find the new layer that corresponds to the splines reserved layer in the original, if any, and setup the new Guid : 
-			if (const FLandscapeLayer* OldSplinesReservedLayer = OldLandscape->GetLandscapeSplinesReservedLayer())
+			TArrayView<const FLandscapeLayer> LandscapeLayers;
+			if (CanHaveLandscapeLayersContent())
 			{
-				const FLandscapeLayer* NewSplinesReservedLayer = NewLandscape->GetLayer(OldSplinesReservedLayer->Name);
-				check(NewSplinesReservedLayer != nullptr);
-				NewLandscape->LandscapeSplinesTargetLayerGuid = NewSplinesReservedLayer->Guid;
-			}
+				LandscapeLayers = OldLandscape->GetLayers();
+			} 
+			NewLandscape->Import(FGuid::NewGuid(), NewMinX, NewMinY, NewMaxX, NewMaxY, NumSubsections, SubsectionSizeQuads, HeightDataPerLayers, *OldLandscape->ReimportHeightmapFilePath, ImportMaterialLayerInfosPerLayers, ELandscapeImportAlphamapType::Additive, LandscapeLayers);
 
 			ULandscapeInfo* NewLandscapeInfo = NewLandscape->GetLandscapeInfo();
 			check(NewLandscapeInfo);
@@ -3935,8 +3928,9 @@ void FEdModeLandscape::SetCurrentLayer(int32 InLayerIndex)
 
 	if (ALandscape* Landscape = GetLandscape())
 	{
-		const FLandscapeLayer* SplineLayer = Landscape->GetLandscapeSplinesReservedLayer();
-		if (SplineLayer != nullptr && SplineLayer == Landscape->GetLayer(InLayerIndex))
+		const FLandscapeLayer* Layer = Landscape->GetLayerConst(InLayerIndex);
+		check((Layer != nullptr) && (Layer->EditLayer != nullptr));
+		if (Layer->EditLayer->IsA<ULandscapeEditLayerSplines>())
 		{
 			SetCurrentToolMode("ToolMode_Manage", false);
 			SetCurrentTool(FName("Splines"));
@@ -3957,15 +3951,15 @@ ALandscape* FEdModeLandscape::GetLandscape() const
 	return CurrentToolTarget.LandscapeInfo.IsValid() ? CurrentToolTarget.LandscapeInfo->LandscapeActor.Get() : nullptr;
 }
 
-FLandscapeLayer* FEdModeLandscape::GetLayer(int32 InLayerIndex) const
+const FLandscapeLayer* FEdModeLandscape::GetLayer(int32 InLayerIndex) const
 {
-	ALandscape* Landscape = GetLandscape();
-	return Landscape ? Landscape->GetLayer(InLayerIndex) : nullptr;
+	const ALandscape* Landscape = GetLandscape();
+	return Landscape ? Landscape->GetLayerConst(InLayerIndex) : nullptr;
 }
 
 FName FEdModeLandscape::GetLayerName(int32 InLayerIndex) const
 {
-	FLandscapeLayer* Layer = GetLayer(InLayerIndex);
+	const FLandscapeLayer* Layer = GetLayer(InLayerIndex);
 	return Layer ? Layer->Name : NAME_None;
 }
 
@@ -4026,6 +4020,20 @@ float FEdModeLandscape::GetLayerAlpha(int32 InLayerIndex) const
 	return 1.0f;
 }
 
+const ULandscapeEditLayerBase* FEdModeLandscape::GetEditLayer(int32 InLayerIndex) const
+{
+	const ALandscape* Landscape = GetLandscape();
+	if (Landscape)
+	{
+		if (const FLandscapeLayer* EditLayer = Landscape->GetLayerConst(InLayerIndex))
+		{
+			return EditLayer->EditLayer;
+		}
+	}
+	return nullptr;
+}
+
+
 void FEdModeLandscape::SetLayerAlpha(int32 InLayerIndex, float InAlpha)
 {
 	ALandscape* Landscape = GetLandscape();
@@ -4040,7 +4048,7 @@ void FEdModeLandscape::SetLayerAlpha(int32 InLayerIndex, float InAlpha)
 
 bool FEdModeLandscape::IsLayerVisible(int32 InLayerIndex) const
 {
-	FLandscapeLayer* Layer = GetLayer(InLayerIndex);
+	const FLandscapeLayer* Layer = GetLayer(InLayerIndex);
 	return Layer ? Layer->bVisible : false;
 }
 
@@ -4171,7 +4179,7 @@ void FEdModeLandscape::SetCurrentLayerSubstractiveBlendStatus(bool InStatus, con
 	}
 }
 
-FLandscapeLayer* FEdModeLandscape::GetCurrentLayer() const
+const FLandscapeLayer* FEdModeLandscape::GetCurrentLayer() const
 {
 	return GetLayer(GetCurrentLayerIndex());
 }
@@ -4182,7 +4190,7 @@ void FEdModeLandscape::AutoUpdateDirtyLandscapeSplines()
 	{
 		// Only auto-update if a layer is reserved for landscape splines
 		ALandscape* Landscape = GetLandscape();
-		if (Landscape && Landscape->GetLandscapeSplinesReservedLayer())
+		if (Landscape)
 		{
 			// TODO : Only update dirty regions
 			Landscape->RequestSplineLayerUpdate();
@@ -4190,12 +4198,12 @@ void FEdModeLandscape::AutoUpdateDirtyLandscapeSplines()
 	}
 }
 
-bool FEdModeLandscape::CanEditLayer(FText* Reason /*=nullptr*/, FLandscapeLayer* InLayer /*= nullptr*/)
+bool FEdModeLandscape::CanEditLayer(FText* Reason /*=nullptr*/, const FLandscapeLayer* InLayer /*= nullptr*/)
 {
 	if (CanHaveLandscapeLayersContent())
 	{
 		ALandscape* Landscape = GetLandscape();
-		FLandscapeLayer* TargetLayer = InLayer ? InLayer : GetCurrentLayer();
+		const FLandscapeLayer* TargetLayer = InLayer ? InLayer : GetCurrentLayer();
 		if (!TargetLayer)
 		{
 			if (Reason)
@@ -4204,7 +4212,9 @@ bool FEdModeLandscape::CanEditLayer(FText* Reason /*=nullptr*/, FLandscapeLayer*
 			}
 			return false;
 		}
-		else if (!TargetLayer->bVisible)
+
+		check(TargetLayer->EditLayer != nullptr);
+		if (!TargetLayer->bVisible)
 		{
 			if (Reason)
 			{
@@ -4222,21 +4232,32 @@ bool FEdModeLandscape::CanEditLayer(FText* Reason /*=nullptr*/, FLandscapeLayer*
 		}
 		else if (CurrentTool)
 		{
-			int32 TargetLayerIndex = Landscape ? Landscape->LandscapeLayers.IndexOfByPredicate([TargetLayeyGuid = TargetLayer->Guid](const FLandscapeLayer& OtherLayer) { return OtherLayer.Guid == TargetLayeyGuid; }) : INDEX_NONE;
-
-			if ((CurrentTool != (FLandscapeTool*)SplinesTool) && Landscape && (TargetLayer == Landscape->GetLandscapeSplinesReservedLayer()))
+			// Special case for the splines tool, which is supported on the splines layer : 
+			if (CurrentTool != (FLandscapeTool*)SplinesTool)
 			{
-				if (Reason)
+				if (Landscape && (TargetLayer == Landscape->FindLayerOfType(ULandscapeEditLayerSplines::StaticClass())))
 				{
-					*Reason = NSLOCTEXT("UnrealEd", "LandscapeLayerReservedForSplines", "This layer is reserved for Landscape Splines.");
+					if (Reason)
+					{
+						*Reason = NSLOCTEXT("UnrealEd", "LandscapeLayerReservedForSplines", "This layer is reserved for Landscape Splines.");
+					}
+					return false;
 				}
-				return false;
+
+				if (!TargetLayer->EditLayer->SupportsEditingTools())
+				{
+					if (Reason)
+					{
+						*Reason = FText::Format(NSLOCTEXT("UnrealEd", "LandscapeLayerEditLayerDoesntSupportEditing", "This layer's type ({0}) doesn't support direct editing."), TargetLayer->EditLayer->GetClass()->GetDisplayNameText());
+					}
+					return false;
+				}
 			}
-			else if (CurrentTool->GetToolName() == FName("Retopologize"))
+			if (CurrentTool->GetToolName() == FName("Retopologize"))
 			{
 				if (Reason)
 				{
-					*Reason = FText::Format(NSLOCTEXT("UnrealEd", "LandscapeLayersNoSupportForRetopologize", "{0} Tool is not available with the Landscape Layer System."), CurrentTool->GetDisplayName());
+					*Reason = FText::Format(NSLOCTEXT("UnrealEd", "LandscapeLayersNoSupportForRetopologize", "{0} Tool is not available with the Landscape Edit Layer System."), CurrentTool->GetDisplayName());
 				}
 				return false;
 			}
@@ -4280,7 +4301,7 @@ void FEdModeLandscape::UpdateLandscapeSplines(bool bUpdateOnlySelected /* = fals
 
 FGuid FEdModeLandscape::GetCurrentLayerGuid() const
 {
-	FLandscapeLayer* CurrentLayer = GetCurrentLayer();
+	const FLandscapeLayer* CurrentLayer = GetCurrentLayer();
 	return CurrentLayer ? CurrentLayer->Guid : FGuid();
 }
 
@@ -4299,7 +4320,7 @@ bool FEdModeLandscape::NeedToFillEmptyMaterialLayers() const
 
 		if (Landscape != nullptr)
 		{
-			for (FLandscapeLayer& Layer : Landscape->LandscapeLayers)
+			for (const FLandscapeLayer& Layer : Landscape->GetLayers())
 			{
 				for (ULandscapeComponent* Component : Proxy->LandscapeComponents)
 				{

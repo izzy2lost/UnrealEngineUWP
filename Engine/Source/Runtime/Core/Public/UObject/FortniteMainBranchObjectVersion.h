@@ -432,6 +432,9 @@ struct FFortniteMainBranchObjectVersion
 		// Added FVolumetricLightMapGridDesc in MapBuildData
 		VolumetricLightMapGridDescSupport,
 
+		// Introduce new structure for customizing the landscape edit layer behavior
+		IntroduceLandscapeEditLayerClass,
+
 		// -----<new versions can be added above this line>-------------------------------------------------
 		VersionPlusOne,
 		LatestVersion = VersionPlusOne - 1

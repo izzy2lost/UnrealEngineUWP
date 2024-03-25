@@ -9,6 +9,8 @@
 #include "LandscapeBlueprintBrushBase.h"
 #include "LandscapeEditTypes.h"
 #include "Delegates/DelegateCombinations.h"
+#include "Templates/SubclassOf.h"
+#include "Algo/Transform.h"
 
 #include "Landscape.generated.h"
 
@@ -18,6 +20,7 @@ class ILandscapeEdModeInterface;
 class SNotificationItem;
 class UStreamableRenderAsset;
 class UTextureRenderTarget;
+class ULandscapeEditLayerBase;
 class FMaterialResource;
 struct FLandscapeEditLayerComponentReadbackResult;
 struct FLandscapeNotification;
@@ -191,12 +194,17 @@ struct FLandscapeLayer
 
 	UPROPERTY()
 	TMap<TObjectPtr<ULandscapeLayerInfoObject>, bool> WeightmapLayerAllocationBlend; // True -> Substractive, False -> Additive
+
+	UPROPERTY(Instanced)
+	TObjectPtr<ULandscapeEditLayerBase> EditLayer;
 };
 
 UCLASS(MinimalAPI, showcategories=(Display, Movement, Collision, Lighting, LOD, Input), hidecategories=(Mobility))
 class ALandscape : public ALandscapeProxy
 {
 	GENERATED_BODY()
+
+	friend class FLandscapeConfigHelper; // For copying/manipulating internal data
 
 public:
 	ALandscape(const FObjectInitializer& ObjectInitializer);
@@ -315,8 +323,23 @@ public:
 	LANDSCAPE_API void RequestLayersContentUpdate(ELandscapeLayerUpdateMode InModeMask);
 	LANDSCAPE_API bool ReorderLayer(int32 InStartingLayerIndex, int32 InDestinationLayerIndex);
 	LANDSCAPE_API FLandscapeLayer* DuplicateLayerAndMoveBrushes(const FLandscapeLayer& InOtherLayer);
-	LANDSCAPE_API int32 CreateLayer(FName InName = NAME_None);
+
+	/** 
+	* Creates a new edit layer
+	* @Param InName is the name of the new edit layer
+	* @Param InEditLayerClass is the class of the edit layer to create. Passing null will create a standard layer of type ULandscapeEditLayer
+	* @return the index of the newly-created layer
+	*/
+	LANDSCAPE_API int32 CreateLayer(FName InName = NAME_None, const TSubclassOf<ULandscapeEditLayerBase>& InEditLayerClass = TSubclassOf<ULandscapeEditLayerBase>());
+
+	/** 
+	* Creates a new edit layer by copying all the settings from the layer passed in parameter
+	* @Param InLayer edit layer to copy from
+	* @return the index of the newly-created layer
+	*/
+	LANDSCAPE_API int32 CreateLayerFrom(const FLandscapeLayer& InLayer);
 	LANDSCAPE_API void CreateDefaultLayer();
+
 	LANDSCAPE_API void CopyOldDataToDefaultLayer();
 	LANDSCAPE_API void CopyOldDataToDefaultLayer(ALandscapeProxy* Proxy);
 	LANDSCAPE_API void AddLayersToProxy(ALandscapeProxy* InProxy);
@@ -326,15 +349,41 @@ public:
 	LANDSCAPE_API void SetLayerAlpha(int32 InLayerIndex, const float InAlpha, bool bInHeightmap);
 	LANDSCAPE_API float GetLayerAlpha(int32 InLayerIndex, bool bInHeightmap) const;
 	LANDSCAPE_API float GetClampedLayerAlpha(float InAlpha, bool bInHeightmap) const;
-	LANDSCAPE_API void SetLayerVisibility(int32 InLayerIndex, bool bInVisible);
+	LANDSCAPE_API void SetLayerVisibility(int32 InLayerIndex, bool bInVisible, bool bInForIntermediateRender = false);
 	LANDSCAPE_API void SetLayerLocked(int32 InLayerIndex, bool bLocked);
+	LANDSCAPE_API void SetLayerBlendMode(int32 InLayerIndex, ELandscapeBlendMode InBlendMode);
 	LANDSCAPE_API uint8 GetLayerCount() const;
-	LANDSCAPE_API struct FLandscapeLayer* GetLayer(int32 InLayerIndex);
-	LANDSCAPE_API const struct FLandscapeLayer* GetLayer(int32 InLayerIndex) const;
-	LANDSCAPE_API const struct FLandscapeLayer* GetLayer(const FGuid& InLayerGuid) const;
-	LANDSCAPE_API const struct FLandscapeLayer* GetLayer(const FName& InLayerName) const;
+	LANDSCAPE_API TArrayView<const FLandscapeLayer> GetLayers() const { return MakeArrayView(LandscapeEditLayers); }
+	LANDSCAPE_API const FLandscapeLayer* GetLayerConst(int32 InLayerIndex) const;
+	LANDSCAPE_API const FLandscapeLayer* GetLayerConst(const FGuid& InLayerGuid) const;
+	LANDSCAPE_API const FLandscapeLayer* GetLayerConst(const FName& InLayerName) const;
 	LANDSCAPE_API int32 GetLayerIndex(FName InLayerName) const;
-	LANDSCAPE_API void ForEachLayer(TFunctionRef<void(struct FLandscapeLayer&)> Fn);
+
+	UE_DEPRECATED(5.5, "This has moved to private (GetLayerInternal), use the appropriate setters to mutate the edit layer")
+	LANDSCAPE_API FLandscapeLayer* GetLayer(int32 InLayerIndex) { return nullptr; }
+	UE_DEPRECATED(5.5, "Use GetLayerConst")
+	LANDSCAPE_API const FLandscapeLayer* GetLayer(int32 InLayerIndex) const;
+	UE_DEPRECATED(5.5, "Use GetLayerConst")
+	LANDSCAPE_API const FLandscapeLayer* GetLayer(const FGuid& InLayerGuid) const;
+	UE_DEPRECATED(5.5, "Use GetLayerConst")
+	LANDSCAPE_API const FLandscapeLayer* GetLayer(const FName& InLayerName) const;
+
+	UE_DEPRECATED(5.5, "Use ForEachLayerConst")
+	LANDSCAPE_API void ForEachLayer(TFunctionRef<void(FLandscapeLayer&)> Fn);
+	
+	/**
+	 * Runs the given function on each edit layer, with the possibility of early exit
+	 * Most easily used with a lambda as follows:
+	 * ForEachLayerConst([](const FLandscapeLayer& InLayer) -> bool
+	 * {
+	 *     return continueLoop ? true : false;
+	 * });
+	 */
+	LANDSCAPE_API void ForEachLayerConst(TFunctionRef<bool(const FLandscapeLayer&)> Fn);
+
+	LANDSCAPE_API const FLandscapeLayer* FindLayerOfType(const TSubclassOf<ULandscapeEditLayerBase>& InLayerClass) const;
+	LANDSCAPE_API TArray<const FLandscapeLayer*> GetLayersOfType(const TSubclassOf<ULandscapeEditLayerBase>& InLayerClass) const;
+
 	LANDSCAPE_API void GetUsedPaintLayers(int32 InLayerIndex, TArray<ULandscapeLayerInfoObject*>& OutUsedLayerInfos) const;
 	LANDSCAPE_API void GetUsedPaintLayers(const FGuid& InLayerGuid, TArray<ULandscapeLayerInfoObject*>& OutUsedLayerInfos) const;
 	LANDSCAPE_API void ClearPaintLayer(int32 InLayerIndex, ULandscapeLayerInfoObject* InLayerInfo);
@@ -351,13 +400,19 @@ public:
 	LANDSCAPE_API void ShowOnlySelectedLayer(int32 InLayerIndex);
 	LANDSCAPE_API void ShowAllLayers();
 	LANDSCAPE_API void UpdateLandscapeSplines(const FGuid& InLayerGuid = FGuid(), bool bInUpdateOnlySelected = false, bool bInForceUpdateAllCompoments = false);
+
+	UE_DEPRECATED(5.5, "Use CreateLayer with a ULandscapeEditLayerSplines instead")
 	LANDSCAPE_API void SetLandscapeSplinesReservedLayer(int32 InLayerIndex);
+	UE_DEPRECATED(5.5, "Use FindLayerOfType(ULandscapeEditLayerSplines::StaticClass()) instead")
 	LANDSCAPE_API struct FLandscapeLayer* GetLandscapeSplinesReservedLayer();
+	UE_DEPRECATED(5.5, "Use FindLayerOfType(ULandscapeEditLayerSplines::StaticClass()) instead")
 	LANDSCAPE_API const struct FLandscapeLayer* GetLandscapeSplinesReservedLayer() const;
+	UE_DEPRECATED(5.5, "Use FindLayerOfType(ULandscapeEditLayerSplines::StaticClass()).Guid == GetEditingLayer() instead")
 	LANDSCAPE_API bool IsEditingLayerReservedForSplines() const;
 
 	LANDSCAPE_API bool IsLayerBlendSubstractive(int32 InLayerIndex, const TWeakObjectPtr<ULandscapeLayerInfoObject>& InLayerInfoObj) const;
 	LANDSCAPE_API void SetLayerSubstractiveBlendStatus(int32 InLayerIndex, bool InStatus, const TWeakObjectPtr<ULandscapeLayerInfoObject>& InLayerInfoObj);
+	LANDSCAPE_API void ReplaceLayerSubstractiveBlendStatus(ULandscapeLayerInfoObject* InFromLayerInfo, ULandscapeLayerInfoObject* InToLayerInfo, bool bInShouldDirtyPackage);
 
 	LANDSCAPE_API int32 GetBrushLayer(class ALandscapeBlueprintBrushBase* InBrush) const;
 	LANDSCAPE_API void AddBrushToLayer(int32 InLayerIndex, class ALandscapeBlueprintBrushBase* InBrush);
@@ -377,8 +432,10 @@ public:
 	
 	LANDSCAPE_API void ToggleCanHaveLayersContent();
 	LANDSCAPE_API void ForceUpdateLayersContent(bool bIntermediateRender = false);
+
 	UFUNCTION(BlueprintCallable, Category = "Landscape")
 	LANDSCAPE_API void ForceLayersFullUpdate();
+
 	LANDSCAPE_API void InitializeLandscapeLayersWeightmapUsage();
 
 	LANDSCAPE_API bool ComputeLandscapeLayerBrushInfo(FTransform& OutLandscapeTransform, FIntPoint& OutLandscapeSize, FIntPoint& OutLandscapeRenderTargetSize);
@@ -404,6 +461,9 @@ protected:
 	FName GenerateUniqueLayerName(FName InName = NAME_None) const;
 
 private:
+	FLandscapeLayer* GetLayerInternal(int32 InLayerIndex);
+	void OnLayerCreatedInternal(FLandscapeLayer& Layer);
+
 	bool SupportsEditLayersLocalMerge();
 	bool HasNormalCaptureBPBrushLayer();
 
@@ -412,7 +472,7 @@ private:
 	void UpdateLayersContent(bool bInWaitForStreaming = false, bool bInSkipMonitorLandscapeEdModeChanges = false, bool bIntermediateRender = false, bool bFlushRender = false);
 	void MonitorShaderCompilation();
 	void MonitorLandscapeEdModeChanges();
-
+	
 	int32 RegenerateLayersHeightmaps(const FUpdateLayersContentContext& InUpdateLayersContentContext);
 	int32 PerformLayersHeightmapsLocalMerge(const FUpdateLayersContentContext& InUpdateLayersContentContext, const FEditLayersHeightmapMergeParams& InMergeParams);
 	int32 PerformLayersHeightmapsGlobalMerge(const FUpdateLayersContentContext& InUpdateLayersContentContext, const FEditLayersHeightmapMergeParams& InMergeParams);
@@ -519,8 +579,9 @@ public:
 	FLandscapeFullHeightmapRenderDoneDelegate& OnFullHeightmapRenderDoneDelegate() { return LandscapeFullHeightmapRenderDoneDelegate; }
 
 	/** Target Landscape Layer for Landscape Splines */
+	UE_DEPRECATED(5.5, "This has been refactored into the generic ULandscapeEditLayerBase system. Please check for the presence of a ULandscapeEditLayerSplines layer instead")
 	UPROPERTY()
-	FGuid LandscapeSplinesTargetLayerGuid;
+	FGuid LandscapeSplinesTargetLayerGuid_DEPRECATED;
 	
 	/** Current Editing Landscape Layer*/
 	FGuid EditingLayer;
@@ -534,8 +595,9 @@ public:
 	UPROPERTY(Transient, DuplicateTransient, TextExportTransient, NonPIEDuplicateTransient)
 	bool bWarnedGlobalMergeDimensionsExceeded = false;
 
+	UE_DEPRECATED(5.5, "This property has moved to private. Use the public accessors instead")
 	UPROPERTY()
-	TArray<FLandscapeLayer> LandscapeLayers;
+	TArray<FLandscapeLayer> LandscapeLayers_DEPRECATED;
 
 	UPROPERTY(Transient)
 	TArray<TObjectPtr<UTextureRenderTarget2D>> HeightmapRTList;
@@ -548,6 +610,9 @@ public:
 	TArray<TWeakObjectPtr<UTexture2D>> TrackedStreamingInTextures;
 
 private:
+	UPROPERTY()
+	TArray<FLandscapeLayer> LandscapeEditLayers;
+
 	FLandscapeBlueprintBrushChangedDelegate LandscapeBlueprintBrushChangedDelegate;
 	FLandscapeFullHeightmapRenderDoneDelegate LandscapeFullHeightmapRenderDoneDelegate;
 
@@ -573,7 +638,7 @@ private:
 
 	UPROPERTY(Transient)
 	bool bLandscapeLayersAreInitialized;
-
+	
 	UPROPERTY(Transient)
 	bool bLandscapeLayersAreInitializedForNormalCapture;
 

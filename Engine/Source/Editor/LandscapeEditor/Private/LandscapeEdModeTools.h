@@ -949,14 +949,15 @@ public:
 			bCombinedLayerOperation = Landscape && Landscape->HasLayersContent() && InCombinedLayerOperation && bTargetIsHeightmap;
 			if (bCombinedLayerOperation)
 			{
-				for (uint8 i = 0; i < Landscape->GetLayerCount(); ++i)
+				int32 I = 0;
+				for (const FLandscapeLayer& CurrentLayer : Landscape->GetLayers())
 				{
-					FLandscapeLayer* CurrentLayer = Landscape->GetLayer(i);
-					BackupLayerVisibility.Add(CurrentLayer->bVisible);
-					if (CurrentLayer->Guid == EditingLayerGuid.GetValue())
+					BackupLayerVisibility.Add(CurrentLayer.bVisible);
+					if (CurrentLayer.Guid == EditingLayerGuid.GetValue())
 					{
-						EditingLayerIndex = i;
+						EditingLayerIndex = I;
 					}
+					++I;
 				}
 				check(EditingLayerIndex < Landscape->GetLayerCount());
 			}
@@ -971,10 +972,11 @@ public:
 		if (bCombinedLayerOperation)
 		{
 			TArray<bool> NewLayerVisibility;
-			for (int i = 0; i < Landscape->GetLayerCount(); ++i)
+			int32 I = 0;
+			for (const FLandscapeLayer& CurrentLayer : Landscape->GetLayers())
 			{
-				FLandscapeLayer* CurrentLayer = Landscape->GetLayer(i);
-				NewLayerVisibility.Add((i > EditingLayerIndex) ? false : CurrentLayer->bVisible);
+				NewLayerVisibility.Add((I > EditingLayerIndex) ? false : CurrentLayer.bVisible);
+				++I;
 			}
 
 			auto OnCacheUpdating = [&](const FIntRect& NewCacheBounds) -> FIntRect
@@ -1043,8 +1045,8 @@ public:
 
 			FGuid CacheAccessorLayerGuid = CacheUpToEditingLayer.DataAccess.GetEditLayer();
  			checkf(EditingLayerGuid.GetValue() == CacheAccessorLayerGuid, TEXT("Editing Layer has changed between Initialize and Write. Was: %s (%s). Is now: %s (%s)"),
- 				Landscape->GetLayer(*EditingLayerGuid) ? *(Landscape->GetLayer(*EditingLayerGuid)->Name.ToString()) : TEXT("<unknown>"), *EditingLayerGuid->ToString(),
- 				Landscape->GetLayer(CacheAccessorLayerGuid) ? *(Landscape->GetLayer(CacheAccessorLayerGuid)->Name.ToString()) : TEXT("<unknown>"), *CacheAccessorLayerGuid.ToString());
+ 				Landscape->GetLayerConst(*EditingLayerGuid) ? *(Landscape->GetLayerConst(*EditingLayerGuid)->Name.ToString()) : TEXT("<unknown>"), *EditingLayerGuid->ToString(),
+ 				Landscape->GetLayerConst(CacheAccessorLayerGuid) ? *(Landscape->GetLayerConst(CacheAccessorLayerGuid)->Name.ToString()) : TEXT("<unknown>"), *CacheAccessorLayerGuid.ToString());
 
 			// Restore layers visibility
 			SetLayersVisibility(BackupLayerVisibility);
@@ -1086,11 +1088,13 @@ private:
 		check(InLayerVisibility.Num() == Landscape->GetLayerCount());
 		for (int i = 0; i < InLayerVisibility.Num(); ++i)
 		{
-			if (FLandscapeLayer* Layer = Landscape->GetLayer(i))
+			if (const FLandscapeLayer* Layer = Landscape->GetLayerConst(i))
 			{
 				if (Layer->bVisible != InLayerVisibility[i])
 				{
-					Layer->bVisible = InLayerVisibility[i];
+					// Pass bInForIntermediateRender = true here, because we don't want to call Modify on the landscape, we don't actually want to truly change 
+					//  the layer visibility, only temporarily for the purpose of the intermediate render : 
+					Landscape->SetLayerVisibility(i, InLayerVisibility[i], /*bInForIntermediateRender = */true);
 					bVisibilityChanged = true;
 				}
 			}

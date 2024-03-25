@@ -987,7 +987,7 @@ void FLandscapeEditorDetailCustomization_NewLandscape::AddComponents(ULandscapeI
 			TArray<ULandscapeComponent*> ComponentsUsingHeightmap;
 			ComponentsUsingHeightmap.Add(NewComponent);
 
-			for (const FLandscapeLayer& Layer : Landscape->LandscapeLayers)
+			for (const FLandscapeLayer& Layer : Landscape->GetLayers())
 			{
 				// Since we do not share heightmap when adding new component, we will provided the required array, but they will only be used for 1 component
 				TMap<UTexture2D*, UTexture2D*> CreatedHeightmapTextures;
@@ -1119,7 +1119,7 @@ FReply FLandscapeEditorDetailCustomization_NewLandscape::OnCreateButtonClicked()
 		ReimportHeightmapFilePath = UISettings->ImportLandscape_HeightmapFilename;
 	}
 
-	Landscape->Import(FGuid::NewGuid(), 0, 0, SizeX - 1, SizeY - 1, UISettings->NewLandscape_SectionsPerComponent, QuadsPerSection, HeightDataPerLayers, *ReimportHeightmapFilePath, MaterialLayerDataPerLayers, UISettings->ImportLandscape_AlphamapType);
+	Landscape->Import(FGuid::NewGuid(), 0, 0, SizeX - 1, SizeY - 1, UISettings->NewLandscape_SectionsPerComponent, QuadsPerSection, HeightDataPerLayers, *ReimportHeightmapFilePath, MaterialLayerDataPerLayers, UISettings->ImportLandscape_AlphamapType, TArrayView<const FLandscapeLayer>());
 
 	ULandscapeInfo* LandscapeInfo = Landscape->GetLandscapeInfo();
 	check(LandscapeInfo);
