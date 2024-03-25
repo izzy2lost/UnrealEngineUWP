@@ -1404,7 +1404,19 @@ bool UCustomizableObjectSystem::LockObject(const class UCustomizableObject* InOb
 				{
 					Streamer->CancelStreamingForObject(InObject);
 				});
-			Task.Wait();
+
+			
+			if (GetMutableDefault<UCustomizableObjectSettings>()->bEnableStreamingManager)
+			{
+				while (!Task.IsCompleted())				
+				{
+					GetPrivate()->UpdateResourceStreaming(0, false);
+				}
+			}
+			else
+			{
+				Task.Wait();
+			}
 		}
 
 		Private->MutablePendingInstanceWork.RemoveUpdatesForObject(InObject);
@@ -2926,12 +2938,12 @@ void UCustomizableObjectSystem::AdvanceCurrentOperation()
 
 bool UCustomizableObjectSystem::Tick(float DeltaTime)
 {
-	TickInternal(DeltaTime);
+	TickInternal();
 	return true;
 }
 
 
-int32 UCustomizableObjectSystem::TickInternal(float DeltaTime)
+int32 UCustomizableObjectSystem::TickInternal()
 {
 	MUTABLE_CPUPROFILER_SCOPE(UCustomizableObjectSystem::TickInternal)
 	
@@ -3146,6 +3158,11 @@ int32 UCustomizableObjectSystem::TickInternal(float DeltaTime)
 
 #if WITH_EDITOR
 	TickRecompileCustomizableObjects();
+
+	if (GetPrivate()->ImageProvider)
+	{
+		GetPrivate()->ImageProvider->Tick();		
+	}
 #endif
 
 #if WITH_EDITORONLY_DATA
@@ -3905,15 +3922,13 @@ bool UCustomizableObjectSystem::IsMutableAnimInfoDebuggingEnabled() const
 
 void UCustomizableObjectSystemPrivate::UpdateResourceStreaming(float DeltaTime, bool bProcessEverything)
 {
-	GetPublic()->TickInternal(DeltaTime);
+	GetPublic()->TickInternal();
 }
 
 
 int32 UCustomizableObjectSystemPrivate::BlockTillAllRequestsFinished(float TimeLimit, bool bLogResults)
 {
 	const double BlockEndTime = FPlatformTime::Seconds() + TimeLimit;
-	double StartTime;
-	double DeltaTime = 0.0;
 
 	int32 RemainingWork = TNumericLimits<int32>::Max();
 	
@@ -3921,24 +3936,19 @@ int32 UCustomizableObjectSystemPrivate::BlockTillAllRequestsFinished(float TimeL
 	{
 		while (RemainingWork > 0)
 		{
-			StartTime = FPlatformTime::Seconds();
-			RemainingWork = GetPublic()->TickInternal(DeltaTime);
-			DeltaTime = FPlatformTime::Seconds() - StartTime;
+			RemainingWork = GetPublic()->TickInternal();
 		}
 	}
 	else
 	{
 		while (RemainingWork > 0)
 		{			
-			StartTime = FPlatformTime::Seconds();
-
-			if (StartTime > BlockEndTime)
+			if (FPlatformTime::Seconds() > BlockEndTime)
 			{
 				return RemainingWork;
 			}
 			
-			RemainingWork = GetPublic()->TickInternal(DeltaTime);
-			DeltaTime = FPlatformTime::Seconds() - StartTime;
+			RemainingWork = GetPublic()->TickInternal();
 		}
 	}
 

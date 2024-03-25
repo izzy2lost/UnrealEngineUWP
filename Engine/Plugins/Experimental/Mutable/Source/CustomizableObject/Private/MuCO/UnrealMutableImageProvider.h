@@ -22,9 +22,6 @@ class FUnrealMutableImageProvider : public mu::ImageParameterGenerator, public F
 {
 
 public:
-
-	FUnrealMutableImageProvider();
-
 	// mu::ImageParameterGenerator interface
 	// Thread: worker
 #ifdef MUTABLE_USE_NEW_TASKGRAPH
@@ -103,10 +100,11 @@ private:
 	FCriticalSection ExternalImagesLock;
 
 #if WITH_EDITOR
+public:
 	/** The provider may tick to support referenced images. */
-	bool Tick(float DeltaTime);
-	FTSTicker::FDelegateHandle TickDelegateHandle;
-	FTickerDelegate TickDelegate;
+	bool Tick();
+
+private:
 	struct FReferencedImageRequest
 	{
 		FReferencedImageRequest(const UE::Tasks::FTaskEvent&& Event) : CompletionEvent(Event) {}

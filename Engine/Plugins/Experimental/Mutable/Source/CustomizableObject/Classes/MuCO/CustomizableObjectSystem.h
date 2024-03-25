@@ -342,7 +342,7 @@ private:
 	bool Tick(float DeltaTime);
 
 	/** Returns the number of remaining operations. */
-	int32 TickInternal(float DeltaTime);
+	int32 TickInternal();
 
 	// If there is an on-going operation, advance it.
 	void AdvanceCurrentOperation();
