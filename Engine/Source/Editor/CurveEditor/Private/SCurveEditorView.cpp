@@ -116,7 +116,7 @@ void SCurveEditorView::FrameVertical(double InOutputMin, double InOutputMax)
 
 void SCurveEditorView::SetOutputBounds(double InOutputMin, double InOutputMax)
 {
-	if (!bFixedOutputBounds)
+	if (!bFixedOutputBounds && InOutputMin < InOutputMax)
 	{
 		OutputMin = InOutputMin;
 		OutputMax = InOutputMax;
