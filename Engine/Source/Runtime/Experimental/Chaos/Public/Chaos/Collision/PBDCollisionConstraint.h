@@ -49,9 +49,6 @@ namespace Chaos
 	public:
 		FPBDCollisionConstraintMaterial()
 			: FaceIndex(INDEX_NONE)
-			, MaterialDynamicFriction(0)
-			, MaterialStaticFriction(0)
-			, MaterialRestitution(0)
 			, DynamicFriction(0)
 			, StaticFriction(0)
 			, Restitution(0)
@@ -60,40 +57,38 @@ namespace Chaos
 			, InvMassScale1(1)
 			, InvInertiaScale0(1)
 			, InvInertiaScale1(1)
+			, SoftSeparation(0)
+			, BaseFrictionImpulse(0)
 		{
 		}
 
 		// The face index that the material was extracted from
 		int32 FaceIndex;
 
-		// Material properties pulled from the materials of the two shapes involved in the contact
-		// @todo(chaos): we can remove these now and just recollect the material data when a modifier was applied
-		FRealSingle MaterialDynamicFriction;
-		FRealSingle MaterialStaticFriction;
-		FRealSingle MaterialRestitution;
-
-		// Final material properties (post modifier) used by the solver. These get reset every frame to the material values above
+		// Final material properties (post modifier) used by the solver
+		// These get reset every frame to the material values (if modified)
 		FRealSingle DynamicFriction;
 		FRealSingle StaticFriction;
 		FRealSingle Restitution;
-
 		FRealSingle RestitutionThreshold;
 		FRealSingle InvMassScale0;
 		FRealSingle InvMassScale1;
 		FRealSingle InvInertiaScale0;
 		FRealSingle InvInertiaScale1;
 
-		// Reset the material properties to those pulled from the shape's materials (i.e., back to the state before any contact modification)
-		void ResetMaterialModifications()
-		{
-			DynamicFriction = MaterialDynamicFriction;
-			StaticFriction = MaterialStaticFriction;
-			Restitution = MaterialRestitution;
-			InvMassScale0 = FRealSingle(1);
-			InvMassScale1 = FRealSingle(1);
-			InvInertiaScale0 = FRealSingle(1);
-			InvInertiaScale1 = FRealSingle(1);
-		}
+		UE_DEPRECATED(5.5, "Use DynamicFriction instead")
+		FRealSingle MaterialDynamicFriction;
+		UE_DEPRECATED(5.5, "Use StaticFriction instead")
+		FRealSingle MaterialStaticFriction;
+		UE_DEPRECATED(5.5, "Use Restitution instead")
+		FRealSingle MaterialRestitution;
+
+		// SoftSeparation is usually negative (0 for disabled), and indicates the depth at which the hard collision starts
+		FRealSingle SoftSeparation;
+
+		// BaseFrictionThickness is usually positive (0 for disabled) and is the distance away from the core shape
+		// at which the base friction impulse can be applied.
+		FRealSingle BaseFrictionImpulse;
 	};
 
 	// Renamed to FPBDCollisionConstraintMaterial
@@ -415,6 +410,7 @@ namespace Chaos
 
 		void SetModifierApplied() { Flags.bModifierApplied = true; }
 
+		UE_DEPRECATED(5.5, "Use specific material property getters instead")
 		const FPBDCollisionConstraintMaterial& GetCollisionMaterial() const { return Material; }
 
 		void SetInvMassScale0(const FReal InInvMassScale) { Material.InvMassScale0 = FRealSingle(InInvMassScale); }
@@ -443,6 +439,14 @@ namespace Chaos
 
 		void SetDynamicFriction(const FReal InDynamicFriction) { Material.DynamicFriction = FRealSingle(InDynamicFriction); }
 		FReal GetDynamicFriction() const { return Material.DynamicFriction; }
+
+		void SetMinFrictionPushOut(const FReal InMinFrictionPushOut) { Material.BaseFrictionImpulse = FRealSingle(InMinFrictionPushOut); }
+		FReal GetMinFrictionPushOut() const { return Material.BaseFrictionImpulse; }
+
+		bool IsSoftContact() const { return (Material.SoftSeparation != 0); }
+
+		void SetSoftSeparation(const FReal InSoftSeparation) { Material.SoftSeparation = FRealSingle(InSoftSeparation); }
+		FRealSingle GetSoftSeparation() const { return Material.SoftSeparation; }
 
 		EContactShapesType GetShapesType() const { return ShapesType; }
 
@@ -474,12 +478,9 @@ namespace Chaos
 		{
 			if (Flags.bModifierApplied)
 			{
-				Material.ResetMaterialModifications();
-
-				if (Flags.bIsOneWayInteraction)
-				{
-					UpdateMassScales();
-				}
+				// Re-gather the material properties
+				ClearMaterialProperties();
+				UpdateMaterialProperties();
 
 				// Reset other properties which may have changed in contact modification last frame
 				Flags.bIsProbe = BoundsTestFlags.bIsProbe;

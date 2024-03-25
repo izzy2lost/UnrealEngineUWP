@@ -73,6 +73,14 @@ namespace Chaos
 		float DamageThresholdMultiplier = 1.0f;
 	};
 
+	// NOTE: must match EPhysicalMaterialSoftCollisionMode
+	enum class EChaosPhysicsMaterialSoftCollisionMode : uint8
+	{
+		None,
+		RelativeThickness,
+		AbsoluteThickness,
+	};
+
 	class FChaosPhysicsMaterial
 	{
 	public:
@@ -101,6 +109,9 @@ namespace Chaos
 		int32 SleepCounterThreshold;
 		void* UserData;
 
+		/** Settings for "sticky" friction */
+		FRealSingle BaseFrictionImpulse;
+
 		/** Variable defaults are used for \c UChaosPhysicalMaterial \c UPROPERTY defaults. */
 		ECombineMode FrictionCombineMode;
 		ECombineMode RestitutionCombineMode;
@@ -108,6 +119,8 @@ namespace Chaos
 		FChaosPhysicsMaterialStrength Strength;
 		FChaosPhysicsMaterialDamageModifier DamageModifier;
 
+		EChaosPhysicsMaterialSoftCollisionMode SoftCollisionMode;
+		FRealSingle SoftCollisionThickness;
 
 		FChaosPhysicsMaterial()
 			: Friction(0.5)
@@ -122,8 +135,11 @@ namespace Chaos
 			, DisabledAngularThreshold(0)
 			, SleepCounterThreshold(0)
 			, UserData(nullptr)
+			, BaseFrictionImpulse(0.0)
 			, FrictionCombineMode(ECombineMode::Avg)
 			, RestitutionCombineMode(ECombineMode::Avg)
+			, SoftCollisionMode(EChaosPhysicsMaterialSoftCollisionMode::None)
+			, SoftCollisionThickness(0)
 		{
 		}
 

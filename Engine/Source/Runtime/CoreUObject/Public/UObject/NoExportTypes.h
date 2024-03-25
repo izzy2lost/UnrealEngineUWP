@@ -385,6 +385,9 @@ enum class EUnit : uint8
 
 	/** Torque units */
 	NewtonMeters, KilogramCentimetersSquaredPerSecondSquared,
+
+	/** Impulse units */
+	NewtonSeconds, KilogramCentimeters, KilogramMeters,
 	
 	/** Frequency units */
 	Hertz, Kilohertz, Megahertz, Gigahertz, RevolutionsPerMinute,
