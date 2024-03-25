@@ -133,6 +133,11 @@ private:
 	void RegisterPropertyIdHandler();
 
 	/**
+	 * Populate the list of functions that cannot be called remotely.
+	 */
+	void PopulateDisallowedFunctions();
+
+	/**
 	 * Whether function can be intercepted by a remote control interceptor.
 	 */
 	bool CanInterceptFunction(const FRCCall& RCCall) const;
@@ -157,6 +162,9 @@ private:
 	 * @param ModifyFunction Function which takes an array helper, attempts to modify the array, and returns true if the request was valid.
 	 */
 	bool ModifyArrayProperty(const FRCObjectReference& ObjectAccess, TFunctionRef<bool(FScriptArrayHelper&)> ModifyFunction);
+
+	/** Returns whether the function is allowed to be called remotely. */
+	bool IsFunctionAllowed(UFunction* Function);
 
 #if WITH_EDITOR
 
@@ -286,6 +294,9 @@ private:
 	TMap<FName, TSharedPtr<IRCDefaultValueFactory>> DefaultValueFactories;
 
 	TSet<TSharedPtr<IPropertyIdHandler>> PropertyIdPropertyHandlers; 
+
+	/** List of functions that can't be called remotely. */
+	TSet<TWeakObjectPtr<UFunction>> FunctionDisallowList;
 };
 
 PRAGMA_ENABLE_DEPRECATION_WARNINGS
