@@ -11,6 +11,9 @@ namespace uba
 	public:
 		virtual void AddWork(const Function<void()>& work, u32 count, const tchar* desc) = 0;
 		virtual u32 GetWorkerCount() = 0;
+
+		virtual u32 TrackWorkStart(const tchar* desc) { return 0; }
+		virtual void TrackWorkEnd(u32 id) {}
 	};
 
 
@@ -38,5 +41,13 @@ namespace uba
 
 		ReaderWriterLock m_availableWorkersLock;
 		Worker* m_firstAvailableWorker = nullptr;
+	};
+
+	struct TrackWorkScope
+	{
+		TrackWorkScope(WorkManager& wm, const tchar* desc) : workManager(wm), workIndex(wm.TrackWorkStart(desc)) {}
+		~TrackWorkScope() { workManager.TrackWorkEnd(workIndex); }
+		WorkManager& workManager;
+		u32 workIndex;
 	};
 }
