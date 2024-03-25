@@ -879,7 +879,7 @@ namespace uba
 			const Vector<ProcessLogLine>& processLogLines = process.GetLogLines();
 			if (!processLogLines.empty())
 			{
-				ScopedWriteLock lock(logLinesLock);
+				SCOPED_WRITE_LOCK(logLinesLock, lock);
 				for (auto& line : processLogLines)
 					logLines[logLinesIndex].push_back(line);
 				if (errorCode)
@@ -903,7 +903,7 @@ namespace uba
 					name.Appendf(TC(" (exit code: %u)"), errorCode);
 					entryType = LogEntryType_Error;
 				}
-				ScopedWriteLock lock(logLinesLock);
+				SCOPED_WRITE_LOCK(logLinesLock, lock);
 				logLines[logLinesIndex].push_back({ TString(name.data), entryType });
 			}
 
@@ -1111,7 +1111,11 @@ namespace uba
 					{
 						logLinesAvailable.IsSet();
 						u32 logLinesIndexPrev;
-						logLinesLock.ScopedWrite([&]() { logLinesIndexPrev = logLinesIndex; logLinesIndex = (logLinesIndex + 1) % 2; });
+						{
+							SCOPED_WRITE_LOCK(logLinesLock, l);
+							logLinesIndexPrev = logLinesIndex;
+							logLinesIndex = (logLinesIndex + 1) % 2;
+						}
 						logger.BeginScope();
 						for (auto& s : logLines[logLinesIndexPrev])
 							logger.Log(LogEntryType_Detail, s.text.c_str(), u32(s.text.size()));
@@ -1243,6 +1247,16 @@ namespace uba
 				logger.Info(TC(""));
 				logger.EndScope();
 			}
+
+			//if (proxy.storage)
+			//	proxy.storage->PrintSummary();
+			//if (proxy.server)
+			//	proxy.server->PrintSummary(logger);
+
+			#if UBA_TRACK_CONTENTION
+			LoggerWithWriter contLogger(g_consoleLogWriter, TC(""));
+			PrintContentionSummary(contLogger);
+			#endif
 		}
 		while (poll && !isTerminating);
 

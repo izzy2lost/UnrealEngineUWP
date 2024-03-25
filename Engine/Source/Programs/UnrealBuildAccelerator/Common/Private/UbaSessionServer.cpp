@@ -58,7 +58,7 @@ namespace uba
 
 		void CallProcessExit(ProcessHandle& h)
 		{
-			ScopedWriteLock lock(m_exitedLock);
+			SCOPED_WRITE_LOCK(m_exitedLock, lock);
 			if (!startInfo.exitedFunc)
 				return;
 			auto exitedFunc = startInfo.exitedFunc;
@@ -283,7 +283,7 @@ namespace uba
 				if (CaseInsensitiveFs)
 					fileName.MakeLower();
 				StringKey fileNameKey = ToStringKey(fileName);
-				ScopedWriteLock lock(m_nameToHashLookupLock);
+				SCOPED_WRITE_LOCK(m_nameToHashLookupLock, lock);
 				CasKey& lookupCasKey = m_nameToHashLookup[fileNameKey];
 				if (lookupCasKey != casKey)
 				{
@@ -300,7 +300,7 @@ namespace uba
 		ScopedCriticalSection lock(m_remoteProcessAndSessionLock);
 		m_queuedRemoteProcesses.push_back(remoteProcess);
 
-		ScopedReadLock lock2(m_remoteProcessReturnedEventLock);
+		SCOPED_READ_LOCK(m_remoteProcessReturnedEventLock, lock2);
 		if (m_remoteProcessReturnedEvent)
 		{
 			if (!m_remoteExecutionEnabled)
@@ -335,7 +335,7 @@ namespace uba
 		FixFileName(fileName, fileName_, workingDir.data);
 		StringKey fileNameKey = ToStringKey(fileName);
 		
-		ScopedWriteLock lock(m_customCasKeysLock);
+		SCOPED_WRITE_LOCK(m_customCasKeysLock, lock);
 		auto insres = m_customCasKeys.try_emplace(fileNameKey);
 		CustomCasKey& customKey = insres.first->second;
 		customKey.casKey = CasKeyZero;
@@ -394,13 +394,13 @@ namespace uba
 
 	void SessionServer::SetRemoteProcessSlotAvailableEvent(const Function<void()>& remoteProcessSlotAvailableEvent)
 	{
-		ScopedWriteLock lock(m_remoteProcessSlotAvailableEventLock);
+		SCOPED_WRITE_LOCK(m_remoteProcessSlotAvailableEventLock, lock);
 		m_remoteProcessSlotAvailableEvent = remoteProcessSlotAvailableEvent;
 	}
 
 	void SessionServer::SetRemoteProcessReturnedEvent(const Function<void(Process&)>& remoteProcessReturnedEvent)
 	{
-		ScopedWriteLock lock(m_remoteProcessReturnedEventLock);
+		SCOPED_WRITE_LOCK(m_remoteProcessReturnedEventLock, lock);
 		m_remoteProcessReturnedEvent = remoteProcessReturnedEvent;
 	}
 
@@ -548,7 +548,7 @@ namespace uba
 
 				bool binAsVersion = clientKeys[0] != CasKeyZero;
 				{
-					ScopedWriteLock lock(m_binKeysLock);
+					SCOPED_WRITE_LOCK(m_binKeysLock, lock);
 					if (m_detoursBinaryKey == CasKeyZero || (binAsVersion && m_agentBinaryKey == CasKeyZero))
 					{
 						StringBuffer<> dir;
@@ -642,12 +642,12 @@ namespace uba
 				lookupStr.MakeLower();
 				StringKey lookupKey = ToStringKeyNoCheck(lookupStr.data, lookupStr.count);
 
-				ScopedWriteLock lock(m_applicationDataLock);
+				SCOPED_WRITE_LOCK(m_applicationDataLock, lock);
 				auto insres = m_applicationData.try_emplace(lookupKey);
 				ApplicationData& data = insres.first->second;
 				lock.Leave();
 
-				ScopedWriteLock lock2(data.lock);
+				SCOPED_WRITE_LOCK(data.lock, lock2);
 				if (!data.bytes.empty())
 				{
 					writer.WriteBytes(data.bytes.data(), data.bytes.size());
@@ -681,12 +681,12 @@ namespace uba
 				reader.ReadString(applicationName);
 				StringKey applicationKey = ToStringKeyLower(applicationName);
 
-				ScopedWriteLock lock(m_applicationDataLock);
+				SCOPED_WRITE_LOCK(m_applicationDataLock, lock);
 				auto insres = m_applicationData.try_emplace(applicationKey);
 				ApplicationData& data = insres.first->second;
 				lock.Leave();
 				
-				ScopedWriteLock lock2(data.lock);
+				SCOPED_WRITE_LOCK(data.lock, lock2);
 				if (!data.bytes.empty())
 				{
 					writer.WriteBytes(data.bytes.data(), data.bytes.size());
@@ -744,7 +744,7 @@ namespace uba
 				u64 serverTime;
 				if (m_nameToHashInitialized && casKey != CasKeyIsDirectory)
 				{
-					ScopedWriteLock lock(m_nameToHashLookupLock);
+					SCOPED_WRITE_LOCK(m_nameToHashLookupLock, lock);
 					serverTime = GetTime();
 					CasKey& lookupCasKey = m_nameToHashLookup[fileNameKey];
 					if (lookupCasKey != casKey)
@@ -800,7 +800,7 @@ namespace uba
 						success = m_storage.FakeCopy(casKey, destination.data);
 						if (!success)
 							m_logger.Error(TC("Failed to fake copy cas from %s to %s"), CasKeyString(casKey).str, destination.data);
-						ScopedWriteLock lock(m_receivedFilesLock);
+						SCOPED_WRITE_LOCK(m_receivedFilesLock, lock);
 						m_receivedFiles.try_emplace(destinationKey, casKey);
 					}
 				}
@@ -889,7 +889,7 @@ namespace uba
 			{
 				u32 requestedSize = reader.ReadU32();
 
-				ScopedReadLock lock(m_nameToHashLookupLock);
+				SCOPED_READ_LOCK(m_nameToHashLookupLock, lock);
 				if (requestedSize == ~u32(0))
 				{
 					requestedSize = u32(m_nameToHashTableMem.writtenSize);
@@ -918,7 +918,7 @@ namespace uba
 
 				float weightLeft = availableWeight;
 				u32 addCount = 0;
-				ScopedWriteLock fillLock(m_fillUpOneAtTheTimeLock); // This is a lock to group files better (all clients connect at the same time)
+				SCOPED_WRITE_LOCK(m_fillUpOneAtTheTimeLock, fillLock); // This is a lock to group files better (all clients connect at the same time);
 				while (weightLeft > 0)
 				{
 					RemoteProcess* process = DequeueProcess(sessionId, connectionInfo.GetId());
@@ -943,7 +943,11 @@ namespace uba
 				fillLock.Leave();
 
 				u32 neededDirectoryTableSize = GetDirectoryTableSize();
-				u32 neededHashTableSize = m_nameToHashLookupLock.ScopedRead([this]() { return u32(m_nameToHashTableMem.writtenSize); });
+				u32 neededHashTableSize;
+				{
+					SCOPED_READ_LOCK(m_nameToHashLookupLock, l);
+					neededHashTableSize = u32(m_nameToHashTableMem.writtenSize);
+				}
 
 				sessionsLock.Enter();
 				//if (addCount)
@@ -1113,8 +1117,12 @@ namespace uba
 			case SessionMessageType_GetTraceInformation:
 			{
 				u32 remotePos = reader.ReadU32();
-				ScopedReadLock lock(m_trace.m_memoryLock);
-				u32 localPos = m_trace.m_memoryLock.ScopedRead([this]() { return u32(m_trace.m_memoryPos); });
+				SCOPED_READ_LOCK(m_trace.m_memoryLock, lock);
+				u32 localPos;
+				{
+					SCOPED_READ_LOCK(m_trace.m_memoryLock, l);
+					localPos = u32(m_trace.m_memoryPos);
+				}
 
 				writer.WriteU32(localPos);
 				u32 toWrite = Min(localPos - remotePos, u32(writer.GetCapacityLeft()));
@@ -1144,7 +1152,7 @@ namespace uba
 			{
 				u32 processId = reader.ReadU32();
 				u32 prevExitCode = reader.ReadU32();
-				ScopedWriteLock lock(m_processesLock);
+				SCOPED_WRITE_LOCK(m_processesLock, lock);
 				auto findIt = m_processes.find(processId);
 				if (findIt == m_processes.end())
 					return m_logger.Error(TC("Failed to find process for id %u when receiving custom message"), processId);
@@ -1152,7 +1160,7 @@ namespace uba
 				lock.Leave();
 
 				auto& remoteProcess = *(RemoteProcess*)h.m_process;
-				ScopedWriteLock exitedLock(remoteProcess.m_exitedLock);
+				SCOPED_WRITE_LOCK(remoteProcess.m_exitedLock, exitedLock);
 				NextProcessInfo nextProcess;
 				bool newProcess;
 				if (!GetNextProcess(remoteProcess, newProcess, nextProcess, prevExitCode, reader))
@@ -1171,7 +1179,7 @@ namespace uba
 			case SessionMessageType_Custom:
 			{
 				u32 processId = reader.ReadU32();
-				ScopedWriteLock lock(m_processesLock);
+				SCOPED_WRITE_LOCK(m_processesLock, lock);
 				auto findIt = m_processes.find(processId);
 				if (findIt == m_processes.end())
 					return m_logger.Error(TC("Failed to find process for id %u when receiving custom message"), processId);
@@ -1179,7 +1187,7 @@ namespace uba
 				lock.Leave();
 
 				auto& remoteProcess = *(RemoteProcess*)h.m_process;
-				ScopedWriteLock exitedLock(remoteProcess.m_exitedLock);
+				SCOPED_WRITE_LOCK(remoteProcess.m_exitedLock, exitedLock);
 				CustomMessage(remoteProcess, reader, writer);
 				return true;
 			}
@@ -1209,7 +1217,7 @@ namespace uba
 
 		bool deferCreation = true;
 		{
-			ScopedWriteLock lock(m_customCasKeysLock);
+			SCOPED_WRITE_LOCK(m_customCasKeysLock, lock);
 			auto findIt = m_customCasKeys.find(fileNameKey);
 			if (findIt != m_customCasKeys.end())
 			{
@@ -1234,7 +1242,7 @@ namespace uba
 		if (m_shouldWriteToDisk)
 			return true;
 
-		ScopedReadLock lookupLock(m_fileMappingTableLookupLock);
+		SCOPED_READ_LOCK(m_fileMappingTableLookupLock, lookupLock);
 		auto findIt = m_fileMappingTableLookup.find(fileNameKey);
 		if (findIt == m_fileMappingTableLookup.end())
 			return true;
@@ -1242,7 +1250,7 @@ namespace uba
 		UBA_ASSERT(casKeyOverride == CasKeyZero);
 		FileMappingEntry& entry = findIt->second;
 		lookupLock.Leave();
-		ScopedReadLock entryCs(entry.lock);
+		SCOPED_READ_LOCK(entry.lock, entryCs);
 		return m_storage.StoreCasFile(out, fileNameKey, fileName, entry.mapping, entry.mappingOffset, entry.size, fileName, deferCreation, true);
 	}
 
@@ -1250,7 +1258,7 @@ namespace uba
 	{
 		auto& dirTable = m_directoryTable;
 
-		ScopedWriteLock lock2(session.dirTablePosLock);
+		SCOPED_WRITE_LOCK(session.dirTablePosLock, lock2);
 
 		//m_logger.Info(TC("WritePos: %llu"), session.dirTablePos);
 		writer.WriteU32(session.dirTablePos); // We can figure out on the other side if everything was written based on if the message is full or not.
@@ -1317,7 +1325,7 @@ namespace uba
 			bool allGood = false;
 			while (memAvail >= m_memRequiredToSpawn)
 			{
-				ScopedWriteLock lock(m_waitingProcessesLock);
+				SCOPED_WRITE_LOCK(m_waitingProcessesLock, lock);
 				WaitingProcess* wp = m_oldestWaitingProcess;
 				if (!wp)
 				{
@@ -1339,7 +1347,7 @@ namespace uba
 			{
 				lastMessageTime = time;
 				u32 delayCount = 0;
-				ScopedWriteLock lock(m_waitingProcessesLock);
+				SCOPED_WRITE_LOCK(m_waitingProcessesLock, lock);
 				for (auto it = m_oldestWaitingProcess; it; it = it->next)
 					++delayCount;
 				lock.Leave();
@@ -1380,7 +1388,7 @@ namespace uba
 			{
 				u64 newestTime = 0;
 				ProcessImpl* newestProcess = nullptr;
-				ScopedWriteLock lock(m_processesLock);
+				SCOPED_WRITE_LOCK(m_processesLock, lock);
 				for (auto& kv : m_processes)
 				{
 					ProcessHandle& h = kv.second;
@@ -1403,7 +1411,7 @@ namespace uba
 			}
 		}
 
-		ScopedWriteLock lock(m_waitingProcessesLock);
+		SCOPED_WRITE_LOCK(m_waitingProcessesLock, lock);
 		for (auto it = m_oldestWaitingProcess; it; it = it->next)
 			it->event.Set();
 		m_oldestWaitingProcess = nullptr;
@@ -1412,7 +1420,7 @@ namespace uba
 
 	SessionServer::RemoteProcess* SessionServer::DequeueProcess(u32 sessionId, u32 clientId)
 	{
-		ScopedReadLock lock(m_remoteProcessSlotAvailableEventLock);
+		SCOPED_READ_LOCK(m_remoteProcessSlotAvailableEventLock, lock);
 		bool hasCalledCallback = !m_remoteProcessSlotAvailableEvent;
 		u32 sessionIndex = sessionId - 1;
 
@@ -1474,7 +1482,7 @@ namespace uba
 			m_logger.Warning(TC("Cancelling remote active processes has not been tested. Notify devs"));
 
 			{
-				ScopedWriteLock lock(m_processesLock);
+				SCOPED_WRITE_LOCK(m_processesLock, lock);
 				m_processes.erase(process->m_processId);
 			}
 		}
@@ -1485,7 +1493,7 @@ namespace uba
 
 	ProcessHandle SessionServer::ProcessRemoved(u32 processId)
 	{
-		ScopedWriteLock lock(m_processesLock);
+		SCOPED_WRITE_LOCK(m_processesLock, lock);
 		auto findIt = m_processes.find(processId);
 		if (findIt == m_processes.end())
 			return {};
@@ -1507,7 +1515,7 @@ namespace uba
 		WaitingProcess wp;
 		wp.event.Create(true);
 
-		ScopedWriteLock lock(m_waitingProcessesLock);
+		SCOPED_WRITE_LOCK(m_waitingProcessesLock, lock);
 		if (m_memoryThreadEvent.IsSet(0))
 			return false;
 
@@ -1530,7 +1538,7 @@ namespace uba
 	{
 		if (!m_shouldWriteToDisk && ((msg.access & FileAccess_Write) == 0))
 		{
-			ScopedReadLock lock(m_receivedFilesLock);
+			SCOPED_READ_LOCK(m_receivedFilesLock, lock);
 			auto findIt = m_receivedFiles.find(msg.fileNameKey);
 			if (findIt != m_receivedFiles.end())
 			{
@@ -1552,7 +1560,7 @@ namespace uba
 
 	void SessionServer::FileEntryAdded(StringKey fileNameKey, u64 lastWritten, u64 size)
 	{
-		ScopedWriteLock lock(m_nameToHashLookupLock);
+		SCOPED_WRITE_LOCK(m_nameToHashLookupLock, lock);
 
 		if (!m_nameToHashInitialized)
 			return;
@@ -1641,7 +1649,7 @@ namespace uba
 		if (!m_nameToHashTableEnabled || m_nameToHashInitialized)
 			return true;
 
-		ScopedWriteLock lock(m_nameToHashLookupLock);
+		SCOPED_WRITE_LOCK(m_nameToHashLookupLock, lock);
 		m_nameToHashTableMem.Init(NameToHashMemSize);
 		m_nameToHashInitialized = true;
 		lock.Leave();
@@ -1650,7 +1658,7 @@ namespace uba
 
 		{
 			Vector<DirectoryTable::Directory*> dirs;
-			ScopedReadLock dirsLock(dirTable.m_lookupLock);
+			SCOPED_READ_LOCK(dirTable.m_lookupLock, dirsLock);
 			dirs.reserve(dirTable.m_lookup.size());
 			for (auto& kv : dirTable.m_lookup)
 				dirs.push_back(&kv.second);
@@ -1659,7 +1667,7 @@ namespace uba
 			for (auto dirPtr : dirs)
 			{
 				DirectoryTable::Directory& dir = *dirPtr;
-				ScopedReadLock dirLock(dir.lock);
+				SCOPED_READ_LOCK(dir.lock, dirLock);
 				for (auto& fileKv : dir.files)
 				{
 					StringKey fileNameKey = fileKv.first;
@@ -1676,7 +1684,7 @@ namespace uba
 				}
 			}
 		}
-		ScopedWriteLock lock2(m_nameToHashLookupLock);
+		SCOPED_WRITE_LOCK(m_nameToHashLookupLock, lock2);
 		u64 entryCount = m_nameToHashLookup.size();
 		lock2.Leave();
 

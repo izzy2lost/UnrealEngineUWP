@@ -25,11 +25,15 @@ namespace uba
 
 	void StorageImpl::CasEntryAccessed(CasEntry& entry)
 	{
-		bool hasMapping = entry.lock.ScopedRead([&](){ return entry.mappingHandle.IsValid(); });
+		bool hasMapping;
+		{
+			SCOPED_READ_LOCK(entry.lock, l); // Note, this lock is taken again outside CasEntryAccessed.. so if this takes a long time it won't help to remove this lock
+			hasMapping = entry.mappingHandle.IsValid();
+		}
 		if (hasMapping)
 			return;
 
-		ScopedWriteLock lock(m_accessLock);
+		SCOPED_WRITE_LOCK(m_accessLock, lock);
 
 		CasEntry* prevAccessed = entry.prevAccessed;
 		if (prevAccessed == nullptr)
@@ -56,7 +60,7 @@ namespace uba
 
 	void StorageImpl::CasEntryWritten(CasEntry& entry, u64 size)
 	{
-		ScopedWriteLock lock(m_accessLock);
+		SCOPED_WRITE_LOCK(m_accessLock, lock);
 
 		m_casTotalBytes += size - entry.size;
 		m_casMaxBytes = Max(m_casTotalBytes, m_casMaxBytes);
@@ -132,7 +136,7 @@ namespace uba
 
 					// TODO: Should this instead set some overflow
 					/*
-					ScopedWriteLock lock(m_accessLock);
+					SCOPED_WRITE_LOCK(m_accessLock, lock);
 					m_casEvictedBytes -= rec.size;
 					--m_casEvictedCount;
 					m_casTotalBytes += rec.size;
@@ -154,7 +158,7 @@ namespace uba
 
 	void StorageImpl::CasEntryDeleted(CasEntry& entry, u64 size)
 	{
-		ScopedWriteLock lock(m_accessLock);
+		SCOPED_WRITE_LOCK(m_accessLock, lock);
 		m_casTotalBytes -= size;
 		entry.size = 0;
 		DetachEntry(entry);
@@ -517,7 +521,7 @@ namespace uba
 
 	void StorageImpl::CasEntryAccessed(const CasKey& casKey)
 	{
-		ScopedReadLock lookupLock(m_casLookupLock);
+		SCOPED_READ_LOCK(m_casLookupLock, lookupLock);
 		auto findIt = m_casLookup.find(casKey);
 		if (findIt == m_casLookup.end())
 			return;
@@ -571,7 +575,7 @@ namespace uba
 					u64 lastWritten = 0;
 					while (true)
 					{
-						ScopedWriteLock lock(rec->lock);
+						SCOPED_WRITE_LOCK(rec->lock, lock);
 						rec->written += lastWritten;
 						if (!rec->decompressedLeft)
 						{
@@ -783,13 +787,13 @@ namespace uba
 	bool StorageImpl::AddCasFile(const tchar* fileName, const CasKey& casKey, bool deferCreation)
 	{
 		UBA_ASSERTF(IsCompressed(casKey) == m_storeCompressed, TC("CasKey compress mode must match storage compress mode (%s)"), fileName);
-		ScopedWriteLock lookupLock(m_casLookupLock);
+		SCOPED_WRITE_LOCK(m_casLookupLock, lookupLock);
 		auto insres = m_casLookup.try_emplace(casKey);
 		CasEntry& casEntry = insres.first->second;
 		lookupLock.Leave();
 		CasEntryAccessed(casEntry);
 
-		ScopedWriteLock entryLock(casEntry.lock);
+		SCOPED_WRITE_LOCK(casEntry.lock, entryLock);
 
 		if (casEntry.verified)
 			if (casEntry.exists)
@@ -810,7 +814,7 @@ namespace uba
 
 		if (deferCreation)
 		{
-			ScopedWriteLock deferredLock(m_deferredCasCreationLookupLock);
+			SCOPED_WRITE_LOCK(m_deferredCasCreationLookupLock, deferredLock);
 			auto res = m_deferredCasCreationLookup.try_emplace(casKey);
 			if (res.second)
 			{
@@ -1089,7 +1093,7 @@ namespace uba
 
 		CreateDirectory(m_rootDir.data);
 
-		ScopedWriteLock loadSaveLock(m_casTableLoadSaveLock);
+		SCOPED_WRITE_LOCK(m_casTableLoadSaveLock, loadSaveLock);
 
 		UBA_ASSERT(!m_casTableLoaded);
 		m_casTableLoaded = true;
@@ -1272,7 +1276,7 @@ namespace uba
 
 	bool StorageImpl::SaveCasTable(bool deleteIsRunningfile, bool deleteDropped)
 	{
-		ScopedWriteLock loadSaveLock(m_casTableLoadSaveLock);
+		SCOPED_WRITE_LOCK(m_casTableLoadSaveLock, loadSaveLock);
 		if (!m_casTableLoaded)
 			return true;
 
@@ -1311,9 +1315,9 @@ namespace uba
 			if (!tempFile.CreateWrite(false, DefaultAttributes(), 0, m_tempPath.data))
 				return false;
 			
-			ScopedReadLock fileTableLock(m_fileTableLookupLock);
-			ScopedReadLock casLookupLock(m_casLookupLock);
-			ScopedReadLock accessLock(m_accessLock);
+			SCOPED_READ_LOCK(m_fileTableLookupLock, fileTableLock);
+			SCOPED_READ_LOCK(m_casLookupLock, casLookupLock);
+			SCOPED_READ_LOCK(m_accessLock, accessLock);
 
 			u8 buffer[1024];
 			{
@@ -1464,7 +1468,7 @@ namespace uba
 
 						auto reportError = MakeGuard([&]()
 							{
-								ScopedWriteLock l(lock);
+								SCOPED_WRITE_LOCK(lock, l);
 								++errorCount;
 								if (lastWritten > newestWrittenError)
 									newestWrittenError = lastWritten;
@@ -1589,14 +1593,14 @@ namespace uba
 	bool StorageImpl::VerifyAndGetCachedFileInfo(CachedFileInfo& out, StringKey fileNameKey, u64 verifiedLastWriteTime, u64 verifiedSize)
 	{
 		out.casKey = CasKeyZero;
-		ScopedReadLock lookupLock(m_fileTableLookupLock);
+		SCOPED_READ_LOCK(m_fileTableLookupLock, lookupLock);
 		auto findIt = m_fileTableLookup.find(fileNameKey);
 		if (findIt == m_fileTableLookup.end())
 			return false;
 		FileEntry& fileEntry = findIt->second;
 		lookupLock.Leave();
 
-		ScopedWriteLock entryLock(fileEntry.lock);
+		SCOPED_WRITE_LOCK(fileEntry.lock, entryLock);
 		fileEntry.verified = fileEntry.lastWritten == verifiedLastWriteTime && fileEntry.size == verifiedSize;
 		if (!fileEntry.verified)
 			return false;
@@ -1612,12 +1616,12 @@ namespace uba
 			forKey.MakeLower();
 		StringKey fileNameKey = ToStringKey(forKey);
 
-		ScopedWriteLock lookupLock(m_fileTableLookupLock);
+		SCOPED_WRITE_LOCK(m_fileTableLookupLock, lookupLock);
 		auto insres = m_fileTableLookup.try_emplace(fileNameKey);
 		FileEntry& fileEntry = insres.first->second;
 		lookupLock.Leave();
 
-		ScopedWriteLock entryLock(fileEntry.lock);
+		SCOPED_WRITE_LOCK(fileEntry.lock, entryLock);
 	
 		if (fileEntry.verified)
 		{
@@ -1695,7 +1699,7 @@ namespace uba
 
 	bool StorageImpl::HasCasFile(const CasKey& casKey, CasEntry** out)
 	{
-		ScopedReadLock lookupLock(m_casLookupLock);
+		SCOPED_READ_LOCK(m_casLookupLock, lookupLock);
 		auto it = m_casLookup.find(casKey);
 		if (it == m_casLookup.end())
 			return false;
@@ -1706,11 +1710,11 @@ namespace uba
 		if (out)
 			*out = &casEntry;
 
-		ScopedWriteLock entryLock(casEntry.lock);
+		SCOPED_WRITE_LOCK(casEntry.lock, entryLock);
 
 		if (casEntry.verified)
 			return casEntry.exists;
-		ScopedWriteLock deferredLock(m_deferredCasCreationLookupLock);
+		SCOPED_WRITE_LOCK(m_deferredCasCreationLookupLock, deferredLock);
 		auto findIt = m_deferredCasCreationLookup.find(casKey);
 		if (findIt == m_deferredCasCreationLookup.end())
 			return false;
@@ -1737,13 +1741,13 @@ namespace uba
 
 	bool StorageImpl::EnsureCasFile(const CasKey& casKey, const tchar* fileName)
 	{
-		ScopedWriteLock lookupLock(m_casLookupLock);
+		SCOPED_WRITE_LOCK(m_casLookupLock, lookupLock);
 		auto insres = m_casLookup.try_emplace(casKey);
 		CasEntry& casEntry = insres.first->second;
 		lookupLock.Leave();
 		CasEntryAccessed(casEntry);
 
-		ScopedWriteLock entryLock(casEntry.lock);
+		SCOPED_WRITE_LOCK(casEntry.lock, entryLock);
 
 		if (casEntry.verified)
 		{
@@ -1789,7 +1793,7 @@ namespace uba
 
 	MappedView StorageImpl::MapView(const CasKey& casKey, const tchar* hint)
 	{
-		ScopedReadLock lookupLock(m_casLookupLock);
+		SCOPED_READ_LOCK(m_casLookupLock, lookupLock);
 		auto findIt = m_casLookup.find(casKey);
 		bool foundEntry = findIt != m_casLookup.end();
 		if (!foundEntry)
@@ -1799,7 +1803,7 @@ namespace uba
 		}
 		CasEntry& casEntry = findIt->second;
 		lookupLock.Leave();
-		ScopedWriteLock entryLock(casEntry.lock);
+		SCOPED_WRITE_LOCK(casEntry.lock, entryLock);
 		//if (!casEntry.verified)
 		//{
 		//	m_logger.Error(TC("Trying to use unverified mapping of %s (%s)"), CasKeyString(casKey).str, hint);
@@ -1823,7 +1827,7 @@ namespace uba
 
 	bool StorageImpl::DropCasFile(const CasKey& casKey, bool forceDelete, const tchar* hint)
 	{
-		ScopedReadLock lookupLock(m_casLookupLock);
+		SCOPED_READ_LOCK(m_casLookupLock, lookupLock);
 		auto findIt = m_casLookup.find(casKey);
 		bool foundEntry = findIt != m_casLookup.end();
 		if (!foundEntry)
@@ -1831,7 +1835,7 @@ namespace uba
 		CasEntry& casEntry = findIt->second;
 		lookupLock.Leave();
 	
-		ScopedWriteLock entryLock(casEntry.lock);
+		SCOPED_WRITE_LOCK(casEntry.lock, entryLock);
 
 		if (forceDelete)
 		{
@@ -1894,7 +1898,7 @@ namespace uba
 		
 		u32 maxParallelCopyOrLink = m_maxParallelCopyOrLink;
 		{
-			ScopedWriteLock lock(m_activeCopyOrLinkLock);
+			SCOPED_WRITE_LOCK(m_activeCopyOrLinkLock, lock);
 			if (m_activeCopyOrLink > maxParallelCopyOrLink)
 			{
 				TimerScope ts(stats.copyOrLinkWait);
@@ -1910,7 +1914,7 @@ namespace uba
 		
 		auto activeGuard = MakeGuard([&]()
 			{
-				ScopedWriteLock lock(m_activeCopyOrLinkLock);
+				SCOPED_WRITE_LOCK(m_activeCopyOrLinkLock, lock);
 				--m_activeCopyOrLink;
 				m_activeCopyOrLinkEvent.Set();
 			});
@@ -1920,7 +1924,7 @@ namespace uba
 		if (CaseInsensitiveFs)
 			forKey.MakeLower();
 		StringKey key = ToStringKey(forKey);
-		ScopedWriteLock lock(m_fileTableLookupLock);
+		SCOPED_WRITE_LOCK(m_fileTableLookupLock, lock);
 		auto insres = m_fileTableLookup.try_emplace(key);
 		FileEntry& entry = insres.first->second;
 		lock.Leave();
@@ -1943,7 +1947,7 @@ namespace uba
 				continue;
 			}
 
-			ScopedReadLock casEntryLock(casEntry->lock);
+			SCOPED_READ_LOCK(casEntry->lock, casEntryLock);
 			UBA_ASSERT(casEntry->verified);
 			UBA_ASSERT(casEntry->exists);
 
@@ -1994,7 +1998,7 @@ namespace uba
 
 				FileAccessor destinationFile(m_logger, destination);
 
-				ScopedWriteLock entryLock(entry.lock);
+				SCOPED_WRITE_LOCK(entry.lock, entryLock);
 				entry.verified = false;
 
 				// This is to reduce number of active CreateFiles.. seems like machines don't like tons of CreateFile at the same time
@@ -2051,7 +2055,7 @@ namespace uba
 			UBA_ASSERT(false);
 			#endif
 
-			ScopedWriteLock entryLock(entry.lock);
+			SCOPED_WRITE_LOCK(entry.lock, entryLock);
 			entry.verified = false;
 
 			bool firstTry = true;
@@ -2100,7 +2104,7 @@ namespace uba
 		if (CaseInsensitiveFs)
 			forKey.MakeLower();
 		StringKey key = ToStringKey(forKey);
-		ScopedWriteLock lock(m_fileTableLookupLock);
+		SCOPED_WRITE_LOCK(m_fileTableLookupLock, lock);
 		auto insres = m_fileTableLookup.try_emplace(key);
 		FileEntry& entry = insres.first->second;
 		entry.casKey = casKey;
@@ -2113,7 +2117,7 @@ namespace uba
 	void StorageImpl::ReportFileWrite(const tchar* fileName)
 	{
 		// If a defered cas creation is queued up while the source file is about to be modified we need to flush out the cas creation before modifying the file
-		ScopedReadLock deferredLock(m_deferredCasCreationLookupLock);
+		SCOPED_READ_LOCK(m_deferredCasCreationLookupLock, deferredLock);
 		auto findIt = m_deferredCasCreationLookupByName.find(fileName);
 		if (findIt == m_deferredCasCreationLookupByName.end())
 			return;
@@ -2445,7 +2449,7 @@ namespace uba
 
 	u8* StorageImpl::PopBufferSlot()
 	{
-		ScopedWriteLock lock(m_compSlotsLock);
+		SCOPED_WRITE_LOCK(m_compSlotsLock, lock);
 		if (!m_compSlots.empty())
 		{
 			auto back = m_compSlots.back();
@@ -2459,7 +2463,7 @@ namespace uba
 	{
 		if (!slot)
 			return;
-		ScopedWriteLock lock(m_compSlotsLock);
+		SCOPED_WRITE_LOCK(m_compSlotsLock, lock);
 		m_compSlots.push_back(slot);
 	}
 
@@ -2476,14 +2480,14 @@ namespace uba
 			forKey.MakeLower();
 		StringKey fileNameKey = ToStringKey(forKey);
 
-		ScopedReadLock lookupLock(m_fileTableLookupLock);
+		SCOPED_READ_LOCK(m_fileTableLookupLock, lookupLock);
 		auto findIt = m_fileTableLookup.find(fileNameKey);
 		if (findIt == m_fileTableLookup.end())
 			return false;
 		FileEntry& fileEntry = findIt->second;
 		lookupLock.Leave();
 
-		ScopedWriteLock entryLock(fileEntry.lock);
+		SCOPED_WRITE_LOCK(fileEntry.lock, entryLock);
 		fileEntry.verified = false;
 
 		return DropCasFile(fileEntry.casKey, true, file);

@@ -2,10 +2,11 @@
 
 #include "UbaFileMapping.h"
 #include "UbaDirectoryIterator.h"
+#include "UbaFile.h"
 #include "UbaPlatform.h"
 #include "UbaProcessStats.h"
 #include "UbaTimer.h"
-#include "UbaFile.h"
+#include "UbaWorkManager.h"
 
 #if !PLATFORM_WINDOWS
 #include <sys/file.h>
@@ -28,7 +29,7 @@ namespace uba
 			return ::CreateFileMappingW(hFile, NULL, flProtect, dwMaximumSizeHigh, dwMaximumSizeLow, lpName);
 
 		// Experiment to try to prevent lock happening on AWS servers when lots of helpers are sending back obj files.
-		ScopedWriteLock lock(g_createFileHandleLock);
+		SCOPED_WRITE_LOCK(g_createFileHandleLock, lock);
 		return ::CreateFileMappingW(hFile, NULL, flProtect, dwMaximumSizeHigh, dwMaximumSizeLow, lpName);
 	}
 #else
@@ -51,7 +52,7 @@ namespace uba
 		StringBuffer<64> lockDir;
 		lockDir.Append("/tmp/uba_shm_locks");
 
-		ScopedWriteLock lock(g_mappingUidCounterLock);
+		SCOPED_WRITE_LOCK(g_mappingUidCounterLock, lock);
 		if (!g_mappingUidCounter)
 		{
 			// Create dir
@@ -423,7 +424,7 @@ namespace uba
 	{
 		while (true)
 		{
-			ScopedWriteLock lock(storage.availableFilesLock);
+			SCOPED_WRITE_LOCK(storage.availableFilesLock, lock);
 			for (u32 i = storage.availableFilesCount; i!=0; --i)
 			{
 				u32 index = i - 1;
@@ -461,7 +462,7 @@ namespace uba
 
 	void FileMappingBuffer::PushFile(MappingStorage& storage, File* file)
 	{
-		ScopedWriteLock lock(storage.availableFilesLock);
+		SCOPED_WRITE_LOCK(storage.availableFilesLock, lock);
 		storage.availableFiles[storage.availableFilesCount++] = file;
 		storage.availableFilesEvent.Set();
 	}
@@ -471,7 +472,7 @@ namespace uba
 		u32 locksTaken = 0;
 		while (locksTaken < storage.fileCount)
 		{
-			ScopedWriteLock lock(storage.availableFilesLock);
+			SCOPED_WRITE_LOCK(storage.availableFilesLock, lock);
 			if (storage.availableFilesCount == 0)
 			{
 				lock.Leave();
@@ -601,7 +602,7 @@ namespace uba
 
 	FileMappingAllocator::Allocation FileMappingAllocator::Alloc(const tchar* hint)
 	{
-		ScopedWriteLock lock(m_mappingLock);
+		SCOPED_WRITE_LOCK(m_mappingLock, lock);
 
 		u64 index = m_mappingCount;
 		bool needCommit = false;
@@ -646,7 +647,7 @@ namespace uba
 		if (!UnmapViewOfFile(allocation.memory, m_blockSize, m_name))
 			m_logger.Error(TC("%s - Failed to unmap view of file (%s)"), m_name, LastErrorToText().data);
 		u64 index = allocation.offset / m_blockSize;
-		ScopedWriteLock lock(m_mappingLock);
+		SCOPED_WRITE_LOCK(m_mappingLock, lock);
 		m_availableBlocks.insert(index);
 	}
 }

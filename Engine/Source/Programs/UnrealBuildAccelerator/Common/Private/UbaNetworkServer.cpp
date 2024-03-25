@@ -58,7 +58,7 @@ namespace uba
 		void Stop(NetworkServer& server)
 		{
 			m_loop = false;
-			ScopedWriteLock lock(server.m_availableWorkersLock);
+			SCOPED_WRITE_LOCK(server.m_availableWorkersLock, lock);
 			while (m_inUse)
 			{
 				m_context->workAvailable.Set();
@@ -216,7 +216,7 @@ namespace uba
 
 			if (!server.m_allowNewClients)
 			{
-				ScopedReadLock clientsLock(server.m_clientsLock);
+				SCOPED_READ_LOCK(server.m_clientsLock, clientsLock);
 				bool found = false;
 				for (auto& kv : server.m_clients)
 					found |= kv.second.uid == clientUid;
@@ -233,7 +233,7 @@ namespace uba
 			if (!conn.SendInitialResponse(0))
 				return false;
 			
-			ScopedWriteLock clientsLock(server.m_clientsLock);
+			SCOPED_WRITE_LOCK(server.m_clientsLock, clientsLock);
 			u32 clientId = u32(server.m_clients.size() + 1);
 			for (auto& kv : server.m_clients)
 				if (kv.second.uid == clientUid)
@@ -320,7 +320,7 @@ namespace uba
 
 		bool SetShouldDisconnect()
 		{
-			ScopedWriteLock lock(m_shutdownLock);
+			SCOPED_WRITE_LOCK(m_shutdownLock, lock);
 			bool isConnected = !m_shouldDisconnect;
 			m_shouldDisconnect = true;
 			return isConnected;
@@ -334,7 +334,7 @@ namespace uba
 
 		void TestDisconnect()
 		{
-			ScopedWriteLock lock(m_shutdownLock);
+			SCOPED_WRITE_LOCK(m_shutdownLock, lock);
 			if (!m_shouldDisconnect)
 				return;
 			if (m_disconnected)
@@ -398,7 +398,7 @@ namespace uba
 	bool ConnectionInfo::ShouldDisconnect() const
 	{
 		auto& conn = *(NetworkServer::Connection*)internalData;
-		ScopedWriteLock lock(conn.m_shutdownLock);
+		SCOPED_WRITE_LOCK(conn.m_shutdownLock, lock);
 		return conn.m_shouldDisconnect;
 	}
 
@@ -517,7 +517,7 @@ namespace uba
 			while (true)
 			{
 				AdditionalWork work;
-				ScopedWriteLock lock(server.m_additionalWorkLock);
+				SCOPED_WRITE_LOCK(server.m_additionalWorkLock, lock);
 				if (server.m_additionalWork.empty())
 					break;
 				work = server.m_additionalWork.front();
@@ -541,8 +541,8 @@ namespace uba
 			// is present before making ourself available to avoid
 			// a race where AddWork would not see this thread in the
 			// available list after adding some work.
-			ScopedWriteLock lock1(server.m_availableWorkersLock);
-			ScopedReadLock lock2(server.m_additionalWorkLock);
+			SCOPED_WRITE_LOCK(server.m_availableWorkersLock, lock1);
+			SCOPED_READ_LOCK(server.m_additionalWorkLock, lock2);
 			// Verify there is not additional work while we hold both lock
 			// and only add ourself as available if no additional work is present.
 			if (!server.m_additionalWork.empty())
@@ -638,17 +638,17 @@ namespace uba
 		StopListen();
 
 		{
-			ScopedWriteLock lock(m_availableWorkersLock);
+			SCOPED_WRITE_LOCK(m_availableWorkersLock, lock);
 			m_workersEnabled = false;
 			m_workerAvailable.Set();
 		}
 		{
-			ScopedWriteLock lock(m_addConnectionsLock);
+			SCOPED_WRITE_LOCK(m_addConnectionsLock, lock);
 			m_addConnections.clear();
 		}
 
 		{
-			ScopedWriteLock lock(m_connectionsLock);
+			SCOPED_WRITE_LOCK(m_connectionsLock, lock);
 			bool success = true;
 			for (auto& c : m_connections)
 			{
@@ -665,7 +665,7 @@ namespace uba
 		}
 
 
-		ScopedWriteLock lock(m_availableWorkersLock);
+		SCOPED_WRITE_LOCK(m_availableWorkersLock, lock);
 		while (auto worker = m_firstActiveWorker)
 		{
 			lock.Leave();
@@ -687,7 +687,7 @@ namespace uba
 
 	bool NetworkServer::AddClient(NetworkBackend& backend, const tchar* ip, u16 port, const u8* cryptoKey128)
 	{
-		ScopedWriteLock lock(m_addConnectionsLock);
+		SCOPED_WRITE_LOCK(m_addConnectionsLock, lock);
 		for (auto it = m_addConnections.begin(); it != m_addConnections.end();)
 		{
 			if (it->Wait(0))
@@ -760,7 +760,7 @@ namespace uba
 
 	void NetworkServer::UnregisterService(u8 serviceId)
 	{
-		ScopedWriteLock lock(m_connectionsLock);
+		SCOPED_WRITE_LOCK(m_connectionsLock, lock);
 		UBA_ASSERTF(!m_listenBackend, TC("Server still listens to new connections while service is unregistered"));
 		UBA_ASSERTF(m_connections.empty(), TC("Unregistering service while still having live connections"));
 		WorkerRec& rec = m_workerFunctions[serviceId];
@@ -776,7 +776,7 @@ namespace uba
 
 	void NetworkServer::UnregisterOnClientConnected(u8 id)
 	{
-		ScopedWriteLock lock(m_connectionsLock);
+		SCOPED_WRITE_LOCK(m_connectionsLock, lock);
 		UBA_ASSERT(!m_listenBackend);
 		UBA_ASSERT(m_connections.empty());
 		m_onConnectionFunction = {};
@@ -800,7 +800,7 @@ namespace uba
 
 	void NetworkServer::AddWork(const Function<void()>& work, u32 count, const tchar* desc)
 	{
-		ScopedWriteLock lock(m_additionalWorkLock);
+		SCOPED_WRITE_LOCK(m_additionalWorkLock, lock);
 		for (u32 i = 0; i != count; ++i)
 		{
 			m_additionalWork.push_back({ work });
@@ -809,7 +809,7 @@ namespace uba
 		}
 		lock.Leave();
 
-		ScopedWriteLock lock2(m_availableWorkersLock);
+		SCOPED_WRITE_LOCK(m_availableWorkersLock, lock2);
 		while (count-- && m_createdWorkerCount < m_maxWorkerCount)
 		{
 			Worker* worker = PopWorkerNoLock();
@@ -838,7 +838,7 @@ namespace uba
 
 	void NetworkServer::GetClientStats(ClientStats& out, u32 clientId)
 	{
-		ScopedReadLock lock(m_clientsLock);
+		SCOPED_READ_LOCK(m_clientsLock, lock);
 		auto findIt = m_clients.find(clientId);
 		if (findIt == m_clients.end())
 			return;
@@ -851,12 +851,12 @@ namespace uba
 	bool NetworkServer::DoAdditionalWork()
 	{
 		AdditionalWork work;
-		ScopedWriteLock lock(m_additionalWorkLock);
+		SCOPED_WRITE_LOCK(m_additionalWorkLock, lock);
 		if (m_additionalWork.empty())
 		{
 			lock.Leave();
 
-			ScopedWriteLock lock2(m_availableWorkersLock);
+			SCOPED_WRITE_LOCK(m_availableWorkersLock, lock2);
 			if (m_createdWorkerCount != m_maxWorkerCount)
 				return false;
 			lock2.Leave();
@@ -933,7 +933,7 @@ namespace uba
 	{
 		while (true)
 		{
-			ScopedWriteLock lock(m_availableWorkersLock);
+			SCOPED_WRITE_LOCK(m_availableWorkersLock, lock);
 			if (!m_workersEnabled)
 				return nullptr;
 			if (auto worker = PopWorkerNoLock())
@@ -974,7 +974,7 @@ namespace uba
 
 	void NetworkServer::PushWorker(Worker* worker)
 	{
-		ScopedWriteLock lock(m_availableWorkersLock);
+		SCOPED_WRITE_LOCK(m_availableWorkersLock, lock);
 		PushWorkerNoLock(worker);
 	}
 
@@ -1021,7 +1021,7 @@ namespace uba
 			{
 				u32 connectionCount = reader.ReadU32();
 
-				ScopedReadLock lock(m_clientsLock);
+				SCOPED_READ_LOCK(m_clientsLock, lock);
 				auto findIt = m_clients.find(connectionInfo.GetId());
 				if (findIt == m_clients.end())
 					return true;
@@ -1033,7 +1033,7 @@ namespace uba
 				u32 toAdd = connectionCount - c.connectionCount;
 
 				auto connPtr = (NetworkServer::Connection*)connectionInfo.internalData;
-				ScopedWriteLock lock2(m_addConnectionsLock);
+				SCOPED_WRITE_LOCK(m_addConnectionsLock, lock2);
 				for (u32 i = 0; i != toAdd; ++i)
 				{
 					m_addConnections.emplace_back([this, connPtr]()
@@ -1066,7 +1066,7 @@ namespace uba
 
 	bool NetworkServer::AddConnection(NetworkBackend& backend, void* backendConnection, const sockaddr& remoteSocketAddr, CryptoKey cryptoKey)
 	{
-		ScopedWriteLock lock(m_connectionsLock);
+		SCOPED_WRITE_LOCK(m_connectionsLock, lock);
 
 		RemoveDisconnectedConnections();
 

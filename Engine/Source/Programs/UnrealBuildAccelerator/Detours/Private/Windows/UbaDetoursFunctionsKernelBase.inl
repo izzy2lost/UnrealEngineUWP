@@ -4,7 +4,7 @@ const wchar_t* ToString(BOOL b) { return b ? L"Success" : L"Error"; }
 
 DWORD Local_GetLongPathNameW(LPCWSTR lpszShortPath, LPWSTR lpszLongPath, DWORD cchBuffer)
 {
-	ScopedWriteLock lock(g_longPathNameCacheLock);
+	SCOPED_WRITE_LOCK(g_longPathNameCacheLock, lock);
 	auto findIt = g_longPathNameCache.find(lpszShortPath);
 	if (findIt != g_longPathNameCache.end())
 	{
@@ -176,7 +176,7 @@ BOOL Detoured_CreateDirectoryW(LPCWSTR lpPathName, LPSECURITY_ATTRIBUTES lpSecur
 		FixPath(pathName, lpPathName);
 		StringKey pathNameKey = ToStringKeyLower(pathName);
 		TimerScope ts(g_stats.createFile);
-		ScopedWriteLock pcs(g_communicationLock);
+		SCOPED_WRITE_LOCK(g_communicationLock, pcs);
 		BinaryWriter writer;
 		writer.WriteByte(MessageType_CreateDirectory);
 		writer.WriteStringKey(pathNameKey);
@@ -503,7 +503,7 @@ void WriteStdFile(LPCVOID lpBuffer, DWORD nNumberOfBytesToWrite, bool isError)
 	if (!g_echoOn)
 		return;
 
-	ScopedWriteLock lock(g_stdFileLock);
+	SCOPED_WRITE_LOCK(g_stdFileLock, lock);
 	u32 start = 0;
 	u32 i = 0;
 	auto bufferStr = (const char*)lpBuffer;
@@ -1083,7 +1083,7 @@ DWORD Detoured_GetModuleFileNameW(HMODULE hModule, LPWSTR lpFilename, DWORD nSiz
 
 	{
 		// Check if there are any stored paths from dynamically loaded dlls
-		ScopedReadLock lock(g_loadedModulesLock);
+		SCOPED_READ_LOCK(g_loadedModulesLock, lock);
 		auto findIt = g_loadedModules.find(hModule);
 		if (findIt != g_loadedModules.end())
 			return Shared_GetModuleFileNameW(hModule, findIt->second.c_str(), u32(findIt->second.size()), lpFilename, nSize);
@@ -1138,7 +1138,7 @@ BOOL Detoured_CopyFileExW(LPCWSTR lpExistingFileName, LPCWSTR lpNewFileName, LPP
 	u32 directoryTableSize;
 	{
 		TimerScope ts(g_stats.copyFile);
-		ScopedWriteLock pcs(g_communicationLock);
+		SCOPED_WRITE_LOCK(g_communicationLock, pcs);
 		BinaryWriter writer;
 		writer.WriteByte(MessageType_CopyFile);
 		writer.WriteStringKey(fromKey);
@@ -1208,7 +1208,7 @@ BOOL Detoured_CreateHardLinkW(LPCWSTR lpFileName, LPCWSTR lpExistingFileName, LP
 	u32 closeId;
 	{
 		TimerScope ts(g_stats.copyFile);
-		ScopedWriteLock pcs(g_communicationLock);
+		SCOPED_WRITE_LOCK(g_communicationLock, pcs);
 		BinaryWriter writer;
 		writer.WriteByte(MessageType_CopyFile);
 		writer.WriteStringKey(fromKey);
@@ -1268,7 +1268,7 @@ BOOL Detoured_DeleteFileW(LPCWSTR lpFileName)
 	{
 		u32 closeId = 0;
 		TimerScope ts(g_stats.deleteFile);
-		ScopedWriteLock pcs(g_communicationLock);
+		SCOPED_WRITE_LOCK(g_communicationLock, pcs);
 		BinaryWriter writer;
 		writer.WriteByte(MessageType_DeleteFileW);
 		writer.WriteString(fixedName);
@@ -1300,7 +1300,7 @@ bool Shared_MoveFile(LPCWSTR lpExistingFileName, LPCWSTR lpNewFileName, DWORD dw
 
 	if (KeepInMemory(source.data, source.count))
 	{
-		ScopedWriteLock lock(g_mappedFileTable.m_lookupLock);
+		SCOPED_WRITE_LOCK(g_mappedFileTable.m_lookupLock, lock);
 		auto it = g_mappedFileTable.m_lookup.find(sourceKey);
 		UBA_ASSERTF(it != g_mappedFileTable.m_lookup.end(), L"Can't find %ls", source.data);
 		FileInfo& sourceInfo = it->second;
@@ -1315,7 +1315,7 @@ bool Shared_MoveFile(LPCWSTR lpExistingFileName, LPCWSTR lpNewFileName, DWORD dw
 			UBA_ASSERT(!sourceInfo.memoryFile->isLocalOnly);
 			dest.MakeLower();
 			StringKey destKey = ToStringKey(dest);
-			ScopedWriteLock lock2(g_mappedFileTable.m_lookupLock);
+			SCOPED_WRITE_LOCK(g_mappedFileTable.m_lookupLock, lock2);
 			auto insres = g_mappedFileTable.m_lookup.try_emplace(destKey);
 			lock2.Leave();
 			FileInfo& destInfo = insres.first->second;
@@ -1355,7 +1355,7 @@ bool Shared_MoveFile(LPCWSTR lpExistingFileName, LPCWSTR lpNewFileName, DWORD dw
 	bool result;
 	{
 		TimerScope ts(g_stats.moveFile);
-		ScopedWriteLock pcs(g_communicationLock);
+		SCOPED_WRITE_LOCK(g_communicationLock, pcs);
 		BinaryWriter writer;
 		writer.WriteByte(MessageType_MoveFileW);
 		writer.WriteStringKey(sourceKey);
@@ -1501,7 +1501,7 @@ __forceinline HANDLE Shared_FindFirstFileExW(LPCWSTR lpFileName, FINDEX_INFO_LEV
 
 	DirHash hash(buf, bufChars);
 
-	ScopedWriteLock lookLock(g_directoryTable.m_lookupLock);
+	SCOPED_WRITE_LOCK(g_directoryTable.m_lookupLock, lookLock);
 	auto insres = g_directoryTable.m_lookup.try_emplace(hash.key, &g_memoryBlock);
 	DirectoryTable::Directory& dir = insres.first->second;
 	if (insres.second)
@@ -1556,7 +1556,7 @@ __forceinline HANDLE Shared_FindFirstFileExW(LPCWSTR lpFileName, FINDEX_INFO_LEV
 	else
 		listHandle->it = 0;
 
-	ScopedReadLock lock(dir.lock);
+	SCOPED_READ_LOCK(dir.lock, lock);
 	listHandle->fileTableOffsets.resize(dir.files.size());
 	u32 it = 0;
 	for (auto& pair : dir.files)
@@ -2106,7 +2106,7 @@ LPVOID Detoured_MapViewOfFileEx(HANDLE hFileMappingObject, DWORD dwDesiredAccess
 				//if (res = (u8*)True_MapViewOfFileEx(trueMappingObject, dwDesiredAccess, ToHigh(fi.trueFileMapOffset), ToLow(fi.trueFileMapOffset), dwNumberOfBytesToMap + offset, (u8*)lpBaseAddress - offset))
 				//{
 				//	// If we don't have any real MapViewOfFile on existing fileMapMem we can just drop the old one and use the new one.
-				//	ScopedWriteLock lock(g_mappedFileTable.m_memLookupLock);
+				//	SCOPED_WRITE_LOCK(g_mappedFileTable.m_memLookupLock, lock);
 				//	auto it = g_mappedFileTable.m_memLookup.find(fi.fileMapMem);
 				//	if (it == g_mappedFileTable.m_memLookup.end())
 				//	{
@@ -2157,7 +2157,7 @@ LPVOID Detoured_MapViewOfFileEx(HANDLE hFileMappingObject, DWORD dwDesiredAccess
 			if (fi.memoryFile && (dwDesiredAccess & FILE_MAP_WRITE)) // We assume changes will happen
 				fi.memoryFile->isReported = false;
 
-			ScopedWriteLock lock(g_mappedFileTable.m_memLookupLock);
+			SCOPED_WRITE_LOCK(g_mappedFileTable.m_memLookupLock, lock);
 			++g_mappedFileTable.m_memLookup[mem];
 			return mem;
 		}
@@ -2181,7 +2181,7 @@ BOOL Detoured_UnmapViewOfFileEx(PVOID lpBaseAddress, ULONG UnmapFlags)
 	DETOURED_CALL(UnmapViewOfFileEx);
 
 	{
-		ScopedWriteLock lock(g_mappedFileTable.m_memLookupLock);
+		SCOPED_WRITE_LOCK(g_mappedFileTable.m_memLookupLock, lock);
 		auto it = g_mappedFileTable.m_memLookup.find(lpBaseAddress);
 		if (it != g_mappedFileTable.m_memLookup.end())
 		{
@@ -2346,7 +2346,7 @@ HMODULE Recursive_LoadLibraryExW(LPCWSTR lpLibFileName, LPCWSTR originalName, DW
 	{
 		if (originalName[1] == ':')
 		{
-			ScopedWriteLock lock(g_loadedModulesLock);
+			SCOPED_WRITE_LOCK(g_loadedModulesLock, lock);
 			g_loadedModules[res] = originalName;
 		}
 		if (g_isRunningWine)
@@ -2492,7 +2492,7 @@ BOOL Detoured_SetConsoleMode(HANDLE hConsoleHandle, DWORD mode)
 
 	g_echoOn = (mode & ~503) != 0; // TODO: This might be wrong. Trying to figure out how echo off in batch files work in terms of win32 calls
 	{
-		ScopedWriteLock pcs(g_communicationLock);
+		SCOPED_WRITE_LOCK(g_communicationLock, pcs);
 		BinaryWriter writer;
 		writer.WriteByte(MessageType_EchoOn);
 		writer.WriteBool(g_echoOn);
@@ -2543,7 +2543,7 @@ BOOL Detoured_CreateProcessW(LPCWSTR lpApplicationName, LPWSTR lpCommandLine, LP
 	char dll[1024];
 	{
 		TimerScope ts(g_stats.createProcess);
-		ScopedWriteLock pcs(g_communicationLock);
+		SCOPED_WRITE_LOCK(g_communicationLock, pcs);
 		BinaryWriter writer;
 		writer.WriteByte(MessageType_CreateProcess);
 		writer.WriteString(lpApplicationName ? lpApplicationName : L"");
@@ -2610,7 +2610,7 @@ BOOL Detoured_CreateProcessW(LPCWSTR lpApplicationName, LPWSTR lpCommandLine, LP
 
 	{
 		TimerScope ts(g_stats.createProcess);
-		ScopedWriteLock pcs(g_communicationLock);
+		SCOPED_WRITE_LOCK(g_communicationLock, pcs);
 		BinaryWriter writer;
 		writer.WriteByte(MessageType_StartProcess);
 		writer.WriteU32(processId);
@@ -2936,7 +2936,7 @@ DWORD Detoured_GetModuleFileNameExA(HANDLE hProcess, HMODULE hModule, LPSTR lpFi
 
 	{
 		// Check if there are any stored paths from dynamically loaded dlls
-		ScopedReadLock lock(g_loadedModulesLock);
+		SCOPED_READ_LOCK(g_loadedModulesLock, lock);
 		auto findIt = g_loadedModules.find(hModule);
 		if (findIt != g_loadedModules.end())
 			return Shared_GetModuleFileNameA(hModule, findIt->second.c_str(), u32(findIt->second.size()), lpFilename, nSize);

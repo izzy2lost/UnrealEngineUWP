@@ -155,7 +155,7 @@ namespace uba
 	{
 		DEBUG_LOG(TC("LOG  %.*s"), u32(textCharLength), text); // TODO: Investigate, deadlocks on non-windows
 		TimerScope ts(g_stats.log);
-		ScopedWriteLock pcs(g_communicationLock);
+		SCOPED_WRITE_LOCK(g_communicationLock, pcs);
 		BinaryWriter writer;
 		writer.WriteByte(MessageType_Log);
 		writer.WriteBool(printInSession);
@@ -190,7 +190,7 @@ namespace uba
 		if (!g_echoOn)
 			return;
 
-		ScopedWriteLock lock(g_consoleStringCs);
+		SCOPED_WRITE_LOCK(g_consoleStringCs, lock);
 		const CharType* read = chars;
 		tchar* write = g_consoleString + g_consoleStringIndex;
 		int left = sizeof_array(g_consoleString) - g_consoleStringIndex - 1;
@@ -241,7 +241,7 @@ namespace uba
 		bool keepInMemory = KeepInMemory(fileName, fileNameForKey.count);
 		if (keepInMemory)
 		{
-			ScopedReadLock lock(g_mappedFileTable.m_lookupLock);
+			SCOPED_READ_LOCK(g_mappedFileTable.m_lookupLock, lock);
 			auto it = g_mappedFileTable.m_lookup.find(fileNameKey);
 			if (it == g_mappedFileTable.m_lookup.end() || it->second.deleted)
 			{
@@ -303,7 +303,7 @@ namespace uba
 				{
 					if (g_runningRemote) // This could be a written file not reported to server yet
 					{
-						ScopedReadLock lock(g_mappedFileTable.m_lookupLock);
+						SCOPED_READ_LOCK(g_mappedFileTable.m_lookupLock, lock);
 						auto findIt = g_mappedFileTable.m_lookup.find(fileNameKey);
 						if (findIt != g_mappedFileTable.m_lookup.end() && !findIt->second.deleted)
 						{

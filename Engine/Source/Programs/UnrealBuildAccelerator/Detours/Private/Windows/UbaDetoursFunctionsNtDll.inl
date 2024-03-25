@@ -329,7 +329,7 @@ NTSTATUS Detoured_NtSetInformationFile(HANDLE FileHandle, PIO_STATUS_BLOCK IoSta
 #if 0
 			FileInfo* newFileInfo = nullptr;
 			{
-				ScopedReadLock _(g_mappedFileTable.m_lookupLock);
+				SCOPED_READ_LOCK(g_mappedFileTable.m_lookupLock, _);
 				auto findIt = g_mappedFileTable.m_lookup.find(newFileNameKey);
 				if (findIt != g_mappedFileTable.m_lookup.end())
 					newFileInfo = &findIt->second;
@@ -362,7 +362,7 @@ NTSTATUS Detoured_NtSetInformationFile(HANDLE FileHandle, PIO_STATUS_BLOCK IoSta
 			// It then renames the old file to that file..
 			// ..and finally opens it again with attributes only and deleteonclose flag.. and closes it.
 			// TODO: This is wrong.. we just delete the file.. but what we should do is copy it over in memory to the memory file before setting it to delete
-			ScopedReadLock _(g_mappedFileTable.m_lookupLock);
+			SCOPED_READ_LOCK(g_mappedFileTable.m_lookupLock, _);
 			auto findIt = g_mappedFileTable.m_lookup.find(newFileNameKey);
 			if (findIt != g_mappedFileTable.m_lookup.end())
 			{
@@ -651,7 +651,7 @@ NTSTATUS NTAPI Shared_NtCreateFile(bool IsCreateFunc, PHANDLE hFileHandle, ACCES
 				{
 					// This could be a written file not reported to server yet
 					{
-						ScopedReadLock lock(g_mappedFileTable.m_lookupLock);
+						SCOPED_READ_LOCK(g_mappedFileTable.m_lookupLock, lock);
 						auto findIt = g_mappedFileTable.m_lookup.find(fileNameKey);
 						if (findIt != g_mappedFileTable.m_lookup.end())
 							allowEarlyOut = findIt->second.deleted;
@@ -724,7 +724,7 @@ NTSTATUS NTAPI Shared_NtCreateFile(bool IsCreateFunc, PHANDLE hFileHandle, ACCES
 		UBA_ASSERT(fileNameLower.data[fileNameLower.count - 1] != '\\');
 		DirHash hash(fileNameLower.data, pathLen);
 
-		ScopedWriteLock lookupLock(g_directoryTable.m_lookupLock);
+		SCOPED_WRITE_LOCK(g_directoryTable.m_lookupLock, lookupLock);
 		auto insres = g_directoryTable.m_lookup.try_emplace(hash.key, &g_memoryBlock);
 		DirectoryTable::Directory& dir = insres.first->second;
 		if (insres.second)
@@ -766,7 +766,7 @@ NTSTATUS NTAPI Shared_NtCreateFile(bool IsCreateFunc, PHANDLE hFileHandle, ACCES
 		auto listHandle = new ListDirectoryHandle{ hash.key, insres.first->second };
 		listHandle->it = 0;
 
-		ScopedReadLock lock(dir.lock);
+		SCOPED_READ_LOCK(dir.lock, lock);
 		listHandle->fileTableOffsets.resize(dir.files.size());
 		u32 it = 0;
 		for (auto& pair : dir.files)
@@ -799,7 +799,7 @@ NTSTATUS NTAPI Shared_NtCreateFile(bool IsCreateFunc, PHANDLE hFileHandle, ACCES
 	const wchar_t* lpFileName = fileName.data;
 	u32 closeId = 0;
 
-	ScopedWriteLock _(g_mappedFileTable.m_lookupLock);
+	SCOPED_WRITE_LOCK(g_mappedFileTable.m_lookupLock, _);
 	auto insres = g_mappedFileTable.m_lookup.try_emplace(fileNameKey);
 	FileInfo& info = insres.first->second;
 	u32 lastDesiredAccess = info.lastDesiredAccess;
@@ -951,7 +951,7 @@ NTSTATUS NTAPI Shared_NtCreateFile(bool IsCreateFunc, PHANDLE hFileHandle, ACCES
 				else
 				{
 					TimerScope ts(g_stats.openTempFile);
-					ScopedWriteLock pcs(g_communicationLock);
+					SCOPED_WRITE_LOCK(g_communicationLock, pcs);
 					BinaryWriter writer;
 					writer.WriteByte(MessageType_OpenTempFile);
 					writer.WriteStringKey(fileNameKey);
@@ -1247,7 +1247,7 @@ NTSTATUS NTAPI Detoured_NtClose(HANDLE handle)
 				FixPath(fixedNewName, fo->newName.c_str());
 				fixedNewName.MakeLower();
 				StringKey fileNameKey = ToStringKey(fixedNewName);
-				ScopedWriteLock _(g_mappedFileTable.m_lookupLock);
+				SCOPED_WRITE_LOCK(g_mappedFileTable.m_lookupLock, _);
 				auto insres = g_mappedFileTable.m_lookup.try_emplace(fileNameKey);
 				FileInfo& newInfo = insres.first->second;
 				newInfo = fi;
@@ -1268,7 +1268,7 @@ NTSTATUS NTAPI Detoured_NtClose(HANDLE handle)
 			FixPath(fixedName, path);
 
 			TimerScope ts(g_stats.createTempFile);
-			ScopedWriteLock pcs(g_communicationLock);
+			SCOPED_WRITE_LOCK(g_communicationLock, pcs);
 			BinaryWriter writer;
 			writer.WriteByte(MessageType_CreateTempFile);
 			writer.WriteStringKey(ToStringKeyLower(fixedName));

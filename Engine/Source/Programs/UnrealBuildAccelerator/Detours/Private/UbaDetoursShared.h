@@ -42,8 +42,6 @@ namespace uba
 		#define DEBUG_LOG_PIPE(Command, ...) ts.Leave();
 		//#define DEBUG_LOG(...)
 		#define DEBUG_LOG(...) { if (isLogging()) { GetLogTlsBuffer().Clear().Appendf(__VA_ARGS__).Append(TC("\n")); WriteDebugLog(); }}
-		#define STRING_JOIN(arg1, arg2) STRING_JOIN_INNER(arg1, arg2)
-		#define STRING_JOIN_INNER(arg1, arg2) arg1 ## arg2
 	#else
 		#define DEBUG_LOG(...)
 		#define DEBUG_LOG_DETOURED(Command, ...)

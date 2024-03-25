@@ -88,7 +88,7 @@ namespace uba
 		m_thread.Wait();
 		m_session.WaitOnAllTasks();
 
-		ScopedWriteLock lock(m_processEntriesLock);
+		SCOPED_WRITE_LOCK(m_processEntriesLock, lock);
 		for (auto& entry : m_processEntries)
 		{
 			UBA_ASSERT(entry.status !=ProcessStatus_Running);
@@ -123,7 +123,7 @@ namespace uba
 		auto info2 = new ProcessStartInfo2(info.info, ki, info.knownInputsCount);
 		info2->weight = info.weight;
 
-		ScopedWriteLock lock(m_processEntriesLock);
+		SCOPED_WRITE_LOCK(m_processEntriesLock, lock);
 		u32 index = u32(m_processEntries.size());
 		auto& entry = m_processEntries.emplace_back();
 		entry.info = info2;
@@ -177,7 +177,7 @@ namespace uba
 		if (processIndex == ~0u)
 			return;
 
-		ScopedWriteLock lock(m_processEntriesLock);
+		SCOPED_WRITE_LOCK(m_processEntriesLock, lock);
 		if (m_processEntries[processIndex].status != ProcessStatus_Running)
 			return;
 		m_processEntries[processIndex].status = ProcessStatus_Queued;
@@ -278,7 +278,7 @@ namespace uba
 	{
 		while (true)
 		{
-			ScopedWriteLock lock(m_processEntriesLock);
+			SCOPED_WRITE_LOCK(m_processEntriesLock, lock);
 			u32 indexToRun = PopProcess(isLocal);
 			if (indexToRun == ~0u)
 				return false;
@@ -342,7 +342,7 @@ namespace uba
 
 		while (true)
 		{
-			ScopedWriteLock lock(m_processEntriesLock);
+			SCOPED_WRITE_LOCK(m_processEntriesLock, lock);
 			u32 indexToRun = PopProcess(isLocal);
 			if (indexToRun == ~0u)
 				return false;
@@ -383,7 +383,7 @@ namespace uba
 		if (auto func = si->startInfo.exitedFunc)
 			func(si->startInfo.userData, ph);
 
-		ScopedWriteLock lock(m_processEntriesLock);
+		SCOPED_WRITE_LOCK(m_processEntriesLock, lock);
 		auto& entry = m_processEntries[info.processIndex];
 		u32* dependencies = entry.dependencies;
 		entry.status = exitCode == 0 ? ProcessStatus_Success : ProcessStatus_Failed;

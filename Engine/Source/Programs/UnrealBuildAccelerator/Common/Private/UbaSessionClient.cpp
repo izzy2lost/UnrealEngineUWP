@@ -114,11 +114,11 @@ namespace uba
 	bool SessionClient::GetCasKeyForFile(CasKey& out, u32 processId, const StringBufferBase& fileName, const StringKey& fileNameKey)
 	{
 		TimerScope waitTimer(Stats().waitGetFileMsg);
-		ScopedWriteLock lock(m_nameToHashLookupLock);
+		SCOPED_WRITE_LOCK(m_nameToHashLookupLock, lock);
 		auto insres = m_nameToHashLookup.try_emplace(fileNameKey);
 		HashRec& rec = insres.first->second;
 		lock.Leave();
-		ScopedWriteLock lock2(rec.lock);
+		SCOPED_WRITE_LOCK(rec.lock, lock2);
 		if (rec.key == CasKeyZero)//!rec.serverTime)
 		{
 			waitTimer.Cancel();
@@ -218,7 +218,7 @@ namespace uba
 		KeyToString keyStr(ToStringKeyLower(applicationDir));
 
 		UBA_ASSERT(application && *application);
-		ScopedWriteLock lock(m_handledApplicationEnvironmentsLock);
+		SCOPED_WRITE_LOCK(m_handledApplicationEnvironmentsLock, lock);
 		auto insres = m_handledApplicationEnvironments.insert(application);
 		if (insres.second)
 		{
@@ -323,7 +323,7 @@ namespace uba
 		StringBuffer<> lower;
 		lower.Append(applicationDir).Append(PathSeparator).Append(binaryName);
 		lower.MakeLower();
-		ScopedWriteLock lock(m_binFileLock);
+		SCOPED_WRITE_LOCK(m_binFileLock, lock);
 
 		auto insres = m_writtenBinFiles.try_emplace(lower.data, casKey);
 		if (!insres.second)
@@ -416,12 +416,12 @@ namespace uba
 				StorageStats& stats = m_storage.Stats();
 				TimerScope ts(stats.ensureCas);
 
-				ScopedWriteLock lookupLock(m_fileMappingTableLookupLock);
+				SCOPED_WRITE_LOCK(m_fileMappingTableLookupLock, lookupLock);
 				auto insres = m_fileMappingTableLookup.try_emplace(fileNameKey);
 				FileMappingEntry& entry = insres.first->second;
 				lookupLock.Leave();
 
-				ScopedWriteLock entryCs(entry.lock);
+				SCOPED_WRITE_LOCK(entry.lock, entryCs);
 				ts.Leave();
 
 				if (entry.handled)
@@ -537,12 +537,12 @@ namespace uba
 		if (msg.closeId != 0)
 		{
 			UBA_ASSERTF(false, TC("This has not been tested properly"));
-			ScopedWriteLock lock(m_activeFilesLock);
+			SCOPED_WRITE_LOCK(m_activeFilesLock, lock);
 			sendDelete = m_activeFiles.erase(msg.closeId) == 0;
 		}
 
 		{
-			ScopedWriteLock lock(m_outputFilesLock);
+			SCOPED_WRITE_LOCK(m_outputFilesLock, lock);
 			sendDelete = m_outputFiles.erase(msg.fileName.data) == 0 && sendDelete;
 		}
 
@@ -586,7 +586,7 @@ namespace uba
 
 	bool SessionClient::CopyFile(CopyFileResponse& out, const CopyFileMessage& msg)
 	{
-		ScopedWriteLock lock(m_outputFilesLock);
+		SCOPED_WRITE_LOCK(m_outputFilesLock, lock);
 		auto findIt = m_outputFiles.find(msg.fromName.data);
 		if (findIt == m_outputFiles.end())
 		{
@@ -637,7 +637,7 @@ namespace uba
 		const tchar* toName = msg.toName.data;
 
 		{
-			ScopedWriteLock lock(msg.process.m_writtenFilesLock);
+			SCOPED_WRITE_LOCK(msg.process.m_writtenFilesLock, lock);
 			auto& writtenFiles = msg.process.m_writtenFiles;
 			auto findIt = writtenFiles.find(fromName);
 			if (findIt != writtenFiles.end())
@@ -652,7 +652,7 @@ namespace uba
 
 		bool sendMove = true;
 		{
-			ScopedWriteLock lock(m_outputFilesLock);
+			SCOPED_WRITE_LOCK(m_outputFilesLock, lock);
 			auto findIt = m_outputFiles.find(fromName);
 			if (findIt != m_outputFiles.end())
 			{
@@ -682,7 +682,7 @@ namespace uba
 		const tchar* fromName = msg.fileName.data;
 
 		{
-			ScopedWriteLock lock(msg.process.m_writtenFilesLock);
+			SCOPED_WRITE_LOCK(msg.process.m_writtenFilesLock, lock);
 			auto& writtenFiles = msg.process.m_writtenFiles;
 			auto findIt = writtenFiles.find(fromName);
 			if (findIt != writtenFiles.end())
@@ -722,11 +722,11 @@ namespace uba
 		// TODO: There is a potential risk here where two different applications asks for the full name of a file
 		// and they have different bin/working dir.. and there are two versions of this file.
 
-		ScopedWriteLock lock(m_nameToNameLookupLock);
+		SCOPED_WRITE_LOCK(m_nameToNameLookupLock, lock);
 		auto insres = m_nameToNameLookup.try_emplace(msg.fileName.data);
 		NameRec& rec = insres.first->second;
 		lock.Leave();
-		ScopedWriteLock lock2(rec.lock);
+		SCOPED_WRITE_LOCK(rec.lock, lock2);
 
 		if (rec.handled)
 		{
@@ -861,7 +861,7 @@ namespace uba
 			u8* pos = dirTable.m_memory + readPos;
 			u32 toRead = u32(reader.GetLeft());
 
-			ScopedWriteLock lock(m_directoryTableLock);
+			SCOPED_WRITE_LOCK(m_directoryTableLock, lock);
 
 			if (toRead == 0)
 			{
@@ -886,7 +886,7 @@ namespace uba
 			{
 				//dirTable.ParseDirectoryTable(m_directoryTableMemPos); // This is not needed.. we never read from the directory table in the client session
 				{
-					ScopedWriteLock lock2(dirTable.m_memoryLock);
+					SCOPED_WRITE_LOCK(dirTable.m_memoryLock, lock2);
 					dirTable.m_memorySize = m_directoryTableMemPos;
 				}
 				ActiveUpdateDirectoryEntry::UpdateReadPosLess(m_firstEmptyWait, m_directoryTableMemPos);
@@ -944,14 +944,14 @@ namespace uba
 
 		u32 addCount = 0;
 		BinaryReader r(m_nameToHashTableMem.memory, readStartPos, NameToHashMemSize);
-		ScopedWriteLock lock(m_nameToHashLookupLock);
+		SCOPED_WRITE_LOCK(m_nameToHashLookupLock, lock);
 		while (r.GetPosition() < localTableSize)
 		{
 			StringKey name = r.ReadStringKey();
 			CasKey hash = r.ReadCasKey();
 
 			HashRec& rec = m_nameToHashLookup[name];
-			ScopedWriteLock lock2(rec.lock);
+			SCOPED_WRITE_LOCK(rec.lock, lock2);
 			if (serverTime < rec.serverTime)
 				continue;
 			rec.key = hash;
@@ -1150,7 +1150,11 @@ namespace uba
 		}
 
 		// Always nice to update name-to-hash table since it can reduce number of messages while building.
-		u32 hashTableMemSize = m_nameToHashMemLock.ScopedRead([this]() { return u32(m_nameToHashTableMem.writtenSize); });
+		u32 hashTableMemSize;
+		{
+			SCOPED_READ_LOCK(m_nameToHashMemLock, l);
+			hashTableMemSize = u32(m_nameToHashTableMem.writtenSize);
+		}
 		if (neededHashTableSize > hashTableMemSize)
 		{
 			reader.Reset();
@@ -1190,7 +1194,7 @@ namespace uba
 		NetworkMessage msg(m_client, ServiceId, SessionMessageType_GetNameToHashFromServer, writer);
 		writer.WriteU32(~u32(0));
 
-		ScopedWriteLock lock(m_nameToHashMemLock);
+		SCOPED_WRITE_LOCK(m_nameToHashMemLock, lock);
 		writer.WriteU32(u32(m_nameToHashTableMem.writtenSize));
 
 		if (!msg.Send(reader, Stats().getHashesMsg))
@@ -1316,7 +1320,7 @@ namespace uba
 			for (auto it=activeProcesses.begin();it!=activeProcesses.end();)
 			{
 				ProcessRec& r = *it;
-				ScopedWriteLock lock(r.lock);
+				SCOPED_WRITE_LOCK(r.lock, lock);
 				if (!r.isDone)
 				{
 					++it;
@@ -1362,7 +1366,7 @@ namespace uba
 				for (auto it = activeProcesses.rbegin(); it != activeProcesses.rend(); ++it)
 				{
 					ProcessRec& rec = *it;
-					ScopedWriteLock lock(rec.lock);
+					SCOPED_WRITE_LOCK(rec.lock, lock);
 					if (rec.isKilled || rec.isDone)
 						continue;
 					rec.handle.Cancel(true);
@@ -1385,7 +1389,7 @@ namespace uba
 			{
 				float availableWeight;
 				{
-					ScopedReadLock lock(activeWeightLock);
+					SCOPED_READ_LOCK(activeWeightLock, lock);
 					if (activeWeight >= maxWeight)
 						break;
 					availableWeight = maxWeight - activeWeight;
@@ -1468,7 +1472,7 @@ namespace uba
 					rec->weight = info.weight;
 
 					{
-						ScopedWriteLock lock(activeWeightLock);
+						SCOPED_WRITE_LOCK(activeWeightLock, lock);
 						activeWeight += rec->weight;
 					}
 
@@ -1499,12 +1503,12 @@ namespace uba
 						float weight = rec->weight;
 						auto decreaseWeight = MakeGuard([&]()
 							{
-								ScopedWriteLock weightLock(activeWeightLock);
+								SCOPED_WRITE_LOCK(activeWeightLock, weightLock);
 								activeWeight -= weight;
 								session.m_waitToSendEvent.Set();
 							});
 
-						ScopedWriteLock lock(rec->lock);
+						SCOPED_WRITE_LOCK(rec->lock, lock);
 						auto doneGuard = MakeGuard([&]() { rec->isDone = true; session.m_waitToSendEvent.Set(); });
 
 						if (rec->isKilled)
@@ -1745,11 +1749,11 @@ namespace uba
 
 	bool SessionClient::FlushWrittenFiles(ProcessImpl& process)
 	{
-		ScopedWriteLock lock(process.m_writtenFilesLock);
+		SCOPED_WRITE_LOCK(process.m_writtenFilesLock, lock);
 		if (!SendFiles(process, process.m_processStats.sendFiles))
 			return false;
 		{
-			ScopedWriteLock lock2(m_outputFilesLock);
+			SCOPED_WRITE_LOCK(m_outputFilesLock, lock2);
 			for (auto& kv : process.m_writtenFiles)
 				m_outputFiles.erase(kv.first);
 		}

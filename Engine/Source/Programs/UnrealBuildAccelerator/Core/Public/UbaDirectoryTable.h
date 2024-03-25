@@ -24,7 +24,7 @@ namespace uba
 
 		void ParseDirectoryTable(u32 size)
 		{
-			ScopedWriteLock lock(m_lookupLock);
+			SCOPED_WRITE_LOCK(m_lookupLock, lock);
 			ParseDirectoryTableNoLock(size);
 		}
 
@@ -52,7 +52,7 @@ namespace uba
 		{
 			if (dir.parseOffset == dir.tableOffset)
 				return;
-			ScopedWriteLock lock(dir.lock);
+			SCOPED_WRITE_LOCK(dir.lock, lock);
 			PopulateDirectoryRecursive(hasher, dir.tableOffset, dir.parseOffset, dir.files);
 			dir.parseOffset = dir.tableOffset;
 		}
@@ -127,7 +127,7 @@ namespace uba
 
 		Exists EntryExists(StringKey entryKey, const tchar* entryName, u64 entryNameLen, bool checkIfDir = false, u32* tableOffset = nullptr)
 		{
-			ScopedReadLock lock(m_lookupLock);
+			SCOPED_READ_LOCK(m_lookupLock, lock);
 			return EntryExistsNoLock(entryKey, entryName, entryNameLen, checkIfDir, tableOffset);
 		}
 
@@ -167,12 +167,12 @@ namespace uba
 						return Exists_No;
 					if (parentDir.parseOffset != parentDir.tableOffset)
 					{
-						ScopedWriteLock lock(parentDir.lock);
+						SCOPED_WRITE_LOCK(parentDir.lock, lock);
 						PopulateDirectoryRecursive(ancestorHasher, parentDir.tableOffset, parentDir.parseOffset, parentDir.files);
 						parentDir.parseOffset = parentDir.tableOffset;
 					}
 
-					ScopedReadLock lock(parentDir.lock);
+					SCOPED_READ_LOCK(parentDir.lock, lock);
 					auto entryIt = parentDir.files.find(entryKey);
 					if (entryIt == parentDir.files.end())
 						return Exists_No;
@@ -258,7 +258,7 @@ namespace uba
 			StringKeyHasher hasher;
 			hasher.Update(forHash.data, forHash.count);
 
-			ScopedReadLock lock(m_lookupLock);
+			SCOPED_READ_LOCK(m_lookupLock, lock);
 			while (true)
 			{
 				const tchar* slash = TStrchr(prevSlash + 1, PathSeparator);
@@ -273,7 +273,7 @@ namespace uba
 
 				if (directory)
 				{
-					ScopedReadLock lock2(directory->lock);
+					SCOPED_READ_LOCK(directory->lock, lock2);
 					auto fileIt = directory->files.find(fileNameKey);
 					if (fileIt != directory->files.end())
 					{

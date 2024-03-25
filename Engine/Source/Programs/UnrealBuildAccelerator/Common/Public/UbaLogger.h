@@ -94,4 +94,6 @@ namespace uba
 	void StopDebugLogger();
 	extern LoggerWithWriter g_debugLogger;
 	#endif
+
+	void PrintContentionSummary(class Logger& logger);
 }
