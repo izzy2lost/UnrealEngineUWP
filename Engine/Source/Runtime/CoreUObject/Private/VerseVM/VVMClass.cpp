@@ -328,6 +328,11 @@ UVerseVMClass* VClass::CreateUClass(FAllocationContext Context)
 		{
 			const VShape::VEntry* Field = ThisShape->GetField(Context, *FieldName);
 			checkSlow(Field && Field->Type == EFieldType::FProperty);
+			if (Entry.bDynamic && !Entry.Value.Get())
+			{
+				// For the editor: This property has no default and therefore must be specified
+				Field->Property->PropertyFlags |= EPropertyFlags::CPF_RequiredParm;
+			}
 			VRestValue* Slot = Field->Property->ContainerPtrToValuePtr<VRestValue>(CDO);
 			new (Slot) VRestValue(0);
 			if (!Entry.bDynamic)
