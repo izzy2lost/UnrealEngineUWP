@@ -256,11 +256,6 @@ FName FWorldPartitionActorDescView::GetActorLabelOrName() const
 	return ActorDesc->GetActorLabelOrName();
 }
 
-bool FWorldPartitionActorDescView::ShouldValidateRuntimeGrid() const
-{
-	return ActorDesc->ShouldValidateRuntimeGrid();
-}
-
 void FWorldPartitionActorDescView::SetForcedNonSpatiallyLoaded()
 {
 	if (!bIsForcedNonSpatiallyLoaded)

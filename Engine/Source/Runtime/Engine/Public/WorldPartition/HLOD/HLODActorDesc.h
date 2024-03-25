@@ -31,7 +31,6 @@ public:
 	int64 GetStat(FName InStatName) const;
 
 	//~ Begin FWorldPartitionActorDesc Interface.
-	virtual bool ShouldValidateRuntimeGrid() const override { return false; }
 	virtual FBox GetEditorBounds() const override { return EditorBounds; }
 	//~ End FWorldPartitionActorDesc Interface.
 
