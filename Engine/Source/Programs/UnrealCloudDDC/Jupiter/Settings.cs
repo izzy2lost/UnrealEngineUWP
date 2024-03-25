@@ -189,6 +189,12 @@ namespace Jupiter
 		/// Allows you to override S3 behavior with chunk encoding, this needs to be set to false for uploads against GCS
 		/// </summary>
 		public bool UseChunkEncoding { get; set; } = true;
+
+		/// <summary>
+		/// Keeps S3 list queries within one prefix (first 2 bytes in the hash) - can help reduce errors from S3 about to many operations
+		/// Is also a speed up on larger datasets
+		/// </summary>
+		public bool PerPrefixListing { get; set; } = true;
 	}
 
 	public class GCSettings

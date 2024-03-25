@@ -24,6 +24,7 @@ using Serilog.Core;
 namespace Jupiter.FunctionalTests.Storage
 {
 	[TestClass]
+	[TestCategory("SlowTests")]
 	public class S3StorageListTests : StorageListTests
 	{
 		private IAmazonS3? _s3;

@@ -15,6 +15,7 @@ using Amazon.S3.Util;
 using EpicGames.Horde.Storage;
 using Jupiter.Common;
 using Jupiter.Common.Implementation;
+using Jupiter.Common.Utils;
 using Jupiter.Implementation.Blob;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -405,28 +406,72 @@ namespace Jupiter.Implementation
 
 		public async IAsyncEnumerable<(string, DateTime)> ListAsync([EnumeratorCancellation] CancellationToken cancellationToken)
 		{
-			ListObjectsV2Request request = new ListObjectsV2Request
+			if (_settings.CurrentValue.PerPrefixListing)
 			{
-				BucketName = _bucketName
-			};
-
-			if (!await AmazonS3Util.DoesS3BucketExistV2Async(_amazonS3, _bucketName))
-			{
-				yield break;
-			}
-
-			ListObjectsV2Response response;
-			do
-			{
-				response = await _amazonS3.ListObjectsV2Async(request, cancellationToken);
-				foreach (S3Object obj in response.S3Objects)
+				List<string> hashPrefixes = new List<string>(65536);
+				int i = 0;
+				for (int a = 0; a <= byte.MaxValue; a++)
 				{
-					yield return (obj.Key, obj.LastModified);
+					for (int b = 0; b <= byte.MaxValue; b++)
+					{
+						hashPrefixes.Add(StringUtils.FormatAsHexString(new byte[] { (byte)a, (byte)b }));
+						i++;
+					}
 				}
 
-				request.ContinuationToken = response.NextContinuationToken;
-			} while (response.IsTruncated);
+				hashPrefixes.Shuffle();
 
+				if (!await AmazonS3Util.DoesS3BucketExistV2Async(_amazonS3, _bucketName))
+				{
+					yield break;
+				}
+
+				foreach (string hashPrefix in hashPrefixes)
+				{
+					ListObjectsV2Request request = new ListObjectsV2Request
+					{
+						BucketName = _bucketName,
+						Prefix = hashPrefix,
+						MaxKeys = 10_000
+					};
+
+					ListObjectsV2Response response;
+					do
+					{
+						response = await _amazonS3.ListObjectsV2Async(request, cancellationToken);
+						foreach (S3Object obj in response.S3Objects)
+						{
+							yield return (obj.Key, obj.LastModified);
+						}
+
+						request.ContinuationToken = response.NextContinuationToken;
+					} while (response.IsTruncated);
+				}
+			}
+			else
+			{
+				if (!await AmazonS3Util.DoesS3BucketExistV2Async(_amazonS3, _bucketName))
+				{
+					yield break;
+				}
+
+				ListObjectsV2Request request = new ListObjectsV2Request
+				{
+					BucketName = _bucketName
+				};
+
+				ListObjectsV2Response response;
+				do
+				{
+					response = await _amazonS3.ListObjectsV2Async(request, cancellationToken);
+					foreach (S3Object obj in response.S3Objects)
+					{
+						yield return (obj.Key, obj.LastModified);
+					}
+
+					request.ContinuationToken = response.NextContinuationToken;
+				} while (response.IsTruncated);
+			}
 		}
 
 		public async Task DeleteAsync(string path, CancellationToken cancellationToken)
