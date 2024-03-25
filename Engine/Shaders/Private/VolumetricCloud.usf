@@ -1464,24 +1464,24 @@ void MainCommon(in FMaterialPixelParameters MaterialParameters, in float4 SvPosi
 
 		// Apply aerial perspective OVER the cloud, assiming coverage is from the full transmittance.
 		// skip if MeanTransmittance is 1
-		float MeanCoverage = 1.0 - MeanTransmittance;
-		Luminance = AerialPerspective.rgb * MeanCoverage + AerialPerspective.a * Luminance;
+		float CloudMeanCoverage = 1.0 - MeanTransmittance;
+		Luminance = AerialPerspective.rgb * CloudMeanCoverage + AerialPerspective.a * Luminance;
 
-	#if POST_PROCESS_ALPHA
+#if POST_PROCESS_ALPHA
 		if(View.RenderingReflectionCaptureMask == 0.0f)
 		{
-			const float  AerialPespectiveCoverage = saturate(1.0 - AerialPerspective.a);
-			if (!IsSkyAtmosphereHoldout(View.EnvironmentComponentsFlags))
+			const float AerialPespectiveTransmittance = AerialPerspective.a;
+			const float AerialPespectiveCoverage = saturate(1.0 - AerialPespectiveTransmittance);
+
+			// Fade out holdout coverage as a function of the aerial perspective above, if the sky atmosphere is not hold out
+			OutHoldOutCoverage   *= saturate(1.0 - AerialPespectiveCoverage);
+
+			if(IsSkyAtmosphereHoldout(View.EnvironmentComponentsFlags))
 			{
-				// Fade out holdout coverage as a function of the aerial perspective above, if the sky atmosphere is not hold out
-				OutHoldOutCoverage   = lerp(OutHoldOutCoverage,   0.0f, AerialPespectiveCoverage);
-			}
-			else // if(IsSkyAtmosphereHoldout(View.EnvironmentComponentsFlags))
-			{
-				OutAboveCloudHoldOut = lerp(OutAboveCloudHoldOut, 1.0f, AerialPespectiveCoverage * MeanCoverage);
+				OutAboveCloudHoldOut = OutAboveCloudHoldOut * AerialPespectiveTransmittance + CloudMeanCoverage * AerialPespectiveCoverage;
 			}
 		}
-	#endif
+#endif
 	}
 
 
@@ -1522,24 +1522,24 @@ void MainCommon(in FMaterialPixelParameters MaterialParameters, in float4 SvPosi
 
 		// Apply aerial perspective OVER the cloud, assiming coverage is from the full transmittance.
 		// skip if MeanTransmittance is 1
-		float MeanCoverage = 1.0 - MeanTransmittance;
-		Luminance = HeightFogInscatteringAndTransmittance.rgb * MeanCoverage + HeightFogInscatteringAndTransmittance.a * Luminance;
+		float CloudMeanCoverage = 1.0 - MeanTransmittance;
+		Luminance = HeightFogInscatteringAndTransmittance.rgb * CloudMeanCoverage + HeightFogInscatteringAndTransmittance.a * Luminance;
 
-	#if POST_PROCESS_ALPHA
+#if POST_PROCESS_ALPHA
 		if(View.RenderingReflectionCaptureMask == 0.0f)
 		{
-			const float  ExponentialFogCoverage = saturate(1.0 - HeightFogInscatteringAndTransmittance.a);
-			if (!IsExponentialFogHoldout(View.EnvironmentComponentsFlags))
+			const float ExponentialFogTransmittance = HeightFogInscatteringAndTransmittance.a;
+			const float ExponentialFogCoverage = saturate(1.0 - ExponentialFogTransmittance);
+
+			// Fade out holdout coverage as a function of the fog above, if the fog is not hold out
+			OutHoldOutCoverage *= ExponentialFogTransmittance;
+
+			if(IsExponentialFogHoldout(View.EnvironmentComponentsFlags))
 			{
-				// Fade out holdout coverage as a function of the fog above, if the fog is not hold out
-				OutHoldOutCoverage   = lerp(OutHoldOutCoverage,   0.0f, ExponentialFogCoverage);
-			}
-			else //if(IsExponentialFogHoldout(View.EnvironmentComponentsFlags))
-			{
-				OutAboveCloudHoldOut = lerp(OutAboveCloudHoldOut, 1.0f, ExponentialFogCoverage * MeanCoverage);
+				OutAboveCloudHoldOut = OutAboveCloudHoldOut * ExponentialFogTransmittance + CloudMeanCoverage * ExponentialFogCoverage;
 			}
 		}
-	#endif
+#endif
 	}
 
 
@@ -1679,6 +1679,7 @@ void MainPS(
 float4 OutputViewRect;
 int bBlendCloudColor;
 int TargetCubeFace;
+int bAccumulateAlphaHoldOut;
 
 RWTexture2D<float4> OutCloudColor0;
 #if CLOUD_MIN_AND_MAX_DEPTH
@@ -1733,14 +1734,16 @@ void MainCS(uint2 DispatchThreadId : SV_DispatchThreadID)
 			#if POST_PROCESS_ALPHA
 				if (View.RenderingReflectionCaptureMask == 0.0f)
 				{
-					if(IsVolumetricCloudHoldout(View.EnvironmentComponentsFlags))
+					if(IsVolumetricCloudHoldout(View.EnvironmentComponentsFlags) && bAccumulateAlphaHoldOut > 0)
 					{
-						// Holdout for when we blend directly into the scene color Buffer.
-						OutCloudColor0[DispatchThreadId] = float4(CurColor0.rgb * OutColor0.a + OutColor0.rgb, CurColor0.a * (1.0 - OutHoldOutCoverage) + OutHoldOutCoverage);
+						// Operations for Holdout for when we blend directly with scene color Buffer read to CurColor0.
+						// We maintain the color of the scene since it has alreayd been composed
+						// Then we simply add the holdout value on top. Since the alpha has already been impacted by cloud GetCloudLuminanceTransmittanceOverFog when the clouds ahve been composed.
+						OutCloudColor0[DispatchThreadId] = float4(CurColor0.rgb, CurColor0.a + OutHoldOutCoverage + OutAboveCloudHoldOut);
 					}
 					else
 					{
-						OutCloudColor0[DispatchThreadId] = float4(CurColor0.rgb * OutColor0.a + OutColor0.rgb, CurColor0.a * OutColor0.a + OutAboveCloudHoldOut);
+						OutCloudColor0[DispatchThreadId] = float4(CurColor0.rgb * OutColor0.a + OutColor0.rgb, CurColor0.a + OutAboveCloudHoldOut);
 					}
 				}
 			#else

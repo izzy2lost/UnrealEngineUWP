@@ -1786,12 +1786,16 @@ void FSceneRenderer::RenderSkyAtmosphereInternal(
 		const float CloudShadowOnAtmosphereStrength1 = AtmosphereLight1Proxy ? AtmosphereLight1Proxy->GetCloudShadowOnAtmosphereStrength() : 0.0f;
 		const bool bShouldSampleCloudShadow = SkyRC.bShouldSampleCloudShadow && (CloudShadowOnAtmosphereStrength0 > 0.0f || CloudShadowOnAtmosphereStrength1 > 0.0f);
 
+		const bool bFastAerialPerspectiveDepthTest = SkyRC.bFastAerialPerspectiveDepthTest;
+		const bool SkyAtmosphereAlphaHoldOut = IsPostProcessingWithAlphaChannelSupported() && SkyAtmosphereSceneProxy.IsHoldout();
+		const bool bRenderSkyPixel = SkyRC.bRenderSkyPixel || SkyAtmosphereAlphaHoldOut; // In this case we need to write alpha holdout values in the sky pixels.
+
 		FRenderSkyAtmospherePS::FPermutationDomain PsPermutationVector;
 		PsPermutationVector.Set<FSampleCloudSkyAO>(SkyRC.bShouldSampleCloudSkyAO);
 		PsPermutationVector.Set<FFastSky>(SkyRC.bFastSky && !ForceRayMarching);
 		PsPermutationVector.Set<FFastAerialPespective>(SkyRC.bFastAerialPerspective && !ForceRayMarching);
 		PsPermutationVector.Set<FSecondAtmosphereLight>(SkyRC.bSecondAtmosphereLightEnabled);
-		PsPermutationVector.Set<FRenderSky>(SkyRC.bRenderSkyPixel);
+		PsPermutationVector.Set<FRenderSky>(bRenderSkyPixel);
 		PsPermutationVector.Set<FSampleOpaqueShadow>(SkyRC.bShouldSampleOpaqueShadow);
 		PsPermutationVector.Set<FSampleCloudShadow>(bShouldSampleCloudShadow);
 		PsPermutationVector.Set<FAtmosphereOnClouds>(SkyRC.bAPOnCloudMode);
@@ -1857,15 +1861,12 @@ void FSceneRenderer::RenderSkyAtmosphereInternal(
 			StartDepthZ = float(Projected.Z / Projected.W); // LWC_TODO: precision loss
 		}
 
-		const bool bFastAerialPerspectiveDepthTest = SkyRC.bFastAerialPerspectiveDepthTest;
-		const bool bRenderSkyPixel = SkyRC.bRenderSkyPixel;
-		const bool bSupportsAlpha = IsPostProcessingWithAlphaChannelSupported();
 		FIntRect Viewport = SkyRC.Viewport;
 		GraphBuilder.AddPass(
 			{},
 			PsPassParameters,
 			ERDGPassFlags::Raster,
-			[PsPassParameters, VertexShader, PixelShader, Viewport, bFastAerialPerspectiveDepthTest, bRenderSkyPixel, bDisableBlending, StartDepthZ, bSupportsAlpha](FRHICommandList& RHICmdListLambda)
+			[PsPassParameters, VertexShader, PixelShader, Viewport, bFastAerialPerspectiveDepthTest, bRenderSkyPixel, bDisableBlending, StartDepthZ, SkyAtmosphereAlphaHoldOut](FRHICommandList& RHICmdListLambda)
 		{
 			RHICmdListLambda.SetViewport(Viewport.Min.X, Viewport.Min.Y, 0.0f, Viewport.Max.X, Viewport.Max.Y, 1.0f);
 
@@ -1878,13 +1879,15 @@ void FSceneRenderer::RenderSkyAtmosphereInternal(
 			}
 			else
 			{
-				if (bSupportsAlpha)
+				if (SkyAtmosphereAlphaHoldOut)
 				{
-					GraphicsPSOInit.BlendState = TStaticBlendState<CW_RGBA, BO_Add, BF_One, BF_SourceAlpha, BO_Add, BF_Zero, BF_SourceAlpha>::GetRHI();
+					// We might need to write alpha holdout data. Since this is the sky writing to 
+					GraphicsPSOInit.BlendState = TStaticBlendState<CW_RGBA, BO_Add, BF_One, BF_InverseSourceAlpha, BO_Add, BF_One, BF_InverseSourceAlpha>::GetRHI();
 				}
 				else
 				{
-					GraphicsPSOInit.BlendState = TStaticBlendState<CW_RGB, BO_Add, BF_One, BF_SourceAlpha, BO_Add, BF_Zero, BF_One>::GetRHI(); 
+					// Maintain alpha untouched
+					GraphicsPSOInit.BlendState = TStaticBlendState<CW_RGB, BO_Add, BF_One, BF_SourceAlpha>::GetRHI(); 
 				}
 			}
 			if (bFastAerialPerspectiveDepthTest)

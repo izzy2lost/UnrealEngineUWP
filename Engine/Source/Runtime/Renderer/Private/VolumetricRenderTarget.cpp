@@ -14,6 +14,7 @@
 #include "VolumetricCloudRendering.h"
 #include "RendererUtils.h"
 #include "PostProcess/PostProcessing.h" // IsPostProcessingWithAlphaChannelSupported
+#include "EnvironmentComponentsFlags.h"
 
 static TAutoConsoleVariable<int32> CVarVolumetricRenderTarget(
 	TEXT("r.VolumetricRenderTarget"), 1,
@@ -760,6 +761,8 @@ void ComposeVolumetricRenderTargetOverScene(
 	const bool bSupportsAlpha = IsPostProcessingWithAlphaChannelSupported();
 	if (bSupportsAlpha)
 	{
+		// When alpha channel is enabled, we always write transmittance to impact other alpha holdout values from sky or fog for instance.
+		// We will run a second pass later accumulating the cloud contribution to hold out
 		PreMultipliedColorTransmittanceBlend = TStaticBlendState<CW_RGBA, BO_Add, BF_One, BF_SourceAlpha, BO_Add, BF_Zero, BF_SourceAlpha>::GetRHI();
 	}
 	else
@@ -774,6 +777,11 @@ void ComposeVolumetricRenderTargetOverScene(
 		{
 			continue;
 		}
+		if (ViewInfo.CachedViewUniformShaderParameters->RenderingReflectionCaptureMask == 0 && !IsVolumetricCloudRenderedInMain(ViewInfo.CachedViewUniformShaderParameters->EnvironmentComponentsFlags))
+		{
+			continue;
+		}
+
 		FVolumetricRenderTargetViewStateData& VolumetricCloudRT = ViewInfo.ViewState->VolumetricCloudRenderTarget;
 
 		// When reconstructed and back buffer resolution matches, force using a pixel perfect upsampling.

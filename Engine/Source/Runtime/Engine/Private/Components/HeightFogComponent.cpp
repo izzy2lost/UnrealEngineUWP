@@ -43,6 +43,9 @@ UExponentialHeightFogComponent::UExponentialHeightFogComponent(const FObjectInit
 	// disabled by default
 	FogCutoffDistance = 0;
 
+	bHoldout = false;
+	bRenderInMainPass = true;
+
 	VolumetricFogScatteringDistribution = .2f;
 	VolumetricFogAlbedo = FColor::White;
 	VolumetricFogExtinctionScale = 1.0f;
@@ -354,6 +357,15 @@ void UExponentialHeightFogComponent::SetHoldout(bool bNewHoldout)
 	if (bHoldout != bNewHoldout)
 	{
 		bHoldout = bNewHoldout;
+		MarkRenderStateDirty();
+	}
+}
+
+void UExponentialHeightFogComponent::SetRenderInMainPass(bool bValue)
+{
+	if (bRenderInMainPass != bValue)
+	{
+		bRenderInMainPass = bValue;
 		MarkRenderStateDirty();
 	}
 }

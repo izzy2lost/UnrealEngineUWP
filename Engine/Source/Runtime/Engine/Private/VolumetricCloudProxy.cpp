@@ -20,6 +20,7 @@ FVolumetricCloudSceneProxy::FVolumetricCloudSceneProxy(const UVolumetricCloudCom
 	, GroundAlbedo(InComponent->GroundAlbedo)
 	, bUsePerSampleAtmosphericLightTransmittance(InComponent->bUsePerSampleAtmosphericLightTransmittance)
 	, bHoldout(InComponent->bHoldout)
+	, bRenderInMainPass(InComponent->bRenderInMainPass)
 	, SkyLightCloudBottomOcclusion(InComponent->SkyLightCloudBottomOcclusion)
 	, ViewSampleCountScale(InComponent->ViewSampleCountScale)
 	, ReflectionViewSampleCountScale(InComponent->ReflectionViewSampleCountScaleValue)

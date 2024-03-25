@@ -146,6 +146,7 @@ struct FCloudRenderContext
 
 	bool bAsyncCompute;
 	bool bCloudDebugViewModeEnabled;
+	bool bAccumulateAlphaHoldOut;
 
 	FUintVector4 TracingCoordToZbufferCoordScaleBias;
 	FUintVector4 TracingCoordToFullResPixelCoordScaleBias;

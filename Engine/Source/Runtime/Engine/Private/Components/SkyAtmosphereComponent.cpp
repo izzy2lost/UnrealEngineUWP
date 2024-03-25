@@ -79,6 +79,9 @@ USkyAtmosphereComponent::USkyAtmosphereComponent(const FObjectInitializer& Objec
 
 	TraceSampleCountScale = 1.0f;
 
+	bHoldout = false;
+	bRenderInMainPass = true;
+
 	memset(OverrideAtmosphericLight, 0, sizeof(OverrideAtmosphericLight));
 
 	ValidateStaticLightingGUIDs();
@@ -396,6 +399,15 @@ void USkyAtmosphereComponent::SetHoldout(bool bNewHoldout)
 	}
 }
 
+void USkyAtmosphereComponent::SetRenderInMainPass(bool bValue)
+{
+	if (bRenderInMainPass != bValue)
+	{
+		bRenderInMainPass = bValue;
+		MarkRenderStateDirty();
+	}
+}
+
 FLinearColor USkyAtmosphereComponent::GetAtmosphereTransmitanceOnGroundAtPlanetTop(UDirectionalLightComponent* DirectionalLight)
 {
 	if(DirectionalLight != nullptr)
@@ -480,6 +492,7 @@ FSkyAtmosphereSceneProxy::FSkyAtmosphereSceneProxy(const USkyAtmosphereComponent
 	: bStaticLightingBuilt(false)
 	, AtmosphereSetup(*InComponent)
 	, bHoldout(InComponent->bHoldout > 0)
+	, bRenderInMainPass(InComponent->bRenderInMainPass > 0)
 {
 	SkyLuminanceFactor = InComponent->SkyLuminanceFactor;
 	AerialPespectiveViewDistanceScale = InComponent->AerialPespectiveViewDistanceScale;

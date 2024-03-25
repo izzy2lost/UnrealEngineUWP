@@ -53,6 +53,8 @@ UVolumetricCloudComponent::UVolumetricCloudComponent(const FObjectInitializer& O
 	, AerialPespectiveRayleighScatteringFadeDistance(0.0f)
 	, AerialPespectiveMieScatteringStartDistance(0.0f)
 	, AerialPespectiveMieScatteringFadeDistance(0.0f)
+	, bHoldout(false)
+	, bRenderInMainPass(true)
 	, VolumetricCloudSceneProxy(nullptr)
 {
 	static ConstructorHelpers::FObjectFinder<UMaterialInterface> VolumetricCloudDefaultMaterialRef(TEXT("/Engine/EngineSky/VolumetricClouds/m_SimpleVolumetricCloud_Inst.m_SimpleVolumetricCloud_Inst"));
@@ -171,6 +173,15 @@ void UVolumetricCloudComponent::SetHoldout(bool bNewHoldout)
 	if (bHoldout != bNewHoldout)
 	{
 		bHoldout = bNewHoldout;
+		MarkRenderStateDirty();
+	}
+}
+
+void UVolumetricCloudComponent::SetRenderInMainPass(bool bValue)
+{
+	if (bRenderInMainPass != bValue)
+	{
+		bRenderInMainPass = bValue;
 		MarkRenderStateDirty();
 	}
 }

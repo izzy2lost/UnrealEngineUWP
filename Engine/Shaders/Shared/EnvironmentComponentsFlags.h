@@ -13,13 +13,21 @@
 #endif
 
 
-#define ENVCOMP_FLAG_SKYATMOSPHERE_HOLDOUT 0x1
-#define ENVCOMP_FLAG_VOLUMETRICCLOUD_HOLDOUT 0x2
-#define ENVCOMP_FLAG_EXPONENTIALFOG_HOLDOUT 0x4
+#define ENVCOMP_FLAG_SKYATMOSPHERE_HOLDOUT			0x01
+#define ENVCOMP_FLAG_VOLUMETRICCLOUD_HOLDOUT		0x02
+#define ENVCOMP_FLAG_EXPONENTIALFOG_HOLDOUT			0x04
+
+#define ENVCOMP_FLAG_SKYATMOSPHERE_RENDERINMAIN		0x08
+#define ENVCOMP_FLAG_VOLUMETRICCLOUD_RENDERINMAIN	0x10
+#define ENVCOMP_FLAG_EXPONENTIALFOG_RENDERINMAIN	0x20
 
 
 // Using macro functions to avoid having to move the definition in cpp to avoid the multiple definition in different obj files.
 #define IsSkyAtmosphereHoldout(EnvironmentComponentsFlags)   ((EnvironmentComponentsFlags & ENVCOMP_FLAG_SKYATMOSPHERE_HOLDOUT)   > 0)
 #define IsVolumetricCloudHoldout(EnvironmentComponentsFlags) ((EnvironmentComponentsFlags & ENVCOMP_FLAG_VOLUMETRICCLOUD_HOLDOUT) > 0)
 #define IsExponentialFogHoldout(EnvironmentComponentsFlags)  ((EnvironmentComponentsFlags & ENVCOMP_FLAG_EXPONENTIALFOG_HOLDOUT)  > 0)
+
+#define IsSkyAtmosphereRenderedInMain(EnvironmentComponentsFlags)   ((EnvironmentComponentsFlags & ENVCOMP_FLAG_SKYATMOSPHERE_RENDERINMAIN)   > 0)
+#define IsVolumetricCloudRenderedInMain(EnvironmentComponentsFlags) ((EnvironmentComponentsFlags & ENVCOMP_FLAG_VOLUMETRICCLOUD_RENDERINMAIN) > 0)
+#define IsExponentialFogRenderedInMain(EnvironmentComponentsFlags)  ((EnvironmentComponentsFlags & ENVCOMP_FLAG_EXPONENTIALFOG_RENDERINMAIN)  > 0)
 

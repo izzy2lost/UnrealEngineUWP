@@ -33,6 +33,7 @@
 #include "/Engine/Private/HairStrands/HairStrandsAttributeCommon.ush"
 #include "/Engine/Private/DeferredShadingCommon.ush"
 #include "/Engine/Private/SparseVolumeTexture/SparseVolumeTextureCommon.ush"
+#include "/Engine/Shared/EnvironmentComponentsFlags.h"
 
 // Reduce latency of Nanite material base pass pixel shaders caused by register pressure due to the calculation of WPO
 #if PIXELSHADER && IS_NANITE_SHADING_PASS && IS_BASE_PASS
@@ -41,7 +42,7 @@
 
 // Update this GUID to force all material shaders to recompile
 // Merge conflicts on this line should be resolved by generating a new GUID
-#pragma message("UESHADERMETADATA_VERSION E02EEA17-2FF9-481F-8E97-979EAB6FC24E")
+#pragma message("UESHADERMETADATA_VERSION 798C7CC6-6458-4985-B21A-808C9C678FC8")
 
 #if USES_SPEEDTREE
 	#include "/Engine/Private/SpeedTreeCommon.ush"
@@ -2152,6 +2153,11 @@ float3 MaterialExpressionSkyAtmosphereLightDiskLuminance(FMaterialPixelParameter
 float3 MaterialExpressionSkyAtmosphereViewLuminance(FMaterialPixelParameters Parameters)
 {
 #if MATERIAL_SKY_ATMOSPHERE && PROJECT_SUPPORT_SKY_ATMOSPHERE
+	if (ResolvedView.RenderingReflectionCaptureMask == 0.0f && !IsSkyAtmosphereRenderedInMain(ResolvedView.EnvironmentComponentsFlags))
+	{
+		return float3(0.0f, 0.0f, 0.0f);
+	}
+	
 	const float ViewHeight = ResolvedView.SkyPlanetTranslatedWorldCenterAndViewHeight.w * CM_TO_SKY_UNIT;
 	const float3 ViewDir = -Parameters.CameraVector;
 
@@ -2171,6 +2177,14 @@ float3 MaterialExpressionSkyAtmosphereViewLuminance(FMaterialPixelParameters Par
 	float3 SkyAtmosphereViewLuminance = Texture2DSampleLevel(View.SkyViewLutTexture, View.SkyViewLutTextureSampler, SkyViewLutUv, 0.0f).rgb;
 	SkyAtmosphereViewLuminance *= ResolvedView.SkyAtmosphereSkyLuminanceFactor.rgb;
 	SkyAtmosphereViewLuminance *= ResolvedView.OneOverPreExposure;
+	
+#if POST_PROCESS_ALPHA
+	if (IsSkyAtmosphereHoldout(View.EnvironmentComponentsFlags) && View.RenderingReflectionCaptureMask == 0.0f)
+	{
+		SkyAtmosphereViewLuminance = 0.0f; // Disable sky dome luminance contribution. Throughput will be 0.
+	}
+#endif
+	
 	return SkyAtmosphereViewLuminance;
 #else
 	return float3(0.0f, 0.0f, 0.0f);
@@ -2199,6 +2213,14 @@ float4 MaterialExpressionSkyAtmosphereAerialPerspective(FMaterialPixelParameters
 		ResolvedView.SkyAtmosphereCameraAerialPerspectiveVolumeDepthSliceLengthKmInv,
 		ResolvedView.OneOverPreExposure,
 		NearFadeOutRangeInvDepthKm);
+	
+#if POST_PROCESS_ALPHA
+	if (IsSkyAtmosphereHoldout(View.EnvironmentComponentsFlags) && View.RenderingReflectionCaptureMask == 0.0f)
+	{
+		AerialPerspective.rgb = 0.0f;
+	}
+#endif
+	
 	return AerialPerspective;
 #else
 	return float4(0.0f, 0.0f, 0.0f, 1.0f); // RGB= null scattering, A= null transmittance
