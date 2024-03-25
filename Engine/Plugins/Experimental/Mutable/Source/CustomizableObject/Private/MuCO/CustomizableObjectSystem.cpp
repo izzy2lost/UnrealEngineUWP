@@ -1389,7 +1389,7 @@ bool UCustomizableObjectSystem::LockObject(const class UCustomizableObject* InOb
 		check(GetPrivate() != nullptr);
 		if (GetPrivate()->Streamer)
 		{
-			FMutableTaskGraph::TaskType Task = Private->MutableTaskGraph.AddMutableThreadTask(TEXT("EndStream"), [InObject, Streamer = GetPrivate()->Streamer]()
+			UE::Tasks::FTask Task = Private->MutableTaskGraph.AddMutableThreadTask(TEXT("EndStream"), [InObject, Streamer = GetPrivate()->Streamer]()
 				{
 					Streamer->CancelStreamingForObject(InObject);
 				});
@@ -2073,11 +2073,7 @@ namespace impl
 
 		// Task: Mutable GetImages
 		//-------------------------------------------------------------
-#ifdef MUTABLE_USE_NEW_TASKGRAPH
 		UE::Tasks::FTask Mutable_GetImagesTask;
-#else
-		FGraphEventRef Mutable_GetImagesTask;
-#endif
 		{
 			// Task inputs
 			Mutable_GetImagesTask = SystemPrivateData->MutableTaskGraph.AddMutableThreadTask(
@@ -2091,23 +2087,19 @@ namespace impl
 
 		// Next Task: Load Unreal Assets
 		//-------------------------------------------------------------
-		UE::Tasks::FTask Game_LoadUnrealAssets = ObjectInstancePrivateData->LoadAdditionalAssetsAndDataAsync(
-				OperationData, UCustomizableObjectSystem::GetInstance()->GetPrivate()->StreamableManager);
-		
+		UE::Tasks::FTask Game_LoadUnrealAssets = ObjectInstancePrivateData->LoadAdditionalAssetsAndDataAsync(OperationData, UCustomizableObjectSystem::GetInstance()->GetPrivate()->StreamableManager);
+
 		// Next-next Task: Convert Resources
 		//-------------------------------------------------------------
 		SystemPrivateData->AddGameThreadTask(
+			FMutableTask 
 			{
-			FMutableTaskDelegate::CreateLambda(
+				FMutableTaskDelegate::CreateLambda(
 				[OperationData]()
 				{
 					Task_Game_ConvertResources(OperationData);
 				}),
-#ifdef MUTABLE_USE_NEW_TASKGRAPH
-				{},
-#endif
-				Game_LoadUnrealAssets,
-				Mutable_GetImagesTask
+				{ Game_LoadUnrealAssets, Mutable_GetImagesTask }
 			});
 	}
 
@@ -2156,14 +2148,8 @@ namespace impl
 
 		// Task inputs
 		TSharedPtr<mu::Model> Model = CustomizableObject->GetPrivate()->GetModel();
-
-#ifdef MUTABLE_USE_NEW_TASKGRAPH
-		UE::Tasks::FTask Dependency;
-#else
-		FGraphEventRef Dependency;
-#endif
-		
-		Dependency = SystemPrivate->MutableTaskGraph.AddMutableThreadTask(
+	
+		UE::Tasks::FTask Dependency = SystemPrivate->MutableTaskGraph.AddMutableThreadTask(
 			TEXT("Task_Mutable_Update_GetMesh"),
 			[Operation, Model]()
 			{
@@ -2171,13 +2157,14 @@ namespace impl
 			});
 
 		SystemPrivate->AddGameThreadTask(
+			FMutableTask
 			{
-			FMutableTaskDelegate::CreateLambda(
+				FMutableTaskDelegate::CreateLambda(
 				[Operation]()
 				{
 					impl::Task_Game_LockCache(Operation);
 				}),
-				Dependency,
+				{ Dependency }
 			});
 	}
 	
@@ -2410,11 +2397,7 @@ namespace impl
 			Operation->SetRequestedLODs(RequestedLODs);
 		}
 
-#ifdef MUTABLE_USE_NEW_TASKGRAPH
 		UE::Tasks::FTask Mutable_GetMeshTask;
-#else
-		FGraphEventRef Mutable_GetMeshTask;
-#endif
 		
 		if (Operation->bUseMeshCache)
 		{
@@ -2426,13 +2409,14 @@ namespace impl
 				});
 
 			SystemPrivateData->AddGameThreadTask(
+				FMutableTask 
 				{
-				FMutableTaskDelegate::CreateLambda(
+					FMutableTaskDelegate::CreateLambda(
 					[Operation]()
 					{
 						impl::Task_Game_LockMeshCache(Operation);
 					}),
-					Mutable_GetMeshTask
+					{ Mutable_GetMeshTask }
 				});
 		}
 		else
@@ -2452,13 +2436,14 @@ namespace impl
 			{
 				// Task inputs
 				SystemPrivateData->AddGameThreadTask(
+					FMutableTask 
 					{
-					FMutableTaskDelegate::CreateLambda(
+						FMutableTaskDelegate::CreateLambda(
 						[Operation]()
 						{
 							impl::Task_Game_LockCache(Operation);
 						}),
-					Mutable_GetMeshTask
+						{ Mutable_GetMeshTask }
 					});
 			}
 		}

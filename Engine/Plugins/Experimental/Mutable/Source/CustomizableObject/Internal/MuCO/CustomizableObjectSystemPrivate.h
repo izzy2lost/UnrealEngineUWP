@@ -25,12 +25,7 @@
 #include "AssetRegistry/AssetData.h"
 #include "ContentStreaming.h"
 
-// This define could come from MuR/System.h
-#ifdef MUTABLE_USE_NEW_TASKGRAPH
-	#include "Tasks/Task.h"
-#else
-	#include "Async/TaskGraphInterfaces.h"
-#endif
+#include "Tasks/Task.h"
 
 #include "CustomizableObjectSystemPrivate.generated.h"
 
@@ -290,50 +285,26 @@ struct FMutableTask
 	/** Actual function to perform in this task. */
 	FMutableTaskDelegate Function;
 
-	/** We can have 2 types of depencies:
-		From the new task system: */
-#ifdef MUTABLE_USE_NEW_TASKGRAPH
-	UE::Tasks::FTask Dependency;
-#endif
-
-	UE::Tasks::FTask GraphDependency0;
+	TArray<UE::Tasks::FTask, TFixedAllocator<2>> Dependencies; 
 	
-#ifdef MUTABLE_USE_NEW_TASKGRAPH
-	UE::Tasks::FTask GraphDependency1;
-#else
-	FGraphEventRef GraphDependency1;
-#endif
-
 	/** Check if all the dependencies of this task have been completed. */
-	inline bool AreDependenciesComplete() const
+	FORCEINLINE bool AreDependenciesComplete() const
 	{
-#ifdef MUTABLE_USE_NEW_TASKGRAPH
-		return (!Dependency.IsValid() || Dependency.IsCompleted())
-			&&
-			(!GraphDependency0.IsValid() || GraphDependency0.IsCompleted())
-			&&
-			(GraphDependency1.IsCompleted());
-#else
-		return 
-			(!GraphDependency0.IsValid() || GraphDependency0.IsCompleted())
-			&&
-			(!GraphDependency1 || GraphDependency1->IsComplete());
-#endif
+		for (const UE::Tasks::FTask& Dependency : Dependencies)
+		{
+			if (!Dependency.IsCompleted())
+			{
+				return false;
+			}
+		}
+
+		return true;
 	}
 
 	/** Free the handles for any dependency of this task. */
-	inline void ClearDependencies()
+	FORCEINLINE void ClearDependencies()
 	{
-#ifdef MUTABLE_USE_NEW_TASKGRAPH
-		Dependency = {};
-#endif
-		GraphDependency0 = {};
-
-#ifdef MUTABLE_USE_NEW_TASKGRAPH
-		GraphDependency1 = {};
-#else
-		GraphDependency1 = nullptr;
-#endif
+		Dependencies.Empty();
 	}
 };
 

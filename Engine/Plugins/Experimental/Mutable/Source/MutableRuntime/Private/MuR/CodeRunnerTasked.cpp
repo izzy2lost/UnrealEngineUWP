@@ -263,45 +263,9 @@ namespace mu
 			}
 			else
 			{
-#ifdef MUTABLE_USE_NEW_TASKGRAPH
 				TaskToIssue->Event = UE::Tasks::Launch(TEXT("MutableCore_Task"),
 					[TaskToIssue]() { TaskToIssue->DoWork(); },
 					UE::Tasks::ETaskPriority::Inherit);
-#else
-
-				ENamedThreads::Type Priority;
-				switch (CoreRunnerTaskPriority)
-				{
-				default:
-				case 0:
-					Priority = ENamedThreads::AnyThread;
-					break;
-				case 1:
-					Priority = ENamedThreads::AnyHiPriThreadHiPriTask;
-					break;
-				case 2:
-					Priority = ENamedThreads::AnyHiPriThreadNormalTask;
-					break;
-				case 3:
-					Priority = ENamedThreads::AnyNormalThreadHiPriTask;
-					break;
-				case 4:
-					Priority = ENamedThreads::AnyNormalThreadNormalTask;
-					break;
-				case 5:
-					Priority = ENamedThreads::AnyBackgroundHiPriTask;
-					break;
-				case 6:
-					Priority = ENamedThreads::AnyBackgroundThreadNormalTask;
-					break;
-				}
-
-				TaskToIssue->Event = FFunctionGraphTask::CreateAndDispatchWhenReady(
-					[TaskToIssue]() { TaskToIssue->DoWork(); },
-					TStatId{},
-					nullptr,
-					Priority);
-#endif
 			}
 		}
 
@@ -549,7 +513,6 @@ namespace mu
 				{
 					if (IssuedTasks[IssuedIndex]->Event.IsValid())
 					{
-#ifdef MUTABLE_USE_NEW_TASKGRAPH
 						if (CVarTaskGraphBusyWait->GetBool())
 						{
 							IssuedTasks[IssuedIndex]->Event.BusyWait();							
@@ -558,21 +521,7 @@ namespace mu
 						{
 							IssuedTasks[IssuedIndex]->Event.Wait();
 						}
-#else
-						if (CVarTaskGraphBusyWait->GetBool())
-						{
-							LowLevelTasks::BusyWaitUntil(
-								[Task = IssuedTasks[IssuedIndex]->Event]()
-								{
-									return Task->IsComplete();
-								}
-							);
-						}
-						else 
-						{
-							IssuedTasks[IssuedIndex]->Event->Wait();
-						}
-#endif
+
 						break;
 					}
 				}
@@ -2090,22 +2039,12 @@ namespace mu
 		RomLoadOp.m_streamBuffer.SetNumUninitialized(RomSize);
 		const int32 SizeAfter = RomLoadOp.m_streamBuffer.GetAllocatedSize();
 
-		EventType EventTyped =
-#ifdef MUTABLE_USE_NEW_TASKGRAPH
-			UE::Tasks::FTaskEvent(TEXT("FLoadMeshRomTask"));
-#else
-			FGraphEvent::CreateGraphEvent();		
-#endif
+	 	UE::Tasks::FTaskEvent ReadCompletionEvent = UE::Tasks::FTaskEvent(TEXT("FLoadMeshRomTask"));	
+		RomLoadOp.Event = ReadCompletionEvent;
 		
-		RomLoadOp.Event = EventTyped;
-		
-		TFunction<void(bool)> Callback = [EventTyped](bool bSuccess) mutable
+		TFunction<void(bool)> Callback = [ReadCompletionEvent](bool bSuccess) mutable
 		{
-#ifdef MUTABLE_USE_NEW_TASKGRAPH
-			EventTyped.Trigger();
-#else
-			EventTyped->DispatchSubsequents();
-#endif				
+			ReadCompletionEvent.Trigger();
 		};
 		
 		const uint32 RomId = Program.m_roms[RomIndex].Id;
@@ -2116,7 +2055,7 @@ namespace mu
 			return false;
 		}
 
-		Event = EventTyped; // Wait for read operation to end
+		Event = ReadCompletionEvent; // Wait for read operation to end
 		return false; // No worker thread work
 	}
 	
@@ -2265,11 +2204,7 @@ namespace mu
 
 		FWorkingMemoryManager::FModelCacheEntry* ModelCache = Runner->m_pSystem->WorkingMemoryManager.FindModelCache(Runner->m_pModel.Get());
 
-#ifdef MUTABLE_USE_NEW_TASKGRAPH
 		TArray<UE::Tasks::FTask> ReadCompleteEvents;
-#else
-		FGraphEventArray ReadCompleteEvents;
-#endif
 
 		ReadCompleteEvents.Reserve(LODIndexCount); 
 
@@ -2322,23 +2257,13 @@ namespace mu
 			RomLoadOp.m_streamBuffer.SetNumUninitialized(RomSize);
 			const int32 SizeAfter = RomLoadOp.m_streamBuffer.GetAllocatedSize();
 
-			EventType EventTyped = 
-#ifdef MUTABLE_USE_NEW_TASKGRAPH
-				UE::Tasks::FTaskEvent(TEXT("FLoadImageRomsTaskRom"));
-#else
-				FGraphEvent::CreateGraphEvent();
-#endif
+			UE::Tasks::FTaskEvent ReadCompletionEvent(TEXT("FLoadImageRomsTaskRom"));
+			ReadCompleteEvents.Add(ReadCompletionEvent);
+			RomLoadOp.Event = ReadCompletionEvent;
 
-			RomLoadOp.Event = EventTyped;
-			ReadCompleteEvents.Add(EventTyped);
-
-			TFunction<void(bool)> Callback = [EventTyped](bool bSuccess) mutable // Mutable due Trigger not being const
+			TFunction<void(bool)> Callback = [ReadCompletionEvent](bool bSuccess) mutable // Mutable due Trigger not being const
 			{
-#ifdef MUTABLE_USE_NEW_TASKGRAPH
-				EventTyped.Trigger();
-#else
-				EventTyped->DispatchSubsequents();
-#endif				
+				ReadCompletionEvent.Trigger();
 			};
 			
 			const uint32 RomId = program.m_roms[RomIndex].Id;
@@ -2351,19 +2276,11 @@ namespace mu
 		}
 
 		// Wait for all read operations to end
-#ifdef MUTABLE_USE_NEW_TASKGRAPH
-		UE::Tasks::FTaskEvent EventTyped(TEXT("FLoadImageRomsTask"));
-		EventTyped.AddPrerequisites(ReadCompleteEvents);
-		EventTyped.Trigger();
-		Event = EventTyped;
-#else
-		Event = FGraphEvent::CreateGraphEvent();
-		for (const FGraphEventRef& ReadCompleteEvent : ReadCompleteEvents)
-		{
-			Event->DontCompleteUntil(ReadCompleteEvent);
-		}
-		Event->DispatchSubsequents();
-#endif
+		UE::Tasks::FTaskEvent GatherReadsCompletionEvent(TEXT("FLoadImageRomsTask"));
+		GatherReadsCompletionEvent.AddPrerequisites(ReadCompleteEvents);
+		GatherReadsCompletionEvent.Trigger();
+
+		Event = GatherReadsCompletionEvent;
 			
 		return false; // No worker thread work
 	}

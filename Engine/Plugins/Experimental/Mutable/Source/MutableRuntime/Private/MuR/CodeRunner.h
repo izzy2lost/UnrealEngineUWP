@@ -2,7 +2,6 @@
 
 #pragma once
 
-#include "Async/TaskGraphInterfaces.h"
 #include "Containers/Array.h"
 #include "Containers/ContainerAllocationPolicies.h"
 #include "HAL/PlatformCrt.h"
@@ -19,16 +18,10 @@
 #include "MuR/System.h"
 #include "MuR/SystemPrivate.h"
 #include "MuR/Types.h"
+#include "Tasks/Task.h"
 #include "Templates/RefCounting.h"
 #include "Templates/SharedPointer.h"
 #include "Templates/Tuple.h"
-
-// This define could come from MuR/System.h
-#ifdef MUTABLE_USE_NEW_TASKGRAPH
-	#include "Tasks/Task.h"
-#else
-	#include "Async/TaskGraphFwd.h"
-#endif
 
 namespace mu::MemoryCounters
 {
@@ -41,20 +34,6 @@ namespace  mu
 	class Model;
 	class Parameters;
 	class RangeIndex;
-
-	using EventType = 
-#ifdef MUTABLE_USE_NEW_TASKGRAPH
-		UE::Tasks::FTaskEvent;
-#else
-		FGraphEventRef;
-#endif
-
-	using TaskType = 
-#ifdef MUTABLE_USE_NEW_TASKGRAPH
-		UE::Tasks::FTask;
-#else
-		FGraphEventRef;
-#endif
 
     /** Code execution of the mutable virtual machine. */
     class CodeRunner
@@ -147,11 +126,7 @@ namespace  mu
 
 		//! Load an external image asynchronously, retuns an event to wait for complition and a cleanup function 
 		//! that must be called once the event has completed.
-#ifdef MUTABLE_USE_NEW_TASKGRAPH
 		TTuple<UE::Tasks::FTask, TFunction<void()>> LoadExternalImageAsync(FExternalImageId Id, uint8 MipmapsToSkip, TFunction<void(Ptr<Image>)>& ResultCallback);
-#else
-		TTuple<FGraphEventRef, TFunction<void()>> LoadExternalImageAsync(FExternalImageId Id, uint8 MipmapsToSkip, TFunction<void(Ptr<Image>)>& ResultCallback);
-#endif
  	    mu::FImageDesc GetExternalImageDesc(FName Id, uint8 MipmapsToSkip);
 
 		/** Settings that may affect the execution of some operations, like image conversion quality. */
@@ -221,11 +196,7 @@ namespace  mu
 		public:
 			const FScheduledOp Op;
 
-#ifdef MUTABLE_USE_NEW_TASKGRAPH
 			UE::Tasks::FTask Event = {};
-#else
-			FGraphEventRef Event = nullptr;
-#endif
 
 			FIssuedTask(const FScheduledOp& InOp) : Op(InOp) {}
 			virtual ~FIssuedTask() {}
@@ -236,12 +207,7 @@ namespace  mu
 			virtual void Complete(CodeRunner*) = 0;
 			virtual bool IsComplete(CodeRunner*)
 			{ 
-				// Event can be null if we forced single-threaded execution.
-#ifdef MUTABLE_USE_NEW_TASKGRAPH
 				return !Event.IsValid() || Event.IsCompleted(); 
-#else
-				return !Event.IsValid() || Event->IsComplete();
-#endif
 			}
 		};
 
@@ -252,7 +218,7 @@ namespace  mu
 			int32 RomIndex = -1;
 			ModelReader::OPERATION_ID m_streamID = -1;
 			StreamingDataContainerType m_streamBuffer;
-			TaskType Event;
+			UE::Tasks::FTask Event;
 		};
 
 		class FLoadMeshRomTask : public CodeRunner::FIssuedTask

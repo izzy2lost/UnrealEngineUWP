@@ -223,6 +223,7 @@ public:
 
 	/** Returns the task that will be called when all assets and data are loaded, may be already completed if no assets or data needs loading */
 	UE::Tasks::FTask LoadAdditionalAssetsAndDataAsync(const TSharedRef<FUpdateContextPrivate>& OperationData, FStreamableManager &StreamableManager);
+
 	void AdditionalAssetsAsyncLoaded(UCustomizableObjectInstance* Public);
 
 	void TickUpdateCloseCustomizableObjects(UCustomizableObjectInstance& Public, FMutableInstanceUpdateMap& InOutRequestedUpdates);

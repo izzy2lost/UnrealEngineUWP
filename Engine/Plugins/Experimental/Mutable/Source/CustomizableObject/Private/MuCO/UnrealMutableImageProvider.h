@@ -9,10 +9,7 @@
 #include "Containers/Map.h"
 #include "Containers/Queue.h"
 
-#ifdef MUTABLE_USE_NEW_TASKGRAPH
 #include "Tasks/Task.h"
-#else
-#endif
 
 class UTexture2D;
 
@@ -24,13 +21,8 @@ class FUnrealMutableImageProvider : public mu::ImageParameterGenerator, public F
 public:
 	// mu::ImageParameterGenerator interface
 	// Thread: worker
-#ifdef MUTABLE_USE_NEW_TASKGRAPH
 	virtual TTuple<UE::Tasks::FTask, TFunction<void()>> GetImageAsync(FName Id, uint8 MipmapsToSkip, TFunction<void(mu::Ptr<mu::Image>)>& ResultCallback) override;
 	virtual TTuple<UE::Tasks::FTask, TFunction<void()>> GetReferencedImageAsync(const void* ModelPtr, int32 Id, uint8 MipmapsToSkip, TFunction<void(mu::Ptr<mu::Image>)>& ResultCallback) override;
-#else
-	virtual TTuple<FGraphEventRef, TFunction<void()>> GetImageAsync(FName Id, uint8 MipmapsToSkip, TFunction<void(mu::Ptr<mu::Image>)>& ResultCallback) override;
-	virtual TTuple<FGraphEventRef, TFunction<void()>> GetReferencedImageAsync(const void* ModelPtr, int32 Id, uint8 MipmapsToSkip, TFunction<void(mu::Ptr<mu::Image>)>& ResultCallback) override;
-#endif
 
 	virtual mu::FImageDesc GetImageDesc(FName Id, uint8 MipmapsToSkip) override;
 
