@@ -78,7 +78,27 @@ struct FMassContextCommon : public T
 			return Context.DoesArchetypeHaveFragment(*ColumnType);
 		}
 		const bool bIsTagOrFragment = false;
-		checkf(bIsTagOrFragment, TEXT("Attempting to check for a column type that is not a column or tag."))
+		checkf(bIsTagOrFragment, TEXT("Attempting to check for a column type that is not a column or tag."));
+		return false;
+	}
+
+	bool HasColumn(TypedElementDataStorage::RowHandle Row, const UScriptStruct* ColumnType) const override
+	{
+		FMassEntityHandle Entity = FMassEntityHandle::FromNumber(Row);
+		FMassEntityManager& Manager = Context.GetEntityManagerChecked();
+		FMassArchetypeHandle Archetype = Manager.GetArchetypeForEntity(Entity);
+		const FMassArchetypeCompositionDescriptor& Composition = Manager.GetArchetypeComposition(Archetype);
+
+		if (ColumnType->IsChildOf(FMassTag::StaticStruct()))
+		{
+			return Composition.Tags.Contains(*ColumnType);
+		}
+		if (ColumnType->IsChildOf(FMassFragment::StaticStruct()))
+		{
+			return Composition.Fragments.Contains(*ColumnType);
+		}
+		const bool bIsTagOrFragment = false;
+		checkf(bIsTagOrFragment, TEXT("Attempting to check for a column type that is not a column or tag."));
 		return false;
 	}
 
@@ -90,109 +110,20 @@ protected:
 	FMassExecutionContext& Context;
 };
 
-struct FMassDirectContextForwarder final : public FMassContextCommon<ITypedElementDataStorageInterface::IDirectQueryContext>
+template<typename T>
+struct FMassWithEnvironmentContextCommon : public FMassContextCommon<T>
 {
-	explicit FMassDirectContextForwarder(FMassExecutionContext& InContext)
-		: FMassContextCommon(InContext)
-	{}
-
-	~FMassDirectContextForwarder() override = default;
-};
-
-struct FMassSubqueryContextForwarder final : public FMassContextCommon<ITypedElementDataStorageInterface::ISubqueryContext>
-{
-	explicit FMassSubqueryContextForwarder(FMassExecutionContext& InContext)
-		: FMassContextCommon(InContext)
-	{}
-
-	~FMassSubqueryContextForwarder() override = default;
-};
-
-struct FMassSingleRowSubqueryContextForwarder final : public ITypedElementDataStorageInterface::ISubqueryContext
-{
-	FMassSingleRowSubqueryContextForwarder(FMassEntityManager& InEntityManager, TypedElementDataStorage::RowHandle InRowHandle)
-		: EntityManager(InEntityManager)
-		, RowHandle(InRowHandle)
-	{}
-
-	~FMassSingleRowSubqueryContextForwarder() override = default;
-
-	const void* GetColumn(const UScriptStruct* ColumnType) const override
-	{
-		return EntityManager.GetFragmentDataStruct(FMassEntityHandle::FromNumber(RowHandle), ColumnType).GetMemory();
-	}
-
-	void* GetMutableColumn(const UScriptStruct* ColumnType) override
-	{
-		return EntityManager.GetFragmentDataStruct(FMassEntityHandle::FromNumber(RowHandle), ColumnType).GetMemory();
-	}
-
-	void GetColumns(TArrayView<char*> RetrievedAddresses, TConstArrayView<TWeakObjectPtr<const UScriptStruct>> ColumnTypes,
-		TConstArrayView<TypedElementDataStorage::EQueryAccessType> AccessTypes) override
-	{
-		checkf(RetrievedAddresses.Num() == ColumnTypes.Num(), TEXT("Unable to retrieve a batch of columns as the number of addresses "
-			"doesn't match the number of requested column."));
-		checkf(RetrievedAddresses.Num() == AccessTypes.Num(), TEXT("Unable to retrieve a batch of columns as the number of addresses "
-			"doesn't match the number of access types."));
-
-		GetColumnsUnguarded(ColumnTypes.Num(), RetrievedAddresses.GetData(), ColumnTypes.GetData(), AccessTypes.GetData());
-	}
-
-	void GetColumnsUnguarded(int32 TypeCount, char** RetrievedAddresses, const TWeakObjectPtr<const UScriptStruct>* ColumnTypes,
-		const TypedElementDataStorage::EQueryAccessType*) override
-	{
-		for (int32 Index = 0; Index < TypeCount; ++Index)
-		{
-			checkf(ColumnTypes->IsValid(), TEXT("Attempting to retrieve a column that is not available."));
-			*RetrievedAddresses = reinterpret_cast<char*>(GetMutableColumn(ColumnTypes->Get()));
-
-			++RetrievedAddresses;
-			++ColumnTypes;
-		}
-	}
-
-	uint32 GetRowCount() const override { return 1; }
-	TConstArrayView<TypedElementDataStorage::RowHandle> GetRowHandles() const override
-	{
-		return TConstArrayView<TypedElementDataStorage::RowHandle>(&RowHandle, 1);
-	}
-
-	bool HasColumn(const UScriptStruct* ColumnType) const override
-	{
-		FMassArchetypeHandle Archetype = EntityManager.GetArchetypeForEntity(FMassEntityHandle::FromNumber(RowHandle));
-		FMassArchetypeCompositionDescriptor Composition = EntityManager.GetArchetypeComposition(Archetype);
-		// Tags
-		if (ColumnType->IsChildOf(FMassTag::StaticStruct()))
-		{
-			return Composition.Tags.Contains(*ColumnType);
-		}
-		// Columns
-		if (ColumnType->IsChildOf(FMassFragment::StaticStruct()))
-		{
-			return Composition.Fragments.Contains(*ColumnType);
-		}
-		const bool bIsTagOrFragment = false;
-		checkf(bIsTagOrFragment, TEXT("Attempting to check for a column type that is not a column or tag."))
-		return false;
-	}
-
-private:
-	FMassEntityManager& EntityManager;
-	TypedElementDataStorage::RowHandle RowHandle;
-};
-
-struct FMassContextForwarder final : public FMassContextCommon<ITypedElementDataStorageInterface::IQueryContext>
-{
-private:
+	using Parent = FMassContextCommon<T>;
+protected:
 	void TedsColumnsToMassDescriptorIfActiveTable(
-		FMassArchetypeCompositionDescriptor& Descriptor, 
+		FMassArchetypeCompositionDescriptor& Descriptor,
 		TConstArrayView<const UScriptStruct*> ColumnTypes)
 	{
 		for (const UScriptStruct* ColumnType : ColumnTypes)
 		{
 			if (ColumnType->IsChildOf(FMassTag::StaticStruct()))
 			{
-				if (Context.DoesArchetypeHaveTag(*ColumnType))
+				if (this->Context.DoesArchetypeHaveTag(*ColumnType))
 				{
 					Descriptor.Tags.Add(*ColumnType);
 				}
@@ -201,7 +132,7 @@ private:
 			{
 				checkf(ColumnType->IsChildOf(FMassFragment::StaticStruct()),
 					TEXT("Given struct type is not a valid fragment or tag type."));
-				if (Context.DoesArchetypeHaveFragment(*ColumnType))
+				if (this->Context.DoesArchetypeHaveFragment(*ColumnType))
 				{
 					Descriptor.Fragments.Add(*ColumnType);
 				}
@@ -209,7 +140,9 @@ private:
 		}
 	}
 
-	void TedsColumnsToMassDescriptor(FMassArchetypeCompositionDescriptor& Descriptor, TConstArrayView<const UScriptStruct*> ColumnTypes)
+	void TedsColumnsToMassDescriptor(
+		FMassArchetypeCompositionDescriptor& Descriptor,
+		TConstArrayView<const UScriptStruct*> ColumnTypes)
 	{
 		for (const UScriptStruct* ColumnType : ColumnTypes)
 		{
@@ -226,14 +159,255 @@ private:
 			}
 		}
 	}
-public:
 
+public:
+	FMassWithEnvironmentContextCommon(FMassExecutionContext& InContext, FTypedElementDatabaseEnvironment& InEnvironment)
+		: FMassContextCommon<T>(InContext)
+		, Environment(InEnvironment)
+	{}
+
+	~FMassWithEnvironmentContextCommon() override = default;
+
+	uint64 GetUpdateCycleId() const override
+	{
+		return Environment.GetUpdateCycleId();
+	}
+
+	void* AddColumnUninitialized(TypedElementDataStorage::RowHandle Row, const UScriptStruct* ObjectType) override
+	{
+		return AddColumnUninitialized(Row, ObjectType,
+			[](const UScriptStruct* TypeInfo, void* Destination, void* Source)
+			{
+				TypeInfo->CopyScriptStruct(Destination, Source);
+			});
+	}
+
+	void* AddColumnUninitialized(TypedElementDataStorage::RowHandle Row, const UScriptStruct* ObjectType, typename Parent::ObjectCopyOrMove Relocator) override
+	{
+		checkf(ObjectType->IsChildOf(FMassFragment::StaticStruct()), TEXT("Column [%s] can not be a tag"), *ObjectType->GetName());
+		
+		struct FAddMoveableValueColumn
+		{
+			typename Parent::ObjectCopyOrMove Relocator;
+			const UScriptStruct* FragmentType;
+			FMassEntityHandle Entity;
+			void* Object;
+
+			FAddMoveableValueColumn() = default;
+			FAddMoveableValueColumn(typename Parent::ObjectCopyOrMove InRelocator, const UScriptStruct* InFragmentType, FMassEntityHandle InEntity, void* InObject)
+				: Relocator(InRelocator)
+				, FragmentType(InFragmentType)
+				, Entity(InEntity)
+				, Object(InObject)
+			{}
+		};
+
+		struct FAddMoveableValueColumnWithDestructor : FAddMoveableValueColumn
+		{
+			FAddMoveableValueColumnWithDestructor(
+				Parent::ObjectCopyOrMove InRelocator, const UScriptStruct* InFragmentType, FMassEntityHandle InEntity, void* InObject)
+				: FAddMoveableValueColumn(InRelocator, InFragmentType, InEntity, InObject)
+			{}
+
+			~FAddMoveableValueColumnWithDestructor()
+			{
+				this->FragmentType->DestroyStruct(this->Object);
+			}
+		};
+
+		FTypedElementDatabaseScratchBuffer& ScratchBuffer = Environment.GetScratchBuffer();
+		void* ColumnData = ScratchBuffer.Allocate(ObjectType->GetStructureSize(), ObjectType->GetMinAlignment());
+		FAddMoveableValueColumn* AddedColumn = nullptr;
+		if (ObjectType->StructFlags & (STRUCT_IsPlainOldData | STRUCT_NoDestructor))
+		{
+			AddedColumn = ScratchBuffer.Emplace<FAddMoveableValueColumn>(Relocator, ObjectType, FMassEntityHandle::FromNumber(Row), ColumnData);
+		}
+		else
+		{
+			AddedColumn = ScratchBuffer.Emplace<FAddMoveableValueColumnWithDestructor>(Relocator, ObjectType, FMassEntityHandle::FromNumber(Row), ColumnData);
+		}
+
+		this->Context.Defer().template PushCommand<FMassDeferredAddCommand>(
+			[AddedColumn](FMassEntityManager& System)
+			{
+				// Check entity before proceeding. It's possible it may have been invalidated before this deferred call fired.
+				if (System.IsEntityActive(AddedColumn->Entity))
+				{
+					// Check before adding.  Mass's AddFragmentToEntity is not idempotent and will assert if adding
+					// column to a row that already has one
+					FStructView Fragment = System.GetFragmentDataStruct(AddedColumn->Entity, AddedColumn->FragmentType);
+					if (!Fragment.IsValid())
+					{
+						System.AddFragmentToEntity(AddedColumn->Entity, AddedColumn->FragmentType);
+					}
+				}
+			});
+
+		this->Context.Defer().template PushCommand<FMassDeferredSetCommand>(
+			[AddedColumn](FMassEntityManager& System)
+			{
+				// Check entity before proceeding. It's possible it may have been invalidated before this deferred call fired.
+				if (System.IsEntityActive(AddedColumn->Entity))
+				{
+					FStructView Fragment = System.GetFragmentDataStruct(AddedColumn->Entity, AddedColumn->FragmentType);
+					AddedColumn->Relocator(AddedColumn->FragmentType, Fragment.GetMemory(), AddedColumn->Object);
+				}
+			});
+		
+		return ColumnData;
+	}
+
+	void AddColumns(TypedElementDataStorage::RowHandle Row, TConstArrayView<const UScriptStruct*> ColumnTypes) override
+	{
+		struct FAddedColumns
+		{
+			FMassArchetypeCompositionDescriptor AddDescriptor;
+			FMassEntityHandle Entity;
+		};
+
+		FAddedColumns* AddedColumns = Environment.GetScratchBuffer().Emplace<FAddedColumns>();
+		TedsColumnsToMassDescriptor(AddedColumns->AddDescriptor, ColumnTypes);
+		AddedColumns->Entity = FMassEntityHandle::FromNumber(Row);
+
+		this->Context.Defer().template PushCommand<FMassDeferredAddCommand>(
+			[AddedColumns](FMassEntityManager& System)
+			{
+				if (System.IsEntityValid(AddedColumns->Entity))
+				{
+					System.AddCompositionToEntity_GetDelta(AddedColumns->Entity, AddedColumns->AddDescriptor);
+				}
+			});
+	}
+
+	void AddColumns(TConstArrayView<TypedElementDataStorage::RowHandle> Rows, TConstArrayView<const UScriptStruct*> ColumnTypes) override
+	{
+		struct FAddedColumns
+		{
+			FMassArchetypeCompositionDescriptor AddDescriptor;
+			FMassEntityHandle* Entities;
+			int32 EntityCount;
+		};
+
+		FTypedElementDatabaseScratchBuffer& ScratchBuffer = Environment.GetScratchBuffer();
+		FAddedColumns* AddedColumns = ScratchBuffer.Emplace<FAddedColumns>();
+		TedsColumnsToMassDescriptor(AddedColumns->AddDescriptor, ColumnTypes);
+		
+		FMassEntityHandle* Entities = ScratchBuffer.EmplaceArray<FMassEntityHandle>(Rows.Num());
+		AddedColumns->Entities = Entities;
+		for (TypedElementRowHandle Row : Rows)
+		{
+			*Entities = FMassEntityHandle::FromNumber(Row);
+			Entities++;
+		}
+		AddedColumns->EntityCount = Rows.Num();
+
+		this->Context.Defer().template PushCommand<FMassDeferredAddCommand>(
+			[AddedColumns](FMassEntityManager& System)
+			{
+				FMassEntityHandle* Entities = AddedColumns->Entities;
+				int32 Count = AddedColumns->EntityCount;
+				for (int32 Counter = 0; Counter < Count; ++Counter)
+				{
+					if (System.IsEntityValid(*Entities))
+					{
+						System.AddCompositionToEntity_GetDelta(*Entities++, AddedColumns->AddDescriptor);
+					}
+				}
+			});
+	}
+
+	void RemoveColumns(TypedElementDataStorage::RowHandle Row, TConstArrayView<const UScriptStruct*> ColumnTypes) override
+	{
+		struct FRemovedColumns
+		{
+			FMassArchetypeCompositionDescriptor RemoveDescriptor;
+			FMassEntityHandle Entity;
+		};
+
+		FRemovedColumns* RemovedColumns = Environment.GetScratchBuffer().Emplace<FRemovedColumns>();
+		TedsColumnsToMassDescriptorIfActiveTable(RemovedColumns->RemoveDescriptor, ColumnTypes);
+		if (!RemovedColumns->RemoveDescriptor.IsEmpty())
+		{
+			RemovedColumns->Entity = FMassEntityHandle::FromNumber(Row);
+
+			this->Context.Defer().template PushCommand<FMassDeferredAddCommand>(
+				[RemovedColumns](FMassEntityManager& System)
+				{
+					if (System.IsEntityValid(RemovedColumns->Entity))
+					{
+						System.RemoveCompositionFromEntity(RemovedColumns->Entity, RemovedColumns->RemoveDescriptor);
+					}
+				});
+		}
+	}
+
+	void RemoveColumns(TConstArrayView<TypedElementDataStorage::RowHandle> Rows, TConstArrayView<const UScriptStruct*> ColumnTypes) override
+	{
+		struct FRemovedColumns
+		{
+			FMassArchetypeCompositionDescriptor RemoveDescriptor;
+			FMassEntityHandle* Entities;
+			int32 EntityCount;
+		};
+
+		FTypedElementDatabaseScratchBuffer& ScratchBuffer = Environment.GetScratchBuffer();
+		FRemovedColumns* RemovedColumns = ScratchBuffer.Emplace<FRemovedColumns>();
+		TedsColumnsToMassDescriptorIfActiveTable(RemovedColumns->RemoveDescriptor, ColumnTypes);
+
+		FMassEntityHandle* Entities = ScratchBuffer.EmplaceArray<FMassEntityHandle>(Rows.Num());
+		RemovedColumns->Entities = Entities;
+		for (TypedElementRowHandle Row : Rows)
+		{
+			*Entities = FMassEntityHandle::FromNumber(Row);
+			Entities++;
+		}
+		RemovedColumns->EntityCount = Rows.Num();
+
+		this->Context.Defer().template PushCommand<FMassDeferredAddCommand>(
+			[RemovedColumns](FMassEntityManager& System)
+			{
+				FMassEntityHandle* Entities = RemovedColumns->Entities;
+				int32 Count = RemovedColumns->EntityCount;
+				for (int32 Counter = 0; Counter < Count; ++Counter)
+				{
+					if (System.IsEntityValid(*Entities))
+					{
+						System.RemoveCompositionFromEntity(*Entities++, RemovedColumns->RemoveDescriptor);
+					}
+				}
+			});
+	}
+
+protected:
+	FTypedElementDatabaseEnvironment& Environment;
+};
+
+struct FMassDirectContextForwarder final : public FMassContextCommon<ITypedElementDataStorageInterface::IDirectQueryContext>
+{
+	explicit FMassDirectContextForwarder(FMassExecutionContext& InContext)
+		: FMassContextCommon(InContext)
+	{}
+
+	~FMassDirectContextForwarder() override = default;
+};
+
+struct FMassSubqueryContextForwarder final : public FMassWithEnvironmentContextCommon<ITypedElementDataStorageInterface::ISubqueryContext>
+{
+	FMassSubqueryContextForwarder(FMassExecutionContext& InContext, FTypedElementDatabaseEnvironment& InEnvironment)
+		: FMassWithEnvironmentContextCommon(InContext, InEnvironment)
+	{}
+
+	~FMassSubqueryContextForwarder() override = default;
+};
+
+struct FMassContextForwarder final : public FMassWithEnvironmentContextCommon<ITypedElementDataStorageInterface::IQueryContext>
+{
+public:
 	FMassContextForwarder(ITypedElementDataStorageInterface::FQueryDescription& InQueryDescription, FMassExecutionContext& InContext, 
 		FTypedElementExtendedQueryStore& InQueryStore, FTypedElementDatabaseEnvironment& InEnvironment)
-		: FMassContextCommon(InContext)
+		: FMassWithEnvironmentContextCommon(InContext, InEnvironment)
 		, QueryDescription(InQueryDescription)
 		, QueryStore(InQueryStore)
-		, Environment(InEnvironment)
 	{}
 
 	~FMassContextForwarder() override = default;
@@ -302,196 +476,6 @@ public:
 			TConstArrayView<FMassEntityHandle>(reinterpret_cast<const FMassEntityHandle*>(Rows.begin()), Rows.Num()));
 	}
 
-	void* AddColumnUninitialized(TypedElementDataStorage::RowHandle Row, const UScriptStruct* ObjectType) override
-	{
-		return AddColumnUninitialized(Row, ObjectType,
-			[](const UScriptStruct* TypeInfo, void* Destination, void* Source)
-			{
-				TypeInfo->CopyScriptStruct(Destination, Source);
-			});
-	}
-
-	void* AddColumnUninitialized(TypedElementDataStorage::RowHandle Row, const UScriptStruct* ObjectType, ObjectCopyOrMove Relocator) override
-	{
-		checkf(ObjectType->IsChildOf(FMassFragment::StaticStruct()), TEXT("Column [%s] can not be a tag"), *ObjectType->GetName());
-		
-		struct FAddMoveableValueColumn
-		{
-			ObjectCopyOrMove Relocator;
-			const UScriptStruct* FragmentType;
-			FMassEntityHandle Entity;
-			void* Object;
-
-			FAddMoveableValueColumn() = default;
-			FAddMoveableValueColumn(ObjectCopyOrMove InRelocator, const UScriptStruct* InFragmentType, FMassEntityHandle InEntity, void* InObject)
-				: Relocator(InRelocator)
-				, FragmentType(InFragmentType)
-				, Entity(InEntity)
-				, Object(InObject)
-			{}
-		};
-
-		struct FAddMoveableValueColumnWithDestructor : FAddMoveableValueColumn
-		{
-			FAddMoveableValueColumnWithDestructor(
-				ObjectCopyOrMove InRelocator, const UScriptStruct* InFragmentType, FMassEntityHandle InEntity, void* InObject)
-				: FAddMoveableValueColumn(InRelocator, InFragmentType, InEntity, InObject)
-			{}
-
-			~FAddMoveableValueColumnWithDestructor()
-			{
-				FragmentType->DestroyStruct(Object);
-			}
-		};
-
-		FTypedElementDatabaseScratchBuffer& ScratchBuffer = Environment.GetScratchBuffer();
-		void* ColumnData = ScratchBuffer.Allocate(ObjectType->GetStructureSize(), ObjectType->GetMinAlignment());
-		FAddMoveableValueColumn* AddedColumn = nullptr;
-		if (ObjectType->StructFlags & (STRUCT_IsPlainOldData | STRUCT_NoDestructor))
-		{
-			AddedColumn = ScratchBuffer.Emplace<FAddMoveableValueColumn>(Relocator, ObjectType, FMassEntityHandle::FromNumber(Row), ColumnData);
-		}
-		else
-		{
-			AddedColumn = ScratchBuffer.Emplace<FAddMoveableValueColumnWithDestructor>(Relocator, ObjectType, FMassEntityHandle::FromNumber(Row), ColumnData);
-		}
-
-		Context.Defer().PushCommand<FMassDeferredAddCommand>(
-			[AddedColumn](FMassEntityManager& System)
-			{
-				// Check entity before proceeding. It's possible it may have been invalidated before this deferred call fired.
-				if (System.IsEntityActive(AddedColumn->Entity))
-				{
-					// Check before adding.  Mass's AddFragmentToEntity is not idempotent and will assert if adding
-					// column to a row that already has one
-					FStructView Fragment = System.GetFragmentDataStruct(AddedColumn->Entity, AddedColumn->FragmentType);
-					if (!Fragment.IsValid())
-					{
-						System.AddFragmentToEntity(AddedColumn->Entity, AddedColumn->FragmentType);
-					}
-				}
-			});
-
-		Context.Defer().PushCommand<FMassDeferredSetCommand>(
-			[AddedColumn](FMassEntityManager& System)
-			{
-				// Check entity before proceeding. It's possible it may have been invalidated before this deferred call fired.
-				if (System.IsEntityActive(AddedColumn->Entity))
-				{
-					FStructView Fragment = System.GetFragmentDataStruct(AddedColumn->Entity, AddedColumn->FragmentType);
-					AddedColumn->Relocator(AddedColumn->FragmentType, Fragment.GetMemory(), AddedColumn->Object);
-				}
-			});
-		
-		return ColumnData;
-	}
-
-	void AddColumns(TypedElementDataStorage::RowHandle Row, TConstArrayView<const UScriptStruct*> ColumnTypes) override
-	{
-		struct FAddedColumns
-		{
-			FMassArchetypeCompositionDescriptor AddDescriptor;
-			FMassEntityHandle Entity;
-		};
-
-		FAddedColumns* AddedColumns = Environment.GetScratchBuffer().Emplace<FAddedColumns>();
-		TedsColumnsToMassDescriptor(AddedColumns->AddDescriptor, ColumnTypes);
-		AddedColumns->Entity = FMassEntityHandle::FromNumber(Row);
-
-		Context.Defer().PushCommand<FMassDeferredAddCommand>(
-			[AddedColumns](FMassEntityManager& System)
-			{
-				System.AddCompositionToEntity_GetDelta(AddedColumns->Entity, AddedColumns->AddDescriptor);
-			});
-	}
-
-	void AddColumns(TConstArrayView<TypedElementDataStorage::RowHandle> Rows, TConstArrayView<const UScriptStruct*> ColumnTypes) override
-	{
-		struct FAddedColumns
-		{
-			FMassArchetypeCompositionDescriptor AddDescriptor;
-			FMassEntityHandle* Entities;
-			int32 EntityCount;
-		};
-
-		FTypedElementDatabaseScratchBuffer& ScratchBuffer = Environment.GetScratchBuffer();
-		FAddedColumns* AddedColumns = ScratchBuffer.Emplace<FAddedColumns>();
-		TedsColumnsToMassDescriptor(AddedColumns->AddDescriptor, ColumnTypes);
-		
-		FMassEntityHandle* Entities = ScratchBuffer.EmplaceArray<FMassEntityHandle>(Rows.Num());
-		AddedColumns->Entities = Entities;
-		for (TypedElementRowHandle Row : Rows)
-		{
-			*Entities = FMassEntityHandle::FromNumber(Row);
-			Entities++;
-		}
-		AddedColumns->EntityCount = Rows.Num();
-
-		Context.Defer().PushCommand<FMassDeferredAddCommand>(
-			[AddedColumns](FMassEntityManager& System)
-			{
-				FMassEntityHandle* Entities = AddedColumns->Entities;
-				int32 Count = AddedColumns->EntityCount;
-				for (int32 Counter = 0; Counter < Count; ++Counter)
-				{
-					System.AddCompositionToEntity_GetDelta(*Entities++, AddedColumns->AddDescriptor);
-				}
-			});
-	}
-
-	void RemoveColumns(TypedElementDataStorage::RowHandle Row, TConstArrayView<const UScriptStruct*> ColumnTypes) override
-	{
-		struct FRemovedColumns
-		{
-			FMassArchetypeCompositionDescriptor RemoveDescriptor;
-			FMassEntityHandle Entity;
-		};
-
-		FRemovedColumns* RemovedColumns = Environment.GetScratchBuffer().Emplace<FRemovedColumns>();
-		TedsColumnsToMassDescriptorIfActiveTable(RemovedColumns->RemoveDescriptor, ColumnTypes);
-		RemovedColumns->Entity = FMassEntityHandle::FromNumber(Row);
-
-		Context.Defer().PushCommand<FMassDeferredAddCommand>(
-			[RemovedColumns](FMassEntityManager& System)
-			{
-				System.RemoveCompositionFromEntity(RemovedColumns->Entity, RemovedColumns->RemoveDescriptor);
-			});
-	}
-
-	void RemoveColumns(TConstArrayView<TypedElementDataStorage::RowHandle> Rows, TConstArrayView<const UScriptStruct*> ColumnTypes) override
-	{
-		struct FRemovedColumns
-		{
-			FMassArchetypeCompositionDescriptor RemoveDescriptor;
-			FMassEntityHandle* Entities;
-			int32 EntityCount;
-		};
-
-		FTypedElementDatabaseScratchBuffer& ScratchBuffer = Environment.GetScratchBuffer();
-		FRemovedColumns* RemovedColumns = ScratchBuffer.Emplace<FRemovedColumns>();
-		TedsColumnsToMassDescriptorIfActiveTable(RemovedColumns->RemoveDescriptor, ColumnTypes);
-
-		FMassEntityHandle* Entities = ScratchBuffer.EmplaceArray<FMassEntityHandle>(Rows.Num());
-		RemovedColumns->Entities = Entities;
-		for (TypedElementRowHandle Row : Rows)
-		{
-			*Entities = FMassEntityHandle::FromNumber(Row);
-			Entities++;
-		}
-		RemovedColumns->EntityCount = Rows.Num();
-
-		Context.Defer().PushCommand<FMassDeferredAddCommand>(
-			[RemovedColumns](FMassEntityManager& System)
-			{
-				FMassEntityHandle* Entities = RemovedColumns->Entities;
-				int32 Count = RemovedColumns->EntityCount;
-				for (int32 Counter = 0; Counter < Count; ++Counter)
-				{
-					System.RemoveCompositionFromEntity(*Entities++, RemovedColumns->RemoveDescriptor);
-				}
-			});
-	}
-
 	TypedElementDataStorage::RowHandle FindIndexedRow(TypedElementDataStorage::IndexHash Index) const override
 	{
 		return Environment.GetIndexTable().FindIndexedRow(Index);
@@ -517,7 +501,7 @@ public:
 		{
 			const TypedElementQueryHandle SubqueryHandle = QueryDescription.Subqueries[SubqueryIndex];
 			const FTypedElementExtendedQueryStore::Handle StorageHandle(SubqueryHandle);
-			return QueryStore.RunQuery(Context.GetEntityManagerChecked(), StorageHandle, Callback);
+			return QueryStore.RunQuery(Context.GetEntityManagerChecked(), Environment, Context, StorageHandle, Callback);
 		}
 		else
 		{
@@ -532,7 +516,7 @@ public:
 		{
 			const TypedElementQueryHandle SubqueryHandle = QueryDescription.Subqueries[SubqueryIndex];
 			const FTypedElementExtendedQueryStore::Handle StorageHandle(SubqueryHandle);
-			return QueryStore.RunQuery(Context.GetEntityManagerChecked(), StorageHandle, Row, Callback);
+			return QueryStore.RunQuery(Context.GetEntityManagerChecked(), Environment, Context, StorageHandle, Row, Callback);
 		}
 		else
 		{
@@ -542,7 +526,6 @@ public:
 
 	ITypedElementDataStorageInterface::FQueryDescription& QueryDescription;
 	FTypedElementExtendedQueryStore& QueryStore;
-	FTypedElementDatabaseEnvironment& Environment;
 };
 
 
@@ -697,7 +680,8 @@ TypedElementDataStorage::FQueryResult FTypedElementQueryProcessorData::Execute(
 	TypedElementDataStorage::DirectQueryCallbackRef& Callback,
 	TypedElementDataStorage::FQueryDescription& Description,
 	FMassEntityQuery& NativeQuery, 
-	FMassEntityManager& EntityManager)
+	FMassEntityManager& EntityManager,
+	FTypedElementDatabaseEnvironment& Environment)
 {
 	FMassExecutionContext Context(EntityManager);
 	ITypedElementDataStorageInterface::FQueryResult Result;
@@ -719,17 +703,20 @@ TypedElementDataStorage::FQueryResult FTypedElementQueryProcessorData::Execute(
 	TypedElementDataStorage::SubqueryCallbackRef& Callback,
 	TypedElementDataStorage::FQueryDescription& Description,
 	FMassEntityQuery& NativeQuery,
-	FMassEntityManager& EntityManager)
+	FMassEntityManager& EntityManager,
+	FTypedElementDatabaseEnvironment& Environment,
+	FMassExecutionContext& ParentContext)
 {
 	FMassExecutionContext Context(EntityManager);
+	Context.SetDeferredCommandBuffer(ParentContext.GetSharedDeferredCommandBuffer());
 	ITypedElementDataStorageInterface::FQueryResult Result;
 	Result.Completed = ITypedElementDataStorageInterface::FQueryResult::ECompletion::Fully;
 
 	NativeQuery.ForEachEntityChunk(EntityManager, Context,
-		[&Result, &Callback, &Description](FMassExecutionContext& Context)
+		[&Result, &Callback, &Description, &Environment](FMassExecutionContext& Context)
 		{
 			// No need to cache any subsystem dependencies as these are not accessible from a subquery.
-			FMassSubqueryContextForwarder QueryContext(Context);
+			FMassSubqueryContextForwarder QueryContext(Context, Environment);
 			Callback(Description, QueryContext);
 			Result.Count += Context.GetNumEntities();
 		}
@@ -742,7 +729,9 @@ TypedElementDataStorage::FQueryResult FTypedElementQueryProcessorData::Execute(
 	TypedElementDataStorage::FQueryDescription& Description,
 	TypedElementDataStorage::RowHandle RowHandle,
 	FMassEntityQuery& NativeQuery,
-	FMassEntityManager& EntityManager)
+	FMassEntityManager& EntityManager,
+	FTypedElementDatabaseEnvironment& Environment,
+	FMassExecutionContext& ParentContext)
 {
 	ITypedElementDataStorageInterface::FQueryResult Result;
 	Result.Completed = ITypedElementDataStorageInterface::FQueryResult::ECompletion::Fully;
@@ -751,12 +740,20 @@ TypedElementDataStorage::FQueryResult FTypedElementQueryProcessorData::Execute(
 	if (EntityManager.IsEntityActive(NativeEntity))
 	{
 		FMassArchetypeHandle NativeArchetype = EntityManager.GetArchetypeForEntityUnsafe(NativeEntity);
-		if (NativeQuery.DoesArchetypeMatchRequirements(NativeArchetype))
-		{
-			FMassSingleRowSubqueryContextForwarder QueryContext(EntityManager, RowHandle);
-			Callback(Description, QueryContext);
-			Result.Count = 1;
-		}
+		FMassExecutionContext Context(EntityManager);
+		Context.SetEntityCollection(FMassArchetypeEntityCollection(NativeArchetype, { NativeEntity }, FMassArchetypeEntityCollection::NoDuplicates));
+		Context.SetDeferredCommandBuffer(ParentContext.GetSharedDeferredCommandBuffer());
+
+		NativeQuery.ForEachEntityChunk(EntityManager, Context,
+			[&Result, &Callback, &Description, &Environment, &EntityManager, RowHandle](FMassExecutionContext& Context)
+			{
+				// No need to cache any subsystem dependencies as these are not accessible from a subquery.
+				FMassSubqueryContextForwarder QueryContext(Context, Environment);
+				Callback(Description, QueryContext);
+				Result.Count += Context.GetNumEntities();
+			}
+		);
+		checkf(Result.Count < 2, TEXT("Single row subquery produced multiple results."));
 	}
 	return Result;
 }

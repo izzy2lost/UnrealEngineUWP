@@ -130,9 +130,12 @@ void UTypedElementDatabase::Initialize()
 			// Guarantee that syncing to the data storage always happens before syncing to external.
 			RegisterTickGroup(GetQueryTickGroupName(EQueryTickGroups::SyncExternalToDataStorage),
 				Phase, GetQueryTickGroupName(EQueryTickGroups::SyncDataStorageToExternal), {}, false);
-			// Guarantee that widgets syncs happen after external data has been updated to the data storage.
+			// Guarantee that widgets syncs happen after external data has been updated and internal processing 
+			// completed to the data storage.
 			RegisterTickGroup(GetQueryTickGroupName(EQueryTickGroups::SyncWidgets),
-				Phase, {}, GetQueryTickGroupName(EQueryTickGroups::SyncExternalToDataStorage), false);
+				Phase, {}, GetQueryTickGroupName(EQueryTickGroups::Default), true /* Needs main thread*/);
+			RegisterTickGroup(GetQueryTickGroupName(EQueryTickGroups::SyncWidgets),
+				Phase, {}, GetQueryTickGroupName(EQueryTickGroups::SyncExternalToDataStorage), true /* Needs main thread*/);
 		}
 	}
 }
@@ -823,7 +826,7 @@ ITypedElementDataStorageInterface::FQueryResult UTypedElementDatabase::RunQuery(
 	if (ActiveEditorEntityManager)
 	{
 		const FTypedElementExtendedQueryStore::Handle StorageHandle(Query);
-		return Queries.RunQuery(*ActiveEditorEntityManager, StorageHandle, Callback);
+		return Queries.RunQuery(*ActiveEditorEntityManager, *Environment, StorageHandle, Callback);
 	}
 	else
 	{
@@ -875,6 +878,7 @@ void UTypedElementDatabase::PreparePhase(EQueryTickPhase Phase, float DeltaTime)
 {
 	if (ActiveEditorEntityManager)
 	{
+		Environment->NextUpdateCycle();
 		Queries.RunPhasePreambleQueries(*ActiveEditorEntityManager, *Environment, Phase, DeltaTime);
 	}
 }

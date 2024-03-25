@@ -88,12 +88,24 @@ public:
 	 * @description Various functions to run queries.
 	 */
 	TypedElementDataStorage::FQueryResult RunQuery(FMassEntityManager& EntityManager, Handle Query);
-	TypedElementDataStorage::FQueryResult RunQuery(FMassEntityManager& EntityManager, Handle Query,
+	TypedElementDataStorage::FQueryResult RunQuery(
+		FMassEntityManager& EntityManager, 
+		FTypedElementDatabaseEnvironment& Environment,
+		Handle Query,
 		TypedElementDataStorage::DirectQueryCallbackRef Callback);
-	TypedElementDataStorage::FQueryResult RunQuery(FMassEntityManager& EntityManager, Handle Query,
+	TypedElementDataStorage::FQueryResult RunQuery(
+		FMassEntityManager& EntityManager,
+		FTypedElementDatabaseEnvironment& Environment,
+		FMassExecutionContext& ParentContext,
+		Handle Query,
 		TypedElementDataStorage::SubqueryCallbackRef Callback);
-	TypedElementDataStorage::FQueryResult RunQuery(FMassEntityManager& EntityManager, Handle Query,
-		TypedElementRowHandle Row, TypedElementDataStorage::SubqueryCallbackRef Callback);
+	TypedElementDataStorage::FQueryResult RunQuery(
+		FMassEntityManager& EntityManager, 
+		FTypedElementDatabaseEnvironment& Environment,
+		FMassExecutionContext& ParentContext,
+		Handle Query,
+		TypedElementRowHandle Row, 
+		TypedElementDataStorage::SubqueryCallbackRef Callback);
 	void RunPhasePreambleQueries(
 		FMassEntityManager& EntityManager, 
 		FTypedElementDatabaseEnvironment& Environment,
@@ -129,7 +141,12 @@ private:
 	};
 
 	template<typename CallbackReference>
-	TypedElementDataStorage::FQueryResult RunQueryCallbackCommon(FMassEntityManager& EntityManager, Handle Query, CallbackReference Callback);
+	TypedElementDataStorage::FQueryResult RunQueryCallbackCommon(
+		FMassEntityManager& EntityManager, 
+		FTypedElementDatabaseEnvironment& Environment,
+		FMassExecutionContext* ParentContext,
+		Handle Query, 
+		CallbackReference Callback);
 
 	FMassEntityQuery& SetupNativeQuery(ITypedElementDataStorageInterface::FQueryDescription& Query, FTypedElementExtendedQuery& StoredQuery);
 	bool SetupSelectedColumns(ITypedElementDataStorageInterface::FQueryDescription& Query, FMassEntityQuery& NativeQuery);

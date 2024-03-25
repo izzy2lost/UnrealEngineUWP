@@ -49,3 +49,13 @@ const FMassProcessingPhaseManager& FTypedElementDatabaseEnvironment::GetMassPhas
 {
 	return MassPhaseManager;
 }
+
+void FTypedElementDatabaseEnvironment::NextUpdateCycle()
+{
+	UpdateCycleId++;
+}
+
+uint64 FTypedElementDatabaseEnvironment::GetUpdateCycleId() const
+{
+	return UpdateCycleId;
+}

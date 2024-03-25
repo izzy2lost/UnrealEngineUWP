@@ -24,10 +24,15 @@ public:
 	FMassProcessingPhaseManager& GetMassPhaseManager();
 	const FMassProcessingPhaseManager& GetMassPhaseManager() const;
 
+	void NextUpdateCycle();
+	uint64 GetUpdateCycleId() const;
+
 private:
 	FTypedElementDatabaseIndexTable IndexTable;
 	TSharedPtr<FTypedElementDatabaseScratchBuffer> ScratchBuffer;
 	
 	FMassEntityManager& MassEntityManager;
 	FMassProcessingPhaseManager& MassPhaseManager;
+
+	uint64 UpdateCycleId = 0;
 };
