@@ -233,10 +233,10 @@ protected:
 
 	bool bIsRestoring = false;
 
-	UPROPERTY()
+	UPROPERTY(DuplicateTransient)
 	TMap<TWeakObjectPtr<UObject>, FInstancedStruct> MaterialCollectionHandleData;
 
-	UPROPERTY()
+	UPROPERTY(DuplicateTransient)
 	TMap<TWeakObjectPtr<UMaterialInterface>, FInstancedStruct> MaterialHandleData;
 
 	TMap<TObjectKey<UObject>, TSharedPtr<IAvaMaskMaterialCollectionHandle>> MaterialCollectionHandles;
