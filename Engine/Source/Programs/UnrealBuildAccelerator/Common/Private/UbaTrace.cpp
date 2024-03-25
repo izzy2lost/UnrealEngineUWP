@@ -210,23 +210,17 @@ namespace uba
 		writer.WriteU32(processId);
 		writer.WriteU32(exitCode);
 		writer.WriteBytes(data, dataSize);
-		writer.Write7BitEncoded(u64(logLines.size()));
 		u32 lineCounter = 0;
 		for (auto& line : logLines)
 		{
 			if (lineCounter++ == 100) // We don't want to write the entire error in the trace stream to blow the entire buffer
-			{
-				if (!writer.EnsureMemory(100))
-					return;
-				writer.WriteByte(LogEntryType_Info);
-				writer.WriteString(TC("Error is cut-off. Look in normal log to see full error"));
 				break;
-			}
 			if (!writer.EnsureMemory(1 + (line.text.size()+1)*sizeof(tchar)))
-				return;
+				break;
 			writer.WriteByte(line.type);
 			writer.WriteString(line.text);
 		}
+		writer.WriteByte(255);
 	}
 
 	void Trace::ProcessReturned(u32 processId)
