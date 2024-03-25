@@ -63,8 +63,8 @@ private:
 	void ApplyExcludeExactClassesFilter(const FARFilter& InFilter, TArray<FAssetData>& InOutAssetDataArray) const;
 	void FilterAssetsBasedOnIncludeExcludePaths(TArray<FAssetData>& InOutAssetDataArray) const;
 	
-	void DiscoverExternalActors(TArray<FAssetData>& InOutAssetDataArray) const;
-	void RemoveExistingExternalActors(TArray<FAssetData>& InOutAssetDataArray, TArray<FName>& OutExternalActorsSearchPaths) const;
+	void DiscoverExternalActors(TArray<FAssetData>& InOutAssetDataArray);
+	void RemoveExistingExternalActors(TArray<FAssetData>& InOutAssetDataArray, TArray<FName>& OutPartitionedWorldPackageNames) const;
 
 	TSet<FName> GetPackageNamesToGather(const TArray<FAssetData>& InAssetDataArray) const;
 	void PopulatePackagesPendingGather(TSet<FName> PackageNamesToGather);
