@@ -13,7 +13,8 @@
 #include <functional>
 
 #if UBA_USE_MIMALLOC
-#include <mimalloc-override.h>
+#include <mimalloc.h>
+//#include <mimalloc-override.h>
 #endif
 
 #if PLATFORM_WINDOWS && !defined(aligned_alloc)
