@@ -110,6 +110,8 @@ namespace Chaos
 
 		bIsInitializedOnPhysicsThread = true;
 
+		bEnableStrainOnCollision_Internal = ClusterParameters.bEnableStrainOnCollision;
+
 		FPBDRigidsEvolutionGBF* Evolution = RigidsSolver->GetEvolution();
 		if (!ensure(Evolution))
 		{
@@ -802,6 +804,19 @@ namespace Chaos
 				}
 			}
 		);
+	}
+
+	void FClusterUnionPhysicsProxy::SetEnableStrainOnCollision_External(bool bEnable)
+	{
+		if (Solver && ensure(Particle_External))
+		{
+			Solver->EnqueueCommandImmediate(
+				[this, bEnable]() mutable
+				{
+					bEnableStrainOnCollision_Internal = bEnable;
+				}
+			);
+		}
 	}
 
 	void FClusterUnionPhysicsProxy::ChangeMainParticleStatus_External(const TArray<FPhysicsObjectHandle>& Objects, bool bIsMain)

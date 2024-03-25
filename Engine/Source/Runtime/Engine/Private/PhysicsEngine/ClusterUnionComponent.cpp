@@ -113,6 +113,7 @@ UClusterUnionComponent::UClusterUnionComponent(const FObjectInitializer& ObjectI
 	bVisualizeComponent = true;
 #endif
 	GravityGroupIndexOverride = INDEX_NONE;
+	bEnableDamageFromCollision = true;
 }
 
 FPhysScene_Chaos* UClusterUnionComponent::GetChaosScene() const
@@ -638,6 +639,16 @@ ENGINE_API bool UClusterUnionComponent::IsAnchored() const
 	return PhysicsProxy->IsAnchored_External();
 }
 
+void UClusterUnionComponent::SetEnableDamageFromCollision(bool bValue)
+{
+	bEnableDamageFromCollision = bValue;
+
+	if (PhysicsProxy)
+	{
+		PhysicsProxy->SetEnableStrainOnCollision_External(bValue);
+	}
+}
+
 bool UClusterUnionComponent::IsAuthority() const
 {
 	if (bUseLocalRoleForAuthorityCheck)
@@ -687,6 +698,7 @@ void UClusterUnionComponent::OnCreatePhysicsState()
 	// TODO: Expose these parameters via the component.
 	Chaos::FClusterCreationParameters Parameters{ 0.3f, 100, false, false };
 	Parameters.ConnectionMethod = Chaos::FClusterCreationParameters::EConnectionMethod::PointImplicit;
+	Parameters.bEnableStrainOnCollision = bEnableDamageFromCollision;
 
 	FChaosUserData::Set<UPrimitiveComponent>(&PhysicsUserData, this);
 

@@ -236,6 +236,13 @@ public:
 
 	ENGINE_API bool IsAnchored() const;
 
+	UFUNCTION(BlueprintCallable, Category = "Cluster Union")
+	ENGINE_API void SetEnableDamageFromCollision(bool bValue);
+
+	/** Whether or not collisions against this geometry collection will apply strain which could cause the geometry collection to fracture. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, BlueprintSetter = SetEnableDamageFromCollision, Category = "Cluster Union")
+	bool bEnableDamageFromCollision;
+
 	/** Structure that stores an object key and its raw ptr, so it can be accessed without going trough
 	* the global uobjects array (so it could be garbage, therefore it has to be used withing the same frame)
 	*/
@@ -387,7 +394,7 @@ private:
 	// instead of automatically inheriting it from its children particles.
 	UPROPERTY(EditAnywhere, Category = "Cluster Union")
 	int32 GravityGroupIndexOverride;
-	
+
 	// Also keep track of which actors we are clustering and their components. We make modifications on
 	// actors that get clustered so we need to make sure we undo those changes only once all its clustered
 	// components are removed from the cluster.

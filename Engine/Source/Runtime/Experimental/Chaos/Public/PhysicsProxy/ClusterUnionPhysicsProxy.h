@@ -146,8 +146,13 @@ namespace Chaos
 
 		void ForceSetGeometryChildParticles_External(TArray<FExternalParticle*>&& InParticles) { GeometryChildParticles_External = InParticles; }
 
+		CHAOS_API void SetEnableStrainOnCollision_External(bool bEnable);
+		CHAOS_API bool GetEnableStrainOnCollision_Internal() const { return bEnableStrainOnCollision_Internal; }
+
 	private:
-		bool bIsInitializedOnPhysicsThread = false;
+		bool bIsInitializedOnPhysicsThread: 1 = false;
+		bool bEnableStrainOnCollision_Internal : 1 = true;
+
 		FClusterCreationParameters ClusterParameters;
 		const FClusterUnionInitData InitData;
 
