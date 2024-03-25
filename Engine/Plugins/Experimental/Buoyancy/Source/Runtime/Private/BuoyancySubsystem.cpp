@@ -392,30 +392,40 @@ void UBuoyancySubsystem::ProcessSurfaceTouchCallbacks()
 				// TODO: Actor relevancy check?
 
 				// If the actor implements the event interface, call the surface touched callback
-				if (Actor->Implements<UBuoyancyEventInterface>())
+				if (IBuoyancyEventInterface* InterfaceInstance = Cast<IBuoyancyEventInterface>(Actor))
 				{
 					switch (SurfaceTouch.Flag)
 					{
-						case EBuoyancyEventFlags::Begin:
-							IBuoyancyEventInterface::Execute_OnSurfaceTouchBegin(
-								Actor, WaterActor, WaterComponent, RigidComponent,
-								SurfaceTouch.Vol, SurfaceTouch.CoM, SurfaceTouch.Vel);
-							break;
+					case EBuoyancyEventFlags::Begin:
+						InterfaceInstance->OnSurfaceTouchBegin_Native(
+							WaterComponent, RigidComponent,
+							SurfaceTouch.Vol, SurfaceTouch.CoM, SurfaceTouch.Vel);
+						IBuoyancyEventInterface::Execute_OnSurfaceTouchBegin(
+							Actor, WaterActor, WaterComponent, RigidComponent,
+							SurfaceTouch.Vol, SurfaceTouch.CoM, SurfaceTouch.Vel);
+						break;
 
-						case EBuoyancyEventFlags::Continue:
-							IBuoyancyEventInterface::Execute_OnSurfaceTouching(
-								Actor, WaterActor, WaterComponent, RigidComponent,
-								SurfaceTouch.Vol, SurfaceTouch.CoM, SurfaceTouch.Vel);
-							break;
+					case EBuoyancyEventFlags::Continue:
+						InterfaceInstance->OnSurfaceTouching_Native(
+							WaterComponent, RigidComponent,
+							SurfaceTouch.Vol, SurfaceTouch.CoM, SurfaceTouch.Vel);
+						IBuoyancyEventInterface::Execute_OnSurfaceTouching(
+							Actor, WaterActor, WaterComponent, RigidComponent,
+							SurfaceTouch.Vol, SurfaceTouch.CoM, SurfaceTouch.Vel);
+						break;
 
-						case EBuoyancyEventFlags::End:
-							IBuoyancyEventInterface::Execute_OnSurfaceTouchEnd(
-								Actor, WaterActor, WaterComponent, RigidComponent,
-								SurfaceTouch.Vol, SurfaceTouch.CoM, SurfaceTouch.Vel);
-							break;
+					case EBuoyancyEventFlags::End:
+						InterfaceInstance->OnSurfaceTouchEnd_Native(
+							WaterComponent, RigidComponent,
+							SurfaceTouch.Vol, SurfaceTouch.CoM, SurfaceTouch.Vel);
+						IBuoyancyEventInterface::Execute_OnSurfaceTouchEnd(
+							Actor, WaterActor, WaterComponent, RigidComponent,
+							SurfaceTouch.Vol, SurfaceTouch.CoM, SurfaceTouch.Vel);
+						break;
 					}
 				}
 			};
+
 			DispatchEvent(WaterActor);
 			DispatchEvent(RigidComponent->GetOwner());
 		}
