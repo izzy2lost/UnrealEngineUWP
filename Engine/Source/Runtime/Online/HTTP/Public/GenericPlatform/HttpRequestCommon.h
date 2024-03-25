@@ -4,6 +4,7 @@
 
 #include "GenericPlatform/HttpRequestImpl.h"
 
+class FHttpResponseCommon;
 class IHttpTaskTimerHandle;
 
 /**
@@ -28,6 +29,8 @@ public:
 	HTTP_API virtual void ClearTimeout() override;
 	HTTP_API virtual TOptional<float> GetTimeout() const override;
 	HTTP_API float GetTimeoutOrDefault() const;
+
+	HTTP_API virtual const FHttpResponsePtr GetResponse() const override;
 
 	// Can be called on game thread or http thread depend on the delegate thread policy
 	HTTP_API virtual void FinishRequest() = 0;
@@ -56,7 +59,7 @@ protected:
 	 */
 	HTTP_API void FinishRequestNotInHttpManager();
 
-	HTTP_API void HandleRequestSucceed(TSharedPtr<IHttpResponse> Response);
+	HTTP_API void HandleRequestSucceed(TSharedPtr<IHttpResponse> InResponse);
 
 	HTTP_API void StartActivityTimeoutTimer();
 	HTTP_API void StartActivityTimeoutTimerBy(double DelayToTrigger);
@@ -119,4 +122,7 @@ protected:
 
 	/** Cache the effective URL. When redirected, it will be different with original URL */
 	FString EffectiveURL;
+
+	/** The response object which we will use to pair with this request */
+	TSharedPtr<FHttpResponseCommon> ResponseCommon;
 };

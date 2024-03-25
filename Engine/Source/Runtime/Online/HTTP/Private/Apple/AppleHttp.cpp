@@ -705,7 +705,6 @@ bool FAppleHttpRequest::SetupRequest()
 	LastReportedBytesWritten = 0;
 	LastReportedBytesRead = 0;
 	ElapsedTime = 0.0f;
-	Response = nullptr;
 
 	Task = [Session dataTaskWithRequest: Request];
 	
@@ -716,7 +715,8 @@ bool FAppleHttpRequest::SetupRequest()
 		SetStatus(EHttpRequestStatus::Processing);
 		SetFailureReason(EHttpFailureReason::None);
 
-		Response = MakeShared<FAppleHttpResponse>(*this);
+		TSharedPtr<FAppleHttpResponse> Response = MakeShared<FAppleHttpResponse>(*this);
+		ResponseCommon = Response;
 
 		// Both Task and Response keep a strong reference to the delegate
 		Task.delegate = Response->ResponseDelegate;
@@ -743,6 +743,7 @@ void FAppleHttpRequest::FinishRequest()
 
 	PostProcess();
 
+	TSharedPtr<FAppleHttpResponse> Response = StaticCastSharedPtr<FAppleHttpResponse>(ResponseCommon);
 	bool bSucceeded = (Response && Response->GetStatusFromDelegate() == EHttpRequestStatus::Succeeded);
 	UE_LOG(LogHttp, Verbose, TEXT("Request %s"), bSucceeded ? TEXT("succeeded") : TEXT("failed"));
 	SetStatus(bSucceeded ? EHttpRequestStatus::Succeeded : EHttpRequestStatus::Failed);
@@ -778,6 +779,7 @@ void FAppleHttpRequest::CleanupRequest()
 {
 	UE_LOG(LogHttp, Verbose, TEXT("FAppleHttpRequest::CleanupRequest()"));
 	
+	TSharedPtr<FAppleHttpResponse> Response = StaticCastSharedPtr<FAppleHttpResponse>(ResponseCommon);
 	if (Response != nullptr)
 	{
 		Response->CleanSharedObjects();
@@ -802,11 +804,6 @@ void FAppleHttpRequest::AbortRequest()
 	}
 }
 
-const FHttpResponsePtr FAppleHttpRequest::GetResponse() const
-{
-	return Response;
-}
-
 void FAppleHttpRequest::Tick(float DeltaSeconds)
 {
 	if (DelegateThreadPolicy == EHttpRequestDelegateThreadPolicy::CompleteOnGameThread)
@@ -817,6 +814,7 @@ void FAppleHttpRequest::Tick(float DeltaSeconds)
 
 void FAppleHttpRequest::CheckProgressDelegate()
 {
+	TSharedPtr<FAppleHttpResponse> Response = StaticCastSharedPtr<FAppleHttpResponse>(ResponseCommon);
 	if (Response.IsValid() && (CompletionStatus == EHttpRequestStatus::Processing || Response->GetStatusFromDelegate() == EHttpRequestStatus::Failed))
 	{
 		const uint64 BytesWritten = Response->GetNumBytesWritten();
@@ -845,8 +843,8 @@ bool FAppleHttpRequest::StartThreadedRequest()
 
 bool FAppleHttpRequest::IsThreadedRequestComplete()
 {
-	TSharedPtr<FAppleHttpResponse> AliveResponse = Response;
-	return (AliveResponse.IsValid() && AliveResponse->IsReady());
+	TSharedPtr<FAppleHttpResponse> Response = StaticCastSharedPtr<FAppleHttpResponse>(ResponseCommon);
+	return (Response.IsValid() && Response->IsReady());
 }
 
 void FAppleHttpRequest::TickThreadedRequest(float DeltaSeconds)

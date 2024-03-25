@@ -46,7 +46,6 @@ public:
 	virtual void SetHeader(const FString& HeaderName, const FString& HeaderValue) override;
 	virtual void AppendToHeader(const FString& HeaderName, const FString& AdditionalHeaderValue) override;
 	virtual bool ProcessRequest() override;
-	virtual const FHttpResponsePtr GetResponse() const override;
 	virtual void Tick(float DeltaSeconds) override;
 	virtual float GetElapsedTime() const override;
 	//~ End IHttpRequest Interface
@@ -111,9 +110,6 @@ private:
 
 	/** The request payload length in bytes. This must be tracked separately for a file stream */
 	uint64 ContentBytesLength;
-
-	/** The response object which we will use to pair with this request */
-	TSharedPtr<class FAppleHttpResponse,ESPMode::ThreadSafe> Response;
 
 	/** Array used to retrieve back content set on the ObjC request when calling GetContent*/
 	mutable TArray<uint8> StorageForGetContent;

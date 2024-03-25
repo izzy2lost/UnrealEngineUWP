@@ -471,9 +471,9 @@ size_t FCurlHttpRequest::ReceiveResponseHeaderCallback(void* Ptr, size_t SizeInB
 {
 	QUICK_SCOPE_CYCLE_COUNTER(STAT_FCurlHttpRequest_ReceiveResponseHeaderCallback);
 
-	if (!Response.IsValid())
+	if (!ResponseCommon.IsValid())
 	{
-		Response = MakeShared<FCurlHttpResponse, ESPMode::ThreadSafe>(*this);
+		ResponseCommon = MakeShared<FCurlHttpResponse>(*this);
 		TotalBytesRead = 0;
 	}
 
@@ -501,6 +501,8 @@ size_t FCurlHttpRequest::ReceiveResponseHeaderCallback(void* Ptr, size_t SizeInB
 			HeaderValue.TrimStartInline();
 			if (!HeaderKey.IsEmpty() && !HeaderValue.IsEmpty() && !bRedirected)
 			{
+				TSharedPtr<FCurlHttpResponse> Response = StaticCastSharedPtr<FCurlHttpResponse>(ResponseCommon);
+
 				//Store the content length so OnRequestProgress64() delegates have something to work with
 				if (HeaderKey == TEXT("Content-Length"))
 				{
@@ -572,9 +574,9 @@ size_t FCurlHttpRequest::ReceiveResponseBodyCallback(void* Ptr, size_t SizeInBlo
 	QUICK_SCOPE_CYCLE_COUNTER(STAT_FCurlHttpRequest_ReceiveResponseBodyCallback);
 	LLM_SCOPE(ELLMTag::Networking);
 
-	if (!Response.IsValid())
+	if (!ResponseCommon.IsValid())
 	{
-		Response = MakeShared<FCurlHttpResponse, ESPMode::ThreadSafe>(*this);
+		ResponseCommon = MakeShared<FCurlHttpResponse>(*this);
 	}
 
 	OnAnyActivityOccur(TEXTVIEW("Received body"));
@@ -586,6 +588,7 @@ size_t FCurlHttpRequest::ReceiveResponseBodyCallback(void* Ptr, size_t SizeInBlo
 	  
 	uint64 SizeToDownload = SizeInBlocks * BlockSizeInBytes;
 
+	TSharedPtr<FCurlHttpResponse> Response = StaticCastSharedPtr<FCurlHttpResponse>(ResponseCommon);
 	UE_LOG(LogHttp, Verbose, TEXT("%p: ReceiveResponseBodyCallback: %llu bytes out of %llu received. (SizeInBlocks=%llu, BlockSizeInBytes=%llu, TotalBytesRead=%llu, Response->GetContentLength()=%llu, SizeToDownload=%llu (<-this will get returned from the callback))"),
 		this, TotalBytesRead.load() + SizeToDownload, Response->GetContentLength(),
 		SizeInBlocks, BlockSizeInBytes, TotalBytesRead.load(), Response->GetContentLength(), SizeToDownload);
@@ -1036,7 +1039,7 @@ bool FCurlHttpRequest::ProcessRequest()
 	check(EasyHandle);
 
 	// Clear out response. If this is a re-used request, Response could point to a stale response until SetupRequestHttpThread is called
-	Response = nullptr;
+	ResponseCommon = nullptr;
 	LastReportedBytesRead = 0;
 
 	if (!PreProcess())
@@ -1064,7 +1067,6 @@ void FCurlHttpRequest::ClearInCaseOfRetry()
 	IHttpThreadedRequest::ClearInCaseOfRetry();
 
 	// Clear out response. If this is a re-used request, Response could point to a stale response until SetupRequestHttpThread is called
-	Response = nullptr;
 	LastReportedBytesRead = 0;
 	TotalBytesRead = 0;
 	bAnyHttpActivity = false;
@@ -1127,11 +1129,6 @@ void FCurlHttpRequest::AbortRequest()
 	}
 }
 
-const FHttpResponsePtr FCurlHttpRequest::GetResponse() const
-{
-	return Response;
-}
-
 void FCurlHttpRequest::Tick(float DeltaSeconds)
 {
 	if (DelegateThreadPolicy == EHttpRequestDelegateThreadPolicy::CompleteOnGameThread)
@@ -1188,6 +1185,9 @@ void FCurlHttpRequest::FinishRequest()
 	PostProcess();
 	
 	CheckProgressDelegate();
+
+	TSharedPtr<FCurlHttpResponse> Response = StaticCastSharedPtr<FCurlHttpResponse>(ResponseCommon);
+
 	// if completed, get more info
 	if (bCurlRequestCompleted)
 	{
@@ -1342,7 +1342,7 @@ void FCurlHttpRequest::FinishRequest()
 		OnProcessRequestComplete().ExecuteIfBound(SharedThis(this), Response, false);
 
 		//Delegate needs to know about the errors -- so clear out Response (since connection failed) afterwards...
-		Response = nullptr;
+		ResponseCommon = nullptr;
 		TotalBytesRead = 0;
 	}
 }

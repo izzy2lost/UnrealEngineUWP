@@ -107,12 +107,11 @@ void FHttpRequestCommon::PostProcess()
 
 void FHttpRequestCommon::ClearInCaseOfRetry()
 {
-	// TODO: clear response shared ptr here as well after moving it from child class to this class
-
 	bActivityTimedOut = false;
 	FailureReason = EHttpFailureReason::None;
 	bCanceled = false;
 	EffectiveURL = GetURL();
+	ResponseCommon.Reset();
 }
 
 void FHttpRequestCommon::FinishRequestNotInHttpManager()
@@ -157,10 +156,10 @@ EHttpRequestDelegateThreadPolicy FHttpRequestCommon::GetDelegateThreadPolicy() c
 	return DelegateThreadPolicy; 
 }
 
-void FHttpRequestCommon::HandleRequestSucceed(TSharedPtr<IHttpResponse> Response)
+void FHttpRequestCommon::HandleRequestSucceed(TSharedPtr<IHttpResponse> InResponse)
 {
 	SetStatus(EHttpRequestStatus::Succeeded);
-	OnProcessRequestComplete().ExecuteIfBound(SharedThis(this), Response, true);
+	OnProcessRequestComplete().ExecuteIfBound(SharedThis(this), InResponse, true);
 	FHttpModule::Get().GetHttpManager().RecordStatTimeToConnect(ConnectTime);
 }
 
@@ -168,9 +167,8 @@ void FHttpRequestCommon::SetStatus(EHttpRequestStatus::Type InCompletionStatus)
 {
 	CompletionStatus = InCompletionStatus;
 
-	if (FHttpResponsePtr Response = GetResponse())
+	if (ResponseCommon)
 	{
-		TSharedPtr<FHttpResponseCommon> ResponseCommon = StaticCastSharedPtr<FHttpResponseCommon>(Response);
 		ResponseCommon->SetRequestStatus(InCompletionStatus);
 	}
 }
@@ -180,9 +178,8 @@ void FHttpRequestCommon::SetFailureReason(EHttpFailureReason InFailureReason)
 	UE_CLOG(FailureReason != EHttpFailureReason::None, LogHttp, Warning, TEXT("FailureReason had been set to %s, now setting to %s"), LexToString(FailureReason), LexToString(InFailureReason));
 	FailureReason = InFailureReason;
 
-	if (FHttpResponsePtr Response = GetResponse())
+	if (ResponseCommon)
 	{
-		TSharedPtr<FHttpResponseCommon> ResponseCommon = StaticCastSharedPtr<FHttpResponseCommon>(Response);
 		ResponseCommon->SetRequestFailureReason(InFailureReason);
 	}
 }
@@ -206,6 +203,11 @@ TOptional<float> FHttpRequestCommon::GetTimeout() const
 float FHttpRequestCommon::GetTimeoutOrDefault() const
 {
 	return GetTimeout().Get(FHttpModule::Get().GetHttpTotalTimeout());
+}
+
+const FHttpResponsePtr FHttpRequestCommon::GetResponse() const
+{
+	return ResponseCommon;
 }
 
 void FHttpRequestCommon::CancelRequest()
@@ -450,9 +452,8 @@ void FHttpRequestCommon::SetEffectiveURL(const FString& InEffectiveURL)
 {
 	EffectiveURL = InEffectiveURL;
 
-	if (FHttpResponsePtr Response = GetResponse())
+	if (ResponseCommon)
 	{
-		TSharedPtr<FHttpResponseCommon> ResponseCommon = StaticCastSharedPtr<FHttpResponseCommon>(Response);
 		ResponseCommon->SetEffectiveURL(EffectiveURL);
 	}
 }
