@@ -70,6 +70,9 @@ public:
 	/** Returns the FNetBlobCreationInfo. */
 	const FNetBlobCreationInfo& GetCreationInfo() const { return CreationInfo; }
 
+	/* Whether the blob is reliably sent or not. */
+	bool IsReliable() const { return EnumHasAnyFlags(GetCreationInfo().Flags, ENetBlobFlags::Reliable); }
+
 	/** Returns the FReplicationStateDescriptor if there is one. It's recommended to use a descriptor instead of overriding the serialization methods. */
 	const FReplicationStateDescriptor* GetReplicationStateDescriptor() const { return BlobDescriptor.GetReference(); }
 

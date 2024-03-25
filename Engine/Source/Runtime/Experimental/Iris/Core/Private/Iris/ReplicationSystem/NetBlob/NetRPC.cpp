@@ -353,6 +353,12 @@ bool FNetRPC::ResolveFunctionAndObject(FNetSerializationContext& Context)
 		CreationInfo.Flags |= ENetBlobFlags::Reliable;
 	}
 
+	// The sending side will set Ordered on unicast/reliable RPCs so we're restoring that flag. Unicast RPCs are ordered with respect to other reliable and unicast RPCs whereas multicast RPCs are not.
+	if ((Function->FunctionFlags & FUNC_NetMulticast) == 0)
+	{
+		CreationInfo.Flags |= UE::Net::ENetBlobFlags::Ordered;
+	}
+
 	// Set the BlobDescriptor even if it has zero size so that we can trace with a meaningful name.
 	BlobDescriptor = FunctionDescriptor->Descriptor;
 
