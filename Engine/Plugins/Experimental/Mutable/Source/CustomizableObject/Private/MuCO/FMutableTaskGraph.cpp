@@ -237,7 +237,7 @@ void FMutableTaskGraph::AllowLaunchingMutableTaskLowPriority(bool bAllow, bool b
 }
 
 
-void FMutableTaskGraph::Tick()
+int32 FMutableTaskGraph::Tick()
 {
 	check(IsInGameThread())
 	
@@ -261,5 +261,7 @@ void FMutableTaskGraph::Tick()
 			LastMutableTaskLowPriority = {};
 		}
 	}
+	
+	return !IsTaskCompleted(LastMutableTask) + !IsTaskCompleted(LastMutableTaskLowPriority) + QueueMutableTasksLowPriority.Num();
 }
 

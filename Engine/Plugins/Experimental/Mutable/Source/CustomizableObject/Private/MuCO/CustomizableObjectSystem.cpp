@@ -32,6 +32,7 @@
 #include "MuCO/EditorImageProvider.h"
 #include "Components/SkeletalMeshComponent.h"
 #include "MuCO/CustomizableObjectSystemPrivate.h"
+#include "CustomizableObjectSettings.h"
 
 #if WITH_EDITOR
 #include "Editor.h"
@@ -599,7 +600,14 @@ void UCustomizableObjectSystem::BeginDestroy()
 #endif
 
 #if !UE_SERVER
-		FTSTicker::GetCoreTicker().RemoveTicker(Private->TickDelegateHandle);
+		if (GetMutableDefault<UCustomizableObjectSettings>()->bEnableStreamingManager)
+		{
+			FStreamingManagerCollection::Get().RemoveStreamingManager(GetPrivate());
+		}
+		else
+		{
+			FTSTicker::GetCoreTicker().RemoveTicker(Private->TickDelegateHandle);			
+		}
 #endif // !UE_SERVER
 
 		// Discard pending game thread tasks
@@ -663,6 +671,15 @@ static FAutoConsoleVariableRef CVarEnableMutableAnimInfoDebugging(
 	TEXT("If set to 1 or greater print on screen the animation info of the pawn's Customizable Object Instance. Anim BPs, slots and tags will be displayed."
 	"If the root Customizable Object is recompiled after this command is run, the used skeletal meshes will also be displayed."),
 	ECVF_Default);
+
+
+UCustomizableObjectSystem* UCustomizableObjectSystemPrivate::GetPublic() const
+{
+	UCustomizableObjectSystem* Public = StaticCast<UCustomizableObjectSystem*>(GetOuter());
+	check(Public);
+
+	return Public;
+}
 
 
 void UCustomizableObjectSystemPrivate::AddGameThreadTask(const FMutableTask& Task)
@@ -2911,16 +2928,23 @@ void UCustomizableObjectSystem::AdvanceCurrentOperation()
 
 bool UCustomizableObjectSystem::Tick(float DeltaTime)
 {
-	MUTABLE_CPUPROFILER_SCOPE(UCustomizableObjectSystem::Tick)
+	TickInternal(DeltaTime);
+	return true;
+}
+
+
+int32 UCustomizableObjectSystem::TickInternal(float DeltaTime)
+{
+	MUTABLE_CPUPROFILER_SCOPE(UCustomizableObjectSystem::TickInternal)
 	
 	// Building instances is not enabled in servers. If at some point relevant collision or animation data is necessary for server logic this will need to be changed.
 #if UE_SERVER
-	return true;
+	return 0;
 #endif
 
 	if (!Private)
 	{
-		return true;
+		return 0;
 	}
 
 	if (GWorld)
@@ -2929,7 +2953,7 @@ bool UCustomizableObjectSystem::Tick(float DeltaTime)
 
 		if (WorldType != EWorldType::PIE && WorldType != EWorldType::Game && WorldType != EWorldType::Editor && WorldType != EWorldType::GamePreview)
 		{
-			return true;
+			return 0;
 		}
 	}
 
@@ -2939,17 +2963,19 @@ bool UCustomizableObjectSystem::Tick(float DeltaTime)
 
 	if (AssetRegistryModule.Get().IsLoadingAssets())
 	{
-		return true; // Assets are still being loaded, so subobjects won't be found, compiled objects incomplete and thus updates wrong
+		return 1; // Assets are still being loaded, so subobjects won't be found, compiled objects incomplete and thus updates wrong
 	}
 
 	// Do not tick if the CookCommandlet is running.
 	if (IsRunningCookCommandlet())
 	{
-		return true;
+		return 0;
 	}
 #endif
 
 	Private->UpdateStats();
+
+	FMutableUpdateCandidate* LODUpdateCandidateFound = nullptr;
 	
 	// Get a new operation if we aren't working on one
 	if (!Private->CurrentMutableOperation && bIsMutableEnabled)
@@ -2994,7 +3020,6 @@ bool UCustomizableObjectSystem::Tick(float DeltaTime)
 			double MaxSquareDistanceFound = TNumericLimits<double>::Max();
 			double MinTimeFound = TNumericLimits<double>::Max();
 			const FMutablePendingInstanceUpdate* PendingInstanceUpdateFound = nullptr;
-			FMutableUpdateCandidate* LODUpdateCandidateFound = nullptr;
 
 			// Look for the highest priority Pending Update
 			for (auto Iterator = Private->MutablePendingInstanceWork.GetUpdateIterator(); Iterator; ++Iterator)
@@ -3129,18 +3154,28 @@ bool UCustomizableObjectSystem::Tick(float DeltaTime)
 	UCustomizableObjectSystemPrivate::ShowOnScreenCompileWarnings();
 #endif
 	
-	Private->MutableTaskGraph.Tick();
+	const int32 RemainingTasks = Private->MutableTaskGraph.Tick();
 
 	Private->LogBenchmarkUtil.UpdateStats(); // Must to be the last thing to perform
 
 	if (!bIsMutableEnabled && !Private->CurrentMutableOperation)
 	{
-		// Mutable has been disabled. Unregister the ticker if there is no CurrentMutableOperation.
-		FTSTicker::GetCoreTicker().RemoveTicker(Private->TickDelegateHandle);
-		Private->TickDelegateHandle.Reset();
+		if (GetMutableDefault<UCustomizableObjectSettings>()->bEnableStreamingManager)
+		{
+			FStreamingManagerCollection::Get().RemoveStreamingManager(GetPrivate());
+		}
+		else
+		{
+			// Mutable has been disabled. Unregister the ticker if there is no CurrentMutableOperation.
+			FTSTicker::GetCoreTicker().RemoveTicker(Private->TickDelegateHandle);
+			Private->TickDelegateHandle.Reset();
+		}
 	}
 
-	return true;
+	return Private->CurrentMutableOperation.IsValid() + 
+		Private->MutablePendingInstanceWork.Num() +
+		!!LODUpdateCandidateFound + // Still a pending LOD update. We can not use the size of RequestedLODUpdates since not all requests valid in future ticks.
+		RemainingTasks;
 }
 
 
@@ -3782,10 +3817,18 @@ void UCustomizableObjectSystemPrivate::OnMutableEnabledChanged(IConsoleVariable*
 	if (bIsMutableEnabled)
 	{
 #if !UE_SERVER
-		if (!SystemPrivate->TickDelegateHandle.IsValid())
+		if (GetMutableDefault<UCustomizableObjectSettings>()->bEnableStreamingManager)
 		{
-			SystemPrivate->TickDelegate = FTickerDelegate::CreateUObject(System, &UCustomizableObjectSystem::Tick);
-			SystemPrivate->TickDelegateHandle = FTSTicker::GetCoreTicker().AddTicker(SystemPrivate->TickDelegate, 0.f);
+			FStreamingManagerCollection::Get().RemoveStreamingManager(SystemPrivate); // Avoid being added twice
+			FStreamingManagerCollection::Get().AddStreamingManager(SystemPrivate);
+		}
+		else
+		{
+			if (!SystemPrivate->TickDelegateHandle.IsValid())
+			{
+				SystemPrivate->TickDelegate = FTickerDelegate::CreateUObject(System, &UCustomizableObjectSystem::Tick);
+				SystemPrivate->TickDelegateHandle = FTSTicker::GetCoreTicker().AddTicker(SystemPrivate->TickDelegate, 0.f);
+			}			
 		}
 #endif // !UE_SERVER
 
@@ -3860,3 +3903,47 @@ bool UCustomizableObjectSystem::IsMutableAnimInfoDebuggingEnabled() const
 	return false;
 #endif
 }
+
+
+void UCustomizableObjectSystemPrivate::UpdateResourceStreaming(float DeltaTime, bool bProcessEverything)
+{
+	GetPublic()->TickInternal(DeltaTime);
+}
+
+
+int32 UCustomizableObjectSystemPrivate::BlockTillAllRequestsFinished(float TimeLimit, bool bLogResults)
+{
+	const double BlockEndTime = FPlatformTime::Seconds() + TimeLimit;
+	double StartTime;
+	double DeltaTime = 0.0;
+
+	int32 RemainingWork = TNumericLimits<int32>::Max();
+	
+	if (TimeLimit == 0.0f)
+	{
+		while (RemainingWork > 0)
+		{
+			StartTime = FPlatformTime::Seconds();
+			RemainingWork = GetPublic()->TickInternal(DeltaTime);
+			DeltaTime = FPlatformTime::Seconds() - StartTime;
+		}
+	}
+	else
+	{
+		while (RemainingWork > 0)
+		{			
+			StartTime = FPlatformTime::Seconds();
+
+			if (StartTime > BlockEndTime)
+			{
+				return RemainingWork;
+			}
+			
+			RemainingWork = GetPublic()->TickInternal(DeltaTime);
+			DeltaTime = FPlatformTime::Seconds() - StartTime;
+		}
+	}
+
+	return 0;
+}
+
