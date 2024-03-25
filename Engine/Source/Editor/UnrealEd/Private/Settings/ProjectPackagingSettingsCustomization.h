@@ -3,9 +3,11 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "Framework/MultiBox/MultiBoxBuilder.h"
 #include "Misc/Attribute.h"
 #include "Layout/Margin.h"
 #include "Layout/Visibility.h"
+#include "Misc/NotifyHook.h"
 #include "Widgets/DeclarativeSyntaxSupport.h"
 #include "Widgets/SWidget.h"
 #include "Widgets/SCompoundWidget.h"

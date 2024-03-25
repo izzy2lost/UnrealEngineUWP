@@ -2,6 +2,7 @@
 
 #pragma once
 
+#include "Math/BoxSphereBounds.h"
 #include "PrimitiveComponentId.h"
 #include "PrimitiveSceneInfoData.h"
 #include "Engine/EngineTypes.h"

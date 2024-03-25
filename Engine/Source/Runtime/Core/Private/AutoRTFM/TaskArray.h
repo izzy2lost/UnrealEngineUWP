@@ -4,6 +4,7 @@
 
 #include "Containers/Array.h"
 #include "Templates/Function.h"
+#include "Utils.h"
 
 namespace AutoRTFM
 {
