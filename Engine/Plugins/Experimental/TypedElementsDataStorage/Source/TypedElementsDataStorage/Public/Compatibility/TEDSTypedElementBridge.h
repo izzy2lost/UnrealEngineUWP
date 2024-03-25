@@ -37,9 +37,7 @@ private:
 	void CleanupTypedElementColumns(ITypedElementDataStorageInterface& DataStorage);
 	void HandleOnEnabled(IConsoleVariable* CVar);
 	
-	TypedElementQueryHandle QueryHandle = TypedElementDataStorage::InvalidQueryHandle;
 	TypedElementQueryHandle RemoveTypedElementRowHandleQuery = TypedElementDataStorage::InvalidQueryHandle;
-	TypedElementQueryHandle RemovePendingTypedElementRowHandleQuery = TypedElementDataStorage::InvalidQueryHandle;
 	FDelegateHandle DebugEnabledDelegateHandle;
 };
 
@@ -52,12 +50,4 @@ struct FTEDSTypedElementColumn : public FTypedElementDataStorageColumn
 	GENERATED_BODY()
 	
 	FTypedElementHandle Handle;
-};
-
-// Used by processors to defer assignment of TEDSTypedElementColumn
-// until processor runs
-USTRUCT()
-struct FPendingPopulateTypedElementColumn : public FTypedElementDataStorageTag
-{
-	GENERATED_BODY()
 };

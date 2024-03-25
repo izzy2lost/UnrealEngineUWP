@@ -52,8 +52,7 @@ void UTEDSTypedElementActorHandleFactory::RegisterQuery_ActorHandlePopulate(ITyp
 	
 	ActorHandlePopulateQuery = DataStorage.RegisterQuery(
 	Select(TEXT("Populate actor typed element handles"),
-	FProcessor(DSI::EQueryTickPhase::FrameEnd, DataStorage.GetQueryTickGroupName(DSI::EQueryTickGroups::SyncWidgets))
-		.ForceToGameThread(true),
+		FObserver::OnAdd<FTypedElementUObjectColumn>(),
 		[](DSI::IQueryContext& Context, TypedElementRowHandle Row, const FTypedElementUObjectColumn& ObjectColumn)
 		{
 			if (UObject* Object = ObjectColumn.Object.Get())
@@ -65,12 +64,10 @@ void UTEDSTypedElementActorHandleFactory::RegisterQuery_ActorHandlePopulate(ITyp
 					.Handle = Handle
 				});
 			}
-
-			Context.RemoveColumns<FPendingPopulateTypedElementColumn>(Row);
 		}
 	)
 	.Where()
-		.All<FPendingPopulateTypedElementColumn, FMassActorFragment>()
+		.All<FMassActorFragment>()
 	.Compile());
 }
 
