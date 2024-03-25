@@ -150,7 +150,12 @@ struct FPrimitiveSceneData
 float3 UnpackColorRGB24(float PackedColorFloat)
 {
 	uint PackedColor = asuint(PackedColorFloat);
-	return float3((PackedColor >> 24) && 0xFF, (PackedColor >> 16) && 0xFF, (PackedColor >> 8) && 0xFF);
+	return float3
+	(
+		float((PackedColor >> 24u) & 0xFF),
+		float((PackedColor >> 16u) & 0xFF),
+		float((PackedColor >>  8u) & 0xFF)
+	) * (1.0f / 255.0f);
 }
 
 // Fetch from Primitive uniform buffer
