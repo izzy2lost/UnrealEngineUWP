@@ -2377,6 +2377,12 @@ namespace UnrealBuildTool
 				Receipt.PluginNameToEnabledState[DisabledPluginName] = false;
 			}
 
+			// Add all the build plugin names
+			foreach (UEBuildPlugin Plugin in BuildPlugins!)
+			{
+				Receipt.BuildPlugins.Add(Plugin.Name);
+			}
+
 			// Find all the modules which are part of this target
 			HashSet<UEBuildModule> UniqueLinkedModules = new HashSet<UEBuildModule>();
 			foreach (UEBuildBinary Binary in Binaries)
@@ -4408,6 +4414,28 @@ namespace UnrealBuildTool
 		}
 
 		/// <summary>
+		/// Modify a module rules based on the current target, be very careful not to violate the shared environment!
+		/// </summary>
+		/// <param name="moduleName">name of the module</param>
+		/// <param name="moduleRules">the module's rules</param>
+		private void ModifyModuleRulesForTarget(string moduleName, ModuleRules moduleRules)
+		{
+			if (moduleName == "Projects" && (Rules.Type == TargetType.Editor))
+			{
+				// Monolithic and non-shared environment builds compile in the build plugins. Non-monolithic editor builds save them in the BuildPlugins receipt to avoid invalidating the shared build environment.
+				// See Projects.Build.cs
+				bool bUsingTargetReceipt = (Rules.BuildEnvironment == TargetBuildEnvironment.Shared) && (Rules.LinkType != TargetLinkType.Monolithic);
+				if (!bUsingTargetReceipt)
+				{
+					// Compile in the build plugins list for the runtime plugin manager to filter optional plugin references against. Only plugins that were actually built
+					// should be enabled when another plugin has an optional dependency on the plugin.
+					IEnumerable<string> BuildPluginStrings = BuildPlugins?.Select(x => $"TEXT(\"{x}\")") ?? Array.Empty<string>();
+					moduleRules.PrivateDefinitions.Add($"UBT_TARGET_BUILD_PLUGINS={String.Join(", ", BuildPluginStrings)}");
+				}
+			}
+		}
+
+		/// <summary>
 		/// Creates a plugin instance from a reference to it
 		/// </summary>
 		/// <param name="Reference">Reference to the plugin</param>
@@ -5514,6 +5542,9 @@ namespace UnrealBuildTool
 						RulesObject.PrivateIncludePaths[Idx] = PrivateIncludePath;
 					}
 				}
+
+				// Allow the current target to modify the module rules
+				ModifyModuleRulesForTarget(ModuleName, RulesObject);
 
 				// Allow the current platform to modify the module rules
 				UEBuildPlatform.GetBuildPlatform(Platform).ModifyModuleRulesForActivePlatform(ModuleName, RulesObject, Rules);
