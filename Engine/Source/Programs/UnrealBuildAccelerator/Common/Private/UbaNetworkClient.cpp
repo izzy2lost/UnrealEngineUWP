@@ -11,7 +11,7 @@
 namespace uba
 {
 	NetworkClient::NetworkClient(bool& outCtorSuccess, const NetworkClientCreateInfo& info, const tchar* name)
-	: WorkManagerImpl(16)
+	: WorkManagerImpl(GetLogicalProcessorCount())
 	,	m_logWriter(info.logWriter)
 	,	m_logger(info.logWriter, SetGetPrefix(name))
 	,	m_isConnected(true)
@@ -39,17 +39,26 @@ namespace uba
 
 	NetworkClient::~NetworkClient()
 	{
-		StopListen();
-
-		Disconnect();
-
-		SCOPED_WRITE_LOCK(m_connectionsLock, lock);
-		m_connections.clear(); // Before tcpBackend
+		StopAll();
 
 		delete m_tcpBackend;
 
 		if (m_cryptoKey)
 			Crypto::DestroyKey(m_cryptoKey);
+	}
+
+	void NetworkClient::StopAll()
+	{
+		StopListen();
+
+		Disconnect();
+
+		{
+			SCOPED_WRITE_LOCK(m_connectionsLock, lock);
+			m_connections.clear();
+		}
+
+		FlushWork();
 	}
 
 	bool NetworkClient::Connect(NetworkBackend& backend, const tchar* ip, u16 port, bool* timedOut)
@@ -219,8 +228,8 @@ namespace uba
 		backend.SetDisconnectCallback(backendConnection, connection, [](void* context, void* connection)
 			{
 				auto& c = *(Connection*)context;
-				c.disconnectedEvent.Set();
 				c.owner.OnDisconnected(c, true);
+				c.disconnectedEvent.Set();
 			});
 		backend.SetRecvCallbacks(backendConnection, connection, ReceiveHeaderSize, ReceiveResponseHeader, ReceiveResponseBody, TC("ReceiveMessageResponse"));
 	}
