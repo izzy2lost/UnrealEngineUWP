@@ -826,6 +826,12 @@ struct GAMEPLAYABILITIES_API FGameplayCueParameters
 	FGameplayCueParameters(const struct FGameplayEffectSpecForRPC &Spec);
 	FGameplayCueParameters(const struct FGameplayEffectContextHandle& EffectContext);
 
+	bool operator==(const FGameplayCueParameters& Other) const;
+	bool operator!=(const FGameplayCueParameters& Other) const
+	{
+		return !(*this == Other);
+	}
+
 	/** Magnitude of source gameplay effect, normalzed from 0-1. Use this for "how strong is the gameplay effect" (0=min, 1=,max) */
 	UPROPERTY(BlueprintReadWrite, Category=GameplayCue)
 	float NormalizedMagnitude;

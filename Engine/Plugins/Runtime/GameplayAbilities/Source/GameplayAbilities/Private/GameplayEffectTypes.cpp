@@ -1034,6 +1034,27 @@ FGameplayCueParameters::FGameplayCueParameters(const struct FGameplayEffectConte
 	UAbilitySystemGlobals::Get().InitGameplayCueParameters(*this, InEffectContext);
 }
 
+bool FGameplayCueParameters::operator==(const FGameplayCueParameters& Other) const
+{
+	return ((NormalizedMagnitude == Other.NormalizedMagnitude) &&
+		    (RawMagnitude == Other.RawMagnitude) &&
+		    (Location == Other.Location) &&
+		    (Normal == Other.Normal) &&
+		    (GameplayEffectLevel == Other.GameplayEffectLevel) &&
+		    (AbilityLevel == Other.AbilityLevel) &&
+		    (EffectContext == Other.EffectContext) &&
+			(MatchedTagName == Other.MatchedTagName) &&
+			(OriginalTag == Other.OriginalTag) &&
+			(AggregatedSourceTags == Other.AggregatedSourceTags) &&
+			(AggregatedTargetTags == Other.AggregatedTargetTags) &&
+			(Instigator == Other.Instigator) &&
+			(EffectCauser == Other.EffectCauser) &&
+			(SourceObject == Other.SourceObject) &&
+			(PhysicalMaterial == Other.PhysicalMaterial) &&
+			(TargetAttachComponent == Other.TargetAttachComponent) &&
+			(bReplicateLocationWhenUsingMinimalRepProxy == Other.bReplicateLocationWhenUsingMinimalRepProxy));
+}
+
 bool FGameplayCueParameters::NetSerialize(FArchive& Ar, class UPackageMap* Map, bool& bOutSuccess)
 {
 	static const uint8 NUM_LEVEL_BITS = 5; // need to bump this up to support 20 levels for AbilityLevel
