@@ -11,6 +11,8 @@
 
 FGameplayDebuggerCategory_SmartObject::FGameplayDebuggerCategory_SmartObject()
 {
+	SetDataPackReplication<FReplicationData>(&DataPack, EGameplayDebuggerDataPack::Persistent);
+
 	bShowOnlyWithDebugActor = false;
 
 	const FGameplayDebuggerInputHandlerConfig InstanceTagsKeyConfig(TEXT("ToggleInstanceTags"), EKeys::Add.GetFName(), FGameplayDebuggerInputModifier::Shift);
@@ -30,17 +32,17 @@ TSharedRef<FGameplayDebuggerCategory> FGameplayDebuggerCategory_SmartObject::Mak
 
 void FGameplayDebuggerCategory_SmartObject::ToggleInstanceTags()
 {
-	bDisplayInstanceTags ^= true;
+	DataPack.bDisplayInstanceTags ^= true;
 	MarkRenderStateDirty();
 }
 
 void FGameplayDebuggerCategory_SmartObject::ToggleSlotDetails()
 {
-	bDisplaySlotDetails ^= true;
-	if (!bDisplaySlotDetails)
+	DataPack.bDisplaySlotDetails ^= true;
+	if (!DataPack.bDisplaySlotDetails)
 	{
 		// Disabling SlotDetails also disables Annotations
-		bDisplayAnnotations = false;
+		DataPack.bDisplayAnnotations = false;
 	}
 
 	MarkRenderStateDirty();
@@ -48,11 +50,11 @@ void FGameplayDebuggerCategory_SmartObject::ToggleSlotDetails()
 
 void FGameplayDebuggerCategory_SmartObject::ToggleAnnotations()
 {
-	bDisplayAnnotations ^= true;
-	if (bDisplayAnnotations)
+	DataPack.bDisplayAnnotations ^= true;
+	if (DataPack.bDisplayAnnotations)
 	{
 		// Enabling Annotations requires SlotDetails
-		bDisplaySlotDetails = true;
+		DataPack.bDisplaySlotDetails = true;
 	}
 	
 	MarkRenderStateDirty();
@@ -90,17 +92,17 @@ void FGameplayDebuggerCategory_SmartObject::CollectData(APlayerController* Owner
 		NumActiveObjects += SmartObjectRuntime.IsEnabled() ? 1 : 0;
 
 		// Instance tags or if slot details are not displayed we display a single shape for the whole object
-		if (bDisplayInstanceTags || !bDisplaySlotDetails)
+		if (DataPack.bDisplayInstanceTags || !DataPack.bDisplaySlotDetails)
 		{
 			FVector Location = SmartObjectRuntime.GetTransform().GetLocation();
 			if (!bApplyCulling || IsLocationInViewCone(ViewLocation, ViewDirection, Location))
 			{
-				if (!bDisplaySlotDetails)
+				if (!DataPack.bDisplaySlotDetails)
 				{
 					AddShape(FGameplayDebuggerShape::MakeBox(Location, FVector(50), /*Thickness*/3, DebugColor));
 				}
 
-				if (bDisplayInstanceTags)
+				if (DataPack.bDisplayInstanceTags)
 				{
 					FString TagsAsString = SmartObjectRuntime.GetTags().ToStringSimple();
 					if (!TagsAsString.IsEmpty())
@@ -113,7 +115,7 @@ void FGameplayDebuggerCategory_SmartObject::CollectData(APlayerController* Owner
 		}
 
 		// Slot details following this point, skip if not displayed
-		if (!bDisplaySlotDetails)
+		if (!DataPack.bDisplaySlotDetails)
 		{
 			continue;
 		}
@@ -194,7 +196,7 @@ void FGameplayDebuggerCategory_SmartObject::CollectData(APlayerController* Owner
 			
 			AddShape(FGameplayDebuggerShape::MakeArrow(Pos, Pos + Dir * 2.0f * SlotSize, DebugArrowHeadSize, DebugArrowThickness, DebugColor));
 
-			if (bDisplayInstanceTags)
+			if (DataPack.bDisplayInstanceTags)
 			{
 				FString TagsAsString = RuntimeSlot->GetTags().ToStringSimple();
 				if (!TagsAsString.IsEmpty())
@@ -205,7 +207,7 @@ void FGameplayDebuggerCategory_SmartObject::CollectData(APlayerController* Owner
 			}
 
 			// Let annotations debug draw too
-			if (bDisplayAnnotations)
+			if (DataPack.bDisplayAnnotations)
 			{
 				FSmartObjectAnnotationGameplayDebugContext DebugContext(*this, SmartObjectRuntime.GetDefinition());
 				DebugContext.SmartObjectOwnerActor = SmartObjectRuntime.GetOwnerActor();
@@ -256,17 +258,24 @@ void FGameplayDebuggerCategory_SmartObject::DrawData(APlayerController* OwnerPC,
 								"[{yellow}%s{white}]:{%s}Slots Details\n"
 								"[{yellow}%s{white}]:{%s}Annotations\n"),
 		*GetInputHandlerDescription(0),
-		bDisplayInstanceTags
+		DataPack.bDisplayInstanceTags
 			? *FGameplayDebuggerCanvasStrings::ColorNameEnabled
 			: *FGameplayDebuggerCanvasStrings::ColorNameDisabled,
 		*GetInputHandlerDescription(1),
-		bDisplaySlotDetails
+		DataPack.bDisplaySlotDetails
 			? *FGameplayDebuggerCanvasStrings::ColorNameEnabled
 			: *FGameplayDebuggerCanvasStrings::ColorNameDisabled,
 		*GetInputHandlerDescription(2),
-		bDisplayAnnotations
+		DataPack.bDisplayAnnotations
 			? *FGameplayDebuggerCanvasStrings::ColorNameEnabled
 			: *FGameplayDebuggerCanvasStrings::ColorNameDisabled);
+}
+
+void FGameplayDebuggerCategory_SmartObject::FReplicationData::Serialize(FArchive& Ar)
+{
+	Ar << bDisplayAnnotations;
+	Ar << bDisplayInstanceTags;
+	Ar << bDisplaySlotDetails;
 }
 
 #endif // WITH_GAMEPLAY_DEBUGGER && WITH_SMARTOBJECT_DEBUG
