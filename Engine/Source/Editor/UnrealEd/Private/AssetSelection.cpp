@@ -677,11 +677,13 @@ TArray<FTypedElementHandle> PlaceAssetUsingFactory(UObject* Asset, TScriptInterf
 			SpawnParams.ObjectFlags = ObjectFlags;
 			SpawnParams.Name = Name;
 
-			AActor* PlacedActor = ActorFactory->CreateActor(Asset, DesiredLevel, ActorTransform, SpawnParams);
-			FTypedElementHandle Handle = UEngineElementsLibrary::AcquireEditorActorElementHandle(PlacedActor);
-			if (ensure(Handle))
+			if (AActor* PlacedActor = ActorFactory->CreateActor(Asset, DesiredLevel, ActorTransform, SpawnParams))
 			{
-				PlacedItems.Add(Handle);
+				FTypedElementHandle Handle = UEngineElementsLibrary::AcquireEditorActorElementHandle(PlacedActor);
+				if (ensure(Handle))
+				{
+					PlacedItems.Add(Handle);
+				}
 			}
 		}
 	}
