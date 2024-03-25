@@ -154,7 +154,9 @@ enum class ECEClonerEffectorType : uint8
 	/** All clones will be affected by the effector with the same max weight */
 	Unbound,
 	/** All clones within the angle range will be affected */
-	Radial
+	Radial,
+	/** All clones inside the torus radius will be affected by the effector */
+	Torus
 };
 
 /** Enumerates the effector mode available */
@@ -313,8 +315,11 @@ struct FCEClonerAttachmentTree
 	}
 };
 
+USTRUCT()
 struct FCEClonerEffectorChannelData
 {
+	GENERATED_BODY()
+
 	friend class UCEEffectorSubsystem;
 
 	/** General */
@@ -381,7 +386,8 @@ struct FCEClonerEffectorChannelData
 	FVector GravityForceAcceleration = FVector::ZeroVector;
 
 protected:
-	/** Cache effector identifier to detect a change and update cloners DI */
+	/** Cached effector identifier to detect a change and update cloners DI */
+	UPROPERTY(EditInstanceOnly, Category="Effector")
 	int32 Identifier = INDEX_NONE;
 
 	void Write(UNiagaraDataChannelWriter* InWriter) const;

@@ -5,13 +5,11 @@
 #include "CEClonerEffectorShared.h"
 #include "CEPropertyChangeDispatcher.h"
 #include "GameFramework/Actor.h"
+#include "PropertyBag.h"
 #include "CEEffectorActor.generated.h"
 
-class UNiagaraDataChannelWriter;
 class ACEClonerActor;
-class UArrowComponent;
-class USphereComponent;
-class UBoxComponent;
+class UDynamicMeshComponent;
 
 UCLASS(MinimalAPI, BlueprintType, HideCategories=(Rendering,Replication,Collision,HLOD,Physics,Networking,Input,Actor,Cooking,LevelInstance), DisplayName = "Motion Design Effector Actor")
 class ACEEffectorActor : public AActor
@@ -137,6 +135,33 @@ public:
 	}
 
 	UFUNCTION(BlueprintCallable, Category="Effector")
+	void SetTorusRadius(float InRadius);
+
+	UFUNCTION(BlueprintPure, Category="Effector")
+	float GetTorusRadius() const
+	{
+		return TorusRadius;
+	}
+
+	UFUNCTION(BlueprintCallable, Category="Effector")
+	void SetTorusInnerRadius(float InRadius);
+
+	UFUNCTION(BlueprintPure, Category="Effector")
+	float GetTorusInnerRadius() const
+	{
+		return TorusInnerRadius;
+	}
+
+	UFUNCTION(BlueprintCallable, Category="Effector")
+	void SetTorusOuterRadius(float InRadius);
+
+	UFUNCTION(BlueprintPure, Category="Effector")
+	float GetTorusOuterRadius() const
+	{
+		return TorusOuterRadius;
+	}
+
+	UFUNCTION(BlueprintCallable, Category="Effector")
 	CLONEREFFECTOR_API void SetOffset(const FVector& InOffset);
 
 	UFUNCTION(BlueprintPure, Category="Effector")
@@ -188,6 +213,13 @@ public:
 	AActor* GetTargetActor() const
 	{
 		return TargetActorWeak.Get();
+	}
+
+	void SetTargetActorWeak(const TWeakObjectPtr<AActor>& InTargetActor);
+
+	TWeakObjectPtr<AActor> GetTargetActorWeak() const
+	{
+		return TargetActorWeak;
 	}
 
 	UFUNCTION(BlueprintCallable, Category="Effector")
@@ -380,12 +412,12 @@ public:
 	}
 
 	UFUNCTION(BlueprintCallable, Category="Effector")
-	CLONEREFFECTOR_API void SetVisualizerThickness(float InThickness);
+	CLONEREFFECTOR_API void SetVisualizerOpacity(float InOpacity);
 
 	UFUNCTION(BlueprintPure, Category="Effector")
-	float GetVisualizerThickness() const
+	float GetVisualizerOpacity() const
 	{
-		return VisualizerThickness;
+		return VisualizerOpacity;
 	}
 
 #if WITH_EDITOR
@@ -403,6 +435,13 @@ protected:
 	/** Used to trigger a refresh on linked cloner */
 	DECLARE_MULTICAST_DELEGATE_OneParam(FOnEffectorIdentifierChanged, ACEEffectorActor* /** InEffectorActor */)
 	static FOnEffectorIdentifierChanged OnEffectorRefreshClonerDelegate;
+
+	static constexpr int32 InnerVisualizerId = 0;
+	static constexpr int32 OuterVisualizerId = 1;
+	static constexpr TCHAR VisualizerColorName[] = TEXT("VisualizerColor");
+	static constexpr TCHAR VisualizerOpacityName[] = TEXT("VisualizerOpacity");
+
+	void UpdateVisualizer(int32 InVisualizerId, TFunction<void(UDynamicMesh*)> InMeshFunction) const;
 
 	//~ Begin AActor
 	virtual void Destroyed() override;
@@ -422,7 +461,9 @@ protected:
 	virtual void PostDuplicate(EDuplicateMode::Type InDuplicateMode) override;
 	//~ End UObject
 
+	void RegisterToChannel();
 	int32 GetChannelIdentifier() const;
+	void OnEffectorSubsystemInitialized(const UWorld* InWorld);
 
 	FCEClonerEffectorChannelData& GetChannelData();
 
@@ -455,6 +496,12 @@ protected:
 	/** Update values for radial type effector */
 	void OnRadialChanged();
 
+	/** Update values for torus type effector */
+	void OnTorusChanged();
+
+	/** Update values for unbound type effector */
+	void OnUnboundChanged();
+
 	/** Called when transform of effector has changed */
 	void OnTransformChanged();
 
@@ -482,8 +529,8 @@ protected:
 	/** Called when force enabled state changed */
 	void OnForceEnabledChanged();
 
-	/** Update thickness of components of this effector */
-	void OnVisualizerThicknessChanged();
+	/** Update opacity of components of this effector */
+	void OnVisualizerOpacityChanged();
 
 	/** Update sprite visibility of this effector */
 	void OnVisualizerSpriteVisibleChanged();
@@ -491,12 +538,15 @@ protected:
 	/** Update particle color affected by this effector */
 	void OnColorChanged();
 
+	/** Update all types options */
+	void UpdateEffectorTypes();
+
 	/** Is this effector enabled/disabled on linked cloners */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Setter="SetEnabled", Getter="GetEnabled", Category="Effector")
 	bool bEnabled = true;
 
 	/** The ratio effect of the effector on clones */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Setter="SetMagnitude", Getter="GetMagnitude", Category="Effector", meta=(ClampMin="0", ClampMax="1"))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Setter, Getter, Category="Effector", meta=(ClampMin="0", ClampMax="1"))
 	float Magnitude = 1.f;
 
 	/** Affected clones color passed over to material */
@@ -504,7 +554,7 @@ protected:
 	FLinearColor Color = FLinearColor::Red;
 
 	/** Type of effector to apply on cloners instances */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Setter="SetType", Getter="GetType", Category="Type")
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Setter, Getter, Category="Type")
 	ECEClonerEffectorType Type = ECEClonerEffectorType::Sphere;
 
 	/** Invert the type effect, instead of affecting the inside of a zone, will affect the outside */
@@ -512,27 +562,27 @@ protected:
 	bool bInvertType = false;
 
 	/** Weight easing function applied to lerp transforms */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Setter="SetEasing", Getter="GetEasing", Category="Type", meta=(EditCondition="Type != ECEClonerEffectorType::Unbound", EditConditionHides))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Setter, Getter, Category="Type", meta=(EditCondition="Type != ECEClonerEffectorType::Unbound", EditConditionHides))
 	ECEClonerEasing Easing = ECEClonerEasing::Linear;
 
 	/** Inner radius of sphere, all clones inside will be affected with a maximum weight */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Setter="SetInnerRadius", Getter="GetInnerRadius", Category="Type", meta=(ClampMin="0", EditCondition="Type == ECEClonerEffectorType::Sphere", EditConditionHides))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Setter, Getter, Category="Type", meta=(ClampMin="0", EditCondition="Type == ECEClonerEffectorType::Sphere", EditConditionHides))
 	float InnerRadius = 50.f;
 
 	/** Outer radius of sphere, all clones outside will not be affected */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Setter="SetOuterRadius", Getter="GetOuterRadius", Category="Type", meta=(ClampMin="0", EditCondition="Type == ECEClonerEffectorType::Sphere", EditConditionHides))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Setter, Getter, Category="Type", meta=(ClampMin="0", EditCondition="Type == ECEClonerEffectorType::Sphere", EditConditionHides))
 	float OuterRadius = 200.f;
 
 	/** Inner extent of box, all clones inside will be affected with a maximum weight */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Setter="SetInnerExtent", Getter="GetInnerExtent", Category="Type", meta=(ClampMin="0", EditCondition="Type == ECEClonerEffectorType::Box", EditConditionHides))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Setter, Getter, Category="Type", meta=(ClampMin="0", AllowPreserveRatio, EditCondition="Type == ECEClonerEffectorType::Box", EditConditionHides))
 	FVector InnerExtent = FVector(50.f);
 
 	/** Outer extent of box, all clones outside will not be affected */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Setter="SetOuterExtent", Getter="GetOuterExtent", Category="Type", meta=(ClampMin="0", EditCondition="Type == ECEClonerEffectorType::Box", EditConditionHides))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Setter, Getter, Category="Type", meta=(ClampMin="0", AllowPreserveRatio, EditCondition="Type == ECEClonerEffectorType::Box", EditConditionHides))
 	FVector OuterExtent = FVector(200.f);
 
 	/** Plane spacing, everything inside this zone will be affected */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Setter="SetPlaneSpacing", Getter="GetPlaneSpacing", Category="Type", meta=(ClampMin="0", EditCondition="Type == ECEClonerEffectorType::Plane", EditConditionHides))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Setter, Getter, Category="Type", meta=(ClampMin="0", EditCondition="Type == ECEClonerEffectorType::Plane", EditConditionHides))
 	float PlaneSpacing = 200.f;
 
 	/** Radial angle in degree, everything within the angle will be affected */
@@ -547,102 +597,114 @@ protected:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Setter, Getter, Category="Type", meta=(ClampMin="0", EditCondition="Type == ECEClonerEffectorType::Radial", EditConditionHides))
 	float RadialMaxRadius = 1000.f;
 
+	/** Main torus radius from center to the edge where inner and outer tube will be revolved */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Setter, Getter, Category="Type", meta=(ClampMin="0", EditCondition="Type == ECEClonerEffectorType::Torus", EditConditionHides))
+	float TorusRadius = 250.f;
+
+	/** Minimum revolved radius for the torus effect, clones contained inside will be affected with a maximum weight */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Setter, Getter, Category="Type", meta=(ClampMin="0", EditCondition="Type == ECEClonerEffectorType::Torus", EditConditionHides))
+	float TorusInnerRadius = 50.f;
+
+	/** Maximum revolved radius for the torus effect, clones outside of it will not be affected */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Setter, Getter, Category="Type", meta=(ClampMin="0", EditCondition="Type == ECEClonerEffectorType::Torus", EditConditionHides))
+	float TorusOuterRadius = 200.f;
+
 	/** Mode of effector for each clones instances */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Setter="SetMode", Getter="GetMode", Category="Mode")
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Setter, Getter, Category="Mode")
 	ECEClonerEffectorMode Mode = ECEClonerEffectorMode::Default;
 
 	/** Offset applied on affected clones */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Setter="SetOffset", Getter="GetOffset", Category="Mode", meta=(EditCondition="Mode == ECEClonerEffectorMode::Default", EditConditionHides))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Setter, Getter, Category="Mode", meta=(EditCondition="Mode == ECEClonerEffectorMode::Default", EditConditionHides))
 	FVector Offset = FVector::ZeroVector;
 
 	/** Rotation applied on affected clones */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Setter="SetRotation", Getter="GetRotation", Category="Mode", meta=(ClampMin="-180", ClampMax="180", UIMin="-180", UIMax="180", EditCondition="Mode == ECEClonerEffectorMode::Default", EditConditionHides))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Setter, Getter, Category="Mode", meta=(ClampMin="-180", ClampMax="180", UIMin="-180", UIMax="180", EditCondition="Mode == ECEClonerEffectorMode::Default", EditConditionHides))
 	FRotator Rotation = FRotator::ZeroRotator;
 
 	/** Scale applied on affected clones */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Setter="SetScale", Getter="GetScale", Category="Mode", meta=(ClampMin="0", AllowPreserveRatio, Delta="0.01", EditCondition="Mode == ECEClonerEffectorMode::Default", EditConditionHides))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Setter, Getter, Category="Mode", meta=(ClampMin="0", AllowPreserveRatio, Delta="0.01", EditCondition="Mode == ECEClonerEffectorMode::Default", EditConditionHides))
 	FVector Scale = FVector::OneVector;
 
 	/** The actor to track when mode is set to target */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Mode", meta=(DisplayName="TargetActor", EditCondition="Mode == ECEClonerEffectorMode::Target", EditConditionHides))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Setter, Getter, Category="Mode", meta=(DisplayName="TargetActor", EditCondition="Mode == ECEClonerEffectorMode::Target", EditConditionHides))
 	TWeakObjectPtr<AActor> TargetActorWeak = nullptr;
 
 	UPROPERTY()
 	TWeakObjectPtr<AActor> InternalTargetActorWeak = nullptr;
 
 	/** Amplitude of the noise field for location */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Setter="SetLocationStrength", Getter="GetLocationStrength", Category="Mode", meta=(EditCondition="Mode == ECEClonerEffectorMode::NoiseField", EditConditionHides))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Setter, Getter, Category="Mode", meta=(EditCondition="Mode == ECEClonerEffectorMode::NoiseField", EditConditionHides))
 	FVector LocationStrength = FVector::ZeroVector;
 
 	/** Amplitude of the noise field for rotation */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Mode", meta=(EditCondition="Mode == ECEClonerEffectorMode::NoiseField", EditConditionHides))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Setter, Getter, Category="Mode", meta=(EditCondition="Mode == ECEClonerEffectorMode::NoiseField", EditConditionHides))
 	FRotator RotationStrength = FRotator::ZeroRotator;
 
 	/** Amplitude of the noise field for scale */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Mode", meta=(EditCondition="Mode == ECEClonerEffectorMode::NoiseField", EditConditionHides))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Setter, Getter, Category="Mode", meta=(ClampMin="0", AllowPreserveRatio, Delta="0.01", EditCondition="Mode == ECEClonerEffectorMode::NoiseField", EditConditionHides))
 	FVector ScaleStrength = FVector::OneVector;
 
 	/** Panning to offset the noise field sampling */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Setter="SetPan", Getter="GetPan", Category="Mode", meta=(EditCondition="Mode == ECEClonerEffectorMode::NoiseField", EditConditionHides))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Setter, Getter, Category="Mode", meta=(EditCondition="Mode == ECEClonerEffectorMode::NoiseField", EditConditionHides))
 	FVector Pan = FVector::ZeroVector;
 
 	/** Intensity of the noise field */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Setter="SetFrequency", Getter="GetFrequency", Category="Mode", meta=(ClampMin="0", EditCondition="Mode == ECEClonerEffectorMode::NoiseField", EditConditionHides))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Setter, Getter, Category="Mode", meta=(ClampMin="0", EditCondition="Mode == ECEClonerEffectorMode::NoiseField", EditConditionHides))
 	float Frequency = 0.5f;
 
 	/** Enable orientation force to allow each clone instance to rotate around its pivot */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Setter="SetOrientationForceEnabled", Getter="GetOrientationForceEnabled", Category="Force")
 	bool bOrientationForceEnabled = false;
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Setter="SetOrientationForceRate", Getter="GetOrientationForceRate", Category="Force", meta=(Delta="0.0001", ClampMin="0", EditCondition="bOrientationForceEnabled", EditConditionHides))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Setter, Getter, Category="Force", meta=(Delta="0.0001", ClampMin="0", EditCondition="bOrientationForceEnabled", EditConditionHides))
 	float OrientationForceRate = 1.f;
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Setter="SetOrientationForceMin", Getter="GetOrientationForceMin", Category="Force", meta=(EditCondition="bOrientationForceEnabled", EditConditionHides))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Setter, Getter, Category="Force", meta=(EditCondition="bOrientationForceEnabled", EditConditionHides))
 	FVector OrientationForceMin = FVector(-0.1f);
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Setter="SetOrientationForceMax", Getter="GetOrientationForceMax", Category="Force", meta=(EditCondition="bOrientationForceEnabled", EditConditionHides))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Setter, Getter, Category="Force", meta=(EditCondition="bOrientationForceEnabled", EditConditionHides))
 	FVector OrientationForceMax = FVector(0.1f);
 
 	/** Enable vortex force to allow each clone instance to rotate around a specific axis on the cloner pivot */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Setter="SetVortexForceEnabled", Getter="GetVortexForceEnabled", Category="Force")
 	bool bVortexForceEnabled = false;
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Setter="SetVortexForceAmount", Getter="GetVortexForceAmount", Category="Force", meta=(EditCondition="bVortexForceEnabled", EditConditionHides))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Setter, Getter, Category="Force", meta=(EditCondition="bVortexForceEnabled", EditConditionHides))
 	float VortexForceAmount = 10000.f;
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Setter="SetVortexForceAxis", Getter="GetVortexForceAxis", Category="Force", meta=(EditCondition="bVortexForceEnabled", EditConditionHides))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Setter, Getter, Category="Force", meta=(EditCondition="bVortexForceEnabled", EditConditionHides))
 	FVector VortexForceAxis = FVector::ZAxisVector;
 
 	/** Enable curl noise force to allow each clone instance to add random location variation */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Setter="SetCurlNoiseForceEnabled", Getter="GetCurlNoiseForceEnabled", Category="Force")
 	bool bCurlNoiseForceEnabled = false;
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Setter="SetCurlNoiseForceStrength", Getter="GetCurlNoiseForceStrength", Category="Force", meta=(EditCondition="bCurlNoiseForceEnabled", EditConditionHides))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Setter, Getter, Category="Force", meta=(EditCondition="bCurlNoiseForceEnabled", EditConditionHides))
 	float CurlNoiseForceStrength = 1000.f;
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Setter="SetCurlNoiseForceFrequency", Getter="GetCurlNoiseForceFrequency", Category="Force", meta=(EditCondition="bCurlNoiseForceEnabled", EditConditionHides))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Setter, Getter, Category="Force", meta=(EditCondition="bCurlNoiseForceEnabled", EditConditionHides))
 	float CurlNoiseForceFrequency = 10.f;
 
 	/** Enable attraction force to allow each clone instances to gravitate toward a location */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Setter="SetAttractionForceEnabled", Getter="GetAttractionForceEnabled", Category="Force")
 	bool bAttractionForceEnabled = false;
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Setter="SetAttractionForceStrength", Getter="GetAttractionForceStrength", Category="Force", meta=(EditCondition="bAttractionForceEnabled", EditConditionHides))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Setter, Getter, Category="Force", meta=(EditCondition="bAttractionForceEnabled", EditConditionHides))
 	float AttractionForceStrength = 1000.f;
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Setter="SetAttractionForceFalloff", Getter="GetAttractionForceFalloff", Category="Force", meta=(EditCondition="bAttractionForceEnabled", EditConditionHides))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Setter, Getter, Category="Force", meta=(EditCondition="bAttractionForceEnabled", EditConditionHides))
 	float AttractionForceFalloff = 0.1f;
 
 	/** Enable gravity force to pull particles based on an acceleration vector */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Setter="SetGravityForceEnabled", Getter="GetGravityForceEnabled", Category="Force")
 	bool bGravityForceEnabled = false;
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Setter="SetGravityForceAcceleration", Getter="GetGravityForceAcceleration", Category="Force", meta=(EditCondition="bGravityForceEnabled", EditConditionHides))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Setter, Getter, Category="Force", meta=(EditCondition="bGravityForceEnabled", EditConditionHides))
 	FVector GravityForceAcceleration = FVector(0, 0, -980.f);
 
-	/** Thickness of components visualizers */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, AdvancedDisplay, Setter="SetVisualizerThickness", Getter="GetVisualizerThickness", Category="Effector", meta=(ClampMin="0.1", ClampMax="10.0", Delta="0.1"))
-	float VisualizerThickness = 0.5f;
+	/** Opacity of components visualizers */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, AdvancedDisplay, Setter, Getter, Category="Effector", meta=(ClampMin="0", ClampMax="1.0"))
+	float VisualizerOpacity = 0.1f;
 
 #if WITH_EDITORONLY_DATA
 	/** Toggle the sprite to visualize and click on this effector */
@@ -656,43 +718,32 @@ private:
 	UFUNCTION()
 	void OnTargetActorDestroyed(AActor* InActor);
 
-	/** Sphere component for sphere maximum weight */
-	UPROPERTY()
-	TObjectPtr<USphereComponent> InnerSphereComponent;
+	/** Visualizer component for inner effector type */
+	UPROPERTY(Transient)
+	TObjectPtr<UDynamicMeshComponent> InnerVisualizerComponent;
 
-	/** Sphere component for sphere minimum weight */
-	UPROPERTY()
-	TObjectPtr<USphereComponent> OuterSphereComponent;
+	/** Visualizer component for outer effector type */
+	UPROPERTY(Transient)
+	TObjectPtr<UDynamicMeshComponent> OuterVisualizerComponent;
 
-	/** Box component for box maximum weight */
-	UPROPERTY()
-	TObjectPtr<UBoxComponent> InnerBoxComponent;
+	/** Dynamic material for the inner visualizer */
+	UPROPERTY(Transient)
+	TObjectPtr<UMaterialInstanceDynamic> InnerVisualizerMaterial;
 
-	/** Box component for box minimum weight */
-	UPROPERTY()
-	TObjectPtr<UBoxComponent> OuterBoxComponent;
+	/** Dynamic material for the outer visualizer */
+	UPROPERTY(Transient)
+	TObjectPtr<UMaterialInstanceDynamic> OuterVisualizerMaterial;
 
-	/** Plane components for plane minimum weight */
-	UPROPERTY()
-	TObjectPtr<UBoxComponent> InnerPlaneComponent;
-
-	/** Plane components for plane maximum weight */
-	UPROPERTY()
-	TObjectPtr<UBoxComponent> OuterPlaneComponent;
-
-	/** Radial components for begin angle */
-	UPROPERTY()
-	TObjectPtr<UArrowComponent> BeginRadialComponent;
-
-	/** Radial components for end angle */
-	UPROPERTY()
-	TObjectPtr<UArrowComponent> EndRadialComponent;
+	/** Used to hold data related to visualizer for updates */
+	UPROPERTY(Transient)
+	FInstancedPropertyBag VisualizerData;
 
 	/** Internal cloners array, deprecated since it will be moved to the cloners and emptied out on post load */
 	UPROPERTY(NonTransactional)
 	TSet<TWeakObjectPtr<ACEClonerActor>> InternalCloners;
 
 	/** Transient effector channel data */
+	UPROPERTY(VisibleInstanceOnly, Transient, DuplicateTransient, TextExportTransient, NonTransactional, AdvancedDisplay, Category="Effector")
 	FCEClonerEffectorChannelData ChannelData;
 
 #if WITH_EDITOR

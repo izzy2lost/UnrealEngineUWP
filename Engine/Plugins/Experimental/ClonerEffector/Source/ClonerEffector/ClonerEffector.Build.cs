@@ -15,17 +15,18 @@ public class ClonerEffector : ModuleRules
 				"CoreUObject",
 				"Engine",
 				"Niagara",
-				"NiagaraCore"
+				"NiagaraCore",
+				"StructUtils"
 			}
 		);
 
 		PrivateDependencyModuleNames.AddRange(
 			new string[]
 			{
+				"DynamicMesh",
 				"GeometryCore",
 				"GeometryFramework",
 				"GeometryScriptingCore",
-				"DynamicMesh",
 				"ProceduralMeshComponent",
 				"StaticMeshDescription"
 			}

@@ -49,9 +49,9 @@ bool UCEEffectorSubsystem::RegisterChannelEffector(ACEEffectorActor* InEffector)
 		return false;
 	}
 
-	int32 EffectorIndex = INDEX_NONE;
+	int32 EffectorIndex = EffectorsWeak.Find(InEffector);
 
-	if (!EffectorsWeak.Contains(InEffector))
+	if (EffectorIndex == INDEX_NONE)
 	{
 		EffectorIndex = EffectorsWeak.Add(InEffector);
 		UE_LOG(LogACEEffectorSubsystem, Log, TEXT("%s effector registered in channel %i"), *InEffector->GetActorNameOrLabel(), EffectorIndex);

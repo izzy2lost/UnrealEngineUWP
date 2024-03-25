@@ -3,12 +3,14 @@
 #include "Effector/CEEffectorActor.h"
 
 #include "Cloner/CEClonerActor.h"
-#include "Components/ArrowComponent.h"
-#include "Components/BoxComponent.h"
-#include "Components/SphereComponent.h"
+#include "Components/DynamicMeshComponent.h"
 #include "Effector/CEEffectorComponent.h"
+#include "GeometryScript/MeshPrimitiveFunctions.h"
+#include "Materials/MaterialInstanceDynamic.h"
 #include "Math/Vector.h"
+#include "PropertyBag.h"
 #include "Subsystems/CEEffectorSubsystem.h"
+#include "UObject/ConstructorHelpers.h"
 
 ACEEffectorActor::FOnEffectorIdentifierChanged ACEEffectorActor::OnEffectorRefreshClonerDelegate;
 
@@ -23,109 +25,53 @@ ACEEffectorActor::ACEEffectorActor()
 #endif
 	SetRootComponent(SceneComponent);
 
-	// Sphere
-	InnerSphereComponent = CreateDefaultSubobject<USphereComponent>(TEXT("AvaInnerSphereComponent"));;
-	InnerSphereComponent->ShapeColor = FColor::Blue;
-	InnerSphereComponent->SetLineThickness(VisualizerThickness);
-	InnerSphereComponent->SetSphereRadius(InnerRadius);
-	InnerSphereComponent->SetHiddenInGame(true);
+	// Inner Visualizer Component
+	InnerVisualizerComponent = CreateDefaultSubobject<UDynamicMeshComponent>(TEXT("InnerVisualizerComponent"));
+	InnerVisualizerComponent->SetHiddenInGame(true);
+	InnerVisualizerComponent->SetTranslucentSortPriority(0);
 #if WITH_EDITOR
 	// Do not show bounding box around cloner for better visibility
-	InnerSphereComponent->SetIsVisualizationComponent(true);
+	InnerVisualizerComponent->SetIsVisualizationComponent(true);
 #endif
-	InnerSphereComponent->bIsEditorOnly = false;
-	InnerSphereComponent->SetupAttachment(SceneComponent);
+	InnerVisualizerComponent->bIsEditorOnly = false;
+	InnerVisualizerComponent->SetupAttachment(SceneComponent);
 
-	OuterSphereComponent = CreateDefaultSubobject<USphereComponent>(TEXT("AvaOuterSphereComponent"));
-	OuterSphereComponent->ShapeColor = FColor::Red;
-	OuterSphereComponent->SetLineThickness(VisualizerThickness);
-	OuterSphereComponent->SetSphereRadius(OuterRadius);
-	OuterSphereComponent->SetHiddenInGame(true);
+	// Outer Visualizer Component
+	OuterVisualizerComponent = CreateDefaultSubobject<UDynamicMeshComponent>(TEXT("OuterVisualizerComponent"));
+	OuterVisualizerComponent->SetHiddenInGame(true);
+	OuterVisualizerComponent->SetTranslucentSortPriority(1);
 #if WITH_EDITOR
 	// Do not show bounding box around cloner for better visibility
-	OuterSphereComponent->SetIsVisualizationComponent(true);
+	OuterVisualizerComponent->SetIsVisualizationComponent(true);
 #endif
-	OuterSphereComponent->bIsEditorOnly = false;
-	OuterSphereComponent->SetupAttachment(SceneComponent);
+	OuterVisualizerComponent->bIsEditorOnly = false;
+	OuterVisualizerComponent->SetupAttachment(SceneComponent);
 
-	// Box
-	InnerBoxComponent = CreateDefaultSubobject<UBoxComponent>(TEXT("AvaInnerBoxComponent"));
-	InnerBoxComponent->ShapeColor = FColor::Blue;
-	InnerBoxComponent->SetLineThickness(VisualizerThickness);
-	InnerBoxComponent->SetBoxExtent(InnerExtent);
-	InnerBoxComponent->SetHiddenInGame(true);
-#if WITH_EDITOR
-	// Do not show bounding box around cloner for better visibility
-	InnerBoxComponent->SetIsVisualizationComponent(true);
-#endif
-	InnerBoxComponent->bIsEditorOnly = false;
-	InnerBoxComponent->SetupAttachment(SceneComponent);
+	static const ConstructorHelpers::FObjectFinder<UMaterialInterface> VisualizerMaterial(TEXT("/Script/Engine.Material'/ClonerEffector/Materials/M_EffectorVisualizer.M_EffectorVisualizer'"));
 
-	OuterBoxComponent = CreateDefaultSubobject<UBoxComponent>(TEXT("AvaOuterBoxComponent"));
-	OuterBoxComponent->ShapeColor = FColor::Red;
-	OuterBoxComponent->SetLineThickness(VisualizerThickness);
-	OuterBoxComponent->SetBoxExtent(OuterExtent);
-	OuterBoxComponent->SetHiddenInGame(true);
-#if WITH_EDITOR
-	// Do not show bounding box around cloner for better visibility
-	OuterBoxComponent->SetIsVisualizationComponent(true);
-#endif
-	OuterBoxComponent->bIsEditorOnly = false;
-	OuterBoxComponent->SetupAttachment(SceneComponent);
+	if (VisualizerMaterial.Succeeded())
+	{
+		InnerVisualizerMaterial = UMaterialInstanceDynamic::Create(
+			VisualizerMaterial.Object,
+			this
+		);
 
-	// Plane
-	InnerPlaneComponent = CreateDefaultSubobject<UBoxComponent>(TEXT("AvaInnerPlaneComponent"));
-	InnerPlaneComponent->ShapeColor = FColor::Red;
-	InnerPlaneComponent->SetLineThickness(VisualizerThickness);
-	InnerPlaneComponent->SetBoxExtent(InnerExtent);
-	InnerPlaneComponent->SetHiddenInGame(true);
-#if WITH_EDITOR
-	// Do not show bounding box around cloner for better visibility
-	InnerPlaneComponent->SetIsVisualizationComponent(true);
-#endif
-	InnerPlaneComponent->bIsEditorOnly = false;
-	InnerPlaneComponent->SetupAttachment(SceneComponent);
+		InnerVisualizerMaterial->SetVectorParameterValue(VisualizerColorName, FLinearColor::Red);
+		InnerVisualizerMaterial->SetScalarParameterValue(VisualizerOpacityName, VisualizerOpacity);
 
-	OuterPlaneComponent = CreateDefaultSubobject<UBoxComponent>(TEXT("AvaOuterPlaneComponent"));
-	OuterPlaneComponent->ShapeColor = FColor::Blue;
-	OuterPlaneComponent->SetLineThickness(VisualizerThickness);
-	OuterPlaneComponent->SetBoxExtent(OuterExtent);
-	OuterPlaneComponent->SetHiddenInGame(true);
-#if WITH_EDITOR
-	// Do not show bounding box around cloner for better visibility
-	OuterPlaneComponent->SetIsVisualizationComponent(true);
-#endif
-	OuterPlaneComponent->bIsEditorOnly = false;
-	OuterPlaneComponent->SetupAttachment(SceneComponent);
+		OuterVisualizerMaterial = UMaterialInstanceDynamic::Create(
+			VisualizerMaterial.Object,
+			this
+		);
 
-	// Radial
-	BeginRadialComponent = CreateDefaultSubobject<UArrowComponent>(TEXT("BeginRadialComponent"));
-	BeginRadialComponent->SetRelativeRotation(FRotator(0, -90, 0));
-	BeginRadialComponent->SetArrowLength(100);
-	BeginRadialComponent->SetArrowColor(FColor::Red);
-	BeginRadialComponent->SetHiddenInGame(true);
-#if WITH_EDITOR
-	// Do not show bounding box around cloner for better visibility
-	BeginRadialComponent->SetIsVisualizationComponent(true);
-#endif
-	BeginRadialComponent->bIsEditorOnly = false;
-	BeginRadialComponent->SetupAttachment(SceneComponent);
-
-	EndRadialComponent = CreateDefaultSubobject<UArrowComponent>(TEXT("EndRadialComponent"));
-	EndRadialComponent->SetRelativeRotation(FRotator(0, -90 + RadialAngle, 0));
-	EndRadialComponent->SetArrowLength(100);
-	EndRadialComponent->SetArrowColor(FColor::Blue);
-	EndRadialComponent->SetHiddenInGame(true);
-#if WITH_EDITOR
-	// Do not show bounding box around cloner for better visibility
-	EndRadialComponent->SetIsVisualizationComponent(true);
-#endif
-	EndRadialComponent->bIsEditorOnly = false;
-	EndRadialComponent->SetupAttachment(SceneComponent);
+		OuterVisualizerMaterial->SetVectorParameterValue(VisualizerColorName, FLinearColor::Blue);
+		OuterVisualizerMaterial->SetScalarParameterValue(VisualizerOpacityName, VisualizerOpacity);
+	}
 
 	if (!IsTemplate())
 	{
 		SceneComponent->TransformUpdated.AddUObject(this, &ACEEffectorActor::OnEffectorTransformed);
+		UCEEffectorSubsystem::OnSubsystemInitializedDelegate.AddUObject(this, &ACEEffectorActor::OnEffectorSubsystemInitialized);
 	}
 }
 
@@ -140,7 +86,7 @@ TCEPropertyChangeDispatcher<ACEEffectorActor> ACEEffectorActor::PropertyChangeDi
 	/** Effector */
 	{ GET_MEMBER_NAME_CHECKED(ACEEffectorActor, bEnabled), &ACEEffectorActor::OnEnabledChanged },
 	{ GET_MEMBER_NAME_CHECKED(ACEEffectorActor, Magnitude), &ACEEffectorActor::OnMagnitudeChanged },
-	{ GET_MEMBER_NAME_CHECKED(ACEEffectorActor, VisualizerThickness), &ACEEffectorActor::OnVisualizerThicknessChanged },
+	{ GET_MEMBER_NAME_CHECKED(ACEEffectorActor, VisualizerOpacity), &ACEEffectorActor::OnVisualizerOpacityChanged },
 	{ GET_MEMBER_NAME_CHECKED(ACEEffectorActor, bVisualizerSpriteVisible), &ACEEffectorActor::OnVisualizerSpriteVisibleChanged },
 	{ GET_MEMBER_NAME_CHECKED(ACEEffectorActor, Color), &ACEEffectorActor::OnColorChanged },
 	/** Type */
@@ -155,6 +101,9 @@ TCEPropertyChangeDispatcher<ACEEffectorActor> ACEEffectorActor::PropertyChangeDi
 	{ GET_MEMBER_NAME_CHECKED(ACEEffectorActor, RadialAngle), &ACEEffectorActor::OnRadialChanged },
 	{ GET_MEMBER_NAME_CHECKED(ACEEffectorActor, RadialMinRadius), &ACEEffectorActor::OnRadialChanged },
 	{ GET_MEMBER_NAME_CHECKED(ACEEffectorActor, RadialMaxRadius), &ACEEffectorActor::OnRadialChanged },
+	{ GET_MEMBER_NAME_CHECKED(ACEEffectorActor, TorusRadius), &ACEEffectorActor::OnTorusChanged },
+	{ GET_MEMBER_NAME_CHECKED(ACEEffectorActor, TorusInnerRadius), &ACEEffectorActor::OnTorusChanged },
+	{ GET_MEMBER_NAME_CHECKED(ACEEffectorActor, TorusOuterRadius), &ACEEffectorActor::OnTorusChanged },
 	/** Mode */
 	{ GET_MEMBER_NAME_CHECKED(ACEEffectorActor, Mode), &ACEEffectorActor::OnModeChanged },
 	{ GET_MEMBER_NAME_CHECKED(ACEEffectorActor, Offset), &ACEEffectorActor::OnTransformOptionsChanged },
@@ -228,6 +177,8 @@ void ACEEffectorActor::PostLoad()
 {
 	Super::PostLoad();
 
+	OnEffectorChanged();
+
 	if (!InternalCloners.IsEmpty())
 	{
 		for (const TWeakObjectPtr<ACEClonerActor>& ClonerWeak : InternalCloners)
@@ -240,8 +191,6 @@ void ACEEffectorActor::PostLoad()
 
 		InternalCloners.Empty();
 	}
-
-	OnEffectorChanged();
 }
 
 void ACEEffectorActor::PostDuplicate(EDuplicateMode::Type InDuplicateMode)
@@ -251,22 +200,30 @@ void ACEEffectorActor::PostDuplicate(EDuplicateMode::Type InDuplicateMode)
 	OnEffectorChanged();
 }
 
-int32 ACEEffectorActor::GetChannelIdentifier() const
+void ACEEffectorActor::RegisterToChannel()
 {
-	const int32 Identifier = ChannelData.GetIdentifier();
-
-	if (Identifier == INDEX_NONE)
+	if (IsValid(this)
+		&& ChannelData.GetIdentifier() == INDEX_NONE)
 	{
-		UCEEffectorSubsystem* EffectorSubsystem = !!GetWorld() ? UCEEffectorSubsystem::Get(GetWorld()) : nullptr;
-
 		// Register this effector to the effector channel
-		if (EffectorSubsystem)
+		if (UCEEffectorSubsystem* EffectorSubsystem = UCEEffectorSubsystem::Get(GetWorld()))
 		{
-			EffectorSubsystem->RegisterChannelEffector(const_cast<ACEEffectorActor*>(this));
+			EffectorSubsystem->RegisterChannelEffector(this);
 		}
 	}
+}
 
+int32 ACEEffectorActor::GetChannelIdentifier() const
+{
 	return ChannelData.GetIdentifier();
+}
+
+void ACEEffectorActor::OnEffectorSubsystemInitialized(const UWorld* InWorld)
+{
+	if (InWorld && GetWorld() == InWorld)
+	{
+		OnEffectorChanged();
+	}
 }
 
 FCEClonerEffectorChannelData& ACEEffectorActor::GetChannelData()
@@ -442,6 +399,39 @@ void ACEEffectorActor::SetRadialMaxRadius(float InRadius)
 	OnRadialChanged();
 }
 
+void ACEEffectorActor::SetTorusRadius(float InRadius)
+{
+	if (FMath::IsNearlyEqual(InRadius, TorusRadius))
+	{
+		return;
+	}
+
+	TorusRadius = InRadius;
+	OnTorusChanged();
+}
+
+void ACEEffectorActor::SetTorusInnerRadius(float InRadius)
+{
+	if (FMath::IsNearlyEqual(InRadius, TorusInnerRadius))
+	{
+		return;
+	}
+
+	TorusInnerRadius = InRadius;
+	OnTorusChanged();
+}
+
+void ACEEffectorActor::SetTorusOuterRadius(float InRadius)
+{
+	if (FMath::IsNearlyEqual(InRadius, TorusOuterRadius))
+	{
+		return;
+	}
+
+	TorusOuterRadius = InRadius;
+	OnTorusChanged();
+}
+
 void ACEEffectorActor::SetOffset(const FVector& InOffset)
 {
 	if (InOffset.Equals(Offset))
@@ -503,20 +493,20 @@ void ACEEffectorActor::SetEnabled(bool bInEnable)
 	OnEnabledChanged();
 }
 
-void ACEEffectorActor::SetVisualizerThickness(float InThickness)
+void ACEEffectorActor::SetVisualizerOpacity(float InOpacity)
 {
-	if (FMath::IsNearlyEqual(VisualizerThickness, InThickness))
+	if (FMath::IsNearlyEqual(VisualizerOpacity, InOpacity))
 	{
 		return;
 	}
 
-	if (VisualizerThickness < 0.1f || VisualizerThickness > 10.f)
+	if (VisualizerOpacity < 0.f || VisualizerOpacity > 1.f)
 	{
 		return;
 	}
 
-	VisualizerThickness = InThickness;
-	OnVisualizerThicknessChanged();
+	VisualizerOpacity = InOpacity;
+	OnVisualizerOpacityChanged();
 }
 
 void ACEEffectorActor::SetMode(ECEClonerEffectorMode InMode)
@@ -539,6 +529,11 @@ void ACEEffectorActor::SetTargetActor(AActor* InTargetActor)
 
 	TargetActorWeak = InTargetActor;
 	OnTargetActorChanged();
+}
+
+void ACEEffectorActor::SetTargetActorWeak(const TWeakObjectPtr<AActor>& InTargetActor)
+{
+	SetTargetActor(InTargetActor.Get());
 }
 
 void ACEEffectorActor::SetAttractionForceStrength(float InForceStrength)
@@ -795,10 +790,7 @@ void ACEEffectorActor::OnEffectorTransformed(USceneComponent* InUpdatedComponent
 	OnTransformChanged();
 
 	// Update when scaled or rotated
-	OnSphereChanged();
-	OnBoxChanged();
-	OnPlaneChanged();
-	OnRadialChanged();
+	UpdateEffectorTypes();
 
 	// update if self
 	const AActor* InternalTargetActor = InternalTargetActorWeak.Get();
@@ -820,7 +812,7 @@ void ACEEffectorActor::OnEnabledChanged()
 		// Hide visualization components
 		OnTypeChanged();
 		// Editor
-		OnVisualizerThicknessChanged();
+		OnVisualizerOpacityChanged();
 		OnVisualizerSpriteVisibleChanged();
 	}
 }
@@ -841,45 +833,16 @@ void ACEEffectorActor::OnModeChanged()
 
 void ACEEffectorActor::OnTypeChanged()
 {
-	// Sphere
-	if (InnerSphereComponent && OuterSphereComponent)
-	{
-		InnerSphereComponent->SetVisibility(Type == ECEClonerEffectorType::Sphere);
-		OuterSphereComponent->SetVisibility(Type == ECEClonerEffectorType::Sphere);
-	}
-
-	// Box
-	if (InnerBoxComponent && OuterBoxComponent)
-	{
-		InnerBoxComponent->SetVisibility(Type == ECEClonerEffectorType::Box);
-		OuterBoxComponent->SetVisibility(Type == ECEClonerEffectorType::Box);
-	}
-
-	// Plane
-	if (InnerPlaneComponent && OuterPlaneComponent)
-	{
-		InnerPlaneComponent->SetVisibility(Type == ECEClonerEffectorType::Plane);
-		OuterPlaneComponent->SetVisibility(Type == ECEClonerEffectorType::Plane);
-	}
-
-	// Radial
-	if (BeginRadialComponent && EndRadialComponent)
-	{
-		BeginRadialComponent->SetVisibility(Type == ECEClonerEffectorType::Radial);
-		EndRadialComponent->SetVisibility(Type == ECEClonerEffectorType::Radial);
-	}
-
 	ChannelData.Type = Type;
 
 	// Update type data
-	OnSphereChanged();
-	OnBoxChanged();
-	OnPlaneChanged();
-	OnRadialChanged();
+	UpdateEffectorTypes();
 }
 
 void ACEEffectorActor::OnEffectorChanged()
 {
+	RegisterToChannel();
+
 	if (!bEnabled)
 	{
 		OnEnabledChanged();
@@ -894,7 +857,7 @@ void ACEEffectorActor::OnEffectorChanged()
 		OnForceOptionsChanged();
 		OnColorChanged();
 		// Editor
-		OnVisualizerThicknessChanged();
+		OnVisualizerOpacityChanged();
 		OnVisualizerSpriteVisibleChanged();
 	}
 }
@@ -914,14 +877,7 @@ void ACEEffectorActor::OnTransformChanged()
 void ACEEffectorActor::OnBoxChanged()
 {
 	InnerExtent = ClampVector(InnerExtent, FVector::ZeroVector, OuterExtent);
-	// Max()
 	OuterExtent = OuterExtent.ComponentMax(InnerExtent);
-
-	if (InnerBoxComponent && OuterBoxComponent)
-	{
-		InnerBoxComponent->SetBoxExtent(InnerExtent);
-		OuterBoxComponent->SetBoxExtent(OuterExtent);
-	}
 
 	if (Type != ECEClonerEffectorType::Box)
 	{
@@ -930,18 +886,44 @@ void ACEEffectorActor::OnBoxChanged()
 
 	ChannelData.InnerExtent = GetInnerExtent();
 	ChannelData.OuterExtent = GetOuterExtent();
+
+	// Update visualizer
+	static const FName BoxInnerExtentName = GET_MEMBER_NAME_CHECKED(ACEEffectorActor, InnerExtent);
+	static const FName BoxOuterExtentName = GET_MEMBER_NAME_CHECKED(ACEEffectorActor, OuterExtent);
+	TValueOrError<FVector*, EPropertyBagResult> BoxInnerExtentValue = VisualizerData.GetValueStruct<FVector>(BoxInnerExtentName);
+	TValueOrError<FVector*, EPropertyBagResult> BoxOuterExtentValue = VisualizerData.GetValueStruct<FVector>(BoxOuterExtentName);
+
+	if (!BoxInnerExtentValue.HasValue()
+		|| *BoxInnerExtentValue.GetValue() != InnerExtent)
+	{
+		UpdateVisualizer(InnerVisualizerId, [this](UDynamicMesh* InMesh)
+		{
+			constexpr FGeometryScriptPrimitiveOptions PrimitiveOptions;
+			UGeometryScriptLibrary_MeshPrimitiveFunctions::AppendBox(InMesh, PrimitiveOptions, FTransform(FVector(0, 0, -InnerExtent.Z)), InnerExtent.X * 2, InnerExtent.Y * 2, InnerExtent.Z * 2);
+		});
+	}
+
+	if (!BoxOuterExtentValue.HasValue()
+		|| *BoxOuterExtentValue.GetValue() != OuterExtent)
+	{
+		UpdateVisualizer(OuterVisualizerId, [this](UDynamicMesh* InMesh)
+		{
+			constexpr FGeometryScriptPrimitiveOptions PrimitiveOptions;
+			UGeometryScriptLibrary_MeshPrimitiveFunctions::AppendBox(InMesh, PrimitiveOptions, FTransform(FVector(0, 0, -OuterExtent.Z)), OuterExtent.X * 2, OuterExtent.Y * 2, OuterExtent.Z * 2);
+		});
+	}
+
+	VisualizerData.Reset();
+	VisualizerData.AddProperty(BoxInnerExtentName, EPropertyBagPropertyType::Struct);
+	VisualizerData.AddProperty(BoxOuterExtentName, EPropertyBagPropertyType::Struct);
+	VisualizerData.SetValueStruct(BoxInnerExtentName, InnerExtent);
+	VisualizerData.SetValueStruct(BoxOuterExtentName, OuterExtent);
 }
 
 void ACEEffectorActor::OnSphereChanged()
 {
 	InnerRadius = FMath::Clamp(InnerRadius, 0.f, OuterRadius);
 	OuterRadius = FMath::Max(OuterRadius, InnerRadius);
-
-	if (InnerSphereComponent && OuterSphereComponent)
-	{
-		InnerSphereComponent->SetSphereRadius(InnerRadius);
-		OuterSphereComponent->SetSphereRadius(OuterRadius);
-	}
 
 	if (Type != ECEClonerEffectorType::Sphere)
 	{
@@ -950,43 +932,81 @@ void ACEEffectorActor::OnSphereChanged()
 
 	ChannelData.InnerExtent = FVector(GetInnerRadius());
 	ChannelData.OuterExtent = FVector(GetOuterRadius());
+
+	// Update visualizer
+	static const FName SphereInnerRadiusName = GET_MEMBER_NAME_CHECKED(ACEEffectorActor, InnerRadius);
+	static const FName SphereOuterRadiusName = GET_MEMBER_NAME_CHECKED(ACEEffectorActor, OuterRadius);
+	TValueOrError<float, EPropertyBagResult> SphereInnerRadiusValue = VisualizerData.GetValueFloat(SphereInnerRadiusName);
+	TValueOrError<float, EPropertyBagResult> SphereOuterRadiusValue = VisualizerData.GetValueFloat(SphereOuterRadiusName);
+
+	if (!SphereInnerRadiusValue.HasValue()
+		|| SphereInnerRadiusValue.GetValue() != InnerRadius)
+	{
+		UpdateVisualizer(InnerVisualizerId, [this](UDynamicMesh* InMesh)
+		{
+			constexpr FGeometryScriptPrimitiveOptions PrimitiveOptions;
+			UGeometryScriptLibrary_MeshPrimitiveFunctions::AppendSphereLatLong(InMesh, PrimitiveOptions, FTransform::Identity, InnerRadius);
+		});
+	}
+
+	if (!SphereOuterRadiusValue.HasValue()
+		|| SphereOuterRadiusValue.GetValue() != OuterRadius)
+	{
+		UpdateVisualizer(OuterVisualizerId, [this](UDynamicMesh* InMesh)
+		{
+			constexpr FGeometryScriptPrimitiveOptions PrimitiveOptions;
+			UGeometryScriptLibrary_MeshPrimitiveFunctions::AppendSphereLatLong(InMesh, PrimitiveOptions, FTransform::Identity, OuterRadius);
+		});
+	}
+
+	VisualizerData.Reset();
+	VisualizerData.AddProperty(SphereInnerRadiusName, EPropertyBagPropertyType::Float);
+	VisualizerData.AddProperty(SphereOuterRadiusName, EPropertyBagPropertyType::Float);
+	VisualizerData.SetValueFloat(SphereInnerRadiusName, InnerRadius);
+	VisualizerData.SetValueFloat(SphereOuterRadiusName, OuterRadius);
 }
 
 void ACEEffectorActor::OnPlaneChanged()
 {
-	static const FVector PlaneAxis = FVector::LeftVector;
-	const FVector InnerPlane = PlaneAxis * FVector(-PlaneSpacing/2);
-	const FVector OuterPlane = PlaneAxis * FVector(PlaneSpacing/2);
-
-	if (InnerPlaneComponent && OuterPlaneComponent)
-	{
-		static const FVector InnerSize(100, 0, 100);
-		InnerPlaneComponent->SetRelativeLocation(InnerPlane);
-		InnerPlaneComponent->SetBoxExtent(InnerSize);
-
-		static const FVector OuterSize(200, 0, 200);
-		OuterPlaneComponent->SetRelativeLocation(OuterPlane);
-		OuterPlaneComponent->SetBoxExtent(OuterSize);
-	}
-
 	if (Type != ECEClonerEffectorType::Plane)
 	{
 		return;
 	}
 
-	ChannelData.InnerExtent = PlaneAxis;
+	ChannelData.InnerExtent = FVector::LeftVector;
 	ChannelData.OuterExtent = FVector(PlaneSpacing);
+
+	// Update visualizer
+	static const FName PlaneSpacingName = GET_MEMBER_NAME_CHECKED(ACEEffectorActor, PlaneSpacing);
+	TValueOrError<float, EPropertyBagResult> PlaneSpacingValue = VisualizerData.GetValueFloat(PlaneSpacingName);
+
+	if (!PlaneSpacingValue.HasValue()
+		|| PlaneSpacingValue.GetValue() != PlaneSpacing)
+	{
+		UpdateVisualizer(InnerVisualizerId, [this](UDynamicMesh* InMesh)
+		{
+			const FVector InnerPlane = FVector::LeftVector * FVector(-PlaneSpacing/2);
+			constexpr FGeometryScriptPrimitiveOptions PrimitiveOptions;
+			UGeometryScriptLibrary_MeshPrimitiveFunctions::AppendRectangleXY(InMesh, PrimitiveOptions, FTransform(FRotator(0, 0, 90), InnerPlane), 250, 250);
+		});
+
+		UpdateVisualizer(OuterVisualizerId, [this](UDynamicMesh* InMesh)
+		{
+			const FVector OuterPlane = FVector::LeftVector * FVector(PlaneSpacing/2);
+			constexpr FGeometryScriptPrimitiveOptions PrimitiveOptions;
+			UGeometryScriptLibrary_MeshPrimitiveFunctions::AppendRectangleXY(InMesh, PrimitiveOptions, FTransform(FRotator(0, 0, 90), OuterPlane), 500, 500);
+		});
+	}
+
+	VisualizerData.Reset();
+	VisualizerData.AddProperty(PlaneSpacingName, EPropertyBagPropertyType::Float);
+	VisualizerData.SetValueFloat(PlaneSpacingName, PlaneSpacing);
 }
 
 void ACEEffectorActor::OnRadialChanged()
 {
 	RadialMinRadius = FMath::Min(RadialMinRadius, RadialMaxRadius);
 	RadialMaxRadius = FMath::Max(RadialMinRadius, RadialMaxRadius);
-	
-	if (BeginRadialComponent && EndRadialComponent)
-	{
-		EndRadialComponent->SetRelativeRotation(FRotator(0, -90 + RadialAngle, 0));
-	}
 
 	if (Type != ECEClonerEffectorType::Radial)
 	{
@@ -995,6 +1015,111 @@ void ACEEffectorActor::OnRadialChanged()
 
 	ChannelData.InnerExtent = FVector::LeftVector;
 	ChannelData.OuterExtent = FVector(RadialAngle, RadialMinRadius, RadialMaxRadius);
+
+	// Update visualizer
+	static const FName RadialAngleName = GET_MEMBER_NAME_CHECKED(ACEEffectorActor, RadialAngle);
+	static const FName RadialMinRadiusName = GET_MEMBER_NAME_CHECKED(ACEEffectorActor, RadialMinRadius);
+	static const FName RadialMaxRadiusName = GET_MEMBER_NAME_CHECKED(ACEEffectorActor, RadialMaxRadius);
+	TValueOrError<float, EPropertyBagResult> RadialAngleValue = VisualizerData.GetValueFloat(RadialAngleName);
+	TValueOrError<float, EPropertyBagResult> RadialMinRadiusValue = VisualizerData.GetValueFloat(RadialMinRadiusName);
+	TValueOrError<float, EPropertyBagResult> RadialMaxRadiusValue = VisualizerData.GetValueFloat(RadialMaxRadiusName);
+
+	if (!RadialMaxRadiusValue.HasValue()
+		|| RadialMaxRadiusValue.GetValue() != RadialMaxRadius
+		|| !RadialMinRadiusValue.HasValue()
+		|| RadialMinRadiusValue.GetValue() != RadialMinRadius
+		|| !RadialAngleValue.HasValue()
+		|| RadialAngleValue.GetValue() != RadialAngle)
+	{
+		UpdateVisualizer(InnerVisualizerId, [this](UDynamicMesh* InMesh)
+		{
+			constexpr FGeometryScriptPrimitiveOptions PrimitiveOptions;
+			UGeometryScriptLibrary_MeshPrimitiveFunctions::AppendDisc(InMesh, PrimitiveOptions, FTransform(FRotator(0, -90, 0)), RadialMaxRadius, 16, 0, 0, RadialAngle / 2, RadialMinRadius);
+		});
+
+		UpdateVisualizer(OuterVisualizerId, [this](UDynamicMesh* InMesh)
+		{
+			constexpr FGeometryScriptPrimitiveOptions PrimitiveOptions;
+			UGeometryScriptLibrary_MeshPrimitiveFunctions::AppendDisc(InMesh, PrimitiveOptions, FTransform(FRotator(0, -90, 0)), RadialMaxRadius, 16, 0, RadialAngle / 2, RadialAngle, RadialMinRadius);
+		});
+	}
+
+	VisualizerData.Reset();
+	VisualizerData.AddProperty(RadialAngleName, EPropertyBagPropertyType::Float);
+	VisualizerData.AddProperty(RadialMinRadiusName, EPropertyBagPropertyType::Float);
+	VisualizerData.AddProperty(RadialMaxRadiusName, EPropertyBagPropertyType::Float);
+	VisualizerData.SetValueFloat(RadialAngleName, RadialAngle);
+	VisualizerData.SetValueFloat(RadialMinRadiusName, RadialMinRadius);
+	VisualizerData.SetValueFloat(RadialMaxRadiusName, RadialMaxRadius);
+}
+
+void ACEEffectorActor::OnTorusChanged()
+{
+	TorusOuterRadius = FMath::Min(TorusRadius, TorusOuterRadius);
+	TorusInnerRadius = FMath::Min(TorusInnerRadius, TorusOuterRadius);
+	TorusOuterRadius = FMath::Max(TorusInnerRadius, TorusOuterRadius);
+
+	if (Type != ECEClonerEffectorType::Torus)
+	{
+		return;
+	}
+
+	ChannelData.InnerExtent = FVector::ZAxisVector;
+	ChannelData.OuterExtent = FVector(TorusInnerRadius, TorusOuterRadius, TorusRadius);
+
+	// Update visualizer
+	static const FName TorusRadiusName = GET_MEMBER_NAME_CHECKED(ACEEffectorActor, TorusRadius);
+	static const FName TorusInnerRadiusName = GET_MEMBER_NAME_CHECKED(ACEEffectorActor, TorusInnerRadius);
+	static const FName TorusOuterRadiusName = GET_MEMBER_NAME_CHECKED(ACEEffectorActor, TorusOuterRadius);
+	TValueOrError<float, EPropertyBagResult> TorusRadiusValue = VisualizerData.GetValueFloat(TorusRadiusName);
+	TValueOrError<float, EPropertyBagResult> TorusInnerRadiusValue = VisualizerData.GetValueFloat(TorusInnerRadiusName);
+	TValueOrError<float, EPropertyBagResult> TorusOuterRadiusValue = VisualizerData.GetValueFloat(TorusOuterRadiusName);
+
+	if (!TorusRadiusValue.HasValue()
+		|| TorusRadiusValue.GetValue() != TorusRadius
+		|| !TorusInnerRadiusValue.HasValue()
+		|| TorusInnerRadiusValue.GetValue() != TorusInnerRadius)
+	{
+		UpdateVisualizer(InnerVisualizerId, [this](UDynamicMesh* InMesh)
+		{
+			constexpr FGeometryScriptPrimitiveOptions PrimitiveOptions;
+			constexpr FGeometryScriptRevolveOptions RevolveOptions;
+			UGeometryScriptLibrary_MeshPrimitiveFunctions::AppendTorus(InMesh, PrimitiveOptions, FTransform(FVector(0, 0, -TorusInnerRadius)), RevolveOptions, TorusRadius, TorusInnerRadius);
+		});
+	}
+
+	if (!TorusRadiusValue.HasValue()
+		|| TorusRadiusValue.GetValue() != TorusRadius
+		|| !TorusOuterRadiusValue.HasValue()
+		|| TorusOuterRadiusValue.GetValue() != TorusOuterRadius)
+	{
+		UpdateVisualizer(OuterVisualizerId, [this](UDynamicMesh* InMesh)
+		{
+			constexpr FGeometryScriptPrimitiveOptions PrimitiveOptions;
+			constexpr FGeometryScriptRevolveOptions RevolveOptions;
+			UGeometryScriptLibrary_MeshPrimitiveFunctions::AppendTorus(InMesh, PrimitiveOptions, FTransform(FVector(0, 0, -TorusOuterRadius)), RevolveOptions, TorusRadius, TorusOuterRadius);
+		});
+	}
+
+	VisualizerData.Reset();
+	VisualizerData.AddProperty(TorusRadiusName, EPropertyBagPropertyType::Float);
+	VisualizerData.AddProperty(TorusInnerRadiusName, EPropertyBagPropertyType::Float);
+	VisualizerData.AddProperty(TorusOuterRadiusName, EPropertyBagPropertyType::Float);
+	VisualizerData.SetValueFloat(TorusRadiusName, TorusRadius);
+	VisualizerData.SetValueFloat(TorusInnerRadiusName, TorusInnerRadius);
+	VisualizerData.SetValueFloat(TorusOuterRadiusName, TorusOuterRadius);
+}
+
+void ACEEffectorActor::OnUnboundChanged()
+{
+	if (Type != ECEClonerEffectorType::Unbound)
+	{
+		return;
+	}
+
+	// Clear visualizers
+	UpdateVisualizer(InnerVisualizerId, [](UDynamicMesh* InMesh){});
+	UpdateVisualizer(OuterVisualizerId, [](UDynamicMesh* InMesh){});
 }
 
 void ACEEffectorActor::OnMagnitudeChanged()
@@ -1071,6 +1196,29 @@ void ACEEffectorActor::OnTargetActorDestroyed(AActor* InActor)
 	}
 }
 
+void ACEEffectorActor::UpdateVisualizer(int32 InVisualizerId, TFunction<void(UDynamicMesh*)> InMeshFunction) const
+{
+	UDynamicMeshComponent* MeshComponent = InVisualizerId == InnerVisualizerId ? InnerVisualizerComponent : OuterVisualizerComponent;
+
+	if (!MeshComponent)
+	{
+		return;
+	}
+
+	UDynamicMesh* DynamicMesh = MeshComponent->GetDynamicMesh();
+
+	DynamicMesh->EditMesh([](FDynamicMesh3& InMesh)
+	{
+		InMesh.Clear();
+	});
+
+	InMeshFunction(DynamicMesh);
+
+	// Apply material
+	UMaterialInstanceDynamic* VisualizerMaterial = InVisualizerId == InnerVisualizerId ? InnerVisualizerMaterial : OuterVisualizerMaterial;
+	MeshComponent->SetMaterial(0, VisualizerMaterial);
+}
+
 void ACEEffectorActor::OnNoiseFieldOptionsChanged()
 {
 	if (Mode != ECEClonerEffectorMode::NoiseField)
@@ -1108,33 +1256,18 @@ void ACEEffectorActor::OnTargetOptionsChanged()
 	ChannelData.ScaleDelta = FVector::OneVector;
 }
 
-void ACEEffectorActor::OnVisualizerThicknessChanged()
+void ACEEffectorActor::OnVisualizerOpacityChanged()
 {
-	VisualizerThickness = FMath::Clamp(VisualizerThickness, 0.1f, 10.f);
+	VisualizerOpacity = FMath::Clamp(VisualizerOpacity, 0.f, 1.f);
 
-	if (InnerSphereComponent && OuterSphereComponent)
+	if (InnerVisualizerMaterial)
 	{
-		InnerSphereComponent->SetLineThickness(VisualizerThickness);
-		OuterSphereComponent->SetLineThickness(VisualizerThickness);
+		InnerVisualizerMaterial->SetScalarParameterValue(VisualizerOpacityName, VisualizerOpacity);
 	}
 
-	if (InnerBoxComponent && OuterBoxComponent)
+	if (OuterVisualizerMaterial)
 	{
-		InnerBoxComponent->SetLineThickness(VisualizerThickness);
-		OuterBoxComponent->SetLineThickness(VisualizerThickness);
-	}
-
-	if (InnerPlaneComponent && OuterPlaneComponent)
-	{
-		InnerPlaneComponent->SetLineThickness(VisualizerThickness);
-		OuterPlaneComponent->SetLineThickness(VisualizerThickness);
-	}
-
-	if (BeginRadialComponent && EndRadialComponent)
-	{
-		const float ArrowScale = VisualizerThickness / 2;
-		BeginRadialComponent->SetRelativeScale3D(FVector(10, ArrowScale, ArrowScale));
-		EndRadialComponent->SetRelativeScale3D(FVector(10, ArrowScale, ArrowScale));
+		OuterVisualizerMaterial->SetScalarParameterValue(VisualizerOpacityName, VisualizerOpacity);
 	}
 }
 
@@ -1149,6 +1282,16 @@ void ACEEffectorActor::OnVisualizerSpriteVisibleChanged()
 void ACEEffectorActor::OnColorChanged()
 {
 	ChannelData.Color = Color;
+}
+
+void ACEEffectorActor::UpdateEffectorTypes()
+{
+	OnSphereChanged();
+	OnBoxChanged();
+	OnPlaneChanged();
+	OnRadialChanged();
+	OnTorusChanged();
+	OnUnboundChanged();
 }
 
 void ACEEffectorActor::OnForceOptionsChanged()
