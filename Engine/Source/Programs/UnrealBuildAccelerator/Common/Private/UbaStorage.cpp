@@ -925,7 +925,7 @@ namespace uba
 				m_casTotalBytes = 0;
 				break;
 			}
-			DropCasFile(entry->key, true);
+			DropCasFile(entry->key, true, TC("HandleOverflow"));
 			DetachEntry(*entry);
 			m_casLookup.erase(entry->key);
 		}
@@ -1787,7 +1787,7 @@ namespace uba
 		m_casDataBuffer.UnmapView(view, hint);
 	}
 
-	bool StorageImpl::DropCasFile(const CasKey& casKey, bool forceDelete)
+	bool StorageImpl::DropCasFile(const CasKey& casKey, bool forceDelete, const tchar* hint)
 	{
 		ScopedReadLock lookupLock(m_casLookupLock);
 		auto findIt = m_casLookup.find(casKey);
@@ -1813,7 +1813,7 @@ namespace uba
 			{
 				u32 lastError = GetLastError();
 				if (lastError != ERROR_FILE_NOT_FOUND && lastError != ERROR_PATH_NOT_FOUND)
-					return m_logger.Error(TC("Failed to drop cas %s (%s)"), casFile.data, LastErrorToText(lastError).data);
+					return m_logger.Error(TC("Failed to drop cas %s (%s) (%s)"), casFile.data, hint, LastErrorToText(lastError).data);
 			}
 			else
 			{
@@ -1908,6 +1908,10 @@ namespace uba
 				testCompressed = false;
 				continue;
 			}
+
+			ScopedReadLock casEntryLock(casEntry->lock);
+			UBA_ASSERT(casEntry->verified);
+			UBA_ASSERT(casEntry->exists);
 
 			if (IsCompressed(actualKey))
 			{
@@ -2448,7 +2452,7 @@ namespace uba
 		ScopedWriteLock entryLock(fileEntry.lock);
 		fileEntry.verified = false;
 
-		return DropCasFile(fileEntry.casKey, true);
+		return DropCasFile(fileEntry.casKey, true, file);
 	}
 
 }

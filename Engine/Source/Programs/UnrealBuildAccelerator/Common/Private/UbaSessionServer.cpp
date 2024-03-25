@@ -784,7 +784,7 @@ namespace uba
 						StringBuffer<> logPath;
 						logPath.Append(m_sessionLogDir).Append(destination.data + 5);
 						m_storage.CopyOrLink(casKey, logPath.data, attributes);
-						m_storage.DropCasFile(casKey, false);
+						m_storage.DropCasFile(casKey, false, logPath.data);
 						writer.WriteBool(true);
 						return true;
 					}
@@ -808,7 +808,7 @@ namespace uba
 
 				if (success)
 				{
-					m_storage.DropCasFile(casKey, false);
+					m_storage.DropCasFile(casKey, false, destination.data);
 					RegisterCreateFileForWrite(StringKeyZero, destination.data, destination.count, true);
 				}
 				return true;
