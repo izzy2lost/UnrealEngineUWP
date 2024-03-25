@@ -1764,6 +1764,29 @@ TEST_CASE_METHOD(FWaitUntilCompleteHttpFixture, "Retry fallback with exponential
 	HttpRequest->ProcessRequest();
 }
 
+TEST_CASE_METHOD(FWaitUntilCompleteHttpFixture, "Dead lock test by retrying requests while completing requests", HTTP_TAG)
+{
+	if (!bRetryEnabled)
+	{
+		return;
+	}
+
+	DisableWarningsInThisTest();
+
+	for (uint32 i = 0; i < 50; ++i)
+	{
+		TSharedRef<IHttpRequest> HttpRequest = HttpRetryManager->CreateRequest(
+			5/*InRetryLimitCountOverride*/,
+			FHttpRetrySystem::FRetryTimeoutRelativeSecondsSetting()/*InRetryTimeoutRelativeSecondsOverride unused*/,
+			{ EHttpResponseCodes::TooManyRequests }/*InRetryResponseCodes*/
+		);
+
+		HttpRequest->SetURL(UrlMockStatus(EHttpResponseCodes::TooManyRequests));
+		HttpRequest->SetHeader(TEXT("Retry-After"), FString::Format(TEXT("{0}"), { 0.1 }));
+		HttpRequest->ProcessRequest();
+	}
+}
+
 class FThreadedBatchRequestsFixture : public FWaitThreadedHttpFixture
 {
 public:

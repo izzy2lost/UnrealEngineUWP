@@ -309,12 +309,12 @@ IHttpRequest* FGenericPlatformHttp::ConstructRequest()
 	return new FGenericPlatformHttpRequest();
 }
 
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
 bool FGenericPlatformHttp::UsesThreadedHttp()
 {
-	// Many platforms use libcurl.  Our libcurl implementation uses threading.
-	// Platforms that don't use libcurl but have threading will need to override UsesThreadedHttp to return true for their platform.
-	return WITH_CURL;
+	return true;
 }
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 static bool IsAllowedChar(UTF8CHAR LookupChar)
 {

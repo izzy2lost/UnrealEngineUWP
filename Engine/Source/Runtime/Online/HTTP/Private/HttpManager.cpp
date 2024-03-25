@@ -66,7 +66,7 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 void FHttpManager::Initialize()
 {
-	if (FPlatformHttp::UsesThreadedHttp())
+	if (!Thread)
 	{
 		Thread = CreateHttpThread();
 		Thread->StartThread();
@@ -77,19 +77,21 @@ void FHttpManager::Initialize()
 
 void FHttpManager::Shutdown()
 {
-	FScopeLock ScopeLock(&RequestLock);
-
-	// Don't emit these tracking logs in commandlet runs. Build system traps warnings during cook, and these are not truly fatal, but useful for tracking down shutdown issues.
-	UE_CLOG(ShouldOutputHttpWarnings() && Requests.Num(), LogHttp, Warning, TEXT("[FHttpManager::Shutdown] Unbinding delegates for %d outstanding Http Requests:"), Requests.Num());
-
-	// Clear delegates since they may point to deleted instances
-	for (TArray<FHttpRequestRef>::TIterator It(Requests); It; ++It)
 	{
-		TSharedPtr<IHttpRequest> Request = *It;
-		StaticCastSharedPtr<FHttpRequestImpl>(Request)->Shutdown();
+		FScopeLock ScopeLock(&RequestLock);
 
 		// Don't emit these tracking logs in commandlet runs. Build system traps warnings during cook, and these are not truly fatal, but useful for tracking down shutdown issues.
-		UE_CLOG(ShouldOutputHttpWarnings(), LogHttp, Warning, TEXT("	verb=[%s] url=[%s] refs=[%d] status=%s"), *Request->GetVerb(), *Request->GetURL(), Request.GetSharedReferenceCount(), EHttpRequestStatus::ToString(Request->GetStatus()));
+		UE_CLOG(ShouldOutputHttpWarnings() && Requests.Num(), LogHttp, Warning, TEXT("[FHttpManager::Shutdown] Unbinding delegates for %d outstanding Http Requests:"), Requests.Num());
+
+		// Clear delegates since they may point to deleted instances
+		for (TArray<FHttpRequestRef>::TIterator It(Requests); It; ++It)
+		{
+			TSharedPtr<IHttpRequest> Request = *It;
+			StaticCastSharedPtr<FHttpRequestImpl>(Request)->Shutdown();
+
+			// Don't emit these tracking logs in commandlet runs. Build system traps warnings during cook, and these are not truly fatal, but useful for tracking down shutdown issues.
+			UE_CLOG(ShouldOutputHttpWarnings(), LogHttp, Warning, TEXT("	verb=[%s] url=[%s] refs=[%d] status=%s"), *Request->GetVerb(), *Request->GetURL(), Request.GetSharedReferenceCount(), EHttpRequestStatus::ToString(Request->GetStatus()));
+		}
 	}
 
 	// Clear general delegates since they may point to deleted instances
@@ -371,7 +373,7 @@ void FHttpManager::Flush(EHttpFlushReason FlushReason)
 		{
 			if (Thread)
 			{
-				if( Thread->NeedsSingleThreadTick() )
+				if (Thread->NeedsSingleThreadTick())
 				{
 					if (AppTime >= StallWarnTime)
 					{
@@ -387,10 +389,6 @@ void FHttpManager::Flush(EHttpFlushReason FlushReason)
 					UE_CLOG(ShouldOutputHttpWarnings(), LogHttp, Warning, TEXT("	Sleeping %.3fs to wait for %d outstanding Http Requests."), SecondsToSleepForOutstandingThreadedRequests, RequestsNum);
 					FPlatformProcess::Sleep(SecondsToSleepForOutstandingThreadedRequests);
 				}
-			}
-			else
-			{
-				check(!FPlatformHttp::UsesThreadedHttp());
 			}
 		}
 
@@ -436,14 +434,15 @@ bool FHttpManager::Tick(float DeltaSeconds)
 		}
 	}
 
-	FScopeLock ScopeLock(&RequestLock);
-
 	if (Thread)
 	{
-		// Tick each active request
-		for (const FHttpRequestRef& Request: Requests)
 		{
-			Request->Tick(DeltaSeconds);
+			// Tick each active request
+			FScopeLock ScopeLock(&RequestLock);
+			for (const FHttpRequestRef& Request : Requests)
+			{
+				Request->Tick(DeltaSeconds);
+			}
 		}
 
 		TArray<IHttpThreadedRequest*> CompletedThreadedRequests;
@@ -453,7 +452,12 @@ bool FHttpManager::Tick(float DeltaSeconds)
 		for (IHttpThreadedRequest* CompletedRequest : CompletedThreadedRequests)
 		{
 			FHttpRequestRef CompletedRequestRef = CompletedRequest->AsShared();
-			Requests.Remove(CompletedRequestRef);
+
+			{
+				FScopeLock ScopeLock(&RequestLock);
+				Requests.Remove(CompletedRequestRef);
+			}
+
 			if (CompletedRequest->GetDelegateThreadPolicy() == EHttpRequestDelegateThreadPolicy::CompleteOnGameThread)
 			{
 				CompletedRequest->FinishRequest();
@@ -461,26 +465,7 @@ bool FHttpManager::Tick(float DeltaSeconds)
 			}
 		}
 	}
-	else
-	{
-		TArray<FHttpRequestRef> CompletedRequests;
 
-		// Tick each active request
-		for (const FHttpRequestRef& Request: Requests)
-		{
-			Request->Tick(DeltaSeconds);
-			if (EHttpRequestStatus::IsFinished(Request->GetStatus()))
-			{
-				CompletedRequests.Add(Request);
-			}
-		}
-
-		for (const FHttpRequestRef& CompletedRequest: CompletedRequests)
-		{
-			Requests.Remove(CompletedRequest);
-			BroadcastHttpRequestCompleted(CompletedRequest);
-		}
-	}
 	// keep ticking
 	return true;
 }
