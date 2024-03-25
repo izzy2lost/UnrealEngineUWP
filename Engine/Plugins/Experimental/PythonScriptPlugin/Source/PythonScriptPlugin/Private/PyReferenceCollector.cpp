@@ -39,12 +39,10 @@ void FPyReferenceCollector::AddReferencedObjects(FReferenceCollector& InCollecto
 			FPyWrapperBaseMetaData* PythonWrappedInstanceMetaData = FPyWrapperBaseMetaData::GetMetaData(PythonWrappedInstance);
 			if (PythonWrappedInstanceMetaData)
 			{
-				PythonWrappedInstanceMetaData->AddReferencedObjects(PythonWrappedInstance, InCollector);
+				PythonWrappedInstanceMetaData->AddInstanceReferencedObjects(PythonWrappedInstance, InCollector);
 			}
 		}
 	}
-
-	FPyWrapperTypeReinstancer::Get().AddReferencedObjects(InCollector);
 }
 
 FString FPyReferenceCollector::GetReferencerName() const

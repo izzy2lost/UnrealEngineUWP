@@ -1733,7 +1733,7 @@ PyTypeObject PyWrapperMapItemViewType = InitializePyWrapperMapSetViewType<FPyWra
 PyTypeObject PyWrapperMapKeyViewType = InitializePyWrapperMapSetViewType<FPyWrapperMapKeyView>("MapKeyView");
 PyTypeObject PyWrapperMapValueViewType = InitializePyWrapperMapViewType<FPyWrapperMapValueView>("MapValueView");
 
-void FPyWrapperMapMetaData::AddReferencedObjects(FPyWrapperBase* Instance, FReferenceCollector& Collector)
+void FPyWrapperMapMetaData::AddInstanceReferencedObjects(FPyWrapperBase* Instance, FReferenceCollector& Collector)
 {
 	FPyWrapperMap* Self = static_cast<FPyWrapperMap*>(Instance);
 	if (Self->MapProp && Self->MapInstance && !Self->OwnerContext.HasOwner())

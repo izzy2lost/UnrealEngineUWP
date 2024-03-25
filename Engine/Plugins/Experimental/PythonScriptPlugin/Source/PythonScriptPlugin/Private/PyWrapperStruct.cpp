@@ -1335,11 +1335,14 @@ FPyWrapperStructMetaData::FPyWrapperStructMetaData()
 {
 }
 
-void FPyWrapperStructMetaData::AddReferencedObjects(FPyWrapperBase* Instance, FReferenceCollector& Collector)
+void FPyWrapperStructMetaData::AddTypeReferencedObjects(FReferenceCollector& Collector)
+{
+	Collector.AddReferencedObject(Struct);
+}
+
+void FPyWrapperStructMetaData::AddInstanceReferencedObjects(FPyWrapperBase* Instance, FReferenceCollector& Collector)
 {
 	FPyWrapperStruct* Self = static_cast<FPyWrapperStruct*>(Instance);
-
-	Collector.AddReferencedObject(Struct);
 	
 	Collector.AddReferencedObject(Self->ScriptStruct);
 	if (Self->ScriptStruct && Self->StructInstance && !Self->OwnerContext.HasOwner())

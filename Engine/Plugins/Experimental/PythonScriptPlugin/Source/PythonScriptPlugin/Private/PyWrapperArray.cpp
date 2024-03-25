@@ -1517,7 +1517,7 @@ PyTypeObject InitializePyWrapperArrayIteratorType()
 PyTypeObject PyWrapperArrayType = InitializePyWrapperArrayType();
 PyTypeObject PyWrapperArrayIteratorType = InitializePyWrapperArrayIteratorType();
 
-void FPyWrapperArrayMetaData::AddReferencedObjects(FPyWrapperBase* Instance, FReferenceCollector& Collector)
+void FPyWrapperArrayMetaData::AddInstanceReferencedObjects(FPyWrapperBase* Instance, FReferenceCollector& Collector)
 {
 	FPyWrapperArray* Self = static_cast<FPyWrapperArray*>(Instance);
 	if (Self->ArrayProp && Self->ArrayInstance && !Self->OwnerContext.HasOwner())

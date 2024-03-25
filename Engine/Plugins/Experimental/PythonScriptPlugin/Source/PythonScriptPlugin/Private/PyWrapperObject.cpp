@@ -1130,11 +1130,14 @@ PyTypeObject InitializePyWrapperObjectType()
 
 PyTypeObject PyWrapperObjectType = InitializePyWrapperObjectType();
 
-void FPyWrapperObjectMetaData::AddReferencedObjects(FPyWrapperBase* Instance, FReferenceCollector& Collector)
+void FPyWrapperObjectMetaData::AddTypeReferencedObjects(FReferenceCollector& Collector)
+{
+	Collector.AddReferencedObject(Class);
+}
+
+void FPyWrapperObjectMetaData::AddInstanceReferencedObjects(FPyWrapperBase* Instance, FReferenceCollector& Collector)
 {
 	FPyWrapperObject* Self = static_cast<FPyWrapperObject*>(Instance);
-
-	Collector.AddReferencedObject(Class);
 
 	UObject* OldInstance = Self->ObjectInstance;
 	Collector.AddReferencedObject(Self->ObjectInstance);

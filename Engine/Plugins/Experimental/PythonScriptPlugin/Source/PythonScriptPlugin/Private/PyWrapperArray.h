@@ -112,7 +112,7 @@ struct FPyWrapperArrayMetaData : public FPyWrapperBaseMetaData
 	}
 
 	/** Add object references from the given Python object to the given collector */
-	virtual void AddReferencedObjects(FPyWrapperBase* Instance, FReferenceCollector& Collector) override;
+	virtual void AddInstanceReferencedObjects(FPyWrapperBase* Instance, FReferenceCollector& Collector) override;
 };
 
 typedef TPyPtr<FPyWrapperArray> FPyWrapperArrayPtr;

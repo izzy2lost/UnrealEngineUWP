@@ -814,6 +814,11 @@ void FPyWrapperTypeReinstancer::AddReferencedObjects(FReferenceCollector& InColl
 	}
 }
 
+FString FPyWrapperTypeReinstancer::GetReferencerName() const
+{
+	return TEXT("FPyWrapperTypeReinstancer");
+}
+
 
 FPyWrapperTypeRegistry::FPyWrapperTypeRegistry()
 	: bCanRegisterInlineStructFactories(true)
@@ -836,6 +841,30 @@ FPyWrapperTypeRegistry& FPyWrapperTypeRegistry::Get()
 {
 	static FPyWrapperTypeRegistry Instance;
 	return Instance;
+}
+
+void FPyWrapperTypeRegistry::AddReferencedObjects(FReferenceCollector& InCollector)
+{
+	auto AddTypeReferencedObjects = [&InCollector](const auto& PythonWrappedTypes)
+	{
+		for (const auto& PythonWrappedTypePair : PythonWrappedTypes)
+		{
+			if (FPyWrapperBaseMetaData* PythonWrappedTypeMetaData = FPyWrapperBaseMetaData::GetMetaData(PythonWrappedTypePair.Value))
+			{
+				PythonWrappedTypeMetaData->AddTypeReferencedObjects(InCollector);
+			}
+		}
+	};
+
+	AddTypeReferencedObjects(PythonWrappedClasses);
+	AddTypeReferencedObjects(PythonWrappedStructs);
+	AddTypeReferencedObjects(PythonWrappedEnums);
+	AddTypeReferencedObjects(PythonWrappedDelegates);
+}
+
+FString FPyWrapperTypeRegistry::GetReferencerName() const
+{
+	return TEXT("FPyWrapperTypeRegistry");
 }
 
 void FPyWrapperTypeRegistry::RegisterNativePythonModule(PyGenUtil::FNativePythonModule&& NativePythonModule)

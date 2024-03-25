@@ -10,6 +10,7 @@
 #include "PyConversionMethod.h"
 #include "PyOnlineDocsWriter.h"
 #include "Misc/EnumClassFlags.h"
+#include "UObject/GCObject.h"
 #include "UObject/WeakObjectPtr.h"
 #include "Templates/Function.h"
 
@@ -316,11 +317,15 @@ public:
 
 
 /** Singleton instance that handles re-instancing Python types */
-class FPyWrapperTypeReinstancer
+class FPyWrapperTypeReinstancer : public FGCObject
 {
 public:
 	/** Access the singleton instance */
 	static FPyWrapperTypeReinstancer& Get();
+
+	//~ FGCObject interface
+	virtual void AddReferencedObjects(FReferenceCollector& InCollector) override;
+	virtual FString GetReferencerName() const override;
 
 	/** Add a pending pair of classes to be re-instanced */
 	void AddPendingClass(UPythonGeneratedClass* OldClass, UPythonGeneratedClass* NewClass);
@@ -331,9 +336,6 @@ public:
 	/** Process any pending re-instance requests */
 	void ProcessPending();
 
-	/** Collect any referenced objects */
-	void AddReferencedObjects(FReferenceCollector& InCollector);
-
 private:
 	/** Pending pairs of classes that to be re-instanced */
 	TArray<TPair<TObjectPtr<UPythonGeneratedClass>, TObjectPtr<UPythonGeneratedClass>>> ClassesToReinstance;
@@ -343,7 +345,7 @@ private:
 };
 
 /** Singleton instance that maps Unreal types to Python types */
-class FPyWrapperTypeRegistry
+class FPyWrapperTypeRegistry : public FGCObject
 {
 public:
 	/** Struct used to build up a list of wrapped type references that still need to be generated */
@@ -364,6 +366,10 @@ public:
 
 	/** Access the singleton instance */
 	static FPyWrapperTypeRegistry& Get();
+
+	//~ FGCObject interface
+	virtual void AddReferencedObjects(FReferenceCollector& InCollector) override;
+	virtual FString GetReferencerName() const override;
 
 	/** Callback for when a Python module is dirtied */
 	FOnModuleDirtied& OnModuleDirtied()
