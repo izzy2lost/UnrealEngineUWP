@@ -188,7 +188,8 @@ namespace HarmonixMetasoundTests::MidiPlayerNode
 
 			int32 MidiPlayerLoopLengthTicks = MidiFileLength.LengthTicks;
 
-			bool AllTicksEqual = true;
+			bool MetronomeAllTicksEqual = true;
+			bool MidiPlayerAllTicksEqual = true;
 			for (int32 BlockIndex = 0; BlockIndex < Params.NumBlocks; ++BlockIndex)
 			{
 				TAudioBuffer<float> Buffer{ Generator->GetNumChannels(), Params.NumSamplesPerBlock, EAudioBufferCleanupMode::Delete };
@@ -223,12 +224,23 @@ namespace HarmonixMetasoundTests::MidiPlayerNode
 
 					int32 MetronomeActualTick = (*MetronomeClockOut)->GetCurrentMidiTick();
 					MetronomeExpectedTick = FMath::Abs(MidiPlayerExpectedTick - MetronomeActualTick) <= 1 ? MetronomeActualTick : MetronomeExpectedTick;
-					AllTicksEqual |= InTest.TestEqual(FString::Printf(TEXT("Metronome Out Clock, Tick at block: %d"), BlockIndex), MetronomeActualTick, MetronomeExpectedTick);
+					if (MetronomeAllTicksEqual && (MetronomeActualTick != MetronomeExpectedTick))
+					{
+						MetronomeAllTicksEqual = false;
+						FString What = FString::Printf(TEXT("Metronome Looping: Metronome Out Clock, Tick at block: %d"), BlockIndex);
+						InTest.AddError(FString::Printf(TEXT("%s: Expected Tick to be: %d, but was %d"), *What, MetronomeExpectedTick, MetronomeActualTick));
+					}
 				}
 
 				int32 MidiPlayerActualTick = (*MidiPlayerClockOut)->GetCurrentMidiTick();
 				MidiPlayerExpectedTick = FMath::Abs(MidiPlayerExpectedTick - MidiPlayerActualTick) <= 1 ? MidiPlayerActualTick : MidiPlayerExpectedTick;
-				AllTicksEqual |= InTest.TestEqual(FString::Printf(TEXT("Midi Player Out Clock, Tick at block: %d"), BlockIndex), MidiPlayerActualTick, MidiPlayerExpectedTick);
+
+				if (MidiPlayerAllTicksEqual && (MidiPlayerActualTick != MidiPlayerExpectedTick))
+				{
+					MidiPlayerAllTicksEqual = false;
+					FString What = FString::Printf(TEXT("Metronome Looping: Midi Player Out Clock, Tick at block: %d"), BlockIndex);
+					InTest.AddError(FString::Printf(TEXT("%s: Expected Tick to be: %d, but was %d"), *What, MidiPlayerExpectedTick, MidiPlayerActualTick));
+				}
 
 				Generator->ApplyToInputValue<FMusicTransportEventStream>(Inputs::TransportName, [](FMusicTransportEventStream& Transport)
 					{
