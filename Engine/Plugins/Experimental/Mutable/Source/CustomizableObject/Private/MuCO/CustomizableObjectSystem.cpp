@@ -2963,7 +2963,7 @@ int32 UCustomizableObjectSystem::TickInternal(float DeltaTime)
 
 	if (AssetRegistryModule.Get().IsLoadingAssets())
 	{
-		return 1; // Assets are still being loaded, so subobjects won't be found, compiled objects incomplete and thus updates wrong
+		return 0; // Assets are still being loaded, so subobjects won't be found, compiled objects incomplete and thus updates wrong
 	}
 
 	// Do not tick if the CookCommandlet is running.
