@@ -553,7 +553,7 @@ bool FWorldPartitionLevelHelper::LoadActors(const FLoadActorsParams& InParams)
 						}
 					});
 					
-					FLevelUtils::FApplyLevelTransformParams TransformParams(nullptr, PackageObjectMapping->ContainerTransform);
+					FLevelUtils::FApplyLevelTransformParams TransformParams(nullptr, PackageObjectMapping->ContainerTransform * PackageObjectMapping->EditorOnlyParentTransform);
 					TransformParams.Actor = Actor;
 					TransformParams.bDoPostEditMove = false;
 					FLevelUtils::ApplyLevelTransform(TransformParams);
@@ -583,6 +583,13 @@ bool FWorldPartitionLevelHelper::LoadActors(const FLoadActorsParams& InParams)
 					{
 						ObjectResolver->SetWorldPartitionResolveData(FWorldPartitionResolveData(PackageObjectMapping->ContainerID, FTopLevelAssetPath(SourceWorldPath)));
 					}
+				}
+				else if (!PackageObjectMapping->EditorOnlyParentTransform.Equals(FTransform::Identity))
+				{
+					FLevelUtils::FApplyLevelTransformParams TransformParams(nullptr, PackageObjectMapping->EditorOnlyParentTransform);
+					TransformParams.Actor = Actor;
+					TransformParams.bDoPostEditMove = false;
+					FLevelUtils::ApplyLevelTransform(TransformParams);
 				}
 
 				if (DestLevel)

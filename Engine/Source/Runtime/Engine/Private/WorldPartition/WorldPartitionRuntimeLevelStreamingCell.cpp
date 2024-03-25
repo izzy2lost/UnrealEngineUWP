@@ -294,40 +294,41 @@ void UWorldPartitionRuntimeLevelStreamingCell::AddActorToCell(const FStreamingGe
 
 	for (const FGuid& EditorReferenceGuid : ActorDescView.GetEditorReferences())
 	{
-		// Special case where ActorDescView has invalid references : Use InvalidReference information as the Actor Guid isn't 
-		// necessarily in the ContainerInstance.
-		FStreamingGenerationActorDescView::FInvalidReference InvalidRef;
-		if (ActorDescView.IsInvalidReference(EditorReferenceGuid, &InvalidRef))
+		FName ReferencePackage;
+		FName ReferencePath;
+		FTopLevelAssetPath ReferenceBaseClass;
+		FTopLevelAssetPath ReferenceNativeClass;
+
+		// Special case where the actor descriptor view has an invalid references, use invalid reference information as the actor guid isn't necessarily in the container instance.
+		if (const FStreamingGenerationActorDescView::FInvalidReference* InvalidReference = ActorDescView.GetInvalidReference(EditorReferenceGuid))
 		{
-			Packages.Emplace(
-				InvalidRef.ActorPackage,
-				*InvalidRef.ActorSoftPath.ToString(),
-				InvalidRef.BaseClass,
-				InvalidRef.NativeClass,
-				ContainerID,
-				ContainerTransform,
-				ContainerPackage,
-				GetWorld()->GetPackage()->GetFName(),
-				ContainerID.GetActorGuid(EditorReferenceGuid),
-				true
-			);
+			ReferencePackage = InvalidReference->ActorPackage;
+			ReferencePath = *InvalidReference->ActorSoftPath.ToString();
+			ReferenceBaseClass = InvalidReference->BaseClass;
+			ReferenceNativeClass = InvalidReference->NativeClass;
 		}
 		else
 		{
 			const FWorldPartitionActorDescInstance& ReferenceActorDesc = ContainerInstance->GetActorDescInstanceChecked(EditorReferenceGuid);
-			Packages.Emplace(
-				ReferenceActorDesc.GetActorPackage(),
-				*ReferenceActorDesc.GetActorSoftPath().ToString(),
-				ReferenceActorDesc.GetBaseClass(),
-				ReferenceActorDesc.GetNativeClass(),
-				ContainerID,
-				ContainerTransform,
-				ContainerPackage,
-				GetWorld()->GetPackage()->GetFName(),
-				ContainerID.GetActorGuid(EditorReferenceGuid),
-				true
-			);
+			ReferencePackage = ReferenceActorDesc.GetActorPackage();
+			ReferencePath = *ReferenceActorDesc.GetActorSoftPath().ToString();
+			ReferenceBaseClass = ReferenceActorDesc.GetBaseClass();
+			ReferenceNativeClass = ReferenceActorDesc.GetNativeClass();
 		}
+		
+		Packages.Emplace(
+			ReferencePackage,
+			ReferencePath,
+			ReferenceBaseClass,
+			ReferenceNativeClass,
+			ContainerID,
+			ContainerTransform,
+			FTransform::Identity,
+			ContainerPackage,
+			GetWorld()->GetPackage()->GetFName(),
+			ContainerID.GetActorGuid(EditorReferenceGuid),
+			true
+		);
 	}
 
 	Packages.Emplace(
@@ -337,6 +338,7 @@ void UWorldPartitionRuntimeLevelStreamingCell::AddActorToCell(const FStreamingGe
 		ActorDescView.GetNativeClass(),
 		ContainerID,
 		ContainerTransform,
+		ActorDescView.GetEditorOnlyParentTransform(),
 		ContainerPackage, 
 		GetWorld()->GetPackage()->GetFName(), 
 		ContainerID.GetActorGuid(ActorDescView.GetGuid()),

@@ -62,6 +62,7 @@ public:
 	ENGINE_API virtual FName GetActorName() const;
 	virtual FName GetFolderPath() const { return ActorDesc->GetFolderPath(); }
 	virtual const FGuid& GetFolderGuid() const { return ActorDesc->GetFolderGuid(); }
+	virtual const FTransform& GetActorTransform() const { return ActorDesc->GetActorTransform(); }
 
 	ENGINE_API virtual FBox GetEditorBounds() const;
 	ENGINE_API virtual FBox GetRuntimeBounds() const;

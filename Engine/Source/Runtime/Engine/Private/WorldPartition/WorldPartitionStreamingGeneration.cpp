@@ -255,8 +255,17 @@ const TArray<FGuid>& FStreamingGenerationActorDescView::GetEditorReferences() co
 void FStreamingGenerationActorDescView::SetParentView(const FStreamingGenerationActorDescView* InParentView)
 {
 	check(!ParentView);
+	check(!EditorOnlyParentTransform.IsSet());
 	check(GetParentActor().IsValid());
 	ParentView = InParentView;
+}
+
+void FStreamingGenerationActorDescView::SetEditorOnlyParentTransform(const FTransform& InEditorOnlyParentTransform)
+{
+	check(!ParentView);
+	check(!EditorOnlyParentTransform.IsSet());
+	check(GetParentActor().IsValid());
+	EditorOnlyParentTransform = InEditorOnlyParentTransform;
 }
 
 void FStreamingGenerationActorDescView::SetDataLayerInstanceNames(const FDataLayerInstanceNames& InDataLayerInstanceNames)
@@ -270,17 +279,9 @@ void FStreamingGenerationActorDescView::SetDataLayerInstanceNames(const FDataLay
 	}
 }
 
-bool FStreamingGenerationActorDescView::IsInvalidReference(const FGuid& InGuid, FInvalidReference* OutInvalidReference) const
+const FStreamingGenerationActorDescView::FInvalidReference* FStreamingGenerationActorDescView::GetInvalidReference(const FGuid& InGuid) const
 {
-	if (const FInvalidReference* InvalidReference = ForcedInvalidReference.Find(InGuid))
-	{
-		if (OutInvalidReference)
-		{
-			*OutInvalidReference = *InvalidReference;
-		}
-		return true;
-	}
-	return false;
+	return ForcedInvalidReference.Find(InGuid);
 }
 
 void FStreamingGenerationActorDescView::AddForcedInvalidReference(const FStreamingGenerationActorDescView* ReferenceView)
@@ -586,7 +587,7 @@ class FWorldPartitionStreamingGenerator
 		TUniqueObj<FStreamingGenerationActorDescViewMap> ActorDescViewMap;
 
 		/** Set of editor-only actors that are not part of the actor descriptor views */
-		TSet<FGuid> EditorOnlyActorDescMap;
+		TSet<FGuid> EditorOnlyActorDescSet;
 
 		/** List of actor descriptor views that are containers (mainly level instances) */
 		TArray<FStreamingGenerationActorDescView> ContainerCollectionInstanceViews;
@@ -656,10 +657,16 @@ class FWorldPartitionStreamingGenerator
 			return InstanceData;
 		}
 
+		/** Per instance data */
 		FPerInstanceData InstanceData;
 		TSet<FPerInstanceData> UniquePerInstanceData;
 		TMap<FGuid, FSetElementId> PerInstanceData;
+
+		/** Map of actor descriptor mutators */
 		TMap<FGuid, FActorDescViewMutator> ActorDescViewMutators;
+
+		/** Map of editor-only parent actor transforms */
+		TMap<FGuid, FTransform> EditorOnlyParentActorTransforms;
 	};
 
 	void ResolveRuntimeSpatiallyLoaded(FStreamingGenerationActorDescView& ActorDescView)
@@ -707,16 +714,31 @@ class FWorldPartitionStreamingGenerator
 		}
 	}
 
-	void ResolveParentView(FStreamingGenerationActorDescView& ActorDescView, const FStreamingGenerationActorDescViewMap& ActorDescViewMap)
+	void ResolveParentView(FStreamingGenerationActorDescView& ActorDescView, const FStreamingGenerationActorDescViewMap& ActorDescViewMap, const TSet<FGuid>& EditorOnlyActorDescSet, const TMap<FGuid, FTransform>& EditorOnlyParentActorTransforms)
 	{
 		if (FGuid ParentGuid = ActorDescView.GetParentActor(); ParentGuid.IsValid())
 		{
-			ActorDescView.SetParentView(ActorDescViewMap.FindByGuid(ParentGuid));
+			if (const FStreamingGenerationActorDescView* ParentView = ActorDescViewMap.FindByGuid(ParentGuid))
+			{
+				ActorDescView.SetParentView(ParentView);
+			}
+			else if (const FTransform* EditorOnlyParentActorTransform = EditorOnlyParentActorTransforms.Find(ParentGuid))
+			{
+				ActorDescView.SetEditorOnlyParentTransform(*EditorOnlyParentActorTransform);
+			}
 		}
 	}
 
-	void CreateActorDescViewMap(const FStreamingGenerationContainerInstanceCollection& InActorDescCollection, FStreamingGenerationActorDescViewMap& OutActorDescViewMap, TSet<FGuid>& OutEditorOnlyActorDescMap, const FActorContainerID& InContainerID, TArray<FStreamingGenerationActorDescView>& OutContainerInstances, TArray<TUniquePtr<FStreamingGenerationUnsavedDirtyActorDescInstance>>& OutUnsavedDirtyInstances)
+	void CreateActorDescViewMap(FContainerCollectionInstanceDescriptor& InContainerCollectionInstanceDescriptor)
 	{
+		const FStreamingGenerationContainerInstanceCollection& InActorDescCollection = *InContainerCollectionInstanceDescriptor.ContainerInstanceCollection;
+		FStreamingGenerationActorDescViewMap& OutActorDescViewMap = InContainerCollectionInstanceDescriptor.ActorDescViewMap.Get();
+		TSet<FGuid>& OutEditorOnlyActorDescSet = InContainerCollectionInstanceDescriptor.EditorOnlyActorDescSet;
+		const FActorContainerID& InContainerID = InContainerCollectionInstanceDescriptor.ID;
+		TArray<FStreamingGenerationActorDescView>& OutContainerInstances = InContainerCollectionInstanceDescriptor.ContainerCollectionInstanceViews;
+		TArray<TUniquePtr<FStreamingGenerationUnsavedDirtyActorDescInstance>>& OutUnsavedDirtyInstances = InContainerCollectionInstanceDescriptor.UnsavedDirtyInstances;
+		TMap<FGuid, FTransform>& EditorOnlyParentActorTransforms = InContainerCollectionInstanceDescriptor.EditorOnlyParentActorTransforms;
+
 		// Should we handle unsaved or newly created actors?
 		const bool bShouldHandleUnsavedActors = bHandleUnsavedActors && InContainerID.IsMainContainer();
 
@@ -797,7 +819,31 @@ class FWorldPartitionStreamingGenerator
 			}
 			else
 			{
-				OutEditorOnlyActorDescMap.Add(Iterator->GetGuid());
+				OutEditorOnlyActorDescSet.Add(Iterator->GetGuid());
+			}
+		}
+
+		// Register transforms from editor-only parents as the childs won't be properly offset if they are not present
+		for (FStreamingGenerationContainerInstanceCollection::TConstIterator<> Iterator(&InActorDescCollection); Iterator; ++Iterator)
+		{
+			if (FGuid ParentGuid = Iterator->GetParentActor(); ParentGuid.IsValid())
+			{
+				if (OutEditorOnlyActorDescSet.Contains(ParentGuid) && !EditorOnlyParentActorTransforms.Contains(ParentGuid))
+				{
+					const FWorldPartitionActorDescInstance* ParentActorDescInstance = InActorDescCollection.GetActorDescInstance(ParentGuid);
+					FTransform ParentActorDescInstanceTransform = ParentActorDescInstance->GetActorTransform();
+					
+					// Dirty actors
+					if (AActor* Actor = ParentActorDescInstance->GetActor())
+					{
+						if (bShouldHandleUnsavedActors && (bIsTempContainerPackage || Actor->GetPackage()->IsDirty()))
+						{
+							ParentActorDescInstanceTransform = Actor->GetActorTransform();
+						}
+					}
+
+					EditorOnlyParentActorTransforms.Add(ParentGuid, ParentActorDescInstanceTransform);
+				}
 			}
 		}
 
@@ -863,8 +909,9 @@ class FWorldPartitionStreamingGenerator
 				check(!ContainerCollectionInstanceDescriptorsMap.Contains(ContainerID));
 
 				FContainerCollectionInstanceDescriptor& ContainerCollectionInstanceDescriptor = ContainerCollectionInstanceDescriptorsMap.Add(ContainerID, MoveTemp(InContainerCollectionInstanceDescriptor));
+				
 				// Gather actor descriptor views for this container
-				CreateActorDescViewMap(*ContainerCollectionInstanceDescriptor.ContainerInstanceCollection, ContainerCollectionInstanceDescriptor.ActorDescViewMap.Get(), ContainerCollectionInstanceDescriptor.EditorOnlyActorDescMap, ContainerCollectionInstanceDescriptor.ID, ContainerCollectionInstanceDescriptor.ContainerCollectionInstanceViews, ContainerCollectionInstanceDescriptor.UnsavedDirtyInstances);
+				CreateActorDescViewMap(ContainerCollectionInstanceDescriptor);
 
 				// Resolve actor descriptor views before validation
 				ResolveContainerDescriptor(ContainerCollectionInstanceDescriptor);
@@ -891,7 +938,6 @@ class FWorldPartitionStreamingGenerator
 				// Copy list as descriptor might get reallocated after this scope
 				ContainerCollectionInstanceViews.Append(ContainerCollectionInstanceDescriptor.ContainerCollectionInstanceViews);
 			}
-
 
 			// Parse actor containers
 			for (const FStreamingGenerationActorDescView& ContainerCollectionInstanceView : ContainerCollectionInstanceViews)
@@ -1021,7 +1067,7 @@ class FWorldPartitionStreamingGenerator
 			ResolveRuntimeGrid(ActorDescView);
 			ResolveRuntimeDataLayers(ActorDescView, ContainerCollectionInstanceDescriptor.ActorDescViewMap.Get());
 			ResolveHLODLayer(ActorDescView, WorldPartitionContext ? FSoftObjectPath(WorldPartitionContext->GetDefaultHLODLayer()) : FSoftObjectPath());
-			ResolveParentView(ActorDescView, ContainerCollectionInstanceDescriptor.ActorDescViewMap.Get());
+			ResolveParentView(ActorDescView, ContainerCollectionInstanceDescriptor.ActorDescViewMap.Get(), ContainerCollectionInstanceDescriptor.EditorOnlyActorDescSet, ContainerCollectionInstanceDescriptor.EditorOnlyParentActorTransforms);
 		};
 
 		ContainerCollectionInstanceDescriptor.ActorDescViewMap->ForEachActorDescView([this, &ResolveActorDescView](FStreamingGenerationActorDescView& ActorDescView)
@@ -1289,7 +1335,7 @@ class FWorldPartitionStreamingGenerator
 					}
 					else
 					{
-						if (!ContainerCollectionInstanceDescriptor.EditorOnlyActorDescMap.Contains(Info.ReferenceGuid))
+						if (!ContainerCollectionInstanceDescriptor.EditorOnlyActorDescSet.Contains(Info.ReferenceGuid))
 						{
 							if (PassType == EPassType::ErrorReporting)
 							{
@@ -1341,7 +1387,7 @@ class FWorldPartitionStreamingGenerator
 						RuntimeReferences.Add(ReferenceGuid);
 					}
 				}
-				else if (ContainerCollectionInstanceDescriptor.EditorOnlyActorDescMap.Contains(ReferenceGuid))
+				else if (ContainerCollectionInstanceDescriptor.EditorOnlyActorDescSet.Contains(ReferenceGuid))
 				{
 					EditorReferences.Add(ReferenceGuid);
 				}
