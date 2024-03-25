@@ -8,6 +8,7 @@
 #include "Elements/Framework/TypedElementMetaData.h"
 #include "Elements/Framework/TypedElementQueryBuilder.h"
 #include "Templates/UnrealTypeTraits.h"
+#include "Templates/SharedPointer.h"
 #include "UObject/Interface.h"
 
 #include "TypedElementDataStorageUiInterface.generated.h"
@@ -43,12 +44,27 @@ public:
 
 	/** Returns a list of additional columns the widget requires to be added to its rows. */
 	TYPEDELEMENTFRAMEWORK_API virtual TConstArrayView<const UScriptStruct*> GetAdditionalColumnsList() const;
+	
+	/**
+	 *	Calls Construct() to create the internal widget, and then stores it in a container before returning.
+	 *	In most cases you want to call this to first create the initial TEDS widget, to ensure the internal widget is
+	 *	automatically created/destroyed if the row matches/unmatches the required columns.
+	 *	
+	 *	Construct() can be called later to (re)create the internal widget if ever required.
+	 *	@see Construct
+	 */
+	TYPEDELEMENTFRAMEWORK_API TSharedPtr<SWidget> ConstructFinalWidget(
+		TypedElementRowHandle Row, /** The row the widget will be stored in. */
+		ITypedElementDataStorageInterface* DataStorage,
+		ITypedElementDataStorageUiInterface* DataStorageUi,
+		const TypedElementDataStorage::FMetaDataView& Arguments);
 
 	/**
 	 * Constructs the widget according to the provided information. Information is collected by calling
 	 * the below functions CreateWidget and AddColumns. It's recommended to overload those
 	 * functions to build widgets according to a standard recipe and to reduce the amount of code needed.
 	 * If a complexer situation is called for this function can also be directly overwritten.
+	 * In most cases, you want to call ConstructFinalWidget to create the actual widget.
 	 */
 	TYPEDELEMENTFRAMEWORK_API virtual TSharedPtr<SWidget> Construct(
 		TypedElementRowHandle Row, /** The row the widget will be stored in. */

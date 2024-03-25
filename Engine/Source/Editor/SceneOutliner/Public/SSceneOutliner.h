@@ -397,6 +397,8 @@ public:
 	/** Check if a filter with the given name exists and is active in the filter bar for this Outliner (if this Outliner has a filter bar). */
 	virtual bool IsFilterActive(const FString& FilterName) const override;
 
+	/** Retrieve an ISceneOutlinerTreeItem by its ID if it exists in the tree */
+	virtual FSceneOutlinerTreeItemPtr GetTreeItem(FSceneOutlinerTreeItemID, bool bIncludePending = false) override;
 public:
 	/** Event to react to a user double click on a item */
 	SceneOutliner::FTreeItemPtrEvent& GetDoubleClickEvent() { return OnDoubleClickOnTreeEvent; }
@@ -500,10 +502,7 @@ public:
 
 	/** Sets the next item to rename */
 	void SetPendingRenameItem(const FSceneOutlinerTreeItemPtr& InItem) { PendingRenameItem = InItem; Refresh(); }
-
-	/** Retrieve an ISceneOutlinerTreeItem by its ID if it exists in the tree */
-	FSceneOutlinerTreeItemPtr GetTreeItem(FSceneOutlinerTreeItemID, bool bIncludePending = false);
-
+	
 	/** Get the outliner filter collection */
 	TSharedPtr<FSceneOutlinerFilters>& GetFilters() { return Filters; }
 

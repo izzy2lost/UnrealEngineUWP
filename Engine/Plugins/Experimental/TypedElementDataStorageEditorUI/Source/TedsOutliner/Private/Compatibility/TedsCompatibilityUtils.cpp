@@ -123,34 +123,14 @@ TSharedRef<SWidget> FBaseTEDSOutlinerMode::CreateLabelWidgetForItem(TypedElement
 		TArray<TWeakObjectPtr<const UScriptStruct>> ColumnTypes(QueryDescription.SelectionTypes);
 		TSharedPtr<FTypedElementWidgetConstructor> CellWidgetConstructor = QueryConstructorPair.Value;
 
-		if (InRowHandle != TypedElementInvalidRowHandle && Storage->HasColumns(InRowHandle, QueryDescription.SelectionTypes))
-		{
-			TypedElementRowHandle UiRowHandle = Storage->AddRow(Storage->FindTable(FTypedElementSceneOutlinerQueryBinder::CellWidgetTableName));
-			
-			Storage->AddColumns(UiRowHandle, CellWidgetConstructor->GetAdditionalColumnsList());
-			
-			if (ColumnTypes.Num() == 1)
-			{
-				if (FTypedElementScriptStructTypeInfoColumn* TypeInfo = Storage->GetColumn<FTypedElementScriptStructTypeInfoColumn>(UiRowHandle))
-				{
-					TypeInfo->TypeInfo = *ColumnTypes.begin();
-				}
-			}
-			if (FTypedElementRowReferenceColumn* RowReference = Storage->GetColumn<FTypedElementRowReferenceColumn>(UiRowHandle))
-			{
-				RowReference->Row = InRowHandle;
-			}
+		TypedElementRowHandle UiRowHandle = Storage->AddRow(Storage->FindTable(FTypedElementSceneOutlinerQueryBinder::CellWidgetTableName));
 
-			if (TSharedPtr<SWidget> Widget = StorageUi->ConstructWidget(UiRowHandle, *CellWidgetConstructor, MetaDataArgs))
-			{
-				return Widget.ToSharedRef();
-			}
-			else
-			{
-				Storage->RemoveRow(InRowHandle);
-			}
+		if (FTypedElementRowReferenceColumn* RowReference = Storage->GetColumn<FTypedElementRowReferenceColumn>(UiRowHandle))
+		{
+			RowReference->Row = InRowHandle;
 		}
-		return nullptr;
+		
+		return StorageUi->ConstructWidget(UiRowHandle, *CellWidgetConstructor, MetaDataArgs);
 	};
 	
 	TSharedRef<SHorizontalBox> CombinedWidget = SNew(SHorizontalBox);

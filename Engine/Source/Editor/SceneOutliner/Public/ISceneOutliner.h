@@ -176,6 +176,9 @@ public:
 
 	/** Check if a filter with the given name exists and is active in the filter bar for this Outliner (if this Outliner has a filter bar). */
 	virtual bool IsFilterActive(const FString& FilterName) const = 0;
+
+	/** Retrieve an ISceneOutlinerTreeItem by its ID if it exists in the tree */
+	virtual FSceneOutlinerTreeItemPtr GetTreeItem(FSceneOutlinerTreeItemID, bool bIncludePending = false) = 0;
 protected:
 	ISceneOutlinerMode* Mode;
 };

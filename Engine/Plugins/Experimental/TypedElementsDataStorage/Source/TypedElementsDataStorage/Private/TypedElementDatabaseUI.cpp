@@ -5,7 +5,9 @@
 #include "Algo/BinarySearch.h"
 #include "Algo/Sort.h"
 #include "Algo/Unique.h"
+#include "Elements/Columns/TypedElementMiscColumns.h"
 #include "Elements/Columns/TypedElementSlateWidgetColumns.h"
+#include "Elements/Columns/TypedElementTypeInfoColumns.h"
 #include "Elements/Interfaces/TypedElementDataStorageInterface.h"
 #include "Elements/Interfaces/TypedElementDataStorageCompatibilityInterface.h"
 #include "GenericPlatform/GenericPlatformMemory.h"
@@ -420,7 +422,7 @@ void UTypedElementDatabaseUi::CreateWidgetInstance(
 {
 	TypedElementRowHandle Row = Storage->AddRow(WidgetTable);
 	Storage->AddColumns(Row, Constructor.GetAdditionalColumnsList());
-	TSharedPtr<SWidget> Widget = Constructor.Construct(Row, Storage, this, Arguments);
+	TSharedPtr<SWidget> Widget = Constructor.ConstructFinalWidget(Row, Storage, this, Arguments);
 	if (Widget)
 	{
 		ConstructionCallback(Widget.ToSharedRef(), Row);
@@ -434,7 +436,16 @@ void UTypedElementDatabaseUi::CreateWidgetInstance(
 TSharedPtr<SWidget> UTypedElementDatabaseUi::ConstructWidget(TypedElementRowHandle Row, FTypedElementWidgetConstructor& Constructor,
 	const TypedElementDataStorage::FMetaDataView& Arguments)
 {
-	return Constructor.Construct(Row, Storage, this, Arguments);
+	const TArray<TWeakObjectPtr<const UScriptStruct>>& ColumnTypes = Constructor.GetMatchedColumns();
+
+	if (ColumnTypes.Num() == 1)
+	{
+		if (FTypedElementScriptStructTypeInfoColumn* TypeInfo = Storage->GetColumn<FTypedElementScriptStructTypeInfoColumn>(Row))
+		{
+			TypeInfo->TypeInfo = *ColumnTypes.begin();
+		}
+	}
+	return Constructor.ConstructFinalWidget(Row, Storage, this, Arguments);
 }
 
 void UTypedElementDatabaseUi::ListWidgetPurposes(const WidgetPurposeCallback& Callback) const
