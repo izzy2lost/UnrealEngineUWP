@@ -15,9 +15,8 @@ namespace Harmonix::Midi::Ops::Tests
 	{
 		FMidiTrackFilter Filter;
 		
-		Metasound::FOperatorSettings OperatorSettings{ 48000, 100 };
-		HarmonixMetasound::FMidiStream InputStream{ OperatorSettings };
-		HarmonixMetasound::FMidiStream OutputStream{ OperatorSettings };
+		HarmonixMetasound::FMidiStream InputStream;
+		HarmonixMetasound::FMidiStream OutputStream;
 
 		constexpr uint16 MinTrack = 1;
 		constexpr uint16 MaxTrack = 37;

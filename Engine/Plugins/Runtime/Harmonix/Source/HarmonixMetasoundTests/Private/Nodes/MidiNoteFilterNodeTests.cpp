@@ -21,8 +21,8 @@ namespace HarmonixMetasound::Nodes::MidiNoteFilter::Tests
 		UTEST_TRUE("Got node MIDI output", NodeMidiOutput.IsSet());
 		
 		Harmonix::Midi::Ops::FMidiNoteFilter FilterForComparison;
-		FMidiStream InputStream{ Generator->OperatorSettings };
-		FMidiStream OutputStream{ Generator->OperatorSettings };
+		FMidiStream InputStream;
+		FMidiStream OutputStream;
 
 		FMidiStreamEvent NoteOnEvent{ static_cast<uint32>(0), FMidiMsg::CreateNoteOn(2, 43, 45) };
 		FMidiStreamEvent CCEvent{ static_cast<uint32>(0), FMidiMsg::CreateControlChange(3, 4, 5) };

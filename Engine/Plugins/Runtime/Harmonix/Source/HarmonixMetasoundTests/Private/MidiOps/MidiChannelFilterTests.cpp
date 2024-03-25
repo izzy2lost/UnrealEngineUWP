@@ -46,9 +46,8 @@ namespace Harmonix::Midi::Ops::Tests
 	{
 		FMidiChannelFilter Filter;
 		
-		Metasound::FOperatorSettings OperatorSettings{ 48000, 100 };
-		HarmonixMetasound::FMidiStream InputStream{ OperatorSettings };
-		HarmonixMetasound::FMidiStream OutputStream{ OperatorSettings };
+		HarmonixMetasound::FMidiStream InputStream;
+		HarmonixMetasound::FMidiStream OutputStream;
 
 		// Add some events to the input stream
 		constexpr uint8 NoteChannelIdx = 1;

@@ -255,7 +255,7 @@ namespace HarmonixMetasound
 		, PrerollBars(InPrerollBars)
 		, bKillVoicesOnSeek(bInKillVoicesOnSeek)
 		, bKillVoicesOnMidiChange(bInKillVoicesOnMidiChange)
-		, MidiOutPin(FMidiStreamWriteRef::CreateNew(InSettings))
+		, MidiOutPin(FMidiStreamWriteRef::CreateNew())
 		, MidiClockOut(FMidiClockWriteRef::CreateNew(InSettings))
 		, BlockSize(InSettings.GetNumFramesPerBlock())
 	{

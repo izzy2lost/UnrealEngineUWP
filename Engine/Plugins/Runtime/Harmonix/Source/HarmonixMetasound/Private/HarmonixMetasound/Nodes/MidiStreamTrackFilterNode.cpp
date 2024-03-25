@@ -114,7 +114,7 @@ namespace HarmonixMetasound::Nodes::MidiTrackFilter
 			FInputs Inputs
 			{
 				InputData.GetOrCreateDefaultDataReadReference<bool>(Inputs::EnableName, InParams.OperatorSettings),
-				InputData.GetOrConstructDataReadReference<FMidiStream>(Inputs::MidiStreamName, InParams.OperatorSettings),
+				InputData.GetOrConstructDataReadReference<FMidiStream>(Inputs::MidiStreamName),
 				InputData.GetOrCreateDefaultDataReadReference<int32>(Inputs::MinTrackIndexName, InParams.OperatorSettings),
 				InputData.GetOrCreateDefaultDataReadReference<int32>(Inputs::MaxTrackIndexName, InParams.OperatorSettings),
 				InputData.GetOrCreateDefaultDataReadReference<bool>(Inputs::IncludeConductorTrackName, InParams.OperatorSettings)
@@ -122,7 +122,7 @@ namespace HarmonixMetasound::Nodes::MidiTrackFilter
 
 			FOutputs Outputs
 			{
-				FMidiStreamWriteRef::CreateNew(InParams.OperatorSettings)
+				FMidiStreamWriteRef::CreateNew()
 			};
 			
 			return MakeUnique<FMidiStreamTrackFilterOperator_V1>(InParams, MoveTemp(Inputs), MoveTemp(Outputs));

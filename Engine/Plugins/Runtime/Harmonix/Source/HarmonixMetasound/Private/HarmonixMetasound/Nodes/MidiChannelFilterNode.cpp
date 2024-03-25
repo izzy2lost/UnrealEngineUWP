@@ -105,13 +105,13 @@ namespace HarmonixMetasound::Nodes::MidiChannelFilter
 			FInputs Inputs
 			{
 				InputData.GetOrCreateDefaultDataReadReference<bool>(Inputs::EnableName, OperatorSettings),
-				InputData.GetOrConstructDataReadReference<FMidiStream>(Inputs::MidiStreamName, OperatorSettings),
+				InputData.GetOrConstructDataReadReference<FMidiStream>(Inputs::MidiStreamName),
 				InputData.GetOrCreateDefaultDataReadReference<int32>(Inputs::ChannelName, OperatorSettings)
 			};
 
 			FOutputs Outputs
 			{
-				FMidiStreamWriteRef::CreateNew(OperatorSettings)
+				FMidiStreamWriteRef::CreateNew()
 			};
 
 			return MakeUnique<FMidiChannelFilterOperator>(InParams, MoveTemp(Inputs), MoveTemp(Outputs));

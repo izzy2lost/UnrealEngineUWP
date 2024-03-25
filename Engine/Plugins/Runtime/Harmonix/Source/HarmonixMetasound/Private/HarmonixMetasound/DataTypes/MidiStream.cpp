@@ -14,10 +14,6 @@ namespace HarmonixMetasound
 	DEFINE_LOG_CATEGORY(LogMidiStreamDataType);
 
 	using namespace Metasound;
-	
-	FMidiStream::FMidiStream(const FOperatorSettings&)
-	{
-	}
 
 	void FMidiStream::SetClock(const FMidiClock& InClock)
 	{

@@ -57,8 +57,6 @@ namespace HarmonixMetasound
 	class HARMONIXMETASOUND_API FMidiStream
 	{
 	public:
-		explicit FMidiStream(const Metasound::FOperatorSettings& InSettings);
-
 		void SetClock(const FMidiClock& InClock);
 		void ResetClock();
 		TSharedPtr<const FMidiClock, ESPMode::NotThreadSafe> GetClock() const;

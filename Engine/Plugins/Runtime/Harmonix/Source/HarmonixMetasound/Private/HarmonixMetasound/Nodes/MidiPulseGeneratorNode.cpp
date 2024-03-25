@@ -144,7 +144,7 @@ namespace HarmonixMetasound::Nodes::MidiPulseGeneratorNode
 
 			FOutputs Outputs
 			{
-				FMidiStreamWriteRef::CreateNew(InParams.OperatorSettings)
+				FMidiStreamWriteRef::CreateNew()
 			};
 
 			return MakeUnique<FMidiPulseGeneratorOperator>(InParams, MoveTemp(Inputs), MoveTemp(Outputs));

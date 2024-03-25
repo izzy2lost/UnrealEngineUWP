@@ -15,9 +15,8 @@ namespace Harmonix::Midi::Ops::Tests
 	{
 		FStuckNoteGuard Guard;
 
-		Metasound::FOperatorSettings OperatorSettings{ 48000, 100 };
-		HarmonixMetasound::FMidiStream InputStream{ OperatorSettings };
-		HarmonixMetasound::FMidiStream OutputStream{ OperatorSettings };
+		HarmonixMetasound::FMidiStream InputStream;
+		HarmonixMetasound::FMidiStream OutputStream;
 
 		// Use a filter that only includes messages on channel 3
 		const auto Channel3Filter = [](const HarmonixMetasound::FMidiStreamEvent& Event)

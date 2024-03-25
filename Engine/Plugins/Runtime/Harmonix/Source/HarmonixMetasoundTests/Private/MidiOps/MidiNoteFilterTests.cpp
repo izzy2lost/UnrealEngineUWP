@@ -15,9 +15,8 @@ namespace Harmonix::Midi::Ops::Tests
 	{
 		FMidiNoteFilter Filter;
 		
-		Metasound::FOperatorSettings OperatorSettings{ 48000, 100 };
-		HarmonixMetasound::FMidiStream InputStream{ OperatorSettings };
-		HarmonixMetasound::FMidiStream OutputStream{ OperatorSettings };
+		HarmonixMetasound::FMidiStream InputStream;
+		HarmonixMetasound::FMidiStream OutputStream;
 
 		FMidiMsg NoteOnMsg = FMidiMsg::CreateNoteOn(2, 3, 4);
 		HarmonixMetasound::FMidiStreamEvent NoteOnEvent{ static_cast<uint32>(0), NoteOnMsg };

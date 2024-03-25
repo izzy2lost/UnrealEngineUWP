@@ -23,7 +23,7 @@ namespace Harmonix::Midi::Ops::Tests
 		HarmonixMetasound::FMidiClock Clock{ OperatorSettings };
 		Clock.AttachToMidiResource(HarmonixMetasound::FMidiClock::MakeClockConductorMidiData(Tempo, TimeSigNumerator, TimeSigDenominator));
 		
-		HarmonixMetasound::FMidiStream OutputStream{ OperatorSettings };
+		HarmonixMetasound::FMidiStream OutputStream;
 
 		PulseGenerator.SetClock(&Clock);
 
