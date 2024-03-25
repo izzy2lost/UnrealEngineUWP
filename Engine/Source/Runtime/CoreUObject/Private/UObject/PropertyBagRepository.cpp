@@ -1,6 +1,9 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "UObject/PropertyBagRepository.h"
+
+#include "Serialization/ObjectReader.h"
+#include "Serialization/ObjectWriter.h"
 #include "UObject/GarbageCollection.h"
 #include "UObject/Object.h"
 #include "UObject/UObjectGlobals.h"
@@ -57,7 +60,6 @@ void FPropertyBagRepository::FPropertyBagAssociationData::Destroy()
 	
 	if(InstanceDataObject && InstanceDataObject->IsValidLowLevel())
 	{
-		InstanceDataObject->RemoveFromRoot();
 		InstanceDataObject = nullptr;
 	}
 }
@@ -133,6 +135,10 @@ bool FPropertyBagRepository::RemoveAssociationUnsafe(const UObjectBase* Owner)
 		OldData.Destroy();
 		return true;
 	}
+
+	// note: RemoveAssociationUnsafe is called on every object regardless of whether it has a property bag.
+	// in that scenario, there's a chance we have a namespace associated with it. Remove that namespace.
+	Namespaces.Remove(Owner);
 	return false;
 }
 
@@ -185,6 +191,23 @@ bool FPropertyBagRepository::WasPropertySetBySerialization(const UStruct* Struct
 	return UE::WasPropertySetBySerialization(Struct, StructData, Property, ArrayIndex);
 }
 
+void FPropertyBagRepository::AddReferencedObjects(FReferenceCollector& Collector)
+{
+	for (TPair<const UObjectBase*, FPropertyBagAssociationData>& Element : AssociatedData)
+	{
+		Collector.AddReferencedObject(Element.Value.InstanceDataObject);
+	}
+	for (TPair<const UObjectBase*, TObjectPtr<UObject>>& Element : Namespaces)
+	{
+		Collector.AddReferencedObject(Element.Value);
+	}
+}
+
+FString FPropertyBagRepository::GetReferencerName() const
+{
+	return TEXT("FPropertyBagRepository");
+}
+
 void FPropertyBagRepository::CreateInstanceDataObjectUnsafe(const UObjectBase* Owner, FPropertyBagAssociationData& BagData)
 {
 	check(!BagData.InstanceDataObject);	// No repeated calls
@@ -193,9 +216,25 @@ void FPropertyBagRepository::CreateInstanceDataObjectUnsafe(const UObjectBase* O
 	// TODO: should we put the InstanceDataObject or it's class in a package?
 	const UClass* InstanceDataObjectClass = CreateInstanceDataObjectClass(PropertyBag, Owner->GetClass(), GetTransientPackage());
 
+	TObjectPtr<UObject>* OuterPtr;
+	if (FPropertyBagAssociationData* OuterData = AssociatedData.Find(Owner->GetOuter()))
+	{
+		OuterPtr = &OuterData->InstanceDataObject;
+	}
+	else
+	{
+		OuterPtr = &Namespaces.FindOrAdd(Owner->GetOuter());
+		if (*OuterPtr == nullptr)
+		{
+			*OuterPtr = CreatePackage(nullptr); // TODO: replace with dummy object
+		}
+	}
+
 	// construct InstanceDataObject object
 	FStaticConstructObjectParameters Params(InstanceDataObjectClass);
 	Params.SetFlags |= EObjectFlags::RF_Transactional;
+	Params.Name = Owner->GetFName();
+	Params.Outer = *OuterPtr;
 	UObject* InstanceDataObjectObject = StaticConstructObject_Internal(Params);
 	BagData.InstanceDataObject = InstanceDataObjectObject;
 	
@@ -204,21 +243,28 @@ void FPropertyBagRepository::CreateInstanceDataObjectUnsafe(const UObjectBase* O
 	TGuardValue<bool> ScopedImpersonateProperties(LoadContext->bImpersonateProperties, true);
 	TGuardValue<bool> ScopedTrackSerializedPropertyPath(LoadContext->bTrackSerializedPropertyPath, true);
 	
-	const FDelegateHandle OnTaggedPropertySerializeHandle = LoadContext->OnTaggedPropertySerialize.AddLambda(
-		[&BagData](const FUObjectSerializeContext& Context)
-		{
-			if (!Context.SerializedPropertyPath.IsEmpty())
-			{
-				MarkPropertySetBySerialization(BagData.InstanceDataObject, Context.SerializedPropertyPath);
-			}
-		}
-	);
-
 	UObject* OwnerAsObject = (UObject*)Owner;
-	OwnerAsObject->SetFlags(RF_NeedLoad);
-	OwnerAsObject->GetLinker()->Preload(OwnerAsObject);
-
-	LoadContext->OnTaggedPropertySerialize.Remove(OnTaggedPropertySerializeHandle);
+	if (FLinkerLoad* Linker = OwnerAsObject->GetLinker())
+	{
+		const FDelegateHandle OnTaggedPropertySerializeHandle = LoadContext->OnTaggedPropertySerialize.AddLambda(
+			[&BagData](const FUObjectSerializeContext& Context)
+			{
+				if (!Context.SerializedPropertyPath.IsEmpty())
+				{
+					MarkPropertySetBySerialization(BagData.InstanceDataObject, Context.SerializedPropertyPath);
+				}
+			}
+		);
+		OwnerAsObject->SetFlags(RF_NeedLoad);
+		Linker->Preload(OwnerAsObject);
+		LoadContext->OnTaggedPropertySerialize.Remove(OnTaggedPropertySerializeHandle);
+	}
+	else if (ensureMsgf(BagData.Bag == nullptr, TEXT("Linker missing when generating IDO for an object with loose properties")))
+	{
+		TArray<uint8> Buffer;
+		FObjectWriter(OwnerAsObject, Buffer);
+		FObjectReader(BagData.InstanceDataObject, Buffer);
+	}
 }
 
 // Not sure this is necessary.
