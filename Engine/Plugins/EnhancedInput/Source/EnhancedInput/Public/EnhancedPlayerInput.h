@@ -53,7 +53,7 @@ USTRUCT()
 struct FInjectedInputArray
 {
 	GENERATED_BODY()
-	
+
 	UPROPERTY(Transient)
 	TArray<FInjectedInput> Injected;
 };
