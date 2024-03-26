@@ -57,3 +57,10 @@ public:
 	 */
 	inline static FName CustomEntryName = TEXT("Custom");
 };
+
+
+/** Convert a FMovieGraphNamedResolution into a string */
+inline FString LexToString(const FMovieGraphNamedResolution InResolution)
+{
+	return FString::Printf(TEXT("%s [%d, %d]"), *InResolution.ProfileName.ToString(), InResolution.Resolution.X, InResolution.Resolution.Y);
+}

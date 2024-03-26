@@ -48,8 +48,6 @@ public:
 #endif
 	// ~UMovieGraphSettingNode Interface
 
-	FIntPoint GetSyncedOutputResolution() const;
-
 public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Overrides, meta = (InlineEditConditionToggle))
 	uint8 bOverride_OutputDirectory : 1;
