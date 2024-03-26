@@ -497,7 +497,7 @@ void FElectraHTTPStreamRequestGeneric::OnProcessRequestComplete(FHttpRequestPtr 
 		Response->HTTPResponseCode = InHttpResponse->GetResponseCode();
 		Response->EffectiveURL = EffectiveURL;
 	}
-	if (!bInSucceeded)
+	if (!bInSucceeded && !WasCanceled())
 	{
 		if (Response->HTTPResponseCode)
 		{
