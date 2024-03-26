@@ -35,13 +35,16 @@ struct FReplicationSystemInternalInitParams
 {
 	uint32 ReplicationSystemId;
 	uint32 MaxReplicatedObjectCount;
+	uint32 PreAllocatedReplicatedObjectCount;
+	uint32 MaxReplicatedWriterObjectCount;
 };
 
 class FReplicationSystemInternal
 {
 public:
 	explicit FReplicationSystemInternal(const FReplicationSystemInternalInitParams& Params)
-	: NetRefHandleManager(ReplicationProtocolManager, Params.ReplicationSystemId, Params.MaxReplicatedObjectCount)
+	: NetRefHandleManager(ReplicationProtocolManager, Params.ReplicationSystemId, Params.MaxReplicatedObjectCount, Params.PreAllocatedReplicatedObjectCount)
+	, InternalInitParams(Params)
 	, DirtyNetObjectTracker()
 	, ReplicationBridge(nullptr)
 	, IrisObjectReferencePackageMap(nullptr)
@@ -101,6 +104,8 @@ public:
 
 	FNetTypeStats& GetNetTypeStats() { return TypeStats; }
 
+	FReplicationSystemInternalInitParams& GetInitParams() { return InternalInitParams; }
+
 	FNetSendStats& GetSendStats()
 	{ 
 		return SendStats;
@@ -118,6 +123,7 @@ public:
 private:
 	FReplicationProtocolManager ReplicationProtocolManager;
 	FNetRefHandleManager NetRefHandleManager;
+	FReplicationSystemInternalInitParams InternalInitParams;
 	FDirtyNetObjectTracker DirtyNetObjectTracker;
 	FReplicationStateStorage ReplicationStateStorage;
 	FReplicationStateDescriptorRegistry ReplicationStateDescriptorRegistry;

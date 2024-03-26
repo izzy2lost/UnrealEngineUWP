@@ -257,12 +257,29 @@ namespace UE::Net::Private
 			{
 				OutParams.MaxReplicatedObjectCount = ReplicationSystemConfig.MaxReplicatedObjectServerCount;
 			}
+
+			if (ReplicationSystemConfig.PreAllocatedReplicatedObjectServerCount >= 0)
+			{
+				OutParams.PreAllocatedReplicatedObjectCount = ReplicationSystemConfig.PreAllocatedReplicatedObjectServerCount;
+			}
+
+			OutParams.MaxReplicatedWriterObjectCount = OutParams.MaxReplicatedObjectCount;
 		}
 		else
 		{
 			if (ReplicationSystemConfig.MaxReplicatedObjectClientCount != 0)
 			{
 				OutParams.MaxReplicatedObjectCount = ReplicationSystemConfig.MaxReplicatedObjectClientCount;
+			}
+
+			if (ReplicationSystemConfig.PreAllocatedReplicatedObjectClientCount >= 0)
+			{
+				OutParams.PreAllocatedReplicatedObjectCount = ReplicationSystemConfig.PreAllocatedReplicatedObjectClientCount;
+			}
+
+			if (ReplicationSystemConfig.MaxReplicatedWriterObjectClientCount != 0)
+			{
+				OutParams.MaxReplicatedWriterObjectCount = ReplicationSystemConfig.MaxReplicatedWriterObjectClientCount;
 			}
 		}
 

@@ -56,9 +56,6 @@ struct FNetObjectFilteringParams
 	/** FilteringInfos for all objects. Index using the set bit indices in FilteredObjects. */
 	const FNetObjectFilteringInfo* FilteringInfos = nullptr;
 
-	/** State buffers for all objects. Index using the set bit indices in FilteredObjects. */
-	uint8 *const* StateBuffers = nullptr;
-
 	/** ID of the connection that the filtering applies to. */
 	uint32 ConnectionId;
 
@@ -196,12 +193,6 @@ struct FNetObjectFilterUpdateParams
 	* NOTE: Only for filters of type FragmentBased; null for Raw types
 	*/
 	UE::Net::FReplicationInstanceProtocol const* const* InstanceProtocols = nullptr;
-
-	/** 
-	* State buffers for all objects. Index using ObjectIndices[0..ObjectCount-1]. 
-	* NOTE: Only for filters of type FragmentBased; null for Raw types
-	*/
-	uint8* const* StateBuffers = nullptr;
 };
 
 UCLASS(Abstract)
