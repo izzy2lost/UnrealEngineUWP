@@ -620,8 +620,6 @@ private:
 	ENGINE_API bool ShouldInheritPerInstanceData(const UInstancedStaticMeshComponent* InArchetype) const;
 	ENGINE_API bool ShouldInheritPerInstanceData() const;
 
-	void CalcAndCacheNavigationBounds();
-
 	void PartialNavigateUpdateForCurrentInstances();
 
 	/** Sets up new instance data to sensible defaults, creates physics counterparts if possible. */
@@ -637,6 +635,8 @@ protected:
 	bool bIsInstanceDataApplyCompleted = true;
 
 	FPrimitiveInstanceDataManager PrimitiveInstanceDataManager;
+
+	ENGINE_API void CalcAndCacheNavigationBounds();
 
 	/** Creates body instances for all instances owned by this component. */
 	ENGINE_API void CreateAllInstanceBodies();

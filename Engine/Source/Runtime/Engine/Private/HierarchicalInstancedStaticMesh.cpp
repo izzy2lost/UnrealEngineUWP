@@ -3261,6 +3261,8 @@ void UHierarchicalInstancedStaticMeshComponent::PartialNavigationUpdate(const in
 			}
 		}
 	}
+
+	CalcAndCacheNavigationBounds();
 }
 
 void UHierarchicalInstancedStaticMeshComponent::FlushAccumulatedNavigationUpdates()
