@@ -6617,12 +6617,18 @@ bool FEngineLoop::AppInit( )
 
 				// Ask whether to compile before continuing
 				FString CompilePrompt = ModulesList + TEXT("\nWould you like to rebuild them now?");
-				if (FPlatformMisc::MessageBoxExt(EAppMsgType::YesNo, *CompilePrompt, *FString::Printf(TEXT("Missing %s Modules"), FApp::GetProjectName())) == EAppReturnType::No)
+				if (FPlatformMisc::MessageBoxExt(EAppMsgType::YesNo, *CompilePrompt, *FString::Printf(TEXT("Missing %s Modules"), FApp::GetProjectName())) == EAppReturnType::Yes)
 				{
-					return false;
+					bNeedCompile = true;
 				}
-
-				bNeedCompile = true;
+				else
+				{
+					FString ProceedWithoutCompilePrompt = ModulesList + TEXT("\nWould you like to proceed anyway? Code and content that depends on these modules may not work correctly. Enter at your own risk.");
+					if (FPlatformMisc::MessageBoxExt(EAppMsgType::YesNo, *ProceedWithoutCompilePrompt, *FString::Printf(TEXT("Missing %s Modules"), FApp::GetProjectName())) == EAppReturnType::No)
+					{
+						return false;
+					}
+				}
 			}
 			else if(EditorTargetFileName.Len() > 0 && !FPaths::FileExists(EditorTargetFileName))
 			{
