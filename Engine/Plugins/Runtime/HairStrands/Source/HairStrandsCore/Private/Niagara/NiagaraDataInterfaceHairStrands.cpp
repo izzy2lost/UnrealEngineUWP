@@ -3576,23 +3576,31 @@ void FNDIHairStrandsProxy::PreStage(const FNDIGpuComputePreStageContext& Context
 
 void FNDIHairStrandsProxy::PostSimulate(const FNDIGpuComputePostSimulateContext& Context)
 {
+	// Check we have valid hair data
 	FNDIHairStrandsData* ProxyData = SystemInstancesToProxyData.Find(Context.GetSystemInstanceID());
-
-	const bool bIsHairValid = ProxyData != nullptr && ProxyData->HairStrandsBuffer && ProxyData->HairStrandsBuffer->IsInitialized();
-	const bool bIsDeformedValid = bIsHairValid && ProxyData->HairStrandsBuffer->SourceDeformedResources && ProxyData->HairStrandsBuffer->SourceDeformedResources->IsInitialized();
-
-	// MGPU DeformedPositionBuffer copy after simulation
-	if (bIsDeformedValid)
+	FNDIHairStrandsBuffer* HairStrandsBuffer = ProxyData ? ProxyData->HairStrandsBuffer : nullptr;
+	if (!HairStrandsBuffer || !HairStrandsBuffer->IsInitialized())
 	{
-		const FNDIHairStrandsBuffer* HairStrandsBuffer = ProxyData->HairStrandsBuffer;
-		FRHIBuffer* DeformedPositionBuffer = HairStrandsBuffer->SourceDeformedResources->DeformedPositionBuffer[HairStrandsBuffer->SourceDeformedResources->CurrentIndex].Buffer->GetRHI();
-		Context.GetComputeDispatchInterface().MultiGPUResourceModified(Context.GetGraphBuilder(), DeformedPositionBuffer, false, true);
+		return;
 	}
 
-	if (bIsHairValid && Context.IsFinalPostSimulate())
+	// MGPU DeformedPositionBuffer copy after simulation
+	if (HairStrandsBuffer->SourceDeformedResources && HairStrandsBuffer->SourceDeformedResources->IsInitialized())
 	{
-		ProxyData->HairStrandsBuffer->BoundingBoxBuffer.EndGraphUsage();
-		ProxyData->HairStrandsBuffer->ParamsScaleBuffer.EndGraphUsage();
+		const FRDGExternalBuffer& DeformedBuffer = HairStrandsBuffer->SourceDeformedResources->DeformedPositionBuffer[HairStrandsBuffer->SourceDeformedResources->CurrentIndex];
+		if (DeformedBuffer.Buffer.IsValid())
+		{
+			if (FRHIBuffer* DeformedPositionBuffer = DeformedBuffer.Buffer->GetRHI())
+			{
+				Context.GetComputeDispatchInterface().MultiGPUResourceModified(Context.GetGraphBuilder(), DeformedPositionBuffer, false, true);
+			}
+		}
+	}
+
+	if (Context.IsFinalPostSimulate())
+	{
+		HairStrandsBuffer->BoundingBoxBuffer.EndGraphUsage();
+		HairStrandsBuffer->ParamsScaleBuffer.EndGraphUsage();
 	}
 }
 
