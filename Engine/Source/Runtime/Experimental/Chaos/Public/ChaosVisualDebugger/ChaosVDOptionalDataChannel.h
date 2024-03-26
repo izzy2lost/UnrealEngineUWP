@@ -142,13 +142,14 @@ namespace Chaos::VisualDebugger
 
 // Declare CVD's Default set of channels
 CVD_DECLARE_OPTIONAL_DATA_CHANNEL(Default);
-CVD_DECLARE_OPTIONAL_DATA_CHANNEL(EvolutionStart);
-CVD_DECLARE_OPTIONAL_DATA_CHANNEL(Integrate);
-CVD_DECLARE_OPTIONAL_DATA_CHANNEL(ApplyKinematicTargets);
+CVD_DECLARE_OPTIONAL_DATA_CHANNEL(EvolutionStart);							// Initial particle positions for this tick. Same as end of previous EvolutionEnd but with any external changes applied (set position, velocity, etc).
+CVD_DECLARE_OPTIONAL_DATA_CHANNEL(PostIntegrate);							// Predicted particle positions before user callbacks and constraint solver. Includes this tick's movement from external forces, velocity, kinematic targets, etc.
+CVD_DECLARE_OPTIONAL_DATA_CHANNEL(PreConstraintSolve);						// Predicted particle positions as used by the constraint solver. After user callbacks, collision modifiers, etc., but before collisions and joints are resolved.
 CVD_DECLARE_OPTIONAL_DATA_CHANNEL(CollisionDetectionBroadPhase);
 CVD_DECLARE_OPTIONAL_DATA_CHANNEL(CollisionDetectionNarrowPhase);
 CVD_DECLARE_OPTIONAL_DATA_CHANNEL(EndOfEvolutionCollisionConstraints);
-CVD_DECLARE_OPTIONAL_DATA_CHANNEL(EvolutionEnd);
+CVD_DECLARE_OPTIONAL_DATA_CHANNEL(PostConstraintSolve);						// Particle positions corrected by the constraint solver (collisions, joints, etc.), but before user callbacks or destruction handling.
+CVD_DECLARE_OPTIONAL_DATA_CHANNEL(EvolutionEnd);							// Final particle positions, including destruction and user callbacks.
 CVD_DECLARE_OPTIONAL_DATA_CHANNEL(SceneQueries);
 CVD_DECLARE_OPTIONAL_DATA_CHANNEL(JointConstraints);
 

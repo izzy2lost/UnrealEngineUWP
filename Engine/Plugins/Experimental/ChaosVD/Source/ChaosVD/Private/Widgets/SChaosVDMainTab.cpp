@@ -593,14 +593,24 @@ FReply SChaosVDMainTab::HandleSessionConnectionClicked()
 
 FText SChaosVDMainTab::GetConnectButtonText() const
 {
-	const bool bIsAlreadyInLiveSession = GetChaosVDEngineInstance()->GetPlaybackController()->IsPlayingLiveSession();
-	return bIsAlreadyInLiveSession ? LOCTEXT("DisconnectFromSession", "Disconnect from Session") : LOCTEXT("ConnectToSession", "Connect to Session");
+	TSharedPtr<FChaosVDPlaybackController> PlaybackControllerPtr = GetChaosVDEngineInstance()->GetPlaybackController();
+	if (PlaybackControllerPtr.IsValid())
+	{
+		const bool bIsAlreadyInLiveSession = PlaybackControllerPtr->IsPlayingLiveSession();
+		return bIsAlreadyInLiveSession ? LOCTEXT("DisconnectFromSession", "Disconnect from Session") : LOCTEXT("ConnectToSession", "Connect to Session");
+	}
+	return FText();
 }
 
 FText SChaosVDMainTab::GetConnectButtonTooltipText() const
 {
-	const bool bIsAlreadyInLiveSession = GetChaosVDEngineInstance()->GetPlaybackController()->IsPlayingLiveSession();
-	return bIsAlreadyInLiveSession ? LOCTEXT("DisconnectFromSessionTooltip", "Disconnects from the current live session but it does not stop it") : LOCTEXT("ConnectToSessionTooltip", "Opens a panel where you can browse active live sessions and connect to one");
+	TSharedPtr<FChaosVDPlaybackController> PlaybackControllerPtr = GetChaosVDEngineInstance()->GetPlaybackController();
+	if (PlaybackControllerPtr.IsValid())
+	{
+		const bool bIsAlreadyInLiveSession = PlaybackControllerPtr->IsPlayingLiveSession();
+		return bIsAlreadyInLiveSession ? LOCTEXT("DisconnectFromSessionTooltip", "Disconnects from the current live session but it does not stop it") : LOCTEXT("ConnectToSessionTooltip", "Opens a panel where you can browse active live sessions and connect to one");
+	}
+	return FText();
 }
 
 #undef LOCTEXT_NAMESPACE

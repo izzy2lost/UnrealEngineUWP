@@ -211,6 +211,8 @@ namespace Chaos
 
 		CHAOS_API void Integrate(FReal Dt);
 
+		CHAOS_API virtual void ApplyKinematicTargets(const FReal Dt, const FReal StepFraction) override final;
+
 		CHAOS_API void Serialize(FChaosArchive& Ar);
 
 		CHAOS_API TUniquePtr<IResimCacheBase> CreateExternalResimCache() const;

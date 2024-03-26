@@ -87,7 +87,7 @@ FChaosVDParticleDataWrapper FChaosVDDataWrapperUtils::BuildParticleDataWrapperFr
 	WrappedParticleData.DebugNamePtr = ParticleHandlePtr->DebugName().IsValid() ? ParticleHandlePtr->DebugName().Get() : nullptr;
 #endif
 
-	WrappedParticleData.ParticlePositionRotation.CopyFrom(*ParticleHandlePtr);
+	WrappedParticleData.ParticlePositionRotation.CopyFrom(Chaos::FConstGenericParticleHandle(ParticleHandlePtr));
 
 	if (const Chaos::TKinematicGeometryParticleHandleImp<Chaos::FReal, 3, true>* KinematicParticle = ParticleHandlePtr->CastToKinematicParticle())
 	{
