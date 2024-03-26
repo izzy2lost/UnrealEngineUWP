@@ -732,6 +732,11 @@ void USkinWeightsPaintTool::Setup()
 	ReplaceToolPropertySource(BrushProperties, WeightToolProperties);
 	BrushProperties = WeightToolProperties;
 
+	// brush render customization
+	BrushStampIndicator->bScaleNormalByStrength = true;
+	BrushStampIndicator->SecondaryLineThickness = 1.0f;
+	BrushStampIndicator->SecondaryLineColor = FLinearColor::Yellow;
+
 	// default to the root bone as current bone
 	PendingCurrentBone = CurrentBone = Component->GetSkeletalMeshAsset()->GetRefSkeleton().GetBoneName(0);
 

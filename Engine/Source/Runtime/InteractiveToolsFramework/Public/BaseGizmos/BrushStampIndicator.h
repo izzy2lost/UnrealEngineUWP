@@ -40,7 +40,7 @@ public:
 	/**
 	 * Update the Radius, Position, and Normal of the stamp indicator
 	 */
-	INTERACTIVETOOLSFRAMEWORK_API virtual void Update(float Radius, const FVector& Position, const FVector& Normal, float Falloff);
+	INTERACTIVETOOLSFRAMEWORK_API virtual void Update(float Radius, const FVector& Position, const FVector& Normal, float Falloff, float Strength);
 
 	/**
 	* Update the Radius, Transform and Falloff of the Stamp Indicator
@@ -60,11 +60,14 @@ public:
 	float BrushFalloff = 0.5f;
 
 	UPROPERTY()
+	float BrushStrength = 1.0f;
+
+	UPROPERTY()
 	FVector BrushPosition = FVector::ZeroVector;
 
 	UPROPERTY()
 	FVector BrushNormal = FVector(0, 0, 1);;
-
+	
 
 
 	UPROPERTY()
@@ -72,6 +75,9 @@ public:
 
 	UPROPERTY()
 	bool bDrawRadiusCircle = true;
+
+	UPROPERTY()
+	bool bScaleNormalByStrength = false;
 
 	UPROPERTY()
 	int SampleStepCount = 32;
