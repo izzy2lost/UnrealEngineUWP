@@ -271,6 +271,13 @@ namespace uba
 		return TStrrchr(data + offset, c);
 	}
 
+	const tchar* StringBufferBase::GetFileName() const
+	{
+		if (const tchar* lps = TStrrchr(data, PathSeparator))
+			return lps + 1;
+		return data;
+	}
+
 	StringBufferBase& StringBufferBase::EnsureEndsWithSlash()
 	{
 		UBA_ASSERT(count);

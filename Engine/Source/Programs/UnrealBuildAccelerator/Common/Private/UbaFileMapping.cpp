@@ -175,7 +175,14 @@ namespace uba
 		int fd = asFileDescriptor(file);
 		if (maxSize)
 		{
-			if (lseek(fd, maxSize - 1, SEEK_SET) == -1)
+#if PLATFORM_MAC // For some reason some macs fails to use lseek+write
+			if (ftruncate(fd, maxSize) == -1)
+			{
+				UBA_ASSERTF(false, "ftruncate to %llu failed for %s: %s\n", maxSize, hint, strerror(errno));
+				return h;
+			}
+#else
+			if (lseek(fd, maxSize - 1, SEEK_SET) != maxSize - 1)
 			{
 				UBA_ASSERTF(false, "lseek to %llu failed for %s: %s\n", maxSize - 1, hint, strerror(errno));
 				return h;
@@ -187,9 +194,10 @@ namespace uba
 				res = write(fd, "", 1);
 			if (res != 1)
 			{
-				//UBA_ASSERTF(false, "write one byte at %llu on fd %i (%s) failed (res: %i): %s\n", maxSize - 1, fd, hint, res, strerror(errno));
-				//return h;
+				UBA_ASSERTF(false, "write one byte at %llu on fd %i (%s) failed (res: %i): %s\n", maxSize - 1, fd, hint, res, strerror(errno));
+				return h;
 			}
+#endif
 		}
 
 		h.shmFd = fd;

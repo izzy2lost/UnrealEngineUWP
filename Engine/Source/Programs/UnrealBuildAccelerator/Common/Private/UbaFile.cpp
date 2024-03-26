@@ -425,6 +425,7 @@ namespace uba
 			}
 			if (S_ISREG(attr.st_mode))
 				return (FileHandle)fd;
+			close(fd);
 			SetLastError(ERROR_ACCESS_DENIED);
 			return InvalidFileHandle;
 		}
