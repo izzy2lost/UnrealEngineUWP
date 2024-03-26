@@ -16,6 +16,7 @@
 #include "RigVMBlueprintUtils.h"
 #include "../../../RigVMEditor/Public/RigVMEditorModule.h"
 #include "RigVMCore/RigVMExecuteContext.h"
+#include "RigVMFunctions/RigVMDispatch_CastEnum.h"
 #include "RigVMFunctions/RigVMDispatch_CastObject.h"
 #include "RigVMModel/Nodes/RigVMAggregateNode.h"
 #include "RigVMModel/Nodes/RigVMFunctionReferenceNode.h"
@@ -1059,7 +1060,8 @@ bool URigVMEdGraphNode::DrawAsCompactNode() const
 		if(const URigVMTemplateNode* TemplateModelNode = Cast<URigVMTemplateNode>(GetModelNode()))
 		{
 			if(TemplateModelNode->GetNotation() == RigVMTypeUtils::GetCastTemplateNotation() ||
-				TemplateModelNode->GetNotation() == FRigVMDispatch_CastObject().GetTemplateNotation())
+				TemplateModelNode->GetNotation() == FRigVMDispatch_CastObject().GetTemplateNotation() ||
+				TemplateModelNode->GetNotation() == FRigVMDispatch_CastEnum().GetTemplateNotation())
 			{
 				DrawAsCompactNodeCache = true;
 				
