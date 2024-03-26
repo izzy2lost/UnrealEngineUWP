@@ -87,6 +87,13 @@ namespace UE
 namespace SVT
 {
 
+bool UseAsyncComputeForStreaming()
+{
+	// Disable async compute for streaming systems when MGPU is active, to work around GPU hangs
+	const bool bAsyncCompute = GSupportsEfficientAsyncCompute && (GSVTStreamingAsyncCompute != 0) && (GNumExplicitGPUsForRendering == 1);
+	return bAsyncCompute;
+}
+
 FTileUploader::FTileUploader()
 {
 	ResetState();
@@ -246,12 +253,12 @@ void FTileUploader::ResourceUploadTo(FRDGBuilder& GraphBuilder, const TRefCountP
 			FRDGTexture* DstTextureBRDG = nullptr;
 			if (InDstTextureA)
 			{
-				DstTextureARDG = GraphBuilder.RegisterExternalTexture(InDstTextureA, ERDGTextureFlags::ForceImmediateFirstBarrier);
+				DstTextureARDG = GraphBuilder.RegisterExternalTexture(InDstTextureA);
 				GraphBuilder.UseInternalAccessMode(DstTextureARDG);
 			}
 			if (InDstTextureB)
 			{
-				DstTextureBRDG = GraphBuilder.RegisterExternalTexture(InDstTextureB, ERDGTextureFlags::ForceImmediateFirstBarrier);
+				DstTextureBRDG = GraphBuilder.RegisterExternalTexture(InDstTextureB);
 				GraphBuilder.UseInternalAccessMode(DstTextureBRDG);
 			}
 
@@ -351,8 +358,7 @@ void FTileUploader::ResourceUploadTo(FRDGBuilder& GraphBuilder, const TRefCountP
 				PassParameters->NumDispatchedGroups = FMath::Min(NumTilesInThisBatch, GRHIMaxDispatchThreadGroupsPerDimension.X);
 				PassParameters->PaddedTileSize = SPARSE_VOLUME_TILE_RES_PADDED;
 	
-				// Disable async compute for streaming systems when MGPU is active, to work around GPU hangs
-				const bool bAsyncCompute = GSupportsEfficientAsyncCompute && (GSVTStreamingAsyncCompute != 0) && (GNumExplicitGPUsForRendering == 1);
+				const bool bAsyncCompute = UseAsyncComputeForStreaming();
 	
 				FComputeShaderUtils::AddPass(
 					GraphBuilder,
@@ -466,8 +472,7 @@ void FPageTableUpdater::Apply(FRDGBuilder& GraphBuilder)
 	
 		if (NumWrittenUpdates > 0)
 		{
-			// Disable async compute for streaming systems when MGPU is active, to work around GPU hangs
-			const bool bAsyncCompute = GSupportsEfficientAsyncCompute && (GSVTStreamingAsyncCompute != 0) && (GNumExplicitGPUsForRendering == 1);
+			const bool bAsyncCompute = UseAsyncComputeForStreaming();
 			auto ComputeShader = GetGlobalShaderMap(GMaxRHIFeatureLevel)->GetShader<FSparseVolumeTextureUpdatePageTableCS>();
 
 			// Register page table textures with RDG and set it to internal access mode
@@ -476,7 +481,7 @@ void FPageTableUpdater::Apply(FRDGBuilder& GraphBuilder)
 				FRDGTexture* PageTableRDG = GraphBuilder.FindExternalTexture(Batch.PageTable);
 				if (!PageTableRDG)
 				{
-					PageTableRDG = GraphBuilder.RegisterExternalTexture(Batch.PageTable, ERDGTextureFlags::ForceImmediateFirstBarrier);
+					PageTableRDG = GraphBuilder.RegisterExternalTexture(Batch.PageTable);
 				}
 				GraphBuilder.UseInternalAccessMode(PageTableRDG); // Make sure to use graph tracking in case we previously called UseExternalAccessMode() within the current graph
 			}

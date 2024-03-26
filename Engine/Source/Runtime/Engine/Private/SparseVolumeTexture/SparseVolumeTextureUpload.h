@@ -15,6 +15,9 @@ namespace UE
 namespace SVT
 {
 
+// Whether to use async compute for all SVT streaming GPU work
+bool UseAsyncComputeForStreaming();
+
 // Utility class for uploading tiles to a physical tile data texture
 class FTileUploader
 {
