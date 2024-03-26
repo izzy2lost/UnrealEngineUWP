@@ -45,6 +45,9 @@ private:
 	/** Extends the Level Editor Toolbar DMX Menu */
 	static void ExtendDMXMenu(FMenuBuilder& MenuBuilder);
 
+	// Called at the end of UEngine::Init, right before loading PostEngineInit modules for both normal execution and commandlets
+	void OnPostEnginInit();
+
 	/** The category path under which Control Console assets are nested. */
 	FAssetCategoryPath ControlConsoleCategory;
 

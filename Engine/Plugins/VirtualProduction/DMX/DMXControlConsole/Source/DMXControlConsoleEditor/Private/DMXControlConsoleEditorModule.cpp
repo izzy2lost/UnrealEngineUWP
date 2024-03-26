@@ -36,14 +36,12 @@ void FDMXControlConsoleEditorModule::StartupModule()
 	IAssetTools& AssetTools = FModuleManager::LoadModuleChecked<FAssetToolsModule>("AssetTools").Get();
 	DMXEditorAssetCategory = AssetTools.RegisterAdvancedAssetCategory(FName(TEXT("DMX")), LOCTEXT("DmxCategory", "DMX"));
 
-	FCoreDelegates::OnPostEngineInit.AddStatic(&FDMXControlConsoleEditorModule::RegisterDMXMenuExtender);
-
-	// Try UpgradePath if configurations settings have data from Output Consoles, the Console that was used before 5.2.
-	FDMXControlConsoleEditorFromLegacyUpgradeHandler::TryUpgradePathFromLegacy();
+	FCoreDelegates::OnPostEngineInit.AddRaw(this, &FDMXControlConsoleEditorModule::OnPostEnginInit);
 }
 
 void FDMXControlConsoleEditorModule::ShutdownModule()
 {
+	FCoreDelegates::OnPostEngineInit.RemoveAll(this);
 }
 
 void FDMXControlConsoleEditorModule::OpenControlConsole()
@@ -111,6 +109,14 @@ void FDMXControlConsoleEditorModule::ExtendDMXMenu(FMenuBuilder& MenuBuilder)
 		LOCTEXT("DMXControlConsoleMenuTooltip", "Opens a control console asset that can send DMX locally or over the network"),
 		FSlateIcon(FDMXControlConsoleEditorStyle::Get().GetStyleSetName(), "DMXControlConsole.TabIcon")
 	);
+}
+
+void FDMXControlConsoleEditorModule::OnPostEnginInit()
+{
+	RegisterDMXMenuExtender();
+
+	// Try UpgradePath if configurations settings have data from Output Consoles, the Console that was used before 5.2.
+	FDMXControlConsoleEditorFromLegacyUpgradeHandler::TryUpgradePathFromLegacy();
 }
 
 #undef LOCTEXT_NAMESPACE
