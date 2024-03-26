@@ -27,6 +27,11 @@ public:
 private:
 	static void ExecuteExportMidiFile(const FToolMenuContext& MenuContext);
 	static void ExportAllMidiToFolder(const UContentBrowserAssetContextMenuContext* Context);
+	static void ExecuteCompareMidiFiles(const FToolMenuContext& MenuContext);
+	static bool CanExecuteCompareMidiFiles(const FToolMenuContext& MenuContext);
+	static void ExecuteOpenMidiFileInExternalEditor(const FToolMenuContext& MenuContext);
+	static bool CanExecuteOpenMidiFileInExternalEditor(const FToolMenuContext& MenuContext);
+
 	static EAppReturnType::Type AskOverwrite(FString& OutPath);
 	static FString LastMidiExportFolder;
 };

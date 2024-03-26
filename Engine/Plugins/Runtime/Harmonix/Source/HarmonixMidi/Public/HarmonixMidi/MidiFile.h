@@ -33,6 +33,28 @@ struct HARMONIXMIDI_API FMidiFileData
 		: TicksPerQuarterNote(Harmonix::Midi::Constants::GTicksPerQuarterNoteInt)
 		, LastEventTick(0)
 	{}
+
+	bool operator==(const FMidiFileData& Other) const;
+
+	void Empty()
+	{
+		MidiFileName.Empty();
+		TicksPerQuarterNote = Harmonix::Midi::Constants::GTicksPerQuarterNoteInt;
+		SongMaps.EmptyAllMaps();
+		Tracks.Empty();
+		Tracks.Emplace("Conductor");
+		LastEventTick = 0;
+	}
+
+	bool IsEmpty() const 
+	{
+		return MidiFileName.IsEmpty() &&
+			TicksPerQuarterNote == Harmonix::Midi::Constants::GTicksPerQuarterNoteInt &&
+			SongMaps.IsEmpty() &&
+			(Tracks.IsEmpty() || (Tracks.Num() == 1 && Tracks[0].GetNumEvents() == 1 && Tracks[0].GetName()->Compare("Conductor", ESearchCase::IgnoreCase) == 0)) &&
+			LastEventTick == 0;
+	}
+
 	UPROPERTY(BlueprintReadOnly, Category = "MidiFile")
 	FString MidiFileName;
 	UPROPERTY(BlueprintReadOnly, Category = "MidiFile")
@@ -64,8 +86,6 @@ struct HARMONIXMIDI_API FMidiFileData
 	* asserts valid TrackIdx
 	*/
 	void AddTimeSigChange(int32 TrackIdx, int32 Tick, int32 TimeSigNum, int32 TimeSigDenom);
-
-	friend bool operator==(const FMidiFileData& Left, const FMidiFileData& Right);
 };
 
 template<>
@@ -96,7 +116,7 @@ public:
 	// A comparison operator. This allows for differences in members related to how
 	// a midi file was generated/imported, but compares the underlying "renderable"
 	// midi data.
-	friend bool operator==(const UMidiFile& Left, const UMidiFile& Right);
+	bool operator==(const UMidiFile& Other) const;
 
 	virtual void GetAssetRegistryTags(FAssetRegistryTagsContext Context) const override;
 	virtual void PostInitProperties() override;
@@ -105,31 +125,33 @@ public:
 	void LoadStdMidiFile(
 		const FString& FilePath,
 		int32 DesiredTicksPerQuarterNote = Harmonix::Midi::Constants::GTicksPerQuarterNoteInt,
-		Harmonix::Midi::Constants::EMidiTextEventEncoding InTextEncoding = Harmonix::Midi::Constants::EMidiTextEventEncoding::UTF8);
+		Harmonix::Midi::Constants::EMidiTextEventEncoding InTextEncoding = Harmonix::Midi::Constants::EMidiTextEventEncoding::UTF8,
+		bool EnsureNotFailed = true);
 	/** A method for importing a standard midi file, with the option of providing a pointer to an FSongMaps instance that will be populated during the load. */
 	void LoadStdMidiFile(
 		void* Buffer,
 		int32 BufferSize,
 		const FString& FileName,
 		int32 DesiredTicksPerQuarterNote = Harmonix::Midi::Constants::GTicksPerQuarterNoteInt,
-		Harmonix::Midi::Constants::EMidiTextEventEncoding InTextEncoding = Harmonix::Midi::Constants::EMidiTextEventEncoding::UTF8);
+		Harmonix::Midi::Constants::EMidiTextEventEncoding InTextEncoding = Harmonix::Midi::Constants::EMidiTextEventEncoding::UTF8,
+		bool EnsureNotFailed = true);
 	/** A method for importing a standard midi file, with the option of providing a pointer to an FSongMaps instance that will be populated during the load. */
 	void LoadStdMidiFile(
 		TSharedPtr<FArchive> Archive,
 		const FString& Filename,
 		int32 DesiredTicksPerQuarterNote = Harmonix::Midi::Constants::GTicksPerQuarterNoteInt,
-		Harmonix::Midi::Constants::EMidiTextEventEncoding InTextEncoding = Harmonix::Midi::Constants::EMidiTextEventEncoding::UTF8);
+		Harmonix::Midi::Constants::EMidiTextEventEncoding InTextEncoding = Harmonix::Midi::Constants::EMidiTextEventEncoding::UTF8,
+		bool EnsureNotFailed = true);
 
 	/** A method for exporting the midi track data to a standard midi file. */
-	void SaveStdMidiFile(const FString& FilePath);
+	void SaveStdMidiFile(const FString& FilePath) const;
 	/** A method for exporting the midi track data to a standard midi file. */
-	void SaveStdMidiFile(TSharedPtr<FArchive> Archive, const FString& Filename = FString());
+	void SaveStdMidiFile(TSharedPtr<FArchive> Archive, const FString& Filename = FString()) const;
 
 	FMidiTrack* AddTrack(const FString& Name);
 
 	void Empty();
-
-	void SetConductorTrack(const FTempoMap*, const FBarMap*);
+	bool IsEmpty() const;
 
 	void SortAllTracks();
 
@@ -150,6 +172,8 @@ public:
 
 	FMidiTrackList& GetTracks() { return TheMidiData.Tracks; }
 	const FMidiTrackList& GetTracks() const { return TheMidiData.Tracks; }
+
+	void BuildConductorTrack();
 
 	/**
 	 * This function must be called if any changes are made to any of the tracks of this midi file. It will 
@@ -206,7 +230,7 @@ public:
 	* e.g. if a midi file has length 5.875 bars, Round Down conforms it to 5 bars, Round Up conforms it to 6 bars,
 	* and Round To Nearest conforms it to 6 bars (5.875 > 5.5)
 	*/
-	void ConformMidiFileLength(EMidiFileLengthConformOption Option);
+	void ConformMidiFileLength(EMidiFileLengthConformOption Option, bool Force = false);
 
 	const FSongMaps* GetSongMaps() const { return &TheMidiData.SongMaps; }
 	FSongMaps* GetSongMaps() { return &TheMidiData.SongMaps; }
@@ -220,7 +244,6 @@ public:
 protected:
 	UPROPERTY()
 	FMidiFileData TheMidiData;
-
 
 	TSharedPtr<FMidiFileData> RenderableCopyOfMidiFileData;
 };

@@ -145,7 +145,7 @@ public:
 	FBarMap()
 		: TicksPerQuarterNote(Harmonix::Midi::Constants::GTicksPerQuarterNoteInt)
 	{}
-	friend bool operator==(const FBarMap& Left, const FBarMap& Right);
+	bool operator==(const FBarMap& Other) const;
 
 	void Empty();
 	void Copy(const FBarMap& Other, int32 StartTick = 0, int32 EndTick = -1);

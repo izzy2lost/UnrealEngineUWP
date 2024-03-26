@@ -2,6 +2,9 @@
 
 #include "MidiFileDetailCustomization.h"
 #include "HarmonixMidi/MidiFile.h"
+#include "Math/UnitConversion.h"
+
+#define LOCTEXT_NAMESPACE "HarmonixMIDIEditor"
 
 void FMidiFileDetailCustomization::CustomizeDetails(IDetailLayoutBuilder& DetailLayout)
 {
@@ -207,4 +210,54 @@ void FMidiFileDetailCustomization::CustomizeDetails(IDetailLayoutBuilder& Detail
 
 		]
 	];
+
+	IDetailCategoryBuilder& TrackInfoCategory = DetailLayout.EditCategory(TEXT("Track Info"), LOCTEXT("TrackInfo", "Tracks:"));
+	const UMidiFile::FMidiTrackList& Tracks = MidiFileBeingEdited->GetTracks();
+	for (const FMidiTrack& Track : Tracks)
+	{
+		const FNumericUnit<uint64> Unit = FUnitConversion::QuantizeUnitsToBestFit(Track.GetAllocatedSize(), EUnit::Bytes);
+		FString SizeInBytes = FString::Printf(TEXT("%lld %s"), Unit.Value, FUnitConversion::GetUnitDisplayString(Unit.Units));
+
+		TrackInfoCategory.AddCustomRow(FText::FromString("Tracks"))
+		.NameContent()
+		[
+			SNew(STextBlock)
+				.Text(&Track == &Tracks[0] ? FText::FromString("Conductor (tempo & time signature)") : FText::FromString(*Track.GetName()))
+				.Font(IDetailLayoutBuilder::GetDetailFont())
+		].ValueContent()
+		[
+			SNew(SHorizontalBox)
+				+ SHorizontalBox::Slot()
+				.HAlign(HAlign_Left)
+				.VAlign(VAlign_Center)
+				.AutoWidth()
+				.Padding(8.0f, 0.0f)
+				[
+					SNew(STextBlock)
+						.Text(FText::Format(FTextFormat::FromString("{0} MIDI Events"), { Track.GetEvents().Num() }))
+						.Font(IDetailLayoutBuilder::GetDetailFont())
+				]
+				+ SHorizontalBox::Slot()
+				.HAlign(HAlign_Left)
+				.VAlign(VAlign_Center)
+				.AutoWidth()
+				.Padding(8.0f, 0.0f)
+				[
+					SNew(STextBlock)
+						.Text(FText::Format(FTextFormat::FromString("{0} Strings (including track name)"), { Track.GetTextRepository() ? Track.GetTextRepository()->Num() : 0 }))
+						.Font(IDetailLayoutBuilder::GetDetailFont())
+				]
+				+ SHorizontalBox::Slot()
+				.HAlign(HAlign_Left)
+				.VAlign(VAlign_Center)
+				.AutoWidth()
+				.Padding(8.0f, 0.0f)
+				[
+					SNew(STextBlock)
+						.Text(FText::FromString(*SizeInBytes))
+						.Font(IDetailLayoutBuilder::GetDetailFont())
+				]
+		];
+	}
 }
+#undef LOCTEXT_NAMESPACE

@@ -1193,7 +1193,7 @@ void FMidiPlayCursor::BroadcastEvent(int32 TrackIndex, const FMidiEvent& Event, 
 		}
 		break;
 	default:
-		UE_LOG(LogMidi, Error, TEXT("Unknown midi message type %d on track %d at tick %d, file %s"), int(Msg.MsgType()), TrackIndex, Event.GetTick(), **Owner->GetMidiFileName());
+		UE_LOG(LogMIDI, Error, TEXT("Unknown midi message type %d on track %d at tick %d, file %s"), int(Msg.MsgType()), TrackIndex, Event.GetTick(), **Owner->GetMidiFileName());
 		break;
 	}
 }

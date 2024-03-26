@@ -49,7 +49,7 @@ public:
 	FChordProgressionMap()
 		: TicksPerQuarterNote(Harmonix::Midi::Constants::GTicksPerQuarterNoteInt)
 	{}
-	friend bool operator==(const FChordProgressionMap& Left, const FChordProgressionMap& Right);
+	bool operator==(const FChordProgressionMap& Other) const;
 
 	void Finalize(int32 LastTick);
 

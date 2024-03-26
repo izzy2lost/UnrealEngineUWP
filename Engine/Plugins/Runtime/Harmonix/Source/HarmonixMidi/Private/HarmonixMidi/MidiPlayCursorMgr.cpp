@@ -224,7 +224,7 @@ void FMidiPlayCursorMgr::UnregisterPlayCursor(FMidiPlayCursor* PlayCursor, bool 
 		{
 			if (PlayCursor->Tracker == &Trackers[Index])
 			{
-				UE_LOG(LogMidi, Error, TEXT("You cannot unregister a MidiPlayCursor while the cursor's manager is traversing its cursor list!"));
+				UE_LOG(LogMIDI, Error, TEXT("You cannot unregister a MidiPlayCursor while the cursor's manager is traversing its cursor list!"));
 				return;
 			}
 			continue;
@@ -238,7 +238,7 @@ void FMidiPlayCursorMgr::UnregisterPlayCursor(FMidiPlayCursor* PlayCursor, bool 
 	}
 	if (WarnOnFail)
 	{
-		UE_LOG(LogMidi, Warning, TEXT("Attempt to remove MidiPlayCursor from a manager that doesn't own it!"));
+		UE_LOG(LogMIDI, Warning, TEXT("Attempt to remove MidiPlayCursor from a manager that doesn't own it!"));
 	}
 }
 
@@ -249,7 +249,7 @@ void FMidiPlayCursorMgr::UnregisterAllPlayCursors()
 
 	if (GetHiResTracker().TraversingCursors || GetLowResTracker().TraversingCursors)
 	{
-		UE_LOG(LogMidi, Error, TEXT("You cannot unregister all MidiPlayCursors while this manager is currently traversing it's cursor list!"));
+		UE_LOG(LogMIDI, Error, TEXT("You cannot unregister all MidiPlayCursors while this manager is currently traversing it's cursor list!"));
 		return;
 	}
 
@@ -448,7 +448,7 @@ void FMidiPlayCursorMgr::SetLoopImpl(int32 StartTick, int32 EndTick, bool Ignori
 		}
 		else
 		{
-			UE_LOG(LogMidi, Warning, TEXT("FMidiPlayCursorMgr::SetLoop : not ignoring look ahead, but cursors are not in phase!"));
+			UE_LOG(LogMIDI, Warning, TEXT("FMidiPlayCursorMgr::SetLoop : not ignoring look ahead, but cursors are not in phase!"));
 		}
 	}
 }
@@ -466,7 +466,7 @@ void FMidiPlayCursorMgr::ClearLoopImpl(bool IgnoringLookAhead, bool IsLowRes)
 		}
 		else
 		{
-			UE_LOG(LogMidi, Warning, TEXT("FMidiPlayCursorMgr::ClearLoop : not ignoring look ahead, but cursors are not in phase!"));
+			UE_LOG(LogMIDI, Warning, TEXT("FMidiPlayCursorMgr::ClearLoop : not ignoring look ahead, but cursors are not in phase!"));
 		}
 	}
 }
@@ -730,7 +730,7 @@ void FMidiPlayCursorMgr::AdvanceHiResThruTick(int32 ThruTick, bool Broadcast, bo
 
 	if (ThruTick < GetHiResTracker().CurrentTick)
 	{
-		UE_LOG(LogMidi, Warning, TEXT("Asked to go back in time without a seek!"));
+		UE_LOG(LogMIDI, Warning, TEXT("Asked to go back in time without a seek!"));
 		return;
 	}
 

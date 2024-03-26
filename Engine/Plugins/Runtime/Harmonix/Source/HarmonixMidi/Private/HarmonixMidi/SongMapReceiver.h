@@ -10,19 +10,19 @@ public:
 	FSongMapReceiver(FSongMaps* Maps);
 	virtual ~FSongMapReceiver()	{}
 
-	void Reset() override;
-	void Finalize(int32 InLastFileTick) override;
+	virtual bool Reset() override;
+	virtual bool Finalize(int32 InLastFileTick) override;
 
 	// Track begin/end:
-	virtual void OnNewTrack(int32 NewTrackIndex) override;
-	virtual void OnEndOfTrack(int32 InLastTick) override;
-	virtual void OnAllTracksRead() override {};
+	virtual bool OnNewTrack(int32 NewTrackIndex) override;
+	virtual bool OnEndOfTrack(int32 InLastTick) override;
+	virtual bool OnAllTracksRead() override { return true; };
 
 	// Standard 1- or 2-byte MIDI message:
-	virtual void OnMidiMessage(int32 Tick, uint8 Status, uint8 Data1, uint8 Data2) override;
-	virtual void OnText(int32 Tick, const FString& Str, uint8 Type) override;
-	virtual void OnTempo(int32 Tick, int32 Tempo) override;
-	virtual void OnTimeSignature(int32 Tick, int32 Numerator, int32 Denominator, bool FailOnError = true) override;
+	virtual bool OnMidiMessage(int32 Tick, uint8 Status, uint8 Data1, uint8 Data2) override;
+	virtual bool OnText(int32 Tick, const FString& Str, uint8 Type) override;
+	virtual bool OnTempo(int32 Tick, int32 Tempo) override;
+	virtual bool OnTimeSignature(int32 Tick, int32 Numerator, int32 Denominator, bool FailOnError = true) override;
 
 	int32 GetLastTick() { return LastTick; }
 

@@ -44,7 +44,7 @@ namespace Midi
 			Result.Bar = FCString::Atoi(*Parts[PartIndex++]);
 			if (Result.Bar < 0 && Format == EMusicTimeStringFormat::Duration)
 			{
-				UE_LOG(LogMidi, Warning, TEXT("Unexpected bar value specified in midi duration string \"%s\". Bar in duration string should be >= 0!"),*Str);
+				UE_LOG(LogMIDI, Warning, TEXT("Unexpected bar value specified in midi duration string \"%s\". Bar in duration string should be >= 0!"),*Str);
 				Result.Bar = 0;
 			}
 		}
@@ -62,12 +62,12 @@ namespace Midi
 			Result.Beat = (float)FCString::Atoi(*Parts[PartIndex++]);
 			if (Result.Beat < 1.0f && Format == EMusicTimeStringFormat::Position)
 			{
-				UE_LOG(LogMidi, Warning, TEXT("Unexpected beat value specified in midi position string %s. Beat in position string should be >= 1!"), *Str);
+				UE_LOG(LogMIDI, Warning, TEXT("Unexpected beat value specified in midi position string %s. Beat in position string should be >= 1!"), *Str);
 				Result.Beat = 1;
 			}
 			else if (Result.Beat < 0 && Format == EMusicTimeStringFormat::Duration)
 			{
-				UE_LOG(LogMidi, Warning, TEXT("Unexpected beat value specified in midi duration string %s. Beat in duration string should be >= 0!"), *Str);
+				UE_LOG(LogMIDI, Warning, TEXT("Unexpected beat value specified in midi duration string %s. Beat in duration string should be >= 0!"), *Str);
 				Result.Beat = 0;
 			}
 		}
@@ -78,7 +78,7 @@ namespace Midi
 			float num = (float)FCString::Atoi(*Parts[PartIndex]);
 			if (num < 0)
 			{
-				UE_LOG(LogMidi, Warning, TEXT("Unexpected negative value found in fractional beat portion of midi time specifier string %s. Using 0 for fractional portion!"), *Str);
+				UE_LOG(LogMIDI, Warning, TEXT("Unexpected negative value found in fractional beat portion of midi time specifier string %s. Using 0 for fractional portion!"), *Str);
 				num = 0.0f;
 			}
 			Result.Beat +=  num / div;

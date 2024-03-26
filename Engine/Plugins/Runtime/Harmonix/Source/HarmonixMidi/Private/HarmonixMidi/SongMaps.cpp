@@ -9,14 +9,41 @@ FSongMaps::FSongMaps()
 {
 }
 
+bool FSongMaps::operator==(const FSongMaps& Other) const
+{
+	if (TrackNames.Num() != Other.TrackNames.Num())
+	{
+		return false;
+	}
+	for (int32 TrackIndex = 0; TrackIndex < TrackNames.Num(); ++TrackIndex)
+	{
+		if (TrackNames[TrackIndex] != Other.TrackNames[TrackIndex])
+		{
+			return false;
+		}
+	}
+	return	TicksPerQuarterNote == Other.TicksPerQuarterNote &&
+		TempoMap == Other.TempoMap &&
+		BarMap == Other.BarMap &&
+		BeatMap == Other.BeatMap &&
+		SectionMap == Other.SectionMap &&
+		ChordMap == Other.ChordMap &&
+		LengthData == Other.LengthData;
+}
+
 void FSongMaps::Init(int32 InTicksPerQuarterNote)
 {
 	TicksPerQuarterNote = InTicksPerQuarterNote;
 	TempoMap.SetTicksPerQuarterNote(InTicksPerQuarterNote);
+	TempoMap.Empty();
 	BarMap.SetTicksPerQuarterNote(InTicksPerQuarterNote);
+	BarMap.Empty();
 	BeatMap.SetTicksPerQuarterNote(InTicksPerQuarterNote);
+	BeatMap.Empty();
 	SectionMap.SetTicksPerQuarterNote(InTicksPerQuarterNote);
+	SectionMap.Empty();
 	ChordMap.SetTicksPerQuarterNote(InTicksPerQuarterNote);
+	ChordMap.Empty();
 }
 
 void FSongMaps::Copy(const FSongMaps& Other, int32 StartTick, int32 EndTick)
@@ -76,7 +103,7 @@ float FSongMaps::TickToMs(float Tick) const
 {
 	if (TempoMap.IsEmpty())
 	{
-		UE_LOG(LogMidi, Log, TEXT("SongMaps does not contain a Tempo Map."));
+		UE_LOG(LogMIDI, Log, TEXT("SongMaps does not contain a Tempo Map."));
 		return 0.0f;
 	}
 	return TempoMap.TickToMs(Tick);
@@ -86,7 +113,7 @@ float FSongMaps::MsToTick(float Ms) const
 {
 	if (TempoMap.IsEmpty())
 	{
-		UE_LOG(LogMidi, Log, TEXT("SongMaps does not contain a Tempo Map."));
+		UE_LOG(LogMIDI, Log, TEXT("SongMaps does not contain a Tempo Map."));
 		return 0;
 	}
 	return TempoMap.MsToTick(Ms);
@@ -150,6 +177,22 @@ void FSongMaps::EmptyAllMaps()
 	SectionMap.Empty();
 	ChordMap.Empty();
 	TrackNames.Empty();
+	LengthData.LastTick = 0;
+	LengthData.LengthBars = 0;
+	LengthData.LengthTicks = 0;
+}
+
+bool FSongMaps::IsEmpty() const
+{
+	return 	TempoMap.IsEmpty() &&
+			BarMap.IsEmpty() &&
+			BeatMap.IsEmpty() &&
+			SectionMap.IsEmpty() &&
+			ChordMap.IsEmpty() &&
+			TrackNames.IsEmpty() &&
+			LengthData.LastTick == 0 &&
+			LengthData.LengthBars == 0 &&
+			LengthData.LengthTicks == 0;
 }
 
 float FSongMaps::GetSongLengthMs() const
@@ -171,7 +214,7 @@ void FSongMaps::StringLengthToMT(const FString& LengthString, int32& OutBars, in
 {
 	if (BarMap.IsEmpty())
 	{
-		UE_LOG(LogMidi, Log, TEXT("SongMaps does not contain a Bar Map."));
+		UE_LOG(LogMIDI, Log, TEXT("SongMaps does not contain a Bar Map."));
 		return;
 	}
 
@@ -221,7 +264,7 @@ void FSongMaps::StringLengthToMT(const FString& LengthString, int32& OutBars, in
 	const FTimeSignaturePoint* TimeSignaturePoint = &BarMap.GetTimeSignaturePoint(0);
 	if (!TimeSignaturePoint)
 	{
-		UE_LOG(LogMidi, Log, TEXT("No Time Signature found in SongMaps."));
+		UE_LOG(LogMIDI, Log, TEXT("No Time Signature found in SongMaps."));
 		return;
 	}
 	OutBars += (Beats == 0 && OutTicks == 0) ? 0 : 1;
@@ -246,7 +289,7 @@ const FTempoInfoPoint* FSongMaps::GetTempoInfoForMs(float Ms) const
 {
 	if (TempoMap.IsEmpty())
 	{
-		UE_LOG(LogMidi, Log, TEXT("SongMaps does not contain a Tempo Map."));
+		UE_LOG(LogMIDI, Log, TEXT("SongMaps does not contain a Tempo Map."));
 		return nullptr;
 	}
 	int32 Tick = int32(MsToTick(Ms));
@@ -257,7 +300,7 @@ const FTempoInfoPoint* FSongMaps::GetTempoInfoForTick(int32 Tick) const
 {
 	if (TempoMap.IsEmpty())
 	{
-		UE_LOG(LogMidi, Log, TEXT("SongMaps does not contain a Tempo Map."));
+		UE_LOG(LogMIDI, Log, TEXT("SongMaps does not contain a Tempo Map."));
 		return nullptr;
 	}
 	return TempoMap.GetTempoPointAtTick(Tick);
@@ -267,7 +310,7 @@ float FSongMaps::GetTempoAtMs(float Ms) const
 {
 	if (TempoMap.IsEmpty())
 	{
-		UE_LOG(LogMidi, Log, TEXT("SongMaps does not contain a Tempo Map."));
+		UE_LOG(LogMIDI, Log, TEXT("SongMaps does not contain a Tempo Map."));
 		return 0.0f;
 	}
 	int32 Tick = int32(MsToTick(Ms));
@@ -278,7 +321,7 @@ float FSongMaps::GetTempoAtTick(int32 Tick) const
 {
 	if (TempoMap.IsEmpty())
 	{
-		UE_LOG(LogMidi, Log, TEXT("SongMaps does not contain a Tempo Map."));
+		UE_LOG(LogMIDI, Log, TEXT("SongMaps does not contain a Tempo Map."));
 		return 0.0f;
 	}
 	return TempoMap.GetTempoAtTick(Tick);
@@ -290,7 +333,7 @@ const FBeatMapPoint* FSongMaps::GetBeatAtMs(float Ms) const
 {
 	if (BeatMap.IsEmpty())
 	{
-		UE_LOG(LogMidi, Log, TEXT("SongMaps does not contain a Beat Map."));
+		UE_LOG(LogMIDI, Log, TEXT("SongMaps does not contain a Beat Map."));
 		return nullptr;
 	}
 	int32 Tick = int32(MsToTick(Ms));
@@ -337,7 +380,7 @@ const FBeatMapPoint* FSongMaps::GetBeatAtTick(int32 Tick) const
 {
 	if (BeatMap.IsEmpty())
 	{
-		UE_LOG(LogMidi, Log, TEXT("SongMaps does not contain a Beat Map."));
+		UE_LOG(LogMIDI, Log, TEXT("SongMaps does not contain a Beat Map."));
 		return nullptr;
 	}
 	return BeatMap.GetPointInfoForTick(Tick);
@@ -396,7 +439,7 @@ int32 FSongMaps::GetBeatIndexAtTick(int32 Tick) const
 {
 	if (BeatMap.IsEmpty())
 	{
-		UE_LOG(LogMidi, Log, TEXT("SongMaps does not contain a Beat Map."));
+		UE_LOG(LogMIDI, Log, TEXT("SongMaps does not contain a Beat Map."));
 		return -1;
 	}
 	return BeatMap.GetPointIndexForTick(Tick);
@@ -412,7 +455,7 @@ EMusicalBeatType FSongMaps::GetBeatTypeAtTick(int32 Tick) const
 {
 	if (BeatMap.IsEmpty())
 	{
-		UE_LOG(LogMidi, Log, TEXT("SongMaps does not contain a Beat Map."));
+		UE_LOG(LogMIDI, Log, TEXT("SongMaps does not contain a Beat Map."));
 		return EMusicalBeatType::Normal;
 	}
 	return BeatMap.GetBeatTypeAtTick(Tick);
@@ -428,7 +471,7 @@ float FSongMaps::GetBeatInPulseBarAtTick(float Tick) const
 {
 	if (BeatMap.IsEmpty())
 	{
-		UE_LOG(LogMidi, Log, TEXT("SongMaps does not contain a Beat Map."));
+		UE_LOG(LogMIDI, Log, TEXT("SongMaps does not contain a Beat Map."));
 		return 0.0f;
 	}
 	return BeatMap.GetBeatInPulseBarAtTick(Tick);
@@ -444,7 +487,7 @@ int32 FSongMaps::GetNumBeatsInPulseBarAtTick(int32 Tick) const
 {
 	if (BeatMap.IsEmpty())
 	{
-		UE_LOG(LogMidi, Log, TEXT("SongMaps does not contain a Beat Map."));
+		UE_LOG(LogMIDI, Log, TEXT("SongMaps does not contain a Beat Map."));
 		return 0;
 	}
 	return BeatMap.GetNumBeatsInPulseBarAt(Tick);
@@ -463,7 +506,7 @@ const FTimeSignature* FSongMaps::GetTimeSignatureAtTick(int32 Tick) const
 {
 	if (BarMap.IsEmpty())
 	{
-		UE_LOG(LogMidi, Log, TEXT("SongMaps does not contain a Bar Map."));
+		UE_LOG(LogMIDI, Log, TEXT("SongMaps does not contain a Bar Map."));
 		return nullptr;
 	}
 	return &BarMap.GetTimeSignatureAtTick(Tick);
@@ -473,12 +516,12 @@ const FTimeSignature* FSongMaps::GetTimeSignatureAtBar(int32 Bar) const
 {
 	if (Bar < 1)
 	{
-		UE_LOG(LogMidi, Warning, TEXT("Bar < 1 (%d) specified as a musical position! Bars are '1' based in musical positions. Using bar 1!"), Bar);
+		UE_LOG(LogMIDI, Warning, TEXT("Bar < 1 (%d) specified as a musical position! Bars are '1' based in musical positions. Using bar 1!"), Bar);
 	}
 
 	if (BarMap.IsEmpty())
 	{
-		UE_LOG(LogMidi, Log, TEXT("SongMaps does not contain a Bar Map."));
+		UE_LOG(LogMIDI, Log, TEXT("SongMaps does not contain a Bar Map."));
 		return nullptr;
 	}
 	return &BarMap.GetTimeSignatureAtBar(Bar);
@@ -494,7 +537,7 @@ float FSongMaps::GetBarIncludingCountInAtTick(float Tick) const
 {
 	if (BarMap.IsEmpty())
 	{
-		UE_LOG(LogMidi, Log, TEXT("SongMaps does not contain a Bar Map."));
+		UE_LOG(LogMIDI, Log, TEXT("SongMaps does not contain a Bar Map."));
 		return 1.0f; // 1 based music positions!
 	}
 	return BarMap.TickToFractionalBarIncludingCountIn(Tick);
@@ -510,12 +553,12 @@ float FSongMaps::GetMsPerBarAtTick(float Tick) const
 {
 	if (TempoMap.IsEmpty())
 	{
-		UE_LOG(LogMidi, Log, TEXT("SongMaps does not contain a Tempo Map."));
+		UE_LOG(LogMIDI, Log, TEXT("SongMaps does not contain a Tempo Map."));
 		return 0.0f;
 	}
 	if (BarMap.IsEmpty())
 	{
-		UE_LOG(LogMidi, Log, TEXT("SongMaps does not contain a Bar Map."));
+		UE_LOG(LogMIDI, Log, TEXT("SongMaps does not contain a Bar Map."));
 		return 0.0f;
 	}
 	float Bpm = TempoMap.GetTempoAtTick(int32(Tick)); // quarter notes per minute
@@ -673,7 +716,7 @@ const FSongSection* FSongMaps::GetSectionAtTick(int32 Tick) const
 {
 	if (SectionMap.IsEmpty())
 	{
-		UE_LOG(LogMidi, Log, TEXT("SongMaps does not contain a Section Map."));
+		UE_LOG(LogMIDI, Log, TEXT("SongMaps does not contain a Section Map."));
 		return nullptr;
 	}
 	return SectionMap.TickToSection(Tick);
@@ -683,7 +726,7 @@ const FSongSection* FSongMaps::GetSectionWithName(const FString& Name) const
 {
 	if (SectionMap.IsEmpty())
 	{
-		UE_LOG(LogMidi, Log, TEXT("SongMaps does not contain a Section Map."));
+		UE_LOG(LogMIDI, Log, TEXT("SongMaps does not contain a Section Map."));
 		return nullptr;
 	}
 	return SectionMap.FindSectionInfo(Name);
@@ -699,7 +742,7 @@ FString FSongMaps::GetSectionNameAtTick(int32 Tick) const
 {
 	if (SectionMap.IsEmpty())
 	{
-		UE_LOG(LogMidi, Log, TEXT("SongMaps does not contain a Section Map."));
+		UE_LOG(LogMIDI, Log, TEXT("SongMaps does not contain a Section Map."));
 		return FString();
 	}
 	return SectionMap.GetSectionNameAtTick(Tick);
@@ -761,7 +804,7 @@ const FChordMapPoint* FSongMaps::GetChordAtTick(int32 Tick) const
 {
 	if (ChordMap.IsEmpty())
 	{
-		UE_LOG(LogMidi, Log, TEXT("SongMaps does not contain a Chord Map."));
+		UE_LOG(LogMIDI, Log, TEXT("SongMaps does not contain a Chord Map."));
 		return nullptr;
 	}
 	return ChordMap.GetPointInfoForTick(Tick);
@@ -777,7 +820,7 @@ FName FSongMaps::GetChordNameAtTick(int32 Tick) const
 {
 	if (ChordMap.IsEmpty())
 	{
-		UE_LOG(LogMidi, Log, TEXT("SongMaps does not contain a Chord Map."));
+		UE_LOG(LogMIDI, Log, TEXT("SongMaps does not contain a Chord Map."));
 		return FName();
 	}
 	return ChordMap.GetChordNameAtTick(Tick);

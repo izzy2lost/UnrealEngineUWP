@@ -1,12 +1,16 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "MidiTestUtility.h"
-#include "Serialization/MemoryWriter.h"
-#include "Serialization/MemoryReader.h"
+#include "HarmonixMidi/VarLenNumber.h"
+#include "Logging/LogMacros.h"
 #include "Misc/AutomationTest.h"
 #include "Misc/Paths.h"
+#include "Serialization/MemoryWriter.h"
+#include "Serialization/MemoryReader.h"
 
 #if WITH_DEV_AUTOMATION_TESTS
+
+DEFINE_LOG_CATEGORY_STATIC(LogMIDITest, Log, All);
 
 namespace HarmonixMidiTests::ImportExportTests
 {
@@ -123,6 +127,266 @@ namespace HarmonixMidiTests::ImportExportTests
 
 		// TODO
 		//TestTrue(TEXT("Generated midi file survives export/import cycle."),*GeneratedMidiFile == *ReimportedMidiFile);
+
+		return true;
+	}
+
+	#define ADD_EXPECTED_MIDI_ERROR(errmsg) AddExpectedError(errmsg, EAutomationExpectedMessageFlags::Contains, 0)
+
+	IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+		FTestMidiFileMalformed,
+		"Harmonix.Midi.MidiFile.MalformedDataHandling",
+		EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+		bool FTestMidiFileMalformed::RunTest(const FString&)
+	{
+		//input test values for creating a midi file
+		const float FileLengthBars = 5.5f;
+		const int32 NumChannels = 2;
+		const int32 NumTracks = 4;
+		const int32 TimeSigNum6 = 6;
+		const int32 TimeSigDenum8 = 8;
+		const int32 TimeSigNum4 = 4;
+		const int32 TimeSigDenum4 = 4;
+		const int32 Tempo = 120;
+
+		//create an empty midi file to test for rounding to nearest (down)
+		UMidiFile* GeneratedMidiFile = BuildMidiFile(FileLengthBars, NumChannels, NumTracks, TimeSigNum4, TimeSigDenum4, Tempo);
+		//Add some events to the midi file for testing 
+		AddEventsToTestMidiFile(GeneratedMidiFile, NumTracks, NumChannels, FileLengthBars);
+
+		TArray<uint8> StdMidiFileBytes;
+		TSharedPtr<FMemoryWriter> StdMidiFileOut = MakeShared<FMemoryWriter>(StdMidiFileBytes, true);
+		GeneratedMidiFile->SaveStdMidiFile(StdMidiFileOut);
+
+		// Put errors in the data and check for proper handling!
+		UMidiFile* ReimportedMidiFile = NewObject<UMidiFile>();
+		TArray<uint8> FutzedMidiFileBytes = StdMidiFileBytes;
+		TSharedPtr<FMemoryReader> FutzedMidiFileIn = MakeShared<FMemoryReader>(FutzedMidiFileBytes, true);
+		FMemoryWriter FutzedMidiFileOut(FutzedMidiFileBytes, true);
+		FutzedMidiFileOut.SetByteSwapping(true);
+
+		ADD_EXPECTED_MIDI_ERROR(TEXT("MIDI import failed"));
+		ADD_EXPECTED_MIDI_ERROR(TEXT("Found invalid MIDI status byte"));
+		ADD_EXPECTED_MIDI_ERROR(TEXT("Finding events on track passed track data block!"));
+		ADD_EXPECTED_MIDI_ERROR(TEXT("MIDI file header is corrupt"));
+		ADD_EXPECTED_MIDI_ERROR(TEXT("Only type 0 or 1 MIDI files are supported"));
+		ADD_EXPECTED_MIDI_ERROR(TEXT("Format 0 file expected only one track"));
+		ADD_EXPECTED_MIDI_ERROR(TEXT("MIDI file has no tracks"));
+		ADD_EXPECTED_MIDI_ERROR(TEXT("MIDI file uses SMPTE time division."));
+		ADD_EXPECTED_MIDI_ERROR(TEXT("MIDI file Ticks Per Quarter Note is not rational"));
+		ADD_EXPECTED_MIDI_ERROR(TEXT("MIDI track header for track 0 is corrupt"));
+		ADD_EXPECTED_MIDI_ERROR(TEXT("MIDI track data length exceeds maximum length!"));
+		ADD_EXPECTED_MIDI_ERROR(TEXT("MIDI track 0 data length as recorded in the header exceeds the amount of data in the file!"));
+		ADD_EXPECTED_MIDI_ERROR(TEXT("MIDI track 0 ... Track data underrun"));
+		ADD_EXPECTED_MIDI_ERROR(TEXT("0 byte long string found in MIDI data"));
+		ADD_EXPECTED_MIDI_ERROR(TEXT("Found invalid MIDI status byte"));
+		ADD_EXPECTED_MIDI_ERROR(TEXT("Unsupported MIDI tempo encountered"));
+		ADD_EXPECTED_MIDI_ERROR(TEXT("Failed to add tempo to Track"));
+		ADD_EXPECTED_MIDI_ERROR(TEXT("Time signature 0/1 at 1:1.000 has invalid numerator"));
+		ADD_EXPECTED_MIDI_ERROR(TEXT("Time signature at 1:1.000 has invalid denominator"));
+		ADD_EXPECTED_MIDI_ERROR(TEXT("Cannot parse meta event"));
+		ADD_EXPECTED_MIDI_ERROR(TEXT("Cannot parse system event"));
+
+		// Put an error in the header ID...
+		{
+			FutzedMidiFileBytes[1] = 0xFF;
+			ReimportedMidiFile->LoadStdMidiFile(FutzedMidiFileIn, TEXT("InMemoryMidiFile"), Harmonix::Midi::Constants::GTicksPerQuarterNoteInt, Harmonix::Midi::Constants::EMidiTextEventEncoding::UTF8, false);
+			TestTrue(TEXT("Currupt Midi file header ID appropriately failed."), ReimportedMidiFile->IsEmpty());
+		}
+
+		// Put an error in the header size...
+		{
+			FutzedMidiFileBytes = StdMidiFileBytes;
+			FutzedMidiFileIn->Seek(0);
+			FutzedMidiFileBytes[4] = 0xFF;
+			ReimportedMidiFile->LoadStdMidiFile(FutzedMidiFileIn, TEXT("InMemoryMidiFile"), Harmonix::Midi::Constants::GTicksPerQuarterNoteInt, Harmonix::Midi::Constants::EMidiTextEventEncoding::UTF8, false);
+			TestTrue(TEXT("Currupt Midi file header SIZE appropriately failed."), ReimportedMidiFile->IsEmpty());
+		}
+
+		// Put an error in the Format...
+		{
+			FutzedMidiFileBytes = StdMidiFileBytes;
+			FutzedMidiFileIn->Seek(0);
+			FutzedMidiFileOut.Seek(8);
+			int16 BadFormat = 0x7EEF;
+			FutzedMidiFileOut << BadFormat;
+			ReimportedMidiFile->LoadStdMidiFile(FutzedMidiFileIn, TEXT("InMemoryMidiFile"), Harmonix::Midi::Constants::GTicksPerQuarterNoteInt, Harmonix::Midi::Constants::EMidiTextEventEncoding::UTF8, false);
+			TestTrue(TEXT("Currupt Midi file format failed."), ReimportedMidiFile->IsEmpty());
+		}
+
+		// Put an error in the Number of tracks...
+		{
+			FutzedMidiFileBytes = StdMidiFileBytes;
+			FutzedMidiFileIn->Seek(0);
+			FutzedMidiFileOut.Seek(8);
+			int16 Format = 0;
+			int16 TrackNum = 3; // only one track allowed in format 0 file!
+			FutzedMidiFileOut << Format;
+			FutzedMidiFileOut << TrackNum;
+			ReimportedMidiFile->LoadStdMidiFile(FutzedMidiFileIn, TEXT("InMemoryMidiFile"), Harmonix::Midi::Constants::GTicksPerQuarterNoteInt, Harmonix::Midi::Constants::EMidiTextEventEncoding::UTF8, false);
+			TestTrue(TEXT("Currupt Midi file: Wrong number of tracks!"), ReimportedMidiFile->IsEmpty());
+		}
+
+		// Put an error in the Number of tracks...
+		{
+			FutzedMidiFileBytes = StdMidiFileBytes;
+			FutzedMidiFileIn->Seek(0);
+			FutzedMidiFileOut.Seek(8);
+			int16 Format = 1;
+			int16 TrackNum = -1; // negative number of tracks!
+			FutzedMidiFileOut << Format;
+			FutzedMidiFileOut << TrackNum;
+			ReimportedMidiFile->LoadStdMidiFile(FutzedMidiFileIn, TEXT("InMemoryMidiFile"), Harmonix::Midi::Constants::GTicksPerQuarterNoteInt, Harmonix::Midi::Constants::EMidiTextEventEncoding::UTF8, false);
+			TestTrue(TEXT("Currupt Midi file: Wrong number of tracks!"), ReimportedMidiFile->IsEmpty());
+		}
+
+		// Put an error in the TicksPerQuarter...
+		{
+			FutzedMidiFileBytes = StdMidiFileBytes;
+			FutzedMidiFileIn->Seek(0);
+			FutzedMidiFileOut.Seek(12);
+			uint16 TPQ = 0x8000;
+			FutzedMidiFileOut << TPQ;
+			ReimportedMidiFile->LoadStdMidiFile(FutzedMidiFileIn, TEXT("InMemoryMidiFile"), Harmonix::Midi::Constants::GTicksPerQuarterNoteInt, Harmonix::Midi::Constants::EMidiTextEventEncoding::UTF8, false);
+			TestTrue(TEXT("Currupt Midi file: Bad Ticks Per Quarter Note. File is SMPTE!"), ReimportedMidiFile->IsEmpty());
+		}
+
+		// Put an error in the TicksPerQuarter...
+		{
+			FutzedMidiFileBytes = StdMidiFileBytes;
+			FutzedMidiFileIn->Seek(0);
+			FutzedMidiFileOut.Seek(12);
+			uint16 TPQ = 481;
+			FutzedMidiFileOut << TPQ;
+			ReimportedMidiFile->LoadStdMidiFile(FutzedMidiFileIn, TEXT("InMemoryMidiFile"), Harmonix::Midi::Constants::GTicksPerQuarterNoteInt, Harmonix::Midi::Constants::EMidiTextEventEncoding::UTF8, false);
+			TestTrue(TEXT("Currupt Midi file: Bad Ticks Per Quarter Note. Not evenly divisible by 48!"), ReimportedMidiFile->IsEmpty());
+		}
+
+		// Put an error in the Track Header ID...
+		{
+			FutzedMidiFileBytes = StdMidiFileBytes;
+			FutzedMidiFileIn->Seek(0);
+			FutzedMidiFileBytes[14] = 'Z';
+			ReimportedMidiFile->LoadStdMidiFile(FutzedMidiFileIn, TEXT("InMemoryMidiFile"), Harmonix::Midi::Constants::GTicksPerQuarterNoteInt, Harmonix::Midi::Constants::EMidiTextEventEncoding::UTF8, false);
+			TestTrue(TEXT("Currupt Midi file: Bad Track Header ID!"), ReimportedMidiFile->IsEmpty());
+		}
+
+		// Put an error in the Track Header Size...
+		{
+			FutzedMidiFileBytes = StdMidiFileBytes;
+			FutzedMidiFileIn->Seek(0);
+			FutzedMidiFileOut.Seek(18);
+			int32 TrackDataSize = std::numeric_limits<int32>::max();
+			FutzedMidiFileOut << TrackDataSize;
+			ReimportedMidiFile->LoadStdMidiFile(FutzedMidiFileIn, TEXT("InMemoryMidiFile"), Harmonix::Midi::Constants::GTicksPerQuarterNoteInt, Harmonix::Midi::Constants::EMidiTextEventEncoding::UTF8, false);
+			TestTrue(TEXT("Currupt Midi file: Bad Track Header SIZE!"), ReimportedMidiFile->IsEmpty());
+		}
+
+		// Put an error in the Track Header Size...
+		{
+			FutzedMidiFileBytes = StdMidiFileBytes;
+			FutzedMidiFileIn->Seek(0);
+			FutzedMidiFileOut.Seek(18);
+			int32 TrackDataSize = StdMidiFileBytes.Num();
+			FutzedMidiFileOut << TrackDataSize;
+			ReimportedMidiFile->LoadStdMidiFile(FutzedMidiFileIn, TEXT("InMemoryMidiFile"), Harmonix::Midi::Constants::GTicksPerQuarterNoteInt, Harmonix::Midi::Constants::EMidiTextEventEncoding::UTF8, false);
+			TestTrue(TEXT("Currupt Midi file: Bad Track Header SIZE!"), ReimportedMidiFile->IsEmpty());
+		}
+
+		// Put an error in the Track Header Size...
+		{
+			FutzedMidiFileBytes = StdMidiFileBytes;
+			FutzedMidiFileIn->Seek(0);
+			FutzedMidiFileOut.Seek(18);
+			int32 TrackDataSize = 15;
+			FutzedMidiFileOut << TrackDataSize;
+			ReimportedMidiFile->LoadStdMidiFile(FutzedMidiFileIn, TEXT("InMemoryMidiFile"), Harmonix::Midi::Constants::GTicksPerQuarterNoteInt, Harmonix::Midi::Constants::EMidiTextEventEncoding::UTF8, false);
+			TestTrue(TEXT("Currupt Midi file: Bad Track Header SIZE!"), ReimportedMidiFile->IsEmpty());
+		}
+
+		// Put an error in the track name length...
+		{
+			FutzedMidiFileBytes = StdMidiFileBytes;
+			FutzedMidiFileIn->Seek(0);
+			FutzedMidiFileOut.Seek(25);
+			uint32 StringLength = 0;
+			Midi::VarLenNumber::Write(FutzedMidiFileOut, StringLength);
+			ReimportedMidiFile->LoadStdMidiFile(FutzedMidiFileIn, TEXT("InMemoryMidiFile"), Harmonix::Midi::Constants::GTicksPerQuarterNoteInt, Harmonix::Midi::Constants::EMidiTextEventEncoding::UTF8, false);
+			TestTrue(TEXT("Currupt Midi file: Bad string length (zero)!"), ReimportedMidiFile->IsEmpty());
+
+			for (int i = 1; i < 30; ++i)
+			{
+				if (i == 9 || i == 13 || i == 16 || i == 24)
+				{
+					// These lengths result in valid'ish strings and parse-able midi messages to follow, so 
+					// don't bother testing...
+					continue;
+				}
+
+				UE_LOG(LogMIDITest, Log, TEXT("Testing string length %d..."), i);
+				FutzedMidiFileBytes = StdMidiFileBytes;
+				FutzedMidiFileIn->Seek(0);
+				FutzedMidiFileOut.Seek(25);
+				StringLength = i;
+				Midi::VarLenNumber::Write(FutzedMidiFileOut, StringLength);
+				ReimportedMidiFile->LoadStdMidiFile(FutzedMidiFileIn, TEXT("InMemoryMidiFile"), Harmonix::Midi::Constants::GTicksPerQuarterNoteInt, Harmonix::Midi::Constants::EMidiTextEventEncoding::UTF8, false);
+				TestTrue(*FString::Format(TEXT("Currupt Midi file: Bad string length {0}!"), {i}), ReimportedMidiFile->IsEmpty());
+			}
+		}
+
+		// Put an error in the Tempo...
+		{
+			FutzedMidiFileBytes = StdMidiFileBytes;
+			FutzedMidiFileIn->Seek(0);
+			FutzedMidiFileBytes[39] = 0;
+			FutzedMidiFileBytes[40] = 0;
+			FutzedMidiFileBytes[41] = 0;
+			ReimportedMidiFile->LoadStdMidiFile(FutzedMidiFileIn, TEXT("InMemoryMidiFile"), Harmonix::Midi::Constants::GTicksPerQuarterNoteInt, Harmonix::Midi::Constants::EMidiTextEventEncoding::UTF8, false);
+			TestTrue(TEXT("Currupt Midi file: Bad Tempo 0!"), ReimportedMidiFile->IsEmpty());
+
+			FutzedMidiFileBytes = StdMidiFileBytes;
+			FutzedMidiFileIn->Seek(0);
+			FutzedMidiFileBytes[39] = 0;
+			FutzedMidiFileBytes[40] = 0;
+			FutzedMidiFileBytes[41] = 1;
+			ReimportedMidiFile->LoadStdMidiFile(FutzedMidiFileIn, TEXT("InMemoryMidiFile"), Harmonix::Midi::Constants::GTicksPerQuarterNoteInt, Harmonix::Midi::Constants::EMidiTextEventEncoding::UTF8, false);
+			TestTrue(TEXT("Currupt Midi file: Bad Tempo 1!"), ReimportedMidiFile->IsEmpty());
+		}
+
+		// Put an error in the Time Signature...
+		{
+			FutzedMidiFileBytes = StdMidiFileBytes;
+			FutzedMidiFileIn->Seek(0);
+			FutzedMidiFileBytes[46] = 0;
+			FutzedMidiFileBytes[47] = 0;
+			ReimportedMidiFile->LoadStdMidiFile(FutzedMidiFileIn, TEXT("InMemoryMidiFile"), Harmonix::Midi::Constants::GTicksPerQuarterNoteInt, Harmonix::Midi::Constants::EMidiTextEventEncoding::UTF8, false);
+			TestTrue(TEXT("Currupt Midi file: Bad Time Signature 0!"), ReimportedMidiFile->IsEmpty());
+
+			FutzedMidiFileBytes = StdMidiFileBytes;
+			FutzedMidiFileIn->Seek(0);
+			FutzedMidiFileBytes[46] = 127;
+			FutzedMidiFileBytes[47] = 127;
+			ReimportedMidiFile->LoadStdMidiFile(FutzedMidiFileIn, TEXT("InMemoryMidiFile"), Harmonix::Midi::Constants::GTicksPerQuarterNoteInt, Harmonix::Midi::Constants::EMidiTextEventEncoding::UTF8, false);
+			TestTrue(TEXT("Currupt Midi file: Bad Time Signature 1!"), ReimportedMidiFile->IsEmpty());
+		}
+
+		// Put an invalid meta event type...
+		{
+			FutzedMidiFileBytes = StdMidiFileBytes;
+			FutzedMidiFileIn->Seek(0);
+			FutzedMidiFileBytes[24] = 0x10;
+			ReimportedMidiFile->LoadStdMidiFile(FutzedMidiFileIn, TEXT("InMemoryMidiFile"), Harmonix::Midi::Constants::GTicksPerQuarterNoteInt, Harmonix::Midi::Constants::EMidiTextEventEncoding::UTF8, false);
+			TestTrue(TEXT("Currupt Midi file: unsupported meta event type!"), ReimportedMidiFile->IsEmpty());
+		}
+
+		// Put an unsupported system status message...
+		{
+			FutzedMidiFileBytes = StdMidiFileBytes;
+			FutzedMidiFileIn->Seek(0);
+			FutzedMidiFileBytes[23] = 0xf3;
+			ReimportedMidiFile->LoadStdMidiFile(FutzedMidiFileIn, TEXT("InMemoryMidiFile"), Harmonix::Midi::Constants::GTicksPerQuarterNoteInt, Harmonix::Midi::Constants::EMidiTextEventEncoding::UTF8, false);
+			TestTrue(TEXT("Currupt Midi file: unsupported system status!"), ReimportedMidiFile->IsEmpty());
+		}
 
 		return true;
 	}

@@ -38,6 +38,22 @@ float FTempoMap::GetTempoAtTick(int32 Tick) const
 	return Harmonix::Midi::Constants::MidiTempoToBPM(GetMicrosecondsPerQuarterNoteAtTick(Tick));
 }
 
+bool FTempoMap::operator==(const FTempoMap& Other) const
+{
+	if (TicksPerQuarterNote != Other.TicksPerQuarterNote || Points.Num() != Other.Points.Num())
+	{
+		return false;
+	}
+	for (int32 PointIndex = 0; PointIndex < Points.Num(); ++PointIndex)
+	{
+		if (Points[PointIndex] != Other.Points[PointIndex])
+		{
+			return false;
+		}
+	}
+	return true;
+}
+
 void FTempoMap::Empty()
 {
 	Points.Empty();

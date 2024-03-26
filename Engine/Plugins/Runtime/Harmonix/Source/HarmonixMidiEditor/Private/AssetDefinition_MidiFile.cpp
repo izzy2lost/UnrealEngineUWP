@@ -8,7 +8,11 @@
 #include "DesktopPlatformModule.h"
 #include "Framework/Application/SlateApplication.h"
 #include "Misc/MessageDialog.h"
+#include "GenericPlatform/GenericPlatformFile.h"
 #include "GenericPlatform/GenericPlatformMisc.h"
+#include "GenericPlatform/GenericPlatformProcess.h"
+#include "HAL/FileManager.h"
+#include "HAL/PlatformFileManager.h"
 
 #define LOCTEXT_NAMESPACE "Harmonix_Midi"
 
@@ -54,7 +58,32 @@ void UAssetDefinition_MidiFile::RegisterContextMenu()
 				const FSlateIcon Icon = FSlateIcon(FAppStyle::GetAppStyleSetName(), "ClassIcon.MidiFile");
 				const FToolMenuExecuteAction UIAction = FToolMenuExecuteAction::CreateStatic(&UAssetDefinition_MidiFile::ExecuteExportMidiFile);
 				InSection.AddMenuEntry("MidiFile_ExportMid", Label, ToolTip, Icon, UIAction);
-			}));
+			})
+		);
+	Section.AddDynamicEntry("MidiFile_Compare",
+		FNewToolMenuSectionDelegate::CreateLambda([](FToolMenuSection& InSection)
+			{
+				const TAttribute<FText> Label = LOCTEXT("MidiFile_Compare", "Compare Standard MIDI File Assets");
+				const TAttribute<FText> ToolTip = LOCTEXT("MidiFile_CompareMidToolTip", "Compares selected Midi File Assets");
+				const FSlateIcon Icon = FSlateIcon(FAppStyle::GetAppStyleSetName(), "ClassIcon.MidiFile");
+				FToolUIAction UIAction;
+				UIAction.ExecuteAction = FToolMenuExecuteAction::CreateStatic(&UAssetDefinition_MidiFile::ExecuteCompareMidiFiles);
+				UIAction.CanExecuteAction = FToolMenuCanExecuteAction::CreateStatic(&UAssetDefinition_MidiFile::CanExecuteCompareMidiFiles);
+				InSection.AddMenuEntry("MidiFile_CompareMid", Label, ToolTip, FSlateIcon(), UIAction);
+			})
+		);
+	Section.AddDynamicEntry("MidiFile_OpenExtern",
+		FNewToolMenuSectionDelegate::CreateLambda([](FToolMenuSection& InSection)
+			{
+				const TAttribute<FText> Label = LOCTEXT("MidiFile_OpenExtern", "View Standard MIDI File In External Application");
+				const TAttribute<FText> ToolTip = LOCTEXT("MidiFile_OpenExternToolTip", "Opens the selected Standard MIDI File in the default viewer for '.mid' files on you PC.");
+				const FSlateIcon Icon = FSlateIcon(FAppStyle::GetAppStyleSetName(), "ClassIcon.MidiFile");
+				FToolUIAction UIAction;
+				UIAction.ExecuteAction = FToolMenuExecuteAction::CreateStatic(&UAssetDefinition_MidiFile::ExecuteOpenMidiFileInExternalEditor);
+				UIAction.CanExecuteAction = FToolMenuCanExecuteAction::CreateStatic(&UAssetDefinition_MidiFile::CanExecuteOpenMidiFileInExternalEditor);
+				InSection.AddMenuEntry("MidiFile_OpenExtern", Label, ToolTip, FSlateIcon(), UIAction);
+			})
+	);
 }
 
 void UAssetDefinition_MidiFile::ExecuteExportMidiFile(const FToolMenuContext& MenuContext)
@@ -131,6 +160,98 @@ void UAssetDefinition_MidiFile::ExportAllMidiToFolder(const UContentBrowserAsset
 			}
 		}
 	}
+}
+
+void UAssetDefinition_MidiFile::ExecuteCompareMidiFiles(const FToolMenuContext& MenuContext)
+{
+	if (const UContentBrowserAssetContextMenuContext* Context = UContentBrowserAssetContextMenuContext::FindContextWithAssets(MenuContext))
+	{
+		TArray<UMidiFile*> AsMidiFiles = Context->LoadSelectedObjects<UMidiFile>();
+		if (AsMidiFiles.Num() < 2)
+		{
+			return;
+		}
+		bool TheSame = true;
+		for (int32 i = 1; i < AsMidiFiles.Num(); ++i)
+		{
+			if (*AsMidiFiles[0] != *AsMidiFiles[i])
+			{
+				TheSame = false;
+				break;
+			}
+		}
+		FText Equal = LOCTEXT("MidiFile_Compare_Equal", "The selected MIDI files are the same.");
+		FText Different = LOCTEXT("MidiFile_Compare_Different", "The selected MIDI files are different.");
+		FMessageDialog::Open(EAppMsgType::Ok, TheSame ? Equal : Different, LOCTEXT("MidiFile_Compare_Result_Title", "MIDI File Comparison..."));
+	}
+}
+
+bool UAssetDefinition_MidiFile::CanExecuteCompareMidiFiles(const FToolMenuContext& MenuContext)
+{
+	if (const UContentBrowserAssetContextMenuContext* Context = UContentBrowserAssetContextMenuContext::FindContextWithAssets(MenuContext))
+	{
+		if (Context->SelectedAssets.Num() < 2)
+		{
+			return false;
+		}
+		int32 MidiCount = 0;
+		for (const FAssetData& AssetData : Context->SelectedAssets)
+		{
+			if (AssetData.AssetClassPath.GetAssetName() == "MidiFile")
+			{
+				++MidiCount;
+			}
+		}
+		return MidiCount > 1;
+	}
+	return false;
+}
+
+void UAssetDefinition_MidiFile::ExecuteOpenMidiFileInExternalEditor(const FToolMenuContext& MenuContext)
+{
+	if (const UContentBrowserAssetContextMenuContext* Context = UContentBrowserAssetContextMenuContext::FindContextWithAssets(MenuContext))
+	{
+		TArray<UMidiFile*> AsMidiFiles = Context->LoadSelectedObjects<UMidiFile>();
+
+		IFileManager& FileManager = IFileManager::Get();
+		IPlatformFile& PlatformFile = FPlatformFileManager::Get().GetPlatformFile();
+		
+		FString UserTempPath = FDesktopPlatformModule::Get()->GetUserTempPath();
+		FString MidiTempPath = FPaths::Combine(UserTempPath, "UnrealEditor", "TempMidi");
+
+		FileManager.DeleteDirectory(*MidiTempPath, false, true);
+		FileManager.MakeDirectory(*MidiTempPath, true);
+
+		FString DestFilePrefix = FString::Format(TEXT("VIEW_ONLY_{0}"), { *AsMidiFiles[0]->GetName() });
+
+		FString DestFilePath = FPaths::CreateTempFilename(*MidiTempPath, *DestFilePrefix, TEXT(".mid"));
+		AsMidiFiles[0]->SaveStdMidiFile(*DestFilePath);
+		
+		FString DestFileAsArg = FString::Format(TEXT("\"{0}\""), {*DestFilePath});
+
+		FPlatformProcess::LaunchFileInDefaultExternalApplication(*DestFileAsArg, NULL, ELaunchVerb::Open);
+	}
+}
+
+bool UAssetDefinition_MidiFile::CanExecuteOpenMidiFileInExternalEditor(const FToolMenuContext& MenuContext)
+{
+	if (const UContentBrowserAssetContextMenuContext* Context = UContentBrowserAssetContextMenuContext::FindContextWithAssets(MenuContext))
+	{
+		if (Context->SelectedAssets.Num() != 1)
+		{
+			return false;
+		}
+		int32 MidiCount = 0;
+		for (const FAssetData& AssetData : Context->SelectedAssets)
+		{
+			if (AssetData.AssetClassPath.GetAssetName() == "MidiFile")
+			{
+				++MidiCount;
+			}
+		}
+		return MidiCount == 1;
+	}
+	return false;
 }
 
 EAppReturnType::Type UAssetDefinition_MidiFile::AskOverwrite(FString& OutPath)

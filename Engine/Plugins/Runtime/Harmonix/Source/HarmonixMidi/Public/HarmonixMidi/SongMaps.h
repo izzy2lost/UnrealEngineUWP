@@ -73,7 +73,7 @@ struct HARMONIXMIDI_API FSongMaps
 
 public:
 	FSongMaps();
-	friend bool operator==(const FSongMaps& Left, const FSongMaps& Right);
+	bool operator==(const FSongMaps& Other) const;
 
 	void Init(int32 InTicksPerQuarterNote);
 	void Copy(const FSongMaps& Other, int32 StartTick = 0, int32 EndTick = -1);
@@ -171,6 +171,7 @@ public:
 	void                  EmptyChordMap() { ChordMap.Empty(); }
 
 	void EmptyAllMaps();
+	bool IsEmpty() const;
 
 	FSongLengthData& GetSongLengthData() { return LengthData; }
 	const FSongLengthData& GetSongLengthData() const { return LengthData; }

@@ -62,14 +62,6 @@ public:
 		int32 TicksPerQuarterNote = Harmonix::Midi::Constants::GTicksPerQuarterNoteInt,
 		Harmonix::Midi::Constants::EMidiTextEventEncoding InTextEncoding = Harmonix::Midi::Constants::EMidiTextEventEncoding::UTF8);
 
-	static bool ReadStdMidiFileForReceiver(
-		void* Buffer,
-		int32 BufferSize,
-		const FString& FileName,
-		IMidiReceiver* Receiver,
-		int32 TicksPerQuarterNote = Harmonix::Midi::Constants::GTicksPerQuarterNoteInt,
-		Harmonix::Midi::Constants::EMidiTextEventEncoding InTextEncoding = Harmonix::Midi::Constants::EMidiTextEventEncoding::UTF8);
-
 	virtual ~FStdMidiFileReader() {}
 
 	void ReadAllTracks();                // Read all tracks
@@ -84,41 +76,40 @@ public:
 	virtual const FString& GetCurrentTrackName() const override { return CurrentTrackName; }
 	virtual const TSharedPtr<FBarMap> GetBarMap() const override { return BarMap; }
 
-	bool GetFailed() const { return Failed; }
-
 	virtual int32 GetLastTick() const override { return LastTick; }
 
-	virtual bool IsFailed() const override { return Failed; }
+	virtual bool IsFailed() const override { return State == EState::Failed; }
 
 private:
 	void Init();
 	void ReadNextEvent();
 	void ReadNextEventImpl();
 
-	void ReadFileHeader(FArchive& Archive);
-	void ReadTrackHeader(FArchive& Archive);
-	void ReadEvent(FArchive& Archive);
-	void ReadMidiEvent(int32 Tick, uint8 Status, uint8 Data1, FArchive& Archive);
-	void ReadSystemEvent(int32 Tick, uint8 Status, FArchive& Archive);
-	void ReadMetaEvent(int32 Tick, uint8 Type, FArchive& Archive);
-	FString ReadText(FArchive& Archive, int32 Length);
+	void ReadFileHeader();
+	void ReadTrackHeader();
+	void ReadEvent();
+	void ReadMidiEvent(int32 Tick, uint8 Status, uint8 Data1);
+	void ReadSystemEvent(int32 Tick, uint8 Status);
+	void ReadMetaEvent(int32 Tick, uint8 Type);
+	FString ReadText(int32 Length);
 
 	// functions for sorting the midi before sending it out to the receivers
 	void QueueChannelMsg(int32 Tick, uint8 Status, uint8 Data1, uint8 Data2);
 	void ProcessMidiList();
+	bool FailIfReadPositionIsPastTrackEnd();
+	bool FailIfBytesNotAvailableInTrackData(int64 NumBytes);
 
 	enum class EState
 	{
+		Failed,
 		Start,     // at the very beginning (before MThd chunk)
 		NewTrack,  // at the beginning of a track (before MTrk chunk)
 		InTrack,   // in the middle of reading a track
-		End        // done
+		End,        // done
 	};
 
 	FString Filename;
-	TSharedPtr<FArchive> InputArchive;
-	TSharedPtr<FBufferReader> BufferArchive;
-	TSharedPtr<FArchiveFileReaderGeneric> FileArchive;
+	TSharedRef<FArchive> Archive;
 
 	IMidiReceiver* Receiver = nullptr;
 	Harmonix::Midi::Constants::EMidiTextEventEncoding TextEncoding = Harmonix::Midi::Constants::EMidiTextEventEncoding::Latin1;
@@ -137,6 +128,8 @@ private:
 	uint8 PrevStatus = 0;         // Previous status byte (for running status).
 	int32 CurrentTrackIndex = -1; // What track are we currently reading?
 	FString CurrentTrackName;
+
+	inline static constexpr int32 kMaxSupportedMidiStringSize = 2048;
 
 	enum class ETrackFilteringMode
 	{
@@ -182,6 +175,4 @@ private:
 	// we'll keep track of our own bar map so we can display
 	// more meaningful error/warning messages 
 	TSharedPtr<FBarMap> BarMap;
-
-	bool Failed = false;
 };
