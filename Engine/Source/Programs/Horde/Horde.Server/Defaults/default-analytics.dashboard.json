@@ -591,7 +591,25 @@
 							]
 						},
 						{
-							"name": "UBA Compile Actions",
+							"name": "UBA Compile Actions (Average)",
+							"display": "Value",
+							"metrics": [
+								{
+									"id": "ubt-uba-total-actions-avg",
+									"alias": "Total"
+								},
+								{
+									"id": "ubt-uba-remote-actions-avg",
+									"alias": "Remote"
+								},
+								{
+									"id": "ubt-uba-local-actions-avg",
+									"alias": "Local"
+								}
+							]
+						},
+						{
+							"name": "UBA Compile Actions (Total)",
 							"display": "Value",
 							"metrics": [
 								{
