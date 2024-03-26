@@ -268,6 +268,20 @@ bool UWorldPartitionBlueprintLibrary::GetIntersectingActorDescs(const FBox& InBo
 	return false;
 }
 
+bool UWorldPartitionBlueprintLibrary::GetActorDescsForActors(const TArray<AActor*>& InActors, TArray<FActorDesc>& OutActorDescs)
+{
+#if WITH_EDITOR
+	if (UWorldPartition* WorldPartition = GetWorldPartition())
+	{
+		for (AActor* Actor : InActors)
+		{
+			OutActorDescs.Emplace(*WorldPartition->GetActorDescInstance(Actor->GetActorGuid()));
+		}
+	}
+#endif
+	return false;
+}
+
 UDataLayerManager* UWorldPartitionBlueprintLibrary::GetDataLayerManager(class UObject* WorldContextObject)
 {
 	return UDataLayerManager::GetDataLayerManager(WorldContextObject);

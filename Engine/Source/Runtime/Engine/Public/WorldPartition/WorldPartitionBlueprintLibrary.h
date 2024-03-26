@@ -151,6 +151,14 @@ public:
 	static bool GetIntersectingActorDescs(const FBox& InBox, TArray<FActorDesc>& OutActorDescs);
 
 	/**
+	 * Gets all the actor descriptors from the provided actor pointers, which represents descriptors on disk, e.g. will not 
+	 * reflect properties of unsaved actors.
+	 * @return True if the operation was successful.
+	 */
+	UFUNCTION(BlueprintCallable, Category="World Partition", meta=(DevelopmentOnly))
+	static bool GetActorDescsForActors(const TArray<AActor*>& InActors, TArray<FActorDesc>& OutActorDescs);
+
+	/**
 	 * Returns the Data Layer Manager for this object.
 	 */
 	UFUNCTION(BlueprintCallable, Category = "World Partition", meta = (WorldContext = "WorldContextObject"))
