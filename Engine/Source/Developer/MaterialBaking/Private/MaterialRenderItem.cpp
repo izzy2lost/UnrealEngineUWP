@@ -121,7 +121,8 @@ void FMeshMaterialRenderItem::QueueMaterial(FCanvasRenderContext& RenderContext,
 			DynamicMeshBuilder.AddTriangles(Indices);
 		}
 
-		FPrimitiveData PrimitiveData = MeshSettings->PrimitiveData != nullptr ? *MeshSettings->PrimitiveData : FPrimitiveData();
+		const FPrimitiveData DefaultPrimitiveData;
+		const FPrimitiveData& PrimitiveData = MeshSettings->PrimitiveData.Get(DefaultPrimitiveData);
 		FPrimitiveUniformShaderParameters PrimitiveParams = FPrimitiveUniformShaderParametersBuilder{}
 			.Defaults()
 				.LocalToWorld(PrimitiveData.LocalToWorld)
@@ -163,7 +164,7 @@ void FMeshMaterialRenderItem::QueueMaterial(FCanvasRenderContext& RenderContext,
 void FMeshMaterialRenderItem::PopulateWithQuadData()
 {
 	// Pre-transform all vertices with the inverse of LocalToWorld to negate its effect during material baking 
-	const FMatrix44f WorldToLocal = (MeshSettings->PrimitiveData != nullptr) ? FMatrix44f(MeshSettings->PrimitiveData->LocalToWorld.Inverse()) : FMatrix44f::Identity;
+	const FMatrix44f WorldToLocal = MeshSettings->PrimitiveData.IsSet() ? FMatrix44f(MeshSettings->PrimitiveData->LocalToWorld.Inverse()) : FMatrix44f::Identity;
 	
 	Vertices.Empty(4);
 	Indices.Empty(6);
@@ -202,7 +203,7 @@ void FMeshMaterialRenderItem::PopulateWithQuadData()
 void FMeshMaterialRenderItem::PopulateWithMeshData()
 {
 	// Pre-transform all vertices with the inverse of LocalToWorld to negate its effect during material baking 
-	const FMatrix44f WorldToLocal = (MeshSettings->PrimitiveData != nullptr) ? FMatrix44f(MeshSettings->PrimitiveData->LocalToWorld.Inverse()) : FMatrix44f::Identity;
+	const FMatrix44f WorldToLocal = MeshSettings->PrimitiveData.IsSet() ? FMatrix44f(MeshSettings->PrimitiveData->LocalToWorld.Inverse()) : FMatrix44f::Identity;
 
 	const FMeshDescription* RawMesh = MeshSettings->MeshDescription;
 
