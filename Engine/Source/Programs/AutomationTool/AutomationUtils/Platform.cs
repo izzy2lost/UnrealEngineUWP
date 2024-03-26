@@ -12,6 +12,7 @@ using UnrealBuildBase;
 using Microsoft.Extensions.Logging;
 
 using static AutomationTool.CommandUtils;
+using IdentityModel.Client;
 
 namespace AutomationTool
 {
@@ -805,6 +806,12 @@ namespace AutomationTool
 		{
 			Logger.LogWarning("GetExecutableSize() has not been implemented for {Arg0}", PlatformType.ToString());
 			return -1;
+		}
+
+		public virtual bool UpdatePatchPackagingParameters( string ProjectRoot, string BuildToUse, string AdditionalOptions )
+		{
+			Logger.LogWarning("UpdatePackagingParameters() has not been implemented for {Arg0}", PlatformType.ToString());
+			return false;
 		}
 
 		/// <summary>
