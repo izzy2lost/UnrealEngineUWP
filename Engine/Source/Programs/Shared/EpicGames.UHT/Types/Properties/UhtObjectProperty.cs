@@ -104,17 +104,6 @@ namespace EpicGames.UHT.Types
 		}
 
 		/// <inheritdoc/>
-		protected override void ValidateMember(UhtStruct structObj, UhtValidationOptions options)
-		{
-			base.ValidateMember(structObj, options);
-
-			if(PointerType == UhtPointerType.Native)
-			{
-				ConditionalLogPointerUsage(Session.Config!.EngineNativePointerMemberBehavior, Session.Config!.EnginePluginNativePointerMemberBehavior, Session.Config!.NonEngineNativePointerMemberBehavior, "Native pointer", "TObjectPtr");
-			}	
-		}
-
-		/// <inheritdoc/>
 		public override bool IsSameType(UhtProperty other)
 		{
 			if (other is UhtObjectProperty otherObject)
