@@ -207,7 +207,7 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Asset Validation")
 	virtual int32 ValidateAssetsWithSettings(
 		const TArray<FAssetData>& AssetDataList,
-		FValidateAssetsSettings& InSettings,
+		const FValidateAssetsSettings& InSettings,
 		FValidateAssetsResults& OutResults) const;
 
 	/**

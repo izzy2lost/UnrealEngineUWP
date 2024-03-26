@@ -365,13 +365,13 @@ EDataValidationResult UEditorValidatorSubsystem::ValidateObjectInternal(
 
 int32 UEditorValidatorSubsystem::ValidateAssetsWithSettings(
 	const TArray<FAssetData>& AssetDataList,
-	FValidateAssetsSettings& InSettings,
+	const FValidateAssetsSettings& InSettings,
 	FValidateAssetsResults& OutResults) const
 {
 	FMessageLog DataValidationLog(UE::DataValidation::MessageLogName);
 	ValidateAssetsInternal(DataValidationLog, TSet<FAssetData>{AssetDataList}, InSettings, OutResults);
 	
-	if (EMessageSeverity::Type* Severity = InSettings.ShowMessageLogSeverity.GetPtrOrNull())
+	if (const EMessageSeverity::Type* Severity = InSettings.ShowMessageLogSeverity.GetPtrOrNull())
 	{
 		DataValidationLog.Open(*Severity, false);
 	}
