@@ -606,7 +606,7 @@ void UDMXControlConsoleFaderGroupController::OnFaderGroupFixturePatchChanged(UDM
 		return;
 	}
 
-	GenerateElementControllers();
+	GenerateElementControllers(FaderGroup);
 	SyncControllerEditorColor();
 	if (FaderGroups.Num() > 1)
 	{

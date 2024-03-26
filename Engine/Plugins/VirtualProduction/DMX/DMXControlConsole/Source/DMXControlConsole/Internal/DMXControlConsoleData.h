@@ -86,6 +86,7 @@ public:
 	void Clear(bool bOnlyPatchedFaderGroups = false);
 
 	//~ Begin UObject interface
+	virtual void PostInitProperties() override;
 	virtual void PostLoad() override;
 #if WITH_EDITOR
 	virtual void PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent) override;
@@ -98,9 +99,12 @@ public:
 	/** Gets a reference to OnFaderGroupRemoved delegate */
 	FDMXControlConsoleFaderGroupDelegate& GetOnFaderGroupRemoved() { return OnFaderGroupRemoved; }
 
+	/** Called when the DMX Library has been reloaded */
+	FSimpleMulticastDelegate& GetOnDMXLibraryReloaded() { return OnDMXLibraryReloadedDelegate; }
+
 #if WITH_EDITOR
 	/** Called when the DMX Library has been changed */
-	FSimpleMulticastDelegate& GetOnDMXLibraryChanged() { return OnDMXLibraryChanged; }
+	FSimpleMulticastDelegate& GetOnDMXLibraryChanged() { return OnDMXLibraryChangedDelegate; }
 #endif // WITH_EDITOR 
 
 #if WITH_EDITORONLY_DATA
@@ -136,9 +140,12 @@ private:
 	/** Called when a Fader Group is removed from the Control Console */
 	FDMXControlConsoleFaderGroupDelegate OnFaderGroupRemoved;
 
+	/** Called when the DMX Library has been reloaded */
+	FSimpleMulticastDelegate OnDMXLibraryReloadedDelegate;
+
 #if WITH_EDITOR
 	/** Called when the DMX Library has been changed */
-	FSimpleMulticastDelegate OnDMXLibraryChanged;
+	FSimpleMulticastDelegate OnDMXLibraryChangedDelegate;
 #endif // WITH_EDITOR 
 
 	/** Library used to generate Fader Groups */

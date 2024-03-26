@@ -5,6 +5,7 @@
 #include "Algo/AnyOf.h"
 #include "Customizations/DMXControlConsoleDataDetails.h"
 #include "DMXControlConsoleData.h"
+#include "DMXControlConsoleEditorSelection.h"
 #include "IDetailsView.h"
 #include "Layouts/DMXControlConsoleEditorGlobalLayoutBase.h"
 #include "Layouts/DMXControlConsoleEditorGlobalLayoutRow.h"
@@ -47,6 +48,7 @@ namespace UE::DMX::Private
 			constexpr bool bForceRefresh = true;
 			ControlConsoleDataDetailsView->SetObject(ControlConsoleData, bForceRefresh);
 			ControlConsoleData->GetOnDMXLibraryChanged().AddSP(this, &SDMXControlConsoleEditorDMXLibraryView::OnDMXLibraryChanged);
+			ControlConsoleData->GetOnDMXLibraryReloaded().AddSP(this, &SDMXControlConsoleEditorDMXLibraryView::OnDMXLibraryReloaded);
 		}
 
 		ChildSlot
@@ -132,6 +134,23 @@ namespace UE::DMX::Private
 
 	void SDMXControlConsoleEditorDMXLibraryView::OnDMXLibraryChanged()
 	{
+		if (EditorModel.IsValid())
+		{
+			const TSharedRef<FDMXControlConsoleEditorSelection> SelectionHandler = EditorModel->GetSelectionHandler();
+			SelectionHandler->ClearSelection();
+		}
+
+		UpdateFixturePatchVerticalBox();
+	}
+
+	void SDMXControlConsoleEditorDMXLibraryView::OnDMXLibraryReloaded()
+	{
+		if (EditorModel.IsValid())
+		{
+			const TSharedRef<FDMXControlConsoleEditorSelection> SelectionHandler = EditorModel->GetSelectionHandler();
+			SelectionHandler->RemoveInvalidObjectsFromSelection();
+		}
+
 		UpdateFixturePatchVerticalBox();
 	}
 }

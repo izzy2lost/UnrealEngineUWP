@@ -41,8 +41,11 @@ namespace UE::DMX::Private
 		/** Called when a Property has changed in current Control Console Data */
 		void OnControlConsoleDataPropertyChanged(const FPropertyChangedEvent& PropertyChangedEvent);
 
-		/** Called when the DMX Library in use changed */
+		/** Called when the DMX Library in use has been changed */
 		void OnDMXLibraryChanged();
+
+		/** Called when the DMX Library in use has been reloaded */
+		void OnDMXLibraryReloaded();
 
 		/** Reference to FixturePatchRows widgets container */
 		TSharedPtr<SDMXControlConsoleEditorFixturePatchVerticalBox> FixturePatchVerticalBox;

@@ -215,6 +215,12 @@ void UDMXControlConsoleFaderGroup::GenerateFromFixturePatch(UDMXEntityFixturePat
 	OnFixturePatchChangedDelegate.Broadcast(this, InFixturePatch);
 }
 
+void UDMXControlConsoleFaderGroup::ReloadFixturePatch()
+{
+	CachedWeakFixturePatch = SoftFixturePatchPtr.LoadSynchronous();
+	UpdateFaderGroupFromFixturePatch(CachedWeakFixturePatch.Get());
+}
+
 bool UDMXControlConsoleFaderGroup::HasFixturePatch() const
 {
 	return GetFixturePatch() != nullptr;
