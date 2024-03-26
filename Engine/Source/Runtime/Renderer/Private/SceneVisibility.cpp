@@ -4592,12 +4592,10 @@ void FVisibilityTaskData::Finish()
 {
 	SCOPED_NAMED_EVENT(FinishVisibility, FColor::Magenta);
 
+	Tasks.ComputeRelevance.Wait();
+	Tasks.FinalizeRelevance.Wait();
+	Tasks.DynamicMeshElements.Wait();
 	Tasks.MeshPassSetup.Wait();
-
-	check(Tasks.ComputeRelevance.IsCompleted());
-	check(Tasks.FinalizeRelevance.IsCompleted());
-	check(Tasks.DynamicMeshElements.IsCompleted());
-	check(Tasks.MeshPassSetup.IsCompleted());
 
 	ViewPackets.Empty();
 	DynamicMeshElements.DynamicPrimitives.Empty();
