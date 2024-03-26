@@ -30,7 +30,6 @@
 #include "Toolkits/BaseToolkit.h"
 #include "ToolTargets/ToolTarget.h"
 #include "ToolTargets/DynamicMeshComponentToolTarget.h"
-#include "ChaosClothAsset/ClothComponentToolTarget.h"
 #include "Engine/Selection.h"
 #include "Misc/ConfigCacheIni.h"
 #include "Modules/ModuleManager.h"
@@ -144,7 +143,6 @@ void UChaosClothAssetEditorMode::Enter()
 void UChaosClothAssetEditorMode::AddToolTargetFactories()
 {
 	GetInteractiveToolsContext()->TargetManager->AddTargetFactory(NewObject<UDynamicMeshComponentToolTargetFactory>(GetToolManager()));
-	GetInteractiveToolsContext()->TargetManager->AddTargetFactory(NewObject<UClothComponentToolTargetFactory>(GetToolManager()));
 }
 
 void UChaosClothAssetEditorMode::RegisterClothTool(TSharedPtr<FUICommandInfo> UICommand, 
@@ -420,7 +418,6 @@ void UChaosClothAssetEditorMode::SetPreviewScene(UE::Chaos::ClothAsset::FChaosCl
 
 	UEditorInteractiveToolsContext* const PreviewToolsContext = PreviewScene->GetClothPreviewEditorModeManager()->GetInteractiveToolsContext();
 	UInteractiveToolManager* const PreviewToolManager = PreviewToolsContext->ToolManager;
-	PreviewToolsContext->TargetManager->AddTargetFactory(NewObject<UClothComponentToolTargetFactory>(PreviewToolManager));
 	PreviewToolsContext->TargetManager->AddTargetFactory(NewObject<USkeletalMeshComponentToolTargetFactory>(PreviewToolManager));
 
 	PreviewToolManager->OnToolStarted.AddUObject(this, &UChaosClothAssetEditorMode::OnToolStarted);
