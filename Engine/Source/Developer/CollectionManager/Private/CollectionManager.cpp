@@ -778,7 +778,8 @@ bool FCollectionManager::CreateCollection(FName CollectionName, ECollectionShare
 		return false;
 	}
 
-	if (InternalSaveCollection(NewCollection, LastError))
+	constexpr bool bForceCommitToRevisionControl = true;
+	if (InternalSaveCollection(NewCollection, LastError, bForceCommitToRevisionControl))
 	{
 		CollectionFileCaches[ShareType]->IgnoreNewFile(NewCollection->GetSourceFilename());
 
@@ -829,7 +830,8 @@ bool FCollectionManager::RenameCollection(FName CurrentCollectionName, ECollecti
 			return false;
 		}
 
-		if (!InternalSaveCollection(NewCollection.ToSharedRef(), LastError))
+		bool bForceCommitToRevisionControl = true;
+		if (!InternalSaveCollection(NewCollection.ToSharedRef(), LastError, bForceCommitToRevisionControl))
 		{
 			// Collection failed to save, remove it from the cache
 			RemoveCollection(NewCollection.ToSharedRef(), NewShareType);
@@ -902,8 +904,9 @@ bool FCollectionManager::ReparentCollection(FName CollectionName, ECollectionSha
 		// Does the parent collection need saving in order to have a stable GUID?
 		if ((*ParentCollectionRefPtr)->GetCollectionVersion() < ECollectionVersion::AddedCollectionGuid)
 		{
+			bool bForceCommitToRevisionControl = false;
 			// Try and re-save the parent collection now
-			if (InternalSaveCollection(*ParentCollectionRefPtr, LastError))
+			if (InternalSaveCollection(*ParentCollectionRefPtr, LastError, bForceCommitToRevisionControl))
 			{
 				CollectionFileCaches[ParentShareType]->IgnoreFileModification((*ParentCollectionRefPtr)->GetSourceFilename());
 			}
@@ -931,7 +934,8 @@ bool FCollectionManager::ReparentCollection(FName CollectionName, ECollectionSha
 	(*CollectionRefPtr)->SetParentCollectionGuid(NewParentGuid);
 
 	// Try and save with the new parent GUID
-	if (InternalSaveCollection(*CollectionRefPtr, LastError))
+	bool bForceCommitToRevisionControl = false;
+	if (InternalSaveCollection(*CollectionRefPtr, LastError, bForceCommitToRevisionControl))
 	{
 		CollectionFileCaches[ShareType]->IgnoreFileModification((*CollectionRefPtr)->GetSourceFilename());
 	}
@@ -1040,7 +1044,8 @@ bool FCollectionManager::AddToCollection(FName CollectionName, ECollectionShareT
 
 	if (NumAdded > 0)
 	{
-		if (InternalSaveCollection(*CollectionRefPtr, LastError))
+		constexpr bool bForceCommitToRevisionControl = false;
+		if (InternalSaveCollection(*CollectionRefPtr, LastError, bForceCommitToRevisionControl))
 		{
 			CollectionFileCaches[ShareType]->IgnoreFileModification((*CollectionRefPtr)->GetSourceFilename());
 
@@ -1130,7 +1135,8 @@ bool FCollectionManager::RemoveFromCollection(FName CollectionName, ECollectionS
 		return false;
 	}
 			
-	if (InternalSaveCollection(*CollectionRefPtr, LastError))
+	constexpr bool bForceCommitToRevisionControl = false;
+	if (InternalSaveCollection(*CollectionRefPtr, LastError, bForceCommitToRevisionControl))
 	{
 		CollectionFileCaches[ShareType]->IgnoreFileModification((*CollectionRefPtr)->GetSourceFilename());
 
@@ -1187,7 +1193,8 @@ bool FCollectionManager::SetDynamicQueryText(FName CollectionName, ECollectionSh
 
 	(*CollectionRefPtr)->SetDynamicQueryText(InQueryText);
 	
-	if (InternalSaveCollection(*CollectionRefPtr, LastError))
+	constexpr bool bForceCommitToRevisionControl = true;
+	if (InternalSaveCollection(*CollectionRefPtr, LastError, bForceCommitToRevisionControl))
 	{
 		CollectionFileCaches[ShareType]->IgnoreFileModification((*CollectionRefPtr)->GetSourceFilename());
 
@@ -1281,7 +1288,8 @@ bool FCollectionManager::EmptyCollection(FName CollectionName, ECollectionShareT
 
 	(*CollectionRefPtr)->Empty();
 	
-	if (InternalSaveCollection(*CollectionRefPtr, LastError))
+	constexpr bool bForceCommitToRevisionControl = true;
+	if (InternalSaveCollection(*CollectionRefPtr, LastError, bForceCommitToRevisionControl))
 	{
 		CollectionFileCaches[ShareType]->IgnoreFileModification((*CollectionRefPtr)->GetSourceFilename());
 
@@ -1315,7 +1323,8 @@ bool FCollectionManager::SaveCollection(FName CollectionName, ECollectionShareTy
 			return true;
 		}
 
-		if (InternalSaveCollection(*CollectionRefPtr, LastError))
+		constexpr bool bForceCommitToRevisionControl = true;
+		if (InternalSaveCollection(*CollectionRefPtr, LastError, bForceCommitToRevisionControl))
 		{
 			CollectionFileCaches[ShareType]->IgnoreFileModification((*CollectionRefPtr)->GetSourceFilename());
 
@@ -1437,7 +1446,8 @@ bool FCollectionManager::SetCollectionColor(FName CollectionName, ECollectionSha
 	{
 		(*CollectionRefPtr)->SetCollectionColor(NewColor);
 
-		if (InternalSaveCollection(*CollectionRefPtr, LastError))
+		constexpr bool bForceCommitToRevisionControl = false;
+		if (InternalSaveCollection(*CollectionRefPtr, LastError, bForceCommitToRevisionControl))
 		{
 			CollectionFileCaches[ShareType]->IgnoreFileModification((*CollectionRefPtr)->GetSourceFilename());
 			
@@ -1666,7 +1676,8 @@ bool FCollectionManager::HandleRedirectorsDeleted(TConstArrayView<FSoftObjectPat
 			const TSharedRef<FCollection>& Collection = *CollectionRefPtr;
 
 			FText SaveError;
-			if (InternalSaveCollection(Collection, SaveError))
+			constexpr bool bForceCommitToRevisionControl = true;
+			if (InternalSaveCollection(Collection, SaveError, bForceCommitToRevisionControl))
 			{
 				CollectionFileCaches[CollectionKey.Type]->IgnoreFileModification(Collection->GetSourceFilename());
 
@@ -2069,7 +2080,7 @@ void FCollectionManager::ReplaceObjectInCollections(const FSoftObjectPath& OldOb
 	}
 }
 
-bool FCollectionManager::InternalSaveCollection(const TSharedRef<FCollection>& CollectionRef, FText& OutError)
+bool FCollectionManager::InternalSaveCollection(const TSharedRef<FCollection>& CollectionRef, FText& OutError, bool bForceCommitToRevisionControl)
 {
 	TArray<FText> AdditionalChangelistText;
 
@@ -2093,7 +2104,7 @@ bool FCollectionManager::InternalSaveCollection(const TSharedRef<FCollection>& C
 	}
 
 	// Save the collection
-	return CollectionRef->Save(AdditionalChangelistText, OutError);
+	return CollectionRef->Save(AdditionalChangelistText, OutError, bForceCommitToRevisionControl);
 }
 
 #undef LOCTEXT_NAMESPACE
