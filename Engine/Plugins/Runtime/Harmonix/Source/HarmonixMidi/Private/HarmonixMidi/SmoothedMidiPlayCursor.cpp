@@ -78,7 +78,8 @@ void FSmoothedMidiPlayCursor::OnLoop(int loopStartTick, int loopEndTick)
 
 void FSmoothedMidiPlayCursor::SyncSmoothingTimer(bool bEnableErrorCorrection)
 {
-	if (!Owner)
+	FMidiPlayCursorMgr* CursorOwner = GetOwner();
+	if (!CursorOwner)
 	{
 		return;
 	}
@@ -88,7 +89,7 @@ void FSmoothedMidiPlayCursor::SyncSmoothingTimer(bool bEnableErrorCorrection)
 		SmoothingTimer.Start();
 	}
 
-	SetSpeed(Owner->GetCurrentAdvanceRate(Tracker->IsLowRes));
+	SetSpeed(CursorOwner->GetCurrentAdvanceRate(Tracker->IsLowRes));
 
 	float RawMs = CurrentMs;
 	double SmoothMs = SmoothingTimer.Ms();
@@ -108,7 +109,7 @@ void FSmoothedMidiPlayCursor::SyncSmoothingTimer(bool bEnableErrorCorrection)
 			SmoothingTimer.Reset(RawMs);
 			SmoothedMs = RawMs;
 			SmoothedMsDelta = 0.0f;
-			SmoothedTick = Owner->GetTempoMap().MsToTick(RawMs);
+			SmoothedTick = CursorOwner->GetTempoMap().MsToTick(RawMs);
 			ErrorTracker.Reset();
 			return;
 		}
@@ -146,8 +147,8 @@ void FSmoothedMidiPlayCursor::SyncSmoothingTimer(bool bEnableErrorCorrection)
 	SmoothedMsDelta = float(SmoothMs - RawMs);
 
 	// we need to see if the smoothed position is a position that we have never played!
-	float LoopStartMs = Owner->GetLoopStartMs(Tracker->IsLowRes);
-	float LoopEndMs = Owner->GetLoopEndMs(Tracker->IsLowRes);
+	float LoopStartMs = CursorOwner->GetLoopStartMs(Tracker->IsLowRes);
+	float LoopEndMs = CursorOwner->GetLoopEndMs(Tracker->IsLowRes);
 	if (LoopStartMs < LoopEndMs)
 	{
 		// possible loop back...
@@ -167,16 +168,17 @@ void FSmoothedMidiPlayCursor::SyncSmoothingTimer(bool bEnableErrorCorrection)
 		}
 	}
 	SmoothedMs = float(SmoothMs);
-	SmoothedTick = Owner->GetTempoMap().MsToTick(SmoothedMs);
+	SmoothedTick = CursorOwner->GetTempoMap().MsToTick(SmoothedMs);
 	LoopedThisPass = false;
 }
 
 void FSmoothedMidiPlayCursor::UpdateSongPosition()
 {
-	if (!Owner)
+	FMidiPlayCursorMgr* CursorOwner = GetOwner();
+	if (!CursorOwner)
 	{
 		return;
 	}
 
-	CurrentSongPos = Owner->CalculateSongPosWithOffsetMs(SmoothedMsDelta, Tracker->IsLowRes);
+	CurrentSongPos = CursorOwner->CalculateSongPosWithOffsetMs(SmoothedMsDelta, Tracker->IsLowRes);
 }
