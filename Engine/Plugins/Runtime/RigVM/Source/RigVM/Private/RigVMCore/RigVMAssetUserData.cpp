@@ -2,6 +2,7 @@
 
 #include "RigVMCore/RigVMAssetUserData.h"
 #include "Engine/UserDefinedStruct.h"
+#include "Misc/PackageName.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(RigVMAssetUserData)
 
@@ -461,6 +462,31 @@ void UDataAssetLink::PostLoad()
 	Super::PostLoad();
 
 	DataAssetCached = DataAsset.Get();
+
+	if(DataAssetCached == nullptr)
+	{
+		// We need to check if the mount point exists - since the data asset library link may
+		// refer to an editor-only asset in a runtime game.
+		const FString PackagePath = DataAsset.GetLongPackageName();
+		const FName PluginMountPoint = FPackageName::GetPackageMountPoint(PackagePath, false);
+		if (FPackageName::MountPointExists(PluginMountPoint.ToString()))
+		{
+			const FString ObjectPath = DataAsset.ToString();
+
+			// load without throwing additional warnings / errors
+			DataAssetCached = LoadObject<UDataAsset>(nullptr, *ObjectPath, nullptr, LOAD_Quiet | LOAD_NoWarn);
+
+			if(DataAssetCached)
+			{
+				if(NameSpace.IsEmpty())
+				{
+					NameSpace = DataAsset->GetName();
+				}
+
+				verify(DataAssetCached == DataAsset.Get());
+			}
+		}
+	}
 }
 
 #if WITH_EDITOR

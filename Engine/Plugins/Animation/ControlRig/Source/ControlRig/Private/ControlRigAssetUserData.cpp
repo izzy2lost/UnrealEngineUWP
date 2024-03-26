@@ -1,6 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "ControlRigAssetUserData.h"
+#include "Misc/PackageName.h"
 
 void UControlRigShapeLibraryLink::SetShapeLibrary(TSoftObjectPtr<UControlRigShapeLibrary> InShapeLibrary)
 {
@@ -92,6 +93,37 @@ void UControlRigShapeLibraryLink::PostLoad()
 	Super::PostLoad();
 
 	ShapeLibraryCached = ShapeLibrary.Get();
+	
+	if(ShapeLibraryCached == nullptr)
+	{
+		// We need to check if the mount point exists - since the shape library link may
+		// refer to an editor-only asset in a runtime game.
+		const FString PackagePath = ShapeLibrary.GetLongPackageName();
+		const FName PluginMountPoint = FPackageName::GetPackageMountPoint(PackagePath, false);
+		if (FPackageName::MountPointExists(PluginMountPoint.ToString()))
+		{
+			const FString ObjectPath = ShapeLibrary.ToString();
+
+			// load without throwing additional warnings / errors
+			ShapeLibraryCached = LoadObject<UControlRigShapeLibrary>(nullptr, *ObjectPath, nullptr, LOAD_Quiet | LOAD_NoWarn);
+			
+			if (ShapeLibraryCached)
+			{
+				if(NameSpace.IsEmpty())
+				{
+					NameSpace = ShapeLibrary->GetName();
+				}
+				
+				ShapeNames.Reset();
+				for(const FControlRigShapeDefinition& Shape : ShapeLibraryCached->Shapes)
+				{
+					ShapeNames.Add(Shape.ShapeName);
+				}
+
+				verify(ShapeLibraryCached == ShapeLibrary.Get());
+			}
+		}
+	}
 }
 
 #if WITH_EDITOR
