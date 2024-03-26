@@ -81,6 +81,7 @@ struct FZenCacheStoreParams
 	TOptional<bool> bRemote;
 	bool bFlush = false;
 	bool bReadOnly = false;
+	bool bBypassProxy = true;
 
 	void Parse(const TCHAR* NodeName, const TCHAR* Config);
 };
@@ -1654,6 +1655,7 @@ void FZenCacheStore::Initialize(const FZenCacheStoreParams& Params)
 		ReadinessClientParams.MinRequests = 1;
 		ReadinessClientParams.LowSpeedLimit = 1;
 		ReadinessClientParams.LowSpeedTime = 5; // 5 second idle time limit for the initial readiness check
+		ReadinessClientParams.bBypassProxy = Params.bBypassProxy;
 		THttpUniquePtr<IHttpClient> ReadinessClient = ConnectionPool->CreateClient(ReadinessClientParams);
 		THttpUniquePtr<IHttpRequest> ReadinessRequest = ReadinessClient->TryCreateRequest({});
 		TAnsiStringBuilder<256> StatusUri;
@@ -1699,6 +1701,7 @@ void FZenCacheStore::Initialize(const FZenCacheStoreParams& Params)
 	ClientParams.MinRequests = RequestPoolSize;
 	ClientParams.LowSpeedLimit = 1;
 	ClientParams.LowSpeedTime = 25;
+	ClientParams.bBypassProxy = Params.bBypassProxy;
 	RequestQueue = FHttpRequestQueue(*ConnectionPool, ClientParams);
 
 	bIsLocalConnection = ZenService.GetInstance().IsServiceRunningLocally() || ZenService.GetInstance().GetServiceSettings().IsAutoLaunch();
@@ -2074,6 +2077,7 @@ void FZenCacheStoreParams::Parse(const TCHAR* NodeName, const TCHAR* Config)
 	// Sandbox and flush configuration for use in Cold/Warm type use cases
 	FParse::Value(Config, TEXT("Sandbox="), Sandbox);
 	FParse::Bool(Config, TEXT("Flush="), bFlush);
+	FParse::Bool(Config, TEXT("BypassProxy="), bBypassProxy);
 
 	// Performance deactivation
 	FParse::Value(Config, TEXT("DeactivateAt="), DeactivateAtMs);

@@ -350,6 +350,7 @@ struct FHttpCacheStoreParams
 
 	bool bResolveHostCanonicalName = true;
 	bool bReadOnly = false;
+	bool bBypassProxy = false;
 
 	void Parse(const TCHAR* NodeName, const TCHAR* Config);
 };
@@ -457,6 +458,7 @@ private:
 
 	bool bIsUsable = false;
 	bool bReadOnly = false;
+	bool bBypassProxy = false;
 
 	static inline FHttpCacheStore* AnyInstance = nullptr;
 
@@ -2235,6 +2237,7 @@ FHttpCacheStore::FHttpCacheStore(const FHttpCacheStoreParams& Params, ICacheStor
 	, AuthScheme(Params.AuthScheme)
 	, StoreOwner(Owner)
 	, bReadOnly(Params.bReadOnly)
+	, bBypassProxy(Params.bBypassProxy)
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(HttpDDC_Construct);
 
@@ -2376,6 +2379,7 @@ FHttpClientParams FHttpCacheStore::GetDefaultClientParams() const
 	ClientParams.TlsLevel = EHttpTlsLevel::All;
 	ClientParams.bFollowRedirects = true;
 	ClientParams.bFollow302Post = true;
+	ClientParams.bBypassProxy = bBypassProxy;
 
 	EHttpVersion HttpVersionEnum = EHttpVersion::V2;
 	TryLexFromString(HttpVersionEnum, HttpVersion);
@@ -3403,6 +3407,7 @@ void FHttpCacheStoreParams::Parse(const TCHAR* NodeName, const TCHAR* Config)
 	// Cache Params
 
 	FParse::Bool(Config, TEXT("ReadOnly="), bReadOnly);
+	FParse::Bool(Config, TEXT("BypassProxy="), bBypassProxy);
 }
 
 } // UE::DerivedData

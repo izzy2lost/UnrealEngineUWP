@@ -207,6 +207,9 @@ struct FHttpClientParams final
 	bool bFollow302Post : 1;
 	bool bFollow303Post : 1;
 
+	/** Avoid use of configured proxy on the client. */
+	bool bBypassProxy : 1;
+
 	/** Verbose logging for requests created by the client. */
 	bool bVerbose : 1;
 
@@ -215,6 +218,7 @@ struct FHttpClientParams final
 		, bFollow301Post(false)
 		, bFollow302Post(false)
 		, bFollow303Post(false)
+		, bBypassProxy(false)
 		, bVerbose(false)
 	{
 	}
