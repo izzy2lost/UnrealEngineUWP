@@ -99,43 +99,66 @@ FString FWorldPartitionStreamingSource::ToString() const
 void FWorldPartitionStreamingSource::UpdateHash()
 {
 	// Update old values when they are changing enough, to avoid the case where we are on the edge of a quantization unit.
-	if (!UWorldPartitionStreamingPolicy::IsUpdateStreamingOptimEnabled() || 
-		(FVector::Dist(Location, OldLocation) > LocationQuantization))
+	if (FVector::Dist(Location, QuantizedLocation) > LocationQuantization)
 	{
-		OldLocation = Location;
+		QuantizedLocation = Location;
 	}
 	
-	if (!UWorldPartitionStreamingPolicy::IsUpdateStreamingOptimEnabled() ||
-		(FMath::Abs(Rotation.Pitch - OldRotation.Pitch) > RotationQuantization) ||
-		(FMath::Abs(Rotation.Yaw - OldRotation.Yaw) > RotationQuantization) ||
-		(FMath::Abs(Rotation.Roll - OldRotation.Roll) > RotationQuantization))
+	if (Rotation.GetManhattanDistance(QuantizedRotation) > RotationQuantization)
 	{
-		OldRotation = Rotation;
+		QuantizedRotation = Rotation;
 	}
 
 	FHashBuilder HashBuilder;
-	HashBuilder	<< Name << TargetState << bBlockOnSlowLoading << bReplay << bRemote << Priority << TargetBehavior << TargetGrids << Shapes << ExtraRadius  << ExtraAngle;
+	const uint8 ValuesMask = (bBlockOnSlowLoading ? 1 : 0) | (bUseVelocityContributionToCellsSorting ? 2 : 0) | (bReplay ? 4 : 0) | (bRemote ? 8 : 0) | (bForce2D ? 16 : 0);
+	HashBuilder	<< Name << TargetState << ValuesMask << Priority << TargetBehavior << TargetGrids << Shapes;
 
-	if (LocationQuantization)
+	if (ExtraRadius > 0.f)
 	{
-		HashBuilder << FMath::FloorToInt(OldLocation.X / LocationQuantization) << FMath::FloorToInt(OldLocation.Y / LocationQuantization);
+		HashBuilder << ExtraRadius;
+	}
+
+	if (ExtraAngle > 0.f)
+	{
+		HashBuilder << ExtraAngle;
+	}
+
+	if (LocationQuantization > 0)
+	{
+		HashBuilder << FMath::FloorToInt(QuantizedLocation.X / LocationQuantization) << FMath::FloorToInt(QuantizedLocation.Y / LocationQuantization);
+	}
+	else
+	{
+		HashBuilder << Location.X << Location.Y;
 	}
 
 	if (RotationQuantization > 0)
 	{
-		HashBuilder << FMath::FloorToInt(OldRotation.Yaw / RotationQuantization);
+		HashBuilder << FMath::FloorToInt(Rotation.Yaw / RotationQuantization);
+	}
+	else
+	{
+		HashBuilder << Rotation.Yaw;
 	}
 
 	Hash2D = HashBuilder.GetHash();
 
-	if (LocationQuantization)
+	if (LocationQuantization > 0)
 	{
-		HashBuilder << FMath::FloorToInt(OldLocation.Z / LocationQuantization);
+		HashBuilder << FMath::FloorToInt(QuantizedLocation.Z / LocationQuantization);
+	}
+	else
+	{
+		HashBuilder << Location.Z;
 	}
 
-	if (RotationQuantization)
+	if (RotationQuantization > 0)
 	{
-		HashBuilder << FMath::FloorToInt(OldRotation.Pitch / RotationQuantization) << FMath::FloorToInt(OldRotation.Roll / RotationQuantization);
+		HashBuilder << FMath::FloorToInt(QuantizedRotation.Pitch / RotationQuantization) << FMath::FloorToInt(QuantizedRotation.Roll / RotationQuantization);
+	}
+	else
+	{
+		HashBuilder << QuantizedRotation.Pitch << QuantizedRotation.Roll;
 	}
 
 	Hash3D = HashBuilder.GetHash();

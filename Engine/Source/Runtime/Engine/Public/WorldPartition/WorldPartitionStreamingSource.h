@@ -17,17 +17,26 @@ public:
 		: Center(ForceInit)
 		, Radius(0.0f)
 		, Axis(ForceInit)
-	{
-		SetAsSphere();
-	}
+		, Angle(360.0f)
+	{}
 
 	/** Creates and initializes a spherical sector using given parameters. */
-	FSphericalSector(FVector InCenter, FReal InRadius, FVector InAxis = FVector::ForwardVector, FReal InAngle = 0)
+	FSphericalSector(const FVector& InCenter, FReal InRadius)
 		: Center(InCenter)
 		, Radius(InRadius)
+		, Axis(FVector::ForwardVector)
+		, Angle(360.0f)
+	{}
+
+	/** Creates and initializes a spherical sector using given parameters. */
+	FSphericalSector(const FVector& InCenter, FReal InRadius, const FVector& InAxis, FReal InAngle)
+		: Center(InCenter)
+		, Radius(InRadius)
+		, Axis(InAxis)
+		, Angle(InAngle)
 	{
-		SetAngle(InAngle);
-		SetAxis(InAxis);
+		check(InAxis.IsNormalized());
+		check(InAngle >= 0 && InAngle <= 360);
 	}
 
 	void SetCenter(const FVector& InCenter) { Center = InCenter; }
@@ -43,7 +52,7 @@ public:
 	FVector GetAxis() const { return Axis; }
 	FVector GetScaledAxis() const { return Axis * Radius; }
 
-	void SetAsSphere() { SetAngle(360.0f); }
+	void SetAsSphere() { Angle = 360.0f; }
 	bool IsSphere() const { return FMath::IsNearlyEqual(Angle, (FReal)360.0); }
 
 	bool IsNearlyZero() const { return FMath::IsNearlyZero(Radius) || Axis.IsNearlyZero() || FMath::IsNearlyZero(Angle); }
@@ -58,8 +67,7 @@ public:
 	/** Get result of Transforming spherical sector with transform. */
 	FSphericalSector TransformBy(const FTransform& M) const
 	{
-		FSphericalSector Result(M.TransformPosition(Center), M.GetMaximumAxisScale() * Radius, M.TransformVector(Axis), Angle);
-		return Result;
+		return FSphericalSector(M.TransformPosition(Center), M.GetMaximumAxisScale() * Radius, M.TransformVector(Axis), Angle);
 	}
 
 	/** Helper method that builds a list of debug display segments */
@@ -175,9 +183,11 @@ public:
 		const FTransform Transform(bInProjectIn2D ? FRotator(0, InRotation.Yaw, 0) : InRotation, InLocation);
 		if (InShapes.IsEmpty())
 		{
-			FSphericalSector LocalShape(FVector::ZeroVector, InDefaultRadius + InExtraRadius);
-			if (LocalShape.IsValid())
+			if (InDefaultRadius + InExtraRadius)
 			{
+				const FSphericalSector LocalShape(FVector::ZeroVector, InDefaultRadius + InExtraRadius);
+				check(LocalShape.IsValid()); // Radius, axis and angle should be all valid here
+
 				InOperation(LocalShape.TransformBy(Transform));
 			}
 		}
@@ -186,9 +196,11 @@ public:
 			for (const FStreamingSourceShape& Shape : InShapes)
 			{
 				const FVector::FReal ShapeRadius = (Shape.bUseGridLoadingRange ? (InGridLoadingRange * Shape.LoadingRangeScale) : Shape.Radius) + InExtraRadius;
-				const FVector::FReal ShapeAngle = Shape.bIsSector ? (Shape.SectorAngle + InExtraAngle) : 360.0f;
-				const FVector ShapeAxis = bInProjectIn2D ? FRotator(0, Shape.Rotation.Yaw, 0).Vector() : Shape.Rotation.Vector();
-				FSphericalSector LocalShape(bInProjectIn2D ? FVector(Shape.Location.X, Shape.Location.Y, 0) : Shape.Location, ShapeRadius, ShapeAxis, ShapeAngle);
+				const FVector::FReal ShapeAngle = Shape.bIsSector ? FMath::Min(Shape.SectorAngle + InExtraAngle, 360.0f) : 360.0f;
+				const FRotator ShapeRotation = bInProjectIn2D ? FRotator(0, Shape.Rotation.Yaw, 0) : Shape.Rotation;
+				const FVector ShapeAxis = ShapeRotation.IsNearlyZero() ? FVector::ForwardVector : ShapeRotation.Vector();
+				const FSphericalSector LocalShape(bInProjectIn2D ? FVector(Shape.Location.X, Shape.Location.Y, 0) : Shape.Location, ShapeRadius, ShapeAxis, ShapeAngle);
+				
 				if (LocalShape.IsValid())
 				{
 					InOperation(LocalShape.TransformBy(Transform));
@@ -337,8 +349,8 @@ struct FWorldPartitionStreamingSource
 		, bForce2D(false)
 		, Hash2D(0)
 		, Hash3D(0)
-		, OldLocation(FVector::ZeroVector)
-		, OldRotation(FRotator::ZeroRotator)
+		, QuantizedLocation(FVector::ZeroVector)
+		, QuantizedRotation(FRotator::ZeroRotator)
 		, ExtraRadius(0)
 		, ExtraAngle(0)
 	{}
@@ -359,8 +371,8 @@ struct FWorldPartitionStreamingSource
 		, bForce2D(false)
 		, Hash2D(0)
 		, Hash3D(0)
-		, OldLocation(InLocation)
-		, OldRotation(InRotation)
+		, QuantizedLocation(InLocation)
+		, QuantizedRotation(InRotation)
 		, ExtraRadius(0)
 		, ExtraAngle(0)
 	{}
@@ -476,8 +488,8 @@ private:
 	uint32 Hash3D;
 
 	/** Source values used for hash computations. */
-	FVector OldLocation;
-	FRotator OldRotation;
+	FVector QuantizedLocation;
+	FRotator QuantizedRotation;
 
 	/** Used internally for server streaming */
 	float ExtraRadius;

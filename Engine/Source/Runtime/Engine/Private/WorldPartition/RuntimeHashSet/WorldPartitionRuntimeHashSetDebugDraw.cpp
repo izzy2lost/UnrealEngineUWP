@@ -256,7 +256,7 @@ bool UWorldPartitionRuntimeHashSet::Draw2D(FWorldPartitionDraw2DContext& DrawCon
 			if (!Velocity2D.IsNearlyZero())
 			{
 				const FVector2D Center2D = FVector2D(Source.Location);
-				DrawContext.PushDrawSegment(GridScreenBounds, WorldToScreen(Center2D), WorldToScreen(Center2D + Velocity2D * StreamingData->GetLoadingRange() * 0.5f), Color, 1);
+				DrawContext.PushDrawSegment(GridScreenBounds, WorldToScreen(Center2D), WorldToScreen(Center2D + Velocity2D.GetSafeNormal() * StreamingData->GetLoadingRange() * 0.5f), Color, 1);
 			}
 		}
 	};

@@ -45,7 +45,8 @@
 #include UE_INLINE_GENERATED_CPP_BY_NAME(WorldPartitionSubsystem)
 
 DECLARE_STATS_GROUP(TEXT("World Partition"), STATGROUP_WorldPartition, STATCAT_Advanced);
-DECLARE_CYCLE_STAT(TEXT("UpdateStreamingStateExternal"), STAT_UpdateStreamingStateExternal, STATGROUP_WorldPartition);
+DECLARE_CYCLE_STAT(TEXT("Update Streaming State"), STAT_WorldPartitionUpdateStreamingState, STATGROUP_WorldPartition);
+DECLARE_CYCLE_STAT(TEXT("Update Streaming State (External)"), STAT_WorldPartitionUpdateStreamingStateExternal, STATGROUP_WorldPartition);
 CSV_DEFINE_CATEGORY(WorldPartition, (!UE_BUILD_SHIPPING));
 
 extern int32 GBlockOnSlowStreaming;
@@ -192,9 +193,8 @@ TMulticastDelegate<void(UWorldPartitionSubsystem*, UWorld*)> UWorldPartitionSubs
 TMulticastDelegate<void(UWorldPartitionSubsystem*, UWorld*)> UWorldPartitionSubsystem::OnWorldPartitionSubsystemDeinitialized;
 
 UWorldPartitionSubsystem::UWorldPartitionSubsystem()
-: StreamingSourcesHash(0)
-, NumWorldPartitionServerStreamingEnabled(0)
-, ServerClientsVisibleLevelsHash(0)
+	: NumWorldPartitionServerStreamingEnabled(0)
+	, ServerClientsVisibleLevelsHash(0)
 {}
 
 UWorldPartition* UWorldPartitionSubsystem::GetWorldPartition()
@@ -906,7 +906,7 @@ void UWorldPartitionSubsystem::UpdateStreamingSources()
 
 			{
 				// This will include game-sepcific code called from GetStreamingSourceProviders if IsStreamingSourceProviderFiltered is bound, and also GetStreamingSources calls.
-				SCOPE_CYCLE_COUNTER(STAT_UpdateStreamingStateExternal);
+				SCOPE_CYCLE_COUNTER(STAT_WorldPartitionUpdateStreamingStateExternal);
 				CSV_SCOPED_TIMING_STAT(WorldPartition, GetStreamingSourceProviders);
 
 				TArray<FWorldPartitionStreamingSource> ProviderStreamingSources;
@@ -1008,11 +1008,10 @@ void UWorldPartitionSubsystem::GetStreamingSources(const UWorldPartition* InWorl
 		{
 			StreamingSource.Location = WorldToLocal.TransformPosition(StreamingSource.Location);
 			StreamingSource.Rotation = WorldToLocal.TransformRotation(StreamingSource.Rotation.Quaternion()).Rotator();
+			StreamingSource.Velocity = WorldToLocal.TransformVector(StreamingSource.Velocity);
 		}
 	}
 }
-
-DECLARE_CYCLE_STAT(TEXT("World Partition Update Streaming"), STAT_WorldPartitionUpdateStreaming, STATGROUP_Engine);
 
 void UWorldPartitionSubsystem::OnWorldBeginPlay(UWorld& InWorld)
 {
@@ -1026,7 +1025,7 @@ void UWorldPartitionSubsystem::OnWorldBeginPlay(UWorld& InWorld)
 
 void UWorldPartitionSubsystem::UpdateStreamingState()
 {
-	SCOPE_CYCLE_COUNTER(STAT_WorldPartitionUpdateStreaming);
+	SCOPE_CYCLE_COUNTER(STAT_WorldPartitionUpdateStreamingState);
 
 	UWorldPartitionSubsystem::UpdateStreamingStateInternal(GetWorld());
 }
