@@ -32,6 +32,7 @@ struct FNiagaraStatelessGlobals
 	FNiagaraVariableBase	CameraOffsetVariable;
 	FNiagaraVariableBase	ColorVariable;
 	FNiagaraVariableBase	DynamicMaterialParameters0Variable;
+	FNiagaraVariableBase	MeshIndexVariable;
 	FNiagaraVariableBase	MeshOrientationVariable;
 	FNiagaraVariableBase	PositionVariable;
 	FNiagaraVariableBase	RibbonWidthVariable;

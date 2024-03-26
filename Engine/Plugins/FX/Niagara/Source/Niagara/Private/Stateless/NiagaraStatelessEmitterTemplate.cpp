@@ -17,6 +17,7 @@
 #include "Stateless/Modules/NiagaraStatelessModule_GravityForce.h"
 #include "Stateless/Modules/NiagaraStatelessModule_InitializeParticle.h"
 #include "Stateless/Modules/NiagaraStatelessModule_InitialMeshOrientation.h"
+#include "Stateless/Modules/NiagaraStatelessModule_MeshIndex.h"
 #include "Stateless/Modules/NiagaraStatelessModule_MeshRotationRate.h"
 #include "Stateless/Modules/NiagaraStatelessModule_RotateAroundPoint.h"
 #include "Stateless/Modules/NiagaraStatelessModule_ScaleColor.h"
@@ -80,6 +81,7 @@ void UNiagaraStatelessEmitterDefault::InitModulesAndAttributes()
 		UNiagaraStatelessModule_ScaleSpriteSizeBySpeed::StaticClass(),
 		UNiagaraStatelessModule_ScaleMeshSize::StaticClass(),
 		UNiagaraStatelessModule_ScaleMeshSizeBySpeed::StaticClass(),
+		UNiagaraStatelessModule_MeshIndex::StaticClass(),
 		UNiagaraStatelessModule_MeshRotationRate::StaticClass(),
 		UNiagaraStatelessModule_AddVelocity::StaticClass(),
 		UNiagaraStatelessModule_AccelerationForce::StaticClass(),
@@ -101,6 +103,7 @@ void UNiagaraStatelessEmitterDefault::InitModulesAndAttributes()
 		StatelessGlobals.CameraOffsetVariable,
 		StatelessGlobals.ColorVariable,
 		StatelessGlobals.DynamicMaterialParameters0Variable,
+		StatelessGlobals.MeshIndexVariable,
 		StatelessGlobals.MeshOrientationVariable,
 		StatelessGlobals.RibbonWidthVariable,
 		StatelessGlobals.ScaleVariable,
@@ -147,6 +150,7 @@ void UNiagaraStatelessEmitterDefault::SetShaderParameters(uint8* ShaderParameter
 	ShaderParameters->Permutation_CameraOffsetComponent				= ComponentOffsets[iComponent++];
 	ShaderParameters->Permutation_ColorComponent					= ComponentOffsets[iComponent++];
 	ShaderParameters->Permutation_DynamicMaterialParameter0Component= ComponentOffsets[iComponent++];
+	ShaderParameters->Permutation_MeshIndexComponent				= ComponentOffsets[iComponent++];
 	ShaderParameters->Permutation_MeshOrientationComponent			= ComponentOffsets[iComponent++];
 	ShaderParameters->Permutation_RibbonWidthComponent				= ComponentOffsets[iComponent++];
 	ShaderParameters->Permutation_ScaleComponent					= ComponentOffsets[iComponent++];

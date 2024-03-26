@@ -16,6 +16,7 @@
 #include "Modules/NiagaraStatelessModule_DynamicMaterialParameters.ush"
 #include "Modules/NiagaraStatelessModule_InitializeParticle.ush"
 #include "Modules/NiagaraStatelessModule_InitialMeshOrientation.ush"
+#include "Modules/NiagaraStatelessModule_MeshIndex.ush"
 #include "Modules/NiagaraStatelessModule_MeshRotationRate.ush"
 #include "Modules/NiagaraStatelessModule_RotateAroundPoint.ush"
 #include "Modules/NiagaraStatelessModule_ShapeLocation.ush"
