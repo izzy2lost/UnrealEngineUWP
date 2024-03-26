@@ -490,6 +490,15 @@ FArchive& operator<<(FArchive& Ar, FActorInstanceHandle& Handle)
 	if (Ar.IsLoading())
 	{
 		Handle.ManagerInterface = FActorInstanceManagerInterface(WeakManagerObject.Get());
+		IActorInstanceManagerInterface* AsManager = Handle.ManagerInterface.Get();
+
+		if (AsManager && Handle.InstanceIndex != INDEX_NONE
+			&& Handle.ManagerInterface.GetObject() == Handle.ReferenceObject)
+		{
+			Handle.ResolutionStatus = FActorInstanceHandle::EResolutionStatus::Invalid;
+			Handle.ReferenceObject = nullptr;
+			Handle.ReferenceObject = AsManager->FindActor(Handle);
+		}
 		Handle.ResolutionStatus = FActorInstanceHandle::EResolutionStatus::Resolved;
 	}
 
