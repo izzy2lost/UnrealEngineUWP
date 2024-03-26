@@ -16,47 +16,95 @@ using Microsoft.Extensions.Logging;
 
 namespace UnrealGameSync
 {
-	public interface IArchiveInfo
+	public interface IArchive
+	{
+		public string Key { get; }
+
+		Task<bool> DownloadAsync(IPerforceConnection perforce, DirectoryReference localRootPath, FileReference manifestFileName, ILogger logger, ProgressValue progress, CancellationToken cancellationToken);
+	}
+
+	public interface IArchiveChannel
 	{
 		public const string EditorArchiveType = "Editor";
 
+		// Name to display in the UI
 		string Name { get; }
-		string Type { get; }
-		string BasePath { get; }
-		string? Target { get; }
 
-		bool Exists();
-		bool TryGetArchiveKeyForChangeNumber(int changeNumber, int maxChangeNumber, [NotNullWhen(true)] out string? archiveKey);
-		Task<bool> DownloadArchive(IPerforceConnection perforce, string archiveKey, DirectoryReference localRootPath, FileReference manifestFileName, ILogger logger, ProgressValue progress, CancellationToken cancellationToken);
+		// Type key; only one item of each type may be enabled
+		string Type { get; }
+
+		// Tooltip when hovering over item in UI
+		string ToolTip { get; }
+
+		bool HasAny();
+		IArchive? TryGetArchiveForChangeNumber(int changeNumber, int maxChangeNumber);
 	}
 
-	public abstract class BaseArchiveInfo : IArchiveInfo
+	public abstract class BaseArchiveChannel : IArchiveChannel
 	{
 		public string Name { get; }
 		public string Type { get; }
-		public string BasePath { get; set; }
-		public string? Target { get; }
 
-		public abstract Task<bool> DownloadArchive(IPerforceConnection perforce, string archiveKey, DirectoryReference localRootPath, FileReference manifestFileName, ILogger logger, ProgressValue progress, CancellationToken cancellationToken);
-
-		// Abstract BaseArchiveInfo Helper Functions
-		public abstract Task FindArtifacts(IPerforceConnection perforce, CancellationToken cancellationToken);
+		public virtual string ToolTip { get; } = "";
 
 		// TODO: executable/configuration?
-		public SortedList<int, string> ChangeNumberToArchiveKey { get; } = new SortedList<int, string>();
+		public SortedList<int, IArchive> ChangeNumberToArchive { get; } = new SortedList<int, IArchive>();
 
-		protected BaseArchiveInfo(string name, string type, string basePath, string? target)
+		protected BaseArchiveChannel(string name, string type)
 		{
 			Name = name;
 			Type = type;
-			BasePath = basePath;
+		}
+
+		public bool HasAny()
+		{
+			return ChangeNumberToArchive.Count > 0;
+		}
+
+		public IArchive? TryGetArchiveForChangeNumber(int changeNumber, int maxChangeNumber)
+		{
+			int idx = ChangeNumberToArchive.Keys.AsReadOnlyList().BinarySearch(changeNumber);
+			if (idx >= 0)
+			{
+				return ChangeNumberToArchive.Values[idx];
+			}
+
+			int nextIdx = ~idx;
+			if (nextIdx < ChangeNumberToArchive.Count && ChangeNumberToArchive.Keys[nextIdx] <= maxChangeNumber)
+			{
+				return ChangeNumberToArchive.Values[nextIdx];
+			}
+
+			return null;
+		}
+
+		public override string ToString()
+		{
+			return Name;
+		}
+	}
+
+	public class PerforceArchiveChannel : BaseArchiveChannel
+	{
+		public string DepotPath { get; set; }
+		public string? Target { get; }
+
+		public override string ToolTip
+			=> HasAny() ? "" : $"No valid archives found at {DepotPath}";
+
+		public PerforceArchiveChannel(string name, string type, string depotPath, string? target)
+			: base(name, type)
+		{
+			Target = target;
+			DepotPath = depotPath;
 			Target = target;
 		}
 
 		public override bool Equals(object? other)
 		{
-			BaseArchiveInfo? otherArchive = other as BaseArchiveInfo;
-			return otherArchive != null && Name == otherArchive.Name && Type == otherArchive.Type && BasePath == otherArchive.BasePath && Target == otherArchive.Target && Enumerable.SequenceEqual(ChangeNumberToArchiveKey, otherArchive.ChangeNumberToArchiveKey);
+			PerforceArchiveChannel? otherArchive = other as PerforceArchiveChannel;
+			return otherArchive != null && Name == otherArchive.Name && Type == otherArchive.Type && DepotPath == otherArchive.DepotPath && Target == otherArchive.Target 
+				&& Enumerable.SequenceEqual(ChangeNumberToArchive.Select(x => (x.Key, x.Value)), otherArchive.ChangeNumberToArchive.Select(x => (x.Key, x.Value)));
 		}
 
 		public override int GetHashCode()
@@ -64,30 +112,55 @@ namespace UnrealGameSync
 			throw new NotSupportedException();
 		}
 
-		public bool Exists()
+		class PerforceArchive : IArchive
 		{
-			return ChangeNumberToArchiveKey.Count > 0;
+			public string Key { get; }
+
+			public PerforceArchive(string key)
+				=> Key = key;
+
+			public async Task<bool> DownloadAsync(IPerforceConnection perforce, DirectoryReference localRootPath, FileReference manifestFileName, ILogger logger, ProgressValue progress, CancellationToken cancellationToken)
+			{
+				DirectoryReference configDir = UserSettings.GetConfigDir(localRootPath);
+				UserSettings.CreateConfigDir(configDir);
+
+				FileReference tempZipFileName = FileReference.Combine(configDir, "archive.zip");
+				try
+				{
+					PrintRecord record = await perforce.PrintAsync(tempZipFileName.FullName, Key, cancellationToken);
+
+					if (tempZipFileName.ToFileInfo().Length == 0)
+					{
+						return false;
+					}
+					ArchiveUtils.ExtractFiles(tempZipFileName, localRootPath, manifestFileName, progress, logger);
+				}
+				finally
+				{
+					FileReference.SetAttributes(tempZipFileName, FileAttributes.Normal);
+					FileReference.Delete(tempZipFileName);
+				}
+
+				return true;
+			}
 		}
 
-		public static bool TryParseConfigEntry(IHordeClient hordeClient, string text, [NotNullWhen(true)] out BaseArchiveInfo? info)
+		public static bool TryParseConfigEntryAsync(string text, [NotNullWhen(true)] out PerforceArchiveChannel? channel)
 		{
 			ConfigObject obj = new ConfigObject(text);
 
 			string? name = obj.GetValue("Name", null);
 			if (name == null)
 			{
-				info = null;
+				channel = null;
 				return false;
 			}
 
 			// Where to find archives, you'll have either Perforce (DepotPath) or Horde (ArchiveType)
 			string? depotPath = obj.GetValue("DepotPath", null);
-			string? archiveType = obj.GetValue("ArchiveType", null);
-
-			// We only want one of the other, not both or none
-			if (((depotPath == null) && (archiveType == null)) || ((depotPath != null) && (archiveType != null)))
+			if (depotPath == null)
 			{
-				info = null;
+				channel = null;
 				return false;
 			}
 
@@ -97,98 +170,12 @@ namespace UnrealGameSync
 
 			string? streamName = obj.GetValue("StreamName", null);
 
-			if (depotPath != null)
-			{
-				info = new PerforceArchiveInfo(name, type, depotPath, target);
-			}
-			else if ((archiveType != null) && (streamName != null))
-			{
-				info = new HordeArchiveInfo(hordeClient, name, type, archiveType, target, streamName);
-			}
-			else
-			{
-				info = null;
-				return false;
-			}
+			// Build a new list of zipped binaries
+			channel = new PerforceArchiveChannel(name, type, depotPath, target);
 			return true;
 		}
 
-		public bool TryGetArchiveKeyForChangeNumber(int changeNumber, int maxChangeNumber, [NotNullWhen(true)] out string? archiveKey)
-		{
-			int idx = ChangeNumberToArchiveKey.Keys.AsReadOnlyList().BinarySearch(changeNumber);
-			if (idx >= 0)
-			{
-				archiveKey = ChangeNumberToArchiveKey.Values[idx];
-				return true;
-			}
-
-			int nextIdx = ~idx;
-			if (nextIdx < ChangeNumberToArchiveKey.Count && ChangeNumberToArchiveKey.Keys[nextIdx] <= maxChangeNumber)
-			{
-				archiveKey = ChangeNumberToArchiveKey.Values[nextIdx];
-				return true;
-			}
-
-			archiveKey = null;
-			return false;
-		}
-
-		public override string ToString()
-		{
-			return Name;
-		}
-	}
-
-	public class PerforceArchiveInfo : BaseArchiveInfo
-	{
-		public string DepotPath
-		{
-			get => BasePath;
-			set => BasePath = value;
-		}
-
-		public PerforceArchiveInfo(string name, string type, string depotPath, string? target)
-			: base(name, type, depotPath, target)
-		{
-		}
-
-		public override bool Equals(object? other)
-		{
-			PerforceArchiveInfo? otherArchive = other as PerforceArchiveInfo;
-			return otherArchive != null && Name == otherArchive.Name && Type == otherArchive.Type && DepotPath == otherArchive.DepotPath && Target == otherArchive.Target && Enumerable.SequenceEqual(ChangeNumberToArchiveKey, otherArchive.ChangeNumberToArchiveKey);
-		}
-
-		public override int GetHashCode()
-		{
-			throw new NotSupportedException();
-		}
-
-		public override async Task<bool> DownloadArchive(IPerforceConnection perforce, string archiveKey, DirectoryReference localRootPath, FileReference manifestFileName, ILogger logger, ProgressValue progress, CancellationToken cancellationToken)
-		{
-			DirectoryReference configDir = UserSettings.GetConfigDir(localRootPath);
-			UserSettings.CreateConfigDir(configDir);
-
-			FileReference tempZipFileName = FileReference.Combine(configDir, "archive.zip");
-			try
-			{
-				PrintRecord record = await perforce.PrintAsync(tempZipFileName.FullName, archiveKey, cancellationToken);
-
-				if (tempZipFileName.ToFileInfo().Length == 0)
-				{
-					return false;
-				}
-				ArchiveUtils.ExtractFiles(tempZipFileName, localRootPath, manifestFileName, progress, logger);
-			}
-			finally
-			{
-				FileReference.SetAttributes(tempZipFileName, FileAttributes.Normal);
-				FileReference.Delete(tempZipFileName);
-			}
-
-			return true;
-		}
-
-		public override async Task FindArtifacts(IPerforceConnection perforce, CancellationToken cancellationToken)
+		public async Task FindArtifactsAsync(IPerforceConnection perforce, CancellationToken cancellationToken)
 		{
 			PerforceResponseList<FileLogRecord> response = await perforce.TryFileLogAsync(128, FileLogOptions.FullDescriptions, DepotPath, cancellationToken);
 			if (response.Succeeded)
@@ -204,9 +191,10 @@ namespace UnrealGameSync
 							if (tokens[0].StartsWith("[CL", StringComparison.Ordinal) && tokens[1].EndsWith("]", StringComparison.Ordinal))
 							{
 								int originalChangeNumber;
-								if (Int32.TryParse(tokens[1].Substring(0, tokens[1].Length - 1), out originalChangeNumber) && !ChangeNumberToArchiveKey.ContainsKey(originalChangeNumber))
+								if (Int32.TryParse(tokens[1].Substring(0, tokens[1].Length - 1), out originalChangeNumber) && !ChangeNumberToArchive.ContainsKey(originalChangeNumber))
 								{
-									ChangeNumberToArchiveKey[originalChangeNumber] = $"{DepotPath}#{revision.RevisionNumber}";
+									PerforceArchive archive = new PerforceArchive($"{DepotPath}#{revision.RevisionNumber}");
+									ChangeNumberToArchive[originalChangeNumber] = archive;
 								}
 							}
 						}
@@ -214,99 +202,10 @@ namespace UnrealGameSync
 				}
 			}
 		}
-	}
 
-	public class HordeArchiveInfo : BaseArchiveInfo
-	{
-		public string ArchiveType
+		public static async Task<List<PerforceArchiveChannel>> GetChannelsAsync(IPerforceConnection perforce, ConfigFile latestProjectConfigFile, string projectIdentifier, CancellationToken cancellationToken)
 		{
-			get => BasePath;
-			set => BasePath = value;
-		}
-
-		public string StreamName { get; set; }
-
-		private readonly IHordeClient _hordeClient;
-
-		public HordeArchiveInfo(IHordeClient hordeClient, string name, string type, string archiveType, string? target, string streamName)
-			: base(name, type, archiveType, target)
-		{
-			StreamName = streamName;
-			_hordeClient = hordeClient;
-		}
-		public override bool Equals(object? other)
-		{
-			HordeArchiveInfo? otherArchive = other as HordeArchiveInfo;
-			return otherArchive != null && Name == otherArchive.Name && Type == otherArchive.Type && ArchiveType == otherArchive.ArchiveType && Target == otherArchive.Target && StreamName == otherArchive.StreamName && Enumerable.SequenceEqual(ChangeNumberToArchiveKey, otherArchive.ChangeNumberToArchiveKey);
-		}
-
-		public override int GetHashCode()
-		{
-			throw new NotSupportedException();
-		}
-
-		public override async Task<bool> DownloadArchive(IPerforceConnection perforce, string archiveKey, DirectoryReference localRootPath, FileReference manifestFileName, ILogger logger, ProgressValue progress, CancellationToken cancellationToken)
-		{
-			DirectoryReference configDir = UserSettings.GetConfigDir(localRootPath);
-			UserSettings.CreateConfigDir(configDir);
-
-			FileReference tempZipFileName = FileReference.Combine(configDir, "archive.zip");
-			try
-			{
-				HordeHttpClient hordeHttpClient = _hordeClient.CreateHttpClient();
-
-				ArtifactId artifactId = ArtifactId.Parse(archiveKey);
-
-				using (FileStream stream = FileReference.Open(tempZipFileName, FileMode.Create, FileAccess.Write, FileShare.None))
-				{
-					await using Stream sourceStream = await hordeHttpClient.GetArtifactZipAsync(artifactId, cancellationToken);
-					await sourceStream.CopyToAsync(stream, cancellationToken);
-				}
-
-				if (tempZipFileName.ToFileInfo().Length == 0)
-				{
-					return false;
-				}
-				ArchiveUtils.ExtractFiles(tempZipFileName, localRootPath, manifestFileName, progress, logger);
-			}
-			finally
-			{
-				FileReference.SetAttributes(tempZipFileName, FileAttributes.Normal);
-				FileReference.Delete(tempZipFileName);
-			}
-
-			return true;
-		}
-
-		public override async Task FindArtifacts(IPerforceConnection perforce, CancellationToken cancellationToken)
-		{
-			try
-			{
-				HordeHttpClient hordeHttpClient = _hordeClient.CreateHttpClient();
-
-				ArtifactType artifactType = new ArtifactType(ArchiveType);
-				StreamId streamId = new StreamId(StreamName);
-				int? minChange = null;
-				int? maxChange = null;
-				List<GetArtifactResponse> artifactResponse = await hordeHttpClient.FindArtifactsByTypeAsync(artifactType, streamId, minChange, maxChange, null, cancellationToken);
-
-				foreach (GetArtifactResponse response in artifactResponse)
-				{
-					ChangeNumberToArchiveKey[response.Change] = response.Id.ToString();
-				}
-			}
-			catch (Exception)
-			{
-				return;
-			}
-		}
-	}
-
-	public static class BaseArchive
-	{
-		public static async Task<List<BaseArchiveInfo>> EnumerateAsync(IPerforceConnection perforce, IHordeClient hordeClient, ConfigFile latestProjectConfigFile, string projectIdentifier, CancellationToken cancellationToken)
-		{
-			List<BaseArchiveInfo> newArchives = new List<BaseArchiveInfo>();
+			List<PerforceArchiveChannel> channels = new List<PerforceArchiveChannel>();
 
 			// Find all the zipped binaries under this stream
 			ConfigSection? projectConfigSection = latestProjectConfigFile.FindSection(projectIdentifier);
@@ -317,32 +216,146 @@ namespace UnrealGameSync
 				if (legacyEditorArchivePath != null)
 				{
 					// Only Perforce uses the legacy method
-					newArchives.Add(new PerforceArchiveInfo("Editor", "Editor", legacyEditorArchivePath, null));
+					PerforceArchiveChannel legacyChannel = new PerforceArchiveChannel("Editor", "Editor", legacyEditorArchivePath, null);
+					await legacyChannel.FindArtifactsAsync(perforce, cancellationToken);
+					channels.Add(legacyChannel);
 				}
 
 				// New style
 				foreach (string archiveValue in projectConfigSection.GetValues("Archives", Array.Empty<string>()))
 				{
-					BaseArchiveInfo? archive;
-					if (BaseArchiveInfo.TryParseConfigEntry(hordeClient, archiveValue, out archive))
+					PerforceArchiveChannel? channel;
+					if (PerforceArchiveChannel.TryParseConfigEntryAsync(archiveValue, out channel))
 					{
-						newArchives.Add(archive!);
-					}
-				}
-
-				// Make sure the zipped binaries path exists
-				foreach (BaseArchiveInfo newArchive in newArchives)
-				{
-					try
-					{
-						await newArchive.FindArtifacts(perforce, cancellationToken);
-					}
-					catch
-					{
+						await channel.FindArtifactsAsync(perforce, cancellationToken);
+						channels.Add(channel!);
 					}
 				}
 			}
 
+			return channels;
+		}
+	}
+
+	public class HordeArchiveChannel : BaseArchiveChannel
+	{
+		private readonly IHordeClient _hordeClient;
+
+		public HordeArchiveChannel(IHordeClient hordeClient, string name, string type)
+			: base(name, type)
+		{
+			_hordeClient = hordeClient;
+		}
+
+		public override bool Equals(object? other)
+		{
+			HordeArchiveChannel? otherArchive = other as HordeArchiveChannel;
+			return otherArchive != null && Name == otherArchive.Name && Type == otherArchive.Type
+				&& Enumerable.SequenceEqual(ChangeNumberToArchive.Select(x => (x.Key, x.Value)), otherArchive.ChangeNumberToArchive.Select(x => (x.Key, x.Value)));
+		}
+
+		public override int GetHashCode()
+		{
+			throw new NotSupportedException();
+		}
+
+		class HordeArchive : IArchive
+		{
+			readonly IHordeClient _hordeClient;
+			readonly ArtifactId _artifactId;
+
+			public string Key { get; }
+
+			public HordeArchive(IHordeClient hordeClient, ArtifactId artifactId)
+			{
+				_hordeClient = hordeClient;
+				_artifactId = artifactId;
+				Key = artifactId.ToString();
+			}
+
+			public async Task<bool> DownloadAsync(IPerforceConnection perforce, DirectoryReference localRootPath, FileReference manifestFileName, ILogger logger, ProgressValue progress, CancellationToken cancellationToken)
+			{
+				DirectoryReference configDir = UserSettings.GetConfigDir(localRootPath);
+				UserSettings.CreateConfigDir(configDir);
+
+				FileReference tempZipFileName = FileReference.Combine(configDir, "archive.zip");
+				try
+				{
+					HordeHttpClient hordeHttpClient = _hordeClient.CreateHttpClient();
+
+					using (FileStream stream = FileReference.Open(tempZipFileName, FileMode.Create, FileAccess.Write, FileShare.None))
+					{
+						await using Stream sourceStream = await hordeHttpClient.GetArtifactZipAsync(_artifactId, cancellationToken);
+						await sourceStream.CopyToAsync(stream, cancellationToken);
+					}
+
+					if (tempZipFileName.ToFileInfo().Length == 0)
+					{
+						return false;
+					}
+					ArchiveUtils.ExtractFiles(tempZipFileName, localRootPath, manifestFileName, progress, logger);
+				}
+				finally
+				{
+					FileReference.SetAttributes(tempZipFileName, FileAttributes.Normal);
+					FileReference.Delete(tempZipFileName);
+				}
+
+				return true;
+			}
+		}
+
+		public static async Task<List<HordeArchiveChannel>> GetChannelsAsync(IHordeClient hordeClient, string projectIdentifier, CancellationToken cancellationToken)
+		{
+			List<HordeArchiveChannel> channels = new List<HordeArchiveChannel>();
+			try
+			{
+				HordeHttpClient hordeHttpClient = hordeClient.CreateHttpClient();
+
+				ArtifactType artifactType = new ArtifactType("ugs-pcb");
+				string[] artifactKeys = new[] { $"ugs-project={projectIdentifier}" };
+
+				List<GetArtifactResponse> artifactResponses = await hordeHttpClient.FindArtifactsByTypeAsync(artifactType, keys: artifactKeys, cancellationToken: cancellationToken);
+				foreach (IGrouping<ArtifactName, GetArtifactResponse> group in artifactResponses.GroupBy(x => x.Name))
+				{
+					GetArtifactResponse? first = group.FirstOrDefault();
+					if (first != null)
+					{
+						string name = first.Description ?? first.Name.ToString();
+
+						const string ArchiveTypePrefix = "ArchiveType=";
+						string? archiveType = first.Metadata?.FirstOrDefault(x => x.StartsWith(ArchiveTypePrefix));
+
+						string type = IArchiveChannel.EditorArchiveType;
+						if (archiveType != null)
+						{
+							type = archiveType.Substring(ArchiveTypePrefix.Length);
+						}
+
+						HordeArchiveChannel channel = new HordeArchiveChannel(hordeClient, name, type);
+						foreach (GetArtifactResponse response in group)
+						{
+							HordeArchive archive = new HordeArchive(hordeClient, response.Id);
+							channel.ChangeNumberToArchive[response.Change] = archive;
+						}
+						channels.Add(channel);
+					}
+				}
+			}
+			catch (Exception)
+			{
+			}
+			return channels;
+		}
+	}
+
+	public static class BaseArchive
+	{
+		public static async Task<List<BaseArchiveChannel>> EnumerateChannelsAsync(IPerforceConnection perforce, IHordeClient hordeClient, ConfigFile latestProjectConfigFile, string projectIdentifier, CancellationToken cancellationToken)
+		{
+			List<BaseArchiveChannel> newArchives = new List<BaseArchiveChannel>();
+			newArchives.AddRange(await PerforceArchiveChannel.GetChannelsAsync(perforce, latestProjectConfigFile, projectIdentifier, cancellationToken));
+			newArchives.AddRange(await HordeArchiveChannel.GetChannelsAsync(hordeClient, projectIdentifier, cancellationToken));
 			return newArchives;
 		}
 	}

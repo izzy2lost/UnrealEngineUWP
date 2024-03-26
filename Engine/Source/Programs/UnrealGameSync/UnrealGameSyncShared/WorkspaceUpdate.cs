@@ -86,7 +86,7 @@ namespace UnrealGameSync
 		public WorkspaceUpdateOptions Options { get; set; }
 		public BuildConfig EditorConfig { get; set; }
 		public List<string> SyncFilter { get; } = new List<string>();
-		public Dictionary<string, Tuple<IArchiveInfo, string>?> ArchiveTypeToArchive { get; } = new Dictionary<string, Tuple<IArchiveInfo, string>?>();
+		public Dictionary<string, IArchive?> ArchiveTypeToArchive { get; } = new Dictionary<string, IArchive?>();
 		public Dictionary<string, bool> DeleteFiles { get; } = new Dictionary<string, bool>();
 		public Dictionary<string, bool> ClobberFiles { get; } = new Dictionary<string, bool>();
 		public List<ConfigObject> UserBuildStepObjects { get; } = new List<ConfigObject>();
@@ -1162,15 +1162,13 @@ namespace UnrealGameSync
 					DirectoryReference.CreateDirectory(manifestDirectoryName);
 
 					// Sync and extract (or just remove) the given archives
-					foreach (KeyValuePair<string, Tuple<IArchiveInfo, string>?> archiveTypeAndArchive in Context.ArchiveTypeToArchive)
+					foreach ((string archiveType, IArchive? archive) in Context.ArchiveTypeToArchive)
 					{
-						string archiveType = archiveTypeAndArchive.Key;
-
 						// Remove any existing binaries
 						FileReference manifestFileName = FileReference.Combine(manifestDirectoryName, String.Format("{0}.zipmanifest", archiveType));
 						if (FileReference.Exists(manifestFileName))
 						{
-							bool isNotLastSyncedEditorArchive = archiveType != IArchiveInfo.EditorArchiveType || (archiveTypeAndArchive.Value != null && archiveTypeAndArchive.Value.Item2 != state.LastSyncEditorArchive);
+							bool isNotLastSyncedEditorArchive = archiveType != IArchiveChannel.EditorArchiveType || (archive != null && archive.Key != state.LastSyncEditorArchive);
 							if (isNotLastSyncedEditorArchive)
 							{
 								logger.LogInformation("Removing {ArchiveType} binaries...", archiveType);
@@ -1182,21 +1180,19 @@ namespace UnrealGameSync
 						}
 
 						// If we have a new depot path, sync it down and extract it
-						if (archiveTypeAndArchive.Value != null)
+						if (archive != null)
 						{
-							IArchiveInfo archiveInfo = archiveTypeAndArchive.Value.Item1;
-							string archiveKey = archiveTypeAndArchive.Value.Item2;
-
-							if (archiveType != IArchiveInfo.EditorArchiveType || archiveKey != state.LastSyncEditorArchive)
+							string archiveKey = archive.Key;
+							if (archiveType != IArchiveChannel.EditorArchiveType || archiveKey != state.LastSyncEditorArchive)
 							{
 								logger.LogInformation("Syncing {ArchiveType} binaries...", archiveType);
 								Progress.Set(String.Format("Syncing {0} binaries...", archiveType), 0.0f);
-								if (!await archiveInfo.DownloadArchive(perforce, archiveKey, project.LocalRootPath, manifestFileName, logger, Progress, CancellationToken.None))
+								if (!await archive.DownloadAsync(perforce, project.LocalRootPath, manifestFileName, logger, Progress, CancellationToken.None))
 								{
 									return (WorkspaceUpdateResult.FailedToSync, $"Couldn't read {archiveKey}");
 								}
 								// Update last synced editor archive
-								if (archiveType == IArchiveInfo.EditorArchiveType)
+								if (archiveType == IArchiveChannel.EditorArchiveType)
 								{
 									state = stateMgr.Modify(x =>
 									{
@@ -1206,7 +1202,7 @@ namespace UnrealGameSync
 							}
 							else
 							{
-								logger.LogInformation("Skipping {ArchiveType} binaries download, already downloaded", IArchiveInfo.EditorArchiveType);
+								logger.LogInformation("Skipping {ArchiveType} binaries download, already downloaded", IArchiveChannel.EditorArchiveType);
 							}
 						}
 					}
@@ -1278,7 +1274,7 @@ namespace UnrealGameSync
 				FileReference editorReceiptFile = ConfigUtils.GetReceiptFile(project, Context.ProjectConfigFile, editorTargetFile, Context.EditorConfig.ToString());
 
 				// Get the build steps
-				bool usingPrecompiledEditor = Context.ArchiveTypeToArchive.TryGetValue(IArchiveInfo.EditorArchiveType, out Tuple<IArchiveInfo, string>? archiveInfo) && archiveInfo != null;
+				bool usingPrecompiledEditor = Context.ArchiveTypeToArchive.TryGetValue(IArchiveChannel.EditorArchiveType, out IArchive? archive) && archive != null;
 				Dictionary<Guid, ConfigObject> buildStepObjects = ConfigUtils.GetDefaultBuildStepObjects(project, editorTargetName, Context.EditorConfig, Context.ProjectConfigFile, usingPrecompiledEditor);
 				BuildStep.MergeBuildStepObjects(buildStepObjects, Context.ProjectConfigFile.GetValues("Build.Step", Array.Empty<string>()).Select(x => new ConfigObject(x)));
 				BuildStep.MergeBuildStepObjects(buildStepObjects, Context.UserBuildStepObjects);
