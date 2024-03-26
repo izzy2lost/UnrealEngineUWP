@@ -123,7 +123,7 @@ void FSourceControlViewportToolTips::UpdateToolTip()
 {
 	ToolTipText = FText::GetEmpty();
 
-	if (Actor.IsValid())
+	if (Actor.IsValid() && !Actor->IsSelected())
 	{
 		if (UPackage* Package = Actor->GetPackage())
 		{
