@@ -1129,21 +1129,9 @@ FSceneView* FEditorViewportClient::CalcSceneView(FSceneViewFamily* ViewFamily, c
 
 			//The divisor for the matrix needs to match the translation code.
 			const float Zoom = GetOrthoUnitsPerPixel(Viewport);
-			const float OrthoZoom = FMath::Clamp(Zoom * 500.0f, 0.0f, UE_LARGE_HALF_WORLD_MAX);
+			float OrthoWidth = FMath::Clamp(Zoom * ViewportSize.X/2.0f, 0.0f, UE_LARGE_HALF_WORLD_MAX);
+			float OrthoHeight = FMath::Clamp(Zoom * ViewportSize.Y/2.0f, 0.0f, UE_LARGE_HALF_WORLD_MAX);
 
-			float ViewportAspectRatio = float(ViewportSize.X) / (ViewportSize.Y > 0 ? ViewportSize.Y : 1);
-
-			float OrthoWidth, OrthoHeight;
-			if(ViewportAspectRatio >= 1.0f)
-			{
-				OrthoWidth = OrthoZoom;
-				OrthoHeight = OrthoWidth / ViewportAspectRatio;
-			}
-			else
-			{
-				OrthoHeight = OrthoZoom;
-				OrthoWidth = OrthoHeight * ViewportAspectRatio;
-			}
 
 			if (EffectiveViewportType == LVT_OrthoXY)
 			{
@@ -1207,21 +1195,27 @@ FSceneView* FEditorViewportClient::CalcSceneView(FSceneViewFamily* ViewFamily, c
 				check(false);
 			}
 
-			FMinimalViewInfo CalculatePlanesViewInfo;
-			CalculatePlanesViewInfo.ProjectionMode = ECameraProjectionMode::Orthographic;
-			CalculatePlanesViewInfo.bAutoCalculateOrthoPlanes = true;
-			CalculatePlanesViewInfo.OrthoWidth = OrthoWidth;
-			CalculatePlanesViewInfo.Rotation = ViewInitOptions.ViewRotationMatrix.Rotator();
-			CalculatePlanesViewInfo.AspectRatio = ViewportAspectRatio;
-			CalculatePlanesViewInfo.bConstrainAspectRatio = false;
-			CalculatePlanesViewInfo.OrthoNearClipPlane = OrthoWidth * -CVarOrthoEditorDebugClipPlaneScale.GetValueOnAnyThread();
-			CalculatePlanesViewInfo.OrthoFarClipPlane = FarPlane - NearPlane + CalculatePlanesViewInfo.OrthoNearClipPlane;
-			CalculatePlanesViewInfo.AutoCalculateOrthoPlanes(ViewInitOptions);
+			FMatrix::FReal ZScale = 0.5f / UE_OLD_WORLD_MAX;
+			FMatrix::FReal ZOffset = UE_OLD_WORLD_MAX;
+			if(!ViewFamily->EngineShowFlags.Wireframe)
+			{
+				FMinimalViewInfo CalculatePlanesViewInfo;
+				CalculatePlanesViewInfo.ProjectionMode = ECameraProjectionMode::Orthographic;
+				CalculatePlanesViewInfo.bAutoCalculateOrthoPlanes = true;
+				CalculatePlanesViewInfo.OrthoWidth = OrthoWidth;
+				CalculatePlanesViewInfo.Rotation = ViewInitOptions.ViewRotationMatrix.Rotator();
+				CalculatePlanesViewInfo.AspectRatio = AspectRatio;
+				CalculatePlanesViewInfo.bConstrainAspectRatio = false;
+				CalculatePlanesViewInfo.OrthoNearClipPlane = OrthoWidth * -CVarOrthoEditorDebugClipPlaneScale.GetValueOnAnyThread();
+				CalculatePlanesViewInfo.OrthoFarClipPlane = FarPlane - NearPlane + CalculatePlanesViewInfo.OrthoNearClipPlane;
 
-			ViewInitOptions.UpdateOrthoPlanes(CalculatePlanesViewInfo);
-
-			const float ZScale = 1.0f / (CalculatePlanesViewInfo.OrthoFarClipPlane - CalculatePlanesViewInfo.OrthoNearClipPlane);
-			const float ZOffset = -CalculatePlanesViewInfo.OrthoNearClipPlane;
+				CalculatePlanesViewInfo.AutoCalculateOrthoPlanes(ViewInitOptions);
+				if(ViewInitOptions.UpdateOrthoPlanes(CalculatePlanesViewInfo))
+				{
+					ZScale = 1.0f / (CalculatePlanesViewInfo.OrthoFarClipPlane - CalculatePlanesViewInfo.OrthoNearClipPlane);
+					ZOffset = -CalculatePlanesViewInfo.OrthoNearClipPlane;
+				}
+			}			
 
 			ViewInitOptions.ProjectionMatrix = FReversedZOrthoMatrix(
 				OrthoWidth,

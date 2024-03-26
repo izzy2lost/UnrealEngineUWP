@@ -128,10 +128,10 @@ public:
 	}
 
 	// Function for correcting Ortho camera near plane locations to avoid artifacts behind camera view origin
-	static ENGINE_API bool UpdateOrthoPlanes(FSceneViewProjectionData* InOutProjectionData, float& NearPlane, float& FarPlane);
-	ENGINE_API inline bool UpdateOrthoPlanes(float& NearPlane, float& FarPlane)
+	static ENGINE_API bool UpdateOrthoPlanes(FSceneViewProjectionData* InOutProjectionData, float& NearPlane, float& FarPlane, float HalfOrthoWidth);
+	ENGINE_API inline bool UpdateOrthoPlanes(float& NearPlane, float& FarPlane, float HalfOrthoWidth)
 	{
-		return UpdateOrthoPlanes(this, NearPlane, FarPlane);
+		return UpdateOrthoPlanes(this, NearPlane, FarPlane, HalfOrthoWidth);
 	}
 	ENGINE_API bool UpdateOrthoPlanes(FMinimalViewInfo& MinimalViewInfo);
 	ENGINE_API bool UpdateOrthoPlanes();
