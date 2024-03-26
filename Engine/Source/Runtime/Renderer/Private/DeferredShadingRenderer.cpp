@@ -3043,6 +3043,13 @@ void FDeferredShadingSceneRenderer::Render(FRDGBuilder& GraphBuilder)
 			Nanite::DrawVisibleBricks( GraphBuilder, *Scene, View, SceneTextures );
 		}
 
+		// Composite Heterogeneous Volumes
+		if (!bHasRayTracedOverlay && ShouldRenderHeterogeneousVolumes(Scene) &&
+			(GetHeterogeneousVolumesComposition() == EHeterogeneousVolumesCompositionType::BeforeTranslucent))
+		{
+			CompositeHeterogeneousVolumes(GraphBuilder, SceneTextures);
+		}
+
 		// Draw translucency.
 		if (!bHasRayTracedOverlay && TranslucencyViewsToRender != ETranslucencyView::None)
 		{
@@ -3250,7 +3257,9 @@ void FDeferredShadingSceneRenderer::Render(FRDGBuilder& GraphBuilder)
 			RenderStationaryLightOverlap(GraphBuilder, SceneTextures, LightingChannelsTexture);
 		}
 
-		if (ShouldRenderHeterogeneousVolumes(Scene) && !bHasRayTracedOverlay)
+		// Composite Heterogeneous Volumes
+		if (!bHasRayTracedOverlay && ShouldRenderHeterogeneousVolumes(Scene) &&
+			(GetHeterogeneousVolumesComposition() == EHeterogeneousVolumesCompositionType::AfterTranslucent))
 		{
 			CompositeHeterogeneousVolumes(GraphBuilder, SceneTextures);
 		}
