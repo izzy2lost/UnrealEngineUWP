@@ -220,6 +220,10 @@ public:
 	UPROPERTY(EditAnywhere, Category = TableProperties)
 	FName VersionColumn;
 
+	/** Name of the row that will be used as default value. */
+	UPROPERTY(EditAnywhere, Category = TableProperties)
+	FName DefaultRowName;
+
 	UPROPERTY(EditAnywhere, Category = UI, meta = (DisplayName = "Parameter UI Metadata"))
 	FMutableParamUIMetadata ParamUIMetadata;
 

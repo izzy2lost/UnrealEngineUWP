@@ -315,7 +315,7 @@ namespace mu
 
         //-----------------------------------------------------------------------------------------
         //!
-        Ptr<ASTOp> GenerateTableVariable(Ptr<const Node>, const FTableCacheKey&, bool bAddNoneOption);
+        Ptr<ASTOp> GenerateTableVariable(Ptr<const Node>, const FTableCacheKey&, bool bAddNoneOption, const FString& DefaultRowName);
 
         //!
         Ptr<ASTOp> GenerateMissingBoolCode(const TCHAR* strWhere, bool value, const void* errorContext );
@@ -743,7 +743,7 @@ namespace mu
         if ( !Variable)
         {
             // Create the table variable expression
-            Variable = GenerateTableVariable( node.m_pNode, CacheKey, node.bNoneOption);
+            Variable = GenerateTableVariable( node.m_pNode, CacheKey, node.bNoneOption, node.DefaultRowName);
 
             GeneratedTables.Add(CacheKey, Variable );
         }

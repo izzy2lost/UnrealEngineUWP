@@ -73,6 +73,9 @@ namespace mu
 		//!
 		void SetReferenceImageDescriptor(const FImageDesc& Descriptor);
 
+		//! Set the row name to be used as default value
+		void SetDefaultRowName(const FString& RowName);
+
 		//-----------------------------------------------------------------------------------------
 		// Interface pattern
 		//-----------------------------------------------------------------------------------------

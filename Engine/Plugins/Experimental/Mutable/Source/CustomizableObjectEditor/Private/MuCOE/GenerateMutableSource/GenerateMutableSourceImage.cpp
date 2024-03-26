@@ -1091,6 +1091,7 @@ mu::NodeImagePtr GenerateMutableSourceImage(const UEdGraphPin* Pin, FMutableGrap
 							ImageTableNode->SetColumn(ColumnName);
 							ImageTableNode->SetParameterName(TypedNodeTable->ParameterName);
 							ImageTableNode->SetNoneOption(TypedNodeTable->bAddNoneOption);
+							ImageTableNode->SetDefaultRowName(TypedNodeTable->DefaultRowName.ToString());
 
 							if (UTexture2D* DefaultTexture2D = Cast<UTexture2D>(DefaultTexture))
 							{

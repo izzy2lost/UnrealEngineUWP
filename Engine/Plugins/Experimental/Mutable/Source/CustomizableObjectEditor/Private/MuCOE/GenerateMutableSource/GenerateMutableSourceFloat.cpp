@@ -365,6 +365,7 @@ mu::NodeScalarPtr GenerateMutableSourceFloat(const UEdGraphPin* Pin, FMutableGra
 						ScalarTableNode->SetColumn(ColumnName);
 						ScalarTableNode->SetParameterName(TypedNodeTable->ParameterName);
 						ScalarTableNode->SetNoneOption(TypedNodeTable->bAddNoneOption);
+						ScalarTableNode->SetDefaultRowName(TypedNodeTable->DefaultRowName.ToString());
 					}
 				}
 				else

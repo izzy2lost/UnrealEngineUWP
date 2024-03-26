@@ -3735,6 +3735,7 @@ mu::NodeMeshPtr GenerateMutableSourceMesh(const UEdGraphPin* Pin,
 						MeshTableNode->SetColumn(MutableColumnName);
 						MeshTableNode->SetParameterName(TypedNodeTable->ParameterName);
 						MeshTableNode->SetNoneOption(TypedNodeTable->bAddNoneOption);
+						MeshTableNode->SetDefaultRowName(TypedNodeTable->DefaultRowName.ToString());
 
 						if (DefaultSkeletalMesh)
 						{

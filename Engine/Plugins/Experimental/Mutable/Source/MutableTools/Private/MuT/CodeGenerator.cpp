@@ -309,17 +309,19 @@ namespace mu
 	}
 
 
-	Ptr<ASTOp> CodeGenerator::GenerateTableVariable(Ptr<const Node> InNode, const FTableCacheKey& CacheKey, bool bAddNoneOption)
+	Ptr<ASTOp> CodeGenerator::GenerateTableVariable(Ptr<const Node> InNode, const FTableCacheKey& CacheKey, bool bAddNoneOption, const FString& DefaultRowName)
 	{
 		Ptr<ASTOp> result;
 
         FParameterDesc param;
         param.m_name = CacheKey.ParameterName;
-        if ( param.m_name.Len()==0 )
+
+        if (param.m_name.Len() == 0)
         {
-            param.m_name = TCHAR_TO_ANSI(*CacheKey.Table->GetName());
+            param.m_name = CacheKey.Table->GetName();
         }
-        param.m_type = PARAMETER_TYPE::T_INT;
+        
+		param.m_type = PARAMETER_TYPE::T_INT;
         param.m_defaultValue.Set<ParamIntType>(0);
 
 		// Add the possible values
@@ -354,16 +356,22 @@ namespace mu
 
 				if (nameCol > -1)
 				{
-					value.m_name = TCHAR_TO_ANSI(*CacheKey.Table->GetPrivate()->Rows[i].Values[nameCol].String);
+					value.m_name = CacheKey.Table->GetPrivate()->Rows[i].Values[nameCol].String;
 				}
 
 				param.m_possibleValues.Add(value);
 
-                // The first row is the default one
-                if (i==0)
-                {
-                    param.m_defaultValue.Set<ParamIntType>(value.m_value);
-                }
+				// Set the first row as the default one (if there is none option)
+				if (i == 0 && !bAddNoneOption)
+				{
+					param.m_defaultValue.Set<ParamIntType>(value.m_value);
+				}
+				
+				// Set the selected row as default (if exists)
+				if (value.m_name == DefaultRowName)
+				{
+					param.m_defaultValue.Set<ParamIntType>(value.m_value);
+				}
             }
         }
 

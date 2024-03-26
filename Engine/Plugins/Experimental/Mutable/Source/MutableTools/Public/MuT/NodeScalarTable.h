@@ -62,6 +62,9 @@ namespace mu
 		//! Adds the "None" option to the parameter that represents this table column
 		void SetNoneOption(bool bAddOption);
 
+		//! Set the row name to be used as default value
+		void SetDefaultRowName(const FString& RowName);
+
 		//-----------------------------------------------------------------------------------------
 		// Interface pattern
 		//-----------------------------------------------------------------------------------------

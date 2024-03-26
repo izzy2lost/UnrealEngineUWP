@@ -22,17 +22,19 @@ namespace mu
 		TablePtr Table;
 		FString ColumnName;
 		bool bNoneOption = false;
+		FString DefaultRowName;
 
 		//!
 		void Serialise( OutputArchive& arch ) const
 		{
-            uint32 ver = 2;
+            uint32 ver = 3;
 			arch << ver;
 
 			arch << ParameterName;
 			arch << Table;
 			arch << ColumnName;
 			arch << bNoneOption;
+			arch << DefaultRowName;
 		}
 
 		//!
@@ -40,7 +42,7 @@ namespace mu
 		{
             uint32 ver;
 			arch >> ver;
-            check(ver <= 2);
+            check(ver <= 3);
 
 			if (ver==0)
 			{
@@ -73,6 +75,11 @@ namespace mu
 			else
 			{
 				bNoneOption = Table->GetPrivate()->bNoneOption_DEPRECATED;
+			}
+
+			if (ver >= 3)
+			{
+				arch >> DefaultRowName;
 			}
 		}
 
