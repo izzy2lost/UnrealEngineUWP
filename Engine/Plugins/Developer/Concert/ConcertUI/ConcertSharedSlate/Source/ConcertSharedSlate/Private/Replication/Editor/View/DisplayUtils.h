@@ -2,11 +2,12 @@
 
 #pragma once
 
-#include "Templates/SharedPointer.h"
 #include "Internationalization/Text.h"
+#include "Templates/SharedPointer.h"
 
 class FString;
 class UObject;
+class UStruct;
 
 struct FConcertPropertyChain;
 struct FSlateIcon;
@@ -38,8 +39,8 @@ namespace UE::ConcertSharedSlate::DisplayUtils
 	/** @return The icon to use for this object */
 	FSlateIcon GetObjectIcon(UObject& Object);
 
-	/** @return The text to use for displaying this property's name. */
-	FText GetPropertyDisplayText(const FConcertPropertyChain& Property);
-	/** @return More lightweight version of GetPropertyDisplayString which does not construct any FText. */
-	FString GetPropertyDisplayString(const FConcertPropertyChain& Property);
+	/** @return The text to use for displaying this property's name. Uses Class to determine class name if available. */
+	FText GetPropertyDisplayText(const FConcertPropertyChain& Property, UStruct* Class = nullptr);
+	/** @return More lightweight version of GetPropertyDisplayString which does not construct any FText. Uses Class to determine class name if available. */
+	FString GetPropertyDisplayString(const FConcertPropertyChain& Property, UStruct* Class = nullptr);
 }
