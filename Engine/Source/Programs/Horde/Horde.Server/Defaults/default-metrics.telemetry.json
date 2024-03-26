@@ -481,6 +481,30 @@
 			"property": "$.Payload.Duration",
 			"function": "Average",
 			"interval": "01:00:00"
+		},
+		{
+			"id": "ubt-uba-duration",
+			"filter": "$[?(@.Payload.EventName == 'Core.UBT.Executor' && @.Payload.Executor=='Unreal Build Accelerator local' )]",
+			"groupBy": "$.Payload.Target,$.Payload.Mode,$.Payload.Configuration,$.Payload.Platform",
+			"property": "$.Payload.Duration",
+			"function": "Average",
+			"interval": "00:01:00"
+		},
+		{
+			"id": "ubt-uba-remote-usage",
+			"filter": "$[?(@.Payload.EventName == 'Core.UBT.Executor' && @.Payload.Executor=='Unreal Build Accelerator local' )]",
+			"groupBy": "$.Payload.Target,$.Payload.Mode,$.Payload.Configuration,$.Payload.Platform",
+			"property": "$.Payload.RemoteUsage",
+			"function": "Average",
+			"interval": "00:01:00"
+		},
+		{
+			"id": "ubt-uba-local-usage",
+			"filter": "$[?(@.Payload.EventName == 'Core.UBT.Executor' && @.Payload.Executor=='Unreal Build Accelerator local' )]",
+			"groupBy": "$.Payload.Target,$.Payload.Mode,$.Payload.Configuration,$.Payload.Platform",
+			"property": "$.Payload.LocalUsage",
+			"function": "Average",
+			"interval": "00:01:00"
 		}
 	]
 }

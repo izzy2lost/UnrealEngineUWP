@@ -532,18 +532,24 @@
 					"name": "Compile",
 					"charts": [
 						{
-							"name": "Full Compile",
+							"name": "UBA Compile Duration",
 							"metrics": [
 								{
-									"id": "horde-monolithic-compile-jobs"
+									"id": "ubt-uba-duration",
 								}
 							]
 						},
 						{
-							"name": "Incremental Compile",
+							"name": "UBA Compile Distribution",
+							"display": "Ratio",
 							"metrics": [
 								{
-									"id": "horde-incremental-compile-jobs"
+									"id": "ubt-uba-remote-usage",
+									"alias": "Remote"
+								},
+								{
+									"id": "ubt-uba-local-usage",
+									"alias": "Local"
 								}
 							]
 						}
