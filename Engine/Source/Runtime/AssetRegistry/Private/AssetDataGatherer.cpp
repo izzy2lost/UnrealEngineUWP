@@ -2829,6 +2829,7 @@ void FAssetDataDiscovery::AddMountPointInternal(const FString& LocalAbsPath, FSt
 		FStringView RelPath;
 		verify(FPathViews::TryMakeChildPathRelativeTo(LocalAbsPath, ParentMount->GetLocalAbsPath(), RelPath));
 		ParentMount->AddChildMount(&Mount);
+		Mount.SetParentMount(ParentMount);
 		for (FMountDir* ChildMount : ChildMounts)
 		{
 			ParentMount->RemoveChildMount(ChildMount);
@@ -2837,7 +2838,7 @@ void FAssetDataDiscovery::AddMountPointInternal(const FString& LocalAbsPath, FSt
 	for (FMountDir* ChildMount : ChildMounts)
 	{
 		Mount.AddChildMount(ChildMount);
-		ChildMount->SetParentMount(ParentMount);
+		ChildMount->SetParentMount(&Mount);
 	}
 }
 
