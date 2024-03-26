@@ -329,6 +329,8 @@ void UPCGEditorGraphNodeBase::RebuildAfterPaste()
 {
 	if (PCGNode)
 	{
+		PCGNode->RebuildAfterPaste();
+
 		RebuildEdgesFromPins();
 
 		PCGNode->OnNodeChangedDelegate.AddUObject(this, &UPCGEditorGraphNodeBase::OnNodeChanged);
