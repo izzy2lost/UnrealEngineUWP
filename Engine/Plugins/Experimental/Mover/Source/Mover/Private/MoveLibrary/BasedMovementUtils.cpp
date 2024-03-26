@@ -4,8 +4,10 @@
 #include "MoveLibrary/MovementUtils.h"
 #include "MoveLibrary/FloorQueryUtils.h"
 #include "Components/PrimitiveComponent.h"
+#include "MoverComponent.h"
 #include "MoverLog.h"
 #include "Kismet/KismetMathLibrary.h"
+#include "DefaultMovementSet/Settings/CommonLegacyMovementSettings.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(BasedMovementUtils)
 
@@ -15,6 +17,7 @@ void FRelativeBaseInfo::Clear()
 	BoneName = NAME_None;
 	Location = FVector::ZeroVector;
 	Rotation = FQuat::Identity;
+	ContactLocalPosition = FVector::ZeroVector;
 }
 
 bool FRelativeBaseInfo::HasRelativeInfo() const
@@ -24,7 +27,7 @@ bool FRelativeBaseInfo::HasRelativeInfo() const
 
 bool FRelativeBaseInfo::UsesSameBase(const FRelativeBaseInfo& Other) const
 {
-	return UsesSameBase(Other.MovementBase, Other.BoneName);
+	return UsesSameBase(Other.MovementBase.Get(), Other.BoneName);
 }
 
 bool FRelativeBaseInfo::UsesSameBase(const UPrimitiveComponent* OtherComp, FName OtherBoneName) const
@@ -42,11 +45,15 @@ void FRelativeBaseInfo::SetFromFloorResult(const FFloorCheckResult& FloorTestRes
 	{
 		MovementBase = FloorTestResult.HitResult.GetComponent();
 
-		if (MovementBase)
+		if (MovementBase.IsValid())
 		{
 			BoneName = FloorTestResult.HitResult.BoneName;
-			bDidSucceed  = UBasedMovementUtils::GetMovementBaseTransform(MovementBase, BoneName, /*out*/Location, /*out*/Rotation);
-			bDidSucceed &= UBasedMovementUtils::TransformWorldLocationToBased(MovementBase, BoneName, FloorTestResult.HitResult.ImpactPoint, /*out*/ContactLocalPosition);
+
+			if (UBasedMovementUtils::GetMovementBaseTransform(MovementBase.Get(), BoneName, OUT Location, OUT Rotation) &&
+				UBasedMovementUtils::TransformWorldLocationToBased(MovementBase.Get(), BoneName, FloorTestResult.HitResult.ImpactPoint, OUT ContactLocalPosition))
+			{
+				bDidSucceed = true;
+			}
 		}
 	}
 
@@ -62,10 +69,10 @@ void FRelativeBaseInfo::SetFromComponent(UPrimitiveComponent* InRelativeComp, FN
 
 	MovementBase = InRelativeComp;
 
-	if (MovementBase)
+	if (MovementBase.IsValid())
 	{
 		BoneName = InBoneName;
-		bDidSucceed = UBasedMovementUtils::GetMovementBaseTransform(MovementBase, BoneName, /*out*/Location, /*out*/Rotation);
+		bDidSucceed = UBasedMovementUtils::GetMovementBaseTransform(MovementBase.Get(), BoneName, /*out*/Location, /*out*/Rotation);
 	}
 
 	if (!bDidSucceed)
@@ -74,69 +81,38 @@ void FRelativeBaseInfo::SetFromComponent(UPrimitiveComponent* InRelativeComp, FN
 	}
 }
 
+
+FString FRelativeBaseInfo::ToString() const
+{
+	if (MovementBase.IsValid())
+	{
+		return FString::Printf(TEXT("Base: %s, Loc: %s, Rot: %s, LocalContact: %s"),
+			*GetNameSafe(MovementBase->GetOwner()),
+			*Location.ToCompactString(),
+			*Rotation.Rotator().ToCompactString(),
+			*ContactLocalPosition.ToCompactString());
+	}
+
+	return FString(TEXT("Base: NULL"));
+}
+
 bool UBasedMovementUtils::IsADynamicBase(const UPrimitiveComponent* MovementBase)
 {
 	return (MovementBase && MovementBase->Mobility == EComponentMobility::Movable);
 }
 
-bool UBasedMovementUtils::TryMoveToStayWithBase(USceneComponent* UpdatedComponent, UPrimitiveComponent* UpdatedPrimitive, const FRelativeBaseInfo& OldBaseInfo, FMovementRecord& MoveRecord, const bool& bIgnoreBaseRotation)
+bool UBasedMovementUtils::IsBaseSimulatingPhysics(const UPrimitiveComponent* MovementBase)
 {
-	FVector NewBaseLocation;
-	FQuat NewBaseQuat;
-
-
-	if (UBasedMovementUtils::GetMovementBaseTransform(OldBaseInfo.MovementBase, OldBaseInfo.BoneName, OUT NewBaseLocation, OUT NewBaseQuat))
+	bool bBaseIsSimulatingPhysics = false;
+	const USceneComponent* AttachParent = MovementBase;
+	while (!bBaseIsSimulatingPhysics && AttachParent)
 	{
-		const bool bDidBaseRotationChange = !OldBaseInfo.Rotation.Equals(NewBaseQuat, UE_SMALL_NUMBER);
-		const bool bDidBaseLocationChange = (OldBaseInfo.Location != NewBaseLocation);
-
-		// Find change in rotation
-		FQuat DeltaQuat = FQuat::Identity;
-		FVector DeltaLoc = FVector::ZeroVector;
-		FQuat TargetQuat = UpdatedComponent->GetComponentQuat();
-
-		if (bDidBaseRotationChange && !bIgnoreBaseRotation)
-		{
-			DeltaQuat = NewBaseQuat * OldBaseInfo.Rotation.Inverse();
-			TargetQuat = DeltaQuat * TargetQuat;
-
-			// TODO: make this respect the "up" direction, rather than assuming +Z = up
-			FVector TargetForwVector = TargetQuat.GetForwardVector();
-			TargetForwVector.Z = 0.f;
-			TargetForwVector.Normalize();
-
-			TargetQuat = UKismetMathLibrary::MakeRotFromX(TargetForwVector).Quaternion();
-		}
-
-		if (bDidBaseRotationChange || bDidBaseLocationChange)
-		{
-			// Calculate new transform matrix of base actor (ignoring scale).
-			const FQuatRotationTranslationMatrix OldLocalToWorld(OldBaseInfo.Rotation, OldBaseInfo.Location);
-			const FQuatRotationTranslationMatrix NewLocalToWorld(NewBaseQuat, NewBaseLocation);
-
-			// Find change in location
-			// NOTE that we need to use the floor hit location, not the actor's root position which may be floating above the base
-			const FVector NewWorldBaseContactPos = NewLocalToWorld.TransformPosition(OldBaseInfo.ContactLocalPosition);
-
-			const FVector OldWorldBaseContactPos = OldLocalToWorld.TransformPosition(OldBaseInfo.ContactLocalPosition);
-
-			DeltaLoc = NewWorldBaseContactPos - OldWorldBaseContactPos;
-
-			EMoveComponentFlags MoveComponentFlags = MOVECOMP_IgnoreBases;
-
-			const bool bSweep = true;
-			FHitResult MoveHitResult;
-			
-			bool bDidMove = UMovementUtils::TryMoveUpdatedComponent_Internal(UpdatedComponent, DeltaLoc, TargetQuat, bSweep, MoveComponentFlags, &MoveHitResult, ETeleportType::None);
-			
-			return bDidMove;
-		}
-
-		// TODO: rework this to ensure MoveRecord contains the appropriate thing
+		bBaseIsSimulatingPhysics = AttachParent->IsSimulatingPhysics();
+		AttachParent = AttachParent->GetAttachParent();
 	}
-
-	return false;
+	return bBaseIsSimulatingPhysics;
 }
+
 
 bool UBasedMovementUtils::GetMovementBaseTransform(const UPrimitiveComponent* MovementBase, const FName BoneName, FVector& OutLocation, FQuat& OutQuat)
 {
@@ -284,4 +260,227 @@ void UBasedMovementUtils::TransformRotatorToLocal(FQuat BaseQuat, FRotator World
 {
 	FQuat WorldQuat(WorldSpaceRotator);
 	OutLocalRotator = (BaseQuat.Inverse() * WorldQuat).Rotator();
+}
+
+void UBasedMovementUtils::AddTickDependency(FTickFunction& BasedObjectTick, UPrimitiveComponent* NewBase)
+{
+	if (NewBase && IsADynamicBase(NewBase))
+	{
+		if (NewBase->PrimaryComponentTick.bCanEverTick)
+		{
+			BasedObjectTick.AddPrerequisite(NewBase, NewBase->PrimaryComponentTick);
+		}
+
+		AActor* NewBaseOwner = NewBase->GetOwner();
+		if (NewBaseOwner)
+		{
+			if (NewBaseOwner->PrimaryActorTick.bCanEverTick)
+			{
+				BasedObjectTick.AddPrerequisite(NewBaseOwner, NewBaseOwner->PrimaryActorTick);
+			}
+
+			// @TODO: We need to find a more efficient way of finding all ticking components in an actor.
+			for (UActorComponent* Component : NewBaseOwner->GetComponents())
+			{
+				// Dont allow a based component (e.g. a particle system) to push us into a different tick group
+				if (Component && Component->PrimaryComponentTick.bCanEverTick && Component->PrimaryComponentTick.TickGroup <= BasedObjectTick.TickGroup)
+				{
+					BasedObjectTick.AddPrerequisite(Component, Component->PrimaryComponentTick);
+				}
+			}
+		}
+	}
+	else
+	{
+		UE_LOG(LogMover, Warning, TEXT("Attempted to AddTickDependency on an invalid or non-dynamic base: %s"), *GetNameSafe(NewBase));
+	}
+}
+
+void UBasedMovementUtils::RemoveTickDependency(FTickFunction& BasedObjectTick, UPrimitiveComponent* OldBase)
+{
+	if (OldBase)
+	{
+		BasedObjectTick.RemovePrerequisite(OldBase, OldBase->PrimaryComponentTick);
+		
+		if (AActor* OldBaseOwner = OldBase->GetOwner())
+		{
+			BasedObjectTick.RemovePrerequisite(OldBaseOwner, OldBaseOwner->PrimaryActorTick);
+
+			// @TODO: We need to find a more efficient way of finding all ticking components in an actor.
+			for (UActorComponent* Component : OldBaseOwner->GetComponents())
+			{
+				if (Component && Component->PrimaryComponentTick.bCanEverTick)
+				{
+					BasedObjectTick.RemovePrerequisite(Component, Component->PrimaryComponentTick);
+				}
+			}
+		}
+	}
+}
+
+
+void UBasedMovementUtils::UpdateSimpleBasedMovement(UMoverComponent* TargetMoverComp)
+{
+	if (!TargetMoverComp)
+	{
+		return;
+	}
+
+	UMoverBlackboard* SimBlackboard = TargetMoverComp->GetSimBlackboard_Mutable();
+	USceneComponent* UpdatedComponent = TargetMoverComp->UpdatedComponent;
+
+	bool bIgnoreBaseRotation = false;
+
+	if (const UCommonLegacyMovementSettings* CommonSettings = TargetMoverComp->FindSharedSettings<UCommonLegacyMovementSettings>())
+	{
+		bIgnoreBaseRotation = CommonSettings->bIgnoreBaseRotation;
+	}
+
+	bool bDidGetUpToDate = false;
+	if (TargetMoverComp->HasValidCachedState())
+	{
+		FRelativeBaseInfo LastFoundBaseInfo;	// Last-found is the most recent capture during movement, likely set this sim frame
+		FRelativeBaseInfo LastAppliedBaseInfo;	// Last-applied is the one that our based movement is up to date with, likely set in the last sim frame
+		FRelativeBaseInfo CurrentBaseInfo;		// Current info is the current snapshot of the current base, with up-to-date transform that may be different than last-found.
+
+		const bool bHasLastFoundInfo = SimBlackboard->TryGet(CommonBlackboard::LastFoundDynamicMovementBase, LastFoundBaseInfo);
+		const bool bHasLastAppliedInfo = SimBlackboard->TryGet(CommonBlackboard::LastAppliedDynamicMovementBase, LastAppliedBaseInfo);
+		if (bHasLastFoundInfo)
+		{
+			if (!bHasLastAppliedInfo || !LastFoundBaseInfo.UsesSameBase(LastAppliedBaseInfo))
+			{
+				LastAppliedBaseInfo = LastFoundBaseInfo;	// This is the first time we've checked this base, so start with the last-found capture
+			}
+
+			if (!ensureMsgf(LastFoundBaseInfo.HasRelativeInfo() && LastFoundBaseInfo.UsesSameBase(LastAppliedBaseInfo),
+					TEXT("Attempting to update based movement with a missing or mismatched base. This may indicate a logic problem with detecting bases.")))
+			{ 
+				SimBlackboard->Invalidate(CommonBlackboard::LastFoundDynamicMovementBase);
+				SimBlackboard->Invalidate(CommonBlackboard::LastAppliedDynamicMovementBase);
+				return;
+			}
+
+			CurrentBaseInfo.SetFromComponent(LastFoundBaseInfo.MovementBase.Get(), LastFoundBaseInfo.BoneName);
+			CurrentBaseInfo.ContactLocalPosition = LastFoundBaseInfo.ContactLocalPosition;
+
+			FVector CurrentBaseLocation;
+			FQuat CurrentBaseQuat;
+			
+
+			if (UBasedMovementUtils::GetMovementBaseTransform(CurrentBaseInfo.MovementBase.Get(), CurrentBaseInfo.BoneName, OUT CurrentBaseLocation, OUT CurrentBaseQuat))
+			{
+				const bool bDidBaseRotationChange = !LastAppliedBaseInfo.Rotation.Equals(CurrentBaseQuat, UE_SMALL_NUMBER);
+				const bool bDidBaseLocationChange = (LastAppliedBaseInfo.Location != CurrentBaseLocation);
+
+				FQuat DeltaQuat = FQuat::Identity;
+				FVector WorldDeltaLocation = FVector::ZeroVector;
+				FQuat WorldTargetQuat = UpdatedComponent->GetComponentQuat();
+
+				// Find change in rotation
+
+				if (bDidBaseRotationChange && !bIgnoreBaseRotation)
+				{
+					DeltaQuat = CurrentBaseQuat * LastAppliedBaseInfo.Rotation.Inverse();
+					WorldTargetQuat = DeltaQuat * WorldTargetQuat;
+
+					// TODO: make this respect the "up" direction, rather than assuming +Z = up
+					FVector TargetForwVector = WorldTargetQuat.GetForwardVector();
+					TargetForwVector.Z = 0.f;
+					TargetForwVector.Normalize();
+
+					WorldTargetQuat = UKismetMathLibrary::MakeRotFromX(TargetForwVector).Quaternion();
+				}
+
+				if (bDidBaseLocationChange || bDidBaseRotationChange)
+				{
+					// Calculate new transform matrix of base actor (ignoring scale).
+					const FQuatRotationTranslationMatrix OldLocalToWorld(LastAppliedBaseInfo.Rotation, LastAppliedBaseInfo.Location);
+					const FQuatRotationTranslationMatrix NewLocalToWorld(CurrentBaseQuat, CurrentBaseLocation);
+
+					// Find change in location
+					// NOTE that we are using the floor hit location, not the actor's root position which may be floating above the base
+					const FVector NewWorldBaseContactPos = NewLocalToWorld.TransformPosition(CurrentBaseInfo.ContactLocalPosition);
+					const FVector OldWorldBaseContactPos = OldLocalToWorld.TransformPosition(CurrentBaseInfo.ContactLocalPosition);
+					WorldDeltaLocation = NewWorldBaseContactPos - OldWorldBaseContactPos;
+
+					const FVector OldWorldLocation = UpdatedComponent->GetComponentLocation();
+					EMoveComponentFlags MoveComponentFlags = MOVECOMP_IgnoreBases;
+					const bool bSweep = true;
+					FHitResult MoveHitResult;
+
+					bool bDidMove = UMovementUtils::TryMoveUpdatedComponent_Internal(UpdatedComponent, WorldDeltaLocation, WorldTargetQuat, bSweep, MoveComponentFlags, &MoveHitResult, ETeleportType::None);
+					
+					const FVector NewWorldLocation = UpdatedComponent->GetComponentLocation();
+
+					if ((NewWorldLocation - (OldWorldLocation + WorldDeltaLocation)).IsNearlyZero() == false)
+					{
+						// Find the remaining delta that wasn't achieved
+						const FVector UnachievedWorldDelta = (OldWorldLocation + WorldDeltaLocation) - NewWorldLocation;
+
+						// Convert the remaining delta to current base space
+						FVector UnachievedLocalDelta;
+						UBasedMovementUtils::TransformLocationToLocal(CurrentBaseLocation, CurrentBaseQuat, UnachievedWorldDelta, OUT UnachievedLocalDelta);
+						
+						// Subtract the remaining delta to reflect the change in the contact position
+						CurrentBaseInfo.ContactLocalPosition -= UnachievedLocalDelta;
+					}
+
+					// Read, edit, write out the sync state based on the move results
+					FMoverSyncState PendingSyncState;
+					if (TargetMoverComp->BackendLiaisonComp->ReadPendingSyncState(OUT PendingSyncState))
+					{
+						if (FMoverDefaultSyncState* DefaultSyncState = PendingSyncState.SyncStateCollection.FindMutableDataByType<FMoverDefaultSyncState>())
+						{
+							FVector Velocity = DefaultSyncState->GetVelocity_WorldSpace();
+							DefaultSyncState->SetTransforms_WorldSpace(UpdatedComponent->GetComponentLocation(),
+								UpdatedComponent->GetComponentRotation(),
+								Velocity,
+								CurrentBaseInfo.MovementBase.Get(), CurrentBaseInfo.BoneName);
+
+							TargetMoverComp->BackendLiaisonComp->WritePendingSyncState(PendingSyncState);
+						}
+					}
+
+
+				}
+
+				SimBlackboard->Set(CommonBlackboard::LastAppliedDynamicMovementBase, CurrentBaseInfo);
+				bDidGetUpToDate = true;
+			}
+		}
+	}
+
+	if (!bDidGetUpToDate)
+	{
+		SimBlackboard->Invalidate(CommonBlackboard::LastAppliedDynamicMovementBase);
+	}
+}
+
+
+
+// FMoverDynamicBasedMovementTickFunction ////////////////////////////////////
+
+void FMoverDynamicBasedMovementTickFunction::ExecuteTick(float DeltaTime, enum ELevelTick TickType, ENamedThreads::Type CurrentThread, const FGraphEventRef& MyCompletionGraphEvent)
+{
+	FActorComponentTickFunction::ExecuteTickHelper(TargetMoverComp, /*bTickInEditor=*/ false, DeltaTime, TickType, [this](float DilatedTime)
+		{
+			UBasedMovementUtils::UpdateSimpleBasedMovement(TargetMoverComp);
+		});
+
+	if (bAutoDisableAfterTick)
+	{
+		SetTickFunctionEnable(false);
+	}
+}
+FString FMoverDynamicBasedMovementTickFunction::DiagnosticMessage()
+{
+	return TargetMoverComp->GetFullName() + TEXT("[FMoverDynamicBasedMovementTickFunction]");
+}
+FName FMoverDynamicBasedMovementTickFunction::DiagnosticContext(bool bDetailed)
+{
+	if (bDetailed)
+	{
+		return FName(*FString::Printf(TEXT("UMoverComponent/%s"), *GetFullNameSafe(TargetMoverComp)));
+	}
+	return FName(TEXT("FMoverDynamicBasedMovementTickFunction"));
 }

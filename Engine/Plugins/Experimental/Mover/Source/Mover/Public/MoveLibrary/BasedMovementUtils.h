@@ -3,8 +3,10 @@
 #pragma once
 
 #include "Kismet/BlueprintFunctionLibrary.h"
+#include "Engine/EngineBaseTypes.h"
 #include "BasedMovementUtils.generated.h"
 
+class UMoverComponent;
 struct FMovementRecord;
 struct FFloorCheckResult;
 
@@ -16,7 +18,7 @@ struct MOVER_API FRelativeBaseInfo
 
 	/** Component we are moving relative to */
 	UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, Category="Mover")
-	TObjectPtr<UPrimitiveComponent> MovementBase = nullptr;
+	TWeakObjectPtr<UPrimitiveComponent> MovementBase = nullptr;
 
 	/** Bone name on component, for skeletal meshes. NAME_None if not a skeletal mesh or if bone is invalid. */
 	UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, Category = "Mover")
@@ -30,9 +32,9 @@ struct MOVER_API FRelativeBaseInfo
 	UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, Category = "Mover")
 	FQuat Rotation = FQuat::Identity;
 
-	/** Last captured location of the tethering point where the Mover actor is "attached". */
+	/** Last captured location of the tethering point where the Mover actor is "attached", relative to the base. */
 	UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, Category = "Mover")
-	FVector ContactLocalPosition = FVector::ZeroVector;;
+	FVector ContactLocalPosition = FVector::ZeroVector;
 
 public:
 
@@ -44,6 +46,8 @@ public:
 
 	void SetFromFloorResult(const FFloorCheckResult& FloorTestResult);
 	void SetFromComponent(UPrimitiveComponent* InRelativeComp, FName InBoneName=NAME_None);
+
+	FString ToString() const;
 };
 
 /**
@@ -59,8 +63,9 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Mover/MovementBases")
 	static bool IsADynamicBase(const UPrimitiveComponent* MovementBase);
 
-	/** Attempts to move a component relative to any change of the movement base. OldBaseInfo will typically be captured from the prior simulation frame. */
-	static bool TryMoveToStayWithBase(USceneComponent* UpdatedComponent, UPrimitiveComponent* UpdatedPrimitive, const FRelativeBaseInfo& OldBaseInfo, FMovementRecord& MoveRecord, const bool& bIgnoreBaseRotation);
+	/** Determine whether MovementBase's movement is performed via physics. */
+	UFUNCTION(BlueprintCallable, Category = "Mover/MovementBases")
+	static bool IsBaseSimulatingPhysics(const UPrimitiveComponent* MovementBase);
 	
 	/** Get the transform (local-to-world) for the given MovementBase, optionally at the location of a bone. Returns false if MovementBase is nullptr, or if BoneName is not a valid bone. */
 	UFUNCTION(BlueprintCallable, Category="Mover/MovementBases")
@@ -113,4 +118,52 @@ public:
 	/** Convert a world space rotator to a local rotator for a given MovementBase, optionally relative to the orientation of a bone. Returns false if MovementBase is nullptr, or if BoneName is not a valid bone. Scaling is ignored. */
 	UFUNCTION(BlueprintCallable, Category = "Mover/MovementBases")
 	static void TransformRotatorToLocal(FQuat BaseQuat, FRotator WorldSpaceRotator, FRotator& OutLocalRotator);
+
+
+	/** Makes it so BasedObjectTick ticks after NewBase's actor ticking */
+	static void AddTickDependency(FTickFunction& BasedObjectTick, UPrimitiveComponent* NewBase);
+	
+	/** Removes ticking dependency of BasedObjectTick on OldBase */
+	static void RemoveTickDependency(FTickFunction& BasedObjectTick, UPrimitiveComponent* OldBase);
+
+	/** Attempts to move the actor to keep up with its base's movement using a simple sweep. This function is not intended to be called during a Mover actor's simulation tick. */
+	static void UpdateSimpleBasedMovement(UMoverComponent* TargetMoverComp);
+};
+
+
+/**
+ * Tick function used to perform based movement at dynamic times throughout the world update time, typically out-of-band with the movement simulation
+ **/
+USTRUCT()
+struct FMoverDynamicBasedMovementTickFunction : public FTickFunction
+{
+	GENERATED_USTRUCT_BODY()
+
+	/** MoverComponent that is the target of this tick **/
+	UMoverComponent* TargetMoverComp;
+
+	/** If true, this tick function will self-disable after running */
+	bool bAutoDisableAfterTick = false;
+
+	/**
+	 * Abstract function actually execute the tick.
+	 * @param DeltaTime - frame time to advance, in seconds
+	 * @param TickType - kind of tick for this frame
+	 * @param CurrentThread - thread we are executing on, useful to pass along as new tasks are created
+	 * @param MyCompletionGraphEvent - completion event for this task. Useful for holding the completion of this task until certain child tasks are complete.
+	 **/
+	virtual void ExecuteTick(float DeltaTime, enum ELevelTick TickType, ENamedThreads::Type CurrentThread, const FGraphEventRef& MyCompletionGraphEvent) override;
+	/** Abstract function to describe this tick. Used to print messages about illegal cycles in the dependency graph **/
+	virtual FString DiagnosticMessage() override;
+	/** Function used to describe this tick for active tick reporting. **/
+	virtual FName DiagnosticContext(bool bDetailed) override;
+};
+
+template<>
+struct TStructOpsTypeTraits<FMoverDynamicBasedMovementTickFunction> : public TStructOpsTypeTraitsBase2<FMoverDynamicBasedMovementTickFunction>
+{
+	enum
+	{
+		WithCopy = false
+	};
 };

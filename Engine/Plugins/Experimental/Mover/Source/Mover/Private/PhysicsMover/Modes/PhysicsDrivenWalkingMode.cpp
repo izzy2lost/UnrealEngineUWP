@@ -228,8 +228,11 @@ bool UPhysicsDrivenWalkingMode::AttemptTeleport(USceneComponent* UpdatedComponen
 		nullptr); // no movement base
 
 	// TODO: instead of invalidating it, consider checking for a floor. Possibly a dynamic base?
-	GetBlackboard_Mutable()->Invalidate(CommonBlackboard::LastFloorResult);
-	GetBlackboard_Mutable()->Invalidate(CommonBlackboard::LastMovementBase);
+	if (UMoverBlackboard* SimBlackboard = GetBlackboard_Mutable())
+	{
+		SimBlackboard->Invalidate(CommonBlackboard::LastFloorResult);
+		SimBlackboard->Invalidate(CommonBlackboard::LastFoundDynamicMovementBase);
+	}
 
 	return true;
 }

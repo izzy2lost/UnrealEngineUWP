@@ -21,13 +21,6 @@ class MOVER_API UWalkingMode : public UBaseMovementMode
 	GENERATED_UCLASS_BODY()
 
 public:
-	/**
- 	 * Whether the actor ignores changes in rotation of the base it is standing on.
- 	 * If true, the actor maintains current world rotation.
- 	 * If false, the actor rotates with the moving base.
- 	 */
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category=Mover)
-	bool bIgnoreBaseRotation = true;
 	
 	UFUNCTION(BlueprintCallable, Category=Mover)
 	virtual void OnGenerateMove(const FMoverTickStartData& StartState, const FMoverTimeStep& TimeStep, FProposedMove& OutProposedMove) const override;
@@ -48,7 +41,7 @@ protected:
 	virtual bool AttemptTeleport(USceneComponent* UpdatedComponent, const FVector& TeleportPos, const FRotator& TeleportRot, const FVector& PriorVelocity, FMoverTickEndData& Output);
 
 
-	void CaptureFinalState(USceneComponent* UpdatedComponent, const FFloorCheckResult& FloorResult, const FMovementRecord& Record, FMoverDefaultSyncState& OutputSyncState) const;
+	void CaptureFinalState(USceneComponent* UpdatedComponent, bool bDidAttemptMovement, const FFloorCheckResult& FloorResult, const FMovementRecord& Record, FMoverDefaultSyncState& OutputSyncState) const;
 
 	FRelativeBaseInfo UpdateFloorAndBaseInfo(const FFloorCheckResult& FloorResult) const;
 

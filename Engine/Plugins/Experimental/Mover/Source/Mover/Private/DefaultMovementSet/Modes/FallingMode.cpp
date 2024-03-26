@@ -157,7 +157,7 @@ void UFallingMode::OnSimulationTick(const FSimulationTickParams& Params, FMoverT
 	UMoverBlackboard* SimBlackboard = GetBlackboard_Mutable();
 
 	SimBlackboard->Invalidate(CommonBlackboard::LastFloorResult);	// falling = no valid floor
-	SimBlackboard->Invalidate(CommonBlackboard::LastMovementBase);
+	SimBlackboard->Invalidate(CommonBlackboard::LastFoundDynamicMovementBase);
 
 	OutputSyncState.MoveDirectionIntent = (ProposedMove.bHasDirIntent ? ProposedMove.DirectionIntent : FVector::ZeroVector);
 
@@ -327,12 +327,12 @@ void UFallingMode::CaptureFinalState(USceneComponent* UpdatedComponent, const FM
 
 	if (MovementBaseInfo.HasRelativeInfo())
 	{
-		SimBlackboard->Set(CommonBlackboard::LastMovementBase, MovementBaseInfo);
+		SimBlackboard->Set(CommonBlackboard::LastFoundDynamicMovementBase, MovementBaseInfo);
 
 		OutputSyncState.SetTransforms_WorldSpace( FinalLocation,
 												  UpdatedComponent->GetComponentRotation(),
 												  EffectiveVelocity,
-												  MovementBaseInfo.MovementBase, MovementBaseInfo.BoneName);
+												  MovementBaseInfo.MovementBase.Get(), MovementBaseInfo.BoneName);
 	}
 	else
 	{

@@ -86,7 +86,7 @@ void UFlyingMode::OnSimulationTick(const FSimulationTickParams& Params, FMoverTi
 	UMoverBlackboard* SimBlackboard = GetBlackboard_Mutable();
 
 	SimBlackboard->Invalidate(CommonBlackboard::LastFloorResult);	// flying = no valid floor
-	SimBlackboard->Invalidate(CommonBlackboard::LastMovementBase);
+	SimBlackboard->Invalidate(CommonBlackboard::LastFoundDynamicMovementBase);
 
 	OutputSyncState.MoveDirectionIntent = (ProposedMove.bHasDirIntent ? ProposedMove.DirectionIntent : FVector::ZeroVector);
 
