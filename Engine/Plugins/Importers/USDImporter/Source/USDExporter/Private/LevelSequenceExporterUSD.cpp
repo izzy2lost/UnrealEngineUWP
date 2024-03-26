@@ -25,6 +25,7 @@
 #include "Compilation/MovieSceneCompiledDataManager.h"
 #include "Components/SkeletalMeshComponent.h"
 #include "Editor.h"
+#include "Engine/SkeletalMesh.h"
 #include "Engine/SphereReflectionCapture.h"
 #include "EngineAnalytics.h"
 #include "Evaluation/MovieSceneSequenceHierarchy.h"
@@ -50,6 +51,15 @@
 #include "UObject/UObjectGlobals.h"
 
 #define LOCTEXT_NAMESPACE "LevelSequenceExporterUSD"
+
+static bool bExportAnimationsFromAllComponents = true;
+static FAutoConsoleVariableRef CVarExportAnimationsFromAllComponents(
+	TEXT("USD.ExportAnimationsFromAllComponents"),
+	bExportAnimationsFromAllComponents,
+	TEXT(
+		"If true it means that whenever we export LevelSequences to USD we may try exporting transforms and skeletal animations from all components of actors bound to the Sequence, even if those components aren't directly bound themselves. This is useful when using attach sockets or animation blueprints"
+	)
+);
 
 namespace UE::LevelSequenceExporterUSD::Private
 {
@@ -105,10 +115,10 @@ namespace UE::LevelSequenceExporterUSD::Private
 
 		bool bDestroyingJustHides = true;
 
-		virtual UObject* SpawnObject(const FGuid& Guid, 
-			UMovieScene& MovieScene, 
-			FMovieSceneSequenceIDRef TemplateID, 
-			TSharedRef<const FSharedPlaybackState> SharedPlaybackState, 
+		virtual UObject* SpawnObject(const FGuid& Guid,
+			UMovieScene& MovieScene,
+			FMovieSceneSequenceIDRef TemplateID,
+			TSharedRef<const FSharedPlaybackState> SharedPlaybackState,
 			int32 BindingIndex
 		) override
 		{
@@ -343,7 +353,7 @@ namespace UE::LevelSequenceExporterUSD::Private
 						break;
 					}
 				}
-				
+
 				FLevelSequenceEditorSpawnRegister::DestroySpawnedObject(Object, CustomSpawnableBinding);
 			}
 		}
@@ -925,6 +935,35 @@ namespace UE::LevelSequenceExporterUSD::Private
 			}
 		}
 
+		// Expand BoundObjects to include all components of all of its bound actors (even those without any binding to the LevelSequence).
+		// The idea here is that even if these don't have any tracks, the attach socket and AnimBlueprint fallbacks at the bottom of the
+		// loop below will still be triggered, letting us automatically capture the animations of these components that are "indirectly
+		// animated"
+		if (bExportAnimationsFromAllComponents)
+		{
+			TMap<UObject*, FSpawnedInstanceKey> NewEntries;
+			for (const TPair<UObject*, FSpawnedInstanceKey>& Pair : BoundObjects)
+			{
+				if (AActor* Actor = Cast<AActor>(Pair.Key))
+				{
+					if (USceneComponent* Root = Actor->GetRootComponent())
+					{
+						const bool bIncludeAllDescendants = true;
+						TArray<USceneComponent*> Children;
+						Root->GetChildrenComponents(bIncludeAllDescendants, Children);
+
+						for (USceneComponent* Child : Children)
+						{
+							NewEntries.Add(Child, FSpawnedInstanceKey{});
+						}
+					}
+				}
+			}
+			NewEntries.Append(BoundObjects);	// Prefer values from BoundObjects
+			NewEntries.Remove(nullptr);
+			Swap(NewEntries, BoundObjects);
+		}
+
 		// Generate bakers
 		for (const TPair<UObject*, FSpawnedInstanceKey>& Pair : BoundObjects)
 		{
@@ -970,8 +1009,7 @@ namespace UE::LevelSequenceExporterUSD::Private
 			// opening a referenced stage via an exported UsdStageActor
 			if (const FMovieSceneDynamicBinding* DynamicBinding = DynamicBindings.FindRef(InstanceKey))
 			{
-				if (const FMovieSceneDynamicBindingPayloadVariable* FoundPrimPathPayload = DynamicBinding->PayloadVariables.Find(TEXT("PrimPa"
-																																	  "th")))
+				if (const FMovieSceneDynamicBindingPayloadVariable* FoundPrimPathPayload = DynamicBinding->PayloadVariables.Find(TEXT("PrimPath")))
 				{
 					FString PrimPathInSourceStage = FoundPrimPathPayload->Value;
 					if (!PrimPathInSourceStage.IsEmpty())
@@ -1020,10 +1058,7 @@ namespace UE::LevelSequenceExporterUSD::Private
 										FText::Format(
 											LOCTEXT(
 												"NonIdealComposition",
-												"Exported animation for prim '{0}' may not compose correctly with the prims from referenced "
-												"layer '{1}' on the exported stage for the LevelSequence '{2}'. For best results, make sure "
-												"the referenced layer is saved to disk (i.e. not anonymous), has a defaultPrim setup, and "
-												"that the animation tracks are only bound to prims that are descendents of the defaultPrim."
+												"Exported animation for prim '{0}' may not compose correctly with the prims from referenced layer '{1}' on the exported stage for the LevelSequence '{2}'. For best results, make sure the referenced layer is saved to disk (i.e. not anonymous), has a defaultPrim setup, and that the animation tracks are only bound to prims that are descendents of the defaultPrim."
 											),
 											FText::FromString(PrimPathInSourceStage),
 											FText::FromString(LoadedStage.GetRootLayer().GetIdentifier()),
@@ -1051,7 +1086,42 @@ namespace UE::LevelSequenceExporterUSD::Private
 				continue;
 			}
 
+			TFunction<void(UnrealToUsd::FComponentBaker&)> AddBaker = [&InOutComponentBakers, &BoundComponent](UnrealToUsd::FComponentBaker& Baker)
+			{
+				// If we made a baker and we don't have one of this type for this component yet, add its lambda to the array
+				FCombinedComponentBakers& ExistingBakers = InOutComponentBakers.FindOrAdd(BoundComponent);
+				if (Baker.BakerType != UnrealToUsd::EBakingType::None && !EnumHasAnyFlags(ExistingBakers.CombinedBakingType, Baker.BakerType))
+				{
+					ExistingBakers.Bakers.Add(Baker);
+					ExistingBakers.CombinedBakingType |= Baker.BakerType;
+				}
+			};
+
+			TFunction<void(UnrealToUsd::FComponentBaker&)> GenerateSkeletalBaker =
+				[&UsdStage, &BoundComponent, &PrimPath](UnrealToUsd::FComponentBaker& InOutBaker)
+			{
+				if (USkeletalMeshComponent* SkeletalBoundComponent = Cast<USkeletalMeshComponent>(BoundComponent))
+				{
+					UE::FUsdPrim SkelAnimPrim = UsdStage.DefinePrim(UE::FSdfPath{*PrimPath}.AppendChild(TEXT("Anim")), TEXT("SkelAnimation"));
+
+					UE::FUsdPrim SkeletonPrim = UsdStage.DefinePrim(
+						UE::FSdfPath{*PrimPath}.AppendChild(UnrealIdentifiers::ExportedSkeletonPrimName),
+						TEXT("Skeleton")
+					);
+
+					if (SkelAnimPrim && SkeletonPrim)
+					{
+						UnrealToUsd::CreateSkeletalAnimationBaker(SkeletonPrim, SkelAnimPrim, *SkeletalBoundComponent, InOutBaker);
+					}
+					else
+					{
+						UE_LOG(LogUsd, Warning, TEXT("Failed to generate Skeleton or SkelAnimation prim when baking out SkelRoot '%s'"), *PrimPath);
+					}
+				}
+			};
+
 			bool bHasTransformBaker = false;
+			bool bHasSkeletalBaker = false;
 			if (const FMovieSceneBinding* Binding = MovieScene->FindBinding(InstanceKey.Key))
 			{
 				for (const UMovieSceneTrack* Track : Binding->GetTracks())
@@ -1082,27 +1152,7 @@ namespace UE::LevelSequenceExporterUSD::Private
 					// set the original skeletal animation track sections as disabled, so they'd fail the "IsTrackAnimated" check above
 					else if (Track->IsA<UMovieSceneSkeletalAnimationTrack>() || Track->IsA<UMovieSceneControlRigParameterTrack>())
 					{
-						if (USkeletalMeshComponent* SkeletalBoundComponent = Cast<USkeletalMeshComponent>(BoundComponent))
-						{
-							UE::FUsdPrim SkelAnimPrim = UsdStage.DefinePrim(UE::FSdfPath{*PrimPath}.AppendChild(TEXT("Anim")), TEXT("SkelAnimation"));
-
-							UE::FUsdPrim SkeletonPrim = UsdStage.DefinePrim(
-								UE::FSdfPath{*PrimPath}.AppendChild(UnrealIdentifiers::ExportedSkeletonPrimName),
-								TEXT("Skeleton")
-							);
-
-							if (!SkelAnimPrim || !SkeletonPrim)
-							{
-								UE_LOG(
-									LogUsd,
-									Warning,
-									TEXT("Failed to generate Skeleton or SkelAnimation prim when baking out SkelRoot '%s'"),
-									*PrimPath
-								);
-								continue;
-							}
-							UnrealToUsd::CreateSkeletalAnimationBaker(SkeletonPrim, SkelAnimPrim, *SkeletalBoundComponent, Baker);
-						}
+						GenerateSkeletalBaker(Baker);
 					}
 					// If we have an attach track that attaches the object to somewhere else, then we'll need to bake in that transform
 					// change, as we can't export "hierarchy changes" otherwise
@@ -1111,17 +1161,15 @@ namespace UE::LevelSequenceExporterUSD::Private
 						UnrealToUsd::CreateComponentPropertyBaker(Prim, *BoundComponent, TEXT("Transform"), Baker);
 					}
 
-					// If we made a baker and we don't have one of this type for this component yet, add its lambda to the array
-					FCombinedComponentBakers& ExistingBakers = InOutComponentBakers.FindOrAdd(BoundComponent);
-					if (Baker.BakerType != UnrealToUsd::EBakingType::None && !EnumHasAnyFlags(ExistingBakers.CombinedBakingType, Baker.BakerType))
-					{
-						ExistingBakers.Bakers.Add(Baker);
-						ExistingBakers.CombinedBakingType |= Baker.BakerType;
-					}
+					AddBaker(Baker);
 
 					if (Baker.BakerType == UnrealToUsd::EBakingType::Transform)
 					{
 						bHasTransformBaker = true;
+					}
+					else if (Baker.BakerType == UnrealToUsd::EBakingType::Skeletal)
+					{
+						bHasSkeletalBaker = true;
 					}
 				}
 			}
@@ -1132,17 +1180,62 @@ namespace UE::LevelSequenceExporterUSD::Private
 			// would cause the parent prim's skeletal animation to also affect its child prims.
 			// Ideally we'd actually search through the tracks to know for sure whether our parent has a SkeletalAnimation section,
 			// but it's probably safer to just do this in case it is hidden behind N subsequences or some obscure feature
-			if (!bHasTransformBaker && BoundComponent->GetAttachSocketName() != NAME_None)
+			if (!bHasTransformBaker)
 			{
-				UnrealToUsd::FComponentBaker Baker;
-				const FString PropertyPath = TEXT("Transform");
-				UnrealToUsd::CreateComponentPropertyBaker(Prim, *BoundComponent, PropertyPath, Baker);
-
-				FCombinedComponentBakers& ExistingBakers = InOutComponentBakers.FindOrAdd(BoundComponent);
-				if (Baker.BakerType != UnrealToUsd::EBakingType::None && !EnumHasAnyFlags(ExistingBakers.CombinedBakingType, Baker.BakerType))
+				// If any ancestor component has an attach socket, we may need to bake our transform
+				bool bHasSocketAttachment = false;
+				USceneComponent* Iterator = BoundComponent;
+				while (Iterator)
 				{
-					ExistingBakers.Bakers.Add(Baker);
-					ExistingBakers.CombinedBakingType |= Baker.BakerType;
+					if (Iterator->GetAttachSocketName() != NAME_None)
+					{
+						bHasSocketAttachment = true;
+						break;
+					}
+
+					if (AActor* OwnerActor = Iterator->GetOwner())
+					{
+						if (OwnerActor->GetRootComponent() == Iterator)
+						{
+							// Don't climb out of the actor
+							break;
+						}
+					}
+
+					Iterator = Iterator->GetAttachParent();
+				}
+
+				if (bHasSocketAttachment)
+				{
+					UnrealToUsd::FComponentBaker Baker;
+
+					const FString PropertyPath = TEXT("Transform");
+					UnrealToUsd::CreateComponentPropertyBaker(Prim, *BoundComponent, PropertyPath, Baker);
+
+					AddBaker(Baker);
+				}
+			}
+
+			// There are many different ways in which SkeletalMeshComponents may animate their joints without having any Sequencer track
+			// or even any binding, and this check here tries filling in that gap and generating a skeletal baker if needed.
+			// (Search for bExportAnimationsFromAllComponents in this file to see how we can get in here without having a binding)
+			if (!bHasSkeletalBaker)
+			{
+				if (USkeletalMeshComponent* SkeletalBoundComponent = Cast<USkeletalMeshComponent>(BoundComponent))
+				{
+					const bool bNeedsSkeletalBaker = SkeletalBoundComponent->HasValidAnimationInstance()
+													 || SkeletalBoundComponent->LeaderPoseComponent.IsValid()
+													 || (SkeletalBoundComponent->GetAnimationMode() == EAnimationMode::AnimationBlueprint
+														 && SkeletalBoundComponent->AnimClass);
+
+					if (bNeedsSkeletalBaker)
+					{
+						UnrealToUsd::FComponentBaker Baker;
+
+						GenerateSkeletalBaker(Baker);
+
+						AddBaker(Baker);
+					}
 				}
 			}
 		}
