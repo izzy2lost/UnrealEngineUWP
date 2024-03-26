@@ -23,7 +23,7 @@ struct FProgram;
 
 		ASTChild source;
 
-		mat4f matrix;
+		FMatrix44f matrix;
 
 	public:
 

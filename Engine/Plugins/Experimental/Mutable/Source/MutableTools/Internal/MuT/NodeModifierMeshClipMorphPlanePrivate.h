@@ -34,8 +34,8 @@ namespace mu
         float m_factor;
 
         // Ellipse location
-        vec3f m_origin;
-        vec3f m_normal;
+		FVector3f m_origin;
+		FVector3f m_normal;
         float m_radius1, m_radius2, m_rotation;
 
         //! Typed of vertex selection
@@ -52,9 +52,9 @@ namespace mu
         } VERTEX_SELECTION;
 
         // Vertex selection box
-        uint8_t m_vertexSelectionType;
-        vec3f m_selectionBoxOrigin;
-        vec3f m_selectionBoxRadius;
+        uint8 m_vertexSelectionType;
+		FVector3f m_selectionBoxOrigin;
+		FVector3f m_selectionBoxRadius;
         uint16 m_vertexSelectionBone;
 
 		// Max distance a vertex can have to the bone in order to be affected. A negative value
@@ -66,7 +66,7 @@ namespace mu
         {
             NodeModifier::Private::Serialise(arch);
 
-			uint32_t ver = 3;
+			uint32 ver = 3;
             arch << ver;
 
             arch << m_origin;
@@ -88,7 +88,7 @@ namespace mu
         {
             NodeModifier::Private::Unserialise( arch );
 
-            uint32_t ver;
+            uint32 ver;
             arch >> ver;
             check(ver>=2);
 

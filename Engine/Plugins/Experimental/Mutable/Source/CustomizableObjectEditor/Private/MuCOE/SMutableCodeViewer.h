@@ -796,7 +796,7 @@ public:
 	void PreviewMutableSkeleton(mu::SkeletonPtrConst Skeleton);
 	void PreviewMutableString(const FString& InString);
 	void PreviewMutableProjector(const mu::FProjector* Projector);
-	void PreviewMutableMatrix(const mu::mat4f* Mat);
+	void PreviewMutableMatrix(const FMatrix44f& Mat);
 	void PreviewMutableShape(const mu::FShape* Shape);
 	void PreviewMutableCurve(const mu::Curve* Curve);
 	

@@ -44,9 +44,9 @@ namespace mu
 
 
 	//---------------------------------------------------------------------------------------------
-	void NodeColourParameter::SetDefaultValue( float R, float G, float B, float A )
+	void NodeColourParameter::SetDefaultValue(FVector4f Value)
 	{
-		m_pD->m_defaultValue = vec4<float>( R, G, B, A );
+		m_pD->m_defaultValue = Value;
 	}
 
 

@@ -148,7 +148,7 @@ namespace mu
 					{
 						if (ver <= 1)
 						{
-							vec3<float> Value;
+							FVector3f Value;
 							arch >> Value;
 
 							v.Color = FVector4f(Value[0], Value[1], Value[2], 1.0f);

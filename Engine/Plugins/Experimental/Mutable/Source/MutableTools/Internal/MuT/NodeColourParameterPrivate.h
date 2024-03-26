@@ -18,7 +18,7 @@ namespace mu
 
 		static FNodeType s_type;
 
-		vec4<float> m_defaultValue;
+		FVector4f m_defaultValue;
 		FString m_name;
 		FString m_uid;
 
@@ -27,7 +27,7 @@ namespace mu
 		//!
 		void Serialise( OutputArchive& arch ) const
 		{
-            uint32_t ver = 4;
+            uint32 ver = 4;
 			arch << ver;
 
 			arch << m_defaultValue;
@@ -39,17 +39,17 @@ namespace mu
 		//!
 		void Unserialise( InputArchive& arch )
 		{
-            uint32_t ver;
+            uint32 ver;
 			arch >> ver;
             check(ver>=2&&ver<=4);
 
 			if (ver <= 3)
 			{
-				vec3<float> aux_defaultValue;
-				arch >> aux_defaultValue;
+				FVector3f TempDefaultValue;
+				arch >> TempDefaultValue;
 
-				m_defaultValue = aux_defaultValue;
-				m_defaultValue.w() = 1.f;
+				m_defaultValue = TempDefaultValue;
+				m_defaultValue[3] = 1.f;
 			}
 			else
 			{

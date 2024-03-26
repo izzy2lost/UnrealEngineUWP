@@ -1947,12 +1947,12 @@ namespace mu
             		
                 Ptr<const Mesh> Source = LoadMesh(FCacheAddress(args.source,item));
 
-                const mat4f& mat = Program.m_constantMatrices[args.matrix];
+                const FMatrix44f& mat = Program.m_constantMatrices[args.matrix];
 
 				Ptr<Mesh> Result = CreateMesh(Source ? Source->GetDataSize() : 0);
 
 				bool bOutSuccess = false;
-                MeshTransform(Result.get(), Source.get(), ToUnreal(mat), bOutSuccess);
+                MeshTransform(Result.get(), Source.get(), mat, bOutSuccess);
 
 				if (!bOutSuccess)
 				{
@@ -2003,8 +2003,8 @@ namespace mu
                 // Should be an ellipse
                 const FShape& morphShape = Program.m_constantShapes[args.morphShape];
 
-                const mu::vec3f& origin = morphShape.position;
-                const mu::vec3f& normal = morphShape.up;
+                const FVector3f& origin = morphShape.position;
+                const FVector3f& normal = morphShape.up;
 
                 if (args.vertexSelectionType == OP::MeshClipMorphPlaneArgs::VS_SHAPE)
                 {

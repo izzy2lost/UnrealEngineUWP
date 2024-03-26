@@ -34,28 +34,28 @@ namespace mu
 	//---------------------------------------------------------------------------------------------
     NodeMeshPtr NodeMeshTransform::GetSource() const
 	{
-		return m_pD->m_pSource;
+		return m_pD->Source;
 	}
 
 
     //---------------------------------------------------------------------------------------------
     void NodeMeshTransform::SetSource( NodeMesh* p )
     {
-        m_pD->m_pSource = p;
+        m_pD->Source = p;
     }
 
 
     //---------------------------------------------------------------------------------------------
-    void NodeMeshTransform::SetTransform( const float* mat )
+    void NodeMeshTransform::SetTransform( const FMatrix44f& Value )
     {
-        memcpy( &m_pD->m_transform[0][0], mat, 16*sizeof(float) );
+        m_pD->Transform = Value;
     }
 
 
     //---------------------------------------------------------------------------------------------
-    void NodeMeshTransform::GetTransform( float* mat ) const
+	const FMatrix44f& NodeMeshTransform::GetTransform() const
     {
-        memcpy( mat, &m_pD->m_transform[0][0], 16*sizeof(float) );
+        return m_pD->Transform;
     }
 
 
@@ -64,9 +64,9 @@ namespace mu
 	{
 		NodeLayoutPtr pResult;
 
-		if ( m_pSource )
+		if ( Source )
 		{
-			NodeMesh::Private* pPrivate = static_cast<NodeMesh::Private*>( m_pSource->GetBasePrivate() );
+			NodeMesh::Private* pPrivate = static_cast<NodeMesh::Private*>( Source->GetBasePrivate() );
 			pResult = pPrivate->GetLayout( index );
 		}
 

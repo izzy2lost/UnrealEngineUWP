@@ -6546,9 +6546,9 @@ namespace impl
 				blue = red - blue;
 			}
 			if (majComp == 1)
-				std::swap(red, green);
+				Swap(red, green);
 			else if (majComp == 2)
-				std::swap(red, blue);
+				Swap(red, blue);
 			e0 = UVec4(FMath::Clamp(red - scale, 0, 0xfff),
 				FMath::Clamp(green - scale, 0, 0xfff),
 				FMath::Clamp(blue - scale, 0, 0xfff),

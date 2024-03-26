@@ -156,14 +156,7 @@ mu::NodeModifierPtr GenerateMutableSourceModifier(const UEdGraphPin * Pin, FMuta
 				TransformMesh->SetSource(ClipMesh.get());
 
 				FMatrix Matrix = TypedNodeClipMesh->Transform.ToMatrixWithScale();
-				const float M[16] = {
-				  	float(Matrix.M[0][0]),float(Matrix.M[1][0]),float(Matrix.M[2][0]),float(Matrix.M[3][0]),
-					float(Matrix.M[0][1]),float(Matrix.M[1][1]),float(Matrix.M[2][1]),float(Matrix.M[3][1]),
-					float(Matrix.M[0][2]),float(Matrix.M[1][2]),float(Matrix.M[2][2]),float(Matrix.M[3][2]),
-					float(Matrix.M[0][3]),float(Matrix.M[1][3]),float(Matrix.M[2][3]),float(Matrix.M[3][3])
-				};
-
-				TransformMesh->SetTransform(M);
+				TransformMesh->SetTransform(FMatrix44f(Matrix));
 				ClipMesh = TransformMesh;
 			}
 

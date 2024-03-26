@@ -46,8 +46,8 @@ namespace mu
 	//---------------------------------------------------------------------------------------------
 	void NodeMeshClipMorphPlane::SetPlane(float centerX, float centerY, float centerZ, float normalX, float normalY, float normalZ)
 	{
-		m_pD->m_origin = vec3f(centerX, centerY, centerZ);
-		m_pD->m_normal = vec3f(normalX, normalY, normalZ);
+		m_pD->m_origin = FVector3f(centerX, centerY, centerZ);
+		m_pD->m_normal = FVector3f(normalX, normalY, normalZ);
 	}
 
 
@@ -70,8 +70,8 @@ namespace mu
 	void NodeMeshClipMorphPlane::SetVertexSelectionBox(float centerX, float centerY, float centerZ, float radiusX, float radiusY, float radiusZ)
 	{
 		m_pD->m_vertexSelectionType = Private::VS_SHAPE;
-		m_pD->m_selectionBoxOrigin = vec3f(centerX, centerY, centerZ);
-		m_pD->m_selectionBoxRadius = vec3f(radiusX, radiusY, radiusZ);
+		m_pD->m_selectionBoxOrigin = FVector3f(centerX, centerY, centerZ);
+		m_pD->m_selectionBoxRadius = FVector3f(radiusX, radiusY, radiusZ);
 	}
 
 	//---------------------------------------------------------------------------------------------

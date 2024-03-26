@@ -11,8 +11,7 @@
 
 namespace mu
 {
-struct FProgram;
-template <class SCALAR> class vec4;
+	struct FProgram;
 
 	class ASTOpImageCompose final : public ASTOp
 	{

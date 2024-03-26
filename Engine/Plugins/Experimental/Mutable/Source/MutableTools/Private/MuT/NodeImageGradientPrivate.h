@@ -21,12 +21,12 @@ namespace mu
 
 		NodeColourPtr m_pColour0;
 		NodeColourPtr m_pColour1;
-		vec2<int> m_size = { 256,1 };		
+		FIntVector2 m_size = { 256,1 };		
 
 		//!
 		void Serialise( OutputArchive& arch ) const
 		{
-            uint32_t ver = 0;
+            uint32 ver = 0;
 			arch << ver;
 
 			arch << m_pColour0;
@@ -37,7 +37,7 @@ namespace mu
 		//!
 		void Unserialise( InputArchive& arch )
 		{
-            uint32_t ver;
+            uint32 ver;
 			arch >> ver;
 			check(ver==0);
 

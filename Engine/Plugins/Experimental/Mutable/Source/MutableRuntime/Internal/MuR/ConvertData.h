@@ -5,6 +5,7 @@
 #include "MuR/Mesh.h"
 #include "MuR/Platform.h"
 #include "MuR/MutableMath.h"
+#include "Math/Float16.h"
 
 
 namespace mu
@@ -47,8 +48,8 @@ namespace mu
 
 			case MBF_FLOAT16:
 			{
-				const float16* pTypedSource = reinterpret_cast<const float16*>(pSource);
-				pTypedResult[channel] = halfToFloat(pTypedSource[channel]);
+				const FFloat16* pTypedSource = reinterpret_cast<const FFloat16*>(pSource);
+				pTypedResult[channel] = pTypedSource[channel];
 				break;
 			}
 
@@ -193,8 +194,8 @@ namespace mu
 
 			case MBF_FLOAT16:
 			{
-				const float16* pTypedSource = reinterpret_cast<const float16*>( pSource );
-				pTypedResult[channel] = halfToFloat(pTypedSource[channel]);
+				const FFloat16* pTypedSource = reinterpret_cast<const FFloat16*>( pSource );
+				pTypedResult[channel] = pTypedSource[channel];
 				break;
 			}
 
@@ -317,20 +318,20 @@ namespace mu
 		//-----------------------------------------------------------------------------------------
 		case MBF_FLOAT16:
 		{
-			float16* pTypedResult = reinterpret_cast<float16*>( pResult );
+			FFloat16* pTypedResult = reinterpret_cast<FFloat16*>( pResult );
 
 			switch ( sourceFormat )
 			{
 			case MBF_FLOAT32:
 			{
 				const float* pTypedSource = reinterpret_cast<const float*>( pSource );
-				pTypedResult[channel] = floatToHalf(pTypedSource[channel]);
+				pTypedResult[channel] = pTypedSource[channel];
 				break;
 			}
 
 			case MBF_FLOAT16:
 			{
-				const float16* pTypedSource = reinterpret_cast<const float16*>( pSource );
+				const FFloat16* pTypedSource = reinterpret_cast<const FFloat16*>( pSource );
 				pTypedResult[channel] = pTypedSource[channel];
 				break;
 			}
@@ -338,42 +339,42 @@ namespace mu
 			case MBF_UINT32:
 			{
                 const uint32* pTypedSource = reinterpret_cast<const uint32*>( pSource );
-				pTypedResult[channel] = floatToHalf((float)(pTypedSource[channel]));
+				pTypedResult[channel] = (float)(pTypedSource[channel]);
 				break;
 			}
 
 			case MBF_INT32:
 			{
                 const int32* pTypedSource = reinterpret_cast<const int32*>( pSource );
-				pTypedResult[channel] = floatToHalf((float)(pTypedSource[channel]));
+				pTypedResult[channel] = (float)(pTypedSource[channel]);
 				break;
 			}
 
 			case MBF_UINT16:
 			{
                 const uint16* pTypedSource = reinterpret_cast<const uint16*>( pSource );
-				pTypedResult[channel] = floatToHalf((float)(pTypedSource[channel]));
+				pTypedResult[channel] = (float)(pTypedSource[channel]);
 				break;
 			}
 
 			case MBF_INT16:
 			{
                 const int16* pTypedSource = reinterpret_cast<const int16*>( pSource );
-				pTypedResult[channel] = floatToHalf((float)(pTypedSource[channel]));
+				pTypedResult[channel] = (float)(pTypedSource[channel]);
 				break;
 			}
 
 			case MBF_UINT8:
 			{
                 const uint8* pTypedSource = reinterpret_cast<const uint8*>( pSource );
-				pTypedResult[channel] = floatToHalf((float)(pTypedSource[channel]));
+				pTypedResult[channel] = (float)(pTypedSource[channel]);
 				break;
 			}
 
 			case MBF_INT8:
 			{
                 const int8* pTypedSource = reinterpret_cast<const int8*>( pSource );
-				pTypedResult[channel] = floatToHalf((float)(pTypedSource[channel]));
+				pTypedResult[channel] = (float)(pTypedSource[channel]);
 				break;
 			}
 
@@ -407,13 +408,13 @@ namespace mu
 
 			case MBF_FLOAT16:
 			{
-				const float16* pTypedSource = reinterpret_cast<const float16*>( pSource );
+				const FFloat16* pTypedSource = reinterpret_cast<const FFloat16*>( pSource );
                 pTypedResult[channel] = (uint8)
                         FMath::Min<uint32>(
 							0xFF,
                             FMath::Max<uint32>(
 								0,
-                                (uint32)halfToFloat(pTypedSource[channel])
+                                (uint32)float(pTypedSource[channel])
 								)
 							);
 				break;
@@ -529,13 +530,13 @@ namespace mu
 
 			case MBF_FLOAT16:
 			{
-				const float16* pTypedSource = reinterpret_cast<const float16*>( pSource );
+				const FFloat16* pTypedSource = reinterpret_cast<const FFloat16*>( pSource );
                 pTypedResult[channel] = (uint16)
                         FMath::Min<uint32>(
 							0xFF,
                             FMath::Max<uint32>(
 								0,
-                                (uint32)halfToFloat(pTypedSource[channel])
+                                (uint32)float(pTypedSource[channel])
 								)
 							);
 				break;
@@ -637,13 +638,13 @@ namespace mu
 
 			case MBF_FLOAT16:
 			{
-				const float16* pTypedSource = reinterpret_cast<const float16*>( pSource );
+				const FFloat16* pTypedSource = reinterpret_cast<const FFloat16*>( pSource );
 				pTypedResult[channel] =
                         FMath::Min<uint32>(
 							0xFF,
                             FMath::Max<uint32>(
 								0,
-                                (uint32)halfToFloat(pTypedSource[channel])
+                                (uint32)float(pTypedSource[channel])
 								)
 							);
 				break;
@@ -730,13 +731,13 @@ namespace mu
 
 			case MBF_FLOAT16:
 			{
-				const float16* pTypedSource = reinterpret_cast<const float16*>( pSource );
+				const FFloat16* pTypedSource = reinterpret_cast<const FFloat16*>( pSource );
                 pTypedResult[channel] = (int8)
                         FMath::Min<int32>(
 							127,
                             FMath::Max<int32>(
 								-128,
-                                (int32)halfToFloat(pTypedSource[channel])
+                                (int32)float(pTypedSource[channel])
 								)
 							);
 				break;
@@ -787,13 +788,13 @@ namespace mu
 
 			case MBF_FLOAT16:
 			{
-				const float16* pTypedSource = reinterpret_cast<const float16*>( pSource );
+				const FFloat16* pTypedSource = reinterpret_cast<const FFloat16*>( pSource );
                 pTypedResult[channel] = (int16)
                         FMath::Min<int32>(
 							32767,
                             FMath::Max<int32>(
 								-32768,
-                                (int32)halfToFloat(pTypedSource[channel])
+                                (int32)float(pTypedSource[channel])
 								)
 							);
 				break;
@@ -878,8 +879,8 @@ namespace mu
 
 			case MBF_FLOAT16:
 			{
-				const float16* pTypedSource = reinterpret_cast<const float16*>( pSource );
-                pTypedResult[channel] = (int32)halfToFloat(pTypedSource[channel]);
+				const FFloat16* pTypedSource = reinterpret_cast<const FFloat16*>( pSource );
+                pTypedResult[channel] = (int32)float(pTypedSource[channel]);
 				break;
 			}
 
@@ -978,13 +979,13 @@ namespace mu
 
 			case MBF_FLOAT16:
 			{
-				const float16* pTypedSource = reinterpret_cast<const float16*>( pSource );
+				const FFloat16* pTypedSource = reinterpret_cast<const FFloat16*>( pSource );
                 pTypedResult[channel] = (uint8)
                         FMath::Min<uint32>(
 							0xFF,
                             FMath::Max<uint32>(
 								0,
-                                (uint32)(((float)0xFF)*halfToFloat(pTypedSource[channel])+0.5f)
+                                (uint32)(((float)0xFF)*float(pTypedSource[channel])+0.5f)
 								)
 							);
 				break;
@@ -1043,13 +1044,13 @@ namespace mu
 
 			case MBF_FLOAT16:
 			{
-				const float16* pTypedSource = reinterpret_cast<const float16*>( pSource );
+				const FFloat16* pTypedSource = reinterpret_cast<const FFloat16*>( pSource );
                 pTypedResult[channel] = (uint16)
                         FMath::Min<uint32>(
 							0xFFFF,
                             FMath::Max<uint32>(
 								0,
-                                (uint32)(((float)0xFFFF)*halfToFloat(pTypedSource[channel])+0.5f)
+                                (uint32)(((float)0xFFFF)*float(pTypedSource[channel])+0.5f)
 								)
 							);
 				break;
@@ -1094,13 +1095,13 @@ namespace mu
 
 			case MBF_FLOAT16:
 			{
-				const float16* pTypedSource = reinterpret_cast<const float16*>( pSource );
+				const FFloat16* pTypedSource = reinterpret_cast<const FFloat16*>( pSource );
                 pTypedResult[channel] = (uint32)
                         FMath::Min<uint32>(
 							0xFFFFFFFF,
                             FMath::Max<uint32>(
 								0,
-                                (uint32)(((float)0xFFFFFFFF)*halfToFloat(pTypedSource[channel])+0.5f)
+                                (uint32)(((float)0xFFFFFFFF)*float(pTypedSource[channel])+0.5f)
 								)
 							);
 				break;
@@ -1145,13 +1146,13 @@ namespace mu
 
 			case MBF_FLOAT16:
 			{
-				const float16* pTypedSource = reinterpret_cast<const float16*>( pSource );
+				const FFloat16* pTypedSource = reinterpret_cast<const FFloat16*>( pSource );
                 pTypedResult[channel] = (int8)
                         FMath::Min<int32>(
 							127,
                             FMath::Max<int32>(
 								-128,
-                                (int32)(128.0f*halfToFloat(pTypedSource[channel])+0.5f)
+                                (int32)(128.0f*float(pTypedSource[channel])+0.5f)
 								)
 							);
 				break;
@@ -1196,13 +1197,13 @@ namespace mu
 
 			case MBF_FLOAT16:
 			{
-				const float16* pTypedSource = reinterpret_cast<const float16*>( pSource );
+				const FFloat16* pTypedSource = reinterpret_cast<const FFloat16*>( pSource );
                 pTypedResult[channel] = (int16)
                         FMath::Min<int32>(
 							32767,
                             FMath::Max<int32>(
 								-32768,
-                                (int32)(32768.0f*halfToFloat(pTypedSource[channel])+0.5f)
+                                (int32)(32768.0f*float(pTypedSource[channel])+0.5f)
 								)
 							);
 				break;
@@ -1241,8 +1242,8 @@ namespace mu
 
 			case MBF_FLOAT16:
 			{
-				const float16* pTypedSource = reinterpret_cast<const float16*>( pSource );
-                pTypedResult[channel] = (int32)(2147483648.0f*halfToFloat(pTypedSource[channel])+0.5f);
+				const FFloat16* pTypedSource = reinterpret_cast<const FFloat16*>( pSource );
+                pTypedResult[channel] = (int32)(2147483648.0f*float(pTypedSource[channel])+0.5f);
 				break;
 			}
 

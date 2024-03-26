@@ -1008,7 +1008,7 @@ void Mesh::GetVertexMap
                 for ( int ov=0; ov<bucketVertexCount; ++ov )
                 {
                     int otherVertexIndex = buckets[bucket][ov];
-                    vec3<float> p = itopBegin[ otherVertexIndex ];
+                    FVector3f p = (itopBegin+otherVertexIndex).GetAsVec3f();
 
                     bool same = true;
                     for ( int d=0; same && d<3; ++d )

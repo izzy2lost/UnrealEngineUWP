@@ -38,8 +38,8 @@ namespace mu
 		float m_factor;
 
 		// Ellipse location
-		vec3f m_origin;
-		vec3f m_normal;
+		FVector3f m_origin;
+		FVector3f m_normal;
 		float m_radius1, m_radius2, m_rotation;
 
 		//! Typed of vertex selection
@@ -57,9 +57,9 @@ namespace mu
 		} VERTEX_SELECTION;
 
 		// Vertex selection box 
-        uint8_t m_vertexSelectionType;
-		vec3f m_selectionBoxOrigin;
-		vec3f m_selectionBoxRadius;
+        uint8 m_vertexSelectionType;
+		FVector3f m_selectionBoxOrigin;
+		FVector3f m_selectionBoxRadius;
 		uint16 m_vertexSelectionBone;
 
 		TArray<FString> m_tags;
@@ -71,7 +71,7 @@ namespace mu
 		//!
 		void Serialise( OutputArchive& arch ) const
 		{
-            uint32_t ver = 5;
+            uint32 ver = 5;
 			arch << ver;
 
 			arch << m_pSource;
@@ -93,7 +93,7 @@ namespace mu
 		//!
 		void Unserialise( InputArchive& arch )
 		{
-            uint32_t ver;
+            uint32 ver;
 			arch >> ver;
             check(ver>=3&&ver<=5);
 

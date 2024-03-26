@@ -1265,10 +1265,10 @@ void SMutableConstantsWidget::LoadConstantMatrices()
 	for (int32 MatrixIndex = 0; MatrixIndex < ConstantsCount; MatrixIndex++)
 	{
 		TSharedPtr<FMutableConstantMatrixElement> ConstantMatrixElement = MakeShared<FMutableConstantMatrixElement>();
-		ConstantMatrixElement->Matrix = &(MutableProgramPtr->m_constantMatrices[MatrixIndex]);
+		ConstantMatrixElement->Matrix = MutableProgramPtr->m_constantMatrices[MatrixIndex];
 		ConstantMatrixElement->IndexOnSourceVector = MatrixIndex;
 		
-		Archive << *ConstantMatrixElement->Matrix;
+		Archive << ConstantMatrixElement->Matrix;
 		
 		ConstantMatrixElements.Add(ConstantMatrixElement);
 	}

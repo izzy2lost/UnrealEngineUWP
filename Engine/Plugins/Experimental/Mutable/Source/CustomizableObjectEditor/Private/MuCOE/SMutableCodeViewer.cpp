@@ -2838,7 +2838,7 @@ void SMutableCodeViewer::PreviewMutableCurve(const mu::Curve* Curve)
 }
 
 // TODO: Implement matrix viewer
-void SMutableCodeViewer::PreviewMutableMatrix(const mu::mat4f* Mat)
+void SMutableCodeViewer::PreviewMutableMatrix(const FMatrix44f& Mat)
 {
 	UE_LOG(LogMutable, Warning, TEXT("Previewer for Mutable Matrices not yet implemented"))
 }

@@ -71,7 +71,7 @@ mu::NodeColourPtr GenerateMutableSourceColor(const UEdGraphPin* Pin, FMutableGra
 
 		ColorNode->SetName(TypedNodeColorParam->ParameterName);
 		ColorNode->SetUid(GenerationContext.GetNodeIdUnique(Node).ToString());
-		ColorNode->SetDefaultValue(TypedNodeColorParam->DefaultValue.R, TypedNodeColorParam->DefaultValue.G, TypedNodeColorParam->DefaultValue.B, TypedNodeColorParam->DefaultValue.A);
+		ColorNode->SetDefaultValue(TypedNodeColorParam->DefaultValue);
 
 		GenerationContext.ParameterUIDataMap.Add(TypedNodeColorParam->ParameterName, FParameterUIData(
 			TypedNodeColorParam->ParameterName,

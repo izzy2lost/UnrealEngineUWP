@@ -236,88 +236,7 @@ namespace mu { namespace
     }
 
 
-    //---------------------------------------------------------------------------------------------
-    //! Reference version
-    //---------------------------------------------------------------------------------------------
-  //  inline int get_num_intersections( const FVector3f& vertex,
-  //                                    const FVector3f& ray,
-  //                                    const TArray<FVector3f>& vertices,
-  //                                    const TArray<uint32>& faces,
-  //                                    TArray<int>& collapsedVertexMap,
-		//							  TArray<uint8>& vertex_already_intersected,
-  //                                    TMap<TPair<int, int>, bool>& edge_already_intersected,
-		//							  float dynamic_epsilon
-  //                                    )
-  //  {
-  //  	
-  //      MUTABLE_CPUPROFILER_SCOPE(get_num_intersections);
-  //  	
-  //      int num_intersections = 0;
-		//FVector3f intersection;
-
-		//FMemory::Memzero( vertex_already_intersected.GetData(), vertex_already_intersected.Num());
-
-  //      edge_already_intersected.Empty();
-
-  //  #define get_collapsed_vertex(vertex_idx) (vertices[collapsedVertexMap[vertex_idx]])
-
-  //      size_t fcount = faces.Num()/3;
-
-  //      // Check vertex against all ClipMorph faces
-  //      for (uint32 face = 0; face < fcount; ++face)
-  //      {
-  //          uint32 vertex_indexs[3] = { faces[3 * face], faces[3 * face + 1], faces[3 * face + 2] };
-
-		//	FVector3f v0 = get_collapsed_vertex(vertex_indexs[0]);
-		//	FVector3f v1 = get_collapsed_vertex(vertex_indexs[1]);
-		//	FVector3f v2 = get_collapsed_vertex(vertex_indexs[2]);
-
-  //          int out_intersected_vert, out_intersected_edge_v0, out_intersected_edge_v1;
-
-  //          if (rayIntersectsFace(vertex, ray, v0, v1, v2, intersection, out_intersected_vert, out_intersected_edge_v0, out_intersected_edge_v1, dynamic_epsilon))
-  //          {
-  //              bool vertex_not_intersected_before = true;
-  //              bool edge_not_intersected_before = true;
-
-  //              if (out_intersected_vert >= 0)
-  //              {
-  //                  int collapsed_vert_index = collapsedVertexMap[vertex_indexs[out_intersected_vert]];
-  //                  vertex_not_intersected_before = !vertex_already_intersected[collapsed_vert_index];
-
-  //                  vertex_already_intersected[collapsed_vert_index] = true;
-  //              }
-
-  //              if (out_intersected_edge_v0 >= 0)
-  //              {
-  //                  int collapsed_edge_vert_index0 = collapsedVertexMap[vertex_indexs[out_intersected_edge_v0]];
-  //                  int collapsed_edge_vert_index1 = collapsedVertexMap[vertex_indexs[out_intersected_edge_v1]];
-
-  //                  TPair<int, int> key;
-  //                  key.Key = collapsed_edge_vert_index0 <= collapsed_edge_vert_index1 ? collapsed_edge_vert_index0 : collapsed_edge_vert_index1;
-  //                  key.Value = collapsed_edge_vert_index1 > collapsed_edge_vert_index0 ? collapsed_edge_vert_index1 : collapsed_edge_vert_index0;
-  //                  edge_not_intersected_before = edge_already_intersected.Find(key) != nullptr;
-
-  //                  if (edge_not_intersected_before)
-  //                  {
-  //                      edge_already_intersected.Add( key, true );
-  //                  }
-  //              }
-
-  //              if (vertex_not_intersected_before && edge_not_intersected_before)
-  //              {
-  //                  num_intersections++;
-  //              }
-  //          }
-  //      }
-
-  //      return num_intersections;
-  //  }
-
-
-    //---------------------------------------------------------------------------------------------
-    //! Core Geometry version
-    //---------------------------------------------------------------------------------------------
-    inline int GetNumIntersections( const FRay3f& Ray,
+    inline int32 GetNumIntersections( const FRay3f& Ray,
                                     const TArray<FVector3f>& Vertices,
                                     const TArray<uint32>& Faces,
                                     const TArray<int32>& CollapsedVertexMap,
@@ -980,21 +899,21 @@ namespace mu
 
         // Make a tolerance proportional to the mesh bounding box size
         // TODO: Use precomputed bounding box
-        box< vec3<float> > aabbox;
+        box< FVector3f > aabbox;
         if ( fragmentFaceCount > 0 )
         {
             MeshBufferIteratorConst<MBF_FLOAT32,float,3> itp( pFragment->GetVertexBuffers(), MBS_POSITION );
 
-            aabbox.min = *itp;
+            aabbox.min = itp.GetAsVec3f();
             ++itp;
 
             for ( int v=1; v<pFragment->GetVertexBuffers().GetElementCount(); ++v )
             {
-                aabbox.Bound( *itp );
+                aabbox.Bound(itp.GetAsVec3f());
                 ++itp;
             }
         }
-        float tolerance = 1e-5f * length(aabbox.size);
+        float tolerance = 1e-5f * aabbox.size.Length();
         Mesh::VERTEX_MATCH_MAP vertexMap;
         pFragment->GetVertexMap( *pBase, vertexMap, tolerance );
 
@@ -1047,7 +966,7 @@ namespace mu
         for ( int f=0; f<sourceFaceCount; ++f )
         {
             bool hasFace = false;
-            vec3<uint32> ov;
+            FUint32Vector3 ov;
             ov[0] = ito.GetAsUINT32(); ++ito;
             ov[1] = ito.GetAsUINT32(); ++ito;
             ov[2] = ito.GetAsUINT32(); ++ito;
@@ -1061,7 +980,7 @@ namespace mu
             {
                 int tf =  buckets[bucket][btf];
 
-                vec3<uint32> v;
+				FUint32Vector3 v;
                 v[0] = (itti+3*tf+0).GetAsUINT32();
                 v[1] = (itti+3*tf+1).GetAsUINT32();
                 v[2] = (itti+3*tf+2).GetAsUINT32();
@@ -1089,7 +1008,7 @@ namespace mu
         int aFaceCount = pBase->GetFaceCount();
         for (int f = 0; f < aFaceCount; ++f)
         {
-            vec3<uint32> ov;
+			FUint32Vector3 ov;
             ov[0] = itoi.GetAsUINT32(); ++itoi;
             ov[1] = itoi.GetAsUINT32(); ++itoi;
             ov[2] = itoi.GetAsUINT32(); ++itoi;

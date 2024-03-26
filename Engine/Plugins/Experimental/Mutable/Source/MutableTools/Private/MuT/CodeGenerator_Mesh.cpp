@@ -159,7 +159,7 @@ namespace mu
 	void GetUVIsland(TArray<FTriangle>& InTriangles,
 		const uint32 InFirstTriangle,
 		TArray<uint32>& OutTriangleIndices,
-		const TArray<vec2<float>>& InUVs,
+		const TArray<FVector2f>& InUVs,
 		const TMultiMap<int32, uint32>& InVertexToTriangleMap)
 	{
 		MUTABLE_CPUPROFILER_SCOPE(LayoutUV_GetUVIsland);
@@ -205,7 +205,7 @@ namespace mu
 					{
 						// Check if the vertex is in the same UV Island 
 						if (!SkipTrinalges[OtherTriangleIndex]
-							&& InUVs[Triangle.Indices[1]].AlmostEqual(InUVs[OtherTriangle.Indices[OtherIndex]], 0.00001))
+							&& InUVs[Triangle.Indices[1]].Equals(InUVs[OtherTriangle.Indices[OtherIndex]], 0.00001f))
 						{
 							OutTriangleIndices.Add(OtherTriangleIndex);
 							PendingTriangles.Add(OtherTriangleIndex);
@@ -220,7 +220,7 @@ namespace mu
 					{
 						// Check if the vertex is in the same UV Island 
 						if (!SkipTrinalges[OtherTriangleIndex]
-							&& InUVs[Triangle.Indices[2]].AlmostEqual(InUVs[OtherTriangle.Indices[OtherIndex]], 0.00001))
+							&& InUVs[Triangle.Indices[2]].Equals(InUVs[OtherTriangle.Indices[OtherIndex]], 0.00001f))
 						{
 							OutTriangleIndices.Add(OtherTriangleIndex);
 							PendingTriangles.Add(OtherTriangleIndex);
@@ -249,7 +249,7 @@ namespace mu
 					{
 						// Check if the vertex belong to the same UV island
 						if (!SkipTrinalges[OtherTriangleIndex]
-							&& InUVs[Triangle.Indices[2]].AlmostEqual(InUVs[OtherTriangle.Indices[OtherIndex]], 0.00001))
+							&& InUVs[Triangle.Indices[2]].Equals(InUVs[OtherTriangle.Indices[OtherIndex]], 0.00001f))
 						{
 							OutTriangleIndices.Add(OtherTriangleIndex);
 							PendingTriangles.Add(OtherTriangleIndex);
@@ -329,7 +329,7 @@ namespace mu
 
 		// 
 		TArray<uint16> BlockIds;
-		TArray<box<vec2<float>>> BlockRects;
+		TArray<box<FVector2f>> BlockRects;
 
 		BlockIds.SetNumUninitialized(NumBlocks);
 		BlockRects.SetNumUninitialized(NumBlocks);
@@ -345,7 +345,7 @@ namespace mu
 			uint16 MinX, MinY, SizeX, SizeY;
 			Layout->GetBlock(BlockIndex, &MinX, &MinY, &SizeX, &SizeY);
 
-			box<vec2<float>>& BlockRect = BlockRects[BlockIndex];
+			box<FVector2f>& BlockRect = BlockRects[BlockIndex];
 			BlockRect.min[0] = ((float)MinX) / (float)Grid.X;
 			BlockRect.min[1] = ((float)MinY) / (float)Grid.Y;
 			BlockRect.size[0] = ((float)SizeX) / (float)Grid.X;
@@ -399,17 +399,17 @@ namespace mu
 		(buffer, channel, &semantic, &semanticIndex, &format, &components, &offset);
 		check(semantic == MBS_TEXCOORDS);
 
-		const uint8_t* pData = currentLayoutMesh->GetVertexBuffers().GetBufferData(buffer);
+		uint8* pData = currentLayoutMesh->GetVertexBuffers().GetBufferData(buffer);
 		int elemSize = currentLayoutMesh->GetVertexBuffers().GetElementSize(buffer);
 		int channelOffset = currentLayoutMesh->GetVertexBuffers().GetChannelOffset(buffer, channel);
 		pData += channelOffset;
 
 
 		// Temp copy of the UVs
-		TArray<vec2<float>> TempUVs;
+		TArray<FVector2f> TempUVs;
 		TempUVs.SetNumUninitialized(NumVertices);
 
-		// Get a copy of the UVs as vec2<float> to work with them. 
+		// Get a copy of the UVs as FVector2f to work with them. 
 		{
 			bool bNonNormalizedUVs = false;
 			const bool bIsOverlayLayout = GeneratedLayout->GetLayoutPackingStrategy() == mu::EPackStrategy::OVERLAY_LAYOUT;
@@ -417,15 +417,15 @@ namespace mu
 			const uint8* pVertices = pData;
 			for (int32 VertexIndex = 0; VertexIndex < NumVertices; ++VertexIndex)
 			{
-				vec2<float>& UV = TempUVs[VertexIndex];
+				FVector2f& UV = TempUVs[VertexIndex];
 				if (format == MBF_FLOAT32)
 				{
-					UV = *((vec2<float>*)pVertices);
+					UV = *((FVector2f*)pVertices);
 				}
 				else if (format == MBF_FLOAT16)
 				{
-					float16* pUV = (float16*)pVertices;
-					UV = vec2<float>(halfToFloat(pUV[0]), halfToFloat(pUV[1]));
+					const FFloat16* pUV = reinterpret_cast<const FFloat16*>(pVertices);
+					UV = FVector2f(float(pUV[0]), float(pUV[1]));
 				}
 
 				// Check that UVs are normalized. If not, clamp the values and throw a warning.
@@ -589,7 +589,7 @@ namespace mu
 			const float MaxY = (((float)LayoutBlock.m_size.Y + LayoutBlock.m_min.Y) / (float)Grid.Y) - 2 * SmallNumber;
 
 			// Iterate triangles and clamp the UVs
-			vec2<float>* TempUVsData = TempUVs.GetData();
+			FVector2f* TempUVsData = TempUVs.GetData();
 			for (int32 TriangleIndex : TriangleIndices)
 			{
 				FTriangle& OtherTriangle = Triangles[TriangleIndex];
@@ -605,7 +605,7 @@ namespace mu
 
 					// Clamp UVs
 					const int32 UVIndex = OtherTriangle.Indices[VertexIndex];
-					vec2<float>& UV = TempUVs[UVIndex];
+					FVector2f& UV = TempUVs[UVIndex];
 					UV[0] = FMath::Clamp(UV[0], MinX, MaxX);
 					UV[1] = FMath::Clamp(UV[1], MinY, MaxY);
 					*(LayoutData + UVIndex) = BlockIndex;
@@ -621,7 +621,7 @@ namespace mu
 			TArray<float> UnassignedUVs;
 			UnassignedUVs.Reserve(NumVertices / 100);
 
-			const vec2<float>* UVs = TempUVs.GetData();
+			const FVector2f* UVs = TempUVs.GetData();
 			for (int32 VertexIndex = 0; VertexIndex < NumVertices; ++VertexIndex)
 			{
 				if (LayoutData[VertexIndex] == MAX_uint16)
@@ -645,12 +645,12 @@ namespace mu
 
 		// Format and copy UVs
 		{
-			uint8* pVertices = const_cast<uint8*>(pData);
-			vec2<float>* UVs = TempUVs.GetData();
+			uint8* pVertices = pData;
+			FVector2f* UVs = TempUVs.GetData();
 
 			for (int32 VertexIndex = 0; VertexIndex < NumVertices; ++VertexIndex)
 			{
-				vec2<float>* UV = &TempUVs[VertexIndex];
+				FVector2f* UV = &TempUVs[VertexIndex];
 
 				uint16& LayoutBlockIndex = LayoutData[VertexIndex];
 				if (BlockIds.IsValidIndex(LayoutBlockIndex))
@@ -670,14 +670,14 @@ namespace mu
 				// Copy UVs
 				if (format == MBF_FLOAT32)
 				{
-					vec2<float>* pUV = (vec2<float>*)pVertices;
+					FVector2f* pUV = reinterpret_cast<FVector2f*>(pVertices);
 					*pUV = *UV;
 				}
 				else if (format == MBF_FLOAT16)
 				{
-					float16* pUV = (float16*)pVertices;
-					pUV[0] = floatToHalf((*UV)[0]);
-					pUV[1] = floatToHalf((*UV)[1]);
+					FFloat16* pUV = reinterpret_cast<FFloat16*>(pVertices);
+					pUV[0] = FFloat16((*UV)[0]);
+					pUV[1] = FFloat16((*UV)[1]);
 				}
 
 				pVertices += elemSize;
@@ -1533,9 +1533,9 @@ namespace mu
         Ptr<ASTOpMeshTransform> op = new ASTOpMeshTransform();
 
         // Base
-        if (node.m_pSource)
+        if (node.Source)
         {
-            GenerateMesh(InOptions, OutResult, node.m_pSource);
+            GenerateMesh(InOptions, OutResult, node.Source);
             op->source = OutResult.meshOp;
         }
         else
@@ -1545,7 +1545,7 @@ namespace mu
                 ELMT_ERROR, node.m_errorContext);
         }
 
-        op->matrix = node.m_transform;
+        op->matrix = node.Transform;
 
         OutResult.meshOp = op;
     }
@@ -1579,20 +1579,20 @@ namespace mu
             op->morphShape.type = (uint8_t)FShape::Type::Ellipse;
             op->morphShape.position = node.m_origin;
             op->morphShape.up = node.m_normal;
-            op->morphShape.size = vec3f(node.m_radius1, node.m_radius2, node.m_rotation); // TODO: Move rotation to ellipse rotation reference base instead of passing it directly
+            op->morphShape.size = FVector3f(node.m_radius1, node.m_radius2, node.m_rotation); // TODO: Move rotation to ellipse rotation reference base instead of passing it directly
 
                                                                                       // Generate a "side" vector.
                                                                                       // \todo: make generic and move to the vector class
             {
                 // Generate vector perpendicular to normal for ellipse rotation reference base
-                vec3f aux_base(0.f, 1.f, 0.f);
+				FVector3f aux_base(0.f, 1.f, 0.f);
 
-                if (fabs(dot(node.m_normal, aux_base)) > 0.95f)
+                if (fabs(FVector3f::DotProduct(node.m_normal, aux_base)) > 0.95f)
                 {
-                    aux_base = vec3f(0.f, 0.f, 1.f);
+                    aux_base = FVector3f(0.f, 0.f, 1.f);
                 }
 
-                op->morphShape.side = cross(node.m_normal, aux_base);
+                op->morphShape.side = FVector3f::CrossProduct(node.m_normal, aux_base);
             }
         }
 

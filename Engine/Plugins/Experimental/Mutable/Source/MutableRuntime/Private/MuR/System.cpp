@@ -56,9 +56,6 @@ static FAutoConsoleVariableRef CVarEnableDetailedMemoryBudgetExceededLogging (
 
 namespace mu
 {
-    static_assert( sizeof(mat4f) == 64, "UNEXPECTED_STRUCT_PACKING" );
-
-
 	MUTABLE_IMPLEMENT_ENUM_SERIALISABLE(ETextureCompressionStrategy);
 
 	TRACE_DECLARE_INT_COUNTER(MutableRuntime_LiveInstances,		TEXT("MutableRuntime/LiveInstances"));
