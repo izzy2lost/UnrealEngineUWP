@@ -32,7 +32,7 @@ namespace EpicGames.BuildGraph
 		/// <summary>
 		/// Tag to use for the artifact. Uses the artifact name by default.
 		/// </summary>
-		public string Tag { get; }
+		public string TagName { get; }
 
 		/// <summary>
 		/// Keys that can be used to find the artifact
@@ -46,15 +46,15 @@ namespace EpicGames.BuildGraph
 		/// <param name="type">Type of the artifact</param>
 		/// <param name="description">Description for the artifact</param>
 		/// <param name="basePath">Base path for files included in the artifact</param>
-		/// <param name="tag">Name of the tag producing this artifact</param>
+		/// <param name="tagName">Name of the tag producing this artifact</param>
 		/// <param name="keys">Keys that can be used to find the artifact</param>
-		public BgArtifactDef(string name, string? type, string? description, string? basePath, string tag, IReadOnlyList<string> keys)
+		public BgArtifactDef(string name, string? type, string? description, string? basePath, string tagName, IReadOnlyList<string> keys)
 		{
 			Name = name;
 			Type = type;
 			Description = description;
 			BasePath = basePath;
-			Tag = tag;
+			TagName = tagName;
 			Keys = keys;
 		}
 

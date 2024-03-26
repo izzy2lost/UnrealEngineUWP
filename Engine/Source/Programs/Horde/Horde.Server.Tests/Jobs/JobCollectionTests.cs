@@ -9,6 +9,7 @@ using EpicGames.Horde.Agents;
 using EpicGames.Horde.Agents.Leases;
 using EpicGames.Horde.Agents.Pools;
 using EpicGames.Horde.Agents.Sessions;
+using EpicGames.Horde.Artifacts;
 using EpicGames.Horde.Jobs;
 using EpicGames.Horde.Jobs.Templates;
 using EpicGames.Horde.Logs;
@@ -810,6 +811,26 @@ namespace Horde.Server.Tests.Jobs
 			Assert.AreEqual(leaseId, job.Batches[1].LeaseId);
 			Assert.AreEqual(1, job.Batches[1].GroupIdx);
 			Assert.AreEqual(2, job.Batches[2].GroupIdx);
+		}
+
+		[TestMethod]
+		public async Task AddArtifactsAsync()
+		{
+			Mock<ITemplate> templateMock = new Mock<ITemplate>(MockBehavior.Strict);
+			templateMock.SetupGet(x => x.InitialAgentType).Returns((string?)null);
+
+			IGraph baseGraph = await GraphCollection.AddAsync(templateMock.Object, null);
+
+			List<NewGraphArtifact> newArtifacts = new List<NewGraphArtifact>();
+			newArtifacts.Add(new NewGraphArtifact(new ArtifactName("foo"), new ArtifactType("type"), "hello world", "Engine/Source", "fileset"));
+
+			IGraph graph = await GraphCollection.AppendAsync(baseGraph, newArtifactRequests: newArtifacts);
+			Assert.AreEqual(1, graph.Artifacts.Count);
+			Assert.AreEqual("foo", graph.Artifacts[0].Name.ToString());
+			Assert.AreEqual("type", graph.Artifacts[0].Type.ToString());
+			Assert.AreEqual("hello world", graph.Artifacts[0].Description);
+			Assert.AreEqual("Engine/Source", graph.Artifacts[0].BasePath);
+			Assert.AreEqual("fileset", graph.Artifacts[0].OutputName);
 		}
 	}
 }

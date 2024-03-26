@@ -12,6 +12,7 @@ using System.Text.Json.Serialization;
 using System.Threading;
 using System.Threading.Tasks;
 using EpicGames.Core;
+using EpicGames.Horde;
 using EpicGames.Horde.Agents.Sessions;
 using EpicGames.Horde.Artifacts;
 using EpicGames.Horde.Jobs;
@@ -119,7 +120,13 @@ namespace Horde.Server.Jobs
 				throw new StructuredRpcException(StatusCode.NotFound, "Couldn't find template {TemplateId} in stream {StreamId}", job.TemplateId, job.StreamId);
 			}
 
-			IArtifact artifact = await _artifactCollection.AddAsync(name, type, null, job.StreamId, job.Change, keys, templateConfig.Acl.ScopeName, context.CancellationToken);
+			string? description = request.Description;
+			if (String.IsNullOrEmpty(description))
+			{
+				description = request.Name;
+			}
+
+			IArtifact artifact = await _artifactCollection.AddAsync(name, type, description, job.StreamId, job.Change, keys, templateConfig.Acl.ScopeName, context.CancellationToken);
 
 			List<AclClaimConfig> claims = new List<AclClaimConfig>();
 			claims.Add(new AclClaimConfig(HordeClaimTypes.WriteNamespace, $"{artifact.NamespaceId}:{artifact.RefName}"));
@@ -634,6 +641,16 @@ namespace Horde.Server.Jobs
 					response.Properties.Add(node.Properties);
 				}
 				response.Warnings = node.Warnings;
+
+				foreach (IGraphArtifact artifact in graph.Artifacts)
+				{
+					if (node.OutputNames.Contains(artifact.OutputName))
+					{
+						CreateGraphArtifactRequest stepArtifact = new CreateGraphArtifactRequest { Name = artifact.Name.ToString(), Type = artifact.Type.ToString(), Description = artifact.Description, BasePath = artifact.BasePath, OutputName = artifact.OutputName };
+						response.Artifacts.Add(stepArtifact);
+					}
+				}
+
 				return response;
 			}
 
@@ -831,8 +848,24 @@ namespace Horde.Server.Jobs
 					newLabels.Add(newLabel);
 				}
 
+				// Add all the new artifacts
+				List<NewGraphArtifact> newArtifacts = new List<NewGraphArtifact>();
+				foreach (CreateGraphArtifactRequest artifact in request.Artifacts)
+				{
+					ArtifactName name = new ArtifactName(StringId.Sanitize(artifact.Name));
+					ArtifactType type = new ArtifactType(StringId.Sanitize(artifact.Type));
+
+					string description = artifact.Description;
+					if (String.IsNullOrEmpty(description))
+					{
+						description = artifact.Name;
+					}
+
+					newArtifacts.Add(new NewGraphArtifact(name, type, description, artifact.BasePath, artifact.OutputName));
+				}
+
 				// Create the new graph
-				IGraph newGraph = await _graphs.AppendAsync(null, newGroups, newAggregates, newLabels);
+				IGraph newGraph = await _graphs.AppendAsync(null, newGroups, newAggregates, newLabels, newArtifacts);
 
 				// Try to update the graph with the new value
 				IJob? newJob = await _jobService.TryUpdateGraphAsync(job, oldGraph, newGraph, context.CancellationToken);

@@ -131,6 +131,7 @@ namespace Horde.Server.Tests
 			public IReadOnlyList<INodeGroup> Groups { get; set; } = null!;
 			public IReadOnlyList<IAggregate> Aggregates { get; set; } = null!;
 			public IReadOnlyList<ILabel> Labels { get; set; } = null!;
+			public IReadOnlyList<IGraphArtifact> Artifacts { get; set; } = null!;
 		}
 	}
 }

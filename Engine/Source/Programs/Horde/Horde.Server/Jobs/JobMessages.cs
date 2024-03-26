@@ -418,14 +418,14 @@ namespace Horde.Server.Jobs
 	/// <summary>
 	/// Response describing an artifact produced during a job
 	/// </summary>
-	/// <param name="Id">Identifier for this artifact</param>
+	/// <param name="Id">Identifier for this artifact, if it has been produced</param>
 	/// <param name="Name">Name of the artifact</param>
 	/// <param name="Type">Artifact type</param>
 	/// <param name="Description">Description to display for the artifact on the dashboard</param>
 	/// <param name="StepId">Step producing the artifact</param>
 	public record class GetJobArtifactResponse
 	(
-		ArtifactId Id,
+		ArtifactId? Id,
 		ArtifactName Name,
 		ArtifactType Type,
 		string? Description,

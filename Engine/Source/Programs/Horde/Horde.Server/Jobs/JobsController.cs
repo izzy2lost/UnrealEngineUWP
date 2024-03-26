@@ -494,6 +494,10 @@ namespace Horde.Server.Jobs
 			}
 			if (includeArtifacts)
 			{
+				response.Artifacts = new List<GetJobArtifactResponse>();
+
+				HashSet<(ArtifactName, JobStepId)> addedArtifacts = new HashSet<(ArtifactName, JobStepId)>();
+
 				string artifactKey = $"job:{job.Id}";
 				string artifactStepKeyPrefix = $"job:{job.Id}/step:";
 				await foreach (IArtifact artifact in _artifactCollection.FindAsync(keys: new[] { artifactKey }, cancellationToken: cancellationToken))
@@ -503,8 +507,31 @@ namespace Horde.Server.Jobs
 						string? stepKey = artifact.Keys.FirstOrDefault(x => x.StartsWith(artifactStepKeyPrefix, StringComparison.Ordinal));
 						if (stepKey != null && JobStepId.TryParse(stepKey.Substring(artifactStepKeyPrefix.Length), out JobStepId jobStepId))
 						{
-							response.Artifacts ??= new List<GetJobArtifactResponse>();
 							response.Artifacts.Add(new GetJobArtifactResponse(artifact.Id, artifact.Name, artifact.Type, artifact.Description, jobStepId));
+							addedArtifacts.Add((artifact.Name, jobStepId));
+						}
+					}
+				}
+
+				Dictionary<string, IGraphArtifact> outputNameToArtifact = new Dictionary<string, IGraphArtifact>(StringComparer.OrdinalIgnoreCase);
+				foreach (IGraphArtifact artifact in graph.Artifacts)
+				{
+					outputNameToArtifact[artifact.OutputName] = artifact;
+				}
+
+				foreach (IJobStepBatch batch in job.Batches)
+				{
+					INodeGroup group = graph.Groups[batch.GroupIdx];
+					foreach (IJobStep step in batch.Steps)
+					{
+						INode node = group.Nodes[step.NodeIdx];
+						foreach (string outputName in node.OutputNames)
+						{
+							IGraphArtifact? graphArtifact;
+							if (outputNameToArtifact.TryGetValue(outputName, out graphArtifact) && !addedArtifacts.Contains((graphArtifact.Name, step.Id)))
+							{
+								response.Artifacts.Add(new GetJobArtifactResponse(null, graphArtifact.Name, graphArtifact.Type, graphArtifact.Description, step.Id));
+							}
 						}
 					}
 				}
@@ -911,7 +938,7 @@ namespace Horde.Server.Jobs
 				}
 
 				IGraph oldGraph = await _jobService.GetGraphAsync(job, cancellationToken);
-				IGraph newGraph = await _graphs.AppendAsync(oldGraph, requests, null, null, cancellationToken);
+				IGraph newGraph = await _graphs.AppendAsync(oldGraph, requests, null, null, null, cancellationToken);
 
 				IJob? newJob = await _jobService.TryUpdateGraphAsync(job, oldGraph, newGraph, cancellationToken);
 				if (newJob != null)
