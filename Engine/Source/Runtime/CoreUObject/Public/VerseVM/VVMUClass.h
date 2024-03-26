@@ -1,34 +1,43 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 #pragma once
 
-#if WITH_VERSE_VM || defined(__INTELLISENSE__)
-
 #include "Templates/Casts.h"
 #include "UObject/Class.h"
+#if WITH_VERSE_VM || defined(__INTELLISENSE__)
 #include "VerseVM/VVMClass.h"
 #include "VerseVM/VVMRestValue.h"
 #include "VerseVM/VVMShape.h"
+#endif
+#include "VVMUClass.generated.h"
 
+#if WITH_VERSE_VM || defined(__INTELLISENSE__)
 namespace Verse
 {
 struct VClass;
 }
+#endif
 
 // Class used for all VerseVM generated classes
-class UVerseVMClass : public UClass
+UCLASS(within = Package, Config = Engine)
+class COREUOBJECT_API UVerseVMClass : public UClass
 {
-	DECLARE_CASTED_CLASS_INTRINSIC_NO_CTOR(UVerseVMClass, UClass, 0, TEXT("/Script/CoreUObject"), CASTCLASS_UVerseVMClass, COREUOBJECT_API)
-	DECLARE_WITHIN_UPACKAGE()
+	GENERATED_BODY()
 
+#if WITH_VERSE_VM || defined(__INTELLISENSE__)
 public:
-	COREUOBJECT_API UVerseVMClass(const FObjectInitializer& ObjectInitializer = FObjectInitializer::Get());
-
 	FVRestValueProperty* GetPropertyForField(Verse::FAllocationContext Context, Verse::VUniqueString& FieldName) const;
+	static void AddReferencedObjects(UObject* InThis, FReferenceCollector& Collector);
+
+	//~ Begin UObject interface
+	virtual bool IsAsset() const override { return true; }
+	//~ End UObject interface
 
 	Verse::TWriteBarrier<Verse::VShape> Shape;
 	Verse::TWriteBarrier<Verse::VClass> Class;
+#endif
 };
 
+#if WITH_VERSE_VM || defined(__INTELLISENSE__)
 namespace Verse
 {
 inline UClass* VClass::GetOrCreateUClass(FAllocationContext Context)

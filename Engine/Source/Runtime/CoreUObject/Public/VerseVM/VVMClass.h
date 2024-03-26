@@ -148,7 +148,8 @@ struct VClass : VType
 
 	FUtf8StringView GetName() const { return ClassName.Get() != nullptr ? ClassName->AsCString() : FUtf8StringView(); }
 	FUtf8StringView GetUEMangledName() const { return UEMangledName.Get() != nullptr ? UEMangledName->AsStringView() : FUtf8StringView(); }
-	FUtf8StringView ExtractClassName() const;
+	COREUOBJECT_API FUtf8StringView ExtractClassName() const;
+	VPackage* GetScope() const { return Scope.Get(); }
 	EKind GetKind() const { return Kind; }
 	bool IsNative() const { return bNative; }
 

@@ -12,6 +12,11 @@
 namespace Verse
 {
 
+namespace Private
+{
+IEngineEnvironment* GEngineEnvironment = nullptr;
+}
+
 void VerseVM::Startup()
 {
 	Verse::FHeap::Initialize();
@@ -37,5 +42,17 @@ void VerseVM::Startup()
 void VerseVM::Shutdown()
 {
 }
+
+IEngineEnvironment* VerseVM::GetEngineEnvironment()
+{
+	return Private::GEngineEnvironment;
+}
+
+void VerseVM::SetEngineEnvironment(IEngineEnvironment* Environment)
+{
+	ensure(Environment == nullptr || Private::GEngineEnvironment == nullptr);
+	Private::GEngineEnvironment = Environment;
+}
+
 } // namespace Verse
 #endif // WITH_VERSE_VM || defined(__INTELLISENSE__)

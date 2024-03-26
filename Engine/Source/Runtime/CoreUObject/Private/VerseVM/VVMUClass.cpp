@@ -1,26 +1,17 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#if WITH_VERSE_VM || defined(__INTELLISENSE__)
-
 #include "VerseVM/VVMUClass.h"
-#include "UObject/GarbageCollectionSchema.h"
 #include "UObject/Package.h"
+#if WITH_VERSE_VM || defined(__INTELLISENSE__)
 #include "VerseVM/VVMClass.h"
+#endif
 
-IMPLEMENT_CORE_INTRINSIC_CLASS(UVerseVMClass, UClass,
-	{
-		Class->CppClassStaticFunctions = UOBJECT_CPPCLASS_STATICFUNCTIONS_FORCLASS(UVerseVMClass);
-
-		UE::GC::DeclareIntrinsicMembers(Class, {UE_GC_MEMBER(UVerseVMClass, Shape), UE_GC_MEMBER(UVerseVMClass, Class)});
-	});
-
-/** Default C++ class type information, used for all new UVerseVMClass objects. */
-static const FCppClassTypeInfoStatic DefaultCppClassTypeInfoStatic = {false};
-
-UVerseVMClass::UVerseVMClass(const FObjectInitializer& ObjectInitializer /*= FObjectInitializer::Get()*/)
-	: UClass(ObjectInitializer)
+#if WITH_VERSE_VM || defined(__INTELLISENSE__)
+void UVerseVMClass::AddReferencedObjects(UObject* InThis, FReferenceCollector& Collector)
 {
-	SetCppTypeInfoStatic(&DefaultCppClassTypeInfoStatic);
+	Super::AddReferencedObjects(InThis, Collector);
+	UVerseVMClass* This = static_cast<UVerseVMClass*>(InThis);
+	Collector.AddReferencedVerseValue(This->Shape);
+	Collector.AddReferencedVerseValue(This->Class);
 }
-
-#endif // WITH_VERSE_VM || defined(__INTELLISENSE__)
+#endif

@@ -10,6 +10,8 @@
 #include "VerseVM/Inline/VVMAbstractVisitorInline.h"
 #include "VerseVM/Inline/VVMMarkStackVisitorInline.h"
 #include "VerseVM/VVMCppClassInfo.h"
+#include "VerseVM/VVMEngineEnvironment.h"
+#include "VerseVM/VVMVerse.h"
 
 namespace Verse
 {
@@ -17,19 +19,23 @@ namespace Verse
 DEFINE_DERIVED_VCPPCLASSINFO(VPackage);
 TGlobalTrivialEmergentTypePtr<&VPackage::StaticCppClassInfo> VPackage::GlobalTrivialEmergentType;
 
-UPackage* VPackage::GetUPackage(const TCHAR* QualifiedClassName) const
+UPackage* VPackage::GetUPackage(const TCHAR* UEPackageName) const
 {
-	auto FilteredQualifiedClassName = StringCast<UTF8CHAR>(PackageType == EPackageType::VNI ? TEXT("") : QualifiedClassName);
-	return GetUPackageInternal(FilteredQualifiedClassName);
+	return GetUPackageInternal(StringCast<UTF8CHAR>(UEPackageName));
 }
 
-UPackage* VPackage::GetOrCreateUPackage(FAllocationContext Context, const TCHAR* QualifiedClassName)
+UPackage* VPackage::GetOrCreateUPackage(FAllocationContext Context, const TCHAR* UEPackageName)
 {
-	auto FilteredQualifiedClassName = StringCast<UTF8CHAR>(PackageType == EPackageType::VNI ? TEXT("") : QualifiedClassName);
-	UPackage* Package = GetUPackageInternal(FilteredQualifiedClassName);
+	auto Utf8PackageName = StringCast<UTF8CHAR>(UEPackageName);
+	UPackage* Package = GetUPackageInternal(Utf8PackageName);
 	if (Package == nullptr)
 	{
-		Package = CreateUPackage(Context, QualifiedClassName, FilteredQualifiedClassName);
+		IEngineEnvironment* Environment = VerseVM::GetEngineEnvironment();
+		ensure(Environment);
+		FString ScratchSpace;
+		const TCHAR* AdornedPackageName = Environment->AdornPackageName(UEPackageName, PackageStage, ScratchSpace);
+		Package = Environment->CreateUPackage(Context, AdornedPackageName);
+		UPackageMap.AddValue(Context, Utf8PackageName, VValue(Package));
 	}
 	return Package;
 }
@@ -41,56 +47,27 @@ void VPackage::SetStage(EPackageStage InPackageStage)
 		return;
 	}
 	PackageStage = InPackageStage;
+	IEngineEnvironment* Environment = VerseVM::GetEngineEnvironment();
+	ensure(Environment);
 	for (uint32 Index = UPackageMap.Num(); Index-- > 0;)
 	{
-		const VUTF8String& QualifiedClassName = UPackageMap.GetName(Index);
+		const VUTF8String& Utf8PackageName = UPackageMap.GetName(Index);
 		VValue PackageValue = UPackageMap.GetValue(Index);
 		if (PackageValue.IsUObject())
 		{
 			UPackage* Package = Cast<UPackage>(PackageValue.AsUObject());
-			Package->Rename(*GetUPackageName(StringCast<TCHAR>(QualifiedClassName.AsCString()).Get(), PackageStage));
+			FString UPackageName = StringCast<TCHAR>(Utf8PackageName.AsCString()).Get();
+			FString ScratchSpace;
+			const TCHAR* AdornedPackageName = Environment->AdornPackageName(*UPackageName, PackageStage, ScratchSpace);
+			Package->Rename(AdornedPackageName);
 		}
 	}
 }
 
-UPackage* VPackage::GetUPackageInternal(FUtf8StringView FilteredQualifiedClassName) const
+UPackage* VPackage::GetUPackageInternal(FUtf8StringView UEPackageName) const
 {
-	VValue PackageValue = UPackageMap.Lookup(FilteredQualifiedClassName);
+	VValue PackageValue = UPackageMap.Lookup(UEPackageName);
 	return PackageValue.IsUObject() ? Cast<UPackage>(PackageValue.AsUObject()) : nullptr;
-}
-
-UPackage* VPackage::CreateUPackage(FAllocationContext Context, const TCHAR* QualifiedClassName, FUtf8StringView FilteredQualifiedClassName)
-{
-	ensure(GetUPackageInternal(FilteredQualifiedClassName) == nullptr);
-	UPackage* Package = CreatePackage(*GetUPackageName(QualifiedClassName, PackageStage));
-
-	// @TODO: SOL-997, this flag will need to be cleared for cooked assets
-	Package->SetPackageFlags(PKG_InMemoryOnly);
-
-	// @TODO: SOL-1175, this works around a crash when cooking any game on any platform.  During cooking, the Event Driven Loader (EDL)
-	// records when UObjects are requested for load (ENotifyRegistrationPhase::NRP_Added), when they're started (ENotifyRegistrationPhase::NRP_Started),
-	// and then when they're finished.  Using this information, it tries to order loading for maximum efficiency.  UClasses are special, because they have
-	// an associated CDO with them.  For Blueprint classes, the CDO is always ahead of its associated class in the linker table, meaning it is loaded first (NRP_Added),
-	// and then the UClass is loaded (NRP_Added).  When loading the UClass, it calls CreateDefaultObject(), which then attempts to serialize the CDO manually (NRP_Started).
-	//
-	// For Verse classes currently, we generate these classes and their CDOs at runtime.  So, the UClass gets created, and then it runs CreateDefaultObject().  Unlike the
-	// Blueprint case, the CDO hasn't been loaded because the class didn't exist on disk.  So, when UClass::CreateDefaultObject() tries to note the loading for EDL (with NRP_Started),
-	// the EDL code asserts because the NRP_Started event for the CDO happened before NRP_Added.  Native classes get around this in their binding code, where a struct helper manually
-	// fires the EDL events for NRP_Added for both the Class and the CDO.  Since Verse classes are not necessarily native, but are generated at runtime like native classes, we
-	// bypass the event behaviour with this package flag.
-	//
-	// This probably has ramifications for cooked games, and should be revisited when Verse supports cooked projects.  In the meantime, this is a surgical fix to prevent crashes
-	// and allow runtime classes to exist.  Note that EDL is strictly contained in CoreUObject, because nothing should ever mess with it.  UClasses are the exception in UObjects,
-	// but since they exist in CoreUObject unlike Verse class, we decided not to expose the EDL notifications publicly.  The intent is that you should never have to mess with it.
-	Package->SetPackageFlags(PKG_RuntimeGenerated);
-
-	UPackageMap.AddValue(Context, FilteredQualifiedClassName, VValue(Package));
-	return Package;
-}
-
-FString VPackage::GetUPackageName(const TCHAR* QualifiedClassName, EPackageStage Stage, EPackageType* OutPackageType) const
-{
-	return FPackageName::GetUClassPackagePath(StringCast<TCHAR>(PackageName->AsCString()).Get(), QualifiedClassName, Stage, OutPackageType);
 }
 
 template <typename TVisitor>

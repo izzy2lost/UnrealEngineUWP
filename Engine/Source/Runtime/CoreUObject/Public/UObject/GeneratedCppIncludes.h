@@ -7,6 +7,7 @@
 #include "UObject/CoreNative.h"
 #include "UObject/Class.h"
 #include "UObject/MetaData.h"
+#include "UObject/Package.h"
 #include "UObject/UnrealType.h"
 #include "UObject/EnumProperty.h"
 #include "UObject/TextProperty.h"

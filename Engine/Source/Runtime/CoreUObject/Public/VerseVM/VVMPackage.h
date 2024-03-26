@@ -7,12 +7,20 @@
 #include "VVMCell.h"
 #include "VerseVM/Inline/VVMValueInline.h"
 #include "VerseVM/VVMNameValueMap.h"
-#include "VerseVM/VVMPackageName.h" // Needed for the EPackage enums
 
 class UPackage;
 
 namespace Verse
 {
+struct VClass;
+
+enum class EPackageStage : uint8
+{
+	Global,
+	Temp,
+	Dead
+};
+
 enum class EDigestVariant : uint8
 {
 	PublicAndEpicInternal = 0,
@@ -37,14 +45,11 @@ struct VPackage : VCell
 	template <typename CellType>
 	CellType* LookupDefinition(FUtf8StringView Name) const { return Map.LookupCell<CellType>(Name); }
 
-	COREUOBJECT_API UPackage* GetUPackage(const TCHAR* QualifiedClassName) const;
-	COREUOBJECT_API UPackage* GetOrCreateUPackage(FAllocationContext Context, const TCHAR* QualifiedClassName);
-	COREUOBJECT_API FString GetUPackageName(const TCHAR* QualifiedClassName, EPackageStage Stage, EPackageType* OutPackageType = nullptr) const;
+	COREUOBJECT_API UPackage* GetUPackage(const TCHAR* UEPackageName) const;
+	COREUOBJECT_API UPackage* GetOrCreateUPackage(FAllocationContext Context, const TCHAR* UEPackageName);
 
 	EPackageStage GetStage() const { return PackageStage; }
 	COREUOBJECT_API void SetStage(EPackageStage InPackageStage);
-
-	EPackageType GetPackageType() const { return PackageType; }
 
 	static VPackage& New(FAllocationContext Context, VUTF8String& Name, uint32 Capacity, EPackageStage InPackageStage = EPackageStage::Global)
 	{
@@ -57,17 +62,14 @@ private:
 		, PackageName(Context, &Name)
 		, Map(Context, Capacity)
 		, UPackageMap(Context, 0)
-		, PackageType(FPackageName::GetPackageType(StringCast<TCHAR>(Name.AsCString()).Get()))
 	{
 	}
 
-	UPackage* GetUPackageInternal(FUtf8StringView FilteredQualifiedClassName) const;
-	COREUOBJECT_API UPackage* CreateUPackage(FAllocationContext Context, const TCHAR* QualifiedClassName, FUtf8StringView FilteredQualifiedClassName);
+	UPackage* GetUPackageInternal(FUtf8StringView UEPackageName) const;
 
 	TWriteBarrier<VUTF8String> PackageName;
 	VNameValueMap Map;
 	VNameValueMap UPackageMap;
-	EPackageType PackageType;
 	EPackageStage PackageStage;
 };
 } // namespace Verse

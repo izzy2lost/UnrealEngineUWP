@@ -13,12 +13,14 @@
 #include "VerseVM/Inline/VVMObjectInline.h"
 #include "VerseVM/Inline/VVMShapeInline.h"
 #include "VerseVM/Inline/VVMUTF8StringInline.h"
+#include "VerseVM/VVMEngineEnvironment.h"
 #include "VerseVM/VVMGlobalTrivialEmergentTypePtr.h"
 #include "VerseVM/VVMPackage.h"
 #include "VerseVM/VVMProcedure.h"
 #include "VerseVM/VVMTypeCreator.h"
 #include "VerseVM/VVMUClass.h"
 #include "VerseVM/VVMValuePrinting.h"
+#include "VerseVM/VVMVerse.h"
 
 namespace Verse
 {
@@ -277,17 +279,11 @@ UClass* VClass::CreateUClass(FAllocationContext Context)
 {
 	ensure(!AssociatedUClass && Kind != EKind::Interface); // Only an actual class should be associated with a UClass
 
-	// 1) Make sure we have a destination package
+	// 1) Create the new UClass object
 
-	FUtf8StringView MangledNameView = UEMangledName && UEMangledName->Num() > 0 ? UEMangledName->AsStringView() : ExtractClassName();
-	ensure(MangledNameView.Len() > 0);
-	UPackage* ClassPackage = Scope ? Scope->GetOrCreateUPackage(Context, *FString(MangledNameView)) : GetTransientPackage();
-
-	// 2) Create the new UClass object
-
-	FUtf8StringView UEClassNameView = Scope && Scope->GetPackageType() == EPackageType::VNI ? MangledNameView : ExtractClassName();
-	const FName UEClassName = UEClassNameView.Len() > 0 ? FName(UEClassNameView) : NAME_None;
-	UVerseVMClass* NewClass = NewObject<UVerseVMClass>(ClassPackage, UEClassName, RF_Public | RF_Transient);
+	IEngineEnvironment* Environment = VerseVM::GetEngineEnvironment();
+	ensure(Environment);
+	UVerseVMClass* NewClass = Environment->CreateUClass(Context, this);
 	NewClass->Class.Set(Context, this);
 #if WITH_EDITOR
 	NewClass->SetMetaData(TEXT("IsBlueprintBase"), TEXT("false"));
@@ -302,7 +298,7 @@ UClass* VClass::CreateUClass(FAllocationContext Context)
 	NewClass->SetSuperStruct(SuperUClass);
 	NewClass->ClassConfigName = SuperUClass->ClassConfigName;
 
-	// 3) Generate special shape for it
+	// 2) Generate special shape for it
 
 	VShape::FieldsMap AllFields;
 	for (uint32 Index = 0; Index < Constructor->NumEntries; ++Index)
@@ -317,7 +313,7 @@ UClass* VClass::CreateUClass(FAllocationContext Context)
 	VShape* ThisShape = VShape::New(Context, MoveTemp(AllFields));
 	NewClass->Shape.Set(Context, *ThisShape);
 
-	// 4) Populate its properties
+	// 3) Populate its properties
 
 	UVerseVMClass* SuperVerseUClass = Cast<UVerseVMClass>(SuperUClass);
 	VShape* SuperShape = SuperVerseUClass ? SuperVerseUClass->Shape.Get() : nullptr;
@@ -342,7 +338,7 @@ UClass* VClass::CreateUClass(FAllocationContext Context)
 		}
 	}
 
-	// 5) Finalize class
+	// 4) Finalize class
 
 	NewClass->Bind();
 	NewClass->StaticLink(/*bRelinkExistingProperties =*/true);
