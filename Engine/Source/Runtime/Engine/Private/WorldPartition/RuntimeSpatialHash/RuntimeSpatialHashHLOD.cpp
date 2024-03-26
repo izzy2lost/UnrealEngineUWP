@@ -494,7 +494,7 @@ bool UWorldPartitionRuntimeSpatialHash::SetupHLODActors(const IStreamingGenerati
 		if (!FoundIndex)
 		{
 			//@todo_ow should this be done upstream?
-			UE_LOG(LogWorldPartitionRuntimeSpatialHashHLOD, Warning, TEXT("Invalid partition grid '%s' referenced by actor cluster"), *ActorSetInstance.RuntimeGrid.ToString());
+			UE_LOG(LogWorldPartitionRuntimeSpatialHashHLOD, Log, TEXT("Invalid partition grid '%s' referenced by actor cluster"), *ActorSetInstance.RuntimeGrid.ToString());
 		}
 
 		int32 GridIndex = FoundIndex ? *FoundIndex : 0;
