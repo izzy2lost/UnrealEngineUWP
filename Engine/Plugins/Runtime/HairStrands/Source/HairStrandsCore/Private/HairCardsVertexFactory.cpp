@@ -289,8 +289,28 @@ void FHairCardsVertexFactory::ValidateCompiledResult(const FVertexFactoryType* T
 
 void FHairCardsVertexFactory::GetPSOPrecacheVertexFetchElements(EVertexInputStreamType VertexInputStreamType, FVertexDeclarationElementList& Elements)
 {
-	// Manual vertex fetch is available for this factory so only primitive ID stream is used
-	Elements.Add(FVertexElement(0, 0, VET_UInt, HAIR_CARDS_VF_PRIMITIVEID_STREAM_INDEX, 0, true));
+	if (!PlatformGPUSceneUsesUniformBufferView(GMaxRHIShaderPlatform))
+	{ 
+		// Manual vertex fetch is available for this factory so only primitive ID stream is used
+		Elements.Add(FVertexElement(0, 0, VET_UInt, HAIR_CARDS_VF_PRIMITIVEID_STREAM_INDEX, 0, true));
+	}
+
+	const bool bManualFetch = RHISupportsManualVertexFetch(GMaxRHIShaderPlatform);
+	if (!bManualFetch)
+	{
+		uint8 NumStreams = Elements.Num();
+		
+		Elements.Add(FVertexElement(0+NumStreams, 0, FHairCardsPositionFormat::VertexElementType, 0, FHairCardsPositionFormat::SizeInByte, false));
+		Elements.Add(FVertexElement(0+NumStreams, 0, FHairCardsPositionFormat::VertexElementType, 5, FHairCardsPositionFormat::SizeInByte, false));
+
+		uint8 NormalOffset0 = 0u;
+		uint8 NormalOffset1 = FHairCardsNormalFormat::SizeInByte;
+		Elements.Add(FVertexElement(1+NumStreams, NormalOffset0, FHairCardsNormalFormat::VertexElementType, 1, FHairCardsNormalFormat::SizeInByte * FHairCardsNormalFormat::ComponentCount, false));
+		Elements.Add(FVertexElement(1+NumStreams, NormalOffset1, FHairCardsNormalFormat::VertexElementType, 2, FHairCardsNormalFormat::SizeInByte * FHairCardsNormalFormat::ComponentCount, false));
+
+		Elements.Add(FVertexElement(2+NumStreams, 0, FHairCardsUVFormat::VertexElementType, 3, FHairCardsUVFormat::SizeInByte, false));
+		Elements.Add(FVertexElement(3+NumStreams, 0, FHairCardsMaterialFormat::VertexElementType, 4, FHairCardsMaterialFormat::SizeInByte, false));
+	}
 }
 
 EPrimitiveIdMode FHairCardsVertexFactory::GetPrimitiveIdMode(ERHIFeatureLevel::Type In) const
