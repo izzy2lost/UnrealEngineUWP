@@ -1964,8 +1964,10 @@ namespace uba
 				auto bng = MakeGuard([&]() { if (shouldBottleneck) bottleneck.Leave(); });
 				#endif
 
+				#if PLATFORM_WINDOWS
 				shouldBottleneck = true;
 				bottleneck.Enter();
+				#endif
 
 				u64 fileSize = file.mappingWritten;
 				u8* mem = MapViewOfFile(file.mappingHandle, FILE_MAP_READ, 0, fileSize);
