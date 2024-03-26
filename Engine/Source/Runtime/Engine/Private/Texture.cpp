@@ -1376,6 +1376,15 @@ void UTexture::GetAssetRegistryTags(FAssetRegistryTagsContext Context) const
 	
 	Context.AddTag(FAssetRegistryTag("IsSourceValid", Source.IsValid() ? TEXT("True") : TEXT("False"), FAssetRegistryTag::TT_Alphabetical));
 
+#if WITH_EDITORONLY_DATA
+	Context.AddTag(FAssetRegistryTag("MaxTextureSize", FString::FromInt(MaxTextureSize), FAssetRegistryTag::TT_Numerical));
+
+	FTexturePlatformData** PlatformDataPtr = const_cast<UTexture*>(this)->GetRunningPlatformData();
+	const int32 ActualMipBias = GetCachedLODBias();
+	const int64 ResourceSize = PlatformDataPtr && *PlatformDataPtr ? (*PlatformDataPtr)->GetPayloadSize(ActualMipBias) : const_cast<UTexture*>(this)->GetResourceSizeBytes(EResourceSizeMode::Exclusive);
+	Context.AddTag(FAssetRegistryTag("ResourceSizeKB", FString::SanitizeFloat(ResourceSize / 1024.f), FAssetRegistryTag::TT_Numerical));
+#endif
+
 	Super::GetAssetRegistryTags(Context);
 }
 #endif
