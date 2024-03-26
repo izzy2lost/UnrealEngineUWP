@@ -70,6 +70,22 @@
 				{
 					"name": "StepName",
 					"group": "StepName"
+				},
+				{
+					"name": "Target",
+					"group": "Target"
+				},
+				{
+					"name": "Mode",
+					"group": "Mode"
+				},
+				{
+					"name": "Platform",
+					"group": "Platform"
+				},
+				{
+					"name": "Configuration",
+					"group": "Configuration"
 				}
 			],
 			"categories": [
@@ -546,7 +562,12 @@
 									"id": "horde-incremental-compile-jobs"
 								}
 							]
-						},
+						}	
+					]
+				},
+				{
+					"name": "UBA",
+					"charts": [
 						{
 							"name": "UBA Compile Duration",
 							"metrics": [
@@ -565,6 +586,20 @@
 								},
 								{
 									"id": "ubt-uba-local-usage",
+									"alias": "Local"
+								}
+							]
+						},
+						{
+							"name": "UBA Compile Actions",
+							"display": "Ratio",
+							"metrics": [
+								{
+									"id": "ubt-uba-remote-actions",
+									"alias": "Remote"
+								},
+								{
+									"id": "ubt-uba-local-actions",
 									"alias": "Local"
 								}
 							]
