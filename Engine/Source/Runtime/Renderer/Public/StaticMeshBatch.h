@@ -40,6 +40,10 @@ public:
 
 	FStaticMeshBatchRelevance(const FStaticMeshBatch& StaticMesh, float InScreenSize, bool InbSupportsCachingMeshDrawCommands, bool InbUseSkyMaterial, bool bInUseSingleLayerWaterMaterial, bool bInUseAnisotropy, bool bInSupportsNaniteRendering, bool bInSupportsGPUScene, bool bInUseForWaterInfoTextureDepth, bool bInUseForLumenSceneCapture, ERHIFeatureLevel::Type FeatureLevel);
 
+	PRAGMA_DISABLE_DEPRECATION_WARNINGS
+	int8 GetLODIndex() const { return LODIndex; }
+	PRAGMA_ENABLE_DEPRECATION_WARNINGS
+
 	/** Starting offset into continuous array of command infos for this mesh in FPrimitiveSceneInfo::CachedMeshDrawCommandInfos. */
 	FMeshPassMask CommandInfosMask;
 
@@ -56,6 +60,7 @@ public:
 	uint16 CommandInfosBase;
 
 	/** LOD index of the mesh, used for fading LOD transitions. */
+	UE_DEPRECATED(5.4, "Public LODIndex member is deprecated, use GetLODIndex() function instead.")
 	int8 LODIndex;
 
 	/** Whether the mesh batch should apply dithered LOD. */

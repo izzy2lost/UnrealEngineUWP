@@ -963,8 +963,8 @@ FLODMask ComputeLODForMeshes(const TArray<class FStaticMeshBatchRelevance>& Stat
 			const FStaticMeshBatchRelevance& Mesh = StaticMeshRelevances[MeshIndex];
 			if (Mesh.ScreenSize > 0.0f)
 			{
-				MinLOD = FMath::Min(MinLOD, (int32)Mesh.LODIndex);
-				MaxLOD = FMath::Max(MaxLOD, (int32)Mesh.LODIndex);
+				MinLOD = FMath::Min(MinLOD, (int32)Mesh.GetLODIndex());
+				MaxLOD = FMath::Max(MaxLOD, (int32)Mesh.GetLODIndex());
 			}
 		}
 		MinLOD = FMath::Max(MinLOD, (int32)CurFirstLODIdx);
@@ -989,12 +989,12 @@ FLODMask ComputeLODForMeshes(const TArray<class FStaticMeshBatchRelevance>& Stat
 
 						if (FMath::Square(MeshScreenSize * 0.5f) >= OutScreenRadiusSquared)
 						{
-							LODToRender.SetLODSample(Mesh.LODIndex, SampleIndex);
+							LODToRender.SetLODSample(Mesh.GetLODIndex(), SampleIndex);
 							bFoundLOD = true;
 							break;
 						}
 
-						MinLODFound = FMath::Min<int32>(MinLODFound, Mesh.LODIndex);
+						MinLODFound = FMath::Min<int32>(MinLODFound, Mesh.GetLODIndex());
 					}
 				}
 				// If no LOD was found matching the screen size, use the lowest in the array instead of LOD 0, to handle non-zero MinLOD
@@ -1018,12 +1018,12 @@ FLODMask ComputeLODForMeshes(const TArray<class FStaticMeshBatchRelevance>& Stat
 
 				if (FMath::Square(MeshScreenSize * 0.5f) >= OutScreenRadiusSquared)
 				{
-					LODToRender.SetLOD(Mesh.LODIndex);
+					LODToRender.SetLOD(Mesh.GetLODIndex());
 					bFoundLOD = true;
 					break;
 				}
 
-				MinLODFound = FMath::Min<int32>(MinLODFound, Mesh.LODIndex);
+				MinLODFound = FMath::Min<int32>(MinLODFound, Mesh.GetLODIndex());
 			}
 			// If no LOD was found matching the screen size, use the lowest in the array instead of LOD 0, to handle non-zero MinLOD
 			if (!bFoundLOD)

@@ -1436,7 +1436,8 @@ void FRelevancePacket::ComputeRelevance(FDynamicPrimitiveIndexList& DynamicPrimi
 					}
 				}
 
-				if (LODToRender.ContainsLOD(StaticMeshRelevance.LODIndex))
+				int8 StaticMeshLODIndex = StaticMeshRelevance.GetLODIndex();
+				if (LODToRender.ContainsLOD(StaticMeshLODIndex))
 				{
 					uint8 MarkMask = 0;
 					bool bHiddenByHLODFade = false; // Hide mesh LOD levels that HLOD is substituting
@@ -1445,7 +1446,7 @@ void FRelevancePacket::ComputeRelevance(FDynamicPrimitiveIndexList& DynamicPrimi
 					{
 						if (bIsHLODFadingOut)
 						{
-							if (bIsLODDithered && LODToRender.LODIndex1 == StaticMeshRelevance.LODIndex)
+							if (bIsLODDithered && LODToRender.LODIndex1 == StaticMeshLODIndex)
 							{
 								bHiddenByHLODFade = true;
 							}
@@ -1456,7 +1457,7 @@ void FRelevancePacket::ComputeRelevance(FDynamicPrimitiveIndexList& DynamicPrimi
 						}
 						else
 						{
-							if (bIsLODDithered && LODToRender.LODIndex0 == StaticMeshRelevance.LODIndex)
+							if (bIsLODDithered && LODToRender.LODIndex0 == StaticMeshLODIndex)
 							{
 								bHiddenByHLODFade = true;
 							}
@@ -1468,7 +1469,7 @@ void FRelevancePacket::ComputeRelevance(FDynamicPrimitiveIndexList& DynamicPrimi
 					}
 					else if (bIsLODDithered)
 					{
-						if (LODToRender.LODIndex0 == StaticMeshRelevance.LODIndex)
+						if (LODToRender.LODIndex0 == StaticMeshLODIndex)
 						{
 							MarkMask |= EMarkMaskBits::StaticMeshFadeOutDitheredLODMapMask;
 						}
@@ -1485,8 +1486,8 @@ void FRelevancePacket::ComputeRelevance(FDynamicPrimitiveIndexList& DynamicPrimi
 					// When we apply LOD selection on GPU we submit a range of LODs and then cull each one according to screen size.
 					// At both ends of a LOD range we only want to cull by screen size in one direction. This ensures that all possible screen sizes map to one LOD in the range.
 					EMeshDrawCommandCullingPayloadFlags CullingPayloadFlags = EMeshDrawCommandCullingPayloadFlags::Default;
-					CullingPayloadFlags |= bIsLODRange && !LODToRender.IsMaxLODInRange(StaticMeshRelevance.LODIndex) ? EMeshDrawCommandCullingPayloadFlags::MinScreenSizeCull : (EMeshDrawCommandCullingPayloadFlags)0;
-					CullingPayloadFlags |= bIsLODRange && !LODToRender.IsMinLODInRange(StaticMeshRelevance.LODIndex) ? EMeshDrawCommandCullingPayloadFlags::MaxScreenSizeCull : (EMeshDrawCommandCullingPayloadFlags)0;
+					CullingPayloadFlags |= bIsLODRange && !LODToRender.IsMaxLODInRange(StaticMeshRelevance.GetLODIndex()) ? EMeshDrawCommandCullingPayloadFlags::MinScreenSizeCull : (EMeshDrawCommandCullingPayloadFlags)0;
+					CullingPayloadFlags |= bIsLODRange && !LODToRender.IsMinLODInRange(StaticMeshRelevance.GetLODIndex()) ? EMeshDrawCommandCullingPayloadFlags::MaxScreenSizeCull : (EMeshDrawCommandCullingPayloadFlags)0;
 
 					if (ViewRelevance.bDrawRelevance)
 					{

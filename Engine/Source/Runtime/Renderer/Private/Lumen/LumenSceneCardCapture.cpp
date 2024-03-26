@@ -900,11 +900,11 @@ void LumenScene::AddCardCaptureDraws(
 						const FStaticMeshBatchRelevance& Mesh = PrimitiveSceneInfo->StaticMeshRelevances[MeshIndex];
 						if (Mesh.ScreenSize >= TargetScreenSize)
 						{
-							NextLODToRender = FMath::Max(NextLODToRender, (int32)Mesh.LODIndex);
+							NextLODToRender = FMath::Max(NextLODToRender, (int32)Mesh.GetLODIndex());
 						}
 						else
 						{
-							PrevLODToRender = FMath::Min(PrevLODToRender, (int32)Mesh.LODIndex);
+							PrevLODToRender = FMath::Min(PrevLODToRender, (int32)Mesh.GetLODIndex());
 						}
 					}
 
@@ -920,7 +920,7 @@ void LumenScene::AddCardCaptureDraws(
 					const FStaticMeshBatchRelevance& StaticMeshRelevance = PrimitiveSceneInfo->StaticMeshRelevances[MeshIndex];
 					const FStaticMeshBatch& StaticMesh = PrimitiveSceneInfo->StaticMeshes[MeshIndex];
 
-					bool bBuildMeshDrawCommands = (PrimitiveGroup.bHeightfield ? StaticMeshRelevance.bUseForLumenSceneCapture : StaticMeshRelevance.bUseForMaterial) && StaticMeshRelevance.LODIndex == LODToRender;
+					bool bBuildMeshDrawCommands = (PrimitiveGroup.bHeightfield ? StaticMeshRelevance.bUseForLumenSceneCapture : StaticMeshRelevance.bUseForMaterial) && StaticMeshRelevance.GetLODIndex() == LODToRender;
 
 					if (bBuildMeshDrawCommands)
 					{
