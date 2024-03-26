@@ -17,6 +17,9 @@ struct DATAREGISTRY_API FSoftDataRegistryOrTable
 {
 	GENERATED_BODY()
 
+	FSoftDataRegistryOrTable();
+	FSoftDataRegistryOrTable(const UDataTable* InDataTable, const FDataRegistryType& InRegistryType);
+
 	bool Serialize(FArchive& Ar);
 
 	/* Method to check if the given table matches the value in this struct */
