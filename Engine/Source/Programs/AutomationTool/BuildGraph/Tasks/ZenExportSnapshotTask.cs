@@ -88,6 +88,24 @@ namespace AutomationTool.Tasks
 		public string DestinationCloudHost;
 
 		/// <summary>
+		/// The host name to use when writing a snapshot descriptor for a cloud destination
+		/// </summary>
+		[TaskParameter(Optional = true)]
+		public string SnapshotDescriptorCloudHost;
+
+		/// <summary>
+		/// The http version to use when exporting to a cloud destination
+		/// </summary>
+		[TaskParameter(Optional = true)]
+		public string DestinationCloudHttpVersion;
+
+		/// <summary>
+		/// The http version to use when writing a snapshot descriptor for a cloud destination
+		/// </summary>
+		[TaskParameter(Optional = true)]
+		public string SnapshotDescriptorCloudHttpVersion;
+
+		/// <summary>
 		/// The namespace to use when exporting to a cloud destination
 		/// </summary>
 		[TaskParameter(Optional = true)]
@@ -298,11 +316,27 @@ namespace AutomationTool.Tasks
 						BucketName = ProjectNameAsBucketName;
 					}
 
+					string HostName = Parameters.SnapshotDescriptorCloudHost;
+					if (string.IsNullOrEmpty(HostName))
+					{
+						HostName = Parameters.DestinationCloudHost;
+					}
+
+					string HttpVersion = Parameters.SnapshotDescriptorCloudHttpVersion;
+					if (string.IsNullOrEmpty(HttpVersion))
+					{
+						HostName = Parameters.DestinationCloudHttpVersion;
+					}
+
 					IoHash DestinationKeyHash = IoHash.Compute(Encoding.UTF8.GetBytes(Name));
 					Writer.WriteValue("name", Name);
 					Writer.WriteValue("type", "cloud");
 					Writer.WriteValue("targetplatform", ExportSource.TargetPlatform);
-					Writer.WriteValue("host", Parameters.DestinationCloudHost);
+					Writer.WriteValue("host", HostName);
+					if (!string.IsNullOrEmpty(HttpVersion) && !HttpVersion.Equals("None", StringComparison.InvariantCultureIgnoreCase))
+					{
+						Writer.WriteValue("httpversion", HttpVersion);
+					}
 					Writer.WriteValue("namespace", Parameters.DestinationCloudNamespace);
 					Writer.WriteValue("bucket", BucketName);
 					Writer.WriteValue("key", DestinationKeyHash.ToString().ToLowerInvariant());
@@ -432,6 +466,18 @@ namespace AutomationTool.Tasks
 					}
 
 					OplogExportCommandline.AppendFormat(" --cloud {0} --namespace {1} --bucket {2}", Parameters.DestinationCloudHost, Parameters.DestinationCloudNamespace, BucketName);
+
+					if (!string.IsNullOrEmpty(Parameters.DestinationCloudHttpVersion))
+					{
+						if (Parameters.DestinationCloudHttpVersion.Equals("http2-only", StringComparison.InvariantCultureIgnoreCase))
+						{
+							OplogExportCommandline.Append(" --assume-http2");
+						}
+						else
+						{
+							throw new AutomationException("Unexpected destination cloud http version");
+						}
+					}
 
 					ExportIndex = 0;
 					foreach (ExportSourceData ExportSource in ExportSources)
