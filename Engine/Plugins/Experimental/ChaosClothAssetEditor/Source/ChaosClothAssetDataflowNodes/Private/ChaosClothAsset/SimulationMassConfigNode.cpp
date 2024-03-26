@@ -1,7 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "ChaosClothAsset/SimulationMassConfigNode.h"
-#include "ChaosClothAsset/SimulationFabricConfigNode.h"
+#include "ChaosClothAsset/SimulationBaseConfigNode.h"
 #include "ChaosClothAsset/CollectionClothFacade.h"
 #include "Chaos/CollectionPropertyFacade.h"
 #include "UObject/FortniteValkyrieBranchObjectVersion.h"
@@ -9,7 +9,7 @@
 #include UE_INLINE_GENERATED_CPP_BY_NAME(SimulationMassConfigNode)
 
 FChaosClothAssetSimulationMassConfigNode::FChaosClothAssetSimulationMassConfigNode(const Dataflow::FNodeParameters& InParam, FGuid InGuid)
-	: FChaosClothAssetSimulationFabricConfigNode(InParam, InGuid)
+	: FChaosClothAssetSimulationBaseConfigNode(InParam, InGuid)
 {
 	RegisterCollectionConnections();
 	RegisterInputConnection(&UniformMassWeighted.WeightMap);
@@ -18,11 +18,6 @@ FChaosClothAssetSimulationMassConfigNode::FChaosClothAssetSimulationMassConfigNo
 
 void FChaosClothAssetSimulationMassConfigNode::AddProperties(FPropertyHelper& PropertyHelper) const
 {
-	UE::Chaos::ClothAsset::FCollectionClothFacade ClothFacade(PropertyHelper.GetClothCollection());
-	if(!ClothFacade.IsValid())
-	{
-		return;
-	}
 	PropertyHelper.SetPropertyEnum(this, &MassMode, {}, ECollectionPropertyFlags::Intrinsic);
 	switch (MassMode)
 	{
@@ -39,9 +34,9 @@ void FChaosClothAssetSimulationMassConfigNode::AddProperties(FPropertyHelper& Pr
 		break;
 	case EClothMassMode::Density:
 		{
-			SetFabricPropertyWeighted(FName(TEXT("MassValue")), DensityWeighted, ClothFacade, PropertyHelper, [](const UE::Chaos::ClothAsset::FCollectionClothFabricFacade& FabricFacade)-> float
+			PropertyHelper.SetFabricPropertyWeighted(FName(TEXT("MassValue")), DensityWeighted, [](const UE::Chaos::ClothAsset::FCollectionClothFabricFacade& FabricFacade)-> float
 			 {
-				 return FabricFacade.GetDensityWeighted();
+				 return FabricFacade.GetDensity();
 			 }, {}, ECollectionPropertyFlags::Intrinsic);
 		}
 		break;

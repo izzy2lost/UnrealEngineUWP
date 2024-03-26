@@ -158,6 +158,12 @@ namespace UE::Chaos::ClothAsset
 		const TManagedArray<FString>* GetPhysicsAssetPathName() const { return PhysicsAssetPathName; }
 		const TManagedArray<FString>* GetSkeletalMeshPathName() const { return SkeletalMeshPathName; }
 
+		// ~ Solvers Group
+		const TManagedArray<FVector3f>* GetSolverGravity() const { return SolverGravity; }
+		const TManagedArray<float>* GetSolverAirDamping() const { return SolverAirDamping; }
+		const TManagedArray<int32>* GetSolverSubSteps() const { return SolverSubSteps; }
+		const TManagedArray<float>* GetSolverTimeStep() const { return SolverTimeStep; }
+
 		//~ Seam Group
 		const TManagedArray<int32>* GetSeamStitchStart() const { return SeamStitchStart; }
 		const TManagedArray<int32>* GetSeamStitchEnd() const { return SeamStitchEnd; }
@@ -171,10 +177,12 @@ namespace UE::Chaos::ClothAsset
 		const TManagedArray<FVector3f>* GetFabricBucklingStiffness() const { return FabricBucklingStiffness; }
 		const TManagedArray<FVector3f>* GetFabricStretchStiffness() const { return FabricStretchStiffness; }
 		const TManagedArray<float>* GetFabricBucklingRatio() const { return FabricBucklingRatio; }
-		const TManagedArray<float>* GetFabricDensity() const { return FabricClothDensity; }
-		const TManagedArray<float>* GetFabricFriction() const { return FabricClothFriction; }
-		const TManagedArray<float>* GetFabricThickness() const { return FabricClothThickness; }
-		const TManagedArray<float>* GetFabricDamping() const { return FabricClothDamping; }
+		const TManagedArray<float>* GetFabricDensity() const { return FabricDensity; }
+		const TManagedArray<float>* GetFabricFriction() const { return FabricFriction; }
+		const TManagedArray<float>* GetFabricDamping() const { return FabricDamping; }
+		const TManagedArray<float>* GetFabricPressure() const { return FabricPressure; }
+		const TManagedArray<int32>* GetFabricLayer() const { return FabricLayer; }
+		const TManagedArray<float>* GetFabricCollisionThickness() const { return FabricCollisionThickness; }
 		
 		//~ Sim Patterns Group
 		const TManagedArray<int32>* GetSimVertices2DStart() const { return SimVertices2DStart; }
@@ -182,7 +190,7 @@ namespace UE::Chaos::ClothAsset
 		const TManagedArray<int32>* GetSimFacesStart() const { return SimFacesStart; }
 		const TManagedArray<int32>* GetSimFacesEnd() const { return SimFacesEnd; }
 		const TManagedArray<int32>* GetSimPatternFabric() const { return SimPatternFabric; }
-
+		
 		//~ Render Patterns Group
 		const TManagedArray<int32>* GetRenderVerticesStart() const { return RenderVerticesStart; }
 		const TManagedArray<int32>* GetRenderVerticesEnd() const { return RenderVerticesEnd; }
@@ -231,16 +239,22 @@ namespace UE::Chaos::ClothAsset
 		//~ LODs Group (There should be only one LOD per ClothCollection)
 		TManagedArray<FString>* GetPhysicsAssetPathName(){ return PhysicsAssetPathName; }
 		TManagedArray<FString>* GetSkeletalMeshPathName() { return SkeletalMeshPathName; }
-
+		TManagedArray<FVector3f>* GetSolverGravity() { return SolverGravity; }
+		TManagedArray<float>* GetSolverAirDamping() { return SolverAirDamping; }
+		TManagedArray<int32>* GetSolverSubSteps() { return SolverSubSteps; }
+		TManagedArray<float>* GetSolverTimeStep() { return SolverTimeStep; }
+		
 		//~ Fabric Group
 		TManagedArray<FVector3f>* GetFabricBendingStiffness() { return FabricBendingStiffness; }
 		TManagedArray<FVector3f>* GetFabricBucklingStiffness() { return FabricBucklingStiffness; }
 		TManagedArray<FVector3f>* GetFabricStretchStiffness() { return FabricStretchStiffness; }
 		TManagedArray<float>* GetFabricBucklingRatio() { return FabricBucklingRatio; }
-		TManagedArray<float>* GetFabricDensity() { return FabricClothDensity; }
-		TManagedArray<float>* GetFabricFriction() { return FabricClothFriction; }
-		TManagedArray<float>* GetFabricThickness() { return FabricClothThickness; }
-		TManagedArray<float>* GetFabricDamping() { return FabricClothDamping; }
+		TManagedArray<float>* GetFabricDensity() { return FabricDensity; }
+		TManagedArray<float>* GetFabricFriction() { return FabricFriction; }
+		TManagedArray<float>* GetFabricDamping() { return FabricDamping; }
+		TManagedArray<float>* GetFabricPressure() { return FabricPressure; }
+		TManagedArray<int32>* GetFabricLayer() { return FabricLayer; }
+		TManagedArray<float>* GetFabricCollisionThickness() { return FabricCollisionThickness; }
 		
 		//~ Seam Group
 		TManagedArray<int32>* GetSeamStitchStart() { return SeamStitchStart; }
@@ -310,15 +324,23 @@ namespace UE::Chaos::ClothAsset
 		TManagedArray<FString>* PhysicsAssetPathName;
 		TManagedArray<FString>* SkeletalMeshPathName;
 
-		//! Fabrics Group
+		//~ Solvers group
+		TManagedArray<FVector3f>* SolverGravity;
+		TManagedArray<float>* SolverAirDamping;
+		TManagedArray<int32>* SolverSubSteps;
+		TManagedArray<float>* SolverTimeStep;
+
+		//~ Fabrics Group
 		TManagedArray<FVector3f>* FabricBendingStiffness;
 		TManagedArray<FVector3f>* FabricBucklingStiffness;
 		TManagedArray<FVector3f>* FabricStretchStiffness;
 		TManagedArray<float>* FabricBucklingRatio;
-		TManagedArray<float>* FabricClothDensity;
-		TManagedArray<float>* FabricClothFriction;
-		TManagedArray<float>* FabricClothThickness;
-		TManagedArray<float>* FabricClothDamping;
+		TManagedArray<float>* FabricDensity;
+		TManagedArray<float>* FabricFriction;
+		TManagedArray<float>* FabricDamping;
+		TManagedArray<float>* FabricPressure;
+		TManagedArray<int32>* FabricLayer;
+		TManagedArray<float>* FabricCollisionThickness;
 
 		//~ Seam Group
 		TManagedArray<int32>* SeamStitchStart;

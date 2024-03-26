@@ -14,12 +14,12 @@ struct FChaosClothAssetSimulationCollisionConfigNode : public FChaosClothAssetSi
 
 public:
 	/** The added thickness of collision shapes. */
-	UPROPERTY(EditAnywhere, Category = "Collision Properties", Meta = (UIMin = "0", UIMax = "100", ClampMin = "0", ClampMax = "1000"))
-	float CollisionThickness = 1.0f;
+	UPROPERTY(EditAnywhere, Category = "Collision Properties", DisplayName = "Collision Thickness", Meta = (UIMin = "0", UIMax = "100", ClampMin = "0", ClampMax = "1000"))
+	FChaosClothAssetImportedFloatValue CollisionThicknessImported = {UE::Chaos::ClothAsset::FDefaultFabric::CollisionThickness};
 
 	/** Friction coefficient for cloth - collider interaction. */
-	UPROPERTY(EditAnywhere, Category = "Collision Properties", Meta = (UIMin = "0", UIMax = "1", ClampMin = "0", ClampMax = "10"))
-	float FrictionCoefficient = 0.8f;
+	UPROPERTY(EditAnywhere, Category = "Collision Properties", DisplayName = "Friction Coefficient", Meta = (UIMin = "0", UIMax = "1", ClampMin = "0", ClampMax = "10"))
+	FChaosClothAssetImportedFloatValue FrictionCoefficientImported = {UE::Chaos::ClothAsset::FDefaultFabric::Friction};
 
 	/** Stiffness for proximity repulsion forces (Force-based solver only). Units = kg cm/ s^2 (same as XPBD springs)*/
 	UPROPERTY(EditAnywhere, Category = "Proximity Force Properties", Meta = (UIMin = "0", UIMax = "10000", ClampMin = "0", ClampMax = "10000000"))
@@ -34,6 +34,18 @@ public:
 
 	FChaosClothAssetSimulationCollisionConfigNode(const Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid());
 
+	virtual void Serialize(FArchive& Ar) override;
+
 private:
 	virtual void AddProperties(FPropertyHelper& PropertyHelper) const override;
+
+	// Deprecated properties
+#if WITH_EDITORONLY_DATA
+
+	UPROPERTY()
+	float CollisionThickness_DEPRECATED = UE::Chaos::ClothAsset::FDefaultFabric::CollisionThickness;
+
+	UPROPERTY()
+	float FrictionCoefficient_DEPRECATED  = UE::Chaos::ClothAsset::FDefaultFabric::Friction;
+#endif
 };

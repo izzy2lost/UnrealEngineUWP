@@ -3,6 +3,7 @@
 #include "ChaosClothAsset/SimulationSelfCollisionConfigNode.h"
 #include "Dataflow/DataflowInputOutput.h"
 #include "Chaos/CollectionPropertyFacade.h"
+#include "ChaosClothAsset/ClothCollectionGroup.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(SimulationSelfCollisionConfigNode)
 
@@ -20,11 +21,8 @@ FChaosClothAssetSimulationSelfCollisionConfigNode::FChaosClothAssetSimulationSel
 void FChaosClothAssetSimulationSelfCollisionConfigNode::AddProperties(FPropertyHelper& PropertyHelper) const
 {
 	PropertyHelper.SetPropertyBool(FName("UseSelfCollisions"), true);
-	PropertyHelper.SetPropertyWeighted(TEXT("SelfCollisionThickness"), SelfCollisionThicknessWeighted);
 	PropertyHelper.SetProperty(this, &SelfCollisionStiffness);
-	PropertyHelper.SetProperty(this, &SelfCollisionFriction);
 	PropertyHelper.SetProperty(this, &SelfCollisionDisableNeighborDistance, {}, ECollectionPropertyFlags::None); // Non animatable
-	PropertyHelper.SetPropertyString(this, &SelfCollisionLayers);
 	PropertyHelper.SetPropertyString(this, &SelfCollisionDisabledFaces);
 	PropertyHelper.SetPropertyBool(this, &bSelfCollideAgainstKinematicCollidersOnly);
 	PropertyHelper.SetPropertyBool(this, &bSelfCollideAgainstAllKinematicVertices);
@@ -39,6 +37,24 @@ void FChaosClothAssetSimulationSelfCollisionConfigNode::AddProperties(FPropertyH
 	PropertyHelper.SetProperty(this, &NumContourMinimizationPostSteps);
 	PropertyHelper.SetPropertyBool(this, &bUseGlobalPostStepContours);
 	PropertyHelper.SetProperty(this, &SelfCollisionProximityStiffness);
+
+	PropertyHelper.SetFabricPropertyString<int32,FChaosClothAssetConnectableIStringValue>(FName(TEXT("SelfCollisionLayers")), SelfCollisionLayers,
+		[](const UE::Chaos::ClothAsset::FCollectionClothFabricFacade& FabricFacade)-> float
+		{
+			return FabricFacade.GetLayer();
+		}, {}, ECollectionPropertyFlags::None, UE::Chaos::ClothAsset::ClothCollectionGroup::SimFaces);
+	
+	PropertyHelper.SetFabricPropertyWeighted(FName(TEXT("SelfCollisionThickness")), SelfCollisionThicknessWeighted,
+		[](const UE::Chaos::ClothAsset::FCollectionClothFabricFacade& FabricFacade)-> float
+		{
+			return FabricFacade.GetCollisionThickness();
+		}, {});
+
+	PropertyHelper.SetFabricProperty(FName(TEXT("SelfCollisionFriction")), SelfCollisionFrictionImported,
+		[](UE::Chaos::ClothAsset::FCollectionClothFabricFacade& FabricFacade)-> float
+		{
+			return FabricFacade.GetFriction();
+		}, {});
 }
 
 void FChaosClothAssetSimulationSelfCollisionConfigNode::Serialize(FArchive& Ar)
@@ -47,6 +63,11 @@ void FChaosClothAssetSimulationSelfCollisionConfigNode::Serialize(FArchive& Ar)
 	if (Ar.IsLoading())
 	{
 #if WITH_EDITORONLY_DATA
+		if (SelfCollisionFriction_DEPRECATED != UE::Chaos::ClothAsset::FDefaultFabric::SelfFriction)
+		{
+			SelfCollisionFrictionImported.ImportedValue = SelfCollisionFriction_DEPRECATED;
+			SelfCollisionFriction_DEPRECATED = UE::Chaos::ClothAsset::FDefaultFabric::SelfFriction;
+		}
 		if (SelfCollisionKinematicColliderFriction_DEPRECATED != FrictionDeprecatedValue)
 		{
 			SelfCollisionKinematicColliderFrictionWeighted.Low = SelfCollisionKinematicColliderFrictionWeighted.High = SelfCollisionKinematicColliderFriction_DEPRECATED;

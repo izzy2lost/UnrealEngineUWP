@@ -2,7 +2,7 @@
 
 #pragma once
 
-#include "Customizations/MathStructCustomizations.h"
+#include "ChaosClothAsset/ConnectableValueCustomization.h"
 
 template <typename OptionalType> struct TOptional;
 
@@ -14,7 +14,7 @@ namespace UE::Chaos::ClothAsset
 	 * the structure member short names are displayed in the header's row.
 	 */
 	class FWeightedValueCustomization
-		: public FMathStructCustomization
+		: public FConnectableValueCustomization
 	{
 	public:
 		static TSharedRef<IPropertyTypeCustomization> MakeInstance();

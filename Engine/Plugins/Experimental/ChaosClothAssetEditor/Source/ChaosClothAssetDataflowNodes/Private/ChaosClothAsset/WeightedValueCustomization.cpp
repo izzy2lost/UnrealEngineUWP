@@ -16,68 +16,12 @@ namespace UE::Chaos::ClothAsset
 {
 	namespace Private
 	{
-		static const FString OverridePrefix = TEXT("_Override");
-		
 		static const FString ImportFabricBounds = TEXT("ImportFabricBounds");
-		static const FString BuildFabricMaps = TEXT("BuildFabricMaps");
-		static const FString CouldUseFabrics = TEXT("CouldUseFabrics");
-
-		static bool IsOverrideProperty(const TSharedPtr<IPropertyHandle>& Property)
-		{
-			const FStringView PropertyPath = Property ? Property->GetPropertyPath() : FStringView();
-			return PropertyPath.EndsWith(OverridePrefix, ESearchCase::CaseSensitive);
-		}
-		static bool IsOverridePropertyOf(const TSharedPtr<IPropertyHandle>& OverrideProperty, const TSharedPtr<IPropertyHandle>& Property)
-		{
-			const FStringView OverridePropertyPath = OverrideProperty ? OverrideProperty->GetPropertyPath() : FStringView();
-			const FStringView PropertyPath = Property ? Property->GetPropertyPath() : FStringView();
-			return OverridePropertyPath == FString(PropertyPath) + OverridePrefix;
-		}
-		static bool IsImportFabricBoundsProperty(const TSharedPtr<IPropertyHandle>& Property)
+		
+		static bool ImportFabricBoundsProperty(const TSharedPtr<IPropertyHandle>& Property)
 		{
 			const FStringView PropertyPath = Property ? Property->GetPropertyPath() : FStringView();
 			return PropertyPath.EndsWith(ImportFabricBounds, ESearchCase::CaseSensitive);
-		}
-		static bool IsBuildFabricMapsProperty(const TSharedPtr<IPropertyHandle>& Property)
-		{
-			const FStringView PropertyPath = Property ? Property->GetPropertyPath() : FStringView();
-			return PropertyPath.EndsWith(BuildFabricMaps, ESearchCase::CaseSensitive);
-		}
-		static bool CouldUseFabricsProperty(const TSharedPtr<IPropertyHandle>& Property)
-		{
-			const FStringView PropertyPath = Property ? Property->GetPropertyPath() : FStringView();
-			return PropertyPath.EndsWith(CouldUseFabrics, ESearchCase::CaseSensitive);
-		}
-		
-		static void AddToggledCheckBox(const TSharedRef<IPropertyHandle>& PropertyHandle, const TSharedPtr<SHorizontalBox>& HorizontalBox, const FSlateBrush* SlateBrush)
-		{
-			TWeakPtr<IPropertyHandle> WeakHandle = PropertyHandle;
-		
-			HorizontalBox->AddSlot()
-				.VAlign(VAlign_Center)
-				.HAlign(HAlign_Left)
-				.AutoWidth()
-				[
-					SNew(SCheckBox)
-					.Style(&FAppStyle::Get().GetWidgetStyle<FCheckBoxStyle>("ToggleButtonCheckBox"))
-					.Type(ESlateCheckBoxType::ToggleButton)
-					.ToolTipText(WeakHandle.Pin()->GetToolTipText())
-					.IsChecked_Lambda([WeakHandle]()->ECheckBoxState
-						{
-							bool bValue = false;
-							WeakHandle.Pin()->GetValue(bValue);
-							return bValue ? ECheckBoxState::Checked : ECheckBoxState::Unchecked;
-						})
-						.OnCheckStateChanged_Lambda([WeakHandle](ECheckBoxState CheckBoxState)
-						{
-							WeakHandle.Pin()->SetValue(CheckBoxState == ECheckBoxState::Checked, EPropertyValueSetFlags::DefaultFlags);
-						})
-					[
-					SNew(SImage)
-						.ColorAndOpacity(FSlateColor::UseForeground())
-						.Image(SlateBrush)
-					]
-				];
 		}
 	}
 
@@ -116,7 +60,7 @@ namespace UE::Chaos::ClothAsset
 		{
 			TSharedRef<IPropertyHandle> ChildHandle = SortedChildHandles[ChildIndex];
 			
-			if (Private::CouldUseFabricsProperty(ChildHandle))
+			if (CouldUseFabricsProperty(ChildHandle))
 			{
 				bool bValue = false;
 				ChildHandle->GetValue(bValue);
@@ -125,17 +69,18 @@ namespace UE::Chaos::ClothAsset
 					break;
 				}
 			}
-			if (Private::IsImportFabricBoundsProperty(ChildHandle))
+			if (Private::ImportFabricBoundsProperty(ChildHandle))
 			{
-				Private::AddToggledCheckBox(ChildHandle, NameHorizontalBox, FAppStyle::Get().GetBrush("Icons.Import"));
+				AddToggledCheckBox(ChildHandle, NameHorizontalBox, FAppStyle::Get().GetBrush("Icons.Import"));
 			}
-			else if (Private::IsBuildFabricMapsProperty(ChildHandle))
+			else if (BuildFabricMapsProperty(ChildHandle))
 			{
-				Private::AddToggledCheckBox(ChildHandle, NameHorizontalBox, UE::Chaos::ClothAsset::FClothAssetEditorStyle::Get().GetBrush("ClassIcon.ChaosClothPreset"));
+				AddToggledCheckBox(ChildHandle, NameHorizontalBox, UE::Chaos::ClothAsset::FClothAssetEditorStyle::Get().GetBrush("ClassIcon.ChaosClothPreset"));
 			}
 		}
 		
 		NameHorizontalBox->AddSlot().VAlign(VAlign_Center)
+				.Padding(FMargin(4.f, 2.f, 4.0f, 2.f))
 				.HAlign(HAlign_Right)
 				.AutoWidth()
 				[
@@ -146,7 +91,7 @@ namespace UE::Chaos::ClothAsset
 		{
 			TSharedRef<IPropertyHandle> ChildHandle = SortedChildHandles[ChildIndex];
 
-			if (Private::IsOverrideProperty(ChildHandle))
+			if (IsOverrideProperty(ChildHandle))
 			{
 				continue;  // Skip overrides
 			}
@@ -208,7 +153,7 @@ namespace UE::Chaos::ClothAsset
 		if (PropertyClass == FBoolProperty::StaticClass())
 		{
 			TWeakPtr<IPropertyHandle> WeakHandlePtr = PropertyHandle;
-			if (!Private::IsImportFabricBoundsProperty(PropertyHandle) && !Private::IsBuildFabricMapsProperty(PropertyHandle) && !Private::CouldUseFabricsProperty(PropertyHandle))
+			if (!Private::ImportFabricBoundsProperty(PropertyHandle) && !BuildFabricMapsProperty(PropertyHandle) && !CouldUseFabricsProperty(PropertyHandle))
 			{
 				return
 					SNew(SCheckBox)
@@ -236,7 +181,7 @@ namespace UE::Chaos::ClothAsset
 				const bool bLastChild = SortedChildHandles.Num() - 1 == ChildIndex;
 				const TSharedRef<IPropertyHandle>& ChildHandle = SortedChildHandles[ChildIndex];
 
-				if (Private::IsOverridePropertyOf(ChildHandle, PropertyHandle))
+				if (IsOverridePropertyOf(ChildHandle, PropertyHandle))
 				{
 					OverrideHandleWeakPtr = ChildHandle;
 					break;

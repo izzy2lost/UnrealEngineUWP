@@ -11,7 +11,8 @@ namespace UE::Chaos::ClothAsset
 	enum class EClothCollectionOptionalSchemas : uint8
 	{
 		None = 0,
-		RenderDeformer = 1 << 1
+		RenderDeformer = 1 << 1,
+		Solvers = 1 << 2
 	};
 	ENUM_CLASS_FLAGS(EClothCollectionOptionalSchemas)
 }  // End namespace UE::Chaos::ClothAsset

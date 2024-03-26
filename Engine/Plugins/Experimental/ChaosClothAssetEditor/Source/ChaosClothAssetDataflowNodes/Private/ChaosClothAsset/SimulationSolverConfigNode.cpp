@@ -15,7 +15,6 @@ void FChaosClothAssetSimulationSolverConfigNode::AddProperties(FPropertyHelper& 
 {
 	PropertyHelper.SetProperty(this, &NumIterations);
 	PropertyHelper.SetProperty(this, &MaxNumIterations);
-	PropertyHelper.SetProperty(this, &NumSubsteps);
 	const float DynamicSubstepDeltaTimeValue = bEnableDynamicSubstepping ? DynamicSubstepDeltaTime : 0.f;
 	PropertyHelper.SetProperty(TEXT("DynamicSubstepDeltaTime"), DynamicSubstepDeltaTimeValue);
 	PropertyHelper.SetPropertyBool(this, &bEnableNumSelfCollisionSubsteps);
@@ -25,6 +24,12 @@ void FChaosClothAssetSimulationSolverConfigNode::AddProperties(FPropertyHelper& 
 	PropertyHelper.SetProperty(this, &MaxNumCGIterations);
 	PropertyHelper.SetProperty(this, &CGResidualTolerance);
 	PropertyHelper.SetPropertyBool(this, &bDoQuasistatics);
+	
+	PropertyHelper.SetSolverProperty(FName(TEXT("NumSubsteps")), NumSubstepsImported,
+		[](UE::Chaos::ClothAsset::FCollectionClothFacade& ClothFacade)-> int32
+		 {
+			 return ClothFacade.GetSolverSubSteps();
+		 }, {});
 }
 
 void FChaosClothAssetSimulationSolverConfigNode::Serialize(FArchive& Ar)
@@ -40,5 +45,12 @@ void FChaosClothAssetSimulationSolverConfigNode::Serialize(FArchive& Ar)
 				NumNewtonIterations = 0;
 			}
 		}
+#if WITH_EDITORONLY_DATA
+		if (NumSubsteps_DEPRECATED != UE::Chaos::ClothAsset::FDefaultSolver::SubSteps)
+		{
+			NumSubstepsImported.ImportedValue = NumSubsteps_DEPRECATED;
+			NumSubsteps_DEPRECATED = UE::Chaos::ClothAsset::FDefaultSolver::SubSteps;
+		}
+#endif
 	}
 }

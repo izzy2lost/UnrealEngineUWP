@@ -2,6 +2,7 @@
 
 #pragma once
 
+#include "Math/Vector.h"
 #include "ChaosClothAsset/ClothCollectionOptionalSchemas.h"
 #include "ChaosClothAsset/CollectionClothFabricFacade.h"
 #include "ChaosClothAsset/CollectionClothRenderPatternFacade.h"
@@ -16,6 +17,14 @@ class FChaosArchive;
 
 namespace UE::Chaos::ClothAsset
 {
+	struct FDefaultSolver
+	{
+		inline static const FVector3f Gravity = FVector3f(0.0f, 0.0f, -980.665f);
+		inline static constexpr float AirDamping = 0.035f;
+		inline static constexpr int32 SubSteps = 1;
+		inline static constexpr float TimeStep = 0.033f;
+	};
+
 	/**
 	 * Cloth Asset collection facade class focused on draping and pattern information.
 	 * Const access (read only) version.
@@ -53,6 +62,19 @@ namespace UE::Chaos::ClothAsset
 		const FString& GetPhysicsAssetPathName() const;
 		/** Return the skeleton asset path names used for this collection. */
 		const FString& GetSkeletalMeshPathName() const;
+		
+
+		//~ Solver (single per collection) Group
+		/** Return true if the solver group has one element*/
+		bool HasSolverElement() const;
+		/** Return the solver gravity vector used for this collection. */
+		const FVector3f& GetSolverGravity() const;
+		/** Return the solver air damping used for this collection. */
+		float GetSolverAirDamping() const;
+		/** Return the solver time step used for this collection. */
+		float GetSolverTimeStep() const;
+		/** Return the solver sub steps used for this collection. */
+		int32 GetSolverSubSteps() const;
 
 		//~ Sim Vertices 2D Group
 		/** Return the total number of 2D simulation vertices for this collection. */
@@ -155,6 +177,7 @@ namespace UE::Chaos::ClothAsset
 			TArray<uint32>& PatternToWeldedIndices, TArray<TArray<int32>>* OptionalWeldedToPatternIndices = nullptr) const;
 
 	protected:
+		friend class FCollectionClothFacade;
 		TSharedRef<const class FClothCollection> ClothCollection;
 
 		friend class FCollectionClothFacade;  // To enable access from a different instance
@@ -204,6 +227,16 @@ namespace UE::Chaos::ClothAsset
 		void SetPhysicsAssetPathName(const FString& PathName);
 		/** Set the skeletal mesh asset path name and the reference skeleton that will be used with this asset. */
 		void SetSkeletalMeshPathName(const FString& PathName);
+
+		//~ Solver (max 1 per collection) Group
+		/** Set the solver gravity */
+		void SetSolverGravity(const FVector3f& SolverGravity);
+		/** Set the solver air damping */
+		void SetSolverAirDamping(const float SolverAirDamping);
+		/** Set the solver time step */
+		void SetSolverTimeStep(const float SolverTimeStep);
+		/** Set the solver substeps */
+		void SetSolverSubSteps(const int32 SolverSubSteps);
 
 		//~ Pattern Sim Vertices 2D Group
 		/** SetNumSimVertices2D per pattern within pattern facade. */
@@ -321,6 +354,7 @@ namespace UE::Chaos::ClothAsset
 		static bool IsValidClothCollectionGroupName(const FName& GroupName);
 
 	private:
+		
 		void SetDefaults();
 
 		TSharedRef<class FClothCollection> GetClothCollection() { return ConstCastSharedRef<class FClothCollection>(ClothCollection); }

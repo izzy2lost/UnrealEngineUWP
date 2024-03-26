@@ -24,18 +24,22 @@ public:
 	FChaosClothAssetWeightedValue GravityScaleWeighted = {true, 1.f, 1.f, TEXT("GravityScale")};
 
 	/** The gravitational acceleration vector [cm/s^2]. */
-	UPROPERTY(EditAnywhere, Category = "Gravity Properties", Meta = (UIMin = "0", UIMax = "10", EditCondition = "bUseGravityOverride"))
-	FVector3f GravityOverride = { 0.f, 0.f, -980.665f };  // TODO: Should we make this a S.I. unit?
-
+	UPROPERTY(EditAnywhere, Category = "Gravity Properties", DisplayName = "Gravity Override", Meta = (UIMin = "0", UIMax = "10", EditCondition = "bUseGravityOverride"))
+	FChaosClothAssetImportedVectorValue GravityOverrideImported = {UE::Chaos::ClothAsset::FDefaultSolver::Gravity};  // TODO: Should we make this a S.I. unit?
+	
 	FChaosClothAssetSimulationGravityConfigNode(const Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid());
 
 	virtual void Serialize(FArchive& Ar) override;
 
 private:
+
 	// Deprecated properties
 #if WITH_EDITORONLY_DATA
 	UPROPERTY()
 	float GravityScale_DEPRECATED = 1.f;
+
+	UPROPERTY()
+	FVector3f GravityOverride_DEPRECATED = UE::Chaos::ClothAsset::FDefaultSolver::Gravity;  // TODO: Should we make this a S.I. unit?
 #endif
 
 	virtual void AddProperties(FPropertyHelper& PropertyHelper) const override;

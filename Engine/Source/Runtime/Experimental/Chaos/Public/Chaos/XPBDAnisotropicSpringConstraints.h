@@ -22,7 +22,7 @@ class FXPBDAnisotropicEdgeSpringConstraints : public FPBDSpringConstraintsBase
 	typedef FPBDSpringConstraintsBase Base;
 
 public:
-	// Stiffness is in kg cm /s^2
+	// Stiffness is in kg /s^2
 	static constexpr FSolverReal MinStiffness = (FSolverReal)0; // We're not checking against MinStiffness (except when it's constant and == 0)
 	static constexpr FSolverReal MaxStiffness = (FSolverReal)1e9;
 	static constexpr FSolverReal MinDampingRatio = (FSolverReal)0.;
@@ -138,7 +138,7 @@ class FXPBDAnisotropicAxialSpringConstraints : public FPBDAxialSpringConstraints
 	typedef FPBDAxialSpringConstraintsBase Base;
 
 public:
-	// Stiffness is in kg cm /s^2
+	// Stiffness is in kg /s^2
 	static constexpr FSolverReal MinStiffness = (FSolverReal)0; // We're not checking against MinStiffness (except when it's constant and == 0)
 	static constexpr FSolverReal MaxStiffness = (FSolverReal)1e9;
 	static constexpr FSolverReal MinDampingRatio = (FSolverReal)0.;

@@ -21,6 +21,13 @@ public:
 	 */
 	UPROPERTY(EditAnywhere, Category = "Aerodynamics", Meta = (UIMin = "0", ClampMin = "0", ClampMax = "10"))
 	float FluidDensity = 1.225f;
+	
+	/**
+	 * The fixed wind velocity [m/s] for this asset.
+	 * For reference a wind gust is above 8m/s (18mph).
+	 */
+	UPROPERTY(EditAnywhere, Category = "Aerodynamics", Meta = (UIMin = "0", UIMax = "10"))
+	FVector3f WindVelocity = { 0.f, 0.f, 0.f };
 
 	/**
 	 * The aerodynamic coefficient of drag applying on each particle.
@@ -29,7 +36,7 @@ public:
 	 * Otherwise all particles are considered to have a zero weight, and only the Low value is meaningful.
 	 */
 	UPROPERTY(EditAnywhere, Category = "Aerodynamics", Meta = (UIMin = "0", UIMax = "1", ClampMin = "0", ClampMax = "10"))
-	FChaosClothAssetWeightedValue Drag = { true, 0.035f, 1.f, TEXT("Drag") };
+	FChaosClothAssetWeightedValue Drag = { true, 0.035f, 1.f, TEXT("Drag"), true };
 
 	/**
 	 * The aerodynamic coefficient of lift applying on each particle.
@@ -38,15 +45,8 @@ public:
 	 * Otherwise all particles are considered to have a zero weight, and only the Low value is meaningful.
 	 */
 	UPROPERTY(EditAnywhere, Category = "Aerodynamics", Meta = (UIMin = "0", UIMax = "1", ClampMin = "0", ClampMax = "10"))
-	FChaosClothAssetWeightedValue Lift = { true, 0.035f, 1.f, TEXT("Lift") };
-
-	/**
-	 * The fixed wind velocity [m/s] for this asset.
-	 * For reference a wind gust is above 8m/s (18mph).
-	 */
-	UPROPERTY(EditAnywhere, Category = "Aerodynamics", Meta = (UIMin = "0", UIMax = "10"))
-	FVector3f WindVelocity = { 0.f, 0.f, 0.f };
-
+	FChaosClothAssetWeightedValue Lift = { true, 0.035f, 1.f, TEXT("Lift"), true };
+	
 	FChaosClothAssetSimulationAerodynamicsConfigNode(const Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid());
 
 private:
