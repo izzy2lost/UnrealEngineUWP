@@ -9,6 +9,7 @@
 #include "GenericPlatform/GenericPlatformFile.h"
 #include "HAL/PlatformAffinity.h"
 #include "HAL/PlatformMisc.h"
+#include "HAL/FileManager.h"
 #include "HAL/UnrealMemory.h"
 #include "Internationalization/Internationalization.h"
 #include "Logging/LogMacros.h"
