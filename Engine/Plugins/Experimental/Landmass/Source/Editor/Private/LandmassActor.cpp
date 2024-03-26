@@ -47,7 +47,7 @@ void ALandmassActor::OnConstruction(const FTransform& Transform)
 {
 	Super::OnConstruction(Transform);
 	UpdateBrushExtents();
-	FindOrSpawnManager();
+	//FindOrSpawnManager();
 	if (BrushManager != nullptr)
 	{
 		if (AffectsHeightmap || AffectsWeightmaps || AffectsVisibility)
