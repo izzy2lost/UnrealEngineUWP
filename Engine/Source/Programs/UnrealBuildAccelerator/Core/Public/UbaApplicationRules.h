@@ -85,6 +85,11 @@ namespace uba
 			return false;
 		}
 
+		virtual bool AllowStorageProxy(const StringBufferBase& file)
+		{
+			return !IsRarelyRead(file);
+		}
+
 		// Enable vectored exception handler. This can't be enabled for all processes because some of them actually allow
 		// access violations etc and then catch them.
 		virtual bool EnableVectoredExceptionHandler()

@@ -433,6 +433,13 @@ namespace uba
 			--out.activeSessionCount;
 			break;
 		}
+		case TraceType_SessionNotification:
+		{
+			u32 sessionIndex = reader.ReadU32();
+			TraceView::Session& session = GetSession(out, sessionIndex);
+			session.notification = reader.ReadString();
+			break;
+		}
 		case TraceType_SessionSummary:
 		{
 			u32 sessionIndex = reader.ReadU32();

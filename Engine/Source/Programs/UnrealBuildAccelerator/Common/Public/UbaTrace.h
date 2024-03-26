@@ -51,9 +51,13 @@ namespace uba
 		TraceType_FileFetchLight,
 		TraceType_FileStoreLight,
 		TraceType_StatusUpdate,
+		TraceType_SessionNotification,
 	};
 
-	static constexpr u32 TraceVersion = 22;
+	using Color = u32;
+	inline Color toColor(u8 r, u8 g, u8 b) { return (r << 16) + (g << 8) + b; }
+
+	static constexpr u32 TraceVersion = 23;
 	static constexpr u32 TraceReadCompatibilityVersion = 6;
 
 	class Trace : public WorkTracker
@@ -67,6 +71,7 @@ namespace uba
 		bool StartWrite(const tchar* namedTrace, u64 traceMemCapacity = 64*1024*1024);
 		void SessionAdded(u32 sessionId, u32 clientId, const tchar* name, const tchar* info);
 		void SessionUpdate(u32 sessionId, u32 connectionCount, u64 send, u64 recv, u64 lastPing, u64 memAvail, u64 memTotal, float cpuLoad);
+		void SessionNotification(u32 sessionId, const tchar* text);
 		void SessionSummary(u32 sessionId, const u8* data, u64 dataSize);
 		void SessionDisconnect(u32 sessionId);
 		void ProcessAdded(u32 sessionId, u32 processId, const tchar* description);

@@ -1,6 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "UbaSessionClient.h"
+#include "UbaApplicationRules.h"
 #include "UbaNetworkClient.h"
 #include "UbaNetworkMessage.h"
 #include "UbaProcess.h"
@@ -87,6 +88,12 @@ namespace uba
 	{
 		m_terminationTime = GetTime() + MsToTime(delayMs);
 		m_terminationReason = reason;
+
+		StackBinaryWriter<1024> writer;
+		NetworkMessage msg(m_client, ServiceId, SessionMessageType_Notification, writer);
+		writer.WriteU32(m_sessionId);
+		writer.WriteString(reason);
+		msg.Send();
 	}
 
 	void SessionClient::SetMaxProcessCount(u32 count)
@@ -449,7 +456,7 @@ namespace uba
 					casKey = AsCompressed(casKey, false);
 					entry.handled = true;
 					Storage::RetrieveResult result;
-					bool allowProxy = !IsRarelyRead(msg.process, fileName);
+					bool allowProxy = GetApplicationRules()[msg.process.m_rulesIndex].rules->AllowStorageProxy(fileName);
 					if (!m_storage.RetrieveCasFile(result, casKey, fileName.data, &m_fileMappingBuffer, memoryMapAlignment, allowProxy))
 						return m_logger.Error(TC("Error retrieving cas entry %s (%s)"), CasKeyString(casKey).str, fileName.data);
 					entry.success = true;

@@ -187,6 +187,13 @@ namespace uba
 		writer.WriteU32(*(u32*)&cpuLoad);
 	}
 
+	void Trace::SessionNotification(u32 sessionId, const tchar* text)
+	{
+		BEGIN_TRACE_ENTRY(TraceType_SessionNotification);
+		writer.WriteU32(sessionId);
+		writer.WriteString(text);
+	}
+
 	void Trace::SessionSummary(u32 sessionId, const u8* data, u64 dataSize)
 	{
 		BEGIN_TRACE_ENTRY(TraceType_SessionSummary);

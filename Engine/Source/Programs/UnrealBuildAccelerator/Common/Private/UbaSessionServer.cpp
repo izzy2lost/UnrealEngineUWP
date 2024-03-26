@@ -1153,6 +1153,14 @@ namespace uba
 
 				return true;
 			}
+			case SessionMessageType_Notification:
+			{
+				u32 sessionId = reader.ReadU32();
+				StringBuffer<1024> str;
+				reader.ReadString(str);
+				m_trace.SessionNotification(sessionId, str.data);
+				return true;
+			}
 			case SessionMessageType_GetNextProcess:
 			{
 				u32 processId = reader.ReadU32();

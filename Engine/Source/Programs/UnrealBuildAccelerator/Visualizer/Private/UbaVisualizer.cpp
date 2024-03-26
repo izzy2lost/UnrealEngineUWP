@@ -586,6 +586,8 @@ namespace uba
 						text.Appendf(L" Mem: %ls/%ls", BytesToText(session.memTotal - memAvail).str, BytesToText(session.memTotal).str);
 					if (ping)
 						text.Appendf(L" Ping: %ls", TimeToText(ping, false, m_traceView.frequency).str);
+					if (!session.notification.empty())
+						text.Append(L" - ").Append(session.notification);
 				}
 				else
 					text.Append(L" - Disconnected");

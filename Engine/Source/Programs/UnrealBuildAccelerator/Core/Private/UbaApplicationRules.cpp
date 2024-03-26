@@ -85,6 +85,7 @@ namespace uba
 
 	class ApplicationRulesLinkExe : public ApplicationRulesVC
 	{
+		using Super = ApplicationRulesVC;
 	public:
 		virtual bool IsOutputFile(const tchar* file, u64 fileLen) override
 		{
@@ -118,6 +119,13 @@ namespace uba
 				|| file.EndsWith(TC(".lib.rsp"))
 				|| file.EndsWith(TC(".ilk"))
 				|| file.EndsWith(TC(".pdb"));
+		}
+
+		virtual bool AllowStorageProxy(const StringBufferBase& file) override
+		{
+			if (file.EndsWith(TC(".obj")))
+				return false;
+			return Super::AllowStorageProxy(file);
 		}
 
 		virtual bool IsRarelyReadAfterWritten(const tchar* fileName, u64 fileNameLen) const override
