@@ -36,7 +36,6 @@
 #include "RHIGPUReadback.h"
 #include "Data/Blobber.h"
 #include "TextureGraphEngine.h"
-#include "MuR/MutableMath.h"
 #include "Curves/CurveLinearColorAtlas.h"
 #include "Engine/TextureLightProfile.h"
 #include "Model/Mix/MixSettings.h"
@@ -960,10 +959,10 @@ void ShortToHalf_DataConverter(uint8* Dst, size_t DstLength, const BufferDescrip
 
 	for (size_t PixelIndex = 0; PixelIndex < DstCount; PixelIndex++)
 	{
-		mu::float16* DstPixel = reinterpret_cast<mu::float16*>(Dst + PixelIndex * DstFormatSize);
+		FFloat16* DstPixel = reinterpret_cast<FFloat16*>(Dst + PixelIndex * DstFormatSize);
 		const uint16_t* SrcPixel = reinterpret_cast<const uint16_t*>(Src + PixelIndex * SrcFormatSize);
 		float SrcPixelF = float(*SrcPixel) / 65536.0f;
-		*DstPixel = mu::floatToHalf(SrcPixelF);
+		*DstPixel = SrcPixelF;
 	}
 }
 
