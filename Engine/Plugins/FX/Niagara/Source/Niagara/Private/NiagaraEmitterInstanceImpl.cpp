@@ -113,7 +113,6 @@ struct FNiagaraEditorOnlyCycleTimer
 
 FNiagaraEmitterInstanceImpl::FNiagaraEmitterInstanceImpl(FNiagaraSystemInstance* InParentSystemInstance)
 	: FNiagaraEmitterInstance(InParentSystemInstance)
-	, bResetPending(false)
 {
 	ParticleDataSet = new FNiagaraDataSet();
 
@@ -980,6 +979,11 @@ void FNiagaraEmitterInstanceImpl::PostTick()
 		EmitterData->GetStatData().AddStatCapture(TTuple<uint64, ENiagaraScriptUsage>((uint64)this, ENiagaraScriptUsage::ParticleUpdateScript), GetUpdateExecutionContext().ReportStats());
 #endif
 	}
+}
+
+void FNiagaraEmitterInstanceImpl::SetEmitterEnable(bool bNewEnableState)
+{
+	bAllowSpawning_GT = bNewEnableState;
 }
 
 bool FNiagaraEmitterInstanceImpl::HandleCompletion(bool bForce)
