@@ -329,8 +329,10 @@ namespace UE::DMX::Private
 
 		if (UDMXControlConsoleFaderGroupController* FaderGroupController = GetFaderGroupController())
 		{
+			const FScopedTransaction RenameFaderGroupTransaction(LOCTEXT("RenameFaderGroupTransaction", "Rename Fader Group"));
+
 			const FString& NewNameAsString = NewName.ToString();
-			FaderGroupController->MarkPackageDirty();
+			FaderGroupController->Modify();
 			FaderGroupController->SetUserName(NewNameAsString);
 		}
 	}
