@@ -106,16 +106,16 @@ protected:
 	UPROPERTY()
 	FString UniqueEmitterName;
 
-	UPROPERTY(EditAnywhere, Category = "Stateless", meta = (AllowedClasses = "/Script/Niagara.NiagaraStatelessEmitterTemplate", HideInStack))
+	UPROPERTY(EditAnywhere, Category = "General", meta = (AllowedClasses = "/Script/Niagara.NiagaraStatelessEmitterTemplate", HideInStack))
 	TObjectPtr<UClass> EmitterTemplateClass;
 
-	UPROPERTY(EditAnywhere, Category = "Stateless")
+	UPROPERTY(EditAnywhere, Category = "General")
 	bool bDeterministic = false;
 
-	UPROPERTY(EditAnywhere, Category = "Stateless")
+	UPROPERTY(EditAnywhere, Category = "General")
 	int32 RandomSeed = 0;
 
-	UPROPERTY(EditAnywhere, Category = "Stateless")
+	UPROPERTY(EditAnywhere, Category = "General")
 	FBox FixedBounds = FBox(FVector(-100), FVector(100));
 
 	UPROPERTY(EditAnywhere, Category = "Emitter State")

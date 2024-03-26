@@ -17,7 +17,7 @@ void UNiagaraStackStatelessEmitterGroup::Initialize(FRequiredEntryData InRequire
 	Super::Initialize(
 		InRequiredEntryData,
 		LOCTEXT("EmitterStatelessGroupDisplayName", "Properties"), 
-		LOCTEXT("EmitterStatelessGroupToolTip", "Properties for this stateless emitter"),
+		LOCTEXT("EmitterStatelessGroupToolTip", "Properties for this lightweight emitter"),
 		nullptr);
 	StatelessEmitterWeak = InStatelessEmitter;
 }

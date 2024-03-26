@@ -165,13 +165,13 @@ class UNiagaraSettings : public UDeveloperSettings
 	bool bExperimentalVMEnabled = false;
 
 	/**
-	Enables Stateless Emitters experimental feature.
+	Enables Lightweight Emitters experimental feature.
 	Statless emitters are lightweight fixed function emitters, they are not fully programmable like regular emitters and do not run scripts on the CPU.
 	Particle data is extrapolated per frame for the current particle age.  This means we never store particle data, we only generate it on demand.
-	Systems that contain only stateless emitters and no system script modules can take advantage of a much faster path to execute.
-	** There is no guarantee on backwards compatability for this feature currently.  Do not ship stateless content. **
+	Systems that contain only lightweight emitters and no system script modules can take advantage of a much faster path to execute.
+	** There is no guarantee on backwards compatability for this feature currently.  Do not ship lightweight content. **
 	*/
-	UPROPERTY(config, EditAnywhere, Category = Niagara, meta = (DisplayName = "Enable Stateless Emitters (Experimental)", ConfigRestartRequired = true))
+	UPROPERTY(config, EditAnywhere, Category = Niagara, meta = (DisplayName = "Enable Lightweight Emitters (Experimental)", ConfigRestartRequired = true))
 	bool bStatelessEmittersEnabled = false;
 
 	/** If set to true, quaternion attributes will be interpolated via slerp instead of lerp in interpolated spawn scripts. */

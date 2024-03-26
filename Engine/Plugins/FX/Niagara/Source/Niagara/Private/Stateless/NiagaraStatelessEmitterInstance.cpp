@@ -531,7 +531,7 @@ void FNiagaraStatelessEmitterInstance::SetExecutionStateInternal(ENiagaraExecuti
 	switch (RequestedExecutionState)
 	{
 		case ENiagaraExecutionState::Active:
-			UE_LOG(LogNiagara, Error, TEXT("Stateless Emitter: Was requested to go Active and we do not supoprt that."));
+			UE_LOG(LogNiagara, Error, TEXT("Lightweight Emitter: Was requested to go Active and we do not supoprt that."));
 			break;
 
 		case ENiagaraExecutionState::Inactive:
