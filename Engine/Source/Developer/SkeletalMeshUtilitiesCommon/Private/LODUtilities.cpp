@@ -3169,11 +3169,6 @@ bool FLODUtilities::UpdateLODInfoVertexAttributes(
 	// Wait for all the attribute conversion tasks to complete.
 	UE::Tasks::Wait(ConversionTasks);
 
-#if WITH_EDITOR
-	// Notify UI and other systems of the change
-	InSkeletalMesh->GetOnVertexAttributesArrayChanged().Broadcast();
-#endif
-	
 	return true;
 }
 
