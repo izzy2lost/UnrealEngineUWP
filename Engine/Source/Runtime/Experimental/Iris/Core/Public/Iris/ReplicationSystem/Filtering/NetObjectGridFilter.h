@@ -15,6 +15,11 @@ namespace UE::Net
 	class FNetCullDistanceOverrides;
 	class FWorldLocations;
 	struct FRepTagFindInfo;
+
+	namespace Private
+	{
+		class FNetRefHandleManager;
+	}
 }
 
 UCLASS(transient, config=Engine, MinimalAPI)
@@ -35,7 +40,7 @@ public:
 
 	/** Objects with larger sqrt(NetCullDistanceSqr) will be rejected. Disabled when value is zero. */
 	UPROPERTY(Config)
-	float MaxCullDistance = 0;
+	float MaxCullDistance = 0.0f;
 
 	/** Objects without a NetCullDistanceSquared property will assume to have this value but squared unless there's a cull distance override. */
 	UPROPERTY(Config)
@@ -69,6 +74,7 @@ protected:
 	IRISCORE_API virtual void PreFilter(FNetObjectPreFilteringParams&) override;
 	IRISCORE_API virtual void Filter(FNetObjectFilteringParams&) override;
 	IRISCORE_API virtual void PostFilter(FNetObjectPostFilteringParams&) override;
+	IRISCORE_API virtual FString PrintDebugInfoForObject(const FDebugInfoParams& Params, uint32 ObjectIndex) const override;
 
 protected:
 	struct FObjectLocationInfo : public FNetObjectFilteringInfo
@@ -233,6 +239,7 @@ private:
 	TMap<FCellCoord, FCellObjects> Cells;
 	uint32 FrameIndex = 0;
 
+	const UE::Net::Private::FNetRefHandleManager*  NetRefHandleManager = nullptr;
 	const UE::Net::FNetCullDistanceOverrides* NetCullDistanceOverrides = nullptr;
 };
 

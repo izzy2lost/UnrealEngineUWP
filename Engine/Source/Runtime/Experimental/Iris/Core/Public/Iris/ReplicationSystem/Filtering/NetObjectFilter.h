@@ -238,6 +238,21 @@ public:
 	/** Returns the filter's traits. */
 	ENetFilterTraits GetFilterTraits() const { return FilterTraits; }
 
+	struct FDebugInfoParams
+	{
+		FName FilterName;
+
+		const FNetObjectFilteringInfo* FilteringInfos = nullptr;
+
+		/** ID of the connection that the filtering applies to. */
+		uint32 ConnectionId = 0;
+
+		/** The view associated with the connection and its sub-connections that objects are filtered for. */
+		UE::Net::FReplicationView View;
+	};
+
+	IRISCORE_API virtual FString PrintDebugInfoForObject(const FDebugInfoParams& Params, uint32 ObjectIndex) const { return Params.FilterName.ToString(); };
+
 protected:
 	IRISCORE_API UNetObjectFilter();
 

@@ -430,7 +430,7 @@ void UObjectReplicationBridge::AssignDynamicFilter(UObject* Instance, const FCre
 
 	if (FilterHandle != InvalidNetObjectFilterHandle)
 	{
-		UE_LOG_OBJECTREPLICATIONBRIDGE(Verbose, TEXT("BeginReplication Filter: %s will be used for Object: %s "), *(ReplicationSystem->GetFilterName(FilterHandle).ToString()), *Instance->GetName());
+		UE_LOG_OBJECTREPLICATIONBRIDGE(Verbose, TEXT("BeginReplication Filter: %s will be used for %s "), *(ReplicationSystem->GetFilterName(FilterHandle).ToString()), *NetRefHandleManager->PrintObjectFromNetRefHandle(RefHandle));
 		ReplicationSystem->SetFilter(RefHandle, FilterHandle);
 	}
 	
@@ -473,9 +473,9 @@ UE::Net::FNetRefHandle UObjectReplicationBridge::BeginReplication(FNetRefHandle 
 	if (SubObjectRefHandle.IsValid())
 	{
 		// Add subobject
-		UE_LOG_OBJECTREPLICATIONBRIDGE(Verbose, TEXT("BeginReplication Added SubObject %s to Owner %s RelativeToSubObjectHandle %s"), *SubObjectRefHandle.ToString(), *OwnerRefHandle.ToString(), *InsertRelativeToSubObjectRefHandle.ToString());
-
 		InternalAddSubObject(OwnerRefHandle, SubObjectRefHandle, InsertRelativeToSubObjectRefHandle, InsertionOrder);
+
+		UE_LOG_OBJECTREPLICATIONBRIDGE(Verbose, TEXT("BeginReplication Added %s RelativeToSubObjectHandle %s"), *PrintObjectFromNetRefHandle(SubObjectRefHandle), *PrintObjectFromNetRefHandle(InsertRelativeToSubObjectRefHandle));
 
 		// SubObjects should always poll with owner
 		SetPollWithObject(OwnerRefHandle, SubObjectRefHandle);
@@ -502,12 +502,12 @@ void UObjectReplicationBridge::SetSubObjectNetCondition(FNetRefHandle SubObjectR
 	const FInternalNetRefIndex SubObjectInternalIndex = LocalNetRefHandleManager.GetInternalIndex(SubObjectRefHandle);
 	if (LocalNetRefHandleManager.SetSubObjectNetCondition(SubObjectInternalIndex, (int8)Condition))
 	{
-		UE_LOG_OBJECTREPLICATIONBRIDGE(Verbose, TEXT("SetSubObjectNetCondition for SubObject %s Condition %s"), *SubObjectRefHandle.ToString(), *UEnum::GetValueAsString<ELifetimeCondition>(Condition));
+		UE_LOG_OBJECTREPLICATIONBRIDGE(Verbose, TEXT("SetSubObjectNetCondition for SubObject %s Condition %s"), *PrintObjectFromNetRefHandle(SubObjectRefHandle), *UEnum::GetValueAsString<ELifetimeCondition>(Condition));
 		MarkNetObjectStateDirty(ReplicationSystem->GetId(), SubObjectInternalIndex);
 	}
 	else
 	{
-		UE_LOG_OBJECTREPLICATIONBRIDGE(Verbose, TEXT("Failed to SetSubObjectNetCondition for SubObject %s Condition %s"), *SubObjectRefHandle.ToString(), *UEnum::GetValueAsString<ELifetimeCondition>(Condition));
+		UE_LOG_OBJECTREPLICATIONBRIDGE(Warning, TEXT("Failed to Set SubObjectNetCondition for SubObject %s Condition %s"), *PrintObjectFromNetRefHandle(SubObjectRefHandle), *UEnum::GetValueAsString<ELifetimeCondition>(Condition));
 	}
 }
 
@@ -535,11 +535,11 @@ void UObjectReplicationBridge::AddDependentObject(FNetRefHandle ParentHandle, FN
 		const FInternalNetRefIndex DependentInternalIndex = LocalNetRefHandleManager.GetInternalIndex(DependentHandle);
 		Filtering.NotifyAddedDependentObject(DependentInternalIndex);
 
-		UE_LOG_OBJECTREPLICATIONBRIDGE(Verbose, TEXT("AddDependentObject Added dependent object %s to parent %s"), *DependentHandle.ToString(), *ParentHandle.ToString());
+		UE_LOG_OBJECTREPLICATIONBRIDGE(Verbose, TEXT("AddDependentObject Added dependent object %s to parent %s"), *PrintObjectFromNetRefHandle(DependentHandle), *PrintObjectFromNetRefHandle(ParentHandle));
 	}
 	else
 	{
-		UE_LOG_OBJECTREPLICATIONBRIDGE(Verbose, TEXT("AddDependentObject Failed to add dependent object %s to parent %s"), *DependentHandle.ToString(), *ParentHandle.ToString());
+		UE_LOG_OBJECTREPLICATIONBRIDGE(Warning , TEXT("AddDependentObject Failed to add dependent object %s to parent %s"), *PrintObjectFromNetRefHandle(DependentHandle), *PrintObjectFromNetRefHandle(ParentHandle));
 	}
 }
 
@@ -581,7 +581,7 @@ void UObjectReplicationBridge::EndReplication(UObject* Instance, EEndReplication
 
 void UObjectReplicationBridge::DetachInstanceFromRemote(FNetRefHandle Handle, EReplicationBridgeDestroyInstanceReason DestroyReason, EReplicationBridgeDestroyInstanceFlags DestroyFlags)
 {
-	UE_LOG_OBJECTREPLICATIONBRIDGE(Verbose, TEXT("DetachInstanceFromRemote %s DestroyReason: %s DestroyFlags: %u"), *Handle.ToString(), ToCStr(LexToString(DestroyReason)), unsigned(DestroyFlags));
+	UE_LOG_OBJECTREPLICATIONBRIDGE(Verbose, TEXT("DetachInstanceFromRemote %s DestroyReason: %s DestroyFlags: %u"), *PrintObjectFromNetRefHandle(Handle), ToCStr(LexToString(DestroyReason)), unsigned(DestroyFlags));
 
 	using namespace UE::Net::Private;
 
@@ -635,7 +635,7 @@ void UObjectReplicationBridge::RegisterRemoteInstance(FNetRefHandle RefHandle, U
 		GetObjectReferenceCache()->AddRemoteReference(RefHandle, Instance);
 	}
 
-	UE_LOG_OBJECTREPLICATIONBRIDGE(Verbose, TEXT("RegisterRemoteInstance %s %s with ProtocolId:0x%" UINT64_x_FMT), *RefHandle.ToString(), ToCStr(Instance->GetName()), Protocol->ProtocolIdentifier);
+	UE_LOG_OBJECTREPLICATIONBRIDGE(Verbose, TEXT("RegisterRemoteInstance %s %s with ProtocolId:0x%" UINT64_x_FMT), *PrintObjectFromNetRefHandle(RefHandle), ToCStr(Instance->GetName()), Protocol->ProtocolIdentifier);
 }
 
 FReplicationBridgeCreateNetRefHandleResult UObjectReplicationBridge::CreateNetRefHandleFromRemote(FNetRefHandle RootObjectOfSubObject, FNetRefHandle WantedNetHandle, FReplicationBridgeSerializationContext& Context)
@@ -1458,7 +1458,7 @@ bool UObjectReplicationBridge::IsClassCritical(const UClass* Class)
 	return false;
 }
 
-FString UObjectReplicationBridge::PrintConnectionInfo(uint32 ConnectionId)
+FString UObjectReplicationBridge::PrintConnectionInfo(uint32 ConnectionId) const
 {
 	return FString::Printf(TEXT("ConnectionId:%u"), ConnectionId);
 }
@@ -1561,7 +1561,7 @@ void UObjectReplicationBridge::SetClassDynamicFilterConfig(FName ClassPathName, 
 
 	if (FilterName != NAME_None)
 	{
-		FNetObjectFilterHandle FilterHandle = GetReplicationSystem()->GetFilterHandle(FilterName);;
+		FNetObjectFilterHandle FilterHandle = GetReplicationSystem()->GetFilterHandle(FilterName);
 
 		if (ensureMsgf(FilterHandle != InvalidNetObjectFilterHandle, TEXT("SetClassDynamicFilterConfig for %s received invalid filter named %s"), *ClassPathName.ToString(), *FilterName.ToString()))
 		{

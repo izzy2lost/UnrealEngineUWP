@@ -68,7 +68,7 @@ void ActorReplicationBridgePreUpdateFunction(FNetRefHandle Handle, UObject* Inst
 	}
 }
 
-void ActorReplicationBridgeGetActorWorldObjectInfo(FNetRefHandle Handle, const UObject* Instance, FVector& OutWorldLocation, float& OutCullDistance)
+void ActorReplicationBridgeGetActorWorldObjectInfo(FNetRefHandle /*Handle*/, const UObject* Instance, FVector& OutWorldLocation, float& OutCullDistance)
 {
 	if (const AActor* Actor = Cast<AActor>(Instance))
 	{
@@ -250,6 +250,8 @@ UE::Net::FNetRefHandle UActorReplicationBridge::BeginReplication(AActor* Actor, 
 		ensureMsgf(false, TEXT("Failed to create NetRefHandle for Actor Named %s"), ToCStr(Actor->GetName()));
 		return FNetRefHandle::GetInvalid();
 	}
+
+    UE_CLOG(Actor->bAlwaysRelevant, LogIrisBridge, Verbose, TEXT("BeginReplication of AlwaysRelevant actor %s"), *PrintObjectFromNetRefHandle(ActorRefHandle));
 
 	// Set owning connection filtering if actor is only relevant to owner
 	{
@@ -1221,13 +1223,13 @@ void UActorReplicationBridge::ReportErrorWithNetRefHandle(uint32 ErrorType, FNet
 	}
 }
 
-FString UActorReplicationBridge::PrintConnectionInfo(uint32 ConnectionId)
+FString UActorReplicationBridge::PrintConnectionInfo(uint32 ConnectionId) const
 {
 	if (NetDriver)
 	{
 		if (UNetConnection* ClientConnection = NetDriver->GetConnectionById(ConnectionId))
 		{
-			return FString::Printf(TEXT("ConnectionId:%u %s"), ConnectionId, *ClientConnection->Describe());
+			return FString::Printf(TEXT("ConnectionId:%u ViewTarget: %s Named: %s"), ConnectionId, *GetNameSafe(ClientConnection->ViewTarget), *ClientConnection->Describe());
 		}
 		else
 		{
