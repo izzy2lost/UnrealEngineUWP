@@ -30,12 +30,6 @@ public:
 
 private:
 	/**
-	 * Callback when the media player is done seeking.
-	 */
-	UFUNCTION()
-	void OnSeekCompleted();
-
-	/**
 	 * Cleans everything up.
 	 * The media textue will remain so it can be used/reused.
 	 */
@@ -53,7 +47,21 @@ private:
 	UPROPERTY(Transient)
 	TObjectPtr<UMediaTexture> MediaTexture = nullptr;
 
-	/** True if we are currently seeking. */
-	bool bIsSeekActive = false;
-	
+	enum class EState
+	{
+		Closed,
+		Opening,
+		Open,
+		Playing,
+		NotSupported,
+		Failed,
+		TimedOut,
+		Errored
+	};
+	EState CurrentState = EState::Closed;
+	float WatchdogTimeRemaining = 0.0f;
+	UFUNCTION()
+	void OnMediaOpened(FString InURL);
+	UFUNCTION()
+	void OnMediaOpenFailed(FString InURL);
 };
