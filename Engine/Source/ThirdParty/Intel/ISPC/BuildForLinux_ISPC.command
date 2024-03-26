@@ -38,6 +38,7 @@ CMAKE_ARGS=(
     -DISPC_IOS_TARGET=OFF
     -DISPC_ANDROID_TARGET=ON
     -DISPC_PS_TARGET=OFF
+    -DISPC_STATIC_STDCXX_LINK=ON
 )
 
 pushd $ISPC_BUILD_LOCATION
@@ -46,7 +47,7 @@ echo Configuring build for ISPC version $ISPC_VERSION...
 cmake -G "Unix Makefiles" $ISPC_SOURCE_LOCATION "${CMAKE_ARGS[@]}"
 
 echo Building ISPC for Release...
-cmake --build . --config Release
+cmake --build . --config Release --parallel 16
 
 echo Installing ISPC for Release...
 cmake --install . --config Release
