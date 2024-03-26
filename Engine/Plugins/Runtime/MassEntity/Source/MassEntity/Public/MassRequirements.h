@@ -366,9 +366,12 @@ public:
 
 	void Reset();
 
-	/** The function validates requirements we make for queries. See the FMassFragmentRequirements struct description for details.
-	 *  Note that this function is non-trivial and end users are not expected to need to use it. 
-	 *  @return whether this query's requirements follow the rules. */
+	/** 
+	 * The function validates requirements we make for queries. See the FMassFragmentRequirements struct description for details.
+	 * Even though the code of the function is non trivial the consecutive calls will be essentially free due to the result 
+	 * being cached (note that the caching gets invalidated if the composition changes).
+	 * @return whether this query's requirements follow the rules.
+	 */
 	bool CheckValidity() const;
 
 	TConstArrayView<FMassFragmentRequirementDescription> GetFragmentRequirements() const { return FragmentRequirements; }
@@ -399,6 +402,8 @@ protected:
 	void SortRequirements();
 
 	FORCEINLINE void IncrementChangeCounter() { ++IncrementalChangesCount; }
+	void ConsumeIncrementalChangesCount() { IncrementalChangesCount = 0; }
+	bool HasIncrementalChanges() const{ return IncrementalChangesCount > 0; }
 
 protected:
 	friend FMassRequirementAccessDetector;
@@ -421,9 +426,14 @@ protected:
 	FMassSharedFragmentBitSet RequiredOptionalSharedFragments;
 	FMassSharedFragmentBitSet RequiredNoneSharedFragments;
 
-	uint32 IncrementalChangesCount = 0;
-
 private:
+	mutable uint16 bValidityIsCached : 1 = false;
+	mutable uint16 bAreRequirementsValid : 1 = false;
+	mutable uint16 bEmptynessIsCached : 1 = false;
+	mutable uint16 bAreRequirementsEmpty: 1 = false;
+
+	uint16 IncrementalChangesCount = 0;
+
 	bool bRequiresGameThreadExecution = false;
 };
 
