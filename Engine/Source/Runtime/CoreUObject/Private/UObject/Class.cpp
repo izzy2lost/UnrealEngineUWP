@@ -1574,11 +1574,13 @@ void UStruct::SerializeVersionedTaggedProperties(FStructuredArchive::FSlot Slot,
 					}
 				}
 
+				TOptional<UE::FSerializedPropertyPathScope> SerializedPropertyPath;
 				if (SerializeContext && SerializeContext->bTrackSerializedPropertyPath)
 				{
 					const FName Name = Property ? Property->GetFName() : Tag.Name;
 					const int32 Index = Tag.ArrayIndex > 0 || (Property && Property->ArrayDim > 1) ? Tag.ArrayIndex : INDEX_NONE;
-					SerializeContext->SerializedPropertyPath.Push({Name, Tag.GetType(), Index});
+					const UE::FPropertyPathNameSegment Segment{Name, Tag.GetType(), Index};
+					SerializedPropertyPath.Emplace(SerializeContext, Segment, UE::ESerializedPropertyPathNotify::Yes);
 				}
 
 				if (Property)
@@ -1683,12 +1685,8 @@ void UStruct::SerializeVersionedTaggedProperties(FStructuredArchive::FSlot Slot,
 					PropertyBag->LoadPropertyByTag(SerializeContext->SerializedPropertyPath, Tag, ValueSlot);
 				}
 
-				if (SerializeContext && SerializeContext->bTrackSerializedPropertyPath)
-				{
-					// broadcast that a property was serialized
-					SerializeContext->OnTaggedPropertySerialize.Broadcast(*SerializeContext);
-					SerializeContext->SerializedPropertyPath.Pop();
-				}
+				// Broadcast that a property was serialized if tracking the serialized property path.
+				SerializedPropertyPath.Reset();
 
 				int64 Loaded = UnderlyingArchive.Tell() - StartOfProperty;
 
