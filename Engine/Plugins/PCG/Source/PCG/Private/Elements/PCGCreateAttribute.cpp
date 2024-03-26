@@ -96,6 +96,8 @@ void UPCGAddAttributeSettings::ApplyStructuralDeprecation(UPCGNode* InOutNode)
 			InOutNode->SetSettingsInterface(NewSettings);
 		}
 	}
+
+	Super::ApplyStructuralDeprecation(InOutNode);
 }
 #endif // WITH_EDITOR
 
