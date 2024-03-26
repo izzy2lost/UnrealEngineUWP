@@ -51,7 +51,9 @@ struct FAssetTreeItemBrushes
 	const FSlateBrush* FolderOpenCodeBrush;
 	const FSlateBrush* FolderClosedCodeBrush;
 	const FSlateBrush* FolderOpenDeveloperBrush;
-	const FSlateBrush *FolderClosedDeveloperBrush;
+	const FSlateBrush* FolderClosedDeveloperBrush;
+	const FSlateBrush* FolderOpenPluginRootBrush;
+	const FSlateBrush* FolderClosedPluginRootBrush;
 
 	FAssetTreeItemBrushes()
 	{
@@ -63,6 +65,8 @@ struct FAssetTreeItemBrushes
 		FolderClosedCodeBrush = FAppStyle::GetBrush("ContentBrowser.AssetTreeFolderClosedCode");
 		FolderOpenDeveloperBrush = FAppStyle::GetBrush("ContentBrowser.AssetTreeFolderOpenDeveloper");
 		FolderClosedDeveloperBrush = FAppStyle::GetBrush("ContentBrowser.AssetTreeFolderClosedDeveloper");
+		FolderOpenPluginRootBrush = FAppStyle::GetBrush("ContentBrowser.AssetTreeFolderOpenPluginRoot");
+		FolderClosedPluginRootBrush = FAppStyle::GetBrush("ContentBrowser.AssetTreeFolderClosedPluginRoot");
 	}
 	
 	static FAssetTreeItemBrushes& Get()
@@ -105,6 +109,18 @@ void SAssetTreeItem::Construct( const FArguments& InArgs )
 		if (VirtualAttributeValue.IsValid() && VirtualAttributeValue.GetValue<bool>())
 		{
 			FolderType = EFolderType::CustomVirtual;
+		}
+	}
+	
+	if (ContentBrowserUtils::ShouldShowPluginFolderIcon())
+	{
+		if (InArgs._TreeItem->GetItem().IsInPlugin())
+		{
+			TSharedPtr<FTreeItem> Parent = InArgs._TreeItem->Parent.Pin();
+			if (!Parent.IsValid() || !Parent->GetItem().IsInPlugin())
+			{
+				FolderType = EFolderType::PluginRoot;
+			}
 		}
 	}
 
@@ -305,6 +321,8 @@ const FSlateBrush* SAssetTreeItem::GetFolderIcon() const
 
 	case EFolderType::CustomVirtual:
 		return IsItemExpanded.Get() ? Brushes.FolderOpenVirtualBrush : Brushes.FolderClosedVirtualBrush;
+	case EFolderType::PluginRoot:
+		return (IsItemExpanded.Get()) ? Brushes.FolderOpenPluginRootBrush : Brushes.FolderClosedPluginRootBrush;
 
 	default:
 		return IsItemExpanded.Get() ? Brushes.FolderOpenBrush : Brushes.FolderClosedBrush;

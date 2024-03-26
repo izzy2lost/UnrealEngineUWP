@@ -134,4 +134,7 @@ namespace ContentBrowserUtils
 
 	/** Returns whether we should display icons for custom virtual folders in the content browser */
 	bool ShouldShowCustomVirtualFolderIcon();
+
+	/** Returns whether we should display icons for plugins in the content browser */
+	bool ShouldShowPluginFolderIcon();
 }
