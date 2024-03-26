@@ -85,6 +85,9 @@ struct FDataflowNode
 	UE_DEPRECATED(5.4, "FDataflowNode::CopyNodeProperties is deprecated.")
 	DATAFLOWCORE_API void CopyNodeProperties(const TSharedPtr<FDataflowNode> CopyFromDataflowNode);
 
+	virtual bool IsDeprecated() { return false; }
+	virtual bool IsExperimental() { return false; }
+
 	//
 	// Connections
 	//
