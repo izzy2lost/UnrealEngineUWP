@@ -2367,7 +2367,7 @@ bool ULevelInstanceSubsystem::CommitLevelInstanceInternal(TUniquePtr<FLevelInsta
 	// Update Registered Container Bounds
 	UActorDescContainerSubsystem::GetChecked().NotifyContainerUpdated(*LevelInstance->GetWorldAssetPackage());
 	
-	TArray<TPair<ULevelInstanceSubsystem*, FLevelInstanceID>> LevelInstancesToUpdate;
+	TMap<ULevelInstanceSubsystem*, TArray<FLevelInstanceID>> LevelInstancesToUpdate;
 	// Gather list to update
 	for (TObjectIterator<UWorld> It(RF_ClassDefaultObject | RF_ArchetypeObject, true); It; ++It)
 	{
@@ -2381,7 +2381,7 @@ bool ULevelInstanceSubsystem::CommitLevelInstanceInternal(TUniquePtr<FLevelInsta
 				{
 					if (CurrentLevelInstance == LevelInstance || bChangesCommitted)
 					{
-						LevelInstancesToUpdate.Add({ LevelInstanceSubsystem, CurrentLevelInstance->GetLevelInstanceID() });
+						LevelInstancesToUpdate.FindOrAdd(LevelInstanceSubsystem).Add(CurrentLevelInstance->GetLevelInstanceID());
 					}
 				}
 			}
@@ -2391,9 +2391,12 @@ bool ULevelInstanceSubsystem::CommitLevelInstanceInternal(TUniquePtr<FLevelInsta
 	// Do update
 	for (const auto& KeyValuePair : LevelInstancesToUpdate)
 	{
-		if (ILevelInstanceInterface* LevelInstanceToUpdate = KeyValuePair.Key->GetLevelInstance(KeyValuePair.Value))
+		for (const FLevelInstanceID& LevelInstanceIDToUpdate : KeyValuePair.Value)
 		{
-			LevelInstanceToUpdate->UpdateLevelInstanceFromWorldAsset();
+			if (ILevelInstanceInterface* LevelInstanceToUpdate = KeyValuePair.Key->GetLevelInstance(LevelInstanceIDToUpdate))
+			{
+				LevelInstanceToUpdate->UpdateLevelInstanceFromWorldAsset();
+			}
 		}
 	}
 
@@ -2428,6 +2431,24 @@ bool ULevelInstanceSubsystem::CommitLevelInstanceInternal(TUniquePtr<FLevelInsta
 	if (bChangesCommitted)
 	{
 		LevelInstanceChangedEvent.Broadcast(FName(*EditPackage));
+
+		// Send event per World (per LevelInstanceSubsystem)
+		for (const auto& KeyValuePair : LevelInstancesToUpdate)
+		{
+			TArray<ILevelInstanceInterface*> UpdatedLevelInstances;
+			for (const FLevelInstanceID& UpdatedLevelInstanceID : KeyValuePair.Value)
+			{
+				if (ILevelInstanceInterface* UpdatedLevelInstance = KeyValuePair.Key->GetLevelInstance(UpdatedLevelInstanceID))
+				{
+					UpdatedLevelInstances.Add(UpdatedLevelInstance);
+				}
+			}
+
+			if (UpdatedLevelInstances.Num() > 0)
+			{
+				KeyValuePair.Key->LevelInstancesUpdatedEvent.Broadcast(UpdatedLevelInstances);
+			}
+		}
 	}
 
 	GEngine->BroadcastLevelActorListChanged();
