@@ -64,7 +64,7 @@ namespace UnrealBuildTool
 		/// <param name="bVerbose"></param>
 		/// <param name="Logger"></param>
 		protected AppleToolChainSettings(string OSPrefix, string? SimulatorOSPrefix, string TargetOSName, bool bVerbose, ILogger Logger)
-			{   
+		{
 			this.TargetOSName = TargetOSName;
 
 			if (_XcodeDeveloperDir == null)
@@ -81,7 +81,7 @@ namespace UnrealBuildTool
 			}
 
 			// use one up fro the SDK dir to look in for the version'd name directories next to the SDK dir
-			SDKVersion = SelectSDK(SDKDir.ParentDirectory! , OSPrefix, bVerbose, Logger);
+			SDKVersion = SelectSDK(SDKDir.ParentDirectory!, OSPrefix, bVerbose, Logger);
 
 			// convert to float for easy comparison
 			SDKVersionFloat = Single.Parse(SDKVersion, System.Globalization.CultureInfo.InvariantCulture);
@@ -96,10 +96,10 @@ namespace UnrealBuildTool
 		/// <param name="Architecture"></param>
 		/// <returns></returns>
 		public DirectoryReference GetSDKPath(UnrealArch Architecture)
-			{
+		{
 			// note that VisionOS uses IOSSimulator (as TVOS should eventually do as well)
 			if (Architecture == UnrealArch.IOSSimulator || Architecture == UnrealArch.TVOSSimulator)
-		{
+			{
 				return SimulatorSDKDir!;
 			}
 			return SDKDir;
@@ -152,7 +152,7 @@ namespace UnrealBuildTool
 			}
 
 			if (bVerbose && !XcodeDeveloperDir.FullName.StartsWith("/Applications/Xcode.app"))
-				{
+			{
 				Log.TraceInformationOnce("Compiling with non-standard Xcode: {0}", XcodeDeveloperDir);
 			}
 
@@ -172,7 +172,7 @@ namespace UnrealBuildTool
 		}
 
 		private static string SelectSDK(DirectoryReference BaseSDKDir, string OSPrefix, bool bVerbose, ILogger Logger)
-			{
+		{
 			string PlatformSDKVersion = "";
 			try
 			{
@@ -919,7 +919,7 @@ namespace UnrealBuildTool
 					ExtraOptions,
 					//$"-sdk {SDKName}",
 				};
-	
+
 				Process LocalProcess = new Process();
 				LocalProcess.StartInfo = new ProcessStartInfo("/usr/bin/env", String.Join(" ", Arguments));
 				LocalProcess.OutputDataReceived += (Sender, Args) => { LocalProcessOutput(Args, false, Logger); };
@@ -1055,7 +1055,7 @@ namespace UnrealBuildTool
 				ExtraOptions += SetupRemoteCodesigning(Target);
 			}
 
-			int ExitCode = AppleExports.BuildWithStubXcodeProject(Target.ProjectFile, Target.Platform, Target.Architectures, Target.Configuration, Target.TargetName, 
+			int ExitCode = AppleExports.BuildWithStubXcodeProject(Target.ProjectFile, Target.Platform, Target.Architectures, Target.Configuration, Target.TargetName,
 				AppleExports.XcodeBuildMode.PostBuildSync, Logger, ExtraOptions, bForceDummySigning: bUseDummySigning);
 
 			// restore the keychain as soon as possible
