@@ -113,6 +113,10 @@ static FAutoConsoleVariableRef CVarRouteActorInitializationWorkUnitWeighting(
 );
 
 #if WITH_EDITOR
+
+TArray<ULevel::FLevelExternalActorsPathsProviderDelegate> ULevel::LevelExternalActorsPathsProviders;
+TArray<ULevel::FLevelMountPointResolverDelegate> ULevel::LevelMountPointResolvers;
+
 void FLevelActorFoldersHelper::SetUseActorFolders(ULevel* InLevel, bool bInEnabled)
 {
 	InLevel->SetUseActorFoldersInternal(bInEnabled);
@@ -1394,7 +1398,7 @@ void ULevel::PreDuplicate(FObjectDuplicationParameters& DupParams)
 				{
 					Path = Path.Replace(*ReplaceFrom, *ReplaceTo);
 				}
-				UPackage* DupPackage = Object->IsA<AActor>() ? CreateActorPackage(DstPackage, GetActorPackagingScheme(), Path) : FExternalPackageHelper::CreateExternalPackage(DstPackage, Path);
+				UPackage* DupPackage = Object->IsA<AActor>() ? ULevel::CreateActorPackage(DstPackage, GetActorPackagingScheme(), Path, Object) : FExternalPackageHelper::CreateExternalPackage(DstPackage, Path);
 				DupPackage->MarkAsFullyLoaded();
 				DupPackage->MarkPackageDirty();
 				DupParams.DuplicationSeed.Add(Package, DupPackage);
@@ -3530,9 +3534,28 @@ bool ULevel::HasAnyActorsOfType(UClass *SearchType)
 }
 
 #if WITH_EDITOR
-FString ULevel::GetActorPackageName(UPackage* InLevelPackage, EActorPackagingScheme ActorPackagingScheme, const FString& InActorPath)
+FString ULevel::GetActorPackageName(UPackage* InLevelPackage, EActorPackagingScheme ActorPackagingScheme, const FString& InActorPath, const UObject* InLevelMountPointContext)
 {
-	return GetActorPackageName(GetExternalActorsPath(InLevelPackage), ActorPackagingScheme, InActorPath);
+	check(InLevelPackage);
+	const FString LevelPackageName = InLevelPackage->GetName();
+
+	TOptional<FString> ResolvedLevelMountPoint;
+	if (InLevelMountPointContext)
+	{
+		for (const FLevelMountPointResolverDelegate& Resolver : ULevel::LevelMountPointResolvers)
+		{
+			FString Result;
+			if (Resolver.Execute(LevelPackageName, InLevelMountPointContext, Result) && !Result.IsEmpty())
+			{
+				ResolvedLevelMountPoint = Result;
+				break;
+			}
+		}
+	}
+	
+	// If ResolvedLevelMountPoint is not set, fallback on LevelPackageName
+	const FString LevelRootPath = ResolvedLevelMountPoint.Get(LevelPackageName);
+	return ULevel::GetActorPackageName(ULevel::GetExternalActorsPath(LevelRootPath), ActorPackagingScheme, InActorPath);
 }
 
 FString ULevel::GetActorPackageName(const FString& InBaseDir, EActorPackagingScheme ActorPackagingScheme, const FString& InActorPath)
@@ -3575,6 +3598,44 @@ FString ULevel::GetActorPackageName(const FString& InBaseDir, EActorPackagingSch
 	return ActorPackageName.ToString();
 }
 
+TArray<FString> ULevel::GetExternalActorsPaths(const FString& InLevelPackageName, const FString& InPackageShortName)
+{
+	TArray<FString> Result;
+	Result.Add(ULevel::GetExternalActorsPath(InLevelPackageName, InPackageShortName));
+	for (const FLevelExternalActorsPathsProviderDelegate& Provider : ULevel::LevelExternalActorsPathsProviders)
+	{
+		Provider.ExecuteIfBound(InLevelPackageName, InPackageShortName, Result);
+	}
+	return Result;
+}
+
+FDelegateHandle ULevel::RegisterLevelExternalActorsPathsProvider(const FLevelExternalActorsPathsProviderDelegate& Provider)
+{
+	LevelExternalActorsPathsProviders.Add(Provider);
+	return LevelExternalActorsPathsProviders.Last().GetHandle();
+}
+
+void ULevel::UnregisterLevelExternalActorsPathsProvider(const FDelegateHandle& ProviderDelegateHandle)
+{
+	LevelExternalActorsPathsProviders.RemoveAll([ProviderDelegateHandle](const FLevelExternalActorsPathsProviderDelegate& Delegate)
+	{
+		return Delegate.GetHandle() == ProviderDelegateHandle;
+	});
+}
+
+FDelegateHandle ULevel::RegisterLevelMountPointResolver(const FLevelMountPointResolverDelegate& Resolver)
+{
+	LevelMountPointResolvers.Add(Resolver);
+	return LevelMountPointResolvers.Last().GetHandle();
+}
+
+void ULevel::UnregisterLevelMountPointResolver(const FDelegateHandle& ResolverDelegateHandle)
+{
+	LevelMountPointResolvers.RemoveAll([ResolverDelegateHandle](const FLevelMountPointResolverDelegate& Delegate)
+	{
+		return Delegate.GetHandle() == ResolverDelegateHandle;
+	});
+}
 FString ULevel::GetExternalActorsPath(const FString& InLevelPackageName, const FString& InPackageShortName)
 {
 	// Strip the temp prefix if found
@@ -3616,7 +3677,7 @@ FString ULevel::GetExternalActorsPath(UPackage* InLevelPackage, const FString& I
 
 	// We can't use the Package->FileName here because it might be a duplicated a package
 	// We can't use the package short name directly in some cases either (PIE, instanced load) as it may contain pie prefix or not reflect the real actor location
-	return GetExternalActorsPath(InLevelPackage->GetName(), InPackageShortName);
+	return ULevel::GetExternalActorsPath(InLevelPackage->GetName(), InPackageShortName);
 }
 
 EActorPackagingScheme ULevel::GetActorPackagingSchemeFromActorPackageName(const FStringView InActorPackageName)
@@ -3667,7 +3728,7 @@ void ULevel::SetUseExternalActors(bool bEnable)
 TArray<FString> ULevel::GetExternalObjectsPaths(const FString& InLevelPackageName, const FString& InPackageShortName)
 {
 	TArray<FString> Paths;
-	Paths.Add(GetExternalActorsPath(InLevelPackageName, InPackageShortName));
+	Paths.Append(ULevel::GetExternalActorsPaths(InLevelPackageName, InPackageShortName));
 	Paths.Add(FExternalPackageHelper::GetExternalObjectsPath(InLevelPackageName, InPackageShortName));
 	return Paths;
 }
@@ -4020,16 +4081,23 @@ TArray<FString> ULevel::GetOnDiskExternalActorPackages(const FString& ExternalAc
 TArray<FString> ULevel::GetOnDiskExternalActorPackages(bool bTryUsingPackageLoadedPath) const
 {
 	UWorld* World = GetTypedOuter<UWorld>();
-	FString ExternalActorsPath;
+	FString LevelPackageName;
+	FString LevelPackageShortName;
 	if (bTryUsingPackageLoadedPath && !World->GetPackage()->GetLoadedPath().IsEmpty())
 	{
-		ExternalActorsPath = ULevel::GetExternalActorsPath(World->GetPackage()->GetLoadedPath().GetPackageName());
+		LevelPackageName = World->GetPackage()->GetLoadedPath().GetPackageName();
 	}
 	else
 	{
-		ExternalActorsPath = ULevel::GetExternalActorsPath(World->GetPackage(), (World->OriginalWorldName == NAME_None) ? World->GetName() : World->OriginalWorldName.ToString());
+		LevelPackageName = World->GetPackage()->GetName();
+		LevelPackageShortName = !World->OriginalWorldName.IsNone() ? World->OriginalWorldName.ToString() : World->GetName();
 	}
-	return GetOnDiskExternalActorPackages(ExternalActorsPath);
+	TArray<FString> ActorPackagePaths;
+	for (const FString& ExternalActorsPath : ULevel::GetExternalActorsPaths(LevelPackageName, LevelPackageShortName))
+	{
+		ActorPackagePaths.Append(GetOnDiskExternalActorPackages(ExternalActorsPath));
+	}
+	return ActorPackagePaths;
 }
 
 TArray<UPackage*> ULevel::GetLoadedExternalObjectPackages() const
@@ -4060,8 +4128,9 @@ TArray<UPackage*> ULevel::GetLoadedExternalObjectPackages() const
 	};
 
 	TSet<FString> ExternalObjectsPathSet;
-	ExternalObjectsPathSet.Add(SanitizeExternalPath(ULevel::GetExternalActorsPath(World->GetPackage(), (World->OriginalWorldName == NAME_None) ? World->GetName() : World->OriginalWorldName.ToString())));
-	ExternalObjectsPathSet.Add(SanitizeExternalPath(FExternalPackageHelper::GetExternalObjectsPath(World->GetPackage(), (World->OriginalWorldName == NAME_None) ? World->GetName() : World->OriginalWorldName.ToString())));
+	const FString LevelPackageShortName = !World->OriginalWorldName.IsNone() ? World->OriginalWorldName.ToString() : World->GetName();
+	ExternalObjectsPathSet.Add(SanitizeExternalPath(ULevel::GetExternalActorsPath(World->GetPackage(), LevelPackageShortName)));
+	ExternalObjectsPathSet.Add(SanitizeExternalPath(FExternalPackageHelper::GetExternalObjectsPath(World->GetPackage(), LevelPackageShortName)));
 
 	if (UWorldPartition* WorldPartition = GetWorldPartition())
 	{
@@ -4132,9 +4201,9 @@ static UPackage* CreateActorPackageInternal(const FString& InPackageName, const 
 	return ActorPackage;
 };
 
-UPackage* ULevel::CreateActorPackage(UPackage* InLevelPackage, EActorPackagingScheme InActorPackagingScheme, const FString& InActorPath)
+UPackage* ULevel::CreateActorPackage(UPackage* InLevelPackage, EActorPackagingScheme InActorPackagingScheme, const FString& InActorPath, const UObject* InTargetContextObject)
 {
-	const FString PackageName = GetActorPackageName(InLevelPackage, InActorPackagingScheme, InActorPath);
+	const FString PackageName = ULevel::GetActorPackageName(InLevelPackage, InActorPackagingScheme, InActorPath, InTargetContextObject);
 	UPackage* ActorPackage = CreateActorPackageInternal(PackageName, InActorPath);
 	// Should be prevented upstream but we propagate the flag to prevent issues in asset enumeration
 	if (!ensureMsgf(!(InLevelPackage->GetPackageFlags() & PKG_PlayInEditor), TEXT("Actor packages should not be created on PlayInEditor levels")))
@@ -4146,7 +4215,7 @@ UPackage* ULevel::CreateActorPackage(UPackage* InLevelPackage, EActorPackagingSc
 
 UPackage* ULevel::CreateActorPackage(const FString& InBaseDir, EActorPackagingScheme InActorPackagingScheme, const FString& InActorPath)
 {
-	const FString PackageName = GetActorPackageName(InBaseDir, InActorPackagingScheme, InActorPath);
+	const FString PackageName = ULevel::GetActorPackageName(InBaseDir, InActorPackagingScheme, InActorPath);
 	return CreateActorPackageInternal(PackageName, InActorPath);
 }
 

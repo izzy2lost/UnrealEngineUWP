@@ -84,8 +84,6 @@ public:
 private:
 #if WITH_EDITOR
 	static void GetContentBundleGuids(const FAssetData& Asset, TArray<FGuid>& OutContentBundleGuids);
-	static void GetExternalDataLayerUIDs(const FAssetData& Asset, TArray<FExternalDataLayerUID>& OutExternalDataLayerUIDs);
-	static FName GetExternalDataLayerUIDsAssetRegistryTag();
 	static FName GetContentBundleGuidsAssetRegistryTagPrivate();
 
 	UFUNCTION()

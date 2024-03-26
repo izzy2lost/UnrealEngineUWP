@@ -907,8 +907,7 @@ AWorldDataLayers* UExternalDataLayerManager::GetWorldDataLayers(const UExternalD
 
 	if (bAllowCreate)
 	{
-		const FString BaseDir = ULevel::GetExternalActorsPath(GetExternalDataLayerLevelRootPath(InExternalDataLayerAsset));
-		ActorPackage = ULevel::CreateActorPackage(BaseDir, DestinationLevel->GetActorPackagingScheme(), WorldDataLayersName);
+		ActorPackage = ULevel::CreateActorPackage(DestinationLevel->GetPackage(), DestinationLevel->GetActorPackagingScheme(), WorldDataLayersName, InExternalDataLayerAsset);
 		FActorSpawnParameters SpawnParameters;
 		SpawnParameters.Name = *WorldDataLayersName;
 		SpawnParameters.OverrideLevel = DestinationLevel;

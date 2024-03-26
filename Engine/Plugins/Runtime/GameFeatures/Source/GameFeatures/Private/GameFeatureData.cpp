@@ -581,12 +581,6 @@ FName UGameFeatureData::GetContentBundleGuidsAssetRegistryTagPrivate()
 	return ContentBundlesTag;
 }
 
-FName UGameFeatureData::GetExternalDataLayerUIDsAssetRegistryTag()
-{
-	static const FName ExternalDataLayerUIDsTag("ExternalDataLayerUIDs");
-	return ExternalDataLayerUIDsTag;
-}
-
 void UGameFeatureData::GetContentBundleGuids(const FAssetData& Asset, TArray<FGuid>& OutContentBundleGuids)
 {
 	FString ContentBundleGuidsStr;
@@ -600,24 +594,6 @@ void UGameFeatureData::GetContentBundleGuids(const FAssetData& Asset, TArray<FGu
 			if (FGuid::Parse(GuidStr, ContentBundleGuid))
 			{
 				OutContentBundleGuids.Add(ContentBundleGuid);
-			}
-		}
-	}
-}
-
-void UGameFeatureData::GetExternalDataLayerUIDs(const FAssetData& Asset, TArray<FExternalDataLayerUID>& OutExternalDataLayerUIDs)
-{
-	FString ExternalDataLayerUIDsStr;
-	if (Asset.GetTagValue(GetExternalDataLayerUIDsAssetRegistryTag(), ExternalDataLayerUIDsStr))
-	{
-		TArray<FString> ExternalDataLayerUIDStrArray;
-		ExternalDataLayerUIDsStr.ParseIntoArray(ExternalDataLayerUIDStrArray, TEXT(","));
-		for (const FString& ExternalDataLayerUIDStr : ExternalDataLayerUIDStrArray)
-		{
-			FExternalDataLayerUID ExternalDataLayerUID;
-			if (FExternalDataLayerUID::Parse(ExternalDataLayerUIDStr, ExternalDataLayerUID))
-			{
-				OutExternalDataLayerUIDs.Add(ExternalDataLayerUID);
 			}
 		}
 	}
@@ -640,7 +616,7 @@ void UGameFeatureData::GetDependencyDirectoriesFromAssetData(const FAssetData& A
 	}
 
 	TArray<FExternalDataLayerUID> ExternalDataLayerUIDs;
-	GetExternalDataLayerUIDs(AssetData, ExternalDataLayerUIDs);
+	FExternalDataLayerHelper::GetExternalDataLayerUIDs(AssetData, ExternalDataLayerUIDs);
 	for (const FExternalDataLayerUID& ExternalDataLayerUID : ExternalDataLayerUIDs)
 	{
 		FString ExternalDataLayerRootPath;
@@ -691,11 +667,7 @@ void UGameFeatureData::GetAssetRegistryTags(FAssetRegistryTagsContext Context) c
 		Context.AddTag(FAssetRegistryTag(GetContentBundleGuidsAssetRegistryTagPrivate(), ContentBundleGuidsStr, FAssetRegistryTag::TT_Hidden));
 	}
 
-	if (ExternalDataLayerUIDs.Num() > 0)
-	{
-		FString ExternalDataLayerUIDsStr = FString::JoinBy(ExternalDataLayerUIDs, TEXT(","), [&](const FExternalDataLayerUID& ExternalDataLayerUID) { return ExternalDataLayerUID.ToString(); });
-		Context.AddTag(FAssetRegistryTag(GetExternalDataLayerUIDsAssetRegistryTag(), ExternalDataLayerUIDsStr, FAssetRegistryTag::TT_Hidden));
-	}
+	FExternalDataLayerHelper::AddAssetRegistryTags(Context, ExternalDataLayerUIDs);
 }
 #endif
 
