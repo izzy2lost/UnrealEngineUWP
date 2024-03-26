@@ -107,6 +107,20 @@ FRigVMEditor::~FRigVMEditor()
 		RigVMBlueprint->OnGetFocusedGraph().Unbind();
 #endif
 	}
+
+	if (bRequestedReopen)
+	{
+		// Sometimes FPersonaToolkit::SetPreviewMesh will request an asset editor close and reopen. If
+		// SetPreviewMesh is called from within the editor, the close will not fully take effect until
+		// the callback finishes, so the open editor action will fail. In that case, let's make sure we
+		// detect a reopen requested, and open the editor again on the next tick.
+		bRequestedReopen = false;
+		FSoftObjectPath AssetToReopen = RigVMBlueprint;
+		GEditor->GetTimerManager()->SetTimerForNextTick([AssetToReopen]()
+		{
+			GEditor->GetEditorSubsystem<UAssetEditorSubsystem>()->OpenEditorForAsset(AssetToReopen);
+		});
+	}
 }
 
 void FRigVMEditor::InitRigVMEditor(const EToolkitMode::Type Mode, const TSharedPtr< class IToolkitHost >& InitToolkitHost, class URigVMBlueprint* InRigVMBlueprint)
@@ -137,6 +151,8 @@ void FRigVMEditor::InitRigVMEditor(const EToolkitMode::Type Mode, const TSharedP
 	const bool bCreateDefaultStandaloneMenu = true;
 	const bool bCreateDefaultToolbar = true;
 	InitAssetEditor(Mode, InitToolkitHost, GetEditorAppName(), FTabManager::FLayout::NullLayout, bCreateDefaultStandaloneMenu, bCreateDefaultToolbar, ObjectsBeingEdited);
+	GEditor->GetEditorSubsystem<UAssetEditorSubsystem>()->OnAssetEditorRequestedOpen().AddSP(this, &FRigVMEditor::HandleAssetRequestedOpen);
+	GEditor->GetEditorSubsystem<UAssetEditorSubsystem>()->OnAssetEditorRequestClose().AddSP(this, &FRigVMEditor::HandleAssetRequestClose);
 
 	CreateDefaultCommands();
 
@@ -380,6 +396,22 @@ void FRigVMEditor::InitRigVMEditor(const EToolkitMode::Type Mode, const TSharedP
 	PropertyChangedHandle = FCoreUObjectDelegates::OnObjectPropertyChanged.AddSP(this, &FRigVMEditor::OnPropertyChanged);
 }
 
+void FRigVMEditor::HandleAssetRequestedOpen(UObject* InObject)
+{
+	if (InObject == GetRigVMBlueprint())
+	{
+		bRequestedReopen = true;
+	}
+}
+
+void FRigVMEditor::HandleAssetRequestClose(UObject* InObject, EAssetEditorCloseReason InReason)
+{
+	if (InObject == GetRigVMBlueprint())
+	{
+		bRequestedReopen = false;
+	}
+}
+
 const FName FRigVMEditor::GetEditorAppName() const
 {
 	static const FName AppName(TEXT("RigVMEditorApp"));
@@ -445,6 +477,14 @@ void FRigVMEditor::Tick(float DeltaTime)
 				}
 			}
 		}
+	}
+}
+
+void FRigVMEditor::BringToolkitToFront()
+{
+	if (ToolkitHost.IsValid())
+	{
+		FBlueprintEditor::BringToolkitToFront();
 	}
 }
 

@@ -50,6 +50,10 @@ public:
 	 */
 	virtual void InitRigVMEditor(const EToolkitMode::Type Mode, const TSharedPtr< class IToolkitHost >& InitToolkitHost, class URigVMBlueprint* InRigVMBlueprint);
 
+	virtual void HandleAssetRequestedOpen(UObject* InObject);
+	virtual void HandleAssetRequestClose(UObject* InObject, EAssetEditorCloseReason InReason);
+	bool bRequestedReopen = false;
+
 	virtual const FName GetEditorAppName() const;
 	virtual const FName GetEditorModeName() const;
 	virtual TSharedPtr<FApplicationMode> CreateEditorMode();
@@ -63,6 +67,7 @@ public:
 	virtual void Tick(float DeltaTime) override;
 
 	// IToolkit Interface
+	virtual void BringToolkitToFront() override;
 	virtual FName GetToolkitFName() const override;
 	virtual FName GetToolkitContextFName() const override;
 	virtual FText GetBaseToolkitName() const override;
