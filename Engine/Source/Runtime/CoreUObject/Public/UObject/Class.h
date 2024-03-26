@@ -2740,6 +2740,7 @@ class UClass : public UStruct
 public:
 	friend class FRestoreClassInfo;
 	friend class FBlueprintEditorUtils;
+	friend class FBlueprintCompileReinstancer;
 
 	typedef void		(*ClassConstructorType)				(const FObjectInitializer&);
 	typedef UObject*	(*ClassVTableHelperCtorCallerType)	(FVTableHelper& Helper);

@@ -32,6 +32,8 @@
 #include "UObject/UObjectIterator.h"
 #include "Serialization/FindObjectReferencers.h"
 #include "Serialization/ArchiveReplaceObjectAndStructPropertyRef.h"
+#include "Serialization/ObjectReader.h"
+#include "Serialization/ObjectWriter.h"
 #include "BlueprintEditor.h"
 #include "Engine/Selection.h"
 #include "BlueprintEditorSettings.h"
@@ -471,6 +473,8 @@ FBlueprintCompileReinstancer::FBlueprintCompileReinstancer(UClass* InClassToRein
 	: ClassToReinstance(InClassToReinstance)
 	, DuplicatedClass(nullptr)
 	, OriginalCDO(nullptr)
+	, OriginalSCD(nullptr)
+	, OriginalSCDStruct(nullptr)
 	, bHasReinstanced(false)
 	, ReinstClassType(RCT_Unknown)
 	, ClassToReinstanceDefaultValuesCRC(0)
@@ -1235,6 +1239,90 @@ void FBlueprintCompileReinstancer::UpdateBytecodeReferences(
 
 			OutDependentBlueprints.Add(DependentBP);
 		}
+	}
+}
+
+void FBlueprintCompileReinstancer::SaveSparseClassData(const UClass* ForClass)
+{
+	check(ForClass);
+	UClass* SuperClass = ForClass->GetSuperClass();
+	const void* SCD = const_cast<UClass*>(ForClass)->GetSparseClassData(EGetSparseClassDataMethod::ReturnIfNull);
+	if (!SuperClass || !SCD)
+	{
+		return; // null SuperClass should only be possible for UObject, but good to be complete
+	}
+
+	FObjectWriter Writer(SCDSnapshot);
+	UScriptStruct* SuperSCDType = SuperClass->GetSparseClassDataStruct();
+	const void* SuperSCD = SuperClass->GetSparseClassData(EGetSparseClassDataMethod::ReturnIfNull);
+
+	ForClass->GetSparseClassDataStruct()->SerializeTaggedProperties(
+		Writer,
+		(uint8*)SCD,
+		(UStruct*)SuperSCDType,
+		(uint8*)SuperSCD);
+}
+
+void FBlueprintCompileReinstancer::TakeOwnershipOfSparseClassData(UClass* ForClass)
+{
+	check(ForClass);
+	OriginalSCDStruct = ForClass->GetSparseClassDataStruct();
+	if (!OriginalSCDStruct)
+	{
+		return;
+	}
+
+	OriginalSCD = const_cast<void*>(ForClass->GetSparseClassData(EGetSparseClassDataMethod::ReturnIfNull));
+	if (OriginalSCDStruct->GetOuter() == ForClass)
+	{
+		OriginalSCDStruct->Rename(nullptr, DuplicatedClass, REN_DoNotDirty | REN_DontCreateRedirectors | REN_ForceNoResetLoaders | REN_NonTransactional);
+	}
+	// We own these now, remove ForClass's knowledge of the sparse class data - they
+	// will be freed when reinstancing is complete:
+	ForClass->SparseClassData = nullptr;
+	ForClass->SparseClassDataStruct = nullptr;
+}
+
+void FBlueprintCompileReinstancer::PropagateSparseClassDataToNewClass(UClass* NewClass)
+{
+	if (!OriginalSCD || 
+		NewClass->GetSparseClassData(EGetSparseClassDataMethod::ReturnIfNull))
+	{
+		return;
+	}
+
+	UScriptStruct* SparseClassDataStruct = OriginalSCDStruct;
+	if (UScriptStruct* NewSCD = NewClass->GetSparseClassDataStruct())
+	{
+		SparseClassDataStruct = NewSCD;
+	}
+
+	if (!IsValid(SparseClassDataStruct) ||
+		SparseClassDataStruct->GetOutermost() == GetTransientPackage())
+	{
+		return;
+	}
+
+	if (SparseClassDataStruct == OriginalSCDStruct && SparseClassDataStruct->GetOuter() == DuplicatedClass)
+	{
+		SparseClassDataStruct->Rename(nullptr, NewClass, REN_DoNotDirty | REN_DontCreateRedirectors | REN_ForceNoResetLoaders | REN_NonTransactional);
+	}
+	NewClass->SparseClassDataStruct = SparseClassDataStruct;
+	NewClass->CreateSparseClassData();
+
+	FObjectReader Reader(SCDSnapshot);
+	SparseClassDataStruct->SerializeTaggedProperties(
+		Reader,
+		(uint8*)NewClass->SparseClassData,
+		nullptr,
+		nullptr);
+
+	if (OriginalSCD && OriginalSCDStruct)
+	{
+		OriginalSCDStruct->DestroyStruct(OriginalSCD);
+		FMemory::Free(OriginalSCD);
+		OriginalSCD = nullptr;
+		OriginalSCDStruct = nullptr;
 	}
 }
 
