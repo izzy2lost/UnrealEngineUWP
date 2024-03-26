@@ -26,14 +26,8 @@ void UPCGManagedResource::PostApplyToComponent()
 // By default, if it is not a hard release, we mark the resource unused.
 bool UPCGManagedResource::Release(bool bHardRelease, TSet<TSoftObjectPtr<AActor>>& /*OutActorsToDelete*/)
 {
-	if (!bHardRelease)
-	{
-		bIsMarkedUnused = true;
-		return false;
-	}
-
-	bIsMarkedUnused = false;
-	return true;
+	bIsMarkedUnused = true;
+	return bHardRelease;
 }
 
 bool UPCGManagedResource::ReleaseIfUnused(TSet<TSoftObjectPtr<AActor>>& OutActorsToDelete)
@@ -566,7 +560,13 @@ void UPCGManagedISMComponent::ResetComponent()
 
 void UPCGManagedISMComponent::MarkAsUsed()
 {
+	const bool bWasMarkedUnused = bIsMarkedUnused;
 	Super::MarkAsUsed();
+
+	if (!bWasMarkedUnused)
+	{
+		return;
+	}
 
 	if (UInstancedStaticMeshComponent* ISMC = GetComponent())
 	{
