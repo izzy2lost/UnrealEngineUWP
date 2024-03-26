@@ -17,6 +17,16 @@
 #include "Engine/Canvas.h"
 #endif // ENABLE_DRAW_DEBUG
 
+namespace TargetingSystemCVars
+{
+	static bool bEnableComplexTracingAOE = true;
+	FAutoConsoleVariableRef CVarEnableComplexTracingAOE(
+		TEXT("ts.AOE.EnableComplexTracingAOE"),
+		bEnableComplexTracingAOE,
+		TEXT("When enabled, allows users to do complex traces by setting bShouldTraceComplex to true.")
+	);
+}
+
 UTargetingSelectionTask_AOE::UTargetingSelectionTask_AOE(const FObjectInitializer& ObjectInitializer)
 : Super(ObjectInitializer)
 {
@@ -389,6 +399,8 @@ void UTargetingSelectionTask_AOE::InitCollisionParams(const FTargetingRequestHan
 	{
 		OutParams.AddIgnoredActors(FoundOverride->IgnoredActors);
 	}
+
+	OutParams.bTraceComplex = TargetingSystemCVars::bEnableComplexTracingAOE && bTraceComplex;
 }
 
 #if WITH_EDITOR
