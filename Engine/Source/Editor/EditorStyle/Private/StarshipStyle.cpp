@@ -2565,6 +2565,23 @@ void FStarshipEditorStyle::FStyle::SetupViewportStyles()
 
 		Set("EditorViewport.OverlayBrush", new FSlateRoundedBoxBrush(ViewportOverlayColor, 8.0, FStyleColors::Dropdown, 1.0));
 
+		const FSlateColorBrush ActionableListViewBrush = FSlateColorBrush(FLinearColor(0.f, 0.f, 0.f, 0.f));
+		
+		Set("ActionableMessage.Border", new FSlateRoundedBoxBrush(ToolbarBackgroundColor, 4.0f, FLinearColor(0,0,0,.8), 1.0));
+		Set("ActionableMessage.Warning", new IMAGE_BRUSH_SVG(TEXT("Starship/EditorViewport/alert-solid"), Icon16x16, FStyleColors::Warning));
+		Set("ActionableMessage.Update", new IMAGE_BRUSH_SVG(TEXT("Starship/EditorViewport/update"), Icon16x16));
+		Set("ActionableMessage.ListView", FTableViewStyle().SetBackgroundBrush(ActionableListViewBrush));
+		Set("ActionableMessage.ListViewRow",FTableRowStyle()
+			.SetEvenRowBackgroundBrush(ActionableListViewBrush)
+			.SetEvenRowBackgroundHoveredBrush(ActionableListViewBrush)
+			.SetOddRowBackgroundBrush(ActionableListViewBrush)
+			.SetOddRowBackgroundHoveredBrush(ActionableListViewBrush)
+			.SetSelectorFocusedBrush(ActionableListViewBrush)
+			.SetActiveBrush(ActionableListViewBrush)
+			.SetActiveHoveredBrush(ActionableListViewBrush)
+			.SetInactiveBrush(ActionableListViewBrush)
+			.SetInactiveHoveredBrush(ActionableListViewBrush)
+		);
 	}
 
 	// Legacy Viewport ToolbarBar
