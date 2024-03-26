@@ -1716,6 +1716,21 @@ bool UMovieGraphPipeline::IsPostShotCallbackNeeded() const
 		}
 	}
 
+	// If a script instance didn't specify per-shot callbacks are needed, check to see if a script flagged bFlushDiskWritesPerShot on the Global Output
+	// Settings node. This accomplishes the same thing as IsPerShotCallbackNeeded() on scripting nodes.
+	if (!bAnyScriptNeedsCallbacks)
+	{
+		if (const TObjectPtr<UMovieGraphEvaluatedConfig> EvaluatedConfig = GetTimeStepInstance()->GetCalculatedTimeData().EvaluatedConfig)
+		{
+			constexpr bool bIncludeCDOs = true;
+			constexpr bool bExactMatch = true;
+			const UMovieGraphGlobalOutputSettingNode* OutputSettingsNode =
+				EvaluatedConfig->GetSettingForBranch<UMovieGraphGlobalOutputSettingNode>(UMovieGraphNode::GlobalsPinName, bIncludeCDOs, bExactMatch);
+		
+			bAnyScriptNeedsCallbacks = OutputSettingsNode->bFlushDiskWritesPerShot;
+		}
+	}
+
 	return bAnyScriptNeedsCallbacks;
 }
 

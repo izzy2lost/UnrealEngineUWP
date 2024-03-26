@@ -11,6 +11,10 @@ UMovieGraphGlobalOutputSettingNode::UMovieGraphGlobalOutputSettingNode()
 	, bOverwriteExistingOutput(true)
 	, ZeroPadFrameNumbers(4)
 	, FrameNumberOffset(0)
+	, HandleFrameCount(0)
+	, CustomPlaybackRangeStartFrame(0)
+	, CustomPlaybackRangeEndFrame(0)
+	, bFlushDiskWritesPerShot(false)
 {
 	// We prefer a 1080p resolution by default, but users may not have a preset that matches that. So we'll 
 	// look for a matching resolution if we can find one, otherwise we go to Custom set to 1920x1080.

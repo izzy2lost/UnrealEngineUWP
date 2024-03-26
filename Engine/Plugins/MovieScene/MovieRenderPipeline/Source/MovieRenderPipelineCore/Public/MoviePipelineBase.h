@@ -92,10 +92,13 @@ public:
 
 
 	/**
-	* Only called if `IsPostShotCallbackNeeded()` returns true!
+	* This callback will not be called by default due to performance reasons. You need to opt into this (via scripting
+	* in MoviePipeline or in the node in Movie Graph) by setting FlushDiskWritesPerShot to true in the output setting
+	* for this job's configuration.
+	*
 	* Called after each shot is finished and files have been flushed to disk. The returned data in
 	* the params struct will have only the per-shot metadata for the just finished shot. Use
-	* OnMoviePipelineFinished() if you need all of the metadata.
+	* OnMoviePipelineWorkFinishedDelegate if you need all of the metadata.
 	*/
 	UPROPERTY(BlueprintAssignable, Category = "Movie Render Pipeline")
 	FMoviePipelineWorkFinished OnMoviePipelineShotWorkFinishedDelegate;
