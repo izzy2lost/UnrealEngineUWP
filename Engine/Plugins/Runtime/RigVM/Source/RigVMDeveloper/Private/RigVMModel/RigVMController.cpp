@@ -15559,20 +15559,30 @@ void URigVMController::RepopulatePinsOnNode(const FRigVMRegistry& Registry, cons
 		}
 	}
 	// add missing pins
-	for (int32 Index = 0; Index < NodeData.NewPinsToAdd.Num(); Index++)
 	{
-		const FString& PinPath = NodeData.NewPinInfos.GetPinPath(NodeData.NewPinsToAdd[Index]);
-		FString ParentPinPath, PinName;
-		UObject* OuterForPin = InNode;
-		if (URigVMPin::SplitPinPathAtEnd(PinPath, ParentPinPath, PinName))
+		TArray<bool> PinIndexAdded;
+		PinIndexAdded.AddZeroed(NodeData.NewPinInfos.Num());
+		for (int32 Index = 0; Index < NodeData.NewPinsToAdd.Num(); Index++)
 		{
-			OuterForPin = InNode->FindPin(ParentPinPath);
-		}
+			const int32 PinIndexToAdd = NodeData.NewPinsToAdd[Index];
+			if(PinIndexAdded[PinIndexToAdd])
+			{
+				continue;
+			}
+			const FString& PinPath = NodeData.NewPinInfos.GetPinPath(PinIndexToAdd);
+			FString ParentPinPath, PinName;
+			UObject* OuterForPin = InNode;
+			if (URigVMPin::SplitPinPathAtEnd(PinPath, ParentPinPath, PinName))
+			{
+				OuterForPin = InNode->FindPin(ParentPinPath);
+			}
 
-		CreatePinFromPinInfo(Registry, NodeData.PreviousPinInfos, NodeData.NewPinInfos[NodeData.NewPinsToAdd[Index]], PinPath, OuterForPin);
+			CreatePinFromPinInfo(Registry, NodeData.PreviousPinInfos, NodeData.NewPinInfos[NodeData.NewPinsToAdd[Index]], PinPath, OuterForPin);
 #if UE_RIGVMCONTROLLER_VERBOSE_REPOPULATE
-		UE_LOG(LogRigVMDeveloper, Display, TEXT("Adding new pin '%s'."), *PinPath);
+			UE_LOG(LogRigVMDeveloper, Display, TEXT("Adding new pin '%s'."), *PinPath);
 #endif
+			PinIndexAdded[PinIndexToAdd] = true;
+		}
 	}
 	// update existing pins
 	for (int32 Index = 0; Index < NodeData.PreviousPinsToUpdate.Num(); Index++)
