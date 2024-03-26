@@ -19,15 +19,13 @@ namespace UE::MovieGraph::Private
 	TObjectPtr<UMovieJobVariableAssignmentContainer> GetOrCreateJobVariableAssignmentsForGraph(
 		const UMovieGraphConfig* InGraph, TArray<TObjectPtr<UMovieJobVariableAssignmentContainer>>& InVariableAssignments, UObject* InAssignmentsOwner)
 	{
-		constexpr bool bOnlyIncludeConnectedVariables = true;
-		
 		for (TObjectPtr<UMovieJobVariableAssignmentContainer>& VariableAssignment : InVariableAssignments)
 		{
 			const TSoftObjectPtr<UMovieGraphConfig> SoftGraphConfig = VariableAssignment->GetGraphConfig();
 			if (SoftGraphConfig.Get() == InGraph)
 			{
 #if WITH_EDITOR
-				VariableAssignment->UpdateGraphVariableOverrides(bOnlyIncludeConnectedVariables);
+				VariableAssignment->UpdateGraphVariableOverrides();
 #endif
 				
 				return VariableAssignment;
@@ -40,7 +38,7 @@ namespace UE::MovieGraph::Private
 		NewVariableAssignments->SetGraphConfig(InGraph);
 
 #if WITH_EDITOR
-		NewVariableAssignments->UpdateGraphVariableOverrides(bOnlyIncludeConnectedVariables);
+		NewVariableAssignments->UpdateGraphVariableOverrides();
 #endif
 	
 		return NewVariableAssignments;
