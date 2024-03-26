@@ -126,7 +126,7 @@ void UMovieGraphBurnInNode::FMovieGraphBurnInPass::Render(const FMovieGraphTrave
 	if (const TObjectPtr<UMovieGraphBurnInWidget> BurnInWidget = GetBurnInWidget())
 	{
 		UMovieGraphPipeline* Pipeline = Renderer->GetOwningGraph();
-		BurnInWidget->UpdateForGraph(Pipeline);
+		BurnInWidget->UpdateForGraph(Pipeline, Pipeline->GetTimeStepInstance()->GetCalculatedTimeData().EvaluatedConfig);
 	}
 	
 	FMovieGraphWidgetPass::Render(InFrameTraversalContext, InTimeData);

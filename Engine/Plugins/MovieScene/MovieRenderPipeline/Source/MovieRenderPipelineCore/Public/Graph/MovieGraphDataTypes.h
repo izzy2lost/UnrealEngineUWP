@@ -105,6 +105,7 @@ public:
 	* called at the end of the frame when we kick off the renders for the frame. Should return data
 	* needed to calculate the correct rendering timestep.
 	*/
+	UFUNCTION(BlueprintCallable, Category = "Movie Graph")
 	virtual FMovieGraphTimeStepData GetCalculatedTimeData() const { return FMovieGraphTimeStepData(); }
 	
 	/**
