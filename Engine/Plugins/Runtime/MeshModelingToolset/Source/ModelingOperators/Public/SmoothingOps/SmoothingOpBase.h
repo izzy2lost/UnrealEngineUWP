@@ -3,6 +3,7 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "DynamicSubmesh3.h"
 #include "Util/ProgressCancel.h"
 #include "ModelingOperators.h"
 #include "VectorTypes.h"
@@ -61,6 +62,9 @@ public:
 
 	FSmoothingOpBase(const FDynamicMesh3* Mesh, const FOptions& OptionsIn);
 
+	// Support for smoothing only selected geometry
+	FSmoothingOpBase(const FDynamicMesh3* Mesh, const FOptions& OptionsIn, const FDynamicSubmesh3& Submesh);
+
 	virtual ~FSmoothingOpBase() override {}
 
 	// set ability on protected transform.
@@ -76,6 +80,12 @@ protected:
 	FOptions SmoothOptions;
 
 	TArray<FVector3d> PositionBuffer;
+
+	// a copy of the original mesh to save information regarding the non-selected (/non-smoothed) mesh when applicable
+	TUniquePtr<FDynamicMesh3> SavedMesh = nullptr;
+
+	// maps the VertexId in the smoothed mesh to the VertexId in the original mesh
+	TArray<int32> SmoothedToOriginalMap;
 
 };
 

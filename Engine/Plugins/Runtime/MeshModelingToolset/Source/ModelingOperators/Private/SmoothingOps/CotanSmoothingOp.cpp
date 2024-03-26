@@ -12,6 +12,11 @@ FCotanSmoothingOp::FCotanSmoothingOp(const FDynamicMesh3* Mesh, const FSmoothing
 {
 }
 
+FCotanSmoothingOp::FCotanSmoothingOp(const FDynamicMesh3* Mesh, const FSmoothingOpBase::FOptions& OptionsIn, const FDynamicSubmesh3& Submesh) :
+	FSmoothingOpBase(Mesh, OptionsIn, Submesh)
+{
+}
+
 double FCotanSmoothingOp::GetSmoothPower(int32 VertexID, bool bIsBoundary)
 {
 	double UsePower = SmoothOptions.SmoothPower;

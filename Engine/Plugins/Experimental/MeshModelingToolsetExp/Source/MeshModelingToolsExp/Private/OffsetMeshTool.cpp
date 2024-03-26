@@ -15,6 +15,15 @@ using namespace UE::Geometry;
 #define LOCTEXT_NAMESPACE "UOffsetMeshTool"
 
 /*
+ * Tool Builder
+ */
+
+USingleTargetWithSelectionTool* UOffsetMeshToolBuilder::CreateNewTool(const FToolBuilderState& SceneState) const
+{
+	return NewObject<UOffsetMeshTool>(SceneState.ToolManager);
+}
+
+/*
  * Tool
  */
 

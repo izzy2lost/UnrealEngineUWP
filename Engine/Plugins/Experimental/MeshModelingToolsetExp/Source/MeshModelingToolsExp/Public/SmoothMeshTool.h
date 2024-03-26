@@ -177,7 +177,5 @@ class MESHMODELINGTOOLSEXP_API USmoothMeshToolBuilder : public UBaseMeshProcessi
 {
 	GENERATED_BODY()
 public:
-	virtual UBaseMeshProcessingTool* MakeNewToolInstance(UObject* Outer) const {
-		return NewObject<USmoothMeshTool>(Outer);
-	}
+	virtual USingleTargetWithSelectionTool* CreateNewTool(const FToolBuilderState& SceneState) const override;
 };

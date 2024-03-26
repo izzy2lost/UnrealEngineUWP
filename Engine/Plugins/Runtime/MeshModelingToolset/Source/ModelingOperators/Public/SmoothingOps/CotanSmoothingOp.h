@@ -14,6 +14,9 @@ class MODELINGOPERATORS_API  FCotanSmoothingOp : public FSmoothingOpBase
 {
 public:
 	FCotanSmoothingOp(const FDynamicMesh3* Mesh, const FSmoothingOpBase::FOptions& OptionsIn);
+	
+	// Support for smoothing only selected geometry
+	FCotanSmoothingOp(const FDynamicMesh3* Mesh, const FSmoothingOpBase::FOptions& OptionsIn, const FDynamicSubmesh3& Submesh);
 
 	~FCotanSmoothingOp() override {};
 

@@ -10,6 +10,12 @@ FIterativeSmoothingOp::FIterativeSmoothingOp(const FDynamicMesh3* Mesh, const FS
 {
 }
 
+FIterativeSmoothingOp::FIterativeSmoothingOp(const FDynamicMesh3* Mesh, const FSmoothingOpBase::FOptions& OptionsIn,  const FDynamicSubmesh3& Submesh) :
+	FSmoothingOpBase(Mesh, OptionsIn, Submesh)
+{
+}
+
+
 void FIterativeSmoothingOp::CalculateResult(FProgressCancel* Progress)
 {
 	// Update the values in the position buffer with smoothed positions.

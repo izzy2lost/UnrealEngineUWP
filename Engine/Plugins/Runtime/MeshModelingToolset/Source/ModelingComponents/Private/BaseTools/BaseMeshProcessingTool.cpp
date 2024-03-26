@@ -20,6 +20,7 @@
 #include "TargetInterfaces/PrimitiveComponentBackedTarget.h"
 #include "ToolTargetManager.h"
 #include "ModelingToolTargetUtil.h"
+#include "Selection/StoredMeshSelectionUtil.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(BaseMeshProcessingTool)
 
@@ -47,16 +48,11 @@ bool UBaseMeshProcessingToolBuilder::CanBuildTool(const FToolBuilderState& Scene
 	return SceneState.TargetManager->CountSelectedAndTargetable(SceneState, GetTargetRequirements()) == 1;
 }
 
-UInteractiveTool* UBaseMeshProcessingToolBuilder::BuildTool(const FToolBuilderState& SceneState) const
+USingleTargetWithSelectionTool* UBaseMeshProcessingToolBuilder::CreateNewTool(const FToolBuilderState& SceneState) const
 {
-	UBaseMeshProcessingTool* NewTool = MakeNewToolInstance(SceneState.ToolManager);
-
-	UToolTarget* Target = SceneState.TargetManager->BuildFirstSelectedTargetable(SceneState, GetTargetRequirements());
-	check(Target);
-	NewTool->SetTarget(Target);
-	NewTool->SetWorld(SceneState.World);
-
-	return NewTool;
+	PRAGMA_DISABLE_DEPRECATION_WARNINGS
+	return  MakeNewToolInstance(SceneState.ToolManager);
+	PRAGMA_ENABLE_DEPRECATION_WARNINGS
 }
 
 
@@ -65,12 +61,6 @@ UInteractiveTool* UBaseMeshProcessingToolBuilder::BuildTool(const FToolBuilderSt
 /*
  * Tool
  */
-
-void UBaseMeshProcessingTool::SetWorld(UWorld* World)
-{
-	this->TargetWorld = World;
-}
-
 
 void UBaseMeshProcessingTool::Setup()
 {
@@ -143,7 +133,7 @@ void UBaseMeshProcessingTool::Setup()
 
 	// Construct the preview object and set the material on it.
 	Preview = NewObject<UMeshOpPreviewWithBackgroundCompute>(this, "Preview");
-	Preview->Setup(this->TargetWorld, this); // Adds the actual functional tool in the Preview object
+	Preview->Setup(GetTargetWorld(), this); // Adds the actual functional tool in the Preview object
 	Preview->PreviewMesh->SetTangentsMode(EDynamicMeshComponentTangentsMode::AutoCalculated);
 	ToolSetupUtil::ApplyRenderingConfigurationToPreview(Preview->PreviewMesh, Target);
 

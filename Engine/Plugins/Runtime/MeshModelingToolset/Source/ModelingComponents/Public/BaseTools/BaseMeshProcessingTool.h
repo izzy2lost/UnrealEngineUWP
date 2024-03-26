@@ -3,8 +3,7 @@
 #pragma once
 
 #include "CoreMinimal.h"
-#include "SingleSelectionTool.h"
-#include "InteractiveToolBuilder.h"
+#include "SingleTargetWithSelectionTool.h"
 #include "DynamicMesh/DynamicMesh3.h"
 #include "WeightMapTypes.h"
 #include "MeshOpPreviewHelpers.h"
@@ -24,16 +23,19 @@ using UE::Geometry::FIndexedWeightMap1f;
  * ToolBuilder for UBaseMeshProcessingTool
  */
 UCLASS()
-class MODELINGCOMPONENTS_API UBaseMeshProcessingToolBuilder : public UInteractiveToolWithToolTargetsBuilder
+class MODELINGCOMPONENTS_API UBaseMeshProcessingToolBuilder : public USingleTargetWithSelectionToolBuilder
 {
 	GENERATED_BODY()
 
 public:
 	virtual bool CanBuildTool(const FToolBuilderState& SceneState) const override;
-	virtual UInteractiveTool* BuildTool(const FToolBuilderState& SceneState) const override;
+	virtual bool RequiresInputSelection() const override { return false; }
+	virtual USingleTargetWithSelectionTool* CreateNewTool(const FToolBuilderState& SceneState) const override;
+
 
 public:
 	// subclass must override!
+	UE_DEPRECATED(5.5, "MakeNewToolInstance is deprecated, please use CreateNewTool instead")
 	virtual UBaseMeshProcessingTool* MakeNewToolInstance(UObject* Outer) const { check(false); return nullptr; }
 
 protected:
@@ -74,15 +76,13 @@ protected:
  *
  */
 UCLASS()
-class MODELINGCOMPONENTS_API UBaseMeshProcessingTool : public USingleSelectionTool, public UE::Geometry::IDynamicMeshOperatorFactory
+class MODELINGCOMPONENTS_API UBaseMeshProcessingTool : public USingleTargetWithSelectionTool, public UE::Geometry::IDynamicMeshOperatorFactory
 {
 	GENERATED_BODY()
 protected:
 	using FFrame3d = UE::Geometry::FFrame3d;
 public:
 	UBaseMeshProcessingTool() = default;
-
-	virtual void SetWorld(UWorld* World);
 
 	//
 	// InteractiveTool API - generally does not need to be modified by subclasses
@@ -185,8 +185,6 @@ protected:
 	virtual void OnOptionalPropSetModified(int32 Index);
 	virtual void SavePropertySets();
 
-
-	UWorld* TargetWorld = nullptr;
 
 	// Preview object holds temporary Actor with preview mesh component
 	UPROPERTY()
