@@ -1005,10 +1005,10 @@ bool UPCGGraph::RemoveOutboundEdges(UPCGNode* InNode, const FName& OutboundLabel
 }
 
 #if WITH_EDITOR
-void UPCGGraph::ForceNotificationForEditor()
+void UPCGGraph::ForceNotificationForEditor(EPCGChangeType ChangeType)
 {
 	// Queue up the delayed change
-	NotifyGraphChanged(EPCGChangeType::Structural | EPCGChangeType::GenerationGrid);
+	NotifyGraphChanged(ChangeType);
 
 	if (bUserPausedNotificationsInGraphEditor)
 	{

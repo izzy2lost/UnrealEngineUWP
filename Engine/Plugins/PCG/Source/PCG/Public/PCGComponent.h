@@ -306,7 +306,7 @@ public:
 	/** Schedules refresh of the component. If bCancelExistingRefresh is true, any existing refresh is cancelled and a new one is scheduled. */
 	void Refresh(EPCGChangeType ChangeType = EPCGChangeType::None, bool bCancelExistingRefresh = false);
 
-	void OnRefresh(bool bForceRefresh, bool bForceCleanup);
+	void OnRefresh(bool bForceRefresh);
 
 	void StartGenerationInProgress();
 	void StopGenerationInProgress();

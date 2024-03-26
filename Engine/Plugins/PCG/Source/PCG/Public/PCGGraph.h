@@ -300,8 +300,8 @@ public:
 	void ToggleUserPausedNotificationsForEditor();
 	bool NotificationsForEditorArePausedByUser() const { return bUserPausedNotificationsInGraphEditor; }
 
-	UFUNCTION(BlueprintCallable, Category = "Graph|Advanded")
-	void ForceNotificationForEditor();
+	UFUNCTION(BlueprintCallable, Category = "Graph|Advanced")
+	void ForceNotificationForEditor(EPCGChangeType ChangeType = EPCGChangeType::Structural);
 
 	void PreNodeUndo(UPCGNode* InPCGNode);
 	void PostNodeUndo(UPCGNode* InPCGNode);
