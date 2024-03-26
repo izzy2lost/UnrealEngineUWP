@@ -179,6 +179,11 @@
 		{
 			"pool": "win-ue5",
 			"workspace": "IncrementalCompileOnly"
+		},
+		"DevkitAutomation":
+		{
+			"pool": "win-devkitautomation",
+			"workspace": "Full"			
 		}
 	},
 	"workspaceTypes":
@@ -244,7 +249,8 @@
 				"-Target=BuildAndTest $(Project)",
 				"-set:ProjectFile=$(ProjectPath)",
 				"-set:TargetName=$(GameTarget)",
-				"-set:EditorTargetName=$(EditorTarget)"
+				"-set:EditorTargetName=$(EditorTarget)",
+				"-set:WithDeviceReservation=false"
 			],
 			"parameters":
 			[
@@ -466,7 +472,19 @@
 							"default": false
 						}
 					]
-				}
+				},
+				{
+					"type": "Text",
+					"label": "Device Manager URL",
+					"default": "http://localhost:13340",
+					"argument": "-set:GauntletDeviceService="
+				},
+				{
+					"type": "Text",
+					"label": "Device Pool",
+					"default": "UE5",
+					"argument": "-set:GauntletDevicePool="
+				}				
 			]
 		},
 		{

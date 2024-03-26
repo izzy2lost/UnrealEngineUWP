@@ -13,6 +13,24 @@ matching a set of configured criteria for a particular time interval.
 * `Telemetry` - Individual events sent by an application to the Horde server. Horde processes telemetry events as
 schema-less JSON objects.
 
+## Authentication
+
+* `Acl` - Abbreviation for **access control list**. An ACL in Horde defines rules that grant *entitlements* to users
+(ie. the ability to perform certain *actions*) based on *claims* that their user has.
+* `Acl Action` - The ability to perform a certain operation on an entity in Horde, such as `ViewJob` or `DownloadTool`.
+See [Config > Schema > AclActions](Config/Schema/AclActions.md) for a full list.
+* `Acl Scope` - Used to refer to a layer within Horde's hierarchical permissions system. Jobs are an acl scope within a stream,
+which are an acl scope within a project, which is an acl scope within the global permissions scope.
+Entitlements to perform actions are typically inherited from parent to child scopes, unless explicitly forbidden by
+setting the `inherit` property in an [AclConfig](Config/Schema/Globals.md#aclconfig) to false.
+* `Acl Profile` - A list of *actions* that can be given to a user, without having to list each individual action each
+time. Similar to a macro.
+* `Claims` - Key/value string pair that makes a statement about that user. Claims are part of the OAuth2 standard, and
+identity providers maintain a list of unique claims for a user. To prevent collisions between different applications,
+keys typically use a URI with an owned domain name to ensure global uniqueness - though the URI does not identify an 
+actual web resource. Horde's internally-issued claims all begin with `http://epicgames.com/ue/horde`.
+* `Entitlement` - The ability of a user to perform a certain *action*.
+
 ## Storage
 
 * `Namespace` - A logical partition of the storage system that can have custom permissions, behaviors, and garbage collection policies.

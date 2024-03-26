@@ -64,5 +64,5 @@ fully:
 ### User mapping
 
 Horde users are mapped to Slack users by correlating the email address in the user's
-[OIDC profile](../Server.md#authentication) with their Slack user profile. Horde will use avatars configured through
+[OIDC profile](../Server.md#authorization) with their Slack user profile. Horde will use avatars configured through
 Slack in the dashboard for any successfully mapped email address.

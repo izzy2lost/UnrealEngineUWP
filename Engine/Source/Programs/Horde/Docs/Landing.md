@@ -10,7 +10,8 @@
 * **[Setting up test automation](Tutorials/TestAutomation.md)**
 * **[Setting up analytics for your team](Tutorials/Analytics.md)**
 * **[Setting up mobile and console devices](Tutorials/DeviceManager.md)**
-* **[Setting up UnrealGameSync and getting Unreal Editor builds to content creators](Tutorials/UnrealGameSync.md)**
+* **[Setting up UnrealGameSync and distributing Unreal Editor to content creators](Tutorials/UnrealGameSync.md)**
+* **[Setting up authorization](Tutorials/Authorization.md)**
 
 Alternatively, check out the full documentation through the `Help` menu at the top right of the page.
 

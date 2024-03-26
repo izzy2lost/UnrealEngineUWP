@@ -53,6 +53,16 @@ const getStyles: IStyleFunction<IMarkdownStyleProps, IMarkdownStyles> = () => {
                padding: "3px 6px !important"
 
             },
+            'a > code': {
+
+               padding: "3px 6px !important"
+
+            },
+            'td > code': {
+
+               padding: "3px 6px !important"
+
+            },
             'code': {
                whiteSpace: "pre-wrap",
                fontFamily: "Horde Cousine Regular",
