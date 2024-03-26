@@ -3,6 +3,7 @@
 #include "PCGEditorMenuUtils.h"
 
 #include "PCGAssetExporterUtils.h"
+#include "PCGEditorStyle.h"
 #include "PCGLevelToAsset.h"
 
 #include "Engine/World.h"
@@ -63,7 +64,7 @@ namespace PCGEditorMenuUtils
 				"CreatePCGAssetFromMenu",
 				LOCTEXT("CreatePCGAssetFromMenu", "Create PCG Assets from Level(s)"),
 				TAttribute<FText>(),
-				FSlateIcon(),
+				FSlateIcon(FPCGEditorStyle::Get().GetStyleSetName(), "ClassIcon.PCGDataAsset"),
 				UIAction);
 		}
 
@@ -80,7 +81,7 @@ namespace PCGEditorMenuUtils
 				"UpdatePCGAssetFromMenu",
 				LOCTEXT("UpdatePCGAssetFromMenu", "Update PCG Assets"),
 				TAttribute<FText>(),
-				FSlateIcon(),
+				FSlateIcon(FPCGEditorStyle::Get().GetStyleSetName(), "ClassIcon.PCGDataAsset"),
 				UIAction);
 		}
 

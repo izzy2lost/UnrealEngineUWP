@@ -187,7 +187,9 @@ void FPCGEditorModule::RegisterMenuExtensions()
 			"PCGToolsSubMenu",
 			LOCTEXT("PCGSubMenu", "PCG Framework"),
 			LOCTEXT("PCGSubMenu_Tooltip", "Procedural Content Generation (PCG) Framework related functionality"),
-			FNewMenuDelegate::CreateRaw(this, &FPCGEditorModule::PopulateMenuActions));
+			FNewMenuDelegate::CreateRaw(this, &FPCGEditorModule::PopulateMenuActions),
+			/*bInOpenSubMenuOnClick=*/false,
+			FSlateIcon(FPCGEditorStyle::Get().GetStyleSetName(), "PCG.EditorIcon"));
 	}
 
 	if (UToolMenu* WorldAssetMenu = UToolMenus::Get()->ExtendMenu("ContentBrowser.AssetContextMenu.AssetActionsSubMenu"))

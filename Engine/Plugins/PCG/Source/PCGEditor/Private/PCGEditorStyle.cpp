@@ -24,7 +24,10 @@ void FPCGEditorStyle::Unregister()
 
 FPCGEditorStyle::FPCGEditorStyle() : FSlateStyleSet("PCGEditorStyle")
 {
+	static const FVector2D Icon16x16(16.0f, 16.0f);
 	static const FVector2D Icon20x20(20.0f, 20.0f);
+	static const FVector2D Icon64x64(64.0f, 64.0f);
+	static const FVector2D Icon128x128(128.0f, 128.0f);
 	
 	SetCoreContentRoot(FPaths::EngineContentDir() / TEXT("Editor/Slate"));
 	SetContentRoot(IPluginManager::Get().FindPlugin("PCG")->GetBaseDir() / TEXT("Content"));
@@ -85,6 +88,26 @@ FPCGEditorStyle::FPCGEditorStyle() : FSlateStyleSet("PCGEditorStyle")
 		PCGEditorStyleConstants::Node_Overlay_GridSizeLabel_BorderRadius,
 		FLinearColor::Black,
 		PCGEditorStyleConstants::Node_Overlay_GridSizeLabel_BorderStroke));
+
+	// Plugin icon/editor/component icons
+	Set("ClassIcon.PCGComponent", new IMAGE_BRUSH_SVG("Icons/PCG_16", Icon16x16));
+	Set("ClassThumbnail.PCGComponent", new IMAGE_BRUSH_SVG("Icons/PCG_64", Icon64x64));
+	Set("PCG.PluginIcon", new IMAGE_BRUSH_SVG("Icons/PCG_128", Icon128x128));
+	Set("PCG.EditorIcon", new IMAGE_BRUSH_SVG("Icons/PCG_16", Icon16x16));
+
+	// Asset/Class icons
+	Set("ClassIcon.PCGVolume", new IMAGE_BRUSH_SVG("Icons/PCG_16", Icon16x16));
+	Set("ClassThumbnail.PCGVolume", new IMAGE_BRUSH_SVG("Icons/PCG_64", Icon64x64));
+	Set("ClassIcon.PCGDataAsset", new IMAGE_BRUSH_SVG("Icons/PCGAsset_16", Icon16x16));
+	Set("ClassThumbnail.PCGDataAsset", new IMAGE_BRUSH_SVG("Icons/PCGAsset_16", Icon64x64));
+	Set("ClassIcon.PCGGraphInterface", new IMAGE_BRUSH_SVG("Icons/PCGGraph_16", Icon16x16));
+	Set("ClassThumbnail.PCGGraphInterface", new IMAGE_BRUSH_SVG("Icons/PCGGraph_16", Icon64x64));
+	Set("ClassIcon.PCGGraph", new IMAGE_BRUSH_SVG("Icons/PCGGraph_16", Icon16x16));
+	Set("ClassThumbnail.PCGGraph", new IMAGE_BRUSH_SVG("Icons/PCGGraph_16", Icon64x64));
+	Set("ClassIcon.PCGGraphInstance", new IMAGE_BRUSH_SVG("Icons/PCGGraphInstance_16", Icon16x16));
+	Set("ClassThumbnail.PCGGraphInstance", new IMAGE_BRUSH_SVG("Icons/PCGGraphInstance_16", Icon64x64));
+	Set("ClassIcon.PCGSettings", new IMAGE_BRUSH_SVG("Icons/PCGSettings_16", Icon16x16));
+	Set("ClassThumbnail.PCGSettings", new IMAGE_BRUSH_SVG("Icons/PCGSettings_16", Icon64x64));
 }
 
 const FPCGEditorStyle& FPCGEditorStyle::Get()
