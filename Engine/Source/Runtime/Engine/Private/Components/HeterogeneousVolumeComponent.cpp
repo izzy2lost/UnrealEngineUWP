@@ -546,7 +546,7 @@ void UHeterogeneousVolumeComponent::TickComponent(float DeltaTime, ELevelTick Ti
 {
 	Super::TickComponent(DeltaTime, TickType, ThisTickFunction);
 
-	if (MaterialInstanceDynamic)
+	if (ShouldRender() && MaterialInstanceDynamic)
 	{
 		const int32 SVTParameterIndex = 0;
 		FName SVTParameterName;
