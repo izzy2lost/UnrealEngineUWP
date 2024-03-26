@@ -324,13 +324,13 @@ FNaniteVertTransforms WaveReadLaneAt(FNaniteVertTransforms In, uint SrcIndex)
 {
 	FNaniteVertTransforms Result;
 
-	Result.LocalToTranslatedWorld		= WaveReadLaneAt(In.LocalToTranslatedWorld,		SrcIndex);
-	Result.PrevLocalToTranslatedWorld	= WaveReadLaneAt(In.PrevLocalToTranslatedWorld, SrcIndex);
-	Result.TranslatedWorldToClip		= WaveReadLaneAt(In.TranslatedWorldToClip,		SrcIndex);
-	Result.LocalToWorldNoScale			= WaveReadLaneAt(In.LocalToWorldNoScale,		SrcIndex);
-	Result.PrevLocalToWorldNoScale		= WaveReadLaneAt(In.PrevLocalToWorldNoScale,	SrcIndex);
-	Result.WorldToLocalVector			= WaveReadLaneAt(In.WorldToLocalVector,			SrcIndex);
-	Result.PrevWorldToLocalVector		= WaveReadLaneAt(In.PrevWorldToLocalVector,		SrcIndex);
+	Result.LocalToTranslatedWorld		= WaveReadLaneAtMatrix(In.LocalToTranslatedWorld,		SrcIndex);
+	Result.PrevLocalToTranslatedWorld	= WaveReadLaneAtMatrix(In.PrevLocalToTranslatedWorld,	SrcIndex);
+	Result.TranslatedWorldToClip		= WaveReadLaneAtMatrix(In.TranslatedWorldToClip,		SrcIndex);
+	Result.LocalToWorldNoScale			= WaveReadLaneAtMatrix(In.LocalToWorldNoScale,			SrcIndex);
+	Result.PrevLocalToWorldNoScale		= WaveReadLaneAtMatrix(In.PrevLocalToWorldNoScale,		SrcIndex);
+	Result.WorldToLocalVector			= WaveReadLaneAtMatrix(In.WorldToLocalVector,			SrcIndex);
+	Result.PrevWorldToLocalVector		= WaveReadLaneAtMatrix(In.PrevWorldToLocalVector,		SrcIndex);
 
 	return Result;
 }
