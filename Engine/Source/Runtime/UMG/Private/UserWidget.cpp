@@ -2421,8 +2421,6 @@ UUserWidget* UUserWidget::CreateInstanceInternal(UObject* Outer, TSubclassOf<UUs
 {
 	LLM_SCOPE_BYTAG(UI_UMG);
 
-	//CSV_SCOPED_TIMING_STAT(Slate, CreateWidget);
-
 #if !(UE_BUILD_SHIPPING || UE_BUILD_TEST)
 	// Only do this on a non-shipping or test build.
 	if (!CreateWidgetHelpers::ValidateUserWidgetClass(UserWidgetClass))

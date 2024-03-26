@@ -1269,7 +1269,6 @@ static void PrepassWindowAndChildren(TSharedRef<SWindow> WindowToPrepass, const 
 void FSlateApplication::DrawPrepass( TSharedPtr<SWindow> DrawOnlyThisWindow )
 {
 	SCOPED_NAMED_EVENT_TEXT("Slate::Prepass", FColor::Magenta);
-	CSV_SCOPED_TIMING_STAT(Slate, Prepass);
 
 	TSharedPtr<SWindow> CurrentDebuggingWindowPinned = CurrentDebuggingWindow.Pin();
 
@@ -1517,7 +1516,6 @@ void FSlateApplication::Tick(ESlateTickType TickType)
 #endif
 
 	SCOPED_NAMED_EVENT_F(TEXT("Slate::Tick (%s)"), FColor::Magenta, LexToString(TickType));
-	CSV_SCOPED_TIMING_STAT(Slate, Tick);
 
 	{
 		SCOPE_CYCLE_COUNTER(STAT_SlateTickTime);
