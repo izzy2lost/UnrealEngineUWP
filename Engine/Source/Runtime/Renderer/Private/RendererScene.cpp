@@ -75,7 +75,6 @@
 #include "RectLightSceneProxy.h"
 #include "RectLightTextureManager.h"
 #include "RenderCore.h"
-#include "RenderUtils.h"
 #include "IESTextureManager.h"
 #include "Materials/MaterialRenderProxy.h"
 #include "ProfilingDebugging/AssetMetadataTrace.h"
@@ -6002,7 +6001,7 @@ void FScene::Update(FRDGBuilder& GraphBuilder, const FUpdateParameters& Paramete
 					PrimitiveVirtualTextureLod.AddUninitialized();
 					PrimitiveOcclusionBounds.AddUninitialized();
 				#if WITH_EDITOR
-					PrimitivesSelected.Add(PrimitiveSceneInfo->Proxy->IsSelected());
+					PrimitivesSelected.Add(PrimitiveSceneInfo->Proxy->WantsEditorEffects() || PrimitiveSceneInfo->Proxy->IsSelected());
 				#endif
 				#if RHI_RAYTRACING
 					PrimitiveRayTracingFlags.AddZeroed();
@@ -6514,7 +6513,7 @@ void FScene::Update(FRDGBuilder& GraphBuilder, const FUpdateParameters& Paramete
 
 	{
 		SCOPED_NAMED_EVENT(UpdateStaticMeshes, FColor::Emerald);
-
+		
 		if (bScenesPrimitivesNeedStaticMeshElementUpdate || CachedDefaultBasePassDepthStencilAccess != DefaultBasePassDepthStencilAccess)
 		{
 			// Mark all primitives as needing an update

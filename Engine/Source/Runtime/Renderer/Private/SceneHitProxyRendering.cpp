@@ -937,11 +937,15 @@ bool FEditorSelectionMeshProcessor::TryAddMeshBatch(const FMeshBatch& RESTRICT M
 
 void FEditorSelectionMeshProcessor::AddMeshBatch(const FMeshBatch& RESTRICT MeshBatch, uint64 BatchElementMask, const FPrimitiveSceneProxy* RESTRICT PrimitiveSceneProxy, int32 StaticMeshId)
 {
+	if (!PrimitiveSceneProxy)
+	{
+		return;
+	}
+	const bool bWantsEditorEffects = PrimitiveSceneProxy->WantsEditorEffects();
+	const bool bWantsOutlineForSelection = PrimitiveSceneProxy->WantsSelectionOutline() && (PrimitiveSceneProxy->IsSelected() || PrimitiveSceneProxy->IsHovered());
 	if (MeshBatch.bUseForMaterial 
 		&& MeshBatch.bUseSelectionOutline 
-		&& PrimitiveSceneProxy
-		&& PrimitiveSceneProxy->WantsSelectionOutline() 
-		&& (PrimitiveSceneProxy->IsSelected() || PrimitiveSceneProxy->IsHovered()))
+		&& (bWantsEditorEffects || bWantsOutlineForSelection))
 	{
 		const FMaterialRenderProxy* MaterialRenderProxy = MeshBatch.MaterialRenderProxy;
 		while (MaterialRenderProxy)
@@ -989,8 +993,8 @@ bool FEditorSelectionMeshProcessor::Process(
 	const int32 StencilRef = GetStencilValue(ViewIfDynamicMeshCommand, PrimitiveSceneProxy);
 	PassDrawRenderState.SetStencilRef(StencilRef);
 
-	FHitProxyId DummyId;
-	FHitProxyShaderElementData ShaderElementData(DummyId);
+	const FHitProxyId OverlayColor = PrimitiveSceneProxy->GetOverlayColor();
+	FHitProxyShaderElementData ShaderElementData(OverlayColor);
 	ShaderElementData.InitializeMeshMaterialData(ViewIfDynamicMeshCommand, PrimitiveSceneProxy, MeshBatch, StaticMeshId, false);
 
 	const FMeshDrawCommandSortKey SortKey = CalculateMeshStaticSortKey(HitProxyPassShaders.VertexShader, HitProxyPassShaders.PixelShader);
@@ -1069,7 +1073,7 @@ int32 FEditorSelectionMeshProcessor::GetStencilValue(const FSceneView* View, con
 		StencilValue = EncodeSelectionStencilValue(Color, UniqueId);
 		ProxyToStencilIndex.Add(PrimitiveSceneProxy, StencilValue);
 	}
-	else
+	else if (PrimitiveSceneProxy->IsParentSelected())
 	{
 		int Color = PrimitiveSceneProxy->GetSelectionOutlineColorIndex();
 		if (bActorSelectionColorIsSubdued && (Color == 0))
@@ -1093,7 +1097,7 @@ FEditorSelectionMeshProcessor::FEditorSelectionMeshProcessor(const FScene* Scene
 	ActorNameToStencilIndex.Add(NAME_BSP, 1);
 
 	PassDrawRenderState.SetDepthStencilState(TStaticDepthStencilState<true, CF_DepthNearOrEqual, true, CF_Always, SO_Keep, SO_Keep, SO_Replace>::GetRHI());
-	PassDrawRenderState.SetBlendState(TStaticBlendStateWriteMask<CW_NONE, CW_NONE, CW_NONE, CW_NONE>::GetRHI());
+	PassDrawRenderState.SetBlendState(TStaticBlendState<>::GetRHI());
 }
 
 FMeshPassProcessor* CreateEditorSelectionPassProcessor(ERHIFeatureLevel::Type FeatureLevel, const FScene* Scene, const FSceneView* InViewIfDynamicMeshCommand, FMeshPassDrawListContext* InDrawListContext)

@@ -319,6 +319,7 @@ UPrimitiveComponent::UPrimitiveComponent(const FObjectInitializer& ObjectInitial
 	IndirectLightingCacheQuality = ILCQ_Point;
 	bStaticWhenNotMoveable = true;
 	bSelectable = true;
+	bWantsEditorEffects = false;
 #if WITH_EDITORONLY_DATA
 	bConsiderForActorPlacementWhenHidden = false;
 #endif // WITH_EDITORONLY_DATA
@@ -390,6 +391,8 @@ UPrimitiveComponent::UPrimitiveComponent(const FObjectInitializer& ObjectInitial
 #if WITH_EDITOR
 	bAlwaysAllowTranslucentSelect = false;
 
+	OverlayColor = FColor(ForceInitToZero);
+	
 	SelectionOutlineColorIndex = 0;
 #endif
 
@@ -1962,11 +1965,37 @@ void UPrimitiveComponent::SetIsBeingMovedByEditor(bool bIsBeingMoved)
 
 void UPrimitiveComponent::SetSelectionOutlineColorIndex(uint8 InSelectionOutlineColorIndex)
 {
+	bool bShouldOverride = InSelectionOutlineColorIndex != 0;
 	SelectionOutlineColorIndex = InSelectionOutlineColorIndex;
+	bWantsEditorEffects |= bShouldOverride;
 	
 	if (SceneProxy)
 	{
 		SceneProxy->SetSelectionOutlineColorIndex_GameThread(InSelectionOutlineColorIndex);
+		SceneProxy->SetSelectionOverride_GameThread(bShouldOverride);
+	}
+}
+
+void UPrimitiveComponent::SetOverlayColor(FColor InOverlayColor)
+{
+	OverlayColor = InOverlayColor;
+	bWantsEditorEffects = true;
+
+	if (SceneProxy)
+	{
+		SceneProxy->SetOverlayColor_GameThread(InOverlayColor);
+		SceneProxy->SetSelectionOverride_GameThread(true);
+	}
+}
+
+void UPrimitiveComponent::RemoveOverlayColor()
+{
+	bWantsEditorEffects = true;
+
+	if (SceneProxy)
+	{
+		SceneProxy->SetOverlayColor_GameThread(FColor{EForceInit::ForceInitToZero});
+		SceneProxy->SetSelectionOverride_GameThread(false);
 	}
 }
 
@@ -4660,7 +4689,7 @@ void UPrimitiveComponent::SetupPrecachePSOParams(FPSOPrecacheParams& Params)
 	Params.bCastShadow = CastShadow;
 	// Custom depth can be toggled at runtime with PSO precache call so assume it might be needed when depth pass is needed
 	// Ideally precache those with lower priority and don't wait on these (UE-174426)
-	Params.bRenderCustomDepth = bRenderCustomDepth;
+	Params.bRenderCustomDepth = bRenderInDepthPass;
 	Params.bCastShadowAsTwoSided = bCastShadowAsTwoSided;
 	Params.SetMobility(Mobility);	
 	Params.SetStencilWriteMask(FRendererStencilMaskEvaluation::ToStencilMask(CustomDepthStencilWriteMask));
