@@ -50,6 +50,8 @@ public:
 	XrResult XrCreateActionSpace(
 		const XrActionSpaceCreateInfo* createInfo,
 		XrSpace* space);
+	
+	const FOXRVisionOSSpace* ToFOXRVisionOSSpace(const XrSpace& Space);
 
 	XrResult DestroySpace(
 		FOXRVisionOSSpace* Space);
@@ -160,7 +162,12 @@ public:
 		bool bSynchronizing = true; // when true we are in the process of starting up a new session and the new frame state has not yet propagated.
 		XrFovf HmdFovs[2];
         int32 LocateViewInfoBufferIndex = 0;
+		int32 RenderToGameHeadTransformIndexRead = -1;
 	};
+	
+	simd_float4x4 RenderToGameHeadTransformRead(const FPipelinedFrameState& FrameState);
+	void RenderToGameHeadTransformWrite(FPipelinedFrameState& FrameState);
+
 	const FPipelinedFrameState& GetPipelinedFrameStateForThread() const;
 	FPipelinedFrameState& GetPipelinedFrameStateForThread();
 	void GetHMDTransform(XrTime DisplayTime, FTransform& OutTransform, XrSpaceLocationFlags& OutLocationFlags);
@@ -180,7 +187,7 @@ public:
     void LocateViewInfoIndexAdvance() { ++PipelinedFrameStateGame.LocateViewInfoBufferIndex; }
     const FLocateViewInfo& GetLocateViewInfo_GameThread() { return LocateViewInfoBuffer[(PipelinedFrameStateGame.LocateViewInfoBufferIndex - 1) % LocateViewInfoBufferLength]; }
     FLocateViewInfo& GetLocateViewInfo_RenderThread() { return LocateViewInfoBuffer[PipelinedFrameStateRendering.LocateViewInfoBufferIndex % LocateViewInfoBufferLength]; }
-
+	
 private:
 	bool bCreateFailed = false;
 	bool bIsRunning = false;
@@ -198,17 +205,11 @@ private:
 	FPlatformMemory::FPlatformVirtualMemoryBlock m_reprojectionData;
 	FPlatformMemory::FPlatformVirtualMemoryBlock m_displayData;
 
-
 	TArray<TSharedPtr<FOXRVisionOSSwapchain, ESPMode::ThreadSafe>> Swapchains;
 
 	int32 NextBackBufferIndex = 0;
 	int32 PreviousBackBufferIndexInBegin = -1;
 	int32 SessionFrameCounter = 0;
-
-	// Because OpenXR works with view poses, but works with hmd pose we cache an hmd pose when we get the trackign data.
-	// If the OpenXR Application modifies the view poses such that they are not relative to the hmd pose this will fail and the altered view poses will not behave as expected.
-	// This should work correctly if api modifies the interpupillary distance, provided that is properly pipelined on the api side (meaning it is constant for each fliparg).
-	//void StoreHMDPoseOffsetData(const PoseData& HmdPose);
 
 	static const int32 INVALID_DEVICE_HANDLE = -1;
 	int32 HMDHandle = INVALID_DEVICE_HANDLE;
@@ -230,6 +231,8 @@ private:
 	FPipelinedFrameState	PipelinedFrameStateRHI;
 	int32 CachedBeginFlipFrameCounter = INT32_MAX;
 	
+	static const int32 RenderToGameHeadTransformBufferLength = 3;
+	simd_float4x4 RenderToGameHeadTransform[RenderToGameHeadTransformBufferLength];
 	//TEMP see usages
 	FCriticalSection CriticalSection_ar_world_tracking_provider_query_device_anchor_at_timestamp;
 

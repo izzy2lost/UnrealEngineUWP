@@ -75,6 +75,8 @@ struct UEContentConfiguration: CompositorLayerConfiguration {
 		//configuration.depthFormat = .depth32Float  			//PF_R32_FLOAT   			// This is correct for mobile forward
 		configuration.depthFormat = .depth32Float_stencil8 		//PF_DepthStencil   // This is correct for deferred
 //PFSWITCH
+		
+		configuration.defaultDepthRange = [Float.greatestFiniteMagnitude, 0.1]
 	}
 }
 
