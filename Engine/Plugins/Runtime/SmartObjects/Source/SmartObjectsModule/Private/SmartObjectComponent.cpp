@@ -50,21 +50,80 @@ void USmartObjectComponent::PostInitProperties()
 #endif // WITH_EDITORONLY_DATA
 }
 
-void USmartObjectComponent::PostLoad()
-{
-	Super::PostLoad();
-	
 #if WITH_EDITORONLY_DATA
-	// Older versions of the SmartObject Component used to have property `DefinitionAsset` (renamed to CachedDefinitionAssetVariation)
-	// which referenced the SmartObject Definition asset. The data is now stored in DefinitionRef.
-	if (CachedDefinitionAssetVariation)
+bool USmartObjectComponent::ApplyDeprecation()
+{
+	if (bDeprecationApplied)
 	{
-		DefinitionRef.SetSmartObjectDefinition(CachedDefinitionAssetVariation);
-		CachedDefinitionAssetVariation = nullptr;
+		return false;
 	}
-#endif
+
+	// Older versions of the SmartObject Component used to have property `DefinitionAsset`.
+	// which referenced the SmartObject Definition asset. The data is now stored in DefinitionRef.
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
+	if (DefinitionAsset_DEPRECATED)
+	{
+		DefinitionRef.SetSmartObjectDefinition(DefinitionAsset_DEPRECATED);
+	}
+	CachedDefinitionAssetVariation = nullptr;
+	DefinitionAsset_DEPRECATED = nullptr;
+	bDeprecationApplied = true;
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
+
+	return true;
 }
 
+bool USmartObjectComponent::ApplyParentDeprecation()
+{
+	if (bDeprecationApplied)
+	{
+		return false;
+	}
+
+	if (USmartObjectComponent* Archetype = Cast<USmartObjectComponent>(GetArchetype()))
+	{
+		// If our archetype was already deprecated it indicates that the current instance
+		// was created from an up to date archetype so no need to deprecate those values
+		// and we consider the deprecation applied
+		if (const bool bArchetypeAlreadyDeprecated = !Archetype->ApplyParentDeprecation())
+		{
+			bDeprecationApplied = true;
+			return false;
+		}
+	}
+
+	return ApplyDeprecation();
+}
+#endif
+
+void USmartObjectComponent::Serialize(FArchive& Ar)
+{
+#if WITH_EDITORONLY_DATA
+	if (Ar.IsLoading())
+	{
+		// Keep track of deprecated definition before serialization in case we had a different asset
+		// then we'll need to deprecate it
+		const TObjectPtr<USmartObjectDefinition> AssetBeforeSerialization = DefinitionAsset_DEPRECATED;
+
+		// CDOs don't run serialize, apply deprecation if needed
+		ApplyParentDeprecation();
+
+		Super::Serialize(Ar);
+
+		// Object had its own asset, deprecate it
+		if (DefinitionAsset_DEPRECATED != AssetBeforeSerialization)
+		{
+			// Reset deprecation that might have been set before serializing
+			bDeprecationApplied = false;
+			ApplyDeprecation();
+		}
+	}
+	else
+#endif
+	{
+		Super::Serialize(Ar);
+	}
+}
 
 #if WITH_EDITOR
 void USmartObjectComponent::OnRegister()

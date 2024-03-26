@@ -142,7 +142,7 @@ protected:
 	void ReceiveOnEvent(const FSmartObjectEventData& EventData, const AActor* Interactor);
 
 	virtual void PostInitProperties() override;
-	virtual void PostLoad() override;
+	virtual void Serialize(FArchive& Ar) override;
 
 	virtual void BeginPlay() override;
 	virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
@@ -200,12 +200,23 @@ protected:
 
 private:
 	// Do not use directly, use SetDefinition() / SetDefinitionAsset instead.
-	// The property used to be called "DefinitionAsset", and was holding the SmartObject definition used by the component.
-	// It holds a transient UObject, but cannot be marked transient so that the old data will load.
-	// Now the asset and parameters are stored in DefinitionRef.
-	// For BP logic backwards compatibility, the property has a redirect, and getter/setter. New BP logic should use SetDefinition() / SetDefinitionAsset instead.
-	UPROPERTY(Category = SmartObject, BlueprintSetter = SetDefinitionAsset, BlueprintGetter = GetDefinitionAsset, meta = (DisplayName="Definition Asset"))
+	UPROPERTY(Transient, Category = SmartObject, BlueprintSetter = SetDefinitionAsset, BlueprintGetter = GetDefinitionAsset, meta = (DisplayName="Definition Asset"))
 	mutable TObjectPtr<USmartObjectDefinition> CachedDefinitionAssetVariation = nullptr;
+
+#if WITH_EDITORONLY_DATA
+	/** return true if applied or false if already applied */
+	bool ApplyDeprecation();
+
+	/** return true if applied or  false if already applied */
+	bool ApplyParentDeprecation();
+
+	/** flag to keep track of the deprecation status of the object */
+	UPROPERTY()
+	bool bDeprecationApplied = false;
+
+	UPROPERTY(meta = (DeprecatedProperty))
+	TObjectPtr<USmartObjectDefinition> DefinitionAsset_DEPRECATED;
+#endif//WITH_EDITOR
 };
 
 
