@@ -14,7 +14,7 @@ class ADisplayClusterRootActor;
  * Extended editor engine
  */
 UCLASS()
-class UDisplayClusterEditorEngine
+class DISPLAYCLUSTEREDITOR_API UDisplayClusterEditorEngine
 	: public UUnrealEdEngine
 {
 	GENERATED_BODY()
