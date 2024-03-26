@@ -387,6 +387,7 @@ class UInstancedStaticMeshComponent : public UStaticMeshComponent, public ISMIns
 
 	ENGINE_API virtual void PostLoad() override;
 	ENGINE_API virtual void OnRegister() override;
+	ENGINE_API virtual void OnUnregister() override;
 	
 	/** Sets to use RemoveAtSwap on instance removal. This is an optimization, but will change the resultant instance reordering. */
 	void SetRemoveSwap() { bSupportRemoveAtSwap = true; }
@@ -620,6 +621,8 @@ private:
 	ENGINE_API bool ShouldInheritPerInstanceData() const;
 
 	void CalcAndCacheNavigationBounds();
+
+	void PartialNavigateUpdateForCurrentInstances();
 
 	/** Sets up new instance data to sensible defaults, creates physics counterparts if possible. */
 	ENGINE_API void SetupNewInstanceData(FInstancedStaticMeshInstanceData& InOutNewInstanceData, int32 InInstanceIndex, const FTransform& InInstanceTransform);

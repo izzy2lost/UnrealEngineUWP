@@ -100,7 +100,8 @@ FSetElementId FNavigationDataHandler::RegisterNavOctreeElement(UObject& ElementO
 			SetId = OctreeController.PendingOctreeUpdates.FindId(UpdateInfo);
 			if (SetId.IsValidId())
 			{
-				// make sure this request stays, in case it has been invalidated already
+				// make sure this request stays, in case it has been invalidated already and keep any dirty areas
+				UpdateInfo.ExplicitAreasToDirty = OctreeController.PendingOctreeUpdates[SetId].ExplicitAreasToDirty;
 				OctreeController.PendingOctreeUpdates[SetId] = UpdateInfo;
 			}
 			else
@@ -178,9 +179,16 @@ void FNavigationDataHandler::AddElementToNavOctree(const FNavigationDirtyElement
 	}
 
 	// mark area occupied by given element as dirty except if explicitly set to skip this default behavior
-	if (!GeneratedData.IsEmpty() && !GeneratedData.Data->bShouldSkipDirtyAreaOnAddOrRemove)
+	const int32 DirtyFlag = DirtyElement.FlagsOverride ? DirtyElement.FlagsOverride : GeneratedData.Data->GetDirtyFlag();
+	if (GeneratedData.Data->bShouldSkipDirtyAreaOnAddOrRemove)
 	{
-		const int32 DirtyFlag = DirtyElement.FlagsOverride ? DirtyElement.FlagsOverride : GeneratedData.Data->GetDirtyFlag();
+		if (DirtyElement.ExplicitAreasToDirty.Num() > 0)
+		{
+			DirtyAreasController.AddAreas(DirtyElement.ExplicitAreasToDirty, DirtyFlag, [&ElementOwner] { return ElementOwner; }, &DirtyElement, "Addition to navoctree");
+		}
+	}
+	else if (!GeneratedData.IsEmpty())
+	{
 		DirtyAreasController.AddArea(GeneratedData.Bounds.GetBox(), DirtyFlag, [&ElementOwner] { return ElementOwner; }, &DirtyElement, "Addition to navoctree");
 	}
 }
@@ -382,6 +390,22 @@ bool FNavigationDataHandler::UpdateNavOctreeElementBounds(UObject& Object, const
 		}
 
 		return true;
+	}
+
+	// If dirty areas are provided we need to append them to a pending update since the object is not added yet.
+	// Not necessary for the bounds since they are not stored in the update but fetched when the update is processed.
+	if (DirtyAreas.Num() > 0)
+	{
+		const FSetElementId PendingElementId = OctreeController.PendingOctreeUpdates.FindId(FNavigationDirtyElement(&Object));
+		if (PendingElementId.IsValidId())
+		{
+			FNavigationDirtyElement& DirtyElement = OctreeController.PendingOctreeUpdates[PendingElementId];
+			if (!DirtyElement.bInvalidRequest)
+			{
+				DirtyElement.ExplicitAreasToDirty.Append(DirtyAreas);
+				return true;
+			}
+		}
 	}
 
 	return false;
