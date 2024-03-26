@@ -769,8 +769,10 @@ bool UNiagaraDataInterfaceRenderTargetVolume::SimCacheReadFrame(UObject* Storage
 		UAnimatedSparseVolumeTexture* SVT = Cast<UAnimatedSparseVolumeTexture>(StorageObject);
 		
 		const int32 MipLevel = 0;
+		const float FrameRate = 0.0f;
 		const bool bBlocking = true;
-		USparseVolumeTextureFrame *SVTFrame = USparseVolumeTextureFrame::GetFrameAndIssueStreamingRequest(SVT, FMath::RoundToInt(FrameA + Interp), MipLevel, bBlocking);
+		const bool bHasFrameRate = false;
+		USparseVolumeTextureFrame *SVTFrame = USparseVolumeTextureFrame::GetFrameAndIssueStreamingRequest(SVT, GetTypeHash(this), MipLevel, FMath::RoundToInt(FrameA + Interp), MipLevel, bBlocking, bHasFrameRate);
 		
 		// The streaming manager normally ticks in FDeferredShadingSceneRenderer::Render(), but the SVT->DenseTexture conversion compute shader happens in a render command before that.
 		// At execution time of that command, the streamer hasn't had the chance to do any streaming yet, so we force another tick here.

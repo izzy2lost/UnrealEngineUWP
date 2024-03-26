@@ -9,12 +9,11 @@
 #include "Memory/SharedBuffer.h"
 #include "Serialization/BulkData.h"
 #include "RenderResource.h"
-#include "Containers/IntrusiveDoubleLinkedList.h"
 #include "Containers/Map.h"
 #include "Containers/StaticArray.h"
-#include "Containers/Union.h"
 #include "Containers/BinaryHeap.h"
 #include "RenderGraphBuilder.h"
+#include "Misc/DateTime.h"
 
 DECLARE_LOG_CATEGORY_EXTERN(LogSparseVolumeTextureStreamingManager, Log, All);
 
@@ -41,6 +40,8 @@ class FTextureRenderResources;
 class FTileDataTexture;
 class FTileUploader;
 class FPageTableUpdater;
+struct FStreamingInstanceRequest;
+class FStreamingInstance;
 
 // Helper class for managing slots in the tile data texture (SVT streaming pool). It uses a priority queue to reuse older slots that haven't been referenced for some (render) frames.
 class FTileAllocator
@@ -100,28 +101,17 @@ public:
 	//~ Begin IStreamingManager Interface.
 	virtual void Add_GameThread(UStreamableSparseVolumeTexture* SparseVolumeTexture) override;
 	virtual void Remove_GameThread(UStreamableSparseVolumeTexture* SparseVolumeTexture) override;
-	virtual void Request_GameThread(UStreamableSparseVolumeTexture* SparseVolumeTexture, float FrameIndex, int32 MipLevel, bool bBlocking) override;
+	virtual void Request_GameThread(UStreamableSparseVolumeTexture* SparseVolumeTexture, uint32 StreamingInstanceKey, float FrameRate, float FrameIndex, int32 MipLevel, EStreamingRequestFlags Flags) override;
 	virtual void Update_GameThread() override;
 	
-	virtual void Request(UStreamableSparseVolumeTexture* SparseVolumeTexture, float FrameIndex, int32 MipLevel, bool bBlocking) override;
-	virtual void BeginAsyncUpdate(FRDGBuilder& GraphBuilder, bool bBlocking) override;
+	virtual void Request(UStreamableSparseVolumeTexture* SparseVolumeTexture, uint32 StreamingInstanceKey, float FrameRate, float FrameIndex, int32 MipLevel, EStreamingRequestFlags Flags) override;
+	virtual void BeginAsyncUpdate(FRDGBuilder& GraphBuilder, bool bUseAsyncThread) override;
 	virtual void EndAsyncUpdate(FRDGBuilder& GraphBuilder) override;
+	virtual const FStreamingDebugInfo* GetStreamingDebugInfo(FRDGBuilder& GraphBuilder) const override;
 	//~ End IStreamingManager Interface.
 
 private:
 	friend class FStreamingUpdateTask;
-
-	// Represents a context or "window" into the frame sequence that moves along the playback direction. It is used to cache the prefetch direction.
-	struct FStreamingWindow
-	{
-		static constexpr int32 WindowSize = 5;
-		float CenterFrame = -1.0f; // Frame index this window is centered around
-		float LastCenterFrame = -1.0f;
-		int32 NumRequestsThisUpdate = 0;
-		uint32 LastRequested = 0;
-		bool bPlayForward = false;
-		bool bPlayBackward = false;
-	};
 
 	// One per frame of each SVT
 	struct FFrameInfo
@@ -148,11 +138,18 @@ private:
 		EPixelFormat FormatB = PF_Unknown;
 		FVector4f FallbackValueA = FVector4f();
 		FVector4f FallbackValueB = FVector4f();
+		int32 NumPrefetchFrames = 0;
+		float PrefetchPercentageStepSize = 0.0f;
+		float PrefetchPercentageBias = 0.0f;
 		TArray<FFrameInfo> PerFrameInfo;
-		TArray<FStreamingWindow> StreamingWindows;
+		TArray<TUniquePtr<FStreamingInstance>> StreamingInstances;
+		TArray<uint32, TInlineAllocator<16>> MipLevelStreamingSize; // MipLevelStreamingSize[MipLevel] * FrameRate is the required IO bandwidth in bytes/s to stream a given MipLevel.
 
 		FTileAllocator TileAllocator;
 		TUniquePtr<FTileDataTexture> TileDataTexture;
+
+		// Tries to look up an existing FStreamingInstance, creates a new one if it can't find one and finally updates it with the new request.
+		FStreamingInstance* GetAndUpdateStreamingInstance(uint64 StreamingInstanceKey, const FStreamingInstanceRequest& Request);
 	};
 
 	// Represents an IO request for tile(s)
@@ -235,6 +232,11 @@ private:
 		EPixelFormat FormatB = PF_Unknown;
 		FVector4f FallbackValueA = FVector4f(0.0f, 0.0f, 0.0f, 0.0f);
 		FVector4f FallbackValueB = FVector4f(0.0f, 0.0f, 0.0f, 0.0f);
+		int32 NumMipLevelsGlobal = 0;
+		float StreamingPoolSizeFactor = 0.0f;
+		int32 NumPrefetchFrames = 0;
+		float PrefetchPercentageStepSize = 0.0f;
+		float PrefetchPercentageBias = 0.0f;
 		TArray<FFrameInfo> FrameInfo; // Only Resources and TextureRenderResources are initialized
 	};
 
@@ -253,6 +255,7 @@ private:
 	// The payload associated with a request for a given frame of a SVT
 	struct FRequestPayload
 	{
+		FStreamingInstance* StreamingInstance = nullptr;
 		uint16 MipLevelMask = 0; // Bitmask of requested mip levels
 		float LowestMipFraction = 0.0f; // Setting this to a value between 0 and less than 1 signifies that only a certain percentage of pages in this mip level should be streamed
 		TStaticArray<uint8, 16> Priorities = TStaticArray<uint8, 16>(InPlace, 0); // Priority for each mip level with a set bit in MipLevelMask
@@ -289,9 +292,12 @@ private:
 	int32 MaxPendingRequests = 0;
 	int32 NumPendingRequests = 0;
 	int32 NextPendingRequestIndex = 0;
-	uint32 NextUpdateIndex = 1;
+	uint32 UpdateIndex = 1;
+	FDateTime InitTime = FDateTime::Now(); // The precise time doesn't matter, we only use it as a basis to compute time as a double.
+	int64 TotalRequestedBandwidth = 0;
 
 	// Transient lifetime
+	TSet<FStreamingInstance*> ActiveStreamingInstances; // Instances that have had a request in them since the last update
 	TSet<FTileDataTexture*> TileDataTexturesToUpdate;
 	TSet<FFrameInfo*> InvalidatedSVTFrames; // Set of SVT frames where tiles have been streamed in or out. Used in PatchPageTable().
 	TArray<FTileRange> TileRangesToStream; // Output of FilterRequests(), consumed in IssueRequests().
@@ -304,6 +310,7 @@ private:
 	void RemoveInternal(UStreamableSparseVolumeTexture* SparseVolumeTexture);
 	void AddRequest(const FStreamingRequest& Request);
 	void AsyncUpdate();
+	void ComputeBandwidthLimit();
 	void FilterRequests();
 	void IssueRequests();
 	int32 DetermineReadyRequests();

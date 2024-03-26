@@ -223,7 +223,8 @@ void USparseVolumeTextureViewerComponent::TickComponent(float DeltaTime, enum EL
 			Frame = FMath::Clamp(Frame, 0.0f, (float)(NumFrames - 1));
 		}
 
-		SparseVolumeTextureFrame = USparseVolumeTextureFrame::GetFrameAndIssueStreamingRequest(SparseVolumeTexturePreview, Frame, MipLevel, bBlockingStreamingRequests);
+		const bool bHasValidFrameRate = bPlaying != 0;
+		SparseVolumeTextureFrame = USparseVolumeTextureFrame::GetFrameAndIssueStreamingRequest(SparseVolumeTexturePreview, GetTypeHash(this), FrameRate, Frame, MipLevel, bBlockingStreamingRequests, bHasValidFrameRate);
 	}
 	else
 	{
