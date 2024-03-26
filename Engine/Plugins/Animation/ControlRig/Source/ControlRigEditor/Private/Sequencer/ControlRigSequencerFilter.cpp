@@ -173,11 +173,10 @@ public:
 			UControlRig *ControlRig = Track->GetControlRig();
 			if (ControlRig && ControlRig->GetHierarchy())
 			{
-				FName Name(*InText.ToString());
 				TArray<const FRigBaseElement*> SelectedControls = ControlRig->GetHierarchy()->GetSelectedElements(ERigElementType::Control);
 				for (const FRigBaseElement* SelectedControl : SelectedControls)
 				{
-					if (Name == SelectedControl->GetFName())
+					if (InText.EqualTo(ControlRig->GetHierarchy()->GetDisplayNameForUI(SelectedControl)))
 					{
 						return true;
 					}
@@ -188,9 +187,12 @@ public:
 							const TArray<FRigElementKey>& DrivenControls = ControlElement->Settings.DrivenControls;
 							for (const FRigElementKey& DrivenKey : DrivenControls)
 							{
-								if (Name == DrivenKey.Name)
+								if (FRigBaseElement* Element = ControlRig->GetHierarchy()->Find(DrivenKey))
 								{
-									return true;
+									if (InText.EqualTo(ControlRig->GetHierarchy()->GetDisplayNameForUI(Element)))
+									{
+										return true;
+									}
 								}
 							}
 						}
