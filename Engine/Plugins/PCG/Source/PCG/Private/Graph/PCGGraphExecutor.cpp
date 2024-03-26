@@ -1914,8 +1914,14 @@ namespace PCGGraphExecutor
 		const UPCGNode* InDownstreamNode,
 		FPCGGridLinkageContext* InContext)
 	{
-		check(InContext && InContext->SourceComponent.IsValid());
+		check(InContext);
 		TRACE_CPUPROFILER_EVENT_SCOPE(PCGGraphExecutor::ExecuteGridLinkage);
+
+		if (!InContext->SourceComponent.IsValid())
+		{
+			// Source no longer exists, nothing to be done.
+			return true;
+		}
 
 		// Non-hierarchical generation - no linkage required - data should just pass through.
 		if (!InContext->SourceComponent->GetGraph()->IsHierarchicalGenerationEnabled()
