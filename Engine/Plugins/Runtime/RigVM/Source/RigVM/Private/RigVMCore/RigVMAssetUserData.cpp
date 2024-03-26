@@ -372,12 +372,13 @@ bool UNameSpacedUserData::IsPropertySupported(const FProperty* InProperty, const
 	return true;
 }
 
-void UDataAssetLink::SetDataAsset(UDataAsset* InDataAsset)
+void UDataAssetLink::SetDataAsset(TSoftObjectPtr<UDataAsset> InDataAsset)
 {
 	InvalidateCache();
 	DataAsset = InDataAsset;
+	DataAssetCached = InDataAsset.Get();
 
-	if(NameSpace.IsEmpty() && DataAsset)
+	if(NameSpace.IsEmpty() && DataAssetCached)
 	{
 		NameSpace = DataAsset->GetName();
 	}
@@ -391,10 +392,10 @@ const UNameSpacedUserData::FUserData* UDataAssetLink::GetUserData(const FString&
 		return ResultFromSuper;
 	}
 
-	if(DataAsset)
+	if(DataAssetCached)
 	{
 		// this method caches as well - so the next time around Super::GetUserData should return the cache 
-		return GetUserDataWithinStruct(DataAsset->GetClass(), (const uint8*)DataAsset, InPath, FString(), OutErrorMessage);
+		return GetUserDataWithinStruct(DataAssetCached->GetClass(), static_cast<const uint8*>(DataAssetCached), InPath, FString(), OutErrorMessage);
 	}
 
 	if(OutErrorMessage && OutErrorMessage->IsEmpty())
@@ -413,13 +414,13 @@ const TArray<const UNameSpacedUserData::FUserData*>& UDataAssetLink::GetUserData
 		return ResultFromSuper;
 	}
 
-	if(DataAsset)
+	if(DataAssetCached)
 	{
 		// we should only get here if we haven't cached this user data array before.
 		if(InParentPath.IsEmpty())
 		{
 			// this method caches as well - so the next time around Super::GetUserDataArray should return the cache 
-			return GetUserDataArrayWithinStruct(DataAsset->GetClass(), (const uint8*)DataAsset, InParentPath, OutErrorMessage);
+			return GetUserDataArrayWithinStruct(DataAssetCached->GetClass(), static_cast<const uint8*>(DataAssetCached), InParentPath, OutErrorMessage);
 		}
 
 		if(const FUserData* ParentUserData = GetUserData(InParentPath, OutErrorMessage))
@@ -453,6 +454,13 @@ const TArray<const UNameSpacedUserData::FUserData*>& UDataAssetLink::GetUserData
 		(*OutErrorMessage) = FString::Printf(DataAssetNullFormat, *InParentPath);
 	}
 	return EmptyUserDatas;
+}
+
+void UDataAssetLink::PostLoad()
+{
+	Super::PostLoad();
+
+	DataAssetCached = DataAsset.Get();
 }
 
 #if WITH_EDITOR

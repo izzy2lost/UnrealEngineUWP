@@ -192,22 +192,25 @@ public:
 
 	/** If assigned, the data asset link will provide access to the data asset's content. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = General, BlueprintGetter = GetDataAsset, BlueprintSetter = SetDataAsset, Meta = (DisplayAfter="NameSpace"))
-	TObjectPtr<UDataAsset> DataAsset;
+	TSoftObjectPtr<UDataAsset> DataAsset;
 
 	UFUNCTION(BlueprintGetter)
-	UDataAsset* GetDataAsset() const { return DataAsset; }
+	TSoftObjectPtr<UDataAsset> GetDataAsset() const { return DataAsset; }
 
 	UFUNCTION(BlueprintSetter)
-	void SetDataAsset(UDataAsset* InDataAsset);
+	void SetDataAsset(TSoftObjectPtr<UDataAsset> InDataAsset);
 
 	virtual const FUserData* GetUserData(const FString& InPath, FString* OutErrorMessage = nullptr) const override;
 	virtual const TArray<const FUserData*>& GetUserDataArray(const FString& InParentPath = FString(), FString* OutErrorMessage = nullptr) const override;
 
+	virtual void PostLoad() override;
 #if WITH_EDITOR
 	virtual void PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent) override;
 #endif
 
 protected:
-
+	UPROPERTY(transient)
+	TObjectPtr<UDataAsset> DataAssetCached;
+	
 	static inline constexpr TCHAR DataAssetNullFormat[] = TEXT("User data path '%s' could not be found (DataAsset not provided)");
 };

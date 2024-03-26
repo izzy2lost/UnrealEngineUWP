@@ -2,14 +2,15 @@
 
 #include "ControlRigAssetUserData.h"
 
-void UControlRigShapeLibraryLink::SetShapeLibrary(UControlRigShapeLibrary* InShapeLibrary)
+void UControlRigShapeLibraryLink::SetShapeLibrary(TSoftObjectPtr<UControlRigShapeLibrary> InShapeLibrary)
 {
 	InvalidateCache();
 	ShapeLibrary = InShapeLibrary;
+	ShapeLibraryCached = InShapeLibrary.Get();
 	ShapeNames.Reset();
-	if(ShapeLibrary)
+	if(ShapeLibraryCached)
 	{
-		for(const FControlRigShapeDefinition& Shape : ShapeLibrary->Shapes)
+		for(const FControlRigShapeDefinition& Shape : ShapeLibraryCached->Shapes)
 		{
 			ShapeNames.Add(Shape.ShapeName);
 		}
@@ -28,18 +29,18 @@ const UNameSpacedUserData::FUserData* UControlRigShapeLibraryLink::GetUserData(c
 	{
 		if(InPath.Equals(GET_MEMBER_NAME_STRING_CHECKED(UControlRigShapeLibraryLink, ShapeLibrary), ESearchCase::CaseSensitive))
 		{
-			static const FProperty* ShapeLibraryProperty = FindPropertyByName(StaticClass(), GET_MEMBER_NAME_CHECKED(UControlRigShapeLibraryLink, ShapeLibrary));
-			return StoreCacheForUserData({InPath, ShapeLibraryProperty, (const uint8*)ShapeLibrary});
+			static const FProperty* ShapeLibraryProperty = FindPropertyByName(StaticClass(), GET_MEMBER_NAME_CHECKED(UControlRigShapeLibraryLink, ShapeLibraryCached));
+			return StoreCacheForUserData({InPath, ShapeLibraryProperty, static_cast<const uint8*>(ShapeLibraryCached)});
 		}
 		if(InPath.Equals(DefaultShapePath, ESearchCase::CaseSensitive))
 		{
 			static const FProperty* DefaultShapeProperty = FindPropertyByName(FControlRigShapeDefinition::StaticStruct(), GET_MEMBER_NAME_CHECKED(FControlRigShapeDefinition, ShapeName));
-			return StoreCacheForUserData({InPath, DefaultShapeProperty, (const uint8*)&ShapeLibrary->DefaultShape.ShapeName});
+			return StoreCacheForUserData({InPath, DefaultShapeProperty, reinterpret_cast<const uint8*>(&ShapeLibrary->DefaultShape.ShapeName)});
 		}
 		if(InPath.Equals(ShapeNamesPath, ESearchCase::CaseSensitive))
 		{
 			static const FProperty* ShapeNamesProperty = FindPropertyByName(StaticClass(), GET_MEMBER_NAME_CHECKED(UControlRigShapeLibraryLink, ShapeNames));
-			return StoreCacheForUserData({InPath, ShapeNamesProperty, (const uint8*)&ShapeNames});
+			return StoreCacheForUserData({InPath, ShapeNamesProperty, reinterpret_cast<const uint8*>(&ShapeNames)});
 		}
 		if(OutErrorMessage && OutErrorMessage->IsEmpty())
 		{
@@ -84,6 +85,13 @@ const TArray<const UNameSpacedUserData::FUserData*>& UControlRigShapeLibraryLink
 		(*OutErrorMessage) = FString::Printf(ShapeLibraryNullFormat, *InParentPath);
 	}
 	return EmptyUserDatas;
+}
+
+void UControlRigShapeLibraryLink::PostLoad()
+{
+	Super::PostLoad();
+
+	ShapeLibraryCached = ShapeLibrary.Get();
 }
 
 #if WITH_EDITOR
