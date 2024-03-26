@@ -706,6 +706,12 @@ int32 UWorldPartitionConvertCommandlet::Main(const FString& Params)
 		LogWorldPartitionConvertCommandlet.SetVerbosity(ELogVerbosity::Verbose);
 	}
 
+	if (Switches.Contains(TEXT("RunningFromUnrealEd")))
+	{
+		UseCommandletResultAsExitCode = true;	// The process return code will match the return code of the commandlet
+		FastExit = true;						// Faster exit which avoids crash during shutdown. The engine isn't shutdown cleanly.
+	}
+
 	bConversionSuffix = Switches.Contains(TEXT("ConversionSuffix"));
 
 	// Load configuration file
