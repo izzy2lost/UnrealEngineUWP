@@ -905,6 +905,38 @@ bool UMediaPlayer::SupportsSeeking() const
 	return PlayerFacade->CanSeek();
 }
 
+bool UMediaPlayer::SupportsPlaybackTimeRange() const
+{
+	return PlayerFacade->SupportsPlaybackTimeRange();
+}
+
+TRange<FTimespan> UMediaPlayer::GetPlaybackTimeRange(EMediaTimeRangeType InRangeToGet)
+{
+	return PlayerFacade->GetPlaybackTimeRange(InRangeToGet);
+}
+
+bool UMediaPlayer::SetPlaybackTimeRange(const TRange<FTimespan>& InTimeRange)
+{
+	return PlayerFacade->SetPlaybackTimeRange(InTimeRange);
+}
+
+FFloatInterval UMediaPlayer::GetPlaybackTimeRange(EMediaTimeRangeBPType InRangeToGet)
+{
+	TRange<FTimespan> r = GetPlaybackTimeRange(static_cast<EMediaTimeRangeType>(InRangeToGet));
+	FDoubleInterval i;
+	i.Min = !r.IsEmpty() ? r.GetLowerBoundValue().GetTotalSeconds() : -1.0;
+	i.Max = !r.IsEmpty() ? r.GetUpperBoundValue().GetTotalSeconds() : -1.0;
+	FFloatInterval Imprecise;
+	Imprecise.Min = (float) i.Min;
+	Imprecise.Max = (float) i.Max;
+	return Imprecise;
+}
+
+bool UMediaPlayer::SetPlaybackTimeRange(FFloatInterval InTimeRange)
+{
+	return SetPlaybackTimeRange(TRange<FTimespan>(FTimespan::FromSeconds(InTimeRange.Min), FTimespan::FromSeconds(InTimeRange.Max)));
+}
+
 
 #if WITH_EDITOR
 

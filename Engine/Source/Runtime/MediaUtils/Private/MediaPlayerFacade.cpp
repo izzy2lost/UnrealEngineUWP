@@ -260,6 +260,13 @@ bool FMediaPlayerFacade::CanSeek() const
 }
 
 
+bool FMediaPlayerFacade::SupportsPlaybackTimeRange() const
+{
+	TSharedPtr<IMediaPlayer, ESPMode::ThreadSafe> CurrentPlayer(Player);
+	return CurrentPlayer.IsValid() ? CurrentPlayer->GetControls().CanControl(EMediaControl::PlaybackRange) : false;
+}
+
+
 void FMediaPlayerFacade::Close()
 {
 	SCOPE_CYCLE_COUNTER(STAT_MediaUtils_FacadeClose);
@@ -1569,6 +1576,19 @@ bool FMediaPlayerFacade::SupportsRate(float Rate, bool Unthinned) const
 	EMediaRateThinning Thinning = Unthinned ? EMediaRateThinning::Unthinned : EMediaRateThinning::Thinned;
 	return Player.IsValid() && Player->GetControls().GetSupportedRates(Thinning).Contains(Rate);
 }
+
+TRange<FTimespan> FMediaPlayerFacade::GetPlaybackTimeRange(EMediaTimeRangeType InRangeToGet) const
+{
+	TSharedPtr<IMediaPlayer, ESPMode::ThreadSafe> CurrentPlayer(Player);
+	return CurrentPlayer.IsValid() ? CurrentPlayer->GetControls().GetPlaybackTimeRange(InRangeToGet) : TRange<FTimespan>();
+}
+
+bool FMediaPlayerFacade::SetPlaybackTimeRange(const TRange<FTimespan>& InTimeRange)
+{
+	TSharedPtr<IMediaPlayer, ESPMode::ThreadSafe> CurrentPlayer(Player);
+	return CurrentPlayer.IsValid() ? CurrentPlayer->GetControls().SetPlaybackTimeRange(InTimeRange) : false;
+}
+
 
 void FMediaPlayerFacade::SetLastAudioRenderedSampleTime(FTimespan SampleTime)
 {

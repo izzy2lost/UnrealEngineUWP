@@ -336,9 +336,9 @@ bool FElectraPlayer::OpenInternal(const FString& Url, const FParamDict& InPlayer
 			NewPlayer->AdaptivePlayer->SetBitrateCeiling(PlaystartOptions.MaxBandwidthForStreaming.GetValue());
 		}
 
-        // Set the player member variable to the new player so we can use our internal configuration methods on the new player. 
+        // Set the player member variable to the new player so we can use our internal configuration methods on the new player.
         CurrentPlayer = MoveTemp(NewPlayer);
-		
+
 		// Apply options that may have been set prior to calling Open().
 		// Set these only if they have defined values as to not override what might have been set in the PlayerOptions.
 		if (bFrameAccurateSeeking.IsSet())
@@ -1266,6 +1266,12 @@ void FElectraPlayer::SetPlaybackRange(const FPlaybackRange& InPlaybackRange)
 	TSharedPtr<FInternalPlayerImpl, ESPMode::ThreadSafe> LockedPlayer = CurrentPlayer;
 	if (LockedPlayer.IsValid() && LockedPlayer->AdaptivePlayer.IsValid())
 	{
+		// Ranges cannot be set on Live streams.
+		Electra::FTimeValue playDuration = CurrentPlayer->AdaptivePlayer->GetDuration();
+		if (playDuration.IsValid() && playDuration.IsInfinity())
+		{
+			return;
+		}
 		Electra::IAdaptiveStreamingPlayer::FPlaybackRange Range;
 		if (CurrentPlaybackRange.Start.IsSet())
 		{
@@ -1305,6 +1311,55 @@ void FElectraPlayer::GetPlaybackRange(FPlaybackRange& OutPlaybackRange) const
 		}
 	}
 }
+
+TRange<FTimespan> FElectraPlayer::GetPlaybackRange(ETimeRangeType InRangeToGet) const
+{
+	TRange<FTimespan> Range(FTimespan(0), FTimespan(0));
+	TSharedPtr<FInternalPlayerImpl, ESPMode::ThreadSafe> LockedPlayer = CurrentPlayer;
+	if (LockedPlayer.IsValid() && LockedPlayer->AdaptivePlayer.IsValid())
+	{
+		switch(InRangeToGet)
+		{
+			case IElectraPlayerInterface::ETimeRangeType::Absolute:
+			{
+				Electra::FTimeRange Timeline;
+				LockedPlayer->AdaptivePlayer->GetTimelineRange(Timeline);
+				if (Timeline.IsValid())
+				{
+					Range.SetLowerBound(Timeline.Start.GetAsTimespan());
+					Range.SetUpperBound(Timeline.End.GetAsTimespan());
+				}
+				else
+				{
+					Electra::FTimeValue playDuration = CurrentPlayer->AdaptivePlayer->GetDuration();
+					if (playDuration.IsValid())
+					{
+						Range.SetLowerBound(FTimespan(0));
+						Range.SetUpperBound(playDuration.IsInfinity() ? FTimespan::MaxValue() : playDuration.GetAsTimespan());
+					}
+				}
+				break;
+			}
+			case IElectraPlayerInterface::ETimeRangeType::Current:
+			{
+				Electra::IAdaptiveStreamingPlayer::FPlaybackRange Current;
+				LockedPlayer->AdaptivePlayer->GetPlaybackRange(Current);
+				if (Current.Start.IsSet() && Current.End.IsSet())
+				{
+					Range.SetLowerBound(Current.Start.GetValue().GetAsTimespan());
+					Range.SetUpperBound(Current.End.GetValue().GetAsTimespan());
+				}
+				else
+				{
+					return GetPlaybackRange(IElectraPlayerInterface::ETimeRangeType::Absolute);
+				}
+				break;
+			}
+		}
+	}
+	return Range;
+}
+
 
 TSharedPtr<TMap<FString, TArray<TSharedPtr<Electra::IMediaStreamMetadata::IItem, ESPMode::ThreadSafe>>>, ESPMode::ThreadSafe> FElectraPlayer::GetMediaMetadata() const
 {
@@ -2775,7 +2830,7 @@ void FElectraPlayer::HandlePlayerMediaMetadataChanged(const TSharedPtrTS<Electra
 	if (InMetadata.IsValid())
 	{
 		TSharedPtr<TMap<FString, TArray<TSharedPtr<Electra::IMediaStreamMetadata::IItem, ESPMode::ThreadSafe>>>, ESPMode::ThreadSafe> NewMeta = InMetadata->GetMediaStreamMetadata();
-		CurrentStreamMetadata = MoveTemp(NewMeta);		
+		CurrentStreamMetadata = MoveTemp(NewMeta);
 		DeferredEvents.Enqueue(IElectraPlayerAdapterDelegate::EPlayerEvent::MetadataChanged);
 
 		TSharedPtr<IElectraPlayerAdapterDelegate, ESPMode::ThreadSafe> PinnedAdapterDelegate = AdapterDelegate.Pin();
@@ -3020,7 +3075,7 @@ void FElectraPlayer::LogStatistics()
 			*Statistics.LastState,
 			*SanitizeMessage(Statistics.LastError)
 		);
-		
+
 		if (Statistics.LastError.Len())
 		{
 			FString MessageHistory;
