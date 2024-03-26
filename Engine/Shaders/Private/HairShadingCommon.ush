@@ -22,6 +22,7 @@ struct FHairTransmittanceData
 	bool bUseLegacyAbsorption;
 	bool bUseSeparableR;
 	bool bUseBacklit;
+	bool bClampBSDFValue;
 
 	float  OpaqueVisibility;
 	float3 LocalScattering;
@@ -36,6 +37,7 @@ FHairTransmittanceData InitHairTransmittanceData(bool bMultipleScatterEnable = t
 	o.bUseLegacyAbsorption = true;
 	o.bUseSeparableR = true;
 	o.bUseBacklit = false;
+	o.bClampBSDFValue = true;
 
 	o.OpaqueVisibility = 1;
 	o.LocalScattering = 0;

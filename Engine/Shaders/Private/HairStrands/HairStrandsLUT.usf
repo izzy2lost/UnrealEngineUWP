@@ -112,6 +112,7 @@ void MainCS(uint3 DispatchThreadId : SV_DispatchThreadID)
 	const float OpaqueVisibility = 1;
 	FHairTransmittanceData TransmittanceData = InitHairStrandsTransmittanceData();
 	TransmittanceData.bUseSeparableR = true;
+	TransmittanceData.bClampBSDFValue = false;
 
 	const float MaxCosThetaRadius = cos(0.25f * PI / float(ThetaCount)); // [0, Pi/2] / ThetaCount which is divided by 2 for getting the actual radius
 	float3x3 ToViewBasis = GetTangentBasis(V);
