@@ -1350,7 +1350,7 @@ namespace Chaos
 			}
 			if ((ChaosSolverVelocityBoundsMultiplierMACD >= 0.0f) && (ChaosSolverMaxVelocityBoundsExpansionMACD >= 0.0f))
 			{
-				SetVelocityBoundsExpansionMACD(ChaosSolverVelocityBoundsMultiplierMACD, ChaosSolverMaxVelocityBoundsExpansion);
+				SetVelocityBoundsExpansionMACD(ChaosSolverVelocityBoundsMultiplierMACD, ChaosSolverMaxVelocityBoundsExpansionMACD);
 			}
 			if (ChaosSolverMaxPushOutVelocity >= 0.0f)
 			{
