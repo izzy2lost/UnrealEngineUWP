@@ -46,8 +46,11 @@ namespace UE::DMX::Private
 		/** Called on Add All Patches button clicked to generate Fader Group Controllers form a Library */
 		FReply OnAddAllPatchesClicked();
 
-		/** Gets the enable state for the Add Patches buttons when a DMX Library is selected */
+		/** Returns true if the 'Add Patch' buttons are enabled */
 		bool IsAddPatchesButtonEnabled() const;
+
+		/** Returns true if the 'Add Empty' button is enabled */
+		bool IsAddEmptyButtonEnabled() const;
 
 		/** Gets the visibility for the FixturePatchList toolbar  */
 		EVisibility GetFixturePatchListToolbarVisibility() const;
