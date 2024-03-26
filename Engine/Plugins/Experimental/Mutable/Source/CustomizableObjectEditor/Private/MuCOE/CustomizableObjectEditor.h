@@ -160,14 +160,7 @@ class FCustomizableObjectEditor :
 	public FEditorUndoClient
 {
 public:
-	/**
-	 * Create a new Customizable Object editor. Called immediately after construction.
-	 *
-	 * @param	Mode					Asset editing mode for this editor (standalone or world-centric)
-	 * @param	InitToolkitHost			When Mode is WorldCentric, this is the level editor instance to spawn this editor within
-	 * @param	ObjectToEdit			The object to edit
-	 */
-	static TSharedRef<FCustomizableObjectEditor> Create(const EToolkitMode::Type Mode, const TSharedPtr<IToolkitHost>& InitToolkitHost, UCustomizableObject* ObjectToEdit);
+	explicit FCustomizableObjectEditor(UCustomizableObject& ObjectToEdit);
 
 	virtual ~FCustomizableObjectEditor() override;
 
@@ -280,8 +273,6 @@ public:
 	void DebugObject() const;
 	
 private:
-	explicit FCustomizableObjectEditor(UCustomizableObject& ObjectToEdit);
-
 	TSharedRef<SDockTab> SpawnTab_Viewport(const FSpawnTabArgs& Args);
 	TSharedRef<SDockTab> SpawnTab_ObjectProperties(const FSpawnTabArgs& Args);
 	TSharedRef<SDockTab> SpawnTab_InstanceProperties(const FSpawnTabArgs& Args);

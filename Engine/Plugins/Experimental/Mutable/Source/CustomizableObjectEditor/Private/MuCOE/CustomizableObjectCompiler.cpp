@@ -19,6 +19,8 @@
 #include "MuCOE/GraphTraversal.h"
 #include "MuCOE/ICustomizableObjectPopulationModule.h"
 #include "MuCOE/Nodes/CustomizableObjectNodeObjectGroup.h"
+#include "MuCOE/Nodes/CustomizableObjectNodeTable.h"
+#include "MuCOE/CustomizableObjectEditorModule.h"
 #include "UObject/ICookInfo.h"
 #include "UObject/UObjectIterator.h"
 #include "Widgets/Notifications/SNotificationList.h"
@@ -1118,10 +1120,27 @@ void FCustomizableObjectCompiler::CompileInternal(UCustomizableObject* Object, c
 
 		if (!ParamNamesToSelectedOptions.Num())
 		{
-			const FName PackageName = Object->GetPackage()->GetFName();
-			GenerationContext.ParticipatingObjects.Remove(PackageName); // Remove self CO reference.
+			// Get possible objects used in the compilation that are not directly referenced.
+			// Due to this check being done also in PIE (to detect out of date compilations), it has to be performant. Therefore we are gathering a relaxed set.
+			// For example, a referencing Customizable Object may not be used if it is not assigned in any Group Node. In the relaxed set we include those regardless.
+			// Notice that, to avoid automatic compilations/warnings, the set of referencing objects set found here must coincide with the set found when loading the
+			// model (discard previous compilations) or when showing PIE warnings.
+			TArray<FName> ReferencingObjectNames;
+			GetReferencingPackages(*Object, ReferencingObjectNames);
+
+			for (const FName& ReferencingObjectName : ReferencingObjectNames)
+			{
+				const TSoftObjectPtr SoftObjectPtr(ReferencingObjectName.ToString());
+
+				if (const UObject* ReferencingObject = SoftObjectPtr.LoadSynchronous())
+				{
+					GenerationContext.AddParticipatingObject(*ReferencingObject);					
+				}
+			}
 			
+			// Copy final array of participating objects
 			Object->GetPrivate()->ParticipatingObjects = MoveTemp(GenerationContext.ParticipatingObjects);
+			Object->GetPrivate()->DirtyParticipatingObjects.Empty();
 		}
 
 		if (CompileTask.IsValid()) // Don't start compilation if there's a compilation running

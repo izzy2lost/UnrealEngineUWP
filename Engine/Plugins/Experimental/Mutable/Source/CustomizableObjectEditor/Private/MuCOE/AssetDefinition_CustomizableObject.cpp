@@ -14,7 +14,7 @@
 #include "MuCO/CustomizableObject.h"
 #include "MuCO/CustomizableObjectInstance.h"
 #include "MuCO/CustomizableObjectSystem.h"
-#include "MuCOE/CustomizableObjectEditorModule.h"
+#include "MuCO/ICustomizableObjectEditorModule.h"
 #include "Subsystems/AssetEditorSubsystem.h"
 #include "ToolMenus.h"
 
@@ -27,8 +27,8 @@ EAssetCommandResult UAssetDefinition_CustomizableObject::OpenAssets(const FAsset
 	
 	for (UCustomizableObject* Object : OpenArgs.LoadObjects<UCustomizableObject>())
 	{
-		ICustomizableObjectEditorModule* CustomizableObjectEditorModule = &FModuleManager::LoadModuleChecked<ICustomizableObjectEditorModule>( "CustomizableObjectEditor" );
-		CustomizableObjectEditorModule->CreateCustomizableObjectEditor(Mode, OpenArgs.ToolkitHost, Object);
+		const TSharedPtr<FCustomizableObjectEditor> Editor = MakeShared<FCustomizableObjectEditor>(*Object);
+		Editor->InitCustomizableObjectEditor(Mode, OpenArgs.ToolkitHost);
 	}
 
 	return EAssetCommandResult::Handled;

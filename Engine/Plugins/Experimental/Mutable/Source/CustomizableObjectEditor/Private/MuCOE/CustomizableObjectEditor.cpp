@@ -23,7 +23,7 @@
 #include "MuCOE/CustomizableObjectCustomSettings.h"
 #include "MuCOE/CustomizableObjectEditorActions.h"
 #include "MuCOE/CustomizableObjectEditorLogger.h"
-#include "MuCOE/CustomizableObjectEditorModule.h"
+#include "MuCO/ICustomizableObjectEditorModule.h"
 #include "MuCOE/CustomizableObjectEditorNodeContextCommands.h"
 #include "MuCOE/CustomizableObjectEditorStyle.h"
 #include "MuCOE/CustomizableObjectEditorViewportClient.h"
@@ -146,14 +146,6 @@ void FCustomizableObjectEditor::UnregisterTabSpawners(const TSharedRef<class FTa
 	InTabManager->UnregisterTabSpawner(AdvancedPreviewSettingsTabId);
 	InTabManager->UnregisterTabSpawner(TextureAnalyzerTabId);
 	InTabManager->UnregisterTabSpawner(PerformanceReportTabId);
-}
-
-
-TSharedRef<FCustomizableObjectEditor> FCustomizableObjectEditor::Create(const EToolkitMode::Type Mode, const TSharedPtr<IToolkitHost>& InitToolkitHost, UCustomizableObject* ObjectToEdit)
-{
-	TSharedRef<FCustomizableObjectEditor> Editor = MakeShareable(new FCustomizableObjectEditor(*ObjectToEdit));
-	Editor->InitCustomizableObjectEditor(Mode, InitToolkitHost);
-	return Editor;
 }
 
 

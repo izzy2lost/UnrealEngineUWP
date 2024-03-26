@@ -722,13 +722,6 @@ public:
 
 	void UnCacheTextureParameters(const TArray<FCustomizableObjectTextureParameterValue>& TextureParameters) const;
 
-#if WITH_EDITORONLY_DATA
-	/**	PIE CO on-screen warnings. */
-	static void ShowOnScreenCompileWarnings();
-
-	static void HideOnScreenCompileWarnings(const UCustomizableObjectPrivate& ObjectPrivate);
-#endif
-
 	/** Tick, in the Game Thread, anything that could potentially block the Mutable Thread. */
 	void TickMutableThreadDependencies();
 

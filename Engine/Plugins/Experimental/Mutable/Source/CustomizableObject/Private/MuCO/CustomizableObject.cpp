@@ -35,6 +35,8 @@
 #include "Serialization/MemoryWriter.h"
 #include "UObject/AssetRegistryTagsContext.h"
 #include "UObject/ObjectSaveContext.h"
+#include "MuCO/ICustomizableObjectEditorModule.h"
+#include "MuCO/CustomizableObjectSystemPrivate.h"
 
 #if WITH_EDITOR
 #include "Editor.h"
@@ -712,34 +714,15 @@ void UCustomizableObjectPrivate::LoadCompiledData(FArchive& MemoryReader, const 
 			if (!bIsCooking)
 			{
 				MemoryReader << LocalModelResource.EditorOnlyMorphTargetReconstructionData;
-			}
+				
+				DirtyParticipatingObjects.Empty();
 
-			if (!bIsCooking)
-			{
-				const FAssetRegistryModule& AssetRegistryModule = FModuleManager::LoadModuleChecked<FAssetRegistryModule>("AssetRegistry");
+				TArray<FName> OutOfDatePackages;
+				bInvalidateModel = IsCompilationOutOfDate(&OutOfDatePackages);
 
-				for (TTuple<FName, FGuid>& ParticipatingObject : ParticipatingObjects)
+				if (bInvalidateModel)
 				{
-					FAssetPackageData AssetPackageData;
-					const UE::AssetRegistry::EExists Result = AssetRegistryModule.Get().TryGetAssetPackageData(ParticipatingObject.Key, AssetPackageData);
-					if (Result == UE::AssetRegistry::EExists::Exists)
-					{
-						PRAGMA_DISABLE_DEPRECATION_WARNINGS
-							const FGuid PackageGuid = AssetPackageData.PackageGuid;
-						PRAGMA_ENABLE_DEPRECATION_WARNINGS
-
-							bInvalidateModel = PackageGuid != ParticipatingObject.Value;
-					}
-					else
-					{
-						bInvalidateModel = true;
-					}
-
-					if (bInvalidateModel)
-					{
-						UE_LOG(LogMutable, Display, TEXT("Invalidating compiled data due to changes in %s."), *ParticipatingObject.Key.ToString());
-						break;
-					}
+					UE_LOG(LogMutable, Display, TEXT("Invalidating compiled data due to changes in %s."), *OutOfDatePackages[0].ToString());
 				}
 			}
 		}
@@ -1210,8 +1193,6 @@ FString UCustomizableObject::GetStateParameterName(int32 StateIndex, int32 Param
 void UCustomizableObjectPrivate::PostCompile()
 {
 	PostCompileDelegate.Broadcast();
-
-	UCustomizableObjectSystemPrivate::HideOnScreenCompileWarnings(*this);	
 }
 #endif
 
@@ -1889,6 +1870,14 @@ void FSkeletonCache::Add(const TArray<uint16>& Key, USkeleton* Value)
 }
 
 
+UCustomizableObjectPrivate::UCustomizableObjectPrivate()
+{
+#if WITH_EDITOR
+	UPackage::PackageMarkedDirtyEvent.AddUObject(this, &UCustomizableObjectPrivate::OnParticipatingObjectDirty);
+#endif
+}
+
+
 void UCustomizableObjectPrivate::SetModel(const TSharedPtr<mu::Model, ESPMode::ThreadSafe>& Model, const FGuid Id)
 {
 	if (MutableModel == Model
@@ -1946,57 +1935,24 @@ FModelResources& UCustomizableObjectPrivate::GetModelResources(bool bIsCooking)
 #endif
 
 
-#if WITH_EDITORONLY_DATA
-bool UCustomizableObjectPrivate::IsCompilationOutOfDate() const
+#if WITH_EDITOR
+bool UCustomizableObjectPrivate::IsCompilationOutOfDate(TArray<FName>* OutOfDatePackages) const
 {
-	if (Status.Get() != FCustomizableObjectStatus::EState::ModelLoaded)
+	if (const ICustomizableObjectEditorModule* Module = ICustomizableObjectEditorModule::Get())
 	{
-		return false;
-	}
-	
-	if (GetPackage()->IsDirty())
-	{
-		return true;
-	}
-	
-	const FAssetRegistryModule& AssetRegistryModule = FModuleManager::LoadModuleChecked<FAssetRegistryModule>("AssetRegistry");
-
-	for (const TTuple<FName, FGuid>& ParticipatingObject : ParticipatingObjects)
-	{
-		TSoftObjectPtr Object(ParticipatingObject.Key.ToString());
-		if (Object) // If loaded
-		{
-			PRAGMA_DISABLE_DEPRECATION_WARNINGS
-			const FGuid PackageGuid = Object->GetPackage()->GetGuid();
-			PRAGMA_ENABLE_DEPRECATION_WARNINGS
-			
-			if (Object->GetPackage()->IsDirty() || PackageGuid != ParticipatingObject.Value)
-			{
-				return true;
-			}
-		}
-		else // Not loaded
-		{
-			FAssetPackageData AssetPackageData;
-			const UE::AssetRegistry::EExists Result = AssetRegistryModule.Get().TryGetAssetPackageData(ParticipatingObject.Key, AssetPackageData);
-				
-			if (Result != UE::AssetRegistry::EExists::Exists)
-			{
-				return true;
-			}
-
-			PRAGMA_DISABLE_DEPRECATION_WARNINGS
-			const FGuid PackageGuid = AssetPackageData.PackageGuid;
-			PRAGMA_ENABLE_DEPRECATION_WARNINGS
-			
-			if (PackageGuid != ParticipatingObject.Value)
-			{
-				return true;
-			}
-		}
+		return Module->IsCompilationOutOfDate(*GetPublic(), OutOfDatePackages);
 	}
 
-	return false;
+	return false;		
+}
+
+
+void UCustomizableObjectPrivate::OnParticipatingObjectDirty(UPackage* Package, bool)
+{
+	if (ParticipatingObjects.Contains(Package->GetFName()))
+	{
+		DirtyParticipatingObjects.AddUnique(Package->GetFName());		
+	}
 }
 #endif
 
