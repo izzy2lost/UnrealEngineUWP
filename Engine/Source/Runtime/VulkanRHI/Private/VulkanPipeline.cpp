@@ -1822,6 +1822,12 @@ void FVulkanPipelineStateCacheManager::CreateGfxEntry(const FGraphicsPipelineSta
 		NumRenderTargets = 1;
 	}
 
+	if (PSOInitializer.SubpassHint == ESubpassHint::DepthReadSubpass && PSOInitializer.SubpassIndex >= 1)
+	{
+		// Only SceneColor is used as a color attachment after the first subpass (not SceneDepthAux)
+		NumRenderTargets = 1;
+	}
+
 	if (PSOInitializer.SubpassHint == ESubpassHint::CustomResolveSubpass)
 	{
 		NumRenderTargets = 1; // This applies to base and depth passes as well. One render target for base and depth, another one for custom resolve.
