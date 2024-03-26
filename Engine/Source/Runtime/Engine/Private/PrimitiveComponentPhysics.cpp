@@ -174,6 +174,24 @@ void UPrimitiveComponent::AddImpulse(FVector Impulse, FName BoneName, bool bVelC
 		WarnInvalidPhysicsOperations(LOCTEXT("AddImpulse", "AddImpulse"), BI, BoneName);
 		BI->AddImpulse(Impulse, bVelChange);
 	}
+	else if (BoneName == NAME_None)
+	{
+		TArray<Chaos::FPhysicsObjectHandle> PhysicsObjects = GetAllPhysicsObjects();
+		FLockedWritePhysicsObjectExternalInterface Interface = FPhysicsObjectExternalInterface::LockWrite(PhysicsObjects);
+		
+		PhysicsObjects = PhysicsObjects.FilterByPredicate(
+			[&Interface](Chaos::FPhysicsObject* Object) {
+			return !Interface->AreAllDisabled({ &Object, 1 });
+		}
+		);
+		Interface->SetLinearImpulseVelocity(PhysicsObjects, Impulse, bVelChange);
+	}
+	else if (Chaos::FPhysicsObject* Object = GetPhysicsObjectByName(BoneName))
+	{
+		FLockedWritePhysicsObjectExternalInterface Interface = FPhysicsObjectExternalInterface::LockWrite({ &Object, 1 });
+		Interface->SetLinearImpulseVelocity({ &Object, 1 }, Impulse, bVelChange);
+	}
+
 }
 
 void UPrimitiveComponent::AddAngularImpulseInRadians(FVector Impulse, FName BoneName, bool bVelChange)

@@ -1016,6 +1016,51 @@ namespace Chaos
 	}
 
 	template<EThreadContext Id>
+	void FWritePhysicsObjectInterface<Id>::SetLinearImpulseVelocity(TArrayView<const FPhysicsObjectHandle> InObjects, const FVector& Impulse, bool bVelChange)
+	{
+		if (InObjects.IsEmpty())
+		{
+			return;
+		}
+
+		for (const FPhysicsObjectHandle Object : InObjects)
+		{
+			if (!Object)
+			{
+				continue;
+			}
+
+			if (TThreadParticle<Id>* Particle = Object->GetParticle<Id>())
+			{
+				if (Chaos::TThreadRigidParticle<Id>* Rigid = Particle->CastToRigidParticle())
+				{
+					if (bVelChange)
+					{
+						Rigid->SetLinearImpulseVelocity(Impulse * Rigid->M(), false);
+					}
+					else
+					{
+						Rigid->SetLinearImpulseVelocity(Impulse, false);
+					}
+				}
+			}
+		}
+
+		if constexpr (Id == EThreadContext::External)
+		{
+			if (Chaos::FPhysicsSolverBase* Solver = FPhysicsObjectInterface::GetSolver(InObjects[0]))
+			{
+				Solver->EnqueueCommandImmediate(
+					[AllObjects = TArray<FPhysicsObjectHandle>{InObjects}, Impulse, bVelChange]() {
+						Chaos::FWritePhysicsObjectInterface_Internal Interface = Chaos::FPhysicsObjectInternalInterface::GetWrite();
+						Interface.SetLinearImpulseVelocity(AllObjects, Impulse, bVelChange);
+					}
+				);
+			}
+		}
+	}
+
+	template<EThreadContext Id>
 	void FWritePhysicsObjectInterface<Id>::AddRadialImpulse(TArrayView<const FPhysicsObjectHandle> InObjects, FVector Origin, float Radius, float Strength, enum ERadialImpulseFalloff Falloff, bool bApplyStrain, bool bInvalidate, bool bVelChange)
 	{
 		// passing -1.0f as a strain will make use of the strain modifier instead ( legacy system )
