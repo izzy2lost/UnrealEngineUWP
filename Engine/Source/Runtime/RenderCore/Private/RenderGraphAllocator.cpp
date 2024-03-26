@@ -8,7 +8,7 @@
 thread_local int32 FRDGAllocator::NumAccessesTLS = 0;
 #endif
 
-thread_local FRDGAllocator* FRDGAllocator::AllocatorTLS = nullptr;
+uint32 FRDGAllocator::AllocatorTLSSlot = FPlatformTLS::AllocTlsSlot();
 
 FRDGAllocator::FRDGAllocator()
 #if !RDG_USE_MALLOC
@@ -50,8 +50,9 @@ FRDGAllocator::~FRDGAllocator()
 
 FRDGAllocator& FRDGAllocator::GetTLS()
 {
-	checkf(AllocatorTLS, TEXT("Attempted to access RDG allocator outside of FRDGAllocatorScope"));
-	return *AllocatorTLS;
+	void* Allocator = FPlatformTLS::GetTlsValue(AllocatorTLSSlot);
+	checkf(Allocator, TEXT("Attempted to access RDG allocator outside of FRDGAllocatorScope"));
+	return *(FRDGAllocator*)Allocator;
 }
 
 #if RDG_ALLOCATOR_DEBUG
@@ -96,14 +97,14 @@ void FRDGAllocator::ReleaseAll()
 }
 
 FRDGAllocatorScope::FRDGAllocatorScope(FRDGAllocator& Allocator)
-	: AllocatorToRestore(FRDGAllocator::AllocatorTLS)
+	: AllocatorToRestore(FPlatformTLS::GetTlsValue(FRDGAllocator::AllocatorTLSSlot))
 {
-	FRDGAllocator::AllocatorTLS = &Allocator;
+	FPlatformTLS::SetTlsValue(FRDGAllocator::AllocatorTLSSlot, &Allocator);
 }
 
 FRDGAllocatorScope::~FRDGAllocatorScope()
 {
-	FRDGAllocator::AllocatorTLS = AllocatorToRestore;
+	FPlatformTLS::SetTlsValue(FRDGAllocator::AllocatorTLSSlot, AllocatorToRestore);
 }
 
 FORCENOINLINE void UE::RenderCore::Private::OnInvalidRDGAllocatorNum(int32 NewNum, SIZE_T NumBytesPerElement)
