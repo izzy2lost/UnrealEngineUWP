@@ -21,12 +21,13 @@ struct FDisplayClusterViewport_OverscanRuntimeSettings
 	/** Update projection angles by overscan
 	* 
 	* @param InOverscanRuntimeSettings - the overscan runtime settings.
+	* @param InRenderTargetSize         - RenderTarget texture size
 	* @param InOutLeft                 - the value of the left projection plane that you want to change
 	* @param InOutRight                - the value of the right projection plane that you want to change
 	* @param InOutTop                  - the value of the top projection plane that you want to change
 	* @parma InOutBottom               - the value of the bottom projection plane that you want to change
 	*/
-	static bool UpdateProjectionAngles(const FDisplayClusterViewport_OverscanRuntimeSettings& InOverscanRuntimeSettings, double& InOutLeft, double& InOutRight, double& InOutTop, double& InOutBottom);
+	static bool UpdateProjectionAngles(const FDisplayClusterViewport_OverscanRuntimeSettings& InOverscanRuntimeSettings, const FIntPoint& InRenderTargetSize, double& InOutLeft, double& InOutRight, double& InOutTop, double& InOutBottom);
 
 	/**
 	* Overscan values in percent

@@ -38,6 +38,7 @@ namespace UE::DisplayCluster::Viewport::OverscanHelpers
 ///////////////////////////////////////////////////////////////////////////////////////////
 bool FDisplayClusterViewport_OverscanRuntimeSettings::UpdateProjectionAngles(
 	const FDisplayClusterViewport_OverscanRuntimeSettings& InOverscanRuntimeSettings,
+	const FIntPoint& InRenderTargetSize,
 	double& InOutLeft,
 	double& InOutRight,
 	double& InOutTop,
@@ -48,10 +49,13 @@ bool FDisplayClusterViewport_OverscanRuntimeSettings::UpdateProjectionAngles(
 		double Horizontal = InOutRight - InOutLeft;
 		double Vertical = InOutTop - InOutBottom;
 
-		InOutLeft   -= Horizontal * InOverscanRuntimeSettings.OverscanPercent.Left;
-		InOutRight  += Horizontal * InOverscanRuntimeSettings.OverscanPercent.Right;
-		InOutBottom -= Vertical * InOverscanRuntimeSettings.OverscanPercent.Bottom;
-		InOutTop    += Vertical * InOverscanRuntimeSettings.OverscanPercent.Top;
+		// Use the inner region of the texture as the base of the frustum.
+		const FIntPoint InnerSize = InRenderTargetSize - InOverscanRuntimeSettings.OverscanPixels.Size();
+
+		InOutLeft   -= Horizontal * InOverscanRuntimeSettings.OverscanPixels.Left / InnerSize.X;
+		InOutRight  += Horizontal * InOverscanRuntimeSettings.OverscanPixels.Right / InnerSize.X;
+		InOutBottom -= Vertical * InOverscanRuntimeSettings.OverscanPixels.Bottom / InnerSize.Y;
+		InOutTop    += Vertical * InOverscanRuntimeSettings.OverscanPixels.Top / InnerSize.Y;
 
 		return true;
 	}

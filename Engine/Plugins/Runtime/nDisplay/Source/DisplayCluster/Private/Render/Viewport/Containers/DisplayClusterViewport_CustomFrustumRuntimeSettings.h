@@ -21,12 +21,13 @@ struct FDisplayClusterViewport_CustomFrustumRuntimeSettings
 	/** Update projection angles by custom frustum
 	*
 	* @param InOverscanRuntimeSettings - the CustomFrustum runtime settings.
+	* @param InRenderTargetSize        - RTT size that used for custom frustum
 	* @param InOutLeft                 - the value of the left projection plane that you want to change
 	* @param InOutRight                - the value of the right projection plane that you want to change
 	* @param InOutTop                  - the value of the top projection plane that you want to change
 	* @parma InOutBottom               - the value of the bottom projection plane that you want to change
 	*/
-	static bool UpdateProjectionAngles(const FDisplayClusterViewport_CustomFrustumRuntimeSettings& InRuntimeSettings, double& InOutLeft, double& InOutRight, double& InOutTop, double& InOutBottom);
+	static bool UpdateProjectionAngles(const FDisplayClusterViewport_CustomFrustumRuntimeSettings& InRuntimeSettings, const FIntPoint& InRenderTargetSize, double& InOutLeft, double& InOutRight, double& InOutTop, double& InOutBottom);
 
 	/**
 	* Values in percent
