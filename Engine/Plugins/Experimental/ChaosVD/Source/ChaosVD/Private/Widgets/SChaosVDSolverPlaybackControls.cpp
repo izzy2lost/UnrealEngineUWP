@@ -28,86 +28,81 @@ void SChaosVDSolverPlaybackControls::Construct(const FArguments& InArgs, int32 I
 
 	ChildSlot
 	[
-		SNew(SVerticalBox)
-		// Playback controls
-		// TODO: Now that the tool is In-Editor, see if we can/is worth use the Sequencer widgets
-		// instead of these custom ones
-		+SVerticalBox::Slot()
+		SNew(SHorizontalBox)
+		+SHorizontalBox::Slot()
+		.AutoWidth()
+		.FillWidth(0.8f)
 		[
-			SNew(SHorizontalBox)
-			+SHorizontalBox::Slot()
-			.FillWidth(0.7f)
+			SNew(SVerticalBox)
+			+SVerticalBox::Slot()
+			.AutoHeight()
+			.Padding(0.0f, 0.0f, 0.0f, 2.0f)
 			[
-				SNew(SVerticalBox)
-				+SVerticalBox::Slot()
-				.AutoHeight()
-				.Padding(0.0f, 0.0f, 0.0f, 2.0f)
+				SNew(STextBlock)
+				.Justification(ETextJustify::Center)
+				.Text(LOCTEXT("PlaybackViewportWidgetPhysicsFramesLabel", "Solver Frames" ))
+			]
+			+SVerticalBox::Slot()
+			[
+				SNew(SHorizontalBox)
+				+SHorizontalBox::Slot()
+				.FillWidth(0.9f)
 				[
-					SNew(STextBlock)
-					.Justification(ETextJustify::Center)
-					.Text(LOCTEXT("PlaybackViewportWidgetPhysicsFramesLabel", "Solver Frames" ))
+					SAssignNew(FramesTimelineWidget, SChaosVDTimelineWidget)
+					.ButtonVisibilityFlags(static_cast<uint16>(EChaosVDTimelineElementIDFlags::AllPlayback))
+					.OnFrameChanged_Raw(this, &SChaosVDSolverPlaybackControls::OnFrameSelectionUpdated)
+					.OnButtonClicked_Raw(this, &SChaosVDSolverPlaybackControls::HandlePlaybackButtonClicked)
+					.MaxFrames(0)
 				]
-				+SVerticalBox::Slot()
+				+SHorizontalBox::Slot()
+				.Padding(6.0f,0.0f)
+				.AutoWidth()
 				[
-					SNew(SHorizontalBox)
-					+SHorizontalBox::Slot()
-					.FillWidth(0.95f)
+					SNew(SBorder)
+					.BorderImage_Raw(this, &SChaosVDSolverPlaybackControls::GetFrameTypeBadgeBrush)
+					.Padding(2.0f)
+					.Content()
 					[
-						SAssignNew(FramesTimelineWidget, SChaosVDTimelineWidget)
-						.ButtonVisibilityFlags(static_cast<uint16>(EChaosVDTimelineElementIDFlags::AllPlayback))
-						.OnFrameChanged_Raw(this, &SChaosVDSolverPlaybackControls::OnFrameSelectionUpdated)
-						.OnButtonClicked_Raw(this, &SChaosVDSolverPlaybackControls::HandlePlaybackButtonClicked)
-						.MaxFrames(0)
-					]
-					+SHorizontalBox::Slot()
-					.FillWidth(0.05f)
-					[
-						SNew(SBorder)
-						.BorderImage_Raw(this, &SChaosVDSolverPlaybackControls::GetFrameTypeBadgeBrush)
-						.Padding(1.5f)
-						.Content()
+						SNew(SBox)
+						.Padding(4.0f,0.0f)
+						.VAlign(VAlign_Center)
 						[
-							SNew(SBox)
-							.VAlign(VAlign_Center)
-							[
-								SNew(STextBlock)
-								.Justification(ETextJustify::Center)
-								.Text_Lambda([this]()->FText{ return bIsReSimFrame ? LOCTEXT("PlaybackViewportWidgetPhysicsFramesResimLabel", "ReSim" ) : LOCTEXT("PlaybackViewportWidgetPhysicsFramesNormalLabel", "Normal" );})
-							]
+							SNew(STextBlock)
+							.Justification(ETextJustify::Center)
+							.Text_Lambda([this]()->FText{ return bIsReSimFrame ? LOCTEXT("PlaybackViewportWidgetPhysicsFramesResimLabel", "ReSim" ) : LOCTEXT("PlaybackViewportWidgetPhysicsFramesNormalLabel", "Normal" );})
 						]
 					]
 				]
 			]
-			+SHorizontalBox::Slot()
-			.FillWidth(0.3f)
+		]
+		+SHorizontalBox::Slot()
+		.FillWidth(0.2f)
+		[
+			SNew(SVerticalBox)
+			+SVerticalBox::Slot()
+			.AutoHeight()
+			.Padding(0.0f, 0.0f, 0.0f, 2.0f)
 			[
-				SNew(SVerticalBox)
-				+SVerticalBox::Slot()
-				.AutoHeight()
-				.Padding(0.0f, 0.0f, 0.0f, 2.0f)
+				SNew(STextBlock)
+				.Justification(ETextJustify::Center)
+				.Text_Lambda([this]()->FText{ return FText::Format(LOCTEXT("PlaybackViewportWidgetStepsLabel","Solver Stage: {0}"), FText::AsCultureInvariant(CurrentStepName));})
+			]
+			+SVerticalBox::Slot()
+			[
+				SNew(SHorizontalBox)
+				+SHorizontalBox::Slot()
+				.FillWidth(0.9f)
 				[
-					SNew(STextBlock)
-					.Justification(ETextJustify::Center)
-					.Text_Lambda([this]()->FText{ return FText::Format(LOCTEXT("PlaybackViewportWidgetStepsLabel","Solver Stage: {0}"), FText::AsCultureInvariant(CurrentStepName));})
+					SAssignNew(StepsTimelineWidget, SChaosVDTimelineWidget)
+					.ButtonVisibilityFlags(static_cast<uint16>(EChaosVDTimelineElementIDFlags::AllManualStepping))
+					.OnFrameLockStateChanged_Raw(this, &SChaosVDSolverPlaybackControls::HandleLockStateChanged)
+					.OnFrameChanged_Raw(this, &SChaosVDSolverPlaybackControls::OnStepSelectionUpdated)
+					.MaxFrames(0)
 				]
-				+SVerticalBox::Slot()
+				+SHorizontalBox::Slot()
+				.AutoWidth()
 				[
-					SNew(SHorizontalBox)
-					+SHorizontalBox::Slot()
-					.FillWidth(0.6f)
-					[
-						
-						SAssignNew(StepsTimelineWidget, SChaosVDTimelineWidget)
-						.ButtonVisibilityFlags(static_cast<uint16>(EChaosVDTimelineElementIDFlags::AllManualStepping))
-						.OnFrameLockStateChanged_Raw(this, &SChaosVDSolverPlaybackControls::HandleLockStateChanged)
-						.OnFrameChanged_Raw(this, &SChaosVDSolverPlaybackControls::OnStepSelectionUpdated)
-						.MaxFrames(0)
-					]
-					+SHorizontalBox::Slot()
-					.AutoWidth()
-					[
-						CreateVisibilityWidget().ToSharedRef()
-					]
+					CreateVisibilityWidget().ToSharedRef()
 				]
 			]
 		]
@@ -285,13 +280,13 @@ const FSlateBrush* SChaosVDSolverPlaybackControls::GetFrameTypeBadgeBrush() cons
 TSharedPtr<SWidget> SChaosVDSolverPlaybackControls::CreateVisibilityWidget()
 {
 	return SNew(SButton)
-	.OnClicked_Raw(this, &SChaosVDSolverPlaybackControls::ToggleSolverVisibility)
-	[
-		SNew( SImage )
-		.Image_Raw(this,&SChaosVDSolverPlaybackControls::GetBrushForCurrentVisibility)
-		.DesiredSizeOverride(FVector2D(16.0f,16.0f))
-		.ColorAndOpacity(FSlateColor::UseForeground())
-	];	
+			.OnClicked_Raw(this, &SChaosVDSolverPlaybackControls::ToggleSolverVisibility)
+			[
+				SNew(SImage)
+				.Image_Raw(this,&SChaosVDSolverPlaybackControls::GetBrushForCurrentVisibility)
+				.DesiredSizeOverride(FVector2D(16.0f,16.0f))
+				.ColorAndOpacity(FSlateColor::UseForeground())
+			];	
 }
 
 void SChaosVDSolverPlaybackControls::OnFrameSelectionUpdated(int32 NewFrameIndex)

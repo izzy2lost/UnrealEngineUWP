@@ -13,10 +13,10 @@ void SChaosVDSolverTracks::Construct(const FArguments& InArgs, TWeakPtr<FChaosVD
 	ChildSlot
 	[
 		SAssignNew(SolverTracksListWidget, SListView<TSharedPtr<FChaosVDTrackInfo>>)
-			.ListItemsSource(&CachedTrackInfoArray)
-			.SelectionMode( ESelectionMode::None )
-			.ListViewStyle(&FAppStyle::Get().GetWidgetStyle<FTableViewStyle>("SimpleListView"))
-			.OnGenerateRow(this, &SChaosVDSolverTracks::MakeSolverTrackControlsFromTrackInfo)
+		.ListItemsSource(&CachedTrackInfoArray)
+		.SelectionMode( ESelectionMode::None )
+		.ListViewStyle(&FAppStyle::Get().GetWidgetStyle<FTableViewStyle>("SimpleListView"))
+		.OnGenerateRow(this, &SChaosVDSolverTracks::MakeSolverTrackControlsFromTrackInfo)
 	];
 
 	ensure(InPlaybackController.IsValid());
@@ -99,7 +99,7 @@ TSharedRef<ITableRow> SChaosVDSolverTracks::MakeSolverTrackControlsFromTrackInfo
 	SAssignNew(PlaybackControlsContainer, SVerticalBox)
 			+SVerticalBox::Slot()
 			.AutoHeight()
-			.Padding(20.0f, 1.0f, 20.0f, 1.0f)
+			.Padding(10.0f, 2.0f, 10.0f, 0.0f)
 			[
 				SNew(SExpandableArea)
 					.InitiallyCollapsed(false)

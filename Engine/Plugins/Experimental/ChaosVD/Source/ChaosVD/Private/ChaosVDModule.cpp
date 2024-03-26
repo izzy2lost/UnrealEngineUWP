@@ -43,8 +43,7 @@ void FChaosVDModule::StartupModule()
 	FGlobalTabmanager::Get()->RegisterNomadTabSpawner(FChaosVDTabID::ChaosVisualDebuggerTab, FOnSpawnTab::CreateRaw(this, &FChaosVDModule::SpawnMainTab))
 								.SetDisplayName(LOCTEXT("VisualDebuggerTabTitle", "Chaos Visual Debugger"))
 								.SetTooltipText(LOCTEXT("VisualDebuggerTabDesc", "Opens the Chaos Visual Debugger window"))
-								//TODO: Hook up the final icon
-								.SetIcon(FSlateIcon(FAppStyle::GetAppStyleSetName(), "CollisionAnalyzer.TabIcon"))
+								.SetIcon(FSlateIcon(FChaosVDStyle::GetStyleSetName(), "ChaosVisualDebugger"))
 								.SetGroup(WorkspaceMenu::GetMenuStructure().GetDeveloperToolsDebugCategory());
 
 	ChaosVDTraceManager = MakeShared<FChaosVDTraceManager>();
@@ -105,7 +104,7 @@ TSharedRef<SDockTab> FChaosVDModule::SpawnMainTab(const FSpawnTabArgs& Args)
 		SNew(SDockTab)
 		.TabRole(ETabRole::MajorTab)
 		.Label(LOCTEXT("MainTabLabel", "Chaos Visual Debugger"))
-		.ToolTipText(LOCTEXT("MainTabToolTip", "The Chaos Visual debugger is under development"));
+		.ToolTipText(LOCTEXT("MainTabToolTip", "Chaos Visual Debugger is an experimental tool and it can be unstable"));
 
 	// Initialize the Chaos VD Engine instance this tab will represent
 	// For now its lifetime will be controlled by this tab
@@ -117,8 +116,6 @@ TSharedRef<SDockTab> FChaosVDModule::SpawnMainTab(const FSpawnTabArgs& Args)
 		SNew(SChaosVDMainTab, ChaosVDEngineInstance)
 			.OwnerTab(MainTabInstance.ToSharedPtr())
 	);
-
-	MainTabInstance->SetTabIcon(FChaosVDStyle::Get().GetBrush("TabIconPlaybackViewport"));
 
 	const FGuid InstanceGuid = ChaosVDEngineInstance->GetInstanceGuid();
 	RegisterChaosVDEngineInstance(InstanceGuid, ChaosVDEngineInstance);

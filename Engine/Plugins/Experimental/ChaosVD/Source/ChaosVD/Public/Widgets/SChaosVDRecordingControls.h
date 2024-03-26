@@ -6,6 +6,8 @@
 #include "Templates/SharedPointer.h"
 #include "Widgets/SCompoundWidget.h"
 
+#include "SChaosVDRecordingControls.generated.h"
+
 namespace Chaos::VisualDebugger
 {
 	struct FChaosVDOptionalDataChannel;
@@ -15,6 +17,16 @@ class SButton;
 class SChaosVDMainTab;
 class FReply;
 struct FSlateBrush;
+
+UCLASS()
+class CHAOSVD_API UChaosVDRecordingToolbarMenuContext : public UObject
+{
+	GENERATED_BODY()
+
+public:
+
+	TWeakPtr<class SChaosVDRecordingControls> RecordingControlsWidget;
+};
 
 UENUM()
 enum class EChaosVDRecordingMode
@@ -37,8 +49,11 @@ public:
 
 protected:
 
-	TSharedRef<SButton> GenerateToggleRecordingStateButton(EChaosVDRecordingMode RecordingMode, const FText& StartRecordingTooltip);
+	TSharedRef<SWidget> GenerateToggleRecordingStateButton(EChaosVDRecordingMode RecordingMode, const FText& StartRecordingTooltip);
 	TSharedRef<SWidget> GenerateDataChannelsMenu();
+	TSharedRef<SWidget> GenerateDataChannelsButton();
+	TSharedRef<SWidget> GenerateRecordingTimeTextBlock();
+	TSharedRef<SWidget> GenerateToolbarWidget();
 
 #if WITH_CHAOS_VISUAL_DEBUGGER
 	void ToggleChannelEnabledState(TWeakPtr<FCVDDataChannel> Channel);
@@ -59,6 +74,8 @@ protected:
 	bool IsRecordingToggleButtonEnabled(EChaosVDRecordingMode RecordingMode) const;
 	EVisibility IsRecordingToggleButtonVisible(EChaosVDRecordingMode RecordingMode) const;
 
+	void RegisterMenus();
+
 	bool IsRecording() const;
 
 	FText GetRecordingTimeText() const;
@@ -77,4 +94,10 @@ protected:
 	float IntervalBetweenAutoplayConnectionAttemptsSeconds = 0.1f;
 	bool bAutoConnectionAttemptInProgress = false;
 	int32 CurrentConnectionAttempts = 0;
+
+	bool bRecordingButtonHovered = false;
+
+	FCurveSequence RecordingAnimation;
+
+	static inline const FName RecordingControlsToolbarName = FName("ChaosVD.MainToolBar.RecordingControls");
 };

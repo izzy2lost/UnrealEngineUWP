@@ -2,10 +2,13 @@
 
 #pragma once
 
+#include "Framework/SlateDelegates.h"
 #include "Framework/Docking/TabManager.h"
 #include "Templates/SharedPointer.h"
 #include "Toolkits/IToolkitHost.h"
 #include "Widgets/SCompoundWidget.h"
+
+#include "SChaosVDMainTab.generated.h"
 
 class FComponentVisualizer;
 class FChaosVDEditorModeTools;
@@ -17,7 +20,18 @@ class FChaosVDOutputLogTab;
 class FChaosVDPlaybackViewportTab;
 class FChaosVDObjectDetailsTab;
 class FChaosVDWorldOutlinerTab;
+class SButton;
 class SDockTab;
+
+UCLASS()
+class CHAOSVD_API UChaosVDMainToolbarMenuContext : public UObject
+{
+	GENERATED_BODY()
+
+public:
+
+	TWeakPtr<class SChaosVDMainTab> MainTab;
+};
 
 /** The main widget containing the Chaos Visual Debugger interface */
 class SChaosVDMainTab : public SCompoundWidget, public IToolkitHost
@@ -58,6 +72,8 @@ public:
 
 private:
 
+	void RegisterMainTabMenu();
+
 	template<typename TabType>
 	void RegisterTabSpawner(FName TabID);
 
@@ -70,7 +86,11 @@ private:
 
 	void GenerateMainWindowMenu();
 
-	void BrowseAndOpenChaosVDRecording();
+	FReply BrowseAndOpenChaosVDRecording();
+
+	TSharedRef<SButton> CreateSimpleButton(TFunction<FText()>&& GetTextDelegate, TFunction<FText()>&& ToolTipTextDelegate, const FSlateBrush* ButtonIcon, const UChaosVDMainToolbarMenuContext* MenuContext, const FOnClicked& InButtonClickedCallback);
+
+	TSharedRef<SWidget> GenerateMainToolbarWidget();
 
 	void BrowseChaosVDRecordingFromFolder(FStringView FolderPath = TEXT(""));
 
@@ -95,6 +115,9 @@ private:
 
 	FReply HandleSessionConnectionClicked();
 	FText GetConnectButtonText() const;
+	FText GetConnectButtonTooltipText() const;
+
+	static inline const FName MainToolBarName = FName("ChaosVD.MainToolBar");
 };
 
 

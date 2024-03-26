@@ -38,7 +38,7 @@ void SChaosVDViewportToolbar::ExtendOptionsMenu(FMenuBuilder& OptionsMenuBuilder
 													.Padding(5.0f)
 													[
 														SNew(STextBlock)
-														.Text(LOCTEXT("Default Options Message", "Nothing so see yet. An options menu will be implemented soon"))
+														.Text(LOCTEXT("Default Options Message", "Nothing to see yet. An options menu will be implemented soon"))
 													];
 
 	// Intentionally leaving the label empty as we only want to show the temp message defined above

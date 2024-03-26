@@ -29,10 +29,12 @@ void SChaosVDTimelineWidget::Construct(const FArguments& InArgs)
 			+SHorizontalBox::Slot()
 			.HAlign(HAlign_Center)
 			.VAlign(VAlign_Center)
-			.FillWidth(0.25f)
+			.AutoWidth()
+			.Padding(4.0f,0.0f)
 			[
 				SNew(SHorizontalBox)
 				+SHorizontalBox::Slot()
+				.AutoWidth()
 				[
 					SNew(SButton)
 					.Visibility_Raw(this, &SChaosVDTimelineWidget::GetElementVisibility, EChaosVDTimelineElementIDFlags::Play)
@@ -49,6 +51,7 @@ void SChaosVDTimelineWidget::Construct(const FArguments& InArgs)
 					]
 				]
 				+SHorizontalBox::Slot()
+				.AutoWidth()
 				[
 					SNew(SButton)
 					.Visibility_Raw(this, &SChaosVDTimelineWidget::GetElementVisibility, EChaosVDTimelineElementIDFlags::Stop)
@@ -65,6 +68,7 @@ void SChaosVDTimelineWidget::Construct(const FArguments& InArgs)
 					]
 				]
 				+SHorizontalBox::Slot()
+				.AutoWidth()
 				[
 					SNew(SButton)
 					.Visibility_Raw(this, &SChaosVDTimelineWidget::GetElementVisibility, EChaosVDTimelineElementIDFlags::Prev)
@@ -81,6 +85,7 @@ void SChaosVDTimelineWidget::Construct(const FArguments& InArgs)
 					]
 				]
 				+SHorizontalBox::Slot()
+				.AutoWidth()
 				[
 					SNew(SButton)
 					.Visibility_Raw(this, &SChaosVDTimelineWidget::GetElementVisibility, EChaosVDTimelineElementIDFlags::Next)
@@ -97,6 +102,7 @@ void SChaosVDTimelineWidget::Construct(const FArguments& InArgs)
 					]
 				]
 				+SHorizontalBox::Slot()
+				.AutoWidth()
 				[
 					SNew(SButton)
 					.Visibility_Raw(this, &SChaosVDTimelineWidget::GetElementVisibility, EChaosVDTimelineElementIDFlags::Lock)
@@ -115,7 +121,8 @@ void SChaosVDTimelineWidget::Construct(const FArguments& InArgs)
 			]
 			+SHorizontalBox::Slot()
 			.VAlign(VAlign_Center)
-			.FillWidth(0.65f)
+			.Padding(4.0f,0.0f)
+			.FillWidth(1.0f)
 			[
 			  SAssignNew(TimelineSlider, SSlider)
 			  .Visibility_Raw(this, &SChaosVDTimelineWidget::GetElementVisibility, EChaosVDTimelineElementIDFlags::Timeline)
@@ -129,7 +136,8 @@ void SChaosVDTimelineWidget::Construct(const FArguments& InArgs)
 			  .MinValue(0)
 			]
 			+SHorizontalBox::Slot()
-			.FillWidth(0.1f)
+			.Padding(4.0f,0.0f)
+			.AutoWidth()
 			.HAlign(HAlign_Center)
 			.VAlign(VAlign_Center)
 			[

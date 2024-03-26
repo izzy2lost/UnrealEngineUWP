@@ -15,7 +15,7 @@ TSharedRef<SDockTab> FChaosVDSolversTracksTab::HandleTabSpawnRequest(const FSpaw
 	TSharedRef<SDockTab> SolverTracksTab =
 	SNew(SDockTab)
 	.TabRole(ETabRole::PanelTab)
-	.Label(LOCTEXT("SolverTracksTabLabel", "Available Solvers"))
+	.Label(LOCTEXT("SolverTracksTabLabel", "Solver Tracks"))
 	.ToolTipText(LOCTEXT("SolverTracksTabToolTip", "Playback controls for the available solvers on the current Frame"));
 
 	if (const TSharedPtr<SChaosVDMainTab> MainTabPtr = OwningTabWidget.Pin())
@@ -30,7 +30,7 @@ TSharedRef<SDockTab> FChaosVDSolversTracksTab::HandleTabSpawnRequest(const FSpaw
 		SolverTracksTab->SetContent(GenerateErrorWidget());
 	}
 
-	SolverTracksTab->SetTabIcon(FChaosVDStyle::Get().GetBrush("TabIconPlaybackViewport"));
+	SolverTracksTab->SetTabIcon(FChaosVDStyle::Get().GetBrush("TabIconSolverTracks"));
 
 	HandleTabSpawned(SolverTracksTab);
 

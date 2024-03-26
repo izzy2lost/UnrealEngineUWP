@@ -18,7 +18,7 @@ TSharedRef<SDockTab> FChaosVDPlaybackViewportTab::HandleTabSpawnRequest(const FS
 		SNew(SDockTab)
 		.TabRole(ETabRole::PanelTab)
 		.Label(LOCTEXT("ViewportTabLabel", "Playback Viewport"))
-		.ToolTipText(LOCTEXT("ViewportTabToolTip", "The Chaos Visual debugger Viewport is under development"));
+		.ToolTipText(LOCTEXT("ViewportTabToolTip", "Contains the viewport where the recorded physics scene will be rendered"));
 	
 	if (TSharedPtr<SChaosVDMainTab> MainTabPtr = OwningTabWidget.Pin())
 	{
@@ -32,7 +32,7 @@ TSharedRef<SDockTab> FChaosVDPlaybackViewportTab::HandleTabSpawnRequest(const FS
 		ViewportTab->SetContent(GenerateErrorWidget());
 	}
 	
-	ViewportTab->SetTabIcon(FChaosVDStyle::Get().GetBrush("TabIconPlaybackViewport"));
+	ViewportTab->SetTabIcon(FChaosVDStyle::Get().GetBrush("ChaosVisualDebugger"));
 	
 	HandleTabSpawned(ViewportTab);
 
