@@ -274,6 +274,7 @@ bool UControlRigBlueprint::TurnIntoControlRigModule(bool InAutoConvertHierarchy,
 
 	if(Hierarchy)
 	{
+		Hierarchy->Modify();
 		URigHierarchyController* Controller = Hierarchy->GetController(true);
 
 		// create a copy of this hierarchy
@@ -342,7 +343,7 @@ bool UControlRigBlueprint::TurnIntoStandaloneRig(FString* OutErrorMessage)
 		return false;
 	}
 
-	FScopedTransaction Transaction(LOCTEXT("TurnIntoControlRigModule", "Turn Rig into Module"));
+	FScopedTransaction Transaction(LOCTEXT("TurnIntoStandaloneRig", "Turn Module into Rig"));
 
 	Modify();
 	RigModuleSettings = FRigModuleSettings();

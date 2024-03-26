@@ -784,7 +784,10 @@ void FRigBaseElementDetails::CustomizeDetails(IDetailLayoutBuilder& DetailBuilde
 
 		FPerElementInfo Info;
 		Info.WrapperObject = WrapperObject;
-		Info.Element = Cast<URigHierarchy>(WrapperObject->GetSubject())->GetHandle(Key);
+		if (const URigHierarchy* Hierarchy = Cast<URigHierarchy>(WrapperObject->GetSubject()))
+		{
+			Info.Element = Hierarchy->GetHandle(Key);
+		}
 
 		if(!Info.Element.IsValid())
 		{
