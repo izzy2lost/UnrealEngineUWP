@@ -155,15 +155,15 @@ void UObjectReplicationBridge::PrintDynamicFilterClassConfig() const
 	UE_LOG(LogIrisFilterConfig, Display, TEXT(""));
 	UE_LOG(LogIrisFilterConfig, Display, TEXT("Default Dynamic Filter Class Config:"));
 	{
-		TMap<FName, UE::Net::FNetObjectFilterHandle> SortedClassConfig = ClassesWithDynamicFilter;
+		TMap<FName, FClassFilterInfo> SortedClassConfig = ClassesWithDynamicFilter;
 
 		SortedClassConfig.KeyStableSort([](FName lhs, FName rhs){return lhs.Compare(rhs) < 0;});
 		for (auto MapIt = SortedClassConfig.CreateConstIterator(); MapIt; ++MapIt)
 		{
 			const FName ClassName = MapIt.Key();
-			const UE::Net::FNetObjectFilterHandle FilterHandle = MapIt.Value();
+			const FClassFilterInfo FilterInfo = MapIt.Value();
 
-			UE_LOG(LogIrisFilterConfig, Display, TEXT("\t%s -> %s"), *ClassName.ToString(), *RepSystem->GetFilterName(FilterHandle).ToString());
+			UE_LOG(LogIrisFilterConfig, Display, TEXT("\t%s -> %s"), *ClassName.ToString(), *RepSystem->GetFilterName(FilterInfo.FilterHandle).ToString());
 		}
 	}
 }
