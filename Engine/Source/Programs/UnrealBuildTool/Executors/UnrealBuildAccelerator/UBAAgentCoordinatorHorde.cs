@@ -26,172 +26,6 @@ using UnrealBuildBase;
 
 namespace UnrealBuildTool
 {
-	/// <summary>
-	/// Configuration for Unreal Build Accelerator Horde session
-	/// </summary>
-	[System.Diagnostics.CodeAnalysis.SuppressMessage("Style", "IDE1006:Naming Styles", Justification = "UnrealBuildTool naming style")]
-	class UnrealBuildAcceleratorHordeConfig
-	{
-		/// <summary>
-		/// Uri of the Horde server
-		/// </summary>
-		[XmlConfigFile(Category = "Horde", Name = "Server")]
-		[CommandLine("-BoxHorde=")]
-		[CommandLine("-UBAHorde=")]
-		public string? HordeServer { get; set; }
-
-		/// <summary>
-		/// Uri of the Horde server
-		/// </summary>
-		[XmlConfigFile(Category = "Horde", Name = "Token")]
-		[CommandLine("-BoxHordeToken=")]
-		[CommandLine("-UBAHordeToken=")]
-		public string? HordeToken { get; set; }
-
-		/// <summary>
-		/// OIDC id for the login to use
-		/// </summary>
-		[XmlConfigFile(Category = "Horde", Name = "OidcProvider")]
-		[CommandLine("-BoxHordeOidc=")]
-		[CommandLine("-UBAHordeOidc=")]
-		public string? HordeOidcProvider { get; set; }
-
-		/// <summary>
-		/// Pool for the Horde agent to assign, calculated based on platform and overrides
-		/// </summary>
-		public string? HordePool
-		{
-			get
-			{
-				string? Pool = DefaultHordePool;
-				if (OverrideHordePool != null)
-				{
-					Pool = OverrideHordePool;
-				}
-				else if (OperatingSystem.IsWindows() && WindowsHordePool != null)
-				{
-					Pool = WindowsHordePool;
-				}
-				else if (OperatingSystem.IsMacOS() && MacHordePool != null)
-				{
-					Pool = MacHordePool;
-				}
-				else if (OperatingSystem.IsLinux() && LinuxHordePool != null)
-				{
-					Pool = LinuxHordePool;
-				}
-
-				//Console.WriteLine("CHOSEN UBA POOL: {0}", Pool);
-				return Pool;
-			}
-		}
-
-		/// <summary>
-		/// Pool for the Horde agent to assign if no override current platform doesn't have it set
-		/// </summary>
-		[XmlConfigFile(Category = "Horde", Name = "Pool")]
-		public string? DefaultHordePool { get; set; }
-
-		/// <summary>
-		/// Pool for the Horde agent to assign, only used for commandline override
-		/// </summary>
-		[CommandLine("-BoxHordePool=")]
-		[CommandLine("-UBAHordePool=")]
-		public string? OverrideHordePool { get; set; }
-
-		/// <summary>
-		/// Pool for the Horde agent to assign when on Linux
-		/// </summary>
-		[XmlConfigFile(Category = "Horde", Name = "LinuxPool")]
-		public string? LinuxHordePool { get; set; }
-
-		/// <summary>
-		/// Pool for the Horde agent to assign when on Mac
-		/// </summary>
-		[XmlConfigFile(Category = "Horde", Name = "MacPool")]
-		public string? MacHordePool { get; set; }
-
-		/// <summary>
-		/// Pool for the Horde agent to assign when on Windows
-		/// </summary>
-		[XmlConfigFile(Category = "Horde", Name = "WindowsPool")]
-		public string? WindowsHordePool { get; set; }
-
-		/// <summary>
-		/// Requirements for the Horde agent to assign
-		/// </summary>
-		[XmlConfigFile(Category = "Horde", Name = "Requirements")]
-		[CommandLine("-BoxHordeRequirements=")]
-		[CommandLine("-UBAHordeRequirements=")]
-		public string? HordeCondition { get; set; }
-
-		/// <summary>
-		/// Which ip UBA server should give to agents. This will invert so host listens and agents connect
-		/// </summary>
-		[XmlConfigFile(Category = "Horde", Name = "LocalHost")]
-		[CommandLine("-BoxHordeHost")]
-		[CommandLine("-UBAHordeHost")]
-		public string HordeHost { get; set; } = String.Empty;
-
-		/// <summary>
-		/// Max cores allowed to be used by build session
-		/// </summary>
-		[XmlConfigFile(Category = "UnrealBuildAccelerator")]
-		[CommandLine("-BoxHordeMaxCores")]
-		[CommandLine("-UBAHordeMaxCores")]
-		public int HordeMaxCores { get; set; } = 576;
-
-		/// <summary>
-		/// How long UBT should wait to ask for help. Useful in build configs where machine can delay remote work and still get same wall time results (pch dependencies etc)
-		/// </summary>
-		[XmlConfigFile(Category = "UnrealBuildAccelerator")]
-		[CommandLine("-BoxHordeDelay")]
-		[CommandLine("-UBAHordeDelay")]
-		public int HordeDelay { get; set; } = 0;
-
-		/// <summary>
-		/// Allow use of Wine. Only applicable to Horde agents running Linux. Can still be ignored if Wine executable is not set on agent.
-		/// </summary>
-		[XmlConfigFile(Category = "UnrealBuildAccelerator")]
-		[CommandLine("-BoxHordeAllowWine", Value = "true")]
-		[CommandLine("-UBAHordeAllowWine", Value = "true")]
-		public bool bHordeAllowWine { get; set; } = true;
-
-		/// <summary>
-		/// Connection mode for agent/compute communication
-		/// <see cref="ConnectionMode" /> for valid modes.
-		/// </summary>
-		[XmlConfigFile(Category = "Horde", Name = "ConnectionMode")]
-		[CommandLine("-BoxHordeConnectionMode=")]
-		[CommandLine("-UBAHordeConnectionMode=")]
-		public string? HordeConnectionMode { get; set; }
-		
-		/// <summary>
-		/// Encryption to use for agent/compute communication. Note that UBA agent uses its own encryption.
-		/// <see cref="Encryption" /> for valid modes.
-		/// </summary>
-		[XmlConfigFile(Category = "Horde", Name = "Encryption")]
-		[CommandLine("-BoxHordeEncryption=")]
-		[CommandLine("-UBAHordeEncryption=")]
-		public string? HordeEncryption { get; set; }
-
-		/// <summary>
-		/// Sentry URL to send box data to. Optional.
-		/// </summary>
-		[XmlConfigFile(Category = "Horde")]
-		[CommandLine("-BoxSentryUrl=")]
-		[CommandLine("-UBASentryUrl=")]
-		public string? UBASentryUrl { get; set; }
-
-		/// <summary>
-		/// Disable horde all together
-		/// </summary>
-		[XmlConfigFile(Category = "UnrealBuildAccelerator")]
-		[CommandLine("-BoxDisableHorde")]
-		[CommandLine("-UBADisableHorde")]
-		public bool bDisableHorde { get; set; } = false;
-	}
-
 	class UBAHordeSession : IAsyncDisposable
 	{
 		/// <summary>
@@ -316,7 +150,7 @@ namespace UnrealBuildTool
 			if (OperatingSystem.IsWindows())
 			{
 #pragma warning disable CA1308 // Normalize strings to uppercase
-				ubaDir  = DirectoryReference.Combine(Unreal.EngineDirectory, "Binaries", "Win64", "UnrealBuildAccelerator", RuntimeInformation.ProcessArchitecture.ToString().ToLowerInvariant());
+				ubaDir = DirectoryReference.Combine(Unreal.EngineDirectory, "Binaries", "Win64", "UnrealBuildAccelerator", RuntimeInformation.ProcessArchitecture.ToString().ToLowerInvariant());
 #pragma warning restore CA1308 // Normalize strings to uppercase
 				agentFiles.Add("UbaAgent.exe");
 				if (useSentry)
@@ -336,7 +170,7 @@ namespace UnrealBuildTool
 					agentFiles.Add("libclang_rt.tsan.so"); // Needs to be copied from autosdk
 					agentFiles.Add("llvm-symbolizer"); // Needs to be copied from autosdk
 				}
-				
+
 				if (RuntimeInformation.ProcessArchitecture == Architecture.X64)
 				{
 					ubaDir = DirectoryReference.Combine(Unreal.EngineDirectory, "Binaries", "Linux", "UnrealBuildAccelerator");
@@ -425,7 +259,7 @@ namespace UnrealBuildTool
 			}
 
 			PrefixLogger workerLogger = new($"[Worker{_workerId}]", _logger);
-			
+
 			const string UbaPortName = "UbaPort";
 			const string UbaProxyPortName = "UbaProxyPort";
 			const int UbaPort = 7001;
@@ -438,11 +272,11 @@ namespace UnrealBuildTool
 			try
 			{
 				Stopwatch stopwatch = Stopwatch.StartNew();
-				ConnectionMetadataRequest cmr = new ()
+				ConnectionMetadataRequest cmr = new()
 				{
 					ModePreference = _connectionMode,
 					Encryption = _encryption,
-					Ports = { {UbaPortName, UbaPort}, {UbaProxyPortName, UbaProxyPort} }
+					Ports = { { UbaPortName, UbaPort }, { UbaProxyPortName, UbaProxyPort } }
 				};
 				lease = await _client.TryAssignWorkerAsync(_clusterId, requirements, requestId, cmr, workerLogger, cancellationToken);
 				if (lease == null)
@@ -456,7 +290,7 @@ namespace UnrealBuildTool
 
 				_workerId++;
 
-				workerLogger.LogInformation("Agent properties:");
+				workerLogger.LogDebug("Agent properties:");
 
 				int numLogicalCores = 24; // Assume 24 if something goes wrong here and property is not found
 				string computeIp = String.Empty;
@@ -466,7 +300,7 @@ namespace UnrealBuildTool
 					StringView propertyName = new(property, 0, equalsIdx);
 					if (s_logProperties.Contains(propertyName))
 					{
-						_logger.LogInformation("  {Property}", property);
+						_logger.LogDebug("  {Property}", property);
 
 						if (propertyName == ResourceLogicalCores && Int32.TryParse(property.AsSpan(equalsIdx + 1), out int value))
 						{
@@ -481,12 +315,12 @@ namespace UnrealBuildTool
 
 				// When using relay connection mode, the IP will be relay server's IP
 				string ip = String.IsNullOrEmpty(lease.Ip) ? computeIp : lease.Ip;
-				
+
 				if (!lease.Ports.TryGetValue(UbaPortName, out ConnectionMetadataPort? ubaPort))
 				{
 					ubaPort = new ConnectionMetadataPort(UbaPort, UbaPort);
 				}
-				
+
 				if (!lease.Ports.TryGetValue(UbaProxyPortName, out ConnectionMetadataPort? ubaProxyPort))
 				{
 					ubaProxyPort = new ConnectionMetadataPort(UbaProxyPort, UbaProxyPort);
@@ -498,7 +332,7 @@ namespace UnrealBuildTool
 				{
 					StartTime = stopwatch,
 					NumLogicalCores = numLogicalCores,
-					Ip = ip, 
+					Ip = ip,
 					Port = ubaPort,
 					ProxyPort = ubaProxyPort,
 				};
@@ -628,7 +462,7 @@ namespace UnrealBuildTool
 
 		async Task RunWorkerAsync(Worker self, IComputeLease lease, BlobLocator tool, string executable, ILogger logger, UnrealBuildAcceleratorHordeConfig hordeConfig, CancellationToken cancellationToken)
 		{
-			logger.LogInformation("Running worker task..");
+			logger.LogDebug("Running worker task..");
 			try
 			{
 				await using (_ = lease)
@@ -637,7 +471,7 @@ namespace UnrealBuildTool
 					const int PrimaryChannelId = 0;
 					using (AgentMessageChannel channel = lease.Socket.CreateAgentMessageChannel(PrimaryChannelId, 4 * 1024 * 1024))
 					{
-						logger.LogInformation("Waiting for attach...");
+						logger.LogDebug("Waiting for attach...");
 
 						TimeSpan attachTimeout = TimeSpan.FromSeconds(20.0);
 						try
@@ -651,7 +485,7 @@ namespace UnrealBuildTool
 							throw;
 						}
 
-						logger.LogInformation("Uploading files...");
+						logger.LogDebug("Uploading files...");
 						await channel.UploadFilesAsync("", tool, _storage.Backend, cancellationToken);
 
 						string hordeHost = _owner.UBAConfig.Host;
@@ -723,17 +557,17 @@ namespace UnrealBuildTool
 							if (shouldConnect && line.Contains("Listening on", StringComparison.OrdinalIgnoreCase)) // This log entry means that the agent is ready for connections.
 							{
 								long totalMs = self.StartTime.ElapsedMilliseconds;
-								logger.LogInformation("Connecting to UbaAgent on {Ip}:{Port} (local agent port {AgentPort}) {Seconds}.{Milliseconds} seconds after assigned", 
+								logger.LogInformation("Connecting to UbaAgent on {Ip}:{Port} (local agent port {AgentPort}) {Seconds}.{Milliseconds} seconds after assigned",
 									self.Ip, self.Port.Port, self.Port.AgentPort, totalMs / 1000, totalMs % 1000);
-								
+
 								_owner.Server!.AddClient(self.Ip, self.Port.Port, _crypto);
 								shouldConnect = false;
 							}
 						}
-						logger.LogInformation("Shutting down process");
+						logger.LogDebug("Shutting down process");
 					}
 
-					logger.LogInformation("Closing channel");
+					logger.LogDebug("Closing channel");
 					await lease.CloseAsync(cancellationToken);
 				}
 			}
@@ -808,7 +642,7 @@ namespace UnrealBuildTool
 				if (_cancellationSource!.IsCancellationRequested)
 				{
 					return;
-				}	
+				}
 
 				UBAHordeSession? hordeSession = await _hordeSessionTask!;
 
@@ -877,7 +711,14 @@ namespace UnrealBuildTool
 				{
 					if (!_cancellationSource!.IsCancellationRequested)
 					{
-						_logger.Log(_ubaConfig.bStrict ? LogLevel.Error : LogLevel.Information, KnownLogEvents.Systemic_Horde_Compute, ex, "Unable to get worker: {Ex}", ex.ToString());
+						if (_ubaConfig.bStrict)
+						{
+							_logger.Log(LogLevel.Error, KnownLogEvents.Systemic_Horde_Compute, ex, "Unable to get worker: {Ex}", ex.ToString());
+						}
+						else
+						{
+							_logger.Log(LogLevel.Information, KnownLogEvents.Systemic_Horde_Compute, "Unable to get worker: {Ex}", ex.ToString());
+						}
 					}
 				}
 
