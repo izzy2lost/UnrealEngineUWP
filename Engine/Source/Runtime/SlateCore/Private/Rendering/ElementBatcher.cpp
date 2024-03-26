@@ -567,21 +567,36 @@ void FSlateElementBatcher::AddCachedElements(FSlateCachedElementData& CachedElem
 	}
 	CachedElementData.ListsWithNewData.Empty();
 
+	// Add the existing and new cached batches.
 	const TSparseArray<FSlateRenderBatch>& CachedBatches = CachedElementData.GetCachedBatches();
-	if (!CachedBatches.IsEmpty())
+	TArray<FSlateRenderBatch>& RenderBatchesSDR = BatchData->RenderBatches;
+	TArray<FSlateRenderBatch>& RenderBatchesHDR = BatchDataHDR->RenderBatches;
+
+	auto AddBatch = [&](const FSlateRenderBatch& CachedBatch)
 	{
-		QUICK_SCOPE_CYCLE_COUNTER(STAT_UpdateUsedSlatePostBuffers);
-		for (const FSlateRenderBatch& CachedBatch : CachedElementData.GetCachedBatches())
+		if (EnumHasAnyFlags(CachedBatch.GetDrawFlags(), ESlateBatchDrawFlag::HDR))
 		{
-			if (const FSlateShaderResource* ShaderResource = CachedBatch.GetShaderResource())
-			{
-				UsedSlatePostBuffers |= ShaderResource->GetUsedSlatePostBuffers();
-			}
+			RenderBatchesHDR.Add(CachedBatch);
 		}
+		else
+		{
+			RenderBatchesSDR.Add(CachedBatch);
+		}
+
+		if (const FSlateShaderResource* ShaderResource = CachedBatch.GetShaderResource())
+		{
+			UsedSlatePostBuffers |= ShaderResource->GetUsedSlatePostBuffers();
+		}
+	};
+
+	RenderBatchesSDR.Reserve(RenderBatchesSDR.Num() + CachedBatches.Num());
+	RenderBatchesHDR.Reserve(RenderBatchesHDR.Num() + CachedBatches.Num());
+
+	for (const FSlateRenderBatch& CachedBatch : CachedBatches)
+	{
+		AddBatch(CachedBatch);
 	}
 
-	// Add the existing and new cached batches.
-	FSlateBatchData::AddCachedBatchesToBatchData(BatchData, BatchDataHDR, CachedElementData.GetCachedBatches());
 	CachedElementData.CleanupUnusedClipStates();
 
 #if SLATE_CSV_TRACKER

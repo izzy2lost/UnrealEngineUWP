@@ -200,7 +200,13 @@ public:
 
 	/** Adds a cached batch, used in retained rendering */
 	void AddCachedBatches(const TSparseArray<FSlateRenderBatch>& InCachedBatches);
+
+	UE_DEPRECATED(5.5, "AddCachedBatchesToBatchData is no longer needed since this class is a friend FSlateElementBatcher. See: FSlateElementBatcher::AddCachedElements.")
 	static void AddCachedBatchesToBatchData(FSlateBatchData* BatchDataSDR, FSlateBatchData* BatchDataHDR, const TSparseArray<FSlateRenderBatch>& InCachedBatches);
+
+public:
+	friend FSlateElementBatcher;
+
 private:
 	void FillBuffersFromNewBatch(FSlateRenderBatch& Batch, FSlateVertexArray& FinalVertices, FSlateIndexArray& FinalIndices);
 	void CombineBatches(FSlateRenderBatch& FirstBatch, FSlateRenderBatch& SecondBatch, FSlateVertexArray& FinalVertices, FSlateIndexArray& FinalIndices);
