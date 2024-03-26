@@ -65,6 +65,10 @@ namespace uba
 		LogWriter& GetLogWriter() { return m_logWriter; }
 		NetworkBackendTcp& GetTcpBackend() { return *m_tcpBackend; }
 		u32 GetConnectionCount() { return m_connectionCount; }
+		u64 GetTotalSentBytes() { return m_sendBytes; }
+		u64 GetTotalRecvBytes() { return m_recvBytes; }
+
+		NetworkBackend* GetFirstConnectionBackend();
 
 	private:
 		struct Connection
@@ -74,16 +78,12 @@ namespace uba
 			void* backendConnection = nullptr;
 			Atomic<u32> connected;
 			Event disconnectedEvent;
-			Timer sendTimer;
-			Atomic<u64> sendBytes;
-			u64 recvBytes = 0;
-			u32 recvCount = 0;
 			NetworkBackend* backend = nullptr;
 		};
 
 		bool AddConnection(NetworkBackend& backend, void* backendConnection, bool* timedOut);
 		void ConnectedCallback(NetworkBackend& backend, void* backendConnection);
-		static bool ReceiveResponseHeader(void* context, u8* headerData, void*& outBodyContext, u8*& outBodyData, u32& outBodySize);
+		static bool ReceiveResponseHeader(void* context, const Guid& connectionUid, u8* headerData, void*& outBodyContext, u8*& outBodyData, u32& outBodySize);
 		static bool ReceiveResponseBody(void* context, bool recvError, u8* headerData, void* bodyContext, u8* bodyData, u32 bodySize);
 		void OnDisconnected(Connection& connection, bool calledFromReceive);
 		bool Send(NetworkMessage& message, void* response, u32 responseCapacity, bool async);
@@ -96,6 +96,10 @@ namespace uba
 		LoggerWithWriter m_logger;
 		u32 m_sendSize;
 		u32 m_receiveTimeoutSeconds;
+		Atomic<u64> m_sendBytes;
+		Atomic<u64> m_recvBytes;
+		Atomic<u32> m_recvCount;
+		Timer m_sendTimer;
 
 		ReaderWriterLock m_serverUidLock;
 		Guid m_serverUid;
@@ -105,6 +109,7 @@ namespace uba
 		Atomic<u32> m_connectionCount;
 		ReaderWriterLock m_onConnectedFunctionsLock;
 		Vector<OnConnectedFunction> m_onConnectedFunctions;
+		ReaderWriterLock m_onDisconnectedFunctionsLock;
 		Vector<OnDisconnectedFunction> m_onDisconnectedFunctions;
 		OnVersionMismatchFunction m_versionMismatchFunction;
 

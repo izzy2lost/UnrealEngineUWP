@@ -42,13 +42,13 @@ namespace uba
 
 		// Recv data from connection. This is callback based so header callback is called first after headerSize bytes have been read
 		// If header callback sets a value in outBodySize, body callback will be called once body size bytes are received.
-		using RecvHeaderCallback = bool(void* context, u8* headerData, void*& outBodyContext, u8*& outBodyData, u32& outBodySize);
+		using RecvHeaderCallback = bool(void* context, const Guid& connectionUid, u8* headerData, void*& outBodyContext, u8*& outBodyData, u32& outBodySize);
 		using RecvBodyCallback = bool(void* context, bool recvError, u8* headerData, void* bodyContext, u8* bodyData, u32 bodySize);
 		virtual void SetRecvCallbacks(void* connection, void* context, u32 headerSize, RecvHeaderCallback* h, RecvBodyCallback* b, const tchar* recvHint) = 0;
 		virtual void SetRecvTimeout(void* connection, u32 timeoutMs) = 0;
 
 		// Disconnect callback. This is called as soon as connection is interrupted from send, recv or shutdown.
-		using DisconnectCallback = void(void* context, void* connection);
+		using DisconnectCallback = void(void* context, const Guid& connectionUid, void* connection);
 		virtual void SetDisconnectCallback(void* connection, void* context, DisconnectCallback* callback) = 0;
 
 		// Start listen on port/ip.
@@ -60,6 +60,8 @@ namespace uba
 		using ConnectedFunc = Function<bool(void* connection, const sockaddr& remoteSocketAddr, bool* timedOut)>;
 		virtual bool Connect(Logger& logger, const tchar* ip, const ConnectedFunc& connectedFunc, u16 port = DefaultPort, bool* timedOut = nullptr) = 0;
 		virtual bool Connect(Logger& logger, const sockaddr& remoteSocketAddr, const ConnectedFunc& connectedFunc, bool* timedOut = nullptr, const tchar* nameHint = nullptr) = 0;
+
+		virtual void GetTotalSendAndRecv(u64& outSend, u64& outRecv) = 0;
 	};
 
 	struct NetworkBackend::SendContext

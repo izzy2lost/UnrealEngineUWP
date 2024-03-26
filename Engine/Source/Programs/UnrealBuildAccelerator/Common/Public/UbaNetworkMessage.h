@@ -21,7 +21,7 @@ namespace uba
 		bool ProcessAsyncResults(BinaryReader& response); // Note, this must be called after GetResponseFunc has been called
 
 	private:
-		void Done();
+		void Done(bool shouldLock = true);
 
 		NetworkClient& m_client;
 		BinaryWriter& m_sendWriter;

@@ -33,6 +33,7 @@ namespace uba
 		UBA_TEST(TestSockets) \
 		UBA_TEST(TestClientServer) \
 		UBA_TEST(TestClientServer2) \
+		UBA_TEST(TestClientServerMem) \
 		UBA_TEST(TestStorage) \
 		UBA_TEST(TestDetouredTestApp) \
 		UBA_TEST(TestDetouredClang) \

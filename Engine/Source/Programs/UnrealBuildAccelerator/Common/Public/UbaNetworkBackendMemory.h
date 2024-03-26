@@ -8,11 +8,11 @@
 
 namespace uba
 {
-	class NetworkBackendTcp : public NetworkBackend
+	class NetworkBackendMemory : public NetworkBackend
 	{
 	public:
-		NetworkBackendTcp(LogWriter& writer, const tchar* prefix = TC("NetworkBackendTcp"));
-		virtual ~NetworkBackendTcp();
+		NetworkBackendMemory(LogWriter& writer, const tchar* prefix = TC("NetworkBackendMemory"));
+		virtual ~NetworkBackendMemory();
 		virtual void Shutdown(void* connection) override;
 		virtual bool Send(Logger& logger, void* connection, const void* data, u32 dataSize, SendContext& sendContext) override;
 		virtual void SetDataSentCallback(void* connection, void* context, DataSentCallback* callback) override;
@@ -28,25 +28,10 @@ namespace uba
 		virtual void GetTotalSendAndRecv(u64& outSend, u64& outRecv) override;
 
 	private:
-		bool EnsureInitialized(Logger& logger);
-
 		struct Connection;
-		struct ListenEntry;
-		bool ThreadListen(Logger& logger, ListenEntry& entry);
-		void ThreadRecv(Connection& connection);
+		Connection* m_connection = nullptr;
 
-		LoggerWithWriter m_logger;
-		ReaderWriterLock m_listenEntriesLock;
-		List<ListenEntry> m_listenEntries;
-
-		ReaderWriterLock m_connectionsLock;
-		List<Connection> m_connections;
-
-		Atomic<u64> m_totalSend;
-		Atomic<u64> m_totalRecv;
-
-		#if PLATFORM_WINDOWS
-		bool m_wsaInitDone = false;
-		#endif
+		ReaderWriterLock m_connectedFuncLock;
+		ListenConnectedFunc m_connectedFunc;
 	};
 };
