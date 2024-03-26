@@ -6,7 +6,12 @@
 
 #define LOCTEXT_NAMESPACE "AvaFont"
 
-FAvaFont::FAvaDefaultFontObjects FAvaFont::DefaultFontObjects;
+FAvaFont::FAvaDefaultFontObjects& FAvaFont::GetDefaultFontObjects()
+{
+	static FAvaDefaultFontObjects DefaultFontObjects;
+
+	return DefaultFontObjects;
+}
 
 UFont* FAvaFont::GetDefaultFont()
 {
@@ -15,7 +20,7 @@ UFont* FAvaFont::GetDefaultFont()
 		return nullptr;
 	}
 
-	if (!DefaultFontObjects.AvaDefaultFont)
+	if (!GetDefaultFontObjects().AvaDefaultFont)
 	{
 		const FAssetRegistryModule& AssetRegistryModule = FModuleManager::LoadModuleChecked<FAssetRegistryModule>("AssetRegistry");
 
@@ -52,11 +57,11 @@ UFont* FAvaFont::GetDefaultFont()
 
 		if (ensureMsgf(DefaultFont, TEXT("MotionDesignFont: cannot load any font to be used as default.")))
 		{
-			DefaultFontObjects.AvaDefaultFont = DefaultFont;
+			GetDefaultFontObjects().AvaDefaultFont = DefaultFont;
 		}
 	}
 
-	return DefaultFontObjects.AvaDefaultFont.Get();
+	return GetDefaultFontObjects().AvaDefaultFont.Get();
 }
 
 FString FAvaFont::GenerateFontFormattedString(const FString& InFontName, const FString& InFontObjectPathName)
@@ -358,16 +363,16 @@ void FAvaFont::PostSerialize(const FArchive& Ar)
 
 UAvaFontObject* FAvaFont::GetDefaultAvaFontObject()
 {
-	if (!DefaultFontObjects.AvaDefaultFontObject)
+	if (!GetDefaultFontObjects().AvaDefaultFontObject)
 	{
 		if (UFont* DefaultFont = GetDefaultFont())
 		{
-			DefaultFontObjects.AvaDefaultFontObject = NewObject<UAvaFontObject>(DefaultFont);
-			DefaultFontObjects.AvaDefaultFontObject->InitProjectFont(DefaultFont, DefaultFont->GetName());
+			GetDefaultFontObjects().AvaDefaultFontObject = NewObject<UAvaFontObject>(DefaultFont);
+			GetDefaultFontObjects().AvaDefaultFontObject->InitProjectFont(DefaultFont, DefaultFont->GetName());
 		}
 	}
 
-	return DefaultFontObjects.AvaDefaultFontObject.Get();
+	return GetDefaultFontObjects().AvaDefaultFontObject.Get();
 }
 
 void FAvaFont::RefreshName()

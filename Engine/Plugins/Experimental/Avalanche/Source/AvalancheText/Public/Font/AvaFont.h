@@ -163,6 +163,9 @@ private:
 		//~ End FGCObject
 	};
 
+	/**
+	 * Used to handle font state and possible loading issues
+	 */
 	enum EFontAssetState
 	{
 		DefaultFont,   // Font is meant to be the default one
@@ -170,19 +173,26 @@ private:
 		FallbackFont   // Referenced font asset is missing
 	};
 
+	/** Returns the default font object for Ava Fonts */
 	static UAvaFontObject* GetDefaultAvaFontObject();
 
+	/** Returns a static FAvaDefaultFontObjects struct holding defaults values for fonts */
+	static FAvaDefaultFontObjects& GetDefaultFontObjects();
+
+	/** Search for a font asset based on a font name */
 	static UFont* GetFontByName(const FString& InFontName);
 
+	/** Initializes default values */
 	void InitDefaults();
 
+	/** Ensures the Font Name property is up to date with current font object */
 	void RefreshName();
 
+	/** Refreshes asset state */
 	void RefreshAssetState();
 
+	/** Initialize this Avalanche Font using a UFont asset */
 	void InitFromFont(UFont* InFont);
-
-	static FAvaDefaultFontObjects DefaultFontObjects;
 
 	/**
 	 * Deprecated - used to reference the font used by FAvaFont.
