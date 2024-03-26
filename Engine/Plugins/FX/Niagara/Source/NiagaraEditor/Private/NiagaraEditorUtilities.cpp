@@ -4832,8 +4832,14 @@ TArray<FNiagaraEditorUtilities::AssetBrowser::FStructuredAssetTagDefinitionLooku
 	TArray<FAssetData> FilteredTagDefinitionAssets;
 	AssetRegistryModule.Get().GetAssets(Filter, FilteredTagDefinitionAssets);
 
+	FAssetToolsModule& AssetToolsModule = FModuleManager::LoadModuleChecked<FAssetToolsModule>("AssetTools");
 	for(const FAssetData& AssetData : FilteredTagDefinitionAssets)
 	{
+		if(AssetToolsModule.Get().IsAssetVisible(AssetData, true) == false)
+		{
+			continue;
+		}
+		
 		UNiagaraAssetTagDefinitions* TagDefinitions = Cast<UNiagaraAssetTagDefinitions>(AssetData.GetAsset());
 		FStructuredAssetTagDefinitionLookupData TagDefinitionData;
 		TagDefinitionData.DefinitionsAsset = TagDefinitions;
