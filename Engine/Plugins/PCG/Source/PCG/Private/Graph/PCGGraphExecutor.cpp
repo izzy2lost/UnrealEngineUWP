@@ -600,14 +600,6 @@ void FPCGGraphExecutor::Execute()
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(FPCGGraphExecutor::Execute);
 
-#if WITH_EDITOR
-	// Avoid ticking the graph executor during an open transaction.
-	if (GUndo)
-	{
-		return;
-	}
-#endif
-
 	// Process any newly scheduled graphs to execute
 	ScheduleLock.Lock();
 

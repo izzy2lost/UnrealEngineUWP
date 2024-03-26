@@ -55,6 +55,7 @@
 #if WITH_EDITOR
 #include "Editor.h"
 #include "EditorActorFolders.h"
+#include "ScopedTransaction.h"
 #include "Editor/Transactor.h"
 #endif
 
@@ -291,6 +292,10 @@ void UPCGComponent::Generate()
 	{
 		return;
 	}
+
+#if WITH_EDITOR
+	FScopedTransaction Transaction(LOCTEXT("PCGGenerate", "Execute generation on PCG component"));
+#endif
 
 	GenerateLocal(/*bForce=*/false);
 }
@@ -603,6 +608,10 @@ void UPCGComponent::Cleanup()
 		UE_LOG(LogPCG, Warning, TEXT("Cleanup request denied as this component is managed by the runtime generation scheduler."));
 		return;
 	}
+
+#if WITH_EDITOR
+	FScopedTransaction Transaction(LOCTEXT("PCGCleanup", "Clean up PCG component"));
+#endif
 
 	CleanupLocal(/*bRemoveComponents=*/true);
 }
@@ -1622,84 +1631,69 @@ void UPCGComponent::PreEditChange(FProperty* PropertyAboutToChange)
 
 void UPCGComponent::PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent)
 {
-	// We can't directly apply the property changed event to a BP actor component, so we save the event and handle it after reconstruction, which happens during Super::PostEditChangeProperty().
-	DelayedPropertyChangedEvent = PropertyChangedEvent;
-	bHasDelayedPropertyChangedEvent = true;
+	if (!PropertyChangedEvent.Property || !IsValid(this))
+	{
+		Super::PostEditChangeProperty(PropertyChangedEvent);
+		return;
+	}
+
+	const FName PropName = PropertyChangedEvent.Property->GetFName();
+
+	bool bTransientPropertyChangedThatDoesNotRequireARefresh = false;
+
+	// Implementation note:
+	// Since the current editing mode is a transient variable, if we do not do this transition here before going in the Super call,
+	//  we can end up in a situation where BP actors are reconstructed (... this component included ...) which makes this fall into the !IsValid case just after
+	if (PropName == GET_MEMBER_NAME_CHECKED(UPCGComponent, CurrentEditingMode))
+	{
+		// When affecting the editing mode from the user's point of view, we need to change both the current & serialized values
+		SetEditingMode(CurrentEditingMode, CurrentEditingMode);
+		ChangeTransientState(CurrentEditingMode);
+		bTransientPropertyChangedThatDoesNotRequireARefresh = true;
+	}
+
+	bool bWasDirtyGenerated = bDirtyGenerated;
+	bDirtyGenerated = true;
 
 	Super::PostEditChangeProperty(PropertyChangedEvent);
 
-	// If we're not on a BP actor, the delayed property changed will already be handled, and this call will no-op.
-	HandlePostEditChangeProperty(PropertyChangedEvent);
-}
-
-void UPCGComponent::HandlePostEditChangeProperty(const FPropertyChangedEvent& PropertyChangedEvent)
-{
-	if (!IsValid(this) || !bHasDelayedPropertyChangedEvent)
+	// BP actors will early out here as construction script will have created a new component.
+	if (!IsValid(this))
 	{
 		return;
 	}
 
-	ON_SCOPE_EXIT
-	{
-		bHasDelayedPropertyChangedEvent = false;
-		DelayedPropertyChangedEvent = FPropertyChangedEvent(nullptr);
-	};
+	// Restore dirty flag for non BP cases. BP components will always regenerate for now.
+	bDirtyGenerated = bWasDirtyGenerated;
 
-	const FName PropName = PropertyChangedEvent.Property ? PropertyChangedEvent.Property->GetFName() : NAME_None;
-	const FName MemberPropName = PropertyChangedEvent.MemberProperty ? PropertyChangedEvent.MemberProperty->GetFName() : NAME_None;
+	const FName MemberName = PropertyChangedEvent.MemberProperty->GetFName();
+
+	if (MemberName == GET_MEMBER_NAME_CHECKED(UPCGComponent, GenerationRadii))
+	{
+		// RuntimeGen will automatically pick up any changes to generation radii, we don't need to do any work here.
+		return;
+	}
 
 	// Important note: all property changes already go through the OnObjectPropertyChanged, and will be dirtied here.
 	// So where only a Refresh is needed, it goes through the "capture all" else case.
 	if (PropName == GET_MEMBER_NAME_CHECKED(UPCGComponent, bIsComponentPartitioned))
 	{
-		auto SetIsPartitionedHelper = [](UPCGComponent* Component)
+		if (CanPartition())
 		{
 			// At this point, bIsComponentPartitioned is already set with the new value.
 			// But we need to do some cleanup before
 			// So keep this new value, and take its negation for the cleanup.
-			bool bIsNowPartitioned = Component->bIsComponentPartitioned;
-			Component->bIsComponentPartitioned = !Component->bIsComponentPartitioned;
+			bool bIsNowPartitioned = bIsComponentPartitioned;
+			bIsComponentPartitioned = !bIsComponentPartitioned;
 
 			// SetIsPartitioned cleans up before, so keep track if we were generated or not.
-			bool bWasGenerated = Component->bGenerated;
-			Component->SetIsPartitioned(bIsNowPartitioned);
+			bool bWasGenerated = bGenerated;
+			SetIsPartitioned(bIsNowPartitioned);
 
 			// And finally, re-generate if we were generated and activated
-			if (bWasGenerated && Component->bActivated)
+			if (bWasGenerated && bActivated)
 			{
-				Component->GenerateLocal(/*bForce=*/false);
-			}
-		};
-
-		if (CanPartition())
-		{
-			// If we're running construction scripts then we need to defer as we cannot create partition actors while these are running.
-			if (GetWorld() && GetWorld()->bIsRunningConstructionScript)
-			{
-				if (UPCGSubsystem* Subsystem = GetSubsystem())
-				{
-					TWeakObjectPtr<UPCGComponent> ComponentPtr(this);
-
-					Subsystem->ScheduleGeneric([ComponentPtr, SetIsPartitionedHelper]()
-					{
-						if (UPCGComponent* Component = ComponentPtr.Get())
-						{
-							// If the component is not valid anymore, just early out.
-							if (!IsValid(Component))
-							{
-								return true;
-							}
-
-							SetIsPartitionedHelper(Component);
-						}
-
-						return true;
-					}, this, /*TaskDependencies=*/{});
-				}
-			}
-			else
-			{
-				SetIsPartitionedHelper(this);
+				GenerateLocal(/*bForce=*/false);
 			}
 		}
 	}
@@ -1735,7 +1729,7 @@ void UPCGComponent::HandlePostEditChangeProperty(const FPropertyChangedEvent& Pr
 	{
 		// We don't need to refresh the component here because this does not effect generation behavior, only scheduling behavior.
 		RefreshSchedulingPolicy();
-	}
+	} 
 	else if (PropName == GET_MEMBER_NAME_CHECKED(UPCGComponent, GenerationTrigger))
 	{
 		if (!SchedulingPolicy)
@@ -1764,22 +1758,8 @@ void UPCGComponent::HandlePostEditChangeProperty(const FPropertyChangedEvent& Pr
 			Refresh();
 		}
 	}
-	else if (PropName == GET_MEMBER_NAME_CHECKED(UPCGComponent, CurrentEditingMode))
-	{
-		// When affecting the editing mode from the user's point of view, we need to change both the current & serialized values
-		SetEditingMode(CurrentEditingMode, CurrentEditingMode);
-		ChangeTransientState(CurrentEditingMode);
-	}
-	else if (PropName == GET_MEMBER_NAME_CHECKED(UPCGComponent, bOverrideGenerationRadii) || MemberPropName == GET_MEMBER_NAME_CHECKED(UPCGComponent, GenerationRadii))
-	{
-		// RuntimeGen will automatically pick up any changes to generation radii, we don't need to do any work here.
-	}
-	else if (PropName == GET_MEMBER_NAME_CHECKED(UPCGComponent, bActivated))
-	{
-		Refresh(IsManagedByRuntimeGenSystem() ? EPCGChangeType::GenerationGrid : EPCGChangeType::None);
-	}
 	// General properties that don't affect behavior
-	else
+	else if(!bTransientPropertyChangedThatDoesNotRequireARefresh)
 	{
 		Refresh();
 	}
@@ -2323,10 +2303,7 @@ bool UPCGComponent::IsObjectTracked(const UObject* InObject, bool& bOutIsCulled)
 
 void UPCGComponent::OnRefresh(bool bForceRefresh)
 {
-	if (IsManagedByRuntimeGenSystem())
-	{
-		return;
-	}
+	check(!IsManagedByRuntimeGenSystem());
 
 	// Mark the refresh task invalid to allow re-triggering refreshes
 	CurrentRefreshTask = InvalidPCGTaskId;
@@ -3400,20 +3377,12 @@ void FPCGComponentInstanceData::ApplyToComponent(UActorComponent* Component, con
 			PCGComponent->CurrentEditingMode = SourceComponent->CurrentEditingMode;
 			PCGComponent->PreviousEditingMode = SourceComponent->PreviousEditingMode;
 			PCGComponent->DynamicallyTrackedKeysToSettings = SourceComponent->DynamicallyTrackedKeysToSettings;
-			PCGComponent->DelayedPropertyChangedEvent = SourceComponent->DelayedPropertyChangedEvent;
-			PCGComponent->bHasDelayedPropertyChangedEvent = SourceComponent->bHasDelayedPropertyChangedEvent;
 #endif // WITH_EDITOR
-
-			// Move over invocation lists for dynamic delegates
-			PCGComponent->OnPCGGraphStartGeneratingExternal = SourceComponent->OnPCGGraphStartGeneratingExternal;
-			PCGComponent->OnPCGGraphCancelledExternal = SourceComponent->OnPCGGraphCancelledExternal;
-			PCGComponent->OnPCGGraphGeneratedExternal = SourceComponent->OnPCGGraphGeneratedExternal;
-			PCGComponent->OnPCGGraphCleanedExternal = SourceComponent->OnPCGGraphCleanedExternal;
 
 			// Non-critical but should be done: transient data, tracked actors cache, landscape tracking
 			// TODO Validate usefulness + move accordingly
 		}
-
+		
 		// Duplicate generated resources + retarget them
 		TArray<TObjectPtr<UPCGManagedResource>> DuplicatedResources;
 		for (const TObjectPtr<UPCGManagedResource>& Resource : GeneratedResources)
@@ -3448,6 +3417,12 @@ void FPCGComponentInstanceData::ApplyToComponent(UActorComponent* Component, con
 			PCGComponent->LoadedPreviewResources = DuplicateLoadedPreviewResources;
 		}
 
+		// Move over invocation lists for dynamic delegates
+		PCGComponent->OnPCGGraphStartGeneratingExternal = SourceComponent->OnPCGGraphStartGeneratingExternal;
+		PCGComponent->OnPCGGraphCancelledExternal = SourceComponent->OnPCGGraphCancelledExternal;
+		PCGComponent->OnPCGGraphGeneratedExternal = SourceComponent->OnPCGGraphGeneratedExternal;
+		PCGComponent->OnPCGGraphCleanedExternal = SourceComponent->OnPCGGraphCleanedExternal;
+
 		// Reconnect callbacks
 		if (PCGComponent->GraphInstance)
 		{
@@ -3455,11 +3430,31 @@ void FPCGComponentInstanceData::ApplyToComponent(UActorComponent* Component, con
 			PCGComponent->GraphInstance->OnGraphChangedDelegate.RemoveAll(PCGComponent);
 			PCGComponent->GraphInstance->OnGraphChangedDelegate.AddUObject(PCGComponent, &UPCGComponent::OnGraphChanged);
 		}
+#endif // WITH_EDITOR
 
+		bool bDoActorMapping = PCGComponent->bGenerated || PCGHelpers::IsRuntimeOrPIE();
+
+		// Also remap
+		UPCGSubsystem* Subsystem = PCGComponent->GetSubsystem();
+		if (Subsystem && SourceComponent)
+		{
+			Subsystem->RemapPCGComponent(SourceComponent, PCGComponent, bDoActorMapping);
+		}
+
+#if WITH_EDITOR
 		// Disconnect callbacks on source.
 		if (SourceComponent && SourceComponent->GraphInstance)
 		{
 			SourceComponent->GraphInstance->TeardownCallbacks();
+		}
+
+		// Finally, start a delayed refresh task (if there is not one already), in editor only
+		// It is important to be delayed, because we cannot spawn Partition Actors within this scope,
+		// because we are in a construction script.
+		// Note that we only do this if we are not currently loading
+		if (!SourceComponent || !SourceComponent->HasAllFlags(RF_WasLoaded))
+		{
+			PCGComponent->Refresh();
 		}
 #endif // WITH_EDITOR
 	}

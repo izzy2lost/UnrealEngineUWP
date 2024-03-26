@@ -117,7 +117,7 @@ private:
 	// Note: this map is not a property and not serialized since we will rebuild it from the LocalToOriginal
 	TMap<TObjectPtr<UPCGComponent>, TObjectPtr<UPCGComponent>> OriginalToLocal;
 
-	UPROPERTY(NonTransactional)
+	UPROPERTY()
 	TMap<TObjectPtr<UPCGComponent>, TSoftObjectPtr<UPCGComponent>> LocalToOriginal;
 
 	// PCG components that are cleared when in preview-on-load mode are kept aside and put back when serializing to prevent changes
