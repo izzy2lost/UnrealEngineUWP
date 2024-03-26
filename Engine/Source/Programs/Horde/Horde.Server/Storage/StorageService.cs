@@ -156,7 +156,7 @@ namespace Horde.Server.Storage
 				=> _outer.WriteRefAsync(NamespaceId, name, value, options, cancellationToken);
 
 			/// <inheritdoc/>
-			public Task<bool> DeleteRefAsync(RefName name, CancellationToken cancellationToken = default) 
+			public Task<bool> DeleteRefAsync(RefName name, CancellationToken cancellationToken = default)
 				=> _outer.DeleteRefAsync(NamespaceId, name, cancellationToken);
 
 			#endregion

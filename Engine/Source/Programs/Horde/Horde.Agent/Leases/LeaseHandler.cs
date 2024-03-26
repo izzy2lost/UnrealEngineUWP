@@ -43,7 +43,7 @@ namespace Horde.Agent.Leases
 		/// <inheritdoc/>
 		public override Task<LeaseResult> ExecuteAsync(ISession session, LeaseId leaseId, Any message, ILogger logger, CancellationToken cancellationToken)
 		{
-			return ExecuteAsync(session, leaseId, message.Unpack<T>(), logger, cancellationToken); 
+			return ExecuteAsync(session, leaseId, message.Unpack<T>(), logger, cancellationToken);
 		}
 
 		/// <inheritdoc/>

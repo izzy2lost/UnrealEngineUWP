@@ -228,7 +228,7 @@ namespace Horde.Agent.Leases
 		async Task<SessionResult> HandleSessionAsync(bool shutdownAfterFinishedLease, CancellationToken stoppingToken)
 		{
 			IRpcConnection rpcCon = _session.RpcConnection;
-			HordeRpc.HordeRpcClient rpcClient = new (_session.GrpcChannel);
+			HordeRpc.HordeRpcClient rpcClient = new(_session.GrpcChannel);
 
 			// Terminate any remaining child processes from other instances
 			await _session.TerminateProcessesAsync(TerminateCondition.BeforeSession, _logger, stoppingToken);
@@ -372,7 +372,7 @@ namespace Horde.Agent.Leases
 					else if (busy)
 					{
 						_statusService.Set(true, 0, "Paused");
-						
+
 						if (_activeLeases.Count > 0)
 						{
 							_logger.LogInformation("Agent marked itself as busy. Draining any active leases to prevent them from using up local resources...");

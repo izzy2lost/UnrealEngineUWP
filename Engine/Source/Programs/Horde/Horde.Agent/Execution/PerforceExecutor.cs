@@ -54,7 +54,7 @@ namespace Horde.Agent.Execution
 			if (_autoSdkWorkspaceInfo != null)
 			{
 				using IScope _ = GlobalTracer.Instance.BuildSpan("Workspace").WithResourceName("AutoSDK").StartActive();
-				
+
 				ManagedWorkspaceOptions options = WorkspaceInfo.GetMwOptions(_autoSdkWorkspaceInfo);
 				_autoSdkWorkspace = await WorkspaceInfo.SetupWorkspaceAsync(_autoSdkWorkspaceInfo, _rootDir, options, logger, cancellationToken);
 
@@ -65,7 +65,7 @@ namespace Horde.Agent.Execution
 					{
 						FileUtils.ForceDeleteDirectory(legacyDir);
 					}
-					catch(Exception ex)
+					catch (Exception ex)
 					{
 						logger.LogInformation(ex, "Unable to delete {Dir}", legacyDir);
 					}
@@ -167,19 +167,19 @@ namespace Horde.Agent.Execution
 
 		internal static void DeleteEngineUserSettings(ILogger logger)
 		{
-			if(RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+			if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
 			{
 				DirectoryReference? appDataDir = DirectoryReference.GetSpecialFolder(Environment.SpecialFolder.LocalApplicationData);
-				if(appDataDir != null)
+				if (appDataDir != null)
 				{
 					string[] dirNames = { "Unreal Engine", "UnrealEngine", "UnrealEngineLauncher", "UnrealHeaderTool", "UnrealPak" };
 					DeleteEngineUserSettings(appDataDir, dirNames, logger);
 				}
 			}
-			else if(RuntimeInformation.IsOSPlatform(OSPlatform.OSX))
+			else if (RuntimeInformation.IsOSPlatform(OSPlatform.OSX))
 			{
 				string? homeDir = Environment.GetEnvironmentVariable("HOME");
-				if(!String.IsNullOrEmpty(homeDir))
+				if (!String.IsNullOrEmpty(homeDir))
 				{
 					string[] dirNames = { "Library/Preferences/Unreal Engine", "Library/Application Support/Epic" };
 					DeleteEngineUserSettings(new DirectoryReference(homeDir), dirNames, logger);
@@ -246,12 +246,12 @@ namespace Horde.Agent.Execution
 			using IScope scope = GlobalTracer.Instance.BuildSpan("Conform").StartActive();
 			scope.Span.SetTag("workspaces", String.Join(',', pendingWorkspaces.Select(x => x.Identifier)));
 			scope.Span.SetTag("removeUntrackedFiles", removeUntrackedFiles);
-			
+
 			// Print out all the workspaces we're going to sync
 			logger.LogInformation("Workspaces:");
 			foreach (AgentWorkspace pendingWorkspace in pendingWorkspaces)
 			{
-				logger.LogInformation("  Identifier={Identifier}, Stream={StreamName}, Incremental={Incremental} Method={Method} Partitioned={Partitioned}", 
+				logger.LogInformation("  Identifier={Identifier}, Stream={StreamName}, Incremental={Incremental} Method={Method} Partitioned={Partitioned}",
 					pendingWorkspace.Identifier, pendingWorkspace.Stream, pendingWorkspace.Incremental, pendingWorkspace.Method, pendingWorkspace.Partitioned);
 			}
 
@@ -381,7 +381,7 @@ namespace Horde.Agent.Execution
 				foreach (IGrouping<DirectoryReference, WorkspaceInfo> workspaceGroup in workspaces.GroupBy(x => x.MetadataDir).OrderBy(x => x.Key.FullName))
 				{
 					logger.LogInformation("Queuing workspaces for sync/populate:");
-					
+
 					List<PopulateRequest> populateRequests = new List<PopulateRequest>();
 					foreach (WorkspaceInfo workspace in workspaceGroup)
 					{

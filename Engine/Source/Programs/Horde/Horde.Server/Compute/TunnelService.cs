@@ -2,16 +2,16 @@
 
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Net;
 using System.Net.Sockets;
 using System.Threading;
 using System.Threading.Tasks;
+using EpicGames.Core;
+using EpicGames.Horde.Compute.Clients;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
-using EpicGames.Core;
-using System.IO;
-using EpicGames.Horde.Compute.Clients;
 
 namespace Horde.Server.Compute
 {
@@ -77,9 +77,9 @@ namespace Horde.Server.Compute
 		async Task HandleClientAsync(TcpClient client, CancellationToken cancellationToken)
 		{
 			await using NetworkStream stream = client.GetStream();
-			using StreamReader reader = new (stream);
-			await using StreamWriter streamWriter = new (stream) { AutoFlush = true };
-			
+			using StreamReader reader = new(stream);
+			await using StreamWriter streamWriter = new(stream) { AutoFlush = true };
+
 			string? requestStr = await reader.ReadLineAsync(cancellationToken);
 			TunnelHandshakeRequest request = TunnelHandshakeRequest.Deserialize(requestStr);
 
@@ -90,7 +90,7 @@ namespace Horde.Server.Compute
 			{
 				await targetClient.ConnectAsync(request.Host, request.Port, cancellationToken);
 				await using NetworkStream targetStream = targetClient.GetStream();
-				
+
 				await streamWriter.WriteLineAsync(new TunnelHandshakeResponse(true, "Connected to target").Serialize());
 
 				if (client.Client.RemoteEndPoint is IPEndPoint clientEndPoint)
@@ -110,7 +110,7 @@ namespace Horde.Server.Compute
 				}
 			}
 		}
-		
+
 		private static async Task RelayStreamsAsync(Stream input, Stream output, CancellationToken cancellationToken)
 		{
 			byte[] buffer = new byte[BufferSize];
@@ -125,10 +125,10 @@ namespace Horde.Server.Compute
 		{
 			if (port != 0)
 			{
-				TcpListener listener = new (address, port);
+				TcpListener listener = new(address, port);
 				listener.Start();
 
-				List<Task> tasks = new ();
+				List<Task> tasks = new();
 				try
 				{
 					for (; ; )

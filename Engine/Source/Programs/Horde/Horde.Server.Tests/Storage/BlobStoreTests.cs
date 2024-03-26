@@ -4,11 +4,11 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
-using Microsoft.VisualStudio.TestTools.UnitTesting;
 using EpicGames.Core;
 using EpicGames.Horde.Storage;
 using Horde.Server.Server;
 using Horde.Server.Storage;
+using Microsoft.VisualStudio.TestTools.UnitTesting;
 
 namespace Horde.Server.Tests.Storage
 {
@@ -122,7 +122,7 @@ namespace Horde.Server.Tests.Storage
 			Assert.IsTrue(blob3.Data.Span.SequenceEqual(input3));
 			Assert.IsTrue(blob3.References.SequenceEqual(new[] { locator1, locator2, locator1 }));
 
-			for(int idx = 0; idx < 2; idx++)
+			for (int idx = 0; idx < 2; idx++)
 			{
 				RefName refName = new RefName("hello");
 				await store.WriteRefAsync(refName, store.CreateBlobRef(locator3));

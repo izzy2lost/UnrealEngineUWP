@@ -1,11 +1,11 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-using EpicGames.Core;
-using StackExchange.Redis;
 using System;
 using System.ComponentModel;
 using System.Diagnostics.CodeAnalysis;
 using System.Reflection;
+using EpicGames.Core;
+using StackExchange.Redis;
 
 namespace EpicGames.Redis.Converters
 {

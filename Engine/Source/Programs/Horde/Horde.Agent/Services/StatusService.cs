@@ -21,7 +21,7 @@ namespace Horde.Agent.Services
 
 		private AgentStatusMessage _current;
 		private bool _isBusy;
-		
+
 		readonly IOptionsMonitor<AgentSettings> _settings;
 		readonly BackgroundTask _task;
 		readonly ILogger _logger;
@@ -37,7 +37,8 @@ namespace Horde.Agent.Services
 		public bool IsBusy
 		{
 			get => _isBusy;
-			set {
+			set
+			{
 				if (_isBusy != value)
 				{
 					_isBusy = value;
@@ -49,7 +50,7 @@ namespace Horde.Agent.Services
 		/// <summary>
 		/// Status was updated
 		/// </summary>
-		public readonly AsyncEvent StatusChangedEvent = new ();
+		public readonly AsyncEvent StatusChangedEvent = new();
 
 		/// <summary>
 		/// Constructor

@@ -745,7 +745,7 @@ namespace Horde.Server.Server
 			}
 
 			int attemptIdx = 1;
-			for(; ;)
+			for (; ; )
 			{
 				try
 				{

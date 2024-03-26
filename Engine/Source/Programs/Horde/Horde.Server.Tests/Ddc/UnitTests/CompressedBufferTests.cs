@@ -11,25 +11,25 @@ using OpenTelemetry.Trace;
 
 namespace Horde.Server.Tests.Ddc.UnitTests
 {
-    [TestClass]
-    public class CompressedBufferTests
-    {
+	[TestClass]
+	public class CompressedBufferTests
+	{
 
-        [TestMethod]
-        public async Task CompressAndDecompressAsync()
-        {
-            byte[] bytes = Encoding.UTF8.GetBytes("this is a test string");
+		[TestMethod]
+		public async Task CompressAndDecompressAsync()
+		{
+			byte[] bytes = Encoding.UTF8.GetBytes("this is a test string");
 
-            CompressedBufferUtils bufferUtils = new(TracerProvider.Default.GetTracer("TestTracer"));
+			CompressedBufferUtils bufferUtils = new(TracerProvider.Default.GetTracer("TestTracer"));
 
-            using MemoryStream ms = new MemoryStream(); 
-            IoHash uncompressedHash = bufferUtils.CompressContent(ms, OoodleCompressorMethod.Mermaid, OoodleCompressionLevel.VeryFast, bytes);
-            ms.Position = 0;
+			using MemoryStream ms = new MemoryStream();
+			IoHash uncompressedHash = bufferUtils.CompressContent(ms, OoodleCompressorMethod.Mermaid, OoodleCompressionLevel.VeryFast, bytes);
+			ms.Position = 0;
 
-            BufferedPayload bufferedPayload = await bufferUtils.DecompressContentAsync(ms, (ulong)ms.Length, CancellationToken.None);
+			BufferedPayload bufferedPayload = await bufferUtils.DecompressContentAsync(ms, (ulong)ms.Length, CancellationToken.None);
 
-            byte[] roundTrippedBytes = await bufferedPayload.GetStream().ReadAllBytesAsync();
-            CollectionAssert.AreEqual(bytes, roundTrippedBytes);
-        }
-    }
+			byte[] roundTrippedBytes = await bufferedPayload.GetStream().ReadAllBytesAsync();
+			CollectionAssert.AreEqual(bytes, roundTrippedBytes);
+		}
+	}
 }

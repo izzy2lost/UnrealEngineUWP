@@ -70,7 +70,7 @@ namespace Horde.Server.Ugs
 			public int UpdateIndex { get; set; }
 			public long UpdateTicks { get; set; }
 
-			IReadOnlyList<IUgsUserData>? IUgsMetadata.Users => (Users.Count > 0)? Users : null;
+			IReadOnlyList<IUgsUserData>? IUgsMetadata.Users => (Users.Count > 0) ? Users : null;
 			IReadOnlyList<IUgsBadgeData>? IUgsMetadata.Badges => (Badges.Count > 0) ? Badges : null;
 
 			[BsonConstructor]
@@ -326,7 +326,7 @@ namespace Horde.Server.Ugs
 		[SuppressMessage("Globalization", "CA1308:Normalize strings to uppercase")]
 		private static string GetNormalizedProject(string? project)
 		{
-			if(project == null)
+			if (project == null)
 			{
 				return String.Empty;
 			}

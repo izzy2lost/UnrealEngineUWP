@@ -4,13 +4,13 @@ using System;
 using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
-using Horde.Server.Perforce;
-using HordeCommon;
-using EpicGames.Horde.Users;
-using Microsoft.Extensions.Logging;
-using Horde.Server.Jobs.Graphs;
 using EpicGames.Horde.Jobs;
 using EpicGames.Horde.Jobs.Bisect;
+using EpicGames.Horde.Users;
+using Horde.Server.Jobs.Graphs;
+using Horde.Server.Perforce;
+using HordeCommon;
+using Microsoft.Extensions.Logging;
 
 namespace Horde.Server.Jobs.Bisect
 {
@@ -139,7 +139,7 @@ namespace Horde.Server.Jobs.Bisect
 
 	static class BisectTaskCollectionExtensions
 	{
-		public static async Task UpdateAsync(this IBisectTaskCollection bisectTasks, IJob job, IJobStepBatch batch, IJobStep step, IGraph graph, ILogger ? logger = null, CancellationToken cancellationToken = default)
+		public static async Task UpdateAsync(this IBisectTaskCollection bisectTasks, IJob job, IJobStepBatch batch, IJobStep step, IGraph graph, ILogger? logger = null, CancellationToken cancellationToken = default)
 		{
 			if (job.StartedByBisectTaskId == null)
 			{
@@ -164,7 +164,7 @@ namespace Horde.Server.Jobs.Bisect
 				logger.LogInformation("Updating bisection task {TaskId} with reference {StepId} for job {JobId}, batch {BatchId}, with outcome", job.StartedByBisectTaskId, step.Id, job.Id, batch.Id);
 			}
 
-			await bisectTasks.TryUpdateAsync(bisectTask, new UpdateBisectTaskOptions() { NewJobStep = new JobStepRefId(job.Id, batch.Id, step.Id) }, cancellationToken);			
+			await bisectTasks.TryUpdateAsync(bisectTask, new UpdateBisectTaskOptions() { NewJobStep = new JobStepRefId(job.Id, batch.Id, step.Id) }, cancellationToken);
 		}
 	}
 }

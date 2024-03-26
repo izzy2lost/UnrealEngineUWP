@@ -6,14 +6,14 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
 using Blake3;
-using EpicGames.Core;
 using EpicGames.Compression;
+using EpicGames.Core;
 using Force.Crc32;
 using K4os.Compression.LZ4;
 using OpenTelemetry.Trace;
-using System.Threading;
 
 #pragma warning disable CS1591 // Missing XML comment for public type
 
@@ -79,7 +79,7 @@ namespace Horde.Server.Ddc
 		{
 			_tracer = tracer;
 		}
-		
+
 		private static (CompressedBufferHeader, uint[]) ExtractHeader(BinaryReader br)
 		{
 			byte[] headerData = br.ReadBytes((int)CompressedBufferHeader.HeaderLength);
@@ -133,7 +133,7 @@ namespace Horde.Server.Ddc
 				Array.Copy(blocksData, 0, crcData, headerData.Length, blocksData.Length);
 
 				blocks = new uint[header.BlockCount];
-				
+
 				for (int i = 0; i < header.BlockCount; i++)
 				{
 					ReadOnlySpan<byte> memory = new ReadOnlySpan<byte>(blocksData, i * sizeof(uint), sizeof(uint));
@@ -149,7 +149,6 @@ namespace Horde.Server.Ddc
 				throw new InvalidHashException(header.Crc32, calculatedCrc);
 			}
 
-			
 			return (header, blocks);
 		}
 
@@ -313,7 +312,7 @@ namespace Horde.Server.Ddc
 
 				blocks.Add(bufferToCompress.ToArray());
 			}
-			
+
 			return CompressContent(s, method, compressionLevel, blocks, blockSize);
 		}
 

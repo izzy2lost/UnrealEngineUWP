@@ -3,17 +3,17 @@
 using System;
 using System.Collections.Generic;
 using System.Net.Http;
+using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
+using EpicGames.Horde.Telemetry;
+using Horde.Server.Telemetry.Sinks;
 using HordeCommon;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using OpenTelemetry.Trace;
-using Horde.Server.Telemetry.Sinks;
-using Microsoft.Extensions.DependencyInjection;
-using System.Text.Json;
-using EpicGames.Horde.Telemetry;
 
 namespace Horde.Server.Telemetry
 {
@@ -67,7 +67,7 @@ namespace Horde.Server.Telemetry
 				using TelemetrySpan sinkSpan = _tracer.StartActiveSpan($"SendEvent");
 				string fullName = sink.GetType().FullName ?? "Unknown";
 				span.SetAttribute("sink", fullName);
-				
+
 				if (sink.Enabled)
 				{
 					try

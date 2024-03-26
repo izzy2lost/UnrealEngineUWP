@@ -19,13 +19,13 @@ namespace Horde.Server.Tests.Compute
 	[TestClass]
 	public sealed class TunnelServiceTests
 	{
-		private static readonly Random s_random = new (112233);
+		private static readonly Random s_random = new(112233);
 		private readonly string _hostname = "127.0.0.1";
 		private readonly int _echoPort = TestSetup.GetAvailablePort();
 		private readonly int _tunnelPort = TestSetup.GetAvailablePort();
 
-		private Task? _tunnelServerTask; 
-		private Task? _echoServerTask; 
+		private Task? _tunnelServerTask;
+		private Task? _echoServerTask;
 
 		[TestCleanup]
 		public async Task CleanupAsync()
@@ -34,7 +34,7 @@ namespace Horde.Server.Tests.Compute
 			{
 				await _echoServerTask.IgnoreCanceledExceptionsAsync().ConfigureAwait(false);
 			}
-			
+
 			if (_tunnelServerTask != null)
 			{
 				await _tunnelServerTask.IgnoreCanceledExceptionsAsync().ConfigureAwait(false);
@@ -49,21 +49,21 @@ namespace Horde.Server.Tests.Compute
 		[DataRow(20000)]
 		public async Task SendRecvTestAsync(int echoServerBufferSize)
 		{
-			using CancellationTokenSource cts = new (10000);
+			using CancellationTokenSource cts = new(10000);
 
 			_echoServerTask = StartEchoServerAsync(_echoPort, echoServerBufferSize, cts.Token);
 
 			ServerSettings serverSettings = new() { ComputeTunnelPort = _tunnelPort };
-			using TunnelService tunnelService = new (new OptionsWrapper<ServerSettings>(serverSettings), TestSetup.CreateConsoleLogger<TunnelService>());
+			using TunnelService tunnelService = new(new OptionsWrapper<ServerSettings>(serverSettings), TestSetup.CreateConsoleLogger<TunnelService>());
 			tunnelService.Start(IPAddress.Any);
 			_tunnelServerTask = tunnelService.ServerTask!;
 
-			using TcpClient client = new ();
+			using TcpClient client = new();
 			await client.ConnectAsync(_hostname, _tunnelPort, cts.Token);
 			await using NetworkStream stream = client.GetStream();
-			using StreamReader streamReader = new (stream);
-			await using StreamWriter streamWriter = new (stream) { AutoFlush = true };
-			
+			using StreamReader streamReader = new(stream);
+			await using StreamWriter streamWriter = new(stream) { AutoFlush = true };
+
 			await streamWriter.WriteLineAsync(new TunnelHandshakeRequest(_hostname, _echoPort).Serialize());
 
 			string? handshakeResponseStr = await ReadLineWithTimeoutAsync(streamReader, TimeSpan.FromSeconds(3));
@@ -72,7 +72,7 @@ namespace Horde.Server.Tests.Compute
 			{
 				throw new Exception("Handshake failed! " + handshakeResponse.Message);
 			}
-			
+
 			try
 			{
 				await AssertSendReceiveAsync(streamReader, streamWriter, 1);
@@ -97,11 +97,11 @@ namespace Horde.Server.Tests.Compute
 			string? response = await ReadLineWithTimeoutAsync(reader, TimeSpan.FromSeconds(3));
 			Assert.AreEqual(randomString, response);
 		}
-		
+
 		private static string GenerateRandomString(int length)
 		{
 			const string Chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
-			StringBuilder result = new (length);
+			StringBuilder result = new(length);
 
 			for (int i = 0; i < length; i++)
 			{
@@ -110,10 +110,10 @@ namespace Horde.Server.Tests.Compute
 
 			return result.ToString();
 		}
-		
+
 		private static async Task StartEchoServerAsync(int port, int bufferSize, CancellationToken cancellationToken)
 		{
-			using TcpListener listener = new (IPAddress.Any, port);
+			using TcpListener listener = new(IPAddress.Any, port);
 			listener.Start();
 
 			Console.WriteLine($"Echo server started on port {port}...");
@@ -128,7 +128,7 @@ namespace Horde.Server.Tests.Compute
 
 			await Task.WhenAll(tasks);
 		}
-		
+
 		private static async Task HandleEchoClientAsync(TcpClient client, int bufferSize, CancellationToken cancellationToken)
 		{
 			await using (NetworkStream stream = client.GetStream())
@@ -146,7 +146,7 @@ namespace Horde.Server.Tests.Compute
 			client.Close();
 			Console.WriteLine("Client connection closed.");
 		}
-		
+
 		private static async Task<string?> ReadLineWithTimeoutAsync(StreamReader reader, TimeSpan timeout)
 		{
 			Task<string?> readLineTask = reader.ReadLineAsync();

@@ -38,23 +38,23 @@ public class WorkspaceMaterializerSettings
 	/// Path to local file system directory where files from changelist are materialized
 	/// </summary>
 	public DirectoryReference DirectoryPath { get; }
-	
+
 	/// <summary>
 	/// Identifier for this workspace
 	/// </summary>
 	public string Identifier { get; }
-	
+
 	/// <summary>
 	/// Stream path inside Perforce
 	/// </summary>
 	public string StreamRoot { get; }
-	
+
 	/// <summary>
 	/// Environment variables expected to be set for applications executing inside the workspace
 	/// Mostly intended for Perforce-specific variables when <see cref="IsPerforceWorkspace" /> is set to true
 	/// </summary>
 	public IReadOnlyDictionary<string, string> EnvironmentVariables { get; }
-	
+
 	/// <summary>
 	/// Whether the materialized workspace is a true Perforce workspace
 	/// This flag is provided as a stop-gap solution to allow replacing ManagedWorkspace with WorkspaceMaterializer.
@@ -89,7 +89,7 @@ public class SyncOptions
 	/// Remove any files not referenced by changelist
 	/// </summary>
 	public bool RemoveUntracked { get; set; }
-	
+
 	/// <summary>
 	/// If true, skip syncing actual file data and instead create empty placeholder files.
 	/// Used for testing.
@@ -107,7 +107,7 @@ public interface IWorkspaceMaterializer : IDisposable
 	/// Placeholder for resolving the latest available change number of stream during sync
 	/// </summary>
 	public const int LatestChangeNumber = -2;
-	
+
 	/// <summary>
 	/// Prepare file system for syncing
 	/// </summary>

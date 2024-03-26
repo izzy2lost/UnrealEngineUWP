@@ -104,10 +104,10 @@ namespace EpicGames.Horde.Tests
 			Pipe sourceToTargetPipe = new Pipe();
 			Pipe targetToSourcePipe = new Pipe();
 
-			await using PipeTransport producerTransport = new (targetToSourcePipe.Reader, sourceToTargetPipe.Writer);
-			await using PipeTransport consumerTransport = new (sourceToTargetPipe.Reader, targetToSourcePipe.Writer);
-			await using RemoteComputeSocket producerSocket = new (producerTransport, ComputeProtocol.Latest, NullLogger.Instance);
-			await using RemoteComputeSocket consumerSocket = new (consumerTransport, ComputeProtocol.Latest, NullLogger.Instance);
+			await using PipeTransport producerTransport = new(targetToSourcePipe.Reader, sourceToTargetPipe.Writer);
+			await using PipeTransport consumerTransport = new(sourceToTargetPipe.Reader, targetToSourcePipe.Writer);
+			await using RemoteComputeSocket producerSocket = new(producerTransport, ComputeProtocol.Latest, NullLogger.Instance);
+			await using RemoteComputeSocket consumerSocket = new(consumerTransport, ComputeProtocol.Latest, NullLogger.Instance);
 
 			using ComputeBuffer consumerBuffer = createBuffer(Length);
 			consumerSocket.AttachRecvBuffer(ChannelId, consumerBuffer);
@@ -167,10 +167,10 @@ namespace EpicGames.Horde.Tests
 		{
 			Pipe recvPipe = new Pipe();
 			Pipe sendPipe = new Pipe();
-			await using PipeTransport localTransport = new (sendPipe.Reader, recvPipe.Writer);
-			await using PipeTransport remoteTransport = new (recvPipe.Reader, sendPipe.Writer);
-			await using RemoteComputeSocket localSocket = new (localTransport, ComputeProtocol.Latest, NullLogger.Instance);
-			await using RemoteComputeSocket remoteSocket = new (remoteTransport, ComputeProtocol.Latest, NullLogger.Instance);
+			await using PipeTransport localTransport = new(sendPipe.Reader, recvPipe.Writer);
+			await using PipeTransport remoteTransport = new(recvPipe.Reader, sendPipe.Writer);
+			await using RemoteComputeSocket localSocket = new(localTransport, ComputeProtocol.Latest, NullLogger.Instance);
+			await using RemoteComputeSocket remoteSocket = new(remoteTransport, ComputeProtocol.Latest, NullLogger.Instance);
 
 			using (PooledBuffer remoteBuffer = new PooledBuffer(1024))
 			{

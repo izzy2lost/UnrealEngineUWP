@@ -3,7 +3,13 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Threading;
 using System.Threading.Tasks;
+using EpicGames.Horde.Jobs;
+using EpicGames.Horde.Jobs.Bisect;
+using EpicGames.Horde.Jobs.Templates;
+using EpicGames.Horde.Streams;
+using EpicGames.Horde.Users;
 using Horde.Server.Server;
 using Horde.Server.Utilities;
 using Microsoft.Extensions.Caching.Memory;
@@ -12,13 +18,7 @@ using MongoDB.Bson;
 using MongoDB.Bson.Serialization;
 using MongoDB.Bson.Serialization.Attributes;
 using MongoDB.Driver;
-using EpicGames.Horde.Jobs.Templates;
-using EpicGames.Horde.Streams;
-using EpicGames.Horde.Users;
 using MongoDB.Driver.Linq;
-using EpicGames.Horde.Jobs;
-using EpicGames.Horde.Jobs.Bisect;
-using System.Threading;
 
 namespace Horde.Server.Users
 {
@@ -93,7 +93,7 @@ namespace Horde.Server.Users
 		{
 			public StreamId StreamId { get; set; }
 
-			public TemplateId TemplateId { get; set; } 
+			public TemplateId TemplateId { get; set; }
 
 			public string TemplateHash { get; set; } = String.Empty;
 
@@ -121,7 +121,7 @@ namespace Horde.Server.Users
 				TemplateId = templateId;
 				TemplateHash = templateHash;
 				Arguments = arguments;
-				UpdateTimeUtc= DateTime.UtcNow;
+				UpdateTimeUtc = DateTime.UtcNow;
 			}
 		}
 
@@ -257,7 +257,7 @@ namespace Horde.Server.Users
 		public async ValueTask<IUser?> GetCachedUserAsync(UserId? id, CancellationToken cancellationToken)
 		{
 			IUser? user;
-			if(id == null)
+			if (id == null)
 			{
 				return null;
 			}
@@ -279,7 +279,7 @@ namespace Horde.Server.Users
 			{
 				filter &= Builders<UserDocument>.Filter.In(x => x.Id, ids);
 			}
-			
+
 			if (nameRegex != null)
 			{
 				BsonRegularExpression regex = new BsonRegularExpression(nameRegex, "i");
@@ -363,7 +363,7 @@ namespace Horde.Server.Users
 		}
 
 		/// <inheritdoc/>
-		public async Task UpdateSettingsAsync(UserId userId, bool? enableExperimentalFeatures = null, bool? alwaysTagPreflightCL = null, BsonValue ? dashboardSettings = null, IEnumerable<JobId>? addPinnedJobIds = null, IEnumerable<JobId>? removePinnedJobIds = null, UpdateUserJobTemplateOptions? templateOptions = null, IEnumerable<BisectTaskId>? addBisectTaskIds = null, IEnumerable<BisectTaskId>? removeBisectTaskIds = null, CancellationToken cancellationToken = default)
+		public async Task UpdateSettingsAsync(UserId userId, bool? enableExperimentalFeatures = null, bool? alwaysTagPreflightCL = null, BsonValue? dashboardSettings = null, IEnumerable<JobId>? addPinnedJobIds = null, IEnumerable<JobId>? removePinnedJobIds = null, UpdateUserJobTemplateOptions? templateOptions = null, IEnumerable<BisectTaskId>? addBisectTaskIds = null, IEnumerable<BisectTaskId>? removeBisectTaskIds = null, CancellationToken cancellationToken = default)
 		{
 			List<UpdateDefinition<UserSettingsDocument>> updates = new List<UpdateDefinition<UserSettingsDocument>>();
 			if (enableExperimentalFeatures != null)
@@ -435,7 +435,7 @@ namespace Horde.Server.Users
 					_logger.LogWarning(ex, "Unable to resave user {UserId}", user.Id);
 				}
 
-				if(settings.PinnedJobIds.Count > 0)
+				if (settings.PinnedJobIds.Count > 0)
 				{
 					await UpdateSettingsAsync(user.Id, addPinnedJobIds: settings.PinnedJobIds, cancellationToken: cancellationToken);
 				}

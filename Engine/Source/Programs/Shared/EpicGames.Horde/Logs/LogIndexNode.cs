@@ -157,7 +157,7 @@ namespace EpicGames.Horde.Logs
 				LogChunkRef indexChunk = _plainTextChunkRefs[blockIdx];
 
 				stats.NumScannedBlocks++;
-//				stats.NumDecompressedBlocks += (indexChunk.Target == null)? 1 : 0;
+				//				stats.NumDecompressedBlocks += (indexChunk.Target == null)? 1 : 0;
 
 				stats.NumSkippedBlocks += blockIdx - lastBlockCount;
 				lastBlockCount = blockIdx + 1;
@@ -167,18 +167,18 @@ namespace EpicGames.Horde.Logs
 
 				// Find the initial offset within this block
 				int offset = 0;
-				if(firstLineIndex > indexChunk.LineIndex)
+				if (firstLineIndex > indexChunk.LineIndex)
 				{
 					int lineIndexWithinBlock = firstLineIndex - indexChunk.LineIndex;
 					offset = chunk.LineOffsets[lineIndexWithinBlock];
 				}
 
 				// Search within this block
-				for(; ;)
+				for (; ; )
 				{
 					// Find the next offset
 					int nextOffset = chunk.Data.Span.FindNextOcurrence(offset, text);
-					if(nextOffset == -1)
+					if (nextOffset == -1)
 					{
 						stats.NumScannedBytes += chunk.Data.Length - offset;
 						break;
@@ -197,7 +197,7 @@ namespace EpicGames.Horde.Logs
 				}
 
 				// If the last scanned bytes is zero, we didn't have any matches from this chunk
-				if(offset == 0 && NgramSet != null)
+				if (offset == 0 && NgramSet != null)
 				{
 					stats.NumFalsePositiveBlocks++;
 				}
@@ -215,7 +215,7 @@ namespace EpicGames.Horde.Logs
 		{
 			// Find the starting chunk index
 			int chunkIdx = _plainTextChunkRefs.BinarySearch(x => x.LineIndex, lineIndex);
-			if(chunkIdx < 0)
+			if (chunkIdx < 0)
 			{
 				chunkIdx = Math.Max(~chunkIdx - 1, 0);
 			}

@@ -53,7 +53,7 @@ namespace Horde.Agent.Utility
 			netResource.lpRemoteName = remotePath;
 
 			int result = WNetAddConnection2W(ref netResource, null, null, CONNECT_TEMPORARY);
-			if(result != 0)
+			if (result != 0)
 			{
 				if (result == ERROR_ALREADY_ASSIGNED)
 				{
@@ -81,7 +81,7 @@ namespace Horde.Agent.Utility
 		public static void Unmount(string mountPoint)
 		{
 			int result = WNetCancelConnectionW(mountPoint, true);
-			if(result != 0)
+			if (result != 0)
 			{
 				throw new Win32Exception(result, $"Unable to unmount {mountPoint} ({result})");
 			}
@@ -108,7 +108,7 @@ namespace Horde.Agent.Utility
 						outRemotePath = Marshal.PtrToStringUni(remotePath)!;
 						return outRemotePath != null;
 					}
-					else if(result == ERROR_MORE_DATA && length > prevLength)
+					else if (result == ERROR_MORE_DATA && length > prevLength)
 					{
 						continue;
 					}

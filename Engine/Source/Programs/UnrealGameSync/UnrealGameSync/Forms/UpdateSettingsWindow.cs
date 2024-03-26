@@ -1,13 +1,13 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-using EpicGames.Core;
-using EpicGames.Perforce;
-using Microsoft.Extensions.Logging;
 using System;
 using System.Runtime.InteropServices;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows.Forms;
+using EpicGames.Core;
+using EpicGames.Perforce;
+using Microsoft.Extensions.Logging;
 
 namespace UnrealGameSync
 {
@@ -140,10 +140,7 @@ namespace UnrealGameSync
 				return;
 			}
 
-			if (task != null)
-			{
-				PromptLabel.Text = task.Error;
-			}
+			PromptLabel.Text = task.Error;
 
 			_logText = logger.Render(Environment.NewLine);
 			ViewLogBtn.Visible = true;

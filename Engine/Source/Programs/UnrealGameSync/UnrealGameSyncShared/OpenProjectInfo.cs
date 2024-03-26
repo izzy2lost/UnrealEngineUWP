@@ -1,15 +1,14 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-using EpicGames.Core;
-using EpicGames.OIDC;
-using EpicGames.Perforce;
-using Microsoft.Extensions.Logging;
 using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
+using EpicGames.Core;
+using EpicGames.Perforce;
+using Microsoft.Extensions.Logging;
 
 namespace UnrealGameSync
 {
@@ -204,7 +203,7 @@ namespace UnrealGameSync
 						}
 					}
 				}
-				if(branchClientPath == null || branchDirectoryName == null)
+				if (branchClientPath == null || branchDirectoryName == null)
 				{
 					throw new UserErrorException($"Could not find engine in Perforce relative to project path ({newSelectedClientFileName})");
 				}
@@ -221,24 +220,35 @@ namespace UnrealGameSync
 				ProjectInfo projectInfo = await ProjectInfo.CreateAsync(perforceClient, userWorkspaceSettings, cancellationToken);
 
 				// Update the cached workspace state
-				WorkspaceStateWrapper workspaceStateWrapper = userSettings.FindOrAddWorkspaceState(projectInfo, userWorkspaceSettings);
-
-				// Read the initial config file
-				List<KeyValuePair<FileReference, DateTime>> localConfigFiles = new List<KeyValuePair<FileReference, DateTime>>();
-				ConfigFile latestProjectConfigFile = await ConfigUtils.ReadProjectConfigFileAsync(perforceClient, projectInfo, localConfigFiles, logger, cancellationToken);
-
-				// Get the local config file and stream filter
-				ConfigFile workspaceProjectConfigFile = await WorkspaceUpdate.ReadProjectConfigFile(branchDirectoryName, newSelectedFileName, logger);
-				IReadOnlyList<string>? workspaceProjectStreamFilter = await WorkspaceUpdate.ReadProjectStreamFilter(perforceClient, workspaceProjectConfigFile, cancellationToken);
-
-				OpenProjectInfo workspaceSettings = new OpenProjectInfo(selectedProject, perforceSettings, projectInfo, userWorkspaceSettings, workspaceStateWrapper, latestProjectConfigFile, workspaceProjectConfigFile, workspaceProjectStreamFilter, localConfigFiles, generateP4Config);
-
-				if (generateP4Config)
+				WorkspaceStateWrapper? workspaceStateWrapper = null;
+				try
 				{
-					GenerateP4ConfigFile(perforceSettings, projectInfo, logger);
-				}
+#pragma warning disable CA2000
+					workspaceStateWrapper = userSettings.FindOrAddWorkspaceState(projectInfo, userWorkspaceSettings);
+#pragma warning restore CA2000
 
-				return workspaceSettings;
+					// Read the initial config file
+					List<KeyValuePair<FileReference, DateTime>> localConfigFiles = new List<KeyValuePair<FileReference, DateTime>>();
+					ConfigFile latestProjectConfigFile = await ConfigUtils.ReadProjectConfigFileAsync(perforceClient, projectInfo, localConfigFiles, logger, cancellationToken);
+
+					// Get the local config file and stream filter
+					ConfigFile workspaceProjectConfigFile = await WorkspaceUpdate.ReadProjectConfigFile(branchDirectoryName, newSelectedFileName, logger);
+					IReadOnlyList<string>? workspaceProjectStreamFilter = await WorkspaceUpdate.ReadProjectStreamFilter(perforceClient, workspaceProjectConfigFile, cancellationToken);
+
+					OpenProjectInfo workspaceSettings = new OpenProjectInfo(selectedProject, perforceSettings, projectInfo, userWorkspaceSettings, workspaceStateWrapper, latestProjectConfigFile, workspaceProjectConfigFile, workspaceProjectStreamFilter, localConfigFiles, generateP4Config);
+
+					if (generateP4Config)
+					{
+						GenerateP4ConfigFile(perforceSettings, projectInfo, logger);
+					}
+
+					return workspaceSettings;
+				}
+				catch
+				{
+					workspaceStateWrapper?.Dispose();
+					throw;
+				}
 			}
 			finally
 			{
@@ -249,15 +259,15 @@ namespace UnrealGameSync
 		static async Task<List<IPerforceSettings>> FilterClients(List<ClientsRecord> clients, FileReference newSelectedFileName, IPerforceSettings defaultPerforceSettings, string? hostName, ILogger logger, CancellationToken cancellationToken)
 		{
 			List<IPerforceSettings> candidateClients = new List<IPerforceSettings>();
-			foreach(ClientsRecord client in clients)
+			foreach (ClientsRecord client in clients)
 			{
 				// Make sure the client is well formed
-				if(!String.IsNullOrEmpty(client.Name) && (!String.IsNullOrEmpty(client.Host) || !String.IsNullOrEmpty(client.Owner)) && !String.IsNullOrEmpty(client.Root))
+				if (!String.IsNullOrEmpty(client.Name) && (!String.IsNullOrEmpty(client.Host) || !String.IsNullOrEmpty(client.Owner)) && !String.IsNullOrEmpty(client.Root))
 				{
 					// Require either a username or host name match
-					if((String.IsNullOrEmpty(client.Host) || String.Equals(client.Host, hostName, StringComparison.OrdinalIgnoreCase)) && (String.IsNullOrEmpty(client.Owner) || String.Equals(client.Owner, defaultPerforceSettings.UserName, StringComparison.OrdinalIgnoreCase)))
+					if ((String.IsNullOrEmpty(client.Host) || String.Equals(client.Host, hostName, StringComparison.OrdinalIgnoreCase)) && (String.IsNullOrEmpty(client.Owner) || String.Equals(client.Owner, defaultPerforceSettings.UserName, StringComparison.OrdinalIgnoreCase)))
 					{
-						if(!Utility.SafeIsFileUnderDirectory(newSelectedFileName.FullName, client.Root))
+						if (!Utility.SafeIsFileUnderDirectory(newSelectedFileName.FullName, client.Root))
 						{
 							logger.LogInformation("Rejecting {ClientName} due to root mismatch ({RootPath})", client.Name, client.Root);
 							continue;
@@ -267,7 +277,7 @@ namespace UnrealGameSync
 						using IPerforceConnection candidateClient = await PerforceConnection.CreateAsync(candidateSettings, logger);
 
 						List<PerforceResponse<WhereRecord>> whereRecords = await candidateClient.TryWhereAsync(newSelectedFileName.FullName, cancellationToken).Where(x => x.Failed || !x.Data.Unmap).ToListAsync(cancellationToken);
-						if(!whereRecords.Succeeded() || whereRecords.Count != 1)
+						if (!whereRecords.Succeeded() || whereRecords.Count != 1)
 						{
 							logger.LogInformation("Rejecting {ClientName} due to file not existing in workspace", client.Name);
 							continue;
@@ -281,7 +291,7 @@ namespace UnrealGameSync
 						}
 
 						records.RemoveAll(x => !x.Data.IsMapped);
-						if(records.Count == 0)
+						if (records.Count == 0)
 						{
 							logger.LogInformation("Rejecting {ClientName} due to {NumRecords} matching records", client.Name, records.Count);
 							continue;

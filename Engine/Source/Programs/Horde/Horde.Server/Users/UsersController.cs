@@ -3,12 +3,12 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Threading;
 using System.Threading.Tasks;
+using EpicGames.Horde.Users;
 using Horde.Server.Utilities;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using EpicGames.Horde.Users;
-using System.Threading;
 
 namespace Horde.Server.Users
 {
@@ -51,7 +51,7 @@ namespace Horde.Server.Users
 		public async Task<ActionResult<object>> GetUserAsync(string id, [FromQuery] PropertyFilter? filter = null, CancellationToken cancellationToken = default)
 		{
 			UserId? userId = ParseUserId(id);
-			if(userId == null)
+			if (userId == null)
 			{
 				return BadRequest("Invalid user id '{Id}'", id);
 			}
@@ -110,7 +110,7 @@ namespace Horde.Server.Users
 			{
 				return User.GetUserId();
 			}
-			else if(UserId.TryParse(id, out UserId result))
+			else if (UserId.TryParse(id, out UserId result))
 			{
 				return result;
 			}

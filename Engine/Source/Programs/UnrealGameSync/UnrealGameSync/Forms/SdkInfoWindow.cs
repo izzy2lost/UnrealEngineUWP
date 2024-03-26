@@ -31,13 +31,13 @@ namespace UnrealGameSync
 		class SdkActionRun : SdkAction
 		{
 			public string Program { get; set; } = "";
-			public string Args    { get; set; } = "";
+			public string Args { get; set; } = "";
 
 			public SdkActionRun(string name, string program = "", string args = "")
 				: base(name)
 			{
 				Program = program;
-				Args    = args;
+				Args = args;
 			}
 
 			public override void Execute()
@@ -51,7 +51,7 @@ namespace UnrealGameSync
 					Process.Start(startInfo);
 				}
 
-				catch(Exception ex)
+				catch (Exception ex)
 				{
 					MessageBox.Show($"Unable to run '{Program} {Args}': {ex.Message}");
 				}
@@ -97,14 +97,14 @@ namespace UnrealGameSync
 			_badgeFont = badgeFont;
 
 			Dictionary<string, ConfigObject> uniqueIdToObject = new Dictionary<string, ConfigObject>(StringComparer.InvariantCultureIgnoreCase);
-			foreach(string sdkInfoEntry in sdkInfoEntries)
+			foreach (string sdkInfoEntry in sdkInfoEntries)
 			{
 				ConfigObject obj = new ConfigObject(sdkInfoEntry);
 
 				string uniqueId = obj.GetValue("UniqueId", Guid.NewGuid().ToString());
 
 				ConfigObject? existingObject;
-				if(uniqueIdToObject.TryGetValue(uniqueId, out existingObject))
+				if (uniqueIdToObject.TryGetValue(uniqueId, out existingObject))
 				{
 					existingObject.AddOverrides(obj, null);
 				}
@@ -115,7 +115,7 @@ namespace UnrealGameSync
 			}
 
 			List<SdkItem> items = new List<SdkItem>();
-			foreach(ConfigObject obj in uniqueIdToObject.Values)
+			foreach (ConfigObject obj in uniqueIdToObject.Values)
 			{
 				string category = obj.GetValue("Category", "Other");
 				string description = obj.GetValue("Description", "");
@@ -125,8 +125,8 @@ namespace UnrealGameSync
 
 				foreach (string key in keys)
 				{
-					string  keyToAdd = key;
-					string? value    = obj.GetValue(keyToAdd, "");
+					string keyToAdd = key;
+					string? value = obj.GetValue(keyToAdd, "");
 
 					if (String.IsNullOrEmpty(value))
 					{
@@ -201,16 +201,16 @@ namespace UnrealGameSync
 				items.Add(item);
 			}
 
-			foreach(IGrouping<string, SdkItem> itemGroup in items.GroupBy(x => x.Category).OrderBy(x => x.Key))
+			foreach (IGrouping<string, SdkItem> itemGroup in items.GroupBy(x => x.Category).OrderBy(x => x.Key))
 			{
 				ListViewGroup group = new ListViewGroup(itemGroup.Key);
 				SdkListView.Groups.Add(group);
 
-				foreach(SdkItem item in itemGroup)
+				foreach (SdkItem item in itemGroup)
 				{
 					ListViewItem newItem = new ListViewItem(group);
 					newItem.SubItems.Add(item.Description);
-					newItem.SubItems.Add(new ListViewItem.ListViewSubItem(){ Tag = item });
+					newItem.SubItems.Add(new ListViewItem.ListViewSubItem() { Tag = item });
 					SdkListView.Items.Add(newItem);
 				}
 			}
@@ -218,7 +218,7 @@ namespace UnrealGameSync
 			System.Reflection.PropertyInfo doubleBufferedProperty = typeof(Control).GetProperty("DoubleBuffered", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!;
 			doubleBufferedProperty.SetValue(SdkListView, true, null);
 
-			if(SdkListView.Items.Count > 0)
+			if (SdkListView.Items.Count > 0)
 			{
 				int itemsHeight = SdkListView.Items[^1].Bounds.Bottom + 20;
 				Height = SdkListView.Top + itemsHeight + (Height - SdkListView.Bottom);
@@ -242,7 +242,7 @@ namespace UnrealGameSync
 			{
 				e.DrawDefault = true;
 			}
-			else if(e.ColumnIndex != columnHeader3.Index)
+			else if (e.ColumnIndex != columnHeader3.Index)
 			{
 				TextRenderer.DrawText(e.Graphics, e.SubItem.Text, SdkListView.Font, e.Bounds, SdkListView.ForeColor, TextFormatFlags.EndEllipsis | TextFormatFlags.SingleLine | TextFormatFlags.Left | TextFormatFlags.VerticalCenter | TextFormatFlags.NoPrefix);
 			}
@@ -251,10 +251,10 @@ namespace UnrealGameSync
 				e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
 
 				List<BadgeInfo> badges = GetBadges(e.Item, e.SubItem);
-				for(int idx = 0; idx < badges.Count; idx++)
+				for (int idx = 0; idx < badges.Count; idx++)
 				{
-					Color badgeColor = (_hoverBadgeUniqueId == badges[idx].UniqueId)? Color.FromArgb(140, 180, 230) : Color.FromArgb(112, 146, 190);
-					if(badges[idx].OnClick != null)
+					Color badgeColor = (_hoverBadgeUniqueId == badges[idx].UniqueId) ? Color.FromArgb(140, 180, 230) : Color.FromArgb(112, 146, 190);
+					if (badges[idx].OnClick != null)
 					{
 						DrawBadge(e.Graphics, badges[idx].Label, badges[idx].Rectangle, (idx > 0), (idx < badges.Count - 1), badgeColor);
 					}
@@ -267,19 +267,19 @@ namespace UnrealGameSync
 			string? newHoverUniqueId = null;
 
 			ListViewHitTestInfo hitTest = SdkListView.HitTest(e.Location);
-			if(hitTest.Item != null && hitTest.SubItem == hitTest.Item.SubItems[2])
+			if (hitTest.Item != null && hitTest.SubItem == hitTest.Item.SubItems[2])
 			{
 				List<BadgeInfo> badges = GetBadges(hitTest.Item, hitTest.SubItem);
-				foreach(BadgeInfo badge in badges)
+				foreach (BadgeInfo badge in badges)
 				{
-					if(badge.Rectangle.Contains(e.Location))
+					if (badge.Rectangle.Contains(e.Location))
 					{
 						newHoverUniqueId = badge.UniqueId;
 					}
 				}
 			}
 
-			if(newHoverUniqueId != _hoverBadgeUniqueId)
+			if (newHoverUniqueId != _hoverBadgeUniqueId)
 			{
 				_hoverBadgeUniqueId = newHoverUniqueId;
 				SdkListView.Invalidate();
@@ -294,12 +294,12 @@ namespace UnrealGameSync
 		private void SdkListView_MouseDown(object sender, MouseEventArgs e)
 		{
 			ListViewHitTestInfo hitTest = SdkListView.HitTest(e.Location);
-			if(hitTest.Item != null && hitTest.SubItem == hitTest.Item.SubItems[2])
+			if (hitTest.Item != null && hitTest.SubItem == hitTest.Item.SubItems[2])
 			{
 				List<BadgeInfo> badges = GetBadges(hitTest.Item, hitTest.SubItem);
-				foreach(BadgeInfo badge in badges)
+				foreach (BadgeInfo badge in badges)
 				{
-					if(badge.Rectangle.Contains(e.Location) && badge.OnClick != null)
+					if (badge.Rectangle.Contains(e.Location) && badge.OnClick != null)
 					{
 						badge.OnClick();
 					}
@@ -323,7 +323,7 @@ namespace UnrealGameSync
 			}
 
 			int right = subItem.Bounds.Right - 10;
-			for(int idx = badges.Count - 1; idx >= 0; idx--)
+			for (int idx = badges.Count - 1; idx >= 0; idx--)
 			{
 				Size badgeSize = GetBadgeSize(badges[idx].Label);
 				right -= badgeSize.Width;
@@ -346,13 +346,13 @@ namespace UnrealGameSync
 			using (GraphicsPath path = new GraphicsPath())
 			{
 				path.StartFigure();
-				path.AddLine(badgeRect.Left + (mergeLeft? 1 : 0), badgeRect.Top, badgeRect.Left - (mergeLeft? 1 : 0), badgeRect.Bottom);
-				path.AddLine(badgeRect.Left - (mergeLeft? 1 : 0), badgeRect.Bottom, badgeRect.Right - 1 - (mergeRight? 1 : 0), badgeRect.Bottom);
-				path.AddLine(badgeRect.Right - 1 - (mergeRight? 1 : 0), badgeRect.Bottom, badgeRect.Right - 1 + (mergeRight? 1 : 0), badgeRect.Top);
-				path.AddLine(badgeRect.Right - 1 + (mergeRight? 1 : 0), badgeRect.Top, badgeRect.Left + (mergeLeft? 1 : 0), badgeRect.Top);
+				path.AddLine(badgeRect.Left + (mergeLeft ? 1 : 0), badgeRect.Top, badgeRect.Left - (mergeLeft ? 1 : 0), badgeRect.Bottom);
+				path.AddLine(badgeRect.Left - (mergeLeft ? 1 : 0), badgeRect.Bottom, badgeRect.Right - 1 - (mergeRight ? 1 : 0), badgeRect.Bottom);
+				path.AddLine(badgeRect.Right - 1 - (mergeRight ? 1 : 0), badgeRect.Bottom, badgeRect.Right - 1 + (mergeRight ? 1 : 0), badgeRect.Top);
+				path.AddLine(badgeRect.Right - 1 + (mergeRight ? 1 : 0), badgeRect.Top, badgeRect.Left + (mergeLeft ? 1 : 0), badgeRect.Top);
 				path.CloseFigure();
 
-				using(SolidBrush brush = new SolidBrush(badgeColor))
+				using (SolidBrush brush = new SolidBrush(badgeColor))
 				{
 					graphics.FillPath(brush, path);
 				}

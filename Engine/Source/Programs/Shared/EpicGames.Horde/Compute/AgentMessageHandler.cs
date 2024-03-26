@@ -3,19 +3,19 @@
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.IO;
+using System.Linq;
+using System.Runtime.ExceptionServices;
 using System.Runtime.InteropServices;
+using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using EpicGames.Core;
 using EpicGames.Horde.Compute.Buffers;
+using EpicGames.Horde.Storage;
+using EpicGames.Horde.Storage.Bundles;
 using EpicGames.Horde.Storage.Nodes;
 using Microsoft.Extensions.Logging;
-using EpicGames.Horde.Storage;
-using System.IO;
-using System.Linq;
-using System.Runtime.ExceptionServices;
-using System.Text;
-using EpicGames.Horde.Storage.Bundles;
 
 namespace EpicGames.Horde.Compute
 {
@@ -223,7 +223,7 @@ namespace EpicGames.Horde.Compute
 				{
 					await using FileStream stream = FileReference.Open(file, FileMode.Open, FileAccess.Read);
 					IoHash hash = await IoHash.ComputeAsync(stream, cancellationToken);
-					
+
 					if (hash == fileEntry.StreamHash)
 					{
 						_logger.LogInformation("Hash of {File} is correct ({Hash})", file, hash);
@@ -322,7 +322,7 @@ namespace EpicGames.Horde.Compute
 			using CancellationTokenSource cancellationTokenSource = CancellationTokenSource.CreateLinkedTokenSource(cancellationTokens);
 			CancellationToken cancellationToken = cancellationTokenSource.Token;
 
-			List <SharedMemoryBuffer> buffers = new();
+			List<SharedMemoryBuffer> buffers = new();
 			try
 			{
 				List<(int, ComputeBufferWriter)> writers = new List<(int, ComputeBufferWriter)>();
@@ -464,7 +464,7 @@ namespace EpicGames.Horde.Compute
 			finally
 			{
 				Directory.SetCurrentDirectory(prevWorkingDir);
-				foreach((string key, string? value) in prevEnvVars)
+				foreach ((string key, string? value) in prevEnvVars)
 				{
 					Environment.SetEnvironmentVariable(key, value);
 				}
@@ -477,7 +477,7 @@ namespace EpicGames.Horde.Compute
 			{
 				throw new Exception("Only Linux is supported for executing a process inside a container");
 			}
-			
+
 			if (_containerEngineExecutable == null)
 			{
 				throw new Exception("Container execution requested but agent has no container engine configured");
@@ -497,7 +497,7 @@ namespace EpicGames.Horde.Compute
 				sb.AppendLine($"{key}={value}");
 			}
 			await File.WriteAllTextAsync(envFilePath, sb.ToString(), cancellationToken);
-			
+
 			List<string> resolvedArguments = new()
 			{
 				"run",
@@ -507,7 +507,7 @@ namespace EpicGames.Horde.Compute
 				$"--volume={_sandboxDir}:{_sandboxDir}:rw",
 				"--env-file=" + envFilePath,
 			};
-			
+
 			if (flags.HasFlag(ExecuteProcessFlags.ReplaceContainerEntrypoint))
 			{
 				resolvedArguments.Add("--entrypoint=" + resolvedExecutable);
@@ -518,7 +518,7 @@ namespace EpicGames.Horde.Compute
 				resolvedArguments.Add(containerImageUrl);
 				resolvedArguments.Add(resolvedExecutable); // Add executable as first argument and assume the entrypoint inside the container image will handle this
 			}
-			
+
 			resolvedArguments.AddRange(arguments);
 			_logger.LogInformation("Executing {File} {Arguments} in container", _containerEngineExecutable, arguments);
 
@@ -549,12 +549,12 @@ namespace EpicGames.Horde.Compute
 				Dictionary<string, string> resolvedEnvVars = ResolveEnvVars(envVars);
 				if (!File.Exists(resolvedExecutable))
 				{
-					_logger.LogWarning("Executable {Path} does not exist", resolvedExecutable);	
+					_logger.LogWarning("Executable {Path} does not exist", resolvedExecutable);
 				}
-				
+
 				if (!Directory.Exists(resolvedWorkingDir))
 				{
-					_logger.LogWarning("Working dir {Path} does not exist", resolvedWorkingDir);	
+					_logger.LogWarning("Working dir {Path} does not exist", resolvedWorkingDir);
 				}
 
 				using ManagedProcessGroup group = new ManagedProcessGroup();
@@ -580,12 +580,12 @@ namespace EpicGames.Horde.Compute
 				}
 			}
 		}
-		
+
 		private string GetExecutableAbsPath(string relPath)
 		{
 			return FileReference.Combine(_sandboxDir, relPath).FullName;
 		}
-		
+
 		private string GetWorkingDirAbsPath(string? relPath)
 		{
 			return DirectoryReference.Combine(_sandboxDir, relPath ?? String.Empty).FullName;

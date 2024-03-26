@@ -1,17 +1,17 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
+using System;
 using System.Threading.Tasks;
 using EpicGames.Core;
-using Horde.Server.Server;
-using Microsoft.Extensions.Logging;
-using System;
-using Microsoft.Extensions.Configuration;
-using Microsoft.Extensions.DependencyInjection;
-using Horde.Server.Streams;
+using EpicGames.Horde.Replicators;
 using EpicGames.Horde.Streams;
 using Horde.Server.Configuration;
-using EpicGames.Horde.Replicators;
 using Horde.Server.Replicators;
+using Horde.Server.Server;
+using Horde.Server.Streams;
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 
 namespace Horde.Server.Commands.Test
 {

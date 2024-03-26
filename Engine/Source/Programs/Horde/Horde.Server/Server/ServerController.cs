@@ -139,6 +139,7 @@ namespace Horde.Server.Server
 
 			GetAuthConfigResponse response = new GetAuthConfigResponse();
 			response.Method = settings.AuthMethod;
+			response.ProfileName = settings.OidcProfileName;
 			response.ServerUrl = settings.OidcAuthority;
 			response.ClientId = settings.OidcClientId;
 			response.LocalRedirectUrls = settings.OidcLocalRedirectUrls;

@@ -1,8 +1,8 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-using System.Threading.Tasks;
-using System.Threading;
 using System;
+using System.Threading;
+using System.Threading.Tasks;
 using Horde.Server.Users;
 
 namespace Horde.Server.Configuration
@@ -51,7 +51,7 @@ namespace Horde.Server.Configuration
 			string path = file.Uri.ToString();
 			if (path.StartsWith(DefaultPerforcePrefix, StringComparison.OrdinalIgnoreCase))
 			{
-				path = path.Substring(DefaultPerforcePrefix.Length - 2);				
+				path = path.Substring(DefaultPerforcePrefix.Length - 2);
 			}
 			if (!String.IsNullOrEmpty(file.Revision))
 			{

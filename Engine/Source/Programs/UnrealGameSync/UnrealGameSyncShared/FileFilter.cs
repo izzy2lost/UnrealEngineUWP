@@ -99,24 +99,24 @@ namespace UnrealGameSync
 		public void AddRule(string rule, params string[] allowTags)
 		{
 			string cleanRule = rule.Trim();
-			if(cleanRule.StartsWith("{", StringComparison.Ordinal))
+			if (cleanRule.StartsWith("{", StringComparison.Ordinal))
 			{
 				// Find the end of the condition
 				int conditionEnd = cleanRule.IndexOf('}', StringComparison.Ordinal);
-				if(conditionEnd == -1)
+				if (conditionEnd == -1)
 				{
 					throw new Exception(String.Format("Missing closing parenthesis in rule: {0}", cleanRule));
 				}
 
 				// Check there's a matching tag
 				string[] ruleTags = cleanRule.Substring(1, conditionEnd - 1).Split(',').Select(x => x.Trim()).ToArray();
-				if(!ruleTags.Any(x => allowTags.Contains(x)))
+				if (!ruleTags.Any(x => allowTags.Contains(x)))
 				{
 					return;
 				}
 
 				// Strip the condition from the rule
-				cleanRule = cleanRule.Substring(conditionEnd + 1).TrimStart(); 
+				cleanRule = cleanRule.Substring(conditionEnd + 1).TrimStart();
 			}
 			AddRule(cleanRule);
 		}
@@ -127,7 +127,7 @@ namespace UnrealGameSync
 		/// <param name="rules">List of patterns to match.</param>
 		public void AddRules(IEnumerable<string> rules)
 		{
-			foreach(string rule in rules)
+			foreach (string rule in rules)
 			{
 				AddRule(rule);
 			}
@@ -139,7 +139,7 @@ namespace UnrealGameSync
 		/// </summary>
 		public void AddRules(IEnumerable<string> rules, params string[] tags)
 		{
-			foreach(string rule in rules)
+			foreach (string rule in rules)
 			{
 				AddRule(rule, tags);
 			}
@@ -151,16 +151,16 @@ namespace UnrealGameSync
 		public void ReadRulesFromFile(string fileName, string sectionName, params string[] allowTags)
 		{
 			bool inSection = false;
-			foreach(string line in File.ReadAllLines(fileName))
+			foreach (string line in File.ReadAllLines(fileName))
 			{
 				string trimLine = line.Trim();
-				if(!trimLine.StartsWith(";", StringComparison.Ordinal) && trimLine.Length > 0)
+				if (!trimLine.StartsWith(";", StringComparison.Ordinal) && trimLine.Length > 0)
 				{
-					if(trimLine.StartsWith("[", StringComparison.Ordinal))
+					if (trimLine.StartsWith("[", StringComparison.Ordinal))
 					{
 						inSection = (trimLine == "[" + sectionName + "]");
 					}
-					else if(inSection)
+					else if (inSection)
 					{
 						AddRule(line, allowTags);
 					}
@@ -224,7 +224,7 @@ namespace UnrealGameSync
 			{
 				normalizedPattern = normalizedPattern.Substring(1);
 			}
-			else if(!normalizedPattern.StartsWith("...", StringComparison.Ordinal))
+			else if (!normalizedPattern.StartsWith("...", StringComparison.Ordinal))
 			{
 				normalizedPattern = ".../" + normalizedPattern;
 			}
@@ -322,7 +322,7 @@ namespace UnrealGameSync
 		{
 			string[] tokens = folderName.Trim('/', '\\').Split('/', '\\');
 
-			FileFilterNode matchingNode = FindMatchingNode(_rootNode, tokens.Union(new string[]{ "" }).ToArray(), 0, _defaultNode);
+			FileFilterNode matchingNode = FindMatchingNode(_rootNode, tokens.Union(new string[] { "" }).ToArray(), 0, _defaultNode);
 
 			return matchingNode.Type == FileFilterType.Include || HighestPossibleIncludeMatch(_rootNode, tokens, 0, matchingNode.RuleNumber) > matchingNode.RuleNumber;
 		}
@@ -479,7 +479,7 @@ namespace UnrealGameSync
 		/// </summary>
 		public bool IsMatch(string token)
 		{
-			if(Pattern.EndsWith(".", StringComparison.Ordinal))
+			if (Pattern.EndsWith(".", StringComparison.Ordinal))
 			{
 				return !token.Contains('.', StringComparison.Ordinal) && IsMatch(token, 0, Pattern.Substring(0, Pattern.Length - 1), 0);
 			}

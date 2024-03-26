@@ -9,7 +9,7 @@ using EpicGames.Horde.Streams;
 using MongoDB.Bson;
 
 namespace Horde.Server.Jobs.TestData
-{	
+{
 	/// <summary>
 	/// Collection of test data documents
 	/// </summary>

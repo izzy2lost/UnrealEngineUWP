@@ -83,7 +83,7 @@ namespace Horde.Server.Devices
 		/// <param name="enabled">Whather the device is enabled by default</param>
 		/// <param name="address">The network address or hostname the device can be reached at</param>
 		/// <param name="modelId">The vendor model id of the device</param>
-        /// <param name="userId">The user adding the device</param>
+		/// <param name="userId">The user adding the device</param>
 		Task<IDevice?> TryAddDeviceAsync(DeviceId id, string name, DevicePlatformId platformId, DevicePoolId poolId, bool? enabled, string? address, string? modelId, UserId? userId);
 
 		/// <summary>
@@ -98,7 +98,7 @@ namespace Horde.Server.Devices
 		/// <param name="newEnabled">Whether the device is enabled or not</param>
 		/// <param name="newProblem">Whether to set or clear problem state</param>
 		/// <param name="newMaintenance">Whether to set or clear maintenance state</param>
-        /// <param name="modifiedByUserId">The user who is updating the device</param>
+		/// <param name="modifiedByUserId">The user who is updating the device</param>
 		Task UpdateDeviceAsync(DeviceId deviceId, DevicePoolId? newPoolId, string? newName, string? newAddress, string? newModelId, string? newNotes, bool? newEnabled, bool? newProblem, bool? newMaintenance, UserId? modifiedByUserId = null);
 
 		/// <summary>
@@ -108,12 +108,12 @@ namespace Horde.Server.Devices
 		Task<bool> DeleteDeviceAsync(DeviceId deviceId);
 
 		/// <summary>
-        /// Checkout or checkin the specified device
-        /// </summary>
-        /// <param name="deviceId"></param>
-        /// <param name="checkedOutByUserId"></param>
-        /// <returns></returns>
-        Task CheckoutDeviceAsync(DeviceId deviceId, UserId? checkedOutByUserId);
+		/// Checkout or checkin the specified device
+		/// </summary>
+		/// <param name="deviceId"></param>
+		/// <param name="checkedOutByUserId"></param>
+		/// <returns></returns>
+		Task CheckoutDeviceAsync(DeviceId deviceId, UserId? checkedOutByUserId);
 
 		// RESERVATIONS
 
@@ -157,10 +157,10 @@ namespace Horde.Server.Devices
 		/// <param name="id">A device contained in reservation</param>
 		Task<IDeviceReservation?> TryGetDeviceReservationAsync(DeviceId id);
 
-        /// <summary>
-        /// Get a list of all reservations
-        /// </summary>
-        Task<List<IDeviceReservation>> FindAllReservationsAsync();
+		/// <summary>
+		/// Get a list of all reservations
+		/// </summary>
+		Task<List<IDeviceReservation>> FindAllReservationsAsync();
 
 		/// <summary>
 		/// Updates a reservation to the current time, for expiration

@@ -36,9 +36,9 @@ namespace Horde.Server.Server
 {
 	using RpcAgentCapabilities = HordeCommon.Rpc.Messages.AgentCapabilities;
 	using RpcDeviceCapabilities = HordeCommon.Rpc.Messages.DeviceCapabilities;
-	using RpcGetStreamResponse = HordeCommon.Rpc.GetStreamResponse;
 	using RpcGetJobResponse = HordeCommon.Rpc.GetJobResponse;
 	using RpcGetStepResponse = HordeCommon.Rpc.GetStepResponse;
+	using RpcGetStreamResponse = HordeCommon.Rpc.GetStreamResponse;
 	using RpcUpdateJobRequest = HordeCommon.Rpc.UpdateJobRequest;
 	using RpcUpdateStepRequest = HordeCommon.Rpc.UpdateStepRequest;
 
@@ -369,7 +369,7 @@ namespace Horde.Server.Server
 				nextRequestTask = nextRequestTask.ContinueWith(task =>
 				{
 					cancellationSource.Cancel();
-					return task.IsCanceled? false : task.Result;
+					return task.IsCanceled ? false : task.Result;
 				}, TaskScheduler.Current);
 
 				// Get the current agent state
@@ -508,7 +508,7 @@ namespace Horde.Server.Server
 			using (IMemoryOwner<byte> buffer = MemoryPool<byte>.Shared.Rent(128 * 1024))
 			{
 				long totalWritten = 0;
-				for(; ;)
+				for (; ; )
 				{
 					int read = await stream.ReadAsync(buffer.Memory, context.CancellationToken);
 					if (read == 0)

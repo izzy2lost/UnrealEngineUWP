@@ -32,7 +32,7 @@ namespace EpicGames.Horde.Compute
 		/// </summary>
 		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		public abstract ValueTask MarkCompleteAsync(CancellationToken cancellationToken);
-		
+
 		/// <inheritdoc/>
 		public abstract ValueTask DisposeAsync();
 

@@ -1,10 +1,5 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-using EpicGames.Core;
-using EpicGames.Perforce;
-using Microsoft.Extensions.Caching.Memory;
-using Microsoft.Extensions.Logging;
-using Microsoft.Win32;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
@@ -19,6 +14,11 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Threading;
 using System.Threading.Tasks;
+using EpicGames.Core;
+using EpicGames.Perforce;
+using Microsoft.Extensions.Caching.Memory;
+using Microsoft.Extensions.Logging;
+using Microsoft.Win32;
 
 namespace UnrealGameSync
 {
@@ -192,14 +192,14 @@ namespace UnrealGameSync
 				}
 				else
 				{
-					changes = await perforce.GetChangesAsync(ChangesOptions.IncludeTimes | ChangesOptions.LongOutput, clientName: null, minChangeNumber: minChangeNumber.Value, maxChangesForBatch, ChangeStatus.Submitted, userName:null, fileSpecs: syncPathsWithChange, cancellationToken: cancellationToken);
+					changes = await perforce.GetChangesAsync(ChangesOptions.IncludeTimes | ChangesOptions.LongOutput, clientName: null, minChangeNumber: minChangeNumber.Value, maxChangesForBatch, ChangeStatus.Submitted, userName: null, fileSpecs: syncPathsWithChange, cancellationToken: cancellationToken);
 				}
 
 				// Sort the changes in case we get interleaved output from multiple sync paths
 				changes = changes.OrderByDescending(x => x.Number).Take(maxChangesForBatch).ToList();
 
 				// Add all the previous change numbers to the cache
-				foreach(ChangesRecord change in changes)
+				foreach (ChangesRecord change in changes)
 				{
 					if (prevCachedChangeRecord != null)
 					{
@@ -366,7 +366,7 @@ namespace UnrealGameSync
 				obj = LoadJson<T>(file);
 				return true;
 			}
-			catch(Exception ex)
+			catch (Exception ex)
 			{
 				TraceException?.Invoke(ex);
 				obj = null;
@@ -420,9 +420,9 @@ namespace UnrealGameSync
 		public static string GetPathWithCorrectCase(FileInfo info)
 		{
 			DirectoryInfo parentInfo = info.Directory!;
-			if(info.Exists)
+			if (info.Exists)
 			{
-				return Path.Combine(GetPathWithCorrectCase(parentInfo), parentInfo.GetFiles(info.Name)[0].Name); 
+				return Path.Combine(GetPathWithCorrectCase(parentInfo), parentInfo.GetFiles(info.Name)[0].Name);
 			}
 			else
 			{
@@ -433,11 +433,11 @@ namespace UnrealGameSync
 		public static string GetPathWithCorrectCase(DirectoryInfo info)
 		{
 			DirectoryInfo? parentInfo = info.Parent;
-			if(parentInfo == null)
+			if (parentInfo == null)
 			{
 				return info.FullName.ToUpperInvariant();
 			}
-			else if(info.Exists)
+			else if (info.Exists)
 			{
 				return Path.Combine(GetPathWithCorrectCase(parentInfo), parentInfo.GetDirectories(info.Name)[0].Name);
 			}
@@ -449,7 +449,7 @@ namespace UnrealGameSync
 
 		public static void ForceDeleteFile(string fileName)
 		{
-			if(File.Exists(fileName))
+			if (File.Exists(fileName))
 			{
 				File.SetAttributes(fileName, File.GetAttributes(fileName) & ~FileAttributes.ReadOnly);
 				File.Delete(fileName);
@@ -458,7 +458,7 @@ namespace UnrealGameSync
 
 		public static bool SpawnProcess(string fileName, string commandLine)
 		{
-			using(Process childProcess = new Process())
+			using (Process childProcess = new Process())
 			{
 				childProcess.StartInfo.FileName = fileName;
 				childProcess.StartInfo.Arguments = String.IsNullOrEmpty(commandLine) ? "" : commandLine;
@@ -469,7 +469,7 @@ namespace UnrealGameSync
 
 		public static bool SpawnHiddenProcess(string fileName, string commandLine)
 		{
-			using(Process childProcess = new Process())
+			using (Process childProcess = new Process())
 			{
 				childProcess.StartInfo.FileName = fileName;
 				childProcess.StartInfo.Arguments = String.IsNullOrEmpty(commandLine) ? "" : commandLine;
@@ -514,7 +514,7 @@ namespace UnrealGameSync
 				string fullFileName = Path.GetFullPath(fileName);
 				return fullFileName.StartsWith(fullDirectoryName, StringComparison.InvariantCultureIgnoreCase);
 			}
-			catch(Exception)
+			catch (Exception)
 			{
 				return false;
 			}
@@ -545,8 +545,8 @@ namespace UnrealGameSync
 				// Strip the format from the name
 				string? format = null;
 				int formatIdx = name.IndexOf(':', StringComparison.Ordinal);
-				if(formatIdx != -1)
-				{ 
+				if (formatIdx != -1)
+				{
 					format = name.Substring(formatIdx + 1);
 					name = name.Substring(0, formatIdx);
 				}
@@ -564,9 +564,9 @@ namespace UnrealGameSync
 				}
 
 				// Encode the variable if necessary
-				if(format != null)
+				if (format != null)
 				{
-					if(String.Equals(format, "URI", StringComparison.OrdinalIgnoreCase))
+					if (String.Equals(format, "URI", StringComparison.OrdinalIgnoreCase))
 					{
 						value = Uri.EscapeDataString(value);
 					}
@@ -608,10 +608,10 @@ namespace UnrealGameSync
 
 		private static void AddLocalConfigPaths_WithSubFolders(DirectoryInfo baseDir, string fileName, List<FileInfo> files)
 		{
-			if(baseDir.Exists)
+			if (baseDir.Exists)
 			{
 				FileInfo baseFileInfo = new FileInfo(Path.Combine(baseDir.FullName, fileName));
-				if(baseFileInfo.Exists)
+				if (baseFileInfo.Exists)
 				{
 					files.Add(baseFileInfo);
 				}
@@ -704,7 +704,7 @@ namespace UnrealGameSync
 
 		public static async Task<string[]?> TryPrintFileUsingCacheAsync(IPerforceConnection perforce, string depotPath, DirectoryReference cacheFolder, string? digest, ILogger logger, CancellationToken cancellationToken)
 		{
-			if(digest == null)
+			if (digest == null)
 			{
 				PerforceResponse<PrintRecord<string[]>> printLinesResponse = await perforce.TryPrintLinesAsync(depotPath, cancellationToken);
 				if (printLinesResponse.Succeeded)
@@ -718,7 +718,7 @@ namespace UnrealGameSync
 			}
 
 			FileReference cacheFile = FileReference.Combine(cacheFolder, digest);
-			if(FileReference.Exists(cacheFile))
+			if (FileReference.Exists(cacheFile))
 			{
 				logger.LogDebug("Reading cached copy of {DepotFile} from {LocalFile}", depotPath, cacheFile);
 				try
@@ -774,12 +774,12 @@ namespace UnrealGameSync
 		public static void ClearPrintCache(DirectoryReference cacheFolder)
 		{
 			DirectoryInfo cacheDir = cacheFolder.ToDirectoryInfo();
-			if(cacheDir.Exists)
+			if (cacheDir.Exists)
 			{
 				DateTime deleteTime = DateTime.UtcNow - TimeSpan.FromDays(5.0);
-				foreach(FileInfo cacheFile in cacheDir.EnumerateFiles())
+				foreach (FileInfo cacheFile in cacheDir.EnumerateFiles())
 				{
-					if(cacheFile.LastWriteTimeUtc < deleteTime || cacheFile.Name.EndsWith(".temp", StringComparison.OrdinalIgnoreCase))
+					if (cacheFile.LastWriteTimeUtc < deleteTime || cacheFile.Name.EndsWith(".temp", StringComparison.OrdinalIgnoreCase))
 					{
 						try
 						{
@@ -802,7 +802,7 @@ namespace UnrealGameSync
 		public static PerforceSettings OverridePerforceSettings(IPerforceSettings defaultConnection, string? serverAndPort, string? userName)
 		{
 			PerforceSettings newSettings = new PerforceSettings(defaultConnection);
-			if(!String.IsNullOrWhiteSpace(serverAndPort))
+			if (!String.IsNullOrWhiteSpace(serverAndPort))
 			{
 				newSettings.ServerAndPort = serverAndPort;
 			}
@@ -820,19 +820,19 @@ namespace UnrealGameSync
 			DateTime midnight = new DateTime(now.Year, now.Month, now.Day);
 			DateTime midnightTonight = midnight + TimeSpan.FromDays(1.0);
 
-			if(date > midnightTonight)
+			if (date > midnightTonight)
 			{
 				return String.Format("{0} at {1}", date.ToLongDateString(), date.ToShortTimeString());
 			}
-			else if(date >= midnight)
+			else if (date >= midnight)
 			{
 				return String.Format("today at {0}", date.ToShortTimeString());
 			}
-			else if(date >= midnight - TimeSpan.FromDays(1.0))
+			else if (date >= midnight - TimeSpan.FromDays(1.0))
 			{
 				return String.Format("yesterday at {0}", date.ToShortTimeString());
 			}
-			else if(date >= midnight - TimeSpan.FromDays(5.0))
+			else if (date >= midnight - TimeSpan.FromDays(5.0))
 			{
 				return String.Format("{0:dddd} at {1}", date, date.ToShortTimeString());
 			}
@@ -849,11 +849,11 @@ namespace UnrealGameSync
 
 		public static string FormatDurationMinutes(int totalMinutes)
 		{
-			if(totalMinutes > 24 * 60)
+			if (totalMinutes > 24 * 60)
 			{
 				return String.Format("{0}d {1}h", totalMinutes / (24 * 60), (totalMinutes / 60) % 24);
 			}
-			else if(totalMinutes > 60)
+			else if (totalMinutes > 60)
 			{
 				return String.Format("{0}h {1}m", totalMinutes / 60, totalMinutes % 60);
 			}
@@ -866,13 +866,13 @@ namespace UnrealGameSync
 		public static string FormatUserName(string userName)
 		{
 			StringBuilder normalUserName = new StringBuilder();
-			for(int idx = 0; idx < userName.Length; idx++)
+			for (int idx = 0; idx < userName.Length; idx++)
 			{
-				if(idx == 0 || userName[idx - 1] == '.')
+				if (idx == 0 || userName[idx - 1] == '.')
 				{
 					normalUserName.Append(Char.ToUpper(userName[idx]));
 				}
-				else if(userName[idx] == '.')
+				else if (userName[idx] == '.')
 				{
 					normalUserName.Append(' ');
 				}

@@ -160,7 +160,7 @@ namespace Horde.Server.Tests.Telemetry
 			telemetryStoreConfig.Id = TelemetryStoreId.Default;
 			telemetryStoreConfig.Metrics.Add(metricConfig1);
 			telemetryStoreConfig.Metrics.Add(metricConfig2);
-			
+
 			GlobalConfig globalConfig = new GlobalConfig();
 			globalConfig.TelemetryStores.Add(telemetryStoreConfig);
 			SetConfig(globalConfig);
@@ -187,20 +187,20 @@ namespace Horde.Server.Tests.Telemetry
 				Assert.AreEqual(new DateTime(2023, 6, 8, 4, 0, 0), metrics2[0].Time);
 				Assert.AreEqual(101, metrics2[0].Value);
 				Assert.AreEqual(1, metrics2[0].Count);
-			}	
+			}
 		}
-			/*
-		[TestMethod]
-		public async Task FunctionTestAsync()
-		{
-			await SingleFunctionTestAsync(AggregationFunction.Count, new double[] { 5, 4, 3, -1, 2 }, 5);
-			await SingleFunctionTestAsync(AggregationFunction.Min, new double[] { 5, 4, 3, -1, 2 }, -1);
-			await SingleFunctionTestAsync(AggregationFunction.Max, new double[] { 5, 4, 3, -1, 2 }, 5);
-			await SingleFunctionTestAsync(AggregationFunction.Sum, new double[] { 5, 4, 3, -1, 2 }, 13);
-			await SingleFunctionTestAsync(AggregationFunction.Average, new double[] { 5, 4, 3, -1, 2 }, 2.6);
-			await SingleFunctionTestAsync(AggregationFunction.Percentile, 4.25);
-		}
-			*/
+		/*
+	[TestMethod]
+	public async Task FunctionTestAsync()
+	{
+		await SingleFunctionTestAsync(AggregationFunction.Count, new double[] { 5, 4, 3, -1, 2 }, 5);
+		await SingleFunctionTestAsync(AggregationFunction.Min, new double[] { 5, 4, 3, -1, 2 }, -1);
+		await SingleFunctionTestAsync(AggregationFunction.Max, new double[] { 5, 4, 3, -1, 2 }, 5);
+		await SingleFunctionTestAsync(AggregationFunction.Sum, new double[] { 5, 4, 3, -1, 2 }, 13);
+		await SingleFunctionTestAsync(AggregationFunction.Average, new double[] { 5, 4, 3, -1, 2 }, 2.6);
+		await SingleFunctionTestAsync(AggregationFunction.Percentile, 4.25);
+	}
+		*/
 		[TestMethod]
 		[DataRow(AggregationFunction.Count, 5)]
 		[DataRow(AggregationFunction.Min, -1)]
@@ -382,7 +382,7 @@ namespace Horde.Server.Tests.Telemetry
 				sink.SendEvent(telemetryStoreConfig.Id, TelemetryRecordMeta.CurrentHordeInstance, new { EventName = "Included", foo = 3, groupFacetA = "groupA", groupFacetB = "groupB" });
 				sink.SendEvent(telemetryStoreConfig.Id, TelemetryRecordMeta.CurrentHordeInstance, new { EventName = "Included", foo = 4, groupFacetB = "groupB" });
 				sink.SendEvent(telemetryStoreConfig.Id, TelemetryRecordMeta.CurrentHordeInstance, new { EventName = "Included", foo = 5, groupFacetB = "groupA,groupB" });
-				sink.SendEvent(telemetryStoreConfig.Id, TelemetryRecordMeta.CurrentHordeInstance, new { EventName = "Included", foo = 6, groupFacetA = "groupA", groupFacetB = "groupB",  groupFacetC = "groupC" });
+				sink.SendEvent(telemetryStoreConfig.Id, TelemetryRecordMeta.CurrentHordeInstance, new { EventName = "Included", foo = 6, groupFacetA = "groupA", groupFacetB = "groupB", groupFacetC = "groupC" });
 				sink.SendEvent(telemetryStoreConfig.Id, TelemetryRecordMeta.CurrentHordeInstance, new { EventName = "Excluded", foo = 6 });
 				await sink.FlushAsync(CancellationToken.None);
 				await collection.FlushAsync(CancellationToken.None);
@@ -396,7 +396,7 @@ namespace Horde.Server.Tests.Telemetry
 				Assert.AreEqual(",groupB,", metrics[1].Group);
 				Assert.AreEqual("groupA,,", metrics[2].Group);
 				Assert.AreEqual("groupA,groupB,", metrics[3].Group);
-				Assert.AreEqual("groupA,groupB,groupC", metrics[4].Group);				
+				Assert.AreEqual("groupA,groupB,groupC", metrics[4].Group);
 
 				if (function == AggregationFunction.Sum)
 				{

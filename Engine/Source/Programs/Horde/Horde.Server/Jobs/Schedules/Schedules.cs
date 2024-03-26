@@ -110,7 +110,7 @@ namespace Horde.Server.Jobs.Schedules
 				{
 					break;
 				}
-				
+
 				curTime = nextTime.Value;
 				NextTriggerTimesUTC.Add(curTime);
 			}

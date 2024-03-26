@@ -1,9 +1,5 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-using EpicGames.OIDC;
-using EpicGames.Perforce;
-using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Logging;
 using System;
 using System.Diagnostics.CodeAnalysis;
 using System.Drawing;
@@ -12,6 +8,9 @@ using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows.Forms;
+using EpicGames.Perforce;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 
 #nullable enable
 
@@ -176,15 +175,15 @@ namespace UnrealGameSync
 
 		private void UpdateOkButton()
 		{
-			OkBtn.Enabled = WorkspaceRadioBtn.Checked? TryGetClientPath(out _) : TryGetLocalPath(out _);
+			OkBtn.Enabled = WorkspaceRadioBtn.Checked ? TryGetClientPath(out _) : TryGetLocalPath(out _);
 		}
 
 		private void WorkspaceNewBtn_Click(object sender, EventArgs e)
 		{
 			WorkspaceRadioBtn.Checked = true;
-			
+
 			string? workspaceName;
-			if(NewWorkspaceWindow.ShowModal(this, Perforce, null, WorkspaceNameTextBox.Text, _serviceProvider, out workspaceName))
+			if (NewWorkspaceWindow.ShowModal(this, Perforce, null, WorkspaceNameTextBox.Text, _serviceProvider, out workspaceName))
 			{
 				WorkspaceNameTextBox.Text = workspaceName;
 				UpdateOkButton();
@@ -196,7 +195,7 @@ namespace UnrealGameSync
 			WorkspaceRadioBtn.Checked = true;
 
 			string? workspaceName = WorkspaceNameTextBox.Text;
-			if(SelectWorkspaceWindow.ShowModal(this, Perforce, workspaceName, _serviceProvider, out workspaceName))
+			if (SelectWorkspaceWindow.ShowModal(this, Perforce, workspaceName, _serviceProvider, out workspaceName))
 			{
 				WorkspaceNameTextBox.Text = workspaceName;
 			}
@@ -207,10 +206,10 @@ namespace UnrealGameSync
 			WorkspaceRadioBtn.Checked = true;
 
 			string? workspaceName;
-			if(TryGetWorkspaceName(out workspaceName))
+			if (TryGetWorkspaceName(out workspaceName))
 			{
 				string? workspacePath = WorkspacePathTextBox.Text.Trim();
-				if(SelectProjectFromWorkspaceWindow.ShowModal(this, Perforce, workspaceName, workspacePath, _serviceProvider, out workspacePath))
+				if (SelectProjectFromWorkspaceWindow.ShowModal(this, Perforce, workspaceName, workspacePath, _serviceProvider, out workspacePath))
 				{
 					WorkspacePathTextBox.Text = workspacePath;
 					UpdateOkButton();
@@ -221,7 +220,7 @@ namespace UnrealGameSync
 		private bool TryGetWorkspaceName([NotNullWhen(true)] out string? workspaceName)
 		{
 			string text = WorkspaceNameTextBox.Text.Trim();
-			if(text.Length == 0)
+			if (text.Length == 0)
 			{
 				workspaceName = null;
 				return false;
@@ -234,14 +233,14 @@ namespace UnrealGameSync
 		private bool TryGetClientPath([NotNullWhen(true)] out string? clientPath)
 		{
 			string? workspaceName;
-			if(!TryGetWorkspaceName(out workspaceName))
+			if (!TryGetWorkspaceName(out workspaceName))
 			{
 				clientPath = null;
 				return false;
 			}
 
 			string workspacePath = WorkspacePathTextBox.Text.Trim();
-			if(workspacePath.Length == 0 || workspacePath[0] != '/')
+			if (workspacePath.Length == 0 || workspacePath[0] != '/')
 			{
 				clientPath = null;
 				return false;
@@ -254,7 +253,7 @@ namespace UnrealGameSync
 		private bool TryGetLocalPath(out string? localPath)
 		{
 			string localFile = LocalFileTextBox.Text.Trim();
-			if(localFile.Length == 0)
+			if (localFile.Length == 0)
 			{
 				localPath = null;
 				return false;
@@ -266,10 +265,10 @@ namespace UnrealGameSync
 
 		private bool TryGetSelectedProject([NotNullWhen(true)] out UserSelectedProjectSettings? project)
 		{
-			if(WorkspaceRadioBtn.Checked)
+			if (WorkspaceRadioBtn.Checked)
 			{
 				string? clientPath;
-				if(TryGetClientPath(out clientPath))
+				if (TryGetClientPath(out clientPath))
 				{
 					project = new UserSelectedProjectSettings(_serverAndPortOverride, _userNameOverride, UserSelectedProjectType.Client, clientPath, null);
 					return true;
@@ -278,7 +277,7 @@ namespace UnrealGameSync
 			else
 			{
 				string? localPath;
-				if(TryGetLocalPath(out localPath))
+				if (TryGetLocalPath(out localPath))
 				{
 					project = new UserSelectedProjectSettings(_serverAndPortOverride, _userNameOverride, UserSelectedProjectType.Local, null, localPath);
 					return true;
@@ -292,7 +291,7 @@ namespace UnrealGameSync
 		private void OkBtn_Click(object sender, EventArgs e)
 		{
 			UserSelectedProjectSettings? selectedProject;
-			if(TryGetSelectedProject(out selectedProject))
+			if (TryGetSelectedProject(out selectedProject))
 			{
 				ILogger<OpenProjectInfo> logger = _serviceProvider.GetRequiredService<ILogger<OpenProjectInfo>>();
 
@@ -324,7 +323,7 @@ namespace UnrealGameSync
 
 		private void ChangeLink_LinkClicked(object sender, LinkLabelLinkClickedEventArgs e)
 		{
-			if(ConnectWindow.ShowModal(this, _defaultSettings, ref _serverAndPortOverride, ref _userNameOverride, _serviceProvider))
+			if (ConnectWindow.ShowModal(this, _defaultSettings, ref _serverAndPortOverride, ref _userNameOverride, _serviceProvider))
 			{
 				UpdateServerLabel();
 			}
@@ -335,10 +334,10 @@ namespace UnrealGameSync
 			LocalFileRadioBtn.Checked = true;
 
 			using OpenFileDialog dialog = new OpenFileDialog();
-			dialog.Filter = "Project files (*.uproject)|*.uproject|Project directory lists (*.uprojectdirs)|*.uprojectdirs|All supported files (*.uproject;*.uprojectdirs)|*.uproject;*.uprojectdirs|All files (*.*)|*.*" ;
+			dialog.Filter = "Project files (*.uproject)|*.uproject|Project directory lists (*.uprojectdirs)|*.uprojectdirs|All supported files (*.uproject;*.uprojectdirs)|*.uproject;*.uprojectdirs|All files (*.*)|*.*";
 			dialog.FilterIndex = _settings.FilterIndex;
-			
-			if(!String.IsNullOrEmpty(LocalFileTextBox.Text))
+
+			if (!String.IsNullOrEmpty(LocalFileTextBox.Text))
 			{
 				try
 				{

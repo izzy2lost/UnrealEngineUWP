@@ -137,7 +137,7 @@ namespace EpicGames.Perforce.Managed
 				// Strip any slash at the start
 				clientFile = clientFile[1..];
 			}
-			
+
 			StreamTreeBuilder currentStreamDirectory = this;
 			string[] pathFragments = clientFile.Split('/');
 

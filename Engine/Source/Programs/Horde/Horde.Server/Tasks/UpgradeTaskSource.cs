@@ -5,6 +5,10 @@ using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using EpicGames.Core;
+using EpicGames.Horde.Agents.Leases;
+using EpicGames.Horde.Jobs;
+using EpicGames.Horde.Logs;
+using EpicGames.Horde.Tools;
 using Google.Protobuf;
 using Google.Protobuf.WellKnownTypes;
 using Horde.Server.Agents;
@@ -15,10 +19,6 @@ using Horde.Server.Utilities;
 using HordeCommon;
 using HordeCommon.Rpc.Tasks;
 using Microsoft.Extensions.Options;
-using EpicGames.Horde.Agents.Leases;
-using EpicGames.Horde.Tools;
-using EpicGames.Horde.Jobs;
-using EpicGames.Horde.Logs;
 
 namespace Horde.Server.Tasks
 {
@@ -58,7 +58,7 @@ namespace Horde.Server.Tasks
 				return SkipAsync(cancellationToken);
 			}
 
-			(ITool tool, IToolDeployment deployment) = required.Value; 
+			(ITool tool, IToolDeployment deployment) = required.Value;
 			if (agent.Version == deployment.Version)
 			{
 				return SkipAsync(cancellationToken);

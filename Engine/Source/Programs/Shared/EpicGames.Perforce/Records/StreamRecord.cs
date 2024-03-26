@@ -63,7 +63,7 @@ namespace EpicGames.Perforce
 		/// </summary>
 		[PerforceTag("Options")]
 		public StreamOptions Options { get; set; }
-		
+
 		/// <summary>
 		/// Parent view
 		/// </summary>
@@ -97,7 +97,7 @@ namespace EpicGames.Perforce
 			Name = null!;
 			Owner = null!;
 		}
-		
+
 		/// <summary>
 		/// Constructor
 		/// </summary>

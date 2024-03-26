@@ -4,28 +4,28 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
+using EpicGames.Horde.Jobs;
+using EpicGames.Horde.Jobs.Templates;
+using EpicGames.Horde.Projects;
+using EpicGames.Horde.Streams;
 using Horde.Server.Jobs;
-using Horde.Server.Logs;
-using Horde.Server.Server;
-using Horde.Server.Projects;
-using Horde.Server.Streams;
-using Horde.Server.Jobs.Templates;
+using Horde.Server.Jobs.Graphs;
 using Horde.Server.Jobs.Schedules;
+using Horde.Server.Jobs.Templates;
+using Horde.Server.Logs;
+using Horde.Server.Perforce;
+using Horde.Server.Projects;
+using Horde.Server.Server;
+using Horde.Server.Streams;
 using Horde.Server.Users;
 using HordeCommon;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
-using Horde.Server.Jobs.Graphs;
-using Horde.Server.Perforce;
-using EpicGames.Horde.Jobs.Templates;
-using EpicGames.Horde.Projects;
-using EpicGames.Horde.Streams;
-using EpicGames.Horde.Jobs;
 
 namespace Horde.Server.Tests.Jobs.Schedules
 {
 	[TestClass]
-    public class SchedulerTests : TestSetup
+	public class SchedulerTests : TestSetup
 	{
 		ProjectId ProjectId { get; } = new ProjectId("ue5");
 		StreamId StreamId { get; } = new StreamId("ue5-main");
@@ -202,7 +202,7 @@ namespace Horde.Server.Tests.Jobs.Schedules
 			ScheduleConfig schedule = new ScheduleConfig();
 			schedule.Enabled = true;
 			schedule.Patterns.Add(new SchedulePatternConfig { MinTime = ScheduleTimeOfDay.Parse("13:00"), MaxTime = ScheduleTimeOfDay.Parse("14:00"), Interval = ScheduleInterval.Parse("15m") });
-//			Schedule.LastTriggerTime = StartTime;
+			//			Schedule.LastTriggerTime = StartTime;
 			await SetScheduleAsync(schedule);
 
 			// Initial tick
@@ -424,18 +424,18 @@ namespace Horde.Server.Tests.Jobs.Schedules
 			TemplateId newTemplateRefId1 = new TemplateId("new-template-1");
 
 			ITemplate? newTemplate2 = await TemplateCollection.GetOrAddAsync(new TemplateConfig { Name = "Test template 2" });
-//			TemplateRef newTemplateRef2 = new TemplateRef(newTemplate2);
-//			newTemplateRef2.Schedule = new Schedule(Clock.UtcNow);
-//			newTemplateRef2.Schedule.Gate = new ScheduleGate(newTemplateRefId1, "TriggerNext");
-//			newTemplateRef2.Schedule.Patterns.Add(new SchedulePattern(null, 0, null, 10));
-//			newTemplateRef2.Schedule.LastTriggerTime = startTime;
+			//			TemplateRef newTemplateRef2 = new TemplateRef(newTemplate2);
+			//			newTemplateRef2.Schedule = new Schedule(Clock.UtcNow);
+			//			newTemplateRef2.Schedule.Gate = new ScheduleGate(newTemplateRefId1, "TriggerNext");
+			//			newTemplateRef2.Schedule.Patterns.Add(new SchedulePattern(null, 0, null, 10));
+			//			newTemplateRef2.Schedule.LastTriggerTime = startTime;
 			TemplateId newTemplateRefId2 = new TemplateId("new-template-2");
 
 			StreamConfig config = new StreamConfig();
 			config.Id = StreamId;
 			config.Name = "//UE5/Main";
 			config.Tabs.Add(new TabConfig { Title = "foo", Templates = new List<TemplateId> { newTemplateRefId1, newTemplateRefId2 } });
-			config.Templates = new() { new TemplateRefConfig { Id = newTemplateRefId1 }, new TemplateRefConfig { Id = newTemplateRefId2 }  };
+			config.Templates = new() { new TemplateRefConfig { Id = newTemplateRefId1 }, new TemplateRefConfig { Id = newTemplateRefId2 } };
 			UpdateConfig(x => x.Projects[0].Streams = new List<StreamConfig> { config });
 
 			IStream stream = await StreamCollection.GetAsync(config);
@@ -518,9 +518,9 @@ namespace Horde.Server.Tests.Jobs.Schedules
 			newTemplate2.Schedule.Commits.Add(CommitTag.Code);
 			newTemplate2.Schedule.Gate = new ScheduleGateConfig { TemplateId = newTemplateRefId1, Target = "TriggerNext" };
 			newTemplate2.Schedule.Patterns.Add(new SchedulePatternConfig { Interval = ScheduleInterval.Parse("10m") });// (null, 0, null, 10));
-//			NewTemplate2.Schedule.LastTriggerTime = StartTime;
+																													   //			NewTemplate2.Schedule.LastTriggerTime = StartTime;
 
-//			IStream? stream = await StreamService.GetStreamAsync(StreamId);
+			//			IStream? stream = await StreamService.GetStreamAsync(StreamId);
 
 			StreamConfig config = new StreamConfig();
 			config.Id = StreamId;
@@ -532,7 +532,7 @@ namespace Horde.Server.Tests.Jobs.Schedules
 
 			IStream stream = await StreamCollection.GetAsync(config);
 
-//			stream = (await CreateOrReplaceStreamAsync(StreamId, stream, ProjectId, config))!;
+			//			stream = (await CreateOrReplaceStreamAsync(StreamId, stream, ProjectId, config))!;
 
 			ITemplate template1 = (await TemplateCollection.GetOrAddAsync(config.Templates[0]))!;
 			Assert.IsNotNull(template1);

@@ -43,7 +43,7 @@ namespace EpicGames.Horde.Storage.Git
 		/// Properties for the commit
 		/// </summary>
 		public List<KeyValuePair<Utf8String, Utf8String>> Properties { get; } = new List<KeyValuePair<Utf8String, Utf8String>>();
-			
+
 		/// <summary>
 		/// Commit messages
 		/// </summary>

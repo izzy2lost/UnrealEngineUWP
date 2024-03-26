@@ -1,7 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-using EpicGames.Horde.Acls;
 using System.Collections.Generic;
+using EpicGames.Horde.Acls;
 
 #pragma warning disable CA1054 // URI-like parameters should not be strings
 

@@ -1,9 +1,9 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-using EpicGames.Horde.Storage;
-using EpicGames.Horde.Tools;
 using System;
 using System.Collections.Generic;
+using EpicGames.Horde.Storage;
+using EpicGames.Horde.Tools;
 
 namespace Horde.Server.Tools
 {

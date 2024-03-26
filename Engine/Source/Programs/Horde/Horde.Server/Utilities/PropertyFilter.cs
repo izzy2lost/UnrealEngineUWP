@@ -29,7 +29,7 @@ namespace Horde.Server.Utilities
 		public static PropertyFilter Parse(string? fields)
 		{
 			PropertyFilter rootFilter = new PropertyFilter();
-			if(fields != null)
+			if (fields != null)
 			{
 				foreach (string field in fields.Split(','))
 				{

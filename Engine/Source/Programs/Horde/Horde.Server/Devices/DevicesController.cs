@@ -411,12 +411,12 @@ namespace Horde.Server.Devices
 			List<IDevicePoolTelemetry> telemetryData = await _deviceService.GetDevicePoolTelemetryAsync(minCreateTime, maxCreateTime, index, count);
 
 			List<GetDevicePoolTelemetryResponse> response = new List<GetDevicePoolTelemetryResponse>();
-						
+
 			foreach (IDevicePoolTelemetry t in telemetryData)
 			{
 				Dictionary<string, List<GetDevicePlatformTelemetryResponse>> poolData = new Dictionary<string, List<GetDevicePlatformTelemetryResponse>>();
 
-				foreach ( KeyValuePair<DevicePoolId, IReadOnlyList<IDevicePlatformTelemetry>> pool in t.Pools)
+				foreach (KeyValuePair<DevicePoolId, IReadOnlyList<IDevicePlatformTelemetry>> pool in t.Pools)
 				{
 					List<GetDevicePlatformTelemetryResponse> platformTelemetry = new List<GetDevicePlatformTelemetryResponse>();
 
@@ -430,7 +430,7 @@ namespace Horde.Server.Devices
 				}
 
 				response.Add(new GetDevicePoolTelemetryResponse(t.CreateTimeUtc, poolData));
-			}		
+			}
 
 			return response;
 		}
@@ -452,7 +452,7 @@ namespace Horde.Server.Devices
 			}
 
 			List<IDevicePool> pools = _deviceService.GetPools();
-			List<IDevicePlatform> platforms =_deviceService.GetPlatforms();
+			List<IDevicePlatform> platforms = _deviceService.GetPlatforms();
 
 			DevicePoolId poolIdValue = new DevicePoolId(request.PoolId);
 			IDevicePool? pool = pools.FirstOrDefault(x => x.Id == poolIdValue);
@@ -639,7 +639,7 @@ namespace Horde.Server.Devices
 
 			if (deviceIds != null && deviceIds.Length > 0)
 			{
-				foreach(string deviceId in deviceIds)
+				foreach (string deviceId in deviceIds)
 				{
 					deviceIdValues.Add(new DeviceId(deviceId));
 				}
@@ -656,7 +656,7 @@ namespace Horde.Server.Devices
 			{
 				return response;
 			}
-			
+
 			List<IDeviceTelemetry> telemetryData = await _deviceService.GetDeviceTelemetryAsync(devices.Select(x => x.Id).ToArray(), minCreateTime, maxCreateTime, index, count);
 
 			Dictionary<string, List<GetTelemetryInfoResponse>> results = new Dictionary<string, List<GetTelemetryInfoResponse>>();
@@ -674,7 +674,7 @@ namespace Horde.Server.Devices
 				info.Add(new GetTelemetryInfoResponse(t));
 			}
 
-			foreach(KeyValuePair<string, List<GetTelemetryInfoResponse >> result in results)
+			foreach (KeyValuePair<string, List<GetTelemetryInfoResponse>> result in results)
 			{
 				GetDeviceTelemetryResponse deviceTelemetry = new GetDeviceTelemetryResponse(result.Key, result.Value);
 				response.Add(deviceTelemetry);
@@ -936,15 +936,15 @@ namespace Horde.Server.Devices
 						platformName = reservation.RequestedDevicePlatforms[i];
 					}
 				}
-			}			
+			}
 
 			if (String.IsNullOrEmpty(platformName))
-			{				
-				_logger.LogError("Unable to map platform for {DeviceName} : {PlatformId} from reservation", deviceName, device.PlatformId);			
+			{
+				_logger.LogError("Unable to map platform for {DeviceName} : {PlatformId} from reservation", deviceName, device.PlatformId);
 				return BadRequest($"Unable to get platform for {deviceName} from reservation : {device.PlatformId}");
 			}
 
-			GetLegacyDeviceResponse response = new GetLegacyDeviceResponse();			
+			GetLegacyDeviceResponse response = new GetLegacyDeviceResponse();
 
 			response.Id = device.Id.ToString();
 			response.Name = device.Name;
@@ -958,7 +958,7 @@ namespace Horde.Server.Devices
 			response.PerfSpec = "Minimum";
 
 			if (device.ModelId != null)
-			{				
+			{
 				if (!String.IsNullOrEmpty(platform.LegacyPerfSpecHighModel))
 				{
 					if (platform.LegacyPerfSpecHighModel == device.ModelId)

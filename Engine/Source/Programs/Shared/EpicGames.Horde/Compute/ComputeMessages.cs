@@ -19,13 +19,13 @@ namespace EpicGames.Horde.Compute
 		/// Built-in port used for agent and compute task communication
 		/// </summary>
 		public const string ComputeId = "_horde_compute";
-		
+
 		/// <summary>
 		/// Externally visible port that is mapped to agent port
 		/// In direct connection mode, these two are identical.
 		/// </summary>
 		public int Port { get; }
-		
+
 		/// <summary>
 		/// Port the local process on the agent is listening on
 		/// </summary>
@@ -57,13 +57,13 @@ namespace EpicGames.Horde.Compute
 		/// Condition to identify machines that can execute the request
 		/// </summary>
 		public Requirements? Requirements { get; set; }
-		
+
 		/// <summary>
 		/// Arbitrary ID to correlate the same request over multiple calls.
 		/// It's recommended to pick something globally unique, such as a UUID.
 		/// </summary>
 		public string? RequestId { get; set; }
-		
+
 		/// <summary>
 		/// Details for making an agent connection
 		/// </summary>
@@ -88,19 +88,19 @@ namespace EpicGames.Horde.Compute
 		/// Value = actual port number
 		/// Relay connection mode uses this information to set up port forwarding.
 		/// </summary>
-		public Dictionary<string, int> Ports { get; set; } = new ();
-		
+		public Dictionary<string, int> Ports { get; set; } = new();
+
 		/// <summary>
 		/// Type of connection mode that is preferred by the client. Server can still override.
 		/// </summary>
 		public ConnectionMode? ModePreference { get; set; }
-		
+
 		/// <summary>
 		/// Prefer connecting to agent over a public IP even if a more optimal route is available. Server can still override.
 		/// This is useful to avoid sending traffic over VPN tunnels.
 		/// </summary>
 		public bool? PreferPublicIp { get; set; }
-		
+
 		/// <summary>
 		/// Encryption mode to request. Server can still override.
 		/// </summary>
@@ -116,7 +116,7 @@ namespace EpicGames.Horde.Compute
 		/// IP address of the remote agent machine running the compute task
 		/// </summary>
 		public string Ip { get; set; } = String.Empty;
-		
+
 		/// <summary>
 		/// How to establish a connection to the remote machine
 		/// </summary>
@@ -131,7 +131,7 @@ namespace EpicGames.Horde.Compute
 		/// Port number on the remote machine
 		/// </summary>
 		public int Port { get; set; }
-		
+
 		/// <summary>
 		/// Assigned ports (externally visible port -> local port on agent)
 		/// Key is an arbitrary name identifying the port (same as was given in <see cref="ConnectionMetadataRequest" />)
@@ -147,7 +147,7 @@ namespace EpicGames.Horde.Compute
 		/// Encryption used
 		/// </summary>
 		public Encryption Encryption { get; set; } = Encryption.None;
-		
+
 		/// <summary>
 		/// Cryptographic nonce to identify the request, as a hex string
 		/// </summary>
@@ -157,7 +157,7 @@ namespace EpicGames.Horde.Compute
 		/// AES key for the channel, as a hex string
 		/// </summary>
 		public string Key { get; set; } = String.Empty;
-		
+
 		/// <summary>
 		/// X.509 certificate used for SSL/TLS encryption
 		/// </summary>
@@ -188,7 +188,7 @@ namespace EpicGames.Horde.Compute
 		/// </summary>
 		public IReadOnlyList<string> Properties { get; set; } = new List<string>();
 	}
-	
+
 	/// <summary>
 	/// Describe how to connect to the remote machine
 	/// </summary>
@@ -199,21 +199,21 @@ namespace EpicGames.Horde.Compute
 		/// Connection is established directly to remote machine, behaving like a normal TCP/UDP connection
 		/// </summary>
 		Direct,
-		
+
 		/// <summary>
 		/// Connection is tunneled through Horde server.
 		/// When connecting, initiator must send a tunnel handshake request indicating which machine/IP to tunnel to.
 		/// Once handshake is complete, TCP connection behaves as normal (UDP not supported)
 		/// </summary>
 		Tunnel,
-		
+
 		/// <summary>
 		/// Connection is established to remote machine via a relay.
 		/// Forwarding is transparent and behaves like a normal TCP/UDP connection.
 		/// </summary>
 		Relay
 	}
-	
+
 	/// <summary>
 	/// Describe encryption for the compute resource connection
 	/// </summary>
@@ -224,23 +224,23 @@ namespace EpicGames.Horde.Compute
 		/// No encryption enabled
 		/// </summary>
 		None,
-		
+
 		/// <summary>
 		/// Use custom AES-based encryption transport
 		/// </summary>
 		Aes,
-		
+
 		/// <summary>
 		/// Use SSL/TLS encryption with RSA 2048-bits
 		/// </summary>
 		Ssl,
-		
+
 		/// <summary>
 		/// Use SSL/TLS encryption with ECDSA P-256
 		/// </summary>
 		SslEcdsaP256
 	}
-	
+
 	/// <summary>
 	/// Resource needs declaration request
 	/// </summary>
@@ -250,7 +250,7 @@ namespace EpicGames.Horde.Compute
 		/// Unique session ID performing compute resource requests
 		/// </summary>
 		public string SessionId { get; set; } = String.Empty;
-		
+
 		/// <summary>
 		/// Pool of agents requesting resources from
 		/// </summary>
@@ -261,7 +261,7 @@ namespace EpicGames.Horde.Compute
 		/// </summary>
 		public Dictionary<string, int> ResourceNeeds { get; set; } = new();
 	}
-	
+
 	/// <summary>
 	/// Resource needs response
 	/// </summary>

@@ -65,7 +65,7 @@ namespace Horde.Server.Artifacts
 			[BsonElement("upd")]
 			public int UpdateIndex { get; set; }
 
-			DateTime IArtifact.CreatedAtUtc => (CreatedAtUtc == default)? BinaryIdUtils.ToObjectId(Id.Id).CreationTime : CreatedAtUtc;
+			DateTime IArtifact.CreatedAtUtc => (CreatedAtUtc == default) ? BinaryIdUtils.ToObjectId(Id.Id).CreationTime : CreatedAtUtc;
 
 			[BsonConstructor]
 			private Artifact()

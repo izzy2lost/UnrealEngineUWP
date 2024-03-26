@@ -16,13 +16,13 @@ namespace Horde.Server.Tests.Accounts
 		private readonly IServiceAccountCollection _serviceAccountCollection;
 		private readonly IServiceAccount _serviceAccount;
 		private readonly string _token;
-		
+
 		public HordeAccountCollectionTests()
 		{
 			MongoService mongoService = GetMongoServiceSingleton();
 			_serviceAccountCollection = new ServiceAccountCollection(mongoService);
 			(_serviceAccount, _token) = _serviceAccountCollection.CreateAsync(new CreateServiceAccountOptions(Description: "myDesc",
-				Claims: new List<IUserClaim> { new UserClaim("myClaim", "myValue")})
+				Claims: new List<IUserClaim> { new UserClaim("myClaim", "myValue") })
 				).Result;
 		}
 
@@ -30,40 +30,42 @@ namespace Horde.Server.Tests.Accounts
 		public async Task AddAsync()
 		{
 			(IServiceAccount sa, _) = await _serviceAccountCollection.CreateAsync(new CreateServiceAccountOptions(Description: "myDesc",
-				Claims: new List<IUserClaim> { new UserClaim("myClaim", "myValue")}
+				Claims: new List<IUserClaim> { new UserClaim("myClaim", "myValue") }
 				));
 			Assert.AreEqual(1, sa.Claims.Count);
 			Assert.AreEqual("myValue", sa.Claims[0].Value);
 			Assert.IsTrue(sa.Enabled);
 			Assert.AreEqual("myDesc", sa.Description);
 		}
-		
+
 		[TestMethod]
 		public async Task GetAsync()
 		{
 			IServiceAccount sa = (await _serviceAccountCollection.GetAsync(_serviceAccount.Id))!;
 			Assert.AreEqual(_serviceAccount.Id, sa.Id);
 		}
-		
+
 		[TestMethod]
 		public async Task GetBySecretTokenAsync()
 		{
 			IServiceAccount sa = (await _serviceAccountCollection.FindBySecretTokenAsync(_token))!;
 			Assert.AreEqual(_serviceAccount.Id, sa.Id);
 		}
-				
+
 		[TestMethod]
 		public async Task UpdateAsync()
 		{
 			IServiceAccount? account = await _serviceAccountCollection.GetAsync(_serviceAccount.Id);
 			Assert.IsNotNull(account);
 
-			List<UserClaim> newClaims = new () {new UserClaim("newClaim1","newValue1"), new UserClaim("newClaim2","newValue2")};
-			(_, string? newToken) = await account.UpdateAsync(new UpdateServiceAccountOptions{
+			List<UserClaim> newClaims = new() { new UserClaim("newClaim1", "newValue1"), new UserClaim("newClaim2", "newValue2") };
+			(_, string? newToken) = await account.UpdateAsync(new UpdateServiceAccountOptions
+			{
 				Claims = newClaims,
 				ResetToken = true,
 				Enabled = false,
-				Description = "newDesc"});
+				Description = "newDesc"
+			});
 
 			Assert.IsNotNull(newToken);
 			Assert.IsNull(await _serviceAccountCollection.FindBySecretTokenAsync(_token));
@@ -74,14 +76,14 @@ namespace Horde.Server.Tests.Accounts
 
 			IServiceAccount? sa = await _serviceAccountCollection.GetAsync(_serviceAccount.Id);
 			Assert.IsNotNull(sa);
-			
+
 			Assert.AreEqual(2, sa.Claims.Count);
 			Assert.AreEqual("newValue1", sa.Claims[0].Value);
 			Assert.AreEqual("newValue2", sa.Claims[1].Value);
 			Assert.AreEqual(false, sa.Enabled);
 			Assert.AreEqual("newDesc", sa.Description);
 		}
-		
+
 		[TestMethod]
 		public async Task DeleteAsync()
 		{

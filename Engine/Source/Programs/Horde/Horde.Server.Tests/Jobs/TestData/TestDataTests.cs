@@ -2,29 +2,29 @@
 
 using System;
 using System.Collections.Generic;
-using System.Threading.Tasks;
-using Horde.Server.Jobs.Graphs;
-using Horde.Server.Projects;
-using Horde.Server.Jobs;
-using Horde.Server.Users;
-using Horde.Server.Streams;
-using Horde.Server.Utilities;
-using Microsoft.VisualStudio.TestTools.UnitTesting;
-using MongoDB.Bson;
-using Moq;
-using Horde.Server.Jobs.TestData;
-using Microsoft.AspNetCore.Http;
-using Microsoft.AspNetCore.Mvc;
-using System.Security.Claims;
-using Horde.Server.Logs;
 using System.Linq;
+using System.Security.Claims;
 using System.Threading;
-using Horde.Server.Server;
+using System.Threading.Tasks;
 using EpicGames.Horde;
+using EpicGames.Horde.Jobs;
 using EpicGames.Horde.Jobs.Templates;
 using EpicGames.Horde.Projects;
 using EpicGames.Horde.Streams;
-using EpicGames.Horde.Jobs;
+using Horde.Server.Jobs;
+using Horde.Server.Jobs.Graphs;
+using Horde.Server.Jobs.TestData;
+using Horde.Server.Logs;
+using Horde.Server.Projects;
+using Horde.Server.Server;
+using Horde.Server.Streams;
+using Horde.Server.Users;
+using Horde.Server.Utilities;
+using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.VisualStudio.TestTools.UnitTesting;
+using MongoDB.Bson;
+using Moq;
 
 namespace Horde.Server.Tests.Jobs.TestData
 {
@@ -306,13 +306,13 @@ namespace Horde.Server.Tests.Jobs.TestData
 
 			Assert.AreEqual(2, streams.Count);
 
-			Assert.AreEqual(0, streams[0].Tests.Count);				
+			Assert.AreEqual(0, streams[0].Tests.Count);
 			Assert.AreEqual(2, streams[0].TestMetadata.Count);
 			Assert.AreEqual(1, streams[0].TestSuites.Count);
 
 			Assert.AreEqual(0, streams[1].Tests.Count);
 			Assert.AreEqual(2, streams[1].TestMetadata.Count);
-			Assert.AreEqual(1, streams[1].TestSuites.Count);			
+			Assert.AreEqual(1, streams[1].TestSuites.Count);
 
 			//Assert.AreEqual(streams[0].TestMetadata[0].Id, streams[1].TestMetadata[0].Id);
 
@@ -333,7 +333,7 @@ namespace Horde.Server.Tests.Jobs.TestData
 			@"{",
 			@"  ""Items"": [",
 			@"    {",
-			@"      ""Key"": ""Simple Report::UE.BootTest EngineTest Editor Win64"",",			
+			@"      ""Key"": ""Simple Report::UE.BootTest EngineTest Editor Win64"",",
 			@"      ""Data"": {",
 			@"  	  ""Version"" : 1,",
 			@"        ""Type"": ""Simple Report"",",
@@ -420,10 +420,10 @@ namespace Horde.Server.Tests.Jobs.TestData
 
 		private readonly string[] _testSessionDataLines =
 		{
-			@"{",			
+			@"{",
 			@"    ""Items"": [	",
 			@"        {",
-			@"            ""Key"": ""Automated Test Session"",",			
+			@"            ""Key"": ""Automated Test Session"",",
 			@"            ""Data"": {",
 			@"  	          ""Version"" : 1,",
 			@"                ""Type"": ""Automated Test Session"",",
@@ -593,8 +593,8 @@ namespace Horde.Server.Tests.Jobs.TestData
 			@"            }",
 			@"        },",
 			@"        {",
-			@"            ""Key"": ""Automated Test Session Result Details::b420bdde-c030-4add-81d2-3a8404ab3e45"",",			
-			@"            ""Data"": {",			
+			@"            ""Key"": ""Automated Test Session Result Details::b420bdde-c030-4add-81d2-3a8404ab3e45"",",
+			@"            ""Data"": {",
 			@"                ""cbdb55ea"": {",
 			@"                    ""Events"": [",
 			@"                        {",

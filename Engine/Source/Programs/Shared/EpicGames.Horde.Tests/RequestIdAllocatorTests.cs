@@ -12,21 +12,21 @@ public class RequestIdAllocatorTests
 	[TestMethod]
 	public void IdsAreReused()
 	{
-		RequestIdAllocator ria = new ();
+		RequestIdAllocator ria = new();
 		List<string> before = new() { ria.AllocateId(), ria.AllocateId(), ria.AllocateId() };
 		ria.StartBatch();
 		List<string> after = new() { ria.AllocateId(), ria.AllocateId(), ria.AllocateId() };
-		
+
 		CollectionAssert.AreEquivalent(before, after);
 	}
-	
+
 	[TestMethod]
 	public void AcceptedIdsAreNotReused()
 	{
-		RequestIdAllocator ria = new ();
+		RequestIdAllocator ria = new();
 		List<string> before = new() { ria.AllocateId(), ria.AllocateId(), ria.AllocateId() };
 		ria.MarkAccepted(before[1]);
-		
+
 		ria.StartBatch();
 		List<string> after = new() { ria.AllocateId(), ria.AllocateId(), ria.AllocateId() };
 		Assert.IsTrue(after.Remove(before[0]));

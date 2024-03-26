@@ -80,7 +80,7 @@ namespace Horde.Server.Telemetry.Metrics
 		public string GroupBy
 		{
 			get => _groupBy;
-			set 
+			set
 			{
 				_groupBy = value;
 
@@ -127,7 +127,7 @@ namespace Horde.Server.Telemetry.Metrics
 	/// </summary>
 	[JsonSchema("https://unrealengine.com/horde/telemetry")]
 	[JsonSchemaCatalog("Horde Telemetry", "Horde telemetry configuration file", new[] { "*.telemetry.json", "*.metrics.json", "Metrics/*.json" })]
- 	[ConfigIncludeRoot]
+	[ConfigIncludeRoot]
 	[ConfigMacroScope]
 	public class TelemetryStoreConfig
 	{

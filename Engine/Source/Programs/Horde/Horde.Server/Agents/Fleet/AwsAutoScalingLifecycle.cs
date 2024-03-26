@@ -41,23 +41,23 @@ public sealed class AwsAutoScalingLifecycleService : IHostedService, IAsyncDispo
 	/// In the case of terminating instances, setting this result means the instance should *continue* be kept alive
 	/// </summary>
 	public const string ActionContinue = "CONTINUE";
-	
+
 	/// <summary>
 	/// Lifecycle action for abandon
 	/// In the case of terminating instances, setting this result means the instance should be *terminated*
 	/// </summary>
 	public const string ActionAbandon = "ABANDON";
-	
+
 	/// <summary>
 	/// Warm pool origin
 	/// </summary>
 	public const string OriginWarmPool = "WarmPool";
-	
+
 	/// <summary>
 	/// Normal auto-scaling group origin
 	/// </summary>
 	public const string OriginAsg = "AutoScalingGroup";
-	
+
 	/// <summary>
 	/// How often instance lifecycles for auto-scaling should be updated with AWS 
 	/// </summary>
@@ -71,14 +71,14 @@ public sealed class AwsAutoScalingLifecycleService : IHostedService, IAsyncDispo
 	private readonly Tracer _tracer;
 	private readonly ILogger<AwsAutoScalingLifecycleService> _logger;
 	private readonly ITicker _updateLifecyclesTicker;
-	private readonly List<BackgroundTask> _lifecycleEventListenerTasks = new ();
+	private readonly List<BackgroundTask> _lifecycleEventListenerTasks = new();
 	private readonly string[] _sqsQueueUrls;
 
 #pragma warning disable CA2213 // Disposable fields should be disposed
 	private IAmazonAutoScaling? _awsAutoScaling;
 	private IAmazonSQS? _awsSqs;
 #pragma warning restore CA2213
-	
+
 	/// <summary>
 	/// Constructor
 	/// </summary>
@@ -104,7 +104,7 @@ public sealed class AwsAutoScalingLifecycleService : IHostedService, IAsyncDispo
 		string tickerName = $"{nameof(AwsAutoScalingLifecycleService)}.{nameof(UpdateLifecyclesAsync)}";
 		_updateLifecyclesTicker = clock.AddSharedTicker(tickerName, LifecycleUpdaterInterval, UpdateLifecyclesAsync, logger);
 		_sqsQueueUrls = settings.CurrentValue.AwsAutoScalingQueueUrls;
-		
+
 		foreach (string sqsQueueUrl in _sqsQueueUrls)
 		{
 			_lifecycleEventListenerTasks.Add(new BackgroundTask(ct => ListenForLifecycleEventsAsync(sqsQueueUrl, ct)));
@@ -116,7 +116,7 @@ public sealed class AwsAutoScalingLifecycleService : IHostedService, IAsyncDispo
 		_awsAutoScaling = awsAutoScaling;
 		_awsSqs = awsSqs;
 	}
-	
+
 	/// <inheritdoc/>
 	public async Task StartAsync(CancellationToken cancellationToken)
 	{
@@ -172,11 +172,11 @@ public sealed class AwsAutoScalingLifecycleService : IHostedService, IAsyncDispo
 				_logger.LogError(ex, "Exception while receiving lifecycle events: {Message}", ex.Message);
 				await Task.Delay(TimeSpan.FromSeconds(15), cancellationToken);
 			}
-			
+
 			await Task.Delay(TimeSpan.FromSeconds(1), cancellationToken);
 		}
 	}
-	
+
 	/// <summary>
 	/// Receive any queued messages from SQS.
 	/// This is a one-time operation, if more messages are expected, call this method again.
@@ -185,14 +185,14 @@ public sealed class AwsAutoScalingLifecycleService : IHostedService, IAsyncDispo
 	/// <param name="cancellationToken">Cancellation token</param>
 	internal async Task ReceiveLifecycleEventsAsync(string sqsQueueUrl, CancellationToken cancellationToken)
 	{
-		ReceiveMessageRequest request = new ()
+		ReceiveMessageRequest request = new()
 		{
 			QueueUrl = sqsQueueUrl,
 			MaxNumberOfMessages = 10,
 			VisibilityTimeout = 10,
 			WaitTimeSeconds = 10,
 		};
-		
+
 		ReceiveMessageResponse response = await GetSqs().ReceiveMessageAsync(request, cancellationToken);
 		foreach (Message message in response.Messages)
 		{
@@ -216,7 +216,7 @@ public sealed class AwsAutoScalingLifecycleService : IHostedService, IAsyncDispo
 	{
 		try
 		{
-			DeleteMessageRequest deleteRequest = new () { QueueUrl = sqsQueueUrl, ReceiptHandle = message.ReceiptHandle };
+			DeleteMessageRequest deleteRequest = new() { QueueUrl = sqsQueueUrl, ReceiptHandle = message.ReceiptHandle };
 			await GetSqs().DeleteMessageAsync(deleteRequest, cancellationToken);
 		}
 		catch (AmazonServiceException e)
@@ -229,7 +229,7 @@ public sealed class AwsAutoScalingLifecycleService : IHostedService, IAsyncDispo
 	{
 		return _awsSqs ?? throw new Exception("AWS SQS client is not set. Make sure AWS is configured in settings.");
 	}
-	
+
 	/// <summary>
 	/// Gracefully terminate an EC2 instance running the Horde agent
 	/// This call is initiated by an event coming from AWS auto-scaling group and will request the agent to shutdown.
@@ -246,7 +246,7 @@ public sealed class AwsAutoScalingLifecycleService : IHostedService, IAsyncDispo
 		span.SetAttribute("origin", e.Origin);
 		span.SetAttribute("instanceId", e.Ec2InstanceId);
 		span.SetAttribute("lifecycleTransition", e.LifecycleTransition);
-		
+
 		if (e.Origin == OriginAsg)
 		{
 			string instanceIdProp = KnownPropertyNames.AwsInstanceId + "=" + e.Ec2InstanceId;
@@ -275,7 +275,7 @@ public sealed class AwsAutoScalingLifecycleService : IHostedService, IAsyncDispo
 			return false;
 		}
 	}
-	
+
 	/// <summary>
 	/// Get instances available for termination.
 	/// An AWS Lambda function is set to handle termination policy queries from an auto-scaling group
@@ -290,18 +290,18 @@ public sealed class AwsAutoScalingLifecycleService : IHostedService, IAsyncDispo
 		span.SetAttribute("asgName", e.AutoScalingGroupName);
 		span.SetAttribute("instancesCount", e.Instances.Count);
 		span.SetAttribute("capacityCount", e.CapacityToTerminate.Count);
-		
+
 		List<string> asgInstanceIds = e.Instances
 			.Select(x => x.InstanceId)
 			.OfType<string>()
 			.ToList();
-		
+
 		bool IsAgentSuggestedByAsg(IAgent agent, [NotNullWhen(true)] out string? instanceId)
 		{
 			instanceId = asgInstanceIds.FirstOrDefault(asgInstanceId => agent.HasProperty($"{KnownPropertyNames.AwsInstanceId}={asgInstanceId}"));
 			return instanceId != null;
 		}
-		
+
 		List<string> validInstanceIds = new();
 		IReadOnlyList<IAgent> agents = await _agentService.FindAgentsAsync(null, null, null, true, null, null, cancellationToken);
 		foreach (IAgent agent in agents)
@@ -323,7 +323,7 @@ public sealed class AwsAutoScalingLifecycleService : IHostedService, IAsyncDispo
 	{
 		DateTime utcNow = _clock.UtcNow;
 		AgentLifecycleInfo info = new(agentId.ToString(), utcNow, utcNow, e);
-		using MemoryStream ms = new (500);
+		using MemoryStream ms = new(500);
 		await JsonSerializer.SerializeAsync(ms, info, cancellationToken: cancellationToken);
 		await _redisService.GetDatabase().HashSetAsync(RedisKey, agentId.ToString(), ms.ToArray());
 	}
@@ -334,7 +334,7 @@ public sealed class AwsAutoScalingLifecycleService : IHostedService, IAsyncDispo
 		{
 			throw new Exception($"{nameof(IAmazonAutoScaling)} client not initialized! Cannot make AWS API call.");
 		}
-		
+
 		using TelemetrySpan span = _tracer.StartActiveSpan($"{nameof(AwsAutoScalingLifecycleService)}.{nameof(SendCompleteLifecycleActionAsync)}");
 		CompleteLifecycleActionRequest request = new()
 		{
@@ -349,11 +349,11 @@ public sealed class AwsAutoScalingLifecycleService : IHostedService, IAsyncDispo
 		span.SetAttribute("lifecycleActionToken", request.LifecycleActionToken);
 		span.SetAttribute("lifecycleHookName", request.LifecycleHookName);
 		span.SetAttribute("autoScalingGroupName", request.AutoScalingGroupName);
-		
+
 		CompleteLifecycleActionResponse response = await _awsAutoScaling.CompleteLifecycleActionAsync(request, cancellationToken);
 		span.SetAttribute("statusCode", response.HttpStatusCode.ToString());
 	}
-	
+
 	/// <summary>
 	/// Update AWS auto-scaling on the lifecycle status for each agent being tracked for shutdown.
 	/// This ensures the EC2 instance is not released for termination until it gracefully finished any outstanding work.
@@ -367,7 +367,7 @@ public sealed class AwsAutoScalingLifecycleService : IHostedService, IAsyncDispo
 
 		Dictionary<AgentId, AgentLifecycleInfo> infos = new();
 		IDatabase redis = _redisService.GetDatabase();
-		
+
 		foreach (HashEntry entry in await redis.HashGetAllAsync(RedisKey))
 		{
 			try
@@ -402,14 +402,14 @@ public sealed class AwsAutoScalingLifecycleService : IHostedService, IAsyncDispo
 					_logger.LogError(e, "Unable to complete the AWS ASG lifecycle action. Reason: {Message}", e.Message);
 					deleteEvent = true;
 				}
-				
+
 				if (deleteEvent)
 				{
 					await redis.HashDeleteAsync(RedisKey, agent.Id.ToString());
 				}
 			}, cancellationToken));
 		}
-		
+
 		span.SetAttribute("numLifecycleActionsSent", tasks.Count);
 		await Task.WhenAll(tasks);
 	}
@@ -437,7 +437,7 @@ public sealed class AwsAutoScalingLifecycleService : IHostedService, IAsyncDispo
 	{
 		/// <inheritdoc cref="AwsAutoScalingLifecycleService.ActionContinue"/>
 		Continue,
-		
+
 		/// <inheritdoc cref="AwsAutoScalingLifecycleService.ActionAbandon"/>
 		Abandon
 	}
@@ -460,7 +460,7 @@ public class AwsAutoScalingLifecycleController : HordeControllerBase
 	{
 		_lifecycleService = lifecycleService;
 	}
-	
+
 	/// <summary>
 	/// Called by AWS auto-scaling group to get which instance IDs are valid for termination
 	/// <see cref="AwsAutoScalingLifecycleService.GetInstancesAvailableForTerminationAsync" />
@@ -488,27 +488,27 @@ public class LifecycleActionEvent
 	/// Name of the lifecycle hook
 	/// </summary>
 	[JsonPropertyName("LifecycleHookName")] public string LifecycleHookName { get; set; } = "";
-	
+
 	/// <summary>
 	/// Token for the lifecycle action
 	/// </summary>
 	[JsonPropertyName("LifecycleActionToken")] public string LifecycleActionToken { get; set; } = "";
-	
+
 	/// <summary>
 	/// Lifecycle transition (e.g EC2_INSTANCE_LAUNCHING, EC2_INSTANCE_TERMINATING)
 	/// </summary>
 	[JsonPropertyName("LifecycleTransition")] public string LifecycleTransition { get; set; } = "";
-	
+
 	/// <summary>
 	/// Name of the auto-scaling group being handled
 	/// </summary>
 	[JsonPropertyName("AutoScalingGroupName")] public string AutoScalingGroupName { get; set; } = "";
-	
+
 	/// <summary>
 	/// Instance ID
 	/// </summary>
 	[JsonPropertyName("EC2InstanceId")] public string Ec2InstanceId { get; set; } = "";
-	
+
 	/// <summary>
 	/// Origin of the instance (e.g an agent in service or in a warm pool)
 	/// </summary>
@@ -524,22 +524,22 @@ public class TerminationPolicyInstance
 	/// Availability zone of the instance (such as 'us-east-1c')
 	/// </summary>
 	[JsonPropertyName("AvailabilityZone")] public string AvailabilityZone { get; set; } = "";
-	
+
 	/// <summary>
 	/// Capacity to terminate (number of instances)
 	/// </summary>
 	[JsonPropertyName("Capacity")] public int? Capacity { get; set; }
-	
+
 	/// <summary>
 	/// Instance ID (such as 'i-123456789')
 	/// </summary>
 	[JsonPropertyName("InstanceId")] public string? InstanceId { get; set; }
-	
+
 	/// <summary>
 	/// Instance type (such as 'm5.xlarge')
 	/// </summary>
 	[JsonPropertyName("InstanceType")] public string? InstanceType { get; set; }
-	
+
 	/// <summary>
 	/// Instance market options (such as 'on-demand' or 'spot')
 	/// </summary>
@@ -564,7 +564,7 @@ public class TerminationPolicyInstance
 		Capacity = capacity;
 		InstanceMarketOption = instanceMarketOption;
 	}
-	
+
 	/// <summary>
 	/// Constructor
 	/// </summary>
@@ -591,22 +591,22 @@ public class TerminationPolicyEvent
 	/// ARN of the auto-scaling group
 	/// </summary>
 	[JsonPropertyName("AutoScalingGroupARN")] public string AutoScalingGroupArn { get; set; } = "";
-	
+
 	/// <summary>
 	/// Name of the auto-scaling group
 	/// </summary>
 	[JsonPropertyName("AutoScalingGroupName")] public string AutoScalingGroupName { get; set; } = "";
-	
+
 	/// <summary>
 	/// Capacity that's been requested to be terminated
 	/// </summary>
-	[JsonPropertyName("CapacityToTerminate")] public List<TerminationPolicyInstance> CapacityToTerminate { get; set; } = new ();
-	
+	[JsonPropertyName("CapacityToTerminate")] public List<TerminationPolicyInstance> CapacityToTerminate { get; set; } = new();
+
 	/// <summary>
 	/// Instances available to terminate
 	/// </summary>
-	[JsonPropertyName("Instances")] public List<TerminationPolicyInstance> Instances { get; set; } = new ();
-	
+	[JsonPropertyName("Instances")] public List<TerminationPolicyInstance> Instances { get; set; } = new();
+
 	/// <summary>
 	/// Cause of the termination (such as 'SCALE_IN' or 'INSTANCE_REFRESH')
 	/// </summary>

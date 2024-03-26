@@ -480,6 +480,12 @@ namespace Horde.Server
 		public AuthMethod AuthMethod { get; set; } = AuthMethod.Anonymous;
 
 		/// <summary>
+		/// Optional profile name to report through the /api/v1/server/auth endpoint. Allows sharing auth tokens between providers configured through
+		/// the same profile name in OidcToken.exe config files.
+		/// </summary>
+		public string? OidcProfileName { get; set; }
+
+		/// <summary>
 		/// Issuer for tokens from the auth provider
 		/// </summary>
 		public string? OidcAuthority { get; set; }

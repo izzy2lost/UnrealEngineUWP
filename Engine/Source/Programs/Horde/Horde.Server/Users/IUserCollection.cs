@@ -2,13 +2,13 @@
 
 using System.Collections.Generic;
 using System.Security.Claims;
+using System.Threading;
 using System.Threading.Tasks;
-using Horde.Server.Utilities;
-using MongoDB.Bson;
-using EpicGames.Horde.Users;
 using EpicGames.Horde.Jobs;
 using EpicGames.Horde.Jobs.Bisect;
-using System.Threading;
+using EpicGames.Horde.Users;
+using Horde.Server.Utilities;
+using MongoDB.Bson;
 
 namespace Horde.Server.Users
 {

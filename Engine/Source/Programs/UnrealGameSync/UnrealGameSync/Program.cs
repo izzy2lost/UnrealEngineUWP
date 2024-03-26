@@ -1,13 +1,5 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-using EpicGames.Core;
-using EpicGames.Horde;
-using EpicGames.OIDC;
-using EpicGames.Perforce;
-using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Logging;
-using Sentry;
-using Sentry.Infrastructure;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
@@ -17,6 +9,14 @@ using System.Reflection;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows.Forms;
+using EpicGames.Core;
+using EpicGames.Horde;
+using EpicGames.OIDC;
+using EpicGames.Perforce;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
+using Sentry;
+using Sentry.Infrastructure;
 
 namespace UnrealGameSync
 {
@@ -97,7 +97,9 @@ namespace UnrealGameSync
 				// Don't auto install (or - more importantly- auto *un-install*) the winforms sync context. We want to be able to access it from the
 				// constructor of our ApplicationContext, which will be after the temporary install/uninstall prompted by spawning the settings dialog.
 				WindowsFormsSynchronizationContext.AutoInstall = false;
-				SynchronizationContext.SetSynchronizationContext(new WindowsFormsSynchronizationContext());
+
+				using WindowsFormsSynchronizationContext synchronizationContext = new WindowsFormsSynchronizationContext();
+				SynchronizationContext.SetSynchronizationContext(synchronizationContext);
 
 				using (EventWaitHandle activateEvent = new EventWaitHandle(false, EventResetMode.AutoReset, "ActivateUnrealGameSync"))
 				{
@@ -150,8 +152,8 @@ namespace UnrealGameSync
 			ParseOption(remainingArgs, "-preview", out preview);
 			preview |= unstable;
 
-            string? projectFileName;
-            ParseArgument(remainingArgs, "-project=", out projectFileName);
+			string? projectFileName;
+			ParseArgument(remainingArgs, "-project=", out projectFileName);
 
 			string? uri;
 			ParseArgument(remainingArgs, "-uri=", out uri);
@@ -173,13 +175,13 @@ namespace UnrealGameSync
 			}
 
 			string syncVersionFile = Path.Combine(Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location!)!, "SyncVersion.txt");
-			if(File.Exists(syncVersionFile))
+			if (File.Exists(syncVersionFile))
 			{
 				try
 				{
 					SyncVersion = File.ReadAllText(syncVersionFile).Trim();
 				}
-				catch(Exception)
+				catch (Exception)
 				{
 					SyncVersion = null;
 				}
@@ -229,12 +231,12 @@ namespace UnrealGameSync
 
 					using (ITelemetrySink telemetrySink = CreateTelemetrySink(launcherSettings.PerforceUserName, sessionId, telemetryLogger))
 					{
-						ITelemetrySink? prevTelemetrySink = Telemetry.ActiveSink;
+						ITelemetrySink? prevTelemetrySink = UgsTelemetry.ActiveSink;
 						try
 						{
-							Telemetry.ActiveSink = telemetrySink;
+							UgsTelemetry.ActiveSink = telemetrySink;
 
-							Telemetry.SendEvent("Startup", new { User = Environment.UserName, Machine = System.Net.Dns.GetHostName() });
+							UgsTelemetry.SendEvent("Startup", new { User = Environment.UserName, Machine = System.Net.Dns.GetHostName() });
 
 							AppDomain.CurrentDomain.UnhandledException += CurrentDomain_UnhandledException;
 
@@ -261,12 +263,12 @@ namespace UnrealGameSync
 						}
 						catch (Exception ex)
 						{
-							Telemetry.SendEvent("Crash", new { Exception = ex.ToString() });
+							UgsTelemetry.SendEvent("Crash", new { Exception = ex.ToString() });
 							throw;
 						}
 						finally
 						{
-							Telemetry.ActiveSink = prevTelemetrySink;
+							UgsTelemetry.ActiveSink = prevTelemetrySink;
 						}
 					}
 				}
@@ -335,9 +337,9 @@ namespace UnrealGameSync
 		private static void CurrentDomain_UnhandledException(object sender, UnhandledExceptionEventArgs args)
 		{
 			Exception? ex = args.ExceptionObject as Exception;
-			if(ex != null)
+			if (ex != null)
 			{
-				Telemetry.SendEvent("Crash", new {Exception = ex.ToString()});
+				UgsTelemetry.SendEvent("Crash", new { Exception = ex.ToString() });
 			}
 		}
 
@@ -372,12 +374,12 @@ namespace UnrealGameSync
 			try
 			{
 				ConfigFile updateConfig = new ConfigFile();
-				if(FileReference.Exists(updateConfigFile))
+				if (FileReference.Exists(updateConfigFile))
 				{
 					updateConfig.Load(updateConfigFile);
 				}
 
-				if(updatePath == null)
+				if (updatePath == null)
 				{
 					updatePath = updateConfig.GetValue("Update.Path", null);
 				}
@@ -386,7 +388,7 @@ namespace UnrealGameSync
 					updateConfig.SetValue("Update.Path", updatePath);
 				}
 
-				if(updateSpawn == null)
+				if (updateSpawn == null)
 				{
 					updateSpawn = updateConfig.GetValue("Update.Spawn", null);
 				}
@@ -397,16 +399,16 @@ namespace UnrealGameSync
 
 				updateConfig.Save(updateConfigFile);
 			}
-			catch(Exception)
+			catch (Exception)
 			{
 			}
 		}
 
 		static bool ParseOption(List<string> remainingArgs, string option, out bool value)
 		{
-			for(int idx = 0; idx < remainingArgs.Count; idx++)
+			for (int idx = 0; idx < remainingArgs.Count; idx++)
 			{
-				if(remainingArgs[idx].Equals(option, StringComparison.OrdinalIgnoreCase))
+				if (remainingArgs[idx].Equals(option, StringComparison.OrdinalIgnoreCase))
 				{
 					value = true;
 					remainingArgs.RemoveAt(idx);
@@ -420,9 +422,9 @@ namespace UnrealGameSync
 
 		static bool ParseArgument(List<string> remainingArgs, string prefix, [NotNullWhen(true)] out string? value)
 		{
-			for(int idx = 0; idx < remainingArgs.Count; idx++)
+			for (int idx = 0; idx < remainingArgs.Count; idx++)
 			{
-				if(remainingArgs[idx].StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
+				if (remainingArgs[idx].StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
 				{
 					value = remainingArgs[idx].Substring(prefix.Length);
 					remainingArgs.RemoveAt(idx);

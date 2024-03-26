@@ -71,7 +71,7 @@ namespace Horde.Server.Jobs.Templates
 				SubmitDescription = config.SubmitDescription;
 				Arguments = config.Arguments ?? new List<string>();
 				Parameters = config.Parameters.ConvertAll(x => x.ToModel());
-			
+
 				// Compute the hash once all other fields have been set
 				Id = ContentHash.SHA1(BsonExtensionMethods.ToBson(this));
 			}

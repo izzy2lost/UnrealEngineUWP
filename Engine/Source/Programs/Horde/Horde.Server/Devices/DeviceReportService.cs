@@ -55,7 +55,7 @@ namespace Horde.Server.Devices
 			DeviceAddress = deviceAddress;
 			PoolId = poolId;
 			PoolName = poolName;
-			Telemetry = telemetry;			
+			Telemetry = telemetry;
 		}
 	}
 
@@ -68,7 +68,7 @@ namespace Horde.Server.Devices
 		public DevicePlatformReport(string platformId, string platformName)
 		{
 			PlatformId = platformId;
-			PlatformName = platformName;			
+			PlatformName = platformName;
 		}
 	}
 
@@ -98,7 +98,7 @@ namespace Horde.Server.Devices
 		public DevicePoolReport(string poolId, string poolName)
 		{
 			PoolId = poolId;
-			PoolName = poolName;		
+			PoolName = poolName;
 		}
 	}
 
@@ -106,7 +106,7 @@ namespace Horde.Server.Devices
 	{
 		public string Channel { get; }
 
-		public List<DevicePlatformReport> PlatformReports { get; set;  } = new List<DevicePlatformReport>();
+		public List<DevicePlatformReport> PlatformReports { get; set; } = new List<DevicePlatformReport>();
 
 		public List<DevicePoolReport> PoolReports { get; set; } = new List<DevicePoolReport>();
 
@@ -137,7 +137,7 @@ namespace Horde.Server.Devices
 		readonly ITicker _ticker;
 		readonly IOptionsMonitor<GlobalConfig> _globalConfig;
 		readonly ILogger<DeviceReportService> _logger;
-		
+
 		readonly int _reportIntervalMinutes = 180;
 
 		/// <summary>
@@ -193,7 +193,7 @@ namespace Horde.Server.Devices
 			devices = devices.OrderBy(d => d.PlatformId.ToString()).ThenBy(d => d.PoolId.ToString()).ToList();
 
 			List<IDeviceTelemetry> deviceTelemetry = await _deviceService.GetDeviceTelemetryAsync(null, lastReportTime);
-			
+
 			DeviceIssueReport issueReport = new DeviceIssueReport(globalConfig.ServerSettings.DeviceReportChannel);
 
 			devices.ForEach(device =>
@@ -219,7 +219,7 @@ namespace Horde.Server.Devices
 				}
 
 				DevicePoolMetrics? metrics = poolReport.Metrics.Find(m => m.PlatformId == device.PlatformId.ToString());
-				if (metrics == null) 
+				if (metrics == null)
 				{
 					metrics = new DevicePoolMetrics(platform.Id.ToString(), platform.Name.ToString());
 					poolReport.Metrics.Add(metrics);
@@ -258,8 +258,8 @@ namespace Horde.Server.Devices
 				DeviceReport deviceReport = new DeviceReport(platform.Id.ToString(), platform.Name, device.Id.ToString(), device.Name, device.Address ?? "Unknown Address", pool.Id.ToString(), pool.Name, telemetry);
 
 				deviceReport.ProblemDelta = problems.Count;
-				
-				if (lastProblem.JobName != null && lastProblem.StepName != null && lastProblem.JobId != null && lastProblem.StepId != null) 
+
+				if (lastProblem.JobName != null && lastProblem.StepName != null && lastProblem.JobId != null && lastProblem.StepId != null)
 				{
 					deviceReport.LastProblemDesc = $"{lastProblem.JobName} - {lastProblem.StepName}";
 					deviceReport.LastProblemURL = new Uri($"{globalConfig.ServerSettings.DashboardUrl}job/{lastProblem.JobId}?step={lastProblem.StepId}").ToString();
@@ -280,7 +280,7 @@ namespace Horde.Server.Devices
 			issueReport.PlatformReports = issueReport.PlatformReports.OrderBy(r => r.PlatformName).ToList();
 			issueReport.PlatformReports.ForEach(r => r.DeviceReports = r.DeviceReports.OrderBy(r => r.PoolName).ThenBy(r => r.DeviceName).ToList());
 
-			if (issueReport.PoolReports.Count > 0 || issueReport.PlatformReports.Count > 0) 
+			if (issueReport.PoolReports.Count > 0 || issueReport.PlatformReports.Count > 0)
 			{
 				try
 				{

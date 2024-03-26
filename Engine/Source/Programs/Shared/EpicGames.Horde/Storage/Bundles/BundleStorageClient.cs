@@ -203,7 +203,7 @@ namespace EpicGames.Horde.Storage.Bundles
 			{
 				return new Bundles.V1.BundleWriter(this, _bundleReader, basePath, _options);
 			}
-			else if(version == BundleVersion.LatestV2)
+			else if (version == BundleVersion.LatestV2)
 			{
 				return new Bundles.V2.BundleWriter(this, basePath, _cache, _options, serializerOptions);
 			}

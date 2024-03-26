@@ -245,7 +245,7 @@ namespace Horde.Server.Accounts
 		public async ValueTask CreateAdminAccountAsync(string password, CancellationToken cancellationToken)
 		{
 			if (!_hasCreatedAdminAccount)
-			{				
+			{
 				(string passwordSalt, string passwordHash) = CreateSaltAndHashPassword(password);
 
 				const string AdminLogin = "Admin";

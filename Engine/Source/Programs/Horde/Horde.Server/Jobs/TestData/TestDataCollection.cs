@@ -26,7 +26,7 @@ namespace Horde.Server.Jobs.TestData
 	{
 		internal interface ITestExpire
 		{
-			DateTime? LastSeenUtc { get; }		
+			DateTime? LastSeenUtc { get; }
 		}
 
 		class TestMetaDocument : ITestMeta, ITestExpire
@@ -122,7 +122,7 @@ namespace Horde.Server.Jobs.TestData
 
 			public TestDocument(string name, List<TestMetaId> meta, string? suiteName = null, string? displayName = null)
 			{
-				Id = TestId.GenerateNewId();				
+				Id = TestId.GenerateNewId();
 				Name = name;
 				Metadata = meta;
 				SuiteName = suiteName;
@@ -241,7 +241,7 @@ namespace Horde.Server.Jobs.TestData
 			[BsonRequired, BsonId]
 			public TestRefId Id { get; set; }
 
-			[BsonRequired,BsonElement("sid")]
+			[BsonRequired, BsonElement("sid")]
 			public StreamId StreamId { get; set; }
 
 			[BsonRequired, BsonElement("m")]
@@ -259,7 +259,7 @@ namespace Horde.Server.Jobs.TestData
 
 			[BsonIgnoreIfNull, BsonElement("o")]
 			public TestOutcome? Outcome { get; set; }
-			
+
 			// --- Suite tests			
 			[BsonIgnoreIfNull, BsonElement("suid")]
 			public TestSuiteId? SuiteId { get; set; }
@@ -462,7 +462,7 @@ namespace Horde.Server.Jobs.TestData
 				filter &= filterBuilder.In(x => x.Metadata, metaIds);
 			}
 
-			if ((testIds != null && testIds.Length> 0) && (suiteIds != null && suiteIds.Length > 0))
+			if ((testIds != null && testIds.Length > 0) && (suiteIds != null && suiteIds.Length > 0))
 			{
 				filter &= filterBuilder.Or(filterBuilder.And(filterBuilder.Ne(x => x.TestId, null), filterBuilder.In(x => (TestId)x.TestId!, testIds)),
 										   filterBuilder.And(filterBuilder.Ne(x => x.SuiteId, null), filterBuilder.In(x => (TestSuiteId)x.SuiteId!, suiteIds)));
@@ -490,7 +490,7 @@ namespace Horde.Server.Jobs.TestData
 			}
 
 			List<TestDataRefDocument> results;
-			
+
 			using (TelemetrySpan _ = _tracer.StartActiveSpan($"{nameof(TestDataCollection)}.{nameof(FindTestRefsAsync)}"))
 			{
 				results = await _testRefs.Find(filter).ToListAsync(cancellationToken);
@@ -690,7 +690,7 @@ namespace Horde.Server.Jobs.TestData
 			{
 				metaData = await FindTestMetaAsync(projectNames, metaIds: metaIds, cancellationToken: cancellationToken);
 			}
-			
+
 			TestMetaId[] queryIds = metaData.Select(x => x.Id).ToArray();
 
 			FilterDefinitionBuilder<TestDocument> filterBuilder = Builders<TestDocument>.Filter;
@@ -730,7 +730,7 @@ namespace Horde.Server.Jobs.TestData
 				{
 					filter &= filterBuilder.In(x => x.Id, testIds);
 				}
-			}			
+			}
 			if (suiteTests == false)
 			{
 				filter &= filterBuilder.Eq(x => x.SuiteName, null);
@@ -833,7 +833,7 @@ namespace Horde.Server.Jobs.TestData
 					{
 						streamDoc.Tests.Add(testRef.TestId.Value);
 						updates.Add(updateBuilder.Set(x => x.Tests, streamDoc.Tests));
-					}					
+					}
 				}
 
 				if (testRef.SuiteId != null)
@@ -917,7 +917,7 @@ namespace Horde.Server.Jobs.TestData
 			filter &= filterBuilder.Eq(x => x.Platforms, meta.Platforms);
 			filter &= filterBuilder.Eq(x => x.BuildTargets, meta.BuildTargets);
 			filter &= filterBuilder.Eq(x => x.Configurations, meta.Configurations);
-			
+
 			TestMetaDocument? result = await _testMeta.Find(filter).FirstOrDefaultAsync(cancellationToken);
 
 			if (result == null)
@@ -937,14 +937,14 @@ namespace Horde.Server.Jobs.TestData
 
 		}
 
-		async Task<TestDocument?> AddOrUpdateTestAsync(ITestMeta metaData, string testName, string? suiteName = null,  string? displayName = null, CancellationToken cancellationToken = default)
+		async Task<TestDocument?> AddOrUpdateTestAsync(ITestMeta metaData, string testName, string? suiteName = null, string? displayName = null, CancellationToken cancellationToken = default)
 		{
 
 			List<TestDocument> tests;
 
 			if (suiteName != null)
 			{
-				tests = await FindTestsAsync(true, projectNames: new string[] { metaData.ProjectName }, testNames: new string[] { testName }, suiteNames: new string[] {suiteName}, cancellationToken: cancellationToken);
+				tests = await FindTestsAsync(true, projectNames: new string[] { metaData.ProjectName }, testNames: new string[] { testName }, suiteNames: new string[] { suiteName }, cancellationToken: cancellationToken);
 			}
 			else
 			{
@@ -960,7 +960,7 @@ namespace Horde.Server.Jobs.TestData
 
 			if (tests.Count == 0)
 			{
-				test = new TestDocument( testName, new List<TestMetaId>() { metaData.Id }, suiteName, displayName);
+				test = new TestDocument(testName, new List<TestMetaId>() { metaData.Id }, suiteName, displayName);
 				await _tests.InsertOneAsync(test, null, cancellationToken);
 			}
 			else
@@ -989,7 +989,7 @@ namespace Horde.Server.Jobs.TestData
 		{
 			TestSuiteDocument? suite;
 
-			List<TestSuiteDocument> suiteTests = await FindTestSuitesAsync(suiteNames: new string[] { suiteName }, projectNames: new string[] {metaData.ProjectName}, cancellationToken: cancellationToken);
+			List<TestSuiteDocument> suiteTests = await FindTestSuitesAsync(suiteNames: new string[] { suiteName }, projectNames: new string[] { metaData.ProjectName }, cancellationToken: cancellationToken);
 
 			if (suiteTests.Count > 1)
 			{
@@ -1071,7 +1071,7 @@ namespace Horde.Server.Jobs.TestData
 					continue;
 				}
 
-				string type = value.AsString;				
+				string type = value.AsString;
 
 				if (type == "Simple Report")
 				{
@@ -1310,7 +1310,7 @@ namespace Horde.Server.Jobs.TestData
 		{
 			await ExpireTestDataAsync(retainMonths, cancellationToken);
 
-			return true;		
+			return true;
 		}
 
 		/// <inheritdoc/>
@@ -1446,7 +1446,7 @@ namespace Horde.Server.Jobs.TestData
 				public string State { get; set; } = String.Empty;
 				public string DeviceInstance { get; set; } = String.Empty;
 				public int Errors { get; set; } = 0;
-				public int Warnings { get; set; } = 0;				
+				public int Warnings { get; set; } = 0;
 			}
 
 			public string Type { get; set; } = String.Empty;
@@ -1466,7 +1466,7 @@ namespace Horde.Server.Jobs.TestData
 		}
 
 		class SimpleTestData
-		{			
+		{
 			public string TestName { get; set; } = String.Empty;
 			public string Description { get; set; } = String.Empty;
 			public string ReportCreatedOn { get; set; } = String.Empty;
@@ -1689,7 +1689,7 @@ namespace Horde.Server.Jobs.TestData
 									if (!counted)
 									{
 										skipCount++;
-									}										
+									}
 									break;
 								case "Fail":
 									outcome = TestOutcome.Failure;
@@ -1700,7 +1700,7 @@ namespace Horde.Server.Jobs.TestData
 									break;
 							}
 
-							suiteTestData.Add(new SuiteTestData(document.Id, outcome, TimeSpan.FromSeconds(test.TimeElapseSec), test.TestUID, test.WarningCount != 0 ? test.WarningCount : null , test.ErrorCount != 0 ? test.ErrorCount : null));
+							suiteTestData.Add(new SuiteTestData(document.Id, outcome, TimeSpan.FromSeconds(test.TimeElapseSec), test.TestUID, test.WarningCount != 0 ? test.WarningCount : null, test.ErrorCount != 0 ? test.ErrorCount : null));
 						}
 
 						testRef.SuiteSkipCount = skipCount;

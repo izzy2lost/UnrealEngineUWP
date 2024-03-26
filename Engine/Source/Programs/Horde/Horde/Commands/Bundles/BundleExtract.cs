@@ -47,7 +47,7 @@ namespace Horde.Commands.Bundles
 
 		public override async Task<int> ExecuteAsync(ILogger logger)
 		{
-			if(CleanOutput)
+			if (CleanOutput)
 			{
 				logger.LogInformation("Deleting contents of {OutputDir}...", OutputDir);
 				FileUtils.ForceDeleteDirectoryContents(OutputDir);

@@ -90,7 +90,7 @@ namespace EpicGames.Horde.Storage
 		/// </summary>
 		public static ObjectKey Sanitize(Utf8String path)
 		{
-			byte[]? data = null; 
+			byte[]? data = null;
 			for (int idx = 0; idx < path.Length; idx++)
 			{
 				byte character = path[idx];

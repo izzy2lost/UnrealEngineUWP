@@ -1,12 +1,12 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-using EpicGames.Core;
 using System;
 using System.Collections.Concurrent;
 using System.Security.Cryptography;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
+using EpicGames.Core;
 
 namespace UnrealGameSync
 {
@@ -188,7 +188,7 @@ namespace UnrealGameSync
 				}
 			}
 
-			for(; _acquireCount > 0; _acquireCount--)
+			for (; _acquireCount > 0; _acquireCount--)
 			{
 				_mutex.ReleaseMutex();
 			}
@@ -199,7 +199,7 @@ namespace UnrealGameSync
 		void MonitorThread()
 		{
 			_locked = IsLocked();
-			for (; ;)
+			for (; ; )
 			{
 				if (_locked)
 				{

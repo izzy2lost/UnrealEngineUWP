@@ -39,7 +39,7 @@ namespace Horde.Agent.Execution
 		public override async Task InitializeAsync(ILogger logger, CancellationToken cancellationToken)
 		{
 			await base.InitializeAsync(logger, cancellationToken);
-			
+
 			if (Batch.Change == 0)
 			{
 				throw new WorkspaceMaterializationException("Jobs with an empty change number are not supported");
@@ -57,17 +57,17 @@ namespace Horde.Agent.Execution
 				SyncOptions syncOptions = new();
 				await _autoSdkWorkspace.SyncAsync(IWorkspaceMaterializer.LatestChangeNumber, -1, syncOptions, cancellationToken);
 			}
-			
+
 			// Sync the regular workspace
 			WorkspaceMaterializerSettings workspaceSettings;
 			using (IScope scope = GlobalTracer.Instance.BuildSpan("Workspace").StartActive())
 			{
 				workspaceSettings = await _workspace.InitializeAsync(logger, cancellationToken);
 				scope.Span.SetTag(Datadog.Trace.OpenTracing.DatadogTags.ResourceName, workspaceSettings.Identifier);
-				
+
 				int preflightChange = (Batch.ClonedPreflightChange != 0) ? Batch.ClonedPreflightChange : Batch.PreflightChange;
 				await _workspace.SyncAsync(Batch.Change, preflightChange, new SyncOptions(), cancellationToken);
-				
+
 				// TODO: Purging of cache for ManagedWorkspace did happen here in WorkspaceInfo
 
 				DeleteCachedBuildGraphManifests(workspaceSettings.DirectoryPath, logger);
@@ -103,7 +103,7 @@ namespace Horde.Agent.Execution
 				_envVars["UE_SDKS_ROOT"] = autoSdkWorkspaceSettings.DirectoryPath.FullName;
 			}
 		}
-		
+
 		/// <inheritdoc/>
 		protected override async Task<bool> SetupAsync(JobStepInfo step, ILogger logger, CancellationToken cancellationToken)
 		{
@@ -133,7 +133,7 @@ namespace Horde.Agent.Execution
 			{
 				await _autoSdkWorkspace.FinalizeAsync(cancellationToken);
 			}
-			
+
 			await _workspace.FinalizeAsync(cancellationToken);
 		}
 
@@ -146,7 +146,7 @@ namespace Horde.Agent.Execution
 				// These Perforce-specific references should ideally not exist in WorkspaceExecutor.
 				WorkspaceInfo? workspaceInfo = (_workspace as ManagedWorkspaceMaterializer)?.GetWorkspaceInfo();
 				WorkspaceInfo? autoSdkWorkspaceInfo = (_autoSdkWorkspace as ManagedWorkspaceMaterializer)?.GetWorkspaceInfo();
-				
+
 				if (workspaceInfo != null)
 				{
 					return PerforceExecutor.CreatePerforceLogger(logger, Batch.Change, workspaceInfo, autoSdkWorkspaceInfo);
@@ -161,7 +161,7 @@ namespace Horde.Agent.Execution
 	{
 		private readonly IWorkspaceMaterializerFactory _materializerFactory;
 		private readonly ILoggerFactory _loggerFactory;
-		
+
 		public string Name => WorkspaceExecutor.Name;
 
 		public WorkspaceExecutorFactory(IWorkspaceMaterializerFactory materializerFactory, ILoggerFactory loggerFactory)
@@ -200,12 +200,12 @@ namespace Horde.Agent.Execution
 			{
 				return defaultValue;
 			}
-			
+
 			if (Enum.TryParse(name, true, out WorkspaceMaterializerType enumType))
 			{
 				return enumType;
 			}
-			
+
 			throw new ArgumentException($"Unable to find materializer type '{name}'");
 		}
 	}

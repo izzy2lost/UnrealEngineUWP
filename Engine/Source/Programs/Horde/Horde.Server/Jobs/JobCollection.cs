@@ -11,7 +11,14 @@ using System.Threading.Tasks;
 using EpicGames.Core;
 using EpicGames.Horde.Agents;
 using EpicGames.Horde.Agents.Leases;
+using EpicGames.Horde.Agents.Pools;
+using EpicGames.Horde.Agents.Sessions;
+using EpicGames.Horde.Jobs;
+using EpicGames.Horde.Jobs.Bisect;
+using EpicGames.Horde.Jobs.Templates;
+using EpicGames.Horde.Logs;
 using EpicGames.Horde.Streams;
+using EpicGames.Horde.Telemetry;
 using EpicGames.Horde.Users;
 using Horde.Server.Acls;
 using Horde.Server.Jobs.Graphs;
@@ -29,13 +36,6 @@ using MongoDB.Bson.Serialization.Attributes;
 using MongoDB.Bson.Serialization.Options;
 using MongoDB.Driver;
 using OpenTelemetry.Trace;
-using EpicGames.Horde.Jobs.Templates;
-using EpicGames.Horde.Jobs;
-using EpicGames.Horde.Logs;
-using EpicGames.Horde.Agents.Pools;
-using EpicGames.Horde.Agents.Sessions;
-using EpicGames.Horde.Jobs.Bisect;
-using EpicGames.Horde.Telemetry;
 
 namespace Horde.Server.Jobs
 {
@@ -92,7 +92,7 @@ namespace Horde.Server.Jobs
 			public bool AbortRequested { get; set; } = false;
 
 			public UserId? AbortedByUserId { get; set; }
-			
+
 			[BsonElement("AbortByUser")]
 			public string? AbortedByUserDeprecated { get; set; }
 
@@ -354,7 +354,7 @@ namespace Horde.Server.Jobs
 				StartedByBisectTaskId = options.StartedByBisectTaskId;
 				Priority = options.Priority ?? HordeCommon.Priority.Normal;
 				AutoSubmit = options.AutoSubmit ?? false;
-				UpdateIssues = options.UpdateIssues ?? (options.StartedByUserId == null && ( options.PreflightChange == 0 || options.PreflightChange == null));
+				UpdateIssues = options.UpdateIssues ?? (options.StartedByUserId == null && (options.PreflightChange == 0 || options.PreflightChange == null));
 				PromoteIssuesByDefault = options.PromoteIssuesByDefault ?? false;
 				Claims = options.Claims;
 				JobOptions = options.JobOptions;
@@ -417,7 +417,7 @@ namespace Horde.Server.Jobs
 			indexes.Add(keys => keys.Ascending(x => x.StartedByUserId));
 			indexes.Add(keys => keys.Ascending(x => x.TemplateId));
 			indexes.Add(keys => keys.Descending(x => x.SchedulePriority));
-			indexes.Add(_startedByBisectTaskIdIndex = MongoIndex.Create<JobDocument>(keys => keys.Descending(x => x.StartedByBisectTaskId), sparse: true));			
+			indexes.Add(_startedByBisectTaskIdIndex = MongoIndex.Create<JobDocument>(keys => keys.Descending(x => x.StartedByBisectTaskId), sparse: true));
 			_jobs = mongoService.GetCollection<JobDocument>("Jobs", indexes);
 		}
 
@@ -452,7 +452,7 @@ namespace Horde.Server.Jobs
 
 			if (_telemetrySink.Enabled)
 			{
-				_telemetrySink.SendEvent(TelemetryStoreId.Default, TelemetryRecordMeta.CurrentHordeInstance, new 
+				_telemetrySink.SendEvent(TelemetryStoreId.Default, TelemetryRecordMeta.CurrentHordeInstance, new
 				{
 					EventName = "State.Job",
 					Id = newJob.Id,
@@ -500,7 +500,7 @@ namespace Horde.Server.Jobs
 		}
 
 		/// <inheritdoc/>
-		public async Task<IReadOnlyList<IJob>> FindAsync(JobId[]? jobIds, StreamId? streamId, string? name, TemplateId[]? templates, int? minChange, int? maxChange, int? preflightChange, bool? preflightOnly, UserId ? preflightStartedByUser, UserId? startedByUser, DateTimeOffset? minCreateTime, DateTimeOffset? maxCreateTime, DateTimeOffset? modifiedBefore, DateTimeOffset? modifiedAfter, JobStepBatchState? batchState, int? index, int? count, bool consistentRead, string? indexHint, bool? excludeUserJobs, CancellationToken cancellationToken)
+		public async Task<IReadOnlyList<IJob>> FindAsync(JobId[]? jobIds, StreamId? streamId, string? name, TemplateId[]? templates, int? minChange, int? maxChange, int? preflightChange, bool? preflightOnly, UserId? preflightStartedByUser, UserId? startedByUser, DateTimeOffset? minCreateTime, DateTimeOffset? maxCreateTime, DateTimeOffset? modifiedBefore, DateTimeOffset? modifiedAfter, JobStepBatchState? batchState, int? index, int? count, bool consistentRead, string? indexHint, bool? excludeUserJobs, CancellationToken cancellationToken)
 		{
 			FilterDefinitionBuilder<JobDocument> filterBuilder = Builders<JobDocument>.Filter;
 
@@ -523,7 +523,7 @@ namespace Horde.Server.Jobs
 				else
 				{
 					filter &= filterBuilder.Eq(x => x.Name, name);
-				}				
+				}
 			}
 			if (templates != null)
 			{
@@ -601,7 +601,7 @@ namespace Horde.Server.Jobs
 			span.SetAttribute("TaskId", bisectTaskId.Id.ToString());
 
 			FilterDefinitionBuilder<JobDocument> filterBuilder = Builders<JobDocument>.Filter;
-			FilterDefinition<JobDocument> filter = filterBuilder.Exists(x => x.StartedByBisectTaskId);			
+			FilterDefinition<JobDocument> filter = filterBuilder.Exists(x => x.StartedByBisectTaskId);
 			filter &= filterBuilder.Eq(x => x.StartedByBisectTaskId, bisectTaskId);
 			List<JobDocument> results = await _jobs.FindWithHintAsync(filter, _startedByBisectTaskIdIndex.Name, x => x.SortByDescending(x => x.CreateTimeUtc!).ToListAsync(cancellationToken));
 			foreach (JobDocument jobDoc in results)
@@ -612,7 +612,7 @@ namespace Horde.Server.Jobs
 					if (state == JobState.Complete)
 					{
 						continue;
-					}					
+					}
 				}
 
 				await PostLoadAsync(jobDoc);
@@ -624,7 +624,7 @@ namespace Horde.Server.Jobs
 		public async Task<IReadOnlyList<IJob>> FindLatestByStreamWithTemplatesAsync(StreamId streamId, TemplateId[] templates, UserId? preflightStartedByUser, DateTimeOffset? maxCreateTime, DateTimeOffset? modifiedAfter, int? index, int? count, bool consistentRead, CancellationToken cancellationToken)
 		{
 			string indexHint = _streamThenTemplateThenCreationTimeIndex.Name;
-			
+
 			// This find call uses an index hint. Modifying the parameter passed to FindAsync can affect execution time a lot as the query planner is forced to use the specified index.
 			// Casting to interface to benefit from default parameter values
 			return await (this as IJobCollection).FindAsync(
@@ -666,7 +666,7 @@ namespace Horde.Server.Jobs
 			}
 			if (autoSubmitMessage != null)
 			{
-				jobDocument.AutoSubmitMessage = (autoSubmitMessage.Length == 0)? null : autoSubmitMessage;
+				jobDocument.AutoSubmitMessage = (autoSubmitMessage.Length == 0) ? null : autoSubmitMessage;
 				updates.Add(updateBuilder.SetOrUnsetNullRef(x => x.AutoSubmitMessage, jobDocument.AutoSubmitMessage));
 			}
 			if (abortedByUserId != null && jobDocument.AbortedByUserId == null)
@@ -817,7 +817,7 @@ namespace Horde.Server.Jobs
 				updates.Clear();
 				UpdateBatches(jobDocument, graph, updates, _logger);
 
-				if(retriedNodes.Count > 0)
+				if (retriedNodes.Count > 0)
 				{
 					jobDocument.RetriedNodes = retriedNodes;
 					updates.Add(updateBuilder.Set(x => x.RetriedNodes, jobDocument.RetriedNodes));
@@ -1303,7 +1303,7 @@ namespace Horde.Server.Jobs
 				UpdateBatches(jobDocument, graph, updates, _logger);
 
 				IJob? newJob = await TryUpdateAsync(jobDocument, updates, cancellationToken);
-				if(newJob != null)
+				if (newJob != null)
 				{
 					return newJob;
 				}
@@ -1554,7 +1554,7 @@ namespace Horde.Server.Jobs
 					}
 					else if (step.State == JobStepState.Skipped)
 					{
-						if(node.InputDependencies.Any(x => failedNodes.Contains(graph.GetNode(x))) || !CanRetryNode(job, batch.GroupIdx, step.NodeIdx))
+						if (node.InputDependencies.Any(x => failedNodes.Contains(graph.GetNode(x))) || !CanRetryNode(job, batch.GroupIdx, step.NodeIdx))
 						{
 							failedNodes.Add(node);
 						}
@@ -1656,9 +1656,9 @@ namespace Horde.Server.Jobs
 			{
 				foreach (JobStepDocument step in batch.Steps)
 				{
-					if ((step.State == JobStepState.Running && !step.Retry) 
-						|| (step.State == JobStepState.Completed && !step.Retry) 
-						|| (step.State == JobStepState.Aborted && !step.Retry) 
+					if ((step.State == JobStepState.Running && !step.Retry)
+						|| (step.State == JobStepState.Completed && !step.Retry)
+						|| (step.State == JobStepState.Aborted && !step.Retry)
 						|| (step.State == JobStepState.Skipped))
 					{
 						newNodesToExecute.Remove(graph.Groups[batch.GroupIdx].Nodes[step.NodeIdx]);

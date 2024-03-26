@@ -1,8 +1,8 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-using EpicGames.Core;
 using System;
 using System.Collections.Generic;
+using EpicGames.Core;
 
 namespace EpicGames.Horde.Storage.Nodes
 {
@@ -100,7 +100,7 @@ namespace EpicGames.Horde.Storage.Nodes
 			}
 			else
 			{
-				parent = null; 
+				parent = null;
 			}
 
 			string author = reader.ReadString();

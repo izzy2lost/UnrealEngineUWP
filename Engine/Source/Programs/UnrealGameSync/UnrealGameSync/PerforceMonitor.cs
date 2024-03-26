@@ -1,11 +1,5 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-using EpicGames.Core;
-using EpicGames.OIDC;
-using EpicGames.Perforce;
-using EpicGames.Horde;
-using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Logging;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
@@ -13,6 +7,11 @@ using System.Diagnostics.CodeAnalysis;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
+using EpicGames.Core;
+using EpicGames.Horde;
+using EpicGames.Perforce;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 
 namespace UnrealGameSync
 {
@@ -44,7 +43,7 @@ namespace UnrealGameSync
 #pragma warning restore CA2213
 		int _pendingMaxChangesValue;
 		SortedSet<ChangesRecord> _changes = new SortedSet<ChangesRecord>(new PerforceChangeSorter());
-		readonly SortedDictionary<int, PerforceChangeDetails> _changeDetails = new SortedDictionary<int,PerforceChangeDetails>();
+		readonly SortedDictionary<int, PerforceChangeDetails> _changeDetails = new SortedDictionary<int, PerforceChangeDetails>();
 		readonly SortedSet<int> _promotedChangeNumbers = new SortedSet<int>();
 		List<BaseArchiveInfo> _archives = new List<BaseArchiveInfo>();
 		readonly AsyncEvent _refreshEvent = new AsyncEvent();
@@ -134,16 +133,16 @@ namespace UnrealGameSync
 		public int PendingMaxChanges
 		{
 			get => _pendingMaxChangesValue;
-			set 
-			{ 
-				lock(_lockObject)
-				{ 
-					if(value != _pendingMaxChangesValue)
-					{ 
-						_pendingMaxChangesValue = value; 
-						_refreshEvent.Set(); 
-					} 
-				} 
+			set
+			{
+				lock (_lockObject)
+				{
+					if (value != _pendingMaxChangesValue)
+					{
+						_pendingMaxChangesValue = value;
+						_refreshEvent.Set();
+					}
+				}
 			}
 		}
 
@@ -193,7 +192,7 @@ namespace UnrealGameSync
 				await UpdateArchivesAsync(perforce, cancellationToken);
 			}
 
-			while(!cancellationToken.IsCancellationRequested)
+			while (!cancellationToken.IsCancellationRequested)
 			{
 				Stopwatch timer = Stopwatch.StartNew();
 				Task nextRefreshTask = _refreshEvent.Task;
@@ -236,14 +235,14 @@ namespace UnrealGameSync
 					}
 				}
 
-                // Wait for another request, or scan for new builds after a timeout
+				// Wait for another request, or scan for new builds after a timeout
 				// Add random deviation to refresh event, to try and combat many UGS clients getting in sync and DDoSing Perforce
-                TimeSpan baseDelay = TimeSpan.FromMinutes(IsActive ? 5 : 30);
+				TimeSpan baseDelay = TimeSpan.FromMinutes(IsActive ? 5 : 30);
 
-                Random random = new Random();
-                TimeSpan randomDeviation = TimeSpan.FromSeconds(random.Next(0, 60));
+				Random random = new Random();
+				TimeSpan randomDeviation = TimeSpan.FromSeconds(random.Next(0, 60));
 
-                Task delayTask = Task.Delay(baseDelay + randomDeviation, cancellationToken);
+				Task delayTask = Task.Delay(baseDelay + randomDeviation, cancellationToken);
 				await Task.WhenAny(nextRefreshTask, delayTask);
 			}
 		}
@@ -298,7 +297,7 @@ namespace UnrealGameSync
 			}
 
 			// Read any new changes
-			int? minChangeNumber = (maxChanges > CurrentMaxChanges || newestChangeNumber == -1)? null : (newestChangeNumber + 1);
+			int? minChangeNumber = (maxChanges > CurrentMaxChanges || newestChangeNumber == -1) ? null : (newestChangeNumber + 1);
 			List<ChangesRecord> newChanges = await Utility.EnumerateChanges(perforce, depotPaths, minChangeNumber, null, maxChanges, cancellationToken).ToListAsync(cancellationToken);
 
 			// Remove anything we already have
@@ -339,21 +338,21 @@ namespace UnrealGameSync
 			const string roboMergePrefix = "#ROBOMERGE-AUTHOR:";
 			foreach (ChangesRecord change in newChanges)
 			{
-				if(change.Description != null && change.Description.StartsWith(roboMergePrefix, StringComparison.Ordinal))
+				if (change.Description != null && change.Description.StartsWith(roboMergePrefix, StringComparison.Ordinal))
 				{
 					int startIdx = roboMergePrefix.Length;
-					while(startIdx < change.Description.Length && change.Description[startIdx] == ' ')
+					while (startIdx < change.Description.Length && change.Description[startIdx] == ' ')
 					{
 						startIdx++;
 					}
 
 					int endIdx = startIdx;
-					while(endIdx < change.Description.Length && !Char.IsWhiteSpace(change.Description[endIdx]))
+					while (endIdx < change.Description.Length && !Char.IsWhiteSpace(change.Description[endIdx]))
 					{
 						endIdx++;
 					}
 
-					if(endIdx > startIdx)
+					if (endIdx > startIdx)
 					{
 						change.User = change.Description.Substring(startIdx, endIdx - startIdx);
 						change.Description = "ROBOMERGE: " + change.Description.Substring(endIdx).TrimStart();
@@ -362,21 +361,21 @@ namespace UnrealGameSync
 			}
 
 			// Process the new changes received
-			if(newChanges.Count > 0 || maxChanges < CurrentMaxChanges)
+			if (newChanges.Count > 0 || maxChanges < CurrentMaxChanges)
 			{
 				// Insert them into the builds list
-				lock(_lockObject)
+				lock (_lockObject)
 				{
 					_changes.UnionWith(newChanges);
-					if(_changes.Count > maxChanges)
+					if (_changes.Count > maxChanges)
 					{
 						// Remove changes to shrink it to the max requested size, being careful to avoid removing changes that would affect our ability to correctly
 						// show the availability for content changes using zipped binaries.
 						SortedSet<ChangesRecord> trimmedChanges = new SortedSet<ChangesRecord>(new PerforceChangeSorter());
-						foreach(ChangesRecord change in _changes)
+						foreach (ChangesRecord change in _changes)
 						{
 							trimmedChanges.Add(change);
-							if(trimmedChanges.Count >= maxChanges && _archives.Any(x => x.ChangeNumberToArchiveKey.Count == 0 || x.ChangeNumberToArchiveKey.ContainsKey(change.Number) || x.ChangeNumberToArchiveKey.First().Key > change.Number))
+							if (trimmedChanges.Count >= maxChanges && _archives.Any(x => x.ChangeNumberToArchiveKey.Count == 0 || x.ChangeNumberToArchiveKey.ContainsKey(change.Number) || x.ChangeNumberToArchiveKey.First().Key > change.Number))
 							{
 								break;
 							}
@@ -388,9 +387,9 @@ namespace UnrealGameSync
 
 				// Find the last submitted change by the current user
 				int newLastChangeByCurrentUser = -1;
-				foreach(ChangesRecord change in _changes)
+				foreach (ChangesRecord change in _changes)
 				{
-					if(String.Equals(change.User, perforce.Settings.UserName, StringComparison.OrdinalIgnoreCase))
+					if (String.Equals(change.User, perforce.Settings.UserName, StringComparison.OrdinalIgnoreCase))
 					{
 						newLastChangeByCurrentUser = Math.Max(newLastChangeByCurrentUser, change.Number);
 					}
@@ -415,11 +414,11 @@ namespace UnrealGameSync
 
 			// Find the changes we need to query
 			List<int> queryChangeNumbers = new List<int>();
-			lock(_lockObject)
+			lock (_lockObject)
 			{
-				foreach(ChangesRecord change in _changes)
+				foreach (ChangesRecord change in _changes)
 				{
-					if(!_changeDetails.ContainsKey(change.Number))
+					if (!_changeDetails.ContainsKey(change.Number))
 					{
 						queryChangeNumbers.Add(change.Number);
 					}
@@ -431,7 +430,7 @@ namespace UnrealGameSync
 			using (CancellationTokenSource cancellationSource = new CancellationTokenSource())
 			{
 				Task notifyTask = Task.CompletedTask;
-				await foreach(PerforceChangeDetails details in Utility.EnumerateChangeDetails(perforce, queryChangeNumbers.ToAsyncEnumerable(), codeRules, cancellationToken))
+				await foreach (PerforceChangeDetails details in Utility.EnumerateChangeDetails(perforce, queryChangeNumbers.ToAsyncEnumerable(), codeRules, cancellationToken))
 				{
 					cancellationToken.ThrowIfCancellationRequested();
 
@@ -469,12 +468,12 @@ namespace UnrealGameSync
 
 			// Find the last submitted code change by the current user
 			int newLastCodeChangeByCurrentUser = -1;
-			foreach(ChangesRecord change in _changes)
+			foreach (ChangesRecord change in _changes)
 			{
-				if(String.Equals(change.User, perforce.Settings.UserName, StringComparison.OrdinalIgnoreCase))
+				if (String.Equals(change.User, perforce.Settings.UserName, StringComparison.OrdinalIgnoreCase))
 				{
 					PerforceChangeDetails? otherDetails;
-					if(_changeDetails.TryGetValue(change.Number, out otherDetails) && otherDetails.ContainsCode)
+					if (_changeDetails.TryGetValue(change.Number, out otherDetails) && otherDetails.ContainsCode)
 					{
 						newLastCodeChangeByCurrentUser = Math.Max(newLastCodeChangeByCurrentUser, change.Number);
 					}
@@ -485,7 +484,7 @@ namespace UnrealGameSync
 			// Notify the main window that we've got an update
 			_synchronizationContext.Post(_ => OnUpdateMetadata?.Invoke(), null);
 
-			if(_localConfigFiles.Any(x => FileReference.GetLastWriteTimeUtc(x.Key) != x.Value))
+			if (_localConfigFiles.Any(x => FileReference.GetLastWriteTimeUtc(x.Key) != x.Value))
 			{
 				await UpdateProjectConfigFileAsync(perforce, cancellationToken);
 				_synchronizationContext.Post(_ => OnUpdateMetadata?.Invoke(), null);
@@ -521,7 +520,7 @@ namespace UnrealGameSync
 
 		public List<ChangesRecord> GetChanges()
 		{
-			lock(_lockObject)
+			lock (_lockObject)
 			{
 				return new List<ChangesRecord>(_changes);
 			}
@@ -529,7 +528,7 @@ namespace UnrealGameSync
 
 		public bool TryGetChangeDetails(int number, [NotNullWhen(true)] out PerforceChangeDetails? details)
 		{
-			lock(_lockObject)
+			lock (_lockObject)
 			{
 				return _changeDetails.TryGetValue(number, out details);
 			}
@@ -537,7 +536,7 @@ namespace UnrealGameSync
 
 		public HashSet<int> GetPromotedChangeNumbers()
 		{
-			lock(_lockObject)
+			lock (_lockObject)
 			{
 				return new HashSet<int>(_promotedChangeNumbers);
 			}

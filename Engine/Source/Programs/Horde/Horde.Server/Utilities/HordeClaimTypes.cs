@@ -2,9 +2,9 @@
 
 using System.Linq;
 using System.Security.Claims;
-using Horde.Server.Users;
-using EpicGames.Horde.Users;
 using EpicGames.Horde.Accounts;
+using EpicGames.Horde.Users;
+using Horde.Server.Users;
 
 namespace Horde.Server.Utilities
 {
@@ -130,7 +130,7 @@ namespace Horde.Server.Utilities
 		public static UserId? GetUserId(this ClaimsPrincipal principal)
 		{
 			string? idValue = principal.FindFirstValue(HordeClaimTypes.UserId);
-			if(idValue == null)
+			if (idValue == null)
 			{
 				return null;
 			}

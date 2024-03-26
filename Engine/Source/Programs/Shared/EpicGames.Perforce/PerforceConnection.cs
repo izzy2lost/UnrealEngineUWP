@@ -1054,7 +1054,7 @@ namespace EpicGames.Perforce
 			{
 				arguments.AddRange(fileSpecs.List);
 			}
-	
+
 			return CommandAsync<ChangesRecord>(connection, "changes", arguments, null, cancellationToken);
 		}
 
@@ -2388,7 +2388,7 @@ namespace EpicGames.Perforce
 		public static async Task<PerforceResponse<LoginRecord>> TryLoginAsync(this IPerforceConnection connection, LoginOptions options, string? user, string? password, string? host, CancellationToken cancellationToken = default)
 		{
 			List<string> arguments = new List<string>();
-			if((options & LoginOptions.AllHosts) != 0)
+			if ((options & LoginOptions.AllHosts) != 0)
 			{
 				arguments.Add("-a");
 			}
@@ -3342,11 +3342,11 @@ namespace EpicGames.Perforce
 			{
 				arguments.Add("-S");
 			}
-            if ((options & SizesOptions.ExcludeLazyCopies) != 0)
-            {
-                arguments.Add("-z");
-            }
-            if (maxLines > 0)
+			if ((options & SizesOptions.ExcludeLazyCopies) != 0)
+			{
+				arguments.Add("-z");
+			}
+			if (maxLines > 0)
 			{
 				arguments.Add($"-m{maxLines}");
 			}
@@ -3392,7 +3392,7 @@ namespace EpicGames.Perforce
 
 			return SingleResponseCommandAsync<StreamRecord>(connection, "stream", arguments, null, cancellationToken);
 		}
-		
+
 		/// <summary>
 		/// Updates an existing stream
 		/// </summary>
@@ -3402,10 +3402,10 @@ namespace EpicGames.Perforce
 		/// <returns>Stream information record</returns>
 		public static Task<PerforceResponse> TryUpdateStreamAsync(this IPerforceConnection connection, StreamRecord record, CancellationToken cancellationToken = default)
 		{
-			List<string> arguments = new () { "-i" };
+			List<string> arguments = new() { "-i" };
 			return SingleResponseCommandAsync(connection, "stream", arguments, connection.SerializeRecord(record), null, cancellationToken);
 		}
-		
+
 		/// <summary>
 		/// Serializes a client record to a byte array
 		/// </summary>
@@ -3423,7 +3423,7 @@ namespace EpicGames.Perforce
 					nameToValue.Add(new KeyValuePair<string, object>(fieldName, value));
 				}
 			}
-			
+
 			Add("Stream", input.Stream);
 			Add("Owner", input.Owner);
 			Add("Name", input.Name);
@@ -3431,22 +3431,22 @@ namespace EpicGames.Perforce
 			Add("Type", input.Type);
 			Add("Description", input.Description);
 			Add("ParentView", input.ParentView);
-			
+
 			if (input.Options != StreamOptions.None)
 			{
 				nameToValue.Add(new KeyValuePair<string, object>("Options", PerforceReflection.GetEnumText(typeof(StreamOptions), input.Options)));
 			}
-			
+
 			if (input.Paths.Count > 0)
 			{
 				nameToValue.Add(new KeyValuePair<string, object>("Paths", input.Paths));
 			}
-			
+
 			if (input.View.Count > 0)
 			{
 				nameToValue.Add(new KeyValuePair<string, object>("View", input.View));
 			}
-			
+
 			if (input.ChangeView.Count > 0)
 			{
 				nameToValue.Add(new KeyValuePair<string, object>("ChangeView", input.ChangeView));
@@ -3906,22 +3906,22 @@ namespace EpicGames.Perforce
 			}
 
 			// Using multiple threads is not supported through p4.exe due to threaded output not being parsable
-			if(numThreads != -1 && (connection is NativePerforceConnection))
+			if (numThreads != -1 && (connection is NativePerforceConnection))
 			{
 				StringBuilder argument = new StringBuilder($"--parallel=threads={numThreads}");
-				if(batch != -1)
+				if (batch != -1)
 				{
 					argument.Append($",batch={batch}");
 				}
-				if(batchSize != -1)
+				if (batchSize != -1)
 				{
 					argument.Append($",batchsize={batchSize}");
 				}
-				if(min != -1)
+				if (min != -1)
 				{
 					argument.Append($",min={min}");
 				}
-				if(minSize != -1)
+				if (minSize != -1)
 				{
 					argument.Append($",minsize={minSize}");
 				}

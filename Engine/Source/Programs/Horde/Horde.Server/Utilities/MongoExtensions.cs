@@ -98,7 +98,7 @@ namespace Horde.Server.Utilities
 			{
 				query = query.Skip(index.Value);
 			}
-			if(count != null)
+			if (count != null)
 			{
 				query = query.Limit(count.Value);
 			}
@@ -178,7 +178,7 @@ namespace Horde.Server.Utilities
 			}
 			catch (MongoBulkWriteException ex)
 			{
-				if(ex.WriteErrors.Any(x => x.Category != ServerErrorCategory.DuplicateKey))
+				if (ex.WriteErrors.Any(x => x.Category != ServerErrorCategory.DuplicateKey))
 				{
 					throw;
 				}
@@ -335,7 +335,7 @@ namespace Horde.Server.Utilities
 		/// <returns>Bson value</returns>
 		public static BsonValue ToBsonValue(this JsonElement element)
 		{
-			switch(element.ValueKind)
+			switch (element.ValueKind)
 			{
 				case JsonValueKind.True:
 					return true;

@@ -30,7 +30,7 @@ namespace Horde.Server.Tests.Logs
 			await tailService.EnableTailingAsync(_logId, 30);
 			await tailService.AppendAsync(_logId, 30, Encoding.UTF8.GetBytes("foo\nbar\nbaz\n"));
 
-			for(int idx = 25; idx <= 29; idx++)
+			for (int idx = 25; idx <= 29; idx++)
 			{
 				List<Utf8String> lines = await tailService.ReadAsync(_logId, idx, 10);
 				Assert.AreEqual(0, lines.Count);

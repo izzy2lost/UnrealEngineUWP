@@ -5,19 +5,19 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
+using EpicGames.Horde.Agents;
+using EpicGames.Horde.Agents.Pools;
+using EpicGames.Horde.Jobs;
+using EpicGames.Horde.Jobs.Templates;
+using EpicGames.Horde.Logs;
+using EpicGames.Horde.Streams;
+using EpicGames.Horde.Telemetry;
 using Horde.Server.Server;
 using Horde.Server.Telemetry;
 using Horde.Server.Utilities;
 using HordeCommon;
 using MongoDB.Bson.Serialization.Attributes;
 using MongoDB.Driver;
-using EpicGames.Horde.Agents;
-using EpicGames.Horde.Streams;
-using EpicGames.Horde.Jobs.Templates;
-using EpicGames.Horde.Jobs;
-using EpicGames.Horde.Logs;
-using EpicGames.Horde.Agents.Pools;
-using EpicGames.Horde.Telemetry;
 
 namespace Horde.Server.Jobs
 {
@@ -76,8 +76,8 @@ namespace Horde.Server.Jobs
 			DateTime IJobStepRef.StartTimeUtc => StartTimeUtc ?? StartTime?.UtcDateTime ?? default;
 			DateTime? IJobStepRef.FinishTimeUtc => FinishTimeUtc ?? FinishTime?.UtcDateTime;
 			string IJobStepRef.NodeName => Name;
-			bool IJobStepRef.UpdateIssues => UpdateIssues ?? false;			
-			IReadOnlyList<int>? IJobStepRef.IssueIds => IssueIds;			
+			bool IJobStepRef.UpdateIssues => UpdateIssues ?? false;
+			IReadOnlyList<int>? IJobStepRef.IssueIds => IssueIds;
 
 			public JobStepRef(JobStepRefId id, string jobName, string nodeName, StreamId streamId, TemplateId templateId, int change, LogId? logId, PoolId? poolId, AgentId? agentId, JobStepState? state, JobStepOutcome? outcome, bool updateIssues, int? lastSuccess, int? lastWarning, float batchWaitTime, float batchInitTime, DateTime jobStartTimeUtc, DateTime startTimeUtc, DateTime? finishTimeUtc)
 			{
@@ -99,12 +99,12 @@ namespace Horde.Server.Jobs
 				BatchInitTime = batchInitTime;
 				JobStartTimeUtc = jobStartTimeUtc;
 				StartTimeUtc = startTimeUtc;
-				FinishTimeUtc = finishTimeUtc;				
+				FinishTimeUtc = finishTimeUtc;
 			}
 		}
 
-		readonly IMongoCollection<JobStepRef> _jobStepRefs;		
-		readonly ITelemetrySink _telemetrySink;		
+		readonly IMongoCollection<JobStepRef> _jobStepRefs;
+		readonly ITelemetrySink _telemetrySink;
 
 		/// <summary>
 		/// Constructor
@@ -114,10 +114,10 @@ namespace Horde.Server.Jobs
 		public JobStepRefCollection(MongoService mongoService, ITelemetrySink telemetrySink)
 		{
 			List<MongoIndex<JobStepRef>> indexes = new List<MongoIndex<JobStepRef>>();
-			indexes.Add(keys => keys.Ascending(x => x.StreamId).Ascending(x => x.TemplateId).Ascending(x => x.Name).Descending(x => x.Change));			
+			indexes.Add(keys => keys.Ascending(x => x.StreamId).Ascending(x => x.TemplateId).Ascending(x => x.Name).Descending(x => x.Change));
 
 			_jobStepRefs = mongoService.GetCollection<JobStepRef>("JobStepRefs", indexes);
-			_telemetrySink = telemetrySink;			
+			_telemetrySink = telemetrySink;
 		}
 
 		/// <inheritdoc/>
@@ -168,11 +168,11 @@ namespace Horde.Server.Jobs
 				updates.Add(updateBuilder.Set(x => x.IssueIds, issueIds));
 			}
 
-			if (updates.Count == 0) 
+			if (updates.Count == 0)
 			{
 				return await FindAsync(jobId, batchId, stepId);
 			}
-			
+
 			JobStepRefId id = new JobStepRefId(jobId, batchId, stepId);
 			return await _jobStepRefs.FindOneAndUpdateAsync(x => x.Id.Equals(id), updateBuilder.Combine(updates));
 		}
@@ -261,7 +261,7 @@ namespace Horde.Server.Jobs
 			filter &= filterBuilder.Eq(x => x.TemplateId, templateId);
 			filter &= filterBuilder.Eq(x => x.Name, nodeName);
 			filter &= filterBuilder.Gt(x => x.Change, change);
-			
+
 			if (outcome != null)
 			{
 				filter &= filterBuilder.Eq(x => x.Outcome, outcome);
@@ -274,7 +274,7 @@ namespace Horde.Server.Jobs
 			if (updateIssues != null)
 			{
 				filter &= filterBuilder.Ne(x => x.UpdateIssues, false);
-			}		
+			}
 
 			return await _jobStepRefs.Find(filter).SortBy(x => x.Change).FirstOrDefaultAsync();
 		}

@@ -143,7 +143,7 @@ namespace Horde.Server.Issues
 
 						string key = $"{streamConfig.Id}:{workflowConfig.Id}";
 						invalidKeys.Remove(key);
-						
+
 						DateTime lastReportTime;
 						if (!state.ReportTimes.TryGetValue(key, out lastReportTime))
 						{

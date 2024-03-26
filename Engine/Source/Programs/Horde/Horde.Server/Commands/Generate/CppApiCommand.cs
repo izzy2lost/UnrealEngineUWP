@@ -5,15 +5,15 @@ using System.Collections.Generic;
 using System.ComponentModel;
 using System.IO;
 using System.Reflection;
+using System.Text.Json.Serialization;
+using System.Threading;
 using System.Threading.Tasks;
 using EpicGames.Core;
+using EpicGames.Horde;
 using Horde.Server.Projects;
 using Horde.Server.Server;
-using Microsoft.Extensions.Logging;
-using System.Text.Json.Serialization;
 using Microsoft.AspNetCore.Mvc;
-using System.Threading;
-using EpicGames.Horde;
+using Microsoft.Extensions.Logging;
 
 namespace Horde.Server.Commands.Generate
 {
@@ -25,9 +25,9 @@ namespace Horde.Server.Commands.Generate
 		record class ApiGroupInfo(string Name, Dictionary<Type, ApiTypeInfo> Types);
 
 		static readonly Type[] s_controllerTypes = new Type[]
-		{ 
-			typeof(ServerController), 
-			typeof(ProjectsController) 
+		{
+			typeof(ServerController),
+			typeof(ProjectsController)
 		};
 
 		static readonly string[] s_boilerplateLines = new[]
@@ -150,7 +150,7 @@ namespace Horde.Server.Commands.Generate
 		{
 			foreach (MethodInfo method in controllerType.GetMethods(BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly))
 			{
-				foreach(ParameterInfo parameter in method.GetParameters())
+				foreach (ParameterInfo parameter in method.GetParameters())
 				{
 					Type parameterType = parameter.ParameterType;
 					if (parameterType.GetCustomAttribute<FromQueryAttribute>() == null && parameterType != typeof(CancellationToken))

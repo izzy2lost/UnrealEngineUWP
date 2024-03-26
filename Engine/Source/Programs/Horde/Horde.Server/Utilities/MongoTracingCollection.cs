@@ -39,7 +39,7 @@ namespace Horde.Server.Utilities
 			_tracer = tracer;
 		}
 
-#pragma warning disable CS0618		
+#pragma warning disable CS0618
 		/// <inheritdoc />
 		public IAsyncCursor<TResult> Aggregate<TResult>(PipelineDefinition<T, TResult> pipeline, AggregateOptions options = null!, CancellationToken cancellationToken = default)
 		{
@@ -719,7 +719,7 @@ namespace Horde.Server.Utilities
 			return _collection.WithWriteConcern(writeConcern);
 		}
 #pragma warning restore CS0618
-		
+
 		/// <inheritdoc />
 		public CollectionNamespace CollectionNamespace => _collection.CollectionNamespace;
 

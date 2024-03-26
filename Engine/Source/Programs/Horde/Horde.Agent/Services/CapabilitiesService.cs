@@ -465,10 +465,10 @@ namespace Horde.Agent.Services
 		{
 			try
 			{
-				using Socket socket = new (AddressFamily.InterNetwork, SocketType.Dgram, ProtocolType.IP);
-				using CancellationTokenSource cts = new (timeoutMs);
+				using Socket socket = new(AddressFamily.InterNetwork, SocketType.Dgram, ProtocolType.IP);
+				using CancellationTokenSource cts = new(timeoutMs);
 				// Port here is irrelevant as merely trying to connect is enough to get the local endpoint IP
-				await socket.ConnectAsync(hostname, 65530, cts.Token); 
+				await socket.ConnectAsync(hostname, 65530, cts.Token);
 				return (socket.LocalEndPoint as IPEndPoint)?.Address;
 			}
 			catch (SocketException)
@@ -480,7 +480,7 @@ namespace Horde.Agent.Services
 				return null;
 			}
 		}
-		
+
 		static void AddCpuInfo(DeviceCapabilities primaryDevice, Dictionary<string, int> nameToCount, int numLogicalCores, int numPhysicalCores)
 		{
 			if (nameToCount.Count > 0)

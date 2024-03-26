@@ -31,6 +31,7 @@ using EpicGames.Horde.Logs;
 using EpicGames.Horde.Projects;
 using EpicGames.Horde.Server;
 using EpicGames.Horde.Storage;
+using EpicGames.Horde.Storage.Bundles;
 using EpicGames.Horde.Storage.ObjectStores;
 using EpicGames.Horde.Streams;
 using EpicGames.Horde.Users;
@@ -40,10 +41,10 @@ using Grpc.Core.Interceptors;
 using Horde.Server.Accounts;
 using Horde.Server.Acls;
 using Horde.Server.Agents;
+using Horde.Server.Agents.Enrollment;
 using Horde.Server.Agents.Fleet;
 using Horde.Server.Agents.Leases;
 using Horde.Server.Agents.Pools;
-using Horde.Server.Agents.Enrollment;
 using Horde.Server.Agents.Relay;
 using Horde.Server.Agents.Sessions;
 using Horde.Server.Agents.Utilization;
@@ -121,7 +122,6 @@ using StackExchange.Redis;
 using Swashbuckle.AspNetCore.SwaggerGen;
 using Status = Grpc.Core.Status;
 using StatusCode = Grpc.Core.StatusCode;
-using EpicGames.Horde.Storage.Bundles;
 
 namespace Horde.Server
 {

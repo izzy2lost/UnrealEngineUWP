@@ -44,7 +44,7 @@ namespace EpicGames.Horde.Issues.Handlers
 						scope = null;
 						break;
 					}
-						
+
 					if (scope != null && scope != channelText)
 					{
 						scope = null;
@@ -63,7 +63,7 @@ namespace EpicGames.Horde.Issues.Handlers
 			string fingerprintType = $"Scoped:{scope}";
 
 			string hashSource = logEvent.Message;
-				
+
 			if (TryGetHash(hashSource, out Md5Hash hash))
 			{
 				IssueEventGroup issue = new IssueEventGroup(fingerprintType, "{Severity} in {Meta:Node} - {Meta:Scope}", IssueChangeFilter.All);

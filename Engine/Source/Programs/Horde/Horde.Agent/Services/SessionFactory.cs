@@ -98,7 +98,7 @@ namespace Horde.Agent.Services
 
 		/// <inheritdoc/>
 		public IRpcConnection RpcConnection { get; }
-		
+
 		/// <inheritdoc/>
 		public GrpcChannel GrpcChannel { get; }
 

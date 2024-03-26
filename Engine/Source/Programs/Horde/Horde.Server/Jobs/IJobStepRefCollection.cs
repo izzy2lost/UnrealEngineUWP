@@ -4,15 +4,15 @@ using System;
 using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
+using EpicGames.Horde.Agents;
+using EpicGames.Horde.Agents.Pools;
+using EpicGames.Horde.Jobs;
+using EpicGames.Horde.Jobs.Templates;
+using EpicGames.Horde.Logs;
+using EpicGames.Horde.Streams;
 using Horde.Server.Jobs.Graphs;
 using HordeCommon;
 using Microsoft.Extensions.Logging;
-using EpicGames.Horde.Agents;
-using EpicGames.Horde.Jobs.Templates;
-using EpicGames.Horde.Streams;
-using EpicGames.Horde.Jobs;
-using EpicGames.Horde.Logs;
-using EpicGames.Horde.Agents.Pools;
 
 namespace Horde.Server.Jobs
 {
@@ -148,11 +148,11 @@ namespace Horde.Server.Jobs
 				{
 					outcome = JobStepOutcome.Unspecified;
 				}
-				
+
 				if (logger != null)
 				{
 					logger.LogInformation("Updating step reference {StepId} for job {JobId}, batch {BatchId}, with outcome {JobStepOutcome}", step.Id, job.Id, batch.Id, outcome);
-				}				
+				}
 
 				await jobStepRefs.InsertOrReplaceAsync(new JobStepRefId(job.Id, batch.Id, step.Id), job.Name, nodeName, job.StreamId, job.TemplateId, job.Change, step.LogId, batch.PoolId, batch.AgentId, step.State, outcome, job.UpdateIssues, lastSuccess, lastWarning, waitTime, initTime, job.CreateTimeUtc, step.StartTimeUtc ?? DateTime.UtcNow, step.FinishTimeUtc);
 			}

@@ -41,10 +41,10 @@ public class Nftables
 	/// Prefix the invocation of 'nft' executable with 'sudo'
 	/// </summary>
 	public bool RunWithSudo { get; set; } = true;
-	
+
 	private readonly ILogger<Nftables> _logger;
-	private int? _configurableExitCode; 
-	private string? _configurableOutputText; 
+	private int? _configurableExitCode;
+	private string? _configurableOutputText;
 
 	/// <summary>
 	/// Constructor
@@ -86,19 +86,19 @@ public class Nftables
 	public async Task ApplyPortForwardingAsync(List<PortMapping> portMappings)
 	{
 		LogPortMappings(portMappings);
-		
-		using CancellationTokenSource cts = new (TimeSpan.FromSeconds(3));
-		(int exitCode, string output) = await ExecuteNftAsync(new List<string>() {"--file", "-"}, GenerateNftFile(portMappings), cts.Token);
+
+		using CancellationTokenSource cts = new(TimeSpan.FromSeconds(3));
+		(int exitCode, string output) = await ExecuteNftAsync(new List<string>() { "--file", "-" }, GenerateNftFile(portMappings), cts.Token);
 		if (exitCode != 0)
 		{
 			throw new NftablesException($"Unable to apply port forwarding. Exit code {exitCode}. Output: {output}");
 		}
 	}
-	
+
 	internal async Task<(int exitCode, string output)> ExecuteNftAsync(List<string> arguments, string? stdin = null, CancellationToken cancellationToken = default)
 	{
 		string executable = NftablesExecutable;
-		List<string> argumentsCopy = new (arguments);
+		List<string> argumentsCopy = new(arguments);
 		if (RunWithSudo)
 		{
 			executable = "sudo";
@@ -109,10 +109,10 @@ public class Nftables
 		{
 			return (_configurableExitCode ?? 0, _configurableOutputText ?? "");
 		}
-		
+
 		byte[]? stdinData = stdin != null ? Encoding.UTF8.GetBytes(stdin) : null;
-		using ManagedProcessGroup processGroup = new ();
-		using ManagedProcess process = new (processGroup, executable, CommandLineArguments.Join(argumentsCopy), null, null, stdinData, ProcessPriorityClass.Normal);
+		using ManagedProcessGroup processGroup = new();
+		using ManagedProcess process = new(processGroup, executable, CommandLineArguments.Join(argumentsCopy), null, null, stdinData, ProcessPriorityClass.Normal);
 		await process.WaitForExitAsync(cancellationToken);
 		string outputText = await process.StdOutText.ReadToEndAsync(cancellationToken);
 		return (process.ExitCode, outputText);
@@ -127,7 +127,7 @@ public class Nftables
 				foreach (Port rlmPort in rlm.Ports)
 				{
 					_logger.LogDebug("Applying {LeaseId} {Protocol} {RelayPort} -> {AgentIp}:{AgentPort}",
-						rlm.LeaseId, rlmPort.Protocol, rlmPort.RelayPort, rlm.AgentIp, rlmPort.AgentPort);	
+						rlm.LeaseId, rlmPort.Protocol, rlmPort.RelayPort, rlm.AgentIp, rlmPort.AgentPort);
 				}
 			}
 		}
@@ -139,7 +139,7 @@ public class Nftables
 		{
 			throw new NftablesException("nftables can only run under Linux");
 		}
-		
+
 		(int exitCode, string output) = await ExecuteNftAsync(new List<string> { "--version" }, cancellationToken: cancellationToken);
 		if (exitCode != 0)
 		{
@@ -164,7 +164,7 @@ public class Nftables
 			{
 				sourceIps = "ip saddr { " + String.Join(", ", mapping.AllowedSourceIps) + " } ";
 			}
-			
+
 			return $"{sourceIps}{protocol} dport {port.RelayPort} dnat to {mapping.AgentIp.ToString()}:{port.AgentPort} comment \"leaseId={mapping.LeaseId}\"";
 		}).ToList();
 	}

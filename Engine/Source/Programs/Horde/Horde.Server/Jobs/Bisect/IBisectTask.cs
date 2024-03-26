@@ -1,13 +1,13 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 using System.Collections.Generic;
-using Horde.Server.Perforce;
-using HordeCommon;
+using EpicGames.Horde.Jobs;
+using EpicGames.Horde.Jobs.Bisect;
 using EpicGames.Horde.Jobs.Templates;
 using EpicGames.Horde.Streams;
 using EpicGames.Horde.Users;
-using EpicGames.Horde.Jobs;
-using EpicGames.Horde.Jobs.Bisect;
+using Horde.Server.Perforce;
+using HordeCommon;
 
 namespace Horde.Server.Jobs.Bisect
 {

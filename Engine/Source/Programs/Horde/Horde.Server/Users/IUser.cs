@@ -156,7 +156,7 @@ namespace Horde.Server.Users
 		/// <summary>
 		/// List of pinned bisection tasks
 		/// </summary>
-		public IReadOnlyList<BisectTaskId> PinnedBisectTaskIds { get; }		
+		public IReadOnlyList<BisectTaskId> PinnedBisectTaskIds { get; }
 
 		/// <summary>
 		/// List of job template preferences

@@ -22,14 +22,14 @@ namespace Horde.Server.Tests.Server
 			await health.UpdateAsync(HealthStatus.Unhealthy, "foo", DateTimeOffset.UtcNow - TimeSpan.FromSeconds(15));
 			await health.UpdateAsync(HealthStatus.Healthy, "bar", DateTimeOffset.UtcNow);
 			await health.UpdateAsync(HealthStatus.Unhealthy, "baz", DateTimeOffset.UtcNow - TimeSpan.FromSeconds(5));
-			
+
 			SubsystemStatus gcStatus = await GetSubsystemStatusAsync(typeof(ConfigService));
 			Assert.AreEqual(3, gcStatus.Updates.Count);
 			Assert.AreEqual("bar", gcStatus.Updates[0].Message);
 			Assert.AreEqual("baz", gcStatus.Updates[1].Message);
 			Assert.AreEqual("foo", gcStatus.Updates[2].Message);
 		}
-		
+
 		[TestMethod]
 		public async Task OnlyLastNUpdatesAreKeptAsync()
 		{
@@ -37,12 +37,12 @@ namespace Horde.Server.Tests.Server
 
 			for (int i = 0; i < ServerStatusService.MaxHistoryLength + 10; i++)
 			{
-				await health.UpdateAsync(HealthStatus.Healthy, "foo", DateTimeOffset.UtcNow);	
+				await health.UpdateAsync(HealthStatus.Healthy, "foo", DateTimeOffset.UtcNow);
 			}
 
 			Assert.AreEqual(ServerStatusService.MaxHistoryLength, (await GetSubsystemStatusAsync(typeof(ConfigService))).Updates.Count);
 		}
-		
+
 		[TestMethod]
 		public async Task MongoDbHealthCheckAsync()
 		{
@@ -52,7 +52,7 @@ namespace Horde.Server.Tests.Server
 			Assert.AreEqual(1, mongoDb.Updates.Count);
 			Assert.AreEqual(HealthStatus.Healthy, mongoDb.Updates[0].Result);
 		}
-		
+
 		[TestMethod]
 		public async Task RedisHealthCheckAsync()
 		{

@@ -82,7 +82,7 @@ namespace Horde.Server.Server
 				_registration = lifetime.ApplicationStopping.Register(ApplicationStopping);
 			}
 
-			_ticker = clock.AddTicker<LifetimeService>(TimeSpan.FromMinutes(5), CheckMemoryUsageAsync, _logger);	
+			_ticker = clock.AddTicker<LifetimeService>(TimeSpan.FromMinutes(5), CheckMemoryUsageAsync, _logger);
 		}
 
 		/// <inheritdoc/>
@@ -91,7 +91,7 @@ namespace Horde.Server.Server
 			await _registration.DisposeAsync();
 			await _ticker.DisposeAsync();
 		}
-		
+
 		/// <inheritdoc/>
 		public async Task StartAsync(CancellationToken cancellationToken)
 		{
@@ -110,12 +110,12 @@ namespace Horde.Server.Server
 			{
 				return ValueTask.CompletedTask;
 			}
-			
+
 			// Force a garbage collection and wait for it to complete for a more accurate reading
 			// Can be a heavy operation but this ticker method is run infrequently
 			GC.Collect();
 			GC.WaitForPendingFinalizers();
-			
+
 			long totalMemoryUsageMb = GC.GetTotalMemory(forceFullCollection: false) / 1024 / 1024;
 			if (totalMemoryUsageMb > _shutdownMemoryThreshold)
 			{

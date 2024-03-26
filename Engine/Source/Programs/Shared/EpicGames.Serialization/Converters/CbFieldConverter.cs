@@ -1,7 +1,5 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-using EpicGames.Core;
-
 namespace EpicGames.Serialization.Converters
 {
 	/// <summary>

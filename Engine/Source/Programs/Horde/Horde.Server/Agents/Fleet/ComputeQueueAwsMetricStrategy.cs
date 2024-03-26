@@ -32,7 +32,7 @@ namespace Horde.Server.Agents.Fleet
 		/// AWS CloudWatch namespace to write metrics in
 		/// </summary>
 		public string Namespace { get; set; } = "Horde";
-		
+
 		/// <summary>
 		/// Constructor used for JSON serialization
 		/// </summary>
@@ -40,7 +40,7 @@ namespace Horde.Server.Agents.Fleet
 		public ComputeQueueAwsMetricSettings()
 		{
 		}
-		
+
 		/// <summary>
 		/// Constructor
 		/// </summary>
@@ -103,7 +103,7 @@ namespace Horde.Server.Agents.Fleet
 			Dictionary<string, List<MetricDatum>> metricsPerCloudWatchNamespace = new();
 			int numAgents = agents.Count;
 			int totalCpuCores = agents.Select(x => x.Resources.TryGetValue(KnownPropertyNames.LogicalCores, out int numCpuCores) ? numCpuCores : 0).Sum();
-			int numQueuedComputeTasks =	await _computeTaskSource.GetNumQueuedTasksForPoolAsync(new ClusterId(_settings.ComputeClusterId), pool);
+			int numQueuedComputeTasks = await _computeTaskSource.GetNumQueuedTasksForPoolAsync(new ClusterId(_settings.ComputeClusterId), pool);
 
 			double numQueuedTasksPerAgent = numQueuedComputeTasks / (double)Math.Max(numAgents, 1);
 			double numQueuedTasksPerCores = numQueuedComputeTasks / (double)Math.Max(totalCpuCores, 1);

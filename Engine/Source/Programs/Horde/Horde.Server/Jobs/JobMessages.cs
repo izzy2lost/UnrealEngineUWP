@@ -436,12 +436,12 @@ namespace Horde.Server.Jobs
 	/// The timing info for a job
 	/// </summary>
 	public class GetJobTimingResponse
-	{		
+	{
 		/// <summary>
 		/// The job response
 		/// </summary>
 		public GetJobResponse? JobResponse { get; set; }
-		
+
 		/// <summary>
 		/// Timing info for each step
 		/// </summary>
@@ -459,13 +459,13 @@ namespace Horde.Server.Jobs
 		/// <param name="steps">Timing info for each steps</param>
 		/// <param name="labels">Timing info for each label</param>
 		public GetJobTimingResponse(GetJobResponse? jobResponse, Dictionary<string, GetStepTimingInfoResponse> steps, List<GetLabelTimingInfoResponse> labels)
-		{			
+		{
 			JobResponse = jobResponse;
 			Steps = steps;
 			Labels = labels;
 		}
 	}
-	
+
 	/// <summary>
 	/// The timing info for 
 	/// </summary>
@@ -500,7 +500,7 @@ namespace Horde.Server.Jobs
 		/// Outcome from the jobstep
 		/// </summary>
 		public JobStepOutcome Outcome { get; set; } = JobStepOutcome.Unspecified;
-		
+
 		/// <summary>
 		/// If the step has been requested to abort
 		/// </summary>
@@ -572,12 +572,12 @@ namespace Horde.Server.Jobs
 		/// Error describing additional context for why a step failed to complete
 		/// </summary>
 		public JobStepError Error { get; set; }
-		
+
 		/// <summary>
 		/// If the step has been requested to abort
 		/// </summary>
 		public bool AbortRequested { get; set; }
-		
+
 		/// <summary>
 		/// Name of the user that requested the abort of this step [DEPRECATED]
 		/// </summary>

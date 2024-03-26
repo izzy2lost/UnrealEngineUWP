@@ -7,14 +7,14 @@ using System.Linq;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
-using Horde.Server.Logs;
-using Horde.Server.Jobs;
-using Microsoft.VisualStudio.TestTools.UnitTesting;
-using EpicGames.Horde.Logs;
 using EpicGames.Horde.Jobs;
+using EpicGames.Horde.Logs;
 using EpicGames.Horde.Storage;
+using Horde.Server.Jobs;
+using Horde.Server.Logs;
 using Horde.Server.Storage;
 using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.VisualStudio.TestTools.UnitTesting;
 
 namespace Horde.Server.Tests.Logs
 {
@@ -33,7 +33,7 @@ namespace Horde.Server.Tests.Logs
 			_logCollection = logCollection;
 			_storageClient = storageService.CreateClient(Namespace.Logs);
 			_blobWriter = _storageClient.CreateBlobWriter(logFile.RefName);
-			_builder = new LogBuilder((logFile.Type == LogType.Text)? LogFormat.Text : LogFormat.Json, NullLogger.Instance);
+			_builder = new LogBuilder((logFile.Type == LogType.Text) ? LogFormat.Text : LogFormat.Json, NullLogger.Instance);
 		}
 
 		public async ValueTask DisposeAsync()
@@ -106,7 +106,7 @@ namespace Horde.Server.Tests.Logs
 				Assert.AreEqual(readData.Length, readSize);
 
 				int equalSize = 0;
-				while(equalSize < _data.Length && _data[equalSize] == readData[equalSize])
+				while (equalSize < _data.Length && _data[equalSize] == readData[equalSize])
 				{
 					equalSize++;
 				}

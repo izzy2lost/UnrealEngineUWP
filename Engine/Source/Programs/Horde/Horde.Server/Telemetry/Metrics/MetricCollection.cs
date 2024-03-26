@@ -259,7 +259,7 @@ namespace Horde.Server.Telemetry.Metrics
 				foreach ((SampleKey sampleKey, List<double> sampleValues) in samples)
 				{
 					MetricConfig? metricConfig;
-					if(_globalConfig.CurrentValue.TryGetTelemetryStore(sampleKey.Store, out TelemetryStoreConfig? telemetryStoreConfig) && telemetryStoreConfig.TryGetMetric(sampleKey.Metric, out metricConfig))
+					if (_globalConfig.CurrentValue.TryGetTelemetryStore(sampleKey.Store, out TelemetryStoreConfig? telemetryStoreConfig) && telemetryStoreConfig.TryGetMetric(sampleKey.Metric, out metricConfig))
 					{
 						await CombineValuesAsync(sampleKey.Store, metricConfig, sampleKey.Group, sampleKey.Time, sampleValues, cancellationToken);
 					}
@@ -291,7 +291,7 @@ namespace Horde.Server.Telemetry.Metrics
 				TDigest digest = (metric.Count == 0) ? new TDigest() : TDigest.Deserialize(metric.State);
 				foreach (double value in values)
 				{
-					digest.Add(value); 
+					digest.Add(value);
 				}
 				metric.State = digest.Serialize();
 

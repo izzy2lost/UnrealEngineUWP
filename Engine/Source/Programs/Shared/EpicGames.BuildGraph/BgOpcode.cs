@@ -28,7 +28,7 @@ namespace EpicGames.BuildGraph
 		/// Logical AND
 		/// </summary>
 		BoolAnd = 0x03,
-		
+
 		/// <summary>
 		/// Logical OR
 		/// </summary>

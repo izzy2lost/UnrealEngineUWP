@@ -28,30 +28,30 @@ namespace Horde.Server.Tests
 
 	// Stub for fulfilling IOptionsMonitor interface during testing
 	public sealed class TestOptionsMonitor<T> : IOptionsMonitor<T>
-        where T : class, new()
-    {
+		where T : class, new()
+	{
 		sealed class Disposable : IDisposable
 		{
 			public void Dispose() { }
 		}
 
 		public TestOptionsMonitor(T currentValue)
-        {
-            CurrentValue = currentValue;
-        }
+		{
+			CurrentValue = currentValue;
+		}
 
-        public T Get(string? name)
-        {
-            return CurrentValue;
-        }
+		public T Get(string? name)
+		{
+			return CurrentValue;
+		}
 
-        public IDisposable OnChange(Action<T, string> listener)
-        {
+		public IDisposable OnChange(Action<T, string> listener)
+		{
 			return new Disposable();
-        }
+		}
 
-        public T CurrentValue { get; }
-    }
+		public T CurrentValue { get; }
+	}
 
 	public sealed class MongoInstance : IDisposable
 	{
@@ -210,7 +210,7 @@ namespace Horde.Server.Tests
 	}
 
 	public class DatabaseIntegrationTest : ServiceTest
-    {
+	{
 		private static readonly object s_lockObject = new object();
 
 		private MongoInstance? _mongoInstance;
@@ -254,8 +254,8 @@ namespace Horde.Server.Tests
 		}
 
 		public MongoService GetMongoServiceSingleton()
-        {
-			lock(s_lockObject)
+		{
+			lock (s_lockObject)
 			{
 				if (_mongoService == null)
 				{
@@ -271,10 +271,10 @@ namespace Horde.Server.Tests
 				}
 			}
 			return _mongoService;
-        }
+		}
 
 		public RedisService GetRedisServiceSingleton()
-        {
+		{
 			if (_redisService == null)
 			{
 				_redisInstance = new RedisInstance();
@@ -287,8 +287,8 @@ namespace Horde.Server.Tests
 				}
 			}
 			return _redisService;
-        }
-        
+		}
+
 		public static T Deref<T>(T? item)
 		{
 			Assert.IsNotNull(item);

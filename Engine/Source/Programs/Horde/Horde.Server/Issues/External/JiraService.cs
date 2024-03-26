@@ -3,23 +3,23 @@
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.Linq;
 using System.Net.Http;
 using System.Net.Http.Headers;
 using System.Text;
 using System.Text.Json;
+using System.Threading;
 using System.Threading.Tasks;
+using EpicGames.Core;
+using Horde.Server.Server;
+using Horde.Server.Streams;
+using Horde.Server.Users;
+using HordeCommon;
+using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Polly;
 using Polly.Extensions.Http;
-using Microsoft.Extensions.Hosting;
-using HordeCommon;
-using System.Threading;
-using System.Linq;
-using Horde.Server.Streams;
-using Horde.Server.Users;
-using Horde.Server.Server;
-using EpicGames.Core;
 
 namespace Horde.Server.Issues.External
 {
@@ -178,7 +178,7 @@ namespace Horde.Server.Issues.External
 				if (workflow.ExternalIssues != null)
 				{
 					projectKeys.Add(workflow.ExternalIssues.ProjectKey);
-				}				
+				}
 			});
 
 			foreach (string key in projectKeys)
@@ -282,7 +282,7 @@ namespace Horde.Server.Issues.External
 						{
 							jiraProject.Components[id] = name;
 						}
-					}					
+					}
 				}
 
 				_cachedJiraProjects[projectKey] = jiraProject;
@@ -296,7 +296,7 @@ namespace Horde.Server.Issues.External
 
 			GlobalConfig globalConfig = _globalConfig.CurrentValue;
 
-			foreach(StreamConfig streamConfig in globalConfig.Streams)
+			foreach (StreamConfig streamConfig in globalConfig.Streams)
 			{
 				foreach (WorkflowConfig workflow in streamConfig.Workflows)
 				{

@@ -1,16 +1,16 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-using Microsoft.AspNetCore.Mvc.Formatters;
 using System;
-using Microsoft.Net.Http.Headers;
-using System.Threading.Tasks;
 using System.IO;
-using EpicGames.Serialization;
+using System.Threading.Tasks;
 using EpicGames.Core;
+using EpicGames.Serialization;
 using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Mvc.Formatters;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Primitives;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Primitives;
+using Microsoft.Net.Http.Headers;
 
 namespace EpicGames.AspNet
 {

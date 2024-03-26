@@ -41,7 +41,7 @@ namespace Horde.Server.Server
 		{
 			int statusCode = 200;
 			string content = "ok";
-			
+
 			if (_lifetimeService.IsPreStopping)
 			{
 				statusCode = 503; // Service Unavailable

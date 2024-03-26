@@ -143,6 +143,6 @@ namespace EpicGames.BuildGraph.Expressions
 		public BgThunk(MethodCallExpression expr)
 			: base(expr)
 		{
-		}	
+		}
 	}
 }

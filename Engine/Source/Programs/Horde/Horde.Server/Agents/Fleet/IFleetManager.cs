@@ -53,17 +53,17 @@ namespace Horde.Server.Agents.Fleet
 		/// Scaling operation completed as intended.
 		/// </summary>
 		Success,
-		
+
 		/// <summary>
 		/// Scaling operation was only partly fulfilled.
 		/// </summary>
 		PartialSuccess,
-		
+
 		/// <summary>
 		/// Scaling operation failed
 		/// </summary>
 		Failure,
-		
+
 		/// <summary>
 		/// No operation took place (disabled or skipped)
 		/// </summary>
@@ -79,17 +79,17 @@ namespace Horde.Server.Agents.Fleet
 		/// Outcome
 		/// </summary>
 		public FleetManagerOutcome Outcome { get; }
-		
+
 		/// <summary>
 		/// Agents added as part of operation
 		/// </summary>
 		public int AgentsAddedCount { get; }
-		
+
 		/// <summary>
 		/// Agents added as part of operation
 		/// </summary>
 		public int AgentsRemovedCount { get; }
-		
+
 		/// <summary>
 		/// Human-readable log message
 		/// </summary>
@@ -129,7 +129,7 @@ namespace Horde.Server.Agents.Fleet
 			}
 			if (obj.GetType() != GetType())
 			{
-				return false; 
+				return false;
 			}
 			return Equals((ScaleResult)obj);
 		}
@@ -146,8 +146,7 @@ namespace Horde.Server.Agents.Fleet
 			return $"Outcome={Outcome} Added={AgentsAddedCount} Removed={AgentsRemovedCount}";
 		}
 	}
-	
-	
+
 	/// <summary>
 	/// Service to manage a fleet of machines
 	/// </summary>

@@ -1,16 +1,16 @@
 ﻿// Copyright Epic Games, Inc. All Rights Reserved.
 
-using EpicGames.Core;
 using System.Reflection;
+using System.Runtime.InteropServices;
+using EpicGames.Core;
+using EpicGames.Horde;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
-using System.Runtime.InteropServices;
-using Serilog.Sinks.SystemConsole.Themes;
+using Microsoft.Extensions.Options;
 using Serilog;
 using Serilog.Formatting.Json;
-using Microsoft.Extensions.Options;
-using EpicGames.Horde;
+using Serilog.Sinks.SystemConsole.Themes;
 
 namespace Horde
 {

@@ -36,12 +36,12 @@ namespace Horde.Server.Agents.Fleet
 		/// Pool being resized
 		/// </summary>
 		public IPoolConfig Pool { get; }
-		
+
 		/// <summary>
 		/// All agents currently associated with the pool
 		/// </summary>
 		public List<IAgent> Agents { get; }
-	
+
 		/// <summary>
 		/// Constructor
 		/// </summary>
@@ -53,7 +53,7 @@ namespace Horde.Server.Agents.Fleet
 			Agents = agents;
 		}
 	}
-	
+
 	/// <summary>
 	/// Service for managing the autoscaling of agent pools
 	/// </summary>
@@ -63,7 +63,7 @@ namespace Horde.Server.Agents.Fleet
 		/// Max number of auto-scaling calculations to be done concurrently (sizing calculations and fleet manager calls)
 		/// </summary>
 		private const int MaxParallelTasks = 10;
-		
+
 		private readonly IAgentCollection _agentCollection;
 		private readonly IGraphCollection _graphCollection;
 		private readonly IJobCollection _jobCollection;
@@ -84,7 +84,7 @@ namespace Horde.Server.Agents.Fleet
 		private readonly IServiceProvider _provider;
 		private readonly Tracer _tracer;
 		private readonly ILogger<FleetService> _logger;
-		
+
 		/// <summary>
 		/// Constructor
 		/// </summary>
@@ -123,14 +123,14 @@ namespace Horde.Server.Agents.Fleet
 			_settings = settings;
 			_provider = provider;
 			_defaultScaleOutCooldown = TimeSpan.FromSeconds(settings.Value.AgentPoolScaleOutCooldownSeconds);
-			_defaultScaleInCooldown = TimeSpan.FromSeconds(settings.Value.AgentPoolScaleInCooldownSeconds);			
-			
+			_defaultScaleInCooldown = TimeSpan.FromSeconds(settings.Value.AgentPoolScaleInCooldownSeconds);
+
 			// Only enable auto-scaling when running on a hosting provider supporting it. Right now, that is only AWS.
 			bool enableAutoScaling = _settings.Value.WithAws;
 			Func<CancellationToken, ValueTask> ticker = enableAutoScaling ? TickLeaderAsync : _ => ValueTask.CompletedTask;
 			Func<CancellationToken, ValueTask> tickerHighFreq = enableAutoScaling ? TickHighFrequencyAsync : _ => ValueTask.CompletedTask;
 			_ticker = clock.AddSharedTicker<FleetService>(TimeSpan.FromSeconds(30), ticker, _logger);
-			_tickerHighFrequency = clock.AddSharedTicker("FleetService.TickHighFrequency", TimeSpan.FromSeconds(30), tickerHighFreq, _logger);	
+			_tickerHighFrequency = clock.AddSharedTicker("FleetService.TickHighFrequency", TimeSpan.FromSeconds(30), tickerHighFreq, _logger);
 		}
 
 		/// <inheritdoc/>
@@ -159,8 +159,8 @@ namespace Horde.Server.Agents.Fleet
 			try
 			{
 				List<PoolWithAgents> poolsWithAgents = await GetPoolsWithAgentsAsync(cancellationToken);
-			
-				ParallelOptions options = new () { MaxDegreeOfParallelism = MaxParallelTasks, CancellationToken = cancellationToken };
+
+				ParallelOptions options = new() { MaxDegreeOfParallelism = MaxParallelTasks, CancellationToken = cancellationToken };
 				await Parallel.ForEachAsync(poolsWithAgents, options, async (input, innerCt) =>
 				{
 					try
@@ -227,7 +227,7 @@ namespace Horde.Server.Agents.Fleet
 			int deltaAgentCount = desiredAgentCount - currentAgentCount;
 
 			IFleetManager fleetManager = CreateFleetManager(pool);
-			
+
 			using TelemetrySpan span = _tracer.StartSpan($"{nameof(FleetService)}.{nameof(ScalePoolAsync)}");
 			span.SetAttribute(OpenTelemetryTracers.DatadogResourceAttribute, pool.Id.ToString());
 			span.SetAttribute("currentAgentCount", currentAgentCount);
@@ -246,33 +246,33 @@ namespace Horde.Server.Agents.Fleet
 			if (pool.LastAgentCount != currentAgentCount || pool.LastDesiredAgentCount != desiredAgentCount)
 			{
 				_logger.LogInformation("{PoolName} Current={Current} Target={Target} Delta={Delta}",
-					pool.Name, currentAgentCount, desiredAgentCount, deltaAgentCount);	
+					pool.Name, currentAgentCount, desiredAgentCount, deltaAgentCount);
 			}
 
 			DateTime? scaleOutTime = null;
 			DateTime? scaleInTime = null;
-			
+
 			TimeSpan scaleOutCooldown = pool.ScaleOutCooldown ?? _defaultScaleOutCooldown;
 			bool isScaleOutCoolingDown = pool.LastScaleUpTime != null && pool.LastScaleUpTime + scaleOutCooldown > _clock.UtcNow;
 			TimeSpan? scaleOutCooldownTimeLeft = pool.LastScaleUpTime + _defaultScaleOutCooldown - _clock.UtcNow;
 			span.SetAttribute("scaleOutCooldownTimeLeftSecs", scaleOutCooldownTimeLeft?.TotalSeconds ?? -1);
-			
+
 			TimeSpan scaleInCooldown = pool.ScaleInCooldown ?? _defaultScaleInCooldown;
 			bool isScaleInCoolingDown = pool.LastScaleDownTime != null && pool.LastScaleDownTime + scaleInCooldown > _clock.UtcNow;
 			TimeSpan? scaleInCooldownTimeLeft = pool.LastScaleDownTime + _defaultScaleInCooldown - _clock.UtcNow;
 			span.SetAttribute("scaleInCooldownTimeLeftSecs", scaleInCooldownTimeLeft?.TotalSeconds ?? -1);
-			
+
 			span.SetAttribute("isDowntimeActive", _downtimeService.IsDowntimeActive);
-			
+
 			ScaleResult cooldownActiveResult = new(FleetManagerOutcome.NoOp, 0, 0, "Cooldown active");
-			ScaleResult result = new (FleetManagerOutcome.NoOp, 0, 0);
+			ScaleResult result = new(FleetManagerOutcome.NoOp, 0, 0);
 			try
 			{
 				if (deltaAgentCount > 0)
 				{
 					if (_downtimeService.IsDowntimeActive)
 					{
-						result = new (FleetManagerOutcome.NoOp, 0, 0, "Downtime is active");
+						result = new(FleetManagerOutcome.NoOp, 0, 0, "Downtime is active");
 					}
 					else if (isScaleOutCoolingDown)
 					{
@@ -282,7 +282,7 @@ namespace Horde.Server.Agents.Fleet
 					{
 						result = await ExpandWithPendingShutdownsFirstAsync(pool, deltaAgentCount, (agentsToAdd) =>
 							fleetManager.ExpandPoolAsync(pool, agents, agentsToAdd, cancellationToken), cancellationToken);
-						
+
 						scaleOutTime = _clock.UtcNow;
 					}
 				}
@@ -309,10 +309,10 @@ namespace Horde.Server.Agents.Fleet
 			bool isCooldownResult = ReferenceEquals(result, cooldownActiveResult);
 			if (isResultDifferentFromLastTime && !isCooldownResult)
 			{
-				_logger.LogInformation("Scale result: Outcome={Outcome} AgentsAdded={AgentsAdded} AgentsRemoved={AgentsRemoved} Message={Message}", 
+				_logger.LogInformation("Scale result: Outcome={Outcome} AgentsAdded={AgentsAdded} AgentsRemoved={AgentsRemoved} Message={Message}",
 					result.Outcome, result.AgentsAddedCount, result.AgentsRemovedCount, result.Message);
 			}
-			
+
 			span.SetAttribute("resultOutcome", result.Outcome.ToString());
 			span.SetAttribute("resultAgentsAdded", result.AgentsAddedCount);
 			span.SetAttribute("resultAgentsRemoved", result.AgentsRemovedCount);
@@ -325,13 +325,13 @@ namespace Horde.Server.Agents.Fleet
 					LastScaleDownTime = scaleInTime,
 					LastScaleResult = isCooldownResult ? null : result,
 					LastAgentCount = currentAgentCount,
-					LastDesiredAgentCount = desiredAgentCount 
-				}, 
+					LastDesiredAgentCount = desiredAgentCount
+				},
 				cancellationToken);
 
 			return result;
 		}
-		
+
 		internal IEnumerable<string> GetPropValues(string name)
 		{
 			DateTime now = _clock.UtcNow;
@@ -344,12 +344,12 @@ namespace Horde.Server.Agents.Fleet
 				"timeUtcHour" => new List<string> { now.Hour.ToString() }, // as 0 to 23
 				"timeUtcMin" => new List<string> { now.Minute.ToString() }, // as 0 to 59
 				"timeUtcSec" => new List<string> { now.Second.ToString() }, // as 0 to 59
-				
+
 				"dayOfWeek" => new List<string> { now.DayOfWeek.ToString().ToLower() }, // Deprecated, use timeUtcDayOfWeek
 				_ => Array.Empty<string>()
 			};
 		}
-		
+
 		/// <summary>
 		/// Instantiate a fleet manager using the list of conditions/configs in <see cref="IPool" />
 		/// </summary>
@@ -391,26 +391,26 @@ namespace Horde.Server.Agents.Fleet
 						{
 							case PoolSizeStrategy.JobQueue:
 								JobQueueSettings jqSettings = DeserializeConfig<JobQueueSettings>(info.Config);
-								JobQueueStrategy jqStrategy = new (_jobCollection, _graphCollection, _streamCollection, _clock, _cache, _downtimeService.IsDowntimeActive, _globalConfig, jqSettings);
+								JobQueueStrategy jqStrategy = new(_jobCollection, _graphCollection, _streamCollection, _clock, _cache, _downtimeService.IsDowntimeActive, _globalConfig, jqSettings);
 								return info.ExtraAgentCount != 0 ? new ExtraAgentCountStrategy(jqStrategy, info.ExtraAgentCount) : jqStrategy;
-							
+
 							case PoolSizeStrategy.LeaseUtilization:
 								LeaseUtilizationSettings luSettings = DeserializeConfig<LeaseUtilizationSettings>(info.Config);
-								LeaseUtilizationStrategy luStrategy = new (_agentCollection, _poolCollection, _leaseCollection, _clock, _cache, luSettings);
+								LeaseUtilizationStrategy luStrategy = new(_agentCollection, _poolCollection, _leaseCollection, _clock, _cache, luSettings);
 								return info.ExtraAgentCount != 0 ? new ExtraAgentCountStrategy(luStrategy, info.ExtraAgentCount) : luStrategy;
 
 							case PoolSizeStrategy.ComputeQueueAwsMetric:
 								ComputeQueueAwsMetricSettings cqamSettings = DeserializeConfig<ComputeQueueAwsMetricSettings>(info.Config);
 								return ActivatorUtilities.CreateInstance<ComputeQueueAwsMetricStrategy>(_provider, cqamSettings);
-							
+
 							case PoolSizeStrategy.LeaseUtilizationAwsMetric:
 								LeaseUtilizationAwsMetricSettings luamSettings = DeserializeConfig<LeaseUtilizationAwsMetricSettings>(info.Config);
 								return ActivatorUtilities.CreateInstance<LeaseUtilizationAwsMetricStrategy>(_provider, luamSettings);
-							
+
 							case PoolSizeStrategy.NoOp:
-								NoOpPoolSizeStrategy noStrategy = new ();
+								NoOpPoolSizeStrategy noStrategy = new();
 								return info.ExtraAgentCount != 0 ? new ExtraAgentCountStrategy(noStrategy, info.ExtraAgentCount) : noStrategy;
-							
+
 							default:
 								throw new ArgumentException("Invalid pool size strategy type " + info.Type);
 						}
@@ -465,7 +465,7 @@ namespace Horde.Server.Agents.Fleet
 					numShutdownsCancelled++;
 				}
 			}
-			
+
 			return numShutdownsCancelled;
 		}
 
@@ -480,7 +480,7 @@ namespace Horde.Server.Agents.Fleet
 			{
 				return new ScaleResult(FleetManagerOutcome.Success, numShutdownsCancelled, 0, "Scaled out by only cancelling shutdowns");
 			}
-			
+
 			ScaleResult result = await scaleOutFunc(agentsToAdd);
 			return new ScaleResult(result.Outcome, result.AgentsAddedCount + numShutdownsCancelled, result.AgentsRemovedCount, result.Message);
 		}

@@ -374,7 +374,7 @@ namespace EpicGames.Horde.Storage.Nodes
 			_chunkingOptions = chunkingOptions;
 			_leafWriter = new LeafChunkedDataWriter(writer, chunkingOptions.LeafOptions);
 		}
-		
+
 		/// <inheritdoc/>
 		public void Dispose()
 		{

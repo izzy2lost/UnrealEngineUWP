@@ -1,43 +1,42 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 extern alias HordeAgent;
-
 using System;
+using System.Buffers;
 using System.Collections.Generic;
 using System.Linq;
 using System.Runtime.InteropServices;
 using System.Text.Json;
+using System.Threading;
 using System.Threading.Tasks;
 using EpicGames.Core;
 using EpicGames.Horde.Issues;
-using HordeAgent.Horde.Agent.Parser;
-using HordeAgent.Horde.Agent.Utility;
+using EpicGames.Horde.Jobs;
+using EpicGames.Horde.Jobs.Templates;
+using EpicGames.Horde.Logs;
+using EpicGames.Horde.Projects;
+using EpicGames.Horde.Storage;
+using EpicGames.Horde.Streams;
+using EpicGames.Horde.Users;
+using Horde.Server.Issues;
 using Horde.Server.Jobs;
 using Horde.Server.Jobs.Graphs;
-using Horde.Server.Issues;
 using Horde.Server.Logs;
-using Horde.Server.Users;
 using Horde.Server.Projects;
-using Horde.Server.Streams;
 using Horde.Server.Server;
+using Horde.Server.Storage;
+using Horde.Server.Streams;
 using Horde.Server.Tests.Stubs.Services;
+using Horde.Server.Users;
+using HordeAgent.Horde.Agent.Parser;
+using HordeAgent.Horde.Agent.Utility;
 using HordeCommon;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using MongoDB.Bson;
 using MongoDB.Driver;
 using Moq;
-using System.Threading;
-using EpicGames.Horde.Jobs.Templates;
-using EpicGames.Horde.Projects;
-using EpicGames.Horde.Users;
-using System.Buffers;
-using EpicGames.Horde.Streams;
-using EpicGames.Horde.Jobs;
-using EpicGames.Horde.Logs;
-using Horde.Server.Storage;
-using EpicGames.Horde.Storage;
-using Microsoft.Extensions.Logging.Abstractions;
 
 namespace Horde.Server.Tests.Issues
 {
@@ -51,7 +50,7 @@ namespace Horde.Server.Tests.Issues
 			readonly LogBuilder _builder;
 			readonly List<(LogLevel, ReadOnlyMemory<byte>)> _events = new List<(LogLevel, ReadOnlyMemory<byte>)>();
 			readonly IStorageClient _storageClient;
-			
+
 			int _lineIndex;
 
 			public TestJsonLogger(ILogFileService logFileService, LogId logId, IStorageClient storageClient)
@@ -202,7 +201,7 @@ namespace Horde.Server.Tests.Issues
 
 			NodeAnnotations workflowAnnotations = new NodeAnnotations();
 			workflowAnnotations.WorkflowId = new WorkflowId("test-workflow-id");
-			
+
 			nodes.Add(MockNode("Update Version Files", workflowAnnotations));
 			nodes.Add(MockNode("Compile UnrealHeaderTool Win64", workflowAnnotations));
 			nodes.Add(MockNode("Compile ShooterGameEditor Win64", workflowAnnotations));
@@ -296,7 +295,7 @@ namespace Horde.Server.Tests.Issues
 			if (job.UpdateIssues)
 			{
 				await IssueService.UpdateCompleteStepAsync(job, _graph, batch.Id, step.Id);
-			}			
+			}
 		}
 
 		async Task AddEventAsync(IJob job, int batchIdx, int stepIdx, LogLevel logLevel, string? message = null, EventId? id = null)
@@ -412,7 +411,6 @@ namespace Horde.Server.Tests.Issues
 				await AddEventAsync(job, 0, 0, LogLevel.Warning);
 				await UpdateCompleteStepAsync(job, 0, 0, JobStepOutcome.Warnings);
 				IJobStepRef? stepRef = await JobStepRefCollection.FindAsync(job.Id, job.Batches[0].Id, job.Batches[0].Steps[0].Id);
-				
 
 				IReadOnlyList<IIssue> issues = await IssueCollection.FindIssuesAsync();
 				Assert.AreEqual(1, issues.Count);
@@ -420,7 +418,7 @@ namespace Horde.Server.Tests.Issues
 				Assert.AreEqual("Warnings in Update Version Files", issues[0].Summary);
 
 				Assert.AreEqual(1, stepRef!.IssueIds!.Count);
-				Assert.AreEqual(1, stepRef!.IssueIds![0], issues[0].Id );
+				Assert.AreEqual(1, stepRef!.IssueIds![0], issues[0].Id);
 			}
 
 			// #2
@@ -545,7 +543,7 @@ namespace Horde.Server.Tests.Issues
 				Assert.AreEqual(IssueSeverity.Warning, issues[1].Severity);
 
 				Assert.AreEqual("Errors in Update Version Files", issues[0].Summary);
-				Assert.AreEqual("Compile warnings in SparseVolumeTextureOpenVDB.h", issues[1].Summary);				
+				Assert.AreEqual("Compile warnings in SparseVolumeTextureOpenVDB.h", issues[1].Summary);
 			}
 		}
 
@@ -1292,10 +1290,10 @@ namespace Horde.Server.Tests.Issues
 		public async Task ContentIssueTestAsync()
 		{
 			IJob job1 = CreateJob(_mainStreamId, 120, "Cook Test", _graph);
-			await ParseEventsAsync(job1, 0, 0, new[] 
+			await ParseEventsAsync(job1, 0, 0, new[]
 			{
 				// Note: using relative paths here, which can't be mapped to depot paths
-				@"LogBlueprint: Warning: [AssetLog] ..\..\..\QAGame\Plugins\NiagaraFluids\Content\Blueprints\Phsyarum_BP.uasset: [Compiler] Fill Texture 2D : Usage of 'Fill Texture 2D' has been deprecated. This function has been replaced by object user variables on the emitter to specify render targets to fill with data." 
+				@"LogBlueprint: Warning: [AssetLog] ..\..\..\QAGame\Plugins\NiagaraFluids\Content\Blueprints\Phsyarum_BP.uasset: [Compiler] Fill Texture 2D : Usage of 'Fill Texture 2D' has been deprecated. This function has been replaced by object user variables on the emitter to specify render targets to fill with data."
 			});
 			await UpdateCompleteStepAsync(job1, 0, 0, JobStepOutcome.Failure);
 
@@ -1304,11 +1302,11 @@ namespace Horde.Server.Tests.Issues
 			Assert.AreEqual("Warnings in Phsyarum_BP.uasset", issues1[0].Summary);
 
 			IJob job2 = CreateJob(_mainStreamId, 125, "Cook Test", _graph);
-			await ParseEventsAsync(job2, 0, 0, new[] 
+			await ParseEventsAsync(job2, 0, 0, new[]
 			{
 				// Add a new warning; should create a new issue
 				@"LogBlueprint: Warning: [AssetLog] ..\..\..\QAGame\Plugins\NiagaraFluids\Content\Blueprints\Phsyarum_BP.uasset: [Compiler] Fill Texture 2D : Usage of 'Fill Texture 2D' has been deprecated. This function has been replaced by object user variables on the emitter to specify render targets to fill with data.",
-				@"LogBlueprint: Warning: [AssetLog] ..\..\..\QAGame\Plugins\NiagaraFluids\Content\Blueprints\Phsyarum_BP2.uasset: [Compiler] Fill Texture 2D : Usage of 'Fill Texture 2D' has been deprecated. This function has been replaced by object user variables on the emitter to specify render targets to fill with data.", 
+				@"LogBlueprint: Warning: [AssetLog] ..\..\..\QAGame\Plugins\NiagaraFluids\Content\Blueprints\Phsyarum_BP2.uasset: [Compiler] Fill Texture 2D : Usage of 'Fill Texture 2D' has been deprecated. This function has been replaced by object user variables on the emitter to specify render targets to fill with data.",
 			});
 			await UpdateCompleteStepAsync(job2, 0, 0, JobStepOutcome.Failure);
 
@@ -1370,7 +1368,7 @@ namespace Horde.Server.Tests.Issues
 			IReadOnlyList<IIssue> issues = await IssueCollection.FindIssuesAsync();
 			Assert.AreEqual(1, issues.Count);
 
-			IIssue issue = issues[0];			
+			IIssue issue = issues[0];
 			Assert.AreEqual("Errors in Update Version Files and Compile UnrealHeaderTool Win64", issue.Summary);
 		}
 
@@ -1685,7 +1683,7 @@ namespace Horde.Server.Tests.Issues
 				{
 					@"ld: warning: direct access in function 'void Eigen::internal::evaluateProductBlockingSizesHeuristic<Eigen::half, Eigen::half, 1, long>(long&, long&, long&, long)' from file '../../EngineTest/Intermediate/Build/Mac/x86_64/EngineTest/Development/ORT/inverse.cc.o' to global weak symbol 'guard variable for Eigen::internal::manage_caching_sizes(Eigen::Action, long*, long*, long*)::m_cacheSizes' from file '../../EngineTest/Intermediate/Build/Mac/x86_64/EngineTest/Development/DynamicMesh/Module.DynamicMesh.4_of_5.cpp.o' means the weak symbol cannot be overridden at runtime. This was likely caused by different translation units being compiled with different visibility settings.",
 					@"ld: fatal warning(s) induced error (-fatal_warnings)",
-					@"clang: error: linker command failed with exit code 1 (use -v to see invocation)"              
+					@"clang: error: linker command failed with exit code 1 (use -v to see invocation)"
 				};
 
 				IJob job = CreateJob(_mainStreamId, 120, "Test Build", _graph);
@@ -2326,7 +2324,7 @@ namespace Horde.Server.Tests.Issues
 
 				IReadOnlyList<IIssue> issues = await IssueCollection.FindIssuesAsync();
 				Assert.AreEqual(0, issues.Count);
-												
+
 			}
 		}
 
@@ -2349,7 +2347,7 @@ namespace Horde.Server.Tests.Issues
 
 				Assert.AreEqual("Warnings in Update Version Files", issues[0].Summary);
 
-				issueId = issues[0].Id;				
+				issueId = issues[0].Id;
 			}
 
 			// #2
@@ -2383,7 +2381,7 @@ namespace Horde.Server.Tests.Issues
 			// #4
 			// Scenario: Job fails 25 hours after it is force closed
 			// Expected: A new issue is created
-			{				
+			{
 				IJob job = CreateJob(_mainStreamId, 125, "Test Build", _graph, TimeSpan.FromHours(25));
 				await AddEventAsync(job, 0, 0, LogLevel.Warning);
 				await UpdateCompleteStepAsync(job, 0, 0, JobStepOutcome.Warnings);
@@ -2437,7 +2435,7 @@ namespace Horde.Server.Tests.Issues
 				Assert.AreEqual(IssueSeverity.Warning, issues[0].Severity);
 
 				Assert.AreEqual("Warnings in Update Version Files", issues[0].Summary);
-				
+
 			}
 
 			// #4
@@ -2543,7 +2541,7 @@ namespace Horde.Server.Tests.Issues
 			// Scenario: Job step encounters a hashed issue at CL 22145160
 			// Expected: Hashed issue type is created
 			{
-				IJob job = CreateJob(_mainStreamId, 22145160, "Test Build", _graph, TimeSpan.FromHours(hours++));				
+				IJob job = CreateJob(_mainStreamId, 22145160, "Test Build", _graph, TimeSpan.FromHours(hours++));
 				await ParseEventsAsync(job, 0, 0, breakage1);
 				await UpdateCompleteStepAsync(job, 0, 0, JobStepOutcome.Failure);
 
@@ -2575,7 +2573,7 @@ namespace Horde.Server.Tests.Issues
 
 				IReadOnlyList<IIssue> issues = await IssueCollection.FindIssuesAsync();
 				Assert.AreEqual(1, issues.Count);
-				
+
 				// Check that new issue was created
 				Assert.AreEqual(2, issues[0].Id);
 				Assert.AreEqual("Errors in Update Version Files", issues[0].Summary);
@@ -2589,7 +2587,7 @@ namespace Horde.Server.Tests.Issues
 
 				IJob job = CreateJob(_mainStreamId, 22166000, "Test Build", _graph, TimeSpan.FromHours(hours++));
 				await ParseEventsAsync(job, 0, 1, breakage2);
-				await UpdateCompleteStepAsync(job, 0,1, JobStepOutcome.Failure);
+				await UpdateCompleteStepAsync(job, 0, 1, JobStepOutcome.Failure);
 
 				IReadOnlyList<IIssue> issues = await IssueCollection.FindIssuesAsync();
 				Assert.AreEqual(1, issues.Count);

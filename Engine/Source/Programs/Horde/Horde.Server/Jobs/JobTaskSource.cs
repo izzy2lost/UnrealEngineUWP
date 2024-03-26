@@ -10,36 +10,36 @@ using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using EpicGames.Core;
+using EpicGames.Horde.Agents;
+using EpicGames.Horde.Agents.Leases;
+using EpicGames.Horde.Agents.Pools;
 using EpicGames.Horde.Common;
+using EpicGames.Horde.Jobs;
+using EpicGames.Horde.Logs;
+using EpicGames.Horde.Storage;
 using EpicGames.Horde.Streams;
 using Google.Protobuf;
 using Google.Protobuf.WellKnownTypes;
 using Horde.Server.Acls;
 using Horde.Server.Agents;
 using Horde.Server.Agents.Pools;
+using Horde.Server.Jobs.Bisect;
 using Horde.Server.Jobs.Graphs;
 using Horde.Server.Logs;
 using Horde.Server.Perforce;
 using Horde.Server.Server;
+using Horde.Server.Storage;
 using Horde.Server.Streams;
 using Horde.Server.Tasks;
 using Horde.Server.Ugs;
 using Horde.Server.Utilities;
 using HordeCommon;
+using HordeCommon.Rpc.Messages;
 using HordeCommon.Rpc.Tasks;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using MongoDB.Driver;
-using EpicGames.Horde.Agents.Leases;
-using Horde.Server.Jobs.Bisect;
-using EpicGames.Horde.Agents;
-using EpicGames.Horde.Jobs;
-using EpicGames.Horde.Logs;
-using EpicGames.Horde.Agents.Pools;
-using EpicGames.Horde.Storage;
-using Horde.Server.Storage;
-using HordeCommon.Rpc.Messages;
 
 namespace Horde.Server.Jobs
 {
@@ -193,7 +193,7 @@ namespace Horde.Server.Jobs
 		readonly ILogFileService _logFileService;
 		readonly IAgentCollection _agentsCollection;
 		readonly IJobCollection _jobs;
-		readonly IJobStepRefCollection _jobStepRefs;		
+		readonly IJobStepRefCollection _jobStepRefs;
 		readonly IGraphCollection _graphs;
 		readonly IPoolCollection _poolCollection;
 		readonly IBisectTaskCollection _bisectTasks;
@@ -225,7 +225,7 @@ namespace Horde.Server.Jobs
 		/// Delegate for job schedule events
 		/// </summary>
 		public delegate void JobScheduleEvent(IPoolConfig pool, bool hasAgentsOnline, IJob job, IGraph graph, JobStepBatchId batchId);
-		
+
 		/// <summary>
 		/// Event triggered when a job is scheduled
 		/// </summary>
@@ -304,7 +304,7 @@ namespace Horde.Server.Jobs
 			{
 				waiter = _waiters.FirstOrDefault(x => x.Agent.Id == agentId);
 			}
-			if(waiter != null)
+			if (waiter != null)
 			{
 				waiter.LeaseSource.TrySetCanceled(CancellationToken.None);
 			}
@@ -336,7 +336,7 @@ namespace Horde.Server.Jobs
 		/// <returns></returns>
 		internal static Dictionary<PoolId, PoolStatus> GetPoolStatus(DateTime utcNow, IReadOnlyList<IPoolConfig> pools, IReadOnlyList<IAgent> agents)
 		{
-			Dictionary<PoolId, PoolStatus> poolStatus = new ();
+			Dictionary<PoolId, PoolStatus> poolStatus = new();
 
 			foreach (IPoolConfig pool in pools)
 			{
@@ -352,7 +352,7 @@ namespace Horde.Server.Jobs
 
 			return poolStatus;
 		}
-		
+
 		/// <summary>
 		/// Background task
 		/// </summary>
@@ -443,7 +443,7 @@ namespace Horde.Server.Jobs
 					{
 						ITemplateRef? templateRef;
 						if (stream.Templates.TryGetValue(newJob.TemplateId, out templateRef))
-						{							
+						{
 							if (templateRef.StepStates != null)
 							{
 								for (int i = 0; i < templateRef.StepStates.Count; i++)
@@ -530,7 +530,7 @@ namespace Horde.Server.Jobs
 
 			IReadOnlyList<(LabelState, LabelOutcome)> oldLabelStates = job.GetLabelStates(graph);
 			IJob? newJob = await _jobs.SkipBatchAsync(job, batchId, graph, reason, cancellationToken);
-			if(newJob != null)
+			if (newJob != null)
 			{
 				IReadOnlyList<(LabelState, LabelOutcome)> newLabelStates = newJob.GetLabelStates(graph);
 				await UpdateUgsBadgesAsync(newJob, graph, oldLabelStates, newLabelStates, cancellationToken);
@@ -554,7 +554,7 @@ namespace Horde.Server.Jobs
 		{
 			lock (_waiters)
 			{
-				foreach(QueueItem item in _batchIdToQueueItem.Values)
+				foreach (QueueItem item in _batchIdToQueueItem.Values)
 				{
 					if (TryAssignItemToWaiter(item, waiter))
 					{
@@ -765,7 +765,7 @@ namespace Horde.Server.Jobs
 
 			// Allocate a log ID but hold off creating the actual log file until the lease has been accepted
 			LogId logId = LogIdUtils.GenerateNewId();
-			
+
 			// Try to update the job with this agent id
 			IJob? newJob = await _jobs.TryAssignLeaseAsync(item._job, item._batchIdx, item._poolId, agent.Id, agent.SessionId!.Value, leaseId, logId, cancellationToken);
 			if (newJob != null)
@@ -893,7 +893,7 @@ namespace Horde.Server.Jobs
 			task.StoragePrefix = storagePrefix;
 			task.Token = await _aclService.IssueBearerTokenAsync(claims, null, cancellationToken);
 
-			List<AgentWorkspace> workspaces = new ();
+			List<AgentWorkspace> workspaces = new();
 
 			PerforceCluster? cluster = globalConfig.FindPerforceCluster(workspace.Cluster);
 			if (cluster == null)
@@ -904,7 +904,7 @@ namespace Horde.Server.Jobs
 			if (autoSdkWorkspace != null)
 			{
 				autoSdkWorkspace.Method = workspace.Method;
-				
+
 				if (!await agent.TryAddWorkspaceMessageAsync(autoSdkWorkspace, cluster, _perforceLoadBalancer, workspaces, cancellationToken))
 				{
 					return null;
@@ -1082,7 +1082,7 @@ namespace Horde.Server.Jobs
 					{
 						error = JobStepBatchError.ExecutionError;
 					}
-					
+
 					IGraph graph = await _graphs.GetAsync(job.GraphHash, cancellationToken);
 					job = await _jobs.TryFailBatchAsync(job, batchIdx, graph, error, cancellationToken);
 

@@ -16,7 +16,7 @@ public class NftablesTests
 		AgentIp = "192.168.1.1",
 		Ports = { new Port { RelayPort = 1000, AgentPort = 2000, Protocol = PortProtocol.Tcp } }
 	};
-	
+
 	public static readonly PortMapping LeaseMap2 = new()
 	{
 		LeaseId = "lease2",
@@ -28,7 +28,7 @@ public class NftablesTests
 			new Port { RelayPort = 2222, AgentPort = 5555, Protocol = PortProtocol.Udp }
 		}
 	};
-	
+
 	public static readonly PortMapping LeaseMap3 = new()
 	{
 		LeaseId = "lease3",
@@ -36,17 +36,17 @@ public class NftablesTests
 		AllowedSourceIps = { "10.0.0.33", "10.3.3.3" },
 		Ports = { new Port { RelayPort = 1003, AgentPort = 2003, Protocol = PortProtocol.Tcp } }
 	};
-	
+
 	[TestMethod]
 	public void GenerateNftRules_NoPorts()
 	{
 		Assert.AreEqual(0, Nftables.GenerateNftRules(new List<PortMapping>()).Count);
 	}
-	
+
 	[TestMethod]
 	public void GenerateNftRules_MultiplePorts()
 	{
-		List<PortMapping> ports = new () { LeaseMap1, LeaseMap2, LeaseMap3 };
+		List<PortMapping> ports = new() { LeaseMap1, LeaseMap2, LeaseMap3 };
 		List<string> rules = Nftables.GenerateNftRules(ports);
 		Assert.AreEqual(4, rules.Count);
 		Assert.AreEqual("tcp dport 1000 dnat to 192.168.1.1:2000 comment \"leaseId=lease1\"", rules[0]);
@@ -58,7 +58,7 @@ public class NftablesTests
 	[TestMethod]
 	public void GenerateNftFile()
 	{
-		List<PortMapping> ports = new () { LeaseMap1, LeaseMap2 };
+		List<PortMapping> ports = new() { LeaseMap1, LeaseMap2 };
 		string expected = @"table ip horde
 delete table ip horde
 table ip horde {

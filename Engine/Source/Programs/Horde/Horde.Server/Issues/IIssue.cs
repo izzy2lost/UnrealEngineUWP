@@ -3,10 +3,10 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using MongoDB.Bson;
+using EpicGames.Horde.Issues;
 using EpicGames.Horde.Streams;
 using EpicGames.Horde.Users;
-using EpicGames.Horde.Issues;
+using MongoDB.Bson;
 
 namespace Horde.Server.Issues
 {
@@ -110,10 +110,10 @@ namespace Horde.Server.Issues
 		/// </summary>
 		public int? FixChange { get; }
 
-//		/// <summary>
-//		/// The first stream that encountered the error. The fix will be considered failed if an error after FixChange occurs in this stream. 
-//		/// </summary>
-//		public StreamId? OriginStreamId { get; }
+		//		/// <summary>
+		//		/// The first stream that encountered the error. The fix will be considered failed if an error after FixChange occurs in this stream. 
+		//		/// </summary>
+		//		public StreamId? OriginStreamId { get; }
 
 		/// <summary>
 		/// List of streams affected by this issue
@@ -250,7 +250,7 @@ namespace Horde.Server.Issues
 				foreach (IIssueSpan span in spans)
 				{
 					IIssueStream? stream = issue.Streams.FirstOrDefault(x => x.StreamId == span.StreamId);
-					if(stream != null && (stream.ContainsFix ?? false) && span.LastFailure.Change >= issue.FixChange.Value)
+					if (stream != null && (stream.ContainsFix ?? false) && span.LastFailure.Change >= issue.FixChange.Value)
 					{
 						fixFailedStep = span.LastFailure;
 						break;

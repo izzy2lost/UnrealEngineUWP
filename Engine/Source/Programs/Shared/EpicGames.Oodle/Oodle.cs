@@ -152,7 +152,7 @@ namespace EpicGames.Compression
 		/// <summary>
 		/// Constructor
 		/// </summary>
-		public OodleException(string message) 
+		public OodleException(string message)
 			: base(message)
 		{
 		}

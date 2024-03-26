@@ -131,7 +131,7 @@ namespace Horde.Server.Jobs.Schedules
 			}
 
 			// Update the current queue
-			await using (RedisLock sharedLock = new (_redis.GetDatabase(), s_tickLockKey))
+			await using (RedisLock sharedLock = new(_redis.GetDatabase(), s_tickLockKey))
 			{
 				if (await sharedLock.AcquireAsync(TimeSpan.FromMinutes(1.0), false))
 				{
@@ -209,7 +209,7 @@ namespace Horde.Server.Jobs.Schedules
 			List<SortedSetEntry<QueueItem>> queueItems = new List<SortedSetEntry<QueueItem>>();
 
 			GlobalConfig globalConfig = _globalConfig.CurrentValue;
-			foreach(StreamConfig streamConfig in globalConfig.Streams)
+			foreach (StreamConfig streamConfig in globalConfig.Streams)
 			{
 				IStream stream = await _streamCollection.GetAsync(streamConfig, cancellationToken);
 				foreach ((TemplateId templateId, ITemplateRef templateRef) in stream.Templates)
@@ -429,10 +429,10 @@ namespace Horde.Server.Jobs.Schedules
 					_logger.LogError("Querying for changes to trigger for {StreamId} template {TemplateId} has taken {Time}. Aborting.", stream.Id, templateId, timer.Elapsed);
 					break;
 				}
-				
+
 				// Update the remaining range of changes to check for
 				maxChangeNumber = change - 1;
-				if(maxChangeNumber < minChangeNumber)
+				if (maxChangeNumber < minChangeNumber)
 				{
 					break;
 				}

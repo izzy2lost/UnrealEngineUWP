@@ -46,7 +46,7 @@ public sealed class ManagedWorkspaceMaterializer : IWorkspaceMaterializer
 	public async Task<WorkspaceMaterializerSettings> InitializeAsync(ILogger logger, CancellationToken cancellationToken)
 	{
 		using IScope scope = CreateTraceSpan("ManagedWorkspaceMaterializer.InitializeAsync");
-		
+
 		ManagedWorkspaceOptions options = WorkspaceInfo.GetMwOptions(_agentWorkspace);
 		_workspace = await WorkspaceInfo.SetupWorkspaceAsync(_agentWorkspace, _workingDir, options, logger, cancellationToken);
 		return await GetSettingsAsync(cancellationToken);
@@ -59,7 +59,7 @@ public sealed class ManagedWorkspaceMaterializer : IWorkspaceMaterializer
 
 		if (_workspace != null)
 		{
-			await _workspace.CleanAsync(cancellationToken);	
+			await _workspace.CleanAsync(cancellationToken);
 		}
 	}
 
@@ -70,18 +70,18 @@ public sealed class ManagedWorkspaceMaterializer : IWorkspaceMaterializer
 		{
 			throw new WorkspaceMaterializationException("Workspace not initialized");
 		}
-		
+
 		// ManagedWorkspace store synced files in a sub-directory from the top working dir.
 		DirectoryReference syncDir = DirectoryReference.Combine(_workingDir, _agentWorkspace.Identifier, "Sync");
 
 		// Variables expected to be set for UAT/BuildGraph when Perforce is enabled (-P4 flag is set) 
 		Dictionary<string, string> envVars = new()
-			{
-				["uebp_PORT"] = _workspace.ServerAndPort,
-				["uebp_USER"] = _workspace.UserName,
-				["uebp_CLIENT"] = _workspace.ClientName,
-				["uebp_CLIENT_ROOT"] = $"//{_workspace.ClientName}"
-			};
+		{
+			["uebp_PORT"] = _workspace.ServerAndPort,
+			["uebp_USER"] = _workspace.UserName,
+			["uebp_CLIENT"] = _workspace.ClientName,
+			["uebp_CLIENT_ROOT"] = $"//{_workspace.ClientName}"
+		};
 
 		// Perforce-specific variables
 		envVars["P4USER"] = _workspace.UserName;
@@ -101,7 +101,7 @@ public sealed class ManagedWorkspaceMaterializer : IWorkspaceMaterializer
 		{
 			throw new WorkspaceMaterializationException("Workspace not initialized");
 		}
-		
+
 		if (changeNum == IWorkspaceMaterializer.LatestChangeNumber)
 		{
 			int latestChangeNum = await _workspace.GetLatestChangeAsync(cancellationToken);
@@ -126,7 +126,7 @@ public sealed class ManagedWorkspaceMaterializer : IWorkspaceMaterializer
 
 		await _workspace.SyncAsync(changeNum, preflightChangeNum, cacheFile, cancellationToken);
 	}
-	
+
 	/// <summary>
 	/// Get info for Perforce workspace
 	/// </summary>
@@ -135,7 +135,6 @@ public sealed class ManagedWorkspaceMaterializer : IWorkspaceMaterializer
 	{
 		return _workspace;
 	}
-	
 
 	private IScope CreateTraceSpan(string operationName)
 	{

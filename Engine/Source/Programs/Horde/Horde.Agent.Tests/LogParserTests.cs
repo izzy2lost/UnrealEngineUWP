@@ -555,7 +555,7 @@ namespace Horde.Agent.Tests
 
 			List<LogEvent> logEvents = Parse(lines);
 			Assert.AreEqual(33, logEvents.Count);
-			for(int idx = 0; idx < 33; idx++)
+			for (int idx = 0; idx < 33; idx++)
 			{
 				Assert.AreEqual(LogLevel.Error, logEvents[idx].Level);
 			}
@@ -856,7 +856,7 @@ namespace Horde.Agent.Tests
 			using (LogParser parser = new LogParser(perforceLogger, ignorePatterns))
 			{
 				int pos = 0;
-				while(pos < textBytes.Length)
+				while (pos < textBytes.Length)
 				{
 					int len = Math.Min((int)(generator.NextDouble() * 256), textBytes.Length - pos);
 					parser.WriteData(textBytes.AsMemory(pos, len));

@@ -1,11 +1,5 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-using EpicGames.Core;
-using EpicGames.Horde;
-using EpicGames.Horde.Artifacts;
-using EpicGames.Horde.Streams;
-using EpicGames.Perforce;
-using Microsoft.Extensions.Logging;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
@@ -13,6 +7,12 @@ using System.IO;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
+using EpicGames.Core;
+using EpicGames.Horde;
+using EpicGames.Horde.Artifacts;
+using EpicGames.Horde.Streams;
+using EpicGames.Perforce;
+using Microsoft.Extensions.Logging;
 
 namespace UnrealGameSync
 {
@@ -52,7 +52,7 @@ namespace UnrealGameSync
 			BasePath = basePath;
 			Target = target;
 		}
-		
+
 		public override bool Equals(object? other)
 		{
 			BaseArchiveInfo? otherArchive = other as BaseArchiveInfo;

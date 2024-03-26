@@ -37,7 +37,7 @@ public interface IHealthMonitor
 public interface IHealthMonitor<T> : IHealthMonitor
 {
 }
-	
+
 internal class HealthMonitor<T> : IHealthMonitor<T>
 {
 	private readonly ServerStatusService _statusService;
@@ -87,7 +87,7 @@ public record SubsystemStatus(string Id, string Name, List<SubsystemStatusUpdate
 /// <param name="Message"></param>
 /// <param name="UpdatedAt"></param>
 public record SubsystemStatusUpdate(HealthStatus Result, string? Message, DateTimeOffset UpdatedAt);
-	
+
 /// <summary>
 /// Tracks health and status of the Horde server itself
 /// Such as connectivity to external systems (MongoDB, Redis, Perforce etc).
@@ -98,7 +98,7 @@ public class ServerStatusService : IHostedService
 	/// Max historical status updates to keep
 	/// </summary>
 	public const int MaxHistoryLength = 10;
-	
+
 	private readonly IClock _clock;
 	private readonly MongoService _mongoService;
 	private readonly RedisService _redis;
@@ -176,7 +176,7 @@ public class ServerStatusService : IHostedService
 		string id = type.Name;
 		IDatabase redis = _redis.GetDatabase();
 		SubsystemStatus status = await GetSubsystemStatusFromRedisAsync(redis, id, name);
-		SubsystemStatusUpdate update = new (result, message, timestamp ?? _clock.UtcNow);
+		SubsystemStatusUpdate update = new(result, message, timestamp ?? _clock.UtcNow);
 		status.Updates.Add(update);
 		status.Updates.Sort((a, b) => b.UpdatedAt.CompareTo(a.UpdatedAt));
 
@@ -184,7 +184,7 @@ public class ServerStatusService : IHostedService
 		{
 			status.Updates.RemoveRange(MaxHistoryLength, status.Updates.Count - MaxHistoryLength);
 		}
-		
+
 		string data = JsonSerializer.Serialize(status);
 		await redis.HashSetAsync(RedisHashKey(), id, data);
 	}

@@ -98,7 +98,7 @@ namespace Horde.Server.Agents.Pools
 		/// Interval between conforms. If zero, the pool will not conform on a schedule.
 		/// </summary>
 		TimeSpan? ConformInterval { get; }
-		
+
 		/// <summary>
 		/// Time to wait before shutting down an agent that has been disabled
 		/// </summary>
@@ -147,14 +147,14 @@ namespace Horde.Server.Agents.Pools
 		public PoolId Id
 		{
 			get => _id.IsEmpty ? new PoolId(StringId.Sanitize(Name)) : _id;
-			set => _id = value; 
+			set => _id = value;
 		}
 
 		/// <summary>
 		/// Base pool config to copy settings from
 		/// </summary>
 		public PoolId? Base { get; set; }
-		
+
 		/// <inheritdoc/>
 		public string Name { get; set; } = String.Empty;
 
@@ -202,13 +202,13 @@ namespace Horde.Server.Agents.Pools
 
 		/// <inheritdoc/>
 		public TimeSpan? ScaleInCooldown { get; set; }
-		
+
 		/// <inheritdoc/>
-		public TimeSpan? ShutdownIfDisabledGracePeriod { get; set;  }
+		public TimeSpan? ShutdownIfDisabledGracePeriod { get; set; }
 
 		/// <inheritdoc/>
 		[Obsolete("Use SizeStrategies instead")]
-		public PoolSizeStrategy? SizeStrategy{ get; set; }
+		public PoolSizeStrategy? SizeStrategy { get; set; }
 
 		/// <inheritdoc/>
 		public List<PoolSizeStrategyInfo>? SizeStrategies { get; set; }

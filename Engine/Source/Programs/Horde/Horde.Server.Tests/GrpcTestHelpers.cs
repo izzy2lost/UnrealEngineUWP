@@ -79,7 +79,7 @@ namespace Horde.Server.Tests
 			return Task.CompletedTask;
 		}
 	}
-	
+
 	public class TestAsyncStreamReader<T> : IAsyncStreamReader<T> where T : class
 	{
 		private readonly Channel<T> _channel;

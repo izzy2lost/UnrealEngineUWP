@@ -128,7 +128,7 @@ namespace HordeCommon.Rpc
 			Outcome = outcome;
 		}
 	}
-	
+
 	partial class GetStepRequest
 	{
 		public GetStepRequest(JobId jobId, JobStepBatchId batchId, JobStepId stepId)
@@ -138,7 +138,7 @@ namespace HordeCommon.Rpc
 			StepId = stepId.ToString();
 		}
 	}
-	
+
 	partial class GetStepResponse
 	{
 		public GetStepResponse(JobStepOutcome outcome, JobStepState state, bool abortRequested)
@@ -202,7 +202,7 @@ namespace HordeCommon.Rpc.Messages.Telemetry
 			using SHA256 sha256 = SHA256.Create();
 			using MemoryStream ms = new(200);
 			using BinaryWriter bw = new(ms);
-			
+
 			bw.Write(Ip ?? "<empty ip>");
 			bw.Write(Hostname ?? "<empty hostname>");
 			bw.Write(Region ?? "<empty region>");
@@ -212,18 +212,18 @@ namespace HordeCommon.Rpc.Messages.Telemetry
 			bw.Write(Os ?? "<empty os>");
 			bw.Write(OsVersion ?? "<empty os version>");
 			bw.Write(Architecture ?? "<empty os architecture>");
-			
+
 			foreach (KeyValuePair<string, string> pair in Properties)
 			{
 				bw.Write(pair.Key ?? "<empty key>");
 				bw.Write(pair.Value ?? "<empty value>");
 			}
-			
+
 			foreach (string poolId in PoolIds)
 			{
 				bw.Write(poolId);
 			}
-			
+
 			ms.Position = 0;
 			byte[] hash = sha256.ComputeHash(ms);
 			return BitConverter.ToInt64(hash, 0);

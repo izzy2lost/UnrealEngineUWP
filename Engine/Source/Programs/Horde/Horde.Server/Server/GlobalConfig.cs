@@ -11,8 +11,8 @@ using System.Net;
 using System.Security.Claims;
 using System.Text.Json.Serialization;
 using EpicGames.Core;
-using EpicGames.Horde.Agents.Pools;
 using EpicGames.Horde.Acls;
+using EpicGames.Horde.Agents.Pools;
 using EpicGames.Horde.Artifacts;
 using EpicGames.Horde.Common;
 using EpicGames.Horde.Compute;
@@ -43,7 +43,7 @@ using Horde.Server.Utilities;
 namespace Horde.Server.Server
 {
 	using JsonObject = System.Text.Json.Nodes.JsonObject;
-		 
+
 #pragma warning disable CA1027 // Mark enums with FlagsAttribute
 #pragma warning disable CA1069 // Enum member 'Latest' has same value as ...
 	/// <summary>

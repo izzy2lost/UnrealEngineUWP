@@ -1,7 +1,5 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-using EpicGames.Core;
-using EpicGames.Serialization;
 using System;
 using System.Collections.Generic;
 using System.ComponentModel;
@@ -12,6 +10,8 @@ using System.Linq;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Text.RegularExpressions;
+using EpicGames.Core;
+using EpicGames.Serialization;
 
 namespace EpicGames.Horde.Common
 {
@@ -332,7 +332,7 @@ namespace EpicGames.Horde.Common
 		/// Error produced when parsing the condition
 		/// </summary>
 		public string? Error { get; private set; }
-		
+
 		readonly List<Token> _tokens = new List<Token>();
 		readonly List<string> _strings = new List<string>();
 
@@ -375,7 +375,7 @@ namespace EpicGames.Horde.Common
 		public static Condition Parse(string text)
 		{
 			Condition condition = new Condition(text);
-			if(!condition.IsValid())
+			if (!condition.IsValid())
 			{
 				throw new ConditionException(condition.Error!);
 			}
@@ -472,7 +472,7 @@ namespace EpicGames.Horde.Common
 			string? error = ParseScalarExpr(reader);
 			if (error == null)
 			{
-				switch(reader.Type)
+				switch (reader.Type)
 				{
 					case TokenType.Lt:
 					case TokenType.Lte:
@@ -696,7 +696,7 @@ namespace EpicGames.Horde.Common
 		public override Condition Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
 		{
 			string? text = reader.GetString();
-			if(text == null)
+			if (text == null)
 			{
 				throw new InvalidOperationException();
 			}

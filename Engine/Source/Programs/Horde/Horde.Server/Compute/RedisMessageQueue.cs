@@ -116,7 +116,7 @@ namespace Horde.Server.Compute
 		async Task<bool> ReadMessagesAsync(RedisListKey<T> list, List<T> messages)
 		{
 			T? message = await _redis.ListLeftPopAsync(list);
-			while(message != null)
+			while (message != null)
 			{
 				messages.Add(message);
 				message = await _redis.ListLeftPopAsync(list);
@@ -154,7 +154,7 @@ namespace Horde.Server.Compute
 				try
 				{
 					// Read the current queue state again, in case it was modified since we registered.
-					if(await ReadMessagesAsync(channel, messages))
+					if (await ReadMessagesAsync(channel, messages))
 					{
 						break;
 					}

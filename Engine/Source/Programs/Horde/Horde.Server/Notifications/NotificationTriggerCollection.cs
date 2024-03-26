@@ -2,15 +2,15 @@
 
 using System.Collections.Generic;
 using System.Linq;
+using System.Threading;
 using System.Threading.Tasks;
+using EpicGames.Horde.Users;
 using Horde.Server.Server;
 using Horde.Server.Users;
 using Horde.Server.Utilities;
 using MongoDB.Bson;
 using MongoDB.Bson.Serialization.Attributes;
 using MongoDB.Driver;
-using EpicGames.Horde.Users;
-using System.Threading;
 
 namespace Horde.Server.Notifications
 {
@@ -203,7 +203,7 @@ namespace Horde.Server.Notifications
 			for (; ; )
 			{
 				// If the trigger has already fired, don't add a new subscription to it
-				if(trigger.Fired)
+				if (trigger.Fired)
 				{
 					return trigger;
 				}

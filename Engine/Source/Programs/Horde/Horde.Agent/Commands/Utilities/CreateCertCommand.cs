@@ -44,7 +44,7 @@ namespace Horde.Agent.Commands.Certs
 				AgentSettings settings = new AgentSettings();
 				config.GetSection("Horde").Bind(settings);
 
-				if(Server != null)
+				if (Server != null)
 				{
 					settings.Server = Server;
 				}

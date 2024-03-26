@@ -1,8 +1,5 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-using EpicGames.Core;
-using EpicGames.Horde.Compute.Transports;
-using Microsoft.Extensions.Logging;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -13,6 +10,9 @@ using System.Net.Sockets;
 using System.Runtime.CompilerServices;
 using System.Threading;
 using System.Threading.Tasks;
+using EpicGames.Core;
+using EpicGames.Horde.Compute.Transports;
+using Microsoft.Extensions.Logging;
 
 namespace EpicGames.Horde.Compute.Clients
 {
@@ -25,7 +25,7 @@ namespace EpicGames.Horde.Compute.Clients
 	{
 		const int Version = 1;
 		const string Name = "HANDSHAKE-REQ";
-		
+
 		/// <summary>
 		/// Serialize the message
 		/// </summary>
@@ -34,7 +34,7 @@ namespace EpicGames.Horde.Compute.Clients
 		{
 			return $"{Name}\t{Version}\t{Host}\t{Port}";
 		}
-	
+
 		/// <summary>
 		/// Deserialize the message
 		/// </summary>
@@ -51,7 +51,7 @@ namespace EpicGames.Horde.Compute.Clients
 			return new TunnelHandshakeRequest(parts[2], port);
 		}
 	}
-	
+
 	/// <summary>
 	/// Handshake response message for tunneling server
 	/// </summary>
@@ -61,7 +61,7 @@ namespace EpicGames.Horde.Compute.Clients
 	{
 		const int Version = 1;
 		const string Name = "HANDSHAKE-RES";
-		
+
 		/// <summary>
 		/// Serialize the message
 		/// </summary>
@@ -70,7 +70,7 @@ namespace EpicGames.Horde.Compute.Clients
 		{
 			return $"{Name}\t{Version}\t{IsSuccess}\t{Message}";
 		}
-	
+
 		/// <summary>
 		/// Deserialize the message
 		/// </summary>
@@ -103,7 +103,7 @@ namespace EpicGames.Horde.Compute.Clients
 		{
 		}
 	}
-	
+
 	/// <summary>
 	/// Helper class to enlist remote resources to perform compute-intensive tasks.
 	/// </summary>
@@ -189,7 +189,7 @@ namespace EpicGames.Horde.Compute.Clients
 		public ServerComputeClient(IHttpClientFactory httpClientFactory, ILogger logger) : this(httpClientFactory, null, logger)
 		{
 		}
-		
+
 		/// <summary>
 		/// Constructor
 		/// </summary>
@@ -233,7 +233,7 @@ namespace EpicGames.Horde.Compute.Clients
 		public async Task DeclareResourceNeedsAsync(ClusterId clusterId, string pool, Dictionary<string, int> resourceNeeds, CancellationToken cancellationToken = default)
 		{
 			HttpClient client = _httpClientFactory.CreateClient(HordeHttpClient.HttpClientName);
-			ResourceNeedsMessage request = new () { SessionId = _sessionId, Pool = pool, ResourceNeeds = resourceNeeds };
+			ResourceNeedsMessage request = new() { SessionId = _sessionId, Pool = pool, ResourceNeeds = resourceNeeds };
 			using HttpResponseMessage response = await HordeHttpClient.PostAsync(client, $"api/v2/compute/{clusterId}/resource-needs", request, _cancellationSource.Token);
 			response.EnsureSuccessStatusCode();
 		}
@@ -274,7 +274,7 @@ namespace EpicGames.Horde.Compute.Clients
 				{
 					throw new ComputeClientException($"Bad authentication credentials. Check or refresh token. (HTTP status {httpResponse.StatusCode})");
 				}
-				
+
 				if (httpResponse.StatusCode == HttpStatusCode.Forbidden)
 				{
 					LogEvent? logEvent = await httpResponse.Content.ReadFromJsonAsync<LogEvent>(HordeHttpClient.JsonSerializerOptions, cancellationToken);
@@ -296,7 +296,7 @@ namespace EpicGames.Horde.Compute.Clients
 
 			// Connect to the remote machine
 			using Socket socket = new Socket(SocketType.Stream, ProtocolType.Tcp);
-			
+
 			workerLogger.LogDebug("Connecting to {AgentId} at {AgentAddress} ({ConnectionType} via {ConnectionAddress}) with nonce {Nonce} and encryption {Encryption}...",
 				response.AgentId, agentAddress, response.ConnectionMode, response.ConnectionAddress ?? "None", response.Nonce, response.Encryption);
 			try
@@ -312,12 +312,12 @@ namespace EpicGames.Horde.Compute.Clients
 						await socket.ConnectAsync(host, port, cancellationToken);
 						await TunnelHandshakeAsync(socket, response, cancellationToken);
 						break;
-				
+
 					case ConnectionMode.Relay when !String.IsNullOrEmpty(response.ConnectionAddress):
 						response.Ip = response.ConnectionAddress;
 						await socket.ConnectAsync(IPAddress.Parse(response.ConnectionAddress), response.Ports[ConnectionMetadataPort.ComputeId].Port, cancellationToken);
 						break;
-				
+
 					default:
 						throw new Exception($"Unable to resolve connection mode ({response.ConnectionMode} via {response.ConnectionAddress ?? "none"})");
 				}
@@ -333,7 +333,7 @@ namespace EpicGames.Horde.Compute.Clients
 			workerLogger.LogInformation("Connected to {AgentId} ({Ip}) under lease {LeaseId}", response.AgentId, response.Ip, response.LeaseId);
 
 			await using ComputeTransport transport = await CreateTransportAsync(socket, response, cancellationToken);
-			await using RemoteComputeSocket computeSocket = new (transport, (ComputeProtocol)response.Protocol, workerLogger);
+			await using RemoteComputeSocket computeSocket = new(transport, (ComputeProtocol)response.Protocol, workerLogger);
 			yield return new LeaseInfo(response.Properties, response.AssignedResources, computeSocket, response.Ip, response.ConnectionMode, response.Ports);
 		}
 
@@ -346,10 +346,10 @@ namespace EpicGames.Horde.Compute.Clients
 					TcpSslTransport sslTransport = new(socket, StringUtils.ParseHexString(response.Certificate), false);
 					await sslTransport.AuthenticateAsync(cancellationToken);
 					return sslTransport;
-				
+
 				case Encryption.Aes:
 #pragma warning disable CA2000 // Dispose objects before losing scope
-					TcpTransport tcpTransport = new (socket);
+					TcpTransport tcpTransport = new(socket);
 					return new AesTransport(tcpTransport, StringUtils.ParseHexString(response.Key), StringUtils.ParseHexString(response.Nonce));
 #pragma warning restore CA2000 // Restore CA2000
 
@@ -376,9 +376,9 @@ namespace EpicGames.Horde.Compute.Clients
 
 		private static async Task TunnelHandshakeAsync(Socket socket, AssignComputeResponse response, CancellationToken cancellationToken)
 		{
-			await using NetworkStream ns = new (socket, false);
-			using StreamReader reader = new (ns);
-			await using StreamWriter writer = new (ns) { AutoFlush = true };
+			await using NetworkStream ns = new(socket, false);
+			using StreamReader reader = new(ns);
+			await using StreamWriter writer = new(ns) { AutoFlush = true };
 
 			string request = new TunnelHandshakeRequest(response.Ip, response.Port).Serialize();
 			await writer.WriteLineAsync(request.ToCharArray(), cancellationToken);

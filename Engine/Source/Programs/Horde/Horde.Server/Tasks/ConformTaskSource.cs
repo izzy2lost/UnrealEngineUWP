@@ -5,6 +5,10 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
+using EpicGames.Horde.Agents;
+using EpicGames.Horde.Agents.Leases;
+using EpicGames.Horde.Jobs;
+using EpicGames.Horde.Logs;
 using Google.Protobuf;
 using Google.Protobuf.WellKnownTypes;
 using Horde.Server.Agents;
@@ -15,15 +19,11 @@ using Horde.Server.Perforce;
 using Horde.Server.Server;
 using Horde.Server.Utilities;
 using HordeCommon;
+using HordeCommon.Rpc.Messages;
 using HordeCommon.Rpc.Tasks;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
-using EpicGames.Horde.Agents;
-using EpicGames.Horde.Agents.Leases;
-using EpicGames.Horde.Jobs;
-using EpicGames.Horde.Logs;
-using HordeCommon.Rpc.Messages;
 
 namespace Horde.Server.Tasks
 {
@@ -355,7 +355,7 @@ namespace Horde.Server.Tasks
 				List<IPoolConfig> pools = await _poolService.GetPoolsAsync(agent, DateTime.UtcNow - TimeSpan.FromMinutes(2.0), cancellationToken);
 
 				TimeSpan? conformInterval = null;
-				foreach(IPoolConfig pool in pools)
+				foreach (IPoolConfig pool in pools)
 				{
 					TimeSpan interval = pool.ConformInterval ?? TimeSpan.FromDays(1.0);
 					if (interval > TimeSpan.Zero && (conformInterval == null || interval < conformInterval.Value))
@@ -365,7 +365,7 @@ namespace Horde.Server.Tasks
 				}
 
 				// If there is no conform interval, early out
-				if(conformInterval == null)
+				if (conformInterval == null)
 				{
 					return false;
 				}

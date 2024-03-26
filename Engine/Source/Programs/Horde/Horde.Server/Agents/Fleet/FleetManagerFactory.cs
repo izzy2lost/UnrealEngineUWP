@@ -42,10 +42,10 @@ public sealed class FleetManagerFactory : IFleetManagerFactory
 	private readonly IOptionsMonitor<ServerSettings> _settings;
 	private readonly Tracer _tracer;
 	private readonly ILoggerFactory _loggerFactory;
-	
+
 	private IAmazonAutoScaling? _awsAutoScaling;
 	private IAmazonEC2? _awsEc2;
-	
+
 	/// <summary>
 	/// Constructor
 	/// </summary>
@@ -59,7 +59,7 @@ public sealed class FleetManagerFactory : IFleetManagerFactory
 		_tracer = tracer;
 		_loggerFactory = loggerFactory;
 	}
-	
+
 	/// <inheritdoc/>
 	public IFleetManager CreateFleetManager(FleetManagerType type, string? config)
 	{
@@ -80,12 +80,12 @@ public sealed class FleetManagerFactory : IFleetManagerFactory
 			_ => throw new ArgumentException("Unknown fleet manager type " + type)
 		};
 	}
-	
+
 	private static T DeserializeSettings<T>(string? config)
 	{
 		if (String.IsNullOrEmpty(config))
-		{ 
-			config = "{}"; 
+		{
+			config = "{}";
 		}
 
 		try
@@ -109,7 +109,7 @@ public sealed class FleetManagerFactory : IFleetManagerFactory
 		{
 			return _awsEc2;
 		}
-		
+
 		_awsEc2 = _provider.GetService<IAmazonEC2>();
 		if (_settings.CurrentValue.WithAws == false || _awsEc2 == null)
 		{
@@ -118,14 +118,14 @@ public sealed class FleetManagerFactory : IFleetManagerFactory
 
 		return _awsEc2;
 	}
-	
+
 	private IAmazonAutoScaling GetAwsAutoScaling(FleetManagerType type)
 	{
 		if (_awsAutoScaling != null)
 		{
 			return _awsAutoScaling;
 		}
-		
+
 		_awsAutoScaling = _provider.GetService<IAmazonAutoScaling>();
 		if (_settings.CurrentValue.WithAws == false || _awsAutoScaling == null)
 		{

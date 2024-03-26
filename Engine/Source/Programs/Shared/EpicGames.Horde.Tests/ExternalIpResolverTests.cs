@@ -29,7 +29,7 @@ public class ExternalIpResolverTests
 			return Task.FromResult(new HttpResponseMessage(_statusCode) { Content = new StringContent(Content) });
 		}
 	}
-	
+
 	[TestMethod]
 	public async Task BasicAsync()
 	{
@@ -37,13 +37,13 @@ public class ExternalIpResolverTests
 		await Assert.ThrowsExceptionAsync<ExternalIpResolverException>(() => GetIpAsync("bad-ip"));
 		await Assert.ThrowsExceptionAsync<ExternalIpResolverException>(() => GetIpAsync("192.168.2.3", HttpStatusCode.NotFound));
 	}
-	
+
 	[TestMethod]
 	public async Task CacheIpAddressAsync()
 	{
-		using StubMessageHandler stub = new (HttpStatusCode.OK, "100.200.1.1");
-		using HttpClient httpClient = new (stub);
-		ExternalIpResolver resolver = new (httpClient);
+		using StubMessageHandler stub = new(HttpStatusCode.OK, "100.200.1.1");
+		using HttpClient httpClient = new(stub);
+		ExternalIpResolver resolver = new(httpClient);
 		IPAddress ip = await resolver.GetExternalIpAddressAsync(CancellationToken.None);
 		Assert.AreEqual(IPAddress.Parse("100.200.1.1"), ip);
 
@@ -52,22 +52,22 @@ public class ExternalIpResolverTests
 		ip = await resolver.GetExternalIpAddressAsync(CancellationToken.None);
 		Assert.AreEqual(IPAddress.Parse("100.200.1.1"), ip);
 	}
-	
+
 	[TestMethod]
 	[Ignore]
 	public async Task IntegrationAsync()
 	{
-		using HttpClient httpClient = new ();
-		ExternalIpResolver resolver = new (httpClient);
+		using HttpClient httpClient = new();
+		ExternalIpResolver resolver = new(httpClient);
 		IPAddress externalIp = await resolver.GetExternalIpAddressAsync();
 		Console.WriteLine("External IP: " + externalIp);
 	}
 
 	private static async Task<IPAddress> GetIpAsync(string content, HttpStatusCode statusCode = HttpStatusCode.OK, CancellationToken cancellationToken = default)
 	{
-		using StubMessageHandler handler = new (statusCode, content);
-		using HttpClient httpClient = new (handler);
-		ExternalIpResolver resolver = new (httpClient);
+		using StubMessageHandler handler = new(statusCode, content);
+		using HttpClient httpClient = new(handler);
+		ExternalIpResolver resolver = new(httpClient);
 		return await resolver.GetExternalIpAddressAsync(cancellationToken);
 	}
 }

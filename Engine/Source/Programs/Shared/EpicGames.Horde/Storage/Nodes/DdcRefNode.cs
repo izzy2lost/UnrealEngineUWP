@@ -17,7 +17,7 @@ namespace Horde.Server.Ddc
 		/// Static accessor for the blob type guid
 		/// </summary>
 		public static Guid BlobTypeGuid { get; } = new Guid("{0C7E5F25-4B55-454B-63F4-4A9B74D00651}");
-		
+
 		/// <summary>
 		/// Hash of the root node
 		/// </summary>

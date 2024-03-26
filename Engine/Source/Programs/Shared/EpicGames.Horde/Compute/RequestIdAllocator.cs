@@ -37,7 +37,7 @@ public class RequestIdAllocator
 			_batchIds.Clear();
 		}
 	}
-		
+
 	/// <summary>
 	/// Get or create a request ID and mark it as part of current batch
 	/// </summary>
@@ -76,7 +76,7 @@ public class RequestIdAllocator
 
 	private static string GenerateAllocatorId(int length)
 	{
-		Random random = new ();
+		Random random = new();
 		string chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
 		return new string(Enumerable.Repeat(chars, length).Select(s => s[random.Next(s.Length)]).ToArray());
 	}

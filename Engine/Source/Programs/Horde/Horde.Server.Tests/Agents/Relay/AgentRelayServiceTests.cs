@@ -9,12 +9,12 @@ using System.Threading.Tasks;
 using EpicGames.Horde.Agents.Leases;
 using EpicGames.Horde.Compute;
 using Grpc.Core;
-using Microsoft.VisualStudio.TestTools.UnitTesting;
 using Horde.Common.Rpc;
 using Horde.Server.Agents.Relay;
+using Horde.Server.Tests.Server;
 using Horde.Server.Utilities;
 using Microsoft.Extensions.Logging.Abstractions;
-using Horde.Server.Tests.Server;
+using Microsoft.VisualStudio.TestTools.UnitTesting;
 
 namespace Horde.Server.Tests.Agents.Relay;
 
@@ -22,16 +22,16 @@ namespace Horde.Server.Tests.Agents.Relay;
 public class AgentRelayServiceTests : TestSetup
 {
 	private readonly AgentRelayService _service;
-	private readonly GetPortMappingsRequest _request = new () { ClusterId = "cluster1", AgentId = "agent1", IpAddresses = { "192.168.1.1" }};
-	private readonly ClusterId _cluster1 = new ("cluster1");
-	
+	private readonly GetPortMappingsRequest _request = new() { ClusterId = "cluster1", AgentId = "agent1", IpAddresses = { "192.168.1.1" } };
+	private readonly ClusterId _cluster1 = new("cluster1");
+
 	private readonly PortMapping _pm1 = new()
 	{
 		LeaseId = "eee1",
 		AgentIp = "192.168.1.1",
 		Ports = { new Port { RelayPort = -1, AgentPort = 1111, Protocol = PortProtocol.Tcp } }
 	};
-	
+
 	private readonly PortMapping _pm2 = new()
 	{
 		LeaseId = "eee2",
@@ -42,7 +42,7 @@ public class AgentRelayServiceTests : TestSetup
 			new Port { RelayPort = -1, AgentPort = 3333, Protocol = PortProtocol.Udp },
 		}
 	};
-	
+
 	private readonly PortMapping _pm3 = new()
 	{
 		LeaseId = "eee3",
@@ -54,7 +54,7 @@ public class AgentRelayServiceTests : TestSetup
 			new Port { RelayPort = -1, AgentPort = 6666, Protocol = PortProtocol.Udp },
 		}
 	};
-	
+
 	public AgentRelayServiceTests()
 	{
 		_service = new AgentRelayService(GetRedisServiceSingleton(), Clock, NullLogger<AgentRelayService>.Instance);
@@ -82,10 +82,10 @@ public class AgentRelayServiceTests : TestSetup
 	/// <returns></returns>
 	private static async Task<List<T>> TestStreamingGrpcAsync<T>(Func<TestServerStreamWriter<T>, ServerCallContext, Task> call, TimeSpan timeout) where T : class
 	{
-		using CancellationTokenSource cts = new (timeout);
-		ServerCallContextStub context = new (HordeClaims.AdminClaim.ToClaim());
+		using CancellationTokenSource cts = new(timeout);
+		ServerCallContextStub context = new(HordeClaims.AdminClaim.ToClaim());
 		context.SetCancellationToken(cts.Token);
-		TestServerStreamWriter<T> responseStream = new (context);
+		TestServerStreamWriter<T> responseStream = new(context);
 		await call(responseStream, context);
 		responseStream.Complete();
 		return await responseStream.ReadAllAsync().ToListAsync(cts.Token);
@@ -93,7 +93,7 @@ public class AgentRelayServiceTests : TestSetup
 
 	private static GetPortMappingsRequest Request(string cluster = "cluster1", string agent = "agent1", int revision = -1, string ipAddress = "192.168.1.1")
 	{
-		return new GetPortMappingsRequest { ClusterId = cluster, AgentId = agent, RevisionCount = revision, IpAddresses = { ipAddress }};
+		return new GetPortMappingsRequest { ClusterId = cluster, AgentId = agent, RevisionCount = revision, IpAddresses = { ipAddress } };
 	}
 
 	private async Task<GetPortMappingsResponse> GetPortMappingsAsync(GetPortMappingsRequest request, int timeoutMs = 5000)
@@ -102,11 +102,11 @@ public class AgentRelayServiceTests : TestSetup
 		{
 			await _service.GetPortMappings(request, sw, ctx);
 		}, TimeSpan.FromMilliseconds(timeoutMs));
-		
+
 		Assert.AreEqual(1, responses.Count);
 		return responses[0];
 	}
-	
+
 	[TestMethod]
 	public async Task LongPoll_Simple_Async()
 	{
@@ -117,7 +117,7 @@ public class AgentRelayServiceTests : TestSetup
 		Assert.AreEqual(1, res.PortMappings.Count);
 		Assert.AreEqual(LeaseId.Parse("eee1").ToString(), res.PortMappings[0].LeaseId);
 	}
-	
+
 	[TestMethod]
 	public async Task LongPoll_TooOldRevision_Async()
 	{
@@ -128,7 +128,7 @@ public class AgentRelayServiceTests : TestSetup
 		Assert.AreEqual(3, res.RevisionCount);
 		Assert.AreEqual(3, res.PortMappings.Count);
 	}
-	
+
 	[TestMethod]
 	public async Task LongPoll_TooNewRevision_Async()
 	{
@@ -139,7 +139,7 @@ public class AgentRelayServiceTests : TestSetup
 		Assert.AreEqual(3, res.RevisionCount);
 		Assert.AreEqual(3, res.PortMappings.Count);
 	}
-	
+
 	[TestMethod]
 	public async Task LongPoll_TwoClients_Async()
 	{
@@ -154,7 +154,7 @@ public class AgentRelayServiceTests : TestSetup
 		Assert.AreEqual(1, response1.RevisionCount);
 		Assert.AreEqual(1, response2.RevisionCount);
 	}
-	
+
 	[TestMethod]
 	public async Task AgentHeartbeat_IsAvailable_Async()
 	{
@@ -163,11 +163,11 @@ public class AgentRelayServiceTests : TestSetup
 
 		List<RelayAgentInfo> agents = await _service.GetAvailableRelayAgentsAsync(_cluster1);
 		Assert.AreEqual(1, agents.Count);
-		Assert.AreEqual("192.168.1.1" , agents[0].IpAddresses[0]);
-		
+		Assert.AreEqual("192.168.1.1", agents[0].IpAddresses[0]);
+
 		Assert.AreEqual(0, (await _service.GetAvailableRelayAgentsAsync(new ClusterId("otherCluster"))).Count);
 	}
-	
+
 	[TestMethod]
 	public async Task AgentHeartbeat_StaleAgentsAreNotReturned_Async()
 	{
@@ -177,14 +177,14 @@ public class AgentRelayServiceTests : TestSetup
 		await Clock.AdvanceAsync(TimeSpan.FromMinutes(5));
 		Assert.AreEqual(0, (await _service.GetAvailableRelayAgentsAsync(new ClusterId(_request.ClusterId))).Count);
 	}
-	
+
 	[TestMethod]
 	public async Task GetAndSetPortMappingsAsync()
 	{
-		(int changeId, List<PortMapping> portMappings) =  await _service.GetPortMappingsAsync(_cluster1);
+		(int changeId, List<PortMapping> portMappings) = await _service.GetPortMappingsAsync(_cluster1);
 		Assert.AreEqual(0, changeId);
 		Assert.AreEqual(0, portMappings.Count);
-		
+
 		PortMapping newPm1 = await AddPortMappingAsync("cluster1", _pm1.LeaseId, null, _pm1.AgentIp, _pm1.Ports);
 		(changeId, portMappings) = await _service.GetPortMappingsAsync(_cluster1);
 		Assert.AreEqual(1, changeId);
@@ -192,7 +192,7 @@ public class AgentRelayServiceTests : TestSetup
 		Assert.AreEqual(newPm1.LeaseId, portMappings[0].LeaseId);
 		Assert.AreEqual(newPm1.AgentIp, portMappings[0].AgentIp);
 		Assert.AreEqual(LeaseId.Parse("eee1").ToString(), portMappings[0].LeaseId);
-		
+
 		await AddPortMappingAsync("cluster1", _pm2.LeaseId, "100.200.1.1", _pm2.AgentIp, _pm2.Ports);
 		(changeId, portMappings) = await _service.GetPortMappingsAsync(_cluster1);
 		Assert.AreEqual(2, changeId);
@@ -201,9 +201,9 @@ public class AgentRelayServiceTests : TestSetup
 		Assert.AreEqual(LeaseId.Parse("eee1").ToString(), portMappings[0].LeaseId);
 		Assert.AreEqual(0, portMappings[0].AllowedSourceIps.Count);
 		Assert.AreEqual(LeaseId.Parse("eee2").ToString(), portMappings[1].LeaseId);
-		CollectionAssert.AreEquivalent(new [] { "100.200.1.1" }, portMappings[1].AllowedSourceIps);
+		CollectionAssert.AreEquivalent(new[] { "100.200.1.1" }, portMappings[1].AllowedSourceIps);
 	}
-	
+
 	[TestMethod]
 	public async Task PortMapping_Remove_Async()
 	{
@@ -217,7 +217,7 @@ public class AgentRelayServiceTests : TestSetup
 		Assert.AreEqual(3, changeId);
 		Assert.AreEqual(1, portMappings.Count);
 	}
-	
+
 	[TestMethod]
 	public async Task GetAllClustersAsync()
 	{
@@ -225,9 +225,9 @@ public class AgentRelayServiceTests : TestSetup
 		await AddPortMappingAsync("cluster1", _pm1.LeaseId, null, _pm1.AgentIp, _pm1.Ports);
 		await AddPortMappingAsync("cluster1", _pm2.LeaseId, null, _pm2.AgentIp, _pm2.Ports);
 		await AddPortMappingAsync("cluster2", _pm3.LeaseId, null, _pm3.AgentIp, _pm3.Ports);
-		Assert.IsTrue(new HashSet<ClusterId> {new ("cluster1"), new ("cluster2")}.SetEquals(await _service.GetClustersAsync()));
+		Assert.IsTrue(new HashSet<ClusterId> { new("cluster1"), new("cluster2") }.SetEquals(await _service.GetClustersAsync()));
 	}
-	
+
 	[TestMethod]
 	public async Task PortMapping_RemoveFromAllClusters_Async()
 	{
@@ -245,7 +245,7 @@ public class AgentRelayServiceTests : TestSetup
 		cluster2 = await _service.GetPortMappingsAsync(new ClusterId("cluster2"));
 		Assert.AreEqual(0, cluster1.portMappings.Count + cluster2.portMappings.Count);
 	}
-	
+
 	[TestMethod]
 	public async Task PortAssignment_Simple_Async()
 	{
@@ -254,7 +254,7 @@ public class AgentRelayServiceTests : TestSetup
 		Assert.AreEqual(10000, newPm.Ports[0].RelayPort);
 		Assert.AreEqual(10001, newPm.Ports[1].RelayPort);
 	}
-	
+
 	[TestMethod]
 	public async Task PortAssignment_TwoMappings_Async()
 	{
@@ -265,7 +265,7 @@ public class AgentRelayServiceTests : TestSetup
 		Assert.AreEqual(1001, newPm2.Ports[0].RelayPort);
 		Assert.AreEqual(1002, newPm2.Ports[1].RelayPort);
 	}
-	
+
 	[TestMethod]
 	public async Task PortAssignment_OutOfPorts_Async()
 	{
@@ -274,7 +274,7 @@ public class AgentRelayServiceTests : TestSetup
 		await AddPortMappingAsync("cluster1", _pm3.LeaseId, null, _pm3.AgentIp, _pm3.Ports);
 		await Assert.ThrowsExceptionAsync<Exception>(() => AddPortMappingAsync("cluster1", _pm2.LeaseId, null, _pm2.AgentIp, _pm2.Ports));
 	}
-	
+
 	[TestMethod]
 	public async Task PortAssignment_AreReleased_Async()
 	{
@@ -285,7 +285,7 @@ public class AgentRelayServiceTests : TestSetup
 		Assert.IsTrue(await _service.RemovePortMappingAsync(_cluster1, LeaseId.Parse(_pm3.LeaseId)));
 		await AddPortMappingAsync("cluster1", _pm2.LeaseId, null, _pm2.AgentIp, _pm2.Ports);
 	}
-	
+
 	[TestMethod]
 	public void FindAvailablePortRange()
 	{
@@ -293,12 +293,12 @@ public class AgentRelayServiceTests : TestSetup
 		{
 			return AgentRelayService.FindAvailablePortRange(usedPorts.ToHashSet(), numPorts, 0, 5).ToList();
 		}
-		
+
 		List<int> Expected(params int[] ports)
 		{
 			return ports.ToHashSet().ToList();
 		}
-		
+
 		CollectionAssert.AreEquivalent(Expected(), Actual(0));
 		CollectionAssert.AreEquivalent(Expected(0, 1, 2), Actual(3));
 		CollectionAssert.AreEquivalent(Expected(0, 1, 2, 3, 4), Actual(5));
@@ -313,7 +313,7 @@ public class AgentRelayServiceTests : TestSetup
 		CollectionAssert.AreEquivalent(Expected(), Actual(2, 0, 1, 2, 3, 4, 5));
 		CollectionAssert.AreEquivalent(Expected(1, 2), Actual(2, 0, 3, 4, 5));
 	}
-	
+
 	private Task<PortMapping> AddPortMappingAsync(string clusterId, string leaseId, string? clientIp, string agentIp, IList<Port> ports, int numRetries = 10)
 	{
 		IPAddress? clientIpObj = clientIp == null ? null : IPAddress.Parse(clientIp);

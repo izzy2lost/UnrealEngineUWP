@@ -130,10 +130,10 @@ namespace Horde.Agent.Utility
 		public static async Task<WorkspaceInfo> SetupWorkspaceAsync(AgentWorkspace workspace, DirectoryReference rootDir, ManagedWorkspaceOptions options, ILogger logger, CancellationToken cancellationToken)
 		{
 			// Fill in the default credentials iff they are not set
-			string? serverAndPort = String.IsNullOrEmpty(workspace.ServerAndPort)? null : workspace.ServerAndPort;
-			string? userName = String.IsNullOrEmpty(workspace.UserName)? null : workspace.UserName;
-			string? password = String.IsNullOrEmpty(workspace.Password)? null : workspace.Password;
-			string? ticket = String.IsNullOrEmpty(workspace.Ticket)? null : workspace.Ticket;
+			string? serverAndPort = String.IsNullOrEmpty(workspace.ServerAndPort) ? null : workspace.ServerAndPort;
+			string? userName = String.IsNullOrEmpty(workspace.UserName) ? null : workspace.UserName;
+			string? password = String.IsNullOrEmpty(workspace.Password) ? null : workspace.Password;
+			string? ticket = String.IsNullOrEmpty(workspace.Ticket) ? null : workspace.Ticket;
 
 			if (serverAndPort == null)
 			{
@@ -157,7 +157,7 @@ namespace Horde.Agent.Utility
 			}
 
 			// Create the connection
-			using IPerforceConnection perforce = await PerforceConnection.CreateAsync(new PerforceSettings(serverAndPort, userName) { PreferNativeClient = options.PreferNativeClient, Password = ticket}, logger);
+			using IPerforceConnection perforce = await PerforceConnection.CreateAsync(new PerforceSettings(serverAndPort, userName) { PreferNativeClient = options.PreferNativeClient, Password = ticket }, logger);
 			if (userName != null)
 			{
 				if (ticket != null)
@@ -195,11 +195,11 @@ namespace Horde.Agent.Utility
 			InfoRecord info = await perforce.GetInfoAsync(InfoOptions.ShortOutput, cancellationToken);
 
 			string? hostName = info.ClientHost;
-			if(hostName == null)
+			if (hostName == null)
 			{
 				throw new Exception("Unable to determine Perforce host name");
 			}
-			
+
 			if (!options.UseHaveTable)
 			{
 				logger.LogInformation("Skipping use of have table");
@@ -213,7 +213,7 @@ namespace Horde.Agent.Utility
 
 			// if running on an edge server, append the server id to the client name
 			string edgeSuffix = String.Empty;
-			if(info.Services != null && info.ServerId != null)
+			if (info.Services != null && info.ServerId != null)
 			{
 				string[] services = info.Services.Split(' ', StringSplitOptions.RemoveEmptyEntries);
 				if (services.Any(x => x.Equals("edge-server", StringComparison.OrdinalIgnoreCase)))
@@ -269,7 +269,7 @@ namespace Horde.Agent.Utility
 			const string NameKey = "name";
 			const string ManagedWorkspaceValue = "managedWorkspace";
 			const string UseHaveTableKey = "useHaveTable";
-			
+
 			if (String.IsNullOrEmpty(method))
 			{
 				return true;
@@ -278,7 +278,7 @@ namespace Horde.Agent.Utility
 			NameValueCollection nameValues = HttpUtility.ParseQueryString(method);
 			string? name = nameValues[NameKey];
 			string? useHaveTable = nameValues[UseHaveTableKey];
-			
+
 			if (name != null && name.Equals(ManagedWorkspaceValue, StringComparison.OrdinalIgnoreCase))
 			{
 				if (useHaveTable != null && useHaveTable.Equals("false", StringComparison.OrdinalIgnoreCase))
@@ -339,7 +339,7 @@ namespace Horde.Agent.Utility
 
 			return options;
 		}
-		
+
 		/// <summary>
 		/// Gets the latest change in the stream
 		/// </summary>
@@ -486,7 +486,7 @@ namespace Horde.Agent.Utility
 		public static async Task RevertAllChangesAsync(IPerforceConnection perforce, ILogger logger, CancellationToken cancellationToken)
 		{
 			// Make sure the client name is set
-			if(perforce.Settings.ClientName == null)
+			if (perforce.Settings.ClientName == null)
 			{
 				throw new ArgumentException("RevertAllChangesAsync() requires PerforceConnection with client");
 			}

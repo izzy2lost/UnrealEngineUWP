@@ -17,7 +17,7 @@ namespace Horde.Server.Agents.Pools
 		/// Strategy implementation to use
 		/// </summary>
 		public PoolSizeStrategy Type { get; set; }
-		
+
 		/// <summary>
 		/// Condition if this strategy should be enabled (right now, using date/time as a distinguishing factor)
 		/// </summary>
@@ -27,12 +27,12 @@ namespace Horde.Server.Agents.Pools
 		/// Configuration for the strategy, serialized as JSON
 		/// </summary>
 		public string Config { get; set; } = "";
-		
+
 		/// <summary>
 		/// Integer to add after pool size has been calculated. Can also be negative.
 		/// </summary>
 		public int ExtraAgentCount { get; set; } = 0;
-		
+
 		/// <summary>
 		/// Empty constructor for JSON serialization
 		/// </summary>
@@ -51,7 +51,7 @@ namespace Horde.Server.Agents.Pools
 			Config = strategy.Config;
 			ExtraAgentCount = strategy.ExtraAgentCount;
 		}
-		
+
 		/// <summary>
 		/// Convert this public REST API object to an internal representation
 		/// </summary>
@@ -61,7 +61,7 @@ namespace Horde.Server.Agents.Pools
 			return new PoolSizeStrategyInfo(Type, Condition, Config, ExtraAgentCount);
 		}
 	}
-	
+
 	/// <see cref="FleetManagerInfo" />
 	public class FleetManagerMessage
 	{
@@ -69,7 +69,7 @@ namespace Horde.Server.Agents.Pools
 		/// Strategy implementation to use
 		/// </summary>
 		public FleetManagerType Type { get; set; }
-		
+
 		/// <summary>
 		/// Condition if this strategy should be enabled (right now, using date/time as a distinguishing factor)
 		/// </summary>
@@ -79,7 +79,7 @@ namespace Horde.Server.Agents.Pools
 		/// Configuration for the strategy, serialized as JSON
 		/// </summary>
 		public string? Config { get; set; }
-		
+
 		/// <summary>
 		/// Empty constructor for JSON serialization
 		/// </summary>
@@ -97,7 +97,7 @@ namespace Horde.Server.Agents.Pools
 			Condition = info.Condition;
 			Config = info.Config;
 		}
-		
+
 		/// <summary>
 		/// Convert this public REST API object to an internal representation
 		/// </summary>
@@ -120,7 +120,7 @@ namespace Horde.Server.Agents.Pools
 #pragma warning restore IDE0060 // Remove unused parameter
 		{
 		}
-		
+
 		/// <summary>
 		/// Convert this public REST API object to an internal representation
 		/// </summary>
@@ -130,7 +130,7 @@ namespace Horde.Server.Agents.Pools
 			return new LeaseUtilizationSettings();
 		}
 	}
-	
+
 	/// <see cref="JobQueueSettings" />
 	public class JobQueueSettingsMessage
 	{
@@ -164,7 +164,7 @@ namespace Horde.Server.Agents.Pools
 			ScaleInFactor = settings.ScaleInFactor;
 			ScaleOutFactor = settings.ScaleOutFactor;
 		}
-		
+
 		/// <summary>
 		/// Convert this public REST API object to an internal representation
 		/// </summary>
@@ -174,7 +174,7 @@ namespace Horde.Server.Agents.Pools
 			return new JobQueueSettings(ScaleOutFactor, ScaleInFactor);
 		}
 	}
-	
+
 	/// <see cref="ComputeQueueAwsMetricSettings" />
 	public class ComputeQueueAwsMetricSettingsMessage
 	{
@@ -194,7 +194,7 @@ namespace Horde.Server.Agents.Pools
 		public ComputeQueueAwsMetricSettingsMessage()
 		{
 		}
-		
+
 		/// <summary>
 		/// Construct a public REST API representation from the internal one
 		/// </summary>
@@ -204,7 +204,7 @@ namespace Horde.Server.Agents.Pools
 			ComputeClusterId = settings.ComputeClusterId;
 			Namespace = settings.Namespace;
 		}
-		
+
 		/// <summary>
 		/// Convert this public REST API object to an internal representation
 		/// </summary>
@@ -214,7 +214,7 @@ namespace Horde.Server.Agents.Pools
 			return new ComputeQueueAwsMetricSettings(ComputeClusterId, Namespace);
 		}
 	}
-	
+
 	/// <summary>
 	/// Parameters to create a new pool
 	/// </summary>
@@ -240,42 +240,42 @@ namespace Horde.Server.Agents.Pools
 		/// Interval between conforms in hours. Set to zero to disable.
 		/// </summary>
 		public int? ConformInterval { get; set; }
-		
+
 		/// <summary>
 		/// Cooldown time between scale-out events in seconds
 		/// </summary>
 		public int? ScaleOutCooldown { get; set; }
-		
+
 		/// <summary>
 		/// Cooldown time between scale-in events in seconds
 		/// </summary>
 		public int? ScaleInCooldown { get; set; }
-		
+
 		/// <summary>
 		/// Pool sizing strategies
 		/// </summary>
 		public List<PoolSizeStrategyMessage>? SizeStrategies { get; set; }
-		
+
 		/// <summary>
 		/// Fleet managers
 		/// </summary>
 		public List<FleetManagerMessage>? FleetManagers { get; set; }
-		
+
 		/// <summary>
 		/// Pool sizing strategy
 		/// </summary>
 		public PoolSizeStrategy? SizeStrategy { get; set; }
-		
+
 		/// <summary>
 		/// Settings for lease utilization pool sizing strategy (if used)
 		/// </summary>
 		public LeaseUtilizationSettingsMessage? LeaseUtilizationSettings { get; set; }
-		
+
 		/// <summary>
 		/// Settings for job queue pool sizing strategy (if used) 
 		/// </summary>
 		public JobQueueSettingsMessage? JobQueueSettings { get; set; }
-		
+
 		/// <summary>
 		/// Settings for compute queue pool sizing strategy for AWS metrics (if used) 
 		/// </summary>
@@ -341,27 +341,27 @@ namespace Horde.Server.Agents.Pools
 		/// Interval between conforms in hours. Set to -1 to reset to the default, or 0 to disable.
 		/// </summary>
 		public int? ConformInterval { get; set; }
-		
+
 		/// <summary>
 		/// Cooldown time between scale-out events in seconds
 		/// </summary>
 		public int? ScaleOutCooldown { get; set; }
-		
+
 		/// <summary>
 		/// Cooldown time between scale-in events in seconds
 		/// </summary>
 		public int? ScaleInCooldown { get; set; }
-		
+
 		/// <summary>
 		/// Pool sizing strategy
 		/// </summary>
 		public PoolSizeStrategy? SizeStrategy { get; set; }
-		
+
 		/// <summary>
 		/// Pool sizing strategies
 		/// </summary>
 		public List<PoolSizeStrategyMessage>? SizeStrategies { get; set; }
-		
+
 		/// <summary>
 		/// Fleet managers
 		/// </summary>
@@ -376,12 +376,12 @@ namespace Horde.Server.Agents.Pools
 		/// Settings for lease utilization pool sizing strategy (if used)
 		/// </summary>
 		public LeaseUtilizationSettingsMessage? LeaseUtilizationSettings { get; set; }
-		
+
 		/// <summary>
 		/// Settings for job queue pool sizing strategy (if used) 
 		/// </summary>
 		public JobQueueSettingsMessage? JobQueueSettings { get; set; }
-		
+
 		/// <summary>
 		/// Settings for compute queue AWS metric pool sizing strategy (if used) 
 		/// </summary>
@@ -454,7 +454,7 @@ namespace Horde.Server.Agents.Pools
 		/// Whether to enable autoscaling for this pool
 		/// </summary>
 		public bool EnableAutoscaling { get; set; }
-		
+
 		/// <summary>
 		/// Frequency to run conforms, in hours.
 		/// </summary>
@@ -464,17 +464,17 @@ namespace Horde.Server.Agents.Pools
 		/// Cooldown time between scale-out events in seconds
 		/// </summary>
 		public int? ScaleOutCooldown { get; set; }
-		
+
 		/// <summary>
 		/// Cooldown time between scale-in events in seconds
 		/// </summary>
 		public int? ScaleInCooldown { get; set; }
-		
+
 		/// <summary>
 		/// Pool sizing strategies to be used for this pool
 		/// </summary>
 		public List<PoolSizeStrategyMessage> SizeStrategies { get; set; }
-		
+
 		/// <summary>
 		/// Fleet managers to be used for this pool
 		/// </summary>
@@ -484,12 +484,12 @@ namespace Horde.Server.Agents.Pools
 		/// Pool sizing strategy to be used for this pool (deprecated, see SizeStrategies field)
 		/// </summary>
 		public PoolSizeStrategy? SizeStrategy { get; set; }
-		
+
 		/// <summary>
 		/// Settings for lease utilization pool sizing strategy (deprecated, see SizeStrategies field)
 		/// </summary>
 		public LeaseUtilizationSettingsMessage? LeaseUtilizationSettings { get; set; }
-		
+
 		/// <summary>
 		/// Settings for job queue pool sizing strategy (deprecated, see SizeStrategies field)
 		/// </summary>

@@ -23,7 +23,7 @@ namespace EpicGames.Horde.Issues
 		/// <summary>
 		/// Set of extensions to treat as code
 		/// </summary>
-		public static IReadOnlyList<string> Code { get; } = new []
+		public static IReadOnlyList<string> Code { get; } = new[]
 		{
 			"*.c",
 			"*.cc",

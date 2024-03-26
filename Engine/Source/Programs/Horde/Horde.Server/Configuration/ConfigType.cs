@@ -181,7 +181,7 @@ namespace Horde.Server.Configuration
 		/// Merges any unassigned properties from the source object to the target
 		/// </summary>
 		/// <param name="objects">Set of objects to use for merging</param>
-		public static void MergeDefaults<TKey, TValue>(IEnumerable<(TKey Key, TKey? BaseKey, TValue Value)> objects) 
+		public static void MergeDefaults<TKey, TValue>(IEnumerable<(TKey Key, TKey? BaseKey, TValue Value)> objects)
 			where TKey : notnull
 			where TValue : class
 		{
@@ -205,7 +205,7 @@ namespace Horde.Server.Configuration
 			}
 
 			// Iteratively merge objects with their base
-			for (int lastRemainingObjectCount = 0; remainingObjects.Count != lastRemainingObjectCount; )
+			for (int lastRemainingObjectCount = 0; remainingObjects.Count != lastRemainingObjectCount;)
 			{
 				lastRemainingObjectCount = remainingObjects.Count;
 				for (int idx = remainingObjects.Count - 1; idx >= 0; idx--)
@@ -268,7 +268,7 @@ namespace Horde.Server.Configuration
 				object? sourceValue = propertyInfo.GetValue(source);
 
 				ConfigMergeStrategy strategy = propertyInfo.GetCustomAttribute<ConfigMergeStrategyAttribute>()?.Strategy ?? ConfigMergeStrategy.Default;
-				switch(strategy)
+				switch (strategy)
 				{
 					case ConfigMergeStrategy.Default:
 						if (targetValue == null)
@@ -528,7 +528,7 @@ namespace Horde.Server.Configuration
 			public override async Task MergeAsync(object target, JsonNode? node, ConfigContext context, CancellationToken cancellationToken)
 			{
 				IList? list = (IList?)PropertyInfo.GetValue(target);
-				if(list == null)
+				if (list == null)
 				{
 					object value = Activator.CreateInstance(PropertyInfo.PropertyType)!;
 					PropertyInfo.SetValue(target, value);

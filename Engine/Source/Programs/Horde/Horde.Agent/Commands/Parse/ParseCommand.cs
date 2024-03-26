@@ -69,7 +69,7 @@ namespace Horde.Agent.Commands.Parse
 					for (; ; )
 					{
 						int length = await inputStream.ReadAsync(data);
-						if(length == 0)
+						if (length == 0)
 						{
 							parser.Flush();
 							break;

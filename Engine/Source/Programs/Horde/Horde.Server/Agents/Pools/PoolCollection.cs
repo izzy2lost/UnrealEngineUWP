@@ -302,7 +302,7 @@ namespace Horde.Server.Agents.Pools
 			{
 				poolConfig = globalPoolConfig;
 			}
-			else if(globalConfig.VersionEnum < GlobalVersion.PoolsInConfigFiles)
+			else if (globalConfig.VersionEnum < GlobalVersion.PoolsInConfigFiles)
 			{
 				poolConfig = await _poolsV1.Find(x => x.Id == id).FirstOrDefaultAsync(cancellationToken);
 			}
@@ -530,7 +530,7 @@ namespace Horde.Server.Agents.Pools
 
 			FilterDefinition<PoolDocumentV2> filter = Builders<PoolDocumentV2>.Filter.Expr(x => x.Id == document.Id && x.UpdateIndex == document.UpdateIndex);
 			UpdateDefinition<PoolDocumentV2> update = Builders<PoolDocumentV2>.Update.Combine(updates).Inc(x => x.UpdateIndex, 1);
-			return await _poolsV2.FindOneAndUpdateAsync(filter, update, new FindOneAndUpdateOptions<PoolDocumentV2, PoolDocumentV2> { ReturnDocument = ReturnDocument.After }, cancellationToken); 
+			return await _poolsV2.FindOneAndUpdateAsync(filter, update, new FindOneAndUpdateOptions<PoolDocumentV2, PoolDocumentV2> { ReturnDocument = ReturnDocument.After }, cancellationToken);
 		}
 	}
 }

@@ -1,14 +1,14 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
+using System;
+using System.Threading;
+using System.Threading.Tasks;
 using EpicGames.Core;
 using EpicGames.Horde;
 using EpicGames.Horde.Tools;
 using EpicGames.Perforce;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
-using System;
-using System.Threading;
-using System.Threading.Tasks;
 
 namespace UnrealGameSync
 {
@@ -117,7 +117,7 @@ namespace UnrealGameSync
 		}
 	}
 
-	class PerforceUpdateMonitor : UpdateMonitor 
+	class PerforceUpdateMonitor : UpdateMonitor
 	{
 		Task? _workerTask;
 #pragma warning disable CA2213 // warning CA2213: 'UpdateMonitor' contains field '_cancellationSource' that is of IDisposable type 'CancellationTokenSource', but it is never disposed. Change the Dispose method on 'UpdateMonitor' to call Close or Dispose on this field.
@@ -129,7 +129,7 @@ namespace UnrealGameSync
 		{
 			_logger = serviceProvider.GetRequiredService<ILogger<UpdateMonitor>>();
 
-			if(watchPath != null)
+			if (watchPath != null)
 			{
 				_logger.LogInformation("Watching for updates on {WatchPath}", watchPath);
 				_workerTask = Task.Run(() => PollForUpdatesAsync(perforceSettings, watchPath, _cancellationSource.Token));

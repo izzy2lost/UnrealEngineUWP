@@ -400,7 +400,7 @@ namespace Horde.Agent.Utility
 			if (subConnectionTask.IsCompleted)
 			{
 				RpcSubConnection defaultClient = subConnectionTask.Result;
-				if(defaultClient.TryAddRef())
+				if (defaultClient.TryAddRef())
 				{
 					return new RpcClientRef<TClient>(defaultClient);
 				}
@@ -492,7 +492,7 @@ namespace Horde.Agent.Utility
 				for (int idx = 0; idx < tasks.Count; idx++)
 				{
 					Task task = tasks[idx];
-					if(task.IsCompleted)
+					if (task.IsCompleted)
 					{
 						await task;
 						tasks.RemoveAt(idx--);

@@ -1,13 +1,11 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-using EpicGames.Core;
-using EpicGames.Perforce;
-using Microsoft.Extensions.Logging;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
+using System.Runtime.InteropServices;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Encodings.Web;
@@ -15,7 +13,9 @@ using System.Text.Json;
 using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
-using System.Runtime.InteropServices;
+using EpicGames.Core;
+using EpicGames.Perforce;
+using Microsoft.Extensions.Logging;
 
 namespace UnrealGameSync
 {
@@ -57,7 +57,7 @@ namespace UnrealGameSync
 	public class PerforceSyncOptions
 	{
 		public const int DefaultNumRetries = 0;
-		public const int DefaultNumThreads = 2;
+		public const int DefaultNumThreads = 4;
 		public const int DefaultTcpBufferSize = 0;
 		public const int DefaultFileBufferSize = 0;
 
@@ -69,7 +69,7 @@ namespace UnrealGameSync
 
 		public int? MaxCommandsPerBatch { get; set; }
 		public int? MaxSizePerBatch { get; set; }
-		
+
 		public int? NumSyncErrorRetries { get; set; }
 
 		public PerforceSyncOptions Clone()
@@ -176,7 +176,7 @@ namespace UnrealGameSync
 
 		public static void ApplyDelta(Dictionary<Guid, bool> categories, Dictionary<Guid, bool> delta)
 		{
-			foreach(KeyValuePair<Guid, bool> pair in delta)
+			foreach (KeyValuePair<Guid, bool> pair in delta)
 			{
 				categories[pair.Key] = pair.Value;
 			}
@@ -207,7 +207,7 @@ namespace UnrealGameSync
 		public string ClientFileName => $"//{ClientName}{BranchPath}{ProjectPath}";
 		public string TelemetryProjectIdentifier => PerforceUtils.GetClientOrDepotDirectoryName(ProjectIdentifier);
 		public DirectoryReference EngineDir => DirectoryReference.Combine(LocalRootPath, "Engine");
-		public DirectoryReference? ProjectDir => ProjectPath.EndsWith(".uproject", StringComparison.OrdinalIgnoreCase)? LocalFileName.Directory : null;
+		public DirectoryReference? ProjectDir => ProjectPath.EndsWith(".uproject", StringComparison.OrdinalIgnoreCase) ? LocalFileName.Directory : null;
 		public DirectoryReference DataFolder => GetDataFolder(LocalRootPath);
 		public DirectoryReference CacheFolder => GetCacheFolder(LocalRootPath);
 
@@ -565,11 +565,11 @@ namespace UnrealGameSync
 			public void Dispose() => Release();
 		}
 
-		public static string ShellScriptExt { get; }= RuntimeInformation.IsOSPlatform(OSPlatform.Windows)? "bat" : "sh";
+		public static string ShellScriptExt { get; } = RuntimeInformation.IsOSPlatform(OSPlatform.Windows) ? "bat" : "sh";
 
 		public static Task<int> ExecuteShellCommandAsync(string commandLine, Action<string> processOutput, CancellationToken cancellationToken)
 		{
-			if(RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+			if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
 			{
 				string cmdExe = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.System), "cmd.exe");
 				return Utility.ExecuteProcessAsync(cmdExe, null, $"/C \"{commandLine}\"", processOutput, cancellationToken);
@@ -974,7 +974,7 @@ namespace UnrealGameSync
 									}
 								}
 							}
-							catch(EpicGames.Perforce.PerforceException)
+							catch (EpicGames.Perforce.PerforceException)
 							{
 								logger.LogInformation("Falling back to the slow way of finding last code change for CL {Number}...", Context.ChangeNumber);
 
@@ -1335,11 +1335,11 @@ namespace UnrealGameSync
 						logger.LogInformation("{Status}", step.StatusText);
 
 						DirectoryReference batchFilesDir = DirectoryReference.Combine(project.LocalRootPath, "Engine", "Build", "BatchFiles");
-						if(RuntimeInformation.IsOSPlatform(OSPlatform.OSX))
+						if (RuntimeInformation.IsOSPlatform(OSPlatform.OSX))
 						{
 							batchFilesDir = DirectoryReference.Combine(batchFilesDir, "Mac");
 						}
-						else if(RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
+						else if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
 						{
 							batchFilesDir = DirectoryReference.Combine(batchFilesDir, "Linux");
 						}
@@ -1727,7 +1727,7 @@ namespace UnrealGameSync
 				string statusMessage = "";
 
 				int maxRetries = context.PerforceSyncOptions?.NumSyncErrorRetries ?? PerforceSyncOptions.DefaultNumSyncErrorRetries;
-				for (int attempt = 0; ;attempt++)
+				for (int attempt = 0; ; attempt++)
 				{
 					// Sync the files
 					string? errorMessage;

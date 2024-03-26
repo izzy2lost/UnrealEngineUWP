@@ -65,7 +65,7 @@ namespace Horde.Server.Jobs.Artifacts
 		public async Task<ActionResult<CreateJobArtifactResponseV1>> CreateArtifactAsync([FromQuery] JobId jobId, [FromQuery] JobStepId? stepId, IFormFile file, CancellationToken cancellationToken)
 		{
 			IJob? job = await _jobService.GetJobAsync(jobId, cancellationToken);
-			if(job == null)
+			if (job == null)
 			{
 				return NotFound(jobId);
 			}
@@ -81,16 +81,16 @@ namespace Horde.Server.Jobs.Artifacts
 			}
 
 			IJobStep? step = null;
-			if(stepId != null)
+			if (stepId != null)
 			{
-				foreach(IJobStepBatch batch in job.Batches)
+				foreach (IJobStepBatch batch in job.Batches)
 				{
-					if(batch.TryGetStep(stepId.Value, out step))
+					if (batch.TryGetStep(stepId.Value, out step))
 					{
 						break;
 					}
 				}
-				if(step == null)
+				if (step == null)
 				{
 					// if the step doesn't exist in any of the batches, not found
 					return NotFound();
@@ -199,7 +199,7 @@ namespace Horde.Server.Jobs.Artifacts
 				return Forbid();
 			}
 
-			string? downloadCode = code? (string?)await GetDirectDownloadCodeForJobAsync(artifact.JobId, cancellationToken) : null;
+			string? downloadCode = code ? (string?)await GetDirectDownloadCodeForJobAsync(artifact.JobId, cancellationToken) : null;
 			return new GetJobArtifactResponseV1(artifact, downloadCode).ApplyFilter(filter);
 		}
 
@@ -215,8 +215,8 @@ namespace Horde.Server.Jobs.Artifacts
 		public async Task<ActionResult> GetArtifactDataAsync(string artifactId, CancellationToken cancellationToken)
 		{
 			// Catch case clients are sending an undefined artifact id
-			if (artifactId == "undefined") 
-			{ 
+			if (artifactId == "undefined")
+			{
 				return NotFound();
 			}
 
@@ -250,7 +250,7 @@ namespace Horde.Server.Jobs.Artifacts
 			{
 				return Forbid();
 			}
-			
+
 			IReadOnlyList<IArtifactV1> artifacts = await _artifactCollection.GetArtifactsAsync(jobId, stepId, filename, cancellationToken);
 			if (artifacts.Count == 0)
 			{

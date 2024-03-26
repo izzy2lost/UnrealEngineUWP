@@ -180,12 +180,12 @@ namespace Horde.Agent.Tests
 			{
 				return Wrap(_getStepFunc(request));
 			}
-		
+
 			if (GetStepResponses.TryGetValue(request, out GetStepResponse? res))
 			{
 				return Wrap(res);
 			}
-			
+
 			return Wrap(new GetStepResponse());
 		}
 

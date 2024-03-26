@@ -18,7 +18,7 @@ namespace Horde.Server.Artifacts
 		/// Identifier for the Artifact. Randomly generated.
 		/// </summary>
 		public ArtifactId Id { get; }
-		
+
 		/// <summary>
 		/// Name of the artifact
 		/// </summary>

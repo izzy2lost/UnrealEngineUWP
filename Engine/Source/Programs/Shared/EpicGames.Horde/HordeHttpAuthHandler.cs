@@ -306,13 +306,13 @@ namespace EpicGames.Horde
 				throw new Exception("No auth server configuration found");
 			}
 
-			const string OidcProvider = "Horde";
+			string oidcProvider = authConfig.ProfileName ?? "Horde";
 
 			Dictionary<string, string?> values = new Dictionary<string, string?>();
-			values[$"Providers:{OidcProvider}:DisplayName"] = "Horde";
-			values[$"Providers:{OidcProvider}:ServerUri"] = authConfig.ServerUrl;
-			values[$"Providers:{OidcProvider}:ClientId"] = authConfig.ClientId;
-			values[$"Providers:{OidcProvider}:RedirectUri"] = localRedirectUrl;
+			values[$"Providers:{oidcProvider}:DisplayName"] = "Horde";
+			values[$"Providers:{oidcProvider}:ServerUri"] = authConfig.ServerUrl;
+			values[$"Providers:{oidcProvider}:ClientId"] = authConfig.ClientId;
+			values[$"Providers:{oidcProvider}:RedirectUri"] = localRedirectUrl;
 
 			ConfigurationBuilder builder = new ConfigurationBuilder();
 			builder.AddInMemoryCollection(values);
@@ -320,14 +320,14 @@ namespace EpicGames.Horde
 			IConfiguration configuration = builder.Build();
 
 			using ITokenStore tokenStore = TokenStoreFactory.CreateTokenStore();
-			OidcTokenManager oidcTokenManager = OidcTokenManager.CreateTokenManager(configuration, tokenStore, new List<string>() { OidcProvider });
+			OidcTokenManager oidcTokenManager = OidcTokenManager.CreateTokenManager(configuration, tokenStore, new List<string>() { oidcProvider });
 
 			OidcTokenInfo? result = null;
-			if (oidcTokenManager.GetStatusForProvider(OidcProvider) != OidcStatus.NotLoggedIn)
+			if (oidcTokenManager.GetStatusForProvider(oidcProvider) != OidcStatus.NotLoggedIn)
 			{
 				try
 				{
-					result = await oidcTokenManager.TryGetAccessToken(OidcProvider, cancellationToken);
+					result = await oidcTokenManager.TryGetAccessToken(oidcProvider, cancellationToken);
 				}
 				catch (Exception ex)
 				{
@@ -337,7 +337,7 @@ namespace EpicGames.Horde
 			if (result == null && allowLogin)
 			{
 				_logger.LogInformation("Logging in to {Server}...", serverUrl);
-				result = await oidcTokenManager.Login(OidcProvider, cancellationToken);
+				result = await oidcTokenManager.Login(oidcProvider, cancellationToken);
 			}
 
 			return new AuthState(authConfig.Method, result);

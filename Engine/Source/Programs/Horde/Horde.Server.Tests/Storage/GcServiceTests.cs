@@ -3,13 +3,13 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Threading.Tasks;
-using Microsoft.VisualStudio.TestTools.UnitTesting;
-using EpicGames.Horde.Storage;
-using Horde.Server.Storage;
 using System.Threading;
+using System.Threading.Tasks;
+using EpicGames.Horde.Storage;
 using Horde.Server.Server;
+using Horde.Server.Storage;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.VisualStudio.TestTools.UnitTesting;
 
 namespace Horde.Server.Tests.Storage
 {

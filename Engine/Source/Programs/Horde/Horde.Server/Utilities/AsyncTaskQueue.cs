@@ -66,7 +66,7 @@ namespace Horde.Server.Utilities
 			{
 				await prevTask;
 			}
-			catch(Exception ex)
+			catch (Exception ex)
 			{
 				_logger.LogError(ex, "Unhandled exception while running task in AsyncTaskQueue: {Message}", ex.Message);
 			}

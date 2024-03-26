@@ -1,8 +1,8 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 using System;
-using System.IO.Compression;
 using System.IO;
+using System.IO.Compression;
 using EpicGames.Compression;
 using EpicGames.Core;
 using K4os.Compression.LZ4;

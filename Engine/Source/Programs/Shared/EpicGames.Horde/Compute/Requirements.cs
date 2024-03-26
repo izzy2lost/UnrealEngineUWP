@@ -1,9 +1,9 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-using EpicGames.Horde.Common;
-using EpicGames.Serialization;
 using System;
 using System.Collections.Generic;
+using EpicGames.Horde.Common;
+using EpicGames.Serialization;
 
 namespace EpicGames.Horde.Compute
 {

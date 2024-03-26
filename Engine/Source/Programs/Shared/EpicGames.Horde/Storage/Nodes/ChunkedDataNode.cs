@@ -61,7 +61,7 @@ namespace EpicGames.Horde.Storage.Nodes
 		/// <returns></returns>
 		public static async Task CopyToFileAsync(IBlobHandle handle, FileInfo file, CancellationToken cancellationToken)
 		{
-			if(file.Exists && (file.Attributes & FileAttributes.ReadOnly) != 0)
+			if (file.Exists && (file.Attributes & FileAttributes.ReadOnly) != 0)
 			{
 				file.Attributes &= ~FileAttributes.ReadOnly;
 			}
@@ -507,7 +507,7 @@ namespace EpicGames.Horde.Storage.Nodes
 		{
 			Span<byte> buffer = stackalloc byte[IoHash.NumBytes];
 
-			for (int index = 0; index < nodeRefs.Count; )
+			for (int index = 0; index < nodeRefs.Count;)
 			{
 				int minIndex = index;
 				int maxIndex = Math.Min(minIndex + options.MaxChildCount, nodeRefs.Count);

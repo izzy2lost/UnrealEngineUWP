@@ -32,7 +32,7 @@ namespace Horde.Server.Utilities
 				BinaryPrimitives.WriteInt32LittleEndian(decompressedSize.AsSpan(), memory.Length);
 				stream.Write(decompressedSize.AsSpan());
 
-				using (BZip2OutputStream compressedStream = new (stream, compressionLevel))
+				using (BZip2OutputStream compressedStream = new(stream, compressionLevel))
 				{
 					compressedStream.Write(memory.Span);
 				}

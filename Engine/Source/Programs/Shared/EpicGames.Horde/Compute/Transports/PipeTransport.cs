@@ -33,7 +33,7 @@ namespace EpicGames.Horde.Compute.Transports
 			_reader = reader;
 			_writer = writer;
 		}
-		
+
 		/// <inheritdoc/>
 		public override ValueTask DisposeAsync()
 		{

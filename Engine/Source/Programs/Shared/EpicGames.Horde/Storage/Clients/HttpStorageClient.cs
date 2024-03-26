@@ -1,8 +1,8 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-using Microsoft.Extensions.Logging;
 using EpicGames.Horde.Storage.Backends;
 using EpicGames.Horde.Storage.Bundles;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
 namespace EpicGames.Horde.Storage.Clients

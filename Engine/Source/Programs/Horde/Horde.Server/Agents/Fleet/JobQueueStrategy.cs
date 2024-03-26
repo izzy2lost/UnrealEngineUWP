@@ -5,7 +5,10 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Text.Json.Serialization;
+using System.Threading;
 using System.Threading.Tasks;
+using EpicGames.Horde.Agents.Pools;
+using EpicGames.Horde.Streams;
 using Horde.Server.Agents.Pools;
 using Horde.Server.Jobs;
 using Horde.Server.Jobs.Graphs;
@@ -16,9 +19,6 @@ using HordeCommon;
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Options;
 using OpenTelemetry.Trace;
-using EpicGames.Horde.Streams;
-using EpicGames.Horde.Agents.Pools;
-using System.Threading;
 
 namespace Horde.Server.Agents.Fleet
 {
@@ -32,8 +32,8 @@ namespace Horde.Server.Agents.Fleet
 		/// The result is always rounded up to nearest integer. 
 		/// Example: if there are 20 jobs in queue, a factor 0.25 will result in 5 new agents being added (20 * 0.25)
 		/// </summary>
-		public double ScaleOutFactor { get; set;  } = 0.25;
-		
+		public double ScaleOutFactor { get; set; } = 0.25;
+
 		/// <summary>
 		/// Factor by which to shrink the pool size with when queue is empty
 		/// The result is always rounded up to nearest integer.
@@ -61,7 +61,7 @@ namespace Horde.Server.Agents.Fleet
 		public JobQueueSettings()
 		{
 		}
-		
+
 		/// <summary>
 		/// Constructor
 		/// </summary>
@@ -72,11 +72,11 @@ namespace Horde.Server.Agents.Fleet
 			ScaleOutFactor = scaleOutFactor.GetValueOrDefault(ScaleOutFactor);
 			ScaleInFactor = scaleInFactor.GetValueOrDefault(ScaleInFactor);
 		}
-		
+
 		/// <inheritdoc />
 		public override string ToString()
 		{
-			StringBuilder sb = new (50);
+			StringBuilder sb = new(50);
 			sb.AppendFormat("{0}={1} ", nameof(ScaleOutFactor), ScaleOutFactor);
 			sb.AppendFormat("{0}={1} ", nameof(ScaleInFactor), ScaleInFactor);
 			sb.AppendFormat("{0}={1} ", nameof(SamplePeriodMin), SamplePeriodMin);
@@ -84,7 +84,7 @@ namespace Horde.Server.Agents.Fleet
 			return sb.ToString();
 		}
 	}
-	
+
 	/// <summary>
 	/// Calculate pool size by observing the number of jobs in waiting state
 	///
@@ -95,7 +95,7 @@ namespace Horde.Server.Agents.Fleet
 	{
 		private const string CacheKey = nameof(JobQueueStrategy);
 		internal JobQueueSettings Settings { get; }
-		
+
 		private readonly IJobCollection _jobs;
 		private readonly IGraphCollection _graphs;
 		private readonly IStreamCollection _streamCollection;
@@ -148,7 +148,7 @@ namespace Horde.Server.Agents.Fleet
 				{
 					continue;
 				}
-				
+
 				TimeSpan? waitTime = _clock.UtcNow - batch.ReadyTimeUtc;
 				if (waitTime == null)
 				{
@@ -169,7 +169,7 @@ namespace Horde.Server.Agents.Fleet
 				{
 					continue;
 				}
-				
+
 				jobBatches.Add((job, batch, agentType.Pool));
 			}
 
@@ -201,7 +201,7 @@ namespace Horde.Server.Agents.Fleet
 				// As an optimization, assume queue size is zero during maintenance windows.
 				return poolsWithQueueSize.ToDictionary(x => x.PoolId, x => 0);
 			}
-			
+
 			return poolsWithQueueSize.ToDictionary(x => x.PoolId, x => x.QueueSize);
 		}
 
@@ -212,7 +212,7 @@ namespace Horde.Server.Agents.Fleet
 			span.SetAttribute(OpenTelemetryTracers.DatadogResourceAttribute, pool.Id.ToString());
 			span.SetAttribute("currentAgentCount", agents.Count);
 			span.SetAttribute("samplePeriodMin", Settings.SamplePeriodMin);
-			
+
 			DateTimeOffset minCreateTime = _clock.UtcNow - TimeSpan.FromMinutes(Settings.SamplePeriodMin);
 
 			// Cache pool queue sizes for a short while for faster runs when many pools are scaled
@@ -224,7 +224,7 @@ namespace Horde.Server.Agents.Fleet
 			}
 
 			poolQueueSizes.TryGetValue(pool.Id, out int queueSize);
-			
+
 			Dictionary<string, object> status = new()
 			{
 				["Name"] = GetType().Name,
@@ -234,7 +234,7 @@ namespace Horde.Server.Agents.Fleet
 				["SamplePeriodMin"] = Settings.SamplePeriodMin,
 				["ReadyTimeThresholdSec"] = Settings.ReadyTimeThresholdSec,
 			};
-			
+
 			if (queueSize > 0)
 			{
 				int additionalAgentCount = (int)Math.Ceiling(queueSize * Settings.ScaleOutFactor);

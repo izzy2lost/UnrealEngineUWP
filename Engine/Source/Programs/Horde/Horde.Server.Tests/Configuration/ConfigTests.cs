@@ -2,16 +2,16 @@
 
 using System;
 using System.Collections.Generic;
-using System.Text.Json;
-using System.Threading;
-using Horde.Server.Configuration;
-using Microsoft.VisualStudio.TestTools.UnitTesting;
-using System.Threading.Tasks;
 using System.Linq;
 using System.Net;
+using System.Text.Json;
+using System.Threading;
+using System.Threading.Tasks;
 using EpicGames.Core;
-using Microsoft.Extensions.Logging.Abstractions;
+using Horde.Server.Configuration;
 using Horde.Server.Server;
+using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.VisualStudio.TestTools.UnitTesting;
 
 namespace Horde.Server.Tests.Configuration
 {
@@ -122,13 +122,12 @@ namespace Horde.Server.Tests.Configuration
 			Assert.IsTrue(!ReferenceEquals(file1, file3));
 		}
 
-		
 		private static NetworkConfig? GetNetworkConfig(GlobalConfig gc, string ip)
 		{
 			bool result = gc.TryGetNetworkConfig(IPAddress.Parse(ip), out NetworkConfig? networkConfig);
 			return result ? networkConfig : null;
 		}
-		
+
 		[TestMethod]
 		public void NetworkConfig()
 		{
@@ -146,25 +145,25 @@ namespace Horde.Server.Tests.Configuration
 			Assert.AreEqual("foo", GetNetworkConfig(gc, "10.0.0.1")!.Id);
 			Assert.AreEqual("foo", GetNetworkConfig(gc, "10.0.0.2")!.Id);
 			Assert.AreEqual("foo", GetNetworkConfig(gc, "10.0.0.3")!.Id);
-			
+
 			Assert.AreEqual(null, GetNetworkConfig(gc, "10.0.0.4"));
 			Assert.AreEqual("bar", GetNetworkConfig(gc, "10.0.0.5")!.Id);
 			Assert.AreEqual("bar", GetNetworkConfig(gc, "10.0.0.6")!.Id);
 			Assert.AreEqual("bar", GetNetworkConfig(gc, "10.0.0.7")!.Id);
 			Assert.AreEqual(null, GetNetworkConfig(gc, "10.0.0.4"));
-			
+
 			Assert.AreEqual(null, GetNetworkConfig(gc, "192.168.0.0"));
 			Assert.AreEqual("baz", GetNetworkConfig(gc, "192.168.0.1")!.Id);
 			Assert.AreEqual("baz", GetNetworkConfig(gc, "192.168.255.254")!.Id);
 			Assert.AreEqual(null, GetNetworkConfig(gc, "192.169.0.1"));
-			
-			Assert.AreEqual(null, GetNetworkConfig(gc,"11.0.0.1"));
-			
+
+			Assert.AreEqual(null, GetNetworkConfig(gc, "11.0.0.1"));
+
 			gc = new()
 			{
 				Networks = new List<NetworkConfig>() { new() { CidrBlock = "0.0.0.0/0", Id = "global" } }
 			};
-			Assert.AreEqual("global", GetNetworkConfig(gc,"15.3.4.5")!.Id);
+			Assert.AreEqual("global", GetNetworkConfig(gc, "15.3.4.5")!.Id);
 		}
 
 		class ObjectValue

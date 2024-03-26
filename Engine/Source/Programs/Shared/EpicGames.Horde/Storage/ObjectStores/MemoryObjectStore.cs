@@ -21,7 +21,7 @@ namespace EpicGames.Horde.Storage.ObjectStores
 		/// <summary>
 		/// Read only access to the stored blobs
 		/// </summary>
-		public IReadOnlyDictionary<ObjectKey, byte[]> Blobs => _keyToData; 
+		public IReadOnlyDictionary<ObjectKey, byte[]> Blobs => _keyToData;
 
 		/// <inheritdoc/>
 		public bool SupportsRedirects => false;

@@ -1,12 +1,12 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 using System;
-using System.Threading.Tasks;
-using Microsoft.VisualStudio.TestTools.UnitTesting;
 using System.Threading;
+using System.Threading.Tasks;
 using Horde.Server.Agents;
 using Horde.Server.Agents.Pools;
 using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.VisualStudio.TestTools.UnitTesting;
 
 namespace Horde.Server.Tests.Agents.Pools
 {
@@ -18,11 +18,11 @@ namespace Horde.Server.Tests.Agents.Pools
 		private IAgent _enabledAgent = default!;
 		private IAgent _disabledAgent = default!;
 		private IAgent _disabledAgentBeyondGracePeriod = default!;
-		
+
 		public PoolUpdateServiceTest()
 		{
 			UpdateConfig(x => x.Pools.Clear());
-			_pus = new (AgentCollection, PoolCollection, Clock, GlobalConfig, Tracer, new NullLogger<PoolUpdateService>());
+			_pus = new(AgentCollection, PoolCollection, Clock, GlobalConfig, Tracer, new NullLogger<PoolUpdateService>());
 		}
 
 		[TestInitialize]
@@ -55,13 +55,13 @@ namespace Horde.Server.Tests.Agents.Pools
 			// Act
 			await _pus.ShutdownDisabledAgentsAsync(CancellationToken.None);
 			await RefreshAgentsAsync();
-			
+
 			// Assert
 			Assert.IsFalse(_enabledAgent.RequestShutdown);
 			Assert.IsFalse(_disabledAgent.RequestShutdown);
 			Assert.IsTrue(_disabledAgentBeyondGracePeriod.RequestShutdown);
 		}
-		
+
 		[TestMethod]
 		public async Task ShutdownDisabledAgents_WithPerPoolGracePeriod_DoesNotRequestShutdownAsync()
 		{
@@ -72,13 +72,13 @@ namespace Horde.Server.Tests.Agents.Pools
 			// Act
 			await _pus.ShutdownDisabledAgentsAsync(CancellationToken.None);
 			await RefreshAgentsAsync();
-			
+
 			// Assert
 			Assert.IsFalse(_enabledAgent.RequestShutdown);
 			Assert.IsFalse(_disabledAgent.RequestShutdown);
 			Assert.IsFalse(_disabledAgentBeyondGracePeriod.RequestShutdown);
 		}
-		
+
 		[TestMethod]
 		public async Task ShutdownDisabledAgents_WithAutoScalingOff_DoesNotRequestShutdownAsync()
 		{
@@ -88,7 +88,7 @@ namespace Horde.Server.Tests.Agents.Pools
 			// Act
 			await _pus.ShutdownDisabledAgentsAsync(CancellationToken.None);
 			await RefreshAgentsAsync();
-			
+
 			// Assert
 			Assert.IsFalse(_enabledAgent.RequestShutdown);
 			Assert.IsFalse(_disabledAgent.RequestShutdown);

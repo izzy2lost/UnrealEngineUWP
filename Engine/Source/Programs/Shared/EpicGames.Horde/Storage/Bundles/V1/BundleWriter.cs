@@ -533,7 +533,7 @@ namespace EpicGames.Horde.Storage.Bundles.V1
 									throw new InvalidOperationException($"Node {import.GetLocator()} is not a bundle node");
 								}
 							}
-							
+
 							int importIdx = FindOrAddItemIndex(flushedHandle.BundleLocator, imports, importToIndex);
 							exportRef = new BundleExportRef(importIdx, flushedHandle.ExportIdx);
 						}
@@ -549,7 +549,7 @@ namespace EpicGames.Horde.Storage.Bundles.V1
 				foreach (ReadOnlyMemory<byte> segment in _encodedPacketWriter.AsSequence())
 				{
 					int offset = 0;
-					while(packetData.Count < _packets.Count)
+					while (packetData.Count < _packets.Count)
 					{
 						BundlePacket packet = _packets[packetData.Count];
 						int next = offset + packet.EncodedLength;
@@ -634,7 +634,7 @@ namespace EpicGames.Horde.Storage.Bundles.V1
 					{
 						await completeTask;
 					}
-					else if(Interlocked.CompareExchange(ref _memoryFootprint, newMemoryFootprint, memoryFootprint) == memoryFootprint)
+					else if (Interlocked.CompareExchange(ref _memoryFootprint, newMemoryFootprint, memoryFootprint) == memoryFootprint)
 					{
 						break;
 					}

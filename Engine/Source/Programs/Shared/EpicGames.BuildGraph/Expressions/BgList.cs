@@ -243,7 +243,7 @@ namespace EpicGames.BuildGraph.Expressions
 
 			return new BgListConstantExpr<T>(items);
 		}
-//		=> new BgListConstantExpr<T>(((IEnumerable<object>)value).Select(x => BgType.Constant<T>(x)).ToList());
+		//		=> new BgListConstantExpr<T>(((IEnumerable<object>)value).Select(x => BgType.Constant<T>(x)).ToList());
 
 		/// <inheritdoc/>
 		public override BgList<T> Wrap(BgExpr expr) => new BgListWrappedExpr<T>(expr);

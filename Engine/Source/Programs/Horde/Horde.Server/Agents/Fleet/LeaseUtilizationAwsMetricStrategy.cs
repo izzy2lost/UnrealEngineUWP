@@ -33,7 +33,7 @@ public class LeaseUtilizationAwsMetricSettings
 	/// AWS CloudWatch namespace to write metrics in
 	/// </summary>
 	public string CloudWatchNamespace { get; set; } = "Horde";
-	
+
 	/// <summary>
 	/// Constructor used for JSON serialization
 	/// </summary>
@@ -41,7 +41,7 @@ public class LeaseUtilizationAwsMetricSettings
 	public LeaseUtilizationAwsMetricSettings()
 	{
 	}
-	
+
 	/// <summary>
 	/// Constructor
 	/// </summary>
@@ -61,7 +61,7 @@ public class LeaseUtilizationAwsMetricSettings
 public class LeaseUtilizationAwsMetricStrategy : IPoolSizeStrategy
 {
 	internal LeaseUtilizationAwsMetricSettings Settings { get; }
-	
+
 	private readonly ILeaseCollection _leaseCollection;
 	private readonly IAmazonCloudWatch _cloudWatch;
 	private readonly IClock _clock;
@@ -105,7 +105,7 @@ public class LeaseUtilizationAwsMetricStrategy : IPoolSizeStrategy
 		leaseUtilization = Double.IsNaN(leaseUtilization) ? 0.0 : leaseUtilization;
 		leaseUtilization = Math.Min(leaseUtilization, 1.0); // Clamp as agents cannot be more utilized than 100%
 		leaseUtilization *= 100.0; // Normalize value to 0-100
-		
+
 		span.SetAttribute("cloudWatchNs", Settings.CloudWatchNamespace);
 		span.SetAttribute("samplePeriodSec", Settings.SamplePeriodSec);
 		span.SetAttribute("agentCount", agents.Count);
@@ -124,7 +124,7 @@ public class LeaseUtilizationAwsMetricStrategy : IPoolSizeStrategy
 				TimestampUtc = now
 			}
 		};
-		
+
 		PutMetricDataRequest request = new() { Namespace = Settings.CloudWatchNamespace, MetricData = metricDatums };
 		PutMetricDataResponse response = await _cloudWatch.PutMetricDataAsync(request, cancellationToken);
 

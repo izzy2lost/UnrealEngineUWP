@@ -25,15 +25,15 @@ public class FakeAwsImds
 	public const string SpotInstanceData = "{\"action\": \"terminate\", \"time\": \"2017-09-18T08:22:00Z\"}";
 	public const string OnDemand = "on-demand";
 	public const string Spot = "spot";
-	
+
 	private readonly Mock<HttpMessageHandler> _mock;
 	public string InstanceLifeCycle { get; set; } = OnDemand;
 	public string? TargetLifecycleState { get; set; }
 	public string? SpotInstanceAction { get; set; }
-	
+
 	public FakeAwsImds()
 	{
-		_mock = new (MockBehavior.Strict);
+		_mock = new(MockBehavior.Strict);
 		_mock
 			.Protected()
 			.Setup<Task<HttpResponseMessage>>(
@@ -42,14 +42,14 @@ public class FakeAwsImds
 				ItExpr.IsAny<CancellationToken>()
 			)
 			.Returns(SendAsync);
-		
+
 		// Ignore Dispose() calls
 		_mock.Protected().Setup("Dispose", ItExpr.IsAny<bool>());
 	}
 
 	public HttpClient GetHttpClient()
 	{
-		return new (_mock.Object);
+		return new(_mock.Object);
 	}
 
 	private Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
@@ -63,10 +63,10 @@ public class FakeAwsImds
 			default: return Task.FromResult(CreateResponse(HttpStatusCode.InternalServerError, "Invalid state"));
 		}
 	}
-	
+
 	private static HttpResponseMessage CreateResponse(HttpStatusCode status, string? data)
 	{
-		return data != null 
+		return data != null
 			? new HttpResponseMessage { StatusCode = status, Content = new StringContent(data) }
 			: new HttpResponseMessage { StatusCode = HttpStatusCode.NotFound, Content = new StringContent("Not found") };
 	}
@@ -77,11 +77,11 @@ public sealed class AwsInstanceLifecycleServiceTests : IAsyncDisposable, IDispos
 {
 	private readonly StatusService _statusService;
 	private readonly HttpClient _httpClient;
-	private readonly FakeAwsImds _fakeImds = new ();
+	private readonly FakeAwsImds _fakeImds = new();
 	private readonly AwsInstanceLifecycleService _service;
 	private readonly FileReference _terminationSignalFile;
 	private Ec2TerminationInfo? _info;
-	
+
 	public AwsInstanceLifecycleServiceTests()
 	{
 		using ILoggerFactory loggerFactory = LoggerFactory.Create(builder =>
@@ -89,12 +89,12 @@ public sealed class AwsInstanceLifecycleServiceTests : IAsyncDisposable, IDispos
 			builder.SetMinimumLevel(LogLevel.Debug);
 			builder.AddSimpleConsole(options => { options.SingleLine = true; });
 		});
-		
+
 		DirectoryInfo tempDir = Directory.CreateDirectory(Path.Combine(Path.GetTempPath(), "horde-agent-test-" + Path.GetRandomFileName()));
-		AgentSettings settings = new () { WorkingDir = new DirectoryReference(tempDir) };
+		AgentSettings settings = new() { WorkingDir = new DirectoryReference(tempDir) };
 		_terminationSignalFile = settings.GetTerminationSignalFile();
 
-		_statusService  = new(new TestOptionsMonitor<AgentSettings>(settings), loggerFactory.CreateLogger<StatusService>());
+		_statusService = new(new TestOptionsMonitor<AgentSettings>(settings), loggerFactory.CreateLogger<StatusService>());
 		_httpClient = _fakeImds.GetHttpClient();
 		_service = new AwsInstanceLifecycleService(_statusService, _httpClient, new OptionsWrapper<AgentSettings>(settings), loggerFactory.CreateLogger<AwsInstanceLifecycleService>());
 		_service._timeToLiveAsg = TimeSpan.FromMilliseconds(10);
@@ -105,7 +105,7 @@ public sealed class AwsInstanceLifecycleServiceTests : IAsyncDisposable, IDispos
 		_service._terminationWarningCallback = (info, ct) =>
 		{
 			_info = info;
-			Ec2TerminationInfo newInfo = new (_info.State, _info.IsSpot, _info.TimeToLive, DateTime.UnixEpoch + TimeSpan.FromSeconds(2222), _info.Reason);
+			Ec2TerminationInfo newInfo = new(_info.State, _info.IsSpot, _info.TimeToLive, DateTime.UnixEpoch + TimeSpan.FromSeconds(2222), _info.Reason);
 			return origWarningCallback(newInfo, ct);
 		};
 		_service._terminationCallback = (info, _) =>
@@ -125,7 +125,7 @@ public sealed class AwsInstanceLifecycleServiceTests : IAsyncDisposable, IDispos
 		Assert.IsFalse(_info!.IsSpot);
 		Assert.AreEqual(8, _info!.TimeToLive.TotalMilliseconds); // 10 ms for ASG, minus 2 ms for termination buffer
 	}
-	
+
 	[TestMethod]
 	[Timeout(5000)]
 	public async Task Terminate_Spot_CallbackHasCorrectParametersAsync()
@@ -137,7 +137,7 @@ public sealed class AwsInstanceLifecycleServiceTests : IAsyncDisposable, IDispos
 		Assert.IsTrue(_info!.IsSpot);
 		Assert.AreEqual(18, _info!.TimeToLive.TotalMilliseconds); // 20 ms for spot, minus 2 ms for termination buffer
 	}
-	
+
 	[TestMethod]
 	[Timeout(5000)]
 	public async Task Terminate_Spot_WritesSignalFileAsync()
@@ -145,13 +145,13 @@ public sealed class AwsInstanceLifecycleServiceTests : IAsyncDisposable, IDispos
 		_fakeImds.SpotInstanceAction = FakeAwsImds.SpotInstanceData;
 		_fakeImds.InstanceLifeCycle = FakeAwsImds.Spot;
 		Assert.IsFalse(File.Exists(_terminationSignalFile.FullName));
-		
+
 		await _service.MonitorInstanceLifecycleAsync(CancellationToken.None);
 
 		string data = await File.ReadAllTextAsync(_terminationSignalFile.FullName);
 		Assert.AreEqual("v1\n18\n2222000\nAWS EC2 Spot interruption\n", data); // 20 ms for spot, minus 2 ms for termination buffer
 	}
-	
+
 	public void Dispose()
 	{
 		_httpClient.Dispose();

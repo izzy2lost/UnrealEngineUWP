@@ -1,13 +1,13 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-using EpicGames.Core;
-using EpicGames.Perforce;
-using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Logging;
 using System;
 using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
+using EpicGames.Core;
+using EpicGames.Perforce;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 
 namespace UnrealGameSync
 {
@@ -142,7 +142,7 @@ namespace UnrealGameSync
 				_prevUpdateTask = _prevUpdateTask.ContinueWith(task => prevCancellationSourceCopy.Dispose(), TaskScheduler.Default);
 				_prevCancellationSource = null;
 			}
-			if(_currentUpdate != null)
+			if (_currentUpdate != null)
 			{
 				CompleteUpdate(_currentUpdate, WorkspaceUpdateResult.Canceled, "Cancelled");
 			}

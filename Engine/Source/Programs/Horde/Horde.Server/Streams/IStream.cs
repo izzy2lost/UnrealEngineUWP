@@ -55,7 +55,7 @@ namespace Horde.Server.Streams
 		/// Stream is paused for builds until specified time
 		/// </summary>
 		DateTime? PausedUntil { get; }
-		
+
 		/// <summary>
 		/// Comment/reason for why the stream was paused
 		/// </summary>

@@ -4,19 +4,19 @@ using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
 using EpicGames.Core;
-using Horde.Server.Agents.Pools;
-using Horde.Server.Agents.Fleet;
-using Horde.Server.Projects;
-using Horde.Server.Streams;
-using Horde.Server.Jobs;
-using Horde.Server.Jobs.Graphs;
-using Horde.Server.Server;
-using Microsoft.VisualStudio.TestTools.UnitTesting;
-using Horde.Server.Agents;
+using EpicGames.Horde.Agents.Pools;
 using EpicGames.Horde.Jobs.Templates;
 using EpicGames.Horde.Projects;
 using EpicGames.Horde.Streams;
-using EpicGames.Horde.Agents.Pools;
+using Horde.Server.Agents;
+using Horde.Server.Agents.Fleet;
+using Horde.Server.Agents.Pools;
+using Horde.Server.Jobs;
+using Horde.Server.Jobs.Graphs;
+using Horde.Server.Projects;
+using Horde.Server.Server;
+using Horde.Server.Streams;
+using Microsoft.VisualStudio.TestTools.UnitTesting;
 
 namespace Horde.Server.Tests.Fleet
 {
@@ -33,7 +33,7 @@ namespace Horde.Server.Tests.Fleet
 			Assert.AreEqual(1, poolQueueSizes.Count);
 			Assert.AreEqual(5, poolQueueSizes[pool.Id]);
 		}
-		
+
 		[TestMethod]
 		[Ignore("Flaky test when run through CI / Horde")]
 		public async Task DowntimeActiveAsync()
@@ -44,49 +44,49 @@ namespace Horde.Server.Tests.Fleet
 			Assert.AreEqual(1, poolQueueSizes.Count);
 			Assert.AreEqual(0, poolQueueSizes[pool.Id]);
 		}
-		
+
 		[TestMethod]
 		public async Task EmptyJobQueueAsync()
 		{
 			await AssertAgentCountAsync(0, -1, false);
 		}
-		
+
 		[TestMethod]
 		public async Task EmptyJobQueueWithLargePoolAsync()
 		{
 			await AssertAgentCountAsync(0, -2, false, 20);
 		}
-		
+
 		[TestMethod]
 		public async Task NoAgentsInPoolAsync()
 		{
 			await AssertAgentCountAsync(1, 1, true, 0);
 		}
-		
+
 		[TestMethod]
 		public async Task BatchesNotWaitingLongEnoughAsync()
 		{
 			await AssertAgentCountAsync(3, -1, false);
 		}
-		
+
 		[TestMethod]
 		public async Task NumQueuedJobs1Async()
 		{
 			await AssertAgentCountAsync(1, 1, true);
 		}
-		
+
 		[TestMethod]
 		public async Task NumQueuedJobs3Async()
 		{
 			await AssertAgentCountAsync(3, 1, true);
 		}
-		
+
 		[TestMethod]
 		public async Task NumQueuedJobs6Async()
 		{
 			await AssertAgentCountAsync(6, 2);
 		}
-		
+
 		[TestMethod]
 		public async Task NumQueuedJobs25Async()
 		{
@@ -99,7 +99,7 @@ namespace Horde.Server.Tests.Fleet
 			TimeSpan timeToWait = waitedBeyondThreshold
 				? TimeSpan.FromSeconds(strategy.Settings.ReadyTimeThresholdSec) + TimeSpan.FromSeconds(5)
 				: TimeSpan.FromSeconds(15);
-			
+
 			await Clock.AdvanceAsync(timeToWait);
 
 			PoolSizeResult result = await strategy.CalculatePoolSizeAsync(pool, agents);
@@ -107,7 +107,7 @@ namespace Horde.Server.Tests.Fleet
 		}
 
 		private static int s_uniqueId = 0;
-		
+
 		/// <summary>
 		/// Set up a fixture for job queue tests, ensuring a certain number of job batches are in running or waiting state
 		/// </summary>
@@ -125,11 +125,11 @@ namespace Horde.Server.Tests.Fleet
 			{
 				agents.Add(await CreateAgentAsync(pool));
 			}
-			
-			PoolSizeResult poolSize = new (agents.Count, agents.Count, null);
-			
+
+			PoolSizeResult poolSize = new(agents.Count, agents.Count, null);
+
 			string agentTypeName1 = "bogusAgentType" + ++s_uniqueId;
-			Dictionary<string, AgentConfig> agentTypes = new() { {agentTypeName1, new() { Pool = pool.Id } }, };
+			Dictionary<string, AgentConfig> agentTypes = new() { { agentTypeName1, new() { Pool = pool.Id } }, };
 
 			StreamConfig streamConfig = new StreamConfig { Id = new StreamId("ue5"), Name = "//UE5/Main", AgentTypes = agentTypes };
 
@@ -153,16 +153,16 @@ namespace Horde.Server.Tests.Fleet
 				IJob job = await AddPlaceholderJobAsync(graph, streamConfig.Id, nodeForAgentType1);
 				await JobCollection.TryUpdateBatchAsync(job, graph, job.Batches[0].Id, null, JobStepBatchState.Running, null);
 			}
-			
+
 			for (int i = 0; i < numBatchesReady; i++)
 			{
 				IJob job = await AddPlaceholderJobAsync(graph, streamConfig.Id, nodeForAgentType1);
 				await JobCollection.TryUpdateBatchAsync(job, graph, job.Batches[0].Id, null, JobStepBatchState.Ready, null);
 			}
 
-			return (new (JobCollection, GraphCollection, StreamCollection, Clock, Cache, isDowntimeActive, GlobalConfig), poolSize, pool, agents);
+			return (new(JobCollection, GraphCollection, StreamCollection, Clock, Cache, isDowntimeActive, GlobalConfig), poolSize, pool, agents);
 		}
-		
+
 		private async Task<IJob> AddPlaceholderJobAsync(IGraph graph, StreamId streamId, string nodeNameToExecute)
 		{
 			CreateJobOptions options = new CreateJobOptions();

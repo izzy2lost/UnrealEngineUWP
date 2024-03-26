@@ -5,22 +5,22 @@ using System.Collections.Generic;
 using System.Net.Http;
 using System.Threading.Tasks;
 using Amazon.CloudWatch;
+using Horde.Server.Agents;
+using Horde.Server.Configuration;
 using Horde.Server.Jobs;
-using Horde.Server.Server;
+using Horde.Server.Jobs.Artifacts;
+using Horde.Server.Jobs.Graphs;
+using Horde.Server.Jobs.Templates;
 using Horde.Server.Perforce;
+using Horde.Server.Server;
 using Horde.Server.Tests.Stubs.Services;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.AspNetCore.TestHost;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
-using Horde.Server.Agents;
-using Horde.Server.Jobs.Templates;
-using Horde.Server.Configuration;
-using Horde.Server.Jobs.Graphs;
-using Horde.Server.Jobs.Artifacts;
-using Moq;
 using Microsoft.Extensions.Options;
+using Moq;
 using Serilog;
 
 namespace Horde.Server.Tests;
@@ -44,7 +44,7 @@ public class TestWebApplicationFactory<TStartup> : WebApplicationFactory<TStartu
 		_mongoInstance = mongoInstance;
 		_redisInstance = redisInstance;
 		_extraSettings = extraSettings ?? new Dictionary<string, string>();
-		
+
 		Environment.SetEnvironmentVariable("ASPNETCORE_ENVIRONMENT", "Testing");
 		Serilog.Log.Logger = new LoggerConfiguration()
 			.Enrich.FromLogContext()
@@ -74,7 +74,7 @@ public class TestWebApplicationFactory<TStartup> : WebApplicationFactory<TStartu
 			dict[key] = value;
 		}
 
-		Mock<IAmazonCloudWatch> cloudWatchMock = new (MockBehavior.Strict);
+		Mock<IAmazonCloudWatch> cloudWatchMock = new(MockBehavior.Strict);
 		builder.ConfigureAppConfiguration((hostingContext, config) => { config.AddInMemoryCollection(dict); });
 		builder.ConfigureTestServices(collection =>
 		{
@@ -100,7 +100,7 @@ public class FakeHordeWebApp : IAsyncDisposable
 		WebApplicationFactoryClientOptions opts = new() { AllowAutoRedirect = allowAutoRedirect };
 		HttpClient = Factory.CreateClient(opts);
 	}
-	
+
 	public async ValueTask DisposeAsync()
 	{
 		try
@@ -125,7 +125,7 @@ public class ControllerIntegrationTest : IAsyncDisposable
 	protected IServiceProvider ServiceProvider => _app.ServiceProvider;
 	private readonly Lazy<Task<Fixture>> _fixture;
 	private readonly FakeHordeWebApp _app;
-	
+
 	public ControllerIntegrationTest()
 	{
 		_app = new FakeHordeWebApp();

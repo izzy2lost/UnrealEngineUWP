@@ -112,7 +112,7 @@ namespace Horde.Server.Notifications
 			{
 				StringBuilder result = new StringBuilder();
 				result.Append(CultureInfo.InvariantCulture, $"stream={StreamId}, template={TemplateId}");
-				if(CategoryName != null)
+				if (CategoryName != null)
 				{
 					result.Append(CultureInfo.InvariantCulture, $", category={CategoryName}");
 				}
