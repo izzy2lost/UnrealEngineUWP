@@ -16,6 +16,14 @@ class UAssetImportData;
 class FMidiFileProxy;
 using FMidiFileProxyPtr = TSharedPtr<FMidiFileProxy, ESPMode::ThreadSafe>;
 
+//midi file length conform options,rounding file length to a whole bar up or down 
+enum class EMidiFileLengthConformOption : uint8
+{
+	RoundDown,
+	RoundUp,
+	Nearest
+};
+
 USTRUCT(BlueprintType, Meta = (DisplayName = "MIDI File Data"))
 struct HARMONIXMIDI_API FMidiFileData
 {
@@ -23,6 +31,7 @@ struct HARMONIXMIDI_API FMidiFileData
 
 	FMidiFileData()
 		: TicksPerQuarterNote(Harmonix::Midi::Constants::GTicksPerQuarterNoteInt)
+		, LastEventTick(0)
 	{}
 
 	bool operator==(const FMidiFileData& Other) const;
@@ -34,6 +43,7 @@ struct HARMONIXMIDI_API FMidiFileData
 		SongMaps.EmptyAllMaps();
 		Tracks.Empty();
 		Tracks.Emplace("Conductor");
+		LastEventTick = 0;
 	}
 
 	bool IsEmpty() const 
@@ -41,7 +51,8 @@ struct HARMONIXMIDI_API FMidiFileData
 		return MidiFileName.IsEmpty() &&
 			TicksPerQuarterNote == Harmonix::Midi::Constants::GTicksPerQuarterNoteInt &&
 			SongMaps.IsEmpty() &&
-			(Tracks.IsEmpty() || (Tracks.Num() == 1 && Tracks[0].GetNumEvents() == 1 && Tracks[0].GetName()->Compare("Conductor", ESearchCase::IgnoreCase) == 0));
+			(Tracks.IsEmpty() || (Tracks.Num() == 1 && Tracks[0].GetNumEvents() == 1 && Tracks[0].GetName()->Compare("Conductor", ESearchCase::IgnoreCase) == 0)) &&
+			LastEventTick == 0;
 	}
 
 	UPROPERTY(BlueprintReadOnly, Category = "MidiFile")
@@ -52,15 +63,12 @@ struct HARMONIXMIDI_API FMidiFileData
 	FSongMaps SongMaps;
 	UPROPERTY(BlueprintReadOnly, Category = "MidiFile")
 	TArray<FMidiTrack> Tracks;
-
-	int32 GetLastEventTick() const;
+	UPROPERTY(BlueprintReadOnly, Category = "MidiFile")
+	int32 LastEventTick;
 
 	int32 FindTrackIndexByName(const FString& TrackName);
 	
 	void PostSerialize(const FArchive& Ar);
-
-	bool ConformToLength(int32 NewLengthTicks);
-	bool ConformToLengthGivenLastEventTick(int32 NewLastEventTick);
 
 	/**
 	* Adds a tempo change to the midi data at the given tick for the given track idx
@@ -78,10 +86,6 @@ struct HARMONIXMIDI_API FMidiFileData
 	* asserts valid TrackIdx
 	*/
 	void AddTimeSigChange(int32 TrackIdx, int32 Tick, int32 TimeSigNum, int32 TimeSigDenom);
-
-	void ScanTracksForSongLengthChange();
-
-	bool LengthIsAPerfectSubdivision() const;
 };
 
 template<>
@@ -175,9 +179,9 @@ public:
 	 * This function must be called if any changes are made to any of the tracks of this midi file. It will 
 	 * do various internal tasks necessary to assure the midi data is consistent and "playable".
 	 */
-	void ScanTracksForSongLengthChange();
+	void TracksChanged();
 
-	int32  GetLastEventTick() const { return TheMidiData.GetLastEventTick(); }
+	int32  GetLastEventTick() const { return TheMidiData.LastEventTick; }
 
 #if WITH_EDITORONLY_DATA
 	// Import data for this MidiFileAsset
@@ -196,22 +200,37 @@ public:
 
 	int32 GetStartBar() { return TheMidiData.SongMaps.GetBarMap().GetStartBar(); };
 
-	// This does a quick and dirty to check to see if the length of the midi is 
-	// on a musical subdivision. It is used primarily during asset importing, and
-	// if it returns true the importer will do further checking to see how far off
-	// it is, and suggest either conforming the length via QuantizeLengthToNearestPerfectSubdivision
-	// (for "off-by-one" type small errors) or QuantizeLengthToSubdivision (when the
-	// error is large and the user should choose a specific subdivision and direction
-	// for conforming the file.
-	bool LengthIsAPerfectSubdivision() const;
+	//Midi File Conform Option, keep track if the files' length are conformed during import
+	UPROPERTY(BlueprintReadOnly, Category = "MidiFile")
+	bool bLengthRoundedDown = false;
 
-	void QuantizeLengthToNearestPerfectSubdivision(const EMidiFileQuantizeDirection Direction);
+	UPROPERTY(BlueprintReadOnly, Category = "MidiFile")
+	bool bLengthRoundedUp = false;
 
-	void QuantizeLengthToSubdivision(const EMidiFileQuantizeDirection Direction, const EMidiClockSubdivisionQuantization Subdivision);
+	UPROPERTY(BlueprintReadOnly, Category = "MidiFile")
+	bool bLengthRoundedToNearest = false;
 
-	bool ConformToLength(int32 NewLengthTicks);
+	/**
+	* Takes a file conform option (currently the last integer bar or the last integer beat),determine whether or not 
+	* the file needs to be conformed/are already conformed.
+	* @param A midi file conform option (last bar or last beat)
+	* @return A bool indicating the file should or should not be conformed
+	*/
+	bool ShouldConformMidiFileLength(EMidiFileLengthConformOption Option);
 
-	bool ConformToLengthGivenLastEventTick(int32 NewLastEventTick);
+	/**
+	* Conform Midi File length(bars) to an integer number of bars:
+	* LengthTicks and LengthBars in SongLengthData are rounded up to an integer number of bars
+	* if the midi file has a fractional bar length or ends on a fractional beat, 
+	* this function takes a midi conform option (Round Down, and Round Up,Round to Nearest):
+	* Round Down: modifies/moves the raw midi events in every midi track of a midi file to the previous integer bar
+	*			  and remove excessive note on/note off pairs, control change events, pitch bend events, etc. at the tick they are moved to
+	* Round Up:	since file length is automatically rounded up, this option does NOT do or change anything to the Midi events in file
+	* Round to Nearest: rounding the file length to the nearest integer (either round down or round up), depending on the file's fractional length
+	* e.g. if a midi file has length 5.875 bars, Round Down conforms it to 5 bars, Round Up conforms it to 6 bars,
+	* and Round To Nearest conforms it to 6 bars (5.875 > 5.5)
+	*/
+	void ConformMidiFileLength(EMidiFileLengthConformOption Option, bool Force = false);
 
 	const FSongMaps* GetSongMaps() const { return &TheMidiData.SongMaps; }
 	FSongMaps* GetSongMaps() { return &TheMidiData.SongMaps; }

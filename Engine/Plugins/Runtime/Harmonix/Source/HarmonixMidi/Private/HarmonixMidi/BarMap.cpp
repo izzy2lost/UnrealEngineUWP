@@ -182,50 +182,6 @@ int32 FBarMap::BarBeatTickIncludingCountInToTick(int32 BarIndex, int32 BeatInBar
 			TickInBeat;
 }
 
-void FBarMap::TickToBarBeatTickIncludingCountIn(int32 InTick, int32& OutBarIndex, int32& OutBeatInBar, int32& OutTickIndexInBeat, int32* OutBeatsPerBar, int32* OutTicksPerBeat) const
-{
-	if (Points.IsEmpty())
-	{
-		// assume 4/4
-		OutBarIndex = InTick / (TicksPerQuarterNote * 4);
-		InTick -= OutBarIndex * (TicksPerQuarterNote * 4);
-		OutBeatInBar = InTick / TicksPerQuarterNote;
-		OutTickIndexInBeat = InTick - (OutBeatInBar * TicksPerQuarterNote);
-		OutBeatInBar++; // Beat is one based to be consistent with BarBeatTickIncludingCountInToTick
-		if (OutBeatsPerBar)
-		{
-			*OutBeatsPerBar = 4;
-		}
-		if (OutTicksPerBeat)
-		{
-			*OutTicksPerBeat = TicksPerQuarterNote;
-		}
-		return;
-	}
-	int32 TimeSigIndex = FMusicMapUtl::GetPointIndexForTick(Points, InTick);
-	if (!Points.IsValidIndex(TimeSigIndex))
-	{
-		TimeSigIndex = 0;
-	}
-	int32 TicksPerBar = GetTicksInBarAfterPoint(TimeSigIndex);
-	int32 TicksPerBeat = GetTicksInBeatAfterPoint(TimeSigIndex);
-	int32 TicksPast = InTick - Points[TimeSigIndex].StartTick;
-	int32 BarsPassed = TicksPast / TicksPerBar;
-	OutBarIndex = Points[TimeSigIndex].BarIndex + BarsPassed;
-	TicksPast -= BarsPassed * TicksPerBar;
-	OutBeatInBar = TicksPast / TicksPerBeat;
-	OutTickIndexInBeat = TicksPast - (OutBeatInBar * TicksPerBeat);
-	OutBeatInBar++; // Beat is one based to be consistent with BarBeatTickIncludingCountInToTick
-	if (OutBeatsPerBar)
-	{
-		*OutBeatsPerBar = Points[TimeSigIndex].TimeSignature.Numerator;
-	}
-	if (OutTicksPerBeat)
-	{
-		*OutTicksPerBeat = TicksPerBeat;
-	}
-}
-
 FMusicTimestamp FBarMap::TickToMusicTimestamp(float Tick, int32* OutBeatsPerBar) const
 {
 	FMusicTimestamp Result;
@@ -278,6 +234,85 @@ FMusicTimestamp FBarMap::TickFromBarOneToMusicTimestamp(float InTickFromBarOne, 
 {
 	return TickToMusicTimestamp(InTickFromBarOne + GetTickOfBarOne(), OutBeatsPerBar);
 }
+/*
+
+void FBarMap::TickToRawBarBeatTick(int32 InTick, int32& OutBar, int32& OutBeat, int32& OutTickInBeat, int32* OutBeatsPerBar, int32* OutTicksPerBeat) const
+{
+	if (Points.IsEmpty())
+	{
+		// Assume 4/4 time.
+		if (InTick == 0)
+		{
+			OutBar = 1;
+			OutBeat = 1;
+			OutTickInBeat = 0;
+		}
+		else if (InTick > 0)
+		{
+			OutBar = InTick / (TicksPerQuarterNote * 4);
+			InTick -= (OutBar * TicksPerQuarterNote * 4);
+			OutBeat = (float)InTick / (float)TicksPerQuarterNote;
+			OutTickInBeat = InTick - (OutBeat * TicksPerQuarterNote);
+			OutBar += 1; // 1 based
+			OutBeat += 1; // 1 based
+		}
+		else // InTick < 0
+		{
+			OutBar = InTick / (TicksPerQuarterNote * 4);
+			OutBar -= 1; // 1 based
+			InTick -= (OutBar * TicksPerQuarterNote * 4);
+			OutBeat = (float)InTick / (float)TicksPerQuarterNote;
+			OutTickInBeat = InTick - (OutBeat * TicksPerQuarterNote);
+			OutBeat += 1;
+		}
+		if (OutBeatsPerBar) *OutBeatsPerBar = 4;
+		if (OutTicksPerBeat) *OutTicksPerBeat = TicksPerQuarterNote;
+		return;
+	}
+
+	int32 Index = FMusicMapUtl::GetPointIndexForTick(Points, InTick);
+	if (Index < 0)
+	{
+		Index = 0;
+	}
+
+	int32 TicksPerBar = GetTicksInBarAfterPoint(Index);
+	int32 TicksPerBeat = GetTicksInBeatAfterPoint(Index);
+	if (InTick < 0)
+	{
+		// before the beginning? 
+		int32 BarsPassed = (-InTick / TicksPerBar) + 1;
+		int32 TickInBar = (BarsPassed * TicksPerBar) + InTick;
+		int32 BeatsPassed = TickInBar / TicksPerBeat;
+		int32 TickInBeat = TickInBar - (BeatsPassed * TicksPerBeat);
+		OutBar = -BarsPassed; // already 1 based
+		OutBeat = BeatsPassed + 1; // 1 based
+		OutTickInBeat = TickInBeat; // 0 based
+	}
+	else
+	{
+		int32 TicksPassed = InTick - Points[Index].StartTick;
+		int32 BarsPassed = TicksPassed / TicksPerBar;
+		TicksPassed -= BarsPassed * TicksPerBar;
+		int32 BeatsPassed = TicksPassed / TicksPerBeat;
+		TicksPassed -= BeatsPassed * TicksPerBeat;
+		OutBar = Points[Index].Bar + BarsPassed + 1; // 1 based
+		OutBeat = BeatsPassed + 1; // 1 based
+		OutTickInBeat = TicksPassed; // 0 based
+	}
+	if (OutBeatsPerBar) *OutBeatsPerBar = Points[Index].TimeSignature.Numerator;
+	if (OutTicksPerBeat) *OutTicksPerBeat = TicksPerBeat;
+}
+*/
+
+/*
+float FBarMap::TickToFractionalMusicalTimestampBar(int32 Tick) const
+{
+	int32 BeatsPerBar;
+	FMusicTimestamp Timestamp = TickToMusicTimestamp(Tick, &BeatsPerBar);
+	return (float)Timestamp.Bar + ((Timestamp.Beat - 1.0f) / (float)BeatsPerBar);
+}
+*/
 
 float FBarMap::TickToFractionalBarIncludingCountIn(float Tick) const
 {

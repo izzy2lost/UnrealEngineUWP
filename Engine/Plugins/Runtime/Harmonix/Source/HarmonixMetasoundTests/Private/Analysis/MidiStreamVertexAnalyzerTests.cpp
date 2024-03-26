@@ -53,13 +53,16 @@ namespace HarmonixMetasoundTests::MidiStreamVertexAnalyzer
 		const TSharedPtr<FMidiFileData> MidiData = MakeShared<FMidiFileData>();
 		check(MidiData);
 		MidiData->Tracks.Add(FMidiTrack(TEXT("conductor")));
+		MidiData->LastEventTick = std::numeric_limits<int32>::max();
 		MidiData->Tracks[0].AddEvent(FMidiEvent(0, FMidiMsg(static_cast<uint8>(TimeSigNum), static_cast<uint8>(TimeSigDenom))));
 		MidiData->SongMaps.GetBarMap().AddTimeSignatureAtBarIncludingCountIn(0, TimeSigNum, TimeSigDenom);
 		const int32 MidiTempo = Harmonix::Midi::Constants::BPMToMidiTempo(Tempo);
 		MidiData->Tracks[0].AddEvent(FMidiEvent(0, FMidiMsg(MidiTempo)));
 		MidiData->SongMaps.GetTempoMap().AddTempoInfoPoint(MidiTempo, 0);
 		MidiData->Tracks[0].Sort();
-		MidiData->ConformToLength(std::numeric_limits<int32>::max());
+		MidiData->SongMaps.GetSongLengthData().LastTick = std::numeric_limits<int32>::max();
+		MidiData->SongMaps.GetSongLengthData().LengthTicks = std::numeric_limits<int32>::max();
+		MidiData->SongMaps.GetSongLengthData().LengthBars = std::numeric_limits<int32>::max();
 
 		// Attach the maps
 		Clock->AttachToMidiResource(MidiData);

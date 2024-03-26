@@ -245,21 +245,6 @@ public:
 	int32 BarBeatTickIncludingCountInToTick(int32 BarIndex, int32 BeatInBar, int32 TickInBeat) const;
 
 	/**
-	 * Take "raw" tick (tick from the beginning of the midi data and in units of TicksPerQuarterNote)
-	 * and return a bar (0 based), beat in bar (1 based) within that bar, and tick (0 based) within that beat. 
-	 * Here, the returned position is a 'raw' position from the beginning of the midi data. There is
-	 * no consideration of count-in or pickup bars.
-	 *
-	 * @param RawTick from the beginning of the midi data.
-	 * @param OutBarIndex (output)
-	 * @param OutBeatInBar (1 based!) (output)
-	 * @param OutTickIndexInBeat (output)
-	 * @param OutBeatsPerBar (output - optional)
-	 * @param OutTicksPerBeat (output - optional)
-	 */
-	void TickToBarBeatTickIncludingCountIn(int32 RawTick, int32& OutBarIndex, int32& OutBeatInBarIndex, int32& OutTickIndexInBeat, int32* OutBeatsPerBar = nullptr, int32* OutTicksPerBeat = nullptr) const;
-
-	/**
 	 * Takes an absolute tick (from the beginning of the midi data) and calculates the fractional bar,
 	 * where bar 0.0 is the beginning of the raw midi data.
 	 *

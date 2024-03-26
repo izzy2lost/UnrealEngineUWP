@@ -66,10 +66,16 @@ void FSongMaps::Copy(const FSongMaps& Other, int32 StartTick, int32 EndTick)
 	ChordMap.Finalize(LastTick);
 
 	memset(&LengthData, 0, sizeof(LengthData));
-	EMidiClockSubdivisionQuantization Division = EMidiClockSubdivisionQuantization::None;
-	LengthData.LastTick = QuantizeTickToAnyNearestSubdivision(EndTick, EMidiFileQuantizeDirection::Nearest, Division) - 1;
+	LengthData.LastTick = LastTick;
 	LengthData.LengthTicks = LengthData.LastTick + 1;
-	LengthData.LengthFractionalBars = BarMap.TickToFractionalBarIncludingCountIn(LengthData.LengthTicks);
+	FMusicTimestamp Timestamp;
+	Timestamp = BarMap.TickToMusicTimestamp(float(LengthData.LastTick));
+	LengthData.LengthBars = FMath::IsNearlyZero(Timestamp.Beat-1.0f,1.0E-4) ? Timestamp.Bar - 1 : Timestamp.Bar;
+	if (LengthData.LengthBars == Timestamp.Bar)
+	{
+		LengthData.LengthTicks = int32(BarMap.MusicTimestampToTick({LengthData.LengthBars + BarMap.GetStartBar(), 1.0f}));
+		LengthData.LastTick = LengthData.LengthTicks - 1;
+	}
 }
 
 bool FSongMaps::LoadFromStdMidiFile(const FString& FilePath)
@@ -138,7 +144,14 @@ bool FSongMaps::FinalizeRead(IMidiReader* Reader)
 	memset(&LengthData, 0, sizeof(LengthData));
 	LengthData.LastTick = LastTick;
 	LengthData.LengthTicks = LengthData.LastTick + 1;
-	LengthData.LengthFractionalBars = BarMap.TickToFractionalBarIncludingCountIn(LengthData.LengthTicks);
+	FMusicTimestamp Timestamp;
+	Timestamp = BarMap.TickToMusicTimestamp(float(LengthData.LastTick));
+	LengthData.LengthBars = FMath::IsNearlyZero(Timestamp.Beat - 1.0f, 1.0E-4) ? Timestamp.Bar - 1 : Timestamp.Bar;
+	if (LengthData.LengthBars == Timestamp.Bar)
+	{
+		LengthData.LengthTicks = int32(BarMap.MusicTimestampToTick({ LengthData.LengthBars + BarMap.GetStartBar(), 1.0f }));
+		LengthData.LastTick = LengthData.LengthTicks - 1;
+	}
 	return true;
 }
 
@@ -147,6 +160,14 @@ bool FSongMaps::ReadWithReader(FStdMidiFileReader& Reader)
 	Reader.ReadAllTracks();
 	return FinalizeRead(&Reader);
 }
+
+FArchive& operator<<(FArchive& Archive, FSongLengthData& LengthData)
+{
+	Archive << LengthData.LengthTicks;  
+	Archive << LengthData.LengthBars;   
+	Archive << LengthData.LastTick;
+	return Archive;
+} 
 
 void FSongMaps::EmptyAllMaps()
 {
@@ -157,7 +178,7 @@ void FSongMaps::EmptyAllMaps()
 	ChordMap.Empty();
 	TrackNames.Empty();
 	LengthData.LastTick = 0;
-	LengthData.LengthFractionalBars = 0.0f;
+	LengthData.LengthBars = 0;
 	LengthData.LengthTicks = 0;
 }
 
@@ -170,7 +191,7 @@ bool FSongMaps::IsEmpty() const
 			ChordMap.IsEmpty() &&
 			TrackNames.IsEmpty() &&
 			LengthData.LastTick == 0 &&
-			LengthData.LengthFractionalBars == 0 &&
+			LengthData.LengthBars == 0 &&
 			LengthData.LengthTicks == 0;
 }
 
@@ -184,207 +205,9 @@ int32 FSongMaps::GetSongLengthBeats() const
 	return BeatMap.GetNumMapPoints();
 }
 
-float FSongMaps::GetSongLengthFractionalBars() const
+int32 FSongMaps::GetSongLengthBars() const
 {
-	return LengthData.LengthFractionalBars;
-}
-
-void FSongMaps::SetSongLengthTicks(int32 NewLengthTicks)
-{
-	if (NewLengthTicks < 1)
-	{
-		UE_LOG(LogMIDI, Warning, TEXT("SetSongLengthTicks: Asked to set length less than 1. That is not possible. Setting to length 1!"));
-		NewLengthTicks = 1;
-	}
-	LengthData.LengthTicks = NewLengthTicks;
-	LengthData.LastTick    = NewLengthTicks - 1;
-	LengthData.LengthFractionalBars  = BarMap.TickToFractionalBarIncludingCountIn(LengthData.LengthTicks);
-}
-
-bool FSongMaps::LengthIsAPerfectSubdivision() const
-{
-	int32 BarIndex = 0;
-	int32 BeatInBar = 0;
-	int32 TickIndexInBeat = 0;
-	BarMap.TickToBarBeatTickIncludingCountIn(LengthData.LengthTicks, BarIndex, BeatInBar, TickIndexInBeat);
-	// The smallest subdivision we will consider is a 64th note triplet. 
-	// A sixty fourth note triplet divides a quarter note into 24 parts. 
-	int32 TicksPer64thTriplet = TicksPerQuarterNote / 24;
-	int32 TicksPer64th = TicksPerQuarterNote / 16;
-	return (TickIndexInBeat % TicksPer64thTriplet) == 0 || (TickIndexInBeat % TicksPer64th) == 0;
-}
-
-int32 FSongMaps::QuantizeTickToAnyNearestSubdivision(int32 InTick, EMidiFileQuantizeDirection Direction, EMidiClockSubdivisionQuantization& Division) const
-{
-	int32 BarIndex = 0;
-	int32 BeatInBar = 0;
-	int32 TickIndexInBeat = 0;
-	int32 TicksPerBar = 0;
-	int32 TicksPerBeat = 0;
-	BarMap.TickToBarBeatTickIncludingCountIn(InTick, BarIndex, BeatInBar, TickIndexInBeat, &TicksPerBar, &TicksPerBeat);
-	int32 BeatIndex = BeatInBar - 1; // BeatInBar is 1 bases!
-
-	if (BeatIndex == 0 && TickIndexInBeat == 0)
-	{
-		Division = EMidiClockSubdivisionQuantization::Bar;
-		return InTick;
-	}
-	if (TickIndexInBeat == 0)
-	{
-		Division = EMidiClockSubdivisionQuantization::Beat;
-		return InTick;
-	}
-
-	// Not so simple. Now we need to know the time signature...
-	int32 ZeroPoint = 0;
-	FTimeSignature TimeSignature(4, 4);
-	int32 BarMapPointIndex = BarMap.GetPointIndexForTick(InTick);
-	if (BarMapPointIndex >= 0)
-	{
-		const FTimeSignaturePoint& TimeSignaturePoint = BarMap.GetTimeSignaturePoint(BarMapPointIndex);
-		TimeSignature = TimeSignaturePoint.TimeSignature;
-		ZeroPoint = TimeSignaturePoint.StartTick;
-	}
-
-	// We "start" the quantization grid at the nearest proceeding time signature change...
-	int32 TickAtTimeSignature = InTick - ZeroPoint;
-	EMidiClockSubdivisionQuantization BestDivision = EMidiClockSubdivisionQuantization::None;
-	int32 BestDistanceFromDivision = std::numeric_limits<int32>::max();
-	
-	auto TryDivision = [this, &TickAtTimeSignature, &BestDivision, &BestDistanceFromDivision, &TimeSignature, &Division, &Direction](EMidiClockSubdivisionQuantization TryDivision)
-		{
-			int32 TicksPerDivision = SubdivisionToMidiTicks(TryDivision, TimeSignature);
-			int32 DistanceFromDivision = TickAtTimeSignature % TicksPerDivision;
-			switch (Direction)
-			{
-			case EMidiFileQuantizeDirection::Up:
-				DistanceFromDivision -= TicksPerDivision;
-				break;
-			case EMidiFileQuantizeDirection::Down:
-				// nothing to do here
-				break;
-			default:
-			case EMidiFileQuantizeDirection::Nearest:
-				if (DistanceFromDivision > (TicksPerDivision / 2))
-					DistanceFromDivision -= TicksPerDivision;
-				break;
-			}
-			if (DistanceFromDivision == 0)
-			{
-				Division = TryDivision;
-				return true;
-			}
-			else if (FMath::Abs(BestDistanceFromDivision) > FMath::Abs(DistanceFromDivision))
-			{
-				BestDivision = TryDivision;
-				BestDistanceFromDivision = DistanceFromDivision;
-			}
-			return false;
-		};
-
-	if (TryDivision(EMidiClockSubdivisionQuantization::Bar))
-		return InTick;
-	if (TryDivision(EMidiClockSubdivisionQuantization::Beat))
-		return InTick;
-	if (TryDivision(EMidiClockSubdivisionQuantization::QuarterNote))
-		return InTick;
-	if (TryDivision(EMidiClockSubdivisionQuantization::QuarterNoteTriplet))
-		return InTick;
-	if (TryDivision(EMidiClockSubdivisionQuantization::EighthNote))
-		return InTick;
-	if (TryDivision(EMidiClockSubdivisionQuantization::EighthNoteTriplet))
-		return InTick;
-	if (TryDivision(EMidiClockSubdivisionQuantization::SixteenthNote))
-		return InTick;
-	if (TryDivision(EMidiClockSubdivisionQuantization::SixteenthNoteTriplet))
-		return InTick;
-	if (TryDivision(EMidiClockSubdivisionQuantization::ThirtySecondNote))
-		return InTick;
-
-	Division = BestDivision;
-	return ZeroPoint + (TickAtTimeSignature - BestDistanceFromDivision);
-}
-
-int32 FSongMaps::QuantizeTickToNearestSubdivision(int32 InTick, EMidiFileQuantizeDirection Direction, EMidiClockSubdivisionQuantization Division) const
-{
-	int32 LowerTick = 0;
-	int32 UpperTick = 0;
-	GetTicksForNearestSubdivision(InTick, Division, LowerTick, UpperTick);
-	if (Direction == EMidiFileQuantizeDirection::Down)
-		return LowerTick;
-	if (Direction == EMidiFileQuantizeDirection::Up)
-		return UpperTick;
-	if ((InTick - LowerTick) < (UpperTick - InTick))
-		return LowerTick;
-	return UpperTick;
-}
-
-void FSongMaps::GetTicksForNearestSubdivision(int32 InTick, EMidiClockSubdivisionQuantization Division, int32& LowerTick, int32& UpperTick) const
-{
-	int32 TicksInSubdivision = 0;
-	int32 TickError = 0;
-	if (BarMap.IsEmpty())
-	{
-		FTimeSignature TimeSignature(4, 4);
-		TicksInSubdivision = SubdivisionToMidiTicks(Division, TimeSignature);
-		TickError = InTick % TicksInSubdivision;
-		LowerTick = InTick - TickError;
-		UpperTick = LowerTick + TicksInSubdivision;
-		return;
-	}
-
-	int32 BarIndex = 0;
-	int32 BeatInBar = 0;
-	int32 TickIndexInBeat = 0;
-	int32 BeatsPerBar = 0;
-	int32 TicksPerBeat = 0;
-	BarMap.TickToBarBeatTickIncludingCountIn(InTick, BarIndex, BeatInBar, TickIndexInBeat, &BeatsPerBar, &TicksPerBeat);
-	int32 TicksInBar = BeatsPerBar * TicksPerBeat;
-
-	if (Division == EMidiClockSubdivisionQuantization::Bar)
-	{
-		LowerTick = BarMap.BarBeatTickIncludingCountInToTick(BarIndex, 1, 0);
-		UpperTick = LowerTick + TicksInBar;
-		return;
-	}
-
-	if (Division == EMidiClockSubdivisionQuantization::Beat)
-	{
-		LowerTick = BarMap.BarBeatTickIncludingCountInToTick(BarIndex, BeatInBar, 0);
-		UpperTick = LowerTick + TicksPerBeat;
-		return;
-	}
-
-	// Not so simple. Now we need to know the time signature...
-	int32 ZeroPoint = 0;
-	FTimeSignature TimeSignature(4, 4);
-	int32 BarMapPointIndex = BarMap.GetPointIndexForTick(InTick);
-	if (BarMapPointIndex >= 0)
-	{
-		const FTimeSignaturePoint& TimeSignaturePoint = BarMap.GetTimeSignaturePoint(BarMapPointIndex);
-		TimeSignature = TimeSignaturePoint.TimeSignature;
-		ZeroPoint = TimeSignaturePoint.StartTick;
-	}
-
-	// We "start" the quantization grid at the nearest proceeding time signature change...
-	int32 TickAtTimeSignature = InTick - ZeroPoint;
-	TicksInSubdivision = SubdivisionToMidiTicks(Division, InTick);
-	TickError = TickAtTimeSignature % TicksInSubdivision;
-	// Now that we know the tick error we can apply it to our original input tick...
-	LowerTick = InTick - TickError;
-	UpperTick = LowerTick + TicksInSubdivision;
-}
-
-FString FSongMaps::GetSongLengthString() const
-{
-	int32 BarIndex;
-	int32 BeatInBar;
-	int32 TickIndexInBeat;
-	int32 BeatsPerBar;
-	int32 TicksPerBeat;
-	BarMap.TickToBarBeatTickIncludingCountIn(LengthData.LengthTicks, BarIndex, BeatInBar, TickIndexInBeat, &BeatsPerBar, &TicksPerBeat);
-	int32 BeatIndex = BeatInBar - 1; // BeatInBar is 1 based
-	return FString::Printf(TEXT("%d | %.3f"), BarIndex, (float)BeatIndex + (float)TickIndexInBeat / (float)TicksPerBeat );
+	return GetSongLengthData().LengthBars;
 }
 
 void FSongMaps::StringLengthToMT(const FString& LengthString, int32& OutBars, int32& OutTicks)
@@ -759,7 +582,7 @@ void FSongMaps::SetLengthTotalBars(int32 Bars)
 	memset(&LengthData, 0, sizeof(LengthData));
 	LengthData.LengthTicks = BarMap.BarIncludingCountInToTick(Bars);
 	LengthData.LastTick = LengthData.LengthTicks - 1;
-	LengthData.LengthFractionalBars = Bars;
+	LengthData.LengthBars = Bars;
 }
 
 int32 FSongMaps::CalculateMidiTick(const FMusicTimestamp& Timestamp, const EMidiClockSubdivisionQuantization Quantize) const
@@ -788,42 +611,43 @@ int32 FSongMaps::CalculateMidiTick(const FMusicTimestamp& Timestamp, const EMidi
 	return TriggerTick;
 }
 
-int32 FSongMaps::SubdivisionToMidiTicks(const EMidiClockSubdivisionQuantization Division, const FTimeSignature& TimeSignature) const
+int32 FSongMaps::SubdivisionToMidiTicks(const EMidiClockSubdivisionQuantization Division, const int32 Tick) const
 {
+	int32 BarMapPointIndex = GetBarMap().GetPointIndexForTick(Tick);
+	if (BarMapPointIndex < 0)
+	{
+		return 1;
+	}
+	const FTimeSignature* TimeSignature = GetTimeSignatureAtTick(Tick);
+	if (!TimeSignature)
+	{
+		return 1;
+	}
+
+	using namespace Harmonix::Midi::Constants;
+
 	switch (Division)
 	{
 	case EMidiClockSubdivisionQuantization::None:                   return 1;
-	case EMidiClockSubdivisionQuantization::Bar: 					return TimeSignature.Numerator * ((TicksPerQuarterNote * 4)/TimeSignature.Denominator);
-	case EMidiClockSubdivisionQuantization::Beat:					return (TicksPerQuarterNote * 4) / TimeSignature.Denominator;
-	case EMidiClockSubdivisionQuantization::ThirtySecondNote:		return TicksPerQuarterNote / 8;
-	case EMidiClockSubdivisionQuantization::SixteenthNote:			return TicksPerQuarterNote / 4;
-	case EMidiClockSubdivisionQuantization::EighthNote:				return TicksPerQuarterNote / 2;
-	case EMidiClockSubdivisionQuantization::QuarterNote:			return TicksPerQuarterNote;
-	case EMidiClockSubdivisionQuantization::HalfNote:				return TicksPerQuarterNote * 2;
-	case EMidiClockSubdivisionQuantization::WholeNote:				return TicksPerQuarterNote * 4;
-	case EMidiClockSubdivisionQuantization::DottedSixteenthNote:	return (TicksPerQuarterNote / 4) + (TicksPerQuarterNote / 8);
-	case EMidiClockSubdivisionQuantization::DottedEighthNote:		return (TicksPerQuarterNote / 2) + (TicksPerQuarterNote / 4);
-	case EMidiClockSubdivisionQuantization::DottedQuarterNote:		return (TicksPerQuarterNote)+(TicksPerQuarterNote / 2);
-	case EMidiClockSubdivisionQuantization::DottedHalfNote:			return (TicksPerQuarterNote * 2) + (TicksPerQuarterNote);
-	case EMidiClockSubdivisionQuantization::DottedWholeNote:		return (TicksPerQuarterNote * 4) + (TicksPerQuarterNote * 2);
-	case EMidiClockSubdivisionQuantization::SixteenthNoteTriplet:   return (TicksPerQuarterNote / 2) / 3;
-	case EMidiClockSubdivisionQuantization::EighthNoteTriplet:		return TicksPerQuarterNote / 3;
-	case EMidiClockSubdivisionQuantization::QuarterNoteTriplet:		return (TicksPerQuarterNote * 2) / 3;
-	case EMidiClockSubdivisionQuantization::HalfNoteTriplet:        return (TicksPerQuarterNote * 4) / 3;
+	case EMidiClockSubdivisionQuantization::Bar: 					return GetBarMap().GetTicksInBarAfterPoint(BarMapPointIndex);
+	case EMidiClockSubdivisionQuantization::Beat:					return (GTicksPerQuarterNoteInt * 4) / TimeSignature->Denominator;
+	case EMidiClockSubdivisionQuantization::ThirtySecondNote:		return GTicksPerQuarterNoteInt / 8;
+	case EMidiClockSubdivisionQuantization::SixteenthNote:			return GTicksPerQuarterNoteInt / 4;
+	case EMidiClockSubdivisionQuantization::EighthNote:				return GTicksPerQuarterNoteInt / 2;
+	case EMidiClockSubdivisionQuantization::QuarterNote:			return GTicksPerQuarterNoteInt;
+	case EMidiClockSubdivisionQuantization::HalfNote:				return GTicksPerQuarterNoteInt * 2;
+	case EMidiClockSubdivisionQuantization::WholeNote:				return GTicksPerQuarterNoteInt * 4;
+	case EMidiClockSubdivisionQuantization::DottedSixteenthNote:	return (GTicksPerQuarterNoteInt / 4) + (GTicksPerQuarterNoteInt / 8);
+	case EMidiClockSubdivisionQuantization::DottedEighthNote:		return (GTicksPerQuarterNoteInt / 2) + (GTicksPerQuarterNoteInt / 4);
+	case EMidiClockSubdivisionQuantization::DottedQuarterNote:		return (GTicksPerQuarterNoteInt)+(GTicksPerQuarterNoteInt / 2);
+	case EMidiClockSubdivisionQuantization::DottedHalfNote:			return (GTicksPerQuarterNoteInt * 2) + (GTicksPerQuarterNoteInt);
+	case EMidiClockSubdivisionQuantization::DottedWholeNote:		return (GTicksPerQuarterNoteInt * 4) + (GTicksPerQuarterNoteInt * 2);
+	case EMidiClockSubdivisionQuantization::SixteenthNoteTriplet:   return (GTicksPerQuarterNoteInt / 2) / 3;
+	case EMidiClockSubdivisionQuantization::EighthNoteTriplet:		return GTicksPerQuarterNoteInt / 3;
+	case EMidiClockSubdivisionQuantization::QuarterNoteTriplet:		return (GTicksPerQuarterNoteInt * 2) / 3;
+	case EMidiClockSubdivisionQuantization::HalfNoteTriplet:        return (GTicksPerQuarterNoteInt * 4) / 3;
 	default:	                                             		checkNoEntry();	return 1;
 	}
-}
-
-int32 FSongMaps::SubdivisionToMidiTicks(const EMidiClockSubdivisionQuantization Division, const int32 AtTick) const
-{
-	FTimeSignature TimeSignature(4,4);
-	int32 BarMapPointIndex = BarMap.GetPointIndexForTick(AtTick);
-	if (BarMapPointIndex >= 0)
-	{
-		const FTimeSignaturePoint& TimeSignaturePoint = BarMap.GetTimeSignaturePoint(BarMapPointIndex);
-		TimeSignature = TimeSignaturePoint.TimeSignature;
-	}
-	return SubdivisionToMidiTicks(Division, TimeSignature);
 }
 
 float FSongMaps::SubdivisionToBeats(EMidiClockSubdivisionQuantization Subdivision, const FTimeSignature& TimeSignature)

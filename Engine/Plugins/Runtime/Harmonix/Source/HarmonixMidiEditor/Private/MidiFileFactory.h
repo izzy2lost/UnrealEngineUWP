@@ -10,7 +10,6 @@
 #include "Widgets/SWindow.h"
 #include "Widgets/Input/SButton.h"
 #include "Widgets/Input/SCheckBox.h"
-#include "Widgets/Input/SComboBox.h"
 #include "Styling/SlateTypes.h"
 #include "Widgets/SBoxPanel.h"
 #include "Layout/Visibility.h"
@@ -39,27 +38,15 @@ class UMidiFileFactory : public UFactory, public FReimportHandler
 	virtual bool CanReimport(UObject* Obj, TArray<FString>& OutFilenames) override;
 	virtual void SetReimportPaths(UObject* Obj, const TArray<FString>& NewReimportPaths) override;
 	virtual EReimportResult::Type Reimport(UObject* Obj) override;
-	virtual void PostImportCleanUp() override;
 	//~ END FReimportHandler interface --
 
-	static constexpr int32 kMaxTickErrorForTrivialConform = 2;
-	static bool LengthCanBeTriviallyConformed(UMidiFile* MidiFile);
-
+	//Show a custom dialog upon importing midi files, prompt the user the option to conform midi file length
+	void ShowConformMidiFileLengthDialog(int32 MidiFileAssetIndex);
+	
 	//keep track of files that are imported for the pop-up dialog (multi batch)
 	TArray<UMidiFile*> ImportedFiles;
-	bool bApplyGrossConformToAll = false;
-	bool bDontApplyGrossConformToAll = false;
-	bool bApplyOffByOneConformToAll = false;
-	bool bDontApplyOffByOneConformToAll = false;
-	EMidiFileQuantizeDirection ApplyGrossConformDirection = EMidiFileQuantizeDirection::Up;
-	EMidiClockSubdivisionQuantization GrossConformSubdivision = EMidiClockSubdivisionQuantization::None;
-
-	// making these static means we can call them from other places in the editor UI...
-	static void AskOrDoTrivialConform(UMidiFile* MidiFileAsset, bool bIsOneOfMany, UMidiFileFactory* CallingFactory, int32 CurrentLengthTicks, int32 QuantizedLengthTick);
-	static void AskOrDoGrossConform(UMidiFile* MidiFileAsset, bool bIsOneOfMany, UMidiFileFactory* CallingFactory, int32 CurrentLengthTicks, int32 QuantizedLengthTick, EMidiClockSubdivisionQuantization BestSubdivision);
-
-private:
-	void CheckImportedFilesForValidLengths();
+	bool bShouldApplyToAll = true;
+	EMidiFileLengthConformOption ApplyToAllOption;
 };
 
 /* 
@@ -72,42 +59,30 @@ class SConformMidiFileLengthDialog : public SCompoundWidget
 {
 public:
 	SLATE_BEGIN_ARGS(SConformMidiFileLengthDialog)
-		: _ParentWindow()
-		, _bMultipleFiles(false)
-		, _FileDescription()
-		, _RecommendedDirection(EMidiFileQuantizeDirection::Nearest)
-		, _RecommendedSubdivision(EMidiClockSubdivisionQuantization::Bar)
+		: _ConformOption(EMidiFileLengthConformOption::RoundUp)
+		, _ApplyToAll(true) 
 	{}
 	
-	SLATE_ARGUMENT(TSharedPtr<SWindow>, ParentWindow)
-	SLATE_ARGUMENT(bool, bMultipleFiles)
-	SLATE_ARGUMENT(FText, FileDescription)
-	SLATE_ARGUMENT(EMidiFileQuantizeDirection, RecommendedDirection)
-	SLATE_ARGUMENT(EMidiClockSubdivisionQuantization, RecommendedSubdivision)
+	SLATE_ARGUMENT(EMidiFileLengthConformOption,ConformOption)
+	SLATE_ARGUMENT(bool,ApplyToAll)
+	
 	SLATE_END_ARGS()
 
 	void Construct(const FArguments& InArgs);
 
 	//custom widgets 
 	const FTextBlockStyle MidiFileInformationStyle = FTextBlockStyle().SetFont(FCoreStyle::GetDefaultFontStyle("Bold", 10)).SetColorAndOpacity(FLinearColor::White);
-	EMidiFileQuantizeDirection ConformDirection = EMidiFileQuantizeDirection::Up;
-	EMidiClockSubdivisionQuantization ConformSubdivision = EMidiClockSubdivisionQuantization::Bar;
-	bool bDoForAll = false;
-	bool bUserTookAction = false;
+	EMidiFileLengthConformOption ConformOption = EMidiFileLengthConformOption::RoundUp;
+	bool ApplyToAll = true;
+	TSharedPtr<STextBlock> AskConformFileLengthText;
+	TSharedPtr<SCheckBox> RoundToNearestCheckBox;
+	TSharedPtr<SCheckBox> RoundDownCheckBox;
+	TSharedPtr<SCheckBox> RoundUpCheckBox;
+	TSharedPtr<SCheckBox> ApplyToAllCheckBox;
+	TSharedPtr<SButton> OkButton;
 
 private:
-	TArray<TSharedPtr<FString>> DirectionNames;
-	TSharedPtr<FString> SelectedDirection;
+	void HandleConformOptionCheckboxChanged(ECheckBoxState NewState, EMidiFileLengthConformOption Option);
+	void HandleApplyToAllCheckboxChanged(ECheckBoxState NewState);
 
-	struct FSubdivisionEntry
-	{
-		EMidiClockSubdivisionQuantization Value;
-		FString DisplayString;
-		FSubdivisionEntry(EMidiClockSubdivisionQuantization InValue, const FString& InString)
-			: Value(InValue)
-			, DisplayString(InString)
-		{}
-	};
-	TArray<TSharedPtr<FSubdivisionEntry>> QuantizationSubdivisions;
-	TSharedPtr<FSubdivisionEntry> SelectedQuantizationSubdivision;
 };

@@ -250,7 +250,7 @@ public:
 	float GetSongLengthBeats() const;
 
 	UFUNCTION(BlueprintPure, Category = "Song Data")
-	float GetSongLengthBars() const;
+	int32 GetSongLengthBars() const;
 
 	const FSongMaps& GetSongMaps() const;
 

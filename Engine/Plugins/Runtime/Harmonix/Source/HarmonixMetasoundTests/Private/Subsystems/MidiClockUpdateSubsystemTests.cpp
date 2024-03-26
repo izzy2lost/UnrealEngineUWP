@@ -21,6 +21,7 @@ namespace HarmonixMetasoundTests::MidiClockUpdateSubsystem
 			check(MidiData);
 			
 			MidiData->Tracks.Add(FMidiTrack(TEXT("conductor")));
+			MidiData->LastEventTick = std::numeric_limits<int32>::max();
 			MidiData->Tracks[0].AddEvent(FMidiEvent(0, FMidiMsg(static_cast<uint8>(TimeSigNum), static_cast<uint8>(TimeSigDenom))));
 			FBarMap& BarMap = MidiData->SongMaps.GetBarMap();
 			BarMap.AddTimeSignatureAtBarIncludingCountIn(0, TimeSigNum, TimeSigDenom);
@@ -29,7 +30,9 @@ namespace HarmonixMetasoundTests::MidiClockUpdateSubsystem
 			FTempoMap& TempoMap = MidiData->SongMaps.GetTempoMap();
 			TempoMap.AddTempoInfoPoint(MidiTempo, 0);
 			MidiData->Tracks[0].Sort();
-			MidiData->ConformToLength(std::numeric_limits<int32>::max());
+			MidiData->SongMaps.GetSongLengthData().LastTick = std::numeric_limits<int32>::max();
+			MidiData->SongMaps.GetSongLengthData().LengthTicks = std::numeric_limits<int32>::max();
+			MidiData->SongMaps.GetSongLengthData().LengthBars = std::numeric_limits<int32>::max();
 
 			HarmonixMetasound::FMidiClock Clock{ OperatorSettings };
 			Clock.AttachToMidiResource(MidiData);
