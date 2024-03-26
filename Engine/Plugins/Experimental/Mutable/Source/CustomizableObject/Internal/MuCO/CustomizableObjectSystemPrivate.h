@@ -513,9 +513,9 @@ public:
 	mu::Instance::ID InstanceID = 0; // Redundant
 	const mu::Instance* MutableInstance = nullptr;
 
-	uint8 NumComponents = 0;
-	uint8 NumLODsAvailable = 0;
-	uint8 FirstLODAvailable = 0;
+	int32 NumComponents = 0;
+	int32 NumLODsAvailable = 0;
+	int32 FirstLODAvailable = 0;
 	uint8 FirstResidentLOD = 0;
 
 	TMap<uint32, FTexturePlatformData*> ImageToPlatformDataMap;

@@ -1099,10 +1099,14 @@ void FCustomizableObjectCompiler::CompileInternal(UCustomizableObject* Object, c
 		Object->GetPrivate()->CustomizableObjectPathMap = GenerationContext.CustomizableObjectPathMap;
 #endif
 
-		ModelResources.NumComponents = GenerationContext.NumMeshComponentsInRoot;
-		ModelResources.NumLODs = GenerationContext.NumLODsInRoot;
-		ModelResources.NumLODsToStream = GenerationContext.bEnableLODStreaming ? GenerationContext.NumMaxLODsToStream : 0;
-		ModelResources.FirstLODAvailable = GenerationContext.FirstLODAvailable;
+		Object->LODSettings.NumLODsInRoot = GenerationContext.NumLODsInRoot;
+		
+		Object->GetPrivate()->GetNumMeshComponentsInRoot() = GenerationContext.NumMeshComponentsInRoot;
+		
+		Object->LODSettings.FirstLODAvailable = GenerationContext.FirstLODAvailable;
+
+		Object->LODSettings.bLODStreamingEnabled = GenerationContext.bEnableLODStreaming;
+		Object->LODSettings.NumLODsToStream = GenerationContext.NumMaxLODsToStream;
 
 		Object->GetPrivate()->GetStreamedResourceData() = MoveTemp(GenerationContext.StreamedResourceData);
 
@@ -1279,20 +1283,19 @@ void FCustomizableObjectCompiler::FinishCompilation()
 
 	// Generate a map that using the resource id tells the offset and size of the resource inside the bulk data
 	// At this point it is assumed that all data goes into a single file.
-	if (Model && !Options.bIsCooking)
+	if (Model)
 	{
-		FModelResources& ModelResources = CurrentObject->GetPrivate()->GetModelResources(false);
-		
-		const int32 NumStreamingFiles = Model->GetRomCount();
-		ModelResources.HashToStreamableBlock.Empty(NumStreamingFiles);
-
 		uint64 Offset = 0;
+
+		const int32 NumStreamingFiles = Model->GetRomCount();
+		CurrentObject->GetPrivate()->GetHashToStreamableBlock().Empty(NumStreamingFiles);
+
 		for (int32 FileIndex = 0; FileIndex < NumStreamingFiles; ++FileIndex)
 		{
 			const uint32 ResourceId = Model->GetRomId(FileIndex);
 			const uint32 ResourceSize = Model->GetRomSize(FileIndex);
 
-			ModelResources.HashToStreamableBlock.Add(ResourceId, FMutableStreamableBlock{0, ResourceSize, Offset });
+			CurrentObject->GetPrivate()->GetHashToStreamableBlock().Add(ResourceId, FMutableStreamableBlock{0, ResourceSize, Offset });
 			Offset += ResourceSize;
 		}
 	}
