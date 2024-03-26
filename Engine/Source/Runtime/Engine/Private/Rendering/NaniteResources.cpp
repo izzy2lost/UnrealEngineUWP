@@ -748,8 +748,6 @@ FSceneProxy::FSceneProxy(const FMaterialAudit& MaterialAudit, const FStaticMeshS
 
 	const bool bIsInstancedMesh = InbIsInstancedMesh;
 
-	NaniteMaterialMask = FUint32Vector2(0u, 0u);
-
 	for (int32 SectionIndex = 0; SectionIndex < MeshSections.Num(); ++SectionIndex)
 	{
 		const FStaticMeshSection& MeshSection = MeshSections[SectionIndex];
@@ -789,16 +787,6 @@ FSceneProxy::FSceneProxy(const FMaterialAudit& MaterialAudit, const FStaticMeshS
 		UMaterialInterface* ShadingMaterial = nullptr;
 		if (!MaterialSection.bHidden)
 		{
-			// Mark the material mask
-			if (MaterialSection.MaterialIndex >= 32u)
-			{
-				NaniteMaterialMask.Y |= (1u << (MaterialSection.MaterialIndex - 32u));
-			}
-			else
-			{
-				NaniteMaterialMask.X |= (1u << MaterialSection.MaterialIndex);
-			}
-
 			// Get the shading material
 			ShadingMaterial = MaterialAudit.GetMaterial(MaterialSection.MaterialIndex);
 
@@ -1132,7 +1120,7 @@ FORCENOINLINE HHitProxy* FSceneProxy::CreateHitProxies(IPrimitiveComponent* Comp
 				// Generate separate hit proxies for each material section, so that we can perform hit tests against each one.
 				for (int32 SectionIndex = 0; SectionIndex < MaterialSections.Num(); ++SectionIndex)
 				{
-					FMaterialSection& Section = MaterialSections[SectionIndex];					
+					FMaterialSection& Section = MaterialSections[SectionIndex];
 					HHitProxy* ActorHitProxy = Component->CreateMeshHitProxy(SectionIndex, SectionIndex);
 
 					if (ActorHitProxy)
@@ -2215,7 +2203,7 @@ FMaterialAudit& AuditMaterialsImp(const T* InProxyDesc, FMaterialAudit& Audit, b
 
 	if (InProxyDesc != nullptr)
 	{
-		TArray<FAuditMaterialSlotInfo, TInlineAllocator<32>> Slots = Nanite::GetMaterialSlotInfos(*InProxyDesc);		
+		TArray<FAuditMaterialSlotInfo, TInlineAllocator<32>> Slots = Nanite::GetMaterialSlotInfos(*InProxyDesc);
 
 		uint32 Index = 0;
 		for (const FAuditMaterialSlotInfo& SlotInfo : Slots)

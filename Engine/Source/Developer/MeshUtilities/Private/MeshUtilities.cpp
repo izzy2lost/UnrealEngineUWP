@@ -964,12 +964,13 @@ void FMeshUtilities::BuildSkeletalModelFromChunks(FSkeletalMeshLODModel& LODMode
 	for (int32 i = 0; i < Chunks.Num(); ++i)
 	{
 		delete Chunks[i];
-		Chunks[i] = NULL;
+		Chunks[i] = nullptr;
 	}
 	Chunks.Empty();
 
 	// Compute the required bones for this model.
-	USkeletalMesh::CalculateRequiredBones(LODModel, RefSkeleton, NULL);
+	USkeletalMesh::CalculateRequiredBones(LODModel, RefSkeleton, nullptr);
+
 #endif // #if WITH_EDITORONLY_DATA
 }
 

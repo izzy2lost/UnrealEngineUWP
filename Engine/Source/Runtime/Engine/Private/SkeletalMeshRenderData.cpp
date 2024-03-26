@@ -218,9 +218,9 @@ void FSkeletalMeshRenderData::Cache(const ITargetPlatform* TargetPlatform, USkin
 	check(LODRenderData.Num() == 0); // Should only be called on new, empty RenderData
 	check(TargetPlatform);
 
-	auto SerializeLodModelDdcData = [&Owner](FSkeletalMeshLODModel* LODModel, FArchive& Ar)
+	auto SerializeLODModelDDCData = [&Owner](FSkeletalMeshLODModel* LODModel, FArchive& Ar)
 	{
-		//Make sure we add everything FSkeletalMeshLODModel got modified by the skeletalmesh builder
+		//Make sure we add everything FSkeletalMeshLODModel got modified by the skeletal mesh builder
 		Ar << LODModel->Sections;
 		Ar << LODModel->NumVertices;
 		Ar << LODModel->NumTexCoords;
@@ -237,20 +237,20 @@ void FSkeletalMeshRenderData::Cache(const ITargetPlatform* TargetPlatform, USkin
 		COOK_STAT(auto Timer = SkeletalMeshCookStats::UsageStats.TimeSyncWork());
 		int32 T0 = FPlatformTime::Cycles();
 
-		//When we import a skeletalmesh, in some cases the asset is not yet built, and the usersectiondata and the inline cache are not set
-		//until the initial build. This is due to the section count which is establish by the initial build of the import data. The section count
-		//is part of the key because users can change section settings(see UserSectionData). So when we do a initial build we do not compute yet
-		//the key and force the build code path, the key will be compute after the build and the DDC data will be store with the computed key.
-		const bool bAllowDdcFetch = Owner->IsInitialBuildDone();
-		if (bAllowDdcFetch)
+		// When we import a skeletal mesh, in some cases the asset is not yet built, and the user section data and the inline cache are not set
+		// until the initial build. This is due to the section count which is establish by the initial build of the import data. The section count
+		// is part of the key because users can change section settings(see UserSectionData). So when we do a initial build we do not compute yet
+		// the key and force the build code path, the key will be compute after the build and the DDC data will be store with the computed key.
+		const bool bAllowDDCFetch = Owner->IsInitialBuildDone();
+		if (bAllowDDCFetch)
 		{
 			DerivedDataKey = Owner->BuildDerivedDataKey(TargetPlatform);
 		}
 		
-		//If we have an initial build, the ddc key will be computed only after the build. Some structure are missing until we first build the asset to get the drived data key
+		// If we have an initial build, the ddc key will be computed only after the build. Some structure are missing until we first build the asset to get the drived data key
 		
 		TArray64<uint8> DerivedData;
-		if(bAllowDdcFetch && DDCUtils64Bit::GetSynchronous(DerivedDataKey, Owner, DerivedData))
+		if(bAllowDDCFetch && DDCUtils64Bit::GetSynchronous(DerivedDataKey, Owner, DerivedData))
 		{
 			COOK_STAT(Timer.AddHit(DerivedData.Num()));
 
@@ -259,7 +259,7 @@ void FSkeletalMeshRenderData::Cache(const ITargetPlatform* TargetPlatform, USkin
 			FSkeletalMeshModel* SkelMeshModel = Owner->GetImportedModel();
 			check(SkelMeshModel);
 
-			//Get the morph target data, we put it in the compilation context to apply them in the game thread before the InitResources
+			// Get the morph target data, we put it in the compilation context to apply them in the game thread before the InitResources
 			if (Owner->GetMorphTargets().Num() > 0)
 			{
 				ContextPtr->FinishBuildMorphTargetData = Owner->GetMorphTargets()[0]->CreateFinishBuildMorphTargetData();
@@ -272,15 +272,16 @@ void FSkeletalMeshRenderData::Cache(const ITargetPlatform* TargetPlatform, USkin
 			check(ContextPtr->FinishBuildMorphTargetData);
 			ContextPtr->FinishBuildMorphTargetData->LoadFromMemoryArchive(Ar);
 
-			//Serialize the LODModel sections since they are dependent on the reduction
+			// Serialize the LODModel sections since they are dependent on the reduction
 			for (int32 LODIndex = 0; LODIndex < SkelMeshModel->LODModels.Num(); LODIndex++)
 			{
 				FSkeletalMeshLODModel* LODModel = &(SkelMeshModel->LODModels[LODIndex]);
-				SerializeLodModelDdcData(LODModel, Ar);
+				SerializeLODModelDDCData(LODModel, Ar);
 				LODModel->SyncronizeUserSectionsDataArray();
 			}
 
 			Serialize(Ar, Owner);
+
 			for (int32 LODIndex = 0; LODIndex < LODRenderData.Num(); ++LODIndex)
 			{
 				FSkeletalMeshLODRenderData& LODData = LODRenderData[LODIndex];
@@ -316,7 +317,7 @@ void FSkeletalMeshRenderData::Cache(const ITargetPlatform* TargetPlatform, USkin
 				FSkeletalMeshLODRenderData* LODData = new FSkeletalMeshLODRenderData();
 				LODRenderData.Add(LODData);
 				
-				//Get the UVs and tangents precision build settings flag specific for this LOD index
+				// Get the UVs and tangents precision build settings flag specific for this LOD index
 				ESkeletalMeshVertexFlags VertexBufferBuildFlags = Owner->GetVertexBufferFlags();
 				{
 					const bool bUseFullPrecisionUVs = LODInfo->BuildSettings.bUseFullPrecisionUVs;
@@ -355,20 +356,21 @@ void FSkeletalMeshRenderData::Cache(const ITargetPlatform* TargetPlatform, USkin
 			{
 				Owner->GetMorphTargets()[MorphTargetIndex]->SerializeMemoryArchive(Ar);
 			}
-			//No need to serialize the morph target mapping since we will rebuild the mapping when loading a ddc
+			// No need to serialize the morph target mapping since we will rebuild the mapping when loading a ddc
 
-			//Serialize the LODModel sections since they are dependent on the reduction
+			// Serialize the LODModel sections since they are dependent on the reduction
 			for (int32 LODIndex = 0; LODIndex < SkelMeshModel->LODModels.Num(); LODIndex++)
 			{
 				FSkeletalMeshLODModel* LODModel = &(SkelMeshModel->LODModels[LODIndex]);
-				SerializeLodModelDdcData(LODModel, Ar);
+				SerializeLODModelDDCData(LODModel, Ar);
 			}
 
 			IMeshBuilderModule& MeshBuilderModule = IMeshBuilderModule::GetForPlatform(TargetPlatform);
 			MeshBuilderModule.PostBuildSkeletalMesh(this, Owner);
 
-			//Serialize the render data
+			// Serialize the render data
 			Serialize(Ar, Owner);
+
 			for (int32 LODIndex = 0; LODIndex < LODRenderData.Num(); ++LODIndex)
 			{
 				FSkeletalMeshLODRenderData& LODData = LODRenderData[LODIndex];
@@ -386,7 +388,7 @@ void FSkeletalMeshRenderData::Cache(const ITargetPlatform* TargetPlatform, USkin
 			//There should never be correction of the data during the build, the data has to be corrected in the post load before calling this function.
 			FString BuiltDerivedDataKey = Owner->BuildDerivedDataKey(TargetPlatform);
 			//Only compare keys if the ddc fetch was allowed
-			if (bAllowDdcFetch)
+			if (bAllowDDCFetch)
 			{
 				if (BuiltDerivedDataKey != DerivedDataKey)
 				{

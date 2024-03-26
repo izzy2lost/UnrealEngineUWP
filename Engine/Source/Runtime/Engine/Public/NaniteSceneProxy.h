@@ -422,11 +422,6 @@ public:
 		OutImposterIndex = Resources->ImposterIndex;
 	}
 
-	virtual void GetNaniteMaterialMask(FUint32Vector2& OutMaterialMask) const override
-	{
-		OutMaterialMask = NaniteMaterialMask;
-	}
-
 	ENGINE_API virtual FResourceMeshInfo GetResourceMeshInfo() const override;
 
 	ENGINE_API virtual bool GetInstanceDrawDistanceMinMax(FVector2f& OutCullRange) const override;
@@ -489,8 +484,6 @@ protected:
 	const FStaticMeshRenderData* RenderData;
 	const FDistanceFieldVolumeData* DistanceFieldData;
 	const FCardRepresentationData* CardRepresentationData;
-
-	FUint32Vector2 NaniteMaterialMask = FUint32Vector2(~uint32(0), ~uint32(0));
 
 	uint32 bHasMaterialErrors : 1;
 

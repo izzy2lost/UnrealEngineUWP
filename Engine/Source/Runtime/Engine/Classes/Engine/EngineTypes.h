@@ -2921,7 +2921,7 @@ struct FMeshNaniteSettings
 	 * Disable if data stored in UVs isn't valid to interpolate, for example if indexes are stored in UVs.
 	 * Lerping an index doesn't make sense and would break the shader trying to use it.
 	 * Note: If disabled, error from UVs is no longer accounted for when Nanite selects the LOD to render because
-	 * error due to arbitary vertex attributes that aren't interpolatable can't be generally reasoned about.
+	 * error due to arbitrary vertex attributes that aren't interpolatable can't be generally reasoned about.
 	 */
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = NaniteSettings)
 	uint8 bLerpUVs : 1;

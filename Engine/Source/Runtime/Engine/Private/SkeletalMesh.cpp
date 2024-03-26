@@ -1550,7 +1550,7 @@ static FSkeletalMeshRenderData& GetPlatformSkeletalMeshRenderData(USkeletalMesh*
 		PlatformRenderData = PlatformRenderData->NextCachedRenderData.Get();
 	}
 
-	if (PlatformRenderData == NULL)
+	if (PlatformRenderData == nullptr)
 	{
 		// Cache render data for this platform and insert it in to the linked list.
 		PlatformRenderData = new FSkeletalMeshRenderData();
@@ -1569,7 +1569,7 @@ FScopedSkeletalMeshRenderData::FScopedSkeletalMeshRenderData(USkeletalMesh* InMe
 	Mesh = InMesh;
 	if (Mesh)
 	{
-		// Lock the skeletalmesh properties since we call USkeletalMesh::Cache() function (through GetPlatformSkeletalMeshRenderData -> CachePlatform -> Cache) 
+		// Lock the skeletal mesh properties since we call USkeletalMesh::Cache() function (through GetPlatformSkeletalMeshRenderData -> CachePlatform -> Cache) 
 		// and which could be called by other threads at the same time
 		Lock = Mesh->LockPropertiesUntil();
 	}

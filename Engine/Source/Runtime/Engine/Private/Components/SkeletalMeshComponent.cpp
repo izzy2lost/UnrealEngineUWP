@@ -4057,7 +4057,7 @@ void USkeletalMeshComponent::RefreshMorphTargets()
 			LeaderSMC->AnimScriptInstance->RefreshCurves(this);
 		}
 	}
-	
+
 	UpdateMorphTargetOverrideCurves();
 }
 

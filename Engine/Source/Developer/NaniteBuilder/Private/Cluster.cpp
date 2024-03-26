@@ -266,7 +266,7 @@ FCluster::FCluster( const TArray< const FCluster*, TInlineAllocator<32> >& Merge
 					AdjCount--;
 			} );
 
-		// This seems like a sloppy workaround for a bug elsewhere but it is possible an interior edge is moved during simplifiation to
+		// This seems like a sloppy workaround for a bug elsewhere but it is possible an interior edge is moved during simplification to
 		// match another cluster and it isn't reflected in this count. Sounds unlikely but any hole closing could do this.
 		// The only way to catch it would be to rebuild full adjacency after every pass which isn't practical.
 		AdjCount = FMath::Max( AdjCount, 0 );

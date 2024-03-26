@@ -58,7 +58,16 @@ struct FPageSections
 
 	FPageSections GetOffsets() const
 	{
-		return FPageSections{ GetClusterOffset(), GetMaterialTableOffset(), GetVertReuseBatchInfoOffset(), GetDecodeInfoOffset(), GetIndexOffset(), GetPositionOffset(), GetAttributeOffset() };
+		return FPageSections
+		{
+			GetClusterOffset(),
+			GetMaterialTableOffset(),
+			GetVertReuseBatchInfoOffset(),
+			GetDecodeInfoOffset(),
+			GetIndexOffset(),
+			GetPositionOffset(),
+			GetAttributeOffset()
+		};
 	}
 
 	void operator+=(const FPageSections& Other)
@@ -1179,7 +1188,15 @@ static void CalculateEncodingInfo(FEncodingInfo& Info, const Nanite::FCluster& C
 #endif
 }
 
-static void CalculateEncodingInfos(TArray<FEncodingInfo>& EncodingInfos, const TArray<Nanite::FCluster>& Clusters, int32 NormalPrecision, int32 TangentPrecision, bool bHasTangents, bool bHasColors, uint32 NumTexCoords)
+static void CalculateEncodingInfos(
+	TArray<FEncodingInfo>& EncodingInfos,
+	const TArray<Nanite::FCluster>& Clusters,
+	int32 NormalPrecision,
+	int32 TangentPrecision,
+	bool bHasTangents,
+	bool bHasColors,
+	uint32 NumTexCoords
+)
 {
 	uint32 NumClusters = Clusters.Num();
 	EncodingInfos.SetNumUninitialized(NumClusters);
@@ -4409,7 +4426,8 @@ void Encode(
 	uint32 NumTexCoords,
 	bool bHasTangents,
 	bool bHasColors,
-	uint32* OutTotalGPUSize)
+	uint32* OutTotalGPUSize
+)
 {
 	const uint32 MaxRootPages = CalculateMaxRootPages(Settings.TargetMinimumResidencyInKB);
 

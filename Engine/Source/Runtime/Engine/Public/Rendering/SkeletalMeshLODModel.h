@@ -264,7 +264,7 @@ struct FSkelMeshSourceSectionUserData
 
 
 	//////////////////////////////////////////////////////////////////////////
-	//Skeletalmesh DDC key members, Add sections member that impact generated skel mesh here
+	// Skeletal mesh DDC key members, Add sections member that impact generated skel mesh here
 
 	/** If disabled, we won't render this section */
 	bool bDisabled;

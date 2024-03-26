@@ -950,11 +950,6 @@ public:
 		ImposterIndex = INDEX_NONE;
 	}
 
-	virtual void GetNaniteMaterialMask(FUint32Vector2& OutMaterialMask) const
-	{
-		OutMaterialMask = FUint32Vector2(~uint32(0), ~uint32(0));
-	}
-
 	/** 
 	 * Drawing helper. Draws nice bouncy line.
 	 */

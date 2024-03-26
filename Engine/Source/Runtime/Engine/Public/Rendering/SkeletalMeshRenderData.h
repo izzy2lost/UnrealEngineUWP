@@ -107,7 +107,7 @@ public:
 		return GetFirstValidLODIdx(FMath::Max<int32>(PendingFirstLODIdx, MinLODIdx));
 	}
 
-	/** Check if any rendersection casts shadows */
+	/** Check if any render section casts shadows */
 	ENGINE_API bool AnyRenderSectionCastsShadows(int32 MinLODIdx) const;
 
 	/** 
