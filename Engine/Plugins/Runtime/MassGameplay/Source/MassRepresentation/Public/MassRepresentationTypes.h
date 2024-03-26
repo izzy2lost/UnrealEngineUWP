@@ -7,14 +7,14 @@
 #include "Misc/MTAccessDetector.h"
 #include "InstanceDataTypes.h"
 #include "Experimental/Containers/RobinHoodHashTable.h"
-
+#include "UObject/ObjectKey.h"
+#include "Components/InstancedStaticMeshComponent.h"
 #include "MassRepresentationTypes.generated.h"
 
 class UMaterialInterface;
 class UStaticMesh;
 struct FMassLODSignificanceRange;
 class UMassVisualizationComponent;
-class UInstancedStaticMeshComponent;
 
 DECLARE_LOG_CATEGORY_EXTERN(LogMassRepresentation, Log, All);
 
@@ -22,6 +22,8 @@ namespace UE::Mass::ProcessorGroupNames
 {
 	const FName Representation = FName(TEXT("Representation"));
 }
+
+using FISMCSharedDataKey = TObjectKey<UInstancedStaticMeshComponent>;
 
 UENUM()
 enum class EMassRepresentationType : uint8
@@ -383,17 +385,17 @@ struct FMassISMCSharedDataMap
 		static constexpr bool bValueToCheck = true;
 	};
 
-	FMassISMCSharedData& GetAndMarkDirtyChecked(const uint32 Hash)
+	FMassISMCSharedData& GetAndMarkDirtyChecked(const FISMCSharedDataKey OwnerKey)
 	{
-		const int32 DataIndex = Map[Hash];
+		const int32 DataIndex = Map[OwnerKey];
 		DirtyData[DataIndex] = true;
 		return Data[DataIndex];
 	}
 
-	FMassISMCSharedData* GetAndMarkDirty(const uint32 Hash)
+	FMassISMCSharedData* GetAndMarkDirty(const FISMCSharedDataKey OwnerKey)
 	{
-		const int32* DataIndex = Map.Find(Hash);
-		if (ensureMsgf(DataIndex, TEXT("%hs Failed to find Hash %u"), __FUNCTION__, Hash))
+		const int32* DataIndex = Map.Find(OwnerKey);
+		if (ensureMsgf(DataIndex, TEXT("%hs Failed to find OwnerKey %u"), __FUNCTION__, *GetNameSafe(OwnerKey.ResolveObjectPtrEvenIfGarbage())))
 		{
 			DirtyData[*DataIndex] = true;
 			return &Data[*DataIndex];
@@ -402,28 +404,28 @@ struct FMassISMCSharedDataMap
 	}
 	
 	template<typename... TArgs>
-	FMassISMCSharedData& FindOrAdd(const uint32 Hash, TArgs&&... InNewInstanceArgs)
+	FMassISMCSharedData& FindOrAdd(const FISMCSharedDataKey OwnerKey, TArgs&&... InNewInstanceArgs)
 	{
-		const int32* DataIndex = Map.Find(Hash);
+		const int32* DataIndex = Map.Find(OwnerKey);
 		if (DataIndex == nullptr)
 		{
-			return Add(Hash, Forward<TArgs>(InNewInstanceArgs)...);
+			return Add(OwnerKey, Forward<TArgs>(InNewInstanceArgs)...);
 		}
 		check(Data.IsValidIndex(*DataIndex));
 		return Data[*DataIndex];
 	}
 
-	FMassISMCSharedData* Find(const uint32 Hash)
+	FMassISMCSharedData* Find(const FISMCSharedDataKey OwnerKey)
 	{
-		int32* DataIndex = Map.Find(Hash);
+		int32* DataIndex = Map.Find(OwnerKey);
 		return (DataIndex == nullptr || *DataIndex == INDEX_NONE) ? (FMassISMCSharedData*)nullptr : &Data[*DataIndex];
 	}
 
 	template<typename... TArgs>
-	FMassISMCSharedData& Add(const uint32 Hash, TArgs&&... InNewInstanceArgs)
+	FMassISMCSharedData& Add(const FISMCSharedDataKey OwnerKey, TArgs&&... InNewInstanceArgs)
 	{
 		const int32 DataIndex = FreeIndices.Num() ? FreeIndices.Pop() : Data.Num();
-		Map.Add(Hash, DataIndex);
+		Map.Add(OwnerKey, DataIndex);
 
 		if (DataIndex == Data.Num())
 		{
@@ -439,10 +441,10 @@ struct FMassISMCSharedDataMap
 		}
 	}
 
-	void Remove(const uint32 Hash)
+	void Remove(const FISMCSharedDataKey OwnerKey)
 	{
 		int32 DataIndex = INDEX_NONE;
-		if (ensure(Map.RemoveAndCopyValue(Hash, DataIndex)))
+		if (ensure(Map.RemoveAndCopyValue(OwnerKey, DataIndex)))
 		{
 			DirtyData[DataIndex] = false;
 			Data[DataIndex].Reset();
@@ -477,6 +479,11 @@ struct FMassISMCSharedDataMap
 		return DirtyData[DataIndex];
 	}
 
+	bool IsEmpty() const
+	{
+		return NumValid() == 0;
+	}
+
 	void Reset()
 	{
 		*this = FMassISMCSharedDataMap();
@@ -489,12 +496,28 @@ struct FMassISMCSharedDataMap
 
 protected:
 	TArray<FMassISMCSharedData> Data;
-	/** Mapping from Hash of data represented by FMassISMCSharedData to an index to Data */
-	TMap<uint32, int32> Map;
+	/** Mapping from Owner (as FObjectKey) of data represented by FMassISMCSharedData to an index to Data */
+	TMap<FISMCSharedDataKey, int32> Map;
 	/** Indicates whether corresponding Data entry has any instance work assigned to it (instance addition or removal) */
 	TBitArray<> DirtyData;
 	/** Indices to Data that are available for reuse */
 	TArray<int32> FreeIndices;
+
+public:
+	UE_DEPRECATED(5.5, "Deprecated. Using hashes in Mass Visualization is being phased out. Use FISMCSharedDataKey instead.")
+	FMassISMCSharedData& GetAndMarkDirtyChecked(const uint32 Hash);
+	UE_DEPRECATED(5.5, "Deprecated. Using hashes in Mass Visualization is being phased out. Use FISMCSharedDataKey instead.")
+	FMassISMCSharedData* GetAndMarkDirty(const uint32 Hash);	
+	template<typename... TArgs>
+	UE_DEPRECATED(5.5, "Deprecated. Using hashes in Mass Visualization is being phased out. Use FISMCSharedDataKey instead.")
+	FMassISMCSharedData& FindOrAdd(const uint32 Hash, TArgs&&... InNewInstanceArgs);
+	UE_DEPRECATED(5.5, "Deprecated. Using hashes in Mass Visualization is being phased out. Use FISMCSharedDataKey instead.")
+	FMassISMCSharedData* Find(const uint32 Hash);
+	template<typename... TArgs>
+	UE_DEPRECATED(5.5, "Deprecated. Using hashes in Mass Visualization is being phased out. Use FISMCSharedDataKey instead.")
+	FMassISMCSharedData& Add(const uint32 Hash, TArgs&&... InNewInstanceArgs);
+	UE_DEPRECATED(5.5, "Deprecated. Using hashes in Mass Visualization is being phased out. Use FISMCSharedDataKey instead.")
+	void Remove(const uint32 Hash);
 };
 
 
@@ -504,12 +527,12 @@ struct MASSREPRESENTATION_API FMassLODSignificanceRange
 	GENERATED_BODY()
 public:
 
-	void AddBatchedTransform(const FMassEntityHandle EntityHandle, const FTransform& Transform, const FTransform& PrevTransform, const TArray<uint32>& ExcludeStaticMeshRefs);
+	void AddBatchedTransform(const FMassEntityHandle EntityHandle, const FTransform& Transform, const FTransform& PrevTransform, TConstArrayView<FISMCSharedDataKey> ExcludeStaticMeshRefs);
 
 	// Adds the specified struct reinterpreted as custom floats to our custom data. Individual members of the specified struct should always fit into a float.
 	// When adding any custom data, the custom data must be added for every instance.
 	template<typename InCustomDataType>
-	void AddBatchedCustomData(InCustomDataType InCustomData, const TArray<uint32>& ExcludeStaticMeshRefs, int32 NumFloatsToPad = 0)
+	void AddBatchedCustomData(InCustomDataType InCustomData, const TArray<FISMCSharedDataKey>& ExcludeStaticMeshRefs, int32 NumFloatsToPad = 0)
 	{
 		check(ISMCSharedDataPtr);
 		static_assert((sizeof(InCustomDataType) % sizeof(float)) == 0, "AddBatchedCustomData: InCustomDataType should have a total size multiple of sizeof(float), and have members that fit in a float's boundaries");
@@ -529,22 +552,21 @@ public:
 		}
 	}
 
-	void AddBatchedCustomDataFloats(const TArray<float>& CustomFloats, const TArray<uint32>& ExcludeStaticMeshRefs);
+	void AddBatchedCustomDataFloats(const TArray<float>& CustomFloats, const TArray<FISMCSharedDataKey>& ExcludeStaticMeshRefs);
 
 	/** Single-instance version of AddBatchedCustomData when called to add entities (as opposed to modify existing ones).*/
 	void AddInstance(const FMassEntityHandle EntityHandle, const FTransform& Transform);
 
 	void RemoveInstance(const FMassEntityHandle EntityHandle);
 
-	void WriteCustomDataFloatsAtStartIndex(int32 StaticMeshIndex, const TArrayView<float>& CustomFloats, const int32 FloatsPerInstance, const int32 StartIndex, const TArray<uint32>& ExcludeStaticMeshRefs);
+	void WriteCustomDataFloatsAtStartIndex(int32 StaticMeshIndex, const TArrayView<float>& CustomFloats, const int32 FloatsPerInstance, const int32 StartIndex, const TArray<FISMCSharedDataKey>& ExcludeStaticMeshRefs);
 
 	/** LOD Significance range */
 	float MinSignificance;
 	float MaxSignificance;
 
 	/** The component handling these instances */
-	UPROPERTY(VisibleAnywhere, Category = "Mass/Debug")
-	TArray<uint32> StaticMeshRefs;
+	TArray<FISMCSharedDataKey> StaticMeshRefs;
 
 	FMassISMCSharedDataMap* ISMCSharedDataPtr = nullptr;
 
@@ -601,7 +623,7 @@ public:
 	{
 		if (FMassLODSignificanceRange* Range = GetLODSignificanceRange(LODSignificance))
 		{
-			Range->AddBatchedTransform(EntityHandle, Transform, PrevTransform, TArray<uint32>());
+			Range->AddBatchedTransform(EntityHandle, Transform, PrevTransform, {});
 			if(PrevLODSignificance >= 0.0f)
 			{
 				FMassLODSignificanceRange* PrevRange = GetLODSignificanceRange(PrevLODSignificance);
@@ -629,7 +651,7 @@ public:
 	{
 		if (FMassLODSignificanceRange* Range = GetLODSignificanceRange(LODSignificance))
 		{
-			Range->AddBatchedCustomData(InCustomData, TArray<uint32>(), NumFloatsToPad);
+			Range->AddBatchedCustomData(InCustomData, {}, NumFloatsToPad);
 			if(PrevLODSignificance >= 0.0f)
 			{
 				FMassLODSignificanceRange* PrevRange = GetLODSignificanceRange(PrevLODSignificance);
@@ -646,7 +668,7 @@ public:
 	{
 		if (FMassLODSignificanceRange* Range = GetLODSignificanceRange(LODSignificance))
 		{
-			Range->AddBatchedCustomDataFloats(CustomFloats, TArray<uint32>());
+			Range->AddBatchedCustomDataFloats(CustomFloats, {});
 			if(PrevLODSignificance >= 0.0f)
 			{
 				FMassLODSignificanceRange* PrevRange = GetLODSignificanceRange(PrevLODSignificance);
@@ -663,7 +685,7 @@ public:
 	{
 		if (FMassLODSignificanceRange* Range = GetLODSignificanceRange(LODSignificance))
 		{
-			Range->WriteCustomDataFloatsAtStartIndex(StaticMeshIndex, CustomFloats, FloatsPerInstance, FloatStartIndex, TArray<uint32>());
+			Range->WriteCustomDataFloatsAtStartIndex(StaticMeshIndex, CustomFloats, FloatsPerInstance, FloatStartIndex, {});
 			if(PrevLODSignificance >= 0.0f)
 			{
 				FMassLODSignificanceRange* PrevRange = GetLODSignificanceRange(PrevLODSignificance);
@@ -695,13 +717,13 @@ public:
 protected:
 
 	/** Destroy the visual instance */
-	void ClearVisualInstance(FMassISMCSharedDataMap& ISMCSharedData);
+	void ClearVisualInstance(UInstancedStaticMeshComponent& ISMComponent);
 
 	/** Information about this static mesh which will represent all instances */
 	UPROPERTY(VisibleAnywhere, Category = "Mass/Debug")
 	FStaticMeshInstanceVisualizationDesc Desc;
 
-	/** The component handling these instances */
+	/** The components handling these instances */
 	UPROPERTY(VisibleAnywhere, Category = "Mass/Debug")
 	TArray<TObjectPtr<UInstancedStaticMeshComponent>> InstancedStaticMeshComponents;
 
@@ -713,10 +735,12 @@ protected:
 	//-----------------------------------------------------------------------------
 	// DEPRECATED
 	//-----------------------------------------------------------------------------
+	UE_DEPRECATED(5.5, "Deprecated in flavor of the function taking the ISMComponent parameter. This version is not defunct")
+	void ClearVisualInstance(FMassISMCSharedDataMap& ISMCSharedData) {}
 public:
-	UE_DEPRECATED(5.4, "Deprecated in favor of new version taking FMassEntityHandle parameter instead of int32 to identify the entity. This deprecated function is now defunct.")
+	UE_DEPRECATED(5.4, "Deprecated in flavor of new version taking FMassEntityHandle parameter instead of int32 to identify the entity. This deprecated function is now defunct.")
 	void AddBatchedTransform(const int32 InstanceId, const FTransform& Transform, const FTransform& PrevTransform, const float LODSignificance, const float PrevLODSignificance = -1.0f) {}
-	UE_DEPRECATED(5.4, "Deprecated in favor of new version taking FMassEntityHandle parameter instead of int32 to identify the entity. This deprecated function is now defunct.")
+	UE_DEPRECATED(5.4, "Deprecated in flavor of new version taking FMassEntityHandle parameter instead of int32 to identify the entity. This deprecated function is now defunct.")
 	void RemoveInstance(const int32 InstanceId, const float LODSignificance) {}
 };
 
@@ -773,3 +797,21 @@ typedef FMassInstancedStaticMeshInfoArrayViewAccessDetector FMassInstancedStatic
 typedef TArrayView<FMassInstancedStaticMeshInfo> FMassInstancedStaticMeshInfoArrayView;
 
 #endif // ENABLE_MT_DETECTOR
+
+//-----------------------------------------------------------------------------
+// DEPRECATED
+//-----------------------------------------------------------------------------
+
+template<typename... TArgs>
+FMassISMCSharedData& FMassISMCSharedDataMap::FindOrAdd(const uint32 Hash, TArgs&&... InNewInstanceArgs)
+{
+	static FMassISMCSharedData Dummy;
+	return Dummy;
+}
+
+template<typename... TArgs>
+FMassISMCSharedData& FMassISMCSharedDataMap::Add(const uint32 Hash, TArgs&&... InNewInstanceArgs)
+{
+	static FMassISMCSharedData Dummy;
+	return Dummy;
+}

@@ -112,7 +112,7 @@ protected:
 	 * @param ForcedStaticMeshRefKeys if not empty will be used when adding individual FMassStaticMeshInstanceVisualizationMeshDesc
 	 *	instances to LOD significance ranges.
 	 */	
-	void BuildLODSignificanceForInfo(FMassInstancedStaticMeshInfo& Info, TConstArrayView<uint32> ForcedStaticMeshRefKeys = TConstArrayView<uint32>());
+	void BuildLODSignificanceForInfo(FMassInstancedStaticMeshInfo& Info, TConstArrayView<UInstancedStaticMeshComponent*> StaticMeshRefKeys);
 
 	/** Either adds an element to InstancedStaticMeshInfos or reuses an existing entry based on InstancedStaticMeshInfosFreeIndices*/
 	FStaticMeshInstanceVisualizationDescHandle AddInstancedStaticMeshInfo(const FStaticMeshInstanceVisualizationDesc& Desc);
@@ -125,18 +125,25 @@ protected:
 	/** Indices to InstancedStaticMeshInfos that have been released and can be reused */
 	TArray<FStaticMeshInstanceVisualizationDescHandle> InstancedStaticMeshInfosFreeIndices;
 
-	/** Mapping from ISMComponent object path hash to corresponding VisualDescHandle */
-	TMap<uint32, FStaticMeshInstanceVisualizationDescHandle> ISMComponentMap;
+	/** Mapping from ISMComponent (indicated by FISMCSharedDataKey) to corresponding VisualDescHandle */
+	TMap<FISMCSharedDataKey, FStaticMeshInstanceVisualizationDescHandle> ISMComponentMap;
 
 	FMassISMCSharedDataMap ISMCSharedData;
+
+	/** 
+	 * Mapping FMassStaticMeshInstanceVisualizationMeshDesc hash to FMassISMCSharedData entries for all FMassStaticMeshInstanceVisualizationMeshDesc
+	 * that didn't come with ISMC explicitly provided. Used only for initialization.
+	 * Note that FMassStaticMeshInstanceVisualizationMeshDesc that were added with ISMComponents provided directly
+	 * (via AddVisualDescWithISMComponents call) will never make it to this map.
+	 */
+	TMap<uint32, FISMCSharedDataKey> MeshDescToISMCMap;
 
 	/** Indicies to InstancedStaticMeshInfos that need their SMComponent constructed */
 	TArray<FStaticMeshInstanceVisualizationDescHandle> InstancedSMComponentsRequiringConstructing;
 
-	UE_DEPRECATED(5.4, "This flavor of BuildLODSignificanceForInfo is no longer supported. Use the other one instead.")
-	void BuildLODSignificanceForInfo(FMassInstancedStaticMeshInfo& Info, const uint32 ForcedStaticMeshRefKey);
+	UE_DEPRECATED(5.4, "This flavor of BuildLODSignificanceForInfo is no longer supported and is defunct.")
+	void BuildLODSignificanceForInfo(FMassInstancedStaticMeshInfo& Info, const uint32 ForcedStaticMeshRefKey){}
 
-#if WITH_MASSGAMEPLAY_DEBUG
-	TMap<uint32, TArray<FString>> DebugHashToPathMap;
-#endif // WITH_MASSGAMEPLAY_DEBUG
+	UE_DEPRECATED(5.5, "This flavor of BuildLODSignificanceForInfo is no longer supported and is defunct.")
+	void BuildLODSignificanceForInfo(FMassInstancedStaticMeshInfo& Info) {}
 };
