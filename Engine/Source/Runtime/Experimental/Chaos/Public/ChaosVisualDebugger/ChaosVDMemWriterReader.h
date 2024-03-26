@@ -3,6 +3,8 @@
 #pragma once
 #include "ChaosVDSerializedNameTable.h"
 #include "HAL/Platform.h"
+#include "Misc/EngineVersion.h"
+#include "Serialization/CustomVersion.h"
 #include "Serialization/MemoryReader.h"
 #include "Serialization/MemoryWriter.h"
 #include "Templates/SharedPointer.h"
@@ -12,6 +14,27 @@ class FArchive;
 
 namespace Chaos::VisualDebugger
 {
+	struct FChaosVDArchiveHeader
+	{
+		inline static FStringView WrapperTypeName = TEXT("FChaosVDArchiveHeader");
+
+		FChaosVDArchiveHeader()
+		{
+		}
+
+		/** Contains version and branch info from where it was saved */
+		FEngineVersion EngineVersion;
+
+		/** Custom versions */
+		FCustomVersionContainer CustomVersionContainer;
+
+		/** Serialization function, returns false if the archive ends up in an error state */
+		CHAOS_API bool Serialize(FArchive& Ar);
+
+		/** Returns a header that matches current version */
+		CHAOS_API static FChaosVDArchiveHeader Current();
+	};
+
 	FORCEINLINE void NameTableFNameSerializer(FArchive& Ar ,FName& Name, const TSharedRef<FChaosVDSerializableNameTable>& InNameTable)
 	{
 		// Serialize the FName as a CVD Name ID

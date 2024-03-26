@@ -20,13 +20,9 @@ bool FChaosVDSceneQueryDataProcessor::ProcessRawData(const TArray<uint8>& InData
 	{
 		return false;
 	}
-	if (!ensure(ProviderSharedPtr->GetNameTable().IsValid()))
-	{
-		return false;
-	}
 
 	const TSharedPtr<FChaosVDQueryDataWrapper> QueryData = MakeShared<FChaosVDQueryDataWrapper>();
-	const bool bSuccess = ReadDataFromBuffer(InData, *QueryData, ProviderSharedPtr->GetNameTable().ToSharedRef());
+	const bool bSuccess = Chaos::VisualDebugger::ReadDataFromBuffer(InData, *QueryData, ProviderSharedPtr.ToSharedRef());
 
 	if (bSuccess)
 	{

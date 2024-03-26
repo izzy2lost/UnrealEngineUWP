@@ -5,12 +5,10 @@
 #include "ChaosVDModule.h"
 #include "ChaosVDRecording.h"
 
-#include "Chaos/ChaosArchive.h"
 #include "ChaosVisualDebugger/ChaosVDSerializedNameTable.h"
 #include "ChaosVisualDebugger/ChaosVisualDebuggerTrace.h"
 
 #include "Compression/OodleDataCompressionUtil.h"
-#include "Serialization/MemoryReader.h"
 #include "Trace/DataProcessors/ChaosVDConstraintDataProcessor.h"
 #include "Trace/DataProcessors/ChaosVDJointConstraintDataProcessor.h"
 #include "Trace/DataProcessors/ChaosVDMidPhaseDataProcessor.h"
@@ -19,11 +17,14 @@
 #include "Trace/DataProcessors/ChaosVDSerializedNameEntryDataProcessor.h"
 #include "Trace/DataProcessors/ChaosVDTraceImplicitObjectProcessor.h"
 #include "Trace/DataProcessors/ChaosVDTraceParticleDataProcessor.h"
+#include "Trace/DataProcessors/ChaosVDArchiveHeaderProcessor.h"
+#include "Trace/DataProcessors/IChaosVDDataProcessor.h"
 
 FName FChaosVDTraceProvider::ProviderName("ChaosVDProvider");
 
 FChaosVDTraceProvider::FChaosVDTraceProvider(TraceServices::IAnalysisSession& InSession): Session(InSession)
 {
+	DefaultHeaderData = Chaos::VisualDebugger::FChaosVDArchiveHeader::Current();
 }
 
 void FChaosVDTraceProvider::CreateRecordingInstanceForSession(const FString& InSessionName)
@@ -163,6 +164,10 @@ bool FChaosVDTraceProvider::ProcessBinaryData(const int32 DataID)
 					{
 						return true;
 					}
+					else
+					{
+						UE_LOG(LogChaosVDEditor, Warning, TEXT("[%s] Failed to serialize Binary Data with ID [%d] | Type [%s]"), ANSI_TO_TCHAR(__FUNCTION__), DataID, *UnprocessedData->TypeName);
+					}
 				}
 			}
 			else
@@ -183,11 +188,6 @@ TSharedPtr<FChaosVDRecording> FChaosVDTraceProvider::GetRecordingForSession() co
 void FChaosVDTraceProvider::RegisterDataProcessor(TSharedPtr<IChaosVDDataProcessor> InDataProcessor)
 {
 	RegisteredDataProcessors.Add(InDataProcessor->GetCompatibleTypeName(), InDataProcessor);
-}
-
-TSharedPtr<Chaos::VisualDebugger::FChaosVDSerializableNameTable> FChaosVDTraceProvider::GetNameTable() const
-{
-	return InternalRecording.IsValid() ? InternalRecording->GetNameTableInstance() : nullptr; 
 }
 
 void FChaosVDTraceProvider::RegisterDefaultDataProcessorsIfNeeded()
@@ -228,6 +228,10 @@ void FChaosVDTraceProvider::RegisterDefaultDataProcessorsIfNeeded()
 	TSharedPtr<FChaosVDJointConstraintDataProcessor> JointConstraintDataProcessor = MakeShared<FChaosVDJointConstraintDataProcessor>();
 	JointConstraintDataProcessor->SetTraceProvider(AsShared());
 	RegisterDataProcessor(JointConstraintDataProcessor);
+
+	TSharedPtr<FChaosVDArchiveHeaderProcessor> ArchiveHeaderDataProcessor = MakeShared<FChaosVDArchiveHeaderProcessor>();
+	ArchiveHeaderDataProcessor->SetTraceProvider(AsShared());
+	RegisterDataProcessor(ArchiveHeaderDataProcessor);
 
 	bDefaultDataProcessorsRegistered = true;
 }

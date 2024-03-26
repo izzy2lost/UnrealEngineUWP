@@ -8,7 +8,6 @@
 #include "Containers/Array.h"
 #include "Containers/Queue.h"
 #include "Containers/UnrealString.h"
-#include "DataProcessors/IChaosVDDataProcessor.h"
 #include "Delegates/Delegate.h"
 #include "Templates/SharedPointer.h"
 #include "TraceServices/Model/AnalysisSession.h"
@@ -22,6 +21,7 @@ struct FChaosVDGameFrameData;
 class FChaosVDEngine;
 struct FChaosVDSolverFrameData;
 struct FChaosVDRecording;
+class IChaosVDDataProcessor;
 
 struct FChaosVDBinaryDataContainer
 {
@@ -75,8 +75,6 @@ public:
 
 	void RegisterDataProcessor(TSharedPtr<IChaosVDDataProcessor> InDataProcessor);
 
-	TSharedPtr<Chaos::VisualDebugger::FChaosVDSerializableNameTable> GetNameTable() const;
-
 private:
 
 	void RegisterDefaultDataProcessorsIfNeeded();
@@ -97,6 +95,8 @@ private:
 	TQueue<TSharedPtr<FChaosVDGameFrameData>> CurrentGameFrameQueue;
 
 	TWeakPtr<FChaosVDGameFrameData> CurrentGameFrame = nullptr;
+
+	Chaos::VisualDebugger::FChaosVDArchiveHeader DefaultHeaderData;
 
 	int32 CurrentGameFrameQueueSize = 0;
 

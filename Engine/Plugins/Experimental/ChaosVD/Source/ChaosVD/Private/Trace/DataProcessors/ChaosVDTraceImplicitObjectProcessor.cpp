@@ -5,10 +5,8 @@
 #include "Chaos/ImplicitObject.h"
 #include "ChaosVDRecording.h"
 #include "ChaosVisualDebugger/ChaosVDMemWriterReader.h"
-#include "ChaosVisualDebugger/ChaosVDSerializedNameTable.h"
 #include "ChaosVisualDebugger/ChaosVisualDebuggerTrace.h"
 #include "DataWrappers/ChaosVDImplicitObjectDataWrapper.h"
-#include "Serialization/MemoryReader.h"
 #include "Trace/ChaosVDTraceProvider.h"
 
 using FChaosVDImplicitObjectWrapper = FChaosVDImplicitObjectDataWrapper<Chaos::FImplicitObjectPtr, Chaos::FChaosArchive>;
@@ -25,13 +23,9 @@ bool FChaosVDTraceImplicitObjectProcessor::ProcessRawData(const TArray<uint8>& I
 		return false;
 	}
 
-	if (!ensure(ProviderSharedPtr->GetNameTable().IsValid()))
-	{
-		return false;
-	}
-
 	FChaosVDImplicitObjectWrapper WrappedGeometryData;
-	const bool bSuccess = ReadDataFromBuffer<FChaosVDImplicitObjectWrapper, Chaos::FChaosArchive>(InData, WrappedGeometryData, ProviderSharedPtr->GetNameTable().ToSharedRef());
+
+	const bool bSuccess = Chaos::VisualDebugger::ReadDataFromBuffer<FChaosVDImplicitObjectWrapper>(InData, WrappedGeometryData, ProviderSharedPtr.ToSharedRef());
 
 	if (bSuccess)
 	{

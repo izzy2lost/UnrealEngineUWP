@@ -4,7 +4,6 @@
 
 #include "ChaosVDRecording.h"
 #include "ChaosVisualDebugger/ChaosVDMemWriterReader.h"
-#include "ChaosVisualDebugger/ChaosVDSerializedNameTable.h"
 #include "ChaosVisualDebugger/ChaosVisualDebuggerTrace.h"
 #include "DataWrappers/ChaosVDQueryDataWrappers.h"
 #include "Trace/ChaosVDTraceProvider.h"
@@ -21,13 +20,8 @@ bool FChaosVDSceneQueryVisitDataProcessor::ProcessRawData(const TArray<uint8>& I
 		return false;
 	}
 
-	if (!ensure(ProviderSharedPtr->GetNameTable().IsValid()))
-	{
-		return false;
-	}
-
 	FChaosVDQueryVisitStep VisitStepData;
-	const bool bSuccess = ReadDataFromBuffer(InData, VisitStepData, ProviderSharedPtr->GetNameTable().ToSharedRef());
+	const bool bSuccess = Chaos::VisualDebugger::ReadDataFromBuffer(InData, VisitStepData, ProviderSharedPtr.ToSharedRef());
 
 	if (bSuccess)
 	{
@@ -43,7 +37,7 @@ bool FChaosVDSceneQueryVisitDataProcessor::ProcessRawData(const TArray<uint8>& I
 						// Quick and dirty way of show the hits in the details panel. If copying this data around becomes a bottle neck we can write a customization layout for it
 						QueryDataPtr->Hits.Add(VisitStepData);
 					}
-	
+
 					QueryDataPtr->SQVisitData.Emplace(MoveTemp(VisitStepData));
 				}
 			}

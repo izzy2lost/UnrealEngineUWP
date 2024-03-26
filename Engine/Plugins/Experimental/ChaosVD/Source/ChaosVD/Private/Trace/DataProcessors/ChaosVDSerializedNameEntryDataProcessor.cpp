@@ -20,12 +20,25 @@ bool FChaosVDSerializedNameEntryDataProcessor::ProcessRawData(const TArray<uint8
 		return false;
 	}
 
+	TSharedPtr<FChaosVDRecording> RecordingInstance = ProviderSharedPtr->GetRecordingForSession();
+
+	TSharedPtr<Chaos::VisualDebugger::FChaosVDSerializableNameTable> NameTableInstance = RecordingInstance ? RecordingInstance->GetNameTableInstance() : nullptr;
+
+	if (!ensure(NameTableInstance.IsValid()))
+	{
+		return false;
+	}
+
 	Chaos::VisualDebugger::FChaosVDSerializedNameEntry NameEntry;
 	
 	FMemoryReader MemReader(InData);
+
+	const Chaos::VisualDebugger::FChaosVDArchiveHeader& RecordedHeader = RecordingInstance->GetHeaderData();
+	ApplyHeaderDataToArchive(MemReader, RecordedHeader);
+	
 	MemReader << NameEntry;
 
-	ProviderSharedPtr->GetNameTable()->AddNameToTable(NameEntry);
+	NameTableInstance->AddNameToTable(NameEntry);
 
 	return true;
 }
