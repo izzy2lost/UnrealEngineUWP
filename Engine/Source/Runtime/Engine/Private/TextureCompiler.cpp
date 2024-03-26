@@ -289,6 +289,16 @@ void FTextureCompilingManager::AddTextures(TArrayView<UTexture* const> InTexture
 	TRACE_COUNTER_SET(QueuedTextureCompilation, GetNumRemainingTextures());
 }
 
+void FTextureCompilingManager::ForceDeferredTextureRebuildAnyThread(TArrayView<const TWeakObjectPtr<UTexture>> InTextures)
+{
+	TRACE_CPUPROFILER_EVENT_SCOPE(FTextureCompilingManager::AddTexturesDeferredAnyThread)
+
+	for (const TWeakObjectPtr<UTexture>& Texture : InTextures)
+	{
+		DeferredRebuildRequestQueue.ProduceItem(Texture);
+	}
+}
+
 void FTextureCompilingManager::FinishCompilationForObjects(TArrayView<UObject* const> InObjects)
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(FTextureCompilingManager::FinishCompilationForObjects);
@@ -722,6 +732,7 @@ void FTextureCompilingManager::ProcessAsyncTasks(bool bLimitExecutionTime)
 void FTextureCompilingManager::ProcessAsyncTasks(const AssetCompilation::FProcessAsyncTaskParams& Params)
 {
 	FObjectCacheContextScope ObjectCacheScope;
+	ProcessDeferredRequests();
 	FinishCompilationsForGame();
 
 	if (!Params.bPlayInEditorAssetsOnly)
@@ -731,6 +742,30 @@ void FTextureCompilingManager::ProcessAsyncTasks(const AssetCompilation::FProces
 
 	UpdateCompilationNotification();
 }
+
+void FTextureCompilingManager::ProcessDeferredRequests()
+{
+	TSet<UTexture*> DeferredTextures;
+	DeferredRebuildRequestQueue.ConsumeAllFifo([this, &DeferredTextures](TWeakObjectPtr<UTexture> WeakTexture)
+	{
+		if (UTexture* Texture = WeakTexture.Get())
+		{
+			if (Texture->IsAsyncCacheComplete() && IsAsyncCompilationAllowed(Texture) && !IsCompilingTexture(Texture))
+			{
+				DeferredTextures.Add(Texture);
+			}
+		}
+	});
+
+	if (!DeferredTextures.IsEmpty())
+	{
+		for (UTexture* DeferredTexture : DeferredTextures)
+		{
+			DeferredTexture->ForceRebuildPlatformData();
+		}
+	}
+}
+
 
 #undef LOCTEXT_NAMESPACE
 
