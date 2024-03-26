@@ -86,7 +86,7 @@ static FAutoConsoleVariableRef CVarNaniteBundleEmulation(
 	ECVF_RenderThreadSafe
 );
 
-static int32 GNaniteBundleShading = 1;
+static int32 GNaniteBundleShading = 0;
 static FAutoConsoleVariableRef CVarNaniteBundleShading(
 	TEXT("r.Nanite.Bundle.Shading"),
 	GNaniteBundleShading,
