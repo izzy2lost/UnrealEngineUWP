@@ -182,6 +182,9 @@ namespace PhysicsReplicationCVars
 		bool bVelocityBased = true;
 		static FAutoConsoleVariableRef CVarVelocityBased(TEXT("np2.PredictiveInterpolation.VelocityBased"), bVelocityBased, TEXT("When true, predictive interpolation replication mode will only apply linear velocity and angular velocity"));
 		
+		bool bPosCorrectionAsVelocity = false;
+		static FAutoConsoleVariableRef CVarPosCorrectionAsVelocity(TEXT("np2.PredictiveInterpolation.PosCorrectionAsVelocity"), bPosCorrectionAsVelocity, TEXT("When true, predictive interpolation will apply positional offset correction as a velocity instead of as a positional change each tick."));
+		
 		bool bDisableSoftSnap = false;
 		static FAutoConsoleVariableRef CVarDisableSoftSnap(TEXT("np2.PredictiveInterpolation.DisableSoftSnap"), bDisableSoftSnap, TEXT("When true, predictive interpolation will not use softsnap to correct the replication with when velocity fails. Hardsnap will still eventually kick in if replication can't reach the target."));
 	
@@ -1620,19 +1623,37 @@ bool FPhysicsReplicationAsync::PredictiveInterpolation(Chaos::FPBDRigidParticleH
 			// Get PosDiff
 			const FVector PosDiff = TargetPos - CurrentState.Position;
 
-			// Convert PosDiff to a velocity
-			const FVector PosDiffVelocity = PosDiff / PosCorrectionTime;
-
 			// Get LinVelDiff by adding inverted CurrentState.LinVel to TargetLinVel
 			const FVector LinVelDiff = -CurrentState.LinVel + TargetLinVel;
 
-			// Add PosDiffVelocity to LinVelDiff to get BlendedTargetVelocity
-			const FVector BlendedTargetVelocity = LinVelDiff + PosDiffVelocity;
+			// Calculate velocity blend amount for this tick as an alpha value
+			const float Alpha = FMath::Clamp(DeltaSeconds / InterpolationTime, 0.0f, 1.0f);
 
-			// Add BlendedTargetVelocity onto current velocity
-			const float BlendStepAmount = FMath::Clamp(DeltaSeconds / InterpolationTime, 0.0f, 1.0f);
-			const FVector RepLinVel = CurrentState.LinVel + (BlendedTargetVelocity * BlendStepAmount);
-			
+			FVector RepLinVel;
+			if (PhysicsReplicationCVars::PredictiveInterpolationCVars::bPosCorrectionAsVelocity)
+			{
+				// Convert PosDiff to a velocity
+				const FVector PosDiffVelocity = PosDiff / PosCorrectionTime;
+
+				// Add PosDiffVelocity to LinVelDiff to get BlendedTargetVelocity
+				const FVector BlendedTargetVelocity = LinVelDiff + PosDiffVelocity;
+
+				// Add BlendedTargetVelocity onto current velocity
+				RepLinVel = CurrentState.LinVel + (BlendedTargetVelocity * Alpha);
+			}
+			else // Positional correction as position shift
+			{
+				// Calculate the PosDiff amount to correct this tick
+				const FVector PosDiffVelocityDelta = PosDiff * (DeltaSeconds / PosCorrectionTime); // Same as (PosDiff / PosCorrectionTime) * DeltaSeconds
+
+				// Add velocity diff onto current velocity
+				RepLinVel = CurrentState.LinVel + (LinVelDiff * Alpha);
+				
+				// Apply positional correction
+				Handle->SetX(Handle->GetX() + PosDiffVelocityDelta);
+			}
+
+			// Apply velocity replication
 			Handle->SetV(RepLinVel);
 
 #if !(UE_BUILD_SHIPPING || UE_BUILD_TEST)
@@ -1658,6 +1679,7 @@ bool FPhysicsReplicationAsync::PredictiveInterpolation(Chaos::FPBDRigidParticleH
 
 		{	// --- Angular Velocity Replication ---
 			/* Todo, Implement InterpolationTime */
+			/* Todo, Implement the option for rotational offset as rotational shift instead of angular velocity */
 
 			// Extrapolate current rotation along current angular velocity to see where we would end up
 			float CurAngVelSize;
