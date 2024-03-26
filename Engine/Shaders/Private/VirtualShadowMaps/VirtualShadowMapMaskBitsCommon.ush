@@ -18,7 +18,8 @@ float GetVirtualShadowMapMaskForLight(
 	uint2 PixelPos,
 	float SceneDepth,
 	int VirtualShadowMapId,
-	float3 TranslatedWorldPosition)
+	float3 TranslatedWorldPosition,
+	inout uint OutLightIndex)
 {
 	// Light grid is relative to the view
 	const uint2 LocalPixelPos = PixelPos.xy - uint2(View.ViewRectMinAndSize.xy);
@@ -27,10 +28,10 @@ float GetVirtualShadowMapMaskForLight(
 	// We can only handle so many lights in our output encoding right now, so no purpose in computing more
 	uint LightCount = min(GetPackedShadowMaskMaxLightCount(), LightGridData.NumLights);
 
-	uint Index = 0;
-	for (; Index < LightCount; ++Index)
+	OutLightIndex = 0;
+	for (; OutLightIndex < LightCount; ++OutLightIndex)
 	{
-		const FLocalLightData LightData = VirtualShadowMapGetLocalLightData(LightGridData, Index);
+		const FLocalLightData LightData = VirtualShadowMapGetLocalLightData(LightGridData, OutLightIndex);
 		if (LightData.VirtualShadowMapId == VirtualShadowMapId)
 		{
 			break;
@@ -38,10 +39,10 @@ float GetVirtualShadowMapMaskForLight(
 	}
 
 	float LightAttenuation = 1.0f;
-	if (Index < LightCount)
+	if (OutLightIndex < LightCount)
 	{
 		// TODO: Dither!
-		LightAttenuation = UnpackShadowMask(ShadowMask, Index);
+		LightAttenuation = UnpackShadowMask(ShadowMask, OutLightIndex);
 	}
 	else
 	{
@@ -56,4 +57,15 @@ float GetVirtualShadowMapMaskForLight(
 	}
 
 	return LightAttenuation;
+}
+
+float GetVirtualShadowMapMaskForLight(
+	uint4 ShadowMask,
+	uint2 PixelPos,
+	float SceneDepth,
+	int VirtualShadowMapId,
+	float3 TranslatedWorldPosition)
+{
+	uint OutDummyLightIndex = 0;
+	return GetVirtualShadowMapMaskForLight(ShadowMask, PixelPos, SceneDepth, VirtualShadowMapId, TranslatedWorldPosition, OutDummyLightIndex);
 }

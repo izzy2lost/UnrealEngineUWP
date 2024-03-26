@@ -178,7 +178,7 @@ static TAutoConsoleVariable<float> CVarContactShadowsOverrideNonShadowCastingInt
 
 static TAutoConsoleVariable<int32> CVarHairStrandsAllowOneTransmittancePass(
 	TEXT("r.HairStrands.Lighting.AllowOneTransmittancePass"),
-	0,
+	1,
 	TEXT("Allows one transmittance pass for hair strands lighting to have better performance (experimental).\n"),
 	ECVF_RenderThreadSafe);
 
@@ -2107,6 +2107,9 @@ void FDeferredShadingSceneRenderer::RenderLights(
 						if (HairStrands::HasViewHairStrandsData(View))
 						{
 							// If the light elided the screen space shadow mask, sample directly from the packed shadow mask
+							// Note: this is only used when VSM one pass is enable AND hair one pass transmittance is enabled. 
+							// Hence the condition using bElideScreenShadowMaskSubPixel, instead of bElideScreenShadowMask for 
+							// computing VirtualShadowMapId
 							int32 VirtualShadowMapId = INDEX_NONE;
 							if (bElideScreenShadowMaskSubPixel)
 							{
