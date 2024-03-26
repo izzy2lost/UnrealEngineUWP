@@ -1606,9 +1606,6 @@ void FTextLocalizationManager::UpdateFromNative(FTextLocalizationResource&& Text
 				DisplayStringBackupTable.RemoveAndCopyValue(TextId, DisplayStringBackup))
 			{
 				LiveEntry.DisplayString = DisplayStringBackup.ToSharedRef();
-#if WITH_EDITORONLY_DATA
-				LiveEntry.LocResID = FTextKey();
-#endif	// WITH_EDITORONLY_DATA
 			}
 #endif	// ENABLE_LOC_TESTING
 		}
