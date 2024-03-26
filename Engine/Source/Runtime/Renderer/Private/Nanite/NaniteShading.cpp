@@ -54,7 +54,6 @@ static FAutoConsoleVariableRef CVarNaniteBarrierTest(
 	ECVF_RenderThreadSafe
 );
 
-// TODO: Heavily work in progress / experimental - do not use!
 static int32 GNaniteFastTileClear = 1;
 static FAutoConsoleVariableRef CVarNaniteFastTileClear(
 	TEXT("r.Nanite.FastTileClear"),
@@ -79,7 +78,6 @@ static FAutoConsoleVariableRef CVarNaniteFastTileVis(
 	ECVF_RenderThreadSafe
 );
 
-// TODO: Heavily work in progress / experimental - do not use!
 static int32 GNaniteBundleEmulation = 0;
 static FAutoConsoleVariableRef CVarNaniteBundleEmulation(
 	TEXT("r.Nanite.Bundle.Emulation"),
@@ -88,8 +86,7 @@ static FAutoConsoleVariableRef CVarNaniteBundleEmulation(
 	ECVF_RenderThreadSafe
 );
 
-// TODO: Heavily work in progress / experimental - do not use!
-static int32 GNaniteBundleShading = 0;
+static int32 GNaniteBundleShading = 1;
 static FAutoConsoleVariableRef CVarNaniteBundleShading(
 	TEXT("r.Nanite.Bundle.Shading"),
 	GNaniteBundleShading,
@@ -110,7 +107,6 @@ static FAutoConsoleVariableRef CVarNaniteComputeMaterialsSort(
 	ECVF_RenderThreadSafe
 );
 
-// TODO: Heavily work in progress / experimental - do not use!
 static int32 GBinningTechnique = 0;
 static FAutoConsoleVariableRef CVarNaniteBinningTechnique(
 	TEXT("r.Nanite.BinningTechnique"),
@@ -483,22 +479,20 @@ void BuildShadingCommands(FRDGBuilder& GraphBuilder, FScene& Scene, ENaniteMeshP
 					const FNaniteShadingPipeline& PipelineA = *A.Pipeline.Get();
 					const FNaniteShadingPipeline& PipelineB = *B.Pipeline.Get();
 
-					if (PipelineA.ComputeShader != PipelineB.ComputeShader)
-					{
-						return PipelineA.ComputeShader < PipelineB.ComputeShader;
-					}
-
+					// First group all shaders with the same bound target mask (UAV exports)
 					if (PipelineA.BoundTargetMask != PipelineB.BoundTargetMask)
 					{
 						return PipelineA.BoundTargetMask < PipelineB.BoundTargetMask;
 					}
 
-					if (PipelineA.Material != PipelineB.Material)
+					// Then group up all shading bins using same shader but different bindings
+					if (PipelineA.ComputeShader != PipelineB.ComputeShader)
 					{
-						return PipelineA.Material < PipelineB.Material;
+						return PipelineA.ComputeShader < PipelineB.ComputeShader;
 					}
 
-					return A.Pipeline.Get() < B.Pipeline.Get();
+					// Sort indirect arg memory location in ascending order to help minimize cache misses on the indirect args
+					return A.ShadingBin < B.ShadingBin;
 				});
 			}
 
