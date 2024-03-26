@@ -172,11 +172,19 @@ namespace Chaos
 		CHAOS_API void SetParticleKinematicTarget(FGeometryParticleHandle* ParticleHandle, const FKinematicTarget& NewKinematicTarget);
 
 		/*
-		 * Apply a momentumless correction to the particle transform, usually as a result of a server correction.
+		 * [EXPERIMENTAL] Apply a momentumless correction to the particle transform, usually as a result of a server correction.
 		 * This will shift the particle by the supplied delta and handle updating of friction anchors or anything else that might prevent or undo the shift.
+		 * If bApplyToConnectedBodies is true, any particle attached by a joint with locked linear limits will also get moved.
 		 * NOTE: must be called prior to Integrate() to be effective.
+		 * NOTE: be careful with bApplyToConnectedBodies - only one particle in the connected graph should have ApplyParticleTransformCorrectionDelta called on 
+		 * it, otherwise you will get multiple particles trying to recorrect each other leading to very strange behaviour.
 		 */
-		CHAOS_API void SetParticleTransformCorrection(FGeometryParticleHandle* InParticle, const FVec3& InPosDelta, const FVec3& InRotDelta);
+		CHAOS_API void ApplyParticleTransformCorrectionDelta(FGeometryParticleHandle* InParticle, const FVec3& InPosDelta, const FVec3& InRotDelta, const bool bApplyToConnectedBodies);
+
+		/*
+		 * [EXPERIMENTAL] Similar to SetParticleTransformCorrectionDelta, but supplied an absolute transform to jump to. This is used for snaps.
+		 */
+		CHAOS_API void ApplyParticleTransformCorrection(FGeometryParticleHandle* InParticle, const FVec3& InPos, const FRotation3& InRot, const bool bApplyToConnectedBodies);
 
 		/**
 		 * Called when a particle is moved. We need to reset some friction properties, sleeping properties, etc
@@ -257,6 +265,12 @@ namespace Chaos
 	protected:
 
 		CHAOS_API void AdvanceOneTimeStepImpl(const FReal dt, const FSubStepInfo& SubStepInfo);
+
+		// Update the particle transform and fix collision anchors (used by client corrections)
+		void ApplyParticleTransformCorrectionImpl(FGeometryParticleHandle* InParticle, const FRigidTransform3& InTransform);
+
+		// Get all the particles that are connected to InParticle by a joint with locked position limits
+		TArray<FGeometryParticleHandle*> GetConnectedParticles(FGeometryParticleHandle* InParticle);
 
 		void UpdateInertiaConditioning();
 

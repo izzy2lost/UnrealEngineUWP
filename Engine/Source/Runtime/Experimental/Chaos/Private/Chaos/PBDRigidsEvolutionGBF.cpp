@@ -3,6 +3,7 @@
 #include "Chaos/Collision/SimSweep.h"
 #include "Chaos/Defines.h"
 #include "Chaos/Evolution/SolverBodyContainer.h"
+#include "Chaos/Framework/HashMappedArray.h"
 #include "Chaos/Framework/Parallel.h"
 #include "Chaos/ImplicitObjectTransformed.h"
 #include "Chaos/ImplicitObjectUnion.h"
@@ -1411,41 +1412,6 @@ void FPBDRigidsEvolutionGBF::SetParticleKinematicTarget(FGeometryParticleHandle*
 	}
 }
 
-void FPBDRigidsEvolutionGBF::SetParticleTransformCorrection(FGeometryParticleHandle* InParticle, const FVec3& InPosDelta, const FVec3& InRotDelta)
-{
-	FGenericParticleHandle Particle = InParticle;
-	const bool bHavePositionDelta = !InPosDelta.IsZero();
-	const bool bHaveRotationDelta = !InRotDelta.IsZero();
-
-	if (bHavePositionDelta || bHaveRotationDelta)
-	{
-		const FVec3 PrevX = Particle->GetX();
-		const FRotation3 PrevR = Particle->GetR();
-
-		// Apply the position correction
-		if (bHavePositionDelta)
-		{
-			const FVec3 NewX = Particle->GetX() + InPosDelta;
-			Particle->SetX(NewX);
-		}
-
-		// Apply the rotation correction
-		if (bHaveRotationDelta)
-		{
-			const FRotation3 NewR = FRotation3::IntegrateRotationWithAngularVelocity(Particle->GetR(), InRotDelta, 1.0f);
-			Particle->SetR(NewR);
-		}
-
-		// If we applied a correction we must fix the collision anchors so that friction doesn't undo prevent our move or rotation
-		InParticle->ParticleCollisions().VisitCollisions(
-			[this, InParticle](FPBDCollisionConstraint& Collision)
-			{
-				Collision.UpdateParticleTransform(InParticle);
-				return ECollisionVisitorResult::Continue;
-			});
-	}
-}
-
 void FPBDRigidsEvolutionGBF::OnParticleMoved(FGeometryParticleHandle* InParticle, const FVec3& PrevX, const FRotation3& PrevR, const bool bIsTeleport)
 {
 	// When a particle is moved, we need to 
@@ -1489,6 +1455,112 @@ void FPBDRigidsEvolutionGBF::OnParticleMoved(FGeometryParticleHandle* InParticle
 			}
 		}
 	}
+}
+
+void FPBDRigidsEvolutionGBF::ApplyParticleTransformCorrectionDelta(FGeometryParticleHandle* InParticle, const FVec3& InPosDelta, const FVec3& InRotDelta, const bool bApplyToConnectedBodies)
+{
+	ApplyParticleTransformCorrection(
+		InParticle, 
+		InParticle->GetX() + InPosDelta, 
+		FRotation3::IntegrateRotationWithAngularVelocity(InParticle->GetR(), InRotDelta, FReal(1.0)),
+		bApplyToConnectedBodies);
+}
+
+void FPBDRigidsEvolutionGBF::ApplyParticleTransformCorrection(FGeometryParticleHandle* InParticle, const FVec3& InPos, const FRotation3& InRot, const bool bApplyToConnectedBodies)
+{
+	const FRigidTransform3 OldParticleTransform = InParticle->GetTransformXR();
+	const FRigidTransform3 NewParticleTransform = FRigidTransform3(InPos, InRot);
+
+	// Move the root particle
+	ApplyParticleTransformCorrectionImpl(InParticle, NewParticleTransform);
+
+	if (bApplyToConnectedBodies)
+	{
+		// Find all the connected particles and move them to retain their relative transform
+		// NOTE: ConnectedParticles will not include InParticle
+		TArray<FGeometryParticleHandle*> ConnectedParticles = GetConnectedParticles(InParticle);
+		for (FGeometryParticleHandle* ConnectedParticle : ConnectedParticles)
+		{
+			if (FGenericParticleHandle(ConnectedParticle)->IsDynamic())
+			{
+				const FRigidTransform3 RelativeTransform = ConnectedParticle->GetTransformXR().GetRelativeTransformNoScale(OldParticleTransform);
+				const FRigidTransform3 NewOtherParticleTransform = RelativeTransform * NewParticleTransform;
+				ApplyParticleTransformCorrectionImpl(ConnectedParticle, NewOtherParticleTransform);
+			}
+		}
+	}
+}
+
+void FPBDRigidsEvolutionGBF::ApplyParticleTransformCorrectionImpl(FGeometryParticleHandle* InParticle, const FRigidTransform3& InTransform)
+{
+	FGenericParticleHandle Particle = InParticle;
+
+	Particle->SetX(InTransform.GetTranslation());
+	Particle->SetP(InTransform.GetTranslation());
+	Particle->SetR(InTransform.GetRotation());
+	Particle->SetQ(InTransform.GetRotation());
+
+	// We must fix the collision anchors so that friction doesn't undo our move or rotation
+	InParticle->ParticleCollisions().VisitCollisions(
+		[this, InParticle](FPBDCollisionConstraint& Collision)
+		{
+			Collision.UpdateParticleTransform(InParticle);
+			return ECollisionVisitorResult::Continue;
+		});
+}
+
+TArray<FGeometryParticleHandle*> FPBDRigidsEvolutionGBF::GetConnectedParticles(FGeometryParticleHandle* InParticle)
+{
+	if (InParticle->ParticleConstraints().IsEmpty())
+	{
+		return {};
+	}
+
+	// Use a hashmap to prevent O(N^2) loop below. It will also contains the output list of connected particles.
+	struct FHashMapTraits
+	{
+		static uint32 GetIDHash(const FGeometryParticleHandle* Particle) { return MurmurFinalize32(uint32(Particle->UniqueIdx().Idx)); }
+		static bool ElementHasID(const FGeometryParticleHandle* A, const FGeometryParticleHandle* B) { return A == B; }
+	};
+	Private::THashMappedArray<FGeometryParticleHandle*, FGeometryParticleHandle*, FHashMapTraits> ConnectedParticles(256);
+
+	FGeometryParticleHandle* NextParticle = InParticle;
+	int32 NextParticleIndex = 0;
+	while (true)
+	{
+		// Loop over the joints on the next particle and add the other particle into the queue (if not already in the queue, or already processed)
+		for (FConstraintHandle* Constraint : NextParticle->ParticleConstraints())
+		{
+			if (FPBDJointConstraintHandle* Joint = Constraint->As<FPBDJointConstraintHandle>())
+			{
+				const TVec3<EJointMotionType>& JointLinearMotion = Joint->GetSettings().LinearMotionTypes;
+				if ((JointLinearMotion[0] == EJointMotionType::Locked) && (JointLinearMotion[1] == EJointMotionType::Locked) && (JointLinearMotion[2] == EJointMotionType::Locked))
+				{
+					FParticlePair JointParticles = Joint->GetConstrainedParticles();
+					FGeometryParticleHandle* OtherParticle = (JointParticles[0] != NextParticle) ? JointParticles[0] : JointParticles[1];
+					if ((OtherParticle != InParticle) && (ConnectedParticles.Find(OtherParticle) == nullptr))
+					{
+						ConnectedParticles.Add(OtherParticle, OtherParticle);
+					}
+				}
+			}
+		}
+
+		// We are done if we did not add any particles in the most recent loop above
+		check(NextParticleIndex <= ConnectedParticles.Num());
+		if (NextParticleIndex >= ConnectedParticles.Num())
+		{
+			break;
+		}
+
+		// Move to the next particle in the queue
+		NextParticle = ConnectedParticles.At(NextParticleIndex);
+		++NextParticleIndex;
+	}
+	check(NextParticleIndex == ConnectedParticles.Num());
+
+	// NOTE: This moves the internal array to the output - no duplication
+	return ConnectedParticles.ExtractElements();
 }
 
 void FPBDRigidsEvolutionGBF::SetParticleVelocities(FGeometryParticleHandle* InParticle, const FVec3& InV, const FVec3f& InW)

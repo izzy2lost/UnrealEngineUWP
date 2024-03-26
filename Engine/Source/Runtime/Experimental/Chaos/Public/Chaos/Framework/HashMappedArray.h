@@ -5,30 +5,24 @@
 
 namespace Chaos::Private
 {
-	// Default ID traits for use with THashMappedArray that works for all types that can be cast to int32
-	template<typename TIDType>
-	struct THashMappedArrayIDTraits
-	{
-		using FIDType = TIDType;
-
-		// Hash the ID to a 32 bit unsigned int for use with FHashTable
-		static uint32 HashID(const FIDType& ID)
-		{
-			return MurmurFinalize32(uint32(ID));
-		}
-	};
-
-	// Default Element traits for THashMappedArray that works for all types that have an member variable ID of type TIDType
-	template<typename TElementType, typename TIDType>
-	struct THashMappedArrayElementTraits
+	// Default traits for THashMappedArray that works for all ID/Element pairs where the 
+	// ID has a MurmurFinalize32 implementation and we can compare equality of Elements and IDs.
+	template<typename TIDType, typename TElementType>
+	struct THashMappedArrayTraits
 	{
 		using FIDType = TIDType;
 		using FElementType = TElementType;
 
-		// Return true if the element is the one with the specified ID
-		static bool Is(const FElementType& Element, const FIDType& ID)
+		// Hash the ID to a 32 bit unsigned int for use with FHashTable
+		static uint32 GetIDHash(const FIDType& ID)
 		{
-			return Element.ID == ID;
+			return MurmurFinalize32(ID);
+		}
+
+		// Return true if the element is the one with the specified ID
+		static bool ElemenatHasID(const FElementType& Element, const FIDType& ID)
+		{
+			return Element == ID;
 		}
 	};
 
@@ -39,7 +33,7 @@ namespace Chaos::Private
 	*	using FMyDataID = int32;
 	*	struct FMyData
 	*	{
-	*		FMyDataID ID;	// Every FMyData will require a unique ID if using the default THashMappedArrayElementTraits
+	*		FMyDataID ID;	// Every FMyData will require a unique ID if using the default THashMappedArrayTraits
 	*		float MyValue;
 	*	};
 	* 
@@ -52,16 +46,15 @@ namespace Chaos::Private
 	*	const FMyData* MyData2 = MyDataMap.Find(2);		// MyData2->MyValue == 2.0
 	* 
 	*/
-	template<typename TIDType, typename TElementType>
+	template<typename TIDType, typename TElementType, typename TTraits = THashMappedArrayTraits<TIDType, TElementType>>
 	class THashMappedArray
 	{
 	public:
 		using FIDType = TIDType;
 		using FElementType = TElementType;
-		using FIDTraits = THashMappedArrayIDTraits<FIDType>;
-		using FElementTraits = THashMappedArrayElementTraits<FElementType, FIDType>;
+		using FTraits = TTraits;
 		using FHashType = uint32;
-		using FType = THashMappedArray<FIDType, FElementType>;
+		using FType = THashMappedArray<FIDType, FElementType, FTraits>;
 
 		// Initialize the hash table. InHashSize must be a power of two (asserted)
 		THashMappedArray(const int32 InHashSize)
@@ -83,7 +76,7 @@ namespace Chaos::Private
 			checkSlow(Find(ID) == nullptr);
 
 			const int32 Index = Elements.Add(Element);
-			const FHashType Key = HashMapKey(ID);
+			const FHashType Key = FTraits::GetIDHash(ID);
 
 			HashTable.Add(Key, Index);
 		}
@@ -97,7 +90,7 @@ namespace Chaos::Private
 			checkSlow(Find(ID) == nullptr);
 
 			const int32 Index = Elements.Emplace(Forward<ArgsType>(Args)...);
-			const FHashType Key = FIDTraits::HashID(ID);
+			const FHashType Key = FTraits::GetIDHash(ID);
 
 			HashTable.Add(Key, Index);
 		}
@@ -111,16 +104,42 @@ namespace Chaos::Private
 		// Find the element with the specified ID. Roughly O(Max(1,N/M)) for N elements with a hash table of size M
 		FElementType* Find(const FIDType ID)
 		{
-			const FHashType Key = FIDTraits::HashID(ID);
+			const FHashType Key = FTraits::GetIDHash(ID);
 			for (uint32 Index = HashTable.First(Key); HashTable.IsValid(Index); Index = HashTable.Next(Index))
 			{
-				if (FElementTraits::Is(Elements[Index], ID))
+				if (FTraits::ElementHasID(Elements[Index], ID))
 				{
 					return &Elements[Index];
 				}
 			}
 			return nullptr;
 		}
+
+		// The number of elements that have been added to the map
+		int32 Num() const
+		{
+			return Elements.Num();
+		}
+
+		// Get the element at ElementIndex (indexed by order in which they were added)
+		FElementType& At(const int32 ElementIndex)
+		{
+			return Elements[ElementIndex];
+		}
+
+		// Get the element at ElementIndex (indexed by order in which they were added)
+		const FElementType& At(const int32 ElementIndex) const
+		{
+			return Elements[ElementIndex];
+		}
+
+		// Move the array elements into an external array and reset
+		TArray<FElementType> ExtractElements()
+		{
+			HashTable.Clear();
+			return MoveTemp(Elements);
+		}
+
 
 	private:
 		FHashTable HashTable;
