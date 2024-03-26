@@ -320,27 +320,6 @@ namespace Horde.Server.Server
 				tool.PostLoad(this);
 			}
 
-			foreach (ToolConfig tool in Tools)
-			{
-				if (tool.ParentId != null)
-				{
-					if (tool.ParentId.Value == tool.Id)
-					{
-						throw new InvalidDataException($"Tool {tool.Id} cannot be parented to itself");
-					}
-
-					ToolConfig? parentToolConfig;
-					if (!_toolLookup.TryGetValue(tool.ParentId.Value, out parentToolConfig))
-					{
-						throw new InvalidDataException($"Tool {tool.Id} has an invalid parent tool id of '{tool.ParentId.Value}'");
-					}
-					else if (parentToolConfig.ParentId != null)
-					{
-						throw new InvalidDataException($"Tool {tool.Id} cannot be nested under two parents ({tool.ParentId.Value} -> {parentToolConfig.ParentId.Value})");
-					}
-				}
-			}
-
 			_computeClusterLookup.Clear();
 			foreach (ComputeClusterConfig computeCluster in Compute)
 			{
