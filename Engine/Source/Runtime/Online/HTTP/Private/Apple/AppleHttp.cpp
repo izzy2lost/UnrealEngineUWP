@@ -218,7 +218,7 @@ static bool ShouldReadHeadersWhenComplete(const FString& Url)
 			*stop = bSerializeSucceed? NO : YES;
 		}];
 		
-		if (!bSerializeSucceed && !bCanceled)
+		if (!bSerializeSucceed)
 		{
 			[dataTask cancel];
 		}
