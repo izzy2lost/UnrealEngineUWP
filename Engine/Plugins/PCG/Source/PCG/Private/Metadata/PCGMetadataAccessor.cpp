@@ -1,9 +1,12 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "Metadata/PCGMetadataAccessor.h"
-#include "Blueprint/BlueprintExceptionInfo.h"
-#include "Metadata/PCGMetadata.h"
+
+#include "PCGModule.h"
 #include "PCGPoint.h"
+#include "Metadata/PCGMetadata.h"
+
+#include "Blueprint/BlueprintExceptionInfo.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(PCGMetadataAccessor)
 
@@ -17,7 +20,7 @@ namespace PCGMetadataAccessorHelpers
 
 	void OnException(FText ErrorMessage)
 	{
-		if (FFrame::GetThreadLocalTopStackFrame()->Object)
+		if (FFrame::GetThreadLocalTopStackFrame() && FFrame::GetThreadLocalTopStackFrame()->Object)
 		{
 			const FBlueprintExceptionInfo ExceptionInfo(EBlueprintExceptionType::FatalError, ErrorMessage);
 			FBlueprintCoreDelegates::ThrowScriptException(FFrame::GetThreadLocalTopStackFrame()->Object, *FFrame::GetThreadLocalTopStackFrame(), ExceptionInfo);
