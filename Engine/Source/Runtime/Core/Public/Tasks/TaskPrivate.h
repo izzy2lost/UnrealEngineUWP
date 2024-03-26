@@ -260,6 +260,14 @@ namespace UE::Tasks
 				return Prerequisite.IsValid() ? AddPrerequisites(*Prerequisite.Pimpl) : false;
 			}
 
+			// The task will be executed only when all prerequisites are completed. The task type must be a task handle that holds a pointer to
+			// Must not be called concurrently
+			template<typename HigherLevelTaskType, std::enable_if_t<std::is_same_v<HigherLevelTaskType, FGraphEventRef>>* = nullptr>
+			bool AddPrerequisites(const HigherLevelTaskType& Prerequisite)
+			{
+				return Prerequisite.IsValid() ? AddPrerequisites(*Prerequisite.GetReference()) : false;
+			}
+
 protected:
 			// The task will be executed only when all prerequisites are completed.
 			// Must not be called concurrently.
