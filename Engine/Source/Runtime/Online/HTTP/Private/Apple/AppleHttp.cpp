@@ -873,8 +873,6 @@ bool FAppleHttpRequest::SetupRequest()
 	
 	if (Task != nil)
 	{
-		bStarted = true;
-
 		SetStatus(EHttpRequestStatus::Processing);
 		SetFailureReason(EHttpFailureReason::None);
 
