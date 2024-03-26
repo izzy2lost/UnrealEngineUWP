@@ -146,6 +146,9 @@ struct FHttpConnectionPoolParams final
 	/** Minimum number of concurrent connections maintained by the pool for reuse. Use 0 for the default limit. */
 	uint32 MinConnections = 0;
 
+	/** Maximum number of concurrent requests in flight for a connection when multiplexing. Use 0 for the default limit. */
+	uint32 MaxRequestsPerConnection = 0;
+
 	/** Allow requests to send async using the pool. Requests will block on execution when this is disabled. */
 	bool bAllowAsync = true;
 };
