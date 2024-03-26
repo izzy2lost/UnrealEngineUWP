@@ -713,47 +713,36 @@ void FPrimitiveSceneInfo::CacheNaniteMaterialBins(FScene* Scene, const TArrayVie
 			}
 		}
 
+		FPrimitiveViewRelevance& CombinedPrimitiveRelevance = Scene->NaniteShadingPipelines[ENaniteMeshPass::BasePass].CombinedRelevance;
+		CombinedPrimitiveRelevance = FPrimitiveViewRelevance();
+
 		if (DrawListContexts.Num() > 0)
 		{
 			SCOPED_NAMED_EVENT(NaniteDrawListApply, FColor::Emerald);
+
+			FMaterialRelevance CombinedMaterialRelevance;
+
+			CombinedPrimitiveRelevance.bDrawRelevance = true;
+			CombinedPrimitiveRelevance.bStaticRelevance = true;
+			CombinedPrimitiveRelevance.bRenderInMainPass = true;
+			CombinedPrimitiveRelevance.bShadowRelevance = true;
+
+			// Nanite::GetSupportsCustomDepthRendering() && ShouldRenderCustomDepth();
+			CombinedPrimitiveRelevance.bRenderCustomDepth = false; // TODO: Unsupported in fast path
+
+			// GetLightingChannelMask() != GetDefaultLightingChannelMask();
+			CombinedPrimitiveRelevance.bUsesLightingChannels = false; // TODO: Unsupported in fast path
+
 			for (FNaniteDrawListContext& Context : DrawListContexts)
 			{
 				Context.Apply(*Scene);
-			}
-		}
 
-		// Build primitive/material relevancy
-		{
-			FNaniteShadingPipelines& ShadingPipelines = Scene->NaniteShadingPipelines[ENaniteMeshPass::BasePass];
-			ShadingPipelines.CombinedRelevance = FPrimitiveViewRelevance();
-
-			ShadingPipelines.CombinedRelevance.bDrawRelevance = true;
-			ShadingPipelines.CombinedRelevance.bStaticRelevance = true;
-			ShadingPipelines.CombinedRelevance.bRenderInMainPass = true;
-			ShadingPipelines.CombinedRelevance.bShadowRelevance = true;
-
-			// Nanite::GetSupportsCustomDepthRendering() && ShouldRenderCustomDepth();
-			ShadingPipelines.CombinedRelevance.bRenderCustomDepth = false; // TODO: Unsupported in fast path
-
-			// GetLightingChannelMask() != GetDefaultLightingChannelMask();
-			ShadingPipelines.CombinedRelevance.bUsesLightingChannels = false; // TODO: Unsupported in fast path
-
-			FMaterialRelevance CombinedMaterialRelevance;
-			ERHIFeatureLevel::Type FeatureLevel = Scene->GetFeatureLevel();
-
-			const auto& Pipelines = ShadingPipelines.GetShadingPipelineMap();
-			for (const auto& Iter : Pipelines)
-			{
-				const FNaniteShadingEntry& Entry = Iter.Value;
-				const FNaniteShadingPipeline* Pipeline = Entry.ShadingPipeline.Get();
-				
-				// Update section relevance and combined material relevance
-				const UMaterialInterface* Material = Pipeline->MaterialProxy->GetMaterialInterface();
-				CombinedMaterialRelevance |= Material->GetRelevance_Concurrent(FeatureLevel);
+				// Update combined material relevance
+				CombinedMaterialRelevance |= Context.CombinedRelevance;
 			}
 
 			// Apply combined material relevance to combined primitive view relevance
-			CombinedMaterialRelevance.SetPrimitiveViewRelevance(ShadingPipelines.CombinedRelevance);
+			CombinedMaterialRelevance.SetPrimitiveViewRelevance(CombinedPrimitiveRelevance);
 		}
 
 		if (UseNaniteComputeMaterials())
@@ -797,6 +786,9 @@ void BuildNaniteMaterialBins(FScene* Scene, FPrimitiveSceneInfo* PrimitiveSceneI
 				{
 					FNaniteDrawListContext::FDeferredPipelines& PipelinesCommand = DrawListContext.DeferredPipelines[MeshPass].Emplace_GetRef();
 					PipelinesCommand.PrimitiveSceneInfo = PrimitiveSceneInfo;
+
+					DrawListContext.CombinedRelevance |= NaniteProxy->GetCombinedMaterialRelevance();
+
 					for (int32 MaterialSectionIndex = 0; MaterialSectionIndex < NaniteMaterialSections.Num(); ++MaterialSectionIndex)
 					{
 						Nanite::FSceneProxyBase::FMaterialSection& MaterialSection = NaniteMaterialSections[MaterialSectionIndex];

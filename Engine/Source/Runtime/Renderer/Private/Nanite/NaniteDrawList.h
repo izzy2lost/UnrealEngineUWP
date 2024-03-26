@@ -110,6 +110,8 @@ private:
 public:
 	TArray<FDeferredCommand> DeferredCommands[ENaniteMeshPass::Num];
 	TArray<FDeferredPipelines> DeferredPipelines[ENaniteMeshPass::Num];
+
+	FMaterialRelevance CombinedRelevance;
 };
 
 class FNaniteMeshProcessor : public FSceneRenderingAllocatorObject<FNaniteMeshProcessor>, public FMeshPassProcessor
