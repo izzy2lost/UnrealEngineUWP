@@ -4,6 +4,8 @@ using UnrealBuildTool;
 
 public class HTTP : ModuleRules
 {
+	protected virtual bool bPlatformEventLoopEnabledByDefault { get { return true; } }
+
 	protected virtual bool bPlatformSupportsWinHttp
 	{
 		get
@@ -81,6 +83,7 @@ public class HTTP : ModuleRules
 			}
 		}
 
+		PrivateDefinitions.Add("UE_HTTP_EVENT_LOOP_ENABLE_CHANCE_BY_DEFAULT=" + (bPlatformEventLoopEnabledByDefault ? "100" : "0"));
 		PrivateDefinitions.Add("WITH_CURL_LIBCURL =" + (bPlatformSupportsLibCurl ? "1" : "0"));
 		PublicDefinitions.Add("WITH_CURL_XCURL=" + (bPlatformSupportsXCurl ? "1" : "0"));
 		PrivateDefinitions.Add("WITH_CURL_MULTIPOLL=" + (bPlatformSupportsCurlMultiPoll ? "1" : "0"));
