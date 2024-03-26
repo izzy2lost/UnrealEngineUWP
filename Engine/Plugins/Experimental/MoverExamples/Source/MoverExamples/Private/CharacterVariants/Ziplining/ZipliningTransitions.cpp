@@ -3,7 +3,7 @@
 #include "CharacterVariants/Ziplining/ZipliningTransitions.h"
 #include "CharacterVariants/AbilityInputs.h"
 #include "CharacterVariants/Ziplining/ZiplineInterface.h"
-#include "MoverComponent.h"
+#include "DefaultMovementSet/CharacterMoverComponent.h"
 #include "GameFramework/Actor.h"
 #include "Kismet/KismetSystemLibrary.h"
 
@@ -19,7 +19,7 @@ FTransitionEvalResult UZiplineStartTransition::OnEvaluate(const FSimulationTickP
 {
 	FTransitionEvalResult EvalResult = FTransitionEvalResult::NoTransition;
 
-	UMoverComponent* MoverComp = Params.MoverComponent;
+	UCharacterMoverComponent* MoverComp = Cast<UCharacterMoverComponent>(Params.MoverComponent);
 
 	const FMoverSyncState& SyncState = Params.StartState.SyncState;
 
