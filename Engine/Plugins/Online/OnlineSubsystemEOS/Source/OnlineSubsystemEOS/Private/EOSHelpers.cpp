@@ -18,7 +18,7 @@ void FEOSHelpers::PlatformTriggerLoginUI(FOnlineSubsystemEOS* EOSSubsystem, cons
 {
 	check(EOSSubsystem);
 
-	UE_LOG_ONLINE_EXTERNALUI(Warning, TEXT("[FUserManagerEOS::ShowLoginUI] This method is not implemented."));
+	UE_LOG_ONLINE_EXTERNALUI(Warning, TEXT("[%hs] This method is not implemented."), __FUNCTION__);
 
 	const FUniqueNetIdPtr PlayerId = EOSSubsystem->UserManager->GetUniquePlayerId(ControllerIndex);
 

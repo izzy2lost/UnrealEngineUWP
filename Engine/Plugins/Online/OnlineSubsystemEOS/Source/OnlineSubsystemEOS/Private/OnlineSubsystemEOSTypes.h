@@ -150,6 +150,11 @@ public:
 typedef TSharedPtr<IAttributeAccessInterface> IAttributeAccessInterfacePtr;
 typedef TSharedRef<IAttributeAccessInterface> IAttributeAccessInterfaceRef;
 
+namespace OnlineSubsystemEOSTypesPrivate
+{
+FString GetBestDisplayName(const FOnlineSubsystemEOS& EOSSubsystem, const EOS_EpicAccountId TargetUserId, const FStringView Platform);
+} // namespace OnlineSubsystemEOSTypesPrivate
+
 /**
  * Implementation of FOnlineUser that can be shared across multiple class hiearchies
  */
@@ -161,14 +166,16 @@ class TOnlineUserEOS
 public:
 	friend class FUserManagerEOS;
 
-	TOnlineUserEOS(const FUniqueNetIdEOSRef& InNetIdRef)
+	TOnlineUserEOS(const FUniqueNetIdEOSRef& InNetIdRef, const FOnlineSubsystemEOS& InSubsystem)
 		: UserIdRef(InNetIdRef)
+		, EOSSubsystem(InSubsystem)
 	{
 	}
 
-	TOnlineUserEOS(const FUniqueNetIdEOSRef& InNetIdRef, const TMap<FString, FString>& InUserAttributes)
+	TOnlineUserEOS(const FUniqueNetIdEOSRef& InNetIdRef, const TMap<FString, FString>& InUserAttributes, const FOnlineSubsystemEOS& InSubsystem)
 		: UserIdRef(InNetIdRef)
 		, UserAttributes(InUserAttributes)
+		, EOSSubsystem(InSubsystem)
 	{
 	}
 
@@ -189,9 +196,7 @@ public:
 
 	virtual FString GetDisplayName(const FString& Platform = FString()) const override
 	{
-		FString ReturnValue;
-		GetUserAttribute(USER_ATTR_DISPLAY_NAME, ReturnValue);
-		return ReturnValue;
+		return OnlineSubsystemEOSTypesPrivate::GetBestDisplayName(EOSSubsystem, UserIdRef->GetEpicAccountId(), Platform);
 	}
 
 	virtual bool GetUserAttribute(const FString& AttrName, FString& OutAttrValue) const override
@@ -230,6 +235,8 @@ protected:
 	FUniqueNetIdEOSRef UserIdRef;
 	/** Additional key/value pair data related to user attribution */
 	TMap<FString, FString> UserAttributes;
+
+	const FOnlineSubsystemEOS& EOSSubsystem;
 };
 
 /**
@@ -239,10 +246,11 @@ template<class BaseClass>
 class TUserOnlineAccountEOS :
 	public TOnlineUserEOS<BaseClass, IAttributeAccessInterface>
 {
+	using Super = TOnlineUserEOS<BaseClass, IAttributeAccessInterface>;
+
 public:
 	TUserOnlineAccountEOS(const FUniqueNetIdEOSRef& InNetIdRef, const FOnlineSubsystemEOS& InSubsystem)
-		: TOnlineUserEOS<BaseClass, IAttributeAccessInterface>(InNetIdRef)
-		, EOSSubsystem(InSubsystem)
+		: Super(InNetIdRef, InSubsystem)
 	{
 	}
 
@@ -251,10 +259,10 @@ public:
 	{
 		FString Token;
 
-		if (const IOnlineIdentityPtr Identity = EOSSubsystem.GetIdentityInterface())
+		if (const IOnlineIdentityPtr Identity = Super::EOSSubsystem.GetIdentityInterface())
 		{
 			const int32 LocalUserNum = Identity->GetLocalUserNumFromPlatformUserId(Identity->GetPlatformUserIdFromUniqueNetId(*this->UserIdRef));
-			Token = EOSSubsystem.GetIdentityInterface()->GetAuthToken(LocalUserNum);
+			Token = Identity->GetAuthToken(LocalUserNum);
 		}
 
 		return Token;
@@ -291,7 +299,6 @@ public:
 protected:
 	/** Additional key/value pair data related to auth */
 	TMap<FString, FString> AdditionalAuthData;
-	const FOnlineSubsystemEOS& EOSSubsystem;
 };
 
 typedef TSharedRef<FOnlineUserPresence> FOnlineUserPresenceRef;
@@ -304,13 +311,13 @@ class TOnlineFriendEOS :
 	public TOnlineUserEOS<BaseClass, IAttributeAccessInterface>
 {
 public:
-	TOnlineFriendEOS(const FUniqueNetIdEOSRef& InNetIdRef)
-		: TOnlineUserEOS<BaseClass, IAttributeAccessInterface>(InNetIdRef)
+	TOnlineFriendEOS(const FUniqueNetIdEOSRef& InNetIdRef, const FOnlineSubsystemEOS& InSubsystem)
+		: TOnlineUserEOS<BaseClass, IAttributeAccessInterface>(InNetIdRef, InSubsystem)
 	{
 	}
 
-	TOnlineFriendEOS(const FUniqueNetIdEOSRef& InNetIdRef, const TMap<FString, FString>& InUserAttributes)
-		: TOnlineUserEOS<BaseClass, IAttributeAccessInterface>(InNetIdRef, InUserAttributes)
+	TOnlineFriendEOS(const FUniqueNetIdEOSRef& InNetIdRef, const TMap<FString, FString>& InUserAttributes, const FOnlineSubsystemEOS& InSubsystem)
+		: TOnlineUserEOS<BaseClass, IAttributeAccessInterface>(InNetIdRef, InUserAttributes, InSubsystem)
 	{
 	}
 
