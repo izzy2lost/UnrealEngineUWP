@@ -378,12 +378,12 @@ const TArray<FRigVMTemplateArgumentInfo>& FRigDispatch_GetAnimAttribute::GetArgu
 	{
 		Infos = Super::GetArgumentInfos(); 
 
-		FRigVMTemplateArgument::FTypeFilter	TypeFilter;
-		TypeFilter.BindStatic(&FRigDispatch_AnimAttributeBase::IsTypeSupported);
-		const TArray<TRigVMTypeIndex> Types = FRigVMTemplateArgumentInfo::GetTypesFromCategories(GetValueTypeCategory(), TypeFilter);
-		
-		DefaultArgIndex = Infos.Emplace(DefaultArgName, ERigVMPinDirection::Input, Types);
-		ValueArgIndex = Infos.Emplace(ValueArgName, ERigVMPinDirection::Output, Types);
+		// Will be open to any category, but will filter the type through our IsTypeSupported callback
+		// If we reduce this to multiple (more targeted) categories, and any of those categories have common types, bUseCategories will not be true
+		// and the template will not receive notifications of newly added types
+		const TArray<FRigVMTemplateArgument::ETypeCategory> Categories = {FRigVMTemplateArgument::ETypeCategory_SingleAnyValue};
+		DefaultArgIndex = Infos.Emplace(DefaultArgName, ERigVMPinDirection::Input, Categories, [](const TRigVMTypeIndex& Type) { return FRigDispatch_AnimAttributeBase::IsTypeSupported(Type); });
+		ValueArgIndex = Infos.Emplace(ValueArgName, ERigVMPinDirection::Output, Categories, [](const TRigVMTypeIndex& Type) { return FRigDispatch_AnimAttributeBase::IsTypeSupported(Type); });
 		
 		FoundArgIndex = Infos.Emplace(FoundArgName, ERigVMPinDirection::Output, RigVMTypeUtils::TypeIndex::Bool);
 	}
@@ -461,11 +461,12 @@ const TArray<FRigVMTemplateArgumentInfo>& FRigDispatch_SetAnimAttribute::GetArgu
 	{
 		Infos = Super::GetArgumentInfos();
 
-		FRigVMTemplateArgument::FTypeFilter	TypeFilter;
-		TypeFilter.BindStatic(&FRigDispatch_AnimAttributeBase::IsTypeSupported);
-		const TArray<TRigVMTypeIndex> Types = FRigVMTemplateArgumentInfo::GetTypesFromCategories(GetValueTypeCategory(), TypeFilter);
+		// Will be open to any category, but will filter the type through our IsTypeSupported callback
+		// If we reduce this to multiple (more targeted) categories, and any of those categories have common types, bUseCategories will not be true
+		// and the template will not receive notifications of newly added types
+		static const TArray<FRigVMTemplateArgument::ETypeCategory> Categories = {FRigVMTemplateArgument::ETypeCategory_SingleAnyValue};
 		
-		ValueArgIndex = Infos.Emplace(ValueArgName, ERigVMPinDirection::Input, Types);
+		ValueArgIndex = Infos.Emplace(ValueArgName, ERigVMPinDirection::Input, Categories, [](const TRigVMTypeIndex& Type) { return FRigDispatch_AnimAttributeBase::IsTypeSupported(Type); });		
 		SuccessArgIndex = Infos.Emplace(SuccessArgName, ERigVMPinDirection::Output, RigVMTypeUtils::TypeIndex::Bool);
 	}
 	

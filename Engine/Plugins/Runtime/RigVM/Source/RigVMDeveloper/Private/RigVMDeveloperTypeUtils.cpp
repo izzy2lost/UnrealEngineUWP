@@ -617,6 +617,7 @@ const TArray<TRigVMTypeIndex>& RigVMTypeUtils::GetAvailableCasts(const TRigVMTyp
 					AvailableCasts.Add(ArgumentB->GetTypeIndex(Index));
 				}
 				Index++;
+				return true;
 			});
 
 			return AvailableCasts;

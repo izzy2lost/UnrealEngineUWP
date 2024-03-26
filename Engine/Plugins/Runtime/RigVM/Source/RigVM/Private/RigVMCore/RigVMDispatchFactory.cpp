@@ -326,6 +326,7 @@ TArray<FRigVMTemplateArgumentInfo> FRigVMDispatchFactory::BuildArgumentListFromP
 				}
 			}
 		}
+		return true;
 	});
 
 	if (!bFoundArg)
