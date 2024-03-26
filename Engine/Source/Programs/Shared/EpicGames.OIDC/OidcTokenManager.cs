@@ -528,7 +528,8 @@ namespace EpicGames.OIDC
 
 		private async Task<DiscoveryDocumentResponse> GetDiscoveryDocument(CancellationToken cancellationToken)
 		{
-			string discoUrl = $"{_authorityUri}/.well-known/openid-configuration";
+			string baseUrl = _authorityUri.ToString().TrimEnd('/');
+			string discoUrl = $"{baseUrl}/.well-known/openid-configuration";
 
 			using HttpClient client = new HttpClient();
 			using DiscoveryDocumentRequest doc = new DiscoveryDocumentRequest
