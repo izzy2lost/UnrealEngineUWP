@@ -16,7 +16,7 @@ public:
 	virtual void StartupModule() override
 	{
 		TFunction<bool(TSharedRef<FAVDevice> const&, cudaVideoCodec)> CheckCodecSupport = [](TSharedRef<FAVDevice> const& Device, cudaVideoCodec Codec) {
-			if(!Device->HasContext<FVideoContextCUDA>())
+			if(!Device->HasContext<FVideoContextCUDA>() || !FAPI::Get<FNVDEC>().IsValid())
 			{
 				return false;
 			}

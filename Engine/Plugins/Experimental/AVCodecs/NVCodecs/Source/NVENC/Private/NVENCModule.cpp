@@ -21,6 +21,11 @@ public:
 				return false;
 			}
 
+			if(!FAPI::Get<FNVENC>().IsValid())
+			{
+				return false;
+			}
+
 			NV_ENC_STRUCT(NV_ENC_OPEN_ENCODE_SESSION_EX_PARAMS, SessionParams);
 			SessionParams.apiVersion = NVENCAPI_VERSION;
 			SessionParams.deviceType = NV_ENC_DEVICE_TYPE_CUDA;
