@@ -228,4 +228,67 @@ namespace Harmonix::Midi::Constants
 	{
 		return (int8)MidiNoteNumber / GNotesPerOctave - 1;
 	}
+
+	FString MakeStdMsgString(uint8 Status, uint8 Data1, uint8 Data2)
+	{
+		uint8 Channel = GetChannel(Status);
+		uint8 Type = GetType(Status);
+
+		switch (Type)
+		{
+		case GNoteOff:
+			return FString::Printf(TEXT("Ch #%d - Note Off: %d"), Channel, Data1);
+		case GNoteOn:
+			return FString::Printf(TEXT("Ch #%d - Note On: %d - %d"), Channel, Data1, Data2);
+		case GPolyPres:
+			return FString::Printf(TEXT("Ch #%d - Polyphonic Pressure : %d - %d"), Channel, Data1, Data2);
+		case GControl:
+			return FString::Printf(TEXT("Ch #%d - Control: %s: %d"), Channel, *GetControllerName((EControllerID)Data1), Data2);
+		case GProgram:
+			return FString::Printf(TEXT("Ch #%d - Patch Change: %d"), Channel, Data1);
+		case GChanPres:
+			return FString::Printf(TEXT("Ch #%d - Channel Pressure: %d"), Channel, Data1);
+		case GPitch:
+			return FString::Printf(TEXT("Ch #%d - Pitch Wheel: %d"), Channel, (uint32)Data1 | ((uint32)Data2 << 7));
+		}
+		return FString(TEXT("Unrecognized MIDI Event Type!"));
+	}
+
+	FString GetMetaEventTypeName(uint8 Type)
+	{
+		switch (Type)
+		{
+		case GMeta_Text:
+			return FString(TEXT("Text"));
+		case GMeta_Copyright:
+			return FString(TEXT("Copyright"));
+		case GMeta_TrackName:
+			return FString(TEXT("Track Name"));
+		case GMeta_InstrumentName:
+			return FString(TEXT("Instrument Name"));
+		case GMeta_Lyric:
+			return FString(TEXT("Lyric"));
+		case GMeta_Marker:
+			return FString(TEXT("Marker"));
+		case GMeta_CuePoint:
+			return FString(TEXT("Cur Point"));
+		case GMeta_ChannelPrefix:
+			return FString(TEXT("Channel Prefix"));
+		case GMeta_Port:
+			return FString(TEXT("Port"));
+		case GMeta_EndOfTrack:
+			return FString(TEXT("End Of Track"));
+		case GMeta_Tempo:
+			return FString(TEXT("Tempo"));
+		case GMeta_SMPTE:
+			return FString(TEXT("SMPTE"));
+		case GMeta_TimeSig:
+			return FString(TEXT("Time Signature"));
+		case GMeta_KeySig:
+			return FString(TEXT("Key Signature"));
+		case GMeta_Special:
+			return FString(TEXT("Special"));
+		}
+		return FString(TEXT("Unrecognized MIDI Meta Event Type!"));
+	}
 }

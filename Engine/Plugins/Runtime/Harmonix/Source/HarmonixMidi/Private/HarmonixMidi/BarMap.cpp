@@ -359,6 +359,13 @@ bool FBarMap::AddTimeSignatureAtBarIncludingCountIn(int32 BarIndex, int32 Numera
 	{
 		if (!Points.IsEmpty())
 		{
+			if (Points[0].BarIndex == 0 && Points[0].TimeSignature.Numerator == Numerator && Points[0].TimeSignature.Denominator == Denominator)
+			{
+				// Some DAWs are exporting midi with multiple duplicate time signatures in the file. (Looking at you Ableton!)
+				UE_LOG(LogMIDI, VeryVerbose, TEXT("Ignoring duplicate time signature at beginning of the MIDI data."));
+				return true;
+			}
+
 			if (FailOnError)
 			{
 				checkf(false, TEXT("Multiple time signatures at start of song"));
