@@ -7,6 +7,8 @@ public class DisplayClusterModularFeaturesEditor : ModuleRules
 {
 	public DisplayClusterModularFeaturesEditor(ReadOnlyTargetRules ROTargetRules) : base(ROTargetRules)
 	{
+		ShortName = "NDCModFeaturesEd";
+
 		PublicDependencyModuleNames.AddRange(
 			new string[] {
 				"Core",
