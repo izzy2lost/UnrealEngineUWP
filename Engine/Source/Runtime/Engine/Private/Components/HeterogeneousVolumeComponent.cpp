@@ -74,6 +74,10 @@ FHeterogeneousVolumeSceneProxy::FHeterogeneousVolumeSceneProxy(UHeterogeneousVol
 	bIsHeterogeneousVolume = true;
 	bCastDynamicShadow = InComponent->CastShadow;
 
+	// Heterogeneous volumes do not deform internally
+	bHasDeformableMesh = false;
+	ShadowCacheInvalidationBehavior = EShadowCacheInvalidationBehavior::Static;
+
 	HeterogeneousVolumeData.VoxelResolution = InComponent->VolumeResolution;
 	HeterogeneousVolumeData.InstanceToLocal = InComponent->FrameTransform.ToMatrixWithScale();
 
