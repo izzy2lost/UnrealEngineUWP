@@ -555,7 +555,6 @@ namespace UE::Chaos::ClothAsset
 		const int32 StartNumSimVertices2D = GetNumSimVertices2D();
 		const int32 StartNumSimPatterns = GetNumSimPatterns();
 		const int32 OtherNumSimPatterns = Other.GetNumSimPatterns();
-		const int32 OtherNumSimFaces = Other.GetNumSimFaces();
 		SetNumSimPatterns(StartNumSimPatterns + OtherNumSimPatterns);
 		for (int32 PatternIndex = 0; PatternIndex < OtherNumSimPatterns; ++PatternIndex)
 		{
@@ -605,12 +604,35 @@ namespace UE::Chaos::ClothAsset
 			FClothCollection::CopyArrayViewData(GetWeightMap(WeightMapName).Right(OtherNumSimVertices3D), Other.GetWeightMap(WeightMapName));
 		}
 
-		// Face int maps (self collision layers)
-		const TArray<FName> FaceIntMapNames = Other.GetUserDefinedAttributeNames<int32>(ClothCollectionGroup::SimFaces);
-		for (const FName& IntMapName : FaceIntMapNames)
+		// Copy user defined attributes
+		static const TArray<FName> ClothCollectionGroups =
 		{
-			AddUserDefinedAttribute<int32>(IntMapName, ClothCollectionGroup::SimFaces);
-			FClothCollection::CopyArrayViewData(GetUserDefinedAttribute<int32>(IntMapName, ClothCollectionGroup::SimFaces).Right(OtherNumSimFaces), Other.GetUserDefinedAttribute<int32>(IntMapName, ClothCollectionGroup::SimFaces));
+			ClothCollectionGroup::SimFaces,  // Face int maps (self collision layers)
+			ClothCollectionGroup::RenderPatterns  // RecomputeTangents
+		};
+
+		for (const FName& Group : ClothCollectionGroups)
+		{
+			const int32 OtherNumElements = Other.ClothCollection->GetNumElements(Group);
+
+			const TArray<FName> IntAttributeNames = Other.GetUserDefinedAttributeNames<int32>(Group);
+			for (const FName& AttributeName : IntAttributeNames)
+			{
+				AddUserDefinedAttribute<int32>(AttributeName, Group);
+				FClothCollection::CopyArrayViewData(GetUserDefinedAttribute<int32>(AttributeName, Group).Right(OtherNumElements), Other.GetUserDefinedAttribute<int32>(AttributeName, Group));
+			}
+			const TArray<FName> FloatAttributeNames = Other.GetUserDefinedAttributeNames<float>(Group);
+			for (const FName& AttributeName : FloatAttributeNames)
+			{
+				AddUserDefinedAttribute<float>(AttributeName, Group);
+				FClothCollection::CopyArrayViewData(GetUserDefinedAttribute<float>(AttributeName, Group).Right(OtherNumElements), Other.GetUserDefinedAttribute<float>(AttributeName, Group));
+			}
+			const TArray<FName> VectorAttributeNames = Other.GetUserDefinedAttributeNames<FVector3f>(Group);
+			for (const FName& AttributeName : VectorAttributeNames)
+			{
+				AddUserDefinedAttribute<FVector3f>(AttributeName, Group);
+				FClothCollection::CopyArrayViewData(GetUserDefinedAttribute<FVector3f>(AttributeName, Group).Right(OtherNumElements), Other.GetUserDefinedAttribute<FVector3f>(AttributeName, Group));
+			}
 		}
 	}
 
