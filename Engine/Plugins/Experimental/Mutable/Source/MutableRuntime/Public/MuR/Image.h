@@ -14,13 +14,7 @@
 #include "HAL/Platform.h"
 #include "Misc/AssertionMacros.h"
 
-#include "MuR/MemoryTrackingAllocationPolicy.h"
-
-namespace mu::MemoryCounters
-{
-	struct FImageMemoryCounterTag {};
-	using FImageMemoryCounter = TMemoryCounter<FImageMemoryCounterTag>;
-}
+#include "MuR/ImageDataStorage.h"
 
 namespace mu
 {
@@ -29,11 +23,6 @@ namespace mu
 
 	typedef Ptr<Image> ImagePtr;
 	typedef Ptr<const Image> ImagePtrConst;
-
-	MUTABLE_DEFINE_ENUM_SERIALISABLE( EBlendType );
-	MUTABLE_DEFINE_ENUM_SERIALISABLE( ECompositeImageMode );
-	MUTABLE_DEFINE_ENUM_SERIALISABLE( ESamplingMethod );
-	MUTABLE_DEFINE_ENUM_SERIALISABLE( EMinFilterMethod );
 
     //! \brief 2D image resource with mipmaps.
 	//! \ingroup runtime
@@ -55,10 +44,10 @@ namespace mu
         //!         base level. It must be a number between 1 and the maximum possible levels, which
         //!         depends on the image size.
         //! \param format Pixel format.
-        Image( uint32 sizeX, uint32 sizeY, uint32 lods, EImageFormat format, EInitializationType Init );
+        Image(uint32 SizeX, uint32 SizeY, uint32 lods, EImageFormat Format, EInitializationType InitType);
 
 		/** */
-		static Ptr<Image> CreateAsReference( uint32 ID, const FImageDesc& Desc, bool bForceLoad);
+		static Ptr<Image> CreateAsReference(uint32 ID, const FImageDesc& Desc, bool bForceLoad);
 
 		//! Serialisation
 		static void Serialise( const Image* p, OutputArchive& arch );
@@ -72,7 +61,7 @@ namespace mu
 		//-----------------------------------------------------------------------------------------
 
 		/** */
-		void Init(uint32 sizeX, uint32 sizeY, uint32 lods, EImageFormat format, EInitializationType Init);
+		void Init(uint32 SizeX, uint32 SizeY, uint32 Lods, EImageFormat Format, EInitializationType InitType);
 
 		//! Return the width of the image.
         uint16 GetSizeX() const;
@@ -87,15 +76,15 @@ namespace mu
 
 		//! Return the number of levels of detail (mipmaps) in the texture. The base lavel is also
 		//! counted, so the minimum is 1.
-		int GetLODCount() const;
+		int32 GetLODCount() const;
+		void SetLODCount(int32 LODCount);
 
-		//! Return a pointer to a instance-owned buffer where the image pixels are. The pixels are
-		//! stored without any padding. All the LODs are stored in the same buffer, contiguously.
-        const uint8* GetData() const;
-        uint8* GetData();
+		//! Return a pointer to a instance-owned buffer where the image pixels are.
+        const uint8* GetLODData(int32 LODIndex) const;
+        uint8* GetLODData(int32 LODIndex);
 
         //! Return the size in bytes of a specific LOD of the image.
-        int32 GetLODDataSize( int lod ) const;
+        int32 GetLODDataSize(int32 LODIndex) const;
 
 		/** Return true if this is a reference to an engine image. */
 		bool IsReference() const;
@@ -118,16 +107,6 @@ namespace mu
 
 		// This used to be the data in the private implementation of the image interface
 		//-----------------------------------------------------------------------------------------
-
-		/** */
-		FImageSize m_size = FImageSize(0, 0);
-
-		/** */
-		EImageFormat m_format = EImageFormat::IF_NONE;
-
-		/** Levels of detail (mipmaps) */
-		uint8 m_lods = 0;
-
 		/** These set of flags are used to cache information for images at runtime. */
 		typedef enum
 		{
@@ -162,9 +141,7 @@ namespace mu
 
 		/** Pixel data for all lods. */
 
-		using ImageDataContainerType = TArray<uint8, FDefaultMemoryTrackingAllocator<MemoryCounters::FImageMemoryCounter>>;
-		ImageDataContainerType m_data;
-
+		FImageDataStorage DataStorage;
 
 		// This used to be the methods in the private implementation of the image interface
 		//-----------------------------------------------------------------------------------------
@@ -177,13 +154,10 @@ namespace mu
 
 			Ptr<Image> pResult = new Image();
 
-			pResult->m_size = m_size;
-			pResult->m_format = m_format;
-			pResult->m_lods = m_lods;
 			pResult->m_flags = m_flags;
 			pResult->RelevancyMinY = RelevancyMinY;
 			pResult->RelevancyMaxY = RelevancyMaxY;
-			pResult->m_data = m_data;
+			pResult->DataStorage = DataStorage;
 			pResult->ReferenceID = ReferenceID;
 
 			return pResult;
@@ -200,13 +174,10 @@ namespace mu
 				return;
 			}
 
-			m_size = Other->m_size;
-			m_format = Other->m_format;
-			m_lods = Other->m_lods;
 			m_flags = Other->m_flags;
 			RelevancyMinY = Other->RelevancyMinY;
 			RelevancyMaxY = Other->RelevancyMaxY;
-			m_data =Other->m_data;
+			DataStorage = Other->DataStorage;
 			ReferenceID = Other->ReferenceID;
 		}
 
@@ -220,23 +191,12 @@ namespace mu
 				return;
 			}
 
-			m_size = Other->m_size;
-			m_format = Other->m_format;
-			m_lods = Other->m_lods;
 			m_flags = Other->m_flags;
 			RelevancyMinY = Other->RelevancyMinY;
 			RelevancyMaxY = Other->RelevancyMaxY;
-			m_data = MoveTemp(Other->m_data);
 			ReferenceID = Other->ReferenceID;
-
-			Other->m_size = FImageSize(0, 0);
-			Other->m_format = EImageFormat::IF_NONE;
-			Other->m_lods = 0;
-			Other->m_flags = 0;
-			Other->RelevancyMinY = 0;
-			Other->RelevancyMaxY = 0;
-			Other->m_data.SetNum(0);
-			Other->ReferenceID = 0;
+			
+			DataStorage = MoveTemp(Other->DataStorage);
 		}
 
 
@@ -247,13 +207,11 @@ namespace mu
 		void Unserialise(InputArchive& arch);
 
 		//!
-		inline bool operator==(const Image& o) const
+		inline bool operator==(const Image& Other) const
 		{
-			return (m_lods == o.m_lods) &&
-				(m_size == o.m_size) &&
-				(m_format == o.m_format) &&
-				(m_data == o.m_data) &&
-				(ReferenceID == o.ReferenceID);
+			return 
+				(DataStorage == Other.DataStorage) &&
+				(ReferenceID == Other.ReferenceID);
 		}
 
 		//-----------------------------------------------------------------------------------------
@@ -271,25 +229,25 @@ namespace mu
 		//! Calculate the size of a lod of the image data in bytes, regardless of what is allocated
 		//! in m_data, only using the image descriptions. For non-block-compressed images, it
 		//! returns 0.
-		int32 CalculateDataSize(int lod) const;
+		//int32 CalculateDataSize(int lod) const;
 
-		//! Calculate the number of pixels of the image, regardless of what is allocated in
-		//! m_data, only using the image descriptions.
-		//! For block-compressed images, it includes the wasted pixels in the blocks, in case
-		//! the size is not a multiple of it in all lods.
-		//! It includes the pixels in all lods
-		int32 CalculatePixelCount() const;
+		////! Calculate the number of pixels of the image, regardless of what is allocated in
+		////! m_data, only using the image descriptions.
+		////! For block-compressed images, it includes the wasted pixels in the blocks, in case
+		////! the size is not a multiple of it in all lods.
+		////! It includes the pixels in all lods
+		//int32 CalculatePixelCount() const;
 
-		//! Same as above, but only calculates the pixels of an lod
-		int32 CalculatePixelCount(int lod) const;
+		////! Same as above, but only calculates the pixels of an lod
+		//int32 CalculatePixelCount(int32 LOD) const;
 
 		//! Calculate the size in pixels of a particular mipmap of this image. The size doesn't
 		//! include pixels necessary for completing blocks in block-compressed formats.
-		FIntVector2 CalculateMipSize(int lod) const;
+		FIntVector2 CalculateMipSize(int32 LOD) const;
 
 		//! Return a pointer to the beginning of the data for a particular mip.
-		uint8* GetMipData(int mip);
-		const uint8* GetMipData(int mip) const;
+		uint8* GetMipData(int32 Mip);
+		const uint8* GetMipData(int32 Mip) const;
 		
 		//! Return the size of the resident mips. for block-compressed images the result is the same as in CalculateDataSize()
 		//! for non-block-compressed images, the sizes encoded in the image data is used to compute the final size.
@@ -362,6 +320,7 @@ namespace mu
 		* \return false if the conversion failed, usually because not enough memory was allocated in the result. This is only checked for RLE compression.
 		*/
 		MUTABLERUNTIME_API void ImagePixelFormat(bool& bOutSuccess, int32 Quality, Image* Result, const Image* Base, int32 OnlyLOD = -1);
+		MUTABLERUNTIME_API void ImagePixelFormat(bool& bOutSuccess, int32 Quality, Image* Result, const Image* Base, int32 BeginResultLOD, int32 BeginBaseLOD, int32 NumLODs);
 
 		MUTABLERUNTIME_API Ptr<Image> ImageSwizzle(EImageFormat Format, const Ptr<const Image> Sources[], const uint8 Channels[]);
 
@@ -388,13 +347,13 @@ namespace mu
 		* from Base up to LevelCount and append them in Dest to the already generated Base's mips.
 		*/
 		void ImageMipmap(int32 CompressionQuality, Image* Dest, const Image* Base,
-			int32 LevelCount,
+			int32 StartLevel, int32 LevelCount,
 			const FMipmapGenerationSettings&, bool bGenerateOnlyTail = false);
 
 		/** Mipmap separating the worst case treatment in 3 steps to manage allocations of temp data. */
-		void ImageMipmap_PrepareScratch(Image* Dest, const Image* Base, int32 LevelCount, FScratchImageMipmap&);
+		void ImageMipmap_PrepareScratch(const Image* DestImage, int32 StartLevel, int32 LevelCount, FScratchImageMipmap&);
 		void ImageMipmap(FImageOperator::FScratchImageMipmap&, int32 CompressionQuality, Image* Dest, const Image* Base,
-			int32 LevelCount,
+			int32 LevelStart, int32 LevelCount,
 			const FMipmapGenerationSettings&, bool bGenerateOnlyTail = false);
 		void ImageMipmap_ReleaseScratch(FScratchImageMipmap&);
 

@@ -3283,15 +3283,15 @@ namespace mu
                         switch (EBlendType(args.blendType))
                         {
 						case EBlendType::BT_NORMAL_COMBINE: check(false); break;
-                        case EBlendType::BT_SOFTLIGHT: BufferLayer<SoftLightChannelMasked, SoftLightChannel, false>( Base->GetData(), Base.get(), Mask.get(), Blended.get(), bApplyColorBlendToAlpha, bBlendOnlyOneMip); break;
-                        case EBlendType::BT_HARDLIGHT: BufferLayer<HardLightChannelMasked, HardLightChannel, false>(Base->GetData(), Base.get(), Mask.get(), Blended.get(), bApplyColorBlendToAlpha, bBlendOnlyOneMip); break;
-                        case EBlendType::BT_BURN: BufferLayer<BurnChannelMasked, BurnChannel, false>(Base->GetData(), Base.get(), Mask.get(), Blended.get(), bApplyColorBlendToAlpha, bBlendOnlyOneMip); break;
-                        case EBlendType::BT_DODGE: BufferLayer<DodgeChannelMasked, DodgeChannel, false>(Base->GetData(), Base.get(), Mask.get(), Blended.get(), bApplyColorBlendToAlpha, bBlendOnlyOneMip); break;
-                        case EBlendType::BT_SCREEN: BufferLayer<ScreenChannelMasked, ScreenChannel, false>(Base->GetData(), Base.get(), Mask.get(), Blended.get(), bApplyColorBlendToAlpha, bBlendOnlyOneMip); break;
-                        case EBlendType::BT_OVERLAY: BufferLayer<OverlayChannelMasked, OverlayChannel, false>(Base->GetData(), Base.get(), Mask.get(), Blended.get(), bApplyColorBlendToAlpha, bBlendOnlyOneMip); break;
-                        case EBlendType::BT_LIGHTEN: BufferLayer<LightenChannelMasked, LightenChannel, false>(Base->GetData(), Base.get(), Mask.get(), Blended.get(), bApplyColorBlendToAlpha, bBlendOnlyOneMip); break;
-                        case EBlendType::BT_MULTIPLY: BufferLayer<MultiplyChannelMasked, MultiplyChannel, false>(Base->GetData(), Base.get(), Mask.get(), Blended.get(), bApplyColorBlendToAlpha, bBlendOnlyOneMip); break;
-                        case EBlendType::BT_BLEND: BufferLayer<BlendChannelMasked, BlendChannel, false>(Base->GetData(), Base.get(), Mask.get(), Blended.get(), bApplyColorBlendToAlpha, bBlendOnlyOneMip); break;
+                        case EBlendType::BT_SOFTLIGHT: BufferLayer<SoftLightChannelMasked, SoftLightChannel, false>(Base.get(), Base.get(), Mask.get(), Blended.get(), bApplyColorBlendToAlpha, bBlendOnlyOneMip); break;
+                        case EBlendType::BT_HARDLIGHT: BufferLayer<HardLightChannelMasked, HardLightChannel, false>(Base.get(), Base.get(), Mask.get(), Blended.get(), bApplyColorBlendToAlpha, bBlendOnlyOneMip); break;
+                        case EBlendType::BT_BURN: BufferLayer<BurnChannelMasked, BurnChannel, false>(Base.get(), Base.get(), Mask.get(), Blended.get(), bApplyColorBlendToAlpha, bBlendOnlyOneMip); break;
+                        case EBlendType::BT_DODGE: BufferLayer<DodgeChannelMasked, DodgeChannel, false>(Base.get(), Base.get(), Mask.get(), Blended.get(), bApplyColorBlendToAlpha, bBlendOnlyOneMip); break;
+                        case EBlendType::BT_SCREEN: BufferLayer<ScreenChannelMasked, ScreenChannel, false>(Base.get(), Base.get(), Mask.get(), Blended.get(), bApplyColorBlendToAlpha, bBlendOnlyOneMip); break;
+                        case EBlendType::BT_OVERLAY: BufferLayer<OverlayChannelMasked, OverlayChannel, false>(Base.get(), Base.get(), Mask.get(), Blended.get(), bApplyColorBlendToAlpha, bBlendOnlyOneMip); break;
+                        case EBlendType::BT_LIGHTEN: BufferLayer<LightenChannelMasked, LightenChannel, false>(Base.get(), Base.get(), Mask.get(), Blended.get(), bApplyColorBlendToAlpha, bBlendOnlyOneMip); break;
+                        case EBlendType::BT_MULTIPLY: BufferLayer<MultiplyChannelMasked, MultiplyChannel, false>(Base.get(), Base.get(), Mask.get(), Blended.get(), bApplyColorBlendToAlpha, bBlendOnlyOneMip); break;
+                        case EBlendType::BT_BLEND: BufferLayer<BlendChannelMasked, BlendChannel, false>(Base.get(), Base.get(), Mask.get(), Blended.get(), bApplyColorBlendToAlpha, bBlendOnlyOneMip); break;
                         default: check(false);
                         }
 
@@ -3305,15 +3305,15 @@ namespace mu
 						switch (EBlendType(args.blendType))
 						{
 						case EBlendType::BT_NORMAL_COMBINE: check(false); break;
-						case EBlendType::BT_SOFTLIGHT: BufferLayerEmbeddedMask<SoftLightChannelMasked, SoftLightChannel, false>(Base->GetData(), Base.get(), Blended.get(), bApplyColorBlendToAlpha, bBlendOnlyOneMip); break;
-						case EBlendType::BT_HARDLIGHT: BufferLayerEmbeddedMask<HardLightChannelMasked, HardLightChannel, false>(Base->GetData(), Base.get(), Blended.get(), bApplyColorBlendToAlpha, bBlendOnlyOneMip); break;
-						case EBlendType::BT_BURN: BufferLayerEmbeddedMask<BurnChannelMasked, BurnChannel, false>(Base->GetData(), Base.get(), Blended.get(), bApplyColorBlendToAlpha, bBlendOnlyOneMip); break;
-						case EBlendType::BT_DODGE: BufferLayerEmbeddedMask<DodgeChannelMasked, DodgeChannel, false>(Base->GetData(), Base.get(), Blended.get(), bApplyColorBlendToAlpha, bBlendOnlyOneMip); break;
-						case EBlendType::BT_SCREEN: BufferLayerEmbeddedMask<ScreenChannelMasked, ScreenChannel, false>(Base->GetData(), Base.get(), Blended.get(), bApplyColorBlendToAlpha, bBlendOnlyOneMip); break;
-						case EBlendType::BT_OVERLAY: BufferLayerEmbeddedMask<OverlayChannelMasked, OverlayChannel, false>(Base->GetData(), Base.get(), Blended.get(), bApplyColorBlendToAlpha, bBlendOnlyOneMip); break;
-						case EBlendType::BT_LIGHTEN: BufferLayerEmbeddedMask<LightenChannelMasked, LightenChannel, false>(Base->GetData(), Base.get(), Blended.get(), bApplyColorBlendToAlpha, bBlendOnlyOneMip); break;
-						case EBlendType::BT_MULTIPLY: BufferLayerEmbeddedMask<MultiplyChannelMasked, MultiplyChannel, false>(Base->GetData(), Base.get(), Blended.get(), bApplyColorBlendToAlpha, bBlendOnlyOneMip); break;
-						case EBlendType::BT_BLEND: BufferLayerEmbeddedMask<BlendChannelMasked, BlendChannel, false>(Base->GetData(), Base.get(), Blended.get(), bApplyColorBlendToAlpha, bBlendOnlyOneMip); break;
+						case EBlendType::BT_SOFTLIGHT: BufferLayerEmbeddedMask<SoftLightChannelMasked, SoftLightChannel, false>(Base.get(), Base.get(), Blended.get(), bApplyColorBlendToAlpha, bBlendOnlyOneMip); break;
+						case EBlendType::BT_HARDLIGHT: BufferLayerEmbeddedMask<HardLightChannelMasked, HardLightChannel, false>(Base.get(), Base.get(), Blended.get(), bApplyColorBlendToAlpha, bBlendOnlyOneMip); break;
+						case EBlendType::BT_BURN: BufferLayerEmbeddedMask<BurnChannelMasked, BurnChannel, false>(Base.get(), Base.get(), Blended.get(), bApplyColorBlendToAlpha, bBlendOnlyOneMip); break;
+						case EBlendType::BT_DODGE: BufferLayerEmbeddedMask<DodgeChannelMasked, DodgeChannel, false>(Base.get(), Base.get(), Blended.get(), bApplyColorBlendToAlpha, bBlendOnlyOneMip); break;
+						case EBlendType::BT_SCREEN: BufferLayerEmbeddedMask<ScreenChannelMasked, ScreenChannel, false>(Base.get(), Base.get(), Blended.get(), bApplyColorBlendToAlpha, bBlendOnlyOneMip); break;
+						case EBlendType::BT_OVERLAY: BufferLayerEmbeddedMask<OverlayChannelMasked, OverlayChannel, false>(Base.get(), Base.get(), Blended.get(), bApplyColorBlendToAlpha, bBlendOnlyOneMip); break;
+						case EBlendType::BT_LIGHTEN: BufferLayerEmbeddedMask<LightenChannelMasked, LightenChannel, false>(Base.get(), Base.get(), Blended.get(), bApplyColorBlendToAlpha, bBlendOnlyOneMip); break;
+						case EBlendType::BT_MULTIPLY: BufferLayerEmbeddedMask<MultiplyChannelMasked, MultiplyChannel, false>(Base.get(), Base.get(), Blended.get(), bApplyColorBlendToAlpha, bBlendOnlyOneMip); break;
+						case EBlendType::BT_BLEND: BufferLayerEmbeddedMask<BlendChannelMasked, BlendChannel, false>(Base.get(), Base.get(), Blended.get(), bApplyColorBlendToAlpha, bBlendOnlyOneMip); break;
 						default: check(false);
 						}
 					}
@@ -3422,18 +3422,19 @@ namespace mu
 				{
 					MUTABLE_CPUPROFILER_SCOPE(ImageNormalComposite_EmergencyFix);
 
-					int levelCount = Base->GetLODCount();
-					ImagePtr Dest = CreateImage(Normal->GetSizeX(), Normal->GetSizeY(), levelCount, Normal->GetFormat(), EInitializationType::NotInitialized);
+					int32 StartLevel = Normal->GetLODCount() - 1;
+					int32 LevelCount = Base->GetLODCount();
+					
+					Ptr<Image> NormalFix = CloneOrTakeOver(Normal);
 
-					FMipmapGenerationSettings mipSettings{};
-					ImOp.ImageMipmap(m_pSettings->ImageCompressionQuality, Dest.get(), Normal.get(), levelCount, mipSettings);
+					FMipmapGenerationSettings MipSettings{};
+					ImOp.ImageMipmap(m_pSettings->ImageCompressionQuality, NormalFix.get(), NormalFix.get(), StartLevel, LevelCount, MipSettings);
 
-					Release(Normal);
-					Normal = Dest;
+					Normal = NormalFix;
 				}
 
 
-                ImagePtr Result = CreateImage( Base->GetSizeX(), Base->GetSizeY(), Base->GetLODCount(), Base->GetFormat(), EInitializationType::NotInitialized);
+                Ptr<Image> Result = CreateImage(Base->GetSizeX(), Base->GetSizeY(), Base->GetLODCount(), Base->GetFormat(), EInitializationType::NotInitialized);
 				ImageNormalComposite(Result.get(), Base.get(), Normal.get(), args.mode, args.power);
 
 				Release(Base);
@@ -3521,9 +3522,9 @@ namespace mu
             switch (item.Stage)
             {
             case 0:
-                AddOp( FScheduledOp( item.At, item, 1),
-                        FScheduledOp( args.source, item),
-                        FScheduledOp( args.sizeSource, item) );
+                AddOp(FScheduledOp(item.At, item, 1),
+                      	FScheduledOp(args.source, item),
+                        FScheduledOp(args.sizeSource, item));
                 break;
 
             case 1:
@@ -3535,29 +3536,26 @@ namespace mu
 				FImageSize DestSize = SizeBase->GetSize();
 				Release(SizeBase);
 
-                if ( Base->GetSize()!=DestSize )
+                if (Base->GetSize() != DestSize)
                 {
 					int32 BaseLODCount = Base->GetLODCount();
 					Ptr<Image> Result = CreateImage(DestSize[0], DestSize[1], BaseLODCount, Base->GetFormat(), EInitializationType::NotInitialized);
-					ImOp.ImageResizeLinear( Result.get(), m_pSettings->ImageCompressionQuality, Base.get());
+					ImOp.ImageResizeLinear(Result.get(), m_pSettings->ImageCompressionQuality, Base.get());
 					Release(Base);
 
                     // If the source image had mips, generate them as well for the resized image.
                     // This shouldn't happen often since "ResizeLike" should be usually optimised out
                     // during model compilation. The mipmap generation below is not very precise with
                     // the number of mips that are needed and will probably generate too many
-                    bool bSourceHasMips = BaseLODCount>1;
-                    if (bSourceHasMips)
+                    bool bSourceHasMips = BaseLODCount > 1;
+                    
+					if (bSourceHasMips)
                     {
-                        int levelCount = Image::GetMipmapCount( Result->GetSizeX(), Result->GetSizeY() );
-                        Ptr<Image> Mipmapped = CreateImage( Result->GetSizeX(), Result->GetSizeY(), levelCount, Result->GetFormat(), EInitializationType::NotInitialized);
+						int32 LevelCount = Image::GetMipmapCount(Result->GetSizeX(), Result->GetSizeY());	
+						Result->DataStorage.SetNumLODs(LevelCount);
 
-						FMipmapGenerationSettings mipSettings{};
-
-						ImOp.ImageMipmap( m_pSettings->ImageCompressionQuality, Mipmapped.get(), Result.get(), levelCount, mipSettings );
-
-						Release(Result);
-						Result = Mipmapped;
+						FMipmapGenerationSettings MipSettings{};
+						ImOp.ImageMipmap(m_pSettings->ImageCompressionQuality, Result.get(), Result.get(), 0, LevelCount, MipSettings);
                     }				
 
 					StoreImage(item, Result);
@@ -3599,25 +3597,24 @@ namespace mu
 
             break;
         }
-
         case OP_TYPE::IM_BLANKLAYOUT:
         {
-			OP::ImageBlankLayoutArgs args = Program.GetOpArgs<OP::ImageBlankLayoutArgs>(item.At);
+			OP::ImageBlankLayoutArgs Args = Program.GetOpArgs<OP::ImageBlankLayoutArgs>(item.At);
             switch (item.Stage)
             {
             case 0:
-                AddOp( FScheduledOp( item.At, item, 1), FScheduledOp::FromOpAndOptions( args.layout, item, 0) );
+                AddOp( FScheduledOp( item.At, item, 1), FScheduledOp::FromOpAndOptions(Args.layout, item, 0));
                 break;
 
             case 1:
             {
             	MUTABLE_CPUPROFILER_SCOPE(IM_BLANKLAYOUT_1)
             		
-                Ptr<const Layout> pLayout = LoadLayout(FScheduledOp::FromOpAndOptions(args.layout, item, 0));
+                Ptr<const Layout> pLayout = LoadLayout(FScheduledOp::FromOpAndOptions(Args.layout, item, 0));
 
                 FIntPoint SizeInBlocks = pLayout->GetGridSize();
 
-				FIntPoint BlockSizeInPixels(args.blockSize[0], args.blockSize[1]);
+				FIntPoint BlockSizeInPixels(Args.blockSize[0], Args.blockSize[1]);
 
 				// Image size if we don't skip any mipmap
 				FIntPoint FullImageSizeInPixels = SizeInBlocks * BlockSizeInPixels;
@@ -3649,22 +3646,22 @@ namespace mu
 					//}
 				}
 
-                int MipsToGenerate = 1;
-                if ( args.generateMipmaps )
+                int32 MipsToGenerate = 1;
+                if (Args.generateMipmaps)
                 {
-                    if ( args.mipmapCount==0 )
+                    if (Args.mipmapCount == 0)
                     {
 						MipsToGenerate = Image::GetMipmapCount(ImageSizeInPixels.X, ImageSizeInPixels.Y);
                     }
                     else
                     {
-						MipsToGenerate = FMath::Max(args.mipmapCount-MipsToSkip,1);
+						MipsToGenerate = FMath::Max(Args.mipmapCount - MipsToSkip, 1);
                     }
                 }
 
 				// It needs to be initialized in case it has gaps.
-                ImagePtr New = CreateImage(ImageSizeInPixels.X, ImageSizeInPixels.Y, MipsToGenerate, EImageFormat(args.format), EInitializationType::Black );
-                StoreImage( item, New );
+                Ptr<Image> New = CreateImage(ImageSizeInPixels.X, ImageSizeInPixels.Y, MipsToGenerate, EImageFormat(Args.format), EInitializationType::Black );
+                StoreImage(item, New);
                 break;
             }
 
@@ -3842,25 +3839,25 @@ namespace mu
                 }
 
                 // Factor from 0 to 1 between the two targets
-                const FScheduledOpData& data = m_heapData[(size_t)item.CustomState];
-                float bifactor = data.Interpolate.Bifactor;
-                int min = data.Interpolate.Min;
-                int max = data.Interpolate.Max;
+                const FScheduledOpData& Data = m_heapData[(size_t)item.CustomState];
+                float Bifactor = Data.Interpolate.Bifactor;
+                int32 Min = Data.Interpolate.Min;
+                int32 Max = Data.Interpolate.Max;
 
-                if ( bifactor < UE_SMALL_NUMBER )
+                if (Bifactor < UE_SMALL_NUMBER)
                 {
-                    Ptr<const Image> Source = LoadImage( FCacheAddress(args.targets[min],item) );
+                    Ptr<const Image> Source = LoadImage(FCacheAddress(args.targets[Min], item));
 					StoreImage(item, Source);
 				}
-                else if ( bifactor > 1.0f-UE_SMALL_NUMBER )
+                else if (Bifactor > 1.0f - UE_SMALL_NUMBER)
                 {
-                    Ptr<const Image> Source = LoadImage( FCacheAddress(args.targets[max],item) );
+                    Ptr<const Image> Source = LoadImage(FCacheAddress(args.targets[Max], item));
 					StoreImage(item, Source);
 				}
                 else
                 {
-					Ptr<const Image> pMin = LoadImage( FCacheAddress(args.targets[min],item) );
-                    Ptr<const Image> pMax = LoadImage( FCacheAddress(args.targets[max],item) );
+					Ptr<const Image> pMin = LoadImage(FCacheAddress(args.targets[Min], item));
+                    Ptr<const Image> pMax = LoadImage(FCacheAddress(args.targets[Max], item));
 
                     if (pMin && pMax)
                     {						
@@ -3896,30 +3893,32 @@ namespace mu
 						if (pNew->GetLODCount() != LevelCount)
 						{
 							MUTABLE_CPUPROFILER_SCOPE(Mipmap_ForInterpolate);
+						
+							int32 StartLevel = pNew->GetLODCount() - 1;
+							// pNew is local owned, no need to CloneOrTakeOver.
+							pNew->DataStorage.SetNumLODs(LevelCount);
 
-							ImagePtr pDest = CreateImage(pNew->GetSizeX(), pNew->GetSizeY(), LevelCount, pNew->GetFormat(), EInitializationType::NotInitialized);
+							FMipmapGenerationSettings Settings{};
+							ImOp.ImageMipmap(m_pSettings->ImageCompressionQuality, pNew.get(), pNew.get(), StartLevel, LevelCount, Settings);
 
-							FMipmapGenerationSettings settings{};
-							ImOp.ImageMipmap(m_pSettings->ImageCompressionQuality, pDest.get(), pNew.get(), LevelCount, settings);
-
-							Release(pNew);
-							pNew = pDest;
 						}
 
 						if (pMax->GetLODCount() != LevelCount)
 						{
 							MUTABLE_CPUPROFILER_SCOPE(Mipmap_ForInterpolate);
 
-							ImagePtr pDest = CreateImage(pMax->GetSizeX(), pMax->GetSizeY(), LevelCount, pMax->GetFormat(), EInitializationType::NotInitialized);
+							int32 StartLevel = pMax->GetLODCount() - 1;
 
-							FMipmapGenerationSettings settings{};
-							ImOp.ImageMipmap(m_pSettings->ImageCompressionQuality, pDest.get(), pMax.get(), LevelCount, settings);
+							Ptr<Image> MaxFix = CloneOrTakeOver(pMax);
+							MaxFix->DataStorage.SetNumLODs(LevelCount);
+							
+							FMipmapGenerationSettings Settings{};
+							ImOp.ImageMipmap(m_pSettings->ImageCompressionQuality, MaxFix.get(), MaxFix.get(), StartLevel, LevelCount, Settings);
 
-							Release(pMax);
-							pMax = pDest;
+							pMax = MaxFix;
 						}
 
-                        ImageInterpolate( pNew.get(), pMax.get(), bifactor );
+                        ImageInterpolate(pNew.get(), pMax.get(), Bifactor);
 
 						Release(pMax);
 						StoreImage(item, pNew);
@@ -3932,7 +3931,6 @@ namespace mu
                     {
 						StoreImage(item, pMax);
 					}
-
 				}
 
                 break;
@@ -4639,15 +4637,12 @@ namespace mu
 					{
 						MUTABLE_CPUPROFILER_SCOPE(RunCode_RasterMesh_BilinearMipGen);
 
-						Ptr<Image> NewImage = CreateImage(Source->GetSizeX(), Source->GetSizeY(), 2, Source->GetFormat(), EInitializationType::NotInitialized);
+						Ptr<Image> OwnedSource = CloneOrTakeOver(Source);
 
-						check(NewImage->GetDataSize() >= Source->GetDataSize());
-						FMemory::Memcpy(NewImage->GetData(), Source->GetData(), Source->GetDataSize());
+						OwnedSource->DataStorage.SetNumLODs(2);
+						ImageMipmapInPlace(0, OwnedSource.get(), FMipmapGenerationSettings{});
 
-						ImageMipmapInPlace(0, NewImage.get(), FMipmapGenerationSettings{});
-
-						Release(Source);
-						Source = NewImage;
+						Source = OwnedSource;
 					}
 				}
 
@@ -4965,15 +4960,12 @@ namespace mu
 				{
 					MUTABLE_CPUPROFILER_SCOPE(RunCode_ImageTransform_BilinearMipGen);
 
-					Ptr<Image> NewImage = CreateImage(Source->GetSizeX(), Source->GetSizeY(), 2, Source->GetFormat(), EInitializationType::NotInitialized);
+					Ptr<Image> OwnedSource = CloneOrTakeOver(Source);
+					OwnedSource->DataStorage.SetNumLODs(2);
 
-					check(NewImage->GetDataSize() >= Source->GetDataSize());
-					FMemory::Memcpy(NewImage->GetData(), Source->GetData(), Source->GetDataSize());
+					ImageMipmapInPlace(0, OwnedSource.get(), FMipmapGenerationSettings{});
 
-					ImageMipmapInPlace(0, NewImage.get(), FMipmapGenerationSettings{});
-
-					Release(Source);
-					Source = NewImage;
+					Source = OwnedSource;
 				}
 
 				Scale.X = FMath::IsNearlyZero(Scale.X, UE_KINDA_SMALL_NUMBER) ? UE_KINDA_SMALL_NUMBER : Scale.X;
@@ -6318,25 +6310,25 @@ namespace mu
 			{
 				// Somewhat synched with Full op execution code.
 				FImageDesc BaseDesc = m_heapImageDesc[item.CustomState];
-				int levelCount = args.levels;
-				int maxLevelCount = Image::GetMipmapCount(BaseDesc.m_size[0], BaseDesc.m_size[1]);
-				if (levelCount == 0)
+				int32 LevelCount = args.levels;
+				int32 MaxLevelCount = Image::GetMipmapCount(BaseDesc.m_size[0], BaseDesc.m_size[1]);
+				if (LevelCount == 0)
 				{
-					levelCount = maxLevelCount;
+					LevelCount = MaxLevelCount;
 				}
-				else if (levelCount > maxLevelCount)
+				else if (LevelCount > MaxLevelCount)
 				{
 					// If code generation is smart enough, this should never happen.
 					// \todo But apparently it does, sometimes.
-					levelCount = maxLevelCount;
+					LevelCount = MaxLevelCount;
 				}
 
 				// At least keep the levels we already have.
-				int32 startLevel = BaseDesc.m_lods;
-				levelCount = FMath::Max(startLevel, levelCount);
+				int32 StartLevel = BaseDesc.m_lods;
+				LevelCount = FMath::Max(StartLevel, LevelCount);
 
 				// Update result.
-				m_heapImageDesc[item.CustomState].m_lods = levelCount;
+				m_heapImageDesc[item.CustomState].m_lods = LevelCount;
 				StoreValidDesc(item);
 				break;
 			}

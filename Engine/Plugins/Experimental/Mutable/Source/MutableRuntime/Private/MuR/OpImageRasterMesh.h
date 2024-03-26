@@ -84,13 +84,15 @@ namespace mu
 		{
 			// Raster all the faces
             WhitePixelProcessor pixelProc;
+			const TArrayView<uint8> ImageData = pImage->DataStorage.GetLOD(0);
+
 			//for ( int f=0; f<faceCount; ++f )
 			const auto& ProcessFace = [
-				vertices, indices, pImage, sizeX, sizeY, pixelProc
+				vertices, indices, ImageData, sizeX, sizeY, pixelProc
 			] (int32 f)
 			{
 				constexpr int32 NumInterpolators = 1;
-				Triangle<NumInterpolators>(pImage->GetData(), pImage->GetDataSize(),
+				Triangle<NumInterpolators>(ImageData.GetData(), ImageData.Num(),
 					sizeX, sizeY,
 					1,
 					vertices[indices[f * 3 + 0]],
@@ -120,16 +122,19 @@ namespace mu
 			}
 
             WhitePixelProcessor pixelProc;
+
+			const TArrayView<uint8> ImageData = pImage->DataStorage.GetLOD(0); 
+
 			//for (int f = 0; f < faceCount; ++f)
 			const auto& ProcessFace = [
-				vertices, indices, blocks, BlockId, pImage, sizeX, sizeY, pixelProc
+				vertices, indices, blocks, BlockId, ImageData, sizeX, sizeY, pixelProc
 			] (int32 f)
 			{
 				// TODO: Select faces outside for loop?
 				if (blocks[indices[f * 3 + 0]] == BlockId)
 				{
 					constexpr int32 NumInterpolators = 1;
-					Triangle<NumInterpolators>(pImage->GetData(), pImage->GetDataSize(),
+					Triangle<NumInterpolators>(ImageData.GetData(), ImageData.Num(),
 						sizeX, sizeY,
 						1,
 						vertices[indices[f * 3 + 0]],

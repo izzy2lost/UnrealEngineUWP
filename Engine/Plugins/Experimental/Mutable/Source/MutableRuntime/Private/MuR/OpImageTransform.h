@@ -57,7 +57,7 @@ namespace mu
 			pDestImage->RelevancyMaxY = FMath::Max(DestCropRect.Max.Y - 1, DestCropRect.Min.Y);
 		}
 
-		uint8* DestData       = pDestImage->GetData();
+		uint8* DestData       = pDestImage->GetMipData(0);
 		const uint8* Src0Data = pImage->GetMipData(0);
 		const uint8* Src1Data = pImage->GetLODCount() > 1 ? pImage->GetMipData(1) : Src0Data;
 

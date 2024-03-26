@@ -1913,118 +1913,114 @@ namespace mu
 	}
 
 
-    //---------------------------------------------------------------------------------------------
-    Ptr<Image> CodeGenerator::GenerateMissingImage( EImageFormat format )
-    {
-        // Create the image node if it hasn't been created yet.
-        if (!m_missingImage[size_t(format)])
-        {
-            // Make a checkered debug image
-            const FImageSize size(16,16);
+	Ptr<Image> CodeGenerator::GenerateMissingImage(EImageFormat Format)
+	{
+		// Create the image node if it hasn't been created yet.
+		if (!m_missingImage[SIZE_T(Format)])
+		{
+			// Make a checkered debug image
+			const FImageSize Size(16, 16);
 
-            ImagePtr pImage = new Image( size[0], size[1], 1, format, EInitializationType::NotInitialized);
+			Ptr<Image> GeneratedImage = new Image(Size[0], Size[1], 1, Format, EInitializationType::NotInitialized);
 
-            switch (format)
-            {
-            case EImageFormat::IF_L_UBYTE:
-                {
-                    uint8_t* pData = pImage->GetData();
-                    for ( int p=0; p<size[0]*size[1]; ++p )
-                    {
-                        if ((p+p/size[0])%2)
-                        {
-                            pData[0] = 255;
-                        }
-                        else
-                        {
-                            pData[0] = 64;
-                        }
+			switch (Format)
+			{
+			case EImageFormat::IF_L_UBYTE:
+			{
+				uint8* DataPtr = GeneratedImage->GetLODData(0);
+				for (int32 P = 0; P < Size[0]*Size[1]; ++P)
+				{
+					if ((P + P/Size[0]) % 2)
+					{
+						DataPtr[0] = 255;
+					}
+					else
+					{
+						DataPtr[0] = 64;
+					}
 
-                        pData++;
-                    }
-                    break;
-                }
+					DataPtr++;
+				}
+				break;
+			}
+			case EImageFormat::IF_RGB_UBYTE:
+			{
+				uint8* DataPtr = GeneratedImage->GetLODData(0);
+				for (int32 P = 0; P < Size[0]*Size[1]; ++P)
+				{
+					if ((P + P/Size[0]) % 2)
+					{
+						DataPtr[0] = 255;
+						DataPtr[1] = 255;
+						DataPtr[2] = 64;
+					}
+					else
+					{
+						DataPtr[0] = 64;
+						DataPtr[1] = 64;
+						DataPtr[2] = 255;
+					}
 
-            case EImageFormat::IF_RGB_UBYTE:
-                {
-                    uint8_t* pData = pImage->GetData();
-                    for ( int p=0; p<size[0]*size[1]; ++p )
-                    {
-                        if ((p+p/size[0])%2)
-                        {
-                            pData[0] = 255;
-                            pData[1] = 255;
-                            pData[2] = 64;
-                        }
-                        else
-                        {
-                            pData[0] = 64;
-                            pData[1] = 64;
-                            pData[2] = 255;
-                        }
+					DataPtr += 3;
+				}
+				break;
+			}
+			case EImageFormat::IF_BGRA_UBYTE:
+			case EImageFormat::IF_RGBA_UBYTE:
+			{
+				uint8* DataPtr = GeneratedImage->GetLODData(0);
+				for (int32 P = 0; P < Size[0]*Size[1]; ++P)
+				{
+					if ((P + P/Size[0]) % 2)
+					{
+						DataPtr[0] = 255;
+						DataPtr[1] = 255;
+						DataPtr[2] = 64;
+						DataPtr[3] = 255;
+					}
+					else
+					{
+						DataPtr[0] = 64;
+						DataPtr[1] = 64;
+						DataPtr[2] = 255;
+						DataPtr[3] = 128;
+					}
 
-                        pData += 3;
-                    }
-                    break;
-                }
+					DataPtr += 4;
+				}
+				break;
+			}
 
-            case EImageFormat::IF_BGRA_UBYTE:
-            case EImageFormat::IF_RGBA_UBYTE:
-                {
-                    uint8_t* pData = pImage->GetData();
-                    for ( int p=0; p<size[0]*size[1]; ++p )
-                    {
-                        if ((p+p/size[0])%2)
-                        {
-                            pData[0] = 255;
-                            pData[1] = 255;
-                            pData[2] = 64;
-                            pData[3] = 255;
-                        }
-                        else
-                        {
-                            pData[0] = 64;
-                            pData[1] = 64;
-                            pData[2] = 255;
-                            pData[3] = 128;
-                        }
+			default:
+				check( false );
+				break;
 
-                        pData += 4;
-                    }
-                    break;
-                }
+			}
 
-            default:
-                check( false );
-                break;
+			m_missingImage[(SIZE_T)Format] = GeneratedImage;
+		}
 
-            }
-
-            m_missingImage[(size_t)format] = pImage;
-        }
-
-        return m_missingImage[(size_t)format].get();
-    }
+		return m_missingImage[(SIZE_T)Format].get();
+	}
 
 
-    //---------------------------------------------------------------------------------------------
-    Ptr<ASTOp> CodeGenerator::GenerateMissingImageCode(const TCHAR* strWhere, EImageFormat format, const void* errorContext, const FImageGenerationOptions& Options )
-    {
-        // Log an error message
+	Ptr<ASTOp> CodeGenerator::GenerateMissingImageCode(const TCHAR* strWhere, EImageFormat format, const void* errorContext, const FImageGenerationOptions& Options )
+	{
+		// Log an error message
 		FString Msg = FString::Printf(TEXT("Required connection not found: %s"), strWhere );
-        m_pErrorLog->GetPrivate()->Add( Msg, ELMT_ERROR, errorContext );
+		m_pErrorLog->GetPrivate()->Add( Msg, ELMT_ERROR, errorContext );
 
-        // Make a checkered debug image
-        ImagePtr pImage = GenerateMissingImage( format );
+		// Make a checkered debug image
+		Ptr<Image> GeneratedImage = GenerateMissingImage( format );
 
-        NodeImageConstantPtr pNode = new NodeImageConstant();
-        pNode->SetValue( pImage.get() );
+		NodeImageConstantPtr pNode = new NodeImageConstant();
+		pNode->SetValue(GeneratedImage.get());
 
 		FImageGenerationResult Result;
 		GenerateImage(Options, Result, pNode);
 
-        return Result.op;
-    }
+		return Result.op;
+	}
 
 
     //---------------------------------------------------------------------------------------------

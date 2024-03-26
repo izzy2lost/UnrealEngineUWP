@@ -151,13 +151,6 @@ namespace mu
 					}
 					check(NewMip);
 
-					// Shrink the buffer to the minimum necessary size.
-					uint32 CalculatedSize = NewMip->CalculateDataSize();
-					if (CalculatedSize)
-					{
-						NewMip->m_data.SetNum(CalculatedSize);
-					}
-
 					pMip = NewMip;
 				}
 			}
@@ -172,7 +165,6 @@ namespace mu
 			return ImageIndex;
 		}
 	}
-
 
 	//-------------------------------------------------------------------------------------------------
 	void ASTOpConstantResource::Link(FProgram& program, FLinkerOptions* Options)
@@ -283,24 +275,23 @@ namespace mu
 	//-------------------------------------------------------------------------------------------------
 	FImageDesc ASTOpConstantResource::GetImageDesc(bool, class FGetImageDescContext*) const
 	{
-		FImageDesc res;
+		FImageDesc Result;
 
 		if (Type == OP_TYPE::IM_CONSTANT)
 		{
 			// TODO: cache to avoid disk loading
-			Ptr<const Image> pConst = static_cast<const Image*>(GetValue().get());
-			res.m_format = pConst->m_format;
-			res.m_lods = pConst->m_lods;
-			res.m_size = pConst->m_size;
+			Ptr<const Image> ConstImage = static_cast<const Image*>(GetValue().get());
+			Result.m_format = ConstImage->GetFormat();
+			Result.m_lods = ConstImage->GetLODCount();
+			Result.m_size = ConstImage->GetSize();
 		}
 		else
 		{
 			check(false);
 		}
 
-		return res;
+		return Result;
 	}
-
 
 	//-------------------------------------------------------------------------------------------------
 	void ASTOpConstantResource::GetBlockLayoutSize(int blockIndex, int* pBlockX, int* pBlockY, FBlockLayoutSizeCache*)
@@ -380,7 +371,7 @@ namespace mu
 		case OP_TYPE::IM_CONSTANT:
 		{
 			Ptr<const Image> pImage = static_cast<const Image*>(GetValue().get());
-			if ( (pImage->m_size[0] <= 0) || (pImage->m_size[1] <= 0) )
+			if (pImage->GetSizeX() <= 0 || pImage->GetSizeY() <= 0)
 			{
 				res = true;
 				colour = FVector4f(0.0f,0.0f,0.0f,1.0f);
@@ -529,7 +520,7 @@ namespace mu
 			Ptr<ImageSizeExpression> pRes = new ImageSizeExpression;
 			pRes->type = ImageSizeExpression::ISET_CONSTANT;
 			Ptr<const Image> pConst = static_cast<const Image*>(GetValue().get());
-			pRes->size = pConst->m_size;
+			pRes->size = pConst->GetSize();
 			return pRes;
 		}
 

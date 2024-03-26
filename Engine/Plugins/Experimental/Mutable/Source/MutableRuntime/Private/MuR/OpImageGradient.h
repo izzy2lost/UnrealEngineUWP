@@ -13,7 +13,7 @@ namespace mu
 	{
 		check(pDest && pDest->GetFormat()==EImageFormat::IF_RGBA_UBYTE);
 
-        uint8* pDestBuf = pDest->GetData();
+        uint8* pDestBuf = pDest->GetLODData(0);
 
 		int32 sizeX = pDest->GetSizeX();
 		int32 sizeY = pDest->GetSizeX();

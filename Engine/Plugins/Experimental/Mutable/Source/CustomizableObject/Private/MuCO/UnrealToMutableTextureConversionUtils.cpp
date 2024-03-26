@@ -254,8 +254,10 @@ EUnrealToMutableConversionError ConvertTextureUnrealSourceToMutable(mu::Image* O
 	case ERawImageFormat::G8:
 	{
 		MUTABLE_CPUPROFILER_SCOPE(NoConvert);
+        check(LODs == 1);
+
 		OutResult->Init(SizeX, SizeY, LODs, mu::EImageFormat::IF_L_UBYTE, mu::EInitializationType::NotInitialized);
-		OutResult->m_data = MoveTemp(TempImage.RawData);
+		OutResult->DataStorage.GetInternalArray(0) = MoveTemp(TempImage.RawData);
 		break;
 	}
 
@@ -275,7 +277,8 @@ EUnrealToMutableConversionError ConvertTextureUnrealSourceToMutable(mu::Image* O
 		{
 			MUTABLE_CPUPROFILER_SCOPE(ToRGBA);
 			OutResult->Init(SizeX, SizeY, LODs, mu::EImageFormat::IF_RGBA_UBYTE, mu::EInitializationType::NotInitialized);
-			uint8* DataDest = OutResult->GetData();
+            check(LODs == 1);
+            uint8* DataDest = OutResult->GetLODData(0);
 
 			// Convert to RGBA8 while copying
 			TArrayView64<FColor> ImageDataView = TempImage.AsBGRA8();
@@ -294,7 +297,8 @@ EUnrealToMutableConversionError ConvertTextureUnrealSourceToMutable(mu::Image* O
 
 			// TODO: add support for a mu::IF_RGBX_UBYTE?			
 			OutResult->Init(SizeX, SizeY, LODs, mu::EImageFormat::IF_RGB_UBYTE, mu::EInitializationType::NotInitialized);
-			uint8* DataDest = OutResult->GetData();
+			check(LODs == 1);
+            uint8* DataDest = OutResult->GetLODData(0);
 
 			// Convert to RGB8 while copying
 			TArrayView64<FColor> ImageDataView = TempImage.AsBGRA8();
