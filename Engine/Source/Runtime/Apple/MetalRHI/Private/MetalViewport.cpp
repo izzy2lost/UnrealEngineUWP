@@ -608,46 +608,37 @@ void FMetalViewport::Swap()
 }
 
 #if PLATFORM_VISIONOS
-void FMetalViewport::GetDrawableImmersiveTextures(EMetalViewportAccessFlag Accessor, cp_frame_t SwiftLayerFrame, MTL::Texture*& OutColorTexture, MTL::Texture*& OutDepthTexture)
+void FMetalViewport::GetDrawableImmersiveTextures(EMetalViewportAccessFlag Accessor, cp_drawable_t SwiftDrawable, MTL::Texture*& OutColorTexture, MTL::Texture*& OutDepthTexture)
 {
-	check(SwiftLayerFrame != nullptr);
-
-	// get the next SwiftDrawable
-	UE_LOG(LogMetalVisionOS, Verbose, TEXT("SwiftLayerFrame(0x%x) cp_frame_query_drawable in FMetalViewport::GetDrawableTexture"), SwiftLayerFrame);
-	cp_drawable_t SwiftDrawable = cp_frame_query_drawable(SwiftLayerFrame);
-	if (SwiftDrawable == nullptr)
-	{
-		UE_LOG(LogMetal, Fatal, TEXT("Failed to get next SwiftDrawable"));
-	}
+	check(SwiftDrawable != nullptr);
 	
 	// get the color texture out and use that with the RHI
 	uint32 Index = GetViewportIndex(Accessor);
 	uint32 TextureCount = cp_drawable_get_texture_count(SwiftDrawable);
-	UE_LOG(LogMetalVisionOS, Verbose, TEXT("cp_drawable_get_texture_count %i"), TextureCount);
+	check(TextureCount = 1);
 	OutColorTexture = (__bridge MTL::Texture*)cp_drawable_get_color_texture(SwiftDrawable, 0);
 	OutDepthTexture = (__bridge MTL::Texture*)cp_drawable_get_depth_texture(SwiftDrawable, 0);
 	DrawableTextures[Index] = OutColorTexture;
 }
 
 // This is the present for Immersive visionOS, through the OXRVisionOS plugin.
-void FMetalViewport::PresentImmersive(TRefCountPtr<FMetalSurface> CompleteFrame, const MetalRHIVisionOS::PresentImmersiveParams& VisionOSParams)
+void FMetalViewport::PresentImmersive(const MetalRHIVisionOS::PresentImmersiveParams& VisionOSParams)
 {
-	UE_LOG(LogMetalVisionOS, Verbose, TEXT("FMetalViewport::PresentImmersive"));
 	check(SwiftLayer);  // If no SwiftLayer we should not be trying to be immersive.
+	check(VisionOSParams.SwiftFrame);
 
 	FMetalRHICommandContext* Context = static_cast<FMetalRHICommandContext*>(RHIGetDefaultContext());
 	FMetalDeviceContext& DeviceContext = GetMetalDeviceContext();
-	FMetalCommandQueue& CommandQueue = DeviceContext.GetCommandQueue();
-	
+	FMetalRenderPass& RenderPass = DeviceContext.GetCurrentRenderPass();
+
 	FScopeLock Lock(&Mutex);
-
-	LastCompleteFrame = CompleteFrame;
-	TRefCountPtr<FMetalSurface> LastCompleteDepth = GetMetalSurfaceFromRHITexture(VisionOSParams.Depth);
-
+	
+	TRefCountPtr<FMetalSurface> MyLastCompleteFrame = GetMetalSurfaceFromRHITexture(VisionOSParams.Texture);
+	TRefCountPtr<FMetalSurface> MyLastCompleteDepth = GetMetalSurfaceFromRHITexture(VisionOSParams.Depth);
 	{
 		MTL::Texture* DrawableTextureParam = nullptr;
 		MTL::Texture* DrawableDepthTextureParam = nullptr;
-		GetDrawableImmersiveTextures(EMetalViewportAccessDisplayLink, VisionOSParams.SwiftFrame, DrawableTextureParam, DrawableDepthTextureParam);
+		GetDrawableImmersiveTextures(EMetalViewportAccessDisplayLink, VisionOSParams.SwiftDrawable, DrawableTextureParam, DrawableDepthTextureParam);
 		MTLTexturePtr DrawableTexture = NS::RetainPtr(DrawableTextureParam);
 		MTLTexturePtr DrawableDepthTexture = NS::RetainPtr(DrawableDepthTextureParam);
 		{
@@ -655,21 +646,13 @@ void FMetalViewport::PresentImmersive(TRefCountPtr<FMetalSurface> CompleteFrame,
 			
 			if (DrawableTexture)
 			{
-				FMetalCommandBuffer* CurrentCommandBuffer = CommandQueue.CreateCommandBuffer();
-				check(CurrentCommandBuffer);
-				
-#if ENABLE_METAL_GPUPROFILE
-				FMetalProfiler* Profiler = FMetalProfiler::GetProfiler();
-				FMetalCommandBufferStats* Stats = Profiler->AllocateCommandBuffer(CurrentCommandBuffer->GetMTLCmdBuffer(), 0);
-#endif
-
 				// TODO Currently we are using intermediate back buffer to connect the OXRVisionOS Swapchain to the drawable.
 				// I think we could use the drawable directly and avoid this copy.
 				check(GMetalSupportsIntermediateBackBuffer);
 				if (GMetalSupportsIntermediateBackBuffer)
 				{
 					{
-						TRefCountPtr<FMetalSurface> Texture = LastCompleteFrame;
+						TRefCountPtr<FMetalSurface> Texture = MyLastCompleteFrame;
 						check(IsValidRef(Texture));
 						MTLTexturePtr Src = Texture->Texture;
 						MTLTexturePtr& Dst = DrawableTexture;
@@ -677,24 +660,23 @@ void FMetalViewport::PresentImmersive(TRefCountPtr<FMetalSurface> CompleteFrame,
 						NSUInteger Width = FMath::Min(Src->width(), Dst->width());
 						NSUInteger Height = FMath::Min(Src->height(), Dst->height());
 						
-						MTL::BlitCommandEncoder* Encoder = CurrentCommandBuffer->GetMTLCmdBuffer()->blitCommandEncoder();
-						check(Encoder);
-						METAL_GPUPROFILE(Profiler->EncodeBlit(Stats, __FUNCTION__));
-						Encoder->copyFromTexture(Src.get(), 0, 0, MTL::Origin(0, 0, 0), MTL::Size(Width, Height, 1), Dst.get(), 0, 0, MTL::Origin(0, 0, 0));
-						Encoder->endEncoding();
+						RenderPass.CopyFromTextureToTexture(Src.get(), 0, 0, MTL::Origin(0, 0, 0), MTL::Size(Width, Height, 1), Dst.get(), 0, 0, MTL::Origin(0, 0, 0));
 					}
 
 					{
-//HACK BEGIN
-// using LastCompleteFrame, the color result, is very wrong, but the depth texture is not yet plumbed through
-// on the mobile rendere and providing nothing results in an all black scene while this results in mostly-ok-pixels.
-// With the deferred renderer depth does already work, so flip this to using depth.
-#if 1
-						TRefCountPtr<FMetalSurface> Texture = LastCompleteFrame;
-#else
-						TRefCountPtr<FMetalSurface> Texture = LastCompleteDepth;
-#endif
+						//HACK BEGIN
+						// using LastCompleteFrame, the color result, is very wrong, but the depth texture is not yet plumbed through
+						// on the mobile rendere and providing nothing results in an all black scene while this results in mostly-ok-pixels.
+						// With the deferred renderer depth does already work, so flip this to using depth.
+						static bool bUseRealDepth = false;
+						static bool bCheckedConfig = false;
+						if (bCheckedConfig == false) {
+							GConfig->GetBool(TEXT("/Script/IOSRuntimeSettings.IOSRuntimeSettings"), TEXT("bSupportsMetalMRT"), bUseRealDepth, GEngineIni);
+							bCheckedConfig = true;
+						}
+						TRefCountPtr<FMetalSurface> Texture = bUseRealDepth ? MyLastCompleteDepth : MyLastCompleteFrame;
 						//HACK END
+						
 						check(IsValidRef(Texture));
 						MTLTexturePtr Src = Texture->Texture;
 						MTLTexturePtr& Dst = DrawableDepthTexture;
@@ -702,44 +684,17 @@ void FMetalViewport::PresentImmersive(TRefCountPtr<FMetalSurface> CompleteFrame,
 						NS::UInteger Width = FMath::Min(Src->width(), Dst->width());
 						NS::UInteger Height = FMath::Min(Src->height(), Dst->height());
 						
-						MTLBlitCommandEncoderPtr Encoder = NS::RetainPtr(CurrentCommandBuffer->GetMTLCmdBuffer()->blitCommandEncoder());
-						check(Encoder);
-						METAL_GPUPROFILE(Profiler->EncodeBlit(Stats, __FUNCTION__));
-						Encoder->copyFromTexture(Src.get(), 0, 0, MTL::Origin(0, 0, 0), MTL::Size(Width, Height, 1), Dst.get(), 0, 0, MTL::Origin(0, 0, 0));
-						Encoder->endEncoding();
+						RenderPass.CopyFromTextureToTexture(Src.get(), 0, 0, MTL::Origin(0, 0, 0), MTL::Size(Width, Height, 1), Dst.get(), 0, 0, MTL::Origin(0, 0, 0));
 					}
 				}
-				
-				// This is a bit different than the usual pattern.
-				// This command buffer here is committed directly, instead of going through
-				// FMetalCommandList::Commit. So long as Present() is called within
-				// high level RHI BeginFrame/EndFrame this will not fine.
-				// Otherwise the recording of the Present time will be offset by one in the
-				// FMetalGPUProfiler frame indices.
 
-				MTL::HandlerFunction CommandBufferHandler = [](MTL::CommandBuffer* CommandBuffer)
-				{
-					FMetalGPUProfiler::RecordPresent(CommandBuffer);
-				};
-
-				if (VisionOSParams.SwiftFrame != nullptr) // TODO maybe remove this?
-				{
-					UE_LOG(LogMetalVisionOS, Verbose, TEXT("SwiftDrawable(0x%x) cp_drawable_encode_present in FMetalViewport::PresentImmersive"), VisionOSParams.SwiftDrawable);
-					cp_drawable_encode_present(VisionOSParams.SwiftDrawable, (__bridge id<MTLCommandBuffer>)CurrentCommandBuffer->GetMTLCmdBuffer().get());
-				}
-				
-				CurrentCommandBuffer->GetMTLCmdBuffer()->addCompletedHandler(CommandBufferHandler);
-
-				METAL_GPUPROFILE(Stats->End(CurrentCommandBuffer->GetMTLCmdBuffer()));
-				CommandQueue.CommitCommandBuffer(CurrentCommandBuffer);
+				RenderPass.EndRenderPass();
+				RenderPass.EncodePresentImmersive(VisionOSParams.SwiftDrawable, VisionOSParams.SwiftFrame);
 			}
 		}
 	}
-	
-	UE_LOG(LogMetalVisionOS, Verbose, TEXT("FMetalViewport::PresentImmersive calling cp_frame_end_submission with VisionOSParams.SwiftFrame(0x%x)"), VisionOSParams.SwiftFrame);
-	cp_frame_end_submission(VisionOSParams.SwiftFrame);
 }
-#endif
+#endif //PLATFORM_VISIONOS
 
 
 /*=============================================================================

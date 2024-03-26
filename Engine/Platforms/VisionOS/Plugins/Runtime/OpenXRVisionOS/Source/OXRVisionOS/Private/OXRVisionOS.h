@@ -22,19 +22,19 @@ static const TCHAR* VOSThreadString()
 {
 	if (IsInGameThread()) 
 	{
-		return TEXT("GT~");
+		return TEXT("T~G");
 	}
 	else if (IsInRenderingThread())
 	{
-		return TEXT("RT~");
+		return TEXT("T~R");
 	}
 	else if (IsInRHIThread())
 	{
-		return TEXT("IT~");
+		return TEXT("T~I");
 	}
 	else
 	{
-		return TEXT("?T~");
+		return TEXT("T~?");
 	}
 }
 

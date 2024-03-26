@@ -597,13 +597,13 @@ void FSwiftAppBootstrap::KickoffWithCompositingLayer(CP_OBJECT_cp_layer_renderer
 	
 	cp_layer_renderer_properties_t Props = cp_layer_renderer_get_properties(Layer);
 	int NumViews = cp_layer_renderer_properties_get_view_count(Props);
-	int NumTopologies = cp_layer_renderer_properties_get_texture_topology_count(Props);
 
 	NSMutableArray* Viewports = [NSMutableArray arrayWithCapacity:NumViews];
 
 	// get the texture topology
 	// @todo when Apple adds the API to actually get the size, use this instead of the mess below (docs indicate you can get
 	// get the width/height, but there's no functions to get them 
+	//int NumTopologies = cp_layer_renderer_properties_get_texture_topology_count(Props);
 //	for (int TopoIndex = 0; TopoIndex < NumToplogies; TopoIndex++)
 //	{
 //		cp_texture_topology_t Topology = cp_layer_renderer_properties_get_texture_topology(Props, TopoIndex);

@@ -18,6 +18,7 @@ namespace MetalRHIVisionOS
 		const FTextureRHIRef& Depth;
 		cp_frame_t& SwiftFrame;
         cp_drawable_t& SwiftDrawable;
+		int FrameCounter;
     };
     METALRHI_API void PresentImmersive(const PresentImmersiveParams& Params);
 }

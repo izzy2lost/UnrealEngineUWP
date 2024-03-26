@@ -95,6 +95,14 @@ TRefCountPtr<FMetalFence> const& FMetalRenderPass::Submit(EMetalSubmitFlags Flag
         CurrentEncoder.CommitCommandBuffer(Flags);
     }
 	
+#if PLATFORM_VISIONOS
+	if (CompositorServicesFrame)
+	{
+		cp_frame_end_submission(CompositorServicesFrame);
+		CompositorServicesFrame = nullptr;
+	}
+#endif
+
 	OutstandingBufferUploads.Empty();
 	if (Flags & EMetalSubmitFlagsResetState)
 	{
@@ -837,6 +845,19 @@ void FMetalRenderPass::PresentTexture(MTL::Texture* Texture, uint32 sourceSlice,
 	//MTLPP_VALIDATE(mtlpp::BlitCommandEncoder, Encoder, SafeGetRuntimeDebuggingLevel() >= EMetalDebugLevelValidation, Copy(Texture, sourceSlice, sourceLevel, sourceOrigin, sourceSize, toTexture, destinationSlice, destinationLevel, destinationOrigin));
     Encoder->copyFromTexture(Texture, sourceSlice, sourceLevel, sourceOrigin, sourceSize, toTexture, destinationSlice, destinationLevel, destinationOrigin);
 }
+
+#if PLATFORM_VISIONOS
+void FMetalRenderPass::EncodePresentImmersive(cp_drawable_t Drawable, cp_frame_t Frame)
+{
+	check(bWithinRenderPass == false); // Call RenderPassEnd before calling this function
+	
+	FMetalCommandBuffer* CurrentCommandBuffer = GetCurrentCommandBuffer();
+	check(CurrentCommandBuffer);
+	check(CompositorServicesFrame == nullptr);
+	cp_drawable_encode_present(Drawable, (__bridge id<MTLCommandBuffer>)CurrentCommandBuffer->GetMTLCmdBuffer().get());
+	CompositorServicesFrame = Frame;
+}
+#endif
 
 void FMetalRenderPass::SynchronizeTexture(MTL::Texture* Texture, uint32 Slice, uint32 Level)
 {

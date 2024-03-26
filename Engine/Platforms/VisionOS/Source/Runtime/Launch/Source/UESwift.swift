@@ -115,6 +115,8 @@ struct UESwiftApp: App {
 					FSwiftAppBootstrap.KickoffWithCompositingLayer(layerRenderer)
 			}
 		}
+		//.upperLimbVisibility(.hidden)
+		.upperLimbVisibility(.visible)
 	}
 }
 

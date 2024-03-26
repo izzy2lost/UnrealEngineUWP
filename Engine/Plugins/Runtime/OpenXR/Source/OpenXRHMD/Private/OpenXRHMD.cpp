@@ -50,6 +50,25 @@
 #include "Misc/MessageDialog.h"
 #include "UnrealEdMisc.h"
 #endif
+static const TCHAR* HMDThreadString()
+{
+	if (IsInGameThread())
+	{
+		return TEXT("T~G");
+	}
+	else if (IsInRenderingThread())
+	{
+		return TEXT("T~R");
+	}
+	else if (IsInRHIThread())
+	{
+		return TEXT("T~I");
+	}
+	else
+	{
+		return TEXT("T~?");
+	}
+}
 
 #define LOCTEXT_NAMESPACE "OpenXR"
 
@@ -1965,7 +1984,7 @@ bool FOpenXRHMD::OnStereoStartup()
 	}
 
 	bUseCustomReferenceSpace = false;
-	XrReferenceSpaceType CustomReferenceSpaceType;
+	XrReferenceSpaceType CustomReferenceSpaceType = XR_REFERENCE_SPACE_TYPE_LOCAL;
 	for (IOpenXRExtensionPlugin* Module : ExtensionPlugins)
 	{
 		if (Module->UseCustomReferenceSpaceType(CustomReferenceSpaceType))
@@ -2342,6 +2361,7 @@ IStereoRenderTargetManager* FOpenXRHMD::GetRenderTargetManager()
 
 int32 FOpenXRHMD::AcquireColorTexture()
 {
+	check(IsInGameThread());
 	if (Session)
 	{
 		const FXRSwapChainPtr& ColorSwapchain = PipelinedLayerStateRendering.ColorSwapchain;
@@ -2916,7 +2936,10 @@ void FOpenXRHMD::OnBeginRendering_RenderThread(FRHICommandListImmediate& RHICmdL
 	{
 		Module->OnBeginRendering_RenderThread(Session);
 	}
-
+	
+	// Snapshot new poses for late update.
+	UpdateDeviceLocations(false);
+	
 	SetupFrameLayers_RenderThread(RHICmdList);
 
 	const float WorldToMeters = GetWorldToMetersScale();
@@ -2988,7 +3011,7 @@ void FOpenXRHMD::OnBeginRendering_RenderThread(FRHICommandListImmediate& RHICmdL
 			FBFoveationImageGenerator->SetCurrentFrameSwapchainIndex(ColorSwapchain->GetSwapChainIndex_RHIThread());
 		}
 
-		UE_LOG(LogHMD, VeryVerbose, TEXT("EnqueueLambda OnBeginRendering_RHIThread WaitCount: %i"), PipelinedFrameStateRendering.WaitCount);
+		UE_LOG(LogHMD, VeryVerbose, TEXT("%s WF_%i EnqueueLambda OnBeginRendering_RHIThread"), HMDThreadString(), PipelinedFrameStateRendering.WaitCount);
 		RHICmdList.EnqueueLambda([this, FrameState = PipelinedFrameStateRendering, ColorSwapchain, DepthSwapchain, EmulationSwapchain](FRHICommandListImmediate& InRHICmdList)
 		{
 			OnBeginRendering_RHIThread(FrameState, ColorSwapchain, DepthSwapchain, EmulationSwapchain);
@@ -3087,14 +3110,9 @@ void FOpenXRHMD::OnBeginRendering_GameThread()
 			UE_CLOG(PipelinedFrameStateRendering.FrameState.predictedDisplayTime >= GameFrameState.FrameState.predictedDisplayTime,
 				LogHMD, VeryVerbose, TEXT("Predicted display time went backwards from %lld to %lld"), PipelinedFrameStateRendering.FrameState.predictedDisplayTime, GameFrameState.FrameState.predictedDisplayTime);
 
-			UE_LOG(LogHMD, VeryVerbose, TEXT("FOpenXRHMD TransferFrameStateToRenderingThread %i"), GameFrameState.WaitCount);
+			UE_LOG(LogHMD, VeryVerbose, TEXT("%s WF_%i FOpenXRHMD TransferFrameStateToRenderingThread"), HMDThreadString(), GameFrameState.WaitCount);
 			PipelinedFrameStateRendering = GameFrameState;
-
-			// Snapshot new poses for late update.
-			// We do this here instead of in OnBeginRendering_RenderThread in order to have this ready before Scene Captures and Reflection
-			// Captures render, as these may need to use the HMDs location to calculate accurate view matrices.
-			UpdateDeviceLocations(false);
-
+			
 			PipelinedLayerStateRendering.LayerStateFlags = EOpenXRLayerStateFlags::None;
 
 			// If we are emulating layers, we still need to submit background layer since we composite into it
@@ -3137,9 +3155,9 @@ void FOpenXRHMD::OnBeginSimulation_GameThread()
 	}
 	static int WaitCount = 0;
 	++WaitCount;
-	UE_LOG(LogHMD, VeryVerbose, TEXT("xrWaitFrame %i"), WaitCount);
+	UE_LOG(LogHMD, VeryVerbose, TEXT("%s WF_%i xrWaitFrame Calling..."), HMDThreadString(), WaitCount);
 	XR_ENSURE(xrWaitFrame(Session, &WaitInfo, &FrameState));
-	UE_LOG(LogHMD, VeryVerbose, TEXT("xrWaitFrame %i Complete"), WaitCount);
+	UE_LOG(LogHMD, VeryVerbose, TEXT("%s WF_%i xrWaitFrame Complete"), HMDThreadString(), WaitCount);
 
 	// The pipeline state on the game thread can only be safely modified after xrWaitFrame which will be unblocked by
 	// the runtime when xrBeginFrame is called. The rendering thread will clone the game pipeline state before calling
@@ -3425,7 +3443,7 @@ void FOpenXRHMD::OnBeginRendering_RHIThread(const FPipelinedFrameState& InFrameS
 	}
 	static int BeginCount = 0;
 	PipelinedFrameStateRHI.BeginCount = ++BeginCount;
-	UE_LOG(LogHMD, VeryVerbose, TEXT("xrBeginFrame WaitCount: %i BeginCount: %i"), PipelinedFrameStateRHI.WaitCount, PipelinedFrameStateRHI.BeginCount);
+	UE_LOG(LogHMD, VeryVerbose, TEXT("%s WF_%i xrBeginFrame BeginCount: %i"), HMDThreadString(), PipelinedFrameStateRHI.WaitCount, PipelinedFrameStateRHI.BeginCount);
 	XrResult Result = xrBeginFrame(Session, &BeginInfo);
 	if (XR_SUCCEEDED(Result))
 	{
@@ -3465,7 +3483,9 @@ void FOpenXRHMD::OnBeginRendering_RHIThread(const FPipelinedFrameState& InFrameS
 
 		bIsRendering = true;
 
-		UE_LOG(LogHMD, VeryVerbose, TEXT("Rendering frame predicted to be displayed at %lld"), InFrameState.FrameState.predictedDisplayTime);
+		UE_LOG(LogHMD, VeryVerbose, TEXT("%s WF_%i Rendering frame predicted to be displayed at %lld"), 
+			   HMDThreadString(), PipelinedFrameStateRHI.WaitCount,
+			   PipelinedFrameStateRHI.FrameState.predictedDisplayTime);
 	}
 	else
 	{
@@ -3488,6 +3508,8 @@ void FOpenXRHMD::OnFinishRendering_RHIThread()
 	{
 		return;
 	}
+	
+	UE_LOG(LogHMD, VeryVerbose, TEXT("%s WF_%i FOpenXRHMD::OnFinishRendering_RHIThread releasing swapchain images now."), HMDThreadString(), PipelinedFrameStateRHI.WaitCount, PipelinedFrameStateRHI.BeginCount);
 
 	// We need to ensure we release the swap chain images even if the session is not running.
 	if (PipelinedLayerStateRHI.ColorSwapchain)
@@ -3591,7 +3613,7 @@ void FOpenXRHMD::OnFinishRendering_RHIThread()
 #endif
 		static int EndCount = 0;
 		PipelinedFrameStateRHI.EndCount = ++EndCount;
-		UE_LOG(LogHMD, VeryVerbose, TEXT("xrEndFrame WaitCount: %i BeginCount: %i EndCount: %i"), PipelinedFrameStateRHI.WaitCount, PipelinedFrameStateRHI.BeginCount, PipelinedFrameStateRHI.EndCount);
+		UE_LOG(LogHMD, VeryVerbose, TEXT("%s WF_%i xrEndFrame WaitCount: %i BeginCount: %i EndCount: %i"), HMDThreadString(), PipelinedFrameStateRHI.WaitCount, PipelinedFrameStateRHI.WaitCount, PipelinedFrameStateRHI.BeginCount, PipelinedFrameStateRHI.EndCount);
 		XR_ENSURE(xrEndFrame(Session, &EndInfo));
 	}
 

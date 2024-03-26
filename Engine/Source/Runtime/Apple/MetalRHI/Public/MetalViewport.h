@@ -78,8 +78,8 @@ public:
 	void Swap();
 	
 #if PLATFORM_VISIONOS
-	void GetDrawableImmersiveTextures(EMetalViewportAccessFlag Accessor, cp_frame_t SwiftLayerFrame, MTL::Texture*& OutColorTexture, MTL::Texture*& OutDepthTexture );
-    void PresentImmersive(TRefCountPtr<FMetalSurface> CompleteFrame, const MetalRHIVisionOS::PresentImmersiveParams& Params);
+	void GetDrawableImmersiveTextures(EMetalViewportAccessFlag Accessor, cp_drawable_t SwiftDrawable, MTL::Texture*& OutColorTexture, MTL::Texture*& OutDepthTexture );
+    void PresentImmersive(const MetalRHIVisionOS::PresentImmersiveParams& Params);
 #endif
 	
 private:

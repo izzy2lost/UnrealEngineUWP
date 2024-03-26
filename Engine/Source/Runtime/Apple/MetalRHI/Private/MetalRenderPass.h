@@ -67,6 +67,10 @@ public:
 	
 	void PresentTexture(MTL::Texture* Texture, uint32 sourceSlice, uint32 sourceLevel, MTL::Origin sourceOrigin, MTL::Size sourceSize, MTL::Texture* toTexture, uint32 destinationSlice, uint32 destinationLevel, MTL::Origin destinationOrigin);
     
+#if PLATFORM_VISIONOS
+	void EncodePresentImmersive(cp_drawable_t Drawable, cp_frame_t Frame);
+#endif
+	
     void SynchronizeTexture(MTL::Texture* Texture, uint32 Slice, uint32 Level);
     
 	void SynchroniseResource(MTL::Resource* Resource);
@@ -193,4 +197,8 @@ private:
 	MTL::DispatchType ComputeDispatchType;
     uint32 NumOutstandingOps;
     bool bWithinRenderPass;
+	
+#if PLATFORM_VISIONOS	
+	cp_frame_t CompositorServicesFrame;
+#endif
 };

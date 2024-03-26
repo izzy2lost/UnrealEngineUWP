@@ -16,8 +16,7 @@ void MetalRHIVisionOS::PresentImmersive(const MetalRHIVisionOS::PresentImmersive
     check(RHICommandContext->CustomPresentViewport);
     FMetalViewport* Viewport = ResourceCast(RHICommandContext->CustomPresentViewport);
     check(Viewport);
-    FMetalSurface* Surface = GetMetalSurfaceFromRHITexture(Params.Texture);
 
-    Viewport->PresentImmersive(Surface, Params);
+    Viewport->PresentImmersive(Params);
 }
 #endif // PLATFORM_VISIONOS
