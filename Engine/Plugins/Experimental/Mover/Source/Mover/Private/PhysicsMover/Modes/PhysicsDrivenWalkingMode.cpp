@@ -3,13 +3,15 @@
 #include "PhysicsMover/Modes/PhysicsDrivenWalkingMode.h"
 
 #include "Chaos/Character/CharacterGroundConstraint.h"
+#include "Chaos/Character/CharacterGroundConstraintContainer.h"
+#include "Chaos/ContactModification.h"
 #include "Chaos/PhysicsObject.h"
 #include "Chaos/PhysicsObjectInternalInterface.h"
-#include "GameFramework/PhysicsVolume.h"
 #include "DefaultMovementSet/LayeredMoves/BasicLayeredMoves.h"
-#include "MoverComponent.h"
 #include "DefaultMovementSet/Settings/CommonLegacyMovementSettings.h"
+#include "GameFramework/PhysicsVolume.h"
 #include "Math/UnitConversion.h"
+#include "MoverComponent.h"
 #include "MoveLibrary/WaterMovementUtils.h"
 #include "PhysicsMover/PhysicsMovementUtils.h"
 #include "PhysicsMover/PhysicsMoverSimulationTypes.h"
@@ -37,6 +39,70 @@ void UPhysicsDrivenWalkingMode::UpdateConstraintSettings(Chaos::FCharacterGround
 	Constraint.SetTwistTorqueLimit(FUnitConversion::Convert(TwistTorqueLimit, EUnit::NewtonMeters, EUnit::KilogramCentimetersSquaredPerSecondSquared));
 	Constraint.SetSwingTorqueLimit(FUnitConversion::Convert(SwingTorqueLimit, EUnit::NewtonMeters, EUnit::KilogramCentimetersSquaredPerSecondSquared));
 	Constraint.SetTargetHeight(TargetHeight);
+}
+
+void UPhysicsDrivenWalkingMode::OnContactModification_Internal(const FPhysicsMoverSimulationContactModifierParams& Params, Chaos::FCollisionContactModifier& Modifier) const
+{
+	Chaos::EnsureIsInPhysicsThreadContext();
+
+	if (!Params.ConstraintHandle || !Params.UpdatedPrimitive)
+	{
+		return;
+	}
+
+	Chaos::FPBDRigidParticleHandle* CharacterParticle = Params.ConstraintHandle->GetCharacterParticle()->CastToRigidParticle();
+	if (!CharacterParticle || CharacterParticle->Disabled())
+	{
+		return;
+	}
+
+	const Chaos::FGeometryParticleHandle* GroundParticle = Params.ConstraintHandle->GetGroundParticle();
+	if (!GroundParticle)
+	{
+		return;
+	}
+
+	float PawnHalfHeight;
+	float PawnRadius;
+	Params.UpdatedPrimitive->CalcBoundingCylinder(PawnRadius, PawnHalfHeight);
+
+	const float CharacterHeight = CharacterParticle->GetX().Z;
+	const float EndCapHeight = CharacterHeight - PawnHalfHeight + PawnRadius;
+
+	const float CosThetaMax = 0.707f;
+
+	float MinContactHeightStepUps = CharacterHeight - 1.0e10f;
+	const float StepDistance = FMath::Abs(TargetHeight - Params.ConstraintHandle->GetData().GroundDistance);
+	if (StepDistance >= GPhysicsDrivenMotionDebugParams.MinStepUpDistance)
+	{
+		MinContactHeightStepUps = CharacterHeight - TargetHeight + CommonLegacySettings->MaxStepHeight;
+	}
+
+	for (Chaos::FContactPairModifier& PairModifier : Modifier.GetContacts(CharacterParticle))
+	{
+		const int32 CharacterIdx = CharacterParticle == PairModifier.GetParticlePair()[0] ? 0 : 1;
+		const int32 OtherIdx = CharacterIdx == 0 ? 1 : 0;
+
+		for (int32 Idx = 0; Idx < PairModifier.GetNumContacts(); ++Idx)
+		{
+			Chaos::FVec3 Point0, Point1;
+			PairModifier.GetWorldContactLocations(Idx, Point0, Point1);
+			Chaos::FVec3 CharacterPoint = CharacterIdx == 0 ? Point0 : Point1;
+
+			Chaos::FVec3 ContactNormal = PairModifier.GetWorldNormal(Idx);
+			if ((ContactNormal.Z > CosThetaMax) && CharacterPoint.Z < EndCapHeight)
+			{
+				// Disable any nearly vertical contact with the end cap of the capsule
+				// This will be handled by the character ground constraint
+				PairModifier.SetContactPointDisabled(Idx);
+			}
+			else if ((CharacterPoint.Z < MinContactHeightStepUps) && (GroundParticle == PairModifier.GetParticlePair()[OtherIdx]))
+			{
+				// In the case of steps ups disable all contacts below the max step height
+				PairModifier.SetContactPointDisabled(Idx);
+			}
+		}
+	}
 }
 
 #if WITH_EDITOR

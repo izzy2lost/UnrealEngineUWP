@@ -869,10 +869,18 @@ void UMoverNetworkPhysicsLiaisonComponent::OnPreSimulate_Internal(const FPhysics
 		return;
 	}
 
-	const IPhysicsCharacterMovementModeInterface* PhysicsMode = Cast<const IPhysicsCharacterMovementModeInterface>(MoverComp->ModeFSM->FindMovementMode(Input.SyncState.MovementMode));
-	if (!PhysicsMode)
+	// Check that the input movement mode is valid
+	if (MoverComp->MovementModes.Contains(Input.SyncState.MovementMode))
 	{
-		UE_LOG(LogMover, Verbose, TEXT("Attempting to run non-physics movement mode %s in physics mover update."), *Input.SyncState.MovementMode.ToString());
+		const IPhysicsCharacterMovementModeInterface* PhysicsMode = Cast<const IPhysicsCharacterMovementModeInterface>(MoverComp->MovementModes[Input.SyncState.MovementMode]);
+		if (!PhysicsMode)
+		{
+			UE_LOG(LogMover, Verbose, TEXT("Attempting to run non-physics movement mode %s in physics mover update."), *Input.SyncState.MovementMode.ToString());
+			return;
+		}
+	}
+	else
+	{
 		return;
 	}
 
@@ -1086,75 +1094,18 @@ void UMoverNetworkPhysicsLiaisonComponent::OnContactModification_Internal(const 
 		return;
 	}
 
-	Chaos::FCharacterGroundConstraintHandle* ConstraintHandle = Constraint->GetProxy<Chaos::FCharacterGroundConstraintProxy>()->GetPhysicsThreadAPI();
-	if (!ConstraintHandle || !ConstraintHandle->IsEnabled() || !ConstraintHandle->GetCharacterParticle())
+	if (MoverComp->MovementModes.Contains(Input.SyncState.MovementMode))
 	{
-		return;
-	}
-
-	Chaos::FPBDRigidParticleHandle* CharacterParticle = ConstraintHandle->GetCharacterParticle()->CastToRigidParticle();
-	if (!CharacterParticle || CharacterParticle->Disabled())
-	{
-		return;
-	}
-
-	const Chaos::FGeometryParticleHandle* GroundParticle = ConstraintHandle->GetGroundParticle();
-	if (!GroundParticle)
-	{
-		return;
-	}
-
-	float PawnHalfHeight;
-	float PawnRadius;
-	MoverComp->UpdatedComponent->CalcBoundingCylinder(PawnRadius, PawnHalfHeight);
-
-	const float CharacterHeight = CharacterParticle->GetX().Z;
-	const float EndCapHeight = CharacterHeight - PawnHalfHeight + PawnRadius;
-
-	const float CosThetaMax = 0.707f;
-
-	float MinContactHeightStepUps = CharacterHeight - 1.0e10f;
-	if (Input.SyncState.MovementMode == DefaultModeNames::Walking)
-	{
-		if (const UPhysicsDrivenWalkingMode* WalkingMode = Cast<UPhysicsDrivenWalkingMode>(MoverComp->FindMode_Mutable<UPhysicsDrivenWalkingMode>()))
+		if (const IPhysicsCharacterMovementModeInterface* PhysicsMode = Cast<const IPhysicsCharacterMovementModeInterface>(MoverComp->MovementModes[Input.SyncState.MovementMode]))
 		{
-			// Contacts on the character capsule below the MaxStepHeight tend to snag the character when stepping
-			// up or down, so disable them
-
-			if (const UCommonLegacyMovementSettings* Settings = MoverComp->FindSharedSettings<UCommonLegacyMovementSettings>())
+			Chaos::FCharacterGroundConstraintHandle* ConstraintHandle = Constraint->GetProxy<Chaos::FCharacterGroundConstraintProxy>()->GetPhysicsThreadAPI();
+			if (!ConstraintHandle || !ConstraintHandle->IsEnabled() || !ConstraintHandle->GetCharacterParticle())
 			{
-				const float StepDistance = FMath::Abs(WalkingMode->TargetHeight - ConstraintHandle->GetData().GroundDistance);
-				if (StepDistance >= GPhysicsDrivenMotionDebugParams.MinStepUpDistance)
-				{
-					MinContactHeightStepUps = CharacterHeight - WalkingMode->TargetHeight + Settings->MaxStepHeight;
-				}
+				return;
 			}
-		}
-	}
 
-	for (Chaos::FContactPairModifier& PairModifier : Modifier.GetContacts(CharacterParticle))
-	{
-		const int32 CharacterIdx = CharacterParticle == PairModifier.GetParticlePair()[0] ? 0 : 1;
-		const int32 OtherIdx = CharacterIdx == 0 ? 1 : 0;
-
-		for (int32 Idx = 0; Idx < PairModifier.GetNumContacts(); ++Idx)
-		{
-			Chaos::FVec3 Point0, Point1;
-			PairModifier.GetWorldContactLocations(Idx, Point0, Point1);
-			Chaos::FVec3 CharacterPoint = CharacterIdx == 0 ? Point0 : Point1;
-
-			Chaos::FVec3 ContactNormal = PairModifier.GetWorldNormal(Idx);
-			if ((ContactNormal.Z > CosThetaMax) && CharacterPoint.Z < EndCapHeight)
-			{
-				// Disable any nearly vertical contact with the end cap of the capsule
-				// This will be handled by the character ground constraint
-				PairModifier.SetContactPointDisabled(Idx);
-			}
-			else if ((CharacterPoint.Z < MinContactHeightStepUps) && (GroundParticle == PairModifier.GetParticlePair()[OtherIdx]))
-			{
-				// In the case of steps ups disable all contacts below the max step height
-				PairModifier.SetContactPointDisabled(Idx);
-			}
+			const FPhysicsMoverSimulationContactModifierParams Params { ConstraintHandle, MoverComp->UpdatedCompAsPrimitive };
+			PhysicsMode->OnContactModification_Internal(Params, Modifier);
 		}
 	}
 }
