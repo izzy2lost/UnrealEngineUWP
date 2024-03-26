@@ -443,6 +443,11 @@ FGameInputDeviceContainer* IGameInputDeviceInterface::GetOrCreateDeviceData(IGam
 	// Check if we already have some device data about this...
 	if (FGameInputDeviceContainer* ExistingDevice = GetDeviceData(InDevice))
 	{
+		// For existing devices, we want to ensure that their IGameInputDevice pointer matches up with what was given.
+		// This may be the case if you disconnect and then reconnect a device, because we can still find it's associated
+		// FGameInputDeviceContainer based on the  APP_LOCAL_DEVICE_ID, but the IGameInputDevice pointer would be null.
+		ExistingDevice->SetGameInputDevice(InDevice);
+
 		return ExistingDevice;
 	}
 

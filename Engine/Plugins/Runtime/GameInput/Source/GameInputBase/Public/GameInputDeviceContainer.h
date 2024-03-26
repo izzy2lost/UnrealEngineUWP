@@ -53,10 +53,23 @@ public:
 	/** Reset any input state that is necessary. This would be called when the application is no longer constrained for example */
 	void ClearInputState(IGameInput* GameInput);
 
+	/**
+	* Returns a pointer to the IGameInputDevice that this device is associated with
+	* 
+	* If this is null, then this is a container for an input device which has been disconnected.
+	*/
 	IGameInputDevice* GetGameInputDevice() const;
+
+	/**
+	* Update the IGameInputDevice pointer that this container should use. 
+	*
+	* This IGameInputDevice should have the same Local App ID as this container already, otherwise there will be an ensure
+	* 
+	* @param InDevice	The new IGameInputDevice that this container should use. 
+	*/
 	void SetGameInputDevice(IGameInputDevice* InDevice);
 
-	/** Returns the unique local device ID of this IGameInputDevice from the GameInput SDK. */
+	/** Returns the unique local device ID of this IGameInputDevice from the GameInput API. */
 	APP_LOCAL_DEVICE_ID GetGameInputDeviceId() const;
 
 	void SetPlatformUserId(const FPlatformUserId InUserId);
@@ -65,14 +78,14 @@ public:
 	void SetInputDeviceId(const FInputDeviceId InDeviceId);
 	FInputDeviceId GetDeviceId() const;
 
-	uint64 GetLastReadingTimestamp() const { return LastReadingTimestamp; }
+	uint64 GetLastReadingTimestamp() const;
 
 	/** 
 	* Returns the number of processors that this device container currently has.
 	*
 	* Note: If this is zero, then this device can't possibly fire any input events.
 	*/
-	const int32 GetNumberOfProcessors() const { return Processors.Num(); }
+	const int32 GetNumberOfProcessors() const;
 
 protected:
 
@@ -94,7 +107,13 @@ protected:
 	/** The Input Device ID that this Game Input Device is associated with */
 	FInputDeviceId AssignedDeviceId;
 
-	/** The unique ID that is associated with this device from the GameInput API */
+	/** 
+	* The unique ID that is associated with this device from the GameInput API.
+	* This will be set only once upon construction of this container.
+	* 
+	* @see IGameInputDeviceInterface::GetDeviceData
+	* @see https://learn.microsoft.com/en-us/gaming/gdk/_content/gc/reference/system/xuser/structs/app_local_device_id
+	*/
 	APP_LOCAL_DEVICE_ID LocalDeviceId;
 
 	/** Input Device processors to handle input for any specific types required (gamepad, racing wheel, KBM, etc) */
