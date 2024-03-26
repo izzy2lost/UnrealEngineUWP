@@ -42,12 +42,9 @@ namespace mu
 	}
 
 	//---------------------------------------------------------------------------------------------
-	void NodeImageMipmap::SetMipmapGenerationSettings( EMipmapFilterType filterType,
-													   EAddressMode addressMode,
-													   float sharpenFactor,
-													   bool mipDitherAlpha )
+	void NodeImageMipmap::SetMipmapGenerationSettings(EMipmapFilterType FilterType, EAddressMode AddressMode)
 	{
-		m_pD->m_settings = FMipmapGenerationSettings{ sharpenFactor, filterType, addressMode, mipDitherAlpha };
+		m_pD->m_settings = FMipmapGenerationSettings{ FilterType, AddressMode };
 	}
 
 }

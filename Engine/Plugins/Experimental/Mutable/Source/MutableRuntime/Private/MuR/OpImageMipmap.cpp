@@ -34,11 +34,10 @@ namespace OpImageMipmapInternal
 		{
 			for (int32 X = 0; X < DestSize.X; ++X)
 			{
-				for (int32 C = 0; C < PIXEL_SIZE; ++C)
-				{
-					DestData[(Y * DestSize.X + X) * PIXEL_SIZE + C] =
-						SourceData[((Y << 1) * SourceSize.X + (X << 1)) * PIXEL_SIZE + C];
-				}
+				uint8* DestPixel = DestData + (Y*DestSize.X + X) * PIXEL_SIZE;
+				const uint8* SourcePixel = SourceData + ((Y << 1) * SourceSize.X + (X << 1)) * PIXEL_SIZE;
+
+				FMemory::Memcpy(DestPixel, SourcePixel, PIXEL_SIZE);
 			}
 		}
 	}
@@ -315,7 +314,7 @@ namespace OpImageMipmapInternal
 
 							uint8 const * const SrcRow0 = JobStagingMemoryData + (Row0Offset.Y*BatchDecSizeInPixels.X + Row0Offset.X) * NumChannels;
 
-							if constexpr (Filter == EMipmapFilterType::MFT_SimpleAverage)
+							if constexpr (Filter == EMipmapFilterType::SimpleAverage)
 							{
 								// Use memcpy to avoid any possible but improbable UB. memcpy should be optimized away by the compiler.
 								uint64 Row0Bits; 
@@ -341,13 +340,13 @@ namespace OpImageMipmapInternal
 								
 								FMemory::Memcpy(DestPixel, &Result, NumChannels);
 							}
-							else // constexpr Filter == EMipmapFilterType::MFT_Unfiltered
+							else // constexpr Filter == EMipmapFilterType::Unfiltered
 							{
 								FMemory::Memcpy(DestPixel, SrcRow0, NumChannels);	
 							}
 							static_assert(
-								Filter == EMipmapFilterType::MFT_SimpleAverage || 
-								Filter == EMipmapFilterType::MFT_Unfiltered);
+								Filter == EMipmapFilterType::SimpleAverage || 
+								Filter == EMipmapFilterType::Unfiltered);
 						}
 					}
 				}
@@ -390,9 +389,9 @@ namespace OpImageMipmapInternal
 			return DestBeginLODSize == SrcNextLODSize;
 		}));
 
-		switch (Settings.m_filterType)
+		switch (Settings.FilterType)
 		{
-		case EMipmapFilterType::MFT_SimpleAverage:
+		case EMipmapFilterType::SimpleAverage:
 		{
 			const uint8* SrcData = SourceImage->GetLODData(SrcLOD);
 
@@ -408,7 +407,7 @@ namespace OpImageMipmapInternal
 			}
 			break;
 		}
-		case EMipmapFilterType::MFT_Unfiltered:
+		case EMipmapFilterType::Unfiltered:
 		{
 			const uint8* SrcData = SourceImage->GetLODData(SrcLOD);
 
@@ -462,14 +461,14 @@ namespace OpImageMipmapInternal
 		const EImageFormat SrcFormat = SourceImage->GetFormat();
 		const EImageFormat DestFormat = DestImage->GetFormat();
 
-		switch (Settings.m_filterType)
+		switch (Settings.FilterType)
 		{
-		case EMipmapFilterType::MFT_SimpleAverage:
+		case EMipmapFilterType::SimpleAverage:
 		{
 			const uint8* SrcData = SourceImage->GetLODData(SrcLOD);
 			uint8* DestData = DestImage->GetLODData(DestLODBegin);
 
-			GenerateNextMipBlockCompressed<PixelSize, EMipmapFilterType::MFT_SimpleAverage>(
+			GenerateNextMipBlockCompressed<PixelSize, EMipmapFilterType::SimpleAverage>(
 					SrcData, DestData, SourceSize, SrcFormat, DestFormat);
 
 			SrcData = DestData;
@@ -494,12 +493,12 @@ namespace OpImageMipmapInternal
 
 			break;
 		}
-		case EMipmapFilterType::MFT_Unfiltered:
+		case EMipmapFilterType::Unfiltered:
 		{
 			const uint8* SrcData = SourceImage->GetLODData(SrcLOD);
 			uint8* DestData = DestImage->GetLODData(DestLODBegin);
 			
-			GenerateNextMipBlockCompressed<PixelSize, EMipmapFilterType::MFT_Unfiltered>(
+			GenerateNextMipBlockCompressed<PixelSize, EMipmapFilterType::Unfiltered>(
 					SrcData, DestData, SourceSize, SrcFormat, DestFormat);
 
 			SrcData = DestData;

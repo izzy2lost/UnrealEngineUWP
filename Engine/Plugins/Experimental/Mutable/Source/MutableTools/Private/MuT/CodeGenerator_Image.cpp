@@ -1731,10 +1731,8 @@ namespace mu
             op->BlockLevels = 0;
         }
 
-		op->AddressMode = node.m_settings.m_addressMode;
-		op->FilterType = node.m_settings.m_filterType;
-		op->SharpenFactor = node.m_settings.m_sharpenFactor;
-		op->DitherMipmapAlpha = node.m_settings.m_ditherMipmapAlpha;
+		op->AddressMode = node.m_settings.AddressMode;
+		op->FilterType = node.m_settings.FilterType;
 
         res = op;
 

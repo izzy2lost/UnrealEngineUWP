@@ -607,10 +607,8 @@ namespace mu
             bool onlyTail;
 
             //! Mipmap generation settings. 
-            float sharpenFactor;
-            EAddressMode addressMode;
-            EMipmapFilterType filterType;
-			bool ditherMipmapAlpha;
+            EMipmapFilterType FilterType;
+            EAddressMode AddressMode;
         };
 
         struct ImageResizeArgs

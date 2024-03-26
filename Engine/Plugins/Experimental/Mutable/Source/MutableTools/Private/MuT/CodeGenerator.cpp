@@ -1203,10 +1203,8 @@ namespace mu
 							op->Source = imageAd;
 							op->BlockLevels = 0;
 
-							op->AddressMode = mipmapNode->GetPrivate()->m_settings.m_addressMode;
-							op->FilterType = mipmapNode->GetPrivate()->m_settings.m_filterType;
-							op->SharpenFactor = mipmapNode->GetPrivate()->m_settings.m_sharpenFactor;
-							op->DitherMipmapAlpha = mipmapNode->GetPrivate()->m_settings.m_ditherMipmapAlpha;
+							op->AddressMode = mipmapNode->GetPrivate()->m_settings.AddressMode;
+							op->FilterType = mipmapNode->GetPrivate()->m_settings.FilterType;
 							imageAd = op;
 						}
 
@@ -1540,10 +1538,8 @@ namespace mu
 									mop->bOnlyTail = true;
 								}
 
-								mop->AddressMode = mipmapNode->GetPrivate()->m_settings.m_addressMode;
-								mop->FilterType = mipmapNode->GetPrivate()->m_settings.m_filterType;
-								mop->SharpenFactor = mipmapNode->GetPrivate()->m_settings.m_sharpenFactor;
-								mop->DitherMipmapAlpha = mipmapNode->GetPrivate()->m_settings.m_ditherMipmapAlpha;
+								mop->AddressMode = mipmapNode->GetPrivate()->m_settings.AddressMode;
+								mop->FilterType = mipmapNode->GetPrivate()->m_settings.FilterType;
 
 								imageAd = mop;
 							}
@@ -1576,9 +1572,7 @@ namespace mu
 
 								// Not important for the end of the mip tail?
 								mop->AddressMode = EAddressMode::ClampToEdge;
-								mop->FilterType = EMipmapFilterType::MFT_SimpleAverage;
-								mop->SharpenFactor = 0;
-								mop->DitherMipmapAlpha = false;
+								mop->FilterType = EMipmapFilterType::SimpleAverage;
 
 								imageAd = mop;
 							}

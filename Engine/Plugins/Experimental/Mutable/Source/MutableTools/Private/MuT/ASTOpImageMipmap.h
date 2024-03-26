@@ -32,10 +32,8 @@ namespace mu
 		bool bPreventSplitTail = false;
 
 		//! Mipmap generation settings. 
-		float SharpenFactor = 0.0f;
 		EAddressMode AddressMode = EAddressMode::None;
-		EMipmapFilterType FilterType = EMipmapFilterType::MFT_Unfiltered;
-		bool DitherMipmapAlpha = false;
+		EMipmapFilterType FilterType = EMipmapFilterType::SimpleAverage;
 
 	public:
 

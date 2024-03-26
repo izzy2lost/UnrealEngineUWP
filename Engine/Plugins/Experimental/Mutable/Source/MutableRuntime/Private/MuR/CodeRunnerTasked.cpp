@@ -1360,7 +1360,7 @@ namespace mu
 
 		check(StartLevel >= 0);
 
-		FMipmapGenerationSettings Settings{};
+		FMipmapGenerationSettings Settings{Args.FilterType, Args.AddressMode};
 		FImageOperator ImOp = FImageOperator::GetDefault(ImagePixelFormatFunc);
 		ImOp.ImageMipmap(Scratch, ImageCompressionQuality, Result.get(), Result.get(), StartLevel, Result->GetLODCount(), Settings);
 	}

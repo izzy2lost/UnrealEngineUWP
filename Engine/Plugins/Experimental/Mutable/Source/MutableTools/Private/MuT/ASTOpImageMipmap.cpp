@@ -45,10 +45,8 @@ namespace mu
 				BlockLevels == other->BlockLevels &&
 				bOnlyTail == other->bOnlyTail &&
 				bPreventSplitTail == other->bPreventSplitTail &&
-				SharpenFactor == other->SharpenFactor &&
 				AddressMode == other->AddressMode &&
-				FilterType == other->FilterType &&
-				DitherMipmapAlpha == other->DitherMipmapAlpha;
+				FilterType == other->FilterType;
 		}
 		return false;
 	}
@@ -70,10 +68,8 @@ namespace mu
 		n->BlockLevels = BlockLevels;
 		n->bOnlyTail = bOnlyTail;
 		n->bPreventSplitTail = bPreventSplitTail;
-		n->SharpenFactor = SharpenFactor;
 		n->AddressMode = AddressMode;
 		n->FilterType = FilterType;
-		n->DitherMipmapAlpha = DitherMipmapAlpha;
 
 		return n;
 	}
@@ -96,10 +92,8 @@ namespace mu
 			args.levels = Levels;
 			args.blockLevels = BlockLevels;
 			args.onlyTail = bOnlyTail;
-			args.sharpenFactor = SharpenFactor;
-			args.addressMode = AddressMode;
-			args.filterType = FilterType;
-			args.ditherMipmapAlpha = DitherMipmapAlpha;
+			args.AddressMode = AddressMode;
+			args.FilterType = FilterType;
 			if (Source) args.source = Source->linkedAddress;
 
 			linkedAddress = (OP::ADDRESS)program.m_opAddress.Num();

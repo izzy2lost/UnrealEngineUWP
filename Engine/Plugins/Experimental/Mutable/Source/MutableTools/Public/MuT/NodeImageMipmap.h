@@ -54,10 +54,7 @@ namespace mu
 		NodeImagePtr GetSource() const;
 		void SetSource( NodeImagePtr );
 
-		void SetMipmapGenerationSettings( EMipmapFilterType filterType,
-										  EAddressMode addressMode,
-										  float sharpenFactor,  
-										  bool bDitherMipAlpha );
+		void SetMipmapGenerationSettings(EMipmapFilterType FilterType, EAddressMode AddressMode);
 
 		//-----------------------------------------------------------------------------------------
 		// Interface pattern

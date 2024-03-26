@@ -640,9 +640,25 @@ mu::NodeSurfacePtr GenerateMutableSourceSurface(const UEdGraphPin * Pin, FMutabl
 							const uint32 BaseLODBias = ComputeLODBiasForTexture(GenerationContext, *ReferenceTexture) + SurfaceLODBias;
 							mu::NodeImagePtr LastImage = ResizeTextureByNumMips(ImageNode, BaseLODBias);
 
+							mu::EMipmapFilterType MipGenerationFilterType = Invoke([&]()
+							{
+								if (ReferenceTexture)
+								{
+									switch(ReferenceTexture->MipGenSettings)
+									{
+									case TextureMipGenSettings::TMGS_SimpleAverage: return mu::EMipmapFilterType::SimpleAverage;
+									case TextureMipGenSettings::TMGS_Unfiltered:    return mu::EMipmapFilterType::Unfiltered;
+									default: return mu::EMipmapFilterType::SimpleAverage;
+									}
+								}
+
+								return mu::EMipmapFilterType::SimpleAverage;
+							});
+
+
 							mu::NodeImageMipmapPtr MipmapImage = new mu::NodeImageMipmap();
 							MipmapImage->SetSource(LastImage.get());
-							MipmapImage->SetMipmapGenerationSettings(mu::EMipmapFilterType::MFT_SimpleAverage, mu::EAddressMode::None, 1.0f, false);
+							MipmapImage->SetMipmapGenerationSettings(MipGenerationFilterType, mu::EAddressMode::None);
 
 							MipmapImage->SetMessageContext(Node);
 							LastImage = MipmapImage;
@@ -683,7 +699,7 @@ mu::NodeSurfacePtr GenerateMutableSourceSurface(const UEdGraphPin * Pin, FMutabl
 									mu::NodeImageMipmapPtr NormalCompositeMipmapImage = new mu::NodeImageMipmap();
 									const uint32 MipsToSkip = ComputeLODBiasForTexture(GenerationContext, *ReferenceCompositeNormalTexture, ReferenceTexture);
 									NormalCompositeMipmapImage->SetSource(ResizeTextureByNumMips(CompositeNormalImage, MipsToSkip));
-									NormalCompositeMipmapImage->SetMipmapGenerationSettings(mu::EMipmapFilterType::MFT_SimpleAverage, mu::EAddressMode::None, 1.0f, true);
+									NormalCompositeMipmapImage->SetMipmapGenerationSettings(mu::EMipmapFilterType::SimpleAverage, mu::EAddressMode::None);
 
 									CompositedImage->SetNormal(NormalCompositeMipmapImage);
 								}

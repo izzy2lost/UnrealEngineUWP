@@ -7,6 +7,7 @@ namespace mu
 {
 	MUTABLE_IMPLEMENT_ENUM_SERIALISABLE(EBlendType);
 	MUTABLE_IMPLEMENT_ENUM_SERIALISABLE(EMipmapFilterType);
+	MUTABLE_IMPLEMENT_ENUM_SERIALISABLE(EAddressMode);
 	MUTABLE_IMPLEMENT_ENUM_SERIALISABLE(ECompositeImageMode);
 	MUTABLE_IMPLEMENT_ENUM_SERIALISABLE(ESamplingMethod);
 	MUTABLE_IMPLEMENT_ENUM_SERIALISABLE(EMinFilterMethod);
@@ -63,25 +64,37 @@ namespace mu
         return s_imageFormatData[ uint8(format) ];
     }
 
-	void FMipmapGenerationSettings::Serialise(OutputArchive& arch) const
+	void FMipmapGenerationSettings::Serialise(OutputArchive& Arch) const
 	{
-		uint32 ver = 0;
-		arch << ver;
+		uint32 Version = 1;
+		Arch << Version;
 
-		arch << m_sharpenFactor;
-		arch << m_filterType;
-		arch << m_ditherMipmapAlpha;
+		Arch << FilterType;
+		Arch << AddressMode;
 	}
 
-	void FMipmapGenerationSettings::Unserialise(InputArchive& arch)
+	void FMipmapGenerationSettings::Unserialise(InputArchive& Arch)
 	{
-		uint32 ver = 0;
-		arch >> ver;
-		check(ver == 0);
+		uint32 Version = 0;
+		Arch >> Version;
 
-		arch >> m_sharpenFactor;
-		arch >> m_filterType;
-		arch >> m_ditherMipmapAlpha;
+		check(Version <= 1);
+
+		if (Version < 1)
+		{
+			float SharpenFactor = 0.0f;
+			Arch >> SharpenFactor;
+
+			Arch >> FilterType;
+
+			bool bDitherMipmapAlpha = false;
+			Arch >> bDitherMipmapAlpha;
+		}
+		else
+		{
+			Arch >> FilterType;
+			Arch >> AddressMode;
+		}
 	}
 }
 

@@ -125,14 +125,13 @@ namespace mu
 		ClampToEdge,
 		ClampToBlack,
 	};
-
+	MUTABLE_DEFINE_ENUM_SERIALISABLE(EAddressMode);
+	
 	enum class EMipmapFilterType
 	{
-		MFT_Unfiltered,
-		MFT_SimpleAverage,
-		MFT_Sharpen,
-		_MFT_COUNT
-	};	
+		Unfiltered,
+		SimpleAverage,
+	};
 	MUTABLE_DEFINE_ENUM_SERIALISABLE(EMipmapFilterType);
 
 	enum class ECompositeImageMode
@@ -224,13 +223,11 @@ namespace mu
 
 	struct MUTABLERUNTIME_API FMipmapGenerationSettings
 	{
-		float m_sharpenFactor = 0.0f;
-		EMipmapFilterType m_filterType = EMipmapFilterType::MFT_SimpleAverage;
-		EAddressMode m_addressMode = EAddressMode::None;
-		bool m_ditherMipmapAlpha = false;
+		EMipmapFilterType FilterType = EMipmapFilterType::SimpleAverage;
+		EAddressMode AddressMode = EAddressMode::None;
 
-		void Serialise(OutputArchive& arch) const;
-		void Unserialise(InputArchive& arch);
+		void Serialise(OutputArchive& Arch) const;
+		void Unserialise(InputArchive& Arch);
 	};
 }
 
