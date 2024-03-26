@@ -48,15 +48,17 @@ void FPCGEditableUserParameterDetails::CustomizeDetails(IDetailLayoutBuilder& De
 		return;
 	}
 
+	// Cache the parent details view to be used on tick
+	ParentDetailsView = StaticCastWeakPtr<IDetailsView>(DetailBuilder.GetDetailsView()->AsWeak());
+
 	if (UPCGUserParameterGetSettings* Settings = Cast<UPCGUserParameterGetSettings>(SettingsObject.Get()))
 	{
 		if (UObject* NodeObject = Settings->GetOuter())
 		{
 			if (UPCGGraphInterface* GraphInterface = Cast<UPCGGraphInterface>(NodeObject->GetOuter()))
 			{
-				// Cache the interface and view to be used to verify on tick
+				// Cache the interface to be used to verify on tick
 				CachedGraphInterface = MakeWeakObjectPtr(GraphInterface);
-				ParentDetailsView = StaticCastWeakPtr<IDetailsView>(DetailBuilder.GetDetailsView()->AsWeak());
 
 				// It is safe, because we hook pre/post edit changes that will trigger the callbacks
 				if (FInstancedPropertyBag* UserParameters = GraphInterface->GetMutableUserParametersStruct_Unsafe())

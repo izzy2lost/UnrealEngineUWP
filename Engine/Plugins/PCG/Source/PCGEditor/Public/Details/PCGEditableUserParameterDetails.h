@@ -20,6 +20,7 @@ public:
 	virtual void CustomizeDetails(IDetailLayoutBuilder& DetailBuilder) override;
 
 	//~Begin FTickableEditorObject interface
+	virtual bool IsAllowedToTick() const override { return ParentDetailsView.IsValid(); }
 	virtual void Tick(float DeltaTime) override;
 	virtual TStatId GetStatId() const override;
 	//~End FTickableEditorObject interface
