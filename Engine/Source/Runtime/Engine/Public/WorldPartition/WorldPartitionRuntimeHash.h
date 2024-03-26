@@ -121,7 +121,7 @@ protected:
 
 #if WITH_EDITORONLY_DATA
 	UPROPERTY(Transient)
-	TMap<FString, UWorldPartitionRuntimeCell*> PackagesToGenerateForCook;
+	TMap<FString, TObjectPtr<UWorldPartitionRuntimeCell>> PackagesToGenerateForCook;
 
 	UPROPERTY(Transient)
 	TObjectPtr<const UExternalDataLayerAsset> ExternalDataLayerAsset;
@@ -245,7 +245,7 @@ protected:
 
 	TArray<FAlwaysLoadedActorForPIE> AlwaysLoadedActorsForPIE;
 
-	TMap<FString, UWorldPartitionRuntimeCell*> PackagesToGenerateForCook;
+	TMap<FString, TObjectPtr<UWorldPartitionRuntimeCell>> PackagesToGenerateForCook;
 #endif
 
 protected:
