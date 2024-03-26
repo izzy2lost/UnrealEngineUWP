@@ -2269,23 +2269,123 @@ struct FGameFeaturePluginState_WaitingForDependencies : public FTransitionDepend
 
 struct FGameFeaturePluginState_AssetDependencyStreaming : public FGameFeaturePluginState
 {
-	FGameFeaturePluginState_AssetDependencyStreaming(FGameFeaturePluginStateMachineProperties& InStateProperties) : FGameFeaturePluginState(InStateProperties) {}
+	FGameFeaturePluginState_AssetDependencyStreaming(FGameFeaturePluginStateMachineProperties& InStateProperties) 
+		: FGameFeaturePluginState(InStateProperties) 
+		, Result(MakeValue())
+	{}
 
-	TArray<FString> AssetDependencies;
+	~FGameFeaturePluginState_AssetDependencyStreaming()
+	{
+		Cleanup();
+	}
+
+	void Cleanup()
+	{
+		Result = MakeValue();
+		PendingBundleDownloads.Empty();
+	}
+
+	UE::GameFeatures::FResult Result;
+	TArray<FName> PendingBundleDownloads;
+
+	// TODO: How can we handle progress for this, we don't know we are going to do it until way after downloading
+	// TUniquePtr<FInstallBundleCombinedProgressTracker> ProgressTracker;
+
+	void OnInstallBundleCompleted(FInstallBundleRequestResultInfo BundleResult)
+	{
+		if (!PendingBundleDownloads.Contains(BundleResult.BundleName))
+		{
+			return;
+		}
+
+		PendingBundleDownloads.Remove(BundleResult.BundleName);
+
+		if (!Result.HasError() && BundleResult.Result != EInstallBundleResult::OK)
+		{
+			//Use OptionalErrorCode and/or OptionalErrorText if available
+			const FString ErrorCodeEnding = (BundleResult.OptionalErrorCode.IsEmpty()) ? LexToString(BundleResult.Result) : BundleResult.OptionalErrorCode;
+			const FText ErrorText = BundleResult.OptionalErrorCode.IsEmpty() ? UE::GameFeatures::CommonErrorCodes::GetErrorTextForBundleResult(BundleResult.Result) : BundleResult.OptionalErrorText;
+
+			Result = GetErrorResult(TEXT("BundleManager.AssetDep."), ErrorCodeEnding, ErrorText);
+
+			if (BundleResult.Result != EInstallBundleResult::UserCancelledError)
+			{
+				TSharedPtr<IInstallBundleManager> BundleManager = IInstallBundleManager::GetPlatformInstallBundleManager();
+				BundleManager->CancelUpdateContent(PendingBundleDownloads);
+			}
+		}
+
+		if (PendingBundleDownloads.Num() > 0)
+		{
+			return;
+		}
+
+		UpdateStateMachineImmediate();
+	}
 
 	virtual void BeginState() override
 	{
-		AssetDependencies = UGameFeaturesSubsystem::Get().FindPluginAssetDependencies(StateProperties.PluginInstalledFilename);
+		Cleanup();
+
+		// TODO: Install Bundles need to move away from FNames for identifiers, this is currently just bloating up the name table
+		// when using dynamic GFPs
+		TArray<TPair<FString, TArray<FString>>> AssetDependencies = UGameFeaturesSubsystem::Get().FindPluginAssetDependencies(StateProperties.PluginInstalledFilename);
+		TArray<FName> AssetInstallBundles = UGameFeaturesSubsystem::Get().GetPolicy().GetStreamingAssetInstallBundles(AssetDependencies);
+		if (AssetInstallBundles.IsEmpty())
+		{
+			return;
+		}
+
+		// Respect DoNotDownload flag
+		// TODO: move DoNotDownload flag to base protocol options? We could now have a file: GFP that needs to stream dependencies
+		if (StateProperties.ProtocolOptions.HasSubtype<FInstallBundlePluginProtocolOptions>())
+		{
+			const FInstallBundlePluginProtocolOptions& Options = StateProperties.ProtocolOptions.GetSubtype<FInstallBundlePluginProtocolOptions>();
+			if (Options.bDoNotDownload)
+			{
+				Result = GetErrorResult(TEXT("GFPStateMachine.DownloadNotAllowed"));
+				return;
+			}
+		}
+
+		TSharedPtr<IInstallBundleManager> BundleManager = IInstallBundleManager::GetPlatformInstallBundleManager();
+
+		// TODO: where do flags come from? The dependency being streamed from?
+		EInstallBundleRequestFlags InstallFlags = EInstallBundleRequestFlags::None;
+		TValueOrError<FInstallBundleRequestInfo, EInstallBundleResult> MaybeRequestInfo = BundleManager->RequestUpdateContent(AssetInstallBundles, InstallFlags);
+		if (MaybeRequestInfo.HasError())
+		{
+			const FStringView ShortUrl = StateProperties.PluginIdentifier.GetIdentifyingString();
+			ensureMsgf(false, TEXT("Unable to enqueue asset dependencies for the PluginURL(%.*s) because %s"), ShortUrl.Len(), ShortUrl.GetData(), LexToString(MaybeRequestInfo.GetError()));
+			Result = GetErrorResult(TEXT("BundleManager.AssetDep."), LexToString(MaybeRequestInfo.GetError()));
+			return;
+		}
+
+		FInstallBundleRequestInfo RequestInfo = MaybeRequestInfo.StealValue();
+		PendingBundleDownloads = MoveTemp(RequestInfo.BundlesEnqueued);
+		IInstallBundleManager::InstallBundleCompleteDelegate.AddRaw(this, &FGameFeaturePluginState_AssetDependencyStreaming::OnInstallBundleCompleted);
+
+		// TODO: how to apply pausing? bUserPauseDownload is protocol specific
+		//if (Options.bUserPauseDownload)
 	}
 
 	virtual void UpdateState(FGameFeaturePluginStateStatus& StateStatus) override
 	{
-		StateStatus.SetTransition(EGameFeaturePluginState::Registering);
+		if (!Result.HasValue())
+		{
+			StateStatus.SetTransitionError(EGameFeaturePluginState::ErrorWaitingForDependencies, Result);
+			return;
+		}
+
+		if (PendingBundleDownloads.IsEmpty())
+		{
+			StateStatus.SetTransition(EGameFeaturePluginState::Registering);
+		}
 	}
 
 	virtual void EndState() override
 	{
-		AssetDependencies.Empty();
+		Cleanup();
 	}
 
 	virtual void TryCancelState() override

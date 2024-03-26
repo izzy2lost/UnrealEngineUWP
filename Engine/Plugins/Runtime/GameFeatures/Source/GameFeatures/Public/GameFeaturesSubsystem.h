@@ -562,7 +562,7 @@ public:
 	 * If the specified plugin is known by the game feature system, returns the URL used to identify it
 	 * @return true if the plugin exists, false if it was not found
 	 */
-	bool GetPluginURLByName(const FString& PluginName, FString& OutPluginURL) const;
+	bool GetPluginURLByName(FStringView PluginName, FString& OutPluginURL) const;
 
 	/** If the specified plugin is a built-in plugin, return the URL used to identify it. Returns true if the plugin exists, false if it was not found */
 	UE_DEPRECATED(5.1, "Use GetPluginURLByName instead")
@@ -729,7 +729,7 @@ private:
 	void FinishTermination(UGameFeaturePluginStateMachine* Machine);
 	friend class UGameFeaturePluginStateMachine;
 
-	TArray<FString> FindPluginAssetDependencies(const FString& PluginDescriptorFilename);
+	TArray<TPair<FString, TArray<FString>>> FindPluginAssetDependencies(const FString& PluginDescriptorFilename);
 	friend struct FGameFeaturePluginState_AssetDependencyStreaming;
 
 	/** Handler for when a state machine requests its dependencies. Returns false if the dependencies could not be read */

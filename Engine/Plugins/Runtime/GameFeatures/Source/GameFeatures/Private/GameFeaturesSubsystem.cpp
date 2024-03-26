@@ -1996,9 +1996,9 @@ void UGameFeaturesSubsystem::LoadBuiltInGameFeaturePlugins(FBuiltInPluginAdditio
 	}
 }
 
-bool UGameFeaturesSubsystem::GetPluginURLByName(const FString& PluginName, FString& OutPluginURL) const
+bool UGameFeaturesSubsystem::GetPluginURLByName(FStringView PluginName, FString& OutPluginURL) const
 {
-	if (const FString* PluginURL = GameFeaturePluginNameToPathMap.Find(PluginName))
+	if (const FString* PluginURL = GameFeaturePluginNameToPathMap.FindByHash(GetTypeHash(PluginName), PluginName))
 	{
 		OutPluginURL = *PluginURL;
 		return true;
@@ -2788,21 +2788,19 @@ void UGameFeaturesSubsystem::FinishTermination(UGameFeaturePluginStateMachine* M
 	TerminalGameFeaturePluginStateMachines.RemoveSwap(Machine);
 }
 
-TArray<FString> UGameFeaturesSubsystem::FindPluginAssetDependencies(const FString& PluginDescriptorFilename)
+TArray<TPair<FString, TArray<FString>>> UGameFeaturesSubsystem::FindPluginAssetDependencies(const FString& PluginDescriptorFilename)
 {
 	FGameFeaturePluginDetails Details;
 	ensure(GetGameFeaturePluginDetailsInternal(PluginDescriptorFilename, Details));
 
-	TArray<FString> OutAssetPaths;
-	for (const FGameFeaturePluginReferenceDetails& RefDetails : Details.PluginDependencies)
+	TArray<TPair<FString, TArray<FString>>> OutDeps;
+	OutDeps.Reserve(Details.PluginDependencies.Num());
+	for (FGameFeaturePluginReferenceDetails& RefDetails : Details.PluginDependencies)
 	{
-		for (const FString& AssetRef : RefDetails.AssetReferences)
-		{
-			OutAssetPaths.Emplace(FString::Printf(TEXT("/%s/%s"), *RefDetails.PluginName, *AssetRef));
-		}
+		OutDeps.Emplace(MoveTemp(RefDetails.PluginName), MoveTemp(RefDetails.AssetReferences));
 	}
 
-	return OutAssetPaths;
+	return OutDeps;
 }
 
 bool UGameFeaturesSubsystem::FindOrCreatePluginDependencyStateMachines(const FString& PluginURL, const FGameFeaturePluginStateMachineProperties& InStateProperties, TArray<UGameFeaturePluginStateMachine*>& OutDependencyMachines)
@@ -3085,6 +3083,7 @@ void UGameFeaturesSubsystem::CallbackObservers(EObserverCallback CallbackType, c
 	case EObserverCallback::PreMounting:
 	{
 		check(PluginName);
+		check(StateChangeContext);
 		FGameFeaturePreMountingContext* PreMountingContext = static_cast<FGameFeaturePreMountingContext*>(StateChangeContext);
 		for (UObject* Observer : LocalObservers)
 		{
@@ -3095,6 +3094,7 @@ void UGameFeaturesSubsystem::CallbackObservers(EObserverCallback CallbackType, c
 	case EObserverCallback::PostMounting:
 	{
 		check(PluginName);
+		check(StateChangeContext);
 		FGameFeaturePostMountingContext* PostMountingContext = static_cast<FGameFeaturePostMountingContext*>(StateChangeContext);
 		for (UObject* Observer : LocalObservers)
 		{

@@ -41,10 +41,14 @@ public:
 	// (e.g., when doing a fast cook a game might want to disable some or all game feature plugins)
 	virtual bool IsPluginAllowed(const FString& PluginURL) const { return true; }
 
-	// Called to resolve plugin dependencies, OutDependencyURL will contain the GFP URL if this dependency is a GFP.
+	// Called to resolve plugin dependencies, will successfully return an empty string if a dependency is not a GFP.
 	// This may be called with file protocol for built-in plugins in some cases, even if a different protocol is used at runtime.
 	// returns The dependency URL or an error if the dependency could not be resolved
 	virtual TValueOrError<FString, FString> ResolvePluginDependency(const FString& PluginURL, const FString& DependencyName) const;
+
+	// Called to resolve install bundles for stream asset dependencies, input maps a plugin dependency to referenced assets 
+	// (See UGameFeaturesSubsystem::FindPluginAssetDependencies)
+	virtual TArray<FName> GetStreamingAssetInstallBundles(const TArray<TPair<FString, TArray<FString>>>& AssetDependencies) const { return {}; }
 
 	// Called by code that explicitly wants to load a specific plugin
 	// (e.g., when using a fast cook a game might want to allow explicitly loaded game feature plugins)
