@@ -23,7 +23,7 @@ uint ReadNumTriangles_{DataInterfaceName}()
 
 int ReadEdge_{DataInterfaceName}(uint VertexIndex)
 {
-	return {DataInterfaceName}_bUseBufferFromRenderData == 0 ?
+	return {DataInterfaceName}_bUseBufferFromRenderData == 0  ?
 		{DataInterfaceName}_VertexToEdgeBuffer[VertexIndex + {DataInterfaceName}_InputStreamStart] - {DataInterfaceName}_IndexBufferStart :
 		{DataInterfaceName}_RenderDataVertexToEdgeBuffer[VertexIndex + {DataInterfaceName}_InputStreamStart] - {DataInterfaceName}_IndexBufferStart;
 }
