@@ -5,6 +5,7 @@
 #include "Math/BoxSphereBounds.h"
 #include "Metadata/Accessors/PCGCustomAccessor.h"
 #include "Metadata/Accessors/IPCGAttributeAccessorTpl.h"
+#include "UObject/FortniteReleaseBranchCustomObjectVersion.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(PCGPoint)
 
@@ -17,11 +18,123 @@ namespace PCGPointCustomPropertyNames
 	const FName ScaleName = TEXT("Scale");
 }
 
+/** Serialized fields of a FPCGPoint, the values here can't change as they are being used to mask out serialization */
+enum class EPCGPointSerializeFields : uint8
+{
+	None = 0 ,
+	Density = 1 << 0,
+	BoundsMin = 1 << 1,
+	BoundsMax = 1 << 2,
+	Color = 1 << 3,
+	Steepness = 1 << 4,
+	Seed = 1 << 5,
+	MetadataEntry = 1 << 6
+};
+
+ENUM_CLASS_FLAGS(EPCGPointSerializeFields);
+
 FPCGPoint::FPCGPoint(const FTransform& InTransform, float InDensity, int32 InSeed)
 	: Transform(InTransform)
 	, Density(InDensity)
 	, Seed(InSeed)
 {
+}
+
+bool FPCGPoint::Serialize(FStructuredArchive::FSlot Slot)
+{
+	FArchive& UnderlyingArchive = Slot.GetUnderlyingArchive();
+	
+	// Usage of a branch version instead of the PCG version ensures that we can't end up in a situation where two developers modify the PCG version in
+	// two different branches causing issues with saved assets in those branches when integrating.
+	UnderlyingArchive.UsingCustomVersion(FFortniteReleaseBranchCustomObjectVersion::GUID);
+
+	// Previous versions was using default serialization, returning false here ensures older data gets loaded through the default serialization
+	if (UnderlyingArchive.CustomVer(FFortniteReleaseBranchCustomObjectVersion::GUID) < FFortniteReleaseBranchCustomObjectVersion::PCGPointStructuredSerializer)
+	{
+		return false;
+	}
+	
+	const FPCGPoint Default;
+	EPCGPointSerializeFields SerializeMask = EPCGPointSerializeFields::None;
+	if (UnderlyingArchive.IsSaving())
+	{
+		if (Density != Default.Density)
+		{
+			EnumAddFlags(SerializeMask, EPCGPointSerializeFields::Density);
+		}
+
+		if (BoundsMin != Default.BoundsMin)
+		{
+			EnumAddFlags(SerializeMask, EPCGPointSerializeFields::BoundsMin);
+		}
+
+		if (BoundsMax != Default.BoundsMax)
+		{
+			EnumAddFlags(SerializeMask, EPCGPointSerializeFields::BoundsMax);
+		}
+
+		if (Color != Default.Color)
+		{
+			EnumAddFlags(SerializeMask, EPCGPointSerializeFields::Color);
+		}
+
+		if (Steepness != Default.Steepness)
+		{
+			EnumAddFlags(SerializeMask, EPCGPointSerializeFields::Steepness);
+		}
+
+		if (Seed != Default.Seed)
+		{
+			EnumAddFlags(SerializeMask, EPCGPointSerializeFields::Seed);
+		}
+
+		if (MetadataEntry != Default.MetadataEntry)
+		{
+			EnumAddFlags(SerializeMask, EPCGPointSerializeFields::MetadataEntry);
+		}
+	}
+		
+	FStructuredArchive::FRecord Record = Slot.EnterRecord();
+
+	Record << SA_VALUE(TEXT("SerializeMask"), SerializeMask);
+	Record << SA_VALUE(TEXT("Transform"), Transform);
+
+	if (EnumHasAnyFlags(SerializeMask, EPCGPointSerializeFields::Density))
+	{
+		Record << SA_VALUE(TEXT("Density"), Density);
+	}
+		
+	if (EnumHasAnyFlags(SerializeMask, EPCGPointSerializeFields::BoundsMin))
+	{
+		Record << SA_VALUE(TEXT("BoundsMin"), BoundsMin);
+	}
+	
+	if (EnumHasAnyFlags(SerializeMask, EPCGPointSerializeFields::BoundsMax))
+	{
+		Record << SA_VALUE(TEXT("BoundsMax"), BoundsMax);
+	}
+	
+	if (EnumHasAnyFlags(SerializeMask, EPCGPointSerializeFields::Color))
+	{
+		Record << SA_VALUE(TEXT("Color"), Color);
+	}
+	
+	if (EnumHasAnyFlags(SerializeMask, EPCGPointSerializeFields::Steepness))
+	{
+		Record << SA_VALUE(TEXT("Steepness"), Steepness);
+	}
+	
+	if (EnumHasAnyFlags(SerializeMask, EPCGPointSerializeFields::Seed))
+	{
+		Record << SA_VALUE(TEXT("Seed"), Seed);
+	}
+	
+	if (EnumHasAnyFlags(SerializeMask, EPCGPointSerializeFields::MetadataEntry))
+	{
+		Record << SA_VALUE(TEXT("MetadataEntry"), MetadataEntry);
+	}
+	
+	return true;
 }
 
 FBox FPCGPoint::GetLocalBounds() const

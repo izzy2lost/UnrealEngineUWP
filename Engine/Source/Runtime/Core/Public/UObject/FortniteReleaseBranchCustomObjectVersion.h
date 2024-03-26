@@ -48,6 +48,9 @@ struct FFortniteReleaseBranchCustomObjectVersion
 		// Store game thread particles data in single precision
 		SinglePrecisonParticleData,
 
+		// UPCGPoint custom serialization
+		PCGPointStructuredSerializer,
+
 		// -----<new versions can be added above this line>-------------------------------------------------
 		VersionPlusOne,
 		LatestVersion = VersionPlusOne - 1

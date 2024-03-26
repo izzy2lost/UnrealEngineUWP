@@ -89,6 +89,17 @@ public:
 
 	static bool HasCustomPropertyGetterSetter(FName Name);
 	static TUniquePtr<IPCGAttributeAccessor> CreateCustomPropertyAccessor(FName Name);
+
+	bool Serialize(FStructuredArchive::FSlot Slot);
+};
+
+template<>
+struct TStructOpsTypeTraits<FPCGPoint> : public TStructOpsTypeTraitsBase2<FPCGPoint>
+{
+	enum
+	{
+		WithStructuredSerializer = true,
+	};
 };
 
 #if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_2
