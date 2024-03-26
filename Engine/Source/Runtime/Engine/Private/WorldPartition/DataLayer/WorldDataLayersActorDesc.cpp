@@ -218,14 +218,11 @@ void FWorldDataLayersActorDesc::Init(const AActor* InActor)
 	const AWorldDataLayers* WorldDataLayers = CastChecked<AWorldDataLayers>(InActor);
 	bUseExternalPackageDataLayerInstances = WorldDataLayers->IsUsingExternalPackageDataLayerInstances();
 	bIsExternalDataLayerWorldDataLayers = WorldDataLayers->IsExternalDataLayerWorldDataLayers();
-	if (!bUseExternalPackageDataLayerInstances)
+	const IDataLayerInstanceProvider* DataLayerInstanceProvider = CastChecked<IDataLayerInstanceProvider>(WorldDataLayers);
+	for (UDataLayerInstance* DataLayerInstance : DataLayerInstanceProvider->GetDataLayerInstances())
 	{
-		WorldDataLayers->ForEachDataLayerInstance([this](UDataLayerInstance* DataLayerInstance)
-		{
-			FDataLayerInstanceDesc& DataLayerInstanceDesc = DataLayerInstances.Emplace_GetRef();
-			DataLayerInstanceDesc.Init(DataLayerInstance);
-			return true;
-		});
+		FDataLayerInstanceDesc& DataLayerInstanceDesc = DataLayerInstances.Emplace_GetRef();
+		DataLayerInstanceDesc.Init(DataLayerInstance);
 	}
 
 	bIsValid = true;

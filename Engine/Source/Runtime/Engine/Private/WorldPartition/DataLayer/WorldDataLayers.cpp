@@ -1536,7 +1536,7 @@ bool AWorldDataLayers::ShouldLevelKeepRefIfExternal() const
 
 bool AWorldDataLayers::IsEditorOnly() const
 {
-	return Super::IsEditorOnly() || IsExternalDataLayerWorldDataLayers();
+	return IsExternalDataLayerWorldDataLayers();
 }
 
 #endif
