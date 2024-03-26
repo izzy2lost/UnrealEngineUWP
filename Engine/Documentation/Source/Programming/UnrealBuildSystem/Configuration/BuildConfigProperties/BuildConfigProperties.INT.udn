@@ -60,6 +60,10 @@ $ DefaultWarningLevel : Default treatment of uncategorized warnings
 
 $ DeprecationWarningLevel : Level to report deprecation warnings as errors
 
+$ bStaticAnalyzerProjectOnly : Only run static analysis against project modules, skipping engine modules
+
+$ bStaticAnalyzerIncludeGenerated : When enabled, generated source files will be analyzed
+
 $ bDebugBuildsActuallyUseDebugCRT : Enables the debug C++ runtime (CRT) for debug builds. By default we always use the release runtime, since the debug version isn't particularly useful when debugging Unreal Engine projects, and linking against the debug CRT libraries forces our third party library dependencies to also be compiled using the debug CRT (and often perform more slowly). Often it can be inconvenient to require a separate copy of the debug versions of third party static libraries simply so that you can debug your program's code.
 
 $ bLegalToDistributeBinary : Whether the output from this target can be publicly distributed, even if it has dependencies on modules that are in folders with special restrictions (eg. CarefullyRedist, NotForLicensees, NoRedist).
@@ -445,6 +449,8 @@ $ bUseCrypto : Set to true to enable encryption when transfering files over the 
 $ bUseKnownInputs : Set to true to provide known inputs to processes that are run remote. This is an experimental feature to speed up build times when ping is higher
 
 $ ActionsOutputFile : Write yaml file with all actions that are queued for build. This can be used to replay using "UbaCli.exe local file.yaml"
+
+$ bDetailedLog : Set to true to see more info about what is happening inside uba and also log output from agents
 
 $ HordeMaxCores : Max cores allowed to be used by build session
 
