@@ -7,6 +7,7 @@
 #include "../SceneData.ush"
 #include "../WaveOpUtil.ush"
 #include "/Engine/Shared/NaniteDefinitions.h"
+#include "/Engine/Shared/HLSLStaticAssert.h"
 #include "NanitePackedNaniteView.ush"
 
 #ifndef DEBUG_FLAGS
@@ -214,6 +215,7 @@ struct FNaniteFullscreenVSToPS
 #endif
 
 #if FEATURE_LEVEL >= FEATURE_LEVEL_SM6 || PLATFORM_SUPPORTS_SM6_0_WAVE_OPERATIONS	// TODO: This header can be included from SM5 from BuildInstanceDrawCommands.usf. Refactor it.
+HLSL_STATIC_ASSERT(sizeof(FInstanceDynamicData) == 132, "Unexpected size of FInstanceDynamicData. Update WaveReadLaneAt to reflect changes.");
 FInstanceDynamicData WaveReadLaneAt(FInstanceDynamicData In, uint SrcIndex)
 {
 	FInstanceDynamicData Result;

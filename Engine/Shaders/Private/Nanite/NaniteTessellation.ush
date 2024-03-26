@@ -253,6 +253,7 @@ struct FTessellatedPatch
 	}
 };
 
+HLSL_STATIC_ASSERT(sizeof(FTessellatedPatch) == 8, "Unexpected size of FTessellatedPatch. Update WaveReadLaneAt to reflect changes.");
 FTessellatedPatch WaveReadLaneAt( FTessellatedPatch In, uint SrcIndex )
 {
 	FTessellatedPatch Out;
@@ -295,6 +296,7 @@ struct FSplitPatch
 	}
 };
 
+HLSL_STATIC_ASSERT(sizeof(FSplitPatch) == 44, "Unexpected size of FSplitPatch. Update WaveReadLaneAt to reflect changes.");
 FSplitPatch WaveReadLaneAt(FSplitPatch In, uint SrcIndex)
 {
 	FSplitPatch Result;

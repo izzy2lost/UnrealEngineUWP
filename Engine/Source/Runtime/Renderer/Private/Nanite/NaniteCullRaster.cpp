@@ -1094,6 +1094,7 @@ class FRasterBinBuild_CS : public FNaniteGlobalShader
 		SHADER_PARAMETER(uint32, bUsePrimOrMeshShader)
 		SHADER_PARAMETER(uint32, MaxPatchesPerGroup)
 		SHADER_PARAMETER(uint32, MeshPassIndex)
+		SHADER_PARAMETER(uint32, MinSupportedWaveSize)
 	END_SHADER_PARAMETER_STRUCT()
 
 	static bool ShouldCompilePermutation(const FGlobalShaderPermutationParameters& Parameters)
@@ -3657,6 +3658,7 @@ FBinningData FRenderer::AddPass_Binning(
 		PassParameters->bUsePrimOrMeshShader = HardwarePath != ERasterHardwarePath::VertexShader;
 		PassParameters->MaxPatchesPerGroup = GetMaxPatchesPerGroup();
 		PassParameters->MeshPassIndex = MeshPass;
+		PassParameters->MinSupportedWaveSize = GRHIMinimumWaveSize;
 
 		// Count SW & HW Clusters
 		{
