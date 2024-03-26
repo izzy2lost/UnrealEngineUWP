@@ -975,6 +975,7 @@ private:
 		FRDGTextureRef LightingChannelsTexture,
 		const FHairStrandsTransmittanceMaskData& InTransmittanceMaskData,
 		const bool bForwardRendering,
+		const bool bCanLightUsesAtlasForUnbatchedLight,
 		TRDGUniformBufferRef<FVirtualShadowMapUniformParameters> VirtualShadowMapUniformBuffer = nullptr,
 		FRDGTextureRef ShadowMaskBits = nullptr,
 		int32 VirtualShadowMapId = INDEX_NONE);

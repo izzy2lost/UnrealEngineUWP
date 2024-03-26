@@ -106,11 +106,13 @@ struct FSortedLightSceneInfo
 
 	const FLightSceneInfo* LightSceneInfo;
 	int32 SimpleLightIndex;
+	bool bIsCompatibleWithLightFunctionAtlas;
 
 	/** Initialization constructor. */
 	explicit FSortedLightSceneInfo(const FLightSceneInfo* InLightSceneInfo)
 		: LightSceneInfo(InLightSceneInfo),
-		SimpleLightIndex(-1)
+		SimpleLightIndex(-1),
+		bIsCompatibleWithLightFunctionAtlas(false)
 	{
 		SortKey.Packed = 0;
 		SortKey.Fields.bIsNotSimpleLight = 1;
@@ -118,7 +120,8 @@ struct FSortedLightSceneInfo
 
 	explicit FSortedLightSceneInfo(int32 InSimpleLightIndex)
 		: LightSceneInfo(nullptr),
-		SimpleLightIndex(InSimpleLightIndex)
+		SimpleLightIndex(InSimpleLightIndex),
+		bIsCompatibleWithLightFunctionAtlas(false)
 	{
 		SortKey.Packed = 0;
 		SortKey.Fields.bIsNotSimpleLight = 0;
