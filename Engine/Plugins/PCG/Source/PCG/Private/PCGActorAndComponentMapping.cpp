@@ -171,6 +171,37 @@ FPCGActorAndComponentMapping::FPCGActorAndComponentMapping(UPCGSubsystem* InPCGS
 	NonPartitionedOctree.Reset(FVector::ZeroVector, OctreeExtent);
 }
 
+void FPCGActorAndComponentMapping::Initialize(UWorld* World)
+{
+#if WITH_EDITOR
+	RegisterTrackingCallbacks();
+
+	// Considering that some landscape might already be loaded, we should attach to their change callbacks now
+	if (World)
+	{
+		UPCGActorHelpers::ForEachActorInWorld<ALandscapeProxy>(World, [this](AActor* InActor)
+		{
+			if (ALandscapeProxy* LandscapeProxy = Cast<ALandscapeProxy>(InActor))
+			{
+				if (!LandscapeProxy->OnComponentDataChanged.IsBoundToObject(this))
+				{
+					LandscapeProxy->OnComponentDataChanged.AddRaw(this, &FPCGActorAndComponentMapping::OnLandscapeChanged);
+				}
+			}
+
+			return true;
+		});
+	}
+#endif // WITH_EDITOR
+}
+
+void FPCGActorAndComponentMapping::Deinitialize()
+{
+#if WITH_EDITOR
+	TeardownTrackingCallbacks();
+#endif
+}
+
 void FPCGActorAndComponentMapping::Tick()
 {
 	TSet<UPCGComponent*> ComponentToUnregister;
