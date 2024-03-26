@@ -11,7 +11,6 @@ using System.Threading.Tasks;
 using EpicGames.AspNet;
 using EpicGames.Horde.Storage;
 using EpicGames.Serialization;
-using Horde.Server.Storage;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Primitives;
@@ -28,13 +27,13 @@ namespace Horde.Server.Ddc
 	public class CompressedBlobController : ControllerBase
 	{
 		private readonly IBlobService _storage;
-		private readonly IContentIdService _contentIdStore;
+		private readonly IContentIdStore _contentIdStore;
 		private readonly IDiagnosticContext _diagnosticContext;
 		private readonly IRequestHelper _requestHelper;
 		private readonly BufferedPayloadFactory _bufferedPayloadFactory;
 		private readonly NginxRedirectHelper _nginxRedirectHelper;
 
-		public CompressedBlobController(IBlobService storage, IContentIdService contentIdStore, IDiagnosticContext diagnosticContext, IRequestHelper requestHelper, BufferedPayloadFactory bufferedPayloadFactory, NginxRedirectHelper nginxRedirectHelper)
+		public CompressedBlobController(IBlobService storage, IContentIdStore contentIdStore, IDiagnosticContext diagnosticContext, IRequestHelper requestHelper, BufferedPayloadFactory bufferedPayloadFactory, NginxRedirectHelper nginxRedirectHelper)
 		{
 			_storage = storage;
 			_contentIdStore = contentIdStore;
@@ -53,7 +52,7 @@ namespace Horde.Server.Ddc
 			[Required] NamespaceId ns,
 			[Required] ContentId id)
 		{
-			ActionResult? result = await _requestHelper.HasAccessToNamespaceAsync(User, Request, ns, new[] { StorageAclAction.ReadBlobs });
+			ActionResult? result = await _requestHelper.HasAccessToNamespaceAsync(User, Request, ns, new[] { JupiterAclAction.ReadObject });
 			if (result != null)
 			{
 				return result;
@@ -97,7 +96,7 @@ namespace Horde.Server.Ddc
 			[Required] NamespaceId ns,
 			[Required] ContentId id)
 		{
-			ActionResult? result = await _requestHelper.HasAccessToNamespaceAsync(User, Request, ns, new[] { StorageAclAction.ReadBlobs });
+			ActionResult? result = await _requestHelper.HasAccessToNamespaceAsync(User, Request, ns, new[] { JupiterAclAction.ReadObject });
 			if (result != null)
 			{
 				return result;
@@ -133,7 +132,7 @@ namespace Horde.Server.Ddc
 			[Required] NamespaceId ns,
 			[Required][FromQuery] List<ContentId> id)
 		{
-			ActionResult? result = await _requestHelper.HasAccessToNamespaceAsync(User, Request, ns, new[] { StorageAclAction.ReadBlobs });
+			ActionResult? result = await _requestHelper.HasAccessToNamespaceAsync(User, Request, ns, new[] { JupiterAclAction.ReadObject });
 			if (result != null)
 			{
 				return result;
@@ -175,7 +174,7 @@ namespace Horde.Server.Ddc
 			[Required] NamespaceId ns,
 			[FromBody] ContentId[] bodyIds)
 		{
-			ActionResult? result = await _requestHelper.HasAccessToNamespaceAsync(User, Request, ns, new[] { StorageAclAction.ReadBlobs });
+			ActionResult? result = await _requestHelper.HasAccessToNamespaceAsync(User, Request, ns, new[] { JupiterAclAction.ReadObject });
 			if (result != null)
 			{
 				return result;
@@ -216,10 +215,9 @@ namespace Horde.Server.Ddc
 		[RequiredContentType(CustomMediaTypeNames.UnrealCompressedBuffer)]
 		public async Task<IActionResult> PutAsync(
 			[Required] NamespaceId ns,
-			[Required] ContentId id,
-			CancellationToken cancellationToken)
+			[Required] ContentId id)
 		{
-			ActionResult? result = await _requestHelper.HasAccessToNamespaceAsync(User, Request, ns, new[] { StorageAclAction.WriteBlobs });
+			ActionResult? result = await _requestHelper.HasAccessToNamespaceAsync(User, Request, ns, new[] { JupiterAclAction.WriteObject });
 			if (result != null)
 			{
 				return result;
@@ -229,9 +227,9 @@ namespace Horde.Server.Ddc
 
 			try
 			{
-				using BufferedPayload payload = await _bufferedPayloadFactory.CreateFromRequestAsync(Request);
+				using IBufferedPayload payload = await _bufferedPayloadFactory.CreateFromRequestAsync(Request, HttpContext.RequestAborted);
 
-				ContentId identifier = await _storage.PutCompressedObjectAsync(ns, payload, id, HttpContext.RequestServices, cancellationToken);
+				ContentId identifier = await _storage.PutCompressedObjectAsync(ns, payload, id, HttpContext.RequestServices, HttpContext.RequestAborted);
 
 				return Ok(new { Identifier = identifier.ToString() });
 			}
@@ -253,10 +251,11 @@ namespace Horde.Server.Ddc
 		[DisableRequestSizeLimit]
 		[RequiredContentType(CustomMediaTypeNames.UnrealCompressedBuffer)]
 		public async Task<IActionResult> PostAsync(
-			[Required] NamespaceId ns,
-			CancellationToken cancellationToken)
+			[Required] NamespaceId ns)
 		{
-			ActionResult? result = await _requestHelper.HasAccessToNamespaceAsync(User, Request, ns, new[] { StorageAclAction.WriteBlobs });
+			CancellationToken cancellationToken = HttpContext.RequestAborted;
+
+			ActionResult? result = await _requestHelper.HasAccessToNamespaceAsync(User, Request, ns, new[] { JupiterAclAction.WriteObject });
 			if (result != null)
 			{
 				return result;
@@ -266,7 +265,7 @@ namespace Horde.Server.Ddc
 
 			try
 			{
-				using BufferedPayload payload = await _bufferedPayloadFactory.CreateFromRequestAsync(Request);
+				using IBufferedPayload payload = await _bufferedPayloadFactory.CreateFromRequestAsync(Request, cancellationToken);
 
 				ContentId identifier = await _storage.PutCompressedObjectAsync(ns, payload, null, HttpContext.RequestServices, cancellationToken);
 

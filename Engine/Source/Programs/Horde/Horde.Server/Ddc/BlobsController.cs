@@ -8,13 +8,11 @@ using System.IO;
 using System.Linq;
 using System.Net;
 using System.Net.Mime;
-using System.Threading;
 using System.Threading.Tasks;
 using EpicGames.AspNet;
 using EpicGames.Horde.Acls;
 using EpicGames.Horde.Storage;
 using EpicGames.Serialization;
-using Horde.Server.Storage;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
@@ -26,6 +24,7 @@ namespace Horde.Server.Ddc
 	using IDiagnosticContext = Serilog.IDiagnosticContext;
 
 	[ApiController]
+	[Tags("DDC Blobs")]
 	[Route("api/v1/s", Order = 1)]
 	[Route("api/v1/blobs", Order = 0)]
 	[Authorize]
@@ -51,9 +50,10 @@ namespace Horde.Server.Ddc
 		public async Task<IActionResult> GetAsync(
 			[Required] NamespaceId ns,
 			[Required] BlobId id,
-			[FromQuery] List<string>? storageLayers = null)
+			[FromQuery] List<string>? storageLayers = null,
+			[FromQuery] bool allowOndemandReplication = true)
 		{
-			ActionResult? result = await _requestHelper.HasAccessToNamespaceAsync(User, Request, ns, new[] { StorageAclAction.ReadBlobs });
+			ActionResult? result = await _requestHelper.HasAccessToNamespaceAsync(User, Request, ns, new[] { JupiterAclAction.ReadObject });
 			if (result != null)
 			{
 				return result;
@@ -61,7 +61,7 @@ namespace Horde.Server.Ddc
 
 			try
 			{
-				BlobContents blobContents = await GetImplAsync(ns, id, storageLayers, supportsRedirectUri: true);
+				BlobContents blobContents = await GetImplAsync(ns, id, storageLayers, supportsRedirectUri: true, allowOndemandReplication: allowOndemandReplication);
 
 				if (blobContents.RedirectUri != null)
 				{
@@ -90,7 +90,7 @@ namespace Horde.Server.Ddc
 			[Required] BlobId id,
 			[FromQuery] List<string>? storageLayers = null)
 		{
-			ActionResult? result = await _requestHelper.HasAccessToNamespaceAsync(User, Request, ns, new[] { StorageAclAction.ReadBlobs });
+			ActionResult? result = await _requestHelper.HasAccessToNamespaceAsync(User, Request, ns, new[] { JupiterAclAction.ReadObject });
 			if (result != null)
 			{
 				return result;
@@ -111,7 +111,7 @@ namespace Horde.Server.Ddc
 			[Required] NamespaceId ns,
 			[Required][FromQuery] List<BlobId> id)
 		{
-			ActionResult? result = await _requestHelper.HasAccessToNamespaceAsync(User, Request, ns, new[] { StorageAclAction.ReadBlobs });
+			ActionResult? result = await _requestHelper.HasAccessToNamespaceAsync(User, Request, ns, new[] { JupiterAclAction.ReadObject });
 			if (result != null)
 			{
 				return result;
@@ -137,7 +137,7 @@ namespace Horde.Server.Ddc
 			[Required] NamespaceId ns,
 			[FromBody] BlobId[] bodyIds)
 		{
-			ActionResult? result = await _requestHelper.HasAccessToNamespaceAsync(User, Request, ns, new[] { StorageAclAction.ReadBlobs });
+			ActionResult? result = await _requestHelper.HasAccessToNamespaceAsync(User, Request, ns, new[] { JupiterAclAction.ReadObject });
 			if (result != null)
 			{
 				return result;
@@ -157,9 +157,21 @@ namespace Horde.Server.Ddc
 			return Ok(new HeadMultipleResponse { Needs = missingBlobs.ToArray() });
 		}
 
-		private async Task<BlobContents> GetImplAsync(NamespaceId ns, BlobId blob, List<string>? storageLayers = null, bool supportsRedirectUri = false)
+		private async Task<BlobContents> GetImplAsync(NamespaceId ns, BlobId blob, List<string>? storageLayers = null, bool supportsRedirectUri = false, bool allowOndemandReplication = true)
 		{
-			return await _storage.GetObjectAsync(ns, blob, storageLayers, supportsRedirectUri);
+			try
+			{
+				return await _storage.GetObjectAsync(ns, blob, storageLayers, supportsRedirectUri, allowOndemandReplication);
+			}
+			catch (BlobNotFoundException)
+			{
+				if (!_storage.ShouldFetchBlobOnDemand(ns) || !allowOndemandReplication)
+				{
+					throw;
+				}
+
+				return await _storage.ReplicateObjectAsync(ns, blob);
+			}
 		}
 
 		[HttpPut("{ns}/{id}")]
@@ -167,10 +179,9 @@ namespace Horde.Server.Ddc
 		[DisableRequestSizeLimit]
 		public async Task<IActionResult> PutAsync(
 			[Required] NamespaceId ns,
-			[Required] BlobId id,
-			CancellationToken cancellationToken)
+			[Required] BlobId id)
 		{
-			ActionResult? result = await _requestHelper.HasAccessToNamespaceAsync(User, Request, ns, new[] { StorageAclAction.WriteBlobs });
+			ActionResult? result = await _requestHelper.HasAccessToNamespaceAsync(User, Request, ns, new[] { JupiterAclAction.WriteObject });
 			if (result != null)
 			{
 				return result;
@@ -180,7 +191,7 @@ namespace Horde.Server.Ddc
 
 			try
 			{
-				Uri? uri = await _storage.MaybePutObjectWithRedirectAsync(ns, id, cancellationToken);
+				Uri? uri = await _storage.MaybePutObjectWithRedirectAsync(ns, id, HttpContext.RequestAborted);
 				if (uri != null)
 				{
 					return Ok(new
@@ -189,9 +200,9 @@ namespace Horde.Server.Ddc
 						RedirectUri = uri,
 					});
 				}
-				using BufferedPayload payload = await _bufferedPayloadFactory.CreateFromRequestAsync(Request);
+				using IBufferedPayload payload = await _bufferedPayloadFactory.CreateFromRequestAsync(Request, HttpContext.RequestAborted);
 
-				BlobId identifier = await _storage.PutObjectAsync(ns, payload, id, cancellationToken);
+				BlobId identifier = await _storage.PutObjectAsync(ns, payload, id, HttpContext.RequestAborted);
 				return Ok(new
 				{
 					Identifier = identifier.ToString()
@@ -211,10 +222,9 @@ namespace Horde.Server.Ddc
 		[RequiredContentType(MediaTypeNames.Application.Octet)]
 		[DisableRequestSizeLimit]
 		public async Task<IActionResult> PostAsync(
-			[Required] NamespaceId ns,
-			CancellationToken cancellationToken)
+			[Required] NamespaceId ns)
 		{
-			ActionResult? result = await _requestHelper.HasAccessToNamespaceAsync(User, Request, ns, new[] { StorageAclAction.WriteBlobs });
+			ActionResult? result = await _requestHelper.HasAccessToNamespaceAsync(User, Request, ns, new[] { JupiterAclAction.WriteObject });
 			if (result != null)
 			{
 				return result;
@@ -223,12 +233,12 @@ namespace Horde.Server.Ddc
 			_diagnosticContext.Set("Content-Length", Request.ContentLength ?? -1);
 			try
 			{
-				using BufferedPayload payload = await _bufferedPayloadFactory.CreateFromRequestAsync(Request);
+				using IBufferedPayload payload = await _bufferedPayloadFactory.CreateFromRequestAsync(Request, HttpContext.RequestAborted);
 
 				await using Stream stream = payload.GetStream();
 
-				BlobId id = await BlobId.FromStreamAsync(stream, cancellationToken);
-				await _storage.PutObjectKnownHashAsync(ns, payload, id, cancellationToken);
+				BlobId id = await BlobId.FromStreamAsync(stream, HttpContext.RequestAborted);
+				await _storage.PutObjectKnownHashAsync(ns, payload, id, HttpContext.RequestAborted);
 
 				return Ok(new
 				{
@@ -239,6 +249,42 @@ namespace Horde.Server.Ddc
 			{
 				return Problem(e.Message, null, (int)HttpStatusCode.RequestTimeout);
 			}
+		}
+
+		[HttpDelete("{ns}/{id}")]
+		public async Task<IActionResult> DeleteAsync(
+			[Required] NamespaceId ns,
+			[Required] BlobId id)
+		{
+			ActionResult? result = await _requestHelper.HasAccessToNamespaceAsync(User, Request, ns, new[] { JupiterAclAction.DeleteObject });
+			if (result != null)
+			{
+				return result;
+			}
+
+			await DeleteImplAsync(ns, id);
+
+			return NoContent();
+		}
+
+		[HttpDelete("{ns}")]
+		public async Task<IActionResult> DeleteNamespaceAsync(
+			[Required] NamespaceId ns)
+		{
+			ActionResult? result = await _requestHelper.HasAccessToNamespaceAsync(User, Request, ns, new[] { JupiterAclAction.DeleteNamespace });
+			if (result != null)
+			{
+				return result;
+			}
+
+			await _storage.DeleteNamespaceAsync(ns, HttpContext.RequestAborted);
+
+			return NoContent();
+		}
+
+		private async Task DeleteImplAsync(NamespaceId ns, BlobId id)
+		{
+			await _storage.DeleteObjectAsync(ns, id, HttpContext.RequestAborted);
 		}
 
 		// ReSharper disable UnusedAutoPropertyAccessor.Global
@@ -252,6 +298,7 @@ namespace Horde.Server.Ddc
 				INVALID,
 				GET,
 				PUT,
+				DELETE,
 				HEAD
 			}
 
@@ -272,17 +319,19 @@ namespace Horde.Server.Ddc
 		// ReSharper restore UnusedAutoPropertyAccessor.Global
 
 		[HttpPost("")]
-		public async Task<IActionResult> PostAsync([FromBody] BatchCall batch, CancellationToken cancellationToken)
+		public async Task<IActionResult> PostAsync([FromBody] BatchCall batch)
 		{
-			static AclAction MapToAclAction(BatchOp.Operation op)
+			AclAction MapToAclAction(BatchOp.Operation op)
 			{
 				switch (op)
 				{
 					case BatchOp.Operation.GET:
 					case BatchOp.Operation.HEAD:
-						return StorageAclAction.ReadBlobs;
+						return JupiterAclAction.ReadObject;
 					case BatchOp.Operation.PUT:
-						return StorageAclAction.WriteBlobs;
+						return JupiterAclAction.WriteObject;
+					case BatchOp.Operation.DELETE:
+						return JupiterAclAction.DeleteObject;
 					default:
 						throw new ArgumentOutOfRangeException(nameof(op), op, null);
 				}
@@ -319,7 +368,7 @@ namespace Horde.Server.Ddc
 							return BadRequest();
 						}
 
-						tasks[index] = GetImplAsync(op.Namespace.Value, op.Id.Value).ContinueWith((t, _) =>
+						tasks[index] = GetImplAsync(op.Namespace.Value, op.Id).ContinueWith((t, _) =>
 						{
 							// TODO: This is very allocation heavy but given that the end result is a json object we can not really stream this anyway
 							using BlobContents blobContents = t.Result;
@@ -337,7 +386,7 @@ namespace Horde.Server.Ddc
 							return BadRequest();
 						}
 
-						tasks[index] = _storage.ExistsAsync(op.Namespace.Value, op.Id.Value, cancellationToken: cancellationToken)
+						tasks[index] = _storage.ExistsAsync(op.Namespace.Value, op.Id)
 							.ContinueWith((t, _) => t.Result ? (object?)null : op.Id, null, TaskScheduler.Current);
 						break;
 					case BatchOp.Operation.PUT:
@@ -353,9 +402,17 @@ namespace Horde.Server.Ddc
 							}
 
 							using MemoryBufferedPayload payload = new MemoryBufferedPayload(op.Content);
-							tasks[index] = _storage.PutObjectAsync(op.Namespace.Value, payload, op.Id.Value, cancellationToken).ContinueWith((t, _) => (object?)t.Result, null, TaskScheduler.Current);
+							tasks[index] = _storage.PutObjectAsync(op.Namespace.Value, payload, op.Id, HttpContext.RequestAborted).ContinueWith((t, _) => (object?)t.Result, null, TaskScheduler.Current);
 							break;
 						}
+					case BatchOp.Operation.DELETE:
+						if (op.Id == null)
+						{
+							return BadRequest();
+						}
+
+						tasks[index] = DeleteImplAsync(op.Namespace.Value, op.Id).ContinueWith((t, _) => (object?)null, null, TaskScheduler.Current);
+						break;
 					default:
 						throw new NotImplementedException($"{op.Op} is not a support op type");
 				}

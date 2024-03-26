@@ -1,6 +1,7 @@
 ﻿// Copyright Epic Games, Inc. All Rights Reserved.
 
 using System;
+using System.Buffers;
 using System.ComponentModel;
 using System.Globalization;
 using System.IO;
@@ -8,79 +9,165 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Threading;
 using System.Threading.Tasks;
+using Blake3;
 using EpicGames.Core;
 using EpicGames.Serialization;
 
+#pragma warning disable CS1591
+
 namespace Horde.Server.Ddc
 {
-	/// <summary>
-	/// Identifier for a blob in the store
-	/// </summary>
-	[TypeConverter(typeof(BlobIdTypeConverter))]
-	[JsonConverter(typeof(BlobIdJsonConverter))]
-	[CbConverter(typeof(BlobIdCbConverter))]
-	public readonly struct BlobId : IEquatable<BlobId>
+	[TypeConverter(typeof(BlobIdentifierTypeConverter))]
+	[JsonConverter(typeof(BlobIdentifierJsonConverter))]
+	[CbConverter(typeof(BlobIdentifierCbConverter))]
+	public class BlobId : ContentHash, IEquatable<BlobId>
 	{
-		/// <summary>
-		/// Hash of the blob
-		/// </summary>
-		public IoHash Hash { get; }
+		// multi thread the hashing for blobs larger then this size
+		private const int MultiThreadedSize = 1_000_000;
+		private string? _stringIdentifier;
 
-		/// <summary>
-		/// Constructor
-		/// </summary>
-		public BlobId(IoHash hash) => Hash = hash;
+		public BlobId(byte[] identifier) : base(identifier)
+		{
+		}
 
-		/// <summary>
-		/// Parses a BlobId from a string
-		/// </summary>
-		public static BlobId Parse(string text) => new BlobId(IoHash.Parse(text));
+		[JsonConstructor]
+		public BlobId(string identifier) : base(identifier)
+		{
 
-		/// <summary>
-		/// Creates a BlobId from a block of data
-		/// </summary>
-		public static BlobId FromBlob(ReadOnlySpan<byte> span) => new BlobId(IoHash.Compute(span));
+		}
 
-		/// <inheritdoc/>
-		public override readonly int GetHashCode() => Hash.GetHashCode();
+		public override int GetHashCode()
+		{
+			return Comparer.GetHashCode(Identifier);
+		}
 
-		/// <inheritdoc/>
-		public readonly bool Equals(BlobId other) => Hash.Equals(other.Hash);
+		public bool Equals(BlobId? other)
+		{
+			if (other == null)
+			{
+				return false;
+			}
 
-		/// <inheritdoc/>
-		public override readonly bool Equals(object? obj) => obj is BlobId blobId && Equals(blobId);
+			return Comparer.Equals(Identifier, other.Identifier);
+		}
 
-		/// <inheritdoc/>
-		public override readonly string ToString() => Hash.ToString();
+		public override bool Equals(object? obj)
+		{
+			if (ReferenceEquals(null, obj))
+			{
+				return false;
+			}
 
-		/// <inheritdoc cref="IoHash.op_Equality"/>
-		public static bool operator ==(BlobId left, BlobId right) => left.Hash == right.Hash;
+			if (ReferenceEquals(this, obj))
+			{
+				return true;
+			}
 
-		/// <inheritdoc cref="IoHash.op_Inequality"/>
-		public static bool operator !=(BlobId left, BlobId right) => !(left == right);
+			if (obj.GetType() != GetType())
+			{
+				return false;
+			}
 
-		/// <summary>
-		/// Constructs a BlobId from a hash
-		/// </summary>
-		public static BlobId FromIoHash(IoHash hash) => new BlobId(hash);
+			return Equals((BlobId)obj);
+		}
 
-		/// <summary>
-		/// Creates a BlobId from a data stream
-		/// </summary>
-		public static async Task<BlobId> FromStreamAsync(Stream stream, CancellationToken cancellationToken) => FromIoHash(await IoHash.ComputeAsync(stream, cancellationToken));
+		public override string ToString()
+		{
+			if (_stringIdentifier == null)
+			{
+				_stringIdentifier = StringUtils.FormatAsHexString(Identifier);
+			}
 
-		/// <summary>
-		/// Converts a BlobId to an IoHash
-		/// </summary>
-		public IoHash AsIoHash() => Hash;
+			return _stringIdentifier;
+		}
+
+		public static new BlobId FromBlob(byte[] blobMemory)
+		{
+			Hash blake3Hash;
+			if (blobMemory.Length < MultiThreadedSize)
+			{
+				using Hasher hasher = Hasher.New();
+				hasher.Update(blobMemory);
+				blake3Hash = hasher.Finalize();
+			}
+			else
+			{
+				using Hasher hasher = Hasher.New();
+				hasher.UpdateWithJoin(blobMemory);
+				blake3Hash = hasher.Finalize();
+			}
+
+			// we only keep the first 20 bytes of the Blake3 hash
+			Span<byte> hash = blake3Hash.AsSpanUnsafe().Slice(0, 20);
+			return new BlobId(hash.ToArray());
+		}
+
+		public static BlobId FromBlob(in Memory<byte> blobMemory)
+		{
+			Hash blake3Hash;
+			if (blobMemory.Length < MultiThreadedSize)
+			{
+				using Hasher hasher = Hasher.New();
+				hasher.Update(blobMemory.Span);
+				blake3Hash = hasher.Finalize();
+			}
+			else
+			{
+				using Hasher hasher = Hasher.New();
+				hasher.UpdateWithJoin(blobMemory.Span);
+				blake3Hash = hasher.Finalize();
+			}
+
+			// we only keep the first 20 bytes of the Blake3 hash
+			Span<byte> hash = blake3Hash.AsSpanUnsafe().Slice(0, 20);
+			return new BlobId(hash.ToArray());
+		}
+
+		public static BlobId FromContentHash(ContentHash testObjectHash)
+		{
+			return new BlobId(testObjectHash.HashData);
+		}
+
+		public static async Task<BlobId> FromStreamAsync(Stream stream, CancellationToken cancellationToken)
+		{
+			using Hasher hasher = Hasher.New();
+
+			const int BufferSize = 1024 * 1024 * 5;
+			byte[] buffer = ArrayPool<byte>.Shared.Rent(BufferSize);
+
+			try
+			{
+				int read = await stream.ReadAsync(buffer, 0, buffer.Length, cancellationToken);
+				while (read > 0)
+				{
+					hasher.UpdateWithJoin(new ReadOnlySpan<byte>(buffer, 0, read));
+					read = await stream.ReadAsync(buffer, 0, buffer.Length, cancellationToken);
+				}
+				Hash blake3Hash = hasher.Finalize();
+
+				// we only keep the first 20 bytes of the Blake3 hash
+				byte[] hash = blake3Hash.AsSpanUnsafe().Slice(0, 20).ToArray();
+				return new BlobId(hash);
+			}
+			finally
+			{
+				ArrayPool<byte>.Shared.Return(buffer);
+			}
+		}
+
+		public static BlobId FromIoHash(IoHash blobIdentifier)
+		{
+			return new BlobId(blobIdentifier.ToByteArray());
+		}
+
+		public IoHash AsIoHash()
+		{
+			return new IoHash(HashData);
+		}
 	}
 
-	/// <summary>
-	/// Converts from <see cref="BlobId"/> instances to other types
-	/// </summary>
-	public class BlobIdTypeConverter : TypeConverter
+	public class BlobIdentifierTypeConverter : TypeConverter
 	{
-		/// <inheritdoc/>
 		public override bool CanConvertFrom(ITypeDescriptorContext? context, Type sourceType)
 		{
 			if (sourceType == typeof(string))
@@ -90,18 +177,16 @@ namespace Horde.Server.Ddc
 			return base.CanConvertFrom(context, sourceType);
 		}
 
-		/// <inheritdoc/>
 		public override object? ConvertFrom(ITypeDescriptorContext? context, CultureInfo? culture, object value)
 		{
 			if (value is string s)
 			{
-				return BlobId.Parse(s);
+				return new BlobId(s);
 			}
 
 			return base.ConvertFrom(context, culture, value);
 		}
 
-		/// <inheritdoc/>
 		public override bool CanConvertTo(ITypeDescriptorContext? context, Type? destinationType)
 		{
 			if (destinationType == typeof(string))
@@ -111,25 +196,20 @@ namespace Horde.Server.Ddc
 			return base.CanConvertTo(context, destinationType);
 		}
 
-		/// <inheritdoc/>
 		public override object? ConvertTo(ITypeDescriptorContext? context, CultureInfo? culture, object? value, Type destinationType)
 		{
 			if (destinationType == typeof(string))
 			{
-				return value?.ToString();
+				BlobId? identifier = (BlobId?)value;
+				return identifier?.ToString();
 			}
-
 			return base.ConvertTo(context, culture, value, destinationType);
 		}
 	}
 
-	/// <summary>
-	/// Converts from <see cref="BlobId"/> instances to other types
-	/// </summary>
-	public class BlobIdJsonConverter : JsonConverter<BlobId>
+	public class BlobIdentifierJsonConverter : JsonConverter<BlobId>
 	{
-		/// <inheritdoc/>
-		public override BlobId Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+		public override BlobId? Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
 		{
 			string? str = reader.GetString();
 			if (str == null)
@@ -137,28 +217,23 @@ namespace Horde.Server.Ddc
 				throw new InvalidDataException("Unable to parse blob identifier");
 			}
 
-			return BlobId.Parse(str);
+			return new BlobId(str);
 		}
 
-		/// <inheritdoc/>
 		public override void Write(Utf8JsonWriter writer, BlobId value, JsonSerializerOptions options)
 		{
 			writer.WriteStringValue(value.ToString());
 		}
 	}
 
-	/// <summary>
-	/// Serializes <see cref="BlobId"/> instances to compact binary
-	/// </summary>
-	public class BlobIdCbConverter : CbConverter<BlobId>
+	public class BlobIdentifierCbConverter : CbConverter<BlobId>
 	{
-		/// <inheritdoc/>
-		public override BlobId Read(CbField field) => new BlobId(field.AsHash());
+		public override BlobId Read(CbField field) => new BlobId(field.AsHash().ToByteArray());
 
 		/// <inheritdoc/>
-		public override void Write(CbWriter writer, BlobId value) => writer.WriteBinaryAttachmentValue(value.Hash);
+		public override void Write(CbWriter writer, BlobId value) => writer.WriteBinaryAttachmentValue(new IoHash(value.HashData));
 
 		/// <inheritdoc/>
-		public override void WriteNamed(CbWriter writer, CbFieldName name, BlobId value) => writer.WriteBinaryAttachment(name, value.Hash);
+		public override void WriteNamed(CbWriter writer, CbFieldName name, BlobId value) => writer.WriteBinaryAttachment(name, new IoHash(value.HashData));
 	}
 }

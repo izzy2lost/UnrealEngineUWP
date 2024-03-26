@@ -422,6 +422,7 @@ namespace Horde.Server.Jobs
 	/// <param name="Name">Name of the artifact</param>
 	/// <param name="Type">Artifact type</param>
 	/// <param name="Description">Description to display for the artifact on the dashboard</param>
+	/// <param name="Keys">Keys for the artifact</param>
 	/// <param name="StepId">Step producing the artifact</param>
 	public record class GetJobArtifactResponse
 	(
@@ -429,6 +430,7 @@ namespace Horde.Server.Jobs
 		ArtifactName Name,
 		ArtifactType Type,
 		string? Description,
+		List<string> Keys,
 		JobStepId StepId
 	);
 

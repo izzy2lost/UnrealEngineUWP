@@ -507,7 +507,7 @@ namespace Horde.Server.Jobs
 						string? stepKey = artifact.Keys.FirstOrDefault(x => x.StartsWith(artifactStepKeyPrefix, StringComparison.Ordinal));
 						if (stepKey != null && JobStepId.TryParse(stepKey.Substring(artifactStepKeyPrefix.Length), out JobStepId jobStepId))
 						{
-							response.Artifacts.Add(new GetJobArtifactResponse(artifact.Id, artifact.Name, artifact.Type, artifact.Description, jobStepId));
+							response.Artifacts.Add(new GetJobArtifactResponse(artifact.Id, artifact.Name, artifact.Type, artifact.Description, artifact.Keys.ToList(), jobStepId));
 							addedArtifacts.Add((artifact.Name, jobStepId));
 						}
 					}
@@ -530,7 +530,7 @@ namespace Horde.Server.Jobs
 							IGraphArtifact? graphArtifact;
 							if (outputNameToArtifact.TryGetValue(outputName, out graphArtifact) && !addedArtifacts.Contains((graphArtifact.Name, step.Id)))
 							{
-								response.Artifacts.Add(new GetJobArtifactResponse(null, graphArtifact.Name, graphArtifact.Type, graphArtifact.Description, step.Id));
+								response.Artifacts.Add(new GetJobArtifactResponse(null, graphArtifact.Name, graphArtifact.Type, graphArtifact.Description, graphArtifact.Keys.ToList(), step.Id));
 							}
 						}
 					}
@@ -916,6 +916,7 @@ namespace Horde.Server.Jobs
 		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		/// <returns>Id of the new job</returns>
 		[HttpPost]
+		[Obsolete("Modifying graph through REST API is not supported")]
 		[Route("/api/v1/jobs/{jobId}/groups")]
 		public async Task<ActionResult> CreateGroupsAsync(JobId jobId, [FromBody] List<NewGroup> requests, CancellationToken cancellationToken = default)
 		{
@@ -956,6 +957,7 @@ namespace Horde.Server.Jobs
 		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		/// <returns>List of nodes to be executed</returns>
 		[HttpGet]
+		[Obsolete("Query entire job instead")]
 		[Route("/api/v1/jobs/{jobId}/groups")]
 		[ProducesResponseType(typeof(List<GetGroupResponse>), 200)]
 		public async Task<ActionResult<List<object>>> GetGroupsAsync(JobId jobId, [FromQuery] PropertyFilter? filter = null, CancellationToken cancellationToken = default)
@@ -989,6 +991,7 @@ namespace Horde.Server.Jobs
 		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		/// <returns>List of nodes to be executed</returns>
 		[HttpGet]
+		[Obsolete("Query entire job instead")]
 		[Route("/api/v1/jobs/{jobId}/groups/{groupIdx}")]
 		[ProducesResponseType(typeof(GetGroupResponse), 200)]
 		public async Task<ActionResult<object>> GetGroupAsync(JobId jobId, int groupIdx, [FromQuery] PropertyFilter? filter = null, CancellationToken cancellationToken = default)
@@ -1025,6 +1028,7 @@ namespace Horde.Server.Jobs
 		/// <param name="groupIdx">Index of the group containing the node to update</param>
 		/// <param name="filter">Filter for the properties to return</param>
 		[HttpGet]
+		[Obsolete("Query entire job instead")]
 		[Route("/api/v1/jobs/{jobId}/groups/{groupIdx}/nodes")]
 		[ProducesResponseType(typeof(List<GetNodeResponse>), 200)]
 		public async Task<ActionResult<List<object>>> GetNodesAsync(JobId jobId, int groupIdx, [FromQuery] PropertyFilter? filter = null)
@@ -1062,6 +1066,7 @@ namespace Horde.Server.Jobs
 		/// <param name="nodeIdx">Index of the node to update</param>
 		/// <param name="filter">Filter for the properties to return</param>
 		[HttpGet]
+		[Obsolete("Query entire job instead")]
 		[Route("/api/v1/jobs/{jobId}/groups/{groupIdx}/nodes/{nodeIdx}")]
 		[ProducesResponseType(typeof(GetNodeResponse), 200)]
 		public async Task<ActionResult<object>> GetNodeAsync(JobId jobId, int groupIdx, int nodeIdx, [FromQuery] PropertyFilter? filter = null)
@@ -1103,6 +1108,7 @@ namespace Horde.Server.Jobs
 		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		/// <returns>List of nodes to be executed</returns>
 		[HttpGet]
+		[Obsolete("Query entire job instead")]
 		[Route("/api/v1/jobs/{jobId}/batches")]
 		[ProducesResponseType(typeof(List<GetBatchResponse>), 200)]
 		public async Task<ActionResult<List<object>>> GetBatchesAsync(JobId jobId, [FromQuery] PropertyFilter? filter = null, CancellationToken cancellationToken = default)
@@ -1141,6 +1147,7 @@ namespace Horde.Server.Jobs
 		/// <param name="batchId">Unique id for the step</param>
 		/// <param name="request">Updates to apply to the node</param>
 		[HttpPut]
+		[Obsolete("Query entire job instead")]
 		[Route("/api/v1/jobs/{jobId}/batches/{batchId}")]
 		public async Task<ActionResult> UpdateBatchAsync(JobId jobId, JobStepBatchId batchId, [FromBody] UpdateBatchRequest request)
 		{
@@ -1181,6 +1188,7 @@ namespace Horde.Server.Jobs
 		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		/// <returns>List of nodes to be executed</returns>
 		[HttpGet]
+		[Obsolete("Query entire job instead")]
 		[Route("/api/v1/jobs/{jobId}/batches/{batchId}")]
 		[ProducesResponseType(typeof(GetBatchResponse), 200)]
 		public async Task<ActionResult<object>> GetBatchAsync(JobId jobId, JobStepBatchId batchId, [FromQuery] PropertyFilter? filter = null, CancellationToken cancellationToken = default)
@@ -1223,6 +1231,7 @@ namespace Horde.Server.Jobs
 		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		/// <returns>List of nodes to be executed</returns>
 		[HttpGet]
+		[Obsolete("Query entire job instead")]
 		[Route("/api/v1/jobs/{jobId}/batches/{batchId}/steps")]
 		[ProducesResponseType(typeof(List<GetStepResponse>), 200)]
 		public async Task<ActionResult<List<object>>> GetStepsAsync(JobId jobId, JobStepBatchId batchId, [FromQuery] PropertyFilter? filter = null, CancellationToken cancellationToken = default)
@@ -1357,6 +1366,7 @@ namespace Horde.Server.Jobs
 		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		/// <returns>List of nodes to be executed</returns>
 		[HttpGet]
+		[Obsolete("Query entire job instead")]
 		[Route("/api/v1/jobs/{jobId}/batches/{batchId}/steps/{stepId}")]
 		[ProducesResponseType(typeof(GetStepResponse), 200)]
 		public async Task<ActionResult<object>> GetStepAsync(JobId jobId, JobStepBatchId batchId, JobStepId stepId, [FromQuery] PropertyFilter? filter = null, CancellationToken cancellationToken = default)

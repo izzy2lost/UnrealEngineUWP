@@ -1161,6 +1161,7 @@ namespace Horde.Agent.Execution
 					artifactRequest.Name = graphArtifact.Name;
 					artifactRequest.Type = graphArtifact.Type;
 					artifactRequest.Description = graphArtifact.Description;
+					artifactRequest.Keys.AddRange(graphArtifact.Keys);
 
 					CreateJobArtifactResponseV2 artifact = await jobRpc.Client.CreateArtifactV2Async(artifactRequest, cancellationToken: cancellationToken);
 					logger.LogInformation("Created artifact {ArtifactId} '{ArtifactName}' ({ArtifactType}) with ref {RefName} ({RefUrl})", artifact.Id, artifactRequest.Name, ArtifactType.StepOutput, artifact.RefName, $"{Session.ServerUrl.ToString().TrimEnd('/')}/api/v1/storage/{artifact.NamespaceId}/refs/{artifact.RefName}");

@@ -114,6 +114,7 @@ namespace Horde.Server.Jobs
 			List<string> keys = new List<string>();
 			keys.Add(job.GetArtifactKey());
 			keys.Add(job.GetArtifactKey(step));
+			keys.AddRange(request.Keys);
 
 			if (!_globalConfig.TryGetTemplate(job.StreamId, job.TemplateId, out TemplateRefConfig? templateConfig))
 			{

@@ -160,6 +160,7 @@ namespace Horde.Server.Tools
 	/// Public methods available without authorization (or with very custom authorization)
 	/// </summary>
 	[ApiController]
+	[Tags("Tools")]
 	public class PublicToolsController : HordeControllerBase
 	{
 		readonly IToolCollection _toolCollection;

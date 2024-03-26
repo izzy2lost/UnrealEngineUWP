@@ -24,6 +24,11 @@ namespace Horde.Server.Ddc
 			_globalConfig = globalConfig.Value;
 		}
 
+		public Task<ActionResult?> HasAccessForGlobalOperationsAsync(ClaimsPrincipal user, AclAction[] aclActions)
+		{
+			throw new System.NotImplementedException();
+		}
+
 		public Task<ActionResult?> HasAccessToNamespaceAsync(ClaimsPrincipal user, HttpRequest request, NamespaceId ns, AclAction[] aclActions)
 		{
 			using IStorageClient? storageClient = _storageClientFactory.TryCreateClient(ns);

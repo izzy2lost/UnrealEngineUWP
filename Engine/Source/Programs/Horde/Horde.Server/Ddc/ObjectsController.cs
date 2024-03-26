@@ -7,12 +7,10 @@ using System.ComponentModel.DataAnnotations;
 using System.Linq;
 using System.Net;
 using System.Net.Mime;
-using System.Threading;
 using System.Threading.Tasks;
 using EpicGames.AspNet;
 using EpicGames.Horde.Storage;
 using EpicGames.Serialization;
-using Horde.Server.Storage;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Logging;
@@ -27,16 +25,17 @@ namespace Horde.Server.Ddc
 	[Route("api/v1/objects", Order = 0)]
 	[Authorize]
 	[Produces(CustomMediaTypeNames.UnrealCompactBinary, MediaTypeNames.Application.Json)]
-	public class ObjectsController : ControllerBase
+	public class ObjectController : ControllerBase
 	{
 		private readonly IBlobService _storage;
 		private readonly IDiagnosticContext _diagnosticContext;
 		private readonly IRequestHelper _requestHelper;
 		private readonly IReferenceResolver _referenceResolver;
 		private readonly BufferedPayloadFactory _bufferedPayloadFactory;
+
 		private readonly ILogger _logger;
 
-		public ObjectsController(IBlobService storage, IDiagnosticContext diagnosticContext, IRequestHelper requestHelper, IReferenceResolver referenceResolver, BufferedPayloadFactory bufferedPayloadFactory, ILogger<ObjectsController> logger)
+		public ObjectController(IBlobService storage, IDiagnosticContext diagnosticContext, IRequestHelper requestHelper, IReferenceResolver referenceResolver, BufferedPayloadFactory bufferedPayloadFactory, ILogger<ObjectController> logger)
 		{
 			_storage = storage;
 			_diagnosticContext = diagnosticContext;
@@ -52,7 +51,7 @@ namespace Horde.Server.Ddc
 			[Required] NamespaceId ns,
 			[Required] BlobId id)
 		{
-			ActionResult? result = await _requestHelper.HasAccessToNamespaceAsync(User, Request, ns, new[] { StorageAclAction.ReadBlobs });
+			ActionResult? result = await _requestHelper.HasAccessToNamespaceAsync(User, Request, ns, new[] { JupiterAclAction.ReadObject });
 			if (result != null)
 			{
 				return result;
@@ -76,7 +75,7 @@ namespace Horde.Server.Ddc
 			[Required] NamespaceId ns,
 			[Required] BlobId id)
 		{
-			ActionResult? result = await _requestHelper.HasAccessToNamespaceAsync(User, Request, ns, new[] { StorageAclAction.ReadBlobs });
+			ActionResult? result = await _requestHelper.HasAccessToNamespaceAsync(User, Request, ns, new[] { JupiterAclAction.ReadObject });
 			if (result != null)
 			{
 				return result;
@@ -98,7 +97,7 @@ namespace Horde.Server.Ddc
 			[Required] NamespaceId ns,
 			[Required][FromQuery] List<BlobId> id)
 		{
-			ActionResult? result = await _requestHelper.HasAccessToNamespaceAsync(User, Request, ns, new[] { StorageAclAction.ReadBlobs });
+			ActionResult? result = await _requestHelper.HasAccessToNamespaceAsync(User, Request, ns, new[] { JupiterAclAction.ReadObject });
 			if (result != null)
 			{
 				return result;
@@ -124,7 +123,7 @@ namespace Horde.Server.Ddc
 			[Required] NamespaceId ns,
 			[FromBody] BlobId[] bodyIds)
 		{
-			ActionResult? result = await _requestHelper.HasAccessToNamespaceAsync(User, Request, ns, new[] { StorageAclAction.ReadBlobs });
+			ActionResult? result = await _requestHelper.HasAccessToNamespaceAsync(User, Request, ns, new[] { JupiterAclAction.ReadObject });
 			if (result != null)
 			{
 				return result;
@@ -148,10 +147,9 @@ namespace Horde.Server.Ddc
 		[RequiredContentType(CustomMediaTypeNames.UnrealCompactBinary)]
 		public async Task<IActionResult> PutAsync(
 			[Required] NamespaceId ns,
-			[Required] BlobId id,
-			CancellationToken cancellationToken)
+			[Required] BlobId id)
 		{
-			ActionResult? result = await _requestHelper.HasAccessToNamespaceAsync(User, Request, ns, new[] { StorageAclAction.WriteBlobs });
+			ActionResult? result = await _requestHelper.HasAccessToNamespaceAsync(User, Request, ns, new[] { JupiterAclAction.WriteObject });
 			if (result != null)
 			{
 				return result;
@@ -160,9 +158,9 @@ namespace Horde.Server.Ddc
 			_diagnosticContext.Set("Content-Length", Request.ContentLength ?? -1);
 			try
 			{
-				using BufferedPayload payload = await _bufferedPayloadFactory.CreateFromRequestAsync(Request);
+				using IBufferedPayload payload = await _bufferedPayloadFactory.CreateFromRequestAsync(Request, HttpContext.RequestAborted);
 
-				BlobId identifier = await _storage.PutObjectAsync(ns, payload, id, cancellationToken);
+				BlobId identifier = await _storage.PutObjectAsync(ns, payload, id, HttpContext.RequestAborted);
 				return Ok(new PutBlobResponse(identifier));
 			}
 			catch (ClientSendSlowException e)
@@ -176,7 +174,7 @@ namespace Horde.Server.Ddc
 			[Required] NamespaceId ns,
 			[Required] BlobId id)
 		{
-			ActionResult? result = await _requestHelper.HasAccessToNamespaceAsync(User, Request, ns, new[] { StorageAclAction.ReadBlobs });
+			ActionResult? result = await _requestHelper.HasAccessToNamespaceAsync(User, Request, ns, new[] { JupiterAclAction.ReadObject });
 			if (result != null)
 			{
 				return result;
@@ -215,12 +213,46 @@ namespace Horde.Server.Ddc
 			}
 			catch (PartialReferenceResolveException e)
 			{
-				return BadRequest(new ValidationProblemDetails { Title = $"Object {id} is missing content ids", Detail = $"Following content ids are invalid: {String.Join(",", e.UnresolvedReferences)}" });
+				return BadRequest(new ValidationProblemDetails { Title = $"Object {id} is missing content ids", Detail = $"Following content ids are invalid: {string.Join(",", e.UnresolvedReferences)}" });
 			}
 			catch (ReferenceIsMissingBlobsException e)
 			{
-				return BadRequest(new ValidationProblemDetails { Title = $"Object {id} is missing blobs", Detail = $"Following blobs are missing: {String.Join(",", e.MissingBlobs)}" });
+				return BadRequest(new ValidationProblemDetails { Title = $"Object {id} is missing blobs", Detail = $"Following blobs are missing: {string.Join(",", e.MissingBlobs)}" });
 			}
+		}
+
+		[HttpDelete("{ns}/{id}")]
+		public async Task<IActionResult> DeleteAsync(
+			[Required] NamespaceId ns,
+			[Required] BlobId id)
+		{
+			ActionResult? result = await _requestHelper.HasAccessToNamespaceAsync(User, Request, ns, new[] { JupiterAclAction.DeleteObject });
+			if (result != null)
+			{
+				return result;
+			}
+
+			await _storage.DeleteObjectAsync(ns, id, HttpContext.RequestAborted);
+
+			return Ok(new DeletedResponse
+			{
+				DeletedCount = 1
+			});
+		}
+
+		[HttpDelete("{ns}")]
+		public async Task<IActionResult> DeleteNamespaceAsync(
+			[Required] NamespaceId ns)
+		{
+			ActionResult? result = await _requestHelper.HasAccessToNamespaceAsync(User, Request, ns, new[] { JupiterAclAction.DeleteNamespace });
+			if (result != null)
+			{
+				return result;
+			}
+
+			await _storage.DeleteNamespaceAsync(ns, HttpContext.RequestAborted);
+
+			return Ok();
 		}
 	}
 
@@ -228,6 +260,7 @@ namespace Horde.Server.Ddc
 	{
 		public PutBlobResponse()
 		{
+			Identifier = null!;
 		}
 
 		public PutBlobResponse(BlobId identifier)

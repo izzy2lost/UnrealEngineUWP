@@ -11,6 +11,7 @@ namespace Horde.Server.Ddc
 	public sealed class BlobContents : IDisposable, IAsyncDisposable
 	{
 		private readonly Stream? _stream;
+		private readonly IBufferedPayload? _bufferedPayload;
 
 		public BlobContents(Stream stream, long length, string? localPath = null)
 		{
@@ -24,6 +25,14 @@ namespace Horde.Server.Ddc
 		{
 			_stream = new MemoryStream(payload);
 			Length = payload.LongLength;
+			LocalPath = null;
+		}
+
+		public BlobContents(IBufferedPayload payload)
+		{
+			_bufferedPayload = payload;
+			_stream = _bufferedPayload.GetStream();
+			Length = payload.Length;
 			LocalPath = null;
 		}
 
@@ -52,7 +61,9 @@ namespace Horde.Server.Ddc
 		public void Dispose()
 		{
 			_stream?.Dispose();
+			_bufferedPayload?.Dispose();
 		}
+
 		public ValueTask DisposeAsync()
 		{
 			_stream?.Dispose();

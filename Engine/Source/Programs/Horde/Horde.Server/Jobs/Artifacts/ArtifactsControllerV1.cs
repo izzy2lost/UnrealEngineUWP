@@ -30,6 +30,7 @@ namespace Horde.Server.Jobs.Artifacts
 	/// Controller for the /api/artifacts endpoint
 	/// </summary>
 	[ApiController]
+	[Obsolete("Use /api/v2/artifacts instead")]
 	[Route("[controller]")]
 	public class ArtifactsControllerV1 : ControllerBase
 	{

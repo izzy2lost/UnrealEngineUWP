@@ -18,7 +18,6 @@ using EpicGames.Core;
 using EpicGames.Horde.Acls;
 using EpicGames.Horde.Storage;
 using EpicGames.Serialization;
-using Horde.Server.Storage;
 using JetBrains.Annotations;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
@@ -26,6 +25,7 @@ using Microsoft.AspNetCore.Http.Extensions;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Primitives;
 using OpenTelemetry.Trace;
 
 #pragma warning disable CS1591
@@ -38,8 +38,9 @@ namespace Horde.Server.Ddc
 	[FormatFilter]
 	[Produces(MediaTypeNames.Application.Json, MediaTypeNames.Application.Octet, CustomMediaTypeNames.UnrealCompactBinary)]
 	[Route("api/v1/refs")]
+	[Tags("DDC Refs")]
 	[Authorize]
-	public class RefsController : ControllerBase
+	public class ReferencesController : ControllerBase
 	{
 		private readonly IDiagnosticContext _diagnosticContext;
 		private readonly FormatResolver _formatResolver;
@@ -53,9 +54,9 @@ namespace Horde.Server.Ddc
 		private readonly IRefService _refService;
 		private readonly IBlobService _blobStore;
 
-		public RefsController(IRefService objectService, IBlobService blobStore, IDiagnosticContext diagnosticContext, FormatResolver formatResolver, BufferedPayloadFactory bufferedPayloadFactory, IReferenceResolver referenceResolver, NginxRedirectHelper nginxRedirectHelper, IRequestHelper requestHelper, Tracer tracer, ILogger<RefsController> logger)
+		public ReferencesController(IRefService refService, IBlobService blobStore, IDiagnosticContext diagnosticContext, FormatResolver formatResolver, BufferedPayloadFactory bufferedPayloadFactory, IReferenceResolver referenceResolver, NginxRedirectHelper nginxRedirectHelper, IRequestHelper requestHelper, Tracer tracer, ILogger<ReferencesController> logger)
 		{
-			_refService = objectService;
+			_refService = refService;
 			_blobStore = blobStore;
 			_diagnosticContext = diagnosticContext;
 			_formatResolver = formatResolver;
@@ -65,6 +66,31 @@ namespace Horde.Server.Ddc
 			_requestHelper = requestHelper;
 			_tracer = tracer;
 			_logger = logger;
+		}
+
+		/// <summary>
+		/// Returns all the known namespace the token has access to
+		/// </summary>
+		/// <returns></returns>
+		[HttpGet("")]
+		[ProducesDefaultResponseType]
+		[ProducesResponseType(type: typeof(ProblemDetails), 400)]
+		public async Task<IActionResult> GetNamespacesAsync()
+		{
+			NamespaceId[] namespaces = await _refService.GetNamespacesAsync(HttpContext.RequestAborted).ToArrayAsync(HttpContext.RequestAborted);
+
+			// filter namespaces down to only the namespaces the user has access to
+			List<NamespaceId> namespacesWithAccess = new();
+			foreach (NamespaceId ns in namespaces)
+			{
+				ActionResult? accessResult = await _requestHelper.HasAccessToNamespaceAsync(User, Request, ns, new[] { JupiterAclAction.ReadObject });
+				if (accessResult == null)
+				{
+					namespacesWithAccess.Add(ns);
+				}
+			}
+
+			return Ok(new GetNamespacesResponse(namespacesWithAccess.ToArray()));
 		}
 
 		/// <summary>
@@ -82,7 +108,7 @@ namespace Horde.Server.Ddc
 			[FromRoute][Required] RefId key,
 			[FromRoute] string? format = null)
 		{
-			ActionResult? accessResult = await _requestHelper.HasAccessToNamespaceAsync(User, Request, ns, new[] { StorageAclAction.ReadRefs });
+			ActionResult? accessResult = await _requestHelper.HasAccessToNamespaceAsync(User, Request, ns, new[] { JupiterAclAction.ReadObject });
 			if (accessResult != null)
 			{
 				return accessResult;
@@ -209,7 +235,7 @@ namespace Horde.Server.Ddc
 							byte[] blobMemory = await blob.Stream.ToByteArrayAsync(HttpContext.RequestAborted);
 							CbObject cb = new CbObject(blobMemory);
 
-							IAsyncEnumerable<Attachment> attachments = _referenceResolver.GetAttachmentsAsync(ns, cb);
+							IAsyncEnumerable<Attachment> attachments = _referenceResolver.GetAttachmentsAsync(ns, cb, HttpContext.RequestAborted);
 
 							using CbPackageBuilder writer = new CbPackageBuilder();
 							writer.AddAttachment(objectRecord.BlobIdentifier.AsIoHash(), CbPackageAttachmentFlags.IsObject, blobMemory);
@@ -225,19 +251,19 @@ namespace Horde.Server.Ddc
 									if (attachment is BlobAttachment blobAttachment)
 									{
 										BlobId referencedBlob = blobAttachment.Identifier;
-										attachmentContents = await _blobStore.GetObjectAsync(ns, referencedBlob, cancellationToken: token);
+										attachmentContents = await _blobStore.GetObjectAsync(ns, referencedBlob, cancellationToken: HttpContext.RequestAborted);
 									}
 									else if (attachment is ObjectAttachment objectAttachment)
 									{
 										flags |= CbPackageAttachmentFlags.IsObject;
 										BlobId referencedBlob = objectAttachment.Identifier;
-										attachmentContents = await _blobStore.GetObjectAsync(ns, referencedBlob, cancellationToken: token);
+										attachmentContents = await _blobStore.GetObjectAsync(ns, referencedBlob, cancellationToken: HttpContext.RequestAborted);
 									}
 									else if (attachment is ContentIdAttachment contentIdAttachment)
 									{
 
 										ContentId contentId = contentIdAttachment.Identifier;
-										(attachmentContents, string mime) = await _blobStore.GetCompressedObjectAsync(ns, contentId, HttpContext.RequestServices, cancellationToken: token);
+										(attachmentContents, string mime) = await _blobStore.GetCompressedObjectAsync(ns, contentId, HttpContext.RequestServices, cancellationToken: HttpContext.RequestAborted);
 										if (mime == CustomMediaTypeNames.UnrealCompressedBuffer)
 										{
 											flags |= CbPackageAttachmentFlags.IsCompressed;
@@ -341,6 +367,8 @@ namespace Horde.Server.Ddc
 									}
 									catch (Exception ex)
 									{
+										Tracer.CurrentSpan.SetStatus(Status.Error);
+										Tracer.CurrentSpan.RecordException(ex);
 										_logger.LogError(ex, "Unknown exception encountered while writing body for jupiter inlined payload.");
 										throw;
 									}
@@ -411,7 +439,7 @@ namespace Horde.Server.Ddc
 			[FromRoute][Required] RefId key,
 			[FromQuery] string[] fields)
 		{
-			ActionResult? accessResult = await _requestHelper.HasAccessToNamespaceAsync(User, Request, ns, new[] { StorageAclAction.ReadRefs });
+			ActionResult? accessResult = await _requestHelper.HasAccessToNamespaceAsync(User, Request, ns, new[] { JupiterAclAction.ReadObject });
 			if (accessResult != null)
 			{
 				return accessResult;
@@ -452,7 +480,7 @@ namespace Horde.Server.Ddc
 			[FromRoute][Required] BucketId bucket,
 			[FromRoute][Required] RefId key)
 		{
-			ActionResult? accessResult = await _requestHelper.HasAccessToNamespaceAsync(User, Request, ns, new[] { StorageAclAction.ReadRefs });
+			ActionResult? accessResult = await _requestHelper.HasAccessToNamespaceAsync(User, Request, ns, new[] { JupiterAclAction.ReadObject });
 			if (accessResult != null)
 			{
 				return accessResult;
@@ -480,7 +508,7 @@ namespace Horde.Server.Ddc
 
 				// we have to verify the blobs are available locally, as the record of the key is replicated a head of the content
 				// TODO: Once we support inline replication this step is not needed as at least one region as this blob, just maybe not this current one
-				BlobId[] unknownBlobs = await _blobStore.FilterOutKnownBlobsAsync(ns, new BlobId[] { record.BlobIdentifier });
+				BlobId[] unknownBlobs = await _blobStore.FilterOutKnownBlobsAsync(ns, new BlobId[] { record.BlobIdentifier }, HttpContext.RequestAborted);
 				if (unknownBlobs.Length != 0)
 				{
 					return NotFound(new ProblemDetails { Title = $"Object {bucket} {key} in namespace {ns} had at least one missing blob." });
@@ -516,7 +544,7 @@ namespace Horde.Server.Ddc
 			[FromRoute][Required] NamespaceId ns,
 			[FromQuery][Required] List<string> names)
 		{
-			ActionResult? accessResult = await _requestHelper.HasAccessToNamespaceAsync(User, Request, ns, new[] { StorageAclAction.ReadRefs });
+			ActionResult? accessResult = await _requestHelper.HasAccessToNamespaceAsync(User, Request, ns, new[] { JupiterAclAction.ReadObject });
 			if (accessResult != null)
 			{
 				return accessResult;
@@ -534,7 +562,7 @@ namespace Horde.Server.Ddc
 				}
 
 				BucketId bucket = new BucketId(name.Substring(0, separatorIndex));
-				RefId key = RefId.Parse(name.Substring(separatorIndex + 1));
+				RefId key = new RefId(name.Substring(separatorIndex + 1));
 				requestedNames.Add((bucket, key));
 			}
 
@@ -583,10 +611,9 @@ namespace Horde.Server.Ddc
 		public async Task<IActionResult> PutObjectAsync(
 			[FromRoute][Required] NamespaceId ns,
 			[FromRoute][Required] BucketId bucket,
-			[FromRoute][Required] RefId key,
-			CancellationToken cancellationToken)
+			[FromRoute][Required] RefId key)
 		{
-			ActionResult? accessResult = await _requestHelper.HasAccessToNamespaceAsync(User, Request, ns, new[] { StorageAclAction.WriteRefs });
+			ActionResult? accessResult = await _requestHelper.HasAccessToNamespaceAsync(User, Request, ns, new[] { JupiterAclAction.WriteObject });
 			if (accessResult != null)
 			{
 				return accessResult;
@@ -599,18 +626,22 @@ namespace Horde.Server.Ddc
 
 			try
 			{
-				using BufferedPayload payload = await _bufferedPayloadFactory.CreateFromRequestAsync(Request);
-
-				string? hashHeaderValue = null;
-				if (Request.Headers.ContainsKey(CommonHeaders.HashHeaderName))
-				{
-					hashHeaderValue = Request.Headers[CommonHeaders.HashHeaderName];
-				}
+				using IBufferedPayload payload = await _bufferedPayloadFactory.CreateFromRequestAsync(Request, HttpContext.RequestAborted);
 
 				BlobId headerHash;
-				if (!String.IsNullOrEmpty(hashHeaderValue))
+				if (Request.Headers.TryGetValue(CommonHeaders.HashHeaderName, out StringValues headers))
 				{
-					headerHash = BlobId.Parse(hashHeaderValue);
+					if (!StringValues.IsNullOrEmpty(headers))
+					{
+						headerHash = new BlobId(headers.ToString());
+					}
+					else
+					{
+						return BadRequest(new ProblemDetails
+						{
+							Title = $"Header {CommonHeaders.HashHeaderName} was empty"
+						});
+					}
 				}
 				else
 				{
@@ -628,7 +659,7 @@ namespace Horde.Server.Ddc
 						{
 							// TODO: define a scheme for how a json object specifies references
 
-							blobHeader = await _blobStore.PutObjectAsync(ns, payload, headerHash, cancellationToken);
+							blobHeader = await _blobStore.PutObjectAsync(ns, payload, headerHash, HttpContext.RequestAborted);
 
 							// TODO: convert the json object into a compact binary instead
 							CbWriter writer = new CbWriter();
@@ -645,13 +676,13 @@ namespace Horde.Server.Ddc
 						{
 							await using MemoryStream ms = new MemoryStream();
 							await using Stream payloadStream = payload.GetStream();
-							await payloadStream.CopyToAsync(ms, cancellationToken);
+							await payloadStream.CopyToAsync(ms);
 							payloadObject = new CbObject(ms.ToArray());
 							break;
 						}
 					case MediaTypeNames.Application.Octet:
 						{
-							blobHeader = await _blobStore.PutObjectAsync(ns, payload, headerHash, cancellationToken);
+							blobHeader = await _blobStore.PutObjectAsync(ns, payload, headerHash, HttpContext.RequestAborted);
 
 							CbWriter writer = new CbWriter();
 							writer.BeginObject();
@@ -680,12 +711,17 @@ namespace Horde.Server.Ddc
 				return Problem(e.Message, null, (int)HttpStatusCode.RequestTimeout);
 			}
 
-			(ContentId[] missingReferences, BlobId[] missingBlobs) = await _refService.PutAsync(ns, bucket, key, blobHeader, payloadObject, cancellationToken);
+			(ContentId[] missingReferences, BlobId[] missingBlobs) = await _refService.PutAsync(ns, bucket, key, blobHeader, payloadObject, HttpContext.RequestAborted);
 
-			List<IoHash> missingHashes = new List<IoHash>();
-			missingHashes.AddRange(missingReferences.Select(x => x.Hash));
-			missingHashes.AddRange(missingBlobs.Select(x => x.Hash));
-			return Ok(new PutObjectResponse(missingHashes.ToArray()));
+			{
+				using TelemetrySpan scope = _tracer.StartActiveSpan("ref.put").SetAttribute("operation.name", "ref.put");
+
+				List<ContentHash> missingHashes = new List<ContentHash>(missingReferences);
+				missingHashes.AddRange(missingBlobs);
+				ContentHash[] missingArray = missingHashes.ToArray();
+				scope.SetAttribute("NeedsCount", missingArray.Length);
+				return Ok(new PutObjectResponse(missingArray));
+			}
 		}
 
 		[HttpPut("{ns}/{bucket}/{key}", Order = 300)]
@@ -694,10 +730,9 @@ namespace Horde.Server.Ddc
 		public async Task<IActionResult> PutPackageAsync(
 			[FromRoute][Required] NamespaceId ns,
 			[FromRoute][Required] BucketId bucket,
-			[FromRoute][Required] RefId key,
-			CancellationToken cancellationToken)
+			[FromRoute][Required] RefId key)
 		{
-			ActionResult? accessResult = await _requestHelper.HasAccessToNamespaceAsync(User, Request, ns, new[] { StorageAclAction.WriteRefs });
+			ActionResult? accessResult = await _requestHelper.HasAccessToNamespaceAsync(User, Request, ns, new[] { JupiterAclAction.WriteObject });
 			if (accessResult != null)
 			{
 				return accessResult;
@@ -705,7 +740,7 @@ namespace Horde.Server.Ddc
 
 			_diagnosticContext.Set("Content-Length", Request.ContentLength ?? -1);
 
-			byte[] b = await ReadRawBodyAsync(Request);
+			byte[] b = await RequestUtil.ReadRawBodyAsync(Request);
 			CbPackageReader packageReader = await CbPackageReader.Create(new MemoryStream(b));
 
 			try
@@ -721,14 +756,14 @@ namespace Horde.Server.Ddc
 					}
 					if (entry.Flags.HasFlag(CbPackageAttachmentFlags.IsCompressed))
 					{
-#pragma warning disable CA2000 // False positive for not disposing payload
+#pragma warning disable CA2000 // Dispose objects before losing scope
 						using MemoryBufferedPayload payload = new MemoryBufferedPayload(blob);
-#pragma warning restore CA2000
-						await _blobStore.PutCompressedObjectAsync(ns, payload, ContentId.FromIoHash(entry.AttachmentHash), HttpContext.RequestServices, cancellationToken);
+#pragma warning restore CA2000 // Dispose objects before losing scope
+						await _blobStore.PutCompressedObjectAsync(ns, payload, ContentId.FromIoHash(entry.AttachmentHash), HttpContext.RequestServices, HttpContext.RequestAborted);
 					}
 					else
 					{
-						await _blobStore.PutObjectAsync(ns, blob, BlobId.FromIoHash(entry.AttachmentHash), cancellationToken);
+						await _blobStore.PutObjectAsync(ns, blob, BlobId.FromIoHash(entry.AttachmentHash), HttpContext.RequestAborted);
 					}
 				}
 			}
@@ -743,34 +778,11 @@ namespace Horde.Server.Ddc
 			CbObject rootObject = packageReader.RootObject;
 			BlobId rootObjectHash = BlobId.FromIoHash(packageReader.RootHash);
 
-			(ContentId[] missingReferences, BlobId[] missingBlobs) = await _refService.PutAsync(ns, bucket, key, rootObjectHash, rootObject, cancellationToken);
-			return Ok(new PutObjectResponse(missingReferences, missingBlobs));
-		}
+			(ContentId[] missingReferences, BlobId[] missingBlobs) = await _refService.PutAsync(ns, bucket, key, rootObjectHash, rootObject, HttpContext.RequestAborted);
 
-		static async Task<byte[]> ReadRawBodyAsync(HttpRequest request)
-		{
-			long? contentLength = request.GetTypedHeaders().ContentLength;
-
-			if (contentLength == null)
-			{
-				throw new Exception("Expected content-length on all raw body requests");
-			}
-
-			Tracer? tracer = request.HttpContext.RequestServices.GetService<Tracer>();
-			using TelemetrySpan? scope = tracer?.StartActiveSpan("readbody")
-				.SetAttribute("operation.name", "readbody")
-				.SetAttribute("Content-Length", contentLength.Value);
-
-			await using MemoryStream ms = new MemoryStream((int)contentLength);
-			DateTime readStart = DateTime.Now;
-			await request.Body.CopyToAsync(ms);
-			TimeSpan duration = DateTime.Now - readStart;
-
-#if WITH_DOGSTATSD
-			double rate = contentLength.Value / duration.TotalSeconds;
-            StatsdClient.DogStatsd.Histogram("jupiter.stream_throughput", rate, tags: new string[] {"sourceIdentifier:" + "readbody"});
-#endif
-			return ms.GetBuffer();
+			List<ContentHash> missingHashes = new List<ContentHash>(missingReferences);
+			missingHashes.AddRange(missingBlobs);
+			return Ok(new PutObjectResponse(missingHashes.ToArray()));
 		}
 
 		[HttpPost("{ns}/{bucket}/{key}/finalize/{hash}.{format?}")]
@@ -780,7 +792,7 @@ namespace Horde.Server.Ddc
 			[FromRoute][Required] RefId key,
 			[FromRoute][Required] BlobId hash)
 		{
-			ActionResult? accessResult = await _requestHelper.HasAccessToNamespaceAsync(User, Request, ns, new[] { StorageAclAction.WriteRefs });
+			ActionResult? accessResult = await _requestHelper.HasAccessToNamespaceAsync(User, Request, ns, new[] { JupiterAclAction.WriteObject });
 			if (accessResult != null)
 			{
 				return accessResult;
@@ -788,8 +800,11 @@ namespace Horde.Server.Ddc
 
 			try
 			{
-				(ContentId[] missingReferences, BlobId[] missingBlobs) = await _refService.FinalizeAsync(ns, bucket, key, hash);
-				return Ok(new PutObjectResponse(missingReferences, missingBlobs));
+				(ContentId[] missingReferences, BlobId[] missingBlobs) = await _refService.FinalizeAsync(ns, bucket, key, hash, HttpContext.RequestAborted);
+				List<ContentHash> missingHashes = new List<ContentHash>(missingReferences);
+				missingHashes.AddRange(missingBlobs);
+
+				return Ok(new PutObjectResponse(missingHashes.ToArray()));
 			}
 			catch (ObjectHashMismatchException e)
 			{
@@ -804,20 +819,21 @@ namespace Horde.Server.Ddc
 		[HttpPost("{ns}")]
 		[Consumes(CustomMediaTypeNames.UnrealCompactBinary)]
 		[Produces(CustomMediaTypeNames.UnrealCompactBinary)]
+		[ApiExplorerSettings(IgnoreApi = true)]
 		public async Task<IActionResult> BatchAsync(
 			[FromRoute][Required] NamespaceId ns,
-			[FromBody][Required] RefBatchOps ops)
+			[FromBody][Required] BatchOps ops)
 		{
-			AclAction ActionForOp(RefBatchOps.RefBatchOp.RefOperation op)
+			AclAction ActionForOp(BatchOps.BatchOp.Operation op)
 			{
 				switch (op)
 				{
-					case RefBatchOps.RefBatchOp.RefOperation.GET:
-						return StorageAclAction.ReadRefs;
-					case RefBatchOps.RefBatchOp.RefOperation.PUT:
-						return StorageAclAction.WriteRefs;
-					case RefBatchOps.RefBatchOp.RefOperation.HEAD:
-						return StorageAclAction.ReadRefs;
+					case BatchOps.BatchOp.Operation.GET:
+						return JupiterAclAction.ReadObject;
+					case BatchOps.BatchOp.Operation.PUT:
+						return JupiterAclAction.WriteObject;
+					case BatchOps.BatchOp.Operation.HEAD:
+						return JupiterAclAction.ReadObject;
 					default:
 						throw new ArgumentOutOfRangeException(nameof(op), op, null);
 				}
@@ -832,7 +848,7 @@ namespace Horde.Server.Ddc
 			}
 
 			HashSet<uint> usedOpIds = new HashSet<uint>();
-			foreach (RefBatchOps.RefBatchOp batchOp in ops.Ops)
+			foreach (BatchOps.BatchOp batchOp in ops.Ops)
 			{
 				bool added = usedOpIds.Add(batchOp.OpId);
 				if (!added)
@@ -842,7 +858,7 @@ namespace Horde.Server.Ddc
 			}
 			ConcurrentDictionary<uint, (CbObject, HttpStatusCode)> results = new();
 
-			async Task<(CbObject, HttpStatusCode)> BatchGetOp(RefBatchOps.RefBatchOp op)
+			async Task<(CbObject, HttpStatusCode)> BatchGetOp(BatchOps.BatchOp op)
 			{
 				try
 				{
@@ -850,7 +866,7 @@ namespace Horde.Server.Ddc
 
 					if (!objectRecord.IsFinalized)
 					{
-						throw new Exception("Object is not finalized");
+						return ToErrorResult("object not finalized", HttpStatusCode.BadRequest);
 					}
 
 					if (blob == null)
@@ -874,11 +890,13 @@ namespace Horde.Server.Ddc
 				}
 				catch (Exception e)
 				{
+					Tracer.CurrentSpan.SetStatus(Status.Error);
+					Tracer.CurrentSpan.RecordException(e);
 					return ToErrorResult(e);
 				}
 			}
 
-			async Task<(CbObject, HttpStatusCode)> BatchHeadOp(RefBatchOps.RefBatchOp op)
+			async Task<(CbObject, HttpStatusCode)> BatchHeadOp(BatchOps.BatchOp op)
 			{
 				try
 				{
@@ -917,7 +935,7 @@ namespace Horde.Server.Ddc
 				}
 			}
 
-			async Task<(CbObject, HttpStatusCode)> BatchPutOp(RefBatchOps.RefBatchOp op)
+			async Task<(CbObject, HttpStatusCode)> BatchPutOp(BatchOps.BatchOp op)
 			{
 				try
 				{
@@ -930,17 +948,18 @@ namespace Horde.Server.Ddc
 					{
 						throw new Exception($"Missing payload hash for operation: {op.OpId}");
 					}
-
-					IoHash headerHash = op.PayloadHash.Value;
-					IoHash objectHash = IoHash.Compute(op.Payload.GetView().Span);
+					BlobId headerHash = BlobId.FromContentHash(op.PayloadHash);
+					BlobId objectHash = BlobId.FromBlob(op.Payload.GetView().ToArray());
 
 					if (!headerHash.Equals(objectHash))
 					{
-						throw new HashMismatchException(op.PayloadHash.Value, objectHash);
+						throw new HashMismatchException(headerHash, objectHash);
 					}
 
-					(ContentId[] missingReferences, BlobId[] missingBlobs) = await _refService.PutAsync(ns, op.Bucket, op.Key, new BlobId(objectHash), op.Payload);
-					return (CbSerializer.Serialize(new PutObjectResponse(missingReferences, missingBlobs)), HttpStatusCode.OK);
+					(ContentId[] missingReferences, BlobId[] missingBlobs) = await _refService.PutAsync(ns, op.Bucket, op.Key, objectHash, op.Payload, HttpContext.RequestAborted);
+					List<ContentHash> missingHashes = new List<ContentHash>(missingReferences);
+
+					return (CbSerializer.Serialize(new PutObjectResponse(missingHashes.ToArray())), HttpStatusCode.OK);
 				}
 				catch (Exception e)
 				{
@@ -952,16 +971,16 @@ namespace Horde.Server.Ddc
 			{
 				switch (op.Op)
 				{
-					case RefBatchOps.RefBatchOp.RefOperation.GET:
+					case BatchOps.BatchOp.Operation.GET:
 						results.TryAdd(op.OpId, await BatchGetOp(op));
 						break;
-					case RefBatchOps.RefBatchOp.RefOperation.PUT:
+					case BatchOps.BatchOp.Operation.PUT:
 						results.TryAdd(op.OpId, await BatchPutOp(op));
 						break;
-					case RefBatchOps.RefBatchOp.RefOperation.HEAD:
+					case BatchOps.BatchOp.Operation.HEAD:
 						results.TryAdd(op.OpId, await BatchHeadOp(op));
 						break;
-					case RefBatchOps.RefBatchOp.RefOperation.INVALID:
+					case BatchOps.BatchOp.Operation.INVALID:
 					default:
 						throw new NotImplementedException($"Unknown op type {op.Op}");
 				}
@@ -998,6 +1017,74 @@ namespace Horde.Server.Ddc
 			return (writer.ToObject(), statusCode);
 		}
 
+		private static (CbObject, HttpStatusCode) ToErrorResult(string message, HttpStatusCode statusCode = HttpStatusCode.InternalServerError)
+		{
+			CbWriter writer = new CbWriter();
+			writer.BeginObject();
+			writer.WriteString("title", message);
+			writer.WriteInteger("status", (int)statusCode);
+			writer.EndObject();
+			return (writer.ToObject(), statusCode);
+		}
+
+		/// <summary>
+		/// Drop all refs records in the namespace
+		/// </summary>
+		/// <param name="ns">Namespace. Each namespace is completely separated from each other. Use for different types of data that is never expected to be similar (between two different games for instance)</param>
+		[HttpDelete("{ns}", Order = 500)]
+		[ProducesResponseType(204)]
+		public async Task<IActionResult> DeleteNamespaceAsync(
+			[FromRoute][Required] NamespaceId ns
+		)
+		{
+			ActionResult? accessResult = await _requestHelper.HasAccessToNamespaceAsync(User, Request, ns, new[] { JupiterAclAction.DeleteNamespace });
+			if (accessResult != null)
+			{
+				return accessResult;
+			}
+
+			try
+			{
+				await _refService.DropNamespaceAsync(ns, HttpContext.RequestAborted);
+			}
+			catch (NamespaceNotFoundException e)
+			{
+				return NotFound(new ProblemDetails { Title = $"Namespace {e.Namespace} did not exist" });
+			}
+
+			return NoContent();
+		}
+
+		/// <summary>
+		/// Drop all refs records in the bucket
+		/// </summary>
+		/// <param name="ns">Namespace. Each namespace is completely separated from each other. Use for different types of data that is never expected to be similar (between two different games for instance)</param>
+		/// <param name="bucket">The category/type of record you are caching. Is a clustered key together with the actual key, but all records in the same bucket can be dropped easily.</param>
+		[HttpDelete("{ns}/{bucket}", Order = 500)]
+		[ProducesResponseType(200)]
+		public async Task<IActionResult> DeleteBucketAsync(
+			[FromRoute][Required] NamespaceId ns,
+			[FromRoute][Required] BucketId bucket)
+		{
+			ActionResult? accessResult = await _requestHelper.HasAccessToNamespaceAsync(User, Request, ns, new[] { JupiterAclAction.DeleteBucket });
+			if (accessResult != null)
+			{
+				return accessResult;
+			}
+
+			long countOfDeletedRecords;
+			try
+			{
+				countOfDeletedRecords = await _refService.DeleteBucketAsync(ns, bucket, HttpContext.RequestAborted);
+			}
+			catch (NamespaceNotFoundException e)
+			{
+				return NotFound(new ProblemDetails { Title = $"Namespace {e.Namespace} did not exist" });
+			}
+
+			return Ok(new BucketDeletedResponse(countOfDeletedRecords));
+		}
+
 		/// <summary>
 		/// Delete a individual refs key
 		/// </summary>
@@ -1012,7 +1099,7 @@ namespace Horde.Server.Ddc
 			[FromRoute][Required] BucketId bucket,
 			[FromRoute][Required] RefId key)
 		{
-			ActionResult? accessResult = await _requestHelper.HasAccessToNamespaceAsync(User, Request, ns, new[] { StorageAclAction.DeleteRefs });
+			ActionResult? accessResult = await _requestHelper.HasAccessToNamespaceAsync(User, Request, ns, new[] { JupiterAclAction.DeleteObject });
 			if (accessResult != null)
 			{
 				return accessResult;
@@ -1020,11 +1107,7 @@ namespace Horde.Server.Ddc
 
 			try
 			{
-				bool deleted = await _refService.DeleteAsync(ns, bucket, key);
-				if (!deleted)
-				{
-					return NotFound(new ProblemDetails { Title = $"Object {key} in bucket {bucket} and namespace {ns} did not exist" });
-				}
+				bool deleted = await _refService.DeleteAsync(ns, bucket, key, HttpContext.RequestAborted);
 				return Ok(new RefDeletedResponse(deleted ? 1 : 0));
 			}
 			catch (NamespaceNotFoundException e)
@@ -1033,7 +1116,7 @@ namespace Horde.Server.Ddc
 			}
 			catch (RefNotFoundException)
 			{
-				return NotFound(new ProblemDetails { Title = $"Object {key} in bucket {bucket} and namespace {ns} did not exist" });
+				return Ok(new RefDeletedResponse(0));
 			}
 		}
 	}
@@ -1070,23 +1153,23 @@ namespace Horde.Server.Ddc
 		public long CountOfDeletedRecords { get; set; }
 	}
 
-	public class RefBatchOps
+	public class BatchOps
 	{
-		public RefBatchOps()
+		public BatchOps()
 		{
-			Ops = Array.Empty<RefBatchOp>();
+			Ops = Array.Empty<BatchOp>();
 		}
 
 		[System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1034:Nested types should not be visible", Justification = "For serialization only")]
-		public class RefBatchOp
+		public class BatchOp
 		{
-			public RefBatchOp()
+			public BatchOp()
 			{
 				Payload = null;
 				PayloadHash = null;
 			}
 
-			public enum RefOperation
+			public enum Operation
 			{
 				INVALID,
 				GET,
@@ -1104,11 +1187,11 @@ namespace Horde.Server.Ddc
 			public string OpString
 			{
 				get => Op.ToString();
-				set => Op = Enum.Parse<RefOperation>(value);
+				set => Op = Enum.Parse<Operation>(value);
 			}
 
 			[Required]
-			public RefOperation Op { get; set; } = RefOperation.INVALID;
+			public Operation Op { get; set; } = Operation.INVALID;
 
 			[Required]
 			[CbField("bucket")]
@@ -1125,11 +1208,11 @@ namespace Horde.Server.Ddc
 			public CbObject? Payload { get; set; } = null;
 
 			[CbField("payloadHash")]
-			public IoHash? PayloadHash { get; set; } = null;
+			public ContentHash? PayloadHash { get; set; } = null;
 		}
 
 		[CbField("ops")]
-		public RefBatchOp[] Ops { get; set; }
+		public BatchOp[] Ops { get; set; }
 	}
 
 	public class BatchOpsResponse
@@ -1165,6 +1248,7 @@ namespace Horde.Server.Ddc
 	{
 		public RefMetadataResponse()
 		{
+			PayloadIdentifier = null!;
 			InlinePayload = null!;
 		}
 
@@ -1220,18 +1304,13 @@ namespace Horde.Server.Ddc
 			Needs = null!;
 		}
 
-		public PutObjectResponse(IoHash[] missingReferences)
+		public PutObjectResponse(ContentHash[] missingReferences)
 		{
 			Needs = missingReferences;
 		}
 
-		public PutObjectResponse(IEnumerable<ContentId> missingContentIds, IEnumerable<BlobId> missingBlobIds)
-			: this(Enumerable.Concat(missingContentIds.Select(x => x.Hash), missingBlobIds.Select(x => x.Hash)).ToArray())
-		{
-		}
-
 		[CbField("needs")]
-		public IoHash[] Needs { get; set; }
+		public ContentHash[] Needs { get; set; }
 	}
 
 	public class ExistCheckMultipleRefsResponse
@@ -1283,10 +1362,10 @@ namespace Horde.Server.Ddc
 
 	public class HashMismatchException : Exception
 	{
-		public IoHash SuppliedHash { get; }
-		public IoHash ContentHash { get; }
+		public ContentHash SuppliedHash { get; }
+		public ContentHash ContentHash { get; }
 
-		public HashMismatchException(IoHash suppliedHash, IoHash contentHash) : base($"ID was not a hash of the content uploaded. Supplied hash was: {suppliedHash} but hash of content was {contentHash}")
+		public HashMismatchException(ContentHash suppliedHash, ContentHash contentHash) : base($"ID was not a hash of the content uploaded. Supplied hash was: {suppliedHash} but hash of content was {contentHash}")
 		{
 			SuppliedHash = suppliedHash;
 			ContentHash = contentHash;

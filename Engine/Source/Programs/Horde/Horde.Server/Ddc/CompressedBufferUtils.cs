@@ -19,7 +19,7 @@ using OpenTelemetry.Trace;
 
 namespace Horde.Server.Ddc
 {
-	class CompressedBufferHeader
+	public class CompressedBufferHeader
 	{
 		[System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1028:Enum Storage should be Int32", Justification = "Interop requires byte")]
 		public enum CompressionMethod : byte
@@ -74,10 +74,12 @@ namespace Horde.Server.Ddc
 	public class CompressedBufferUtils
 	{
 		private readonly Tracer _tracer;
+		private readonly BufferedPayloadFactory _payloadFactory;
 
-		public CompressedBufferUtils(Tracer tracer)
+		public CompressedBufferUtils(Tracer tracer, BufferedPayloadFactory payloadFactory)
 		{
 			_tracer = tracer;
+			_payloadFactory = payloadFactory;
 		}
 
 		private static (CompressedBufferHeader, uint[]) ExtractHeader(BinaryReader br)
@@ -152,7 +154,7 @@ namespace Horde.Server.Ddc
 			return (header, blocks);
 		}
 
-		static void WriteHeader(CompressedBufferHeader header, BinaryWriter writer)
+		public static void WriteHeader(CompressedBufferHeader header, BinaryWriter writer)
 		{
 			// the header is always stored big endian
 			bool needsByteSwap = BitConverter.IsLittleEndian;
@@ -183,7 +185,7 @@ namespace Horde.Server.Ddc
 			}
 		}
 
-		public async Task<BufferedPayload> DecompressContentAsync(Stream sourceStream, ulong streamSize, CancellationToken cancellationToken)
+		public async Task<IBufferedPayload> DecompressContentAsync(Stream sourceStream, ulong streamSize, CancellationToken cancellationToken)
 		{
 			using BinaryReader br = new BinaryReader(sourceStream);
 			(CompressedBufferHeader header, uint[] compressedBlockSizes) = ExtractHeader(br);
@@ -193,7 +195,7 @@ namespace Horde.Server.Ddc
 				throw new Exception($"Expected stream to be {header.TotalCompressedSize} but it was {streamSize}");
 			}
 
-			using FilesystemBufferedPayloadWriter bufferedPayloadWriter = new FilesystemBufferedPayloadWriter();
+			using FilesystemBufferedPayloadWriter bufferedPayloadWriter = _payloadFactory.CreateFilesystemBufferedPayloadWriter();
 
 			{
 				await using Stream targetStream = bufferedPayloadWriter.GetWritableStream();
@@ -231,11 +233,13 @@ namespace Horde.Server.Ddc
 			}
 
 			// not using the buffered payload as we transfer the ownership to the caller of this method
-#pragma warning disable CA2000 // Dispose objects before losing scope
-			FilesystemBufferedPayload finalizedBufferedPayload = bufferedPayloadWriter.Done();
-#pragma warning restore CA2000 // Dispose objects before losing scope
+			FilesystemBufferedPayload? finalizedBufferedPayload = null;
 			try
 			{
+#pragma warning disable CA2000
+				finalizedBufferedPayload = bufferedPayloadWriter.Done();
+#pragma warning restore CA2000
+
 				if (header.TotalRawSize != (ulong)finalizedBufferedPayload.Length)
 				{
 					throw new Exception("Did not decompress the full payload");
@@ -248,7 +252,7 @@ namespace Horde.Server.Ddc
 					byte[] slicedHash = new byte[20];
 					Array.Copy(header.RawHash, 0, slicedHash, 0, 20);
 
-					BlobId headerIdentifier = new BlobId(new IoHash(slicedHash));
+					BlobId headerIdentifier = new BlobId(slicedHash);
 					await using Stream hashStream = finalizedBufferedPayload.GetStream();
 					BlobId contentHash = await BlobId.FromStreamAsync(hashStream, cancellationToken);
 
@@ -262,7 +266,7 @@ namespace Horde.Server.Ddc
 			}
 			catch
 			{
-				finalizedBufferedPayload.Dispose();
+				finalizedBufferedPayload?.Dispose();
 				throw;
 			}
 		}
@@ -386,7 +390,7 @@ namespace Horde.Server.Ddc
 			return hash;
 		}
 
-		static byte[] WriteHeaderToBuffer(CompressedBufferHeader header, uint[] compressedBlockLengths)
+		public static byte[] WriteHeaderToBuffer(CompressedBufferHeader header, uint[] compressedBlockLengths)
 		{
 			uint blockCount = header.BlockCount;
 			uint blocksByteUsed = blockCount * sizeof(uint);
@@ -445,6 +449,7 @@ namespace Horde.Server.Ddc
 	// from OodleDataCompression.h , we define our own enums for oodle compressions used and convert to the ones expected in the oodle api
 #pragma warning disable CA1028 // Enum Storage should be Int32
 	public enum OoodleCompressorMethod : byte
+
 	{
 		NotSet = 0,
 		Selkie = 1,
@@ -470,7 +475,7 @@ namespace Horde.Server.Ddc
 		Optimal4 = 8,
 	}
 #pragma warning restore CA1028 // Enum Storage should be Int32
-	static class OodleUtils
+	public static class OodleUtils
 	{
 		public static OodleCompressionLevel ToOodleApiCompressionLevel(OoodleCompressionLevel compressionLevel)
 		{

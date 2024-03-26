@@ -653,16 +653,6 @@ namespace Horde.Server.Agents
 		/// <returns>Identifier for the tool that the agent should be using</returns>
 		public static ToolId GetSoftwareToolId(this IAgent agent, GlobalConfig globalConfig)
 		{
-			string? updateChannel = agent.GetPropertyValues("UpdateChannel").FirstOrDefault();
-			if (!String.IsNullOrEmpty(updateChannel))
-			{
-				ToolId defaultToolId = new ToolId(updateChannel);
-				if (globalConfig.TryGetTool(defaultToolId, out _))
-				{
-					return defaultToolId;
-				}
-			}
-
 			ToolId toolId = AgentToolId;
 
 			if (agent.IsSelfContained())

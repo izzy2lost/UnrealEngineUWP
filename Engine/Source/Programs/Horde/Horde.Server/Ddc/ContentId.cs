@@ -3,84 +3,89 @@
 using System;
 using System.ComponentModel;
 using System.Globalization;
-using System.IO;
-using System.Text.Json;
 using System.Text.Json.Serialization;
 using EpicGames.Core;
-using EpicGames.Serialization;
 
 #pragma warning disable CS1591
 
 namespace Horde.Server.Ddc
 {
-	/// <summary>
-	/// Identifier for a compressed buffer in the store
-	/// </summary>
 	[TypeConverter(typeof(ContentIdTypeConverter))]
-	[JsonConverter(typeof(ContentIdJsonConverter))]
-	[CbConverter(typeof(ContentIdCbConverter))]
-	public readonly struct ContentId : IEquatable<ContentId>
+	public class ContentId : ContentHash, IEquatable<ContentId>
 	{
-		/// <summary>
-		/// Hash of the blob
-		/// </summary>
-		public IoHash Hash { get; }
+		public ContentId(byte[] identifier) : base(identifier)
+		{
+		}
 
-		/// <summary>
-		/// Constructor
-		/// </summary>
-		public ContentId(IoHash hash) => Hash = hash;
+		[JsonConstructor]
+		public ContentId(string identifier) : base(identifier)
+		{
 
-		/// <summary>
-		/// Parses a <see cref="ContentId"/> from a string
-		/// </summary>
-		public static ContentId Parse(string text) => new ContentId(IoHash.Parse(text));
+		}
 
-		/// <inheritdoc/>
-		public override readonly int GetHashCode() => Hash.GetHashCode();
+		public override int GetHashCode()
+		{
+			return Comparer.GetHashCode(Identifier);
+		}
 
-		/// <inheritdoc/>
-		public readonly bool Equals(ContentId other) => Hash.Equals(other.Hash);
+		public bool Equals(ContentId? other)
+		{
+			if (other == null)
+			{
+				return false;
+			}
 
-		/// <inheritdoc/>
-		public override readonly bool Equals(object? obj) => obj is ContentId contentId && Equals(contentId);
+			return Comparer.Equals(Identifier, other.Identifier);
+		}
 
-		/// <inheritdoc/>
-		public override readonly string ToString() => Hash.ToString();
+		public override bool Equals(object? obj)
+		{
+			if (ReferenceEquals(null, obj))
+			{
+				return false;
+			}
 
-		/// <inheritdoc cref="IoHash.op_Equality"/>
-		public static bool operator ==(ContentId left, ContentId right) => left.Hash == right.Hash;
+			if (ReferenceEquals(this, obj))
+			{
+				return true;
+			}
 
-		/// <inheritdoc cref="IoHash.op_Inequality"/>
-		public static bool operator !=(ContentId left, ContentId right) => !(left == right);
+			if (obj.GetType() != GetType())
+			{
+				return false;
+			}
 
-		/// <summary>
-		/// Constructs a ContentId from an IoHash
-		/// </summary>
-		public static ContentId FromIoHash(IoHash hash) => new ContentId(hash);
+			return Equals((ContentId)obj);
+		}
 
-		/// <summary>
-		/// Constructs a ContentId from an IoHash
-		/// </summary>
-		public static ContentId FromBlobId(BlobId blobId) => FromIoHash(blobId.AsIoHash());
+		public static ContentId FromContentHash(ContentHash contentHash)
+		{
+			return new ContentId(contentHash.HashData);
+		}
 
-		/// <summary>
-		/// Converts a ContentId to IoHash
-		/// </summary>
-		public IoHash AsIoHash() => Hash;
+		public static ContentId FromBlobIdentifier(BlobId blobIdentifier)
+		{
+			return new ContentId(blobIdentifier.HashData);
+		}
 
-		/// <summary>
-		/// Converts a ContentId to BlobId
-		/// </summary>
-		public BlobId AsBlobIdentifier() => BlobId.FromIoHash(Hash);
+		public BlobId AsBlobIdentifier()
+		{
+			return new BlobId(HashData);
+		}
+
+		public static ContentId FromIoHash(IoHash ioHash)
+		{
+			return new ContentId(ioHash.ToByteArray());
+		}
+
+		public IoHash AsIoHash()
+		{
+			return new IoHash(HashData);
+		}
 	}
 
-	/// <summary>
-	/// Converts from <see cref="ContentId"/> instances to other types
-	/// </summary>
 	public class ContentIdTypeConverter : TypeConverter
 	{
-		/// <inheritdoc/>
 		public override bool CanConvertFrom(ITypeDescriptorContext? context, Type sourceType)
 		{
 			if (sourceType == typeof(string))
@@ -90,75 +95,14 @@ namespace Horde.Server.Ddc
 			return base.CanConvertFrom(context, sourceType);
 		}
 
-		/// <inheritdoc/>
 		public override object? ConvertFrom(ITypeDescriptorContext? context, CultureInfo? culture, object value)
 		{
 			if (value is string s)
 			{
-				return ContentId.Parse(s);
+				return new ContentId(s);
 			}
 
 			return base.ConvertFrom(context, culture, value);
 		}
-
-		/// <inheritdoc/>
-		public override bool CanConvertTo(ITypeDescriptorContext? context, Type? destinationType)
-		{
-			if (destinationType == typeof(string))
-			{
-				return true;
-			}
-			return base.CanConvertTo(context, destinationType);
-		}
-
-		/// <inheritdoc/>
-		public override object? ConvertTo(ITypeDescriptorContext? context, CultureInfo? culture, object? value, Type destinationType)
-		{
-			if (destinationType == typeof(string))
-			{
-				return value?.ToString();
-			}
-
-			return base.ConvertTo(context, culture, value, destinationType);
-		}
-	}
-
-	/// <summary>
-	/// Converts from <see cref="ContentId"/> instances to other types
-	/// </summary>
-	public class ContentIdJsonConverter : JsonConverter<ContentId>
-	{
-		/// <inheritdoc/>
-		public override ContentId Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
-		{
-			string? str = reader.GetString();
-			if (str == null)
-			{
-				throw new InvalidDataException("Unable to parse content id");
-			}
-
-			return ContentId.Parse(str);
-		}
-
-		/// <inheritdoc/>
-		public override void Write(Utf8JsonWriter writer, ContentId value, JsonSerializerOptions options)
-		{
-			writer.WriteStringValue(value.ToString());
-		}
-	}
-
-	/// <summary>
-	/// Serializes <see cref="ContentId"/> instances to compact binary
-	/// </summary>
-	public class ContentIdCbConverter : CbConverter<ContentId>
-	{
-		/// <inheritdoc/>
-		public override ContentId Read(CbField field) => new ContentId(field.AsHash());
-
-		/// <inheritdoc/>
-		public override void Write(CbWriter writer, ContentId value) => writer.WriteBinaryAttachmentValue(value.Hash);
-
-		/// <inheritdoc/>
-		public override void WriteNamed(CbWriter writer, CbFieldName name, ContentId value) => writer.WriteBinaryAttachment(name, value.Hash);
 	}
 }

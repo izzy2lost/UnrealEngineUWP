@@ -16,7 +16,6 @@ using EpicGames.Horde.Acls;
 using EpicGames.Horde.Storage;
 using EpicGames.Horde.Storage.Nodes;
 using EpicGames.Serialization;
-using Horde.Server.Ddc;
 using Horde.Server.Server;
 using Horde.Server.Utilities;
 using Microsoft.AspNetCore.Authorization;
@@ -27,6 +26,8 @@ using Microsoft.Extensions.Options;
 
 namespace Horde.Server.Storage
 {
+	using DdcRefNode = Horde.Server.Ddc.DdcRefNode;
+
 	/// <summary>
 	/// Controller for the /api/v1/storage endpoint
 	/// </summary>
@@ -61,7 +62,6 @@ namespace Horde.Server.Storage
 		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		[HttpPost]
 		[Route("/api/v1/storage/{namespaceId}/blobs")]
-		[Route("/api/v1/storage/{namespaceId}/bundles")]
 		public async Task<ActionResult<WriteBlobResponse>> WriteBlobAsync(NamespaceId namespaceId, IFormFile? file, [FromForm] string? prefix = default, CancellationToken cancellationToken = default)
 		{
 			IStorageBackend? storageBackend = _storageService.TryCreateBackend(namespaceId);
@@ -113,7 +113,6 @@ namespace Horde.Server.Storage
 		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		[HttpGet]
 		[Route("/api/v1/storage/{namespaceId}/blobs/{*locator}")]
-		[Route("/api/v1/storage/{namespaceId}/bundles/{*locator}")]
 		public async Task<ActionResult> ReadBlobAsync(NamespaceId namespaceId, BlobLocator locator, CancellationToken cancellationToken = default)
 		{
 			IStorageBackend? backend = _storageService.TryCreateBackend(namespaceId);

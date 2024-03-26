@@ -36,6 +36,9 @@ See also: [Feature Status](Docs/Features.md)
 * **[Installing Horde](Docs/Tutorials/InstallHorde.md)**
 * **[Set up remote C++ compilation](Docs/Tutorials/RemoteCompilation.md)**
 * **[Set up build automation](Docs/Tutorials/BuildAutomation.md)**
+* **[Set up test automation](Docs/Tutorials/TestAutomation.md)**
+* **[Set up studio analytics](Docs/Tutorials/Analytics.md)**
+* **[Set up device manager](Docs/Tutorials/DeviceManager.md)**
 
 ## Reference
 

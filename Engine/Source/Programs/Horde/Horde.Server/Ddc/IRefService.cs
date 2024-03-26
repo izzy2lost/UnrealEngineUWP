@@ -14,49 +14,17 @@ namespace Horde.Server.Ddc
 	public interface IRefService
 	{
 		Task<(RefRecord, BlobContents?)> GetAsync(NamespaceId ns, BucketId bucket, RefId key, string[] fields, bool doLastAccessTracking = true, CancellationToken cancellationToken = default);
-		Task<(ContentId[], BlobId[])> PutAsync(NamespaceId ns, BucketId bucket, RefId key, BlobId blobHash, CbObject payload, CancellationToken cancellationToken = default);
-		Task<(ContentId[], BlobId[])> FinalizeAsync(NamespaceId ns, BucketId bucket, RefId key, BlobId blobHash, CancellationToken cancellationToken = default);
+		Task<(ContentId[], BlobId[])> PutAsync(NamespaceId ns, BucketId bucket, RefId key, BlobId blobHash, CbObject payload, CancellationToken cancellationToken);
+		Task<(ContentId[], BlobId[])> FinalizeAsync(NamespaceId ns, BucketId bucket, RefId key, BlobId blobHash, CancellationToken cancellationToken);
 
-		Task<bool> DeleteAsync(NamespaceId ns, BucketId bucket, RefId key, CancellationToken cancellationToken = default);
+		IAsyncEnumerable<NamespaceId> GetNamespacesAsync(CancellationToken cancellationToken);
 
-		Task<bool> ExistsAsync(NamespaceId ns, BucketId bucket, RefId key, CancellationToken cancellationToken = default);
-		Task<List<BlobId>> GetReferencedBlobsAsync(NamespaceId ns, BucketId bucket, RefId key, CancellationToken cancellationToken = default);
-	}
+		Task<bool> DeleteAsync(NamespaceId ns, BucketId bucket, RefId key, CancellationToken cancellationToken);
+		Task<long> DropNamespaceAsync(NamespaceId ns, CancellationToken cancellationToken);
+		Task<long> DeleteBucketAsync(NamespaceId ns, BucketId bucket, CancellationToken cancellationToken);
 
-	public class RefRecord
-	{
-		public RefRecord(NamespaceId ns, BucketId bucket, RefId name, DateTime lastAccess, byte[]? inlinePayload, BlobId blobIdentifier, bool isFinalized)
-		{
-			Namespace = ns;
-			Bucket = bucket;
-			Name = name;
-			LastAccess = lastAccess;
-			InlinePayload = inlinePayload;
-			BlobIdentifier = blobIdentifier;
-			IsFinalized = isFinalized;
-		}
-
-		public NamespaceId Namespace { get; }
-		public BucketId Bucket { get; }
-		public RefId Name { get; }
-		public DateTime LastAccess { get; }
-		public byte[]? InlinePayload { get; set; }
-		public BlobId BlobIdentifier { get; set; }
-		public bool IsFinalized { get; }
-	}
-
-	public class RefNotFoundException : Exception
-	{
-		public RefNotFoundException(NamespaceId ns, BucketId bucket, RefId key) : base($"Object not found {key} in bucket {bucket} namespace {ns}")
-		{
-			Namespace = ns;
-			Bucket = bucket;
-			Key = key;
-		}
-
-		public NamespaceId Namespace { get; }
-		public BucketId Bucket { get; }
-		public RefId Key { get; }
+		Task<bool> ExistsAsync(NamespaceId ns, BucketId bucket, RefId key, CancellationToken cancellationToken);
+		Task<List<BlobId>> GetReferencedBlobsAsync(NamespaceId ns, BucketId bucket, RefId key, bool ignoreMissingBlobs, CancellationToken cancellationToken);
 	}
 
 	public class ObjectHashMismatchException : Exception

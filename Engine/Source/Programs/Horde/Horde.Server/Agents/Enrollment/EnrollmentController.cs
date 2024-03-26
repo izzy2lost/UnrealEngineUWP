@@ -1,5 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
+using System;
 using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
@@ -40,7 +41,6 @@ namespace Horde.Server.Agents.Enrollment
 		/// <returns>List of matching agents</returns>
 		[HttpGet]
 		[Route("/api/v1/enrollment")]
-		[Route("/api/v1/registration")]
 		[ProducesResponseType(typeof(GetPendingAgentsResponse), 200)]
 		public async Task<ActionResult<object>> GetPendingAgentsAsync([FromQuery] PropertyFilter? filter = null, CancellationToken cancellationToken = default)
 		{
@@ -56,13 +56,24 @@ namespace Horde.Server.Agents.Enrollment
 		}
 
 		/// <summary>
+		/// Legacy endpoint for enrollment
+		/// </summary>
+		[HttpGet]
+		[Route("/api/v1/registration")]
+		[Obsolete("Use api/v1/enrollment instead")]
+		[ProducesResponseType(typeof(GetPendingAgentsResponse), 200)]
+		public Task<ActionResult<object>> LegacyGetPendingAgentsAsync([FromQuery] PropertyFilter? filter = null, CancellationToken cancellationToken = default)
+		{
+			return GetPendingAgentsAsync(filter, cancellationToken);
+		}
+
+		/// <summary>
 		/// Retrieve information about a specific agent
 		/// </summary>
 		/// <param name="request">List of agents to approve</param>
 		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		[HttpPost]
 		[Route("/api/v1/enrollment")]
-		[Route("/api/v1/registration")]
 		public async Task<ActionResult> ApproveAgentsAsync([FromBody] ApproveAgentsRequest request, CancellationToken cancellationToken)
 		{
 			if (!_globalConfig.Value.Authorize(AgentAclAction.CreateAgent, User))
@@ -76,6 +87,17 @@ namespace Horde.Server.Agents.Enrollment
 			}
 
 			return Ok();
+		}
+
+		/// <summary>
+		/// Legacy registration method
+		/// </summary>
+		[HttpPost]
+		[Route("/api/v1/registration")]
+		[Obsolete("Use api/v1/enrollment instead")]
+		public Task<ActionResult> LegacyApproveAgentsAsync([FromBody] ApproveAgentsRequest request, CancellationToken cancellationToken)
+		{
+			return ApproveAgentsAsync(request, cancellationToken);
 		}
 	}
 }
