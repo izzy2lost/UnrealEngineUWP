@@ -81,6 +81,7 @@ private:
 	TSharedRef<SWidget> GenerateFloatWidget(const int32 ParamIndexInObject);
 	float GetFloatParameterValue(const FString ParamName, int32 RangeIndex) const;
 	void OnFloatParameterChanged(float Value, const FString ParamName, int32 RangeIndex);
+	void OnFloatParameterSliderBegin();
 	void OnFloatParameterSliderEnd(float Value, const FString ParamName, int32 RangeIndex);
  
 	// Texture Parameters Functions
@@ -155,6 +156,9 @@ private:
 
 	/** Array with all the possible multilayer projector texture options */
 	TArray<TArray<TSharedPtr<FString>>> ProjectorTextureOptions;
+
+	/** True when a slider is being edited*/
+	bool bUpdatingSlider = false;
 
 };
 
