@@ -453,9 +453,11 @@ namespace HeterogeneousVolumes
 		return CVarHeterogeneousVolumesLightingCache.GetValueOnRenderThread();
 	}
 
-	bool UseAdaptiveVolumetricShadowMapForSelfShadowing()
+	bool UseAdaptiveVolumetricShadowMapForSelfShadowing(const FPrimitiveSceneProxy* PrimitiveSceneProxy)
 	{
-		return ShouldHeterogeneousVolumesCastShadows() && CVarHeterogeneousVolumesLightingCacheUseAVSM.GetValueOnRenderThread();
+		bool bUseAVSM = CVarHeterogeneousVolumesLightingCacheUseAVSM.GetValueOnRenderThread() != 0;
+		bool bPrimitiveCastsDynamicShadows = PrimitiveSceneProxy->CastsDynamicShadow();
+		return ShouldHeterogeneousVolumesCastShadows() && bUseAVSM && bPrimitiveCastsDynamicShadows;
 	}
 
 	bool UseLightingCacheForInscattering()
