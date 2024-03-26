@@ -761,7 +761,7 @@ void SNiagaraScratchPadScriptManager::ObjectSelectionChanged()
 	}
 	else if (SelectionCount == 1)
 	{
-		UObject* SelectedObject = ViewModel->GetObjectSelection()->GetSelectedObjects().Array()[0];
+		UObject* SelectedObject = ViewModel->GetObjectSelection()->GetFirstSelectedObject();
 		if (SelectedObject->IsA<UEdGraphNode>())
 		{
 			UEdGraphNode* SelectedGraphNode = CastChecked<UEdGraphNode>(SelectedObject);

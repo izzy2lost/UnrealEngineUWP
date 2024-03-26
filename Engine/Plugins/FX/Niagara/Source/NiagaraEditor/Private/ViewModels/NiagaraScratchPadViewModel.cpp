@@ -761,7 +761,7 @@ void UNiagaraScratchPadViewModel::ScriptGraphNodeSelectionChanged(TWeakPtr<FNiag
 	TSharedPtr<FNiagaraScratchPadScriptViewModel> InScriptViewModel = InScriptViewModelWeak.Pin();
 	if (InScriptViewModel.IsValid())
 	{
-		TArray<UObject*> SelectedNodes = InScriptViewModel->GetGraphViewModel()->GetNodeSelection()->GetSelectedObjects().Array();
+		TSet<UObject*> SelectedNodes = InScriptViewModel->GetGraphViewModel()->GetNodeSelection()->GetSelectedObjectsResolved();
 		if (SelectedNodes.Num() > 0)
 		{
 			ObjectSelection->SetSelectedObjects(SelectedNodes);
@@ -895,7 +895,7 @@ void UNiagaraScratchPadViewModel::ScriptViewModelVariableSelectionChanged(TWeakP
 	TSharedPtr<FNiagaraScratchPadScriptViewModel> ScriptViewModel = ScriptViewModelWeak.Pin();
 	if (ScriptViewModel.IsValid())
 	{
-		ObjectSelection->SetSelectedObjects(ScriptViewModel->GetVariableSelection()->GetSelectedObjects().Array());
+		ObjectSelection->SetSelectedObjects(ScriptViewModel->GetVariableSelection()->GetSelectedObjectsResolved());
 	}
 }
 

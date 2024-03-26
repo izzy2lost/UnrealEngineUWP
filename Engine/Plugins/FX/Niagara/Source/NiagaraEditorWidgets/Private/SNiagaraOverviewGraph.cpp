@@ -171,11 +171,11 @@ void SNiagaraOverviewGraph::ViewModelSelectionChanged()
 {
 	if (bUpdatingViewModelSelectionFromGraph == false)
 	{
-		if (FNiagaraEditorUtilities::SetsMatch(GraphEditor->GetSelectedNodes(), ViewModel->GetNodeSelection()->GetSelectedObjects()) == false)
+		if (FNiagaraEditorUtilities::SetsMatch(GraphEditor->GetSelectedNodes(), ViewModel->GetNodeSelection()->GetSelectedObjectsResolved()) == false)
 		{
 			TGuardValue<bool> UpdateGuard(bUpdatingGraphSelectionFromViewModel, true);
 			GraphEditor->ClearSelectionSet();
-			for (UObject* SelectedNode : ViewModel->GetNodeSelection()->GetSelectedObjects())
+			for (UObject* SelectedNode : ViewModel->GetNodeSelection()->GetSelectedObjectsResolved())
 			{
 				UEdGraphNode* GraphNode = Cast<UEdGraphNode>(SelectedNode);
 				if (GraphNode != nullptr)

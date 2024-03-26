@@ -1076,8 +1076,7 @@ bool FNiagaraSystemToolkitParameterPanelViewModel::IsVariableSelected(FNiagaraVa
 {
 	if (VariableObjectSelection.IsValid())
 	{
-		const TSet<UObject*>& Objects = VariableObjectSelection->GetSelectedObjects();
-		for (UObject* Obj : Objects)
+		for (UObject* Obj : VariableObjectSelection->GetSelectedObjectsResolved())
 		{
 			UNiagaraScriptVariable* ScriptVar = Cast<UNiagaraScriptVariable>(Obj);
 			if (ScriptVar && ScriptVar->Variable.IsEquivalent(InVar, false))

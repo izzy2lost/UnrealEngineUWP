@@ -164,10 +164,10 @@ void FNiagaraSystemToolkitModeBase::OnParameterPanelViewModelExternalSelectionCh
 		TSharedPtr<FNiagaraObjectSelection> ParamSel = Toolkit->GetSystemViewModel()->GetParameterPanelViewModel()->GetVariableObjectSelection();
 		if (ParamSel.IsValid())
 		{
-			TArray<UObject*> SelectedNodes = ParamSel->GetSelectedObjects().Array();
+			TArray<UObject*> SelectedNodes = ParamSel->GetSelectedObjectsResolved().Array();
 			if (SelectedNodes.Num() != 0)
 			{
-				const TSet<UObject*>& CurrentlySelectedObjects = ObjectSelection->GetSelectedObjects();
+				TSet<UObject*> CurrentlySelectedObjects = ObjectSelection->GetSelectedObjectsResolved();
 				if(CurrentlySelectedObjects.Array() != SelectedNodes)
 				{
 					ObjectSelection->SetSelectedObject(SelectedNodes[0]);
@@ -200,7 +200,7 @@ void FNiagaraSystemToolkitModeBase::UpdateSelectionForActiveDocument()
 	TSharedPtr<FNiagaraScratchPadScriptViewModel> ScratchScriptVM = Toolkit->GetSystemViewModel()->GetDocumentViewModel()->GetActiveScratchPadViewModelIfSet();
 	if (ScratchScriptVM.IsValid())
 	{
-		TArray<UObject*> SelectedNodes = ScratchScriptVM->GetGraphViewModel()->GetNodeSelection()->GetSelectedObjects().Array();
+		TArray<UObject*> SelectedNodes = ScratchScriptVM->GetGraphViewModel()->GetNodeSelection()->GetSelectedObjectsResolved().Array();
 		if (SelectedNodes.Num() == 0)
 		{
 			if (ScratchScriptVM)

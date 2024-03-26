@@ -190,7 +190,7 @@ void FNiagaraScriptGraphViewModel::DeleteSelectedNodes()
 		const FScopedTransaction Transaction(FGenericCommands::Get().Delete->GetDescription());
 		Graph->Modify();
 
-		TArray<UObject*> NodesToDelete = NodeSelection->GetSelectedObjects().Array();
+		TSet<UObject*> NodesToDelete = NodeSelection->GetSelectedObjectsResolved();
 		NodeSelection->ClearSelectedObjects();
 
 		for (UObject* NodeToDelete : NodesToDelete)
@@ -210,7 +210,7 @@ bool FNiagaraScriptGraphViewModel::CanDeleteNodes() const
 	UNiagaraGraph* Graph = GetGraph();
 	if (Graph != nullptr)
 	{
-		for (UObject* SelectedNode : NodeSelection->GetSelectedObjects())
+		for (UObject* SelectedNode : NodeSelection->GetSelectedObjectsResolved())
 		{
 			UEdGraphNode* SelectedGraphNode = Cast<UEdGraphNode>(SelectedNode);
 			if (SelectedGraphNode != nullptr && SelectedGraphNode->CanUserDeleteNode())
@@ -227,7 +227,7 @@ void FNiagaraScriptGraphViewModel::CutSelectedNodes()
 	// Collect nodes which can not be delete or duplicated so they can be reselected.
 	TSet<UObject*> CanBeDuplicatedAndDeleted;
 	TSet<UObject*> CanNotBeDuplicatedAndDeleted;
-	for (UObject* SelectedNode : NodeSelection->GetSelectedObjects())
+	for (UObject* SelectedNode : NodeSelection->GetSelectedObjectsResolved())
 	{
 		UEdGraphNode* SelectedGraphNode = Cast<UEdGraphNode>(SelectedNode);
 		if (SelectedGraphNode != nullptr)
@@ -261,7 +261,7 @@ void FNiagaraScriptGraphViewModel::CopySelectedNodes()
 
 	// we put all nodes we want to copy into the clipboard content. We also cache a set of nodes for more performant lookup later.
 	TSet<UObject*> CachedNodes;
-	for (UObject* SelectedNode : NodeSelection->GetSelectedObjects())
+	for (UObject* SelectedNode : NodeSelection->GetSelectedObjectsResolved())
 	{
 		UEdGraphNode* SelectedGraphNode = Cast<UEdGraphNode>(SelectedNode);
 		if (SelectedGraphNode != nullptr)
@@ -317,7 +317,7 @@ bool FNiagaraScriptGraphViewModel::CanCopyNodes() const
 	UNiagaraGraph* Graph = GetGraph();
 	if (Graph != nullptr)
 	{
-		for (UObject* SelectedNode : NodeSelection->GetSelectedObjects())
+		for (UObject* SelectedNode : NodeSelection->GetSelectedObjectsResolved())
 		{
 			UEdGraphNode* SelectedGraphNode = Cast<UEdGraphNode>(SelectedNode);
 			if (SelectedGraphNode != nullptr && SelectedGraphNode->CanDuplicateNode())

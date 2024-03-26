@@ -112,7 +112,7 @@ void SNiagaraScalabilityContext::UpdateScalabilityContent()
 	TArray<UNiagaraStackEntry*> StackEntries;
 	ScalabilityViewModel->GetSystemViewModel().Pin()->GetSelectionViewModel()->GetSelectedEntries(StackEntries);
 
-	TSet<UObject*> SelectedNodes = ScalabilityViewModel->GetSystemViewModel().Pin()->GetOverviewGraphViewModel()->GetNodeSelection()->GetSelectedObjects();
+	TSet<UObject*> SelectedNodes = ScalabilityViewModel->GetSystemViewModel().Pin()->GetOverviewGraphViewModel()->GetNodeSelection()->GetSelectedObjectsResolved();
 
 	// if we select a node, the stack entries will be updated to a niagara stack root, which we want to ignore
 	if(StackEntries.Num() == 1 && !StackEntries[0]->IsA<UNiagaraStackRoot>())

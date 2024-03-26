@@ -278,7 +278,7 @@ void SNiagaraSystemResolvedScalabilitySettings::RebuildWidget()
 	
 	TSet<UNiagaraOverviewNode*> SelectedOverviewNodes;
 
-	for(UObject* SelectedNode : SystemViewModel->GetOverviewGraphViewModel()->GetNodeSelection()->GetSelectedObjects())
+	for(UObject* SelectedNode : SystemViewModel->GetOverviewGraphViewModel()->GetNodeSelection()->GetSelectedObjectsResolved())
 	{
 		if(UNiagaraOverviewNode* OverviewNode = Cast<UNiagaraOverviewNode>(SelectedNode))
 		{

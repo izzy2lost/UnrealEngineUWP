@@ -11,7 +11,6 @@ class TNiagaraSelection
 public:
 	DECLARE_MULTICAST_DELEGATE(FOnSelectedObjectsChanged);
 
-public:
 	/** Gets the set of selected objects. */
 	const TSet<SelectedItemType>& GetSelectedObjects() const
 	{
@@ -93,7 +92,7 @@ public:
 		OnSelectedObjectsChangedDelegate.Broadcast();
 	}
 
-private:
+protected:
 	/** The set of selected objects. */
 	TSet<SelectedItemType> SelectedObjects;
 
@@ -104,6 +103,84 @@ private:
 	const void* AdditionalSelectionInfo = nullptr;
 };
 
-class FNiagaraObjectSelection : public TNiagaraSelection<UObject*>
+class FNiagaraObjectSelection : public TNiagaraSelection<FWeakObjectPtr>
 {
+public:
+
+	UObject* GetFirstSelectedObject() const
+	{
+		for (const FWeakObjectPtr& Obj : SelectedObjects)
+		{
+			if (Obj.IsValid())
+			{
+				return Obj.Get();
+			}
+		}
+		return nullptr;
+	}
+	
+	TSet<UObject*> GetSelectedObjectsResolved() const
+	{
+		TSet<UObject*> Objects;
+		for (const FWeakObjectPtr& Obj : SelectedObjects)
+		{
+			if (Obj.IsValid())
+			{
+				Objects.Add(Obj.Get());
+			}
+		}
+		return Objects;
+	}
+	
+	void SetSelectedObject(UObject* SelectedObject, const void* InSelectionInfo)
+	{
+		AdditionalSelectionInfo = InSelectionInfo;
+		if (SelectedObjects.Num() == 1 && SelectedObjects.Contains(SelectedObject))
+		{
+			// Refresh the delegate, in case a different object selection has been used in 
+			// a shared panel (but using a different selection, so this selection would not change)
+			OnSelectedObjectsChangedDelegate.Broadcast();
+			return;
+		}
+
+		SelectedObjects.Empty();
+		SelectedObjects.Add(SelectedObject);
+		OnSelectedObjectsChangedDelegate.Broadcast();
+	}
+
+	/** Replaces the currently selected set of objects with the supplied object. */
+	void SetSelectedObject(UObject* SelectedObject)
+	{
+		SetSelectedObject(SelectedObject, nullptr);
+	}
+
+	/** Replaces the currently selected set of objects with the supplied set. */
+	void SetSelectedObjects(const TSet<UObject*>& InSelectedObjects)
+	{
+		if (FNiagaraEditorUtilities::SetsMatch(GetSelectedObjectsResolved(), InSelectedObjects) == false)
+		{
+			SelectedObjects.Empty();
+			AdditionalSelectionInfo = nullptr;
+			for (UObject* Obj : InSelectedObjects)
+			{
+				SelectedObjects.Add(Obj);
+			}
+			OnSelectedObjectsChangedDelegate.Broadcast();
+		}
+	}
+
+	/** Replaces the currently selected set of objects with the supplied array. */
+	void SetSelectedObjects(const TArray<UObject*>& InSelectedObjects)
+	{
+		if (FNiagaraEditorUtilities::ArrayMatchesSet(InSelectedObjects, GetSelectedObjectsResolved()) == false)
+		{
+			SelectedObjects.Empty();
+			AdditionalSelectionInfo = nullptr;
+			for (UObject* Obj : InSelectedObjects)
+			{
+				SelectedObjects.Add(Obj);
+			}
+			OnSelectedObjectsChangedDelegate.Broadcast();
+		}
+	}
 };

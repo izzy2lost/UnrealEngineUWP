@@ -35,9 +35,9 @@ UNiagaraStackObject* UNiagaraStackCommentCollection::FindStackObjectForCommentNo
 
 void UNiagaraStackCommentCollection::RefreshChildrenInternal(const TArray<UNiagaraStackEntry*>& CurrentChildren, TArray<UNiagaraStackEntry*>& NewChildren, TArray<FStackIssue>& NewIssues)
 {
-	const TSet<UObject*>& SelectedNodes = GetSystemViewModel()->GetOverviewGraphViewModel()->GetNodeSelection()->GetSelectedObjects();
+	TSet<UObject*> SelectedNodes = GetSystemViewModel()->GetOverviewGraphViewModel()->GetNodeSelection()->GetSelectedObjectsResolved();
 
-	for(UObject* SelectedNode : SelectedNodes)
+	for (UObject* SelectedNode : SelectedNodes)
 	{
 		if(UEdGraphNode_Comment* CommentNode = Cast<UEdGraphNode_Comment>(SelectedNode))
 		{

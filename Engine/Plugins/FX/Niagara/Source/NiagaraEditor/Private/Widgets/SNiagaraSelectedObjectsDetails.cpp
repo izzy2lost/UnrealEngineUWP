@@ -28,7 +28,7 @@ void SNiagaraSelectedObjectsDetails::Construct(const FArguments& InArgs, TShared
 	DetailsViewArgs.NameAreaSettings = FDetailsViewArgs::HideNameArea;
 	DetailsViewArgs.bHideSelectionTip = true;
 	DetailsView = PropertyEditorModule.CreateDetailView(DetailsViewArgs);
-	DetailsView->SetObjects(SelectedObjectsArray[0]->GetSelectedObjects().Array());
+	DetailsView->SetObjects(SelectedObjectsArray[0]->GetSelectedObjectsResolved().Array());
 	DetailsView->SetIsPropertyReadOnlyDelegate(FIsPropertyReadOnly::CreateSP(this, &SNiagaraSelectedObjectsDetails::PropertyIsReadOnly));
 	DetailsView->SetEnabled(TAttribute<bool>::Create(TAttribute<bool>::FGetter::CreateSP(this, &SNiagaraSelectedObjectsDetails::DetailsPanelIsEnabled)));
 	//@todo(ng) re-enable once this is implemented.
@@ -56,7 +56,7 @@ void SNiagaraSelectedObjectsDetails::Construct(const FArguments& InArgs, TShared
 	DetailsViewArgs.NameAreaSettings = FDetailsViewArgs::HideNameArea;
 	DetailsViewArgs.bHideSelectionTip = true;
 	DetailsView = PropertyEditorModule.CreateDetailView(DetailsViewArgs);
-	DetailsView->SetObjects(SelectedObjectsArray[0]->GetSelectedObjects().Array());
+	DetailsView->SetObjects(SelectedObjectsArray[0]->GetSelectedObjectsResolved().Array());
 	DetailsView->SetIsPropertyReadOnlyDelegate(FIsPropertyReadOnly::CreateSP(this, &SNiagaraSelectedObjectsDetails::PropertyIsReadOnly));
 	DetailsView->SetEnabled(TAttribute<bool>::Create(TAttribute<bool>::FGetter::CreateSP(this, &SNiagaraSelectedObjectsDetails::DetailsPanelIsEnabled)));
 	//@todo(ng) re-enable once this is implemented.
@@ -81,7 +81,7 @@ void SNiagaraSelectedObjectsDetails::SelectedObjectsChanged()
 	{
 		UpdateSelectedObjectInfoFlags(SelectedObjectsArray[LastSetSelectedObjectsArrayIdx]);
 	}
-	DetailsView->SetObjects(SelectedObjectsArray[LastSetSelectedObjectsArrayIdx]->GetSelectedObjects().Array());
+	DetailsView->SetObjects(SelectedObjectsArray[LastSetSelectedObjectsArrayIdx]->GetSelectedObjectsResolved().Array());
 }
 
 void SNiagaraSelectedObjectsDetails::SelectedObjectsChangedFirst()
@@ -91,7 +91,7 @@ void SNiagaraSelectedObjectsDetails::SelectedObjectsChangedFirst()
 	{
 		UpdateSelectedObjectInfoFlags(SelectedObjectsArray[0]);
 	}
-	DetailsView->SetObjects(SelectedObjectsArray[0]->GetSelectedObjects().Array());
+	DetailsView->SetObjects(SelectedObjectsArray[0]->GetSelectedObjectsResolved().Array());
 	LastSetSelectedObjectsArrayIdx = 0;
 }
 
@@ -108,7 +108,7 @@ void SNiagaraSelectedObjectsDetails::SelectedObjectsChangedSecond()
 	{
 		UpdateSelectedObjectInfoFlags(SelectedObjectsArray[1]);
 	}
-	DetailsView->SetObjects(SelectedObjectsArray[1]->GetSelectedObjects().Array());
+	DetailsView->SetObjects(SelectedObjectsArray[1]->GetSelectedObjectsResolved().Array());
 	LastSetSelectedObjectsArrayIdx = 1;
 }
 
@@ -227,7 +227,7 @@ bool SNiagaraSelectedObjectsDetails::CustomRowIsReadOnly(const FName InRowName, 
 
 void SNiagaraSelectedObjectsDetails::UpdateSelectedObjectInfoFlags(const TSharedPtr<FNiagaraObjectSelection>& SelectedObjects)
 {
-	for (const UObject* Obj : SelectedObjects->GetSelectedObjects())
+	for (const UObject* Obj : SelectedObjects->GetSelectedObjectsResolved())
 	{
 		if (const UNiagaraScriptVariable* ScriptVar = Cast<const UNiagaraScriptVariable>(Obj))
 		{
@@ -247,7 +247,7 @@ const UNiagaraScriptVariable* SNiagaraSelectedObjectsDetails::GetSelectedScriptV
 	//@todo(ng) avoid this check during level travel! 
 	for(const TSharedPtr<FNiagaraObjectSelection>& ObjectSelection : SelectedObjectsArray)
 	{
-		for (const UObject* Obj : ObjectSelection->GetSelectedObjects())
+		for (const UObject* Obj : ObjectSelection->GetSelectedObjectsResolved())
 		{
 			if (const UNiagaraScriptVariable* ScriptVar = Cast<const UNiagaraScriptVariable>(Obj))
 			{

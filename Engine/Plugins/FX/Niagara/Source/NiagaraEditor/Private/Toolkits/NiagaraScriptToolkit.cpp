@@ -350,7 +350,7 @@ void FNiagaraScriptToolkit::InitViewWithVersionedData()
 	}
 	if (DetailsView)
 	{
-		DetailsView->SetObjects(DetailsScriptSelection->GetSelectedObjects().Array(), true);
+		DetailsView->SetObjects(DetailsScriptSelection->GetSelectedObjectsResolved().Array(), true);
 	}
 
 	// add listeners
@@ -458,7 +458,7 @@ TSharedRef<SDockTab> FNiagaraScriptToolkit::SpawnTabScriptDetails(const FSpawnTa
 	DetailsView = PropertyEditorModule.CreateDetailView(DetailsViewArgs);
 
 	DetailsView->OnFinishedChangingProperties().AddRaw(this, &FNiagaraScriptToolkit::OnEditedScriptPropertyFinishedChanging);
-	DetailsView->SetObjects(DetailsScriptSelection->GetSelectedObjects().Array());
+	DetailsView->SetObjects(DetailsScriptSelection->GetSelectedObjectsResolved().Array());
 
 	return SNew(SDockTab)
 		.Label(LOCTEXT("ScriptDetailsTabLabel", "Script Details"))

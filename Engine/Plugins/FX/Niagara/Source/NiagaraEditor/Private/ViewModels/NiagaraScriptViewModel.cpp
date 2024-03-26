@@ -491,7 +491,7 @@ void FNiagaraScriptViewModel::GraphViewModelSelectedNodesChanged()
 		bUpdatingSelectionInternally = true;
 		{
 			TSet<FName> SelectedInputIds;
-			for (UObject* SelectedObject : GraphViewModel->GetNodeSelection()->GetSelectedObjects())
+			for (UObject* SelectedObject : GraphViewModel->GetNodeSelection()->GetSelectedObjectsResolved())
 			{
 				UNiagaraNodeInput* InputNode = Cast<UNiagaraNodeInput>(SelectedObject);
 				if (InputNode != nullptr)
