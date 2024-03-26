@@ -1175,7 +1175,7 @@ namespace Horde.Server.Server
 		public string Name { get; set; } = null!;
 
 		/// <summary>
-		/// Username for Horde to log in to this server. Will use the default user if not set.
+		/// Username for Horde to log in to this server. Will use the first account specified below if not overridden.
 		/// </summary>
 		public string? ServiceAccount { get; set; }
 

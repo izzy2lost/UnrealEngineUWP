@@ -45,8 +45,7 @@ export class TestDataHandler {
     constructor(search: URLSearchParams) {
         TestDataHandler.instance = this;
         makeObservable(this);
-        this.state = this.stateFromSearch(search);
-        this.load();
+        this.state = this.stateFromSearch(search);        
     }
 
     setAutomation(automation: string, initStreams: boolean = false) {
