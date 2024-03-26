@@ -152,6 +152,15 @@ UActorReplicationBridge::~UActorReplicationBridge()
 	}
 }
 
+void UActorReplicationBridge::Deinitialize()
+{
+	if (NetDriver)
+	{
+		NetDriver->OnNetServerMaxTickRateChanged.RemoveAll(this);
+	}
+	Super::Deinitialize();
+}
+
 UE::Net::FNetRefHandle UActorReplicationBridge::BeginReplication(AActor* Actor, const FActorBeginReplicationParams& Params)
 {
 	using namespace UE::Net;
