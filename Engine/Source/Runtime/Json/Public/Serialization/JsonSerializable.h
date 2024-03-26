@@ -48,21 +48,20 @@ struct FJsonSerializable
 	 */
 	JSON_API virtual bool FromJson(FString&& Json);
 
-	template <class CharType = TCHAR>
-	bool FromJson(TStringView<CharType> Json)
-	{
-		TSharedPtr<FJsonObject> JsonObject;
-		TSharedRef<TJsonReader<CharType> > JsonReader = TJsonReaderFactory<CharType>::CreateFromView(Json);
-		if (FJsonSerializer::Deserialize(JsonReader,JsonObject) &&
-			JsonObject.IsValid())
-		{
-			FJsonSerializerReader Serializer(JsonObject);
-			Serialize(Serializer, false);
-			return true;
-		}
-		UE_LOG(LogJson, Warning, TEXT("Failed to parse Json from a string: %s"), *JsonReader->GetErrorMessage());
-		return false;
-	}
+	/**
+	 * Serializes the contents of a JSON string into this object using FUtf8StringView
+	 *
+	 * @param JsonStringView the JSON data to serialize from
+	 */
+	JSON_API bool FromJsonStringView(FUtf8StringView JsonStringView);
+
+	/**
+	 * Serializes the contents of a JSON string into this object using FWideStringView
+	 *
+	 * @param JsonStringView the JSON data to serialize from
+	 */
+	JSON_API bool FromJsonStringView(FWideStringView JsonStringView);
+ 
 
 	JSON_API virtual bool FromJson(TSharedPtr<FJsonObject> JsonObject);
 
