@@ -2116,37 +2116,37 @@ FZenServiceInstance::Initialize()
 		FString ExecutableInstallPath = ConditionalUpdateLocalInstall();
 		if (!ExecutableInstallPath.IsEmpty())
 		{
-			bHasLaunchedLocal = AutoLaunch(Settings.SettingsVariant.Get<FServiceAutoLaunchSettings>(), *ExecutableInstallPath, HostName, Port);
-			if (bHasLaunchedLocal)
+			const FTimespan MaximumWaitForHealth = FTimespan::FromSeconds(20);
+			FDateTime StartedWaitingForHealth = FDateTime::UtcNow();
+			while (true)
 			{
-				const ZenServerState State(/*ReadOnly*/true);
-				const ZenServerState::ZenServerEntry* RunningEntry = State.LookupByEffectiveListenPort(Port);
-				if (RunningEntry != nullptr)
+				bHasLaunchedLocal = AutoLaunch(Settings.SettingsVariant.Get<FServiceAutoLaunchSettings>(), *ExecutableInstallPath, HostName, Port);
+				if (bHasLaunchedLocal)
 				{
-					AutoLaunchedPid = RunningEntry->Pid.load(std::memory_order_relaxed);
-				}
-				AutoLaunchedPort = Port;
-				bIsRunningLocally = true;
-
-				const FTimespan MaximumWaitForHealth = FTimespan::FromSeconds(20);
-				FDateTime StartedWaitingForHealth = FDateTime::UtcNow();
-				bool bLastReadyResult = IsServiceReady();
-				while (!bLastReadyResult)
-				{
-					FTimespan WaitForHealth = FDateTime::UtcNow() - StartedWaitingForHealth;
-					if (WaitForHealth > MaximumWaitForHealth)
+					const ZenServerState State(/*ReadOnly*/true);
+					const ZenServerState::ZenServerEntry* RunningEntry = State.LookupByEffectiveListenPort(Port);
+					if (RunningEntry != nullptr)
 					{
-						UE_LOG(LogZenServiceInstance, Warning, TEXT("Local ZenServer AutoLaunch initialization timed out waiting for service to become healthy"));
+						AutoLaunchedPid = RunningEntry->Pid.load(std::memory_order_relaxed);
+					}
+					AutoLaunchedPort = Port;
+					bIsRunningLocally = true;
+					if (IsServiceReady())
+					{
 						break;
 					}
-
-					FPlatformProcess::Sleep(0.5f);
-					if (!IsZenProcessUsingEffectivePort(Port))
-					{
-						AutoLaunch(Settings.SettingsVariant.Get<FServiceAutoLaunchSettings>(), *GetLocalServiceInstallPath(), HostName, Port);
-					}
-					bLastReadyResult = IsServiceReady();
 				}
+
+				FTimespan WaitForHealth = FDateTime::UtcNow() - StartedWaitingForHealth;
+				if (WaitForHealth > MaximumWaitForHealth)
+				{
+					bHasLaunchedLocal = false;
+					bIsRunningLocally = false;
+					UE_LOG(LogZenServiceInstance, Warning, TEXT("Local ZenServer AutoLaunch initialization timed out waiting for service to become healthy"));
+					break;
+				}
+				UE_LOG(LogZenServiceInstance, Log, TEXT("Awaiting ZenServer readiness"));
+				FPlatformProcess::Sleep(0.5f);
 			}
 		}
 	}
