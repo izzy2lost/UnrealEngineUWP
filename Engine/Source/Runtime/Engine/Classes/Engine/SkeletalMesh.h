@@ -996,7 +996,8 @@ public:
 
 	/** USkinnedAsset interface */
 	ENGINE_API virtual int32 GetPlatformMinLODIdx(const ITargetPlatform* TargetPlatform) const override;
-	ENGINE_API virtual void SetSkinWeightProfilesData(int32 LODIndex, FSkinWeightProfilesData& SkinWeightProfilesData) override;
+	ENGINE_API virtual void SetSkinWeightProfilesData(int32 LODIndex, FSkinWeightProfilesData& SkinWeightProfilesData) override;	
+	ENGINE_API virtual FSkinWeightProfilesData* GetSkinWeightProfilesData(int32 LODIndex) override;
 
 	static ENGINE_API void OnLodStrippingQualityLevelChanged(IConsoleVariable* Variable);
 
