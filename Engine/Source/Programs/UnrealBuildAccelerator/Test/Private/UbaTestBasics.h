@@ -227,7 +227,7 @@ namespace uba
 	{
 		Vector<TString> arguments;
 		ParseArguments(arguments, TC("foo bar"));
-		UBA_TEST_CHECK(arguments.size() == 2, "ParseAgsuments 1 failed (%llu)", arguments.size());
+		UBA_TEST_CHECK(arguments.size() == 2, "ParseArguments 1 failed (%llu)", arguments.size());
 
 		Vector<TString> arguments2;
 		ParseArguments(arguments2, TC("\"foo\" bar"));
@@ -258,6 +258,37 @@ namespace uba
 		ParseArguments(arguments7, TC("app \" \\\"foo\\\" bar\""));
 		UBA_TEST_CHECK(arguments7.size() == 2, "ParseArguments 7 failed");
 		UBA_TEST_CHECK(Contains(arguments7[1].data(), TC("\"")), "ParseArguments 7 failed");
+		return true;
+	}
+
+	bool TestBinaryWriter(Logger& logger, const StringBufferBase& rootDir)
+	{
+		auto testString = [&](const tchar* str)
+		{
+			u8 mem[1024];
+			BinaryWriter writer(mem);
+			writer.WriteString(str);
+			BinaryReader reader(mem);
+			TString s = reader.ReadString();
+			if (s.size() != TStrlen(str))
+				return logger.Error(TC("Serialized string '%s' has wrong strlen"), str);
+			if (s != str)
+				return logger.Error(TC("Serialized string '%s' is different from source"), str);
+			return true;
+		};
+
+		if (!testString(TC("Foo")))
+			return false;
+
+		#if PLATFORM_WINDOWS
+		tchar str1[] = { 54620, 44544, 0 };
+		if (!testString(str1))
+			return false;
+		tchar str2[] = { 'f', 54620, 'o', 44544, 0 };
+		if (!testString(str2))
+			return false;
+		#endif
+
 		return true;
 	}
 }
