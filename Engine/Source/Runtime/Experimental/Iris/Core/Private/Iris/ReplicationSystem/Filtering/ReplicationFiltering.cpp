@@ -457,7 +457,7 @@ bool FReplicationFiltering::SetFilter(FInternalNetRefIndex ObjectIndex, FNetObje
 	}
 
 	const FNetRefHandleManager::FReplicatedObjectData& ObjectData = NetRefHandleManager->GetReplicatedObjectDataNoCheck(ObjectIndex);
-	const TArray<uint8*>& ReplicatedObjectsStateBuffers = NetRefHandleManager->GetReplicatedObjectStateBuffers();
+	const TNetChunkedArray<uint8*>& ReplicatedObjectsStateBuffers = NetRefHandleManager->GetReplicatedObjectStateBuffers();
 	// Let subobjects be filtered like their owners.
 	if (bWantsToUseDynamicFilter && (ObjectData.SubObjectRootIndex != FNetRefHandleManager::InvalidInternalIndex))
 	{
@@ -478,7 +478,7 @@ bool FReplicationFiltering::SetFilter(FInternalNetRefIndex ObjectIndex, FNetObje
 	{
 		FNetObjectFilteringInfo& NetObjectFilteringInfo = this->NetObjectFilteringInfos[ObjIndex];
 		NetObjectFilteringInfo = {};
-		FNetObjectFilterAddObjectParams AddParams = { NetObjectFilteringInfo, ObjectData.InstanceProtocol, ObjectData.Protocol, ReplicatedObjectsStateBuffers.GetData()[ObjIndex] };
+		FNetObjectFilterAddObjectParams AddParams = { NetObjectFilteringInfo, ObjectData.InstanceProtocol, ObjectData.Protocol, ReplicatedObjectsStateBuffers[ObjIndex] };
 		FFilterInfo& FilterInfo = this->DynamicFilterInfos[FilterIndex];
 		if (FilterInfo.Filter->AddObject(ObjIndex, AddParams))
 		{
@@ -1308,7 +1308,6 @@ void FReplicationFiltering::UpdateDynamicFiltering(ENetFilterType FilterType)
 	const uint32* SubObjectsData = NetRefHandleManager->GetSubObjectInternalIndices().GetData();
 	const uint32* DependentObjectsData = NetRefHandleManager->GetDependentObjectInternalIndices().GetData();
 	const uint32* ObjectsRequiringDynamicFilterUpdateData = ObjectsRequiringDynamicFilterUpdate.GetData();
-	uint8* const* ObjectsStateBuffers = FilterType == ENetFilterType::PostPoll_FragmentBased ? NetRefHandleManager->GetReplicatedObjectStateBuffers().GetData() : nullptr;
 
 	uint32* ConnectionIds = static_cast<uint32*>(FMemory_Alloca(ValidConnections.GetNumBits() * sizeof(uint32)));
 	uint32 ConnectionCount = 0;
@@ -1347,7 +1346,6 @@ void FReplicationFiltering::UpdateDynamicFiltering(ENetFilterType FilterType)
 				FNetObjectFilteringParams FilteringParams(MakeNetBitArrayView(Info.FilteredObjects));
 				FilteringParams.OutAllowedObjects = AllowedObjects;
 				FilteringParams.FilteringInfos = NetObjectFilteringInfos.GetData();
-				FilteringParams.StateBuffers = ObjectsStateBuffers;
 				FilteringParams.ConnectionId = ConnId;
 				FilteringParams.View = Connections->GetReplicationView(ConnId);
 
@@ -1525,11 +1523,6 @@ void FReplicationFiltering::BatchNotifyFiltersOfDirtyObjects(FUpdateDirtyObjects
 
 	FNetObjectFilterUpdateParams UpdateParameters;
 	UpdateParameters.FilteringInfos = NetObjectFilteringInfos.GetData();
-
-	if (BatchHelper.HasProtocolBuffers())
-	{
-		UpdateParameters.StateBuffers = NetRefHandleManager->GetReplicatedObjectStateBuffers().GetData();
-	}
 
 	for (const FUpdateDirtyObjectsBatchHelper::FPerFilterInfo& PerFilterInfo : BatchHelper.PerFilterInfos)
 	{

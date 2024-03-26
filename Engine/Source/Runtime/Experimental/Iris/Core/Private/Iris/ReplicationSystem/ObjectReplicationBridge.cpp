@@ -818,7 +818,7 @@ void UObjectReplicationBridge::PruneStaleObjects()
 	GarbageCollectionAffectedObjects = ObjectsWithObjectReferences;
 
 	FNetRefHandleManager& LocalNetRefHandleManager = GetReplicationSystem()->GetReplicationSystemInternal()->GetNetRefHandleManager();
-	const TArray<UObject*>& ReplicatedInstances = LocalNetRefHandleManager.GetReplicatedInstances();
+	const TNetChunkedArray<TObjectPtr<UObject>>& ReplicatedInstances = LocalNetRefHandleManager.GetReplicatedInstances();
 
 	TArray<FNetRefHandle> StaleObjects;
 
@@ -1139,7 +1139,7 @@ void UObjectReplicationBridge::UpdateInstancesWorldLocation()
 	FReplicationSystemInternal* ReplicationSystemInternal = GetReplicationSystem()->GetReplicationSystemInternal();
 	const FNetRefHandleManager& LocalNetRefHandleManager = ReplicationSystemInternal->GetNetRefHandleManager();
 	FWorldLocations& WorldLocations = ReplicationSystemInternal->GetWorldLocations();
-	const TArray<UObject*>& ReplicatedInstances = LocalNetRefHandleManager.GetReplicatedInstances();
+	const TNetChunkedArray<TObjectPtr<UObject>>& ReplicatedInstances = LocalNetRefHandleManager.GetReplicatedInstances();
 
 	// Retrieve the world location for instances that supports it. Only dirty objects are considered.
 	auto UpdateInstanceWorldLocation = [this, &ReplicatedInstances, &LocalNetRefHandleManager, &WorldLocations](uint32 InternalObjectIndex)
