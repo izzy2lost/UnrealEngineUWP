@@ -6537,6 +6537,26 @@ void FStarshipEditorStyle::FStyle::SetupLandscapeEditorStyle()
 			.SetForegroundColor(FSlateColor::UseForeground())
 			.SetArrowsImage(FSlateNoResource())
 		);
+
+		const FSlateColorBrush ActionableListViewBrush = FSlateColorBrush(FLinearColor(0.f, 0.f, 0.f, 0.f));
+		FLinearColor ToolbarBackgroundColor = FStyleColors::Dropdown.GetSpecifiedColor();
+		ToolbarBackgroundColor.A = .80f;
+		
+		Set("LandscapeEditor.ActionableMessage.Border", new FSlateRoundedBoxBrush(ToolbarBackgroundColor, 4.0f, FLinearColor(0,0,0,.8), 1.0));
+		Set("LandscapeEditor.ActionableMessage.Warning", new IMAGE_BRUSH_SVG(TEXT("Icons/Landscape/alert-solid"), Icon16x16, FStyleColors::Warning));
+		Set("LandscapeEditor.ActionableMessage.Update", new IMAGE_BRUSH_SVG(TEXT("Icons/Landscape/update"), Icon16x16));
+		Set("LandscapeEditor.ActionableMessage.ListView", FTableViewStyle().SetBackgroundBrush(ActionableListViewBrush));
+		Set("LandscapeEditor.ActionableMessage.ListViewRow",FTableRowStyle()
+			.SetEvenRowBackgroundBrush(ActionableListViewBrush)
+			.SetEvenRowBackgroundHoveredBrush(ActionableListViewBrush)
+			.SetOddRowBackgroundBrush(ActionableListViewBrush)
+			.SetOddRowBackgroundHoveredBrush(ActionableListViewBrush)
+			.SetSelectorFocusedBrush(ActionableListViewBrush)
+			.SetActiveBrush(ActionableListViewBrush)
+			.SetActiveHoveredBrush(ActionableListViewBrush)
+			.SetInactiveBrush(ActionableListViewBrush)
+			.SetInactiveHoveredBrush(ActionableListViewBrush)
+		);
 }
 
 #endif

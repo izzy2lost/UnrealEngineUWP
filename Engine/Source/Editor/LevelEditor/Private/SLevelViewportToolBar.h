@@ -12,6 +12,7 @@
 class ACameraActor;
 class FExtender;
 class SExtensionPanel;
+class SActionableMessageViewportWidget;
 class STransformViewportToolBar;
 class FMenuBuilder;
 class UToolMenu;
@@ -286,6 +287,9 @@ private:
 
 	/** STransformViewportToolBar menu */
 	TSharedPtr<STransformViewportToolBar> TransformToolbar;
+
+	/** Viewport widget for warning messages */
+	TSharedPtr<SActionableMessageViewportWidget> ActionableMessageViewportWidget;
 
 	/** The previous max STransformViewportToolBar width to allow deterministic size calculations */
 	mutable float TransformToolbar_CachedMaxWidth = 0.0f;

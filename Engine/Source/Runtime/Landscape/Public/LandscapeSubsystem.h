@@ -16,12 +16,21 @@ class FLandscapeNotificationManager;
 class ULandscapeComponent;
 class FLandscapeGrassMapsBuilder;
 class FLandscapeTextureStreamingManager;
+struct FActionableMessage;
 struct FDateTime;
 struct FScopedSlowTask;
 
 namespace UE::Landscape
 {
 	enum class EOutdatedDataFlags : uint8;
+
+#if WITH_EDITOR
+	void LANDSCAPE_API MarkModifiedLandscapesAsDirty();
+	void LANDSCAPE_API BuildGrassMaps();
+	void LANDSCAPE_API BuildPhysicalMaterial();
+	void LANDSCAPE_API BuildNanite();
+	void LANDSCAPE_API BuildAll();
+#endif // WITH_EDITOR
 } // end of namespace UE::Landscape
 
 #if WITH_EDITOR
@@ -113,7 +122,11 @@ public:
 	LANDSCAPE_API bool IsGridBased() const;
 	LANDSCAPE_API void ChangeGridSize(ULandscapeInfo* LandscapeInfo, uint32 NewGridSizeInComponents);
 	LANDSCAPE_API ALandscapeProxy* FindOrAddLandscapeProxy(ULandscapeInfo* LandscapeInfo, const FIntPoint& SectionBase);
+
+	UE_DEPRECATED(5.5, "DisplayMessages is now deprecated.")
 	LANDSCAPE_API void DisplayMessages(class FCanvas* Canvas, float& XPos, float& YPos);
+
+	LANDSCAPE_API bool GetActionableMessage(FActionableMessage& OutActionableMessage);
 	LANDSCAPE_API void MarkModifiedLandscapesAsDirty();
 	LANDSCAPE_API void SaveModifiedLandscapes();
 	LANDSCAPE_API bool HasModifiedLandscapes() const;
