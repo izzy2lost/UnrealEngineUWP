@@ -799,7 +799,7 @@ static FSceneRenderer* CreateSceneRendererForSceneCapture(
 	// Use camera position correction for ortho scene captures
 	if(USceneCaptureComponent2D * SceneCaptureComponent2D = Cast<USceneCaptureComponent2D>(SceneCaptureComponent))
 	{
-		if (!SceneCaptureViewInfo.IsPerspectiveProjection() && !SceneCaptureComponent2D->bUseCustomProjectionMatrix)
+		if (!SceneCaptureViewInfo.IsPerspectiveProjection() && SceneCaptureComponent2D->bUpdateOrthoPlanes)
 		{
 			SceneCaptureViewInfo.UpdateOrthoPlanes();
 		}
