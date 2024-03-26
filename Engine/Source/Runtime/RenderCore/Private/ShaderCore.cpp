@@ -1170,16 +1170,22 @@ int HandleShaderCompileException(Windows::LPEXCEPTION_POINTERS Info, FString& Ou
 {
 	const DWORD AssertExceptionCode = 0x00004000;
 	FString ExCodeStr;
+	OutCallStack = "";
 	if (Info->ExceptionRecord->ExceptionCode == AssertExceptionCode)
 	{
 		// In the case of an assert the assert handler populates the GErrorHist global.
-		// This contains a readable assert message followed by a callstack; so we can use that to populate
+		// This contains a readable assert message that may be followed by a callstack; so we can use that to populate
 		// our message/callstack and save some time as well as getting the properly formatted assert message.
-		FString Assert = GErrorHist;
 		const TCHAR* CallstackStart = FCString::Strfind(GErrorHist, TEXT("0x"));
-
-		OutExMsg = FString(CallstackStart - GErrorHist, GErrorHist);
-		OutCallStack = CallstackStart;
+		if (CallstackStart && CallstackStart > GErrorHist)
+		{
+			OutExMsg = FString(CallstackStart - GErrorHist, GErrorHist);
+			OutCallStack = CallstackStart;
+		}
+		else
+		{
+			OutExMsg = GErrorHist;
+		}
 	}
 	else
 	{
@@ -1197,7 +1203,10 @@ int HandleShaderCompileException(Windows::LPEXCEPTION_POINTERS Info, FString& Ou
 				Info->ExceptionRecord->ExceptionCode,
 				(uint64)Info->ExceptionRecord->ExceptionAddress);
 		}
+	}
 
+	if (OutCallStack.Len() == 0)
+	{
 		ANSICHAR CallStack[32768];
 		FMemory::Memzero(CallStack);
 		FPlatformStackWalk::StackWalkAndDump(CallStack, ARRAYSIZE(CallStack), Info->ExceptionRecord->ExceptionAddress);
@@ -1221,18 +1230,7 @@ public:
 		FString& OutExceptionCallstack,
 		FString& OutExceptionMsg)
 	{
-#if PLATFORM_WINDOWS
-		__try
-#endif
-		{
-			return Backend->PreprocessShader(Input, Environment, Output);
-		}
-#if PLATFORM_WINDOWS
-		__except (HandleShaderCompileException(GetExceptionInformation(), OutExceptionMsg, OutExceptionCallstack))
-		{
-			return false;
-		}
-#endif
+		return Backend->PreprocessShader(Input, Environment, Output);
 	}
 
 	static void PreprocessShaderInternal(
