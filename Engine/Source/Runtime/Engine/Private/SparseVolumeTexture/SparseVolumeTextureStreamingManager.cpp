@@ -119,9 +119,8 @@ IStreamingManager& GetStreamingManager()
 
 static bool DoesPlatformSupportSparseVolumeTexture(EShaderPlatform Platform)
 {
-	// SVT_TODO: This is a bit of a hack: FStreamingManager::Add_GameThread() issues a rendering thread lambda for creating the RHI resources and uploading root tile data.
-	// Uploading root tile data involves access to the global shader map, which is empty under certain circumstances. By checking AllowGlobalShaderLoad(), we disallow streaming completely.
-	return AllowGlobalShaderLoad();
+	// There are currently no hard platform restrictions for SVT support
+	return true;
 }
 
 struct FStreamingUpdateParameters
