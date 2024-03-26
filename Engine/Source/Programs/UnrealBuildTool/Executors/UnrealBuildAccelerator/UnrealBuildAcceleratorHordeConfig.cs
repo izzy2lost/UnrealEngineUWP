@@ -16,7 +16,6 @@ namespace UnrealBuildTool
 		/// Uri of the Horde server
 		/// </summary>
 		[XmlConfigFile(Category = "Horde", Name = "Server")]
-		[CommandLine("-BoxHorde=")]
 		[CommandLine("-UBAHorde=")]
 		public string? HordeServer { get; set; }
 
@@ -24,7 +23,6 @@ namespace UnrealBuildTool
 		/// Uri of the Horde server
 		/// </summary>
 		[XmlConfigFile(Category = "Horde", Name = "Token")]
-		[CommandLine("-BoxHordeToken=")]
 		[CommandLine("-UBAHordeToken=")]
 		public string? HordeToken { get; set; }
 
@@ -32,7 +30,6 @@ namespace UnrealBuildTool
 		/// OIDC id for the login to use
 		/// </summary>
 		[XmlConfigFile(Category = "Horde", Name = "OidcProvider")]
-		[CommandLine("-BoxHordeOidc=")]
 		[CommandLine("-UBAHordeOidc=")]
 		public string? HordeOidcProvider { get; set; }
 
@@ -75,7 +72,6 @@ namespace UnrealBuildTool
 		/// <summary>
 		/// Pool for the Horde agent to assign, only used for commandline override
 		/// </summary>
-		[CommandLine("-BoxHordePool=")]
 		[CommandLine("-UBAHordePool=")]
 		public string? OverrideHordePool { get; set; }
 
@@ -101,7 +97,6 @@ namespace UnrealBuildTool
 		/// Requirements for the Horde agent to assign
 		/// </summary>
 		[XmlConfigFile(Category = "Horde", Name = "Requirements")]
-		[CommandLine("-BoxHordeRequirements=")]
 		[CommandLine("-UBAHordeRequirements=")]
 		public string? HordeCondition { get; set; }
 
@@ -109,7 +104,6 @@ namespace UnrealBuildTool
 		/// Which ip UBA server should give to agents. This will invert so host listens and agents connect
 		/// </summary>
 		[XmlConfigFile(Category = "Horde", Name = "LocalHost")]
-		[CommandLine("-BoxHordeHost")]
 		[CommandLine("-UBAHordeHost")]
 		public string HordeHost { get; set; } = String.Empty;
 
@@ -117,7 +111,6 @@ namespace UnrealBuildTool
 		/// Max cores allowed to be used by build session
 		/// </summary>
 		[XmlConfigFile(Category = "UnrealBuildAccelerator")]
-		[CommandLine("-BoxHordeMaxCores")]
 		[CommandLine("-UBAHordeMaxCores")]
 		public int HordeMaxCores { get; set; } = 576;
 
@@ -125,7 +118,6 @@ namespace UnrealBuildTool
 		/// How long UBT should wait to ask for help. Useful in build configs where machine can delay remote work and still get same wall time results (pch dependencies etc)
 		/// </summary>
 		[XmlConfigFile(Category = "UnrealBuildAccelerator")]
-		[CommandLine("-BoxHordeDelay")]
 		[CommandLine("-UBAHordeDelay")]
 		public int HordeDelay { get; set; } = 0;
 
@@ -133,7 +125,6 @@ namespace UnrealBuildTool
 		/// Allow use of Wine. Only applicable to Horde agents running Linux. Can still be ignored if Wine executable is not set on agent.
 		/// </summary>
 		[XmlConfigFile(Category = "UnrealBuildAccelerator")]
-		[CommandLine("-BoxHordeAllowWine", Value = "true")]
 		[CommandLine("-UBAHordeAllowWine", Value = "true")]
 		public bool bHordeAllowWine { get; set; } = true;
 
@@ -142,7 +133,6 @@ namespace UnrealBuildTool
 		/// <see cref="ConnectionMode" /> for valid modes.
 		/// </summary>
 		[XmlConfigFile(Category = "Horde", Name = "ConnectionMode")]
-		[CommandLine("-BoxHordeConnectionMode=")]
 		[CommandLine("-UBAHordeConnectionMode=")]
 		public string? HordeConnectionMode { get; set; }
 
@@ -151,7 +141,6 @@ namespace UnrealBuildTool
 		/// <see cref="Encryption" /> for valid modes.
 		/// </summary>
 		[XmlConfigFile(Category = "Horde", Name = "Encryption")]
-		[CommandLine("-BoxHordeEncryption=")]
 		[CommandLine("-UBAHordeEncryption=")]
 		public string? HordeEncryption { get; set; }
 
@@ -159,7 +148,6 @@ namespace UnrealBuildTool
 		/// Sentry URL to send box data to. Optional.
 		/// </summary>
 		[XmlConfigFile(Category = "Horde")]
-		[CommandLine("-BoxSentryUrl=")]
 		[CommandLine("-UBASentryUrl=")]
 		public string? UBASentryUrl { get; set; }
 
@@ -167,7 +155,6 @@ namespace UnrealBuildTool
 		/// Disable horde all together
 		/// </summary>
 		[XmlConfigFile(Category = "UnrealBuildAccelerator")]
-		[CommandLine("-BoxDisableHorde")]
 		[CommandLine("-UBADisableHorde")]
 		public bool bDisableHorde { get; set; } = false;
 	}
