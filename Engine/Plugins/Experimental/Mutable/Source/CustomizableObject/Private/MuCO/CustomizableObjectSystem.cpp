@@ -3269,6 +3269,11 @@ int32 UCustomizableObjectSystem::TickInternal()
 	return 0;
 #endif
 
+	if (IsEngineExitRequested())
+	{
+		return 0;
+	}
+
 	if (!Private)
 	{
 		return 0;
