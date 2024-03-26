@@ -28,10 +28,15 @@ public:
 	UPROPERTY(EditAnywhere, Category = "Self-Collision Spheres Properties", meta = (ClampMin = "1"))
 	float SelfCollisionSphereRadiusCullMultiplier = 1.f;
 
+	/** The name of the output selection generated from the unculled vertices that receives the collision spheres. */
+	UPROPERTY(VisibleAnywhere, Category = "Self-Collision Spheres Properties", Meta = (DataflowOutput))
+	FString SelfCollisionSphereSetName = GET_MEMBER_NAME_STRING_CHECKED(FChaosClothAssetSimulationSelfCollisionSpheresConfigNode, SelfCollisionSphereSetName);
+
 	FChaosClothAssetSimulationSelfCollisionSpheresConfigNode(const Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid());
 
 private:
 	virtual void AddProperties(FPropertyHelper& PropertyHelper) const override;
 
 	virtual void EvaluateClothCollection(Dataflow::FContext& Context, const TSharedRef<FManagedArrayCollection>& ClothCollection) const override;
+	virtual void Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
 };

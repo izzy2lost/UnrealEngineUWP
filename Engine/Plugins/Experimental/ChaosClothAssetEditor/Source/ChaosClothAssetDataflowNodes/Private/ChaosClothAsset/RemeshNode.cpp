@@ -10,6 +10,8 @@
 #include "ChaosClothAsset/ClothGeometryTools.h"
 #include "ChaosClothAsset/ClothEngineTools.h"
 #include "ChaosClothAsset/ClothDataflowTools.h"
+#include "ChaosClothAsset/SimulationSelfCollisionSpheresConfigNode.h"
+#include "ChaosClothAsset/SimulationLongRangeAttachmentConfigNode.h"
 #include "Dataflow/DataflowInputOutput.h"
 #include "DynamicMesh/MeshTangents.h"
 #include "DynamicMesh/MeshNormals.h"
@@ -1206,10 +1208,15 @@ void FChaosClothAssetRemeshNode::RebuildTopologyDependentSimData(const TSharedRe
 	Chaos::Softs::FCollectionPropertyConstFacade InProperties(InClothCollection);
 
 	// Reconstruct collision spheres
-	if (InProperties.GetKeyIndex(TEXT("SelfCollisionSphereStiffness")) != INDEX_NONE)
+	const FString SelfCollisionSphereStiffnessString = GET_MEMBER_NAME_STRING_CHECKED(FChaosClothAssetSimulationSelfCollisionSpheresConfigNode, SelfCollisionSphereStiffness);
+	const FString SelfCollisionSphereRadiusString = GET_MEMBER_NAME_STRING_CHECKED(FChaosClothAssetSimulationSelfCollisionSpheresConfigNode, SelfCollisionSphereRadius);
+	const FString SelfCollisionSphereRadiusCullMultiplierString = GET_MEMBER_NAME_STRING_CHECKED(FChaosClothAssetSimulationSelfCollisionSpheresConfigNode, SelfCollisionSphereRadiusCullMultiplier);
+	const FString SelfCollisionSphereSetNameString = GET_MEMBER_NAME_STRING_CHECKED(FChaosClothAssetSimulationSelfCollisionSpheresConfigNode, SelfCollisionSphereSetName);
+
+	if (InProperties.GetKeyIndex(SelfCollisionSphereStiffnessString) != INDEX_NONE)
 	{
-		const float SelfCollisionSphereRadius = InProperties.GetValue<float>(TEXT("SelfCollisionSphereRadius"));
-		const float SelfCollisionSphereRadiusCullMultiplier = InProperties.GetValue<float>(TEXT("SelfCollisionSphereRadiusCullMultiplier"));
+		const float SelfCollisionSphereRadius = InProperties.GetValue<float>(SelfCollisionSphereRadiusString);
+		const float SelfCollisionSphereRadiusCullMultiplier = InProperties.GetValue<float>(SelfCollisionSphereRadiusCullMultiplierString);
 		const float CullDiameterSq = FMath::Square(SelfCollisionSphereRadius * SelfCollisionSphereRadiusCullMultiplier * 2.f);
 
 		if (OutClothFacade.IsValid() && CullDiameterSq > 0.f)
@@ -1221,16 +1228,21 @@ void FChaosClothAssetRemeshNode::RebuildTopologyDependentSimData(const TSharedRe
 			FCollectionClothSelectionFacade Selection(OutClothCollection);
 			Selection.DefineSchema();
 
-			static const FName SelectionSetName(TEXT("_SelfCollisionSpheres"));
+			const FName SelectionSetName(*InProperties.GetStringValue(SelfCollisionSphereSetNameString, SelfCollisionSphereSetNameString));
 			Selection.FindOrAddSelectionSet(SelectionSetName, ClothCollectionGroup::SimVertices3D) = VertexSet;
 		}
 	}
 
 	// Reconstruct long-range attachments
-	if (InProperties.GetKeyIndex(TEXT("TetherStiffness")) != INDEX_NONE)
+	const FString TetherStiffnessString = GET_MEMBER_NAME_STRING_CHECKED(FChaosClothAssetSimulationLongRangeAttachmentConfigNode, TetherStiffness);
+	const FString FixedEndWeightMapString = GET_MEMBER_NAME_STRING_CHECKED(FChaosClothAssetSimulationLongRangeAttachmentConfigNode, FixedEndWeightMap);
+	FString UseGeodesicTethersString = GET_MEMBER_NAME_STRING_CHECKED(FChaosClothAssetSimulationLongRangeAttachmentConfigNode, bUseGeodesicTethers);
+	UseGeodesicTethersString.RemoveFromStart(TEXT("b"), ESearchCase::CaseSensitive);  // Property collection names doesn't use the b prefix for booleans
+
+	if (InProperties.GetKeyIndex(TetherStiffnessString) != INDEX_NONE)
 	{
-		const bool bUseGeodesicTethers = InProperties.GetValue<bool>(TEXT("UseGeodesicTethers"));
-		const FName FixedEndWeightMap(InProperties.GetStringValue(TEXT("FixedEndWeightMap")));
+		const bool bUseGeodesicTethers = InProperties.GetValue<bool>(UseGeodesicTethersString);
+		const FName FixedEndWeightMap(InProperties.GetStringValue(FixedEndWeightMapString));
 
 		UE::Chaos::ClothAsset::FClothEngineTools::GenerateTethers(OutClothCollection, FixedEndWeightMap, bUseGeodesicTethers);
 	}
