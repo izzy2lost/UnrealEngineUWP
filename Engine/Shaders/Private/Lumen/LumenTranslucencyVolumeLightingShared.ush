@@ -19,6 +19,11 @@ float4x4 UnjitteredClipToTranslatedWorld;
 float GridCenterOffsetFromDepthBuffer;
 float GridCenterOffsetThresholdToAcceptDepthBufferOffset;
 
+// Froxel probes parameters
+uint  TranslucencyVolumeTracingFroxelProbesOctahedronResolution;
+uint3 TranslucencyVolumeTracingFroxelProbesFroxelSize;
+uint3 TranslucencyVolumeTracingFroxelProbesGridSize;
+
 float ComputeDepthFromZSlice(float ZSlice)
 {
 	float SliceDepth = (exp2(ZSlice / TranslucencyGIGridZParams.z) - TranslucencyGIGridZParams.y) / TranslucencyGIGridZParams.x;
@@ -73,6 +78,17 @@ void GetProbeTracingUV(
 	ConeHalfAngle = acosFast(1.0f - 1.0f / (float)(TranslucencyVolumeTracingOctahedronResolution * TranslucencyVolumeTracingOctahedronResolution));
 }
 
+void GetFroxelProbeTracingUV(
+	float2 TracingTexelCoord,
+	float2 ProbeTexelCenter,
+	out float2 ProbeUV,
+	out float ConeHalfAngle)
+{
+	ProbeUV = (TracingTexelCoord + ProbeTexelCenter) / float(TranslucencyVolumeTracingFroxelProbesOctahedronResolution);
+	// Evenly distributing the sphere solid angle among all cones
+	ConeHalfAngle = acosFast(1.0f - 1.0f / (float) (TranslucencyVolumeTracingFroxelProbesOctahedronResolution * TranslucencyVolumeTracingFroxelProbesOctahedronResolution));
+}
+
 float2 GetProbeTexelCenter(uint2 GridCoordinate)
 {
 	return BlueNoiseVec2(GridCoordinate, FroxelDirectionJitterFrameIndex < 0 ? 0 : FroxelDirectionJitterFrameIndex);
@@ -100,6 +116,72 @@ bool IsFroxelVisible(uint3 GridCoordinate)
 #else
 	return true;
 #endif
+}
+
+uint TranslucencyVolumeTracingFroxelProbePixelSizeShift;
+float TranslucencyVolumeTracingFroxelProbeHZBMipLevel;
+
+float GetFroxelProbeMaxVisibleDepth(uint2 GridCoordinate)
+{
+	float2 HZBScreenUV = (GridCoordinate.xy + .5f) * (1U << TranslucencyVolumeTracingFroxelProbePixelSizeShift) * View.ViewSizeAndInvSize.zw * ViewportUVToHZBBufferUV;
+	float TrilinearFootprintMipBias = 1.0f;
+	return ConvertFromDeviceZ(FurthestHZBTexture.SampleLevel(GlobalPointClampedSampler, HZBScreenUV, TranslucencyVolumeTracingFroxelProbeHZBMipLevel + TrilinearFootprintMipBias).x);
+}
+
+bool IsFroxelProbeVisible(uint3 GridCoordinate)
+{
+#define HZB_OCCLUSION_TEST 1
+#if HZB_OCCLUSION_TEST
+	float MaxVisibleDepth = GetFroxelProbeMaxVisibleDepth(GridCoordinate.xy);
+	float TrilinearFootprintBias = -1.0f;
+	float FroxelMinSceneDepth = ComputeDepthFromZSlice(max((float) GridCoordinate.z + TrilinearFootprintBias, 0.0f));
+	return FroxelMinSceneDepth < MaxVisibleDepth;
+#else
+	return true;
+#endif
+}
+
+float3 GetFroxelProbeLighting(Texture3D<float3> VolumeFroxelProbeRadiance, uint3 FroxelGridCoordinate, float2 ProbeUV)
+{
+	// Sample the Froxel probes generated at lower frequency than froxels
+	float3 FroxelUVs = float3(FroxelGridCoordinate) / float3(TranslucencyGIGridSize);
+			
+	uint3 FroxelProbeGridCoordinate = FroxelGridCoordinate / TranslucencyVolumeTracingFroxelProbesFroxelSize;
+	float3 FroxelProbeGridCoordinateFloat = float3(FroxelGridCoordinate) / float3(TranslucencyVolumeTracingFroxelProbesFroxelSize);
+	float3 LerpUVs = saturate(FroxelProbeGridCoordinateFloat - float3(FroxelProbeGridCoordinate));
+			
+	uint3 FroxelProbeGridCoordinatePlus1 = min(FroxelProbeGridCoordinate+1, TranslucencyVolumeTracingFroxelProbesGridSize-1);
+	
+	float3 TranslucencyVolumeTracingFroxelProbesGridSizeInv = 1.0f / float3(TranslucencyVolumeTracingFroxelProbesGridSize);
+	float3 TranslucencyVolumeTracingFroxelProbesGridSizePlus1Inv = 1.0f / float3(TranslucencyVolumeTracingFroxelProbesGridSize+1);
+	
+	float3	FroxelProbeUVs;
+	#define PREPARE_SAMPLE(FLOATCOORD)	FroxelProbeUVs.xy = float2(FLOATCOORD.xy)			* TranslucencyVolumeTracingFroxelProbesGridSizeInv.xy;\
+										FroxelProbeUVs.xy+= ProbeUV							* TranslucencyVolumeTracingFroxelProbesGridSizePlus1Inv.xy;\
+										FroxelProbeUVs.z  = (float(FLOATCOORD.z) + 0.5f)	* TranslucencyVolumeTracingFroxelProbesGridSizeInv.z;
+	
+	PREPARE_SAMPLE(float3(FroxelProbeGridCoordinate))
+	float3 Lighting000 = VolumeFroxelProbeRadiance.SampleLevel(GlobalBilinearClampedSampler, FroxelProbeUVs, 0);
+	PREPARE_SAMPLE(float3(FroxelProbeGridCoordinate.x,		FroxelProbeGridCoordinate.y,		FroxelProbeGridCoordinatePlus1.z))
+	float3 Lighting001 = VolumeFroxelProbeRadiance.SampleLevel(GlobalBilinearClampedSampler, FroxelProbeUVs, 0);
+	PREPARE_SAMPLE(float3(FroxelProbeGridCoordinate.x,		FroxelProbeGridCoordinatePlus1.y,	FroxelProbeGridCoordinate.z		))
+	float3 Lighting010 = VolumeFroxelProbeRadiance.SampleLevel(GlobalBilinearClampedSampler, FroxelProbeUVs, 0);
+	PREPARE_SAMPLE(float3(FroxelProbeGridCoordinate.x,		FroxelProbeGridCoordinatePlus1.y,	FroxelProbeGridCoordinatePlus1.z))
+	float3 Lighting011 = VolumeFroxelProbeRadiance.SampleLevel(GlobalBilinearClampedSampler, FroxelProbeUVs, 0);
+	PREPARE_SAMPLE(float3(FroxelProbeGridCoordinatePlus1.x,	FroxelProbeGridCoordinate.y,		FroxelProbeGridCoordinate.z		))
+	float3 Lighting100 = VolumeFroxelProbeRadiance.SampleLevel(GlobalBilinearClampedSampler, FroxelProbeUVs, 0);
+	PREPARE_SAMPLE(float3(FroxelProbeGridCoordinatePlus1.x,	FroxelProbeGridCoordinate.y,		FroxelProbeGridCoordinatePlus1.z))
+	float3 Lighting101 = VolumeFroxelProbeRadiance.SampleLevel(GlobalBilinearClampedSampler, FroxelProbeUVs, 0);
+	PREPARE_SAMPLE(float3(FroxelProbeGridCoordinatePlus1.x,	FroxelProbeGridCoordinatePlus1.y,	FroxelProbeGridCoordinate.z		))
+	float3 Lighting110 = VolumeFroxelProbeRadiance.SampleLevel(GlobalBilinearClampedSampler, FroxelProbeUVs, 0);
+	PREPARE_SAMPLE(float3(FroxelProbeGridCoordinatePlus1.x,	FroxelProbeGridCoordinatePlus1.y,	FroxelProbeGridCoordinatePlus1.z))
+	float3 Lighting111 = VolumeFroxelProbeRadiance.SampleLevel(GlobalBilinearClampedSampler, FroxelProbeUVs, 0);
+			
+	float3 LightingX0 = lerp( lerp(Lighting000, Lighting001, LerpUVs.zzz), lerp(Lighting010, Lighting011, LerpUVs.zzz), LerpUVs.yyy);
+	float3 LightingX1 = lerp( lerp(Lighting100, Lighting101, LerpUVs.zzz), lerp(Lighting110, Lighting111, LerpUVs.zzz), LerpUVs.yyy);
+	return lerp( LightingX0, LightingX1, LerpUVs.xxx);
+	
+	#undef PREPARE_SAMPLE
 }
 
 float MaxTraceDistance;

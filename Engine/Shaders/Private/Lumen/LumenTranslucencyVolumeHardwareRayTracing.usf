@@ -35,7 +35,33 @@ StructuredBuffer<FRayTracingSceneMetadataRecord> RayTracingSceneMetadata;
 
 RWTexture3D<float3> RWVolumeTraceRadiance;
 RWTexture3D<float> RWVolumeTraceHitDistance;
+Texture3D<float3> VolumeFroxelProbeRadiance;
 uint MaxTraversalIterations;
+
+// Applying an offset from the depth buffer helps with reducing self intersection with global distance field tracing.
+void ApplyDepthconstraintsToOffset(float3 GridCoordinate, inout float3 LocalFrameJitterOffset)
+{
+	if (GridCenterOffsetFromDepthBuffer >= 0.0)
+	{
+		float4 GridSampleClip	= mul(float4(ComputeCellTranslatedWorldPosition(GridCoordinate, LocalFrameJitterOffset), 1), View.TranslatedWorldToClip);
+		float3 GridSampleScreen	= GridSampleClip.xyz / GridSampleClip.w;
+		float3 GridSampleUVz	= float3(GridSampleScreen.xy * View.ScreenPositionScaleBias.xy + View.ScreenPositionScaleBias.wz, GridSampleScreen.z);
+		float GridSampleSceneDepth = ConvertFromDeviceZ(SceneTexturesStruct.SceneDepthTexture.SampleLevel(SceneTexturesStruct_SceneDepthTextureSampler, GridSampleUVz.xy, 0).r);
+
+		float DepthGridCoordinateWithZOffset = ComputeZSliceFromDepth(GridSampleSceneDepth) - GridCenterOffsetFromDepthBuffer;
+
+		float3 GridCoordinateOffset = float3(GridCoordinate) + LocalFrameJitterOffset;
+		
+		const float DepthToSampleGridOffset = DepthGridCoordinateWithZOffset - GridCoordinateOffset.z;	// <0 if samples is in front of the depth buffer
+		if (DepthToSampleGridOffset < 0.0																// Move the sample forward only if the depth buffer grid coordinate is closer,
+			&& (-DepthToSampleGridOffset < GridCenterOffsetThresholdToAcceptDepthBufferOffset)			// But only if it is less than N slice away (to not bring all the sample behind forward)
+			)
+		{
+			// If the grid sample is further than the grid z for the depth buffer, adjust the offset 
+			LocalFrameJitterOffset.z += DepthToSampleGridOffset;
+		}
+	}
+}
 
 LUMEN_HARDWARE_RAY_TRACING_ENTRY(LumenTranslucencyVolumeHardwareRayTracing)
 {
@@ -60,7 +86,9 @@ LUMEN_HARDWARE_RAY_TRACING_ENTRY(LumenTranslucencyVolumeHardwareRayTracing)
 
 		if (IsFroxelVisible(GridCoordinate))
 		{
-			float3 WorldPosition = ComputeCellWorldPosition(GridCoordinate, FrameJitterOffset.xyz);
+			float3 LocalFrameJitterOffset = FrameJitterOffset.xyz;
+			ApplyDepthconstraintsToOffset(GridCoordinate, LocalFrameJitterOffset);
+			float3 WorldPosition = ComputeCellWorldPosition(GridCoordinate, LocalFrameJitterOffset);
 
 			float2 ProbeUV;
 			float ConeHalfAngle;
@@ -113,13 +141,24 @@ LUMEN_HARDWARE_RAY_TRACING_ENTRY(LumenTranslucencyVolumeHardwareRayTracing)
 			{
 				float Transparency = 1.0f;
 
-#if USE_RADIANCE_CACHE
+			#if USE_FROXEL_PROBES
+				if (true) // Froxel probes are always valid for the translucency volume froxels.
+				{
+					const float3 FroxelProbeRadiance = GetFroxelProbeLighting(VolumeFroxelProbeRadiance, GridCoordinate, ProbeUV) * View.OneOverPreExposure;
+			
+					// Lerp according to tracing coverage=1-transparency
+					TraceLightingResult.Radiance += FroxelProbeRadiance * Transparency;
+
+					Transparency = 0.0;
+				}
+				else
+			#elif USE_RADIANCE_CACHE
 				if (Coverage.bValid)
 				{
 					SampleRadianceCacheAndApply(Coverage, WorldPosition, WorldConeDirection, ConeHalfAngle, TraceLightingResult.Radiance, Transparency);
 				}
 				else
-#endif
+			#endif
 				{
 					FConeTraceResult TraceResult;
 					TraceResult.Lighting = TraceLightingResult.Radiance;

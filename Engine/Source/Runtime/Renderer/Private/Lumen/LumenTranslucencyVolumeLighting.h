@@ -64,11 +64,15 @@ BEGIN_SHADER_PARAMETER_STRUCT(FLumenTranslucencyLightingVolumeParameters, )
 	SHADER_PARAMETER(FMatrix44f, UnjitteredClipToTranslatedWorld)
 	SHADER_PARAMETER(uint32, TranslucencyVolumeTracingOctahedronResolution)
 	SHADER_PARAMETER_RDG_TEXTURE(Texture2D, FurthestHZBTexture)
-	SHADER_PARAMETER_RDG_UNIFORM_BUFFER(FSceneTextureUniformParameters, SceneTexturesStruct)
 	SHADER_PARAMETER(float, HZBMipLevel)
 	SHADER_PARAMETER(float, GridCenterOffsetFromDepthBuffer)
 	SHADER_PARAMETER(float, GridCenterOffsetThresholdToAcceptDepthBufferOffset)
 	SHADER_PARAMETER(FVector2f, ViewportUVToHZBBufferUV)
+	SHADER_PARAMETER(uint32, TranslucencyVolumeTracingFroxelProbesOctahedronResolution)
+	SHADER_PARAMETER(uint32, TranslucencyVolumeTracingFroxelProbePixelSizeShift)
+	SHADER_PARAMETER(float, TranslucencyVolumeTracingFroxelProbeHZBMipLevel)
+	SHADER_PARAMETER(FUintVector, TranslucencyVolumeTracingFroxelProbesFroxelSize)
+	SHADER_PARAMETER(FUintVector, TranslucencyVolumeTracingFroxelProbesGridSize)
 END_SHADER_PARAMETER_STRUCT()
 
 BEGIN_SHADER_PARAMETER_STRUCT(FLumenTranslucencyLightingVolumeTraceSetupParameters, )
@@ -93,6 +97,7 @@ extern void HardwareRayTraceTranslucencyVolume(
 	FLumenTranslucencyLightingVolumeTraceSetupParameters TraceSetupParameters,
 	FRDGTextureRef VolumeTraceRadiance,
 	FRDGTextureRef VolumeTraceHitDistance,
+	FRDGTextureRef VolumeFroxelProbeRadiance,
 	ERDGPassFlags ComputePassFlags
 );
 

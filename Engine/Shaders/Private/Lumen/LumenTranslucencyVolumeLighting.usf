@@ -51,6 +51,7 @@ void MarkRadianceProbesUsedByTranslucencyVolumeCS(
 
 RWTexture3D<float3> RWVolumeTraceRadiance;
 RWTexture3D<float> RWVolumeTraceHitDistance;
+Texture3D<float3> VolumeFroxelProbeRadiance;
 
 // Applying an offset from the depth buffer helps with reducing self intersection with global distance field tracing.
 void ApplyDepthconstraintsToOffset(float3 GridCoordinate, inout float3 LocalFrameJitterOffset)
@@ -142,7 +143,18 @@ void TranslucencyVolumeTraceVoxelsCS(
 				TraceHitDistance = TraceResult.OpaqueHitDistance;
 			}
 
-#if USE_RADIANCE_CACHE
+#if USE_FROXEL_PROBES
+			if (true) // Froxel probes are always valid for the translucency volume froxels.
+			{
+				const float3 FroxelProbeRadiance = GetFroxelProbeLighting(VolumeFroxelProbeRadiance, GridCoordinate, ProbeUV) * View.OneOverPreExposure;
+			
+				// Lerp according to tracing coverage=1-transparency
+				TraceResult.Lighting += FroxelProbeRadiance * TraceResult.Transparency;
+			
+				TraceResult.Transparency = 0.0;
+			}
+			else
+#elif USE_RADIANCE_CACHE
 			if (Coverage.bValid)
 			{
 				SampleRadianceCacheAndApply(Coverage, WorldPosition, WorldConeDirection, ConeHalfAngle, TraceResult.Lighting, TraceResult.Transparency);
@@ -166,6 +178,75 @@ void TranslucencyVolumeTraceVoxelsCS(
 		}
 
 		uint3 WriteCoord = uint3(GridCoordinate.xy * TranslucencyVolumeTracingOctahedronResolution + TraceTexelCoord, GridCoordinate.z);
+		RWVolumeTraceRadiance[WriteCoord] = TraceRadiance;
+		RWVolumeTraceHitDistance[WriteCoord] = min(TraceHitDistance, MaxHalfFloat);
+	}
+}
+
+
+[numthreads(THREADGROUP_SIZE, THREADGROUP_SIZE, 1)]
+void TranslucencyVolumeFroxelProbesCS(
+	uint3 GroupId : SV_GroupID,
+	uint3 DispatchThreadId : SV_DispatchThreadID,
+	uint3 GroupThreadId : SV_GroupThreadID)
+{
+	uint3 FroxelProbeGridCoordinate = uint3(DispatchThreadId.xy / TranslucencyVolumeTracingFroxelProbesOctahedronResolution, DispatchThreadId.z);
+	uint2 FroxelProbeTraceTexelCoord = DispatchThreadId.xy - FroxelProbeGridCoordinate.xy * TranslucencyVolumeTracingFroxelProbesOctahedronResolution;
+	
+	uint3 FroxelGridCoordinate = FroxelProbeGridCoordinate * TranslucencyVolumeTracingFroxelProbesFroxelSize;
+
+	if (all(FroxelProbeGridCoordinate < TranslucencyVolumeTracingFroxelProbesGridSize) && all(FroxelProbeTraceTexelCoord < TranslucencyVolumeTracingFroxelProbesOctahedronResolution))
+	{
+		float3 TraceRadiance = 0;
+		float TraceHitDistance = MaxTraceDistance;
+
+		if (IsFroxelProbeVisible(FroxelProbeGridCoordinate)) 
+		{
+			float3 LocalFrameJitterOffset = 0.5f; // Do not Jitter for now
+			ApplyDepthconstraintsToOffset(FroxelGridCoordinate + TranslucencyVolumeTracingFroxelProbesFroxelSize/2, LocalFrameJitterOffset);
+
+			float3 WorldPosition = ComputeCellWorldPosition(FroxelGridCoordinate, LocalFrameJitterOffset);
+			float3 TranslatedWorldPosition = ComputeCellTranslatedWorldPosition(FroxelGridCoordinate, LocalFrameJitterOffset);
+
+			float2 ProbeUV;
+			float ConeHalfAngle;
+			const float2 ProbeTexelCenter = 0.5; // No jittering so not using GetProbeTexelCenter for stability
+			GetFroxelProbeTracingUV(FroxelProbeTraceTexelCoord, 0.5, ProbeUV, ConeHalfAngle);
+
+			float3 WorldConeDirection = EquiAreaSphericalMapping(ProbeUV);
+			
+			float VoxelTraceStartDistance = CalculateVoxelTraceStartDistance(0, MaxTraceDistance, MaxMeshSDFTraceDistance, false) * VoxelTraceStartDistanceScale;
+
+			FConeTraceInput TraceInput;
+			TraceInput.Setup(WorldPosition, TranslatedWorldPosition, WorldConeDirection, ConeHalfAngle, 0, 0, MaxTraceDistance, StepFactor);
+			TraceInput.VoxelTraceStartDistance = VoxelTraceStartDistance;
+			TraceInput.SDFStepFactor = 1;
+
+			FConeTraceResult TraceResult = (FConeTraceResult) 0;
+			TraceResult.Transparency = 1;
+			
+			RayTraceGlobalDistanceField(TraceInput, TraceResult);
+
+			if (TraceResult.Transparency <= .5f)
+			{
+				TraceHitDistance = TraceResult.OpaqueHitDistance;
+			}
+			
+			ApplySkylightToTraceResult(WorldConeDirection, TraceResult);
+
+			TraceRadiance = TraceResult.Lighting;
+
+			TraceRadiance *= View.PreExposure;
+
+			float MaxLighting = max3(TraceRadiance.x, TraceRadiance.y, TraceRadiance.z);
+
+			if (MaxLighting > MaxRayIntensity)
+			{
+				TraceRadiance *= MaxRayIntensity / MaxLighting;
+			}
+		}
+
+		uint3 WriteCoord = uint3(FroxelProbeGridCoordinate.xy * TranslucencyVolumeTracingFroxelProbesOctahedronResolution + FroxelProbeTraceTexelCoord, FroxelProbeGridCoordinate.z);
 		RWVolumeTraceRadiance[WriteCoord] = TraceRadiance;
 		RWVolumeTraceHitDistance[WriteCoord] = min(TraceHitDistance, MaxHalfFloat);
 	}
@@ -270,19 +351,6 @@ void TranslucencyVolumeIntegrateCS(
 			Lighting.B.V *= NormalizeFactor;
 			bNewLightingValid = true;
 		}
-
-		
-		/*
-		///////////////
-		Lighting = (FTwoBandSHVectorRGB)0;
-
-		float SceneDepth = ComputeDepthFromZSlice(GridCoordinate.z + FrameJitterOffset.z);
-		//float3 Debug = saturate(FroxelTrilinearFootprintMinSceneDepth / 10000.0f);
-		float3 Debug = FroxelTrilinearFootprintMinSceneDepth > MaxVisibleDepth ? 1 : 0;
-		Lighting.R.V.x = Debug.x * SHAmbientFunction();
-		Lighting.G.V.x = Debug.y * SHAmbientFunction();
-		Lighting.B.V.x = Debug.z * SHAmbientFunction();
-*/
 
 		// Output for Volumetric Fog which has its own temporal filter
 		{
