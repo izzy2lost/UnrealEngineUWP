@@ -7,8 +7,14 @@
 #include "MuR/Model.h"
 #include "TextureResource.h"
 #include "UnrealMutableImageProvider.h"
+#include "MuCO/BusyWaits_Deprecated.h"
+
+#include "Containers/Ticker.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(CustomizableObjectMipDataProvider)
+
+
+#define UE_MUTABLE_MIPDATA_PROVIDER_UPDATE_IMAGE_REGION		TEXT("MipDataProvider_Mutable_UpdateImage")
 
 UMutableTextureMipDataProviderFactory::UMutableTextureMipDataProviderFactory(const FObjectInitializer& ObjectInitializer)
 	: Super(ObjectInitializer)
@@ -124,11 +130,10 @@ void FMutableTextureMipDataProvider::Init(const FTextureUpdateContext& Context, 
 }
 
 
-namespace impl
+namespace Impl
 {
 	void Task_Mutable_UpdateImage(TSharedPtr<FMutableImageOperationData> OperationData)
 	{
-		MUTABLE_CPUPROFILER_SCOPE(Task_Mutable_UpdateImage);
 		const double StartTime = FPlatformTime::Seconds();
 		
 		if (CVarEnableBenchmark.GetValueOnAnyThread())
@@ -147,136 +152,17 @@ namespace impl
 		check(OperationData->UpdateContext->GetModel());
 		check(OperationData->UpdateContext->GetParameters().get());
 
-		if (OperationData.IsValid())
+		if (!OperationData.IsValid())
 		{
-			mu::SystemPtr System = OperationData->UpdateContext->GetSystem();
-			const TSharedPtr<mu::Model, ESPMode::ThreadSafe> Model = OperationData->UpdateContext->GetModel();
-
-#if WITH_EDITOR
-			// Recompiling a CO in the editor will invalidate the previously generated Model. Check that it is valid before accessing the streamed data.
-			if (Model && Model->IsValid())
-#endif
-			{
-
-				// For now, we are forcing the recreation of mutable-side instances with every update.
-				mu::Instance::ID InstanceID = System->NewInstance(Model);
-				UE_LOG(LogMutable, Verbose, TEXT("Creating Mutable instance with id [%d] for a single UpdateImage"), InstanceID)
-
-					const mu::Instance* Instance = nullptr;
-
-				// Main instance generation step
-				{
-					// LOD mask, set to all ones to build all LODs
-					uint32 LODMask = 0xFFFFFFFF;
-
-					Instance = System->BeginUpdate(InstanceID, OperationData->UpdateContext->GetParameters(), OperationData->UpdateContext->GetState(), LODMask);
-					check(Instance);
-				}
-
-
-				// Generate the required image
-				{
-					MUTABLE_CPUPROFILER_SCOPE(RequestedImage);
-
-					const FMutableImageReference& ImageRef = OperationData->RequestedImage;
-
-					int32 SurfaceIndex = Instance->FindSurfaceById(ImageRef.LOD, ImageRef.Component, ImageRef.SurfaceId);
-					check(SurfaceIndex >= 0);
-
-					// This ID may be different than the ID obtained the first time the image was generated, because the mutable
-					// runtime cannot remember all the resources it has built, and only remembers a fixed amount.
-					mu::FResourceID MipImageID = Instance->GetImageId(ImageRef.LOD, ImageRef.Component, SurfaceIndex, ImageRef.Image);
-
-
-					mu::ImagePtrConst Image;
-					{
-						MUTABLE_CPUPROFILER_SCOPE(GetImage);
-
-						Image = System->GetImageInline(InstanceID, MipImageID, ImageRef.BaseMip + OperationData->MipsToSkip, ImageRef.LOD);
-					}
-
-					check(Image);
-
-					int32 FullMipCount = Image->GetMipmapCount(Image->GetSizeX(), Image->GetSizeY());
-					int32 RealMipCount = Image->GetLODCount();
-
-					bool bForceMipchain =
-						// Did we fail to generate the entire mipchain (if we have mips at all)?
-						(RealMipCount != 1) && (RealMipCount != FullMipCount);
-
-					if (bForceMipchain)
-					{
-						MUTABLE_CPUPROFILER_SCOPE(GetImage_MipFix);
-
-						UE_LOG(LogMutable, Warning, TEXT("Mutable generated an incomplete mip chain for image."));
-
-						// Force the right number of mips. The missing data will be black.
-						mu::Ptr<mu::Image> NewImage = new mu::Image(Image->GetSizeX(), Image->GetSizeY(), FullMipCount, Image->GetFormat(), mu::EInitializationType::Black);
-
-						// Formats with BytesPerBlock == 0 will not allocate memory. This type of images are not expected here.
-						check(!NewImage->DataStorage.IsEmpty());
-
-						for (int32 L = 0; L < RealMipCount; ++L)
-						{
-							TArrayView<uint8> DestView = NewImage->DataStorage.GetLOD(L);
-							TArrayView<const uint8> SrcView = Image->DataStorage.GetLOD(L);
-
-							check(DestView.Num() == SrcView.Num());
-							FMemory::Memcpy(DestView.GetData(), SrcView.GetData(), DestView.Num());
-						}
-
-						Image = NewImage;
-					}
-
-					OperationData->Result = Image;
-				}
-
-				// End update
-				{
-					MUTABLE_CPUPROFILER_SCOPE(EndUpdate);
-					System->EndUpdate(InstanceID);
-					System->ReleaseInstance(InstanceID);
-
-					if (CVarClearWorkingMemoryOnUpdateEnd.GetValueOnAnyThread())
-					{
-						System->ClearWorkingMemory();
-					}
-				}
-			}
+			return;
 		}
 
-		if (CVarEnableBenchmark.GetValueOnAnyThread())
-		{
-			double Time = FPlatformTime::Seconds() - StartTime;
-			// Report the peak memory used by the operation
-			const int64 PeakMemory = mu::FGlobalMemoryCounter::GetPeak();
-			// Report the peak memory used during the operation (operation + baseline)
-			const int64 RealMemoryPeak = PeakMemory + OperationData->ImageUpdateStartBytes;
-
-			const FString& CustomizableObjectPathName = OperationData->UpdateContext->GetCustomizableObjectPathName();
-			const FString& InstancePathName = OperationData->UpdateContext->GetInstancePathName();
-			
-			FFunctionGraphTask::CreateAndDispatchWhenReady(
-			[CustomizableObjectPathName, InstancePathName, Time, PeakMemory, RealMemoryPeak]()
-			{
-				if (!UCustomizableObjectSystem::IsCreated()) // We are shutting down
-				{
-					return;	
-				}
-				
-				UCustomizableObjectSystem* System = UCustomizableObjectSystem::GetInstance();
-				if (!System)
-				{
-					return;
-				}
-
-				System->GetPrivate()->LogBenchmarkUtil.FinishUpdateImage(CustomizableObjectPathName, InstancePathName, Time, PeakMemory, RealMemoryPeak);
-			},
-			TStatId{},
-			nullptr,
-			ENamedThreads::GameThread);
-		}
+		TRACE_BEGIN_REGION(UE_MUTABLE_MIPDATA_PROVIDER_UPDATE_IMAGE_REGION);
 		
+		mu::Ptr<mu::System> System = OperationData->UpdateContext->GetSystem();
+		const TSharedPtr<mu::Model, ESPMode::ThreadSafe> Model = OperationData->UpdateContext->GetModel();
+
+		auto EndUpdateImage = [](TSharedPtr<FMutableImageOperationData>& OperationData)
 		{
 			// The request could be cancelled in parallel from CancelCounterSafely and its value be changed
 			// between reading it and actually running Decrement() and RescheduleCallback(), so lock
@@ -292,9 +178,135 @@ namespace impl
 					OperationData->RescheduleCallback();
 				}
 			}
+			
+			TRACE_END_REGION(UE_MUTABLE_MIPDATA_PROVIDER_UPDATE_IMAGE_REGION);
+		};
+
+#if WITH_EDITOR
+		// Recompiling a CO in the editor will invalidate the previously generated Model. Check that it is valid before accessing the streamed data.
+		if (!(Model && Model->IsValid()))
+		{
+			EndUpdateImage(OperationData);
+			return;
 		}
+#endif
+
+		// For now, we are forcing the recreation of mutable-side instances with every update.
+		mu::Instance::ID InstanceID = System->NewInstance(Model);
+		UE_LOG(LogMutable, Verbose, TEXT("Creating Mutable instance with id [%d] for a single UpdateImage"), InstanceID)
+
+		const mu::Instance* Instance = nullptr;
+
+		// Main instance generation step
+		{
+			// LOD mask, set to all ones to build all LODs
+			uint32 LODMask = 0xFFFFFFFF;
+
+			Instance = System->BeginUpdate(InstanceID, OperationData->UpdateContext->GetParameters(), OperationData->UpdateContext->GetState(), LODMask);
+			check(Instance);
+		}
+
+		const FMutableImageReference& ImageRef = OperationData->RequestedImage;
+
+		int32 SurfaceIndex = Instance->FindSurfaceById(ImageRef.LOD, ImageRef.Component, ImageRef.SurfaceId);
+		check(SurfaceIndex >= 0);
+
+		// This ID may be different than the ID obtained the first time the image was generated, because the mutable
+		// runtime cannot remember all the resources it has built, and only remembers a fixed amount.
+		mu::FResourceID MipImageID = Instance->GetImageId(ImageRef.LOD, ImageRef.Component, SurfaceIndex, ImageRef.Image);
+
+		UE::Tasks::TTask<mu::Ptr<const mu::Image>> GetImageTask = 
+				System->GetImage(InstanceID, MipImageID, ImageRef.BaseMip + OperationData->MipsToSkip, ImageRef.LOD);
+
+		UE::Tasks::AddNested(UE::Tasks::Launch(TEXT("MipDataProvider_EndUpdateImagesTask"),
+				[System, OperationData, InstanceID, StartTime, GetImageTask, EndUpdateImage]() mutable
+				{
+					check(GetImageTask.IsCompleted());
+
+					mu::Ptr<const mu::Image> ResultImage = GetImageTask.GetResult();
+
+					check(ResultImage);
+
+					int32 FullMipCount = ResultImage->GetMipmapCount(ResultImage->GetSizeX(), ResultImage->GetSizeY());
+					int32 RealMipCount = ResultImage->GetLODCount();
+
+					// Did we fail to generate the entire mipchain (if we have mips at all)?
+					bool bForceMipchain = (RealMipCount != 1) && (RealMipCount != FullMipCount);
+
+					if (bForceMipchain)
+					{
+						MUTABLE_CPUPROFILER_SCOPE(GetImage_MipFix);
+
+						UE_LOG(LogMutable, Warning, TEXT("Mutable generated an incomplete mip chain for image."));
+
+						// Force the right number of mips. The missing data will be black.
+						mu::Ptr<mu::Image> NewImage = new mu::Image(ResultImage->GetSizeX(), ResultImage->GetSizeY(), FullMipCount, ResultImage->GetFormat(), mu::EInitializationType::Black);
+
+						// Formats with BytesPerBlock == 0 will not allocate memory. This type of images are not expected here.
+						check(!NewImage->DataStorage.IsEmpty());
+
+						for (int32 L = 0; L < RealMipCount; ++L)
+						{
+							TArrayView<uint8> DestView = NewImage->DataStorage.GetLOD(L);
+							TArrayView<const uint8> SrcView = ResultImage->DataStorage.GetLOD(L);
+
+							check(DestView.Num() == SrcView.Num());
+							FMemory::Memcpy(DestView.GetData(), SrcView.GetData(), DestView.Num());
+						}
+
+						ResultImage = NewImage;
+					}
+
+					OperationData->Result = ResultImage;
+
+					// End update
+					{
+						MUTABLE_CPUPROFILER_SCOPE(EndUpdate);
+						System->EndUpdate(InstanceID);
+						System->ReleaseInstance(InstanceID);
+
+						if (CVarClearWorkingMemoryOnUpdateEnd.GetValueOnAnyThread())
+						{
+							System->ClearWorkingMemory();
+						}
+					}
+
+					if (CVarEnableBenchmark.GetValueOnAnyThread())
+					{
+						double Time = FPlatformTime::Seconds() - StartTime;
+						// Report the peak memory used by the operation
+						const int64 PeakMemory = mu::FGlobalMemoryCounter::GetPeak();
+						// Report the peak memory used during the operation (operation + baseline)
+						const int64 RealMemoryPeak = PeakMemory + OperationData->ImageUpdateStartBytes;
+
+						const FString& CustomizableObjectPathName = OperationData->UpdateContext->GetCustomizableObjectPathName();
+						const FString& InstancePathName = OperationData->UpdateContext->GetInstancePathName();
+					
+						ExecuteOnGameThread(UE_SOURCE_LOCATION, 
+						[CustomizableObjectPathName, InstancePathName, Time, PeakMemory, RealMemoryPeak]()
+						{
+							if (!UCustomizableObjectSystem::IsCreated()) // We are shutting down
+							{
+								return;	
+							}
+							
+							UCustomizableObjectSystem* System = UCustomizableObjectSystem::GetInstance();
+							if (!System)
+							{
+								return;
+							}
+
+							System->GetPrivate()->LogBenchmarkUtil.FinishUpdateImage(CustomizableObjectPathName, InstancePathName, Time, PeakMemory, RealMemoryPeak);
+						});
+					}
+
+					EndUpdateImage(OperationData);
+				},
+				UE::Tasks::Prerequisites(GetImageTask),
+				UE::Tasks::ETaskPriority::Inherit,
+				UE::Tasks::EExtendedTaskPriority::Inline)); // MipDataProvider_EndUpdateImagesTaskGetImage.
 	}
-} // namespace
+} // namespace Impl
 
 
 int32 FMutableTextureMipDataProvider::GetMips(const FTextureUpdateContext& Context, int32 StartingMipIndex, const FTextureMipInfoArray& MipInfos, const FTextureUpdateSyncOptions& SyncOptions)
@@ -380,12 +392,19 @@ int32 FMutableTextureMipDataProvider::GetMips(const FTextureUpdateContext& Conte
 			OperationData->Counter = SyncOptions.Counter;
 			OperationData->RescheduleCallback = SyncOptions.RescheduleCallback;
 
-			TSharedPtr<FMutableImageOperationData> LocalOperationData = OperationData;
 			MutableTaskId = CustomizableObjectSystem->MutableTaskGraph.AddMutableThreadTaskLowPriority(
 				TEXT("Mutable_MipUpdate"),
-				[LocalOperationData]()
+				[OperationData = this->OperationData]()
 				{
-					impl::Task_Mutable_UpdateImage(LocalOperationData);
+					if (CVarEnableNewSplitMutableTask.GetValueOnAnyThread())
+					{
+						Impl::Task_Mutable_UpdateImage(OperationData);
+					}
+					else
+					{
+						using namespace CustomizableObjectMipDataProvider;
+						ImplDeprecated::Task_Mutable_UpdateImage(OperationData);
+					}
 				});
 		}
 
