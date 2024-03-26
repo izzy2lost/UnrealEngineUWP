@@ -2239,7 +2239,7 @@ TArray<TTuple<USkeletalMesh*, TSoftClassPtr<UAnimInstance>>> GetSkeletalMeshesIn
 
 		if (DataTable)
 		{
-			for (const FName& RowName : TableNode->GetRowNames(DataTable))
+			for (const FName& RowName : GetRowsToCompile(*DataTable, *TableNode,GenerationContext))
 			{
 				USkeletalMesh* SkeletalMesh = TableNode->GetSkeletalMeshAt(SourceMeshPin, DataTable, RowName);
 				TSoftClassPtr<UAnimInstance> MeshAnimInstance = TableNode->GetAnimInstanceAt(SourceMeshPin, DataTable, RowName);
@@ -2702,7 +2702,7 @@ mu::NodeMeshPtr GenerateMorphMesh(const UEdGraphPin* Pin,
 		UDataTable* DataTable = GetDataTable(TypedNodeTable, GenerationContext);
 
 		// Generate a new Column for each morph
-		const TArray<FName>& RowNames = TypedNodeTable->GetRowNames(DataTable);
+		const TArray<FName>& RowNames = GetRowsToCompile(*DataTable, *TypedNodeTable, GenerationContext);
 		int32 NumRows = RowNames.Num();
 
 		// Should exist

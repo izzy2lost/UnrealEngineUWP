@@ -216,6 +216,10 @@ public:
 	UPROPERTY(EditAnywhere, Category = TableProperties)
 	ETableTextureType DefaultImageMode = ETableTextureType::MUTABLE_TEXTURE;
 
+	/** Name of the column that contains the Version options. */
+	UPROPERTY(EditAnywhere, Category = TableProperties)
+	FName VersionColumn;
+
 	UPROPERTY(EditAnywhere, Category = UI, meta = (DisplayName = "Parameter UI Metadata"))
 	FMutableParamUIMetadata ParamUIMetadata;
 
@@ -356,11 +360,6 @@ public:
 	// We should do this in a template!
 	USkeletalMesh* GetSkeletalMeshAt(const UEdGraphPin* Pin, const UDataTable* DataTable, const FName& RowName) const;
 	TSoftClassPtr<UAnimInstance> GetAnimInstanceAt(const UEdGraphPin* Pin, const UDataTable* DataTable, const FName& RowName) const;
-
-
-	// Return the name of the enabled rows in the data table.
-	// Returns the name if the row has a bool column set as false (true == disabled)
-	TArray<FName> GetRowNames(const UDataTable* DataTable) const;
 
 	// Changes the image mode of a pin
 	// bSetDefault param: if true sets the pin to be equal to the default mode (same as node)

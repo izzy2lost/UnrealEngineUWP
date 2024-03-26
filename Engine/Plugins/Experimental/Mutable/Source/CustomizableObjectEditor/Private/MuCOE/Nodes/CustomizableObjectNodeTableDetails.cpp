@@ -59,6 +59,28 @@ void FCustomizableObjectNodeTableDetails::CustomizeDetails(const TSharedPtr<IDet
 
 		GenerateMeshColumnComboBoxOptions();
 		TSharedPtr<FString> CurrentMutableMetadataColumn = GenerateMutableMetaDataColumnComboBoxOptions();
+		TSharedPtr<FString> CurrentVersionColumn = GenerateVersionColumnComboBoxOptions();
+
+		CustomizableObjectCategory.AddProperty("ParameterName");
+		CustomizableObjectCategory.AddCustomRow(LOCTEXT("VersionColumn_Selector","VersionColumn"))
+		.NameContent()
+		[
+			SNew(STextBlock)
+			.Text(LOCTEXT("VersionColumn_SelectorText","Version Column"))
+			.ToolTipText(LOCTEXT("VersionColumn_SelectorTooltip","Select the column that contains the version of each row."))
+			.Font(DetailBuilder->GetDetailFont())
+		]
+		.ValueContent()
+		[
+			SAssignNew(VersionColumnsComboBox,STextComboBox)
+			.InitiallySelectedItem(CurrentVersionColumn)
+			.OptionsSource(&VersionColumnsOptionNames)
+			.OnComboBoxOpening(this, &FCustomizableObjectNodeTableDetails::OnOpenVersionColumnComboBox)
+			.OnSelectionChanged(this, &FCustomizableObjectNodeTableDetails::OnVersionColumnComboBoxSelectionChanged)
+			.Font(DetailBuilder->GetDetailFont())
+			.ColorAndOpacity(this, &FCustomizableObjectNodeTableDetails::GetVersionColumnComboBoxTextColor, &VersionColumnsOptionNames)
+		]
+		.OverrideResetToDefault(FResetToDefaultOverride::Create(FSimpleDelegate::CreateSP(this, &FCustomizableObjectNodeTableDetails::OnVersionColumnComboBoxSelectionReset)));
 
 		UICategory.AddCustomRow(LOCTEXT("MutableUIMetadataColumn_Selector","MutableUIMetadataColumn"))
 		.NameContent()
@@ -792,6 +814,95 @@ void FCustomizableObjectNodeTableDetails::OnMutableMetaDataColumnComboBoxSelecti
 		GenerateMutableMetaDataColumnComboBoxOptions();
 		MutableMetaDataComboBox->ClearSelection();
 		MutableMetaDataComboBox->RefreshOptions();
+	}
+}
+
+
+TSharedPtr<FString> FCustomizableObjectNodeTableDetails::GenerateVersionColumnComboBoxOptions()
+{
+	const UScriptStruct* TableStruct = Node->GetTableNodeStruct();
+	TSharedPtr<FString> CurrentSelection;
+	VersionColumnsOptionNames.Reset();
+
+	if (!TableStruct)
+	{
+		return CurrentSelection;
+	}
+
+	// Iterating struct Options
+	for (TFieldIterator<FProperty> It(TableStruct); It; ++It)
+	{
+		FProperty* ColumnProperty = *It;
+
+		if (!ColumnProperty)
+		{
+			continue;
+		}
+
+		TSharedPtr<FString> Option = MakeShareable(new FString(DataTableUtils::GetPropertyExportName(ColumnProperty)));
+		VersionColumnsOptionNames.Add(Option);
+
+		if (*Option == Node->VersionColumn)
+		{
+			CurrentSelection = VersionColumnsOptionNames.Last();
+		}
+	}
+
+	if (!Node->VersionColumn.IsNone() && !CurrentSelection)
+	{
+		VersionColumnsOptionNames.Add(MakeShareable(new FString(Node->VersionColumn.ToString())));
+		CurrentSelection = VersionColumnsOptionNames.Last();
+	}
+
+	return CurrentSelection;
+}
+
+
+void FCustomizableObjectNodeTableDetails::OnOpenVersionColumnComboBox()
+{
+	TSharedPtr<FString> CurrentSelection = GenerateVersionColumnComboBoxOptions();
+
+	if (VersionColumnsComboBox.IsValid())
+	{
+		VersionColumnsComboBox->ClearSelection();
+		VersionColumnsComboBox->RefreshOptions();
+		VersionColumnsComboBox->SetSelectedItem(CurrentSelection);
+	}
+}
+
+
+void FCustomizableObjectNodeTableDetails::OnVersionColumnComboBoxSelectionChanged(TSharedPtr<FString> Selection, ESelectInfo::Type SelectInfo)
+{
+	if (Selection && Node->VersionColumn != FName(*Selection)
+		&& (SelectInfo == ESelectInfo::OnKeyPress || SelectInfo == ESelectInfo::OnMouseClick))
+	{
+		Node->VersionColumn = FName(*Selection);
+		Node->MarkPackageDirty();
+	}
+}
+
+
+FSlateColor FCustomizableObjectNodeTableDetails::GetVersionColumnComboBoxTextColor(TArray<TSharedPtr<FString>>* CurrentOptions) const
+{
+	if (Node->FindTableProperty(Node->GetTableNodeStruct(), Node->VersionColumn) || Node->VersionColumn.IsNone())
+	{
+		return FSlateColor::UseForeground();
+	}
+
+	// Table Struct null or does not contain the selected property anymore
+	return FSlateColor(FLinearColor(0.9f, 0.05f, 0.05f, 1.0f));
+}
+
+
+void FCustomizableObjectNodeTableDetails::OnVersionColumnComboBoxSelectionReset()
+{
+	Node->VersionColumn = NAME_None;
+
+	if (VersionColumnsComboBox.IsValid())
+	{
+		GenerateVersionColumnComboBoxOptions();
+		VersionColumnsComboBox->ClearSelection();
+		VersionColumnsComboBox->RefreshOptions();
 	}
 }
 
