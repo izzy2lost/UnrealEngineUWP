@@ -623,15 +623,13 @@ public:
 	bool ShouldThisFrameOutputPreviewToPostProcessRenderTarget() const { return false; }
 
 	/** Force preview rendering to be enabled regardless of the user's setting until a matching RemovePreviewEnableOverride call is made. */
-	UE_DEPRECATED(5.4, "This function has been deprecated.")
-	void AddPreviewEnableOverride(const uint8* Object) { };
+	void AddPreviewEnableOverride(const uint8* Object);
 
 	/**
 	 * Stop forcing preview rendering to be enabled for this caller. If other objects have called AddPreviewEnableOverride, it will remain
 	 * forced until they have also removed their overrides.
 	 */
-	UE_DEPRECATED(5.4, "This function has been deprecated.")
-	void RemovePreviewEnableOverride(const uint8* Object) { };
+	void RemovePreviewEnableOverride(const uint8* Object);
 
 	UE_DEPRECATED(5.4, "This function has been deprecated.")
 	float GetPreviewRenderTargetRatioMult() const
@@ -683,6 +681,9 @@ private:
 	bool bRequiresComponentRefresh = false;
 
 	bool bIsSelectedInEditor = false;
+
+	/* Addresses of callers to AddPreviewEnableOverride that haven't removed their overrides yet. */
+	TSet<const uint8*> PreviewEnableOverriders;
 
 	TWeakPtr<IDisplayClusterConfiguratorBlueprintEditor> ToolkitPtr;
 

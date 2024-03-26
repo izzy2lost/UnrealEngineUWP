@@ -1125,6 +1125,15 @@ void ADisplayClusterRootActor::Tick(float DeltaSeconds)
 		NewPreviewSettings.bPreviewEnable = false;
 	}
 
+#if WITH_EDITOR
+	if (!PreviewEnableOverriders.IsEmpty())
+	{
+		// Preview rendering is overridden, so force it on
+		bEnablePreviewInScene = true;
+		NewPreviewSettings.bPreviewEnable = true;
+	}
+#endif
+
 	// Update entire cluster preview rendering
 	if (IDisplayClusterViewportManager* ViewportManager = bEnablePreviewInScene ? GetOrCreateViewportManager() : GetViewportManager())
 	{
