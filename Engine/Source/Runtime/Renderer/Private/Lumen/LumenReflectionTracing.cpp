@@ -556,12 +556,12 @@ class FReflectionTraceVoxelsCS : public FGlobalShader
 
 		if (PermutationVector.Get<FSampleSceneColor>() != bSampleSceneColorAtHit)
 		{
-			return EShaderPermutationPrecacheRequest::NotUsed;
+			return EShaderPermutationPrecacheRequest::NotPrecached;
 		}
 
 		if (PermutationVector.Get<FDistantScreenTraces>() != bDistantScreenTraces)
 		{
-			return EShaderPermutationPrecacheRequest::NotUsed;
+			return EShaderPermutationPrecacheRequest::NotPrecached;
 		}
 
 		return EShaderPermutationPrecacheRequest::Precached;
