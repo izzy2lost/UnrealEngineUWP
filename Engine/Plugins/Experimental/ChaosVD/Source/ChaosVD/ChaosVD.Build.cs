@@ -10,17 +10,17 @@ public class ChaosVD : ModuleRules
 			new string[]
 			{
 				"Core",
+			});
+
+		PrivateDependencyModuleNames.AddRange(
+			new string[]
+			{
 				"CoreUObject",
 				"Engine",
 				"RenderCore",
 				"ChaosVDRuntime", 
 				"TraceServices",
 				"ChaosVDData",
-			});
-
-		PrivateDependencyModuleNames.AddRange(
-			new string[]
-			{
 				"DesktopPlatform",
 				"Projects",
 				"InputCore",

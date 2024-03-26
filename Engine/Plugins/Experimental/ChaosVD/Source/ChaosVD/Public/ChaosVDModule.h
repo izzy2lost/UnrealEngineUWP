@@ -12,6 +12,7 @@ class SDockTab;
 class FSpawnTabArgs;
 struct FGuid;
 
+/** Main module class for the Chaos Visual Debugger editor */
 DECLARE_LOG_CATEGORY_EXTERN(LogChaosVDEditor, Log, Log);
 class FChaosVDModule : public IModuleInterface
 {
@@ -23,8 +24,10 @@ public:
 	virtual void StartupModule() override;
 	virtual void ShutdownModule() override;
 
+	/** Returns the Trace manager instance used by CVD */
 	TSharedPtr<FChaosVDTraceManager>& GetTraceManager() { return ChaosVDTraceManager; };
 
+	/** Spawns a new instance of CVD */
 	void SpawnCVDTab();
 
 private:
