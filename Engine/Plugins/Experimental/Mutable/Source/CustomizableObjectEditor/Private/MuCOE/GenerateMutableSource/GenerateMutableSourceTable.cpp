@@ -23,6 +23,7 @@
 #include "Rendering/SkeletalMeshLODModel.h"
 #include "Rendering/SkeletalMeshModel.h"
 #include "MuCOE/CustomizableObjectVersionBridge.h"
+#include "ClothingAsset.h"
 
 #define LOCTEXT_NAMESPACE "CustomizableObjectEditor"
 
@@ -296,6 +297,29 @@ bool FillTableColumn(const UCustomizableObjectNodeTable* TableNode,	mu::TablePtr
 					FString PhysicsAssetTag = FString("__PA:") + FString::FromInt(AssetIndex);
 
 					AddTagToMutableMeshUnique(*MutableMesh, PhysicsAssetTag);
+				}
+
+				if (GenerationContext.Options.bClothingEnabled)
+				{
+					UClothingAssetBase* ClothingAssetBase = SkeletalMesh->GetSectionClothingAsset(LODIndex, SectionIndex);	
+					UClothingAssetCommon* ClothingAssetCommon = Cast<UClothingAssetCommon>(ClothingAssetBase);
+
+					if (ClothingAssetCommon && ClothingAssetCommon->PhysicsAsset)
+					{	
+						int32 AssetIndex = GenerationContext.ContributingClothingAssetsData.IndexOfByPredicate( 
+						[Guid = ClothingAssetBase->GetAssetGuid()](const FCustomizableObjectClothingAssetData& A)
+						{
+							return A.OriginalAssetGuid == Guid;
+						});
+
+						check(AssetIndex != INDEX_NONE);
+
+						GenerationContext.AddParticipatingObject(*ClothingAssetCommon->PhysicsAsset);
+						
+						const int32 PhysicsAssetIndex = GenerationContext.PhysicsAssets.AddUnique(ClothingAssetCommon->PhysicsAsset);
+						FString ClothPhysicsAssetTag = FString::Printf(TEXT("__ClothPA:%d_%d"), AssetIndex, PhysicsAssetIndex);
+						AddTagToMutableMeshUnique(*MutableMesh, ClothPhysicsAssetTag);
+					}
 				}
 
 				if (!AnimBPAssetTag.IsEmpty())
