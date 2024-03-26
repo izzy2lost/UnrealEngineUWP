@@ -72,6 +72,8 @@ int32 UCOIBakingTestCommandlet::Main(const FString& Params)
 
 	// Make sure there is nothing else that the engine needs to do before starting our test
 	Wait(60);
+
+	LogMutableSettings();
 	
 	// Compile it's CO (using current config)
 	UCustomizableObject* InstanceCustomizableObject = TargetInstance->GetCustomizableObject();
@@ -85,6 +87,7 @@ int32 UCOIBakingTestCommandlet::Main(const FString& Params)
 	FCompilationOptions CompilationOptions = InstanceCustomizableObject->CompileOptions;
 	ITargetPlatformManagerModule& TPM = GetTargetPlatformManagerRef();
 	CompilationOptions.TargetPlatform = TPM.GetRunningTargetPlatform();
+	CompilationOptions.bUseDiskCompilation = false;
 	if (!CompileCustomizableObject(InstanceCustomizableObject,true, &CompilationOptions))
 	{
 		UE_LOG(LogMutable,Error,TEXT("Failed to compile the target CO. Exitting commandlet."));

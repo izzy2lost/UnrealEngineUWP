@@ -35,6 +35,8 @@ int32 UCOIBulkUpdateTestCommandlet::Main(const FString& Params)
 	
 	// Load the asset registry system so we can proceed without issues
 	PrepareAssetRegistry();
+
+	LogMutableSettings();
 	
 	// Cache all UAssets (find a way to not have them in memory yet, not until we need them)
 	TArray<FAssetData> FoundAssetData;
@@ -135,6 +137,8 @@ int32 UCOIBulkUpdateTestCommandlet::Main(const FString& Params)
 		// Set the compilation platform based on what the system is currently running on
 		FCompilationOptions CompilationOptions = CustomizableObjectToCompile->CompileOptions;
 		CompilationOptions.TargetPlatform = TargetCompilationPlatform;
+
+		CompilationOptions.bUseDiskCompilation = false;
 		
 		// Compile the current CO object
 		const FString CustomizableObjectName = CustomizableObjectToCompile->GetName();

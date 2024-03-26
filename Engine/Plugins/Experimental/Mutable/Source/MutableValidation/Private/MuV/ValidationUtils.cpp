@@ -112,6 +112,14 @@ bool CompileCustomizableObject(UCustomizableObject* InCustomizableObject, const 
 	return bWasCoCompilationSuccessful;
 }
 
+void LogMutableSettings()
+{
+	const int32 WorkingMemory = UCustomizableObjectSystem::GetInstanceChecked()->GetWorkingMemory() ;
+	UE_LOG(LogMutable,Log, TEXT("(int) working_memory_bytes : %d"), WorkingMemory * 1024)
+	UE_LOG(LogMutable, Display, TEXT("The mutable updates will use as working memory the value of %d KB"), WorkingMemory)
+	
+	// Expand this when adding new controls from the .xml file
+}
 
 void Wait(const double ToWaitSeconds)
 {
