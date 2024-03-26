@@ -2,17 +2,19 @@
 
 #include "DMXControlConsoleEditorData.h"
 
+#include "Algo/Find.h"
 #include "DMXControlConsoleData.h"
 #include "DMXControlConsoleFaderGroup.h"
 #include "Library/DMXEntityFixturePatch.h"
 
 
-void UDMXControlConsoleEditorData::AddUserFilter(const FString& FilterLabel, const FString& FilterString, const FLinearColor FilterColor)
+void UDMXControlConsoleEditorData::AddUserFilter(const FString& FilterLabel, const FString& FilterString, const FLinearColor FilterColor, bool bIsEnabled)
 {
 	FDMXControlConsoleEditorUserFilter NewUserFilter;
 	NewUserFilter.FilterLabel = FilterLabel;
 	NewUserFilter.FilterString = FilterString;
 	NewUserFilter.FilterColor = FilterColor;
+	NewUserFilter.bIsEnabled = bIsEnabled;
 
 	FiltersCollection.UserFilters.Add(NewUserFilter);
 
@@ -28,6 +30,11 @@ void UDMXControlConsoleEditorData::RemoveUserFilter(const FString& FilterLabel)
 		});
 
 	OnUserFiltersChanged.Broadcast();
+}
+
+FDMXControlConsoleEditorUserFilter* UDMXControlConsoleEditorData::FindUserFilter(const FString& FilterLabel)
+{
+	return Algo::FindBy(FiltersCollection.UserFilters, FilterLabel, &FDMXControlConsoleEditorUserFilter::FilterLabel);
 }
 
 void UDMXControlConsoleEditorData::UpdateFilters(UDMXControlConsoleData* ControlConsoleData)

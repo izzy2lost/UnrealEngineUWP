@@ -693,7 +693,8 @@ namespace UE::DMX::Private
 			SNew(SCustomTextFilterDialog)
 			.FilterData(TextFilterData)
 			.InEditMode(false)
-			.OnCreateFilter(this, &FDMXControlConsoleEditorToolbar::OnCreateCustomTextFilter);
+			.OnCreateFilter(this, &FDMXControlConsoleEditorToolbar::OnCreateCustomTextFilter)
+			.OnCancelClicked(this, &FDMXControlConsoleEditorToolbar::OnCancelCustomFilterWindowClicked);
 
 		NewTextFilterWindow->SetContent(CustomTextFilterDialog);
 		FSlateApplication::Get().AddWindow(NewTextFilterWindow);
@@ -712,10 +713,18 @@ namespace UE::DMX::Private
 		UDMXControlConsoleEditorData* EditorData = WeakToolkit.IsValid() ? WeakToolkit.Pin()->GetControlConsoleEditorData() : nullptr;
 		if (EditorData)
 		{
-			EditorData->AddUserFilter(InFilterData.FilterLabel.ToString(), InFilterData.FilterString.ToString(), InFilterData.FilterColor);
+			EditorData->AddUserFilter(InFilterData.FilterLabel.ToString(), InFilterData.FilterString.ToString(), InFilterData.FilterColor, bApplyFilter);
 		}
 
 		CustomTextFilterWindow->RequestDestroyWindow();
+	}
+
+	void FDMXControlConsoleEditorToolbar::OnCancelCustomFilterWindowClicked()
+	{
+		if (WeakCustomTextFilterWindow.IsValid())
+		{
+			WeakCustomTextFilterWindow.Pin()->RequestDestroyWindow();
+		}
 	}
 
 	void FDMXControlConsoleEditorToolbar::OnSelectedPortsChanged()
