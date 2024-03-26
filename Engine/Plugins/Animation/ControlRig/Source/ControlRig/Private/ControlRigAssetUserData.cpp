@@ -6,7 +6,6 @@ void UControlRigShapeLibraryLink::SetShapeLibrary(TSoftObjectPtr<UControlRigShap
 {
 	InvalidateCache();
 	ShapeLibrary = InShapeLibrary;
-	ShapeLibrary.LoadSynchronous();
 	ShapeLibraryCached = InShapeLibrary.Get();
 	ShapeNames.Reset();
 	if(ShapeLibraryCached)
@@ -92,7 +91,6 @@ void UControlRigShapeLibraryLink::PostLoad()
 {
 	Super::PostLoad();
 
-	ShapeLibrary.LoadSynchronous();
 	ShapeLibraryCached = ShapeLibrary.Get();
 }
 
