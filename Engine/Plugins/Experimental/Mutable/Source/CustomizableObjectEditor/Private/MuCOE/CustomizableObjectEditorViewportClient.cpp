@@ -81,12 +81,6 @@ FCustomizableObjectEditorViewportClient::FCustomizableObjectEditorViewportClient
 
 	bShowBones = false;
 
-	MaterialToDrawInUVs = 0;
-	MaterialToDrawInUVsLOD = 0;
-	MaterialToDrawInUVsIndex = 0;
-	UVChannelToDrawInUVs = 0;
-	MaterialToDrawInUVsComponent = 0;
-
 	bReferenceMeshMissingWarningMessageVisible = false;
 
 	DrawHelper.bDrawPivot = false;
@@ -462,7 +456,7 @@ void FCustomizableObjectEditorViewportClient::Draw(FViewport* InViewport, FCanva
 	if(bDrawUVs)
 	{
 		constexpr int32 YPos = 24;
-		DrawUVs(InViewport, Canvas, YPos, MaterialToDrawInUVs);
+		DrawUVs(InViewport, Canvas, YPos);
 	}
 
 	if (bReferenceMeshMissingWarningMessageVisible)
@@ -491,16 +485,12 @@ namespace
 	}
 }
 
-void FCustomizableObjectEditorViewportClient::DrawUVs(FViewport* InViewport, FCanvas* InCanvas, int32 InTextYPos, const FString& MaterialName )
+void FCustomizableObjectEditorViewportClient::DrawUVs(FViewport* InViewport, FCanvas* InCanvas, int32 InTextYPos)
 {
-	//use the overriden LOD level
-	// TODO
-	const uint32 LODLevel = MaterialToDrawInUVsLOD; //FMath::Clamp(StaticMeshComponent->ForcedLodModel - 1, 0, StaticMesh->RenderData->LODResources.Num() - 1);
-
-	// TODO
-	int32 UVChannel = UVChannelToDrawInUVs; //StaticMeshEditorPtr.Pin()->GetCurrentUVChannel();
-
-	const uint32 ComponentIndex = MaterialToDrawInUVsComponent;
+	const uint32 ComponentIndex = UVDrawComponentIndex;
+	const uint32 LODLevel = UVDrawLODIndex; 	// TODO use the overriden LOD level
+	const int32 SectionIndex = UVDrawSectionIndex;
+	const int32 UVChannel = UVDrawUVIndex;
 
 	//draw a string showing what UV channel and LOD is being displayed
 	InCanvas->DrawShadowedString( 
@@ -526,9 +516,7 @@ void FCustomizableObjectEditorViewportClient::DrawUVs(FViewport* InViewport, FCa
 		BoxOrigin + FVector2D( BoxSize, BoxSize ),	// bottomright
 		BoxOrigin + FVector2D( 0, BoxSize ),		// bottomleft
 	};
-
-	const FVector Color(1.0f, 1.0f, 1.0f);
-
+	
 	//draw texture border
 	FLinearColor BorderColor = FLinearColor::White;
 	FBatchedElements* BatchedElements = InCanvas->GetBatchedElements(FCanvas::ET_Line);
@@ -543,11 +531,14 @@ void FCustomizableObjectEditorViewportClient::DrawUVs(FViewport* InViewport, FCa
 	BatchedElements->AddLine( FVector( Box[ 2 ], 0.0f ), FVector( Box[ 3 ], 0.0f ), BorderColor, HitProxyId );
 	BatchedElements->AddLine( FVector( Box[ 3 ], 0.0f ), FVector( Box[ 0 ], 0.0f ), BorderColor, HitProxyId );
 
-	if ( StaticMeshComponent.IsValid() && StaticMeshComponent->GetStaticMesh() && StaticMeshComponent->GetStaticMesh()->GetRenderData() )
+	if (StaticMeshComponent.IsValid() &&
+		StaticMeshComponent->GetStaticMesh() &&
+		StaticMeshComponent->GetStaticMesh()->GetRenderData() &&
+		StaticMeshComponent->GetStaticMesh()->GetRenderData()->LODResources.IsValidIndex(LODLevel))
 	{
 		FStaticMeshLODResources* RenderData = &StaticMeshComponent->GetStaticMesh()->GetRenderData()->LODResources[LODLevel];
 		
-		if( RenderData && ( ( uint32 )UVChannel < RenderData->VertexBuffers.StaticMeshVertexBuffer.GetNumTexCoords() ) )
+		if (RenderData && UVChannel >= 0 && UVChannel < static_cast<int32>(RenderData->VertexBuffers.StaticMeshVertexBuffer.GetNumTexCoords()))
 		{
 			//draw triangles
 			FIndexArrayView Indices = RenderData->IndexBuffer.GetArrayView();
@@ -565,11 +556,9 @@ void FCustomizableObjectEditorViewportClient::DrawUVs(FViewport* InViewport, FCa
 				// UVs, we'll draw the line segment in red
 				
 				// If we are supporting a version lower than LWC get the right real type. 
-				using Vector2DRealType = TDecay<decltype( DeclVal<FVector2D>().X )>::Type; 
-
-				constexpr Vector2DRealType Epsilon = static_cast<Vector2DRealType>(1e-4);
-				constexpr Vector2DRealType One     = static_cast<Vector2DRealType>(1);
-				constexpr Vector2DRealType Zero    = static_cast<Vector2DRealType>(0);
+				using Vector2DRealType = TDecay<decltype( DeclVal<FVector2D>().X )>::Type;
+				
+				constexpr Vector2DRealType Zero = static_cast<Vector2DRealType>(0);
 
 				UV1 = ClampUVRange(UV1.X, UV1.Y) * UVBoxScale + UVBoxOrigin;
 				UV2 = ClampUVRange(UV2.X, UV2.Y) * UVBoxScale + UVBoxOrigin;
@@ -581,57 +570,31 @@ void FCustomizableObjectEditorViewportClient::DrawUVs(FViewport* InViewport, FCa
 			}
 		}
 	}
-
 	else if (SkeletalMeshComponents.Num())
 	{
-		int32 CurrentComponentIndex = 0;
-
-		for (TWeakObjectPtr<USkeletalMeshComponent> SkeletalMeshComponent : SkeletalMeshComponents)
+		if (SkeletalMeshComponents.IsValidIndex(ComponentIndex))
 		{
-			if (!SkeletalMeshComponent.IsValid() || !UE_MUTABLE_GETSKINNEDASSET(SkeletalMeshComponent) || CurrentComponentIndex != ComponentIndex)
+			TWeakObjectPtr<USkeletalMeshComponent> SkeletalMeshComponent = SkeletalMeshComponents[ComponentIndex];
+
+			if (!SkeletalMeshComponent.IsValid() || !UE_MUTABLE_GETSKINNEDASSET(SkeletalMeshComponent))
 			{
-				CurrentComponentIndex++;
-				continue;
+				return;
 			}
 
-			bool bFoundMaterial = false;
-
 			const FSkeletalMeshRenderData* MeshRes = UE_MUTABLE_GETSKINNEDASSET(SkeletalMeshComponent)->GetResourceForRendering();
-			if (UVChannel < (int32)MeshRes->LODRenderData[LODLevel].GetNumTexCoords())
+			if (!MeshRes->LODRenderData.IsValidIndex(LODLevel))
+			{
+				return;
+			}
+			
+			if (UVChannel >= 0 && UVChannel < static_cast<int32>(MeshRes->LODRenderData[LODLevel].GetNumTexCoords()))
 			{
 				// Find material index from name
 				const FSkeletalMeshLODRenderData& lodModel = MeshRes->LODRenderData[LODLevel];
-				int MaterialIndex = 0;
-				int MaterialIndexCount = 0;
+
+				if (!lodModel.RenderSections.IsValidIndex(SectionIndex))
 				{
-					for (int s = 0; s < lodModel.RenderSections.Num(); ++s)
-					{
-						int SectionMaterial = lodModel.RenderSections[s].MaterialIndex;
-						UMaterialInterface* Material = SkeletalMeshComponent->GetMaterial(SectionMaterial);
-
-						if (!Material)
-						{
-							continue;
-						}
-
-						const UMaterial* BaseMaterial = Material->GetBaseMaterial();
-						if (BaseMaterial && BaseMaterial->GetName() == MaterialName)
-						{
-							MaterialIndex = s;
-
-							if (MaterialIndexCount == MaterialToDrawInUVsIndex)
-							{
-								bFoundMaterial = true;
-								break;
-							}
-							MaterialIndexCount++;
-						}
-					}
-				}
-
-				if (!bFoundMaterial)
-				{
-					continue;
+					return;
 				}
 
 				const FStaticMeshVertexBuffer& Vertices = lodModel.StaticVertexBuffers.StaticMeshVertexBuffer;
@@ -639,8 +602,8 @@ void FCustomizableObjectEditorViewportClient::DrawUVs(FViewport* InViewport, FCa
 				TArray<uint32> Indices;
 				lodModel.MultiSizeIndexContainer.GetIndexBuffer(Indices);
 
-				uint32 NumTriangles = lodModel.RenderSections[MaterialIndex].NumTriangles;
-				int IndexIndex = lodModel.RenderSections[MaterialIndex].BaseIndex;
+				uint32 NumTriangles = lodModel.RenderSections[SectionIndex].NumTriangles;
+				int IndexIndex = lodModel.RenderSections[SectionIndex].BaseIndex;
 
 				BatchedElements->AddReserveLines(NumTriangles * 3);
 
@@ -658,8 +621,6 @@ void FCustomizableObjectEditorViewportClient::DrawUVs(FViewport* InViewport, FCa
 					// If we are supporting a version lower than LWC get the right real type. 
 					using Vector2DRealType = TDecay<decltype(DeclVal<FVector2D>().X)>::Type;
 
-					constexpr Vector2DRealType Epsilon = static_cast<Vector2DRealType>(1e-4);
-					constexpr Vector2DRealType One = static_cast<Vector2DRealType>(1);
 					constexpr Vector2DRealType Zero = static_cast<Vector2DRealType>(0);
 
 					UV1 = ClampUVRange(UV1.X, UV1.Y) * UVBoxScale + UVBoxOrigin;
@@ -670,11 +631,6 @@ void FCustomizableObjectEditorViewportClient::DrawUVs(FViewport* InViewport, FCa
 					BatchedElements->AddLine( FVector(UV2, Zero), FVector(UV3, Zero), BorderColor, HitProxyId );
 					BatchedElements->AddLine( FVector(UV3, Zero), FVector(UV1, Zero), BorderColor, HitProxyId );
 				}
-			}
-
-			if (bFoundMaterial)
-			{
-				break;
 			}
 		}
 	}
@@ -919,37 +875,16 @@ void FCustomizableObjectEditorViewportClient::SetDrawUVOverlay()
 }
 
 
-void FCustomizableObjectEditorViewportClient::SetDrawUVOverlayMaterial(const FString& MaterialName, const FString& UVChannel)
+void FCustomizableObjectEditorViewportClient::SetDrawUV(const int32 ComponentIndex, const int32 LODIndex, const int32 SectionIndex, const int32 UVIndex)
 {
-	// Get LOD Index
-	FString NameWithLOD, ComponentString;
-	MaterialName.Split(FString("_Component_"), &NameWithLOD, &ComponentString);
-	check(ComponentString.IsNumeric());
-	MaterialToDrawInUVsComponent = FCString::Atoi(*ComponentString);
-
-	FString Name, LODIndex;
-	bool bSplit = NameWithLOD.Split(FString(" LOD_"), &Name, &LODIndex);
-	check(bSplit && LODIndex.IsNumeric());
-
-	MaterialToDrawInUVsLOD = FCString::Atoi(*LODIndex);
-	UVChannelToDrawInUVs = FCString::Atoi(*UVChannel);
-
-	// Get Material Index, added if the name of the material already exists within the skeletal mesh.
-	FString DuplicatedMaterialIndex;
-	bSplit = Name.Split(FString("__"), &MaterialToDrawInUVs, &DuplicatedMaterialIndex);
-
-	if (bSplit && DuplicatedMaterialIndex.IsNumeric())
-	{
-		MaterialToDrawInUVsIndex = FCString::Atoi(*DuplicatedMaterialIndex);
-	}
-	else
-	{
-		MaterialToDrawInUVs = Name;
-		MaterialToDrawInUVsIndex = 0;
-	}
+	UVDrawComponentIndex = ComponentIndex;
+	UVDrawLODIndex = LODIndex;
+	UVDrawSectionIndex = SectionIndex;
+	UVDrawUVIndex = UVIndex;
 
 	Invalidate();
 }
+
 
 bool FCustomizableObjectEditorViewportClient::IsSetDrawUVOverlayChecked() const
 {
