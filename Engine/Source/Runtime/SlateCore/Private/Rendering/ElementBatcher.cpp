@@ -568,11 +568,16 @@ void FSlateElementBatcher::AddCachedElements(FSlateCachedElementData& CachedElem
 	}
 	CachedElementData.ListsWithNewData.Empty();
 
-	for (const FSlateRenderBatch& CachedBatch : CachedElementData.GetCachedBatches())
+	const TSparseArray<FSlateRenderBatch>& CachedBatches = CachedElementData.GetCachedBatches();
+	if (!CachedBatches.IsEmpty())
 	{
-		if (const FSlateShaderResource* ShaderResource = CachedBatch.GetShaderResource())
+		QUICK_SCOPE_CYCLE_COUNTER(STAT_UpdateUsedSlatePostBuffers);
+		for (const FSlateRenderBatch& CachedBatch : CachedElementData.GetCachedBatches())
 		{
-			UsedSlatePostBuffers |= ShaderResource->GetUsedSlatePostBuffers();
+			if (const FSlateShaderResource* ShaderResource = CachedBatch.GetShaderResource())
+			{
+				UsedSlatePostBuffers |= ShaderResource->GetUsedSlatePostBuffers();
+			}
 		}
 	}
 
