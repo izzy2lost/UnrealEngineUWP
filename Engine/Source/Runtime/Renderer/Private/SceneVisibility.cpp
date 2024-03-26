@@ -1207,6 +1207,7 @@ void FRelevancePacket::Finalize()
 #endif
 
 	WriteView.ShadingModelMaskInView |= CombinedShadingModelMask;
+	WriteView.bUsesGlobalDistanceField |= bUsesGlobalDistanceField;
 	WriteView.bUsesLightingChannels |= bUsesLightingChannels;
 	WriteView.bTranslucentSurfaceLighting |= bTranslucentSurfaceLighting;
 	WriteView.bSceneHasSkyMaterial |= bSceneHasSkyMaterial;
@@ -1301,6 +1302,7 @@ void FRelevancePacket::ComputeRelevance(FDynamicPrimitiveIndexList& DynamicPrimi
 	bSceneHasSkyMaterial = 0;
 	bHasSingleLayerWaterMaterial = 0;
 	bUsesSecondStageDepthPass = 0;
+	bUsesGlobalDistanceField = false;
 	bUsesLightingChannels = false;
 	bTranslucentSurfaceLighting = false;
 	const EShadingPath ShadingPath = GetFeatureLevelShadingPath(Scene.GetFeatureLevel());
@@ -1893,6 +1895,7 @@ void FRelevancePacket::ComputeRelevance(FDynamicPrimitiveIndexList& DynamicPrimi
 		SubstrateUintPerPixel = FMath::Max(SubstrateUintPerPixel, ViewRelevance.SubstrateUintPerPixel);
 		bUsesComplexSpecialRenderPath |= ViewRelevance.bUsesComplexSpecialRenderPath;
 		SubstrateClosureCountMask |= ViewRelevance.SubstrateClosureCountMask;
+		bUsesGlobalDistanceField |= ViewRelevance.bUsesGlobalDistanceField;
 		bUsesLightingChannels |= ViewRelevance.bUsesLightingChannels;
 		bTranslucentSurfaceLighting |= ViewRelevance.bTranslucentSurfaceLighting;
 		bUsesCustomDepth |= (ViewRelevance.CustomDepthStencilUsageMask & 1) > 0;

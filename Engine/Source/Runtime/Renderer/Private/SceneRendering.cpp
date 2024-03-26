@@ -929,6 +929,7 @@ void FViewInfo::Init()
 	bIsViewInfo = true;
 	
 	bStatePrevViewInfoIsReadOnly = true;
+	bUsesGlobalDistanceField = false;
 	bUsesLightingChannels = false;
 	bTranslucentSurfaceLighting = false;
 	bFogOnlyOnRenderedOpaque = false;
@@ -4829,6 +4830,15 @@ static void RenderViewFamilies_RenderThread(FRHICommandListImmediate& RHICmdList
 			Instance->QueueCustomDrawIndirectArgsReadback(RHICmdList);
 		}
 #endif
+
+		// Copy relevant data from ViewInfo to ViewState->PrevFrameViewInfo
+		for (FViewInfo& View : SceneRenderer->Views)
+		{
+			if (View.ViewState)
+			{
+				View.ViewState->PrevFrameViewInfo.bUsesGlobalDistanceField = View.bUsesGlobalDistanceField;
+			}
+		}
 
 		if (SceneRenderer->ViewFamily.ProfileSceneRenderTime)
 		{
