@@ -835,9 +835,6 @@ public:
 
 	/** true if the material uses non 0 anisotropy value */
 	LAYOUT_BITFIELD(uint8, bUsesAnisotropy, 1);
-
-	/** true if the material is compatible with the light function atlas */
-	LAYOUT_BITFIELD(uint8, bIsLightFunctionAtlasCompatible, 1);
 	
 	/** Whether the material uses scalar displacement. */
 	LAYOUT_BITFIELD(uint8, bUsesDisplacement, 1);
@@ -1493,7 +1490,6 @@ public:
 	bool UsesVelocitySceneTexture() const { return GetContent()->MaterialCompilationOutput.UsesVelocitySceneTexture(); }
 	bool UsesDistanceCullFade() const { return GetContent()->MaterialCompilationOutput.bUsesDistanceCullFade; }
 	bool UsesAnisotropy() const { return GetContent()->MaterialCompilationOutput.bUsesAnisotropy; }
-	bool IsLightFunctionAtlasCompatible() const { return GetContent()->MaterialCompilationOutput.bIsLightFunctionAtlasCompatible; }
 
 	const FSubstrateMaterialCompilationOutput& GetSubstrateMaterialCompilationOutput() const { return GetContent()->MaterialCompilationOutput.SubstrateMaterialCompilationOutput; }
 	uint8 GetSubstrateMaterialType() const { return GetSubstrateMaterialCompilationOutput().SubstrateMaterialType; }
@@ -2276,10 +2272,6 @@ public:
 
 	ENGINE_API bool MaterialUsesAnisotropy_GameThread() const;
 	ENGINE_API bool MaterialUsesAnisotropy_RenderThread() const;
-
-	/** Get whether or not the material is compatible with the light function atlas. */
-	ENGINE_API bool MaterialIsLightFunctionAtlasCompatible_GameThread() const;
-	ENGINE_API bool MaterialIsLightFunctionAtlasCompatible_RenderThread() const;
 
 	/** Get Substrate material type (single, single, complex slab). */
 	ENGINE_API uint8 MaterialGetSubstrateMaterialType_GameThread() const;

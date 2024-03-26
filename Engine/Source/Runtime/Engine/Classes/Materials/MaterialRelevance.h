@@ -45,7 +45,6 @@ struct FMaterialRelevance
 			uint8 bUsesDistanceCullFade : 1;
 			uint8 bDisableDepthTest : 1;
 			uint8 bUsesAnisotropy : 1;
-			uint8 bIsLightFunctionAtlasCompatible : 1;
 		};
 		uint64 Raw;
 	};

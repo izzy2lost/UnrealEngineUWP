@@ -1226,17 +1226,6 @@ bool FMaterial::MaterialUsesAnisotropy_RenderThread() const
 	return RenderingThreadShaderMap ? RenderingThreadShaderMap->UsesAnisotropy() : false;
 }
 
-bool FMaterial::MaterialIsLightFunctionAtlasCompatible_GameThread() const
-{
-	return GameThreadShaderMap ? GameThreadShaderMap->IsLightFunctionAtlasCompatible() : false;
-}
-
-bool FMaterial::MaterialIsLightFunctionAtlasCompatible_RenderThread() const
-{
-	check(IsInParallelRenderingThread());
-	return RenderingThreadShaderMap ? RenderingThreadShaderMap->IsLightFunctionAtlasCompatible() : false;
-}
-
 uint8 FMaterial::MaterialGetSubstrateMaterialType_GameThread() const
 {
 	return GameThreadShaderMap ? GameThreadShaderMap->GetSubstrateMaterialType() : false;

@@ -33,7 +33,6 @@
 #include "ManyLights/ManyLights.h"
 #include "LightFunctionAtlas.h"
 #include "HeterogeneousVolumes/HeterogeneousVolumes.h"
-#include "Materials/MaterialRenderProxy.h"
 
 using namespace LightFunctionAtlas;
 
@@ -558,7 +557,6 @@ static void RenderLight(
 	FRDGTextureRef LightingChannelsTexture,
 	bool bRenderOverlap,
 	bool bCloudShadow,
-	const bool bCanLightUsesAtlasForUnbatchedLight = false,
 	TRDGUniformBufferRef<FVirtualShadowMapUniformParameters> VirtualShadowMapUniformBuffer = nullptr,
 	FRDGTextureRef ShadowMaskBits = nullptr,
 	int32 VirtualShadowMapId = INDEX_NONE);
@@ -1145,30 +1143,6 @@ bool FSceneRenderer::AllowSimpleLights() const
 	return bAllowSimpleLights == 1;
 }
 
-bool CanLightUsesAtlasForUnbatchedLight(ERHIFeatureLevel::Type FeatureLevel, const FLightSceneProxy* Proxy)
-{
-	// For now, we prevent directional light to use the light function atlas because atlas tiles needs to be repeatable.
-	// And if a texcoordinate node is not scale as a integer multiplier of the uv in [0,1] then the tile will become visible.
-	if (Proxy->GetLightType() == LightType_Directional)
-	{
-		return false;
-	}
-
-	// Material shoud also be compatible with light function atlas, i.e. not sample depth or world position.
-	// We do not check that for other systems (translucent, water, volume fog, clustered, Lumen), 
-	// because light functions were never available there before the atlas. So those LF aare still added into the atlas.
-	// => If a material is designed to be used with those systems, light function mateirla it must be made be compliant from the start.
-	const FMaterialRenderProxy* MaterialRenderProxy = Proxy ? Proxy->GetLightFunctionMaterial() : nullptr;
-	if (MaterialRenderProxy)
-	{
-		const FMaterial& LFMaterial = Proxy->GetLightFunctionMaterial()->GetIncompleteMaterialWithFallback(FeatureLevel);
-	
-		return LFMaterial.MaterialIsLightFunctionAtlasCompatible_RenderThread();
-	}
-
-	return false;
-}
-
 void FSceneRenderer::GatherAndSortLights(FSortedLightSetSceneInfo& OutSortedLights, bool bShadowedLightsInClustered)
 {
 	if (AllowSimpleLights())
@@ -1225,9 +1199,6 @@ void FSceneRenderer::GatherAndSortLights(FSortedLightSetSceneInfo& OutSortedLigh
 					SortedLightInfo->SortKey.Fields.bShadowed = bDynamicShadows && CheckForProjectedShadows(LightSceneInfo);
 					SortedLightInfo->SortKey.Fields.bLightFunction = ViewFamily.EngineShowFlags.LightFunctions && CheckForLightFunction(LightSceneInfo);
 					SortedLightInfo->SortKey.Fields.bUsesLightingChannels = Views[ViewIndex].bUsesLightingChannels && LightSceneInfo->Proxy->GetLightingChannelMask() != GetDefaultLightingChannelMask();
-
-					// Cached once here and the material is never queried again later.
-					SortedLightInfo->bIsCompatibleWithLightFunctionAtlas = CanLightUsesAtlasForUnbatchedLight(FeatureLevel, LightSceneInfo->Proxy);
 
 					// These are not simple lights.
 					SortedLightInfo->SortKey.Fields.bIsNotSimpleLight = 1;
@@ -1309,10 +1280,8 @@ void FSceneRenderer::GatherAndSortLights(FSortedLightSetSceneInfo& OutSortedLigh
 		const bool bDrawShadows = SortedLightInfo.SortKey.Fields.bShadowed;
 		const bool bLightingChannels = SortedLightInfo.SortKey.Fields.bUsesLightingChannels;
 
-		// Do not schedule unbatched lights if the atlas is used and enabled.
-		// Keep in mind that when clustered shading is enabled, lights with light function are clustered compatible so are pushed in to the clustered path (if a supported light type).
-		// Otherwise, those light are pushed in the non-shadowed non-lightfunction render path that still supports light function atlas sampling.
-		const bool bDrawLightFunction = SortedLightInfo.SortKey.Fields.bLightFunction && (!bUseLightFunctionAtlas || !SortedLightInfo.bIsCompatibleWithLightFunctionAtlas);
+		// Do not schedule unbatched lights if the atlas is used and enabled
+		const bool bDrawLightFunction = SortedLightInfo.SortKey.Fields.bLightFunction && !bUseLightFunctionAtlas;
 
 		if (SortedLightInfo.SortKey.Fields.bHandledByManyLights && OutSortedLights.ManyLightsLightStart == SortedLights.Num())
 		{
@@ -1498,10 +1467,8 @@ void FDeferredShadingSceneRenderer::RenderLights(
 				for (int32 LightIndex = StandardDeferredStart; LightIndex < UnbatchedLightStart; LightIndex++)
 				{
 					// Render the light to the scene color buffer, using a 1x1 white texture as input
-					const FSortedLightSceneInfo& SortedLightInfo = SortedLights[LightIndex];
-					const FLightSceneInfo* LightSceneInfo = SortedLightInfo.LightSceneInfo;
-					RenderLight(GraphBuilder, Scene, View, SceneTextures, LightSceneInfo, nullptr, LightingChannelsTexture, 
-						false /*bRenderOverlap*/, false /*bCloudShadow*/, SortedLightInfo.bIsCompatibleWithLightFunctionAtlas);
+					const FLightSceneInfo* LightSceneInfo = SortedLights[LightIndex].LightSceneInfo;
+					RenderLight(GraphBuilder, Scene, View, SceneTextures, LightSceneInfo, nullptr, LightingChannelsTexture, false /*bRenderOverlap*/, false /*bCloudShadow*/);
 				}
 			}
 
@@ -1517,11 +1484,9 @@ void FDeferredShadingSceneRenderer::RenderLights(
 						// Draw non-shadowed non-light function lights without changing render targets between them
 						for (int32 LightIndex = StandardDeferredStart; LightIndex < UnbatchedLightStart; LightIndex++)
 						{
-							const FSortedLightSceneInfo& SortedLightInfo = SortedLights[LightIndex];
-							const FLightSceneInfo* LightSceneInfo = SortedLightInfo.LightSceneInfo;
-							RenderLightForHair(GraphBuilder, View, SceneTextures, LightSceneInfo,
-								NullScreenShadowMaskSubPixelTexture, LightingChannelsTexture, DummyTransmittanceMaskData,
-								false /*bForwardRendering*/, SortedLightInfo.bIsCompatibleWithLightFunctionAtlas);
+							const FLightSceneInfo* LightSceneInfo = SortedLights[LightIndex].LightSceneInfo;
+							RenderLightForHair(GraphBuilder, View, SceneTextures, LightSceneInfo, 
+								NullScreenShadowMaskSubPixelTexture, LightingChannelsTexture, DummyTransmittanceMaskData, false /*bForwardRendering*/);
 						}
 					}
 				}
@@ -1591,7 +1556,7 @@ void FDeferredShadingSceneRenderer::RenderLights(
 				const FLightOcclusionType OcclusionType = GetLightOcclusionType(LightSceneProxy);
 
 				const bool bDrawShadows = SortedLightInfo.SortKey.Fields.bShadowed;
-				const bool bDrawLightFunction = SortedLightInfo.SortKey.Fields.bLightFunction && (!bUseLightFunctionAtlas || !SortedLightInfo.bIsCompatibleWithLightFunctionAtlas);
+				const bool bDrawLightFunction = SortedLightInfo.SortKey.Fields.bLightFunction && !bUseLightFunctionAtlas;
 				const bool bDrawPreviewIndicator = ViewFamily.EngineShowFlags.PreviewShadowsIndicator && !LightSceneInfo.IsPrecomputedLightingValid() && LightSceneProxy.HasStaticShadowing();
 				const bool bDrawHairShadow = bDrawShadows && bUseHairLighting;
 				const bool bUseHairDeepShadow = bDrawShadows && bUseHairLighting && LightSceneProxy.CastsHairStrandsDeepShadow();
@@ -2140,7 +2105,7 @@ void FDeferredShadingSceneRenderer::RenderLights(
 						SCOPED_GPU_MASK(GraphBuilder.RHICmdList, View.GPUMask);
 						RenderLight(
 							GraphBuilder, Scene, View, SceneTextures, &LightSceneInfo, 
-							VirtualShadowMapId != INDEX_NONE ? nullptr : ScreenShadowMaskTexture, LightingChannelsTexture, false /*bRenderOverlap*/, true /*bCloudShadow*/, SortedLightInfo.bIsCompatibleWithLightFunctionAtlas,
+							VirtualShadowMapId != INDEX_NONE ? nullptr : ScreenShadowMaskTexture, LightingChannelsTexture, false /*bRenderOverlap*/, true /*bCloudShadow*/, 
 							VirtualShadowMapArray.GetUniformBuffer(), ShadowSceneRenderer->VirtualShadowMapMaskBits, VirtualShadowMapId);
 					}
 				}
@@ -2185,9 +2150,8 @@ void FDeferredShadingSceneRenderer::RenderLights(
 							// Note: ideally the light should still be evaluated for hair when not casting shadow, but for preserving the old behavior, and not adding 
 							// any perf. regression, we disable this light for hair rendering 
 							RenderLightForHair(
-								GraphBuilder, View, SceneTextures, &LightSceneInfo,
-								VirtualShadowMapId != INDEX_NONE ? nullptr : HairShadowMask, LightingChannelsTexture, TransmittanceMaskData, 
-								false /*bForwardRendering*/, SortedLightInfo.bIsCompatibleWithLightFunctionAtlas,
+								GraphBuilder, View, SceneTextures, &LightSceneInfo, 
+								VirtualShadowMapId != INDEX_NONE ? nullptr : HairShadowMask, LightingChannelsTexture, TransmittanceMaskData, false /*bForwardRendering*/,
 								VirtualShadowMapArray.GetUniformBuffer(), ShadowSceneRenderer->VirtualShadowMapMaskBitsHairStrands, VirtualShadowMapId);
 						}
 					}
@@ -2238,7 +2202,7 @@ static void RenderLightArrayForOverlapViewmode(
 		for (const FViewInfo& View : Views)
 		{
 			SCOPED_GPU_MASK(GraphBuilder.RHICmdList, View.GPUMask);
-			RenderLight(GraphBuilder, Scene, View, SceneTextures, LightSceneInfo, nullptr, LightingChannelsTexture, true /*bRenderOverlap*/, false /*bCloudShadow*/, false/*bIsCompatibleWithLightFunctionAtlas*/);
+			RenderLight(GraphBuilder, Scene, View, SceneTextures, LightSceneInfo, nullptr, LightingChannelsTexture, true /*bRenderOverlap*/, false /*bCloudShadow*/);
 		}
 	}
 }
@@ -2615,7 +2579,6 @@ static void RenderLight(
 	FRDGTextureRef LightingChannelsTexture,
 	bool bRenderOverlap,
 	bool bCloudShadow,
-	const bool bCanLightUsesAtlasForUnbatchedLight,
 	TRDGUniformBufferRef<FVirtualShadowMapUniformParameters> VirtualShadowMapUniformBuffer,
 	FRDGTextureRef ShadowMaskBits,
 	int32 VirtualShadowMapId)
@@ -2713,7 +2676,7 @@ static void RenderLight(
 		PermutationVector.Set< FDeferredLightPS::FHairComplexTransmittance >(bNeedComplexTransmittanceSupport);
 		PermutationVector.Set< FDeferredLightPS::FLightFunctionAtlasDim >(
 			LightFunctionAtlas::IsEnabled(View, ELightFunctionAtlasSystem::DeferredLighting) && LightSceneInfo->Proxy->HasValidLightFunctionAtlasSlot() &&
-			LightSceneInfo->Proxy->GetLightFunctionMaterial() != nullptr && !View.Family->EngineShowFlags.VisualizeLightCulling && bCanLightUsesAtlasForUnbatchedLight);
+			LightSceneInfo->Proxy->GetLightFunctionMaterial() != nullptr && !View.Family->EngineShowFlags.VisualizeLightCulling);
 
 		if (bIsRadial)
 		{
@@ -2796,7 +2759,6 @@ void FDeferredShadingSceneRenderer::RenderLightForHair(
 	FRDGTextureRef LightingChannelsTexture,
 	const FHairStrandsTransmittanceMaskData& InTransmittanceMaskData,
 	const bool bForwardRendering,
-	const bool bCanLightUsesAtlasForUnbatchedLight,
 	TRDGUniformBufferRef<FVirtualShadowMapUniformParameters> VirtualShadowMapUniformBuffer,
 	FRDGTextureRef ShadowMaskBits,
 	int32 VirtualShadowMapId)
@@ -2870,7 +2832,7 @@ void FDeferredShadingSceneRenderer::RenderLightForHair(
 	PermutationVector.Set< FDeferredLightPS::FVirtualShadowMapMask >(bUseVirtualShadowMapMask);
 	PermutationVector.Set< FDeferredLightPS::FLightFunctionAtlasDim >(
 		LightFunctionAtlas::IsEnabled(View, ELightFunctionAtlasSystem::DeferredLighting) && LightSceneInfo->Proxy->HasValidLightFunctionAtlasSlot() &&
-		LightSceneInfo->Proxy->GetLightFunctionMaterial() != nullptr && !View.Family->EngineShowFlags.VisualizeLightCulling && bCanLightUsesAtlasForUnbatchedLight);
+		LightSceneInfo->Proxy->GetLightFunctionMaterial() != nullptr && !View.Family->EngineShowFlags.VisualizeLightCulling);
 	if (bIsDirectional)
 	{
 		PermutationVector.Set< FDeferredLightPS::FSourceShapeDim >(ELightSourceShape::Directional);
@@ -2969,8 +2931,7 @@ void FDeferredShadingSceneRenderer::RenderLightsForHair(
 						ScreenShadowMaskSubPixelTexture,
 						LightingChannelsTexture,
 						TransmittanceMaskData,
-						true /*bForwardRendering*/,
-						SortedLightInfo.bIsCompatibleWithLightFunctionAtlas);
+						true /*bForwardRendering*/);
 				}
 			}
 		}
