@@ -36,23 +36,17 @@ void UBrushStampIndicator::Render(IToolsContextRenderAPI* RenderAPI)
 		FToolDataVisualizer Draw;
 		Draw.BeginFrame(RenderAPI);
 
-		if (bDrawSecondaryLines)
-		{
-			const bool bCirclesCoincident = bDrawRadiusCircle && FMath::IsNearlyEqual(BrushFalloff, 1.0f);
-			if (!bCirclesCoincident)
-			{
-				Draw.DrawCircle(BrushPosition, BrushNormal, BrushRadius*BrushFalloff, SampleStepCount, SecondaryLineColor, SecondaryLineThickness, bDepthTested);
-			}
-			
-			const float NormalScale = bScaleNormalByStrength ? BrushStrength : 1.0f;
-			Draw.DrawLine(BrushPosition, BrushPosition + BrushRadius * BrushNormal * NormalScale, SecondaryLineColor, SecondaryLineThickness, bDepthTested);
-		}
-		
 		if (bDrawRadiusCircle)
 		{
 			Draw.DrawCircle(BrushPosition, BrushNormal, BrushRadius, SampleStepCount, LineColor, LineThickness, bDepthTested);
 		}
-		
+
+		if (bDrawSecondaryLines)
+		{
+			Draw.DrawCircle(BrushPosition, BrushNormal, BrushRadius*BrushFalloff, SampleStepCount, SecondaryLineColor, SecondaryLineThickness, bDepthTested);
+			Draw.DrawLine(BrushPosition, BrushPosition + BrushRadius * BrushNormal, SecondaryLineColor, SecondaryLineThickness, bDepthTested);
+		}
+
 		Draw.EndFrame();
 	}
 }
@@ -62,13 +56,12 @@ void UBrushStampIndicator::Tick(float DeltaTime)
 }
 
 
-void UBrushStampIndicator::Update(float Radius, const FVector& Position, const FVector& Normal, float Falloff, float Strength)
+void UBrushStampIndicator::Update(float Radius, const FVector& Position, const FVector& Normal, float Falloff)
 {
 	BrushRadius = Radius;
 	BrushPosition = Position;
 	BrushNormal = Normal;
 	BrushFalloff = Falloff;
-	BrushStrength = Strength;
 
 	if (AttachedComponent != nullptr)
 	{

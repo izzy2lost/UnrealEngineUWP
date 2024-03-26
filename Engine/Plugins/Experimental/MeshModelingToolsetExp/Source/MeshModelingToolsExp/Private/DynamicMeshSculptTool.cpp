@@ -1511,15 +1511,8 @@ void UDynamicMeshSculptTool::Render(IToolsContextRenderAPI* RenderAPI)
 
 	FViewCameraState RenderCameraState = RenderAPI->GetCameraState();
 
-	constexpr float Falloff = 0.5f;
-	constexpr float Strength = 1.0f;
-	BrushIndicator->Update(
-		(float)this->CurrentBrushRadius,
-		(FVector)this->LastBrushPosWorld,
-		(FVector)this->LastBrushPosNormalWorld,
-		Falloff,
-		Strength);
-	
+	//BrushIndicator->Update( (float)this->CurrentBrushRadius, (FVector)this->LastBrushPosWorld, (FVector)this->LastBrushPosNormalWorld, 1.0f-BrushProperties->BrushFalloffAmount);
+	BrushIndicator->Update( (float)this->CurrentBrushRadius, (FVector)this->LastBrushPosWorld, (FVector)this->LastBrushPosNormalWorld, 0.5f);
 	if (BrushIndicatorMaterial)
 	{
 		double FixedDimScale = ToolSceneQueriesUtil::CalculateDimensionFromVisualAngleD(RenderCameraState, LastBrushPosWorld, 1.5f);
