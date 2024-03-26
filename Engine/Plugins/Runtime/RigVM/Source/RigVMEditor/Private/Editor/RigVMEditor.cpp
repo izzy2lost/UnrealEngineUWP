@@ -2160,21 +2160,35 @@ void FRigVMEditor::OnWrappedPropertyChangedChainEvent(URigVMDetailsViewWrapperOb
 			// traverse to get to the target pin
 			if(!InPropertyPath.Equals(RootPinNameString))
 			{
-				check(InPropertyPath.StartsWith(RootPinNameString));
-				FString RemainingPropertyPath = InPropertyPath.Mid(RootPinNameString.Len());
-				RemainingPropertyPath.RemoveFromStart(TEXT("->"));
-				const FString SegmentPath = RemainingPropertyPath.Replace(TEXT("->"), TEXT("."));
+				if (InPropertyChangedChainEvent.ChangeType != EPropertyChangeType::ArrayAdd &&
+					InPropertyChangedChainEvent.ChangeType != EPropertyChangeType::ArrayRemove &&
+					InPropertyChangedChainEvent.ChangeType != EPropertyChangeType::ArrayClear &&
+					InPropertyChangedChainEvent.ChangeType != EPropertyChangeType::ArrayMove &&
+					InPropertyChangedChainEvent.ChangeType != EPropertyChangeType::Duplicate)
+				{
+					check(InPropertyPath.StartsWith(RootPinNameString));
+					FString RemainingPropertyPath = InPropertyPath.Mid(RootPinNameString.Len());
+					RemainingPropertyPath.RemoveFromStart(TEXT("->"));
+					const FString SegmentPath = RemainingPropertyPath.Replace(TEXT("->"), TEXT("."));
 			
-				const FRigVMPropertyPath PropertyTraverser(Property, SegmentPath);
-				PropertyStorage = PropertyTraverser.GetData<uint8>(PropertyStorage, Property);
-				Property = PropertyTraverser.GetTailProperty();
-				PinPath = URigVMPin::JoinPinPath(PinPath, SegmentPath);
-				PinPath.ReplaceInline(TEXT("["), TEXT(""));
-				PinPath.ReplaceInline(TEXT("]"), TEXT(""));
+					const FRigVMPropertyPath PropertyTraverser(Property, SegmentPath);
+					PropertyStorage = PropertyTraverser.GetData<uint8>(PropertyStorage, Property);
+					if (PropertyStorage)
+					{
+						Property = PropertyTraverser.GetTailProperty();
+						PinPath = URigVMPin::JoinPinPath(PinPath, SegmentPath);
+						PinPath.ReplaceInline(TEXT("["), TEXT(""));
+						PinPath.ReplaceInline(TEXT("]"), TEXT(""));
+					}
+					else
+					{
+						PropertyStorage = Property->ContainerPtrToValuePtr<uint8>(WrapperObjects[0].Get());
+					}
+				}
 			}
 		}
 
-		if (Property)
+		if (Property && PropertyStorage)
 		{
 			FString DefaultValue = FRigVMStruct::ExportToFullyQualifiedText(Property, PropertyStorage);
 			if(Property->IsA<FStrProperty>() || Property->IsA<FNameProperty>())
@@ -2186,6 +2200,22 @@ void FRigVMEditor::OnWrappedPropertyChangedChainEvent(URigVMDetailsViewWrapperOb
 				const bool bInteractive = InPropertyChangedChainEvent.ChangeType == EPropertyChangeType::Interactive;
 				URigVMController* Controller = GetRigVMBlueprint()->GetController(Node->GetGraph());
 				check(Controller);
+
+				// When clearing an array of a fixed size array, make sure to leave at least one element
+				if (InPropertyChangedChainEvent.ChangeType == EPropertyChangeType::ArrayClear)
+				{
+					URigVMPin* Pin = Node->GetGraph()->FindPin(PinPath);
+					if (Pin->IsFixedSizeArray())
+					{
+						FString CurrentDefault = Controller->GetPinDefaultValue(PinPath);
+						TArray<FString> Elements = URigVMPin::SplitDefaultValue(CurrentDefault);
+						if (!Elements.IsEmpty())
+						{
+							DefaultValue = FString::Printf(TEXT("(%s)"), *Elements[0]);
+						}
+					}
+				}
+				
 				Controller->SetPinDefaultValue(PinPath, DefaultValue, true, !bInteractive, true, !bInteractive);
 			}
 		}
