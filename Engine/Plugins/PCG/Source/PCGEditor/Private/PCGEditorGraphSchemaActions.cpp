@@ -27,30 +27,6 @@
 
 #define LOCTEXT_NAMESPACE "PCGEditorGraphSchemaActions"
 
-/** Disables reconstruct on the owning node of a pin and re-enables in destructor. */
-struct FPCGDeferNodeReconstructScope
-{
-	FPCGDeferNodeReconstructScope(UEdGraphPin* FromPin)
-		: Node(FromPin ? Cast<UPCGEditorGraphNodeBase>(FromPin->GetOwningNode()) : nullptr)
-	{
-		if (Node)
-		{
-			Node->EnableDeferredReconstruct();
-		}
-	}
-
-	~FPCGDeferNodeReconstructScope()
-	{
-		if (Node)
-		{
-			Node->DisableDeferredReconstruct();
-		}
-	}
-
-private:
-	UPCGEditorGraphNodeBase* Node = nullptr;
-};
-
 UEdGraphNode* FPCGEditorGraphSchemaAction_NewNativeElement::PerformAction(UEdGraph* ParentGraph, UEdGraphPin* FromPin, const FVector2D Location, bool bSelectNewNode)
 {
 	UPCGEditorGraph* EditorGraph = Cast<UPCGEditorGraph>(ParentGraph);

@@ -3,6 +3,7 @@
 #pragma once
 
 #include "EdGraph/EdGraphNode.h"
+#include "EdGraph/EdGraphPin.h"
 
 #include "PCGCommon.h"
 
@@ -162,4 +163,52 @@ protected:
 
 	/** The higen grid currently being inspected if any, otherwise Uninitialized. */
 	EPCGHiGenGrid InspectedGenerationGrid = EPCGHiGenGrid::Uninitialized;
+};
+
+/** Disables reconstruct on nodes (or from a pin) and re-enables in destructor. */
+struct FPCGDeferNodeReconstructScope
+{
+	explicit FPCGDeferNodeReconstructScope(UEdGraphPin* FromPin)
+		: Node(FromPin ? Cast<UPCGEditorGraphNodeBase>(FromPin->GetOwningNode()) : nullptr)
+	{
+		if (Node)
+		{
+			Node->EnableDeferredReconstruct();
+		}
+	}
+
+	explicit FPCGDeferNodeReconstructScope(UPCGEditorGraphNodeBase* InNode)
+		: Node(InNode)
+	{
+		if (Node)
+		{
+			Node->EnableDeferredReconstruct();
+		}
+	}
+
+	FPCGDeferNodeReconstructScope(const FPCGDeferNodeReconstructScope&) = delete;
+	FPCGDeferNodeReconstructScope(FPCGDeferNodeReconstructScope&& Other)
+	{
+		Node = Other.Node;
+		Other.Node = nullptr;
+	}
+
+	FPCGDeferNodeReconstructScope& operator=(const FPCGDeferNodeReconstructScope&) = delete;
+	FPCGDeferNodeReconstructScope& operator=(FPCGDeferNodeReconstructScope&& Other)
+	{
+		Swap(Node, Other.Node);
+		return *this;
+	}
+
+	~FPCGDeferNodeReconstructScope()
+	{
+		if (Node)
+		{
+			Node->DisableDeferredReconstruct();
+			Node = nullptr;
+		}
+	}
+
+private:
+	UPCGEditorGraphNodeBase* Node = nullptr;
 };

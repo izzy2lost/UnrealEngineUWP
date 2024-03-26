@@ -2005,9 +2005,13 @@ void FPCGEditor::OnToggleEnabled()
 {
 	const ECheckBoxState CheckState = GetEnabledCheckState();
 	const bool bNewCheckState = !(CheckState != ECheckBoxState::Unchecked);
+
+	// To prevent the changes on the editor node from being in the transaction, we delay reconstruction.
+	TArray<FPCGDeferNodeReconstructScope> DeferredEditorNodes;
+
 	if (GraphEditorWidget.IsValid())
 	{
-		const FScopedTransaction Transaction(*FPCGEditorCommon::ContextIdentifier, LOCTEXT("PCGEditorToggleEnableTransactionMessage", "PCG Editor: Toggle Enable Nodes"), nullptr);
+		FScopedTransaction Transaction(*FPCGEditorCommon::ContextIdentifier, LOCTEXT("PCGEditorToggleEnableTransactionMessage", "PCG Editor: Toggle Enable Nodes"), nullptr);
 
 		bool bChanged = false;
 		for (UObject* Object : GraphEditorWidget->GetSelectedNodes())
@@ -2023,6 +2027,7 @@ void FPCGEditor::OnToggleEnabled()
 
 			if (PCGSettingsInterface->bEnabled != bNewCheckState)
 			{
+				DeferredEditorNodes.Emplace(PCGEditorGraphNode);
 				PCGSettingsInterface->Modify();
 				PCGSettingsInterface->SetEnabled(bNewCheckState);
 				bChanged = true;
@@ -2032,6 +2037,10 @@ void FPCGEditor::OnToggleEnabled()
 		if (bChanged)
 		{
 			GraphEditorWidget->NotifyGraphChanged();
+		}
+		else
+		{
+			Transaction.Cancel();
 		}
 	}
 }
@@ -2104,8 +2113,9 @@ void FPCGEditor::OnToggleDebug()
 
 	if (GraphEditorWidget.IsValid())
 	{
-		const FScopedTransaction Transaction(*FPCGEditorCommon::ContextIdentifier, LOCTEXT("PCGEditorToggleDebugTransactionMessage", "PCG Editor: Toggle Debug Nodes"), nullptr);
+		FScopedTransaction Transaction(*FPCGEditorCommon::ContextIdentifier, LOCTEXT("PCGEditorToggleDebugTransactionMessage", "PCG Editor: Toggle Debug Nodes"), nullptr);
 
+		bool bChanged = false;
 		for (UObject* Object : GraphEditorWidget->GetSelectedNodes())
 		{
 			UPCGEditorGraphNodeBase* PCGEditorGraphNode = Cast<UPCGEditorGraphNodeBase>(Object);
@@ -2119,9 +2129,16 @@ void FPCGEditor::OnToggleDebug()
 
 			if (PCGSettingsInterface->bDebug != bNewCheckState)
 			{
+				PCGSettingsInterface->Modify(/*bAlwaysMarkDirty=*/false);
 				PCGSettingsInterface->bDebug = bNewCheckState;
 				PCGNode->OnNodeChangedDelegate.Broadcast(PCGNode, EPCGChangeType::Settings);
+				bChanged = true;
 			}
+		}
+
+		if (!bChanged)
+		{
+			Transaction.Cancel();
 		}
 	}
 }
@@ -2202,7 +2219,7 @@ void FPCGEditor::OnDebugOnlySelected()
 
 			if (PCGSettingsInterface->bDebug != bShouldBeDebug)
 			{
-				PCGSettingsInterface->Modify();
+				PCGSettingsInterface->Modify(/*bAlwaysMarkDirty=*/false);
 				PCGSettingsInterface->bDebug = bShouldBeDebug;
 				PCGNode->OnNodeChangedDelegate.Broadcast(PCGNode, EPCGChangeType::Settings);
 				bChanged = true;
@@ -2235,7 +2252,7 @@ void FPCGEditor::OnDisableDebugOnAllNodes()
 
 			if (PCGSettingsInterface->bDebug)
 			{
-				PCGSettingsInterface->Modify();
+				PCGSettingsInterface->Modify(/*bAlwaysMarkDirty=*/false);
 				PCGSettingsInterface->bDebug = false;
 				PCGNode->OnNodeChangedDelegate.Broadcast(PCGNode, EPCGChangeType::Settings);
 				bChanged = true;
