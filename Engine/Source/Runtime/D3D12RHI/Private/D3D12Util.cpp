@@ -830,7 +830,7 @@ void FD3D12DynamicRHI::TerminateOnOutOfMemory(ID3D12Device* InDevice, HRESULT D3
 	static IConsoleVariable* GPUCrashOOM = IConsoleManager::Get().FindConsoleVariable(TEXT("r.GPUCrashOnOutOfMemory"));
 	const bool bGPUCrashOOM = GPUCrashOOM && GPUCrashOOM->GetInt();
 	// If no device provided then log the memory information for each device.
-	D3D12RHI->ForEachDevice(InDevice, [&](FD3D12Device* IterationDevice)
+	ForEachDevice(InDevice, [&](FD3D12Device* IterationDevice)
 	{
 		FD3D12Adapter* Adapter = IterationDevice->GetParentAdapter();
 		LogMemoryInfo(Adapter);
