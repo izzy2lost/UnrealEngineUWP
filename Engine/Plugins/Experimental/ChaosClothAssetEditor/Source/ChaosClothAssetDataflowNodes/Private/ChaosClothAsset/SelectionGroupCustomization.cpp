@@ -1,9 +1,10 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "ChaosClothAsset/SelectionGroupCustomization.h"
-#include "ChaosClothAsset/SelectionNode.h"
-#include "ChaosClothAsset/DeleteElementNode.h"
+#include "ChaosClothAsset/AttributeNode.h"
 #include "ChaosClothAsset/ClothDataflowTools.h"  // For MakeCollectionName
+#include "ChaosClothAsset/DeleteElementNode.h"
+#include "ChaosClothAsset/SelectionNode.h"
 #include "Widgets/Input/SEditableTextBox.h"
 #include "Widgets/Input/SComboButton.h"
 #include "Widgets/Views/SListView.h"
@@ -118,6 +119,11 @@ namespace UE::Chaos::ClothAsset
 			GetOwnerStruct<FChaosClothAssetDeleteElementNode>())
 		{
 			CollectionGroupNames = DeleteNode->GetCachedCollectionGroupNames();
+		}
+		else if (const FChaosClothAssetAttributeNode* const AttributeNode =
+			GetOwnerStruct<FChaosClothAssetAttributeNode>())
+		{
+			CollectionGroupNames = AttributeNode->GetCachedCollectionGroupNames();
 		}
 
 		for (const FName& CollectionGroupName : CollectionGroupNames)
