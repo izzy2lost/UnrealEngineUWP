@@ -180,48 +180,45 @@ void FHeterogeneousVolumeSceneProxy::GetDynamicMeshElements(
 		return;
 	}
 
-	// Create a dummy MeshBatch to make the system happy..
-	if (MaterialInterface)
-	{
-		// Set up MeshBatch
-		FMeshBatch& Mesh = Collector.AllocateMesh();
-
-		Mesh.VertexFactory = &VertexFactory;
-		Mesh.MaterialRenderProxy = MaterialInterface->GetRenderProxy();
-		Mesh.LCI = NULL;
-		Mesh.ReverseCulling = IsLocalToWorldDeterminantNegative() ? true : false;
-		Mesh.CastShadow = CastsDynamicShadow();
-		//Mesh.DepthPriorityGroup = (ESceneDepthPriorityGroup)GetDepthPriorityGroup(View);
-		Mesh.Type = PT_TriangleStrip;
-		Mesh.bDisableBackfaceCulling = true;
-
-		// Set up the FMeshBatchElement.
-		FMeshBatchElement& BatchElement = Mesh.Elements[0];
-		BatchElement.IndexBuffer = NULL;
-		BatchElement.FirstIndex = 0;
-		BatchElement.MinVertexIndex = 0;
-		BatchElement.MaxVertexIndex = 3;
-		BatchElement.NumPrimitives = 2;
-		BatchElement.BaseVertexIndex = 0;
-
-		//FHeterogeneousVolumeData* HeterogeneousVolumeData = &Collector.AllocateOneFrameResource<FHeterogeneousVolumeData>(this);
-		BatchElement.UserData = &HeterogeneousVolumeData;
-
-		Mesh.bCanApplyViewModeOverrides = true;
-		Mesh.bUseWireframeSelectionColoring = IsSelected();
-		Mesh.bUseSelectionOutline = false;
-		Mesh.bSelectable = false;
-
-		Collector.AddMesh(0, Mesh);
-	}
-
-	// Draw bounds 
 	if (ViewFamily.EngineShowFlags.HeterogeneousVolumes)
 	{
 		for (int32 ViewIndex = 0; ViewIndex < Views.Num(); ViewIndex++)
 		{
 			if (VisibilityMap & (1 << ViewIndex))
 			{
+				if (MaterialInterface)
+				{
+					// Set up MeshBatch
+					FMeshBatch& Mesh = Collector.AllocateMesh();
+
+					Mesh.VertexFactory = &VertexFactory;
+					Mesh.MaterialRenderProxy = MaterialInterface->GetRenderProxy();
+					Mesh.LCI = NULL;
+					Mesh.ReverseCulling = IsLocalToWorldDeterminantNegative() ? true : false;
+					Mesh.CastShadow = CastsDynamicShadow();
+					Mesh.Type = PT_TriangleStrip;
+					Mesh.bDisableBackfaceCulling = true;
+
+					// Set up the FMeshBatchElement.
+					FMeshBatchElement& BatchElement = Mesh.Elements[0];
+					BatchElement.IndexBuffer = NULL;
+					BatchElement.FirstIndex = 0;
+					BatchElement.MinVertexIndex = 0;
+					BatchElement.MaxVertexIndex = 3;
+					BatchElement.NumPrimitives = 2;
+					BatchElement.BaseVertexIndex = 0;
+
+					// Heterogeneous Volume Interface is passed through UserData.
+					BatchElement.UserData = &HeterogeneousVolumeData;
+
+					Mesh.bCanApplyViewModeOverrides = true;
+					Mesh.bUseWireframeSelectionColoring = IsSelected();
+					Mesh.bUseSelectionOutline = false;
+					Mesh.bSelectable = false;
+
+					Collector.AddMesh(ViewIndex, Mesh);
+				}
+
 				const FSceneView* View = Views[ViewIndex];
 				RenderBounds(Collector.GetPDI(ViewIndex), View->Family->EngineShowFlags, GetBounds(), IsSelected());
 			}

@@ -684,17 +684,21 @@ void FDeferredShadingSceneRenderer::RenderHeterogeneousVolumes(
 	TRDGUniformBufferRef<FOrthoVoxelGridUniformBufferParameters> OrthoGridUniformBuffer = HeterogeneousVolumes::GetOrthoVoxelGridUniformBuffer(GraphBuilder, Views[0].ViewState);
 	TRDGUniformBufferRef<FFrustumVoxelGridUniformBufferParameters> FrustumGridUniformBuffer = HeterogeneousVolumes::GetFrustumVoxelGridUniformBuffer(GraphBuilder, Views[0].ViewState);
 
+	FRDGTextureRef HeterogeneousVolumeRadiance = nullptr;
+	if (ShouldRenderHeterogeneousVolumesForAnyView(Views))
+	{
+		FRDGTextureDesc Desc = SceneTextures.Color.Target->Desc;
+		Desc.Format = PF_FloatRGBA;
+		Desc.Flags &= ~(TexCreate_FastVRAM);
+		HeterogeneousVolumeRadiance = GraphBuilder.CreateTexture(Desc, TEXT("HeterogeneousVolumes"));
+		AddClearUAVPass(GraphBuilder, GraphBuilder.CreateUAV(HeterogeneousVolumeRadiance), FLinearColor::Transparent);
+	}
+
 	for (int32 ViewIndex = 0; ViewIndex < Views.Num(); ViewIndex++)
 	{
 		FViewInfo& View = Views[ViewIndex];
 		if (ShouldRenderHeterogeneousVolumesForView(View))
 		{
-			FRDGTextureDesc Desc = SceneTextures.Color.Target->Desc;
-			Desc.Format = PF_FloatRGBA;
-			Desc.Flags &= ~(TexCreate_FastVRAM);
-			FRDGTextureRef HeterogeneousVolumeRadiance = GraphBuilder.CreateTexture(Desc, TEXT("HeterogeneousVolumes"));
-			AddClearUAVPass(GraphBuilder, GraphBuilder.CreateUAV(HeterogeneousVolumeRadiance), FLinearColor::Transparent);
-
 			if (HeterogeneousVolumes::GetDebugMode() != 0)
 			{
 				// TODO: Replace with single-scattering voxel grid implementation.
