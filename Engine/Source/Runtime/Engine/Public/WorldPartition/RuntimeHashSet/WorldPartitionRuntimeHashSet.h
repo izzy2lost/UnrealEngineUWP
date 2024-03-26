@@ -72,6 +72,7 @@ struct FRuntimePartitionStreamingData
 
 	friend class UWorldPartitionRuntimeHashSet;
 	friend class URuntimeHashSetExternalStreamingObject;
+	friend struct FFortWorldPartitionUtils;
 
 	void CreatePartitionsSpatialIndex() const;
 	void DestroyPartitionsSpatialIndex() const;
