@@ -94,6 +94,15 @@ namespace UE::PixelStreaming
 	{
 		VideoSourceGroup->SetVideoInput(Input);
 		FreezeFrame->SetVideoInput(Input);
+
+		// Users may update the video input after a player has connected. If this is the case,
+		// we need to run through all existing players and update their video source
+		Players->Apply([this](FPixelStreamingPlayerId PlayerId, FPlayerContext& PlayerContext) {
+			if (PlayerContext.PeerConnection)
+			{
+				PlayerContext.PeerConnection->SetVideoSource(VideoSourceGroup->CreateVideoSource([this, PlayerId]() { return ShouldPeerGenerateFrames(PlayerId); }));
+			}
+		});
 	}
 
 	TWeakPtr<FPixelStreamingVideoInput> FStreamer::GetVideoInput()
