@@ -907,8 +907,9 @@ namespace UnrealBuildToolTests
 			};
 
 			List<LogEvent> logEvents = Parse(lines);
-			Assert.AreEqual(1, logEvents.Count);
-			CheckEventGroup(logEvents, 5, 1, LogLevel.Information, KnownLogEvents.Systemic_Xge_CacheLimit);
+			Assert.AreEqual(3, logEvents.Count);
+			CheckEventGroup(logEvents.Slice(0, 1), 5, 1, LogLevel.Information, KnownLogEvents.Systemic_Xge_CacheLimit);
+			CheckEventGroup(logEvents.Slice(1, 2), 7, 2, LogLevel.Information, KnownLogEvents.Systemic_Xge);
 		}
 
 		[TestMethod]
@@ -953,9 +954,10 @@ namespace UnrealBuildToolTests
 			};
 
 			List<LogEvent> logEvents = Parse(lines);
-			Assert.AreEqual(2, logEvents.Count);
+			Assert.AreEqual(4, logEvents.Count);
 			CheckEventGroup(logEvents.Slice(0, 1), 5, 1, LogLevel.Information, KnownLogEvents.Systemic_Xge_CacheLimit);
 			CheckEventGroup(logEvents.Slice(1, 1), 6, 1, LogLevel.Information, KnownLogEvents.Systemic_Xge_CacheLimit);
+			CheckEventGroup(logEvents.Slice(2, 2), 7, 2, LogLevel.Information, KnownLogEvents.Systemic_Xge);
 		}
 
 		[TestMethod]

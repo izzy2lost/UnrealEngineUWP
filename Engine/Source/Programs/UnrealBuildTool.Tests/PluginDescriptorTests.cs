@@ -25,7 +25,7 @@ namespace UnrealBuildToolTests
 		}
 
 		[ClassInitialize]
-		public static void Setup()
+		public static void Setup(TestContext _)
 		{
 			PluginDescriptorTests.s_tempDirectory = CreateTempDir();
 		}
@@ -256,7 +256,7 @@ namespace UnrealBuildToolTests
 		}
 
 		private static string FixVerbatimStringIdentation(string verbatimString)
-	{
+		{
 			if (String.IsNullOrEmpty(verbatimString))
 			{
 				return verbatimString;
@@ -275,12 +275,12 @@ namespace UnrealBuildToolTests
 				// Now we're on the first line with the { we're just going to assume that this is the first line 
 				if (!bFoundTabLevel)
 				{
-					numberOfTabs= line.TakeWhile(x => x == '\t').Count();
+					numberOfTabs = line.TakeWhile(x => x == '\t').Count();
 					bFoundTabLevel = true;
 				}
 				jsonStringBuilder.AppendLine(line.Substring(numberOfTabs));
 			}
 			return jsonStringBuilder.ToString();
-	}
+		}
 	}
 }
