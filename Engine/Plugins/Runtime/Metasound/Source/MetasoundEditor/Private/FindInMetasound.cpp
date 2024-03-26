@@ -61,11 +61,7 @@ namespace Metasound::Editor
 		{
 			return LOCTEXT("FindMetasound_PinCategory", "Pin");
 		}
-		else
-		{
-			return LOCTEXT("FindMetasound_NodeCategory", "Node");
-		}
-		return FText::GetEmpty();
+		return LOCTEXT("FindMetasound_NodeCategory", "Node");
 	}
 
 	TSharedRef<SWidget> FFindInMetasoundResult::CreateIcon() const
