@@ -75,7 +75,7 @@ static bool NeedsEscape(FStringView Str)
 	return false;
 }
 
-static const TCHAR* AttendedStatusToString(EUnattendedStatus Status)
+const TCHAR* AttendedStatusToString(const EUnattendedStatus Status)
 {
 	switch(Status)
 	{
@@ -195,7 +195,24 @@ const TCHAR* const FGenericCrashContext::RuntimePropertiesTag = TEXT( "RuntimePr
 const TCHAR* const FGenericCrashContext::PlatformPropertiesTag = TEXT( "PlatformProperties" );
 const TCHAR* const FGenericCrashContext::EngineDataTag = TEXT( "EngineData" );
 const TCHAR* const FGenericCrashContext::GameDataTag = TEXT( "GameData" );
+const TCHAR* const FGenericCrashContext::GameNameTag = TEXT( "GameName" );
 const TCHAR* const FGenericCrashContext::EnabledPluginsTag = TEXT("EnabledPlugins");
+const TCHAR* const FGenericCrashContext::CrashVersionTag = TEXT("CrashVersion");
+const TCHAR* const FGenericCrashContext::ExecutionGuidTag = TEXT("ExecutionGuid");
+const TCHAR* const FGenericCrashContext::CrashGuidTag = TEXT("CrashGUID");
+const TCHAR* const FGenericCrashContext::IsEnsureTag = TEXT("IsEnsure");
+const TCHAR* const FGenericCrashContext::IsStallTag = TEXT("IsStall");
+const TCHAR* const FGenericCrashContext::IsAssertTag = TEXT("IsAssert");
+const TCHAR* const FGenericCrashContext::CrashTypeTag = TEXT("CrashType");
+const TCHAR* const FGenericCrashContext::ErrorMessageTag = TEXT("ErrorMessage");
+const TCHAR* const FGenericCrashContext::CrashReporterMessageTag = TEXT("CrashReporterMessage");
+const TCHAR* const FGenericCrashContext::AttendedStatusTag = TEXT("CrashReporterMessage");
+const TCHAR* const FGenericCrashContext::SecondsSinceStartTag = TEXT("SecondsSinceStart");
+const TCHAR* const FGenericCrashContext::BuildVersionTag = TEXT("BuildVersion");
+const TCHAR* const FGenericCrashContext::CallStackTag = TEXT("CallStack");
+const TCHAR* const FGenericCrashContext::PortableCallStackTag = TEXT("PCallStack");
+const TCHAR* const FGenericCrashContext::PortableCallStackHashTag = TEXT("PCallStackHash");
+const TCHAR* const FGenericCrashContext::IsRequestingExitTag = TEXT("IsRequestingExit");
 const TCHAR* const FGenericCrashContext::UEMinidumpName = TEXT( "UEMinidump.dmp" );
 const TCHAR* const FGenericCrashContext::NewLineTag = TEXT( "&nl;" );
 
@@ -207,6 +224,7 @@ const TCHAR* const FGenericCrashContext::CrashTypeGPU = TEXT("GPUCrash");
 const TCHAR* const FGenericCrashContext::CrashTypeHang = TEXT("Hang");
 const TCHAR* const FGenericCrashContext::CrashTypeAbnormalShutdown = TEXT("AbnormalShutdown");
 const TCHAR* const FGenericCrashContext::CrashTypeOutOfMemory = TEXT("OutOfMemory");
+const TCHAR* const FGenericCrashContext::CrashTypeVerseRuntimeError = TEXT("VerseRuntimeError");
 
 const TCHAR* const FGenericCrashContext::EngineModeExUnknown = TEXT("Unset");
 const TCHAR* const FGenericCrashContext::EngineModeExDirty = TEXT("Dirty");
@@ -519,6 +537,12 @@ const FSessionContext& FGenericCrashContext::GetCachedSessionContext()
 	return NCached::Session;
 }
 
+FString FGenericCrashContext::GetGameName()
+{
+	return FString::Printf(TEXT("UE-%s"), FApp::GetProjectName());
+}
+
+
 void FGenericCrashContext::CopySharedCrashContext(FSharedCrashContext& Dst)
 {
 	//Copy the session
@@ -755,7 +779,7 @@ void FGenericCrashContext::SerializeTempCrashContextToFile()
 void FGenericCrashContext::SerializeSessionContext(FString& Buffer)
 {
 	AddCrashPropertyInternal(Buffer, TEXT("ProcessId"), NCached::Session.ProcessId);
-	AddCrashPropertyInternal(Buffer, TEXT("SecondsSinceStart"), NCached::Session.SecondsSinceStart);
+	AddCrashPropertyInternal(Buffer, FGenericCrashContext::SecondsSinceStartTag, NCached::Session.SecondsSinceStart);
 
 	AddCrashPropertyInternal(Buffer, TEXT("IsInternalBuild"), NCached::Session.bIsInternalBuild);
 	AddCrashPropertyInternal(Buffer, TEXT("IsPerforceBuild"), NCached::Session.bIsPerforceBuild);
@@ -764,18 +788,18 @@ void FGenericCrashContext::SerializeSessionContext(FString& Buffer)
 
 	if (FCString::Strlen(NCached::Session.GameName) > 0)
 	{
-		AddCrashPropertyInternal(Buffer, TEXT("GameName"), NCached::Session.GameName);
+		AddCrashPropertyInternal(Buffer, FGenericCrashContext::GameNameTag, NCached::Session.GameName);
 	}
 	else
 	{
 		const TCHAR* ProjectName = FApp::GetProjectName();
 		if (ProjectName != nullptr && ProjectName[0] != 0)
 		{
-			AddCrashPropertyInternal(Buffer, TEXT("GameName"), *FString::Printf(TEXT("UE-%s"), ProjectName));
+			AddCrashPropertyInternal(Buffer, FGenericCrashContext::GameNameTag, *FString::Printf(TEXT("UE-%s"), ProjectName));
 		}
 		else
 		{
-			AddCrashPropertyInternal(Buffer, TEXT("GameName"), TEXT(""));
+			AddCrashPropertyInternal(Buffer, FGenericCrashContext::GameNameTag, TEXT(""));
 		}
 	}
 	AddCrashPropertyInternal(Buffer, TEXT("ExecutableName"), NCached::Session.ExecutableName);
@@ -795,12 +819,12 @@ void FGenericCrashContext::SerializeSessionContext(FString& Buffer)
 	AddCrashPropertyInternal(Buffer, TEXT("CommandLine"), NCached::Session.CommandLine);
 	AddCrashPropertyInternal(Buffer, TEXT("LanguageLCID"), NCached::Session.LanguageLCID);
 	AddCrashPropertyInternal(Buffer, TEXT("AppDefaultLocale"), NCached::Session.DefaultLocale);
-	AddCrashPropertyInternal(Buffer, TEXT("BuildVersion"), NCached::Session.BuildVersion);
+	AddCrashPropertyInternal(Buffer, BuildVersionTag, NCached::Session.BuildVersion);
 	AddCrashPropertyInternal(Buffer, TEXT("Symbols"), NCached::Session.SymbolsLabel);
 	AddCrashPropertyInternal(Buffer, TEXT("IsUERelease"), NCached::Session.bIsUERelease);
 
 	// Need to set this at the time of the crash to check if requesting exit had been called
-	AddCrashPropertyInternal(Buffer, TEXT("IsRequestingExit"), NCached::Session.bIsExitRequested);
+	AddCrashPropertyInternal(Buffer, FGenericCrashContext::IsRequestingExitTag, NCached::Session.bIsExitRequested);
 
 	// Remove periods from user names to match AutoReporter user names
 	// The name prefix is read by CrashRepository.AddNewCrash in the website code
@@ -878,17 +902,17 @@ void FGenericCrashContext::SerializeContentToBuffer() const
 	AddHeader(CommonBuffer);
 
 	BeginSection( CommonBuffer, RuntimePropertiesTag );
-	AddCrashProperty( TEXT( "CrashVersion" ), (int32)ECrashDescVersions::VER_3_CrashContext );
-	AddCrashProperty( TEXT( "ExecutionGuid" ), *ExecutionGuid.ToString() );
-	AddCrashProperty( TEXT( "CrashGUID" ), (const TCHAR*)CrashGUID);
+	AddCrashProperty( CrashVersionTag, (int32)ECrashDescVersions::VER_3_CrashContext );
+	AddCrashProperty( ExecutionGuidTag, *ExecutionGuid.ToString() );
+	AddCrashProperty( CrashGuidTag, (const TCHAR*)CrashGUID);
 
-	AddCrashProperty( TEXT( "IsEnsure" ), (Type == ECrashContextType::Ensure) );
-	AddCrashProperty( TEXT( "IsStall"), (Type == ECrashContextType::Stall) );
-	AddCrashProperty( TEXT( "IsAssert" ), (Type == ECrashContextType::Assert) );
-	AddCrashProperty( TEXT( "CrashType" ), GetCrashTypeString(Type) );
-	AddCrashProperty( TEXT( "ErrorMessage" ), ErrorMessage );
-	AddCrashProperty( TEXT( "CrashReporterMessage" ), NCached::Session.CrashReportClientRichText );
-	AddCrashProperty( TEXT( "AttendedStatus"), NCached::Session.AttendedStatus);
+	AddCrashProperty( IsEnsureTag, (Type == ECrashContextType::Ensure) );
+	AddCrashProperty( IsStallTag, (Type == ECrashContextType::Stall) );
+	AddCrashProperty( IsAssertTag, (Type == ECrashContextType::Assert) );
+	AddCrashProperty( CrashTypeTag, GetCrashTypeString(Type) );
+	AddCrashProperty( ErrorMessageTag, ErrorMessage );
+	AddCrashProperty( CrashReporterMessageTag, NCached::Session.CrashReportClientRichText );
+	AddCrashProperty( AttendedStatusTag, NCached::Session.AttendedStatus);
 
 	SerializeSessionContext(CommonBuffer);
 
@@ -1089,13 +1113,13 @@ void FGenericCrashContext::AddPortableCallStack() const
 {	
 	if (CallStack.Num() == 0)
 	{
-		AddCrashProperty(TEXT("PCallStack"), TEXT(""));
+		AddCrashProperty(PortableCallStackTag, TEXT(""));
 		return;
 	}
 
-	BeginSection(CommonBuffer, TEXT("PCallStack"));
+	BeginSection(CommonBuffer, PortableCallStackTag);
 	AppendPortableCallstack(CommonBuffer, CallStack);
-	EndSection(CommonBuffer, TEXT("PCallStack"));
+	EndSection(CommonBuffer, PortableCallStackTag);
 }
 
 void FGenericCrashContext::AddGPUBreadcrumbs() const
@@ -1234,6 +1258,8 @@ const TCHAR* FGenericCrashContext::GetCrashTypeString(ECrashContextType Type)
 		return CrashTypeAbnormalShutdown;
 	case ECrashContextType::OutOfMemory:
 		return CrashTypeOutOfMemory;
+	case ECrashContextType::VerseRuntimeError:
+		return CrashTypeVerseRuntimeError;
 	default:
 		return CrashTypeCrash;
 	}
