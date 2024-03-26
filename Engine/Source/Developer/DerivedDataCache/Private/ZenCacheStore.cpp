@@ -1131,11 +1131,13 @@ public:
 			{
 				BatchRequest << ANSITEXTVIEW("Method") << "GetCacheChunks";
 				BatchRequest.AddInteger(ANSITEXTVIEW("Accept"), Zen::Http::kCbPkgMagic);
+				uint32_t AcceptFlags = static_cast<uint32_t>(Zen::Http::RpcAcceptOptions::kAllowPartialCacheChunks);
 				if (CacheStore.bIsLocalConnection)
 				{
-					BatchRequest.AddInteger(ANSITEXTVIEW("AcceptFlags"), static_cast<uint32_t>(Zen::Http::RpcAcceptOptions::kAllowLocalReferences));
+					AcceptFlags |= static_cast<uint32_t>(Zen::Http::RpcAcceptOptions::kAllowLocalReferences);
 					BatchRequest.AddInteger(ANSITEXTVIEW("Pid"), FPlatformProcess::GetCurrentProcessId());
 				}
+				BatchRequest.AddInteger(ANSITEXTVIEW("AcceptFlags"), AcceptFlags);
 
 				BatchRequest.BeginObject(ANSITEXTVIEW("Params"));
 				{
@@ -1218,20 +1220,9 @@ public:
 							RawHash = HashView.AsHash();
 							if (!HashView.HasError())
 							{
-								const FCbAttachment* Attachment = EnumHasAnyFlags(RequestWithStats.Request.Policy, ECachePolicy::SkipData) ? nullptr : Response.FindAttachment(HashView.AsHash());
-
-								if (Attachment)
-								{
-									FCompressedBuffer CompressedBuffer = Attachment->AsCompressedBinary();
-									if (CompressedBuffer)
-									{
-										TRACE_COUNTER_ADD(ZenDDC_BytesReceived, CompressedBuffer.GetCompressedSize());
-										RequestedBytes = FCompressedBufferReader(CompressedBuffer).Decompress(Request.RawOffset, Request.RawSize);
-										RawSize = RequestedBytes.GetSize();
-										Succeeded = true;
-									}
-								}
-								else
+								FIoHash AttachmentHash = RawHash;
+								const FCbAttachment* Attachment = nullptr;
+								if (EnumHasAnyFlags(RequestWithStats.Request.Policy, ECachePolicy::SkipData))
 								{
 									FCbFieldView RawSizeField = ResultObject[ANSITEXTVIEW("RawSize")];
 									uint64 TotalSize = RawSizeField.AsUInt64();
@@ -1239,6 +1230,28 @@ public:
 									if (Succeeded)
 									{
 										RawSize = FMath::Min(Request.RawSize, TotalSize - FMath::Min(Request.RawOffset, TotalSize));
+									}
+								}
+								else
+								{
+									FCbFieldView FragmentOffsetField = ResultObject[ANSITEXTVIEW("FragmentOffset")];
+									uint64 FragmentOffset = FragmentOffsetField.AsUInt64();
+
+									FCbFieldView FragmentHashView = ResultObject[ANSITEXTVIEW("FragmentHash")];
+									if (FragmentHashView.IsHash())
+									{
+										FIoHash FragmentHash = FragmentHashView.AsHash();
+										AttachmentHash = FragmentHash;
+									}
+
+									if (Attachment = Response.FindAttachment(AttachmentHash); Attachment != nullptr)
+									{
+										if (FCompressedBuffer CompressedBuffer = Attachment->AsCompressedBinary(); CompressedBuffer)
+										{
+											RequestedBytes = FCompressedBufferReader(CompressedBuffer).Decompress(Request.RawOffset - FragmentOffset, Request.RawSize);
+											RawSize = RequestedBytes.GetSize();
+											Succeeded = true;
+										}
 									}
 								}
 							}
