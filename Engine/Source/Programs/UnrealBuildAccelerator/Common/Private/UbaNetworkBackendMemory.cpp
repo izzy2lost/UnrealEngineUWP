@@ -45,6 +45,8 @@ namespace uba
 		auto& rc = m_connection->peer[to];
 		SCOPED_WRITE_LOCK(rc.lock, l);
 		m_connection->connected = false;
+		l.Leave();
+
 		if (auto cb = rc.disconnectCallback)
 			cb(rc.disconnectContext, m_connection->uid, connection);
 	}
@@ -114,6 +116,7 @@ namespace uba
 
 	bool NetworkBackendMemory::StartListen(Logger& logger, u16 port, const tchar* ip, const ListenConnectedFunc& connectedFunc)
 	{
+		SCOPED_WRITE_LOCK(m_connectedFuncLock, l);
 		m_connectedFunc = connectedFunc;
 		return true;
 	}
@@ -138,6 +141,7 @@ namespace uba
 		m_connection = new Connection();
 		if (!m_connectedFunc((void*)1, {}))
 			return false;
+		l.Leave();
 		return connectedFunc((void*)2, {}, timedOut);
 	}
 

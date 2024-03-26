@@ -27,6 +27,7 @@ namespace uba
 
 		bool ctorSuccess = true;
 		NetworkServer server(ctorSuccess, { logWriter });
+
 		SessionServerCreateInfo sessionServerInfo(storage, server, logWriter);
 		sessionServerInfo.checkMemory = false;
 		sessionServerInfo.rootDir = rootDir.data;
@@ -67,7 +68,7 @@ namespace uba
 		sessionServerInfo.rootDir = rootDir.data;
 		SessionServer sessionServer(sessionServerInfo);
 
-		auto sg = MakeGuard([&]() { server.StopAll(); });
+		auto sg = MakeGuard([&]() { server.DisconnectClients(); });
 
 		rootDir.Append(TC("Client"));
 		if (!DeleteAllFiles(logger, rootDir.data))
@@ -80,7 +81,7 @@ namespace uba
 		sessionClientInfo.rootDir = rootDir.data;
 		SessionClient sessionClient(sessionClientInfo);
 
-		auto cg = MakeGuard([&]() { sessionClient.Stop(); client.StopAll(); });
+		auto cg = MakeGuard([&]() { sessionClient.Stop(); client.Disconnect(); });
 
 		StringBuffer<> workingDir;
 		workingDir.Append(testRootDir).Append(TC("WorkingDir"));
@@ -91,6 +92,7 @@ namespace uba
 		if (!DeleteAllFiles(logger, workingDir.data, false))
 			return false;
 
+		storageClient.Start();
 		sessionClient.Start();
 
 		u16 port = 1356;

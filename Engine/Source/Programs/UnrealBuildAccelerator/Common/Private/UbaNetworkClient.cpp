@@ -38,24 +38,10 @@ namespace uba
 
 	NetworkClient::~NetworkClient()
 	{
-		StopAll();
+		UBA_ASSERTF(m_connections.empty(), TC("Client still has connections (%llu). %s"), m_connections.size(), m_isDisconnecting ? TC("") : TC("Disconnect has not been called"));
 
 		if (m_cryptoKey)
 			Crypto::DestroyKey(m_cryptoKey);
-	}
-
-	void NetworkClient::StopAll()
-	{
-		StopListen();
-
-		Disconnect();
-
-		{
-			SCOPED_WRITE_LOCK(m_connectionsLock, lock);
-			m_connections.clear();
-		}
-
-		FlushWork();
 	}
 
 	bool NetworkClient::Connect(NetworkBackend& backend, const tchar* ip, u16 port, bool* timedOut)
@@ -72,6 +58,7 @@ namespace uba
 		{
 			RecvContext(NetworkClient& c, NetworkBackend& b, void* bc) : client(c), backend(b), backendConnection(bc), recvEvent(true), exitScopeEvent(true)
 			{
+				error = 255;
 			}
 
 			~RecvContext()
@@ -86,7 +73,7 @@ namespace uba
 			void* backendConnection;
 			Event recvEvent;
 			Event exitScopeEvent;
-			u8 error = 255;
+			Atomic<u8> error;
 		};
 
 		RecvContext rc(*this, backend, backendConnection);
@@ -96,7 +83,8 @@ namespace uba
 		backend.SetDisconnectCallback(backendConnection, &rc, [](void* context, const Guid& connectionUid, void* connection)
 			{
 				auto& rc = *(RecvContext*)context;
-				rc.error = 4;
+				if (rc.error == 0)
+					rc.error = 4;
 				rc.recvEvent.Set();
 				rc.exitScopeEvent.Set();
 			});
@@ -117,15 +105,11 @@ namespace uba
 				}
 
 				if (!rc.error)
-				{
-					rc.client.ConnectedCallback(rc.backend, rc.backendConnection);
-				}
-				else
-				{
-					// Zero out callbacks since we will be leaving this scope when exiting current callback and we don't want the disconnect callback
-					rc.backend.SetRecvCallbacks(rc.backendConnection, nullptr, 0, [](void*, const Guid&, u8*, void*&, u8*&, u32&) { return false; }, nullptr, TC("Null"));
-					rc.backend.SetDisconnectCallback(rc.backendConnection, nullptr, nullptr);
-				}
+					if (!rc.client.ConnectedCallback(rc.backend, rc.backendConnection))
+						rc.error = 4;
+
+				if (rc.error != 0)
+					return false;
 
 				rc.recvEvent.Set();
 				rc.exitScopeEvent.Set();
@@ -208,9 +192,18 @@ namespace uba
 	constexpr u32 SendHeaderSize = 6;
 	constexpr u32 ReceiveHeaderSize = 5;
 
-	void NetworkClient::ConnectedCallback(NetworkBackend& backend, void* backendConnection)
+	void NetworkClient::DisconnectCallback(void* context, const Guid& connectionUid, void* connection)
+	{
+		auto& c = *(Connection*)context;
+		c.owner.OnDisconnected(c);
+		c.disconnectedEvent.Set();
+	}
+
+	bool NetworkClient::ConnectedCallback(NetworkBackend& backend, void* backendConnection)
 	{
 		SCOPED_WRITE_LOCK(m_connectionsLock, lock);
+		if (m_isDisconnecting)
+			return false;
 		m_connections.emplace_back(*this);
 		Connection* connection = &m_connections.back();
 		connection->backendConnection = backendConnection;
@@ -222,13 +215,9 @@ namespace uba
 		}
 		lock.Leave();
 
-		backend.SetDisconnectCallback(backendConnection, connection, [](void* context, const Guid& connectionUid, void* connection)
-			{
-				auto& c = *(Connection*)context;
-				c.owner.OnDisconnected(c, true);
-				c.disconnectedEvent.Set();
-			});
+		backend.SetDisconnectCallback(backendConnection, connection, DisconnectCallback);
 		backend.SetRecvCallbacks(backendConnection, connection, ReceiveHeaderSize, ReceiveResponseHeader, ReceiveResponseBody, TC("ReceiveMessageResponse"));
+		return true;
 	}
 
 	bool NetworkClient::ReceiveResponseHeader(void* context, const Guid& connectionUid, u8* headerData, void*& outBodyContext, u8*& outBodyData, u32& outBodySize)
@@ -289,32 +278,32 @@ namespace uba
 
 	void NetworkClient::Disconnect()
 	{
-		SCOPED_READ_LOCK(m_connectionsLock, lock);
-		for (auto& c : m_connections)
+		m_isDisconnecting = true;
 		{
-			OnDisconnected(c, false);
-			c.disconnectedEvent.IsSet(~0u);
+			SCOPED_READ_LOCK(m_connectionsLock, lock);
+			for (auto& c : m_connections)
+			{
+				OnDisconnected(c);
+				c.disconnectedEvent.IsSet(~0u);
+			}
 		}
+
+		{
+			SCOPED_WRITE_LOCK(m_connectionsLock, lock2);
+			m_connections.clear();
+		}
+
+		FlushWork();
 	}
 
 	bool NetworkClient::StartListen(NetworkBackend& backend, u16 port)
 	{
-		UBA_ASSERT(!m_listenBackend); // Only one allowed atm
-		m_listenBackend = &backend;
-
 		backend.StartListen(m_logger, port, nullptr, [&](void* connection, const sockaddr& remoteSockAddr)
 			{
 				return AddConnection(backend, connection, nullptr);
 			});
 
 		return true;
-	}
-
-	void NetworkClient::StopListen()
-	{
-		if (m_listenBackend)
-			m_listenBackend->StopListen();
-		m_listenBackend = nullptr;
 	}
 
 	bool NetworkClient::SetConnectionCount(u32 count)
@@ -414,7 +403,7 @@ namespace uba
 		return m_connections.front().backend;
 	}
 
-	void NetworkClient::OnDisconnected(Connection& connection, bool calledFromReceive)
+	void NetworkClient::OnDisconnected(Connection& connection)
 	{
 		if (connection.connected.exchange(0) == 1)
 		{
@@ -525,7 +514,7 @@ namespace uba
 			TimerScope ts(m_encryptTimer);
 			if (!Crypto::Encrypt(m_logger, m_cryptoKey, data + SendHeaderSize, bodySize))
 			{
-				OnDisconnected(connection, false);
+				OnDisconnected(connection);
 				return false;
 			}
 		}
@@ -537,7 +526,7 @@ namespace uba
 			TimerScope ts(m_sendTimer);
 			if (!connection.backend->Send(m_logger, connection.backendConnection, data, sendSize, message.m_sendContext))
 			{
-				OnDisconnected(connection, false);
+				OnDisconnected(connection);
 				return false;
 			}
 		}

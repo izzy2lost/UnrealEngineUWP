@@ -19,6 +19,7 @@ enum
 	Popup_Play,
 	Popup_JumpToEnd,
 	Popup_ShowText,
+	Popup_ShowCreateWriteColors,
 	Popup_SaveAs,
 	Popup_Quit,
 };
@@ -178,8 +179,10 @@ namespace uba
 			while (m_hwnd && m_client->IsConnected())
 				Sleep(1000);
 
+			m_client->Disconnect();
 			delete m_client;
 			m_client = nullptr;
+			Sleep(2000); // To prevent it from reconnecting to the same thing again and get thrown out (since it will post a WM_NEWTRACE and clean everything
 		}
 		return true;
 	}
@@ -477,6 +480,30 @@ namespace uba
 	constexpr int SessionStepY = RawBoxHeight + 2;
 	constexpr int FontHeight = 13;
 
+	struct SessionRec
+	{
+		TraceView::Session* session;
+		u32 index;
+	};
+	void Populate(SessionRec* recs, TraceView& traceView)
+	{
+		u32 count = u32(traceView.sessions.size());
+		for (u32 i = 0, e = count; i != e; ++i)
+			recs[i] = { &traceView.sessions[i], i };
+		if (count <= 1)
+			return;
+		std::sort(recs + 1, recs + traceView.sessions.size(), [](SessionRec& a, SessionRec& b)
+			{
+				auto& as = *a.session;
+				auto& bs = *b.session;
+				if ((as.processActiveCount != 0) != (bs.processActiveCount != 0))
+					return as.processActiveCount > bs.processActiveCount;
+				if (as.processActiveCount && as.proxyCreated != bs.proxyCreated)
+					return int(as.proxyCreated) > int(bs.proxyCreated);
+				return a.index < b.index;
+			});
+	}
+
 	void Visualizer::PaintAll(HDC hdc, const RECT& clientRect)
 	{
 		u64 currentTime = m_paused ? m_pauseStart : GetTime();
@@ -547,11 +574,8 @@ namespace uba
 
 		TraceView::WorkRecord selectedWork;
 
-		struct SessionRec { TraceView::Session* session; u32 index; };
-		SessionRec sortedSessions[256];
-		for (u32 i = 0, e = u32(m_traceView.sessions.size()); i != e; ++i)
-			sortedSessions[i] = { &m_traceView.sessions[i], i };
-		std::sort(sortedSessions, sortedSessions + m_traceView.sessions.size(), [](SessionRec& a, SessionRec& b) { return a.session->disconnectTime > b.session->disconnectTime; });
+		SessionRec sortedSessions[1024];
+		Populate(sortedSessions, m_traceView);
 
 		TraceView::ProcessLocation processLocation { 0, 0, 0 };
 		for (u64 i = 0, e = m_traceView.sessions.size(); i != e; ++i)
@@ -590,7 +614,11 @@ namespace uba
 						text.Append(L" - ").Append(session.notification);
 				}
 				else
+				{
 					text.Append(L" - Disconnected");
+					if (!session.notification.empty())
+						text.Append(L" (").Append(session.notification).Append(')');
+				}
 
 				bool selected = m_sessionSelectedIndex == processLocation.sessionIndex;
 
@@ -1500,7 +1528,9 @@ namespace uba
 		else if (process.exitCode != 0)
 			brush = m_processBrushes[selected].error;
 
-		if (!done || process.exitCode != 0 || (TimeToMs(process.processStats.sendFiles.time) < 300 && TimeToMs(process.processStats.createFile.time) < 300))
+		u64 writeFilesTime = Max(process.processStats.writeFiles.time, process.processStats.sendFiles.time);
+
+		if (!done || process.exitCode != 0 || !m_showCreateWriteColors || (TimeToMs(writeFilesTime) < 300 && TimeToMs(process.processStats.createFile.time) < 300))
 		{
 			if (writingBitmap)
 				rect.right = 256;
@@ -1526,7 +1556,7 @@ namespace uba
 				FillRect(hdc, &r2, m_processBrushes[selected].recv);
 		}
 
-		double sendPart = (double(ConvertTime(m_traceView, process.processStats.sendFiles.time)) / duration);
+		double sendPart = (double(ConvertTime(m_traceView, writeFilesTime)) / duration);
 		if (int tailSize = int(sendPart * width))
 		{
 			UBA_ASSERT(tailSize > 0);
@@ -1821,11 +1851,8 @@ namespace uba
 
 		TraceView::ProcessLocation& outLocation = outResult.processLocation;
 
-		struct SessionRec { TraceView::Session* session; u32 index; };
-		SessionRec sortedSessions[256];
-		for (u32 i = 0, e = u32(m_traceView.sessions.size()); i != e; ++i)
-			sortedSessions[i] = { &m_traceView.sessions[i], i };
-		std::sort(sortedSessions, sortedSessions + m_traceView.sessions.size(), [](SessionRec& a, SessionRec& b) { return a.session->disconnectTime > b.session->disconnectTime; });
+		SessionRec sortedSessions[1024];
+		Populate(sortedSessions, m_traceView);
 
 		for (u64 i = 0, e = m_traceView.sessions.size(); i != e; ++i)
 		{
@@ -2189,6 +2216,12 @@ namespace uba
 			StringBuffer<> title;
 			GetTitlePrefix(title);
 
+			auto g = MakeGuard([&]()
+				{
+					RedrawWindow(hWnd, NULL, NULL, RDW_INVALIDATE|RDW_UPDATENOW);
+					UpdateScrollbars(true);
+				});
+
 			if (m_client)
 			{
 				if (!m_trace.StartReadClient(m_traceView, *m_client))
@@ -2215,8 +2248,6 @@ namespace uba
 			}
 
 			SetWindowTextW(m_hwnd, title.data);
-			SendMessage(m_hwnd, WM_TIMER, 0, 0);
-			UpdateScrollbars(true);
 			SetTimer(m_hwnd, 0, 200, NULL);
 			return 0;
 		}
@@ -2333,11 +2364,12 @@ namespace uba
 			//	m_autoScroll = true;
 
 		
-			for (auto& session : m_traceView.sessions)
-				for (auto& processor : session.processors)
-					for (auto& process : processor.processes)
-						if (TimeToMs(process.processStats.sendFiles.time) >= 300 || TimeToMs(process.processStats.createFile.time) >= 300)
-							process.bitmapDirty = true;
+			if (m_showCreateWriteColors)
+				for (auto& session : m_traceView.sessions)
+					for (auto& processor : session.processors)
+						for (auto& process : processor.processes)
+							if (TimeToMs(Max(process.processStats.writeFiles.time, process.processStats.sendFiles.time)) >= 300 || TimeToMs(process.processStats.createFile.time) >= 300)
+								process.bitmapDirty = true;
 
 			UpdateScrollbars(true);
 			RedrawWindow(hWnd, NULL, NULL, RDW_INVALIDATE);
@@ -2489,7 +2521,8 @@ namespace uba
 			HMENU hMenu = CreatePopupMenu();
 			ClientToScreen(hWnd, &point);
 
-			AppendMenuW(hMenu, MF_STRING, Popup_ShowText, m_showText ? L"&Hide process text" : L"&Show process text");
+			AppendMenuW(hMenu, MF_STRING, Popup_ShowText, m_showText ? L"&Hide Process text" : L"&Show Process text");
+			AppendMenuW(hMenu, MF_STRING, Popup_ShowCreateWriteColors, m_showCreateWriteColors ? L"&Hide Create/Write colors" : L"&Show Create/Write colors");
 			AppendMenuW(hMenu, MF_SEPARATOR, 0, NULL);
 
 			if (m_sessionSelectedIndex != ~0u)
@@ -2552,6 +2585,15 @@ namespace uba
 				m_showText = !m_showText;
 				RedrawWindow(hWnd, NULL, NULL, RDW_INVALIDATE | RDW_UPDATENOW);
 				break;
+			case Popup_ShowCreateWriteColors:
+				m_showCreateWriteColors = !m_showCreateWriteColors;
+				for (auto& session : m_traceView.sessions)
+					for (auto& processor : session.processors)
+						for (auto& process : processor.processes)
+								process.bitmapDirty = true;
+				RedrawWindow(hWnd, NULL, NULL, RDW_INVALIDATE | RDW_UPDATENOW);
+				break;
+
 			case Popup_Replay:
 				m_replay = 1;
 				PostMessage(m_hwnd, WM_NEWTRACE, 0, 0);

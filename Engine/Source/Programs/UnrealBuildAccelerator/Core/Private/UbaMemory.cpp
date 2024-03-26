@@ -69,11 +69,12 @@ namespace uba
 		u64 startPos = AlignUp(writtenSize, alignment);
 		u64 newPos = startPos + bytes;
 		
+		if (newPos > reserveSize)
+			FatalError(9882, TC("Ran out of reserved space . Reserved %llu, Needed %llu (%s)"), reserveSize, newPos, hint);
+
 		#if PLATFORM_WINDOWS
 		if (newPos > mappedSize)
 		{
-			if (newPos > reserveSize)
-				FatalError(9882, TC("Ran out of reserved space . Reserved %llu, Needed %llu (%s)"), reserveSize, newPos, hint);
 			u64 toCommit = AlignUp(newPos - mappedSize, 1024 * 1024);
 			if (mappedSize + toCommit > reserveSize)
 				toCommit = reserveSize - mappedSize;

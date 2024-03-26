@@ -5,8 +5,9 @@
 #include "UbaTestBasics.h"
 #include "UbaTestNetwork.h"
 #include "UbaTestScheduler.h"
-#include "UbaTestStorage.h"
 #include "UbaTestSession.h"
+#include "UbaTestStorage.h"
+#include "UbaTestStress.h"
 
 namespace uba
 {
@@ -29,7 +30,9 @@ namespace uba
 		UBA_TEST(TestEvents) \
 		UBA_TEST(TestPaths) \
 		UBA_TEST(TestFiles) \
+		UBA_TEST(TestMemoryBlock) \
 		UBA_TEST(TestParseArguments) \
+		UBA_TEST(TestBinaryWriter) \
 		UBA_TEST(TestSockets) \
 		UBA_TEST(TestClientServer) \
 		UBA_TEST(TestClientServer2) \
@@ -71,7 +74,7 @@ namespace uba
 
 		logger.Info(TC("Running tests (Test rootdir: %s)"), testRootDir.data);
 
-		//UBA_TEST(TestLogLines)
+		//UBA_TEST(TestStress) // This can not be submitted.. it depends on CoordinatorHorde and credentials
 		UBA_TESTS
 
 		logger.Info(TC("Tests finished successfully!"));

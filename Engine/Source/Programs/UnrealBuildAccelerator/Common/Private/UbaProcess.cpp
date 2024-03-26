@@ -904,8 +904,10 @@ namespace uba
 					BinaryReader statsReader(statsWriter.GetData(), 0, statsWriter.GetPosition());
 
 					bool newProcess = false;
+					m_exitCode = prevExitCode;
 					m_messageSuccess = m_session.GetNextProcess(*this, newProcess, nextProcess, prevExitCode, statsReader) && m_messageSuccess;
 					writer.WriteBool(newProcess);
+					m_exitCode = ~0u;
 					if (!newProcess)
 						return true;
 
@@ -1080,6 +1082,7 @@ namespace uba
 
 	bool ProcessImpl::WriteFilesToDisk()
 	{
+		Vector<WrittenFile*> files;
 		TimerScope ts(m_processStats.writeFiles);
 		SCOPED_WRITE_LOCK(m_writtenFilesLock, lock);
 		for (auto& kv : m_writtenFiles)
@@ -1088,10 +1091,10 @@ namespace uba
 				continue;
 			kv.second.owner = nullptr;
 			if (kv.second.mappingHandle.IsValid())
-				if (!m_session.WriteFileToDisk(*this, kv.second))
-					return false;
+				files.push_back(&kv.second);
 		}
-		return true;
+
+		return m_session.WriteFilesToDisk(*this, files.data(), u32(files.size()));
 	}
 
 	const tchar* ProcessImpl::InternalGetChildLogFile(StringBufferBase& temp)

@@ -21,14 +21,17 @@ namespace uba
 	public:
 		StorageProxy(NetworkServer& server, NetworkClient& client, const Guid& storageServerUid, const tchar* name, StorageImpl* localStorage = nullptr);
 		~StorageProxy();
-
-		bool Disconnect(u32 timeoutMs); // Use a timeout to try to make more graceful disconnect
 		void PrintSummary();
 
 	protected:
 		u16 PopId();
 		void PushId(u16 id);
 		bool HandleMessage(const ConnectionInfo& connectionInfo, MessageInfo& messageInfo, BinaryReader& reader, BinaryWriter& writer);
+
+		struct MessageInFlight;
+		void HandleReceivedData(MessageInFlight& mif);
+
+		bool UpdateFetch(u32 clientId, u16 fetchId, u64 segmentSize);
 		bool SendEnd(const CasKey& key);
 
 		static constexpr u8 ServiceId = StorageServiceId;
@@ -45,8 +48,6 @@ namespace uba
 
 		Atomic<u32> m_inProcessClientId;
 
-		struct SegmentInFlight { u32 refCount; u32 segmentIndex; Event done; SegmentInFlight* prev; SegmentInFlight* next; };
-
 		struct FileEntry
 		{
 			ReaderWriterLock lock;
@@ -54,13 +55,13 @@ namespace uba
 			u64 size = 0;
 			Atomic<u64> received;
 			CasKey casKey;
+			u32 trackId = 0;
 			u16 fetchId = 0;
 			bool storeCompressed = false;
 			bool sendEnd = false;
 			bool error = false;
-			Vector<u8> segmentsAvailable;
-			SegmentInFlight* firstInFlight = nullptr;
-			SegmentInFlight* lastInFlight = nullptr;
+			bool available = false;
+			Vector<MessageInFlight*> messagesInFlight;
 		};
 
 		ReaderWriterLock m_filesLock;
@@ -69,15 +70,16 @@ namespace uba
 		struct ActiveFetch
 		{
 			FileEntry* file = nullptr;
-			Guid clientUid;
-			Atomic<u64> fetchedSize;
+			u64 fetchedSize = 0;
+			u32 clientId = ~0u;
+			u32 connectionId = 0;
 		};
 
-		Event m_hasActiveFetchesEvent;
 		ReaderWriterLock m_activeFetchesLock;
 		UnorderedMap<u16, ActiveFetch> m_activeFetches;
 
-		ReaderWriterLock m_availableIdsLock;
+		ReaderWriterLock m_largeFileLock;
+
 		Vector<u16> m_availableIds;
 		u16 m_availableIdsHigh = 1;
 	};

@@ -679,7 +679,10 @@ NTSTATUS NTAPI Shared_NtCreateFile(bool IsCreateFunc, PHANDLE hFileHandle, ACCES
 					DirectoryTable::EntryInformation entryInfo;
 					g_directoryTable.GetEntryInformation(entryInfo, dirTableOffset);
 					if (entryInfo.attributes == 0)
+					{
+						DEBUG_LOG_DETOURED(funcName, L"DELETED %llu, (%ls) -> Success", uintptr_t(*hFileHandle), fileName.data);
 						return STATUS_OBJECT_NAME_NOT_FOUND;
+					}
 				}
 
 				bool isWriteAttributes = (DesiredAccess & FILE_WRITE_ATTRIBUTES) != 0;
@@ -983,7 +986,7 @@ NTSTATUS NTAPI Shared_NtCreateFile(bool IsCreateFunc, PHANDLE hFileHandle, ACCES
 			{
 				if (g_rules->IsThrowAway(fileName.data, fileName.count))
 				{
-					isDeleteOnClose = true;
+					//isDeleteOnClose = true;
 				}
 				else if (CreateDisposition == FILE_OPEN)
 				{
@@ -993,7 +996,7 @@ NTSTATUS NTAPI Shared_NtCreateFile(bool IsCreateFunc, PHANDLE hFileHandle, ACCES
 				}
 
 				bool isLocal = !IsOutputFile(fileName.data, fileName.count, dwDesiredAccess, isDeleteOnClose);
-				UBA_ASSERT(CreateDisposition != FILE_OPEN || Contains(fileName.data, L"vctip_"));
+				//UBA_ASSERTF(CreateDisposition != FILE_OPEN || Contains(fileName.data, L"vctip_"), TC("Unsupported disposition %u for file %s"), CreateDisposition, fileName.data);
 				info.memoryFile = new MemoryFile(isLocal, FileTypeMaxSize(fileName, isSystemOrTempFile));
 			}
 
@@ -1223,7 +1226,8 @@ NTSTATUS NTAPI Detoured_NtClose(HANDLE handle)
 		mappingHandle = fi.memoryFile->mappingHandle;
 		mappingWritten = fi.memoryFile->writtenSize;
 
-		if (IsOutputFile(fi.originalName, wcslen(fi.originalName), fo->desiredAccess, fo->deleteOnClose))
+		u32 orginalNameLen = TStrlen(fi.originalName);
+		if (IsOutputFile(fi.originalName, orginalNameLen, fo->desiredAccess, fo->deleteOnClose) && !g_rules->IsThrowAway(fi.originalName, orginalNameLen))
 		{
 			// Need to report this file to host so it can be tracked in directory table
 			if (!fi.memoryFile->isReported)

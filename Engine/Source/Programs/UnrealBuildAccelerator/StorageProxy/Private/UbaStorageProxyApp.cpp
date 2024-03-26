@@ -184,8 +184,8 @@ int wmain(int argc, wchar_t *argv[])
 			});
 
 		disconnected.IsSet();
-
-		server.StopAll();
+		networkBackend.StopListen();
+		server.DisconnectClients();
 		server.PrintSummary(logger);
 		client->PrintSummary(logger);
 

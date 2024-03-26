@@ -143,7 +143,10 @@ extern "C"
 
 	void Server_Stop(uba::NetworkServer* server)
 	{
-		server->StopAll();
+		auto s = (uba::NetworkServerWithBackend*)server;
+		auto networkBackend = s->networkBackend;
+		networkBackend->StopListen();
+		server->DisconnectClients();
 	}
 
 
@@ -432,7 +435,11 @@ uba::StorageClient* CreateStorageClient(uba::NetworkClient& client, const uba::t
 	void DestroySessionServer(uba::SessionServer* server)
 	{
 		if (server)
-			server->GetServer().StopAll();
+		{
+			auto& s = (uba::NetworkServerWithBackend&)server->GetServer();
+			s.networkBackend->StopListen();
+			s.DisconnectClients();
+		}
 		delete server;
 	}
 

@@ -18,15 +18,28 @@ namespace uba
 	,	m_getProxyBackendUserData(info.getProxyBackendUserData)
 	,	m_startProxyCallback(info.startProxyCallback)
 	,	m_startProxyUserData(info.startProxyUserData)
+	,	m_proxyPort(info.proxyPort)
 	{
-		m_client.RegisterOnConnected([this, proxyPort = info.proxyPort]()
+	}
+
+	struct StorageClient::ProxyClient
+	{
+		ProxyClient(bool& outCtorSuccess, const NetworkClientCreateInfo& info) : client(outCtorSuccess, info, TC("UbaProxyClient")) {}
+		~ProxyClient() { client.Disconnect(); }
+		NetworkClient client;
+		u32 refCount = 0;
+	};
+
+	bool StorageClient::Start()
+	{
+		m_client.RegisterOnConnected([this]()
 			{
 				StackBinaryWriter<1024> writer;
 				NetworkMessage msg(m_client, ServiceId, StorageMessageType_Connect, writer);
 				writer.WriteString(TC("Client"));
 				writer.WriteU32(StorageNetworkVersion);
 				writer.WriteBool(false); // Is Proxy
-				writer.WriteU16(proxyPort);
+				writer.WriteU16(m_proxyPort);
 				writer.WriteString(m_zone);
 				writer.WriteU64(m_casTotalBytes);
 
@@ -46,14 +59,8 @@ namespace uba
 			});
 
 		m_client.RegisterOnDisconnected([this]() { m_logger.isMuted = true; });
+		return true;
 	}
-
-	struct StorageClient::ProxyClient
-	{
-		ProxyClient(bool& outCtorSuccess, const NetworkClientCreateInfo& info) : client(outCtorSuccess, info, TC("UbaProxyClient")) {}
-		NetworkClient client;
-		u32 refCount = 0;
-	};
 
 	StorageClient::~StorageClient()
 	{
@@ -455,7 +462,7 @@ namespace uba
 						if (fetchId == u16(~0))
 							return m_logger.Error(TC("Cas content error. Server believes %s was only one segment but client sees more. Size: %llu Left to read: %llu ResponseSize: %u. (%s)"), hint, fileSize, left, responseSize, casFile.data);
 						readBuffer = slot;
-						if (!SendBatchMessages(*client, fetchId, readBuffer, BufferSlotSize, left, sizeOfFirstMessage, readIndex, responseSize))
+						if (!SendBatchMessages(m_logger, *client, fetchId, readBuffer, BufferSlotSize, left, sizeOfFirstMessage, readIndex, responseSize))
 						{
 							if (proxy)
 							{
@@ -515,7 +522,7 @@ namespace uba
 							{
 								if (fetchId == u16(~0))
 									return m_logger.Error(TC("Cas content error (2). Server believes %s was only one segment but client sees more. UncompressedSize: %llu LeftUncompressed: %llu Size: %llu Left to read: %llu ResponseSize: %u. (%s)"), hint, actualSize, leftUncompressed, fileSize, left, responseSize, casFile.data);
-								if (!SendBatchMessages(*client, fetchId, readPosition, maxReadSize - u32(readPosition - readBuffer), leftCompressed, sizeOfFirstMessage, readIndex, responseSize))
+								if (!SendBatchMessages(m_logger, *client, fetchId, readPosition, maxReadSize - u32(readPosition - readBuffer), leftCompressed, sizeOfFirstMessage, readIndex, responseSize))
 								{
 									if (proxy)
 									{
@@ -795,7 +802,7 @@ namespace uba
 			m_proxyClient->client.PrintSummary(logger);
 	}
 
-	bool StorageClient::SendBatchMessages(NetworkClient& client, u16 fetchId, u8* slot, u64 capacity, u64 left, u32 messageMaxSize, u32& readIndex, u32& responseSize)
+	bool StorageClient::SendBatchMessages(Logger& logger, NetworkClient& client, u16 fetchId, u8* slot, u64 capacity, u64 left, u32 messageMaxSize, u32& readIndex, u32& responseSize)
 	{
 		responseSize = 0;
 
@@ -833,31 +840,34 @@ namespace uba
 		for (u32 i=0; i!=sendCount; ++i)
 			new (entries + i) Entry(client, fetchId, slot, readIndex, i, messageMaxSize);
 
-		auto entryGuard = MakeGuard([&]()
-			{
-				for (u32 i=0; i!=sendCount; ++i)
-					entries[i].~Entry();
-			});
-
+		bool success = true;
+		u32 inFlight = u32(sendCount);
 		for (u32 i=0; i!=sendCount; ++i)
 		{
 			auto& entry = entries[i];
-			if (!entry.message.SendAsync(entry.reader, [](bool error, void* userData) { ((Event*)userData)->Set(); }, &entry.done))
-				return false;
+			if (entry.message.SendAsync(entry.reader, [](bool error, void* userData) { ((Event*)userData)->Set(); }, &entry.done))
+				continue;
+			inFlight = i;
+			success = false;
+			break;
+		}
+
+		for (u32 i=0; i!=inFlight; ++i)
+		{
+			Entry& entry = entries[i];
+			if (!entry.done.IsSet(5*60*1000))
+				logger.Error(TC("SendBatchMessages timed out getting async message response"));
+			if (!entry.message.ProcessAsyncResults(entry.reader))
+				success = false;
+			else
+				responseSize += u32(entry.reader.GetLeft());
 		}
 
 		for (u32 i=0; i!=sendCount; ++i)
-		{
-			Entry& entry = entries[i];
-			if (!entry.done.IsSet())
-				return false;
-			if (!entry.message.ProcessAsyncResults(entry.reader))
-				return false;
-			responseSize += u32(entry.reader.GetLeft());
-		}
+			entries[i].~Entry();
 
 		readIndex += u32(sendCount);
-		return true;
+		return success;
 	}
 	
 	bool StorageClient::SendAllSegments(NetworkClient& client, u16 fetchId, u8* readBuffer, u64 left, u32 messageMaxSize)

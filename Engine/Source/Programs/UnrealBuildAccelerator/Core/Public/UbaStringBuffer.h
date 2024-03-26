@@ -77,8 +77,7 @@ namespace uba
 		StringBuffer() : StringBufferBase(Capacity) { *buf = 0; }
 		explicit StringBuffer(const TString& str) : StringBufferBase(Capacity) { *buf = 0; Append(str); }
 		explicit StringBuffer(const tchar* str) : StringBufferBase(Capacity) { *buf = 0; if (str) Append(str); }
-		template<u32 Capacity2>
-		explicit StringBuffer(const StringBuffer<Capacity2>& str) : StringBufferBase(Capacity) { *buf = 0; Append(str); }
+		StringBuffer(const StringBufferBase& str) : StringBufferBase(Capacity) { *buf = 0; Append(str); }
 	private:
 		tchar buf[Capacity];
 	};

@@ -1037,6 +1037,27 @@ namespace uba
 		if (info.traceOutputFile)
 			m_traceOutputFile.Append(info.traceOutputFile);
 
+		m_fileMappingBuffer.AddTransient(TC("FileMappings"));
+
+		u64 reserveSize = CommunicationMemSize * 512;
+		m_processCommunicationAllocator.Init(CommunicationMemSize, reserveSize);
+
+		CreateProcessJobObject();
+
+		// Environment variables that should stay local when building remote (not replicated)
+		#if PLATFORM_WINDOWS
+		m_localEnvironmentVariables.insert(TC("SystemRoot"));
+		m_localEnvironmentVariables.insert(TC("SystemDrive"));
+		m_localEnvironmentVariables.insert(TC("NUMBER_OF_PROCESSORS"));
+		m_localEnvironmentVariables.insert(TC("PROCESSOR_ARCHITECTURE"));
+		m_localEnvironmentVariables.insert(TC("PROCESSOR_IDENTIFIER"));
+		m_localEnvironmentVariables.insert(TC("PROCESSOR_LEVEL"));
+		m_localEnvironmentVariables.insert(TC("PROCESSOR_REVISION"));
+		#endif
+	}
+
+	bool Session::Create(const SessionCreateInfo& info)
+	{
 		StringBuffer<> traceName;
 		if (info.traceName && *info.traceName)
 			traceName.Append(info.traceName);
@@ -1069,23 +1090,7 @@ namespace uba
 		}
 		#endif
 
-		m_fileMappingBuffer.AddTransient(TC("FileMappings"));
-
-		u64 reserveSize = CommunicationMemSize * 512;
-		m_processCommunicationAllocator.Init(CommunicationMemSize, reserveSize);
-
-		CreateProcessJobObject();
-
-		// Environment variables that should stay local when building remote (not replicated)
-		#if PLATFORM_WINDOWS
-		m_localEnvironmentVariables.insert(TC("SystemRoot"));
-		m_localEnvironmentVariables.insert(TC("SystemDrive"));
-		m_localEnvironmentVariables.insert(TC("NUMBER_OF_PROCESSORS"));
-		m_localEnvironmentVariables.insert(TC("PROCESSOR_ARCHITECTURE"));
-		m_localEnvironmentVariables.insert(TC("PROCESSOR_IDENTIFIER"));
-		m_localEnvironmentVariables.insert(TC("PROCESSOR_LEVEL"));
-		m_localEnvironmentVariables.insert(TC("PROCESSOR_REVISION"));
-		#endif
+		return true;
 	}
 
 	Session::~Session()
@@ -1476,6 +1481,10 @@ namespace uba
 #else
 		// TODO: This. Does non-windows have dlls that needs to be downloaded here?
 		out.push_back({ TString(applicationName), TString(application), S_IRUSR | S_IWUSR | S_IXUSR });
+		
+		// This code is needed if application is compiled with tsan
+		//strcpy(applicationDirEnd, "libclang_rt.tsan.so");
+		//out.push_back({ "libclang_rt.tsan.so", applicationDir, S_IRUSR | S_IWUSR });
 #endif
 		return true;
 	}
@@ -1939,93 +1948,133 @@ namespace uba
 		return true;
 	}
 
-	bool Session::WriteFileToDisk(ProcessImpl& process, WrittenFile& file)
+	bool Session::WriteFilesToDisk(ProcessImpl& process, WrittenFile** files, u32 fileCount)
 	{
-		if (ShouldWriteToDisk(file.name.c_str(), file.name.size()))
+
+		auto writeFile = [&](WrittenFile& file)
 		{
-			u64 fileSize = file.mappingWritten;
-			u8* mem = MapViewOfFile(file.mappingHandle, FILE_MAP_READ, 0, fileSize);
-			if (!mem)
-				return m_logger.Error(TC("Failed to map view of filehandle for read %s (%s)"), file.name.c_str(), LastErrorToText().data);
-
-			auto memClose = MakeGuard([&](){ UnmapViewOfFile(mem, fileSize, file.name.c_str()); });
-
-			// Seems like best combo (for windows at least) is to use writes with overlap and max 16 at the same time.
-			// On one machine we get twice as fast without overlap if no bottleneck. On another machine (ntfs compression on) we get twice as slow without overlap
-			// Both machines behaves well with overlap AND bottleneck. Both machine are 128 logical core thread rippers.
-			constexpr bool useFileMapForWrite = false;
-			constexpr u32 bottleneckMax = 16;
-			bool useOverlap = fileSize > 8 * 1024 * 1024;
-
-
-			u32 attributes = DefaultAttributes();
-			if (useOverlap)
-				attributes |= FILE_FLAG_OVERLAPPED;
-
-			FileAccessor destinationFile(m_logger, file.name.c_str());
-
-			if (useFileMapForWrite)
+			if (ShouldWriteToDisk(file.name.c_str(), file.name.size()))
 			{
-				if (!destinationFile.CreateMemoryWrite(false, attributes, fileSize, m_tempPath.data))
+				// This is to kill I/O when writing lots of pdb/dlls in parallel
+				#if PLATFORM_WINDOWS
+				constexpr u32 bottleneckMax = 8;
+				bool shouldBottleneck = false;//useOverlap;
+				static Bottleneck bottleneck(bottleneckMax);
+				auto bng = MakeGuard([&]() { if (shouldBottleneck) bottleneck.Leave(); });
+				#endif
+
+				u64 fileSize = file.mappingWritten;
+				u8* mem = MapViewOfFile(file.mappingHandle, FILE_MAP_READ, 0, fileSize);
+				if (!mem)
+					return m_logger.Error(TC("Failed to map view of filehandle for read %s (%s)"), file.name.c_str(), LastErrorToText().data);
+
+				PrefetchVirtualMemory(mem, fileSize);
+
+				auto memClose = MakeGuard([&](){ UnmapViewOfFile(mem, fileSize, file.name.c_str()); });
+
+				// Seems like best combo (for windows at least) is to use writes with overlap and max 16 at the same time.
+				// On one machine we get twice as fast without overlap if no bottleneck. On another machine (ntfs compression on) we get twice as slow without overlap
+				// Both machines behaves well with overlap AND bottleneck. Both machine are 128 logical core thread rippers.
+				constexpr bool useFileMapForWrite = false;
+				bool useOverlap = false;//fileSize > 8 * 1024 * 1024;
+
+
+				u32 attributes = DefaultAttributes();
+				if (useOverlap)
+					attributes |= FILE_FLAG_OVERLAPPED;
+
+				FileAccessor destinationFile(m_logger, file.name.c_str());
+
+				if (useFileMapForWrite)
+				{
+					if (!destinationFile.CreateMemoryWrite(false, attributes, fileSize, m_tempPath.data))
+						return false;
+					memcpy(destinationFile.GetData(), mem, fileSize);
+				}
+				else
+				{
+					if (!destinationFile.CreateWrite(false, attributes, fileSize, m_tempPath.data))
+						return false;
+
+					#if PLATFORM_WINDOWS
+					//shouldBottleneck = fileSize > 64 * 1024 * 1024;
+					//if (shouldBottleneck)
+					//	bottleneck.Enter();
+					#endif
+
+					if (!destinationFile.Write(mem, fileSize))
+						return false;
+				}
+				if (u64 time = file.lastWriteTime)
+					if (!SetFileLastWriteTime(destinationFile.GetHandle(), time))
+						return m_logger.Error(TC("Failed to set file time on filehandle for %s"), file.name.c_str());
+
+				if (!destinationFile.Close())
 					return false;
-				memcpy(destinationFile.GetData(), mem, fileSize);
 			}
 			else
 			{
-				if (!destinationFile.CreateWrite(false, attributes, fileSize, m_tempPath.data))
-					return false;
-
-				// This is to kill I/O when writing lots of pdb/dlls in parallel
-				#if PLATFORM_WINDOWS
-				static Bottleneck bottleneck(bottleneckMax);
-				BottleneckScope scope(bottleneck);
-				#endif
-
-				if (!destinationFile.Write(mem, fileSize))
-					return false;
+				// Delete existing file to make sure it is not picked up (since it is out of date)
+				uba::DeleteFileW(file.name.c_str());
 			}
-			if (u64 time = file.lastWriteTime)
-				if (!SetFileLastWriteTime(destinationFile.GetHandle(), time))
-					return m_logger.Error(TC("Failed to set file time on filehandle for %s"), file.name.c_str());
 
-			if (!destinationFile.Close())
+			if (IsRarelyReadAfterWritten(process, file.name.c_str(), file.name.size()) || file.mappingWritten > m_keepOutputFileMemoryMapsThreshold)
+			{
+				m_workManager->AddWork([mh = file.mappingHandle]()
+					{
+						CloseFileMapping(mh);
+					}, 1, TC("CFM"));
+				//CloseFileMapping(file.mappingHandle);
+			}
+			else
+			{
+				StringBuffer<> name;
+				Storage::GetMappingString(name, file.mappingHandle, 0);
+				SCOPED_WRITE_LOCK(m_fileMappingTableLookupLock, lookupLock);
+				auto insres = m_fileMappingTableLookup.try_emplace(file.key);
+				FileMappingEntry& entry = insres.first->second;
+				lookupLock.Leave();
+				SCOPED_WRITE_LOCK(entry.lock, entryCs);
+				entry.handled = true;
+				entry.mapping = file.mappingHandle;
+				entry.mappingOffset = 0;
+				entry.size = file.mappingWritten;
+				entry.isDir = false;
+				entry.success = true;
+
+				SCOPED_WRITE_LOCK(m_fileMappingTableMemLock, lock);
+				BinaryWriter writer(m_fileMappingTableMem, m_fileMappingTableSize);
+				writer.WriteStringKey(file.key);
+				writer.WriteString(name);
+				writer.Write7BitEncoded(file.mappingWritten);
+				u32 newSize = (u32)writer.GetPosition();
+				m_fileMappingTableSize = (u32)newSize;
+			}
+			file.mappingHandle = {};
+			return true;
+		};
+
+		for (u32 i=0; i!=fileCount; ++i)
+			if (!writeFile(*files[i]))
 				return false;
-		}
-		else
-		{
-			// Delete existing file to make sure it is not picked up (since it is out of date)
-			uba::DeleteFileW(file.name.c_str());
-		}
+		/*
+		Event events[32];
+		UBA_ASSERT(fileCount < 32);
 
-		if (IsRarelyReadAfterWritten(process, file.name.c_str(), file.name.size()) || file.mappingWritten > m_keepOutputFileMemoryMapsThreshold)
-		{
-			CloseFileMapping(file.mappingHandle);
-		}
-		else
-		{
-			StringBuffer<> name;
-			Storage::GetMappingString(name, file.mappingHandle, 0);
-			SCOPED_WRITE_LOCK(m_fileMappingTableLookupLock, lookupLock);
-			auto insres = m_fileMappingTableLookup.try_emplace(file.key);
-			FileMappingEntry& entry = insres.first->second;
-			lookupLock.Leave();
-			SCOPED_WRITE_LOCK(entry.lock, entryCs);
-			entry.handled = true;
-			entry.mapping = file.mappingHandle;
-			entry.mappingOffset = 0;
-			entry.size = file.mappingWritten;
-			entry.isDir = false;
-			entry.success = true;
 
-			SCOPED_WRITE_LOCK(m_fileMappingTableMemLock, lock);
-			BinaryWriter writer(m_fileMappingTableMem, m_fileMappingTableSize);
-			writer.WriteStringKey(file.key);
-			writer.WriteString(name);
-			writer.Write7BitEncoded(file.mappingWritten);
-			u32 newSize = (u32)writer.GetPosition();
-			m_fileMappingTableSize = (u32)newSize;
+		for (u32 i=0; i!=fileCount; ++i)
+		{
+			events[i].Create(true);
+
+			m_workManager->AddWork([&, ii = i]()
+				{
+					writeFile(*files[ii]);
+					events[ii].Set();
+				}, 1, TC(""));
 		}
-		file.mappingHandle = {};
+		for (u32 i=0; i!=fileCount; ++i)
+			events[i].IsSet();
+		*/
 		return true;
 	}
 

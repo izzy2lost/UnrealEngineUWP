@@ -106,7 +106,7 @@ namespace uba
 		storageServerInfo.casCapacityBytes = 1024ull * 1024 * 1024;
 		StorageServer storageServer(storageServerInfo);
 
-		auto g = MakeGuard([&]() { server.StopAll(); });
+		auto g = MakeGuard([&]() { server.DisconnectClients(); });
 
 		rootDir.Append(TC("Client"));
 		if (!DeleteAllFiles(logger, rootDir.data))
@@ -114,6 +114,7 @@ namespace uba
 
 		StorageClientCreateInfo storageClientInfo(client, rootDir.data);
 		StorageClient storageClient(storageClientInfo);
+		storageClient.Start();
 
 		if (!storageClient.LoadCasTable(true))
 			return false;

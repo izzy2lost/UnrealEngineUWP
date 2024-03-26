@@ -233,7 +233,9 @@ namespace uba
 
 			if (!conn.SendInitialResponse(0))
 				return false;
-			
+
+			SCOPED_WRITE_LOCK(conn.m_shutdownLock, shutdownLock);
+
 			SCOPED_WRITE_LOCK(server.m_clientsLock, clientsLock);
 			u32 clientId = u32(server.m_clients.size() + 1);
 			for (auto& kv : server.m_clients)
@@ -341,6 +343,7 @@ namespace uba
 			m_backend.Shutdown(m_backendConnection);
 			if (m_client && m_client->connectionCount.fetch_sub(1) == 1)
 			{
+				SCOPED_READ_LOCK(m_server.m_onDisconnectFunctionsLock, l);
 				for (auto& entry : m_server.m_onDisconnectFunctions)
 					entry.function(m_client->uid, m_client->id);
 				m_server.m_logger.Detail(TC("Client %s disconnected"), GuidToString(m_client->uid).str);
@@ -591,14 +594,12 @@ namespace uba
 
 	NetworkServer::~NetworkServer()
 	{
-		StopAll();
+		UBA_ASSERT(m_connections.empty());
+		FlushWorkers();
 	}
 
 	bool NetworkServer::StartListen(NetworkBackend& backend, u16 port, const tchar* ip, const u8* cryptoKey128)
 	{
-		//UBA_ASSERT(!m_listenBackend);
-		m_listenBackend = &backend;
-
 		if (cryptoKey128)
 		{
 			m_listenCrypto = Crypto::CreateKey(m_logger, cryptoKey128);
@@ -618,23 +619,14 @@ namespace uba
 				return AddConnection(backend, connection, remoteSockAddr, cryptoKey);
 			});
 	}
-
-	void NetworkServer::StopListen()
-	{
-		if (m_listenBackend)
-			m_listenBackend->StopListen();
-		m_listenBackend = nullptr;
-	}
-
+	
 	void NetworkServer::DisallowNewClients()
 	{
 		m_allowNewClients = false;
 	}
 
-	void NetworkServer::StopAll()
+	void NetworkServer::DisconnectClients()
 	{
-		StopListen();
-
 		{
 			SCOPED_WRITE_LOCK(m_availableWorkersLock, lock);
 			m_workersEnabled = false;
@@ -659,33 +651,24 @@ namespace uba
 
 			// If stopping connections fail we need to abort because we will most likely run into a deadlock when deleting the workers.
 			if (!success)
+			{
+				m_logger.Info(TC("Failed to stop connection(s) in a graceful way. Will abort process"));
 				abort(); // TODO: Does this produce core dump on windows?
+			}
 		}
 
+		FlushWorkers();
 
-		SCOPED_WRITE_LOCK(m_availableWorkersLock, lock);
-		while (auto worker = m_firstActiveWorker)
-		{
-			lock.Leave();
-			worker->Stop(*this);
-			lock.Enter();
-		}
-
-		auto worker = m_firstAvailableWorker;
-		while (worker)
-		{
-			auto temp = worker;
-			worker = worker->m_nextWorker;
-			delete temp;
-		}
-		m_firstAvailableWorker = nullptr;
-
+		SCOPED_WRITE_LOCK(m_connectionsLock, lock);
 		m_connections.clear();
 	}
 
 	bool NetworkServer::AddClient(NetworkBackend& backend, const tchar* ip, u16 port, const u8* cryptoKey128)
 	{
 		SCOPED_WRITE_LOCK(m_addConnectionsLock, lock);
+		if (!m_workersEnabled)
+			return false;
+
 		for (auto it = m_addConnections.begin(); it != m_addConnections.end();)
 		{
 			if (it->Wait(0))
@@ -759,7 +742,6 @@ namespace uba
 	void NetworkServer::UnregisterService(u8 serviceId)
 	{
 		SCOPED_WRITE_LOCK(m_connectionsLock, lock);
-		UBA_ASSERTF(!m_listenBackend, TC("Server still listens to new connections while service is unregistered"));
 		UBA_ASSERTF(m_connections.empty(), TC("Unregistering service while still having live connections"));
 		WorkerRec& rec = m_workerFunctions[serviceId];
 		rec.func = {};
@@ -775,18 +757,19 @@ namespace uba
 	void NetworkServer::UnregisterOnClientConnected(u8 id)
 	{
 		SCOPED_WRITE_LOCK(m_connectionsLock, lock);
-		UBA_ASSERT(!m_listenBackend);
 		UBA_ASSERT(m_connections.empty());
 		m_onConnectionFunction = {};
 	}
 
 	void NetworkServer::RegisterOnClientDisconnected(u8 id, const OnDisconnectFunction& func)
 	{
+		SCOPED_WRITE_LOCK(m_onDisconnectFunctionsLock, l);
 		m_onDisconnectFunctions.emplace_back(OnDisconnectEntry{id, func});
 	}
 
 	void NetworkServer::UnregisterOnClientDisconnected(u8 id)
 	{
+		SCOPED_WRITE_LOCK(m_onDisconnectFunctionsLock, l);
 		for (auto it = m_onDisconnectFunctions.begin(); it != m_onDisconnectFunctions.end(); ++it)
 		{
 			if (it->id != id)
@@ -808,6 +791,8 @@ namespace uba
 		lock.Leave();
 
 		SCOPED_WRITE_LOCK(m_availableWorkersLock, lock2);
+		if (!m_workersEnabled)
+			return;
 		while (count--)
 		{
 			Worker* worker = PopWorkerNoLock();
@@ -933,8 +918,6 @@ namespace uba
 		if (!found)
 			return false;
 		Connection& connection = *found;
-		SCOPED_WRITE_LOCK(connection.m_shutdownLock, connectionLock);
-		lock.Leave();
 
 		u8 buffer[SendMaxSize];
 
@@ -943,21 +926,30 @@ namespace uba
 		BinaryWriter writer(buffer, 0, sizeof_array(buffer));
 		u8* idAndSizePtr = writer.AllocWrite(HeaderSize);
 
-		idAndSizePtr[0] = info.messageId >> 8;
-		*(u32*)(idAndSizePtr + 1) = bodySize | u32(info.messageId << 24);
-
-		writer.WriteBytes(body, bodySize);
-
-		if (connection.m_cryptoKey && bodySize)
+		if (body)
 		{
-			TimerScope ts(connection.m_encryptTimer);
-			u8* bodyData = writer.GetData() + HeaderSize;
-			if (!Crypto::Encrypt(m_logger, connection.m_cryptoKey, bodyData, bodySize))
+			writer.WriteBytes(body, bodySize);
+
+			if (connection.m_cryptoKey && bodySize)
 			{
-				connection.SetShouldDisconnect();
-				return false;
+				TimerScope ts(connection.m_encryptTimer);
+				u8* bodyData = writer.GetData() + HeaderSize;
+				if (!Crypto::Encrypt(m_logger, connection.m_cryptoKey, bodyData, bodySize))
+				{
+					connection.SetShouldDisconnect();
+					return false;
+				}
 			}
 		}
+		else
+		{
+			constexpr u32 ErrorSize = 0xffffff;
+			bodySize = ErrorSize;
+			connection.SetShouldDisconnect();
+		}
+
+		idAndSizePtr[0] = info.messageId >> 8;
+		*(u32*)(idAndSizePtr + 1) = bodySize | u32(info.messageId << 24);
 
 		connection.Send(writer.GetData(), u32(writer.GetPosition()));
 		return true;
@@ -1033,6 +1025,26 @@ namespace uba
 		m_workerAvailable.Set();
 	}
 
+	void NetworkServer::FlushWorkers()
+	{
+		SCOPED_WRITE_LOCK(m_availableWorkersLock, lock);
+		while (auto worker = m_firstActiveWorker)
+		{
+			lock.Leave();
+			worker->Stop(*this);
+			lock.Enter();
+		}
+
+		auto worker = m_firstAvailableWorker;
+		while (worker)
+		{
+			auto temp = worker;
+			worker = worker->m_nextWorker;
+			delete temp;
+		}
+		m_firstAvailableWorker = nullptr;
+	}
+
 	void NetworkServer::RemoveDisconnectedConnections()
 	{
 		for (auto it=m_connections.begin(); it!=m_connections.end();)
@@ -1104,6 +1116,14 @@ namespace uba
 		SCOPED_WRITE_LOCK(m_connectionsLock, lock);
 
 		RemoveDisconnectedConnections();
+
+		if (!m_workersEnabled)
+		{
+			// Just to prevent errors in log
+			backend.SetDisconnectCallback(backendConnection, nullptr, [](void*, const Guid&, void*) {});
+			backend.SetRecvCallbacks(backendConnection, nullptr, 0, [](void*, const Guid&, u8*, void*&, u8*&, u32&) { return false; }, nullptr, TC("Disconnecting"));
+			return false;
+		}
 
 		m_connections.emplace_back(*this, backend, backendConnection, remoteSocketAddr, cryptoKey, m_connectionIdCounter++);
 		m_maxActiveConnections = Max(m_maxActiveConnections, u32(m_connections.size()));

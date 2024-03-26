@@ -92,11 +92,12 @@ namespace uba
 		SCOPED_WRITE_LOCK(m_processEntriesLock, lock);
 		for (auto& entry : m_processEntries)
 		{
-			UBA_ASSERT(entry.status !=ProcessStatus_Running);
+			UBA_ASSERTF(entry.status !=ProcessStatus_Running, TC("Found processes in running state when stopping scheduler."));
 			delete[] entry.dependencies;
 			delete entry.info;
 		}
 		m_processEntries.clear();
+		m_processEntriesStart = 0;
 	}
 
 	void Scheduler::SetMaxLocalProcessors(u32 maxLocalProcessors)
@@ -247,8 +248,8 @@ namespace uba
 			bool canRun = true;
 			for (u32 j=0, je=entry.dependencyCount; j!=je; ++j)
 			{
-				UBA_ASSERT(j < m_processEntries.size());
 				auto depIndex = entry.dependencies[j];
+				UBA_ASSERTF(depIndex < m_processEntries.size(), TC("Found dependency on index %u but there are only %u processes registered"), depIndex, u32(m_processEntries.size()));
 				auto depStatus = processEntries[depIndex].status;
 				if (depStatus == ProcessStatus_Failed || depStatus == ProcessStatus_Skipped)
 				{

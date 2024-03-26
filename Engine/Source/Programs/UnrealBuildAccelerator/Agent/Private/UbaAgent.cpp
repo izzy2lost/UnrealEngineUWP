@@ -5,6 +5,7 @@
 #include "UbaNetworkBackendMemory.h"
 #include "UbaNetworkBackendQuic.h"
 #include "UbaNetworkBackendTcp.h"
+#include "UbaNetworkMessage.h"
 #include "UbaNetworkServer.h"
 #include "UbaSessionClient.h"
 #include "UbaStorageClient.h"
@@ -52,7 +53,7 @@ namespace uba
 	}();
 	u32				DefaultProcessorCount = []() { return GetLogicalProcessorCount(); }();
 	const tchar*	DefaultAgentName = []() { static tchar buf[256]; GetComputerNameW(buf, sizeof_array(buf)); return buf; }();
-	u32				DefaultMaxConnectionCount = 8;
+	u32				DefaultMaxConnectionCount = 4;
 
 	int PrintHelp(const tchar* message)
 	{
@@ -122,8 +123,10 @@ namespace uba
 			g_storageClient->SaveCasTable(true);
 			LoggerWithWriter(g_consoleLogWriter).Info(TC("CAS table saved..."));
 		}
-		if (g_client)
-			g_client->Disconnect();
+
+		abort();
+		//if (g_client)
+		//	g_client->Disconnect();
 	}
 
 	#if PLATFORM_WINDOWS
@@ -145,7 +148,6 @@ namespace uba
 	void ConsoleHandler(int sig)
 	{
 		CtrlBreakPressed();
-		exit(-1);
 	}
 	#endif
 
@@ -400,6 +402,7 @@ namespace uba
 		StringBuffer<256> named;
 		StringBuffer<512> relaunchPath;
 		StringBuffer<256> eventFile;
+		TString command;
 		u16 port = DefaultPort;
 		u16 proxyPort = DefaultStorageProxyPort;
 		StringBuffer<> agentName(DefaultAgentName);
@@ -657,6 +660,14 @@ namespace uba
 					return PrintHelp(TC("-zone needs a value"));
 				zone.Append(value);
 			}
+			else if (name.Equals(TC("-command")))
+			{
+				if (value.IsEmpty())
+					return PrintHelp(TC("-command needs a value"));
+				command = value.data;
+				poll = false;
+				quiet = true;
+			}
 			else if (name.Equals(TC("-?")))
 			{
 				return PrintHelp(TC(""));
@@ -765,6 +776,7 @@ namespace uba
 
 		u64 storageCapacity = u64(storageCapacityGb)*1000*1000*1000;
 
+		if (command.empty())
 		{
 			// Create a uba storage quickly just to fix non-graceful shutdowns
 			StorageCreateInfo info(g_rootDir.data, logWriter);
@@ -843,7 +855,6 @@ namespace uba
 		// if we didn't want a single version, or all xcodes, then use active xcode (useful for user running their own agents)
 		else
 		{
-			StringBuffer<512> command;
 			StringBuffer<512> xcodeSelectOutput;
 			FILE* xcodeSelect = popen("/usr/bin/xcode-select -p", "r");
 			if (xcodeSelect == nullptr || fgets(xcodeSelectOutput.data, xcodeSelectOutput.capacity, xcodeSelect) == nullptr || pclose(xcodeSelect) != 0)
@@ -971,7 +982,7 @@ namespace uba
 			bool ctorSuccess = true;
 			NetworkClient* client = new NetworkClient(ctorSuccess, ncci);
 			g_client = client;
-			auto csg = MakeGuard([&]() { g_client = nullptr; delete client; });
+			auto csg = MakeGuard([&]() { g_client = nullptr; client->Disconnect(); delete client; });
 			if (!ctorSuccess)
 				return -1;
 
@@ -1024,6 +1035,32 @@ namespace uba
 			if (exit)
 				return 0;
 
+			if (!command.empty())
+			{
+				StackBinaryWriter<128> writer;
+				NetworkMessage msg(*client, SessionServiceId, SessionMessageType_Command, writer);
+				writer.WriteString(command);
+				StackBinaryReader<8*1024> reader;
+				if (!msg.Send(reader))
+				{
+					logger.Error(TC("Failed to send command to host"));
+					return -1;
+				}
+				LoggerWithWriter commandLogger(g_consoleLogWriter, TC(""));
+				commandLogger.Info(TC("----------------------------------"));
+				while (true)
+				{
+					auto logType = (LogEntryType)reader.ReadByte();
+					if (logType == 255)
+						break;
+					TString result = reader.ReadString();
+					commandLogger.Log(logType, result.c_str(), u32(result.size()));
+				}
+				commandLogger.Info(TC("----------------------------------"));
+				return 0;
+			}
+
+
 			Event wakeupSessionWait(false);
 			Atomic<u32> targetConnectionCount = 1;
 
@@ -1036,7 +1073,7 @@ namespace uba
 				Event& wakeupSessionWait;
 				u32& maxConnectionCount;
 				Atomic<u32>& targetConnectionCount;
-				NetworkServer* server = nullptr;
+				Atomic<NetworkServer*> server;
 				StorageProxy* storage = nullptr;
 				StorageClient* storageClient = nullptr;
 				TString serverPrefix;
@@ -1056,25 +1093,27 @@ namespace uba
 					prefix.Append(TC("UbaProxyServer (")).Append(GuidToString(proxy.client->GetUid()).str).Append(')');
 					proxy.serverPrefix = prefix.data;
 					bool ctorSuccess = true;
-					proxy.server = new NetworkServer(ctorSuccess, nsci, proxy.serverPrefix.c_str());
+					auto proxyServer = new NetworkServer(ctorSuccess, nsci, proxy.serverPrefix.c_str());
 					if (!ctorSuccess)
 					{
-						delete proxy.server;
+						delete proxyServer;
 						return false;
 					}
 
-					proxy.client->RegisterOnDisconnected([&]() { proxy.server->StopAll(); });
-					proxy.storage = new StorageProxy(*proxy.server, *proxy.client, storageServerUid, TC("Wooohoo"), proxy.storageClient);
+					proxy.storage = new StorageProxy(*proxyServer, *proxy.client, storageServerUid, TC("Wooohoo"), proxy.storageClient);
 
-					proxy.server->RegisterOnClientConnected(0, [&](const Guid& clientUid, u32 clientId) { proxy.wakeupSessionWait.Set(); });
-					proxy.server->SetWorkTracker(proxy.client->GetWorkTracker());
-					proxy.server->StartListen(proxy.networkBackendMem, proxyPort);
-					proxy.server->StartListen(proxy.networkBackend, proxyPort);
+					proxyServer->RegisterOnClientConnected(0, [p = &proxy](const Guid& clientUid, u32 clientId) { p->wakeupSessionWait.Set(); });
+					proxyServer->SetWorkTracker(proxy.client->GetWorkTracker());
+					proxyServer->StartListen(proxy.networkBackendMem, proxyPort);
+					proxyServer->StartListen(proxy.networkBackend, proxyPort);
 					proxy.targetConnectionCount = proxy.maxConnectionCount;
 
+					proxy.server = proxyServer;
 					proxy.wakeupSessionWait.Set();
 					return true;
 				};
+
+			client->RegisterOnDisconnected([&]() { networkBackend->StopListen(); if (auto proxyServer = proxy.server.load()) proxyServer->DisconnectClients(); });
 
 			struct NetworkBackends
 			{
@@ -1168,16 +1207,14 @@ namespace uba
 
 			auto disconnectAndStopLoggingThread = MakeGuard([&]()
 			{
-				if (proxy.storage)
-					if (!proxy.storage->Disconnect(30 * 1000))
-						LoggerWithWriter(g_consoleLogWriter, TC("")).Info(TC("Proxy timed out waiting for zero active fetches"));
-				if (proxy.server)
-					proxy.server->StopAll();
+				networkBackend->StopListen();
 				storageClient->StopProxy();
-				client->StopListen();
+				auto proxyServer = proxy.server.load();
+				if (proxyServer)
+					proxyServer->DisconnectClients();
 				sessionClient->Stop();
-				sessionClient->SendSummary([&](Logger& logger) { if (proxy.server) proxy.server->PrintSummary(logger); });
-				client->StopAll();
+				sessionClient->SendSummary([&](Logger& logger) { if (proxyServer) proxyServer->PrintSummary(logger); });
+				client->Disconnect();
 				loopLogging = false;
 				logLinesAvailable.Set();
 				loggingThread.Wait();
@@ -1212,6 +1249,7 @@ namespace uba
 			//SetPriorityClass(GetCurrentProcess(), ABOVE_NORMAL_PRIORITY_CLASS);
 			//#endif
 
+			storageClient->Start();
 			sessionClient->Start();
 
 			while (true)
@@ -1238,8 +1276,9 @@ namespace uba
 					break;
 
 				// If we are the proxy server and have external connections we lower max process count. Note that it will always have one connection which is itself
-				if (proxy.server && proxy.server->GetConnectionCount() > 1)
-					sessionClient->SetMaxProcessCount(maxProcessCount - 2);
+				if (auto proxyServer = proxy.server.load())
+					if (proxyServer->GetConnectionCount() > 1)
+						sessionClient->SetMaxProcessCount(maxProcessCount - 2);
 
 				// This is an estimation based on tcp limitations (ack and sliding windows).
 				// For every 15ms latency on "best ping") we increase targetConnectionCount up to maxConnectionCount

@@ -9,6 +9,32 @@
 
 namespace uba
 {
+	struct StorageProxy::MessageInFlight
+	{
+		MessageInFlight(StorageProxy& p, FileEntry& f, u8* readBuffer, u32 fi)
+		:	proxy(p)
+		,	file(f)
+		,	message(p.m_client, ServiceId, StorageMessageType_FetchSegment, writer)
+		,	reader(readBuffer, 0, SendMaxSize)
+		,	fetchIndex(fi)
+		{
+			writer.WriteU16(file.fetchId);
+			writer.WriteU32(fetchIndex + 1);
+		}
+
+		StorageProxy& proxy;
+		FileEntry& file;
+		StackBinaryWriter<16> writer;
+		NetworkMessage message;
+		BinaryReader reader;
+		struct DeferredResponse { u32 clientId; u16 fetchId; MessageInfo info; };
+		List<DeferredResponse> deferredResponses;
+		u32 fetchIndex;
+		bool done = false;
+		bool error = false;
+	};
+
+
 	StorageProxy::StorageProxy(NetworkServer& server, NetworkClient& client, const Guid& storageServerUid, const tchar* name, StorageImpl* localStorage)
 	:	m_server(server)
 	,	m_client(client)
@@ -16,16 +42,13 @@ namespace uba
 	,	m_logger(client.GetLogWriter(), TC("StorageProxy"))
 	,	m_storageServerUid(storageServerUid)
 	,	m_name(name)
-	,	m_hasActiveFetchesEvent(true)
 	{
-		m_hasActiveFetchesEvent.Set();
-
 		m_server.RegisterOnClientDisconnected(0, [this](const Guid& clientUid, u32 clientId)
 			{
 				SCOPED_WRITE_LOCK(m_activeFetchesLock, lock);
 				for (auto it=m_activeFetches.begin(); it!=m_activeFetches.end();)
 				{
-					if (it->second.clientUid != clientUid)
+					if (it->second.clientId != clientId)
 					{
 						++it;
 						continue;
@@ -51,19 +74,9 @@ namespace uba
 
 	StorageProxy::~StorageProxy()
 	{
-		m_server.StopAll();
+		m_server.UnregisterService(StorageServiceId);
 		for (auto& kv : m_files)
 			delete[] kv.second.memory;
-	}
-
-	bool StorageProxy::Disconnect(u32 timeoutMs)
-	{
-		// TODO: Send disconnect to server to make it transition proxy to another proxy
-		//StackBinaryWriter<128> writer;
-		//NetworkMessage msg(m_client, ServiceId, StorageMessageType_Disconnect, writer);
-		//if (!msg.Send())
-		//	return false;
-		return m_hasActiveFetchesEvent.IsSet(timeoutMs);
 	}
 
 	void StorageProxy::PrintSummary()
@@ -73,6 +86,20 @@ namespace uba
 		logger.Info(TC("  Total fetched           %6s"), BytesToText(0).str);
 		logger.Info(TC("  Total provided          %6s"), BytesToText(0).str);
 		logger.Info(TC(""));
+	}
+
+	u16 StorageProxy::PopId()
+	{
+		if (m_availableIds.empty())
+			return m_availableIdsHigh++;
+		u16 storeId = m_availableIds.back();
+		m_availableIds.pop_back();
+		return storeId;
+	}
+
+	void StorageProxy::PushId(u16 id)
+	{
+		m_availableIds.push_back(id);
 	}
 
 	bool StorageProxy::HandleMessage(const ConnectionInfo& connectionInfo, MessageInfo& messageInfo, BinaryReader& reader, BinaryWriter& writer)
@@ -118,13 +145,12 @@ namespace uba
 
 				SCOPED_WRITE_LOCK(file.lock, fileLock);
 
-				bool hasAllSegments = false;
 				while (true)
 				{
 					if (file.memory)
 						break;
 
-					constexpr bool useLocalStorage = true;
+					bool useLocalStorage = false; // Seems like it might be deadlocks in this code.. need to revisit
 					bool storeCompressed = true;
 					if (useLocalStorage && m_localStorage && IsCompressed(casKey) && m_inProcessClientId && connectionInfo.GetId() != m_inProcessClientId)
 					{
@@ -150,25 +176,30 @@ namespace uba
 								if (!file.memory)
 									return false;
 								file.size = fileSize;
+								file.received = fileSize;
 								memcpy(file.memory, sourceFile.GetData(), fileSize);
-								hasAllSegments = true;
+								file.available = true;
 							}
 						}
 					}
 
 					if (!file.memory)
 					{
-						NetworkMessage msg(m_client, ServiceId, messageInfo.type, writer2);
+						file.trackId = m_client.TrackWorkStart(StringBuffer<512>().AppendFileName(hint.data).data);
+
+						NetworkMessage msg(m_client, ServiceId, StorageMessageType_FetchBegin, writer2);
 						writer2.WriteBool(false); // Wants proxy
 						writer2.WriteCasKey(casKey);
 						writer2.WriteString(hint);
 						writer2.WriteBytes(reader.GetPositionData(), reader.GetLeft());
 
+						SCOPED_READ_LOCK(m_largeFileLock, largeFileLock);
 						if (!msg.Send(reader2))
 						{
 							file.error = true;
 							return m_logger.Error(TC("FetchBegin failed for cas file %s (%s). Requested by %s"), CasKeyString(casKey).str, hint.data, GuidToString(connectionInfo.GetUid()).str);
 						}
+						largeFileLock.Leave();
 
 						BinaryReader tempReader(reader2.GetPositionData(), 0, reader2.GetLeft());
 						u16 fetchId = tempReader.ReadU16();
@@ -204,10 +235,43 @@ namespace uba
 					if (file.received < file.size)
 					{
 						u64 segmentSize = m_client.GetMessageMaxSize() - 5; // This is server response size - header.. TODO: Should be taken from server
-						u64 segmentCount = file.size / segmentSize + 1;
-						u64 lookupByteCount = (segmentCount + 7) / 8;
-						u8 initialValue = hasAllSegments ? 255 : 0;
-						file.segmentsAvailable.resize(lookupByteCount, initialValue);
+						u32 segmentCount = u32(file.size / segmentSize);
+						file.messagesInFlight.resize(segmentCount);
+						for (u32 i=0; i!=segmentCount; ++i)
+						{
+							u64 offset = file.received + segmentSize * i;
+							u8* memory = file.memory + offset;
+							auto mif = new MessageInFlight(*this, file, memory, i);
+							file.messagesInFlight[i] = mif;
+						}
+
+						// Move the additional messages to a job to be able to return this one quickly.
+						m_server.AddWork([f = &file, segmentCount, this]()
+							{
+								SCOPED_WRITE_LOCK(m_largeFileLock, lock);
+								//TrackWorkScope tws(m_client, TC("SEGMENTS"));
+								auto& file = *f;
+								for (u32 i=0; i!=segmentCount; ++i)
+								{
+									auto mif = file.messagesInFlight[i];
+
+									bool res = mif->message.SendAsync(mif->reader, [](bool error, void* userData)
+										{
+											auto mif = (MessageInFlight*)userData;
+											mif->error = error;
+											mif->proxy.m_server.AddWork([mif]() { mif->proxy.HandleReceivedData(*mif); }, 1, TC(""));
+										}, mif);
+									if (!res)
+									{
+										// TODO: Don't leak mif
+										mif->error = true;
+									}
+								}
+							}, 1, TC(""));
+					}
+					else
+					{
+						m_client.TrackWorkEnd(file.trackId);
 					}
 					break;
 				}
@@ -223,16 +287,14 @@ namespace uba
 
 				if (fetchedSize < file.size)
 				{
-					fetchId = PopId();
 					SCOPED_WRITE_LOCK(m_activeFetchesLock, lock);
-					if (m_activeFetches.empty())
-						m_hasActiveFetchesEvent.Reset();
+					fetchId = PopId();
 					auto res = m_activeFetches.try_emplace(fetchId);
 					UBA_ASSERT(res.second);
 					ActiveFetch& fetch = res.first->second;
+					fetch.clientId = connectionInfo.GetId();
 					lock.Leave();
 
-					fetch.clientUid = connectionInfo.GetUid();
 					fetch.fetchedSize = fetchedSize;
 					fetch.file = &file;
 				}
@@ -250,129 +312,40 @@ namespace uba
 		case StorageMessageType_FetchSegment:
 			{
 				u16 fetchId = reader.ReadU16();
-				u32 fetchIndex = reader.ReadU32();
+				u32 fetchIndex = reader.ReadU32() - 1;
 
 				SCOPED_READ_LOCK(m_activeFetchesLock, activeLock);
 				auto findIt = m_activeFetches.find(fetchId);
 				UBA_ASSERT(findIt != m_activeFetches.end());
 				ActiveFetch& fetch = findIt->second;
+				u32 clientId = fetch.clientId;
 				activeLock.Leave();
 
 				FileEntry& file = *fetch.file;
-
-				u64 headerSize = sizeof(u16) + Get7BitEncodedCount(file.size) + sizeof(u8);
-				u64 firstFetchSize = m_client.GetMessageMaxSize() - m_client.GetMessageReceiveHeaderSize() - headerSize;
-				u64 segmentSize = m_client.GetMessageMaxSize() - 5; // This is server response size - header.. TODO: Should be taken from server
-
-				u64 offset = firstFetchSize + segmentSize * (fetchIndex - 1);
-				if (offset + segmentSize > file.size)
-					segmentSize = file.size - offset;
-				
 				SCOPED_WRITE_LOCK(file.lock, fileLock);
 				if (file.error)
 					return false;
 
-				u64 byteIndex = fetchIndex / 8;
-				u8 bitMask = u8(1 << (fetchIndex - byteIndex*8));
-				
-				u8& availableByte = file.segmentsAvailable[byteIndex];
-				if (!(availableByte & bitMask))
+				if (!file.available)
 				{
-					SegmentInFlight* activeSegment = nullptr;
-					auto asg = MakeGuard([&]
-						{
-							if (!--activeSegment->refCount)
-							{
-								if (auto next = activeSegment->next)
-									next->prev = activeSegment->prev;
-								else
-									file.lastInFlight = activeSegment->prev;
-								if (auto prev = activeSegment->prev)
-									prev->next = activeSegment->next;
-								else
-									file.firstInFlight = activeSegment->next;
-								delete activeSegment;
-							}
-						});
-
-					for (auto it=file.firstInFlight; it; it=it->next)
+					if (auto mif = file.messagesInFlight[fetchIndex])
 					{
-						if (it->segmentIndex != fetchIndex)
-							continue;
-						activeSegment = it;
-						break;
-					}
-
-					if (!activeSegment)
-					{
-						activeSegment = new SegmentInFlight;
-						activeSegment->segmentIndex = fetchIndex;
-						activeSegment->refCount = 1;
-						activeSegment->done.Create(true);
-
-						activeSegment->next = nullptr;
-						activeSegment->prev = file.lastInFlight;
-						if (auto last = file.lastInFlight)
-							last->next = activeSegment;
-						file.lastInFlight = activeSegment;
-						if (!file.firstInFlight)
-							file.firstInFlight = activeSegment;
-
-						fileLock.Leave();
-
-						NetworkMessage msg(m_client, ServiceId, StorageMessageType_FetchSegment, writer2);
-						writer2.WriteU16(file.fetchId);
-						writer2.WriteU32(fetchIndex);
-
-						if (!msg.Send(reader2))
-						{
-							file.error = true;
-							activeSegment->done.Set();
-							fileLock.Enter();
-							return m_logger.Error(TC("FetchSegment failed. Requested by %s"), GuidToString(connectionInfo.GetUid()).str);
-						}
-						
-						file.received += segmentSize;
-						if (file.sendEnd && file.size == file.received)
-							SendEnd(file.casKey);
-
-						memcpy(file.memory + offset, reader2.GetPositionData(), segmentSize);
-
-						activeSegment->done.Set();
-
-						fileLock.Enter();
-						availableByte |= bitMask;
-					}
-					else
-					{
-						++activeSegment->refCount;
-						fileLock.Leave();
-						bool success = activeSegment->done.IsSet(10*60*1000); // This should never happen.
-						fileLock.Enter();
-						if (!success)
-							return m_logger.Error(TC("Connection %s timed out after 10 minutes waiting for segment %u on cas entry %s to be available in storage proxy"), fetchIndex, CasKeyString(file.casKey).str, GuidToString(connectionInfo.GetUid()).str);
-						if (file.error)
-							return false;
+						UBA_ASSERT(clientId == connectionInfo.GetId());
+						mif->deferredResponses.push_back({clientId, fetchId, messageInfo});
+						messageInfo = {};
+						return true;
 					}
 				}
 				fileLock.Leave();
 
-				const u8* memory = file.memory + offset;
-
-				writer.WriteBytes(memory, segmentSize);
-
-				u64 fetchedSize = fetch.fetchedSize.fetch_add(segmentSize) + segmentSize;
-				if (fetchedSize != file.size)
-					return true;
-
-				SCOPED_WRITE_LOCK(m_activeFetchesLock, activeLock2);
-				m_activeFetches.erase(findIt);
-				if (m_activeFetches.empty())
-					m_hasActiveFetchesEvent.Set();
-				activeLock2.Leave();
-
-				PushId(fetchId);
-				return true;
+				u64 headerSize = sizeof(u16) + Get7BitEncodedCount(file.size) + sizeof(u8);
+				u64 firstFetchSize = m_client.GetMessageMaxSize() - m_client.GetMessageReceiveHeaderSize() - headerSize;
+				u64 segmentSize = m_client.GetMessageMaxSize() - 5; // This is server response size - header.. TODO: Should be taken from server
+				u64 offset = firstFetchSize + segmentSize * (fetchIndex);
+				if (offset + segmentSize > file.size)
+					segmentSize = file.size - offset;
+				writer.WriteBytes(file.memory + offset, segmentSize);
+				return UpdateFetch(fetch.clientId, fetchId, segmentSize);
 			}
 		case StorageMessageType_FetchEnd:
 			{
@@ -390,20 +363,73 @@ namespace uba
 		}
 	}
 
-	u16 StorageProxy::PopId()
+	void StorageProxy::HandleReceivedData(MessageInFlight& mif)
 	{
-		SCOPED_WRITE_LOCK(m_availableIdsLock, lock);
-		if (m_availableIds.empty())
-			return m_availableIdsHigh++;
-		u16 storeId = m_availableIds.back();
-		m_availableIds.pop_back();
-		return storeId;
+		auto& file = mif.file;
+		if (mif.error)
+		{
+			SCOPED_WRITE_LOCK(file.lock, fileLock);
+			file.error = true;
+		}
+		else
+		{
+			mif.message.ProcessAsyncResults(mif.reader);
+		}
+
+		SCOPED_WRITE_LOCK(file.lock, fileLock);
+
+		UBA_ASSERT(file.messagesInFlight[mif.fetchIndex] == &mif);
+		file.messagesInFlight[mif.fetchIndex] = nullptr;
+		file.received += mif.reader.GetLeft();
+		bool finished = file.received == file.size;
+		if (finished)
+			file.available = true;
+		fileLock.Leave();
+
+		if (finished)
+		{
+			m_client.TrackWorkEnd(file.trackId);
+			SendEnd(file.casKey);
+		}
+
+
+		for (auto& r : mif.deferredResponses)
+		{
+			if (UpdateFetch(r.clientId, r.fetchId, mif.reader.GetLeft()) && !mif.error)
+				m_server.SendResponse(r.info, mif.reader.GetPositionData(), u32(mif.reader.GetLeft()));
+			else
+				m_server.SendResponse(r.info, nullptr, 0);
+		}
+
+		delete &mif;
 	}
 
-	void StorageProxy::PushId(u16 id)
+	bool StorageProxy::UpdateFetch(u32 clientId, u16 fetchId, u64 segmentSize)
 	{
-		SCOPED_WRITE_LOCK(m_availableIdsLock, lock);
-		m_availableIds.push_back(id);
+		SCOPED_WRITE_LOCK(m_activeFetchesLock, activeLock);
+		auto findIt = m_activeFetches.find(fetchId);
+		if (findIt == m_activeFetches.end())
+		{
+			// This can happen if we have async downloading and client is disconnected
+			//m_logger.Info(TC("Failed to find active fetch with id %u"), fetchId);
+			return false;
+		}
+
+		ActiveFetch& fetch = findIt->second;
+		if (fetch.clientId != clientId)
+		{
+			// This can happen if we have async downloading and client is disconnected and new client have reused fetch id
+			//m_logger.Info(TC("Active fetch %i has a different client id."), fetchId);
+			return false;
+		}
+
+		fetch.fetchedSize += segmentSize;
+		if (fetch.fetchedSize != fetch.file->size)
+			return true;
+
+		m_activeFetches.erase(findIt);
+		PushId(fetchId);
+		return true;
 	}
 
 	bool StorageProxy::SendEnd(const CasKey& key)
