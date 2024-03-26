@@ -220,13 +220,21 @@ namespace EpicGames.Horde.Compute.Clients
 		/// <inheritdoc/>
 		public async Task<IComputeLease?> TryAssignWorkerAsync(ClusterId clusterId, Requirements? requirements, string? requestId, ConnectionMetadataRequest? connection, ILogger logger, CancellationToken cancellationToken)
 		{
-			IAsyncEnumerator<LeaseInfo> source = ConnectAsync(clusterId, requirements, requestId, connection, logger, cancellationToken).GetAsyncEnumerator(cancellationToken);
-			if (!await source.MoveNextAsync())
+			try
 			{
-				await source.DisposeAsync();
+				IAsyncEnumerator<LeaseInfo> source = ConnectAsync(clusterId, requirements, requestId, connection, logger, cancellationToken).GetAsyncEnumerator(cancellationToken);
+				if (!await source.MoveNextAsync())
+				{
+					await source.DisposeAsync();
+					return null;
+				}
+				return new LeaseImpl(source);
+			}
+			catch (Polly.Timeout.TimeoutRejectedException ex)
+			{
+				_logger.LogInformation(ex, "Unable to assign worker from pool {ClusterId} (timeout)", clusterId);
 				return null;
 			}
-			return new LeaseImpl(source);
 		}
 
 		/// <inheritdoc/>
