@@ -19,6 +19,7 @@ namespace UnrealBuildTool.Rules
 					"Engine",
 					"GameplayTags",
 					"GameplayTasks",
+					"NavigationSystem",
 					"StateTreeModule",
 					"StructUtils"
 				}
