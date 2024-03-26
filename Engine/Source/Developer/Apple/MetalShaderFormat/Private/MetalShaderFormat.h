@@ -210,8 +210,6 @@ public:
 	static FString MetalMobileSDK;
 	// The default installation directory of the windows native metal compiler
 	static FString DefaultWindowsToolchainPath;
-	// The version of the windows native metal compiler
-	static FString WindowsToolchainVersion;
 
 private:
 	// Members

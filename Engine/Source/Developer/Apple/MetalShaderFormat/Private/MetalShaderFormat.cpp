@@ -612,7 +612,6 @@ FString FMetalCompilerToolchain::MetalMacSDK(TEXT("macosx"));
 FString FMetalCompilerToolchain::MetalMobileSDK(TEXT("iphoneos"));
 
 FString FMetalCompilerToolchain::DefaultWindowsToolchainPath(TEXT("c:/Program Files/Metal Developer Tools"));
-FString FMetalCompilerToolchain::WindowsToolchainVersion(TEXT("4.1"));
 
 // Static methods
 
@@ -913,25 +912,14 @@ FMetalCompilerToolchain::EMetalToolchainStatus FMetalCompilerToolchain::DoWindow
 	int32 Result = 0;
 	
 	FString ToolchainBase;
+	GConfig->GetString(TEXT("/Script/IOSRuntimeSettings.IOSRuntimeSettings"), TEXT("WindowsMetalToolchainOverride"), ToolchainBase, GEngineIni);
 
-	static const FString SDKRootEnvFar(TEXT("UE_SDKS_ROOT"));
-	FString SDKPath = FPlatformMisc::GetEnvironmentVariable(*SDKRootEnvFar);
-
-	if (SDKPath.Len() != 0)
+	const bool bUseOverride = (!ToolchainBase.IsEmpty() && FPaths::DirectoryExists(ToolchainBase));
+	if (!bUseOverride)
 	{
-		FString HostPlatform(TEXT("HostWin64"));
-		ToolchainBase = FPaths::Combine(*SDKPath, *HostPlatform, TEXT("Win64"), TEXT("MetalDeveloperTools"), WindowsToolchainVersion);
+		ToolchainBase = DefaultWindowsToolchainPath;
 	}
-	else
-	{
-		GConfig->GetString(TEXT("/Script/IOSRuntimeSettings.IOSRuntimeSettings"), TEXT("WindowsMetalToolchainOverride"), ToolchainBase, GEngineIni);
 
-		const bool bUseOverride = (!ToolchainBase.IsEmpty() && FPaths::DirectoryExists(ToolchainBase));
-		if (!bUseOverride)
-		{
-			ToolchainBase = DefaultWindowsToolchainPath;
-		}
-	}
 	// Look for the windows native toolchain
 	MetalFrontendBinaryCommand[AppleSDKMac] = ToolchainBase / TEXT("metal") / TEXT("macos") / TEXT("bin") / MetalFrontendBinary;
 	MetalFrontendBinaryCommand[AppleSDKMobile] = ToolchainBase / TEXT("metal") / TEXT("ios") / TEXT("bin") / MetalFrontendBinary;
