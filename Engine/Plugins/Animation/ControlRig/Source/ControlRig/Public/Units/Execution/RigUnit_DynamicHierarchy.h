@@ -82,7 +82,7 @@ struct CONTROLRIG_API FRigUnit_SetDefaultParent : public FRigUnit_DynamicHierarc
 	FRigElementKey Parent;
 };
 
-UENUM()
+UENUM(meta = (RigVMTypeAllowed))
 enum class ERigSwitchParentMode : uint8
 {
 	/** Switches the element to be parented to the world */

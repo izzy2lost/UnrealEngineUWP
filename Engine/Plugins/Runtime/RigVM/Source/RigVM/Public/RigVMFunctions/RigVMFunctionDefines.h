@@ -7,7 +7,7 @@
 
 #include "RigVMFunctionDefines.generated.h"
 
-UENUM()
+UENUM(meta = (RigVMTypeAllowed))
 enum class ERigVMTransformSpace : uint8
 {
 	/** Apply in parent space */
@@ -20,7 +20,7 @@ enum class ERigVMTransformSpace : uint8
 	Max UMETA(Hidden),
 };
 
-UENUM()
+UENUM(meta = (RigVMTypeAllowed))
 namespace ERigVMClampSpatialMode
 {
 	enum Type : int

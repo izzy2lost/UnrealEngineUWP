@@ -240,6 +240,135 @@ public:
 	TMap<FName, TSharedPtr<SRigVMGraphPinNameListValueWidget>> NameListWidgets;
 };
 
+/** Customization for editing a rig vm integer control enum class */
+class RIGVMEDITOR_API FRigVMGraphEnumDetailCustomization : public IPropertyTypeCustomization
+{
+public:
+
+	FRigVMGraphEnumDetailCustomization();
+	
+	static TSharedRef<IPropertyTypeCustomization> MakeInstance()
+	{
+		return MakeShareable(new FRigVMGraphEnumDetailCustomization);
+	}
+
+	/** IPropertyTypeCustomization interface */
+	virtual void CustomizeHeader(TSharedRef<class IPropertyHandle> InPropertyHandle, class FDetailWidgetRow& HeaderRow, IPropertyTypeCustomizationUtils& StructCustomizationUtils) override;
+	virtual void CustomizeChildren(TSharedRef<class IPropertyHandle> InPropertyHandle, class IDetailChildrenBuilder& StructBuilder, IPropertyTypeCustomizationUtils& StructCustomizationUtils) override;
+
+protected:
+
+	TArray<uint8*> GetMemoryBeingCustomized()
+	{
+		TArray<uint8*> MemoryPtr;
+		MemoryPtr.Reserve(ObjectsBeingCustomized.Num() + StructsBeingCustomized.Num());
+
+		for(const TWeakObjectPtr<UObject>& Object : ObjectsBeingCustomized)
+		{
+			if(Object.IsValid())
+			{
+				MemoryPtr.Add((uint8*)Object.Get());
+			}
+		}
+
+		for(const TSharedPtr<FStructOnScope>& StructPtr: StructsBeingCustomized)
+		{
+			if(StructPtr.IsValid())
+			{
+				MemoryPtr.Add(StructPtr->GetStructMemory());
+			}
+		}
+
+		return MemoryPtr;
+	}
+	
+	bool GetPropertyChain(TSharedRef<class IPropertyHandle> InPropertyHandle, FEditPropertyChain& OutPropertyChain, TArray<int32> &OutPropertyArrayIndices, bool& bOutEnabled)
+	{
+		if (!InPropertyHandle->IsValidHandle())
+		{
+			return false;
+		}
+		
+		OutPropertyChain.Empty();
+		OutPropertyArrayIndices.Reset();
+		bOutEnabled = false;
+
+		const bool bHasObject = !ObjectsBeingCustomized.IsEmpty() && ObjectsBeingCustomized[0].Get();
+		const bool bHasStruct = !StructsBeingCustomized.IsEmpty() && StructsBeingCustomized[0].Get();
+		
+		if (bHasStruct || bHasObject)
+		{
+			TSharedPtr<class IPropertyHandle> ChainHandle = InPropertyHandle;
+			while (ChainHandle.IsValid() && ChainHandle->GetProperty() != nullptr)
+			{
+				OutPropertyChain.AddHead(ChainHandle->GetProperty());
+				OutPropertyArrayIndices.Insert(ChainHandle->GetIndexInArray(), 0);
+				ChainHandle = ChainHandle->GetParentHandle();
+			}
+
+			if (OutPropertyChain.GetHead() != nullptr)
+			{
+				OutPropertyChain.SetActiveMemberPropertyNode(OutPropertyChain.GetTail()->GetValue());
+				bOutEnabled = !OutPropertyChain.GetHead()->GetValue()->HasAnyPropertyFlags(CPF_EditConst);
+				return true;
+			}
+		}
+		return false;
+	}
+
+	// extracts the value for a nested property from an outer owner
+	static UEnum** ContainerMemoryBlockToEnumPtr(uint8* InMemoryBlock, FEditPropertyChain& InPropertyChain, TArray<int32> &InPropertyArrayIndices)
+	{
+		if (InPropertyChain.GetHead() == nullptr)
+		{
+			return nullptr;
+		}
+		
+		FEditPropertyChain::TDoubleLinkedListNode* PropertyNode = InPropertyChain.GetHead();
+		uint8* MemoryPtr = InMemoryBlock;
+		int32 ChainIndex = 0;
+		do
+		{
+			const FProperty* Property = PropertyNode->GetValue();
+			MemoryPtr = Property->ContainerPtrToValuePtr<uint8>(MemoryPtr);
+
+			PropertyNode = PropertyNode->GetNextNode();
+			ChainIndex++;
+			
+			if(InPropertyArrayIndices.IsValidIndex(ChainIndex))
+			{
+				const int32 ArrayIndex = InPropertyArrayIndices[ChainIndex];
+				if(ArrayIndex != INDEX_NONE)
+				{
+					const FArrayProperty* ArrayProperty = CastField<FArrayProperty>(Property->GetOwnerProperty());
+					check(ArrayProperty);
+					
+					FScriptArrayHelper ArrayHelper(ArrayProperty, MemoryPtr);
+					if(!ArrayHelper.IsValidIndex(ArrayIndex))
+					{
+						return nullptr;
+					}
+					MemoryPtr = ArrayHelper.GetRawPtr(ArrayIndex);
+
+					// skip to the next property node already
+					PropertyNode = PropertyNode->GetNextNode();
+					ChainIndex++;
+				}
+			}
+		}
+		while (PropertyNode);
+
+		return (UEnum**)MemoryPtr;
+	}
+
+	void HandleControlEnumChanged(TSharedPtr<FString> InEnumPath, ESelectInfo::Type InSelectType, TSharedRef<IPropertyHandle> InPropertyHandle);
+
+	URigVMBlueprint* BlueprintBeingCustomized;
+	URigVMGraph* GraphBeingCustomized;
+	TArray<TWeakObjectPtr<UObject>> ObjectsBeingCustomized;
+	TArray<TSharedPtr<FStructOnScope>> StructsBeingCustomized;
+};
+
 /** Customization for editing a rig vm node */
 class RIGVMEDITOR_API FRigVMGraphMathTypeDetailCustomization : public IPropertyTypeCustomization
 {
