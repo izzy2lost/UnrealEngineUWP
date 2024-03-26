@@ -223,7 +223,8 @@ DECLARE_CYCLE_STAT(				TEXT("VerifyLRU"),							STAT_NaniteStreaming_VerifyLRU,	
 DECLARE_LOG_CATEGORY_EXTERN(LogNaniteStreaming, Log, All);
 DEFINE_LOG_CATEGORY(LogNaniteStreaming);
 
-CSV_DEFINE_CATEGORY(NaniteStreaming, false);
+CSV_DEFINE_CATEGORY(NaniteStreaming, true);
+CSV_DEFINE_CATEGORY(NaniteStreamingDetail, false);
 
 namespace Nanite
 {
@@ -1685,6 +1686,13 @@ FRDGBuffer* FStreamingManager::GrowPoolAllocationIfNeeded(FRDGBuilder& GraphBuil
 	SET_FLOAT_STAT(STAT_NaniteStreaming10_TotalPoolSizeMB, AllocatedPagesSize / 1048576.0f);
 	SET_FLOAT_STAT(STAT_NaniteStreaming13_MaxTotalPoolSizeMB, (float)GetMaxPagePoolSizeInMB());
 
+#if CSV_PROFILER
+	if ( ClusterPageData.DataBuffer && AllocatedPagesSize > ClusterPageData.DataBuffer->GetAlignedSize() )
+	{
+		CSV_EVENT(NaniteStreaming, TEXT("GrowPoolAllocation"));
+	}
+#endif
+
 	FRDGBuffer* ClusterPageDataBuffer = ResizeByteAddressBufferIfNeeded(GraphBuilder, ClusterPageData.DataBuffer, AllocatedPagesSize, TEXT("Nanite.StreamingManager.ClusterPageData"));
 	RootPageInfos.SetNum(NumAllocatedRootPages);
 
@@ -2492,7 +2500,7 @@ void FStreamingManager::SelectHighestPriorityPagesAndUpdateLRU(uint32 MaxSelecte
 	const uint32 NumUniqueRequests = RequestedRegisteredPages.Num() + RequestedNewPages.Num();
 
 	SET_DWORD_STAT(STAT_NaniteStreaming27_PageRequestsNew, NumNewPageRequests);
-	CSV_CUSTOM_STAT(NaniteStreaming, NewStreamingDataSizeMB, NumNewPageRequests * (NANITE_STREAMING_PAGE_GPU_SIZE / 1048576.0f), ECsvCustomStatOp::Set);
+	CSV_CUSTOM_STAT(NaniteStreamingDetail, NewStreamingDataSizeMB, NumNewPageRequests * (NANITE_STREAMING_PAGE_GPU_SIZE / 1048576.0f), ECsvCustomStatOp::Set);
 
 	StatVisibleSetSize = NumUniqueRequests;
 
@@ -2723,8 +2731,8 @@ void FStreamingManager::AsyncUpdate()
 
 			INC_FLOAT_STAT_BY(STAT_NaniteStreaming40_IORequestSizeMB, TotalIORequestSizeMB);
 				
-			CSV_CUSTOM_STAT(NaniteStreaming, IORequestSizeMB, TotalIORequestSizeMB, ECsvCustomStatOp::Set);
-			CSV_CUSTOM_STAT(NaniteStreaming, IORequestSizeMBps, TotalIORequestSizeMB / FPlatformTime::ToSeconds(StartTime - StatPrevUpdateTime), ECsvCustomStatOp::Set);
+			CSV_CUSTOM_STAT(NaniteStreamingDetail, IORequestSizeMB, TotalIORequestSizeMB, ECsvCustomStatOp::Set);
+			CSV_CUSTOM_STAT(NaniteStreamingDetail, IORequestSizeMBps, TotalIORequestSizeMB / FPlatformTime::ToSeconds(StartTime - StatPrevUpdateTime), ECsvCustomStatOp::Set);
 
 #if WITH_EDITOR
 			if (DDCRequests.Num() > 0)
@@ -2761,12 +2769,12 @@ void FStreamingManager::AsyncUpdate()
 	}
 	
 	StatPrevUpdateTime = StartTime;
-	CSV_CUSTOM_STAT(NaniteStreaming, StreamingPoolSizeMB, MaxStreamingPages * (NANITE_STREAMING_PAGE_GPU_SIZE / 1048576.0f), ECsvCustomStatOp::Set);
+	CSV_CUSTOM_STAT(NaniteStreamingDetail, StreamingPoolSizeMB, MaxStreamingPages * (NANITE_STREAMING_PAGE_GPU_SIZE / 1048576.0f), ECsvCustomStatOp::Set);
 
 	const float VisibleStreamingDataSizeMB = StatVisibleSetSize * (NANITE_STREAMING_PAGE_GPU_SIZE / 1048576.0f);
 	SET_FLOAT_STAT(STAT_NaniteStreaming30_VisibleStreamingDataSizeMB, VisibleStreamingDataSizeMB);
-	CSV_CUSTOM_STAT(NaniteStreaming, VisibleStreamingDataSizeMB, VisibleStreamingDataSizeMB, ECsvCustomStatOp::Set);
-	CSV_CUSTOM_STAT(NaniteStreaming, AsyncUpdateMs, 1000.0f * FPlatformTime::ToSeconds(FPlatformTime::Cycles() - StartTime), ECsvCustomStatOp::Set);
+	CSV_CUSTOM_STAT(NaniteStreamingDetail, VisibleStreamingDataSizeMB, VisibleStreamingDataSizeMB, ECsvCustomStatOp::Set);
+	CSV_CUSTOM_STAT(NaniteStreamingDetail, AsyncUpdateMs, 1000.0f * FPlatformTime::ToSeconds(FPlatformTime::Cycles() - StartTime), ECsvCustomStatOp::Set);
 }
 
 void FStreamingManager::EndAsyncUpdate(FRDGBuilder& GraphBuilder)
