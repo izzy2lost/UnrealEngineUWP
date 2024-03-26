@@ -444,8 +444,7 @@ namespace Horde.Server.Storage
 		{
 			await _blobTicker.StartAsync();
 			await _refTicker.StartAsync();
-			// Disable GC for the moment; seeing some log blobs being removed incorrectly.
-//			await _gcTicker.StartAsync();
+			await _gcTicker.StartAsync();
 		}
 
 		/// <inheritdoc/>
