@@ -57,31 +57,27 @@ if exist ..\Binaries\Win64\UnrealBuildAccelerator (
 
 if not exist ..\Platforms goto NoPlatforms
 for /d %%D in (..\Platforms\*) do (
-	if exist %%D\Source\Programs\UnrealBuildTool (
-		dir /s ^
-		 %%D\Source\Programs\AutomationTool\*.cs ^
-		 %%D\Source\Programs\AutomationTool\*.csproj ^
-		 %%D\Source\Programs\Shared\*.cs ^
-		 %%D\Source\Programs\Shared\*.csproj ^
-		 %%D\Source\Programs\UnrealBuildTool\*.cs ^
-		 %%D\Source\Programs\UnrealBuildTool\*.csproj ^
-		 | %FIND% ".cs" >> ..\Intermediate\Build\AutomationToolFiles.txt
-	) 2>nul
+	for %%F in (AutomationTool Shared UnrealBuildTool) do (
+		if exist %%D\Source\Programs\%%F (
+			dir /s ^
+			%%D\Source\Programs\%%F\*.cs ^
+			%%D\Source\Programs\%%F\*.csproj ^
+			| %FIND% ".cs" >> ..\Intermediate\Build\AutomationToolFiles.txt
+		) 2>nul
+	)
 )
 :NoPlatforms
 
 if not exist ..\Restricted goto NoRestricted
 for /d %%D in (..\Restricted\*) do (
-	if exist %%D\Source\Programs\UnrealBuildTool (
-		dir /s ^
-		 %%D\Source\Programs\AutomationTool\*.cs ^
-		 %%D\Source\Programs\AutomationTool\*.csproj ^
-		 %%D\Source\Programs\Shared\*.cs ^
-		 %%D\Source\Programs\Shared\*.csproj ^
-		 %%D\Source\Programs\UnrealBuildTool\*.cs ^
-		 %%D\Source\Programs\UnrealBuildTool\*.csproj ^
-		 | %FIND% ".cs" >> ..\Intermediate\Build\AutomationToolFiles.txt
-	) 2>nul
+	for %%F in (AutomationTool Shared UnrealBuildTool) do (
+		if exist %%D\Source\Programs\%%F (
+			dir /s ^
+			%%D\Source\Programs\%%F\*.cs ^
+			%%D\Source\Programs\%%F\*.csproj ^
+			| %FIND% ".cs" >> ..\Intermediate\Build\AutomationToolFiles.txt
+		) 2>nul
+	)
 )
 :NoRestricted
 
