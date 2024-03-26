@@ -4637,19 +4637,13 @@ void FLinkerLoad::Preload( UObject* Object )
 						ESoftObjectPathSerializeType::AlwaysSerialize);
 #endif
 
-					// Enable IDO, if needed
+					// Toggle support for IDOs
 					FUObjectSerializeContext* LoadContext = FUObjectThreadContext::Get().GetSerializeContext();
-					TOptional<TGuardValue<bool>> ScopedTrackSerializedPropertyPath;
-					TOptional<TGuardValue<bool>> ScopedSerializeUnknownProperty;
-
-					// Do not enable IDO when impersonation is enabled as we are probably deserializing an IDO already at that point
-					bool bIDOEnabled = UE::IsInstanceDataObjectSupportEnabled(Object) && !LoadContext->bImpersonateProperties;
-					if (bIDOEnabled )
-					{
-						// this will had property path tracking and create a property bag to hold data not matching the current class schema
-						ScopedTrackSerializedPropertyPath.Emplace(LoadContext->bTrackSerializedPropertyPath, true);
-						ScopedSerializeUnknownProperty.Emplace(LoadContext->bSerializeUnknownProperty, true);
-					}
+					// Do not enable IDOs when impersonation is enabled as it implies we are deserializing an IDO
+					const bool bIDOEnabled = UE::IsInstanceDataObjectSupportEnabled(Object) && !LoadContext->bImpersonateProperties;
+					// This will add property path tracking and create a property bag to hold any property that does not match the current class schema
+					TGuardValue<bool> ScopedTrackSerializedPropertyPath(LoadContext->bTrackSerializedPropertyPath, bIDOEnabled);
+					TGuardValue<bool> ScopedSerializeUnknownProperty(LoadContext->bSerializeUnknownProperty, bIDOEnabled);
 
 					if (Object->HasAnyFlags(RF_ClassDefaultObject))
 					{

@@ -583,15 +583,17 @@ void FArrayProperty::SerializeItem(FStructuredArchive::FSlot Slot, void* Value, 
 				FStructProperty* StructProperty = CastFieldChecked<FStructProperty>(Inner);
 
 				// Attempt mismatched tag serialization if available
-				const FName StructName = InnerTag.GetType().GetParameterName();
+				const FName StructName = InnerTag.GetType().GetParameterName(0);
 				if ((StructProperty->Struct->StructFlags & STRUCT_SerializeFromMismatchedTag) && (InnerTag.Type != NAME_StructProperty || StructName != StructProperty->Struct->GetFName()))
 				{
 					SerializeFromMismatchedTag = InnerTag;
 				}
 				else
 				{
-					UE_LOG(LogClass, Warning, TEXT("Array Property %s contains a struct type mismatch (tag %s != prop %s) in package: %s. If that struct got renamed, add an entry to ActiveStructRedirects."),
-						*WriteToString<32>(InnerTag.Name), *WriteToString<32>(StructName), *WriteToString<32>(StructProperty->Struct->GetFName()), *UnderlyingArchive.GetArchiveName());
+					UE::FPropertyTypeNameBuilder Builder;
+					StructProperty->SaveTypeName(Builder);
+					UE_LOG(LogClass, Warning, TEXT("Array Property %s has a struct type mismatch (tag %s != prop %s) in package: %s. If that struct got renamed, add an entry to ActiveStructRedirects."),
+						*WriteToString<32>(InnerTag.Name), *WriteToString<64>(InnerTag.GetType().GetParameter(0)), *WriteToString<64>(Builder.Build().GetParameter(0)), *UnderlyingArchive.GetArchiveName());
 
 #if WITH_EDITOR
 					// Ensure the structure is initialized
@@ -1208,6 +1210,7 @@ EConvertFromTypeResult FArrayProperty::ConvertFromType(const FPropertyTag& Tag, 
 
 	FPropertyTag InnerPropertyTag;
 	InnerPropertyTag.SetType(Tag.GetType().GetParameter());
+	InnerPropertyTag.Name = Tag.Name;
 	InnerPropertyTag.ArrayIndex = 0;
 
 	if (Version < EUnrealEngineObjectUE5Version::PROPERTY_TAG_COMPLETE_TYPE_NAME && Version >= VER_UE4_INNER_ARRAY_TAG_INFO && InnerPropertyTag.Type == NAME_StructProperty)

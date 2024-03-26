@@ -1622,17 +1622,13 @@ void UStruct::SerializeVersionedTaggedProperties(FStructuredArchive::FSlot Slot,
 							}
 						}
 
+						bool bTryLoadIntoPropertyBag = false;
+
 						switch (Property->ConvertFromType(Tag, ValueSlot, Data, DefaultsStruct, Defaults))
 						{
 							case EConvertFromTypeResult::Converted:
 								bAdvanceProperty = true;
-								if (FPropertyBag* PropertyBag = TryFindPropertyBag())
-								{
-									UnderlyingArchive.Seek(StartOfProperty);
-									FStructuredArchive::FSlot CopySlot = PropertyRecord.EnterField(TEXT("Value"));
-									Tag.SetProperty(nullptr);
-									PropertyBag->LoadPropertyByTag(SerializeContext->SerializedPropertyPath, Tag, CopySlot, Property->ContainerPtrToValuePtrForDefaults<uint8>(DefaultsStruct, Defaults, Tag.ArrayIndex));
-								}
+								bTryLoadIntoPropertyBag = true;
 								break;
 
 							case EConvertFromTypeResult::Serialized:
@@ -1646,12 +1642,7 @@ void UStruct::SerializeVersionedTaggedProperties(FStructuredArchive::FSlot Slot,
 										*WriteToString<32>(Tag.Name), *WriteToString<32>(GetFName()),
 										*WriteToString<32>(Tag.Type), *WriteToString<32>(PropID),
 										*UnderlyingArchive.GetArchiveName());
-									if (FPropertyBag* PropertyBag = TryFindPropertyBag())
-									{
-										Tag.SetProperty(nullptr);
-										PropertyBag->LoadPropertyByTag(SerializeContext->SerializedPropertyPath, Tag, ValueSlot, Property->ContainerPtrToValuePtrForDefaults<uint8>(DefaultsStruct, Defaults, Tag.ArrayIndex));
-										bAdvanceProperty = !UnderlyingArchive.IsCriticalError();
-									}
+									bTryLoadIntoPropertyBag = true;
 								}
 								else
 								{
@@ -1665,16 +1656,23 @@ void UStruct::SerializeVersionedTaggedProperties(FStructuredArchive::FSlot Slot,
 								break;
 
 							case EConvertFromTypeResult::CannotConvert:
-								if (FPropertyBag* PropertyBag = TryFindPropertyBag())
-								{
-									Tag.SetProperty(nullptr);
-									PropertyBag->LoadPropertyByTag(SerializeContext->SerializedPropertyPath, Tag, ValueSlot, Property->ContainerPtrToValuePtrForDefaults<uint8>(DefaultsStruct, Defaults, Tag.ArrayIndex));
-									bAdvanceProperty = !UnderlyingArchive.IsCriticalError();
-								}
+								bTryLoadIntoPropertyBag = true;
 								break;
 
 							default:
-								check(false);
+								checkNoEntry();
+								break;
+						}
+
+						if (bTryLoadIntoPropertyBag)
+						{
+							if (FPropertyBag* PropertyBag = TryFindPropertyBag())
+							{
+								Tag.SetProperty(nullptr);
+								UnderlyingArchive.Seek(StartOfProperty);
+								FStructuredArchive::FSlot ValueSlotCopy = PropertyRecord.EnterField(TEXT("Value"));
+								PropertyBag->LoadPropertyByTag(SerializeContext->SerializedPropertyPath, Tag, ValueSlotCopy, Property->ContainerPtrToValuePtrForDefaults<uint8>(DefaultsStruct, Defaults, Tag.ArrayIndex));
+							}
 						}
 					}
 				}
@@ -1694,15 +1692,15 @@ void UStruct::SerializeVersionedTaggedProperties(FStructuredArchive::FSlot Slot,
 
 				int64 Loaded = UnderlyingArchive.Tell() - StartOfProperty;
 
-				if (!bAdvanceProperty)
-				{
-					UnderlyingArchive.Seek(StartOfProperty + Tag.Size);
-				}
-				else
+				if (bAdvanceProperty)
 				{
 					checkf(Tag.Size == Loaded,
 						TEXT("Size mismatch in %s of %s of type %s. Loaded %" INT64_FMT " bytes but expected %d. Package: %s"),
 						*Tag.Name.ToString(), *GetName(), *WriteToString<64>(Tag.GetType()), Loaded, Tag.Size, *UnderlyingArchive.GetArchiveName());
+				}
+				else if (Tag.Size != Loaded)
+				{
+					UnderlyingArchive.Seek(StartOfProperty + Tag.Size);
 				}
 			}
 		}

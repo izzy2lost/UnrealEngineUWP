@@ -2107,7 +2107,7 @@ bool FProperty::UseBinaryOrNativeSerialization(const FArchive& Ar) const
 bool FProperty::LoadTypeName(UE::FPropertyTypeName Type, const FPropertyTag* Tag)
 {
 	return ensureMsgf(GetID() == Type.GetName(),
-		TEXT("Failed to load property '%s' of type '%s' from tag of type '%s'"),
+		TEXT("Failed to load property '%s' of type '%s' from type name '%s'"),
 		*WriteToString<64>(GetFName()), *WriteToString<64>(GetID()), *WriteToString<64>(Type.GetName()));
 }
 
