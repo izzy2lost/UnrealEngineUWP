@@ -1516,11 +1516,10 @@ void FViewInfo::SetupUniformBufferParameters(
 	ViewUniformShaderParameters.AtmosphereIrradianceTextureSampler = TStaticSamplerState<SF_Bilinear>::GetRHI();
 	ViewUniformShaderParameters.AtmosphereInscatterTextureSampler = TStaticSamplerState<SF_Bilinear>::GetRHI();
 
-	// Upload environment holdout flags
+	// Update environment holdout flags
+	ViewUniformShaderParameters.EnvironmentComponentsFlags = 0;
 	if (Scene)
 	{
-		ViewUniformShaderParameters.EnvironmentComponentsFlags = 0;
-
 		if (ShouldRenderSkyAtmosphere(Scene, Family->EngineShowFlags))
 		{
 			FSkyAtmosphereRenderSceneInfo* SkyAtmosphere = Scene->SkyAtmosphere;
