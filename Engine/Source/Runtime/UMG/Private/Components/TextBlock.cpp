@@ -143,12 +143,48 @@ void UTextBlock::SetStrikeBrush(FSlateBrush InStrikeBrush)
 	}
 }
 
-void UTextBlock::SetJustification(ETextJustify::Type InJustification)
+void UTextBlock::OnShapedTextOptionsChanged(FShapedTextOptions InShapedTextOptions)
 {
-	Super::SetJustification(InJustification);
+	Super::OnShapedTextOptionsChanged(InShapedTextOptions);
+	if (MyTextBlock.IsValid())
+	{
+		InShapedTextOptions.SynchronizeShapedTextProperties(*MyTextBlock);
+	}
+}
+
+void UTextBlock::OnJustificationChanged(ETextJustify::Type InJustification)
+{
+	Super::OnJustificationChanged(InJustification);
 	if (MyTextBlock.IsValid())
 	{
 		MyTextBlock->SetJustification(InJustification);
+	}
+}
+
+void UTextBlock::OnWrappingPolicyChanged(ETextWrappingPolicy InWrappingPolicy)
+{
+	Super::OnWrappingPolicyChanged(InWrappingPolicy);
+	if (MyTextBlock.IsValid())
+	{
+		MyTextBlock->SetWrappingPolicy(InWrappingPolicy);
+	}
+}
+
+void UTextBlock::OnAutoWrapTextChanged(bool InAutoWrapText)
+{
+	Super::OnAutoWrapTextChanged(InAutoWrapText);
+	if (MyTextBlock.IsValid())
+	{
+		MyTextBlock->SetAutoWrapText(InAutoWrapText);
+	}
+}
+
+void UTextBlock::OnWrapTextAtChanged(float InWrapTextAt)
+{
+	Super::OnWrapTextAtChanged(InWrapTextAt);
+	if (MyTextBlock.IsValid())
+	{
+		MyTextBlock->SetWrapTextAt(InWrapTextAt);
 	}
 }
 

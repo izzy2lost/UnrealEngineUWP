@@ -125,13 +125,48 @@ void UMultiLineEditableTextBox::SynchronizeProperties()
 	Super::SynchronizeTextLayoutProperties(*MyEditableTextBlock);
 }
 
-void UMultiLineEditableTextBox::SetJustification(ETextJustify::Type InJustification)
+void UMultiLineEditableTextBox::OnShapedTextOptionsChanged(FShapedTextOptions InShapedTextOptions)
 {
-	Super::SetJustification(InJustification);
+	Super::OnShapedTextOptionsChanged(InShapedTextOptions);
+	if (MyEditableTextBlock.IsValid())
+	{
+		InShapedTextOptions.SynchronizeShapedTextProperties(*MyEditableTextBlock);
+	}
+}
 
+void UMultiLineEditableTextBox::OnJustificationChanged(ETextJustify::Type InJustification)
+{
+	Super::OnJustificationChanged(InJustification);
 	if (MyEditableTextBlock.IsValid())
 	{
 		MyEditableTextBlock->SetJustification(InJustification);
+	}
+}
+
+void UMultiLineEditableTextBox::OnWrappingPolicyChanged(ETextWrappingPolicy InWrappingPolicy)
+{
+	Super::OnWrappingPolicyChanged(InWrappingPolicy);
+	if (MyEditableTextBlock.IsValid())
+	{
+		MyEditableTextBlock->SetWrappingPolicy(InWrappingPolicy);
+	}
+}
+
+void UMultiLineEditableTextBox::OnAutoWrapTextChanged(bool InAutoWrapText)
+{
+	Super::OnAutoWrapTextChanged(InAutoWrapText);
+	if (MyEditableTextBlock.IsValid())
+	{
+		MyEditableTextBlock->SetAutoWrapText(InAutoWrapText);
+	}
+}
+
+void UMultiLineEditableTextBox::OnWrapTextAtChanged(float InWrapTextAt)
+{
+	Super::OnWrapTextAtChanged(InWrapTextAt);
+	if (MyEditableTextBlock.IsValid())
+	{
+		MyEditableTextBlock->SetWrapTextAt(InWrapTextAt);
 	}
 }
 

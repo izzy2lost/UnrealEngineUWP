@@ -349,8 +349,7 @@ void UCommonTextBlock::Serialize(FArchive& Ar)
 
 void UCommonTextBlock::SetWrapTextWidth(int32 InWrapTextAt)
 {
-	WrapTextAt = InWrapTextAt;
-	SynchronizeProperties();
+	SetWrapTextAt(InWrapTextAt);
 }
 
 void UCommonTextBlock::SetTextCase(bool bUseAllCaps)
