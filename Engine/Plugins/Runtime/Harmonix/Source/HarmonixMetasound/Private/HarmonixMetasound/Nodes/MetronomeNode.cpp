@@ -47,7 +47,6 @@ namespace HarmonixMetasound
 
 		void Reset(const FResetParams& Params);
 		void Execute();
-		void UpdateLoopOffsetTickFromTick(int32 Tick);
 
 		//~ BEGIN FMidiPlayCursor Overrides
 		virtual void Reset(bool ForceNoBroadcast = false) override;
@@ -82,7 +81,6 @@ namespace HarmonixMetasound
 		int32        CurrentTimeSigNum;
 		int32        CurrentTimeSigDenom;
 		int32		 LastClockTickUpdate = -1;
-		int32		 LoopOffsetTick = 0;
 
 		void BuildMidiData(bool ResetToStart = true);
 		void UpdateMidi();
@@ -256,15 +254,8 @@ namespace HarmonixMetasound
 	void FMetronomeOperator::Reset(bool ForceNoBroadcast /*= false*/)
 	{
 		FMidiPlayCursor::Reset(ForceNoBroadcast);
-		int32 Tick = MetronomeClock.GetCurrentHiResTick();
-		UpdateLoopOffsetTickFromTick(Tick);
-		int32 MappedTick = Tick - LoopOffsetTick;
-
-		float Ms = MidiClockOutPin->GetSongMaps().TickToMs(Tick + 1);
-		FMusicSeekTarget SeekTarget;
-		SeekTarget.Type = ESeekPointType::Millisecond;
-		SeekTarget.Ms = Ms;
-		MidiClockOutPin->SeekTo(MetronomeClock.GetCurrentBlockFrameIndex(), SeekTarget, SeekPreRollBarsInPin);
+		int32 Tick = MidiClockOutPin->CalculateMappedTick(MetronomeClock.GetCurrentHiResTick());
+		MidiClockOutPin->SeekTo(MetronomeClock.GetCurrentBlockFrameIndex(), Tick + 1, SeekPreRollBarsInPin);
 	}
 
 	void FMetronomeOperator::OnLoop(int32 LoopStartTick, int32 LoopEndTick)
@@ -275,63 +266,38 @@ namespace HarmonixMetasound
 	void FMetronomeOperator::SeekToTick(int32 Tick)
 	{
 		FMidiPlayCursor::SeekToTick(Tick);
-		UpdateLoopOffsetTickFromTick(Tick);
-		int32 MappedTick = Tick - LoopOffsetTick;
-
-		float Ms = MidiClockOutPin->GetSongMaps().TickToMs(Tick + 1);
-		FMusicSeekTarget SeekTarget;
-		SeekTarget.Type = ESeekPointType::Millisecond;
-		SeekTarget.Ms = Ms;
-		MidiClockOutPin->SeekTo(MetronomeClock.GetCurrentBlockFrameIndex(), SeekTarget, SeekPreRollBarsInPin);
+		int32 MappedTick = MidiClockOutPin->CalculateMappedTick(Tick);
+		MidiClockOutPin->SeekTo(MetronomeClock.GetCurrentBlockFrameIndex(), MappedTick, SeekPreRollBarsInPin);
 	}
 
 	void FMetronomeOperator::SeekThruTick(int32 Tick)
 	{
 		FMidiPlayCursor::SeekThruTick(Tick);
-
-		UpdateLoopOffsetTickFromTick(Tick);
-		int32 MappedTick = Tick - LoopOffsetTick;
-
-		float Ms = MidiClockOutPin->GetSongMaps().TickToMs(Tick + 1);
-		FMusicSeekTarget SeekTarget;
-		SeekTarget.Type = ESeekPointType::Millisecond;
-		SeekTarget.Ms = Ms;
-		MidiClockOutPin->SeekTo(MetronomeClock.GetCurrentBlockFrameIndex(), SeekTarget, SeekPreRollBarsInPin);
+		int32 MappedTick = MidiClockOutPin->CalculateMappedTick(Tick);
+		MidiClockOutPin->SeekTo(MetronomeClock.GetCurrentBlockFrameIndex(), MappedTick + 1, SeekPreRollBarsInPin);
 	}
 
 	void FMetronomeOperator::AdvanceThruTick(int32 InTick, bool IsPreRoll)
 	{
+		int32 PrevTick = CurrentTick;
 		FMidiPlayCursor::AdvanceThruTick(InTick, IsPreRoll);
 
 		// if this is a pre-roll, perform a seek instead
 		// NOTE: This code is/should be identical to SeekThruTick above
 		if (IsPreRoll)
 		{
-			UpdateLoopOffsetTickFromTick(InTick);
-			int32 MappedTick = InTick - LoopOffsetTick;
-
-			float Ms = MidiClockOutPin->GetSongMaps().TickToMs(InTick + 1);
-			FMusicSeekTarget SeekTarget;
-			SeekTarget.Type = ESeekPointType::Millisecond;
-			SeekTarget.Ms = Ms;
-			MidiClockOutPin->SeekTo(MetronomeClock.GetCurrentBlockFrameIndex(), SeekTarget, SeekPreRollBarsInPin);
+			int32 MappedTick = MidiClockOutPin->CalculateMappedTick(InTick);
+			MidiClockOutPin->SeekTo(MetronomeClock.GetCurrentBlockFrameIndex(), MappedTick + 1, SeekPreRollBarsInPin);
 			return;
 		}
-
-		int32 MappedTick = InTick - LoopOffsetTick;
+		
+		int32 NewTick = MidiClockOutPin->GetCurrentMidiTick() + (InTick - PrevTick);
+		float Ms = MidiClockOutPin->GetSongMaps().TickToMs(NewTick);
 		float CurrentSpeed = MetronomeClock.GetSpeedAtBlockSampleFrame(MetronomeClock.GetCurrentBlockFrameIndex());
-		float Ms = MidiClockOutPin->GetSongMaps().TickToMs(MappedTick);
-		float AdvanceRatio = Owner->GetSongMaps().GetTempoAtTick(InTick) / MidiClockOutPin->GetSongMaps().GetTempoAtTick(MappedTick);
+		float AdvanceRatio = Owner->GetSongMaps().GetTempoAtTick(PrevTick)
+		                   / MidiClockOutPin->GetSongMaps().GetTempoAtTick(MidiClockOutPin->GetCurrentMidiTick());
 		MidiClockOutPin->InformOfCurrentAdvanceRate(CurrentSpeed * AdvanceRatio);
 		MidiClockOutPin->AdvanceHiResToMs(MetronomeClock.GetCurrentBlockFrameIndex(), Ms, true);
-
-		if (MidiClockOutPin->DoesLoop())
-		{
-			if (MidiClockOutPin->GetCurrentHiResTick() < MappedTick)
-			{
-				UpdateLoopOffsetTickFromTick(InTick);
-			}
-		}
 	}
 
 	void FMetronomeOperator::Init()
@@ -478,28 +444,6 @@ namespace HarmonixMetasound
 		if (LoopInPin)
 		{
 			MidiClockOutPin->CopySpeedAndTempoChanges(&MetronomeClock);
-		}
-	}
-
-	void FMetronomeOperator::UpdateLoopOffsetTickFromTick(int32 Tick)
-	{
-		// only update our loop offset if we're actually looping
-		// if our external clock is seeking us
-		// we need to update our loop offset ticks
-		if (MidiClockOutPin->DoesLoop())
-		{
-			int32 LoopStartTick = MidiClockOutPin->GetLoopStartTick();
-			int32 LoopEndTick = MidiClockOutPin->GetLoopEndTick();
-			int32 LoopLengthTicks = LoopEndTick - LoopStartTick;
-			if (LoopLengthTicks > 0)
-			{
-				// the whole number part of the division tells us 
-				// how many times we "should have looped" based on the incoming tick
-				int32 LoopNum = (Tick - LoopStartTick) / LoopLengthTicks;
-
-				// So we can multiply it back to get the LoopOffsetTick
-				LoopOffsetTick = LoopLengthTicks * LoopNum + LoopStartTick;
-			}
 		}
 	}
 

@@ -121,15 +121,9 @@ namespace HarmonixMetasound
 
 	protected:
 		virtual void InitTransportImpl() override;
-		virtual void SetupNewMidiFile(const FMidiFileProxyPtr& NewMidi) override;
 	private:
 		//** INPUTS **********************************
 		FMidiClockReadRef MidiClockIn;
-
-		//** DATA   **********************************
-		int32 LoopOffsetTick = 0;
-
-		void UpdateLoopOffsetTickFromTick(int32 Tick);
 	};
 
 	class FSelfClockedMidiPlayerOperator : public FMidiPlayerOperator
@@ -310,7 +304,6 @@ namespace HarmonixMetasound
 	void FExternallyClockedMidiPlayerOperator::Reset(const FResetParams& Params)
 	{
 		FMidiPlayerOperator::Reset(Params);
-		LoopOffsetTick = 0;
 	}
 
 	void FSelfClockedMidiPlayerOperator::BindInputs(FInputVertexInterfaceData& InVertexData)
@@ -411,9 +404,8 @@ namespace HarmonixMetasound
 					{
 					case FMidiClockEvent::EType::Reset:
 					{
-						// Ignore resets, because every reset event is preceded by a SeekThru event
-						// SeekThru triggers a new reset in the following clock,
-						// resulting in an exponentially growing list of reset and seek thru events
+						int32 Tick = MidiClockOut->CalculateMappedTick(Event.Tick2);
+						MidiClockOut->SeekTo(Event.BlockFrameIndex, Tick + 1, PrerollBars);
 						break;
 					}
 					case FMidiClockEvent::EType::Loop:
@@ -423,26 +415,14 @@ namespace HarmonixMetasound
 					}
 					case FMidiClockEvent::EType::SeekTo:
 					{
-						UpdateLoopOffsetTickFromTick(Event.Tick2);
-						int32 Tick = Event.Tick2 - LoopOffsetTick;
-
-						float Ms = MidiClockOut->GetSongMaps().TickToMs(Tick);
-						FMusicSeekTarget SeekTarget;
-						SeekTarget.Type = ESeekPointType::Millisecond;
-						SeekTarget.Ms = Ms;
-						MidiClockOut->SeekTo(Event.BlockFrameIndex, SeekTarget, PrerollBars);
+						int32 Tick = MidiClockOut->CalculateMappedTick(Event.Tick2);
+						MidiClockOut->SeekTo(Event.BlockFrameIndex, Tick, PrerollBars);
 						break;
 					}
 					case FMidiClockEvent::EType::SeekThru:
 					{
-						UpdateLoopOffsetTickFromTick(Event.Tick2);
-						int32 Tick = Event.Tick2 - LoopOffsetTick;
-
-						float Ms = MidiClockOut->GetSongMaps().TickToMs(Tick + 1);
-						FMusicSeekTarget SeekTarget;
-						SeekTarget.Type = ESeekPointType::Millisecond;
-						SeekTarget.Ms = Ms;
-						MidiClockOut->SeekTo(Event.BlockFrameIndex, SeekTarget, PrerollBars);
+						int32 Tick = MidiClockOut->CalculateMappedTick(Event.Tick2);
+						MidiClockOut->SeekTo(Event.BlockFrameIndex, Tick + 1, PrerollBars);
 						break;
 					}
 					case FMidiClockEvent::EType::AdvanceThru:
@@ -451,38 +431,21 @@ namespace HarmonixMetasound
 						// NOTE: This code is/should be identical to the SeekThru event above
 						if (Event.IsPreRoll)
 						{
-							UpdateLoopOffsetTickFromTick(Event.Tick2);
-							int32 Tick = Event.Tick2 - LoopOffsetTick;
-
-							float Ms = MidiClockOut->GetSongMaps().TickToMs(Tick + 1);
-							FMusicSeekTarget SeekTarget;
-							SeekTarget.Type = ESeekPointType::Millisecond;
-							SeekTarget.Ms = Ms;
-							MidiClockOut->SeekTo(Event.BlockFrameIndex, SeekTarget, PrerollBars);
+							int32 Tick = MidiClockOut->CalculateMappedTick(Event.Tick2);
+							MidiClockOut->SeekTo(Event.BlockFrameIndex, Tick + 1, PrerollBars);
 							break;
 						}
 						// The MidiClock handles looping on its own, so we can conveniently advance it
-						int32 Tick = Event.Tick2 - LoopOffsetTick;
+						int32 Tick = MidiClockOut->GetCurrentMidiTick() + (Event.Tick2 - Event.Tick1);
 						float Ms = MidiClockOut->GetSongMaps().TickToMs(Tick);
 
 						float ClockInSpeed = MidiClockIn->GetSpeedAtBlockSampleFrame(StartFrameIndex);
-						float AdvanceRatio = MidiClockIn->GetSongMaps().GetTempoAtTick(Event.Tick2) / MidiClockOut->GetSongMaps().GetTempoAtTick(Tick);
+						float AdvanceRatio = MidiClockIn->GetSongMaps().GetTempoAtTick(Event.Tick1)
+							               / MidiClockOut->GetSongMaps().GetTempoAtTick(MidiClockOut->GetCurrentMidiTick());
 						// midi clock needs to know how fast its advancing based on their authority
 						MidiClockOut->InformOfCurrentAdvanceRate(ClockInSpeed * *SpeedMultInPin * AdvanceRatio);
 						MidiClockOut->AdvanceHiResToMs(Event.BlockFrameIndex, Ms, true);
-
-						// we have to update our loop offset index _after_ the advance
-						// which we can do a little bit differently here
-						
-						// check if the clock looped back
-						if (MidiClockOut->DoesLoop())
-						{
-							int32 NewTick = MidiClockOut->GetCurrentHiResTick();
-							if (NewTick < Tick)
-							{
-								UpdateLoopOffsetTickFromTick(Event.Tick2);
-							}
-						}
+							
 						break;
 					}
 					}
@@ -577,74 +540,6 @@ namespace HarmonixMetasound
 			}
 		};
 		Init(*TransportInPin, MoveTemp(InitFn));
-	}
-
-	void FExternallyClockedMidiPlayerOperator::SetupNewMidiFile(const FMidiFileProxyPtr& NewMidi)
-	{
-		FMidiPlayerOperator::SetupNewMidiFile(NewMidi);
-		if (*LoopInPin)
-		{
-			const TArray<FMidiClockEvent>& ClockEvents = MidiClockIn->GetMidiClockEventsInBlock();
-			if (ClockEvents.Num() > 0)
-			{
-				for (const FMidiClockEvent& Event : ClockEvents)
-				{
-					// Skip loop events and reset events, just like we do in "Execute"
-					if (Event.Type == FMidiClockEvent::EType::Loop
-					 || Event.Type == FMidiClockEvent::EType::Reset)
-					{
-						continue;
-					}
-
-					// notice that we take the "Tick1" of the event, and not "Tick2".
-					// That's because we want to be synced up for when we process "Tick2" later in execute
-					UpdateLoopOffsetTickFromTick(Event.Tick1);
-					int32 Tick = Event.Tick1 - LoopOffsetTick;
-
-					float Ms = MidiClockOut->GetSongMaps().TickToMs(Tick + 1);
-					FMusicSeekTarget SeekTarget;
-					SeekTarget.Type = ESeekPointType::Millisecond;
-					SeekTarget.Ms = Ms;
-					MidiClockOut->SeekTo(SeekTarget, PrerollBars);
-					break;
-				}
-
-				
-			}
-			else
-			{
-				UpdateLoopOffsetTickFromTick(MidiClockIn->GetCurrentMidiTick());
-				int32 Tick = MidiClockIn->GetCurrentMidiTick() - LoopOffsetTick;
-				float Ms = MidiClockOut->GetSongMaps().TickToMs(Tick + 1);
-				FMusicSeekTarget SeekTarget;
-				SeekTarget.Type = ESeekPointType::Millisecond;
-				SeekTarget.Ms = Ms;
-				MidiClockOut->SeekTo(SeekTarget, PrerollBars);
-			}
-		}
-	}
-
-
-	void FExternallyClockedMidiPlayerOperator::UpdateLoopOffsetTickFromTick(int32 Tick)
-	{
-		// only update our loop offset if we're actually looping
-		// if our external clock is seeking us
-		// we need to update our loop offset ticks
-		if (MidiClockOut->DoesLoop())
-		{
-			int32 LoopStartTick = MidiClockOut->GetLoopStartTick();
-			int32 LoopEndTick = MidiClockOut->GetLoopEndTick();
-			int32 LoopLengthTicks = LoopEndTick - LoopStartTick;
-			if (LoopLengthTicks > 0)
-			{
-				// the whole number part of the division tells us 
-				// how many times we "should have looped" based on the incoming tick
-				int32 LoopNum = (Tick - LoopStartTick) / LoopLengthTicks;
-
-				// So we can multiply it back to get the LoopOffsetTick
-				LoopOffsetTick = LoopLengthTicks * LoopNum + LoopStartTick;
-			}
-		}
 	}
 
 	void FSelfClockedMidiPlayerOperator::Execute()
@@ -913,6 +808,11 @@ namespace HarmonixMetasound
 				LoopEndTick = BarMap.BarIncludingCountInToTick(LoopEndBarIndex);
 				
 				MidiClockOut->SetLoop(LoopStartTick, LoopEndTick);
+				
+				// remap our current tick based on the looping behavior
+				// maybe this should happen automatically when resetting a loop or changing midi files?
+				int32 NewTick = MidiClockOut->CalculateMappedTick(CurrentTick);
+				MidiClockOut->SeekTo(NewTick, PrerollBars);
 			}
 			else
 			{

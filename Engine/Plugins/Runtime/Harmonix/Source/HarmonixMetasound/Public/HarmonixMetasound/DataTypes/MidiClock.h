@@ -145,6 +145,7 @@ namespace HarmonixMetasound
 		void AttachToMidiResource(TSharedPtr<FMidiFileData> MidiDataProxy, bool ResetCursorsToStart = true, int32 PreRollBars = 0) { DrivingMidiPlayCursorMgr->AttachToMidiResource(MidiDataProxy, ResetCursorsToStart, PreRollBars); }
 		void DetachFromMidiResource() { DrivingMidiPlayCursorMgr->DetachFromMidiResource(); }
 		void AttachToTimeAuthority(const FMidiClock& MidiClockRef);
+		void DetachFromTimeAuthority();
 		void InformOfCurrentAdvanceRate(float AdvanceRate);
 		
 		void LockForMidiDataChanges();
@@ -154,7 +155,7 @@ namespace HarmonixMetasound
 		const FBarMap& GetBarMap() const         { return DrivingMidiPlayCursorMgr->GetBarMap();     }
 		void AdvanceHiResToMs(int32 BlockFrameIndex, float Ms, bool Broadcast);
 		void SeekTo(const FMusicSeekTarget& Timestamp, int32 PreRollBars);
-
+		void SeekTo(int32 Tick, int32 PrerollBars);
 
 		void SetLoop(int32 StartTick, int32 EndTick) { DrivingMidiPlayCursorMgr->SetLoop(StartTick, EndTick, false, true); }
 		void ClearLoop() { DrivingMidiPlayCursorMgr->ClearLoop(true); }
@@ -181,6 +182,33 @@ namespace HarmonixMetasound
 
 		void WriteAdvance(int32 StartFrameIndex, int32 EndFrameIndex, float InSpeed = 1.0f);
 		void SeekTo(int32 BlockFrameIndex, const FMusicSeekTarget& InTarget, int32 InPrerollBars);
+		void SeekTo(int32 BlockFrameIndex, int32 Tick, int32 InPrerollBars);
+		
+		/**
+		 * Given an input tick, outputs a looped tick if the input tick is > the StartTick of the Loop Region
+		 * If the clock is not looping, or loop region length is 0, then the output will be unchanged.
+		 *
+		 * The output tick will be in range [Min(Tick, LoopStartTick), LoopEndTick).
+		 * Example:
+		 * LoopRegion: (0, 100):
+		 * 10 -> 10
+		 * 100 -> 0
+		 * 110 -> 10
+		 * -10 -> 90
+		 *
+		 * LoopRegion: (40, 100):
+		 * 0 -> 0
+		 * 10 -> 10
+		 * -10 -> -10
+		 * 99  -> 99
+		 * 100 -> 40
+		 * 110 -> 50
+		 *
+		 * @param		Tick - Absolute Tick
+		 * @return		Looped Tick if Tick > LoopEnd: LoopedTick = LoopStart + (Tick - LoopStart) % (LoopEnd - LoopStart) 
+		 */
+		int32 CalculateMappedTick(int32 Tick) const;
+		
 		// copy speed and tempo changes from in clock to this clock
 		// with an optional Speed multiplier to adjust the out going speed on this clock
 		void CopySpeedAndTempoChanges(const FMidiClock* InClock, float InSpeedMult = 1.0f);
