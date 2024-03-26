@@ -1117,11 +1117,13 @@ TSharedRef<SWindow> UE::Private::CreateModalDialogWindow(
 	ESizingRule Sizing,
 	FVector2D MinDimensions)
 {
+	// clang-format off
 	return SNew(SWindow)
 		.Title(InTitle)
 		.SizingRule(Sizing)
 		.MinWidth(MinDimensions.X)
 		.MinHeight(MinDimensions.Y)
+		.ClientSize(MinDimensions)
 		.SupportsMaximize(false)
 		.SupportsMinimize(false)
 		.HasCloseButton(false)
@@ -1133,6 +1135,7 @@ TSharedRef<SWindow> UE::Private::CreateModalDialogWindow(
 				MoveTemp(Contents)
 			]
 		];
+	// clang-format on
 }
 
 void UE::Private::ShowModalDialogWindow(TSharedRef<SWindow> Window)
