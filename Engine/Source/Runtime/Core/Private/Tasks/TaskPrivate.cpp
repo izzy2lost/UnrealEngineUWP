@@ -4,6 +4,7 @@
 #include "Tasks/Pipe.h"
 
 #include "Async/TaskGraphInterfaces.h"
+#include "HAL/IConsoleManager.h"
 
 namespace UE::Tasks
 {
@@ -535,5 +536,12 @@ namespace UE::Tasks
 		}
 
 #endif // !TASKGRAPH_NEW_FRONTEND
+
+		bool GAddReferenceInTryUnlock = true;
+		static FAutoConsoleVariableRef AddReferenceInTryUnlockCVar(
+			TEXT("task.AddReferenceInTryUnlock"),
+			GAddReferenceInTryUnlock,
+			TEXT("Whether to enable the workaround where we add a reference in TryUnlock before decrementing lock count"),
+			ECVF_Default);
 	}
 }
