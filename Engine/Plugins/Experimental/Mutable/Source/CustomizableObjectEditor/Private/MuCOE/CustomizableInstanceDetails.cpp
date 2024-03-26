@@ -19,7 +19,6 @@
 #include "MuCO/CustomizableObjectInstance.h"
 #include "MuCO/CustomizableObjectSystem.h"
 #include "MuCOE/SCustomizableInstanceProperties.h"
-#include "MuCOE/SMutableTextSearchBox.h"
 #include "MuCOE/UnrealEditorPortabilityHelpers.h"
 
 #include "SSearchableComboBox.h"
@@ -870,7 +869,7 @@ TSharedRef<SWidget> FCustomizableInstanceDetails::GenerateIntWidget(const int32 
 {
 	UCustomizableObject* CustomizableObject = CustomInstance->GetCustomizableObject();
 
-	int numValues = CustomizableObject->GetIntParameterNumOptions(ParamIndexInObject);
+	int32 numValues = CustomizableObject->GetIntParameterNumOptions(ParamIndexInObject);
 	bool bIsParamMultidimensional = CustomInstance->GetCustomizableObject()->IsParameterMultidimensional((ParamIndexInObject));
 
 	if (!bIsParamMultidimensional && numValues)
@@ -878,10 +877,17 @@ TSharedRef<SWidget> FCustomizableInstanceDetails::GenerateIntWidget(const int32 
 		FString ToolTipText = FString("None");
 		FString ParamName = CustomizableObject->GetParameterName(ParamIndexInObject);
 		FString Value = CustomInstance->GetIntParameterSelectedOption(ParamName, -1);
-		TArray<FString> OptionNamesAttribute;
-		int ValueIndex = 0;
 
-		for (int i = 0; i < numValues; ++i)
+		TSharedPtr<TArray<TSharedPtr<FString>>>* FoundOptions = IntParameterOptions.Find(ParamIndexInObject);
+		TArray<TSharedPtr<FString>>& OptionNamesAttribute = FoundOptions && FoundOptions->IsValid() ? 
+															*FoundOptions->Get() :
+															*(IntParameterOptions.Add(ParamIndexInObject, MakeShared<TArray<TSharedPtr<FString>>>()).Get());
+
+		OptionNamesAttribute.Empty();
+
+		int32 ValueIndex = 0;
+
+		for (int32 i = 0; i < numValues; ++i)
 		{
 			FString PossibleValue = CustomizableObject->GetIntParameterAvailableOption(ParamIndexInObject, i);
 
@@ -899,20 +905,30 @@ TSharedRef<SWidget> FCustomizableInstanceDetails::GenerateIntWidget(const int32 
 				}
 			}
 
-			OptionNamesAttribute.Add(CustomizableObject->GetIntParameterAvailableOption(ParamIndexInObject, i));
+			OptionNamesAttribute.Add(TSharedPtr<FString>(new FString(CustomizableObject->GetIntParameterAvailableOption(ParamIndexInObject, i))));
 		}
 
-		//TODO(Max): UE-207137
-		return SNew(SMutableTextSearchBox)
+		return SNew(SSearchableComboBox)
 			.ToolTipText(FText::FromString(ToolTipText))
-			.PossibleSuggestions(OptionNamesAttribute)
-			.InitialText(FText::FromString(OptionNamesAttribute[ValueIndex]))
-			.MustMatchPossibleSuggestions(TAttribute<bool>(true))
-			.SuggestionListPlacement(EMenuPlacement::MenuPlacement_ComboBox)
-			.OnTextCommitted(this, &FCustomizableInstanceDetails::OnIntParameterComboBoxChanged, ParamName);
+			.OptionsSource(&OptionNamesAttribute)
+			.InitiallySelectedItem(OptionNamesAttribute[ValueIndex])
+			.Method(EPopupMethod::UseCurrentWindow)
+			.OnSelectionChanged(this, &FCustomizableInstanceDetails::OnIntParameterComboBoxChanged, ParamName)
+			.OnGenerateWidget(this, &FCustomizableInstanceDetails::OnGenerateWidgetIntParameter)
+			.Content()
+			[
+				SNew(STextBlock)
+					.Text(FText::FromString(*OptionNamesAttribute[ValueIndex]))
+			];
 	}
 
 	return SNew(STextBlock).Text(LOCTEXT("MultidimensionalINTParameter_Text", "Multidimensional INT Parameter not supported"));
+}
+
+
+TSharedRef<SWidget> FCustomizableInstanceDetails::OnGenerateWidgetIntParameter(TSharedPtr<FString> InItem) const
+{
+	return SNew(STextBlock).Text(FText::FromString(*InItem.Get()));
 }
 
 
@@ -1399,7 +1415,13 @@ TSharedRef<SWidget> FCustomizableInstanceDetails::GenerateMultidimensionalProjec
 	{
 		const int32 NumPoseValues = CustomizableObject->GetIntParameterNumOptions(PoseSwitchEnumParamIndexInObject);
 
-		TArray<FString> PoseOptionNamesAttribute;
+		TSharedPtr<TArray<TSharedPtr<FString>>>* FoundOptions = ProjectorParameterPoseOptions.Find(PoseSwitchEnumParamIndexInObject);
+		TArray<TSharedPtr<FString>>& PoseOptionNamesAttribute = FoundOptions && FoundOptions->IsValid() ?
+																*FoundOptions->Get()
+																: *(ProjectorParameterPoseOptions.Add(PoseSwitchEnumParamIndexInObject, MakeShared<TArray<TSharedPtr<FString>>>()).Get());
+
+		PoseOptionNamesAttribute.Empty();
+
 		FString PoseValue = CustomInstance->GetIntParameterSelectedOption(PoseSwitchEnumParamName, -1);
 		int32 PoseValueIndex = 0;
 
@@ -1411,7 +1433,7 @@ TSharedRef<SWidget> FCustomizableInstanceDetails::GenerateMultidimensionalProjec
 				PoseValueIndex = j;
 			}
 
-			PoseOptionNamesAttribute.Add(PossibleValue);
+			PoseOptionNamesAttribute.Add(MakeShared<FString>(PossibleValue));
 		}
 
 		ProjectorBox->AddSlot()
@@ -1425,14 +1447,18 @@ TSharedRef<SWidget> FCustomizableInstanceDetails::GenerateMultidimensionalProjec
 			.VAlign(VAlign_Center)
 			.FillWidth(0.45f)
 			[
-				//TODO(Max): UE-207137
-				SNew(SMutableTextSearchBox)
-				.PossibleSuggestions(PoseOptionNamesAttribute)
-				.InitialText(FText::FromString(PoseOptionNamesAttribute[PoseValueIndex]))
-				.MustMatchPossibleSuggestions(TAttribute<bool>(true))
-				.SuggestionListPlacement(EMenuPlacement::MenuPlacement_ComboBox)
-				.OnTextCommitted(this, &FCustomizableInstanceDetails::OnProjectorTextureParameterComboBoxChanged, PoseSwitchEnumParamName, -1)
+				SNew(SSearchableComboBox)
 				.ToolTipText(LOCTEXT("Pose selector tooltip", "Select the skeletal mesh pose used for projection. This does not control the actual visual mesh pose in the viewport (or during gameplay for that matter). It has to be manually set. You can drag&drop a pose onto the preview viewport."))
+				.OptionsSource(&PoseOptionNamesAttribute)
+				.InitiallySelectedItem(PoseOptionNamesAttribute[PoseValueIndex])
+				.Method(EPopupMethod::UseCurrentWindow)
+				.OnSelectionChanged(this, &FCustomizableInstanceDetails::OnProjectorTextureParameterComboBoxChanged, PoseSwitchEnumParamName, -1)
+				.OnGenerateWidget(this, &FCustomizableInstanceDetails::OnGenerateWidgetProjectorParameter)
+				.Content()
+				[
+					SNew(STextBlock)
+						.Text(FText::FromString(*PoseOptionNamesAttribute[PoseValueIndex]))
+				]
 			]
 
 			+ SHorizontalBox::Slot()
@@ -1587,7 +1613,7 @@ TSharedRef<SWidget> FCustomizableInstanceDetails::GenerateMultidimensionalProjec
 		// Avoid filling this arraw with repeated array  options
 		if (RangeIndex == 0)
 		{
-			ProjectorTextureOptions.Add(OptionNamesAttribute);
+			ProjectorTextureOptions.Add(MakeShared<TArray<TSharedPtr<FString>>>(OptionNamesAttribute));
 		}
 
 		if (NumValues > 1)
@@ -1599,14 +1625,14 @@ TSharedRef<SWidget> FCustomizableInstanceDetails::GenerateMultidimensionalProjec
 				SNew(SBox)
 				[
 					SNew(SSearchableComboBox)
-					.OptionsSource(&ProjectorTextureOptions.Last())
-					.InitiallySelectedItem(ProjectorTextureOptions.Last()[ValueIndex])
+					.OptionsSource(ProjectorTextureOptions.Last().Get())
+					.InitiallySelectedItem((*ProjectorTextureOptions.Last())[ValueIndex])
 					.OnGenerateWidget(this, &FCustomizableInstanceDetails::MakeTextureComboEntryWidget)
 					.OnSelectionChanged(this, &FCustomizableInstanceDetails::OnProjectorTextureParameterComboBoxChanged, TextureSwitchEnumParamName, RangeIndex)
 					.Content()
 					[
 						SNew(STextBlock)
-						.Text(FText::FromString(*ProjectorTextureOptions.Last()[ValueIndex]))
+						.Text(FText::FromString(*(*ProjectorTextureOptions.Last())[ValueIndex]))
 					]
 				]
 			];
@@ -1688,6 +1714,12 @@ TSharedRef<SWidget> FCustomizableInstanceDetails::GenerateMultidimensionalProjec
 	}
 	
 	return ProjectorBox.ToSharedRef();
+}
+
+
+TSharedRef<SWidget> FCustomizableInstanceDetails::OnGenerateWidgetProjectorParameter(TSharedPtr<FString> InItem) const
+{
+	return SNew(STextBlock).Text(FText::FromString(*InItem.Get()));
 }
 
 

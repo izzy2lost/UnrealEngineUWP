@@ -76,6 +76,7 @@ private:
 	// Int Parameters Functions
 	TSharedRef<SWidget> GenerateIntWidget(const int32 ParamIndexInObject);
 	void OnIntParameterComboBoxChanged(TSharedPtr<FString> Selection, ESelectInfo::Type SelectInfo, const FString ParamName);
+	TSharedRef<SWidget> OnGenerateWidgetIntParameter(TSharedPtr<FString> InItem) const;
 	
 	// Float Parameters Functions
 	TSharedRef<SWidget> GenerateFloatWidget(const int32 ParamIndexInObject);
@@ -112,6 +113,7 @@ private:
 	FReply OnProjectorLayerRemoved(const FString ParamName, const int32 RangeIndex) const;
 	void OnProjectorTextureParameterComboBoxChanged(TSharedPtr<FString> Selection, ESelectInfo::Type SelectInfo, const FString ParamName, int32 RangeIndex) const;
 	TSharedRef<SWidget> MakeTextureComboEntryWidget(TSharedPtr<FString> InItem) const;
+	TSharedRef<SWidget> OnGenerateWidgetProjectorParameter(TSharedPtr<FString> InItem) const;
 
 	// Parameter Functions
 	FReply OnCopyAllParameters();
@@ -155,10 +157,15 @@ private:
 	TMap<int32, bool> ParamHasParent;
 
 	/** Array with all the possible multilayer projector texture options */
-	TArray<TArray<TSharedPtr<FString>>> ProjectorTextureOptions;
+	TArray<TSharedPtr<TArray<TSharedPtr<FString>>>> ProjectorTextureOptions;
+
+	/** Map from ParamIndexInObject to the param's int selector options */
+	TMap<int32, TSharedPtr<TArray<TSharedPtr<FString>>>> IntParameterOptions;
+
+	/** Map from ParamIndexInObject to the projector param pose options  */
+	TMap<int32, TSharedPtr<TArray<TSharedPtr<FString>>>> ProjectorParameterPoseOptions;
 
 	/** True when a slider is being edited*/
 	bool bUpdatingSlider = false;
-
 };
 
