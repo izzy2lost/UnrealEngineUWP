@@ -32,6 +32,8 @@ public:
 
 	const MapType& GetDirtyActors() const { return DirtyActors; }
 
+	/** Returns false if tracking this actor in unnecessary */
+	virtual bool OnAddDirtyActor(const TWeakObjectPtr<AActor> InActor) { return true; }
 	virtual void OnRemoveInvalidDirtyActor(const TWeakObjectPtr<AActor> InActor, typename StoreType::Type& InValue) {}
 	virtual void OnRemoveNonDirtyActor(const TWeakObjectPtr<AActor> InActor, typename StoreType::Type& InValue) {}
 
@@ -46,7 +48,10 @@ protected:
 				{
 					if (InPackage->IsDirty())
 					{
-						DirtyActors.Add(Actor, StoreType::Store(Owner, Actor));
+						if (OnAddDirtyActor(Actor))
+						{
+							DirtyActors.Add(Actor, StoreType::Store(Owner, Actor));
+						}
 					}
 					else
 					{

@@ -456,7 +456,10 @@ public:
 
 	ENGINE_API bool IsMainWorldPartition() const;
 
+private:
 	ENGINE_API void Tick(float DeltaSeconds);
+
+public:
 	ENGINE_API bool CanAddCellToWorld(const IWorldPartitionCell* InCell) const;
 	ENGINE_API bool IsStreamingCompleted(const TArray<FWorldPartitionStreamingSource>* InStreamingSources) const;
 	ENGINE_API bool IsStreamingCompleted(EWorldPartitionRuntimeCellState QueryState, const TArray<FWorldPartitionStreamingQuerySource>& QuerySources, bool bExactState) const;
@@ -587,6 +590,7 @@ private:
 		FWorldPartitionExternalDirtyActorsTracker(UWorldPartition* InWorldPartition);
 
 		//~ Begin TExternalDirtyActorsTracker interface
+		virtual bool OnAddDirtyActor(const TWeakObjectPtr<AActor> InActor) override { return !!GUndo; }
 		virtual void OnRemoveNonDirtyActor(const TWeakObjectPtr<AActor> InActor, FWorldPartitionReference& InValue) override;
 		virtual void Tick(float InDeltaTime) override;
 		//~ End TExternalDirtyActorsTracker interface
