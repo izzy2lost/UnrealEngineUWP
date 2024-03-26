@@ -28,17 +28,6 @@
 	#define UE_ASSERT_ON_HANG 0
 #endif
 
-// Enabling AttempStuckThreadResuscitation will add a check for early hung thread detection and pass the ThreadId through the OnStuck
-// delegate, allowing the platform to boost it's priority or other action to get the thread scheduled again.
-// Core.System StuckDuration can be changed to alter the time that the OnStuck delegate is triggered. Currently defaults to 1.0 second
-static bool AttemptStuckThreadResuscitation = false;
-
-static FAutoConsoleVariableRef CVarAttemptStuckThreadResuscitation(
-	TEXT("AttemptStuckThreadResuscitation"),
-	AttemptStuckThreadResuscitation,
-	TEXT("Attempt to resusicate stuck thread by boosting priority. Enabled by default\n"),
-	ECVF_Default);
-
 // The maximum clock time steps for the hang and hitch detectors.
 // These are the amounts the clocks are allowed to advance by before another tick is required.
 const double HangDetectorClock_MaxTimeStep_MS = 2000.0;
@@ -375,7 +364,7 @@ void FThreadHeartBeat::InitSettings()
 		const double MinStuckDuration = 1.0;
 		if (NewStuckDuration > 0.0 && NewStuckDuration < MinStuckDuration)
 		{
-			UE_LOG(LogCore, Warning, TEXT("HangDuration is set to %.4fs which is a very short time for hang detection. Changing to %.2fs."), NewStuckDuration, MinStuckDuration);
+			UE_LOG(LogCore, Warning, TEXT("StuckDuration is set to %.4fs which is a very short time for stuck detection. Changing to %.2fs."), NewStuckDuration, MinStuckDuration);
 			NewStuckDuration = MinStuckDuration;
 		}
 
@@ -584,7 +573,7 @@ uint32 FThreadHeartBeat::CheckHeartBeat(double& OutHangDuration)
 				}
 			}
 
-			if (AttemptStuckThreadResuscitation && (LongestStuckThreadId != InvalidThreadId))
+			if (LongestStuckThreadId != InvalidThreadId)
 			{
 				// Is there a currently stuck thread. Replace it.
 				if (LastStuckThreadId != LongestStuckThreadId)

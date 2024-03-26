@@ -678,6 +678,28 @@ void FGenericCrashContext::SetAnticheatProvider(const FString& AnticheatProvider
 	SerializeTempCrashContextToFile();
 }
 
+void FGenericCrashContext::OnThreadStuck(uint32 ThreadId)
+{
+	if (!NCached::Session.bIsStuck || NCached::Session.StuckThreadId != ThreadId)
+	{
+		NCached::Session.bIsStuck = true;
+		NCached::Session.StuckThreadId = ThreadId;
+
+		SerializeTempCrashContextToFile();
+	}
+}
+
+void FGenericCrashContext::OnThreadUnstuck(uint32 ThreadId)
+{
+	if (NCached::Session.bIsStuck)
+	{
+		NCached::Session.bIsStuck = false;
+		NCached::Session.StuckThreadId = 0;
+
+		SerializeTempCrashContextToFile();
+	}
+}
+
 FGenericCrashContext::FGenericCrashContext(ECrashContextType InType, const TCHAR* InErrorMessage)
 	: Type(InType)
 	, CrashedThreadId(~uint32(0))
@@ -862,6 +884,11 @@ void FGenericCrashContext::SerializeSessionContext(FString& Buffer)
 	AddCrashPropertyInternal(Buffer, TEXT("Misc.OSVersionMajor"), NCached::Session.OsVersion);
 	AddCrashPropertyInternal(Buffer, TEXT("Misc.OSVersionMinor"), NCached::Session.OsSubVersion);
 	AddCrashPropertyInternal(Buffer, TEXT("Misc.AnticheatProvider"), NCached::Session.AnticheatProvider);
+	if (NCached::Session.bIsStuck)
+	{
+		AddCrashPropertyInternal(Buffer, TEXT("Misc.IsStuck"), NCached::Session.bIsStuck);
+		AddCrashPropertyInternal(Buffer, TEXT("Misc.StuckThreadId"), NCached::Session.StuckThreadId);
+	}
 
 	// FPlatformMemory::GetConstants is called in the GCreateMalloc, so we can assume it is always valid.
 	{

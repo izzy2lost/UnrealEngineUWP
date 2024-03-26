@@ -165,6 +165,7 @@ struct FSessionContext
 	bool 					bIsUERelease;
 	bool					bIsOOM;
 	bool					bIsExitRequested;
+	bool					bIsStuck;
 	uint32					ProcessId;
 	int32 					LanguageLCID;
 	int32 					NumberOfCores;
@@ -172,6 +173,7 @@ struct FSessionContext
 	int32 					SecondsSinceStart;
 	int32 					CrashDumpMode;
 	int32					CrashTrigger;
+	uint32					StuckThreadId;
 	int32					OOMAllocationAlignment;
 	uint64					OOMAllocationSize;
 	TCHAR 					EngineVersion[CR_MAX_GENERIC_FIELD_CHARS];
@@ -590,6 +592,14 @@ public:
 
 	/** Sets the Anticheat client provider. */
 	CORE_API static void SetAnticheatProvider(const FString& AnticheatProvider);
+
+	/** Sets a flag that one of the threads is stuck.
+	 *  This is meant to be bound to the ThreadHeartBeat::OnThreadStuck delegate. Not all platforms register to save this flag. */
+	CORE_API static void OnThreadStuck(uint32 ThreadId);
+
+	/** Clears the stuck flag.
+	 *  This is meant to be bound to the ThreadHeartBeat::OnThreadUnstuck delegate. Not all platforms register to save this flag. */
+	CORE_API static void OnThreadUnstuck(uint32 ThreadId);
 
 	/** Attempts to create the output report directory. */
 	CORE_API static bool CreateCrashReportDirectory(const TCHAR* CrashGUIDRoot, int32 CrashIndex, FString& OutCrashDirectoryAbsolute);
