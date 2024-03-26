@@ -32,6 +32,7 @@
 
 #include "Animation/AnimationSettings.h"
 #include "UObject/UE5MainStreamObjectVersion.h"
+#include "UObject/UObjectThreadContext.h"
 
 DEFINE_LOG_CATEGORY(LogAnimMarkerSync);
 CSV_DECLARE_CATEGORY_MODULE_EXTERN(ENGINE_API, Animation);
@@ -1274,6 +1275,8 @@ void UAnimSequenceBase::OnModelModified(const EAnimDataModelNotifyType& NotifyTy
 		PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	};
 
+	bool bShouldMarkPackageDirty = !FUObjectThreadContext::Get().IsRoutingPostLoad && NotifyType != EAnimDataModelNotifyType::BracketOpened;
+
 	switch (NotifyType)
 	{
 		case EAnimDataModelNotifyType::SequenceLengthChanged:
@@ -1369,6 +1372,8 @@ void UAnimSequenceBase::OnModelModified(const EAnimDataModelNotifyType& NotifyTy
 
 				const auto LengthChangingNotifies = { EAnimDataModelNotifyType::SequenceLengthChanged, EAnimDataModelNotifyType::FrameRateChanged, EAnimDataModelNotifyType::Reset, EAnimDataModelNotifyType::Populated };
 
+				bShouldMarkPackageDirty = NotifyCollector.WasDataModified();
+
 				if (NotifyCollector.Contains(CurveCopyNotifies) || NotifyCollector.Contains(LengthChangingNotifies))
 				{
 					CopyCurvesFromModel();
@@ -1382,6 +1387,18 @@ void UAnimSequenceBase::OnModelModified(const EAnimDataModelNotifyType& NotifyTy
 			}
 			break;
 		}
+	}
+
+	if (NotifyCollector.IsNotWithinBracket())
+	{
+		if (bShouldMarkPackageDirty)
+		{
+			MarkPackageDirty();
+		}
+	}
+	else if (bShouldMarkPackageDirty)
+	{
+		NotifyCollector.MarkDataModified();
 	}
 }
 
