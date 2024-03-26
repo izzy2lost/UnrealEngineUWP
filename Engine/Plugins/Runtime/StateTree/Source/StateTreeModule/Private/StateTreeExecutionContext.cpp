@@ -2934,6 +2934,34 @@ bool FStateTreeExecutionContext::SelectStateInternal(
 		return false;
 	}
 
+	if (NextState.ParameterDataHandle.IsValid())
+	{
+		// Instantiate state parameters if not done yet.
+		FStateTreeDataView NextStateParametersView = GetDataViewOrTemporary(CurrentParentFrame, CurrentFrame, NextState.ParameterDataHandle);
+		if (!NextStateParametersView.IsValid())
+		{
+			// Allocate temporary instance for parameters if the state has params.
+			const FConstStructView DefaultStateParamsInstanceData = CurrentFrame.StateTree->DefaultInstanceData.GetStruct(NextState.ParameterTemplateIndex.Get());
+			const FCompactStateTreeParameters& DefaultStateParams = DefaultStateParamsInstanceData.Get<const FCompactStateTreeParameters>();
+			if (DefaultStateParams.Parameters.IsValid())
+			{
+				FStateTreeDataView TempStateParametersView = AddTemporaryInstance(CurrentFrame, FStateTreeIndex16::Invalid, NextState.ParameterDataHandle, DefaultStateParamsInstanceData);
+				check(TempStateParametersView.IsValid());
+				FCompactStateTreeParameters& StateParams = TempStateParametersView.GetMutable<FCompactStateTreeParameters>();
+				NextStateParametersView = FStateTreeDataView(StateParams.Parameters.GetMutableValue());
+			}
+		}
+
+		// Copy parameters if needed
+		if (NextStateParametersView.IsValid()
+			&& NextState.ParameterDataHandle.IsValid()
+			&& NextState.ParameterBindingsBatch.IsValid())
+		{
+			// Note: the parameters are for the current (linked) state, stored in current frame.
+			CopyBatchWithValidation(CurrentParentFrame, CurrentFrame, NextStateParametersView, NextState.ParameterBindingsBatch);
+		}
+	}
+
 	// Check that the state can be entered
 	STATETREE_TRACE_PHASE_BEGIN(EStateTreeUpdatePhase::EnterConditions);
 	const bool bEnterConditionsPassed = TestAllConditions(CurrentParentFrame, CurrentFrame, NextState.EnterConditionsBegin, NextState.EnterConditionsNum);
@@ -2959,34 +2987,6 @@ bool FStateTreeExecutionContext::SelectStateInternal(
 			if (MatchingActiveHandle != NextStateHandle)
 			{
 				CurrentFrame.ActiveInstanceIndexBase = FStateTreeIndex16();
-			}
-		}
-		
-		if (NextState.ParameterDataHandle.IsValid())
-		{
-			// Instantiate state parameters if not done yet.
-			FStateTreeDataView NextStateParametersView = GetDataViewOrTemporary(CurrentParentFrame, CurrentFrame, NextState.ParameterDataHandle);
-			if (!NextStateParametersView.IsValid())
-			{
-				// Allocate temporary instance for parameters if the state has params.
-				const FConstStructView DefaultStateParamsInstanceData = CurrentFrame.StateTree->DefaultInstanceData.GetStruct(NextState.ParameterTemplateIndex.Get());
-				const FCompactStateTreeParameters& DefaultStateParams = DefaultStateParamsInstanceData.Get<const FCompactStateTreeParameters>();
-				if (DefaultStateParams.Parameters.IsValid())
-				{
-					FStateTreeDataView TempStateParametersView = AddTemporaryInstance(CurrentFrame, FStateTreeIndex16::Invalid, NextState.ParameterDataHandle, DefaultStateParamsInstanceData);
-					check(TempStateParametersView.IsValid());
-					FCompactStateTreeParameters& StateParams = TempStateParametersView.GetMutable<FCompactStateTreeParameters>();
-					NextStateParametersView = FStateTreeDataView(StateParams.Parameters.GetMutableValue());
-				}
-			}
-
-			// Copy parameters if needed
-			if (NextStateParametersView.IsValid()
-				&& NextState.ParameterDataHandle.IsValid()
-				&& NextState.ParameterBindingsBatch.IsValid())
-			{
-				// Note: the parameters are for the current (linked) state, stored in current frame.
-				CopyBatchWithValidation(CurrentParentFrame, CurrentFrame, NextStateParametersView, NextState.ParameterBindingsBatch);
 			}
 		}
 		
