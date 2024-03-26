@@ -93,7 +93,7 @@ namespace uba
 	,	m_server(info.server)
 	,	m_maxRemoteProcessCount(~0u)
 	{
-		m_server.RegisterOnClientDisconnected(ServiceId, [this](const Guid& clientUid, u32 clientId) { OnDisconnected(clientId); });
+		m_server.RegisterOnClientDisconnected(ServiceId, [this](const Guid& clientUid, u32 clientId) { OnDisconnected(clientUid, clientId); });
 
 		m_server.RegisterService(ServiceId,
 			[this](const ConnectionInfo& connectionInfo, u8 messageType, BinaryReader& reader, BinaryWriter& writer)
@@ -119,6 +119,7 @@ namespace uba
 		m_nameToHashTableEnabled = info.nameToHashTableEnabled;
 		m_memKillLoadPercent = info.memKillLoadPercent;
 		m_remoteLogEnabled = info.remoteLogEnabled;
+		m_remoteTraceEnabled = info.remoteTraceEnabled;
 
 		if (m_resetCas)
 			m_storage.Reset();
@@ -436,7 +437,7 @@ namespace uba
 		return m_server;
 	}
 
-	void SessionServer::OnDisconnected(u32 clientId)
+	void SessionServer::OnDisconnected(const Guid& clientUid, u32 clientId)
 	{
 		u32 returnCount = 0;
 		ScopedCriticalSection queueLock(m_remoteProcessAndSessionLock);
@@ -493,7 +494,7 @@ namespace uba
 			if (sessionName.IsEmpty())
 				sessionName.Append(TC("<can't find session>"));
 
-			m_logger.Info(TC("Client session %s disconnected. Returned %u process(s) to queue"), sessionName.data, returnCount);
+			m_logger.Info(TC("Client session %s (%s) disconnected. Returned %u process(s) to queue"), sessionName.data, GuidToString(clientUid).str, returnCount);
 		}
 
 		if (m_connectionCount)
@@ -610,6 +611,7 @@ namespace uba
 				writer.WriteU32(m_uiLanguage);
 				writer.WriteBool(m_detailedTrace);
 				writer.WriteBool(m_remoteLogEnabled);
+				writer.WriteBool(m_remoteTraceEnabled);
 				WriteRemoteEnvironmentVariables(writer);
 
 				m_trace.SessionAdded(sessionId, connectionInfo.GetId(), name.data, info.data); // Must be inside lock for TraceSessionUpdate() to not include
@@ -778,6 +780,16 @@ namespace uba
 						logPath.Append(m_sessionLogDir).Append(destination.data + 5);
 						m_storage.CopyOrLink(casKey, logPath.data, attributes);
 						m_storage.DropCasFile(casKey, false, logPath.data);
+						writer.WriteBool(true);
+						return true;
+					}
+
+					if (destination.StartsWith(TC("<uba>")))
+					{
+						StringBuffer<> ubaPath;
+						ubaPath.Append(m_sessionLogDir).AppendValue(connectionInfo.GetId()).Append(TC(".uba"));
+						m_storage.CopyOrLink(casKey, ubaPath.data, attributes);
+						m_storage.DropCasFile(casKey, false, ubaPath.data);
 						writer.WriteBool(true);
 						return true;
 					}

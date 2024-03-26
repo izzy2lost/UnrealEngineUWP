@@ -85,6 +85,11 @@ namespace uba
 		m_terminationReason = reason;
 	}
 
+	void SessionClient::SetMaxProcessCount(u32 count)
+	{
+		m_maxProcessCount = count;
+	}
+
 	u64 SessionClient::GetBestPing()
 	{
 		return m_bestPing;
@@ -92,6 +97,11 @@ namespace uba
 
 	bool SessionClient::RetrieveCasFile(CasKey& outNewKey, u64& outSize, const CasKey& casKey, const tchar* hint, bool storeUncompressed, bool allowProxy)
 	{
+		//StringBuffer<> workName;
+		//u32 len = TStrlen(hint);
+		//workName.Append(TC("RC:")).Append(len > 30 ? hint + (len - 30) : hint);
+		//TrackWorkScope tws(m_client, workName.data);
+
 		TimerScope s(m_stats.storageRetrieve);
 		CasKey tempKey = casKey;
 
@@ -488,16 +498,15 @@ namespace uba
 			if (!pair.second.mappingHandle.IsValid())
 				m_logger.Warning(TC("%s is not using file mapping"), pair.first.c_str());
 #endif
-			if (!SendFile(process, pair.second, pair.first.c_str()))
+			bool keepMappingInMemory = IsWindows && !IsRarelyReadAfterWritten(process, pair.first.c_str(), pair.first.size());
+			if (!SendFile(pair.second, pair.first.c_str(), process.GetId(), keepMappingInMemory))
 				return false;
 		}
 		return true;
 	}
 
-	bool SessionClient::SendFile(ProcessImpl& process, WrittenFile& source, const tchar* destination)
+	bool SessionClient::SendFile(WrittenFile& source, const tchar* destination, u32 processId, bool keepMappingInMemory)
 	{
-		bool keepMappingInMemory = IsWindows && !IsRarelyReadAfterWritten(process, destination, TStrlen(destination));
-
 		CasKey casKey;
 		{
 			TimerScope ts(m_stats.storageSend);
@@ -514,7 +523,7 @@ namespace uba
 		{
 			StackBinaryWriter<1024> writer;
 			NetworkMessage msg(m_client, ServiceId, SessionMessageType_SendFileToServer, writer);
-			writer.WriteU32(process.GetId());
+			writer.WriteU32(processId);
 			writer.WriteString(destination);
 			writer.WriteStringKey(source.key);
 			writer.WriteU32(source.attributes);
@@ -1040,8 +1049,20 @@ namespace uba
 		m_uiLanguage = reader.ReadU32();
 		m_detailedTrace = reader.ReadBool();
 		m_shouldSendLogToServer = reader.ReadBool();
+		m_shouldSendTraceToServer = reader.ReadBool();
+
 		if (m_shouldSendLogToServer)
 			m_logToFile = true;
+
+		if (m_shouldSendTraceToServer)
+		{
+			//if (m_detailedTrace)
+			{
+				m_client.SetWorkTracker(&m_trace);
+			}
+			StartTrace(nullptr);
+		}
+
 		BuildEnvironmentVariables(reader);
 
 		m_loop = true;
@@ -1263,7 +1284,7 @@ namespace uba
 			logFile = lastSlash + 1;
 		dest.Append(TC("<log>")).Append(logFile);
 		f.key = ToStringKeyLower(dest);
-		SendFile(pi, f, dest.data);
+		SendFile(f, dest.data, pi.GetId(), false);
 	}
 
 	void SessionClient::GetLogFileName(StringBufferBase& out, const tchar* logFile, const tchar* arguments)
@@ -1309,7 +1330,6 @@ namespace uba
 		u64 memRequiredToSpawn = u64(double(memTotal) * double(100 - m_memWaitLoadPercent) / 100.0);
 		u64 memRequiredFree = u64(double(memTotal) * double(100 - m_memKillLoadPercent) / 100.0);
 
-		float maxWeight = float(m_maxProcessCount);
 		float activeWeight = 0;
 		ReaderWriterLock activeWeightLock;
 
@@ -1357,6 +1377,7 @@ namespace uba
 
 		while (m_loop)
 		{
+			float maxWeight = float(m_maxProcessCount);
 			u32 waitTimeoutMs = 3000;
 
 			FlushDeadProcesses();
@@ -1624,6 +1645,37 @@ namespace uba
 		SendSummary();
 
 		m_client.FlushWork();
+
+
+		if (m_shouldSendTraceToServer)
+		{
+			m_client.SetWorkTracker(nullptr);
+
+			StopTraceThread();
+
+			StackBinaryWriter<SendMaxSize> writer;
+			WriteSummary(writer, [&](Logger& logger)
+				{
+					PrintSummary(logger);
+					m_storage.PrintSummary(logger);
+					m_client.PrintSummary(logger);
+					SystemStats::GetGlobal().Print(logger, true);
+				});
+			m_trace.SessionSummary(0, writer.GetData(), writer.GetPosition());
+
+			StringBuffer<> ubaFile(m_sessionLogDir);
+			ubaFile.Append(TC("Trace.uba"));
+			if (StopTrace(ubaFile.data))
+			{
+				WrittenFile f;
+				f.name = ubaFile.data;
+				f.attributes = DefaultAttributes();
+				StringBuffer<> dest(TC("<uba>"));
+				f.key = ToStringKeyLower(dest);
+
+				SendFile(f, dest.data, 0, false);
+			}
+		}
 	}
 
 	u32 SessionClient::CountLogLines(ProcessImpl& process)
@@ -1786,5 +1838,26 @@ namespace uba
 			reader.Reset();
 		}
 		return SendUpdateDirectoryTable(reader);
+	}
+
+	void SessionClient::TraceSessionUpdate()
+	{
+		float cpuLoad = 0.0f;//UpdateCpuLoad();
+		u64 send;
+		u64 recv;
+		if (auto backend = m_client.GetFirstConnectionBackend())
+		{
+			backend->GetTotalSendAndRecv(send, recv);
+		}
+		else
+		{
+			recv = m_client.GetTotalRecvBytes();
+			send = m_client.GetTotalSentBytes();
+		}
+		u64 memAvail = 0;//m_memAvail;
+		u64 memTotal = 0;//m_memTotal;
+
+		// send and recv are swapped on purpose because that is how visualizer is visualizing 
+		m_trace.SessionUpdate(0, 0, send, recv, 0, memAvail, memTotal, cpuLoad);
 	}
 }

@@ -38,6 +38,7 @@ namespace uba
 		void Stop();
 		bool Wait(u32 milliseconds = 0xFFFFFFFF, Event* wakeupEvent = nullptr);
 		void SetIsTerminating(const tchar* reason = TC("Terminating"), u64 delayMs = 0); // Session stores pointer directly. Can't be temporary
+		void SetMaxProcessCount(u32 count);
 
 		u64 GetBestPing();
 
@@ -61,6 +62,7 @@ namespace uba
 		virtual bool CustomMessage(Process& process, BinaryReader& reader, BinaryWriter& writer) override;
 		virtual bool FlushWrittenFiles(ProcessImpl& process) override;
 		virtual bool UpdateEnvironment(ProcessImpl& process, const tchar* reason, bool resetStats) override;
+		virtual void TraceSessionUpdate() override;
 
 		struct InternalProcessStartInfo;
 
@@ -69,7 +71,7 @@ namespace uba
 		bool EnsureBinaryFile(StringBufferBase& out, StringBufferBase& outVirtual, u32 processId, const StringBufferBase& fileName, const StringKey& fileNameKey, const tchar* applicationDir);
 		bool WriteBinFile(StringBufferBase& out, const tchar* binaryName, const CasKey& casKey, const KeyToString& applicationDir, u32 fileAttributes);
 		bool SendFiles(ProcessImpl& process, Timer& sendFiles);
-		bool SendFile(ProcessImpl& process, WrittenFile& source, const tchar* destination);
+		bool SendFile(WrittenFile& source, const tchar* destination, u32 processId, bool keepMappingInMemory);
 		bool SendUpdateDirectoryTable(StackBinaryReader<SendMaxSize>& reader); // Note, reader is sent in to save stack space.
 		bool UpdateDirectoryTableFromServer(StackBinaryReader<SendMaxSize>& reader);
 		bool SendUpdateNameToHashTable(StackBinaryReader<SendMaxSize>& reader);
@@ -93,7 +95,6 @@ namespace uba
 		StringBuffer<128> m_name;
 		StringBuffer<MaxPath> m_processWorkingDir;
 		u32 m_sessionId = 0;
-		u32 m_maxProcessCount = 1;
 		u32 m_uiLanguage = 0;
 		u32 m_defaultPriorityClass;
 		u32 m_outputStatsThresholdMs = 0;
@@ -108,10 +109,12 @@ namespace uba
 		bool m_dedicated = false;
 		bool m_useStorage = true;
 		bool m_shouldSendLogToServer = false;
+		bool m_shouldSendTraceToServer = false;
 		bool m_remoteExecutionEnabled = true;
 		
 		Atomic<const tchar*> m_terminationReason;
 		Atomic<u64> m_terminationTime;
+		Atomic<u32> m_maxProcessCount;
 
 		ReaderWriterLock m_handledApplicationEnvironmentsLock;
 		UnorderedSet<TString> m_handledApplicationEnvironments;
