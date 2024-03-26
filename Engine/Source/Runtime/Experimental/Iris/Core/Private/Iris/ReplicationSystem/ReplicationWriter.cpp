@@ -677,6 +677,17 @@ void FReplicationWriter::UpdateScope(const FNetBitArrayView& UpdatedScope)
 				ObjectsWithDirtyChanges.SetBitValue(Index, Info.HasDirtyChangeMask);
 			}
 		}
+		else if (State == EReplicatedObjectState::WaitOnCreateConfirmation)
+		{
+			// Need to restore as we might have been in case where we was pending destroy
+			ObjectsPendingDestroy.ClearBit(Index);
+			Info.FlushFlags = GetDefaultFlushFlags();
+
+			// If we have accumulated changes while waiting on flush, we should send them now
+			Info.SubObjectPendingDestroy = 0U;
+			Info.HasDirtyChangeMask |= FNetBitArrayView(Info.GetChangeMaskStoragePointer(), Info.ChangeMaskBitCount).IsAnyBitSet();
+			ObjectsWithDirtyChanges.SetBitValue(Index, Info.HasDirtyChangeMask);
+		}
 		else if (State == EReplicatedObjectState::WaitOnDestroyConfirmation || State == EReplicatedObjectState::CancelPendingDestroy)
 		{
 			// Need to clear the pending destroy bit or else the object will be masked out of ObjectsInScope.
@@ -773,12 +784,16 @@ void FReplicationWriter::UpdateScope(const FNetBitArrayView& UpdatedScope)
 			{
 				// Store info about what we need to flush
 				Info.FlushFlags = FlushFlags;
-				SetState(Index, EReplicatedObjectState::WaitOnFlush);
 
-				// If we do not have any state data to flush we can clear the has dirty states flag
-				if ((FlushFlags & FlushFlags_FlushState) == 0U)
+				if (State != EReplicatedObjectState::WaitOnCreateConfirmation)
 				{
-					Info.HasDirtyChangeMask = 0U;
+					SetState(Index, EReplicatedObjectState::WaitOnFlush);
+
+					// If we do not have any state data to flush we can clear the has dirty states flag
+					if ((FlushFlags & FlushFlags_FlushState) == 0U)
+					{
+						Info.HasDirtyChangeMask = 0U;
+					}
 				}
 
 				// Mark object as pending destroy so that we can poll the flush status in WriteObjectPendingDestroy
@@ -1042,6 +1057,11 @@ void FReplicationWriter::HandleDeliveredRecord(const FReplicationRecord::FRecord
 					{
 						SetState(InternalIndex, EReplicatedObjectState::WaitOnFlush);
 					}
+					// so are objects marked for destroy requiring flush
+					else if (ObjectsPendingDestroy.GetBit(InternalIndex))
+					{
+						SetState(InternalIndex, EReplicatedObjectState::WaitOnFlush);
+					}
 				}
 			}
 			Info.IsCreationConfirmed = 1U;
@@ -1109,12 +1129,12 @@ void FReplicationWriter::HandleDeliveredRecord(const FReplicationRecord::FRecord
 	if (Info.GetState() == EReplicatedObjectState::WaitOnFlush)
 	{
 		bool bStillPendingFlush = false;
-		if (RecordInfo.HasChangeMask && !!(Info.FlushFlags & EFlushFlags::FlushFlags_FlushState))
+		if ((RecordInfo.HasChangeMask || Info.HasDirtyChangeMask) && !!(Info.FlushFlags & EFlushFlags::FlushFlags_FlushState))
 		{
 			bStillPendingFlush |= (Info.HasDirtyChangeMask || HasInFlightStateChanges(ReplicationRecord.GetInfoForIndex(RecordInfo.NextIndex)) || IsObjectPartOfActiveHugeObject(InternalIndex));
 		}
 
-		if (RecordInfo.HasAttachments && !!(Info.FlushFlags & FlushFlags_FlushReliable))
+		if ((RecordInfo.HasAttachments || Info.HasAttachments) && !!(Info.FlushFlags & FlushFlags_FlushReliable))
 		{
 			bStillPendingFlush |= !Attachments.IsAllReliableSentAndAcked(ENetObjectAttachmentType::Normal, InternalIndex);
 		}
@@ -1208,44 +1228,55 @@ void FReplicationWriter::HandleDroppedRecord<FReplicationWriter::EReplicatedObje
 
 	if (CurrentState < EReplicatedObjectState::Created)
 	{
-		// Mark object as having dirty changes
-		MarkObjectDirty(InternalIndex, "DroppedWaitOnCreate");
-
-		// Resend creation data
-		SetState(InternalIndex, EReplicatedObjectState::PendingCreate);
-
-		// Must also restore changemask
-		FNetBitArrayView ChangeMask(Info.GetChangeMaskStoragePointer(), Info.ChangeMaskBitCount);
-		FNetBitArrayView LostChangeMask = FChangeMaskUtil::MakeChangeMask(RecordInfo.ChangeMaskOrPtr, Info.ChangeMaskBitCount);
-		ChangeMask.Combine(LostChangeMask, FNetBitArrayView::OrOp);
-
-		// Mark changemask dirty
-		Info.HasDirtyChangeMask = 1U;
-
-		// Indicate that we have dirty subobjects
-		Info.HasDirtySubObjects = 1U;
-
-		// Mark attachments as dirty
-		Info.HasAttachments |= RecordInfo.HasAttachments;
-
-		if (Info.IsSubObject)
+		// Until we have implemented cached creation info we cannot send creation info for destroyed objects
+		// So we just have to StopReplication
+		const bool bCanSendCreationInfo = !ObjectsPendingDestroy.GetBit(InternalIndex);
+		if (bCanSendCreationInfo)
 		{
-			// Mark owner dirty as well as subobjects only are scheduled together with owner
-			const FNetRefHandleManager::FReplicatedObjectData& ObjectData = NetRefHandleManager->GetReplicatedObjectData(InternalIndex);
-			uint32 SubObjectOwnerInternalIndex = ObjectData.SubObjectRootIndex;
+			// Mark object as having dirty changes
+			MarkObjectDirty(InternalIndex, "DroppedWaitOnCreate");
 
-			FReplicationInfo& SubObjectOwnerReplicationInfo = GetReplicationInfo(SubObjectOwnerInternalIndex);
-			if (ensure(SubObjectOwnerReplicationInfo.GetState() < EReplicatedObjectState::PendingDestroy))
+			// Resend creation data
+			SetState(InternalIndex, EReplicatedObjectState::PendingCreate);
+
+			// Must also restore changemask
+			FNetBitArrayView ChangeMask(Info.GetChangeMaskStoragePointer(), Info.ChangeMaskBitCount);
+			FNetBitArrayView LostChangeMask = FChangeMaskUtil::MakeChangeMask(RecordInfo.ChangeMaskOrPtr, Info.ChangeMaskBitCount);
+			ChangeMask.Combine(LostChangeMask, FNetBitArrayView::OrOp);
+
+			// Mark changemask dirty
+			Info.HasDirtyChangeMask = 1U;
+
+			// Indicate that we have dirty subobjects
+			Info.HasDirtySubObjects = 1U;
+
+			// Mark attachments as dirty
+			Info.HasAttachments |= RecordInfo.HasAttachments;
+
+			if (Info.IsSubObject)
 			{
-				// Mark owner as dirty
-				MarkObjectDirty(SubObjectOwnerInternalIndex, "DroppedWaitOnCreate2");
+				// Mark owner dirty as well as subobjects only are scheduled together with owner
+				const FNetRefHandleManager::FReplicatedObjectData& ObjectData = NetRefHandleManager->GetReplicatedObjectData(InternalIndex);
+				uint32 SubObjectOwnerInternalIndex = ObjectData.SubObjectRootIndex;
 
-				// Indicate that we have dirty subobjects
-				SubObjectOwnerReplicationInfo.HasDirtySubObjects = 1U;
+				FReplicationInfo& SubObjectOwnerReplicationInfo = GetReplicationInfo(SubObjectOwnerInternalIndex);
+				if (ensure(SubObjectOwnerReplicationInfo.GetState() < EReplicatedObjectState::PendingDestroy))
+				{
+					// Mark owner as dirty
+					MarkObjectDirty(SubObjectOwnerInternalIndex, "DroppedWaitOnCreate2");
 
-				// Give slight priority bump to owner
-				SchedulingPriorities[SubObjectOwnerInternalIndex] += FReplicationWriter::LostStatePriorityBump;
+					// Indicate that we have dirty subobjects
+					SubObjectOwnerReplicationInfo.HasDirtySubObjects = 1U;
+
+					// Give slight priority bump to owner
+					SchedulingPriorities[SubObjectOwnerInternalIndex] += FReplicationWriter::LostStatePriorityBump;
+				}
 			}
+		}
+		else
+		{
+			SetState(InternalIndex, EReplicatedObjectState::PendingCreate);
+			StopReplication(InternalIndex);
 		}
 	}
 	else if (CurrentState == EReplicatedObjectState::SubObjectPendingDestroy)

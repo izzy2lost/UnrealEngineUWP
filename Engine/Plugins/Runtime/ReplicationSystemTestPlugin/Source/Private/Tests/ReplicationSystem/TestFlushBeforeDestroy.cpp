@@ -106,6 +106,125 @@ UE_NET_TEST_FIXTURE(FTestFlushBeforeDestroyFixture, TestReliableAttachmentFlushe
 	UE_NET_ASSERT_TRUE(Client->GetReplicationBridge()->GetReplicatedObject(ObjectHandle) == nullptr);
 }
 
+// This test exercises what was a bad case where we was posting RPC:s to a not yet confirmed objects which also was marked for destroy
+// This put the replication system in a state where it wrote data that the client could not process.
+// Currently we will just drop the data if the initial create packet is lost as we cannot yet send creation info for
+// destroyed objects.
+UE_NET_TEST_FIXTURE(FTestFlushBeforeDestroyFixture, TestReliableAttachmentFlushedWithPendingCreationLostBeforeDestroy)
+{
+	FReplicationSystemTestClient* Client = CreateClient();
+	RegisterNetBlobHandlers(Client);
+
+	UReplicatedTestObject* ServerObject = Server->CreateObject(0, 0);
+	FNetRefHandle ObjectHandle = ServerObject->NetRefHandle;
+
+	// Setup a situation where we have creation info in flight when the object is destroyed
+
+	// Send creation info
+	Server->PreSendUpdate();
+	Server->SendTo(Client, TEXT("WaitOnCreateConfirmation"));
+	Server->PostSendUpdate();
+
+	// Create attachment
+	{
+		constexpr uint32 PayloadBitCount = 24;
+		const TRefCountPtr<FNetObjectAttachment>& Attachment = MockNetObjectAttachmentHandler->CreateReliableNetObjectAttachment(PayloadBitCount);
+		FNetObjectReference AttachmentTarget = FObjectReferenceCache::MakeNetObjectReference(ServerObject->NetRefHandle);
+		Server->GetReplicationSystem()->QueueNetObjectAttachment(Client->ConnectionIdOnServer, AttachmentTarget, Attachment);
+	}
+
+	// Destroy object, on server
+	Server->DestroyObject(ServerObject);
+
+	// Previously this would issue a flush and send the attachment data even though creation was not yet confirmed leading to a client disconnect..
+	Server->PreSendUpdate();
+	const bool bDataWasSent = Server->SendTo(Client, TEXT("State should still be WaitOnCreateConfirmation"));
+	Server->PostSendUpdate();
+
+	// We do not expect any data to be in this packet.
+	UE_NET_ASSERT_FALSE(bDataWasSent);
+
+	// Drop the data and notify server
+	Server->DeliverTo(Client, false);
+
+	// Deliver data
+	if (bDataWasSent)
+	{
+		// Caused bitstream error on client.
+		Server->DeliverTo(Client, true);
+	}
+
+	// Update to drive the last transition which we expect to be
+	Server->UpdateAndSend({Client});
+
+	// Verify that the attachment has not received
+	UE_NET_ASSERT_EQ(ClientMockNetObjectAttachmentHandler->GetFunctionCallCounts().OnNetBlobReceived, 0U);
+
+	// Verify that object does not exist
+	UE_NET_ASSERT_TRUE(Client->GetReplicationBridge()->GetReplicatedObject(ObjectHandle) == nullptr);
+}
+
+UE_NET_TEST_FIXTURE(FTestFlushBeforeDestroyFixture, TestReliableAttachmentFlushedWithPendingCreationInflightBeforeDestroy)
+{
+	FReplicationSystemTestClient* Client = CreateClient();
+	RegisterNetBlobHandlers(Client);
+
+	UReplicatedTestObject* ServerObject = Server->CreateObject(0, 0);
+	FNetRefHandle ObjectHandle = ServerObject->NetRefHandle;
+
+	// Setup a situation where we have creation info in flight when the object is destroyed
+
+	// Send creation info
+	Server->PreSendUpdate();
+	Server->SendTo(Client, TEXT("WaitOnCreateConfirmation"));
+	Server->PostSendUpdate();
+
+	// Create attachment
+	{
+		constexpr uint32 PayloadBitCount = 24;
+		const TRefCountPtr<FNetObjectAttachment>& Attachment = MockNetObjectAttachmentHandler->CreateReliableNetObjectAttachment(PayloadBitCount);
+		FNetObjectReference AttachmentTarget = FObjectReferenceCache::MakeNetObjectReference(ServerObject->NetRefHandle);
+		Server->GetReplicationSystem()->QueueNetObjectAttachment(Client->ConnectionIdOnServer, AttachmentTarget, Attachment);
+	}
+
+	// Destroy object, on server
+	Server->DestroyObject(ServerObject);
+
+	// Previously this would issue a flush and send data before creation is confirmed.
+	Server->PreSendUpdate();
+	const bool bDataWasSentInError = Server->SendTo(Client, TEXT("State should still be WaitOnCreateConfirmation"));
+	Server->PostSendUpdate();
+	
+	// We do not expect any data to be in this packet.
+	UE_NET_ASSERT_FALSE(bDataWasSentInError);
+
+	// Deliver the packet with CreationInfo
+	Server->DeliverTo(Client, true);
+
+	// Deliver data if we sent data.
+	if (bDataWasSentInError)
+	{
+		// Caused bitstream error on client.
+		Server->DeliverTo(Client, true);
+	}
+
+	// Expected to write the attachment
+	Server->PreSendUpdate();
+	Server->SendAndDeliverTo(Client, DeliverPacket, TEXT("WaitOnFlush"));
+	Server->PostSendUpdate();
+
+	// Verify that the attachment has not received
+	UE_NET_ASSERT_EQ(ClientMockNetObjectAttachmentHandler->GetFunctionCallCounts().OnNetBlobReceived, 1U);
+
+	// Expected to destroy the object
+	Server->PreSendUpdate();
+	Server->SendAndDeliverTo(Client, DeliverPacket, TEXT("Destroy"));
+	Server->PostSendUpdate();
+
+	// Verify that object does not exist
+	UE_NET_ASSERT_TRUE(Client->GetReplicationBridge()->GetReplicatedObject(ObjectHandle) == nullptr);
+}
+
 UE_NET_TEST_FIXTURE(FTestFlushBeforeDestroyFixture, TestReliableAttachmentSubObjectFlushedBeforeDestroy)
 {
 	FReplicationSystemTestClient* Client = CreateClient();
