@@ -12,6 +12,7 @@ struct FHorde
 {
 	HORDE_API static FString GetTemplateName();
 	HORDE_API static FString GetTemplateId();
+	HORDE_API static FString GetServerURL();
 	HORDE_API static FString GetJobId();
 	HORDE_API static FString GetJobURL();
 	HORDE_API static FString GetStepId();

@@ -130,3 +130,17 @@ FString FHorde::GetBatchId()
 	}
 	return BatchId;
 } 
+
+FString FHorde::GetServerURL()
+{
+	static FString ServerURL;
+
+	if (ServerURL.IsEmpty())
+	{
+		if (false == FParse::Value(FCommandLine::Get(), TEXT("HordeServerUrl="), ServerURL))
+		{
+			ServerURL = FPlatformMisc::GetEnvironmentVariable(TEXT("UE_HORDE_URL"));
+		}
+	}
+	return ServerURL;
+}

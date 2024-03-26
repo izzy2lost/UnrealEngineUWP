@@ -21,6 +21,11 @@
 			"LoadingPhase": "PostConfigInit"
 		},
 		{
+			"Name": "AnalyticsHorde",
+			"Type": "EditorAndProgram",
+			"LoadingPhase": "PostConfigInit"
+		},
+		{
 			"Name": "StudioTelemetry",
 			"Type": "EditorAndProgram",
 			"LoadingPhase": "PostConfigInit"
