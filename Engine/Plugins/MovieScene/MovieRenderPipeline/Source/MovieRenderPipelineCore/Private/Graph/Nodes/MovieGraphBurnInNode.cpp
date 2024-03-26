@@ -32,10 +32,10 @@ FLinearColor UMovieGraphBurnInNode::GetNodeTitleColor() const
 
 FSlateIcon UMovieGraphBurnInNode::GetIconAndTint(FLinearColor& OutColor) const
 {
-	static const FSlateIcon DeferredRendererIcon = FSlateIcon(FAppStyle::GetAppStyleSetName(), "SequenceRecorder.TabIcon");
+	static const FSlateIcon BurnInIcon = FSlateIcon(FAppStyle::GetAppStyleSetName(), "SequenceRecorder.TabIcon");
 
 	OutColor = FLinearColor::White;
-	return DeferredRendererIcon;
+	return BurnInIcon;
 }
 #endif	// WITH_EDITOR
 

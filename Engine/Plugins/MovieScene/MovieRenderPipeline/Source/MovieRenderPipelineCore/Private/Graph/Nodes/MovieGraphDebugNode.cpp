@@ -25,7 +25,7 @@ FLinearColor UMovieGraphDebugSettingNode::GetNodeTitleColor() const
 
 FSlateIcon UMovieGraphDebugSettingNode::GetIconAndTint(FLinearColor& OutColor) const
 {
-	static const FSlateIcon Icon = FSlateIcon(FAppStyle::GetAppStyleSetName(), "DebugTools.TabIcon");
+	static const FSlateIcon Icon = FSlateIcon(FAppStyle::GetAppStyleSetName(), "LevelEditor.Tabs.Debug");
 
 	OutColor = FLinearColor::White;
 	return Icon;
