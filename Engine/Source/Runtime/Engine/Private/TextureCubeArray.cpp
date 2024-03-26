@@ -825,18 +825,6 @@ void UTextureCubeArray::GetAssetRegistryTags(FAssetRegistryTagsContext Context) 
 	Context.AddTag(FAssetRegistryTag("Dimensions", Dimensions, FAssetRegistryTag::TT_Dimensional));
 	Context.AddTag(FAssetRegistryTag("Format", GPixelFormats[GetPixelFormat()].Name, FAssetRegistryTag::TT_Alphabetical));
 
-#if WITH_EDITORONLY_DATA
-	const int32 SurfaceWidth = static_cast<int32>(GetSurfaceWidth());
-	const int32 SurfaceHeight = static_cast<int32>(GetSurfaceHeight());
-	const int32 SurfaceDepth = static_cast<int32>(GetSurfaceDepth());
-	const int32 MaxResMipBias = GetCachedLODBias();
-	const int32 MaxInGameWidth = SurfaceWidth ? FMath::Max(SurfaceWidth >> MaxResMipBias, 1) : 0;
-	const int32 MaxInGameHeight = SurfaceHeight ? FMath::Max(SurfaceHeight >> MaxResMipBias, 1) : 0;
-
-	Context.AddTag(FAssetRegistryTag("MaxInGameX", FString::FromInt(MaxInGameWidth), FAssetRegistryTag::TT_Numerical));
-	Context.AddTag(FAssetRegistryTag("MaxInGameY", FString::FromInt(MaxInGameHeight), FAssetRegistryTag::TT_Numerical));
-#endif
-
 	Super::GetAssetRegistryTags(Context);
 }
 
