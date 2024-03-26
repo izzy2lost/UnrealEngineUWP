@@ -75,6 +75,10 @@ private:
 	static float GetShortestWrappedDistance(float To, float From, int32 NumFrames);
 	// Computes a weighted average between ValueA and ValueB, applying wrapping logic to both the calculation and the result.
 	static float GetWrappedWeightedAverage(float ValueA, float WeightA, float ValueB, float WeightB, int32 NumFrames);
+	// Rounds up to the next multiple of r.SparseVolumeTexture.Streaming.RequestSizeGranularity
+	static int64 ApplyDiscretization(int64 Value);
+	// Get the streaming size of the fractional mip level. GetStreamingSize(MipLevel) * FrameRate is the required peak bandwidth in bytes/s.
+	int64 GetStreamingSize(float MipLevel) const;
 };
 
 }
