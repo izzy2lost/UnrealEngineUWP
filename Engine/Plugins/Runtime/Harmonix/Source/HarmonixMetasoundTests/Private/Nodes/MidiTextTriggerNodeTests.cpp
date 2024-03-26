@@ -33,9 +33,8 @@ namespace HarmonixMetasoundTests::MidiTextTriggerNode
 		FMidiEvent ASecondTextEvent(TheMidi->GetSongMaps()->MsToTick(15.0f), FMidiMsg::CreateText(TextIndex, Harmonix::Midi::Constants::GMeta_Text));
 		TextTrack->AddEvent(ASecondTextEvent);
 		// Tell the midi file its tracks have been changed so it can recalculate song length data...
-		TheMidi->TracksChanged();
+		TheMidi->ScanTracksForSongLengthChange();
 		// Now round appropriately...
-		TheMidi->ConformMidiFileLength(EMidiFileLengthConformOption::RoundUp);
 		return TheMidi;
 	}
 

@@ -265,7 +265,6 @@ namespace HarmonixMetasoundTests::MidiPlayerNode
 
 			// create conductor track
 			FMidiTrack& Track = OutMidiData->Tracks.Add_GetRef(FMidiTrack(TEXT("conductor")));
-			OutMidiData->LastEventTick = std::numeric_limits<int32>::max();
 
 			// add time sig info
 			int32 TimeSigNum = FMath::Clamp(InTimeSigNum, 1, 64);
