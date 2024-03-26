@@ -55,6 +55,11 @@ FCustomizableObjectCompiler::FCustomizableObjectCompiler() : FCustomizableObject
 
 bool FCustomizableObjectCompiler::Tick()
 {
+	if (CompileTask)
+	{
+		CompileTask->Tick();
+	}
+	
 	bool bUpdated = false;
 
 	if (CompileTask.IsValid() && CompileTask->IsCompleted())

@@ -148,27 +148,7 @@ uint32 FCustomizableObjectCompileRunnable::Run()
 
 	auto ProviderTick = [this](float)
 		{
-			check(IsInGameThread());
-
-			constexpr double MaxSecondsPerFrame = 0.4;
-
-			double MaxTime = FPlatformTime::Seconds() + MaxSecondsPerFrame;
-
-			FReferenceResourceRequest Request;
-			while (PendingResourceReferenceRequests.Dequeue(Request))
-			{
-				*Request.ResolvedImage = LoadResourceReferenced(Request.ID);
-				Request.CompletionEvent->Trigger();
-
-				// Simple time limit enforcement to avoid blocking the game thread if there are many requests.
-				double CurrentTime = FPlatformTime::Seconds();
-				if (CurrentTime >= MaxTime)
-				{
-					break;
-				}
-			}
-
-			return true;
+			Tick();
 		};
 
 	CompilerOptions->SetReferencedResourceCallback([this, &ProviderTick](int32 ID, TSharedPtr<mu::Ptr<mu::Image>> ResolvedImage, bool bRunImmediatlyIfPossible)
@@ -192,9 +172,6 @@ uint32 FCustomizableObjectCompileRunnable::Run()
 		}, 
 		ProviderTick
 	);
-
-	// Register the tick function that will process the game-thread image reference resolve requests.
-	FTSTicker::FDelegateHandle ResolveReferenceResourcesTickerHandle = FTSTicker::GetCoreTicker().AddTicker(FTickerDelegate::CreateLambda(ProviderTick));
 
 	const int32 MinResidentMips = UTexture::GetStaticMinTextureResidentMipCount();
 	CompilerOptions->SetDataPackingStrategy( MinResidentMips, Options.EmbeddedDataBytesLimit, Options.PackagedDataBytesLimit );
@@ -248,8 +225,6 @@ uint32 FCustomizableObjectCompileRunnable::Run()
 
 	bThreadCompleted = true;
 
-	FTSTicker::GetCoreTicker().RemoveTicker( ResolveReferenceResourcesTickerHandle );
-
 	UE_LOG(LogMutable, Verbose, TEXT("PROFILE: [ %16.8f ] FCustomizableObjectCompileRunnable::Run end."), FPlatformTime::Seconds());
 
 	CompilerOptions->LogStats();
@@ -269,6 +244,30 @@ bool FCustomizableObjectCompileRunnable::IsCompleted() const
 const TArray<FCustomizableObjectCompileRunnable::FError>& FCustomizableObjectCompileRunnable::GetArrayErrors() const
 {
 	return ArrayErrors;
+}
+
+
+void FCustomizableObjectCompileRunnable::Tick()
+{
+	check(IsInGameThread());
+
+	constexpr double MaxSecondsPerFrame = 0.4;
+
+	double MaxTime = FPlatformTime::Seconds() + MaxSecondsPerFrame;
+
+	FReferenceResourceRequest Request;
+	while (PendingResourceReferenceRequests.Dequeue(Request))
+	{
+		*Request.ResolvedImage = LoadResourceReferenced(Request.ID);
+		Request.CompletionEvent->Trigger();
+
+		// Simple time limit enforcement to avoid blocking the game thread if there are many requests.
+		double CurrentTime = FPlatformTime::Seconds();
+		if (CurrentTime >= MaxTime)
+		{
+			break;
+		}
+	}
 }
 
 

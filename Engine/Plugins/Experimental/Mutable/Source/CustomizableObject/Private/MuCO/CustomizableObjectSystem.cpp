@@ -2504,6 +2504,8 @@ bool UCustomizableObjectSystem::Tick(float DeltaTime)
 int32 UCustomizableObjectSystem::TickInternal()
 {
 	MUTABLE_CPUPROFILER_SCOPE(UCustomizableObjectSystem::TickInternal)
+
+	check(IsInGameThread());
 	
 	// Building instances is not enabled in servers. If at some point relevant collision or animation data is necessary for server logic this will need to be changed.
 #if UE_SERVER
@@ -2741,10 +2743,16 @@ int32 UCustomizableObjectSystem::TickInternal()
 		}
 	}
 
-	return Private->CurrentMutableOperation.IsValid() + 
+	int32 RemainingWork = Private->CurrentMutableOperation.IsValid() + 
 		Private->MutablePendingInstanceWork.Num() +
-		!!LODUpdateCandidateFound + // Still a pending LOD update. We can not use the size of RequestedLODUpdates since not all requests valid in future ticks.
+		static_cast<bool>(LODUpdateCandidateFound) + // Still a pending LOD update. We can not use the size of RequestedLODUpdates since not all requests valid in future ticks.
 		RemainingTasks;
+
+#if WITH_EDITOR
+	RemainingWork += static_cast<bool>(GetPrivate()->RecompileCustomizableObjectsCompiler); // Compiler only is valid if we are compiling a CO.
+#endif
+	
+	return RemainingWork;
 }
 
 
