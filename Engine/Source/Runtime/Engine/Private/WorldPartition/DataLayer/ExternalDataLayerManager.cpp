@@ -886,7 +886,7 @@ bool UExternalDataLayerManager::OnActorExternalDataLayerAssetChanged(AActor* InA
 #endif
 	
 	const FString ActorPackageName = InActor->GetExternalPackage()->GetName();
-	const FString NewActorPackageName = GetActorPackageName(ExternalDataLayerAsset, InActor->GetLevel(), InActor->GetName());
+	const FString NewActorPackageName = GetActorPackageName(ExternalDataLayerAsset, InActor->GetLevel(), InActor->GetPathName());
 	check(NewActorPackageName == ActorPackageName);
 	return (NewActorPackageName == ActorPackageName);
 }
