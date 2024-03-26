@@ -75,6 +75,10 @@ ESpawnRequestStatus UServerInstancedActorsSpawnerSubsystem::SpawnActor(FConstStr
 	InOutSpawnParameters.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
 
 	OutSpawnedActor = World->SpawnActor<AActor>(SpawnRequest.Template, SpawnRequest.Transform, InOutSpawnParameters);
+	// @todo this is a temporary solution, the whole idea is yucky and needs to be reimplemented.
+	// Before this addition TransientActorBeingSpawned was only being set in Juno's custom 
+	// InOutSpawnParameters.CustomPreSpawnInitalization delegate
+	TransientActorBeingSpawned = OutSpawnedActor;
 
 	// Add an UInstancedActorsComponent if one isn't present and ensure replication is enabled to replicate the InstanceHandle 
 	// to clients for Mass entity matchup in UInstancedActorsComponent::OnRep_InstanceHandle
@@ -111,7 +115,7 @@ void UServerInstancedActorsSpawnerSubsystem::OnInstancedActorComponentInitialize
 	if (InstancedActorComponent.GetOwner() == TransientActorBeingSpawned)
 	{
 		// Pass the IA instance responsible for spawning this actor. Importantly the UInstancedActorsComponent will now have a link
-		// to Mass before / by the time it recieves BeginPlay.
+		// to Mass before / by the time it receives BeginPlay.
 		check(TransientActorSpawningInstance.IsValid());
 		InstancedActorComponent.InitializeComponentForInstance(TransientActorSpawningInstance);
 	}
