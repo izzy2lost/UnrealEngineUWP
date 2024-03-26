@@ -28,19 +28,7 @@ FStaticMeshBatch::~FStaticMeshBatch()
 }
 
 
-FStaticMeshBatchRelevance::FStaticMeshBatchRelevance(
-	const FStaticMeshBatch& StaticMesh, 
-	float InScreenSize, 
-	bool InbSupportsCachingMeshDrawCommands, 
-	bool InbUseSkyMaterial, 
-	bool bInUseSingleLayerWaterMaterial, 
-	bool bInUseAnisotropy, 
-	bool bInSupportsNaniteRendering, 
-	bool bInSupportsGPUScene, 
-	bool bInUseForWaterInfoTextureDepth, 
-	bool bInUseForLumenSceneCapture, 
-	uint8 InDecalRenderTargetModeMask,
-	ERHIFeatureLevel::Type FeatureLevel)
+FStaticMeshBatchRelevance::FStaticMeshBatchRelevance(const FStaticMeshBatch& StaticMesh, float InScreenSize, bool InbSupportsCachingMeshDrawCommands, bool InbUseSkyMaterial, bool bInUseSingleLayerWaterMaterial, bool bInUseAnisotropy, bool bInSupportsNaniteRendering, bool bInSupportsGPUScene, bool bInUseForWaterInfoTextureDepth, bool bInUseForLumenSceneCapture, ERHIFeatureLevel::Type FeatureLevel)
 	: Id(StaticMesh.Id)
 	, ScreenSize(InScreenSize)
 	, NumElements(StaticMesh.Elements.Num())
@@ -64,7 +52,6 @@ FStaticMeshBatchRelevance::FStaticMeshBatchRelevance(
 	, bSupportsGPUScene(bInSupportsGPUScene)
 	, bUseForWaterInfoTextureDepth(bInUseForWaterInfoTextureDepth)
 	, bUseForLumenSceneCapture(bInUseForLumenSceneCapture)
-	, DecalRenderTargetModeMask(InDecalRenderTargetModeMask)
 {
 }
 

@@ -563,7 +563,7 @@ void CollectDeferredDecalPassPSOInitializers(
 
 void AddDeferredDecalPass(
 	FRDGBuilder& GraphBuilder,
-	FViewInfo& View,
+	const FViewInfo& View,
 	TConstArrayView<FTransientDecalRenderData> VisibleDecals,
 	const FDeferredDecalPassTextures& PassTextures,
 	FInstanceCullingManager& InstanceCullingManager,
@@ -601,8 +601,7 @@ void AddDeferredDecalPass(
 		INC_DWORD_STAT_BY(STAT_Decals, SortedDecalCount);
 	}
 
-	const bool bHasAnyDrawCommandDecalCount = HasAnyDrawCommandDecalCount(DecalRenderStage, View);
-	const bool bVisibleDecalsInView = MeshDecalCount > 0 || SortedDecalCount > 0 || bHasAnyDrawCommandDecalCount;
+	const bool bVisibleDecalsInView = MeshDecalCount > 0 || SortedDecalCount > 0;
 	const bool bShaderComplexity = View.Family->EngineShowFlags.ShaderComplexity;
 	const bool bStencilSizeThreshold = CVarStencilSizeThreshold.GetValueOnRenderThread() >= 0;
 
@@ -692,7 +691,7 @@ void AddDeferredDecalPass(
 	{
 		RDG_EVENT_SCOPE(GraphBuilder, "DeferredDecals %s", GetStageName(DecalRenderStage));
 
-		if ((MeshDecalCount > 0 || bHasAnyDrawCommandDecalCount) && (DecalRenderStage == EDecalRenderStage::BeforeBasePass || DecalRenderStage == EDecalRenderStage::BeforeLighting || DecalRenderStage == EDecalRenderStage::Emissive || DecalRenderStage == EDecalRenderStage::AmbientOcclusion))
+		if (MeshDecalCount > 0 && (DecalRenderStage == EDecalRenderStage::BeforeBasePass || DecalRenderStage == EDecalRenderStage::BeforeLighting || DecalRenderStage == EDecalRenderStage::Emissive || DecalRenderStage == EDecalRenderStage::AmbientOcclusion))
 		{
 			RenderMeshDecals(GraphBuilder, Scene, View, PassTextures, InstanceCullingManager, DecalRenderStage);
 		}
