@@ -18,17 +18,18 @@
 
 extern FPhysicsDrivenMotionDebugParams GPhysicsDrivenMotionDebugParams;
 
-void UPhysicsMovementUtils::FindFloor(
+void UPhysicsMovementUtils::FloorSweep(
 	const FVector& Location,
 	const FVector& DeltaPos,
 	const UPrimitiveComponent* UpdatedPrimitive,
 	const FVector& UpDir,
 	float QueryRadius,
-	float TargetHeight,
-	float MaxStepHeight,
+	float QueryDistance,
 	float MaxWalkSlopeCosine,
+	float TargetHeight,
 	FFloorCheckResult& OutFloorResult,
-	FWaterCheckResult& OutWaterResult)
+	FWaterCheckResult& OutWaterResult
+)
 {
 	if (const UWorld* World = UpdatedPrimitive->GetWorld())
 	{
@@ -42,17 +43,17 @@ void UPhysicsMovementUtils::FindFloor(
 		ResponseParams.CollisionResponse.SetResponse(ECC_Destructible, ECR_Block);
 		ResponseParams.CollisionResponse.SetResponse(ECC_PhysicsBody, ECR_Block);
 
-		const FVector DeltaPosVert = DeltaPos.ProjectOnTo(UpDir);
-		const FVector DeltaPosHoriz = DeltaPos - DeltaPosVert;
-
-		const FVector WaterQueryLocation = Location - (TargetHeight * UpDir);
-
-		const float StartOffset = TargetHeight - MaxStepHeight - QueryRadius;
-		const float SweepDistance = MaxStepHeight + QueryRadius + FMath::Max(MaxStepHeight, -DeltaPosVert.Dot(UpDir));
-
-		FVector Start = Location + DeltaPosHoriz - StartOffset * UpDir;
-		FVector End = Start - SweepDistance * UpDir;
 		TArray<FHitResult> Hits;
+
+		const float DeltaPosVertLength = DeltaPos.Dot(UpDir);
+		const FVector DeltaPosHoriz = DeltaPos - DeltaPosVertLength * UpDir;
+
+		// Make sure the query is long enough to include the vertical movement
+		const float AdjustedQueryDistance = FMath::Max(UE_KINDA_SMALL_NUMBER + DeltaPosVertLength + TargetHeight, QueryDistance);
+
+		// The bottom of the query shape should be at the integrated location (ignoring vertical movement)
+		FVector Start = Location + DeltaPosHoriz + (QueryRadius + UE_KINDA_SMALL_NUMBER) * UpDir;
+		FVector End = Start - AdjustedQueryDistance * UpDir;
 		FHitResult OutHit;
 		if (World->SweepMultiByChannel(Hits, Start, End, FQuat::Identity, CollisionChannel, FCollisionShape::MakeSphere(QueryRadius), QueryParams, ResponseParams))
 		{
@@ -71,11 +72,7 @@ void UPhysicsMovementUtils::FindFloor(
 
 		if (OutHit.bBlockingHit)
 		{
-			const float Distance = UpDir.Dot(Location - OutHit.ImpactPoint);
-			const float StepHeight = TargetHeight - Distance;
-			const float MinStepHeight = 5.0f;
-
-			bool bWalkable = IsHitSurfaceWalkableWithStepUpCheck(OutHit, StepHeight, MaxStepHeight, MinStepHeight, MaxWalkSlopeCosine);
+			bool bWalkable = UFloorQueryUtils::IsHitSurfaceWalkable(OutHit, MaxWalkSlopeCosine);
 
 #if PHYSICSDRIVENMOTION_DEBUG_DRAW
 			if (GPhysicsDrivenMotionDebugParams.DebugDrawGroundQueries)
@@ -85,146 +82,19 @@ void UPhysicsMovementUtils::FindFloor(
 				Chaos::FDebugDrawQueue::GetInstance().DrawDebugCapsule(Center, 0.5f * OutHit.Distance + QueryRadius, QueryRadius, FQuat::Identity, Color, false, -1.f, 10, 1.0f);
 			}
 #endif
-
-			GetWaterResultFromHitResults(Hits, WaterQueryLocation, TargetHeight, OutWaterResult);
-
-			if (bWalkable)
-			{
-				// Found a walkable surface
-				OutFloorResult.bBlockingHit = true;
-				OutFloorResult.bWalkableFloor = true;
-				OutFloorResult.FloorDist = UpDir.Dot(Location - OutHit.ImpactPoint);;
-				OutFloorResult.HitResult = OutHit;
-			}
-			else
-			{
-				// Hit something but not walkable. Fire some line queries to try and find a walkable surface
-
-				bool bLineQueryWalkable = false;
-				float LineQueryDistance = 0.0f;
-
-				FVector MovementDir = FVector::ForwardVector;
-				FVector PerpDir = FVector::RightVector;
-				FVector Fwd = DeltaPos - DeltaPos.Dot(UpDir) * UpDir;
-				const float FwdSizeSq = Fwd.SizeSquared();
-				if (FwdSizeSq > UE_SMALL_NUMBER)
-				{
-					MovementDir = Fwd * FMath::InvSqrtEst(FwdSizeSq);
-					PerpDir = UpDir.Cross(MovementDir);
-				}
-
-				const int NumLineTraces = 4;
-				FVector StartPoints[NumLineTraces];
-
-				StartPoints[0] = Start + QueryRadius * MovementDir;
-				StartPoints[1] = Start - QueryRadius * MovementDir;
-				StartPoints[2] = Start - QueryRadius * PerpDir;
-				StartPoints[3] = Start + QueryRadius * PerpDir;
-
-				FHitResult LineQueryHit[NumLineTraces];
-
-				float MinDistance = SweepDistance + QueryRadius;
-				int32 MinDistanceIdx = INDEX_NONE;
-				for (int32 Idx = 0; Idx < NumLineTraces; ++Idx)
-				{
-					Start = StartPoints[Idx];
-					End = Start - UpDir * SweepDistance;
-					World->LineTraceSingleByChannel(LineQueryHit[Idx], Start, End, CollisionChannel, QueryParams, ResponseParams);
-
-					if (LineQueryHit[Idx].IsValidBlockingHit())
-					{
-						LineQueryDistance = UpDir.Dot(Location - LineQueryHit[Idx].ImpactPoint);
-						const float LineQueryStepHeight = TargetHeight - LineQueryDistance;
-
-						bLineQueryWalkable = IsHitSurfaceWalkableWithStepUpCheck(LineQueryHit[Idx], LineQueryStepHeight, MaxStepHeight, MinStepHeight, MaxWalkSlopeCosine);
-
-						if (bLineQueryWalkable && LineQueryDistance < MinDistance)
-						{
-							MinDistance = LineQueryDistance;
-							MinDistanceIdx = Idx;
-						}
-					}
-
-#if PHYSICSDRIVENMOTION_DEBUG_DRAW
-					if (GPhysicsDrivenMotionDebugParams.DebugDrawGroundQueries)
-					{
-						FVector Dir = End - Start;
-						const float SizeSq = Dir.SizeSquared();
-						if (SizeSq > UE_SMALL_NUMBER)
-						{
-							Dir *= FMath::InvSqrt(SizeSq);
-						}
-
-						if (LineQueryHit[Idx].bBlockingHit)
-						{
-							const FVector Center = Start + 0.5f * LineQueryHit[Idx].Distance * Dir;
-							const FColor Color = bLineQueryWalkable ? FColor::Green : FColor::Red;
-							Chaos::FDebugDrawQueue::GetInstance().DrawDebugLine(Start, LineQueryHit[Idx].ImpactPoint, Color, false, -1.f, 10, 1.0f);
-						}
-						else
-						{
-							const FVector Center = 0.5f * (Start + End);
-							float Dist = SizeSq > UE_SMALL_NUMBER ? FMath::Sqrt(SizeSq) : 0.0f;
-							Chaos::FDebugDrawQueue::GetInstance().DrawDebugLine(Start, End, FColor::Silver, false, -1.f, 10, 1.0f);
-						}
-					}
-#endif
-				}
-
-				if (MinDistanceIdx != INDEX_NONE)
-				{
-					// Found a walkable surface
-					OutFloorResult.bBlockingHit = true;
-					OutFloorResult.bWalkableFloor = true;
-					OutFloorResult.FloorDist = MinDistance;
-					OutFloorResult.HitResult = LineQueryHit[MinDistanceIdx];
-				}
-				else
-				{
-					// Didn't find a walkable surface. Use original sphere query result
-					OutFloorResult.bBlockingHit = true;
-					OutFloorResult.bWalkableFloor = false;
-					OutFloorResult.FloorDist = Distance;
-					OutFloorResult.HitResult = OutHit;
-				}
-
-				// May have missed a water result due to the original query blocking on a non-walkable surface
-				// so run again with no blocking results
-				ResponseParams.CollisionResponse.SetAllChannels(ECR_Overlap);
-				World->SweepMultiByChannel(Hits, Start, End, FQuat::Identity, CollisionChannel, FCollisionShape::MakeSphere(QueryRadius), QueryParams, ResponseParams);
-				GetWaterResultFromHitResults(Hits, WaterQueryLocation, TargetHeight, OutWaterResult);
-			}
+			OutFloorResult.bBlockingHit = true;
+			OutFloorResult.bWalkableFloor = bWalkable;
+			OutFloorResult.FloorDist = UpDir.Dot(Location - OutHit.ImpactPoint);
+			OutFloorResult.HitResult = OutHit;
 		}
 		else
 		{
-			// Sweep didn't hit anything blocking
 			OutFloorResult.Clear();
 			OutFloorResult.FloorDist = 1.0e10f;
-
-			// In deep waters i.e., WaterDepth > SweepDistance, we may hit only water and no blocking surfaces
-			GetWaterResultFromHitResults(Hits, WaterQueryLocation, TargetHeight, OutWaterResult);
 		}
-	}
-}
 
-bool UPhysicsMovementUtils::IsHitSurfaceWalkableWithStepUpCheck(const FHitResult& Hit, float StepHeight, float MaxStepHeight, float MinStepUpHeight, float MaxWalkSlopeCosine)
-{
-	bool bWalkable = false;
-	if (StepHeight <= MaxStepHeight)
-	{
-		bWalkable = UFloorQueryUtils::IsHitSurfaceWalkable(Hit, MaxWalkSlopeCosine);
-		if (bWalkable)
-		{
-			const float MinStepHeight = 1.0f;
-			const bool bSteppingUp = StepHeight > MinStepHeight;
-			if (bSteppingUp && !UGroundMovementUtils::CanStepUpOnHitSurface(Hit))
-			{
-				bWalkable = false;
-			}
-		}
+		GetWaterResultFromHitResults(Hits, Location, TargetHeight, OutWaterResult);
 	}
-
-	return bWalkable;
 }
 
 const Chaos::FPBDRigidParticleHandle* UPhysicsMovementUtils::GetRigidParticleHandleFromHitResult(const FHitResult& HitResult)
