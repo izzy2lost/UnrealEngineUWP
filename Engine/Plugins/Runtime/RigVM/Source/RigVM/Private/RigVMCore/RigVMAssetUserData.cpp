@@ -2,7 +2,6 @@
 
 #include "RigVMCore/RigVMAssetUserData.h"
 #include "Engine/UserDefinedStruct.h"
-#include "Misc/PackageName.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(RigVMAssetUserData)
 
@@ -393,11 +392,6 @@ const UNameSpacedUserData::FUserData* UDataAssetLink::GetUserData(const FString&
 		return ResultFromSuper;
 	}
 
-	if (!DataAssetCached)
-	{
-		UpdateDataAssetCache();
-	}
-
 	if(DataAssetCached)
 	{
 		// this method caches as well - so the next time around Super::GetUserData should return the cache 
@@ -418,11 +412,6 @@ const TArray<const UNameSpacedUserData::FUserData*>& UDataAssetLink::GetUserData
 	if(!ResultFromSuper.IsEmpty())
 	{
 		return ResultFromSuper;
-	}
-
-	if (!DataAssetCached)
-	{
-		UpdateDataAssetCache();
 	}
 
 	if(DataAssetCached)
@@ -465,22 +454,6 @@ const TArray<const UNameSpacedUserData::FUserData*>& UDataAssetLink::GetUserData
 		(*OutErrorMessage) = FString::Printf(DataAssetNullFormat, *InParentPath);
 	}
 	return EmptyUserDatas;
-}
-
-void UDataAssetLink::UpdateDataAssetCache() const
-{
-	const FString PackagePath = DataAsset.ToSoftObjectPath().GetLongPackageName();
-	const FName PluginMountPoint = FPackageName::GetPackageMountPoint(PackagePath, false);
-	if (FPackageName::MountPointExists(PluginMountPoint.ToString()))
-	{
-		DataAsset.LoadSynchronous();
-		DataAssetCached = DataAsset.Get();
-
-		if(NameSpace.IsEmpty() && DataAssetCached)
-		{
-			NameSpace = DataAsset->GetName();
-		}
-	}
 }
 
 void UDataAssetLink::PostLoad()
