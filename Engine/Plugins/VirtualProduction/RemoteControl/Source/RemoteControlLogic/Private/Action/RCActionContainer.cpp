@@ -192,6 +192,7 @@ URCPropertyAction* URCActionContainer::AddPropertyAction(const TSharedRef<const 
 		{
 			const FName& PropertyName = InRemoteControlProperty->GetProperty()->GetFName();
 			NewPropertyAction->PropertySelfContainer->DuplicatePropertyWithCopy(PropertyName, InRemoteControlProperty->GetProperty(), (uint8*)ObjectRefReading.ContainerAdress);
+			NewPropertyAction->PropertySelfContainer->PresetWeakPtr = PresetWeakPtr;
 		}
 	}
 
