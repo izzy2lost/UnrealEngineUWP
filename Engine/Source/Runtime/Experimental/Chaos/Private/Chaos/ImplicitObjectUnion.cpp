@@ -160,7 +160,7 @@ void FImplicitObjectUnion::SetNumLeafObjects(int32 InNumLeafObjects)
 	ensure(InNumLeafObjects <= MaxNumLeafObjects);
 	check(InNumLeafObjects >= 0);
 
-	NumLeafObjects = uint16(FMath::Min(InNumLeafObjects, MaxNumLeafObjects));
+	NumLeafObjects = FMath::Min(InNumLeafObjects, MaxNumLeafObjects);
 }
 
 void FImplicitObjectUnion::CreateBVH()
@@ -420,6 +420,7 @@ void FImplicitObjectUnion::Serialize(FChaosArchive& Ar)
 {
 	Ar.UsingCustomVersion(FExternalPhysicsCustomObjectVersion::GUID);
 	Ar.UsingCustomVersion(FFortniteMainBranchObjectVersion::GUID);
+	Ar.UsingCustomVersion(FFortniteSeasonBranchObjectVersion::GUID);
 
 	FChaosArchiveScopedMemory ScopedMemory(Ar, GetTypeName(), false);
 	FImplicitObject::SerializeImp(Ar);
@@ -443,7 +444,18 @@ void FImplicitObjectUnion::Serialize(FChaosArchive& Ar)
 	else
 	{
 		Ar << Flags.Bits;
-		Ar << NumLeafObjects;
+
+		if (Ar.CustomVer(FFortniteSeasonBranchObjectVersion::GUID) < FFortniteSeasonBranchObjectVersion::ChaosImplicitObjectUnionLeafObjectsToInt32)
+		{
+			uint16 DummyNumLeafObjects = uint16(NumLeafObjects);
+			Ar << DummyNumLeafObjects;
+			NumLeafObjects = int32(DummyNumLeafObjects);
+		}
+		else
+		{
+			Ar << NumLeafObjects;
+		}
+
 		if (Flags.bHasBVH)
 		{
 			if (Ar.IsLoading())

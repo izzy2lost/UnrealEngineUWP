@@ -45,6 +45,9 @@ struct CORE_API FFortniteSeasonBranchObjectVersion
 		// Serialize actor transform for actor descriptors
 		WorldPartitionActorDescActorTransformSerialization,
 
+		// Changing Chaos::FImplicitObjectUnion to store an int32 vs a uint16 for NumLeafObjects.
+		ChaosImplicitObjectUnionLeafObjectsToInt32,
+
 		// -----<new versions can be added above this line>-------------------------------------------------
 		VersionPlusOne,
 		LatestVersion = VersionPlusOne - 1
