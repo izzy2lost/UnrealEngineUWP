@@ -7,6 +7,7 @@
 #include "Misc/App.h"
 #include "Misc/Parse.h"
 #include "Misc/Paths.h"
+#include "Misc/PathViews.h"
 #include "Misc/Optional.h"
 #include "Misc/ConfigCacheIni.h"
 #include "Templates/UniquePtr.h"
@@ -25,6 +26,25 @@ const FGuid FTextLocalizationResourceVersion::LocResMagic = FGuid(0x7574140E, 0x
 
 /** LocRes files can be quite large, so we won't pre-load those by default */
 #define PRELOAD_LOCRES_FILES (0)
+
+namespace TextLocalizationResourceUtil
+{
+
+int32 GetLocalizationTargetPathIdFromLocResId(const FTextKey& InLocResID)
+{
+	int32 LocalizationTargetPathId = INDEX_NONE;
+	if (!InLocResID.IsEmpty())
+	{
+		// LocResID would be "/Path/To/LocalizationTarget/Culture/LocalizationTarget.locres" so trim this back to "/Path/To/LocalizationTarget"
+		FStringView LocalizationTargetPath = InLocResID.GetChars();
+		LocalizationTargetPath = FPathViews::GetPath(LocalizationTargetPath); // Remove "LocalizationTarget.locres"
+		LocalizationTargetPath = FPathViews::GetPath(LocalizationTargetPath); // Remove "Culture"
+		LocalizationTargetPathId = FTextLocalizationManager::Get().GetLocalizationTargetPathId(LocalizationTargetPath);
+	}
+	return LocalizationTargetPathId;
+}
+
+}
 
 bool FTextLocalizationMetaDataResource::LoadFromFile(const FString& FilePath)
 {
@@ -170,6 +190,7 @@ void FTextLocalizationResource::AddEntry(const FTextKey& InNamespace, const FTex
 {
 	FEntry NewEntry;
 	NewEntry.LocResID = InLocResID;
+	NewEntry.LocalizationTargetPathId = TextLocalizationResourceUtil::GetLocalizationTargetPathIdFromLocResId(InLocResID);
 	NewEntry.SourceStringHash = InSourceStringHash;
 	NewEntry.LocalizedString = InLocalizedString;
 	NewEntry.Priority = InPriority;
@@ -318,6 +339,7 @@ bool FTextLocalizationResource::LoadFromArchive(FArchive& Archive, const FTextKe
 		}
 	};
 
+	const int32 LocalizationTargetPathId = TextLocalizationResourceUtil::GetLocalizationTargetPathIdFromLocResId(LocResID);
 	for (uint32 i = 0; i < NamespaceCount; ++i)
 	{
 		// Read namespace
@@ -336,6 +358,7 @@ bool FTextLocalizationResource::LoadFromArchive(FArchive& Archive, const FTextKe
 
 			FEntry NewEntry;
 			NewEntry.LocResID = LocResID;
+			NewEntry.LocalizationTargetPathId = LocalizationTargetPathId;
 			NewEntry.Priority = Priority;
 
 			Archive << NewEntry.SourceStringHash;

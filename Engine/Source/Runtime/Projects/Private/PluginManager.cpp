@@ -3332,6 +3332,56 @@ bool FPluginManager::MountExplicitlyLoadedPluginLocalizationData(const FString& 
 	return true;
 }
 
+bool FPluginManager::UnmountExplicitlyLoadedPluginLocalizationData(const FString& PluginName)
+{
+	TSharedPtr<FPlugin> Plugin = FindPluginInstance(PluginName);
+
+	TRACE_CPUPROFILER_EVENT_SCOPE(UnmountExplicitlyLoadedPluginLocalizationData);
+	if (!Plugin.IsValid() || !Plugin->bIsMounted)
+	{
+		// Does not exist or is not mounted
+		UE_LOG(LogPluginManager, Error, TEXT("Cannot unmount plugin localization for '%s' as the plugin is unknown or not mounted. Did you forget to call MountExplicitlyLoadedPlugin?"), *PluginName);
+		return false;
+	}
+
+	if (!Plugin->Descriptor.bExplicitlyLoaded)
+	{
+		// Not supported
+		UE_LOG(LogPluginManager, Warning, TEXT("Cannot unmount plugin localization for '%s' as the plugin isn't explicitly loaded."), *PluginName);
+		return false;
+	}
+
+	if (!Plugin->bIsExplicitlyLoadedLocalizationDataMounted)
+	{
+		// Already unloaded
+		UE_LOG(LogPluginManager, Verbose, TEXT("Ignoring request to unmount plugin localization for '%s' as the localization data was not mounted."), *PluginName);
+		return false;
+	}
+
+	if (Plugin->Descriptor.LocalizationTargets.Num() == 0)
+	{
+		// Nothing to load
+		UE_LOG(LogPluginManager, Verbose, TEXT("Ignoring request to unmount plugin localization for '%s' as the plugin has no localization targets defined."), *PluginName);
+		return false;
+	}
+
+	if (IsEngineExitRequested())
+	{
+		// Exiting; unloading will be handled by the engine shutdown
+		UE_LOG(LogPluginManager, Verbose, TEXT("Ignoring request to unmount plugin localization for '%s' as the engine is exiting."), *PluginName);
+		return false;
+	}
+
+	UE_LOG(LogPluginManager, Log, TEXT("Unmounting plugin localization for '%s'..."), *PluginName);
+	Plugin->bIsExplicitlyLoadedLocalizationDataMounted = false;
+
+	// Notify that additional localization data should be unloaded
+	TArray<FString> AdditionalLocResPaths;
+	PluginLocalizationUtils::GetLocalizationPathsForPlugin(*Plugin, AdditionalLocResPaths);
+	FTextLocalizationManager::Get().HandleLocalizationTargetsUnmounted(AdditionalLocResPaths);
+	return true;
+}
+
 bool FPluginManager::TryMountExplicitlyLoadedPluginVersion(TSharedRef<FPlugin>* AllPlugins_PluginPtr)
 {
 	bool bSuccess = false;
@@ -3514,13 +3564,14 @@ bool FPluginManager::UnmountExplicitlyLoadedPlugin(const FString& PluginName, FT
 	}
 
 	// Notify that additional localization data should be unloaded
-	if (Plugin->Descriptor.LocalizationTargets.Num() > 0 && !IsEngineExitRequested())
+	if (Plugin->bIsExplicitlyLoadedLocalizationDataMounted && Plugin->Descriptor.LocalizationTargets.Num() > 0 && !IsEngineExitRequested())
 	{
+		Plugin->bIsExplicitlyLoadedLocalizationDataMounted = false;
+
 		TArray<FString> AdditionalLocResPaths;
 		PluginLocalizationUtils::GetLocalizationPathsForPlugin(*Plugin, AdditionalLocResPaths);
 		FTextLocalizationManager::Get().HandleLocalizationTargetsUnmounted(AdditionalLocResPaths);
 	}
-	Plugin->bIsExplicitlyLoadedLocalizationDataMounted = false;
 
 	if ((Plugin->CanContainContent() || Plugin->CanContainVerse()) && ensure(UnRegisterMountPointDelegate.IsBound()))
 	{

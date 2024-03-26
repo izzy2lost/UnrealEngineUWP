@@ -529,6 +529,58 @@ void InitGameTextLocalization()
 	});
 }
 
+FTextLocalizationManager::FDisplayStringsForLocalizationTarget& FTextLocalizationManager::FDisplayStringsByLocalizationTargetId::FindOrAdd(FStringView InLocalizationTargetPath, int32* OutLocalizationTargetPathId)
+{
+	LLM_SCOPE_BYNAME(TEXT("Localization/DisplayStringsByTarget"));
+
+	check(!InLocalizationTargetPath.IsEmpty());
+
+	FString NormalizedLocalizationTargetPath = FPaths::ConvertRelativePathToFull(FString(InLocalizationTargetPath));
+	FPaths::NormalizeDirectoryName(NormalizedLocalizationTargetPath);
+
+	int32 LocalizationTargetPathId = LocalizationTargetPathsToIds.FindRef(NormalizedLocalizationTargetPath, INDEX_NONE);
+	if (LocalizationTargetPathId == INDEX_NONE)
+	{
+		LocalizationTargetPathId = LocalizationTargets.Emplace(MoveTemp(NormalizedLocalizationTargetPath));
+		LocalizationTargetPathsToIds.Add(LocalizationTargets[LocalizationTargetPathId].LocalizationTargetPath, LocalizationTargetPathId);
+	}
+
+	if (OutLocalizationTargetPathId)
+	{
+		*OutLocalizationTargetPathId = LocalizationTargetPathId;
+	}
+	return LocalizationTargets[LocalizationTargetPathId];
+}
+
+FTextLocalizationManager::FDisplayStringsForLocalizationTarget* FTextLocalizationManager::FDisplayStringsByLocalizationTargetId::Find(const int32 InLocalizationTargetPathId)
+{
+	return LocalizationTargets.IsValidIndex(InLocalizationTargetPathId)
+		? &LocalizationTargets[InLocalizationTargetPathId]
+		: nullptr;
+}
+
+void FTextLocalizationManager::FDisplayStringsByLocalizationTargetId::TrackTextId(const int32 InCurrentLocalizationPathId, const int32 InNewLocalizationPathId, const FTextId& InTextId)
+{
+	if (InCurrentLocalizationPathId == InNewLocalizationPathId)
+	{
+		return;
+	}
+
+	LLM_SCOPE_BYNAME(TEXT("Localization/DisplayStringsByTarget"));
+
+	if (FDisplayStringsForLocalizationTarget* DisplayStringsForCurrentLocalizationTarget = Find(InCurrentLocalizationPathId);
+		DisplayStringsForCurrentLocalizationTarget && DisplayStringsForCurrentLocalizationTarget->bIsMounted)
+	{
+		DisplayStringsForCurrentLocalizationTarget->TextIds.Remove(InTextId);
+	}
+
+	if (FDisplayStringsForLocalizationTarget* DisplayStringsForNewLocalizationTarget = Find(InNewLocalizationPathId);
+		DisplayStringsForNewLocalizationTarget && DisplayStringsForNewLocalizationTarget->bIsMounted)
+	{
+		DisplayStringsForNewLocalizationTarget->TextIds.Add(InTextId);
+	}
+}
+
 FTextLocalizationManager& FTextLocalizationManager::Get()
 {
 	return TLazySingleton<FTextLocalizationManager>::Get();
@@ -723,6 +775,15 @@ TArray<FString> FTextLocalizationManager::GetLocalizedCultureNames(const ELocali
 	});
 	
 	return LocalizedCultureNames;
+}
+
+int32 FTextLocalizationManager::GetLocalizationTargetPathId(FStringView InLocalizationTargetPath)
+{
+	FScopeLock ScopeLock(&DisplayStringTableCS);
+
+	int32 LocalizationTargetPathId = INDEX_NONE;
+	DisplayStringsByLocalizationTargetId.FindOrAdd(InLocalizationTargetPath, &LocalizationTargetPathId);
+	return LocalizationTargetPathId;
 }
 
 void FTextLocalizationManager::RegisterTextSource(const TSharedRef<ILocalizedTextSource>& InLocalizedTextSource, const bool InRefreshResources)
@@ -1003,6 +1064,7 @@ FTextConstDisplayStringRef FTextLocalizationManager::GetDisplayString(const FTex
 		// Make entries so that they can be updated when system is initialized or a culture swap occurs.
 		FDisplayStringEntry NewEntry(
 			FTextKey(),					/*LocResID*/
+			INDEX_NONE,					/*LocalizationTargetPathId*/
 			SourceStringHash,			/*SourceStringHash*/
 			UnlocalizedString			/*String*/
 		);
@@ -1085,7 +1147,7 @@ bool FTextLocalizationManager::AddDisplayString(const FTextDisplayStringRef& Dis
 	}
 
 	// Add the necessary association.
-	DisplayStringLookupTable.Emplace(TextId, FDisplayStringEntry(FTextKey(), FTextLocalizationResource::HashString(*DisplayString), DisplayString));
+	DisplayStringLookupTable.Emplace(TextId, FDisplayStringEntry(FTextKey(), INDEX_NONE, FTextLocalizationResource::HashString(*DisplayString), DisplayString));
 
 	return true;
 }
@@ -1137,6 +1199,22 @@ void FTextLocalizationManager::HandleLocalizationTargetsMounted(TArrayView<const
 		return;
 	}
 
+	// Nothing to do?
+	if (!FTextLocalizationManager::IsDisplayStringSupportEnabled())
+	{
+		return;
+	}
+
+	// Mark the targets as mounted before loading any of their data
+	{
+		FScopeLock ScopeLock(&DisplayStringTableCS);
+		for (const FString& LocalizationTargetPath : LocalizationTargetPaths)
+		{
+			FDisplayStringsForLocalizationTarget& DisplayStringsForLocalizationTarget = DisplayStringsByLocalizationTargetId.FindOrAdd(LocalizationTargetPath);
+			DisplayStringsForLocalizationTarget.bIsMounted = true;
+		}
+	}
+
 	ELocalizationLoadFlags LocLoadFlags = ELocalizationLoadFlags::None;
 	LocLoadFlags |= (WITH_EDITOR ? ELocalizationLoadFlags::Editor : ELocalizationLoadFlags::None);
 	LocLoadFlags |= (FApp::IsGame() ? ELocalizationLoadFlags::Game : ELocalizationLoadFlags::None);
@@ -1149,15 +1227,47 @@ void FTextLocalizationManager::HandleLocalizationTargetsMounted(TArrayView<const
 
 void FTextLocalizationManager::HandleLocalizationTargetsUnmounted(TArrayView<const FString> LocalizationTargetPaths)
 {
-	if (!IsInitialized())
+	if (!IsInitialized() || LocalizationTargetPaths.IsEmpty())
 	{
 		// If we've not yet loaded localization data then there's nothing to do
 		return;
 	}
 	
-	// Note: We don't track which LocRes text comes from (as it uses too much memory), so unloading text would require a full refresh (including flushing DisplayStringLookupTable)
-	//       RefreshResources cannot currently do a flush, so for now we ignore any unmount notifications
-	//RefreshResources();
+	// Nothing to do?
+	if (!FTextLocalizationManager::IsDisplayStringSupportEnabled())
+	{
+		return;
+	}
+
+	// Async update the live table
+	QueueAsyncTask([LocalizationTargetPaths = TArray<FString>(LocalizationTargetPaths)]()
+	{
+		TRACE_CPUPROFILER_EVENT_SCOPE(FTextLocalizationManager::HandleLocalizationTargetsUnmounted);
+		LLM_SCOPE_BYNAME(TEXT("Localization/DisplayStrings"));
+
+		FTextLocalizationManager& TLM = FTextLocalizationManager::Get();
+		FTextCache& TextCache = FTextCache::Get();
+
+		// Lock while updating the tables
+		FScopeLock ScopeLock(&TLM.DisplayStringTableCS);
+
+		// Discard the data for each localization target that was unmounted, and mark the target as no longer mounted so that we no longer track its text IDs
+		for (const FString& LocalizationTargetPath : LocalizationTargetPaths)
+		{
+			FDisplayStringsForLocalizationTarget& DisplayStringsForLocalizationTarget = TLM.DisplayStringsByLocalizationTargetId.FindOrAdd(LocalizationTargetPath);
+			if (DisplayStringsForLocalizationTarget.bIsMounted)
+			{
+				for (const FTextId& TextId : DisplayStringsForLocalizationTarget.TextIds)
+				{
+					TLM.DisplayStringLookupTable.Remove(TextId);
+				}
+				TextCache.RemoveCache(DisplayStringsForLocalizationTarget.TextIds);
+
+				DisplayStringsForLocalizationTarget.TextIds.Empty();
+				DisplayStringsForLocalizationTarget.bIsMounted = false;
+			}
+		}
+	});
 }
 
 void FTextLocalizationManager::OnPakFileMounted(const IPakFile& PakFile)
@@ -1546,6 +1656,8 @@ void FTextLocalizationManager::UpdateFromNative(FTextLocalizationResource&& Text
 #if WITH_EDITORONLY_DATA
 					LiveEntry->LocResID = NewEntry.LocResID;
 #endif	// WITH_EDITORONLY_DATA
+					DisplayStringsByLocalizationTargetId.TrackTextId(LiveEntry->LocalizationTargetPathId, NewEntry.LocalizationTargetPathId, TextId);
+					LiveEntry->LocalizationTargetPathId = NewEntry.LocalizationTargetPathId;
 #if ENABLE_LOC_TESTING
 					DisplayStringBackupTable.Remove(TextId);
 #endif	// ENABLE_LOC_TESTING
@@ -1556,11 +1668,13 @@ void FTextLocalizationManager::UpdateFromNative(FTextLocalizationResource&& Text
 				// Add new entry
 				FDisplayStringEntry NewLiveEntry(
 					NewEntry.LocResID,						/*LocResID*/
+					NewEntry.LocalizationTargetPathId,		/*LocalizationTargetPathId*/
 					NewEntry.SourceStringHash,				/*SourceStringHash*/
 					NewEntry.LocalizedString.ToSharedRef()	/*String*/
 				);
 
 				DisplayStringLookupTable.Emplace(TextId, NewLiveEntry);
+				DisplayStringsByLocalizationTargetId.TrackTextId(INDEX_NONE, NewEntry.LocalizationTargetPathId, TextId);
 			}
 		}
 
@@ -1592,6 +1706,8 @@ void FTextLocalizationManager::UpdateFromNative(FTextLocalizationResource&& Text
 #if WITH_EDITORONLY_DATA
 						LiveEntry.LocResID = DisplayStringEntry->LocResID;
 #endif	// WITH_EDITORONLY_DATA
+						DisplayStringsByLocalizationTargetId.TrackTextId(LiveEntry.LocalizationTargetPathId, DisplayStringEntry->LocalizationTargetPathId, TextId);
+						LiveEntry.LocalizationTargetPathId = DisplayStringEntry->LocalizationTargetPathId;
 #if ENABLE_LOC_TESTING
 						DisplayStringBackupTable.Remove(TextId);
 #endif	// ENABLE_LOC_TESTING
@@ -1670,6 +1786,8 @@ void FTextLocalizationManager::UpdateFromLocalizations(FTextLocalizationResource
 #if WITH_EDITORONLY_DATA
 					LiveEntry->LocResID = FTextKey();
 #endif	// WITH_EDITORONLY_DATA
+					DisplayStringsByLocalizationTargetId.TrackTextId(LiveEntry->LocalizationTargetPathId, INDEX_NONE, TextId);
+					LiveEntry->LocalizationTargetPathId = INDEX_NONE;
 				}
 #endif	// ENABLE_LOC_TESTING
 			}
@@ -1678,11 +1796,13 @@ void FTextLocalizationManager::UpdateFromLocalizations(FTextLocalizationResource
 				// Add new entry
 				FDisplayStringEntry NewLiveEntry(
 					NewEntry.LocResID,						/*LocResID*/
+					NewEntry.LocalizationTargetPathId,		/*LocalizationTargetPathId*/
 					NewEntry.SourceStringHash,				/*SourceStringHash*/
 					NewEntry.LocalizedString.ToSharedRef()	/*String*/
 				);
 
 				DisplayStringLookupTable.Emplace(TextId, NewLiveEntry);
+				DisplayStringsByLocalizationTargetId.TrackTextId(INDEX_NONE, NewEntry.LocalizationTargetPathId, TextId);
 			}
 		}
 
@@ -1716,6 +1836,8 @@ void FTextLocalizationManager::UpdateFromLocalizations(FTextLocalizationResource
 #if WITH_EDITORONLY_DATA
 						LiveEntry.LocResID = DisplayStringEntry->LocResID;
 #endif	// WITH_EDITORONLY_DATA
+						DisplayStringsByLocalizationTargetId.TrackTextId(LiveEntry.LocalizationTargetPathId, DisplayStringEntry->LocalizationTargetPathId, TextId);
+						LiveEntry.LocalizationTargetPathId = DisplayStringEntry->LocalizationTargetPathId;
 					}
 #if ENABLE_LOC_TESTING
 					else if (bShouldLEETIFYUnlocalizedString && !LiveEntry.DisplayString->IsEmpty())
@@ -1726,6 +1848,8 @@ void FTextLocalizationManager::UpdateFromLocalizations(FTextLocalizationResource
 #if WITH_EDITORONLY_DATA
 						LiveEntry.LocResID = FTextKey();
 #endif	// WITH_EDITORONLY_DATA
+						DisplayStringsByLocalizationTargetId.TrackTextId(LiveEntry.LocalizationTargetPathId, INDEX_NONE, TextId);
+						LiveEntry.LocalizationTargetPathId = INDEX_NONE;
 					}
 #endif	// ENABLE_LOC_TESTING
 				}

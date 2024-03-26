@@ -457,6 +457,13 @@ public:
 	virtual bool MountExplicitlyLoadedPluginLocalizationData(const FString& PluginName) = 0;
 
 	/**
+	 * Start unloading localization data for an explicitly loaded plugin that had its localization data mounted via MountExplicitlyLoadedPluginLocalizationData.
+	 * @note Localization data is also automatically unloaded when calling UnmountExplicitlyLoadedPlugin.
+	 * @return True if localization data started to unload, or false if the plugin was missing or had no localization data to unload.
+	 */
+	virtual bool UnmountExplicitlyLoadedPluginLocalizationData(const FString& PluginName) = 0;
+
+	/**
 	 * Marks an explicitly loaded plugin as disabled, unmounts its content (does not work on plugins with compiled modules).
 	 */
 	virtual bool UnmountExplicitlyLoadedPlugin(const FString& PluginName, FText* OutReason) = 0;
