@@ -112,17 +112,61 @@ public:
 	};
 
 private:
-	typedef TUtf8StringBuilder<1024> FUtf8StringBuilder;
+	static constexpr int32 StringBuilderBufferSize = 32 * 1024;
+	typedef TUtf8StringBuilder<StringBuilderBufferSize> FUtf8StringBuilder;
+
+	class FUtf8Writer
+	{
+	public:
+		FUtf8Writer(IFileHandle* InFileHandle, bool bIsCSV)
+			: FileHandle(InFileHandle)
+			, Separator(bIsCSV ? UTF8CHAR(',') : UTF8CHAR('\t'))
+		{
+			check(FileHandle);
+		}
+
+		~FUtf8Writer()
+		{
+		}
+
+		FUtf8StringBuilder& GetStringBuilder() { return StringBuilder; }
+		UTF8CHAR GetSeparator() const { return Separator; }
+		UTF8CHAR GetLineEnd() const { return UTF8CHAR('\n'); }
+
+		void AppendSeparator()
+		{
+			StringBuilder.AppendChar(Separator);
+		}
+
+		void AppendLineEnd()
+		{
+			StringBuilder.AppendChar(UTF8CHAR('\n'));
+			WriteStringBuilder(StringBuilderBufferSize - 1024);
+		}
+
+		void AppendString(const TCHAR* InString);
+		void Append(const FString& InString) { StringBuilder.Append(InString); }
+
+		void Flush()
+		{
+			WriteStringBuilder(0);
+		}
+
+	private:
+		void WriteStringBuilder(int32 CacheLen);
+
+	private:
+		IFileHandle* FileHandle;
+		FUtf8StringBuilder StringBuilder;
+		UTF8CHAR Separator;
+	};
 
 	struct FExportTimingEventsInternalParams
 	{
 		const FTimingExporter& Exporter;
 		const FExportTimingEventsParams& UserParams;
 		const TArray<FName>& Columns;
-		IFileHandle* ExportFileHandle;
-		const UTF8CHAR Separator;
-		const UTF8CHAR LineEnd;
-		TUtf8StringBuilder<1024>& StringBuilder;
+		FUtf8Writer& Writer;
 		uint32 ThreadId;
 		const TCHAR* ThreadName;
 	};
@@ -187,7 +231,7 @@ public:
 	 * Note: The set is referenced in the returned function.
 	 * @param IncludedTimers The set of timer ids to be accepted by filter.
 	 * @return The TimingEventFilter function.
-	 */ 
+	 */
 	static FTimingEventFilterFunc MakeTimingEventFilterByTimersInclusive(const TSet<uint32>& IncludedTimers);
 
 	/**
@@ -195,13 +239,12 @@ public:
 	 * Note: The set is referenced in the returned function.
 	 * @param ExcludedTimers The set of timer ids to be rejected by filter.
 	 * @return The TimingEventFilter function. Can be nullptr (i.e. no filter).
-	 */ 
+	 */
 	static FTimingEventFilterFunc MakeTimingEventFilterByTimersExclusive(const TSet<uint32>& ExcludedTimers);
 
 private:
 	IFileHandle* OpenExportFile(const TCHAR* InFilename) const;
 	void Error(const FText& InMessage) const;
-	static void AppendString(FUtf8StringBuilder& StringBuilder, const TCHAR* String, UTF8CHAR Separator);
 	void ExportTimingEvents_InitColumns() const;
 	void ExportTimingEvents_WriteHeader(FExportTimingEventsInternalParams& Params) const;
 	int32 ExportTimingEvents_WriteEvents(FExportTimingEventsInternalParams& Params) const;
