@@ -676,7 +676,7 @@ void FCustomizableObjectInstanceEditor::OnUpdatePreviewInstance()
 	}
 
 	// Sets which UV material to draw
-	Viewport->SetDrawDefaultUVMaterial();
+	Viewport->SetDrawDefaultUVMaterial(false);
 
 	if (TextureAnalyzer.IsValid())
 	{

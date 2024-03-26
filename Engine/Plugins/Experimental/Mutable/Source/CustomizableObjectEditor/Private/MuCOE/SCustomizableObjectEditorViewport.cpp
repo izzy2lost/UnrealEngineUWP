@@ -523,26 +523,76 @@ bool SCustomizableObjectEditorViewportTabBody::IsCameraModeActive(int Value)
 }
 
 
-void SCustomizableObjectEditorViewportTabBody::SetDrawDefaultUVMaterial()
+void SCustomizableObjectEditorViewportTabBody::SetDrawDefaultUVMaterial(bool bIsCompilation)
 {
-	GenerateUVSectionOptions();
-	GenerateUVChannelOptions();
-	
-	if (!SelectedUVSection ||
-		!SelectedUVChannel)
+	GenerateUVMaterialOptions();
+	bool bMaterialFound = false;
+
+	if (!ArrayUVMaterialOptionString.IsEmpty())
 	{
-		LevelViewportClient->SetDrawUV(-1, -1, -1, -1);
+		if (!bIsCompilation && SelectedUVMaterial.IsValid())
+		{
+			// We check if the selected Material still exists after the update
+			FString MaterialName = *SelectedUVMaterial;
+
+			for (int32 MaterialIndex = 0; MaterialIndex < ArrayUVMaterialOptionString.Num(); ++MaterialIndex)
+			{
+				if (MaterialName == *ArrayUVMaterialOptionString[MaterialIndex])
+				{
+					bMaterialFound = true;
+					break;
+				}
+			}
+		}
+
+		// If the CO is recompiled or couldn't find the last used materia, draw the first material
+		if (bIsCompilation || !bMaterialFound)
+		{
+			LevelViewportClient->SetDrawUVOverlayMaterial(*(ArrayUVMaterialOptionString[0]), "0");
+			SelectedUVMaterial = ArrayUVMaterialOptionString[0];
+		}
 	}
 	else
 	{
-		const int32 SectionOptionIndex = UVSectionOptionString.IndexOfByKey(SelectedUVSection);
-		check(SectionOptionIndex != INDEX_NONE);
-		const FSection& Section = UVSectionOption[SectionOptionIndex];
+		SelectedUVMaterial = nullptr;
+	}
 
-		const int32 UVIndex = UVChannelOptionString.IndexOfByKey(SelectedUVChannel);
-		check(UVIndex != INDEX_NONE);
-	
-		LevelViewportClient->SetDrawUV(Section.ComponentIndex, Section.LODIndex, Section.SectionIndex, UVIndex);
+	GenerateUVChannelOptions();
+
+	if (!ArrayUVChannelOptionString.IsEmpty())
+	{
+		bool bUVChannelFound = false;
+
+		if (!bIsCompilation && SelectedUVChannel.IsValid())
+		{
+			// We check if the selected Material still exists after the update
+			FString UVChannel = *SelectedUVChannel;
+
+			for (int32 MaterialIndex = 0; MaterialIndex < ArrayUVChannelOptionString.Num(); ++MaterialIndex)
+			{
+				if (UVChannel == *ArrayUVChannelOptionString[MaterialIndex])
+				{
+					bUVChannelFound = true;
+					break;
+				}
+			}
+		}
+
+		// If the CO is recompiled or couldn't find the last used materia, draw the UV channel 0
+		if (bIsCompilation || !bMaterialFound || !bUVChannelFound)
+		{
+			SelectedUVChannel = ArrayUVChannelOptionString[0];
+		}
+	}
+	else
+	{
+		SelectedUVChannel = nullptr;
+	}
+
+	if (UVMaterialOptionCombo.IsValid() && UVChannelOptionCombo.IsValid())
+	{
+		UVMaterialOptionCombo->SetSelectedItem(SelectedUVMaterial);
+		UVChannelOptionCombo->SetSelectedItem(SelectedUVChannel);
 	}
 }
 
@@ -623,22 +673,85 @@ TSharedRef<SWidget> SCustomizableObjectEditorViewportTabBody::GenerateUVMaterial
 	MenuBuilder.BeginSection("ShowUV");
 	{
 		// Generating an array with all the options of the combobox 
-		GenerateUVSectionOptions();
-		
-		UVSectionOptionCombo = SNew(STextComboBox)
-			.OptionsSource(&UVSectionOptionString)
-			.InitiallySelectedItem(SelectedUVSection)
-			.OnSelectionChanged(this, &SCustomizableObjectEditorViewportTabBody::OnSectionChanged);
+		GenerateUVMaterialOptions();
+
+		// Sorting array
+        ArrayUVMaterialOptionString.Sort(::CompareNames);
+
+		// Setting initial selected option
+		if (ArrayUVMaterialOptionString.Num())
+		{
+			bool bFound = false;
+
+			if (SelectedUVMaterial.IsValid())
+			{
+				for (int32 i = 0; i < ArrayUVMaterialOptionString.Num(); ++i)
+				{
+					if (*SelectedUVMaterial == *ArrayUVMaterialOptionString[i])
+					{
+						bFound = true;
+						SelectedUVMaterial = ArrayUVMaterialOptionString[i];
+						break;
+					}
+				}
+			}
+
+			if (!bFound)
+			{
+				SelectedUVMaterial = ArrayUVMaterialOptionString[0];
+			}
+		}
+		else
+		{
+			SelectedUVMaterial = nullptr;
+		}
+	
+		UVMaterialOptionCombo = SNew(STextComboBox)
+			.OptionsSource(&ArrayUVMaterialOptionString)
+			.InitiallySelectedItem(SelectedUVMaterial)
+			.OnSelectionChanged(this, &SCustomizableObjectEditorViewportTabBody::OnMaterialChanged);
 
 		// Generating an array with all the options of the combobox 
 		GenerateUVChannelOptions();
-		
+
+		// Setting initial selected option
+		if (ArrayUVChannelOptionString.Num())
+		{
+			if (SelectedUVChannel.IsValid())
+			{
+				bool bFound = false;
+
+				for (int32 i = 0; i < ArrayUVChannelOptionString.Num(); ++i)
+				{
+					if (*SelectedUVChannel == *ArrayUVChannelOptionString[i])
+					{
+						bFound = true;
+						SelectedUVChannel = ArrayUVChannelOptionString[i];
+						break;
+					}
+				}
+
+				if (!bFound)
+				{
+					SelectedUVChannel = ArrayUVChannelOptionString[0];
+				}
+			}
+			else
+			{
+				SelectedUVChannel = ArrayUVChannelOptionString[0];
+			}
+		}
+		else
+		{
+			SelectedUVChannel = nullptr;
+		}
+
 		UVChannelOptionCombo = SNew(STextComboBox)
-			.OptionsSource(&UVChannelOptionString)
+			.OptionsSource(&ArrayUVChannelOptionString)
 			.InitiallySelectedItem(SelectedUVChannel)
 			.OnSelectionChanged(this, &SCustomizableObjectEditorViewportTabBody::OnUVChannelChanged);
 		
-		MenuBuilder.AddWidget(UVSectionOptionCombo.ToSharedRef(), FText::FromString(TEXT("Section")));
+		MenuBuilder.AddWidget(UVMaterialOptionCombo.ToSharedRef(), FText::FromString(TEXT("Material")));
 		MenuBuilder.AddWidget(UVChannelOptionCombo.ToSharedRef(), FText::FromString(TEXT("UV Channel")));
 	}
 
@@ -664,24 +777,20 @@ TSharedRef<SWidget> SCustomizableObjectEditorViewportTabBody::ShowStateTestData(
 }
 
 
-void SCustomizableObjectEditorViewportTabBody::GenerateUVSectionOptions()
+bool SCustomizableObjectEditorViewportTabBody::IsMaterialsComboEnabled() const
 {
-	ON_SCOPE_EXIT
-	{
-		if (UVSectionOptionCombo)
-		{
-			UVSectionOptionCombo->RefreshOptions();
-			UVSectionOptionCombo->SetSelectedItem(SelectedUVSection);
-		}
-	};
-		
-	UVSectionOptionString.Empty();
-	UVSectionOption.Empty();
+	return true;
+	//return LevelViewportClient.IsValid() && LevelViewportClient->IsSetDrawUVOverlayChecked();
+}
+
+
+void SCustomizableObjectEditorViewportTabBody::GenerateUVMaterialOptions()
+{
+	ArrayUVMaterialOptionString.Empty();
 	
-	for (int32 ComponentIndex = 0; ComponentIndex < PreviewSkeletalMeshComponents.Num(); ++ComponentIndex)
+	int32 ComponentIndex = 0;
+	for (UDebugSkelMeshComponent* PreviewSkeletalMeshComponent : PreviewSkeletalMeshComponents)
 	{
-		const UDebugSkelMeshComponent* PreviewSkeletalMeshComponent = PreviewSkeletalMeshComponents[ComponentIndex];
-		
 		if (PreviewSkeletalMeshComponent != nullptr && UE_MUTABLE_GETSKINNEDASSET(PreviewSkeletalMeshComponent) != nullptr && UE_MUTABLE_GETSKINNEDASSET(PreviewSkeletalMeshComponent)->GetResourceForRendering() != nullptr)
 		{
 			const TArray<UMaterialInterface*> Materials = PreviewSkeletalMeshComponent->GetMaterials();
@@ -691,147 +800,109 @@ void SCustomizableObjectEditorViewportTabBody::GenerateUVSectionOptions()
 				for (int32 SectionIndex = 0; SectionIndex < MeshRes->LODRenderData[LODIndex].RenderSections.Num(); ++SectionIndex)
 				{
 					const FSkelMeshRenderSection& Section = MeshRes->LODRenderData[LODIndex].RenderSections[SectionIndex];
-
-					FString BaseMaterialName = FString::Printf(TEXT("Section %i"), SectionIndex);
-
-					if (Materials.IsValidIndex(Section.MaterialIndex))
+					
+					if (!Materials.IsValidIndex(Section.MaterialIndex))
 					{
-						if (UMaterialInterface* MaterialInterface = Materials[Section.MaterialIndex])
-						{
-							if (const UMaterial* BaseMaterial = MaterialInterface->GetBaseMaterial())
-							{
-								BaseMaterialName += " - " + BaseMaterial->GetName();
-							}
-						}
+						continue;
 					}
 
-					UVSectionOptionString.Add(MakeShared<FString>(BaseMaterialName));
-					UVSectionOption.Emplace(ComponentIndex, LODIndex, SectionIndex);
+					if (!Materials[Section.MaterialIndex])
+					{
+						continue;
+					}
+
+					FString BaseMaterialName;
+
+					const UMaterial* BaseMaterial = Materials[Section.MaterialIndex]->GetBaseMaterial();
+					if (BaseMaterial)
+					{
+						BaseMaterialName = BaseMaterial->GetName();
+					}
+
+					BaseMaterialName += FString::Printf(TEXT(" LOD_%d_Component_%d"), LODIndex, ComponentIndex);
+
+					ArrayUVMaterialOptionString.Add(MakeShareable(new FString(BaseMaterialName)));
 				}
 			}
 		}
-	}
 
-	if (SelectedUVSection)
-	{
-		if (const TSharedPtr<FString>* Result = UVSectionOptionString.FindByPredicate([this](const TSharedPtr<FString>& Other){ return *SelectedUVSection == *Other; }))
-		{
-			SelectedUVSection = *Result;
-			return;
-		}	
+		ComponentIndex++;
 	}
-	
-	SelectedUVSection = UVSectionOptionString.IsEmpty() ? nullptr : UVSectionOptionString[0];
 }
 
 
-void SCustomizableObjectEditorViewportTabBody::OnSectionChanged(TSharedPtr<FString> Selected, ESelectInfo::Type SelectInfo)
+void SCustomizableObjectEditorViewportTabBody::OnMaterialChanged(TSharedPtr<FString> Selected, ESelectInfo::Type SelectInfo)
 {
-	SelectedUVSection = Selected;
-	
-	// We need to update options for the new section
-	GenerateUVChannelOptions();
-
-	// Reset the UVChannel selection
-	SelectedUVChannel = UVChannelOptionString.IsEmpty() ? nullptr : UVChannelOptionString[0];
-	UVChannelOptionCombo->SetSelectedItem(SelectedUVChannel);
-	
-	if (!LevelViewportClient)
+	if (Selected.IsValid() && SelectInfo == ESelectInfo::OnMouseClick)
 	{
-		return;
-	}
+		SelectedUVMaterial = Selected;
 
-	if (SelectedUVSection)
-	{
-		const int32 SectionOptionIndex = UVSectionOptionString.IndexOfByKey(SelectedUVSection);
-		check(SectionOptionIndex != INDEX_NONE);
-		const FSection& Section = UVSectionOption[SectionOptionIndex];
+		//We need to update options for the new LOD
+		GenerateUVChannelOptions();
 
-		const int32 UVIndex = UVChannelOptionString.IndexOfByKey(SelectedUVChannel);
-		check(UVIndex != INDEX_NONE);
-	
-		LevelViewportClient->SetDrawUV(Section.ComponentIndex, Section.LODIndex, Section.SectionIndex, UVIndex);
-	}
-	else
-	{
-		LevelViewportClient->SetDrawUV(-1, -1, -1, -1);
+		// Resets the value to the first element of the array
+		if (!ArrayUVChannelOptionString.IsEmpty())
+		{
+			SelectedUVChannel = ArrayUVChannelOptionString[0];
+			UVChannelOptionCombo->SetSelectedItem(SelectedUVChannel);
+		}
+
+		if (LevelViewportClient.IsValid() && SelectedUVChannel.IsValid())
+		{
+			LevelViewportClient->SetDrawUVOverlayMaterial(*Selected, *SelectedUVChannel);
+		}
 	}
 }
 
 
 void SCustomizableObjectEditorViewportTabBody::GenerateUVChannelOptions()
 {
-	ON_SCOPE_EXIT
+	ArrayUVChannelOptionString.Empty();
+
+	if (!SelectedUVMaterial)
 	{
-		if (UVChannelOptionCombo)
-		{
-			UVChannelOptionCombo->RefreshOptions();
-			UVChannelOptionCombo->SetSelectedItem(SelectedUVChannel);
-		}
-	};
-	
-	UVChannelOptionString.Empty();
-	
-	if (!SelectedUVSection)
-	{
-		SelectedUVChannel = nullptr;
 		return;
 	}
-	
-	const int32 Index = UVSectionOptionString.IndexOfByKey(SelectedUVSection);
-	check(Index != INDEX_NONE);
-	const FSection& Section = UVSectionOption[Index];
 
-	const UDebugSkelMeshComponent* PreviewSkeletalMeshComponent = PreviewSkeletalMeshComponents[Section.ComponentIndex];
+	FString SelectedMat = *SelectedUVMaterial;
+
+	// From String to values
+	FString NameWithLOD, ComponentString;
+	SelectedMat.Split(FString("_Component_"), &NameWithLOD, &ComponentString);
+	check(ComponentString.IsNumeric());
+	int32 ComponentIndex = FCString::Atoi(*ComponentString);
+	check(PreviewSkeletalMeshComponents.IsValidIndex(ComponentIndex));
+
+	FString Name, LODString;
+	bool bSplit = NameWithLOD.Split(FString(" LOD_"), &Name, &LODString);
+	int32 LODIndex = FCString::Atoi(*LODString);
+
+	UDebugSkelMeshComponent* PreviewSkeletalMeshComponent = PreviewSkeletalMeshComponents[ComponentIndex];
 
 	if (PreviewSkeletalMeshComponent != nullptr && UE_MUTABLE_GETSKINNEDASSET(PreviewSkeletalMeshComponent) != nullptr
 		&& UE_MUTABLE_GETSKINNEDASSET(PreviewSkeletalMeshComponent)->GetResourceForRendering() != nullptr)
 	{
 		const FSkeletalMeshRenderData* MeshRes = UE_MUTABLE_GETSKINNEDASSET(PreviewSkeletalMeshComponent)->GetResourceForRendering();
 		
-		const int32 UVChannels = MeshRes->LODRenderData[Section.LODIndex].GetNumTexCoords();
+		int32 UVChannels = MeshRes->LODRenderData[LODIndex].GetNumTexCoords();
+		
 		for (int32 UVChan = 0; UVChan < UVChannels; ++UVChan)
 		{
-			UVChannelOptionString.Add(MakeShareable(new FString(FString::FromInt(UVChan))));
+			ArrayUVChannelOptionString.Add(MakeShareable(new FString(FString::FromInt(UVChan))));
 		}
 	}
-
-	if (SelectedUVChannel)
-	{
-		if (const TSharedPtr<FString>* Result = UVChannelOptionString.FindByPredicate([this](const TSharedPtr<FString>& Other) { return *SelectedUVChannel == *Other; }))
-		{
-			SelectedUVChannel = *Result;
-			return;
-		}
-	}
-
-	SelectedUVChannel = UVChannelOptionString.IsEmpty() ? nullptr : UVChannelOptionString[0];
 }
 
 
 void SCustomizableObjectEditorViewportTabBody::OnUVChannelChanged(TSharedPtr<FString> Selected, ESelectInfo::Type SelectInfo)
 {
-	SelectedUVChannel = Selected;
-
-	if (!LevelViewportClient)
+	if (Selected.IsValid() && SelectInfo == ESelectInfo::OnMouseClick)
 	{
-		return;
-	}
-
-	if (SelectedUVChannel)
-	{
-		const int32 SectionOptionIndex = UVSectionOptionString.IndexOfByKey(SelectedUVSection);
-		check(SectionOptionIndex != INDEX_NONE);
-		const FSection& Section = UVSectionOption[SectionOptionIndex];
-
-		const int32 UVIndex = UVChannelOptionString.IndexOfByKey(SelectedUVChannel);
-		check(UVIndex != INDEX_NONE);
-	
-		LevelViewportClient->SetDrawUV(Section.ComponentIndex, Section.LODIndex, Section.SectionIndex, UVIndex);
-	}
-	else
-	{
-		LevelViewportClient->SetDrawUV(-1, -1, -1, -1);
+		SelectedUVChannel = Selected;
+		if (LevelViewportClient.IsValid() && SelectedUVMaterial.IsValid())
+		{
+			LevelViewportClient->SetDrawUVOverlayMaterial(*SelectedUVMaterial, *Selected);
+		}
 	}
 }
 
