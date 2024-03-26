@@ -5,6 +5,8 @@
 #include "CoreMinimal.h"
 #include "Views/Details/DisplayClusterConfiguratorBaseTypeCustomization.h"
 
+#include "Input/Reply.h"
+
 #include "IPropertyTypeCustomization.h"
 
 
@@ -24,4 +26,17 @@ protected:
 	//~ Begin IPropertyTypeCustomization
 	virtual void CustomizeChildren(TSharedRef<IPropertyHandle> PropertyHandle, IDetailChildrenBuilder& ChildBuilder, IPropertyTypeCustomizationUtils& CustomizationUtils) override;
 	//~ End IPropertyTypeCustomization
+
+private:
+
+	/** Builds auto-conf button widget. */
+	void AddAutoConfigurationButton(IDetailChildrenBuilder& ChildBuilder);
+
+	/** Handles auto-configuration button clicks. */
+	FReply OnAutoConfigureButtonClicked();
+
+private:
+
+	/** Tiles layout property. */
+	TSharedPtr<IPropertyHandle> TilesLayoutHandle;
 };

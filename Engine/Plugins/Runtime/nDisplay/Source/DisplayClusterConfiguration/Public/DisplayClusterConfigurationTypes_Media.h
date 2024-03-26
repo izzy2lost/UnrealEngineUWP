@@ -223,7 +223,7 @@ public:
 	FDisplayClusterConfigurationClusterItemReferenceList ClusterNodes;
 
 	/** Tile mapping. Maps tiles to media sources. */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Media", meta = (ClusterItemType = ClusterNodes))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Media")
 	TArray<FDisplayClusterConfigurationMediaUniformTileInput> Tiles;
 };
 
@@ -242,7 +242,7 @@ public:
 	FDisplayClusterConfigurationClusterItemReferenceList ClusterNodes;
 
 	/** Tile mapping. Maps tiles to media outputs. */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Media", meta = (ClusterItemType = ClusterNodes))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Media")
 	TArray<FDisplayClusterConfigurationMediaUniformTileOutput> Tiles;
 
 	/** Media output synchronization policy */

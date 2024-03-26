@@ -1,13 +1,18 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "Views/Details/Media/DisplayClusterConfiguratorICVFXMediaCustomization.h"
+#include "Views/Details/Media/DisplayClusterConfiguratorMediaUtils.h"
 
 #include "DisplayClusterConfigurationTypes_Media.h"
 
+#include "DetailWidgetRow.h"
 #include "IDetailChildrenBuilder.h"
 #include "IPropertyUtilities.h"
 #include "PropertyHandle.h"
 
+#include "Widgets/Input/SButton.h"
+#include "Widgets/Layout/SBox.h"
+#include "Widgets/Text/STextBlock.h"
 
 #define LOCTEXT_NAMESPACE "FDisplayClusterConfiguratorICVFXMediaCustomization"
 
@@ -15,7 +20,11 @@ void FDisplayClusterConfiguratorICVFXMediaCustomization::CustomizeChildren(TShar
 {
 	// SplitType property
 	TSharedPtr<IPropertyHandle> SplitTypeHandle = GET_CHILD_HANDLE(FDisplayClusterConfigurationMediaICVFX, SplitType);
-	check(SplitTypeHandle);
+	check(SplitTypeHandle->IsValidHandle());
+
+	// Layout property
+	TilesLayoutHandle = GET_CHILD_HANDLE(FDisplayClusterConfigurationMediaICVFX, TiledSplitLayout);
+	check(TilesLayoutHandle->IsValidHandle());
 
 	// Separate groups specific for every split type available
 	TArray<TSharedPtr<IPropertyHandle>> FullFramePropertyHandles;
@@ -74,7 +83,42 @@ void FDisplayClusterConfiguratorICVFXMediaCustomization::CustomizeChildren(TShar
 		}
 	}
 
+	// Create all the property widgets
 	FDisplayClusterConfiguratorBaseTypeCustomization::CustomizeChildren(InPropertyHandle, InChildBuilder, InCustomizationUtils);
+
+	// Create auto-configure button in the bottom
+	if (SplitTypeValue == EDisplayClusterConfigurationMediaSplitType::UniformTiles)
+	{
+		AddAutoConfigurationButton(InChildBuilder);
+	}
+}
+
+void FDisplayClusterConfiguratorICVFXMediaCustomization::AddAutoConfigurationButton(IDetailChildrenBuilder& InChildBuilder)
+{
+	InChildBuilder.AddCustomRow(FText::GetEmpty())
+		.WholeRowContent()
+		[
+			SNew(SBox)
+				.Padding(5.f)
+				[
+					SNew(SButton)
+						.HAlign(HAlign_Center)
+						.OnClicked(this, &FDisplayClusterConfiguratorICVFXMediaCustomization::OnAutoConfigureButtonClicked)
+						[
+							SNew(STextBlock)
+								.Font(FAppStyle::GetFontStyle(TEXT("PropertyWindow.NormalFont")))
+								.Text(LOCTEXT("AutoConfigureTiledInputButtonTitle", "Auto-Configure"))
+						]
+				]
+		];
+}
+
+FReply FDisplayClusterConfiguratorICVFXMediaCustomization::OnAutoConfigureButtonClicked()
+{
+	// Notify tile customizators to re-initialize their media subjects
+	FDisplayClusterConfiguratorMediaUtils::Get().OnTiledMediaAutoConfiguration().Broadcast(EditingObject.Get());
+
+	return FReply::Handled();
 }
 
 #undef LOCTEXT_NAMESPACE
