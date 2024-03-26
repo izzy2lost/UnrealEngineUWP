@@ -847,7 +847,7 @@ protected:
 	template<typename IT = T, typename TEnableIf<PCG::Private::MetadataTraits<IT>::CanInterpolate>::Type* = nullptr>
 	void Accumulate(PCGMetadataEntryKey ItemKey, const FPCGMetadataAttributeBase* InAttribute, const TArrayView<const TPair<PCGMetadataEntryKey, float>>& InWeightedKeys)
 	{
-		IT Value = PCG::Private::MetadataTraits<IT>::ZeroValue();
+		IT Value = PCG::Private::MetadataTraits<IT>::ZeroValueForWeightedSum();
 		for (const TPair<PCGMetadataEntryKey, float>& WeightedEntry : InWeightedKeys)
 		{
 			Value = PCG::Private::MetadataTraits<IT>::WeightedSum(
