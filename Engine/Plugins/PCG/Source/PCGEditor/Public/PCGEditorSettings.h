@@ -149,6 +149,10 @@ public:
 	UPROPERTY(EditAnywhere, config, Category = Node, meta = (HideAlphaChannel))
 	TMap<TSubclassOf<UPCGSettings>, FLinearColor> OverrideNodeColorByClass;
 
+	/** Default wire thickness */
+	UPROPERTY(EditAnywhere, config, Category = Wire, meta = (ClampMin="1", ClampMap="9"))
+	float DefaultWireThickness = 1.5f;
+
 	/** Hover edge size emphasis */
 	UPROPERTY(EditAnywhere, config, Category = Wire, meta = (ClampMin="1", ClampMax="5"))
 	float HoverEdgeEmphasis = 1.5f;

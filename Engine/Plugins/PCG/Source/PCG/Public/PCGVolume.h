@@ -19,6 +19,7 @@ public:
 	//~ Begin AActor Interface
 #if WITH_EDITOR
 	virtual bool GetReferencedContentObjects(TArray<UObject*>& Objects) const override;
+	virtual FName GetCustomIconName() const { return NAME_None; }
 #endif // WITH_EDITOR
 	//~ End AActor Interface
 
