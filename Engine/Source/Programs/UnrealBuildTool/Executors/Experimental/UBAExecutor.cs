@@ -308,7 +308,7 @@ namespace UnrealBuildTool
 			_threadedLogger.LogInformation("  Storage capacity {StoreCapacityGb}Gb", UBAConfig.StoreCapacityGb);
 		}
 
-		private async Task WriteActionOutputFile(IEnumerable<LinkedAction> inputActions)
+		private async Task WriteActionOutputFileAsync(IEnumerable<LinkedAction> inputActions)
 		{
 			if (String.IsNullOrEmpty(UBAConfig.ActionsOutputFile))
 			{
@@ -380,7 +380,7 @@ namespace UnrealBuildTool
 			}
 
 			PrintConfiguration();
-			await WriteActionOutputFile(inputActions);
+			await WriteActionOutputFileAsync(inputActions);
 
 			logger = _threadedLogger;
 
@@ -647,7 +647,9 @@ namespace UnrealBuildTool
 		static bool ForceLocalNoDetour(LinkedAction action)
 		{
 			if (!OperatingSystem.IsMacOS()) // Below code is slow, so early out
+			{
 				return false;
+			}
 			// Don't let Mac run shell commands through Uba as interposing dylibs into
 			// the shell results in dyld errors about no matching architecture.
 			// The shell is used to run various commands during a build like copy/ditto.

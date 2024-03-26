@@ -378,7 +378,7 @@ namespace UnrealBuildTool
 
 		public int NumLogicalCores { get; private set; } = 0;
 
-		public async void RemoveCompleteWorkers()
+		public async void RemoveCompleteWorkersAsync()
 		{
 			for (int idx = 0; idx < _workers.Count; idx++)
 			{
@@ -535,7 +535,7 @@ namespace UnrealBuildTool
 			}
 		}
 
-		public static async Task<UBAHordeSession?> TryCreateHordeSession(UnrealBuildAcceleratorHordeConfig hordeConfig, UBAExecutor executor, bool bStrictErrors, ILogger logger, CancellationToken cancellationToken = default)
+		public static async Task<UBAHordeSession?> TryCreateHordeSessionAsync(UnrealBuildAcceleratorHordeConfig hordeConfig, UBAExecutor executor, bool bStrictErrors, ILogger logger, CancellationToken cancellationToken = default)
 		{
 			if (hordeConfig.bDisableHorde)
 			{
@@ -788,7 +788,7 @@ namespace UnrealBuildTool
 			}
 
 			_cancellationSource = new CancellationTokenSource();
-			_hordeSessionTask = UBAHordeSession.TryCreateHordeSession(HordeConfig, executor, _ubaConfig.bStrict, _logger, _cancellationSource.Token);
+			_hordeSessionTask = UBAHordeSession.TryCreateHordeSessionAsync(HordeConfig, executor, _ubaConfig.bStrict, _logger, _cancellationSource.Token);
 			await _hordeSessionTask;
 		}
 
@@ -817,7 +817,7 @@ namespace UnrealBuildTool
 					return;
 				}
 
-				hordeSession.RemoveCompleteWorkers();
+				hordeSession.RemoveCompleteWorkersAsync();
 
 				if (queue.IsDone)
 				{
