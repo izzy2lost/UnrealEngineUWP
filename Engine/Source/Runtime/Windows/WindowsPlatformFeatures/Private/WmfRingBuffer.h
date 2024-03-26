@@ -22,13 +22,11 @@ public:
 
 	FTimespan GetDuration() const;
 
-	void PauseCleanup(bool bPause);
-
-	PRAGMA_DISABLE_DEPRECATION_WARNINGS
 	void Push(AVEncoder::FMediaPacket&& Sample);
 
+	void PauseCleanup(bool bPause);
+
 	TArray<AVEncoder::FMediaPacket> GetCopy();
-	PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 	void Reset();
 
@@ -37,11 +35,8 @@ private:
 
 private:
 	FTimespan MaxDuration = 0;
+	TArray<AVEncoder::FMediaPacket> Samples;
 	FCriticalSection Mutex;
 	FThreadSafeBool bCleanupPaused = false;
-
-	PRAGMA_DISABLE_DEPRECATION_WARNINGS
-	TArray<AVEncoder::FMediaPacket> Samples;
-	PRAGMA_ENABLE_DEPRECATION_WARNINGS
 };
 

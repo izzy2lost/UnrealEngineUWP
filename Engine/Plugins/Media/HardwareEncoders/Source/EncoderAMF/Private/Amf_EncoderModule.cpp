@@ -55,11 +55,8 @@ public:
 				{
 					if (IsRHIDeviceAMD())
 					{
-						PRAGMA_DISABLE_DEPRECATION_WARNINGS
 						FVideoEncoderAmf_H264::Register(FVideoEncoderFactory::Get());
-						PRAGMA_ENABLE_DEPRECATION_WARNINGS
 					}
-					
 				});
 				
 				AMFStarted = true;

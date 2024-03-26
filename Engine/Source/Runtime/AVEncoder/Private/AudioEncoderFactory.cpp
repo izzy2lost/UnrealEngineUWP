@@ -19,29 +19,21 @@ namespace AVEncoder
 		RegisterDefaultFactories();
 	}
 
-	PRAGMA_DISABLE_DEPRECATION_WARNINGS
 	TArray<FAudioEncoderFactory*> FAudioEncoderFactory::Factories;
-	PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
-	PRAGMA_DISABLE_DEPRECATION_WARNINGS
 	void FAudioEncoderFactory::RegisterFactory(FAudioEncoderFactory& Factory)
-	PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	{
 		DoDefaultRegistration();
 
 		Factories.AddUnique(&Factory);
 	}
 
-	PRAGMA_DISABLE_DEPRECATION_WARNINGS
 	void FAudioEncoderFactory::UnregisterFactory(FAudioEncoderFactory& Factory)
-	PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	{
 		Factories.Remove(&Factory);
 	}
 
-	PRAGMA_DISABLE_DEPRECATION_WARNINGS
 	FAudioEncoderFactory* FAudioEncoderFactory::FindFactory(const FString& Codec)
-	PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	{
 		DoDefaultRegistration();
 
@@ -56,9 +48,7 @@ namespace AVEncoder
 		return nullptr;
 	}
 
-	PRAGMA_DISABLE_DEPRECATION_WARNINGS
 	const TArray<FAudioEncoderFactory*> FAudioEncoderFactory::GetAllFactories()
-	PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	{
 		DoDefaultRegistration();
 
@@ -73,11 +63,8 @@ namespace AVEncoder
 #if PLATFORM_WINDOWS
 		// Generic Windows/XBox Wmf encoder
 		static FWmfAudioEncoderFactory WmfAudioEncoderFactory;
-		PRAGMA_DISABLE_DEPRECATION_WARNINGS
 		FAudioEncoderFactory::RegisterFactory(WmfAudioEncoderFactory);
-		PRAGMA_ENABLE_DEPRECATION_WARNINGS
 #endif
-
 
 		// Log all available encoders
 		{
@@ -86,11 +73,8 @@ namespace AVEncoder
 				FString Str;
 				for (auto&& Factory : Factories)
 				{
-					PRAGMA_DISABLE_DEPRECATION_WARNINGS
 					Str += FString::Printf(TEXT(", %s(%s) "), Factory->GetName(), *FString::Join(Factory->GetSupportedCodecs(), TEXT("/")));
-					PRAGMA_ENABLE_DEPRECATION_WARNINGS
 				}
-				
 				if (Str.IsEmpty())
 				{
 					return FString(TEXT("None"));
@@ -101,10 +85,7 @@ namespace AVEncoder
 				}
 			};
 
-			PRAGMA_DISABLE_DEPRECATION_WARNINGS
 			UE_LOG(LogAVEncoder, Log, TEXT("Available audio encoders: %s "), *CodecsInfo(FAudioEncoderFactory::GetAllFactories()));
-			PRAGMA_ENABLE_DEPRECATION_WARNINGS
 		}
-		
 	}
 }

@@ -14,11 +14,11 @@ struct FVideoDecoderAllocFrameBufferResult;
 namespace AVEncoder
 {
 
-	class UE_DEPRECATED(5.4, "AVEncoder has been deprecated. Please use the AVCodecs plugin family instead.") FVideoDecoderInput
+	class FVideoDecoderInput
 	{
 	public:
 
-		struct UE_DEPRECATED(5.4, "AVEncoder has been deprecated. Please use the AVCodecs plugin family instead.") FInputData
+		struct FInputData
 		{
 			const void* EncodedData = nullptr;
 			int64		PTS = 0;
@@ -54,7 +54,7 @@ namespace AVEncoder
 
 
 
-	class UE_DEPRECATED(5.4, "AVEncoder has been deprecated. Please use the AVCodecs plugin family instead.") FVideoDecoderOutput
+	class FVideoDecoderOutput
 	{
 	public:
 		virtual int32 AddRef() = 0;
@@ -63,9 +63,7 @@ namespace AVEncoder
 		virtual int32 GetHeight() const = 0;
 		virtual int64 GetPTS() const = 0;
 
-		PRAGMA_DISABLE_DEPRECATION_WARNINGS
 		virtual const FVideoDecoderAllocFrameBufferResult* GetAllocatedBuffer() const = 0;
-		PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 		virtual int32 GetCropLeft() const = 0;
 		virtual int32 GetCropRight() const = 0;

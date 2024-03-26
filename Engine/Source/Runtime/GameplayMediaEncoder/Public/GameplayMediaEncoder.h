@@ -32,14 +32,10 @@ class SWindow;
 class IGameplayMediaEncoderListener
 {
 public:
-	PRAGMA_DISABLE_DEPRECATION_WARNINGS
 	virtual void OnMediaSample(const AVEncoder::FMediaPacket& Sample) = 0;
-	PRAGMA_ENABLE_DEPRECATION_WARNINGS
 };
 
-PRAGMA_DISABLE_DEPRECATION_WARNINGS
-class UE_DEPRECATED(5.4, "GameplayMediaEncoder will move to a plugin in a future Unreal Engine release.") FGameplayMediaEncoder final : public ISubmixBufferListener, public AVEncoder::IAudioEncoderListener
-PRAGMA_ENABLE_DEPRECATION_WARNINGS
+class FGameplayMediaEncoder final : public ISubmixBufferListener, public AVEncoder::IAudioEncoderListener
 {
 public:
 
@@ -91,10 +87,8 @@ public:
 		Get()->Stop();
 	}
 
-	PRAGMA_DISABLE_DEPRECATION_WARNINGS
 	GAMEPLAYMEDIAENCODER_API AVEncoder::FAudioConfig GetAudioConfig() const;
 	AVEncoder::FVideoConfig GetVideoConfig() const { return VideoConfig; }
-	PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 private:
 	template <typename ObjectType, ESPMode Mode>
@@ -118,12 +112,10 @@ private:
 
 	GAMEPLAYMEDIAENCODER_API void UpdateVideoConfig();
 
-	PRAGMA_DISABLE_DEPRECATION_WARNINGS
 	GAMEPLAYMEDIAENCODER_API void OnEncodedAudioFrame(const AVEncoder::FMediaPacket& Packet) override;
 	GAMEPLAYMEDIAENCODER_API void OnEncodedVideoFrame(uint32 LayerIndex, const TSharedPtr<AVEncoder::FVideoEncoderInputFrame> Frame, const AVEncoder::FCodecPacket& Packet);
 
 	GAMEPLAYMEDIAENCODER_API TSharedPtr<AVEncoder::FVideoEncoderInputFrame> ObtainInputFrame();
-	PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	GAMEPLAYMEDIAENCODER_API void CopyTexture(const FTexture2DRHIRef& SourceTexture, FTexture2DRHIRef& DestinationTexture) const;
 
 	GAMEPLAYMEDIAENCODER_API void FloatToPCM16(float const* floatSamples, int32 numSamples, TArray<int16>& out) const;
@@ -134,14 +126,12 @@ private:
 	FCriticalSection AudioProcessingCS;
 	FCriticalSection VideoProcessingCS;
 
-	PRAGMA_DISABLE_DEPRECATION_WARNINGS
 	TUniquePtr<AVEncoder::FAudioEncoder> AudioEncoder;
 
 	AVEncoder::FVideoConfig VideoConfig;
 
 	TUniquePtr<AVEncoder::FVideoEncoder> VideoEncoder;
 	TSharedPtr<AVEncoder::FVideoEncoderInput> VideoEncoderInput;
-	PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 	uint64 NumCapturedFrames = 0;
 	FTimespan StartTime = 0;
@@ -166,9 +156,6 @@ private:
 	FThreadSafeBool bChangeFramerate = false;
 
 	TArray<int16> PCM16;
-	PRAGMA_DISABLE_DEPRECATION_WARNINGS
 	TMap<TSharedPtr<AVEncoder::FVideoEncoderInputFrame>, FTexture2DRHIRef> BackBuffers;
-	PRAGMA_ENABLE_DEPRECATION_WARNINGS
 };
-
 

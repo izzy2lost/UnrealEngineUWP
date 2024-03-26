@@ -12,9 +12,7 @@
 
 namespace AVEncoder
 {
-PRAGMA_DISABLE_DEPRECATION_WARNINGS
 class FWmfAudioEncoder : public FAudioEncoder
-PRAGMA_ENABLE_DEPRECATION_WARNINGS
 {
 public:
 
@@ -28,12 +26,10 @@ public:
 
 	const TCHAR* GetName() const override;
 	const TCHAR* GetType() const override;
-	PRAGMA_DISABLE_DEPRECATION_WARNINGS
 	bool Initialize(const FAudioConfig& InConfig) override;
+	void Shutdown() override;
 	void Encode(const FAudioFrame& Frame) override;
 	FAudioConfig GetConfig() const override;
-	PRAGMA_ENABLE_DEPRECATION_WARNINGS
-	void Shutdown() override;
 
 private:
 	bool SetInputType();
@@ -41,18 +37,14 @@ private:
 	bool RetrieveStreamInfo();
 	bool StartStreaming();
 
-	PRAGMA_DISABLE_DEPRECATION_WARNINGS
 	FIMFSampleWrapper CreateInputSample(const uint8* SampleData, uint32 Size, FTimespan Timestamp, FTimespan Duration);
 	FIMFSampleWrapper GetOutputSample();
-	PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 	ECodecType CodecType;
 	FString Name;
 	FString Type;
 
-	PRAGMA_DISABLE_DEPRECATION_WARNINGS
 	FAudioConfig Config;
-	PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	TRefCountPtr<IMFTransform> Encoder;
 	TRefCountPtr<IMFMediaType> OutputType;
 	MFT_INPUT_STREAM_INFO InputStreamInfo = {};
@@ -66,7 +58,7 @@ private:
 //////////////////////////////////////////////////////////////////////////
 // FWmfAudioEncoder implementation
 //////////////////////////////////////////////////////////////////////////
-PRAGMA_DISABLE_DEPRECATION_WARNINGS
+
 FWmfAudioEncoder::FWmfAudioEncoder(ECodecType CodecType)
 	: CodecType(CodecType)
 {
@@ -80,13 +72,10 @@ FWmfAudioEncoder::FWmfAudioEncoder(ECodecType CodecType)
 		checkNoEntry();
 	}
 }
-PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
-PRAGMA_DISABLE_DEPRECATION_WARNINGS
 FWmfAudioEncoder::~FWmfAudioEncoder()
 {
 }
-PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 const TCHAR* FWmfAudioEncoder::GetName() const
 {
@@ -127,9 +116,7 @@ namespace
 	}
 }
 
-PRAGMA_DISABLE_DEPRECATION_WARNINGS
 bool FWmfAudioEncoder::Initialize(const FAudioConfig& InConfig)
-PRAGMA_ENABLE_DEPRECATION_WARNINGS
 {
 
 	//
@@ -139,12 +126,10 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	{
 		// See  https://docs.microsoft.com/en-us/windows/desktop/medfound/aac-encoder for details
 		FString ErrorStr;
-		PRAGMA_DISABLE_DEPRECATION_WARNINGS
 		if (
 			!ValidateValue(TEXT("AAC Bitrate"), InConfig.Bitrate, {12000*8, 16000*8, 20000*8, 24000*8}, ErrorStr) ||
 			!ValidateValue(TEXT("AAC Samplerate"), InConfig.Samplerate, { 44100, 48000, 0 }, ErrorStr) ||
 			!ValidateValue(TEXT("AAC NumChannels"), InConfig.NumChannels, {1,2,6}, ErrorStr))
-		PRAGMA_ENABLE_DEPRECATION_WARNINGS
 		{
 			UE_LOG(LogAVEncoder, Error, TEXT("%s"), *ErrorStr);
 			return false;
@@ -156,11 +141,9 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 		return false;
 	}
 
-	PRAGMA_DISABLE_DEPRECATION_WARNINGS
 	UE_LOG(LogAVEncoder, Log, TEXT("AudioEncoder config: %d channels, %d Hz, %.2f Kbps"), InConfig.NumChannels, InConfig.Samplerate, InConfig.Bitrate / 1000.0f);
 
 	Config = InConfig;
-	PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 	const GUID* CodecGuid=nullptr;
 	if (CodecType == ECodecType::AAC)
@@ -188,7 +171,6 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	return true;
 }
 
-
 bool FWmfAudioEncoder::SetInputType()
 {
 	TRefCountPtr<IMFMediaType> MediaType;
@@ -196,11 +178,8 @@ bool FWmfAudioEncoder::SetInputType()
 	CHECK_HR(MediaType->SetGUID(MF_MT_MAJOR_TYPE, MFMediaType_Audio));
 	CHECK_HR(MediaType->SetGUID(MF_MT_SUBTYPE, MFAudioFormat_PCM));
 	CHECK_HR(MediaType->SetUINT32(MF_MT_AUDIO_BITS_PER_SAMPLE, 16)); // the only value supported
-
-	PRAGMA_DISABLE_DEPRECATION_WARNINGS
 	CHECK_HR(MediaType->SetUINT32(MF_MT_AUDIO_SAMPLES_PER_SECOND, Config.Samplerate));
 	CHECK_HR(MediaType->SetUINT32(MF_MT_AUDIO_NUM_CHANNELS, Config.NumChannels));
-	PRAGMA_DISABLE_DEPRECATION_WARNINGS
 
 	CHECK_HR(Encoder->SetInputType(0, MediaType, 0));
 
