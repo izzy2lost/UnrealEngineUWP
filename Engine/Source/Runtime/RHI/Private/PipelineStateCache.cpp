@@ -1755,6 +1755,7 @@ public:
 			{
 				It.Value->WaitCompletion();
 				delete It.Value;
+				It.Value = nullptr;
 			}
 		}
 		for (auto& It : PartialPipelines)
@@ -1763,8 +1764,11 @@ public:
 			{
 				It.Value->WaitCompletion();
 				delete It.Value;
+				It.Value = nullptr;
 			}
 		}
+		FullPipelines.Reset();
+		PartialPipelines.Reset();
 	}
 
 	void Trim(int32 TargetNumEntries)
