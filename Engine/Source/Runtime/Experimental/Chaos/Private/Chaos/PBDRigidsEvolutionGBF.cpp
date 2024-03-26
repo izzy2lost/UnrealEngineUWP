@@ -1338,7 +1338,7 @@ void FPBDRigidsEvolutionGBF::DestroyTransientConstraints()
 	}
 }
 
-CHAOS_API void FPBDRigidsEvolutionGBF::SetParticleTransform(FGeometryParticleHandle* InParticle, const FVec3& InPos, const FRotation3& InRot, const bool bIsTeleport)
+void FPBDRigidsEvolutionGBF::SetParticleTransform(FGeometryParticleHandle* InParticle, const FVec3& InPos, const FRotation3& InRot, const bool bIsTeleport)
 {
 	const FVec3 PrevX = InParticle->GetX();
 	const FRotation3 PrevR = InParticle->GetR();
@@ -1354,7 +1354,6 @@ CHAOS_API void FPBDRigidsEvolutionGBF::SetParticleTransform(FGeometryParticleHan
 	}
 #endif
 }
-
 
 void FPBDRigidsEvolutionGBF::SetParticleTransformSwept(FGeometryParticleHandle* InParticle, const FVec3& InPos, const FRotation3& InRot, const bool bIsTeleport)
 {
@@ -1409,6 +1408,41 @@ void FPBDRigidsEvolutionGBF::SetParticleKinematicTarget(FGeometryParticleHandle*
 		{
 			SetParticleTransform(ParticleHandle, NewKinematicTarget.GetTargetPosition(), NewKinematicTarget.GetTargetRotation(), false);
 		}
+	}
+}
+
+void FPBDRigidsEvolutionGBF::SetParticleTransformCorrection(FGeometryParticleHandle* InParticle, const FVec3& InPosDelta, const FVec3& InRotDelta)
+{
+	FGenericParticleHandle Particle = InParticle;
+	const bool bHavePositionDelta = !InPosDelta.IsZero();
+	const bool bHaveRotationDelta = !InRotDelta.IsZero();
+
+	if (bHavePositionDelta || bHaveRotationDelta)
+	{
+		const FVec3 PrevX = Particle->GetX();
+		const FRotation3 PrevR = Particle->GetR();
+
+		// Apply the position correction
+		if (bHavePositionDelta)
+		{
+			const FVec3 NewX = Particle->GetX() + InPosDelta;
+			Particle->SetX(NewX);
+		}
+
+		// Apply the rotation correction
+		if (bHaveRotationDelta)
+		{
+			const FRotation3 NewR = FRotation3::IntegrateRotationWithAngularVelocity(Particle->GetR(), InRotDelta, 1.0f);
+			Particle->SetR(NewR);
+		}
+
+		// If we applied a correction we must fix the collision anchors so that friction doesn't undo prevent our move or rotation
+		InParticle->ParticleCollisions().VisitCollisions(
+			[this, InParticle](FPBDCollisionConstraint& Collision)
+			{
+				Collision.UpdateParticleTransform(InParticle);
+				return ECollisionVisitorResult::Continue;
+			});
 	}
 }
 
