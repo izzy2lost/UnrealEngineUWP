@@ -7,6 +7,7 @@
 #include "IHttpThreadedRequest.h"
 #include "PlatformHttp.h"
 #include "HttpPackage.h"
+#include "Misc/TVariant.h"
 
 /**
  * Delegate invoked when in progress Task completes. It is invoked in an out of our control thread
@@ -40,7 +41,7 @@ public:
 	virtual void SetContent(TArray<uint8>&& ContentPayload) override;
 	virtual void SetContentAsString(const FString& ContentString) override;
     virtual bool SetContentAsStreamedFile(const FString& Filename) override;
-	virtual bool SetContentFromStream(TSharedRef<FArchive, ESPMode::ThreadSafe> Stream) override;
+	virtual bool SetContentFromStream(TSharedRef<FArchive> Stream) override;
 	virtual void SetHeader(const FString& HeaderName, const FString& HeaderValue) override;
 	virtual void AppendToHeader(const FString& HeaderName, const FString& AdditionalHeaderValue) override;
 	virtual bool ProcessRequest() override;
@@ -108,8 +109,14 @@ private:
 	/** This is the Task associated to the sessionin charge of our request */
 	NSURLSessionTask* Task;
     
-	/** Flag whether the request payload source is a file */
-	bool bIsPayloadFile;
+	struct FAppleHttpStreamFactory;
+	using FNoStreamSource = FEmptyVariantState;
+	/** Source to create stream from
+		FNoStreamedSource: No streamed data
+		FString: Filename set from SetContentAsStreamedFile
+		TSharedRef<FArchive>: Stream set from SetContentFromStream
+	 */
+	TVariant<FNoStreamSource, FString, TSharedRef<FArchive>> StreamedContentSource;
 
 	/** The request payload length in bytes. This must be tracked separately for a file stream */
 	uint64 ContentBytesLength;
