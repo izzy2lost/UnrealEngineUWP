@@ -1038,6 +1038,9 @@ private:
 	/** Cached AggGeom holding the collision shapes to render */
 	FKAggregateGeom CachedAggGeom;
 
+	// Control access to collision data for debug rendering
+	mutable FCriticalSection CachedCollisionLock;
+
 #endif
 
 	GEOMETRYFRAMEWORK_API bool IsCollisionView(const FEngineShowFlags& EngineShowFlags, bool& bDrawSimpleCollision, bool& bDrawComplexCollision) const;

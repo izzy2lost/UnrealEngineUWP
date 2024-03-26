@@ -155,6 +155,7 @@ bool FBaseDynamicMeshSceneProxy::IsCollisionView(const FEngineShowFlags& EngineS
 
 #if UE_ENABLE_DEBUG_DRAWING
 	// If in a 'collision view' and collision is enabled
+	FScopeLock Lock(&CachedCollisionLock);
 	if (bHasCollisionData && bDrawCollisionView && IsCollisionEnabled())
 	{
 		// See if we have a response to the interested channel
@@ -331,6 +332,8 @@ void FBaseDynamicMeshSceneProxy::GetCollisionDynamicMeshElements(TArray<FMeshRen
 	const TArray<const FSceneView*>& Views, uint32 VisibilityMap, FMeshElementCollector& Collector) const
 {
 #if UE_ENABLE_DEBUG_DRAWING
+	FScopeLock Lock(&CachedCollisionLock);
+
 	if (!bHasCollisionData)
 	{
 		return;
@@ -577,6 +580,7 @@ void FBaseDynamicMeshSceneProxy::DrawStaticElements(FStaticPrimitiveDrawInterfac
 void FBaseDynamicMeshSceneProxy::SetCollisionData()
 {
 #if UE_ENABLE_DEBUG_DRAWING
+	FScopeLock Lock(&CachedCollisionLock);
 	bHasCollisionData = true;
 	bOwnerIsNull = ParentBaseComponent->GetOwner() == nullptr;
 	bHasComplexMeshData = false;

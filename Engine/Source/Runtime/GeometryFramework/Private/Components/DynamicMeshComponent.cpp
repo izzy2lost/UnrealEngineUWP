@@ -1581,6 +1581,11 @@ void UDynamicMeshComponent::RebuildPhysicsData()
 
 		bCollisionUpdatePending = false;
 	}
+
+	if (FDynamicMeshSceneProxy* Proxy = GetCurrentSceneProxy())
+	{
+		Proxy->SetCollisionData();
+	}
 }
 
 void UDynamicMeshComponent::FinishPhysicsAsyncCook(bool bSuccess, UBodySetup* FinishedBodySetup)
