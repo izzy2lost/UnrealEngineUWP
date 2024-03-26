@@ -62,7 +62,9 @@ void FRigVMRegistry::AddReferencedObjects(FReferenceCollector& Collector)
 	// which can happen during cook time.
 	for (FTypeInfo& Type : Types)
 	{
-		if (Type.Type.CPPTypeObject)
+		// the Object needs to be checked for validity since it may be a user defined type (struct or enum)
+		// which is about to get removed. 
+		if (IsValid(Type.Type.CPPTypeObject))
 		{
 			Collector.AddReferencedObject(Type.Type.CPPTypeObject);
 		}
