@@ -1065,15 +1065,17 @@ void UInstancedActorsData::RuntimeRemoveInstances(TConstArrayView<FInstancedActo
 	// Pre-empt entity spawning and simply invalidate InstanceTransform entries, preventing them from spawning later
 	else
 	{
+		uint16 InstancedRemoved = 0;
 		for (FInstancedActorsInstanceIndex InstanceToRemove : InstancesToRemove)
 		{
 			if (ensure(InstanceTransforms.IsValidIndex(InstanceToRemove.GetIndex())))
 			{
 				UE::InstancedActors::Helpers::InvalidateInstanceTransform(InstanceTransforms[InstanceToRemove.GetIndex()]);
-				--NumValidInstances;
-				check(NumValidInstances >= 0);
+				++InstancedRemoved;
 			}
 		}
+		
+		NumValidInstances = FMath::Clamp(NumValidInstances - InstancedRemoved, 0u, NumValidInstances);
 	}
 
 	bRemovingInstances = false;
