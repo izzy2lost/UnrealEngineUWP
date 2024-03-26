@@ -1878,6 +1878,14 @@ public:
 	//~ End UActorComponent interface.
 #endif
 
+	/**
+	 * Currently, component space transforms for every particle is compute relative to the component transform.
+	 * By default, this means that when the component transform changes, every particle is shifted along with the component.
+	 * However, there are times when you may change the component transform but instead want every particle to stay in the same world position.
+	 * In those cases, RebaseDynamicCollectionTransformsOnNewWorldTransform can be called.
+	 */
+	GEOMETRYCOLLECTIONENGINE_API void RebaseDynamicCollectionTransformsOnNewWorldTransform();
+
 	friend struct FGCCollisionProfileScopedTransaction;
 };
 
