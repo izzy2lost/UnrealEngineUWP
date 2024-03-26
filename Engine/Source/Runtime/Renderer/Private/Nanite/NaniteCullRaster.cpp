@@ -5421,12 +5421,12 @@ void FRenderer::ExtractResults( FRasterResults& RasterResults )
 	RasterResults.ViewsBuffer			= ViewsBuffer;
 	RasterResults.VisibleClustersSWHW	= VisibleClustersSWHW;
 	RasterResults.VisBuffer64			= RasterContext.VisBuffer64;
+	RasterResults.RasterBinMeta 		= RasterBinMetaBuffer;
 	
 	if (RasterContext.VisualizeActive)
 	{
 		RasterResults.DbgBuffer64	= RasterContext.DbgBuffer64;
 		RasterResults.DbgBuffer32	= RasterContext.DbgBuffer32;
-		RasterResults.RasterBinMeta = RasterBinMetaBuffer;
 	}
 }
 

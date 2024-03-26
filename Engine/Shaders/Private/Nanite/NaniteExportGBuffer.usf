@@ -17,12 +17,14 @@ uint StencilClear;
 uint StencilDecal;
 uint bWriteCustomStencil; // only used to repurpose EmitSceneDepthStencilPS for custom depth/stencil where possible
 uint MeshPassIndex;
+uint RegularMaterialRasterBinCount;
 
 Texture2D<UlongType> VisBuffer64;
 #if SHADING_MASK_LOAD
 Texture2D<uint> ShadingMask;
 #endif
 StructuredBuffer<uint> MaterialTileRemap;
+StructuredBuffer<FNaniteRasterBinMeta> RasterBinMeta;
 
 // These are only used for custom depth/stencil output
 Texture2D<float> CustomDepth;
@@ -135,6 +137,7 @@ void EmitSceneDepthPS(
 	{
 	#if VELOCITY_EXPORT || SHADING_MASK_EXPORT
 		FVisibleCluster VisibleCluster = GetVisibleCluster(VisibleClusterIndex);
+		const FCluster ClusterData = GetCluster(VisibleCluster.PageIndex, VisibleCluster.ClusterIndex);
 		const FInstanceSceneData InstanceData = GetInstanceSceneData(VisibleCluster, false);
 		const FPrimitiveSceneData PrimitiveData = GetPrimitiveData(InstanceData.PrimitiveId);
 	#if VELOCITY_EXPORT
@@ -151,7 +154,6 @@ void EmitSceneDepthPS(
 	#endif
 
 #if SHADING_MASK_EXPORT
-		const FCluster ClusterData = GetCluster(VisibleCluster.PageIndex, VisibleCluster.ClusterIndex);
 	#if LEGACY_CULLING
 		const uint ShadingBin			= GetMaterialLegacyShadingId(ClusterData, InstanceData.PrimitiveId, MeshPassIndex, TriIndex);
 	#else
@@ -170,7 +172,17 @@ void EmitSceneDepthPS(
 
 	#if VELOCITY_EXPORT
 		// Don't output velocity here for WPO clusters, as their velocity must be calculated in the base pass
-		const bool bWPOEnabled = (VisibleCluster.Flags & NANITE_CULLING_FLAG_ENABLE_WPO) != 0;
+		bool bWPOEnabled = (VisibleCluster.Flags & NANITE_CULLING_FLAG_ENABLE_WPO) != 0;
+		const bool bSecondaryRasterBin = !bWPOEnabled;
+		
+		if (bWPOEnabled)
+		{
+			// The cluster may have WPO enabled, but we want to know if WPO is enabled by the material to decide to output velocity
+			const uint RasterBinIndex = GetMaterialRasterBin(ClusterData, InstanceData.PrimitiveId, MeshPassIndex, TriIndex, RegularMaterialRasterBinCount, bSecondaryRasterBin);
+			const FNaniteMaterialFlags MaterialFlags = UnpackNaniteMaterialFlags(RasterBinMeta[RasterBinIndex].MaterialFlags);
+			bWPOEnabled &= MaterialFlags.bWorldPositionOffset;
+		}
+
 		const bool bOutputVelocity = !bWPOEnabled && (PrimitiveData.Flags & PRIMITIVE_SCENE_DATA_FLAG_OUTPUT_VELOCITY) != 0;
 		if (bOutputVelocity)
 		{
