@@ -1469,4 +1469,50 @@ void FGeometryCollectionEngineConversion::AppendGeometryCollectionSource(const F
 	}
 }
 
+void FGeometryCollectionEngineConversion::ConvertStaticMeshToGeometryCollection(const TObjectPtr<UStaticMesh> StaticMesh, FManagedArrayCollection& OutCollection, TArray<TObjectPtr<UMaterial>>& OutMaterials, TArray<FGeometryCollectionAutoInstanceMesh>& OutInstancedMeshes, bool bSetInternalFromMaterialIndex, bool bSplitComponents)
+{
+#if WITH_EDITORONLY_DATA
+	if (UGeometryCollection* NewGeometryCollection = NewObject<UGeometryCollection>())
+	{
+		// If any of the static meshes have Nanite enabled, also enable on the new geometry collection asset for convenience.
+		NewGeometryCollection->EnableNanite |= StaticMesh->IsNaniteEnabled();
+
+		FTransform ComponentTransform = FTransform::Identity;
+
+		// Record the contributing source on the asset.
+		FSoftObjectPath SourceSoftObjectPath(StaticMesh);
+
+		// Materials		
+		TArray<TObjectPtr<UMaterialInterface>> MatArr;
+		for (auto& StaticMaterial : StaticMesh->GetStaticMaterials())
+		{
+			MatArr.Emplace(StaticMaterial.MaterialInterface);
+		}
+		TArray<TObjectPtr<UMaterialInterface>> SourceMaterials(MatArr);
+
+		// InstanceMeshes
+		FGeometryCollectionAutoInstanceMesh NewInstanceMesh;
+		NewInstanceMesh.Mesh = StaticMesh;
+		NewInstanceMesh.Materials = SourceMaterials;
+		OutInstancedMeshes.Emplace(NewInstanceMesh);
+
+		bool bAddInternalMaterials = true;
+
+		NewGeometryCollection->GeometrySource.Emplace(SourceSoftObjectPath, ComponentTransform, SourceMaterials, bSplitComponents, bSetInternalFromMaterialIndex);
+		FGeometryCollectionEngineConversion::AppendStaticMesh(StaticMesh, SourceMaterials, ComponentTransform, NewGeometryCollection, false, bAddInternalMaterials, bSplitComponents, bSetInternalFromMaterialIndex);
+
+		NewGeometryCollection->InitializeMaterials();
+
+		// Materials
+		for (auto& Material : NewGeometryCollection->Materials)
+		{
+			OutMaterials.Emplace(Material->GetMaterial());
+		}
+
+		TSharedPtr<FGeometryCollection> OutCollectionPtr = NewGeometryCollection->GetGeometryCollection();
+		OutCollectionPtr->CopyTo(&OutCollection);
+	}
+#endif //WITH_EDITORONLY_DATA
+}
+
 #undef LOCTEXT_NAMESPACE 
