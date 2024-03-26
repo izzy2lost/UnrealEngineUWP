@@ -61,11 +61,29 @@ struct FNetBlobCreationInfo
 class FNetBlob
 {
 public:
+	struct FQuantizedBlobState
+	{
+		FQuantizedBlobState() = default;
+		FQuantizedBlobState(const FQuantizedBlobState&) = delete;
+		FQuantizedBlobState(FQuantizedBlobState&&);
+		IRISCORE_API FQuantizedBlobState(uint32 Size, uint32 Alignment);
+		~FQuantizedBlobState();
+
+		FQuantizedBlobState& operator=(const FQuantizedBlobState&) = delete;
+		FQuantizedBlobState& operator=(FQuantizedBlobState&&);
+
+		uint8* GetStateBuffer() { return StateBuffer; }
+		const uint8* GetStateBuffer() const { return StateBuffer; }
+
+	private:
+		uint8* StateBuffer = nullptr;
+	};
+
 	/** Construct a NetBlob with reference count zero. */
 	IRISCORE_API FNetBlob(const FNetBlobCreationInfo&);
 
 	/** Set the blob state. Use when there's a descriptor to avoid having to override serialization functions. */
-	IRISCORE_API void SetState(const TRefCountPtr<const FReplicationStateDescriptor>& BlobDescriptor, TUniquePtr<uint8> QuantizedBlobState);
+	IRISCORE_API void SetState(const TRefCountPtr<const FReplicationStateDescriptor>& BlobDescriptor, FQuantizedBlobState&& QuantizedBlobState);
 
 	/** Returns the FNetBlobCreationInfo. */
 	const FNetBlobCreationInfo& GetCreationInfo() const { return CreationInfo; }
@@ -133,7 +151,7 @@ protected:
 	TRefCountPtr<const FReplicationStateDescriptor> BlobDescriptor;
 
 	/** The state buffer that holds the data described by the descriptor. */
-	TUniquePtr<uint8> QuantizedBlobState;
+	FQuantizedBlobState QuantizedBlobState;
 
 private:
 	mutable std::atomic<int32> RefCount;
@@ -177,6 +195,32 @@ protected:
 	/** The subobject reference. */
 	FNetObjectReference TargetObjectReference;
 };
+
+inline FNetBlob::FQuantizedBlobState::FQuantizedBlobState(FNetBlob::FQuantizedBlobState&& Other)
+{
+	StateBuffer = Other.StateBuffer;
+	Other.StateBuffer = nullptr;
+}
+
+inline FNetBlob::FQuantizedBlobState::~FQuantizedBlobState()
+{
+	if (StateBuffer)
+	{
+		GMalloc->Free(StateBuffer);
+	}
+}
+
+inline FNetBlob::FQuantizedBlobState& FNetBlob::FQuantizedBlobState::operator=(FNetBlob::FQuantizedBlobState&& Other)
+{
+	if (StateBuffer)
+	{
+		GMalloc->Free(StateBuffer);
+	}
+
+	StateBuffer = Other.StateBuffer;
+	Other.StateBuffer = nullptr;
+	return *this;
+}
 
 inline void FNetObjectAttachment::SetNetObjectReference(const FNetObjectReference& InQueueOwnerReference, const FNetObjectReference& InTargetObjectReference)
 {
