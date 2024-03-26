@@ -1163,6 +1163,11 @@ bool CompileAndProcessD3DShaderDXC(
 				PackedResourceCounts.UsageFlags |= EShaderResourceUsageFlags::NoDerivativeOps;
 			}
 
+			if (Input.Environment.CompilerFlags.Contains(CFLAG_ShaderBundle))
+			{
+				PackedResourceCounts.UsageFlags |= EShaderResourceUsageFlags::ShaderBundle;
+			}
+
 			PackedResourceCounts.NumSamplers = static_cast<uint8>(NumSamplers);
 			PackedResourceCounts.NumSRVs = static_cast<uint8>(NumSRVs);
 			PackedResourceCounts.NumCBs = static_cast<uint8>(NumCBs);

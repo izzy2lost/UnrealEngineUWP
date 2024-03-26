@@ -2468,6 +2468,7 @@ void FNaniteVertexFactory::ModifyCompilationEnvironment(const FVertexFactoryShad
 	OutEnvironment.CompilerFlags.Add(CFLAG_HLSL2021);
 	OutEnvironment.CompilerFlags.Add(CFLAG_Wave32);
 	OutEnvironment.CompilerFlags.Add(CFLAG_RootConstants);
+	OutEnvironment.CompilerFlags.Add(CFLAG_ShaderBundle);
 	OutEnvironment.CompilerFlags.Add(CFLAG_CheckForDerivativeOps);
 }
 

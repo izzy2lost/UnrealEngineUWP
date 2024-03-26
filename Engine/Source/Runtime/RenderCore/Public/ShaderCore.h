@@ -731,6 +731,7 @@ enum class EShaderResourceUsageFlags : uint8
 	BindlessSamplers      = 1 << 2,
 	RootConstants         = 1 << 3,
 	NoDerivativeOps       = 1 << 4,
+	ShaderBundle          = 1 << 5,
 };
 ENUM_CLASS_FLAGS(EShaderResourceUsageFlags)
 

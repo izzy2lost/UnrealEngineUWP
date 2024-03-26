@@ -804,6 +804,8 @@ public:
 	FRHIShader(ERHIResourceType InResourceType, EShaderFrequency InFrequency)
 		: FRHIResource(InResourceType)
 		, Frequency(InFrequency)
+		, bNoDerivativeOps(false)
+		, bHasShaderBundleUsage(false)
 	{
 	}
 
@@ -812,9 +814,31 @@ public:
 		return Frequency;
 	}
 
+	inline void SetNoDerivativeOps(bool bValue)
+	{
+		bNoDerivativeOps = bValue;
+	}
+
+	inline bool HasNoDerivativeOps() const
+	{
+		return bNoDerivativeOps;
+	}
+
+	inline void SetShaderBundleUsage(bool bValue)
+	{
+		bHasShaderBundleUsage = bValue;
+	}
+
+	inline bool HasShaderBundleUsage() const
+	{
+		return bHasShaderBundleUsage;
+	}
+
 private:
 	FSHAHash Hash;
 	EShaderFrequency Frequency;
+	uint8 bNoDerivativeOps : 1;
+	uint8 bHasShaderBundleUsage : 1;
 };
 
 class FRHIGraphicsShader : public FRHIShader
@@ -892,26 +916,14 @@ class FRHIComputeShader : public FRHIShader
 public:
 	FRHIComputeShader() : FRHIShader(RRT_ComputeShader, SF_Compute)
 	, Stats(nullptr)
-	, bNoDerivativeOps(false)
 	{
 	}
 	
 	inline void SetStats(struct FPipelineStateStats* Ptr) { Stats = Ptr; }
 	RHI_API void UpdateStats();
 
-	inline void SetNoDerivativeOps(bool bValue)
-	{
-		bNoDerivativeOps = bValue;
-	}
-
-	inline bool HasNoDerivativeOps() const
-	{
-		return bNoDerivativeOps;
-	}
-	
 private:
 	struct FPipelineStateStats* Stats;
-	uint8 bNoDerivativeOps : 1;
 };
 
 //

@@ -163,6 +163,8 @@ enum ECompilerFlags
 	// Shader is used with indirect draws. This flag is currently used to fix a platform specific problem with certain (rare) indirect draw setups, but it is intended to be set for all indirect draw shaders in the future.
 	// Must not be used on shaders that are used with direct draws. Doing so might cause crashes or visual corruption on certain platforms.
 	CFLAG_IndirectDraw,
+	// Shader is used with shader bundles.
+	CFLAG_ShaderBundle,
 	CFLAG_Max,
 };
 static_assert(CFLAG_Max < 64, "Out of bitfield space! Modify FShaderCompilerFlags");
