@@ -183,7 +183,7 @@ public:
 		const FTransform Transform(bInProjectIn2D ? FRotator(0, InRotation.Yaw, 0) : InRotation, InLocation);
 		if (InShapes.IsEmpty())
 		{
-			if (InDefaultRadius + InExtraRadius)
+			if ((InDefaultRadius + InExtraRadius) > 0)
 			{
 				const FSphericalSector LocalShape(FVector::ZeroVector, InDefaultRadius + InExtraRadius);
 				check(LocalShape.IsValid()); // Radius, axis and angle should be all valid here
