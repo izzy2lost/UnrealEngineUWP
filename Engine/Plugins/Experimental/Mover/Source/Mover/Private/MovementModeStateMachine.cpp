@@ -141,7 +141,7 @@ void UMovementModeStateMachine::OnSimulationTick(USceneComponent* UpdatedCompone
 
 	if (!QueuedModeTransition->IsSet())
 	{
-		QueueNextMode(SubstepStartSyncState->MovementMode);
+		QueueNextMode(SubstepStartData.SyncState.MovementMode);
 	}
 
 	AdvanceToNextMode();
@@ -152,16 +152,16 @@ void UMovementModeStateMachine::OnSimulationTick(USceneComponent* UpdatedCompone
 	{
 		SubstepStartSyncState = SubstepStartData.SyncState.SyncStateCollection.FindMutableDataByType<FMoverDefaultSyncState>();
 		FMoverDefaultSyncState* OutputSyncState = &OutputState.SyncState.SyncStateCollection.FindOrAddMutableDataByType<FMoverDefaultSyncState>();
-		OutputSyncState->MovementMode = CurrentModeName;
+		OutputState.SyncState.MovementMode = CurrentModeName;
 
 		OutputState.MovementEndState.ResetToDefaults();
 
 		SubTimeStep.StepMs = EndingSimTimeMs - SubTimeStep.BaseSimTimeMs;		// TODO: convert this to an overridable function that can support MaxStepTime, MaxIterations, etc.
 
 		// Transfer any queued moves into the starting state. They'll be started during the move generation.
-		FlushQueuedMovesToGroup(SubstepStartSyncState->LayeredMoves);
-		OutputSyncState->LayeredMoves = SubstepStartSyncState->LayeredMoves;
-		FLayeredMoveGroup& CurrentLayeredMoves = OutputSyncState->LayeredMoves;
+		FlushQueuedMovesToGroup(SubstepStartData.SyncState.LayeredMoves);
+		OutputState.SyncState.LayeredMoves = SubstepStartData.SyncState.LayeredMoves;
+		FLayeredMoveGroup& CurrentLayeredMoves = OutputState.SyncState.LayeredMoves;
 
 		// Gather any layered move contributions
 		FProposedMove CombinedLayeredMove;
@@ -187,7 +187,7 @@ void UMovementModeStateMachine::OnSimulationTick(USceneComponent* UpdatedCompone
 		if (bHasLayeredMoveContributions && !CombinedLayeredMove.PreferredMode.IsNone())
 		{
 			SetModeImmediately(CombinedLayeredMove.PreferredMode);
-			OutputSyncState->MovementMode = CurrentModeName;
+			OutputState.SyncState.MovementMode = CurrentModeName;
 		}
 
 		// Merge proposed movement from the current mode with movement from layered moves
@@ -288,7 +288,7 @@ void UMovementModeStateMachine::OnSimulationTick(USceneComponent* UpdatedCompone
 
 		// Switch modes if necessary (note that this will allow exit/enter on the same state)
 		AdvanceToNextMode();
-		OutputSyncState->MovementMode = CurrentModeName;
+		OutputState.SyncState.MovementMode = CurrentModeName;
 
 		const float RemainingMs = FMath::Clamp(OutputState.MovementEndState.RemainingMs, 0.0f, SubTimeStep.StepMs);
 		SubTimeStep.BaseSimTimeMs += (SubTimeStep.StepMs - RemainingMs);
@@ -417,12 +417,9 @@ FTransitionEvalResult UImmediateMovementModeTransition::OnEvaluate(const FSimula
 		{
 			return FTransitionEvalResult(NextMode);
 		}
-		else if (const FMoverDefaultSyncState* SyncState = Params.StartState.SyncState.SyncStateCollection.FindDataByType<FMoverDefaultSyncState>())
+		else if (NextMode != Params.StartState.SyncState.MovementMode)
 		{
-			if (NextMode != SyncState->MovementMode)
-			{
-				return FTransitionEvalResult(NextMode);
-			}
+			return FTransitionEvalResult(NextMode);
 		}
 	}
 

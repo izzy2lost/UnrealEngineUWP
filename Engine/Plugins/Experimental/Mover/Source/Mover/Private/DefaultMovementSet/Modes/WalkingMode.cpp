@@ -330,12 +330,10 @@ void UWalkingMode::OnUnregistered()
 
 bool UWalkingMode::AttemptJump(float UpwardsSpeed, FMoverTickEndData& OutputState)
 {
-	FMoverDefaultSyncState& OutputSyncState = OutputState.SyncState.SyncStateCollection.FindOrAddMutableDataByType<FMoverDefaultSyncState>();
-
 	// TODO: This should check if a jump is even allowed
 	TSharedPtr<FLayeredMove_JumpImpulse> JumpMove = MakeShared<FLayeredMove_JumpImpulse>();
 	JumpMove->UpwardsSpeed = UpwardsSpeed;
-	OutputSyncState.LayeredMoves.QueueLayeredMove(JumpMove);
+	OutputState.SyncState.LayeredMoves.QueueLayeredMove(JumpMove);
 	OutputState.MovementEndState.NextModeName = CommonLegacySettings->AirMovementModeName;
 	return true;
 }

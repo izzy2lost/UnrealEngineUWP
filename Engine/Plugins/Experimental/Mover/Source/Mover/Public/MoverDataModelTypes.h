@@ -144,10 +144,6 @@ public:
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Mover)
 	FVector MoveDirectionIntent;
 
-	// The mode we ended up in from the prior frame, and which we'll start in during the next frame
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Mover)
-	FName MovementMode;
-
 protected:
 	// Optional: when moving on a base, input may be relative to this object
 	UPROPERTY(BlueprintReadOnly, Category = Mover)
@@ -164,18 +160,12 @@ protected:
 	FQuat MovementBaseQuat;
 
 public:
-	// Additional moves influencing our proposed motion
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Mover)
-	FLayeredMoveGroup LayeredMoves;
-
-public:
 
 	FMoverDefaultSyncState()
 		: Location(ForceInitToZero)
 		, Orientation(ForceInitToZero)
 		, Velocity(ForceInitToZero)
 		, MoveDirectionIntent(ForceInitToZero)
-		, MovementMode(NAME_None)
 		, MovementBase(nullptr)
 		, MovementBaseBoneName(NAME_None)
 		, MovementBasePos(ForceInitToZero)

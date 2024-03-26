@@ -104,11 +104,21 @@ struct MOVER_API FMoverSyncState
 	GENERATED_USTRUCT_BODY()
 
 public:
+
+	// The mode we ended up in from the prior frame, and which we'll start in during the next frame
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Mover)
+	FName MovementMode;
+
+	// Additional moves influencing our proposed motion
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Mover)
+	FLayeredMoveGroup LayeredMoves;
+
 	UPROPERTY(BlueprintReadWrite, Category = Mover)
 	FMoverDataCollection SyncStateCollection;
 
 	FMoverSyncState()
 	{
+		MovementMode = NAME_None;
 		SyncStateCollection.FindOrAddDataByType<FMoverDefaultSyncState>();
 	}
 
@@ -116,22 +126,31 @@ public:
 
 	void NetSerialize(const FNetSerializeParams& P)
 	{
+		P.Ar << MovementMode;
+		LayeredMoves.NetSerialize(P.Ar);
+
 		bool bIgnoredResult(false);
 		SyncStateCollection.NetSerialize(P.Ar, nullptr, bIgnoredResult);
 	}
 
 	void ToString(FAnsiStringBuilderBase& Out) const
 	{
+		Out.Appendf("MovementMode: %s\n", TCHAR_TO_ANSI(*MovementMode.ToString()));
+		Out.Appendf("Layered Moves: %s\n", TCHAR_TO_ANSI(*LayeredMoves.ToSimpleString()));
 		SyncStateCollection.ToString(Out);
 	}
 
 	bool ShouldReconcile(const FMoverSyncState& AuthorityState) const
 	{
-		return SyncStateCollection.ShouldReconcile(AuthorityState.SyncStateCollection);		
+		return (MovementMode != AuthorityState.MovementMode) || 
+		       SyncStateCollection.ShouldReconcile(AuthorityState.SyncStateCollection);
 	}
 
 	void Interpolate(const FMoverSyncState* From, const FMoverSyncState* To, float Pct)
 	{
+		MovementMode = To->MovementMode;
+		LayeredMoves = To->LayeredMoves;
+
 		SyncStateCollection.Interpolate(From->SyncStateCollection, To->SyncStateCollection, Pct);
 	}
 
