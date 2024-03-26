@@ -180,6 +180,10 @@ FOptimusGraphDataProviderProxy::FOptimusGraphDataProviderProxy(UOptimusDeformerI
 					// so we can directly use the name to find the matching variable
 					if (Variable.SourceObject.IsNull())
 					{
+						// Using GetPlainNameString here because back then variables in the graph data interface were
+						// also generated using GetPlainNameString. This certainly creates an issue where
+						// multiple variables were sharing the same name, but at least the first matching variable
+						// would still work
 						if (Variable.Name == VariableValue->VariableName.GetPlainNameString())
 						{
 							bNameMatch = true;
@@ -189,7 +193,7 @@ FOptimusGraphDataProviderProxy::FOptimusGraphDataProviderProxy(UOptimusDeformerI
 					{
 						// When source object was introduced, we also appended a unique index to the value name
 						// so instead of using the name directly we use the source value name
-						if (Variable.CachedSourceValueName == VariableValue->VariableName.GetPlainNameString())
+						if (Variable.CachedSourceValueName == VariableValue->VariableName)
 						{
 							bNameMatch = true;
 						}	

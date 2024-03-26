@@ -199,7 +199,7 @@ FString UOptimusNode_GetVariable::GetValueName() const
 {
 	if (const UOptimusVariableDescription* Var = VariableDesc.Get())
 	{
-		return Var->VariableName.GetPlainNameString();
+		return Var->VariableName.ToString();
 	}
 
 	return {};
