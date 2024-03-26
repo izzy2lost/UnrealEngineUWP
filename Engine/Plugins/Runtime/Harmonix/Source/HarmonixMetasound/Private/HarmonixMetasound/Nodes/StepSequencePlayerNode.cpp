@@ -406,9 +406,9 @@ namespace HarmonixMetasound
 
 	void FStepSequencePlayerOperator::Init()
 	{
-		MidiOutPin->PrepareBlock();
 		MidiOutPin->SetClock(*MidiClockInPin);
 		MidiClockInPin->RegisterHiResPlayCursor(this);
+		MidiOutPin->PrepareBlock();
 
 		SequenceTable = SequenceAssetInPin->GetRenderable();
 		if (SequenceTable)
