@@ -85,16 +85,19 @@ void FDeferredShadingSceneRenderer::PrepareLumenHardwareRayTracingTranslucencyVo
 {
 	if (Lumen::UseHardwareRayTracedTranslucencyVolume(*View.Family) && !Lumen::UseHardwareInlineRayTracing(*View.Family))
 	{
-		extern int32 GLumenTranslucencyVolumeRadianceCache;
-		extern int32 GTranslucencyVolumeRadianceCacheFrustumProbes;
+		for (int32 UseFroxelProbes = 0; UseFroxelProbes < 2; ++UseFroxelProbes)
+		{
+			for (int32 VolumeRadianceCache = 0; VolumeRadianceCache < 2; ++VolumeRadianceCache)
+			{
+				FLumenTranslucencyVolumeHardwareRayTracingRGS::FPermutationDomain PermutationVector;
+				PermutationVector.Set<FLumenTranslucencyVolumeHardwareRayTracingRGS::FRadianceCache>(VolumeRadianceCache > 0);
+				PermutationVector.Set<FLumenTranslucencyVolumeHardwareRayTracingRGS::FUseFroxelProbes>(UseFroxelProbes > 0);
 
-		FLumenTranslucencyVolumeHardwareRayTracingRGS::FPermutationDomain PermutationVector;
-		PermutationVector.Set<FLumenTranslucencyVolumeHardwareRayTracingRGS::FRadianceCache>(GLumenTranslucencyVolumeRadianceCache > 0 && GTranslucencyVolumeRadianceCacheFrustumProbes <= 0);
-		PermutationVector.Set<FLumenTranslucencyVolumeHardwareRayTracingRGS::FUseFroxelProbes>(GTranslucencyVolumeRadianceCacheFrustumProbes > 0);
+				TShaderRef<FLumenTranslucencyVolumeHardwareRayTracingRGS> RayGenerationShader = View.ShaderMap->GetShader<FLumenTranslucencyVolumeHardwareRayTracingRGS>(PermutationVector);
 
-		TShaderRef<FLumenTranslucencyVolumeHardwareRayTracingRGS> RayGenerationShader = View.ShaderMap->GetShader<FLumenTranslucencyVolumeHardwareRayTracingRGS>(PermutationVector);
-
-		OutRayGenShaders.Add(RayGenerationShader.GetRayTracingShader());
+				OutRayGenShaders.Add(RayGenerationShader.GetRayTracingShader());
+			}
+		}
 	}
 }
 
