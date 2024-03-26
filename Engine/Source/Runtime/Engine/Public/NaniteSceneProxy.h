@@ -215,6 +215,7 @@ public:
 	: FPrimitiveSceneProxy(Desc)
 	{
 		bIsNaniteMesh  = true;
+		bIsAlwaysVisible = SupportsAlwaysVisible();
 		bHasProgrammableRaster = false;
 		bHasDynamicDisplacement = false;
 		bReverseCulling = false;
@@ -227,6 +228,7 @@ public:
 	: FPrimitiveSceneProxy(Component)
 	{
 		bIsNaniteMesh  = true;
+		bIsAlwaysVisible = SupportsAlwaysVisible();
 		bHasProgrammableRaster = false;
 		bHasDynamicDisplacement = false;
 		bReverseCulling = false;
@@ -241,6 +243,12 @@ public:
 	ENGINE_API virtual HHitProxy* CreateHitProxies(IPrimitiveComponent* Component, TArray<TRefCountPtr<HHitProxy>>& OutHitProxies) override;
 	ENGINE_API virtual HHitProxy* CreateHitProxies(UPrimitiveComponent* Component, TArray<TRefCountPtr<HHitProxy>>& OutHitProxies) override;
 #endif
+
+	virtual bool IsUsingDistanceCullFade() const override
+	{
+		// Disable distance cull fading, as this is not supported anyways (and it has CPU overhead)
+		return false;
+	}
 
 	virtual bool CanBeOccluded() const override
 	{
@@ -314,6 +322,7 @@ public:
 protected:
 	ENGINE_API void DrawStaticElementsInternal(FStaticPrimitiveDrawInterface* PDI, const FLightCacheInterface* LCI);
 	ENGINE_API void OnMaterialsUpdated();
+	ENGINE_API bool SupportsAlwaysVisible() const;
 
 protected:
 	TArray<FMaterialSection> MaterialSections;

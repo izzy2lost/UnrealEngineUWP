@@ -17,6 +17,7 @@
 #include "Experimental/Containers/RobinHoodHashTable.h"
 #include "LightMapRendering.h" // TODO: Remove with later refactor (moving Nanite shading into its own files)
 #include "RenderUtils.h"
+#include "PrimitiveViewRelevance.h"
 
 DECLARE_LOG_CATEGORY_EXTERN(LogNanite, Warning, All);
 
@@ -899,6 +900,8 @@ public:
 
 	bool bBuildCommands = true;
 
+	FPrimitiveViewRelevance CombinedRelevance;
+
 private:
 	TBitArray<> PipelineBins;
 	FNaniteShadingPipelineMap PipelineMap;
@@ -929,8 +932,6 @@ struct FNaniteShadingCommands
 	UE::Tasks::FTask SetupTask;
 	UE::Tasks::FTask BuildCommandsTask;
 };
-
-/// END-TODO: Work in progress / experimental
 
 extern bool ShouldRenderNanite(const FScene* Scene, const FViewInfo& View, bool bCheckForAtomicSupport = true);
 

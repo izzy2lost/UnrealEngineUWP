@@ -2124,6 +2124,7 @@ public:
 	virtual void RenderHitProxies(FRDGBuilder& GraphBuilder) {}
 	virtual bool ShouldRenderVelocities() const { return false; }
 	virtual bool ShouldRenderPrePass() const { return false; }
+	virtual bool ShouldRenderNanite() const { return false; }
 	virtual bool AllowSimpleLights() const;
 
 	/** Creates a scene renderer based on the current feature level. */

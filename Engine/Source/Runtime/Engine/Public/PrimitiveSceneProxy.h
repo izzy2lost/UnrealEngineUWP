@@ -844,6 +844,14 @@ public:
 	}
 
 	/**
+	* Returns whether this proxy is always visible.
+	*/
+	inline bool IsAlwaysVisible() const
+	{
+		return bIsAlwaysVisible;
+	}
+
+	/**
 	* Returns whether this proxy is a heterogeneous volume.
 	*/
 	inline bool IsHeterogeneousVolume() const
@@ -1321,6 +1329,9 @@ protected:
 
 	/** Whether this proxy is a Nanite mesh. */
 	uint8 bIsNaniteMesh : 1;
+
+	/** Whether this proxy is always visible. */
+	uint8 bIsAlwaysVisible : 1;
 
 	/** Whether this proxy is a heterogeneous volume. */
 	uint8 bIsHeterogeneousVolume : 1;

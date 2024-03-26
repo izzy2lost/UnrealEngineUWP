@@ -433,6 +433,8 @@ public:
 
 	virtual bool ShouldRenderPrePass() const override;
 
+	virtual bool ShouldRenderNanite() const override;
+
 #if !(UE_BUILD_SHIPPING || UE_BUILD_TEST)
 	void RenderVisualizeTexturePool(FRHICommandListImmediate& RHICmdList);
 #endif
@@ -998,10 +1000,6 @@ private:
 
 	bool HasDeferredPlanarReflections(const FViewInfo& View) const;
 	void RenderDeferredPlanarReflections(FRDGBuilder& GraphBuilder, const FSceneTextureParameters& SceneTextures, const FViewInfo& View, FRDGTextureRef& ReflectionsOutput);
-
-
-	bool IsNaniteEnabled() const;
-
 
 	void SetupImaginaryReflectionTextureParameters(
 		FRDGBuilder& GraphBuilder,

@@ -2876,6 +2876,9 @@ public:
 	 * where data is stored in these arrays for a given primitive.
 	 */
 
+	/** Index into primitive arrays where the always visible partition starts. */
+	uint32 PrimitivesAlwaysVisibleOffset = ~0u;
+
 	/** Packed array of primitives in the scene. */
 	TArray<FPrimitiveSceneInfo*> Primitives;
 	/** Packed array of all transforms in the scene. */

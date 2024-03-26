@@ -105,14 +105,6 @@ FAutoConsoleVariableRef CVarNaniteAllowMaskedMaterials(
 	ECVF_RenderThreadSafe
 );
 
-int32 GNaniteOptimizedRelevance = 1;
-FAutoConsoleVariableRef CVarNaniteOptimizedRelevance(
-	TEXT("r.Nanite.OptimizedRelevance"),
-	GNaniteOptimizedRelevance,
-	TEXT("Whether to optimize Nanite relevance (outside of editor)."),
-	ECVF_RenderThreadSafe
-);
-
 static TAutoConsoleVariable<int32> CVarRayTracingNaniteProxyMeshes(
 	TEXT("r.RayTracing.Geometry.NaniteProxies"),
 	1,
@@ -664,6 +656,37 @@ void FSceneProxyBase::OnMaterialsUpdated()
 	}
 }
 
+bool FSceneProxyBase::SupportsAlwaysVisible() const
+{
+#if WITH_EDITOR
+	// Right now we never use the always visible optimization
+	// in editor builds due to dynamic relevance, hit proxies, etc..
+	return false;
+#else
+	if (Nanite::GetSupportsCustomDepthRendering() && ShouldRenderCustomDepth())
+	{
+		// Custom depth/stencil is not supported yet.
+		return false;
+	}
+
+	if (GetLightingChannelMask() != GetDefaultLightingChannelMask())
+	{
+		// Lighting channels are not supported yet.
+		return false;
+	}
+
+	static bool bAllowStaticLighting = FReadOnlyCVARCache::AllowStaticLighting();
+	if (bAllowStaticLighting)
+	{
+		// Static lighting is not supported
+		return false;
+	}
+
+	// Always visible
+	return true;
+#endif
+}
+
 FSceneProxy::FSceneProxy(const FMaterialAudit& MaterialAudit, const FStaticMeshSceneProxyDesc& ProxyDesc, bool InbIsInstancedMesh)
 : FSceneProxyBase(ProxyDesc)
 , MeshInfo(ProxyDesc)
@@ -992,7 +1015,7 @@ FPrimitiveViewRelevance FSceneProxy::GetViewRelevance(const FSceneView* View) co
 #if WITH_EDITOR
 	const bool bOptimizedRelevance = false;
 #else
-	const bool bOptimizedRelevance = GNaniteOptimizedRelevance != 0;
+	const bool bOptimizedRelevance = true;
 #endif
 
 	FPrimitiveViewRelevance Result;
@@ -1308,14 +1331,8 @@ void FSceneProxy::DrawStaticElements(FStaticPrimitiveDrawInterface* PDI)
 // TODO: Refactor all this to share common code with Nanite and regular SM scene proxy
 void FSceneProxy::GetDynamicMeshElements(const TArray<const FSceneView*>& Views, const FSceneViewFamily& ViewFamily, uint32 VisibilityMap, FMeshElementCollector& Collector) const
 {
-#if !WITH_EDITOR
-	if (GNaniteOptimizedRelevance != 0)
-	{
-		// No dynamic relevance.
-		return;
-	}
-#endif
-
+	// Nanite only has dynamic relevance in the editor for certain debug modes
+#if WITH_EDITOR
 	LLM_SCOPE_BYTAG(Nanite);
 	QUICK_SCOPE_CYCLE_COUNTER(STAT_NaniteSceneProxy_GetMeshElements);
 
@@ -1532,6 +1549,7 @@ void FSceneProxy::GetDynamicMeshElements(const TArray<const FSceneView*>& Views,
 		}
 	}
 #endif // NANITE_ENABLE_DEBUG_RENDERING
+#endif // WITH_EDITOR
 }
 
 #if NANITE_ENABLE_DEBUG_RENDERING

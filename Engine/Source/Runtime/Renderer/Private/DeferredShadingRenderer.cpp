@@ -424,6 +424,14 @@ bool FDeferredShadingSceneRenderer::ShouldRenderPrePass() const
 	return (DepthPass.EarlyZPassMode != DDM_None || DepthPass.bEarlyZPassMovable != 0);
 }
 
+/**
+ * Returns true if the Nanite rendering needs to run
+ */
+bool FDeferredShadingSceneRenderer::ShouldRenderNanite() const
+{
+	return UseNanite(ShaderPlatform) && ViewFamily.EngineShowFlags.NaniteMeshes && Nanite::GStreamingManager.HasResourceEntries();
+}
+
 bool FDeferredShadingSceneRenderer::RenderHzb(FRDGBuilder& GraphBuilder, FRDGTextureRef SceneDepthTexture, const FBuildHZBAsyncComputeParams* AsyncComputeParams)
 {
 	RDG_GPU_STAT_SCOPE(GraphBuilder, HZB);
@@ -467,7 +475,7 @@ bool FDeferredShadingSceneRenderer::RenderHzb(FRDGBuilder& GraphBuilder, FRDGTex
 				// Extract furthest HZB texture.
 				if (View.ViewState)
 				{
-					if (IsNaniteEnabled() || FInstanceCullingContext::IsOcclusionCullingEnabled())
+					if (ShouldRenderNanite() || FInstanceCullingContext::IsOcclusionCullingEnabled())
 					{
 						GraphBuilder.QueueTextureExtraction(FurthestHZBTexture, &View.ViewState->PrevFrameViewInfo.HZB);
 					}
@@ -1001,7 +1009,7 @@ void FDeferredShadingSceneRenderer::WaitForRayTracingScene(FRDGBuilder& GraphBui
 	PassParams->LumenHitDataBuffer = ReferenceView.LumenHardwareRayTracingHitDataBuffer;
 	PassParams->LumenHardwareRayTracingUniformBuffer = ReferenceView.LumenHardwareRayTracingUniformBuffer;
 
-	if (IsNaniteEnabled())
+	if (ShouldRenderNanite())
 	{
 		PassParams->ClusterPageData = Nanite::GStreamingManager.GetClusterPageDataSRV(GraphBuilder);
 		PassParams->HierarchyBuffer = Nanite::GStreamingManager.GetHierarchySRV(GraphBuilder);
@@ -1018,7 +1026,7 @@ void FDeferredShadingSceneRenderer::WaitForRayTracingScene(FRDGBuilder& GraphBui
 	GraphBuilder.AddPass(RDG_EVENT_NAME("WaitForRayTracingScene"), PassParams, ERDGPassFlags::Copy | ERDGPassFlags::Compute | ERDGPassFlags::NeverCull,
 		[this, PassParams, bIsPathTracing, &ReferenceView, bAnyLumenHardwareInlineRayTracingPassEnabled, RayTracingLightFunctionMap](FRHICommandListImmediate& RHICmdList)
 	{
-		if (IsNaniteEnabled())
+		if (ShouldRenderNanite())
 		{
 			FNaniteRayTracingUniformParameters NaniteRayTracingUniformParams;
 			NaniteRayTracingUniformParams.PageConstants.X = Scene->GPUScene.InstanceSceneDataSOAStride;
@@ -1171,11 +1179,6 @@ void FDeferredShadingSceneRenderer::CommitFinalPipelineState()
 		}
 		FamilyPipelineState.Commit();
 	} 
-}
-
-bool FDeferredShadingSceneRenderer::IsNaniteEnabled() const
-{
-	return UseNanite(ShaderPlatform) && ViewFamily.EngineShowFlags.NaniteMeshes && Nanite::GStreamingManager.HasResourceEntries();
 }
 
 void FDeferredShadingSceneRenderer::RenderNanite(FRDGBuilder& GraphBuilder, const TArray<FViewInfo>& InViews, FSceneTextures& SceneTextures, bool bIsEarlyDepthComplete,
@@ -1443,7 +1446,7 @@ void FDeferredShadingSceneRenderer::Render(FRDGBuilder& GraphBuilder)
 	// If this is scene capture rendering depth pre-pass, we'll take the shortcut function RenderSceneCaptureDepth if optimization switch is on.
 	const ERendererOutput RendererOutput = GetRendererOutput();
 
-	const bool bNaniteEnabled = IsNaniteEnabled();
+	const bool bNaniteEnabled = ShouldRenderNanite();
 	const bool bHasRayTracedOverlay = HasRayTracedOverlay(ViewFamily);
 
 #if !UE_BUILD_SHIPPING

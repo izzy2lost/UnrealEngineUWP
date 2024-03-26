@@ -462,6 +462,7 @@ FPrimitiveSceneProxy::FPrimitiveSceneProxy(const FPrimitiveSceneProxyDesc& InPro
 ,	bDoesMeshBatchesUseSceneInstanceCount(false)
 ,	bIsStaticMesh(false)
 ,	bIsNaniteMesh(false)
+,	bIsAlwaysVisible(false)
 ,	bIsHeterogeneousVolume(false)
 ,	bIsHierarchicalInstancedStaticMesh(false)
 ,	bIsLandscapeGrass(false)

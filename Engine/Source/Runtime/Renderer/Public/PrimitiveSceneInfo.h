@@ -188,6 +188,9 @@ struct FPrimitiveFlagsCompact
 	/** True if the primitive is a Nanite mesh. */
 	uint8 bIsNaniteMesh : 1;
 
+	/** True if the primitive is always visible. */
+	uint8 bIsAlwaysVisible : 1;
+
 	/** True if the primitive draws only meshes that support GPU-Scene. */
 	uint8 bSupportsGPUScene : 1;
 
@@ -282,7 +285,7 @@ public:
 	FPrimitiveSceneProxy* Proxy;
 
 	/** 
-	 * Id for the component this primitive belongs to.  
+	 * Id for the component this primitive belongs to.
 	 * This will stay the same for the lifetime of the component, so it can be used to identify the component across re-registers.
 	 */
 	FPrimitiveComponentId PrimitiveComponentId;
@@ -290,7 +293,6 @@ public:
 	/**
 	 * Number assigned to this component when it was registered with the world.
 	 * This will only ever be updated if the object is re-registered.
-	 * Used by FPrimitiveArraySortKey for deterministic ordering.
 	 */
 	int32 RegistrationSerialNumber;
 
