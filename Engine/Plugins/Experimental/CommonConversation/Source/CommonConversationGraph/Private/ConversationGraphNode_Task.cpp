@@ -119,18 +119,4 @@ void UConversationGraphNode_Task::GetNodeContextMenuActions(UToolMenu* Menu, UGr
 	}
 }
 
-void UConversationGraphNode_Task::ApplyAddRequirementMenu(FMenuBuilder& MenuBuilder, UEdGraph* Graph)
-{
-	TWeakObjectPtr<UConversationGraphNode> WeakThis(const_cast<UConversationGraphNode_Task*>(this));
-
-	TSharedRef<SGraphEditorActionMenuAI> Menu =
-		SNew(SGraphEditorActionMenuAI)
-		.GraphObj(Graph)
-		.GraphNode(WeakThis.Get())
-		.SubNodeFlags((int32)EConversationGraphSubNodeType::Requirement)
-		.AutoExpandActionMenu(true);
-
-	MenuBuilder.AddWidget(Menu, FText(), true);
-}
-
 #undef LOCTEXT_NAMESPACE

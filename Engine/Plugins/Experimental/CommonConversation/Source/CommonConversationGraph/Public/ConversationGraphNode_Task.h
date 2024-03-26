@@ -11,8 +11,6 @@ class UToolMenu;
 class UEdGraph;
 class UEdGraphSchema;
 
-class FMenuBuilder;
-
 UCLASS()
 class COMMONCONVERSATIONGRAPH_API UConversationGraphNode_Task : public UConversationGraphNode
 {
@@ -24,7 +22,6 @@ class COMMONCONVERSATIONGRAPH_API UConversationGraphNode_Task : public UConversa
 
 	/** Gets a list of actions that can be done to this particular node */
 	virtual void GetNodeContextMenuActions(UToolMenu* Menu, UGraphNodeContextMenuContext* Context) const override;
-	virtual void ApplyAddRequirementMenu(FMenuBuilder& MenuBuilder, UEdGraph* Graph);
 
 	virtual bool CanPlaceBreakpoints() const override { return true; }
 };

@@ -599,6 +599,10 @@ void SDetailsViewBase::UpdatePropertyMaps()
 
 	for(FDetailLayoutData& LayoutData : DetailLayouts)
 	{
+		// Check uniqueness.  It is critical that detail layouts can be destroyed
+		// We need to be able to create a new detail layout and properly clean up the old one in the process
+		check(!LayoutData.DetailLayout.IsValid() || LayoutData.DetailLayout.IsUnique());
+
 		// Allow customizations to perform cleanup as the delete occurs later on
 		for (TSharedPtr<IDetailCustomization>& DetailCustomization : LayoutData.CustomizationClassInstances)
 		{
