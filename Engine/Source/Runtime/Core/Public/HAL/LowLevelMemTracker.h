@@ -323,7 +323,7 @@ extern FName LLMGetTagStat(ELLMTag Tag);
  * LLM utility macros
  */
 #define LLM(x) x
-#define LLM_IF_ENABLED(x) if (!FLowLevelMemTracker::bIsDisabled) { x; }
+#define LLM_IF_ENABLED(x) if (FLowLevelMemTracker::IsEnabled()) { x; }
 #define SCOPE_NAME PREPROCESSOR_JOIN(LLMScope,__LINE__)
 
 ///////////////////////////////////////////////////////////////////////////////////////
@@ -592,7 +592,11 @@ public:
 
 	static CORE_API FLowLevelMemTracker& Construct();
 
-	static CORE_API bool IsEnabled();
+	/**
+	 * Return whether LLM is enabled - activated by the commandline and is tracking allocations.
+	 * Also returns true early during startup before commandline has been processed.
+	 */
+	inline static bool IsEnabled();
 
 	/**
 	 * We always start up running, but if the commandline disables us, we will do it later after main
@@ -779,45 +783,64 @@ public:
 	CORE_API void FinishInitialise();
 
 private:
-	CORE_API FLowLevelMemTracker();
+	enum class EEnabled : uint8
+	{
+		NotYetKnown = 0,
+		Disabled,
+		Enabled,
+	};
+	struct FEnableStateScopeLock;
 
-	CORE_API ~FLowLevelMemTracker();
+private:
+	FLowLevelMemTracker();
+
+	~FLowLevelMemTracker();
 
 	bool IsBootstrapping() const { return bIsBootstrapping; }
 
 	/** Free all memory. This will put the tracker into a permanently disabled state. */
-	CORE_API void Clear();
-	CORE_API void InitialiseProgramSize();
+	void Clear();
+	void InitialiseProgramSize();
 
-	CORE_API class UE::LLMPrivate::FLLMTracker* GetTracker(ELLMTracker Tracker);
-	CORE_API const class UE::LLMPrivate::FLLMTracker* GetTracker(ELLMTracker Tracker) const;
+	class UE::LLMPrivate::FLLMTracker* GetTracker(ELLMTracker Tracker);
+	const class UE::LLMPrivate::FLLMTracker* GetTracker(ELLMTracker Tracker) const;
 
-	CORE_API void TickInternal();
-	CORE_API void UpdateTags();
-	CORE_API void SortTags(UE::LLMPrivate::FTagDataArray*& OutOldTagDatas);
-	CORE_API void PublishDataPerFrame(const TCHAR* LogName);
+	void TickInternal();
+	void UpdateTags();
+	void SortTags(UE::LLMPrivate::FTagDataArray*& OutOldTagDatas);
+	void PublishDataPerFrame(const TCHAR* LogName);
 
-	CORE_API void RegisterCustomTagInternal(int32 Tag, ELLMTagSet TagSet, const TCHAR* Name, FName StatName, FName SummaryStatName, int32 ParentTag = -1);
+	void RegisterCustomTagInternal(int32 Tag, ELLMTagSet TagSet, const TCHAR* Name, FName StatName, FName SummaryStatName, int32 ParentTag = -1);
 	/**
 	* Called during C++ global static initialization when GMalloc is available (and hence FNames are unavailable)
 	* Creates the subset of tags necessary to record allocations during GMalloc and FName construction
 	*/
-	CORE_API void BootstrapTagDatas();
-	CORE_API void InitialiseTagDatas_SetLLMTagNames();
-	CORE_API void InitialiseTagDatas_FinishRegister();
-	CORE_API void InitialiseTagDatas();
-	CORE_API void ClearTagDatas();
-	CORE_API void RegisterTagDeclaration(FLLMTagDeclaration& TagDeclaration);
-	CORE_API UE::LLMPrivate::FTagData& RegisterTagData(FName Name, FName DisplayName, FName ParentName, FName StatName, FName SummaryStatName, bool bHasEnumTag, ELLMTag EnumTag, bool bIsStatTag, UE::LLMPrivate::ETagReferenceSource ReferenceSource, ELLMTagSet TagSet = ELLMTagSet::None);
+	void BootstrapTagDatas();
+	void InitialiseTagDatas_SetLLMTagNames();
+	void InitialiseTagDatas_FinishRegister();
+	void InitialiseTagDatas();
+	void ClearTagDatas();
+	void RegisterTagDeclaration(FLLMTagDeclaration& TagDeclaration);
+	UE::LLMPrivate::FTagData& RegisterTagData(FName Name, FName DisplayName, FName ParentName, FName StatName, FName SummaryStatName, bool bHasEnumTag, ELLMTag EnumTag, bool bIsStatTag, UE::LLMPrivate::ETagReferenceSource ReferenceSource, ELLMTagSet TagSet = ELLMTagSet::None);
 	/** Construct if not yet done the data on the given FTagData that relies on the presence of other TagDatas */
-	CORE_API void FinishConstruct(UE::LLMPrivate::FTagData* TagData, UE::LLMPrivate::ETagReferenceSource ReferenceSource);
-	CORE_API void ReportDuplicateTagName(UE::LLMPrivate::FTagData* TagData, UE::LLMPrivate::ETagReferenceSource ReferenceSource);
+	void FinishConstruct(UE::LLMPrivate::FTagData* TagData, UE::LLMPrivate::ETagReferenceSource ReferenceSource);
+	void ReportDuplicateTagName(UE::LLMPrivate::FTagData* TagData, UE::LLMPrivate::ETagReferenceSource ReferenceSource);
 
-	CORE_API const UE::LLMPrivate::FTagData* FindOrAddTagData(ELLMTag EnumTag, UE::LLMPrivate::ETagReferenceSource ReferenceSource = UE::LLMPrivate::ETagReferenceSource::FunctionAPI);
-	CORE_API const UE::LLMPrivate::FTagData* FindOrAddTagData(FName Name, ELLMTagSet TagSet, bool bIsStatData=false, UE::LLMPrivate::ETagReferenceSource ReferenceSource = UE::LLMPrivate::ETagReferenceSource::FunctionAPI);
-	CORE_API const UE::LLMPrivate::FTagData* FindOrAddTagData(FName Name, ELLMTagSet TagSet, FName StatName, UE::LLMPrivate::ETagReferenceSource ReferenceSource = UE::LLMPrivate::ETagReferenceSource::FunctionAPI);
-	CORE_API const UE::LLMPrivate::FTagData* FindTagData(ELLMTag EnumTag, UE::LLMPrivate::ETagReferenceSource ReferenceSource = UE::LLMPrivate::ETagReferenceSource::FunctionAPI);
-	CORE_API const UE::LLMPrivate::FTagData* FindTagData(FName Name, ELLMTagSet TagSet, UE::LLMPrivate::ETagReferenceSource ReferenceSource = UE::LLMPrivate::ETagReferenceSource::FunctionAPI);
+	const UE::LLMPrivate::FTagData* FindOrAddTagData(ELLMTag EnumTag, UE::LLMPrivate::ETagReferenceSource ReferenceSource = UE::LLMPrivate::ETagReferenceSource::FunctionAPI);
+	const UE::LLMPrivate::FTagData* FindOrAddTagData(FName Name, ELLMTagSet TagSet, bool bIsStatData=false, UE::LLMPrivate::ETagReferenceSource ReferenceSource = UE::LLMPrivate::ETagReferenceSource::FunctionAPI);
+	const UE::LLMPrivate::FTagData* FindOrAddTagData(FName Name, ELLMTagSet TagSet, FName StatName, UE::LLMPrivate::ETagReferenceSource ReferenceSource = UE::LLMPrivate::ETagReferenceSource::FunctionAPI);
+	const UE::LLMPrivate::FTagData* FindTagData(ELLMTag EnumTag, UE::LLMPrivate::ETagReferenceSource ReferenceSource = UE::LLMPrivate::ETagReferenceSource::FunctionAPI);
+	const UE::LLMPrivate::FTagData* FindTagData(FName Name, ELLMTagSet TagSet, UE::LLMPrivate::ETagReferenceSource ReferenceSource = UE::LLMPrivate::ETagReferenceSource::FunctionAPI);
+
+	/**
+	 * A function that returns IsEnabled(), but also enters a lock if current state is NotYetKnown and therefore might
+	 * change if the main thread calls ProcessCommandLine and commandline specifies that LLM should disable itself.
+	 * The lock is only needed on platforms with PLATFORM_HAS_MULTITHREADED_PREMAIN; other platforms are not
+	 * multithreaded until after ProcessCommandLine is called. This function is only necessary on handlers for new
+	 * and delete (OnLowLevelAlloc, etc), since those are the only functions that can be called from other threads
+	 * before ProcessCommandLine.
+	 */
+	inline static bool TryEnterEnabled(FEnableStateScopeLock& ScopeLock);
 
 	friend class FLLMPauseScope;
 	friend class FLLMScope;
@@ -830,6 +853,7 @@ private:
 	friend class UE::LLMPrivate::FLLMCsvProfilerWriter;
 	friend void GlobalRegisterTagDeclaration(FLLMTagDeclaration& TagDeclaration);
 
+private:
 	UE::LLMPrivate::FLLMAllocator Allocator;
 	/** All TagDatas that have been constructed, in an array sorted by TagData->GetIndex() */
 	UE::LLMPrivate::FTagDataArray* TagDatas;
@@ -863,7 +887,9 @@ private:
 	bool bCapturedSizeSnapshot;
 
 	static CORE_API FLowLevelMemTracker* TrackerInstance;
-public: // really internal but needs to be visible for LLM_IF_ENABLED macro
+	static CORE_API EEnabled EnabledState;
+public:
+	UE_DEPRECATED(5.5, "Use IsEnabled instead.")
 	static CORE_API bool bIsDisabled;
 };
 
@@ -873,14 +899,14 @@ class FLLMScope
 public:
 	FLLMScope(FName TagName, bool bIsStatTag, ELLMTagSet InTagSet, ELLMTracker InTracker, bool bOverride = true)
 	{
-		if (!FLowLevelMemTracker::bIsDisabled)
+		if (FLowLevelMemTracker::IsEnabled())
 		{
 			Init(TagName, bIsStatTag, InTagSet, InTracker, bOverride);
 		}
 	}
 	FLLMScope(ELLMTag TagEnum, bool bIsStatTag, ELLMTagSet InTagSet, ELLMTracker InTracker, bool bOverride = true)
 	{
-		if (!FLowLevelMemTracker::bIsDisabled)
+		if (FLowLevelMemTracker::IsEnabled())
 		{
 			Init(TagEnum, bIsStatTag, InTagSet, InTracker, bOverride);
 		}
@@ -889,7 +915,7 @@ public:
 
 	FLLMScope(const UE::LLMPrivate::FTagData* TagData, bool bIsStatTag, ELLMTagSet Set, ELLMTracker Tracker, bool bOverride = true)
 	{
-		if (!FLowLevelMemTracker::bIsDisabled)
+		if (FLowLevelMemTracker::IsEnabled())
 		{
 			Init(TagData, bIsStatTag, Set, Tracker, bOverride);
 		}
@@ -953,7 +979,7 @@ class FLLMScopeDynamic
 public:
 	FLLMScopeDynamic(ELLMTracker InTracker, ELLMTagSet InTagSet)
 	{
-		if (!FLowLevelMemTracker::bIsDisabled)
+		if (FLowLevelMemTracker::IsEnabled())
 		{
 			Init(InTracker, InTagSet);
 		}
@@ -1054,6 +1080,11 @@ struct FLLMTagSetAllocationFilter
 	/** Tag set to match */
 	ELLMTagSet TagSet;
 };
+
+inline bool FLowLevelMemTracker::IsEnabled()
+{
+	return EnabledState != EEnabled::Disabled;
+}
 
 #else
 

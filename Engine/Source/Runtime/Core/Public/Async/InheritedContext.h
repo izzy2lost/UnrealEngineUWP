@@ -19,7 +19,9 @@ namespace UE
 		{
 			for (int32 TagSetIndex = 0; TagSetIndex < static_cast<int32>(ELLMTagSet::Max); ++TagSetIndex)
 			{
-				LLMTags[TagSetIndex] = FLowLevelMemTracker::bIsDisabled ? nullptr : FLowLevelMemTracker::Get().GetActiveTagData(ELLMTracker::Default, static_cast<ELLMTagSet>(TagSetIndex));
+				LLMTags[TagSetIndex] = FLowLevelMemTracker::IsEnabled() ?
+					FLowLevelMemTracker::Get().GetActiveTagData(ELLMTracker::Default, static_cast<ELLMTagSet>(TagSetIndex))
+					: nullptr;
 			}
 		}
 	};
