@@ -70,9 +70,15 @@ struct FRuntimePartitionStreamingData
 {
 	GENERATED_USTRUCT_BODY()
 
+	friend class UWorldPartitionRuntimeHashSet;
+	friend class URuntimeHashSetExternalStreamingObject;
+
 	void CreatePartitionsSpatialIndex() const;
 	void DestroyPartitionsSpatialIndex() const;
 
+	int32 GetLoadingRange() const;
+
+protected:
 	/** Name of the runtime partition, currently maps to target grids. */
 	UPROPERTY()
 	FName Name;
@@ -89,6 +95,11 @@ struct FRuntimePartitionStreamingData
 	// Transient
 	mutable TUniquePtr<FStaticSpatialIndexType> SpatialIndex;
 	mutable TUniquePtr<FStaticSpatialIndexType> SpatialIndex2D;
+
+#if !UE_BUILD_SHIPPING
+	static TMap<FName, int32> OverriddenLoadingRanges;
+	static class FAutoConsoleCommand OverrideLoadingRangeCommand;
+#endif
 };
 
 template<>
@@ -164,6 +175,7 @@ public:
 	ENGINE_API virtual void ForEachStreamingCells(TFunctionRef<bool(const UWorldPartitionRuntimeCell*)> Func) const;
 	ENGINE_API virtual void ForEachStreamingCellsQuery(const FWorldPartitionStreamingQuerySource& QuerySource, TFunctionRef<bool(const UWorldPartitionRuntimeCell*)> Func, FWorldPartitionQueryCache* QueryCache) const override;
 	ENGINE_API virtual void ForEachStreamingCellsSources(const TArray<FWorldPartitionStreamingSource>& Sources, TFunctionRef<bool(const UWorldPartitionRuntimeCell*, EStreamingSourceTargetState)> Func) const override;
+	ENGINE_API virtual uint32 ComputeUpdateStreamingHash() const override;
 
 private:
 	ENGINE_API virtual void OnBeginPlay() override;

@@ -10,7 +10,63 @@
 #include "WorldPartition/DataLayer/DataLayersID.h"
 #include "Algo/RemoveIf.h"
 #include "Algo/Transform.h"
+#include "Misc/HashBuilder.h"
 #include "Misc/ArchiveMD5.h"
+
+#if !UE_BUILD_SHIPPING
+#include "Engine/Engine.h"
+#include "WorldPartition/WorldPartitionHelpers.h"
+#include "WorldPartition/WorldPartitionSubsystem.h"
+
+TMap<FName, int32> FRuntimePartitionStreamingData::OverriddenLoadingRanges;
+static const TCHAR* GOverrideLoadingRangeCommandName = TEXT("wp.Runtime.OverrideRuntimeHashSetLoadingRange");
+static FDelegateHandle OnWorldPartitionSubsystemDeinitializedFDelegateHandle;
+FAutoConsoleCommand FRuntimePartitionStreamingData::OverrideLoadingRangeCommand(
+	GOverrideLoadingRangeCommandName,
+	TEXT("Sets runtime loading range. Args -partition=[Name] -range=[Range]"),
+	FConsoleCommandWithArgsDelegate::CreateLambda([](const TArray<FString>& InArgs)
+	{
+		FString ArgString = FString::Join(InArgs, TEXT(" "));
+		FName OverrideGridName;
+		int32 OverrideLoadingRange = -1;
+		FParse::Value(*ArgString, TEXT("partition="), OverrideGridName);
+		FParse::Value(*ArgString, TEXT("range="), OverrideLoadingRange);
+
+		if (!OnWorldPartitionSubsystemDeinitializedFDelegateHandle.IsValid())
+		{
+			OnWorldPartitionSubsystemDeinitializedFDelegateHandle = UWorldPartitionSubsystem::OnWorldPartitionSubsystemDeinitialized.AddLambda([](UWorldPartitionSubsystem* InWorldPartitionSubsystem, UWorld* InWorld)
+			{
+				if (InWorld && InWorld->IsGameWorld())
+				{
+					OverriddenLoadingRanges.Reset();
+				}
+			});
+		}
+
+		for (const FWorldContext& Context : GEngine->GetWorldContexts())
+		{
+			UWorld* World = Context.World();
+			if (World && World->IsGameWorld())
+			{
+				if (UWorld::HasSubsystem<UWorldPartitionSubsystem>(World))
+				{
+					FWorldPartitionHelpers::ServerExecConsoleCommand(World, GOverrideLoadingRangeCommandName, InArgs);
+
+					if (OverrideLoadingRange >= 0)
+					{
+						OverriddenLoadingRanges.Add(OverrideGridName, OverrideLoadingRange);
+					}
+					else
+					{
+						OverriddenLoadingRanges.Remove(OverrideGridName);
+					}
+					break;
+				}
+			}
+		}
+	})
+);
+#endif
 
 void FRuntimePartitionStreamingData::CreatePartitionsSpatialIndex() const
 {
@@ -45,6 +101,18 @@ void FRuntimePartitionStreamingData::DestroyPartitionsSpatialIndex() const
 {
 	SpatialIndex.Reset();
 	SpatialIndex2D.Reset();
+}
+
+int32 FRuntimePartitionStreamingData::GetLoadingRange() const
+{
+#if !UE_BUILD_SHIPPING
+	if (int32* OverriddenLoadingRange = OverriddenLoadingRanges.Find(Name))
+	{
+		return *OverriddenLoadingRange;
+	}
+#endif
+
+	return LoadingRange;
 }
 
 void URuntimeHashSetExternalStreamingObject::CreatePartitionsSpatialIndex() const
@@ -444,7 +512,7 @@ void UWorldPartitionRuntimeHashSet::ForEachStreamingCellsQuery(const FWorldParti
 
 	ForEachStreamingData([&QuerySource, &ForEachSpatiallyLoadedCells, &ForEachNonSpatiallyLoadedCells](const FRuntimePartitionStreamingData& StreamingData)
 	{
-		return ForEachSpatiallyLoadedCells(StreamingData.SpatialIndex.Get(), StreamingData.LoadingRange, StreamingData.Name) && ForEachNonSpatiallyLoadedCells(StreamingData.NonSpatiallyLoadedCells);
+		return ForEachSpatiallyLoadedCells(StreamingData.SpatialIndex.Get(), StreamingData.GetLoadingRange(), StreamingData.Name) && ForEachNonSpatiallyLoadedCells(StreamingData.NonSpatiallyLoadedCells);
 	});
 }
 
@@ -510,7 +578,7 @@ void UWorldPartitionRuntimeHashSet::ForEachStreamingCellsSources(const TArray<FW
 
 				for (const FRuntimePartitionStreamingData* StreamingData : *StreamingDataList)
 				{
-					Source.ForEachShape(StreamingData->LoadingRange, false, [this, &Source, StreamingData, DataLayersStateEpoch, &Func](const FSphericalSector& Shape)
+					Source.ForEachShape(StreamingData->GetLoadingRange(), false, [this, &Source, StreamingData, DataLayersStateEpoch, &Func](const FSphericalSector& Shape)
 					{
 						const FSphere ShapeSphere(Shape.GetCenter(), Shape.GetRadius());
 
@@ -545,6 +613,17 @@ void UWorldPartitionRuntimeHashSet::ForEachStreamingCellsSources(const TArray<FW
 			}
 		}
 	}
+}
+
+uint32 UWorldPartitionRuntimeHashSet::ComputeUpdateStreamingHash() const
+{
+	FHashBuilder HashBuilder(Super::ComputeUpdateStreamingHash());
+
+#if !UE_BUILD_SHIPPING
+	HashBuilder << FRuntimePartitionStreamingData::OverriddenLoadingRanges;
+#endif
+
+	return HashBuilder.GetHash();
 }
 
 #if WITH_EDITOR

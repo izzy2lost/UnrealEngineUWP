@@ -216,7 +216,7 @@ bool UWorldPartitionRuntimeHashSet::Draw2D(FWorldPartitionDraw2DContext& DrawCon
 		for (const FWorldPartitionStreamingSource& Source : Sources)
 		{
 			const FColor Color = Source.GetDebugColor();
-			Source.ForEachShape(StreamingData->LoadingRange, StreamingData->Name, true, [&Color, &WorldToScreen, &GridScreenBounds, &DrawContext, this](const FSphericalSector& Shape)
+			Source.ForEachShape(StreamingData->GetLoadingRange(), StreamingData->Name, true, [&Color, &WorldToScreen, &GridScreenBounds, &DrawContext, this](const FSphericalSector& Shape)
 			{
 				check(!Shape.IsNearlyZero())
 
@@ -256,7 +256,7 @@ bool UWorldPartitionRuntimeHashSet::Draw2D(FWorldPartitionDraw2DContext& DrawCon
 			if (!Velocity2D.IsNearlyZero())
 			{
 				const FVector2D Center2D = FVector2D(Source.Location);
-				DrawContext.PushDrawSegment(GridScreenBounds, WorldToScreen(Center2D), WorldToScreen(Center2D + Velocity2D * StreamingData->LoadingRange * 0.5f), Color, 1);
+				DrawContext.PushDrawSegment(GridScreenBounds, WorldToScreen(Center2D), WorldToScreen(Center2D + Velocity2D * StreamingData->GetLoadingRange() * 0.5f), Color, 1);
 			}
 		}
 	};
@@ -268,7 +268,7 @@ bool UWorldPartitionRuntimeHashSet::Draw2D(FWorldPartitionDraw2DContext& DrawCon
 	{
 		for (const FWorldPartitionStreamingSource& Source : Sources)
 		{
-			Source.ForEachShape(StreamingDataList[0]->LoadingRange, Name, true, [&GridsShapeBounds](const FSphericalSector& Shape) { GridsShapeBounds += Shape.CalcBounds(); });
+			Source.ForEachShape(StreamingDataList[0]->GetLoadingRange(), Name, true, [&GridsShapeBounds](const FSphericalSector& Shape) { GridsShapeBounds += Shape.CalcBounds(); });
 		}
 
 		FVector2D GridReferenceWorldPos;
@@ -307,7 +307,7 @@ bool UWorldPartitionRuntimeHashSet::Draw2D(FWorldPartitionDraw2DContext& DrawCon
 			FVector2D GridInfoPos = GridScreenOffset - GridScreenHalfExtent;
 			FWorldPartitionCanvasMultiLineText MultiLineText;
 			MultiLineText.Emplace(UWorld::RemovePIEPrefix(FPaths::GetBaseFilename(WorldPartition->GetPackage()->GetName())), FLinearColor::White);
-			FString GridInfoText = FString::Printf(TEXT("%s | %d m"), *Name.ToString(), int32(StreamingDataList[0]->LoadingRange * 0.01f));
+			FString GridInfoText = FString::Printf(TEXT("%s | %d m"), *Name.ToString(), int32(StreamingDataList[0]->GetLoadingRange() * 0.01f));
 			MultiLineText.Emplace(GridInfoText, FLinearColor::Yellow);
 			FWorldPartitionCanvasMultiLineTextItem Item(GridInfoPos, MultiLineText);
 			DrawContext.PushDrawText(Item);
@@ -350,7 +350,7 @@ void UWorldPartitionRuntimeHashSet::Draw3D(const TArray<FWorldPartitionStreaming
 	{
 		for (const FWorldPartitionStreamingSource& Source : Sources)
 		{
-			Source.ForEachShape(StreamingData.LoadingRange, StreamingData.Name, false, [this, &StreamingData, VisualizeMode, &DataLayerDebugColors, ContentBundleManager, OwningWorld, &WorldPartitionTransform](const FSphericalSector& Shape)
+			Source.ForEachShape(StreamingData.GetLoadingRange(), StreamingData.Name, false, [this, &StreamingData, VisualizeMode, &DataLayerDebugColors, ContentBundleManager, OwningWorld, &WorldPartitionTransform](const FSphericalSector& Shape)
 			{
 				const FSphere ShapeSphere(Shape.GetCenter(), Shape.GetRadius());
 
