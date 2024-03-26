@@ -31,6 +31,9 @@ struct FOptimusGraphVariableDescription
 
 	UPROPERTY()
 	TSoftObjectPtr<UObject> SourceObject;
+
+	// Cached SourceValueName extracted from Name, Initialized by the DataProvider for when SourceObject is not null
+	FString CachedSourceValueName;
 };
 
 /** Compute Framework Data Interface used for marshaling compute graph parameters and variables. */

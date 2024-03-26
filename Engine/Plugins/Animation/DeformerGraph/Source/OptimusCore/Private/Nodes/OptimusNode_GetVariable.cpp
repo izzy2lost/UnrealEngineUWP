@@ -195,7 +195,7 @@ TOptional<FText> UOptimusNode_GetVariable::ValidateForCompile(const FOptimusPinT
 	return {};
 }
 
-FString UOptimusNode_GetVariable::GetValueDebugName() const
+FString UOptimusNode_GetVariable::GetValueName() const
 {
 	if (const UOptimusVariableDescription* Var = VariableDesc.Get())
 	{

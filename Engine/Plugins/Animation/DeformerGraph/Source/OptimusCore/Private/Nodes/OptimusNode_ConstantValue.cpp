@@ -101,7 +101,7 @@ void UOptimusNode_ConstantValue::PostEditChangeProperty(FPropertyChangedEvent& P
 #endif // WITH_EDITOR
 
 
-FString UOptimusNode_ConstantValue::GetValueDebugName() const
+FString UOptimusNode_ConstantValue::GetValueName() const
 {
 	return GetName();
 }
