@@ -18,7 +18,11 @@ namespace HarmonixMetasound
 		};
 
 		const EType Type;
+
+		// for "advance thru" events
 		const bool  IsPreRoll;
+
+		// for "reset" events
 		const bool  ForceNoBroadcast;
 		const int32 BlockFrameIndex;
 
@@ -39,7 +43,7 @@ namespace HarmonixMetasound
 
 	private:
 
-		FMidiClockEvent(EType InType, int32 InBlockFrameIndex, int32 InTick1, int32 InTick2, bool InIsPreRoll, bool InBroadcastEvents);
+		FMidiClockEvent(EType InType, int32 InBlockFrameIndex, int32 InTick1, int32 InTick2, bool InIsPreRoll = false, bool InForceNoBroadcast = false);
 	};
 
 };
