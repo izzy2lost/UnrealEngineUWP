@@ -419,10 +419,11 @@ void UActorReplicationBridge::EndReplication(AActor* Actor, EEndPlayReason::Type
 {
 	using namespace UE::Net;
 
-	FNetRefHandle RefHandle = GetReplicatedRefHandle(Actor);
+	FNetRefHandle RefHandle = GetReplicatedRefHandle(Actor, EGetRefHandleFlags::EvenIfGarbage);
 	if (RefHandle.IsValid())
 	{
-		UE_LOG(LogIrisBridge, Verbose, TEXT("EndReplication for %s %s. Reason %s "), *Actor->GetName(), *RefHandle.ToString(), *UEnum::GetValueAsString(TEXT("Engine.EEndPlayReason"), EndPlayReason));
+		UE_LOG(LogIrisBridge, Verbose, TEXT("EndReplication for %s %s. Reason %s "), *GetNameSafe(Actor), *RefHandle.ToString(), *UEnum::GetValueAsString(TEXT("Engine.EEndPlayReason"), EndPlayReason));
+		ensureMsgf(IsValid(Actor), TEXT("Calling EndReplication for Invalid Object for %s %s."), *GetNameSafe(Actor), *RefHandle.ToString());
 	
 		EEndReplicationFlags Flags = EEndReplicationFlags::None;
 		const bool bShouldDestroyObject = EndPlayReason == EEndPlayReason::Destroyed;		
@@ -460,11 +461,11 @@ void UActorReplicationBridge::EndReplicationForActorComponent(UActorComponent* A
 {
 	using namespace UE::Net;
 
-	FNetRefHandle ComponentHandle = GetReplicatedRefHandle(ActorComponent);
-	const AActor* Actor = ActorComponent->GetOwner();
-	if (ComponentHandle.IsValid() && Actor)
+	FNetRefHandle ComponentHandle = GetReplicatedRefHandle(ActorComponent, EGetRefHandleFlags::EvenIfGarbage);
+	if (ComponentHandle.IsValid())
 	{
-		UE_LOG(LogIrisBridge, Verbose, TEXT("EndReplicationForActorComponent for %s %s."), *ActorComponent->GetName(), *ComponentHandle.ToString());
+		UE_LOG(LogIrisBridge, Verbose, TEXT("EndReplicationForActorComponent for %s %s."), *GetNameSafe(ActorComponent), *ComponentHandle.ToString());
+		ensureMsgf(IsValid(ActorComponent), TEXT("Calling EndReplication for Invalid Object for %s %s."), *GetNameSafe(ActorComponent), *ComponentHandle.ToString());
 		
 		UObjectReplicationBridge::EndReplication(ComponentHandle, EndReplicationFlags, nullptr);
 	}

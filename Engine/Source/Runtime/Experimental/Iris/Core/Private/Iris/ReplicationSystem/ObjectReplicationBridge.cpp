@@ -202,10 +202,9 @@ UObject* UObjectReplicationBridge::GetReplicatedObject(FNetRefHandle Handle) con
 	return IsReplicatedHandle(Handle) ? GetObjectFromReferenceHandle(Handle) : nullptr;
 };
 
-UE::Net::FNetRefHandle UObjectReplicationBridge::GetReplicatedRefHandle(const UObject* Object) const
+UE::Net::FNetRefHandle UObjectReplicationBridge::GetReplicatedRefHandle(const UObject* Object, EGetRefHandleFlags GetRefHandleFlags) const
 {
-	FNetRefHandle Handle = GetObjectReferenceCache()->GetObjectReferenceHandleFromObject(Object);
-
+	const FNetRefHandle Handle = GetObjectReferenceCache()->GetObjectReferenceHandleFromObject(Object, GetRefHandleFlags);
 	return IsReplicatedHandle(Handle) ? Handle : FNetRefHandle::GetInvalid();
 }
 
@@ -577,8 +576,12 @@ bool UObjectReplicationBridge::WriteNetRefHandleCreationInfo(FReplicationBridgeS
 
 void UObjectReplicationBridge::EndReplication(UObject* Instance, EEndReplicationFlags EndReplicationFlags, FEndReplicationParameters* Parameters)
 {
-	const FNetRefHandle Handle = GetReplicatedRefHandle(Instance);
-	UReplicationBridge::EndReplication(Handle, EndReplicationFlags, Parameters);
+	const FNetRefHandle RefHandle = GetReplicatedRefHandle(Instance, EGetRefHandleFlags::EvenIfGarbage);
+	if (RefHandle.IsValid())
+	{
+		ensureMsgf(IsValid(Instance), TEXT("Calling EndReplication for Invalid Object for %s %s."), *GetNameSafe(Instance), *RefHandle.ToString());
+		UReplicationBridge::EndReplication(RefHandle, EndReplicationFlags, Parameters);
+	}
 }
 
 void UObjectReplicationBridge::DetachInstanceFromRemote(FNetRefHandle Handle, EReplicationBridgeDestroyInstanceReason DestroyReason, EReplicationBridgeDestroyInstanceFlags DestroyFlags)
@@ -827,7 +830,7 @@ void UObjectReplicationBridge::PruneStaleObjects()
 	// Detect stale references and try to kill/report them
 	auto DetectStaleObjectsFunc = [&LocalNetRefHandleManager, &StaleObjects, &ReplicatedInstances](uint32 InternalNetHandleIndex)
 	{
-		if (ReplicatedInstances[InternalNetHandleIndex] == nullptr)
+		if (!IsValid(ReplicatedInstances[InternalNetHandleIndex]))
 		{
 			const FNetRefHandleManager::FReplicatedObjectData& ObjectData = LocalNetRefHandleManager.GetReplicatedObjectDataNoCheck(InternalNetHandleIndex);
 			if (ObjectData.InstanceProtocol)
@@ -1395,7 +1398,7 @@ bool UObjectReplicationBridge::FindOrCachePollFrequency(const UClass* Class, flo
 	}
 	else
 	{
-		// Add the class hiearchy to our set of classes without overrides.
+		// Add the class hierarchy to our set of classes without overrides.
 		for (const UClass* ClassToAdd = Class; ClassToAdd != nullptr; ClassToAdd = ClassToAdd->GetSuperClass())
 		{
 			// We avoid adding classes that are in the exact match container, even though it's not strictly necessary.

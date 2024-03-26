@@ -5,6 +5,7 @@
 #include "CoreTypes.h"
 #include "Iris/Core/NetObjectReference.h"
 #include "Iris/ReplicationSystem/NetRefHandle.h"
+#include "Iris/ReplicationSystem/ReplicationSystemTypes.h"
 #include "UObject/WeakObjectPtr.h"
 #include "Containers/Map.h"
 #include "ObjectReferenceCacheFwd.h"
@@ -48,7 +49,7 @@ public:
 	FNetRefHandle CreateObjectReferenceHandle(const UObject* Object);
 
 	// Get existing handle for object
-	FNetRefHandle GetObjectReferenceHandleFromObject(const UObject* Object) const;
+	FNetRefHandle GetObjectReferenceHandleFromObject(const UObject* Object, EGetRefHandleFlags GetRefHandleFlags = EGetRefHandleFlags::None) const;
 
 	// Get object from handle, only if the object is in the cache.
 	UObject* GetObjectFromReferenceHandle(FNetRefHandle RefHandle);

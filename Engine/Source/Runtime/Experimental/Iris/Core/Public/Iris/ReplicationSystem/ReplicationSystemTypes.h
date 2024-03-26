@@ -4,6 +4,7 @@
 
 #include "CoreTypes.h"
 #include "Delegates/Delegate.h"
+#include "Misc/EnumClassFlags.h"
 
 namespace UE::Net
 {
@@ -13,6 +14,13 @@ enum class ENetObjectDeltaCompressionStatus : unsigned
 	Disallow,
 	Allow,
 };
+
+enum class EGetRefHandleFlags : uint32
+{
+	None,
+	EvenIfGarbage
+};
+ENUM_CLASS_FLAGS(EGetRefHandleFlags);
 
 enum class EReplicationSystemSendPass : unsigned
 {
