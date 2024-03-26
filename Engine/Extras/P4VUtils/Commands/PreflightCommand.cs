@@ -383,10 +383,7 @@ namespace P4VUtils.Commands
 		/// <returns></returns>
 		static internal bool IsHordeConfigurationFile(string DepotPath)
 		{
-			string FileName = Path.GetFileName(DepotPath);
-			return (FileName.EndsWith(".stream.json", StringComparison.OrdinalIgnoreCase) || 
-					FileName.EndsWith(".project.json", StringComparison.OrdinalIgnoreCase) || 
-					FileName.Equals("globals.json", StringComparison.OrdinalIgnoreCase));
+			return DepotPath.EndsWith(".json", StringComparison.OrdinalIgnoreCase);
 		}
 
 		internal override async Task<bool> ParseArguments(string[] Args, IReadOnlyDictionary<string, string> ConfigValues, ILogger Logger)
