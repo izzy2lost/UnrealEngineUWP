@@ -131,6 +131,7 @@ namespace Horde.Agent.Execution
 			public string? Type { get; set; }
 			public string? Description { get; set; }
 			public string? BasePath { get; set; }
+			public List<string> Keys { get; set; } = new List<string>();
 			public string OutputName { get; set; } = String.Empty;
 		}
 
@@ -757,6 +758,7 @@ namespace Horde.Agent.Execution
 				createArtifact.Type = exportedArtifact.Type ?? String.Empty;
 				createArtifact.Description = exportedArtifact.Description ?? String.Empty;
 				createArtifact.BasePath = exportedArtifact.BasePath ?? String.Empty;
+				createArtifact.Keys.AddRange(exportedArtifact.Keys);
 				createArtifact.OutputName = exportedArtifact.OutputName;
 
 				updateGraph.Artifacts.Add(createArtifact);
@@ -1138,8 +1140,11 @@ namespace Horde.Agent.Execution
 			}
 
 			// Create all the named artifacts. TODO: Merge this with regular temp storage artifacts?
+			logger.LogInformation("Uploading {NumArtifacts} artifacts", step.Artifacts.Count);
 			foreach (CreateGraphArtifactRequest graphArtifact in step.Artifacts)
 			{
+				logger.LogInformation("Uploading artifact {Name} using output {Output}", graphArtifact.Name, graphArtifact.OutputName);
+
 				HashSet<FileReference>? files;
 				if (!tagNameToFileSet.TryGetValue(graphArtifact.OutputName, out files))
 				{
@@ -1174,6 +1179,10 @@ namespace Horde.Agent.Execution
 						if (DirectoryReference.Exists(baseDir))
 						{
 							await outputNode.AddFilesAsync(baseDir, files, blobWriter, cancellationToken: cancellationToken);
+						}
+						else
+						{
+							logger.LogWarning("Base path for artifact {ArtifactName} does not exist ({Path})", graphArtifact.Name, baseDir);
 						}
 
 						outputNodeRef = await blobWriter.WriteBlobAsync(outputNode, cancellationToken: cancellationToken);

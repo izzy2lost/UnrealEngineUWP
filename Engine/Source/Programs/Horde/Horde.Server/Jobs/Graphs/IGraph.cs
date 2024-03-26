@@ -294,6 +294,11 @@ namespace Horde.Server.Jobs.Graphs
 		public string BasePath { get; }
 
 		/// <summary>
+		/// Keys for finding the artifact
+		/// </summary>
+		public IReadOnlyList<string> Keys { get; }
+
+		/// <summary>
 		/// Tag for the artifact files
 		/// </summary>
 		public string OutputName { get; }
@@ -677,5 +682,5 @@ namespace Horde.Server.Jobs.Graphs
 	/// <summary>
 	/// Information about an artifact
 	/// </summary>
-	public record class NewGraphArtifact(ArtifactName Name, ArtifactType Type, string Description, string BasePath, string OutputName);
+	public record class NewGraphArtifact(ArtifactName Name, ArtifactType Type, string Description, string BasePath, List<string> Keys, string OutputName);
 }

@@ -4,10 +4,11 @@ import { DetailsList, DetailsListLayoutMode, FontIcon, IColumn, SelectionMode, S
 import { observer } from 'mobx-react-lite';
 import React, { useEffect, useState } from 'react';
 import { GetJobArtifactResponse, JobStepState } from '../../backend/Api';
+import dashboard, { StatusColor } from '../../backend/Dashboard';
 import { ISideRailLink } from '../../base/components/SideRail';
 import { getStepETA, getStepFinishTime } from '../../base/utilities/timeUtils';
 import { getHordeStyling } from '../../styles/Styles';
-import { StepStatusIcon } from '../StatusIcon';
+import { getStepStatusColor } from '../../styles/colors';
 import { JobArtifactsModal } from '../artifacts/ArtifactsModal';
 import { JobDataView, JobDetailsV2 } from "./JobDetailsViewCommon";
 
@@ -20,14 +21,48 @@ class JobArtifactsDataView extends JobDataView {
    }
 
    clear() {
+      this.initial = true;
+      this.hasArtifacts = undefined;
       super.clear();
+   }
+
+   set() { 
+
+      if (!this.initial) {
+         return;
+      }
+
+      this.initial = false;
+
+      this.hasArtifacts = !!this.details?.jobData?.artifacts?.length;
+      this.initialize(this.hasArtifacts ? [sideRail] : undefined);
+
+      // Test for upating artifacts dynamically
+      /*
+      setTimeout(() => {
+         this.details!.jobData!.artifacts = [
+            {artifactId: "abcd", "stepId": "abcd", name: "Test Artifact", type: "test-artifact"}
+         ]
+         this.detailsUpdated();
+      }, 5000)
+      */
    }
 
 
    detailsUpdated() {
 
+      const hasArtifacts = !!this.details?.jobData?.artifacts?.length;
+      if (this.hasArtifacts !== hasArtifacts) {         
+         this.hasArtifacts = hasArtifacts;
+         this.initialize(hasArtifacts ? [sideRail] : undefined);
+         this.details?.setRootUpdated();
+      }
+         
    }
 
+   initial = true;
+
+   hasArtifacts?: boolean;
    order = 0;
 
 }
@@ -63,11 +98,11 @@ const getStyles = () => {
 
 export const JobArtifactsPanel: React.FC<{ jobDetails: JobDetailsV2 }> = observer(({ jobDetails }) => {
 
-   const [selected, setSelected] = useState<GetJobArtifactResponse | undefined>(undefined);
-
-   if (jobDetails.updated) { }
-
+   const [selected, setSelected] = useState<GetJobArtifactResponse | undefined>(undefined);   
+   
    const artifactView = jobDetails.getDataView<JobArtifactsDataView>("JobArtifactsDataView");
+
+   jobDetails.subscribe();
 
    useEffect(() => {
       return () => {
@@ -81,11 +116,9 @@ export const JobArtifactsPanel: React.FC<{ jobDetails: JobDetailsV2 }> = observe
       return null;
    }
 
-   const hasArtifacts = !!jobData.artifacts?.length;
+   artifactView.set();
 
-   if (!artifactView.initialized) {
-      artifactView.initialize(hasArtifacts ? [sideRail] : undefined);
-   }
+   const hasArtifacts = !!jobData.artifacts?.length;
 
    if (!hasArtifacts) {
       return null;
@@ -160,8 +193,15 @@ export const JobArtifactsPanel: React.FC<{ jobDetails: JobDetailsV2 }> = observe
       }
 
       if (column.key === 'column_desc') {
+
+         let color = getStepStatusColor(step?.state, step?.outcome);
+         if (step?.state === JobStepState.Waiting || step?.state === JobStepState.Ready || step?.state === JobStepState.Running) {
+            const colors = dashboard.getStatusColors();
+            color = colors.get(StatusColor.Running)!;
+         }
+         
          return <Stack horizontal verticalAlign="center" verticalFill={true} style={{cursor: cursor}} onClick={() => { if (stepFinished) setSelected(item) }}>
-            {!!step && <StepStatusIcon step={step} style={{paddingTop: 2}} />}
+            {!!step && <FontIcon iconName="Square" style={{color: color, paddingTop: 2, fontSize: 13, paddingRight: 8}} />}
             <Text style={{ color: modeColors.text, fontFamily: "Horde Open Sans SemiBold" }}>{item.description ?? item.name}</Text>
          </Stack>
       }
