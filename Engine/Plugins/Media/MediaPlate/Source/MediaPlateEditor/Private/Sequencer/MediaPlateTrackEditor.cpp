@@ -121,7 +121,7 @@ void FMediaPlateTrackEditor::HandleActorAdded(AActor* Actor, FGuid TargetObjectG
 {
 	if (Actor)
 	{
-		if (Actor->GetClass() == AMediaPlate::StaticClass())
+		if (FEngineAnalytics::IsAvailable() && Actor->GetClass() == AMediaPlate::StaticClass())
 		{
 			FEngineAnalytics::GetProvider().RecordEvent(TEXT("Editor.Usage.MediaPlate.AddMediaPlateActorToSequencer"));
 		}
