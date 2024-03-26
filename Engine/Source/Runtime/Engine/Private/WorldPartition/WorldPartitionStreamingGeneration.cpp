@@ -945,16 +945,6 @@ class FWorldPartitionStreamingGenerator
 				FWorldPartitionActorDesc::FContainerInstance SubContainerInstance;
 				if (!ContainerCollectionInstanceView.GetChildContainerInstance(SubContainerInstance) || !SubContainerInstance.ContainerInstance)
 				{
-					ErrorHandler->OnLevelInstanceInvalidWorldAsset(ContainerCollectionInstanceView, ContainerCollectionInstanceView.GetChildContainerPackage(), IStreamingGenerationErrorHandler::ELevelInstanceInvalidReason::WorldAssetHasInvalidContainer);
-					continue;
-				}
-
-				bool bContainerWasAlreadyInSet;
-				ContainerInstancesStack.Add(SubContainerInstance.ContainerInstance->GetContainerPackage(), &bContainerWasAlreadyInSet);
-
-				if (bContainerWasAlreadyInSet)
-				{
-					ErrorHandler->OnLevelInstanceInvalidWorldAsset(ContainerCollectionInstanceView, ContainerCollectionInstanceView.GetChildContainerPackage(), IStreamingGenerationErrorHandler::ELevelInstanceInvalidReason::CirculalReference);
 					continue;
 				}
 
@@ -991,8 +981,6 @@ class FWorldPartitionStreamingGenerator
 				}
 
 				CreateActorDescriptorViewsRecursive(MoveTemp(SubContainerInstanceDescriptor));
-
-				verify(ContainerInstancesStack.Remove(SubContainerInstance.ContainerInstance->GetContainerPackage()));
 			}
 		}
 
@@ -1830,9 +1818,6 @@ private:
 
 	/** List of container instances participating in this streaming generation step */
 	TMap<FGuid, const UActorDescContainerInstance*> ActorGuidsToContainerInstanceMap;
-
-	/** List of current container instances on the stack to detect circular references */
-	TSet<FName> ContainerInstancesStack;
 
 	/** Maps containers IDs to their filtered actors use while creating FContainerCollectionInstanceDescriptor */
 	TMap<FActorContainerID, TSet<FGuid>> ContainerFilteredActors;

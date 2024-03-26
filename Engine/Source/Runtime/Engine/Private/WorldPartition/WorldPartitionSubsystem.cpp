@@ -202,19 +202,19 @@ const UWorldPartition* UWorldPartitionSubsystem::GetWorldPartition() const
 #if WITH_EDITOR
 FWorldPartitionActorFilter UWorldPartitionSubsystem::GetWorldPartitionActorFilter(const FString& InWorldPackage, EWorldPartitionActorFilterType InFilterTypes) const
 {
-	TSet<FString> VisitedPackages;
-	return GetWorldPartitionActorFilterInternal(InWorldPackage, InFilterTypes, VisitedPackages);
+	TSet<FString> VisitedPackageStack;
+	return GetWorldPartitionActorFilterInternal(InWorldPackage, InFilterTypes, VisitedPackageStack);
 }
 
 
-FWorldPartitionActorFilter UWorldPartitionSubsystem::GetWorldPartitionActorFilterInternal(const FString& InWorldPackage, EWorldPartitionActorFilterType InFilterTypes, TSet<FString>& InOutVisitedPackages) const
+FWorldPartitionActorFilter UWorldPartitionSubsystem::GetWorldPartitionActorFilterInternal(const FString& InWorldPackage, EWorldPartitionActorFilterType InFilterTypes, TSet<FString>& InOutVisitedPackageStack) const
 {
-	if (InOutVisitedPackages.Contains(InWorldPackage))
+	if (InOutVisitedPackageStack.Contains(InWorldPackage))
 	{
 		return FWorldPartitionActorFilter(InWorldPackage);
 	}
 
-	InOutVisitedPackages.Add(InWorldPackage);
+	InOutVisitedPackageStack.Add(InWorldPackage);
 	
 	// Most of the time if this will return an existing Container but when loading a new LevelInstance (Content Browser Drag&Drop, Create LI) 
 	// This will make sure Container exists.
@@ -255,10 +255,8 @@ FWorldPartitionActorFilter UWorldPartitionSubsystem::GetWorldPartitionActorFilte
 
 	for (const FWorldPartitionActorDesc* ContainerActorDesc : ContainerActorDescs)
 	{
-		TSet<FString> VisitedPackagesCopy(InOutVisitedPackages);
-
 		// Get World Default Filter
-		FWorldPartitionActorFilter* ChildFilter = new FWorldPartitionActorFilter(GetWorldPartitionActorFilterInternal(ContainerActorDesc->GetChildContainerPackage().ToString(), InFilterTypes, VisitedPackagesCopy));
+		FWorldPartitionActorFilter* ChildFilter = new FWorldPartitionActorFilter(GetWorldPartitionActorFilterInternal(ContainerActorDesc->GetChildContainerPackage().ToString(), InFilterTypes, InOutVisitedPackageStack));
 		ChildFilter->DisplayName = ContainerActorDesc->GetActorLabelOrName().ToString();
 
 		// Apply Filter to Default
@@ -269,6 +267,8 @@ FWorldPartitionActorFilter UWorldPartitionSubsystem::GetWorldPartitionActorFilte
 
 		Filter.AddChildFilter(ContainerActorDesc->GetGuid(), ChildFilter);
 	}
+
+	verify(InOutVisitedPackageStack.Remove(InWorldPackage));
 
 	return Filter;
 }
@@ -315,8 +315,14 @@ TMap<FActorContainerID, TSet<FGuid>> UWorldPartitionSubsystem::GetFilteredActors
 		return RegisteredContainer;
 	};
 
-	TFunction<void(const FActorContainerID&, const UActorDescContainer*)> ProcessContainers = [&FindOrRegisterContainer, &DataLayerFiltersPerContainer, &FilteredActors, &ProcessContainers, &InFilterTypes](const FActorContainerID& InContainerID, const UActorDescContainer* InContainer)
+	TFunction<void(const FActorContainerID&, const UActorDescContainer*, TSet<FName>&)> ProcessContainers = [&FindOrRegisterContainer, &DataLayerFiltersPerContainer, &FilteredActors, &ProcessContainers, &InFilterTypes](const FActorContainerID& InContainerID, const UActorDescContainer* InContainer, TSet<FName>& InOutVisitedPackageStack)
 	{
+		if(InOutVisitedPackageStack.Contains(InContainer->GetContainerPackage()))
+		{
+			return;
+		}
+		InOutVisitedPackageStack.Add(InContainer->GetContainerPackage());
+
 		const TMap<FSoftObjectPath, FWorldPartitionActorFilter::FDataLayerFilter>& DataLayerFilters = DataLayerFiltersPerContainer.FindChecked(InContainerID);
 		for (FActorDescList::TConstIterator<> ActorDescIt(InContainer); ActorDescIt; ++ActorDescIt)
 		{
@@ -352,14 +358,19 @@ TMap<FActorContainerID, TSet<FGuid>> UWorldPartitionSubsystem::GetFilteredActors
 				{
 					UActorDescContainer* ChildContainer = FindOrRegisterContainer(ActorDescIt->GetChildContainerPackage());
 					check(ChildContainer);
-					ProcessContainers(FActorContainerID(InContainerID, ActorDescIt->GetGuid()), ChildContainer);
+					ProcessContainers(FActorContainerID(InContainerID, ActorDescIt->GetGuid()), ChildContainer, InOutVisitedPackageStack);
 				}
 			}
 		}
+
+		verify(InOutVisitedPackageStack.Remove(InContainer->GetContainerPackage()));
 	};
 
 	UActorDescContainer* Container = FindOrRegisterContainer(*InWorldPackage);
-	ProcessContainers(InContainerID, Container);
+
+	TSet<FName> VisitedPackageStack;
+	ProcessContainers(InContainerID, Container, VisitedPackageStack);
+	verify(VisitedPackageStack.IsEmpty());
 	
 	// Unregister Containers
 	UActorDescContainerSubsystem& ContainerSubsystem = UActorDescContainerSubsystem::GetChecked();

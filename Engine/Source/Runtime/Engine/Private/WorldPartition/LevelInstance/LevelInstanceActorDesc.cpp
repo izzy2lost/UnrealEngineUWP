@@ -199,6 +199,10 @@ void FLevelInstanceActorDesc::CheckForErrors(const IWorldPartitionActorDescInsta
 			ErrorHandler->OnLevelInstanceInvalidWorldAsset(*InActorDescView, ChildContainerPackage, IStreamingGenerationErrorHandler::ELevelInstanceInvalidReason::WorldAssetNotUsingExternalActors);
 		}
 	}
+	else if (!ValidateCircularReference(InActorDescView->GetContainerInstance(), ChildContainerPackage))
+	{
+		ErrorHandler->OnLevelInstanceInvalidWorldAsset(*InActorDescView, ChildContainerPackage, IStreamingGenerationErrorHandler::ELevelInstanceInvalidReason::CirculalReference);
+	}
 }
 
 void FLevelInstanceActorDesc::TransferFrom(const FWorldPartitionActorDesc* From)
@@ -224,9 +228,30 @@ UWorldPartition* FLevelInstanceActorDesc::GetLoadedChildWorldPartition(const FWo
 	return nullptr;
 }
 
+bool FLevelInstanceActorDesc::ValidateCircularReference(const UActorDescContainerInstance* InParentContainer, FName InChildContainerPackage)
+{
+	const UActorDescContainerInstance* CurrentParentContainerInstance = InParentContainer;
+	while (CurrentParentContainerInstance)
+	{
+		if (CurrentParentContainerInstance->GetContainerPackage() == InChildContainerPackage)
+		{
+			// found a circular reference
+			return false; 
+		}
+		CurrentParentContainerInstance = Cast<UActorDescContainerInstance>(CurrentParentContainerInstance->GetOuter());
+	}
+
+	return true;
+}
+
 UActorDescContainerInstance* FLevelInstanceActorDesc::CreateChildContainerInstance(const FWorldPartitionActorDescInstance* InActorDescInstance) const
 {
 	UActorDescContainerInstance* ContainerInstance = InActorDescInstance->GetContainerInstance();
+	if (!ValidateCircularReference(ContainerInstance, InActorDescInstance->GetChildContainerPackage()))
+	{
+		return nullptr;
+	}
+
 	UActorDescContainerInstance* ChildContainerInstance = NewObject<UActorDescContainerInstance>(ContainerInstance, NAME_None, RF_Transient);
 	
 	// When a child container instance is created we create the whole hierarchy (for generate streaming)

@@ -230,16 +230,20 @@ void FWorldPartitionActorDescInstance::RegisterChildContainerInstance()
 	check(!ChildContainerInstance);
 
 	ChildContainerInstance = ActorDesc->CreateChildContainerInstance(this);
-	check(ChildContainerInstance);
-	ContainerInstance->OnRegisterChildContainerInstance(GetGuid(), ChildContainerInstance);
+	if (ChildContainerInstance)
+	{
+		ContainerInstance->OnRegisterChildContainerInstance(GetGuid(), ChildContainerInstance);
+	}
 }
 
 void FWorldPartitionActorDescInstance::UnregisterChildContainerInstance()
 {
-	check(ChildContainerInstance);
-	ContainerInstance->OnUnregisterChildContainerInstance(GetGuid());
-	ChildContainerInstance->Uninitialize();
-	ChildContainerInstance = nullptr;
+	if (ChildContainerInstance)
+	{
+		ContainerInstance->OnUnregisterChildContainerInstance(GetGuid());
+		ChildContainerInstance->Uninitialize();
+		ChildContainerInstance = nullptr;
+	}
 }
 
 void FWorldPartitionActorDescInstance::UpdateChildContainerInstance()

@@ -461,7 +461,6 @@ void UActorDescContainerInstance::RemoveActorDescInstance(TUniquePtr<FWorldParti
 
 	if (bCreateChildContainerHierarchy && ActorDescInstance->IsChildContainerInstance())
 	{
-		check(ChildContainerInstances.Contains(ActorDescInstance->GetGuid()));
 		ActorDescInstance->UnregisterChildContainerInstance();
 		check(!ChildContainerInstances.Contains(ActorDescInstance->GetGuid()));
 	}
