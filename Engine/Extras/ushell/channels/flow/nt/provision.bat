@@ -7,10 +7,6 @@ goto:eof
 ::------------------------------------------------------------------------------
 :main
 
-call:check_bin tar.exe _tar_path
-call:check_bin curl.exe _curl_path
-call:check_bin certutil.exe _certutil_path
-
 set _pyver=3.12.1
 set _pysha=7a77c7471f5ceee88831a29b9460eddd784adf31b0230f188149ef0c588642d1
 set _pytag=312
@@ -20,6 +16,10 @@ set _destdir=%~f1\%_pyver%
 if exist "%_destdir%" (
     goto:eof
 )
+
+call:check_bin tar.exe _tar_path
+call:check_bin curl.exe _curl_path
+call:check_bin certutil.exe _certutil_path
 
 1>nul 2>nul (
     rd "%_destdir%\..\current"

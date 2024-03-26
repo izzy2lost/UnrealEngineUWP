@@ -6,14 +6,14 @@ import flow.describe
 #-------------------------------------------------------------------------------
 fzf_linux = flow.describe.Tool()
 fzf_linux.version("0.44.1")
-fzf_linux.payload("https://github.com/junegunn/fzf/releases/download/0.44.1/fzf-0.44.1-linux_amd64.tar.gz")
+fzf_linux.payload("https://github.com/junegunn/fzf/releases/download/$VERSION/fzf-$VERSION-linux_amd64.tar.gz")
 fzf_linux.sha1("e7780f1e5e2dd4c8aa5e94dcbcbedf4cebfaaceb")
 fzf_linux.platform("linux")
 fzf_linux.bin("fzf")
 
 fzf_darwin = flow.describe.Tool()
 fzf_darwin.version("0.44.1")
-fzf_darwin.payload("https://github.com/junegunn/fzf/releases/download/0.44.1/fzf-0.44.1-darwin_amd64.zip")
+fzf_darwin.payload("https://github.com/junegunn/fzf/releases/download/$VERSION/fzf-$VERSION-darwin_amd64.zip")
 fzf_darwin.sha1("405156eb6fc3d5275774cc569e24feaed362eab5")
 fzf_darwin.platform("darwin")
 fzf_darwin.bin("fzf")
@@ -23,7 +23,7 @@ fzf_darwin.bin("fzf")
 #-------------------------------------------------------------------------------
 ripgrep_win32 = flow.describe.Tool()
 ripgrep_win32.version("14.0.3")
-ripgrep_win32.payload("https://github.com/BurntSushi/ripgrep/releases/download/14.0.3/ripgrep-14.0.3-x86_64-pc-windows-msvc.zip")
+ripgrep_win32.payload("https://github.com/BurntSushi/ripgrep/releases/download/$VERSION/ripgrep-$VERSION-x86_64-pc-windows-msvc.zip")
 ripgrep_win32.sha1("5508b3dd5c12206c5d1c7994490bacf317cee0aa")
 ripgrep_win32.platform("win32")
 ripgrep_win32.bin("rg.exe")
@@ -31,14 +31,14 @@ ripgrep_win32.source("https://github.com/BurntSushi/ripgrep/releases/latest", r"
 
 ripgrep_linux = flow.describe.Tool()
 ripgrep_linux.version("14.0.3")
-ripgrep_linux.payload("https://github.com/BurntSushi/ripgrep/releases/download/14.0.3/ripgrep-14.0.3-x86_64-unknown-linux-musl.tar.gz")
+ripgrep_linux.payload("https://github.com/BurntSushi/ripgrep/releases/download/$VERSION/ripgrep-$VERSION-x86_64-unknown-linux-musl.tar.gz")
 ripgrep_linux.sha1("25a759834819f91625ac739c890a4b0139df7b63")
 ripgrep_linux.platform("linux")
 ripgrep_linux.bin("rg")
 
 ripgrep_darwin = flow.describe.Tool()
 ripgrep_darwin.version("14.0.3")
-ripgrep_darwin.payload("https://github.com/BurntSushi/ripgrep/releases/download/14.0.3/ripgrep-14.0.3-x86_64-apple-darwin.tar.gz")
+ripgrep_darwin.payload("https://github.com/BurntSushi/ripgrep/releases/download/$VERSION/ripgrep-$VERSION-x86_64-apple-darwin.tar.gz")
 ripgrep_darwin.sha1("d5af393ea9b5a443544edc686cf939f517be35ea")
 ripgrep_darwin.platform("darwin")
 ripgrep_darwin.bin("rg")
@@ -242,8 +242,8 @@ tips.prefix("$")
 
 #-------------------------------------------------------------------------------
 vswhere = flow.describe.Tool()
-vswhere.version("3.0.1")
-vswhere.payload("https://github.com/microsoft/vswhere/releases/download/3.1.7/vswhere.exe")
+vswhere.version("3.1.7")
+vswhere.payload("https://github.com/microsoft/vswhere/releases/download/$VERSION/vswhere.exe")
 vswhere.sha1("e3fa9b2db259d8875170717469779ea1280c8466")
 vswhere.platform("win32")
 vswhere.bin("vswhere.exe")
@@ -252,19 +252,5 @@ vswhere.source("https://github.com/microsoft/vswhere/releases", r"(\d+\.\d+\.\d+
 
 
 #-------------------------------------------------------------------------------
-def _add_debugger(name):
-    extension = flow.describe.Extension()
-    extension.source(f"debuggers/{name}.py", "Debugger")
-    extension.mount("debuggers", name)
-    globals()[name] = extension
-
-_add_debugger("lldb")
-if sys.platform == "win32":
-    _add_debugger("vs")
-
-
-
-#-------------------------------------------------------------------------------
 unreal = flow.describe.Channel()
 unreal.version("0")
-unreal.extendable("debuggers")
