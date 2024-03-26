@@ -1582,8 +1582,11 @@ namespace impl
 		UCustomizableObjectSystem* System = UCustomizableObjectSystem::GetInstanceChecked(); // Save since UCustomizableObjectSystem::BeginDestroy always waits for all tasks to finish
 		const UCustomizableObjectSystemPrivate* SystemPrivate = System->GetPrivate();
 		
-		Operation->UpdateStartBytes = mu::FGlobalMemoryCounter::GetCounter();
-		mu::FGlobalMemoryCounter::Zero();
+		if (CVarEnableBenchmark.GetValueOnAnyThread())
+		{
+			Operation->UpdateStartBytes = mu::FGlobalMemoryCounter::GetCounter();
+			mu::FGlobalMemoryCounter::Zero();
+		}
 
 		// Prepare streaming for the current customizable object
 		check(SystemPrivate->Streamer != nullptr);
