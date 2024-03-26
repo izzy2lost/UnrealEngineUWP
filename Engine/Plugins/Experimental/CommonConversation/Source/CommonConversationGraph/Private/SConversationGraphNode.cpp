@@ -42,6 +42,17 @@ namespace
 	static const bool bShowExecutionIndexInEditorMode = false;
 }
 
+namespace ConversationEditorCVar
+{
+	static bool SelectWholeNodeOnDropCVar = false;
+	FAutoConsoleVariableRef CVarSelectWholeNodeOnDrop(
+		TEXT("ConversationEditor.SelectWholeNodeOnDrop"),
+		SelectWholeNodeOnDropCVar,
+		TEXT("This cvar controles whether the subnode or whole node will be selected when a subnode is dropped onto the node.\n")
+		TEXT("0: SubNode will remain selected (Default), 1: Whole Node will be selected"),
+		ECVF_Default);
+}
+
 /////////////////////////////////////////////////////
 // SConversationPin
 
@@ -1084,6 +1095,18 @@ void SConversationGraphNode::MoveTo(const FVector2D& NewPosition, FNodeSet& Node
 // 			}
 // 		}
 	}
+}
+
+FReply SConversationGraphNode::OnDrop(const FGeometry& MyGeometry, const FDragDropEvent& DragDropEvent)
+{
+	FReply Reply = SGraphNodeAI::OnDrop(MyGeometry, DragDropEvent);
+
+	if (ConversationEditorCVar::SelectWholeNodeOnDropCVar)
+	{
+		GetOwnerPanel()->SelectionManager.SelectSingleNode(GraphNode);
+	}
+
+	return Reply;
 }
 
 bool SConversationGraphNode::IsNodeReachable() const

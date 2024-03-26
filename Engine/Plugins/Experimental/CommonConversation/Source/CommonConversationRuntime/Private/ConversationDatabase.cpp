@@ -12,6 +12,10 @@
 #include "AssetRegistry/AssetRegistryModule.h"
 #include "AssetRegistry/AssetRegistryState.h"
 #include "UObject/AssetRegistryTagsContext.h"
+#if WITH_EDITORONLY_DATA
+#include "AIGraphNode.h"
+#include "ConversationNode.h"
+#endif
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(ConversationDatabase)
 
@@ -132,5 +136,25 @@ EDataValidationResult UConversationDatabase::IsDataValid(FDataValidationContext&
 	return CombineDataValidationResults(SuperResult, Result);
 }
 #endif // WITH_EDITOR
+
+#if WITH_EDITORONLY_DATA
+TObjectPtr<UEdGraphNode> UConversationDatabase::GetSourceGraphNode(const UConversationNode* NodeToFind) const
+{
+	for (const TObjectPtr<UEdGraph>& Graph : SourceGraphs)
+	{
+		for (TObjectPtr<UEdGraphNode>& Node : Graph->Nodes)
+		{
+			if (const UAIGraphNode* AIGraphNode = Cast<UAIGraphNode>(Node.Get()))
+			{
+				if (AIGraphNode->NodeInstance.Get() == NodeToFind)
+				{
+					return Node;
+				}
+			}
+		}
+	}
+	return TObjectPtr<UEdGraphNode>();
+}
+#endif // WITH_EDITORONLY_DATA
 
 #undef LOCTEXT_NAMESPACE

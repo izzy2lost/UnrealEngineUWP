@@ -24,6 +24,7 @@ public class CommonConversationRuntime : ModuleRules
 				"Slate",
 				"SlateCore",
 				"Projects",
+				"AIGraph",
 				"AIModule",
 				"NetCore",
 				"GameFeatures"
