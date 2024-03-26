@@ -115,6 +115,9 @@ int32 UCOIBulkUpdateTestCommandlet::Main(const FString& Params)
 	
 	// ------ Execution of the actual mutable operations ------ 
 	
+	// Make sure there is nothing else that the engine needs to do before starting our test
+	Wait(60);
+	
 	// Create the updater object so we can later call for the update a target instance
 	InstanceUpdater = NewObject<UCOIUpdater>();
 	

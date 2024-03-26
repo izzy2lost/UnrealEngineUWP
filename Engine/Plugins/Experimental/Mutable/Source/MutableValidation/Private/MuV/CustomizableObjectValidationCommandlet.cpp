@@ -63,6 +63,9 @@ int32 UCustomizableObjectValidationCommandlet::Main(const FString& Params)
 	
 	// Perform a blocking search to ensure all assets used by mutable are reachable using the AssetRegistry
 	PrepareAssetRegistry();
+
+	// Make sure there is nothing else that the engine needs to do before starting our test
+	Wait(60);
 	
 	// Compile the Customizable Object ------------------------------------------------------------------------------ //
 	bool bWasCoCompilationSuccessful = false;

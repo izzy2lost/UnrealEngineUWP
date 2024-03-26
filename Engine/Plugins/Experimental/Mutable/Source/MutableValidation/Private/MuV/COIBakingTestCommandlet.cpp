@@ -69,6 +69,9 @@ int32 UCOIBakingTestCommandlet::Main(const FString& Params)
 
 	// Perform a blocking search to ensure all assets used by mutable are reachable using the AssetRegistry
 	PrepareAssetRegistry();
+
+	// Make sure there is nothing else that the engine needs to do before starting our test
+	Wait(60);
 	
 	// Compile it's CO (using current config)
 	UCustomizableObject* InstanceCustomizableObject = TargetInstance->GetCustomizableObject();
@@ -77,7 +80,6 @@ int32 UCOIBakingTestCommandlet::Main(const FString& Params)
 		UE_LOG(LogMutable,Error,TEXT("The instance %s does not have a CO to compile : Exitting commandlet."), *TargetInstance->GetName());
 		return 1;
 	}
-
 	
 	// Set the target platform to be using for the compilation. Must not be a nullptr
 	FCompilationOptions CompilationOptions = InstanceCustomizableObject->CompileOptions;

@@ -20,6 +20,13 @@ void PrepareAssetRegistry();
 
 
 /**
+ * Hold the thread for the time specified while ticking the engine.
+ * @param ToWaitSeconds The time in seconds we want to hold the execution of the thread
+ */
+void Wait(const double ToWaitSeconds);
+
+
+/**
  * Compiles a CO synchronously
  * @param InCustomizableObject The Customizable Object we want to synchronously compile
  * @param bLogMutableLogs Enables or disables the logging of Log category logs relevant to the CO compilation. Required to avoid a MongoDB limitation with the duplication of MongoDB document names.
