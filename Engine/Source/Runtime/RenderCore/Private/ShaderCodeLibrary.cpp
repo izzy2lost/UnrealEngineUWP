@@ -58,8 +58,8 @@ ShaderCodeLibrary.cpp: Bound shader state cache implementation.
 // allow introspection (e.g. dumping the contents) for easier debugging
 #define UE_SHADERLIB_WITH_INTROSPECTION			!UE_BUILD_SHIPPING
 
-// In some development-only scenario (e.g. LaunchOn), the library is chunked, but the build isn't pak'd. We need to find the chunk files manually then.
-#define UE_SHADERLIB_SUPPORT_CHUNK_DISCOVERY	(!UE_BUILD_SHIPPING && !UE_BUILD_TEST)
+// Enabled by default for all configurations, runtime check should prevent chuck discovery in non dev builds
+#define UE_SHADERLIB_SUPPORT_CHUNK_DISCOVERY	(1)
 
 DEFINE_LOG_CATEGORY(LogShaderLibrary);
 
