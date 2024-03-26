@@ -85,7 +85,18 @@ public:
 	void SetOwningConnection(FInternalNetRefIndex ObjectIndex, uint32 ConnectionId);
 	uint32 GetOwningConnection(FInternalNetRefIndex ObjectIndex) const { return !bHasDirtyOwner ? ObjectIndexToOwningConnection[ObjectIndex] : GetOwningConnectionIfDirty(ObjectIndex); }
 
-	bool SetFilter(FInternalNetRefIndex ObjectIndex, FNetObjectFilterHandle Filter);
+	/**
+	 * Setup an object to be filtered by the passed filter handle.
+	 * @param ObjectIndex The object that wants to be filtered
+	 * @param Filter The handle to the filter to add the object into
+	 * @param FilterConfigProfile Optional profile name that can be used to specialize the filter parameters
+	 */
+	bool SetFilter(FInternalNetRefIndex ObjectIndex, FNetObjectFilterHandle Filter, FName FilterConfigProfile);
+
+	/** 
+	 * Returns true if the object is part of a filter with the ENetFilterTraits::Spatial trait. 
+	 * Indicates that the object is location filtered.
+	 */
 	bool IsUsingSpatialFilter(FInternalNetRefIndex ObjectIndex) const;
 
 	// Set whether an object is allowed to be replicated to certain connections or not.

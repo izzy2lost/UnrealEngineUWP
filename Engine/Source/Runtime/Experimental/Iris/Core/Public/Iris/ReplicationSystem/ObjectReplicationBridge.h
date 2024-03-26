@@ -172,8 +172,8 @@ public:
 	IRISCORE_API void SetPollFrequency(FNetRefHandle RootHandle, float PollFrequency);
 
 	/** Set the object filter to use for objects of this class and any derived classes without an explicit config. */
-	IRISCORE_API void SetClassDynamicFilterConfig(FName ClassPathName, const UE::Net::FNetObjectFilterHandle FilterHandle);
-	IRISCORE_API void SetClassDynamicFilterConfig(FName ClassPathName, FName FilterName);
+	IRISCORE_API void SetClassDynamicFilterConfig(FName ClassPathName, const UE::Net::FNetObjectFilterHandle FilterHandle, FName FilterProfile=NAME_None);
+	IRISCORE_API void SetClassDynamicFilterConfig(FName ClassPathName, FName FilterName, FName FilterProfile=NAME_None);
 
 	/** Set the TypeStats to use for specified class and any derived classes without explicit config */
 	IRISCORE_API void SetClassTypeStatsConfig(FName ClassPathName, FName TypeStatsName);
@@ -353,7 +353,7 @@ private:
 
 protected:
 	/** Retrieves the dynamic filter to set for the given class. Will return an invalid handle if no dynamic filter should be set. */
-	IRISCORE_API UE::Net::FNetObjectFilterHandle GetDynamicFilter(const UClass* Class, bool bRequireForceEnabled);
+	IRISCORE_API UE::Net::FNetObjectFilterHandle GetDynamicFilter(const UClass* Class, bool bRequireForceEnabled, FName& OutFilterProfile);
 
 private:
 	/** Retrieves the prioritizer to set for the given class. If bRequireForceEnabled the config needs to have bForceEnableOnAllInstances set in order for this method to return the configured prioritizer. Returns an invalid handle if no prioritizer should be set. */
@@ -395,6 +395,7 @@ private:
 	struct FClassFilterInfo
 	{
 		UE::Net::FNetObjectFilterHandle FilterHandle;
+		FName FilterProfile;
 		bool bForceEnable = false;
 	};
 

@@ -412,6 +412,7 @@ void UObjectReplicationBridge::AssignDynamicFilter(UObject* Instance, const FCre
 	}
 
 	FNetObjectFilterHandle FilterHandle = InvalidNetObjectFilterHandle;
+	FName FilterConfigProfile;
 
 	if (Params.bUseExplicitDynamicFilter)
 	{
@@ -426,13 +427,13 @@ void UObjectReplicationBridge::AssignDynamicFilter(UObject* Instance, const FCre
 	else if (Params.bUseClassConfigDynamicFilter)
 	{
 		constexpr bool bRequireForceEnabled = false;
-		FilterHandle = GetDynamicFilter(Instance->GetClass(), bRequireForceEnabled);
+		FilterHandle = GetDynamicFilter(Instance->GetClass(), bRequireForceEnabled, FilterConfigProfile);
 	}
 
 	if (FilterHandle != InvalidNetObjectFilterHandle)
 	{
-		UE_LOG_OBJECTREPLICATIONBRIDGE(Verbose, TEXT("BeginReplication Filter: %s will be used for %s "), *(ReplicationSystem->GetFilterName(FilterHandle).ToString()), *NetRefHandleManager->PrintObjectFromNetRefHandle(RefHandle));
-		ReplicationSystem->SetFilter(RefHandle, FilterHandle);
+		UE_LOG_OBJECTREPLICATIONBRIDGE(Verbose, TEXT("BeginReplication Filter: %s will be used for %s. (FilterProfile: %s)"), *(ReplicationSystem->GetFilterName(FilterHandle).ToString()), *NetRefHandleManager->PrintObjectFromNetRefHandle(RefHandle), *FilterConfigProfile.ToString());
+		ReplicationSystem->SetFilter(RefHandle, FilterHandle, FilterConfigProfile);
 	}
 	
 }
@@ -1525,7 +1526,7 @@ void UObjectReplicationBridge::SetClassTypeStatsConfig(const FString& ClassPathN
 	SetClassTypeStatsConfig(FName(ClassPathName), FName(TypeStatsName));
 }
 
-void UObjectReplicationBridge::SetClassDynamicFilterConfig(FName ClassPathName, const UE::Net::FNetObjectFilterHandle FilterHandle)
+void UObjectReplicationBridge::SetClassDynamicFilterConfig(FName ClassPathName, const UE::Net::FNetObjectFilterHandle FilterHandle, FName FilterProfile)
 {
 	if (ClassPathName.IsNone())
 	{
@@ -1538,8 +1539,8 @@ void UObjectReplicationBridge::SetClassDynamicFilterConfig(FName ClassPathName, 
 		{
 			if (OldFilterInfo->FilterHandle != FilterHandle)
 			{
-				UE_LOG(LogIrisFilterConfig, Log, TEXT("SetClassDynamicFilterConfig assigned %s to use filter %s. Previously using filter %s."),
-					*ClassPathName.ToString(), *(ReplicationSystem->GetFilterName(FilterHandle).ToString()), *(ReplicationSystem->GetFilterName(OldFilterInfo->FilterHandle).ToString()));
+				UE_LOG(LogIrisFilterConfig, Log, TEXT("SetClassDynamicFilterConfig assigned %s to use filter %s (Profile %s). Previously using filter %s."),
+					*ClassPathName.ToString(), *(ReplicationSystem->GetFilterName(FilterHandle).ToString()), *FilterProfile.ToString(), *(ReplicationSystem->GetFilterName(OldFilterInfo->FilterHandle).ToString()));
 			}
 			else
 			{
@@ -1548,17 +1549,18 @@ void UObjectReplicationBridge::SetClassDynamicFilterConfig(FName ClassPathName, 
 		}
 		else
 		{
-			UE_LOG(LogIrisFilterConfig, Log, TEXT("SetClassDynamicFilterConfig assigned %s to use filter %s."), *ClassPathName.ToString(), *(ReplicationSystem->GetFilterName(FilterHandle).ToString()));
+			UE_LOG(LogIrisFilterConfig, Log, TEXT("SetClassDynamicFilterConfig assigned %s to use filter %s (Profile %s)."), *ClassPathName.ToString(), *(ReplicationSystem->GetFilterName(FilterHandle).ToString()), *FilterProfile.ToString());
 		}
 	}
 
 	FClassFilterInfo FilterInfo;
 	FilterInfo.FilterHandle = FilterHandle;
+	FilterInfo.FilterProfile = FilterProfile;
 	FilterInfo.bForceEnable = false;
 	ClassesWithDynamicFilter.Add(ClassPathName, FilterInfo);
 }
 
-void UObjectReplicationBridge::SetClassDynamicFilterConfig(FName ClassPathName, FName FilterName)
+void UObjectReplicationBridge::SetClassDynamicFilterConfig(FName ClassPathName, FName FilterName, FName FilterProfile)
 {
 	using namespace UE::Net;
 
@@ -1573,72 +1575,90 @@ void UObjectReplicationBridge::SetClassDynamicFilterConfig(FName ClassPathName, 
 
 		if (ensureMsgf(FilterHandle != InvalidNetObjectFilterHandle, TEXT("SetClassDynamicFilterConfig for %s received invalid filter named %s"), *ClassPathName.ToString(), *FilterName.ToString()))
 		{
-			SetClassDynamicFilterConfig(ClassPathName, FilterHandle);
+			SetClassDynamicFilterConfig(ClassPathName, FilterHandle, FilterProfile);
 		}
 	}
 	else
 	{
 		// Reset the filter so the class does not get assigned a dynamic filter anymore.
-		SetClassDynamicFilterConfig(ClassPathName, InvalidNetObjectFilterHandle);
+		SetClassDynamicFilterConfig(ClassPathName, InvalidNetObjectFilterHandle, FilterProfile);
 	}
 }
 
-UE::Net::FNetObjectFilterHandle UObjectReplicationBridge::GetDynamicFilter(const UClass* Class, bool bRequireForceEnabled)
+UE::Net::FNetObjectFilterHandle UObjectReplicationBridge::GetDynamicFilter(const UClass* Class, bool bRequireForceEnabled, FName& OutFilterProfile)
 {
 	using namespace UE::Net;
 
-	if (ClassesWithDynamicFilter.Num() > 0)
+	if (ClassesWithDynamicFilter.IsEmpty())
 	{
-		const FName ClassName = GetConfigClassPathName(Class);
-
-		// Try exact match first.
-		if (FClassFilterInfo* FilterInfoPtr = ClassesWithDynamicFilter.Find(ClassName))
-		{
-			const bool bUseFilter = !bRequireForceEnabled || FilterInfoPtr->bForceEnable;
-			return bUseFilter ? FilterInfoPtr->FilterHandle : InvalidNetObjectFilterHandle;
-		}
-
 		/**
-		 * Try to find superclass. If we find it and the classes are considered equal we copy the filter setting.
-		 * If it's not equal we check whether it can be spatialized or not and use the result of that.
-		 * In all cases we add the result to the mapping for faster lookup next time.
+		 * For the cases when there are no configured filter mappings we just check whether to use a spatial filter or not.
+		 * We don't add anything to the filter mapping.
 		 */
-		for (const UClass* SuperClass = Class->GetSuperClass(); SuperClass != nullptr; SuperClass = SuperClass->GetSuperClass())
+		const FNetObjectFilterHandle FilterHandle = ShouldUseDefaultSpatialFilterFunction(Class) ? DefaultSpatialFilterHandle : InvalidNetObjectFilterHandle;
+		return FilterHandle;
+	}
+
+	const FName ClassName = GetConfigClassPathName(Class);
+
+	// Try exact match first.
+	if (FClassFilterInfo* FilterInfoPtr = ClassesWithDynamicFilter.Find(ClassName))
+	{
+		const bool bUseFilter = !bRequireForceEnabled || FilterInfoPtr->bForceEnable;
+		if (bUseFilter)
 		{
-			const FName SuperClassName = GetConfigClassPathName(SuperClass);
-
-			// Try to get exact match first.
-			if (FClassFilterInfo* FilterInfoPtr = ClassesWithDynamicFilter.Find(SuperClassName))
-			{
-				if (ShouldSubclassUseSameFilterFunction(SuperClass, Class))
-				{
-					FClassFilterInfo FilterInfo = *FilterInfoPtr;
-					ClassesWithDynamicFilter.Add(ClassName, FilterInfo);
-
-					const bool bUseFilter = !bRequireForceEnabled || FilterInfo.bForceEnable;
-					return bUseFilter ? FilterInfo.FilterHandle : InvalidNetObjectFilterHandle;
-				}
-
-				// Here's a good place to put a line of code and set a breakpoint to debug inheritance issues.
-
-				break;
-			}
+			OutFilterProfile = FilterInfoPtr->FilterProfile;
+			return FilterInfoPtr->FilterHandle;
 		}
-
-		// Either super class wasn't found or it wasn't considered equal. Let's add a new filter mapping.
-		FClassFilterInfo FilterInfo;
-		FilterInfo.FilterHandle = ShouldUseDefaultSpatialFilterFunction(Class) ? DefaultSpatialFilterHandle : InvalidNetObjectFilterHandle;
-		FilterInfo.bForceEnable = false;
-		ClassesWithDynamicFilter.Add(ClassName, FilterInfo);
-		return FilterInfo.FilterHandle;
+		else
+		{
+			return InvalidNetObjectFilterHandle;
+		}
 	}
 
 	/**
-	 * For the cases when there are no configured filter mappings we just check whether to use a spatial filter or not.
-	 * We don't add anything to the filter mapping.
-	 */
-	const FNetObjectFilterHandle FilterHandle = ShouldUseDefaultSpatialFilterFunction(Class) ? DefaultSpatialFilterHandle : InvalidNetObjectFilterHandle;
-	return FilterHandle;
+	* Try to find superclass. If we find it and the classes are considered equal we copy the filter setting.
+	* If it's not equal we check whether it can be spatialized or not and use the result of that.
+	* In all cases we add the result to the mapping for faster lookup next time.
+	*/
+	for (const UClass* SuperClass = Class->GetSuperClass(); SuperClass != nullptr; SuperClass = SuperClass->GetSuperClass())
+	{
+		const FName SuperClassName = GetConfigClassPathName(SuperClass);
+
+		// Try to get exact match first.
+		if (FClassFilterInfo* FilterInfoPtr = ClassesWithDynamicFilter.Find(SuperClassName))
+		{
+			if (ShouldSubclassUseSameFilterFunction(SuperClass, Class))
+			{
+				FClassFilterInfo FilterInfo = *FilterInfoPtr;
+				ClassesWithDynamicFilter.Add(ClassName, FilterInfo);
+
+				const bool bUseFilter = !bRequireForceEnabled || FilterInfo.bForceEnable;
+
+				if (bUseFilter)
+				{
+					OutFilterProfile = FilterInfoPtr->FilterProfile;
+					return FilterInfo.FilterHandle;
+				}
+				else
+				{
+					return InvalidNetObjectFilterHandle;
+				}
+					
+			}
+
+			// Here's a good place to put a line of code and set a breakpoint to debug inheritance issues.
+
+			break;
+		}
+	}
+
+	// Either super class wasn't found or it wasn't considered equal. Let's add a new filter mapping.
+	FClassFilterInfo FilterInfo;
+	FilterInfo.FilterHandle = ShouldUseDefaultSpatialFilterFunction(Class) ? DefaultSpatialFilterHandle : InvalidNetObjectFilterHandle;
+	FilterInfo.bForceEnable = false;
+	ClassesWithDynamicFilter.Add(ClassName, FilterInfo);
+	return FilterInfo.FilterHandle;
 }
 
 UE::Net::FNetObjectPrioritizerHandle UObjectReplicationBridge::GetPrioritizer(const UClass* Class, bool bRequireForceEnabled)
@@ -1737,6 +1757,7 @@ void UObjectReplicationBridge::LoadConfig()
 		{
 			FClassFilterInfo FilterInfo;
 			FilterInfo.FilterHandle = ReplicationSystem->GetFilterHandle(FilterConfig.DynamicFilterName);
+			FilterInfo.FilterProfile = FilterConfig.FilterProfile;
 			FilterInfo.bForceEnable = FilterConfig.bForceEnableOnAllInstances;
 			ClassesWithDynamicFilter.Add(FilterConfig.ClassName, FilterInfo);
 		}

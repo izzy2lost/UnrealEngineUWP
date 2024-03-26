@@ -1089,7 +1089,7 @@ uint32 UReplicationSystem::GetOwningNetConnection(FNetRefHandle Handle) const
 	return Filtering.GetOwningConnection(ObjectInternalIndex);
 }
 
-bool UReplicationSystem::SetFilter(FNetRefHandle Handle, UE::Net::FNetObjectFilterHandle Filter)
+bool UReplicationSystem::SetFilter(FNetRefHandle Handle, UE::Net::FNetObjectFilterHandle Filter, FName FilterConfigProfile /*= NAME_None*/)
 {
 	using namespace UE::Net::Private;
 
@@ -1107,7 +1107,7 @@ bool UReplicationSystem::SetFilter(FNetRefHandle Handle, UE::Net::FNetObjectFilt
 	}
 
 	FReplicationFiltering& Filtering = Impl->ReplicationSystemInternal.GetFiltering();
-	return Filtering.SetFilter(ObjectInternalIndex, Filter);
+	return Filtering.SetFilter(ObjectInternalIndex, Filter, FilterConfigProfile);
 }
 
 UE::Net::FNetObjectFilterHandle UReplicationSystem::GetFilterHandle(const FName FilterName) const

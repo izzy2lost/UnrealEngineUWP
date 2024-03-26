@@ -47,6 +47,10 @@ struct FObjectReplicationBridgeFilterConfig
 	UPROPERTY()
 	FName DynamicFilterName;
 
+	/** Optional name to a profile that can further specialize the settings within a dynamic filter */
+	UPROPERTY()
+	FName FilterProfile;
+
 	/** Whether this filter should be used for all instances of this class and subclasses, regardless of bAlwaysRelevant and bOnlyRelevantToOwner settings on instance. */
 	UPROPERTY()
 	bool bForceEnableOnAllInstances = false;

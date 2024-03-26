@@ -283,7 +283,9 @@ UE::Net::FNetRefHandle UActorReplicationBridge::BeginReplication(AActor* Actor, 
 		{
 			// Only apply owner filter if we haven't force enabled a dynamic filter.
 			constexpr bool bRequireForceEnabled = true;
-			FNetObjectFilterHandle FilterHandle = GetDynamicFilter(Actor->GetClass(), bRequireForceEnabled);
+			FName FilterProfile;
+			FNetObjectFilterHandle FilterHandle = GetDynamicFilter(Actor->GetClass(), bRequireForceEnabled, FilterProfile);
+
 			if (FilterHandle == InvalidNetObjectFilterHandle)
 			{
 				GetReplicationSystem()->SetFilter(ActorRefHandle, ToOwnerFilterHandle);

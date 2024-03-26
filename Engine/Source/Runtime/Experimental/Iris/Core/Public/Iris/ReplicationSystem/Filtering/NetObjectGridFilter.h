@@ -22,15 +22,44 @@ namespace UE::Net
 	}
 }
 
+/**
+ * Specialized template that configures unique properties.
+ * Useful when you need to specialize a behavior per class or object type
+ */
+USTRUCT()
+struct FNetObjectGridFilterProfile
+{
+	GENERATED_BODY()
+
+	/** The config name used to map to this profile */
+	UPROPERTY()
+	FName FilterProfileName;
+
+	/** Number of frames we keep the object relevant until it is officially culled out.*/
+	UPROPERTY()
+	uint16 FrameCountBeforeCulling = 4;
+
+	bool operator==(FName Key) const { return FilterProfileName == Key; }
+};
+
+/**
+ * Common settings used to configure how the GridFilter behaves
+ */
 UCLASS(transient, config=Engine, MinimalAPI)
 class UNetObjectGridFilterConfig : public UNetObjectFilterConfig
 {
 	GENERATED_BODY()
 
 public:
-	/** How many frames a view position should be considered relevant. To avoid culling issues when player borders cells. */
+	/** 
+	 * How many frames a previous grid cell should continue to be considered relevant. To avoid culling issues when player borders cells. 
+	 * Only used when bUseExactCullDistance is false.
+	 */
 	UPROPERTY(Config)
 	uint32 ViewPosRelevancyFrameCount = 2;
+
+	UPROPERTY(Config)
+	uint16 DefaultFrameCountBeforeCulling = 4;
 
 	UPROPERTY(Config)
 	float CellSizeX = 20000.0f;
@@ -54,9 +83,16 @@ public:
 	UPROPERTY(Config)
 	FVector MaxPos = {+0.5f*2097152.0f, +0.5f*2097152.0f, +0.5f*2097152.0f};
 
-	/** If true, use the exact cull distance to determine the objects to create/destroy on the client. Otherwise only use the net grid. */
+	/** 
+	 * If true: use the exact distance between an object and the viewer to determine if the object is relevant or should be culled out.
+	 * When false: consider all objects within a grid cell to be relevant when a viewer is located within the cell. This can extend the relevant distance of objects beyond their cull distance. 
+	 */
 	UPROPERTY(Config)
 	bool bUseExactCullDistance = true;
+
+	/** Map of specialized configuration profiles */
+	UPROPERTY(Config)
+	TArray<FNetObjectGridFilterProfile> FilterProfiles;
 };
 
 UCLASS(abstract)
@@ -79,17 +115,25 @@ protected:
 protected:
 	struct FObjectLocationInfo : public FNetObjectFilteringInfo
 	{
-		bool IsUsingWorldLocations() const { return GetLocationStateIndex() == InvalidStateIndex; }
+		bool IsUsingWorldLocations() const  { return GetLocationStateIndex() == InvalidStateIndex; }
 		bool IsUsingLocationInState() const { return GetLocationStateIndex() != InvalidStateIndex; }
 
-		void SetLocationStateOffset(uint16 Offset) { Data[0] = Offset; }
-		uint16 GetLocationStateOffset() const { return Data[0]; }
+		/**
+		* Data mapping:
+		* uint16 Data[0] = LocationState offset
+		* uint16 Data[1] = LocationState index
+		* uint16 Data[2] = FPerObjectInfo index (low bytes)
+		* uint16 Data[3] = FPerObjectInfo index (high bytes)
+		*/
+
+		void SetLocationStateOffset(uint16 Offset)	{ Data[0] = Offset; }
+		uint16 GetLocationStateOffset() const		{ return Data[0]; }
 
 		void SetLocationStateIndex(uint16 Index) { Data[1] = Index; }
-		uint16 GetLocationStateIndex() const { return Data[1]; }
+		uint16 GetLocationStateIndex() const	 { return Data[1]; }
 
-		void SetInfoIndex(uint32 Index) { Data[2] = Index & 65535U; Data[3] = Index >> 16U; }
-		uint32 GetInfoIndex() const { return (uint32(Data[3]) << 16U) | uint32(Data[2]); }
+		void SetInfoIndex(uint32 Index)	{ Data[2] = Index & 65535U; Data[3] = Index >> 16U; }
+		uint32 GetInfoIndex() const		{ return (uint32(Data[3]) << 16U) | uint32(Data[2]); }
 	};
 
 	IRISCORE_API void AddCellInfoForObject(const FObjectLocationInfo& ObjectInfo, const UE::Net::FReplicationInstanceProtocol* InstanceProtocol);
@@ -107,10 +151,10 @@ protected:
 
 	struct FCellBox
 	{
-		int32 MinX;
-		int32 MaxX;
-		int32 MinY;
-		int32 MaxY;
+		int32 MinX = 0;
+		int32 MaxX = 0;
+		int32 MinY = 0;
+		int32 MaxY = 0;
 
 		bool operator==(const FCellBox&) const;
 		bool operator!=(const FCellBox&) const;
@@ -119,9 +163,10 @@ protected:
 	// We can't fit all info we need in 4x16bits.
 	struct FPerObjectInfo
 	{
-		FVector Position = { 0.f,0.f,0.f };
+		FVector Position = FVector::ZeroVector;
 		FCellBox CellBox = {};
 		uint32 ObjectIndex = 0U;
+		uint16 FrameCountBeforeCulling = 0U;
 
 		float GetCullDistance() const
 		{
@@ -201,7 +246,7 @@ private:
 		TArray<FCellAndTimestamp, TInlineAllocator<32>> RecentCells;
 		
 		// Objects that have been recently visible to the connection and the frame countdown.
-		TMap<uint32, uint32> RecentObjectFrameCount;
+		TMap<uint32, uint16> RecentObjectFrameCount;
 	};
 
 	/** Aggregator for stats */
@@ -223,6 +268,8 @@ private:
 	void UpdatePositionAndCullDistance(const FObjectLocationInfo& ObjectLocationInfo, FPerObjectInfo& PerObjectInfo, const UE::Net::FReplicationInstanceProtocol* InstanceProtocol);
 	void CalculateCellBox(const FPerObjectInfo& PerObjectInfo, FCellBox& OutCellBox);
 	void CalculateCellCoord(FCellCoord& OutCoord, const FVector& Pos);
+
+	uint16 GetFrameCountBeforeCulling(FName ProfileName) const;
 
 	static bool AreCellsDisjoint(const FCellBox& A, const FCellBox& B);
 	static bool DoesCellContainCoord(const FCellBox& Cell, const FCellCoord& Coord);

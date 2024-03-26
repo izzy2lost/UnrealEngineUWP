@@ -37,6 +37,26 @@ void UNetObjectGridFilter::RemoveConnection(uint32 ConnectionId)
 	PerConnectionInfos[ConnectionId] = {};
 }
 
+uint16 UNetObjectGridFilter::GetFrameCountBeforeCulling(FName ProfileName) const
+{
+	uint16 FrameCount = Config->DefaultFrameCountBeforeCulling;
+	
+	if (ProfileName.IsNone())
+	{
+		return FrameCount;
+	}
+
+	FNetObjectGridFilterProfile* FilterProfile = Config->FilterProfiles.FindByKey(ProfileName);
+	ensureMsgf(FilterProfile, TEXT("UNetObjectGridFilterConfig does not hold any profile named %s"), *ProfileName.ToString());
+
+	if (FilterProfile)
+	{
+		FrameCount = FilterProfile->FrameCountBeforeCulling;
+	}
+
+	return FrameCount;
+}
+
 bool UNetObjectGridFilter::AddObject(uint32 ObjectIndex, FNetObjectFilterAddObjectParams& Params)
 {
 	// We support either a world location in the state, tagged with RepTag_WorldLocation, or via the WorldLocations instance.
@@ -53,7 +73,9 @@ bool UNetObjectGridFilter::AddObject(uint32 ObjectIndex, FNetObjectFilterAddObje
 	ObjectLocationInfo.SetInfoIndex(InfoIndex);
 
 	FPerObjectInfo& PerObjectInfo = ObjectInfos[InfoIndex];
+
 	PerObjectInfo.ObjectIndex = ObjectIndex;
+	PerObjectInfo.FrameCountBeforeCulling = GetFrameCountBeforeCulling(Params.ProfileName);
 
 	AddCellInfoForObject(ObjectLocationInfo, Params.InstanceProtocol);
 	
@@ -175,7 +197,7 @@ void UNetObjectGridFilter::Filter(FNetObjectFilteringParams& Params)
 
 						if (ObjectToViewDistSq <= DistSq)
 						{
-							ConnectionInfo.RecentObjectFrameCount.Add(ObjectIndex, Config->ViewPosRelevancyFrameCount);
+							ConnectionInfo.RecentObjectFrameCount.Add(ObjectIndex, PerObjectInfo.FrameCountBeforeCulling);
 							break; // Don't need to test all connections once one is within Distance
 						}
 					}
@@ -191,7 +213,7 @@ void UNetObjectGridFilter::Filter(FNetObjectFilteringParams& Params)
 #endif
 
 		// Set the AllowedObjects and decrease their frame count
-		for (TMap<uint32, uint32>::TIterator It = ConnectionInfo.RecentObjectFrameCount.CreateIterator(); It; ++It)
+		for (TMap<uint32, uint16>::TIterator It = ConnectionInfo.RecentObjectFrameCount.CreateIterator(); It; ++It)
 		{
 			if (It->Value > 0)
 			{
@@ -250,12 +272,20 @@ void UNetObjectGridFilter::AddCellInfoForObject(const FObjectLocationInfo& Objec
 {
 	// Called for completely new objects
 	FPerObjectInfo& PerObjectInfo = ObjectInfos[ObjectLocationInfo.GetInfoIndex()];
-	PerObjectInfo.SetCullDistance(Config->DefaultCullDistance);
-	UpdatePositionAndCullDistance(ObjectLocationInfo, PerObjectInfo, InstanceProtocol);
+	
+	// Set cull distance
+	{
+		PerObjectInfo.SetCullDistance(Config->DefaultCullDistance);
+		UpdatePositionAndCullDistance(ObjectLocationInfo, PerObjectInfo, InstanceProtocol);
+	}
 
 	FCellBox NewCellBox;
-	CalculateCellBox(PerObjectInfo, NewCellBox);
-	PerObjectInfo.CellBox = NewCellBox;
+
+	// Set cellbox info
+	{
+		CalculateCellBox(PerObjectInfo, NewCellBox);
+		PerObjectInfo.CellBox = NewCellBox;
+	}
 
 	const uint32 ObjectIndex = PerObjectInfo.ObjectIndex;
 
@@ -485,8 +515,8 @@ FString UNetObjectGridFilter::PrintDebugInfoForObject(const FDebugInfoParams& Pa
 	const FPerObjectInfo& PerObjectInfo = ObjectInfos[ObjectLocationInfo.GetInfoIndex()];
 
 	const FPerConnectionInfo* const PerConnectionInfo = PerConnectionInfos.IsValidIndex(Params.ConnectionId) ? &PerConnectionInfos[Params.ConnectionId] : nullptr;
-	const uint32* CulledFrameCountPtr = PerConnectionInfo ? PerConnectionInfo->RecentObjectFrameCount.Find(ObjectIndex) : nullptr;
-	const uint32 CulledFrameCount = CulledFrameCountPtr ? *CulledFrameCountPtr : 0;
+	const uint16* CulledFrameCountPtr = PerConnectionInfo ? PerConnectionInfo->RecentObjectFrameCount.Find(ObjectIndex) : nullptr;
+	const uint16 CulledFrameCount = CulledFrameCountPtr ? *CulledFrameCountPtr : 0;
 
 	double Dist2d = DOUBLE_BIG_NUMBER;
 	double DistZ = DOUBLE_BIG_NUMBER;

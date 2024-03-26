@@ -432,7 +432,7 @@ void FReplicationFiltering::SetOwningConnection(FInternalNetRefIndex ObjectIndex
 	}
 }
 
-bool FReplicationFiltering::SetFilter(FInternalNetRefIndex ObjectIndex, FNetObjectFilterHandle Filter)
+bool FReplicationFiltering::SetFilter(FInternalNetRefIndex ObjectIndex, FNetObjectFilterHandle Filter, FName FilterConfigProfile)
 {
 	if (Filter == ConnectionFilterHandle)
 	{
@@ -440,7 +440,7 @@ bool FReplicationFiltering::SetFilter(FInternalNetRefIndex ObjectIndex, FNetObje
 		return false;
 	}
 
-	UE_LOG(LogIrisFiltering, Verbose, TEXT("Setting filter %s to %s"), *GetFilterName(Filter).ToString(), *NetRefHandleManager->PrintObjectFromIndex(ObjectIndex));
+	UE_LOG(LogIrisFiltering, Verbose, TEXT("Setting filter %s to %s (profile %s)"), *GetFilterName(Filter).ToString(), *NetRefHandleManager->PrintObjectFromIndex(ObjectIndex), *FilterConfigProfile.ToString());
 
 	const bool bWantsToUseDynamicFilter = FNetObjectFilterHandleUtil::IsDynamicFilter(Filter);
 	const uint8 OldDynamicFilterIndex = ObjectIndexToDynamicFilterIndex[ObjectIndex];
@@ -477,11 +477,11 @@ bool FReplicationFiltering::SetFilter(FInternalNetRefIndex ObjectIndex, FNetObje
 		this->FreePerObjectInfoForObject(ObjIndex);
 	};
 
-	auto TrySetDynamicFilter = [this, &ObjectData, &ReplicatedObjectsStateBuffers](uint32 ObjIndex, uint32 FilterIndex)
+	auto TrySetDynamicFilter = [this, &ObjectData, &ReplicatedObjectsStateBuffers, FilterConfigProfile](uint32 ObjIndex, uint32 FilterIndex)
 	{
 		FNetObjectFilteringInfo& NetObjectFilteringInfo = this->NetObjectFilteringInfos[ObjIndex];
 		NetObjectFilteringInfo = {};
-		FNetObjectFilterAddObjectParams AddParams = { NetObjectFilteringInfo, ObjectData.InstanceProtocol, ObjectData.Protocol, ReplicatedObjectsStateBuffers[ObjIndex] };
+		FNetObjectFilterAddObjectParams AddParams = { .OutInfo=NetObjectFilteringInfo, .ProfileName=FilterConfigProfile, .InstanceProtocol=ObjectData.InstanceProtocol, .Protocol=ObjectData.Protocol, .StateBuffer=ReplicatedObjectsStateBuffers[ObjIndex] };
 		FFilterInfo& FilterInfo = this->DynamicFilterInfos[FilterIndex];
 		if (FilterInfo.Filter->AddObject(ObjIndex, AddParams))
 		{

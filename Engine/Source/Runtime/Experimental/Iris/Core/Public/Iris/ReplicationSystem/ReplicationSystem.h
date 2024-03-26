@@ -380,16 +380,20 @@ public:
 	 * Sets a filter for a replicated object which will be used until the next call to SetFilter or SetConnectionFilter.
 	 * Filters are used prevent objects from being replicated to certain connections. An object that is filtered
 	 * out will cause the object to be destroyed on the remote side.
+	 * 
 	 * @param Handle A valid handle to an object.
 	 * @param FilterHandle A valid handle to a filter, retrieved via a call to GetFilter or one of the two special handles
-	 * InvalidNetObjectFilterHandle to clear filtering or ToOwnerFilterHandle for owner filtering.
+	 *		  InvalidNetObjectFilterHandle to clear filtering or ToOwnerFilterHandle for owner filtering.
+	 * @param FilterConfigProfile Optional name of a specialized profile to use as the object's configuration. When none filters are expected to use default settings.
+	 * 
 	 * @return true if the filter was successfully set and false if it was not. It can fail for various reasons,
 	 * such as the filter not supporting the object in question for implementation defined reasons. If the function fails
 	 * the filter of the object is unspecified, it could be using a previous filter or use no filtering.
+	 * 
 	 * @see GetFilterHandle
 	 * @see SetConnectionFilter
 	 */
-	IRISCORE_API bool SetFilter(FNetRefHandle Handle, UE::Net::FNetObjectFilterHandle FilterHandle);
+	IRISCORE_API bool SetFilter(FNetRefHandle Handle, UE::Net::FNetObjectFilterHandle FilterHandle, FName FilterConfigProfile=NAME_None);
 
 	/**
 	 * Gets the handle for a filter with a given name. The handle can be used in subsequent calls to SetFilter.
