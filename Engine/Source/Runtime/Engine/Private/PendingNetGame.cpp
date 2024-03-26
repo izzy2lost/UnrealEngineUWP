@@ -206,6 +206,8 @@ void UPendingNetGame::TravelCompleted(UEngine* Engine, FWorldContext& Context)
 	// Send join.
 	Context.PendingNetGame->SendJoin();
 	Context.PendingNetGame->NetDriver = NULL;
+
+	UE_LOGSTATUS(Log, TEXT("Pending net game travel completed"));
 }
 
 EAcceptConnection::Type UPendingNetGame::NotifyAcceptingConnection()
