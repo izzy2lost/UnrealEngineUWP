@@ -2567,7 +2567,7 @@ namespace Nanite
 
 		{
 			FMaterialAudit NaniteMaterials{};
-			AuditMaterials(&Component, NaniteMaterials);
+			AuditMaterials(&Component, NaniteMaterials, OutNaniteMaterials != nullptr);
 
 			const bool bIsMaskingAllowed = Nanite::IsMaskingAllowed(Component.GetWorld(), Component.bForceNaniteForMasked);
 			if (!NaniteMaterials.IsValid(bIsMaskingAllowed))

@@ -2202,7 +2202,7 @@ TArray<FAuditMaterialSlotInfo, TInlineAllocator<32>> GetMaterialSlotInfos(const 
 }
 
 template<class T> 
-FMaterialAudit& AuditMaterialsImp(const T* InProxyDesc, FMaterialAudit& Audit)
+FMaterialAudit& AuditMaterialsImp(const T* InProxyDesc, FMaterialAudit& Audit, bool bSetMaterialUsage)
 {
 	static const auto NaniteForceEnableMeshesCvar = IConsoleManager::Get().FindTConsoleVariableDataInt(TEXT("r.Nanite.ForceEnableMeshes"));
 	static const bool bNaniteForceEnableMeshes = NaniteForceEnableMeshesCvar && NaniteForceEnableMeshesCvar->GetValueOnAnyThread() != 0;
@@ -2256,7 +2256,7 @@ FMaterialAudit& AuditMaterialsImp(const T* InProxyDesc, FMaterialAudit& Audit)
 			Entry.bHasTessellationEnabled		= Material->IsTessellationEnabled();
 			Entry.bHasUnsupportedBlendMode		= !IsSupportedBlendMode(BlendMode);
 			Entry.bHasUnsupportedShadingModel	= !IsSupportedShadingModel(Material->GetShadingModels());
-			Entry.bHasInvalidUsage				= bUsingCookedEditorData ? Material->NeedsSetMaterialUsage_Concurrent(bUsageSetSuccessfully, MATUSAGE_Nanite) : !Material->CheckMaterialUsage_Concurrent(MATUSAGE_Nanite);
+			Entry.bHasInvalidUsage				= (bUsingCookedEditorData || !bSetMaterialUsage) ? Material->NeedsSetMaterialUsage_Concurrent(bUsageSetSuccessfully, MATUSAGE_Nanite) : !Material->CheckMaterialUsage_Concurrent(MATUSAGE_Nanite);
 
 			if (BlendMode == BLEND_Masked)
 			{
@@ -2319,14 +2319,14 @@ FMaterialAudit& AuditMaterialsImp(const T* InProxyDesc, FMaterialAudit& Audit)
 }
 
 
-void AuditMaterials(const UStaticMeshComponent* Component, FMaterialAudit& Audit)
+void AuditMaterials(const UStaticMeshComponent* Component, FMaterialAudit& Audit, bool bSetMaterialUsage)
 {
-	AuditMaterialsImp(Component, Audit);
+	AuditMaterialsImp(Component, Audit, bSetMaterialUsage);
 }
 
-void AuditMaterials(const FStaticMeshSceneProxyDesc* ProxyDesc, FMaterialAudit& Audit)
+void AuditMaterials(const FStaticMeshSceneProxyDesc* ProxyDesc, FMaterialAudit& Audit, bool bSetMaterialUsage)
 {
-	AuditMaterialsImp(ProxyDesc, Audit);
+	AuditMaterialsImp(ProxyDesc, Audit, bSetMaterialUsage);
 }
 
 bool IsSupportedBlendMode(EBlendMode BlendMode)
