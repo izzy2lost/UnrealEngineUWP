@@ -53,7 +53,7 @@ namespace InstancedActorsCVars
 	FAutoConsoleVariableRef CVarRuntimeEnforceActorClassSettingsPresence(
 		TEXT("IA.RuntimeEnforceActorClassSettingsPresence"),
 		RuntimeEnforceActorClassSettingsPresence,
-		TEXT("The error severity to use when no FInstancedActorsClassSettings are found for a given ActorClass (or any of it's superclasses) in the ActorClassSettingsRegistry")
+		TEXT("The error severity to use when no FInstancedActorsClassSettingsBase are found for a given ActorClass (or any of it's superclasses) in the ActorClassSettingsRegistry")
 		TEXT("at runtime. Useful for ensuring unknown / unoptimized actor classes aren't being unexpectedly instanced.")
 		TEXT("0 = No error, ActorClass's are not required to be be present in ActorClassSettingsRegistry at all.")
 		TEXT("1 = Log an error, continue to instance ActorClass regardless.")
@@ -64,7 +64,7 @@ namespace InstancedActorsCVars
 	FAutoConsoleVariableRef CVarEditorEnforceActorClassSettingsPresence(
 		TEXT("IA.EditorEnforceActorClassSettingsPresence"),
 		EditorEnforceActorClassSettingsPresence,
-		TEXT("The error severity to use when no FInstancedActorsClassSettings are found for a given ActorClass (or any of it's superclasses) in the ActorClassSettingsRegistry")
+		TEXT("The error severity to use when no FInstancedActorsClassSettingsBase are found for a given ActorClass (or any of it's superclasses) in the ActorClassSettingsRegistry")
 		TEXT("when instancing actors in the editor. Useful for ensuring unknown / unoptimized actor classes aren't being unexpectedly instanced.")
 		TEXT("0 = No error, ActorClass's are not required to be be present in ActorClassSettingsRegistry at all.")
 		TEXT("1 = Log a message log warning, continue to instance ActorClass regardless.")
@@ -661,9 +661,9 @@ bool UInstancedActorsSubsystem::DoesActorClassHaveRegisteredSettings(TSubclassOf
 	UClass* ClassOrSuperClass = ActorClass.Get();
 	while (ClassOrSuperClass != nullptr)
 	{
-		// Find FInstancedActorsClassSettings for ClassOrSuperClass
+		// Find FInstancedActorsClassSettingsBase for ClassOrSuperClass
 		// Note: For fast lookup, we use the classes FName to lookup class settings, requiring class names to be unique for per-class settings
-		const FInstancedActorsClassSettings* ClassOrSuperClassSettings = DataRegistrySubsystem->GetCachedItem<FInstancedActorsClassSettings>({ProjectSettings->ActorClassSettingsRegistryType, ClassOrSuperClass->GetFName()});
+		const FInstancedActorsClassSettingsBase* ClassOrSuperClassSettings = DataRegistrySubsystem->GetCachedItem<FInstancedActorsClassSettingsBase>({ProjectSettings->ActorClassSettingsRegistryType, ClassOrSuperClass->GetFName()});
 		if (ClassOrSuperClassSettings != nullptr)
 		{
 			return true;
@@ -723,7 +723,7 @@ FSharedStruct UInstancedActorsSubsystem::CompileSettingsForActorClass(TSubclassO
 	UClass* ClassOrSuperClass = ActorClass.Get();
 	while (ClassOrSuperClass != nullptr)
 	{
-		// Find FInstancedActorsClassSettings for ClassOrSuperClass
+		// Find FInstancedActorsClassSettingsBase for ClassOrSuperClass
 		// Note: For fast lookup, we use the classes FName to lookup class settings, requiring class names to be unique for per-class settings
 		const FInstancedActorsClassSettingsBase* ClassOrSuperClassSettings = DataRegistrySubsystem->GetCachedItem<FInstancedActorsClassSettingsBase>({ProjectSettings->ActorClassSettingsRegistryType, ClassOrSuperClass->GetFName()});
 		if (ClassOrSuperClassSettings != nullptr)
@@ -731,14 +731,14 @@ FSharedStruct UInstancedActorsSubsystem::CompileSettingsForActorClass(TSubclassO
 			bFoundClassSettings = true;
 
 			// Apply class OverrideSettings
-			CompiledSettings.Get<FInstancedActorsSettings>().OverrideIfDefault(ClassOrSuperClassSettings->GetOverrideSettings(), ClassOrSuperClass->GetFName());
+			CompiledSettings.Get<FInstancedActorsSettings>().OverrideIfDefault(ClassOrSuperClassSettings->MakeOverrideSettings(), ClassOrSuperClass->GetFName());
 
 			// Apple class BaseSettings in reverse order
 			for (const FName& BaseSettingsName : ReverseIterate(ClassOrSuperClassSettings->BaseSettings))
 			{
 				const FInstancedStruct BaseSettings = GetCachedItem({ ProjectSettings->NamedSettingsRegistryType, BaseSettingsName });
 
-				if (ensureMsgf(BaseSettings.IsValid(), TEXT("FInstancedActorsClassSettings (%s) references unknown named settings '%s', skipping.")
+				if (ensureMsgf(BaseSettings.IsValid(), TEXT("FInstancedActorsClassSettingsBase (%s) references unknown named settings '%s', skipping.")
 					, *ClassOrSuperClass->GetPathName(), *BaseSettingsName.ToString()))
 				{
 					CompiledSettings.Get<FInstancedActorsSettings>().OverrideIfDefault(BaseSettings, BaseSettingsName);

@@ -110,18 +110,18 @@ public:
 	INSTANCEDACTORS_API AActor& GetOrCreateExemplarActor(TSubclassOf<AActor> ActorClass);
 
 	/** 
-	 * Compiles and caches finalized settings for ActorClass based off FInstancedActorsClassSettings found in 
+	 * Compiles and caches finalized settings for ActorClass based off FInstancedActorsClassSettingsBase found in 
 	 * UInstancedActorsProjectSettings::ActorClassSettingsRegistryType data registry, for ActorClass and it's 
 	 * inherited super classes.
 	 *
-	 * Note: FInstancedActorsClassSettings are indexed by class FName (*not* the full path) in the data registry, 
+	 * Note: FInstancedActorsClassSettingsBase are indexed by class FName (*not* the full path) in the data registry, 
 	 *       for quick lookup in CompileSettingsForActorClass. This means unique class names must be used for 
 	 *       per-class settings.
 	 */
 	FSharedStruct GetOrCompileSettingsForActorClass(TSubclassOf<AActor> ActorClass);
 
 	/**
-	 * Returns true if ActorClass has a matching FInstancedActorsClassSettings entry in 
+	 * Returns true if ActorClass has a matching FInstancedActorsClassSettingsBase entry in 
 	 * UInstancedActorsProjectSettings::ActorClassSettingsRegistryType data registry.
 	 * Note: This relies on the registry being loaded at the time of calling i.e: in editor the registry must be
 	 *       set to preload in editor.
@@ -194,12 +194,12 @@ protected:
 	TMap<TObjectKey<UInstancedActorsModifierVolumeComponent>, FBox> DebugModifierVolumeBounds;
 #endif
 
-	// Cached finalized / flattened FInstancedActorsClassSettings for GetOrCompileSettingsForActorClass requested ActorClass.
+	// Cached finalized / flattened FInstancedActorsClassSettingsBase for GetOrCompileSettingsForActorClass requested ActorClass.
 	// Built via CompileSettingsForActorClass and cached in GetOrCompileSettingsForActorClass
 	TMap<TWeakObjectPtr<UClass>, FSharedStruct> PerActorClassSettings;
 
 	// Called in GetOrCompileSettingsForActorClass to compile finalized settings for ActorClass based off 
-	// FInstancedActorsClassSettings found in UInstancedActorsProjectSettings::ActorClassSettingsRegistryType
+	// FInstancedActorsClassSettingsBase found in UInstancedActorsProjectSettings::ActorClassSettingsRegistryType
 	// data registry, for ActorClass and it's inherited super classes.
 	FSharedStruct CompileSettingsForActorClass(TSubclassOf<AActor> ActorClass) const;
 

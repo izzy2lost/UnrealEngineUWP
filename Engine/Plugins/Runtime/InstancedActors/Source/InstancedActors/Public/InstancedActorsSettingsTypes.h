@@ -54,9 +54,9 @@
  * Named settings are FInstancedActorsSettings registered by name in UInstancedActorsProjectSettings::NamedSettingsRegistryType 
  * data registry.
  *
- * Class-specific settings are FInstancedActorsSettings registered by actor class via FInstancedActorsClassSettings's in the 
+ * Class-specific settings are FInstancedActorsSettings registered by actor class via FInstancedActorsClassSettingsBase's in the 
  * UInstancedActorsProjectSettings::ActorClassSettingsRegistryType data registry. Named settings can be used as bases here via
- * FInstancedActorsClassSettings::BaseSettings.
+ * FInstancedActorsClassSettingsBase::BaseSettings.
  *
  * @see UInstancedActorsProjectSettings for settings registry info.
  */
@@ -260,7 +260,7 @@ struct TStructOpsTypeTraits<FInstancedActorsSettings> : public TStructOpsTypeTra
  *    1) Default construted FInstancedActorsSettings
  *    2) UInstancedActorsProjectSettings::DefaultBaseSettingsName
  * 
- *    3) ActorClass::Super's FInstancedActorsClassSettings BaseSettings (if any)
+ *    3) ActorClass::Super's FInstancedActorsClassSettingsBase BaseSettings (if any)
  *         [0]
  *         [1]
  *         [2]
@@ -284,7 +284,7 @@ struct INSTANCEDACTORS_API FInstancedActorsClassSettingsBase : public FTableRowB
 {
 	GENERATED_BODY()
 	
-	// @There's FDataRegistryId (with UI), but I think it cannot be used here since it has both the registry and name innit.
+	// @todo There's FDataRegistryId (with UI), but I think it cannot be used here since it has both the registry and name init.
 	/** 
 	 * Optional ordered list of 'named' settings to apply to instances of ActorClass before applying OverrideSettings.
 	 * BaseSettings are applied in order, so the last setting wins (with OverrideSettings having final say).
@@ -293,10 +293,17 @@ struct INSTANCEDACTORS_API FInstancedActorsClassSettingsBase : public FTableRowB
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = InstancedActors)
 	TArray<FName> BaseSettings;
 
-	virtual FInstancedStruct GetOverrideSettings() const { return FInstancedStruct::Make<FInstancedActorsSettings>(); }
+	/** A virtual function to be overridden by child-types that provide an instance of their specific FInstancedActorsSettings flavor */
+	virtual FInstancedStruct MakeOverrideSettings() const { return FInstancedStruct::Make<FInstancedActorsSettings>(); }
 
 };
 
+/** 
+ * Generic implementation of FInstancedActorsClassSettingsBase that's using the generic FInstancedActorsSettings to override
+ * existing settings. If you want to extend the per-actor-class settings for your project then inhering either from 
+ * FInstancedActorsClassSettings and add extra logic and properties to the child type, or inherit from FInstancedActorsClassSettingsBase
+ * to provide a project-specific settings struct that inherits FInstancedActorsSettings.
+ */
 USTRUCT()
 struct INSTANCEDACTORS_API FInstancedActorsClassSettings : public FInstancedActorsClassSettingsBase
 {
@@ -309,5 +316,5 @@ struct INSTANCEDACTORS_API FInstancedActorsClassSettings : public FInstancedActo
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = InstancedActors)
 	FInstancedActorsSettings OverrideSettings;
 
-	virtual FInstancedStruct GetOverrideSettings() const { return FInstancedStruct::Make<FInstancedActorsSettings>(OverrideSettings); }
+	virtual FInstancedStruct MakeOverrideSettings() const { return FInstancedStruct::Make<FInstancedActorsSettings>(OverrideSettings); }
 };
