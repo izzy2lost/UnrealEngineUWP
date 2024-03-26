@@ -149,6 +149,8 @@ FUpdateContextPrivate::FUpdateContextPrivate(UCustomizableObjectInstance& InInst
 	Parameters = Descriptor.GetParameters();
 	NumComponents = InInstance.GetCustomizableObject()->GetComponentCount();
 	FirstLODAvailable = InInstance.GetCustomizableObject()->GetPrivate()->GetMinLODIndex();
+	FirstResidentLOD = InInstance.GetPrivate()->FirstResidentLOD;
+
 	MutableSystem = UCustomizableObjectSystem::GetInstance()->GetPrivate()->MutableSystem;	
 	check(MutableSystem);
 	
@@ -759,6 +761,22 @@ FMutableResourceCache& UCustomizableObjectSystemPrivate::GetObjectCache(const UC
 	return ModelResourcesCache.Last();
 }
 
+bool bForceStreamMeshLODs = false;
+
+static FAutoConsoleVariableRef CVarMutableForceStreamMeshLODs(
+	TEXT("Mutable.ForceStreamMeshLODs"),
+	bForceStreamMeshLODs,
+	TEXT("true/false - If true, and bStreamMeshLODs is enabled, all COs will stream mesh LODs. "),
+	ECVF_Default);
+
+
+bool bStreamMeshLODs = true;
+
+static FAutoConsoleVariableRef CVarMutableStreamMeshLODsEnabled(
+	TEXT("Mutable.StreamMeshLODsEnabled"),
+	bStreamMeshLODs,
+	TEXT("true/false - If true, enable generated meshes to stream mesh LODs. "),
+	ECVF_Default);
 
 int32 UCustomizableObjectSystemPrivate::EnableMutableProgressiveMipStreaming = 1;
 
@@ -1688,24 +1706,35 @@ namespace impl
 	void FixLODs(const TSharedRef<FUpdateContextPrivate>& Operation)
 	{
 		Operation->NumLODsAvailable = Operation->MutableInstance->GetLODCount();
-
-		int32 CurrentMinLOD = FMath::Max(Operation->GetMinLOD(), Operation->FirstLODAvailable);
-
-		if (CurrentMinLOD >= Operation->NumLODsAvailable)
-		{
-			CurrentMinLOD = Operation->NumLODsAvailable - 1;
-		}
-
+		
+		int32 CurrentMinLOD = Operation->bStreamMeshLODs ? 0 : Operation->GetMinLOD();
+		CurrentMinLOD = FMath::Clamp(CurrentMinLOD, Operation->FirstLODAvailable, Operation->NumLODsAvailable - 1);
 		Operation->SetMinLOD(CurrentMinLOD);
 
+		if (Operation->bStreamMeshLODs)
+		{
+			Operation->FirstResidentLOD = FMath::Clamp(Operation->FirstResidentLOD, Operation->FirstLODAvailable, Operation->NumLODsAvailable - 1);
+		}
+		else 
+		{
+			Operation->FirstResidentLOD = Operation->FirstLODAvailable;
+		}
+		
 		// Initialize RequestedLODs to zero if not set
 		TArray<uint16> RequestedLODs = Operation->GetRequestedLODs();
 		RequestedLODs.SetNumZeroed(Operation->NumComponents);
 
 		for (int32 ComponentIndex = 0; ComponentIndex < Operation->NumComponents; ++ComponentIndex)
 		{
-			// Clamp value to the valid LOD range.
-			RequestedLODs[ComponentIndex] = FMath::Min(RequestedLODs[ComponentIndex], (uint16)(Operation->NumLODsAvailable - 1));
+			if (Operation->bStreamMeshLODs)
+			{
+				RequestedLODs[ComponentIndex] = CurrentMinLOD;
+			}
+			else
+			{
+				// Clamp value to the valid LOD range.
+				RequestedLODs[ComponentIndex] = FMath::Min(RequestedLODs[ComponentIndex], (uint16)(Operation->NumLODsAvailable - 1));
+			}
 		}
 
 		Operation->SetRequestedLODs(RequestedLODs);
@@ -3054,6 +3083,9 @@ namespace impl
 		//-------------------------------------------------------------
 		Operation->InstanceID = Operation->bLiveUpdateMode ? CandidateInstancePrivateData->LiveUpdateModeInstanceID : 0;
 		Operation->bUseMeshCache = CustomizableObject->bEnableMeshCache && !Operation->bLiveUpdateMode && CVarEnableMeshCache.GetValueOnGameThread();
+
+		const bool bStreamingEnabled = (CustomizableObject->bEnableMeshStreaming || bForceStreamMeshLODs) && bStreamMeshLODs;
+		Operation->bStreamMeshLODs = bStreamingEnabled && IStreamingManager::Get().IsRenderAssetStreamingEnabled(EStreamableRenderAssetType::SkeletalMesh);
 #if WITH_EDITOR
 		Operation->PixelFormatOverride = SystemPrivateData->ImageFormatOverrideFunc;
 #endif

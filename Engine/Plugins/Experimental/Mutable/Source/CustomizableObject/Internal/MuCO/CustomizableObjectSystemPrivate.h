@@ -504,6 +504,9 @@ public:
 	bool bReuseInstanceTextures = false;
 	bool bUseMeshCache = false;
 	
+	/** Whether the mesh to generate should support Mesh LOD streaming or not. */
+	bool bStreamMeshLODs = false;
+
 	/** This option comes from the operation request. It is used to reduce the number of mipmaps that mutable must generate for images.  */
 	int32 MipsToSkip = 0;
 
@@ -513,6 +516,7 @@ public:
 	int32 NumComponents = 0;
 	int32 NumLODsAvailable = 0;
 	int32 FirstLODAvailable = 0;
+	uint8 FirstResidentLOD = 0;
 
 	TMap<uint32, FTexturePlatformData*> ImageToPlatformDataMap;
 
