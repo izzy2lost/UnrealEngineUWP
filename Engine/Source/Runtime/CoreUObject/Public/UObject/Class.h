@@ -1460,7 +1460,7 @@ public:
 					FName StructName;
 					if (Tag.GetType().GetName() == NAME_StructProperty && Tag.GetType().GetParameterCount() >= 1)
 					{
-						StructName = Tag.GetType().GetParameterName();
+						StructName = Tag.GetType().GetParameterName(0);
 					}
 					return ((CPPSTRUCT*)Data)->SerializeFromMismatchedTag(StructName, Ar);
 				}
@@ -1485,7 +1485,7 @@ public:
 					FName StructName;
 					if (Tag.GetType().GetName() == NAME_StructProperty && Tag.GetType().GetParameterCount() >= 1)
 					{
-						StructName = Tag.GetType().GetParameterName();
+						StructName = Tag.GetType().GetParameterName(0);
 					}
 					return ((CPPSTRUCT*)Data)->SerializeFromMismatchedTag(StructName, Slot);
 				}

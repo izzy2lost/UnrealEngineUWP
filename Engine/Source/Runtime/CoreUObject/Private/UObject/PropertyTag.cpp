@@ -105,12 +105,12 @@ void FPropertyTag::SetType(UE::FPropertyTypeName InFullType)
 			break;
 		case NAME_ByteProperty:
 		case NAME_EnumProperty:
-			EnumName = TypeName.GetParameterName();
+			EnumName = TypeName.GetParameterName(0);
 			break;
 		case NAME_ArrayProperty:
 		case NAME_OptionalProperty:
 		case NAME_SetProperty:
-			InnerType = TypeName.GetParameterName();
+			InnerType = TypeName.GetParameterName(0);
 			break;
 		case NAME_MapProperty:
 			InnerType = TypeName.GetParameterName(0);

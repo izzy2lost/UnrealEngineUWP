@@ -477,7 +477,7 @@ EConvertFromTypeResult FOptionalProperty::ConvertFromType(const FPropertyTag& Ta
 				MarkUnset(ContainerPtrToValuePtr<void>(ContainerData));
 				return EConvertFromTypeResult::Converted;
 			}
-			ValueTag.SetType(Tag.GetType().GetParameter());
+			ValueTag.SetType(Tag.GetType().GetParameter(0));
 		}
 
 		FStructuredArchive::FSlot ValueSlot = MaybeValueSlot.Get(Slot);
@@ -627,7 +627,7 @@ bool FOptionalProperty::LoadTypeName(UE::FPropertyTypeName Type, const FProperty
 		return false;
 	}
 
-	const UE::FPropertyTypeName ValueType = Type.GetParameter();
+	const UE::FPropertyTypeName ValueType = Type.GetParameter(0);
 	FField* Field = FField::TryConstruct(ValueType.GetName(), this, GetFName(), RF_NoFlags);
 	if (FProperty* Property = CastField<FProperty>(Field); Property && Property->LoadTypeName(ValueType, Tag))
 	{
@@ -658,5 +658,5 @@ bool FOptionalProperty::CanSerializeFromTypeName(UE::FPropertyTypeName Type) con
 
 	const FProperty* LocalValueProperty = ValueProperty;
 	check(LocalValueProperty);
-	return LocalValueProperty->CanSerializeFromTypeName(Type.GetParameter());
+	return LocalValueProperty->CanSerializeFromTypeName(Type.GetParameter(0));
 }

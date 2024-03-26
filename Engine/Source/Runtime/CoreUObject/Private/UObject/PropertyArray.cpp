@@ -627,7 +627,7 @@ void FArrayProperty::SerializeItem(FStructuredArchive::FSlot Slot, void* Value, 
 				UE::FPropertyPathNameSegment Segment = Context->SerializedPropertyPath.GetSegment(SegmentIndex);
 				if (Segment.Type.GetName() == NAME_ArrayProperty)
 				{
-					const UE::FPropertyTypeName InnerTypeName = Segment.Type.GetParameter();
+					const UE::FPropertyTypeName InnerTypeName = Segment.Type.GetParameter(0);
 					if (InnerTypeName.GetName() == NAME_StructProperty && InnerTypeName.GetParameterCount() == 0)
 					{
 						UE::FPropertyTypeNameBuilder NewTypeBuilder;
@@ -1183,7 +1183,7 @@ EConvertFromTypeResult FArrayProperty::ConvertFromType(const FPropertyTag& Tag, 
 	}
 	else
 	{
-		const FName InnerTypeName = Tag.GetType().GetParameterName();
+		const FName InnerTypeName = Tag.GetType().GetParameterName(0);
 		if (InnerTypeName.IsNone() || InnerTypeName == Inner->GetID())
 		{
 			return EConvertFromTypeResult::UseSerializeItem;
@@ -1209,7 +1209,7 @@ EConvertFromTypeResult FArrayProperty::ConvertFromType(const FPropertyTag& Tag, 
 	ScriptArrayHelper.EmptyAndAddValues(ElementCount);
 
 	FPropertyTag InnerPropertyTag;
-	InnerPropertyTag.SetType(Tag.GetType().GetParameter());
+	InnerPropertyTag.SetType(Tag.GetType().GetParameter(0));
 	InnerPropertyTag.Name = Tag.Name;
 	InnerPropertyTag.ArrayIndex = 0;
 
@@ -1296,7 +1296,7 @@ bool FArrayProperty::LoadTypeName(UE::FPropertyTypeName Type, const FPropertyTag
 		return false;
 	}
 
-	const UE::FPropertyTypeName InnerType = Type.GetParameter();
+	const UE::FPropertyTypeName InnerType = Type.GetParameter(0);
 	FField* Field = FField::TryConstruct(InnerType.GetName(), this, GetFName(), RF_NoFlags);
 	if (FProperty* Property = CastField<FProperty>(Field); Property && Property->LoadTypeName(InnerType, Tag))
 	{
@@ -1327,5 +1327,5 @@ bool FArrayProperty::CanSerializeFromTypeName(UE::FPropertyTypeName Type) const
 
 	const FProperty* LocalInner = Inner;
 	check(LocalInner);
-	return LocalInner->CanSerializeFromTypeName(Type.GetParameter());
+	return LocalInner->CanSerializeFromTypeName(Type.GetParameter(0));
 }
