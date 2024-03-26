@@ -63,7 +63,7 @@ class MODELVIEWVIEWMODEL_API UMVVMView : public UUserWidgetExtension
 	GENERATED_BODY()
 
 public:
-	void ConstructView(const UMVVMViewClass* ClassExtension);
+	void ConstructView(const UMVVMViewClass* InGeneratedViewClass);
 
 	//~ Begin UUserWidgetExtension implementation
 	//virtual void Initialize() override;
@@ -123,7 +123,7 @@ public:
 	/** The shared information for each instance of the view. */
 	const UMVVMViewClass* GetViewClass() const
 	{
-		return ClassExtension;
+		return GeneratedViewClass;
 	}
 
 	/** The list of the sources needed by the view. */
@@ -186,7 +186,7 @@ private:
 
 private:
 	UPROPERTY(Transient)
-	TObjectPtr<const UMVVMViewClass> ClassExtension;
+	TObjectPtr<const UMVVMViewClass> GeneratedViewClass;
 
 	UPROPERTY(VisibleAnywhere, Transient, Category = "View")
 	TArray<FMVVMView_Source> Sources;

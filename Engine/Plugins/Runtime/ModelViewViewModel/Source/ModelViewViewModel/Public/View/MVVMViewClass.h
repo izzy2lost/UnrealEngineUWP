@@ -14,6 +14,7 @@
 
 class UMVVMView;
 class UMVVMViewClass;
+class UMVVMViewClassExtension;
 class UMVVMViewModelContextResolver;
 class UUserWidget;
 
@@ -569,6 +570,12 @@ public:
 		return Events[Key.GetIndex()];
 	}
 
+	/** The list of extensions for widgets. */
+	[[nodiscard]] const TArrayView<const TObjectPtr<UMVVMViewClassExtension>> GetViewClassExtensions() const
+	{
+		return ViewClassExtensions;
+	}
+
 #if UE_WITH_MVVM_DEBUGGING
 	struct FToStringArgs
 	{
@@ -597,6 +604,10 @@ private:
 	TArray<FMVVMViewClass_EvaluateSource> EvaluateSources;
 	UPROPERTY(VisibleAnywhere, Category = "View")
 	TArray<FMVVMViewClass_Event> Events;
+
+	/** All MVVM extensions on widgets of the owning userwidget. */
+	UPROPERTY(Instanced)
+	TArray<TObjectPtr<UMVVMViewClassExtension>> ViewClassExtensions;
 
 	/** All the bindings shared between all the View instance. */
 	UPROPERTY()

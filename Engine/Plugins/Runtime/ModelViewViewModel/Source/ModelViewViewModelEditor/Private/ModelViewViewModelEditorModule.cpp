@@ -7,6 +7,7 @@
 #include "BlueprintModes/WidgetBlueprintApplicationModes.h"
 #include "Customizations/MVVMBlueprintViewModelContextCustomization.h"
 #include "Customizations/MVVMPropertyBindingExtension.h"
+#include "Extensions/MVVMBlueprintViewExtension.h"
 #include "Framework/Application/SlateApplication.h"
 #include "Framework/Docking/LayoutExtender.h"
 #include "Kismet2/BlueprintEditorUtils.h"
@@ -139,6 +140,8 @@ void FModelViewViewModelEditorModule::HandleRenameVariableReferences(UBlueprint*
 			{
 				BlueprintView->WidgetRenamed(OldVarName, NewVarName);
 			}
+
+			ViewExtension->RenameWidgetExtensions(OldVarName, NewVarName);
 		}
 	}
 }
