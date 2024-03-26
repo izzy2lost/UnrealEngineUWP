@@ -51,6 +51,7 @@ public:
 	TArray<FAvaViewportQualitySettingsFeature> Features;
 
 	FAvaViewportQualitySettings();
+	FAvaViewportQualitySettings(ENoInit NoInit);
 	FAvaViewportQualitySettings(const bool bInUseAllFeatures);
 	FAvaViewportQualitySettings(const FEngineShowFlags& InShowFlags);
 	FAvaViewportQualitySettings(const TArray<FAvaViewportQualitySettingsFeature>& InFeatures);

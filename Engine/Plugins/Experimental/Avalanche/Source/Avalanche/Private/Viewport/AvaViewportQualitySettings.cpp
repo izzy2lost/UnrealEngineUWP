@@ -10,6 +10,10 @@ FAvaViewportQualitySettings::FAvaViewportQualitySettings()
 	Features = DefaultFeatures();
 }
 
+FAvaViewportQualitySettings::FAvaViewportQualitySettings(ENoInit NoInit)
+{
+}
+
 FAvaViewportQualitySettings::FAvaViewportQualitySettings(const bool bInUseAllFeatures)
 {
 	Features = AllFeatures(bInUseAllFeatures);
