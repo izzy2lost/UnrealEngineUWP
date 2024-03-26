@@ -480,6 +480,7 @@ void UNiagaraSpriteRendererProperties::PostEditChangeProperty(struct FPropertyCh
 			PropertyName == TEXT("BoundingMode") ||
 			PropertyName == TEXT("OpacitySourceMode") ||
 			PropertyName == TEXT("AlphaThreshold") ||
+			MemberPropertyName == TEXT("SubImageSize") ||
 			(bUseMaterialCutoutTexture && PropertyName == TEXT("Material"));
 
 		if (bUpdateCutoutDDC)
