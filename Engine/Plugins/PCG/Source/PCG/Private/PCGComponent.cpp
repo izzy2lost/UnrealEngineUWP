@@ -638,7 +638,6 @@ FPCGTaskId UPCGComponent::CleanupInternal(bool bRemoveComponents, const TArray<F
 	Modify(!IsInPreviewMode());
 
 #if WITH_EDITOR
-	ExtraCapture.ResetTimers();
 	ExtraCapture.ResetCapturedMessages();
 #endif
 
@@ -1974,15 +1973,29 @@ void UPCGComponent::DisableInspection()
 	}
 };
 
-void UPCGComponent::NotifyNodeExecuted(const UPCGNode* InNode, const FPCGStack* InStack)
+void UPCGComponent::NotifyNodeExecuted(const UPCGNode* InNode, const FPCGStack* InStack, bool bNodeUsedCache)
 {
 	if (!ensure(InStack && InNode))
 	{
 		return;
 	}
 
+	FPCGStack Stack = *InStack;
+
+	// Reset timer information if taken from cache to provide good info in the profiling window
+	if (bNodeUsedCache)
+	{
+		Stack.Timer = PCGUtils::FCallTime();
+	}
+
 	FWriteScopeLock Lock(NodeToStacksInWhichNodeExecutedLock);
-	NodeToStacksInWhichNodeExecuted.FindOrAdd(InNode).Add(*InStack);
+	NodeToStacksInWhichNodeExecuted.FindOrAdd(InNode).Add(MoveTemp(Stack));
+}
+
+TMap<TObjectKey<const UPCGNode>, TSet<FPCGStack>> UPCGComponent::GetExecutedNodeStacks() const
+{
+	FReadScopeLock Lock(NodeToStacksInWhichNodeExecutedLock);
+	return NodeToStacksInWhichNodeExecuted;
 }
 
 uint64 UPCGComponent::GetNodeInactivePinMask(const UPCGNode* InNode, const FPCGStack& Stack) const
@@ -2020,7 +2033,7 @@ bool UPCGComponent::WasNodeExecuted(const UPCGNode* InNode, const FPCGStack& Sta
 	return FoundStacks && FoundStacks->Contains(Stack);
 }
 
-void UPCGComponent::StoreInspectionData(const FPCGStack* InStack, const UPCGNode* InNode, const FPCGDataCollection& InInputData, const FPCGDataCollection& InOutputData)
+void UPCGComponent::StoreInspectionData(const FPCGStack* InStack, const UPCGNode* InNode, const FPCGDataCollection& InInputData, const FPCGDataCollection& InOutputData, bool bUsedCache)
 {
 	if (!InNode || !ensure(InStack))
 	{
@@ -2028,7 +2041,7 @@ void UPCGComponent::StoreInspectionData(const FPCGStack* InStack, const UPCGNode
 	}
 
 	// Notify component that this task executed. Useful for editor visualization.
-	NotifyNodeExecuted(InNode, InStack);
+	NotifyNodeExecuted(InNode, InStack, bUsedCache);
 
 	if (!InOutputData.TaggedData.IsEmpty())
 	{
