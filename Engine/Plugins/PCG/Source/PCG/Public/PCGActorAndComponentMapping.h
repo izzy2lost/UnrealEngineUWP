@@ -47,17 +47,6 @@ public:
 	void Tick();
 
 #if WITH_EDITOR
-	/** If the partition grid size change, call this to empty the Partition actors map */
-	void ResetPartitionActorsMap();
-
-	void RegisterTrackingCallbacks();
-	void TeardownTrackingCallbacks();
-
-	void AddDelayedActors();
-
-	void RegisterTracking(UPCGComponent* InComponent);
-	void UpdateTracking(UPCGComponent* InComponent, bool bInShouldDirtyActors, const TArray<FPCGSelectionKey>* OptionalChangedKeys = nullptr);
-
 	/** Notify that we exited the Landscape edit mode. */
 	PCG_API void NotifyLandscapeEditModeExited();
 #endif // WITH_EDITOR
@@ -93,6 +82,21 @@ public:
 	APCGPartitionActor* GetPartitionActor(uint32 GridSize, const FIntVector& CellCoords, bool bRuntimeGenerated = false) const;
 
 private:
+
+#if WITH_EDITOR
+	/** If the partition grid size change, call this to empty the Partition actors map */
+	void ResetPartitionActorsMap();
+
+	void RegisterTrackingCallbacks();
+	void TeardownTrackingCallbacks();
+
+	void RegisterTracking(UPCGComponent* InComponent);
+	void UpdateTracking(UPCGComponent* InComponent, bool bInShouldDirtyActors, const TArray<FPCGSelectionKey>* OptionalChangedKeys = nullptr);
+
+	void ProcessDelayedEvents();
+	bool ShouldDelayActor(AActor* InActor) const;
+#endif
+
 	// This class is only meant to be used as part of the PCG Subsytem and owned by it.
 	// So we put constructors private.
 	// We also need this class to be default constructible, since the PCGSubsytem needs to be default constructible.
@@ -147,11 +151,14 @@ private:
 
 	void OnActorAdded(AActor* InActor);
 	void OnActorLoaded(AActor& InActor);
-	void OnActorAdded_Internal(AActor* InActor, bool bShouldDirty, int32 LevelInstanceDepth, bool bForceAddDelayedActor = false);
+	void OnActorAdded_Internal(AActor* InActor, bool bShouldDirty);
+	void OnActorChanged_Internal(AActor* InActor, UObject* InOriginatingChangeObject);
+	void OnActorChanged_Recursive(AActor* InActor, UObject* InOriginatingChangeObject);
 	void OnActorDeleted(AActor* InActor);
 	void OnActorUnloaded(AActor& InActor);
-	void OnActorDeleted_Internal(AActor* InActor, bool bShouldDirty, int32 LevelInstanceDepth);
+	void OnActorDeleted_Internal(AActor* InActor, bool bShouldDirty);
 	void OnLandscapeChanged(ALandscapeProxy* InLandscape, const FLandscapeProxyComponentDataChangedParams& InChangeParams);
+	void OnLevelInstancesUpdated(const TArray<ILevelInstanceInterface*>& InLevelInstances);
 	void ApplyLandscapeChanges(ALandscapeProxy* InLandscape);
 	void OnObjectModified(UObject* InObject);
 	void OnObjectPropertyChanged(UObject* InObject, FPropertyChangedEvent& InEvent);
@@ -174,7 +181,7 @@ private:
 	* Can also specify an optional object, originating the change, to avoid re-dirtying a component if it was the origin.
 	* Another option when an actor is deleted/unload, don't refresh their components.
 	*/
-	void OnObjectChanged(UObject* InObject, const FActorPreviousData* InPreviousData = nullptr, const UObject* InOriginatingChangeObject = nullptr, int32 LevelInstanceDepth = 0, bool bNoRefreshOnOwner = false);
+	void OnObjectChanged(UObject* InObject, const FActorPreviousData* InPreviousData = nullptr, const UObject* InOriginatingChangeObject = nullptr, bool bNoRefreshOnOwner = false);
 
 	/** Gather all settings from a given component that track the key, and clear the cache for them. Returns true if we should dirty afterwards (aka at least one settings was cleared and/or landscape changed). */
 	bool ClearCacheForKeys(const TArray<FPCGSelectionKey>& InKeys, const UPCGComponent* InComponent, const bool bIntersect, const UObject* InOriginatingChange) const;
@@ -208,10 +215,11 @@ private:
 	TSet<UPCGComponent*> DelayedComponentToUnregister;
 	mutable FCriticalSection DelayedComponentToUnregisterLock;
 
-	// Tracking actors
 	/** Will hold all the components that are not partitioned (and not local) and are tracking something. Will be use to dispatch actor tracking updates. */
 	FPCGComponentOctreeAndMap NonPartitionedOctree;
 
+#if WITH_EDITOR
+	// Tracking actors
 	/** Keep a mapping between tracked keys and the components that track them, and the tracking needs to be culled.*/
 	TMap<FPCGSelectionKey, TSet<UPCGComponent*>> CulledTrackedKeysToComponentsMap;
 
@@ -220,11 +228,9 @@ private:
 
 	mutable FRWLock TrackedComponentsLock;
 
-	// Keep track of actors that aren't yet ready (or if the subsystem is not yet ready), whether we should dirty them and their instance level depth so we can add them in next tick.
-	TMap<TObjectKey<AActor>, TTuple<bool, int>> DelayedAddedActors;
-
-	// Keep track of all Level Instance actors added, so we can detect when a level instance is added vs loaded
-	TSet<ILevelInstanceInterface*> TempAddedLevelInstances;
+	// Keep track of actors that aren't yet ready (or if the subsystem is not yet ready), whether we should dirty them in next tick.
+	TMap<TObjectKey<AActor>, bool> DelayedAddedActors;
+	TMap<TObjectKey<AActor>, TObjectKey<UObject>> DelayedChangedActors;
 
 	/** Transient map of actors and their previous data, it's set in the pre object change to be able to track changes (such as tags or positions) */
 	TMap<TObjectKey<AActor>, FActorPreviousData> ActorToPreviousDataMap;
@@ -232,7 +238,6 @@ private:
 	/** Transient map that keep track of all components that depends on another component currently generating, to trigger the refresh only once, when all are done. */
 	TMap<TObjectKey<UPCGComponent>, TArray<TObjectKey<UPCGComponent>>> ComponentsToDependencyMap;
 
-#if WITH_EDITOR
 	// Part for the delayed landscape change update
 	double LastLandscapeDirtyTime = -1.0;
 	TArray<TObjectKey<ALandscapeProxy>> DelayedModifiedLandscapes;
