@@ -360,6 +360,27 @@ const TCHAR* ParseHLSLSymbolName(const TCHAR* SearchString, FString& SymbolName)
 	return Result.GetData() + Result.Len();
 }
 
+FStringView FindNextHLSLDefinitionOfType(FStringView Typename, FStringView StartPos)
+{
+	// handle both the case where identifier for declaration immediately precedes a ; and has whitespace separating the two
+	const TCHAR* NextWhitespace;
+	const TCHAR* NextNonWhitespace;
+	FStringView SymbolName;
+
+	NextWhitespace = FindNextWhitespace(StartPos.GetData());
+	if (NextWhitespace == StartPos.GetData())
+	{
+		NextNonWhitespace = FindNextNonWhitespace(NextWhitespace);
+		SymbolName = ParseHLSLSymbolName<TCHAR, FStringView>(NextNonWhitespace);	
+		NextNonWhitespace = FindNextNonWhitespace(NextNonWhitespace + SymbolName.Len());
+		if (NextNonWhitespace && (*NextNonWhitespace == ';'))
+		{
+			return SymbolName;
+		}
+	}
+	return {};
+}
+
 FStringView UE::ShaderCompilerCommon::RemoveConstantBufferPrefix(FStringView InName)
 {
 	return UE::String::RemoveFromStart(InName, FStringView(UE::ShaderCompilerCommon::kUniformBufferConstantBufferPrefix));
