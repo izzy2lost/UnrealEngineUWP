@@ -14,6 +14,8 @@ class UGameInstance;
 struct FComponentRequestHandle;
 struct FWorldContext;
 
+enum class EGameFrameworkAddComponentFlags : uint8;
+
 // Description of a component to add to a type of actor when this game feature is enabled
 // (the actor class must be game feature aware, it does not happen magically)
 //@TODO: Write more documentation here about how to make an actor game feature / modular gameplay aware
@@ -21,6 +23,8 @@ USTRUCT()
 struct GAMEFEATURES_API FGameFeatureComponentEntry
 {
 	GENERATED_BODY()
+
+	FGameFeatureComponentEntry();
 
 	// The base actor class to add a component to
 	UPROPERTY(EditAnywhere, Category="Components", meta=(AllowAbstract="True"))
@@ -38,11 +42,9 @@ struct GAMEFEATURES_API FGameFeatureComponentEntry
 	UPROPERTY(EditAnywhere, Category="Components")
 	uint8 bServerComponent:1;
 
-	FGameFeatureComponentEntry()
-		: bClientComponent(true)
-		, bServerComponent(true)
-	{
-	}
+	// Observe these rules when adding the component, if any
+	UPROPERTY(EditAnywhere, Category = "Components", meta = (Bitmask, BitmaskEnum = "/Script/ModularGameplay.EGameFrameworkAddComponentFlags"))
+	uint8 AdditionFlags;
 };	
 
 //////////////////////////////////////////////////////////////////////

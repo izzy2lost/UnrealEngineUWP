@@ -51,7 +51,7 @@ void UGameFrameworkComponentManager::AddReferencedObjects(UObject* InThis, FRefe
 		{
 			for (auto& ValueElement : MapIt.Value())
 			{
-				Collector.AddReferencedObject(ValueElement);
+				Collector.AddReferencedObject(ValueElement.Class);
 			}
 		}
 	}
@@ -88,9 +88,9 @@ void UGameFrameworkComponentManager::DumpGameFrameworkComponentManagers()
 			for (auto MapIt = Manager->ReceiverClassToComponentClassMap.CreateConstIterator(); MapIt; ++MapIt)
 			{
 				UE_LOG(LogModularGameplay, Display, TEXT("      RequestReceiverClass: %s (Num:%d)"), *MapIt.Key().ToDebugString(), MapIt.Value().Num());
-				for (UClass* ComponentClass : MapIt.Value())
+				for (const FComponentRequestInfo& ReceiverInfo : MapIt.Value())
 				{
-					UE_LOG(LogModularGameplay, Display, TEXT("        RequestComponentClass: %s"), *GetPathNameSafe(ComponentClass));
+					UE_LOG(LogModularGameplay, Display, TEXT("        RequestComponentClass: %s	AdditionFlags: %u"), *GetPathNameSafe(ReceiverInfo.Class), ReceiverInfo.AdditionFlags);
 				}
 			}
 		}
@@ -177,13 +177,13 @@ void UGameFrameworkComponentManager::AddReceiverInternal(AActor* Receiver)
 	for (UClass* Class = Receiver->GetClass(); Class && Class != AActor::StaticClass(); Class = Class->GetSuperClass())
 	{
 		FComponentRequestReceiverClassPath ReceiverClassPath(Class);
-		if (auto* ComponentClasses = ReceiverClassToComponentClassMap.Find(ReceiverClassPath))
+		if (auto* RequestInfoSet = ReceiverClassToComponentClassMap.Find(ReceiverClassPath))
 		{
-			for (UClass* ComponentClass : *ComponentClasses)
+			for (const FComponentRequestInfo& SetInfo : *RequestInfoSet)
 			{
-				if (ComponentClass)
+				if (SetInfo.Class)
 				{
-					CreateComponentOnInstance(Receiver, ComponentClass);
+					CreateComponentOnInstance(Receiver, SetInfo.Class, SetInfo.AdditionFlags);
 				}
 			}
 		}
@@ -239,7 +239,7 @@ void UGameFrameworkComponentManager::RemoveReceiverInternal(AActor* Receiver)
 	SendExtensionEventInternal(Receiver, NAME_ReceiverRemoved);
 }
 
-TSharedPtr<FComponentRequestHandle> UGameFrameworkComponentManager::AddComponentRequest(const TSoftClassPtr<AActor>& ReceiverClass, TSubclassOf<UActorComponent> ComponentClass)
+TSharedPtr<FComponentRequestHandle> UGameFrameworkComponentManager::AddComponentRequest(const TSoftClassPtr<AActor>& ReceiverClass, TSubclassOf<UActorComponent> ComponentClass, const EGameFrameworkAddComponentFlags AdditionFlags)
 {
 	// You must have a receiver and component class. The receiver cannot be AActor, that is too broad and would be bad for performance.
 	if (!ensure(!ReceiverClass.IsNull()) || !ensure(ComponentClass) || !ensure(ReceiverClass.ToString() != TEXT("/Script/Engine.Actor")))
@@ -253,14 +253,16 @@ TSharedPtr<FComponentRequestHandle> UGameFrameworkComponentManager::AddComponent
 	FComponentRequest NewRequest;
 	NewRequest.ReceiverClassPath = ReceiverClassPath;
 	NewRequest.ComponentClass = ComponentClassPtr;
+	
+	// Add a request if there is not an already existing one. Note that it will only uses the receiver and component class to check for uniqueness, not the addition flags.
 	int32& RequestCount = RequestTrackingMap.FindOrAdd(NewRequest);
 	RequestCount++;
 
 	if (RequestCount == 1)
 	{
-		auto& ComponentClasses = ReceiverClassToComponentClassMap.FindOrAdd(ReceiverClassPath);
-		ComponentClasses.Add(ComponentClassPtr);
-
+		EGameFrameworkAddComponentResult Result = EGameFrameworkAddComponentResult::Failed;
+		auto& RequestInfoSet = ReceiverClassToComponentClassMap.FindOrAdd(ReceiverClassPath);
+		RequestInfoSet.Add({ ComponentClassPtr, AdditionFlags } );
 		if (UClass* ReceiverClassPtr = ReceiverClass.Get())
 		{
 			UGameInstance* LocalGameInstance = GetGameInstance();
@@ -279,7 +281,7 @@ TSharedPtr<FComponentRequestHandle> UGameFrameworkComponentManager::AddComponent
 								ensureMsgf(AllReceivers.Contains(*ActorIt), TEXT("You may not add a component request for an actor class that does not call AddReceiver/RemoveReceiver in code! Class:%s"), *GetPathNameSafe(ReceiverClassPtr));
 							}
 #endif
-							CreateComponentOnInstance(*ActorIt, ComponentClass);
+							Result = CreateComponentOnInstance(*ActorIt, ComponentClass, AdditionFlags);
 						}
 					}
 				}
@@ -290,7 +292,10 @@ TSharedPtr<FComponentRequestHandle> UGameFrameworkComponentManager::AddComponent
 			// Actor class is not in memory, there will be no actor instances
 		}
 
-		return MakeShared<FComponentRequestHandle>(this, ReceiverClass, ComponentClass);
+		if (Result == EGameFrameworkAddComponentResult::Success)
+		{
+			return MakeShared<FComponentRequestHandle>(this, ReceiverClass, ComponentClass);
+		}
 	}
 
 	return nullptr;
@@ -310,10 +315,10 @@ void UGameFrameworkComponentManager::RemoveComponentRequest(const TSoftClassPtr<
 
 	if (RequestCount == 0)
 	{
-		if (auto* ComponentClasses = ReceiverClassToComponentClassMap.Find(ReceiverClassPath))
+		if (TSet<FComponentRequestInfo>* ReceiverSetInfo = ReceiverClassToComponentClassMap.Find(ReceiverClassPath))
 		{
-			ComponentClasses->Remove(ComponentClassPtr);
-			if (ComponentClasses->Num() == 0)
+			ReceiverSetInfo->Remove(ComponentClassPtr);
+			if (ReceiverSetInfo->Num() == 0)
 			{
 				ReceiverClassToComponentClassMap.Remove(ReceiverClassPath);
 			}
@@ -463,14 +468,42 @@ void UGameFrameworkComponentManager::SendExtensionEventInternal(AActor* Receiver
 	}
 }
 
-void UGameFrameworkComponentManager::CreateComponentOnInstance(AActor* ActorInstance, TSubclassOf<UActorComponent> ComponentClass)
+EGameFrameworkAddComponentResult UGameFrameworkComponentManager::CreateComponentOnInstance(AActor* ActorInstance, TSubclassOf<UActorComponent> ComponentClass, const EGameFrameworkAddComponentFlags AdditionFlags)
 {
 	check(ActorInstance);
 	check(ComponentClass);
 
 	if (!ComponentClass->GetDefaultObject<UActorComponent>()->GetIsReplicated() || ActorInstance->GetLocalRole() == ROLE_Authority)
 	{
-		UActorComponent* NewComp = NewObject<UActorComponent>(ActorInstance, ComponentClass, ComponentClass->GetFName());
+		// If AddUnique is set, it will be added only if no component on ActorInstance is child (or same class) of ComponentClass
+		const bool bAddUnique = EnumHasAnyFlags(AdditionFlags, EGameFrameworkAddComponentFlags::AddUnique);
+		if (bAddUnique)
+		{			
+			if (ActorInstance->GetComponentByClass(ComponentClass))
+			{
+				return EGameFrameworkAddComponentResult::Failed;
+			}
+		}
+
+		// If AddIfNotChild is set,it will be added only if ComponentClass is not a child (or same class) of an existing component on ActorInstance
+		const bool bAddIfNotChild = EnumHasAnyFlags(AdditionFlags, EGameFrameworkAddComponentFlags::AddIfNotChild);
+		if (bAddIfNotChild)
+		{
+			const TSet<UActorComponent*>& Components = ActorInstance->GetComponents();
+			for (const UActorComponent* ActorComp : Components)
+			{
+				if (ComponentClass->IsChildOf(ActorComp->GetClass()))
+				{
+					return EGameFrameworkAddComponentResult::Failed;
+				}
+			}
+		}
+
+		// If UseAutoGeneratedName is set, it will generate a new name and not re-use the class name directly (which can lead to component recycling)
+		const bool bUseAutoGeneratedName = EnumHasAnyFlags(AdditionFlags, EGameFrameworkAddComponentFlags::UseAutoGeneratedName);
+		const FName NewComponentName = bUseAutoGeneratedName ? NAME_None : ComponentClass->GetFName();
+
+		UActorComponent* NewComp = NewObject<UActorComponent>(ActorInstance, ComponentClass, NewComponentName);
 		TSet<FObjectKey>& ComponentInstances = ComponentClassToComponentInstanceMap.FindOrAdd(*ComponentClass);
 		ComponentInstances.Add(NewComp);
 
@@ -480,7 +513,11 @@ void UGameFrameworkComponentManager::CreateComponentOnInstance(AActor* ActorInst
 		}
 
 		NewComp->RegisterComponent();
+
+		return EGameFrameworkAddComponentResult::Success;
 	}
+
+	return EGameFrameworkAddComponentResult::Failed;
 }
 
 void UGameFrameworkComponentManager::DestroyInstancedComponent(UActorComponent* Component)
