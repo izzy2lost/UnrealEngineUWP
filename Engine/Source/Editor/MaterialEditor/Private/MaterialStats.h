@@ -228,7 +228,7 @@ public:
 	/** retrives the pointer to the spawned window tab that contains the shader code */
 	FORCEINLINE TWeakPtr<class SDockTab> GetCodeViewerTab(const EMaterialQualityLevel::Type QualityLevel);
 
-	/** returns an array with the names of all the compiled shaders for this material with specified quality level */
+	/** returns an array with the names of all the compiled shaders for this material with specified quality level, can return nullptr if no instance index is not available */
 	FORCEINLINE const TArray<TSharedPtr<FMaterialShaderEntry>> *GetShaderEntries(const EMaterialQualityLevel::Type QualityLevel, const int32 InstanceIndex);
 
 	/** when set this flag will indicate the presence of this material with a particular quality level inside the stats widget */
@@ -351,6 +351,8 @@ class FMaterialStats : public FGCObject, public TSharedFromThis<FMaterialStats>
 	double LastGridMessagesUpdate = 0.0;
 
 	bool bNeedsGridRefresh = false;
+
+	TMulticastDelegate<void()> RefreshDependentTabs;
 
 private:
 	/** adds a specified platform in the grid widget for analysis; usually called from BuildShaderPlatformDB() */
@@ -646,8 +648,16 @@ FORCEINLINE TWeakPtr<class SDockTab> FShaderPlatformSettings::GetCodeViewerTab(c
 
 FORCEINLINE const TArray<TSharedPtr<FMaterialShaderEntry>> *FShaderPlatformSettings::GetShaderEntries(const EMaterialQualityLevel::Type QualityLevel, const int32 InstanceIndex)
 {
-	auto& InstanceData = GetInstanceData(QualityLevel, InstanceIndex);
-	return &InstanceData.ArrShaderEntries;
+	check(QualityLevel < EMaterialQualityLevel::Num);
+	if (InstanceIndex < PlatformData[QualityLevel].Instances.Num())
+	{
+		auto& InstanceData = GetInstanceData(QualityLevel, InstanceIndex);
+		return &InstanceData.ArrShaderEntries;
+	}
+	else
+	{
+		return nullptr;
+	}
 }
 
 FORCEINLINE void FShaderPlatformSettings::SetExtractStatsFlag(const EMaterialQualityLevel::Type QualityType, const bool bValue)
