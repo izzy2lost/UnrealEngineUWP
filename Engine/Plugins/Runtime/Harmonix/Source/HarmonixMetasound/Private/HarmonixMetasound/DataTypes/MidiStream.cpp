@@ -15,6 +15,17 @@ namespace HarmonixMetasound
 
 	using namespace Metasound;
 
+	FMidiStreamEvent::FMidiStreamEvent(const FMidiVoiceGeneratorBase* Owner, const FMidiMsg& Message)
+	: FMidiStreamEvent(Owner != nullptr ? Owner->GetIdBits() : static_cast<uint32>(0), Message)
+	{
+	}
+
+	FMidiStreamEvent::FMidiStreamEvent(const uint32 OwnerId, const FMidiMsg& Message)
+	: MidiMessage(Message)
+	, VoiceId(OwnerId, MidiMessage)
+	{
+	}
+
 	void FMidiStream::SetClock(const FMidiClock& InClock)
 	{
 		Clock = InClock.AsWeak();
@@ -40,16 +51,14 @@ namespace HarmonixMetasound
 	{
 		check (EventsInBlock.IsEmpty() || EventsInBlock.Last().BlockSampleFrameIndex <= Event.BlockSampleFrameIndex);
 		EventsInBlock.Add(Event);
-
-		UpdateActiveVoice(Event);
+		TrackNote(Event);
 	}
 
 	void FMidiStream::InsertMidiEvent(const FMidiStreamEvent& Event)
 	{
 		int32 AtIndex = Algo::UpperBound(EventsInBlock, Event, [](const FMidiStreamEvent& NewEvent, const FMidiStreamEvent& ExistingEvent){ return NewEvent.BlockSampleFrameIndex < ExistingEvent.BlockSampleFrameIndex; });
 		EventsInBlock.Insert(Event, AtIndex);
-
-		UpdateActiveVoice(Event);
+		TrackNote(Event);
 	}
 
 	void FMidiStream::AddNoteOffEventOrCancelPendingNoteOn(const FMidiStreamEvent& Event)
@@ -106,9 +115,11 @@ namespace HarmonixMetasound
 			To.SetClock(*FromClock);
 		}
 
-		// Reset the target
+		// Reset the current events
 		To.EventsInBlock.Reset();
-		To.ActiveVoices = From.ActiveVoices;
+		
+		// Copy the active notes from the other stream
+		To.ActiveNotes = From.ActiveNotes;
 		
 		// Copy the events
 		for (const FMidiStreamEvent& Event : From.GetEventsInBlock())
@@ -148,6 +159,20 @@ namespace HarmonixMetasound
 				To.InsertMidiEvent(Transformer(Event));
 			}
 		}
+
+		// Merge in the active notes from the other stream
+		for (const FMidiStreamEvent& ActiveNote : From.ActiveNotes)
+		{
+			check(ActiveNote.MidiMessage.IsNoteOn());
+			
+			if (!To.ActiveNotes.ContainsByPredicate([&ActiveNote](const FMidiStreamEvent& TrackedEvent)
+			{
+				return ActiveNote.TrackIndex == TrackedEvent.TrackIndex && ActiveNote.VoiceId == TrackedEvent.GetVoiceId();
+			}))
+			{
+				To.ActiveNotes.Add(ActiveNote);
+			}
+		}
 	}
 	
 	void FMidiStream::Merge(
@@ -164,57 +189,57 @@ namespace HarmonixMetasound
 		const auto RemapTransform = [&To, &Transformer](const FMidiStreamEvent& Event)
 		{
 			FMidiStreamEvent TransformedEvent = Transformer(Event);
-			const auto GeneratorId = TransformedEvent.GetVoiceId().GetGeneratorId();
-			TransformedEvent.ReassignOwner(&To.GeneratorMap.FindOrAdd(GeneratorId));
+			const uint32 GeneratorId = TransformedEvent.GetVoiceId().GetGeneratorId();
+			TransformedEvent.VoiceId.ReassignGenerator(To.GeneratorMap.FindOrAdd(GeneratorId).GetIdBits());
 			return TransformedEvent;
 		};
 		Merge(FromB, To, Filter, RemapTransform);
 	}
 
-	void FMidiStream::UpdateActiveVoice(const FMidiStreamEvent& Event)
+	bool FMidiStream::NoteIsActive(const FMidiStreamEvent& Event) const
 	{
-		if (Event.MidiMessage.IsNoteMessage())
+		return ActiveNotes.ContainsByPredicate([&Event](const FMidiStreamEvent& ActiveNote)
 		{
-			if (Event.MidiMessage.IsNoteOn())
-			{
-				if (FMidiVoiceId VoiceId = Event.GetVoiceId(); !ActiveVoices.Contains(VoiceId))
-				{
-					ActiveVoices.Emplace(MoveTemp(VoiceId));
-				}
-			}
-			else if (Event.MidiMessage.IsNoteOff())
-			{
-				ActiveVoices.Remove(Event.GetVoiceId());
-			}
-			// Kill all or all off
-			else
-			{
-				ActiveVoices.Reset();
-			}
-		}
+			return Event.TrackIndex == ActiveNote.TrackIndex && Event.GetVoiceId() == ActiveNote.GetVoiceId();
+		});
 	}
 
-	void FMidiVoiceTracker::Process(const FMidiStream& MidiStream, const FKillVoiceFn& KillVoiceFn)
+	void FMidiStream::TrackNote(const FMidiStreamEvent& Event)
 	{
-		// Remove active voices that have note offs this block
-		for (const auto& MidiEvent : MidiStream.EventsInBlock)
+		if (!Event.MidiMessage.IsNoteMessage())
 		{
-			if (MidiEvent.MidiMessage.IsNoteOff())
-			{
-				ActiveVoices.Remove(MidiEvent.GetVoiceId());
-			}
+			return;
 		}
 
-		// Check for voices that are no longer active and notify the caller
-		for (auto It = ActiveVoices.CreateIterator(); It; ++It)
+		if (Event.MidiMessage.IsNoteOn())
 		{
-			if (!MidiStream.ActiveVoices.Contains(*It))
+			const int32 TrackIndex = Event.TrackIndex;
+			const FMidiVoiceId VoiceId = Event.GetVoiceId();
+
+			if (!ActiveNotes.ContainsByPredicate([TrackIndex, VoiceId](const HarmonixMetasound::FMidiStreamEvent& TrackedEvent)
 			{
-				KillVoiceFn(*It);
+				return TrackIndex == TrackedEvent.TrackIndex && VoiceId == TrackedEvent.GetVoiceId();
+			}))
+			{
+				ActiveNotes.Add(Event);
 			}
 		}
-
-		ActiveVoices = MidiStream.ActiveVoices;
+		else if (Event.MidiMessage.IsNoteOff())
+		{
+			const int32 TrackIndex = Event.TrackIndex;
+			const FMidiVoiceId VoiceId = Event.GetVoiceId();
+				
+			ActiveNotes.RemoveAll([TrackIndex, VoiceId](const HarmonixMetasound::FMidiStreamEvent& TrackedEvent)
+			{
+				return TrackIndex == TrackedEvent.TrackIndex && VoiceId == TrackedEvent.GetVoiceId(); 
+			});
+		}
+		// If this is an all notes off/kill, untrack everything
+		// NOTE: This diverges from the MIDI spec, where "all notes off" has a track and channel associated with it.
+		// If we end up supporting the track- and channel-specific "all notes off" we will need to add support here to avoid stuck notes.
+		else
+		{
+			ActiveNotes.Reset();
+		}
 	}
-
 }

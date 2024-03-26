@@ -14,6 +14,7 @@
 #include "HarmonixMetasound/Common.h"
 #include "HarmonixMetasound/DataTypes/MidiStream.h"
 #include "HarmonixMetasound/DataTypes/MusicTransport.h"
+#include "HarmonixMetasound/MidiOps/StuckNoteGuard.h"
 
 #define LOCTEXT_NAMESPACE "HarmonixMetaSound"
 
@@ -144,6 +145,14 @@ namespace HarmonixMetasound::Nodes::MidiNoteTriggerNode
 			NoteOnOutPin->AdvanceBlock();
 			NoteOffOutPin->AdvanceBlock();
 
+			int32 NoteOffTriggerFrame = -1;
+
+			StuckNoteGuard.UnstickNotes(*MidiStreamInPin, [this, &NoteOffTriggerFrame](const FMidiStreamEvent& Event)
+			{
+				TriggerNoteOff(0, Event.MidiMessage.GetStdData1());
+				NoteOffTriggerFrame = 0;
+			});
+
 			if (!*EnableInPin)
 			{
 				if (SoundingNote >= 0)
@@ -163,8 +172,6 @@ namespace HarmonixMetasound::Nodes::MidiNoteTriggerNode
 					return;
 				}
 			}
-
-			int32 NoteOffTriggerFrame = -1;
 			
 			for (const FMidiStreamEvent& Event : MidiStreamInPin->GetEventsInBlock())
 			{
@@ -214,6 +221,7 @@ namespace HarmonixMetasound::Nodes::MidiNoteTriggerNode
 
 		int8 SoundingNote = -1;
 		FMidiVoiceId PlayingId = FMidiVoiceId::None();
+		Harmonix::Midi::Ops::FStuckNoteGuard StuckNoteGuard;
 	};
 
 	class FMidiNoteTriggerNode_V1 final : public FNodeFacade

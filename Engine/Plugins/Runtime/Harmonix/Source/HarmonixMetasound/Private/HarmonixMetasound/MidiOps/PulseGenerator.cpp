@@ -21,6 +21,8 @@ namespace Harmonix::Midi::Ops
 
 	void FPulseGenerator::Process(HarmonixMetasound::FMidiStream& OutStream)
 	{
+		OutStream.PrepareBlock();
+		
 		// Keep draining the queue if disabled, so we get the next note off,
 		// and so we stay in phase if we toggle off and back on
 		FCursor::FPulseTime NextPulse;

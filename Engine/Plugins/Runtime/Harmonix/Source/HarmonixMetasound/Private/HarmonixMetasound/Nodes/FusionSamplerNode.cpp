@@ -1,4 +1,5 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
+
 #include "MetasoundExecutableOperator.h"
 #include "MetasoundNodeInterface.h"
 #include "MetasoundParamHelper.h"
@@ -16,6 +17,8 @@
 #include "HarmonixDsp/FusionSampler/FusionSampler.h"
 #include "HarmonixDsp/FusionSampler/FusionVoicePool.h"
 #include "HarmonixDsp/AudioUtility.h"
+
+#include "HarmonixMetasound/MidiOps/StuckNoteGuard.h"
 
 #define LOCTEXT_NAMESPACE "HarmonixMetaSound"
 
@@ -49,7 +52,8 @@ namespace HarmonixMetasound
 	* FFusionSamplerOperatorBase
 	***********************************************************************************************************
 	*********************************************************************************************************/
-	class FFusionSamplerOperatorBase : public TExecutableOperator<FFusionSamplerOperatorBase>, protected FFusionSampler
+	class FFusionSamplerOperatorBase
+		: public TExecutableOperator<FFusionSamplerOperatorBase>, protected FFusionSampler
 	{
 	public:
 		struct FConstructionArgs
@@ -213,6 +217,7 @@ namespace HarmonixMetasound
 		FFusionPatchDataProxy::NodePtr FusionPatchDataPtr = nullptr;
 		int32 SliceIndex = 0;
 		EAudioBufferChannelLayout OutputChannelLayout = EAudioBufferChannelLayout::Mono;
+		Harmonix::Midi::Ops::FStuckNoteGuard StuckNoteGuard;
 
 		void SetPatchAndOverrides(FFusionPatchDataProxy::NodePtr NewPatch)
 		{
@@ -539,6 +544,11 @@ namespace HarmonixMetasound
 	*********************************************************************************************************/
 	void FFusionSamplerOperatorBase::Execute()
 	{
+		StuckNoteGuard.UnstickNotes(*MidiStreamInPin, [this](const FMidiStreamEvent& Event)
+		{
+			NoteOff(Event.GetVoiceId(), Event.MidiMessage.GetStdData1(), Event.MidiMessage.GetStdChannel());
+		});
+		
 		if (EnableMTRenderingInPin)
 		{
 			if (!SyncLinkOutPin->GetTask().IsCompleted())

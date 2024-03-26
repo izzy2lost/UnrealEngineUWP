@@ -9,7 +9,7 @@ public:
 	FMidiVoiceGeneratorBase();
 	uint32 GetIdBits() const { return IdBits; }
 
-	static const uint32 kIdWidth = 20;
+	static constexpr uint32 IdWidth = 20;
 
 private:
 	uint32 IdBits;
@@ -24,17 +24,9 @@ public:
 		: Id(0)
 	{}
 
-	FMidiVoiceId(const FMidiVoiceGeneratorBase* Generator, const FMidiMsg& FromMessage)
+	FMidiVoiceId(const uint32 GeneratorId, const FMidiMsg& FromMessage)
 	{
-		static_assert(FMidiVoiceGeneratorBase::kIdWidth <= 20);
-		uint8 NotePart = (FromMessage.IsNoteOn() || FromMessage.IsNoteOff()) ? FromMessage.GetStdData1() : 0;
-		uint8 ChPart   = (FromMessage.IsStd()) ? FromMessage.GetStdChannel() : 0;
-		Id = (Generator ? Generator->GetIdBits() : 0) | ((uint32)(ChPart & 0xF) << 8) | (uint32)NotePart;
-	}
-
-	FMidiVoiceId(uint32 GeneratorId, const FMidiMsg& FromMessage)
-	{
-		static_assert(FMidiVoiceGeneratorBase::kIdWidth <= 20);
+		static_assert(FMidiVoiceGeneratorBase::IdWidth <= 20);
 		uint8 NotePart = (FromMessage.IsNoteOn() || FromMessage.IsNoteOff()) ? FromMessage.GetStdData1() : 0;
 		uint8 ChPart = (FromMessage.IsStd()) ? FromMessage.GetStdChannel() : 0;
 		Id = GeneratorId | ((uint32)(ChPart & 0xF) << 8) | (uint32)NotePart;
@@ -44,15 +36,10 @@ public:
 		: Id (Other.Id)
 	{}
 
-	FMidiVoiceId(FMidiVoiceId&& Other)
+	FMidiVoiceId(FMidiVoiceId&& Other) noexcept
 		: Id(Other.Id)
 	{
 		Other.Id = 0;
-	}
-
-	void ReassignGenerator(const FMidiVoiceGeneratorBase* Generator)
-	{
-		ReassignGenerator(Generator ? Generator->GetIdBits() : 0);
 	}
 
 	void ReassignGenerator(uint32 GeneratorId)

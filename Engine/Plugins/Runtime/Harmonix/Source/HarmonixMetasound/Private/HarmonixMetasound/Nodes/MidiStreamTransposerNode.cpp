@@ -140,6 +140,8 @@ namespace HarmonixMetasound::Nodes::MidiNoteTranspose
 
 		void Execute()
 		{
+			Outputs.MidiStream->PrepareBlock();
+			
 			if (!*Inputs.Enabled)
 			{
 				return;
