@@ -2,9 +2,10 @@
 
 #pragma once
 
-class UStateTreeSchema;
-
 #include "UObject/Interface.h"
+#include "Templates/SubclassOf.h"
+
+class UStateTreeSchema;
 
 #include "IStateTreeSchemaProvider.generated.h"
 

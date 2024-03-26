@@ -107,7 +107,8 @@ EStateTreeRunStatus FStateTreeMoveToTask::PerformMoveTask(FStateTreeExecutionCon
 
 	if (MoveReq.IsValid())
 	{	
-		if (InstanceData.MoveToTask = PrepareMoveToTask(Context, Controller, InstanceData.MoveToTask, MoveReq))
+		InstanceData.MoveToTask = PrepareMoveToTask(Context, Controller, InstanceData.MoveToTask, MoveReq);
+		if (InstanceData.MoveToTask)
 		{
 			if (InstanceData.MoveToTask->IsActive())
 			{
