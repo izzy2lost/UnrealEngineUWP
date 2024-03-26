@@ -481,8 +481,9 @@ void FOnDemandIoBackendStats::ReportEndPointAnalytics(TArray<FAnalyticsEventAttr
 
 	if (GIasReportCacheAnalyticsEnabled)
 	{
-		int64 CacheTotalCount = GCacheGetCount.Get() + GCachePutCount.Get();
-		float CacheUsagePercent = GCacheMaxBytes > 0 ? FMath::Clamp(0.f, (100.f*float(GCacheCachedBytes.Get())) / float(GCacheMaxBytes), 100.f) : 0.f;
+		const int64 CacheTotalCount = GCacheGetCount.Get() + GCachePutCount.Get();
+		const float CacheUsagePercent = GCacheMaxBytes > 0 ? 100.f * (float(GCacheCachedBytes.Get()) / float(GCacheMaxBytes)) : 0.f;
+
 		AppendAnalyticsEventAttributeArray(OutAnalyticsArray
 
 			,TRACK_DELTA("IasCacheTotalCount", CacheTotalCount)
