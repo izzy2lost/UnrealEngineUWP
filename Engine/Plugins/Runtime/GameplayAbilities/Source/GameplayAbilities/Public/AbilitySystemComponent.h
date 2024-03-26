@@ -92,6 +92,22 @@ enum class EGameplayEffectReplicationMode : uint8
 	Full,
 };
 
+/** When performing actions (such as gathering activatable abilities), how do we deal with Pending items (e.g. abilities not yet added or removed) */
+enum class EConsiderPending : uint8
+{
+	/** Don't consider any Pending actions (such as Pending Abilities Added or Removed) */
+	None = 0,
+
+	/** Consider Pending Adds when performing the action */
+	PendingAdd = (1 << 0),
+
+	/** Consider Pending Removes when performing the action */
+	PendingRemove = (1 << 1),
+
+	All = PendingAdd | PendingRemove
+};
+ENUM_CLASS_FLAGS(EConsiderPending)
+
 /** The core ActorComponent for interfacing with the GameplayAbilities System */
 UCLASS(ClassGroup=AbilitySystem, hidecategories=(Object,LOD,Lighting,Transform,Sockets,TextureStreaming), editinlinenew, meta=(BlueprintSpawnableComponent))
 class GAMEPLAYABILITIES_API UAbilitySystemComponent : public UGameplayTasksComponent, public IGameplayTagAssetInterface, public IAbilitySystemReplicationProxyInterface
@@ -1123,12 +1139,20 @@ class GAMEPLAYABILITIES_API UAbilitySystemComponent : public UGameplayTasksCompo
 	/** Returns local world time that an ability was activated. Valid on authority (server) and autonomous proxy (controlling client).  */
 	float GetAbilityLastActivatedTime() const { return AbilityLastActivatedTime; }
 
-	/** Returns an ability spec from a handle. If modifying call MarkAbilitySpecDirty */
-	FGameplayAbilitySpec* FindAbilitySpecFromHandle(FGameplayAbilitySpecHandle Handle) const;
+	/** Returns an ability spec from a handle. If modifying call MarkAbilitySpecDirty. Treat the return value as ephemeral as the pointer will potentially be invalidated on any subsequent call into AbilitySystemComponent. */
+	FGameplayAbilitySpec* FindAbilitySpecFromHandle(FGameplayAbilitySpecHandle Handle, EConsiderPending ConsiderPending = EConsiderPending::PendingRemove) const;
 	
 	/** Returns an ability spec from a GE handle. If modifying call MarkAbilitySpecDirty */
 	UE_DEPRECATED(5.3, "FindAbilitySpecFromGEHandle was never accurate because a GameplayEffect can grant multiple GameplayAbilities. It now returns nullptr.")
 	FGameplayAbilitySpec* FindAbilitySpecFromGEHandle(FActiveGameplayEffectHandle Handle) const;
+
+	/**
+	* Returns all ability spec handles granted from a GE handle. Only the server may call this function.
+	* @param ScopeLock - The lock to communicate to the caller that the return value is only valid for as long as this lock is in scope
+	* @param Handle - The handle of the Active Gameplay Effect which granted the abilities we are looking for
+	* @param ConsiderPending - Are we returning AbilitySpecs that are pending for addition/removal?
+	*/
+	TArray<const FGameplayAbilitySpec*> FindAbilitySpecsFromGEHandle(const FScopedAbilityListLock& ScopeLock, FActiveGameplayEffectHandle Handle, EConsiderPending ConsiderPending = EConsiderPending::PendingRemove) const;
 
 	/** Returns an ability spec corresponding to given ability class. If modifying call MarkAbilitySpecDirty */
 	FGameplayAbilitySpec* FindAbilitySpecFromClass(TSubclassOf<UGameplayAbility> InAbilityClass) const;

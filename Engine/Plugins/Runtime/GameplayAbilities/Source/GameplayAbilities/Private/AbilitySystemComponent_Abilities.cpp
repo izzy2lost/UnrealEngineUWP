@@ -862,7 +862,7 @@ void UAbilitySystemComponent::DecrementAbilityListLock()
 	}
 }
 
-FGameplayAbilitySpec* UAbilitySystemComponent::FindAbilitySpecFromHandle(FGameplayAbilitySpecHandle Handle) const
+FGameplayAbilitySpec* UAbilitySystemComponent::FindAbilitySpecFromHandle(FGameplayAbilitySpecHandle Handle, EConsiderPending ConsiderPending) const
 {
 	SCOPE_CYCLE_COUNTER(STAT_FindAbilitySpecFromHandle);
 
@@ -870,7 +870,21 @@ FGameplayAbilitySpec* UAbilitySystemComponent::FindAbilitySpecFromHandle(FGamepl
 	{
 		if (Spec.Handle == Handle)
 		{
-			return const_cast<FGameplayAbilitySpec*>(&Spec);
+			if (!Spec.PendingRemove || EnumHasAnyFlags(ConsiderPending, EConsiderPending::PendingRemove))
+			{
+				return const_cast<FGameplayAbilitySpec*>(&Spec);
+			}
+		}
+	}
+
+	if (EnumHasAnyFlags(ConsiderPending, EConsiderPending::PendingAdd))
+	{
+		for (const FGameplayAbilitySpec& Spec : AbilityPendingAdds)
+		{
+			if (!Spec.PendingRemove || EnumHasAnyFlags(ConsiderPending, EConsiderPending::PendingRemove))
+			{
+				return const_cast<FGameplayAbilitySpec*>(&Spec);
+			}
 		}
 	}
 
@@ -881,6 +895,42 @@ FGameplayAbilitySpec* UAbilitySystemComponent::FindAbilitySpecFromGEHandle(FActi
 {
 	return nullptr;
 }
+
+TArray<const FGameplayAbilitySpec*> UAbilitySystemComponent::FindAbilitySpecsFromGEHandle(const FScopedAbilityListLock& /*Used as a Contract*/, FActiveGameplayEffectHandle ActiveGEHandle, EConsiderPending ConsiderPending) const
+{
+	TArray<const FGameplayAbilitySpec*> ReturnValue;
+
+	if (!ensureMsgf(IsOwnerActorAuthoritative(), TEXT("%hs is only valid on authority as FGameplayAbilitySpec::GameplayEffectHandle is not replicated and ability granting only happens on the server"), __func__))
+	{
+		return ReturnValue;
+	}
+
+	auto GatherGAsByGEHandle = [ActiveGEHandle, ConsiderPending, &ReturnValue](const TArrayView<const FGameplayAbilitySpec> AbilitiesToConsider)
+		{
+			for (const FGameplayAbilitySpec& GASpec : AbilitiesToConsider)
+			{
+				if (GASpec.GameplayEffectHandle == ActiveGEHandle)
+				{
+					if (!GASpec.PendingRemove || EnumHasAnyFlags(ConsiderPending, EConsiderPending::PendingRemove))
+					{
+						ReturnValue.Emplace(&GASpec);
+					}
+				}
+			}
+		};
+
+	// All activatable abilities (which will include abilities that are in AbilityPendingRemoves
+	GatherGAsByGEHandle(GetActivatableAbilities());
+
+	// If requested, specifically look for abilities that are pending add
+	if (EnumHasAnyFlags(ConsiderPending,EConsiderPending::PendingAdd))
+	{
+		GatherGAsByGEHandle(AbilityPendingAdds);
+	}
+
+	return ReturnValue;
+}
+
 
 FGameplayAbilitySpec* UAbilitySystemComponent::FindAbilitySpecFromClass(TSubclassOf<UGameplayAbility> InAbilityClass) const
 {
