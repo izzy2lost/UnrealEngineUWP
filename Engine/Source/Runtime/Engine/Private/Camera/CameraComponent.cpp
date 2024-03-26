@@ -424,7 +424,7 @@ void UCameraComponent::GetCameraView(float DeltaTime, FMinimalViewInfo& DesiredV
 	{
 		if (const AActor* ViewTarget = GetOwner())
 		{
-			DesiredView.SetOrthoCameraArmLengthFromOwnerLocation(ViewTarget->GetActorLocation());
+			DesiredView.SetCameraToViewTarget(ViewTarget->GetActorLocation());
 		}
 	}
 

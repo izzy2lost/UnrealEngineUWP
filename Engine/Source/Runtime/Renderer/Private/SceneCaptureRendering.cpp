@@ -801,8 +801,7 @@ static FSceneRenderer* CreateSceneRendererForSceneCapture(
 	{
 		if (!SceneCaptureViewInfo.IsPerspectiveProjection() && !SceneCaptureComponent2D->bUseCustomProjectionMatrix)
 		{
-			float NearPlane = SceneCaptureViewInfo.GetNearPlaneFromProjectionMatrix();
-			SceneCaptureViewInfo.UpdateOrthoNearPlane(NearPlane, true);
+			SceneCaptureViewInfo.UpdateOrthoPlanes();
 		}
 	}
 

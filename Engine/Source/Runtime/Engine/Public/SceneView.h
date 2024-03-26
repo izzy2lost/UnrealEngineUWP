@@ -41,6 +41,7 @@ class FSceneViewFamily;
 class FVolumetricFogViewResources;
 class ISceneRenderer;
 class ISpatialUpscaler;
+struct FMinimalViewInfo;
 
 namespace UE::Renderer::Private
 {
@@ -63,11 +64,11 @@ struct FSceneViewProjectionData
 	/** UE projection matrix projects such that clip space Z=1 is the near plane, and Z=0 is the infinite far plane. */
 	FMatrix ProjectionMatrix;
 
-	/** This can be specified for ortho views so that the min draw distance/LOD resolution etc, is controlled by camera location rather than the pseudo infinite viewport location of Ortho*/
-	FVector LODViewOrigin;
-
 	//The unconstrained (no aspect ratio bars applied) view rectangle (also unscaled)
 	FIntRect ViewRect;
+
+	//The vector (including distance) from the camera to it's viewtarget, if set. Primarily only used for Ortho views.
+	FVector CameraToViewTarget;
 
 protected:
 	// The constrained view rectangle (identical to UnconstrainedUnscaledViewRect if aspect ratio is not constrained)
@@ -127,25 +128,13 @@ public:
 	}
 
 	// Function for correcting Ortho camera near plane locations to avoid artifacts behind camera view origin
-	static ENGINE_API bool UpdateOrthoNearPlane(FSceneViewProjectionData* InOutProjectionData, float& NearPlane, bool bUpdateOrthoProjectionMatrix = false);
-
-	static ENGINE_API bool UpdateOrthoNearPlane(FMatrix& ProjectionMatrix, float& NearPlane, bool bUpdateOrthoProjectionMatrix = false)
+	static ENGINE_API bool UpdateOrthoPlanes(FSceneViewProjectionData* InOutProjectionData, float& NearPlane, float& FarPlane);
+	ENGINE_API inline bool UpdateOrthoPlanes(float& NearPlane, float& FarPlane)
 	{
-		FSceneViewProjectionData InOutProjectionData;
-		InOutProjectionData.ProjectionMatrix = ProjectionMatrix;
-		InOutProjectionData.ViewOrigin = FVector::ZeroVector;
-		bool Result = UpdateOrthoNearPlane(&InOutProjectionData, NearPlane, bUpdateOrthoProjectionMatrix);
-		if(bUpdateOrthoProjectionMatrix && Result)
-		{
-			ProjectionMatrix = InOutProjectionData.ProjectionMatrix;
-		}
-		return Result;
+		return UpdateOrthoPlanes(this, NearPlane, FarPlane);
 	}
-	
-	bool UpdateOrthoNearPlane(float& NearPlane, bool bUpdateOrthoProjectionMatrix = false)
-	{
-		return UpdateOrthoNearPlane(this, NearPlane, bUpdateOrthoProjectionMatrix);
-	}
+	ENGINE_API bool UpdateOrthoPlanes(FMinimalViewInfo& MinimalViewInfo);
+	ENGINE_API bool UpdateOrthoPlanes();
 };
 
 /** Method used for primary screen percentage method. */
@@ -298,8 +287,8 @@ struct FViewMatrices
 		FMatrix ViewRotationMatrix = FMatrix::Identity;
 		FMatrix ProjectionMatrix = FMatrix::Identity;
 		FVector ViewOrigin = FVector::ZeroVector;
-		FVector LODViewOrigin = FVector::ZeroVector;
 		FIntRect ConstrainedViewRect = FIntRect(0, 0, 0, 0);
+		FVector CameraToViewTarget = FVector::ZeroVector;
 		EStereoscopicPass StereoPass = EStereoscopicPass::eSSP_FULL;
 	};
 
@@ -322,7 +311,7 @@ struct FViewMatrices
 		ScreenToClipMatrix.SetIdentity();
 		PreViewTranslation = FVector::ZeroVector;
 		ViewOrigin = FVector::ZeroVector;
-		LODViewOrigin = FVector::ZeroVector;
+		CameraToViewTarget = FVector::ZeroVector;
 		ProjectionScale = FVector2D::ZeroVector;
 		TemporalAAProjectionJitter = FVector2D::ZeroVector;
 		ScreenScale = 1.f;
@@ -369,8 +358,8 @@ private:
 	FVector		PreViewTranslation;
 	/** The camera/viewport location in world space */
 	FVector		ViewOrigin;
-	/** The camera/viewport location for resolving LOD sizes for Orthographic cameras */
-	FVector 	LODViewOrigin;
+	/** The current view target's location proportional to the camera location */
+	FVector		CameraToViewTarget;
 	/** Scale applied by the projection matrix in X and Y. */
 	FVector2D	ProjectionScale;
 	/** TemporalAA jitter offset currently stored in the projection matrix */
@@ -486,10 +475,9 @@ public:
 		return ViewOrigin;
 	}
 
-	inline const FVector& GetLODViewOrigin() const
+	inline const FVector& GetCameraToViewTarget() const
 	{
-		//Perspective should always set this to the ViewOrigin in Init, Ortho needs a corrected location for resolving LODs
-		return LODViewOrigin;
+		return CameraToViewTarget;
 	}
 
 	inline float GetScreenScale() const
@@ -631,23 +619,32 @@ public:
 	// @return in radians (horizontal,vertical)
 	const FVector2D ComputeHalfFieldOfViewPerAxis() const
 	{
-		const FMatrix ClipToView = ComputeInvProjectionNoAAMatrix();
+		if(IsPerspectiveProjection())
+		{
+			const FMatrix ClipToView = ComputeInvProjectionNoAAMatrix();
 
-		FVector VCenter = FVector(ClipToView.TransformPosition(FVector(0.0, 0.0, 0.0)));
-		FVector VUp = FVector(ClipToView.TransformPosition(FVector(0.0, 1.0, 0.0)));
-		FVector VRight = FVector(ClipToView.TransformPosition(FVector(1.0, 0.0, 0.0)));
+			FVector VCenter = FVector(ClipToView.TransformPosition(FVector(0.0, 0.0, 0.0)));
+			FVector VUp = FVector(ClipToView.TransformPosition(FVector(0.0, 1.0, 0.0)));
+			FVector VRight = FVector(ClipToView.TransformPosition(FVector(1.0, 0.0, 0.0)));
 
-		VCenter.Normalize();
-		VUp.Normalize();
-		VRight.Normalize();
+			VCenter.Normalize();
+			VUp.Normalize();
+			VRight.Normalize();
 
-		using ResultType = decltype(FVector2D::X);
-		return FVector2D((ResultType)FMath::Acos(VCenter | VRight), (ResultType)FMath::Acos(VCenter | VUp));
+			using ResultType = decltype(FVector2D::X);
+			return FVector2D((ResultType)FMath::Acos(VCenter | VRight), (ResultType)FMath::Acos(VCenter | VUp));
+		}
+		return FVector2D::Zero();
 	}
 
 	FMatrix::FReal ComputeNearPlane() const
 	{
 		return ( ProjectionMatrix.M[3][3] - ProjectionMatrix.M[3][2] ) / ( ProjectionMatrix.M[2][2] - ProjectionMatrix.M[2][3] );
+	}
+
+	FMatrix::FReal ComputeFarPlane() const
+	{
+		return ComputeNearPlane() - InvProjectionMatrix.M[2][2];
 	}
 
 	void ApplyWorldOffset(const FVector& InOffset)

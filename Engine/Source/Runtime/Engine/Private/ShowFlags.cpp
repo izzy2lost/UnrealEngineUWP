@@ -374,11 +374,6 @@ void ApplyViewMode(EViewModeIndex ViewModeIndex, bool bPerspective, FEngineShowF
 			break;
 	}
 
-	if (!bPerspective)
-	{
-		bPostProcessing = false;
-	}
-
 	// set the EngineShowFlags:
 
 	// Assigning the new state like this ensures we always set the same variables (they depend on the view mode)

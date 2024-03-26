@@ -4408,7 +4408,7 @@ float FLandscapeComponentSceneProxy::ComputeLODForView(const FSceneView& InView)
 	float ViewLODDistanceFactor = InView.LODDistanceFactor;
 	bool ViewEngineShowFlagCollisionPawn = InView.Family->EngineShowFlags.CollisionPawn;
 	bool ViewEngineShowFlagCollisionVisibility = InView.Family->EngineShowFlags.CollisionVisibility;
-	const FVector& ViewOrigin = GetLODView(InView).ViewMatrices.GetLODViewOrigin();
+	const FVector& ViewOrigin = GetLODView(InView).ViewMatrices.GetViewOrigin();
 	const FMatrix& ViewProjectionMatrix = GetLODView(InView).ViewMatrices.GetProjectionMatrix();
 
 	float LODScale = ViewLODDistanceFactor * CVarStaticMeshLODDistanceScale.GetValueOnRenderThread();
