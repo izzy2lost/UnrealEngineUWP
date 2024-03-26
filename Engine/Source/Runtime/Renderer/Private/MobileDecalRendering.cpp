@@ -20,7 +20,7 @@
 #include "CompositionLighting/PostProcessDeferredDecals.h"
 #include "DBufferTextures.h"
 
-void RenderMeshDecalsMobile(FRHICommandList& RHICmdList, const FViewInfo& View, EDecalRenderStage DecalRenderStage, EDecalRenderTargetMode RenderTargetMode);
+void RenderMeshDecalsMobile(FRHICommandList& RHICmdList, FViewInfo& View, EDecalRenderStage DecalRenderStage, EDecalRenderTargetMode RenderTargetMode);
 extern void RenderDeferredDecalsMobile(FRHICommandList& RHICmdList, const FScene& Scene, const FViewInfo& View, EDecalRenderStage DecalRenderStage, EDecalRenderTargetMode RenderTargetMode);
 
 static bool DoesPlatformSupportDecals(EShaderPlatform ShaderPlatform)
@@ -44,7 +44,7 @@ static bool DoesPlatformSupportDecals(EShaderPlatform ShaderPlatform)
 	return true;
 }
 
-void FMobileSceneRenderer::RenderDecals(FRHICommandList& RHICmdList, const FViewInfo& View, const FInstanceCullingDrawParams* InstanceCullingDrawParams)
+void FMobileSceneRenderer::RenderDecals(FRHICommandList& RHICmdList, FViewInfo& View, const FInstanceCullingDrawParams* InstanceCullingDrawParams)
 {
 	if (!DoesPlatformSupportDecals(View.GetShaderPlatform()) || !ViewFamily.EngineShowFlags.Decals || View.bIsPlanarReflection)
 	{
@@ -79,6 +79,13 @@ void FMobileSceneRenderer::RenderDecals(FRHICommandList& RHICmdList, const FView
 			check(BatchedPrimitiveBufferRHI);
 			RHICmdList.SetStaticUniformBuffer(BatchedPrimitiveSlot, BatchedPrimitiveBufferRHI);
 		}
+	}
+
+	EMeshPass::Type DecalMeshPassType = DecalRendering::GetMeshPassType(RenderTargetMode);
+	if (View.ParallelMeshDrawCommandPasses[DecalMeshPassType].HasAnyDraw())
+	{
+		RHICmdList.SetViewport(View.ViewRect.Min.X, View.ViewRect.Min.Y, 0, View.ViewRect.Max.X, View.ViewRect.Max.Y, 1);
+		View.ParallelMeshDrawCommandPasses[DecalMeshPassType].DispatchDraw(nullptr, RHICmdList, InstanceCullingDrawParams);
 	}
 }
 

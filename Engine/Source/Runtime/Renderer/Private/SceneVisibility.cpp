@@ -53,6 +53,8 @@
 #include "VT/VirtualTextureSystem.h"
 #include "NaniteSceneProxy.h"
 #include "ViewDebug.h"
+#include "DecalRenderingCommon.h"
+#include "CompositionLighting/PostProcessDeferredDecals.h"
 
 static float GWireframeCullThreshold = 5.0f;
 static FAutoConsoleVariableRef CVarWireframeCullThreshold(
@@ -1318,6 +1320,7 @@ void FRelevancePacket::ComputeRelevance(FDynamicPrimitiveIndexList& DynamicPrimi
 	const FHLODVisibilityState* const HLODState = bHLODActive && ViewState ? &ViewState->HLODVisibilityState : nullptr;
 	float MaxDrawDistanceScale = GetCachedScalabilityCVars().ViewDistanceScale;
 	MaxDrawDistanceScale *= GetCachedScalabilityCVars().CalculateFieldOfViewDistanceScale(View.DesiredFOV);
+	const bool bUseDecalCachedMDCs = UseDecalCachedMDCs();
 
 	const auto AddEditorDynamicPrimitive = [this, &DynamicPrimitiveIndexList](int32 PrimitiveIndex)
 	{
@@ -1727,11 +1730,25 @@ void FRelevancePacket::ComputeRelevance(FDynamicPrimitiveIndexList& DynamicPrimi
 						// Because ViewRelevance is a sum of all material relevances in the primitive
 						if (ViewRelevance.bRenderInMainPass && ViewRelevance.bDecal && StaticMeshRelevance.bUseForMaterial)
 						{
-							MeshDecalBatches.AddUninitialized(1);
-							FMeshDecalBatch& BatchAndProxy = MeshDecalBatches.Last();
-							BatchAndProxy.Mesh = &StaticMesh;
-							BatchAndProxy.Proxy = PrimitiveSceneProxy;
-							BatchAndProxy.SortKey = PrimitiveSceneProxy->GetTranslucencySortPriority();
+							if (bUseDecalCachedMDCs)
+							{
+								for (uint8 DecalRenderTargetMode = 0; DecalRenderTargetMode < (uint8)EDecalRenderTargetMode::Num; ++DecalRenderTargetMode)
+								{
+									if (DecalRendering::IsCompatibleWithRenderTargetMode(StaticMeshRelevance.DecalRenderTargetModeMask, (EDecalRenderTargetMode)DecalRenderTargetMode))
+									{
+										EMeshPass::Type DecalMeshPassType = DecalRendering::GetMeshPassType((EDecalRenderTargetMode)DecalRenderTargetMode);
+										DrawCommandPacket.AddCommandsForMesh(PrimitiveIndex, PrimitiveSceneInfo, StaticMeshRelevance, StaticMesh, CullingPayloadFlags, Scene, bCanCache, DecalMeshPassType);
+									}
+								}
+							}
+							else
+							{
+								MeshDecalBatches.AddUninitialized(1);
+								FMeshDecalBatch& BatchAndProxy = MeshDecalBatches.Last();
+								BatchAndProxy.Mesh = &StaticMesh;
+								BatchAndProxy.Proxy = PrimitiveSceneProxy;
+								BatchAndProxy.SortKey = PrimitiveSceneProxy->GetTranslucencySortPriority();
+							}
 						}
 					}
 
@@ -2394,11 +2411,29 @@ static void ComputeDynamicMeshRelevance(
 
 	if (ViewRelevance.bRenderInMainPass && ViewRelevance.bDecal)
 	{
-		View.MeshDecalBatches.AddUninitialized(1);
-		FMeshDecalBatch& BatchAndProxy = View.MeshDecalBatches.Last();
-		BatchAndProxy.Mesh = MeshBatch.Mesh;
-		BatchAndProxy.Proxy = MeshBatch.PrimitiveSceneProxy;
-		BatchAndProxy.SortKey = MeshBatch.PrimitiveSceneProxy->GetTranslucencySortPriority();
+		if (UseDecalCachedMDCs())
+		{
+			// DecalRenderTargetModeMask could be cached in FMeshBatchAndRelevance as well
+			const FMaterial& Material = MeshBatch.Mesh->MaterialRenderProxy->GetIncompleteMaterialWithFallback(View.FeatureLevel);
+			uint8 DecalRenderTargetModeMask = DecalRendering::GetDecalRenderTargetModeMask(Material, View.FeatureLevel);
+			for (uint8 DecalRenderTargetMode = 0; DecalRenderTargetMode < (uint8)EDecalRenderTargetMode::Num; ++DecalRenderTargetMode)
+			{
+				if (DecalRendering::IsCompatibleWithRenderTargetMode(DecalRenderTargetModeMask, (EDecalRenderTargetMode)DecalRenderTargetMode))
+				{
+					EMeshPass::Type DecalMeshPassType = DecalRendering::GetMeshPassType((EDecalRenderTargetMode)DecalRenderTargetMode);
+					PassMask.Set(DecalMeshPassType);
+					View.NumVisibleDynamicMeshElements[DecalMeshPassType] += NumElements;
+				}
+			}
+		}
+		else
+		{
+			View.MeshDecalBatches.AddUninitialized(1);
+			FMeshDecalBatch& BatchAndProxy = View.MeshDecalBatches.Last();
+			BatchAndProxy.Mesh = MeshBatch.Mesh;
+			BatchAndProxy.Proxy = MeshBatch.PrimitiveSceneProxy;
+			BatchAndProxy.SortKey = MeshBatch.PrimitiveSceneProxy->GetTranslucencySortPriority();
+		}
 	}
 
 	const bool bIsHairStrandsCompatible = ViewRelevance.bHairStrands && IsHairStrandsEnabled(EHairStrandsShaderType::All, View.GetShaderPlatform());

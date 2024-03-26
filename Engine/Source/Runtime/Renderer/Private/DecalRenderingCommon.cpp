@@ -5,6 +5,10 @@
 #include "RenderUtils.h"
 #include "DataDrivenShaderPlatformInfo.h"
 #include "Substrate/Substrate.h"
+#include "MaterialShared.h"
+#include "StaticMeshBatch.h"
+
+static_assert(DecalRendering::DecalRenderTargetMode_NumBits == ((int32)EDecalRenderTargetMode::Num - 1));
 
 namespace DecalRendering
 {
@@ -176,6 +180,73 @@ namespace DecalRendering
 		if (DecalBlendDesc.RenderStageMask & (1 << (uint32)EDecalRenderStage::MobileBeforeLighting))
 		{
 			return EDecalRenderStage::MobileBeforeLighting;
+		}
+
+		return EDecalRenderStage::None;
+	}
+
+	uint8 GetDecalRenderTargetModeMask(const FMaterial& Material, ERHIFeatureLevel::Type FeatureLevel)
+	{
+		uint8 Mask = 0;
+
+		const EShaderPlatform ShaderPlatform = GetFeatureLevelShaderPlatform(FeatureLevel);
+		const FDecalBlendDesc DecalBlendDesc = ComputeDecalBlendDesc(ShaderPlatform, Material);
+
+		for (int32 DecalRenderStageNum = 0; DecalRenderStageNum < (int32)EDecalRenderStage::Num; ++DecalRenderStageNum)
+		{
+			EDecalRenderStage DecalRenderStage = (EDecalRenderStage)DecalRenderStageNum;
+			if (IsCompatibleWithRenderStage(DecalBlendDesc, DecalRenderStage))
+			{
+				EDecalRenderTargetMode DecalRenderTargetMode = GetRenderTargetMode(DecalBlendDesc, DecalRenderStage);
+				Mask |= (1 << (uint32)DecalRenderTargetMode);
+			}
+		}
+
+		return Mask;
+	}
+
+	bool IsCompatibleWithRenderTargetMode(uint8 DecalRenderTargetModeMask, EDecalRenderTargetMode DecalRenderTargetMode)
+	{
+		return (DecalRenderTargetModeMask & (1 << (uint32)DecalRenderTargetMode)) != 0;
+	}
+
+	EMeshPass::Type GetMeshPassType(EDecalRenderTargetMode RenderTargetMode)
+	{
+		switch (RenderTargetMode)
+		{
+		case EDecalRenderTargetMode::None:
+			return EMeshPass::Num;
+		case EDecalRenderTargetMode::DBuffer:
+			return EMeshPass::MeshDecal_DBuffer;
+		case EDecalRenderTargetMode::SceneColorAndGBuffer:
+			return EMeshPass::MeshDecal_SceneColorAndGBuffer;
+		case EDecalRenderTargetMode::SceneColorAndGBufferNoNormal:
+			return EMeshPass::MeshDecal_SceneColorAndGBufferNoNormal;
+		case EDecalRenderTargetMode::SceneColor:
+			return EMeshPass::MeshDecal_SceneColor;
+		case EDecalRenderTargetMode::AmbientOcclusion:
+			return EMeshPass::MeshDecal_AmbientOcclusion;
+		}
+
+		return EMeshPass::Num;
+	}
+
+	EDecalRenderStage GetRenderStage(EDecalRenderTargetMode RenderTargetMode, EShadingPath ShadingPath)
+	{
+		switch (RenderTargetMode)
+		{
+			case EDecalRenderTargetMode::None:
+				return EDecalRenderStage::None;
+			case EDecalRenderTargetMode::DBuffer:
+				return EDecalRenderStage::BeforeBasePass;
+			case EDecalRenderTargetMode::SceneColorAndGBuffer:
+				return (ShadingPath == EShadingPath::Deferred) ? EDecalRenderStage::BeforeLighting : EDecalRenderStage::MobileBeforeLighting;
+			case EDecalRenderTargetMode::SceneColorAndGBufferNoNormal:
+				return EDecalRenderStage::BeforeLighting;
+			case EDecalRenderTargetMode::SceneColor:
+				return (ShadingPath == EShadingPath::Deferred) ? EDecalRenderStage::Emissive : EDecalRenderStage::Mobile;
+			case EDecalRenderTargetMode::AmbientOcclusion:
+				return EDecalRenderStage::AmbientOcclusion;
 		}
 
 		return EDecalRenderStage::None;

@@ -37,7 +37,7 @@
 #include "PrimitiveSceneDesc.h"
 #include "BasePassRendering.h" // TODO: Remove with later refactor (moving Nanite shading into its own files)
 #include "InstanceDataSceneProxy.h"
-
+#include "DecalRenderingCommon.h"
 
 extern int32 GGPUSceneInstanceClearList;
 
@@ -135,6 +135,12 @@ public:
 			bool bUseForWaterInfoTextureDepth = Mesh.bUseForWaterInfoTextureDepth;
 			bool bUseForLumenSceneCapture = Mesh.bUseForLumenSurfaceCacheCapture;
 
+			uint8 DecalRenderTargetModeMask = 0;
+			if (Mesh.IsDecal(FeatureLevel))
+			{
+				DecalRenderTargetModeMask = DecalRendering::GetDecalRenderTargetModeMask(Material, FeatureLevel);
+			}
+
 			FStaticMeshBatchRelevance* StaticMeshRelevance = new(PrimitiveSceneInfo->StaticMeshRelevances) FStaticMeshBatchRelevance(
 				*StaticMesh, 
 				ScreenSize, 
@@ -146,6 +152,7 @@ public:
 				bSupportsGPUScene,
 				bUseForWaterInfoTextureDepth,
 				bUseForLumenSceneCapture,
+				DecalRenderTargetModeMask,
 				FeatureLevel
 				);
 		}
