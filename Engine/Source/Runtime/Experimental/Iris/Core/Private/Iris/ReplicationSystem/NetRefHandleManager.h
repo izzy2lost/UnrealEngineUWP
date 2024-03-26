@@ -290,7 +290,8 @@ public:
 
 	/** Return a string to identify the object linked to an index in logs */
 	FString PrintObjectFromIndex(FInternalNetRefIndex ObjectIndex) const;
-	
+	FString PrintObjectFromNetRefHandle(FNetRefHandle ObjectHandle) const { return PrintObjectFromIndex(GetInternalIndex(ObjectHandle)); }
+
 	DECLARE_MULTICAST_DELEGATE_OneParam(FOnLargestIndexIncrease, uint32 LargestIndex);
 
 	/** Return a delegate that will notify when the largest internal index has increased. */
