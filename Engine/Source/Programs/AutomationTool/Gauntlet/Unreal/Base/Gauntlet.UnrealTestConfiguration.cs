@@ -513,13 +513,19 @@ namespace Gauntlet
 		/// </summary>
 		public float TimeoutBetweenAnyHeartbeats;
 
-		public UnrealHeartbeatOptions(float InHeartbeatPeriod = 30f, bool bShouldExpectHeartbeats = false, float InTimeoutBeforeFirstActiveHeartbeat = 0f, float InTimeoutBetweenActiveHeartbeats = 0f, float InTimeoutBetweenAnyHeartbeats = 90f)
+		/// <summary>
+		/// The minimum time interval between retrieval of heartbeat logs
+		/// </summary>
+		public float LogHeartbeatInterval;
+		
+		public UnrealHeartbeatOptions(float InHeartbeatPeriod = 30f, bool bShouldExpectHeartbeats = false, float InTimeoutBeforeFirstActiveHeartbeat = 0f, float InTimeoutBetweenActiveHeartbeats = 0f, float InTimeoutBetweenAnyHeartbeats = 90f, float InLogHeartbeatInterval = 0f)
 		{
 			HeartbeatPeriod = InHeartbeatPeriod;
 			bExpectHeartbeats = bShouldExpectHeartbeats;
 			TimeoutBeforeFirstActiveHeartbeat = InTimeoutBeforeFirstActiveHeartbeat;
 			TimeoutBetweenActiveHeartbeats = InTimeoutBetweenActiveHeartbeats;
 			TimeoutBetweenAnyHeartbeats = InTimeoutBetweenAnyHeartbeats;
+			LogHeartbeatInterval = InLogHeartbeatInterval;
 		}
 
 	}
