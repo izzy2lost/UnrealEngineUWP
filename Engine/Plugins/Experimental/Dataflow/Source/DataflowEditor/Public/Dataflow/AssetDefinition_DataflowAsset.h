@@ -59,6 +59,9 @@ struct DATAFLOWEDITOR_API FDataflowCommentNodeData
 
 	UPROPERTY()
 	FVector2D Position = FVector2D::ZeroVector;
+
+	UPROPERTY()
+	int32 FontSize = 18;
 };
 
 USTRUCT()
