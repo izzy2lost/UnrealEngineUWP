@@ -127,6 +127,17 @@ protected:
 	}
 
 	template<typename MessageType>
+	void SendMessage(MessageType* Message, const TArray<FMessageAddress>& Addresses)
+	{
+		if (!Message || !Addresses.Num())
+		{
+			return;
+		}
+
+		MessageEndpoint->Send(Message, Addresses);
+	}
+
+	template<typename MessageType>
 	void Subscribe()
 	{
 		if (MessageEndpoint.IsValid())
