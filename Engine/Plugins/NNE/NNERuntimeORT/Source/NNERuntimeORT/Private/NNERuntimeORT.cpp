@@ -12,10 +12,6 @@
 #include "NNERuntimeORTModel.h"
 #include "NNERuntimeORTUtils.h"
 
-#ifdef NNE_UTILITIES_AVAILABLE
-#include "NNEUtilitiesModelOptimizer.h"
-#endif // NNE_UTILITIES_AVAILABLE
-
 #if PLATFORM_WINDOWS
 #include "ID3D12DynamicRHI.h"
 #endif // PLATFORM_WINDOWS
@@ -64,12 +60,7 @@ public:
 
 	virtual ECanCreateModelDataStatus CanCreateModelData(const FString& FileType, TConstArrayView<uint8> FileData, const TMap<FString, TConstArrayView<uint8>>& AdditionalFileData, const FGuid& FileId, const ITargetPlatform* TargetPlatform) const override
 	{
-#ifdef NNE_UTILITIES_AVAILABLE
 		return (!FileData.IsEmpty() && FileType.Compare("onnx", ESearchCase::IgnoreCase) == 0) ? ECanCreateModelDataStatus::Ok : ECanCreateModelDataStatus::FailFileIdNotSupported;
-#else
-		UE_LOG(LogNNE, Display, TEXT("NNEUtilities is not available on this platform"));
-		return ECanCreateModelDataStatus::Fail;
-#endif // NNE_UTILITIES_AVAILABLE
 	}
 
 	virtual TSharedPtr<UE::NNE::FSharedModelData> CreateModelData(const FString& FileType, TConstArrayView<uint8> FileData, const TMap<FString, TConstArrayView<uint8>>& AdditionalFileData, const FGuid& FileId, const ITargetPlatform* TargetPlatform) override
@@ -80,15 +71,8 @@ public:
 			return {};
 		}
 
-#ifdef NNE_UTILITIES_AVAILABLE
-		TUniquePtr<UE::NNE::Internal::IModelOptimizer> Optimizer = UE::NNEUtilities::Internal::CreateONNXToONNXModelOptimizer();
-
-		FNNEModelRaw InputModel;
-		InputModel.Data = FileData;
-		InputModel.Format = ENNEInferenceFormat::ONNX;
-		FNNEModelRaw OutputModel;
-		UE::NNE::Internal::FOptimizerOptionsMap Options;
-		if (!Optimizer->Optimize(InputModel, OutputModel, Options))
+		FNNEModelRaw InputModel{TArray<uint8>{FileData}, ENNEInferenceFormat::ONNX};
+		if (!UE::NNERuntimeORT::Private::OrtHelper::OptimizeModel(InputModel, ENNEInferenceFormat::ONNX))
 		{
 			return {};
 		}
@@ -97,12 +81,9 @@ public:
 		FMemoryWriter Writer(Result);
 		Writer << UNNERuntimeORTDml::GUID;
 		Writer << UNNERuntimeORTDml::Version;
-		Writer.Serialize(OutputModel.Data.GetData(), OutputModel.Data.Num());
+		Writer.Serialize(InputModel.Data.GetData(), InputModel.Data.Num());
 
 		return MakeShared<UE::NNE::FSharedModelData>(MakeSharedBufferFromArray(MoveTemp(Result)), 0);
-#else
-		return {};
-#endif // NNE_UTILITIES_AVAILABLE
 	}
 
 	virtual FString GetModelDataIdentifier(const FString& FileType, TConstArrayView<uint8> FileData, const TMap<FString, TConstArrayView<uint8>>& AdditionalFileData, const FGuid& FileId, const ITargetPlatform* TargetPlatform) const override
@@ -224,12 +205,7 @@ private:
 
 UNNERuntimeORTCpu::ECanCreateModelDataStatus UNNERuntimeORTCpu::CanCreateModelData(const FString& FileType, TConstArrayView<uint8> FileData, const TMap<FString, TConstArrayView<uint8>>& AdditionalFileData, const FGuid& FileId, const ITargetPlatform* TargetPlatform) const
 {
-#ifdef NNE_UTILITIES_AVAILABLE
 	return (!FileData.IsEmpty() && FileType.Compare("onnx", ESearchCase::IgnoreCase) == 0) ? ECanCreateModelDataStatus::Ok : ECanCreateModelDataStatus::FailFileIdNotSupported;
-#else
-	UE_LOG(LogNNE, Display, TEXT("NNEUtilities is not available on this platform"));
-	return ECanCreateModelDataStatus::Fail;
-#endif // NNE_UTILITIES_AVAILABLE
 }
 
 TSharedPtr<UE::NNE::FSharedModelData> UNNERuntimeORTCpu::CreateModelData(const FString& FileType, TConstArrayView<uint8> FileData, const TMap<FString, TConstArrayView<uint8>>& AdditionalFileData, const FGuid& FileId, const ITargetPlatform* TargetPlatform)
@@ -240,15 +216,8 @@ TSharedPtr<UE::NNE::FSharedModelData> UNNERuntimeORTCpu::CreateModelData(const F
 		return {};
 	}
 
-#ifdef NNE_UTILITIES_AVAILABLE
-	TUniquePtr<UE::NNE::Internal::IModelOptimizer> Optimizer = UE::NNEUtilities::Internal::CreateONNXToORTModelOptimizer();
-
-	FNNEModelRaw InputModel;
-	InputModel.Data = FileData;
-	InputModel.Format = ENNEInferenceFormat::ONNX;
-	FNNEModelRaw OutputModel;
-	UE::NNE::Internal::FOptimizerOptionsMap Options;
-	if (!Optimizer->Optimize(InputModel, OutputModel, Options))
+	FNNEModelRaw InputModel{TArray<uint8>{FileData}, ENNEInferenceFormat::ONNX};
+	if (!UE::NNERuntimeORT::Private::OrtHelper::OptimizeModel(InputModel, ENNEInferenceFormat::ORT))
 	{
 		return {};
 	}
@@ -257,12 +226,9 @@ TSharedPtr<UE::NNE::FSharedModelData> UNNERuntimeORTCpu::CreateModelData(const F
 	FMemoryWriter Writer(Result);
 	Writer << UNNERuntimeORTCpu::GUID;
 	Writer << UNNERuntimeORTCpu::Version;
-	Writer.Serialize(OutputModel.Data.GetData(), OutputModel.Data.Num());
+	Writer.Serialize(InputModel.Data.GetData(), InputModel.Data.Num());
 
 	return MakeShared<UE::NNE::FSharedModelData>(MakeSharedBufferFromArray(MoveTemp(Result)), 0);
-#else
-	return {};
-#endif // NNE_UTILITIES_AVAILABLE
 }
 
 FString UNNERuntimeORTCpu::GetModelDataIdentifier(const FString& FileType, TConstArrayView<uint8> FileData, const TMap<FString, TConstArrayView<uint8>>& AdditionalFileData, const FGuid& FileId, const ITargetPlatform* TargetPlatform) const

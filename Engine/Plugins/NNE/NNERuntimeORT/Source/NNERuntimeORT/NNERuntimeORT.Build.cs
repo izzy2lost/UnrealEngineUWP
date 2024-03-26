@@ -21,12 +21,6 @@ public class NNERuntimeORT : ModuleRules
 			}
 		);
 
-		if (Target.Type == TargetType.Editor || Target.Type == TargetType.Program)
-		{
-			PrivateDefinitions.Add("NNE_UTILITIES_AVAILABLE");
-			PrivateDependencyModuleNames.Add("NNEUtilities");
-		}
-
 		if (Target.Platform == UnrealTargetPlatform.Win64)
 		{
 			PrivateDependencyModuleNames.AddRange(new string[]

@@ -6,6 +6,7 @@
 #include "NNE.h"
 #include "NNEOnnxruntime.h"
 #include "NNERuntimeCPU.h"
+#include "NNERuntimeFormat.h"
 #include "NNERuntimeGPU.h"
 #include "NNETensor.h"
 #include "NNETypes.h"
@@ -38,6 +39,8 @@ namespace UE::NNERuntimeORT::Private
 
 			return Result;
 		}
+
+		bool OptimizeModel(FNNEModelRaw& Model, ENNEInferenceFormat OutFormat);
 	}
 
 	struct TypeInfoORT
