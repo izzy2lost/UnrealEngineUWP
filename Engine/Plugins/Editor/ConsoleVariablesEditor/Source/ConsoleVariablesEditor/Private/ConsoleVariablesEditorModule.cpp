@@ -8,6 +8,7 @@
 #include "ConsoleVariablesEditorLog.h"
 #include "ConsoleVariablesEditorProjectSettings.h"
 #include "ConsoleVariablesEditorStyle.h"
+#include "HAL/IConsoleManager.h"
 #include "MultiUser/ConsoleVariableSync.h"
 #include "MultiUser/ConsoleVariableSyncData.h"
 #include "Views/MainPanel/ConsoleVariablesEditorMainPanel.h"
@@ -280,16 +281,16 @@ bool FConsoleVariablesEditorModule::PopulateGlobalSearchAssetWithVariablesMatchi
 	return EditingGlobalSearchAsset->GetSavedCommandsCount() > 0;
 }
 
-void FConsoleVariablesEditorModule::SendMultiUserConsoleVariableChange(ERemoteCVarChangeType InChangeType, const FString& InVariableName, const FString& InValueAsString)
+void FConsoleVariablesEditorModule::SendMultiUserConsoleVariableChange(ERemoteCVarChangeType InChangeType, const FString& InVariableName, const FString& InValueAsString, EConsoleVariableFlags InFlags)
 {
 	using namespace UE::ConsoleVariablesEditor::ModuleUtils::Private; 
 	if (MainPanel->GetMultiUserManager().IsLocalUserInMultiUserSession() && !CheckIsRunningPieAndWarnSyncDisabledInPie())
 	{
-		MainPanel->GetMultiUserManager().SendConsoleVariableChange(InChangeType, InVariableName, InValueAsString);
+		MainPanel->GetMultiUserManager().SendConsoleVariableChange(InChangeType, InVariableName, InValueAsString, InFlags);
 	}
 }
 
-void FConsoleVariablesEditorModule::OnRemoteCvarChanged(ERemoteCVarChangeType InChangeType, const FString InName, const FString InValue)
+void FConsoleVariablesEditorModule::OnRemoteCvarChanged(ERemoteCVarChangeType InChangeType, const FString InName, const FString InValue, EConsoleVariableFlags InFlags)
 {
 	using namespace UE::ConsoleVariablesEditor::ModuleUtils::Private; 
 	if (MainPanel->GetMultiUserManager().IsLocalUserInMultiUserSession() &&
@@ -298,8 +299,16 @@ void FConsoleVariablesEditorModule::OnRemoteCvarChanged(ERemoteCVarChangeType In
 	{
 		FScopeMultiUserReceiveCVar CVarChange(*InName, CommandsReceivedFromMultiUser);
 
-		GEngine->Exec(FConsoleVariablesEditorCommandInfo::GetCurrentWorld(),
+		FConsoleVariablesEditorCommandInfo Info(InName);
+		if (IConsoleVariable* AsVariable = Info.GetConsoleVariablePtr())
+		{
+			AsVariable->Set(*InValue, InFlags);
+		}
+		else
+		{
+			GEngine->Exec(FConsoleVariablesEditorCommandInfo::GetCurrentWorld(),
 					  *FString::Printf(TEXT("%s %s"), *InName, *InValue));
+		}
 
 		if (InChangeType == ERemoteCVarChangeType::Remove)
 		{
@@ -421,7 +430,7 @@ void FConsoleVariablesEditorModule::OnConsoleVariableChanged(FConsoleVariablesEd
 			 */
 			if (!CommandsReceivedFromMultiUser.Find(Key))
 			{
-				SendMultiUserConsoleVariableChange(ERemoteCVarChangeType::Update, Key, ChangedVariable->GetString());
+				SendMultiUserConsoleVariableChange(ERemoteCVarChangeType::Update, Key, ChangedVariable->GetString(), ChangedVariable->GetFlags());
 			}
 		}
 	}
