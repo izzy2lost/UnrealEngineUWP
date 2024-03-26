@@ -865,7 +865,7 @@ inline static void CopyImageToBackBuffer(FVulkanCommandListContext* Context, FVu
 		// No alpha blending, no depth tests or writes, no stencil tests or writes, no backface culling.
 		GraphicsPSOInit.BlendState = TStaticBlendState<>::GetRHI();
 		GraphicsPSOInit.RasterizerState = TStaticRasterizerState<>::GetRHI();
-		GraphicsPSOInit.DepthStencilState = TStaticDepthStencilState<false>::GetRHI();
+		GraphicsPSOInit.DepthStencilState = TStaticDepthStencilState<false, CF_Always>::GetRHI();
 
 		TRHICommandList_RecursiveHazardous<FVulkanCommandListContext> RHICmdList(Context);
 
