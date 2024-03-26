@@ -4375,7 +4375,7 @@ FBinningData FRenderer::AddPass_Rasterize(
 		RasterPassParameters->MeshPass					= Configuration.bIsLumenCapture ? ENaniteMeshPass::LumenCardCapture : ENaniteMeshPass::BasePass;
 		RasterPassParameters->VirtualShadowMap			= VirtualTargetParameters;
 
-		RasterPassParameters->OutStatsBuffer			= GraphBuilder.CreateUAV(StatsBuffer);
+		RasterPassParameters->OutStatsBuffer			= GraphBuilder.CreateUAV(StatsBuffer, ERDGUnorderedAccessViewFlags::SkipBarrier);
 
 		if (bPatches)
 		{
