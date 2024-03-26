@@ -514,7 +514,7 @@ public:
 private:
 #if WITH_EDITORONLY_DATA
 	// Transient, to keep track of the previous graph when it changed.
-	UPCGGraphInterface* PreGraphCache = nullptr;
+	TWeakObjectPtr<UPCGGraphInterface> PreGraphCache = nullptr;
 #endif // WITH_EDITORONLY_DATA
 };
 

@@ -32,7 +32,7 @@ namespace PCGUserParameterGetSettings
 		FConstStructView GraphParameters{};
 		const UPCGGraphInterface* GraphInterface = nullptr;
 
-		// First we will read from the input if we find an input for this graph, set by the subgraph element.
+		// First we will read from the input if we find an input for this graph, set by the subgraph element, then use it.
 		TArray<FPCGTaggedData> UserParameterData = InContext.InputData.GetTaggedTypedInputs<UPCGUserParametersData>(PCGBaseSubgraphConstants::UserParameterTagData);
 		if (!UserParameterData.IsEmpty())
 		{
@@ -40,23 +40,15 @@ namespace PCGUserParameterGetSettings
 			// Safe guard to make sure we always have one and only one data of this type.
 			ensure(UserParameterData.Num() == 1);
 #endif // WITH_EDITOR
-			if (const UPCGUserParametersData* OverrideParametersData = CastChecked<UPCGUserParametersData>(UserParameterData[0].Data))
+			if (const UPCGUserParametersData* OverrideParametersData = CastChecked<UPCGUserParametersData>(UserParameterData[0].Data, ECastCheckedType::NullAllowed))
 			{
-				GraphInterface = OverrideParametersData->OriginalGraph;
-				GraphParameters = FConstStructView{ OverrideParametersData->UserParameters };
+				return FConstStructView{ OverrideParametersData->UserParameters };
 			}
-		}
-
-		// Then if we don't have any input, we will use the graph instance from the component.
-		if (!GraphInterface)
-		{
-			const UPCGComponent* SourceComponent = InContext.SourceComponent.Get();
-			GraphInterface = SourceComponent ? SourceComponent->GetGraphInstance() : nullptr;
-		}
-
-		if (!GraphInterface)
-		{
-			return FConstStructView{};
+			else
+			{
+				PCGE_LOG_C(Error, LogOnly, &InContext, LOCTEXT("InvalidUserParameterData", "Internal error, PCG User Parameters Data is null"));
+				return FConstStructView{};
+			}
 		}
 
 		// We gather the outer graph of this node, to make sure it matches our interface.
@@ -65,11 +57,13 @@ namespace PCGUserParameterGetSettings
 		FConstStructView GraphFromNodeParameters = GraphFromNode->GetUserParametersStruct() ? GraphFromNode->GetUserParametersStruct()->GetValue() : FConstStructView{};
 		if (!GraphFromNodeParameters.IsValid())
 		{
+			PCGE_LOG_C(Error, LogOnly, &InContext, LOCTEXT("NoBaseGraphParameters", "Node's graph owner don't have any parameters."));
 			return FConstStructView{};
 		}
 
 		// If we don't have a graph instance, we just use the user parameters from the node graph owner.
-		const UPCGGraphInstance* GraphInstance = Cast<UPCGGraphInstance>(GraphInterface);
+		const UPCGComponent* SourceComponent = InContext.SourceComponent.Get();
+		const UPCGGraphInstance* GraphInstance = SourceComponent ? SourceComponent->GetGraphInstance() : nullptr;
 		if (!GraphInstance)
 		{
 			return GraphFromNodeParameters;
@@ -78,6 +72,7 @@ namespace PCGUserParameterGetSettings
 		// Making sure the graph matches.
 		if (GraphFromNode != GraphInstance->GetGraph())
 		{
+			PCGE_LOG_C(Error, LogOnly, &InContext, LOCTEXT("GraphDontMatch", "Node's graph owner and base graph of the source component doesn't match."));
 			return FConstStructView{};
 		}
 

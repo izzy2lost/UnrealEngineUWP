@@ -563,10 +563,19 @@ void FPCGSubgraphElement::PrepareSubgraphUserParameters(const UPCGSubgraphSettin
 	if (const UPCGGraphInterface* SubgraphInterface = Settings->GetSubgraphInterface())
 	{
 		UPCGUserParametersData* UserParamData = NewObject<UPCGUserParametersData>();
-		UserParamData->OriginalGraph = SubgraphInterface;
+
 		if (Context->GraphInstanceParametersOverride.IsValid())
 		{
 			UserParamData->UserParameters = std::move(Context->GraphInstanceParametersOverride);
+		}
+		else if (const FInstancedPropertyBag* InstancedPropertyBag = SubgraphInterface->GetUserParametersStruct())
+		{
+			// FIXME: Copy is done there.
+			UserParamData->UserParameters = InstancedPropertyBag->GetValue();
+		}
+		else
+		{
+			// Do nothing, we still want to have a User Parameter Data to indicate we are in a subgraph context.
 		}
 
 		FPCGTaggedData& TaggedData = OutputData.TaggedData.Emplace_GetRef();
