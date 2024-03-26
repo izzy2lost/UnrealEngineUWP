@@ -43,7 +43,7 @@ namespace uba
 
 	inline constexpr u32 ProcessMessageVersion = 1339;
 
-	inline constexpr u32 CommunicationMemSize = 64*1024*2;
+	inline constexpr u32 CommunicationMemSize = IsWindows ? 64*1024 : 64*1024*2; // Macos expands some commandlines to be crazy long
 
 	inline constexpr u32 FileMappingTableMemSize = 16 * 1024 * 1024;
 	inline constexpr u32 DirTableMemSize = 40 * 1024 * 1024;
