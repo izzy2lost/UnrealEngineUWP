@@ -60,7 +60,8 @@ private:
 	void OnUseUISectionsSelectionChanged(ECheckBoxState InCheckboxState);
 
 	// Main parameter generation functions
-	void GenerateParametersView(IDetailCategoryBuilder& MainCategory);
+	// Returns true if parameters have been hidden due to runtime type
+	bool GenerateParametersView(IDetailCategoryBuilder& MainCategory);
 	void RecursivelyAddParamAndChildren(const int32 ParamIndexInObject, const FString ParentName, IDetailCategoryBuilder& DetailsCategory);
 	void FillChildrenMap(int32 ParamIndexInObject);
 
