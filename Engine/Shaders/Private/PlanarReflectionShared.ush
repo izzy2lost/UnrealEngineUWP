@@ -4,7 +4,7 @@
  PlanarReflectionShared.usf
 =============================================================================*/
 
-half4 ComputePlanarReflections(float3 TranslatedWorldPosition, half3 WorldNormal, half Roughness, SamplerState SharedClampSampler)
+half4 ComputePlanarReflections(float3 TranslatedWorldPosition, half3 WorldNormal, half Roughness)
 {
 	half4 OutPlanarReflection = 0;
 
@@ -54,7 +54,7 @@ half4 ComputePlanarReflections(float3 TranslatedWorldPosition, half3 WorldNormal
 		half4 PlanarReflectionTextureValue = Texture2DSampleLevel(
 			PlanarReflectionStruct.PlanarReflectionTexture,
 #if SUPPORTS_INDEPENDENT_SAMPLERS
-			SharedClampSampler, 
+			View.SharedTrilinearClampedSampler, 
 #else
 			PlanarReflectionStruct.PlanarReflectionSampler,
 #endif
@@ -73,7 +73,7 @@ half4 ComputePlanarReflections(float3 TranslatedWorldPosition, half3 WorldNormal
 #if (FEATURE_LEVEL <= FEATURE_LEVEL_ES3_1)
 half4 GetPlanarReflection(float3 TranslatedWorldPosition, half3 WorldNormal, half Roughness)
 {
-	half4 PlanarReflection = ComputePlanarReflections(TranslatedWorldPosition, WorldNormal, Roughness, PlanarReflectionStruct.PlanarReflectionSampler);
+	half4 PlanarReflection = ComputePlanarReflections(TranslatedWorldPosition, WorldNormal, Roughness);
 #if OUTPUT_GAMMA_SPACE
 	// the capture will also be in gamma space, convert to linear:
 	PlanarReflection.rgb *= PlanarReflection.rgb;
