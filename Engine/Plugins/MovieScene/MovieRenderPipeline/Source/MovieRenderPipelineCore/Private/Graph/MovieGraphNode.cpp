@@ -481,6 +481,15 @@ TArray<FMovieGraphPropertyInfo> UMovieGraphNode::GetOverrideablePropertyInfo() c
 	
 	for (TFieldIterator<FProperty> PropertyIterator(GetClass()); PropertyIterator; ++PropertyIterator)
 	{
+		// Only allow overriding properties that are shown in the details panel (ie, has EditAnywhere/VisibleAnywhere property flags -- CPF_Edit). However,
+		// if the property has VisibleAnywhere (CPF_EditConst) then hide the property from being overrideable. Setting the property as VisibleAnywhere
+		// gives details customizations the opportunity to pick up the property for further processing, but because of the complicated nature of these
+		// properties, VisibleAnywhere serves as a filtering mechanism to prevent it from being overridden.
+		if (!PropertyIterator->HasAnyPropertyFlags(CPF_Edit) || PropertyIterator->HasAnyPropertyFlags(CPF_EditConst))
+		{
+			continue;
+		}
+		
 		if (UMovieGraphConfig::FindOverridePropertyForRealProperty(GetClass(), *PropertyIterator))
 		{
 			FMovieGraphPropertyInfo Info;
