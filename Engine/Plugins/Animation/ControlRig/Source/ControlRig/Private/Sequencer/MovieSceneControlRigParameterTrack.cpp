@@ -874,6 +874,21 @@ bool UMovieSceneControlRigParameterTrack::GetFbxCurveDataFromChannelMetadata(con
 }
 #endif
 
+UControlRig* UMovieSceneControlRigParameterTrack::GetGameWorldControlRig(UWorld* InWorld) 
+{
+	if (GameWorldControlRigs.Find(InWorld) == nullptr && ControlRig)
+	{
+		UControlRig* GameWorldControlRig = NewObject<UControlRig>(this, ControlRig->GetClass(), NAME_None, RF_Transient);
+		GameWorldControlRigs.Add(InWorld, GameWorldControlRig);
+	}
+	TObjectPtr<UControlRig> * GameWorldControlRig = GameWorldControlRigs.Find(InWorld);
+	if (GameWorldControlRig != nullptr)
+	{
+		return GameWorldControlRig->Get();
+	}
+	return nullptr;
+}
+
 TArray<FRigControlFBXNodeAndChannels>* UMovieSceneControlRigParameterTrack::GetNodeAndChannelMappings(UMovieSceneSection* InSection )
 {
 #if WITH_EDITOR

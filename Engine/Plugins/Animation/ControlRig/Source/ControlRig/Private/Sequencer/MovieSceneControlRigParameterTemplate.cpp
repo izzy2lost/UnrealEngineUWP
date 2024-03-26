@@ -1100,7 +1100,8 @@ struct FControlRigParameterPreAnimatedTokenProducer : IMovieScenePreAnimatedToke
 
 static UControlRig* GetControlRig(const UMovieSceneControlRigParameterSection* Section,UObject* BoundObject)
 {
-	UControlRig* ControlRig = Section->GetControlRig();
+	UWorld* GameWorld = (BoundObject && BoundObject->GetWorld() && BoundObject->GetWorld()->IsGameWorld()) ? BoundObject->GetWorld() : nullptr;
+	UControlRig* ControlRig =  Section->GetControlRig(GameWorld);
 	if (ControlRig->GetObjectBinding())
 	{
 		if (UControlRigComponent* ControlRigComponent = Cast<UControlRigComponent>(ControlRig->GetObjectBinding()->GetBoundObject()))
@@ -1224,93 +1225,89 @@ struct FControlRigParameterExecutionToken : IMovieSceneExecutionToken
 		MOVIESCENE_DETAILED_SCOPE_CYCLE_COUNTER(MovieSceneEval_ControlRigParameterTrack_TokenExecute)
 		
 		FMovieSceneSequenceID SequenceID = Operand.SequenceID;
-		UControlRig* ControlRig = Section->GetControlRig();
-
-		// Update the animation's state
 		TArrayView<TWeakObjectPtr<>> BoundObjects = Player.FindBoundObjects(Operand);
-		if (ControlRig)
-		{
 			const UMovieSceneSequence* Sequence = Player.State.FindSequence(Operand.SequenceID);
-
-			UObject* BoundObject = BoundObjects.Num() > 0 ? BoundObjects[0].Get() : nullptr;
-			if (Sequence && BoundObject)
+		UControlRig* ControlRig = nullptr;
+		UObject* BoundObject = BoundObjects.Num() > 0 ? BoundObjects[0].Get() : nullptr;
+		if (Sequence && BoundObject)
+		{
+			UWorld* GameWorld = (BoundObject->GetWorld() && BoundObject->GetWorld()->IsGameWorld()) ? BoundObject->GetWorld() : nullptr;
+			ControlRig = Section->GetControlRig(GameWorld);
+			if (!ControlRig->GetObjectBinding())
 			{
-				if (!ControlRig->GetObjectBinding())
-				{
-					ControlRig->SetObjectBinding(MakeShared<FControlRigObjectBinding>());
-				}
+				ControlRig->SetObjectBinding(MakeShared<FControlRigObjectBinding>());
+			}
 
-				if (ControlRig->GetObjectBinding()->GetBoundObject() != FControlRigObjectBinding::GetBindableObject(BoundObject))
-				{
-					ControlRig->GetObjectBinding()->BindToObject(BoundObject);
-					TArray<FName> SelectedControls = ControlRig->CurrentControlSelection();
-					ControlRig->Initialize();
-					if (USkeletalMeshComponent* SkeletalMeshComponent = Cast<USkeletalMeshComponent>(FControlRigObjectBinding::GetBindableObject(BoundObject)))
-					{
-						ControlRig->RequestInit();
-						ControlRig->SetBoneInitialTransformsFromSkeletalMeshComponent(SkeletalMeshComponent, true);
-						ControlRig->Evaluate_AnyThread();
-					};
-					if (ControlRig->IsA<UFKControlRig>())
-					{
-						UMovieSceneControlRigParameterTrack* Track = Section->GetTypedOuter<UMovieSceneControlRigParameterTrack>();
-						if (Track)
-						{
-							Track->ReplaceControlRig(ControlRig, true);
-						}
-					}
-					TArray<FName> NewSelectedControls = ControlRig->CurrentControlSelection();
-					if (SelectedControls != NewSelectedControls)
-					{
-						SelectControls(ControlRig, SelectedControls);
-					}
-				}
-
-				// make sure to pick the correct CR instance for the  Components to bind.
-				// In case of PIE + Spawnable Actor + CR component, sequencer should grab
-				// CR component's CR instance for evaluation, see comment in BindToSequencerInstance
-				// i.e. CR component should bind to the instance that it owns itself.
-				ControlRig = GetControlRig(Section, BoundObjects[0].Get());
-				
-				// ensure that pre animated state is saved, must be done before bind
-				Player.SavePreAnimatedState(*ControlRig, FMovieSceneControlRigParameterTemplate::GetAnimTypeID(), FControlRigParameterPreAnimatedTokenProducer(Operand.SequenceID));
+			if (ControlRig->GetObjectBinding()->GetBoundObject() != FControlRigObjectBinding::GetBindableObject(BoundObject))
+			{
+				ControlRig->GetObjectBinding()->BindToObject(BoundObject);
+				TArray<FName> SelectedControls = ControlRig->CurrentControlSelection();
+				ControlRig->Initialize();
 				if (USkeletalMeshComponent* SkeletalMeshComponent = Cast<USkeletalMeshComponent>(FControlRigObjectBinding::GetBindableObject(BoundObject)))
 				{
-					Player.SavePreAnimatedState(*SkeletalMeshComponent, FControlRigSkeletalMeshComponentBindingTokenProducer::GetAnimTypeID(), FControlRigSkeletalMeshComponentBindingTokenProducer(Operand.SequenceID, ControlRig));
-				}
-
-				FControlRigBindingHelper::BindToSequencerInstance(ControlRig);
-
-				if (ControlRig->GetObjectBinding())
+					ControlRig->RequestInit();
+					ControlRig->SetBoneInitialTransformsFromSkeletalMeshComponent(SkeletalMeshComponent, true);
+					ControlRig->Evaluate_AnyThread();
+				};
+				if (ControlRig->IsA<UFKControlRig>())
 				{
-					if (USkeletalMeshComponent* SkeletalMeshComponent = Cast<USkeletalMeshComponent>(ControlRig->GetObjectBinding()->GetBoundObject()))
+					UMovieSceneControlRigParameterTrack* Track = Section->GetTypedOuter<UMovieSceneControlRigParameterTrack>();
+					if (Track)
 					{
-						if (UControlRigLayerInstance* AnimInstance = Cast<UControlRigLayerInstance>(SkeletalMeshComponent->GetAnimInstance()))
+						Track->ReplaceControlRig(ControlRig, true);
+					}
+				}
+				TArray<FName> NewSelectedControls = ControlRig->CurrentControlSelection();
+				if (SelectedControls != NewSelectedControls)
+				{
+					SelectControls(ControlRig, SelectedControls);
+				}
+			}
+
+			// make sure to pick the correct CR instance for the  Components to bind.
+			// In case of PIE + Spawnable Actor + CR component, sequencer should grab
+			// CR component's CR instance for evaluation, see comment in BindToSequencerInstance
+			// i.e. CR component should bind to the instance that it owns itself.
+			ControlRig = GetControlRig(Section, BoundObjects[0].Get());
+				
+			// ensure that pre animated state is saved, must be done before bind
+			Player.SavePreAnimatedState(*ControlRig, FMovieSceneControlRigParameterTemplate::GetAnimTypeID(), FControlRigParameterPreAnimatedTokenProducer(Operand.SequenceID));
+			if (USkeletalMeshComponent* SkeletalMeshComponent = Cast<USkeletalMeshComponent>(FControlRigObjectBinding::GetBindableObject(BoundObject)))
+			{
+				Player.SavePreAnimatedState(*SkeletalMeshComponent, FControlRigSkeletalMeshComponentBindingTokenProducer::GetAnimTypeID(), FControlRigSkeletalMeshComponentBindingTokenProducer(Operand.SequenceID, ControlRig));
+			}
+
+			FControlRigBindingHelper::BindToSequencerInstance(ControlRig);
+
+			if (ControlRig->GetObjectBinding())
+			{
+				if (USkeletalMeshComponent* SkeletalMeshComponent = Cast<USkeletalMeshComponent>(ControlRig->GetObjectBinding()->GetBoundObject()))
+				{
+					if (UControlRigLayerInstance* AnimInstance = Cast<UControlRigLayerInstance>(SkeletalMeshComponent->GetAnimInstance()))
+					{
+						float Weight = Section->EvaluateEasing(Context.GetTime());
+						if (EnumHasAllFlags(Section->TransformMask.GetChannels(), EMovieSceneTransformChannel::Weight))
 						{
-							float Weight = Section->EvaluateEasing(Context.GetTime());
-							if (EnumHasAllFlags(Section->TransformMask.GetChannels(), EMovieSceneTransformChannel::Weight))
-							{
-								float ManualWeight = 1.f;
-								Section->Weight.Evaluate(Context.GetTime(), ManualWeight);
-								Weight *= ManualWeight;
-							}
-							FControlRigIOSettings InputSettings;
-							InputSettings.bUpdateCurves = true;
-							InputSettings.bUpdatePose = true;
-							//this is not great but assumes we have 1 absolute track that will be used for weighting
-							if (Section->GetBlendType() == EMovieSceneBlendType::Absolute)
-							{
-								AnimInstance->UpdateControlRigTrack(ControlRig->GetUniqueID(), Weight, InputSettings, true);
-							}
+							float ManualWeight = 1.f;
+							Section->Weight.Evaluate(Context.GetTime(), ManualWeight);
+							Weight *= ManualWeight;
+						}
+						FControlRigIOSettings InputSettings;
+						InputSettings.bUpdateCurves = true;
+						InputSettings.bUpdatePose = true;
+						//this is not great but assumes we have 1 absolute track that will be used for weighting
+						if (Section->GetBlendType() == EMovieSceneBlendType::Absolute)
+						{
+							AnimInstance->UpdateControlRigTrack(ControlRig->GetUniqueID(), Weight, InputSettings, true);
 						}
 					}
-					else
-					{
-						ControlRig = GetControlRig(Section, BoundObject);
-					}
 				}
-			}		
-		}
+				else
+				{
+					ControlRig = GetControlRig(Section, BoundObject);
+				}
+			}
+		}		
 
 		//Do Bool straight up no blending
 		if (Section->GetBlendType().Get() != EMovieSceneBlendType::Additive)
@@ -1392,7 +1389,6 @@ struct FControlRigParameterExecutionToken : IMovieSceneExecutionToken
 						}
 					}
 				}
-				UObject* BoundObject = BoundObjects.Num() > 0 ? BoundObjects[0].Get() : nullptr;
 				if (BoundObject)
 				{
 					const FConstraintsManagerController& Controller = FConstraintsManagerController::Get(BoundObject->GetWorld());
@@ -1821,6 +1817,17 @@ void FMovieSceneControlRigParameterTemplate::Evaluate(const FMovieSceneEvaluatio
 	const UMovieSceneControlRigParameterSection* Section = Cast<UMovieSceneControlRigParameterSection>(GetSourceSection());
 	if (Section && Section->GetControlRig())
 	{
+		UControlRig* ControlRig = Section->GetControlRig();
+		if (Operand.ObjectBindingID.IsValid())
+		{
+			TArrayView<TWeakObjectPtr<>> BoundObjects = PersistentData.GetMovieScenePlayer().FindBoundObjects(Operand);
+			if(BoundObjects.Num() > 0 && BoundObjects[0].IsValid() && BoundObjects[0].Get()->GetWorld()) //just support one bound object per control rig
+			{
+				UWorld* GameWorld = BoundObjects[0].Get()->GetWorld()->IsGameWorld() ? BoundObjects[0].Get()->GetWorld() : nullptr;
+				ControlRig = Section->GetControlRig(BoundObjects[0].Get()->GetWorld());
+			}
+		}
+
 		FEvaluatedControlRigParameterSectionChannelMasks* ChannelMasks = PersistentData.FindSectionData<FEvaluatedControlRigParameterSectionChannelMasks>();
 		if (!ChannelMasks)
 		{
@@ -1855,7 +1862,8 @@ void FMovieSceneControlRigParameterTemplate::Evaluate(const FMovieSceneEvaluatio
 		FControlRigParameterExecutionToken ExecutionToken(Section,Values);
 		ExecutionTokens.Add(MoveTemp(ExecutionToken));
 
-		FControlRigAnimTypeIDsPtr TypeIDs = FControlRigAnimTypeIDs::Get(Section->GetControlRig());
+
+		FControlRigAnimTypeIDsPtr TypeIDs = FControlRigAnimTypeIDs::Get(ControlRig);
 
 		for (const FScalarParameterStringAndValue& ScalarNameAndValue : Values.ScalarValues)
 		{

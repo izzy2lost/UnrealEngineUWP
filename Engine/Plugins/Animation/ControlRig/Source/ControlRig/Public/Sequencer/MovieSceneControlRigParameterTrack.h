@@ -180,6 +180,7 @@ private:
 
 private:
 
+
 	/** Control Rig we control*/
 	UPROPERTY()
 	TObjectPtr<UControlRig> ControlRig;
@@ -206,6 +207,13 @@ private:
 public:
 	static CONTROLRIG_API FColor AbsoluteRigTrackColor;
 	static CONTROLRIG_API FColor LayeredRigTrackColor;
+
+public:
+	UControlRig* GetGameWorldControlRig(UWorld* InWorld);
+private:
+	/** copy of the controlled control rig that we use in the game world so editor control rig doesn't conflict*/
+	UPROPERTY(transient)
+	TMap<TWeakObjectPtr<UWorld>,TObjectPtr<UControlRig>> GameWorldControlRigs;
 };
 
 

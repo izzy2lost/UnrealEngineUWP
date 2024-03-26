@@ -388,8 +388,8 @@ public:
 
 	/* Set the control rig for this section */
 	void SetControlRig(UControlRig* InControlRig);
-	/* Get the control rig for this section */
-	UControlRig* GetControlRig() const { return ControlRig; }
+	/* Get the control rig for this section, by default in non-game world */
+	UControlRig* GetControlRig(UWorld* InGameWorld = nullptr) const;
 
 	/** Whether or not to key currently, maybe evaluating so don't*/
 	void  SetDoNotKey(bool bIn) const { bDoNotKey = bIn; }
