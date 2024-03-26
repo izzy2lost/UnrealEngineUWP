@@ -305,6 +305,13 @@ class UKismetTextLibrary : public UBlueprintFunctionLibrary
 	static ENGINE_API bool GetTextId(FText Text, FString& OutNamespace, FString& OutKey);
 
 	/**
+	 * Get the (non-localized) source string of the given text.
+	 * @note For a generated text (eg, the result of a Format), this will deep build the source string as if the generation had run for the native language.
+	 */
+	UFUNCTION(BlueprintPure, Category="Utilities|Text", meta=(DisplayName="Get Source String from Text"))
+	static ENGINE_API FString GetTextSourceString(FText Text);
+
+	/**
 	 * Check whether the given polyglot data is valid.
 	 * @return True if the polyglot data is valid, false otherwise. ErrorMessage will be filled in if the the data is invalid.
 	 */

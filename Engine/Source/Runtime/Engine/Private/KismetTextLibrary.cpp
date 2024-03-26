@@ -338,6 +338,11 @@ bool UKismetTextLibrary::GetTextId(FText Text, FString& OutNamespace, FString& O
 	return false;
 }
 
+FString UKismetTextLibrary::GetTextSourceString(FText Text)
+{
+	return Text.BuildSourceString();
+}
+
 void UKismetTextLibrary::IsPolyglotDataValid(const FPolyglotTextData& PolyglotData, bool& IsValid, FText& ErrorMessage)
 {
 	IsValid = PolyglotData.IsValid(&ErrorMessage);
