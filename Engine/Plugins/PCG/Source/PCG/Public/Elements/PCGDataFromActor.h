@@ -106,6 +106,10 @@ public:
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Data Retrieval Settings", meta = (EditCondition = "Mode == EPCGGetDataFromActorMode::GetDataFromProperty", EditConditionHides))
 	FName PropertyName = NAME_None;
 
+	/** Silence warnings that attribute names were sanitized to replace invalid characters. */
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Data Retrieval Settings|Advanced")
+	bool bSilenceSanitizedAttributeNameWarnings = false;
+
 #if WITH_EDITORONLY_DATA
 	/** If this is checked, found actors that are outside component bounds will not trigger a refresh. Only works for tags for now in editor. */
 	UPROPERTY(BlueprintReadOnly, EditAnywhere, Category = "Data Retrieval Settings")

@@ -93,10 +93,10 @@ protected:
 
 public:
 	/** Initializes a single point based on the given actor */
-	void InitializeFromActor(AActor* InActor);
+	void InitializeFromActor(AActor* InActor, bool* bOutOptionalSanitizedTagAttributeName = nullptr);
 
 	/** Adds a single point based on the given actor */
-	void AddSinglePointFromActor(AActor* InActor);
+	void AddSinglePointFromActor(AActor* InActor, bool* bOutOptionalSanitizedTagAttributeName = nullptr);
 
 	UFUNCTION(BlueprintCallable, Category = SpatialData)
 	const TArray<FPCGPoint>& GetPoints() const { return Points; }

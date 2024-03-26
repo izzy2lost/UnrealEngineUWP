@@ -372,7 +372,7 @@ FPCGMetadataAttribute<T>* UPCGMetadata::CreateAttribute(FName AttributeName, con
 {
 	if (!FPCGMetadataAttributeBase::IsValidName(AttributeName))
 	{
-		UE_LOG(LogPCG, Error, TEXT("Attribute name %s is invalid"), *AttributeName.ToString());
+		UE_LOG(LogPCG, Error, TEXT("Attribute name '%s' is invalid"), *AttributeName.ToString());
 		return nullptr;
 	}
 

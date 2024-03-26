@@ -390,17 +390,22 @@ void UPCGPointData::SetPoints(const TArray<FPCGPoint>& InPoints)
 	GetMutablePoints() = InPoints;
 }
 
-void UPCGPointData::InitializeFromActor(AActor* InActor)
+void UPCGPointData::InitializeFromActor(AActor* InActor, bool* bOutOptionalSanitizedTagAttributeName)
 {
 	check(InActor);
 	check(Metadata && Metadata->GetAttributeCount() == 0);
 
-	AddSinglePointFromActor(InActor);
+	AddSinglePointFromActor(InActor, bOutOptionalSanitizedTagAttributeName);
 }
 
-void UPCGPointData::AddSinglePointFromActor(AActor* InActor)
+void UPCGPointData::AddSinglePointFromActor(AActor* InActor, bool* bOutOptionalSanitizedTagAttributeName)
 {
 	check(InActor);
+
+	if (bOutOptionalSanitizedTagAttributeName)
+	{
+		*bOutOptionalSanitizedTagAttributeName = false;
+	}
 
 	FPCGPoint& Point = GetMutablePoints().Emplace_GetRef();
 	Point.Steepness = 1.0f;
@@ -424,7 +429,7 @@ void UPCGPointData::AddSinglePointFromActor(AActor* InActor)
 	// Parse tags as well
 	for (FName Tag : InActor->Tags)
 	{
-		const FString TagString = Tag.ToString();
+		FString TagString = Tag.ToString();
 		int32 EqualPosition = INDEX_NONE;
 		
 		// Tags that contain a colon will be consider a field:value pair; we'll try to read a number first then default to a string
@@ -438,7 +443,13 @@ void UPCGPointData::AddSinglePointFromActor(AActor* InActor)
 				continue;
 			}
 
-			if(RightSide.IsNumeric())
+			const bool bSanitized = FPCGMetadataAttributeBase::SanitizeName(LeftSide);
+			if (bOutOptionalSanitizedTagAttributeName)
+			{
+				*bOutOptionalSanitizedTagAttributeName |= bSanitized;
+			}
+
+			if (RightSide.IsNumeric())
 			{
 				if (FPCGMetadataAttribute<double>* Attribute = Metadata->FindOrCreateAttribute<double>(FName(LeftSide), 0.0, /*bAllowsInterpolation=*/false, /*bOverrideParent=*/false, /*bOverwriteIfTypeMismatch=*/false))
 				{
@@ -456,7 +467,22 @@ void UPCGPointData::AddSinglePointFromActor(AActor* InActor)
 		}
 		else // Otherwise, consider that the tag is a boolean value
 		{
-			if (FPCGMetadataAttribute<bool>* Attribute = Metadata->FindOrCreateAttribute<bool>(Tag, false, /*bAllowsInterpolation=*/false, /*bOverrideParent=*/false, /*bOverwriteIfTypeMismatch=*/false))
+			FName SanitizedAttributeName = NAME_None;
+			if (FPCGMetadataAttributeBase::SanitizeName(TagString))
+			{
+				SanitizedAttributeName = FName(TagString);
+
+				if (bOutOptionalSanitizedTagAttributeName)
+				{
+					*bOutOptionalSanitizedTagAttributeName = true;
+				}
+			}
+			else
+			{
+				SanitizedAttributeName = Tag;
+			}
+
+			if (FPCGMetadataAttribute<bool>* Attribute = Metadata->FindOrCreateAttribute<bool>(SanitizedAttributeName, false, /*bAllowsInterpolation=*/false, /*bOverrideParent=*/false, /*bOverwriteIfTypeMismatch=*/false))
 			{
 				Attribute->SetValue(Point.MetadataEntry, true);
 			}

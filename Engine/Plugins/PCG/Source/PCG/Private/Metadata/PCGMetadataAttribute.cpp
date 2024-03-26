@@ -3,6 +3,29 @@
 #include "Metadata/PCGMetadataAttribute.h"
 #include "Metadata/PCGMetadata.h"
 
+namespace PCGMetadataAttributeBase
+{
+	static constexpr TCHAR AllowedSpecialCharacters[4] = {' ', '_', '-', '/'};
+
+	bool IsValidNameCharacter(TCHAR Character)
+	{
+		if (FChar::IsAlpha(Character) || FChar::IsDigit(Character))
+		{
+			return true;
+		}
+
+		for (const TCHAR AllowedSpecialCharacter : AllowedSpecialCharacters)
+		{
+			if (AllowedSpecialCharacter == Character)
+			{
+				return true;
+			}
+		}
+
+		return false;
+	}
+}
+
 FPCGMetadataAttributeBase::FPCGMetadataAttributeBase(UPCGMetadata* InMetadata, FName InName, const FPCGMetadataAttributeBase* InParent, bool bInAllowsInterpolation)
 	: Metadata(InMetadata)
 	, Parent(InParent)
@@ -206,28 +229,9 @@ void FPCGMetadataAttributeBase::ClearEntries()
 
 bool FPCGMetadataAttributeBase::IsValidName(const FString& Name)
 {
-	// A valid name is alphanumeric with some special characters allowed.
-	static const FString AllowedSpecialCharacters = TEXT(" _-/");
-
 	for (int32 i = 0; i < Name.Len(); ++i)
 	{
-		if (FChar::IsAlpha(Name[i]) || FChar::IsDigit(Name[i]))
-		{
-			continue;
-		}
-
-		bool bAllowedSpecialCharacterFound = false;
-
-		for (int32 j = 0; j < AllowedSpecialCharacters.Len(); ++j)
-		{
-			if (Name[i] == AllowedSpecialCharacters[j])
-			{
-				bAllowedSpecialCharacterFound = true;
-				break;
-			}
-		}
-
-		if (!bAllowedSpecialCharacterFound)
+		if (!PCGMetadataAttributeBase::IsValidNameCharacter(Name[i]))
 		{
 			return false;
 		}
@@ -240,4 +244,20 @@ bool FPCGMetadataAttributeBase::IsValidName(const FName& Name)
 {
 	// Early out on None
 	return (Name == NAME_None) || IsValidName(Name.ToString());
+}
+
+bool FPCGMetadataAttributeBase::SanitizeName(FString& InOutName)
+{
+	bool bAnyCharactersSanitized = false;
+
+	for (int32 i = 0; i < InOutName.Len(); ++i)
+	{
+		if (!PCGMetadataAttributeBase::IsValidNameCharacter(InOutName[i]))
+		{
+			InOutName[i] = '_';
+			bAnyCharactersSanitized = true;
+		}
+	}
+
+	return bAnyCharactersSanitized;
 }
