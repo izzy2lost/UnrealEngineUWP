@@ -5,6 +5,7 @@
 #include "Engine/StaticMesh.h"
 #include "Engine/SkeletalMesh.h"
 #include "Engine/SkinnedAssetCommon.h"
+#include "UObject/Package.h"
 
 #include "Components/SceneComponent.h"
 #include "Components/StaticMeshComponent.h"
@@ -45,17 +46,27 @@ bool CanConvertSceneComponentToDynamicMesh(USceneComponent* Component)
 	{
 		return false;
 	}
-	else if (Cast<USkinnedMeshComponent>(Component))
+	else if (const USkinnedMeshComponent* SkinnedMeshComponent = Cast<USkinnedMeshComponent>(Component))
 	{
+#if WITH_EDITOR
+		const USkinnedAsset* SkinnedAsset = (!SkinnedMeshComponent->IsUnreachable() && SkinnedMeshComponent->IsValidLowLevel()) ? SkinnedMeshComponent->GetSkinnedAsset() : nullptr;
+		return SkinnedAsset && !SkinnedAsset->GetOutermost()->bIsCookedForEditor;;
+#else
 		return true;
+#endif
 	}
 	else if (Cast<USplineMeshComponent>(Component))
 	{
 		return true;
 	}
-	else if (Cast<UStaticMeshComponent>(Component))
+	else if (const UStaticMeshComponent* StaticMeshComponent = Cast<UStaticMeshComponent>(Component))
 	{
+#if WITH_EDITOR
+		const UStaticMesh* StaticMesh = (!StaticMeshComponent->IsUnreachable() && StaticMeshComponent->IsValidLowLevel()) ? StaticMeshComponent->GetStaticMesh() : nullptr;
+		return StaticMesh && !StaticMesh->GetOutermost()->bIsCookedForEditor;
+#else
 		return true;
+#endif
 	}
 	else if (Cast<UDynamicMeshComponent>(Component))
 	{
