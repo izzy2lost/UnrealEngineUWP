@@ -81,22 +81,22 @@
 							"metrics": [
 								{
 									"id": "core-loading-user-timetopie-percentile",
-									"alias": "Time To PIE",
+									"alias": "TimeToPIE",
 									"threshold": 360
 								},
 								{
 									"id": "core-loading-user-editorboottime-percentile",
-									"alias": "Editor Boot",
+									"alias": "BootEditor",
 									"threshold": 120
 								},
 								{
 									"id": "core-loading-user-loadmaptime-percentile",
-									"alias": "Load Map",
+									"alias": "LoadMap",
 									"threshold": 240
 								},
 								{
 									"id": "core-loading-user-piestartuptime-percentile",
-									"alias": "PIE Startup",
+									"alias": "PIEStartup",
 									"threshold": 360
 								}
 							],
@@ -107,23 +107,23 @@
 							"name": "User Load Time (Average)",
 							"metrics": [
 								{
-									"id": "core-loading-user-timetopie",
-									"alias": "Time To PIE",
-									"threshold": 360
-								},
-								{
-									"id": "core-loading-user-editorstartuptime",
-									"alias": "Editor Boot",
+									"id": "core-loading-user-editorboottime",
+									"alias": "BootEditor",
 									"threshold": 120
 								},
 								{
 									"id": "core-loading-user-loadmaptime",
-									"alias": "Load Map",
+									"alias": "LoadMap",
 									"threshold": 240
 								},
 								{
 									"id": "core-loading-user-piestartuptime",
-									"alias": "PIE Startup",
+									"alias": "PIEStartup",
+									"threshold": 360
+								},
+								{
+									"id": "core-loading-user-timetopie",
+									"alias": "TimeToPIE",
 									"threshold": 360
 								}
 							],
@@ -131,23 +131,11 @@
 							"max": 900
 						},
 						{
-							"name": "Performance Warnings",
-							"metrics": [
-								{
-									"id": "editor-performance-warning"
-								}
-							]
-						},
-						{
 							"name": "User Loading Time (KPIs)",
 							"metrics": [
 								{
-									"id": "core-loading-user-editorbottime-kpi",
-									"alias": "EditorBoot"
-								},
-								{
-									"id": "core-loading-user-editorstartuptime-kpi",
-									"alias": "TotalEditorStartup"
+									"id": "core-loading-user-editorboottime-kpi",
+									"alias": "BootEditor"
 								},
 								{
 									"id": "core-loading-user-loadmaptime-kpi",
@@ -155,7 +143,7 @@
 								},
 								{
 									"id": "core-loading-user-piestartuptime-kpi",
-									"alias": "PIE.TotalStartupTime"
+									"alias": "PIEStartup"
 								},
 								{
 									"id": "core-loading-user-timetopie-kpi",
@@ -174,10 +162,10 @@
 							]
 						},
 						{
-							"name": "User Editor Startup Time (Live)",
+							"name": "User Editor Boot Time (Live)",
 							"metrics": [
 								{
-									"id": "core-loading-user-editorstartuptime"
+									"id": "core-loading-user-editorboottime"
 								}
 							]
 						},

@@ -24,7 +24,7 @@ using Microsoft.Extensions.Options;
 namespace Horde.Server.Tools
 {
 	/// <summary>
-	/// Controller for the /api/v1/agents endpoint
+	/// Controller for the /api/v1/tools endpoint
 	/// </summary>
 	[ApiController]
 	[Authorize]
@@ -160,6 +160,7 @@ namespace Horde.Server.Tools
 	/// Public methods available without authorization (or with very custom authorization)
 	/// </summary>
 	[ApiController]
+	[TryAuthorize]
 	[Tags("Tools")]
 	public class PublicToolsController : HordeControllerBase
 	{
@@ -181,6 +182,7 @@ namespace Horde.Server.Tools
 		/// Enumerates all the available tools.
 		/// </summary>
 		[HttpGet]
+		[TryAuthorize]
 		[Route("/api/v1/tools")]
 		public async Task<ActionResult<GetToolsSummaryResponse>> GetToolsAsync()
 		{

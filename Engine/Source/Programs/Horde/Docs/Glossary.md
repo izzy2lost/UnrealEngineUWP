@@ -13,7 +13,7 @@ matching a set of configured criteria for a particular time interval.
 * `Telemetry` - Individual events sent by an application to the Horde server. Horde processes telemetry events as
 schema-less JSON objects.
 
-## Authentication
+## Authorization
 
 * `Acl` - Abbreviation for **access control list**. An ACL in Horde defines rules that grant *entitlements* to users
 (ie. the ability to perform certain *actions*) based on *claims* that their user has.

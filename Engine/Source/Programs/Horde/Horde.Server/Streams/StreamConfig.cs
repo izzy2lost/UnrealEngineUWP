@@ -19,6 +19,7 @@ using EpicGames.Horde.Issues;
 using EpicGames.Horde.Jobs.Templates;
 using EpicGames.Horde.Replicators;
 using EpicGames.Horde.Streams;
+using EpicGames.Horde.Telemetry;
 using Horde.Server.Acls;
 using Horde.Server.Configuration;
 using Horde.Server.Issues;
@@ -156,6 +157,11 @@ namespace Horde.Server.Streams
 		public JobOptions JobOptions { get; set; } = new JobOptions();
 
 		/// <summary>
+		/// Telemetry store for Horde data for this stream
+		/// </summary>
+		public TelemetryStoreId TelemetryStoreId { get; set; }
+
+		/// <summary>
 		/// View for the AutoSDK paths to sync. If null, the whole thing will be synced.
 		/// </summary>
 		public List<string>? AutoSdkView { get; set; }
@@ -252,6 +258,11 @@ namespace Horde.Server.Streams
 			Acl.PostLoad(projectConfig.Acl, $"stream:{Id}");
 
 			JobOptions.MergeDefaults(projectConfig.JobOptions);
+
+			if (TelemetryStoreId.IsEmpty)
+			{
+				TelemetryStoreId = projectConfig.TelemetryStoreId;
+			}
 
 			foreach (TemplateRefConfig template in Templates)
 			{

@@ -9,6 +9,7 @@ using System.Text.Json.Serialization;
 using EpicGames.Core;
 using EpicGames.Horde.Acls;
 using EpicGames.Horde.Projects;
+using EpicGames.Horde.Telemetry;
 using Horde.Server.Acls;
 using Horde.Server.Agents.Pools;
 using Horde.Server.Configuration;
@@ -84,6 +85,11 @@ namespace Horde.Server.Projects
 		/// Default settings for executing jobs
 		/// </summary>
 		public JobOptions JobOptions { get; set; } = new JobOptions();
+
+		/// <summary>
+		/// Telemetry store for Horde data for this project
+		/// </summary>
+		public TelemetryStoreId TelemetryStoreId { get; set; }
 
 		/// <summary>
 		/// List of streams

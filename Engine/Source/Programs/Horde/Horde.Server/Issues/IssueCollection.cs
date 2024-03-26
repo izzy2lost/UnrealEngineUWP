@@ -21,11 +21,13 @@ using Horde.Server.Auditing;
 using Horde.Server.Jobs;
 using Horde.Server.Jobs.Graphs;
 using Horde.Server.Server;
+using Horde.Server.Streams;
 using Horde.Server.Telemetry;
 using Horde.Server.Users;
 using Horde.Server.Utilities;
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using MongoDB.Bson;
 using MongoDB.Bson.Serialization;
 using MongoDB.Bson.Serialization.Attributes;
@@ -595,6 +597,7 @@ namespace Horde.Server.Issues
 		readonly IMongoCollection<IssueSuspect> _issueSuspects;
 		readonly IAuditLog<int> _auditLog;
 		readonly ITelemetrySink _telemetrySink;
+		readonly IOptionsMonitor<GlobalConfig> _globalConfig;
 		readonly Tracer _tracer;
 		readonly ILogger _logger;
 
@@ -616,11 +619,12 @@ namespace Horde.Server.Issues
 			});
 		}
 
-		public IssueCollection(MongoService mongoService, RedisService redisService, IUserCollection userCollection, IAuditLogFactory<int> auditLogFactory, ITelemetrySink telemetrySink, Tracer tracer, ILogger<IssueCollection> logger)
+		public IssueCollection(MongoService mongoService, RedisService redisService, IUserCollection userCollection, IAuditLogFactory<int> auditLogFactory, ITelemetrySink telemetrySink, IOptionsMonitor<GlobalConfig> globalConfig, Tracer tracer, ILogger<IssueCollection> logger)
 		{
 			_redisService = redisService;
 			_userCollection = userCollection;
 			_telemetrySink = telemetrySink;
+			_globalConfig = globalConfig;
 			_tracer = tracer;
 			_logger = logger;
 
@@ -726,9 +730,18 @@ namespace Horde.Server.Issues
 
 		void SendTelemetry(IIssue issue)
 		{
-			if (_telemetrySink.Enabled)
+			List<TelemetryStoreId> telemetryStoreIds = new List<TelemetryStoreId>();
+			foreach (IIssueStream stream in issue.Streams)
 			{
-				_telemetrySink.SendEvent(TelemetryStoreId.Default, TelemetryRecordMeta.CurrentHordeInstance, new
+				if (_globalConfig.CurrentValue.TryGetStream(stream.StreamId, out StreamConfig? streamConfig) && !streamConfig.TelemetryStoreId.IsEmpty)
+				{
+					telemetryStoreIds.Add(streamConfig.TelemetryStoreId);
+				}
+			}
+
+			foreach (TelemetryStoreId telemetryStoreId in telemetryStoreIds)
+			{
+				_telemetrySink.SendEvent(telemetryStoreId, TelemetryRecordMeta.CurrentHordeInstance, new
 				{
 					EventName = "State.Issue",
 					Id = issue.Id,
@@ -1497,9 +1510,9 @@ namespace Horde.Server.Issues
 
 		void SendTelemetry(IIssueSpan issueSpan)
 		{
-			if (_telemetrySink.Enabled)
+			if (_globalConfig.CurrentValue.TryGetStream(issueSpan.StreamId, out StreamConfig? streamConfig) && !streamConfig.TelemetryStoreId.IsEmpty)
 			{
-				_telemetrySink.SendEvent(TelemetryStoreId.Default, TelemetryRecordMeta.CurrentHordeInstance, new
+				_telemetrySink.SendEvent(streamConfig.TelemetryStoreId, TelemetryRecordMeta.CurrentHordeInstance, new
 				{
 					EventName = "State.IssueSpan",
 					Id = issueSpan.Id,
