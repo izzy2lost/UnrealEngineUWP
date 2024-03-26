@@ -521,6 +521,14 @@
 			"property": "$.Payload.LocalActions",
 			"function": "Sum",
 			"interval": "00:01:00"
+		},
+		{
+			"id": "ubt-uba-total-actions",
+			"filter": "$[?(@.Payload.EventName == 'Core.UBT.Executor' && search(@.Payload.Executor, \"Unreal Build Accelerator\") )]",
+			"groupBy": "$.Payload.Target,$.Payload.Mode,$.Payload.Configuration,$.Payload.Platform",
+			"property": "$.Payload.TotalActions",
+			"function": "Sum",
+			"interval": "00:01:00"
 		}
 	]
 }

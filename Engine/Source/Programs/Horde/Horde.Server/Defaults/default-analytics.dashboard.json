@@ -595,6 +595,10 @@
 							"display": "Value",
 							"metrics": [
 								{
+									"id": "ubt-uba-total-actions",
+									"alias": "Total"
+								},
+								{
 									"id": "ubt-uba-remote-actions",
 									"alias": "Remote"
 								},
