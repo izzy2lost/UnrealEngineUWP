@@ -126,7 +126,7 @@ private:
 	mutable FRWLock TransientGridGuidsLock;
 
 	/** Keeps a record of what grid cells contain a serialized partition actor. Useful for tracking the existence of PAs even when they are not yet loaded. */
-	UPROPERTY(VisibleAnywhere, Category = Debug)
+	UPROPERTY()
 	TSet<FPCGPartitionActorRecord> SerializedPartitionActorRecords;
 };
 

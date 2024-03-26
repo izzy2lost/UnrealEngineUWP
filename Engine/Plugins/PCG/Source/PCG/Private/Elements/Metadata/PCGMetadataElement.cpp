@@ -48,14 +48,7 @@ FString UPCGMetadataOperationSettings::GetAdditionalTitleInformation() const
 #if WITH_EDITOR
 EPCGChangeType UPCGMetadataOperationSettings::GetChangeTypeForProperty(const FName& InPropertyName) const
 {
-	EPCGChangeType ChangeType = Super::GetChangeTypeForProperty(InPropertyName);
-
-	if (InPropertyName == GET_MEMBER_NAME_CHECKED(UPCGMetadataOperationSettings, bCopyAllAttributes))
-	{
-		ChangeType |= EPCGChangeType::Cosmetic;
-	}
-
-	return ChangeType;
+	return Super::GetChangeTypeForProperty(InPropertyName) | EPCGChangeType::Cosmetic;
 }
 #endif // WITH_EDITOR
 
