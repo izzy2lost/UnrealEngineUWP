@@ -826,7 +826,7 @@ bool UMediaPlayer::SetLooping(bool Looping)
 
 	Loop = Looping;
 
-	return PlayerFacade->SetLooping(Looping);
+	return PlayerFacade->SetLooping(Loop && (!Playlist || Playlist->Num() == 1));
 }
 
 

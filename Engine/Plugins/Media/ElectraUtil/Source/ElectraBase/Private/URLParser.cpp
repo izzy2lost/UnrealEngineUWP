@@ -124,6 +124,17 @@ namespace Electra
 					if (it && IsPathSeparator(*it))
 					{
 						++it;
+
+						// Check for a third '/' in Windows filenames like "file:///c:/autoexec.bat"
+						if (Scheme.Equals(URLComponents::SchemeFile) && IsPathSeparator(*it) && it.GetRemainingLength() > 3)
+						{
+							const TCHAR* Next = it.GetRemainder();
+							if (Next[2] == TCHAR(':') && Next[3] == TCHAR('/'))
+							{
+								++it;
+							}
+						}
+
 						// Parse out the authority and if successful continue parsing out the path.
 						if (!ParseAuthority(it))
 						{
