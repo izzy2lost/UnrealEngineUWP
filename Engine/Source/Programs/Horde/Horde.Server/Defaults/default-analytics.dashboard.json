@@ -592,7 +592,6 @@
 						},
 						{
 							"name": "UBA Compile Actions",
-							"display": "Ratio",
 							"metrics": [
 								{
 									"id": "ubt-uba-remote-actions",
