@@ -200,6 +200,9 @@ protected:
 	/** Loads and saves a single package */
 	UNREALED_API virtual void LoadAndSaveOnePackage(const FString& Filename);
 
+	/** Checks if an actor should be loading during WorldPartition loading */
+	virtual bool FilterActorDesc(const FWorldPartitionActorDesc*) const { return true; };
+
 	/** Checks to see if a package should be skipped */
 	UNREALED_API virtual bool ShouldSkipPackage(const FString& Filename);
 

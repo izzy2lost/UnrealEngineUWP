@@ -694,6 +694,8 @@ void UBaseIteratePackagesCommandlet::LoadAndSaveOnePackage(const FString& Filena
 						PackagesToSave.Empty();
 					};
 
+				ForEachActorWithLoadingParams.FilterActorDesc = [this](const FWorldPartitionActorDesc* ActorDesc) -> bool{ return this->FilterActorDesc(ActorDesc); };
+
 				UWorldPartition* WorldPartition = World->GetWorldPartition();
 
 				FWorldPartitionHelpers::ForEachActorWithLoading(WorldPartition, [&PackagesToSave, this](const FWorldPartitionActorDescInstance* ActorDescInstance)
