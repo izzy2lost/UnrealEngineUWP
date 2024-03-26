@@ -69,7 +69,7 @@ protected:
 	uint8 bOverride_ShowFlags : 1 = 1; //-V570
 
 	/** The show flags that should be active during a render for this node. */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Show Flags")
+	UPROPERTY(VisibleAnywhere, BlueprintReadWrite, Category = "Show Flags")
 	TObjectPtr<UMovieGraphShowFlags> ShowFlags;
 
 	TArray<TUniquePtr<UE::MovieGraph::Rendering::FMovieGraphImagePassBase>> CurrentInstances;
