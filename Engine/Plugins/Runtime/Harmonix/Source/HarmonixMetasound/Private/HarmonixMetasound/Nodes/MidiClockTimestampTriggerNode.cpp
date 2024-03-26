@@ -221,19 +221,18 @@ namespace HarmonixMetasound
 		{
 			for (const FMidiClockEvent& ClockEvent : MidiClockInPin->GetMidiClockEventsInBlock())
 			{
-				switch (ClockEvent.Type)
+				switch (ClockEvent.Msg.Type)
 				{
-				case FMidiClockEvent::EType::SeekThru:
-				case FMidiClockEvent::EType::AdvanceThru:
+				case FMidiClockMsg::EType::AdvanceThru:
+					if (ClockEvent.Msg.AsAdvanceThru().IsPreRoll)
 					{
-						if (ClockEvent.IsPreRoll)
-						{
-							continue;
-						}
-						
-						const bool EventIsSeek = ClockEvent.Type == FMidiClockEvent::EType::SeekThru;
+						continue;
+					}
+				case FMidiClockMsg::EType::SeekThru:
+					{
+						const bool EventIsSeek = ClockEvent.Msg.Type == FMidiClockMsg::EType::SeekThru;
 
-						if (ClockEvent.Tick1 < TriggerTick && ClockEvent.Tick2 >= TriggerTick)
+						if (ClockEvent.Msg.FromTick() < TriggerTick && ClockEvent.Msg.ThruTick() >= TriggerTick)
 						{
 							if (!EventIsSeek || *TriggerDuringSeekInPin)
 							{

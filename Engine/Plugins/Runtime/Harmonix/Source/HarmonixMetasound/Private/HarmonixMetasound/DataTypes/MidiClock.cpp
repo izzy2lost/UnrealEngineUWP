@@ -496,34 +496,34 @@ namespace HarmonixMetasound
 	{
 		const int32 FromTick = CurrentTick;
 		FMidiPlayCursor::Reset(ForceNoBroadcast);
-		AddEvent(FMidiClockEvent::MakeResetEvent(MyMidiClock->GetCurrentBlockFrameIndex(), FromTick, CurrentTick, ForceNoBroadcast));
+		AddEvent(FMidiClockEvent(MyMidiClock->GetCurrentBlockFrameIndex(), FMidiClockMsg::FReset(FromTick, CurrentTick, ForceNoBroadcast)));
 	}
 
 	void FMidiClock::FMidiClockEventCursor::OnLoop(int32 LoopStartTick, int32 LoopEndTick)
 	{
 		FMidiPlayCursor::OnLoop(LoopStartTick, LoopEndTick);
-		AddEvent(FMidiClockEvent::MakeLoopEvent(MyMidiClock->GetCurrentBlockFrameIndex(), LoopStartTick, LoopEndTick));
+		AddEvent(FMidiClockEvent(MyMidiClock->GetCurrentBlockFrameIndex(), FMidiClockMsg::FLoop(LoopStartTick, LoopEndTick)));
 	}
 
 	void FMidiClock::FMidiClockEventCursor::SeekToTick(int32 Tick) 
 	{
 		const int32 FromTick = CurrentTick;
 		FMidiPlayCursor::SeekToTick(Tick);
-		AddEvent(FMidiClockEvent::MakeSeekToEvent(MyMidiClock->GetCurrentBlockFrameIndex(), FromTick, Tick));
+		AddEvent(FMidiClockEvent(MyMidiClock->GetCurrentBlockFrameIndex(), FMidiClockMsg::FSeekTo(FromTick, Tick)));
 	}
 
 	void FMidiClock::FMidiClockEventCursor::SeekThruTick(int32 Tick)
 	{
 		const int32 FromTick = CurrentTick;
 		FMidiPlayCursor::SeekThruTick(Tick);
-		AddEvent(FMidiClockEvent::MakeSeekThruEvent(MyMidiClock->GetCurrentBlockFrameIndex(), FromTick, Tick));
+		AddEvent(FMidiClockEvent(MyMidiClock->GetCurrentBlockFrameIndex(), FMidiClockMsg::FSeekThru(FromTick, Tick)));
 	}
 
 	void FMidiClock::FMidiClockEventCursor::AdvanceThruTick(int32 Tick, bool IsPreRoll)
 	{
 		const int32 FromTick = CurrentTick;
 		FMidiPlayCursor::AdvanceThruTick(Tick, IsPreRoll);
-		AddEvent(FMidiClockEvent::MakeAdvanceThruEvent(MyMidiClock->GetCurrentBlockFrameIndex(), FromTick, Tick, IsPreRoll));
+		AddEvent(FMidiClockEvent(MyMidiClock->GetCurrentBlockFrameIndex(), FMidiClockMsg::FAdvanceThru(FromTick, Tick, IsPreRoll)));
 	}
 
 	void FMidiClock::FMidiClockEventCursor::OnTempo(int32 TrackIndex, int32 Tick, int32 Tempo, bool IsPreroll)

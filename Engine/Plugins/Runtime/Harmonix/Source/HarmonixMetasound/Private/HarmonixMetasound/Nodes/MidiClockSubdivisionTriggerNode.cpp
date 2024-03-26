@@ -240,19 +240,19 @@ namespace HarmonixMetasound
 		{
 			for (const FMidiClockEvent& ClockEvent : MidiClockInPin->GetMidiClockEventsInBlock())
 			{
-				if (ClockEvent.Type == FMidiClockEvent::EType::AdvanceThru)
+				if (ClockEvent.Msg.Type == FMidiClockMsg::EType::AdvanceThru)
 				{
-					if (ClockEvent.IsPreRoll)
+					if (ClockEvent.Msg.AsAdvanceThru().IsPreRoll)
 					{
 						continue;
 					}
 					
-					int32 TickPreceedingThisAdvance = ClockEvent.Tick1 - GridOffsetTicks;
-					int32 LastTickProcessed = ClockEvent.Tick2 - GridOffsetTicks;
+					int32 TickPreceedingThisAdvance = ClockEvent.Msg.FromTick() - GridOffsetTicks;
+					int32 LastTickProcessed = ClockEvent.Msg.ThruTick() - GridOffsetTicks;
 					const FSongMaps& SongMaps = MidiClockInPin->GetSongMaps();
 					
 					// calculate new GridSizeTicks and GridOffsetTicks at the tick we're evaluating based on any time signature changes
-					GridSizeTicks = SongMaps.SubdivisionToMidiTicks(GridSizeUnits, ClockEvent.Tick2) * GridSizeMultiplier;
+					GridSizeTicks = SongMaps.SubdivisionToMidiTicks(GridSizeUnits, ClockEvent.Msg.ThruTick()) * GridSizeMultiplier;
 					
 					// if this is one of the quantization types that is variable in size we have to do it a little different...
 					if (GridSizeUnits == EMidiClockSubdivisionQuantization::Bar ||

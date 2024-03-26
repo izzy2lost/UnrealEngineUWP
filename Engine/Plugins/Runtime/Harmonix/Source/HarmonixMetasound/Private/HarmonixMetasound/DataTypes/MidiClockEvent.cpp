@@ -6,38 +6,67 @@
 
 namespace HarmonixMetasound
 {
-	FMidiClockEvent FMidiClockEvent::MakeResetEvent(int32 InBlockFrameIndex, int32 FromTick, int32 ToTick, bool ForceNoBroadcast)
+	const FMidiClockMsg::FReset& FMidiClockMsg::AsReset() const
 	{
-		return FMidiClockEvent(EType::Reset, InBlockFrameIndex, FromTick, ToTick, false, ForceNoBroadcast);
+		check(Type == EType::Reset);
+		return Reset;
+	}
+	const FMidiClockMsg::FLoop& FMidiClockMsg::AsLoop() const
+	{
+		check(Type == EType::Loop);
+		return Loop;
+	}
+	const FMidiClockMsg::FSeekTo& FMidiClockMsg::AsSeekTo() const
+	{
+		check(Type == EType::SeekTo);
+		return SeekTo;
+	}
+	const FMidiClockMsg::FSeekThru& FMidiClockMsg::AsSeekThru() const
+	{
+		check(Type == EType::SeekThru);
+		return SeekThru;
+	}
+	const FMidiClockMsg::FAdvanceThru& FMidiClockMsg::AsAdvanceThru() const
+	{
+		check(Type == EType::AdvanceThru);
+		return AdvanceThru;
 	}
 
-	FMidiClockEvent FMidiClockEvent::MakeLoopEvent(int32 InBlockFrameIndex, int32 InStartTick, int32 InEndTick)
+	int32 FMidiClockMsg::FromTick() const
 	{
-		return FMidiClockEvent(EType::Loop, InBlockFrameIndex, InStartTick, InEndTick);
+		switch (Type)
+		{
+		case EType::Reset: return Reset.FromTick;
+		case EType::SeekTo: return SeekTo.FromTick;
+		case EType::SeekThru: return SeekThru.FromTick;
+		case EType::AdvanceThru: return AdvanceThru.FromTick;
+		default: checkNoEntry();
+		}
+		return -1;
+	}
+	
+	int32 FMidiClockMsg::ToTick() const
+	{
+		switch (Type)
+		{
+		case EType::Reset: return Reset.ToTick;
+		case EType::SeekTo: return SeekTo.ToTick;
+		default: checkNoEntry();
+		}
+		return -1;
 	}
 
-	FMidiClockEvent FMidiClockEvent::MakeSeekToEvent(int32 InBlockFrameIndex, int32 FromTick, int32 ToTick)
+	int32 FMidiClockMsg::ThruTick() const
 	{
-		return FMidiClockEvent(EType::SeekTo, InBlockFrameIndex, FromTick, ToTick);
+		switch (Type)
+		{
+		case EType::SeekThru: return SeekThru.ThruTick;
+		case EType::AdvanceThru: return AdvanceThru.ThruTick;
+		default: checkNoEntry();
+		}
+		return -1;
 	}
 
-	FMidiClockEvent FMidiClockEvent::MakeSeekThruEvent(int32 InBlockFrameIndex, int32 FromTick, int32 ThruTick)
-	{
-		return FMidiClockEvent(EType::SeekThru, InBlockFrameIndex, FromTick, ThruTick);
-	}
 
-	FMidiClockEvent FMidiClockEvent::MakeAdvanceThruEvent(int32 InBlockFrameIndex, int32 FromTick, int32 ThruTick, bool IsPreRoll)
-	{
-		return FMidiClockEvent(EType::AdvanceThru, InBlockFrameIndex, FromTick, ThruTick, IsPreRoll);
-	}
-
-	FMidiClockEvent::FMidiClockEvent(EType InType, int32 InBlockFrameIndex, int32 InTick1, int32 InTick2, bool InIsPreRoll, bool InForceNoBroadcast)
-		: Type(InType)
-		, IsPreRoll(InIsPreRoll)
-		, ForceNoBroadcast(InForceNoBroadcast)
-		, BlockFrameIndex(InBlockFrameIndex)
-		, Tick1(InTick1)
-		, Tick2(InTick2)
-	{}
 
 }
