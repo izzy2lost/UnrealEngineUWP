@@ -416,7 +416,8 @@ void FInstancedStructDetails::CustomizeHeader(TSharedRef<class IPropertyHandle> 
 					.Font(IDetailLayoutBuilder::GetDetailFont())
 				]
 			]
-		];
+		]
+		.IsEnabled(StructProperty->IsEditable());
 }
 
 void FInstancedStructDetails::OnObjectsReinstanced(const FReplacementObjectMap& ObjectMap)
