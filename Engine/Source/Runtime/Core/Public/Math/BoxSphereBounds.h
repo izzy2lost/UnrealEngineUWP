@@ -340,7 +340,7 @@ public:
 
 		FORCEINLINE operator TBoxSphereBounds<T, TExtent>() const
 		{
-			return BoxSphereBounds.Get(TBoxSphereBounds<T, TExtent>());
+			return BoxSphereBounds.Get(TBoxSphereBounds<T, TExtent>(ForceInitToZero));
 		}
 
 	private:
