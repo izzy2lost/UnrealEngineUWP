@@ -481,7 +481,8 @@ void UPCGComponent::PostProcessGraph(const FBox& InNewBounds, bool bInGenerated,
 
 	StopGenerationInProgress();
 
-	GetSubsystem()->OnComponentGenerationCompleteOrCancelled.Broadcast();
+	UPCGSubsystem* Subsystem = GetSubsystem();
+	Subsystem->OnComponentGenerationCompleteOrCancelled.Broadcast(Subsystem);
 #endif
 }
 
@@ -588,7 +589,8 @@ void UPCGComponent::OnProcessGraphAborted(bool bQuiet)
 
 	OnPCGGraphCancelledDelegate.Broadcast(this);
 
-	GetSubsystem()->OnComponentGenerationCompleteOrCancelled.Broadcast();
+	UPCGSubsystem* Subsystem = GetSubsystem();
+	Subsystem->OnComponentGenerationCompleteOrCancelled.Broadcast(Subsystem);
 #endif
 
 	PCGComponent::BroadcastDynamicDelegate(OnPCGGraphCancelledExternal, this);
@@ -1968,7 +1970,7 @@ void UPCGComponent::DisableInspection()
 	
 	if (InspectionCounter == 0)
 	{
-		ClearInspectionData();
+		ClearInspectionData(/*bClearPerNodeExecutionData=*/false);
 	}
 };
 
@@ -2082,26 +2084,29 @@ const FPCGDataCollection* UPCGComponent::GetInspectionData(const FPCGStack& InSt
 	return InspectionCache.Find(InStack);
 }
 
-void UPCGComponent::ClearInspectionData()
+void UPCGComponent::ClearInspectionData(bool bClearPerNodeExecutionData)
 {
 	{
 		FWriteScopeLock Lock(InspectionCacheLock);
 		InspectionCache.Reset();
 	}
 
+	if (bClearPerNodeExecutionData)
 	{
-		FWriteScopeLock Lock(NodeToStacksThatProducedDataLock);
-		NodeToStacksThatProducedData.Reset();
-	}
+		{
+			FWriteScopeLock Lock(NodeToStacksThatProducedDataLock);
+			NodeToStacksThatProducedData.Reset();
+		}
 
-	{
-		FWriteScopeLock Lock(NodeToStacksInWhichNodeExecutedLock);
-		NodeToStacksInWhichNodeExecuted.Reset();
-	}
+		{
+			FWriteScopeLock Lock(NodeToStacksInWhichNodeExecutedLock);
+			NodeToStacksInWhichNodeExecuted.Reset();
+		}
 
-	{
-		FWriteScopeLock Lock(NodeToStackToInactivePinMaskLock);
-		NodeToStackToInactivePinMask.Reset();
+		{
+			FWriteScopeLock Lock(NodeToStackToInactivePinMaskLock);
+			NodeToStackToInactivePinMask.Reset();
+		}
 	}
 }
 

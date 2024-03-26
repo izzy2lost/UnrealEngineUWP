@@ -40,6 +40,8 @@ struct PCG_API FPCGStackFrame
 	friend uint32 GetTypeHash(const FPCGStackFrame& In) { return In.Hash; }
 
 	// A valid frame should either point to an object or have a loop index >= 0.
+	bool IsValid() const { return LoopIndex != INDEX_NONE || Object.IsValid(); }
+
 	TWeakObjectPtr<const UObject> Object;
 	int32 LoopIndex = INDEX_NONE;
 

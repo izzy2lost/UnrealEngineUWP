@@ -228,6 +228,7 @@ private:
 
 	void RefreshTree();
 	void SortTreeItems(bool bIsAscending = true, bool bIsRecursive = true);
+	void RestoreTreeState();
 
 	void AddStacksToTree(
 		const TArray<FPCGStack>& Stacks,
@@ -271,6 +272,13 @@ private:
 
 	/** Used to retain item selection state across tree refreshes. */
 	FPCGStack SelectedStack;
+
+	/** Used to retain item selection state across tree refreshes if the SelectedStack is invalidated (e.g. through BP reconstruction). */
+	TWeakObjectPtr<const UPCGGraph> SelectedGraph = nullptr;
+	TWeakObjectPtr<const AActor> SelectedOwner = nullptr;
+	uint32 SelectedGridSize = PCGHiGenGrid::UnboundedGridSize();
+	FIntVector SelectedGridCoord = FIntVector::ZeroValue;
+	TWeakObjectPtr<const UPCGComponent> SelectedOriginalComponent = nullptr;
 
 	/** The previous stack that the user selected. */
 	FPCGStack PreviouslySelectedStack;

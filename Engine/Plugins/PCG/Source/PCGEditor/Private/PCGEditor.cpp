@@ -111,11 +111,6 @@ void FPCGEditor::Initialize(const EToolkitMode::Type InMode, const TSharedPtr<cl
 {
 	PCGGraphBeingEdited = InPCGGraph;
 
-	if (UPCGSubsystem* Subsystem = GetSubsystem())
-	{
-		Subsystem->OnComponentGenerationCompleteOrCancelled.AddRaw(this, &FPCGEditor::OnComponentGenerationCompleteOrCancelled);
-	}
-
 	// Initializes the UPCGEditorGraph if needed
 	GetPCGEditorGraph(InPCGGraph);
 
@@ -210,6 +205,18 @@ void FPCGEditor::Initialize(const EToolkitMode::Type InMode, const TSharedPtr<cl
 	if (GEngine)
 	{
 		GEngine->OnLevelActorDeleted().AddRaw(this, &FPCGEditor::OnLevelActorDeleted);
+	}
+
+	// Hook to PIE start/end to keep callbacks up to date.
+	FEditorDelegates::PostPIEStarted.AddRaw(this, &FPCGEditor::OnPostPIEStarted);
+	FEditorDelegates::EndPIE.AddRaw(this, &FPCGEditor::OnEndPIE);
+
+	if (GEditor)
+	{
+		RegisterDelegatesForWorld(GEditor->GetEditorWorldContext().World());
+
+		// In case the editor is opened while in PIE, we should try setting up callbacks for the PIE world.
+		RegisterDelegatesForWorld(GEditor->PlayWorld.Get());
 	}
 
 	// Clear inspection flag on all nodes.
@@ -1917,6 +1924,10 @@ void FPCGEditor::OnToggleInspected()
 
 		DebugObjectTreeWidget->SetNodeBeingInspected(PCGNode);
 	}
+	else
+	{
+		DebugObjectTreeWidget->SetNodeBeingInspected(nullptr);
+	}
 }
 
 bool FPCGEditor::CanToggleInspected() const
@@ -2757,10 +2768,14 @@ void FPCGEditor::OnClose()
 	{
 		LevelEditor->OnMapChanged().RemoveAll(this);
 	}
+
 	if (GEngine)
 	{
 		GEngine->OnLevelActorDeleted().RemoveAll(this);
 	}
+
+	FEditorDelegates::PostPIEStarted.RemoveAll(this);
+	FEditorDelegates::EndPIE.RemoveAll(this);
 
 	// Extra nodes are replicated on editor close, to be saved in the underlying PCGGraph
 	ReplicateExtraNodes();
@@ -2788,9 +2803,10 @@ void FPCGEditor::OnClose()
 		}
 	}
 
-	if (UPCGSubsystem* Subsystem = GetSubsystem())
+	if (GEditor)
 	{
-		Subsystem->OnComponentGenerationCompleteOrCancelled.RemoveAll(this);
+		UnregisterDelegatesForWorld(GEditor->GetEditorWorldContext().World());
+		UnregisterDelegatesForWorld(GEditor->PlayWorld.Get());
 	}
 }
 
@@ -2939,11 +2955,10 @@ void FPCGEditor::JumpToDefinition(const UClass* Class) const
 	}
 }
 
-void FPCGEditor::OnComponentGenerationCompleteOrCancelled()
+void FPCGEditor::OnComponentGenerationCompleteOrCancelled(UPCGSubsystem* Subsystem)
 {
 	DebugObjectTreeWidget->RequestRefresh();
 
-	const UPCGSubsystem* Subsystem = GetSubsystem();
 	const bool CacheDebuggingEnabled = Subsystem && Subsystem->IsGraphCacheDebuggingEnabled();
 
 	// Refresh nodes to report any errors/warnings, and to display culling state after execution.
@@ -2972,6 +2987,24 @@ UPCGSubsystem* FPCGEditor::GetSubsystem()
 	return UPCGSubsystem::GetInstance(World);
 }
 
+void FPCGEditor::RegisterDelegatesForWorld(UWorld* World)
+{
+	UnregisterDelegatesForWorld(World);
+
+	if (UPCGSubsystem* Subsystem = UPCGSubsystem::GetInstance(World))
+	{
+		Subsystem->OnComponentGenerationCompleteOrCancelled.AddRaw(this, &FPCGEditor::OnComponentGenerationCompleteOrCancelled);
+	}
+}
+
+void FPCGEditor::UnregisterDelegatesForWorld(UWorld* World)
+{
+	if (UPCGSubsystem* Subsystem = UPCGSubsystem::GetInstance(World))
+	{
+		Subsystem->OnComponentGenerationCompleteOrCancelled.RemoveAll(this);
+	}
+}
+
 void FPCGEditor::OnMapChanged(UWorld* InWorld, EMapChangeType InMapChangedType)
 {
 	if (InMapChangedType != EMapChangeType::SaveMap)
@@ -2982,11 +3015,22 @@ void FPCGEditor::OnMapChanged(UWorld* InWorld, EMapChangeType InMapChangedType)
 		}
 
 		// Subsystem has been torn down and rebuilt.
-		if (UPCGSubsystem* Subsystem = GetSubsystem())
+		if (GEditor)
 		{
-			Subsystem->OnComponentGenerationCompleteOrCancelled.AddRaw(this, &FPCGEditor::OnComponentGenerationCompleteOrCancelled);
+			RegisterDelegatesForWorld(GEditor->GetEditorWorldContext().World());
+			RegisterDelegatesForWorld(GEditor->PlayWorld.Get());
 		}
 	}
+}
+
+void FPCGEditor::OnPostPIEStarted(bool bIsSimulating)
+{
+	RegisterDelegatesForWorld(GEditor ? GEditor->PlayWorld.Get() : nullptr);
+}
+
+void FPCGEditor::OnEndPIE(bool bIsSimulating)
+{
+	UnregisterDelegatesForWorld(GEditor ? GEditor->PlayWorld.Get() : nullptr);
 }
 
 void FPCGEditor::OnLevelActorDeleted(AActor* InActor)

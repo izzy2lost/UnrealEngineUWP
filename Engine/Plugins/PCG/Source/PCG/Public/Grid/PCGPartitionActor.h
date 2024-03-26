@@ -18,8 +18,8 @@ class UBoxComponent;
 * The APCGPartitionActor actor is used to store grid cell data
 * and its size will be a multiple of the grid size.
 */
-UCLASS(MinimalAPI, NotBlueprintable, NotPlaceable)
-class APCGPartitionActor : public APartitionActor
+UCLASS(NotBlueprintable, NotPlaceable)
+class PCG_API APCGPartitionActor : public APartitionActor
 {
 	GENERATED_BODY()
 

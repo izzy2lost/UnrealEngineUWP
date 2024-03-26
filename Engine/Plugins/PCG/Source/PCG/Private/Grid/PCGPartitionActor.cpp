@@ -1,6 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#include "PCGPartitionActor.h"
+#include "Grid/PCGPartitionActor.h"
 
 #include "PCGComponent.h"
 #include "PCGModule.h"

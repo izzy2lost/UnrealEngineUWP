@@ -329,7 +329,7 @@ public:
 	void DisableInspection();
 	void StoreInspectionData(const FPCGStack* InStack, const UPCGNode* InNode, const FPCGDataCollection& InInputData, const FPCGDataCollection& InOutputData);
 	const FPCGDataCollection* GetInspectionData(const FPCGStack& InStack) const;
-	void ClearInspectionData();
+	void ClearInspectionData(bool bClearPerNodeExecutionData = true);
 
 	/** Whether a task for the given node and stack was executed during the last execution. */
 	bool WasNodeExecuted(const UPCGNode* InNode, const FPCGStack& Stack) const;
