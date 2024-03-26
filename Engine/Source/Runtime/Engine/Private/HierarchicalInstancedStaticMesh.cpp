@@ -2680,7 +2680,7 @@ void UHierarchicalInstancedStaticMeshComponent::ApplyEmpty()
 	UnbuiltInstanceBoundsList.Empty();
 	BuiltInstanceBounds.Init();
 	CacheMeshExtendedBounds = (GetStaticMesh() && (GetStaticMesh()->IsCompiling() || GetStaticMesh()->HasValidRenderData(false))) ? GetStaticMesh()->GetBounds() : FBoxSphereBounds(ForceInitToZero);
-	ClearInstances();
+	PrimitiveInstanceDataManager.Invalidate(PerInstanceSMData.Num());
 	FHierarchicalInstancedStaticMeshDelegates::OnTreeBuilt.Broadcast(this, /*bWasAsyncBuild*/false);
 }
 
