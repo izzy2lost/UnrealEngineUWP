@@ -44,7 +44,7 @@ void UConstraintSubsystem::Deinitialize()
 {
 	for (int32 Index = ConstraintsInWorld.Num() - 1; Index >= 0; --Index)
 	{
-		ConstraintsInWorld[Index].RemoveConstraints(ConstraintsInWorld[Index].World);
+		ConstraintsInWorld[Index].RemoveConstraints(ConstraintsInWorld[Index].World.Get());
 	}
 	ConstraintsInWorld.Reset();
 
@@ -320,7 +320,6 @@ FConstraintsEvaluationGraph& FConstraintsInWorld::GetEvaluationGraph()
 {
 	if (!EvaluationGraph)
 	{
-		ensure(World);
 		EvaluationGraph = MakeShared<FConstraintsEvaluationGraph>(*this);
 	}
 	return *EvaluationGraph;
