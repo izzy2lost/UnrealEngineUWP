@@ -748,9 +748,17 @@ namespace mu
             GeneratedTables.Add(CacheKey, Variable );
         }
 
+		int32 NumRows = NodeTable->GetPrivate()->Rows.Num();
+
         // Verify that the table column is the right type
         int32 ColIndex = NodeTable->FindColumn( node.ColumnName );
-        if ( ColIndex<0 )
+
+		if (NumRows == 0)
+		{
+			m_pErrorLog->GetPrivate()->Add("The table has no rows.", ELMT_ERROR, node.m_errorContext);
+			return nullptr;
+		}
+        else if (ColIndex < 0)
         {
             m_pErrorLog->GetPrivate()->Add("Table column not found.", ELMT_ERROR, node.m_errorContext);
             return nullptr;
@@ -764,14 +772,12 @@ namespace mu
 
         // Create the switch to cover all the options
         Ptr<ASTOp> lastSwitch;
-        int32 Rows = NodeTable->GetPrivate()->Rows.Num();
-
         Ptr<ASTOpSwitch> SwitchOp = new ASTOpSwitch();
 		SwitchOp->type = OPTYPE;
 		SwitchOp->variable = Variable;
 		SwitchOp->def = GenerateDefaultTableValue(TYPE);
 
-		for (int32 i = 0; i < Rows; ++i)
+		for (int32 i = 0; i < NumRows; ++i)
         {
             check(NodeTable->GetPrivate()->Rows[i].Id <= 0xFFFF);
             auto Condition = (uint16)NodeTable->GetPrivate()->Rows[i].Id;

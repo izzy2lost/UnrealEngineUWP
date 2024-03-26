@@ -1320,6 +1320,13 @@ namespace mu
 								GenerateImage(ImageOptions, Result, pImageNode);
 								Ptr<ASTOp> blockAd = Result.op;
 
+								if (!blockAd)
+								{
+									// The GenerateImage(...) above has failed, skip this block
+									result.surfaceOp = nullptr;
+									continue;
+								}
+
 								// Calculate the desc of the generated block
 								FImageDesc BlockDesc = blockAd->GetImageDesc();
 
@@ -1498,8 +1505,8 @@ namespace mu
 								imageAd = fop;
 							}
 
-							// Apply mipmap and format if necessary
-							if (mipmapNode)
+							// Apply mipmap and format if necessary, skip if format is IF_NONE (possibly because a block was skipped above)
+							if (mipmapNode && FinalFormat != EImageFormat::IF_NONE)
 							{
 								Ptr<ASTOpImageMipmap> mop = new ASTOpImageMipmap();
 
