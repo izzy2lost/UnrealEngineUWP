@@ -214,18 +214,12 @@ public:
 	 *		... but it was not localized from the specified source string, the display string will be set to the specified source and returned.
 	 *		... and it was localized from the specified source string (or the source string was null or empty), the display string will be returned.
 	*/
-	CORE_API FTextConstDisplayStringRef GetDisplayString(const FTextKey& Namespace, const FTextKey& Key, const FString* const SourceStringPtr);
+	CORE_API FTextConstDisplayStringPtr GetDisplayString(const FTextKey& Namespace, const FTextKey& Key, const FString* const SourceStringPtr);
 
 #if WITH_EDITORONLY_DATA
 	/** If an entry exists for the specified namespace and key, returns true and provides the localization resource identifier from which it was loaded. Otherwise, returns false. */
 	CORE_API bool GetLocResID(const FTextKey& Namespace, const FTextKey& Key, FString& OutLocResId) const;
 #endif
-	
-	/**	Attempts to register the specified display string, associating it with the specified namespace and key.
-	 *	Returns true if the display string has been or was already associated with the namespace and key.
-	 *	Returns false if the display string was already associated with another namespace and key or the namespace and key are already in use by another display string.
-	 */
-	CORE_API bool AddDisplayString(const FTextDisplayStringRef& DisplayString, const FTextKey& Namespace, const FTextKey& Key);
 
 	/** Updates display string entries and adds new display string entries based on localizations found in a specified localization resource. */
 	CORE_API void UpdateFromLocalizationResource(const FString& LocalizationResourceFilePath);
