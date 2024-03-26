@@ -2306,7 +2306,7 @@ struct FGameFeaturePluginState_AssetDependencyStreaming : public FGameFeaturePlu
 			const FString ErrorCodeEnding = (BundleResult.OptionalErrorCode.IsEmpty()) ? LexToString(BundleResult.Result) : BundleResult.OptionalErrorCode;
 			const FText ErrorText = BundleResult.OptionalErrorCode.IsEmpty() ? UE::GameFeatures::CommonErrorCodes::GetErrorTextForBundleResult(BundleResult.Result) : BundleResult.OptionalErrorText;
 
-			Result = GetErrorResult(TEXT("BundleManager.AssetDep."), ErrorCodeEnding, ErrorText);
+			Result = GetErrorResult(TEXT("BundleManager."), ErrorCodeEnding, ErrorText);
 
 			if (BundleResult.Result != EInstallBundleResult::UserCancelledError)
 			{
@@ -2329,8 +2329,15 @@ struct FGameFeaturePluginState_AssetDependencyStreaming : public FGameFeaturePlu
 
 		// TODO: Install Bundles need to move away from FNames for identifiers, this is currently just bloating up the name table
 		// when using dynamic GFPs
-		TArray<TPair<FString, TArray<FString>>> AssetDependencies = UGameFeaturesSubsystem::Get().FindPluginAssetDependencies(StateProperties.PluginInstalledFilename);
-		TArray<FName> AssetInstallBundles = UGameFeaturesSubsystem::Get().GetPolicy().GetStreamingAssetInstallBundles(AssetDependencies);
+		TArray<FGameFeaturePluginDependency> AssetDependencies = UGameFeaturesSubsystem::Get().FindPluginAssetDependencies(StateProperties.PluginInstalledFilename);
+		TValueOrError<TArray<FName>, FString> MaybeAssetInstallBundles = UGameFeaturesSubsystem::Get().GetPolicy().GetStreamingAssetInstallBundles(AssetDependencies);
+		if (MaybeAssetInstallBundles.HasError())
+		{
+			Result = GetErrorResult(MaybeAssetInstallBundles.GetError());
+			return;
+		}
+
+		const TArray<FName>& AssetInstallBundles = MaybeAssetInstallBundles.GetValue();
 		if (AssetInstallBundles.IsEmpty())
 		{
 			return;
@@ -2357,7 +2364,7 @@ struct FGameFeaturePluginState_AssetDependencyStreaming : public FGameFeaturePlu
 		{
 			const FStringView ShortUrl = StateProperties.PluginIdentifier.GetIdentifyingString();
 			ensureMsgf(false, TEXT("Unable to enqueue asset dependencies for the PluginURL(%.*s) because %s"), ShortUrl.Len(), ShortUrl.GetData(), LexToString(MaybeRequestInfo.GetError()));
-			Result = GetErrorResult(TEXT("BundleManager.AssetDep."), LexToString(MaybeRequestInfo.GetError()));
+			Result = GetErrorResult(TEXT("BundleManager."), LexToString(MaybeRequestInfo.GetError()));
 			return;
 		}
 

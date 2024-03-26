@@ -386,6 +386,9 @@ struct FGameFeatureInfo
 	EGameFeaturePluginState CurrentState;
 };
 
+// Key - plugin reference, Value - any specific assets imported
+using FGameFeaturePluginDependency = TPair<FString, TArray<FString>>;
+
 /** The manager subsystem for game features */
 UCLASS()
 class GAMEFEATURES_API UGameFeaturesSubsystem : public UEngineSubsystem
@@ -729,7 +732,7 @@ private:
 	void FinishTermination(UGameFeaturePluginStateMachine* Machine);
 	friend class UGameFeaturePluginStateMachine;
 
-	TArray<TPair<FString, TArray<FString>>> FindPluginAssetDependencies(const FString& PluginDescriptorFilename);
+	TArray<FGameFeaturePluginDependency> FindPluginAssetDependencies(const FString& PluginDescriptorFilename);
 	friend struct FGameFeaturePluginState_AssetDependencyStreaming;
 
 	/** Handler for when a state machine requests its dependencies. Returns false if the dependencies could not be read */

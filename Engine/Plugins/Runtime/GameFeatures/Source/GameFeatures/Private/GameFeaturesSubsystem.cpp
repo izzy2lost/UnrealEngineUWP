@@ -2788,12 +2788,12 @@ void UGameFeaturesSubsystem::FinishTermination(UGameFeaturePluginStateMachine* M
 	TerminalGameFeaturePluginStateMachines.RemoveSwap(Machine);
 }
 
-TArray<TPair<FString, TArray<FString>>> UGameFeaturesSubsystem::FindPluginAssetDependencies(const FString& PluginDescriptorFilename)
+TArray<FGameFeaturePluginDependency> UGameFeaturesSubsystem::FindPluginAssetDependencies(const FString& PluginDescriptorFilename)
 {
 	FGameFeaturePluginDetails Details;
 	ensure(GetGameFeaturePluginDetailsInternal(PluginDescriptorFilename, Details));
 
-	TArray<TPair<FString, TArray<FString>>> OutDeps;
+	TArray<FGameFeaturePluginDependency> OutDeps;
 	OutDeps.Reserve(Details.PluginDependencies.Num());
 	for (FGameFeaturePluginReferenceDetails& RefDetails : Details.PluginDependencies)
 	{

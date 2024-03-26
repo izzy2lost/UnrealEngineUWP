@@ -48,7 +48,7 @@ public:
 
 	// Called to resolve install bundles for stream asset dependencies, input maps a plugin dependency to referenced assets 
 	// (See UGameFeaturesSubsystem::FindPluginAssetDependencies)
-	virtual TArray<FName> GetStreamingAssetInstallBundles(const TArray<TPair<FString, TArray<FString>>>& AssetDependencies) const { return {}; }
+	virtual TValueOrError<TArray<FName>, FString> GetStreamingAssetInstallBundles(const TArray<FGameFeaturePluginDependency>& AssetDependencies) const { return MakeValue(); }
 
 	// Called by code that explicitly wants to load a specific plugin
 	// (e.g., when using a fast cook a game might want to allow explicitly loaded game feature plugins)
