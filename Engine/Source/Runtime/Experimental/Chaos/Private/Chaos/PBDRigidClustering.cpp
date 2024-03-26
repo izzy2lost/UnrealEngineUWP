@@ -2212,6 +2212,11 @@ namespace Chaos
 				continue;
 			}
 
+			if (ContactHandle->GetContact().GetIsOneWayInteraction())
+			{
+				continue;
+			}
+
 			TVector<FGeometryParticleHandle*, 2> ConstrainedParticles = ContactHandle->GetConstrainedParticles();
 			
 			// make sure we only compute things if one of the two particle is clustered
