@@ -965,7 +965,14 @@ bool UReplicationSystem::SetRPCSendPolicyFlags(const UFunction* Function, UE::Ne
 		return false;
 	}
 
-	if (EnumHasAnyFlags(SendFlags, UE::Net::ENetObjectAttachmentSendPolicyFlags::SendImmediate) && (Function->FunctionFlags & FUNC_NetReliable))
+	// Remove BypassQueue unless SendImmediate is set
+	if (!EnumHasAllFlags(SendFlags, UE::Net::ENetObjectAttachmentSendPolicyFlags::SendImmediate))
+	{
+		SendFlags &= ~UE::Net::ENetObjectAttachmentSendPolicyFlags::BypassQueue;
+	}
+
+	// Reliable attachments are not allowed to be sent immediately unless BypassQueue is set to.
+	if (!EnumHasAnyFlags(SendFlags, UE::Net::ENetObjectAttachmentSendPolicyFlags::BypassQueue) && EnumHasAnyFlags(SendFlags, UE::Net::ENetObjectAttachmentSendPolicyFlags::SendImmediate) && (Function->FunctionFlags & FUNC_NetReliable))
 	{
 		ensureAlwaysMsgf(false, TEXT("ENetObjectAttachmentSendPolicyFlags::SendImmediate is not allowed to use on Reliable RPC: %s"), *GetNameSafe(Function));
 		return false;
@@ -984,8 +991,17 @@ void UReplicationSystem::ResetRPCSendPolicyFlags()
 
 bool UReplicationSystem::SendRPC(uint32 ConnectionId, const UObject* Object, const UObject* SubObject, const UFunction* Function, const void* Parameters)
 {
+	UE::Net::ENetObjectAttachmentSendPolicyFlags SendFlags = UE::Net::ENetObjectAttachmentSendPolicyFlags::None;
+	if (ReplicationSystemCVars::bAllowAttachmentSendPolicyFlags)
+	{
+		if (UE::Net::ENetObjectAttachmentSendPolicyFlags* Flags = Impl->AttachmentSendPolicyFlags.Find(FObjectKey(Function)))
+		{
+			SendFlags = *Flags;
+		}
+	}
+
 	UE::Net::Private::FNetBlobManager& NetBlobManager = Impl->ReplicationSystemInternal.GetNetBlobManager();
-	return NetBlobManager.SendRPC(ConnectionId, Object, SubObject, Function, Parameters);
+	return NetBlobManager.SendRPC(ConnectionId, Object, SubObject, Function, Parameters, SendFlags);
 }
 
 void UReplicationSystem::InitDataStreams(uint32 ConnectionId, UDataStreamManager* DataStreamManager)

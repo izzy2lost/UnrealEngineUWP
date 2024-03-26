@@ -135,6 +135,8 @@ private:
 		typedef TArray<FNetObjectAttachmentQueueEntry> FQueue;
 
 		bool PreSerializeAndSplitNetBlob(uint32 ConnectionId, const TRefCountPtr<FNetObjectAttachment>& Attachment, TArray<TRefCountPtr<FNetBlob>>& OutPartialNetBlobs, bool bInSendAttachmentsWithObject) const;
+		// Process a single entry. Returns true if any of the target connections could successfully enqueue the entry.
+		bool ProcessSingleEntry(const FNetObjectAttachmentQueueEntry& Entry);
 
 		FNetBlobManager* Manager;
 		FQueue AttachmentQueue;

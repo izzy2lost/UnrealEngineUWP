@@ -2,6 +2,7 @@
 
 #include "Iris/ReplicationSystem/NetBlob/NetBlobManager.h"
 #include "HAL/IConsoleManager.h"
+#include "Iris/IrisConstants.h"
 #include "Iris/ReplicationSystem/NetBlob/NetObjectBlobHandler.h"
 #include "Iris/ReplicationSystem/NetBlob/NetRPCHandler.h"
 #include "Iris/ReplicationSystem/NetBlob/PartialNetObjectAttachmentHandler.h"
@@ -394,30 +395,50 @@ void FNetBlobManager::FNetObjectAttachmentSendQueue::Init(FNetBlobManager* InMan
 
 void FNetBlobManager::FNetObjectAttachmentSendQueue::Enqueue(uint32 ConnectionId, FInternalNetRefIndex OwnerIndex, FInternalNetRefIndex SubObjectIndex, const TRefCountPtr<FNetObjectAttachment>& Attachment, ENetObjectAttachmentSendPolicyFlags SendFlags)
 {
-	const bool bScheduleUsingOOBAttachmentQueue = EnumHasAnyFlags(SendFlags, ENetObjectAttachmentSendPolicyFlags::ScheduleAsOOB);
-	FQueue& TargetQueue = bScheduleUsingOOBAttachmentQueue ? ScheduleAsOOBAttachmentQueue : AttachmentQueue;
-
-	FNetObjectAttachmentQueueEntry& QueueEntry = TargetQueue.AddDefaulted_GetRef();
+	FNetObjectAttachmentQueueEntry QueueEntry;
 	QueueEntry.ConnectionId = ConnectionId;
 	QueueEntry.OwnerIndex = OwnerIndex;
 	QueueEntry.SubObjectIndex = SubObjectIndex;
 	QueueEntry.SendFlags = SendFlags;
 	QueueEntry.Attachment = Attachment;
+
+	if (EnumHasAnyFlags(SendFlags, ENetObjectAttachmentSendPolicyFlags::BypassQueue))
+	{
+		if (ProcessSingleEntry(QueueEntry))
+		{
+			return;
+		}
+
+		// If attachment couldn't be queued we try again using normal scheduling
+		SendFlags &= ~ENetObjectAttachmentSendPolicyFlags::SendImmediate;
+		QueueEntry.SendFlags = SendFlags;
+	}
+
+	const bool bScheduleUsingOOBAttachmentQueue = EnumHasAnyFlags(SendFlags, ENetObjectAttachmentSendPolicyFlags::ScheduleAsOOB);
+	FQueue& TargetQueue = bScheduleUsingOOBAttachmentQueue ? ScheduleAsOOBAttachmentQueue : AttachmentQueue;
+	TargetQueue.Add(MoveTemp(QueueEntry));
 }
 
 void FNetBlobManager::FNetObjectAttachmentSendQueue::Enqueue(FInternalNetRefIndex OwnerIndex, FInternalNetRefIndex SubObjectIndex, const TRefCountPtr<FNetObjectAttachment>& Attachment, ENetObjectAttachmentSendPolicyFlags SendFlags)
 {
-	const bool bScheduleUsingOOBAttachmentQueue = EnumHasAnyFlags(SendFlags, ENetObjectAttachmentSendPolicyFlags::ScheduleAsOOB);
-	FQueue& TargetQueue = bScheduleUsingOOBAttachmentQueue ? ScheduleAsOOBAttachmentQueue : AttachmentQueue;
-
-	FNetObjectAttachmentQueueEntry& QueueEntry = TargetQueue.AddDefaulted_GetRef();
-	QueueEntry.ConnectionId = 0;
+	FNetObjectAttachmentQueueEntry QueueEntry;
+	QueueEntry.ConnectionId = InvalidConnectionId;
 	QueueEntry.OwnerIndex = OwnerIndex;
 	QueueEntry.SubObjectIndex = SubObjectIndex;
 	QueueEntry.SendFlags = SendFlags;
 	QueueEntry.Attachment = Attachment;
 
-	bHasMulticastAttachments = true;
+	if (EnumHasAnyFlags(SendFlags, ENetObjectAttachmentSendPolicyFlags::BypassQueue))
+	{
+		ProcessSingleEntry(QueueEntry);
+	}
+	else
+	{
+		bHasMulticastAttachments = true;
+		const bool bScheduleUsingOOBAttachmentQueue = EnumHasAnyFlags(SendFlags, ENetObjectAttachmentSendPolicyFlags::ScheduleAsOOB);
+		FQueue& TargetQueue = bScheduleUsingOOBAttachmentQueue ? ScheduleAsOOBAttachmentQueue : AttachmentQueue;
+		TargetQueue.Add(MoveTemp(QueueEntry));
+	}
 }
 
 void FNetBlobManager::FNetObjectAttachmentSendQueue::PrepareAndProcessOOBAttachmentQueue(FReplicationConnections* InConnections, const FNetRefHandleManager* InNetRefHandleManager, FNetBitArray& OutConnectionsPendingImmediateSend)
@@ -642,6 +663,35 @@ bool FNetBlobManager::FNetObjectAttachmentSendQueue::PreSerializeAndSplitNetBlob
 	}
 
 	return Manager->PartialNetObjectAttachmentHandler->PreSerializeAndSplitNetBlob(ConnectionId, Attachment, OutPartialNetBlobs, bInSendAttachmentsWithObject);
+}
+
+bool FNetBlobManager::FNetObjectAttachmentSendQueue::ProcessSingleEntry(const FNetObjectAttachmentQueueEntry& Entry)
+{
+	const bool bMulticast = Entry.ConnectionId == 0;
+
+	FNetBitArray ConnectionsToSendTo(Manager->Connections->GetValidConnections().GetNumBits());
+	if (bMulticast)
+	{
+		ConnectionsToSendTo = Manager->Connections->GetValidConnections();
+	}
+	else
+	{
+		ConnectionsToSendTo.SetBit(Entry.ConnectionId);
+	}
+
+	bool bSuccessfullyEnqueued = false;
+	ConnectionsToSendTo.ForAllSetBits([&Entry, Connections = Manager->Connections, &bSuccessfullyEnqueued](uint32 ConnectionId)
+		{
+			if (FReplicationConnection* Connection = Connections->GetConnection(ConnectionId))
+			{
+				if (Connection->ReplicationWriter->QueueNetObjectAttachments(Entry.OwnerIndex, Entry.SubObjectIndex, MakeArrayView(&reinterpret_cast<const TRefCountPtr<FNetBlob>&>(Entry.Attachment), 1), Entry.SendFlags))
+				{
+					bSuccessfullyEnqueued = true;
+				}
+			}
+		});
+
+	return bSuccessfullyEnqueued;
 }
 
 }
