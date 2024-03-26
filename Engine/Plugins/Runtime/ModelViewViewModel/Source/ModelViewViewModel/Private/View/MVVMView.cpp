@@ -94,7 +94,7 @@ void UMVVMView::InitializeSources()
 
 	SCOPE_CYCLE_COUNTER(STAT_UMG_Viewmodel_InitializeSources);
 
-	check(bHasDefaultTickBinding == false && NumberOfSourceWithTickBinding == 0);
+	ensure(bHasDefaultTickBinding == false && NumberOfSourceWithTickBinding == 0);
 
 	// Init Sources/ViewModel instances
 	const int32 NumberOfSources = GeneratedViewClass->GetSources().Num();
@@ -326,13 +326,16 @@ void UMVVMView::UninitializeBindings()
 
 	// Remove all delayed bindings from the 
 	UMVVMBindingSubsystem* BindingSubsystem = GEngine->GetEngineSubsystem<UMVVMBindingSubsystem>();
-	BindingSubsystem->RemoveDelayedBindings(this);
-
-	if (NumberOfSourceWithTickBinding == 0 && bHasDefaultTickBinding)
+	if (BindingSubsystem)
 	{
-		BindingSubsystem->RemoveViewWithTickBinding(this);
-		bHasDefaultTickBinding = false;
+		BindingSubsystem->RemoveDelayedBindings(this);
+
+		if (NumberOfSourceWithTickBinding == 0 && bHasDefaultTickBinding)
+		{
+			BindingSubsystem->RemoveViewWithTickBinding(this);
+		}
 	}
+	bHasDefaultTickBinding = false;
 }
 
 
@@ -421,7 +424,10 @@ void UMVVMView::UninitializeSourceBindings(FMVVMViewClass_SourceKey SourceKey, c
 			check(NumberOfSourceWithTickBinding >= 0);
 			if (NumberOfSourceWithTickBinding == 0 && !bHasDefaultTickBinding)
 			{
-				GEngine->GetEngineSubsystem<UMVVMBindingSubsystem>()->RemoveViewWithTickBinding(this);
+				if (UMVVMBindingSubsystem* BindingSubsystem = GEngine->GetEngineSubsystem<UMVVMBindingSubsystem>())
+				{
+					BindingSubsystem->RemoveViewWithTickBinding(this);
+				}
 			}
 		}
 	}
