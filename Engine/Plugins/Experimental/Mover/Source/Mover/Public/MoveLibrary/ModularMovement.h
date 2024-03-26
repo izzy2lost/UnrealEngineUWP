@@ -37,7 +37,7 @@ public:
 /**
  * Modular mechanism for turning a Mover actor in place using linear angular velocity.
  */
-UCLASS(EditInlineNew)
+UCLASS(BlueprintType, EditInlineNew)
 class MOVER_API ULinearTurnGenerator : public UObject, public ITurnGeneratorInterface
 {
 	GENERATED_BODY()
@@ -64,7 +64,7 @@ public:
 /**
  * Modular mechanism for turning a Mover actor in place using an exact damped spring
  */
-UCLASS(EditInlineNew)
+UCLASS(BlueprintType, EditInlineNew)
 class MOVER_API UExactDampedTurnGenerator : public UObject, public ITurnGeneratorInterface
 {
 	GENERATED_BODY()
