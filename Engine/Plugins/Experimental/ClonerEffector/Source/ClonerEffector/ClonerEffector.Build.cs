@@ -23,6 +23,7 @@ public class ClonerEffector : ModuleRules
 		PrivateDependencyModuleNames.AddRange(
 			new string[]
 			{
+				"DeveloperSettings",
 				"DynamicMesh",
 				"GeometryCore",
 				"GeometryFramework",

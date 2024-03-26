@@ -11,7 +11,7 @@
 class ACEClonerActor;
 class UDynamicMeshComponent;
 
-UCLASS(MinimalAPI, BlueprintType, HideCategories=(Rendering,Replication,Collision,HLOD,Physics,Networking,Input,Actor,Cooking,LevelInstance), DisplayName = "Motion Design Effector Actor")
+UCLASS(MinimalAPI, BlueprintType, HideCategories=(Rendering,Replication,Collision,HLOD,Physics,Networking,Input,Actor,Cooking,LevelInstance,DataLayers), DisplayName = "Motion Design Effector Actor")
 class ACEEffectorActor : public AActor
 {
 	GENERATED_BODY()
@@ -411,16 +411,16 @@ public:
 		return Color;
 	}
 
+#if WITH_EDITOR
 	UFUNCTION(BlueprintCallable, Category="Effector")
-	CLONEREFFECTOR_API void SetVisualizerOpacity(float InOpacity);
+	CLONEREFFECTOR_API void SetVisualizerComponentVisible(bool bInVisible);
 
 	UFUNCTION(BlueprintPure, Category="Effector")
-	float GetVisualizerOpacity() const
+	bool GetVisualizerComponentVisible() const
 	{
-		return VisualizerOpacity;
+		return bVisualizerComponentVisible;
 	}
 
-#if WITH_EDITOR
 	UFUNCTION(BlueprintCallable, Category="Effector")
 	CLONEREFFECTOR_API void SetVisualizerSpriteVisible(bool bInVisible);
 
@@ -439,9 +439,6 @@ protected:
 	static constexpr int32 InnerVisualizerId = 0;
 	static constexpr int32 OuterVisualizerId = 1;
 	static constexpr TCHAR VisualizerColorName[] = TEXT("VisualizerColor");
-	static constexpr TCHAR VisualizerOpacityName[] = TEXT("VisualizerOpacity");
-
-	void UpdateVisualizer(int32 InVisualizerId, TFunction<void(UDynamicMesh*)> InMeshFunction) const;
 
 	//~ Begin AActor
 	virtual void Destroyed() override;
@@ -529,14 +526,19 @@ protected:
 	/** Called when force enabled state changed */
 	void OnForceEnabledChanged();
 
-	/** Update opacity of components of this effector */
-	void OnVisualizerOpacityChanged();
-
-	/** Update sprite visibility of this effector */
-	void OnVisualizerSpriteVisibleChanged();
-
 	/** Update particle color affected by this effector */
-	void OnColorChanged();
+    void OnColorChanged();
+
+#if WITH_EDITOR
+	/** Update visualizers options of this effector */
+	void OnVisualizerOptionsChanged();
+
+	/** Called when developer settings are changed */
+	void OnEffectorDeveloperSettingsChanged(UObject* InSettings, FPropertyChangedEvent& InEvent);
+
+	/** Update the mesh of a component visualizer */
+	void UpdateVisualizer(int32 InVisualizerId, TFunction<void(UDynamicMesh*)> InMeshFunction) const;
+#endif
 
 	/** Update all types options */
 	void UpdateEffectorTypes();
@@ -702,11 +704,11 @@ protected:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Setter, Getter, Category="Force", meta=(EditCondition="bGravityForceEnabled", EditConditionHides))
 	FVector GravityForceAcceleration = FVector(0, 0, -980.f);
 
-	/** Opacity of components visualizers */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, AdvancedDisplay, Setter, Getter, Category="Effector", meta=(ClampMin="0", ClampMax="1.0"))
-	float VisualizerOpacity = 0.1f;
-
 #if WITH_EDITORONLY_DATA
+	/** Visibility of the components visualizer */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, AdvancedDisplay, Category="Effector")
+	bool bVisualizerComponentVisible = true;
+
 	/** Toggle the sprite to visualize and click on this effector */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, AdvancedDisplay, Category="Effector")
 	bool bVisualizerSpriteVisible = true;
@@ -726,6 +728,7 @@ private:
 	UPROPERTY(Transient)
 	TObjectPtr<UDynamicMeshComponent> OuterVisualizerComponent;
 
+#if WITH_EDITORONLY_DATA
 	/** Dynamic material for the inner visualizer */
 	UPROPERTY(Transient)
 	TObjectPtr<UMaterialInstanceDynamic> InnerVisualizerMaterial;
@@ -737,6 +740,7 @@ private:
 	/** Used to hold data related to visualizer for updates */
 	UPROPERTY(Transient)
 	FInstancedPropertyBag VisualizerData;
+#endif
 
 	/** Internal cloners array, deprecated since it will be moved to the cloners and emptied out on post load */
 	UPROPERTY(NonTransactional)

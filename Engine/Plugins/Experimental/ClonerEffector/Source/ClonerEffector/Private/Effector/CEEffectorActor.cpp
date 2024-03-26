@@ -5,12 +5,16 @@
 #include "Cloner/CEClonerActor.h"
 #include "Components/DynamicMeshComponent.h"
 #include "Effector/CEEffectorComponent.h"
+#include "Math/Vector.h"
+#include "Subsystems/CEEffectorSubsystem.h"
+
+#if WITH_EDITOR
 #include "GeometryScript/MeshPrimitiveFunctions.h"
 #include "Materials/MaterialInstanceDynamic.h"
-#include "Math/Vector.h"
 #include "PropertyBag.h"
-#include "Subsystems/CEEffectorSubsystem.h"
+#include "Settings/CEClonerEffectorSettings.h"
 #include "UObject/ConstructorHelpers.h"
+#endif
 
 ACEEffectorActor::FOnEffectorIdentifierChanged ACEEffectorActor::OnEffectorRefreshClonerDelegate;
 
@@ -30,10 +34,9 @@ ACEEffectorActor::ACEEffectorActor()
 	InnerVisualizerComponent->SetHiddenInGame(true);
 	InnerVisualizerComponent->SetTranslucentSortPriority(0);
 #if WITH_EDITOR
-	// Do not show bounding box around cloner for better visibility
 	InnerVisualizerComponent->SetIsVisualizationComponent(true);
 #endif
-	InnerVisualizerComponent->bIsEditorOnly = false;
+	InnerVisualizerComponent->bIsEditorOnly = true;
 	InnerVisualizerComponent->SetupAttachment(SceneComponent);
 
 	// Outer Visualizer Component
@@ -41,12 +44,12 @@ ACEEffectorActor::ACEEffectorActor()
 	OuterVisualizerComponent->SetHiddenInGame(true);
 	OuterVisualizerComponent->SetTranslucentSortPriority(1);
 #if WITH_EDITOR
-	// Do not show bounding box around cloner for better visibility
 	OuterVisualizerComponent->SetIsVisualizationComponent(true);
 #endif
-	OuterVisualizerComponent->bIsEditorOnly = false;
+	OuterVisualizerComponent->bIsEditorOnly = true;
 	OuterVisualizerComponent->SetupAttachment(SceneComponent);
 
+#if WITH_EDITOR
 	static const ConstructorHelpers::FObjectFinder<UMaterialInterface> VisualizerMaterial(TEXT("/Script/Engine.Material'/ClonerEffector/Materials/M_EffectorVisualizer.M_EffectorVisualizer'"));
 
 	if (VisualizerMaterial.Succeeded())
@@ -56,22 +59,24 @@ ACEEffectorActor::ACEEffectorActor()
 			this
 		);
 
-		InnerVisualizerMaterial->SetVectorParameterValue(VisualizerColorName, FLinearColor::Red);
-		InnerVisualizerMaterial->SetScalarParameterValue(VisualizerOpacityName, VisualizerOpacity);
-
 		OuterVisualizerMaterial = UMaterialInstanceDynamic::Create(
 			VisualizerMaterial.Object,
 			this
 		);
-
-		OuterVisualizerMaterial->SetVectorParameterValue(VisualizerColorName, FLinearColor::Blue);
-		OuterVisualizerMaterial->SetScalarParameterValue(VisualizerOpacityName, VisualizerOpacity);
 	}
+#endif
 
 	if (!IsTemplate())
 	{
 		SceneComponent->TransformUpdated.AddUObject(this, &ACEEffectorActor::OnEffectorTransformed);
 		UCEEffectorSubsystem::OnSubsystemInitializedDelegate.AddUObject(this, &ACEEffectorActor::OnEffectorSubsystemInitialized);
+
+#if WITH_EDITOR
+		if (UCEClonerEffectorSettings* ClonerEffectorSettings = GetMutableDefault<UCEClonerEffectorSettings>())
+		{
+			ClonerEffectorSettings->OnSettingChanged().AddUObject(this, &ACEEffectorActor::OnEffectorDeveloperSettingsChanged);
+		}
+#endif
 	}
 }
 
@@ -86,8 +91,8 @@ TCEPropertyChangeDispatcher<ACEEffectorActor> ACEEffectorActor::PropertyChangeDi
 	/** Effector */
 	{ GET_MEMBER_NAME_CHECKED(ACEEffectorActor, bEnabled), &ACEEffectorActor::OnEnabledChanged },
 	{ GET_MEMBER_NAME_CHECKED(ACEEffectorActor, Magnitude), &ACEEffectorActor::OnMagnitudeChanged },
-	{ GET_MEMBER_NAME_CHECKED(ACEEffectorActor, VisualizerOpacity), &ACEEffectorActor::OnVisualizerOpacityChanged },
-	{ GET_MEMBER_NAME_CHECKED(ACEEffectorActor, bVisualizerSpriteVisible), &ACEEffectorActor::OnVisualizerSpriteVisibleChanged },
+	{ GET_MEMBER_NAME_CHECKED(ACEEffectorActor, bVisualizerComponentVisible), &ACEEffectorActor::OnVisualizerOptionsChanged },
+	{ GET_MEMBER_NAME_CHECKED(ACEEffectorActor, bVisualizerSpriteVisible), &ACEEffectorActor::OnVisualizerOptionsChanged },
 	{ GET_MEMBER_NAME_CHECKED(ACEEffectorActor, Color), &ACEEffectorActor::OnColorChanged },
 	/** Type */
 	{ GET_MEMBER_NAME_CHECKED(ACEEffectorActor, Type), &ACEEffectorActor::OnTypeChanged },
@@ -493,22 +498,6 @@ void ACEEffectorActor::SetEnabled(bool bInEnable)
 	OnEnabledChanged();
 }
 
-void ACEEffectorActor::SetVisualizerOpacity(float InOpacity)
-{
-	if (FMath::IsNearlyEqual(VisualizerOpacity, InOpacity))
-	{
-		return;
-	}
-
-	if (VisualizerOpacity < 0.f || VisualizerOpacity > 1.f)
-	{
-		return;
-	}
-
-	VisualizerOpacity = InOpacity;
-	OnVisualizerOpacityChanged();
-}
-
 void ACEEffectorActor::SetMode(ECEClonerEffectorMode InMode)
 {
 	if (Mode == InMode)
@@ -762,6 +751,17 @@ void ACEEffectorActor::SetAttractionForceEnabled(bool bInForceEnabled)
 }
 
 #if WITH_EDITOR
+void ACEEffectorActor::SetVisualizerComponentVisible(bool bInVisible)
+{
+	if (bVisualizerComponentVisible == bInVisible)
+	{
+		return;
+	}
+
+	bVisualizerComponentVisible = bInVisible;
+	OnVisualizerOptionsChanged();
+}
+
 void ACEEffectorActor::SetVisualizerSpriteVisible(bool bInVisible)
 {
 	if (bVisualizerSpriteVisible == bInVisible)
@@ -770,7 +770,7 @@ void ACEEffectorActor::SetVisualizerSpriteVisible(bool bInVisible)
 	}
 
 	bVisualizerSpriteVisible = bInVisible;
-	OnVisualizerSpriteVisibleChanged();
+	OnVisualizerOptionsChanged();
 }
 #endif
 
@@ -809,11 +809,13 @@ void ACEEffectorActor::OnEnabledChanged()
 	else // Disabled
 	{
 		OnEffectorDisabled();
+
 		// Hide visualization components
 		OnTypeChanged();
-		// Editor
-		OnVisualizerOpacityChanged();
-		OnVisualizerSpriteVisibleChanged();
+
+#if WITH_EDITOR
+		OnVisualizerOptionsChanged();
+#endif
 	}
 }
 
@@ -856,9 +858,10 @@ void ACEEffectorActor::OnEffectorChanged()
 		OnMagnitudeChanged();
 		OnForceOptionsChanged();
 		OnColorChanged();
-		// Editor
-		OnVisualizerOpacityChanged();
-		OnVisualizerSpriteVisibleChanged();
+
+#if WITH_EDITOR
+		OnVisualizerOptionsChanged();
+#endif
 	}
 }
 
@@ -887,6 +890,7 @@ void ACEEffectorActor::OnBoxChanged()
 	ChannelData.InnerExtent = GetInnerExtent();
 	ChannelData.OuterExtent = GetOuterExtent();
 
+#if WITH_EDITOR
 	// Update visualizer
 	static const FName BoxInnerExtentName = GET_MEMBER_NAME_CHECKED(ACEEffectorActor, InnerExtent);
 	static const FName BoxOuterExtentName = GET_MEMBER_NAME_CHECKED(ACEEffectorActor, OuterExtent);
@@ -918,6 +922,7 @@ void ACEEffectorActor::OnBoxChanged()
 	VisualizerData.AddProperty(BoxOuterExtentName, EPropertyBagPropertyType::Struct);
 	VisualizerData.SetValueStruct(BoxInnerExtentName, InnerExtent);
 	VisualizerData.SetValueStruct(BoxOuterExtentName, OuterExtent);
+#endif
 }
 
 void ACEEffectorActor::OnSphereChanged()
@@ -933,6 +938,7 @@ void ACEEffectorActor::OnSphereChanged()
 	ChannelData.InnerExtent = FVector(GetInnerRadius());
 	ChannelData.OuterExtent = FVector(GetOuterRadius());
 
+#if WITH_EDITOR
 	// Update visualizer
 	static const FName SphereInnerRadiusName = GET_MEMBER_NAME_CHECKED(ACEEffectorActor, InnerRadius);
 	static const FName SphereOuterRadiusName = GET_MEMBER_NAME_CHECKED(ACEEffectorActor, OuterRadius);
@@ -964,6 +970,7 @@ void ACEEffectorActor::OnSphereChanged()
 	VisualizerData.AddProperty(SphereOuterRadiusName, EPropertyBagPropertyType::Float);
 	VisualizerData.SetValueFloat(SphereInnerRadiusName, InnerRadius);
 	VisualizerData.SetValueFloat(SphereOuterRadiusName, OuterRadius);
+#endif
 }
 
 void ACEEffectorActor::OnPlaneChanged()
@@ -976,6 +983,7 @@ void ACEEffectorActor::OnPlaneChanged()
 	ChannelData.InnerExtent = FVector::LeftVector;
 	ChannelData.OuterExtent = FVector(PlaneSpacing);
 
+#if WITH_EDITOR
 	// Update visualizer
 	static const FName PlaneSpacingName = GET_MEMBER_NAME_CHECKED(ACEEffectorActor, PlaneSpacing);
 	TValueOrError<float, EPropertyBagResult> PlaneSpacingValue = VisualizerData.GetValueFloat(PlaneSpacingName);
@@ -1001,6 +1009,7 @@ void ACEEffectorActor::OnPlaneChanged()
 	VisualizerData.Reset();
 	VisualizerData.AddProperty(PlaneSpacingName, EPropertyBagPropertyType::Float);
 	VisualizerData.SetValueFloat(PlaneSpacingName, PlaneSpacing);
+#endif
 }
 
 void ACEEffectorActor::OnRadialChanged()
@@ -1016,6 +1025,7 @@ void ACEEffectorActor::OnRadialChanged()
 	ChannelData.InnerExtent = FVector::LeftVector;
 	ChannelData.OuterExtent = FVector(RadialAngle, RadialMinRadius, RadialMaxRadius);
 
+#if WITH_EDITOR
 	// Update visualizer
 	static const FName RadialAngleName = GET_MEMBER_NAME_CHECKED(ACEEffectorActor, RadialAngle);
 	static const FName RadialMinRadiusName = GET_MEMBER_NAME_CHECKED(ACEEffectorActor, RadialMinRadius);
@@ -1051,6 +1061,7 @@ void ACEEffectorActor::OnRadialChanged()
 	VisualizerData.SetValueFloat(RadialAngleName, RadialAngle);
 	VisualizerData.SetValueFloat(RadialMinRadiusName, RadialMinRadius);
 	VisualizerData.SetValueFloat(RadialMaxRadiusName, RadialMaxRadius);
+#endif
 }
 
 void ACEEffectorActor::OnTorusChanged()
@@ -1067,6 +1078,7 @@ void ACEEffectorActor::OnTorusChanged()
 	ChannelData.InnerExtent = FVector::ZAxisVector;
 	ChannelData.OuterExtent = FVector(TorusInnerRadius, TorusOuterRadius, TorusRadius);
 
+#if WITH_EDITOR
 	// Update visualizer
 	static const FName TorusRadiusName = GET_MEMBER_NAME_CHECKED(ACEEffectorActor, TorusRadius);
 	static const FName TorusInnerRadiusName = GET_MEMBER_NAME_CHECKED(ACEEffectorActor, TorusInnerRadius);
@@ -1108,6 +1120,7 @@ void ACEEffectorActor::OnTorusChanged()
 	VisualizerData.SetValueFloat(TorusRadiusName, TorusRadius);
 	VisualizerData.SetValueFloat(TorusInnerRadiusName, TorusInnerRadius);
 	VisualizerData.SetValueFloat(TorusOuterRadiusName, TorusOuterRadius);
+#endif
 }
 
 void ACEEffectorActor::OnUnboundChanged()
@@ -1117,9 +1130,11 @@ void ACEEffectorActor::OnUnboundChanged()
 		return;
 	}
 
+#if WITH_EDITOR
 	// Clear visualizers
 	UpdateVisualizer(InnerVisualizerId, [](UDynamicMesh* InMesh){});
 	UpdateVisualizer(OuterVisualizerId, [](UDynamicMesh* InMesh){});
+#endif
 }
 
 void ACEEffectorActor::OnMagnitudeChanged()
@@ -1196,29 +1211,6 @@ void ACEEffectorActor::OnTargetActorDestroyed(AActor* InActor)
 	}
 }
 
-void ACEEffectorActor::UpdateVisualizer(int32 InVisualizerId, TFunction<void(UDynamicMesh*)> InMeshFunction) const
-{
-	UDynamicMeshComponent* MeshComponent = InVisualizerId == InnerVisualizerId ? InnerVisualizerComponent : OuterVisualizerComponent;
-
-	if (!MeshComponent)
-	{
-		return;
-	}
-
-	UDynamicMesh* DynamicMesh = MeshComponent->GetDynamicMesh();
-
-	DynamicMesh->EditMesh([](FDynamicMesh3& InMesh)
-	{
-		InMesh.Clear();
-	});
-
-	InMeshFunction(DynamicMesh);
-
-	// Apply material
-	UMaterialInstanceDynamic* VisualizerMaterial = InVisualizerId == InnerVisualizerId ? InnerVisualizerMaterial : OuterVisualizerMaterial;
-	MeshComponent->SetMaterial(0, VisualizerMaterial);
-}
-
 void ACEEffectorActor::OnNoiseFieldOptionsChanged()
 {
 	if (Mode != ECEClonerEffectorMode::NoiseField)
@@ -1256,28 +1248,71 @@ void ACEEffectorActor::OnTargetOptionsChanged()
 	ChannelData.ScaleDelta = FVector::OneVector;
 }
 
-void ACEEffectorActor::OnVisualizerOpacityChanged()
+#if WITH_EDITOR
+void ACEEffectorActor::OnVisualizerOptionsChanged()
 {
-	VisualizerOpacity = FMath::Clamp(VisualizerOpacity, 0.f, 1.f);
+	const UCEClonerEffectorSettings* ClonerEffectorSettings = GetDefault<UCEClonerEffectorSettings>();
+
+	if (!ClonerEffectorSettings)
+	{
+		return;
+	}
 
 	if (InnerVisualizerMaterial)
 	{
-		InnerVisualizerMaterial->SetScalarParameterValue(VisualizerOpacityName, VisualizerOpacity);
+		InnerVisualizerMaterial->SetVectorParameterValue(VisualizerColorName, ClonerEffectorSettings->VisualizerInnerColor);
 	}
 
 	if (OuterVisualizerMaterial)
 	{
-		OuterVisualizerMaterial->SetScalarParameterValue(VisualizerOpacityName, VisualizerOpacity);
+		OuterVisualizerMaterial->SetVectorParameterValue(VisualizerColorName, ClonerEffectorSettings->VisualizerOuterColor);
 	}
-}
 
-void ACEEffectorActor::OnVisualizerSpriteVisibleChanged()
-{
-#if WITH_EDITOR
+	if (InnerVisualizerComponent)
+	{
+		InnerVisualizerComponent->SetVisibility(bVisualizerComponentVisible, false);
+	}
+
+	if (OuterVisualizerComponent)
+	{
+		OuterVisualizerComponent->SetVisibility(bVisualizerComponentVisible, false);
+	}
+
 	UE::ClonerEffector::SetBillboardComponentSprite(this, TEXT("/Script/Engine.Texture2D'/ClonerEffector/Textures/T_EffectorIcon.T_EffectorIcon'"));
 	UE::ClonerEffector::SetBillboardComponentVisibility(this, bVisualizerSpriteVisible);
-#endif
 }
+
+void ACEEffectorActor::OnEffectorDeveloperSettingsChanged(UObject* InSettings, FPropertyChangedEvent& InEvent)
+{
+	OnVisualizerOptionsChanged();
+}
+
+void ACEEffectorActor::UpdateVisualizer(int32 InVisualizerId, TFunction<void(UDynamicMesh*)> InMeshFunction) const
+{
+	UDynamicMeshComponent* MeshComponent = InVisualizerId == InnerVisualizerId ? InnerVisualizerComponent : OuterVisualizerComponent;
+
+	if (!MeshComponent)
+	{
+		return;
+	}
+
+	UDynamicMesh* DynamicMesh = MeshComponent->GetDynamicMesh();
+
+	DynamicMesh->EditMesh([](FDynamicMesh3& InMesh)
+	{
+		InMesh.Clear();
+	});
+
+	if (bVisualizerComponentVisible)
+	{
+		InMeshFunction(DynamicMesh);
+	}
+
+	// Apply material
+	UMaterialInstanceDynamic* VisualizerMaterial = InVisualizerId == InnerVisualizerId ? InnerVisualizerMaterial : OuterVisualizerMaterial;
+	MeshComponent->SetMaterial(0, VisualizerMaterial);
+}
+#endif
 
 void ACEEffectorActor::OnColorChanged()
 {

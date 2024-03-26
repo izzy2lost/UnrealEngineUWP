@@ -17,7 +17,7 @@ class UCEClonerLayoutBase;
 class UNiagaraDataInterfaceCurve;
 class USceneComponent;
 
-UCLASS(MinimalAPI, BlueprintType, HideCategories=(Rendering,Replication,Collision,HLOD,Physics,Networking,Input,Actor,Cooking,LevelInstance,Streaming), DisplayName = "Motion Design Cloner Actor")
+UCLASS(MinimalAPI, BlueprintType, HideCategories=(Rendering,Replication,Collision,HLOD,Physics,Networking,Input,Actor,Cooking,LevelInstance,Streaming,DataLayers), DisplayName = "Motion Design Cloner Actor")
 class ACEClonerActor : public AActor
 {
 	GENERATED_BODY()
@@ -30,7 +30,6 @@ class ACEClonerActor : public AActor
 
 public:
 	static inline const FString DefaultLabel = TEXT("Cloner");
-	static inline constexpr const TCHAR* DefaultMaterialPath = TEXT("/Script/Engine.Material'/ClonerEffector/Materials/DefaultClonerMaterial.DefaultClonerMaterial'");
 
 	ACEClonerActor();
 

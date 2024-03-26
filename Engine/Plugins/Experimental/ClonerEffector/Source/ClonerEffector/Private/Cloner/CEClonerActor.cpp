@@ -18,6 +18,7 @@
 #include "NiagaraDataInterfaceSkeletalMesh.h"
 #include "NiagaraMeshRendererProperties.h"
 #include "NiagaraSystem.h"
+#include "Settings/CEClonerEffectorSettings.h"
 #include "Subsystems/CEClonerSubsystem.h"
 #include "Subsystems/CEEffectorSubsystem.h"
 #include "UObject/ConstructorHelpers.h"
@@ -47,7 +48,7 @@ ACEClonerActor::ACEClonerActor()
 	LifetimeScaleCurve.AddKey(1, 0.f);
 
 	// Default override material
-	static ConstructorHelpers::FObjectFinder<UMaterialInterface> DefaultMaterialFinder(DefaultMaterialPath);
+	static ConstructorHelpers::FObjectFinder<UMaterialInterface> DefaultMaterialFinder(UCEClonerEffectorSettings::DefaultMaterialPath);
 	OverrideMaterial = DefaultMaterialFinder.Object;
 
 	if (!IsTemplate())
@@ -1282,7 +1283,7 @@ void ACEClonerActor::OnOverrideMaterialChanged()
 	if (ClonerComponent)
 	{
 		UMaterialInterface* OverrideMeshesMaterial = bVisualizeEffectors
-			? LoadObject<UMaterialInterface>(nullptr, DefaultMaterialPath)
+			? LoadObject<UMaterialInterface>(nullptr, UCEClonerEffectorSettings::DefaultMaterialPath)
 			: OverrideMaterial.Get();
 
 		ClonerComponent->SetOverrideMeshesMaterial(OverrideMeshesMaterial);
@@ -1364,6 +1365,12 @@ void ACEClonerActor::SpawnDefaultActorAttached()
 
 	bSpawnDefaultActorAttached = false;
 
+	const UCEClonerEffectorSettings* ClonerEffectorSettings = GetDefault<UCEClonerEffectorSettings>();
+	if (!ClonerEffectorSettings || !ClonerEffectorSettings->bSpawnDefaultActorAttached)
+	{
+		return;
+	}
+
 	// Only spawn if world is valid and not a preview actor
 	UWorld* World = GetWorld();
 	if (!World || bIsEditorPreviewActor)
@@ -1382,12 +1389,8 @@ void ACEClonerActor::SpawnDefaultActorAttached()
 		return;
 	}
 
-	// Find or load cube mesh
-	constexpr const TCHAR* DefaultStaticMeshPath = TEXT("/Script/Engine.StaticMesh'/Engine/BasicShapes/Cube.Cube'");
-	UStaticMesh* DefaultStaticMesh = LoadObject<UStaticMesh>(nullptr, DefaultStaticMeshPath);
-
-	// Find or load default material
-	UMaterialInterface* DefaultMaterial = LoadObject<UMaterialInterface>(nullptr, DefaultMaterialPath);
+	UStaticMesh* DefaultStaticMesh = ClonerEffectorSettings->DefaultStaticMesh.Get();
+	UMaterialInterface* DefaultMaterial = ClonerEffectorSettings->DefaultMaterial.Get();
 
 	if (!DefaultStaticMesh || !DefaultMaterial)
 	{
@@ -1409,7 +1412,7 @@ void ACEClonerActor::SpawnDefaultActorAttached()
 		DefaultActorAttached->SetMobility(EComponentMobility::Movable);
 		DefaultActorAttached->AttachToActor(this, FAttachmentTransformRules::KeepWorldTransform);
 
-		FActorLabelUtilities::SetActorLabelUnique(DefaultActorAttached, TEXT("DefaultCube"));
+		FActorLabelUtilities::SetActorLabelUnique(DefaultActorAttached, TEXT("DefaultClone"));
 	}
 }
 
