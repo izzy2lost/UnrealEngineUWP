@@ -360,12 +360,12 @@ struct FNiagaraFunctionSignature
 	/** Name of the function. */
 	UPROPERTY()
 	FName Name;
-	/** Input parameters to this function. */
+	/** Input parameters to this function. The data stored in the variables is used for default values. */
 	UPROPERTY()
-	TArray<FNiagaraVariable> Inputs; //TODO: Can these be FNiagaraVariableBase?
-	/** Input parameters of this function. */
+	TArray<FNiagaraVariable> Inputs;
+	/** Output parameters of this function. The data stored in the variables is used for default values. */
 	UPROPERTY()
-	TArray<FNiagaraVariable> Outputs; //TODO: Can these be FNiagaraVariableBase?
+	TArray<FNiagaraVariable> Outputs;
 	/** Id of the owner is this is a member function. */
 	UPROPERTY()
 	FName OwnerName;
