@@ -1,6 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "AssetViewUtils.h"
+#include "Algo/Transform.h"
 #include "HAL/IConsoleManager.h"
 #include "Misc/MessageDialog.h"
 #include "HAL/FileManager.h"
@@ -43,7 +44,7 @@
 #include "Editor.h"
 #include "UObject/LinkerInstancingContext.h"
 
-#define LOCTEXT_NAMESPACE "ContentBrowser"
+#define LOCTEXT_NAMESPACE "AssetViewUtils"
 
 DEFINE_LOG_CATEGORY_STATIC(LogAssetViewTools, Warning, Warning);
 
@@ -72,28 +73,26 @@ namespace AssetViewUtils
 
 	/** Get all the objects in a list of asset data with optional load of all external packages */
 	void GetObjectsInAssetData(const TArray<FAssetData>& AssetList, TArray<UObject*>& OutDroppedObjects, bool bLoadAllExternalObjects);
-
-	/** Makes sure the specified assets are loaded into memory. */
-	bool LoadAssetsIfNeeded(const TArray<FString>& ObjectPaths, TArray<UObject*>& LoadedObjects, bool bAllowedToPromptToLoadAssets, bool bLoadRedirects, bool bLoadWorldPartitionWorlds, bool bLoadAllExternalObjects);
 }
 
 bool AssetViewUtils::OpenEditorForAsset(const FString& ObjectPath)
 {
 	// Load the asset if unloaded
 	TArray<UObject*> LoadedObjects;
-	TArray<FString> ObjectPaths;
-	ObjectPaths.Add(ObjectPath);
+	TArray<FSoftObjectPath> ObjectPaths;
+	ObjectPaths.Emplace(ObjectPath);
 
 	// Here we want to load the asset as it will be passed to OpenEditorForAsset
-	const bool bAllowedToPromptToLoadAssets = true;
-	const bool bLoadRedirects = false;
-	const bool bLoadWorldPartitionWorlds = true;
-	const bool bLoadAllExternalObjects = false;
-	LoadAssetsIfNeeded(ObjectPaths, LoadedObjects, bAllowedToPromptToLoadAssets, bLoadRedirects, bLoadWorldPartitionWorlds, bLoadAllExternalObjects);
+	FLoadAssetsSettings Settings{
+		.bFollowRedirectors = false,
+		.bLoadWorldPartitionMaps = true,
+		.bLoadAllExternalObjects = false,
+	};
+	LoadAssetsIfNeeded(ObjectPaths, LoadedObjects, Settings);
 
 	// Open the editor for the specified asset
-	UObject* FoundObject = FindObject<UObject>(NULL, *ObjectPath);
-			
+	UObject* FoundObject = FindObject<UObject>(nullptr, *ObjectPath);
+
 	return OpenEditorForAsset(FoundObject);
 }
 
@@ -124,105 +123,178 @@ bool AssetViewUtils::OpenEditorForAsset(const TArray<UObject*>& Assets)
 
 bool AssetViewUtils::LoadAssetsIfNeeded(const TArray<FString>& ObjectPaths, TArray<UObject*>& LoadedObjects, bool bAllowedToPromptToLoadAssets, bool bLoadRedirects)
 {
-	const bool bLoadWorldPartitionWorlds = false;
-	const bool bLoadAllExternalObjects = false;
-	return LoadAssetsIfNeeded(ObjectPaths, LoadedObjects, bAllowedToPromptToLoadAssets, bLoadRedirects, bLoadWorldPartitionWorlds, bLoadAllExternalObjects);
+	FLoadAssetsSettings Settings{
+		.bFollowRedirectors = bLoadRedirects,
+		.bLoadWorldPartitionMaps = false,
+		.bLoadAllExternalObjects = false,
+	};
+
+	switch (LoadAssetsIfNeeded(ObjectPaths, LoadedObjects, Settings))
+	{
+		case ELoadAssetsResult::Success:
+			return true;
+		case ELoadAssetsResult::Cancelled:  // fallthrough
+		case ELoadAssetsResult::SomeFailed: // fallthrough
+			return false;
+		default:
+			check("Unhandled return value from LoadAssetsIfNeeded");
+			return false;
+	}
 }
 
-bool AssetViewUtils::LoadAssetsIfNeeded(const TArray<FString>& ObjectPaths, TArray<UObject*>& LoadedObjects, bool bAllowedToPromptToLoadAssets, bool bLoadRedirects, bool bLoadWorldPartitionWorlds, bool bLoadAllExternalObjects)
+AssetViewUtils::ELoadAssetsResult AssetViewUtils::LoadAssetsIfNeeded(TConstArrayView<FString> ObjectPathStrings, TArray<UObject*>& OutLoadedObjects, const FLoadAssetsSettings& Settings)
 {
-	bool bAnyObjectsWereLoadedOrUpdated = false;
+	TArray<FSoftObjectPath> Paths;
+	Paths.Reserve(ObjectPathStrings.Num());
+	Algo::Transform(ObjectPathStrings, Paths, UE_PROJECTION(FSoftObjectPath::FSoftObjectPath));
+	return LoadAssetsIfNeeded(Paths, OutLoadedObjects, Settings);
+}
 
-	// Build a list of unloaded assets
-	TArray<FString> UnloadedObjectPaths;
-	bool bAtLeastOneUnloadedMap = false;
-	for (int32 PathIdx = 0; PathIdx < ObjectPaths.Num(); ++PathIdx)
+AssetViewUtils::ELoadAssetsResult AssetViewUtils::LoadAssetsIfNeeded(TConstArrayView<FSoftObjectPath> ObjectPaths, TArray<UObject*>& OutLoadedObjects, const FLoadAssetsSettings& Settings)
+{
+	IAssetRegistry& AssetRegistry = FModuleManager::LoadModuleChecked<FAssetRegistryModule>(TEXT("AssetRegistry")).Get();
+	TArray<FAssetData> Assets;
+	Assets.Reserve(ObjectPaths.Num());
+	TArray<FSoftObjectPath> ToScan;
+	for (const FSoftObjectPath& Path : ObjectPaths)
 	{
-		const FString& ObjectPath = ObjectPaths[PathIdx];
-
-		UObject* FoundObject = FindObject<UObject>(NULL, *ObjectPath);
-		if ( FoundObject )
+		FAssetData Asset = AssetRegistry.GetAssetByObjectPath(Path, true);
+		if (Asset.IsValid())
 		{
-			LoadedObjects.Add(FoundObject);
+			Assets.Emplace(MoveTemp(Asset));
 		}
 		else
 		{
-			if ( FEditorFileUtils::IsMapPackageAsset(ObjectPath) )
-			{
-				FName PackageName = FName(*FEditorFileUtils::ExtractPackageName(ObjectPath));
-				if (!bLoadWorldPartitionWorlds && ULevel::GetIsLevelPartitionedFromPackage(PackageName))
-				{
-					continue;
-				}
-				
-				bAtLeastOneUnloadedMap = true;
-			}
-
-			// Unloaded asset, we will load it later
-			UnloadedObjectPaths.Add(ObjectPath);
+			ToScan.Emplace(Path);
 		}
 	}
-
-	// Make sure all selected objects are loaded, where possible
-	if ( UnloadedObjectPaths.Num() > 0 )
+	if (ToScan.Num() > 0)
 	{
-		// Get the maximum objects to load before displaying the slow task
-		const bool bShowProgressDialog = (UnloadedObjectPaths.Num() > GetDefault<UContentBrowserSettings>()->NumObjectsToLoadBeforeWarning) || bAtLeastOneUnloadedMap;
-		FScopedSlowTask SlowTask(static_cast<float>(UnloadedObjectPaths.Num()), LOCTEXT("LoadingObjects", "Loading Objects..."));
-		if (bShowProgressDialog)
+		TArray<FString> ScanPaths;
+		Algo::Transform(ToScan, ScanPaths, UE_PROJECTION_MEMBER(FSoftObjectPath, GetLongPackageName));
+		AssetRegistry.ScanFilesSynchronous(ScanPaths);
+		for (const FSoftObjectPath& Path : ToScan)
 		{
-			SlowTask.MakeDialog();
-		}
-
-		bool bSomeObjectsFailedToLoad = false;
-		{
-			TGuardValue<bool> IsEditorLoadingPackageGuard(GIsEditorLoadingPackage, true);
-
-			// We usually don't want to follow redirects when loading objects for the Content Browser.  It would
-			// allow a user to interact with a ghost/unverified asset as if it were still alive.
-			// This can be overridden by providing bLoadRedirects = true as a parameter.
-			const ELoadFlags LoadFlags = bLoadRedirects ? LOAD_None : LOAD_NoRedirects;
-
-			for (int32 PathIdx = 0; PathIdx < UnloadedObjectPaths.Num(); ++PathIdx)
+			FAssetData Asset = AssetRegistry.GetAssetByObjectPath(Path, true);
+			if (Asset.IsValid())
 			{
-				const FString& ObjectPath = UnloadedObjectPaths[PathIdx];
-				SlowTask.EnterProgressFrame(1, FText::Format(LOCTEXT("LoadingObjectf", "Loading {0}..."), FText::FromString(ObjectPath)));
-
-				// Load up the object
-				FLinkerInstancingContext InstancingContext(bLoadAllExternalObjects ? TSet<FName>{ ULevel::LoadAllExternalObjectsTag } : TSet<FName>());
-				UObject* LoadedObject = LoadObject<UObject>(NULL, *ObjectPath, NULL, LoadFlags, NULL, &InstancingContext);
-				if ( LoadedObject )
-				{
-					LoadedObjects.Add(LoadedObject);
-				}
-				else
-				{
-					bSomeObjectsFailedToLoad = true;
-				}
-
-				if (GWarn->ReceivedUserCancel())
-				{
-					// If the user has canceled stop loading the remaining objects. We don't add the remaining objects to the failed string,
-					// this would only result in launching another dialog when by their actions the user clearly knows not all of the 
-					// assets will have been loaded.
-					break;
-				}
+				Assets.Emplace(MoveTemp(Asset));
 			}
 		}
+	}
+	return LoadAssetsIfNeeded(Assets, OutLoadedObjects, Settings);
+}
 
-		if ( bSomeObjectsFailedToLoad )
+AssetViewUtils::ELoadAssetsResult AssetViewUtils::LoadAssetsIfNeeded(TConstArrayView<FAssetData> Assets, TArray<UObject*>& OutLoadedObjects, const FLoadAssetsSettings& Settings)
+{
+	bool bAnySucceeded = false;
+
+	// Build a list of unloaded assets
+	TArray<FSoftObjectPath> UnloadedObjectPaths;
+	bool bAtLeastOneUnloadedMap = false;
+	for (const FAssetData& Asset : Assets)
+	{
+		UObject* FoundObject = Asset.FastGetAsset(false);
+		if (FoundObject)
 		{
-			FNotificationInfo Info(LOCTEXT("LoadObjectFailed", "Failed to load assets"));
-			Info.ExpireDuration = 5.0f;
-			Info.Hyperlink = FSimpleDelegate::CreateStatic([](){ FMessageLog("LoadErrors").Open(EMessageSeverity::Info, true); });
-			Info.HyperlinkText = LOCTEXT("LoadObjectHyperlink", "Show Message Log");
-
-			FSlateNotificationManager::Get().AddNotification(Info);
-			return false;
+			OutLoadedObjects.Add(FoundObject);
+			bAnySucceeded = true;
+			continue;
+		}
+		else if (!Settings.bLoadWorldPartitionMaps && ULevel::GetIsLevelPartitionedFromAsset(Asset))
+		{
+			// Skip
+			bAtLeastOneUnloadedMap = true;
+		}
+		else
+		{
+			UnloadedObjectPaths.Add(Asset.GetSoftObjectPath());
 		}
 	}
 
-	return true;
+	if (UnloadedObjectPaths.Num() == 0)
+	{
+		return ELoadAssetsResult::Success;
+	}
+
+	if (Settings.bAlwaysPromptBeforeLoading || UnloadedObjectPaths.Num() > GetDefault<UContentBrowserSettings>()->NumObjectsToLoadBeforeWarning)
+	{
+		EAppReturnType::Type Decision = FMessageDialog::Open(EAppMsgType::YesNo,
+			FText::Format(LOCTEXT("LoadingManyAssets", "About to load {0} assets. Are you sure you want to continue?"), UnloadedObjectPaths.Num()),
+			LOCTEXT("LoadingManyAssetsTitle", "Loading Many Assets"));
+
+		switch (Decision)
+		{
+			case EAppReturnType::Cancel: // fallthrough
+			case EAppReturnType::No:     // fallthrough
+			case EAppReturnType::NoAll:
+				return ELoadAssetsResult::Cancelled;
+			case EAppReturnType::Yes:      // fallthrough
+			case EAppReturnType::YesAll:   // fallthrough
+			case EAppReturnType::Ok:       // fallthrough
+			case EAppReturnType::Retry:    // fallthrough
+			case EAppReturnType::Continue: // fallthrough
+				break;
+		}
+	}
+
+	FScopedSlowTask SlowTask(static_cast<float>(UnloadedObjectPaths.Num()), LOCTEXT("LoadingAssets", "Loading Assets..."));
+	// Always make dialog, even a single asset can be slow to load
+	SlowTask.MakeDialog(Settings.bAllowCancel);
+
+	bool bSomeObjectsFailedToLoad = false;
+	bool bCancelled = false;
+	{
+		TGuardValue<bool> IsEditorLoadingPackageGuard(GIsEditorLoadingPackage, true);
+		const ELoadFlags LoadFlags = Settings.bFollowRedirectors ? LOAD_None : LOAD_NoRedirects;
+
+		for (const FSoftObjectPath& ObjectPath : UnloadedObjectPaths)
+		{
+			SlowTask.EnterProgressFrame(1, FText::Format(LOCTEXT("LoadingAsset", "Loading {0}..."), FText::FromName(ObjectPath.GetLongPackageFName())));
+
+			// Load up the object
+			FLinkerInstancingContext InstancingContext(Settings.bLoadAllExternalObjects ? TSet<FName>{ ULevel::LoadAllExternalObjectsTag } : TSet<FName>());
+			UObject* LoadedObject = LoadObject<UObject>(nullptr, *ObjectPath.ToString(), nullptr, LoadFlags, nullptr, &InstancingContext);
+			if (LoadedObject)
+			{
+				OutLoadedObjects.Add(LoadedObject);
+				bAnySucceeded = true;
+			}
+			else
+			{
+				bSomeObjectsFailedToLoad = true;
+			}
+
+			if (SlowTask.ShouldCancel())
+			{
+				bCancelled = true;
+				break;
+			}
+		}
+	}
+
+	if (bSomeObjectsFailedToLoad)
+	{
+		FNotificationInfo Info(LOCTEXT("SomeLoadsFailed", "Failed to load some assets"));
+		Info.ExpireDuration = 5.0f;
+		Info.Hyperlink = FSimpleDelegate::CreateStatic([]() { FMessageLog("LoadErrors").Open(EMessageSeverity::Info, true); });
+		Info.HyperlinkText = LOCTEXT("LoadObjectHyperlink", "Show Message Log");
+
+		FSlateNotificationManager::Get().AddNotification(Info);
+	}
+
+	if (bCancelled)
+	{
+		return ELoadAssetsResult::Cancelled;
+	}
+	else if (bSomeObjectsFailedToLoad)
+	{
+		return ELoadAssetsResult::SomeFailed;
+	}
+	else
+	{
+		return ELoadAssetsResult::Success;
+	}
 }
 
 void AssetViewUtils::GetUnloadedAssets(const TArray<FString>& ObjectPaths, TArray<FString>& OutUnloadedObjects)
@@ -380,11 +452,12 @@ bool AssetViewUtils::DeleteFolders(const TArray<FString>& PathsToDelete)
 
 		// Load all the assets in the selected paths
 		TArray<UObject*> LoadedAssets;
-		const bool bAllowedToPromptToLoadAssets = true;
-		const bool bLoadRedirects = false;
-		const bool bLoadWorldPartitionWorlds = true;
-		const bool bLoadAllExternalObjects = true;
-		if ( LoadAssetsIfNeeded(ObjectPaths, LoadedAssets, bAllowedToPromptToLoadAssets, bLoadRedirects, bLoadWorldPartitionWorlds, bLoadAllExternalObjects))
+		FLoadAssetsSettings Settings{
+			.bFollowRedirectors = false,
+			.bLoadWorldPartitionMaps = true,
+			.bLoadAllExternalObjects = true,
+		};
+		if (LoadAssetsIfNeeded(ObjectPaths, LoadedAssets, Settings) == ELoadAssetsResult::Success)
 		{
 			// Make sure we loaded all of them
 			if ( LoadedAssets.Num() == NumAssetsInPaths )
@@ -781,11 +854,12 @@ bool AssetViewUtils::PrepareFoldersForDragDrop(const TArray<FString>& SourcePath
 
 		// Load all assets in this path if needed
 		TArray<UObject*> AllLoadedAssets;
-		const bool bAllowedToPromptToLoadAssets = false;
-		const bool bLoadRedirects = false;
-		const bool bLoadWorldPartitionWorlds = true;
-		const bool bLoadAllExternalObjects = true;
-		LoadAssetsIfNeeded(ObjectPaths, AllLoadedAssets, bAllowedToPromptToLoadAssets, bLoadRedirects, bLoadWorldPartitionWorlds, bLoadAllExternalObjects);
+		FLoadAssetsSettings Settings{
+			.bFollowRedirectors = false,
+			.bLoadWorldPartitionMaps = true,
+			.bLoadAllExternalObjects = true
+		};
+		LoadAssetsIfNeeded(ObjectPaths, AllLoadedAssets, Settings);
 
 		// Add a slash to the end of the path so StartsWith doesn't get a false positive on similarly named folders
 		const FString SourcePathWithSlash = *PathIt + TEXT("/");

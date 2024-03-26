@@ -146,27 +146,26 @@ void FAssetFolderContextMenu::ExecuteFixUpRedirectorsInFolder()
 	{
 		return;
 	}
-	
-	TArray<FString> ObjectPaths;
-	for (const FAssetData& Asset : AssetList)
-	{
-		ObjectPaths.Add(Asset.GetObjectPathString());
-	}
 
 	FScopedSlowTask SlowTask(3, LOCTEXT("FixupRedirectorsSlowTask", "Fixing up redirectors"));
-	SlowTask.MakeDialog();
+	SlowTask.MakeDialog(true);
 
-	TArray<UObject*> Objects;
-	const bool bAllowedToPromptToLoadAssets = true;
-	const bool bLoadRedirects = true;
 	SlowTask.EnterProgressFrame(1, LOCTEXT("FixupRedirectors_LoadAssets", "Loading Assets..."));
-	if (AssetViewUtils::LoadAssetsIfNeeded(ObjectPaths, Objects, bAllowedToPromptToLoadAssets, bLoadRedirects))
+	TArray<UObject*> Objects;
+	AssetViewUtils::FLoadAssetsSettings Settings{
+		.bFollowRedirectors = false,
+		.bAllowCancel = true,
+	};
+	AssetViewUtils::ELoadAssetsResult Result = AssetViewUtils::LoadAssetsIfNeeded(AssetList, Objects, Settings);
+	if (Result != AssetViewUtils::ELoadAssetsResult::Cancelled && !SlowTask.ShouldCancel())
 	{
-		// Transform Objects array to ObjectRedirectors array
 		TArray<UObjectRedirector*> Redirectors;
 		for (UObject* Object : Objects)
 		{
-			Redirectors.Add(CastChecked<UObjectRedirector>(Object));
+			if (UObjectRedirector* Redirector = Cast<UObjectRedirector>(Object))
+			{
+				Redirectors.Add(Redirector);
+			}
 		}
 
 		SlowTask.EnterProgressFrame(1, LOCTEXT("FixupRedirectors_FixupReferencers", "Fixing up referencers..."));

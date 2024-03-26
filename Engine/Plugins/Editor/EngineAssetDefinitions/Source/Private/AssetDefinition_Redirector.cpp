@@ -3,6 +3,7 @@
 #include "AssetDefinition_Redirector.h"
 
 #include "AssetToolsModule.h"
+#include "AssetViewUtils.h"
 #include "ContentBrowserMenuContexts.h"
 #include "IAssetTools.h"
 #include "ToolMenus.h"
@@ -54,12 +55,33 @@ namespace MenuExtension_Redirector
 
 		if (const UContentBrowserAssetContextMenuContext* Context = UContentBrowserAssetContextMenuContext::FindContextWithAssets(MenuContext))
 		{
-			TArray<UObjectRedirector*> Redirectors = Context->LoadSelectedObjects<UObjectRedirector>();
+			FScopedSlowTask SlowTask(3, LOCTEXT("FixupRedirectorsSlowTask", "Fixing up redirectors"));
+			SlowTask.MakeDialog(true);
 
-			if (Redirectors.Num() > 0)
+			SlowTask.EnterProgressFrame(1, LOCTEXT("FixupRedirectors_LoadAssets", "Loading Assets..."));
+			TArray<UObject*> Objects;
+			AssetViewUtils::FLoadAssetsSettings Settings{
+				.bFollowRedirectors = false,
+				.bAllowCancel = true,
+			};
+			AssetViewUtils::ELoadAssetsResult Result = AssetViewUtils::LoadAssetsIfNeeded(Context->SelectedAssets, Objects, Settings);
+			if (Result != AssetViewUtils::ELoadAssetsResult::Cancelled && !SlowTask.ShouldCancel())
 			{
-				IAssetTools& AssetTools = FModuleManager::LoadModuleChecked<FAssetToolsModule>("AssetTools").Get();
-				AssetTools.FixupReferencers(Redirectors, /*bCheckoutDialogPrompt=*/true, ERedirectFixupMode::PromptForDeletingRedirectors);
+				TArray<UObjectRedirector*> Redirectors;
+				for (UObject* Object : Objects)
+				{
+					if (UObjectRedirector* Redirector = Cast<UObjectRedirector>(Object))
+					{
+						Redirectors.Add(Redirector);
+					}
+				}
+
+				if (Redirectors.Num() > 0)
+				{
+					SlowTask.EnterProgressFrame(1, LOCTEXT("FixupRedirectors_FixupReferencers", "Fixing up referencers..."));
+					IAssetTools& AssetTools = FModuleManager::LoadModuleChecked<FAssetToolsModule>("AssetTools").Get();
+					AssetTools.FixupReferencers(Redirectors, /*bCheckoutDialogPrompt=*/true, ERedirectFixupMode::PromptForDeletingRedirectors);
+				}
 			}
 		}
 	}
