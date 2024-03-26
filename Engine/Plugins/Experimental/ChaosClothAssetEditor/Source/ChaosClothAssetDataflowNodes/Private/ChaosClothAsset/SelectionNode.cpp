@@ -30,6 +30,8 @@ void FChaosClothAssetSelectionNode::Evaluate(Dataflow::FContext& Context, const 
 		const int32 NumElementsInGroup = SelectionCollection->NumElements(SelectionGroupName);
 		bool bFoundAnyInvalidIndex = false;
 
+		DestSelectionSet.Reset();
+
 		for (const int32 Index : SourceIndices)
 		{
 			if (Index < 0 || Index >= NumElementsInGroup)
