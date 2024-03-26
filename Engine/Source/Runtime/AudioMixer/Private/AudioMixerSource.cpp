@@ -780,14 +780,7 @@ namespace Audio
 							, *InWaveInstance->GetName());
 					}
 					
-					if (MixerDevice->ReverbPluginInterface)
-					{
-						bBypassingSubmixModulation = true;
-					}
-					else
-					{
-						UE_LOG(LogAudioMixer, Warning, TEXT("No Reverb Plugin loaded. Sounds using an external spatialization plugin without a reverb return submix will not have submix modulation applied."));
-					}
+					bBypassingSubmixModulation = true;
 				}
 			}
 
