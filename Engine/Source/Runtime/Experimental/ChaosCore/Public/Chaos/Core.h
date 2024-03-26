@@ -27,6 +27,7 @@ namespace Chaos
 	using FVec3f = TVector<FRealSingle, 3>;
 	using FRotation3f = TRotation<FRealSingle, 3>;
 	using FRigidTransform3f = TRigidTransform<FRealSingle, 3>;
+	using FTransformPair = TVector<FRigidTransform3, 2>;
 
 	using FAABB3f = TAABB<FRealSingle, 3>;
 
