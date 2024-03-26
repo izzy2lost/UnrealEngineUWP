@@ -230,6 +230,13 @@ public:
 	bool ClearOverriddenProperty(const FPropertyChangedEvent& PropertyEvent, const FEditPropertyChain::TDoubleLinkedListNode* PropertyNode);
 
 	/**
+	 * Utility methods that call NotifyPropertyChange(Pre/PostEdit)
+	 * @param PropertyEvent information about the type of change
+	 * @param PropertyNode leading to the property that is changing, null means it is the object itself that is changing
+	 * @param Data memory of the current property */
+	void OverrideProperty(const FPropertyChangedEvent& PropertyEvent, const FEditPropertyChain::TDoubleLinkedListNode* PropertyNode, const void* Data);
+
+	/**
 	 * Handling and storing modification on a property of an object
 	 * @param Notification type either pre/post property overridden
 	 * @param PropertyEvent information about the type of change
