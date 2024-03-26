@@ -1050,6 +1050,7 @@ static TMap<uint32, int32> GatherLandscapeLODOverrides(const UWorld* World, cons
 
 void UpdateWaterInfoRendering_CustomRenderPass(
 	FSceneInterface* Scene,
+	const FSceneViewFamily& ViewFamily,
 	const WaterInfo::FRenderingContext& Context)
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(WaterInfo::UpdateWaterInfoRendering_CustomRenderPass);
@@ -1112,7 +1113,7 @@ void UpdateWaterInfoRendering_CustomRenderPass(
 		DepthPass->PerformRenderCapture(FCustomRenderPassBase::ERenderCaptureType::BeginCapture);
 	}
 	PassInput.CustomRenderPass = DepthPass;
-	Scene->CustomRenderPassRendererInputs.Add(PassInput);
+	Scene->AddCustomRenderPass(&ViewFamily, PassInput);
 
 	TSet<FPrimitiveComponentId> ComponentsToRenderInColorPass;
 	TSet<FPrimitiveComponentId> ComponentsToRenderInDilationPass;
@@ -1139,7 +1140,7 @@ void UpdateWaterInfoRendering_CustomRenderPass(
 	PassInput.ShowOnlyPrimitives = MoveTemp(ComponentsToRenderInColorPass);
 	FWaterInfoRenderingColorPass* ColorPass = new FWaterInfoRenderingColorPass(RenderTargetSize);
 	PassInput.CustomRenderPass = ColorPass;
-	Scene->CustomRenderPassRendererInputs.Add(PassInput);
+	Scene->AddCustomRenderPass(&ViewFamily, PassInput);
 
 	FUpdateWaterInfoParams Params;
 	Params.CaptureZ = ViewLocation.Z;
@@ -1160,7 +1161,7 @@ void UpdateWaterInfoRendering_CustomRenderPass(
 		DilationPass->PerformRenderCapture(FCustomRenderPassBase::ERenderCaptureType::EndCapture);
 	}
 	PassInput.CustomRenderPass = DilationPass;
-	Scene->CustomRenderPassRendererInputs.Add(PassInput);
+	Scene->AddCustomRenderPass(&ViewFamily, PassInput);
 }
 
 } // namespace WaterInfo

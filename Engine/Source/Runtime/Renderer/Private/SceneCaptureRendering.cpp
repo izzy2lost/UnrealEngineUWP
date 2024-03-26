@@ -937,7 +937,8 @@ void FScene::UpdateSceneCaptureContents(USceneCaptureComponent2D* CaptureCompone
 			GetShowOnlyAndHiddenComponents(CaptureComponent, PassInput.HiddenPrimitives, PassInput.ShowOnlyPrimitives);
 
 			// Caching scene capture info to be passed to the scene renderer.
-			CustomRenderPassRendererInputs.Add(PassInput);
+			// #todo: We cannot (yet) guarantee for which ViewFamily this CRP will eventually be rendered since it will just execute the next time the scene is rendered by any FSceneRenderer. This seems quite problematic and could easily lead to unexpected behavior...
+			AddCustomRenderPass(nullptr, PassInput);
 			return;
 		}
 

@@ -372,7 +372,7 @@ void FWaterViewExtension::SetupView(FSceneViewFamily& InViewFamily, FSceneView& 
 		else if (WaterInfoRenderMethod == 2)
 		{
 			const UE::WaterInfo::FRenderingContext& Context(Pair.Value);
-			UE::WaterInfo::UpdateWaterInfoRendering_CustomRenderPass(Scene, Context);
+			UE::WaterInfo::UpdateWaterInfoRendering_CustomRenderPass(Scene, InViewFamily, Context);
 		}
 	}
 

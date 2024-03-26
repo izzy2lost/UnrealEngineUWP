@@ -3238,6 +3238,9 @@ public:
 	/** Collection of scene render extensions. */
 	FSceneExtensions SceneExtensions;
 
+	/** List of all the custom render passes that will run the next time the scene is rendered. */
+	TArray<FCustomRenderPassRendererInput> CustomRenderPassRendererInputs;
+
 	/** Initialization constructor. */
 	FScene(UWorld* InWorld, bool bInRequiresHitProxies,bool bInIsEditorScene, bool bCreateFXSystem, ERHIFeatureLevel::Type InFeatureLevel);
 
@@ -3744,6 +3747,8 @@ public:
 	TExtension& GetExtension() { return SceneExtensions.GetExtension<TExtension>(); }
 	template<typename TExtension>
 	const TExtension& GetExtension() const { return SceneExtensions.GetExtension<TExtension>(); }
+
+	virtual bool AddCustomRenderPass(const FSceneViewFamily* ViewFamily, const FCustomRenderPassRendererInput& CustomRenderPassInput);
 
 	FSceneCulling* SceneCulling = nullptr;
 

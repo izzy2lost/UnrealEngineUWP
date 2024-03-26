@@ -10,6 +10,7 @@ class FSceneInterface;
 class UTextureRenderTarget2D;
 class UPrimitiveComponent;
 class FSceneView;
+class FSceneViewFamily;
 
 namespace UE::WaterInfo
 {
@@ -33,6 +34,7 @@ void UpdateWaterInfoRendering2(
 
 void UpdateWaterInfoRendering_CustomRenderPass(
 	FSceneInterface* Scene,
+	const FSceneViewFamily& ViewFamily,
 	const FRenderingContext& Context);
 
 const FName& GetWaterInfoDepthPassName();
