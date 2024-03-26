@@ -105,9 +105,16 @@ TSharedPtr<FExtender> SChaosVDPlaybackViewport::GetExtenders() const
 	return Extender;
 }
 
+EVisibility SChaosVDPlaybackViewport::GetTransformToolbarVisibility() const
+{
+	// We want to always show the transform tool bar. We disable each action that is not supported for a selected actor individually.
+	// Without doing this, if you select an unsupported mode, the entire toolbar disappears
+	return EVisibility::Visible;
+}
+
 TSharedRef<FEditorViewportClient> SChaosVDPlaybackViewport::MakeEditorViewportClient()
 {
-	TSharedPtr<FChaosVDPlaybackViewportClient> NewViewport = MakeShared<FChaosVDPlaybackViewportClient>(EditorModeTools);
+	TSharedPtr<FChaosVDPlaybackViewportClient> NewViewport = MakeShared<FChaosVDPlaybackViewportClient>(EditorModeTools, GetViewportWidget());
 
 	NewViewport->SetAllowCinematicControl(false);
 	
