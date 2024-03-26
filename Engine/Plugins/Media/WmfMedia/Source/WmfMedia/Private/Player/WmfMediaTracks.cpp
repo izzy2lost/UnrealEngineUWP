@@ -297,7 +297,7 @@ void FWmfMediaTracks::Initialize(IMFMediaSource* InMediaSource, const FString& U
 
 	// Tracks must be selected before Session->SetTopology() is called
 	FMediaPlayerTrackOptions TrackOptions;
-	if (PlayerOptions)
+	if (PlayerOptions && PlayerOptions->TrackSelection == EMediaPlayerOptionTrackSelectMode::UseTrackOptionIndices)
 	{
 		TrackOptions = PlayerOptions->Tracks;
 	}

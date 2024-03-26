@@ -286,6 +286,10 @@ bool FElectraPlayer::OpenInternal(const FString& Url, const FParamDict& InPlayer
 		CreateParams.VideoRenderer = NewPlayer->RendererVideo;
 		CreateParams.AudioRenderer = NewPlayer->RendererAudio;
 		CreateParams.ExternalPlayerGUID = PlayerGuid;
+		FString WorkerThreadOption = PlayerOptions.GetValue(Electra::OptionKeyWorkerThreads).SafeGetFString(TEXT("shared"));
+		CreateParams.WorkerThreads = WorkerThreadOption.Equals(TEXT("worker"), ESearchCase::IgnoreCase) ? IAdaptiveStreamingPlayer::FCreateParam::EWorkerThreads::DedicatedWorker :
+									 WorkerThreadOption.Equals(TEXT("worker_and_events"), ESearchCase::IgnoreCase) ? IAdaptiveStreamingPlayer::FCreateParam::EWorkerThreads::DedicatedWorkerAndEventDispatch :
+									 IAdaptiveStreamingPlayer::FCreateParam::EWorkerThreads::Shared;
 		NewPlayer->AdaptivePlayer = IAdaptiveStreamingPlayer::Create(CreateParams);
 		NewPlayer->AdaptivePlayer->AddMetricsReceiver(this);
 		NewPlayer->AdaptivePlayer->SetStaticResourceProviderCallback(StaticResourceProvider);

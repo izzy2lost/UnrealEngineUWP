@@ -6,8 +6,11 @@
 
 namespace Electra
 {
+	//! (FString) Use of worker threads. ("shared", "worker" or "worker_and_events")
+	const FName OptionKeyWorkerThreads(TEXT("worker_threads"));
+
 	//! (FString) mime type of URL to load
-	const FName OptionKeyMimeType(TEXT("mime_type"));										
+	const FName OptionKeyMimeType(TEXT("mime_type"));
 
 	//! (int64) value indicating the bitrate to start playback with (initial start).
 	const FName OptionKeyInitialBitrate(TEXT("initial_bitrate"));
@@ -32,13 +35,16 @@ namespace Electra
 
 	//! (bool) true to optimize seeking for faster frame scrubbing, false to optimize for playback.
 	const FName OptionKeyFrameOptimizeSeekForScrubbing(TEXT("optimize_seek_for_scrubbing"));
-	
+
+	//! (bool) true to allow a new scrubbing seek to cancel an ongoing scrubbing seek. Non-scrubbing seeks always cancel pending seeks.
+	const FName OptionKeyNewScrubbingSeekCancelsCurrent(TEXT("new_scrubbing_seek_cancels_current"));
+
 	//! (bool) true to emit the first decoded video frame while prerolling so it can be displayed while scrubbing.
 	const FName OptionKeyDoNotHoldBackFirstVideoFrame(TEXT("do_not_hold_back_first_frame"));
 
 	//! (bool) true to not truncate the media segment access units at the end of the presentation. Must only be used without a set playback range end!
 	const FName OptionKeyDoNotTruncateAtPresentationEnd(TEXT("do_not_truncate_at_presentation_end"));
-	
+
 	//! (bool) true to have every request to read data break out to an external data reader.
 	const FName OptionKeyUseExternalDataReader(TEXT("use_external_data_reader"));
 
@@ -49,7 +55,7 @@ namespace Electra
 	const FName OptionKeyExcludedCodecsVideo(TEXT("excluded_codecs_video"));
 	const FName OptionKeyExcludedCodecsAudio(TEXT("excluded_codecs_audio"));
 	const FName OptionKeyExcludedCodecsSubtitles(TEXT("excluded_codecs_subtitles"));
-	
+
 	const FName OptionKeyPreferredCodecsVideo(TEXT("preferred_codecs_video"));
 	const FName OptionKeyPreferredCodecsAudio(TEXT("preferred_codecs_audio"));
 	const FName OptionKeyPreferredCodecsSubtitles(TEXT("preferred_codecs_subtitles"));

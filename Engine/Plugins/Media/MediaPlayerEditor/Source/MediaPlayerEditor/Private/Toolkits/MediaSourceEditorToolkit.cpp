@@ -105,7 +105,7 @@ void FMediaSourceEditorToolkit::Initialize(UMediaSource* InMediaSource, const ET
 						->AddTab(MediaSourceEditorToolkit::ViewerTabId, ETabState::OpenedTab)
 						->SetHideTabWell(true)
 						->SetSizeCoefficient(0.6f)
-						
+
 				)
 				->Split
 				(
@@ -140,7 +140,7 @@ void FMediaSourceEditorToolkit::Initialize(UMediaSource* InMediaSource, const ET
 		true /*bCreateDefaultToolbar*/,
 		InMediaSource
 	);
-	
+
 	ExtendToolBar();
 	RegenerateMenusAndToolbars();
 }
@@ -289,7 +289,13 @@ void FMediaSourceEditorToolkit::BindCommands()
 
 	ToolkitCommands->MapAction(
 		Commands.OpenMedia,
-		FExecuteAction::CreateLambda([this] { MediaPlayer->OpenSource(MediaSource); }),
+		FExecuteAction::CreateLambda([this]
+		{
+			FMediaPlayerOptions Options;
+			Options.SetAllAsOptional();
+			Options.InternalCustomOptions.Emplace(MediaPlayerOptionValues::Environment(), MediaPlayerOptionValues::Environment_Preview());
+			MediaPlayer->OpenSourceWithOptions(MediaSource, Options);
+		}),
 		FCanExecuteAction::CreateLambda([this] { return true; })
 	);
 
