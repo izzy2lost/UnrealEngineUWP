@@ -31,6 +31,15 @@
 
 #define LOCTEXT_NAMESPACE "PCGEditorGraphNodeBase"
 
+namespace PCGEditorGraphSwitches
+{
+	TAutoConsoleVariable<bool> CVarCheckConnectionCycles{
+		TEXT("pcg.Editor.CheckConnectionCycles"),
+		true,
+		TEXT("Prevents user from creating cycles in graph")
+	};
+}
+
 namespace PCGEditorGraphNodeBase
 {
 	/** Whether this node was culled during graph compilation or during graph execution. */
@@ -695,6 +704,56 @@ void UPCGEditorGraphNodeBase::ExitRenamingMode()
 
 	// Update so that the node renders with the new node title.
 	OnNodeChangedDelegate.ExecuteIfBound();
+}
+
+bool UPCGEditorGraphNodeBase::IsCompatible(const UPCGPin* InputPin, const UPCGPin* OutputPin, FText& OutReason) const
+{
+	if (PCGEditorGraphSwitches::CVarCheckConnectionCycles.GetValueOnAnyThread() && InputPin && OutputPin && InputPin->Node == PCGNode)
+	{
+		// Upstream Visitor
+		auto Visitor = [ThisPCGNode = PCGNode](const UPCGNode* InNode, auto VisitorLambda) -> bool
+		{
+			if (InNode)
+			{
+				if (InNode == ThisPCGNode)
+				{
+					return false;
+				}
+
+				for (const TObjectPtr<UPCGPin>& InputPin : InNode->GetInputPins())
+				{
+					if (InputPin)
+					{
+						for (const TObjectPtr<UPCGEdge>& Edge : InputPin->Edges)
+						{
+							if (Edge)
+							{
+								if (const UPCGPin* OtherPin = Edge->GetOtherPin(InputPin.Get()))
+								{
+									if (!VisitorLambda(OtherPin->Node, VisitorLambda))
+									{
+										return false;
+									}
+								}
+							}
+						}
+					}
+				}
+			}
+
+			return true;
+		};
+
+		// OutputPin is trying to connect to this nodes InputPin so visit the OutputPin upstream and try to find
+		// a existing connection to this UPCGEditorGraphNodeNamedRerouteDeclaration's PCGNode. If we do deny connection which would create cycle.
+		if (!Visitor(OutputPin->Node, Visitor))
+		{
+			OutReason = LOCTEXT("ConnectionFailedCyclic", "Connection would create cycle");
+			return false;
+		}
+	}
+
+	return true;
 }
 
 void UPCGEditorGraphNodeBase::OnPickColor()
