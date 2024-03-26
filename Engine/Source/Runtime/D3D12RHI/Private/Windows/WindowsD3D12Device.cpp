@@ -1739,7 +1739,7 @@ void FD3D12DynamicRHI::Init()
 	GRHISupportsFirstInstance = true;
 
 	GRHISupportsShaderRootConstants = true;
-	GRHISupportsShaderBundleDispatch = true;
+	GRHISupportsShaderBundleDispatch = false;
 
 	// Indicate that the RHI needs to use the engine's deferred deletion queue.
 	GRHINeedsExtraDeletionLatency = true;
