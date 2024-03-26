@@ -737,29 +737,6 @@ FTextHistory_Base::FTextHistory_Base(const FTextId& InTextId, FString&& InSource
 	MarkDisplayStringUpToDate();
 }
 
-FTextHistory_Base::FTextHistory_Base(FTextHistory_Base&& Other)
-	: FTextHistory(MoveTemp(Other))
-	, TextId(Other.TextId)
-	, SourceString(MoveTemp(Other.SourceString))
-	, LocalizedString(MoveTemp(Other.LocalizedString))
-{
-	Other.TextId.Reset();
-}
-
-FTextHistory_Base& FTextHistory_Base::operator=(FTextHistory_Base&& Other)
-{
-	FTextHistory::operator=(MoveTemp(Other));
-	if (this != &Other)
-	{
-		TextId = Other.TextId;
-		SourceString = MoveTemp(Other.SourceString);
-		LocalizedString = MoveTemp(Other.LocalizedString);
-
-		Other.TextId.Reset();
-	}
-	return *this;
-}
-
 FTextId FTextHistory_Base::GetTextId() const
 {
 	return TextId;
