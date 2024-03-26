@@ -27,7 +27,7 @@
 #include "Chaos/SoftsEvolution.h"
 #include "Chaos/VelocityField.h"
 #include "Chaos/CollectionPropertyFacade.h"
-#include "Chaos/Deformable/GaussSeidelMasterConstraint.h"
+#include "Chaos/Deformable/GaussSeidelMainConstraint.h"
 #include "Chaos/Deformable/GaussSeidelCorotatedCodimensionalConstraints.h"
 #include "PhysicsProxy/PerSolverFieldSystem.h"
 #include "Utils/ClothingMeshUtils.h"
@@ -557,21 +557,21 @@ void FClothConstraints::CreateGSRules()
 
 	int32 ConstraintPostProcessingIndex = 0;
 
-	GSMasterConstraint = MakeShared<Chaos::Softs::FGaussSeidelMasterConstraint<Softs::FSolverReal, Softs::FSolverParticles>>(PBDEvolution->Particles(), bClothDoQuasistatics, bUseSOR, SOROmega, 100);
+	GSMainConstraint = MakeShared<Chaos::Softs::FGaussSeidelMainConstraint<Softs::FSolverReal, Softs::FSolverParticles>>(PBDEvolution->Particles(), bClothDoQuasistatics, bUseSOR, SOROmega, 100);
 
 	if (bClothDoQuasistatics)
 	{
 		PBDEvolution->SetQuasistatics(bClothDoQuasistatics);
 		const Softs::FSolverVec3& GravityTerm = PBDEvolution->GetGravity(0);
-		GSMasterConstraint->ExternalForce[0] = 0.f;
-		GSMasterConstraint->ExternalForce[1] = 0.f;
-		GSMasterConstraint->ExternalForce[2] = GravityTerm[2];
+		GSMainConstraint->ExternalForce[0] = 0.f;
+		GSMainConstraint->ExternalForce[1] = 0.f;
+		GSMainConstraint->ExternalForce[2] = GravityTerm[2];
 	}
 
 	ConstraintInits[ConstraintInitIndex++] =
 		[this](Softs::FSolverParticles& InParticles, const Softs::FSolverReal Dt)
 	{
-		this->GSMasterConstraint->Init(Dt, InParticles);
+		this->GSMainConstraint->Init(Dt, InParticles);
 	};
 
 	if (XStretchBiasConstraints)
@@ -629,7 +629,7 @@ void FClothConstraints::CreateGSRules()
 					}
 					if (bbDisplayResidual)
 					{
-						TArray<Chaos::Softs::FSolverVec3> Residual = this->GSMasterConstraint->ComputeNewtonResiduals(Particles, Dt);
+						TArray<Chaos::Softs::FSolverVec3> Residual = this->GSMainConstraint->ComputeNewtonResiduals(Particles, Dt);
 					}
 				}
 			};
@@ -644,7 +644,7 @@ void FClothConstraints::CreateGSRules()
 			{
 				for (int32 i = 0; i < GSIterNums; i++)
 				{
-					this->GSMasterConstraint->ApplyCG(InParticles, Dt);
+					this->GSMainConstraint->ApplyCG(InParticles, Dt);
 				}
 			};
 		}
@@ -655,7 +655,7 @@ void FClothConstraints::CreateGSRules()
 			{
 				for (int32 i = 0; i < GSIterNums; i++)
 				{
-					this->GSMasterConstraint->Apply(InParticles, Dt, MaxResidualIters, bWriteResidual2File);
+					this->GSMainConstraint->Apply(InParticles, Dt, MaxResidualIters, bWriteResidual2File);
 				}
 			};
 		}
@@ -668,7 +668,7 @@ void FClothConstraints::CreateGSRules()
 			ConstraintRules[ConstraintRuleIndex++] =
 				[this](Softs::FSolverParticles& InParticles, const Softs::FSolverReal Dt)
 			{
-				this->GSMasterConstraint->ApplyCG(InParticles, Dt);
+				this->GSMainConstraint->ApplyCG(InParticles, Dt);
 			};
 		}
 		else
@@ -676,7 +676,7 @@ void FClothConstraints::CreateGSRules()
 			ConstraintRules[ConstraintRuleIndex++] =
 				[this](Softs::FSolverParticles& InParticles, const Softs::FSolverReal Dt)
 			{
-				this->GSMasterConstraint->Apply(InParticles, Dt, MaxResidualIters, bWriteResidual2File);
+				this->GSMainConstraint->Apply(InParticles, Dt, MaxResidualIters, bWriteResidual2File);
 			};
 		}
 	}
@@ -693,10 +693,10 @@ void FClothConstraints::CreateGSRules()
 
 			GSCorotatedCodimensionalConstraint = MakeShared<Chaos::Softs::FGaussSeidelCorotatedCodimensionalConstraints<Softs::FSolverReal, Softs::FSolverParticles>>(PBDEvolution->Particles(), CodimensionalMesh, false, YoungsModulus);
 
-			GSMasterConstraint->AddStaticConstraints(XStretchBiasConstraints->GetConstraintsArray(), IncidentElements, IncidentElementsLocal);
-			const int32 StaticIndex = GSMasterConstraint->AddStaticConstraintResidualAndHessianRange(1);
+			GSMainConstraint->AddStaticConstraints(XStretchBiasConstraints->GetConstraintsArray(), IncidentElements, IncidentElementsLocal);
+			const int32 StaticIndex = GSMainConstraint->AddStaticConstraintResidualAndHessianRange(1);
 
-			GSMasterConstraint->StaticConstraintResidualAndHessian()[StaticIndex] = [this](const Softs::FSolverParticles& Particles, const int32 ElementIndex, const int32 ElementIndexLocal, const Softs::FSolverReal Dt, TVec3<Softs::FSolverReal>& ParticleResidual, Chaos::PMatrix<Softs::FSolverReal, 3, 3>& ParticleHessian)
+			GSMainConstraint->StaticConstraintResidualAndHessian()[StaticIndex] = [this](const Softs::FSolverParticles& Particles, const int32 ElementIndex, const int32 ElementIndexLocal, const Softs::FSolverReal Dt, TVec3<Softs::FSolverReal>& ParticleResidual, Chaos::PMatrix<Softs::FSolverReal, 3, 3>& ParticleHessian)
 			{
 				this->GSCorotatedCodimensionalConstraint->AddHyperelasticResidualAndHessian(Particles, ElementIndex, ElementIndexLocal, Dt, ParticleResidual, ParticleHessian);
 			};
@@ -704,19 +704,19 @@ void FClothConstraints::CreateGSRules()
 		else
 		{
 			TArray<TArray<int32>> IncidentElements, IncidentElementsLocal;
-			GSMasterConstraint->AddStaticConstraints(XStretchBiasConstraints->GetConstraintsArray(), IncidentElements, IncidentElementsLocal);
-			const int32 StaticIndex = GSMasterConstraint->AddStaticConstraintResidualAndHessianRange(1);
+			GSMainConstraint->AddStaticConstraints(XStretchBiasConstraints->GetConstraintsArray(), IncidentElements, IncidentElementsLocal);
+			const int32 StaticIndex = GSMainConstraint->AddStaticConstraintResidualAndHessianRange(1);
 
-			GSMasterConstraint->StaticConstraintResidualAndHessian()[StaticIndex] = [this](const Softs::FSolverParticles& Particles, const int32 ElementIndex, const int32 ElementIndexLocal, const Softs::FSolverReal Dt, TVec3<Softs::FSolverReal>& ParticleResidual, Chaos::PMatrix<Softs::FSolverReal, 3, 3>& ParticleHessian)
+			GSMainConstraint->StaticConstraintResidualAndHessian()[StaticIndex] = [this](const Softs::FSolverParticles& Particles, const int32 ElementIndex, const int32 ElementIndexLocal, const Softs::FSolverReal Dt, TVec3<Softs::FSolverReal>& ParticleResidual, Chaos::PMatrix<Softs::FSolverReal, 3, 3>& ParticleHessian)
 			{
 				this->XStretchBiasConstraints->AddStretchBiasElementResidualAndHessian(Particles, ElementIndex, ElementIndexLocal, Dt, ParticleResidual, ParticleHessian);
 			};
 
 			if (bEnableCG)
 			{
-				const int32 ForceDifferentialRange = GSMasterConstraint->AddAddInternalForceDifferentialsRange(1);
+				const int32 ForceDifferentialRange = GSMainConstraint->AddAddInternalForceDifferentialsRange(1);
 
-				GSMasterConstraint->InternalForceDifferentials()[ForceDifferentialRange] = [this](const Softs::FSolverParticles& Particles, const TArray<Softs::FSolverVec3>& Deltax, TArray<Softs::FSolverVec3>& ndf)
+				GSMainConstraint->InternalForceDifferentials()[ForceDifferentialRange] = [this](const Softs::FSolverParticles& Particles, const TArray<Softs::FSolverVec3>& Deltax, TArray<Softs::FSolverVec3>& ndf)
 				{
 					this->XStretchBiasConstraints->AddInternalForceDifferential(Particles, Deltax, ndf);
 				};
@@ -731,19 +731,19 @@ void FClothConstraints::CreateGSRules()
 	if (XAnisoBendingElementConstraints)
 	{
 		TArray<TArray<int32>> IncidentElements, IncidentElementsLocal;
-		GSMasterConstraint->AddStaticConstraints(XAnisoBendingElementConstraints->GetConstraintsArray(), IncidentElements, IncidentElementsLocal);
-		const int32 StaticIndex = GSMasterConstraint->AddStaticConstraintResidualAndHessianRange(1);
+		GSMainConstraint->AddStaticConstraints(XAnisoBendingElementConstraints->GetConstraintsArray(), IncidentElements, IncidentElementsLocal);
+		const int32 StaticIndex = GSMainConstraint->AddStaticConstraintResidualAndHessianRange(1);
 
-		GSMasterConstraint->StaticConstraintResidualAndHessian()[StaticIndex] = [this](const Softs::FSolverParticles& Particles, const int32 ElementIndex, const int32 ElementIndexLocal, const Softs::FSolverReal Dt, TVec3<Softs::FSolverReal>& ParticleResidual, Chaos::PMatrix<Softs::FSolverReal, 3, 3>& ParticleHessian)
+		GSMainConstraint->StaticConstraintResidualAndHessian()[StaticIndex] = [this](const Softs::FSolverParticles& Particles, const int32 ElementIndex, const int32 ElementIndexLocal, const Softs::FSolverReal Dt, TVec3<Softs::FSolverReal>& ParticleResidual, Chaos::PMatrix<Softs::FSolverReal, 3, 3>& ParticleHessian)
 		{
 			this->XAnisoBendingElementConstraints->AddAnisotropicBendingResidualAndHessian(Particles, ElementIndex, ElementIndexLocal, Dt, ParticleResidual, ParticleHessian);
 		};
 
 		if (bEnableCG)
 		{
-			const int32 ForceDifferentialRange = GSMasterConstraint->AddAddInternalForceDifferentialsRange(1);
+			const int32 ForceDifferentialRange = GSMainConstraint->AddAddInternalForceDifferentialsRange(1);
 
-			GSMasterConstraint->InternalForceDifferentials()[ForceDifferentialRange] = [this](const Softs::FSolverParticles& Particles, const TArray<Softs::FSolverVec3>& Deltax, TArray<Softs::FSolverVec3>& ndf)
+			GSMainConstraint->InternalForceDifferentials()[ForceDifferentialRange] = [this](const Softs::FSolverParticles& Particles, const TArray<Softs::FSolverVec3>& Deltax, TArray<Softs::FSolverVec3>& ndf)
 			{
 				this->XAnisoBendingElementConstraints->AddInternalForceDifferential(Particles, Deltax, ndf);
 			};
@@ -754,10 +754,10 @@ void FClothConstraints::CreateGSRules()
 	{
 
 		TArray<TArray<int32>> IncidentElements, IncidentElementsLocal;
-		GSMasterConstraint->AddStaticConstraints(XBendingElementConstraints->GetConstraintsArray(), IncidentElements, IncidentElementsLocal);
-		const int32 StaticIndex = GSMasterConstraint->AddStaticConstraintResidualAndHessianRange(1);
+		GSMainConstraint->AddStaticConstraints(XBendingElementConstraints->GetConstraintsArray(), IncidentElements, IncidentElementsLocal);
+		const int32 StaticIndex = GSMainConstraint->AddStaticConstraintResidualAndHessianRange(1);
 
-		GSMasterConstraint->StaticConstraintResidualAndHessian()[StaticIndex] = [this](const Softs::FSolverParticles& Particles, const int32 ElementIndex, const int32 ElementIndexLocal, const Softs::FSolverReal Dt, TVec3<Softs::FSolverReal>& ParticleResidual, Chaos::PMatrix<Softs::FSolverReal, 3, 3>& ParticleHessian)
+		GSMainConstraint->StaticConstraintResidualAndHessian()[StaticIndex] = [this](const Softs::FSolverParticles& Particles, const int32 ElementIndex, const int32 ElementIndexLocal, const Softs::FSolverReal Dt, TVec3<Softs::FSolverReal>& ParticleResidual, Chaos::PMatrix<Softs::FSolverReal, 3, 3>& ParticleHessian)
 		{
 			this->XBendingElementConstraints->AddBendingResidualAndHessian(Particles, ElementIndex, ElementIndexLocal, Dt, ParticleResidual, ParticleHessian);
 		};
@@ -765,16 +765,16 @@ void FClothConstraints::CreateGSRules()
 
 		if (bEnableCG)
 		{
-			const int32 ForceDifferentialRange = GSMasterConstraint->AddAddInternalForceDifferentialsRange(1);
+			const int32 ForceDifferentialRange = GSMainConstraint->AddAddInternalForceDifferentialsRange(1);
 
-			GSMasterConstraint->InternalForceDifferentials()[ForceDifferentialRange] = [this](const Softs::FSolverParticles& Particles, const TArray<Softs::FSolverVec3>& Deltax, TArray<Softs::FSolverVec3>& ndf)
+			GSMainConstraint->InternalForceDifferentials()[ForceDifferentialRange] = [this](const Softs::FSolverParticles& Particles, const TArray<Softs::FSolverVec3>& Deltax, TArray<Softs::FSolverVec3>& ndf)
 			{
 				this->XBendingElementConstraints->AddInternalForceDifferential(Particles, Deltax, ndf);
 			};
 		}
 	}
 
-	GSMasterConstraint->InitStaticColor(PBDEvolution->Particles());
+	GSMainConstraint->InitStaticColor(PBDEvolution->Particles());
 
 	if (bWriteFinalResiduals)
 	{
@@ -784,7 +784,7 @@ void FClothConstraints::CreateGSRules()
 		PostprocessingRules[ConstraintPostProcessingIndex++] =
 			[this](Softs::FSolverParticles& InParticles, const Softs::FSolverReal Dt)
 		{
-			this->GSMasterConstraint->ComputeNewtonResiduals(InParticles, Dt, true, nullptr);
+			this->GSMainConstraint->ComputeNewtonResiduals(InParticles, Dt, true, nullptr);
 		};
 	}
 
@@ -1825,12 +1825,12 @@ void FClothConstraints::CreatePBDRules()
 	#if !UE_BUILD_SHIPPING	
 	if (bDisplayResidual || bWriteFinalResiduals)
 	{
-		GSMasterConstraint = MakeShared<Chaos::Softs::FGaussSeidelMasterConstraint<Softs::FSolverReal, Softs::FSolverParticles>>(PBDEvolution->Particles(), false, false, (Softs::FSolverReal)1.2, 100);
+		GSMainConstraint = MakeShared<Chaos::Softs::FGaussSeidelMainConstraint<Softs::FSolverReal, Softs::FSolverParticles>>(PBDEvolution->Particles(), false, false, (Softs::FSolverReal)1.2, 100);
 
 		ConstraintInits[ConstraintInitIndex++] =
 			[this](Softs::FSolverParticles& InParticles, const Softs::FSolverReal Dt)
 		{
-			this->GSMasterConstraint->Init(Dt, InParticles);
+			this->GSMainConstraint->Init(Dt, InParticles);
 		};
 		if (bDisplayResidual)
 		{
@@ -1838,11 +1838,11 @@ void FClothConstraints::CreatePBDRules()
 			ConstraintRules[ConstraintRuleIndex++] =
 				[this](Softs::FSolverParticles& InParticles, const Softs::FSolverReal Dt)
 			{
-				if (this->GSMasterConstraint->DebugResidual && this->GSMasterConstraint->PassedIters < MaxResidualIters)
+				if (this->GSMainConstraint->DebugResidual && this->GSMainConstraint->PassedIters < MaxResidualIters)
 				{
 					UE_LOG(LogTemp, Warning, TEXT("Current Iteration As From Evolution: %d"), this->Evolution->GetIterations());
-					this->GSMasterConstraint->ComputeNewtonResiduals(InParticles, Dt, bWriteResidual2File);
-					this->GSMasterConstraint->PassedIters += 1;
+					this->GSMainConstraint->ComputeNewtonResiduals(InParticles, Dt, bWriteResidual2File);
+					this->GSMainConstraint->PassedIters += 1;
 				}
 			};
 		}
@@ -1850,10 +1850,10 @@ void FClothConstraints::CreatePBDRules()
 		if (XStretchBiasConstraints)
 		{
 			TArray<TArray<int32>> IncidentElements, IncidentElementsLocal;
-			GSMasterConstraint->AddStaticConstraints(XStretchBiasConstraints->GetConstraintsArray(), IncidentElements, IncidentElementsLocal);
-			int32 StaticIndex = GSMasterConstraint->AddStaticConstraintResidualAndHessianRange(1);
+			GSMainConstraint->AddStaticConstraints(XStretchBiasConstraints->GetConstraintsArray(), IncidentElements, IncidentElementsLocal);
+			int32 StaticIndex = GSMainConstraint->AddStaticConstraintResidualAndHessianRange(1);
 
-			GSMasterConstraint->StaticConstraintResidualAndHessian()[StaticIndex] = [this](const Softs::FSolverParticles& Particles, const int32 ElementIndex, const int32 ElementIndexLocal, const Softs::FSolverReal Dt, TVec3<Softs::FSolverReal>& ParticleResidual, Chaos::PMatrix<Softs::FSolverReal, 3, 3>& ParticleHessian)
+			GSMainConstraint->StaticConstraintResidualAndHessian()[StaticIndex] = [this](const Softs::FSolverParticles& Particles, const int32 ElementIndex, const int32 ElementIndexLocal, const Softs::FSolverReal Dt, TVec3<Softs::FSolverReal>& ParticleResidual, Chaos::PMatrix<Softs::FSolverReal, 3, 3>& ParticleHessian)
 			{
 				this->XStretchBiasConstraints->AddStretchBiasElementResidualAndHessian(Particles, ElementIndex, ElementIndexLocal, Dt, ParticleResidual, ParticleHessian);
 			};
@@ -1862,10 +1862,10 @@ void FClothConstraints::CreatePBDRules()
 		if (XAnisoBendingElementConstraints)
 		{
 			TArray<TArray<int32>> IncidentElements, IncidentElementsLocal;
-			GSMasterConstraint->AddStaticConstraints(XAnisoBendingElementConstraints->GetConstraintsArray(), IncidentElements, IncidentElementsLocal);
-			int32 StaticIndex = GSMasterConstraint->AddStaticConstraintResidualAndHessianRange(1);
+			GSMainConstraint->AddStaticConstraints(XAnisoBendingElementConstraints->GetConstraintsArray(), IncidentElements, IncidentElementsLocal);
+			int32 StaticIndex = GSMainConstraint->AddStaticConstraintResidualAndHessianRange(1);
 
-			GSMasterConstraint->StaticConstraintResidualAndHessian()[StaticIndex] = [this](const Softs::FSolverParticles& Particles, const int32 ElementIndex, const int32 ElementIndexLocal, const Softs::FSolverReal Dt, TVec3<Softs::FSolverReal>& ParticleResidual, Chaos::PMatrix<Softs::FSolverReal, 3, 3>& ParticleHessian)
+			GSMainConstraint->StaticConstraintResidualAndHessian()[StaticIndex] = [this](const Softs::FSolverParticles& Particles, const int32 ElementIndex, const int32 ElementIndexLocal, const Softs::FSolverReal Dt, TVec3<Softs::FSolverReal>& ParticleResidual, Chaos::PMatrix<Softs::FSolverReal, 3, 3>& ParticleHessian)
 			{
 				this->XAnisoBendingElementConstraints->AddAnisotropicBendingResidualAndHessian(Particles, ElementIndex, ElementIndexLocal, Dt, ParticleResidual, ParticleHessian);
 			};
@@ -1875,16 +1875,16 @@ void FClothConstraints::CreatePBDRules()
 		if (XBendingElementConstraints)
 		{
 			TArray<TArray<int32>> IncidentElements, IncidentElementsLocal;
-			GSMasterConstraint->AddStaticConstraints(XBendingElementConstraints->GetConstraintsArray(), IncidentElements, IncidentElementsLocal);
-			int32 StaticIndex = GSMasterConstraint->AddStaticConstraintResidualAndHessianRange(1);
+			GSMainConstraint->AddStaticConstraints(XBendingElementConstraints->GetConstraintsArray(), IncidentElements, IncidentElementsLocal);
+			int32 StaticIndex = GSMainConstraint->AddStaticConstraintResidualAndHessianRange(1);
 
-			GSMasterConstraint->StaticConstraintResidualAndHessian()[StaticIndex] = [this](const Softs::FSolverParticles& Particles, const int32 ElementIndex, const int32 ElementIndexLocal, const Softs::FSolverReal Dt, TVec3<Softs::FSolverReal>& ParticleResidual, Chaos::PMatrix<Softs::FSolverReal, 3, 3>& ParticleHessian)
+			GSMainConstraint->StaticConstraintResidualAndHessian()[StaticIndex] = [this](const Softs::FSolverParticles& Particles, const int32 ElementIndex, const int32 ElementIndexLocal, const Softs::FSolverReal Dt, TVec3<Softs::FSolverReal>& ParticleResidual, Chaos::PMatrix<Softs::FSolverReal, 3, 3>& ParticleHessian)
 			{
 				this->XBendingElementConstraints->AddBendingResidualAndHessian(Particles, ElementIndex, ElementIndexLocal, Dt, ParticleResidual, ParticleHessian);
 			};
 		}
 
-		GSMasterConstraint->InitStaticColor(PBDEvolution->Particles());
+		GSMainConstraint->InitStaticColor(PBDEvolution->Particles());
 
 		if (bWriteFinalResiduals)
 		{
@@ -1894,7 +1894,7 @@ void FClothConstraints::CreatePBDRules()
 			PostprocessingConstraintRules[PostprocessingConstraintRuleIndex++] =
 				[this](Softs::FSolverParticles& InParticles, const Softs::FSolverReal Dt)
 			{
-				this->GSMasterConstraint->ComputeNewtonResiduals(InParticles, Dt, true, nullptr);
+				this->GSMainConstraint->ComputeNewtonResiduals(InParticles, Dt, true, nullptr);
 			};
 		}
 	}

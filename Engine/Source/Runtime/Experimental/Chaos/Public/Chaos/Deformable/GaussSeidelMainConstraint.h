@@ -13,19 +13,19 @@
 
 
 #define PERF_SCOPE(X) SCOPE_CYCLE_COUNTER(X); TRACE_CPUPROFILER_EVENT_SCOPE(X);
-DECLARE_CYCLE_STAT(TEXT("Chaos.Deformable.GSMasterConstraint.Apply"), STAT_ChaosGSMasterConstraint_Apply, STATGROUP_Chaos);
-DECLARE_CYCLE_STAT(TEXT("Chaos.Deformable.GSMasterConstraint.Acceleration"), STAT_ChaosGSMasterConstraint_Acceleration, STATGROUP_Chaos);
-DECLARE_CYCLE_STAT(TEXT("Chaos.Deformable.GSMasterConstraint.Init"), STAT_ChaosGSMasterConstraint_Init, STATGROUP_Chaos);
-DECLARE_CYCLE_STAT(TEXT("Chaos.Deformable.GSMasterConstraint.InitDynamicColor"), STAT_ChaosGSMasterConstraint_InitDynamicColor, STATGROUP_Chaos);
+DECLARE_CYCLE_STAT(TEXT("Chaos.Deformable.GSMainConstraint.Apply"), STAT_ChaosGSMainConstraint_Apply, STATGROUP_Chaos);
+DECLARE_CYCLE_STAT(TEXT("Chaos.Deformable.GSMainConstraint.Acceleration"), STAT_ChaosGSMainConstraint_Acceleration, STATGROUP_Chaos);
+DECLARE_CYCLE_STAT(TEXT("Chaos.Deformable.GSMainConstraint.Init"), STAT_ChaosGSMainConstraint_Init, STATGROUP_Chaos);
+DECLARE_CYCLE_STAT(TEXT("Chaos.Deformable.GSMainConstraint.InitDynamicColor"), STAT_ChaosGSMainConstraint_InitDynamicColor, STATGROUP_Chaos);
 
 namespace Chaos::Softs
 {
 	template <typename T, typename ParticleType>
-	class FGaussSeidelMasterConstraint
+	class FGaussSeidelMainConstraint
 	{
 
 	public:
-		FGaussSeidelMasterConstraint(
+		FGaussSeidelMainConstraint(
 			const ParticleType& InParticles, 
 			const bool bDoQuasistaticsIn = false,
 			const bool bDoSORIn = true,
@@ -43,7 +43,7 @@ namespace Chaos::Softs
 			InitializeLambdas();
 		}
 
-		virtual ~FGaussSeidelMasterConstraint() {}
+		virtual ~FGaussSeidelMainConstraint() {}
 
 		void Resize(const int32 NewSize)
 		{
@@ -99,7 +99,7 @@ namespace Chaos::Softs
 
 		void Apply(ParticleType& Particles, const T Dt, const int32 MaxWriteIters = 10, const bool Write2File = false)
 		{
- 			PERF_SCOPE(STAT_ChaosGSMasterConstraint_Apply);
+ 			PERF_SCOPE(STAT_ChaosGSMainConstraint_Apply);
 			
 			if (DebugResidual && PassedIters < MaxWriteIters)
 			{
@@ -147,7 +147,7 @@ namespace Chaos::Softs
 
 		void InitDynamicColor(const ParticleType& Particles)
 		{
-			PERF_SCOPE(STAT_ChaosGSMasterConstraint_InitDynamicColor);
+			PERF_SCOPE(STAT_ChaosGSMainConstraint_InitDynamicColor);
 			ParticleColors = StaticParticleColors;
 			ParticlesPerColor = StaticParticlesPerColor;
 			Chaos::ComputeExtraNodalColoring(StaticConstraints, DynamicConstraints, Particles, StaticIncidentElements, DynamicIncidentElements, ParticleColors, ParticlesPerColor);
@@ -157,7 +157,7 @@ namespace Chaos::Softs
 		{
 			Resize((int32)Particles.Size());
 
-			PERF_SCOPE(STAT_ChaosGSMasterConstraint_Init);
+			PERF_SCOPE(STAT_ChaosGSMainConstraint_Init);
 			DynamicConstraints.SetNum(0);
 			for (int32 p = 0; p < DynamicIncidentElements.Num(); p++)
 			{
@@ -279,7 +279,7 @@ namespace Chaos::Softs
 
 			AccelerationTechnique = [this](ParticleType& Particles)
 			{
-				PERF_SCOPE(STAT_ChaosGSMasterConstraint_Acceleration);
+				PERF_SCOPE(STAT_ChaosGSMainConstraint_Acceleration);
 				PhysicsParallelFor(Particles.Size(), [&](const int32 ParticleIndex)
 					{
 						if (Particles.InvM(ParticleIndex) != T(0) && CurrentIt > SORStart)
@@ -349,6 +349,6 @@ namespace Chaos::Softs
 
 	};
 
-	//template class FGaussSeidelMasterConstraint<FSolverReal, FSolverParticles>;
+	//template class FGaussSeidelMainConstraint<FSolverReal, FSolverParticles>;
 }
 
