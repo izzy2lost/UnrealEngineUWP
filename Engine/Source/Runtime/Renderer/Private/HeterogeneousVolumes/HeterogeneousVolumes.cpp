@@ -246,6 +246,22 @@ static TAutoConsoleVariable<int32> CVarHeterogeneousVolumesVelocity(
 	ECVF_RenderThreadSafe
 );
 
+static TAutoConsoleVariable<int32> CVarHeterogeneousVolumesCLOD(
+	TEXT("r.HeterogeneousVolumes.CLOD"),
+	1,
+	TEXT("Uses Continuous Level-of-Detail to accelerate rendering (Default = 1)"),
+	ECVF_RenderThreadSafe
+);
+
+static TAutoConsoleVariable<float> CVarHeterogeneousVolumesCLODBias(
+	TEXT("r.HeterogeneousVolumes.CLOD.Bias"),
+	0.0,
+	TEXT("Biases evaluation result when computing Continuous Level-of-Detail (Default = 0.0)\n")
+	TEXT("> 0: Coarser\n")
+	TEXT("< 0: Sharper\n"),
+	ECVF_RenderThreadSafe
+);
+
 DECLARE_GPU_STAT_NAMED(HeterogeneousVolumeShadowsStat, TEXT("HeterogeneousVolumeShadows"));
 DECLARE_GPU_STAT_NAMED(HeterogeneousVolumesStat, TEXT("HeterogeneousVolumes"));
 
@@ -488,6 +504,16 @@ namespace HeterogeneousVolumes
 		return CVarHeterogeneousVolumesVelocity.GetValueOnRenderThread() != 0;
 	}
 
+	bool UseContinuousLOD()
+	{
+		return CVarHeterogeneousVolumesCLOD.GetValueOnRenderThread() != 0;
+	}
+
+	float GetCLODBias()
+	{
+		return CVarHeterogeneousVolumesCLODBias.GetValueOnRenderThread();
+	}
+
 	// Convenience Utils
 	int GetVoxelCount(FIntVector VolumeResolution)
 	{
@@ -507,10 +533,57 @@ namespace HeterogeneousVolumes
 			FMath::Max(VolumeResolution.Z >> MipLevel, 1)
 		);
 	}
-	FIntVector GetLightingCacheResolution(const IHeterogeneousVolumeInterface* RenderInterface)
+	
+	float CalcLOD(const FSceneView& View, const IHeterogeneousVolumeInterface* HeterogeneousVolume)
+	{
+		if (!HeterogeneousVolumes::UseContinuousLOD())
+		{
+			return 0.0f;
+		}
+
+		FBoxSphereBounds WorldBounds = HeterogeneousVolume->GetBounds();
+		FIntVector VoxelResolution = HeterogeneousVolume->GetVoxelResolution();
+		float VoxelResolutionMin = VoxelResolution.GetMin();
+
+		float LODValue = FMath::Floor(FMath::Log2(VoxelResolutionMin));
+		if (View.ViewFrustum.IntersectBox(WorldBounds.Origin, WorldBounds.BoxExtent))
+		{
+			// Determine the pixel-width at the near-plane
+			float TanHalfFOV = FMath::Tan(FMath::DegreesToRadians(View.FOV * 0.5));
+			float HalfWidth = View.UnconstrainedViewRect.Width() * 0.5;
+			float PixelWidth = TanHalfFOV / HalfWidth;
+
+			// Project to nearest distance of volume bounds
+			FVector WorldCameraOrigin = View.ViewMatrices.GetViewOrigin();
+			float Distance = FMath::Max((WorldBounds.Origin - WorldCameraOrigin).Length() - WorldBounds.SphereRadius, View.NearClippingDistance);
+			float VoxelWidth = Distance * PixelWidth;
+
+			// MIP is defined as the log of the ratio of native voxel resolution to pixel-coverage of volume bounds
+			//float PixelWidthCoverage = (2.0 * WorldBounds.SphereRadius) / VoxelWidth;
+			float PixelWidthCoverage = (2.0 * WorldBounds.BoxExtent.GetMax()) / VoxelWidth;
+			float ViewLODValue = FMath::Log2(VoxelResolutionMin / PixelWidthCoverage) + HeterogeneousVolume->GetMipBias() + HeterogeneousVolumes::GetCLODBias();
+			ViewLODValue = FMath::Max(ViewLODValue, 0);
+
+			LODValue = FMath::Min(ViewLODValue, LODValue);
+		}
+
+		return LODValue;
+	}
+
+	float CalcLODFactor(float LODValue)
+	{
+		return FMath::Pow(2, LODValue);
+	}
+
+	float CalcLODFactor(const FSceneView& View, const IHeterogeneousVolumeInterface* HeterogeneousVolume)
+	{
+		return CalcLODFactor(CalcLOD(View, HeterogeneousVolume));
+	}
+	
+	FIntVector GetLightingCacheResolution(const IHeterogeneousVolumeInterface* RenderInterface, float LODFactor)
 	{
 		float OverrideDownsampleFactor = CVarHeterogeneousVolumesLightingCacheDownsampleFactor.GetValueOnRenderThread();
-		float DownsampleFactor = OverrideDownsampleFactor > 0.0 ? OverrideDownsampleFactor : RenderInterface->GetLightingDownsampleFactor();
+		float DownsampleFactor = OverrideDownsampleFactor > 0.0 ? OverrideDownsampleFactor : RenderInterface->GetLightingDownsampleFactor() * LODFactor;
 		DownsampleFactor = FMath::Max(DownsampleFactor, 0.125);
 
 		FVector VolumeResolution = FVector(GetVolumeResolution(RenderInterface));
@@ -791,7 +864,8 @@ void FDeferredShadingSceneRenderer::RenderHeterogeneousVolumes(
 					if (HeterogeneousVolumes::GetLightingCacheMode() != 0)
 					{
 						// TODO: Allow option for scalar transmittance to conserve bandwidth
-						FIntVector LightingCacheResolution = HeterogeneousVolumes::GetLightingCacheResolution(HeterogeneousVolume);
+						float LODFactor = HeterogeneousVolumes::CalcLODFactor(View, HeterogeneousVolume);
+						FIntVector LightingCacheResolution = HeterogeneousVolumes::GetLightingCacheResolution(HeterogeneousVolume, LODFactor);
 						uint32 NumMips = FMath::Log2(float(FMath::Min(FMath::Min(LightingCacheResolution.X, LightingCacheResolution.Y), LightingCacheResolution.Z))) + 1;
 						FRDGTextureDesc LightingCacheDesc = FRDGTextureDesc::Create3D(
 							LightingCacheResolution,

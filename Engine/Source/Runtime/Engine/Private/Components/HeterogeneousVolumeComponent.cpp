@@ -97,6 +97,7 @@ FHeterogeneousVolumeSceneProxy::FHeterogeneousVolumeSceneProxy(UHeterogeneousVol
 	HeterogeneousVolumeData.ShadowStepFactor = InComponent->ShadowStepFactor;
 	HeterogeneousVolumeData.ShadowBiasFactor = InComponent->ShadowBiasFactor;
 	HeterogeneousVolumeData.LightingDownsampleFactor = InComponent->LightingDownsampleFactor;
+	HeterogeneousVolumeData.MipBias = InComponent->StreamingMipBias;
 	HeterogeneousVolumeData.bPivotAtCentroid = InComponent->bPivotAtCentroid;
 
 	// Initialize vertex buffer data for a quad

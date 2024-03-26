@@ -59,7 +59,7 @@ namespace HeterogeneousVolumes
 {
 	// CVars
 	FIntVector GetVolumeResolution(const IHeterogeneousVolumeInterface*);
-	FIntVector GetLightingCacheResolution(const IHeterogeneousVolumeInterface*);
+	FIntVector GetLightingCacheResolution(const IHeterogeneousVolumeInterface*, float LODFactor);
 
 	float GetShadowStepSize();
 	float GetMaxTraceDistance();
@@ -122,6 +122,9 @@ namespace HeterogeneousVolumes
 	int GetVoxelCount(FIntVector VolumeResolution);
 	int GetVoxelCount(const FRDGTextureDesc& TextureDesc);
 	FIntVector GetMipVolumeResolution(FIntVector VolumeResolution, uint32 MipLevel);
+	float CalcLOD(const FSceneView& View, const IHeterogeneousVolumeInterface* HeterogeneousVolume);
+	float CalcLODFactor(const FSceneView& View, const IHeterogeneousVolumeInterface* HeterogeneousVolume);
+	float CalcLODFactor(float LOD);
 
 	const FProjectedShadowInfo* GetProjectedShadowInfo(const FVisibleLightInfo* VisibleLightInfo, int32 ShadowIndex);
 	bool IsDynamicShadow(const FVisibleLightInfo* VisibleLightInfo);
