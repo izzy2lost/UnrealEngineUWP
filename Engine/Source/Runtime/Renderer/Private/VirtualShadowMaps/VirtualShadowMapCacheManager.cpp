@@ -357,10 +357,9 @@ void FVirtualShadowMapArrayCacheManager::FInvalidatingPrimitiveCollector::AddPri
 				}
 			}
 		}
-
-		Manager.ShadowInvalidatingInstancesImplementation.PrimitiveInstancesToInvalidate.Reset();
 		CacheEntry.Value->PrimitiveInstancesToInvalidate.Reset();
 	}
+	Manager.ShadowInvalidatingInstancesImplementation.PrimitiveInstancesToInvalidate.Reset();
 }
 
 void FVirtualShadowMapArrayCacheManager::FInvalidatingPrimitiveCollector::AddInvalidation(FPrimitiveSceneInfo * PrimitiveSceneInfo, bool bRemovedPrimitive)
@@ -1358,6 +1357,15 @@ void FVirtualShadowMapArrayCacheManager::ProcessInvalidations(FRDGBuilder& Graph
 		if (!InvalidatingPrimitiveCollector.Instances.IsEmpty())
 		{
 			ProcessInvalidations(GraphBuilder, InvalidationPassCommon, InvalidatingPrimitiveCollector.Instances);
+		}
+	}
+	else
+	{
+		// Clear any queued-up invalidations
+		ShadowInvalidatingInstancesImplementation.PrimitiveInstancesToInvalidate.Reset();
+		for (auto& CacheEntry : CacheEntries)
+		{
+			CacheEntry.Value->PrimitiveInstancesToInvalidate.Reset();
 		}
 	}
 }
