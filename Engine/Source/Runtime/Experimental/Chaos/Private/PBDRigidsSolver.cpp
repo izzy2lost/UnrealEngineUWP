@@ -1102,7 +1102,7 @@ namespace Chaos
 		
 		if (MRewindCallback) 
 		{
-			MRewindCallback->RewindData = MRewindData.Get();
+			MRewindCallback->RewindData = GetRewindData();
 		}
 		
 		UpdateIsDeterministic();
@@ -1830,6 +1830,14 @@ namespace Chaos
 		for (ISimCallbackObject* RemovedCallbackObject : PushData.SimCallbackObjectsToRemove)
 		{
 			RemovedCallbackObject->bPendingDelete = true;
+
+			if (RemovedCallbackObject->HasOption(ESimCallbackOptions::Rewind))
+			{
+				if (MRewindCallback)
+				{
+					MRewindCallback->UnregisterRewindableSimCallback_Internal(RemovedCallbackObject);
+				}
+			}
 		}
 
 		for (int32 Idx = SimCallbackObjects.Num() - 1; Idx >= 0; --Idx)

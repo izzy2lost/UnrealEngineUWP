@@ -112,7 +112,7 @@ struct TNetRewindHistory : public Chaos::TDataRewindHistory<DataType>
 		
 		if (Super::NumFrames > GetMaxArraySize())
 		{
-			UE_LOG(LogChaos, Warning, TEXT("TNetRewindHistory: serialized array of size %d exceeds maximum size %d."), Super::NumFrames, GetMaxArraySize());
+			UE_LOG(LogTemp, Warning, TEXT("TNetRewindHistory: serialized array of size %d exceeds maximum size %d."), Super::NumFrames, GetMaxArraySize());
 			Ar.SetError();
 			return;
 		}
@@ -170,7 +170,7 @@ private :
 		}
 		else
 		{
-			UE_LOG(LogChaos, Error, TEXT("TNetRewindHistory::NetSerializeData called on data struct %s without a native NetSerialize"), *ScriptStruct->GetName());
+			UE_LOG(LogTemp, Error, TEXT("TNetRewindHistory::NetSerializeData called on data struct %s without a native NetSerialize"), *ScriptStruct->GetName());
 
 			// Not working for now since the packagemap could be null
 			// UNetConnection* Connection = CastChecked<UPackageMapClient>(PackageMap)->GetConnection();
@@ -284,6 +284,11 @@ struct FNetworkPhysicsCallback : public Chaos::IRewindCallback
 		{
 			RewindableCallbackObjects.Add(SimCallbackObject);
 		}
+	}
+
+	virtual void UnregisterRewindableSimCallback_Internal(Chaos::ISimCallbackObject* SimCallbackObject) override
+	{
+		RewindableCallbackObjects.Remove(SimCallbackObject);
 	}
 
 	// Updates the TMap on PhysScene that stores (non interpolated) physics data for replication.
