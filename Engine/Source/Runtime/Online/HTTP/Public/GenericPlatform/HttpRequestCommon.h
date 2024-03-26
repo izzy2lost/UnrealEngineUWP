@@ -3,10 +3,10 @@
 #pragma once
 
 #include "GenericPlatform/HttpRequestImpl.h"
+#include "GenericPlatform/HttpRequestPayload.h"
 
 class FHttpResponseCommon;
 class IHttpTaskTimerHandle;
-class FRequestPayload;
 
 /**
  * Contains implementation of some common functions that don't vary between implementations of different platforms
