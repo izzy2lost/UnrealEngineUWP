@@ -56,7 +56,8 @@ public class LiveLinkHubTarget : TargetRules
 			{
 				"LiveLinkViconDataStream",
 				"MocopiLiveLink",
-				"PoseAILiveLink"
+				"PoseAILiveLink",
+				"Smartsuit"
 			});
 		}
 
