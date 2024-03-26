@@ -18,4 +18,5 @@ class NIAGARAEDITOR_API UAssetDefinition_NiagaraAssetTagDefinitions : public UAs
 	virtual FLinearColor GetAssetColor() const override { return FLinearColor::White; }
 	virtual TSoftClassPtr<UObject> GetAssetClass() const override { return UNiagaraAssetTagDefinitions::StaticClass(); }
 	virtual TConstArrayView<FAssetCategoryPath> GetAssetCategories() const override;
+	virtual EAssetCommandResult PerformAssetDiff(const FAssetDiffArgs& DiffArgs) const override;
 };

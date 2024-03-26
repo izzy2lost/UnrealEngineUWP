@@ -2,12 +2,29 @@
 
 #include "AssetDefinition_NiagaraEffectType.h"
 #include "NiagaraEditorStyle.h"
+#include "SDetailsDiff.h"
 
 #define LOCTEXT_NAMESPACE "AssetTypeActions_NiagaraEffectType"
 
 FLinearColor UAssetDefinition_NiagaraEffectType::GetAssetColor() const
 {
 	return FNiagaraEditorStyle::Get().GetColor("NiagaraEditor.AssetColors.EffectType");
+}
+
+EAssetCommandResult UAssetDefinition_NiagaraEffectType::PerformAssetDiff(const FAssetDiffArgs& DiffArgs) const
+{
+	if (DiffArgs.OldAsset == nullptr && DiffArgs.NewAsset == nullptr)
+	{
+		return EAssetCommandResult::Unhandled;
+	}
+	
+	const TSharedRef<SDetailsDiff> DetailsDiff = SDetailsDiff::CreateDiffWindow(DiffArgs.OldAsset, DiffArgs.NewAsset, DiffArgs.OldRevision, DiffArgs.NewRevision, UNiagaraEffectType::StaticClass());
+	// allow users to edit NewAsset if it's a local asset
+	if (!FPackageName::IsTempPackage(DiffArgs.NewAsset->GetPackage()->GetName()))
+	{
+		DetailsDiff->SetOutputObject(DiffArgs.NewAsset);
+	}
+	return EAssetCommandResult::Handled;
 }
 
 #undef LOCTEXT_NAMESPACE
