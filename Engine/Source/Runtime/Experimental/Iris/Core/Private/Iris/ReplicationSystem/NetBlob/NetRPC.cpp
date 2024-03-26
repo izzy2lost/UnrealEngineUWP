@@ -3,6 +3,7 @@
 #include "Iris/ReplicationSystem/NetBlob/NetRPC.h"
 
 #include "Iris/Core/BitTwiddling.h"
+#include "Net/Core/Trace/NetDebugName.h"
 #include "Net/Core/Trace/NetTrace.h"
 #include "Net/Core/Misc/NetContext.h"
 #include "Iris/ReplicationSystem/NetBlob/NetRPCHandler.h"
