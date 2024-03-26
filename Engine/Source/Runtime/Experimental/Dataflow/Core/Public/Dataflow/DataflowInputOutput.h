@@ -5,6 +5,7 @@
 #include "CoreMinimal.h"
 #include "Dataflow/DataflowNodeParameters.h"
 #include "Dataflow/DataflowConnection.h"
+#include "Dataflow/DataflowNode.h"
 #include "Templates/Function.h"
 #include "Async/Async.h"
 #include "GenericPlatform/GenericPlatformCriticalSection.h"
@@ -12,7 +13,6 @@
 #include "DataflowInputOutput.generated.h"
 
 
-struct FDataflowNode;
 struct FDataflowOutput;
 
 //
@@ -134,10 +134,6 @@ public:
 		}
 	}
 
-	// there's no need to templatize this function on the type as the parameter will not be used
-	// the method do check if the type of the input is the same as the output type though 
-	void ForwardInput(const void* InputReference, Dataflow::FContext& Context) const;
-
 	template<class T> const T& GetValue(Dataflow::FContext& Context, const T& Default) const
 	{
 		if (!this->Evaluate<T>(Context))
@@ -162,10 +158,6 @@ public:
 	TFuture<bool> EvaluateParallel(Dataflow::FContext& Context) const;
 
 	DATAFLOWCORE_API virtual void Invalidate(const Dataflow::FTimestamp& ModifiedTimestamp = Dataflow::FTimestamp::Current()) override;
-
-private:
-	DATAFLOWCORE_API bool IsOwningNodeEnabled() const;
-	DATAFLOWCORE_API const FDataflowInput* GetPassthroughInput() const;
 
 };
  
@@ -202,11 +194,11 @@ bool FDataflowOutput::Evaluate(Dataflow::FContext& Context) const
 {
 	check(OwningNode);
  
-	if (IsOwningNodeEnabled())
+	if (OwningNode->bActive)
 	{
 		return Context.Evaluate(*this);
 	}
-	else if (const FDataflowInput* PassthroughInput = GetPassthroughInput())
+	else if(const FDataflowInput* PassthroughInput = OwningNode->FindInput(GetPassthroughRealAddress()))
 	{
 		// @todo(dataflow) would be nice if the passthrough does not overwrite the existing cache value.
 		const T& PassthroughData = PassthroughInput->GetValue<T>(Context, *reinterpret_cast<const T*>(PassthroughInput->RealAddress()));
