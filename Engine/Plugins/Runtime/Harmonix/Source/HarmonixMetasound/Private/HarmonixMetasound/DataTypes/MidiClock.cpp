@@ -389,6 +389,98 @@ namespace HarmonixMetasound
 		}
 	}
 
+	void FMidiClock::HandleTransportChange(int32 BlockFrameIndex, EMusicPlayerTransportState TransportState)
+	{
+		switch (TransportState)
+		{
+		case EMusicPlayerTransportState::Prepared:
+		case EMusicPlayerTransportState::Paused:
+			AddTransportStateChangeToBlock({ BlockFrameIndex, 0.0f, TransportState });
+			break;
+		case EMusicPlayerTransportState::Playing:
+			AddTransportStateChangeToBlock({ BlockFrameIndex, 0.0f, TransportState });
+			break;
+		}
+	}
+
+	void FMidiClock::Process(int32 StartFrame, int32 NumFrames, int32 PrerollBars, float Speed)
+	{
+		int32 EndFrame = StartFrame + NumFrames;
+		switch (CurrentTransportState.TransportState)
+		{
+		case EMusicPlayerTransportState::Playing:
+		case EMusicPlayerTransportState::Continuing:
+			WriteAdvance(StartFrame, EndFrame, Speed);
+			break;
+		}
+	}
+
+	void FMidiClock::Process(const FMidiClock& DrivingClock, int32 StartFrame, int32 NumFrames, int32 PrerollBars, float Speed)
+	{
+		int32 EndFrame = StartFrame + NumFrames;
+		const TArray<FMidiClockEvent>& ClockEvents = DrivingClock.GetMidiClockEventsInBlock();
+		int32 Index = Algo::LowerBoundBy(ClockEvents, StartFrame, &FMidiClockEvent::BlockFrameIndex);
+		while (ClockEvents.IsValidIndex(Index))
+		{
+			const FMidiClockEvent& Event = ClockEvents[Index];
+			if (Event.BlockFrameIndex >= EndFrame)
+			{
+				return;
+			}
+			
+			HandleClockEvent(DrivingClock, Event, PrerollBars, Speed);
+			++Index;
+		}
+	}
+	
+	void FMidiClock::HandleClockEvent(const FMidiClock& DrivingClock, const FMidiClockEvent& Event, int32 PrerollBars, float Speed)
+	{
+		switch (Event.Msg.Type)
+		{
+		case FMidiClockMsg::EType::Reset:
+			{
+				int32 Tick = CalculateMappedTick(Event.Msg.ToTick());
+				SeekTo(Event.BlockFrameIndex, Tick + 1, PrerollBars);
+				break;
+			}
+		case FMidiClockMsg::EType::Loop:
+			// ignore loops since the driving clock will loop us by seeking
+			break;
+		case FMidiClockMsg::EType::SeekTo:
+			{
+				int32 Tick = CalculateMappedTick(Event.Msg.ToTick());
+				SeekTo(Event.BlockFrameIndex, Tick, PrerollBars);
+				break;
+			}
+		case FMidiClockMsg::EType::SeekThru:
+			{
+				int32 Tick = CalculateMappedTick(Event.Msg.ThruTick());
+				SeekTo(Event.BlockFrameIndex, Tick + 1, PrerollBars);
+				break;
+			}
+		case FMidiClockMsg::EType::AdvanceThru:
+			{
+				if (Event.Msg.AsAdvanceThru().IsPreRoll)
+				{
+					int32 Tick = CalculateMappedTick(Event.Msg.ThruTick());
+					SeekTo(Event.BlockFrameIndex, Tick + 1, PrerollBars);
+					break;
+				}
+
+				// Advance based on the delta ticks, and not based on the absolute tick
+				int32 Tick = GetCurrentMidiTick() + (Event.Msg.ThruTick() - Event.Msg.FromTick());
+				float Ms = GetSongMaps().TickToMs(Tick);
+
+				float ClockInSpeed = DrivingClock.GetSpeedAtBlockSampleFrame(Event.BlockFrameIndex);
+				float AdvanceRatio = DrivingClock.GetSongMaps().GetTempoAtTick(Event.Msg.FromTick())
+								   / GetSongMaps().GetTempoAtTick(GetCurrentMidiTick());
+				InformOfCurrentAdvanceRate(ClockInSpeed * Speed * AdvanceRatio);
+				AdvanceHiResToMs(Event.BlockFrameIndex, Ms, true);
+				break;
+			}
+		}
+	}
+
 	void FMidiClock::WriteAdvance(int32 StartFrameIndex, int32 EndFrameIndex, float InSpeed /*= 1.0f*/)
 	{
 		int32 FramesToProcess = EndFrameIndex - StartFrameIndex;
@@ -451,8 +543,7 @@ namespace HarmonixMetasound
 		}
 		return Tick;
 	}
-
-
+	
 	TSharedPtr<FMidiFileData> FMidiClock::MakeClockConductorMidiData(float InTempoBPM, int32 InTimeSigNum, int32 InTimeSigDen)
 	{
 		TSharedPtr<FMidiFileData> OutMidiData = MakeShared<FMidiFileData>();

@@ -381,109 +381,18 @@ namespace HarmonixMetasound
 
 		MidiClockOut->CopySpeedAndTempoChanges(MidiClockIn.Get(), *SpeedMultInPin);
 
-		int32 CurrentMidiClockEventIndex = -1;
-		TransportSpanPostProcessor HandleMidiClockEventsInBlock = [&](int32 StartFrameIndex, int32 EndFrameIndex, EMusicPlayerTransportState CurrentState)
+		TransportSpanPostProcessor HandleMidiClockEventsInBlock = [this](int32 StartFrameIndex, int32 EndFrameIndex, EMusicPlayerTransportState CurrentState)
 		{
-			const TArray<FMidiClockEvent>& MidiClockEvents = MidiClockIn->GetMidiClockEventsInBlock();
-			for (int32 EventIndex = FMath::Max(CurrentMidiClockEventIndex, 0); EventIndex < MidiClockEvents.Num(); ++EventIndex)
-			{
-				const FMidiClockEvent& Event = MidiClockEvents[EventIndex];
-
-				// we've run past the end of the events. Might as well stop iterating.
-				if (Event.BlockFrameIndex >= EndFrameIndex)
-				{
-					break;
-				}
-
-				if (Event.BlockFrameIndex >= StartFrameIndex && Event.BlockFrameIndex < EndFrameIndex)
-				{
-					// We should be advancing midi clock events in order (never repeating)!
-					check(CurrentMidiClockEventIndex < EventIndex);
-					CurrentMidiClockEventIndex = EventIndex;
-					switch (Event.Msg.Type)
-					{
-					case FMidiClockMsg::EType::Reset:
-					{
-						int32 Tick = MidiClockOut->CalculateMappedTick(Event.Msg.ToTick());
-						MidiClockOut->SeekTo(Event.BlockFrameIndex, Tick + 1, PrerollBars);
-						break;
-					}
-					case FMidiClockMsg::EType::Loop:
-					{
-						// loops should actually be handled by seeking and advancing...
-						break;
-					}
-					case FMidiClockMsg::EType::SeekTo:
-					{
-						int32 Tick = MidiClockOut->CalculateMappedTick(Event.Msg.ToTick());
-						MidiClockOut->SeekTo(Event.BlockFrameIndex, Tick, PrerollBars);
-						break;
-					}
-					case FMidiClockMsg::EType::SeekThru:
-					{
-						int32 Tick = MidiClockOut->CalculateMappedTick(Event.Msg.ThruTick());
-						MidiClockOut->SeekTo(Event.BlockFrameIndex, Tick + 1, PrerollBars);
-						break;
-					}
-					case FMidiClockMsg::EType::AdvanceThru:
-					{
-						// if this advance is a preroll, perform a seek instead so we don't trigger events doing an advance
-						// NOTE: This code is/should be identical to the SeekThru event above
-						if (Event.Msg.AsAdvanceThru().IsPreRoll)
-						{
-							int32 Tick = MidiClockOut->CalculateMappedTick(Event.Msg.ThruTick());
-							MidiClockOut->SeekTo(Event.BlockFrameIndex, Tick + 1, PrerollBars);
-							break;
-						}
-						// The MidiClock handles looping on its own, so we can conveniently advance it
-						int32 Tick = MidiClockOut->GetCurrentMidiTick() + (Event.Msg.ThruTick() - Event.Msg.FromTick());
-						float Ms = MidiClockOut->GetSongMaps().TickToMs(Tick);
-
-						float ClockInSpeed = MidiClockIn->GetSpeedAtBlockSampleFrame(StartFrameIndex);
-						float AdvanceRatio = MidiClockIn->GetSongMaps().GetTempoAtTick(Event.Msg.FromTick())
-							               / MidiClockOut->GetSongMaps().GetTempoAtTick(MidiClockOut->GetCurrentMidiTick());
-						// midi clock needs to know how fast its advancing based on their authority
-						MidiClockOut->InformOfCurrentAdvanceRate(ClockInSpeed * *SpeedMultInPin * AdvanceRatio);
-						MidiClockOut->AdvanceHiResToMs(Event.BlockFrameIndex, Ms, true);
-							
-						break;
-					}
-					}
-				}
-			}
+			// clock should always process in post processor
+			int32 NumFrames = EndFrameIndex - StartFrameIndex;
+			MidiClockOut->HandleTransportChange(StartFrameIndex, CurrentState);
+			MidiClockOut->Process(*MidiClockIn, StartFrameIndex, NumFrames, PrerollBars, *SpeedMultInPin);
 		};
 
 		TransportSpanProcessor TransportHandler = [&](int32 StartFrameIndex, int32 EndFrameIndex, EMusicPlayerTransportState CurrentState)
 		{
-			CurrentBlockSpanStart = StartFrameIndex;
 			switch (CurrentState)
 			{
-			case EMusicPlayerTransportState::Invalid:
-			case EMusicPlayerTransportState::Preparing:
-				return EMusicPlayerTransportState::Prepared;
-
-			case EMusicPlayerTransportState::Prepared:
-				return CurrentState;
-
-			case EMusicPlayerTransportState::Starting:
-				return EMusicPlayerTransportState::Playing;
-
-			case EMusicPlayerTransportState::Playing:
-				return EMusicPlayerTransportState::Playing;
-
-			case EMusicPlayerTransportState::Seeking:
-				// We have nothing to do because our incoming midi clock would have seeked us. 
-				return GetTransportState();
-
-			case EMusicPlayerTransportState::Continuing:
-				return EMusicPlayerTransportState::Playing;
-
-			case EMusicPlayerTransportState::Pausing:
-				return EMusicPlayerTransportState::Paused;
-
-			case EMusicPlayerTransportState::Paused:
-				return EMusicPlayerTransportState::Paused;
-
 			case EMusicPlayerTransportState::Stopping:
 				{
 					FMidiStreamEvent MidiEvent(this, FMidiMsg::CreateAllNotesOff());
@@ -493,15 +402,9 @@ namespace HarmonixMetasound
 					MidiEvent.TrackIndex = 0;
 					MidiOutPin->AddMidiEvent(MidiEvent);
 				}
-				return EMusicPlayerTransportState::Prepared;
-
-			case EMusicPlayerTransportState::Killing:
-				return EMusicPlayerTransportState::Prepared;
-
-			default:
-				checkNoEntry();
-				return EMusicPlayerTransportState::Invalid;
+				break;
 			}
+			return GetNextTransportState(CurrentState);
 		};
 		ExecuteTransportSpans(TransportInPin, BlockSize, TransportHandler, HandleMidiClockEventsInBlock);
 	}
@@ -514,30 +417,12 @@ namespace HarmonixMetasound
 		{
 			switch (CurrentState)
 			{
-			case EMusicPlayerTransportState::Invalid:
-			case EMusicPlayerTransportState::Preparing:
-			case EMusicPlayerTransportState::Prepared:
-			case EMusicPlayerTransportState::Stopping:
-			case EMusicPlayerTransportState::Killing:
-				return EMusicPlayerTransportState::Prepared;
-
-			case EMusicPlayerTransportState::Starting:
-			case EMusicPlayerTransportState::Playing:
-			case EMusicPlayerTransportState::Continuing:
-				return EMusicPlayerTransportState::Playing;
-
 			case EMusicPlayerTransportState::Seeking: // seeking is omitted from init, shouldn't happen
 				checkNoEntry();
 				return EMusicPlayerTransportState::Invalid;
-
-			case EMusicPlayerTransportState::Pausing:
-			case EMusicPlayerTransportState::Paused:
-				return EMusicPlayerTransportState::Paused;
-
-			default:
-				checkNoEntry();
-				return EMusicPlayerTransportState::Invalid;
 			}
+
+			return GetNextTransportState(CurrentState);
 		};
 		Init(*TransportInPin, MoveTemp(InitFn));
 	}
@@ -550,87 +435,23 @@ namespace HarmonixMetasound
 
 		TransportSpanPostProcessor MidiClockTransportHandler = [&](int32 StartFrameIndex, int32 EndFrameIndex, EMusicPlayerTransportState CurrentState)
 		{
-			switch (CurrentState)
-			{
-			case EMusicPlayerTransportState::Playing:
-				MidiClockOut->WriteAdvance(StartFrameIndex, EndFrameIndex, *SpeedMultInPin);
-				return;
-
-			case EMusicPlayerTransportState::Continuing:
-				MidiClockOut->WriteAdvance(StartFrameIndex, EndFrameIndex, *SpeedMultInPin);
-				return;
-			}
+			int32 NumFrames = EndFrameIndex - StartFrameIndex;
+			MidiClockOut->HandleTransportChange(StartFrameIndex, CurrentState);
+			MidiClockOut->Process(StartFrameIndex, NumFrames, PrerollBars, *SpeedMultInPin);
 		};
 
 		TransportSpanProcessor TransportHandler = [this](int32 StartFrameIndex, int32 EndFrameIndex, EMusicPlayerTransportState CurrentState)
 		{
 			switch (CurrentState)
 			{
-			case EMusicPlayerTransportState::Invalid:
-			case EMusicPlayerTransportState::Preparing:
-				// midi clock out
-				MidiClockOut->AddTransportStateChangeToBlock({ StartFrameIndex, 0.0f, EMusicPlayerTransportState::Prepared });
-
-				// midi out
-				return EMusicPlayerTransportState::Prepared;
-
-			case EMusicPlayerTransportState::Prepared:
-				// midi out
-				return CurrentState;
-
 			case EMusicPlayerTransportState::Starting:
-				// midi clock out 
 				MidiClockOut->ResetAndStart(StartFrameIndex, !ReceivedSeekWhileStopped());
-
-				// midi out
-				return EMusicPlayerTransportState::Playing;
-
-			case EMusicPlayerTransportState::Playing:
-				return EMusicPlayerTransportState::Playing;
-
+				break;
 			case EMusicPlayerTransportState::Seeking:
-				// midi clock out
 				MidiClockOut->SeekTo(StartFrameIndex, TransportInPin->GetNextSeekDestination(), PrerollBars);
-
-				// We have nothing to do because our incoming midi clock would have seeked us. 
-				return GetTransportState();
-
-			case EMusicPlayerTransportState::Continuing:
-				// midi clock
-				MidiClockOut->AddTransportStateChangeToBlock({ StartFrameIndex, 0.0f, EMusicPlayerTransportState::Playing });
-
-				// midi out
-				return EMusicPlayerTransportState::Playing;
-
-			case EMusicPlayerTransportState::Pausing:
-				// midi clock out
-				MidiClockOut->AddTransportStateChangeToBlock({ StartFrameIndex, 0.0f, EMusicPlayerTransportState::Paused });
-
-				// midi out
-				return EMusicPlayerTransportState::Paused;
-
-			case EMusicPlayerTransportState::Paused:
-				// midi out
-				return EMusicPlayerTransportState::Paused;
-
-			case EMusicPlayerTransportState::Stopping:
-				// midi clock out
-				MidiClockOut->AddTransportStateChangeToBlock({ StartFrameIndex, 0.0f, EMusicPlayerTransportState::Prepared });
-
-				// midi out
-				return EMusicPlayerTransportState::Prepared;
-
-			case EMusicPlayerTransportState::Killing:
-				// midi clock out
-				MidiClockOut->AddTransportStateChangeToBlock({ StartFrameIndex, 0.0f, EMusicPlayerTransportState::Prepared });
-
-				// midi out
-				return EMusicPlayerTransportState::Prepared;
-
-			default:
-				checkNoEntry();
-				return EMusicPlayerTransportState::Invalid;
+				break;
 			}
+			return GetNextTransportState(CurrentState);
 		};
 		ExecuteTransportSpans(TransportInPin, BlockSize, TransportHandler, MidiClockTransportHandler);
 	}

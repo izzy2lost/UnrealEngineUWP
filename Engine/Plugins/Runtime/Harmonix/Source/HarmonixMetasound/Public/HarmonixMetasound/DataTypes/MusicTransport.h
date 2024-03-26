@@ -90,6 +90,7 @@ namespace HarmonixMetasound
 
 		EMusicPlayerTransportState GetTransportState() const { return TransportState; }
 		void SetTransportState(EMusicPlayerTransportState NewState) { TransportState = NewState; }
+		EMusicPlayerTransportState GetNextTransportState(EMusicPlayerTransportState DesiredState) const;
 		
 		using TransportSpanProcessor = TUniqueFunction<EMusicPlayerTransportState(int32,int32,EMusicPlayerTransportState)>;
 		// post processor gets called immediately after the SpanProcessor so that the TransportState has been updated
