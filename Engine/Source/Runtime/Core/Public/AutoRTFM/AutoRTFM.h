@@ -9,6 +9,18 @@
 #endif
 
 #if UE_AUTORTFM
+#if defined(__has_feature)
+#if __has_feature(autostm)
+#define UE_AUTOSTM 1
+#endif
+#endif
+#endif
+
+#if !defined(UE_AUTOSTM)
+#define UE_AUTOSTM 0
+#endif
+
+#if UE_AUTORTFM
 #define UE_AUTORTFM_AUTORTFM(F) [[clang::autortfm(F), clang::noinline]]
 #define UE_AUTORTFM_NOAUTORTFM [[clang::noautortfm, clang::noinline]]
 #define UE_AUTORTFM_ALWAYS_OPEN [[clang::autortfm_always_open]]

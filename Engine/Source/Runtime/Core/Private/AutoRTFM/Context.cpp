@@ -287,6 +287,12 @@ ETransactionResult FContext::Transact(void (*Function)(void* Arg), void* Arg)
 {
     constexpr bool bVerbose = false;
 
+	if constexpr (0 != UE_AUTOSTM)
+	{
+		UE_LOG(LogAutoRTFM, Warning, TEXT("AutoSTM is not implemented in the runtime yet!"));
+		return ETransactionResult::AbortedByLanguage;
+	}
+
     if (UNLIKELY(EContextStatus::Committing == Status))
     {
     	return ETransactionResult::AbortedByTransactInOnCommit;
