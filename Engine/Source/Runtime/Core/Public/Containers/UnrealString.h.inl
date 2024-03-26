@@ -1,5 +1,8 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
+// HEADER_UNIT_SKIP - Should not be included directly
+// IWYU pragma: private
+
 /*******************************************************************************************************************
  * NOTICE                                                                                                          *
  *                                                                                                                 *
