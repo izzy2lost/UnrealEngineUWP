@@ -17,6 +17,7 @@
 #include "SLevelOfDetailBranchNode.h"
 #include "SPinTypeSelector.h"
 #include "TutorialMetaData.h"
+#include "Algo/AnyOf.h"
 #include "Widgets/Images/SImage.h"
 #include "Widgets/SToolTip.h"
 #include "Widgets/Input/SButton.h"
@@ -48,7 +49,7 @@ public:
 	bool GetExtraIcon(FName& OutExtraIcon, FText& OutTooltip) const;
 
 	/** Whether pin is required to be connected for execution. */
-	bool IsRequiredForExecution() const;
+	bool ShouldDisplayAsRequiredForExecution() const;
 
 private:
 	void ApplyUnusedPinStyle(FSlateColor& InOutColor) const;
@@ -88,7 +89,7 @@ void SPCGEditorGraphNodePin::Construct(const FArguments& InArgs, UEdGraphPin* In
 	{
 		const FSlateBrush* RequiredPinMarkerIcon = FPCGEditorStyle::Get().GetBrush(PCGEditorStyleConstants::Pin_Required);
 		RequiredPinMarkerWidth = RequiredPinMarkerIcon ? RequiredPinMarkerIcon->GetImageSize().X : 8.0f;
-		bDisplayPinMarker = IsRequiredForExecution();
+		bDisplayPinMarker = ShouldDisplayAsRequiredForExecution();
 
 		RequiredPinIconWidget =
 			SNew(SImage)
@@ -398,13 +399,35 @@ bool SPCGEditorGraphNodePin::GetExtraIcon(FName& OutExtraIcon, FText& OutTooltip
 	return (PCGPin && Settings) ? Settings->GetPinExtraIcon(PCGPin, OutExtraIcon, OutTooltip) : false;
 }
 
-bool SPCGEditorGraphNodePin::IsRequiredForExecution() const
+bool SPCGEditorGraphNodePin::ShouldDisplayAsRequiredForExecution() const
 {
 	const UPCGPin* PCGPin = nullptr;
 	const UPCGNode* PCGNode = nullptr;
 	GetPCGNodeAndPin(PCGNode, PCGPin);
 
-	return PCGPin && PCGNode->IsInputPinRequiredByExecution(PCGPin);
+	// Trivial early out tests, and advanced pins should never display as required.
+	if (!PCGPin || !PCGNode || PCGPin->Properties.IsAdvancedPin())
+	{
+		return false;
+	}
+
+	if (PCGNode->IsInputPinRequiredByExecution(PCGPin))
+	{
+		return true;
+	}
+
+	const UPCGSettings* Settings = PCGNode->GetSettings();
+	if (Settings && Settings->CanCullTaskIfUnwired())
+	{
+		// If the node will cull if unwired, and if it only has a single normal pin (and no required pins), then display the pin
+		// as required, because it effectively is. So return false if there are other pins which are not advanced.
+		return !Algo::AnyOf(PCGNode->GetInputPins(), [PCGPin](UPCGPin* InOtherPin)
+		{
+			return InOtherPin && InOtherPin != PCGPin && InOtherPin->Properties.PinStatus != EPCGPinStatus::Advanced;
+		});
+	}
+
+	return false;
 }
 
 void SPCGEditorGraphNode::Construct(const FArguments& InArgs, UPCGEditorGraphNodeBase* InNode)
