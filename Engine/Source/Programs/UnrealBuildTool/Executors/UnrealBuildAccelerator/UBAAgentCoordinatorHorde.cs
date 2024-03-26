@@ -199,7 +199,7 @@ namespace UnrealBuildTool
 
 		async Task<BlobLocator> CreateToolAsync(DirectoryReference baseDir, IEnumerable<FileReference> files, CancellationToken cancellationToken)
 		{
-			BlobSerializerOptions serializerOptions = new BlobSerializerOptions();
+			BlobSerializerOptions serializerOptions = new();
 			serializerOptions.Converters.Add(new InteriorChunkedDataNodeConverter(2)); // Lock to v2 for now. Could change based on protocol version.
 
 			await using IBlobWriter writer = _storage.CreateBlobWriter(serializerOptions: serializerOptions);

@@ -176,7 +176,7 @@ namespace UnrealBuildTool
 		/// Set to true to disable mimalloc and detouring of memory allocations.
 		/// </summary>
 		[XmlConfigFile(Category = "UnrealBuildAccelerator")]
-		[CommandLine("-UBANoCustoMalloc", Value = "true")]
+		[CommandLine("-UBANoCustomMalloc", Value = "true")]
 		public bool bDisableCustomAlloc { get; set; } = false;
 
 		/// <summary>
@@ -187,7 +187,7 @@ namespace UnrealBuildTool
 		public string Zone { get; set; } = String.Empty;
 
 		/// <summary>
-		/// Set to true to enable encryption when transfering files over the network.
+		/// Set to true to enable encryption when transferring files over the network.
 		/// </summary>
 		[XmlConfigFile(Category = "UnrealBuildAccelerator")]
 		[CommandLine("-UBACrypto", Value = "true")]
