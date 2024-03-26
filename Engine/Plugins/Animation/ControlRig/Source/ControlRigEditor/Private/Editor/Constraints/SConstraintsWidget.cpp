@@ -69,6 +69,18 @@ const TArray< UTickableTransformConstraint* >& FConstraintInfo::GetMutableDefaul
 	return MutableDefaults;
 }
 
+const TArray< TFunction<UTickableTransformConstraint*()> >& FConstraintInfo::GetConfigurableConstraints()
+{
+	static TArray< TFunction<UTickableTransformConstraint*()> > ConfigurableConstraints({
+		[](){ return NewObject<UTickableTranslationConstraint>(GetTransientPackage(), NAME_None, RF_Transactional, GetMutableDefault<UTickableTranslationConstraint>(), true); },
+		[](){ return NewObject<UTickableRotationConstraint>(GetTransientPackage(), NAME_None, RF_Transactional, GetMutableDefault<UTickableRotationConstraint>(), true); },
+		[](){ return NewObject<UTickableScaleConstraint>(GetTransientPackage(), NAME_None, RF_Transactional, GetMutableDefault<UTickableScaleConstraint>(), true); },
+		[](){ return NewObject<UTickableParentConstraint>(GetTransientPackage(), NAME_None, RF_Transactional, GetMutableDefault<UTickableParentConstraint>(), true); },
+		[](){ return NewObject<UTickableLookAtConstraint>(GetTransientPackage(), NAME_None, RF_Transactional, GetMutableDefault<UTickableLookAtConstraint>(), true); },
+	});
+	return ConfigurableConstraints;
+}
+
 const FSlateBrush* FConstraintInfo::GetBrush(uint8 InType)
 {
 	static const UEnum* ETransformConstraintTypeEnum = StaticEnum<ETransformConstraintType>();
@@ -96,6 +108,17 @@ UTickableTransformConstraint* FConstraintInfo::GetMutable(ETransformConstraintTy
 	if (ETransformConstraintTypeEnum->IsValidEnumValue(ConstraintType))
 	{
 		return GetMutableDefaults()[ConstraintType];
+	}
+	return nullptr;
+}
+
+UTickableTransformConstraint* FConstraintInfo::GetConfigurable(ETransformConstraintType InType)
+{
+	static const UEnum* ETransformConstraintTypeEnum = StaticEnum<ETransformConstraintType>();
+	const uint8 ConstraintType = static_cast<uint8>(InType);
+	if (ETransformConstraintTypeEnum->IsValidEnumValue(ConstraintType))
+	{
+		return GetConfigurableConstraints()[ConstraintType]();
 	}
 	return nullptr;
 }
@@ -245,7 +268,7 @@ FReply SConstraintMenuEntry::OnMouseButtonDown(const FGeometry& MyGeometry, cons
 	return FReply::Unhandled();
 }
 
-TSharedRef<SWidget> SConstraintMenuEntry::GenerateConstraintDefaultWidget() const
+TSharedRef<SWidget> SConstraintMenuEntry::GenerateConstraintDefaultWidget()
 {
 	// static constexpr bool CloseAfterSelection = true;
 	// FMenuBuilder MenuBuilder(CloseAfterSelection, nullptr);
@@ -262,14 +285,15 @@ TSharedRef<SWidget> SConstraintMenuEntry::GenerateConstraintDefaultWidget() cons
 		DetailsViewArgs.bShowOptions = false;
 		DetailsViewArgs.bShowModifiedPropertiesOption = false;
 		DetailsViewArgs.ColumnWidth = 0.45f;
+		DetailsViewArgs.NotifyHook = this;
 	}
 	
 	TSharedRef<IDetailsView> DetailsView = FModuleManager::GetModuleChecked<FPropertyEditorModule>("PropertyEditor").CreateDetailView(DetailsViewArgs);
 
-	UTickableTransformConstraint* Constraint = FConstraintInfo::GetMutable(ConstraintType);
+	ConfigurableConstraint = FConstraintInfo::GetConfigurable(ConstraintType);
 	
 	// manage properties visibility
-	const bool bIsLookAtConstraint = Constraint->GetClass() == UTickableLookAtConstraint::StaticClass();
+	const bool bIsLookAtConstraint = ConfigurableConstraint->GetClass() == UTickableLookAtConstraint::StaticClass();
 	const auto PropertyVisibility = FIsPropertyVisible::CreateLambda(
 		[bIsLookAtConstraint](const FPropertyAndParent& InPropertyAndParent)
 		{
@@ -297,7 +321,7 @@ TSharedRef<SWidget> SConstraintMenuEntry::GenerateConstraintDefaultWidget() cons
 		});
 	DetailsView->SetIsPropertyVisibleDelegate(PropertyVisibility);
 		
-	DetailsView->SetObject(Constraint);
+	DetailsView->SetObject(ConfigurableConstraint);
 
 	return SNew(SBorder)
 		.Visibility(EVisibility::Visible)
@@ -358,6 +382,36 @@ FReply SConstraintMenuEntry::OnDragDetected(const FGeometry& MyGeometry, const F
 {
 	bIsPressed = false;
 	return FReply::Handled();
+}
+
+void SConstraintMenuEntry::NotifyPostChange(const FPropertyChangedEvent& InPropertyChangedEvent, FProperty* InPropertyThatChanged)
+{
+	if (!InPropertyThatChanged || InPropertyChangedEvent.ChangeType != EPropertyChangeType::ValueSet)
+	{
+		return;
+	}
+
+	UTickableTransformConstraint* MutableConstraint = FConstraintInfo::GetMutable(ConstraintType);
+	if (!IsValid(ConfigurableConstraint) || !IsValid(MutableConstraint))
+	{
+		return;
+	}
+
+	const UClass* ConstraintClass = MutableConstraint->GetClass();
+	
+	if (const FProperty* CDOProperty = ConstraintClass->FindPropertyByName(InPropertyChangedEvent.GetPropertyName()))
+	{
+		// copy the property
+		CDOProperty->CopyCompleteValue_InContainer(MutableConstraint, ConfigurableConstraint.Get());
+	}
+	else if (InPropertyChangedEvent.MemberProperty)
+	{
+		// copy the member property instead
+		if (const FProperty* CDOMemberProperty = ConstraintClass->FindPropertyByName(InPropertyChangedEvent.GetMemberPropertyName()))
+		{
+			CDOMemberProperty->CopyCompleteValue_InContainer(MutableConstraint, ConfigurableConstraint.Get());
+		}
+	}
 }
 
 FReply SConstraintMenuEntry::CreateSelectionPicker(const bool bUseDefault) const
