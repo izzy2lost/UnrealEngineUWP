@@ -1404,7 +1404,7 @@ static bool TryCacheStreamingMips(const FString& TexturePathName, int32 FirstMip
 
 	const int32 LowestMipIndexToPrefetchOrLoad = FMath::Min(FirstMipToPrefetch, FirstMipToLoad);
 	const int32 NumMips = DerivedData->Mips.Num();
-	const FSharedString Name(TexturePathName);
+	const FSharedString Name(WriteToString<256>(TexturePathName, TEXTVIEW(" [Prefetch]")));
 	for (int32 MipIndex = LowestMipIndexToPrefetchOrLoad; MipIndex < NumMips; ++MipIndex)
 	{
 		const FTexture2DMipMap& Mip = DerivedData->Mips[MipIndex];
