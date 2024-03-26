@@ -891,7 +891,7 @@ static bool TryReadHeader(FDecoderContext& Context, const FCompositeBuffer& Buff
 		{
 			Context.HeaderOffset = 0;
 			Context.HeaderSize = HeaderSize;
-			if (Context.HeaderCrc32 != Header.Crc32)
+			if (Context.HeaderCrc32 != Header.Crc32 || Header.RawHash.IsZero())
 			{
 				Context.HeaderCrc32 = Header.Crc32;
 				Context.RawBlockIndex = MAX_uint32;
