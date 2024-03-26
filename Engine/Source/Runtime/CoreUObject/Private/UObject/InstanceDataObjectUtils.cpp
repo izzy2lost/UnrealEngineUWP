@@ -330,10 +330,42 @@ namespace UE
 		return Result;
 	}
 
+	static FString UnmanglePropertyName(const FName MaybeMangledName, bool* bOutNameWasMangled)
+	{
+		FString Result = MaybeMangledName.ToString();
+		if (Result.StartsWith(TEXT("__verse_0x")))
+		{
+			// chop "__verse_0x" (10 char) + CRC (8 char) + "_" (1 char)
+			Result = Result.RightChop(19);
+			if (bOutNameWasMangled)
+			{
+				*bOutNameWasMangled = true;
+			}
+		}
+		else if (bOutNameWasMangled)
+		{
+			*bOutNameWasMangled = false;
+		}
+		return Result;
+	}
+
 	// recursively re-instances all structs contained by this property to include loose properties
 	static void ConvertToInstanceDataObjectProperty(FProperty* Property, FPropertyTypeName PropertyType, UObject* Outer,
 		const TMap<FWildcardPropertyPathName, TMap<FName, const FProperty*>>& LooseProperties, FWildcardPropertyPathName& Path)
 	{
+#if WITH_EDITORONLY_DATA
+		static const FName NAME_DisplayName(TEXT("DisplayName"));
+		if (!Property->HasMetaData(NAME_DisplayName))
+		{
+			bool bNeedsDisplayName = false;
+			const FString DisplayName = UnmanglePropertyName(Property->GetFName(), &bNeedsDisplayName);
+			if (bNeedsDisplayName)
+			{
+				Property->SetMetaData(NAME_DisplayName, *DisplayName);
+			}
+		}
+#endif
+		
 		if (FStructProperty* AsStructProperty = CastField<FStructProperty>(Property))
 		{
 			if (!AsStructProperty->Struct->UseNativeSerialization())

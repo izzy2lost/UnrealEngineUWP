@@ -175,6 +175,18 @@ int32 FInstanceDataObjectNameWidgetOverride::GetNameWidgetIndex(FPropertyPath Pa
 	return DisplayRegularName;
 }
 
+static FText GetCleanVersePath(const FPropertyPath& Path)
+{
+	FString PathString = Path.ToString();
+	int32 I = PathString.Find(TEXT("__verse_0x"));
+	while (I < GetNum(PathString) && I != INDEX_NONE)
+	{
+		PathString.RemoveAt(I, 19, false);
+		I = PathString.Find(TEXT("__verse_0x"), ESearchCase::IgnoreCase, ESearchDir::FromStart, I);
+	}
+	return FText::FromString(PathString);
+}
+
 TSharedRef<SWidget> FInstanceDataObjectNameWidgetOverride::GeneratePropertyRedirectMenu(FPropertyPath Path) const
 {
 	FMenuBuilder MenuBuilder(true, nullptr);
@@ -189,7 +201,7 @@ TSharedRef<SWidget> FInstanceDataObjectNameWidgetOverride::GeneratePropertyRedir
 	MenuBuilder.BeginSection(NAME_None, LOCTEXT("ResetRedirect", "Reset"));
 	if (OriginalPath != Path || Panel->MarkedForDelete.Contains(OriginalPath))
 	{
-		FText OriginalPathText = FText::FromString(OriginalPath.ToString());
+		FText OriginalPathText = GetCleanVersePath(OriginalPath);
 		FText Tooltip = FText::Format(LOCTEXT("ResetTooltip", "Reset back to {0}"), OriginalPathText);
 		MenuBuilder.AddMenuEntry(OriginalPathText, Tooltip, FSlateIcon()
 						, FUIAction(FExecuteAction::CreateSP(Panel.Get(), &FInstanceDataObjectFixupPanel::OnRedirectProperty, Path, OriginalPath))
@@ -225,7 +237,7 @@ TSharedRef<SWidget> FInstanceDataObjectNameWidgetOverride::GeneratePropertyRedir
 			{
 				if (OptionProperty->SameType(ThisProperty))
 				{
-					FText DisplayName = FText::FromString(Option.ToString());
+					FText DisplayName = GetCleanVersePath(Option);
 					FText Tooltip = FText::Format(LOCTEXT("MovePropertyTooltip", "Move property to '{0}'"), DisplayName);
 					MenuBuilder.AddMenuEntry(DisplayName, Tooltip, FSlateIcon()
 					, FUIAction(FExecuteAction::CreateSP(Panel.Get(), &FInstanceDataObjectFixupPanel::OnRedirectProperty, Path, Option))
@@ -249,7 +261,7 @@ TSharedRef<SWidget> FInstanceDataObjectNameWidgetOverride::GeneratePropertyRedir
 			}
 			if (OptionProperty->SameType(ThisProperty))
 			{
-				FText DisplayName = FText::FromString(Option.ToString());
+				FText DisplayName = GetCleanVersePath(Option);
 				FText Tooltip = FText::Format(LOCTEXT("RenamePropertyTooltip", "Rename property to '{0}'"), DisplayName);
 				MenuBuilder.AddMenuEntry(DisplayName, Tooltip, FSlateIcon()
 				, FUIAction(FExecuteAction::CreateSP(Panel.Get(), &FInstanceDataObjectFixupPanel::OnRedirectProperty, Path, Option))
@@ -276,7 +288,7 @@ TSharedRef<SWidget> FInstanceDataObjectNameWidgetOverride::GeneratePropertyRedir
 			}
 			if (FInstanceDataObjectFixupPanel::FTypeConverter Converter = Panel->CreateTypeConverter(Path, Option))
 			{
-				FText DisplayName = FText::FromString(Option.ToString());
+				FText DisplayName = GetCleanVersePath(Option);
 				FText TypeName = FText::FromName(Option.GetLeafMostProperty().Property->GetID());
 				FText Warning = Converter.GetWarning();
 				FText Tooltip = FText::Format(LOCTEXT("ConvertTypeTooltip", "Change type to {0}"), TypeName);
@@ -310,7 +322,7 @@ TSharedRef<SWidget> FInstanceDataObjectNameWidgetOverride::GeneratePropertyRedir
 			}
 			if (FInstanceDataObjectFixupPanel::FTypeConverter Converter = Panel->CreateTypeConverter(Path, Option))
 			{
-				FText DisplayName = FText::FromString(Option.ToString());
+				FText DisplayName = GetCleanVersePath(Option);
 				FText PropDisplayName = Option.GetLeafMostProperty().Property->GetDisplayNameText();
 				FText TypeName = FText::FromName(Option.GetLeafMostProperty().Property->GetID());
 				FText Warning = Converter.GetWarning();
