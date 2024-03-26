@@ -2512,11 +2512,11 @@ public:
 	//~ End UObject Interface.
 
 	//~ Begin UStreamableRenderAsset Interface.
-	ENGINE_API virtual int32 CalcCumulativeLODSize(int32 NumLODs) const final override;
-	ENGINE_API virtual FIoFilenameHash GetMipIoFilenameHash(const int32 MipIndex) const final override;
-	ENGINE_API virtual bool DoesMipDataExist(const int32 MipIndex) const final override;
-	ENGINE_API virtual bool StreamOut(int32 NewMipCount) final override;
-	ENGINE_API virtual bool StreamIn(int32 NewMipCount, bool bHighPrio) final override;
+	ENGINE_API virtual int32 CalcCumulativeLODSize(int32 NumLODs) const override;
+	ENGINE_API virtual FIoFilenameHash GetMipIoFilenameHash(const int32 MipIndex) const override;
+	ENGINE_API virtual bool DoesMipDataExist(const int32 MipIndex) const override;
+	ENGINE_API virtual bool StreamOut(int32 NewMipCount) override;
+	ENGINE_API virtual bool StreamIn(int32 NewMipCount, bool bHighPrio) override;
 	ENGINE_API virtual bool HasPendingRenderResourceInitialization() const;
 	virtual EStreamableRenderAssetType GetRenderAssetType() const final override { return EStreamableRenderAssetType::SkeletalMesh; }
 	//~ End UStreamableRenderAsset Interface.
