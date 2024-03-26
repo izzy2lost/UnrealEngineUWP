@@ -703,6 +703,14 @@ public:
 	*/
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Collisions")
 	bool bImportCollisionFromSource;
+
+	/**
+	* whether to optimize convexes for collisions. If true the convex optimizer will generate at runtime one 
+	* single convex shape for physics collisions ignoring all the user defined ones. 
+	* Enable p.Chaos.Convex.SimplifyUnion cvar to be able to use it (experimental)
+	*/
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Collisions")
+	bool bOptimizeConvexes = true;
 	
 #if WITH_EDITORONLY_DATA
 	/**
@@ -821,6 +829,10 @@ public:
 	GEOMETRYCOLLECTIONENGINE_API const TArray<int32>& GetBreadthFirstTransformIndices() const { return BreadthFirstTransformIndices; }
 
 	GEOMETRYCOLLECTIONENGINE_API const TArray<int32>& GetAutoInstanceTransformRemapIndices() const { return AutoInstanceTransformRemapIndices; }
+
+#if WITH_EDITOR
+	virtual bool CanEditChange(const FProperty* InProperty) const override;
+#endif // WITH_EDITOR
 
 private:
 #if WITH_EDITOR

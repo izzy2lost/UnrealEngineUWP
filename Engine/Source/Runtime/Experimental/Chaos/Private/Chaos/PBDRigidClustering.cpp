@@ -74,7 +74,7 @@ namespace Chaos
 
 	namespace CVars
 	{
-		extern bool bChaosConvexSimplifyUnion;
+		extern CHAOS_API bool bChaosConvexSimplifyUnion;
 	}
 
 	template <typename TProxy=FGeometryCollectionPhysicsProxy>
@@ -398,6 +398,33 @@ namespace Chaos
 		{ 
 			if(FImplicitObjectUnion* Union = Particle->GetGeometry()->template AsA<FImplicitObjectUnion>())
 			{
+				TBitArray<> bOptimizeConvexes;
+				bOptimizeConvexes.Init(true, Particle->ShapesArray().Num());
+				if (FGeometryCollectionPhysicsProxy* ConcreteProxy = GetConcreteProxy(Particle))
+				{
+					if(Particle->ShapesArray().Num() == 1)
+					{ 
+						bOptimizeConvexes[0] = ConcreteProxy->GetSimParameters().bOptimizeConvexes;
+					}
+				}
+				else if (Chaos::FClusterUnion* ClusterUnion = ClusterUnionManager.FindClusterUnionFromParticle(Particle))
+				{
+					if(Particle->ShapesArray().Num() == ClusterUnion->ChildParticles.Num())
+					{
+						int32 ShapeIndex = 0;
+						for (FPBDRigidParticleHandle* ChildHandle : ClusterUnion->ChildParticles)
+						{
+							if (FPBDRigidClusteredParticleHandle* ChildClustered = ChildHandle->CastToClustered())
+							{
+								if (FGeometryCollectionPhysicsProxy* ChildProxy = GetConcreteProxy(ChildClustered))
+								{
+									bOptimizeConvexes[ShapeIndex] = ChildProxy->GetSimParameters().bOptimizeConvexes;
+								}
+							}
+							++ShapeIndex;
+						}
+					}
+				}
 				if(Union->GetNumLeafObjects() > 1)
 				{ 
 					if (!Particle->ConvexOptimizer())
@@ -405,7 +432,7 @@ namespace Chaos
 						Particle->ConvexOptimizer() = MakePimpl<Private::FConvexOptimizer>();
 					}
 					Particle->ConvexOptimizer()->SimplifyRootConvexes(Union,
-						Particle->ShapesArray(), Particle->ObjectState());
+						Particle->ShapesArray(), Particle->ObjectState(), bOptimizeConvexes);
 					bHasOptimizer = Particle->ConvexOptimizer()->IsValid();
 				}
 			}

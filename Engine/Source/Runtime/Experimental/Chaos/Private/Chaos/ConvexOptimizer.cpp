@@ -12,7 +12,7 @@ namespace Chaos
 namespace CVars
 {
 	// Replace all the convexes within an implicit hierarchy with a simplified one (kdop18 tribox for now) for collision
-	bool bChaosConvexSimplifyUnion = true;
+	CHAOS_API bool bChaosConvexSimplifyUnion = false;
 	FAutoConsoleVariableRef CVarChaosSimplifyUnion(TEXT("p.Chaos.Convex.SimplifyUnion"), bChaosConvexSimplifyUnion, TEXT("If true replace all the convexes within an implcit hierarchy with a simplified one (kdop18 tribox for now) for collision"));
 
 	// Max number of convex LODs used during simplification  for dynamic particles
@@ -117,11 +117,11 @@ void FConvexOptimizer::BuildConvexShapes(const FShapesArray& UnionShapes)
 }
 
 void FConvexOptimizer::SimplifyRootConvexes(const Chaos::FImplicitObjectUnionPtr& UnionGeometry, const FShapesArray& UnionShapes,
-		const EObjectStateType ObjectState)
+		const EObjectStateType ObjectState, const TBitArray<>& bOptimizeConvexes)
 {
 	SCOPE_CYCLE_COUNTER(STAT_Collisions_SimplifyConvexes);
 
-	if(CVars::bChaosConvexSimplifyUnion && UnionGeometry && (UnionShapes.Num() > 0) &&
+	if(CVars::bChaosConvexSimplifyUnion && UnionGeometry && (UnionShapes.Num() > 0) && (UnionShapes.Num() == bOptimizeConvexes.Num()) &&
 		(UnionShapes.Num() <= UnionGeometry->GetObjects().Num()))
 	{
 		SimplifiedConvexes.Reset();
@@ -131,13 +131,13 @@ void FConvexOptimizer::SimplifyRootConvexes(const Chaos::FImplicitObjectUnionPtr
 		if((UnionShapes.Num() == 1) || ((ObjectState == EObjectStateType::Dynamic) && (CVars::ChaosConvexDynamicMode == 0)) 
 				|| ((ObjectState != EObjectStateType::Dynamic) && (CVars::ChaosConvexKinematicMode == 0)))
 		{
-			BuildSingleConvex(UnionGeometry, UnionShapes);
+			BuildSingleConvex(UnionGeometry, UnionShapes, bOptimizeConvexes);
 		}
 		else
 		{
 			const bool bEnableMerging = ((ObjectState == EObjectStateType::Dynamic) && (CVars::ChaosConvexDynamicMode == 2))
 				|| ((ObjectState != EObjectStateType::Dynamic) && (CVars::ChaosConvexKinematicMode == 2));
-			BuildMultipleConvex(UnionGeometry, UnionShapes, bEnableMerging);
+			BuildMultipleConvex(UnionGeometry, UnionShapes, bEnableMerging, bOptimizeConvexes);
 		}
 	}
 
@@ -199,7 +199,7 @@ FORCEINLINE void ResizeCachedTriboxes(FConvexOptimizer::FTriboxNodes& RootTribox
 
 DECLARE_CYCLE_STAT(TEXT("Collisions::BuildConvexTriboxes"), STAT_BuildConvexTriboxes, STATGROUP_ChaosCollision);
 FORCEINLINE void BuildConvexTriboxes(const Chaos::FImplicitObjectUnionPtr& UnionGeometry, const FShapesArray& UnionShapes,
-	TUniquePtr<Private::FCollisionObjects>& CollisionObjects, FConvexOptimizer::FTriboxNodes& RootTriboxes, int32& NextConvexId)
+	TUniquePtr<Private::FCollisionObjects>& CollisionObjects, FConvexOptimizer::FTriboxNodes& RootTriboxes, int32& NextConvexId, const TBitArray<>& bOptimizeConvexes)
 {
 	SCOPE_CYCLE_COUNTER(STAT_BuildConvexTriboxes);
 
@@ -220,54 +220,64 @@ FORCEINLINE void BuildConvexTriboxes(const Chaos::FImplicitObjectUnionPtr& Union
 				FTribox LocalTribox;
 				int32 LeafObjectIndex = 0, ObjectIndex = 0;
 				RootObject->VisitLeafObjectsImpl(FRigidTransform3::Identity,RootObjectIndex, ObjectIndex, LeafObjectIndex,
-					[&CollisionObjects, &LocalTribox, &bHasRootTribox, &ShapeIndex, &NextConvexId](
+					[&CollisionObjects, &LocalTribox, &bHasRootTribox, &ShapeIndex, &NextConvexId, &bOptimizeConvexes](
 					const FImplicitObject* ImplicitObject, const FRigidTransform3& RelativeTransform,
 					const int32 RootIndex, const int32, const int32)
 				{
-					if(const FConvex* Convex = ImplicitObject->AsA<FConvex>())
-					{
-						if(!bHasRootTribox)
-						{
-							const FTribox::FRigidTransform3Type ConvexTransform(RelativeTransform);
-							// Disable collision for all the convexes that are going to be used to build the tribox
-							// For now only used for debug draw
-							LocalTribox.AddConvex(Convex, ConvexTransform);
-						}
-					}
-					else if(const TImplicitObjectScaled<FConvex>* ScaledObject = TImplicitObjectScaled<FConvex>::AsScaled(*ImplicitObject))
-					{
-						if(!bHasRootTribox)
-						{
-							const FTribox::FRigidTransform3Type ConvexTransform(RelativeTransform.GetTranslation(),
-								RelativeTransform.GetRotation(), RelativeTransform.GetScale3D() * ScaledObject->GetScale());
-							// Disable collision for all the convexes that are going to be used to build the tribox
-							// For now only used for debug draw
-							LocalTribox.AddConvex(ScaledObject->GetUnscaledObject(), ConvexTransform);
-						}
-					}
-					else if(const TImplicitObjectInstanced<FConvex>* InstancedObject = TImplicitObjectInstanced<FConvex>::AsInstanced(*ImplicitObject))
-					{
-						if(!bHasRootTribox)
-						{
-							const FTribox::FRigidTransform3Type ConvexTransform(RelativeTransform);
-							// Disable collision for all the convexes that are going to be used to build the tribox
-							// For now only used for debug draw
-							LocalTribox.AddConvex(InstancedObject->Object(), ConvexTransform);
-						}
-					}
-					else
+					if (!bOptimizeConvexes[ShapeIndex])
 					{
 						// Add non convex implicits to the list of collision objects
 						Private::FImplicitBVH::CollectLeafObject(ImplicitObject,
 							RelativeTransform, ShapeIndex, CollisionObjects->ImplicitObjects, NextConvexId++);
 					}
+					else
+					{ 
+						if(const FConvex* Convex = ImplicitObject->AsA<FConvex>())
+						{
+							if(!bHasRootTribox)
+							{
+								const FTribox::FRigidTransform3Type ConvexTransform(RelativeTransform);
+								// Disable collision for all the convexes that are going to be used to build the tribox
+								// For now only used for debug draw
+								LocalTribox.AddConvex(Convex, ConvexTransform);
+							}
+						}
+						else if(const TImplicitObjectScaled<FConvex>* ScaledObject = TImplicitObjectScaled<FConvex>::AsScaled(*ImplicitObject))
+						{
+							if(!bHasRootTribox)
+							{
+								const FTribox::FRigidTransform3Type ConvexTransform(RelativeTransform.GetTranslation(),
+									RelativeTransform.GetRotation(), RelativeTransform.GetScale3D() * ScaledObject->GetScale());
+								// Disable collision for all the convexes that are going to be used to build the tribox
+								// For now only used for debug draw
+								LocalTribox.AddConvex(ScaledObject->GetUnscaledObject(), ConvexTransform);
+							}
+						}
+						else if(const TImplicitObjectInstanced<FConvex>* InstancedObject = TImplicitObjectInstanced<FConvex>::AsInstanced(*ImplicitObject))
+						{
+							if(!bHasRootTribox)
+							{
+								const FTribox::FRigidTransform3Type ConvexTransform(RelativeTransform);
+								// Disable collision for all the convexes that are going to be used to build the tribox
+								// For now only used for debug draw
+								LocalTribox.AddConvex(InstancedObject->Object(), ConvexTransform);
+							}
+						}
+						else
+						{
+							// Add non convex implicits to the list of collision objects
+							Private::FImplicitBVH::CollectLeafObject(ImplicitObject,
+								RelativeTransform, ShapeIndex, CollisionObjects->ImplicitObjects, NextConvexId++);
+						}
+					}
 				});
-				if(!bHasRootTribox && LocalTribox.HasDatas())
+
+				if (!bHasRootTribox && LocalTribox.HasDatas())
 				{
 					LocalTribox.BuildTribox();
-					RootTribox = &(RootTriboxes.Add(RootObject, {LocalTribox, nullptr, ShapeIndex, LocalTribox.ComputeVolume(),true}));
+					RootTribox = &(RootTriboxes.Add(RootObject, { LocalTribox, nullptr, ShapeIndex, LocalTribox.ComputeVolume(),true }));
 				}
-				if(RootTribox)
+				if (RootTribox)
 				{
 					RootTribox->NodeTribox.SetValid(true);
 					RootTribox->ShapeIndex = ShapeIndex;
@@ -278,9 +288,9 @@ FORCEINLINE void BuildConvexTriboxes(const Chaos::FImplicitObjectUnionPtr& Union
 	ResizeCachedTriboxes(RootTriboxes);
 }
 
-void FConvexOptimizer::BuildSingleConvex(const Chaos::FImplicitObjectUnionPtr& UnionGeometry, const FShapesArray& UnionShapes)
+void FConvexOptimizer::BuildSingleConvex(const Chaos::FImplicitObjectUnionPtr& UnionGeometry, const FShapesArray& UnionShapes, const TBitArray<>& bOptimizeConvexes)
 {
-	BuildConvexTriboxes(UnionGeometry, UnionShapes, CollisionObjects, RootTriboxes, NextConvexId);
+	BuildConvexTriboxes(UnionGeometry, UnionShapes, CollisionObjects, RootTriboxes, NextConvexId, bOptimizeConvexes);
 	
 	MainTribox.NodeTribox = FTribox(); 
 	for(auto& RootTribox : RootTriboxes)
@@ -441,9 +451,9 @@ void FConvexOptimizer::MergeConnectedShapes(const Chaos::FImplicitObjectUnionPtr
 }
 
 	
-void FConvexOptimizer::BuildMultipleConvex(const Chaos::FImplicitObjectUnionPtr& UnionGeometry, const FShapesArray& UnionShapes, const bool bEnableMerging)
+void FConvexOptimizer::BuildMultipleConvex(const Chaos::FImplicitObjectUnionPtr& UnionGeometry, const FShapesArray& UnionShapes, const bool bEnableMerging, const TBitArray<>& bOptimizeConvexes)
 {
-	BuildConvexTriboxes(UnionGeometry, UnionShapes, CollisionObjects, RootTriboxes, NextConvexId);
+	BuildConvexTriboxes(UnionGeometry, UnionShapes, CollisionObjects, RootTriboxes, NextConvexId, bOptimizeConvexes);
 
 	if(!bEnableMerging)
 	{
