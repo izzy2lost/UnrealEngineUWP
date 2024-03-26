@@ -2,8 +2,8 @@
 
 #pragma once
 
-#include "CoreTypes.h"
 #include "Concepts/GetTypeHashable.h"
+#include "Containers/Map.h"
 #include "Containers/UnrealString.h"
 #include "Hash/CityHash.h"
 
