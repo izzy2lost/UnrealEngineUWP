@@ -5414,6 +5414,11 @@ void UEditorEngine::ReplaceActors(UActorFactory* Factory, const FAssetData& Asse
 		ULevel* Level = OldActor->GetLevel();
 		AActor* NewActor = NULL;
 
+		// Destroy any non-native constructed components, but make sure we grab the transform first in case it has a
+		// non-native root component. These will be reconstructed as part of the new actor when it's created/instanced.
+		const FTransform OldTransform = OldActor->ActorToWorld();
+		OldActor->DestroyConstructedComponents();
+
 		// Unregister this actors components because we are effectively replacing it with an actor sharing the same ActorGuid.
 		// This allows it to be unregistered before a new actor with the same guid gets registered avoiding conflicts.
 		OldActor->UnregisterAllComponents();
@@ -5431,8 +5436,6 @@ void UEditorEngine::ReplaceActors(UActorFactory* Factory, const FAssetData& Asse
 		// if the actor is using an external package. We really just want to rename that actor out of the way so we can spawn the new one in
 		// the exact same package, keeping the package name intact.
 		OldActor->UObject::Rename(*OldActorReplacedNamed.ToString(), OldActor->GetOuter(), REN_DoNotDirty | REN_DontCreateRedirectors | REN_ForceNoResetLoaders);
-
-		const FTransform OldTransform = OldActor->ActorToWorld();
 
 		// create the actor
 		NewActor = Factory->CreateActor(Asset, Level, OldTransform, SpawnParams);
