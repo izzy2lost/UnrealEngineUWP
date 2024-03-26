@@ -63,10 +63,14 @@ void ApplyDepthconstraintsToOffset(float3 GridCoordinate, inout float3 LocalFram
 		float DepthGridCoordinateWithZOffset = ComputeZSliceFromDepth(GridSampleSceneDepth) - GridCenterOffsetFromDepthBuffer;
 
 		float3 GridCoordinateOffset = float3(GridCoordinate) + LocalFrameJitterOffset;
-		if (DepthGridCoordinateWithZOffset < GridCoordinateOffset.z)
+		
+		const float DepthToSampleGridOffset = DepthGridCoordinateWithZOffset - GridCoordinateOffset.z;	// <0 if samples is in front of the depth buffer
+		if (DepthToSampleGridOffset < 0.0																// Move the sample forward only if the depth buffer grid coordinate is closer,
+			&& (-DepthToSampleGridOffset < GridCenterOffsetThresholdToAcceptDepthBufferOffset)			// But only if it is less than N slice away (to not bring all the sample behind forward)
+			)
 		{
 			// If the grid sample is further than the grid z for the depth buffer, adjust the offset 
-			LocalFrameJitterOffset.z -= GridCoordinateOffset.z - DepthGridCoordinateWithZOffset;
+			LocalFrameJitterOffset.z += DepthToSampleGridOffset;
 		}
 	}
 }
