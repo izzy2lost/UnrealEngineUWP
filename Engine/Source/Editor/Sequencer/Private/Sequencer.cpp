@@ -11335,7 +11335,7 @@ void FSequencer::BindCommands()
 		EUIActionRepeatMode::RepeatEnabled);
 
 	SequencerCommandBindings->MapAction(
-		Commands.SetInterpolationCubicAuto,
+		Commands.SetInterpolationCubicSmartAuto,
 		FExecuteAction::CreateSP(this, &FSequencer::SetInterpTangentMode, ERichCurveInterpMode::RCIM_Cubic, ERichCurveTangentMode::RCTM_SmartAuto));
 
 	SequencerCommandBindings->MapAction(
