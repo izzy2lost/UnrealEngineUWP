@@ -451,7 +451,7 @@ namespace uba
 		message.m_responseCapacity = responseCapacity;
 		message.m_connection = &connection;
 
-		BinaryWriter& writer = message.m_sendWriter;
+		BinaryWriter& writer = *message.m_sendWriter;
 
 		u16 messageId = 0;
 		Event gotResponse(true);
@@ -569,9 +569,20 @@ namespace uba
 	}
 
 	NetworkMessage::NetworkMessage(NetworkClient& client, u8 serviceId, u8 messageType, BinaryWriter& sendWriter)
-	:	m_client(client)
-	,	m_sendWriter(sendWriter)
 	{
+		Init(client, serviceId, messageType, sendWriter);
+	}
+
+	NetworkMessage::~NetworkMessage()
+	{
+		UBA_ASSERT(!m_id);
+	}
+
+	void NetworkMessage::Init(NetworkClient& client, u8 serviceId, u8 messageType, BinaryWriter& sendWriter)
+	{
+		m_client = &client;
+		m_sendWriter = &sendWriter;
+
 		// Header (SendHeaderSize):
 		// 1 byte    - 2 bits for serviceid, 6 bits for messagetype
 		// 2 byte    - message id
@@ -583,19 +594,14 @@ namespace uba
 		data[0] = u8(serviceId << 6) | messageType;
 	}
 
-	NetworkMessage::~NetworkMessage()
-	{
-		UBA_ASSERT(!m_id);
-	}
-
 	bool NetworkMessage::Send()
 	{
-		return m_client.Send(*this, nullptr, 0, false);
+		return m_client->Send(*this, nullptr, 0, false);
 	}
 
 	bool NetworkMessage::Send(BinaryReader& response)
 	{
-		if (!m_client.Send(*this, (u8*)response.GetPositionData(), u32(response.GetLeft()), false))
+		if (!m_client->Send(*this, (u8*)response.GetPositionData(), u32(response.GetLeft()), false))
 			return false;
 		response.SetSize(response.GetPosition() + m_responseSize);
 		return true;
@@ -613,7 +619,7 @@ namespace uba
 		UBA_ASSERT(!m_doneFunc);
 		m_doneFunc = func;
 		m_doneUserData = userData;
-		return m_client.Send(*this, (u8*)response.GetPositionData(), u32(response.GetLeft()), true);
+		return m_client->Send(*this, (u8*)response.GetPositionData(), u32(response.GetLeft()), true);
 	}
 
 	bool NetworkMessage::ProcessAsyncResults(BinaryReader& response)
@@ -621,11 +627,11 @@ namespace uba
 		if (m_error)
 			return false;
 
-		if (m_client.m_cryptoKey)
+		if (m_client->m_cryptoKey)
 		{
 			UBA_ASSERT(!response.GetPosition());
-			TimerScope ts(m_client.m_decryptTimer);
-			if (!Crypto::Decrypt(m_client.m_logger, m_client.m_cryptoKey, (u8*)m_response, m_responseSize))
+			TimerScope ts(m_client->m_decryptTimer);
+			if (!Crypto::Decrypt(m_client->m_logger, m_client->m_cryptoKey, (u8*)m_response, m_responseSize))
 				return false;
 		}
 		response.SetSize(response.GetPosition() + m_responseSize);
@@ -639,8 +645,8 @@ namespace uba
 			{
 				if (m_id)
 				{
-					m_client.m_availableMessageIds.push_back(m_id);
-					m_client.m_activeMessages[m_id] = nullptr;
+					m_client->m_availableMessageIds.push_back(m_id);
+					m_client->m_activeMessages[m_id] = nullptr;
 					m_id = 0;
 					hasId = true;
 				}
@@ -648,7 +654,7 @@ namespace uba
 
 		if (shouldLock)
 		{
-			SCOPED_WRITE_LOCK(m_client.m_activeMessagesLock, lock);
+			SCOPED_WRITE_LOCK(m_client->m_activeMessagesLock, lock);
 			returnId();
 		}
 		else

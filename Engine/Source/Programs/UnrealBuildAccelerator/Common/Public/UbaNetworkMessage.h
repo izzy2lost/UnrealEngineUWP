@@ -10,7 +10,10 @@ namespace uba
 	struct NetworkMessage
 	{
 		NetworkMessage(NetworkClient& client, u8 serviceId, u8 messageType, BinaryWriter& sendWriter);
+		NetworkMessage() {}
 		~NetworkMessage();
+
+		void Init(NetworkClient& client, u8 serviceId, u8 messageType, BinaryWriter& sendWriter);
 
 		bool Send(BinaryReader& response);
 		bool Send(BinaryReader& response, Timer& outTimer);
@@ -23,8 +26,8 @@ namespace uba
 	private:
 		void Done(bool shouldLock = true);
 
-		NetworkClient& m_client;
-		BinaryWriter& m_sendWriter;
+		NetworkClient* m_client = nullptr;
+		BinaryWriter* m_sendWriter = nullptr;
 		DoneFunc* m_doneFunc = nullptr;
 		void* m_doneUserData = nullptr;
 		void* m_response = nullptr;
