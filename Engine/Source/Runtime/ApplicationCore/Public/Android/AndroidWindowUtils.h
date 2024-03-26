@@ -68,6 +68,7 @@ namespace AndroidWindowUtils
 		{
 			int32 Width = InOutScreenWidth;
 			int32 Height = InOutScreenHeight;
+			bool swapXY = false;
 
 			if (RequestedResX > 0)
 			{
@@ -76,6 +77,9 @@ namespace AndroidWindowUtils
 				{
 					Height = RequestedResX;
 					Width = FMath::TruncToInt32((float)Height * ((float)InOutScreenWidth / (float)InOutScreenHeight) + 0.5f);
+#if PLATFORM_ANDROID && USE_ANDROID_STANDALONE
+					swapXY = true;
+#endif
 				}
 				else
 				{
@@ -90,6 +94,9 @@ namespace AndroidWindowUtils
 				{
 					Width = RequestedResY;
 					Height = FMath::TruncToInt32((float)Width * ((float)InOutScreenHeight / (float)InOutScreenWidth) + 0.5f);
+#if PLATFORM_ANDROID && USE_ANDROID_STANDALONE
+					swapXY = true;
+#endif
 				}
 				else
 				{
@@ -105,6 +112,9 @@ namespace AndroidWindowUtils
 				if (InOutScreenHeight > InOutScreenWidth)
 				{
 					Height = FMath::TruncToInt32(1280.f * RequestedContentScaleFactor);
+#if PLATFORM_ANDROID && USE_ANDROID_STANDALONE
+					swapXY = true;
+#endif
 				}
 				else
 				{
@@ -115,7 +125,7 @@ namespace AndroidWindowUtils
 				Width = FMath::TruncToInt32((float)Height * AspectRatio + 0.5f);
 			}
 
-			const FIntVector2 Sanitized = SanitizeAndroidScreenSize(FIntVector2(InOutScreenWidth, InOutScreenHeight), FIntVector2(Width, Height));
+			const FIntVector2 Sanitized = SanitizeAndroidScreenSize(FIntVector2(InOutScreenWidth, InOutScreenHeight), !swapXY ? FIntVector2(Width, Height) : FIntVector2(Height, Width));
 			InOutScreenWidth = Sanitized.X;
 			InOutScreenHeight = Sanitized.Y;
 

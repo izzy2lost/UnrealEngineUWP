@@ -97,7 +97,7 @@ void FAppEventManager::Tick()
 			break;
 		case APP_EVENT_STATE_WINDOW_DESTROYED:
 			bHaveWindow = false;
-			STANDALONE_DEBUG_LOGf(LogAndroidEvents, TEXT("APP_EVENT_STATE_WINDOW_DESTROYED, %d, %d, %d"), int(bRunning), int(bHaveWindow), int(bHaveGame));
+			STANDALONE_DEBUG_LOGf(LogAndroidEvents, TEXT("APP_EVENT_STATE_WINDOW_DESTROYED, %d, %d, %d"), int(bRunning), int(bWindowInFocus), int(bHaveGame));
 			break;
 		case APP_EVENT_STATE_ON_START:
 			//doing nothing here
@@ -114,9 +114,11 @@ void FAppEventManager::Tick()
 		case APP_EVENT_STATE_ON_PAUSE:
 			FAndroidAppEntry::OnPauseEvent();
 			bHaveGame = false;
+			STANDALONE_DEBUG_LOGf(LogAndroidEvents, TEXT("APP_EVENT_STATE_ON_PAUSE, %d, %d, %d"), int(bRunning), int(bWindowInFocus), int(bHaveGame));
 			break;
 		case APP_EVENT_STATE_ON_RESUME:
 			bHaveGame = true;
+			STANDALONE_DEBUG_LOGf(LogAndroidEvents, TEXT("APP_EVENT_STATE_ON_RESUME, %d, %d, %d"), int(bRunning), int(bWindowInFocus), int(bHaveGame));
 			break;
 
 		// window focus events that follow their own hierarchy, and might or might not respect App main events hierarchy
@@ -213,12 +215,16 @@ FAppEventManager::FAppEventManager():
 	CVarScale->SetOnChangedCallback(FConsoleVariableDelegate::CreateStatic(&FAppEventManager::OnScaleFactorChanged));
 
 	IConsoleVariable* CVarResX = IConsoleManager::Get().FindConsoleVariable(TEXT("r.Mobile.DesiredResX"));
-	check(CVarResX);
-	CVarResX->SetOnChangedCallback(FConsoleVariableDelegate::CreateStatic(&FAppEventManager::OnScaleFactorChanged));
+	if (CVarResX != nullptr)
+	{
+		CVarResX->SetOnChangedCallback(FConsoleVariableDelegate::CreateStatic(&FAppEventManager::OnScaleFactorChanged));
+	}
 
 	IConsoleVariable* CVarResY = IConsoleManager::Get().FindConsoleVariable(TEXT("r.Mobile.DesiredResY"));
-	check(CVarResY);
-	CVarResY->SetOnChangedCallback(FConsoleVariableDelegate::CreateStatic(&FAppEventManager::OnScaleFactorChanged));
+	if (CVarResY != nullptr)
+	{
+		CVarResY->SetOnChangedCallback(FConsoleVariableDelegate::CreateStatic(&FAppEventManager::OnScaleFactorChanged));
+	}
 }
 
 void FAppEventManager::OnScaleFactorChanged(IConsoleVariable* CVar)
@@ -234,16 +240,11 @@ void FAppEventManager::OnScaleFactorChanged(IConsoleVariable* CVar)
     }
 }
 
-static bool IsAppPausedOrSuspended()
-{
-	return FAppEventManager::GetInstance()->IsGamePaused() && !FAppEventManager::GetInstance()->IsGameInFocus();
-}
-
 void FAppEventManager::HandleWindowCreated_EventThread(void* InWindow)
 {
 	if (InWindow == nullptr)
 	{
-		STANDALONE_DEBUG_LOGf(LogAndroidEvents, TEXT("FAppEventManager::HandleWindowCreated_EventThread was given a NULL window so IGNORE."));
+		FPlatformMisc::LowLevelOutputDebugStringf(TEXT("FAppEventManager::HandleWindowCreated_EventThread was given a NULL window so IGNORE."));
 		return;
 	}
 
@@ -252,7 +253,6 @@ void FAppEventManager::HandleWindowCreated_EventThread(void* InWindow)
 	// Make sure window will not be deleted until event is processed
 	// Window could be deleted by OS while event queue stuck at game start-up phase
 	FAndroidWindow::AcquireWindowRef((ANativeWindow*)InWindow);
-
 	FAndroidWindow::SetHardwareWindow_EventThread(InWindow);
 
 	if (!AlreadyInited)
@@ -272,8 +272,8 @@ void FAppEventManager::HandleWindowClosed_EventThread()
 		return;
 	}
 
-	FAndroidWindow::SetHardwareWindow_EventThread(nullptr);
 	FAndroidWindow::ReleaseWindowRef((ANativeWindow*)ActiveWindow);
+	FAndroidWindow::SetHardwareWindow_EventThread(nullptr);
 
 	EnqueueAppEvent(APP_EVENT_STATE_WINDOW_DESTROYED);
 }
@@ -433,7 +433,11 @@ bool FAppEventManager::IsGamePaused()
 
 bool FAppEventManager::IsGameInFocus()
 {
+#if USE_ANDROID_STANDALONE
+	return (bWindowInFocus && bHaveWindow && bHaveGame);
+#else
 	return (bWindowInFocus && bHaveWindow);
+#endif
 }
 
 
