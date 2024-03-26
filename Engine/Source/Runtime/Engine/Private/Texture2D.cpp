@@ -710,6 +710,24 @@ void UTexture2D::GetAssetRegistryTags(FAssetRegistryTagsContext Context) const
 	Context.AddTag( FAssetRegistryTag("HasAlphaChannel", HasAlphaChannel() ? TEXT("True") : TEXT("False"), FAssetRegistryTag::TT_Alphabetical) );
 	Context.AddTag( FAssetRegistryTag("Format", GPixelFormats[GetPixelFormat()].Name, FAssetRegistryTag::TT_Alphabetical) );
 
+#if WITH_EDITORONLY_DATA
+	// In game max bias and dimensions
+	const int32 NumMips = GetNumMips();
+
+	// We don't want to call GetNumMipsAllowed() as that causes a stall under some workflows, and we can get the data ourselves.
+	const int32 LODBiasNoCinematics = UDeviceProfileManager::Get().GetActiveProfile()->GetTextureLODSettings()->CalculateLODBias(this, false);
+	const int32 CookedMips = FMath::Clamp<int32>(NumMips - LODBiasNoCinematics, 1, GMaxTextureMipCount);
+
+	const int32 SurfaceWidth = static_cast<int32>(GetSurfaceWidth());
+	const int32 SurfaceHeight = static_cast<int32>(GetSurfaceHeight());
+	const int32 MaxResMipBias = NumMips - CookedMips;
+	const int32 MaxInGameWidth = SurfaceWidth ? FMath::Max(SurfaceWidth >> MaxResMipBias, 1) : 0;
+	const int32 MaxInGameHeight = SurfaceHeight ? FMath::Max(SurfaceHeight >> MaxResMipBias, 1) : 0;
+
+	Context.AddTag(FAssetRegistryTag("MaxInGameX", FString::FromInt(MaxInGameWidth), FAssetRegistryTag::TT_Numerical));
+	Context.AddTag(FAssetRegistryTag("MaxInGameY", FString::FromInt(MaxInGameHeight), FAssetRegistryTag::TT_Numerical));
+#endif
+
 	Super::GetAssetRegistryTags(Context);
 }
 
