@@ -2698,6 +2698,11 @@ protected:
 
 	void RenderMobileEditorPrimitives(FRHICommandList& RHICmdList, const FViewInfo& View, const FMeshPassProcessorRenderState& DrawRenderState, const FInstanceCullingDrawParams* InstanceCullingDrawParams);
 
+#if UE_ENABLE_DEBUG_DRAWING
+	/** Render debug primitives in the base pass, for MobileHDR=false */
+	void RenderMobileDebugPrimitives(FRHICommandList& RHICmdList, const FViewInfo& View);
+#endif
+
 	/** Renders the debug view pass for mobile. */
 	void RenderMobileDebugView(FRHICommandList& RHICmdList, const FViewInfo& View);
 

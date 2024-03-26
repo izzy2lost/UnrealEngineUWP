@@ -1615,6 +1615,14 @@ void FMobileSceneRenderer::RenderForwardSinglePass(FRDGBuilder& GraphBuilder, FM
 		}
 		// Draw translucency.
 		RenderTranslucency(RHICmdList, View);
+		
+#if UE_ENABLE_DEBUG_DRAWING
+		if ((!IsMobileHDR() || bTonemapSubpass) && FSceneRenderer::ShouldCompositeDebugPrimitivesInPostProcess(View))
+		{
+			// Draw debug primitives after translucency for LDR as we do not have a post processing pass
+			RenderMobileDebugPrimitives(RHICmdList, View);
+		}
+#endif
 
 		if (bDoOcclusionQueries)
 		{
