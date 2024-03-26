@@ -214,6 +214,8 @@ void ULensComponent::TickComponent(float DeltaTime, ELevelTick TickType, FActorC
 			{
 				CineCameraComponent->CurrentFocalLength = OriginalFocalLength;
 			}
+
+			CleanupDistortion(CineCameraComponent);
 		}
 
 		LastFocalLength = CineCameraComponent->CurrentFocalLength;
