@@ -52,6 +52,9 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Common Widget Switcher")
 	bool IsTransitionPlaying() const;
 
+	UWidget* GetPendingActiveWidget() const;
+	int32 GetPendingActiveWidgetIndex() const;
+
 protected:
 	virtual void HandleSlateActiveIndexChanged(int32 ActiveIndex);
 
@@ -86,6 +89,10 @@ protected:
 	/** The total duration of a single transition between widgets */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Transition")
 	float TransitionDuration;
+
+	/** Controls how we will choose another widget if a transitioning widget is removed during the transition. */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Transition")
+	ECommonSwitcherTransitionFallbackStrategy TransitionFallbackStrategy = ECommonSwitcherTransitionFallbackStrategy::None;
 
 	TSharedPtr<SOverlay> MyOverlay;
 	TSharedPtr<SSpacer> MyInputGuard;

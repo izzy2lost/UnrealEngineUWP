@@ -117,6 +117,7 @@ PRAGMA_DISABLE_DEPRECATION_WARNINGS
 		.TransitionCurveType(TransitionCurveType)
 		.TransitionDuration(TransitionDuration)
 		.TransitionType(TransitionType)
+		.TransitionFallbackStrategy(TransitionFallbackStrategy)
 		.OnActiveIndexChanged_UObject(this, &UCommonAnimatedSwitcher::HandleSlateActiveIndexChanged)
 		.OnIsTransitioningChanged_UObject(this, &UCommonAnimatedSwitcher::HandleSlateIsTransitioningChanged);
 PRAGMA_ENABLE_DEPRECATION_WARNINGS
@@ -203,5 +204,28 @@ bool UCommonAnimatedSwitcher::IsTransitionPlaying() const
 	{
 		return false;
 	}
+}
+
+UWidget* UCommonAnimatedSwitcher::GetPendingActiveWidget() const
+{
+	if (MyAnimatedSwitcher.IsValid())
+	{
+		const int32 PendingIndex = GetPendingActiveWidgetIndex();
+		if (PendingIndex >= 0)
+		{
+			return GetWidgetAtIndex(PendingIndex);
+		}
+	}
+	
+	return nullptr;
+}
+
+int32 UCommonAnimatedSwitcher::GetPendingActiveWidgetIndex() const
+{
+	if (MyAnimatedSwitcher.IsValid())
+	{
+		return MyAnimatedSwitcher->GetPendingActiveWidgetIndex();
+	}
+	return INDEX_NONE;
 }
 
