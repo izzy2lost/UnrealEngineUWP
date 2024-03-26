@@ -936,6 +936,10 @@ private:
 	UPROPERTY(EditAnywhere, EditFixedSize, Category=LevelOfDetail)
 	TArray<FSkeletalMeshLODInfo> LODInfo;
 
+#if WITH_EDITOR
+	FSimpleMulticastDelegate OnVertexAttributesArrayChanged;
+#endif
+	
 #if !WITH_EDITOR
 	/** Acceleration struct used for faster socket lookups */
 	struct FSocketInfo
@@ -2925,6 +2929,10 @@ public:
 	 */	
 	ENGINE_API virtual const FSkeletalMeshLODInfo* GetLODInfo(int32 Index) const override;
 
+#if WITH_EDITOR
+	ENGINE_API FSimpleMulticastDelegate& GetOnVertexAttributesArrayChanged();
+#endif
+	
 	/**
 	 *	Get BakePose for the given LOD
 	 */
