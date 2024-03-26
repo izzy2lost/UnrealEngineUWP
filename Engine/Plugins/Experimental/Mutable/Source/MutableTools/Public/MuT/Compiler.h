@@ -67,7 +67,7 @@ namespace mu
 
 		//! Set the quality for the image compression algorithms. The level value is used internally
 		//! with System::SetImagecompressionQuality
-		void SetImageCompressionQuality(int32 quality);
+		void SetImageCompressionQuality(int32 Quality);
 
 		/** Set the image tiling strategy :
 		 * If 0 (default) there is no tiling. Otherwise, images will be generated in tiles of the given size or less, and assembled afterwards as a final step.
@@ -101,6 +101,9 @@ namespace mu
 
         //! 
         static const char* GetTextureLayoutStrategyName( TextureLayoutStrategy s );
+
+		/** Output some stats about the complete compilation to the log. */
+		void LogStats() const;
 
         //-----------------------------------------------------------------------------------------
         // Interface pattern

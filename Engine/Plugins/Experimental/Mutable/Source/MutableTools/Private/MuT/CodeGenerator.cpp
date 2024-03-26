@@ -981,7 +981,7 @@ namespace mu
 							Ptr<ASTOpConstantResource> op = new ASTOpConstantResource();
 							op->type = OP_TYPE::LA_CONSTANT;
 
-							op->SetValue(pLayout, m_compilerOptions->OptimisationOptions.bUseDiskCache);
+							op->SetValue(pLayout, m_compilerOptions->OptimisationOptions.DiskCacheContext);
 							layoutOp = op;
 						}
 
@@ -1008,7 +1008,7 @@ namespace mu
 									op->type = OP_TYPE::LA_CONSTANT;
 
 									Ptr<const Layout> pCloned = data.GeneratedLayouts[LayoutIndex];
-									op->SetValue(pCloned, m_compilerOptions->OptimisationOptions.bUseDiskCache);
+									op->SetValue(pCloned, m_compilerOptions->OptimisationOptions.DiskCacheContext);
 
 									layoutFragmentAd = op;
 								}

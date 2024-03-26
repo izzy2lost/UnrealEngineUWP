@@ -50,6 +50,7 @@ namespace mu
 {
 	class ASTOp;
 	class ASTOpFixed;
+	struct FProxyFileContext;
 
 	template<typename T>
 	inline uint32 GetTypeHash(const Ptr<const T>& p)
@@ -193,8 +194,8 @@ namespace mu
         //! Maximum number of iterations when optimising models. If 0 as many as necessary will be performed.
         int32 MaxOptimisationLoopCount = 8;
 
-        //! Store resource data in disk instead of memory
-        bool bUseDiskCache = false;
+        /** If valied, store resource data in disk instead of memory. */
+		FProxyFileContext* DiskCacheContext = nullptr;
 
 		/** Compile optimizing for the generation of smaller mipmaps of every image. */
 		bool bEnableProgressiveImages = false;

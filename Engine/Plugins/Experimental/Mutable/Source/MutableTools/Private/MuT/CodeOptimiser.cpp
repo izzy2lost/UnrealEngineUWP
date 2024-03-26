@@ -454,7 +454,7 @@ namespace mu
 
 		// input
 		Ptr<ASTOp> Source;
-		bool bUseDiskCache = false;
+		FProxyFileContext* DiskCacheContext = nullptr;
 		int32 ImageCompressionQuality = 0;
 		int32 OptimizationPass = 0;
 		FReferencedResourceFunc ReferencedResourceProvider;
@@ -471,7 +471,7 @@ namespace mu
 		{
 			OptimizationPass = InOptimizationPass;
 			Source = InSource;
-			bUseDiskCache = InOptions->OptimisationOptions.bUseDiskCache;
+			DiskCacheContext = InOptions->OptimisationOptions.DiskCacheContext;
 			ImageCompressionQuality = InOptions->ImageCompressionQuality;
 			ReferencedResourceProvider = InOptions->OptimisationOptions.ReferencedResourceProvider;
 		}
@@ -521,7 +521,7 @@ namespace mu
 				{
 					mu::Ptr<ASTOpConstantResource> constantOp = new ASTOpConstantResource();
 					constantOp->type = OP_TYPE::ME_CONSTANT;
-					constantOp->SetValue( pMesh, bUseDiskCache );
+					constantOp->SetValue( pMesh, DiskCacheContext );
 					Result = constantOp;
 				  }
 				break;
@@ -537,7 +537,7 @@ namespace mu
 				{
 					mu::Ptr<ASTOpConstantResource> constantOp = new ASTOpConstantResource();
 					constantOp->type = OP_TYPE::IM_CONSTANT;
-					constantOp->SetValue( pImage, bUseDiskCache );
+					constantOp->SetValue( pImage, DiskCacheContext );
 					Result = constantOp;
 				}
 				break;
@@ -553,7 +553,7 @@ namespace mu
 				{
 					mu::Ptr<ASTOpConstantResource> constantOp = new ASTOpConstantResource();
 					constantOp->type = OP_TYPE::LA_CONSTANT;
-					constantOp->SetValue( pLayout, bUseDiskCache );
+					constantOp->SetValue( pLayout, DiskCacheContext);
 					Result = constantOp;
 				}
 				break;
@@ -823,7 +823,7 @@ namespace mu
 
 									Ptr<ASTOpConstantResource> ConstantOp = new ASTOpConstantResource;
 									ConstantOp->type = OP_TYPE::IM_CONSTANT;
-									ConstantOp->SetValue(ResolveImage->get(), InOptions->OptimisationOptions.bUseDiskCache);
+									ConstantOp->SetValue(ResolveImage->get(), InOptions->OptimisationOptions.DiskCacheContext);
 									ASTOp::Replace(SubgraphRoot, ConstantOp);
 								},
 								ReferenceCompletionEvent,
@@ -938,7 +938,7 @@ namespace mu
 								ReferenceCompletionEvent.Wait();
 								Ptr<ASTOpConstantResource> ConstantOp = new ASTOpConstantResource;
 								ConstantOp->type = OP_TYPE::IM_CONSTANT;
-								ConstantOp->SetValue(ResolveImage->get(), InOptions->OptimisationOptions.bUseDiskCache);
+								ConstantOp->SetValue(ResolveImage->get(), InOptions->OptimisationOptions.DiskCacheContext);
 								ASTOp::Replace(SubgraphRoot, ConstantOp);
 							};
 						ConstantSubgraphs[Index].NonConcurrentTask = ImmediateCompleteFunc;
@@ -1353,7 +1353,7 @@ namespace mu
 							NewMesh->CheckIntegrity();
 							mu::Ptr<ASTOpConstantResource> newOp = new ASTOpConstantResource();
 							newOp->type = OP_TYPE::ME_CONSTANT;
-							newOp->SetValue(NewMesh, options.bUseDiskCache);
+							newOp->SetValue(NewMesh, options.DiskCacheContext);
 
 							ASTOp::Replace(at, newOp);
 						}
@@ -1509,8 +1509,7 @@ namespace mu
 					ASTOpConstantResource* typed = static_cast<ASTOpConstantResource*>(n.get());
 					auto pMesh = static_cast<const Mesh*>(typed->GetValue().get());
 					pMesh->ResetStaticFormatFlags();
-					typed->SetValue( pMesh,
-									 m_options->GetPrivate()->OptimisationOptions.bUseDiskCache );
+					typed->SetValue( pMesh, m_options->GetPrivate()->OptimisationOptions.DiskCacheContext);
 				}
 			});
 

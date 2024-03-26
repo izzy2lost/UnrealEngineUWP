@@ -34,7 +34,8 @@
 #include "MuT/Table.h"
 #include "Trace/Detail/Channel.h"
 
-#include <string>
+#include <string>		// Required for deserialisation of old data
+#include <inttypes.h>	// Required for 64-bit printf macros
 
 
 namespace mu
@@ -103,9 +104,9 @@ namespace mu
 
 
 	//---------------------------------------------------------------------------------------------
-	void CompilerOptions::SetUseDiskCache(bool enabled)
+	void CompilerOptions::SetUseDiskCache(bool bEnabled)
 	{
-		m_pD->OptimisationOptions.bUseDiskCache = enabled;
+		m_pD->OptimisationOptions.DiskCacheContext = bEnabled ? &m_pD->DiskCacheContext : nullptr;
 	}
 
 
@@ -172,6 +173,15 @@ namespace mu
 	{
 		m_pD->OptimisationOptions.ReferencedResourceProvider = Provider;
 		m_pD->OptimisationOptions.ReferencedResourceProviderTick = ProviderGameThreadTick;
+	}
+
+
+	void CompilerOptions::LogStats() const
+	{
+		UE_LOG(LogMutableCore, Log, TEXT("   Cache Files Written : %" PRIu64), m_pD->DiskCacheContext.FilesWritten.load());
+		UE_LOG(LogMutableCore, Log, TEXT("   Cache Files Read    : %" PRIu64), m_pD->DiskCacheContext.FilesRead.load());
+		UE_LOG(LogMutableCore, Log, TEXT("   Cache MB Written    : %" PRIu64), m_pD->DiskCacheContext.BytesWritten.load() >> 20);
+		UE_LOG(LogMutableCore, Log, TEXT("   Cache MB Read       : %" PRIu64), m_pD->DiskCacheContext.BytesRead.load()>>20);
 	}
 
 

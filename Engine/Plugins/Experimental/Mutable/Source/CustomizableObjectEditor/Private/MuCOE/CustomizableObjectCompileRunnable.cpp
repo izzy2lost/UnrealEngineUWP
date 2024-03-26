@@ -22,6 +22,19 @@ class ITargetPlatform;
 #define UE_MUTABLE_CORE_REGION	TEXT("Mutable Core")
 
 
+TAutoConsoleVariable<bool> CVarMutableCompilerConcurrency(
+	TEXT("mutable.ForceCompilerConcurrency"),
+	true,
+	TEXT("Force the use of multithreading when compiling CustomizableObjects both in editor and cook commandlets."),
+	ECVF_Default);
+
+TAutoConsoleVariable<bool> CVarMutableCompilerDiskCache(
+	TEXT("mutable.ForceCompilerDiskCache"),
+	false,
+	TEXT("Force the use of disk cache to reduce memory usage when compiling CustomizableObjects both in editor and cook commandlets."),
+	ECVF_Default);
+
+
 FCustomizableObjectCompileRunnable::FCustomizableObjectCompileRunnable(mu::Ptr<mu::Node> Root)
 	: MutableRoot(Root)
 	, bThreadCompleted(false)
@@ -79,8 +92,20 @@ uint32 FCustomizableObjectCompileRunnable::Run()
 	mu::Ptr<mu::CompilerOptions> CompilerOptions = new mu::CompilerOptions();
 
 	bool bUseConcurrency = !Options.bIsCooking;
+	if (CVarMutableCompilerConcurrency->GetBool())
+	{
+		bUseConcurrency = true;
+	}
+
 	CompilerOptions->SetUseConcurrency(bUseConcurrency);
-	CompilerOptions->SetUseDiskCache(Options.bUseDiskCompilation);
+
+	bool bUseDiskCache = Options.bUseDiskCompilation;
+	if (CVarMutableCompilerDiskCache->GetBool())
+	{
+		bUseDiskCache = true;
+	}
+
+	CompilerOptions->SetUseDiskCache(bUseDiskCache);
 
 	if (Options.OptimizationLevel > 2)
 	{
@@ -226,6 +251,8 @@ uint32 FCustomizableObjectCompileRunnable::Run()
 	FTSTicker::GetCoreTicker().RemoveTicker( ResolveReferenceResourcesTickerHandle );
 
 	UE_LOG(LogMutable, Verbose, TEXT("PROFILE: [ %16.8f ] FCustomizableObjectCompileRunnable::Run end."), FPlatformTime::Seconds());
+
+	CompilerOptions->LogStats();
 
 	TRACE_END_REGION(UE_MUTABLE_CORE_REGION);
 

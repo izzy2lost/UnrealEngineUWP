@@ -1265,7 +1265,7 @@ namespace mu
 		{
 			// This data is required
 			MeshPtr pTempMesh = new Mesh();
-			op->SetValue(pTempMesh, m_compilerOptions->OptimisationOptions.bUseDiskCache);
+			op->SetValue(pTempMesh, m_compilerOptions->OptimisationOptions.DiskCacheContext);
 			m_constantMeshes.Add(pTempMesh);
 
 			// Log an error message
@@ -1448,7 +1448,7 @@ namespace mu
 			FinalMesh = pCloned;
 		}
 
-		op->SetValue(FinalMesh, m_compilerOptions->OptimisationOptions.bUseDiskCache);
+		op->SetValue(FinalMesh, m_compilerOptions->OptimisationOptions.DiskCacheContext);
 
 		Ptr<ASTOp> LastMeshOp = op;
 
@@ -1505,7 +1505,7 @@ namespace mu
 
             Ptr<ASTOpConstantResource> cop = new ASTOpConstantResource();
             cop->type = OP_TYPE::ME_CONSTANT;
-            cop->SetValue( pFormatMesh, m_compilerOptions->OptimisationOptions.bUseDiskCache );
+            cop->SetValue( pFormatMesh, m_compilerOptions->OptimisationOptions.DiskCacheContext );
             op->Format = cop;
 
             m_constantMeshes.Add(pFormatMesh);

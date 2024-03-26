@@ -4,9 +4,11 @@
 #include "MuT/Streams.h"
 
 #include "GenericPlatform/GenericPlatformFile.h"
+#include "GenericPlatform/GenericPlatformTime.h"
 #include "HAL/PlatformFileManager.h"
 #include "HAL/PlatformMath.h"
 #include "HAL/UnrealMemory.h"
+#include "Math/RandomStream.h"
 #include "Misc/AssertionMacros.h"
 #include "MuR/Image.h"
 #include "MuR/Model.h"
@@ -19,6 +21,14 @@
 
 namespace mu
 {
+	FProxyFileContext::FProxyFileContext()
+	{
+		uint32 Seed = FPlatformTime::Cycles();
+		FRandomStream RandomStream = FRandomStream((int32)Seed);
+		CurrentFileIndex = RandomStream.GetUnsignedInt();
+	}
+
+
 	InputFileStream::InputFileStream( const FString& File )
 	{
 		m_pD = new Private();
@@ -253,16 +263,6 @@ namespace mu
         check( WriteFile );
         delete WriteFile;
         WriteFile = nullptr;
-    }
-
-
-    //---------------------------------------------------------------------------------------------
-    //---------------------------------------------------------------------------------------------
-    //---------------------------------------------------------------------------------------------
-    Ptr<ResourceProxy<Image>> ProxyFactoryFiles::NewImageProxy(InputArchive& arch)
-    {        
-        Ptr<Image> t = Image::StaticUnserialise( arch );
-        return new ResourceProxyTempFile<Image>(t.get());
     }
 
 
