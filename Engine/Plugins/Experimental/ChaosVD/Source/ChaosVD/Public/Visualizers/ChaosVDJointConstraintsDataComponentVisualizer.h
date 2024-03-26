@@ -26,14 +26,10 @@ enum class EChaosVDJointsDataVisualizationFlags : uint32
 	DrawKinematic			= 1 << 6,
 	/** Draw the joint even if it is disabled */
 	DrawDisabled			= 1 << 7,
-	/** Enables Debug draw for Joint Constraint data from Game Client solvers */
-	EnableClientDraw		= 1 << 8,
-	/** Enables Debug draw for Joint Constraint data from Game Server solvers */
-	EnableServerDraw		= 1 << 9,
 	/** Only debugs draw data for a selected joint constraint */
-	OnlyDrawSelected		= 1 << 10,
-	/** Enables Debug draw for Joint Constraint data from any solver */
-	EnableDraw				= EnableClientDraw | EnableServerDraw,
+	OnlyDrawSelected		= 1 << 8,
+	/** Enables Debug draw for Joint Constraint data from any solver that is visible */
+	EnableDraw				= 1 << 9,
 };
 ENUM_CLASS_FLAGS(EChaosVDJointsDataVisualizationFlags);
 

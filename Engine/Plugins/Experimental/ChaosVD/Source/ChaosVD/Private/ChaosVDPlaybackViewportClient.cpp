@@ -364,44 +364,42 @@ void FChaosVDPlaybackViewportClient::Draw(const FSceneView* View, FPrimitiveDraw
 
 	if (const TSharedPtr<FChaosVDScene> ScenePtr = CVDScene.Pin())
 	{
+		//TODO: Currently we can safely assume that any component in these actors is meant to have a visualizer, but we might need a proper interface for these components in the future
+		TInlineComponentArray<const UActorComponent*> ComponentsToVisualize;
 		for (const TPair<int32, AChaosVDSolverInfoActor*>& SolverInfoWithID : ScenePtr->GetSolverInfoActorsMap())
 		{
-			if (const UChaosVDParticleDataComponent* ParticleDataComponent = SolverInfoWithID.Value ? SolverInfoWithID.Value->GetParticleDataComponent() : nullptr)
+			if (SolverInfoWithID.Value)
 			{
-				if (const TSharedPtr<FComponentVisualizer> Visualizer = MainTabToolkitHost->FindComponentVisualizer(ParticleDataComponent->StaticClass()))
+				constexpr bool bIncludeFromChildActors = false;
+				SolverInfoWithID.Value->ForEachComponent(bIncludeFromChildActors, [&ComponentsToVisualize](UActorComponent* Component)
 				{
-					Visualizer->DrawVisualization(ParticleDataComponent, View, PDI);
-				}
-			}
-	
-			if (const UChaosVDSolverCollisionDataComponent* CollisionDataComponent = SolverInfoWithID.Value ? SolverInfoWithID.Value->GetCollisionDataComponent() : nullptr)
-			{
-				if (const TSharedPtr<FComponentVisualizer> Visualizer = MainTabToolkitHost->FindComponentVisualizer(CollisionDataComponent->StaticClass()))
-				{
-					Visualizer->DrawVisualization(CollisionDataComponent, View, PDI);
-				}
-			}
-
-			if (const UChaosVDSolverJointConstraintDataComponent* JointConstraintDataComponent = SolverInfoWithID.Value ? SolverInfoWithID.Value->GetJointsDataComponent() : nullptr)
-			{
-				if (const TSharedPtr<FComponentVisualizer> Visualizer = MainTabToolkitHost->FindComponentVisualizer(JointConstraintDataComponent->StaticClass()))
-				{
-					Visualizer->DrawVisualization(JointConstraintDataComponent, View, PDI);
-				}
+					ComponentsToVisualize.Emplace(Component);
+				});
 			}
 		}
 
 		if (const UChaosVDSceneQueryDataComponent* SceneQueryDataComponent = ScenePtr->GetSceneQueryDataContainerComponent())
 		{
-			if (const TSharedPtr<FComponentVisualizer> Visualizer = MainTabToolkitHost->FindComponentVisualizer(SceneQueryDataComponent->StaticClass()))
+			ComponentsToVisualize.Emplace(SceneQueryDataComponent);
+		}
+
+		for (const UActorComponent* Component : ComponentsToVisualize)
+		{
+			if (!FChaosVDDebugDrawUtils::CanDebugDraw())
 			{
-				Visualizer->DrawVisualization(SceneQueryDataComponent, View, PDI);
+				break;
+			}
+
+			if (const TSharedPtr<FComponentVisualizer> Visualizer = MainTabToolkitHost->FindComponentVisualizer(Component->GetClass()))
+			{
+				Visualizer->DrawVisualization(Component, View, PDI);
 			}
 		}
-		
 	}
 
 	FEditorViewportClient::Draw(View, PDI);
+	
+	FChaosVDDebugDrawUtils::DebugDrawFrameEnd();
 }
 
 void FChaosVDPlaybackViewportClient::DrawCanvas(FViewport& InViewport, FSceneView& View, FCanvas& Canvas)

@@ -13,6 +13,8 @@
 
 IMPLEMENT_HIT_PROXY(HChaosVDParticleDataProxy, HComponentVisProxy)
 
+#define LOCTEXT_NAMESPACE "ChaosVisualDebugger"
+
 /** Sets a Hit proxy which will be cleared out as soon this struct goes out of scope*/
 struct FChaosVDScopedParticleHitProxy
 {
@@ -62,6 +64,11 @@ void FChaosVDParticleDataComponentVisualizer::DrawVisualization(const UActorComp
 		return;
 	}
 
+	if (!SolverDataActor->IsVisible())
+	{
+		return;
+	}
+
 	const TSharedPtr<FChaosVDScene> CVDScene = SolverDataActor->GetScene().Pin();
 	if (!CVDScene)
 	{
@@ -98,7 +105,8 @@ void FChaosVDParticleDataComponentVisualizer::DrawVisualization(const UActorComp
 			VisualizationContext.bIsSelectedData = SolverDataActor->IsParticleSelectedByID(InParticleDataViewer.ParticleIndex);
 			DrawVisualizationForParticleData(Component, PDI, View, VisualizationContext, InParticleDataViewer);
 
-			return true;
+			// If we reach the debug draw limit for this frame, there is no need to continue processing particles
+			return FChaosVDDebugDrawUtils::CanDebugDraw();
 		});
 	}
 }
@@ -143,7 +151,7 @@ void FChaosVDParticleDataComponentVisualizer::DrawParticleVector(FPrimitiveDrawI
 	}
 
 	const FString DebugText = InVisualizationContext.bShowDebugText ? Chaos::VisualDebugger::Utils::GenerateDebugTextForVector(InVector, UEnum::GetDisplayValueAsText(VectorID).ToString(), Chaos::VisualDebugger::ParticleDataUnitsStrings::GetUnitByID(VectorID)) : TEXT("");
-	FChaosVDDebugDrawUtils::DrawArrowVector(PDI, StartLocation, StartLocation +  InVisualizationContext.DebugDrawSettings->GetScaleFortDataID(VectorID) * InVector, DebugText, InVisualizationContext.DebugDrawSettings->ColorSettings.GetColorForDataID(VectorID, InVisualizationContext.bIsSelectedData),  InVisualizationContext.DebugDrawSettings->DepthPriority, LineThickness);
+	FChaosVDDebugDrawUtils::DrawArrowVector(PDI, StartLocation, StartLocation +  InVisualizationContext.DebugDrawSettings->GetScaleFortDataID(VectorID) * InVector, FText::AsCultureInvariant(DebugText), InVisualizationContext.DebugDrawSettings->ColorSettings.GetColorForDataID(VectorID, InVisualizationContext.bIsSelectedData),  InVisualizationContext.DebugDrawSettings->DepthPriority, LineThickness);
 }
 
 void FChaosVDParticleDataComponentVisualizer::DrawVisualizationForParticleData(const UActorComponent* Component, FPrimitiveDrawInterface* PDI, const FSceneView* View, const FChaosVDParticleDataVisualizationContext& InVisualizationContext, const FChaosVDParticleDataWrapper& InParticleDataViewer)
@@ -204,8 +212,7 @@ void FChaosVDParticleDataComponentVisualizer::DrawVisualizationForParticleData(c
 				Sphere.SetSphere(InVisualizationContext.DebugDrawSettings->CenterOfMassRadius);
 				const FPhysicsShapeAdapter SphereShapeAdapter(FQuat::Identity, Sphere);
 
-				const FString DebugText = UEnum::GetDisplayValueAsText(EChaosVDParticleDataVisualizationFlags::CenterOfMass).ToString();
-				FChaosVDDebugDrawUtils::DrawImplicitObject(PDI, GeometryGenerator, &SphereShapeAdapter.GetGeometry(), FTransform(OwnerCoMLocation), InVisualizationContext.DebugDrawSettings->ColorSettings.GetColorForDataID(EChaosVDParticleDataVisualizationFlags::CenterOfMass, InVisualizationContext.bIsSelectedData), DebugText, InVisualizationContext.DebugDrawSettings->DepthPriority, LineThickness);
+				FChaosVDDebugDrawUtils::DrawImplicitObject(PDI, GeometryGenerator, &SphereShapeAdapter.GetGeometry(), FTransform(OwnerCoMLocation), InVisualizationContext.DebugDrawSettings->ColorSettings.GetColorForDataID(EChaosVDParticleDataVisualizationFlags::CenterOfMass, InVisualizationContext.bIsSelectedData), UEnum::GetDisplayValueAsText(EChaosVDParticleDataVisualizationFlags::CenterOfMass), InVisualizationContext.DebugDrawSettings->DepthPriority, LineThickness);
 			}
 		}
 	}
@@ -226,10 +233,10 @@ void FChaosVDParticleDataComponentVisualizer::DrawVisualizationForParticleData(c
 							FColor DebugDrawColor = InVisualizationContext.DebugDrawSettings->ColorSettings.GetColorForDataID(EChaosVDParticleDataVisualizationFlags::ClusterConnectivityEdge, InVisualizationContext.bIsSelectedData);
 							FVector BoxExtents(2,2,2);
 							FTransform BoxTransform(OwnerRotation, OwnerLocation);
-							FChaosVDDebugDrawUtils::DrawBox(PDI, BoxExtents, DebugDrawColor, BoxTransform, nullptr, InVisualizationContext.DebugDrawSettings->DepthPriority, LineThickness);
+							FChaosVDDebugDrawUtils::DrawBox(PDI, BoxExtents, DebugDrawColor, BoxTransform, FText::GetEmpty(), InVisualizationContext.DebugDrawSettings->DepthPriority, LineThickness);
 
 							FVector SiblingParticleLocation = InVisualizationContext.SpaceTransform.TransformPosition(SiblingParticleData->ParticlePositionRotation.MX);
-							FChaosVDDebugDrawUtils::DrawLine(PDI, OwnerLocation, SiblingParticleLocation, DebugDrawColor, FString::Printf(TEXT("Strain [%f]"), ConnectivityEdge.Strain), InVisualizationContext.DebugDrawSettings->DepthPriority, LineThickness);
+							FChaosVDDebugDrawUtils::DrawLine(PDI, OwnerLocation, SiblingParticleLocation, DebugDrawColor, FText::FormatOrdered(LOCTEXT("StrainDebugDraw","Strain {0}"), ConnectivityEdge.Strain), InVisualizationContext.DebugDrawSettings->DepthPriority, LineThickness);
 						}
 					}	
 				}
@@ -237,3 +244,5 @@ void FChaosVDParticleDataComponentVisualizer::DrawVisualizationForParticleData(c
 		}
 	}
 }
+
+#undef LOCTEXT_NAMESPACE

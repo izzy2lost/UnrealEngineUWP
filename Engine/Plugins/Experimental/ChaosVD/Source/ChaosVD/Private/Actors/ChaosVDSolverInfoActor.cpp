@@ -143,6 +143,11 @@ void AChaosVDSolverInfoActor::RemoveSolverFolders(UWorld* World)
 	}
 }
 
+bool AChaosVDSolverInfoActor::IsVisible() const
+{
+	return !IsTemporarilyHiddenInEditor();
+}
+
 void AChaosVDSolverInfoActor::ApplySolverVisibilityToParticle(AChaosVDParticleActor* ParticleActor, bool bIsHidden)
 {
 	if (!ParticleActor)
