@@ -63,6 +63,7 @@ FErrorDetail FManifestMKVInternal::Build(TSharedPtrTS<IParserMKV> MKVParser, con
 	FErrorDetail Error = MediaAsset->Build(PlayerSessionServices, MKVParser, URL);
 	FTimeRange PlaybackRange = GetPlaybackRange();
 	DefaultStartTime = PlaybackRange.Start;
+	DefaultEndTime = PlaybackRange.End;
 	return Error;
 }
 

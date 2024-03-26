@@ -28,6 +28,8 @@ public:
 	FTimeValue GetDuration() const override;
 	FTimeValue GetDefaultStartTime() const override;
 	void ClearDefaultStartTime() override;
+	FTimeValue GetDefaultEndTime() const override;
+	void ClearDefaultEndTime() override;
 	FTimeValue GetMinBufferTime() const override;
 	FTimeValue GetDesiredLiveLatency() const override;
 	TRangeSet<double> GetPossiblePlaybackRates(EPlayRateType InForType) const override;

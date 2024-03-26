@@ -895,6 +895,8 @@ public:
 	void PrepareDefaultStartTime();
 	FTimeValue GetDefaultStartTime() const;
 	void ClearDefaultStartTime();
+	FTimeValue GetDefaultEndTime() const;
+	void ClearDefaultEndTime();
 	FTimeRange GetPlayTimesFromURI() const;
 	FTimeValue GetDesiredLiveLatency() const;
 
@@ -953,6 +955,7 @@ private:
 	mutable FTimeRange TotalTimeRange;
 	mutable FTimeRange SeekableTimeRange;
 	FTimeValue DefaultStartTime;
+	FTimeValue DefaultEndTime;
 	mutable bool bWarnedAboutTooSmallSuggestedPresentationDelay = false;
 
 	bool bDidInjectUTCTimingElements = false;

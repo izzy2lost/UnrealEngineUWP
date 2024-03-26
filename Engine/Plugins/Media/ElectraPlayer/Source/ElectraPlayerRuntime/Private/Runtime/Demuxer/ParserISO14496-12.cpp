@@ -269,36 +269,36 @@ namespace Electra
 	};
 
 
-class FDataBufferReader : public IParserISO14496_12::IReader
-{
-public:
-	FDataBufferReader(const TArray<uint8>& InDataBufferToReadFrom) : DataBufferRef(InDataBufferToReadFrom)
-	{}
-	virtual ~FDataBufferReader() = default;
-	int64 ReadData(void* IntoBuffer, int64 NumBytesToRead) override
+	class FDataBufferReader : public IParserISO14496_12::IReader
 	{
-		int64 NumAvail = DataBufferRef.Num() - CurrentOffset;
-		if (NumAvail >= NumBytesToRead)
+	public:
+		FDataBufferReader(const TArray<uint8>& InDataBufferToReadFrom) : DataBufferRef(InDataBufferToReadFrom)
+		{}
+		virtual ~FDataBufferReader() = default;
+		int64 ReadData(void* IntoBuffer, int64 NumBytesToRead) override
 		{
-			if (IntoBuffer)
+			int64 NumAvail = DataBufferRef.Num() - CurrentOffset;
+			if (NumAvail >= NumBytesToRead)
 			{
-				FMemory::Memcpy(IntoBuffer, DataBufferRef.GetData() + CurrentOffset, NumBytesToRead);
+				if (IntoBuffer)
+				{
+					FMemory::Memcpy(IntoBuffer, DataBufferRef.GetData() + CurrentOffset, NumBytesToRead);
+				}
+				CurrentOffset += NumBytesToRead;
+				return NumBytesToRead;
 			}
-			CurrentOffset += NumBytesToRead;
-			return NumBytesToRead;
+			return -1;
 		}
-		return -1;
-	}
-	bool HasReachedEOF() const override
-	{ return CurrentOffset >= DataBufferRef.Num(); }
-	bool HasReadBeenAborted() const override
-	{ return false;	}
-	int64 GetCurrentOffset() const override
-	{ return CurrentOffset;	}
-private:
-	const TArray<uint8>& DataBufferRef;
-	int64 CurrentOffset = 0;
-};
+		bool HasReachedEOF() const override
+		{ return CurrentOffset >= DataBufferRef.Num(); }
+		bool HasReadBeenAborted() const override
+		{ return false;	}
+		int64 GetCurrentOffset() const override
+		{ return CurrentOffset;	}
+	private:
+		const TArray<uint8>& DataBufferRef;
+		int64 CurrentOffset = 0;
+	};
 
 
 #define RETURN_IF_ERROR(expr)											\
@@ -791,7 +791,8 @@ private:
 		/**
 		 * Sample grouping types
 		 */
-		static const IParserISO14496_12::FBoxType kGrouping_seig = MAKE_BOX_ATOM('s', 'e', 'i', 'g');
+		//static const IParserISO14496_12::FBoxType kGrouping_seig = MAKE_BOX_ATOM('s', 'e', 'i', 'g');
+		//static const IParserISO14496_12::FBoxType kGrouping_rap  = MAKE_BOX_ATOM('r', 'a', 'p', ' ');
 
 		/**
 		 * Encryption scheme types
@@ -877,6 +878,11 @@ private:
 			: FMP4BoxBasic(InBoxType, InBoxSize, InStartOffset, InDataOffset, bInIsLeafBox)
 			, Flags(0), Version(0)
 		{
+		}
+
+		uint8 GetBoxVersion() const
+		{
+			return Version;
 		}
 
 		uint32 GetFlags() const
@@ -4960,6 +4966,15 @@ private:
 		{
 			UEMediaError Error = UEMEDIA_ERROR_OK;
 			RETURN_IF_ERROR(FMP4BoxFull::ReadAndParseAttributes(ParseInfo));
+			/*
+				Flags field must be zero when this box is in a `traf` box, otherwise, if it appears in
+				a `stbl` box flag bit values mean:
+					Bit 0: when set to 1, this flag indicates that there are no SampleGroupDescriptionBoxes
+						   of this grouping_type in any TrackFragmentBox of this track.
+					Bit 1: when set to 1, this flag indicates that there are no SampleToGroupBoxes
+						   of this grouping_type in this track (in neither the SampleTableBox nor any TrackFragmentBox of this
+						   track); all samples therefore map to the default.
+			*/
 
 			// Version 0 of this box type has been deprecated.
 			if (Version == 0)
@@ -5757,6 +5772,14 @@ private:
 				return Track != nullptr;
 			}
 		private:
+			typedef uint32 FGroupType;
+			#define MAKE_MP4_GROUPTYPE(a,b,c,d) (FGroupType)((uint32)a << 24) | ((uint32)b << 16) | ((uint32)c << 8) | ((uint32)d)
+			enum EGroupType
+			{
+				Grouping_rap = MAKE_MP4_GROUPTYPE('r', 'a', 'p', ' '),
+			};
+			#undef MAKE_MP4_GROUPTYPE
+
 			FTrackIterator& AssignFrom(const FTrackIterator& Other)
 			{
 				if (this != &Other)
@@ -5792,6 +5815,8 @@ private:
 					SampleDuration = Other.SampleDuration;
 					SampleDescriptionIndex = Other.SampleDescriptionIndex;
 					bEOS = Other.bEOS;
+					GroupIterators = Other.GroupIterators;
+					bHaveRAPGroup = Other.bHaveRAPGroup;
 				}
 				return *this;
 			}
@@ -5835,6 +5860,52 @@ private:
 			uint32				SampleDuration = 0;
 			uint32				SampleDescriptionIndex = 0;
 			bool				bEOS = true;
+
+			struct FSampleGroupIterator
+			{
+				FBoxType GroupingType = 0;
+				const FMP4BoxSBGP* SBGPBox = nullptr;
+				uint32 DefaultDescriptionIndex = 0;
+				uint32 CurrentSampleIdxInEntry = 0;
+				int32 CurrentEntryIndex = 0;
+				uint32 CurrentGroupDescriptionIndex = 0;
+				uint32 GetCurrentGroupDescriptionIndex() const
+				{
+					return CurrentGroupDescriptionIndex;
+				}
+				void SetFirst()
+				{
+					check(SBGPBox);
+					CurrentSampleIdxInEntry = 0;
+					CurrentEntryIndex = 0;
+					CurrentGroupDescriptionIndex = SBGPBox->GetNumberOfEntries() ? SBGPBox->GetEntry(CurrentEntryIndex).GroupDescriptionIndex : DefaultDescriptionIndex;
+				}
+				void Advance()
+				{
+					if (CurrentEntryIndex < SBGPBox->GetNumberOfEntries())
+					{
+						// Need to move onto the next entry?
+						if (++CurrentSampleIdxInEntry >= SBGPBox->GetEntry(CurrentEntryIndex).SampleCount)
+						{
+							CurrentSampleIdxInEntry = 0;
+							if (++CurrentEntryIndex < SBGPBox->GetNumberOfEntries())
+							{
+								CurrentGroupDescriptionIndex = SBGPBox->GetEntry(CurrentEntryIndex).GroupDescriptionIndex;
+							}
+							else
+							{
+								CurrentGroupDescriptionIndex = DefaultDescriptionIndex;
+							}
+						}
+					}
+					else
+					{
+						CurrentGroupDescriptionIndex = DefaultDescriptionIndex;
+					}
+				}
+			};
+			TMap<FBoxType, FSampleGroupIterator> GroupIterators;
+			bool bHaveRAPGroup = false;
 		};
 
 
@@ -5875,6 +5946,9 @@ private:
 			const FMP4BoxSTCO* STCOBox = nullptr;
 			const FMP4BoxSTSS* STSSBox = nullptr;
 			const FMP4BoxUDTA* UDTABox = nullptr;
+			// Groupings
+			TArray<const FMP4BoxSGPD*> SGPDBoxes;
+			TArray<const FMP4BoxSBGP*> SBGPBoxes;
 			// Encryption
 			TArray<const FMP4BoxPSSH*>	PSSHBoxesFromInit;
 			TArray<const FMP4BoxPSSH*>	PSSHBoxes;
@@ -6000,7 +6074,7 @@ private:
 		FMP4ParseInfo* ParsedData;
 
 		FTrackInfo* ParsedTrackInfo;
-		
+
 		IElectraCodecFactoryModule* DecoderFactoryModule;
 	};
 
@@ -6358,6 +6432,44 @@ private:
 			SampleDescriptionIndex = Track->TFHDBox->HasSampleDescriptionIndex() ? Track->TFHDBox->GetSampleDescriptionIndex() :
 				Track->TREXBox->GetDefaultSampleDescriptionIndex();
 
+			// Sample groups
+			for(int32 i=0; i<Track->SBGPBoxes.Num(); ++i)
+			{
+				switch(Track->SBGPBoxes[i]->GetGroupingType())
+				{
+					// Random access
+					case EGroupType::Grouping_rap:
+					{
+						// ISO/IEC 14496-15 disallows `rap ` boxes greater than version 0.
+						if (Track->SBGPBoxes[i]->GetBoxVersion() == 0)
+						{
+							// There needs to be a matching entry
+							const FMP4BoxSGPD* const* SGPDBox = Track->SGPDBoxes.FindByPredicate([](const FMP4BoxSGPD* In) { return In->GetGroupingType() == EGroupType::Grouping_rap; });
+							if (SGPDBox && (*SGPDBox)->GetNumberOfEntries() > 0)
+							{
+								// We do not care about the actual `VisualRandomAccessEntry` for now, only the fact that there is one.
+								FSampleGroupIterator& sgit = GroupIterators.Add(EGroupType::Grouping_rap);
+								sgit.GroupingType = EGroupType::Grouping_rap;
+								sgit.SBGPBox = Track->SBGPBoxes[i];
+								sgit.DefaultDescriptionIndex = (*SGPDBox)->GetDefaultSampleDescriptionIndex();
+								sgit.SetFirst();
+								// If the sample group says this sample is a RAP then clear the `sample_is_non_sync_sample` flag.
+								if (sgit.GetCurrentGroupDescriptionIndex() != 0)
+								{
+									SampleFlag &= ~0x10000U;
+								}
+								bHaveRAPGroup = true;
+							}
+						}
+						break;
+					}
+					default:
+					{
+						break;
+					}
+				}
+			}
+
 			RemainingSamplesInTRUN = TRUNBox->GetNumberOfSamples();
 			check(RemainingSamplesInTRUN != 0);
 			// Run could be empty!
@@ -6599,6 +6711,21 @@ private:
 				SamplePTS += (TRUNBox->GetSampleCompositionTimeOffsets().GetData())[SampleNumberInTRUN];
 			}
 
+			// Advance the grouping iterators
+			for(auto &grpit : GroupIterators)
+			{
+				grpit.Value.Advance();
+			}
+			// If we have a RAP grouping we need to look at it now
+			if (bHaveRAPGroup)
+			{
+				// If the sample group says this sample is a RAP then clear the `sample_is_non_sync_sample` flag.
+				if (GroupIterators[EGroupType::Grouping_rap].GetCurrentGroupDescriptionIndex() != 0)
+				{
+					SampleFlag &= ~0x10000U;
+				}
+			}
+
 			return UEMEDIA_ERROR_OK;
 		}
 		else
@@ -6832,6 +6959,8 @@ private:
 
 	bool FParserISO14496_12::FTrackIterator::IsSyncSample() const
 	{
+		// Note: Depending on the codec an I-frame might also be a sync sample, in which
+		//       case `sample_depends_on` (mask 0x03000000) would be set to 2.
 		return (SampleFlag & 0x10000) == 0;
 	}
 
@@ -7200,30 +7329,56 @@ private:
 						check(bOk);
 						if (bOk)
 						{
+							ElectraDecodersUtil::MPEG::FISO23008_2_seq_parameter_set_data TempSPS;
 							Track->CodecInformation.SetStreamType(EStreamType::Video);
 							Track->CodecInformation.SetCodec(FStreamCodecInformation::ECodec::H265);
 							Track->CodecInformation.SetCodecSpecificData(Track->CodecSpecificDataRAW);
 							Track->CodecInformation.SetStreamLanguageCode(Track->GetLanguage());
+							const ElectraDecodersUtil::MPEG::FISO23008_2_seq_parameter_set_data* sps = nullptr;
+							const TCHAR* HevType = TEXT("hvc1");
 							if (Track->CodecSpecificDataHEVC.GetNumberOfSPS() == 0)
 							{
-								return UEMEDIA_ERROR_FORMAT_ERROR;
+								TempSPS.general_profile_space = Track->CodecSpecificDataHEVC.GetGeneralProfileSpace();
+								TempSPS.general_tier_flag = Track->CodecSpecificDataHEVC.GetGeneralTierFlag();
+								TempSPS.general_profile_idc = Track->CodecSpecificDataHEVC.GetGeneralProfileIDC();
+								TempSPS.general_level_idc = Track->CodecSpecificDataHEVC.GetGeneralLevelIDC();
+								TempSPS.general_profile_compatibility_flag = Track->CodecSpecificDataHEVC.GetGeneralProfileCompatibilityFlags();
+								uint64 flags = Track->CodecSpecificDataHEVC.GetGeneralConstraintIndicatorFlags();
+								TempSPS.general_reserved_zero_44bits = (flags & 0xfffffffffffUL);
+								flags >>= 44;
+								TempSPS.general_frame_only_constraint_flag = flags & 1;
+								flags >>= 1;
+								TempSPS.general_non_packed_constraint_flag = flags & 1;
+								flags >>= 1;
+								TempSPS.general_interlaced_source_flag = flags & 1;
+								flags >>= 1;
+								TempSPS.general_progressive_source_flag = flags & 1;
+								TempSPS.pic_width_in_luma_samples = Track->TKHDBox->GetWidth();
+								TempSPS.pic_height_in_luma_samples = Track->TKHDBox->GetHeight();
+								TempSPS.bit_depth_luma_minus8 = Track->CodecSpecificDataHEVC.GetBitDepthLumaMinus8();
+								TempSPS.bit_depth_chroma_minus8 = Track->CodecSpecificDataHEVC.GetBitDepthChromaMinus8();
+								sps = &TempSPS;
+								HevType = TEXT("hev1");
 							}
-							const ElectraDecodersUtil::MPEG::FISO23008_2_seq_parameter_set_data& sps = Track->CodecSpecificDataHEVC.GetParsedSPS(0);
+							else
+							{
+								sps = &Track->CodecSpecificDataHEVC.GetParsedSPS(0);
+							}
 							int32 CropL, CropR, CropT, CropB;
-							sps.GetCrop(CropL, CropR, CropT, CropB);
-							Track->CodecInformation.SetResolution(FStreamCodecInformation::FResolution(sps.GetWidth() - CropL - CropR, sps.GetHeight() - CropT - CropB));
+							sps->GetCrop(CropL, CropR, CropT, CropB);
+							Track->CodecInformation.SetResolution(FStreamCodecInformation::FResolution(sps->GetWidth() - CropL - CropR, sps->GetHeight() - CropT - CropB));
 							Track->CodecInformation.SetCrop(FStreamCodecInformation::FCrop(CropL, CropT, CropR, CropB));
 							FStreamCodecInformation::FAspectRatio ar;
-							sps.GetAspect(ar.Width, ar.Height);
+							sps->GetAspect(ar.Width, ar.Height);
 							Track->CodecInformation.SetAspectRatio(ar);
-							Track->CodecInformation.SetFrameRate(sps.GetTiming().Denom ? FTimeFraction(sps.GetTiming().Num, sps.GetTiming().Denom) : FTimeFraction());
-							Track->CodecInformation.SetProfileSpace(sps.general_profile_space);
-							Track->CodecInformation.SetProfileTier(sps.general_tier_flag);
-							Track->CodecInformation.SetProfile(sps.general_profile_idc);
-							Track->CodecInformation.SetProfileLevel(sps.general_level_idc);
-							Track->CodecInformation.SetProfileConstraints(sps.GetConstraintFlags());
-							Track->CodecInformation.SetProfileCompatibilityFlags(sps.general_profile_compatibility_flag);
-							Track->CodecInformation.SetCodecSpecifierRFC6381(sps.GetRFC6381(TEXT("hvc1")));
+							Track->CodecInformation.SetFrameRate(sps->GetTiming().Denom ? FTimeFraction(sps->GetTiming().Num, sps->GetTiming().Denom) : FTimeFraction());
+							Track->CodecInformation.SetProfileSpace(sps->general_profile_space);
+							Track->CodecInformation.SetProfileTier(sps->general_tier_flag);
+							Track->CodecInformation.SetProfile(sps->general_profile_idc);
+							Track->CodecInformation.SetProfileLevel(sps->general_level_idc);
+							Track->CodecInformation.SetProfileConstraints(sps->GetConstraintFlags());
+							Track->CodecInformation.SetProfileCompatibilityFlags(sps->general_profile_compatibility_flag);
+							Track->CodecInformation.SetCodecSpecifierRFC6381(sps->GetRFC6381(HevType));
 							bGotVideoFormat = true;
 						}
 						else
@@ -8072,7 +8227,7 @@ private:
 				{
 					case FMP4Box::kBox_traf:
 					{
-						// FIXME: for encrypted content we need to also handle: sbgp, sgpd, subs, saiz, saio
+						// FIXME: for encrypted content we may need to also handle: `subs`
 
 						// Get the tfhd box.
 						const FMP4BoxTFHD* TFHDBox = static_cast<const FMP4BoxTFHD*>(Box->FindBox(FMP4Box::kBox_tfhd, 0));
@@ -8090,12 +8245,25 @@ private:
 									Track->MOOFBox = MOOFBox;		// need this to get to the absolute file position for default-base-is-moof addressing.
 									Track->TFHDBox = TFHDBox;
 									Track->TFDTBox = static_cast<const FMP4BoxTFDT*>(Box->FindBox(FMP4Box::kBox_tfdt, 0));
+									TArray<const FMP4Box*> ListOfBoxes;
 									// Locate all TRUN boxes.
-									TArray<const FMP4Box*> AllTRUNBoxes;
-									Box->GetAllBoxInstances(AllTRUNBoxes, FMP4Box::kBox_trun);
-									for(int32 nTruns = 0; nTruns < AllTRUNBoxes.Num(); ++nTruns)
+									Box->GetAllBoxInstances(ListOfBoxes, FMP4Box::kBox_trun);
+									for(int32 nBox=0; nBox<ListOfBoxes.Num(); ++nBox)
 									{
-										Track->TRUNBoxes.Add(static_cast<const FMP4BoxTRUN*>(AllTRUNBoxes[nTruns]));
+										Track->TRUNBoxes.Add(static_cast<const FMP4BoxTRUN*>(ListOfBoxes[nBox]));
+									}
+									// Locate all sample grouping boxes. At present we do this only for fragmented streams.
+									ListOfBoxes.Empty();
+									Box->GetAllBoxInstances(ListOfBoxes, FMP4Box::kBox_sgpd);
+									for(int32 nBox=0; nBox<ListOfBoxes.Num(); ++nBox)
+									{
+										Track->SGPDBoxes.Add(static_cast<const FMP4BoxSGPD*>(ListOfBoxes[nBox]));
+									}
+									ListOfBoxes.Empty();
+									Box->GetAllBoxInstances(ListOfBoxes, FMP4Box::kBox_sbgp);
+									for(int32 nBox=0; nBox<ListOfBoxes.Num(); ++nBox)
+									{
+										Track->SBGPBoxes.Add(static_cast<const FMP4BoxSBGP*>(ListOfBoxes[nBox]));
 									}
 
 									// Locate encryption related boxes. At present we do this only for fragmented streams.

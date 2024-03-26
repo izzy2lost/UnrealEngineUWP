@@ -285,8 +285,6 @@ bool FAdaptiveStreamingPlayer::SelectManifest()
 		if (ManifestType != EMediaFormatType::Unknown)
 		{
 			TArray<FTimespan> SeekablePositions;
-			FPlaybackRange PlaybackRange;
-			FTimeRange RestrictedPlaybackRange;
 			TSharedPtrTS<IManifest> NewPresentation = ManifestReader->GetManifest();
 			check(NewPresentation.IsValid());
 
@@ -295,23 +293,31 @@ bool FAdaptiveStreamingPlayer::SelectManifest()
 			PlaybackState.SetSeekablePositions(SeekablePositions);
 			PlaybackState.SetTimelineRange(NewPresentation->GetTotalTimeRange());
 			PlaybackState.SetDuration(NewPresentation->GetDuration());
-			
-			// Check for playback range restriction. This is currently assumed to come from URL fragment parameters
-			// like example.mp4#t=10.8,18.4
-			// These do not override any user defined range values!
-			RestrictedPlaybackRange = NewPresentation->GetPlaybackRange();
-			PlaybackState.GetPlayRange(PlaybackRange);
-			if (RestrictedPlaybackRange.Start.IsValid() && !PlaybackRange.Start.Get(FTimeValue()).IsValid())
-			{
-				PlaybackRange.Start = RestrictedPlaybackRange.Start;
-			}
-			if (RestrictedPlaybackRange.End.IsValid() && !PlaybackRange.End.Get(FTimeValue()).IsValid())
-			{
-				PlaybackRange.End = RestrictedPlaybackRange.End;
-			}
-			// Set the new range, but say it did not change. This is the first start and we do not need to issue a seek.
-			PlaybackState.SetPlayRange(PlaybackRange);
-			PlaybackState.ActivateNewPlayRange(nullptr);
+
+			#if 0
+			// Removed for now. This can be put back in if necessary, but not through the #t URL fragment parameter
+			// which is not really intended to lock down a playback range.
+			// We could add a #r[,e] parameter instead to create a range if needed.
+
+				// Check for playback range restriction. This is currently assumed to come from URL fragment parameters
+				// like example.mp4#t=10.8,18.4
+				// These do not override any user defined range values!
+				FPlaybackRange PlaybackRange;
+				FTimeRange RestrictedPlaybackRange;
+				RestrictedPlaybackRange = NewPresentation->GetPlaybackRange();
+				PlaybackState.GetPlayRange(PlaybackRange);
+				if (RestrictedPlaybackRange.Start.IsValid() && !PlaybackRange.Start.Get(FTimeValue()).IsValid())
+				{
+					PlaybackRange.Start = RestrictedPlaybackRange.Start;
+				}
+				if (RestrictedPlaybackRange.End.IsValid() && !PlaybackRange.End.Get(FTimeValue()).IsValid())
+				{
+					PlaybackRange.End = RestrictedPlaybackRange.End;
+				}
+				// Set the new range, but say it did not change. This is the first start and we do not need to issue a seek.
+				PlaybackState.SetPlayRange(PlaybackRange);
+				PlaybackState.ActivateNewPlayRange(nullptr);
+			#endif
 
 			TArray<FTrackMetadata> VideoTrackMetadata;
 			TArray<FTrackMetadata> AudioTrackMetadata;

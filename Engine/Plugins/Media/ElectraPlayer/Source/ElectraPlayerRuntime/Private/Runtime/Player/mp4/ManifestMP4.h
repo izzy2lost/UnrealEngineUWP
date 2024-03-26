@@ -53,6 +53,10 @@ public:
 	{ return DefaultStartTime; }
 	void ClearDefaultStartTime() override
 	{ DefaultStartTime.SetToInvalid(); }
+	FTimeValue GetDefaultEndTime() const override
+	{ return DefaultEndTime; }
+	void ClearDefaultEndTime() override
+	{ DefaultEndTime.SetToInvalid(); }
 	void GetTrackMetadata(TArray<FTrackMetadata>& OutMetadata, EStreamType StreamType) const override;
 	FTimeValue GetMinBufferTime() const override;
 	FTimeValue GetDesiredLiveLatency() const override
@@ -329,6 +333,7 @@ public:
 	// The MPD URL fragment components
 	TArray<FURL_RFC3986::FQueryParam>	URLFragmentComponents;
 	FTimeValue							DefaultStartTime;
+	FTimeValue							DefaultEndTime;
 };
 
 
