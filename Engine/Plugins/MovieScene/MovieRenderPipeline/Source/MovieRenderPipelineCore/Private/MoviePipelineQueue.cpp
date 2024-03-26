@@ -310,7 +310,21 @@ void UMoviePipelineExecutorJob::RefreshAllVariableAssignments()
 
 void UMoviePipelineExecutorJob::SetGraphPreset(const UMovieGraphConfig* InGraphPreset, const bool bUpdateVariableAssignments)
 {
+#if WITH_EDITOR
+	Modify();
+#endif
+	
 	GraphPreset = InGraphPreset;
+
+	// If the graph is being cleared out, also clear out all graphs on the job's shots. A shot cannot have a graph assigned to it while
+	// the parent job is using a legacy config.
+	if (InGraphPreset == nullptr)
+	{
+		for (const TObjectPtr<UMoviePipelineExecutorShot>& Shot : ShotInfo)
+		{
+			Shot->SetGraphPreset(nullptr);
+		}
+	}
 
 	if (bUpdateVariableAssignments)
 	{
@@ -391,6 +405,10 @@ void UMoviePipelineExecutorJob::OnGraphPreSave(UObject* InObject, FObjectPreSave
 
 void UMoviePipelineExecutorShot::SetGraphPreset(const UMovieGraphConfig* InGraphPreset, const bool bUpdateVariableAssignments)
 {
+#if WITH_EDITOR
+	Modify();
+#endif
+	
 	GraphPreset = InGraphPreset;
 
 	if (bUpdateVariableAssignments)
