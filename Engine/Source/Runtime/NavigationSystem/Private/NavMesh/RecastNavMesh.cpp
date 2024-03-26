@@ -6,7 +6,6 @@
 #include "Engine/World.h"
 #include "NavigationSystem.h"
 #include "Engine/Engine.h"
-#include "Distance/DistSegment2AxisAlignedBox2.h"
 #include "DrawDebugHelpers.h"
 #include "Misc/ConfigCacheIni.h"
 #include "EngineUtils.h"
@@ -3508,22 +3507,6 @@ bool ARecastNavMesh::HasValidNavmesh() const
 }
 
 #if WITH_RECAST
-bool ARecastNavMesh::HasCompleteDataInTile(const int32 TileX, const int32 TileY) const
-{
-	check(RecastNavMeshImpl && RecastNavMeshImpl->DetourNavMesh);
-	const int32 NumTiles = RecastNavMeshImpl->DetourNavMesh->getTileCountAt(TileX, TileY);
-	if (NumTiles <= 0)
-	{
-		const bool bHasFailsafeData = bStoreEmptyTileLayers && RecastNavMeshImpl->HasTileCacheLayers(TileX, TileY);
-		if (!bHasFailsafeData)
-		{
-			return false;
-		}
-	}
-
-	return true;
-}
-
 bool ARecastNavMesh::HasCompleteDataInRadius(const FVector& TestLocation, FVector::FReal TestRadius) const
 {
 	if (HasValidNavmesh() == false)
@@ -3558,53 +3541,14 @@ bool ARecastNavMesh::HasCompleteDataInRadius(const FVector& TestLocation, FVecto
 			const bool bInside = FMath::SphereAABBIntersection(RcTestLocation, RadiusSq, FBox::BuildAABB(RcTileCenter, RcTileExtent2D));
 			if (bInside)
 			{
-				if (!HasCompleteDataInTile(TileX, TileY))
+				const int32 NumTiles = NavMesh->getTileCountAt(TileX, TileY);
+				if (NumTiles <= 0)
 				{
-					return false;
-				}
-			}
-		}
-	}
-
-	return true;
-}
-
-bool ARecastNavMesh::HasCompleteDataAroundSegment(const FVector& StartLocation, const FVector& EndLocation, FVector::FReal TestRadius) const
-{
-	if (HasValidNavmesh() == false)
-	{
-		return false;
-	}
-
-	const dtNavMeshParams* NavParams = RecastNavMeshImpl->DetourNavMesh->getParams();
-	const float NavTileSize = GetTileSizeUU();
-	const FVector RcNavOrigin(NavParams->orig[0], NavParams->orig[1], NavParams->orig[2]);
-
-	FBox CapsuleBox(ForceInit);
-	CapsuleBox += StartLocation;
-	CapsuleBox += EndLocation;
-	CapsuleBox = CapsuleBox.ExpandBy(FVector(TestRadius, TestRadius, 0));
-	const FRcTileBox TileBox(CapsuleBox, RcNavOrigin, NavTileSize);
-
-	const FVector RcStartLocation = Unreal2RecastPoint(StartLocation);
-	const FVector RcEndLocation = Unreal2RecastPoint(EndLocation);
-	const UE::Geometry::TSegment2<FVector::FReal> Segment (FVector2D(RcStartLocation.X, RcStartLocation.Z), FVector2D(RcEndLocation.X, RcEndLocation.Z));
-	const float TestRadiusSquared = FMath::Square(TestRadius);
-
-	for (int32 TileX = TileBox.XMin; TileX <= TileBox.XMax; TileX++)
-	{
-		for (int32 TileY = TileBox.YMin; TileY <= TileBox.YMax; TileY++)
-		{
-			const FVector2D RcTileMin(RcNavOrigin.X + (TileX * NavTileSize), RcNavOrigin.Z + (TileY * NavTileSize));
-			const FBox2D RcTileAABB = FBox2D(RcTileMin, RcTileMin + FVector2D(NavTileSize, NavTileSize));
-
-			UE::Geometry::TDistSegment2AxisAlignedBox2<FVector::FReal> SegmentTileDist(Segment, RcTileAABB);
-			const float DistanceSquared = SegmentTileDist.GetSquared();
-			if (DistanceSquared <= TestRadiusSquared)
-			{
-				if (!HasCompleteDataInTile(TileX, TileY))
-				{
-					return false;
+					const bool bHasFailsafeData = bStoreEmptyTileLayers && RecastNavMeshImpl->HasTileCacheLayers(TileX, TileY);
+					if (!bHasFailsafeData)
+					{
+						return false;
+					}
 				}
 			}
 		}

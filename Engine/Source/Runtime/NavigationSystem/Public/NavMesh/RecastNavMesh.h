@@ -1440,11 +1440,6 @@ public:
 	  * @returns true if ALL tiles inside are ready
 	  */
 	NAVIGATIONSYSTEM_API bool HasCompleteDataInRadius(const FVector& TestLocation, FVector::FReal TestRadius) const;
-	
-	/** Check if navmesh is defined (either built/streamed or recognized as empty tile by generator) within given radius around the given segment.
-	* @returns true if ALL tiles inside are ready
-	*/
-	NAVIGATIONSYSTEM_API bool HasCompleteDataAroundSegment(const FVector& StartLocation, const FVector& EndLocation, FVector::FReal TestRadius) const;
 
 	/** @return true is specified segment is fully on navmesh (respecting the optional filter) */
 	NAVIGATIONSYSTEM_API bool IsSegmentOnNavmesh(const FVector& SegmentStart, const FVector& SegmentEnd, FSharedConstNavQueryFilter Filter = NULL, const UObject* Querier = NULL) const;
@@ -1531,9 +1526,6 @@ private:
 
 	/** @return Navmesh data chunk that belongs to this actor */
 	NAVIGATIONSYSTEM_API URecastNavMeshDataChunk* GetNavigationDataChunk(const ANavigationDataChunkActor& InActor) const;
-
-	/** Check if navmesh is defined (either built/streamed or recognized as empty tile by generator) in given tile */
-	bool HasCompleteDataInTile(const int32 TileX, const int32 TileY) const;
 
 protected:
 	// retrieves RecastNavMeshImpl
