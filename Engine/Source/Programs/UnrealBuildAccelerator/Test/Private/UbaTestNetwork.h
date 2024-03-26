@@ -23,6 +23,7 @@ namespace uba
 				tcp.StartListen(logger, port, TC("127.0.0.1"), [&](void* connection, const sockaddr& remoteSocketAddr)
 					{
 						logger.Info(TC("Listen got connection"));
+						tcp.SetDisconnectCallback(connection, nullptr, [](void*, const Guid&, void*) {});
 						tcp.SetRecvCallbacks(connection, &result, 1,
 							[](void* context, const Guid& connectionUid, u8* headerData, void*& outBodyContext, u8*& outBodyData, u32& outBodySize)
 							{
@@ -40,6 +41,7 @@ namespace uba
 		logger.Info(TC("Starting to Connect"));
 		tcp.Connect(logger, TC("127.0.0.1"), [&](void* connection, const sockaddr& remoteSocketAddr, bool* timedOut)
 			{
+				tcp.SetDisconnectCallback(connection, nullptr, [](void*, const Guid&, void*) {});
 				tcp.SetRecvCallbacks(connection, &tcp, 1, [](void* context, const Guid& connectionUid, u8* headerData, void*& outBodyContext, u8*& outBodyData, u32& outBodySize) { return true; }, nullptr, TC(""));
 				u8 b = 42;
 				NetworkBackend::SendContext sc;
@@ -65,10 +67,10 @@ namespace uba
 		NetworkServer server(ctorSuccess, logWriter);
 		NetworkClient client(ctorSuccess, logWriter);
 
-		server.RegisterService(1, [&](const ConnectionInfo& connectionInfo, u8 messageType, BinaryReader& reader, BinaryWriter& writer)
+		server.RegisterService(1, [&](const ConnectionInfo& connectionInfo, MessageInfo& messageInfo, BinaryReader& reader, BinaryWriter& writer)
 			{
 				logger.Info(TC("Got ping!"));
-				UBA_ASSERT(messageType == SessionMessageType_Ping);
+				UBA_ASSERT(messageInfo.type == SessionMessageType_Ping);
 				writer.WriteByte(42);
 				return true;
 			});
@@ -101,10 +103,10 @@ namespace uba
 		NetworkServer server(ctorSuccess, logWriter);
 		NetworkClient client(ctorSuccess, logWriter);
 
-		server.RegisterService(1, [&](const ConnectionInfo& connectionInfo, u8 messageType, BinaryReader& reader, BinaryWriter& writer)
+		server.RegisterService(1, [&](const ConnectionInfo& connectionInfo, MessageInfo& messageInfo, BinaryReader& reader, BinaryWriter& writer)
 			{
 				logger.Info(TC("Got ping!"));
-				UBA_ASSERT(messageType == SessionMessageType_Ping);
+				UBA_ASSERT(messageInfo.type == SessionMessageType_Ping);
 				writer.WriteByte(42);
 				return true;
 			});
@@ -146,10 +148,10 @@ namespace uba
 		NetworkServer server(ctorSuccess, logWriter);
 		NetworkClient client(ctorSuccess, logWriter);
 
-		server.RegisterService(1, [&](const ConnectionInfo& connectionInfo, u8 messageType, BinaryReader& reader, BinaryWriter& writer)
+		server.RegisterService(1, [&](const ConnectionInfo& connectionInfo, MessageInfo& messageInfo, BinaryReader& reader, BinaryWriter& writer)
 			{
 				logger.Info(TC("Got ping!"));
-				UBA_ASSERT(messageType == SessionMessageType_Ping);
+				UBA_ASSERT(messageInfo.type == SessionMessageType_Ping);
 				writer.WriteByte(42);
 				return true;
 			});

@@ -35,8 +35,10 @@ namespace uba
 		SessionClient(const SessionClientCreateInfo& info);
 		~SessionClient();
 
+		bool Start();
 		void Stop();
 		bool Wait(u32 milliseconds = 0xFFFFFFFF, Event* wakeupEvent = nullptr);
+		void SendSummary(const Function<void(Logger&)>& extraInfo);
 		void SetIsTerminating(const tchar* reason = TC("Terminating"), u64 delayMs = 0); // Session stores pointer directly. Can't be temporary
 		void SetMaxProcessCount(u32 count);
 
@@ -81,7 +83,6 @@ namespace uba
 		bool SendProcessAvailable(Vector<InternalProcessStartInfo>& out, float availableWeight);
 		void SendReturnProcess(u32 processId, const tchar* reason);
 		void SendPing(u64 memAvail, u64 memTotal);
-		void SendSummary();
 		void SendLogFileToServer(ProcessImpl& pi);
 		void GetLogFileName(StringBufferBase& out, const tchar* logFile, const tchar* arguments);
 		u32 CountLogLines(ProcessImpl& process);
