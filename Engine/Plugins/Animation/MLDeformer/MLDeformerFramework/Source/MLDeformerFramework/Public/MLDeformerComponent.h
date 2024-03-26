@@ -75,8 +75,9 @@ public:
 	 * In morph based models each quality level defines how many morph targets are active at most.
 	 * @param InQualityLevel The quality level to switch to.
 	 */
-	UFUNCTION(BlueprintCallable, Category = "MLDeformer")
-	void SetQualityLevel(int32 InQualityLevel)					{ QualityLevel = FMath::Max<int32>(InQualityLevel, 0); }
+	UE_DEPRECATED(5.4, "This function will be removed.")
+	UFUNCTION(meta = (DeprecatedFunction, DeprecationMessage = "SetQualityLevel has been deprecated."))
+	void SetQualityLevel(int32 InQualityLevel)					{}
 
 	/** 
 	 * The quality level of the deformer. A value of 0 is the highest quality, 1 is a step lower, etc.
@@ -86,8 +87,9 @@ public:
 	 * In morph based models each quality level defines how many morph targets are active at most.
 	 * @param InQualityLevel The quality level to switch to.
 	 */
-	UFUNCTION(BlueprintCallable, Category = "MLDeformer")
-	int32 GetQualityLevel() const								{ return QualityLevel; }
+	UE_DEPRECATED(5.4, "This function will be removed.")
+	UFUNCTION(meta = (DeprecatedFunction, DeprecationMessage = "GetQualityLevel has been deprecated."))
+	int32 GetQualityLevel() const								{ return 0; }
 
 	/**
 	 * Get the ML Deformer asset that is used by this component.
@@ -163,7 +165,9 @@ public:
 	// Get property names.
 	static FName GetDeformerAssetPropertyName()					{ return GET_MEMBER_NAME_CHECKED(UMLDeformerComponent, DeformerAsset); }
 	static FName GetWeightPropertyName()						{ return GET_MEMBER_NAME_CHECKED(UMLDeformerComponent, Weight); }
-	static FName GetQualityLevelPropertyName()					{ return GET_MEMBER_NAME_CHECKED(UMLDeformerComponent, QualityLevel); }
+
+	UE_DEPRECATED(5.4, "This function will be removed.")
+	static FName GetQualityLevelPropertyName()					{ return GET_MEMBER_NAME_CHECKED(UMLDeformerComponent, QualityLevel_DEPRECATED); }
 
 protected:
 	// AActorComponent overrides.
@@ -247,8 +251,8 @@ protected:
 	 * level 3 will be used in this case, which represents the lowest available quality.
 	 * In morph based models each quality level defines how many morph targets are active at most.
 	 */
-	UPROPERTY(EditAnywhere, Category = "ML Deformer", meta = (ClampMin = "0"))
-	int32 QualityLevel = 0;
+	UPROPERTY()
+	int32 QualityLevel_DEPRECATED = 0;
 
 	/** The deformation model instance. This is used to perform the runtime updates and run the inference. */
 	UPROPERTY(Transient)

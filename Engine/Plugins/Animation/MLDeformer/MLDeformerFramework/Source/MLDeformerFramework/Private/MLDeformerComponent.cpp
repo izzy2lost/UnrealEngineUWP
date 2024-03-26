@@ -79,6 +79,8 @@ void UMLDeformerComponent::SetupComponent(UMLDeformerAsset* InDeformerAsset, USk
 		AddTickPrerequisiteComponent(InSkelMeshComponent);
 	}
 
+	UnbindDelegates();
+
 	DeformerAsset = InDeformerAsset;
 	SkelMeshComponent = InSkelMeshComponent;
 
@@ -119,6 +121,10 @@ void UMLDeformerComponent::BindDelegates()
 			{
 				Init();
 			});
+	}
+	else
+	{
+		ReinitModelInstanceDelegateHandle = FDelegateHandle();
 	}
 }
 
