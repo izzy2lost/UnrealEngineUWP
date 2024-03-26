@@ -280,9 +280,8 @@ void FPCGRuntimeGenScheduler::TickQueueComponentsForGeneration(
 			for (const IPCGGenSourceBase* GenSource : InGenSources)
 			{
 				const TOptional<FVector> GenSourcePositionOptional = GenSource->GetPosition();
-				if (!ensure(GenSourcePositionOptional.IsSet()))
+				if (!GenSourcePositionOptional.IsSet())
 				{
-					// If the gen source fails to return a valid result, skip it, to avoid mistakenly considering the origin as a valid gen source.
 					continue;
 				}
 
@@ -531,9 +530,8 @@ void FPCGRuntimeGenScheduler::TickCleanup(const TSet<IPCGGenSourceBase*>& InGenS
 				}
 
 				const TOptional<FVector> GenSourcePositionOptional = GenSource->GetPosition();
-				if (!ensure(GenSourcePositionOptional.IsSet()))
+				if (!GenSourcePositionOptional.IsSet())
 				{
-					// If the gen source fails to return a valid result, skip it, to avoid mistakenly considering the origin as a valid gen source.
 					continue;
 				}
 
