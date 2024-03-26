@@ -887,7 +887,7 @@ void UMeshSelectionTool::UpdateVisualization(bool bSelectionModified)
 	{
 		if (SelectionProps->FaceColorMode != EMeshFacesColorMode::None)
 		{
-			PreviewMesh->SetOverrideRenderMaterial(ToolSetupUtil::GetSelectionMaterial(GetToolManager()));
+			PreviewMesh->SetOverrideRenderMaterial(ToolSetupUtil::GetVertexColorMaterial(GetToolManager()));
 			PreviewMesh->SetTriangleColorFunction([this](const FDynamicMesh3* Mesh, int TriangleID)
 			{
 				return GetCurrentFaceColor(Mesh, TriangleID);
