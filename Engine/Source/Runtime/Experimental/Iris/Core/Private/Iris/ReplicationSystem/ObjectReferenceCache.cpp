@@ -1888,7 +1888,12 @@ void FObjectReferenceCache::StartAsyncLoadingPackage(FCachedNetObjectReference& 
 
 	//DelinquentAsyncLoads.MaxConcurrentAsyncLoads = FMath::Max<uint32>(DelinquentAsyncLoads.MaxConcurrentAsyncLoads, PendingAsyncLoadRequests.Num());
 
-	LoadPackageAsync(PackagePath.ToString(), FLoadPackageAsyncDelegate::CreateRaw(this, &FObjectReferenceCache::AsyncPackageCallback));
+	LoadPackageAsync(PackagePath.ToString(), FLoadPackageAsyncDelegate::CreateWeakLambda(ReplicationSystem, 
+		[this](const FName& PackageName, UPackage* Package, EAsyncLoadingResult::Type Result)
+		{
+			AsyncPackageCallback(PackageName, Package, Result);
+		}
+	));
 }
 
 void FObjectReferenceCache::AsyncPackageCallback(const FName& PackageName, UPackage* Package, EAsyncLoadingResult::Type Result)
