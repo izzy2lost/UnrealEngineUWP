@@ -105,7 +105,7 @@ FText UInterchangeResult::GetMessageLogText() const
 	FString SourceText = SourceAssetName;
 
 	// Make sure file path is not taking the whole line
-	const int32 MaximumSourceNameLength = 64;
+	const int32 MaximumSourceNameLength = 128;
 	if (SourceText.Len() > MaximumSourceNameLength)
 	{
 		SourceText = TEXT("...") + SourceText.RightChop(MaximumSourceNameLength-3);
