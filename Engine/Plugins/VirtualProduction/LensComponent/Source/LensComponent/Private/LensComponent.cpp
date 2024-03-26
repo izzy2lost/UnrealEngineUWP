@@ -723,8 +723,13 @@ float ULensComponent::GetDesqueezedSensorWidth(UCineCameraComponent* const CineC
 
 void ULensComponent::CleanupDistortion(UCineCameraComponent* const CineCameraComponent)
 {
-	if (bIsDistortionSetup)
+	if (bIsDistortionSetup && ensure(CineCameraComponent))
 	{
+#if WITH_EDITOR
+		// If we are in a transaction, we also want to capture the changes made to the camera.
+		CineCameraComponent->Modify();
+#endif // WITH_EDITOR
+
 		// Remove the last distortion MID that was applied to the target camera component
 		if (LastDistortionMID)
 		{
