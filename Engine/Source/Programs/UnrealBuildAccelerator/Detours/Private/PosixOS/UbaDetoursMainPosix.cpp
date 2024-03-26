@@ -18,8 +18,7 @@ namespace uba
 	Event* g_cancelEvent;
 	Event* g_readEvent;
 	Event* g_writeEvent;
-	u8* g_readMessageMappingMem;
-	u8* g_writeMessageMappingMem;
+	u8* g_messageMappingMem;
 
 	void PreInit(const char* logFile);
 	void Init();
@@ -94,8 +93,7 @@ static void __attribute__((constructor(102))) PreInitCtor()
 		printf("UbaDetours: Failed to open shared mem: %s\n", comIdName.data);
 		return;
 	}
-	u64 bytesToMap = 64 * 1024;
-	u8* rptr = (u8*)mmap(NULL, bytesToMap, PROT_READ | PROT_WRITE, MAP_SHARED, g_comFd, s64(comIdOffset));
+	u8* rptr = (u8*)mmap(NULL, CommunicationMemSize, PROT_READ | PROT_WRITE, MAP_SHARED, g_comFd, s64(comIdOffset));
 	if (rptr == MAP_FAILED)
 	{
 		printf("UbaDetours: Failed to mmap fd: %u\n", g_comFd);
@@ -105,11 +103,7 @@ static void __attribute__((constructor(102))) PreInitCtor()
 	g_cancelEvent = ((Event*)rptr);
 	g_readEvent = ((Event*)rptr) + 1;
 	g_writeEvent = ((Event*)rptr) + 2;
-
-	u8* comMem = rptr + sizeof(Event) * 3;
-
-	g_readMessageMappingMem = comMem;
-	g_writeMessageMappingMem = comMem;// +bytesToMap / 2;
+	g_messageMappingMem = rptr + sizeof(Event) * 3;
 
 	#if 0 // TODO: For some reason this does not work
 	struct sigaction sa;
@@ -140,12 +134,12 @@ void CloseCom()
 {
 	if (g_comFd == -1)
 		return;
-	u64 bytesToMap = 64 * 1024;
 	void* mem = g_cancelEvent;
 	g_cancelEvent = nullptr;
 	g_readEvent = nullptr;
 	g_writeEvent = nullptr;
-	munmap(mem, bytesToMap);
+	g_messageMappingMem = nullptr;
+	munmap(mem, CommunicationMemSize);
 	close(g_comFd);
 	g_comFd = -1;
 }
@@ -163,9 +157,9 @@ namespace uba
 {
 	BinaryWriter::BinaryWriter()
 	{
-		m_begin = g_writeMessageMappingMem;
+		m_begin = g_messageMappingMem;
 		m_pos = m_begin;
-		m_end = m_begin + CommunicationMemSize;// / 2;
+		m_end = m_begin + CommunicationMemSize - sizeof(Event) * 3;
 	}
 
 	void BinaryWriter::Flush(bool waitOnResponse)
@@ -192,8 +186,8 @@ namespace uba
 
 	BinaryReader::BinaryReader()
 	{
-		m_begin = g_readMessageMappingMem;
+		m_begin = g_messageMappingMem;
 		m_pos = m_begin;
-		m_end = m_begin + CommunicationMemSize;// / 2;
+		m_end = m_begin + CommunicationMemSize - sizeof(Event) * 3;
 	}
 }

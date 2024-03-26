@@ -266,10 +266,10 @@ namespace uba
 			return false;
 		#endif
 
+		siginfo_t signalInfo;
 		while (true)
 		{
-			siginfo_t signalInfo;
-			signalInfo.si_pid = 0;	// if remains 0, treat as child was not waitable (i.e. was running)
+			memset(&signalInfo, 0, sizeof(signalInfo));
 			int res = waitid(P_PID, (unsigned int)m_nativeProcessId, &signalInfo, WEXITED | WNOHANG | WNOWAIT);
 			if (res)
 			{
@@ -284,7 +284,10 @@ namespace uba
 			else
 			{
 				if (signalInfo.si_pid != (pid_t)m_nativeProcessId)
+				{
+					++m_waitidCount;
 					return true;
+				}
 				break;
 			}
 		}
@@ -292,7 +295,7 @@ namespace uba
 		if (!m_gotExitMessage)
 		{
 			StringBuffer<> err;
-			err.Appendf(TC("ERROR: Process %u (%s) not active but did not get exit message. Received %u messages"), m_nativeProcessId, m_description.c_str(), m_messageCount);
+			err.Appendf(TC("ERROR: Process %u (%s) not active but did not get exit message. Received %u messages. Called waitid %u times. Signal code: %i. Exit value or signal: %i. Execution time: %s."), m_nativeProcessId, m_description.c_str(), m_messageCount, m_waitidCount, signalInfo.si_code, signalInfo.si_status, TimeToText(GetTime() - m_startTime).str);
 			LogLine(false, err.data, LogEntryType_Error);
 			m_nativeProcessExitCode = UBA_EXIT_CODE(666);
 		}
@@ -370,12 +373,11 @@ namespace uba
 		SessionStatsScope sessionStatsScope(m_sessionStats);
 
 		u8* comMemory = m_comMemory.memory;
+		u64 comMemorySize = CommunicationMemSize;
 		#if !PLATFORM_WINDOWS
 		comMemory += sizeof(Event) * 3;
+		comMemorySize -= sizeof(Event) * 3;
 		#endif
-
-		u8* writeMemory = comMemory;
-		u8* readMemory = comMemory;// +CommunicationMemSize / 2;
 
 		u32 retryCount = 0; // Do not allow retry
 
@@ -394,8 +396,8 @@ namespace uba
 				while (loop && WaitForRead(outReader, errReader))
 				{
 					u64 startTime = GetTime();
-					BinaryReader reader(readMemory);
-					BinaryWriter writer(writeMemory);
+					BinaryReader reader(comMemory, 0, comMemorySize);
+					BinaryWriter writer(comMemory, 0, comMemorySize);
 					loop = HandleMessage(reader, writer);
 					SetWritten();
 					m_processStats.hostTotalTime += GetTime() - startTime;
@@ -701,6 +703,7 @@ namespace uba
 					ProcessStartInfo info;
 					info.application = application.data;
 					info.arguments = commandLine;
+					info.description = application.GetFileName();
 					info.workingDir = currentDir.data;
 					info.logFile = InternalGetChildLogFile(temp);
 					info.priorityClass = m_startInfo.priorityClass;
@@ -741,7 +744,7 @@ namespace uba
 			case MessageType_StartProcess:
 				{
 					u32 processId = reader.ReadU32();
-					UBA_ASSERT(processId > 0);
+					UBA_ASSERT(processId > 0 && processId <= m_childProcesses.size());
 					auto& process = *(ProcessImpl*)m_childProcesses[processId - 1].m_process;
 					bool result = reader.ReadBool();
 					u32 lastError = reader.ReadU32();
@@ -1617,7 +1620,7 @@ namespace uba
 				if (TimeToMs(GetTime() - startTime) > 120 * 1000) // 
 				{
 					startTime = GetTime();
-					logger.Error(TC("Waiting for parent process in createprocess has now taken more than 120 seconds."));
+					logger.Error(TC("Waiting for parent process (%s) has now taken more than 120 seconds. (%s)"), m_parentProcess->m_startInfo.description, m_startInfo.description);
 				}
 			}
 
@@ -1649,7 +1652,7 @@ namespace uba
 				if (TimeToMs(GetTime() - startTime) > 120 * 1000) // 
 				{
 					startTime = GetTime();
-					logger.Error(TC("Waiting for parent process in exitprocess has now taken more than 120 seconds."));
+					logger.Error(TC("Waiting for parent process (%s) while exiting has now taken more than 120 seconds."), m_parentProcess->m_startInfo.description);
 				}
 			}
 		}

@@ -2,6 +2,7 @@
 
 #include "UbaEvent.h"
 #include "UbaPlatform.h"
+#include "UbaStringBuffer.h"
 #include "UbaSynchronization.h"
 
 #if !PLATFORM_WINDOWS
@@ -15,11 +16,6 @@ namespace uba
 	struct EventImpl
 	{
 		EventImpl() = default;
-
-		EventImpl(bool manualReset) { Create(manualReset); }
-
-		EventImpl(const EventImpl& o) { UBA_ASSERT(false); }
-
 		~EventImpl() { Destroy(); }
 
 		bool Create(bool manualReset, bool shared = false)
@@ -28,13 +24,13 @@ namespace uba
 			static_assert(Atomic<TriggerType>::is_always_lock_free, "atomic<T> not lock free, can't work in shared mem");
 			static_assert(Atomic<bool>::is_always_lock_free, "atomic<T> not lock free, can't work in shared mem");
 
-			UBA_ASSERT(!m_initialized);
+			UBA_ASSERTF(!m_initialized, "Can't create already created Event");
 			m_manualReset = manualReset;
 
 			pthread_mutexattr_t attrmutex;
 			if (pthread_mutexattr_init(&attrmutex) != 0)
 			{
-				UBA_ASSERT(false);
+				UBA_ASSERTF(false, "pthread_mutexattr_init failed");
 				return false;
 			}
 
@@ -42,13 +38,13 @@ namespace uba
 			{
 				if (pthread_mutexattr_setpshared(&attrmutex, PTHREAD_PROCESS_SHARED) != 0)
 				{
-					UBA_ASSERT(false);
+					UBA_ASSERTF(false, "pthread_mutexattr_setpshared failed");
 					return false;
 				}
 				#if PLATFORM_LINUX
 				if (pthread_mutexattr_setrobust(&attrmutex, PTHREAD_MUTEX_ROBUST) != 0)
 				{
-					UBA_ASSERT(false);
+					UBA_ASSERTF(false, "pthread_mutexattr_setrobust failed");
 					return false;
 				}
 				#endif
@@ -56,7 +52,7 @@ namespace uba
 
 			if (pthread_mutex_init(&m_mutex, &attrmutex) != 0)
 			{
-				UBA_ASSERT(false);
+				UBA_ASSERTF(false, "pthread_mutex_init failed");
 				return false;
 			}
 			pthread_mutexattr_destroy(&attrmutex);
@@ -64,7 +60,7 @@ namespace uba
 			pthread_condattr_t attrcond;
 			if (pthread_condattr_init(&attrcond) != 0)
 			{
-				UBA_ASSERT(false);
+				UBA_ASSERTF(false, "pthread_condattr_init failed");
 				return false;
 			}
 
@@ -72,14 +68,14 @@ namespace uba
 			{
 				if (pthread_condattr_setpshared(&attrcond, PTHREAD_PROCESS_SHARED) != 0)
 				{
-					UBA_ASSERT(false);
+					UBA_ASSERTF(false, "pthread_condattr_setpshared failed");
 					return false;
 				}
 			}
 
 			if (pthread_cond_init(&m_condition, &attrcond) != 0)
 			{
-				UBA_ASSERT(false);
+				UBA_ASSERTF(false, "pthread_cond_init failed");
 				pthread_mutex_destroy(&m_mutex);
 				return false;
 			}
@@ -122,13 +118,13 @@ namespace uba
 			{
 				m_triggered = TriggerType_All;
 				if (pthread_cond_broadcast(&m_condition) != 0)
-					UBA_ASSERT(false);
+					UBA_ASSERTF(false, "pthread_cond_broadcast failed");
 			}
 			else
 			{
 				m_triggered = TriggerType_One;
 				if (pthread_cond_signal(&m_condition) != 0)  // may release multiple threads anyhow!
-					UBA_ASSERT(false);
+					UBA_ASSERTF(false, "pthread_cond_signal failed");
 			}
 
 			UnlockEventMutex();
@@ -179,7 +175,7 @@ namespace uba
 					if (timeoutMs == ~0u) // infinite wait?
 					{
 						if (pthread_cond_wait(&m_condition, &m_mutex) != 0)  // unlocks Mutex while blocking...
-							UBA_ASSERT(false);
+							UBA_ASSERTF(false, "pthread_cond_wait failed");
 					}
 					else  // timed wait.
 					{
@@ -188,7 +184,7 @@ namespace uba
 						TimeOut.tv_sec = (startTime.tv_sec) + (ms / 1000);
 						TimeOut.tv_nsec = (ms % 1000) * 1000000;  // remainder of milliseconds converted to nanoseconds.
 						int rc = pthread_cond_timedwait(&m_condition, &m_mutex, &TimeOut);    // unlocks Mutex while blocking...
-						UBA_ASSERT((rc == 0) || (rc == ETIMEDOUT)); (void)rc;
+						UBA_ASSERTF((rc == 0) || (rc == ETIMEDOUT), "pthread_cond_timedwait failed"); (void)rc;
 
 						// Update timeoutMs and startTime in case we have to go again...
 						struct timeval now, difference;
@@ -199,7 +195,7 @@ namespace uba
 						startTime = now;
 					}
 					--m_waitingThreads;
-					UBA_ASSERT(m_waitingThreads >= 0);
+					UBA_ASSERTF(m_waitingThreads >= 0, "m_waitingThreads less than 0");
 				}
 
 			} while (timeoutMs != 0);
@@ -207,8 +203,6 @@ namespace uba
 			UnlockEventMutex();
 			return false;
 		}
-
-		void* GetHandle() { UBA_ASSERT(false); return 0; }
 
 	private:
 		enum TriggerType { TriggerType_None, TriggerType_One, TriggerType_All };
@@ -222,14 +216,14 @@ namespace uba
 
 		inline void LockEventMutex()
 		{
-			if (pthread_mutex_lock(&m_mutex) != 0)
-				UBA_ASSERT(false);
+			int res = pthread_mutex_lock(&m_mutex);(void)res;
+			UBA_ASSERTF(res == 0, "pthread_mutex_lock failed (error code %i)", res);
 		}
 
 		inline void UnlockEventMutex()
 		{
-			if (pthread_mutex_unlock(&m_mutex) != 0)
-				UBA_ASSERT(false);
+			int res = pthread_mutex_unlock(&m_mutex);
+			UBA_ASSERTF(res == 0, "pthread_mutex_unlock failed (error code %i)", res);
 		}
 
 		static inline void SubtractTimevals(const struct timeval* FromThis, struct timeval* SubThis, struct timeval* Difference)
@@ -333,7 +327,7 @@ namespace uba
 		#if PLATFORM_WINDOWS
 		return m_ev;
 		#else
-		UBA_ASSERT(false);
+		UBA_ASSERTF(false, "Event::GetHandle not available");
 		return 0;
 		#endif
 	}

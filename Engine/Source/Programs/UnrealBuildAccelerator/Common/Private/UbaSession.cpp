@@ -1009,7 +1009,12 @@ namespace uba
 		m_storage.CreateDirectory(m_sessionLogDir.data);
 		m_sessionLogDir.EnsureEndsWithSlash();
 
+		if (info.traceOutputFile)
+			m_traceOutputFile.Append(info.traceOutputFile);
+	}
 
+	bool Session::Create(const SessionCreateInfo& info)
+	{
 		#if UBA_DEBUG_LOGGER
 		StartDebugLogger(m_logger, StringBuffer<512>().Append(m_sessionDir).Append(TC("SessionDebug.log")).data);
 		#endif
@@ -1034,15 +1039,14 @@ namespace uba
 		m_directoryTable.m_lookup.reserve(30000);
 		m_fileMappingTableLookup.reserve(70000);
 
-		if (info.traceOutputFile)
-			m_traceOutputFile.Append(info.traceOutputFile);
-
 		m_fileMappingBuffer.AddTransient(TC("FileMappings"));
 
 		u64 reserveSize = CommunicationMemSize * 512;
-		m_processCommunicationAllocator.Init(CommunicationMemSize, reserveSize);
+		if (!m_processCommunicationAllocator.Init(CommunicationMemSize, reserveSize))
+			return false;
 
-		CreateProcessJobObject();
+		if (!CreateProcessJobObject())
+			return false;
 
 		// Environment variables that should stay local when building remote (not replicated)
 		#if PLATFORM_WINDOWS
@@ -1054,10 +1058,7 @@ namespace uba
 		m_localEnvironmentVariables.insert(TC("PROCESSOR_LEVEL"));
 		m_localEnvironmentVariables.insert(TC("PROCESSOR_REVISION"));
 		#endif
-	}
 
-	bool Session::Create(const SessionCreateInfo& info)
-	{
 		StringBuffer<> traceName;
 		if (info.traceName && *info.traceName)
 			traceName.Append(info.traceName);
@@ -2152,19 +2153,17 @@ namespace uba
 		logger.Info(TC(""));
 	}
 
-	void Session::CreateProcessJobObject()
+	bool Session::CreateProcessJobObject()
 	{
 		#if PLATFORM_WINDOWS
 		m_processJobObject = CreateJobObject(nullptr, nullptr);
 		if (!m_processJobObject)
-		{
-			m_logger.Error(TC("Failed to create process job object"));
-			return;
-		}
+			return m_logger.Error(TC("Failed to create process job object"));
 		JOBOBJECT_EXTENDED_LIMIT_INFORMATION info = { };
 		info.BasicLimitInformation.LimitFlags = JOB_OBJECT_LIMIT_BREAKAWAY_OK | JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE;
 		SetInformationJobObject(m_processJobObject, JobObjectExtendedLimitInformation, &info, sizeof(info));
 		#endif
+		return true;
 	}
 
 
