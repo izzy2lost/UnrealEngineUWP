@@ -2530,7 +2530,7 @@ float FunB(int Param)
 	return FunA() * (float)Param;
 }
 
-#line 1000 "MinifierTest.hlsl"
+#line 1000 "MinifierTest.hlsl" //-V011
 // Test comment 1
 void EmptyFunction(){}
 
