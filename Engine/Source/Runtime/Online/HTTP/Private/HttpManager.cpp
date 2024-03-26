@@ -20,6 +20,7 @@
 // FHttpManager
 
 FCriticalSection FHttpManager::RequestLock;
+FCriticalSection FHttpManager::CompletedRequestLock;
 
 const TCHAR* LexToString(const EHttpFlushReason& FlushReason)
 {
@@ -446,7 +447,12 @@ bool FHttpManager::Tick(float DeltaSeconds)
 		}
 
 		TArray<IHttpThreadedRequest*> CompletedThreadedRequests;
-		Thread->GetCompletedRequests(CompletedThreadedRequests);
+
+		{
+			// Thread->GetCompletedRequests doesn't support multi-thread access
+			FScopeLock ScopeLock(&CompletedRequestLock);
+			Thread->GetCompletedRequests(CompletedThreadedRequests);
+		}
 
 		// Finish and remove any completed requests
 		for (IHttpThreadedRequest* CompletedRequest : CompletedThreadedRequests)
