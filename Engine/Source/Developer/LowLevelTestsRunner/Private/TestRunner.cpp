@@ -9,6 +9,7 @@
 #include "Misc/ScopeExit.h"
 #include "Misc/StringBuilder.h"
 #include "Misc/Paths.h"
+#include "Misc/OutputDeviceRedirector.h"
 #include "Modules/ModuleManager.h"
 #include "String/Find.h"
 #include "String/LexFromString.h"
@@ -312,8 +313,14 @@ int RunTests(int32 ArgC, const ANSICHAR* ArgV[])
 	{
 		TestRunner.GlobalTeardown();
 		TestRunner.Terminate();
+		
 		FModuleManager::Get().UnloadModulesAtShutdown();
 		RequestEngineExit(TEXT("Exiting"));
+		
+		if (GLog)
+		{
+			GLog->TearDown();
+		}
 	};
 
 	int CatchReturn = TestRunner.RunCatchSession();
