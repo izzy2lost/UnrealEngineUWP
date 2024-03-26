@@ -168,6 +168,10 @@ fi
 if [[ -z "$FLOW_CMDS" ]]; then
     precmd_functions+=(_flow_prompt)
 fi
-unset FLOW_CMDS
-FLOW_CMDS+=('$$$FLOW_CMDS$$$')
+
+function _flow_complete() {
+    # setopt local_options xtrace
+    compadd $('$complete' -- ${^^words[@]:0:-1} $PREFIX...)
+}
+compdef _flow_complete '$$$FLOW_CMDS$$$'
 """

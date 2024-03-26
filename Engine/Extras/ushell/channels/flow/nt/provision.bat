@@ -7,19 +7,20 @@ goto:eof
 ::------------------------------------------------------------------------------
 :main
 
-set _pyver=3.12.1
-set _pysha=7a77c7471f5ceee88831a29b9460eddd784adf31b0230f188149ef0c588642d1
+set _pyver=3.12.2
+set _pysha=144ee3fa0c4171f98ec554ac01bb44ee1e895d154609f143b1d20b52c3fe383e
 set _pytag=312
+set _pymark=%_pyver%.version
 
-set _destdir=%~f1\%_pyver%
-
-if exist "%_destdir%" (
+if exist "%~f1\current\%_pymark%" (
     goto:eof
 )
 
 call:check_bin tar.exe _tar_path
 call:check_bin curl.exe _curl_path
 call:check_bin certutil.exe _certutil_path
+
+set _destdir=%~f1\%_pyver%
 
 1>nul 2>nul (
     rd "%_destdir%\..\current"
@@ -106,6 +107,7 @@ call:get_url https://bootstrap.pypa.io/get-pip.py
 call:on_error "Failed to add Pip"
 del get-pip.py
 
+>%_pymark% echo %_pyver%
 popd
 goto:eof
 
