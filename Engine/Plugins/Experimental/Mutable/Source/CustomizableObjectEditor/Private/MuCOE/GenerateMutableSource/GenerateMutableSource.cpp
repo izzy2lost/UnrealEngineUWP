@@ -845,7 +845,7 @@ mu::NodeObjectPtr GenerateMutableSource(const UEdGraphPin * Pin, FMutableGraphGe
 					GenerationContext.bEnableLODStreaming = GenerationContext.bEnableLODStreaming &&
 						RefSkeletalMesh->GetEnableLODStreaming(GenerationContext.Options.TargetPlatform);
 
-					GenerationContext.NumMaxLODsToStream = FMath::Min(GenerationContext.NumMaxLODsToStream,
+					GenerationContext.NumMaxLODsToStream = FMath::Min(static_cast<int32>(GenerationContext.NumMaxLODsToStream),
 						RefSkeletalMesh->GetMaxNumStreamedLODs(GenerationContext.Options.TargetPlatform));
 				}
 			}
@@ -1745,7 +1745,7 @@ int32 GetMaxTextureSize(const UTexture2D& ReferenceTexture, const UTextureLODSet
 }
 
 
-int32 GetTextureSizeInGame(const UTexture2D& Texture, const UTextureLODSettings& LODSettings, int32 SurfaceLODBias)
+int32 GetTextureSizeInGame(const UTexture2D& Texture, const UTextureLODSettings& LODSettings, uint8 SurfaceLODBias)
 {
 	const int32 SourceSize = (uint32)FMath::Max3(Texture.Source.GetSizeX(), Texture.Source.GetSizeY(), (int64)1);
 	const int32 NumMipsSource = FMath::CeilLogTwo(SourceSize) + 1;

@@ -102,7 +102,8 @@ bool FUnrealMutableModelBulkReader::PrepareStreamingForObject(UCustomizableObjec
 		NewData.BulkFilePrefix = BulkData->GetBulkFilePrefix();
 #endif
 
-		NewData.StreamableBlocks = CustomizableObject->GetPrivate()->GetHashToStreamableBlock();
+		const FModelResources& ModelResources = CustomizableObject->GetPrivate()->GetModelResources();
+		NewData.StreamableBlocks = ModelResources.HashToStreamableBlock;
 		if (NewData.StreamableBlocks.IsEmpty())
 		{
 			UE_LOG(LogMutable, Warning, TEXT("Streaming: Customizable Object %s has no data to stream."), *CustomizableObject->GetName());

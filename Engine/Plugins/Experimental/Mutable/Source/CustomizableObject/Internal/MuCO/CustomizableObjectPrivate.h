@@ -583,6 +583,25 @@ struct FModelResources
 	TArray<FMorphTargetVertexData> EditorOnlyMorphTargetReconstructionData;
 #endif
 	
+	/** Map of Hash to Streaming blocks, used to stream a block of data representing a resource from the BulkData */
+	UPROPERTY()
+	TMap<uint64, FMutableStreamableBlock> HashToStreamableBlock;
+
+	/** Max number of components in the compiled Model. */
+	UPROPERTY()
+	uint8 NumComponents = 0; 
+
+	/** Max number of LODs in the compiled Model. */
+	UPROPERTY()
+	uint8 NumLODs = 0;
+
+	/** Max number of LODs to stream. Mutable will always generate at least on LOD. */
+	UPROPERTY()
+	uint8 NumLODsToStream = 0;
+
+	/** First LOD available, some platforms may remove lower LODs when cooking, this MinLOD represents the first LOD we can generate */
+	UPROPERTY()
+	uint8 FirstLODAvailable = 0;
 
 };
 
@@ -728,10 +747,6 @@ public:
 	void OnParticipatingObjectDirty(UPackage* Package, bool);
 #endif
 
-	TMap<uint64, FMutableStreamableBlock>& GetHashToStreamableBlock();
-
-	int32& GetNumMeshComponentsInRoot();
-
 	TArray<FString>& GetCustomizableObjectClassTags();
 	
 	TArray<FString>& GetPopulationClassTags();
@@ -774,22 +789,6 @@ public:
 	/** List of Participating Objects (packages) has been marked as dirty since the last compilation. */
 	TArray<FName> DirtyParticipatingObjects;
 	
-	/** If the object is compiled, this flag is false unless it was compiled with maximum optimizations. If the object is not compiled, its value is meaningless. */
-	bool bIsCompiledWithoutOptimization = true;
-
-	/** This is a non-user-controlled flag to disable streaming (set at object compilation time, depending on optimization). */
-	bool bDisableTextureStreaming = false;
-	
-	ECustomizableObjectCompilationState CompilationState = ECustomizableObjectCompilationState::None;
-	
-#if WITH_EDITOR
-	/** Map of PlatformName to CachedPlatformData. Only valid while cooking. */
-	TMap<FString, FMutableCachedPlatformData> CachedPlatformsData;
-#endif
-#endif
-
-	FCustomizableObjectStatus Status;
-
 	/** Map to identify what CustomizableObject owns a parameter. Used to display a tooltip when hovering a parameter
 	 * in the Prev. instance panel */
 	UPROPERTY(Transient)
@@ -798,7 +797,23 @@ public:
 	UPROPERTY(Transient)
 	TMap<FString, FCustomizableObjectIdPair> GroupNodeMap;
 
+	/** If the object is compiled, this flag is false unless it was compiled with maximum optimizations. If the object is not compiled, its value is meaningless. */
+	bool bIsCompiledWithoutOptimization = true;
+
+	/** This is a non-user-controlled flag to disable streaming (set at object compilation time, depending on optimization). */
+	bool bDisableTextureStreaming = false;
+	
+	ECustomizableObjectCompilationState CompilationState = ECustomizableObjectCompilationState::None;
+	
 	FPostCompileDelegate PostCompileDelegate;
+
+#if WITH_EDITOR
+	/** Map of PlatformName to CachedPlatformData. Only valid while cooking. */
+	TMap<FString, FMutableCachedPlatformData> CachedPlatformsData;
+#endif
+#endif
+
+	FCustomizableObjectStatus Status;
 
 	// This is information about the parameters in the model that is generated at model compile time.
 	UPROPERTY(Transient)
@@ -811,6 +826,6 @@ public:
 	// This is a manual version number for the binary blobs in this asset.
 	// Increasing it invalidates all the previously compiled models.
 	// Warning: If while merging code both versions have changed, take the highest+1.
-	static constexpr int32 CurrentSupportedVersion = 435;
+	static constexpr int32 CurrentSupportedVersion = 436;
 };
 
