@@ -494,6 +494,7 @@ private:
 
 	UAbilitySystemComponent* ASC;
 	FGameplayAbilitySpecHandle AbilityHandle;
+	FScopedPredictionWindow ScopedPredictionWindow;
 };
 
 
