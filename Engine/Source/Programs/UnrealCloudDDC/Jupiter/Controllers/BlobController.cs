@@ -49,7 +49,8 @@ namespace Jupiter.Controllers
 		public async Task<IActionResult> GetAsync(
 			[Required] NamespaceId ns,
 			[Required] BlobId id,
-			[FromQuery] List<string>? storageLayers = null)
+			[FromQuery] List<string>? storageLayers = null,
+			[FromQuery] bool allowOndemandReplication = true)
 		{
 			ActionResult? result = await _requestHelper.HasAccessToNamespaceAsync(User, Request, ns, new [] { JupiterAclAction.ReadObject });
 			if (result != null)
@@ -59,7 +60,7 @@ namespace Jupiter.Controllers
 
 			try
 			{
-				BlobContents blobContents = await GetImplAsync(ns, id, storageLayers, supportsRedirectUri: true);
+				BlobContents blobContents = await GetImplAsync(ns, id, storageLayers, supportsRedirectUri: true, allowOndemandReplication: allowOndemandReplication);
 
 				if (blobContents.RedirectUri != null)
 				{
@@ -155,15 +156,15 @@ namespace Jupiter.Controllers
 			return Ok(new HeadMultipleResponse { Needs = missingBlobs.ToArray()});
 		}
 
-		private async Task<BlobContents> GetImplAsync(NamespaceId ns, BlobId blob, List<string>? storageLayers = null, bool supportsRedirectUri = false)
+		private async Task<BlobContents> GetImplAsync(NamespaceId ns, BlobId blob, List<string>? storageLayers = null, bool supportsRedirectUri = false, bool allowOndemandReplication = true)
 		{
 			try
 			{
-				return await _storage.GetObjectAsync(ns, blob, storageLayers, supportsRedirectUri);
+				return await _storage.GetObjectAsync(ns, blob, storageLayers, supportsRedirectUri, allowOndemandReplication);
 			}
 			catch (BlobNotFoundException)
 			{
-				if (!_storage.ShouldFetchBlobOnDemand(ns))
+				if (!_storage.ShouldFetchBlobOnDemand(ns) || !allowOndemandReplication)
 				{
 					throw;
 				}

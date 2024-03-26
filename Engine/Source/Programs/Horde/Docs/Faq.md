@@ -57,6 +57,14 @@ their operating context.
 That said, Horde's CI functionality is not enabled by default. Other functionality in Horde can still be used without
 migrating to a new build automation system.
 
+## Does the build automation system support Git / Subversion / etc...?
+
+Not at the moment. We make a number of assumptions that are fairly Perforce-centric, such as being able to stronglyorder
+changes in a single, linear branch history. We also have a lot of custom logic for provisioning Perforce workspaces in
+an efficient way.
+
+We may explore support for other version control systems in future.
+
 ## Does Epic get telemetry about our project if we use Horde?
 
 No. Horde does not send any data to Epic.

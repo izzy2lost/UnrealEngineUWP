@@ -189,7 +189,7 @@ namespace Horde.Agent.Services
 			FileReference registrationFile = GetRegistrationFile();
 
 			// Read existing settings if possible
-			AgentRegistrationList registrationList = await ReadRegistrationListAsync(registrationFile, logger, cancellationToken);
+			AgentRegistrationList registrationList = await ReadRegistrationListAsync(registrationFile, cancellationToken);
 
 			// If they aren't valid, create a new agent registration
 			AgentRegistration? registrationInfo = registrationList.Entries.FirstOrDefault(x => x.Server == grpcService.ServerProfile.Url);
@@ -273,7 +273,7 @@ namespace Horde.Agent.Services
 			return settingsFile;
 		}
 
-		static async Task<AgentRegistrationList> ReadRegistrationListAsync(FileReference settingsFile, ILogger logger, CancellationToken cancellationToken)
+		static async Task<AgentRegistrationList> ReadRegistrationListAsync(FileReference settingsFile, CancellationToken cancellationToken)
 		{
 			AgentRegistrationList? registrationList = null;
 			if (FileReference.Exists(settingsFile))

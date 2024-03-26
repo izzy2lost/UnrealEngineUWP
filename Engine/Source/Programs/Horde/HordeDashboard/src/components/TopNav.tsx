@@ -435,14 +435,12 @@ export const TopNav: React.FC<{ suppressServer?: boolean }> = observer(({ suppre
       const features = dashboard.user?.dashboardFeatures;
 
       const serviceItems: IContextualMenuItem[] = [];
-
-      if (dashboard.telemetryViews.length) {
-         serviceItems.push({
-            key: "admin_analytics",
-            text: "Analytics",
-            link: `/analytics`
-         });
-      }
+      
+      serviceItems.push({
+         key: "admin_analytics",
+         text: "Analytics",
+         link: `/analytics`
+      });
 
       if (features?.showTests !== false) {
          serviceItems.push({

@@ -22,6 +22,7 @@ using Microsoft.Extensions.DependencyInjection;
 using System.Diagnostics.CodeAnalysis;
 using EpicGames.OIDC;
 using Microsoft.Win32;
+using EpicGames.Horde;
 
 namespace UnrealGameSync
 {
@@ -177,6 +178,7 @@ namespace UnrealGameSync
 		readonly IServiceProvider _serviceProvider;
 		readonly ILogger _logger;
 		readonly IPerforceSettings _perforceSettings;
+		readonly IHordeClient? _hordeClient;
 		ProjectInfo ProjectInfo { get; }
 
 		readonly UserSettings _settings;
@@ -286,6 +288,7 @@ namespace UnrealGameSync
 			_settings = settings;
 			_workspaceSettings = openProjectInfo.WorkspaceSettings;
 			_projectSettings = settings.FindOrAddProjectSettings(openProjectInfo.ProjectInfo, openProjectInfo.WorkspaceSettings, _logger);
+			_hordeClient = serviceProvider.GetService<IHordeClient>();
 
 			DesiredTaskbarState = Tuple.Create(TaskbarState.NoProgress, 0.0f);
 
@@ -352,8 +355,7 @@ namespace UnrealGameSync
 			FileReference projectLogBaseName = FileReference.Combine(_workspaceDataFolder, "sync.log");
 
 			ILogger perforceLogger = _serviceProvider.GetRequiredService<ILogger<PerforceMonitor>>();
-			_perforceMonitor = new PerforceMonitor(perforceClientSettings, openProjectInfo.ProjectInfo, openProjectInfo.LatestProjectConfigFile, openProjectInfo.ProjectInfo.CacheFolder, openProjectInfo.LocalConfigFiles,
-				openProjectInfo.OidcTokenClient, _serviceProvider);
+			_perforceMonitor = new PerforceMonitor(perforceClientSettings, openProjectInfo.ProjectInfo, openProjectInfo.LatestProjectConfigFile, openProjectInfo.ProjectInfo.CacheFolder, openProjectInfo.LocalConfigFiles, _serviceProvider);
 
 			_perforceMonitor.OnUpdate += UpdateBuildListCallback;
 			_perforceMonitor.OnUpdateMetadata += UpdateBuildMetadataCallback;
@@ -3353,6 +3355,23 @@ namespace UnrealGameSync
 			}, null);
 		}
 
+		private void AddHordeStatus(StatusLine statusLine)
+		{
+			if (_hordeClient != null)
+			{
+				statusLine.AddText("  |  ");
+
+				if (_hordeClient.IsConnected())
+				{
+					statusLine.AddText("Connected to Horde.");
+				}
+				else
+				{
+					statusLine.AddLink("Connect to Horde", FontStyle.Bold | FontStyle.Underline, (p, r) => ConnectToHorde(_hordeClient));
+				}
+			}
+		}
+
 		private void UpdateStatusPanel()
 		{
 			if (_workspace == null)
@@ -3369,22 +3388,7 @@ namespace UnrealGameSync
 				// Project
 				StatusLine projectLine = new StatusLine();
 				projectLine.AddText("Opened " + SelectedFileName.FullName);
-
-				OidcTokenClient? oidcClient = _perforceMonitor.LatestOidcTokenClient;
-				if (oidcClient != null)
-				{
-					projectLine.AddText("  |  ");
-
-					StatusLine hordeLine = new StatusLine();
-					if (oidcClient.GetStatus() == OidcStatus.Connected)
-					{
-						projectLine.AddText("Connected to Horde.");
-					}
-					else
-					{
-						projectLine.AddLink("Connect to Horde", FontStyle.Bold | FontStyle.Underline, (p, r) => DoOidcLogin());
-					}
-				}
+				AddHordeStatus(projectLine);
 				lines.Add(projectLine);
 
 				// Spacer
@@ -3479,23 +3483,7 @@ namespace UnrealGameSync
 				StatusLine projectLine = new StatusLine();
 				projectLine.AddText(String.Format("Opened "));
 				projectLine.AddLink(SelectedFileName.FullName + " \u25BE", FontStyle.Regular, (p, r) => { SelectRecentProject(r); });
-
-				OidcTokenClient? oidcClient = _perforceMonitor.LatestOidcTokenClient;
-				if (oidcClient != null)
-				{
-					projectLine.AddText("  |  ");
-
-					StatusLine hordeLine = new StatusLine();
-					if (oidcClient.GetStatus() == OidcStatus.Connected)
-					{
-						projectLine.AddText("Connected to Horde.");
-					}
-					else
-					{
-						projectLine.AddLink("Connect to Horde", FontStyle.Bold | FontStyle.Underline, (p, r) => DoOidcLogin());
-					}
-				}
-
+				AddHordeStatus(projectLine);
 				projectLine.AddText("  |  ");
 				projectLine.AddLink("Settings...", FontStyle.Regular, (p, r) => { _owner.EditSelectedProject(this); });
 				lines.Add(projectLine);
@@ -3775,24 +3763,20 @@ namespace UnrealGameSync
 			StatusPanel.Set(lines, caption, alert, tintColor);
 		}
 
-		private void DoOidcLogin()
+		private void ConnectToHorde(IHordeClient hordeClient)
 		{
-			OidcTokenClient? oidcClient = _perforceMonitor.LatestOidcTokenClient;
-			if (oidcClient != null)
+			ModalTask.Execute(this, "Horde Login", "Connecting to Horde...", async cancellationToken =>
 			{
-				ModalTask.Execute(this, "OIDC Login", "Opening OIDC login page (check your browser).", async cancellationToken =>
+				try
 				{
-					try
-					{
-						await oidcClient.LoginAsync(cancellationToken);
-					}
-					catch when (cancellationToken.IsCancellationRequested)
-					{
-						// nop
-					}
-				});
-				UpdateStatusPanel();
-			}
+					await hordeClient.ConnectAsync(true, cancellationToken);
+				}
+				catch when (cancellationToken.IsCancellationRequested)
+				{
+					// nop
+				}
+			});
+			UpdateStatusPanel();
 		}
 
 		private void ShowBuildHealthMenu(Rectangle bounds)

@@ -2,6 +2,8 @@
 
 using System;
 using System.Net.Http;
+using System.Threading;
+using System.Threading.Tasks;
 using EpicGames.Horde.Storage;
 using EpicGames.Horde.Storage.Backends;
 using EpicGames.Horde.Storage.Bundles;
@@ -16,6 +18,7 @@ namespace EpicGames.Horde
 	class HordeClient : IHordeClient
 	{
 		readonly IHttpClientFactory _httpClientFactory;
+		readonly HordeHttpAuthHandlerState _authHandlerState;
 		readonly BundleCache _bundleCache;
 		readonly HordeOptions _hordeOptions;
 		readonly ILoggerFactory _loggerFactory;
@@ -23,12 +26,33 @@ namespace EpicGames.Horde
 		/// <summary>
 		/// Constructor
 		/// </summary>
-		public HordeClient(IHttpClientFactory httpClientFactory, BundleCache bundleCache, IOptionsSnapshot<HordeOptions> hordeOptions, ILoggerFactory loggerFactory)
+		public HordeClient(IHttpClientFactory httpClientFactory, HordeHttpAuthHandlerState authHandlerState, BundleCache bundleCache, IOptionsSnapshot<HordeOptions> hordeOptions, ILoggerFactory loggerFactory)
 		{
 			_httpClientFactory = httpClientFactory;
+			_authHandlerState = authHandlerState;
 			_bundleCache = bundleCache;
 			_hordeOptions = hordeOptions.Value;
 			_loggerFactory = loggerFactory;
+		}
+
+		/// <inheritdoc/>
+		public async Task<bool> ConnectAsync(bool allowLogin, CancellationToken cancellationToken)
+		{
+			if (_authHandlerState.TryGetConfiguredAuthHeader() != null)
+			{
+				return true;
+			}
+
+			_authHandlerState.Invalidate();
+			await _authHandlerState.RefreshAsync(allowLogin, cancellationToken);
+
+			return IsConnected();
+		}
+
+		/// <inheritdoc/>
+		public bool IsConnected()
+		{
+			return _authHandlerState.IsAuthenticated();
 		}
 
 		/// <inheritdoc/>

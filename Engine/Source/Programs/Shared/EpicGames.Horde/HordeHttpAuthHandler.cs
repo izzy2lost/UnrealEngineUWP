@@ -6,14 +6,15 @@ using System.Linq;
 using System.Net;
 using System.Net.Http;
 using System.Net.Http.Headers;
-using System.Threading;
-using System.Threading.Tasks;
-using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Configuration;
-using EpicGames.OIDC;
 using System.Net.Http.Json;
 using System.Text.Json;
+using System.Threading;
+using System.Threading.Tasks;
+using EpicGames.Core;
 using EpicGames.Horde.Server;
+using EpicGames.OIDC;
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
 namespace EpicGames.Horde
@@ -42,15 +43,11 @@ namespace EpicGames.Horde
 		{
 			if (request.Headers.Authorization == null)
 			{
-				if (_options.Value.AccessToken != null)
+				AuthenticationHeaderValue? configuredAuthHeader = _authState.TryGetConfiguredAuthHeader();
+				if (configuredAuthHeader != null)
 				{
-					// If an explicit access token is specified, just use that
-					request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", _options.Value.AccessToken);
-				}
-				else if (request.RequestUri != null && TryGetAccessTokenFromEnvironment(request.RequestUri, out string? accessToken))
-				{
-					// Use the access token specified in the environment
-					request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
+					// Use the configured header
+					request.Headers.Authorization = configuredAuthHeader;
 				}
 				else if (_options.Value.AllowAuthPrompt)
 				{
@@ -83,15 +80,140 @@ namespace EpicGames.Horde
 			}
 			return await base.SendAsync(request, cancellationToken);
 		}
+	}
 
-		static bool TryGetAccessTokenFromEnvironment(Uri requestUri, out string? accessToken)
+	/// <summary>
+	/// Shared object used to track the latest access obtained token
+	/// </summary>
+	public sealed class HordeHttpAuthHandlerState : IAsyncDisposable
+	{
+		/// <summary>
+		/// HTTP client name
+		/// </summary>
+		public const string HttpClientName = "HordeHttpAuthState";
+
+		record class AuthState(AuthMethod Method, OidcTokenInfo? TokenInfo)
+		{
+			public bool IsAuthorized()
+				=> (Method == AuthMethod.Anonymous) || (TokenInfo != null && TokenInfo.IsValid && TokenInfo.TokenExpiry > DateTimeOffset.Now);
+		}
+
+		readonly object _lockObject = new object();
+		readonly CancellationTokenSource _cancellationTokenSource = new CancellationTokenSource();
+		Task<AuthState>? _authStateTask = null;
+		readonly IHttpClientFactory _httpClientFactory;
+		readonly IOptions<HordeOptions> _options;
+		readonly ILogger _logger;
+
+		/// <summary>
+		/// Constructor
+		/// </summary>
+		public HordeHttpAuthHandlerState(IHttpClientFactory httpClientFactory, IOptions<HordeOptions> options, ILogger<HordeHttpAuthHandler> logger)
+		{
+			_httpClientFactory = httpClientFactory;
+			_options = options;
+			_logger = logger;
+		}
+
+		/// <inheritdoc/>
+		public async ValueTask DisposeAsync()
+		{
+			if (_authStateTask != null && !_authStateTask.IsCompleted)
+			{
+				_cancellationTokenSource.Cancel();
+				try
+				{
+#pragma warning disable VSTHRD003
+					await _authStateTask;
+#pragma warning restore VSTHRD003
+				}
+				catch (OperationCanceledException)
+				{
+				}
+			}
+
+			_cancellationTokenSource.Dispose();
+		}
+
+		/// <summary>
+		/// Checks if we have a valid auth header at the moment
+		/// </summary>
+		public bool IsAuthenticated()
+		{
+			if (TryGetConfiguredAuthHeader() != null)
+			{
+				return true;
+			}
+			if (_authStateTask != null && _authStateTask.TryGetResult(out AuthState? authState) && authState.IsAuthorized())
+			{
+				return true;
+			}
+			return false;
+		}
+
+		/// <summary>
+		/// Invalidate the cached header value
+		/// </summary>
+		public void Invalidate()
+		{
+			lock (_lockObject)
+			{
+#pragma warning disable VSTHRD002
+				if (_authStateTask != null && _authStateTask.IsCompleted)
+				{
+					_authStateTask = null;
+				}
+#pragma warning restore VSTHRD002
+			}
+		}
+
+		/// <summary>
+		/// Invalidate a cached header value
+		/// </summary>
+		/// <param name="authHeader">The auth header to invalidate</param>
+		public void Invalidate(AuthenticationHeaderValue authHeader)
+		{
+			lock (_lockObject)
+			{
+#pragma warning disable VSTHRD002
+				if (_authStateTask != null && _authStateTask.IsCompleted && Object.Equals(_authStateTask.Result?.TokenInfo?.AccessToken, authHeader.Parameter))
+				{
+					_authStateTask = null;
+				}
+#pragma warning restore VSTHRD002
+			}
+		}
+
+		/// <summary>
+		/// Try to get a configured auth header
+		/// </summary>
+		public AuthenticationHeaderValue? TryGetConfiguredAuthHeader()
+		{
+			if (_options.Value.AccessToken != null)
+			{
+				// If an explicit access token is specified, just use that
+				return new AuthenticationHeaderValue("Bearer", _options.Value.AccessToken);
+			}
+			else if (TryGetAccessTokenFromEnvironment(out string? accessToken))
+			{
+				// Use the access token specified in the environment
+				return new AuthenticationHeaderValue("Bearer", accessToken);
+			}
+			else
+			{
+				// Will need to login asynchronously
+				return null;
+			}
+		}
+
+		bool TryGetAccessTokenFromEnvironment(out string? accessToken)
 		{
 			// Only use the token from the environment if the configured base address is missing or matches the one configured in the environment
 			string? hordeUrlEnvVar = Environment.GetEnvironmentVariable(HordeHttpClient.HordeUrlEnvVarName);
 			if (!String.IsNullOrEmpty(hordeUrlEnvVar))
 			{
 				Uri hordeUrl = new Uri(hordeUrlEnvVar);
-				if (String.Equals(requestUri.Host, hordeUrl.Host, StringComparison.OrdinalIgnoreCase))
+				if (String.Equals(_options.Value.ServerUrl?.Host, hordeUrl.Host, StringComparison.OrdinalIgnoreCase))
 				{
 					string? hordeToken = Environment.GetEnvironmentVariable(HordeHttpClient.HordeTokenEnvVarName);
 					if (!String.IsNullOrEmpty(hordeToken))
@@ -105,60 +227,17 @@ namespace EpicGames.Horde
 			accessToken = null;
 			return false;
 		}
-	}
-
-	/// <summary>
-	/// Shared object used to track the latest access obtained token
-	/// </summary>
-	public sealed class HordeHttpAuthHandlerState : IAsyncDisposable
-	{
-		/// <summary>
-		/// HTTP client name
-		/// </summary>
-		public const string HttpClientName = "HordeHttpAuthState";
-
-		readonly object _lockObject = new object();
-		readonly CancellationTokenSource _cancellationTokenSource = new CancellationTokenSource();
-		Task<AuthenticationHeaderValue?>? _authHeaderTask;
-		readonly IHttpClientFactory _httpClientFactory;
-		readonly ILogger _logger;
 
 		/// <summary>
-		/// Constructor
+		/// Refresh the auth state
 		/// </summary>
-		public HordeHttpAuthHandlerState(IHttpClientFactory httpClientFactory, ILogger<HordeHttpAuthHandler> logger)
+		/// <param name="allowLogin">Whether to allow logging in</param>
+		/// <param name="cancellationToken"></param>
+		/// <returns></returns>
+		public async Task RefreshAsync(bool allowLogin, CancellationToken cancellationToken)
 		{
-			_httpClientFactory = httpClientFactory;
-			_logger = logger;
-		}
-
-		/// <inheritdoc/>
-		public async ValueTask DisposeAsync()
-		{
-			if (_authHeaderTask != null)
-			{
-				_cancellationTokenSource.Cancel();
-				await _authHeaderTask;
-				_authHeaderTask = null;
-			}
-			_cancellationTokenSource.Dispose();
-		}
-
-		/// <summary>
-		/// Invalidate a cached header value
-		/// </summary>
-		/// <param name="authHeader">The auth header to invalidate</param>
-		public void Invalidate(AuthenticationHeaderValue authHeader)
-		{
-			lock (_lockObject)
-			{
-#pragma warning disable VSTHRD002
-				if (_authHeaderTask != null && _authHeaderTask.IsCompleted && Object.Equals(_authHeaderTask.Result, authHeader))
-				{
-					_authHeaderTask = null;
-				}
-#pragma warning restore VSTHRD002
-			}
+			Invalidate();
+			await GetAuthStateAsync(allowLogin, cancellationToken);
 		}
 
 		/// <summary>
@@ -167,22 +246,31 @@ namespace EpicGames.Horde
 		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		public async ValueTask<AuthenticationHeaderValue?> TryGetAuthHeaderAsync(CancellationToken cancellationToken)
 		{
-			Task<AuthenticationHeaderValue?>? authHeaderTask = _authHeaderTask;
-			if (authHeaderTask == null)
+			AuthState? authState = await GetAuthStateAsync(true, cancellationToken);
+			if (authState?.TokenInfo == null)
 			{
-				lock (_lockObject)
-				{
-					_authHeaderTask ??= Task.Run(() => GetNewAuthHeaderAsync(_cancellationTokenSource.Token), _cancellationTokenSource.Token);
-					authHeaderTask = _authHeaderTask;
-				}
+				return null;
 			}
-			return await authHeaderTask.WaitAsync(cancellationToken);
+			return new AuthenticationHeaderValue("Bearer", authState.TokenInfo.AccessToken);
 		}
 
-		/// <summary>
-		/// Get an access token for the server specified in a config instance
-		/// </summary>
-		async Task<AuthenticationHeaderValue?> GetNewAuthHeaderAsync(CancellationToken cancellationToken)
+		async Task<AuthState?> GetAuthStateAsync(bool allowLogin, CancellationToken cancellationToken)
+		{
+			if (TryGetConfiguredAuthHeader() != null)
+			{
+				return null;
+			}
+
+			Task<AuthState> authStateTask;
+			lock (_lockObject)
+			{
+				_authStateTask ??= Task.Run(() => GetAuthStateInternalAsync(allowLogin, _cancellationTokenSource.Token), _cancellationTokenSource.Token);
+				authStateTask = _authStateTask;
+			}
+			return await authStateTask.WaitAsync(cancellationToken);
+		}
+
+		async Task<AuthState> GetAuthStateInternalAsync(bool allowLogin, CancellationToken cancellationToken)
 		{
 			Uri serverUrl;
 
@@ -207,10 +295,15 @@ namespace EpicGames.Horde
 				}
 			}
 
+			if (authConfig.Method == AuthMethod.Anonymous)
+			{
+				return new AuthState(authConfig.Method, null);
+			}
+
 			string? localRedirectUrl = authConfig.LocalRedirectUrls?.FirstOrDefault();
 			if (String.IsNullOrEmpty(authConfig.ServerUrl) || String.IsNullOrEmpty(localRedirectUrl))
 			{
-				return null;
+				throw new Exception("No auth server configuration found");
 			}
 
 			const string OidcProvider = "Horde";
@@ -241,19 +334,13 @@ namespace EpicGames.Horde
 					_logger.LogTrace(ex, "Unable to get access token; attempting login: {Message}", ex.Message);
 				}
 			}
-			if (result == null)
+			if (result == null && allowLogin)
 			{
 				_logger.LogInformation("Logging in to {Server}...", serverUrl);
 				result = await oidcTokenManager.Login(OidcProvider, cancellationToken);
 			}
 
-			if (result.AccessToken == null)
-			{
-				throw new Exception($"Unable to get access token for {serverUrl}");
-			}
-
-			_logger.LogDebug("Received access token for {Server}", serverUrl);
-			return new AuthenticationHeaderValue("Bearer", result.AccessToken);
+			return new AuthState(authConfig.Method, result);
 		}
 	}
 }

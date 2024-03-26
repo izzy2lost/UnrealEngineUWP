@@ -238,7 +238,7 @@ public class BlobService : IBlobService
 		return identifier;
 	}
 
-	public async Task<BlobContents> GetObjectAsync(NamespaceId ns, BlobId blob, List<string>? storageLayers = null, bool supportsRedirectUri = false)
+	public async Task<BlobContents> GetObjectAsync(NamespaceId ns, BlobId blob, List<string>? storageLayers = null, bool supportsRedirectUri = false, bool allowOndemandReplication = true)
 	{
 		try
 		{
@@ -296,7 +296,7 @@ public class BlobService : IBlobService
 				}
 			}
 
-			if (ShouldFetchBlobOnDemand(ns))
+			if (ShouldFetchBlobOnDemand(ns) && allowOndemandReplication)
 			{
 				try
 				{
@@ -309,7 +309,7 @@ public class BlobService : IBlobService
 			}
 
 			// if the primary namespace failed check to see if we should use a fallback policy which has replication enabled
-			if (policy.FallbackNamespace != null && ShouldFetchBlobOnDemand(policy.FallbackNamespace.Value))
+			if (policy.FallbackNamespace != null && ShouldFetchBlobOnDemand(policy.FallbackNamespace.Value) && allowOndemandReplication)
 			{
 				try
 				{
@@ -601,7 +601,7 @@ public class BlobService : IBlobService
 			{
 				url += "/";
 			}
-			using HttpRequestMessage blobRequest = await BuildHttpRequestAsync(HttpMethod.Get, new Uri($"{url}api/v1/blobs/{ns}/{blob}"));
+			using HttpRequestMessage blobRequest = await BuildHttpRequestAsync(HttpMethod.Get, new Uri($"{url}api/v1/blobs/{ns}/{blob}?allowOndemandReplication=false"));
 			HttpResponseMessage blobResponse = await httpClient.SendAsync(blobRequest, HttpCompletionOption.ResponseHeadersRead);
 
 			if (blobResponse.StatusCode == HttpStatusCode.NotFound)

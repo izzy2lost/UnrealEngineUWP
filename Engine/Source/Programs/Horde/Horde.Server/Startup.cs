@@ -782,6 +782,23 @@ namespace Horde.Server
 					throw new ArgumentException($"Invalid auth method {settings.AuthMethod}");
 			}
 
+			authBuilder.AddScheme<JwtBearerOptions, JwtAuthHandler>(JwtAuthHandler.AuthenticationScheme, options => { });
+			schemes.Add(JwtAuthHandler.AuthenticationScheme);
+
+			if (!String.IsNullOrEmpty(settings.OidcAuthority) && !String.IsNullOrEmpty(settings.OidcAudience))
+			{
+				ExternalJwtAuthHandler hordeJwtBearer = new(settings);
+				hordeJwtBearer.AddHordeJwtBearerConfiguration(authBuilder);
+				schemes.Add(ExternalJwtAuthHandler.AuthenticationScheme);
+			}
+
+			services.AddAuthorization(options =>
+				{
+					options.DefaultPolicy = new AuthorizationPolicyBuilder(schemes.ToArray())
+						.RequireAuthenticatedUser()
+						.Build();
+				});
+
 			services.AddSingleton<TelemetryManager>();
 			services.AddSingleton<ITelemetrySink>(sp => sp.GetRequiredService<TelemetryManager>());
 			services.AddHostedService(sp => sp.GetRequiredService<TelemetryManager>());
@@ -795,16 +812,6 @@ namespace Horde.Server
 
 			services.AddHttpClient(EpicTelemetrySink.HttpClientName, client => { });
 			services.AddHttpClient(ClickHouseTelemetrySink.HttpClientName, client => { });
-
-			authBuilder.AddScheme<JwtBearerOptions, JwtAuthHandler>(JwtAuthHandler.AuthenticationScheme, options => { });
-			schemes.Add(JwtAuthHandler.AuthenticationScheme);
-
-			services.AddAuthorization(options =>
-				{
-					options.DefaultPolicy = new AuthorizationPolicyBuilder(schemes.ToArray())
-						.RequireAuthenticatedUser()
-						.Build();
-				});
 
 			// Hosted service that needs to run no matter the run mode of the process (server vs worker)
 			services.AddHostedService(provider => (DowntimeService)provider.GetRequiredService<IDowntimeService>());

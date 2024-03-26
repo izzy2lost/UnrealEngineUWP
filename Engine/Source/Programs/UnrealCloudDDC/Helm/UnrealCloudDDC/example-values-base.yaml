@@ -64,7 +64,7 @@ global:
       # Define a single namespace that is open to anyone with a valid credential to use
       test-namespace:
         acls:
-          actions:
+        - actions:
           - ReadObject
           - WriteObject
           claims:

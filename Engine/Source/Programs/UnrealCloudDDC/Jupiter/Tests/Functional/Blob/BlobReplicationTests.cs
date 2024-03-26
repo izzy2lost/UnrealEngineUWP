@@ -42,7 +42,7 @@ namespace Jupiter.FunctionalTests.Storage
 			Mock<HttpMessageHandler> handler = new Mock<HttpMessageHandler>();
 
 			// site b has the content and will serve it
-			handler.SetupRequest($"http://siteB.com/internal/api/v1/blobs/{TestNamespaceName}/{blobIdentifier}").ReturnsResponse(HttpStatusCode.OK,
+			handler.SetupRequest($"http://siteB.com/internal/api/v1/blobs/{TestNamespaceName}/{blobIdentifier}?allowOndemandReplication=false").ReturnsResponse(HttpStatusCode.OK,
 				message => { message.Content = new ReadOnlyMemoryContent(bytes);}
 			).Verifiable();
 
