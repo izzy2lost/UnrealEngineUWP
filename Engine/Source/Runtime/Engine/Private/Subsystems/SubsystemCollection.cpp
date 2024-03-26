@@ -324,7 +324,10 @@ void FSubsystemCollectionBase::AddAllInstances(UClass* SubsystemClass)
 
 void FSubsystemCollectionBase::RemoveAllInstances(UClass* SubsystemClass)
 {
-	ForEachObjectOfClass(SubsystemClass, [](UObject* SubsystemObj)
+	TArray<UObject*> SubsystemsToRemove;
+	GetObjectsOfClass(SubsystemClass, SubsystemsToRemove);
+
+	for(UObject* SubsystemObj : SubsystemsToRemove)
 	{
 		USubsystem* Subsystem = CastChecked<USubsystem>(SubsystemObj);
 
@@ -332,7 +335,7 @@ void FSubsystemCollectionBase::RemoveAllInstances(UClass* SubsystemClass)
 		{
 			Subsystem->InternalOwningSubsystem->RemoveAndDeinitializeSubsystem(Subsystem);
 		}
-	});
+	}
 }
 
 
