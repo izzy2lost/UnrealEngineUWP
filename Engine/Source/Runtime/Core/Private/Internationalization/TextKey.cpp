@@ -36,7 +36,7 @@ public:
 	void Shrink()
 	{
 		FScopeLock ScopeLock(&SynchronizationObject);
-		LLM_SCOPE(ELLMTag::Localization);
+		LLM_SCOPE_BYNAME(TEXT("Localization/TextKeys"));
 		KeysTable.Shrink();
 	}
 
@@ -131,7 +131,7 @@ private:
 		const TCHAR* StrPtr = KeysTable.FindRef(KeyData);
 		if (!StrPtr)
 		{
-			LLM_SCOPE(ELLMTag::Localization);
+			LLM_SCOPE_BYNAME(TEXT("Localization/TextKeys"));
 			StrPtr = StringAllocations.Add(KeyData.ToView());
 			KeysTable.Add(FKeyData(StrPtr, KeyData), StrPtr);
 		}
@@ -140,7 +140,7 @@ private:
 		const FString* StrPtr = KeysTable.Find(KeyData);
 		if (!StrPtr)
 		{
-			LLM_SCOPE(ELLMTag::Localization);
+			LLM_SCOPE_BYNAME(TEXT("Localization/TextKeys"));
 
 			// Need to copy the string here so we can reference its internal allocation as the key
 			FString StrCopy;
