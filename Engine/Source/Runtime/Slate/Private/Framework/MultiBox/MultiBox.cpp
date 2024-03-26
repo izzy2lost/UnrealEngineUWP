@@ -1582,6 +1582,11 @@ FReply SMultiBoxWidget::OnFocusReceived( const FGeometry& MyGeometry, const FFoc
 
 void SMultiBoxWidget::OnFocusChanging(const FWeakWidgetPath& PreviousFocusPath, const FWidgetPath& NewWidgetPath, const FFocusEvent& InFocusEvent)
 {
+	if (!NewWidgetPath.IsValid())
+	{
+		return;
+	}
+
 	if (!ShouldShowMenuSearchField())
 	{
 		return;
