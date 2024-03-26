@@ -171,7 +171,7 @@ bool FMinimalReplicationTagCountMapNetSerializer::IsEqual(FNetSerializationConte
 		TempValue0.ClampTagCount(MaxTagCount);
 
 		TempValue1.CopyReplicatedFieldsFrom(Source1);
-		TempValue0.ClampTagCount(MaxTagCount);
+		TempValue1.ClampTagCount(MaxTagCount);
 
 		FNetIsEqualArgs IsEqualArgs = Args;
 		IsEqualArgs.Source0 = NetSerializerValuePointer(&TempValue0);
