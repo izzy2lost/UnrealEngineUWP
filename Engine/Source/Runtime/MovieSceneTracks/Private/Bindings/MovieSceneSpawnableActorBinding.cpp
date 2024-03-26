@@ -42,8 +42,7 @@ UObject* UMovieSceneSpawnableActorBindingBase::SpawnObjectInternal(UWorld* World
 	// Spawn the actor
 	FActorSpawnParameters SpawnInfo;
 	{
-		SpawnInfo.Name = *SpawnName.ToString().Replace(TEXT(" "), TEXT("_"));
-		SpawnInfo.Name = MakeUniqueObjectName(WorldContext->PersistentLevel.Get(), ActorClass, SpawnInfo.Name);
+		SpawnInfo.Name = SpawnName;
 		SpawnInfo.ObjectFlags = SpawnObjectFlags;
 		SpawnInfo.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
 		// allow pre-construction variables to be set.
