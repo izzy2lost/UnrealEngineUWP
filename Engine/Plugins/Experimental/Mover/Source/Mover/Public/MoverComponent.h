@@ -150,7 +150,7 @@ public:
 
 	// Add a movement mode to available movement modes. Returns true if the movement mode was added successfully. Returns the mode that was made.
 	UFUNCTION(BlueprintCallable, Category = Mover, meta=(DeterminesOutputType="MovementMode"))
-	UBaseMovementMode* AddMovementModeFromClass(FName ModeName, TSubclassOf<UBaseMovementMode> MovementMode);
+	UBaseMovementMode* AddMovementModeFromClass(FName ModeName, UPARAM(meta = (AllowAbstract = "false"))TSubclassOf<UBaseMovementMode> MovementMode);
 
 	// Add a movement mode to available movement modes. Returns true if the movement mode was added successfully
 	UFUNCTION(BlueprintCallable, Category = Mover)

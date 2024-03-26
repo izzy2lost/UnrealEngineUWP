@@ -858,17 +858,26 @@ UBaseMovementMode* UMoverComponent::AddMovementModeFromClass(FName ModeName, TSu
 		UE_LOG(LogMover, Warning, TEXT("Attempted to add a movement mode that wasn't valid. AddMovementModeFromClass did not add anything."));
 		return nullptr;
 	}
+	if (MovementMode->HasAnyClassFlags(CLASS_Abstract))
+	{
+		UE_LOG(LogMover, Warning, TEXT("The Movement Mode class (%s) is abstract and is not a valid class to instantiate. AddMovementModeFromClass will not do anything."), *GetNameSafe(MovementMode));
+		return nullptr;
+	}
 
 	TObjectPtr<UBaseMovementMode> AddedMovementMode =  NewObject<UBaseMovementMode>(this, MovementMode);
-	AddMovementModeFromObject(ModeName, AddedMovementMode);
-	
-	return AddedMovementMode; 
+	return AddMovementModeFromObject(ModeName, AddedMovementMode) ? AddedMovementMode : nullptr;
 }
 
 bool UMoverComponent::AddMovementModeFromObject(FName ModeName, UBaseMovementMode* MovementMode)
 {
 	if (MovementMode)
 	{
+		if (MovementMode->GetClass()->HasAnyClassFlags(CLASS_Abstract))
+		{
+			UE_LOG(LogMover, Warning, TEXT("The Movement Mode class (%s) is abstract and is not a valid class to instantiate. AddMovementModeFromObject will not do anything."), *GetNameSafe(MovementMode));
+			return false;
+		}
+		
 		if (TObjectPtr<UBaseMovementMode>* FoundMovementMode = MovementModes.Find(ModeName))
 		{
 			if (FoundMovementMode->Get()->GetClass() == MovementMode->GetClass())
