@@ -87,7 +87,7 @@ void FMeshApproximationSettings::PostSerialize(const FArchive& Ar)
 		FMeshApproximationSettings DefaultObject;
 		if (NaniteProxyTrianglePercent_DEPRECATED != DefaultObject.NaniteProxyTrianglePercent_DEPRECATED)
 		{
-			NaniteFallbackTarget = ENaniteFallbackTarget::PercentTriangles;
+			NaniteFallbackTarget = ENaniteFallbackTarget::Auto;
 			NaniteFallbackPercentTriangles = NaniteProxyTrianglePercent_DEPRECATED / 100.0f;
 		}
 	}
