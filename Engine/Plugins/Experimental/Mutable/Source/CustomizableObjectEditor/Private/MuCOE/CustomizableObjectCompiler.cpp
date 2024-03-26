@@ -28,6 +28,7 @@
 #include "MuCO/CustomizableObjectSystemPrivate.h"
 #include "MuR/Model.h"
 #include "MuR/ModelPrivate.h"
+#include "MuCOE/CustomizableObjectVersionBridge.h"
 
 class UTexture2D;
 
@@ -172,6 +173,16 @@ void FCustomizableObjectCompiler::Compile(UCustomizableObject& Object, const FCo
 	{
 		UE_LOG(LogMutable, Warning, TEXT("Failed to compile Customizable Object [%s]. Mutable is disabled. To enable it set the CVar Mutable.Enabled to true."), *Object.GetName());
 		SetCompilationState(ECustomizableObjectCompilationState::Failed);
+
+		return;
+	}
+
+	if (Object.VersionBridge && !Object.VersionBridge->GetClass()->ImplementsInterface(UCustomizableObjectVersionBridgeInterface::StaticClass()))
+	{
+		UE_LOG(LogMutable, Warning, TEXT("In Customizable Object [%s], the VersionBridge asset [%s] does not implement the required UCustomizableObjectVersionBridgeInterface."), 
+			*Object.GetName(), *Object.VersionBridge.GetName());
+		SetCompilationState(ECustomizableObjectCompilationState::Failed);
+
 		return;
 	}
 
@@ -332,6 +343,31 @@ void FCustomizableObjectCompiler::ProcessChildObjectsRecursively(UCustomizableOb
 		if (Root->ParentObject != ParentObject)
 		{
 			continue;
+		}
+
+		if (ChildObject->VersionStruct.IsValid())
+		{
+			if (!GenerationContext.Object->VersionBridge)
+			{
+				UE_LOG(LogMutable, Warning, TEXT("The child Customizable Object [%s] defines its VersionStruct Property but its root CustomizableObject doesn't define the VersionBridge property. There's no way to verify the VersionStruct has to be included in this compilation, so the child CustomizableObject will be omitted."), 
+					*ChildObject->GetName());
+				continue;
+			}
+
+			ICustomizableObjectVersionBridgeInterface* CustomizableObjectVersionBridgeInterface = Cast<ICustomizableObjectVersionBridgeInterface>(GenerationContext.Object->VersionBridge);
+
+			if (CustomizableObjectVersionBridgeInterface)
+			{
+				if (!CustomizableObjectVersionBridgeInterface->IsVersionStructIncludedInCurrentRelease(ChildObject->VersionStruct))
+				{
+					continue;
+				}
+			}
+			else
+			{
+				// This should never happen as the ICustomizableObjectVersionBridgeInterface was already checked at the start of the compilation
+				ensure(false);
+			}
 		}
 
 		ArrayAlreadyProcessedChild.Add(ReferenceName);

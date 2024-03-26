@@ -145,6 +145,34 @@ void FCustomizableObjectDetails::CustomizeDetails( IDetailLayoutBuilder& DetailB
 			Property->MarkResetToDefaultCustomized();
 		}
 	}
+
+	TSharedRef<IPropertyHandle> VersionBridgeProperty = DetailBuilder.GetProperty("VersionBridge");
+
+	if (VersionBridgeProperty->IsValidHandle() && CustomizableObject)
+	{
+		if (CustomizableObject->IsChildObject())
+		{
+			VersionBridgeProperty->MarkHiddenByCustomization();
+		}
+		else
+		{
+			VersionBridgeProperty->MarkResetToDefaultCustomized();
+		}
+	}
+
+	TSharedRef<IPropertyHandle> VersionStructProperty = DetailBuilder.GetProperty("VersionStruct");
+
+	if (VersionStructProperty->IsValidHandle() && CustomizableObject)
+	{
+		if (CustomizableObject->IsChildObject())
+		{
+			VersionStructProperty->MarkResetToDefaultCustomized();
+		}
+		else
+		{
+			VersionStructProperty->MarkHiddenByCustomization();
+		}
+	}
 }
 
 
