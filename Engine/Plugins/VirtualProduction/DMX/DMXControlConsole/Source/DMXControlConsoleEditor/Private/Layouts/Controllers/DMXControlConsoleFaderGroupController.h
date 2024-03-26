@@ -105,6 +105,9 @@ public:
 	/** True if any of the Fader Groups in the Controller matches the Control Console filtering system */
 	bool IsMatchingFilter() const;
 
+	/** True if the Controller is in the currently active layout */
+	bool IsInActiveLayout() const;
+
 	/** Gets the enable state of the controller according to the possesed fader groups */
 	ECheckBoxState GetEnabledState() const;
 

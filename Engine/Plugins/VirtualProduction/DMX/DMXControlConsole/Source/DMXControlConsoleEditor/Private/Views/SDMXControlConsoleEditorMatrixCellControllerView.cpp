@@ -51,8 +51,7 @@ namespace UE::DMX::Private
 		EditorModel = InEditorModel;
 		MatrixCellControllerModel = InElementControllerModel;
 
-		EditorModel->GetOnEditorModelUpdated().AddSP(this, &SDMXControlConsoleEditorMatrixCellControllerView::OnCellAttributeControllerAdded);
-		EditorModel->GetOnEditorModelUpdated().AddSP(this, &SDMXControlConsoleEditorMatrixCellControllerView::OnCellAttributeControllerRemoved);
+		EditorModel->GetOnEditorModelUpdated().AddSP(this, &SDMXControlConsoleEditorMatrixCellControllerView::OnEditorModelUpdated);
 
 		ChildSlot
 			[
@@ -306,6 +305,16 @@ namespace UE::DMX::Private
 			});
 
 		return bIsAnyCellAttributeControllerSelected;
+	}
+
+	void SDMXControlConsoleEditorMatrixCellControllerView::OnEditorModelUpdated()
+	{
+		const UDMXControlConsoleMatrixCellController* MatrixCellController = GetMatrixCellController();
+		if (MatrixCellController)
+		{
+			OnCellAttributeControllerAdded();
+			OnCellAttributeControllerRemoved();
+		}
 	}
 
 	FOptionalSize SDMXControlConsoleEditorMatrixCellControllerView::GetMatrixCellControllerHeightByFadersViewMode() const

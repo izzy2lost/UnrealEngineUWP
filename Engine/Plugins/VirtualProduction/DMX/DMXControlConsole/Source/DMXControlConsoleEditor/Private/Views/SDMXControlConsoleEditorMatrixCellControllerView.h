@@ -63,6 +63,9 @@ namespace UE::DMX::Private
 		/** Returns true if any of the Cell Attribute Controllers in the Matrix Cell Controller is selected */
 		bool IsAnyCellAttributeControllerSelected() const;
 
+		/** Called when the editor model is updated */
+		void OnEditorModelUpdated();
+
 		/** Gets the height of the Matrix Cell Controller according to the current Faders View Mode  */
 		FOptionalSize GetMatrixCellControllerHeightByFadersViewMode() const;
 
