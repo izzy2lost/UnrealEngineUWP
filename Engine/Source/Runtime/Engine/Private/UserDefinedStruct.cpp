@@ -47,6 +47,8 @@ void FUserStructOnScopeIgnoreDefaults::Initialize()
 	}
 }
 
+FOnStructLoaded UUserDefinedStruct::LoadedEvent;
+
 UUserDefinedStruct::UUserDefinedStruct(const FObjectInitializer& ObjectInitializer)
 	: Super(ObjectInitializer)
 {
@@ -140,6 +142,12 @@ void UUserDefinedStruct::Serialize(FStructuredArchive::FRecord Record)
 		}
 	}
 #endif
+
+	if(UnderlyingArchive.IsLoading() && UnderlyingArchive.IsPersistent())
+	{
+		ValidateGuid();
+		LoadedEvent.Broadcast(this);
+	}
 }
 
 #if WITH_EDITOR
@@ -156,13 +164,6 @@ void UUserDefinedStruct::PostDuplicate(bool bDuplicateForPIE)
 		SetMetaData(TEXT("BlueprintType"), TEXT("true"));
 		FStructureEditorUtils::OnStructureChanged(this);
 	}
-}
-
-void UUserDefinedStruct::PostLoad()
-{
-	Super::PostLoad();
-
-	ValidateGuid();
 }
 
 void UUserDefinedStruct::PreSaveRoot(FObjectPreSaveRootContext ObjectSaveContext)
@@ -206,6 +207,13 @@ void UUserDefinedStruct::GetAssetRegistryTags(FAssetRegistryTagsContext Context)
 	Context.AddTag(FAssetRegistryTag(TEXT("Tooltip"), FStructureEditorUtils::GetTooltip(this), FAssetRegistryTag::TT_Hidden));
 }
 
+void UUserDefinedStruct::OnChanged()
+{
+	ChangedEvent.Broadcast(this);
+}
+
+#endif	// WITH_EDITOR
+
 void UUserDefinedStruct::ValidateGuid()
 {
 	// Backward compatibility:
@@ -221,13 +229,6 @@ void UUserDefinedStruct::ValidateGuid()
 		Guid = FGuid(HashBuffer[1], HashBuffer[2], HashBuffer[3], HashBuffer[4]);
 	}
 }
-
-void UUserDefinedStruct::OnChanged()
-{
-	ChangedEvent.Broadcast(this);
-}
-
-#endif	// WITH_EDITOR
 
 FProperty* UUserDefinedStruct::CustomFindProperty(const FName Name) const
 {
