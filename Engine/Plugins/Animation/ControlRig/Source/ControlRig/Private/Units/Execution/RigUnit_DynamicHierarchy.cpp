@@ -505,7 +505,14 @@ void FRigUnit_HierarchyAddControlInteger_LimitSettings::Configure(FRigControlSet
 	OutSettings.SetupLimitArrayForType(false, false, false);
 	OutSettings.LimitEnabled[0] = Limit;
 	OutSettings.MinimumValue = FRigControlValue::Make<int32>(MinValue);
-	OutSettings.MaximumValue = FRigControlValue::Make<int32>(MaxValue);
+	if (OutSettings.ControlEnum)
+	{
+		OutSettings.MaximumValue = FRigControlValue::Make<int32>(OutSettings.ControlEnum->GetMaxEnumValue());
+	}
+	else
+	{
+		OutSettings.MaximumValue = FRigControlValue::Make<int32>(MaxValue);
+	}
 	OutSettings.bDrawLimits = bDrawLimits;
 }
 
