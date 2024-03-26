@@ -4,7 +4,7 @@
 
 #include "Graph/GraphDefaultSerialization.h"
 
-TEST_CASE_METHOD(FTestGraphBuilder, "Graph::Serialization::Write", "[graph]")
+TEST_CASE_METHOD(FTestGraphBuilder, "Graph::Serialization::Write", "[graph][serialization]")
 {
 	PopulateVertices(6, true);
 	BuildLinearEdges(3);
@@ -73,7 +73,7 @@ TEST_CASE_METHOD(FTestGraphBuilder, "Graph::Serialization::Write", "[graph]")
 	}
 }
 
-TEST_CASE_METHOD(FTestGraphBuilder, "Graph::Serialization::Read (normal)", "[graph]")
+TEST_CASE_METHOD(FTestGraphBuilder, "Graph::Serialization::Read (normal)", "[graph][serialization]")
 {
 	FSerializableGraph SerializedGraph;
 	SerializedGraph.Properties.bGenerateIslands = true;
@@ -144,7 +144,7 @@ TEST_CASE_METHOD(FTestGraphBuilder, "Graph::Serialization::Read (normal)", "[gra
 	}
 }
 
-TEST_CASE_METHOD(FTestGraphBuilder, "Graph::Serialization::Read::Errors::Vertex::Invalid Index", "[graph]")
+TEST_CASE_METHOD(FTestGraphBuilder, "Graph::Serialization::Read::Errors::Vertex::Invalid Index", "[graph][serialization]")
 {
 	FSerializableGraph SerializedGraph;
 	SerializedGraph.Properties.bGenerateIslands = true;
@@ -157,7 +157,7 @@ TEST_CASE_METHOD(FTestGraphBuilder, "Graph::Serialization::Read::Errors::Vertex:
 	CHECK(Graph->NumIslands() == 0);
 }
 
-TEST_CASE_METHOD(FTestGraphBuilder, "Graph::Serialization::Read::Errors::Edge::Invalid Vertex Index", "[graph]")
+TEST_CASE_METHOD(FTestGraphBuilder, "Graph::Serialization::Read::Errors::Edge::Invalid Vertex Index", "[graph][serialization]")
 {
 	FSerializableGraph SerializedGraph;
 	SerializedGraph.Properties.bGenerateIslands = true;
@@ -172,7 +172,7 @@ TEST_CASE_METHOD(FTestGraphBuilder, "Graph::Serialization::Read::Errors::Edge::I
 	CHECK(Graph->NumIslands() == 0);
 }
 
-TEST_CASE_METHOD(FTestGraphBuilder, "Graph::Serialization::Read::Errors::Island::Invalid Index", "[graph]")
+TEST_CASE_METHOD(FTestGraphBuilder, "Graph::Serialization::Read::Errors::Island::Invalid Index", "[graph][serialization]")
 {
 	FSerializableGraph SerializedGraph;
 	SerializedGraph.Properties.bGenerateIslands = true;
@@ -189,7 +189,7 @@ TEST_CASE_METHOD(FTestGraphBuilder, "Graph::Serialization::Read::Errors::Island:
 	CHECK(Graph->GetIslands().Contains(FGraphIslandHandle { FGraphUniqueIndex { FGuid { 0, 0, 0, 0 } }, nullptr }) == false);
 }
 
-TEST_CASE_METHOD(FTestGraphBuilder, "Graph::Serialization::Read::Errors::Island::Invalid Vertex Index", "[graph]")
+TEST_CASE_METHOD(FTestGraphBuilder, "Graph::Serialization::Read::Errors::Island::Invalid Vertex Index", "[graph][serialization]")
 {
 	FSerializableGraph SerializedGraph;
 	SerializedGraph.Properties.bGenerateIslands = true;
@@ -212,7 +212,7 @@ TEST_CASE_METHOD(FTestGraphBuilder, "Graph::Serialization::Read::Errors::Island:
 	CHECK(LoadedIsland->GetVertices().Contains(FGraphVertexHandle { FGraphUniqueIndex { FGuid { 0, 0, 0, 3 } }, nullptr }) == false);
 }
 
-TEST_CASE_METHOD(FTestGraphBuilder, "Graph::Serialization::Read::Errors::Island::Edge Island Mismatch::Merge", "[graph]")
+TEST_CASE_METHOD(FTestGraphBuilder, "Graph::Serialization::Read::Errors::Island::Edge Island Mismatch::Merge", "[graph][serialization]")
 {
 	FSerializableGraph SerializedGraph;
 	SerializedGraph.Properties.bGenerateIslands = true;
@@ -243,7 +243,7 @@ TEST_CASE_METHOD(FTestGraphBuilder, "Graph::Serialization::Read::Errors::Island:
 	CHECK(LoadedIsland->GetVertices().Contains(SerializedGraph.Vertices[2]) == true);
 }
 
-TEST_CASE_METHOD(FTestGraphBuilder, "Graph::Serialization::Read::Errors::Island::Edge Island Mismatch::Split", "[graph]")
+TEST_CASE_METHOD(FTestGraphBuilder, "Graph::Serialization::Read::Errors::Island::Edge Island Mismatch::Split", "[graph][serialization]")
 {
 	FSerializableGraph SerializedGraph;
 	SerializedGraph.Properties.bGenerateIslands = true;
@@ -276,4 +276,105 @@ TEST_CASE_METHOD(FTestGraphBuilder, "Graph::Serialization::Read::Errors::Island:
 	CHECK(SplitIsland->GetVertices().Contains(SerializedGraph.Vertices[0]) == false);
 	CHECK(SplitIsland->GetVertices().Contains(SerializedGraph.Vertices[1]) == false);
 	CHECK(SplitIsland->GetVertices().Contains(SerializedGraph.Vertices[2]) == true);
+}
+
+TEST_CASE_METHOD(FTestGraphBuilder, "Graph::Serialization::Read::Errors::Island::Duplicate Vertex Assignment::No Edges", "[graph][serialization]")
+{
+	FSerializableGraph SerializedGraph;
+	SerializedGraph.Properties.bGenerateIslands = true;
+	SerializedGraph.Vertices.Add(FGraphVertexHandle { FGraphUniqueIndex::CreateUniqueIndex(), nullptr });
+	SerializedGraph.Vertices.Add(FGraphVertexHandle { FGraphUniqueIndex::CreateUniqueIndex(), nullptr });
+	SerializedGraph.Vertices.Add(FGraphVertexHandle { FGraphUniqueIndex::CreateUniqueIndex(), nullptr });
+
+	SerializedGraph.Islands.Add(FGraphIslandHandle { FGraphUniqueIndex{FGuid{1, 0, 0, 0}}, nullptr }, FSerializedIslandData { TArray { SerializedGraph.Vertices[0], SerializedGraph.Vertices[2] } });
+	SerializedGraph.Islands.Add(FGraphIslandHandle { FGraphUniqueIndex{FGuid{2, 0, 0, 0}}, nullptr }, FSerializedIslandData { TArray { SerializedGraph.Vertices[1] } });
+	SerializedGraph.Islands.Add(FGraphIslandHandle { FGraphUniqueIndex{FGuid{3, 0, 0, 0}}, nullptr }, FSerializedIslandData { TArray { SerializedGraph.Vertices[0], SerializedGraph.Vertices[1] } });
+
+	FDefaultGraphDeserialization Deserializer { SerializedGraph };
+	Deserializer >> *Graph;
+	CHECK(SerializedGraph.Properties == Graph->GetProperties());
+	CHECK(Graph->NumVertices() == 3);
+	CHECK(Graph->NumIslands() == 3);
+
+	CHECK(Graph->GetIslands().Contains(FGraphIslandHandle { FGraphUniqueIndex { FGuid { 1, 0, 0, 0 } }, nullptr }) == true);
+	CHECK(Graph->GetIslands().Contains(FGraphIslandHandle { FGraphUniqueIndex { FGuid { 2, 0, 0, 0 } }, nullptr }) == false);
+	CHECK(Graph->GetIslands().Contains(FGraphIslandHandle { FGraphUniqueIndex { FGuid { 3, 0, 0, 0 } }, nullptr }) == false);
+
+	UGraphIsland* Island1 = Graph->GetCompleteNodeHandle(SerializedGraph.Vertices[0]).GetVertex()->GetParentIsland().GetIsland();
+	REQUIRE(Island1 != nullptr);
+	CHECK(Island1->Num() == 1);
+	CHECK(Island1->GetVertices().Contains(SerializedGraph.Vertices[0]) == true);
+	CHECK(Island1->GetVertices().Contains(SerializedGraph.Vertices[1]) == false);
+	CHECK(Island1->GetVertices().Contains(SerializedGraph.Vertices[2]) == false);
+
+	UGraphIsland* Island2 = Graph->GetCompleteNodeHandle(SerializedGraph.Vertices[1]).GetVertex()->GetParentIsland().GetIsland();
+	REQUIRE(Island2 != nullptr);
+	CHECK(Island2->Num() == 1);
+	CHECK(Island2->GetVertices().Contains(SerializedGraph.Vertices[1]) == true);
+	CHECK(Island2->GetVertices().Contains(SerializedGraph.Vertices[0]) == false);
+	CHECK(Island2->GetVertices().Contains(SerializedGraph.Vertices[2]) == false);
+
+	UGraphIsland* Island3 = Graph->GetCompleteNodeHandle(SerializedGraph.Vertices[2]).GetVertex()->GetParentIsland().GetIsland();
+	REQUIRE(Island3 != nullptr);
+	CHECK(Island3->Num() == 1);
+	CHECK(Island3->GetVertices().Contains(SerializedGraph.Vertices[2]) == true);
+	CHECK(Island3->GetVertices().Contains(SerializedGraph.Vertices[0]) == false);
+	CHECK(Island3->GetVertices().Contains(SerializedGraph.Vertices[1]) == false);
+}
+
+TEST_CASE_METHOD(FTestGraphBuilder, "Graph::Serialization::Read::Errors::Island::Duplicate Vertex Assignment::With Edge", "[graph][serialization]")
+{
+	FSerializableGraph SerializedGraph;
+	SerializedGraph.Properties.bGenerateIslands = true;
+	SerializedGraph.Vertices.Add(FGraphVertexHandle { FGraphUniqueIndex::CreateUniqueIndex(), nullptr });
+	SerializedGraph.Vertices.Add(FGraphVertexHandle { FGraphUniqueIndex::CreateUniqueIndex(), nullptr });
+
+	SerializedGraph.Edges.Add(FSerializedEdgeData{ SerializedGraph.Vertices[0], SerializedGraph.Vertices[1] });
+
+	SerializedGraph.Islands.Add(FGraphIslandHandle { FGraphUniqueIndex{FGuid{1, 0, 0, 0}}, nullptr }, FSerializedIslandData { TArray { SerializedGraph.Vertices[0] } });
+	SerializedGraph.Islands.Add(FGraphIslandHandle { FGraphUniqueIndex{FGuid{2, 0, 0, 0}}, nullptr }, FSerializedIslandData { TArray { SerializedGraph.Vertices[1] } });
+	SerializedGraph.Islands.Add(FGraphIslandHandle { FGraphUniqueIndex{FGuid{3, 0, 0, 0}}, nullptr }, FSerializedIslandData { TArray { SerializedGraph.Vertices[0], SerializedGraph.Vertices[1] } });
+
+	FDefaultGraphDeserialization Deserializer { SerializedGraph };
+	Deserializer >> *Graph;
+	CHECK(SerializedGraph.Properties == Graph->GetProperties());
+	CHECK(Graph->NumVertices() == 2);
+	CHECK(Graph->NumIslands() == 1);
+
+	CHECK(Graph->GetIslands().Contains(FGraphIslandHandle { FGraphUniqueIndex { FGuid { 1, 0, 0, 0 } }, nullptr }) == true);
+	CHECK(Graph->GetIslands().Contains(FGraphIslandHandle { FGraphUniqueIndex { FGuid { 2, 0, 0, 0 } }, nullptr }) == false);
+	CHECK(Graph->GetIslands().Contains(FGraphIslandHandle { FGraphUniqueIndex { FGuid { 3, 0, 0, 0 } }, nullptr }) == false);
+
+	UGraphIsland* Island1 = Graph->GetCompleteNodeHandle(SerializedGraph.Vertices[0]).GetVertex()->GetParentIsland().GetIsland();
+	REQUIRE(Island1 != nullptr);
+	CHECK(Island1->Handle() == FGraphIslandHandle { FGraphUniqueIndex { FGuid { 1, 0, 0, 0 } }, nullptr });
+	CHECK(Island1->Num() == 2);
+	CHECK(Island1->GetVertices().Contains(SerializedGraph.Vertices[0]) == true);
+	CHECK(Island1->GetVertices().Contains(SerializedGraph.Vertices[1]) == true);
+}
+
+TEST_CASE_METHOD(FTestGraphBuilder, "Graph::Serialization::Read::Errors::Island::Zero Size", "[graph][serialization]")
+{
+	FSerializableGraph SerializedGraph;
+	SerializedGraph.Properties.bGenerateIslands = true;
+	SerializedGraph.Vertices.Add(FGraphVertexHandle { FGraphUniqueIndex::CreateUniqueIndex(), nullptr });
+	SerializedGraph.Vertices.Add(FGraphVertexHandle { FGraphUniqueIndex::CreateUniqueIndex(), nullptr });
+	SerializedGraph.Edges.Add(FSerializedEdgeData{ SerializedGraph.Vertices[0], SerializedGraph.Vertices[1] });
+	SerializedGraph.Islands.Add(FGraphIslandHandle { FGraphUniqueIndex{FGuid{1, 0, 0, 0}}, nullptr }, FSerializedIslandData { TArray { SerializedGraph.Vertices[0], SerializedGraph.Vertices[1] } });
+	SerializedGraph.Islands.Add(FGraphIslandHandle { FGraphUniqueIndex{FGuid{2, 0, 0, 0}}, nullptr }, FSerializedIslandData { TArray<FGraphVertexHandle>{} });
+
+	FDefaultGraphDeserialization Deserializer { SerializedGraph };
+	Deserializer >> *Graph;
+	CHECK(SerializedGraph.Properties == Graph->GetProperties());
+	CHECK(Graph->NumVertices() == 2);
+	CHECK(Graph->NumIslands() == 1);
+
+	CHECK(Graph->GetIslands().Contains(FGraphIslandHandle { FGraphUniqueIndex { FGuid { 1, 0, 0, 0 } }, nullptr }) == true);
+	CHECK(Graph->GetIslands().Contains(FGraphIslandHandle { FGraphUniqueIndex { FGuid { 2, 0, 0, 0 } }, nullptr }) == false);
+
+	UGraphIsland* LoadedIsland = Graph->GetIslands().FindRef(FGraphIslandHandle {FGraphUniqueIndex{FGuid{1, 0, 0, 0}}, nullptr });
+	REQUIRE(LoadedIsland != nullptr);
+	CHECK(LoadedIsland->Num() == 2);
+	CHECK(LoadedIsland->GetVertices().Contains(SerializedGraph.Vertices[0]) == true);
+	CHECK(LoadedIsland->GetVertices().Contains(SerializedGraph.Vertices[1]) == true);
 }
