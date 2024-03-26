@@ -56,20 +56,20 @@ void MainPS
 #if SUBSTRATE_BASE_PASS_MRT_OUTPUT_COUNT != 3
 #error Substrate SUBSTRATE_BASE_PASS_MRT_OUTPUT_COUNT has been updated but not the uint MRTs
 #endif
-#if PIXELSHADEROUTPUT_MRT4
+#if SUBSTRATE_FIRST_MRT_INDEX > 4
 #error Substrate cannot map to such a case
 #endif
-#if PIXELSHADEROUTPUT_MRT3
+#if SUBSTRATE_FIRST_MRT_INDEX == 4
 		, out uint SubstrateOutput4 : SV_Target4
 		, out uint SubstrateOutput5 : SV_Target5
 		, out uint SubstrateOutput6 : SV_Target6
 		, out SUBSTRATE_TOP_LAYER_TYPE SubstrateOutput7 : SV_Target7
-#elif PIXELSHADEROUTPUT_MRT2
+#elif SUBSTRATE_FIRST_MRT_INDEX == 3
 		, out uint SubstrateOutput3 : SV_Target3
 		, out uint SubstrateOutput4 : SV_Target4
 		, out uint SubstrateOutput5 : SV_Target5
 		, out SUBSTRATE_TOP_LAYER_TYPE SubstrateOutput6 : SV_Target6
-#elif PIXELSHADEROUTPUT_MRT1
+#elif SUBSTRATE_FIRST_MRT_INDEX == 2
 		, out uint SubstrateOutput2 : SV_Target2
 		, out uint SubstrateOutput3 : SV_Target3
 		, out uint SubstrateOutput4 : SV_Target4
@@ -171,17 +171,17 @@ void MainPS
 	// MRT2 is precomputed shadow if both velocity and prec shadow are enabled.
 	// After, Substrate output are appended (3 uint output)
 
-#if PIXELSHADEROUTPUT_MRT3
+#if SUBSTRATE_FIRST_MRT_INDEX == 4
 	SubstrateOutput4 = PixelShaderOut.SubstrateOutput[0];
 	SubstrateOutput5 = PixelShaderOut.SubstrateOutput[1];
 	SubstrateOutput6 = PixelShaderOut.SubstrateOutput[2];
 	SubstrateOutput7 = PixelShaderOut.SubstrateTopLayerData;
-#elif PIXELSHADEROUTPUT_MRT2
+#elif SUBSTRATE_FIRST_MRT_INDEX == 3
 	SubstrateOutput3 = PixelShaderOut.SubstrateOutput[0];
 	SubstrateOutput4 = PixelShaderOut.SubstrateOutput[1];
 	SubstrateOutput5 = PixelShaderOut.SubstrateOutput[2];
 	SubstrateOutput6 = PixelShaderOut.SubstrateTopLayerData;
-#elif PIXELSHADEROUTPUT_MRT1
+#elif SUBSTRATE_FIRST_MRT_INDEX == 2
 	SubstrateOutput2 = PixelShaderOut.SubstrateOutput[0];
 	SubstrateOutput3 = PixelShaderOut.SubstrateOutput[1];
 	SubstrateOutput4 = PixelShaderOut.SubstrateOutput[2];
