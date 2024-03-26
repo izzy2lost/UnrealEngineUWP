@@ -67,6 +67,9 @@ public:
 	/** Get an active span by name, non active spans will not be available*/
 	STUDIOTELEMETRY_API TSharedPtr<IAnalyticsSpan> GetSpan(const FName Name);
 
+	/** Get the root session span*/
+	STUDIOTELEMETRY_API TSharedPtr<IAnalyticsSpan> GetSessionSpan() const;
+
 	/** Callback for interception of telemetry events recording that can be used by Developers to send telemetry events to their own back end, though it is recommended that Developers implement their own IAnalyticsProvider via their own IAnalyticsProviderModule*/
 	STUDIOTELEMETRY_API void SetRecordEventCallback(OnRecordEvent);
 

@@ -86,6 +86,7 @@ private:
 	double HitchAvergageFPS = 0;
 	uint32 HitchSampleCount = 0;
 	uint32 TotalPluginCount = 0;
+	uint32 AssetRegistryScanCount = 0;
 };
 
 #endif // WITH_EDITOR

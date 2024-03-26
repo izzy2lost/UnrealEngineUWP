@@ -567,25 +567,26 @@ void FStudioTelemetryEditor::Initialize()
 
 						AssetRegistryModule.Get().OnScanStarted().AddLambda([this]()
 							{
-								// End the existing span if it overlaps
-								if (AssetRegistryScanSpan.IsValid())
+								if (AssetRegistryScanCount == 0)
 								{
-									TArray<FAnalyticsEventAttribute> Attributes;
-									Attributes.Emplace(TEXT("MapName"), EditorMapName);
-									AssetRegistryScanSpan.Reset();
-								}
+									// Start the Asset Registry Scan span
+									AssetRegistryScanSpan = FStudioTelemetry::Get().StartSpan(AssetRegistryScanSpanName, EditorSpan);
+								}	
 
-								// Start the Asset Registry Scan span
-								AssetRegistryScanSpan = FStudioTelemetry::Get().StartSpan(AssetRegistryScanSpanName);
+								AssetRegistryScanCount++;
 							});
 
 						AssetRegistryModule.Get().OnScanEnded().AddLambda([this]()
 							{
-								// End the Asset Registry Scan span
-								TArray<FAnalyticsEventAttribute> Attributes;
-								Attributes.Emplace(TEXT("MapName"), EditorMapName);
-								FStudioTelemetry::Get().EndSpan(AssetRegistryScanSpan, Attributes);
-								AssetRegistryScanSpan.Reset();
+								AssetRegistryScanCount--;
+
+								if (AssetRegistryScanCount == 0)
+								{
+									// End the Asset Registry Scan span
+									TArray<FAnalyticsEventAttribute> Attributes;
+									Attributes.Emplace(TEXT("MapName"), EditorMapName);
+									FStudioTelemetry::Get().EndSpan(AssetRegistryScanSpan, Attributes);
+								}	
 							});
 					}
 

@@ -1899,12 +1899,12 @@ void FAssetRegistryImpl::SearchAllAssets(Impl::FEventContext& EventContext,
 	Impl::FClassInheritanceContext& InheritanceContext, bool bSynchronousSearch)
 {
 	TRACE_BEGIN_REGION(TEXT("Asset Registry Scan"));
+	EventContext.bScanStartedEventBroadcast = true;
+
 	if (!TryConstructGathererIfNeeded())
 	{
 		return;
 	}
-
-	EventContext.bScanStartedEventBroadcast = true;
 
 	FAssetDataGatherer& Gatherer = *GlobalGatherer;
 	if (!Gatherer.IsAsyncEnabled())
@@ -8497,6 +8497,13 @@ void UAssetRegistryImpl::Broadcast(UE::AssetRegistry::Impl::FEventContext& Event
 		return;
 	}
 
+	if (EventContext.bScanStartedEventBroadcast)
+	{
+		// Raise event when the scan is started
+		ScanStartedEvent.Broadcast();
+		EventContext.bScanStartedEventBroadcast = false;
+	}
+
 	if (EventContext.PathEvents.Num())
 	{
 		// Batch add/remove events 
@@ -8666,13 +8673,6 @@ void UAssetRegistryImpl::Broadcast(UE::AssetRegistry::Impl::FEventContext& Event
 
 		FileLoadedEvent.Broadcast();
 		EventContext.bFileLoadedEventBroadcast = false;
-	}
-
-	if (EventContext.bScanStartedEventBroadcast)
-	{
-		// Raise event when the scan is started
-		ScanStartedEvent.Broadcast();
-		EventContext.bScanStartedEventBroadcast = false;
 	}
 
 	if (EventContext.bScanEndedEventBroadcast)

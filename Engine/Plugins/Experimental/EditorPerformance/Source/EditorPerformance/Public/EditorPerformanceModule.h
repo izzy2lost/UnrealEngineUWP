@@ -84,6 +84,8 @@ private:
 	float							EditorBootTime = 0;
 	float							EditorStartUpTime = 0;
 	float							EditorLoadMapTime = 0;
+	float							EditorAssetRegistryScanTime = 0;
+	uint32							EditorAssetRegistryScanCount = 0;
 	FString							EditorMapName=TEXT("Boot");
 	FTimerHandle					HitchSamplerTimerHandle;
 	const float						HitchSamplerIntervalSeconds = 0.1f;
@@ -98,7 +100,8 @@ private:
 	FGuid							EditorInitializeKPI;
 	FGuid							EditorLoadMapKPI;
 	FGuid							EditorHitchrateKPI;
-	FGuid							AssetRegistryScanKPI;
+	FGuid							EditorAssetRegistryScanKPI;
+	FGuid							EditorPluginCountKPI;
 	FGuid							TotalTimeToEditorKPI;
 	FGuid							TotalTimeToPIEKPI;
 	FGuid							PIEFirstTransitionKPI;

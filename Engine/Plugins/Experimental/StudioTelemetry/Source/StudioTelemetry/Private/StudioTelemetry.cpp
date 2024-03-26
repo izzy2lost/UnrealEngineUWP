@@ -314,3 +314,9 @@ TSharedPtr<IAnalyticsSpan> FStudioTelemetry::GetSpan(const FName Name)
 	return AnalyticsTracer.IsValid() ? AnalyticsTracer->GetSpan(Name) : TSharedPtr<IAnalyticsSpan>();
 }
 
+TSharedPtr<IAnalyticsSpan> FStudioTelemetry::GetSessionSpan() const
+{
+	return AnalyticsTracer.IsValid() ? AnalyticsTracer->GetSessionSpan() : TSharedPtr<IAnalyticsSpan>();
+}
+
+
