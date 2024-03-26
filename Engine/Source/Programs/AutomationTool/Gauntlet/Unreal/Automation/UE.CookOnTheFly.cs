@@ -24,8 +24,9 @@ namespace UE
 		bool ClientConnected = false;
 		bool CookingRequest = false;
 		bool CookOnTheFlyModeChange = false;
-		int LastCookEntryCount = 0;
-		IEnumerable<string> LogCategories = new string[] { "CookOnTheFly", "Cook" };
+		int LastEditorLogLine = 0;
+		int LastClientLogLine = 0;
+		IEnumerable<string> LogCategories = new string[] { "LogCookOnTheFly", "LogCook" };
 
 		public CookOnTheFly(Gauntlet.UnrealTestContext InContext)
 			: base(InContext)
@@ -115,7 +116,8 @@ namespace UE
 				return false;
 			}
 
-			LastCookEntryCount = 0;
+			LastEditorLogLine = 0;
+			LastClientLogLine = 0;
 			StartTime = DateTime.Now;
 
 			return true;
@@ -124,7 +126,6 @@ namespace UE
 		public override void TickTest()
 		{
 			base.TickTest();
-			List<string> CookEntries = new List<string>();
 
 			const int TimeoutDuration = 5;
 			if ((DateTime.Now - StartTime).TotalMinutes > TimeoutDuration)
@@ -142,20 +143,19 @@ namespace UE
 				SetUnrealTestResult(Gauntlet.TestResult.Failed);
 			}
 
-			UnrealLogParser EditorLogParser = new UnrealLogParser(EditorInstance.StdOut);
-			IEnumerable<string> EditorCookEntries = EditorLogParser.GetLogChannels(LogCategories, true);
-			CookEntries.AddRange(EditorCookEntries);
+			UnrealLogStreamParser EditorLogParser = new UnrealLogStreamParser();
+			LastEditorLogLine += EditorLogParser.ReadStream(EditorInstance.StdOut, LastEditorLogLine);
+			IEnumerable<string> EditorCookEntries = EditorLogParser.GetLogFromChannels(LogCategories);
 
-			if (CookEntries.Count > LastCookEntryCount)
+			if (EditorCookEntries.Any())
 			{
-				CookEntries.Skip(LastCookEntryCount).ToList().ForEach(S => Log.Info("Editor: " + S));
-				LastCookEntryCount = CookEntries.Count;
+				EditorCookEntries.ToList().ForEach(S => Log.Info("[Editor] " + S));
 			}
 			string CompletionString = GetStartedCookServerString();
 
 			if (!ServerStarted)
 			{
-				if (EditorLogParser.Content.IndexOf(CompletionString, StringComparison.OrdinalIgnoreCase) > 0)
+				if (EditorLogParser.GetLogLinesContaining(CompletionString).Any())
 				{
 					Log.Info("Found '{0}'. Cook Server Started", CompletionString);
 					ServerStarted = true;
@@ -194,7 +194,7 @@ namespace UE
 			{
 				string ClientConnectedString = GetClientConnectedString();
 
-				if (EditorLogParser.Content.IndexOf(ClientConnectedString, StringComparison.OrdinalIgnoreCase) > 0)
+				if (EditorLogParser.GetLogLinesContaining(ClientConnectedString).Any())
 				{
 					Log.Info("Found '{0}'. Client connected", ClientConnectedString);
 					ClientConnected = true;
@@ -205,7 +205,7 @@ namespace UE
 			{
 				string CookingRequestString = GetCookingRequestString();
 
-				if (EditorLogParser.Content.IndexOf(CookingRequestString, StringComparison.OrdinalIgnoreCase) > 0)
+				if (EditorLogParser.GetLogLinesContaining(CookingRequestString).Any())
 				{
 					Log.Info("Found '{0}'. Cooking request exists", CookingRequestString);
 					CookingRequest = true;
@@ -246,31 +246,31 @@ namespace UE
 					SetUnrealTestResult(Gauntlet.TestResult.Failed);
 				}
 
-				UnrealLogParser ClientLogParser = new UnrealLogParser(ClientInstance.StdOut);
+				UnrealLogStreamParser ClientLogParser = new UnrealLogStreamParser();
+				ClientLogParser.ReadStream(ClientInstance.StdOut);
 
 				string EngineInitializedString = GetEngineInitializedString();
-				if (ClientLogParser.Content.IndexOf(EngineInitializedString, StringComparison.OrdinalIgnoreCase) > 0)
+				if (ClientLogParser.GetLogLinesContaining(EngineInitializedString).Any())
 				{
 					string GameStartedString = GetGameStartString();
 					string CookingProcessString = GetCookingProcessString();
 					string ReceivedPackagesCookedString = GetReceivedPackagesCookedString();
 					string TransportCreatedString = GetCreatedTransportString();
-					IEnumerable<string> ClientCookEntries = ClientLogParser.GetLogChannels(LogCategories, true);
-					CookEntries.AddRange(ClientCookEntries);
+					IEnumerable<string> ClientCookEntries = ClientLogParser.GetLogFromChannels(LogCategories);
 
-					if (CookEntries.Count > LastCookEntryCount)
+					if (ClientCookEntries.Count() > LastClientLogLine)
 					{
-						CookEntries.Skip(LastCookEntryCount).ToList().ForEach(S => Log.Info("Client: " + S));
-						LastCookEntryCount = CookEntries.Count;
+						ClientCookEntries.Skip(LastClientLogLine).ToList().ForEach(S => Log.Info("[Client] " + S));
+						LastClientLogLine = ClientCookEntries.Count();
 					}
 
-					if (ClientLogParser.Content.IndexOf(GameStartedString, StringComparison.OrdinalIgnoreCase) > 0
-						&& EditorLogParser.Content.IndexOf(CookingProcessString, StringComparison.OrdinalIgnoreCase) > 0
+					if (ClientLogParser.GetLogLinesContaining(GameStartedString).Any()
+						&& EditorLogParser.GetLogLinesContaining(CookingProcessString).Any()
 						&& ClientCookEntries.Any()
-						&& ClientLogParser.Content.IndexOf(ReceivedPackagesCookedString, StringComparison.OrdinalIgnoreCase) > 0
-						&& ClientLogParser.Content.IndexOf(TransportCreatedString, StringComparison.OrdinalIgnoreCase) > 0)
+						&& ClientLogParser.GetLogLinesContaining(ReceivedPackagesCookedString).Any()
+						&& ClientLogParser.GetLogLinesContaining(TransportCreatedString).Any())
 					{
-						Log.Info("Found '{0}', '{1}', '{2}', '{3}'. The CookOnTheFly log channel takes place. The cooking process takes place", GameStartedString, CookingProcessString, ReceivedPackagesCookedString, TransportCreatedString);
+						Log.Info("Found '{0}', '{1}', '{2}', '{3}'. The CookOnTheFly log channel is active. The cooking process is taking place.", GameStartedString, CookingProcessString, ReceivedPackagesCookedString, TransportCreatedString);
 						MarkTestComplete();
 						SetUnrealTestResult(Gauntlet.TestResult.Passed);
 					}

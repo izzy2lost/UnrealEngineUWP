@@ -572,20 +572,20 @@ namespace UE
 				IdleTimeout = Config.LogIdleTimeout;
 			}
 
-			List<string> ChannelEntries = new List<string>();
 			// We are primarily interested in what the editor is doing
 			var AppInstance = TestInstance.EditorApp;
 
-			UnrealLogParser Parser = new UnrealLogParser(AppInstance.StdOut);
-			ChannelEntries.AddRange(Parser.GetEditorBusyChannels());
+			UnrealLogStreamParser Parser = new UnrealLogStreamParser();
+			LastAutomationEntryCount += Parser.ReadStream(AppInstance.StdOut, LastAutomationEntryCount);
+
+			IEnumerable<string> ChannelEntries = Parser.GetLogFromEditorBusyChannels();
 
 			// Any new entries?
-			if (ChannelEntries.Count > LastAutomationEntryCount)
+			if (ChannelEntries.Any())
 			{
 				// log new entries so people have something to look at
-				ChannelEntries.Skip(LastAutomationEntryCount).ToList().ForEach(S => Log.Info(S));
+				ChannelEntries.ToList().ForEach(S => Log.Info(S));
 				LastAutomationEntryTime = DateTime.Now;
-				LastAutomationEntryCount = ChannelEntries.Count;
 			}
 			else
 			{
