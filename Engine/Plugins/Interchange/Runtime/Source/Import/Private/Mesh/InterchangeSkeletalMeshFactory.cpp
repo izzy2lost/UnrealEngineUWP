@@ -1277,55 +1277,13 @@ UInterchangeFactoryBase::FImportAssetResult UInterchangeSkeletalMeshFactory::Imp
 		SkeletalMeshFactoryNode->SetCustomVertexColorReplace(bFalseSetting);
 	}
 
-	// Update skeletal materials
-	TArray<FSkeletalMaterial>& Materials = SkeletalMesh->GetMaterials();
-	auto UpdateOrAddSkeletalMaterial = [&Materials, bIsReImport = ImportAssetObjectData.bIsReImport](const FName& MaterialSlotName, UMaterialInterface* MaterialInterface)
+
+	//Call the mesh helper to create the missing material and to use the unmatched existing slot with the unmatch import slot
 	{
-		UMaterialInterface* NewMaterial = MaterialInterface ? MaterialInterface : UMaterial::GetDefaultMaterial(MD_Surface);
-
-		FSkeletalMaterial* SkeletalMaterial = Materials.FindByPredicate([&MaterialSlotName](const FSkeletalMaterial& Material) { return Material.MaterialSlotName == MaterialSlotName; });
-		if (SkeletalMaterial)
-		{
-			//When we are not re-importing, we always force update the material, we should see this case when importing LODs is on since its an import.
-			//When we do a re-import we update the material interface only if the current asset matching material is null and is not the default material.
-			if (!bIsReImport || (MaterialInterface && (!SkeletalMaterial->MaterialInterface || SkeletalMaterial->MaterialInterface == UMaterial::GetDefaultMaterial(MD_Surface))))
-			{
-				SkeletalMaterial->MaterialInterface = NewMaterial;
-			}
-		}
-		else
-		{
-			const bool bEnableShadowCasting = true;
-			const bool bInRecomputeTangent = false;
-			Materials.Emplace(NewMaterial, bEnableShadowCasting, bInRecomputeTangent, MaterialSlotName, MaterialSlotName);
-		}
-	};
-
-	TMap<FString, FString> SlotMaterialDependencies;
-	SkeletalMeshFactoryNode->GetSlotMaterialDependencies(SlotMaterialDependencies);
-	Materials.Reserve(SlotMaterialDependencies.Num());
-
-	for (TPair<FString, FString>& SlotMaterialDependency : SlotMaterialDependencies)
-	{
-		FName MaterialSlotName = *SlotMaterialDependency.Key;
-
-		const UInterchangeBaseMaterialFactoryNode* MaterialFactoryNode = Cast<UInterchangeBaseMaterialFactoryNode>(Arguments.NodeContainer->GetNode(SlotMaterialDependency.Value));
-		if (!MaterialFactoryNode)
-		{
-			UpdateOrAddSkeletalMaterial(MaterialSlotName, nullptr);
-			continue;
-		}
-
-		FSoftObjectPath MaterialFactoryNodeReferenceObject;
-		MaterialFactoryNode->GetCustomReferenceObject(MaterialFactoryNodeReferenceObject);
-		if (!MaterialFactoryNodeReferenceObject.IsValid())
-		{
-			UpdateOrAddSkeletalMaterial(MaterialSlotName, nullptr);
-			continue;
-		}
-
-		UMaterialInterface* MaterialInterface = Cast<UMaterialInterface>(MaterialFactoryNodeReferenceObject.ResolveObject());
-		UpdateOrAddSkeletalMaterial(MaterialSlotName, MaterialInterface ? MaterialInterface : nullptr);
+		using namespace UE::Interchange::Private::MeshHelper;
+		TMap<FString, FString> SlotMaterialDependencies;
+		SkeletalMeshFactoryNode->GetSlotMaterialDependencies(SlotMaterialDependencies);
+		SkeletalMeshFactorySetupAssetMaterialArray(SkeletalMesh->GetMaterials(), SlotMaterialDependencies, Arguments.NodeContainer, ImportAssetObjectData.bIsReImport);
 	}
 
 	for (int32 LodIndex = 0; LodIndex < LodCount; ++LodIndex)
@@ -1620,6 +1578,7 @@ UInterchangeFactoryBase::FImportAssetResult UInterchangeSkeletalMeshFactory::Imp
 			}
 			else
 			{
+				TArray<FSkeletalMaterial>& Materials = SkeletalMesh->GetMaterials();
 				//LOD 0 import data is reorder to the material array before when building the LOD 0
 				for (int32 MaterialIndex = 0; MaterialIndex < Materials.Num(); ++MaterialIndex)
 				{

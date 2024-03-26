@@ -93,7 +93,6 @@ namespace UE::Interchange::Private::StaticMesh
 			for (FPolygonGroupID PolygonGroupID : LodMeshDescription->PolygonGroups().GetElementIDs())
 			{
 				FName ImportMaterialName = SlotNames[PolygonGroupID];
-				bool bFoundMatch = false;
 				for (int32 MaterialIndex = 0; MaterialIndex < Materials.Num(); ++MaterialIndex)
 				{
 					FName MaterialName = Materials[MaterialIndex].ImportedMaterialSlotName;
@@ -104,7 +103,6 @@ namespace UE::Interchange::Private::StaticMesh
 						//If the name match say we found the match)
 						if (MaterialName == ImportMaterialName)
 						{
-							bFoundMatch = true;
 							break;
 						}
 						continue;
@@ -114,12 +112,9 @@ namespace UE::Interchange::Private::StaticMesh
 					if (MaterialName == ImportMaterialName)
 					{
 						RemapIndex = ReorderMaterialArray.Add(Materials[MaterialIndex]);
-						bFoundMatch = true;
 						break;
 					}
 				}
-				//All mesh description polygon group should have a match
-				ensure(bFoundMatch);
 			}
 		}
 		//Custom LOD can add materials, so we add them at the end of the material slots
@@ -287,53 +282,13 @@ UInterchangeFactoryBase::FImportAssetResult UInterchangeStaticMeshFactory::Impor
 	bool bKeepSectionsSeparate = false;
 	StaticMeshFactoryNode->GetCustomKeepSectionsSeparate(bKeepSectionsSeparate);
 
-	// Set material slots from imported materials
-	auto UpdateOrAddStaticMaterial = [&StaticMesh, bReimport](const FName& MaterialSlotName, UMaterialInterface* MaterialInterface)
+	
+	//Call the mesh helper to create the missing material and to use the unmatched existing slot with the unmatch import slot
 	{
-		UMaterialInterface* NewMaterial = MaterialInterface ? MaterialInterface : UMaterial::GetDefaultMaterial(MD_Surface);
-
-		FStaticMaterial* StaticMaterial = StaticMesh->GetStaticMaterials().FindByPredicate([&MaterialSlotName](const FStaticMaterial& Material) { return Material.MaterialSlotName == MaterialSlotName; });
-		if (StaticMaterial)
-		{
-			//When we are not re-importing, we always force update the material, we should see this case when importing LODs is on since its an import.
-			//When we do a re-import we update the material interface only if the current asset matching material is null and is not the default material. (this avoid touching a slot that was change by the user)
-			if (!bReimport || (MaterialInterface && (!StaticMaterial->MaterialInterface || StaticMaterial->MaterialInterface == UMaterial::GetDefaultMaterial(MD_Surface))))
-			{
-				StaticMaterial->MaterialInterface = NewMaterial;
-			}
-		}
-		else
-		{
-			int32 MaterialSlotIndex = StaticMesh->GetStaticMaterials().Emplace(NewMaterial, MaterialSlotName);
-#if !WITH_EDITOR
-			// UV density is not supported to be generated at runtime for now. We fake that it has been initialized so that we don't trigger ensures.
-			StaticMesh->GetStaticMaterials()[MaterialSlotIndex].UVChannelData = FMeshUVChannelInfo(1.f);
-#endif
-		}
-	};
-
-	TMap<FString, FString> SlotMaterialDependencies;
-	StaticMeshFactoryNode->GetSlotMaterialDependencies(SlotMaterialDependencies);
-	for (TPair<FString, FString>& SlotMaterialDependency : SlotMaterialDependencies)
-	{
-		FName MaterialSlotName = *SlotMaterialDependency.Key;
-
-		const UInterchangeBaseMaterialFactoryNode* MaterialFactoryNode = Cast<UInterchangeBaseMaterialFactoryNode>(Arguments.NodeContainer->GetNode(SlotMaterialDependency.Value));
-		if (!MaterialFactoryNode)
-		{
-			UpdateOrAddStaticMaterial(MaterialSlotName, nullptr);
-			continue;
-		}
-		FSoftObjectPath MaterialFactoryNodeReferenceObject;
-		MaterialFactoryNode->GetCustomReferenceObject(MaterialFactoryNodeReferenceObject);
-		if (!MaterialFactoryNodeReferenceObject.IsValid())
-		{
-			UpdateOrAddStaticMaterial(MaterialSlotName, nullptr);
-			continue;
-		}
-
-		UMaterialInterface* MaterialInterface = Cast<UMaterialInterface>(MaterialFactoryNodeReferenceObject.TryLoad());
-		UpdateOrAddStaticMaterial(MaterialSlotName, MaterialInterface ? MaterialInterface : nullptr);
+		using namespace UE::Interchange::Private::MeshHelper;
+		TMap<FString, FString> SlotMaterialDependencies;
+		StaticMeshFactoryNode->GetSlotMaterialDependencies(SlotMaterialDependencies);
+		StaticMeshFactorySetupAssetMaterialArray(StaticMesh->GetStaticMaterials(), SlotMaterialDependencies, Arguments.NodeContainer, bReimport);
 	}
 
 	// Now import geometry for each LOD

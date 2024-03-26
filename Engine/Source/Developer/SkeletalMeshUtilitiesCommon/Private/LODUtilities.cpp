@@ -4336,25 +4336,26 @@ void FLODUtilities::ReorderMaterialSlotToBaseLod(USkeletalMesh* SkeletalMesh)
 		for (int32 ImportedMaterialIndex = 0; ImportedMaterialIndex < ImportedMaterials.Num(); ++ImportedMaterialIndex)
 		{
 			FName ImportedMaterialSlotName = FName(*ImportedMaterials[ImportedMaterialIndex].MaterialImportName);
-			bool bFoundMatch = false;
 			for (int32 MaterialIndex = 0; MaterialIndex < Materials.Num(); ++MaterialIndex)
 			{
+				FName MaterialSlotName = Materials[MaterialIndex].ImportedMaterialSlotName;
 				if (MaterialSlotRemap[MaterialIndex] != INDEX_NONE)
 				{
-					bFoundMatch = true;
+					//If the name match say we found the match)
+					if (MaterialSlotName == ImportedMaterialSlotName)
+					{
+						break;
+					}
 					continue;
 				}
 				int32& RemapIndex = MaterialSlotRemap[MaterialIndex];
-				FName MaterialSlotName = Materials[MaterialIndex].ImportedMaterialSlotName;
+
 				if (MaterialSlotName == ImportedMaterialSlotName)
 				{
 					RemapIndex = ReorderMaterialArray.Add(Materials[MaterialIndex]);
-					bFoundMatch = true;
 					break;
 				}
 			}
-			//All mesh description polygon group should have a match
-			ensure(bFoundMatch);
 		}
 	}
 	//Custom LOD can add materials, so we add them at the end of the material slots
