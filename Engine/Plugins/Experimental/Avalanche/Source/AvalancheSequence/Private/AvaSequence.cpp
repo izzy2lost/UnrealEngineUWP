@@ -637,6 +637,12 @@ void UAvaSequence::OnOuterWorldRenamed(const TCHAR* InName, UObject* InNewOuter,
 
 void UAvaSequence::OnWorldCleanup(UWorld* InWorld, bool bInSessionEnded, bool bInCleanupResources)
 {
+	// Ignore cleanups from other worlds
+	if (GetTypedOuter<UWorld>() != InWorld)
+	{
+		return;
+	}
+
 	if (!bInCleanupResources)
 	{
 		return;
