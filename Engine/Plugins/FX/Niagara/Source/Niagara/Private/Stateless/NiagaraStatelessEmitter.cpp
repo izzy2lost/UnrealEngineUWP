@@ -303,7 +303,10 @@ void UNiagaraStatelessEmitter::BuildCompiledDataSet()
 		TArray<FNiagaraVariableBase> AvailableVariables;
 		for (UNiagaraStatelessModule* Module : Modules)
 		{
-			Module->GetOutputVariables(AvailableVariables);
+			if (Module->IsModuleEnabled())
+			{
+				Module->GetOutputVariables(AvailableVariables);
+			}
 		}
 
 		// Remove any variables we don't output
