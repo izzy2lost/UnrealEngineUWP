@@ -28,13 +28,7 @@
 #include "Misc/FileHelper.h"
 #include "Misc/Paths.h"
 #include "Misc/ScopeExit.h"
-#include "String/BytesToHex.h"
-#include "String/HexToBytes.h"
 #include <atomic>
-
-#if !PLATFORM_WINDOWS
-#include <string.h> // memset
-#endif
 
 
 #if PLATFORM_WINDOWS
@@ -130,16 +124,6 @@ namespace
 		Endpoint.Port = QuicAddrGetPort(&QuicAddr);
 		return Endpoint;
 	}
-
-	void SecureZero(void* Buffer, size_t Length)
-	{
-#if PLATFORM_WINDOWS
-		SecureZeroMemory(Buffer, Length);
-#else
-		static void* (* const volatile memset_ptr)(void*, int, size_t) = memset;
-		(memset_ptr)(Buffer, 0, Length);
-#endif
-	}
 }
 
 struct FRunningProcess
@@ -224,36 +208,6 @@ FSwitchboardCommandLineOptions FSwitchboardCommandLineOptions::FromString(const 
 		{
 			OutOptions.Address = ParseAddr;
 		}
-	}
-
-	OutOptions.SecureMode = ESecureMode::Unspecified;
-
-	if (SwitchPairs.Contains(TEXT("certfile")))
-	{
-		OutOptions.CertificateFile = SwitchPairs[TEXT("certfile")];
-		OutOptions.SecureMode = ESecureMode::CertificateFromFile;
-	}
-
-	if (SwitchPairs.Contains(TEXT("keyfile")))
-	{
-		OutOptions.PrivateKeyFile = SwitchPairs[TEXT("keyfile")];
-		OutOptions.SecureMode = ESecureMode::CertificateFromFile;
-	}
-
-	if (SwitchPairs.Contains(TEXT("certhash")))
-	{
-#if PLATFORM_WINDOWS
-		OutOptions.CertificateHash = SwitchPairs[TEXT("certhash")];
-
-		if (OutOptions.SecureMode == ESecureMode::CertificateFromFile)
-		{
-			UE_LOGFMT(LogSwitchboard, Error, "Both certificate file and hash arguments were specified; using certificate hash, IGNORING file");
-		}
-
-		OutOptions.SecureMode = ESecureMode::CertificateByHash;
-#else
-		UE_LOGFMT(LogSwitchboard, Fatal, "Certificate by hash is only supported on Windows");
-#endif
 	}
 
 	if (SwitchPairs.Contains(TEXT("port")))
@@ -349,108 +303,42 @@ FSwitchboardListener::~FSwitchboardListener()
 {
 }
 
-bool FSwitchboardListener::Init(bool bStartListeningImmediately /* = true */)
+bool FSwitchboardListener::Init()
 {
-	if (Options.SecureMode == FSwitchboardCommandLineOptions::ESecureMode::Unspecified)
+	if (!AuthHelper.Initialize())
 	{
-		TTuple<FString, FString> CertKeyPaths = UE::SwitchboardListener::Certificates::GetSelfSignedPaths();
-
-		Options.SecureMode = FSwitchboardCommandLineOptions::ESecureMode::CertificateFromFile;
-		Options.CertificateFile = CertKeyPaths.Get<0>();
-		Options.PrivateKeyFile = CertKeyPaths.Get<1>();
-
-		// Try to load the private key password.
-		const FString PrivateKeyPwCredentialName = FString::Printf(
-			TEXT("PrivateKeyPassword_%s"), **Options.PrivateKeyFile);
-		if (TOptional<UE::SwitchboardListener::FCredential> PrivateKeyPwCredential =
-			UE::SwitchboardListener::LoadCredential(PrivateKeyPwCredentialName))
-		{
-			PrivateKeyPassword = PrivateKeyPwCredential->CredentialBlob;
-		}
-
-
-		if (!FPaths::FileExists(*Options.CertificateFile)
-			|| !FPaths::FileExists(*Options.PrivateKeyFile)
-			|| (!PrivateKeyPassword || PrivateKeyPassword->IsEmpty()))
-		{
-			UE_LOGFMT(LogSwitchboard, Display, "SwitchboardListener requires a TLS certificate to be specified; generating self-signed certificate...");
-
-			// Platforms with a persistent credential store encrypt the generated
-			// private key with a random string, and persist it for the user.
-			if (UE::SwitchboardListener::SupportsPersistentCredentials())
-			{
-				UE_LOGFMT(LogSwitchboard, Verbose, "Generating random private key password");
-				constexpr int32 RandomPwByteLength = 20;
-				TArray<uint8> RandomPwBytes;
-				RandomPwBytes.SetNumUninitialized(RandomPwByteLength);
-				UE::SwitchboardListener::FillSecureRandom(RandomPwBytes);
-				PrivateKeyPassword = BytesToHexLower(RandomPwBytes.GetData(), RandomPwByteLength);
-
-				UE::SwitchboardListener::FCredential PrivateKeyPwCredential = {
-					.CredentialName = PrivateKeyPwCredentialName,
-					.CredentialBlob = *PrivateKeyPassword,
-				};
-
-				check(UE::SwitchboardListener::SaveCredential(PrivateKeyPwCredential));
-			}
-
-			TOptional<FString> Fingerprint =
-				UE::SwitchboardListener::Certificates::CreateSelfSigned(
-					PrivateKeyPassword.Get(FString()));
-
-			check(Fingerprint.IsSet());
-
-			UE_LOGFMT(LogSwitchboard, Display, "Your new self-signed certificate fingerprint is: {Fingerprint}", *Fingerprint);
-		}
-	}
-
-	if (TOptional<UE::SwitchboardListener::FCredential> SavedCredential =
-		UE::SwitchboardListener::LoadCredential(PasswordCredentialName))
-	{
-		UE_LOGFMT(LogSwitchboard, Display, "Using stored password");
-		ExpectedAuthPassword = SavedCredential->CredentialBlob;
+		return false;
 	}
 
 	OnInitDelegate.Broadcast();
 
-	if (bStartListeningImmediately)
-	{
-		return StartListening();
-	}
-	else
-	{
-		return true;
-	}
+	return true;
 }
 
 
 void FSwitchboardListener::Shutdown()
 {
+	AuthHelper.Shutdown();
+
 	OnShutdownDelegate.Broadcast();
+}
+
+
+const UTF8CHAR* FSwitchboardListener::GetAuthPassword() const
+{
+	return AuthHelper.GetAuthPassword();
+}
+
+
+bool FSwitchboardListener::IsAuthPasswordSet() const
+{
+	return AuthHelper.IsAuthPasswordSet();
 }
 
 
 bool FSwitchboardListener::SetAuthPassword(const FString& NewPassword)
 {
-	if (NewPassword.IsEmpty())
-	{
-		return false;
-	}
-
-	ExpectedAuthPassword = NewPassword;
-
-	if (UE::SwitchboardListener::SupportsPersistentCredentials())
-	{
-		UE::SwitchboardListener::FCredential NewCredential = {
-			.CredentialName = PasswordCredentialName,
-			.CredentialBlob = ExpectedAuthPassword,
-		};
-
-		UE_LOGFMT(LogSwitchboard, Display, "Storing provided password");
-		ensure(UE::SwitchboardListener::SaveCredential(NewCredential));
-	}
-
-	return true;
+	return AuthHelper.SetAuthPassword(NewPassword);
 }
 
 
@@ -493,7 +381,6 @@ bool FSwitchboardListener::StartListening()
 
 	QUIC_CERTIFICATE_FILE CertFile = { 0 };
 	QUIC_CERTIFICATE_FILE_PROTECTED CertFileProtected = { 0 };
-	QUIC_CERTIFICATE_HASH CertHash = { 0 };
 	QUIC_CREDENTIAL_CONFIG CredConfig = {
 		.Type = QUIC_CREDENTIAL_TYPE_NONE,
 		.Flags =
@@ -501,64 +388,22 @@ bool FSwitchboardListener::StartListening()
 			QUIC_CREDENTIAL_FLAG_USE_PORTABLE_CERTIFICATES,
 	};
 
-	// Path FString -> UTF8 backing stores for the ConfigurationLoadCredential call.
-	TArray<UTF8CHAR> CertificateFileArray, PrivateKeyFileArray, PrivateKeyPwArray;
-
-	if (Options.SecureMode == FSwitchboardCommandLineOptions::ESecureMode::CertificateFromFile)
+	if (AuthHelper.GetPrivateKeyPassword())
 	{
-		auto PrivateKeyFileU8 = StringCast<UTF8CHAR>(**Options.PrivateKeyFile);
-		PrivateKeyFileArray = TArray<UTF8CHAR>(PrivateKeyFileU8.Get(), PrivateKeyFileU8.Length() + 1);
-		auto CertificateFileU8 = StringCast<UTF8CHAR>(**Options.CertificateFile);
-		CertificateFileArray = TArray<UTF8CHAR>(CertificateFileU8.Get(), CertificateFileU8.Length() + 1);
+		CertFileProtected.PrivateKeyFile = reinterpret_cast<const char*>(*AuthHelper.GetPrivateKeyFilePath());
+		CertFileProtected.CertificateFile = reinterpret_cast<const char*>(*AuthHelper.GetCertificateFilePath());
+		CertFileProtected.PrivateKeyPassword = reinterpret_cast<const char*>(AuthHelper.GetPrivateKeyPassword());
 
-		if (PrivateKeyPassword)
-		{
-			auto PrivateKeyPwU8 = StringCast<UTF8CHAR>(**PrivateKeyPassword);
-			PrivateKeyPwArray = TArray<UTF8CHAR>(PrivateKeyPwU8.Get(), PrivateKeyPwU8.Length() + 1);
-			SecureZero(const_cast<UTF8CHAR*>(PrivateKeyPwU8.Get()), PrivateKeyPwU8.Length());
-
-			CertFileProtected.PrivateKeyFile = reinterpret_cast<const char*>(PrivateKeyFileArray.GetData());
-			CertFileProtected.CertificateFile = reinterpret_cast<const char*>(CertificateFileArray.GetData());
-			CertFileProtected.PrivateKeyPassword = reinterpret_cast<const char*>(PrivateKeyPwArray.GetData());
-
-			CredConfig.Type = QUIC_CREDENTIAL_TYPE_CERTIFICATE_FILE_PROTECTED;
-			CredConfig.CertificateFileProtected = &CertFileProtected;
-		}
-		else
-		{
-			CertFile.PrivateKeyFile = reinterpret_cast<const char*>(PrivateKeyFileArray.GetData());
-			CertFile.CertificateFile = reinterpret_cast<const char*>(CertificateFileArray.GetData());
-
-			CredConfig.Type = QUIC_CREDENTIAL_TYPE_CERTIFICATE_FILE;
-			CredConfig.CertificateFile = &CertFile;
-		}
+		CredConfig.Type = QUIC_CREDENTIAL_TYPE_CERTIFICATE_FILE_PROTECTED;
+		CredConfig.CertificateFileProtected = &CertFileProtected;
 	}
-#if PLATFORM_WINDOWS
-	else if (Options.SecureMode == FSwitchboardCommandLineOptions::ESecureMode::CertificateByHash)
-	{
-		constexpr int32 ExpectedBytes = sizeof(CertHash.ShaHash);
-		constexpr int32 ExpectedStrLen = ExpectedBytes * 2;
-		const int32 HashStrLen = Options.CertificateHash->Len();
-		if (HashStrLen != ExpectedStrLen)
-		{
-			UE_LOGFMT(LogSwitchboard, Error, "Certificate hash should be {ExpectedStrLen} characters ({ExpectedBytes} bytes); got {HashStrLen} characters",
-				ExpectedStrLen, ExpectedBytes, HashStrLen);
-			return false;
-		}
-
-		const int32 HashLen = UE::String::HexToBytes(Options.CertificateHash.GetValue(), CertHash.ShaHash);
-		ensure(HashLen == ExpectedBytes);
-
-		UE_LOGFMT(LogSwitchboard, Display, "Using certificate with hash {CertificateHash}", Options.CertificateHash.GetValue());
-		CredConfig.Type = QUIC_CREDENTIAL_TYPE_CERTIFICATE_HASH;
-		CredConfig.CertificateHash = &CertHash;
-	}
-#endif // PLATFORM_WINDOWS
 	else
 	{
-		// This should never happen.
-		checkf(false, TEXT("Unsupported credential configuration"));
-		return false;
+		CertFile.PrivateKeyFile = reinterpret_cast<const char*>(*AuthHelper.GetPrivateKeyFilePath());
+		CertFile.CertificateFile = reinterpret_cast<const char*>(*AuthHelper.GetCertificateFilePath());
+
+		CredConfig.Type = QUIC_CREDENTIAL_TYPE_CERTIFICATE_FILE;
+		CredConfig.CertificateFile = &CertFile;
 	}
 
 	QUIC_SETTINGS Settings = {};
@@ -586,20 +431,6 @@ bool FSwitchboardListener::StartListening()
 	{
 		UE_LOGFMT(LogSwitchboard, Error, "MsQuic ConfigurationLoadCredential failed with status {Status}", static_cast<int64>(Status));
 		return false;
-	}
-	else
-	{
-		if (PrivateKeyPwArray.Num())
-		{
-			SecureZero(PrivateKeyPwArray.GetData(), PrivateKeyPwArray.Num());
-		}
-
-		if (PrivateKeyPassword.IsSet())
-		{
-			SecureZero(PrivateKeyPassword->GetCharArray().GetData(),
-				PrivateKeyPassword->GetCharArray().Num() * sizeof(TCHAR));
-			PrivateKeyPassword.Reset();
-		}
 	}
 
 	// Create/allocate a new listener object.
@@ -967,14 +798,34 @@ bool FSwitchboardListener::Task_Authenticate(const FSwitchboardAuthenticateTask&
 	UE::TUniqueLock<UE::FRecursiveMutex> ConnectionsScopeLock(ConnectionsLock);
 	FConnectionRef Connection = ConnectionsByEndpoint[InAuthTask.Recipient];
 
-	auto SendAuthResponse = [this, &InAuthTask, &Connection]() {
-		SendMessage(CreateMessage(
+	// If we decide later to issue a new JWT, we include it in SendAuthResponse.
+	TOptional<FString> IssueJwt;
+
+	auto SendAuthResponse = [this, &InAuthTask, &Connection, &IssueJwt]()
+		{
+			TMap<FString, FString> AuthResponse =
 			{
 				{ TEXT("command"), FSwitchboardAuthenticateTask::CommandName },
 				{ TEXT("id"), InAuthTask.TaskID.ToString() },
 				{ TEXT("bAuthenticated"), Connection->bAuthenticated ? TEXT("true") : TEXT("false") },
-			}),
-			InAuthTask.Recipient);
+			};
+
+			if (IssueJwt)
+			{
+				AuthResponse.Add(TEXT("jwt"), *IssueJwt);
+			}
+
+			SendMessage(CreateMessage(AuthResponse), InAuthTask.Recipient);
+
+			if (Connection->bAuthenticated)
+			{
+				// Send current state upon authentication
+				{
+					FSwitchboardStatePacket StatePacket;
+					FillStatePacket(StatePacket);
+					SendMessage(CreateMessage(StatePacket), InAuthTask.Recipient);
+				}
+			}
 		};
 
 	if (Connection->bAuthenticated)
@@ -992,21 +843,26 @@ bool FSwitchboardListener::Task_Authenticate(const FSwitchboardAuthenticateTask&
 		return false;
 	}
 
-	if (InAuthTask.Password == ExpectedAuthPassword)
+	if (InAuthTask.Jwt)
 	{
-		UE_LOGFMT(LogSwitchboard, Display, "Client {Endpoint} authenticated successfully", Connection->Endpoint.ToString());
-		Connection->bAuthenticated = true;
-		// TODO: Issue JWT?
-		SendAuthResponse();
-
-		// Send current state upon authentication
+		if (AuthHelper.IsValidJWT(*InAuthTask.Jwt))
 		{
-			FSwitchboardStatePacket StatePacket;
-			FillStatePacket(StatePacket);
-			SendMessage(CreateMessage(StatePacket), InAuthTask.Recipient);
+			UE_LOGFMT(LogSwitchboard, Display, "Client {Endpoint} authenticated successfully (using token)", Connection->Endpoint.ToString());
+			Connection->bAuthenticated = true;
+			SendAuthResponse();
+			return true;
 		}
-
-		return true;
+	}
+	else if (InAuthTask.Password)
+	{
+		if (AuthHelper.ValidatePassword(*InAuthTask.Password))
+		{
+			UE_LOGFMT(LogSwitchboard, Display, "Client {Endpoint} authenticated successfully (using password)", Connection->Endpoint.ToString());
+			Connection->bAuthenticated = true;
+			IssueJwt = AuthHelper.IssueJWT({});
+			SendAuthResponse();
+			return true;
+		}
 	}
 
 	UE_LOGFMT(LogSwitchboard, Warning, "Failed authentication attempt for client {Endpoint}", Connection->Endpoint.ToString());

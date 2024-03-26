@@ -6,6 +6,13 @@ public class SblCore : ModuleRules
 {
 	public SblCore(ReadOnlyTargetRules Target) : base(Target)
 	{
+		PublicIncludePathModuleNames.AddRange(
+			new string[]
+			{
+				"OpenSSL",
+			}
+		);
+
 		PublicDependencyModuleNames.AddRange(
 			new string[]
 			{
@@ -23,6 +30,7 @@ public class SblCore : ModuleRules
 			new string[] {
 				"Json",
 				"JsonUtilities",
+				"JWT",
 				"MsQuicRuntime",
 				"TraceLog",
 			}

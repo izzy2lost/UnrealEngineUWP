@@ -52,12 +52,21 @@ struct FSwitchboardTask
 
 struct FSwitchboardAuthenticateTask : public FSwitchboardTask
 {
-	FSwitchboardAuthenticateTask(const FGuid& InTaskId, const FIPv4Endpoint& InEndpoint, const FString& InPassword)
+	FSwitchboardAuthenticateTask(
+		const FGuid& InTaskId,
+		const FIPv4Endpoint& InEndpoint,
+		TOptional<FString> InJwt,
+		TOptional<FString> InPassword
+	)
 		: FSwitchboardTask{ ESwitchboardTaskType::Authenticate, InTaskId, InEndpoint }
+		, Jwt(InJwt)
 		, Password(InPassword)
-	{}
+	{
+		ensure(Jwt || Password);
+	}
 
-	FString Password;
+	TOptional<FString> Jwt;
+	TOptional<FString> Password;
 
 	//~ Begin FSwitchboardTask interface
 	static constexpr const TCHAR* CommandName = TEXT("authenticate");

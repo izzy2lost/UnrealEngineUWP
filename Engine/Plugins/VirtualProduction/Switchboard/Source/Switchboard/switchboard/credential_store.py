@@ -4,7 +4,13 @@ from __future__ import annotations
 
 from abc import abstractmethod, ABC
 from dataclasses import dataclass
+import json
+import logging
+import os
+import pathlib
+import stat
 import sys
+import tempfile
 import threading
 from typing import Callable, Optional
 
@@ -29,6 +35,10 @@ class CredentialStore(ABC, QtCore.QObject, metaclass=QObjectABCMeta):
     def __init__(self):
         super().__init__()
 
+    @classmethod
+    def encrypted_at_rest(cls) -> bool:
+        return False
+
     @abstractmethod
     def get(
         self,
@@ -50,10 +60,10 @@ class CredentialStore(ABC, QtCore.QObject, metaclass=QObjectABCMeta):
 
     @staticmethod
     def create() -> CredentialStore:
-        # TODO:
-        #  - Linux -> Kernel key retention service? (c.f. `keyctl`)
         if sys.platform.startswith('win'):
             return CredentialStoreWindows()
+        elif os.name == 'posix':
+            return CredentialStorePosix()
 
         return CredentialStoreGeneric()
 
@@ -129,6 +139,63 @@ class CredentialStoreGeneric(CredentialStore):
                 prompt.on_credential_ready(credential, True)
 
         self._queued_prompts.clear()
+
+
+class CredentialStorePosix(CredentialStoreGeneric):
+    PERMISSION_MASK = stat.S_IRWXU | stat.S_IRWXG | stat.S_IRWXO
+    CRED_FILE_FLAGS = stat.S_IRUSR | stat.S_IWUSR  # 600
+    CRED_DIR_FLAGS = stat.S_IRUSR | stat.S_IWUSR | stat.S_IXUSR  # 700
+
+    def __init__(self):
+        super().__init__()
+
+        del self._tempstore
+
+    @classmethod
+    def _credential_dir(cls) -> pathlib.Path:
+        return pathlib.Path(pathlib.Path.home(), '.switchboard')
+
+    @classmethod
+    def _credential_path(cls, key: str) -> pathlib.Path:
+        return pathlib.Path(cls._credential_dir(), f'credential_{key}.json')
+
+    def _try_get(self, key: str) -> Optional[CredentialStore.Credential]:
+        path = self._credential_path(key)
+        if not path or not path.is_file():
+            return None
+
+        stat = os.lstat(path)
+        current_uid = os.getuid()
+        if stat.st_uid != current_uid:
+            logging.error(
+                f'Credential file {path} is not owned by the current user!')
+
+        share_flags = stat.st_mode & self.PERMISSION_MASK
+        if share_flags != self.CRED_FILE_FLAGS:
+            logging.error(
+                f'Credential file {path} has incorrect permissions!')
+
+        with path.open() as f:
+            cred = json.load(f)
+            if ('user' in cred) and ('blob' in cred):
+                return CredentialStore.Credential(cred['user'], cred['blob'])
+            else:
+                logging.error(f'Error parsing credential: {cred}')
+                return None
+
+    def set(self, key: str, val: Optional[CredentialStore.Credential]) -> None:
+        cred_path = self._credential_path(key)
+        if val is None:
+            cred_path.unlink()
+            return
+
+        cred_dir = cred_path.parent
+        cred_dir.mkdir(mode=0o700, parents=True, exist_ok=True)
+
+        (tmp_fd, tmp_path) = tempfile.mkstemp(dir=cred_dir, text=True)
+        with os.fdopen(tmp_fd, mode='w') as f:
+            f.write(json.dumps({ 'user': val.username, 'blob': val.blob }))
+        os.replace(tmp_path, cred_path)
 
 
 if sys.platform.startswith('win'):
@@ -242,8 +309,11 @@ if sys.platform.startswith('win'):
             self._CredReadW.errcheck = Cred_errcheck
             self._CredWriteW.errcheck = Cred_errcheck
 
+        @classmethod
+        def encrypted_at_rest(cls) -> bool:
+            return True
+
         def _try_get(self, key: str) -> Optional[CredentialStore.Credential]:
-            # return self._tempstore.get(key)
             need_credfree = False
             cred = ctypes.pointer(CREDENTIALW())
             try:
