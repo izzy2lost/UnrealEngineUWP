@@ -7,6 +7,7 @@
 #include "ActorFactoryNiagara.h"
 #include "NiagaraActor.h"
 #include "NiagaraComponent.h"
+#include "NiagaraSettings.h"
 #include "Misc/StringFormatter.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(NiagaraEditorCommon)
@@ -1939,6 +1940,17 @@ bool UActorFactoryNiagara::CanCreateActorFrom(const FAssetData& AssetData, FText
 	{
 		OutErrorMsg = NSLOCTEXT("CanCreateActor", "NoSystem", "A valid Niagara System must be specified.");
 		return false;
+	}
+
+	const UNiagaraSettings* NiagarSettings = GetDefault<UNiagaraSettings>();
+	if (NiagarSettings && !NiagarSettings->bAllowCreateActorFromSystemWithNoEffectType)
+	{
+		const UNiagaraSystem* NiagaraSystem = Cast<UNiagaraSystem>(AssetData.GetAsset());
+		if (NiagaraSystem && NiagaraSystem->GetEffectType() == nullptr)
+		{
+			OutErrorMsg = NSLOCTEXT("CanCreateActor", "RequiredEffectType", "An effect type is required to create actor instances.");
+			return false;
+		}
 	}
 
 	return true;

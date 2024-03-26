@@ -198,6 +198,10 @@ class UNiagaraSettings : public UDeveloperSettings
 	UPROPERTY(config, EditAnywhere, Category = Niagara, meta = (AllowedClasses = "/Script/Niagara.NiagaraEffectType"))
 	FSoftObjectPath RequiredEffectType;
 
+	/** Should we allow placing a Niagara System in the editor into a level which has no effect type assigned? */
+	UPROPERTY(config, EditAnywhere, Category = Niagara)
+	bool bAllowCreateActorFromSystemWithNoEffectType = true;
+
 	/** Position pin type color. The other pin colors are defined in the general editor settings. */
 	UPROPERTY(config, EditAnywhere, Category=Niagara)
 	FLinearColor PositionPinTypeColor;
