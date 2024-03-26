@@ -399,6 +399,39 @@ bool LexFromString(EOS_EIntegratedPlatformManagementFlags& OutEnum, const TCHAR*
 	return true;
 }
 
+EOS_OnlinePlatformType EOSOnlinePlatformTypeFromString(const FStringView InString)
+{
+	if (InString == TEXT("Unknown"))
+	{
+		return EOS_OPT_Unknown;
+	}
+	else if (InString == TEXT("Epic"))
+	{	
+		return EOS_OPT_Epic;
+	}
+	else if (InString == TEXT("Steam"))
+	{	
+		return EOS_OPT_Steam;
+	}
+	else if (InString == TEXT("PSN"))
+	{	
+		return 1000; //EOS_OPT_PSN;
+	}
+	else if (InString == TEXT("Switch"))
+	{	
+		return 2000; //EOS_OPT_SWITCH;
+	}
+	else if (InString == TEXT("XBL"))
+	{	
+		return 3000; //EOS_OPT_XBL;
+	}
+	else
+	{
+		checkNoEntry();
+		return EOS_OPT_Unknown;
+	}
+}
+
 FString LexToString(const EOS_RTC_Option& Option)
 {
 	UE_EOS_CHECK_API_MISMATCH(EOS_RTC_OPTION_API_LATEST, 1);

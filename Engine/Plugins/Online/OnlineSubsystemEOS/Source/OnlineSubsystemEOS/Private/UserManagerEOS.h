@@ -30,8 +30,8 @@ class FOnlineUserEOS :
 	public TOnlineUserEOS<FOnlineUser, IAttributeAccessInterface>
 {
 public:
-	FOnlineUserEOS(FUniqueNetIdEOSRef InUserId) :
-		TOnlineUserEOS<FOnlineUser, IAttributeAccessInterface>(InUserId)
+	FOnlineUserEOS(FUniqueNetIdEOSRef InUserId, const FOnlineSubsystemEOS& InSubsystem) :
+		TOnlineUserEOS<FOnlineUser, IAttributeAccessInterface>(InUserId, InSubsystem)
 	{
 	}
 	virtual ~FOnlineUserEOS() = default;
@@ -64,13 +64,13 @@ class FOnlineFriendEOS :
 	public TOnlineFriendEOS<FOnlineFriend>
 {
 public:
-	FOnlineFriendEOS(FUniqueNetIdEOSRef InUserId) :
-		TOnlineFriendEOS<FOnlineFriend>(InUserId)
+	FOnlineFriendEOS(FUniqueNetIdEOSRef InUserId, const FOnlineSubsystemEOS& InSubsystem) :
+		TOnlineFriendEOS<FOnlineFriend>(InUserId, InSubsystem)
 	{
 	}
 
-	FOnlineFriendEOS(FUniqueNetIdEOSRef InUserId, const TMap<FString, FString>& InUserAttributes) :
-		TOnlineFriendEOS<FOnlineFriend>(InUserId, InUserAttributes)
+	FOnlineFriendEOS(FUniqueNetIdEOSRef InUserId, const TMap<FString, FString>& InUserAttributes, const FOnlineSubsystemEOS& InSubsystem) :
+		TOnlineFriendEOS<FOnlineFriend>(InUserId, InUserAttributes, InSubsystem)
 	{
 	}
 
@@ -393,6 +393,8 @@ public:
 	void LoginStatusChanged(const EOS_Auth_LoginStatusChangedCallbackInfo* Data);
 
 	int32 GetDefaultLocalUser() const { return DefaultLocalUser; }
+
+	FString GetBestDisplayName(EOS_EpicAccountId TargetUserId, const FStringView RequestedPlatform) const;
 
 private:
 	FLocalUserEOS& GetLocalUserChecked(int32 LocalUserNum);
