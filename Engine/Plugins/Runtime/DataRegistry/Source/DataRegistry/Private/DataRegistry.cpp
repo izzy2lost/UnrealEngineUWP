@@ -212,7 +212,7 @@ EDataRegistryRegisterAssetResult UDataRegistry::RegisterSpecificAsset(const FAss
 		}
 	}
 
-	if (IsRegisterAssetResultSuccess(RegisterAssetResult) && IsInitialized())
+	if (DidRegisterAssetResultCauseChange(RegisterAssetResult) && IsInitialized())
 	{
 		// Don't want to do a full reset, but do clear cache as lookup rules may have changed
 		RefreshRuntimeSources();
@@ -221,7 +221,7 @@ EDataRegistryRegisterAssetResult UDataRegistry::RegisterSpecificAsset(const FAss
 	return RegisterAssetResult;
 }
 
-bool UDataRegistry::IsRegisterAssetResultSuccess(EDataRegistryRegisterAssetResult RegisterAssetStatus)
+bool UDataRegistry::DidRegisterAssetResultCauseChange(EDataRegistryRegisterAssetResult RegisterAssetStatus) const
 {
 	return RegisterAssetStatus == EDataRegistryRegisterAssetResult::RegisteredSuccesfully;
 }

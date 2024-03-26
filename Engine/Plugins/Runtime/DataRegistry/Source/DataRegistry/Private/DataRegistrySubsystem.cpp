@@ -498,7 +498,7 @@ bool UDataRegistrySubsystem::RegisterSpecificAsset(FDataRegistryType RegistryTyp
 			UDataRegistry* Registry = RegistryPair.Value;
 			if (Registry)
 			{
-				bMadeChange |= Registry->IsRegisterAssetResultSuccess(Registry->RegisterSpecificAsset(AssetData, AssetPriority));
+				bMadeChange |= Registry->DidRegisterAssetResultCauseChange(Registry->RegisterSpecificAsset(AssetData, AssetPriority));
 			}
 		}
 		return bMadeChange;
@@ -507,7 +507,7 @@ bool UDataRegistrySubsystem::RegisterSpecificAsset(FDataRegistryType RegistryTyp
 	UDataRegistry* FoundRegistry = GetRegistryForType(RegistryType);
 	if (FoundRegistry)
 	{
-		return FoundRegistry->IsRegisterAssetResultSuccess(FoundRegistry->RegisterSpecificAsset(AssetData, AssetPriority));
+		return FoundRegistry->DidRegisterAssetResultCauseChange(FoundRegistry->RegisterSpecificAsset(AssetData, AssetPriority));
 	}
 
 	return false;

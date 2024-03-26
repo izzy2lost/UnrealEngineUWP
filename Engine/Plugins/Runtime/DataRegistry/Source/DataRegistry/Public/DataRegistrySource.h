@@ -78,7 +78,10 @@ public:
 	/** Returns true if this asset is already registered with this source */
 	virtual bool IsSpecificAssetRegistered(const FSoftObjectPath& AssetPath) const;
 
-	/** Attempt to register a specified asset with a source, returns true if any changes were made. Can be used to update priority for existing asset as well */
+	/**
+	 * Attempt to register a specified asset with a source, returns an EDataRegistryRegisterAssetResult, indicating whether the asset was registered or not. Can be used to update priority for existing asset as well
+	 * @return An EDataRegistryRegisterAssetResult that indicates if the asset Was Registered, whether it failed to register, or did not register because the asset was already registered.
+	 */
 	virtual EDataRegistryRegisterAssetResult RegisterSpecificAsset(const FAssetData& AssetData, int32 AssetPriority = 0);
 
 	/** Removes references to a specific asset, returns bool if it was removed */
