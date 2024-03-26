@@ -39,8 +39,8 @@ struct RIGVM_API FRigVMRegistry : public FGCObject
 public:
 
 	DECLARE_MULTICAST_DELEGATE(FOnRigVMRegistryChanged);
-	
-	~FRigVMRegistry();
+
+	virtual ~FRigVMRegistry() override;
 	
 	// Returns the singleton registry
 	static FRigVMRegistry& Get();
@@ -73,9 +73,6 @@ public:
 	// Register a set of allowed object types
 	void RegisterObjectTypes(TConstArrayView<TPair<UClass*, ERegisterObjectOperation>> InClasses);
 
-	// Initializes the registry by storing the defaults
-	void InitializeIfNeeded();
-	
 	// Refreshes the list and finds the function pointers
 	// based on the names.
 	void RefreshEngineTypes();
@@ -309,13 +306,8 @@ private:
 
 	static const FName TemplateNameMetaName;
 
-	// disable default constructor
-	FRigVMRegistry()
-		: bIsRefreshingEngineTypes(false)
-		, bEverRefreshedEngineTypes(false)
-	{
-	}
-	
+	FRigVMRegistry();
+
 	// disable copy constructor
 	FRigVMRegistry(const FRigVMRegistry&) = delete;
 	// disable assignment operator
@@ -340,6 +332,9 @@ private:
 		uint32 Hash;
 	};
 
+	// Initialize the base types
+	void Initialize();
+	
 	TRigVMTypeIndex FindOrAddType_Internal(const FRigVMTemplateArgumentType& InType, bool bForce);
 
 	void RefreshEngineTypes_NoLock();
