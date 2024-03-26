@@ -7,7 +7,6 @@
 #if WITH_GAMEPLAY_DEBUGGER_MENU
 #include "GameplayTagContainer.h"
 #include "GameplayDebuggerCategory.h"
-#include "GameplayPrediction.h"
 
 class AActor;
 class APlayerController;
@@ -29,17 +28,6 @@ public:
 	void OnShowGameplayEffectsToggle();
 	void OnShowGameplayAttributesToggle();
 		
-
-	// Some GAS features such as Attributes can exist on the server, client, or both.  We can also get 'detached' if both sides have the same values (such as Attributes) that aren't networked.
-	// We are reusing this same concept to try and reconcile Gameplay Effects predicted locally, or triggered server-side.
-	enum class ENetworkStatus : uint8
-	{
-		ServerOnly, LocalOnly, Networked, Detached, MAX
-	};
-
-	// Unary operator + for quick conversion from enum class to int32
-	friend constexpr int32 operator+(const ENetworkStatus& value) { return static_cast<int32>(value); }
-
 protected:
 
 	void DrawGameplayTags(FGameplayDebuggerCanvasContext& CanvasContext, const APlayerController* OwnerPC) const;
@@ -66,18 +54,20 @@ protected:
 
 		struct FGameplayEffectDebug
 		{
-			FPredictionKey PredictionKey;
 			FString Effect;
 			FString Context;
 			float Duration = 0.0f;
 			float Period = 0.0f;
 			int32 Stacks = 0;
 			float Level = 0.0f;
-
-			ENetworkStatus NetworkStatus = ENetworkStatus::ServerOnly;
-			bool bInhibited = false;
 		};
 		TArray<FGameplayEffectDebug> GameplayEffects;
+
+		// Attributes can exist purposefully on ServerOnly or LocalOnly.  They are by default Networked on both.  We can get 'detached' if both sides have attributes that aren't networked.
+		enum class ENetworkStatus : uint8
+		{
+			ServerOnly, LocalOnly, Networked, Detached, MAX
+		};
 
 		struct FGameplayAttributeDebug
 		{
@@ -89,17 +79,16 @@ protected:
 		TArray<FGameplayAttributeDebug> Attributes;
 
 		void Serialize(FArchive& Ar);
+
+		// Unary operator + for quick conversion from enum class to int32
+		friend constexpr int32 operator+(const FGameplayDebuggerCategory_Abilities::FRepData::ENetworkStatus& value) { return static_cast<int32>(value); }
 	};
 	FRepData DataPack;
 
 	bool WrapStringAccordingToViewport(const FString& iStr, FString& oStr, FGameplayDebuggerCanvasContext& CanvasContext, float ViewportWitdh) const;
 
 private:
-	TArray<FRepData::FGameplayAttributeDebug> CollectAttributeData(const APlayerController* OwnerPC, const UAbilitySystemComponent* AbilityComp) const;
-	TArray<FRepData::FGameplayEffectDebug> CollectEffectsData(const APlayerController* OwnerPC, const UAbilitySystemComponent* AbilityComp) const;
-
-	// Save off the last expected draw size so that we can draw a border around it next frame (and hope we're the same size)
-	float LastDrawDataEndSize = 0.0f;
+	TArray<FRepData::FGameplayAttributeDebug> CollectAttributeData(const APlayerController* OwnerPC, const UAbilitySystemComponent* ASC) const;
 
 	bool bShowGameplayTags = true;
 	bool bShowGameplayAbilities = true;
