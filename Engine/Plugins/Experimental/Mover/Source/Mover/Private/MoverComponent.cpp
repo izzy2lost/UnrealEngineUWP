@@ -646,6 +646,18 @@ bool UMoverComponent::ValidateSetup(FDataValidationContext& Context) const
 		bDidFindAnyProblems = true;
 	}
 
+	// Verify transitions
+	for (const UBaseMovementModeTransition* Transition : Transitions)
+	{
+		if (!IsValid(Transition))
+		{
+			Context.AddError(FText::Format(LOCTEXT("InvalidTransitionError", "Invalid or missing transition object on {0}. Clean up the Transitions array."),
+				FText::FromString(GetNameSafe(GetOwner()))));
+
+			bDidFindAnyProblems = true;
+		}
+	}
+
 	// Verify backend liaison
 	if (!BackendClass)
 	{

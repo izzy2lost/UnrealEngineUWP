@@ -230,18 +230,7 @@ void UMovementModeStateMachine::OnSimulationTick(USceneComponent* UpdatedCompone
 
 				for (UBaseMovementModeTransition* Transition : CurrentMode->Transitions)
 				{
-					EvalResult = Transition->DoEvaluate(SimTickParams);
-
-					if (!EvalResult.NextMode.IsNone())
-					{
-						TransitionToTrigger = Transition;
-						break;
-					}
-				}
-
-				if (EvalResult.NextMode.IsNone())
-				{
-					for (UBaseMovementModeTransition* Transition : MoverComp->Transitions)
+					if (IsValid(Transition))
 					{
 						EvalResult = Transition->DoEvaluate(SimTickParams);
 
@@ -249,6 +238,23 @@ void UMovementModeStateMachine::OnSimulationTick(USceneComponent* UpdatedCompone
 						{
 							TransitionToTrigger = Transition;
 							break;
+						}
+					}
+				}
+
+				if (EvalResult.NextMode.IsNone())
+				{
+					for (UBaseMovementModeTransition* Transition : MoverComp->Transitions)
+					{
+						if (IsValid(Transition))
+						{
+							EvalResult = Transition->DoEvaluate(SimTickParams);
+
+							if (!EvalResult.NextMode.IsNone())
+							{
+								TransitionToTrigger = Transition;
+								break;
+							}
 						}
 					}
 				}

@@ -3,8 +3,11 @@
 #include "MovementMode.h"
 #include "MoverComponent.h"
 #include "Engine/BlueprintGeneratedClass.h"
+#include "Misc/DataValidation.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(MovementMode)
+
+#define LOCTEXT_NAMESPACE "Mover"
 
 UBaseMovementMode::UBaseMovementMode(const FObjectInitializer& ObjectInitializer)
 	: Super(ObjectInitializer)
@@ -92,7 +95,14 @@ EDataValidationResult UBaseMovementMode::IsDataValid(FDataValidationContext& Con
 	EDataValidationResult Result = EDataValidationResult::Valid;
 	for (UBaseMovementModeTransition* Transition : Transitions)
 	{
-		if (Transition->IsDataValid(Context) == EDataValidationResult::Invalid)
+		if (!IsValid(Transition))
+		{
+			Context.AddError(FText::Format(LOCTEXT("InvalidTransitionError", "Invalid or missing transition object on mode of type {0}. Clean up the Transitions array."),
+				FText::FromString(GetClass()->GetName())));
+
+			Result = EDataValidationResult::Invalid;
+		}
+		else if (Transition->IsDataValid(Context) == EDataValidationResult::Invalid)
 		{
 			Result = EDataValidationResult::Invalid;
 		}
@@ -119,3 +129,4 @@ void UBaseMovementMode::OnSimulationTick(const FSimulationTickParams& Params, FM
 {
 }
 
+#undef LOCTEXT_NAMESPACE
