@@ -43,6 +43,9 @@ struct FNDIRigidMeshCollisionArrays
 	TArray<int32> ComponentIdIndex;
 	TArray<FPrimitiveComponentId> UniqueCompnentId;
 
+	FVector3f CombinedBBoxWorldMin;
+	FVector3f CombinedBBoxWorldMax;
+
 	FNDIRigidMeshCollisionArrays() = delete;
 	FNDIRigidMeshCollisionArrays(uint32 Num)
 		: MaxPrimitives(Num)
@@ -267,12 +270,13 @@ public:
 
 	bool GetExplicitActors(FNDIRigidMeshCollisionData& InstanceData);
 	bool FindActors(UWorld* World, FNDIRigidMeshCollisionData& InstanceData, ECollisionChannel Channel, const FVector& OverlapLocation, const FVector& OverlapExtent, const FQuat& OverlapRotation) const;
-
+	
 	UE_DEPRECATED(5.2, "Global search will be deprecated in favor of using a spatial search through the FindActors function.")
 	bool GlobalFindActors(UWorld* World, FNDIRigidMeshCollisionData& InstanceData) const;
 
 	void FindActorsCPU(FVectorVMExternalFunctionContext& Context);
 	void GetNumElementsCPU(FVectorVMExternalFunctionContext& Context);
+	void IsWorldPositionInsideCombinedBoundsCPU(FVectorVMExternalFunctionContext& Context);
 
 #if WITH_EDITOR
 	virtual void GetFeedback(UNiagaraSystem* InAsset, UNiagaraComponent* InComponent, TArray<FNiagaraDataInterfaceError>& OutErrors, TArray<FNiagaraDataInterfaceFeedback>& OutWarnings, TArray<FNiagaraDataInterfaceFeedback>& OutInfo) override;
