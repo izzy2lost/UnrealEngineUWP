@@ -11,11 +11,15 @@ IMPLEMENT_MODULE(FWindowsPlatformFeaturesModule, WindowsPlatformFeatures);
 
 FWindowsPlatformFeaturesModule::FWindowsPlatformFeaturesModule()
 {
-	VideoRecordingSystem = MakeShared<FWindowsVideoRecordingSystem>();
 }
 
 IVideoRecordingSystem* FWindowsPlatformFeaturesModule::GetVideoRecordingSystem()
 {
+	if (!VideoRecordingSystem)
+	{
+		VideoRecordingSystem = MakeShared<FWindowsVideoRecordingSystem>();
+	}
+	
 	return VideoRecordingSystem.Get();
 }
 
