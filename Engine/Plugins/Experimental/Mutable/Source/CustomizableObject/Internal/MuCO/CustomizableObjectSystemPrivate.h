@@ -548,10 +548,8 @@ public:
 	int64 UpdateEndPeakBytes = 0;
 	int64 UpdateEndRealPeakBytes = 0;
 	
-#if WITH_EDITOR
 	/** Used for profiling in the editor. */
 	uint32 MutableRuntimeCycles = 0;
-#endif
 
 	/** Hard references to objects. Avoids GC to collect them. */
 	TArray<TObjectPtr<const UObject>> Objects;
