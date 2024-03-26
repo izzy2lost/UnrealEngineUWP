@@ -431,6 +431,8 @@ struct FNetworkPhysicsData
 
 	/** Define how to compare client and server data for the same frame, returning false means the data differ enough to trigger a resimulation.
 	* @param PredictedData is data predicted on the client to compare with the current data received from the server.
+	* NOTE: To use this function, CVars np2.Resim.CompareStateToTriggerRewind and/or np2.Resim.CompareInputToTriggerRewind needs to be set to true
+	* or the equivalent settings overridden on the actor via UNetworkPhysicsSettingsComponent. 
 	*/
 	virtual bool CompareData(const FNetworkPhysicsData& PredictedData) { return true; }
 
