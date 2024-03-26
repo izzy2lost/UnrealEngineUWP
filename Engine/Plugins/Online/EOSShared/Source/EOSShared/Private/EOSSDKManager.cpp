@@ -556,7 +556,7 @@ IEOSPlatformHandlePtr FEOSSDKManager::CreatePlatform(const FString& PlatformConf
 
 	EOS_Platform_Options PlatformOptions = {};
 	PlatformOptions.ApiVersion = 13;
-	UE_EOS_CHECK_API_MISMATCH(EOS_PLATFORM_OPTIONS_API_LATEST, 13);
+	UE_EOS_CHECK_API_MISMATCH(EOS_PLATFORM_OPTIONS_API_LATEST, 14);
 	PlatformOptions.Reserved = nullptr;
 	ApplySystemSpecificOptions(PlatformOptions.SystemSpecificOptions);
 	ApplyIntegratedPlatformOptions(PlatformOptions.IntegratedPlatformOptionsContainerHandle);
@@ -585,6 +585,7 @@ IEOSPlatformHandlePtr FEOSSDKManager::CreatePlatform(const FString& PlatformConf
 	}
 
 	PlatformOptions.TickBudgetInMilliseconds = PlatformConfig->TickBudgetInMilliseconds;
+	PlatformOptions.TaskNetworkTimeoutSeconds = nullptr;
 
 	EOS_Platform_RTCOptions PlatformRTCOptions = {};
 	PlatformRTCOptions.ApiVersion = 2;
