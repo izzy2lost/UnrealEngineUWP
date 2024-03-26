@@ -2226,39 +2226,44 @@ TMap<FString, FString> GenerateAdditionalAssetMappings(const TMap<FString, FStri
 	TMap<FString, FString> Result;
 
 	TCHAR SrcNameBuffer[NAME_SIZE];
-	TCHAR DstNameBuffer[NAME_SIZE];
 	for (const TTuple<FString, FString>& Package : SourceAndDestPackages)
 	{
-		// We make FName's out of our incoming string package names
-		// as on rare occasion some of them have a '_[0-9]+' tail.
-		// Making FNames parse and strip this number on construction
-		// which then makes it consistent with how the are found in the name and import tables.
-		FName SrcName = *Package.Key;
-		int32 SrcNameLen = (int32)SrcName.GetPlainNameString(SrcNameBuffer);
-		FStringView SrcNameView{ SrcNameBuffer, SrcNameLen };
-
-		FName DstName = *Package.Value;
-		int32 DstNameLen = (int32)DstName.GetPlainNameString(DstNameBuffer);
-		FStringView DstNameView{ DstNameBuffer, DstNameLen };		
-
-		if (SrcNameLen != Package.Key.Len())
-		{
-			Result.Add({ FString(SrcNameView), FString(DstNameView) });
-		}
+		const FString& SrcNameString = Package.Key;
+		const FString& DstNameString = Package.Value;
 
 		// FPathViews::GetBaseFilename gives the same result as FPackageName::GetShortName
 		// for a file path, but returns a StringView not a String.
-		FStringView SrcPackageName = FPathViews::GetBaseFilename(SrcNameView);
-		FStringView DstPackageName = FPathViews::GetBaseFilename(DstNameView);
+		FStringView SrcPackageName = FPathViews::GetBaseFilename(SrcNameString);
+		FStringView DstPackageName = FPathViews::GetBaseFilename(DstNameString);
 
 		// Inject Path.ObjectName
 		// NOTE: this would be better to use a string builder.
-		Result.Add({ FString(SrcNameView) + TCHAR('.') + SrcPackageName, FString(DstNameView) + TCHAR('.') + DstPackageName });
+		Result.Add({ SrcNameString + TCHAR('.') + SrcPackageName, DstNameString + TCHAR('.') + DstPackageName });
 		if (SrcPackageName != DstPackageName)
 		{
 			Result.Add({ FString(SrcPackageName), FString(DstPackageName) });
 			Result.Add({ FString(SrcPackageName) + TEXT("_C"), FString(DstPackageName) + TEXT("_C") }); // catch compiled blueprint names
 			Result.Add({ DEFAULT_OBJECT_PREFIX + FString(SrcPackageName) + TEXT("_C"), DEFAULT_OBJECT_PREFIX + FString(DstPackageName) + TEXT("_C") }); // BPGC default object
+		}
+
+		{
+			// We make FName's out of our incoming string package names
+			// as on rare occasion some of them have a '_[0-9]+' tail.
+			// Making FNames parse and strip this number on construction
+			// which then makes it consistent with how the are found in the name and import tables.
+			
+			FName SrcName = *SrcNameString;										// vk_0/vk_0
+			int32 SrcNameLen = (int32)SrcName.GetPlainNameString(SrcNameBuffer);
+			FStringView SrcNameView{ SrcNameBuffer, SrcNameLen };				// vk_0/vk
+
+			if (SrcNameLen != SrcNameString.Len())
+			{
+				FStringView ShortSrcPackageName = FPathViews::GetBaseFilename(SrcNameView);	// vk
+
+				Result.Add({ FString(SrcNameView), DstNameString });			// vk_0/vk		=> Destination
+				Result.Add({ SrcNameString + TCHAR('.') + ShortSrcPackageName,	// vk_0/vk_0.vk => Destination.Dest
+							 DstNameString + TCHAR('.') + DstPackageName });
+			}
 		}
 	}
 
@@ -2724,14 +2729,32 @@ TMap<FString, FString> UAssetToolsImpl::GetMappingsForRootPackageRename(
 	const TArray<TPair<FString, FString>>& SourceAndDestFiles) const
 {
 	TMap<FString, FString> Result;
-	Result.Reserve(3 + SourceAndDestFiles.Num());
+	Result.Reserve(6 + SourceAndDestFiles.Num()); // usually only 3, +6 just in case
 
 	{	// Plugin name patterns
 		FString SrcPath = FPaths::Combine(TEXT("/"), SrcRoot, SrcRoot);
 		FString DstPath = FPaths::Combine(TEXT("/"), DstRoot, SrcRoot);
 
+		FName SrcRootName = *SrcRoot;
+		if (SrcRootName.GetDisplayNameEntry()->GetNameLength() != SrcRoot.Len())
+		{
+			// SrcRoot has a '_$Number' tail, so it looks like a FName
+			// IE: SrcRoot = Src_1
+			FString ShortSrcRoot = SrcRootName.GetPlainNameString(); // Src
+			FString ShortSrcPath = FPaths::Combine(TEXT("/"), SrcRoot, ShortSrcRoot);
+
+			Result.Add(SrcPath + TEXT(".") + ShortSrcRoot, DstPath + TEXT(".") + SrcRoot);	// /Src_1/Src_1.Src -> /Dst/Src_1.Src_1
+			Result.Add(MoveTemp(ShortSrcPath), DstPath);							        // /Src_1/Src       -> /Dst/Src_1
+
+			// Root package patching has a special case for the GameFeatureData file,
+			// Specifically the PrimaryAssetName in it Tag Data inside the Asset Registry.
+			// This is the only place we need the Root -> Root rename so we target that Key inside that file explicitly
+			// with this name decoration which the FAssetHeaderPatcher will use for just this case.
+			Result.Add(TEXT("<GameFeatureData.PrimaryAssetName>") + ShortSrcRoot, DstRoot);	// <GameFeatureData.PrimaryAssetName>Src -> Dst (for matching in specific modes)
+		}
+
 		Result.Add(SrcPath + TEXT(".") + SrcRoot, DstPath + TEXT(".") + SrcRoot);	// /Src/Src.Src -> /Dst/Src.Src
-		Result.Add(MoveTemp(SrcPath), MoveTemp(DstPath));					// /Src/Src     -> /Dst/Src
+		Result.Add(MoveTemp(SrcPath), MoveTemp(DstPath));							// /Src/Src     -> /Dst/Src
 		Result.Add(TEXT("<GameFeatureData.PrimaryAssetName>") + SrcRoot, DstRoot);	// <GameFeatureData.PrimaryAssetName>Src -> Dst (for matching in specific modes)
 	}
 

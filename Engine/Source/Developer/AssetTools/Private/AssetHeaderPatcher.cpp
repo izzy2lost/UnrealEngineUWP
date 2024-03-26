@@ -6,17 +6,18 @@
 #include "UObject/PackageFileSummary.h"
 #include "UObject/NameTypes.h"
 #include "UObject/ObjectResource.h"
+#include "UObject/Package.h"
+
 #include "AssetRegistry/IAssetRegistry.h"
+#include "AssetRegistry/AssetData.h"
 
 #include "Misc/EnumerateRange.h"
 #include "Misc/FileHelper.h"
 #include "Misc/PackageName.h"
 #include "Misc/PathViews.h"
-#include "UObject/Package.h"
 #include "Serialization/LargeMemoryReader.h"
 #include "WorldPartition/WorldPartitionActorDesc.h"
 #include "WorldPartition/WorldPartitionActorDescUtils.h"
-#include "AssetRegistry/AssetData.h"
 
 DEFINE_LOG_CATEGORY_STATIC(LogAssetHeaderPatcher, Log, All);
 
@@ -124,7 +125,7 @@ namespace
 			if (NameTable.IsValidIndex(NameIndex))
 			{
 				FNameEntryId MappedName = NameTable[NameIndex].GetDisplayIndex();
-				OutName = FName::CreateFromDisplayId(MappedName, MappedName ? Number : 0);
+				OutName = FName::CreateFromDisplayId(MappedName, Number);
 			}
 			else
 			{
@@ -610,12 +611,41 @@ bool FAssetHeaderPatcherInner::DoPatch(FString& InOutString)
 
 bool FAssetHeaderPatcherInner::DoPatch(FName& InOutName)
 {
-	FString Value = InOutName.GetPlainNameString();
-	if (DoPatch(Value))
+	// FNames are first compared with as a ToString which may include a `_[0-9+]` tail.
+	// This is because FNames can be used as a file name can have these characters.
+	// FNames are then compared without this number if one is present as they are used to link objects
+	// within the object domain and the migration being performed may not care about the number.
+
+	// If a new value it is important that the new FName is created in a deterministic way.
+	// So, if the new value has a numeric tail, this ios used.
+	// If not, then the original number is used.
+
+	bool bFound = false;
+	FString Value = InOutName.ToString();
+	bFound = DoPatch(Value);
+
+	if (!bFound && InOutName.GetNumber() != 0)
 	{
-		// Use the same Number as the original Name for consistency.
-		// Otherwise different files with the same name, generate different numbers, and this breaks linking.
-		InOutName = FName(Value, InOutName.GetNumber());
+		// We didn't find it, and it had a number, so try without the number.
+		Value = InOutName.GetPlainNameString();
+		bFound = DoPatch(Value);
+	}
+
+	if (bFound)
+	{
+		// If the string comes with its own number, preserve it.
+		// If not preserve the original number.
+		FName Tmp(*Value);
+		if (Tmp.GetDisplayNameEntry()->GetNameLength() != Value.Len())
+		{
+			// Value had a '_[0-9]+' tail.
+			InOutName = Tmp;
+		}
+		else
+		{
+			// Value did not have a tail, so use the original number.
+			InOutName = FName(Value, InOutName.GetNumber());
+		}
 		return true;
 	}
 	return false;
@@ -729,7 +759,7 @@ void FAssetHeaderPatcherInner::PatchHeader_PatchSections()
 
 		{	// ObjData.ObjectData.ObjectClassName is stored as a string, but is used as a FTopLevelAssetPath
 			FTopLevelAssetPath Tmp(ObjData.ObjectData.ObjectClassName);
-			if (DoPatch(Tmp)) 
+			if (DoPatch(Tmp))
 			{
 				FString TS = Tmp.ToString();
 				ObjData.ObjectData.ObjectClassName = TS;
@@ -755,7 +785,7 @@ void FAssetHeaderPatcherInner::PatchHeader_PatchSections()
 					virtual bool DoPatch(FTopLevelAssetPath& InOutPath) override { return Inner->DoPatch(InOutPath); }
 					FAssetHeaderPatcherInner* Inner;
 				};
-				
+
 				FString PatchedAssetData;
 				FWorldPartitionAssetDataPatcherInner Patcher(this);
 				if (FWorldPartitionActorDescUtils::GetPatchedAssetDataFromAssetData(AssetData, PatchedAssetData, &Patcher))
@@ -764,16 +794,16 @@ void FAssetHeaderPatcherInner::PatchHeader_PatchSections()
 				}
 			}
 			else if (bBespokeSearchInUse &&
-					 FPathViews::GetBaseFilename(ObjData.ObjectData.ObjectPath) == TEXT("GameFeatureData") &&
-				     TagData.Key == TEXT("PrimaryAssetName"))
+				FPathViews::GetBaseFilename(ObjData.ObjectData.ObjectPath) == TEXT("GameFeatureData") &&
+				TagData.Key == TEXT("PrimaryAssetName"))
 			{
 				FString BespokeSearchValue = TEXT("<GameFeatureData.PrimaryAssetName>") + TagData.Value;
-				if (DoPatch(BespokeSearchValue)) 
+				if (DoPatch(BespokeSearchValue))
 				{
 					TagData.Value = BespokeSearchValue;
 				}
 			}
-			else 
+			else
 			{
 				DoPatch(TagData.Value);
 			}
