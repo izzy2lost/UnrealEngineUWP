@@ -42,25 +42,6 @@ namespace UE::Chaos::ClothAsset::Private
 	};
 }
 
-// ------------------- Builder -------------------
-
-void UClothTransferSkinWeightsToolBuilder::GetSupportedViewModes(TArray<UE::Chaos::ClothAsset::EClothPatternVertexType>& Modes) const
-{
-	Modes.Add(UE::Chaos::ClothAsset::EClothPatternVertexType::Sim3D);
-}
-
-USingleSelectionMeshEditingTool* UClothTransferSkinWeightsToolBuilder::CreateNewTool(const FToolBuilderState& SceneState) const
-{
-	UClothTransferSkinWeightsTool* NewTool = NewObject<UClothTransferSkinWeightsTool>(SceneState.ToolManager);
-
-	if (UClothEditorContextObject* ContextObject = SceneState.ToolManager->GetContextObjectStore()->FindContext<UClothEditorContextObject>())
-	{
-		NewTool->SetClothEditorContextObject(ContextObject);
-	}
-
-	return NewTool;
-}
-
 
 // ------------------- Tool -------------------
 

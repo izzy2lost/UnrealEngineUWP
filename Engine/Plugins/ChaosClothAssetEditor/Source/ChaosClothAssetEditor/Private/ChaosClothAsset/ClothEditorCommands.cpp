@@ -2,8 +2,7 @@
 
 #include "ChaosClothAsset/ClothEditorCommands.h"
 #include "ChaosClothAsset/ClothEditorStyle.h"
-#include "ChaosClothAsset/ClothWeightMapPaintTool.h"
-#include "ChaosClothAsset/ClothMeshSelectionTool.h"
+#include "ChaosClothAsset/ClothEditorToolBuilders.h"
 
 #define LOCTEXT_NAMESPACE "FChaosClothAssetEditorCommands"
 
@@ -74,7 +73,7 @@ void FChaosClothAssetEditorCommands::RegisterCommands()
 
 void FChaosClothAssetEditorCommands::GetToolDefaultObjectList(TArray<UInteractiveTool*>& ToolCDOs)
 {
-	ToolCDOs.Add(GetMutableDefault<UClothEditorWeightMapPaintTool>());
+	GetClothEditorToolDefaultObjectList(ToolCDOs);
 }
 
 void FChaosClothAssetEditorCommands::UpdateToolCommandBinding(UInteractiveTool* Tool, TSharedPtr<FUICommandList> UICommandList, bool bUnbind)

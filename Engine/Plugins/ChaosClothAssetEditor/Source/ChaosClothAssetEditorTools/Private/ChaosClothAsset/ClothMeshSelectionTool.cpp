@@ -10,8 +10,6 @@
 #include "ChaosClothAsset/WeightedValue.h"
 #include "InteractiveToolManager.h"
 #include "PreviewMesh.h"
-#include "TargetInterfaces/PrimitiveComponentBackedTarget.h"
-#include "ToolTargetManager.h"
 #include "Selection/PolygonSelectionMechanic.h"
 #include "ModelingToolTargetUtil.h"
 #include "GroupTopology.h"
@@ -29,43 +27,6 @@
 
 #define LOCTEXT_NAMESPACE "ClothMeshSelectionTool"
 
-
-// ------------------- Builder -------------------
-
-void UClothMeshSelectionToolBuilder::GetSupportedViewModes(TArray<UE::Chaos::ClothAsset::EClothPatternVertexType>& Modes) const
-{
-	Modes.Add(UE::Chaos::ClothAsset::EClothPatternVertexType::Sim3D);
-	Modes.Add(UE::Chaos::ClothAsset::EClothPatternVertexType::Sim2D);
-	Modes.Add(UE::Chaos::ClothAsset::EClothPatternVertexType::Render);
-}
-
-const FToolTargetTypeRequirements& UClothMeshSelectionToolBuilder::GetTargetRequirements() const
-{
-	static FToolTargetTypeRequirements TypeRequirements(
-		UPrimitiveComponentBackedTarget::StaticClass());
-	return TypeRequirements;
-}
-
-bool UClothMeshSelectionToolBuilder::CanBuildTool(const FToolBuilderState& SceneState) const
-{
-	return (SceneState.TargetManager->CountSelectedAndTargetable(SceneState, GetTargetRequirements()) == 1);
-}
-
-UInteractiveTool* UClothMeshSelectionToolBuilder::BuildTool(const FToolBuilderState& SceneState) const
-{
-	UClothMeshSelectionTool* const NewTool = NewObject<UClothMeshSelectionTool>(SceneState.ToolManager);
-
-	UToolTarget* const Target = SceneState.TargetManager->BuildFirstSelectedTargetable(SceneState, GetTargetRequirements());
-	NewTool->SetTarget(Target);
-	NewTool->SetWorld(SceneState.World);
-
-	if (UClothEditorContextObject* const ContextObject = SceneState.ToolManager->GetContextObjectStore()->FindContext<UClothEditorContextObject>())
-	{
-		NewTool->SetClothEditorContextObject(ContextObject);
-	}
-
-	return NewTool;
-}
 
 // ------------------- Actions ----------------------
 void UClothMeshSelectionToolActions::PostAction(EClothMeshSelectionToolActions Action)

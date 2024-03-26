@@ -22,7 +22,6 @@
 #include "TransformTypes.h"
 #include "ToolDataVisualizer.h"
 #include "GroupTopology.h"
-#include "ChaosClothAsset/ClothEditorToolBuilder.h"
 #include "ClothWeightMapPaintTool.generated.h"
 
 class UMeshElementsVisualizer;
@@ -46,23 +45,6 @@ DECLARE_CYCLE_STAT(TEXT("WeightMapPaintTool_Tick_UpdateTargetBlock"), WeightMapP
 DECLARE_CYCLE_STAT(TEXT("WeightMapPaintTool_Normals_Collect"), WeightMapPaintTool_Normals_Collect, STATGROUP_WeightMapPaintTool);
 DECLARE_CYCLE_STAT(TEXT("WeightMapPaintTool_Normals_Compute"), WeightMapPaintTool_Normals_Compute, STATGROUP_WeightMapPaintTool);
 
-
-
-
-
-/**
- * Tool Builder
- */
-UCLASS()
-class CHAOSCLOTHASSETEDITORTOOLS_API UClothEditorWeightMapPaintToolBuilder : public UMeshSurfacePointMeshEditingToolBuilder, public IChaosClothAssetEditorToolBuilder
-{
-	GENERATED_BODY()
-
-private:
-	virtual void GetSupportedViewModes(TArray<UE::Chaos::ClothAsset::EClothPatternVertexType>& Modes) const override;
-	virtual UMeshSurfacePointTool* CreateNewTool(const FToolBuilderState& SceneState) const override;
-	virtual bool CanSetConstructionViewWireframeActive() const { return false; }
-};
 
 UENUM()
 enum class EClothEditorWeightMapDisplayType : uint8
