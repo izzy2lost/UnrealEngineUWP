@@ -1516,17 +1516,18 @@ void FViewInfo::SetupUniformBufferParameters(
 	ViewUniformShaderParameters.AtmosphereIrradianceTextureSampler = TStaticSamplerState<SF_Bilinear>::GetRHI();
 	ViewUniformShaderParameters.AtmosphereInscatterTextureSampler = TStaticSamplerState<SF_Bilinear>::GetRHI();
 
-	// Update environment holdout flags
-	ViewUniformShaderParameters.EnvironmentComponentsFlags = 0;
+	// Upload environment holdout flags
+	ViewUniformShaderParameters.EnvironmentComponentsFlags = FIntVector4(EForceInit::ForceInitToZero);
 	if (Scene)
 	{
+		int32 Flags = 0;
 		if (ShouldRenderSkyAtmosphere(Scene, Family->EngineShowFlags))
 		{
 			FSkyAtmosphereRenderSceneInfo* SkyAtmosphere = Scene->SkyAtmosphere;
 			const FSkyAtmosphereSceneProxy& SkyAtmosphereSceneProxy = SkyAtmosphere->GetSkyAtmosphereSceneProxy();
 
-			ViewUniformShaderParameters.EnvironmentComponentsFlags |= SkyAtmosphereSceneProxy.IsHoldout() ? ENVCOMP_FLAG_SKYATMOSPHERE_HOLDOUT : 0;
-			ViewUniformShaderParameters.EnvironmentComponentsFlags |= SkyAtmosphereSceneProxy.IsRenderedInMainPass() ? ENVCOMP_FLAG_SKYATMOSPHERE_RENDERINMAIN : 0;
+			Flags |= SkyAtmosphereSceneProxy.IsHoldout() ? ENVCOMP_FLAG_SKYATMOSPHERE_HOLDOUT : 0;
+			Flags |= SkyAtmosphereSceneProxy.IsRenderedInMainPass() ? ENVCOMP_FLAG_SKYATMOSPHERE_RENDERINMAIN : 0;
 		}
 
 		if (ShouldRenderVolumetricCloud(Scene, Family->EngineShowFlags))
@@ -1534,17 +1535,19 @@ void FViewInfo::SetupUniformBufferParameters(
 			FVolumetricCloudRenderSceneInfo* VolumetricCloud = Scene->VolumetricCloud;
 			const FVolumetricCloudSceneProxy& VolumetricCloudSceneProxy = VolumetricCloud->GetVolumetricCloudSceneProxy();
 
-			ViewUniformShaderParameters.EnvironmentComponentsFlags |= VolumetricCloudSceneProxy.bHoldout ? ENVCOMP_FLAG_VOLUMETRICCLOUD_HOLDOUT : 0;
-			ViewUniformShaderParameters.EnvironmentComponentsFlags |= VolumetricCloudSceneProxy.bRenderInMainPass ? ENVCOMP_FLAG_VOLUMETRICCLOUD_RENDERINMAIN : 0;
+			Flags |= VolumetricCloudSceneProxy.bHoldout ? ENVCOMP_FLAG_VOLUMETRICCLOUD_HOLDOUT : 0;
+			Flags |= VolumetricCloudSceneProxy.bRenderInMainPass ? ENVCOMP_FLAG_VOLUMETRICCLOUD_RENDERINMAIN : 0;
 		}
 
 		if (Scene->ExponentialFogs.Num() > 0)
 		{
 			FExponentialHeightFogSceneInfo& Fog = Scene->ExponentialFogs[0];
 
-			ViewUniformShaderParameters.EnvironmentComponentsFlags |= Fog.bHoldout ? ENVCOMP_FLAG_EXPONENTIALFOG_HOLDOUT : 0;
-			ViewUniformShaderParameters.EnvironmentComponentsFlags |= Fog.bRenderInMainPass ? ENVCOMP_FLAG_EXPONENTIALFOG_RENDERINMAIN : 0;
+			Flags |= Fog.bHoldout ? ENVCOMP_FLAG_EXPONENTIALFOG_HOLDOUT : 0;
+			Flags |= Fog.bRenderInMainPass ? ENVCOMP_FLAG_EXPONENTIALFOG_RENDERINMAIN : 0;
 		}
+
+		ViewUniformShaderParameters.EnvironmentComponentsFlags.X = Flags;
 	}
 
 	// This should probably be in SetupCommonViewUniformBufferParameters, but drags in too many dependencies
