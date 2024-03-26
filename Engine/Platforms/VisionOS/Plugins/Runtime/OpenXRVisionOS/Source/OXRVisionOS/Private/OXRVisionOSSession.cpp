@@ -93,10 +93,6 @@ FOXRVisionOSSession::FOXRVisionOSSession(const XrSessionCreateInfo* createInfo, 
 		bCreateFailed = true;
 		return;
 	}
-	
-	for (int32 i = 0; i < RenderToGameHeadTransformBufferLength; ++i) {
-		RenderToGameHeadTransform[i] = matrix_identity_float4x4;
-	}
 
 	//if (FOXRVisionOSController::Create(Controllers, this) == false)
 	//{
@@ -872,69 +868,62 @@ XrResult FOXRVisionOSSession::XrWaitFrame(
 	}
 
 	PipelinedFrameStateGame.FrameCounter = SessionFrameCounter++;
-	PipelinedFrameStateGame.RenderToGameHeadTransformIndexRead++;
-	UE_LOG(LogOXRVisionOS, Verbose, TEXT("%s FC: %i XrWaitFrameEvent->Wait() Finished"), VOSThreadString(), PipelinedFrameStateGame.FrameCounter);
-    
-    PipelinedFrameStateGame.SwiftFrame = cp_layer_renderer_query_next_frame(VOSLayerRenderer);
-    UE_LOG(LogOXRVisionOS, Verbose, TEXT("%s FC: %i SLF=0x%x cp_layer_renderer_query_next_frame in FOXRVisionOSSession::XrWaitFrame SwiftLayerFrame fetched"), VOSThreadString(), PipelinedFrameStateGame.FrameCounter, PipelinedFrameStateGame.SwiftFrame);
-
-    // Fetch the predicted timing information.
-    PipelinedFrameStateGame.SwiftFrameTiming = cp_frame_predict_timing(PipelinedFrameStateGame.SwiftFrame);
-    if ( PipelinedFrameStateGame.SwiftFrameTiming == nullptr)
-    {
-        //TODO ??? failed frame?
-        // This means the layer is not in the correct state  Perhaps we are either running too early or we need to end the session.
-        // we might want to return XR_ERROR_SESSION_NOT_RUNNING here, but only if we actually end the session first.
-        assert(false);
-        //return;
-    }
-
-    // Mark the beginnng of our game thread update work.  All the stuff before rendering.
-    UE_LOG(LogOXRVisionOS, Verbose, TEXT("%s FC: %i SLF: 0x%x cp_frame_start_update in FOXRVisionOSSession::XrWaitFrame"), VOSThreadString(), PipelinedFrameStateGame.FrameCounter, PipelinedFrameStateGame.SwiftFrame);
-    cp_frame_start_update(PipelinedFrameStateGame.SwiftFrame);
-
-    const cp_time_t PresentationTime = cp_frame_timing_get_presentation_time(PipelinedFrameStateGame.SwiftFrameTiming);
-    const CFTimeInterval TargetRenderTime = cp_time_to_cf_time_interval(PresentationTime); // CRTimeInterval is double time in seconds.
+	// Each frame we read this index on the game thread and then we write the index after this on the render thread.
+	PipelinedFrameStateGame.RenderToGameFrameStateIndex++;
+	UE_LOG(LogOXRVisionOS, VeryVerbose, TEXT("%s FC_%i XrWaitFrameEvent->Wait() Finished"), VOSThreadString(), PipelinedFrameStateGame.FrameCounter);
+    	
 
 	XrTime DisplayPeriod = 6 * 1000000; //TODO other frame sequences?  This is 90fps
 	frameState->predictedDisplayPeriod = DisplayPeriod;
-	frameState->predictedDisplayTime = OXRVisionOS::APITimeToXrTime(TargetRenderTime);
-	PipelinedFrameStateGame.PredictedDisplayTime = frameState->predictedDisplayTime;
 	
-	UE_LOG(LogOXRVisionOS, Verbose, TEXT("%s FC: %i SLF: 0x%x cp_frame_timing_get_presentation_time in FOXRVisionOSSession::XrWaitFrame TargetRenderTime =  %f xr predictedDisplayTime=%f"), VOSThreadString(), PipelinedFrameStateGame.FrameCounter, PipelinedFrameStateGame.SwiftFrame, (double)TargetRenderTime, (double)frameState->predictedDisplayTime);
-
-
-	PipelinedFrameStateGame.DeviceAnchor = ar_device_anchor_create();
-	check(ARKitWorldTrackingProvider)
-	{
-		//TODO: use a previous frame transform here, because we can't call this function from multiple threads
-		//TEMP use a lock.
-		FScopeLock ScopeLock(&CriticalSection_ar_world_tracking_provider_query_device_anchor_at_timestamp);
-		auto anchor_status = ar_world_tracking_provider_query_device_anchor_at_timestamp(ARKitWorldTrackingProvider, TargetRenderTime, PipelinedFrameStateGame.DeviceAnchor);
-		if (anchor_status == ar_device_anchor_query_status_success)
-		{
-			// Get the HMD transform and cache it
-			PipelinedFrameStateGame.HeadTransform = ar_anchor_get_origin_from_anchor_transform(PipelinedFrameStateGame.DeviceAnchor);
-		}
-		else
-		{
-			// Cache identity as the HMD transform as a fallback
-			PipelinedFrameStateGame.HeadTransform = matrix_identity_float4x4;
-		}
-	}
-
-//	PipelinedFrameStateGame.HeadTransform = RenderToGameHeadTransformRead(PipelinedFrameStateGame);
+	RenderToGameFrameStateRead(PipelinedFrameStateGame);
+	XrTime EarlyPredictionTime = OXRVisionOS::APITimeToXrTime(PipelinedFrameStateGame.PreviousPredictionTime);
+	EarlyPredictionTime += DisplayPeriod;
 	
+	frameState->predictedDisplayTime = EarlyPredictionTime;
+	
+	UE_LOG(LogOXRVisionOS, VeryVerbose, TEXT("%s FC_%i SLF_0x%x FOXRVisionOSSession::XrWaitFrame estimated XrTime predictedDisplayTime=%lld"), VOSThreadString(), PipelinedFrameStateGame.FrameCounter, PipelinedFrameStateGame.SwiftFrame, frameState->predictedDisplayTime);
+
     LocateViewInfoIndexAdvance();
 
 	frameState->shouldRender = SessionState == XR_SESSION_STATE_FOCUSED || SessionState == XR_SESSION_STATE_VISIBLE;
 
 	// We have to pipeline state updates in order to prevent task overlap (esp during map loading where we kick extra renders)
-	ENQUEUE_RENDER_COMMAND(UpdatePipelinedFrameState)([this, NewRenderingFrameState = PipelinedFrameStateGame](FRHICommandListImmediate& RHICmdList)
+	ENQUEUE_RENDER_COMMAND(UpdatePipelinedFrameState)([this, GameFrameState = PipelinedFrameStateGame](FRHICommandListImmediate& RHICmdList)
 	{
-		UE_LOG(LogOXRVisionOS, Verbose, TEXT("%s FC: %i SLF: 0x%x UpdatePipelinedFrameState G->R "), VOSThreadString(), NewRenderingFrameState.FrameCounter, NewRenderingFrameState.SwiftFrame);
+		UE_LOG(LogOXRVisionOS, VeryVerbose, TEXT("%s FC_%i  UpdatePipelinedFrameState G->R "), VOSThreadString(), GameFrameState.FrameCounter);
 		check(IsInRenderingThread());
-		PipelinedFrameStateRendering = NewRenderingFrameState;
+		
+		FPipelinedFrameState& FrameState = PipelinedFrameStateRendering;
+		FrameState = GameFrameState;
+		
+		FrameState.SwiftFrame = cp_layer_renderer_query_next_frame(VOSLayerRenderer);
+		UE_LOG(LogOXRVisionOS, VeryVerbose, TEXT("%s FC_%i SLF_0x%x  FOXRVisionOSSession::XrWaitFrame cp_layer_renderer_query_next_frame SwiftLayerFrame fetched"), VOSThreadString(), FrameState.FrameCounter, FrameState.SwiftFrame);
+
+		// Fetch the predicted timing information.
+		FrameState.SwiftFrameTiming = cp_frame_predict_timing(FrameState.SwiftFrame);
+		if ( FrameState.SwiftFrameTiming == nullptr)
+		{
+			//TODO ??? failed frame?
+			// This means the layer is not in the correct state  Perhaps we are either running too early or we need to end the session.
+			// we might want to return XR_ERROR_SESSION_NOT_RUNNING here, but only if we actually end the session first.
+			assert(false);
+			//return;
+		}
+		
+		CFTimeInterval TargetRenderTimeInterval = cp_time_to_cf_time_interval(cp_frame_timing_get_presentation_time(FrameState.SwiftFrameTiming));
+
+		UE_LOG(LogOXRVisionOS, VeryVerbose, TEXT("%s FC_%i SLF_0x%x FOXRVisionOSSession::XrWaitFrame cp_frame_predict_timing gave xr TargetRenderTimeInterval=%f"),
+			   VOSThreadString(), FrameState.FrameCounter, FrameState.SwiftFrame,
+			   (double)TargetRenderTimeInterval);
+
+		// Mark the beginnng of our game thread update work.  All the stuff before rendering.
+		UE_LOG(LogOXRVisionOS, VeryVerbose, TEXT("%s FC_%i SLF_0x%x FOXRVisionOSSession::XrWaitFrame cp_frame_start_update"), VOSThreadString(), FrameState.FrameCounter, FrameState.SwiftFrame);
+		cp_frame_start_update(FrameState.SwiftFrame);
+
+		FrameState.PredictedDisplayTime = OXRVisionOS::APITimeToXrTime(TargetRenderTimeInterval);
+		
+		cp_frame_end_update(FrameState.SwiftFrame);
 	});
 
 	// Update the STAGE space
@@ -946,18 +935,19 @@ XrResult FOXRVisionOSSession::XrWaitFrame(
 void FOXRVisionOSSession::OnBeginRendering_GameThread()
 {
     // Mark the end of our game frame
-    if (PipelinedFrameStateGame.SwiftFrame)
-    {
-		UE_LOG(LogOXRVisionOS, Verbose, TEXT("%s FC: %i SLF: 0x%x cp_frame_end_update in FOXRVisionOSSession::OnBeginRendering_GameThread"), VOSThreadString(), PipelinedFrameStateGame.FrameCounter, PipelinedFrameStateGame.SwiftFrame);
-        cp_frame_end_update(PipelinedFrameStateGame.SwiftFrame);
-        PipelinedFrameStateGame.SwiftFrame = nullptr;
-    }
+	// Currently we are just not tracking the update phase at all.
+//    if (PipelinedFrameStateGame.SwiftFrame)
+//    {
+//		UE_LOG(LogOXRVisionOS, VeryVerbose, TEXT("%s FC_%i SLF_0x%x cp_frame_end_update in FOXRVisionOSSession::OnBeginRendering_GameThread"), VOSThreadString(), PipelinedFrameStateGame.FrameCounter, PipelinedFrameStateGame.SwiftFrame);
+//        cp_frame_end_update(PipelinedFrameStateGame.SwiftFrame);
+//        PipelinedFrameStateGame.SwiftFrame = nullptr;
+//    }
 }
 
 // FOpenXRHMD::OnBeginRendering_RenderThread
 void FOXRVisionOSSession::OnBeginRendering_RenderThread()
 {
-	UE_LOG(LogOXRVisionOS, VeryVerbose, TEXT("%s FC: %i SLF: 0x%x FOXRVisionOSSession::OnBeginRendering_RenderThread"), VOSThreadString(), PipelinedFrameStateRendering.FrameCounter, PipelinedFrameStateRendering.SwiftFrame);
+	UE_LOG(LogOXRVisionOS, VeryVerbose, TEXT("%s FC_%i SLF_0x%x FOXRVisionOSSession::OnBeginRendering_RenderThread"), VOSThreadString(), PipelinedFrameStateRendering.FrameCounter, PipelinedFrameStateRendering.SwiftFrame);
 	
 	WaitUntil();
     StartSubmission();
@@ -966,7 +956,7 @@ void FOXRVisionOSSession::OnBeginRendering_RenderThread()
 	FRHICommandListImmediate& RHICmdList = FRHICommandListImmediate::Get();
 	RHICmdList.EnqueueLambda([this, NewRHIFrameState = PipelinedFrameStateRendering](FRHICommandListImmediate&)
 	{
-		UE_LOG(LogOXRVisionOS, VeryVerbose, TEXT("%s FC: %i SLF: 0x%x UpdatePipelinedFrameStat R->I, but HeadTransform Cleared"), VOSThreadString(), NewRHIFrameState.FrameCounter, NewRHIFrameState.SwiftFrame);
+		UE_LOG(LogOXRVisionOS, VeryVerbose, TEXT("%s FC_%i SLF_0x%x UpdatePipelinedFrameStat R->I, but HeadTransform Cleared"), VOSThreadString(), NewRHIFrameState.FrameCounter, NewRHIFrameState.SwiftFrame);
 		
 		PipelinedFrameStateRHI = NewRHIFrameState;
 		PipelinedFrameStateRHI.HeadTransform = matrix_identity_float4x4; // overwrite to ensure rhi gets a new one before it uses one.
@@ -981,7 +971,7 @@ XrResult FOXRVisionOSSession::XrBeginFrame(
 
 	SCOPED_NAMED_EVENT_TEXT("FOXRVisionOSSession::XrBeginFrame", FColor::Turquoise);
 	
-	UE_LOG(LogOXRVisionOS, VeryVerbose, TEXT("%s FC: %i SLF: 0x%x XrBeginFrame"), VOSThreadString(), PipelinedFrameStateRHI.FrameCounter, PipelinedFrameStateRHI.SwiftFrame);
+	UE_LOG(LogOXRVisionOS, VeryVerbose, TEXT("%s FC_%i SLF_0x%x SD_0x%8x XrBeginFrame"), VOSThreadString(), PipelinedFrameStateRHI.FrameCounter, PipelinedFrameStateRHI.SwiftFrame, PipelinedFrameStateRHI.SwiftDrawable);
 
 	// frameBeginInfo can be null
 	if (FrameBeginInfo != nullptr && FrameBeginInfo->type != XR_TYPE_FRAME_BEGIN_INFO)
@@ -1028,15 +1018,6 @@ XrResult FOXRVisionOSSession::XrBeginFrame(
         // But the docs infer that ReprojectionBeginFrame and waitUntilSafeForRendering are tied :/
     }
     
-    {
-		FPipelinedFrameState& FrameState = PipelinedFrameStateRHI;
-        
-        FrameState.SwiftDrawable = cp_frame_query_drawable(FrameState.SwiftFrame);
-        check(FrameState.SwiftDrawable);
-		UE_LOG(LogOXRVisionOS, VeryVerbose, TEXT("%s FC: %i SLF: 0x%x SD: 0x%x cp_frame_query_drawable in FOXRVisionOSSession::XrBeginFrame SwiftDrawable fetched"), VOSThreadString(), FrameState.FrameCounter, FrameState.SwiftFrame, FrameState.SwiftDrawable);
-
-    }
-    
     //MetalRHIOXRVisionOS::WaitUntilSafeForRendering(PipelinedFrameStateRHI.CommandListContext, NextBackBufferIndex);
     PreviousBackBufferIndexInBegin = NextBackBufferIndex;
 
@@ -1047,73 +1028,67 @@ void FOXRVisionOSSession::WaitUntil()
 {
     FPipelinedFrameState& FrameState = GetPipelinedFrameStateForThread();
     
-	UE_LOG(LogOXRVisionOS, VeryVerbose, TEXT("%s FC: %i SLF: 0x%x SD: 0x%x cp_time_wait_until in FOXRVisionOSSession::WaitUntil started"), VOSThreadString(), FrameState.FrameCounter, FrameState.SwiftFrame, FrameState.SwiftDrawable);
-	
-    cp_time_wait_until(cp_frame_timing_get_optimal_input_time(FrameState.SwiftFrameTiming));
+	cp_time_t OptimalInputTime = cp_frame_timing_get_optimal_input_time(FrameState.SwiftFrameTiming);
+	CFTimeInterval TimeInterval = cp_time_to_cf_time_interval(OptimalInputTime);
 
-	UE_LOG(LogOXRVisionOS, VeryVerbose, TEXT("%s FC: %i SLF: 0x%x SD: 0x%x cp_time_wait_until in FOXRVisionOSSession::WaitUntil completed"), VOSThreadString(), FrameState.FrameCounter, FrameState.SwiftFrame, FrameState.SwiftDrawable);
+	UE_LOG(LogOXRVisionOS, VeryVerbose, TEXT("%s FC_%i SLF_0x%x SD_0x%8x FOXRVisionOSSession::WaitUntil cp_time_wait_until started waiting until OptimalInputTime %f"), VOSThreadString(), FrameState.FrameCounter, FrameState.SwiftFrame, FrameState.SwiftDrawable, TimeInterval);
+	
+    cp_time_wait_until(OptimalInputTime);
+	
+	UE_LOG(LogOXRVisionOS, VeryVerbose, TEXT("%s FC_%i SLF_0x%x SD_0x%8x FOXRVisionOSSession::WaitUntil cp_time_wait_until completed"), VOSThreadString(), FrameState.FrameCounter, FrameState.SwiftFrame, FrameState.SwiftDrawable);
 }
 
 void FOXRVisionOSSession::StartSubmission()
 {
     FPipelinedFrameState& FrameState = GetPipelinedFrameStateForThread();
 	
-	UE_LOG(LogOXRVisionOS, VeryVerbose, TEXT("%s FC: %i SLF: 0x%x SD: 0x%x cp_frame_start_submission in FOXRVisionOSSession::StartSubmission"), VOSThreadString(), FrameState.FrameCounter, FrameState.SwiftFrame, FrameState.SwiftDrawable);
+	UE_LOG(LogOXRVisionOS, VeryVerbose, TEXT("%s FC_%i SLF_0x%x SD_0x%8x FOXRVisionOSSession::StartSubmission cp_frame_start_submission"), VOSThreadString(), FrameState.FrameCounter, FrameState.SwiftFrame, FrameState.SwiftDrawable);
     
     cp_frame_start_submission(FrameState.SwiftFrame);
 
     FrameState.SwiftDrawable = cp_frame_query_drawable(FrameState.SwiftFrame);
     check(FrameState.SwiftDrawable);
 	
-	UE_LOG(LogOXRVisionOS, VeryVerbose, TEXT("%s FC: %i SLF: 0x%x SD: 0x%x cp_frame_query_drawable in FOXRVisionOSSession::StartSubmission got the SD again."), VOSThreadString(), FrameState.FrameCounter, FrameState.SwiftFrame, FrameState.SwiftDrawable);
+	UE_LOG(LogOXRVisionOS, VeryVerbose, TEXT("%s FC_%i SLF_0x%x SD_0x%8x FOXRVisionOSSession::StartSubmission cp_frame_query_drawable in got the SD again."), VOSThreadString(), FrameState.FrameCounter, FrameState.SwiftFrame, FrameState.SwiftDrawable);
 
     FrameState.SwiftFinalFrameTiming = cp_drawable_get_frame_timing(FrameState.SwiftDrawable);
+	FrameState.SwiftFinalFrameTimeInterval = cp_time_to_cf_time_interval(cp_frame_timing_get_presentation_time(FrameState.SwiftFinalFrameTiming));
+	FrameState.DeviceAnchor = ar_device_anchor_create();
 	
-	//FrameState.DeviceAnchor = ar_device_anchor_create();
+	UE_LOG(LogOXRVisionOS, VeryVerbose, TEXT("%s FC_%i SLF_0x%x SD_0x%8x FOXRVisionOSSession::StartSubmission cp_drawable_get_frame_timing got SwiftFinalFrameTimeInterval %f"), VOSThreadString(), FrameState.FrameCounter, FrameState.SwiftFrame, FrameState.SwiftDrawable, (double)FrameState.SwiftFinalFrameTimeInterval);
+
+	uint64_t CurrentMachTime = mach_absolute_time();
+	uint64_t PredictedPresentationMachTime = cp_frame_timing_get_presentation_time(FrameState.SwiftFinalFrameTiming).cp_mach_abs_time;
+	UE_LOG(LogOXRVisionOS, VeryVerbose, TEXT("   FC_%i                   FOXRVisionOSSession::StartSubmission CurrentMachTime %lld PredictedPresentationMachTime %lld"), FrameState.FrameCounter,
+		   CurrentMachTime, PredictedPresentationMachTime);
+
+	check(ARKitWorldTrackingProvider);
 	
-    CFTimeInterval TimeInterval = cp_time_to_cf_time_interval(cp_frame_timing_get_presentation_time(FrameState.SwiftFinalFrameTiming));
-	
-	UE_LOG(LogOXRVisionOS, VeryVerbose, TEXT("%s FC: %i SLF: 0x%x SD: 0x%x cp_drawable_get_frame_timing in FOXRVisionOSSession::StartSubmission got SwiftFinalFrameTiming %f"), VOSThreadString(), FrameState.FrameCounter, FrameState.SwiftFrame, FrameState.SwiftDrawable, (double)TimeInterval);
-	
-    check(ARKitWorldTrackingProvider)
 	{
-		//TEMP use a lock.
-		FScopeLock ScopeLock(&CriticalSection_ar_world_tracking_provider_query_device_anchor_at_timestamp);
-		auto anchor_status = ar_world_tracking_provider_query_device_anchor_at_timestamp(ARKitWorldTrackingProvider, TimeInterval, FrameState.DeviceAnchor);
+		auto anchor_status = ar_world_tracking_provider_query_device_anchor_at_timestamp(ARKitWorldTrackingProvider, FrameState.SwiftFinalFrameTimeInterval, FrameState.DeviceAnchor);
 		if (anchor_status == ar_device_anchor_query_status_success)
 		{
-//			if (OXRVisionOSCVars::CVarDisableReprojection.GetValueOnAnyThread())
-//			{
-//				// Note: Documentation says this will disable reprojection, but it does not apper to actually work:
-				// Log says: "Presenting a drawable without a device anchor. This drawable won't be presented."
-//				cp_drawable_set_device_anchor(FrameState.SwiftDrawable, nullptr);
-//			}
-//			else
-			{
-				cp_drawable_set_device_anchor(FrameState.SwiftDrawable, FrameState.DeviceAnchor);
-			}
-
+			cp_drawable_set_device_anchor(FrameState.SwiftDrawable, FrameState.DeviceAnchor);
+		
 			// Get the HMD transform and cache it
 			FrameState.HeadTransform = ar_anchor_get_origin_from_anchor_transform(FrameState.DeviceAnchor);
-			UE_LOG(LogOXRVisionOS, VeryVerbose, TEXT("%s FC: %i SLF: 0x%x SD: 0x%x cp_drawable_set_device_anchor in FOXRVisionOSSession::StartSubmission with DeviceAnchor 0x%x  also getting head transform and buffering it for GT HeadTransform01=%f"), VOSThreadString(), FrameState.FrameCounter, FrameState.SwiftFrame, FrameState.SwiftDrawable, FrameState.DeviceAnchor, FrameState.HeadTransform.columns[0][1]);
-			
 		}
 		else
 		{
-			UE_LOG(LogOXRVisionOS, VeryVerbose, TEXT("%s FC: %i SLF: 0x%x SD: 0x%x cp_drawable_set_device_anchor in FOXRVisionOSSession::StartSubmission DeviceAnchor query failed, setting nullptr, no reprojection"), VOSThreadString(), FrameState.FrameCounter, FrameState.SwiftFrame, FrameState.SwiftDrawable);
+			UE_LOG(LogOXRVisionOS, VeryVerbose, TEXT("%s FC_%i SLF_0x%x SD_0x%8x  FOXRVisionOSSession::StartSubmission cp_drawable_set_device_anchor DeviceAnchor query failed, setting nullptr, no reprojection"), VOSThreadString(), FrameState.FrameCounter, FrameState.SwiftFrame, FrameState.SwiftDrawable);
 			
 			cp_drawable_set_device_anchor(FrameState.SwiftDrawable, nullptr);
 			// Leave FrameState.HeadTransform untouched, same as game thread. It may simply be identity.  But whatever it is we will go ahead and render with it.
 		}
-		RenderToGameHeadTransformWrite(FrameState);
 	}
+	RenderToGameFrameStateWrite(FrameState);
 }
 
 // FOpenXRHMD::OnFinishRendering_RHIThread()
 XrResult FOXRVisionOSSession::XrEndFrame(
 	const XrFrameEndInfo* InFrameEndInfo)
 {
-	UE_LOG(LogOXRVisionOS, Verbose, TEXT("%s FC: %i SLF: 0x%x SD: 0x%x FOXRVisionOSSession::XrEndFrame"), VOSThreadString(), PipelinedFrameStateRHI.FrameCounter, PipelinedFrameStateRHI.SwiftFrame, PipelinedFrameStateRHI.SwiftDrawable);
+	UE_LOG(LogOXRVisionOS, VeryVerbose, TEXT("%s FC_%i SLF_0x%x SD_0x%8x FOXRVisionOSSession::XrEndFrame"), VOSThreadString(), PipelinedFrameStateRHI.FrameCounter, PipelinedFrameStateRHI.SwiftFrame, PipelinedFrameStateRHI.SwiftDrawable);
 
 	SCOPED_NAMED_EVENT_TEXT("FOXRVisionOSSession::XrEndFrame", FColor::Turquoise);
 
@@ -1155,9 +1130,9 @@ XrResult FOXRVisionOSSession::XrEndFrame(
         check(View0.subImage.swapchain == View1.subImage.swapchain); //TODO: should we do it this way or should we have two separate swapchains?  If we did we would need to handle both below.
         
         const FOXRVisionOSSwapchain& SwapchainData0 = *(reinterpret_cast<FOXRVisionOSSwapchain*>(View0.subImage.swapchain));
-        const FOXRVisionOSSwapchain::FSwapchainImage& ReleasedImage = SwapchainData0.GetLastReleasedImage();
+        const FOXRVisionOSSwapchain::FSwapchainImage& WaitedImage = SwapchainData0.GetLastWaitedImage();
 		
-		UE_LOG(LogOXRVisionOS, VeryVerbose, TEXT("%s FC: %i SLF: 0x%x SD: 0x%x FOXRVisionOSSession::XrEndFrame SwapchainData0.GetLastReleasedImage() = 0x%x"), VOSThreadString(), PipelinedFrameStateRHI.FrameCounter, PipelinedFrameStateRHI.SwiftFrame, PipelinedFrameStateRHI.SwiftDrawable, ReleasedImage.Image.GetReference()->GetNativeResource());
+		UE_LOG(LogOXRVisionOS, VeryVerbose, TEXT("%s FC_%i SLF_0x%x SD_0x%8x FOXRVisionOSSession::XrEndFrame SwapchainData0.GetLastWaitedImage() metal textgure = 0x%x"), VOSThreadString(), PipelinedFrameStateRHI.FrameCounter, PipelinedFrameStateRHI.SwiftFrame, PipelinedFrameStateRHI.SwiftDrawable, WaitedImage.Image.GetReference()->GetNativeResource());
 		
 		const XrCompositionLayerDepthInfoKHR* Depth0 = OpenXR::FindChainedStructByType<XrCompositionLayerDepthInfoKHR>(View0.next, (XrStructureType)XR_TYPE_COMPOSITION_LAYER_DEPTH_INFO_KHR);
 		const XrCompositionLayerDepthInfoKHR* Depth1 = OpenXR::FindChainedStructByType<XrCompositionLayerDepthInfoKHR>(View1.next, (XrStructureType)XR_TYPE_COMPOSITION_LAYER_DEPTH_INFO_KHR);
@@ -1166,9 +1141,9 @@ XrResult FOXRVisionOSSession::XrEndFrame(
 		check(Depth0->subImage.swapchain == Depth1->subImage.swapchain); //TODO: should we do it this way or should we have two separate swapchains?  If we did we would need to handle both below.
 
 		const FOXRVisionOSSwapchain& SwapchainDepthData0 = *(reinterpret_cast<FOXRVisionOSSwapchain*>(Depth0->subImage.swapchain));
-		const FOXRVisionOSSwapchain::FSwapchainImage& ReleasedDepth = SwapchainDepthData0.GetLastReleasedImage();
+		const FOXRVisionOSSwapchain::FSwapchainImage& WaitedDepth = SwapchainDepthData0.GetLastWaitedImage();
 
-        const MetalRHIVisionOS::PresentImmersiveParams Params{ReleasedImage.Image, ReleasedDepth.Image, PipelinedFrameStateRHI.SwiftFrame, PipelinedFrameStateRHI.SwiftDrawable};
+        const MetalRHIVisionOS::PresentImmersiveParams Params{WaitedImage.Image, WaitedDepth.Image, PipelinedFrameStateRHI.SwiftFrame, PipelinedFrameStateRHI.SwiftDrawable, PipelinedFrameStateRHI.FrameCounter};
         MetalRHIVisionOS::PresentImmersive(Params);
     }
 
@@ -1211,7 +1186,7 @@ XrResult FOXRVisionOSSession::XrLocateViews(
     
 	FPipelinedFrameState& FrameState = GetPipelinedFrameStateForThread();
 	
-	UE_LOG(LogOXRVisionOS, Verbose, TEXT("%s FC: %i SLF: 0x%x SD: 0x%x FOXRVisionOSSession::XrLocateViews"), VOSThreadString(), FrameState.FrameCounter, FrameState.SwiftFrame, FrameState.SwiftDrawable);
+	//UE_LOG(LogOXRVisionOS, VeryVerbose, TEXT("%s FC_%i SLF_0x%x SD_0x%8x FOXRVisionOSSession::XrLocateViews"), VOSThreadString(), FrameState.FrameCounter, FrameState.SwiftFrame, FrameState.SwiftDrawable);
 
 	uint32_t NumViews = 0;
     if (IsInGameThread())
@@ -1252,14 +1227,11 @@ XrResult FOXRVisionOSSession::XrLocateViews(
                 const FLocateViewInfo& ViewInfoCache = GetLocateViewInfo_GameThread();
                 Views[Index].pose = OXRVisionOS::ToXrPose(ViewInfoCache.ViewTransforms[Index]);
                 Views[Index].fov = ViewInfoCache.HmdFovs[Index];
-				UE_LOG(LogOXRVisionOS, Verbose, TEXT("%s FC: %i SLF: 0x%x SD: 0x%x FOXRVisionOSSession::XrLocateViews cached HeadTransform01=%f xrposexy=%f,%f"), VOSThreadString(), FrameState.FrameCounter, FrameState.SwiftFrame, FrameState.SwiftDrawable, FrameState.HeadTransform.columns[0][1], Views[Index].pose.position.x, Views[Index].pose.position.y);
             }
             else
             {
                 check(IsInRenderingThread());
                 check(FrameState.SwiftDrawable);
-                
-				UE_LOG(LogOXRVisionOS, VeryVerbose, TEXT("%s FC: %i SLF: 0x%x SD: 0x%x cp_drawable_get_view in FOXRVisionOSSession::XrLocateViews view %i"), VOSThreadString(), FrameState.FrameCounter, FrameState.SwiftFrame, FrameState.SwiftDrawable, Index);
 
                 cp_view_t View = cp_drawable_get_view(FrameState.SwiftDrawable, Index);
                 simd_float4 Tangents = cp_view_get_tangents(View);
@@ -1269,7 +1241,7 @@ XrResult FOXRVisionOSSession::XrLocateViews(
     //                                                                          true); /* reverseZ */
                 
                 FrameState.HmdFovs[Index].angleLeft     = -FMath::Atan(Tangents[0]);
-                FrameState.HmdFovs[Index].angleRight    =  FMath::Atan(Tangents[1]);
+				FrameState.HmdFovs[Index].angleRight    =  FMath::Atan(Tangents[1]);
                 FrameState.HmdFovs[Index].angleUp       =  FMath::Atan(Tangents[2]);
                 FrameState.HmdFovs[Index].angleDown     = -FMath::Atan(Tangents[3]);
 
@@ -1279,8 +1251,6 @@ XrResult FOXRVisionOSSession::XrLocateViews(
                 simd_float4x4 ViewTransform = cp_view_get_transform(View);
                 Views[Index].pose = OXRVisionOS::ToXrPose(ViewTransform);
                 Views[Index].fov = FrameState.HmdFovs[Index];
-				
-				UE_LOG(LogOXRVisionOS, Verbose, TEXT("%s FC: %i SLF: 0x%x SD: 0x%x FOXRVisionOSSession::XrLocateViews cp_view_get_transformHeadTransform01=%f xrposexy=%f,%f"), VOSThreadString(), FrameState.FrameCounter, FrameState.SwiftFrame, FrameState.SwiftDrawable, FrameState.HeadTransform.columns[0][1], Views[Index].pose.position.x, Views[Index].pose.position.y);
 
                 // Cache the render thread data for the game thread
                 FLocateViewInfo& ViewInfoCache = GetLocateViewInfo_RenderThread();
@@ -1306,7 +1276,10 @@ void FOXRVisionOSSession::GetHMDTransform(XrTime DisplayTime, FTransform& OutTra
     
     OutTransform = OXRVisionOS::ToFTransform(FrameState.HeadTransform);
 
-	UE_LOG(LogOXRVisionOS, VeryVerbose, TEXT("%s FC: %i SLF: 0x%x SD: 0x%x FOXRVisionOSSession::GetHMDTransform HeadTransform01=%f"), VOSThreadString(), FrameState.FrameCounter, FrameState.SwiftFrame, FrameState.SwiftDrawable, FrameState.HeadTransform.columns[0][1]);
+//	UE_LOG(LogOXRVisionOS, VeryVerbose, TEXT("%s FC_%i SLF_0x%x SD_0x%8x FOXRVisionOSSession::GetHMDTransform XrHeadTransform x,y=%f,%f r=%f OutTransform x,y=%f,%f"),
+//		   VOSThreadString(), FrameState.FrameCounter, FrameState.SwiftFrame, FrameState.SwiftDrawable,
+//		   FrameState.HeadTransform.columns[3][0], FrameState.HeadTransform.columns[3][1], FrameState.HeadTransform.columns[0][0],
+//		   OutTransform.GetLocation().X, OutTransform.GetLocation().Y);
 }
 
 void FOXRVisionOSSession::GetTransformForButton(EOXRVisionOSControllerButton Button, XrTime DisplayTime, FTransform& OutTransform, XrSpaceLocationFlags& OutLocationFlags, FVector& OutLinearVelocity, FVector& OutAngularVelocity, XrSpaceVelocityFlags& OutVelocityFlags)
@@ -1453,15 +1426,25 @@ FOXRVisionOSSession::FPipelinedFrameState& FOXRVisionOSSession::GetPipelinedFram
 }
 
 // Read from the current index.
-simd_float4x4 FOXRVisionOSSession::RenderToGameHeadTransformRead(const FPipelinedFrameState& FrameState)
+void FOXRVisionOSSession::RenderToGameFrameStateRead(FPipelinedFrameState& InOutFrameState)
 {
-	return RenderToGameHeadTransform[FrameState.RenderToGameHeadTransformIndexRead % RenderToGameHeadTransformBufferLength];
+	FOXRVisionOSSession::FRenderToGameFrameState& RTGFS = RenderToGameFrameState[InOutFrameState.RenderToGameFrameStateIndex % RenderToGameFrameStateBufferLength];
+	InOutFrameState.HeadTransform = RTGFS.HeadTransform;
+	InOutFrameState.PreviousPredictionTime = RTGFS.PredictionTime;
+	
+//	UE_LOG(LogOXRVisionOS, VeryVerbose, TEXT("%s FC_%i SLF_0x%x SD_0x%8x  FOXRVisionOSSession::RenderToGameFrameStateRead HeadTransform01 x,y=%f,%f r=%f  PredictionTime=%f"),
+//		   VOSThreadString(), InOutFrameState.FrameCounter, InOutFrameState.SwiftFrame, InOutFrameState.SwiftDrawable,
+//		   RTGFS.HeadTransform.columns[3][0], RTGFS.HeadTransform.columns[3][1], RTGFS.HeadTransform.columns[0][0], (double)RTGFS.PredictionTime);
 }
 
-// Write to the next index that the game thread will read from.
-void FOXRVisionOSSession::RenderToGameHeadTransformWrite(FPipelinedFrameState& FrameState)
+// Write into the next index that the game thread will read.
+void FOXRVisionOSSession::RenderToGameFrameStateWrite(const FPipelinedFrameState& FrameState)
 {
-	RenderToGameHeadTransform[(FrameState.RenderToGameHeadTransformIndexRead + 1) % RenderToGameHeadTransformBufferLength] = FrameState.HeadTransform;
+	FOXRVisionOSSession::FRenderToGameFrameState& RTGFS = RenderToGameFrameState[(FrameState.RenderToGameFrameStateIndex + 1) % RenderToGameFrameStateBufferLength];
+	RTGFS.HeadTransform = FrameState.HeadTransform;
+	RTGFS.PredictionTime = FrameState.SwiftFinalFrameTimeInterval;
+	
+	//UE_LOG(LogOXRVisionOS, VeryVerbose, TEXT("%s FC_%i SLF_0x%x SD_0x%8x  FOXRVisionOSSession::RenderToGameFrameStateWrite HeadTransform01 x,y=%f,%f  PredictionTime=%f"), VOSThreadString(), FrameState.FrameCounter, FrameState.SwiftFrame, FrameState.SwiftDrawable, RTGFS.HeadTransform.columns[3][0], RTGFS.HeadTransform.columns[3][1], (double)RTGFS.PredictionTime);
 }
 
 
@@ -1497,7 +1480,6 @@ XrResult FOXRVisionOSSession::FOXRVisionOSHandTracker::XrLocateHandJointsEXT(
 	}
 	
 	XrPosef pose = locations->jointLocations[XR_HAND_JOINT_THUMB_TIP_EXT].pose;
-	UE_LOG(LogTemp, Log, TEXT("XrLocateHandJointsEXT() locating thumb tip flags: %i  xyz %0.2f, %0.2f, %0.2f"), locations->jointLocations[XR_HAND_JOINT_THUMB_TIP_EXT].locationFlags, pose.position.x, pose.position.y, pose.position.z);
 
 	return XR_SUCCESS;
 }

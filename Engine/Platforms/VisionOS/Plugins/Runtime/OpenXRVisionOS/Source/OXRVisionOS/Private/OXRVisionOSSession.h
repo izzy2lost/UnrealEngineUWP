@@ -158,19 +158,26 @@ public:
 		//FTransform HMDPoseInTrackerSpace = FTransform::Identity;
 		//PoseData HmdPose = {};
 		cp_frame_t SwiftFrame = nullptr;
-        cp_frame_timing_t SwiftFrameTiming = nullptr;
-        simd_float4x4 HeadTransform = matrix_identity_float4x4;
-        cp_drawable_t SwiftDrawable = nullptr;
+		cp_frame_timing_t SwiftFrameTiming = nullptr;  // Used for the cp_time_wait_until
+		CFTimeInterval PreviousPredictionTime = 0;
+		cp_drawable_t SwiftDrawable = nullptr;
         cp_frame_timing_t SwiftFinalFrameTiming = nullptr; // TODO should we do this or should we overwrite SwifFrameTiming???
+		simd_float4x4 HeadTransform = matrix_identity_float4x4;
+		CFTimeInterval SwiftFinalFrameTimeInterval = 0;
         ar_device_anchor_t DeviceAnchor = nullptr;
 		bool bSynchronizing = true; // when true we are in the process of starting up a new session and the new frame state has not yet propagated.
 		XrFovf HmdFovs[2];
         int32 LocateViewInfoBufferIndex = 0;
-		int32 RenderToGameHeadTransformIndexRead = -1;
+		int32 RenderToGameFrameStateIndex = -1;
 	};
 	
-	simd_float4x4 RenderToGameHeadTransformRead(const FPipelinedFrameState& FrameState);
-	void RenderToGameHeadTransformWrite(FPipelinedFrameState& FrameState);
+	struct FRenderToGameFrameState
+	{
+		simd_float4x4 HeadTransform = matrix_identity_float4x4;
+		CFTimeInterval PredictionTime = 0;
+	};
+	void RenderToGameFrameStateRead(FPipelinedFrameState& InOutFrameState);
+	void RenderToGameFrameStateWrite(const FPipelinedFrameState& FrameState);
 
 	const FPipelinedFrameState& GetPipelinedFrameStateForThread() const;
 	FPipelinedFrameState& GetPipelinedFrameStateForThread();
@@ -235,10 +242,8 @@ private:
 	FPipelinedFrameState	PipelinedFrameStateRHI;
 	int32 CachedBeginFlipFrameCounter = INT32_MAX;
 	
-	static const int32 RenderToGameHeadTransformBufferLength = 3;
-	simd_float4x4 RenderToGameHeadTransform[RenderToGameHeadTransformBufferLength];
-	//TEMP see usages
-	FCriticalSection CriticalSection_ar_world_tracking_provider_query_device_anchor_at_timestamp;
+	static const int32 RenderToGameFrameStateBufferLength = 3;
+	FRenderToGameFrameState RenderToGameFrameState[RenderToGameFrameStateBufferLength];
 
 	FOpenXRRenderBridge* RenderBridge = nullptr;
 

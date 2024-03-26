@@ -18,7 +18,7 @@ DEFINE_STAT(STAT_MetalTextureMemUpdate);
 DEFINE_STAT(STAT_MetalDrawCallTime);
 DEFINE_STAT(STAT_MetalPipelineStateTime);
 DEFINE_STAT(STAT_MetalPrepareDrawTime);
-
+DEFINE_STAT(STAT_MetalSwitchToNoneTime);
 DEFINE_STAT(STAT_MetalSwitchToRenderTime);
 DEFINE_STAT(STAT_MetalSwitchToComputeTime);
 DEFINE_STAT(STAT_MetalSwitchToBlitTime);

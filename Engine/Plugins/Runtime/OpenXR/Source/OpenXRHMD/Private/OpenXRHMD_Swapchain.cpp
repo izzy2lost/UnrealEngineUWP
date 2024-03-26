@@ -43,10 +43,10 @@ void FOpenXRSwapchain::IncrementSwapChainIndex_RHIThread()
 	Info.next = nullptr;
 	XR_ENSURE(xrAcquireSwapchainImage(Handle, &Info, &SwapChainIndex));
 
-	UE_LOG(LogHMD, VeryVerbose, TEXT("Acquired image %d in swapchain %p"), SwapChainIndex, reinterpret_cast<const void*>(Handle));
-
 	RHITexture = RHITextureSwapChain[SwapChainIndex];
 	SwapChainIndex_RHIThread = SwapChainIndex;
+	
+	UE_LOG(LogHMD, VeryVerbose, TEXT("FOpenXRSwapchain::IncrementSwapChainIndex_RHIThread() Acquired image %d in swapchain %p metal texture: 0x%x"), SwapChainIndex, reinterpret_cast<const void*>(Handle), RHITexture.GetReference()->GetNativeResource());
 }
 
 void FOpenXRSwapchain::WaitCurrentImage_RHIThread(int64 Timeout)
@@ -92,8 +92,8 @@ void FOpenXRSwapchain::WaitCurrentImage_RHIThread(int64 Timeout)
 		// We can't continue without acquiring a new swapchain image since we won't have an image available to render to.
 		UE_LOG(LogHMD, Fatal, TEXT("Failed to wait on acquired swapchain image. This usually indicates a problem with the OpenXR runtime."));
 	}
-
-	UE_LOG(LogHMD, VeryVerbose, TEXT("Waited on image %d in swapchain %p"), SwapChainIndex_RHIThread.load(), reinterpret_cast<const void*>(Handle));
+	
+	UE_LOG(LogHMD, VeryVerbose, TEXT("FOpenXRSwapchain::WaitCurrentImage_RHIThread() Waited on image swapchain %p"), reinterpret_cast<const void*>(Handle));
 }
 
 void FOpenXRSwapchain::ReleaseCurrentImage_RHIThread()
@@ -115,7 +115,7 @@ void FOpenXRSwapchain::ReleaseCurrentImage_RHIThread()
 	ReleaseInfo.next = nullptr;
 	XR_ENSURE(xrReleaseSwapchainImage(Handle, &ReleaseInfo));
 
-	UE_LOG(LogHMD, VeryVerbose, TEXT("Released on image %d in swapchain %p"), SwapChainIndex_RHIThread.load(), reinterpret_cast<const void*>(Handle));
+	UE_LOG(LogHMD, VeryVerbose, TEXT("FOpenXRSwapchain::ReleaseCurrentImage_RHIThread() Released on image in swapchain %p"), reinterpret_cast<const void*>(Handle));
 }
 
 uint8 FOpenXRSwapchain::GetNearestSupportedSwapchainFormat(XrSession InSession, uint8 RequestedFormat, TFunction<uint32(uint8)> ToPlatformFormat /*= nullptr*/)
