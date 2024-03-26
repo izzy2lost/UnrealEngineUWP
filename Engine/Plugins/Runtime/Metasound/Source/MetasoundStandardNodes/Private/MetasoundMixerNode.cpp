@@ -214,17 +214,27 @@ namespace Metasound
 
 		void Execute()
 		{
-			// zero the outputs
+			// initialize the output using the first set of input channels
+			float NextGain = *Gains[0];
+			float PrevGain = PrevGains[0];
+
+			// initialize the output buffers w/ the first set of input buffers 
 			for (uint32 i = 0; i < NumChannels; ++i)
 			{
-				Outputs[i]->Zero();
+				TArrayView<const float> InputView = *Inputs[i];
+				TArrayView<float> OutputView = *Outputs[i];
+	
+				check(InputView.Num() == OutputView.Num());
+				Audio::ArrayFade(InputView, PrevGain, NextGain, OutputView);
 			}
 
-			// for each input
-			for (uint32 InputIndex = 0; InputIndex < NumInputs; ++InputIndex)
+			PrevGains[0] = NextGain;
+
+			// mix in each following input
+			for (uint32 InputIndex = 1; InputIndex < NumInputs; ++InputIndex)
 			{
-				const float NextGain = *Gains[InputIndex];
-				const float PrevGain = PrevGains[InputIndex];
+				NextGain = *Gains[InputIndex];
+				PrevGain = PrevGains[InputIndex];
 
 				// for each channel of audio
 				for (uint32 ChanIndex = 0; ChanIndex < NumChannels; ++ChanIndex)
