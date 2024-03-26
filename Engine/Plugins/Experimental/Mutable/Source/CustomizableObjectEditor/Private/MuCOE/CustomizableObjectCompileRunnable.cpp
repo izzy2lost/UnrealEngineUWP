@@ -24,7 +24,7 @@ class ITargetPlatform;
 
 TAutoConsoleVariable<bool> CVarMutableCompilerConcurrency(
 	TEXT("mutable.ForceCompilerConcurrency"),
-	true,
+	false,
 	TEXT("Force the use of multithreading when compiling CustomizableObjects both in editor and cook commandlets."),
 	ECVF_Default);
 
