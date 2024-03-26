@@ -4,12 +4,16 @@
 
 #include "CoreMinimal.h"
 
+class IDisplayClusterModularFeatureMediaInitializer;
 
 /**
  * Media customization utilities
  */
 class FDisplayClusterConfiguratorMediaUtils
 {
+protected:
+	FDisplayClusterConfiguratorMediaUtils();
+
 public:
 
 	/** Singleton access */
@@ -17,15 +21,24 @@ public:
 
 public:
 
-	/** Tiled media auto-configuration event */
-	DECLARE_EVENT_OneParam(FDisplayClusterConfiguratorMediaUtils, FDisplayClusterConfiguratorTiledMediaAutoConfigurationRequestedEvent, UObject*);
-	FDisplayClusterConfiguratorTiledMediaAutoConfigurationRequestedEvent& OnTiledMediaAutoConfiguration()
+	/** Returns media initializers */
+	const TArray<IDisplayClusterModularFeatureMediaInitializer*>& GetMediaInitializers() const
 	{
-		return TiledMediaAutoConfigurationEvent;
+		return MediaInitializers;
+	}
+
+	/** Tiled media auto-configuration event */
+	DECLARE_EVENT_OneParam(FDisplayClusterConfiguratorMediaUtils, FDisplayClusterConfiguratorMediaAutoConfigurationRequestedEvent, UObject*);
+	FDisplayClusterConfiguratorMediaAutoConfigurationRequestedEvent& OnMediaAutoConfiguration()
+	{
+		return MediaAutoConfigurationEvent;
 	}
 
 private:
 
+	/** Media initializers (modular features) available. */
+	TArray<IDisplayClusterModularFeatureMediaInitializer*> MediaInitializers;
+
 	/** Tiled media auto-configuration event */
-	FDisplayClusterConfiguratorTiledMediaAutoConfigurationRequestedEvent TiledMediaAutoConfigurationEvent;
+	FDisplayClusterConfiguratorMediaAutoConfigurationRequestedEvent MediaAutoConfigurationEvent;
 };

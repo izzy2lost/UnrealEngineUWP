@@ -16,11 +16,7 @@ public:
 
 	//~ Begin IDisplayClusterModularFeatureMediaInitializer
 	virtual bool IsMediaSubjectSupported(const UObject* MediaSubject) override;
-	virtual void InitializeMediaSubjectForTile(UObject* MediaSubject, const FString& OwnerName, uint8 OwnerUniqueIdx, const FIntPoint& TilePos) override;
+	virtual void InitializeMediaSubjectForTile(UObject* MediaSubject, const FMediaSubjectOwnerInfo& OnwerInfo, const FIntPoint& TilePos) override;
+	virtual void InitializeMediaSubjectForFullFrame(UObject* MediaSubject, const FMediaSubjectOwnerInfo& OnwerInfo) override;
 	//~ End IDisplayClusterModularFeatureMediaInitializer
-
-private:
-
-	/** Generates unique name for SMM subjects */
-	FString GenerateUniqueName(const FString& OwnerName, const FIntPoint& TilePos);
 };

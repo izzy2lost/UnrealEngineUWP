@@ -21,10 +21,8 @@ bool FRivermaxMediaInitializerFeature::IsMediaSubjectSupported(const UObject* Me
 	return false;
 }
 
-void FRivermaxMediaInitializerFeature::InitializeMediaSubjectForTile(UObject* MediaSubject, const FString& OwnerName, uint8 OwnerUniqueIdx, const FIntPoint& TilePos)
+void FRivermaxMediaInitializerFeature::InitializeMediaSubjectForTile(UObject* MediaSubject, const FMediaSubjectOwnerInfo& OnwerInfo, const FIntPoint& TilePos)
 {
-	checkSlow(MediaSubject);
-
 	if (URivermaxMediaSource* RivermaxMediaSource = Cast<URivermaxMediaSource>(MediaSubject))
 	{
 		RivermaxMediaSource->PlayerMode          = ERivermaxPlayerMode::Framelock;
@@ -34,7 +32,7 @@ void FRivermaxMediaInitializerFeature::InitializeMediaSubjectForTile(UObject* Me
 		RivermaxMediaSource->FrameRate           = { 60,1 };
 		RivermaxMediaSource->PixelFormat         = ERivermaxMediaSourcePixelFormat::RGB_10bit;
 		RivermaxMediaSource->InterfaceAddress    = GetRivermaxInterfaceAddress();
-		RivermaxMediaSource->StreamAddress       = GenerateStreamAddress(OwnerUniqueIdx, TilePos);
+		RivermaxMediaSource->StreamAddress       = GenerateStreamAddress(OnwerInfo.OwnerUniqueIdx, TilePos);
 		RivermaxMediaSource->Port                = 50000;
 		RivermaxMediaSource->bIsSRGBInput        = false;
 		RivermaxMediaSource->bUseGPUDirect       = true;
@@ -51,9 +49,61 @@ void FRivermaxMediaInitializerFeature::InitializeMediaSubjectForTile(UObject* Me
 		RivermaxMediaOutput->FrameRate           = { 60,1 };
 		RivermaxMediaOutput->PixelFormat         = ERivermaxMediaOutputPixelFormat::PF_10BIT_RGB;
 		RivermaxMediaOutput->InterfaceAddress    = GetRivermaxInterfaceAddress();
-		RivermaxMediaOutput->StreamAddress       = GenerateStreamAddress(OwnerUniqueIdx, TilePos);
+		RivermaxMediaOutput->StreamAddress       = GenerateStreamAddress(OnwerInfo.OwnerUniqueIdx, TilePos);
 		RivermaxMediaOutput->Port                = 50000;
 		RivermaxMediaOutput->bUseGPUDirect       = true;
+	}
+}
+
+void FRivermaxMediaInitializerFeature::InitializeMediaSubjectForFullFrame(UObject* MediaSubject, const FMediaSubjectOwnerInfo& OnwerInfo)
+{
+	if (URivermaxMediaSource* RivermaxMediaSource = Cast<URivermaxMediaSource>(MediaSubject))
+	{
+		RivermaxMediaSource->PlayerMode          = ERivermaxPlayerMode::Framelock;
+		RivermaxMediaSource->bUseZeroLatency     = true;
+		RivermaxMediaSource->bOverrideResolution = false;
+		//RivermaxMediaSource->Resolution          = default value
+		RivermaxMediaSource->FrameRate           = { 60,1 };
+		RivermaxMediaSource->PixelFormat         = ERivermaxMediaSourcePixelFormat::RGB_10bit;
+		RivermaxMediaSource->InterfaceAddress    = GetRivermaxInterfaceAddress();
+		RivermaxMediaSource->StreamAddress       = GenerateStreamAddress(OnwerInfo.ClusterNodeUniqueIdx.Get(0), OnwerInfo.OwnerUniqueIdx, OnwerInfo.OwnerType);
+		RivermaxMediaSource->Port                = 50000;
+		RivermaxMediaSource->bIsSRGBInput        = false;
+		RivermaxMediaSource->bUseGPUDirect       = true;
+	}
+	else if (URivermaxMediaOutput* RivermaxMediaOutput = Cast<URivermaxMediaOutput>(MediaSubject))
+	{
+		RivermaxMediaOutput->FrameLockingMode      = ERivermaxFrameLockingMode::BlockOnReservation;
+		RivermaxMediaOutput->PresentationQueueSize = 2;
+		RivermaxMediaOutput->bOverrideResolution   = false;
+		//RivermaxMediaOutput->Resolution            = default value
+		RivermaxMediaOutput->PixelFormat           = ERivermaxMediaOutputPixelFormat::PF_10BIT_RGB;
+		RivermaxMediaOutput->InterfaceAddress      = GetRivermaxInterfaceAddress();
+		RivermaxMediaOutput->StreamAddress         = GenerateStreamAddress(OnwerInfo.ClusterNodeUniqueIdx.Get(0), OnwerInfo.OwnerUniqueIdx, OnwerInfo.OwnerType);
+		RivermaxMediaOutput->Port                  = 50000;
+
+		switch (OnwerInfo.OwnerType)
+		{
+		case FMediaSubjectOwnerInfo::EMediaSubjectOwnerType::ICVFXCamera:
+		case FMediaSubjectOwnerInfo::EMediaSubjectOwnerType::Viewport:
+			RivermaxMediaOutput->AlignmentMode       = ERivermaxMediaAlignmentMode::FrameCreation;
+			RivermaxMediaOutput->bDoContinuousOutput = false;
+			RivermaxMediaOutput->bDoFrameCounterTimestamping = true;
+			RivermaxMediaOutput->FrameRate           = { 60,1 };
+			RivermaxMediaOutput->bUseGPUDirect       = true;
+			break;
+
+		case FMediaSubjectOwnerInfo::EMediaSubjectOwnerType::Backbuffer:
+			RivermaxMediaOutput->AlignmentMode       = ERivermaxMediaAlignmentMode::AlignmentPoint;
+			RivermaxMediaOutput->bDoContinuousOutput = true;
+			RivermaxMediaOutput->bDoFrameCounterTimestamping = false;
+			RivermaxMediaOutput->FrameRate           = { 24,1 };
+			RivermaxMediaOutput->bUseGPUDirect       = false;
+			break;
+
+		default:
+			checkNoEntry();
+		}
 	}
 }
 
@@ -70,19 +120,10 @@ FString FRivermaxMediaInitializerFeature::GetRivermaxInterfaceAddress() const
 		TArray<FString> Octets;
 		Devices[0].InterfaceAddress.ParseIntoArray(Octets, TEXT("."));
 
-		// IPv4?
+		// IPv4 always has 4 octets
 		if (Octets.Num() == 4)
 		{
 			ResultAddress = FString::Printf(TEXT("%s.%s.%s.*"), *Octets[0], *Octets[1], *Octets[2]);
-		}
-		// IPv6?
-		else
-		{
-			Devices[0].InterfaceAddress.ParseIntoArray(Octets, TEXT(":"));
-			if (Octets.Num() == 6)
-			{
-				ResultAddress = FString::Printf(TEXT("%s:%s:%s:%s:%s:*"), *Octets[0], *Octets[1], *Octets[2], *Octets[3], *Octets[4]);
-			}
 		}
 	}
 
@@ -91,8 +132,18 @@ FString FRivermaxMediaInitializerFeature::GetRivermaxInterfaceAddress() const
 
 FString FRivermaxMediaInitializerFeature::GenerateStreamAddress(uint8 OwnerUniqueIdx, const FIntPoint& TilePos) const
 {
-	constexpr uint8 MaxVal = TNumericLimits<uint8>::Max();
-	checkSlow(OwnerUniqueIdx < MaxVal && TilePos.X < MaxVal && TilePos.Y < MaxVal);
+	static const constexpr uint8 MaxVal = TNumericLimits<uint8>::Max();
+	checkSlow(TilePos.X < MaxVal && TilePos.Y < MaxVal);
 
-	return FString::Printf(TEXT("228.%u.%u.%u"), OwnerUniqueIdx + 1, TilePos.X + 1, TilePos.Y + 1);
+	static constexpr uint8 AddressOffsetForTiles = 200;
+	checkSlow((AddressOffsetForTiles + OwnerUniqueIdx) < MaxVal);
+
+	// 228.200.*.* - 228.255.*.* - range for tiled media (max 56 objects)
+	return FString::Printf(TEXT("228.%u.%u.%u"), AddressOffsetForTiles + OwnerUniqueIdx, TilePos.X, TilePos.Y);
+}
+
+FString FRivermaxMediaInitializerFeature::GenerateStreamAddress(uint8 ClusterNodeUniqueIdx, uint8 OwnerUniqueIdx, const FMediaSubjectOwnerInfo::EMediaSubjectOwnerType OwnerType) const
+{
+	// 228.0.*.* - 228.199.*.* - range for full-frame media (max 200 objects). But could be extended up to the limit if no tiles used.
+	return FString::Printf(TEXT("228.%u.%u.%u"), ClusterNodeUniqueIdx, static_cast<uint8>(OwnerType), OwnerUniqueIdx);
 }
