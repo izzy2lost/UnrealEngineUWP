@@ -210,6 +210,115 @@ uint GetLinearIndex(uint Face, uint2 PixelCoord)
 	return LinearIndex;
 }
 
+int FindSampleIndexWithLowestError(
+	int PixelIndex
+)
+{
+	// Find sample, whose removal would mark the lowest overall geometric error
+	int LowestErrorIndex = 0;
+	float LowestError = 1.0e6;
+	for (int Index = 1; Index < MaxSampleCount - 1; ++Index)
+	{
+		int PrevIndex = AVSM_GetPrevPtr(RWVolumetricShadowLinkedListBuffer[PixelIndex + Index]);
+		int NextIndex = AVSM_GetNextPtr(RWVolumetricShadowLinkedListBuffer[PixelIndex + Index]);
+
+		FAVSMSampleData Data[3] = {
+			AVSM_UnpackSampleData(RWVolumetricShadowLinkedListBuffer[PixelIndex + PrevIndex]),
+			AVSM_UnpackSampleData(RWVolumetricShadowLinkedListBuffer[PixelIndex + Index]),
+			AVSM_UnpackSampleData(RWVolumetricShadowLinkedListBuffer[PixelIndex + NextIndex])
+		};
+
+		float Error = abs(
+			(Data[2].X - Data[0].X) * (Data[2].Tau - Data[1].Tau) -
+			(Data[2].X - Data[1].X) * (Data[2].Tau - Data[0].Tau)
+		);
+
+		if (Error < LowestError)
+		{
+			LowestError = Error;
+			LowestErrorIndex = Index;
+		}
+	}
+
+	return LowestErrorIndex;
+}
+
+void AddSample(FAVSMSampleData Data, int PixelIndex, inout int PrevSampleIndex, inout int SampleIndex)
+{
+	RWVolumetricShadowLinkedListBuffer[PixelIndex + SampleIndex].x = AVSM_PackSampleData(Data);
+	AVSM_SetPrevPtr(RWVolumetricShadowLinkedListBuffer[PixelIndex + SampleIndex], PrevSampleIndex);
+	AVSM_SetNextPtr(RWVolumetricShadowLinkedListBuffer[PixelIndex + SampleIndex], SampleIndex + 1);
+
+	PrevSampleIndex = SampleIndex;
+	SampleIndex = SampleIndex + 1;
+}
+
+void ReplaceSample(
+	int PixelIndex,
+	int SampleIndex,
+	FAVSMSampleData SampleData,
+	int PrevPtrIndex,
+	int NextPtrIndex
+)
+{
+	// Remove 
+	{
+		int PrevIndex = AVSM_GetPrevPtr(RWVolumetricShadowLinkedListBuffer[PixelIndex + SampleIndex]);
+		int NextIndex = AVSM_GetNextPtr(RWVolumetricShadowLinkedListBuffer[PixelIndex + SampleIndex]);
+
+		AVSM_SetNextPtr(RWVolumetricShadowLinkedListBuffer[PixelIndex + PrevIndex], NextIndex);
+		AVSM_SetPrevPtr(RWVolumetricShadowLinkedListBuffer[PixelIndex + NextIndex], PrevIndex);
+	}
+
+	// Replace
+	RWVolumetricShadowLinkedListBuffer[PixelIndex + SampleIndex].x = AVSM_PackSampleData(SampleData);
+	AVSM_SetPrevPtr(RWVolumetricShadowLinkedListBuffer[PixelIndex + SampleIndex], PrevPtrIndex);
+	AVSM_SetNextPtr(RWVolumetricShadowLinkedListBuffer[PixelIndex + SampleIndex], NextPtrIndex);
+
+	// Update neighborhood
+	AVSM_SetNextPtr(RWVolumetricShadowLinkedListBuffer[PixelIndex + PrevPtrIndex], SampleIndex);
+	AVSM_SetPrevPtr(RWVolumetricShadowLinkedListBuffer[PixelIndex + NextPtrIndex], SampleIndex);
+}
+
+void AddOrReplaceSample(FAVSMSampleData Data, int PixelIndex, inout int PrevSampleIndex, inout int SampleIndex)
+{
+	// Add
+	if (SampleIndex < MaxSampleCount - 1)
+	{
+		AddSample(Data, PixelIndex, PrevSampleIndex, SampleIndex);
+	}
+	// Or replace
+	else
+	{
+#if USE_AVSM_COMPRESSION
+		// Insert fictious sample at MaxSampleCount - 1 to compute error
+		RWVolumetricShadowLinkedListBuffer[PixelIndex + MaxSampleCount - 1].x = AVSM_PackSampleData(Data);
+		AVSM_SetNextPtr(RWVolumetricShadowLinkedListBuffer[PixelIndex + PrevSampleIndex], MaxSampleCount - 1);
+		AVSM_SetPrevPtr(RWVolumetricShadowLinkedListBuffer[PixelIndex + MaxSampleCount - 1], PrevSampleIndex);
+
+		int LowestErrorIndex = FindSampleIndexWithLowestError(PixelIndex);
+		if (LowestErrorIndex > 0)
+		{
+			if (LowestErrorIndex == PrevSampleIndex)
+			{
+				RWVolumetricShadowLinkedListBuffer[PixelIndex + PrevSampleIndex].x = AVSM_PackSampleData(Data);
+			}
+			else
+			{
+				ReplaceSample(PixelIndex, LowestErrorIndex, Data, PrevSampleIndex, MaxSampleCount - 1);
+			}
+
+			PrevSampleIndex = LowestErrorIndex;
+		}
+#else
+		RWVolumetricShadowLinkedListBuffer[PixelIndex + MaxSampleCount - 1].x = AVSM_PackSampleData(Data);
+		AVSM_SetPrevPtr(RWVolumetricShadowLinkedListBuffer[PixelIndex + MaxSampleCount - 1], PrevSampleIndex);
+
+		PrevSampleIndex = MaxSampleCount - 1;
+#endif
+	}
+}
+
 [numthreads(THREADGROUP_SIZE_2D, THREADGROUP_SIZE_2D, 1)]
 void RenderVolumetricShadowMapForLightWithVoxelGridCS(
 	uint2 GroupThreadId : SV_GroupThreadID,
@@ -295,7 +404,6 @@ void RenderVolumetricShadowMapForLightWithVoxelGridCS(
 		RandomSequence_Initialize(RandSequence, LinearIndex, View.StateFrameIndex);
 		RayMarchingContext.RandSequence = RandSequence;
 		uint StepCount = CalcStepCount(RayMarchingContext);
-		int EntryCount = 1;
 
 		float3 ExpectedExtinction = 0.0;
 		float3 ExpectedTransmittance = 1.0;
@@ -313,25 +421,17 @@ void RenderVolumetricShadowMapForLightWithVoxelGridCS(
 			float3 Extinction = SampleExtinction(SampleContext);
 			Transmittance *= exp(-Extinction * RayMarchingContext.StepSize);
 
-			bool bFirstEntry = EntryCount == 1;
+			bool bFirstEntry = (ElementIndex == 0);
 			if (bFirstEntry && any(Extinction > 0.0))
 			{
-				RWVolumetricShadowLinkedListBuffer[PixelIndex + ElementIndex].x = AVSM_PackSampleData(WorldHitT, Transmittance);
+				FAVSMSampleData SampleData = AVSM_CreateSampleData(WorldHitT, Transmittance);
+				AddSample(SampleData, PixelIndex, PrevElementIndex, ElementIndex);
 
-				// Allocate next entry
-				int NextElementIndex = ElementIndex + 1;
-				AVSM_SetPrevPtr(RWVolumetricShadowLinkedListBuffer[PixelIndex + ElementIndex], PrevElementIndex);
-				AVSM_SetNextPtr(RWVolumetricShadowLinkedListBuffer[PixelIndex + ElementIndex], NextElementIndex);
-
-				PrevElementIndex = ElementIndex;
-				ElementIndex = NextElementIndex;
-				EntryCount++;
-
-				// Reset expected values
+				// Set expected values
 				ExpectedExtinction = Extinction;
 				ExpectedTransmittance = Transmittance;
 			}
-			else if (EntryCount > 1 && any(Extinction > 0.0))
+			else if (ElementIndex > 0 && any(Extinction > 0.0))
 			{
 				// If extrapolated transmittance is beyond relative error tolerance
 				ExpectedTransmittance *= exp(-ExpectedExtinction * RayMarchingContext.StepSize);
@@ -339,80 +439,12 @@ void RenderVolumetricShadowMapForLightWithVoxelGridCS(
 				float RelativeError = length((Transmittance - ExpectedTransmittance) / ExpectedTransmittance);
 				if ((AbsoluteError > AbsoluteErrorThreshold) && (RelativeError > RelativeErrorThreshold))
 				{
-					// Create vertex at current location
-					if (EntryCount < MaxSampleCount)
-					{
-						// Allocate next entry
-						int NextElementIndex = ElementIndex + 1;
-						RWVolumetricShadowLinkedListBuffer[PixelIndex + ElementIndex].x = AVSM_PackSampleData(WorldHitT, Transmittance);
-						AVSM_SetPrevPtr(RWVolumetricShadowLinkedListBuffer[PixelIndex + ElementIndex], PrevElementIndex);
-						AVSM_SetNextPtr(RWVolumetricShadowLinkedListBuffer[PixelIndex + ElementIndex], NextElementIndex);
+					FAVSMSampleData SampleData = AVSM_CreateSampleData(WorldHitT, Transmittance);
+					AddOrReplaceSample(SampleData, PixelIndex, PrevElementIndex, ElementIndex);
 
-						PrevElementIndex = ElementIndex;
-						ElementIndex = NextElementIndex;
-						EntryCount++;
-
-						// Reset expected values
-						ExpectedExtinction = Extinction;
-						ExpectedTransmittance = Transmittance;
-					}
-#if USE_AVSM_COMPRESSION
-					// Or replace an existing vertex that contributes the lowest error to the approximation
-					else
-					{
-						int LowestErrorIndex = 0;
-						float LowestError = 1.0e6;
-						for (int Index = 1; Index < MaxSampleCount - 1; ++Index)
-						{
-							int PrevIndex = AVSM_GetPrevPtr(RWVolumetricShadowLinkedListBuffer[PixelIndex + Index]);
-							int NextIndex = AVSM_GetNextPtr(RWVolumetricShadowLinkedListBuffer[PixelIndex + Index]);
-
-							FAVSMSampleData Data[3] = {
-								AVSM_UnpackSampleData(RWVolumetricShadowLinkedListBuffer[PixelIndex + PrevIndex]),
-								AVSM_UnpackSampleData(RWVolumetricShadowLinkedListBuffer[PixelIndex + Index]),
-								AVSM_UnpackSampleData(RWVolumetricShadowLinkedListBuffer[PixelIndex + NextIndex])
-							};
-
-							float Error = abs(
-								(Data[2].X - Data[0].X) * (Data[2].Tau - Data[1].Tau) -
-								(Data[2].X - Data[1].X) * (Data[2].Tau - Data[0].Tau)
-							);
-
-							if (Error < LowestError)
-							{
-								LowestError = Error;
-								LowestErrorIndex = Index;
-							}
-						}
-
-						// Remove control point and replace with current control point
-						if (LowestErrorIndex > 0)
-						{
-							// Remove
-							int PrevIndex = AVSM_GetPrevPtr(RWVolumetricShadowLinkedListBuffer[PixelIndex + LowestErrorIndex]);
-							int NextIndex = AVSM_GetNextPtr(RWVolumetricShadowLinkedListBuffer[PixelIndex + LowestErrorIndex]);
-
-							AVSM_SetNextPtr(RWVolumetricShadowLinkedListBuffer[PixelIndex + PrevIndex], NextIndex);
-							AVSM_SetPrevPtr(RWVolumetricShadowLinkedListBuffer[PixelIndex + NextIndex], PrevIndex);
-
-							// Replace
-							RWVolumetricShadowLinkedListBuffer[PixelIndex + LowestErrorIndex].x = AVSM_PackSampleData(WorldHitT, Transmittance);
-							AVSM_SetPrevPtr(RWVolumetricShadowLinkedListBuffer[PixelIndex + LowestErrorIndex], PrevElementIndex);
-							AVSM_SetNextPtr(RWVolumetricShadowLinkedListBuffer[PixelIndex + LowestErrorIndex], MaxSampleCount - 1);
-
-							// Update neighborhood
-							AVSM_SetPrevPtr(RWVolumetricShadowLinkedListBuffer[PixelIndex + MaxSampleCount - 1], LowestErrorIndex);
-							AVSM_SetNextPtr(RWVolumetricShadowLinkedListBuffer[PixelIndex + PrevElementIndex], LowestErrorIndex);
-
-							PrevElementIndex = LowestErrorIndex;
-							ElementIndex = MaxSampleCount - 1;
-
-							// Reset expected values
-							ExpectedExtinction = Extinction;
-							ExpectedTransmittance = Transmittance;
-						}
-					}
-#endif // USE_AVSM_COMPRESSION
+					// Reset expected values
+					ExpectedExtinction = Extinction;
+					ExpectedTransmittance = Transmittance;
 				}
 			}
 
@@ -423,6 +455,13 @@ void RenderVolumetricShadowMapForLightWithVoxelGridCS(
 				Transmittance = 0.0;
 				break;
 			}
+		}
+
+		// Stitch up the previous entry
+		if (PrevElementIndex != AVSM_NULL_PTR)
+		{
+			AVSM_SetNextPtr(RWVolumetricShadowLinkedListBuffer[PixelIndex + PrevElementIndex], ElementIndex);
+
 		}
 
 		RWVolumetricShadowLinkedListBuffer[PixelIndex + ElementIndex].x = AVSM_PackSampleData(WorldHitT, Transmittance);
@@ -436,13 +475,6 @@ void RenderVolumetricShadowMapForLightWithVoxelGridCS(
 		AVSM_SetNextPtr(RWVolumetricShadowLinkedListBuffer[PixelIndex], AVSM_NULL_PTR);
 	}
 
-#if 0
-	RWDebugBuffer[LinearIndex].LightRayStart = LightRayStart;
-	RWDebugBuffer[LinearIndex].LightRayEnd = LightRayEnd;
-	RWDebugBuffer[LinearIndex].RayOrigin = WorldRayOrigin;
-	RWDebugBuffer[LinearIndex].RayEnd = WorldRayEnd;
-	RWDebugBuffer[LinearIndex].HitSpan = float2(HitSpan, Depth);
-#endif
 	if (Face == ShadowDebugTweak)
 	{
 		RWBeerShadowMapTexture[PixelCoord] = float4(Transmittance, 1);
@@ -538,5 +570,87 @@ void CompressVolumetricShadowMapCS(
 			SampleCount
 		);
 		RWVolumetricShadowIndirectionBuffer[LinearIndex] = AVSM_PackIndirectionData(IndirectionData);
+	}
+}
+
+StructuredBuffer<uint2> VolumetricShadowLinkedListBuffer0;
+StructuredBuffer<uint2> VolumetricShadowLinkedListBuffer1;
+
+[numthreads(THREADGROUP_SIZE_2D, THREADGROUP_SIZE_2D, 1)]
+void CombineVolumetricShadowMapsCS(
+	uint2 GroupThreadId : SV_GroupThreadID,
+	uint3 DispatchThreadId : SV_DispatchThreadID,
+	uint GroupIndex : SV_GroupIndex
+)
+{
+	uint Face = DispatchThreadId.z;
+	uint2 PixelCoord = DispatchThreadId.xy;
+	if (any(PixelCoord >= ShadowResolution))
+	{
+		return;
+	}
+
+	uint LinearIndex = GetLinearIndex(Face, PixelCoord);
+	int PixelIndex = LinearIndex * MaxSampleCount;
+
+	int PrevSampleIndex = AVSM_NULL_PTR;
+	int SampleIndex = 0;
+
+	float Transmittance0 = 1.0;
+	float Transmittance1 = 1.0;
+	int IndexPtr0 = 0;
+	int IndexPtr1 = 0;
+
+	// Sorted sample insertion
+	while ((IndexPtr0 != AVSM_NULL_PTR) && (IndexPtr1 != AVSM_NULL_PTR))
+	{
+		FAVSMSampleData Data0 = AVSM_UnpackSampleData(VolumetricShadowLinkedListBuffer0[PixelIndex + IndexPtr0]);
+		FAVSMSampleData Data1 = AVSM_UnpackSampleData(VolumetricShadowLinkedListBuffer1[PixelIndex + IndexPtr1]);
+
+		FAVSMSampleData DataToInsert;
+		if (Data0.X < Data1.X)
+		{
+			DataToInsert = Data0;
+			DataToInsert.Tau *= Transmittance1;
+			Transmittance0 = Data0.Tau;
+
+			IndexPtr0 = AVSM_GetNextPtr(VolumetricShadowLinkedListBuffer0[PixelIndex + IndexPtr0]);
+		}
+		else
+		{
+			DataToInsert = Data1;
+			DataToInsert.Tau *= Transmittance0;
+			Transmittance1 = Data1.Tau;
+
+			IndexPtr1 = AVSM_GetNextPtr(VolumetricShadowLinkedListBuffer1[PixelIndex + IndexPtr1]);
+		}
+
+		AddOrReplaceSample(DataToInsert, PixelIndex, PrevSampleIndex, SampleIndex);
+	}
+
+	// Sample0 residual
+	while (IndexPtr0 != AVSM_NULL_PTR)
+	{
+		FAVSMSampleData DataToInsert = AVSM_UnpackSampleData(VolumetricShadowLinkedListBuffer0[PixelIndex + IndexPtr0]);
+		DataToInsert.Tau *= Transmittance1;
+
+		IndexPtr0 = AVSM_GetNextPtr(VolumetricShadowLinkedListBuffer0[PixelIndex + IndexPtr0]);
+		AddOrReplaceSample(DataToInsert, PixelIndex, PrevSampleIndex, SampleIndex);
+	}
+
+	// Sample1 residual
+	while ((IndexPtr1 != AVSM_NULL_PTR))
+	{
+		FAVSMSampleData DataToInsert = AVSM_UnpackSampleData(VolumetricShadowLinkedListBuffer1[PixelIndex + IndexPtr1]);
+		DataToInsert.Tau *= Transmittance0;
+
+		IndexPtr1 = AVSM_GetNextPtr(VolumetricShadowLinkedListBuffer1[PixelIndex + IndexPtr1]);
+		AddOrReplaceSample(DataToInsert, PixelIndex, PrevSampleIndex, SampleIndex);
+	}
+
+	// Mark the final sample as being terminal
+	if (PrevSampleIndex != AVSM_NULL_PTR)
+	{
+		AVSM_SetNextPtr(RWVolumetricShadowLinkedListBuffer[PixelIndex + PrevSampleIndex], AVSM_NULL_PTR);
 	}
 }

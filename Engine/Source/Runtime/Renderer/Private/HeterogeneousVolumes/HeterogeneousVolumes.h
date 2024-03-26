@@ -9,6 +9,7 @@
 class IHeterogeneousVolumeInterface;
 class FLightSceneInfo;
 class FPrimitiveSceneProxy;
+class FProjectedShadowInfo;
 class FRayTracingScene;
 class FRDGBuilder;
 class FScene;
@@ -23,6 +24,7 @@ struct FMaterialShaderParameters;
 struct FRDGTextureDesc;
 struct FSceneTextures;
 struct FPersistentPrimitiveIndex;
+struct FVolumetricMeshBatch;
 
 //
 // External API
@@ -59,8 +61,24 @@ namespace HeterogeneousVolumes
 	float GetMaxStepCount();
 	float GetMinimumVoxelSizeInFrustum();
 	float GetMinimumVoxelSizeOutsideFrustum();
+
+	// Shadow generation
+	enum class EShadowMode
+	{
+		LiveShading,
+		VoxelGrid
+	};
+	EShadowMode GetShadowMode();
+	FIntPoint GetShadowMapResolution();
 	float GetShadingRateForShadows();
 	float GetOutOfFrustumShadingRateForShadows();
+	bool EnableJitterForShadows();
+	float GetStepSizeForShadows();
+	uint32 GetShadowMaxSampleCount();
+	float GetShadowAbsoluteErrorThreshold();
+	float GetShadowRelativeErrorThreshold();
+	bool UseAVSMCompression();
+	float GetCameraDownsampleFactor();
 
 	int32 GetMipLevel();
 	int32 GetDebugMode();
@@ -89,7 +107,12 @@ namespace HeterogeneousVolumes
 	int GetVoxelCount(FIntVector VolumeResolution);
 	int GetVoxelCount(const FRDGTextureDesc& TextureDesc);
 	FIntVector GetMipVolumeResolution(FIntVector VolumeResolution, uint32 MipLevel);
+
+	const FProjectedShadowInfo* GetProjectedShadowInfo(const FVisibleLightInfo* VisibleLightInfo, int32 ShadowIndex);
+	bool IsDynamicShadow(const FVisibleLightInfo* VisibleLightInfo);
 }
+
+uint32 GetTypeHash(const FVolumetricMeshBatch& MeshBatch);
 
 struct FVoxelDataPacked
 {
@@ -207,6 +230,12 @@ BEGIN_UNIFORM_BUFFER_STRUCT(FFrustumVoxelGridUniformBufferParameters, )
 END_UNIFORM_BUFFER_STRUCT()
 
 // Render specializations
+
+enum class EHeterogeneousVolumesShadowMode
+{
+	LiveShading,
+	VoxelGrid
+};
 
 enum class EVoxelGridBuildMode
 {
@@ -398,6 +427,10 @@ namespace HeterogeneousVolumes {
 		FSceneViewState* ViewState
 	);
 
+	TRDGUniformBufferRef<FAdaptiveVolumetricShadowMapUniformBufferParameters> CreateEmptyAdaptiveVolumetricShadowMapUniformBuffer(
+		FRDGBuilder& GraphBuilder
+	);
+
 	TRDGUniformBufferRef<FFrustumVoxelGridUniformBufferParameters> GetFrustumVoxelGridUniformBuffer(
 		FRDGBuilder& GraphBuilder,
 		FSceneViewState* ViewState
@@ -480,6 +513,17 @@ void RenderAdaptiveVolumetricShadowMapWithVoxelGrid(
 	const TRDGUniformBufferRef<FFrustumVoxelGridUniformBufferParameters>& FrustumGridUniformBuffer
 );
 
+void RenderAdaptiveVolumetricShadowMapWithLiveShading(
+	FRDGBuilder& GraphBuilder,
+	// Scene data
+	const FSceneTextures& SceneTextures,
+	FScene* Scene,
+	const FSceneViewFamily& ViewFamily,
+	FViewInfo& View,
+	// Light data
+	TArray<FVisibleLightInfo, SceneRenderingAllocator>& VisibleLightInfos
+);
+
 void RenderAdaptiveVolumetricCameraMapWithVoxelGrid(
 	FRDGBuilder& GraphBuilder,
 	// Scene data
@@ -490,6 +534,57 @@ void RenderAdaptiveVolumetricCameraMapWithVoxelGrid(
 	// Volume data
 	const TRDGUniformBufferRef<FOrthoVoxelGridUniformBufferParameters>& OrthoGridUniformBuffer,
 	const TRDGUniformBufferRef<FFrustumVoxelGridUniformBufferParameters>& FrustumGridUniformBuffer
+);
+
+void RenderAdaptiveVolumetricCameraMapWithLiveShading(
+	FRDGBuilder& GraphBuilder,
+	// Scene data
+	const FSceneTextures& SceneTextures,
+	FScene* Scene,
+	const FSceneViewFamily& ViewFamily,
+	FViewInfo& View
+);
+
+void CompressVolumetricShadowMap(
+	FRDGBuilder& GraphBuilder,
+	FViewInfo& View,
+	FIntVector GroupCount,
+	// Input
+	FIntPoint ShadowMapResolution,
+	uint32 MaxSampleCount,
+	FRDGBufferRef VolumetricShadowLinkedListBuffer,
+	// Output
+	FRDGBufferRef& VolumetricShadowIndirectionBuffer,
+	FRDGBufferRef& VolumetricShadowTransmittanceBuffer
+);
+
+void CombineVolumetricShadowMap(
+	FRDGBuilder& GraphBuilder,
+	FViewInfo& View,
+	FIntVector GroupCount,
+	// Input
+	uint32 LightType,
+	FIntPoint ShadowMapResolution,
+	uint32 MaxSampleCount,
+	FRDGBufferRef VolumetricShadowLinkedListBuffer0,
+	FRDGBufferRef VolumetricShadowLinkedListBuffer1,
+	// Output
+	FRDGBufferRef& VolumetricShadowLinkedListBuffer
+);
+
+void CreateAdaptiveVolumetricShadowMapUniformBuffer(
+	FRDGBuilder& GraphBuilder,
+	const FVector3f& TranslatedWorldOrigin,
+	const FVector4f& TranslatedWorldPlane,
+	const FMatrix44f* TranslatedWorldToShadow,
+	FIntPoint VolumetricShadowMapResolution,
+	int32 NumShadowMatrices,
+	uint32 VolumetricShadowMapMaxSampleCount,
+	bool bIsDirectionalLight,
+	FRDGBufferRef VolumetricShadowMapLinkedListBuffer,
+	FRDGBufferRef VolumetricShadowMapIndirectionBuffer,
+	FRDGBufferRef VolumetricShadowMapSampleBuffer,
+	TRDGUniformBufferRef<FAdaptiveVolumetricShadowMapUniformBufferParameters>& AdaptiveVolumetricShadowMapUniformBuffer
 );
 
 void RenderSingleScatteringWithVoxelGrid(

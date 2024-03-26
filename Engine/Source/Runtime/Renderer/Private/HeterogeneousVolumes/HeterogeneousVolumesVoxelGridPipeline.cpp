@@ -219,8 +219,8 @@ static TAutoConsoleVariable<float> CVarHeterogeneousVolumesStepSizeForShadows(
 
 static TAutoConsoleVariable<int32> CVarHeterogeneousVolumesShadowMaxSampleCount(
 	TEXT("r.HeterogeneousVolumes.Shadows.MaxSampleCount"),
-	16,
-	TEXT("Maximum sample count when building volumetric shadow map (Default = 16)\n"),
+	8,
+	TEXT("Maximum sample count when building volumetric shadow map (Default = 8)\n"),
 	ECVF_RenderThreadSafe
 );
 
@@ -263,6 +263,13 @@ static TAutoConsoleVariable<int32> CVarHeterogeneousVolumesShadowOutOfFrustumSha
 	TEXT("r.HeterogeneousVolumes.Shadows.OutOfFrustumShadingRate"),
 	2,
 	TEXT("Debug tweak value (Default = 0)\n"),
+	ECVF_RenderThreadSafe
+);
+
+static TAutoConsoleVariable<int32> CVarHeterogeneousVolumesShadowJitter(
+	TEXT("r.HeterogeneousVolumes.Shadows.Jitter"),
+	0,
+	TEXT("Enables jittering when constructing shadows (Default = 0)\n"),
 	ECVF_RenderThreadSafe
 );
 
@@ -406,7 +413,7 @@ namespace HeterogeneousVolumes
 
 	FIntPoint GetShadowMapResolution()
 	{
-		return FIntPoint(FMath::Clamp(CVarHeterogeneousVolumesShadowResolution.GetValueOnRenderThread(), 1, 1024));
+		return FIntPoint(FMath::Clamp(CVarHeterogeneousVolumesShadowResolution.GetValueOnRenderThread(), 1, 2048));
 	}
 
 	float GetStepSizeForShadows()
@@ -448,6 +455,38 @@ namespace HeterogeneousVolumes
 	{
 		return FMath::Max(CVarHeterogeneousVolumesShadowOutOfFrustumShadingRate.GetValueOnRenderThread(), 0.1);
 	}
+
+	bool EnableJitterForShadows()
+	{
+		return CVarHeterogeneousVolumesShadowJitter.GetValueOnRenderThread() != 0;
+	}
+
+	bool IsDynamicShadow(const FVisibleLightInfo* VisibleLightInfo)
+	{
+		check(VisibleLightInfo != nullptr);
+		if (VisibleLightInfo)
+		{
+			return !VisibleLightInfo->ShadowsToProject.IsEmpty();
+		}
+
+		return false;
+	}
+
+	const FProjectedShadowInfo* GetProjectedShadowInfo(const FVisibleLightInfo* VisibleLightInfo, int32 ShadowIndex)
+	{
+		check(VisibleLightInfo != nullptr);
+		if (VisibleLightInfo && ShadowIndex < VisibleLightInfo->ShadowsToProject.Num())
+		{
+			return VisibleLightInfo->ShadowsToProject[ShadowIndex];
+		}
+
+		return nullptr;
+	}
+}
+
+uint32 GetTypeHash(const FVolumetricMeshBatch& MeshBatch)
+{
+	return HashCombineFast(GetTypeHash(MeshBatch.Mesh), GetTypeHash(MeshBatch.Proxy));
 }
 
 class FMarkTopLevelGridVoxelsForFrustumGrid : public FGlobalShader
@@ -2607,33 +2646,6 @@ void RasterizeVolumesIntoOrthoVoxelGrid(
 	}
 }
 
-uint32 GetTypeHash(const FVolumetricMeshBatch& MeshBatch)
-{
-	return HashCombineFast(GetTypeHash(MeshBatch.Mesh), GetTypeHash(MeshBatch.Proxy));
-}
-
-bool IsDynamicShadow(const FVisibleLightInfo* VisibleLightInfo)
-{
-	check(VisibleLightInfo != nullptr);
-	if (VisibleLightInfo)
-	{
-		return !VisibleLightInfo->ShadowsToProject.IsEmpty();
-	}
-
-	return false;
-}
-
-const FProjectedShadowInfo* GetProjectedShadowInfo(const FVisibleLightInfo* VisibleLightInfo, int32 ShadowIndex)
-{
-	check(VisibleLightInfo != nullptr);
-	if (VisibleLightInfo && ShadowIndex < VisibleLightInfo->ShadowsToProject.Num())
-	{
-		return VisibleLightInfo->ShadowsToProject[ShadowIndex];
-	}
-
-	return nullptr;
-}
-
 bool ShouldAddToVoxelGrid(const FPrimitiveSceneProxy* Proxy, const FViewInfo& View, const FVoxelGridBuildOptions& BuildOptions)
 {
 	switch (BuildOptions.VoxelGridBuildMode)
@@ -2690,22 +2702,22 @@ void CollectHeterogeneousVolumeMeshBatches(
 			check(VisibleLightInfo);
 			for (int32 ShadowIndex = 0; ShadowIndex < VisibleLightInfo->ShadowsToProject.Num(); ++ShadowIndex)
 			{
-				const FProjectedShadowInfo* ProjectedShadowInfo = GetProjectedShadowInfo(VisibleLightInfo, ShadowIndex);
-			if (ProjectedShadowInfo != nullptr)
-			{
-				const TArray<FMeshBatchAndRelevance, SceneRenderingAllocator>& MeshBatches = ProjectedShadowInfo->GetDynamicSubjectHeterogeneousVolumeMeshElements();
-				for (int32 MeshBatchIndex = 0; MeshBatchIndex < MeshBatches.Num(); ++MeshBatchIndex)
+				const FProjectedShadowInfo* ProjectedShadowInfo = HeterogeneousVolumes::GetProjectedShadowInfo(VisibleLightInfo, ShadowIndex);
+				if (ProjectedShadowInfo != nullptr)
 				{
-					const FMeshBatchAndRelevance& MeshBatch = MeshBatches[MeshBatchIndex];
-					if (ShouldAddToVoxelGrid(MeshBatch.PrimitiveSceneProxy, *ProjectedShadowInfo->ShadowDepthView, BuildOptions))
+					const TArray<FMeshBatchAndRelevance, SceneRenderingAllocator>& MeshBatches = ProjectedShadowInfo->GetDynamicSubjectHeterogeneousVolumeMeshElements();
+					for (int32 MeshBatchIndex = 0; MeshBatchIndex < MeshBatches.Num(); ++MeshBatchIndex)
 					{
-						HeterogeneousVolumesMeshBatches.FindOrAdd(FVolumetricMeshBatch(MeshBatch.Mesh, MeshBatch.PrimitiveSceneProxy));
+						const FMeshBatchAndRelevance& MeshBatch = MeshBatches[MeshBatchIndex];
+						if (ShouldAddToVoxelGrid(MeshBatch.PrimitiveSceneProxy, *ProjectedShadowInfo->ShadowDepthView, BuildOptions))
+						{
+							HeterogeneousVolumesMeshBatches.FindOrAdd(FVolumetricMeshBatch(MeshBatch.Mesh, MeshBatch.PrimitiveSceneProxy));
+						}
 					}
 				}
 			}
 		}
 	}
-}
 }
 
 void BuildOrthoVoxelGrid(
@@ -3063,6 +3075,61 @@ class FCompressVolumetricShadowMapCS : public FGlobalShader
 
 IMPLEMENT_GLOBAL_SHADER(FCompressVolumetricShadowMapCS, "/Engine/Private/HeterogeneousVolumes/HeterogeneousVolumesVoxelGridShadows.usf", "CompressVolumetricShadowMapCS", SF_Compute);
 
+class FCombineVolumetricShadowMapsCS : public FGlobalShader
+{
+	DECLARE_GLOBAL_SHADER(FCombineVolumetricShadowMapsCS);
+	SHADER_USE_PARAMETER_STRUCT(FCombineVolumetricShadowMapsCS, FGlobalShader);
+
+	class FUseAVSMCompression : SHADER_PERMUTATION_BOOL("USE_AVSM_COMPRESSION");
+	using FPermutationDomain = TShaderPermutationDomain<FUseAVSMCompression>;
+
+	BEGIN_SHADER_PARAMETER_STRUCT(FParameters, )
+		// Input
+		SHADER_PARAMETER(FIntPoint, ShadowResolution)
+		SHADER_PARAMETER_RDG_BUFFER_SRV(StructuredBuffer<uint2>, VolumetricShadowLinkedListBuffer0)
+		SHADER_PARAMETER_RDG_BUFFER_SRV(StructuredBuffer<uint2>, VolumetricShadowLinkedListBuffer1)
+
+		// Volumetric Shadow Map data
+		SHADER_PARAMETER(int, MaxSampleCount)
+		SHADER_PARAMETER(float, AbsoluteErrorThreshold)
+		SHADER_PARAMETER(float, RelativeErrorThreshold)
+
+		// Output
+		SHADER_PARAMETER_RDG_BUFFER_UAV(RWStructuredBuffer<int2>, RWVolumetricShadowLinkedListBuffer)
+	END_SHADER_PARAMETER_STRUCT()
+
+	static bool ShouldCompilePermutation(
+		const FGlobalShaderPermutationParameters& Parameters
+	)
+	{
+		return DoesPlatformSupportHeterogeneousVolumes(Parameters.Platform);
+	}
+
+	static void ModifyCompilationEnvironment(
+		const FGlobalShaderPermutationParameters& Parameters,
+		FShaderCompilerEnvironment& OutEnvironment
+	)
+	{
+		FMaterialShader::ModifyCompilationEnvironment(Parameters, OutEnvironment);
+		OutEnvironment.SetDefine(TEXT("THREADGROUP_SIZE_1D"), GetThreadGroupSize1D());
+		OutEnvironment.SetDefine(TEXT("THREADGROUP_SIZE_2D"), GetThreadGroupSize2D());
+		OutEnvironment.SetDefine(TEXT("THREADGROUP_SIZE_3D"), GetThreadGroupSize3D());
+
+		// Temporary disabling..
+		OutEnvironment.SetDefine(TEXT("DIM_USE_TRANSMITTANCE_VOLUME"), 0);
+		OutEnvironment.SetDefine(TEXT("DIM_USE_INSCATTERING_VOLUME"), 0);
+		OutEnvironment.SetDefine(TEXT("DIM_USE_LUMEN_GI"), 0);
+
+		OutEnvironment.CompilerFlags.Add(CFLAG_AllowTypedUAVLoads);
+	}
+
+	static int32 GetThreadGroupSize1D() { return GetThreadGroupSize3D() * GetThreadGroupSize3D() * GetThreadGroupSize3D(); }
+	static int32 GetThreadGroupSize2D() { return 8; }
+	static int32 GetThreadGroupSize3D() { return 4; }
+};
+
+IMPLEMENT_GLOBAL_SHADER(FCombineVolumetricShadowMapsCS, "/Engine/Private/HeterogeneousVolumes/HeterogeneousVolumesVoxelGridShadows.usf", "CombineVolumetricShadowMapsCS", SF_Compute);
+
 void CreateAdaptiveVolumetricShadowMapUniformBuffer(
 	FRDGBuilder& GraphBuilder,
 	const FVector3f& TranslatedWorldOrigin,
@@ -3270,6 +3337,66 @@ void CompressVolumetricShadowMap(
 	);
 }
 
+void CombineVolumetricShadowMap(
+	FRDGBuilder& GraphBuilder,
+	FViewInfo& View,
+	FIntVector GroupCount,
+	// Input
+	uint32 LightType,
+	FIntPoint ShadowMapResolution,
+	uint32 MaxSampleCount,
+	FRDGBufferRef VolumetricShadowLinkedListBuffer0,
+	FRDGBufferRef VolumetricShadowLinkedListBuffer1,
+	// Output
+	FRDGBufferRef& VolumetricShadowLinkedListBuffer
+)
+{
+	bool bIsMultiProjection = (LightType == LightType_Point) || (LightType == LightType_Rect);
+	GroupCount = FIntVector(1);
+	GroupCount.X = FMath::DivideAndRoundUp(ShadowMapResolution.X, FCombineVolumetricShadowMapsCS::GetThreadGroupSize2D());
+	GroupCount.Y = FMath::DivideAndRoundUp(ShadowMapResolution.Y, FCombineVolumetricShadowMapsCS::GetThreadGroupSize2D());
+	GroupCount.Z = bIsMultiProjection ? 6 : 1;
+
+	MaxSampleCount = HeterogeneousVolumes::GetShadowMaxSampleCount();
+	int32 VolumetricShadowLinkedListElementCount = ShadowMapResolution.X * ShadowMapResolution.Y * MaxSampleCount;
+	if (bIsMultiProjection)
+	{
+		VolumetricShadowLinkedListElementCount *= 6;
+	}
+	VolumetricShadowLinkedListBuffer = GraphBuilder.CreateBuffer(
+		FRDGBufferDesc::CreateStructuredDesc(sizeof(FAVSMLinkedListPackedData), VolumetricShadowLinkedListElementCount),
+		TEXT("HeterogeneousVolume.VolumetricShadowLinkedListBuffer")
+	);
+
+	FCombineVolumetricShadowMapsCS::FParameters* PassParameters = GraphBuilder.AllocParameters<FCombineVolumetricShadowMapsCS::FParameters>();
+	{
+		// Input
+		PassParameters->ShadowResolution = ShadowMapResolution;
+		PassParameters->VolumetricShadowLinkedListBuffer0 = GraphBuilder.CreateSRV(VolumetricShadowLinkedListBuffer0);
+		PassParameters->VolumetricShadowLinkedListBuffer1 = GraphBuilder.CreateSRV(VolumetricShadowLinkedListBuffer1);
+
+		PassParameters->MaxSampleCount = MaxSampleCount;
+		PassParameters->AbsoluteErrorThreshold = HeterogeneousVolumes::GetShadowAbsoluteErrorThreshold();
+		PassParameters->RelativeErrorThreshold = HeterogeneousVolumes::GetShadowRelativeErrorThreshold();
+
+		// Output
+		PassParameters->RWVolumetricShadowLinkedListBuffer = GraphBuilder.CreateUAV(VolumetricShadowLinkedListBuffer);
+	}
+
+	FCombineVolumetricShadowMapsCS::FPermutationDomain PermutationVector;
+	PermutationVector.Set<FCombineVolumetricShadowMapsCS::FUseAVSMCompression>(HeterogeneousVolumes::UseAVSMCompression());
+	TShaderRef<FCombineVolumetricShadowMapsCS> ComputeShader = View.ShaderMap->GetShader<FCombineVolumetricShadowMapsCS>(PermutationVector);
+	FComputeShaderUtils::AddPass(
+		GraphBuilder,
+		// Add Light name..
+		RDG_EVENT_NAME("CombineVolumetricShadowMapsCS"),
+		ERDGPassFlags::Compute | ERDGPassFlags::NeverCull,
+		ComputeShader,
+		PassParameters,
+		GroupCount
+	);
+}
+
 void RenderVolumetricShadowMapForLightWithVoxelGrid(
 	FRDGBuilder& GraphBuilder,
 	// Scene data
@@ -3305,7 +3432,7 @@ void RenderVolumetricShadowMapForLightWithVoxelGrid(
 	check(LightSceneInfo);
 	check(VisibleLightInfo);
 
-	const FProjectedShadowInfo* ProjectedShadowInfo = GetProjectedShadowInfo(VisibleLightInfo, 0);
+	const FProjectedShadowInfo* ProjectedShadowInfo = HeterogeneousVolumes::GetProjectedShadowInfo(VisibleLightInfo, 0);
 	check(ProjectedShadowInfo != NULL)
 
 	ShadowMapResolution = HeterogeneousVolumes::GetShadowMapResolution();
@@ -3677,7 +3804,7 @@ void RenderAdaptiveVolumetricShadowMapWithVoxelGrid(
 			{
 				VisibleLightInfo = &VisibleLightInfos[LightSceneInfo->Id];
 				bApplyShadowTransmittance = LightSceneInfo->Proxy && LightSceneInfo->Proxy->CastsVolumetricShadow();
-				bDynamicallyShadowed = IsDynamicShadow(VisibleLightInfo);
+				bDynamicallyShadowed = HeterogeneousVolumes::IsDynamicShadow(VisibleLightInfo);
 			}
 
 			TRDGUniformBufferRef<FAdaptiveVolumetricShadowMapUniformBufferParameters> AdaptiveVolumetricShadowMapUniformBuffer;
