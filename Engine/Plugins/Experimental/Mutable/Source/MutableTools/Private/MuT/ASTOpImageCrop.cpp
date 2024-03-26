@@ -220,7 +220,7 @@ namespace mu
 		check(InRoot->GetOpType() == OP_TYPE::IM_CROP);
 
 		m_root = InRoot;
-		OldToNew.Empty();
+		OldToNew.Reset();
 
 		m_initialSource = InRoot->Source.child();
 		Ptr<ASTOp> newSource = Visit(m_initialSource, InRoot);

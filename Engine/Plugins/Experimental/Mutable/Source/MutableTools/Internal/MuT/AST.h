@@ -335,6 +335,24 @@ namespace mu
 		Ptr<ASTOp> Visit(Ptr<ASTOp> at, const class ASTOpImagePixelFormat* currentFormatOp);
 	};
 
+	//---------------------------------------------------------------------------------------------
+	//!
+	//---------------------------------------------------------------------------------------------
+	class Sink_ImageSwizzleAST
+	{
+	public:
+
+		Ptr<ASTOp> Apply(const class ASTOpImageSwizzle* Root);
+
+	protected:
+
+		const class ASTOpImageSwizzle* Root = nullptr;
+		Ptr<ASTOp> InitialSource;
+		TMap<FSinkerOldToNewKey, Ptr<ASTOp>> OldToNew;
+
+		Ptr<ASTOp> Visit(Ptr<ASTOp> at, const class ASTOpImageSwizzle* CurrentSwizzleOp);
+	};
+
 
 	//---------------------------------------------------------------------------------------------
 	//!
@@ -381,6 +399,7 @@ namespace mu
 	{
 		Sink_ImageCropAST ImageCropSinker;
 		Sink_ImagePixelFormatAST ImagePixelFormatSinker;
+		Sink_ImageSwizzleAST ImageSwizzleSinker;
 		Sink_ImageMipmapAST ImageMipmapSinker;
 		Sink_MeshFormatAST MeshFormatSinker;
 	};
