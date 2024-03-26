@@ -5010,7 +5010,7 @@ bool UCookOnTheFlyServer::PumpHasExceededMaxMemory(uint32& OutResultFlags)
 		if (PressureStatus == FPlatformMemoryStats::EMemoryPressureStatus::Unknown)
 		{
 			UE_CALL_ONCE([&]() {
-				UE_LOG(LogCook, Error,
+				UE_LOG(LogCook, Warning,
 				TEXT("MemoryPressureStatus is not available from the operating system. We may run out of memory due to lack of knowledge of when to collect garbage."));
 				});
 		}
