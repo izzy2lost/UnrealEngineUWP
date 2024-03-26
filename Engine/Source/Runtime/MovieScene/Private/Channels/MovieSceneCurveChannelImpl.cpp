@@ -951,9 +951,17 @@ float TMovieSceneCurveChannelImpl<ChannelType>::CalcSmartTangent(ChannelType* In
 		
 		if (GCachedSequencerAutoTangentInterpolation == 2) //use flattening, no overshoot
 		{
-			const double PreviousSlope = (ThisKey.Value - PrevY) / (TwoThird * TimeToPrevious);
-			const double NextSlope = (NextY - ThisKey.Value) / (TwoThird * TimeToNext);
-			NewTangent = ClampTangent<double>(NewTangent, PreviousSlope, NextSlope);
+			//if two keys are equivalent in value and both auto tangent is zero
+			if (FMath::IsNearlyEqual(ThisKey.Value, NextKey.Value) && NextKey.InterpMode == RCIM_Cubic && (NextKey.TangentMode == RCTM_Auto || NextKey.TangentMode == RCTM_SmartAuto))
+			{
+				NewTangent = 0.0;
+			}
+			else
+			{
+				const double PreviousSlope = (ThisKey.Value - PrevY) / (TwoThird * TimeToPrevious);
+				const double NextSlope = (NextY - ThisKey.Value) / (TwoThird * TimeToNext);
+				NewTangent = ClampTangent<double>(NewTangent, PreviousSlope, NextSlope);
+			}
 		}
 		else
 		{
