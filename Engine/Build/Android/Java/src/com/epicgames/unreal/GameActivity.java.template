@@ -4,7 +4,6 @@
 package com.epicgames.unreal;
 
 import android.app.NotificationManager;
-import android.content.ContextWrapper;
 import android.opengl.EGL14;
 import android.opengl.EGLConfig;
 import android.opengl.EGLContext;
@@ -12,7 +11,6 @@ import android.opengl.EGLDisplay;
 import android.opengl.EGLSurface;
 import android.opengl.GLES20;
 
-import java.lang.annotation.Native;
 import java.util.regex.Pattern;
 import java.util.regex.Matcher;
 
@@ -342,7 +340,7 @@ public class GameActivity extends $${gameActivitySuperClass}$$ implements Surfac
 	
 	protected boolean isStandalone = false;
 	protected static GameActivity _gameActivityInstance = null;
-	protected ContextWrapper activityContext = null;
+	protected SimpleContextWrapper activityContext = null;
 	protected static Bundle _bundle;
 	protected static Bundle _extrasBundle;
 	protected boolean bOnCreateCalled = false;
@@ -561,83 +559,19 @@ public class GameActivity extends $${gameActivitySuperClass}$$ implements Surfac
 		return _gameActivityInstance;
 	}
 
-	public static Boolean isStandaloneMode()
-	{
-		return _gameActivityInstance.isStandalone;
-	}
-
-	
 	public static Boolean isValidGameActivity()
 	{
 		return _gameActivityInstance != null;
 	}
 
-	public static ContextWrapper GetCurrentActivityContext()
+	public static SimpleContextWrapper GetCurrentActivityContext()
 	{
 		return _gameActivityInstance.activityContext;
 	}
 
-	public static Activity getCurrentGameActivity()
-	{
-		GameActivity ga = Get();
-		if (ga.isStandalone)
-		{
-			assert (ga._gameActivityInstance.activityContext instanceof Activity);
-			return (Activity)ga._gameActivityInstance.activityContext;
-		}
-		else
-		{
-			assert (_gameActivityInstance.getBaseContext() != null);
-			return ga;
-		}
-	}
-
-	public final void runOnMainThread(Runnable action) {
-		assert (getBaseContext() != null);
-		assert (getMainExecutor() != null);
-		getMainExecutor().execute(action);
-	}
-	
-	private Activity getGameActivity()
-	{
-		assert(activityContext != null);
-		if (isStandalone)
-		{
-			if (activityContext instanceof Activity) 
-			{
-				return (Activity) activityContext;
-			}
-			else
-			{
-				Context searchContext = activityContext;
-				Log.debug( "LIFECYCLE: GameActivity.getGameActivity() searching for Activity in _gameActivityInstance =" + _gameActivityInstance + ", activityContext=" + activityContext);
-
-				while (searchContext instanceof ContextWrapper) {
-					if (searchContext instanceof Activity) {
-						Log.warn( "LIFECYCLE: GameActivity.getGameActivity() updating activityContext = " + activityContext + ", with searchContext=" + (ContextWrapper)searchContext);
-
-						activityContext = (ContextWrapper) searchContext;
-						return (Activity) searchContext;
-					}
-					searchContext = ((ContextWrapper) searchContext).getBaseContext();
-				}
-
-				Log.error( "LIFECYCLE ERROR: GameActivity.getGameActivity() did not find Activity for _gameActivityInstance =" + _gameActivityInstance + ", activityContext=" + activityContext);
-
-				assert (activityContext instanceof Activity);
-				return null;
-			}
-		}
-		else
-		{
-			assert (getBaseContext() != null);
-			return this;
-		}
-	}
-	
 	public final Window getWindow() 
 	{
-		return isStandalone ? getGameActivity().getWindow() : super.getWindow();
+		return isStandalone ? activityContext.getWindow() : super.getWindow();
 	}
 
 	public final Intent getIntent()
@@ -647,14 +581,7 @@ public class GameActivity extends $${gameActivitySuperClass}$$ implements Surfac
 
 	public final WindowManager getWindowManager()
 	{
-		if (isStandalone) 
-		{
-			return (WindowManager) activityContext.getSystemService(Context.WINDOW_SERVICE);
-		}
-		else 
-		{
-			return super.getWindowManager();
-		}
+		return isStandalone ? activityContext.getWindowManager() : super.getWindowManager();
 	}
 
 	
@@ -811,7 +738,7 @@ public class GameActivity extends $${gameActivitySuperClass}$$ implements Surfac
 	public String AndroidThunkJava_GetCommandLine()
 	{
 		String commandLine = "";
-//$${gameActivityGetCommandLineAdditions}$$
+		//$${gameActivityGetCommandLineAdditions}$$
 		return commandLine;
 	}
 
@@ -2508,12 +2435,10 @@ public class GameActivity extends $${gameActivitySuperClass}$$ implements Surfac
 	{
 		assert(_gameActivityInstance != null);
 		bOnCreateCalled = true;
-		activityContext = (ContextWrapper) getApplicationContext();
-		assert (activityContext != null);
-		
+		activityContext = new SimpleContextWrapper(this);
 		InternalFilesDir = getFilesDir().getAbsolutePath() + "/";
 		ExternalFilesDir = getExternalFilesDir(null).getAbsolutePath() + "/";
-//$${gameActivityOnCreateBeginningAdditions}$$
+		//$${gameActivityOnCreateBeginningAdditions}$$
 		Logger.RegisterCallback(this);
 
 		// Grab a reference to the asset manager
@@ -2526,47 +2451,6 @@ public class GameActivity extends $${gameActivitySuperClass}$$ implements Surfac
 
 	protected void onCreateBody(Bundle savedInstanceState)
 	{
-		if (super.getBaseContext() == null)
-		{
-			if (isStandalone)
-			{
-				Log.debug("LIFECYCLE: onCreateBody(): super.getBaseContext() is null so attach base context = " + activityContext);
-			}
-			attachBaseContext(activityContext);
-		}
-		if (isStandalone)
-		{
-			Log.debug("LIFECYCLE: onCreateBody(): isStandalone=" + isStandalone 
-				+ ", getBaseContext() = " + getBaseContext() 
-				+ ", activityContext = "+ activityContext);
-		}
-		
-		if (super.getApplicationContext() == null)
-		{
-			if (isStandalone)
-			{
-				Log.debug("LIFECYCLE: onCreateBody(): super.getApplicationContext() is null so attach base context = " + activityContext);
-			}
-			attachBaseContext(activityContext);
-		}
-		
-		GameApplication gameApplication = GameApplication.getAppContext() instanceof GameApplication ? (GameApplication) GameApplication.getAppContext() : null;
-		if (gameApplication != null && gameApplication.getBaseContext() == null)
-		{
-			if (isStandalone)
-			{
-				Log.debug("LIFECYCLE: onCreateBody(): attachBaseContext for GameApplication to context = " + activityContext);
-			}
-			gameApplication.attachBaseContext(activityContext);
-		}
-
-		if (isStandalone)
-		{
-			Log.debug("LIFECYCLE: onCreateBody(): getBaseContext() = " + getBaseContext());
-			Log.debug("LIFECYCLE: onCreateBody(): GameApplication.getAppContext() = " + GameApplication.getAppContext());
-			Log.debug("LIFECYCLE: onCreateBody(): activityContext.getApplicationContext() = " + activityContext.getApplicationContext());
-		}
-
 		sensorManager = (SensorManager) getSystemService(Context.SENSOR_SERVICE);
 		accelerometer = sensorManager.getDefaultSensor(Sensor.TYPE_ACCELEROMETER);
 		magnetometer = sensorManager.getDefaultSensor(Sensor.TYPE_MAGNETIC_FIELD);
@@ -2592,7 +2476,7 @@ public class GameActivity extends $${gameActivitySuperClass}$$ implements Surfac
 		}
 
 		// disable autofill to avoid possible Android 10 crash (android.view.autofill.AutofillManager.ensureServiceClientAddedIfNeededLocked() SyncResultReceiver$TimeoutException)
-		if (!isStandalone && Build.VERSION.SDK_INT >= Build.VERSION_CODES.O)
+		if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O)
 		{
 			try
 			{
@@ -2666,7 +2550,7 @@ public class GameActivity extends $${gameActivitySuperClass}$$ implements Surfac
 				CommandLineFull = CmdLine;
 			}
 
-			if (!isStandalone && UseDisplayCutout)
+			if (UseDisplayCutout)
 			{
 				// will not be true if not Android Pie or later
 	            WindowManager.LayoutParams params = getWindow().getAttributes();
@@ -2769,11 +2653,12 @@ public class GameActivity extends $${gameActivitySuperClass}$$ implements Surfac
 							memLog += "memstat: "+memstatusline + "\n";
 				    	}
 					}
-//$${gameActivityMemStatAdditions}$$
+					//$${gameActivityMemStatAdditions}$$
 					Log.debug(memLog);
 				}
 				synchronized(activityContext)
 				{
+					Activity localActivity = SimpleContextWrapper.getActivityOfContext(activityContext);
 					if (ProcessMemory > 0)
 					{
 						UsedMemory = ProcessMemory;
@@ -2798,7 +2683,7 @@ public class GameActivity extends $${gameActivitySuperClass}$$ implements Surfac
 			MarginLayoutParams params = new MarginLayoutParams(LayoutParams.WRAP_CONTENT, LayoutParams.WRAP_CONTENT);
 			params.setMargins(0, 0, 0, 0);
 			activityLayout = new LinearLayout(activityContext);
-			getGameActivity().setContentView(activityLayout, params);
+			SimpleContextWrapper.getActivityOfContext(activityContext).setContentView(activityLayout, params);
 
 			// tell Android that we want volume controls to change the media volume, aka music
 			setVolumeControlStream(AudioManager.STREAM_MUSIC);
@@ -2901,7 +2786,7 @@ public class GameActivity extends $${gameActivitySuperClass}$$ implements Surfac
 		}
 
 		// is this a native landscape device (tablet, tv)?
-		if (!isStandalone && getDeviceDefaultOrientation() == Configuration.ORIENTATION_LANDSCAPE )
+		if ( getDeviceDefaultOrientation() == Configuration.ORIENTATION_LANDSCAPE )
 		{
 			boolean bForceLandscape = false;
 
@@ -2949,7 +2834,7 @@ public class GameActivity extends $${gameActivitySuperClass}$$ implements Surfac
 			if (bForceLandscape)
 			{
 				Log.debug( "Setting screen orientation to landscape because we have detected landscape device" );
-				getGameActivity().setRequestedOrientation( android.content.pm.ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE );
+				SimpleContextWrapper.getActivityOfContext(activityContext).setRequestedOrientation( android.content.pm.ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE );
 			}
 		}
 
@@ -3520,7 +3405,7 @@ public class GameActivity extends $${gameActivitySuperClass}$$ implements Surfac
 
 	public void AndroidThunkJava_ResizeKeyboard(boolean bShow, Rect keyboardRect, Rect visibleRect)
 	{
-//$${gameActivityResizeKeyboardAdditions}$$
+		//$${gameActivityResizeKeyboardAdditions}$$
 	}
 
 	@Override
@@ -3546,7 +3431,7 @@ public class GameActivity extends $${gameActivitySuperClass}$$ implements Surfac
 
 	public void restoreTransparentBars()
 	{
-		if(!isStandalone && android.os.Build.VERSION.SDK_INT >= 19) {
+		if(android.os.Build.VERSION.SDK_INT >= 19) {
 			try {
 				View decorView = getWindow().getDecorView(); 
 
@@ -3750,7 +3635,7 @@ public class GameActivity extends $${gameActivitySuperClass}$$ implements Surfac
 		{
 			final boolean bWarning = bForceGameEndWithWarning;
 
-			runOnUiThread(new Runnable()
+			activityContext.runOnUiThread(new Runnable()
 			{
 				@Override
 				public void run()
@@ -3868,7 +3753,7 @@ public class GameActivity extends $${gameActivitySuperClass}$$ implements Surfac
 		{
 			//	If an AlertDialog is showing when the application is paused, it can cause our main window to be terminated
 			//	Hide the dialog here. It will be shown again via AndroidThunkJava_ShowHiddenAlertDialog called from native code
-			runOnUiThread(new Runnable()
+			activityContext.runOnUiThread(new Runnable()
 			{
 				public void run()
 				{
@@ -4110,7 +3995,7 @@ public class GameActivity extends $${gameActivitySuperClass}$$ implements Surfac
 	public void onConfigurationChanged(Configuration newConfig)
 	{
 		super.onConfigurationChanged(newConfig);
-//$${gameActivityonConfigurationChangedAdditions}$$
+		//$${gameActivityonConfigurationChangedAdditions}$$
 		// forward the orientation
 		nativeOnOrientationChanged(newConfig.orientation);
 	}
@@ -4141,7 +4026,7 @@ public class GameActivity extends $${gameActivitySuperClass}$$ implements Surfac
 			Log.debug("==============> [JAVA] AndroidThunkJava_ShowHiddenAlertDialog() - Showing " + CurrentDialogType);
 		
 			//	If an AlertDialog was showing onPause and we hid it, show it again
-			runOnUiThread(new Runnable()
+			activityContext.runOnUiThread(new Runnable()
 			{
 				public void run()
 				{
@@ -4177,7 +4062,7 @@ public class GameActivity extends $${gameActivitySuperClass}$$ implements Surfac
 		bKeepScreenOn = Enable;
 		if (Enable)
 		{
-			runOnUiThread(new Runnable()
+			activityContext.runOnUiThread(new Runnable()
 			{
 				@Override
 				public void run()
@@ -4189,7 +4074,7 @@ public class GameActivity extends $${gameActivitySuperClass}$$ implements Surfac
 		}
 		else
 		{
-			runOnUiThread(new Runnable()
+			activityContext.runOnUiThread(new Runnable()
 			{
 				@Override
 				public void run()
@@ -4215,7 +4100,7 @@ public class GameActivity extends $${gameActivitySuperClass}$$ implements Surfac
 
 		if (bDisable)
 		{
-			runOnUiThread(new Runnable()
+			activityContext.runOnUiThread(new Runnable()
 			{
 				@Override
 				public void run()
@@ -4227,7 +4112,7 @@ public class GameActivity extends $${gameActivitySuperClass}$$ implements Surfac
 		}
 		else
 		{
-			runOnUiThread(new Runnable()
+			activityContext.runOnUiThread(new Runnable()
 			{
 				@Override
 				public void run()
@@ -4276,7 +4161,7 @@ public class GameActivity extends $${gameActivitySuperClass}$$ implements Surfac
 	{
 		if (deviceVibrator != null)
 		{
-			runOnUiThread(new VibrateRunnable(Intensity, (long)Duration, deviceVibrator));
+			activityContext.runOnUiThread(new VibrateRunnable(Intensity, (long)Duration, deviceVibrator));
 		}
 	}
 
@@ -4293,7 +4178,7 @@ public class GameActivity extends $${gameActivitySuperClass}$$ implements Surfac
 		consoleInputBox.setHistoryEnd();
 
 		consoleAlert.setMessage("[Available texture formats: " + Formats + "]");
-		runOnUiThread(new Runnable()
+		activityContext.runOnUiThread(new Runnable()
 		{
 			public void run()
 			{
@@ -4316,7 +4201,7 @@ public class GameActivity extends $${gameActivitySuperClass}$$ implements Surfac
 			return;
 		}
 
-		runOnUiThread(new Runnable()
+		activityContext.runOnUiThread(new Runnable()
 		{
 			public void run()
 			{
@@ -4344,7 +4229,7 @@ public class GameActivity extends $${gameActivitySuperClass}$$ implements Surfac
 		final String uiLabel = inLabel;
 		final String uiContents = inContents;
 
-		runOnUiThread(new Runnable()
+		activityContext.runOnUiThread(new Runnable()
 		{
 			public void run()
 			{
@@ -4635,7 +4520,7 @@ public class GameActivity extends $${gameActivitySuperClass}$$ implements Surfac
 	public String AndroidThunkJava_GetFunnelId()
 	{
 		String funnelId = "";
-//$${gameActivityGetFunnelIdAdditions}$$
+		//$${gameActivityGetFunnelIdAdditions}$$
 		return funnelId;
 	}
 
@@ -4643,7 +4528,7 @@ public class GameActivity extends $${gameActivitySuperClass}$$ implements Surfac
 	{
 		String loginId = null;
 
-//$${gameActivityGetLoginIdAdditions}$$
+	//$${gameActivityGetLoginIdAdditions}$$
 
 		// check for existing GUID fallback in internal
 		File file = new File(InternalFilesDir + "login-identifier.txt");
@@ -4791,12 +4676,12 @@ public class GameActivity extends $${gameActivitySuperClass}$$ implements Surfac
 	public void AndroidThunkJava_SetOrientation(int value)
 	{
 		final int orientation = value;
-		runOnUiThread(new Runnable()
+		activityContext.runOnUiThread(new Runnable()
 		{
 			@Override
 			public void run()
 			{
-				getGameActivity().setRequestedOrientation( orientation );
+				SimpleContextWrapper.getActivityOfContext(activityContext).setRequestedOrientation( orientation );
 			}
 		});
 	}
@@ -4820,7 +4705,7 @@ public class GameActivity extends $${gameActivitySuperClass}$$ implements Surfac
 	// call back into native code from the Java UI thread, initializing any available VR HMD modules
 	public void AndroidThunkJava_InitHMDs()
 	{
-		runOnUiThread(new Runnable()
+		activityContext.runOnUiThread(new Runnable()
 		{
 			@Override
 			public void run()
@@ -4880,7 +4765,7 @@ public class GameActivity extends $${gameActivitySuperClass}$$ implements Surfac
 		{
 			bTriggeredQuery = true;
 
-			runOnUiThread(new Runnable()
+			activityContext.runOnUiThread(new Runnable()
 			{
 				@Override
 				public void run()
@@ -5047,7 +4932,7 @@ public class GameActivity extends $${gameActivitySuperClass}$$ implements Surfac
 		final String messageFinal = message;
 		final boolean bHorizontalFinal = bHorizontal;
 		final int maxValueFinal = maxValue;
-		runOnUiThread(new Runnable()
+		activityContext.runOnUiThread(new Runnable()
 		{
 			@Override
 			public void run()
@@ -5080,7 +4965,7 @@ public class GameActivity extends $${gameActivitySuperClass}$$ implements Surfac
 			return;
 		}
 		final int valueFinal = value;
-		runOnUiThread(new Runnable()
+		activityContext.runOnUiThread(new Runnable()
 		{
 			@Override
 			public void run()
@@ -5598,7 +5483,7 @@ public class GameActivity extends $${gameActivitySuperClass}$$ implements Surfac
 	{
 		if (vibrator != null)
 		{
-			runOnUiThread(new VibrateRunnable(intensity, duration, vibrator));
+			activityContext.runOnUiThread(new VibrateRunnable(intensity, duration, vibrator));
 			return true;
 		}
 		return false;
@@ -5653,7 +5538,7 @@ public class GameActivity extends $${gameActivitySuperClass}$$ implements Surfac
 			DesiredHolderHeight > 0 &&
 			MySurfaceView != null)
 		{
-			runOnUiThread(new Runnable()
+			activityContext.runOnUiThread(new Runnable()
 			{
 				@Override
 				public void run()
@@ -5684,7 +5569,7 @@ public class GameActivity extends $${gameActivitySuperClass}$$ implements Surfac
 
 		if(bUseSurfaceView && MySurfaceView != null)
 		{
-			runOnUiThread(new Runnable()
+			activityContext.runOnUiThread(new Runnable()
 			{
 				@Override
 				public void run()
@@ -5765,7 +5650,7 @@ public class GameActivity extends $${gameActivitySuperClass}$$ implements Surfac
 		if (ANDROID_BUILD_VERSION >= 30)
 		{
 			final int FinalRefreshRate = RefreshRate;
-			runOnUiThread(new Runnable()
+			activityContext.runOnUiThread(new Runnable()
 			{
 				@Override
 				public void run()
@@ -5804,7 +5689,7 @@ public class GameActivity extends $${gameActivitySuperClass}$$ implements Surfac
 					{
 						if (!isStandalone)
 						{
-							runOnUiThread(new Runnable()
+							activityContext.runOnUiThread(new Runnable()
 							{
 								public void run()
 								{
@@ -6312,7 +6197,7 @@ public class GameActivity extends $${gameActivitySuperClass}$$ implements Surfac
 			}
 			if (!isStandalone)
 			{
-				runOnUiThread(new Runnable()
+				activityContext.runOnUiThread(new Runnable()
 				{
 					public void run()
 					{
@@ -6914,7 +6799,7 @@ public class GameActivity extends $${gameActivitySuperClass}$$ implements Surfac
 		};
 		Log.debug("app restart : " + RestartExtra);
 //$${gameActivityOnRestartApplicationAdditions}$$
-		runOnUiThread(restartRunnableUIThread);
+		activityContext.runOnUiThread(restartRunnableUIThread);
 
 		// wait for exit.
 		while(true)

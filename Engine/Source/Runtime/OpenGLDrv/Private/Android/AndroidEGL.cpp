@@ -1260,7 +1260,9 @@ bool AndroidEGL::IsOfflineSurfaceRequired()
 }
 
 ///
-extern FCriticalSection GAndroidWindowLock;
+//extern FCriticalSection GAndroidWindowLock;
+extern void GAndroidWindowLock_Lock(FString calledBy);
+extern void GAndroidWindowLock_Unlock(FString calledBy);
 
 void BlockOnLostWindowRenderCommand(TSharedPtr<FEvent, ESPMode::ThreadSafe> RTBlockedTrigger)
 {
@@ -1290,7 +1292,7 @@ void BlockOnLostWindowRenderCommand(TSharedPtr<FEvent, ESPMode::ThreadSafe> RTBl
 
 		RTBlockedTrigger->Trigger();
 
-		GAndroidWindowLock.Lock();
+		GAndroidWindowLock_Lock("BlockOnLostWindowRenderCommand Vulkan");
 		UE_LOG(LogAndroid, Log, TEXT("RendererBlock acquired window lock"));
 		const auto& OnReinitWindowCallback = FAndroidMisc::GetOnReInitWindowCallback();
 		if (OnReinitWindowCallback)
@@ -1298,17 +1300,17 @@ void BlockOnLostWindowRenderCommand(TSharedPtr<FEvent, ESPMode::ThreadSafe> RTBl
 			OnReinitWindowCallback(FAndroidWindow::GetHardwareWindow_EventThread());
 			UE_LOG(LogAndroid, Log, TEXT("RendererBlock updating window"));
 		}
-		GAndroidWindowLock.Unlock();
+		GAndroidWindowLock_Unlock("BlockOnLostWindowRenderCommand Vulkan");
 	}
 	else
 	{
 		RunOnGLRenderContextThread([&] {
 			RTBlockedTrigger->Trigger();
-			GAndroidWindowLock.Lock();
+			GAndroidWindowLock_Lock("BlockOnLostWindowRenderCommand");
 			UE_LOG(LogAndroid, Log, TEXT("RendererBlock acquired window lock"));
 			AndroidEGL::GetInstance()->SetRenderContextWindowSurface();
 			UE_LOG(LogAndroid, Log, TEXT("RendererBlock updating window"));
-			GAndroidWindowLock.Unlock();
+			GAndroidWindowLock_Unlock("BlockOnLostWindowRenderCommand");
 		}, true);
 	}
 	UE_LOG(LogAndroid, Log, TEXT("RendererBlock released window lock"));
@@ -1326,7 +1328,9 @@ void SetSharedContextGameCommand(TSharedPtr<FEvent, ESPMode::ThreadSafe> GTBlock
 extern bool IsInAndroidEventThread();
 void BlockRendering()
 {
+#if !USE_ANDROID_STANDALONE
 	check(IsInAndroidEventThread());
+#endif
 	check(GIsRHIInitialized);
 
 	UE_LOG(LogAndroid, Log, TEXT("Blocking renderer on suspended window."));

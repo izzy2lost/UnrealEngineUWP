@@ -200,26 +200,41 @@ extern void GAndroidWindowLock_Unlock(FString calledBy);
 
 JNI_METHOD void Java_com_epicgames_makeaar_GameActivityForMakeAAR_nativeSetSurfaceOverride(JNIEnv* jenv, jobject thiz, jobject surface, jint x, jint y)
 {
-	ANativeWindow* prev = (ANativeWindow*)GAndroidWindowOverride;
 	if (surface != 0)
 	{
 		GSurfaceViewX = x;
 		GSurfaceViewY = y;
-
+		void* prev = GAndroidWindowOverride;
 		GAndroidWindowOverride = (ANativeWindow*)ANativeWindow_fromSurface(jenv, surface);
-		UE_LOG(LogAndroid, Log, TEXT("nativeSetSurfaceOverride applied: prev to new %p -> %p, pos(%d, %d)"), prev, GAndroidWindowOverride, GSurfaceViewX, GSurfaceViewY);
+		STANDALONE_DEBUG_LOG(TEXT("nativeSetSurfaceOverride(makeaar) applied: prev to new %p -> %p, (%d, %d)"), prev, GAndroidWindowOverride, GSurfaceViewX, GSurfaceViewY);
+		if (prev != GAndroidWindowOverride)
+		{
+			//GAndroidWindowLock_Unlock("Java_com_epicgames_makeaar_GameActivityForMakeAAR_nativeSetSurfaceOverride");
+		}
+
+		//if (GAndroidWindowOverride != nullptr)
+		//{
+		//	STANDALONE_DEBUG_LOGf(LogAndroid, TEXT("nativeSetSurfaceOverride. FTaskGraphInterface::IsRunning() = %d, GAndroidWindowOverride=%x"), FTaskGraphInterface::IsRunning(), GAndroidWindowOverride);
+
+		//	if (FTaskGraphInterface::IsRunning())
+		//	{
+		//		FSimpleDelegateGraphTask::CreateAndDispatchWhenReady(
+		//			FSimpleDelegateGraphTask::FDelegate::CreateLambda([=]()
+		//				{
+		//					STANDALONE_DEBUG_LOGf(LogAndroid, TEXT("from nativeSetSurfaceOverride, trigger UnlockAndroidWindow. FTaskGraphInterface::IsRunning() = %d, GAndroidWindowOverride=%x"), FTaskGraphInterface::IsRunning(), GAndroidWindowOverride);
+
+		//					FPlatformMisc::UnlockAndroidWindow();
+		//				}), TStatId(), nullptr, ENamedThreads::GameThread);
+		//	}
+		//}
 
 	}
 	else
 	{
 		GAndroidWindowOverride = nullptr;
 		
-		STANDALONE_DEBUG_LOG(TEXT("nativeSetSurfaceOverride(makeaar) setting to null"));
-	}
-
-	if (prev != nullptr)
-	{
-		ANativeWindow_release(prev);
+		STANDALONE_DEBUG_LOG(TEXT("nativeSetSurfaceOverride(makeaar) setting to null and lock window"));
+		//GAndroidWindowLock_Lock("Java_com_epicgames_makeaar_GameActivityForMakeAAR_nativeSetSurfaceOverride");
 	}
 }
 
@@ -551,7 +566,7 @@ FPlatformRect FAndroidWindow::GetScreenRect(bool bUseEventThreadWindow)
 	// too much of the following code needs JNI things, just assume override
 #if !USE_ANDROID_JNI
 
-	UE_LOG(LogAndroid, Fatal, TEXT("FAndroidWindow::CalculateSurfaceSize currently expects non-JNI platforms to override resolution"));
+	UE_LOG(LogAndroid, Fatal, TEXT("FAndroidWindow::CalculateSurfaceSize currently expedcts non-JNI platforms to override resolution"));
 	return FPlatformRect();
 #else
 
@@ -693,13 +708,7 @@ void FAndroidWindow::CalculateSurfaceSize(int32_t& SurfaceWidth, int32_t& Surfac
 	// do not convert to a surface size that is larger than native resolution
 	// Mobile VR doesn't need buffer quantization as Unreal never renders directly to the buffer in VR mode. 
 	static const bool bIsMobileVRApp = AndroidThunkCpp_IsOculusMobileApplication();
-	
-#if USE_ANDROID_STANDALONE
-	const int DividableBy = 1;	// don't change size of external window 
-#else
 	const int DividableBy = bIsMobileVRApp ? 1 : 8;
-#endif
-
 	SurfaceWidth = (SurfaceWidth / DividableBy) * DividableBy;
 	SurfaceHeight = (SurfaceHeight / DividableBy) * DividableBy;
 #endif
