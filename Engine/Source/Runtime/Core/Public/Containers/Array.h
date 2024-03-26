@@ -755,7 +755,24 @@ public:
 		// Template property, branch will be optimized out
 		if constexpr (AllocatorType::RequireRangeCheck)
 		{
-			checkf((Index >= 0) & (Index < ArrayNum),TEXT("Array index out of bounds: %lld from an array of size %lld"),(long long)Index, (long long)ArrayNum); // & for one branch
+			checkf((Index >= 0) & (Index < ArrayNum),TEXT("Array index out of bounds: %lld into an array of size %lld"),(long long)Index, (long long)ArrayNum); // & for one branch
+		}
+	}
+
+	/**
+	 * Checks if a range of indices are in the array range.
+	 *
+	 * @param Index Index of the start of the range to check.
+	 * @param Count Number of elements in the range.
+	 */
+	FORCEINLINE void RangeCheck(SizeType Index, SizeType Count) const
+	{
+		CheckInvariants();
+
+		// Template property, branch will be optimized out
+		if constexpr (AllocatorType::RequireRangeCheck)
+		{
+			checkf((Count >= 0) & (Index >= 0) & (Index + Count <= ArrayNum), TEXT("Array range out of bounds: index %lld and length %lld into an array of size %lld"), (long long)Index, (long long)Count, (long long)ArrayNum); // & for one branch
 		}
 	}
 
@@ -837,7 +854,11 @@ public:
 	{
 		RangeCheck(0);
 		ElementType Result = MoveTempIfPossible(GetData()[ArrayNum - 1]);
-		RemoveAt(ArrayNum - 1, 1, AllowShrinking);
+		RemoveAtImpl(ArrayNum - 1);
+		if (AllowShrinking == EAllowShrinking::Yes)
+		{
+			ResizeShrink();
+		}
 		return Result;
 	}
 	UE_ALLOWSHRINKING_BOOL_DEPRECATED("Pop")
@@ -1690,32 +1711,38 @@ public:
 	}
 
 private:
-	void RemoveAtImpl(SizeType Index, SizeType Count, EAllowShrinking AllowShrinking)
+	void RemoveAtImpl(SizeType Index)
 	{
-		if (Count)
+		ElementType* Dest = GetData() + Index;
+
+		DestructItem(Dest);
+
+		// Skip relocation in the common case that there is nothing to move.
+		SizeType NumToMove = (ArrayNum - Index) - 1;
+		if (NumToMove)
 		{
-			CheckInvariants();
-			checkSlow((Count >= 0) & (Index >= 0) & (Index + Count <= ArrayNum));
-
-			ElementType* Dest = GetData() + Index;
-
-			DestructItems(Dest, Count);
-
-			// Skip memmove in the common case that there is nothing to move.
-			SizeType NumToMove = (ArrayNum - Index) - Count;
-			if (NumToMove)
-			{
-				RelocateConstructItems<ElementType>(Dest, Dest + Count, NumToMove);
-			}
-			ArrayNum -= Count;
-
-			SlackTrackerNumChanged();
-
-			if (AllowShrinking == EAllowShrinking::Yes)
-			{
-				ResizeShrink();
-			}
+			RelocateConstructItems<ElementType>(Dest, Dest + 1, NumToMove);
 		}
+		--ArrayNum;
+
+		SlackTrackerNumChanged();
+	}
+
+	void RemoveAtImpl(SizeType Index, SizeType Count)
+	{
+		ElementType* Dest = GetData() + Index;
+
+		DestructItems(Dest, Count);
+
+		// Skip relocation in the common case that there is nothing to move.
+		SizeType NumToMove = (ArrayNum - Index) - Count;
+		if (NumToMove)
+		{
+			RelocateConstructItems<ElementType>(Dest, Dest + Count, NumToMove);
+		}
+		ArrayNum -= Count;
+
+		SlackTrackerNumChanged();
 	}
 
 public:
@@ -1724,10 +1751,16 @@ public:
 	 * the array.
 	 *
 	 * @param Index Location in array of the element to remove.
+	 * @param AllowShrinking (Optional) Tells if this call can shrink array if suitable after remove. Default is yes.
 	 */
-	FORCEINLINE void RemoveAt(SizeType Index)
+	void RemoveAt(SizeType Index, EAllowShrinking AllowShrinking = EAllowShrinking::Yes)
 	{
-		RemoveAtImpl(Index, 1, EAllowShrinking::Yes);
+		RangeCheck(Index);
+		RemoveAtImpl(Index);
+		if (AllowShrinking == EAllowShrinking::Yes)
+		{
+			ResizeShrink();
+		}
 	}
 
 	/**
@@ -1738,11 +1771,22 @@ public:
 	 * @param Count (Optional) Number of elements to remove. Default is 1.
 	 * @param AllowShrinking (Optional) Tells if this call can shrink array if suitable after remove. Default is yes.
 	 */
-	template <typename CountType>
+	template <
+		typename CountType
+		UE_REQUIRES(std::is_integral_v<CountType>)
+	>
 	FORCEINLINE void RemoveAt(SizeType Index, CountType Count, EAllowShrinking AllowShrinking = EAllowShrinking::Yes)
 	{
 		static_assert(!std::is_same_v<CountType, bool>, "TArray::RemoveAt: unexpected bool passed as the Count argument");
-		RemoveAtImpl(Index, (SizeType)Count, AllowShrinking);
+		RangeCheck(Index, Count);
+		if (Count)
+		{
+			RemoveAtImpl(Index, (SizeType)Count);
+			if (AllowShrinking == EAllowShrinking::Yes)
+			{
+				ResizeShrink();
+			}
+		}
 	}
 	template <typename CountType>
 	UE_ALLOWSHRINKING_BOOL_DEPRECATED("RemoveAt")
@@ -1752,34 +1796,42 @@ public:
 	}
 
 private:
-	void RemoveAtSwapImpl(SizeType Index, SizeType Count, EAllowShrinking AllowShrinking)
+	void RemoveAtSwapImpl(SizeType Index)
 	{
-		if (Count)
+		ElementType* Data = GetData();
+		ElementType* Dest = Data + Index;
+
+		DestructItem(Dest);
+
+		// Replace the elements in the hole created by the removal with elements from the end of the array, so the range of indices used by the array is contiguous.
+		const SizeType NumElementsAfterHole = (ArrayNum - Index) - 1;
+		const SizeType NumElementsToMoveIntoHole = FPlatformMath::Min(1, NumElementsAfterHole);
+		if (NumElementsToMoveIntoHole)
 		{
-			CheckInvariants();
-			checkSlow((Count >= 0) & (Index >= 0) & (Index + Count <= ArrayNum));
-
-			ElementType* Data = GetData();
-			ElementType* Dest = Data + Index;
-
-			DestructItems(Dest, Count);
-
-			// Replace the elements in the hole created by the removal with elements from the end of the array, so the range of indices used by the array is contiguous.
-			const SizeType NumElementsAfterHole = (ArrayNum - Index) - Count;
-			const SizeType NumElementsToMoveIntoHole = FPlatformMath::Min(Count, NumElementsAfterHole);
-			if (NumElementsToMoveIntoHole)
-			{
-				RelocateConstructItems<ElementType>(Dest, Data + (ArrayNum - NumElementsToMoveIntoHole), NumElementsToMoveIntoHole);
-			}
-			ArrayNum -= Count;
-
-			SlackTrackerNumChanged();
-
-			if (AllowShrinking == EAllowShrinking::Yes)
-			{
-				ResizeShrink();
-			}
+			RelocateConstructItems<ElementType>(Dest, Data + (ArrayNum - NumElementsToMoveIntoHole), NumElementsToMoveIntoHole);
 		}
+		--ArrayNum;
+
+		SlackTrackerNumChanged();
+	}
+
+	void RemoveAtSwapImpl(SizeType Index, SizeType Count)
+	{
+		ElementType* Data = GetData();
+		ElementType* Dest = Data + Index;
+
+		DestructItems(Dest, Count);
+
+		// Replace the elements in the hole created by the removal with elements from the end of the array, so the range of indices used by the array is contiguous.
+		const SizeType NumElementsAfterHole = (ArrayNum - Index) - Count;
+		const SizeType NumElementsToMoveIntoHole = FPlatformMath::Min(Count, NumElementsAfterHole);
+		if (NumElementsToMoveIntoHole)
+		{
+			RelocateConstructItems<ElementType>(Dest, Data + (ArrayNum - NumElementsToMoveIntoHole), NumElementsToMoveIntoHole);
+		}
+		ArrayNum -= Count;
+
+		SlackTrackerNumChanged();
 	}
 
 public:
@@ -1791,10 +1843,17 @@ public:
 	 * O(ArrayNum)), but does not preserve the order.
 	 *
 	 * @param Index Location in array of the element to remove.
+	 * @param AllowShrinking (Optional) Tells if this call can shrink array if
+	 *                        suitable after remove. Default is yes.
 	 */
-	FORCEINLINE void RemoveAtSwap(SizeType Index)
+	FORCEINLINE void RemoveAtSwap(SizeType Index, EAllowShrinking AllowShrinking = EAllowShrinking::Yes)
 	{
-		RemoveAtSwapImpl(Index, 1, EAllowShrinking::Yes);
+		RangeCheck(Index);
+		RemoveAtSwapImpl(Index);
+		if (AllowShrinking == EAllowShrinking::Yes)
+		{
+			ResizeShrink();
+		}
 	}
 
 	/**
@@ -1809,17 +1868,28 @@ public:
 	 * @param AllowShrinking (Optional) Tells if this call can shrink array if
 	 *                        suitable after remove. Default is yes.
 	 */
-	template <typename CountType>
+	template <
+		typename CountType
+		UE_REQUIRES(std::is_integral_v<CountType>)
+	>
 	FORCEINLINE void RemoveAtSwap(SizeType Index, CountType Count, EAllowShrinking AllowShrinking = EAllowShrinking::Yes)
 	{
 		static_assert(!std::is_same_v<CountType, bool>, "TArray::RemoveAtSwap: unexpected bool passed as the Count argument");
-		RemoveAtSwapImpl(Index, Count, AllowShrinking);
+		RangeCheck(Index, Count);
+		if (Count)
+		{
+		    RemoveAtSwapImpl(Index, Count);
+		    if (AllowShrinking == EAllowShrinking::Yes)
+		    {
+			    ResizeShrink();
+		    }
+		}
 	}
 	template <typename CountType>
 	UE_ALLOWSHRINKING_BOOL_DEPRECATED("RemoveAtSwap")
 	FORCEINLINE void RemoveAtSwap(SizeType Index, CountType Count, bool bAllowShrinking)
 	{
-		RemoveAtSwapImpl(Index, Count, bAllowShrinking ? EAllowShrinking::Yes : EAllowShrinking::No);
+		RemoveAtSwap(Index, Count, bAllowShrinking ? EAllowShrinking::Yes : EAllowShrinking::No);
 	}
 
 	/**
