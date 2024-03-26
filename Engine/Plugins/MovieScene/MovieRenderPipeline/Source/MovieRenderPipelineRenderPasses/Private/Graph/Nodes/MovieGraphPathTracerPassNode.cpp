@@ -39,6 +39,14 @@ FText UMovieGraphPathTracerRenderPassNode::GetNodeTitle(const bool bGetDescripti
 {
 	return NSLOCTEXT("MovieGraphNodes", "PathTracedRenderPassGraphNode_Description", "Path Traced Renderer");
 }
+
+FSlateIcon UMovieGraphPathTracerRenderPassNode::GetIconAndTint(FLinearColor& OutColor) const
+{
+	static const FSlateIcon PathTracerRendererIcon = FSlateIcon(FAppStyle::GetAppStyleSetName(), "EditorViewport.PathTracingMode");
+	
+    OutColor = FLinearColor::White;
+    return PathTracerRendererIcon;
+}
 #endif
 
 void UMovieGraphPathTracerRenderPassNode::SetupImpl(const FMovieGraphRenderPassSetupData& InSetupData)

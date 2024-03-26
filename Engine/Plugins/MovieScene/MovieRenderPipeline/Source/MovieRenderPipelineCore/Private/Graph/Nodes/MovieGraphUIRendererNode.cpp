@@ -24,10 +24,10 @@ FLinearColor UMovieGraphUIRendererNode::GetNodeTitleColor() const
 
 FSlateIcon UMovieGraphUIRendererNode::GetIconAndTint(FLinearColor& OutColor) const
 {
-	static const FSlateIcon DeferredRendererIcon = FSlateIcon(FAppStyle::GetAppStyleSetName(), "SequenceRecorder.TabIcon");
+	static const FSlateIcon UIRendererIcon = FSlateIcon(FAppStyle::GetAppStyleSetName(), "SequenceRecorder.TabIcon");
 
 	OutColor = FLinearColor::White;
-	return DeferredRendererIcon;
+	return UIRendererIcon;
 }
 #endif	// WITH_EDITOR
 

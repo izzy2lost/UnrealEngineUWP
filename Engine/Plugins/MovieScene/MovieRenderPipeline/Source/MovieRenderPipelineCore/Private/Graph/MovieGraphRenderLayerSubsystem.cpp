@@ -821,8 +821,7 @@ void UMovieGraphConditionGroupQuery_ActorTagName::Evaluate(const TArray<AActor*>
 
 const FSlateIcon& UMovieGraphConditionGroupQuery_ActorTagName::GetIcon() const
 {
-	// TODO: This icon is wrong
-	static const FSlateIcon ActorTagIcon = FSlateIcon(FAppStyle::GetAppStyleSetName(), "LevelEditor.Tabs.Debug");
+	static const FSlateIcon ActorTagIcon = FSlateIcon(FAppStyle::GetAppStyleSetName(), "MainFrame.OpenIssueTracker");
 	return ActorTagIcon;
 }
 
@@ -1187,8 +1186,7 @@ void UMovieGraphConditionGroupQuery_ComponentTagName::Evaluate(const TArray<AAct
 
 const FSlateIcon& UMovieGraphConditionGroupQuery_ComponentTagName::GetIcon() const
 {
-	// TODO: This icon is wrong
-	static const FSlateIcon ActorTagIcon = FSlateIcon(FAppStyle::GetAppStyleSetName(), "ClassIcon.DataAsset");
+	static const FSlateIcon ActorTagIcon = FSlateIcon(FAppStyle::GetAppStyleSetName(), "MainFrame.OpenIssueTracker");
 	return ActorTagIcon;
 }
 

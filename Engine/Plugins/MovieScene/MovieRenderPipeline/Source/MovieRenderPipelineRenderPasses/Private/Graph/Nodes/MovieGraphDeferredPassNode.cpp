@@ -41,6 +41,14 @@ FText UMovieGraphDeferredRenderPassNode::GetNodeTitle(const bool bGetDescriptive
 {
 	return NSLOCTEXT("MovieGraphNodes", "DeferredRenderPassGraphNode_Description", "Deferred Renderer");
 }
+
+FSlateIcon UMovieGraphDeferredRenderPassNode::GetIconAndTint(FLinearColor& OutColor) const
+{
+	static const FSlateIcon DeferredRendererIcon = FSlateIcon(FAppStyle::GetAppStyleSetName(), "LevelViewport.HighResScreenshot");
+	
+	OutColor = FLinearColor::White;
+	return DeferredRendererIcon;
+}
 #endif
 
 FString UMovieGraphDeferredRenderPassNode::GetRendererNameImpl() const

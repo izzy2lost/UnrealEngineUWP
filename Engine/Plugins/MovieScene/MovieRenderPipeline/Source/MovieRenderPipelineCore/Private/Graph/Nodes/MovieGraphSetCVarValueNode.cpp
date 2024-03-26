@@ -57,10 +57,10 @@ FLinearColor UMovieGraphSetCVarValueNode::GetNodeTitleColor() const
 
 FSlateIcon UMovieGraphSetCVarValueNode::GetIconAndTint(FLinearColor& OutColor) const
 {
-	static const FSlateIcon RenderLayerIcon = FSlateIcon(FAppStyle::GetAppStyleSetName(), "MainFrame.BrowseCVars");
+	static const FSlateIcon SetCVarValueIcon = FSlateIcon(FAppStyle::GetAppStyleSetName(), "MainFrame.BrowseCVars");
 
 	OutColor = FLinearColor::White;
-	return RenderLayerIcon;
+	return SetCVarValueIcon;
 }
 
 void UMovieGraphSetCVarValueNode::PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent)

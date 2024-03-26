@@ -17,6 +17,7 @@ public:
 
 #if WITH_EDITOR
 	virtual FText GetNodeTitle(const bool bGetDescriptive = false) const override;
+	virtual FSlateIcon GetIconAndTint(FLinearColor& OutColor) const override;
 #endif
 
 	// UMovieGraphRenderPassNode Interface

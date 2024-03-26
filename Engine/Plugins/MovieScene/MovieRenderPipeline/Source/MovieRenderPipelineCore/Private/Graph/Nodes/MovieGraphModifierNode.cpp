@@ -132,7 +132,7 @@ FLinearColor UMovieGraphModifierNode::GetNodeTitleColor() const
 
 FSlateIcon UMovieGraphModifierNode::GetIconAndTint(FLinearColor& OutColor) const
 {
-	static const FSlateIcon ModifierIcon = FSlateIcon(FAppStyle::GetAppStyleSetName(), "ContentBrowser.ReferenceViewer");
+	static const FSlateIcon ModifierIcon = FSlateIcon(FAppStyle::GetAppStyleSetName(), "Icons.Edit");
 
 	OutColor = FLinearColor::White;
 	return ModifierIcon;
