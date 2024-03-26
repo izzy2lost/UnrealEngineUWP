@@ -256,8 +256,8 @@ void AActor::PostEditMove(bool bFinished)
 
 			FNavigationLockContext NavLock(GetWorld(), ENavigationLockReason::AllowUnregister);
 			RerunConstructionScripts();
-			// Construction scripts can have all manner of side effects, including creation of proxies..
-			// remove any static mesh components that have had their proxies created by RerunConstructionScripts:
+			// Construction scripts can have all manner of side effects, including creation of render proxies, unregistering / destruction of components
+			// Remove any static mesh components that are no longer valid for proxy registration after RerunConstructionScripts
 			ReregisterContext.SanitizeMeshComponents();
 		}
 	}
