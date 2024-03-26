@@ -254,7 +254,7 @@ public:
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Editing Settings", meta = (DisplayPriority = 450))
 	bool bOnlyTrackItself = false;
 
-	UPROPERTY(BlueprintReadOnly, VisibleAnywhere, Transient, Category = Debug, meta = (NoResetToDefault))
+	UPROPERTY(BlueprintReadOnly, VisibleAnywhere, Transient, NonTransactional, Category = Debug, meta = (NoResetToDefault))
 	bool bDirtyGenerated = false;
 
 	// Property that will automatically be set on BP templates, to allow for "Generate on add to world" in editor.
@@ -493,6 +493,9 @@ private:
 	virtual void PreEditUndo() override;
 	virtual void PostEditUndo() override;
 
+	/** Helper to handle a property changed event from PostEditChangeProperty(). Necessary to support delayed handling of changed properties for BP actors during reconstruction. */
+	void HandlePostEditChangeProperty(const FPropertyChangedEvent& PropertyChangedEvent);
+
 	/** Sets up actor, tracking, landscape and graph callbacks */
 	void SetupCallbacksOnCreation();
 
@@ -519,19 +522,19 @@ private:
 
 	FBox GetGridBounds(const AActor* InActor) const;
 
-	UPROPERTY(Transient, NonPIEDuplicateTransient)
+	UPROPERTY(Transient, NonPIEDuplicateTransient, NonTransactional)
 	TObjectPtr<UPCGData> CachedPCGData = nullptr;
 
-	UPROPERTY(Transient, NonPIEDuplicateTransient)
+	UPROPERTY(Transient, NonPIEDuplicateTransient, NonTransactional)
 	TObjectPtr<UPCGData> CachedInputData = nullptr;
 
-	UPROPERTY(Transient, NonPIEDuplicateTransient)
+	UPROPERTY(Transient, NonPIEDuplicateTransient, NonTransactional)
 	TObjectPtr<UPCGData> CachedActorData = nullptr;
 
-	UPROPERTY(Transient, NonPIEDuplicateTransient)
+	UPROPERTY(Transient, NonPIEDuplicateTransient, NonTransactional)
 	TObjectPtr<UPCGData> CachedLandscapeData = nullptr;
 
-	UPROPERTY(Transient, NonPIEDuplicateTransient)
+	UPROPERTY(Transient, NonPIEDuplicateTransient, NonTransactional)
 	TObjectPtr<UPCGData> CachedLandscapeHeightData = nullptr;
 
 #if WITH_EDITORONLY_DATA
@@ -541,11 +544,11 @@ private:
 
 	// NOTE: This should not be made visible or editable because it will change the way the BP actors are
 	// duplicated/setup and might trigger an ensure in the resources.
-	UPROPERTY()
+	UPROPERTY(NonTransactional)
 	TArray<TObjectPtr<UPCGManagedResource>> GeneratedResources;
 
 #if WITH_EDITORONLY_DATA
-	UPROPERTY(Transient)
+	UPROPERTY(Transient, NonTransactional)
 	TArray<TObjectPtr<UPCGManagedResource>> LoadedPreviewResources;
 
 	UPROPERTY(Transient, VisibleInstanceOnly, Category = Debug)
@@ -580,6 +583,8 @@ private:
 #if WITH_EDITOR
 	int32 InspectionCounter = 0;
 	FBox LastGeneratedBoundsPriorToUndo = FBox(EForceInit::ForceInit);
+	FPropertyChangedEvent DelayedPropertyChangedEvent = FPropertyChangedEvent(nullptr);
+	bool bHasDelayedPropertyChangedEvent = false;
 #endif
 
 #if WITH_EDITORONLY_DATA

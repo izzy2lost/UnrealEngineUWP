@@ -153,6 +153,22 @@ FPCGActorAndComponentMapping::FPCGActorAndComponentMapping(UPCGSubsystem* InPCGS
 	NonPartitionedOctree.Reset(FVector::ZeroVector, OctreeExtent);
 }
 
+#if WITH_EDITOR
+void FPCGActorAndComponentMapping::RegisterDelegates()
+{
+	FCoreUObjectDelegates::OnObjectsReplaced.AddRaw(this, &FPCGActorAndComponentMapping::OnObjectsReplaced);
+
+	RegisterTrackingCallbacks();
+}
+
+void FPCGActorAndComponentMapping::UnregisterDelegates()
+{
+	FCoreUObjectDelegates::OnObjectsReplaced.RemoveAll(this);
+
+	TeardownTrackingCallbacks();
+}
+#endif // WITH_EDITOR
+
 void FPCGActorAndComponentMapping::Tick()
 {
 	TSet<UPCGComponent*> ComponentToUnregister;
@@ -2069,6 +2085,44 @@ bool FPCGActorAndComponentMapping::ClearCacheForKeys(const TArray<FPCGSelectionK
 	}
 
 	return bShouldDirty;
+}
+
+void FPCGActorAndComponentMapping::OnObjectsReplaced(const TMap<UObject*, UObject*>& InOldToNewInstances)
+{
+	// TODO: Notify debug object view so that it can replace the selected component if necessary.
+	// TODO: Everything in FComponentInstanceData::ApplyToComponent should be handled here instead.
+
+	for (const TPair<UObject*, UObject*>& OldToNewInstance : InOldToNewInstances)
+	{
+		UPCGComponent* OldComponent = Cast<UPCGComponent>(OldToNewInstance.Key);
+		UPCGComponent* NewComponent = Cast<UPCGComponent>(OldToNewInstance.Value);
+
+		if (OldComponent && NewComponent)
+		{
+			const bool bIsLoaded = !OldComponent->HasAllFlags(RF_WasLoaded);
+
+			if (bIsLoaded)
+			{
+				OldComponent->CleanupLocalImmediate(/*bRemoveComponents=*/true);
+			}
+
+			const bool bDoActorMapping = NewComponent->bGenerated || PCGHelpers::IsRuntimeOrPIE();
+			RemapPCGComponent(OldComponent, NewComponent, bDoActorMapping);
+
+			if (bIsLoaded)
+			{
+				if (NewComponent->bHasDelayedPropertyChangedEvent)
+				{
+					NewComponent->HandlePostEditChangeProperty(NewComponent->DelayedPropertyChangedEvent);
+				}
+				else
+				{
+					NewComponent->DirtyGenerated();
+					NewComponent->Refresh(EPCGChangeType::None, /*bCancelExistingRefresh=*/true);
+				}
+			}
+		}
+	}
 }
 
 void FPCGActorAndComponentMapping::NotifyLandscapeEditModeExited()

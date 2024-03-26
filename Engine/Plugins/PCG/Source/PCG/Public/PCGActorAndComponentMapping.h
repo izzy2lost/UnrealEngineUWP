@@ -47,6 +47,9 @@ public:
 	void Tick();
 
 #if WITH_EDITOR
+	void RegisterDelegates();
+	void UnregisterDelegates();
+
 	/** If the partition grid size change, call this to empty the Partition actors map */
 	void ResetPartitionActorsMap();
 
@@ -178,6 +181,8 @@ private:
 
 	/** Gather all settings from a given component that track the key, and clear the cache for them. Returns true if we should dirty afterwards (aka at least one settings was cleared and/or landscape changed). */
 	bool ClearCacheForKeys(const TArray<FPCGSelectionKey>& InKeys, const UPCGComponent* InComponent, const bool bIntersect, const UObject* InOriginatingChange) const;
+
+	void OnObjectsReplaced(const TMap<UObject*, UObject*>& InOldToNewInstances);
 #endif // WITH_EDITOR
 
 private:
