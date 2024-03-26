@@ -4,8 +4,10 @@
 
 #define Local_GetLongPathNameW uba::GetLongPathNameW
 
+#include "UbaBinaryReaderWriter.h"
 #include "UbaFile.h"
 #include "UbaPathUtils.h"
+#include "UbaProcessStartInfo.h"
 
 namespace uba
 {

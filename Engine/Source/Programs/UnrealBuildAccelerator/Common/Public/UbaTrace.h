@@ -2,8 +2,9 @@
 
 #pragma once
 
-#include "UbaProcessStats.h"
 #include "UbaFileMapping.h"
+#include "UbaLogger.h"
+#include "UbaProcessStats.h"
 
 namespace uba
 {

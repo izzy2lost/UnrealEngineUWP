@@ -3,6 +3,7 @@
 #pragma once
 
 #include "UbaFile.h"
+#include "UbaLogger.h"
 #include "UbaStringBuffer.h"
 
 namespace uba

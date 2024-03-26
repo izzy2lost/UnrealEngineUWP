@@ -101,6 +101,7 @@ namespace uba
 	u32 GetProcessorGroupCount();
 
 	void ElevateCurrentThreadPriority();
+	void PrefetchVirtualMemory(const void* mem, u64 size);
 
 #if PLATFORM_WINDOWS
 	inline constexpr bool CaseInsensitiveFs = true;

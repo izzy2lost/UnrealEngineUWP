@@ -52,7 +52,9 @@ namespace uba
 			u32 buttonSelected = ~0u;
 			float timelineSelected = 0;
 			u32 fetchedFilesSelected = ~0u;
-
+			bool workSelected = false;
+			u32 workTrack = ~0u;
+			u32 workIndex = ~0u;
 		};
 		void HitTest(HitTestResult& outResult, const POINT& pos);
 
@@ -109,6 +111,7 @@ namespace uba
 		int m_popupFontHeight = 0;
 		bool m_useDarkMode = true;
 		bool m_isThemeSet = false;
+		bool m_showText = true;
 
 		Logger& m_logger;
 		NetworkClient* m_client = nullptr;
@@ -143,6 +146,10 @@ namespace uba
 		u32 m_buttonSelected = ~0u;
 		float m_timelineSelected = 0;
 		u32 m_fetchedFilesSelected = ~0u;
+
+		bool m_workSelected = false;
+		u32 m_workTrack = ~0u;
+		u32 m_workIndex = ~0u;
 		
 		bool m_mouseOverWindow = false;
 		bool m_showPopup = false;

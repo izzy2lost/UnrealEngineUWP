@@ -110,6 +110,7 @@ namespace uba
 	public:
 		ScopedReadLock(ReaderWriterLock& lock) : m_lock(lock) { lock.EnterRead(); }
 		~ScopedReadLock() { Leave(); }
+		inline void Enter() { if (m_active) return; m_active = true; m_lock.EnterRead(); }
 		inline void Leave() { if (!m_active) return; m_active = false; m_lock.LeaveRead(); }
 
 		ReaderWriterLock& m_lock;

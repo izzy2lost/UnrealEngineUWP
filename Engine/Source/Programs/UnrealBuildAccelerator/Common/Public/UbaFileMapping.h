@@ -5,10 +5,10 @@
 #include "UbaEvent.h"
 #include "UbaHash.h"
 #include "UbaSynchronization.h"
-#include "UbaLogger.h"
 
 namespace uba
 {
+	class Logger;
 	class WorkManager;
 
 #if PLATFORM_WINDOWS

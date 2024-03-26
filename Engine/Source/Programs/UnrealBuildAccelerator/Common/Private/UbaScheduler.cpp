@@ -60,6 +60,7 @@ namespace uba
 	,	m_updateThreadLoop(false)
 	,	m_enableProcessReuse(info.enableProcessReuse)
 	,	m_forceRemote(info.forceRemote)
+	,	m_forceNative(info.forceNative)
 	{
 		m_session.RegisterGetNextProcess([this](Process& process, NextProcessInfo& outNextProcess, u32 prevExitCode)
 			{
@@ -285,7 +286,7 @@ namespace uba
 
 			auto& processEntry = m_processEntries[indexToRun];
 			auto info = processEntry.info;
-			bool canDetour = processEntry.canDetour;
+			bool canDetour = processEntry.canDetour && !m_forceNative;
 			bool wasSkipped = processEntry.status == ProcessStatus_Skipped;
 			lock.Leave();
 
@@ -499,6 +500,17 @@ namespace uba
 				si.arguments = arg.c_str();
 				si.workingDir = dir.c_str();
 				si.description = desc.c_str();
+
+				#if UBA_DEBUG
+				StringBuffer<> logFile;
+				if (true)
+				{
+					GetNameFromArguments(logFile, si.arguments, true);
+					logFile.Append(TC(".log"));
+					si.logFile = logFile.data;
+				};
+				#endif
+
 				EnqueueProcessInfo info { si };
 				info.dependencies = deps.data();
 				info.dependencyCount = u32(deps.size());

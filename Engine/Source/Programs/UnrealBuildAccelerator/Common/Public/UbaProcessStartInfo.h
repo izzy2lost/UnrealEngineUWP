@@ -2,7 +2,7 @@
 
 #pragma once
 
-#include "UbaLogger.h"
+#include "UbaLogWriter.h"
 
 namespace uba
 {

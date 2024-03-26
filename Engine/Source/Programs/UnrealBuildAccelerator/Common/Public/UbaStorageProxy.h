@@ -3,6 +3,7 @@
 #pragma once
 
 #include "UbaFileMapping.h"
+#include "UbaLogger.h"
 #include "UbaNetwork.h"
 
 namespace uba

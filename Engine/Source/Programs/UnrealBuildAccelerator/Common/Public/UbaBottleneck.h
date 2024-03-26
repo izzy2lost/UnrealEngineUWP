@@ -10,41 +10,46 @@ namespace uba
 
 	struct Bottleneck
 	{
-		Bottleneck(u32 mc) : underMax(true), activeCount(0), maxCount(mc) {}
-		ReaderWriterLock lock;
-		Event underMax;
-		u32 activeCount;
-		u32 maxCount;
-	};
+		Bottleneck(u32 mc) : m_underMax(true), m_activeCount(0), m_maxCount(mc) {}
 
-	struct BottleneckScope
-	{
-		BottleneckScope(Bottleneck& b) : bottleneck(b)
+		void Enter()
 		{
-			SCOPED_WRITE_LOCK(bottleneck.lock, lock);
+			SCOPED_WRITE_LOCK(m_lock, lock);
 			while (true)
 			{
-				if (bottleneck.activeCount < bottleneck.maxCount)
+				if (m_activeCount < m_maxCount)
 				{
-					++bottleneck.activeCount;
-					if (bottleneck.activeCount == bottleneck.maxCount)
-						bottleneck.underMax.Reset();
+					++m_activeCount;
+					if (m_activeCount == m_maxCount)
+						m_underMax.Reset();
 					break;
 				}
 
 				lock.Leave();
-				bottleneck.underMax.IsSet();
+				m_underMax.IsSet();
 				lock.Enter();
 			}
 		}
 
-		~BottleneckScope()
+		void Leave()
 		{
-			SCOPED_WRITE_LOCK(bottleneck.lock, lock);
-			if (bottleneck.activeCount == bottleneck.maxCount)
-				bottleneck.underMax.Set();
-			--bottleneck.activeCount;
+			SCOPED_WRITE_LOCK(m_lock, lock);
+			if (m_activeCount == m_maxCount)
+				m_underMax.Set();
+			--m_activeCount;
 		}
+
+	private:
+		ReaderWriterLock m_lock;
+		Event m_underMax;
+		u32 m_activeCount;
+		u32 m_maxCount;
+	};
+
+	struct BottleneckScope
+	{
+		BottleneckScope(Bottleneck& b) : bottleneck(b) { b.Enter(); }
+		~BottleneckScope() { bottleneck.Leave(); }
 
 		Bottleneck& bottleneck;
 	};

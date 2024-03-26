@@ -5,9 +5,10 @@
 #define Local_GetLongPathNameW uba::GetLongPathNameW
 
 #include "UbaFile.h"
-#include "UbaPathUtils.h"
-#include "UbaMemory.h"
 #include "UbaFileMapping.h"
+#include "UbaLogger.h"
+#include "UbaMemory.h"
+#include "UbaPathUtils.h"
 #include "UbaStats.h"
 #include <oodle2.h>
 
