@@ -249,7 +249,7 @@ bool FInstancedStruct::Serialize(FArchive& Ar)
 		Ar << SerialSize;
 		Ar.Seek(FinalOffset);	// Reset archive to its position
 	}
-	else if (Ar.IsCountingMemory() || Ar.IsModifyingWeakAndStrongReferences())
+	else if (Ar.IsCountingMemory() || Ar.IsModifyingWeakAndStrongReferences() || Ar.IsObjectReferenceCollector())
 	{
 		// Report type
 		Ar << NonConstStruct;
