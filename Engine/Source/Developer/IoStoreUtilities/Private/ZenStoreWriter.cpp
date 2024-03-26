@@ -1,35 +1,38 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "ZenStoreWriter.h"
-#include "ZenStoreHttpClient.h"
-#include "ZenFileSystemManifest.h"
-#include "PackageStoreOptimizer.h"
+
 #include "Algo/BinarySearch.h"
 #include "Algo/IsSorted.h"
 #include "Algo/Sort.h"
 #include "AssetRegistry/AssetRegistryState.h"
 #include "Async/Async.h"
 #include "Containers/Queue.h"
-#include "Serialization/ArrayReader.h"
-#include "Serialization/CompactBinaryContainerSerialization.h"
-#include "Serialization/CompactBinaryPackage.h"
-#include "Serialization/CompactBinaryWriter.h"
-#include "Serialization/CompactBinarySerialization.h"
-#include "Serialization/LargeMemoryWriter.h" 
-#include "SocketSubsystem.h"
-#include "IPAddress.h"
+#include "GenericPlatform/GenericPlatformFile.h"
 #include "HAL/FileManager.h"
 #include "HAL/PlatformFileManager.h"
+#include "Interfaces/ITargetPlatform.h"
 #include "IO/IoDispatcher.h"
+#include "IPAddress.h"
 #include "Misc/App.h"
 #include "Misc/CommandLine.h"
 #include "Misc/FileHelper.h"
-#include "Misc/StringBuilder.h"
-#include "Interfaces/ITargetPlatform.h"
 #include "Misc/Paths.h"
-#include "GenericPlatform/GenericPlatformFile.h"
-#include "UObject/SavePackage.h"
 #include "Misc/PathViews.h"
+#include "Misc/StringBuilder.h"
+#include "PackageStoreOptimizer.h"
+#include "Serialization/ArrayReader.h"
+#include "Serialization/CompactBinaryContainerSerialization.h"
+#include "Serialization/CompactBinaryPackage.h"
+#include "Serialization/CompactBinarySerialization.h"
+#include "Serialization/CompactBinaryWriter.h"
+#include "Serialization/JsonSerializer.h"
+#include "Serialization/JsonWriter.h"
+#include "Serialization/LargeMemoryWriter.h" 
+#include "SocketSubsystem.h"
+#include "UObject/SavePackage.h"
+#include "ZenFileSystemManifest.h"
+#include "ZenStoreHttpClient.h"
 
 DEFINE_LOG_CATEGORY_STATIC(LogZenStoreWriter, Log, All);
 
@@ -422,15 +425,15 @@ void FZenStoreWriter::Initialize(const FCookInfo& Info)
 
 		if (bOplogEstablished && OplogMarker)
 		{
-			FCbWriter ManifestWriter;
-			ManifestWriter.BeginObject();
-			ManifestWriter.BeginObject("zenserver");
 			bool IsRunningLocally = false;
 #if UE_WITH_ZEN
 			IsRunningLocally = HttpClient->GetZenServiceInstance().IsServiceRunningLocally();
 #endif
-			ManifestWriter << "islocalhost" << IsRunningLocally;
-			ManifestWriter << "hostname" << HttpClient->GetHostName();
+			TSharedRef<TJsonWriter<UTF8CHAR, TPrettyJsonPrintPolicy<UTF8CHAR>>> Writer = TJsonWriterFactory<UTF8CHAR, TPrettyJsonPrintPolicy<UTF8CHAR>>::Create(OplogMarker.Get());
+			Writer->WriteObjectStart();
+			Writer->WriteObjectStart(TEXT("zenserver"));
+			Writer->WriteValue(TEXT("islocalhost"), IsRunningLocally);
+			Writer->WriteValue(TEXT("hostname"), HttpClient->GetHostName());
 			if (IsRunningLocally)
 			{
 				ISocketSubsystem* SocketSubsystem = ISocketSubsystem::Get();
@@ -439,21 +442,21 @@ void FZenStoreWriter::Initialize(const FCookInfo& Info)
 					TArray<TSharedPtr<FInternetAddr>> Addresses;
 					if (SocketSubsystem->GetLocalAdapterAddresses(Addresses))
 					{
-						ManifestWriter.BeginArray("remotehostnames");
+						Writer->WriteArrayStart("remotehostnames");
 						for (const TSharedPtr<FInternetAddr>& Address : Addresses)
 						{
-							ManifestWriter << Address->ToString(false);
+							Writer->WriteValue(Address->ToString(false));
 						}
-						ManifestWriter.EndArray();
+						Writer->WriteArrayEnd();
 					}
 				}
 			}
-			ManifestWriter << "hostport" << HttpClient->GetPort();
-			ManifestWriter << "projectid" << ProjectId;
-			ManifestWriter << "oplogid" << OplogId;
-			ManifestWriter.EndObject();
-			ManifestWriter.EndObject();
-			SaveCompactBinary(*OplogMarker, ManifestWriter.Save());
+			Writer->WriteValue(TEXT("hostport"), HttpClient->GetPort());
+			Writer->WriteValue(TEXT("projectid"), ProjectId);
+			Writer->WriteValue(TEXT("oplogid"), OplogId);
+			Writer->WriteObjectEnd();
+			Writer->WriteObjectEnd();
+			Writer->Close();
 		}
 
 		OplogMarker.Reset();

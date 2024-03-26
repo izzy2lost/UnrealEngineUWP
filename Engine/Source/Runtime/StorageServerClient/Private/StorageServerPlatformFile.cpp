@@ -9,12 +9,15 @@
 #include "Misc/App.h"
 #include "Misc/CommandLine.h"
 #include "Misc/CoreDelegates.h"
+#include "Misc/FileHelper.h"
 #include "Misc/Paths.h"
 #include "Misc/ScopeRWLock.h"
 #include "Misc/StringBuilder.h"
 #include "Modules/ModuleManager.h"
 #include "Modules/ModuleManager.h"
 #include "Serialization/CompactBinarySerialization.h"
+#include "Serialization/JsonReader.h"
+#include "Serialization/JsonSerializer.h"
 #include "StorageServerConnection.h"
 #include "StorageServerIoDispatcherBackend.h"
 #include "StorageServerPackageStore.h"
@@ -305,27 +308,40 @@ bool FStorageServerPlatformFile::ShouldBeUsed(IPlatformFile* Inner, const TCHAR*
 	TUniquePtr<FArchive> ProjectStoreMarkerReader = TryFindProjectStoreMarkerFile(Inner);
 	if (ProjectStoreMarkerReader != nullptr)
 	{
-		FCbObject ProjectStoreObject = LoadCompactBinary(*ProjectStoreMarkerReader).AsObject();
-
-		if (FCbFieldView ZenServerField = ProjectStoreObject["zenserver"])
+		TSharedPtr<FJsonObject> ProjectStoreObject;
+		TSharedRef<TJsonReader<UTF8CHAR>> Reader = TJsonReaderFactory<UTF8CHAR>::Create(ProjectStoreMarkerReader.Get());
+		if (FJsonSerializer::Deserialize(Reader, ProjectStoreObject) && ProjectStoreObject.IsValid())
 		{
+			const TSharedPtr<FJsonObject>* ZenServerObjectPtr = nullptr;
+			if (ProjectStoreObject->TryGetObjectField(TEXT("zenserver"), ZenServerObjectPtr) && (ZenServerObjectPtr != nullptr))
+			{
+				const TSharedPtr<FJsonObject>& ZenServerObject = *ZenServerObjectPtr;
 #if PLATFORM_DESKTOP
-			if (FUtf8StringView HostName = ZenServerField["hostname"].AsString(); !HostName.IsEmpty())
-			{
-				HostAddrs.Add(FString(HostName));
-			}
-#endif
-			FCbArrayView RemoteHostNames = ZenServerField["remotehostnames"].AsArrayView();
-			for (FCbFieldView RemoteHostName : RemoteHostNames)
-			{
-				if (FUtf8StringView HostName = RemoteHostName.AsString(); !HostName.IsEmpty())
+				FString HostName;
+				if (ZenServerObject->TryGetStringField(TEXT("hostname"), HostName) && !HostName.IsEmpty())
 				{
-					HostAddrs.Add(FString(HostName));
+					HostAddrs.Add(HostName);
 				}
-			}
+#endif
+				const TArray<TSharedPtr<FJsonValue>>* RemoteHostNamesArrayPtr = nullptr;
+				if (ZenServerObject->TryGetArrayField(TEXT("remotehostnames"), RemoteHostNamesArrayPtr) && (RemoteHostNamesArrayPtr != nullptr))
+				{
+					for (TSharedPtr<FJsonValue> RemoteHostName : *RemoteHostNamesArrayPtr)
+					{
+						if (FString RemoteHostNameStr = RemoteHostName->AsString(); !RemoteHostNameStr.IsEmpty())
+						{
+							HostAddrs.Add(RemoteHostNameStr);
+						}
+					}
+				}
 
-			HostPort = ZenServerField["hostport"].AsUInt16(HostPort);
-			UE_LOG(LogStorageServerPlatformFile, Display, TEXT("Using connection settings from ue.projectstore: HostAddrs='%s' and HostPort='%d'"), *FString::Join(HostAddrs, TEXT("+")), HostPort);
+				uint16 SerializedHostPort = 0;
+				if (ZenServerObject->TryGetNumberField(TEXT("hostport"), SerializedHostPort) && (SerializedHostPort != 0))
+				{
+					HostPort = SerializedHostPort;
+				}
+				UE_LOG(LogStorageServerPlatformFile, Display, TEXT("Using connection settings from ue.projectstore: HostAddrs='%s' and HostPort='%d'"), *FString::Join(HostAddrs, TEXT("+")), HostPort);
+			}
 		}
 	}
 
@@ -355,13 +371,18 @@ bool FStorageServerPlatformFile::Initialize(IPlatformFile* Inner, const TCHAR* C
 		TUniquePtr<FArchive> ProjectStoreMarkerReader = TryFindProjectStoreMarkerFile(Inner);
 		if (ProjectStoreMarkerReader != nullptr)
 		{
-			FCbObject ProjectStoreObject = LoadCompactBinary(*ProjectStoreMarkerReader).AsObject();
-
-			if (FCbFieldView ZenServerField = ProjectStoreObject["zenserver"])
+			TSharedPtr<FJsonObject> ProjectStoreObject;
+			TSharedRef<TJsonReader<UTF8CHAR>> Reader = TJsonReaderFactory<UTF8CHAR>::Create(ProjectStoreMarkerReader.Get());
+			if (FJsonSerializer::Deserialize(Reader, ProjectStoreObject) && ProjectStoreObject.IsValid())
 			{
-				ServerProject = FString(ZenServerField["projectid"].AsString());
-				ServerPlatform = FString(ZenServerField["oplogid"].AsString());
-				UE_LOG(LogStorageServerPlatformFile, Display, TEXT("Using settings from ue.projectstore: ServerProject='%s' and ServerPlatform='%s'"), *ServerProject, *ServerPlatform);
+				const TSharedPtr<FJsonObject>* ZenServerObjectPtr = nullptr;
+				if (ProjectStoreObject->TryGetObjectField(TEXT("zenserver"), ZenServerObjectPtr) && (ZenServerObjectPtr != nullptr))
+				{
+					const TSharedPtr<FJsonObject>& ZenServerObject = *ZenServerObjectPtr;
+					ServerProject = ZenServerObject->GetStringField(TEXT("projectid"));
+					ServerPlatform = ZenServerObject->GetStringField(TEXT("oplogid"));
+					UE_LOG(LogStorageServerPlatformFile, Display, TEXT("Using settings from ue.projectstore: ServerProject='%s' and ServerPlatform='%s'"), *ServerProject, *ServerPlatform);
+				}
 			}
 		}
 	
