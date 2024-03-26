@@ -3179,7 +3179,7 @@ UDataStream::EWriteResult FReplicationWriter::BeginWrite(const UDataStream::FBeg
 		WriteContext.bHasOOBAttachmentsToSend = bHasUnsentOOBAttachments;
 		WriteContext.bCanWriteMoreData = Params.bCanWriteMoreData;
 	}
-	if (WriteContext.WriteMode == EDataStreamWriteMode::PreCloseFlush)
+	else if (WriteContext.WriteMode == EDataStreamWriteMode::PreCloseFlush)
 	{
 		const bool bHasUnsentOOBAttachments = Attachments.HasUnsentAttachments(ENetObjectAttachmentType::OutOfBand, ObjectIndexForOOBAttachment);
 		if (!bHasUnsentOOBAttachments)
