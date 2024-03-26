@@ -315,13 +315,13 @@ TSharedRef<SWidget> FCustomizableInstanceDetails::GenerateInstanceProfileSelecto
 	ParameterProfileNames.Emplace(MakeShared<FString>("None"));
 	TSharedPtr<FString> CurrentProfileName = ParameterProfileNames.Last();
 
-	for (FProfileParameterDat& Profile : CustomInstance->GetCustomizableObject()->InstancePropertiesProfiles)
+	for (FProfileParameterDat& Profile : CustomInstance->GetCustomizableObject()->GetPrivate()->GetInstancePropertiesProfiles())
 	{
 		ParameterProfileNames.Emplace(MakeShared<FString>(Profile.ProfileName));
 
 		if (ProfileIdx != INDEX_NONE)
 		{
-			const FProfileParameterDat CurrentInstanceProfile = CustomizableObject->InstancePropertiesProfiles[ProfileIdx];
+			const FProfileParameterDat CurrentInstanceProfile = CustomizableObject->GetPrivate()->GetInstancePropertiesProfiles()[ProfileIdx];
 
 			if (Profile.ProfileName == CurrentInstanceProfile.ProfileName)
 			{
@@ -433,7 +433,7 @@ FReply FCustomizableInstanceDetails::RemoveParameterProfile()
 		return FReply::Handled();
 	}
 
-	TArray<FProfileParameterDat>& Profiles = CustomizableObject->InstancePropertiesProfiles;
+	TArray<FProfileParameterDat>& Profiles = CustomizableObject->GetPrivate()->GetInstancePropertiesProfiles();
 
 	Profiles.RemoveAt(ProfileIdx);
 	CustomInstance->GetPrivate()->SelectedProfileIndex = INDEX_NONE;
@@ -465,7 +465,7 @@ void FCustomizableInstanceDetails::OnProfileSelectedChanged(TSharedPtr<FString> 
 	else
 	{
 		//Set selected profile
-		TArray<FProfileParameterDat>& Profiles = CustomInstance->GetCustomizableObject()->InstancePropertiesProfiles;
+		TArray<FProfileParameterDat>& Profiles = CustomInstance->GetCustomizableObject()->GetPrivate()->GetInstancePropertiesProfiles();
 		for (int32 Idx = 0; Idx < Profiles.Num(); ++Idx)
 		{
 			if (Profiles[Idx].ProfileName == *Selection)
@@ -2131,7 +2131,7 @@ void SProfileParametersWindow::OnNameChange(const FText& NewName, ETextCommit::T
 		{
 			CustomInstance->GetPrivate()->SaveParametersToProfile(CustomInstance->GetPrivate()->SelectedProfileIndex);
 		}
-		CustomInstance->GetPrivate()->SelectedProfileIndex = CustomizableObject->InstancePropertiesProfiles.Num() - 1;
+		CustomInstance->GetPrivate()->SelectedProfileIndex = CustomizableObject->GetPrivate()->GetInstancePropertiesProfiles().Num() - 1;
 
 		if (InstanceDetails)
 		{
@@ -2156,7 +2156,7 @@ FReply SProfileParametersWindow::OnButtonClick(EAppReturnType::Type ButtonID)
 		{
 			CustomInstance->GetPrivate()->SaveParametersToProfile(CustomInstance->GetPrivate()->SelectedProfileIndex);
 		}
-		CustomInstance->GetPrivate()->SelectedProfileIndex = CustomizableObject->InstancePropertiesProfiles.Num() - 1;
+		CustomInstance->GetPrivate()->SelectedProfileIndex = CustomizableObject->GetPrivate()->GetInstancePropertiesProfiles().Num() - 1;
 
 		if (InstanceDetails)
 		{

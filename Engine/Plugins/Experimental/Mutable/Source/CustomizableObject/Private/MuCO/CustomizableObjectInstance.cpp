@@ -1945,17 +1945,17 @@ bool UCustomizableInstancePrivate::UpdateSkeletalMesh_PostBeginUpdate0(UCustomiz
 				{
 					case mu::ExtensionData::EOrigin::ConstantAlwaysLoaded:
 					{
-						check(CustomizableObject->AlwaysLoadedExtensionData.IsValidIndex(ExtensionOutput.Data->Index));
-						ReferencedExtensionData = &CustomizableObject->AlwaysLoadedExtensionData[ExtensionOutput.Data->Index];
+						check(CustomizableObject->GetPrivate()->GetAlwaysLoadedExtensionData().IsValidIndex(ExtensionOutput.Data->Index));
+						ReferencedExtensionData = &CustomizableObject->GetPrivate()->GetAlwaysLoadedExtensionData()[ExtensionOutput.Data->Index];
 					}
 					break;
 
 					case mu::ExtensionData::EOrigin::ConstantStreamed:
 					{
-						check(CustomizableObject->StreamedExtensionData.IsValidIndex(ExtensionOutput.Data->Index));
+						check(CustomizableObject->GetPrivate()->GetStreamedExtensionData().IsValidIndex(ExtensionOutput.Data->Index));
 						
 						const FCustomizableObjectStreamedResourceData& StreamedData =
-							CustomizableObject->StreamedExtensionData[ExtensionOutput.Data->Index];
+							CustomizableObject->GetPrivate()->GetStreamedExtensionData()[ExtensionOutput.Data->Index];
 
 						if (!StreamedData.IsLoaded())
 						{
@@ -2458,7 +2458,7 @@ bool UCustomizableInstancePrivate::LoadParametersFromProfile(int32 ProfileIndex)
 	}
 
 #if WITH_EDITOR
-	if (ProfileIndex < 0 || ProfileIndex >= CustomizableObject->InstancePropertiesProfiles.Num() )
+	if (ProfileIndex < 0 || ProfileIndex >= CustomizableObject->GetPrivate()->GetInstancePropertiesProfiles().Num() )
 	{
 		return false;
 	}
@@ -2466,7 +2466,7 @@ bool UCustomizableInstancePrivate::LoadParametersFromProfile(int32 ProfileIndex)
 	// This could be done only when the instance changes.
 	MigrateProfileParametersToCurrentInstance(ProfileIndex);
 
-	const FProfileParameterDat& Profile = CustomizableObject->InstancePropertiesProfiles[ProfileIndex];
+	const FProfileParameterDat& Profile = CustomizableObject->GetPrivate()->GetInstancePropertiesProfiles()[ProfileIndex];
 
 	GetPublic()->Descriptor.BoolParameters = Profile.BoolParameters;
 	GetPublic()->Descriptor.IntParameters = Profile.IntParameters;
@@ -2490,12 +2490,12 @@ bool UCustomizableInstancePrivate::SaveParametersToProfile(int32 ProfileIndex)
 #if WITH_EDITOR
 	bSelectedProfileDirty = ProfileIndex != SelectedProfileIndex;
 
-	if (ProfileIndex < 0 || ProfileIndex >= CustomizableObject->InstancePropertiesProfiles.Num())
+	if (ProfileIndex < 0 || ProfileIndex >= CustomizableObject->GetPrivate()->GetInstancePropertiesProfiles().Num())
 	{
 		return false;
 	}
 
-	FProfileParameterDat& Profile = CustomizableObject->InstancePropertiesProfiles[ProfileIndex];
+	FProfileParameterDat& Profile = CustomizableObject->GetPrivate()->GetInstancePropertiesProfiles()[ProfileIndex];
 
 	Profile.BoolParameters = GetPublic()->Descriptor.BoolParameters;
 	Profile.IntParameters = GetPublic()->Descriptor.IntParameters;
@@ -2516,12 +2516,12 @@ bool UCustomizableInstancePrivate::MigrateProfileParametersToCurrentInstance(int
 	}
 
 #if WITH_EDITOR
-	if (ProfileIndex < 0 || ProfileIndex >= CustomizableObject->InstancePropertiesProfiles.Num())
+	if (ProfileIndex < 0 || ProfileIndex >= CustomizableObject->GetPrivate()->GetInstancePropertiesProfiles().Num())
 	{
 		return false;
 	}
 
-	FProfileParameterDat& Profile = CustomizableObject->InstancePropertiesProfiles[ProfileIndex];
+	FProfileParameterDat& Profile = CustomizableObject->GetPrivate()->GetInstancePropertiesProfiles()[ProfileIndex];
 	FProfileParameterDat TempProfile;
 
 	TempProfile.ProfileName = Profile.ProfileName;
@@ -4905,7 +4905,7 @@ UE::Tasks::FTask UCustomizableInstancePrivate::LoadAdditionalAssetsAndDataAsync(
 
 			for (uint32 ResourceId : StreamedResources)
 			{
-				const TArray<FCustomizableObjectStreamedResourceData>& StreamedResourcesData = CustomizableObject->StreamedResourceData;
+				const TArray<FCustomizableObjectStreamedResourceData>& StreamedResourcesData = CustomizableObject->GetPrivate()->GetStreamedResourceData();
 				FCustomizableObjectStreameableResourceId TypedResourceId = BitCast<FCustomizableObjectStreameableResourceId>(ResourceId);	
 	
 				if (TypedResourceId.Type == (uint8)FCustomizableObjectStreameableResourceId::EType::AssetUserData)
@@ -5300,7 +5300,7 @@ void UCustomizableInstancePrivate::AdditionalAssetsAsyncLoaded(UCustomizableObje
 	}
 
 	
-	TArray<FCustomizableObjectStreamedResourceData>& StreamedResources = CustomizableObject->StreamedResourceData;
+	TArray<FCustomizableObjectStreamedResourceData>& StreamedResources = CustomizableObject->GetPrivate()->GetStreamedResourceData();
 
 	for (FCustomizableInstanceComponentData& ComponentData : ComponentsData)
 	{

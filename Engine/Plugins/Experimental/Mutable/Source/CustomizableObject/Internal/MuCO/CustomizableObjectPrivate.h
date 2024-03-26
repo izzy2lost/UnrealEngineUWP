@@ -723,6 +723,26 @@ public:
 	/** Return true if the CO is not compiled or the ParticipatingObjects system has detected a change (participating objects dirty or re-saved since last compilation). */
 	bool IsCompilationOutOfDate() const;
 #endif
+
+	TMap<uint64, FMutableStreamableBlock>& GetHashToStreamableBlock();
+
+	int32& GetNumMeshComponentsInRoot();
+
+	TArray<FString>& GetCustomizableObjectClassTags();
+	
+	TArray<FString>& GetPopulationClassTags();
+
+    TMap<FString, FParameterTags>& GetCustomizableObjectParametersTags();
+
+#if WITH_EDITORONLY_DATA
+	TArray<FProfileParameterDat>& GetInstancePropertiesProfiles();
+#endif
+	
+	TArray<FCustomizableObjectResourceData>& GetAlwaysLoadedExtensionData();
+
+	TArray<FCustomizableObjectStreamedResourceData>& GetStreamedExtensionData();
+	
+	TArray<FCustomizableObjectStreamedResourceData>& GetStreamedResourceData();
 	
 	/** Cache of generated SkeletalMeshes */
 	FMeshCache MeshCache;

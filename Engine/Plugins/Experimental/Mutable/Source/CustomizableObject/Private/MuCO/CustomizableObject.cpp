@@ -862,14 +862,8 @@ void UCustomizableObjectPrivate::CompileForTargetPlatform(const ITargetPlatform*
 
 	FCustomizableObjectCompilerBase* Compiler = UCustomizableObjectSystem::GetInstance()->GetNewCompiler();
 
-	bool bIsRootObject = Compiler->IsRootObject(GetPublic());
-	
-	bool bIsRelevantForThisTarget =
-		(GetPublic()->Relevancy == ECustomizableObjectRelevancy::All)
-		||
-		(GetPublic()->Relevancy == ECustomizableObjectRelevancy::ClientOnly && !TargetPlatform->IsServerOnly());
-
-	if (bIsRootObject && bIsRelevantForThisTarget)
+	const bool bIsRootObject = Compiler->IsRootObject(GetPublic());
+	if (bIsRootObject)
 	{
 		FCompilationOptions Options;
 		Options.OptimizationLevel = UE_MUTABLE_MAX_OPTIMIZATION;	// max optimization when packaging.
@@ -2006,6 +2000,62 @@ bool UCustomizableObjectPrivate::IsCompilationOutOfDate() const
 }
 #endif
 
+TMap<uint64, FMutableStreamableBlock>& UCustomizableObjectPrivate::GetHashToStreamableBlock()
+{
+	return GetPublic()->HashToStreamableBlock;
+}
+
+
+int32& UCustomizableObjectPrivate::GetNumMeshComponentsInRoot()
+{
+	return GetPublic()->NumMeshComponentsInRoot;
+}
+
+
+TArray<FString>& UCustomizableObjectPrivate::GetCustomizableObjectClassTags()
+{
+	return GetPublic()->CustomizableObjectClassTags;
+}
+
+
+TArray<FString>& UCustomizableObjectPrivate::GetPopulationClassTags()
+{
+	return GetPublic()->PopulationClassTags;
+}
+
+
+TMap<FString, FParameterTags>& UCustomizableObjectPrivate::GetCustomizableObjectParametersTags()
+{
+	return GetPublic()->CustomizableObjectParametersTags;
+}
+
+
+#if WITH_EDITORONLY_DATA
+TArray<FProfileParameterDat>& UCustomizableObjectPrivate::GetInstancePropertiesProfiles()
+{
+	return GetPublic()->InstancePropertiesProfiles;
+}
+#endif
+
+
+TArray<FCustomizableObjectResourceData>& UCustomizableObjectPrivate::GetAlwaysLoadedExtensionData()
+{
+	return GetPublic()->AlwaysLoadedExtensionData;
+}
+
+
+TArray<FCustomizableObjectStreamedResourceData>& UCustomizableObjectPrivate::GetStreamedExtensionData()
+{
+	return GetPublic()->StreamedExtensionData;
+}
+
+
+TArray<FCustomizableObjectStreamedResourceData>& UCustomizableObjectPrivate::GetStreamedResourceData()
+{
+	return GetPublic()->StreamedResourceData;
+}
+
+
 //-------------------------------------------------------------------------------------------------
 //-------------------------------------------------------------------------------------------------
 //-------------------------------------------------------------------------------------------------
@@ -2141,7 +2191,7 @@ void UCustomizableObjectBulk::PrepareBulkData(UCustomizableObject* InOuter, cons
 		for (int32 BlockIndex = 0; BlockIndex < NumBlocks; ++BlockIndex)
 		{
 			uint32 BlockId = Model->GetRomId(BlockIndex);
-			const FMutableStreamableBlock& StreamableBlock = CustomizableObject->HashToStreamableBlock[BlockId];
+			const FMutableStreamableBlock& StreamableBlock = CustomizableObject->GetPrivate()->GetHashToStreamableBlock()[BlockId];
 			const uint32 BlockSize = StreamableBlock.Size;
 
 			FBlock CurrentBlock = { EDataType::Model, BlockId, BlockSize, SourceOffset };
@@ -2268,7 +2318,7 @@ void UCustomizableObjectBulk::PrepareBulkData(UCustomizableObject* InOuter, cons
 			{
 				FBlock ThisBlock = CurrentFile.Blocks[FileBlockIndex];
 
-				FMutableStreamableBlock& StreamableBlock = CustomizableObject->HashToStreamableBlock[ThisBlock.Id];
+				FMutableStreamableBlock& StreamableBlock = CustomizableObject->GetPrivate()->GetHashToStreamableBlock()[ThisBlock.Id];
 				check(StreamableBlock.Size == ThisBlock.Size);
 				StreamableBlock.FileId = FileId;
 				StreamableBlock.Offset = OffsetInFile;
@@ -2511,13 +2561,13 @@ void FMutableRefSkeletalMeshData::InitResources(UCustomizableObject* InOuter, co
 	// Initialize AssetUserData
 	for (FMutableRefAssetUserData& Data : AssetUserData)
 	{
-		if (!InOuter->StreamedResourceData.IsValidIndex(Data.AssetUserDataIndex))
+		if (!InOuter->GetPrivate()->GetStreamedResourceData().IsValidIndex(Data.AssetUserDataIndex))
 		{
 			check(false);
 			continue;
 		}
 
-		FCustomizableObjectStreamedResourceData& StreamedResource = InOuter->StreamedResourceData[Data.AssetUserDataIndex];
+		FCustomizableObjectStreamedResourceData& StreamedResource = InOuter->GetPrivate()->GetStreamedResourceData()[Data.AssetUserDataIndex];
 		Data.AssetUserData = StreamedResource.GetPath().LoadSynchronous();
 		check(Data.AssetUserData);
 		check(Data.AssetUserData->Data.Type == ECOResourceDataType::AssetUserData);

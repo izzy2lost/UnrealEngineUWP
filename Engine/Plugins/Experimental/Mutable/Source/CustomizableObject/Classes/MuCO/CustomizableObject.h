@@ -69,16 +69,6 @@ struct FParameterTags
 };
 
 
-UENUM()
-enum class ECustomizableObjectRelevancy : uint8
-{
-	// 
-	All = 0 UMETA(DisplayName = "Relevant for client and server"),
-	// 
-	ClientOnly = 1 UMETA(DisplayName = "Only necessary on clients")
-};
-
-
 USTRUCT()
 struct FProfileParameterDat
 {
@@ -511,6 +501,7 @@ public:
 	UPROPERTY(Transient)
 	TArray<FCustomizableObjectMeshToMeshVertData> ClothMeshToMeshVertData;
 
+private:
 	// mu::ExtensionData::Index is an index into this array when mu::ExtensionData::Origin is ConstantAlwaysLoaded
 	UPROPERTY()
 	TArray<FCustomizableObjectResourceData> AlwaysLoadedExtensionData;
@@ -523,6 +514,7 @@ public:
 	UPROPERTY()
 	TArray<FCustomizableObjectStreamedResourceData> StreamedResourceData;
 
+public:
 	/** Use the SkeletalMesh of reference as a placeholder until the custom mesh is ready to use.
 	  * Note: If disabled, a null mesh will be used to replace the discarded mesh due to 'ReplaceDiscardedWithReferenceMesh' being enabled. */
 	UPROPERTY(EditAnywhere, Category = CustomizableObject)
@@ -538,13 +530,6 @@ public:
 	bool bEnableMeshCache = false;
 	
 #if WITH_EDITORONLY_DATA
-private:
-	// Hide this property because it is not used yet.
-	//UPROPERTY(EditAnywhere, Category = CustomizableObject)
-	UPROPERTY()
-	ECustomizableObjectRelevancy Relevancy;
-
-public:
 	// Compilation options to use in editor and for packaging for this object.
 	UPROPERTY()
 	FCompilationOptions CompileOptions;
@@ -589,7 +574,6 @@ private:
 	UPROPERTY()
 	FGuid VersionId;
 
-public:
 	UPROPERTY()
 	TArray<FProfileParameterDat> InstancePropertiesProfiles;
 #endif // WITH_EDITORONLY_DATA
@@ -597,7 +581,8 @@ public:
 	/** Amount of components in this CO. Set at the end of the model compilation process. */
 	UPROPERTY()
 	int32 NumMeshComponentsInRoot = 0; // TODO UE-205600, move to FModelResources
-	
+
+public:
 	/** Get the number of components this Customizable Object has. */
 	UFUNCTION(BlueprintCallable, Category = CustomizableObject)
 	int32 GetComponentCount() const;
@@ -708,30 +693,11 @@ public:
 	void Serialize(FArchive& Ar) override;
 #if WITH_EDITOR
 	
-	// Compile the object for a specific platform - Compile for Cook Customizable Object
-	void CompileForTargetPlatform(const ITargetPlatform* TargetPlatform);
-
-	// Unless we are packaging there is no need for keeping all the data generated during compilation, this information is stored in the derived data.
-	void ClearCompiledData(bool bIsCooking);
-
 	/** Compile the object if Automatic Compilation is enabled and has not been already compiled.
 	  * Automatic compilation can be enabled/disabled in the Mutable's Plugin Settings.
 	  * @return true if compiled */
 	bool ConditionalAutoCompile();
 	
-	// Add a profile that stores the values of the parameters used by the CustomInstance.
-	FReply AddNewParameterProfile(FString Name, class UCustomizableObjectInstance& CustomInstance);
-
-	// Create new GUID for this CO
-	void UpdateVersionId();
-	FGuid GetVersionId() const { return VersionId; }
-
-	// Compose folder name where the data is stored
-	FString GetCompiledDataFolderPath() const;
-
-	// Compose file name 
-	FString GetCompiledDataFileName(bool bIsModel, const ITargetPlatform* InTargetPlatform = nullptr, bool bIsDiskStreamer = false);
-
 	virtual void GetAssetRegistryTags(FAssetRegistryTagsContext Context) const override;
 	UE_DEPRECATED(5.4, "Implement the version that takes FAssetRegistryTagsContext instead.")
 	virtual void GetAssetRegistryTags(TArray<FAssetRegistryTag>& OutTags) const override;
@@ -785,6 +751,7 @@ public:
 	UFUNCTION(BlueprintCallable, Category = CustomizableObject)
 	FParameterUIData GetParameterUIMetadataFromIndex(int32 ParamIndex) const;
 
+private:
 	/** Textures marked as low priority will generate defaulted resident mips (if texture streaming is enabled).
 	  * Generating defaulted resident mips greatly reduce initial generation times. */
 	UPROPERTY(EditAnywhere, Category = CustomizableObject)
@@ -809,7 +776,6 @@ public:
 	// Customizable Object Population data end --------------------------------------------------------
 
 #if WITH_EDITORONLY_DATA
-private:
 	/** True if this object references a parent object. This is used basically to exclude this object
 	  * from cooking. This is actually derived from the source graph object node pointing to another
 	  * object or not, but it needs to be cached here because the source graph is not always available.
