@@ -360,6 +360,7 @@ public:
 	CORE_API static const TCHAR* const PortableCallStackTag;
 	CORE_API static const TCHAR* const PortableCallStackHashTag;
 	CORE_API static const TCHAR* const IsRequestingExitTag;
+	CORE_API static const TCHAR* const LogFilePathTag;
 
 	static constexpr inline int32 CrashGUIDLength = 128;
 
