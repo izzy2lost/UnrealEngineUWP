@@ -2284,6 +2284,11 @@ bool FMaterialResource::HasRenderTracePhysicalMaterialOutputs() const
 	return Material->GetRenderTracePhysicalMaterialOutputs().Num() > 0;
 }
 
+uint16 FMaterialResource::GetPreshaderGap() const
+{
+	return Material->PreshaderGap;
+}
+
 UMaterialInterface* FMaterialResource::GetMaterialInterface() const 
 { 
 	return MaterialInstance ? (UMaterialInterface*)MaterialInstance : (UMaterialInterface*)Material;
@@ -5516,6 +5521,7 @@ FMaterialShaderParameters::FMaterialShaderParameters(const FMaterial* InMaterial
 	BlendMode = InMaterial->GetBlendMode();
 	FeatureLevel = InMaterial->GetFeatureLevel();
 	QualityLevel = InMaterial->GetQualityLevel();
+	PreshaderGap = InMaterial->GetPreshaderGap();
 	BlendableLocation = InMaterial->GetBlendableLocation();
 	NumCustomizedUVs = InMaterial->GetNumCustomizedUVs();
 	StencilCompare = InMaterial->GetStencilCompare();

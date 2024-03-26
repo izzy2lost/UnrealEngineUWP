@@ -200,7 +200,7 @@ static int32 GPreshaderGapInterval = 32;
 static FAutoConsoleVariableRef CVarPreshaderGapInterval(
 	TEXT("r.Material.PreshaderGapInterval"),
 	GPreshaderGapInterval,
-	TEXT("Insert an empty element in the preshader buffer every specified number of elements in the buffer.  Workaround for a shader compiler bug."));
+	TEXT("Insert an empty element in the preshader buffer every specified number of elements in the buffer.  Workaround for a shader compiler register overflow bug."));
 
 /* Controls whether DDC caching of material translation results should be forcefully disabled. */
 #define FORCE_DISABLE_MATERIAL_TRANSLATION_DDC false
@@ -3860,12 +3860,20 @@ int32 FHLSLMaterialTranslator::AccessUniformExpression(int32 Index)
 			}
 
 			// Optionally insert an empty vector element (gap) at the given interval, to work around a platform specific shader compiler bug
-			if (GPreshaderGapInterval > 0)
+			int32 PreshaderGapInterval = Material->GetPreshaderGap();
+			if (!PreshaderGapInterval)
 			{
+				PreshaderGapInterval = GPreshaderGapInterval;
+			}
+			if (PreshaderGapInterval > 0)
+			{
+				// Set a minimum of 4 (one out of every four elements is padding)
+				PreshaderGapInterval = FMath::Max(PreshaderGapInterval, 4);
+
 				// Check if we are on the vector element that is the end of the gap interval, or we will pass the end of the gap interval if the
 				// preshader is larger than a single vector.  The divides will change value when a modulus gap interval boundary is crossed.
 				uint32 PreshaderGapOffset = FMath::Max(4u, bIsLWC ? NumComponents * 2u : NumComponents);
-				if (UniformPreshaderOffset / (GPreshaderGapInterval*4) != (UniformPreshaderOffset + PreshaderGapOffset) / (GPreshaderGapInterval*4))
+				if (UniformPreshaderOffset / (PreshaderGapInterval *4) != (UniformPreshaderOffset + PreshaderGapOffset) / (PreshaderGapInterval *4))
 				{
 					UniformPreshaderOffset += 4u;
 				}

@@ -1016,6 +1016,7 @@ UMaterial::UMaterial(const FObjectInitializer& ObjectInitializer)
 	BlendablePriority = 0;
 	BlendableOutputAlpha = false;
 	bIsBlendable = true;
+	PreshaderGap = 0;
 	bEnableStencilTest = false;
 	bUsedWithVolumetricCloud = false;
 	bUsedWithHeterogeneousVolumes = false;
