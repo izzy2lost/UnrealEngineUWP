@@ -1637,9 +1637,16 @@ void FCacheStoreHierarchy::RecordStats(FCacheBucket Bucket, ERequestType Type, E
 	using EStatType = FCallStats::EStatType;
 
 	const bool bIsInGameThread = IsInGameThread();
+	const bool bIsCanceled = Status == EStatus::Canceled;
 	const EHitOrMiss HitOrMiss = Status == EStatus::Ok ? EHitOrMiss::Hit : EHitOrMiss::Miss;
-	FCallStats& CallStats = (Op == ERequestOp::Put) ? BucketStats.PutStats : BucketStats.GetStats;
-	CallStats.Accumulate(HitOrMiss, EStatType::Counter, 1, bIsInGameThread);
+
+	// FCallStats is a legacy stat codepath that isn't aware of cancellations. In order to avoid skewing miss% rates
+	// by accumulating cancellation requests as misses, we simply ignore cancellation requests for stat tracking
+	if (!bIsCanceled)
+	{
+		FCallStats& CallStats = (Op == ERequestOp::Put) ? BucketStats.PutStats : BucketStats.GetStats;
+		CallStats.Accumulate(HitOrMiss, EStatType::Counter, 1, bIsInGameThread);
+	}
 #endif
 }
 
