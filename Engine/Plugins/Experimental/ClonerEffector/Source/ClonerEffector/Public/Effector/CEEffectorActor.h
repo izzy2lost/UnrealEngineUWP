@@ -742,10 +742,6 @@ private:
 	FInstancedPropertyBag VisualizerData;
 #endif
 
-	/** Internal cloners array, deprecated since it will be moved to the cloners and emptied out on post load */
-	UPROPERTY(NonTransactional)
-	TSet<TWeakObjectPtr<ACEClonerActor>> InternalCloners;
-
 	/** Transient effector channel data */
 	UPROPERTY(VisibleInstanceOnly, Transient, DuplicateTransient, TextExportTransient, NonTransactional, AdvancedDisplay, Category="Effector")
 	FCEClonerEffectorChannelData ChannelData;

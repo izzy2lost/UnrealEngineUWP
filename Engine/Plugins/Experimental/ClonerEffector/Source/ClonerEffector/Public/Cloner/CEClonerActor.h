@@ -698,45 +698,6 @@ private:
 	UPROPERTY(EditInstanceOnly, Category="Cloner", meta=(DisplayName="Effectors"))
 	TArray<TWeakObjectPtr<ACEEffectorActor>> EffectorsWeak;
 
-	/**
-	* Below properties are deprecated and no longer in use,
-	* they will be migrated to new layout system on load,
-	* And they will be all removed in future version
-	*/
-	UPROPERTY(meta=(DeprecatedProperty, DeprecationMessage="Use LayoutName instead"))
-	ECEClonerLayout Layout_DEPRECATED = ECEClonerLayout::Grid;
-
-	UPROPERTY(meta=(DeprecatedProperty, DeprecationMessage="Use UCEClonerGridLayout instead"))
-	FCEClonerGridLayoutOptions GridOptions_DEPRECATED;
-
-	UPROPERTY(meta=(DeprecatedProperty, DeprecationMessage="Use UCEClonerLineLayout instead"))
-	FCEClonerLineLayoutOptions LineOptions_DEPRECATED;
-
-	UPROPERTY(meta=(DeprecatedProperty, DeprecationMessage="Use UCEClonerCircleLayout instead"))
-	FCEClonerCircleLayoutOptions CircleOptions_DEPRECATED;
-
-	UPROPERTY(meta=(DeprecatedProperty, DeprecationMessage="Use UCEClonerCylinderLayout instead"))
-	FCEClonerCylinderLayoutOptions CylinderOptions_DEPRECATED;
-
-	UPROPERTY(meta=(DeprecatedProperty, DeprecationMessage="Use UCEClonerSphereLayout instead"))
-	FCEClonerSphereLayoutOptions SphereOptions_DEPRECATED;
-
-	UPROPERTY(meta=(DeprecatedProperty, DeprecationMessage="Use UCEClonerHoneycombLayout instead"))
-	FCEClonerHoneycombLayoutOptions HoneycombOptions_DEPRECATED;
-
-	UPROPERTY(meta=(DeprecatedProperty, DeprecationMessage="Use UCEClonerMeshLayout instead"))
-	FCEClonerSampleMeshOptions SampleMeshOptions_DEPRECATED;
-
-	UPROPERTY(meta=(DeprecatedProperty, DeprecationMessage="Use UCEClonerSplineLayout instead"))
-	FCEClonerSampleSplineOptions SampleSplineOptions_DEPRECATED;
-
-	/**
-	 * Used to confirm migration of deprecated properties above to new layout system
-	 * Newly created cloner will not migrate anything and skip this task
-	 */
-	UPROPERTY()
-	bool bDeprecatedPropertiesMigrated = false;
-
 	float TreeUpdateDeltaTime = 0.f;
 
 	bool bNeedsRefresh = false;

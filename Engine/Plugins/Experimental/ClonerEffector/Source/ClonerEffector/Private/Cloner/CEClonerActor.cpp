@@ -3,14 +3,7 @@
 #include "Cloner/CEClonerActor.h"
 
 #include "Cloner/CEClonerComponent.h"
-#include "Cloner/Layouts/CEClonerCircleLayout.h"
-#include "Cloner/Layouts/CEClonerCylinderLayout.h"
-#include "Cloner/Layouts/CEClonerGridLayout.h"
-#include "Cloner/Layouts/CEClonerHoneycombLayout.h"
-#include "Cloner/Layouts/CEClonerLineLayout.h"
-#include "Cloner/Layouts/CEClonerMeshLayout.h"
-#include "Cloner/Layouts/CEClonerSphereUniformLayout.h"
-#include "Cloner/Layouts/CEClonerSplineLayout.h"
+#include "Cloner/Layouts/CEClonerLayoutBase.h"
 #include "Effector/CEEffectorActor.h"
 #include "Engine/StaticMeshActor.h"
 #include "Materials/MaterialInterface.h"
@@ -182,114 +175,6 @@ void ACEClonerActor::PostInitProperties()
 void ACEClonerActor::PostLoad()
 {
 	Super::PostLoad();
-
-	// Migrate old properties to new layout system
-	if (!bDeprecatedPropertiesMigrated)
-	{
-		// Grid options
-		if (UCEClonerGridLayout* GridLayout = FindOrAddLayout<UCEClonerGridLayout>())
-		{
-			GridLayout->SetCountX(GridOptions_DEPRECATED.Count.X);
-			GridLayout->SetCountY(GridOptions_DEPRECATED.Count.Y);
-			GridLayout->SetCountZ(GridOptions_DEPRECATED.Count.Z);
-			GridLayout->SetSpacingX(GridOptions_DEPRECATED.Spacing.X);
-			GridLayout->SetSpacingY(GridOptions_DEPRECATED.Spacing.Y);
-			GridLayout->SetSpacingZ(GridOptions_DEPRECATED.Spacing.Z);
-			GridLayout->SetConstraint(GridOptions_DEPRECATED.Constraint);
-			GridLayout->SetInvertConstraint(GridOptions_DEPRECATED.bInvertConstraint);
-			GridLayout->SetSphereConstraint(GridOptions_DEPRECATED.SphereConstraint);
-			GridLayout->SetCylinderConstraint(GridOptions_DEPRECATED.CylinderConstraint);
-			GridLayout->SetTextureConstraint(GridOptions_DEPRECATED.TextureConstraint);
-		}
-
-		// Line options
-		if (UCEClonerLineLayout* LineLayout = FindOrAddLayout<UCEClonerLineLayout>())
-		{
-			LineLayout->SetCount(LineOptions_DEPRECATED.Count);
-			LineLayout->SetSpacing(LineOptions_DEPRECATED.Spacing);
-			LineLayout->SetAxis(LineOptions_DEPRECATED.Axis);
-			LineLayout->SetDirection(LineOptions_DEPRECATED.Direction);
-			LineLayout->SetRotation(LineOptions_DEPRECATED.Rotation);
-		}
-
-		// Circle options
-		if (UCEClonerCircleLayout* CircleLayout = FindOrAddLayout<UCEClonerCircleLayout>())
-		{
-			CircleLayout->SetCount(CircleOptions_DEPRECATED.Count);
-			CircleLayout->SetRadius(CircleOptions_DEPRECATED.Radius);
-			CircleLayout->SetAngleStart(CircleOptions_DEPRECATED.AngleStart);
-			CircleLayout->SetAngleRatio(CircleOptions_DEPRECATED.AngleRatio);
-			CircleLayout->SetOrientMesh(CircleOptions_DEPRECATED.bOrientMesh);
-			CircleLayout->SetPlane(CircleOptions_DEPRECATED.Plane);
-			CircleLayout->SetRotation(CircleOptions_DEPRECATED.Rotation);
-			CircleLayout->SetScale(CircleOptions_DEPRECATED.Scale);
-		}
-
-		// Cylinder options
-		if (UCEClonerCylinderLayout* CylinderLayout = FindOrAddLayout<UCEClonerCylinderLayout>())
-		{
-			CylinderLayout->SetBaseCount(CylinderOptions_DEPRECATED.BaseCount);
-			CylinderLayout->SetHeightCount(CylinderOptions_DEPRECATED.HeightCount);
-			CylinderLayout->SetHeight(CylinderOptions_DEPRECATED.Height);
-			CylinderLayout->SetRadius(CylinderOptions_DEPRECATED.Radius);
-			CylinderLayout->SetAngleStart(CylinderOptions_DEPRECATED.AngleStart);
-			CylinderLayout->SetAngleRatio(CylinderOptions_DEPRECATED.AngleRatio);
-			CylinderLayout->SetOrientMesh(CylinderOptions_DEPRECATED.bOrientMesh);
-			CylinderLayout->SetPlane(CylinderOptions_DEPRECATED.Plane);
-			CylinderLayout->SetRotation(CylinderOptions_DEPRECATED.Rotation);
-			CylinderLayout->SetScale(CylinderOptions_DEPRECATED.Scale);
-		}
-
-		// Sphere options
-		if (UCEClonerSphereUniformLayout* SphereLayout = FindOrAddLayout<UCEClonerSphereUniformLayout>())
-		{
-			SphereLayout->SetCount(SphereOptions_DEPRECATED.Count);
-			SphereLayout->SetRadius(SphereOptions_DEPRECATED.Radius);
-			SphereLayout->SetRatio(SphereOptions_DEPRECATED.Ratio);
-			SphereLayout->SetOrientMesh(SphereOptions_DEPRECATED.bOrientMesh);
-			SphereLayout->SetRotation(SphereOptions_DEPRECATED.Rotation);
-			SphereLayout->SetScale(SphereOptions_DEPRECATED.Scale);
-		}
-
-		// Honeycomb options
-		if (UCEClonerHoneycombLayout* HoneycombLayout = FindOrAddLayout<UCEClonerHoneycombLayout>())
-		{
-			HoneycombLayout->SetPlane(HoneycombOptions_DEPRECATED.Plane);
-			HoneycombLayout->SetWidthCount(HoneycombOptions_DEPRECATED.WidthCount);
-			HoneycombLayout->SetHeightCount(HoneycombOptions_DEPRECATED.HeightCount);
-			HoneycombLayout->SetWidthOffset(HoneycombOptions_DEPRECATED.WidthOffset);
-			HoneycombLayout->SetHeightOffset(HoneycombOptions_DEPRECATED.HeightOffset);
-			HoneycombLayout->SetHeightSpacing(HoneycombOptions_DEPRECATED.HeightSpacing);
-			HoneycombLayout->SetWidthSpacing(HoneycombOptions_DEPRECATED.WidthSpacing);
-		}
-
-		// Sample mesh options
-		if (UCEClonerMeshLayout* MeshLayout = FindOrAddLayout<UCEClonerMeshLayout>())
-		{
-			MeshLayout->SetCount(SampleMeshOptions_DEPRECATED.Count);
-			MeshLayout->SetAsset(SampleMeshOptions_DEPRECATED.Asset);
-			MeshLayout->SetSampleData(SampleMeshOptions_DEPRECATED.SampleData);
-			MeshLayout->SetSampleActorWeak(SampleMeshOptions_DEPRECATED.SampleActor);
-		}
-
-		// Sample spline options
-		if (UCEClonerSplineLayout* SplineLayout = FindOrAddLayout<UCEClonerSplineLayout>())
-		{
-			SplineLayout->SetCount(SampleSplineOptions_DEPRECATED.Count);
-			SplineLayout->SetSplineActorWeak(SampleSplineOptions_DEPRECATED.SplineActor);
-		}
-
-		// Set previous layout
-		if (const UCEClonerSubsystem* Subsystem = UCEClonerSubsystem::Get())
-		{
-			const int32 LayoutIdx = static_cast<int32>(Layout_DEPRECATED);
-			SetLayoutName(Subsystem->GetLayoutNames()[LayoutIdx]);
-		}
-
-		bDeprecatedPropertiesMigrated = true;
-
-		UE_LOG(LogCEClonerActor, Log, TEXT("%s : Cloner deprecated properties migrated"), *GetActorNameOrLabel());
-	}
 
 	for (TMap<FName, TObjectPtr<UCEClonerLayoutBase>>::TIterator It(LayoutInstances); It; ++It)
 	{
@@ -1524,9 +1409,6 @@ void ACEClonerActor::InitializeCloner()
 		SpawnDefaultActorAttached();
 	}
 #endif
-
-	// For new cloner instances no need to migrate anything
-	bDeprecatedPropertiesMigrated = true;
 
 	bClonerInitialized = true;
 

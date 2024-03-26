@@ -183,19 +183,6 @@ void ACEEffectorActor::PostLoad()
 	Super::PostLoad();
 
 	OnEffectorChanged();
-
-	if (!InternalCloners.IsEmpty())
-	{
-		for (const TWeakObjectPtr<ACEClonerActor>& ClonerWeak : InternalCloners)
-		{
-			if (ACEClonerActor* Cloner = ClonerWeak.Get())
-			{
-				Cloner->LinkEffector(this);
-			}
-		}
-
-		InternalCloners.Empty();
-	}
 }
 
 void ACEEffectorActor::PostDuplicate(EDuplicateMode::Type InDuplicateMode)
