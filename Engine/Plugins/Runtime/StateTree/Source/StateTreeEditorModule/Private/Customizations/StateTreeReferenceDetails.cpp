@@ -6,6 +6,7 @@
 #include "StateTreeDelegates.h"
 #include "IDetailChildrenBuilder.h"
 #include "IPropertyUtilities.h"
+#include "IStateTreeSchemaProvider.h"
 #include "PropertyBagDetails.h"
 #include "PropertyCustomizationHelpers.h"
 #include "StateTreeReference.h"
@@ -116,7 +117,7 @@ void FStateTreeReferenceDetails::CustomizeHeader(const TSharedRef<IPropertyHandl
 	const TSharedPtr<IPropertyHandle> StateTreeProperty = StructPropertyHandle->GetChildHandle(GET_MEMBER_NAME_CHECKED(FStateTreeReference, StateTree));
 	check(StateTreeProperty.IsValid());
 
-	const FString SchemaMetaDataValue = InStructPropertyHandle->GetMetaData(UE::StateTree::SchemaTag);
+	const FString SchemaMetaDataValue = GetSchemaPath(*StructPropertyHandle);
 
 	InHeaderRow
 	.NameContent()
@@ -197,6 +198,25 @@ void FStateTreeReferenceDetails::SyncParameters(const UStateTree* StateTreeToSyn
 	{
 		PropUtils->RequestRefresh();
 	}
+}
+
+FString FStateTreeReferenceDetails::GetSchemaPath(IPropertyHandle& StructPropertyHandle)
+{
+	TArray<UObject*> OuterObjects;
+	StructPropertyHandle.GetOuterObjects(OuterObjects);
+
+	for (const UObject* OuterObject : OuterObjects)
+	{
+		if (const IStateTreeSchemaProvider* SchemaProvider = Cast<IStateTreeSchemaProvider>(OuterObject))
+		{
+			if (const UClass* SchemaClass = SchemaProvider->GetSchema().Get())
+			{
+				return SchemaClass->GetPathName();
+			}
+		}
+	}
+
+	return StructPropertyHandle.GetMetaData(UE::StateTree::SchemaTag);
 }
 
 #undef LOCTEXT_NAMESPACE

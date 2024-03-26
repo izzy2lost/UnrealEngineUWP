@@ -3,7 +3,7 @@
 #include "BehaviorTree/Tasks/BTTask_RunStateTree.h"
 
 #include "BehaviorTree/GameplayStateTreeBTUtils.h"
-#include "Components/StateTreeComponentSchema.h"
+#include "Components/StateTreeAIComponentSchema.h"
 #include "StateTreeExecutionContext.h"
 
 UBTTask_RunStateTree::UBTTask_RunStateTree(const FObjectInitializer& ObjectInitializer /*= FObjectInitializer::Get()*/)
@@ -20,7 +20,7 @@ EBTNodeResult::Type UBTTask_RunStateTree::ExecuteTask(UBehaviorTreeComponent& Ow
 	if (StateTreeRef.IsValid())
 	{
 		FStateTreeExecutionContext Context(*OwnerComp.GetOwner(), *StateTreeRef.GetStateTree(), InstanceData);
-		if (UStateTreeComponentSchema::SetContextRequirements(OwnerComp, Context))
+		if (SetContextRequirements(OwnerComp, Context))
 		{
 			const EStateTreeRunStatus StartStatus = Context.Start(&StateTreeRef.GetParameters());
 			return GameplayStateTreeBTUtils::StateTreeRunStatusToBTNodeResult(StartStatus);
@@ -35,7 +35,7 @@ void UBTTask_RunStateTree::TickTask(UBehaviorTreeComponent& OwnerComp, uint8* No
 	if (StateTreeRef.IsValid())
 	{
 		FStateTreeExecutionContext Context(*OwnerComp.GetOwner(), *StateTreeRef.GetStateTree(), InstanceData);
-		if (UStateTreeComponentSchema::SetContextRequirements(OwnerComp, Context))
+		if (SetContextRequirements(OwnerComp, Context))
 		{
 			const EStateTreeRunStatus TickStatus = Context.Tick(DeltaSeconds);
 			if (TickStatus != EStateTreeRunStatus::Running)
@@ -58,9 +58,25 @@ void UBTTask_RunStateTree::OnTaskFinished(UBehaviorTreeComponent& OwnerComp, uin
 	if (StateTreeRef.IsValid())
 	{
 		FStateTreeExecutionContext Context(*OwnerComp.GetOwner(), *StateTreeRef.GetStateTree(), InstanceData);
-		if(UStateTreeComponentSchema::SetContextRequirements(OwnerComp, Context))
+		if(SetContextRequirements(OwnerComp, Context))
 		{
 			Context.Stop();
 		}
 	}
+}
+
+bool UBTTask_RunStateTree::SetContextRequirements(UBehaviorTreeComponent& OwnerComp, FStateTreeExecutionContext& Context)
+{
+	Context.SetCollectExternalDataCallback(FOnCollectStateTreeExternalData::CreateUObject(this, &UBTTask_RunStateTree::CollectExternalData));
+	return UStateTreeAIComponentSchema::SetContextRequirements(OwnerComp, Context);
+}
+
+bool UBTTask_RunStateTree::CollectExternalData(const FStateTreeExecutionContext& Context, const UStateTree* StateTree, TArrayView<const FStateTreeExternalDataDesc> ExternalDataDescs, TArrayView<FStateTreeDataView> OutDataViews)
+{
+	return UStateTreeAIComponentSchema::CollectExternalData(Context, StateTree, ExternalDataDescs, OutDataViews);
+}
+
+TSubclassOf<UStateTreeSchema> UBTTask_RunStateTree::GetSchema() const
+{
+	return UStateTreeAIComponentSchema::StaticClass();
 }

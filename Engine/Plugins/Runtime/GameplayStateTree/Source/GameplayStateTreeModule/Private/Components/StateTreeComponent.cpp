@@ -65,6 +65,7 @@ bool UStateTreeComponent::CollectExternalData(const FStateTreeExecutionContext& 
 
 bool UStateTreeComponent::SetContextRequirements(FStateTreeExecutionContext& Context, bool bLogErrors)
 {
+	Context.SetCollectExternalDataCallback(FOnCollectStateTreeExternalData::CreateUObject(this, &UStateTreeComponent::CollectExternalData));
 	return UStateTreeComponentSchema::SetContextRequirements(*this, Context);
 }
 
@@ -101,7 +102,7 @@ void UStateTreeComponent::TickComponent(float DeltaTime, enum ELevelTick TickTyp
 	}
 
 	FStateTreeExecutionContext Context(*GetOwner(), *StateTreeRef.GetStateTree(), InstanceData);
-	if (UStateTreeComponentSchema::SetContextRequirements(*this, Context))
+	if (SetContextRequirements(Context))
 	{
 		const EStateTreeRunStatus PreviousRunStatus = Context.GetStateTreeRunStatus();
 		const EStateTreeRunStatus CurrentRunStatus = Context.Tick(DeltaTime);
@@ -124,7 +125,7 @@ void UStateTreeComponent::StartLogic()
 	}
 
 	FStateTreeExecutionContext Context(*GetOwner(), *StateTreeRef.GetStateTree(), InstanceData);
-	if (UStateTreeComponentSchema::SetContextRequirements(*this, Context))
+	if (SetContextRequirements(Context))
 	{
 		const EStateTreeRunStatus PreviousRunStatus = Context.GetStateTreeRunStatus();
 		const EStateTreeRunStatus CurrentRunStatus = Context.Start(&StateTreeRef.GetParameters());
@@ -148,7 +149,7 @@ void UStateTreeComponent::RestartLogic()
 	}
 
 	FStateTreeExecutionContext Context(*GetOwner(), *StateTreeRef.GetStateTree(), InstanceData);
-	if (UStateTreeComponentSchema::SetContextRequirements(*this, Context))
+	if (SetContextRequirements(Context))
 	{
 		const EStateTreeRunStatus PreviousRunStatus = Context.GetStateTreeRunStatus();
 		const EStateTreeRunStatus CurrentRunStatus = Context.Start(&StateTreeRef.GetParameters());
@@ -177,7 +178,7 @@ void UStateTreeComponent::StopLogic(const FString& Reason)
 	}
 
 	FStateTreeExecutionContext Context(*GetOwner(), *StateTreeRef.GetStateTree(), InstanceData);
-	if (UStateTreeComponentSchema::SetContextRequirements(*this, Context))
+	if (SetContextRequirements(Context))
 	{
 		const EStateTreeRunStatus PreviousRunStatus = Context.GetStateTreeRunStatus();
 		const EStateTreeRunStatus CurrentRunStatus = Context.Stop();
@@ -289,6 +290,11 @@ void UStateTreeComponent::OnGameplayTaskInitialized(UGameplayTask& Task)
 		// or it has been created in C++ with inappropriate function
 		UE_LOG(LogStateTree, Error, TEXT("Missing AIController in AITask %s"), *AITask->GetName());
 	}
+}
+
+TSubclassOf<UStateTreeSchema> UStateTreeComponent::GetSchema() const
+{
+	return UStateTreeComponentSchema::StaticClass();
 }
 
 void UStateTreeComponent::SetStartLogicAutomatically(const bool bInStartLogicAutomatically)

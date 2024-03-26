@@ -10,11 +10,12 @@
 #include "StateTreeExecutionContext.h"
 #include "StateTreeTaskBase.h"
 #include "Subsystems/WorldSubsystem.h"
+#include "Tasks/StateTreeAITask.h"
 #include "VisualLogger/VisualLogger.h"
 
 UStateTreeComponentSchema::UStateTreeComponentSchema()
 	: ContextActorClass(AActor::StaticClass())
-	, ContextActorDataDesc(FName("Actor"), AActor::StaticClass(), FGuid(0x1D971B00, 0x28884FDE, 0xB5436802, 0x36984FD5))
+	, ContextDataDescs({{ FName("Actor"), AActor::StaticClass(), FGuid(0x1D971B00, 0x28884FDE, 0xB5436802, 0x36984FD5) }})
 {
 }
 
@@ -39,13 +40,13 @@ bool UStateTreeComponentSchema::IsExternalItemAllowed(const UStruct& InStruct) c
 
 TConstArrayView<FStateTreeExternalDataDesc> UStateTreeComponentSchema::GetContextDataDescs() const
 {
-	return MakeArrayView(&ContextActorDataDesc, 1);
+	return ContextDataDescs;
 }
 
 void UStateTreeComponentSchema::PostLoad()
 {
 	Super::PostLoad();
-	ContextActorDataDesc.Struct = ContextActorClass.Get();
+	GetContextActorDataDesc().Struct = ContextActorClass.Get();
 }
 
 #if WITH_EDITOR
@@ -60,7 +61,7 @@ void UStateTreeComponentSchema::PostEditChangeChainProperty(FPropertyChangedChai
 		if (Property->GetOwnerClass() == UStateTreeComponentSchema::StaticClass()
 			&& Property->GetFName() == GET_MEMBER_NAME_CHECKED(UStateTreeComponentSchema, ContextActorClass))
 		{
-			ContextActorDataDesc.Struct = ContextActorClass.Get();
+			GetContextActorDataDesc().Struct = ContextActorClass.Get();
 		}
 	}
 }
@@ -72,8 +73,6 @@ bool UStateTreeComponentSchema::SetContextRequirements(UBrainComponent& BrainCom
 	{
 		return false;
 	}
-
-	Context.SetCollectExternalDataCallback(FOnCollectStateTreeExternalData::CreateStatic(&UStateTreeComponentSchema::CollectExternalData));
 
 	// Make sure the actor matches one required.
 	AActor* ContextActor = nullptr;

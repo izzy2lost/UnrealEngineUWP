@@ -34,6 +34,8 @@ private:
 	 */
 	void SyncParameters(const UStateTree* StateTreeToSync = nullptr) const;
 
+	static FString GetSchemaPath(IPropertyHandle& StructPropertyHandle);
+
 	TSharedPtr<IPropertyHandle> StructPropertyHandle;
 	TSharedPtr<IPropertyHandle> ParametersHandle;
 	TSharedPtr<IPropertyUtilities> PropUtils;
