@@ -1063,13 +1063,14 @@ FRotator UMoverComponent::GetTargetOrientation() const
 	if (bHasValidCachedUsedInput)
 	{
 		const FMoverInputCmdContext& LastInputCmd = GetLastInputCmd();
-		const FCharacterDefaultInputs* MoverInputs = LastInputCmd.InputCollection.FindDataByType<FCharacterDefaultInputs>();
-
-		const FVector TargetOrientationDir = MoverInputs->GetOrientationIntentDir_WorldSpace();
-
-		if (!TargetOrientationDir.IsNearlyZero())
+		if (const FCharacterDefaultInputs* MoverInputs = LastInputCmd.InputCollection.FindDataByType<FCharacterDefaultInputs>())
 		{
-			return TargetOrientationDir.ToOrientationRotator();
+			const FVector TargetOrientationDir = MoverInputs->GetOrientationIntentDir_WorldSpace();
+
+			if (!TargetOrientationDir.IsNearlyZero())
+			{
+				return TargetOrientationDir.ToOrientationRotator();
+			}
 		}
 	}
 	
