@@ -16,9 +16,9 @@ namespace uba
 			UBA_ASSERT(false);
 
 		m_server.RegisterService(ServiceId,
-			[this](const ConnectionInfo& connectionInfo, u8 messageType, BinaryReader& reader, BinaryWriter& writer)
+			[this](const ConnectionInfo& connectionInfo, MessageInfo& messageInfo, BinaryReader& reader, BinaryWriter& writer)
 			{
-				return HandleMessage(connectionInfo, messageType, reader, writer);
+				return HandleMessage(connectionInfo, messageInfo.type, reader, writer);
 			},
 			[](u8 messageType)
 			{
@@ -95,7 +95,10 @@ namespace uba
 
 			u64 waited = GetTime() - startTime;
 			if (TimeToMs(waited) > 4 * 60 * 1000) // 4 minutes timeout
-				return m_logger.Error(TC("Timed out waiting %s for cas %s to be transferred from remote to storage (%s)"), TimeToText(waited).str, CasKeyString(casKey).str, hint);
+			{
+				m_logger.Info(TC("Timed out waiting %s for cas %s to be transferred from remote to storage (%s)"), TimeToText(waited).str, CasKeyString(casKey).str, hint);
+				return false;
+			}
 		}
 		return waitEntry.Success;
 	}

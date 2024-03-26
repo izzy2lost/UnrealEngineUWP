@@ -36,15 +36,17 @@ namespace uba
 			});
 
 		m_server.RegisterService(StorageServiceId,
-			[this](const ConnectionInfo& connectionInfo, u8 messageType, BinaryReader& reader, BinaryWriter& writer)
+			[this](const ConnectionInfo& connectionInfo, MessageInfo& messageInfo, BinaryReader& reader, BinaryWriter& writer)
 			{
-				return HandleMessage(connectionInfo, messageType, reader, writer);
+				return HandleMessage(connectionInfo, messageInfo, reader, writer);
 			},
 			[](u8 messageType)
 			{
 				return ToString(StorageMessageType(messageType));
 			}
 		);
+
+		m_client.RegisterOnDisconnected([this]() { m_logger.isMuted = true; });
 	}
 
 	StorageProxy::~StorageProxy()
@@ -73,14 +75,14 @@ namespace uba
 		logger.Info(TC(""));
 	}
 
-	bool StorageProxy::HandleMessage(const ConnectionInfo& connectionInfo, u8 messageType, BinaryReader& reader, BinaryWriter& writer)
+	bool StorageProxy::HandleMessage(const ConnectionInfo& connectionInfo, MessageInfo& messageInfo, BinaryReader& reader, BinaryWriter& writer)
 	{
 		LoggerWithWriter logger(g_consoleLogWriter, TC(""));
 
 		StackBinaryWriter<1024> writer2;
 		StackBinaryReader<SendMaxSize> reader2;
 
-		switch (messageType)
+		switch (messageInfo.type)
 		{
 		case StorageMessageType_Connect:
 			{
@@ -156,7 +158,7 @@ namespace uba
 
 					if (!file.memory)
 					{
-						NetworkMessage msg(m_client, ServiceId, messageType, writer2);
+						NetworkMessage msg(m_client, ServiceId, messageInfo.type, writer2);
 						writer2.WriteBool(false); // Wants proxy
 						writer2.WriteCasKey(casKey);
 						writer2.WriteString(hint);
@@ -378,7 +380,7 @@ namespace uba
 			}
 		default:
 			{
-				NetworkMessage msg(m_client, ServiceId, messageType, writer2);
+				NetworkMessage msg(m_client, ServiceId, messageInfo.type, writer2);
 				writer2.WriteBytes(reader.GetPositionData(), reader.GetLeft());
 				if (!msg.Send(reader2))
 					return false;
