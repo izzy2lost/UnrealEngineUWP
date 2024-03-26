@@ -7,7 +7,6 @@
 #include "EditorUndoClient.h"
 #include "StructViewerFilter.h"
 
-class IAssetReferenceFilter;
 class IPropertyHandle;
 class IDetailPropertyRow;
 class IPropertyHandle;
@@ -129,9 +128,6 @@ public:
 
 	virtual bool IsStructAllowed(const FStructViewerInitializationOptions& InInitOptions, const UScriptStruct* InStruct, TSharedRef<FStructViewerFilterFuncs> InFilterFuncs) override;
 	virtual bool IsUnloadedStructAllowed(const FStructViewerInitializationOptions& InInitOptions, const FSoftObjectPath& InStructPath, TSharedRef<FStructViewerFilterFuncs> InFilterFuncs) override;
-
- 	// Optional filter to prevent selection of some structs e.g. ones in a plugin that is inaccessible from the object being edited
- 	TSharedPtr<IAssetReferenceFilter> AssetReferenceFilter;
 };
 
 
