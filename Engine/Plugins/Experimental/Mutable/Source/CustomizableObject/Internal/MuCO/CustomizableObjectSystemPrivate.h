@@ -485,7 +485,8 @@ private:
 public:
 	/** Instance parameters at the time of the operation request. */
 	mu::ParametersPtr Parameters; 
-	
+	mu::Ptr<mu::System> MutableSystem;
+
 	bool bOnlyUpdateIfNotGenerated = false;
 	bool bIgnoreCloseDist = false;
 	bool bForceHighPriority = false;
