@@ -2,7 +2,9 @@
 
 #include "../NiagaraStatelessCommon.ush"
 
-uint3 ScaleSpriteSize_Distribution;
+uint3	ScaleSpriteSize_Distribution;
+float2	ScaleSpriteSize_CurveScale;
+int		ScaleSpriteSize_CurveScaleOffset;
 
 struct FStatelessModule_ScaleSpriteSize
 {
@@ -18,7 +20,9 @@ void ScaleSpriteSize_Simulate(in FStatelessModule_ScaleSpriteSize ModuleData, in
 {
 	if (ModuleData.ScaleDistribution.IsValid())
 	{
-		Particle.SpriteSize			*= ModuleData.ScaleDistribution.GetValue(Particle.NormalizedAge);
-		Particle.PreviousSpriteSize	*= ModuleData.ScaleDistribution.GetValue(Particle.PreviousNormalizedAge);
+		const float2 ScaleFactor = GetParameterBufferFloat2(ScaleSpriteSize_CurveScaleOffset, 0, ScaleSpriteSize_CurveScale);
+
+		Particle.SpriteSize			*= ModuleData.ScaleDistribution.GetValue(Particle.NormalizedAge) * ScaleFactor;
+		Particle.PreviousSpriteSize	*= ModuleData.ScaleDistribution.GetValue(Particle.PreviousNormalizedAge) * ScaleFactor;
 	}
 }
