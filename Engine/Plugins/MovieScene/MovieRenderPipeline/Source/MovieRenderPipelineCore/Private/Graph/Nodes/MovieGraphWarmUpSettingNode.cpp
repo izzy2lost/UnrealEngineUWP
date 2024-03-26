@@ -4,8 +4,8 @@
 #include "Styling/AppStyle.h"
 
 UMovieGraphWarmUpSettingNode::UMovieGraphWarmUpSettingNode()
-	: NumWarmUpFrames(64)
-	, bEmulateMotionBlur(true)
+	: NumWarmUpFrames(0)
+	, bEmulateMotionBlur(false)
 {}
 
 EMovieGraphBranchRestriction UMovieGraphWarmUpSettingNode::GetBranchRestriction() const 
