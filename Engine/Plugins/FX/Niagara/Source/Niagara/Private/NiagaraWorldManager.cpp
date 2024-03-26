@@ -327,12 +327,12 @@ FString FNiagaraWorldManagerTickFunction::DiagnosticMessage()
 {
 	static const UEnum* EnumType = FindObjectChecked<UEnum>(nullptr, TEXT("/Script/Engine.ETickingGroup"));
 
-	return TEXT("FParticleSystemManager::Tick(") + EnumType->GetNameStringByIndex(static_cast<uint32>(TickGroup)) + TEXT(")");
+	return TEXT("FNiagaraWorldManagerTickFunction::Tick(") + EnumType->GetNameStringByIndex(static_cast<uint32>(TickGroup)) + TEXT(")");
 }
 
 FName FNiagaraWorldManagerTickFunction::DiagnosticContext(bool bDetailed)
 {
-	return FName(TEXT("ParticleSystemManager"));
+	return FName(TEXT("FNiagaraWorldManagerTickFunction"));
 }
 
 //////////////////////////////////////////////////////////////////////////
