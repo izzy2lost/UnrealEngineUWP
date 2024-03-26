@@ -219,13 +219,6 @@ void UMoverComponent::BeginPlay()
 	{
 		MovementMixer = NewObject<UMovementMixer>(this, TEXT("Default Movement Mixer"));
 	}
-
-	if (const AActor* OwnerActor = GetOwner())
-	{
-		ensureMsgf(!OwnerActor->IsReplicatingMovement(), 
-		           TEXT("MoverComponent owning actor %s has the ReplicateMovement property enabled. This will conflict with MoverComponent and cause poor quality movement. Please disable it."),
-		           *GetNameSafe(GetOwner()));
-	}
 }
 
 void UMoverComponent::TickComponent(float DeltaTime, enum ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction)
