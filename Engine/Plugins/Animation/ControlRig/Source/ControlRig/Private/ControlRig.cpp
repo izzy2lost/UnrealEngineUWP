@@ -88,6 +88,7 @@ UControlRig::UControlRig(const FObjectInitializer& ObjectInitializer)
 	, ControlUndoBracketIndex(0)
 	, InteractionType((uint8)EControlRigInteractionType::None)
 	, bInteractionJustBegan(false)
+	, bIsAdditive(false)
 	, DebugBoneRadiusMultiplier(1.f)
 #if WITH_EDITOR
 	, bRecordSelectionPoseForConstructionMode(true)

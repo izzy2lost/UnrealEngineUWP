@@ -667,7 +667,7 @@ protected:
 	 * and running the forward solve
 	 */
 	UPROPERTY()
-	bool bIsAdditive = false;
+	bool bIsAdditive;
 
 	struct FRigSetControlValueInfo
 	{
