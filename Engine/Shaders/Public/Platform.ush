@@ -720,6 +720,26 @@ precise float4 MakePrecise(in precise float4 v) { precise float4 pv = v; return 
 #define INVARIANT(X) MakePrecise(X)
 #endif
 
+#ifndef INVARIANT_ADD
+#define INVARIANT_ADD(Lhs, Rhs) INVARIANT((Lhs) + (Rhs))
+#endif
+
+#ifndef INVARIANT_SUB
+#define INVARIANT_SUB(Lhs, Rhs) INVARIANT((Lhs) - (Rhs))
+#endif
+
+#ifndef INVARIANT_MUL
+#define INVARIANT_MUL(Lhs, Rhs) INVARIANT((Lhs) * (Rhs))
+#endif
+
+#ifndef INVARIANT_DIV
+#define INVARIANT_DIV(Lhs, Rhs) INVARIANT((Lhs) / (Rhs))
+#endif
+
+#ifndef INVARIANT_FMA
+#define INVARIANT_FMA(A, B, C) INVARIANT(FMA((A), (B), (C)))
+#endif
+
 #ifndef INVARIANT_OUTPUT
 #define INVARIANT_OUTPUT
 #endif
