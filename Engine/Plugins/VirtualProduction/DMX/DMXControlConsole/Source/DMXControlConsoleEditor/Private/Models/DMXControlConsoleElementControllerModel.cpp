@@ -174,7 +174,7 @@ namespace UE::DMX::Private
 
 	bool FDMXControlConsoleElementControllerModel::HasUniformValue() const
 	{
-		if (!WeakElementController.IsValid() || !HasUniformDataType())
+		if (!WeakElementController.IsValid())
 		{
 			return false;
 		}
