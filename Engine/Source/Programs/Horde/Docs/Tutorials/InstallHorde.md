@@ -1,4 +1,4 @@
-[Horde](../Home.md) > Getting Started: Installing Horde
+[Horde](../../README.md) > Getting Started: Installing Horde
 
 # Getting Started: Installing Horde
 

@@ -1,4 +1,4 @@
-[Horde](../Home.md) > [Configuration](../Config.md) > Analytics
+[Horde](../../README.md) > [Configuration](../Config.md) > Analytics
 
 # Analytics
 

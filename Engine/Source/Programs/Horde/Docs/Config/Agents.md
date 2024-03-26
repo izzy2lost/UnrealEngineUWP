@@ -1,4 +1,4 @@
-[Horde](../Home.md) > [Configuration](../Config.md) > Agents
+[Horde](../../README.md) > [Configuration](../Config.md) > Agents
 
 # Agents
 

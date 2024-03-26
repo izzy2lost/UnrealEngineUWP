@@ -1,4 +1,4 @@
-[Horde](../../Home.md) > [Configuration](../../Config.md) > ACL Actions
+[Horde](../../../README.md) > [Configuration](../../Config.md) > ACL Actions
 
 # ACL Actions
 

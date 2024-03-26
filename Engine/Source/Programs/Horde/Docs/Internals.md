@@ -1,4 +1,4 @@
-[Horde](Home.md) > Internals
+[Horde](../README.md) > Internals
 
 # Internals
 

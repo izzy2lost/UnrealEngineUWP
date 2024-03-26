@@ -3,9 +3,8 @@
 **Horde** is a set of services supporting workflows Epic uses to develop Fortnite,
 Unreal Engine, and other titles.
 
-> **NOTE:** We intend for licensees to host and configure Horde themselves.
-
-We provide Horde with full source code to Unreal Engine licensees, pre-built Docker images for deployment on Linux, and an MSI installer for Windows.
+It is provided with full source code to Unreal Engine licensees, and is meant for licensees to host and configure
+themselves. We provide pre-built Docker images for deployment on Linux, and an MSI installer for Windows.
 
 Horde offers the following functionality, each of which may be enabled or disabled independently:
 

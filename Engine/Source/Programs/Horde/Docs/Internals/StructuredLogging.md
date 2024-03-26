@@ -1,4 +1,4 @@
-[Horde](../Home.md) > [Internals](../Internals.md) > Structured Logging
+[Horde](../../README.md) > [Internals](../Internals.md) > Structured Logging
 
 # Structured Logging
 

@@ -1,4 +1,4 @@
-[Horde](../../Home.md) > [Configuration](../../Config.md) > *.project.json
+[Horde](../../../README.md) > [Configuration](../../Config.md) > *.project.json
 
 # *.project.json
 

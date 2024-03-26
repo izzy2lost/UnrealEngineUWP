@@ -1,4 +1,4 @@
-[Horde](../Home.md) > [Configuration](../Config.md) > Build Automation
+[Horde](../../README.md) > [Configuration](../Config.md) > Build Automation
 
 # Build Automation
 

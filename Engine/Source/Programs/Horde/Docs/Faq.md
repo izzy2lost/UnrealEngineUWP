@@ -1,4 +1,4 @@
-[Horde](Home.md) > FAQ
+[Horde](../README.md) > FAQ
 
 # FAQ
 

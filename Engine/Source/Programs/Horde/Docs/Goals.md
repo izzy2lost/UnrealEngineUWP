@@ -1,4 +1,4 @@
-[Horde](Home.md) > [Goals & Philosophy](Goals.md)
+[Horde](../README.md) > [Goals & Philosophy](Goals.md)
 
 # Goals & Philosophy
 

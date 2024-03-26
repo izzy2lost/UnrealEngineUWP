@@ -1,4 +1,4 @@
-[Horde](../Home.md) > [Configuration](../Config.md) > Storage
+[Horde](../../README.md) > [Configuration](../Config.md) > Storage
 
 # Storage
 

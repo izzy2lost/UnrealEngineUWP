@@ -8,6 +8,7 @@ THIRD_PARTY_INCLUDES_START
 #pragma warning(disable: 4458)
 #include "p4/clientapi.h"
 #include "p4/strtable.h"
+#include "p4/stdhdrs.h"
 #include "p4/datetime.h"
 #include "p4/i18napi.h"
 #include "p4/charset.h"
@@ -472,11 +473,13 @@ public:
 	virtual void	SetAttribute(FileSysAttr, Error*) override { };
 
 	virtual bool	HasOnlyPerm(FilePerm perms) override { return false; }
-	virtual int	GetFd() override { return -1; }
+	virtual FD_PTR	GetFd() override { return FD_ERR; }
 	virtual int     GetOwner() override { return 0; }
 	virtual offL_t	GetSize() override { return 0; }
 	virtual void	Seek(offL_t offset, Error*) override { assert(false); }
 	virtual offL_t	Tell() override { assert(false); return 0; }
+
+	virtual int StatAccessTime() override { assert(false); return 0; }
 
 	virtual void	MakeLocalTemp(char* file) override { assert(false); }
 	virtual void	SetDeleteOnClose() override { }

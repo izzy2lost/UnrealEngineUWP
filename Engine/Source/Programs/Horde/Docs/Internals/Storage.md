@@ -1,4 +1,4 @@
-[Horde](../Home.md) > [Internals](../Internals.md) > Storage
+[Horde](../../README.md) > [Internals](../Internals.md) > Storage
 
 # Storage
 

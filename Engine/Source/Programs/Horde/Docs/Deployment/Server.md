@@ -1,4 +1,4 @@
-[Horde](../Home.md) > [Deployment](../Deployment.md) > Server
+[Horde](../../README.md) > [Deployment](../Deployment.md) > Server
 
 # Server
 

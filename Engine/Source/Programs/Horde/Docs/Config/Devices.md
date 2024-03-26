@@ -1,4 +1,4 @@
-[Horde](../Home.md) > [Configuration](../Config.md) > Devices
+[Horde](../../README.md) > [Configuration](../Config.md) > Devices
 
 # Device Service
 
