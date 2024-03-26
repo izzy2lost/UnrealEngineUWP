@@ -1648,8 +1648,8 @@ void UObject::Serialize(FStructuredArchive::FRecord Record)
 		if (ObjClass != UClass::StaticClass())
 		{
 			// Serializing the overriden properties if using UPS (like object duplication)
-			// @todo: We probably do not want this in cooked packages
-			if (UnderlyingArchive.UseUnversionedPropertySerialization())
+			// Also needed for transactions using TPS
+			if (UnderlyingArchive.UseUnversionedPropertySerialization() || UnderlyingArchive.IsTransacting())
 			{
 				FOverridableManager::Get().SerializeOverriddenProperties(*this, Record);
 			}
