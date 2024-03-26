@@ -1331,7 +1331,7 @@ public:
 
 		// Create a new class with a temporary name; we will rename it as part of Finalize
 		const FString NewClassName = MakeUniqueObjectName(ClassOuter, UPythonGeneratedClass::StaticClass(), *FString::Printf(TEXT("%s_NEWINST"), *ClassName)).ToString();
-		NewClass = NewObject<UPythonGeneratedClass>(ClassOuter, *NewClassName, RF_Public | RF_Standalone | RF_Transient);
+		NewClass = NewObject<UPythonGeneratedClass>(ClassOuter, *NewClassName, RF_Public | RF_Transient);
 		NewClass->SetMetaData(TEXT("DisplayName"), *PyUtil::GetGeneratedTypeDisplayName(PyType));
 		NewClass->SetSuperStruct(InSuperClass);
 		NewClass->ClassFlags |= CLASS_Native;
@@ -1347,7 +1347,7 @@ public:
 
 		// Create a new class with a temporary name; we will rename it as part of Finalize
 		const FString NewClassName = MakeUniqueObjectName(ClassOuter, UPythonGeneratedClass::StaticClass(), *FString::Printf(TEXT("%s_NEWINST"), *ClassName)).ToString();
-		NewClass = NewObject<UPythonGeneratedClass>(ClassOuter, *NewClassName, RF_Public | RF_Standalone | RF_Transient);
+		NewClass = NewObject<UPythonGeneratedClass>(ClassOuter, *NewClassName, RF_Public | RF_Transient);
 		NewClass->SetMetaData(TEXT("DisplayName"), *PyUtil::GetGeneratedTypeDisplayName(PyType));
 		NewClass->SetSuperStruct(InSuperClass);
 		NewClass->ClassFlags |= CLASS_Native;
@@ -1932,6 +1932,7 @@ private:
 		OldClass->SetFlags(RF_NewerVersionExists);
 		OldClass->ClearFlags(RF_Public | RF_Standalone);
 		OldClass->Rename(*OldClassName, nullptr, REN_DontCreateRedirectors);
+		OldClass->UnregisterGeneratedType();
 	}
 
 	FString ClassName;
@@ -1989,10 +1990,7 @@ void UPythonGeneratedClass::ReleasePythonResources()
 	if (Py_IsInitialized())
 	{
 		FPyScopedGIL GIL;
-		if (PyType)
-		{
-			FPyWrapperTypeRegistry::Get().UnregisterWrappedClassType(this, PyType, false);
-		}
+		UnregisterGeneratedType();
 		PyType.Reset();
 		PyPostInitFunction.Reset();
 		for (const TSharedPtr<PyGenUtil::FFunctionDef>& FunctionDef : FunctionDefs)
@@ -2014,6 +2012,14 @@ void UPythonGeneratedClass::ReleasePythonResources()
 	PropertyDefs.Reset();
 	FunctionDefs.Reset();
 	PyMetaData = FPyWrapperObjectMetaData();
+}
+
+void UPythonGeneratedClass::UnregisterGeneratedType()
+{
+	if (PyType)
+	{
+		FPyWrapperTypeRegistry::Get().UnregisterWrappedClassType(this, PyType, false);
+	}
 }
 
 bool UPythonGeneratedClass::IsFunctionImplementedInScript(FName InFunctionName) const

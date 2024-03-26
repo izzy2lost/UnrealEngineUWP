@@ -2483,7 +2483,7 @@ PyTypeObject* FPyWrapperTypeRegistry::GenerateWrappedDelegateType(const UFunctio
 	// Generate the proxy class needed to wrap Python callables in Unreal delegates
 	UClass* PythonCallableForDelegateClass = nullptr;
 	{
-		PythonCallableForDelegateClass = NewObject<UClass>(GetPythonTypeContainer(), *PythonCallableForDelegateObjectName, RF_Public | RF_Standalone | RF_Transient);
+		PythonCallableForDelegateClass = NewObject<UClass>(GetPythonTypeContainer(), *PythonCallableForDelegateObjectName, RF_Public | RF_Transient);
 		UFunction* PythonCallableForDelegateFunc = nullptr;
 		{
 			FObjectDuplicationParameters FuncDuplicationParams(const_cast<UFunction*>(InDelegateSignature), PythonCallableForDelegateClass);

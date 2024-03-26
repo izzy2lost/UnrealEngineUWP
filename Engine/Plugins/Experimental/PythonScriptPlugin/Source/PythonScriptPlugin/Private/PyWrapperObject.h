@@ -205,6 +205,9 @@ public:
 	//~ IPythonResourceOwner interface
 	virtual void ReleasePythonResources() override;
 
+	/** Unregister this type from FPyWrapperTypeRegistry */
+	void UnregisterGeneratedType();
+
 	virtual bool IsFunctionImplementedInScript(FName InFunctionName) const override;
 
 	/** Generate an Unreal class from the given Python type */

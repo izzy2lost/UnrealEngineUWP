@@ -1340,7 +1340,7 @@ void GetGeneratedTypeOuterAndName(PyTypeObject* InPyType, UObject*& OutOuter, FS
 			UPackage* TypePackage = FindObject<UPackage>(nullptr, *TypePackageName);
 			if (!TypePackage)
 			{
-				TypePackage = NewObject<UPackage>(nullptr, *TypePackageName, RF_Public | RF_Standalone | RF_Transient);
+				TypePackage = NewObject<UPackage>(nullptr, *TypePackageName, RF_Public | RF_Transient);
 				TypePackage->SetPackageFlags(PKG_ContainsScript);
 			}
 			OutOuter = TypePackage;

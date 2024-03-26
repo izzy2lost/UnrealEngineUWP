@@ -114,7 +114,7 @@ UObjectRedirector* CreatePythonTypeLegacyRedirector(const FString& ShortName, co
 	// The caller is responsible for setting DestinationObject
 	if (!Redirector)
 	{
-		Redirector = NewObject<UObjectRedirector>(RedirectorOuter, *ShortName, RF_Public | RF_Standalone | RF_Transient);
+		Redirector = NewObject<UObjectRedirector>(RedirectorOuter, *ShortName, RF_Public | RF_Transient);
 	}
 	return Redirector;
 }

@@ -130,6 +130,9 @@ public:
 	//~ IPythonResourceOwner interface
 	virtual void ReleasePythonResources() override;
 
+	/** Unregister this type from FPyWrapperTypeRegistry */
+	void UnregisterGeneratedType();
+
 	/** Generate an Unreal enum from the given Python type */
 	static UPythonGeneratedEnum* GenerateEnum(PyTypeObject* InPyType);
 

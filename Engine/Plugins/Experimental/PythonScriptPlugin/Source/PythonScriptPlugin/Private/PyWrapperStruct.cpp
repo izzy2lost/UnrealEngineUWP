@@ -1454,7 +1454,7 @@ public:
 
 		// Create a new struct with a temporary name; we will rename it as part of Finalize
 		const FString NewStructName = MakeUniqueObjectName(StructOuter, UPythonGeneratedStruct::StaticClass(), *FString::Printf(TEXT("%s_NEWINST"), *StructName)).ToString();
-		NewStruct = NewObject<UPythonGeneratedStruct>(StructOuter, *NewStructName, RF_Public | RF_Standalone | RF_Transient);
+		NewStruct = NewObject<UPythonGeneratedStruct>(StructOuter, *NewStructName, RF_Public | RF_Transient);
 		NewStruct->SetMetaData(TEXT("DisplayName"), *PyUtil::GetGeneratedTypeDisplayName(PyType));
 		NewStruct->SetMetaData(TEXT("BlueprintType"), TEXT("true"));
 		NewStruct->SetSuperStruct(InSuperStruct);
@@ -1617,6 +1617,7 @@ private:
 		OldStruct->SetFlags(RF_NewerVersionExists);
 		OldStruct->ClearFlags(RF_Public | RF_Standalone);
 		OldStruct->Rename(*OldStructName, nullptr, REN_DontCreateRedirectors);
+		OldStruct->UnregisterGeneratedType();
 	}
 
 	FString StructName;
@@ -1679,10 +1680,7 @@ void UPythonGeneratedStruct::ReleasePythonResources()
 	if (Py_IsInitialized())
 	{
 		FPyScopedGIL GIL;
-		if (PyType)
-		{
-			FPyWrapperTypeRegistry::Get().UnregisterWrappedStructType(this, PyType, false);
-		}
+		UnregisterGeneratedType();
 		PyType.Reset();
 		PyPostInitFunction.Reset();
 	}
@@ -1695,6 +1693,14 @@ void UPythonGeneratedStruct::ReleasePythonResources()
 
 	PropertyDefs.Reset();
 	PyMetaData = FPyWrapperStructMetaData();
+}
+
+void UPythonGeneratedStruct::UnregisterGeneratedType()
+{
+	if (PyType)
+	{
+		FPyWrapperTypeRegistry::Get().UnregisterWrappedStructType(this, PyType, false);
+	}
 }
 
 UPythonGeneratedStruct* UPythonGeneratedStruct::GenerateStruct(PyTypeObject* InPyType)

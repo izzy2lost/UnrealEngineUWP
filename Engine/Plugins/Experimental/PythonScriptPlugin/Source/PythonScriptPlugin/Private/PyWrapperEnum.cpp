@@ -756,7 +756,7 @@ public:
 		NewEnum = FindObject<UPythonGeneratedEnum>(EnumOuter, *EnumName);
 		if (!NewEnum)
 		{
-			NewEnum = NewObject<UPythonGeneratedEnum>(EnumOuter, *EnumName, RF_Public | RF_Standalone | RF_Transient);
+			NewEnum = NewObject<UPythonGeneratedEnum>(EnumOuter, *EnumName, RF_Public | RF_Transient);
 			NewEnum->SetMetaData(TEXT("DisplayName"), *PyUtil::GetGeneratedTypeDisplayName(PyType));
 			NewEnum->SetMetaData(TEXT("BlueprintType"), TEXT("true"));
 		}
@@ -896,10 +896,7 @@ void UPythonGeneratedEnum::ReleasePythonResources()
 	if (Py_IsInitialized())
 	{
 		FPyScopedGIL GIL;
-		if (PyType)
-		{
-			FPyWrapperTypeRegistry::Get().UnregisterWrappedEnumType(this, PyType, false);
-		}
+		UnregisterGeneratedType();
 		PyType.Reset();
 	}
 	else
@@ -910,6 +907,14 @@ void UPythonGeneratedEnum::ReleasePythonResources()
 
 	EnumValueDefs.Reset();
 	PyMetaData = FPyWrapperEnumMetaData();
+}
+
+void UPythonGeneratedEnum::UnregisterGeneratedType()
+{
+	if (PyType)
+	{
+		FPyWrapperTypeRegistry::Get().UnregisterWrappedEnumType(this, PyType, false);
+	}
 }
 
 UPythonGeneratedEnum* UPythonGeneratedEnum::GenerateEnum(PyTypeObject* InPyType)

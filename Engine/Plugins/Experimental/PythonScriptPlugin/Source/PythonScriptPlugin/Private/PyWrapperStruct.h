@@ -393,6 +393,9 @@ public:
 	//~ IPythonResourceOwner interface
 	virtual void ReleasePythonResources() override;
 
+	/** Unregister this type from FPyWrapperTypeRegistry */
+	void UnregisterGeneratedType();
+
 	/** Generate an Unreal struct from the given Python type */
 	static UPythonGeneratedStruct* GenerateStruct(PyTypeObject* InPyType);
 

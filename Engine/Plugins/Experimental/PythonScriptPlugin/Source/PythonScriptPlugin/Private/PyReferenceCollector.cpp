@@ -128,9 +128,12 @@ void FPyReferenceCollector::PurgeUnrealGeneratedTypes()
 	{
 		ForEachObjectOfClass(UPythonGeneratedClass::StaticClass(), [&FlagObjectForPurge](UObject* InObject)
 		{
-			FlagObjectForPurge(InObject, /*bMarkPendingKill*/false);
-
 			UPythonGeneratedClass* PythonGeneratedClass = CastChecked<UPythonGeneratedClass>(InObject);
+
+			// Generated classes are kept alive by the FPyWrapperTypeRegistry ARO, so unregister the type from FPyWrapperTypeRegistry
+			PythonGeneratedClass->UnregisterGeneratedType();
+
+			FlagObjectForPurge(InObject, /*bMarkPendingKill*/false);
 			ForEachObjectOfClass(PythonGeneratedClass, [&FlagObjectForPurge](UObject* InInnerObject)
 			{
 				FlagObjectForPurge(InInnerObject, /*bMarkPendingKill*/true);
@@ -143,6 +146,11 @@ void FPyReferenceCollector::PurgeUnrealGeneratedTypes()
 	{
 		ForEachObjectOfClass(UPythonGeneratedStruct::StaticClass(), [&FlagObjectForPurge](UObject* InObject)
 		{
+			UPythonGeneratedStruct* PythonGeneratedStruct = CastChecked<UPythonGeneratedStruct>(InObject);
+
+			// Generated structs are kept alive by the FPyWrapperTypeRegistry ARO, so unregister the type from FPyWrapperTypeRegistry
+			PythonGeneratedStruct->UnregisterGeneratedType();
+
 			FlagObjectForPurge(InObject, /*bMarkPendingKill*/false);
 		}, false, RF_ClassDefaultObject, EInternalObjectFlags::Native);
 	}
@@ -152,6 +160,11 @@ void FPyReferenceCollector::PurgeUnrealGeneratedTypes()
 	{
 		ForEachObjectOfClass(UPythonGeneratedEnum::StaticClass(), [&FlagObjectForPurge](UObject* InObject)
 		{
+			UPythonGeneratedEnum* PythonGeneratedEnum = CastChecked<UPythonGeneratedEnum>(InObject);
+
+			// Generated enums are kept alive by the FPyWrapperTypeRegistry ARO, so unregister the type from FPyWrapperTypeRegistry
+			PythonGeneratedEnum->UnregisterGeneratedType();
+
 			FlagObjectForPurge(InObject, /*bMarkPendingKill*/false);
 		}, false, RF_ClassDefaultObject, EInternalObjectFlags::Native);
 	}
