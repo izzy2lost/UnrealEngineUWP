@@ -7,6 +7,7 @@ using EpicGames.Horde;
 using EpicGames.Serialization;
 using System.ComponentModel;
 using EpicGames.Horde.Telemetry.Metrics;
+using EpicGames.Horde.Telemetry;
 
 namespace Horde.Server.Dashboard
 {
@@ -151,6 +152,7 @@ namespace Horde.Server.Dashboard
 		/// <summary>
 		/// Identifier for the view
 		/// </summary>
+		[Required]
 		public TelmetryViewId Id { get; set; }
 
 		/// <summary>
@@ -158,6 +160,12 @@ namespace Horde.Server.Dashboard
 		/// </summary>
 		[Required]
 		public string Name { get; set; } = null!;
+
+		/// <summary>
+		/// The telemetry store this view uses
+		/// </summary>
+		[Required]
+		public TelemetryStoreId TelemetryStoreId { get; set; }
 
 		/// <summary>
 		///  The variables used to filter the view data

@@ -1,11 +1,11 @@
 ![Horde](Images/Logo.png#gh-light-mode-only)![Horde](Images/Logo-DarkMode.png#gh-dark-mode-only)
 
-Horde has been installed successfully. To continue setting up your installation, see the following guides:
+**Horde** has been installed successfully. To continue setting up your installation, see the following guides:
 
 * **[Set up remote C++ compilation](Tutorials/RemoteCompilation.md)**
 * **[Set up build automation](Tutorials/BuildAutomation.md)**
 
-Alternately, check out the full documentation through the `Help` menu in the top right of the page.
+Alternatively, check out the full documentation through the `Help` menu at the top right of the page.
 
 ## Status
 

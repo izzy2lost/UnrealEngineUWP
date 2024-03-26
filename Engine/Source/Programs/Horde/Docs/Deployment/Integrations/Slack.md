@@ -2,7 +2,9 @@
 
 # Slack
 
-Horde uses Slack to notify on configuration errors, CI failures, and to provide avatars for users logged in to Horde.
+Horde uses Slack to:
+* broadcast notifications on configuration errors and CI failures.
+* provide avatars for users logged in to Horde.
 
 ## Manifest
 
@@ -48,19 +50,19 @@ The Horde Slack app can be configured using the following manifest. Note the `{{
         }
     }
 
-An suitable application icon can be found in the source tree under `Horde/Horde.Server/Slack`, along with icons you
+You can find a suitable application icon in the source tree under `Horde/Horde.Server/Slack`, along with icons that you
 can use for build health notification prompts.
 
 Horde requires two tokens to be configured in the server's [Server.json](../ServerSettings.md) file to operate
 fully:
 
 * `SlackToken`: Bot token used to post messages to channels (has an `xoxb-` prefix). The Horde bot user must also
-  be explicitly invited to any channels it needs to post to.
-* `SlackSocketToken`: Token used to open a websocket connection to Slack and provide interactive functionality (has
-  an `xapp-` prefix); responding to button presses and so on.
+  be explicitly invited to any channels where it needs to post.
+* `SlackSocketToken`: Token used to open a WebSocket connection to Slack and provide interactive functionality (has
+  an `xapp-` prefix), responding to button presses, and so on.
 
 ### User mapping
 
 Horde users are mapped to Slack users by correlating the email address in the user's
 [OIDC profile](../Server.md#authentication) with their Slack user profile. Horde will use avatars configured through
-Slack in the dashboard for any succesfully mapped email address.
+Slack in the dashboard for any successfully mapped email address.

@@ -69,6 +69,7 @@ using Horde.Server.Tests.Server;
 using Horde.Server.Agents.Enrollment;
 using Horde.Server.Accounts;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
+using EpicGames.Horde.Storage.Bundles;
 
 namespace Horde.Server.Tests
 {

@@ -7,9 +7,9 @@
 This guide describes a simple local Horde server installation on Windows.
 
 Horde can also be installed via [Docker on Linux](../Deployment/Server.md#docker-linux), both as a single
-instance and horizontally-scaled service via a container orchestration system such as Kubernetes.
+instance and horizontally scaled service via a container orchestration system such as Kubernetes.
 
-For more detailed discussion of these advanced deployment scenarios, see [Horde > Deployment](../Deployment.md).
+For a more detailed discussion of these advanced deployment scenarios, see [Horde > Deployment](../Deployment.md).
 
 ## Prerequisites
 
@@ -32,12 +32,12 @@ For more detailed discussion of these advanced deployment scenarios, see [Horde 
    * This is typically `http://{{ HOST_NAME_OR_IP_ADDRESS }}:13340` with a default installation.
    * Note that the Horde Server defaults to HTTP hosting by default (not HTTPS), so you may need
      to enter `http://` manually as part of the address.
-2. Open the **Tools** menu at the top of the dashboard, and select **Downloads**.
+2. Open the **Tools** menu at the top of the dashboard and select **Downloads**.
 3. Download and run **Horde Agent (Windows Installer)**.
    * Enter the same server address you used above when prompted, and choose an empty working directory for
      the remote execution sandbox.
-   * We recommend choosing a drive with at least 100gb of free space for C++ compilation.
+   * We recommend choosing a drive with at least 100GB of free space for C++ compilation.
 4. Leave the `Enroll with Server` option checked at the end of the installation, or locate the Unreal icon
-   in the system notification area, right click on it, and select `Enroll with Server`.
-5. Choose your agent from the list, and select **Enroll**. This process will validate that you trust the agent,
-   and will allow it to take on work.
+   in the system notification area, right-click on it, and select `Enroll with Server`.
+5. Choose your agent from the list, and select **Enroll**. This process validates that you trust the agent
+   and permits it to take on work.

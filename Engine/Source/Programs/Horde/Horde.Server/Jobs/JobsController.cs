@@ -442,7 +442,7 @@ namespace Horde.Server.Jobs
 		{
 			if (filter == null)
 			{
-				return await CreateJobResponseAsync(job, graph, true, true, true, includeCosts, cancellationToken);
+				return await CreateJobResponseAsync(job, graph, true, true, includeCosts, true, cancellationToken);
 			}
 			else
 			{

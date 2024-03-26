@@ -61,7 +61,7 @@ export const JobOperationsContextMenu: React.FC<{ job: GetJobResponse, children?
    ];
 
    if (dashboard.swarmUrl) {
-      menuItems.push(...menuItems, ...[
+      menuItems.push(...[
          {
             key: 'open_in_swarm', text: 'Open CL in Swarm', onClick: () => {
                window.open(`${dashboard.swarmUrl}/changes/${change}`);

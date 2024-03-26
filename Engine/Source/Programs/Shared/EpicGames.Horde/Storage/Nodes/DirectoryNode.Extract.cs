@@ -20,7 +20,7 @@ namespace EpicGames.Horde.Storage.Nodes
 	/// <summary>
 	/// Stats reported for copy operations
 	/// </summary>
-	public interface ICopyStats
+	public interface IExtractStats
 	{
 		/// <summary>
 		/// Number of files that have been copied
@@ -41,53 +41,63 @@ namespace EpicGames.Horde.Storage.Nodes
 	/// <summary>
 	/// Reports progress info back to callers
 	/// </summary>
-	class CopyStats : ICopyStats
+	class ExtractStats : IExtractStats
 	{
 		readonly object _lockObject = new object();
 		readonly Stopwatch _timer = Stopwatch.StartNew();
-		readonly IProgress<ICopyStats> _progress;
+		readonly IProgress<IExtractStats>? _progress;
 		long _lastTotalSize;
 
 		public int Count { get; set; }
 		public long Size { get; set; }
 		public double Rate { get; set; }
 
-		public CopyStats(IProgress<ICopyStats> progress)
+		public ExtractStats(IProgress<IExtractStats>? progress)
 		{
 			_progress = progress;
 		}
 
 		public void Update(int count, long size)
 		{
-			lock (_lockObject)
+			if (_progress != null)
 			{
-				Count += count;
-				Size += size;
-				if (_timer.Elapsed > TimeSpan.FromSeconds(10.0))
+				lock (_lockObject)
 				{
-					Rate = (Size - _lastTotalSize) / _timer.Elapsed.TotalSeconds;
-					_lastTotalSize = Size;
-
-					_progress.Report(this);
-					_timer.Restart();
+					Count += count;
+					Size += size;
+					if (_timer.Elapsed > TimeSpan.FromSeconds(5.0))
+					{
+						FlushInternal();
+					}
 				}
 			}
 		}
 
 		public void Flush()
 		{
-			lock (_lockObject)
+			if (_progress != null)
 			{
-				_progress.Report(this);
-				_timer.Restart();
+				lock (_lockObject)
+				{
+					FlushInternal();
+				}
 			}
+		}
+
+		void FlushInternal()
+		{
+			Rate = (Size - _lastTotalSize) / _timer.Elapsed.TotalSeconds;
+			_lastTotalSize = Size;
+
+			_progress!.Report(this);
+			_timer.Restart();
 		}
 	}
 
 	/// <summary>
 	/// Progress logger for writing copy stats
 	/// </summary>
-	public class CopyStatsLogger : IProgress<ICopyStats>
+	public class ExtractStatsLogger : IProgress<IExtractStats>
 	{
 		readonly int _totalCount;
 		readonly long _totalSize;
@@ -96,13 +106,13 @@ namespace EpicGames.Horde.Storage.Nodes
 		/// <summary>
 		/// Constructor
 		/// </summary>
-		public CopyStatsLogger(ILogger logger)
+		public ExtractStatsLogger(ILogger logger)
 			=> _logger = logger;
 
 		/// <summary>
 		/// Constructor
 		/// </summary>
-		public CopyStatsLogger(int totalCount, long totalSize, ILogger logger)
+		public ExtractStatsLogger(int totalCount, long totalSize, ILogger logger)
 		{
 			_totalCount = totalCount;
 			_totalSize = totalSize;
@@ -110,7 +120,7 @@ namespace EpicGames.Horde.Storage.Nodes
 		}
 
 		/// <inheritdoc/>
-		public void Report(ICopyStats stats)
+		public void Report(IExtractStats stats)
 		{
 			if (_totalCount > 0 && _totalSize > 0)
 			{
@@ -262,17 +272,12 @@ namespace EpicGames.Horde.Storage.Nodes
 		/// <param name="progress">Sink for progress updates</param>
 		/// <param name="logger">Logger for output</param>
 		/// <param name="cancellationToken">Cancellation token for the operation</param>
-		public static async Task CopyToDirectoryAsync(this DirectoryNode directoryNode, DirectoryInfo directoryInfo, IProgress<ICopyStats>? progress, ILogger logger, CancellationToken cancellationToken)
+		public static async Task CopyToDirectoryAsync(this DirectoryNode directoryNode, DirectoryInfo directoryInfo, IProgress<IExtractStats>? progress, ILogger logger, CancellationToken cancellationToken)
 		{
 			int numTasks = Math.Min(1 + (int)(directoryNode.Length / (16 * 1024 * 1024)), 16);
 			logger.LogInformation("Splitting read into {NumThreads} threads", numTasks);
 
-			CopyStats? copyStats = null;
-			if (progress != null)
-			{
-				copyStats = new CopyStats(progress);
-			}
-
+			ExtractStats extractStats = new ExtractStats(progress);
 			using (CancellationTokenSource cancellationSource = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken))
 			{
 				// Helper method to run a background task and set a cancellation source on error
@@ -280,7 +285,7 @@ namespace EpicGames.Horde.Storage.Nodes
 				{
 					try
 					{
-						await taskFunc(cancellationSource.Token);
+						await Task.Run(() => taskFunc(cancellationSource.Token), cancellationSource.Token);
 					}
 					catch (OperationCanceledException)
 					{
@@ -308,7 +313,7 @@ namespace EpicGames.Horde.Storage.Nodes
 
 					for (int idx = 0; idx < numTasks; idx++)
 					{
-						tasks.Add(RunBackgroundTask(ctx => ExtractAsync(prefetchBatches.Reader, copyStats, logger, ctx)));
+						tasks.Add(RunBackgroundTask(ctx => WriteAsync(prefetchBatches.Reader, extractStats, logger, ctx)));
 					}
 
 					await Task.WhenAll(tasks);
@@ -320,6 +325,7 @@ namespace EpicGames.Horde.Storage.Nodes
 						fetchedBatch.Dispose();
 					}
 				}
+				extractStats.Flush();
 			}
 		}
 
@@ -500,7 +506,7 @@ namespace EpicGames.Horde.Storage.Nodes
 			List<Task> tasks = new List<Task>();
 			for (int idx = 0; idx < numParallel; idx++)
 			{
-				tasks.Add(FetchWorkerAsync(batchReader, batchWriter, cancellationToken));
+				tasks.Add(Task.Run(() => FetchWorkerAsync(batchReader, batchWriter, cancellationToken), cancellationToken));
 			}
 
 			try
@@ -544,7 +550,7 @@ namespace EpicGames.Horde.Storage.Nodes
 
 		#region Write to disk
 
-		static async Task ExtractAsync(ChannelReader<OutputFetchedBatch> batchReader, CopyStats? copyStats, ILogger logger, CancellationToken cancellationToken)
+		static async Task WriteAsync(ChannelReader<OutputFetchedBatch> batchReader, ExtractStats stats, ILogger logger, CancellationToken cancellationToken)
 		{
 			const int WriteBatchSize = 64;
 			while (await batchReader.WaitToReadAsync(cancellationToken))
@@ -557,7 +563,7 @@ namespace EpicGames.Horde.Storage.Nodes
 						List<Task> tasks = new List<Task>();
 						foreach (IReadOnlyList<OutputFetchedChunk> group in batch.Chunks.Batch(WriteBatchSize))
 						{
-							tasks.Add(ExtractChunksAsync(group.ToArray(), copyStats, logger, cancellationToken));
+							tasks.Add(WriteChunksAsync(group.ToArray(), stats, logger, cancellationToken));
 						}
 						await Task.WhenAll(tasks);
 					}
@@ -569,7 +575,7 @@ namespace EpicGames.Horde.Storage.Nodes
 			}
 		}
 
-		static async Task ExtractChunksAsync(ArraySegment<OutputFetchedChunk> chunks, CopyStats? copyStats, ILogger logger, CancellationToken cancellationToken)
+		static async Task WriteChunksAsync(ArraySegment<OutputFetchedChunk> chunks, ExtractStats stats, ILogger logger, CancellationToken cancellationToken)
 		{
 			for (int chunkIdx = 0; chunkIdx < chunks.Count;)
 			{
@@ -583,8 +589,8 @@ namespace EpicGames.Horde.Storage.Nodes
 
 				try
 				{
-					await ExtractChunksToFileAsync(file, chunks.Slice(chunkIdx, maxChunkIdx - chunkIdx), copyStats, logger, cancellationToken);
-					//await ExtractChunksToNullAsync(file, chunks.Slice(chunkIdx, maxChunkIdx - chunkIdx), copyStats, logger, cancellationToken);
+					await ExtractChunksToFileAsync(file, chunks.Slice(chunkIdx, maxChunkIdx - chunkIdx), stats, logger, cancellationToken);
+					//await ExtractChunksToNullAsync(file, chunks.Slice(chunkIdx, maxChunkIdx - chunkIdx), stats, logger, cancellationToken);
 				}
 				catch (OperationCanceledException)
 				{
@@ -599,7 +605,7 @@ namespace EpicGames.Horde.Storage.Nodes
 			}
 		}
 
-		static async Task ExtractChunksToFileAsync(OutputFile file, ArraySegment<OutputFetchedChunk> chunks, CopyStats? copyStats, ILogger logger, CancellationToken cancellationToken)
+		static async Task ExtractChunksToFileAsync(OutputFile file, ArraySegment<OutputFetchedChunk> chunks, ExtractStats stats, ILogger logger, CancellationToken cancellationToken)
 		{
 			// Open the file for the current chunk
 			int remainingChunks = 0;
@@ -630,7 +636,7 @@ namespace EpicGames.Horde.Storage.Nodes
 
 						// Update the stats
 						remainingChunks = file.DecrementRemaining();
-						copyStats?.Update(0, chunk.Length);
+						stats.Update(0, chunk.Length);
 					}
 				}
 			}
@@ -640,13 +646,13 @@ namespace EpicGames.Horde.Storage.Nodes
 			{
 				file.FileInfo.Refresh();
 				FileEntry.SetPermissions(file.FileInfo!, file.FileEntry.Flags);
-				copyStats?.Update(1, 0);
+				stats.Update(1, 0);
 			}
 		}
 
 #pragma warning disable IDE0051
 		// Update counters for extracting chunks without writing any data. Useful for profiling bottlenecks in other stages of the pipeline.
-		static Task ExtractChunksToNullAsync(OutputFile file, ArraySegment<OutputFetchedChunk> chunks, CopyStats? copyStats, ILogger logger, CancellationToken cancellationToken)
+		static Task ExtractChunksToNullAsync(OutputFile file, ArraySegment<OutputFetchedChunk> chunks, ExtractStats stats, ILogger logger, CancellationToken cancellationToken)
 		{
 			_ = logger;
 			_ = cancellationToken;
@@ -656,11 +662,11 @@ namespace EpicGames.Horde.Storage.Nodes
 				int remainingChunks = file.DecrementRemaining();
 				if (remainingChunks == 0)
 				{
-					copyStats?.Update(1, chunk.Length);
+					stats.Update(1, chunk.Length);
 				}
 				else
 				{
-					copyStats?.Update(0, chunk.Length);
+					stats.Update(0, chunk.Length);
 				}
 			}
 			return Task.CompletedTask;

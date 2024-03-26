@@ -3,28 +3,27 @@
 # Logs
 
 Historically, working with large log files in CI systems has been difficult. Across several previous incarnations of
-our build infrastructure, we became used to plain-text logs, browser crashes when trying to open large cook logs, poor
+our build infrastructure, we became used to plain-text logs, browser crashes when opening large cook logs, poor
 search performance, and so on.
 
-Logs are one of the things we wanted to get right in Horde from day one. At the top of our list of requirements were
-the ability to perform indexed text searches through large logs quickly, the ability to scrub through log files
-without having to fully download the log to the client, and the ability to provide much richer context-aware
-functionality to events in logs - cross-referencing them with build health issues, Perforce history, even external
-sites explaining the meaning of error codes.
+Logs are one of the things we wanted to get right in Horde from day one. At the top of our list of requirements were the abilities to:
+
+* Perform indexed text searches through large logs quickly.
+* Scrub through log files without fully downloading the log to the client.
+* Provide much richer context-aware functionality to events in logs - cross-referencing them with build health issues, Perforce history, and external sites explaining the meaning of error codes.
 
 ## Storage
 
 Horde logs are stored in bundles using several node types. All these classes are implemented in
 `Engine/Source/Programs/Shared/EpicGames.Horde/Logs`.
 
-* `LogNode` objects are the main entry point for the log data, and contain metadata about the log as a whole (how
-many lines it is, how long it is, whether it is still being appended to) as well as references to chunk and index
+* `LogNode` objects are the main entry point for the log data and contain metadata about the log as a whole (how
+many lines it is, how long it is, whether it is still being appended to), as well as references to chunk and index
 nodes containing the log data.
-* `LogChunkNode` objects contain raw, UTF-8 encoded structured log data for a span of lines, plus offsets to allow
-quickly indexing lines within it. Each reference to a chunk from the root `LogNode` object contains its starting line
-number, to allow quickly identifying which node contains a particular line.
-* `LogIndexNode` objects contain chunks of data used to determine which chunks contain particular search terms, and a
-plain text rendering of the chunk. The index/search algorithm is described below.
+* `LogChunkNode` objects contain raw, UTF-8 encoded structured log data for a span of lines, plus offsets to quickly index lines within it. Each reference to a chunk from the root `LogNode` object contains its starting line
+number, which enables quick identifcation of which node contains a particular line.
+* `LogIndexNode` objects contain chunks of data used to determine which chunks contain particular search terms and a
+plain text rendering of the chunk. The index/search algorithm is described in the section below.
 
 Agents generating logs usually upload data to the storage backend directly, appending data by uploading a new root node
 and any appended chunks and index nodes.
@@ -34,7 +33,7 @@ and any appended chunks and index nodes.
 An index is generated from the plain text rendering of a log message in UTF-8. ANSI characters `A-Z` are converted into
 their lowercase form `a-z`.
 
-First, the message is split into tokens each containing only characters of the following types:
+First, the message is split into tokens, each containing only characters of the following types:
 
 * 0: Anything not in a category below
 * 1: Alphabetic characters `[a-zA-Z]`
@@ -55,12 +54,12 @@ sequences, with partial ngrams shifted into left into more significant bits.
     "123"  = ('1' << 24) | ('2' << 16) | ('3' << 8)       = 0x31323300
 
 These values are inserted into a sparse trie (`NgramSet`) over the 64-bit integer space, with the ngram value in the
-top 32-bits, and an index of the block containing the ngram in the lower 32-bits. This forms a very space-efficient
+top 32 bits, and an index of the block containing the ngram in the lower 32 bits. This forms a very space-efficient
 data structure for performing a coarse search of where ngrams may be found in the log file.
 
-When searching for a particular string, we perform the same transformation into ngrams on it, and find all block
-indexes which contain *all* ngrams of the search term. Special handling is taken for the first and last token in the
-search term, since it may match within a source token that had a longer or shorter prefix, changing the alignment
+When searching for a particular string, we perform the same transformation into ngrams on it and find all block
+indexes which contain **all** ngrams of the search term. Special handling is taken for the first and last token in the
+search term since it may match within a source token that had a longer or shorter prefix, changing the alignment
 before it was decomposed into ngrams.
 
 Once we have a potential match for the search term, we can perform the more expensive operation of fetching the chunk
@@ -68,10 +67,10 @@ and searching for the exact term using a simplified Knuth–Morris–Pratt algor
 
 ## Tailing
 
-Log tailing is enabled the first time a log is requested, if it is not already marked as complete. A request for log
-tailing is stored in Redis with a TTL of 30 seconds, a value which is reset on subsequent calls.
+Log tailing is enabled the first time a log is requested if it has not already been marked as complete. A request for log
+tailing is stored in Redis with a TTL of 30 seconds, a value that is reset on subsequent calls.
 
-Agents uploading logs poll the server for whether tailing is desired. Once enabled, the agent starts uploading data
+Agents uploading logs poll the server to see whether tailing is desired. Once enabled, the agent starts uploading data
 that has not yet been flushed to persistent storage directly to the server, where it is stored in Redis and returned
 to any clients on subsequent reads of the log.
 
@@ -81,16 +80,16 @@ Logs generated by Horde agents consist of one JSON object per line. Properties a
 
 | Name         | Type      | Description |
 | ------------ | --------- | ----------- |
-| `time`       | `String`  | Timestamp that the event ocurred, in UTC. |
+| `time`       | `String`  | Timestamp that the event occurred, in UTC. |
 | `level`      | `String`  | The event level. Valid values are listed [here](https://learn.microsoft.com/en-us/dotnet/api/microsoft.extensions.logging.loglevel). |
-| `id`         | `Integer` | An event identifier. Known event ids are listed in `Engine/Source/Progams/Shared/EpicGames.Core/KnownLogEvents.cs.` |
+| `id`         | `Integer` | An event identifier. Known event IDs are listed in `Engine/Source/Progams/Shared/EpicGames.Core/KnownLogEvents.cs.` |
 | `message`    | `String`  | The rendered event message. |
-| `format`     | `String`  | Formatting string for rendering the message, using standard [message template](https://messagetemplates.org/) syntax. |
+| `format`     | `String`  | Formatting string for rendering the message using standard [message template](https://messagetemplates.org/) syntax. |
 | `properties` | `Object`  | Dictionary of properties for the format string. See below for more information. |
 | `lineIndex`  | `Integer` | For multi-line messages, indicates the zero-based index of this log event within the message. |
 | `lineCount`  | `Integer` | For multi-line messages, indicates the total number of lines in this message. |
 
-Properties may be any regular JSON types, or may be an object containing the `$type` property, indicating that the
+Properties may be any regular JSON types or may be an object containing the `$type` property, indicating that the
 dashboard may treat it as a particular type (and render it accordingly). Valid values for `$type` are defined in the
 `LogValueType` class in `Engine/Source/Programs/Shared/EpicGames.Core/LogValue.cs`, and include:
 

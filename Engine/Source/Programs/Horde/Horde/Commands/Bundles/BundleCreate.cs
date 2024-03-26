@@ -31,6 +31,10 @@ namespace Horde.Commands.Bundles
 		[Description("Filter for files to include, in P4 syntax (eg. Foo/...).")]
 		public string Filter { get; set; } = "...";
 
+		[CommandLine("-CleanOutput")]
+		[Description("Clean the output folder before writing any data")]
+		public bool CleanOutput { get; set; }
+
 		public BundleCreate(HttpStorageClientFactory storageClientFactory, BundleCache bundleCache, IOptions<CmdConfig> config)
 			: base(storageClientFactory, bundleCache, config)
 		{
@@ -38,6 +42,12 @@ namespace Horde.Commands.Bundles
 
 		public override async Task<int> ExecuteAsync(ILogger logger)
 		{
+			if (CleanOutput && File != null)
+			{
+				logger.LogInformation("Cleaning {Directory}...", File.Directory);
+				FileUtils.ForceDeleteDirectoryContents(File.Directory);
+			}
+
 			if (File != null)
 			{
 				using IStorageClient store = BundleStorageClient.CreateFromDirectory(File.Directory, BundleCache, logger);
@@ -86,9 +96,9 @@ namespace Horde.Commands.Bundles
 				ChunkingOptions options = new ChunkingOptions();
 
 				List<FileInfo> fileInfos = files.ConvertAll(x => x.ToFileInfo());
-				CopyStatsLogger copyStatsLogger = new CopyStatsLogger(files.Count, fileInfos.Sum(x => x.Length), logger);
+				UpdateStatsLogger updateStatsLogger = new UpdateStatsLogger(files.Count, fileInfos.Sum(x => x.Length), logger);
 
-				IBlobRef<DirectoryNode> nodeRef = await writer.WriteFilesAsync(baseDir.ToDirectoryInfo(), fileInfos, options, copyStatsLogger, CancellationToken.None);
+				IBlobRef<DirectoryNode> nodeRef = await writer.WriteFilesAsync(baseDir.ToDirectoryInfo(), fileInfos, options, updateStatsLogger, CancellationToken.None);
 
 				await writer.FlushAsync();
 

@@ -345,6 +345,11 @@ namespace EpicGames.Horde.Dashboard
 		public string Name { get; set; } = null!;
 
 		/// <summary>
+		/// The telemetry store the view uses
+		/// </summary>
+		public string TelemetryStoreId { get; set; } = null!;
+
+		/// <summary>
 		///  The variables used to filter the view data
 		/// </summary>
 		public List<GetTelemetryVariableResponse> Variables { get; set; } = new List<GetTelemetryVariableResponse> { };

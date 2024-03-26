@@ -15,7 +15,7 @@ See also: [Feature Status](Features.md)
 
 ## Reference
 
-Horde documentation is divided into sections focusing of aspects of Horde of interest to different groups.
+Horde's reference documentation is divided into sections by target audience:
 
 * [**Deploying Horde**](Deployment.md)
   * Information on the architecture and components making up Horde, and best practices for deploying them.

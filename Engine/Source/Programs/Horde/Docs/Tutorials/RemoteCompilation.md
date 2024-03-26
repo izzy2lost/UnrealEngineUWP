@@ -5,22 +5,22 @@
 ## Introduction
 
 Horde implements a platform for generic remote execution workloads, allowing clients to leverage idle CPU cycles on
-other machines to accelerate workloads that would otherwise be executed locally. Horde's remote execution platform
-allows issuing explicit commands to remote agents sequentially, such as "upload these files", "run this process",
+other machines to accelerate workloads that would otherwise be executed locally. With Horde's remote execution platform,
+you can issue explicit commands to remote agents sequentially, such as "upload these files", "run this process",
 "send these files back", and so on.
 
 **Unreal Build Accelerator** is a tool that implements lightweight virtualization for
-third party programs (such as C++ compilers), allowing it to run on a remote machine - requesting information from the
-initiating machine as it's required. The remotely executed process behaves as if it's executing
+third-party programs (such as C++ compilers), allowing it to run on a remote machine - requesting information from the
+initiating machine as required. The remotely executed process behaves as if it's executing
 on the local machine, seeing the same view of the file system and so on, and files are transferred to and from the
 remote machine behind the scenes as necessary.
 
-Unreal Build Tool can use Unreal Build Accelerator together with Horde to offload build tasks to connected agents,
+Unreal Build Tool can use Unreal Build Accelerator with Horde to offload build tasks to connected agents,
 spreading the workload over multiple machines.
 
 ## Prerequisites
 
-* Horde Server and one or more Horde Agents (see [Getting Started: Install Horde](InstallHorde.md))
+* Horde Server and one or more Horde Agents (see [Getting Started: Install Horde](InstallHorde.md)).
 * A workstation with a UE project under development.
 * Network connectivity between your workstation and Horde Agents on port range 7000-7010.
 
@@ -55,9 +55,9 @@ spreading the workload over multiple machines.
    </Configuration>
    ```
 
-   Replace `SERVER_HOST_NAME` with the appropriate address of your Horde server installation.
+   Replace `SERVER_HOST_NAME` with the address associated with your Horde server installation.
 
-   * `BuildConfiguration.xml` can be sourced from many locations in the filesystem depending your preference
+   * `BuildConfiguration.xml` can be sourced from many locations in the filesystem, depending on your preference,
      including locations typically under source control. See
      [Build Configuration](https://docs.unrealengine.com/en-US/build-configuration-for-unreal-engine/).
      in the UnrealBuildTool documentation for more details.
@@ -71,9 +71,9 @@ spreading the workload over multiple machines.
    ```
 
    This indicates work is being spread to multiple agents. If you enabled the UBA visualizer, you can also see
-   a graphical overview how the build progresses over multiple machines.
+   a graphical overview of how the build progresses over multiple machines.
 
-   For debugging and tuning purposes, it can be useful to force remote execution all compile workfloads. To do
+   For debugging and tuning purposes, it can be useful to force remote execution all compile workloads. To do
    so, enable the following option in your `BuildConfiguration.xml` file or pass `-UBAForceRemote` on the
    UnrealBuildTool command line:
 

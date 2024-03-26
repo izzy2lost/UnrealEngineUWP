@@ -1,16 +1,16 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 using System;
-using System.Buffers;
-using System.Collections.Generic;
-using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using System.Threading;
 using System.Threading.Tasks;
+using BitFaster.Caching;
+using BitFaster.Caching.Lru;
 using EpicGames.Core;
+using EpicGames.Horde.Storage.Bundles.V2;
 using Microsoft.Extensions.Caching.Memory;
 
-namespace EpicGames.Horde.Storage
+namespace EpicGames.Horde.Storage.Bundles
 {
 	/// <summary>
 	/// Options for creating a storage cache
@@ -18,9 +18,19 @@ namespace EpicGames.Horde.Storage
 	public class BundleCacheOptions
 	{
 		/// <summary>
-		/// Maximum size of the cache
+		/// Number of packet readers to keep in the cache
 		/// </summary>
-		public long MaxSize { get; set; } = 128 * 1024 * 1024;
+		public int PacketReaderCount { get; set; } = 200;
+
+		/// <summary>
+		/// Size of a bundle page
+		/// </summary>
+		public int BundlePageSize { get; set; } = 1024 * 1024;
+
+		/// <summary>
+		/// Number of bundle pages to keep in the cache.
+		/// </summary>
+		public int BundlePageCount { get; set; } = 500;
 
 		/// <summary>
 		/// Size of the header cache
@@ -33,211 +43,42 @@ namespace EpicGames.Horde.Storage
 		public long PacketCacheSize { get; set; } = 192 * 1024 * 1024;
 	}
 
+	record struct BundlePageCacheKey(BundleHandle Bundle, int Index)
+	{
+		public override string ToString()
+			=> $"bundle-page:{Bundle}:{Index}";
+	}
+
 	/// <summary>
-	/// Caches items with user-defined keys, where initialization of each value is performed asynchronously. 
-	/// Memory allocations are tracked via calls to Reserve(), and a hard upper limit is enforced as long as data can be freed.
+	/// Cache for reading bundle data.
 	/// </summary>
 	public sealed class BundleCache : IAsyncDisposable
 	{
-		[DebuggerDisplay("{Key}")]
-		class CacheValue : IDisposable
-		{
-			public object Key { get; }
-			public LinkedListNode<CacheValue> Node { get; }
-			public Task<IDisposable> InitTask { get; }
-
-			readonly BundleCache _bundleCache;
-			int _refCount;
-
-			public int RefCount => Interlocked.CompareExchange(ref _refCount, 0, 0);
-
-			public CacheValue(BundleCache bundleCache, object key, IDisposable value)
-			{
-				_bundleCache = bundleCache;
-				_refCount = 1;
-				Key = key;
-				Node = new LinkedListNode<CacheValue>(this);
-				InitTask = Task.FromResult<IDisposable>(value);
-
-				_bundleCache._purgeableItems.AddFirst(Node);
-			}
-
-			public CacheValue(BundleCache bundleCache, object key, Func<Task<IDisposable>> initTask)
-			{
-				_bundleCache = bundleCache;
-				_refCount = 2; // Will be released by RunAndUnlock
-				Key = key;
-				Node = new LinkedListNode<CacheValue>(this);
-				InitTask = RunAndUnlockAsync(initTask);
-
-				_bundleCache._items.AddFirst(Node);
-			}
-
-			public void Dispose()
-			{
-#pragma warning disable VSTHRD002
-				InitTask.Result.Dispose();
-#pragma warning restore VSTHRD002
-			}
-
-			async Task<IDisposable> RunAndUnlockAsync(Func<Task<IDisposable>> initTask)
-			{
-				await Task.Yield();
-				try
-				{
-					return await initTask();
-				}
-				finally
-				{
-					Release();
-				}
-			}
-
-			public void AddRef()
-			{
-				lock (_bundleCache._lockObject)
-				{
-					if (_refCount == 1)
-					{
-						_bundleCache._purgeableItems.Remove(Node);
-						_bundleCache._items.AddFirst(Node);
-					}
-					_refCount++;
-				}
-			}
-
-			public void Release()
-			{
-				lock (_bundleCache._lockObject)
-				{
-					_refCount--;
-					if (_refCount == 1)
-					{
-						_bundleCache._items.Remove(Node);
-						_bundleCache._purgeableItems.AddFirst(Node);
-					}
-				}
-			}
-		}
-
-		class CacheValueHandle<T> : IRefCountedHandle<T> where T : class, IDisposable
-		{
-			CacheValue? _item;
-			T? _target;
-
-			public int RefCount => _item?.RefCount ?? throw new ObjectDisposedException(nameof(CacheValueHandle<T>));
-
-			public T Target => _target ?? throw new ObjectDisposedException(nameof(CacheValueHandle<T>));
-
-			public CacheValueHandle(CacheValue? item, T? value)
-			{
-				_item = item;
-				_target = value;
-			}
-
-			public void Dispose()
-			{
-				if (_item != null)
-				{
-					_item.Release();
-					_item = null;
-					_target = null;
-				}
-			}
-
-			public IRefCountedHandle<T> AddRef()
-			{
-				if (_item == null)
-				{
-					throw new ObjectDisposedException(nameof(CacheValueHandle<T>));
-				}
-
-				_item.AddRef();
-				return new CacheValueHandle<T>(_item, _target);
-			}
-		}
-
-		// Tracks an owned blocks of memory against the cache budged.
-		sealed class MemoryAllocation : IMemoryOwner<byte>
-		{
-			readonly BundleCache _bundleCache;
-			IMemoryOwner<byte> _owner;
-
-			public Memory<byte> Memory => _owner.Memory;
-
-			public MemoryAllocation(BundleCache bundleCache, IMemoryOwner<byte> owner)
-			{
-				_bundleCache = bundleCache;
-				_owner = owner;
-			}
-
-			/// <inheritdoc/>
-			public void Dispose()
-			{
-				if (_owner != null)
-				{
-					long size = _owner.Memory.Length;
-					_owner.Dispose();
-					_bundleCache.ReleaseSpace(size);
-					_owner = null!;
-				}
-			}
-		}
-
-		// Custom memory allocator which tracks allocated blocks against the cache's budget. Older cache entries will be 
-		// disposed to create space for new allocations.
-		class MemoryAllocator : IMemoryAllocator<byte>
-		{
-			readonly BundleCache _bundleCache;
-			readonly IMemoryAllocator<byte> _allocator;
-
-			public MemoryAllocator(BundleCache bundleCache, IMemoryAllocator<byte> allocator)
-			{
-				_bundleCache = bundleCache;
-				_allocator = allocator;
-			}
-
-			public IMemoryOwner<byte> Alloc(int minSize, object? tag)
-			{
-				_bundleCache.CreateSpace(minSize);
-				IMemoryOwner<byte> owner = _allocator.Alloc(minSize, tag);
-				_bundleCache.CreateSpace(owner.Memory.Length - minSize);
-				return new MemoryAllocation(_bundleCache, owner);
-			}
-		}
-
-		readonly object _lockObject = new object();
 		readonly BundleCacheOptions _options;
-		readonly LinkedList<CacheValue> _items = new LinkedList<CacheValue>();
-		readonly Dictionary<object, CacheValue> _itemLookup = new Dictionary<object, CacheValue>();
-		readonly LinkedList<CacheValue> _purgeableItems = new LinkedList<CacheValue>();
 		readonly CancellationTokenSource _cancellationSource = new CancellationTokenSource();
-		readonly MemoryAllocator _allocator;
 
-		int _numCacheAdds;
-		int _numCacheHits;
-		int _numCacheMisses;
-		long _currentSize;
-		int _numPurges;
-		readonly Stopwatch _createSpaceTimer = new Stopwatch();
-
+		readonly IScopedAsyncCache<PacketReaderCacheKey, PacketReader> _packetReaderCache;
+		readonly IScopedAsyncCache<BundlePageCacheKey, IReadOnlyMemoryOwner<byte>> _bundlePageCache;
 		readonly MemoryCache? _headerCache;
 		readonly MemoryCache? _packetCache;
+
+		internal IScopedAsyncCache<PacketReaderCacheKey, PacketReader> PacketReaderCache => _packetReaderCache;
+		internal IScopedAsyncCache<BundlePageCacheKey, IReadOnlyMemoryOwner<byte>> BundlePageCache => _bundlePageCache;
 
 		/// <summary>
 		/// Instance of an empty cache
 		/// </summary>
-		public static BundleCache None { get; } = new BundleCache(new BundleCacheOptions { MaxSize = 0, HeaderCacheSize = 0, PacketCacheSize = 0 });
+		public static BundleCache None { get; } = new BundleCache(new BundleCacheOptions { HeaderCacheSize = 0, PacketCacheSize = 0 });
 
 		/// <summary>
 		/// Accessor for the default allocator
 		/// </summary>
-		public IMemoryAllocator<byte> Allocator => _allocator;
+		public IMemoryAllocator<byte> Allocator { get; }
 
 		/// <summary>
-		/// Current size of data allocated or in the cache
+		/// Size of a bundle page to keep in the cache
 		/// </summary>
-		public long CurrentSize => _currentSize;
+		public int BundlePageSize => _options.BundlePageSize;
 
 		/// <summary>
 		/// Size of the configured header cache
@@ -257,9 +98,9 @@ namespace EpicGames.Horde.Storage
 		/// <summary>
 		/// Constructor
 		/// </summary>
-		public BundleCache() 
-			: this(new BundleCacheOptions()) 
-		{ 
+		public BundleCache()
+			: this(new BundleCacheOptions())
+		{
 		}
 
 		/// <summary>
@@ -282,7 +123,27 @@ namespace EpicGames.Horde.Storage
 #if DEBUG
 			innerAllocator = new TrackingMemoryAllocator(innerAllocator);
 #endif
-			_allocator = new MemoryAllocator(this, innerAllocator);
+			Allocator = innerAllocator;
+
+			_packetReaderCache = new ConcurrentLruBuilder<PacketReaderCacheKey, PacketReader>()
+				.WithCapacity(_options.PacketReaderCount)
+				.WithAtomicGetOrAdd()
+#if TRACE
+				.WithMetrics()
+#endif
+				.AsAsyncCache()
+				.AsScopedCache()
+				.Build();
+
+			_bundlePageCache = new ConcurrentLruBuilder<BundlePageCacheKey, IReadOnlyMemoryOwner<byte>>()
+				.WithCapacity(_options.BundlePageCount)
+				.WithAtomicGetOrAdd()
+#if TRACE
+				.WithMetrics()
+#endif
+				.AsAsyncCache()
+				.AsScopedCache()
+				.Build();
 
 			if (options.HeaderCacheSize > 0)
 			{
@@ -295,154 +156,17 @@ namespace EpicGames.Horde.Storage
 		}
 
 		/// <inheritdoc/>
-		public async ValueTask DisposeAsync()
+		public ValueTask DisposeAsync()
 		{
+			_packetReaderCache.Clear();
+			_bundlePageCache.Clear();
+
 			_headerCache?.Dispose();
 			_packetCache?.Dispose();
 
-			if (_items.Count > 0)
-			{
-				_cancellationSource.Cancel();
-
-				foreach (CacheValue item in _items)
-				{
-					try
-					{
-						await item.InitTask;
-					}
-					catch (OperationCanceledException)
-					{
-					}
-				}
-
-				_items.Clear();
-			}
-
 			_cancellationSource.Dispose();
-		}
 
-		/// <summary>
-		/// Empty the cache
-		/// </summary>
-		public void Trim()
-		{
-			CreateSpace(_options.MaxSize);
-			ReleaseSpace(_options.MaxSize);
-		}
-
-		/// <summary>
-		/// Find or add a new cached value to the cache
-		/// </summary>
-		/// <param name="key">Key for the lookup</param>
-		/// <returns></returns>
-		public IRefCountedHandle<TValue>? Find<TKey, TValue>(TKey key)
-			where TKey : notnull
-			where TValue : class, IDisposable
-		{
-			lock (_lockObject)
-			{
-				CacheValue? item;
-				if (_itemLookup.TryGetValue(key, out item) && item.InitTask.TryGetResult(out IDisposable result))
-				{
-					Interlocked.Increment(ref _numCacheHits);
-					item.AddRef();
-					return new CacheValueHandle<TValue>(item, (TValue)result);
-				}
-			}
-			return null;
-		}
-
-		/// <summary>
-		/// Attempts to add a value to the cache. 
-		/// </summary>
-		/// <param name="key">Key to add the item to the cache with</param>
-		/// <param name="value">Value to be added. If the item is added, ownership is implicitly transferred to the cache.</param>
-		/// <returns>True if the value was added</returns>
-		public bool TryAdd<TKey, TValue>(TKey key, TValue value)
-			where TKey : notnull
-			where TValue : class, IDisposable
-		{
-			lock (_lockObject)
-			{
-				if (!_itemLookup.ContainsKey(key))
-				{
-					Interlocked.Increment(ref _numCacheAdds);
-					CacheValue item = new CacheValue(this, key, value);
-					_itemLookup.Add(key, item);
-					return true;
-				}
-			}
-			return false;
-		}
-
-		/// <summary>
-		/// Find or add a new cached value to the cache
-		/// </summary>
-		/// <param name="key"></param>
-		/// <param name="createAsync"></param>
-		/// <param name="cancellationToken"></param>
-		/// <returns>Handle to the item that was read. Must be disposed by the caller.</returns>
-		public async Task<IRefCountedHandle<TValue>> FindOrAddAsync<TKey, TValue>(TKey key, Func<TKey, CancellationToken, Task<TValue>> createAsync, CancellationToken cancellationToken = default)
-			where TKey : notnull
-			where TValue : class, IDisposable
-		{
-			CacheValue? item = null;
-			try
-			{
-				lock (_lockObject)
-				{
-					CacheValue? untypedItem;
-					if (_itemLookup.TryGetValue(key, out untypedItem))
-					{
-						Interlocked.Increment(ref _numCacheHits);
-						item = untypedItem;
-					}
-					else
-					{
-						Interlocked.Increment(ref _numCacheMisses);
-						item = new CacheValue(this, key, async () => await createAsync(key, _cancellationSource.Token));
-						_itemLookup.Add(key, item);
-					}
-					item.AddRef(); // Don't allow the item to be freed while we wait for it
-				}
-
-				TValue value = (TValue)await item.InitTask.WaitAsync(cancellationToken);
-				return new CacheValueHandle<TValue>(item, value);
-			}
-			catch
-			{
-				item?.Release();
-				throw;
-			}
-		}
-
-		void CreateSpace(long size)
-		{
-			if (Interlocked.Add(ref _currentSize, size) > _options.MaxSize)
-			{
-				lock (_lockObject)
-				{
-					Interlocked.Increment(ref _numPurges);
-					_createSpaceTimer.Start();
-
-					while (_purgeableItems.Count > 0 && Interlocked.CompareExchange(ref _currentSize, 0, 0) > _options.MaxSize)
-					{
-						LinkedListNode<CacheValue> lastNode = _purgeableItems.Last!;
-						CacheValue lastItem = lastNode.Value;
-
-						_purgeableItems.Remove(lastNode);
-						_itemLookup.Remove(lastItem.Key);
-						lastItem.Dispose();
-					}
-
-					_createSpaceTimer.Stop();
-				}
-			}
-		}
-
-		void ReleaseSpace(long size)
-		{
-			Interlocked.Add(ref _currentSize, -size);
+			return default;
 		}
 
 		/// <summary>
@@ -450,13 +174,19 @@ namespace EpicGames.Horde.Storage
 		/// </summary>
 		public void GetStats(StorageStats stats)
 		{
-			stats.Add("bundle.cache.adds", _numCacheAdds);
-			stats.Add("bundle.cache.hits", _numCacheHits);
-			stats.Add("bundle.cache.misses", _numCacheMisses);
-			stats.Add("bundle.cache.size_count", _items.Count);
-			stats.Add("bundle.cache.size_bytes", _currentSize);
-			stats.Add("bundle.cache.purge.count", _numPurges);
-			stats.Add("bundle.cache.purge.time_ms", _createSpaceTimer.ElapsedMilliseconds);
+			Optional<ICacheMetrics> packetMetrics = PacketReaderCache.Metrics;
+			if (packetMetrics.Value != null)
+			{
+				stats.Add("bundle.packet_cache.hits", packetMetrics.Value.Hits);
+				stats.Add("bundle.packet_cache.misses", packetMetrics.Value.Misses);
+			}
+
+			Optional<ICacheMetrics> bundleMetrics = BundlePageCache.Metrics;
+			if (bundleMetrics.Value != null)
+			{
+				stats.Add("bundle.bundle_cache.hits", bundleMetrics.Value.Hits);
+				stats.Add("bundle.bundle_cache.misses", bundleMetrics.Value.Misses);
+			}
 		}
 
 		#region V1

@@ -5,7 +5,6 @@ using System.Linq;
 using System.Net.Http;
 using System.Runtime.InteropServices;
 using System.Runtime.Versioning;
-using EpicGames.Horde.Storage;
 using EpicGames.Horde.Storage.Bundles;
 using Microsoft.Win32;
 
@@ -54,7 +53,7 @@ namespace EpicGames.Horde
 		{
 			if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
 			{
-				string? url = 
+				string? url =
 					(Registry.GetValue(@"HKEY_CURRENT_USER\SOFTWARE\Epic Games\Horde", "Url", null) as string) ??
 					(Registry.GetValue(@"HKEY_LOCAL_MACHINE\SOFTWARE\Epic Games\Horde", "Url", null) as string);
 

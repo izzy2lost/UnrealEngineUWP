@@ -3416,6 +3416,9 @@ export type GetTelemetryViewResponse = {
 	/// The name of the view
 	name: string;
 
+	/// The telemetry store id the view uses
+	telemetryStoreId: string;
+
 	///  The variables used to filter the view data
 	variables: GetTelemetryVariableResponse[];
 

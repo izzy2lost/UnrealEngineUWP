@@ -17,7 +17,7 @@
 
 * 🟩 **Production Ready**: Recommended for use in production environments.
   Epic will maintain an upgrade path for this feature between releases.
-* 🟨 **Beta**: Feature is stable and ready for evaluation, but may have bugs and minor missing features.
+* 🟨 **Beta**: Feature is stable and ready for evaluation but may have bugs and minor missing features.
   Epic will attempt to maintain an upgrade path for this feature.
 * 🟧 **Experimental**: Feature is functional but may undergo significant modifications or be removed entirely
   in future releases.
