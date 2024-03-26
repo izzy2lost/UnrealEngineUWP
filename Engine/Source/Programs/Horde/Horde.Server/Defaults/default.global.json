@@ -72,7 +72,7 @@
 		},
 		{
 			"name": "Win-UE5-GPU",
-			"condition": "Platform == 'Win64' && IsInteractive == true",
+			"condition": "Platform == 'Win64' && Interactive == true",
 			"color": "Blue"
 		},
 		{
