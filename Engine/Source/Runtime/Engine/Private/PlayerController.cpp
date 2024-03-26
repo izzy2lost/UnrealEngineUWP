@@ -6112,10 +6112,7 @@ void APlayerController::BeginReplication()
 {
 	using namespace UE::Net;
 
-	// Always allow the PlayerController to be replicated as it is required for travel.
-	FActorBeginReplicationParams Params;
-	Params.bIncludeInLevelGroupFilter = false;
-	Super::BeginReplication(Params);
+	Super::BeginReplication();
 
 	// Bump prio of playercontroller in order to make sure it replicates really early
 	static constexpr float PlayerControllerStaticPriority = 100.f;

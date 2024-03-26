@@ -120,12 +120,6 @@ namespace UE::Net::Private
 			}
 		}
 	}
-
-	int32 SerializeNewActorOverrideLevel = 1;
-	static FAutoConsoleVariableRef CVarNetSerializeNewActorOverrideLevel(
-		TEXT("net.SerializeNewActorOverrideLevel"),
-		SerializeNewActorOverrideLevel,
-		TEXT("If true, servers will serialize a spawned, replicated actor's level so the client attempts to spawn it into that level too. If false, clients will spawn all these actors into the persistent level."));
 }
 
 static TAutoConsoleVariable<int32> CVarAllowAsyncLoading(
@@ -327,7 +321,7 @@ bool UPackageMapClient::SerializeObject( FArchive& Ar, UClass* Class, UObject*& 
 		InternalWriteObject( Ar, NetGUID, Object, TEXT( "" ), NULL );
 
 		// If we need to export this GUID (its new or hasnt been ACKd, do so here)
-		if (!NetGUID.IsDefault() && ShouldSendFullPath(Object, NetGUID))
+		if (!NetGUID.IsDefault() && Object && ShouldSendFullPath(Object, NetGUID))
 		{
 			check(IsNetGUIDAuthority());
 			if ( !ExportNetGUID( NetGUID, Object, TEXT(""), NULL ) )

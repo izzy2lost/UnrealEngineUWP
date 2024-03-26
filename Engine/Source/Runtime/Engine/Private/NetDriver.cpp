@@ -311,6 +311,11 @@ namespace UE::Net::Private
 		TEXT("Time in milliseconds to limit client incoming bunch processing to. If 0, no limit. As long as we're below the limit, will start processing another bunch. A single bunch that takes a while to process can overshoot the limit. ")
 		TEXT("After the limit is hit, remaining bunches in a packet are queued, and the IpNetDriver will not process any more packets in the current frame."));
 
+	int32 SerializeNewActorOverrideLevel = 1;
+	static FAutoConsoleVariableRef CVarNetSerializeNewActorOverrideLevel(
+		TEXT("net.SerializeNewActorOverrideLevel"),
+		SerializeNewActorOverrideLevel,
+		TEXT("If true, servers will serialize a spawned, replicated actor's level so the client attempts to spawn it into that level too. If false, clients will spawn all these actors into the persistent level."));
 
 } //namespace UE::Net::Private
 
@@ -3991,14 +3996,22 @@ void UNetDriver::NotifyActorRenamed(AActor* ThisActor, UObject* PreviousOuter, F
 			{
 				UE_LOG(LogNet, Log, TEXT("NotifyActorRenamed on server, dynamic actor changed outer: %s PreviousOuter: %s PreviousName: %s"), *GetFullNameSafe(ThisActor), *GetFullNameSafe(PreviousOuter), *PreviousName.ToString());
 
-#if UE_WITH_IRIS
-				ensureMsgf(!ReplicationSystem, TEXT("Dynamic actor renaming not supported in Iris. Actor: %s PreviousOuter: %s"), *GetFullNameSafe(ThisActor), *GetFullNameSafe(PreviousOuter));
-#endif
 				// Forward change to ReplicationDriver so it can update its state
 				if (ReplicationDriver)
 				{
 					ReplicationDriver->NotifyActorRenamed(ThisActor, PreviousOuter, PreviousName);
 				}
+
+#if UE_WITH_IRIS
+				if (ReplicationSystem)
+				{
+					if (UActorReplicationBridge* Bridge = ReplicationSystem->GetReplicationBridgeAs<UActorReplicationBridge>())
+					{
+						Bridge->ActorChangedLevel(ThisActor, Cast<ULevel>(PreviousOuter));
+					}
+				}
+				else
+#endif // UE_WITH_IRIS
 
 				if (UE::Net::Private::CleanUpRenamedDynamicActors)
 				{
@@ -4132,7 +4145,7 @@ void UNetDriver::NotifyActorTearOff(AActor* Actor)
 	{
 		if (UObjectReplicationBridge* Bridge = ReplicationSystem->GetReplicationBridgeAs<UObjectReplicationBridge>())
 		{
-			// Set the actor to be torn-off during the next update of the replication systeem
+			// Set the actor to be torn-off during the next update of the replication system
 			const UE::Net::FNetRefHandle ActorRefHandle = Bridge->GetReplicatedRefHandle(Actor);
 			ReplicationSystem->TearOffNextUpdate(ActorRefHandle);
 		}
@@ -5180,6 +5193,8 @@ int32 UNetDriver::ServerReplicateActors_PrioritizeActors( UNetConnection* Connec
 				// See of actor wants to try and go dormant
 				if ( ShouldActorGoDormant( Actor, ConnectionViewers, Channel, ElapsedTime, bLowNetBandwidth ) )
 				{
+					CA_ASSUME(Channel); // ShouldActorGoDormant returns false if Channel is null, but analyzers don't seem to see that
+
 					// Channel is marked to go dormant now once all properties have been replicated (but is not dormant yet)
 					Channel->StartBecomingDormant();
 				}
@@ -5287,7 +5302,7 @@ int32 UNetDriver::ServerReplicateActors_ProcessPrioritizedActorsRange( UNetConne
 
 		// Normal actor replication
 		UActorChannel* Channel = PriorityActors[j]->Channel;
-		UE_LOG( LogNetTraffic, Log, TEXT( " Maybe Replicate %s" ), *ActorInfo->Actor->GetName() );
+		UE_LOG( LogNetTraffic, Log, TEXT( " Maybe Replicate %s" ), ActorInfo ? *ActorInfo->Actor->GetName() : TEXT("None") );
 		if ( !Channel || Channel->Actor ) //make sure didn't just close this channel
 		{
 			AActor* Actor = ActorInfo->Actor;

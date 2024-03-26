@@ -32,9 +32,6 @@ ENGINE_API bool ShouldUseIrisReplication(const UObject* Actor);
 /** Parameters passed to UActorReplicationBridge::BeginReplication. */
 struct FActorBeginReplicationParams
 {
-	/** Will the actor be part to the level visibility filters. This makes it that only clients who loaded the dynamic level of the actor can have the actor replicated to them.*/
-	bool bIncludeInLevelGroupFilter = true;
-
 	/** When true we ignore the configured dynamic filter for this actor type and use the explicit filter instead */
 	bool bOverrideDynamicFilterConfig = false;
 
@@ -84,6 +81,9 @@ public:
 	/** Tell the remote connection that we detected a reading error with a specific replicated object */
 	ENGINE_API virtual void ReportErrorWithNetRefHandle(uint32 ErrorType, FNetRefHandle RefHandle, uint32 ConnectionId) override;
 	
+	/** Updates the level group for an actor that changed levels */
+	void ActorChangedLevel(const AActor* Actor, const ULevel* PreviousLevel);
+
 	using UObjectReplicationBridge::EndReplication;
 
 protected:
@@ -116,6 +116,7 @@ private:
 	void OnMaxTickRateChanged(UNetDriver* InNetDriver, int32 NewMaxTickRate, int32 OldMaxTickRate);
 
 	void WakeUpObjectInstantiatedFromRemote(AActor* Actor) const;
+	void AddActorToLevelGroup(const AActor* Actor);
 
 private:
 	UNetDriver* NetDriver;
