@@ -110,7 +110,9 @@ namespace uba
 
 	bool FileAccessor::CreateMemoryWrite(bool allowRead, u32 flagsAndAttributes, u64 size, const tchar* tempPath)
 	{
+		#if PLATFORM_WINDOWS
 		allowRead = true; // It is not possible to have write only access to file mappings it seems
+		#endif
 
 		m_size = size;
 
