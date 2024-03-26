@@ -127,11 +127,15 @@ float2 GetStaticFloat2(int BaseOffset, int Element)	{ return float2(Common_Stati
 float3 GetStaticFloat3(int BaseOffset, int Element)	{ return float3(Common_StaticFloatBuffer[BaseOffset + Element*3], Common_StaticFloatBuffer[BaseOffset + 1 + Element*3], Common_StaticFloatBuffer[BaseOffset + 2 + Element*3]); }
 float4 GetStaticFloat4(int BaseOffset, int Element)	{ return float4(Common_StaticFloatBuffer[BaseOffset + Element*4], Common_StaticFloatBuffer[BaseOffset + 1 + Element*4], Common_StaticFloatBuffer[BaseOffset + 2 + Element*4], Common_StaticFloatBuffer[BaseOffset + 3 + Element*4]); }
 
+uint   GetParameterBufferUint  (int BaseOffset, int Element) { return Common_ParameterBuffer[BaseOffset + Element]; }
+int    GetParameterBufferInt   (int BaseOffset, int Element) { return asint(Common_ParameterBuffer[BaseOffset + Element]); }
 float  GetParameterBufferFloat (int BaseOffset, int Element) { return asfloat(Common_ParameterBuffer[BaseOffset + Element]); }
 float2 GetParameterBufferFloat2(int BaseOffset, int Element) { return float2(asfloat(Common_ParameterBuffer[BaseOffset + Element*2]), asfloat(Common_ParameterBuffer[BaseOffset + 1 + Element*2])); }
 float3 GetParameterBufferFloat3(int BaseOffset, int Element) { return float3(asfloat(Common_ParameterBuffer[BaseOffset + Element*3]), asfloat(Common_ParameterBuffer[BaseOffset + 1 + Element*3]), asfloat(Common_ParameterBuffer[BaseOffset + 2 + Element*3])); }
 float4 GetParameterBufferFloat4(int BaseOffset, int Element) { return float4(asfloat(Common_ParameterBuffer[BaseOffset + Element*4]), asfloat(Common_ParameterBuffer[BaseOffset + 1 + Element*4]), asfloat(Common_ParameterBuffer[BaseOffset + 2 + Element*4]), asfloat(Common_ParameterBuffer[BaseOffset + 3 + Element*4])); }
 
+uint   GetParameterBufferUint  (int BaseOffset, int Element, uint DefaultValue)   { return BaseOffset >= 0 ? Common_ParameterBuffer[BaseOffset + Element] : DefaultValue; }
+int    GetParameterBufferInt   (int BaseOffset, int Element, int DefaultValue)    { return BaseOffset >= 0 ? asint(Common_ParameterBuffer[BaseOffset + Element]) : DefaultValue; }
 float  GetParameterBufferFloat (int BaseOffset, int Element, float  DefaultValue) { return BaseOffset >= 0 ? asfloat(Common_ParameterBuffer[BaseOffset + Element]) : DefaultValue; }
 float2 GetParameterBufferFloat2(int BaseOffset, int Element, float2 DefaultValue) { return BaseOffset >= 0 ? float2(asfloat(Common_ParameterBuffer[BaseOffset + Element*2]), asfloat(Common_ParameterBuffer[BaseOffset + 1 + Element*2])) : DefaultValue; }
 float3 GetParameterBufferFloat3(int BaseOffset, int Element, float3 DefaultValue) { return BaseOffset >= 0 ? float3(asfloat(Common_ParameterBuffer[BaseOffset + Element*3]), asfloat(Common_ParameterBuffer[BaseOffset + 1 + Element*3]), asfloat(Common_ParameterBuffer[BaseOffset + 2 + Element*3])) : DefaultValue; }

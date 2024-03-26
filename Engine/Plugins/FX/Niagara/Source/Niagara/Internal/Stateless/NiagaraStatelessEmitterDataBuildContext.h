@@ -53,6 +53,9 @@ public:
 		return *reinterpret_cast<T*>(TransientObj->GetObject());
 	}
 
+	// Adds a binding to the renderer parameter store
+	// This allows you to read the parameter data inside the simulation process
+	// The returned value is INDEX_NONE is the variables is index otherwise the offset in DWORDs
 	int32 AddRendererBinding(const FNiagaraVariableBase& Variable);
 	int32 AddRendererBinding(const FNiagaraParameterBinding& Binding);
 	int32 AddRendererBinding(const FNiagaraParameterBindingWithValue& Binding);	

@@ -56,6 +56,7 @@ public:
 	{
 		if (Offset != INDEX_NONE)
 		{
+			Offset *= sizeof(uint32);
 			check(Offset >= 0 && Offset + sizeof(T) <= RendererParameterData.Num());
 			FMemory::Memcpy(&OutValue, RendererParameterData.GetData() + Offset, sizeof(T));
 		}

@@ -48,6 +48,7 @@ int32 FNiagaraStatelessEmitterDataBuildContext::AddRendererBinding(const FNiagar
 	{
 		FNiagaraVariable Var(Variable);
 		RendererBindings.AddParameter(Var, false, false, &DataOffset);
+		DataOffset /= sizeof(uint32);
 	}
 
 	return DataOffset;
@@ -60,6 +61,7 @@ int32 FNiagaraStatelessEmitterDataBuildContext::AddRendererBinding(const FNiagar
 	{
 		FNiagaraVariable Var(Binding.ResolvedParameter);
 		RendererBindings.AddParameter(Var, false, false, &DataOffset);
+		DataOffset /= sizeof(uint32);
 	}
 
 	return DataOffset;
@@ -80,6 +82,8 @@ int32 FNiagaraStatelessEmitterDataBuildContext::AddRendererBinding(const FNiagar
 			check(DefaultValue.Num() == Var.GetSizeInBytes());
 			RendererBindings.SetParameterData(DefaultValue.GetData(), DataOffset, DefaultValue.Num());
 		}
+
+		DataOffset /= sizeof(uint32);
 	}
 
 	return DataOffset;
