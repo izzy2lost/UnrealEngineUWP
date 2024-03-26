@@ -154,6 +154,15 @@ public:
 	 */
 	ENGINE_API bool CanProduceMoreAudio() const;
 
+	/** Returns TRUE if the reader has encountered a decoder failure.
+	 *
+	 * @return true if there is a failure, false if no failure.
+	 */
+	ENGINE_API bool HasFailed() const
+	{ 
+		return DecodeResult == EDecodeResult::Fail; 
+	}
+
 private:
 
 	enum EDecodeResult

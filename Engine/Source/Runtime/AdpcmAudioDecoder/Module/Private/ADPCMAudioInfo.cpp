@@ -44,8 +44,9 @@ FAutoConsoleVariableRef CVarChanceForIntentionalChunkMiss(
 
 namespace ADPCM
 {
-	void DecodeBlock(const uint8* EncodedADPCMBlock, int32 BlockSize, int16* DecodedPCMData);
-	void DecodeBlockStereo(const uint8* EncodedADPCMBlockLeft, const uint8* EncodedADPCMBlockRight, int32 BlockSize, int16* DecodedPCMData);
+	// Returns true if successful, false if there was an error in decoding
+	bool DecodeBlock(const uint8* EncodedADPCMBlock, int32 BlockSize, int16* DecodedPCMData);
+	bool DecodeBlockStereo(const uint8* EncodedADPCMBlockLeft, const uint8* EncodedADPCMBlockRight, int32 BlockSize, int16* DecodedPCMData);
 }
 
 FADPCMAudioInfo::FADPCMAudioInfo(void)
@@ -353,10 +354,17 @@ bool FADPCMAudioInfo::ReadCompressedData(uint8* Destination, bool bLooping, uint
 				// Decompress one block for each channel and store it in UncompressedBlockData
 				for(int32 ChannelItr = 0; ChannelItr < NumChannels; ++ChannelItr)
 				{
-					ADPCM::DecodeBlock(
+					bool bSuccess = ADPCM::DecodeBlock(
 						WaveInfo.SampleDataStart + (ChannelItr * TotalCompressedBlocksPerChannel + CurrentCompressedBlockIndex) * CompressedBlockSize,
 						CompressedBlockSize,
 						(int16*)(UncompressedBlockData + ChannelItr * UncompressedBlockSize));
+
+					if (!bSuccess)
+					{
+						FMemory::Memzero(Destination, BufferSize);
+						bHasError = true;
+						return true;
+					}
 				}
 
 				// Update some bookkeeping
@@ -800,10 +808,17 @@ bool FADPCMAudioInfo::StreamCompressedData(uint8* Destination, bool bLooping, ui
 				// Decompress one block for each channel and store it in UncompressedBlockData
 				for(int32 ChannelItr = 0; ChannelItr < NumChannels; ++ChannelItr)
 				{
-					ADPCM::DecodeBlock(
+					bool bSuccess = ADPCM::DecodeBlock(
 						CurCompressedChunkData + CurrentChunkBufferOffset + ChannelItr * CompressedBlockSize,
 						CompressedBlockSize,
 						(int16*)(UncompressedBlockData + ChannelItr * UncompressedBlockSize));
+
+					if (!bSuccess)
+					{
+						FMemory::Memzero(Destination, BufferSize);
+						bHasError = true;
+						return true;
+					}
 				}
 
 				// Update some bookkeeping
@@ -1206,18 +1221,27 @@ namespace ADPCM
 		return Context.Sample1;
 	}
 
-	void DecodeBlock(const uint8* EncodedADPCMBlock, int32 BlockSize, int16* DecodedPCMData)
+	bool DecodeBlock(const uint8* EncodedADPCMBlock, int32 BlockSize, int16* DecodedPCMData)
 	{
 		FAdaptationContext Context;
 		int32 ReadIndex = 0;
 		int32 WriteIndex = 0;
 
 		uint8 CoefficientIndex = ReadFromByteStream<uint8>(EncodedADPCMBlock, ReadIndex);
-		Context.AdaptationDelta = ReadFromByteStream<int16>(EncodedADPCMBlock, ReadIndex);
-		Context.Sample1 = ReadFromByteStream<int16>(EncodedADPCMBlock, ReadIndex);
-		Context.Sample2 = ReadFromByteStream<int16>(EncodedADPCMBlock, ReadIndex);
-		Context.Coefficient1 = Context.AdaptationCoefficient1[CoefficientIndex];
-		Context.Coefficient2 = Context.AdaptationCoefficient2[CoefficientIndex];
+		if (CoefficientIndex >= NUM_ADAPTATION_COEFF)
+		{
+			UE_LOG(LogAudio, Error, TEXT("Decoding ADPCM block resulted in bad CoefficientIndex (%d). BlockSize: %d, ReadIndex: %d"), CoefficientIndex, BlockSize, ReadIndex);
+			return false;
+		}
+		else
+		{
+			Context.AdaptationDelta = ReadFromByteStream<int16>(EncodedADPCMBlock, ReadIndex);
+			Context.Sample1 = ReadFromByteStream<int16>(EncodedADPCMBlock, ReadIndex);
+			Context.Sample2 = ReadFromByteStream<int16>(EncodedADPCMBlock, ReadIndex);
+
+			Context.Coefficient1 = Context.AdaptationCoefficient1[CoefficientIndex];
+			Context.Coefficient2 = Context.AdaptationCoefficient2[CoefficientIndex];
+		}
 
 		// The first two samples are sent directly to the output in reverse order, as per the standard
 		DecodedPCMData[WriteIndex++] = Context.Sample2;
@@ -1236,10 +1260,12 @@ namespace ADPCM
 			EncodedNibble = EncodedNibblePair & 0x0F;
 			DecodedPCMData[WriteIndex++] = DecodeNibble(Context, EncodedNibble);
 		}
+
+		return true;
 	}
 
 	// Decode two PCM streams and interleave as stereo data
-	void DecodeBlockStereo(const uint8* EncodedADPCMBlockLeft, const uint8* EncodedADPCMBlockRight, int32 BlockSize, int16* DecodedPCMData)
+	bool DecodeBlockStereo(const uint8* EncodedADPCMBlockLeft, const uint8* EncodedADPCMBlockRight, int32 BlockSize, int16* DecodedPCMData)
 	{
 		FAdaptationContext ContextLeft;
 		FAdaptationContext ContextRight;
@@ -1248,6 +1274,13 @@ namespace ADPCM
 		int32 WriteIndex = 0;
 
 		uint8 CoefficientIndexLeft = ReadFromByteStream<uint8>(EncodedADPCMBlockLeft, ReadIndexLeft);
+
+		if (CoefficientIndexLeft >= NUM_ADAPTATION_COEFF)
+		{
+			UE_LOG(LogAudio, Error, TEXT("Decoding ADPCM block resulted in bad CoefficientIndexLeft (%d). BlockSize: %d, ReadIndexLeft: %d"), CoefficientIndexLeft, BlockSize, ReadIndexLeft);
+			return false;
+		}
+
 		ContextLeft.AdaptationDelta = ReadFromByteStream<int16>(EncodedADPCMBlockLeft, ReadIndexLeft);
 		ContextLeft.Sample1 = ReadFromByteStream<int16>(EncodedADPCMBlockLeft, ReadIndexLeft);
 		ContextLeft.Sample2 = ReadFromByteStream<int16>(EncodedADPCMBlockLeft, ReadIndexLeft);
@@ -1255,6 +1288,13 @@ namespace ADPCM
 		ContextLeft.Coefficient2 = ContextLeft.AdaptationCoefficient2[CoefficientIndexLeft];
 
 		uint8 CoefficientIndexRight = ReadFromByteStream<uint8>(EncodedADPCMBlockRight, ReadIndexRight);
+
+		if (CoefficientIndexRight >= NUM_ADAPTATION_COEFF)
+		{
+			UE_LOG(LogAudio, Error, TEXT("Decoding ADPCM block resulted in bad CoefficientIndexRight (%d). BlockSize: %d, ReadIndexLeft: %d"), CoefficientIndexRight, BlockSize, ReadIndexRight);
+			return false;
+		}
+
 		ContextRight.AdaptationDelta = ReadFromByteStream<int16>(EncodedADPCMBlockRight, ReadIndexRight);
 		ContextRight.Sample1 = ReadFromByteStream<int16>(EncodedADPCMBlockRight, ReadIndexRight);
 		ContextRight.Sample2 = ReadFromByteStream<int16>(EncodedADPCMBlockRight, ReadIndexRight);
@@ -1291,6 +1331,7 @@ namespace ADPCM
 			DecodedPCMData[WriteIndex++] = DecodeNibble(ContextRight, EncodedNibbleRight);
 		}
 
+		return true;
 	}
 } // end namespace ADPCM
 
