@@ -179,6 +179,12 @@ namespace UE::PixelStreaming::Settings
 		TEXT("Whether put audio and video in the same stream (which will make WebRTC try to sync them)."),
 		ECVF_Default);
 
+	TAutoConsoleVariable<bool> CVarPixelStreamingWebRTCEnableFlexFec(
+		TEXT("PixelStreaming.WebRTC.EnableFlexFec"),
+		false,
+		TEXT("Signals support for Flexible Forward Error Correction to WebRTC."),
+		ECVF_Default);
+
 	TAutoConsoleVariable<bool> CVarPixelStreamingWebRTCDisableStats(
 		TEXT("PixelStreaming.WebRTC.DisableStats"),
 		false,
@@ -801,6 +807,7 @@ namespace UE::PixelStreaming::Settings
 		CommandLineParseOption(TEXT("PixelStreamingWebRTCDisableFrameDropper"), CVarPixelStreamingWebRTCDisableFrameDropper);
 		CommandLineParseOption(TEXT("PixelStreamingSendPlayerIdAsInteger"), CVarSendPlayerIdAsInteger);
 		CommandLineParseOption(TEXT("PixelStreamingWebRTCUseLegacyAudioDevice"), CVarPixelStreamingWebRTCUseLegacyAudioDevice);
+		CommandLineParseOption(TEXT("PixelStreamingWebRTCEnableFlexFec"), CVarPixelStreamingWebRTCEnableFlexFec);
 		CommandLineParseOption(TEXT("PixelStreamingDisableLatencyTester"), CVarPixelStreamingDisableLatencyTester);
 		CommandLineParseOption(TEXT("PixelStreamingVPXUseCompute"), CVarPixelStreamingVPXUseCompute);
 		CommandLineParseOption(TEXT("PixelStreamingExperimentalAudioInput"), CVarPixelStreamingExperimentalAudioInput);
