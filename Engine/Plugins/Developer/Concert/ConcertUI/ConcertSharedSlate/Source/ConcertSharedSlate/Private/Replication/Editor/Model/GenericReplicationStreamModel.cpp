@@ -231,6 +231,7 @@ namespace UE::ConcertSharedSlate
 		UClass* Class = AssignedProperties->ClassPath.TryLoadClass<UObject>();
 		if (!Class)
 		{
+			UE_LOG(LogConcert, Warning, TEXT("FGenericReplicationStreamModel::AddProperties: Failed to resolve class %s"), *AssignedProperties->ClassPath.ToString());
 			return;
 		}
 
@@ -265,6 +266,7 @@ namespace UE::ConcertSharedSlate
 			return;
 		}
 
+		bool bLoggedWarning = false;
 		UClass* Class = AssignedProperties->ClassPath.TryLoadClass<UObject>();
 		int32 NumRemoved = 0;
 		for (const FConcertPropertyChain& RemovedProperty : Properties)
@@ -274,6 +276,8 @@ namespace UE::ConcertSharedSlate
 			// Removal should not fail if the class is not available
 			if (!Class)
 			{
+				UE_CLOG(!bLoggedWarning, LogConcert, Warning, TEXT("FGenericReplicationStreamModel::RemoveProperties: Failed to resolve class %s"), *AssignedProperties->ClassPath.ToString());
+				bLoggedWarning = true;
 				continue;
 			}
 

@@ -2,6 +2,7 @@
 
 #include "SAssignPropertyComboBox.h"
 
+#include "ConcertLogGlobal.h"
 #include "IConcertClient.h"
 #include "Replication/Client/ReplicationClient.h"
 #include "Replication/Client/ReplicationClientManager.h"
@@ -345,6 +346,7 @@ namespace UE::MultiUserClient
 			{
 				for (const FSoftObjectPath& ObjectPath : EditedObjects)
 				{
+					const FSoftClassPath ClassPath = EditModel->GetObjectClass(ObjectPath);
 					EditModel->RemoveProperties(ObjectPath, { Property });
 					
 					if (EditModel->HasAnyPropertyAssigned(ObjectPath))
@@ -356,8 +358,9 @@ namespace UE::MultiUserClient
 					// Skipping this check would close the entire property tree view and remove the actor hierarchy from the view.
 					// That would feel very unnatural / unexpected for the user. 
 					// If the user does not want the actor anymore, they should click it and delete it.
-					const UClass* ObjectClass = EditModel->GetObjectClass(ObjectPath).TryLoadClass<UObject>();
-					const bool bIsTopLevelObject = !ObjectClass->IsChildOf<AActor>();
+					const UClass* ObjectClass = ClassPath.IsValid() ? ClassPath.TryLoadClass<UObject>() : nullptr;
+					UE_CLOG(ClassPath.IsValid() && !ObjectClass, LogConcert, Warning, TEXT("SAssignPropertyComboBox: Failed to resolve class %s"), *ClassPath.ToString());
+					const bool bIsTopLevelObject = ObjectClass && !ObjectClass->IsChildOf<AActor>();
 					if (bIsTopLevelObject)
 					{
 						EditModel->RemoveObjects({ ObjectPath });
