@@ -5377,12 +5377,20 @@ USceneComponent* FControlRigEditMode::GetHostingSceneComponent(const UControlRig
 
 FTransform FControlRigEditMode::GetHostingSceneComponentTransform(const UControlRig* ControlRig) const
 {
-	if (ControlRig == nullptr && GetControlRigs().Num() > 0)
+	// we care about this transform only in the level,
+	// since in the control rig editor the debug skeletal mesh component
+	// is set at identity anyway.
+	if(IsInLevelEditor())
 	{
-		ControlRig = GetControlRigs()[0].Get();
+		if (ControlRig == nullptr && GetControlRigs().Num() > 0)
+		{
+			ControlRig = GetControlRigs()[0].Get();
+		}
+
+		USceneComponent* HostingComponent = GetHostingSceneComponent(ControlRig);
+		return HostingComponent ? HostingComponent->GetComponentTransform() : FTransform::Identity;
 	}
-	USceneComponent* HostingComponent = GetHostingSceneComponent(ControlRig);
-	return HostingComponent ? HostingComponent->GetComponentTransform() : FTransform::Identity;
+	return FTransform::Identity;
 }
 
 void FControlRigEditMode::OnPoseInitialized()
