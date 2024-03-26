@@ -42,31 +42,6 @@ namespace CharacterMovementCVars
 namespace PhysicsReplicationCVars
 {
 	extern ENGINE_API int32 LogPhysicsReplicationHardSnaps;
-	
-	namespace PredictiveInterpolationCVars
-	{
-		extern float PosCorrectionTimeBase;
-		extern float PosCorrectionTimeMin;
-		extern float PosCorrectionTimeMultiplier;
-		extern float RotCorrectionTimeBase;
-		extern float RotCorrectionTimeMin;
-		extern float RotCorrectionTimeMultiplier;
-		extern float PosInterpolationTimeMultiplier;
-		extern float RotInterpolationTimeMultiplier;
-		extern float SoftSnapPosStrength;
-		extern float SoftSnapRotStrength;
-		extern bool bSoftSnapToSource;
-		extern bool bSkipVelocityRepOnPosEarlyOut;
-		extern bool bPostResimWaitForUpdate;
-		extern bool bDisableSoftSnap;
-	}
-
-	namespace ResimulationCVars
-	{
-		extern bool bRuntimeCorrectionEnabled;
-		extern float PosStabilityMultiplier;
-		extern float RotStabilityMultiplier;
-	}
 }
 #endif
 
