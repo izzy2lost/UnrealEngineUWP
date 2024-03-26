@@ -182,6 +182,16 @@ private:
 
 		bool IsValid() const { return SVTHandle != uint16(INDEX_NONE); }
 
+		void Set(uint16 InSVTHandle, uint16 InFrameIndex, uint32 InTileOffset, uint32 InTileCount, uint32 InIssuedInFrame, bool bInBlocking)
+		{
+			SVTHandle = InSVTHandle;
+			FrameIndex = InFrameIndex;
+			TileOffset = InTileOffset;
+			TileCount = InTileCount;
+			IssuedInFrame = InIssuedInFrame;
+			bBlocking = bInBlocking;
+		}
+
 		void Reset()
 		{
 			SVTHandle = INDEX_NONE;
@@ -323,9 +333,10 @@ private:
 	void PatchPageTable(FRDGBuilder& GraphBuilder); // Patches the page table to reflect streamed in/out pages and to ensure non-resident mip levels fall back to coarser mip level tile data
 	FStreamingInfo* FindStreamingInfo(uint16 SparseVolumeTextureHandle); // Returns nullptr if the key can't be found
 	FStreamingInfo* FindStreamingInfo(UStreamableSparseVolumeTexture* SparseVolumeTexture); // Returns nullptr if the key can't be found
+	int32 AllocatePendingRequestIndex(); // Allocates a request in the PendingRequests array. Returns INDEX_NONE when out of slots.
 
 #if WITH_EDITORONLY_DATA
-	UE::DerivedData::FCacheGetChunkRequest BuildDDCRequest(const FResources& Resources, uint64 ReadOffset, uint64 ReadSize, uint32 PendingMipLevelIndex);
+	UE::DerivedData::FCacheGetChunkRequest BuildDDCRequest(const FResources& Resources, uint32 FirstTileIndex, uint32 NumTiles, uint32 PendingRequestIndex, int32 ChunkIndex);
 	void RequestDDCData(TConstArrayView<UE::DerivedData::FCacheGetChunkRequest> DDCRequests, bool bBlocking);
 #endif
 };
