@@ -237,7 +237,7 @@ void FApplePlatformHttp::InitWithNSUrlSession()
 	// Disable cache to mimic WinInet behavior
 	Config.requestCachePolicy = NSURLRequestReloadIgnoringLocalCacheData;
 
-	float HttpActivityTimeout = FHttpModule::Get().GetHttpActivityTimeout();
+	float HttpActivityTimeout = GetActivityTimeoutOrDefault();
 	check(HttpActivityTimeout > 0);
 	Config.timeoutIntervalForRequest = HttpActivityTimeout;
 	

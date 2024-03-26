@@ -37,6 +37,7 @@ public:
 	HTTP_API virtual void SetTimeout(float InTimeoutSecs) override;
 	HTTP_API virtual void ClearTimeout() override;
 	HTTP_API virtual TOptional<float> GetTimeout() const override;
+	HTTP_API virtual void SetActivityTimeout(float InTimeoutSecs) override;
 	HTTP_API virtual void ProcessRequestUntilComplete() override;
 	HTTP_API virtual const FHttpResponsePtr GetResponse() const override;
 	HTTP_API virtual float GetElapsedTime() const override;

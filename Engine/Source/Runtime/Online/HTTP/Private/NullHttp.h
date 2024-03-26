@@ -46,6 +46,7 @@ public:
 	virtual void SetTimeout(float InTimeoutSecs) override;
 	virtual void ClearTimeout() override;
 	virtual TOptional<float> GetTimeout() const override;
+	virtual void SetActivityTimeout(float InTimeoutSecs) override;
 	virtual void ProcessRequestUntilComplete() override;
 
 	FNullHttpRequest()

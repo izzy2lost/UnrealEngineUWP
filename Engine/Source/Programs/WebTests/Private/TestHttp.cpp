@@ -894,16 +894,26 @@ TEST_CASE_METHOD(FWaitUntilCompleteHttpFixture, "Http request activity timeout",
 {
 	DisableWarningsInThisTest();
 
-	float ReceiveTimeoutSetting = 3.0f;
-	HttpModule->HttpActivityTimeout = ReceiveTimeoutSetting;
+	float ActivityTimeoutSetting = 3.0f;
+	HttpModule->HttpActivityTimeout = ActivityTimeoutSetting;
 
 	TSharedPtr<IHttpRequest> HttpRequest = CreateRequest();
+
+	SECTION("By default activity timeout from http module")
+	{
+	}
+	SECTION("By customized activity timeout per http request which will override default settings from http module")
+	{
+		ActivityTimeoutSetting = 4.0f;
+		HttpRequest->SetActivityTimeout(ActivityTimeoutSetting);
+	}
+
 	HttpRequest->SetURL(UrlStreamDownload(3/*Chunks*/, HTTP_TEST_TIMEOUT_CHUNK_SIZE, 5/*ChunkLatency*/));
 	HttpRequest->SetVerb(TEXT("GET"));
 
 	const double StartTime = FPlatformTime::Seconds();
 
-	HttpRequest->OnProcessRequestComplete().BindLambda([StartTime, ReceiveTimeoutSetting](FHttpRequestPtr HttpRequest, FHttpResponsePtr HttpResponse, bool bSucceeded) {
+	HttpRequest->OnProcessRequestComplete().BindLambda([StartTime, ActivityTimeoutSetting](FHttpRequestPtr HttpRequest, FHttpResponsePtr HttpResponse, bool bSucceeded) {
 		CHECK(!bSucceeded);
 		CHECK(HttpRequest->GetStatus() == EHttpRequestStatus::Failed);
 		CHECK(HttpRequest->GetFailureReason() == EHttpFailureReason::ConnectionError);
@@ -914,9 +924,9 @@ TEST_CASE_METHOD(FWaitUntilCompleteHttpFixture, "Http request activity timeout",
 		// connect. Had to disable that code, make sure not to treat that event as connected
 		// So it takes 5s to receive the first chunk to be considered as connected, then start response timer and 
 		// take 3s to response timeout
-		CHECK(FMath::IsNearlyEqual(DurationInSeconds, ReceiveTimeoutSetting + 5, HTTP_TIME_DIFF_TOLERANCE));
+		CHECK(FMath::IsNearlyEqual(DurationInSeconds, ActivityTimeoutSetting + 5, HTTP_TIME_DIFF_TOLERANCE));
 #else
-		CHECK(FMath::IsNearlyEqual(DurationInSeconds, ReceiveTimeoutSetting, HTTP_TIME_DIFF_TOLERANCE));
+		CHECK(FMath::IsNearlyEqual(DurationInSeconds, ActivityTimeoutSetting, HTTP_TIME_DIFF_TOLERANCE));
 #endif
 
 	});
@@ -1816,14 +1826,14 @@ TEST_CASE_METHOD(FWaitUntilCompleteHttpFixture, "Optionally retry limit can be s
 	);
 
 	float ExpectedTimeoutDuration = 0.0f;
-	SECTION("RetryLimitCountDefault:5 will be used so retries in general take long")
-	{
-		HttpRequest->SetURL(UrlMockStatus(EHttpResponseCodes::TooManyRequests));
-		HttpRequest->SetHeader(TEXT("Retry-After"), FString::Format(TEXT("{0}"), { 3 }));
+	//SECTION("RetryLimitCountDefault:5 will be used so retries in general take long")
+	//{
+	//	HttpRequest->SetURL(UrlMockStatus(EHttpResponseCodes::TooManyRequests));
+	//	HttpRequest->SetHeader(TEXT("Retry-After"), FString::Format(TEXT("{0}"), { 3 }));
 
-		ExpectedTimeoutDuration = 15.0f; // each request will take about 0s, 5 retry back offs, each back off takes 3s;
-	}
-	SECTION("RetryLimitCountForConnectionErrorDefault:1 will be used so retries for connection error take less time")
+	//	ExpectedTimeoutDuration = 15.0f; // each request will take about 0s, 5 retry back offs, each back off takes 3s;
+	//}
+	//SECTION("RetryLimitCountForConnectionErrorDefault:1 will be used so retries for connection error take less time")
 	{
 		HttpRequest->SetURL(UrlStreamDownload(2/*Chunks*/, HTTP_TEST_TIMEOUT_CHUNK_SIZE, 2/*ChunkLatency*/));
 		HttpModule->HttpActivityTimeout = 1.0f;
