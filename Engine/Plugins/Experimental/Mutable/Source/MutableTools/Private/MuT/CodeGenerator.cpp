@@ -1306,7 +1306,7 @@ namespace mu
 								}
 							};
 
-							for (int b = 0; b < pLayout->GetBlockCount(); ++b)
+							for (int32 BlockIndex = 0; BlockIndex < pLayout->GetBlockCount(); ++BlockIndex)
 							{
 								// Generate the image
 								FImageGenerationOptions ImageOptions;
@@ -1315,7 +1315,7 @@ namespace mu
 								ImageOptions.RectSize = { 0,0 };
 								ImageOptions.ActiveTags = node.m_tags;
 								ImageOptions.LayoutToApply = pLayout;
-								ImageOptions.LayoutBlockId = pLayout->m_blocks[b].m_id;
+								ImageOptions.LayoutBlockId = pLayout->m_blocks[BlockIndex].m_id;
 								FImageGenerationResult Result;
 								GenerateImage(ImageOptions, Result, pImageNode);
 								Ptr<ASTOp> blockAd = Result.op;
@@ -1327,14 +1327,15 @@ namespace mu
 									continue;
 								}
 
-								// Calculate the desc of the generated block
-								FImageDesc BlockDesc = blockAd->GetImageDesc();
+								// Calculate the desc of the generated block.
+								constexpr bool bReturnBestOption = true;
+								FImageDesc BlockDesc = blockAd->GetImageDesc(bReturnBestOption, nullptr);
 
 								// Block in layout grid units (cells)
 								box< UE::Math::TIntVector2<uint16> > rectInCells;
 								pLayout->GetBlock
 								(
-									b,
+									BlockIndex,
 									&rectInCells.min[0], &rectInCells.min[1],
 									&rectInCells.size[0], &rectInCells.size[1]
 								);
@@ -1354,7 +1355,7 @@ namespace mu
 										if (const NodePatchImage* pPatch = e.node->m_textures[t].m_pPatch.get())
 										{
 											// Is the current block to be patched?
-											if (pPatch->GetPrivate()->m_blocks.Contains(b))
+											if (pPatch->GetPrivate()->m_blocks.Contains(BlockIndex))
 											{
 												blockAd = GenerateImageBlockPatch(blockAd, pPatch, e.condition, ImageOptions);
 											}
@@ -1379,8 +1380,8 @@ namespace mu
 								composeOp->BlockImage = blockAd;
 
 								// Set the absolute block index.
-								check(pLayout->m_blocks[b].m_id >= 0);
-								composeOp->BlockIndex = pLayout->m_blocks[b].m_id;
+								check(pLayout->m_blocks[BlockIndex].m_id >= 0);
+								composeOp->BlockIndex = pLayout->m_blocks[BlockIndex].m_id;
 
 								imageAd = composeOp;
 							}
