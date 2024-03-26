@@ -122,6 +122,11 @@ private:
 	void SaveExpansionState();
 	void RestoreExpansionState();
 	
+	FReply OnBrowseToNodeBlueprint() const;
+	FReply OnEditNodeBlueprint() const;
+	EVisibility IsBrowseToNodeBlueprintVisible() const;
+	EVisibility IsEditNodeBlueprintVisible() const;
+
 	TSharedPtr<FStateTreeNodeTypeItem> RootNode;
 	TSharedPtr<FStateTreeNodeTypeItem> FilteredRootNode;
 	
