@@ -6,7 +6,7 @@ int wmain(int argc, wchar_t* argv[])
 {
 	using namespace uba;
 
-	if (!RunAllTests())
+	if (!RunTests(argc, argv))
 		return -1;
 	return 0;
 }
