@@ -48,6 +48,17 @@ public class LiveLinkHubTarget : TargetRules
 			"StructUtils",
 			"UdpMessaging"
 		});
+		
+		
+		if (bEnableThirdPartyPlugins)
+		{
+			OptionalPlugins.AddRange(new string[]
+			{
+				"LiveLinkViconDataStream",
+				"MocopiLiveLink",
+				"PoseAILiveLink"
+			});
+		}
 
 		OptionalPlugins.AddRange(new string[]
 		{
