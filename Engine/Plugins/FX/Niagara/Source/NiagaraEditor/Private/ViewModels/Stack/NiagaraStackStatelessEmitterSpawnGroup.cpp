@@ -276,6 +276,9 @@ void UNiagaraStackStatelessEmitterSpawnItem::OnSpawnInfoModified(TArray<UObject*
 	{
 		FNiagaraStatelessSpawnInfo* SpawnInfo = GetSpawnInfo();
 		SpawnInfo->Rate.UpdateValuesFromDistribution();
+
+		FPropertyChangedEvent EmptyPropertyUpdateStruct(nullptr);
+		StatelessEmitter->PostEditChangeProperty(EmptyPropertyUpdateStruct);
 	}
 }
 
