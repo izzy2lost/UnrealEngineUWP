@@ -49,6 +49,31 @@ public:
 		NumPreAllocatedChunks = NumChunks;
 	}
 
+	TNetChunkedArray(const TNetChunkedArray& OtherChunkedArray)
+	{
+		CopyIncludingPreAllocatedChunks(OtherChunkedArray);
+	}
+
+	TNetChunkedArray& operator=(const TNetChunkedArray& OtherChunkedArray)
+	{
+		CopyIncludingPreAllocatedChunks(OtherChunkedArray);
+		return *this;
+	}
+
+	TNetChunkedArray(TNetChunkedArray&& OtherChunkedArray)
+	{
+		MoveIncludingPreAllocatedChunks(OtherChunkedArray);
+	}
+
+	TNetChunkedArray& operator=(TNetChunkedArray&& OtherChunkedArray)
+	{
+		if (this != &OtherChunkedArray)
+		{
+			MoveIncludingPreAllocatedChunks(OtherChunkedArray);
+		}
+		return *this;
+	}
+
 	~TNetChunkedArray()
 	{
 		InvalidatePreAllocatedChunks();
@@ -134,6 +159,53 @@ private:
 		delete[] FirstChunk;
 
 		NumPreAllocatedChunks = 0;
+	}
+
+	/**
+	 * Copy the contents of another TNetChunkedArray into this instance, ensuring that any existing chunks
+	 * (pre-allocated and otherwise) are deallocated.
+	 */
+	void CopyIncludingPreAllocatedChunks(const TNetChunkedArray& ChunkedArray)
+	{
+		// Free the memory for any existing pre-allocated chunks.
+		InvalidatePreAllocatedChunks();
+
+		this->NumElements = ChunkedArray.NumElements;
+		this->NumPreAllocatedChunks = ChunkedArray.NumPreAllocatedChunks;
+
+		// Compute the number of chunks to copy and prepare the chunked array.
+		const int32 NumChunks = ChunkedArray.Chunks.Num();
+		
+		this->Chunks.Empty(NumChunks);
+
+		// Copy the pre-allocated chunks.
+		typename Super::FChunk* PreAllocatedChunks = new typename Super::FChunk[this->NumPreAllocatedChunks];
+		for (int32 ChunkIndex = 0; ChunkIndex < this->NumPreAllocatedChunks; ChunkIndex++)
+		{
+			typename Super::FChunk* CurrentChunk = (PreAllocatedChunks + ChunkIndex);
+			
+			*CurrentChunk = *ChunkedArray.Chunks.GetData()[ChunkIndex];
+
+			this->Chunks.Add(CurrentChunk);
+		}
+
+		// Copy any remaining chunks.
+		for (int32 ChunkIndex = this->NumPreAllocatedChunks; ChunkIndex < NumChunks; ChunkIndex++)
+		{
+			const typename Super::FChunk* CurrentChunk = ChunkedArray.Chunks.GetData()[ChunkIndex];
+
+			this->Chunks.Add(new typename Super::FChunk(*CurrentChunk));
+		}
+	}
+
+	void MoveIncludingPreAllocatedChunks(TNetChunkedArray& ChunkedArray)
+	{
+		this->Chunks = (typename Super::ChunksType&&)ChunkedArray.Chunks;
+		this->NumElements = ChunkedArray.NumElements;
+		this->NumPreAllocatedChunks = ChunkedArray.NumPreAllocatedChunks;
+		
+		ChunkedArray.NumElements = 0;
+		ChunkedArray.NumPreAllocatedChunks = 0;
 	}
 };
 
