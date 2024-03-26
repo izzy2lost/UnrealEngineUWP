@@ -51,32 +51,33 @@ void UNiagaraStatelessModule_MeshIndex::BuildEmitterData(FNiagaraStatelessEmitte
 	FModuleBuiltData* BuiltData = BuildContext.AllocateBuiltData<FModuleBuiltData>();
 	if (IsModuleEnabled())
 	{
-		//-TODO: We don't have an int binding at the moment
-		//const FNiagaraStatelessRangeInt MeshIndexRange = BuildContext.ConvertDistributionToRange(MeshIndex, 0, true);
-		//if (MeshIndexRange.ParameterOffset != INDEX_NONE)
-		//{
-		//}
-
-		const FNiagaraStatelessRangeInt MeshIndexRange = MeshIndex.CalculateRange();
-		BuiltData->Index = MeshIndexRange.Min;
- 		if (MeshIndexRange.GetScale() > 0 && MeshIndexRange.GetScale() < 256)
+		const FNiagaraStatelessRangeInt MeshIndexRange = BuildContext.ConvertDistributionToRange(MeshIndex, 0, true);
+		if (MeshIndexRange.ParameterOffset != INDEX_NONE)
 		{
-			FMeshIndexWeightedSampler Sampler(MeshIndexRange.GetScale() + 1, MeshIndexWeight);
-			Sampler.Initialize();
-
-			const int32 NumTableEntries = Sampler.GetNumEntries();
-			if (NumTableEntries > 1)
+			BuiltData->Index = MeshIndexRange.ParameterOffset | 0x80000000;
+		}
+		else
+		{
+			BuiltData->Index = MeshIndexRange.Min;
+			if (MeshIndexRange.GetScale() > 0 && MeshIndexRange.GetScale() < 256)
 			{
-				BuiltData->TableNumElements = NumTableEntries - 1;
+				FMeshIndexWeightedSampler Sampler(MeshIndexRange.GetScale() + 1, MeshIndexWeight);
+				Sampler.Initialize();
 
-				TArray<float, TInlineAllocator<16>> StaticData;
-				StaticData.AddUninitialized(NumTableEntries * 2);
-				for (int32 i=0; i < NumTableEntries; ++i)
+				const int32 NumTableEntries = Sampler.GetNumEntries();
+				if (NumTableEntries > 1)
 				{
-					StaticData[i * 2 + 0] = Sampler.GetProb()[i];
-					StaticData[i * 2 + 1] = float(MeshIndexRange.Min + Sampler.GetAlias()[i]);
+					BuiltData->TableNumElements = NumTableEntries - 1;
+
+					TArray<float, TInlineAllocator<16>> StaticData;
+					StaticData.AddUninitialized(NumTableEntries * 2);
+					for (int32 i = 0; i < NumTableEntries; ++i)
+					{
+						StaticData[i * 2 + 0] = Sampler.GetProb()[i];
+						StaticData[i * 2 + 1] = float(MeshIndexRange.Min + Sampler.GetAlias()[i]);
+					}
+					BuiltData->TableOffset = BuildContext.AddStaticData(StaticData);
 				}
-				BuiltData->TableOffset = BuildContext.AddStaticData(StaticData);
 			}
 		}
 	}

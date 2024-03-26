@@ -54,7 +54,7 @@ struct FNiagaraDistributionBase
 	virtual bool DisplayAsColor() const { return false; }
 	virtual void UpdateValuesFromDistribution() { }
 
-	virtual FNiagaraTypeDefinition GetBindingTypeDef() { return FNiagaraTypeDefinition(); }
+	virtual FNiagaraTypeDefinition GetBindingTypeDef() const { return FNiagaraTypeDefinition(); }
 
 	static void PostEditChangeProperty(UObject* OwnerObject, FPropertyChangedEvent& PropertyChangedEvent);
 #endif
@@ -72,6 +72,9 @@ struct FNiagaraDistributionRangeInt
 	ENiagaraDistributionMode Mode = ENiagaraDistributionMode::UniformConstant;
 
 	UPROPERTY(EditAnywhere, Category = "Parameters")
+	FNiagaraVariableBase ParameterBinding;
+
+	UPROPERTY(EditAnywhere, Category = "Parameters")
 	int32 Min = 0;
 
 	UPROPERTY(EditAnywhere, Category = "Parameters")
@@ -85,6 +88,10 @@ struct FNiagaraDistributionRangeInt
 	bool IsUniform() const { return Mode == ENiagaraDistributionMode::UniformConstant || Mode == ENiagaraDistributionMode::UniformRange; }
 	bool IsCurve() const { return Mode == ENiagaraDistributionMode::UniformCurve || Mode == ENiagaraDistributionMode::NonUniformCurve; }
 	bool IsRange() const { return Mode == ENiagaraDistributionMode::UniformRange || Mode == ENiagaraDistributionMode::NonUniformRange; }
+
+#if WITH_EDITORONLY_DATA
+	FNiagaraTypeDefinition GetBindingTypeDef() const { return FNiagaraTypeDefinition::GetIntDef(); }
+#endif
 };
 
 USTRUCT()
@@ -107,7 +114,7 @@ struct FNiagaraDistributionRangeFloat : public FNiagaraDistributionBase
 #if WITH_EDITORONLY_DATA
 	virtual bool AllowCurves() const override { return false; }
 	NIAGARA_API virtual void UpdateValuesFromDistribution() override;
-	virtual FNiagaraTypeDefinition GetBindingTypeDef() { return FNiagaraTypeDefinition::GetFloatDef(); }
+	virtual FNiagaraTypeDefinition GetBindingTypeDef() const { return FNiagaraTypeDefinition::GetFloatDef(); }
 #endif
 };
 
@@ -131,7 +138,7 @@ struct FNiagaraDistributionRangeVector2 : public FNiagaraDistributionBase
 #if WITH_EDITORONLY_DATA
 	virtual bool AllowCurves() const override { return false; }
 	virtual void UpdateValuesFromDistribution() override;
-	virtual FNiagaraTypeDefinition GetBindingTypeDef() { return FNiagaraTypeDefinition::GetVec2Def(); }
+	virtual FNiagaraTypeDefinition GetBindingTypeDef() const { return FNiagaraTypeDefinition::GetVec2Def(); }
 #endif
 };
 
@@ -155,7 +162,7 @@ struct FNiagaraDistributionRangeVector3 : public FNiagaraDistributionBase
 #if WITH_EDITORONLY_DATA
 	virtual bool AllowCurves() const override { return false; }
 	virtual void UpdateValuesFromDistribution() override;
-	virtual FNiagaraTypeDefinition GetBindingTypeDef() { return FNiagaraTypeDefinition::GetVec3Def(); }
+	virtual FNiagaraTypeDefinition GetBindingTypeDef() const { return FNiagaraTypeDefinition::GetVec3Def(); }
 #endif
 };
 
@@ -180,7 +187,7 @@ struct FNiagaraDistributionRangeColor : public FNiagaraDistributionBase
 	virtual bool AllowCurves() const override { return false; }
 	virtual bool DisplayAsColor() const { return true; }
 	virtual void UpdateValuesFromDistribution() override;
-	virtual FNiagaraTypeDefinition GetBindingTypeDef() { return FNiagaraTypeDefinition::GetColorDef(); }
+	virtual FNiagaraTypeDefinition GetBindingTypeDef() const { return FNiagaraTypeDefinition::GetColorDef(); }
 #endif
 };
 
@@ -200,7 +207,7 @@ struct FNiagaraDistributionFloat : public FNiagaraDistributionBase
 
 #if WITH_EDITORONLY_DATA
 	virtual void UpdateValuesFromDistribution() override;
-	virtual FNiagaraTypeDefinition GetBindingTypeDef() { return FNiagaraTypeDefinition::GetFloatDef(); }
+	virtual FNiagaraTypeDefinition GetBindingTypeDef() const { return FNiagaraTypeDefinition::GetFloatDef(); }
 #endif
 };
 
@@ -222,7 +229,7 @@ struct FNiagaraDistributionVector2 : public FNiagaraDistributionBase
 
 #if WITH_EDITORONLY_DATA
 	virtual void UpdateValuesFromDistribution() override;
-	virtual FNiagaraTypeDefinition GetBindingTypeDef() { return FNiagaraTypeDefinition::GetVec2Def(); }
+	virtual FNiagaraTypeDefinition GetBindingTypeDef() const { return FNiagaraTypeDefinition::GetVec2Def(); }
 #endif
 };
 
@@ -244,7 +251,7 @@ struct FNiagaraDistributionVector3 : public FNiagaraDistributionBase
 
 #if WITH_EDITORONLY_DATA
 	virtual void UpdateValuesFromDistribution() override;
-	virtual FNiagaraTypeDefinition GetBindingTypeDef() { return FNiagaraTypeDefinition::GetVec3Def(); }
+	virtual FNiagaraTypeDefinition GetBindingTypeDef() const { return FNiagaraTypeDefinition::GetVec3Def(); }
 #endif
 };
 
@@ -265,6 +272,6 @@ struct FNiagaraDistributionColor : public FNiagaraDistributionBase
 #if WITH_EDITORONLY_DATA
 	virtual bool DisplayAsColor() const override { return true; }
 	virtual void UpdateValuesFromDistribution() override;
-	virtual FNiagaraTypeDefinition GetBindingTypeDef() { return FNiagaraTypeDefinition::GetColorDef(); }
+	virtual FNiagaraTypeDefinition GetBindingTypeDef() const { return FNiagaraTypeDefinition::GetColorDef(); }
 #endif
 };
