@@ -7,6 +7,7 @@
 
 #include "Iris/IrisConfigInternal.h"
 
+#include "Iris/Core/IrisCsv.h"
 #include "Iris/Core/IrisLog.h"
 #include "Iris/Core/IrisMemoryTracker.h"
 #include "Iris/Core/IrisProfiler.h"
@@ -1028,6 +1029,9 @@ void UObjectReplicationBridge::PreUpdate(const UE::Net::FNetBitArrayView Objects
 {
 	using namespace UE::Net::Private;
 
+#if UE_NET_IRIS_CSV_STATS
+	CSV_SCOPED_TIMING_STAT(Iris, ReplicationBridge_PreUpdate);
+#endif
 	IRIS_PROFILER_SCOPE(UObjectReplicationBridge_PreUpdate);
 
 	// TODO: Get rid of Poller
@@ -1046,6 +1050,9 @@ void UObjectReplicationBridge::PollAndCopy(const UE::Net::FNetBitArrayView Objec
 {
 	using namespace UE::Net::Private;
 
+#if UE_NET_IRIS_CSV_STATS
+	CSV_SCOPED_TIMING_STAT(Iris, ReplicationBridge_PollAndCopy);
+#endif
 	IRIS_PROFILER_SCOPE(UObjectReplicationBridge_PollAndCopy);
 
 	FObjectPoller::FInitParams PollerInitParams;
