@@ -22,6 +22,14 @@ RaytracingAccelerationStructure TLAS;
 #if LUMEN_HARDWARE_INLINE_RAYTRACING
 	StructuredBuffer<FHitGroupRootConstants> HitGroupData;
 	StructuredBuffer<FRayTracingSceneMetadataRecord> RayTracingSceneMetadata;
+
+	FLumenTraceRayInlineCallback InitLumenTraceRayInlineCallback()
+	{
+		FLumenTraceRayInlineCallback Callback;
+		Callback.HitGroupData = HitGroupData;
+		Callback.bShadowRay = true;
+		return Callback;
+	}
 #endif
 
 RWTexture2D<uint> RWLightSamples;
