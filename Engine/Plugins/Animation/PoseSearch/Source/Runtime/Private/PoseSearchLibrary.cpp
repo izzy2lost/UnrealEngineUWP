@@ -733,7 +733,7 @@ void UPoseSearchLibrary::MotionMatch(
 		PoseHistories.Add(MemStackPoseHistory.GetThisOrPoseHistory());
 	}
 
-	const FSearchResult SearchResult = MotionMatch(AnimInstances, Roles, PoseHistories, AssetsToSearch, nullptr, 0.f, DebugSessionUniqueIdentifier);
+	const FSearchResult SearchResult = MotionMatch(AnimInstances, Roles, PoseHistories, AssetsToSearch, nullptr, 0.f, DebugSessionUniqueIdentifier, FutureIntervalTime);
 	if (SearchResult.IsValid())
 	{
 		const UPoseSearchDatabase* Database = SearchResult.Database.Get();
@@ -794,7 +794,8 @@ UE::PoseSearch::FSearchResult UPoseSearchLibrary::MotionMatch(
 	TArrayView<const UObject*> AssetsToSearch,
 	const UObject* PlayingAsset,
 	float PlayingAssetAccumulatedTime,
-	const int32 DebugSessionUniqueIdentifier)
+	const int32 DebugSessionUniqueIdentifier,
+	float DesiredPermutationTimeOffset)
 {
 	check(!AnimInstances.IsEmpty() && AnimInstances.Num() == Roles.Num() && AnimInstances.Num() == PoseHistories.Num());
 
@@ -804,7 +805,7 @@ UE::PoseSearch::FSearchResult UPoseSearchLibrary::MotionMatch(
 
 	FMemMark Mark(FMemStack::Get());
 	FSearchResult ReconstructedPreviousSearchResult;
-	FSearchContext SearchContext(0.f, nullptr, ReconstructedPreviousSearchResult);
+	FSearchContext SearchContext(DesiredPermutationTimeOffset, nullptr, ReconstructedPreviousSearchResult);
 
 	// @todo: all assets in AssetsToSearch should have a consistent Roles requirements, or else the search will throw an error!
 	for (int32 RoleIndex = 0; RoleIndex < Roles.Num(); ++RoleIndex)

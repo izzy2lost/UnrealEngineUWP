@@ -217,6 +217,7 @@ public:
 		TArrayView<const UObject*> AssetsToSearch,
 		const UObject* PlayingAsset,
 		float PlayingAssetAccumulatedTime,
-		const int32 DebugSessionUniqueIdentifier);
+		const int32 DebugSessionUniqueIdentifier,
+		float DesiredPermutationTimeOffset = 0.f);
 };
 
