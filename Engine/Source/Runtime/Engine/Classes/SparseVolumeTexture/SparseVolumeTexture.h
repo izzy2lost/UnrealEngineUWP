@@ -209,7 +209,8 @@ public:
 #if WITH_EDITORONLY_DATA
 	FString ResourceName;
 	FIoHash DDCKeyHash;
-	FIoHash DDCRawHash;
+	TArray<TStaticArray<uint8, 12>> DDCChunkIds; // 12-byte hashes used to reconstruct the FValueId required to look up the chunks.
+	TArray<uint32> DDCChunkMaxTileIndices; // Maximum tile index of each chunk. Used to look up the chunk a given tile belongs to.
 #endif
 
 	// Called when serializing to/from DDC buffers and when serializing the owning USparseVolumeTextureFrame.
@@ -240,6 +241,7 @@ private:
 	};
 	TDontCopy<TPimplPtr<UE::DerivedData::FRequestOwner>> DDCRequestOwner;
 	std::atomic<EDDCRebuildState> DDCRebuildState;
+	std::atomic_int DDCRebuildNumFinishedRequests;
 	void BeginRebuildBulkDataFromCache(const UObject* Owner);
 	void EndRebuildBulkDataFromCache();
 #endif

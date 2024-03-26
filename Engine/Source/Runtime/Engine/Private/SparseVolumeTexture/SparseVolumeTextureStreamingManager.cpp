@@ -63,7 +63,7 @@ static FAutoConsoleVariableRef CVarSVTStreamingLogVerbosity(
 	ECVF_RenderThreadSafe
 );
 
-static int32 GSVTStreamingMaxPendingRequests = 256;
+static int32 GSVTStreamingMaxPendingRequests = 256 * 32;
 static FAutoConsoleVariableRef CVarSVTStreamingMaxPendingRequests(
 	TEXT("r.SparseVolumeTexture.Streaming.MaxPendingRequests"),
 	GSVTStreamingMaxPendingRequests,
@@ -1148,8 +1148,14 @@ void FStreamingManager::IssueRequests()
 
 		// Allocate tiles
 		uint32 NumSuccessfulAllocations = 0;
+		bool bOutOfRequestSlots = false;
 		for (uint32 i = 0; i < TileRange.TileCount; ++i)
 		{
+			if (bOutOfRequestSlots)
+			{
+				break;
+			}
+
 			const uint32 TileIndex = TileRange.TileOffset + i;
 			check(FrameInfo.TileAllocations[TileIndex] == 0);
 
@@ -1220,22 +1226,20 @@ void FStreamingManager::IssueRequests()
 
 		// Create request
 		{
-			const int32 PendingRequestIndex = NextPendingRequestIndex;
-			FPendingRequest& PendingRequest = PendingRequests[PendingRequestIndex];
-			LOCK_PENDING_REQUEST(PendingRequest);
-			PendingRequest.Reset();
-			PendingRequest.SVTHandle = TileRange.SVTHandle;
-			PendingRequest.FrameIndex = TileRange.FrameIndex;
-			PendingRequest.TileOffset = TileRange.TileOffset;
-			PendingRequest.TileCount = TileRange.TileCount;
-			PendingRequest.IssuedInFrame = UpdateIndex;
-			PendingRequest.bBlocking = GSVTStreamingForceBlockingRequests || (TileRange.Priority == uint8(-1));
-
-			uint32 ReadOffset = 0;
-			uint32 ReadSize = 0;
-			Resources->StreamingMetaData.GetTileRangeMemoryOffsetSize(PendingRequest.TileOffset, PendingRequest.TileCount, ReadOffset, ReadSize);
+			auto HandleRequestAllocationFailure = [&](uint32 FirstTileIndex, uint32 LastTileIndex)
+			{
+				// Free allocated tile data texture slots of all the tiles for which we haven't issued a request yet.
+				for (uint32 TileIndexToFree = FirstTileIndex; TileIndexToFree < LastTileIndex; ++TileIndexToFree)
+				{
+					SVTInfo->TileAllocator.Free(FrameInfo.TileAllocations[TileIndexToFree]);
+					FrameInfo.TileAllocations[TileIndexToFree] = 0;
+				}
+				bOutOfRequestSlots = true;
+				UE_LOG(LogSparseVolumeTextureStreamingManager, Error, TEXT("Ran out of SparseVolumeTexture IO request slots (%i)! r.SparseVolumeTexture.Streaming.MaxPendingRequests must be increased to fix this issue."), MaxPendingRequests);
+			};
 
 			const FByteBulkData& BulkData = Resources->StreamableMipLevels;
+			const bool bBlockingRequest = GSVTStreamingForceBlockingRequests || (TileRange.Priority == uint8(-1));
 #if WITH_EDITORONLY_DATA
 			const bool bDiskRequest = (!(Resources->ResourceFlags & EResourceFlag_StreamingDataInDDC) && !BulkData.IsBulkDataLoaded());
 #else
@@ -1243,51 +1247,105 @@ void FStreamingManager::IssueRequests()
 #endif
 
 #if WITH_EDITORONLY_DATA
-			if (!bDiskRequest)
+			// When streaming from DDC, we have a slightly more complicated setup where the data is spread over multiple DDC chunks, so we likely need to issue multiple requests
+			if (!bDiskRequest && (Resources->ResourceFlags & EResourceFlag_StreamingDataInDDC))
 			{
-				if (Resources->ResourceFlags & EResourceFlag_StreamingDataInDDC)
+				// Iterate over all chunks to find the range of chunks storing the requested range of tiles and issue a DDC request for each chunk.
+				uint32 FirstTileIndexInChunk = Resources->StreamingMetaData.FirstStreamingTileIndex;
+				uint32 FirstTileIndexToRead = TileRange.TileOffset;
+				uint32 NumRemainingTiles = TileRange.TileCount;
+
+				const int32 NumChunks = Resources->DDCChunkMaxTileIndices.Num();
+				for (int32 ChunkIndex = 0; ChunkIndex < NumChunks && NumRemainingTiles > 0; ++ChunkIndex)
 				{
-					UE::DerivedData::FCacheGetChunkRequest DDCRequest = BuildDDCRequest(*Resources, ReadOffset, ReadSize, NextPendingRequestIndex);
-					if (PendingRequest.bBlocking)
+					// Does this chunk overlap the requested tile range?
+					const uint32 LastTileIndexInChunkPlusOne = Resources->DDCChunkMaxTileIndices[ChunkIndex] + 1;
+					if (FirstTileIndexToRead >= FirstTileIndexInChunk && FirstTileIndexToRead < LastTileIndexInChunkPlusOne)
 					{
-						DDCRequestsBlocking.Add(DDCRequest);
+						// We can only read within a single chunk per request, so we need to limit the number of tiles in this request.
+						const uint32 ChunkNumReadTiles = FMath::Min(FirstTileIndexToRead + NumRemainingTiles, LastTileIndexInChunkPlusOne) - FirstTileIndexToRead;
+
+						// Allocate and fill out a FPendingRequest.
+						const int32 PendingRequestIndex = AllocatePendingRequestIndex();
+						if (!ensure(PendingRequestIndex != INDEX_NONE)) // Handle allocation failure
+						{
+							HandleRequestAllocationFailure(FirstTileIndexToRead, FirstTileIndexToRead + NumRemainingTiles);
+							break;
+						}
+						FPendingRequest& PendingRequest = PendingRequests[PendingRequestIndex];
+						LOCK_PENDING_REQUEST(PendingRequest);
+						PendingRequest.Reset();
+						PendingRequest.Set(TileRange.SVTHandle, TileRange.FrameIndex, FirstTileIndexToRead, ChunkNumReadTiles, UpdateIndex, bBlockingRequest);
+						PendingRequest.State = FPendingRequest::EState::DDC_Pending;
+
+						// Create the DDC request.
+						const FCacheGetChunkRequest DDCRequest = BuildDDCRequest(*Resources, PendingRequest.TileOffset, PendingRequest.TileCount, PendingRequestIndex, ChunkIndex);
+						new (PendingRequest.bBlocking ? DDCRequestsBlocking : DDCRequests) FCacheGetChunkRequest(DDCRequest);
+
+						check(ChunkNumReadTiles <= NumRemainingTiles);
+						NumRemainingTiles -= ChunkNumReadTiles;
+						FirstTileIndexToRead += ChunkNumReadTiles;
+
+						// Link the streaming tiles with the request.
+						for (uint32 TileIndex = PendingRequest.TileOffset; TileIndex < (PendingRequest.TileOffset + PendingRequest.TileCount); ++TileIndex)
+						{
+							FrameInfo.TileIndexToPendingRequestIndex.Add(TileIndex, (uint32)PendingRequestIndex);
+						}
+
+						// Mark tiles as streaming. Once they've actually been loaded into GPU memory, they'll also be marked as resident.
+						FrameInfo.StreamingTiles.SetRange(PendingRequest.TileOffset, PendingRequest.TileCount, true);
 					}
-					else
-					{
-						DDCRequests.Add(DDCRequest);
-					}
-					PendingRequest.State = FPendingRequest::EState::DDC_Pending;
-				}
-				else
-				{
-					PendingRequest.State = FPendingRequest::EState::Memory;
+					FirstTileIndexInChunk = LastTileIndexInChunkPlusOne;
 				}
 			}
+			// Otherwise we can use a single request to fetch all the tiles.
 			else
 #endif
 			{
-				PendingRequest.RequestBuffer = FIoBuffer(ReadSize); // SVT_TODO: Use FIoBuffer::Wrap with preallocated memory
-				const EAsyncIOPriorityAndFlags Priority = PendingRequest.bBlocking ? AIOP_CriticalPath : AIOP_Low;
-				Batch.Read(BulkData, ReadOffset, ReadSize, Priority, PendingRequest.RequestBuffer, PendingRequest.Request);
-				bIssueIOBatch = true;
+				// Allocate and fill out a FPendingRequest.
+				const int32 PendingRequestIndex = AllocatePendingRequestIndex();
+				if (!ensure(PendingRequestIndex != INDEX_NONE)) // Handle allocation failure
+				{
+					HandleRequestAllocationFailure(TileRange.TileOffset, TileRange.TileOffset + TileRange.TileCount);
+					continue;
+				}
+				FPendingRequest& PendingRequest = PendingRequests[PendingRequestIndex];
+				LOCK_PENDING_REQUEST(PendingRequest);
+				PendingRequest.Reset();
+				PendingRequest.Set(TileRange.SVTHandle, TileRange.FrameIndex, TileRange.TileOffset, TileRange.TileCount, UpdateIndex, bBlockingRequest);
 
 #if WITH_EDITORONLY_DATA
-				PendingRequest.State = FPendingRequest::EState::Disk;
+				if (!bDiskRequest)
+				{
+					PendingRequest.State = FPendingRequest::EState::Memory;
+				}
+				else
 #endif
-			}
+				{
+					uint32 ReadOffset = 0;
+					uint32 ReadSize = 0;
+					Resources->StreamingMetaData.GetTileRangeMemoryOffsetSize(TileRange.TileOffset, TileRange.TileCount, ReadOffset, ReadSize);
 
-			for (uint32 TileIndex = TileRange.TileOffset; TileIndex < (TileRange.TileOffset + TileRange.TileCount); ++TileIndex)
-			{
-				FrameInfo.TileIndexToPendingRequestIndex.Add(TileIndex, (uint32)NextPendingRequestIndex);
-			}
+					PendingRequest.RequestBuffer = FIoBuffer(ReadSize); // SVT_TODO: Use FIoBuffer::Wrap with preallocated memory
+					const EAsyncIOPriorityAndFlags Priority = PendingRequest.bBlocking ? AIOP_CriticalPath : AIOP_Low;
+					Batch.Read(BulkData, ReadOffset, ReadSize, Priority, PendingRequest.RequestBuffer, PendingRequest.Request);
+					bIssueIOBatch = true;
 
-			NextPendingRequestIndex = (NextPendingRequestIndex + 1) % MaxPendingRequests;
-			check(NumPendingRequests < MaxPendingRequests);
-			++NumPendingRequests;
+#if WITH_EDITORONLY_DATA
+					PendingRequest.State = FPendingRequest::EState::Disk;
+#endif
+				}
+
+				// Link the streaming tiles with the request.
+				for (uint32 TileIndex = PendingRequest.TileOffset; TileIndex < (PendingRequest.TileOffset + PendingRequest.TileCount); ++TileIndex)
+				{
+					FrameInfo.TileIndexToPendingRequestIndex.Add(TileIndex, (uint32)PendingRequestIndex);
+				}
+
+				// Mark tiles as streaming. Once they've actually been loaded into GPU memory, they'll also be marked as resident.
+				FrameInfo.StreamingTiles.SetRange(PendingRequest.TileOffset, PendingRequest.TileCount, true);
+			}
 		}
-
-		// Mark tiles as streaming. Once they've actually been loaded into GPU memory, they'll also be marked as resident.
-		FrameInfo.StreamingTiles.SetRange(TileRange.TileOffset, TileRange.TileCount, true);
 	}
 
 	// Now we can finally issue the requests
@@ -1365,13 +1423,22 @@ int32 FStreamingManager::DetermineReadyRequests()
 					*SVTInfo->SVTName.ToString(), PendingRequest.FrameIndex, PendingRequest.TileOffset, PendingRequest.TileCount);
 			}
 
-			uint32 ReadOffset = 0;
-			uint32 ReadSize = 0;
-			Resources->StreamingMetaData.GetTileRangeMemoryOffsetSize(PendingRequest.TileOffset, PendingRequest.TileCount, ReadOffset, ReadSize);
-			FCacheGetChunkRequest Request = BuildDDCRequest(*Resources, ReadOffset, ReadSize, PendingRequestIndex);
-			const bool bBlocking = GSVTStreamingForceBlockingRequests || PendingRequest.bBlocking;
-			RequestDDCData(MakeArrayView(&Request, 1), bBlocking);
-
+			const int32 NumChunks = Resources->DDCChunkMaxTileIndices.Num();
+			uint32 FirstTileIndexInChunk = Resources->StreamingMetaData.FirstStreamingTileIndex;
+			bool bFoundChunk = false;
+			for (int32 ChunkIndex = 0; ChunkIndex < NumChunks; ++ChunkIndex)
+			{
+				const uint32 LastTileIndexInChunkPlusOne = Resources->DDCChunkMaxTileIndices[ChunkIndex] + 1;
+				if (PendingRequest.TileOffset >= FirstTileIndexInChunk && (PendingRequest.TileOffset + PendingRequest.TileCount) <= LastTileIndexInChunkPlusOne)
+				{
+					bFoundChunk = true;
+					const FCacheGetChunkRequest Request = BuildDDCRequest(*Resources, PendingRequest.TileOffset, PendingRequest.TileCount, PendingRequestIndex, ChunkIndex);
+					const bool bBlocking = GSVTStreamingForceBlockingRequests || PendingRequest.bBlocking;
+					RequestDDCData(MakeArrayView(&Request, 1), bBlocking);
+					break;
+				}
+			}
+			check(bFoundChunk);
 			++PendingRequest.RetryCount;
 			break;
 		}
@@ -1770,23 +1837,44 @@ FStreamingManager::FStreamingInfo* FStreamingManager::FindStreamingInfo(UStreama
 	return nullptr;
 }
 
+int32 FStreamingManager::AllocatePendingRequestIndex()
+{
+	if (NumPendingRequests < MaxPendingRequests)
+	{
+		int32 Result = NextPendingRequestIndex;
+		NextPendingRequestIndex = (NextPendingRequestIndex + 1) % MaxPendingRequests;
+		++NumPendingRequests;
+		return Result;
+	}
+	else
+	{
+		return INDEX_NONE;
+	}
+}
+
 #if WITH_EDITORONLY_DATA
 
-UE::DerivedData::FCacheGetChunkRequest FStreamingManager::BuildDDCRequest(const FResources& Resources, uint64 ReadOffset, uint64 ReadSize, uint32 PendingRequestIndex)
+UE::DerivedData::FCacheGetChunkRequest FStreamingManager::BuildDDCRequest(const FResources& Resources, uint32 FirstTileIndex, uint32 NumTiles, uint32 PendingRequestIndex, int32 ChunkIndex)
 {
 	using namespace UE::DerivedData;
 
-	FCacheKey Key;
-	Key.Bucket = FCacheBucket(TEXT("SparseVolumeTexture"));
-	Key.Hash = Resources.DDCKeyHash;
-	check(!Resources.DDCRawHash.IsZero());
+	const uint32 FirstTileIndexInChunk = ChunkIndex > 0 ? (Resources.DDCChunkMaxTileIndices[ChunkIndex - 1] + 1) : Resources.StreamingMetaData.FirstStreamingTileIndex;
+	const uint32 LastTileIndexInChunkPlusOne = Resources.DDCChunkMaxTileIndices[ChunkIndex] + 1;
+	check(FirstTileIndex >= FirstTileIndexInChunk);
+	check((FirstTileIndex + NumTiles) <= LastTileIndexInChunkPlusOne);
+	const uint32 ReadOffsetInChunk = Resources.StreamingMetaData.TileDataOffsets[FirstTileIndex] - Resources.StreamingMetaData.TileDataOffsets[FirstTileIndexInChunk];
+	const uint32 ReadSizeInChunk = Resources.StreamingMetaData.TileDataOffsets[FirstTileIndex + NumTiles] - Resources.StreamingMetaData.TileDataOffsets[FirstTileIndex];
+	const uint32 ChunkTotalSize = Resources.StreamingMetaData.TileDataOffsets[LastTileIndexInChunkPlusOne] - Resources.StreamingMetaData.TileDataOffsets[FirstTileIndexInChunk];
 
 	FCacheGetChunkRequest Request;
-	Request.Id = FValueId::FromName("SparseVolumeTextureStreamingData");
-	Request.Key = Key;
-	Request.RawOffset = ReadOffset;
-	Request.RawSize = ReadSize;
-	Request.RawHash = Resources.DDCRawHash;
+	Request.Id = FValueId(FMemoryView(Resources.DDCChunkIds[ChunkIndex].GetData(), 12));
+	Request.Key.Bucket = FCacheBucket(TEXT("SparseVolumeTexture"));
+	Request.Key.Hash = Resources.DDCKeyHash;
+	if (ReadOffsetInChunk != 0 || ReadSizeInChunk != ChunkTotalSize)
+	{
+		Request.RawOffset = ReadOffsetInChunk;
+		Request.RawSize = ReadSizeInChunk;
+	}
 	Request.UserData = (((uint64)PendingRequestIndex) << uint64(32)) | (uint64)PendingRequests[PendingRequestIndex].RequestVersion;
 	return Request;
 }

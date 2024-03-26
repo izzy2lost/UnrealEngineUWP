@@ -64,6 +64,14 @@ static FAutoConsoleVariableRef CVarSVTStreamingRequestMipBias(
 	ECVF_Default
 );
 
+static int32 GSVTStreamingDDCChunkSize = 2;
+static FAutoConsoleVariableRef CVarSVTStreamingDDCChunkSize(
+	TEXT("r.SparseVolumeTexture.Streaming.DDCChunkSize"),
+	GSVTStreamingDDCChunkSize,
+	TEXT("Size of DDC chunks the streaming data is split into (in MiB). A smaller size leads to more requests but can improve streaming performance. Default: 2 MiB"),
+	ECVF_Default | ECVF_ReadOnly
+);
+
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
 FArchive& operator<<(FArchive& Ar, UE::SVT::FMipLevelStreamingInfo& MipLevelStreamingInfo)
@@ -126,7 +134,7 @@ static int32 ComputeNumMipLevels(const FIntVector3& InVirtualVolumeMin, const FI
 
 static const FString& GetDerivedDataVersion()
 {
-	static FString CachedVersionString = TEXT("2113A905-4C31-4EFD-B55C-82375C6A7B56");	// Bump this if you want to ignore all cached data so far.
+	static FString CachedVersionString = TEXT("49DD2D7C-C346-4A02-963A-D3F81E7E1601");	// Bump this if you want to ignore all cached data so far.
 	return CachedVersionString;
 }
 
@@ -278,6 +286,15 @@ void FResources::Serialize(FArchive& Ar, UObject* Owner, bool bCooked)
 
 		Topology.Serialize(Ar);
 
+#if WITH_EDITORONLY_DATA
+		// These members are only needed when streaming from DDC
+		if (!bCooked)
+		{
+			Ar << DDCChunkIds;
+			Ar << DDCChunkMaxTileIndices;
+		}
+#endif
+
 		// StreamableMipLevels is only serialized in cooked builds and when caching to DDC failed in editor builds.
 		// If the data was successfully cached to DDC, we just query it from DDC on the next run or recreate it if that failed.
 		if (StoredResourceFlags & EResourceFlag_StreamingDataInDDC)
@@ -382,7 +399,8 @@ bool FResources::Build(USparseVolumeTextureFrame* Owner, UE::Serialization::FEdi
 		ResourceFlags = 0;
 		ResourceName.Reset();
 		DDCKeyHash.Reset();
-		DDCRawHash.Reset();
+		DDCChunkIds.Reset();
+		DDCChunkMaxTileIndices.Reset();
 		DDCRebuildState.store(EDDCRebuildState::Initial);
 
 		// Build page topology
@@ -431,8 +449,8 @@ void FResources::Cache(USparseVolumeTextureFrame* Owner, UE::Serialization::FEdi
 	using namespace UE::DerivedData;
 
 	static const FValueId SVTDataId = FValueId::FromName("SparseVolumeTextureData");
-	static const FValueId SVTStreamingDataId = FValueId::FromName("SparseVolumeTextureStreamingData");
-	const FString KeySuffix = SourceData.GetIdentifier().ToString() + FString::Format(TEXT("{0}_{1}_{2}_{3}"), { Owner->GetNumMipLevels(), Owner->GetTextureAddressX(), Owner->GetTextureAddressY(), Owner->GetTextureAddressZ() });
+	const int32 DDCChunkSizeInMiB = FMath::Max(GSVTStreamingDDCChunkSize, 1);
+	const FString KeySuffix = SourceData.GetIdentifier().ToString() + FString::Format(TEXT("{0}_{1}_{2}_{3}_{4}"), { Owner->GetNumMipLevels(), Owner->GetTextureAddressX(), Owner->GetTextureAddressY(), Owner->GetTextureAddressZ(), DDCChunkSizeInMiB });
 	FString DerivedDataKey = FDerivedDataCacheInterface::BuildCacheKey(TEXT("SPARSEVOLUMETEXTURE"), *GetDerivedDataVersion(), *KeySuffix);
 
 	FCacheKey CacheKey;
@@ -450,12 +468,11 @@ void FResources::Cache(USparseVolumeTextureFrame* Owner, UE::Serialization::FEdi
 
 	// Check if the data already exists in DDC
 	FSharedBuffer ResourcesDataBuffer;
-	FIoHash SVTStreamingDataHash;
 	{
 		TRACE_CPUPROFILER_EVENT_SCOPE(SVT::FResources::Cache::CheckDDC);
 
-		FCacheRecordPolicyBuilder PolicyBuilder(DefaultCachePolicy | ECachePolicy::KeepAlive);
-		PolicyBuilder.AddValuePolicy(SVTStreamingDataId, DefaultCachePolicy | ECachePolicy::SkipData);
+		FCacheRecordPolicyBuilder PolicyBuilder(DefaultCachePolicy | ECachePolicy::KeepAlive | ECachePolicy::SkipData);
+		PolicyBuilder.AddValuePolicy(SVTDataId, DefaultCachePolicy);
 
 		FCacheGetRequest Request;
 		Request.Name = Owner->GetPathName();
@@ -464,14 +481,12 @@ void FResources::Cache(USparseVolumeTextureFrame* Owner, UE::Serialization::FEdi
 
 		FRequestOwner RequestOwner(EPriority::Blocking);
 		GetCache().Get(MakeArrayView(&Request, 1), RequestOwner,
-			[&ResourcesDataBuffer, &SVTStreamingDataHash](FCacheGetResponse&& Response)
+			[&ResourcesDataBuffer](FCacheGetResponse&& Response)
 			{
 				if (Response.Status == EStatus::Ok)
 				{
 					const FCompressedBuffer& CompressedBuffer = Response.Record.GetValue(SVTDataId).GetData();
 					ResourcesDataBuffer = CompressedBuffer.Decompress();
-
-					SVTStreamingDataHash = Response.Record.GetValue(SVTStreamingDataId).GetRawHash();
 				}
 			});
 		RequestOwner.Wait();
@@ -490,7 +505,6 @@ void FResources::Cache(USparseVolumeTextureFrame* Owner, UE::Serialization::FEdi
 		if (ResourceFlags & EResourceFlag_StreamingDataInDDC)
 		{
 			DDCKeyHash = CacheKey.Hash;
-			DDCRawHash = SVTStreamingDataHash;
 		}
 	}
 	else
@@ -503,13 +517,46 @@ void FResources::Cache(USparseVolumeTextureFrame* Owner, UE::Serialization::FEdi
 		if (HasStreamingData())
 		{
 			FByteBulkData& BulkData = StreamableMipLevels;
+			const uint8* SrcPtr = static_cast<const uint8*>(BulkData.LockReadOnly());
+			const int64 SrcSize = BulkData.GetBulkDataSize();
+			const int64 TargetChunkSize = DDCChunkSizeInMiB * 1024LL * 1024LL;
+			
+			check(DDCChunkMaxTileIndices.IsEmpty());
+			check(DDCChunkIds.IsEmpty());
+			static_assert(sizeof(FValueId::ByteArray) == 12);
 
-			FValue Value = FValue::Compress(FSharedBuffer::MakeView(BulkData.LockReadOnly(), BulkData.GetBulkDataSize()));
-			RecordBuilder.AddValue(SVTStreamingDataId, Value);
+			uint32 FirstTileIndexInChunk = StreamingMetaData.FirstStreamingTileIndex;
+			for (uint32 TileIndex = StreamingMetaData.FirstStreamingTileIndex; TileIndex < StreamingMetaData.GetNumTiles(); ++TileIndex)
+			{
+				bool bCreateChunk = !StreamingMetaData.TileDataOffsets.IsValidIndex(TileIndex + 2); // Create a chunk if this is the last tile.
+				if (!bCreateChunk)
+				{
+					const int64 RangeSizeIncludingNextTile = StreamingMetaData.TileDataOffsets[TileIndex + 2] - StreamingMetaData.TileDataOffsets[FirstTileIndexInChunk];
+					bCreateChunk = RangeSizeIncludingNextTile > TargetChunkSize; // Create a chunk if the next tile would exceed the target chunk size
+				}
+
+				if (bCreateChunk)
+				{
+					const int64 ChunkOffset = StreamingMetaData.TileDataOffsets[FirstTileIndexInChunk] - StreamingMetaData.GetRootTileSize();
+					const int64 ChunkSize = StreamingMetaData.TileDataOffsets[TileIndex + 1] - StreamingMetaData.TileDataOffsets[FirstTileIndexInChunk];
+					const uint8* ChunkPtr = SrcPtr + ChunkOffset;
+					const FValue Value = FValue::Compress(FSharedBuffer::MakeView(ChunkPtr, ChunkSize));
+
+					const FString ChunkName = FString::Printf(TEXT("SparseVolumeTextureDataChunk%i"), DDCChunkMaxTileIndices.Num());
+					const FValueId ChunkId = FValueId::FromName(ChunkName.GetCharArray());
+					const uint8* ChunkIdBytes = ChunkId.GetBytes();
+
+					RecordBuilder.AddValue(ChunkId, Value);
+
+					DDCChunkMaxTileIndices.Add(TileIndex);
+					FMemory::Memcpy(DDCChunkIds.AddDefaulted_GetRef().GetData(), ChunkIdBytes, 12);
+					FirstTileIndexInChunk = TileIndex + 1;
+				}
+			}
+
 			BulkData.Unlock();
 			ResourceFlags |= EResourceFlag_StreamingDataInDDC;
 			DDCKeyHash = CacheKey.Hash;
-			DDCRawHash = Value.GetRawHash();
 		}
 
 		// Serialize to a buffer and store into DDC.
@@ -562,7 +609,8 @@ void FResources::SetDefault(EPixelFormat FormatA, EPixelFormat FormatB, const FV
 	StreamableMipLevels.RemoveBulkData();
 	ResourceName.Reset();
 	DDCKeyHash.Reset();
-	DDCRawHash.Reset();
+	DDCChunkIds.Reset();
+	DDCChunkMaxTileIndices.Reset();
 	DDCRebuildState.store(EDDCRebuildState::Initial);
 }
 
@@ -572,36 +620,55 @@ void FResources::SetDefault(EPixelFormat FormatA, EPixelFormat FormatB, const FV
 
 void FResources::BeginRebuildBulkDataFromCache(const UObject* Owner)
 {
+	using namespace UE::DerivedData;
+
 	check(DDCRebuildState.load() == EDDCRebuildState::Initial);
 	if (!HasStreamingData() || (ResourceFlags & EResourceFlag_StreamingDataInDDC) == 0u)
 	{
 		return;
 	}
-	using namespace UE::DerivedData;
-	FCacheKey Key;
-	Key.Bucket = FCacheBucket(TEXT("SparseVolumeTexture"));
-	Key.Hash = DDCKeyHash;
+	
 	check(!DDCKeyHash.IsZero());
-	FCacheGetChunkRequest Request;
-	Request.Name = Owner->GetPathName();
-	Request.Id = FValueId::FromName("SparseVolumeTextureStreamingData");
-	Request.Key = Key;
-	Request.RawHash = DDCRawHash;
-	check(!DDCRawHash.IsZero());
-	FSharedBuffer SharedBuffer;
 	*DDCRequestOwner = MakePimpl<FRequestOwner>(EPriority::Normal);
 	DDCRebuildState.store(EDDCRebuildState::Pending);
-	GetCache().GetChunks(MakeArrayView(&Request, 1), **DDCRequestOwner,
-		[this](FCacheGetChunkResponse&& Response)
+	DDCRebuildNumFinishedRequests.store(0);
+
+	// Lock and realloc bulk data
+	StreamableMipLevels.Lock(LOCK_READ_WRITE);
+	const int64 StreamableBulkDataSize = StreamingMetaData.TileDataOffsets.Last() - StreamingMetaData.GetRootTileSize();
+	uint8* BulkDataPtr = (uint8*)StreamableMipLevels.Realloc(StreamableBulkDataSize);
+
+	// Generate requests
+	const int32 NumChunks = DDCChunkIds.Num();
+	check(NumChunks > 0);
+	TArray<FCacheGetChunkRequest> DDCRequests;
+	DDCRequests.Reserve(NumChunks);
+	uint32 FirstTileIndexInChunk = StreamingMetaData.FirstStreamingTileIndex;
+	for (int32 ChunkIndex = 0; ChunkIndex < NumChunks; ++ChunkIndex)
+	{
+		FCacheGetChunkRequest& Request = DDCRequests.AddDefaulted_GetRef();
+		Request.Name = Owner->GetPathName();
+		Request.Key.Bucket = FCacheBucket(TEXT("SparseVolumeTexture"));
+		Request.Key.Hash = DDCKeyHash;
+		Request.Id = FValueId(FMemoryView(DDCChunkIds[ChunkIndex].GetData(), 12));
+		Request.UserData = StreamingMetaData.TileDataOffsets[FirstTileIndexInChunk] - StreamingMetaData.GetRootTileSize(); // Store write offset in UserData
+		FirstTileIndexInChunk = DDCChunkMaxTileIndices[ChunkIndex] + 1;
+	}
+
+	// Issue requests
+	GetCache().GetChunks(DDCRequests, **DDCRequestOwner,
+		[this, BulkDataPtr, NumChunks](FCacheGetChunkResponse&& Response)
 		{
 			if (Response.Status == EStatus::Ok)
 			{
-				StreamableMipLevels.Lock(LOCK_READ_WRITE);
-				uint8* Ptr = (uint8*)StreamableMipLevels.Realloc(Response.RawData.GetSize());
-				FMemory::Memcpy(Ptr, Response.RawData.GetData(), Response.RawData.GetSize());
-				StreamableMipLevels.Unlock();
-				StreamableMipLevels.SetBulkDataFlags(BULKDATA_Force_NOT_InlinePayload);
-				DDCRebuildState.store(EDDCRebuildState::Succeeded);
+				FMemory::Memcpy(BulkDataPtr + Response.UserData, Response.RawData.GetData(), Response.RawData.GetSize());
+				
+				// The last request to finish sets the Succeeded flag
+				const int32 NumFinishedRequests = DDCRebuildNumFinishedRequests.fetch_add(1) + 1;
+				if (NumFinishedRequests == NumChunks)
+				{
+					DDCRebuildState.store(EDDCRebuildState::Succeeded);
+				}
 			}
 			else
 			{
@@ -612,6 +679,8 @@ void FResources::BeginRebuildBulkDataFromCache(const UObject* Owner)
 
 void FResources::EndRebuildBulkDataFromCache()
 {
+	StreamableMipLevels.Unlock();
+	StreamableMipLevels.SetBulkDataFlags(BULKDATA_Force_NOT_InlinePayload);
 	if (*DDCRequestOwner)
 	{
 		(*DDCRequestOwner)->Wait();
