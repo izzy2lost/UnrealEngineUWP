@@ -213,7 +213,7 @@ namespace EpicGames.Horde
 			if (!String.IsNullOrEmpty(hordeUrlEnvVar))
 			{
 				Uri hordeUrl = new Uri(hordeUrlEnvVar);
-				if (String.Equals(_options.Value.ServerUrl?.Host, hordeUrl.Host, StringComparison.OrdinalIgnoreCase))
+				if (_options.Value.ServerUrl == null || String.Equals(_options.Value.ServerUrl.Host, hordeUrl.Host, StringComparison.OrdinalIgnoreCase))
 				{
 					string? hordeToken = Environment.GetEnvironmentVariable(HordeHttpClient.HordeTokenEnvVarName);
 					if (!String.IsNullOrEmpty(hordeToken))

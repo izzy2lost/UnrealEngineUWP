@@ -1026,7 +1026,7 @@ namespace Horde.Server.Storage
 				}
 			}
 
-			state.Namespaces.SortBy(x => x.Id);
+			state.Namespaces.SortBy(x => x.Id.Text.Text);
 		}
 
 		void AddGcCheckRecord(NamespaceId namespaceId, ObjectId id)
