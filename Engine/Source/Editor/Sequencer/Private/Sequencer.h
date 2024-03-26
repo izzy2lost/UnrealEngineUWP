@@ -187,13 +187,6 @@ public:
 	void SelectBackward();
 
 	/**
-	 * Get the currently viewed sub sequence range
-	 *
-	 * @return The sub sequence range, or an empty optional if we're viewing the root.
-	 */
-	TOptional<TRange<FFrameNumber>> GetSubSequenceRange() const;
-
-	/**
 	 * Compute a major grid interval and number of minor divisions to display
 	 */
 	bool GetGridMetrics(const float PhysicalWidth, const double InViewStart, const double InViewEnd, double& OutMajorInterval, int32& OutMinorDivisions) const;
@@ -709,6 +702,7 @@ public:
 	virtual FMovieSceneRootEvaluationTemplateInstance& GetEvaluationTemplate() override { return RootTemplateInstance; }
 	virtual void ResetToNewRootSequence(UMovieSceneSequence& NewSequence) override;
 	virtual void FocusSequenceInstance(UMovieSceneSubSection& InSubSection) override;
+	virtual TOptional<TRange<FFrameNumber>> GetSubSequenceRange() const override;
 	virtual TSharedPtr<UE::Sequencer::FSequencerEditorViewModel> GetViewModel() const override;
 	virtual void SuppressAutoEvaluation(UMovieSceneSequence* Sequence, const FGuid& InSequenceSignature) override;
 	virtual EAutoChangeMode GetAutoChangeMode() const override;

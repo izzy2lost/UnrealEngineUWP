@@ -58,8 +58,12 @@ void FConstraintBaker::GetMinimalFramesToBake(
 
 	// default init bounds to the scene bounds
 	const bool bHasSettings = InSettings.IsSet();
-	FFrameNumber FirstBakingFrame = bHasSettings ? InSettings->StartFrame : MovieScene->GetPlaybackRange().GetLowerBoundValue();
-	FFrameNumber LastBakingFrame = bHasSettings ? InSettings->EndFrame : MovieScene->GetPlaybackRange().GetUpperBoundValue();
+	TOptional<TRange<FFrameNumber>> OptionalRange = InSequencer->GetSubSequenceRange();
+	FFrameNumber MovieSceneStartFrame = OptionalRange.IsSet() ? OptionalRange.GetValue().GetLowerBoundValue() : MovieScene->GetPlaybackRange().GetLowerBoundValue();
+	FFrameNumber MovieSceneEndFrame = OptionalRange.IsSet() ? OptionalRange.GetValue().GetUpperBoundValue() : MovieScene->GetPlaybackRange().GetUpperBoundValue();
+
+	FFrameNumber FirstBakingFrame = bHasSettings ? InSettings->StartFrame : MovieSceneStartFrame;
+	FFrameNumber LastBakingFrame = bHasSettings ? InSettings->EndFrame : MovieSceneEndFrame;
 	
 	// set start to first active frame if any, if we have no range
 	if (!bHasSettings)

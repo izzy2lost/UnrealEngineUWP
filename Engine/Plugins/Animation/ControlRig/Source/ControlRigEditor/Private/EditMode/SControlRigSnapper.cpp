@@ -129,13 +129,15 @@ public:
 };
 
 //function to keep framenumber from beign too large do to user error, it can cause a crash if we snap too many frames.
-static void KeepFrameInRange(FFrameNumber& KeepFrameInRange, UMovieScene* MovieScene)
+static void KeepFrameInRange(TSharedPtr<ISequencer>& SequencerPtr, FFrameNumber& KeepFrameInRange, UMovieScene* MovieScene)
 {
-	if (MovieScene)
+	if (MovieScene && SequencerPtr.IsValid())
 	{
 		//limit values to 10x times the range from the end points.
-		FFrameNumber StartFrame = MovieScene->GetPlaybackRange().GetLowerBoundValue();
-		FFrameNumber EndFrame = MovieScene->GetPlaybackRange().GetUpperBoundValue();
+		TOptional<TRange<FFrameNumber>> OptionalRange = SequencerPtr->GetSubSequenceRange();
+		FFrameNumber StartFrame = OptionalRange.IsSet() ? OptionalRange.GetValue().GetLowerBoundValue() : MovieScene->GetPlaybackRange().GetLowerBoundValue();
+		FFrameNumber EndFrame = OptionalRange.IsSet() ? OptionalRange.GetValue().GetUpperBoundValue() : MovieScene->GetPlaybackRange().GetUpperBoundValue();
+
 		if (EndFrame < StartFrame)
 		{
 			FFrameNumber Temp = StartFrame;
@@ -285,15 +287,14 @@ void SControlRigSnapper::Construct(const FArguments& InArgs)
 								.ToolTipText(LOCTEXT("GetStartFrameTooltip", "Set first frame to snap"))
 								.OnTextCommitted_Lambda([this](const FText& InText, ETextCommit::Type TextCommitType)
 									{
-										TWeakPtr<ISequencer> Sequencer = Snapper.GetSequencer();
-										if (Sequencer.IsValid() && Sequencer.Pin()->GetFocusedMovieSceneSequence())
+										TSharedPtr<ISequencer> SequencerPtr = Snapper.GetSequencer().Pin();
+										if (SequencerPtr.IsValid() && SequencerPtr->GetFocusedMovieSceneSequence())
 										{
-
-											TOptional<double> NewFrameTime = Sequencer.Pin()->GetNumericTypeInterface()->FromString(InText.ToString(), 0);
+											TOptional<double> NewFrameTime = SequencerPtr->GetNumericTypeInterface()->FromString(InText.ToString(), 0);
 											if (NewFrameTime.IsSet())
 											{
 												StartFrame = FFrameNumber((int32)NewFrameTime.GetValue());
-												KeepFrameInRange(StartFrame, Sequencer.Pin()->GetFocusedMovieSceneSequence()->GetMovieScene());
+												KeepFrameInRange(SequencerPtr, StartFrame, SequencerPtr->GetFocusedMovieSceneSequence()->GetMovieScene());
 											}
 										}
 									})
@@ -322,12 +323,12 @@ void SControlRigSnapper::Construct(const FArguments& InArgs)
 										TWeakPtr<ISequencer> Sequencer = Snapper.GetSequencer();
 										if (Sequencer.IsValid() && Sequencer.Pin()->GetFocusedMovieSceneSequence())
 										{
-
-											TOptional<double> NewFrameTime = Sequencer.Pin()->GetNumericTypeInterface()->FromString(InText.ToString(), 0);
+											TSharedPtr<ISequencer> SequencerPtr = Sequencer.Pin();
+											TOptional<double> NewFrameTime = SequencerPtr->GetNumericTypeInterface()->FromString(InText.ToString(), 0);
 											if (NewFrameTime.IsSet())
 											{
 												EndFrame = FFrameNumber((int32)NewFrameTime.GetValue());
-												KeepFrameInRange(EndFrame, Sequencer.Pin()->GetFocusedMovieSceneSequence()->GetMovieScene());
+												KeepFrameInRange(SequencerPtr, EndFrame, SequencerPtr->GetFocusedMovieSceneSequence()->GetMovieScene());
 											}
 										}
 									})
@@ -493,8 +494,10 @@ void SControlRigSnapper::SetStartEndFrames()
 	if (Sequencer.IsValid()  && Sequencer.Pin()->GetFocusedMovieSceneSequence())
 	{
 		UMovieScene* MovieScene = Sequencer.Pin()->GetFocusedMovieSceneSequence()->GetMovieScene();
-		StartFrame = MovieScene->GetPlaybackRange().GetLowerBoundValue();
-		EndFrame = MovieScene->GetPlaybackRange().GetUpperBoundValue();
+		TOptional<TRange<FFrameNumber>> OptionalRange = Sequencer.Pin()->GetSubSequenceRange();
+		StartFrame = OptionalRange.IsSet() ? OptionalRange.GetValue().GetLowerBoundValue() : MovieScene->GetPlaybackRange().GetLowerBoundValue();
+		EndFrame = OptionalRange.IsSet() ? OptionalRange.GetValue().GetUpperBoundValue() : MovieScene->GetPlaybackRange().GetUpperBoundValue();
+
 	}
 }
 

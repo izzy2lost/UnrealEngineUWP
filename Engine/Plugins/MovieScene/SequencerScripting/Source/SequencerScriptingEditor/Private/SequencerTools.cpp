@@ -269,7 +269,12 @@ bool ExportFBXInternal(const FSequencerExportFBXParams& InParams, UMovieSceneSeq
 			Player->SetPlaybackPosition(FMovieSceneSequencePlaybackParams(StartTime, EUpdatePositionMethod::Play));
 		}
 
-		bDidExport = MovieSceneToolHelpers::ExportFBX(World, MovieScene, Player, Bindings, Tracks, NodeNameAdapter, Template, FBXFileName, RootToLocalTransform);
+		FAnimExportSequenceParameters AESP;
+		AESP.Player = Player;
+		AESP.RootToLocalTransform = RootToLocalTransform;
+		AESP.MovieSceneSequence = Sequence;
+		AESP.RootMovieSceneSequence = RootSequence;
+		bDidExport = MovieSceneToolHelpers::ExportFBX(World, AESP, Bindings, Tracks, NodeNameAdapter, Template, FBXFileName);
 	}
 
 	Player->Stop();
@@ -365,7 +370,12 @@ bool USequencerToolsFunctionLibrary::ExportAnimSequence(UWorld* World, ULevelSeq
 		if (SkeletalMeshComp && SkeletalMeshComp->GetSkeletalMeshAsset() && SkeletalMeshComp->GetSkeletalMeshAsset()->GetSkeleton())
 		{
 			AnimSequence->SetSkeleton(SkeletalMeshComp->GetSkeletalMeshAsset()->GetSkeleton());
-			bResult = MovieSceneToolHelpers::ExportToAnimSequence(AnimSequence,ExportOptions, MovieScene, Player, SkeletalMeshComp, Template, RootToLocalTransform);
+			FAnimExportSequenceParameters AESQ;
+			AESQ.Player = Player;
+			AESQ.RootToLocalTransform = RootToLocalTransform;
+			AESQ.MovieSceneSequence = Sequence;
+			AESQ.RootMovieSceneSequence = Sequence;
+			bResult = MovieSceneToolHelpers::ExportToAnimSequence(AnimSequence, ExportOptions, AESQ, SkeletalMeshComp);
 		}
 	}
 	

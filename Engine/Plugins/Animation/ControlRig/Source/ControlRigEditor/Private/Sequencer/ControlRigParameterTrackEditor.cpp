@@ -989,7 +989,7 @@ bool FControlRigParameterTrackEditor::LoadAnimationIntoSection(TSharedPtr<ISeque
 	EMovieSceneKeyInterpolation DefaultInterpolation = SequencerPtr->GetKeyInterpolation();
 	UMovieSceneSequence* OwnerSequence = SequencerPtr->GetFocusedMovieSceneSequence();
 	UMovieScene* OwnerMovieScene = OwnerSequence->GetMovieScene();
-	if (ParamSection->LoadAnimSequenceIntoThisSection(AnimSequence, OwnerMovieScene, SkelMeshComp,
+	if (ParamSection->LoadAnimSequenceIntoThisSection(AnimSequence, FFrameNumber(0), OwnerMovieScene, SkelMeshComp,
 		false, 0.0, bResetControls, StartFrame, DefaultInterpolation))
 	{
 		if (bReduceKeys)
@@ -1010,6 +1010,7 @@ void FControlRigParameterTrackEditor::BakeToControlRig(UClass* InClass, FGuid Ob
 	{
 
 		UMovieSceneSequence* OwnerSequence = GetSequencer()->GetFocusedMovieSceneSequence();
+		UMovieSceneSequence* RootSequence = GetSequencer()->GetRootMovieSceneSequence();
 		UMovieScene* OwnerMovieScene = OwnerSequence->GetMovieScene();
 		{
 			UAnimSequence* TempAnimSequence = NewObject<UAnimSequence>(GetTransientPackage(), NAME_None);
@@ -1047,8 +1048,12 @@ void FControlRigParameterTrackEditor::BakeToControlRig(UClass* InClass, FGuid Ob
 
 			if (OptionWindow.Get()->ShouldExport())
 			{
-
-				bool bResult = MovieSceneToolHelpers::ExportToAnimSequence(TempAnimSequence, AnimSeqExportOption, OwnerMovieScene, ParentSequencer.Get(), SkelMeshComp, Template, RootToLocalTransform);
+				FAnimExportSequenceParameters AESP;
+				AESP.Player = ParentSequencer.Get();
+				AESP.RootToLocalTransform = RootToLocalTransform;
+				AESP.MovieSceneSequence = OwnerSequence;
+				AESP.RootMovieSceneSequence = RootSequence;
+				bool bResult = MovieSceneToolHelpers::ExportToAnimSequence(TempAnimSequence, AnimSeqExportOption, AESP, SkelMeshComp);
 				if (bResult == false)
 				{
 					TempAnimSequence->MarkAsGarbage();
@@ -1129,12 +1134,14 @@ void FControlRigParameterTrackEditor::BakeToControlRig(UClass* InClass, FGuid Ob
 					Track->SetTrackName(FName(*ObjectName));
 					Track->SetDisplayName(FText::FromString(ObjectName));
 
-					GetSequencer()->EmptySelection();
-					GetSequencer()->SelectSection(NewSection);
-					GetSequencer()->ThrobSectionSelection();
-					GetSequencer()->NotifyMovieSceneDataChanged(EMovieSceneDataChangeType::MovieSceneStructureItemAdded);
 					TSharedPtr<ISequencer> SequencerPtr = GetSequencer();
-					LoadAnimationIntoSection(SequencerPtr, TempAnimSequence, SkelMeshComp, FFrameNumber(0),
+					SequencerPtr->EmptySelection();
+					SequencerPtr->SelectSection(NewSection);
+					SequencerPtr->ThrobSectionSelection();
+					SequencerPtr->NotifyMovieSceneDataChanged(EMovieSceneDataChangeType::MovieSceneStructureItemAdded);
+					TOptional<TRange<FFrameNumber>> OptionalRange = SequencerPtr->GetSubSequenceRange();
+					FFrameNumber StartFrame = OptionalRange.IsSet() ? OptionalRange.GetValue().GetLowerBoundValue() : OwnerMovieScene->GetPlaybackRange().GetLowerBoundValue();
+					LoadAnimationIntoSection(SequencerPtr, TempAnimSequence, SkelMeshComp, StartFrame,
 						BakeSettings->bReduceKeys, BakeSettings->SmartReduce, BakeSettings->bResetControls, ParamSection);
 					//Turn Off Any Skeletal Animation Tracks
 					TArray<UMovieSceneSkeletalAnimationTrack*> SkelAnimationTracks;
@@ -1239,6 +1246,7 @@ void FControlRigParameterTrackEditor::BakeInvertedPose(UControlRig* InControlRig
 
 	UMovieSceneControlRigParameterSection* Section = Cast<UMovieSceneControlRigParameterSection>(Track->GetSectionToKey());
 	USkeletalMeshComponent* SkelMeshComp = Cast<USkeletalMeshComponent>(InControlRig->GetObjectBinding()->GetBoundObject());
+	UMovieSceneSequence* RootMovieSceneSequence = GetSequencer()->GetRootMovieSceneSequence();
 	UMovieSceneSequence* MovieSceneSequence = GetSequencer()->GetFocusedMovieSceneSequence();
 	UMovieScene* MovieScene = MovieSceneSequence->GetMovieScene();
 	UAnimSeqExportOption* ExportOptions = NewObject<UAnimSeqExportOption>(GetTransientPackage(), NAME_None);
@@ -1256,7 +1264,7 @@ void FControlRigParameterTrackEditor::BakeInvertedPose(UControlRig* InControlRig
 	
 	const FScopedTransaction Transaction(LOCTEXT("BakeInvertedPose_Transaction", "Bake Inverted Pose"));
 
-	UnFbx::FLevelSequenceAnimTrackAdapter AnimTrackAdapter(ParentSequencer.Get(), MovieScene, RootToLocalTransform);
+	UnFbx::FLevelSequenceAnimTrackAdapter AnimTrackAdapter(ParentSequencer.Get(), MovieSceneSequence, RootMovieSceneSequence, RootToLocalTransform);
 	int32 AnimationLength = AnimTrackAdapter.GetLength();
 	FScopedSlowTask Progress(AnimationLength, LOCTEXT("BakingToControlRig_SlowTask", "Baking To Control Rig..."));
 	Progress.MakeDialog(true);
@@ -1287,8 +1295,13 @@ void FControlRigParameterTrackEditor::BakeInvertedPose(UControlRig* InControlRig
 	});
 	FEndAnimationCB EndCallback = FEndAnimationCB::CreateLambda([]{});
 
-	MovieSceneToolHelpers::BakeToSkelMeshToCallbacks(MovieScene,ParentSequencer.Get(),
-		SkelMeshComp, Template, RootToLocalTransform, ExportOptions,
+	FAnimExportSequenceParameters AESP;
+	AESP.Player = ParentSequencer.Get();
+	AESP.RootToLocalTransform = RootToLocalTransform;
+	AESP.MovieSceneSequence = MovieSceneSequence;
+	AESP.RootMovieSceneSequence = RootMovieSceneSequence;
+
+	MovieSceneToolHelpers::BakeToSkelMeshToCallbacks(AESP,SkelMeshComp, ExportOptions,
 		InitCallback, StartCallback, TickCallback, EndCallback);
 
 	InControlRig->OnPreAdditiveValuesApplication_AnyThread().Remove(DelegateHandle);

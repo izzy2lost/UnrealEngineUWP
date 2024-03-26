@@ -92,6 +92,9 @@
 #include "Sections/MovieSceneFloatSection.h"
 #include "Evaluation/MovieScenePlayback.h"
 #include "Evaluation/MovieSceneEvaluationTemplateInstance.h"
+#include "MovieSceneSequenceID.h"
+#include "Evaluation/MovieSceneSequenceHierarchy.h"
+#include "Compilation/MovieSceneCompiledDataManager.h"
 #include "MovieSceneSequence.h"
 #include "MovieSceneTimeHelpers.h"
 #include "DynamicMeshBuilder.h"
@@ -1697,35 +1700,78 @@ FbxNode* FFbxExporter::FLevelSequenceNodeNameAdapter::GetFbxNode(UObject* InObje
 	return nullptr;
 }
 
-FLevelSequenceAnimTrackAdapter::FLevelSequenceAnimTrackAdapter( IMovieScenePlayer* InMovieScenePlayer, UMovieScene* InMovieScene, const FMovieSceneSequenceTransform& InRootToLocalTransform, UMovieSceneSkeletalAnimationTrack* InAnimTrack)
+FLevelSequenceAnimTrackAdapter::FLevelSequenceAnimTrackAdapter(IMovieScenePlayer* InMovieScenePlayer, UMovieSceneSequence* InMovieSceneSequence, UMovieSceneSequence* InRootMovieSceneSequence, const FMovieSceneSequenceTransform& InRootToLocalTransform, UMovieSceneSkeletalAnimationTrack* InAnimTrack)
 {
 	MovieScenePlayer = InMovieScenePlayer;
-	MovieScene = InMovieScene;
+	MovieSceneSequence = InMovieSceneSequence;
+	RootMovieSceneSequence = InRootMovieSceneSequence;
+	MovieScene = MovieSceneSequence->GetMovieScene();
 	RootToLocalTransform = InRootToLocalTransform;
 	AnimTrack = InAnimTrack;
 }
 
+//5.5 deprecrated
+FLevelSequenceAnimTrackAdapter::FLevelSequenceAnimTrackAdapter(IMovieScenePlayer* InMovieScenePlayer, UMovieScene* InMovieScene, const FMovieSceneSequenceTransform& InRootToLocalTransform, UMovieSceneSkeletalAnimationTrack* InAnimTrack)
+{
+	MovieScenePlayer = InMovieScenePlayer;
+	MovieScene = MovieSceneSequence->GetMovieScene();
+	RootToLocalTransform = InRootToLocalTransform;
+	AnimTrack = InAnimTrack;
+	if (MovieScene)
+	{
+		UMovieSceneSequence* OwnerSceneSequence = MovieScene->GetTypedOuter<UMovieSceneSequence>();
+		MovieSceneSequence = OwnerSceneSequence;
+		RootMovieSceneSequence = OwnerSceneSequence;
+	}
+	else
+	{
+		MovieSceneSequence = nullptr;
+		RootMovieSceneSequence = nullptr;
+	}
+}
+
+TRange<FFrameNumber> FLevelSequenceAnimTrackAdapter::GetSequenceRange() const
+{
+	MovieScenePlayer->State.AssignSequence(MovieSceneSequenceID::Root, *RootMovieSceneSequence, *MovieScenePlayer);
+	FMovieSceneSequenceIDRef Template = MovieScenePlayer->State.FindSequenceId(MovieSceneSequence);
+
+	FMovieSceneSequenceHierarchy Hierarchy = FMovieSceneSequenceHierarchy();
+	UMovieSceneCompiledDataManager::CompileHierarchy(RootMovieSceneSequence, &Hierarchy,EMovieSceneServerClientMask::All);
+
+	const FMovieSceneSubSequenceData* SubSequenceData = Hierarchy.FindSubData(Template);
+	TRange<FFrameNumber> Range = MovieScene->GetPlaybackRange();
+	FFrameTime StartTime = FFrameRate::TransformTime(UE::MovieScene::DiscreteInclusiveLower(MovieScene->GetPlaybackRange()).Value, MovieScene->GetTickResolution(), MovieScene->GetDisplayRate());
+
+	if (SubSequenceData)
+	{
+		Range = SubSequenceData->PlayRange.Value;
+	}
+	return Range;
+}
 int32 FLevelSequenceAnimTrackAdapter::GetLocalStartFrame() const
 {
+	TRange<FFrameNumber> Range = GetSequenceRange();
+
 	FFrameRate TickResolution = MovieScene->GetTickResolution();
 	FFrameRate DisplayRate = MovieScene->GetDisplayRate();
-	return FFrameRate::TransformTime(FFrameTime(UE::MovieScene::DiscreteInclusiveLower(MovieScene->GetPlaybackRange())), TickResolution, DisplayRate).RoundToFrame().Value;
+	return FFrameRate::TransformTime(FFrameTime(UE::MovieScene::DiscreteInclusiveLower(Range)), TickResolution, DisplayRate).RoundToFrame().Value;
 }
 
 int32 FLevelSequenceAnimTrackAdapter::GetStartFrame() const
 {
+	TRange<FFrameNumber> Range = GetSequenceRange();
 	FFrameRate TickResolution = MovieScene->GetTickResolution();
 	FFrameRate DisplayRate = MovieScene->GetDisplayRate();
-	return FFrameRate::TransformTime(FFrameTime(UE::MovieScene::DiscreteInclusiveLower(MovieScene->GetPlaybackRange()) * RootToLocalTransform.InverseNoLooping()), TickResolution, DisplayRate).RoundToFrame().Value;
+	return FFrameRate::TransformTime(FFrameTime(UE::MovieScene::DiscreteInclusiveLower(Range) * RootToLocalTransform.InverseNoLooping()), TickResolution, DisplayRate).RoundToFrame().Value;
 }
 
 int32 FLevelSequenceAnimTrackAdapter::GetLength() const
 {
+	TRange<FFrameNumber> Range = GetSequenceRange();
 	FFrameRate TickResolution = MovieScene->GetTickResolution();
 	FFrameRate DisplayRate = MovieScene->GetDisplayRate();
-	return FFrameRate::TransformTime(FFrameTime(UE::MovieScene::DiscreteSize(MovieScene->GetPlaybackRange())), TickResolution, DisplayRate).RoundToFrame().Value;
+	return FFrameRate::TransformTime(FFrameTime(UE::MovieScene::DiscreteSize(Range)), TickResolution, DisplayRate).RoundToFrame().Value;
 }
-
 
 void FLevelSequenceAnimTrackAdapter::UpdateAnimation( int32 LocalFrame )
 {	
@@ -1793,8 +1839,19 @@ float FLevelSequenceAnimTrackAdapter::GetAnimTime(int32 LocalFrame) const
 
 	return 0.f;
 }
-
 bool FFbxExporter::ExportLevelSequenceTracks(UMovieScene* MovieScene, IMovieScenePlayer* MovieScenePlayer, FMovieSceneSequenceIDRef InSequenceID, FbxNode* FbxActor, UObject* BoundObject, const TArray<UMovieSceneTrack*>& Tracks, const FMovieSceneSequenceTransform& RootToLocalTransform)
+{
+	if (MovieScene)
+	{
+		if (UMovieSceneSequence* OwnerSceneSequence = MovieScene->GetTypedOuter<UMovieSceneSequence>())
+		{
+			return ExportLevelSequenceTracks(OwnerSceneSequence, OwnerSceneSequence, MovieScenePlayer, InSequenceID, FbxActor, BoundObject, Tracks,  RootToLocalTransform);
+		}
+	}
+	return false;
+}
+
+bool FFbxExporter::ExportLevelSequenceTracks(UMovieSceneSequence* MovieSceneSequence, UMovieSceneSequence* RootMovieSceneSequence, IMovieScenePlayer* MovieScenePlayer, FMovieSceneSequenceIDRef InSequenceID, FbxNode* FbxActor, UObject* BoundObject, const TArray<UMovieSceneTrack*>& Tracks, const FMovieSceneSequenceTransform& RootToLocalTransform)
 {
 	AActor* Actor = Cast<AActor>(BoundObject);
 	if (!Actor)
@@ -1812,6 +1869,7 @@ bool FFbxExporter::ExportLevelSequenceTracks(UMovieScene* MovieScene, IMovieScen
 		SkeletalMeshComp = Actor ? Cast<USkeletalMeshComponent>(Actor->GetComponentByClass(USkeletalMeshComponent::StaticClass())) : nullptr;	
 	}
 
+	UMovieScene* MovieScene = MovieSceneSequence->GetMovieScene();
 	FFrameRate DisplayRate = MovieScene->GetDisplayRate();
 
 	bool bSkip3DTransformTrack = SkeletalMeshComp && GetExportOptions()->MapSkeletalMotionToRoot;
@@ -1911,7 +1969,7 @@ bool FFbxExporter::ExportLevelSequenceTracks(UMovieScene* MovieScene, IMovieScen
 	{
 		if (!bSkip3DTransformTrack)
 		{
-			FLevelSequenceAnimTrackAdapter AnimTrackAdapter(MovieScenePlayer, MovieScene, RootToLocalTransform, nullptr);
+			FLevelSequenceAnimTrackAdapter AnimTrackAdapter(MovieScenePlayer, MovieSceneSequence, RootMovieSceneSequence, RootToLocalTransform, nullptr);
 			ExportLevelSequenceBaked3DTransformTrack(AnimTrackAdapter, FbxActor, MovieScenePlayer, InSequenceID, TransformTracks, BoundObject, MovieScene->GetPlaybackRange(), RootToLocalTransform);
 		}
 
@@ -1960,21 +2018,32 @@ bool FFbxExporter::ExportLevelSequenceTracks(UMovieScene* MovieScene, IMovieScen
 		SkeletalMeshComp->GetOwner()->GetComponents(SkeletalMeshComponents);
 		for (USkeletalMeshComponent* SkeletalMeshComponent : SkeletalMeshComponents)
 		{
-			FLevelSequenceAnimTrackAdapter AnimTrackAdapter(MovieScenePlayer, MovieScene, RootToLocalTransform, SkeletalAnimationTrack);
+			FLevelSequenceAnimTrackAdapter AnimTrackAdapter(MovieScenePlayer, MovieSceneSequence,RootMovieSceneSequence, RootToLocalTransform, SkeletalAnimationTrack);
 			ExportAnimTrack(AnimTrackAdapter, Actor, SkeletalMeshComponent, 1.0 / DisplayRate.AsDecimal());
 		}
 	}
 
 	return true;
 }
-
 bool FFbxExporter::ExportLevelSequence(UMovieScene* MovieScene, const TArray<FGuid>& Bindings, IMovieScenePlayer* MovieScenePlayer, INodeNameAdapter& NodeNameAdapter, FMovieSceneSequenceIDRef SequenceID, const FMovieSceneSequenceTransform& RootToLocalTransform)
 {
-	if (MovieScene == nullptr || MovieScenePlayer == nullptr)
+	if (MovieScene)
+	{
+		if (UMovieSceneSequence* OwnerSceneSequence = MovieScene->GetTypedOuter<UMovieSceneSequence>())
+		{
+			return ExportLevelSequence(OwnerSceneSequence, OwnerSceneSequence, Bindings, MovieScenePlayer, NodeNameAdapter, SequenceID, RootToLocalTransform);
+		}
+	}
+	return false;
+}
+
+bool FFbxExporter::ExportLevelSequence(UMovieSceneSequence* MovieSceneSequence, UMovieSceneSequence* RootMovieSceneSequence, const TArray<FGuid>& Bindings, IMovieScenePlayer* MovieScenePlayer, INodeNameAdapter& NodeNameAdapter, FMovieSceneSequenceIDRef SequenceID, const FMovieSceneSequenceTransform& RootToLocalTransform)
+{
+	if (MovieSceneSequence == nullptr || RootMovieSceneSequence == nullptr || MovieScenePlayer == nullptr)
 	{
 		return false;
 	}
-
+	UMovieScene* MovieScene = MovieSceneSequence->GetMovieScene();
 	double FrameRate = MovieScene->GetDisplayRate().AsDecimal();
 	FbxTime::EMode TimeMode = FbxTime::ConvertFrameRateToTimeMode(FrameRate);
 
@@ -2021,7 +2090,7 @@ bool FFbxExporter::ExportLevelSequence(UMovieScene* MovieScene, const TArray<FGu
 				// now it should export everybody
 				if (FbxActor)
 				{
-					ExportLevelSequenceTracks(MovieScene, MovieScenePlayer, SequenceID, FbxActor, RuntimeObject.Get(), MovieSceneBinding.GetTracks(), RootToLocalTransform);
+					ExportLevelSequenceTracks(MovieSceneSequence, RootMovieSceneSequence, MovieScenePlayer, SequenceID, FbxActor, RuntimeObject.Get(), MovieSceneBinding.GetTracks(), RootToLocalTransform);
 					bAnyBindingsExported = true;
 				}
 			}
@@ -2030,7 +2099,7 @@ bool FFbxExporter::ExportLevelSequence(UMovieScene* MovieScene, const TArray<FGu
 		// If no bindings exported, create a dummy actor to export tracks onto
 		if (!bAnyBindingsExported)
 		{
-			ExportLevelSequenceTracks(MovieScene, MovieScenePlayer, SequenceID, nullptr, nullptr, MovieSceneBinding.GetTracks(), RootToLocalTransform);
+			ExportLevelSequenceTracks(MovieSceneSequence, RootMovieSceneSequence, MovieScenePlayer, SequenceID, nullptr, nullptr, MovieSceneBinding.GetTracks(), RootToLocalTransform);
 		}
 	}
 

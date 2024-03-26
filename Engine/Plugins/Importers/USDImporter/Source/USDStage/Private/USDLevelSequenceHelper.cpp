@@ -329,16 +329,17 @@ namespace UsdLevelSequenceHelperImpl
 
 			ExportOptions->bTransactRecording = false;
 
-			FMovieSceneSequenceIDRef Template = MovieSceneSequenceID::Root;
 			FMovieSceneSequenceTransform RootToLocalTransform;
+			FAnimExportSequenceParameters AESP;
+			AESP.Player = Player;
+			AESP.RootToLocalTransform = RootToLocalTransform;
+			AESP.MovieSceneSequence = LevelSequence;
+			AESP.RootMovieSceneSequence = LevelSequence;
 			bResult = MovieSceneToolHelpers::ExportToAnimSequence(
 				AnimSequence,
 				ExportOptions,
-				MovieScene,
-				Player,
-				SkeletalMeshComp,
-				Template,
-				RootToLocalTransform
+				AESP,
+				SkeletalMeshComp
 			);
 			if (!bResult)
 			{
@@ -443,6 +444,7 @@ namespace UsdLevelSequenceHelperImpl
 			const bool bResetControls = true;
 			ParamSection->LoadAnimSequenceIntoThisSection(
 				AnimSequence,
+				FFrameNumber(0),
 				MovieScene,
 				SkeletalMeshComp,
 				bReduceKeys,

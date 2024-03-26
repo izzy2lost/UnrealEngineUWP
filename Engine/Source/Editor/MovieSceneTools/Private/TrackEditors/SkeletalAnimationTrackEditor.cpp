@@ -1281,7 +1281,8 @@ void FSkeletalAnimationTrackEditor::OnSequencerSaved(ISequencer& )
 			ULevelSequenceAnimSequenceLink* LevelAnimLink = AssetUserDataInterface->GetAssetUserData< ULevelSequenceAnimSequenceLink >();
 			if (LevelAnimLink)
 			{
-				UMovieScene* MovieScene = SequencerPtr->GetFocusedMovieSceneSequence()->GetMovieScene();
+				UMovieSceneSequence* MovieSceneSequence = SequencerPtr->GetFocusedMovieSceneSequence();
+				UMovieSceneSequence* RootMovieSceneSequence = SequencerPtr->GetRootMovieSceneSequence();
 				FMovieSceneSequenceIDRef Template = SequencerPtr->GetFocusedTemplateID();
 				FMovieSceneSequenceTransform RootToLocalTransform = SequencerPtr->GetFocusedMovieSceneSequenceTransform();
 				for (int32 Index = LevelAnimLink->AnimSequenceLinks.Num() -1; Index >=0 ; --Index)
@@ -1325,7 +1326,12 @@ void FSkeletalAnimationTrackEditor::OnSequencerSaved(ISequencer& )
 						AnimSeqExportOption->Interpolation = Item.Interpolation;
 						AnimSeqExportOption->CurveInterpolation = Item.CurveInterpolation;
 
-						bool bResult = MovieSceneToolHelpers::ExportToAnimSequence(AnimSequence, AnimSeqExportOption, MovieScene, SequencerPtr.Get(), SkelMeshComp, Template, RootToLocalTransform);
+						FAnimExportSequenceParameters AESP;
+						AESP.Player = SequencerPtr.Get();
+						AESP.RootToLocalTransform = RootToLocalTransform;
+						AESP.MovieSceneSequence = MovieSceneSequence;
+						AESP.RootMovieSceneSequence = RootMovieSceneSequence;
+						bool bResult = MovieSceneToolHelpers::ExportToAnimSequence(AnimSequence, AnimSeqExportOption, AESP, SkelMeshComp);
 
 						AnimSeqExportOption->bExportMorphTargets = bSavedExportMorphTargets;
 						AnimSeqExportOption->bExportAttributeCurves = bSavedExportAttributeCurves;
@@ -1474,11 +1480,16 @@ bool FSkeletalAnimationTrackEditor::CreateAnimationSequence(const TArray<UObject
 			if (OptionWindow->ShouldExport())
 			{
 				const TSharedPtr<ISequencer> ParentSequencer = GetSequencer();
-				UMovieScene* MovieScene = ParentSequencer->GetFocusedMovieSceneSequence()->GetMovieScene();
-				FMovieSceneSequenceIDRef Template = ParentSequencer->GetFocusedTemplateID();
+				UMovieSceneSequence* MovieSceneSequence = ParentSequencer->GetFocusedMovieSceneSequence();
+				UMovieSceneSequence* RootMovieSceneSequence = ParentSequencer->GetRootMovieSceneSequence();
 				FMovieSceneSequenceTransform RootToLocalTransform = ParentSequencer->GetFocusedMovieSceneSequenceTransform();
+				FAnimExportSequenceParameters AESP;
+				AESP.Player = ParentSequencer.Get();
+				AESP.RootToLocalTransform = RootToLocalTransform;
+				AESP.MovieSceneSequence = MovieSceneSequence;
+				AESP.RootMovieSceneSequence = RootMovieSceneSequence;
 
-				bResult  = MovieSceneToolHelpers::ExportToAnimSequence(AnimSequence, AnimSeqExportOption,MovieScene, ParentSequencer.Get(), SkelMeshComp, Template, RootToLocalTransform);
+				bResult  = MovieSceneToolHelpers::ExportToAnimSequence(AnimSequence, AnimSeqExportOption, AESP, SkelMeshComp);
 			}
 		}
 

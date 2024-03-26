@@ -285,6 +285,17 @@ public:
 	virtual void PopToSequenceInstance(FMovieSceneSequenceIDRef SequenceID) = 0;
 
 	/**
+	 * Get the currently viewed sub sequence range
+	 *
+	 * @return The sub sequence range, or an empty optional if we're viewing the root.
+	 */
+	virtual TOptional<TRange<FFrameNumber>> GetSubSequenceRange() const
+	{
+		TOptional<TRange<FFrameNumber>> Optional;
+		return Optional;
+	}
+
+	/**
 	 * Retrieve the top level view model for this sequence
 	 */
 	virtual TSharedPtr<UE::Sequencer::FSequencerEditorViewModel> GetViewModel() const = 0;

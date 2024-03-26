@@ -65,6 +65,15 @@ struct FFBXInOutParameters
 	float ImportUniformScaleBackup;
 };
 
+struct FAnimExportSequenceParameters
+{
+	FAnimExportSequenceParameters() = default;
+	UMovieSceneSequence* MovieSceneSequence;
+	UMovieSceneSequence* RootMovieSceneSequence;
+	IMovieScenePlayer* Player;
+	FMovieSceneSequenceTransform RootToLocalTransform;
+};
+
 //callback's used by skel mesh recorders
 
 DECLARE_DELEGATE(FInitAnimationCB);
@@ -322,16 +331,17 @@ public:
 	* Export FBX
 	*
 	* @param World The world to export from
-	* @param InMovieScene The movie scene to export frome
-	* @param MoviePlayer to use
+	* @param AnimExportSequenceParameters The sequence parameters used for evaluation
 	* @param Bindings The sequencer binding map
 	* @param Tracks The tracks to export
 	* @param NodeNameAdaptor Adaptor to look up actor names.
-	* @param InFBXFileName the fbx file name.
 	* @param Template Movie scene sequence id.
-	* @param RootToLocalTransform The root to local transform time.
+	* @param InFBXFileName the fbx file name.
 	* @return Whether the export was successful
 	*/
+	static bool ExportFBX(UWorld* World, const FAnimExportSequenceParameters& AnimExportSequenceParameters, const TArray<FGuid>& Bindings, const TArray<UMovieSceneTrack*>& Tracks, INodeNameAdapter& NodeNameAdapter, FMovieSceneSequenceIDRef& Template, const FString& InFBXFileName);
+
+	UE_DEPRECATED(5.5, "ExportFBX taking movie scene has been deprecated in favor of a new function that takes current and root movie scene sequences")
 	static bool ExportFBX(UWorld* World, UMovieScene* MovieScene, IMovieScenePlayer* Player, const TArray<FGuid>& Bindings, const TArray<UMovieSceneTrack*>& Tracks, INodeNameAdapter& NodeNameAdapter, FMovieSceneSequenceIDRef& Template,  const FString& InFBXFileName, FMovieSceneSequenceTransform& RootToLocalTransform);
 
 	/**
@@ -429,21 +439,23 @@ public:
 	 *
 	 * @param AnimSequence The sequence to save to.
 	 * @param ExportOptions The options to use when saving.
-	 * @param MovieScene The movie scene to export the object binding from
-	 * @param Player The Player to evaluate
-	 * @param SkelMesh The Player to evaluate
-	 * @param Template ID of the sequence template.
-	 * @param RootToLocalTransform Transform Offset to apply to exported anim sequence.
+	 * @param AnimExportSequenceParameters The Sequence parameters like the movie scene sequences, the player, template id, used for evaluation
+	 * @param SkelMesh The Player to evaluatee.
 	 * @return Whether or not it succeeds
 
 	*/
+	static bool ExportToAnimSequence(UAnimSequence* AnimSequence, UAnimSeqExportOption* ExportOptions, const FAnimExportSequenceParameters& AnimExportSequenceParameters,
+			USkeletalMeshComponent* SkelMesh);
+
+	UE_DEPRECATED(5.5, "ExportToAnimSequence taking movie scene has been deprecated in favor of a new function that takes current and root movie scene sequences")
 	static bool ExportToAnimSequence(UAnimSequence* AnimSequence, UAnimSeqExportOption* ExportOptions, UMovieScene* MovieScene, IMovieScenePlayer* Player,
 		USkeletalMeshComponent* SkelMesh, FMovieSceneSequenceIDRef& Template, FMovieSceneSequenceTransform& RootToLocalTransform);
 
 	/*
 	 * Bake the SkelMesh to a generic object wich implements a set of callbacks
 	 *
-	 * @param MovieScene The movie scene to export the object binding from
+	 * @param MovieSceneSequence The movie scene sequence that's current
+	 * @param RootMovieSceneSequence The root movie scene sequence
 	 * @param Player The Player to evaluate
 	 * @param SkelMesh The Player to evaluate
 	 * @param Template ID of the sequence template.
@@ -457,6 +469,10 @@ public:
 	
 	*/
 
+	static bool BakeToSkelMeshToCallbacks(const FAnimExportSequenceParameters& AnimExportSequenceParameters, USkeletalMeshComponent* SkelMesh, UAnimSeqExportOption* ExportOptions,
+		FInitAnimationCB InitCallback, FStartAnimationCB StartCallback, FTickAnimationCB TickCallback, FEndAnimationCB EndCallback);
+
+	UE_DEPRECATED(5.5, "BakeToSkelMeshToCallbacks taking movie scene has been deprecated in favor of a new function that takes current and root movie scene sequences")
 	static bool BakeToSkelMeshToCallbacks(UMovieScene* MovieScene, IMovieScenePlayer* Player,
 		USkeletalMeshComponent* SkelMesh, FMovieSceneSequenceIDRef& Template, FMovieSceneSequenceTransform& RootToLocalTransform, UAnimSeqExportOption* ExportOptions,
 		FInitAnimationCB InitCallback, FStartAnimationCB StartCallback, FTickAnimationCB TickCallback, FEndAnimationCB EndCallback);

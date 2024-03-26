@@ -3726,7 +3726,25 @@ void ExportLevelMesh(UnFbx::FFbxExporter* Exporter, ULevel* Level, IMovieScenePl
 	Exporter->ExportLevelMesh(Level, !bSelectedOnly, ActorToExport, NodeNameAdapter, bSaveAnimSeq);
 }
 
+//5.5 deprecrated
 bool MovieSceneToolHelpers::ExportFBX(UWorld* World, UMovieScene* MovieScene, IMovieScenePlayer* Player, const TArray<FGuid>& Bindings, const TArray<UMovieSceneTrack*>& Tracks, INodeNameAdapter& NodeNameAdapter, FMovieSceneSequenceIDRef& Template, const FString& InFBXFileName, FMovieSceneSequenceTransform& RootToLocalTransform)
+{
+	if (MovieScene)
+	{
+		if (UMovieSceneSequence* MovieSceneSequence = MovieScene->GetTypedOuter< UMovieSceneSequence>())
+		{
+			FAnimExportSequenceParameters AESP;
+			AESP.MovieSceneSequence = MovieSceneSequence;
+			AESP.RootMovieSceneSequence = MovieSceneSequence;
+			AESP.Player = Player;
+			AESP.RootToLocalTransform = RootToLocalTransform;
+			return MovieSceneToolHelpers::ExportFBX(World, AESP, Bindings, Tracks, NodeNameAdapter, Template, InFBXFileName);
+		}
+	}
+	return false;
+}
+
+bool MovieSceneToolHelpers::ExportFBX(UWorld* World, const FAnimExportSequenceParameters& AESP, const TArray<FGuid>& Bindings, const TArray<UMovieSceneTrack*>& Tracks, INodeNameAdapter& NodeNameAdapter, FMovieSceneSequenceIDRef& Template, const FString& InFBXFileName)
 {
 	UnFbx::FFbxExporter* Exporter = UnFbx::FFbxExporter::GetInstance();
 
@@ -3734,7 +3752,7 @@ bool MovieSceneToolHelpers::ExportFBX(UWorld* World, UMovieScene* MovieScene, IM
 	Exporter->SetTransformBaking(false);
 	Exporter->SetKeepHierarchy(true);
 
-	ExportLevelMesh(Exporter, World->PersistentLevel, Player, Bindings, NodeNameAdapter, Template);
+	ExportLevelMesh(Exporter, World->PersistentLevel, AESP.Player, Bindings, NodeNameAdapter, Template);
 
 	// Export streaming levels and actors
 	for (ULevelStreaming* StreamingLevel : World->GetStreamingLevels())
@@ -3743,16 +3761,16 @@ bool MovieSceneToolHelpers::ExportFBX(UWorld* World, UMovieScene* MovieScene, IM
 		{
 			if (ULevel* Level = StreamingLevel->GetLoadedLevel())
 			{
-				ExportLevelMesh(Exporter, Level, Player, Bindings, NodeNameAdapter, Template);
+				ExportLevelMesh(Exporter, Level, AESP.Player, Bindings, NodeNameAdapter, Template);
 			}
 		}
 	}
 
-	Exporter->ExportLevelSequence(MovieScene, Bindings, Player, NodeNameAdapter, Template, RootToLocalTransform);
+	Exporter->ExportLevelSequence(AESP.MovieSceneSequence, AESP.RootMovieSceneSequence, Bindings, AESP.Player, NodeNameAdapter, Template, AESP.RootToLocalTransform);
 
 	//Export given tracks
-	Exporter->ExportLevelSequenceTracks(MovieScene, Player, Template, nullptr, nullptr, Tracks, RootToLocalTransform);
-	
+	Exporter->ExportLevelSequenceTracks(AESP.MovieSceneSequence, AESP.RootMovieSceneSequence, AESP.Player, Template, nullptr, nullptr, Tracks, AESP.RootToLocalTransform);
+
 	// Save to disk
 	Exporter->WriteToFile(*InFBXFileName);
 
@@ -3838,6 +3856,14 @@ bool MovieSceneToolHelpers::BakeToSkelMeshToCallbacks(UMovieScene* MovieScene, I
 	USkeletalMeshComponent* InSkelMeshComp, FMovieSceneSequenceIDRef& Template, FMovieSceneSequenceTransform& RootToLocalTransform, UAnimSeqExportOption* ExportOptions,
 	FInitAnimationCB InitCallback, FStartAnimationCB StartCallback, FTickAnimationCB TickCallback, FEndAnimationCB EndCallback)
 {
+	return false;
+}
+
+
+bool MovieSceneToolHelpers::BakeToSkelMeshToCallbacks(const FAnimExportSequenceParameters& AESP, USkeletalMeshComponent* InSkelMeshComp, UAnimSeqExportOption* ExportOptions,
+	FInitAnimationCB InitCallback, FStartAnimationCB StartCallback, FTickAnimationCB TickCallback, FEndAnimationCB EndCallback)
+{
+	UMovieScene* MovieScene = AESP.MovieSceneSequence->GetMovieScene();
 	TArray< USkeletalMeshComponent*> SkelMeshComps;
 	if (ExportOptions->bEvaluateAllSkeletalMeshComponents)
 	{
@@ -3862,7 +3888,7 @@ bool MovieSceneToolHelpers::BakeToSkelMeshToCallbacks(UMovieScene* MovieScene, I
 		}
 	}
 
-	UnFbx::FLevelSequenceAnimTrackAdapter AnimTrackAdapter(Player, MovieScene, RootToLocalTransform);
+	UnFbx::FLevelSequenceAnimTrackAdapter AnimTrackAdapter(AESP.Player, AESP.MovieSceneSequence, AESP.RootMovieSceneSequence, AESP.RootToLocalTransform);
 	int32 LocalStartFrame = AnimTrackAdapter.GetLocalStartFrame();
 	int32 StartFrame = AnimTrackAdapter.GetStartFrame();
 	int32 AnimationLength = AnimTrackAdapter.GetLength();
@@ -3961,71 +3987,88 @@ bool MovieSceneToolHelpers::BakeToSkelMeshToCallbacks(UMovieScene* MovieScene, I
 	return true;
 }
 
+//5.5 deprecrated
 bool MovieSceneToolHelpers::ExportToAnimSequence(UAnimSequence* AnimSequence, UAnimSeqExportOption* ExportOptions, UMovieScene* MovieScene, IMovieScenePlayer* Player,
-	USkeletalMeshComponent* SkelMeshComp, FMovieSceneSequenceIDRef& Template, FMovieSceneSequenceTransform& RootToLocalTransform)
+	USkeletalMeshComponent* SkelMesh, FMovieSceneSequenceIDRef& Template, FMovieSceneSequenceTransform& RootToLocalTransform)
 {
-	if (AnimSequence == nullptr || ExportOptions == nullptr || MovieScene == nullptr || SkelMeshComp == nullptr)
+	if (MovieScene)
+	{
+		FAnimExportSequenceParameters AESP;
+		AESP.Player = Player;
+		AESP.RootToLocalTransform = RootToLocalTransform;
+		UMovieSceneSequence* OwnerSceneSequence = MovieScene->GetTypedOuter<UMovieSceneSequence>();
+		AESP.MovieSceneSequence = OwnerSceneSequence;
+		AESP.RootMovieSceneSequence = OwnerSceneSequence;
+		return MovieSceneToolHelpers::ExportToAnimSequence(AnimSequence, ExportOptions, AESP, SkelMesh);
+	}
+	else
+	{
+		return false;
+	}
+}
+bool MovieSceneToolHelpers::ExportToAnimSequence(UAnimSequence* AnimSequence, UAnimSeqExportOption* ExportOptions, const FAnimExportSequenceParameters& AESP,
+	USkeletalMeshComponent* SkelMeshComp)
+{
+	if (AnimSequence == nullptr || ExportOptions == nullptr || AESP.MovieSceneSequence == nullptr || AESP.RootMovieSceneSequence == nullptr || SkelMeshComp == nullptr)
 	{
 		UE_LOG(LogMovieScene, Error, TEXT("MovieSceneToolHelpers::ExportToAnimSequence All parameters must be valid."));
 		return false;
 	}
 	FAnimRecorderInstance AnimationRecorder;
-	FFrameRate SampleRate = MovieScene->GetDisplayRate();
-	FInitAnimationCB InitCallback = FInitAnimationCB::CreateLambda([&AnimationRecorder,SampleRate,ExportOptions,SkelMeshComp,AnimSequence]
-	{
-		FAnimationRecordingSettings RecordingSettings;
-		RecordingSettings.SampleFrameRate = SampleRate;
-		RecordingSettings.Interpolation = ExportOptions->Interpolation;
-		RecordingSettings.InterpMode = ExportOptions->CurveInterpolation;
-		if (ExportOptions->CurveInterpolation == ERichCurveInterpMode::RCIM_Constant ||
-			ExportOptions->CurveInterpolation == ERichCurveInterpMode::RCIM_None)
+	FFrameRate SampleRate = AESP.MovieSceneSequence->GetMovieScene()->GetDisplayRate();
+	FInitAnimationCB InitCallback = FInitAnimationCB::CreateLambda([&AnimationRecorder, SampleRate, ExportOptions, SkelMeshComp, AnimSequence]
 		{
-			RecordingSettings.TangentMode = ERichCurveTangentMode::RCTM_None;
-		}
-		else
-		{
-			RecordingSettings.TangentMode = ERichCurveTangentMode::RCTM_Auto;
-		}
-		RecordingSettings.Length = 0;
-		RecordingSettings.bRemoveRootAnimation = false;
-		RecordingSettings.bCheckDeltaTimeAtBeginning = false;
-		RecordingSettings.bRecordTransforms = ExportOptions->bExportTransforms;
-		RecordingSettings.bRecordMorphTargets = ExportOptions->bExportMorphTargets;
-		RecordingSettings.bRecordAttributeCurves = ExportOptions->bExportAttributeCurves;
-		RecordingSettings.bRecordMaterialCurves = ExportOptions->bExportMaterialCurves;
-		RecordingSettings.bRecordInWorldSpace = ExportOptions->bRecordInWorldSpace;
-		RecordingSettings.IncludeAnimationNames = ExportOptions->IncludeAnimationNames;
-		RecordingSettings.ExcludeAnimationNames = ExportOptions->ExcludeAnimationNames;
-		RecordingSettings.bTransactRecording = ExportOptions->bTransactRecording;
-		AnimationRecorder.Init(SkelMeshComp, AnimSequence, nullptr, RecordingSettings);	
+			FAnimationRecordingSettings RecordingSettings;
+			RecordingSettings.SampleFrameRate = SampleRate;
+			RecordingSettings.Interpolation = ExportOptions->Interpolation;
+			RecordingSettings.InterpMode = ExportOptions->CurveInterpolation;
+			if (ExportOptions->CurveInterpolation == ERichCurveInterpMode::RCIM_Constant ||
+				ExportOptions->CurveInterpolation == ERichCurveInterpMode::RCIM_None)
+			{
+				RecordingSettings.TangentMode = ERichCurveTangentMode::RCTM_None;
+			}
+			else
+			{
+				RecordingSettings.TangentMode = ERichCurveTangentMode::RCTM_Auto;
+			}
+			RecordingSettings.Length = 0;
+			RecordingSettings.bRemoveRootAnimation = false;
+			RecordingSettings.bCheckDeltaTimeAtBeginning = false;
+			RecordingSettings.bRecordTransforms = ExportOptions->bExportTransforms;
+			RecordingSettings.bRecordMorphTargets = ExportOptions->bExportMorphTargets;
+			RecordingSettings.bRecordAttributeCurves = ExportOptions->bExportAttributeCurves;
+			RecordingSettings.bRecordMaterialCurves = ExportOptions->bExportMaterialCurves;
+			RecordingSettings.bRecordInWorldSpace = ExportOptions->bRecordInWorldSpace;
+			RecordingSettings.IncludeAnimationNames = ExportOptions->IncludeAnimationNames;
+			RecordingSettings.ExcludeAnimationNames = ExportOptions->ExcludeAnimationNames;
+			RecordingSettings.bTransactRecording = ExportOptions->bTransactRecording;
+			AnimationRecorder.Init(SkelMeshComp, AnimSequence, nullptr, RecordingSettings);
 		});
 
-	
+
 	FStartAnimationCB StartCallback = FStartAnimationCB::CreateLambda([SkelMeshComp, &AnimationRecorder]
-	{
-		AnimationRecorder.BeginRecording();
-		SkelMeshComp->UpdateLODStatus();
-	});
+		{
+			AnimationRecorder.BeginRecording();
+			SkelMeshComp->UpdateLODStatus();
+		});
 
 	FTickAnimationCB TickCallback = FTickAnimationCB::CreateLambda([&AnimationRecorder](float DeltaTime, FFrameNumber FrameNumber)
-	{
-		AnimationRecorder.Update(DeltaTime);
+		{
+			AnimationRecorder.Update(DeltaTime);
 
-	});
+		});
 
 	FEndAnimationCB EndCallback = FEndAnimationCB::CreateLambda([&AnimationRecorder]
-	{
+		{
 			const bool bShowAnimationAssetCreatedToast = false;
 			AnimationRecorder.FinishRecording(bShowAnimationAssetCreatedToast);
-	});
-	
+		});
 
-	MovieSceneToolHelpers::BakeToSkelMeshToCallbacks(MovieScene,Player,
-		SkelMeshComp, Template, RootToLocalTransform, ExportOptions,
+
+	MovieSceneToolHelpers::BakeToSkelMeshToCallbacks(AESP, SkelMeshComp, ExportOptions,
 		InitCallback, StartCallback, TickCallback, EndCallback);
 	return AnimSequence->GetDataModel()->HasBeenPopulated();
 }
-
 
 
 FSpawnableRestoreState::FSpawnableRestoreState(UMovieScene* MovieScene)

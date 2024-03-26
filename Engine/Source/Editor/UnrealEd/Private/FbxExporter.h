@@ -28,6 +28,7 @@ class ULightComponent;
 class UMaterialInterface;
 class UModel;
 class UMovieScene;
+class UMovieSceneSequence;
 class UMovieSceneSkeletalAnimationTrack;
 class UMovieScene3DTransformTrack;
 class UMovieSceneColorTrack;
@@ -69,7 +70,11 @@ namespace UnFbx
 	class FLevelSequenceAnimTrackAdapter : public IAnimTrackAdapter
 	{
 	public:
+
+		UNREALED_API FLevelSequenceAnimTrackAdapter(IMovieScenePlayer* InMovieScenePlayer, UMovieSceneSequence* InMovieSceneSequence, UMovieSceneSequence* InRootMovieSceneSequence, const FMovieSceneSequenceTransform& InRootToLocalTransform, UMovieSceneSkeletalAnimationTrack* InAnimTrack = nullptr);
+		UE_DEPRECATED(5.5, "FLevelSequenceAnimTrackAdapter constructor taking a movie scene is deprecated, use version that takes movie scene sequences")
 		UNREALED_API FLevelSequenceAnimTrackAdapter(IMovieScenePlayer* InMovieScenePlayer, UMovieScene* InMovieScene, const FMovieSceneSequenceTransform& InRootToLocalTransform, UMovieSceneSkeletalAnimationTrack* InAnimTrack = nullptr);
+
 		UNREALED_API virtual int32 GetLocalStartFrame() const override;
 		UNREALED_API virtual int32 GetStartFrame() const override;
 		UNREALED_API virtual int32 GetLength() const override;
@@ -79,7 +84,13 @@ namespace UnFbx
 		UNREALED_API virtual float GetAnimTime(int32 LocalFrame) const override;
 
 	private:
+		TRange<FFrameNumber> GetSequenceRange() const;
+
+	private:
 		IMovieScenePlayer* MovieScenePlayer;
+		UMovieSceneSequence* MovieSceneSequence;
+		UMovieSceneSequence* RootMovieSceneSequence;
+
 		UMovieScene* MovieScene;
 		FMovieSceneSequenceTransform RootToLocalTransform;
 		UMovieSceneSkeletalAnimationTrack* AnimTrack;
@@ -165,6 +176,9 @@ public:
 	 *
 	 * @return	true, if successful
 	 */
+	UNREALED_API bool ExportLevelSequence(UMovieSceneSequence* MovieSceneSequence, UMovieSceneSequence* RootMovieSceneSequence, const TArray<FGuid>& InBindings, IMovieScenePlayer* MovieScenePlayer, INodeNameAdapter& NodeNameAdapter, FMovieSceneSequenceIDRef SequenceID, const FMovieSceneSequenceTransform& RootToLocalTransform);
+
+	UE_DEPRECATED(5.5, "ExportLevelSequence taking a movie scene is deprecated, use version that takes movie scene sequences")
 	UNREALED_API bool ExportLevelSequence(UMovieScene* MovieScene, const TArray<FGuid>& InBindings, IMovieScenePlayer* MovieScenePlayer, INodeNameAdapter& NodeNameAdapter, FMovieSceneSequenceIDRef SequenceID, const FMovieSceneSequenceTransform& RootToLocalTransform);
 
 	/** Add timecode attributes to the given fbx node and add a key at the sequence playback start, using the timecode of the source section */
@@ -178,8 +192,10 @@ public:
 	 *
 	 * @return	true, if successful
 	 */
-	UNREALED_API bool ExportLevelSequenceTracks(UMovieScene* MovieScene, IMovieScenePlayer* MovieScenePlayer, FMovieSceneSequenceIDRef InSequenceID, FbxNode* FbxActor, UObject* BoundObject, const TArray<UMovieSceneTrack*>& Tracks, const FMovieSceneSequenceTransform& RootToLocalTransform);
+	UNREALED_API bool ExportLevelSequenceTracks(UMovieSceneSequence* MovieSceneSequence, UMovieSceneSequence* RootMovieSceneSequence, IMovieScenePlayer* MovieScenePlayer, FMovieSceneSequenceIDRef InSequenceID, FbxNode* FbxActor, UObject* BoundObject, const TArray<UMovieSceneTrack*>& Tracks, const FMovieSceneSequenceTransform& RootToLocalTransform);
 
+	UE_DEPRECATED(5.5, "ExportLevelSequenceTracks taking a movie scene is deprecated, use version that takes movie scene sequences")
+	UNREALED_API bool ExportLevelSequenceTracks(UMovieScene* MovieScene, IMovieScenePlayer* MovieScenePlayer, FMovieSceneSequenceIDRef InSequenceID, FbxNode* FbxActor, UObject* BoundObject, const TArray<UMovieSceneTrack*>& Tracks, const FMovieSceneSequenceTransform& RootToLocalTransform);
 
 	/**
 	 * Exports the mesh and the actor information for a static mesh actor.

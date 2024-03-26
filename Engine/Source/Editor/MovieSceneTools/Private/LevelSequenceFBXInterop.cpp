@@ -210,7 +210,9 @@ void FLevelSequenceFBXInterop::ExportFBXInternal(const FString& ExportFilename, 
 	Exporter->FillExportOptions(false, true, ExportFilename, ExportCancel, ExportAll);
 	if (!ExportCancel)
 	{
-		UMovieScene* MovieScene = Sequencer->GetFocusedMovieSceneSequence()->GetMovieScene();
+		UMovieSceneSequence* MovieSceneSequence = Sequencer->GetFocusedMovieSceneSequence();
+		UMovieSceneSequence* RootMovieSceneSequence = Sequencer->GetRootMovieSceneSequence();
+		UMovieScene* MovieScene = MovieSceneSequence->GetMovieScene();
 		UWorld* World = Sequencer->GetPlaybackContext()->GetWorld();
 		FMovieSceneSequenceIDRef Template = Sequencer->GetFocusedTemplateID();
 		UnFbx::FFbxExporter::FLevelSequenceNodeNameAdapter NodeNameAdapter(MovieScene, Sequencer.Get(), Template);
@@ -224,7 +226,12 @@ void FLevelSequenceFBXInterop::ExportFBXInternal(const FString& ExportFilename, 
 			}
 
 			FMovieSceneSequenceTransform RootToLocalTransform = Sequencer->GetFocusedMovieSceneSequenceTransform();
-			if (MovieSceneToolHelpers::ExportFBX(World, MovieScene, Sequencer.Get(), Bindings, Tracks, NodeNameAdapter, Template, ExportFilename, RootToLocalTransform))
+			FAnimExportSequenceParameters AESP;
+			AESP.Player = Sequencer.Get();
+			AESP.RootToLocalTransform = RootToLocalTransform;
+			AESP.MovieSceneSequence = MovieSceneSequence;
+			AESP.RootMovieSceneSequence = RootMovieSceneSequence;
+			if (MovieSceneToolHelpers::ExportFBX(World, AESP, Bindings, Tracks, NodeNameAdapter, Template, ExportFilename))
 			{
 				FNotificationInfo Info(NSLOCTEXT("Sequencer", "ExportFBXSucceeded", "FBX Export Succeeded."));
 				Info.Hyperlink = FSimpleDelegate::CreateStatic([](FString InFilename) { FPlatformProcess::ExploreFolder(*InFilename); }, ExportFilename);
