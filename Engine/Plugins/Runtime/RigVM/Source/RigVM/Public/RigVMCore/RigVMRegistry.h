@@ -84,9 +84,6 @@ public:
 	// based on the names.
 	void RefreshEngineTypesIfRequired();
 
-	// Update the registry when new types are added
-	void OnAssetAdded(const FAssetData& InAssetData);
-
 	// Update the registry when types are renamed
 	void OnAssetRenamed(const FAssetData& InAssetData, const FString& InOldObjectPath);
 	

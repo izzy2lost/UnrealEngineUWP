@@ -302,7 +302,6 @@ void FRigVMRegistry::InitializeIfNeeded()
 		{
 			if (AssetRegistryModule->TryGet())
 			{
-				AssetRegistryModule->Get().OnAssetAdded().RemoveAll(this);
 				AssetRegistryModule->Get().OnAssetRemoved().RemoveAll(this);
 				AssetRegistryModule->Get().OnAssetRenamed().RemoveAll(this);
 			}
@@ -314,7 +313,6 @@ void FRigVMRegistry::InitializeIfNeeded()
 	});
 	
 	FAssetRegistryModule& AssetRegistryModule = FModuleManager::LoadModuleChecked<FAssetRegistryModule>(TEXT("AssetRegistry"));
-	AssetRegistryModule.Get().OnAssetAdded().AddRaw(this, &FRigVMRegistry::OnAssetAdded);
 	AssetRegistryModule.Get().OnAssetRemoved().AddRaw(this, &FRigVMRegistry::OnAssetRemoved);
 	AssetRegistryModule.Get().OnAssetRenamed().AddRaw(this, &FRigVMRegistry::OnAssetRenamed);
 
@@ -414,29 +412,6 @@ void FRigVMRegistry::RefreshEngineTypes_NoLock()
 	}
 	
 	bEverRefreshedEngineTypes = true;
-}
-
-void FRigVMRegistry::OnAssetAdded(const FAssetData& InAssetData)
-{
-	if (InAssetData.GetClass())
-	{
-		if(InAssetData.GetClass()->IsChildOf(UUserDefinedStruct::StaticClass()))
-		{
-			UScriptStruct* CPPTypeObject = Cast<UScriptStruct>(InAssetData.GetAsset());
-			if (FindOrAddType(CPPTypeObject))
-			{
-				OnRigVMRegistryChangedDelegate.Broadcast();
-			}
-		}
-		else if(InAssetData.GetClass()->IsChildOf(UUserDefinedEnum::StaticClass()))
-		{
-			UEnum* CPPTypeObject = Cast<UEnum>(InAssetData.GetAsset());
-			if (FindOrAddType(CPPTypeObject))
-			{
-				OnRigVMRegistryChangedDelegate.Broadcast();
-			}
-		}
-	}
 }
 
 void FRigVMRegistry::OnAssetRenamed(const FAssetData& InAssetData, const FString& InOldObjectPath)
