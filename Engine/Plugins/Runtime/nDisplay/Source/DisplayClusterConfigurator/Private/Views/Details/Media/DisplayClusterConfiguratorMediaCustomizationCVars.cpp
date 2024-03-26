@@ -1,6 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#include "Views\Details\Media\DisplayClusterConfiguratorMediaCustomizationCVars.h"
+#include "Views/Details/Media/DisplayClusterConfiguratorMediaCustomizationCVars.h"
 
 
 TAutoConsoleVariable<bool> CVarMediaAutoInitializationEnabled(
