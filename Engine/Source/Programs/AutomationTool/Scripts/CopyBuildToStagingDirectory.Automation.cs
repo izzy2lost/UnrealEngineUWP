@@ -5283,7 +5283,15 @@ namespace AutomationScripts
 			if (!string.IsNullOrEmpty(CustomStageCopyHandlerName))
 			{
 				Logger.LogInformation("CopyBuildToStagingDirectory using CustomStageCopyHandler {0}", CustomStageCopyHandlerName);
-				SC.CustomStageCopyHandler = CustomStageCopyHandler.Create(CustomStageCopyHandlerName);
+				try
+				{
+					SC.CustomStageCopyHandler = CustomStageCopyHandler.Create(CustomStageCopyHandlerName);
+				}
+				catch
+				{
+					Logger.LogWarning("Failed to create custom stage copy handler '{Arg0}'. No custom stage copy handler will be applied!", CustomStageCopyHandlerName);
+					SC.CustomStageCopyHandler = null;
+				}
 			}
 		}
 
