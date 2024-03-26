@@ -24,6 +24,7 @@
 
 bool UNiagaraOverviewNode::bColorsAreInitialized = false;
 FLinearColor UNiagaraOverviewNode::EmitterColor;
+FLinearColor UNiagaraOverviewNode::StatelessEmitterColor;
 FLinearColor UNiagaraOverviewNode::SystemColor;
 FLinearColor UNiagaraOverviewNode::IsolatedColor;
 FLinearColor UNiagaraOverviewNode::NotIsolatedColor;
@@ -117,19 +118,28 @@ FLinearColor UNiagaraOverviewNode::GetNodeTitleColor() const
 	{
 		FNiagaraEditorModule& NiagaraEditorModule = FModuleManager::LoadModuleChecked<FNiagaraEditorModule>("NiagaraEditor");
 		EmitterColor = NiagaraEditorModule.GetWidgetProvider()->GetColorForExecutionCategory(UNiagaraStackEntry::FExecutionCategoryNames::Emitter);
+		StatelessEmitterColor = NiagaraEditorModule.GetWidgetProvider()->GetColorForExecutionCategory(UNiagaraStackEntry::FExecutionCategoryNames::StatelessEmitter);
 		SystemColor = NiagaraEditorModule.GetWidgetProvider()->GetColorForExecutionCategory(UNiagaraStackEntry::FExecutionCategoryNames::System);
 		IsolatedColor = FNiagaraEditorStyle::Get().GetColor("NiagaraEditor.OverviewNode.IsolatedColor");
 		NotIsolatedColor = FNiagaraEditorStyle::Get().GetColor("NiagaraEditor.OverviewNode.NotIsolatedColor");
+		bColorsAreInitialized = true;
 	}
 
 	if (EmitterHandleGuid.IsValid())
 	{
-		if (OwningSystem != nullptr && OwningSystem->GetIsolateEnabled())
+		if (OwningSystem != nullptr)
 		{
 			const FNiagaraEmitterHandle* Handle = FindEmitterHandleByID(OwningSystem, EmitterHandleGuid);
 			if (ensureMsgf(Handle != nullptr, TEXT("Failed to find matching emitter handle for existing overview node!")))
 			{
-				return Handle->IsIsolated() ? IsolatedColor : NotIsolatedColor;
+				if (OwningSystem->GetIsolateEnabled())
+				{
+					return Handle->IsIsolated() ? IsolatedColor : NotIsolatedColor;
+				}
+				else if ( Handle->GetEmitterMode() == ENiagaraEmitterMode::Stateless )
+				{
+					return StatelessEmitterColor;
+				}
 			}
 		}
 		

@@ -115,6 +115,7 @@ public:
 	{
 		static NIAGARAEDITOR_API const FName System;
 		static NIAGARAEDITOR_API const FName Emitter;
+		static NIAGARAEDITOR_API const FName StatelessEmitter;
 		static NIAGARAEDITOR_API const FName Particle;
 		static NIAGARAEDITOR_API const FName Render;
 	};

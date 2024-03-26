@@ -116,6 +116,7 @@ void FNiagaraEditorWidgetsStyle::InitColors()
 
 	Set("NiagaraEditor.Stack.IconColor.System", FLinearColor(FColor(1, 202, 252)));
 	Set("NiagaraEditor.Stack.IconColor.Emitter", FLinearColor(FColor(241, 99, 6)));
+	Set("NiagaraEditor.Stack.IconColor.StatelessEmitter", FLinearColor(FColor(255, 41, 2)));
 	Set("NiagaraEditor.Stack.IconColor.Particle", FLinearColor(FColor(131, 218, 9)));
 	Set("NiagaraEditor.Stack.IconColor.Render", FLinearColor(FColor(230, 102, 102)));
 	Set("NiagaraEditor.Stack.IconColor.VersionUpgrade", FLinearColor(FColor(255, 181, 0)));

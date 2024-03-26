@@ -20,6 +20,7 @@
 class UNiagaraStackItemGroup;
 const FName UNiagaraStackEntry::FExecutionCategoryNames::System = TEXT("System");
 const FName UNiagaraStackEntry::FExecutionCategoryNames::Emitter = TEXT("Emitter");
+const FName UNiagaraStackEntry::FExecutionCategoryNames::StatelessEmitter = TEXT("StatelessEmitter");
 const FName UNiagaraStackEntry::FExecutionCategoryNames::Particle = TEXT("Particle");
 const FName UNiagaraStackEntry::FExecutionCategoryNames::Render = TEXT("Render");
 

@@ -125,6 +125,10 @@ FName FNiagaraStackEditorWidgetsUtilities::GetIconColorNameForExecutionCategory(
 	{
 		return "NiagaraEditor.Stack.IconColor.Emitter";
 	}
+	else if (ExecutionCategoryName == UNiagaraStackEntry::FExecutionCategoryNames::StatelessEmitter)
+	{
+		return "NiagaraEditor.Stack.IconColor.StatelessEmitter";
+	}
 	else if (ExecutionCategoryName == UNiagaraStackEntry::FExecutionCategoryNames::Particle)
 	{
 		return "NiagaraEditor.Stack.IconColor.Particle";
