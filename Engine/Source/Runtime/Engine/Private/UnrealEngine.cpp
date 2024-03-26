@@ -12303,6 +12303,13 @@ float DrawMapWarnings(UWorld* World, FViewport* Viewport, FCanvas* Canvas, UCanv
 
 #endif
 
+#if WITH_EDITOR && !(UE_BUILD_SHIPPING || UE_BUILD_TEST)
+	if (ULandscapeSubsystem* LandscapeSubsystem = World->GetSubsystem<ULandscapeSubsystem>())
+	{
+		LandscapeSubsystem->DisplayMessages(Canvas, MessageX, MessageY);
+	}
+#endif
+
 	if (World->NumTextureStreamingUnbuiltComponents > 0 || World->NumTextureStreamingDirtyResources > 0)
 	{
 		SmallTextItem.SetColor(FLinearColor::Red);

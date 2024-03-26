@@ -89,8 +89,7 @@ public class LevelEditor : ModuleRules
 				"UnsavedAssetsTracker",
 				"UncontrolledChangelists",
 				"RenderCore",
-				"DeveloperSettings",
-				"LandscapeEditor"
+				"DeveloperSettings"
 			}
 		);
 
