@@ -13,6 +13,19 @@
 #include "UObject/Package.h"
 #include "UObject/UnrealType.h"
 
+/** Flags used for serialization of FPropertyTag. DO NOT EDIT THESE VALUES! */
+enum class EPropertyTagFlags : uint8
+{
+	None						= 0x00,
+	HasArrayIndex				= 0x01,
+	HasPropertyGuid				= 0x02,
+	HasPropertyExtensions		= 0x04,
+	HasBinaryOrNativeSerialize	= 0x08,
+	BoolTrue					= 0x10,
+};
+
+ENUM_CLASS_FLAGS(EPropertyTagFlags);
+
 /**
  * Enum flags that indicate that additional data was serialized for that property tag.
  * Registered flags should be serialized in ascending order.
@@ -52,8 +65,6 @@ FPropertyTag::FPropertyTag(FProperty* Property, int32 InIndex, uint8* Value)
 	UE::FPropertyTypeNameBuilder TypeBuilder;
 	Property->SaveTypeName(TypeBuilder);
 	SetType(TypeBuilder.Build());
-
-	Property->SaveToTag(*this);
 
 	if (FBoolProperty* Bool = CastField<FBoolProperty>(Property))
 	{
@@ -164,23 +175,8 @@ static void ParsePathName(FStringView Path, UE::FPropertyTypeNameBuilder& Builde
 	}
 }
 
-// Serializer.
-FArchive& operator<<(FArchive& Ar, FPropertyTag& Tag)
+FORCENOINLINE void LoadPropertyTagNoFullType(FStructuredArchive::FSlot Slot, FPropertyTag& Tag)
 {
-	FStructuredArchiveFromArchive(Ar).GetSlot() << Tag;
-	return Ar;
-}
-
-void operator<<(FStructuredArchive::FSlot Slot, FPropertyTag& Tag)
-{
-	FArchive& UnderlyingArchive = Slot.GetUnderlyingArchive();
-	bool bIsTextFormat = UnderlyingArchive.IsTextFormat();
-
-	const FPackageFileVersion Version = UnderlyingArchive.UEVer();
-
-	check(!UnderlyingArchive.GetArchiveState().UseUnversionedPropertySerialization());
-	checkf(!UnderlyingArchive.IsSaving() || Tag.GetProperty(), TEXT("FPropertyTag must be constructed with a valid property when used for saving data!"));
-
 	const auto AddEnumPath = [](UE::FPropertyTypeNameBuilder& Builder, FName EnumName)
 	{
 		TStringBuilder<256> EnumPath(InPlace, EnumName);
@@ -194,9 +190,14 @@ void operator<<(FStructuredArchive::FSlot Slot, FPropertyTag& Tag)
 		}
 	};
 
+	FArchive& UnderlyingArchive = Slot.GetUnderlyingArchive();
+	const bool bIsTextFormat = UnderlyingArchive.IsTextFormat();
+	const FPackageFileVersion Version = UnderlyingArchive.UEVer();
+
+	check(UnderlyingArchive.IsLoading());
+
 	if (!bIsTextFormat)
 	{
-		// Name.
 		Slot << SA_ATTRIBUTE(TEXT("Name"), Tag.Name);
 		if (Tag.Name.IsNone())
 		{
@@ -206,35 +207,26 @@ void operator<<(FStructuredArchive::FSlot Slot, FPropertyTag& Tag)
 
 	Slot << SA_ATTRIBUTE(TEXT("Type"), Tag.Type);
 
-	if (UnderlyingArchive.IsSaving())
-	{
-		// remember the offset of the Size variable - UStruct::SerializeTaggedProperties will update it after the
-		// property has been serialized.
-		Tag.SizeOffset = UnderlyingArchive.Tell();
-	}
-
 	if (!bIsTextFormat)
 	{
 		Slot << SA_ATTRIBUTE(TEXT("Size"), Tag.Size);
 		Slot << SA_ATTRIBUTE(TEXT("ArrayIndex"), Tag.ArrayIndex);
 	}
 
-	if (Tag.Type.GetNumber() == 0)
+	if (Tag.Type.GetNumber() == NAME_NO_NUMBER_INTERNAL)
 	{
 		// Build Tag.TypeName from the partial type name that was saved in older versions.
 		UE::FPropertyTypeNameBuilder TypeBuilder;
 		TypeBuilder.AddName(Tag.Type);
 
-		FNameEntryId TagType = Tag.Type.GetComparisonIndex();
+		const FNameEntryId TagType = Tag.Type.GetComparisonIndex();
 
 		// only need to serialize this for structs
 		if (TagType == NAME_StructProperty)
 		{
 			TypeBuilder.BeginParameters();
-			PRAGMA_DISABLE_DEPRECATION_WARNINGS
-			FName StructName = Tag.StructName;
-			FGuid StructGuid = Tag.StructGuid;
-			PRAGMA_ENABLE_DEPRECATION_WARNINGS
+			FName StructName;
+			FGuid StructGuid;
 			Slot << SA_ATTRIBUTE(TEXT("StructName"), StructName);
 			TypeBuilder.AddName(StructName);
 			if (Version >= VER_UE4_STRUCT_GUID_IN_PROPERTY_TAG)
@@ -274,9 +266,7 @@ void operator<<(FStructuredArchive::FSlot Slot, FPropertyTag& Tag)
 		// only need to serialize this for bytes/enums
 		else if (TagType == NAME_ByteProperty)
 		{
-			PRAGMA_DISABLE_DEPRECATION_WARNINGS
-			FName EnumName = Tag.EnumName;
-			PRAGMA_ENABLE_DEPRECATION_WARNINGS
+			FName EnumName;
 			if (UnderlyingArchive.IsTextFormat())
 			{
 				Slot << SA_OPTIONAL_ATTRIBUTE(TEXT("EnumName"), EnumName, NAME_None);
@@ -297,9 +287,7 @@ void operator<<(FStructuredArchive::FSlot Slot, FPropertyTag& Tag)
 		}
 		else if (TagType == NAME_EnumProperty)
 		{
-			PRAGMA_DISABLE_DEPRECATION_WARNINGS
-			FName EnumName = Tag.EnumName;
-			PRAGMA_ENABLE_DEPRECATION_WARNINGS
+			FName EnumName;
 			Slot << SA_ATTRIBUTE(TEXT("EnumName"), EnumName);
 			TypeBuilder.BeginParameters();
 			AddEnumPath(TypeBuilder, EnumName);
@@ -312,9 +300,7 @@ void operator<<(FStructuredArchive::FSlot Slot, FPropertyTag& Tag)
 		// need to serialize the InnerType for arrays
 		else if (TagType == NAME_ArrayProperty)
 		{
-			PRAGMA_DISABLE_DEPRECATION_WARNINGS
-			FName InnerType = Tag.InnerType;
-			PRAGMA_ENABLE_DEPRECATION_WARNINGS
+			FName InnerType;
 			if (Version >= VAR_UE4_ARRAY_PROPERTY_INNER_TAGS)
 			{
 				Slot << SA_ATTRIBUTE(TEXT("InnerType"), InnerType);
@@ -329,9 +315,7 @@ void operator<<(FStructuredArchive::FSlot Slot, FPropertyTag& Tag)
 		// need to serialize the InnerType for optionals.
 		else if (TagType == NAME_OptionalProperty)
 		{
-			PRAGMA_DISABLE_DEPRECATION_WARNINGS
-			FName InnerType = Tag.InnerType;
-			PRAGMA_ENABLE_DEPRECATION_WARNINGS
+			FName InnerType;
 			Slot << SA_ATTRIBUTE(TEXT("InnerType"), InnerType);
 			TypeBuilder.BeginParameters();
 			TypeBuilder.AddName(InnerType);
@@ -344,9 +328,7 @@ void operator<<(FStructuredArchive::FSlot Slot, FPropertyTag& Tag)
 		{
 			if (TagType == NAME_SetProperty)
 			{
-				PRAGMA_DISABLE_DEPRECATION_WARNINGS
-				FName InnerType = Tag.InnerType;
-				PRAGMA_ENABLE_DEPRECATION_WARNINGS
+				FName InnerType;
 				Slot << SA_ATTRIBUTE(TEXT("InnerType"), InnerType);
 				TypeBuilder.BeginParameters();
 				TypeBuilder.AddName(InnerType);
@@ -357,10 +339,8 @@ void operator<<(FStructuredArchive::FSlot Slot, FPropertyTag& Tag)
 			}
 			else if (TagType == NAME_MapProperty)
 			{
-				PRAGMA_DISABLE_DEPRECATION_WARNINGS
-				FName InnerType = Tag.InnerType;
-				FName ValueType = Tag.ValueType;
-				PRAGMA_ENABLE_DEPRECATION_WARNINGS
+				FName InnerType;
+				FName ValueType;
 				Slot << SA_ATTRIBUTE(TEXT("InnerType"), InnerType);
 				Slot << SA_ATTRIBUTE(TEXT("ValueType"), ValueType);
 				TypeBuilder.BeginParameters();
@@ -374,10 +354,7 @@ void operator<<(FStructuredArchive::FSlot Slot, FPropertyTag& Tag)
 			}
 		}
 
-		if (UnderlyingArchive.IsLoading())
-		{
-			Tag.TypeName = TypeBuilder.Build();
-		}
+		Tag.TypeName = TypeBuilder.Build();
 	}
 
 	// Property tags to handle renamed blueprint properties effectively.
@@ -401,6 +378,137 @@ void operator<<(FStructuredArchive::FSlot Slot, FPropertyTag& Tag)
 	if (Version >= EUnrealEngineObjectUE5Version::PROPERTY_TAG_EXTENSION_AND_OVERRIDABLE_SERIALIZATION)
 	{
 		EPropertyTagExtension PropertyTagExtensions = CalculatePropertyExtensionFlags(UnderlyingArchive, Tag);
+		SerializePropertyExtensions(Slot, PropertyTagExtensions, Tag);
+	}
+
+	Tag.SerializeType = EPropertyTagSerializeType::Unknown;
+}
+
+FORCENOINLINE void SerializePropertyTagAsText(FStructuredArchive::FSlot Slot, FPropertyTag& Tag)
+{
+	FArchive& UnderlyingArchive = Slot.GetUnderlyingArchive();
+
+	Slot << SA_ATTRIBUTE(TEXT("Type"), Tag.TypeName);
+	if (UnderlyingArchive.IsLoading())
+	{
+		Tag.SetType(Tag.TypeName);
+	}
+
+	Slot << SA_OPTIONAL_ATTRIBUTE(TEXT("PropertyGuid"), Tag.PropertyGuid, FGuid());
+	Tag.HasPropertyGuid = Tag.PropertyGuid.IsValid();
+
+	bool bHasBinaryOrNativeSerialize = (Tag.SerializeType == EPropertyTagSerializeType::BinaryOrNative);
+	Slot << SA_OPTIONAL_ATTRIBUTE(TEXT("HasBinaryOrNativeSerialize"), bHasBinaryOrNativeSerialize, false);
+	Tag.SerializeType = bHasBinaryOrNativeSerialize ? EPropertyTagSerializeType::BinaryOrNative : EPropertyTagSerializeType::Property;
+
+	EPropertyTagExtension PropertyTagExtensions = CalculatePropertyExtensionFlags(UnderlyingArchive, Tag);
+	SerializePropertyExtensions(Slot, PropertyTagExtensions, Tag);
+}
+
+// Serializer.
+FArchive& operator<<(FArchive& Ar, FPropertyTag& Tag)
+{
+	FStructuredArchiveFromArchive(Ar).GetSlot() << Tag;
+	return Ar;
+}
+
+void operator<<(FStructuredArchive::FSlot Slot, FPropertyTag& Tag)
+{
+	FArchive& UnderlyingArchive = Slot.GetUnderlyingArchive();
+	const bool bIsTextFormat = UnderlyingArchive.IsTextFormat();
+	const FPackageFileVersion Version = UnderlyingArchive.UEVer();
+
+	check(!UnderlyingArchive.GetArchiveState().UseUnversionedPropertySerialization());
+	checkf(!UnderlyingArchive.IsSaving() || Tag.GetProperty(), TEXT("FPropertyTag must be constructed with a valid property when used for saving data!"));
+
+	if (UNLIKELY(Version < EUnrealEngineObjectUE5Version::PROPERTY_TAG_COMPLETE_TYPE_NAME))
+	{
+		LoadPropertyTagNoFullType(Slot, Tag);
+		return;
+	}
+
+	if (UNLIKELY(bIsTextFormat))
+	{
+		SerializePropertyTagAsText(Slot, Tag);
+		return;
+	}
+
+	Slot << SA_ATTRIBUTE(TEXT("Name"), Tag.Name);
+	if (Tag.Name.IsNone())
+	{
+		return;
+	}
+
+	Slot << SA_ATTRIBUTE(TEXT("Type"), Tag.TypeName);
+	if (UnderlyingArchive.IsLoading())
+	{
+		Tag.SetType(Tag.TypeName);
+	}
+
+	if (UnderlyingArchive.IsSaving())
+	{
+		// Store the serialized offset of the Size field.
+		// UStruct::SerializeTaggedProperties will rewrite it after the property has been serialized.
+		Tag.SizeOffset = UnderlyingArchive.Tell();
+	}
+	Slot << SA_ATTRIBUTE(TEXT("Size"), Tag.Size);
+
+	EPropertyTagFlags PropertyTagFlags = EPropertyTagFlags::None;
+	EPropertyTagExtension PropertyTagExtensions = CalculatePropertyExtensionFlags(UnderlyingArchive, Tag);
+
+	if (UnderlyingArchive.IsSaving())
+	{
+		Tag.SerializeType = Tag.GetProperty()->UseBinaryOrNativeSerialization(UnderlyingArchive)
+			? EPropertyTagSerializeType::BinaryOrNative : EPropertyTagSerializeType::Property;
+
+		if (Tag.ArrayIndex != 0)
+		{
+			PropertyTagFlags |= EPropertyTagFlags::HasArrayIndex;
+		}
+		if (Tag.HasPropertyGuid)
+		{
+			PropertyTagFlags = EPropertyTagFlags::HasPropertyGuid;
+		}
+		if (PropertyTagExtensions != EPropertyTagExtension::NoExtension)
+		{
+			PropertyTagFlags |= EPropertyTagFlags::HasPropertyExtensions;
+		}
+		if (Tag.SerializeType == EPropertyTagSerializeType::BinaryOrNative)
+		{
+			PropertyTagFlags |= EPropertyTagFlags::HasBinaryOrNativeSerialize;
+		}
+		if (Tag.BoolVal && Tag.Type == NAME_BoolProperty)
+		{
+			PropertyTagFlags |= EPropertyTagFlags::BoolTrue;
+		}
+	}
+
+	Slot << SA_ATTRIBUTE(TEXT("Flags"), PropertyTagFlags);
+
+	if (UnderlyingArchive.IsLoading())
+	{
+		Tag.HasPropertyGuid = EnumHasAnyFlags(PropertyTagFlags, EPropertyTagFlags::HasPropertyGuid);
+		Tag.SerializeType = EnumHasAnyFlags(PropertyTagFlags, EPropertyTagFlags::HasBinaryOrNativeSerialize)
+			? EPropertyTagSerializeType::BinaryOrNative : EPropertyTagSerializeType::Property;
+		Tag.BoolVal = EnumHasAnyFlags(PropertyTagFlags, EPropertyTagFlags::BoolTrue);
+	}
+
+	if (EnumHasAnyFlags(PropertyTagFlags, EPropertyTagFlags::HasArrayIndex))
+	{
+		Slot << SA_ATTRIBUTE(TEXT("ArrayIndex"), Tag.ArrayIndex);
+	}
+	else
+	{
+		Tag.ArrayIndex = 0;
+	}
+
+	if (EnumHasAnyFlags(PropertyTagFlags, EPropertyTagFlags::HasPropertyGuid))
+	{
+		Slot << SA_ATTRIBUTE(TEXT("PropertyGuid"), Tag.PropertyGuid);
+	}
+
+	if (EnumHasAnyFlags(PropertyTagFlags, EPropertyTagFlags::HasPropertyExtensions))
+	{
 		SerializePropertyExtensions(Slot, PropertyTagExtensions, Tag);
 	}
 }

@@ -297,8 +297,8 @@ EConvertFromTypeResult FBoolProperty::ConvertFromType(const FPropertyTag& Tag, F
 			return EConvertFromTypeResult::UseSerializeItem;
 		}
 
-		// Disallow a nested byte property because it is impossible to distinguish from a nested enum.
-		if (GetOwner<FProperty>())
+		// Disallow a nested byte property prior to complete type names because it was impossible to distinguish from a nested enum.
+		if (GetOwner<FProperty>() && Slot.GetArchiveState().UEVer() < EUnrealEngineObjectUE5Version::PROPERTY_TAG_COMPLETE_TYPE_NAME)
 		{
 			return EConvertFromTypeResult::UseSerializeItem;
 		}

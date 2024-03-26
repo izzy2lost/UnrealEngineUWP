@@ -909,10 +909,21 @@ EConvertFromTypeResult FSetProperty::ConvertFromType(const FPropertyTag& Tag, FS
 		return EConvertFromTypeResult::UseSerializeItem;
 	}
 
-	const FName InnerTypeName = Tag.GetType().GetParameterName();
-	if (InnerTypeName.IsNone() || InnerTypeName == ElementProp->GetID())
+	const FPackageFileVersion Version = UnderlyingArchive.UEVer();
+	if (Version >= EUnrealEngineObjectUE5Version::PROPERTY_TAG_COMPLETE_TYPE_NAME)
 	{
-		return EConvertFromTypeResult::UseSerializeItem;
+		if (CanSerializeFromTypeName(Tag.GetType()))
+		{
+			return EConvertFromTypeResult::UseSerializeItem;
+		}
+	}
+	else
+	{
+		const FName InnerTypeName = Tag.GetType().GetParameterName();
+		if (InnerTypeName.IsNone() || InnerTypeName == ElementProp->GetID())
+		{
+			return EConvertFromTypeResult::UseSerializeItem;
+		}
 	}
 
 	FScriptSetHelper ScriptSetHelper(this, ContainerPtrToValuePtr<void>(Data));

@@ -176,7 +176,7 @@ void FArrayProperty::SerializeItem(FStructuredArchive::FSlot Slot, void* Value, 
 		return;
 	}
 
-	if (bIsTextFormat && Inner->IsA<FStructProperty>())
+	if (bIsTextFormat && Inner->IsA<FStructProperty>() && UnderlyingArchive.UEVer() < EUnrealEngineObjectUE5Version::PROPERTY_TAG_COMPLETE_TYPE_NAME)
 	{
 		MaybeInnerTag.Emplace(Inner, /*Index*/ 0, (uint8*)Value);
 
@@ -558,7 +558,8 @@ void FArrayProperty::SerializeItem(FStructuredArchive::FSlot Slot, void* Value, 
 	FUObjectSerializeContext* Context = FUObjectThreadContext::Get().GetSerializeContext();
 
 	// Serialize a PropertyTag for the inner property of this array, allows us to validate the inner struct to see if it has changed
-	if (UnderlyingArchive.UEVer() >= VER_UE4_INNER_ARRAY_TAG_INFO &&
+	if (UnderlyingArchive.UEVer() < EUnrealEngineObjectUE5Version::PROPERTY_TAG_COMPLETE_TYPE_NAME &&
+		UnderlyingArchive.UEVer() >= VER_UE4_INNER_ARRAY_TAG_INFO &&
 		Inner->IsA<FStructProperty>())
 	{
 		if (!MaybeInnerTag)
@@ -1170,10 +1171,21 @@ EConvertFromTypeResult FArrayProperty::ConvertFromType(const FPropertyTag& Tag, 
 
 	FArchive& UnderlyingArchive = Slot.GetUnderlyingArchive();
 
-	const FName InnerTypeName = Tag.GetType().GetParameterName();
-	if (InnerTypeName.IsNone() || InnerTypeName == Inner->GetID())
+	const FPackageFileVersion Version = UnderlyingArchive.UEVer();
+	if (Version >= EUnrealEngineObjectUE5Version::PROPERTY_TAG_COMPLETE_TYPE_NAME)
 	{
-		return EConvertFromTypeResult::UseSerializeItem;
+		if (CanSerializeFromTypeName(Tag.GetType()))
+		{
+			return EConvertFromTypeResult::UseSerializeItem;
+		}
+	}
+	else
+	{
+		const FName InnerTypeName = Tag.GetType().GetParameterName();
+		if (InnerTypeName.IsNone() || InnerTypeName == Inner->GetID())
+		{
+			return EConvertFromTypeResult::UseSerializeItem;
+		}
 	}
 
 	if (Tag.bExperimentalOverridableLogic)
@@ -1198,7 +1210,7 @@ EConvertFromTypeResult FArrayProperty::ConvertFromType(const FPropertyTag& Tag, 
 	InnerPropertyTag.SetType(Tag.GetType().GetParameter());
 	InnerPropertyTag.ArrayIndex = 0;
 
-	if (UnderlyingArchive.UEVer() >= VER_UE4_INNER_ARRAY_TAG_INFO && InnerPropertyTag.Type == NAME_StructProperty)
+	if (Version < EUnrealEngineObjectUE5Version::PROPERTY_TAG_COMPLETE_TYPE_NAME && Version >= VER_UE4_INNER_ARRAY_TAG_INFO && InnerPropertyTag.Type == NAME_StructProperty)
 	{
 		UnderlyingArchive << InnerPropertyTag;
 	}
