@@ -2617,11 +2617,12 @@ UNiagaraNodeFunctionCall* FNiagaraStackGraphUtilities::AddScriptModuleToStack(co
 	}
 
 	// If specified, find the nearest index to TargetIndex that satisfies the new module script's order dependencies.
-	int32 FinalTargetIndex = TargetIndex;
+	int32 BestFoundIndex = INDEX_NONE;
 	if (bFixupTargetIndex)
 	{
-		FinalTargetIndex = DependencyUtilities::FindBestIndexForModuleInStack(*NewModuleNode, *Graph);
+		BestFoundIndex = DependencyUtilities::FindBestIndexForModuleInStack(*NewModuleNode, *TargetOutputNode);
 	}
+	int32 FinalTargetIndex = BestFoundIndex != INDEX_NONE ? BestFoundIndex : TargetIndex;
 
 	ConnectModuleNode(*NewModuleNode, *TargetOutputNode, FinalTargetIndex);
 	return NewModuleNode;
@@ -4556,7 +4557,7 @@ void FNiagaraStackGraphUtilities::GetEmitterHandleAndCompiledScriptsForStackNode
 	}
 }
 
-int32 FNiagaraStackGraphUtilities::DependencyUtilities::FindBestIndexForModuleInStack(UNiagaraNodeFunctionCall& ModuleNode, UNiagaraGraph& EmitterScriptGraph)
+int32 FNiagaraStackGraphUtilities::DependencyUtilities::FindBestIndexForModuleInStack(UNiagaraNodeFunctionCall& ModuleNode, const UNiagaraNodeOutput& TargetOutputNode)
 {
 	// Check if the new module node has any dependencies to begin with. If not, early exit.
 	FVersionedNiagaraScriptData* ScriptData = ModuleNode.GetScriptData();
@@ -4565,26 +4566,44 @@ int32 FNiagaraStackGraphUtilities::DependencyUtilities::FindBestIndexForModuleIn
 		return INDEX_NONE;
 	}
 
-	// Get the Emitter and System the emitter script script graph is outered to.
-	UNiagaraSystem* System = EmitterScriptGraph.GetTypedOuter<UNiagaraSystem>();
-	FVersionedNiagaraEmitter OuterEmitter = EmitterScriptGraph.GetOwningEmitter();
-	if (System == nullptr || OuterEmitter.Emitter == nullptr)
+	// Get and validate the owning graph.
+	UNiagaraGraph* Graph = ModuleNode.GetNiagaraGraph();
+	if (Graph == nullptr || Graph->Nodes.Contains(&ModuleNode) == false)
 	{
 		return INDEX_NONE;
 	}
 
-	// Get the stack module data for the emitter stack to find dependencies.
+	// Get the Emitter and System the emitter script script graph is outered to.
+	UNiagaraSystem* System = ModuleNode.GetTypedOuter<UNiagaraSystem>();
+	FVersionedNiagaraEmitter OuterEmitter = Graph->GetOwningEmitter();
+	if (System == nullptr && OuterEmitter.Emitter == nullptr)
+	{
+		return INDEX_NONE;
+	}
+
+	// Get the stack module data for the stack to find dependencies.
 	TSharedPtr<FNiagaraSystemViewModel> SystemViewModel = TNiagaraViewModelManager<UNiagaraSystem, FNiagaraSystemViewModel>::GetExistingViewModelForObject(System);
 	if (!ensureMsgf(SystemViewModel.IsValid(), TEXT("Failed to get systemviewmodel for valid system when getting best index in stack for module!")))
 	{
 		return INDEX_NONE;
 	}
-	TSharedPtr<FNiagaraEmitterHandleViewModel> EmitterHandleViewModel = SystemViewModel->GetEmitterHandleViewModelForEmitter(OuterEmitter);
-	if (!ensureMsgf(EmitterHandleViewModel.IsValid(), TEXT("Failed to get emitterhandleviewmodel for valid emitter when getting best index in stack for module!")))
+
+	FGuid EmitterHandleId;
+	if (OuterEmitter.Emitter != nullptr)
 	{
-		return INDEX_NONE;
+		TSharedPtr<FNiagaraEmitterHandleViewModel> EmitterHandleViewModel = SystemViewModel->GetEmitterHandleViewModelForEmitter(OuterEmitter);
+		if (!ensureMsgf(EmitterHandleViewModel.IsValid(), TEXT("Failed to get emitterhandleviewmodel for valid emitter when getting best index in stack for module!")))
+		{
+			return INDEX_NONE;
+		}
+		else
+		{
+			EmitterHandleId = EmitterHandleViewModel->GetId();
+		}
 	}
-	const TArray<FNiagaraStackModuleData>& StackModuleData = SystemViewModel->GetStackModuleDataByEmitterHandleId(EmitterHandleViewModel->GetId());
+	
+	// Calling this with an invalid handle will retrieve the system stack module data.
+	const TArray<FNiagaraStackModuleData>& StackModuleData = SystemViewModel->GetStackModuleDataByEmitterHandleId(EmitterHandleId);
 
 
 	// Find the greatest and least indices for the stack first.
@@ -4592,6 +4611,11 @@ int32 FNiagaraStackGraphUtilities::DependencyUtilities::FindBestIndexForModuleIn
 	int32 GreatestIndex = INDEX_NONE;
 	for (const FNiagaraStackModuleData& CurrentStackModuleData : StackModuleData)
 	{
+		// Stack module data indices are only valid for a specific script which is identified by the usage and usage id.
+		if (CurrentStackModuleData.Usage != TargetOutputNode.GetUsage() || CurrentStackModuleData.UsageId != TargetOutputNode.GetUsageId())
+		{
+			continue;
+		}
 		int32 Index = CurrentStackModuleData.Index;
 		LeastIndex = LeastIndex > Index ? Index : LeastIndex;
 		GreatestIndex = GreatestIndex < Index ? Index : GreatestIndex;
@@ -4618,6 +4642,11 @@ int32 FNiagaraStackGraphUtilities::DependencyUtilities::FindBestIndexForModuleIn
 
 	for (const FNiagaraStackModuleData& CurrentStackModuleData : StackModuleData)
 	{
+		// Stack module data indices are only valid for a specific script which is identified by the usage and usage id.
+		if (CurrentStackModuleData.Usage != TargetOutputNode.GetUsage() || CurrentStackModuleData.UsageId != TargetOutputNode.GetUsageId())
+		{
+			continue;
+		}
 		for (const FNiagaraModuleDependency& RequiredDependency : NewModuleScriptRequiredDependencies)
 		{
 			if (DoesStackModuleProvideDependency(CurrentStackModuleData, RequiredDependency, *GetOutputNodeForStackModuleData(CurrentStackModuleData)))
@@ -4675,6 +4704,11 @@ int32 FNiagaraStackGraphUtilities::DependencyUtilities::FindBestIndexForModuleIn
 
 	for (const FNiagaraStackModuleData& CurrentStackModuleData : StackModuleData)
 	{
+		// Stack module data indices are only valid for a specific script which is identified by the usage and usage id.
+		if (CurrentStackModuleData.Usage != TargetOutputNode.GetUsage() || CurrentStackModuleData.UsageId != TargetOutputNode.GetUsageId())
+		{
+			continue;
+		}
 		for (const FNiagaraModuleDependency& ProvidedDependency : GetStackModuleDataRequiredDependenciesBeingProvided(CurrentStackModuleData))
 		{
 			if (ProvidedDependency.Type == ENiagaraModuleDependencyType::PostDependency)

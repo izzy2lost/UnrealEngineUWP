@@ -1220,10 +1220,13 @@ const TArray<FNiagaraStackModuleData>& FNiagaraSystemViewModel::GetStackModuleDa
 	}
 
 	FVersionedNiagaraEmitter Emitter;
-	TSharedPtr<FNiagaraEmitterHandleViewModel> EmitterHandleViewModel = GetEmitterHandleViewModelById(EmitterHandleId);
-	if (ensureMsgf(EmitterHandleViewModel.IsValid(), TEXT("Failed to get the emitter handle view model for emitter handle id %s while getting stack module data."), *EmitterHandleId.ToString(EGuidFormats::DigitsWithHyphens)))
+	if (EmitterHandleId.IsValid())
 	{
-		Emitter = EmitterHandleViewModel->GetEmitterViewModel()->GetEmitter();
+		TSharedPtr<FNiagaraEmitterHandleViewModel> EmitterHandleViewModel = GetEmitterHandleViewModelById(EmitterHandleId);
+		if (ensureMsgf(EmitterHandleViewModel.IsValid(), TEXT("Failed to get the emitter handle view model for emitter handle id %s while getting stack module data."), *EmitterHandleId.ToString(EGuidFormats::DigitsWithHyphens)))
+		{
+			Emitter = EmitterHandleViewModel->GetEmitterViewModel()->GetEmitter();
+		}
 	}
 
 	return BuildAndCacheStackModuleData(EmitterHandleId, Emitter);

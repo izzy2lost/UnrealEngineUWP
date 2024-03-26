@@ -142,7 +142,10 @@ void UNiagaraStackModuleItem::RefreshChildrenInternal(const TArray<UNiagaraStack
 	bIsScratchModuleCache.Reset();
 	DisplayNameCache.Reset();
 
-	if (FunctionCallNode != nullptr && (FunctionCallNode->HasValidScriptAndGraph() || FunctionCallNode->Signature.IsValid()))
+	if (FunctionCallNode != nullptr &&
+		(FunctionCallNode->HasValidScriptAndGraph() || FunctionCallNode->Signature.IsValid()) &&
+		FunctionCallNode->GetGraph() != nullptr && 
+		FunctionCallNode->GetGraph()->Nodes.Contains(FunctionCallNode))
 	{
 		// Determine if meta-data requires that we add our own refresh button here.
 		if (FunctionCallNode->HasValidScriptAndGraph())
@@ -204,11 +207,11 @@ void UNiagaraStackModuleItem::RefreshChildrenInternal(const TArray<UNiagaraStack
 				NewChildren.Add(EmptyAssignmentNodeMessage);
 			}
 		}
+		RefreshIsEnabled();
+		RefreshIssues(NewIssues);
 	}
 
-	RefreshIsEnabled();
 	Super::RefreshChildrenInternal(CurrentChildren, NewChildren, NewIssues);
-	RefreshIssues(NewIssues);
 }
 
 
@@ -749,7 +752,7 @@ namespace NiagaraStackModuleItemIssues {
 		}
 
 		FVersionedNiagaraScriptData* ScriptData = SourceModuleNode.FunctionScript->GetScriptData(SourceModuleNode.SelectedScriptVersion);
-		int32 ModuleIndex = SourceStackModuleData.IndexOfByPredicate([&SourceModuleNode](const FNiagaraStackModuleData& ModuleData) { return ModuleData.ModuleNode == &SourceModuleNode || ModuleData.ModuleNode->GetFunctionName() == SourceModuleNode.GetFunctionName(); });
+		int32 ModuleIndex = SourceStackModuleData.IndexOfByPredicate([&SourceModuleNode](const FNiagaraStackModuleData& ModuleData) { return ModuleData.ModuleNode == &SourceModuleNode; });
 		if (ensureMsgf(ModuleIndex != INDEX_NONE, TEXT("In system %s, module %s (%s) did not exist in the stack module data."),
 			*SourceSystemViewModel->GetSystem().GetPathName(), *SourceModuleNode.GetFunctionName(), *SourceModuleNode.GetName()))
 		{
