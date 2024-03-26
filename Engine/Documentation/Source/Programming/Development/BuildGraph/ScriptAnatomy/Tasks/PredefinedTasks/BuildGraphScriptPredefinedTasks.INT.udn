@@ -108,6 +108,7 @@ Compiles a target with UnrealBuildTool.
 | AllowParallelExecutor | Boolean                   | Optional | No longer necessary as UnrealBuildTool is run to compile targets.                                                                |
 | AllowAllCores         | Boolean                   | Optional | Whether to allow UBT to use all available cores, when AllowXGE is disabled.                                                      |
 | Clean                 | Boolean                   | Optional | Whether to allow cleaning this target. If unspecified, targets are cleaned if the -Clean argument is passed on the command line. |
+| SkipBuild             | Boolean                   | Optional | Global flag passed to UBT that can be used to generate target files without fully compiling.                                     |
 | Tag                   | TagList                   | Optional | Tag to be applied to build products of this task.                                                                                |
 | If                    | Condition                 | Optional | Whether to execute this task. It is ignored if this condition evaluates to false.                                                |
 
@@ -732,6 +733,7 @@ Exports an snapshot from Zen to a specified destination.
 | DestinationFileDir                 | DirectoryReference | Optional | The directory to use when exporting to a file destination                                                                    |
 | DestinationFileName                | String             | Optional | The filename to use when exporting to a file destination                                                                     |
 | OverridePlatformCookedDir          | String             | Optional | Optional. Where to look for the ue.projectstore The pattern {Platform} can be used for exporting multiple platforms at once. |
+| Force                              | Boolean            | Optional | Optional. Whether to force export of data even if the destination claims to have them.                                       |
 | If                                 | Condition          | Optional | Whether to execute this task. It is ignored if this condition evaluates to false.                                            |
 
 ### ZenImportOplog
