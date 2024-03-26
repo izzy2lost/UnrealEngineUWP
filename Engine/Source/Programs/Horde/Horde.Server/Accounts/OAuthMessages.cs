@@ -84,6 +84,12 @@ namespace Horde.Server.Accounts
 		public string? AuthorizationToken { get; set; }
 
 		/// <summary>
+		/// Refresh token specified in the redirect.
+		/// </summary>
+		[FromForm(Name = "refresh_token")]
+		public string? RefreshToken { get; set; }
+
+		/// <summary>
 		/// 
 		/// </summary>
 		[FromForm(Name = "redirect_url")]

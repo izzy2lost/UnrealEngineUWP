@@ -128,7 +128,7 @@ namespace Horde.Server.Ddc
 			return new BlobId(testObjectHash.HashData);
 		}
 
-		public static async Task<BlobId> FromStreamAsync(Stream stream, CancellationToken cancellationToken)
+		public static async Task<BlobId> FromStreamAsync(Stream stream, CancellationToken cancellationToken = default)
 		{
 			using Hasher hasher = Hasher.New();
 

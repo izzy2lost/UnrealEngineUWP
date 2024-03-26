@@ -111,4 +111,7 @@ to group related job types. There are several predefined jobs on different tabs.
   environment variables that allow UnrealBuildTool to connect to the server without any additional configuration.
 * **Test Executor** - Runs a mock job with simulated errors or warnings, which is useful for testing connectivity to agents
   without syncing a Perforce workspace.
-  
+
+## See Also
+
+* [Configuration > Build Automation](../Config/BuildAutomation.md)

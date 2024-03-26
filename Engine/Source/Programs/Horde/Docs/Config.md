@@ -29,3 +29,5 @@ This section targets operating and managing Horde installations and shares some 
 * [Globals.json Reference](Config/Schema/Globals.md)
 * [*.project.json Reference](Config/Schema/Projects.md)
 * [*.stream.json Reference](Config/Schema/Streams.md)
+* [*.telemetry.json Reference](Config/Schema/Telemetry.md)
+* [*.dashboard.json Reference](Config/Schema/Dashboard.md)

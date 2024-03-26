@@ -131,7 +131,6 @@ namespace Horde.Server.Telemetry
 		/// <param name="uploadType">Type of data being uploaded</param>
 		[HttpPost]
 		[Route("/api/v1/telemetry")]
-		[Obsolete("Pass a telemetry store id in the route")]
 		public ActionResult PostEvent([FromBody] PostTelemetryEventStreamRequest request, [FromQuery][Required] string appId, [FromQuery][Required] string appVersion, [FromQuery][Required] string appEnvironment, [FromQuery][Required] TelemetryUploadType uploadType)
 		{
 			return PostEvent(TelemetryStoreId.Default, request, appId, appVersion, appEnvironment, uploadType);

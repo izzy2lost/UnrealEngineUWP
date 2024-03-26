@@ -99,7 +99,6 @@ using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Hosting.Server.Features;
 using Microsoft.AspNetCore.Http;
-using Microsoft.AspNetCore.Http.Extensions;
 using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Controllers;
@@ -311,7 +310,7 @@ namespace Horde.Server
 					|| actionDescriptor?.MethodInfo?.DeclaringType?.GetCustomAttribute<ObsoleteAttribute>() != null)
 				{
 					ILogger? logger = context.HttpContext.RequestServices.GetService<ILogger<ObsoleteLoggingFilter>>();
-					logger?.LogWarning("Using obsolete endpoint for request: {Request}", context.HttpContext.Request.GetDisplayUrl());
+					logger?.LogWarning("Using obsolete endpoint: {RequestPath} (Source: {RemoteIp})", context.HttpContext.Request.Path, context.HttpContext.Connection.RemoteIpAddress);
 				}
 			}
 		}
@@ -786,12 +785,8 @@ namespace Horde.Server
 				case AuthMethod.Horde:
 					authBuilder.AddHordeOpenId(settings, OpenIdConnectDefaults.AuthenticationScheme, OpenIdConnectDefaults.DisplayName, options =>
 					{
-						options.Authority = "/api/v1/oauth2";
+						options.Authority = new Uri(settings.ServerUrl, "api/v1/oauth2").ToString();
 						options.ClientId = "default";
-						if (settings.HttpsPort == 0)
-						{
-							options.RequireHttpsMetadata = false;
-						}
 						foreach (string scope in settings.OidcRequestedScopes)
 						{
 							options.Scope.Add(scope);

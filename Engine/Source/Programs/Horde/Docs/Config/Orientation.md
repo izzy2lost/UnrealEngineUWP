@@ -22,7 +22,7 @@ Horde will detect changes to the referenced file and automatically update from i
 while trying to update configuration at runtime can be reported via Slack notifications, and the server will continue
 running with a cached version of the previous configuration until fixed.
 
-The `Globals.json` file may include other configuration files by path. For CI use cases, for example, it can be
+Horde configuration files may include other configuration files by path. For CI use cases, for example, it can be
 convenient to configure each stream within the stream itself.
 
 ## Projects and Streams
@@ -68,3 +68,7 @@ To set up Horde as a schema server in Microsoft Visual Studio, go to `Tools` > `
 
 Add the path to your Horde server as `{{ SERVER-URL }}/api/v1/schema/catalog.json`, substituting
 `{{ SERVER-URL }}` as appropriate.
+
+The extension given to the included files indicates the root element which should be expected by the schema.
+Files with a `.project.json` extension start at the project element, files with a `.stream.json` extension
+start at the stream element, and so on.

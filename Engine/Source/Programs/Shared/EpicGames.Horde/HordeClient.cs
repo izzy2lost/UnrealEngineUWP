@@ -23,6 +23,11 @@ namespace EpicGames.Horde
 		readonly HordeOptions _hordeOptions;
 		readonly ILoggerFactory _loggerFactory;
 
+		Uri? _serverUrl;
+
+		/// <inheritdoc/>
+		public Uri ServerUrl => GetServerUrl();
+
 		/// <summary>
 		/// Constructor
 		/// </summary>
@@ -33,6 +38,16 @@ namespace EpicGames.Horde
 			_bundleCache = bundleCache;
 			_hordeOptions = hordeOptions.Value;
 			_loggerFactory = loggerFactory;
+		}
+
+		Uri GetServerUrl()
+		{
+			if (_serverUrl == null)
+			{
+				using HttpClient httpClient = _httpClientFactory.CreateClient(HordeHttpClient.HttpClientName);
+				_serverUrl = httpClient.BaseAddress ?? new Uri("http://horde-server");
+			}
+			return _serverUrl;
 		}
 
 		/// <inheritdoc/>

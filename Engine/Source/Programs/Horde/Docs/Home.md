@@ -3,11 +3,12 @@
 ## Getting Started
 
 * **[Installing Horde](Tutorials/InstallHorde.md)**
-* **[Set up remote C++ compilation](Tutorials/RemoteCompilation.md)**
-* **[Set up build automation](Tutorials/BuildAutomation.md)**
-* **[Set up test automation](Tutorials/TestAutomation.md)**
-* **[Set up studio analytics](Tutorials/Analytics.md)**
-* **[Set up device manager](Tutorials/DeviceManager.md)**
+* **[Setting up remote C++ compilation with Unreal Build Accelerator](Tutorials/RemoteCompilation.md)**
+* **[Setting up build automation](Tutorials/BuildAutomation.md)**
+* **[Setting up test automation](Tutorials/TestAutomation.md)**
+* **[Setting up analytics for your team](Tutorials/Analytics.md)**
+* **[Setting up mobile and console devices](Tutorials/DeviceManager.md)**
+* **[Setting up UnrealGameSync and getting Unreal Editor builds to content creators](Tutorials/UnrealGameSync.md)**
 
 ## Status
 
