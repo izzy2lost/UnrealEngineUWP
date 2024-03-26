@@ -423,12 +423,12 @@ protected:
 	{
 		FORCEINLINE static FPerThreadFreeBlockLists* Get()
 		{
-			return BinnedTlsSlot ? (FPerThreadFreeBlockLists*)FPlatformTLS::GetTlsValue(BinnedTlsSlot) : nullptr;
+			return FPlatformTLS::IsValidTlsSlot(BinnedTlsSlot) ? (FPerThreadFreeBlockLists*)FPlatformTLS::GetTlsValue(BinnedTlsSlot) : nullptr;
 		}
 
 		static void SetTLS()
 		{
-			check(BinnedTlsSlot);
+			check(FPlatformTLS::IsValidTlsSlot(BinnedTlsSlot));
 			FPerThreadFreeBlockLists* ThreadSingleton = (FPerThreadFreeBlockLists*)FPlatformTLS::GetTlsValue(BinnedTlsSlot);
 			if (!ThreadSingleton)
 			{
@@ -445,7 +445,7 @@ protected:
 
 		static void ClearTLS()
 		{
-			check(BinnedTlsSlot);
+			check(FPlatformTLS::IsValidTlsSlot(BinnedTlsSlot));
 			FPerThreadFreeBlockLists* ThreadSingleton = (FPerThreadFreeBlockLists*)FPlatformTLS::GetTlsValue(BinnedTlsSlot);
 			if (ThreadSingleton)
 			{

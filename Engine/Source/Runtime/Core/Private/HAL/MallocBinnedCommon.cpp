@@ -471,7 +471,7 @@ static FAutoConsoleVariableRef GMallocBinned3BundleCountCVar(
 
 #endif
 
-uint32 FMallocBinnedCommonBase::BinnedTlsSlot = 0;
+uint32 FMallocBinnedCommonBase::BinnedTlsSlot = FPlatformTLS::InvalidTlsSlot;
 #if UE_BINNEDCOMMON_ALLOCATOR_STATS
 std::atomic<int64> FMallocBinnedCommonBase::TLSMemory(0);
 std::atomic<int64> FMallocBinnedCommonBase::ConsolidatedMemory(0);
