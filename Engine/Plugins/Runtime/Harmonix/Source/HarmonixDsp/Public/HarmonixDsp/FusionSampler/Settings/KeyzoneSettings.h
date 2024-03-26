@@ -40,10 +40,7 @@ struct HARMONIXDSP_API FKeyzoneSettings
 
 	GENERATED_BODY()
 
-	FKeyzoneSettings() 
-	{
-		SetFineTuneCents(FineTuneCents);
-	};
+	FKeyzoneSettings() {}
 
 	FKeyzoneSettings(const FKeyzoneArgs& InArgs)
 	{
@@ -66,8 +63,6 @@ struct HARMONIXDSP_API FKeyzoneSettings
 		TimeStretchConfig.PitchShifter = InArgs.PitchShifter;
 		TimeStretchConfig.bSyncTempo = InArgs.bSyncTempo;
 		TimeStretchConfig.OriginalTempo = InArgs.OriginalTempo;
-
-		SetFineTuneCents(FineTuneCents);
 	}
 
 public:
@@ -106,9 +101,6 @@ public:
 	
 	UPROPERTY(EditDefaultsOnly, Category="Settings", Meta = (UIMin = -100, UIMax = 100, ClampMin = -100, ClampMax = 100))
 	float FineTuneCents = 0.0f;
-
-	// This value shouldn't be serialized. It's updated on construction
-	float FineTuneAdjustment = 0.0f;
 	
 	UPROPERTY(EditDefaultsOnly, Category="Settings", Meta=(PostEditType="Trivial", UIMin="0.0", UIMax="1.0", ClampMin="0.0", ClampMax="1.0"))
 	float Gain = 1.0f;
@@ -145,7 +137,6 @@ public:
 	bool ContainsNoteAndVelocity(uint8 InNote, uint8 InVelocity) const;
 	void SetVolumeDb(float Db);
 	float GetVolumeDb() const;
-	void SetFineTuneCents(float InCents);
 	bool IsSingleton() const {  return SingletonFusionVoicePool != nullptr; }
 	bool IsNoteOnZone() const { return !bIsNoteOffZone; }
 
