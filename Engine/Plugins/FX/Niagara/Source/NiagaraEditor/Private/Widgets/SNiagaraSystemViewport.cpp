@@ -69,6 +69,7 @@ public:
 	void DrawEmitterExecutionOrder(UNiagaraComponent* Component, FCanvas* Canvas, float& CurrentX, float& CurrentY, UFont* Font, const float FontHeight);
 	void DrawGpuTickInformation(UNiagaraComponent* Component, FCanvas* Canvas, float& CurrentX, float& CurrentY, UFont* Font, const float FontHeight);
 	void DrawMemoryInfo(UNiagaraComponent* Component, FCanvas* Canvas, float& CurrentX, float& CurrentY, UFont* Font, const float FontHeight);
+	void DrawStatelessInfo(UNiagaraComponent* Component, FViewport* InViewport, FCanvas* Canvas, UFont* Font, const float FontHeight);
 	void SetUpdateViewportFocus(bool bUpdate) { bUpdateViewportFocus = bUpdate; }
 
 	TWeakPtr<SNiagaraSystemViewport> NiagaraViewportPtr;
@@ -251,6 +252,11 @@ void FNiagaraSystemViewportClient::Draw(FViewport* InViewport, FCanvas* Canvas)
 			DrawParticleCounts(Component, Canvas, CurrentX, CurrentY, Font, FontHeight);
 			CurrentY += FontHeight;
 		}
+		if (NiagaraViewport->GetDrawElement(SNiagaraSystemViewport::EDrawElements::StatelessInfo) && Component)
+		{
+			UFont* TinyFont = GEngine->GetTinyFont();
+			DrawStatelessInfo(Component, InViewport, Canvas, TinyFont, TinyFont->GetMaxCharHeight() * 1.1f);
+		}
 	}
 
 	if (bCaptureScreenShot && ScreenShotOwner.IsValid() && OnScreenShotCaptured.IsBound())
@@ -351,19 +357,21 @@ void FNiagaraSystemViewportClient::DrawParticleCounts(UNiagaraComponent* Compone
 
 		for (const FNiagaraEmitterInstanceRef& EmitterInstance : SystemInstance->GetEmitters())
 		{
-			FVersionedNiagaraEmitterData* EmitterData = EmitterInstance->GetEmitterHandle().GetEmitterData();
+			const FNiagaraEmitterHandle& EmitterHandle = EmitterInstance->GetEmitterHandle();
+			FVersionedNiagaraEmitterData* EmitterData = EmitterHandle.GetEmitterData();
 
-			const FName EmitterName = EmitterInstance->GetEmitterHandle().GetName();
+			const FName EmitterName = EmitterHandle.GetName();
 			const int32 CurrentCount = EmitterInstance->GetNumParticles();
 			const int32 MaxCount = EmitterData ? EmitterData->GetMaxParticleCountEstimate() : 0;
-			const bool IsIsolated = EmitterInstance->GetEmitterHandle().IsIsolated();
-			const bool IsEnabled = EmitterInstance->GetEmitterHandle().GetIsEnabled();
+			const bool IsIsolated = EmitterHandle.IsIsolated();
+			const bool IsEnabled = EmitterHandle.GetIsEnabled();
 			const ENiagaraExecutionState ExecutionState = EmitterInstance->GetExecutionState();
 			const FString EmitterExecutionString = UEnum::GetValueAsString(ExecutionState);
 			const int32 EmitterExecutionStringValueIndex = EmitterExecutionString.Find(TEXT("::"));
 			const TCHAR* EmitterExecutionText = EmitterExecutionStringValueIndex == INDEX_NONE ? *EmitterExecutionString : *EmitterExecutionString + EmitterExecutionStringValueIndex + 2;
+			const TCHAR* EmitterMode = EmitterHandle.GetEmitterMode() == ENiagaraEmitterMode::Stateless ? TEXT("[Stateless]") : TEXT("");
 
-			TextItem.Text = FText::FromString(FString::Printf(TEXT("%i Current, %i Max (est.) - [%s] [%s]"), CurrentCount, MaxCount, *EmitterName.ToString(), EmitterExecutionText));
+			TextItem.Text = FText::FromString(FString::Printf(TEXT("%i Current, %i Max (est.) - [%s] [%s] %s"), CurrentCount, MaxCount, *EmitterName.ToString(), EmitterExecutionText, EmitterMode));
 			TextItem.Position = FVector2D(CurrentX, CurrentY);
 			TextItem.bOutlined = IsIsolated;
 			TextItem.OutlineColor = FLinearColor(0.7f, 0.0f, 0.0f);
@@ -529,6 +537,51 @@ void FNiagaraSystemViewportClient::DrawMemoryInfo(UNiagaraComponent* Component, 
 		Font, FLinearColor::White
 	);
 	CurrentY += FontHeight;
+}
+
+void FNiagaraSystemViewportClient::DrawStatelessInfo(UNiagaraComponent* Component, FViewport* InViewport, FCanvas* Canvas, UFont* Font, const float FontHeight)
+{
+	UNiagaraSystem* NiagaraSystem = Component->GetAsset();
+	if (!NiagaraSystem)
+	{
+		return;
+	}
+
+	int32 NumStatelessEmitters = 0;
+	int32 NumEmitters = 0;
+
+	for (const FNiagaraEmitterHandle& EmitterHandle : NiagaraSystem->GetEmitterHandles())
+	{
+		if (EmitterHandle.GetIsEnabled())
+		{
+			++NumEmitters;
+			UNiagaraStatelessEmitter* StatelessEmitter = EmitterHandle.GetEmitterMode() == ENiagaraEmitterMode::Stateless ? EmitterHandle.GetStatelessEmitter() : nullptr;
+			if (StatelessEmitter)
+			{
+				++NumStatelessEmitters;
+			}
+		}
+	}
+
+	if (NumStatelessEmitters > 0)
+	{
+		const FVector2D ScaledViewportSize = FVector2D(InViewport->GetSizeXY()) / Canvas->GetDPIScale();
+		FCanvasTextItem TextItem(FVector2D::ZeroVector, FText::GetEmpty(), Font, FLinearColor::White);
+
+		FString StatelessInfo = FString::Printf(TEXT("Stateless: %d / %d Emitters"), NumStatelessEmitters, NumEmitters);
+		if (NiagaraSystem->SystemStateFastPathEnabled())
+		{
+			StatelessInfo.Append(TEXT(" [FastPath]"));
+		}
+
+		int32 Width = 0;
+		int32 Height = 0;
+		UCanvas::ClippedStrLen(Font, 1.0f, 1.0f, Width, Height, *StatelessInfo);
+
+		TextItem.Text = FText::FromString(StatelessInfo);
+		TextItem.EnableShadow(FLinearColor::Black);
+		TextItem.Draw(Canvas, ScaledViewportSize.X - 5 - float(Width), ScaledViewportSize.Y - 5 - float(Height));
+	}
 }
 
 void FNiagaraSystemViewportClient::SetOrbitModeFromSettings()
@@ -705,6 +758,7 @@ void SNiagaraSystemViewport::Construct(const FArguments& InArgs, TSharedRef<FNia
 	DrawFlags |= Settings->IsShowEmitterExecutionOrder() ? EDrawElements::EmitterExecutionOrder : 0;
 	DrawFlags |= Settings->IsShowGpuTickInformation() ? EDrawElements::GpuTickInformation : 0;
 	DrawFlags |= Settings->IsShowMemoryInfo() ? EDrawElements::MemoryInfo : 0;
+	DrawFlags |= Settings->IsShowStatelessInfo() ? EDrawElements::StatelessInfo : 0;
 
 	bShowBackground = false;
 	PreviewComponent = nullptr;
@@ -992,6 +1046,18 @@ void SNiagaraSystemViewport::BindCommands()
 		}),
 		FCanExecuteAction(),
 		FIsActionChecked::CreateLambda([Viewport = this]() -> bool { return Viewport->GetDrawElement(EDrawElements::MemoryInfo); })
+	);
+
+	CommandList->MapAction(
+		Commands.ToggleStatelessInfo,
+		FExecuteAction::CreateLambda([Viewport = this]()
+		{
+			Viewport->ToggleDrawElement(EDrawElements::StatelessInfo);
+			GetMutableDefault<UNiagaraEditorSettings>()->SetShowStatelessInfo(Viewport->GetDrawElement(EDrawElements::StatelessInfo));
+			Viewport->RefreshViewport();
+		}),
+		FCanExecuteAction(),
+		FIsActionChecked::CreateLambda([Viewport = this]() -> bool { return Viewport->GetDrawElement(EDrawElements::StatelessInfo); })
 	);
 
 	CommandList->MapAction(
