@@ -1274,20 +1274,41 @@ public:
 
 	void WaitTasksComplete()
 	{
-		FRWScopeLock WriteLock(PrecachePSOsRWLock, SLT_Write);
-
-		for (auto Iterator = PrecachedPSOInitializerData.CreateIterator(); Iterator; ++Iterator)
+		// We hold the lock to observe task state, releasing it if tasks are still in flight
+		// precache tasks may also attempt to lock PrecachePSOsRWLock (TPrecachePipelineCacheBase::PrecacheFinished).
+		// TODO: Replace all of this spin wait.
+		bool bTasksWaiting = true;
+		while(bTasksWaiting)
 		{
-			FPrecacheTask& PrecacheTask = Iterator->Value;
-			if (PrecacheTask.PipelineState && !PrecacheTask.PipelineState->IsComplete())
+			bTasksWaiting = false;
 			{
-				PrecacheTask.PipelineState->WaitCompletion();
-				check(EnumHasAnyFlags(PrecacheTask.ReadPSOPrecacheState(), (EPSOPrecacheStateMask::Succeeded | EPSOPrecacheStateMask::Failed)));
-				delete PrecacheTask.PipelineState;
-				PrecacheTask.PipelineState = nullptr;
+				FRWScopeLock WriteLock(PrecachePSOsRWLock, SLT_Write);
+				for (auto Iterator = PrecachedPSOInitializerData.CreateIterator(); Iterator; ++Iterator)
+				{
+					FPrecacheTask& PrecacheTask = Iterator->Value;
+					if (PrecacheTask.PipelineState && !PrecacheTask.PipelineState->IsComplete())
+					{
+						bTasksWaiting = true;						
+						break; // release PrecachePSOsRWLock so's to avoid any further blocking of in-progress tasks.
+					}
+					else if (PrecacheTask.PipelineState)
+					{
+						check(EnumHasAnyFlags(PrecacheTask.ReadPSOPrecacheState(), (EPSOPrecacheStateMask::Succeeded | EPSOPrecacheStateMask::Failed)));
+						delete PrecacheTask.PipelineState;
+						PrecacheTask.PipelineState = nullptr;
+					}
+				}
+				if (!bTasksWaiting)
+				{
+					PrecachedPSOs.Empty();
+				}
+			}
+			if (bTasksWaiting)
+			{
+				// Yield while we wait.
+				FPlatformProcess::Sleep(0.01f);
 			}
 		}
-		PrecachedPSOs.Empty();
 	}
 
 	EPSOPrecacheResult GetPrecachingState(const FPSOPrecacheRequestID& RequestID)
@@ -3127,6 +3148,8 @@ void PipelineStateCache::Shutdown()
 {
 	GComputePipelineCache.WaitTasksComplete();
 	GGraphicsPipelineCache.WaitTasksComplete();
+	GPrecacheGraphicsPipelineCache.WaitTasksComplete();
+	GPrecacheComputePipelineCache.WaitTasksComplete();
 #if RHI_RAYTRACING
 	GRayTracingPipelineCache.Shutdown();
 #endif
