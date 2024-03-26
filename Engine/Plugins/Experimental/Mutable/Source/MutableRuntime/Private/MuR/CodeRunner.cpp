@@ -106,8 +106,21 @@ static FAutoConsoleVariableRef CVarUseImageTransformVectorImpl (
 namespace mu
 {
 
-    //---------------------------------------------------------------------------------------------
-    CodeRunner::CodeRunner(const Ptr<const Settings>& InSettings,
+	TSharedRef<CodeRunner> CodeRunner::Create(
+		const Ptr<const Settings>& InSettings,
+		class System::Private* InSystem,
+		EExecutionStrategy InExecutionStrategy,
+		const TSharedPtr<const Model>& InModel,
+		const Parameters* InParams,
+		OP::ADDRESS At,
+		uint32 InLODMask, uint8 ExecutionOptions, int32 InImageLOD, FScheduledOp::EType Type)
+	{
+		return MakeShared<CodeRunner>(FPrivateToken {},
+				InSettings, InSystem, InExecutionStrategy, InModel, InParams, At, InLODMask, ExecutionOptions, InImageLOD, Type);
+	}
+
+    CodeRunner::CodeRunner(FPrivateToken PrivateToken, 
+		const Ptr<const Settings>& InSettings,
 		class System::Private* InSystem,
 		EExecutionStrategy InExecutionStrategy,
 		const TSharedPtr<const Model>& InModel,
@@ -115,6 +128,7 @@ namespace mu
 		OP::ADDRESS at,
 		uint32 InLodMask, uint8 executionOptions, int32 InImageLOD, FScheduledOp::EType Type )
 		: m_pSettings(InSettings)
+		, RunnerCompletionEvent(TEXT("CodeRunnerCompletioneEventInit"))
 		, ExecutionStrategy(InExecutionStrategy)
 		, m_pSystem(InSystem)
 		, m_pModel(InModel)
@@ -129,10 +143,13 @@ namespace mu
    		{
 			GetMemory().IncreaseHitCount(FCacheAddress(at, 0, executionOptions));
 		}
-    	
+    
+		// Start with a completed Event. This is checked at StartRun() to make sure StartRun is not called while there is 
+		// a Run in progress.
+		RunnerCompletionEvent.Trigger();
 
 		ImageLOD = InImageLOD;
-
+	
 		// Push the root operation
 		FScheduledOp rootOp;
 		rootOp.At = at;
@@ -5018,8 +5035,8 @@ namespace mu
             }
             break;
         }
-    }
-    
+    }	
+	
 	//---------------------------------------------------------------------------------------------
     Ptr<RangeIndex> CodeRunner::BuildCurrentOpRangeIndex( const FScheduledOp& item, const Parameters* pParams, const Model* pModel, int32 parameterIndex )
     {
@@ -5347,7 +5364,6 @@ namespace mu
         }
     }
 
-
     //---------------------------------------------------------------------------------------------
     void CodeRunner::RunCode_Scalar(const FScheduledOp& item, const Parameters* pParams, const Model* pModel )
     {
@@ -5463,7 +5479,6 @@ namespace mu
             break;
         }
     }
-
 
     //---------------------------------------------------------------------------------------------
     void CodeRunner::RunCode_String(const FScheduledOp& item, const Parameters* pParams, const Model* pModel )

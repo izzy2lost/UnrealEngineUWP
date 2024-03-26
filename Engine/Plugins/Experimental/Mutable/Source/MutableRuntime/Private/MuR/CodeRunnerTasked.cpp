@@ -46,15 +46,6 @@
 
 DECLARE_CYCLE_STAT(TEXT("MutableCoreTask"), STAT_MutableCoreTask, STATGROUP_Game);
 
-
-int32 CoreRunnerTaskPriority = 5;
-
-static FAutoConsoleVariableRef CVarCoreRunnerTaskPriority(
-	TEXT("mutable.CoreRunnerTaskPriority"),
-	CoreRunnerTaskPriority,
-	TEXT("0 AnyThread. 1 to 6, from hight to low priority."),
-	ECVF_Default);
-
 namespace mu
 {
 
@@ -273,21 +264,42 @@ namespace mu
 		IssuedTasks.Add(TaskToIssue);
 	}
 
+	UE::Tasks::FTask CodeRunner::StartRun(bool bForceInlineExecution)
+	{
+		check(RunnerCompletionEvent.IsCompleted());
 
-    //---------------------------------------------------------------------------------------------
-    void CodeRunner::Run()
-    {
 		bUnrecoverableError = false;
 
 		m_heapData.SetNum(0, EAllowShrinking::No);
 		m_heapImageDesc.SetNum(0, EAllowShrinking::No);
-
-		// Profiling data. TODO: make optional
+		
+		RunnerCompletionEvent = UE::Tasks::FTaskEvent(TEXT("CodeRunnerCompletionEvent"));
+		
 		bool bProfile = false;
-		uint32 NumRunOps = 0;
-		uint32 RunOpsPerType[size_t(OP_TYPE::COUNT)] = {};
+		
+		TUniquePtr<FProfileContext> ProfileContext = bProfile ? MakeUnique<FProfileContext>() : nullptr;
+		Run(MoveTemp(ProfileContext), bForceInlineExecution);
 
-        while( !OpenTasks.IsEmpty() || !ClosedTasks.IsEmpty() || !IssuedTasks.IsEmpty())
+		check(!bForceInlineExecution || RunnerCompletionEvent.IsCompleted());
+
+		return RunnerCompletionEvent;
+	}
+
+	void CodeRunner::AbortRun()
+	{
+		bUnrecoverableError = true;
+		RunnerCompletionEvent.Trigger();
+	}
+
+    void CodeRunner::Run(TUniquePtr<FProfileContext>&& ProfileContext, bool bForceInlineExecution)
+    {
+		MUTABLE_CPUPROFILER_SCOPE(TEXT("CodeRunner_Run"));
+
+		check(!RunnerCompletionEvent.IsCompleted());
+
+		const double StartSeconds = FPlatformTime::Seconds();
+
+        while(!OpenTasks.IsEmpty() || !ClosedTasks.IsEmpty() || !IssuedTasks.IsEmpty())
         {
 			UpdateTraces();
 			// Debug: log the amount of tasks that we'd be able to run concurrently:
@@ -308,12 +320,12 @@ namespace mu
 			//	UE_LOG(LogMutableCore, Log, TEXT("Tasks: %5d open, %5d issued, %5d closed, %d closed ready"), OpenTasks.Num(), IssuedTasks.Num(), ClosedTasks.Num(), ClosedReady);
 			//}
 
-			for (int Index = 0; Index < IssuedTasks.Num(); )
+			for (int32 Index = 0; Index < IssuedTasks.Num(); )
 			{
 				check(IssuedTasks[Index]);
 
-				bool WorkDone = IssuedTasks[Index]->IsComplete(this);
-				if (WorkDone)
+				bool bWorkDone = IssuedTasks[Index]->IsComplete(this);
+				if (bWorkDone)
 				{
 					const FScheduledOp& item = IssuedTasks[Index]->Op;
 					IssuedTasks[Index]->Complete(this);
@@ -326,7 +338,7 @@ namespace mu
 						ScheduledStagePerOp[item] = 0;
 					}
 
-					IssuedTasks.RemoveAt(Index,1,EAllowShrinking::No); // with swap? changes order of execution.
+					IssuedTasks.RemoveAt(Index, 1, EAllowShrinking::No); // with swap? changes order of execution.
 				}
 				else
 				{
@@ -379,7 +391,7 @@ namespace mu
 				}
 
 				// Special processing in case it is an ImageDesc operation
-				if ( item.Type==FScheduledOp::EType::ImageDesc )
+				if (item.Type == FScheduledOp::EType::ImageDesc)
 				{
 					RunCodeImageDesc(item, m_pParams, m_pModel.Get(), m_lodMask);
 					continue;
@@ -402,8 +414,7 @@ namespace mu
 						LaunchIssuedTask(IssuedTask, bFailed);
 						if (bFailed)
 						{
-							bUnrecoverableError = true;
-							return;
+							return AbortRun();
 						}
 					}
 					else
@@ -424,10 +435,10 @@ namespace mu
 					}
 				}
 
-				if (bProfile)
+				if (ProfileContext)
 				{
-					++NumRunOps;
-					RunOpsPerType[size_t(m_pModel->GetPrivate()->m_program.GetOpType(item.At))]++;
+					++ProfileContext->NumRunOps;
+					++ProfileContext->RunOpsPerType[int32(m_pModel->GetPrivate()->m_program.GetOpType(item.At))];
 				}
 			}
 
@@ -442,14 +453,13 @@ namespace mu
 				LaunchIssuedTask(TaskToIssue, bFailed);
 				if (bFailed)
 				{
-					bUnrecoverableError = true;
-					return;
+					return AbortRun();
 				}
 			}
 
 			// Look for a closed task with dependencies satisfied and move them to the open task list.
 			bool bSomeWasReady = false;
-			for (int Index = 0; Index<ClosedTasks.Num(); )
+			for (int32 Index = 0; Index < ClosedTasks.Num(); )
 			{
 				bool Ready = true;
 				for ( const FCacheAddress& Dep: ClosedTasks[Index].Deps )
@@ -485,7 +495,7 @@ namespace mu
 			if (bDeadLock)
 			{
 				// Log the task graph
-				for (int Index = 0; Index < ClosedTasks.Num(); ++Index)
+				for (int32 Index = 0; Index < ClosedTasks.Num(); ++Index)
 				{
 					FString TaskDesc = FString::Printf(TEXT("Closed task %d-%d-%d depends on : "), ClosedTasks[Index].Op.At, ClosedTasks[Index].Op.ExecutionIndex, ClosedTasks[Index].Op.Stage );
 					for (const FCacheAddress& Dep : ClosedTasks[Index].Deps)
@@ -501,7 +511,7 @@ namespace mu
 				check(false);
 
 				// This should never happen but if it does, abort the code execution.
-				return;
+				return AbortRun();
 			}
 
 			// If at this point there is no open op and we haven't finished, we need to wait for an issued op to complete.
@@ -509,56 +519,109 @@ namespace mu
 			{
 				MUTABLE_CPUPROFILER_SCOPE(CodeRunner_WaitIssued);
 
-				for (int32 IssuedIndex = 0; IssuedIndex<IssuedTasks.Num(); ++IssuedIndex)
+				for (int32 IssuedIndex = 0; IssuedIndex < IssuedTasks.Num(); ++IssuedIndex)
 				{
 					if (IssuedTasks[IssuedIndex]->Event.IsValid())
 					{
-						if (CVarTaskGraphBusyWait->GetBool())
+						if (!bForceInlineExecution)
 						{
-							IssuedTasks[IssuedIndex]->Event.BusyWait();							
+							TArray<UE::Tasks::FTask, TInlineAllocator<8>> IssuedTasksCompletionEvents;
+							IssuedTasksCompletionEvents.Reserve(IssuedTasks.Num());
+
+							for (TSharedPtr<FIssuedTask>& IssuedTask : IssuedTasks)
+							{
+								IssuedTasksCompletionEvents.Add(IssuedTask->Event);
+							}
+
+							m_pSystem->WorkingMemoryManager.InvalidateRunnerThread();
+
+							UE::Tasks::Launch(TEXT("CodeRunnerFromIssuedTasksTask"),
+								[Runner = AsShared(), ProfileContext = MoveTemp(ProfileContext)]() mutable
+								{
+									Runner->m_pSystem->WorkingMemoryManager.ResetRunnerThread();
+
+									constexpr bool bForceInlineExecution = false;
+									Runner->Run(MoveTemp(ProfileContext), bForceInlineExecution);
+								},
+								UE::Tasks::Prerequisites(UE::Tasks::Any(IssuedTasksCompletionEvents)),
+								UE::Tasks::ETaskPriority::Inherit);
+							
+							return;
 						}
 						else
 						{
-							IssuedTasks[IssuedIndex]->Event.Wait();
-						}
+							if (CVarTaskGraphBusyWait->GetBool())
+							{
+								IssuedTasks[IssuedIndex]->Event.BusyWait();							
+							}
+							else
+							{
+								IssuedTasks[IssuedIndex]->Event.Wait();
+							}
 
-						break;
+							break;
+						}
 					}
+				}
+			}
+
+			if (!bForceInlineExecution)
+			{
+				// TODO: Move the timeout somewhere else more accessible, maybe a cvar.
+				const FTimespan Timeout = FTimespan::FromMilliseconds(2.0);
+				const FTimespan Duration = FTimespan::FromSeconds(FPlatformTime::Seconds() - StartSeconds);
+				if (Duration > Timeout)
+				{
+					m_pSystem->WorkingMemoryManager.InvalidateRunnerThread();
+
+					UE::Tasks::Launch(TEXT("CodeRunnerFromTimeoutTask"),
+						[Runner = AsShared(), ProfileContext = MoveTemp(ProfileContext)]() mutable
+						{
+							Runner->m_pSystem->WorkingMemoryManager.ResetRunnerThread();
+
+							constexpr bool bForceInlineExecution = false;
+							Runner->Run(MoveTemp(ProfileContext), bForceInlineExecution);
+						},
+						UE::Tasks::ETaskPriority::Inherit);
+					
+					return;
 				}
 			}
 		}
 
-		if (bProfile)
+		if (ProfileContext)
 		{
 			UE_LOG(LogMutableCore, Log, TEXT("Mutable Heap Bytes: %d"), m_heapData.Num()* m_heapData.GetTypeSize());
-			UE_LOG(LogMutableCore, Log, TEXT("Ran ops : %5d "), NumRunOps);
+			UE_LOG(LogMutableCore, Log, TEXT("Ran ops : %5d "), ProfileContext->NumRunOps);
 
-			constexpr int HistogramSize = 8;
+			constexpr int32 HistogramSize = 8;
 			int32 MostCommonOps[HistogramSize] = {};
-			for (size_t i=0; i<size_t(OP_TYPE::COUNT); ++i)
+			for (int32 OpIndex = 0; OpIndex < int32(OP_TYPE::COUNT); ++OpIndex)
 			{
-				for (int32 h=0; h<HistogramSize;++h)
+				for (int32 HistIndex = 0; HistIndex < HistogramSize; ++HistIndex)
 				{
-					if (RunOpsPerType[i] > RunOpsPerType[MostCommonOps[h]])
+					if (ProfileContext->RunOpsPerType[OpIndex] > ProfileContext->RunOpsPerType[MostCommonOps[HistIndex]])
 					{
 						// Displace others
-						int32 ElementsToMove = HistogramSize - h - 1;
+						int32 ElementsToMove = HistogramSize - HistIndex - 1;
 						if (ElementsToMove > 0)
 						{
-							FMemory::Memcpy(&MostCommonOps[h + 1], &MostCommonOps[h], sizeof(int32)* ElementsToMove);
+							FMemory::Memcpy(&MostCommonOps[HistIndex + 1], &MostCommonOps[HistIndex], sizeof(int32)*ElementsToMove);
 						}
 						// Set new value
-						MostCommonOps[h] = i;
+						MostCommonOps[HistIndex] = OpIndex;
 						break;
 					}
 				}
 			}
 
-			for (int h = 0; h < HistogramSize; ++h)
+			for (int32 HistIndex = 0; HistIndex < HistogramSize; ++HistIndex)
 			{
-				UE_LOG(LogMutableCore, Log, TEXT("    op %4d, %4d times."), MostCommonOps[h], RunOpsPerType[MostCommonOps[h]]);
+				UE_LOG(LogMutableCore, Log, TEXT("    op %4d, %4d times."), MostCommonOps[HistIndex], ProfileContext->RunOpsPerType[MostCommonOps[HistIndex]]);
 			}
 		}
+
+		RunnerCompletionEvent.Trigger();
     }
 
 	

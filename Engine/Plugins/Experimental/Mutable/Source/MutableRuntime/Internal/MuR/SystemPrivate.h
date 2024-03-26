@@ -1121,7 +1121,7 @@ namespace mu
 
     /** Struct to manage all the memory allocated for resources used during mutable operation. */
     struct FWorkingMemoryManager
-    {
+    {	
 		using MemoryCounter = MemoryCounters::FMemoryTrackerInternalMemoryCounter;
 
 		template<class Type>
@@ -1789,38 +1789,69 @@ namespace mu
 
 
 #if !(UE_BUILD_SHIPPING || UE_BUILD_TEST)
+		static constexpr uint64 InvalidRunnerId = 0;
+		std::atomic<uint64> DebugCurrentRunnerId {1};
+		
 		/** Temp variable with the ID of the thread running code, for debugging. */
 		uint32 DebugRunnerThreadID = FThread::InvalidThreadId;
+		uint64 DebugRunnerID = InvalidRunnerId;
 #endif
 
 		/** This is a development-only check to make sure calls to resource management happen in the correct thread. */
-		inline void BeginRunnerThread()
+		FORCEINLINE void BeginRunnerThread()
 		{
 #if !(UE_BUILD_SHIPPING || UE_BUILD_TEST)
 			// If this check fails it means have not set up correctly all the paths to debug threading for resource management.
 			check(DebugRunnerThreadID == FThread::InvalidThreadId);
+			check(DebugRunnerID == InvalidRunnerId)
+
+			DebugRunnerThreadID = FPlatformTLS::GetCurrentThreadId();
+			DebugRunnerID = ++DebugCurrentRunnerId;
+#endif
+		}
+
+		/** This is a development-only check to make sure calls to resource management happen in the correct thread. */
+		FORCEINLINE void ResetRunnerThread()
+		{
+#if !(UE_BUILD_SHIPPING || UE_BUILD_TEST)
+			// If this check fails it means have not set up correctly all the paths to debug threading for resource management.
+			check(DebugRunnerThreadID == FThread::InvalidThreadId);
+			check(DebugRunnerID != InvalidRunnerId)
 
 			DebugRunnerThreadID = FPlatformTLS::GetCurrentThreadId();
 #endif
 		}
 
-
 		/** This is a development-only check to make sure calls to resource management happen in the correct thread. */
-		inline void CheckRunnerThread()
+		FORCEINLINE void InvalidateRunnerThread()
 		{
 #if !(UE_BUILD_SHIPPING || UE_BUILD_TEST)
 			// If this check fails it means have not set up correctly all the paths to debug threading for resource management.
 			check(DebugRunnerThreadID != FThread::InvalidThreadId);
+			check(DebugRunnerID != InvalidRunnerId)
+
+			DebugRunnerThreadID = FThread::InvalidThreadId;
+#endif
+		}
+
+		/** This is a development-only check to make sure calls to resource management happen in the correct thread. */
+		FORCEINLINE void CheckRunnerThread()
+		{
+#if !(UE_BUILD_SHIPPING || UE_BUILD_TEST)
+			// If this check fails it means have not set up correctly all the paths to debug threading for resource management.
+			check(DebugRunnerThreadID != FThread::InvalidThreadId);
+			check(DebugRunnerID != InvalidRunnerId);
 
 			// If this check fails it means we are doing resource management from a thread that is not the CodeRunner::RunCode
 			// thread, and this is not allowed.
-			check(DebugRunnerThreadID== FPlatformTLS::GetCurrentThreadId());
+			check(DebugRunnerThreadID == FPlatformTLS::GetCurrentThreadId());
+			check(DebugRunnerID == DebugCurrentRunnerId);
 #endif
 		}
 
 
 		/** This is a development-only check to make sure calls to resource management happen in the correct thread. */
-		inline void EndRunnerThread()
+		FORCEINLINE void EndRunnerThread()
 		{
 			CurrentInstanceCache->CheckHitCountsCleared();
 
@@ -1833,8 +1864,10 @@ namespace mu
 #if !(UE_BUILD_SHIPPING || UE_BUILD_TEST)
 			// If this check fails it means have not set up correctly all the paths to debug threading for resource management.
 			check(DebugRunnerThreadID != FThread::InvalidThreadId);
+			check(DebugRunnerID != InvalidRunnerId);
 
 			DebugRunnerThreadID = FThread::InvalidThreadId;
+			DebugRunnerID = InvalidRunnerId;
 #endif
 		}
 
@@ -1844,6 +1877,7 @@ namespace mu
 	/** */
     class System::Private
     {
+		friend class System;
     public:
 
         Private( Ptr<Settings>, const TSharedPtr<ExtensionDataStreamer>& );
