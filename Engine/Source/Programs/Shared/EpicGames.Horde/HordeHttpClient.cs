@@ -121,10 +121,11 @@ namespace EpicGames.Horde
 		/// <param name="streamId">Stream to create the artifact for</param>
 		/// <param name="change">Change number for the artifact</param>
 		/// <param name="keys">Keys used to identify the artifact</param>
+		/// <param name="metadata">Metadata for the artifact</param>
 		/// <param name="cancellationToken">Cancellation token for the operation</param>
-		public Task<CreateArtifactResponse> CreateArtifactAsync(ArtifactName name, ArtifactType type, string? description, StreamId? streamId = null, int? change = null, List<string>? keys = null, CancellationToken cancellationToken = default)
+		public Task<CreateArtifactResponse> CreateArtifactAsync(ArtifactName name, ArtifactType type, string? description, StreamId? streamId = null, int? change = null, List<string>? keys = null, List<string>? metadata = null, CancellationToken cancellationToken = default)
 		{
-			return PostAsync<CreateArtifactResponse, CreateArtifactRequest>(_httpClient, $"api/v2/artifacts", new CreateArtifactRequest(name, type, description, streamId, change, keys ?? new List<string>()), cancellationToken);
+			return PostAsync<CreateArtifactResponse, CreateArtifactRequest>(_httpClient, $"api/v2/artifacts", new CreateArtifactRequest(name, type, description, streamId, change, keys ?? new List<string>(), metadata ?? new List<string>()), cancellationToken);
 		}
 
 		/// <summary>
@@ -183,9 +184,10 @@ namespace EpicGames.Horde
 		/// <param name="streamId">Stream to look for the artifact in</param>
 		/// <param name="minChange">The minimum change number for the artifacts</param>
 		/// <param name="maxChange">The minimum change number for the artifacts</param>
+		/// <param name="keys">Keys for artifacts to return</param>
 		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		/// <returns>Information about all the artifacts</returns>
-		public async Task<List<GetArtifactResponse>> FindArtifactsByTypeAsync(ArtifactType type, StreamId? streamId = null, int? minChange = null, int? maxChange = null, CancellationToken cancellationToken = default)
+		public async Task<List<GetArtifactResponse>> FindArtifactsByTypeAsync(ArtifactType type, StreamId? streamId = null, int? minChange = null, int? maxChange = null, IEnumerable<string>? keys = null, CancellationToken cancellationToken = default)
 		{
 			QueryStringBuilder queryParams = new QueryStringBuilder();
 			queryParams.Add("type", type.ToString());
@@ -203,6 +205,14 @@ namespace EpicGames.Horde
 			if (maxChange != null)
 			{
 				queryParams.Add("maxChange", maxChange.ToString()!);
+			}
+
+			if (keys != null)
+			{
+				foreach (string key in keys)
+				{
+					queryParams.Add("key", key);
+				}
 			}
 
 			FindArtifactsResponse response = await GetAsync<FindArtifactsResponse>(_httpClient, $"api/v2/artifacts?{queryParams}", cancellationToken);

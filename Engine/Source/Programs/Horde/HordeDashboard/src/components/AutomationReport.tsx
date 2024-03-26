@@ -52,7 +52,7 @@ const getStyles = () => {
          getFocusStyle(theme, { inset: -1 }),
          {
             selectors: {
-               '&:hover': { background: theme.palette.neutralLight }
+               '&:hover': { background: dashboard.darktheme ? undefined : theme.palette.neutralLight }
             }
          }
       ],

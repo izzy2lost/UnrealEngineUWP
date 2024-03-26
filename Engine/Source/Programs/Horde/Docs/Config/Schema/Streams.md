@@ -18,6 +18,7 @@ Name | Description
 `notificationChannelFilter` | `string`<br>Notification channel filter for this template. Can be Success|Failure|Warnings
 `triageChannel` | `string`<br>Channel to post issue triage notifications
 `jobOptions` | [`JobOptions`](#joboptions)<br>Default settings for executing jobs
+`telemetryStoreId` | `string`<br>Telemetry store for Horde data for this stream
 `autoSdkView` | `string[]`<br>View for the AutoSDK paths to sync. If null, the whole thing will be synced.
 `defaultPreflightTemplate` | `string`<br>Legacy name for the default preflight template
 `defaultPreflight` | [`DefaultPreflightConfig`](#defaultpreflightconfig)<br>Default template for running preflights

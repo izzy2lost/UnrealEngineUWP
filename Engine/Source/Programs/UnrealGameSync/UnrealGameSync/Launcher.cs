@@ -7,6 +7,7 @@ using System.Diagnostics.CodeAnalysis;
 using System.IO;
 using System.IO.Compression;
 using System.Linq;
+using System.Reflection;
 using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
@@ -35,6 +36,13 @@ namespace UnrealGameSync
 		{
 			// Don't do this if we're already running as a spawned instance
 			if (args.Any(x => x.StartsWith("-updatespawn=", StringComparison.OrdinalIgnoreCase)))
+			{
+				return LauncherResult.Continue;
+			}
+
+			// Also check we're not running under the 
+			DirectoryReference applicationFolder = new DirectoryReference(GetSyncFolder());
+			if (new FileReference(Assembly.GetExecutingAssembly().Location).IsUnderDirectory(applicationFolder))
 			{
 				return LauncherResult.Continue;
 			}
@@ -106,6 +114,11 @@ namespace UnrealGameSync
 			public void Dispose() { }
 		}
 
+		static string GetSyncFolder()
+		{
+			return Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "UnrealGameSync", "Latest");
+		}
+
 		public static async Task SyncAndRun(IPerforceConnection? perforce, LauncherSettings launcherSettings, string[] args, Mutex instanceMutex, ILogger logger, CancellationToken cancellationToken)
 		{
 			try
@@ -116,7 +129,7 @@ namespace UnrealGameSync
 				}
 
 				// Create the target folder
-				string applicationFolder = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "UnrealGameSync", "Latest");
+				string applicationFolder = GetSyncFolder();
 				if (!SafeCreateDirectory(applicationFolder))
 				{
 					throw new UserErrorException($"Couldn't create directory: {applicationFolder}");

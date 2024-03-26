@@ -16,6 +16,7 @@ Name | Description
 `pools` | [`PoolConfig`](#poolconfig)`[]`<br>List of pools for this project
 `categories` | [`ProjectCategoryConfig`](#projectcategoryconfig)`[]`<br>Categories to include in this project
 `jobOptions` | [`JobOptions`](#joboptions)<br>Default settings for executing jobs
+`telemetryStoreId` | `string`<br>Telemetry store for Horde data for this project
 `streams` | [`StreamConfig`](Streams.md)`[]`<br>List of streams
 `acl` | [`AclConfig`](#aclconfig)<br>Acl entries
 

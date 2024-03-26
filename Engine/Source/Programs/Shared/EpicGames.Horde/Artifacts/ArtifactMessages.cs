@@ -18,7 +18,8 @@ namespace EpicGames.Horde.Artifacts
 	/// <param name="StreamId">Stream to create the artifact for</param>
 	/// <param name="Change">Change number for the artifact</param>
 	/// <param name="Keys">Keys used to identify the artifact</param>
-	public record CreateArtifactRequest(ArtifactName Name, ArtifactType Type, string? Description, StreamId? StreamId, int? Change, List<string> Keys);
+	/// <param name="Metadata">Metadata for the artifact</param>
+	public record CreateArtifactRequest(ArtifactName Name, ArtifactType Type, string? Description, StreamId? StreamId, int? Change, List<string> Keys, List<string> Metadata);
 
 	/// <summary>
 	/// Information about a created artifact
@@ -71,9 +72,14 @@ namespace EpicGames.Horde.Artifacts
 		public IReadOnlyList<string> Keys { get; }
 
 		/// <summary>
+		/// List of metadata properties stored with the artifact, in the form 'Key=Value'
+		/// </summary>
+		public IReadOnlyList<string> Metadata { get; }
+
+		/// <summary>
 		/// Constructor
 		/// </summary>
-		public GetArtifactResponse(ArtifactId id, ArtifactName name, ArtifactType type, string? description, StreamId streamId, int change, IReadOnlyList<string> keys)
+		public GetArtifactResponse(ArtifactId id, ArtifactName name, ArtifactType type, string? description, StreamId streamId, int change, IReadOnlyList<string> keys, IReadOnlyList<string> metadata)
 		{
 			Id = id;
 			Name = name;
@@ -82,6 +88,7 @@ namespace EpicGames.Horde.Artifacts
 			StreamId = streamId;
 			Change = change;
 			Keys = keys;
+			Metadata = metadata;
 		}
 	}
 

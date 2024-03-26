@@ -1246,8 +1246,9 @@ namespace AutomationTool
 				}
 
 				string[] keys = ReadListAttribute(element, "Keys");
+				string[] metadata = ReadListAttribute(element, "Metadata");
 
-				BgArtifactDef newArtifact = new BgArtifactDef(name, type, description, basePath, tag, keys);
+				BgArtifactDef newArtifact = new BgArtifactDef(name, type, description, basePath, tag, keys, metadata);
 				_graph.Artifacts.Add(newArtifact);
 			}
 		}
