@@ -51,6 +51,8 @@ namespace HarmonixMetasound
 									const FBoolReadRef& InLoop,
 									const FBoolReadRef& InEnabled);
 
+		virtual ~FStepSequencePlayerOperator() override;
+
 		virtual void BindInputs(FInputVertexInterfaceData& InVertexData) override;
 		virtual void BindOutputs(FOutputVertexInterfaceData& InVertexData) override;
 		virtual FDataReferenceCollection GetInputs() const override;
@@ -252,8 +254,15 @@ namespace HarmonixMetasound
 		Init();
 	}
 
+	FStepSequencePlayerOperator::~FStepSequencePlayerOperator()
+	{
+		MidiClockInPin->UnregisterPlayCursor(this);
+	}
+
 	void FStepSequencePlayerOperator::BindInputs(FInputVertexInterfaceData& InVertexData)
 	{
+		MidiClockInPin->UnregisterPlayCursor(this);
+
 		using namespace StepSequencePlayerPinNames;
 		using namespace CommonPinNames;
 		InVertexData.BindReadVertex(METASOUND_GET_PARAM_NAME(InputSequenceAsset), SequenceAssetInPin);
@@ -469,7 +478,7 @@ namespace HarmonixMetasound
 			bNeedsMidiOutClear = false;
 		}
 
-		int32 BlockFrame = (*MidiClockInPin).GetCurrentBlockFrameIndex();
+		int32 BlockFrame = MidiClockInPin->GetCurrentBlockFrameIndex();
 		ProcessedThruTick = FMath::Max(-1, Tick);
 		bNeedsRebase = true;
 		AllNotesOff(BlockFrame, Tick, true);
