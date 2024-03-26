@@ -920,6 +920,7 @@ void FAvaSequencer::DeleteSequence_Execute()
 		check(Item.IsValid());
 		if (UAvaSequence* Sequence = Item->GetSequence())
 		{
+			Sequence->Modify();
 			SequenceProvider->RemoveSequence(Sequence);
 			RemovedSequences.Add(Sequence);
 		}
