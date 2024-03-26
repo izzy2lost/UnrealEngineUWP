@@ -1,6 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "GenericPlatform/HttpRequestCommon.h"
+#include "GenericPlatform/HttpRequestPayload.h"
 #include "GenericPlatform/HttpResponseCommon.h"
 #include "HAL/Event.h"
 #include "Http.h"
@@ -500,5 +501,47 @@ void FHttpRequestCommon::StopPassingReceivedData()
 float FHttpRequestCommon::GetActivityTimeoutOrDefault() const
 {
 	return ActivityTimeoutSecs.Get(FHttpModule::Get().GetHttpActivityTimeout());
+}
 
+bool FHttpRequestCommon::SetContentAsStreamedFileDefaultImpl(const FString& Filename)
+{
+	UE_LOG(LogHttp, Verbose, TEXT("FHttpRequestCommon::SetContentAsStreamedFileDefaultImpl() - %s"), *Filename);
+
+	if (CompletionStatus == EHttpRequestStatus::Processing)
+	{
+		UE_LOG(LogHttp, Warning, TEXT("FHttpRequestCommon::SetContentAsStreamedFileDefaultImpl() - attempted to set content on a request that is inflight"));
+		return false;
+	}
+
+	RequestPayload = MakeUnique<FRequestPayloadInFileStream>(*Filename);
+	return true;
+}
+
+bool FHttpRequestCommon::OpenRequestPayloadDefaultImpl()
+{
+	if (!RequestPayload)
+	{
+		return true;
+	}
+
+	if (!RequestPayload->Open())
+	{
+		return false;
+	}
+
+	if ((GetVerb().IsEmpty() || GetVerb().Equals(TEXT("GET"), ESearchCase::IgnoreCase)) && RequestPayload->GetContentLength() > 0)
+	{
+		UE_LOG(LogHttp, Warning, TEXT("An HTTP Get request cannot contain a payload."));
+		return false;
+	}
+
+	return true;
+}
+
+void FHttpRequestCommon::CloseRequestPayloadDefaultImpl()
+{
+	if (RequestPayload.IsValid())
+	{
+		RequestPayload->Close();
+	}
 }

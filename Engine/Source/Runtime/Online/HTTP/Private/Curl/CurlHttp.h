@@ -373,8 +373,6 @@ private:
 	CURLMcode		CurlAddToMultiResult;
 	/** Operation result code as returned by libcurl */
 	CURLcode		CurlCompletionResult;
-	/** Payload to use with the request. Typically for POST, PUT, or PATCH */
-	TUniquePtr<FRequestPayload> RequestPayload;
 	/** Is the request payload seekable? */
 	bool bIsRequestPayloadSeekable = false;
 	/** Mapping of header section to values. */

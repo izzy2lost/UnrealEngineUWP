@@ -6,6 +6,7 @@
 
 class FHttpResponseCommon;
 class IHttpTaskTimerHandle;
+class FRequestPayload;
 
 /**
  * Contains implementation of some common functions that don't vary between implementations of different platforms
@@ -87,6 +88,10 @@ protected:
 
 	HTTP_API float GetActivityTimeoutOrDefault() const;
 
+	HTTP_API bool SetContentAsStreamedFileDefaultImpl(const FString& Filename);
+	HTTP_API bool OpenRequestPayloadDefaultImpl();
+	HTTP_API void CloseRequestPayloadDefaultImpl();
+
 protected:
 	/** Current status of request being processed */
 	EHttpRequestStatus::Type CompletionStatus = EHttpRequestStatus::NotStarted;
@@ -147,4 +152,7 @@ protected:
 	// Flag to indicate the request was initialized with stream. In that case even if stream was set to 
 	// null later on internally, the request itself won't cache received data anymore
 	std::atomic<bool> bInitializedWithValidStream = false;
+
+	/** Payload to use with the request. Typically for POST, PUT, or PATCH */
+	TUniquePtr<FRequestPayload> RequestPayload;
 };
