@@ -361,12 +361,19 @@ FIntPoint UMovieGraphBlueprintLibrary::GetEffectiveOutputResolution(UMovieGraphE
 		RescaledOverscan = FMath::Clamp(CameraSetting->OverscanPercentage / 100.f, 0.f, 1.f);
 	}
 
-	
+	// We need to look at the Project Settings for the latest value for a given profile
+	FMovieGraphNamedResolution NamedResolution;
+	if (UMovieGraphBlueprintLibrary::IsNamedResolutionValid(OutputSetting->OutputResolution.ProfileName))
+	{
+		NamedResolution = UMovieGraphBlueprintLibrary::NamedResolutionFromProfile(OutputSetting->OutputResolution.ProfileName);
+	}
+	else
+	{
+		// Otherwise if it's not in the output settings as a valid profile, we use our internally stored one.
+		NamedResolution = OutputSetting->OutputResolution;
+	}
 
-	return UMoviePipelineBlueprintLibrary::Utility_GetEffectiveOutputResolution(
-		RescaledOverscan,
-		OutputSetting->GetSyncedOutputResolution()
-	);
+	return UMoviePipelineBlueprintLibrary::Utility_GetEffectiveOutputResolution(RescaledOverscan, NamedResolution.Resolution);
 }
 
 FText UMovieGraphBlueprintLibrary::GetJobName(const UMovieGraphPipeline* InMovieGraphPipeline)

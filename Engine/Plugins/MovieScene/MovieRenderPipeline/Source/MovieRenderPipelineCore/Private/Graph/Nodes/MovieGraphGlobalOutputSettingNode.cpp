@@ -16,31 +16,6 @@ UMovieGraphGlobalOutputSettingNode::UMovieGraphGlobalOutputSettingNode()
 	, CustomPlaybackRangeEndFrame(0)
 	, bFlushDiskWritesPerShot(false)
 {
-	// We prefer a 1080p resolution by default, but users may not have a preset that matches that. So we'll 
-	// look for a matching resolution if we can find one, otherwise we go to Custom set to 1920x1080.
-	const FMovieGraphNamedResolution* FoundResolution = nullptr;
-	if (const UMovieGraphProjectSettings* MovieGraphProjectSettings =
-		GetDefault<UMovieGraphProjectSettings>())
-	{
-		FoundResolution = Algo::FindByPredicate(
-			MovieGraphProjectSettings->DefaultNamedResolutions,
-			[](const FMovieGraphNamedResolution& Other)
-			{
-				return Other.Resolution == FIntPoint(1920, 1080);
-			});
-	}
-
-	// If we found one that was 1080p, regardless of name, use it.
-	if (FoundResolution)
-	{
-		OutputResolution = *FoundResolution;
-	}
-	else
-	{
-		// We didn't find one that was 1080p, just force a custom resolution.
-		OutputResolution = UMovieGraphBlueprintLibrary::NamedResolutionFromSize(1920, 1080);
-	}
-	
 	OutputDirectory.Path = TEXT("{project_dir}/Saved/MovieRenders/");
 }
 
@@ -50,14 +25,24 @@ void UMovieGraphGlobalOutputSettingNode::GetFormatResolveArgs(FMovieGraphResolve
 	OutMergedFormatArgs.FilenameArguments.Add(TEXT("project_dir"), ResolvedProjectDir);
 	OutMergedFormatArgs.FileMetadata.Add(TEXT("unreal/project_dir"), ResolvedProjectDir);
 
-	FIntPoint OutputResolutionAsIntPoint = GetSyncedOutputResolution();
+	// We need to look at the Project Settings for the latest value for a given profile
+	FMovieGraphNamedResolution NamedResolution;
+	if (UMovieGraphBlueprintLibrary::IsNamedResolutionValid(OutputResolution.ProfileName))
+	{
+		NamedResolution = UMovieGraphBlueprintLibrary::NamedResolutionFromProfile(OutputResolution.ProfileName);
+	}
+	else
+	{
+		// Otherwise if it's not in the output settings as a valid profile, we use our internally stored one.
+		NamedResolution = OutputResolution;
+	}
 	
 	// Resolution Arguments
 	{
-		FString Resolution = FString::Printf(TEXT("%d_%d"), OutputResolutionAsIntPoint.X, OutputResolutionAsIntPoint.Y);
+		FString Resolution = FString::Printf(TEXT("%d_%d"), NamedResolution.Resolution.X, NamedResolution.Resolution.Y);
 		OutMergedFormatArgs.FilenameArguments.Add(TEXT("output_resolution"), Resolution);
-		OutMergedFormatArgs.FilenameArguments.Add(TEXT("output_width"), FString::FromInt(OutputResolutionAsIntPoint.X));
-		OutMergedFormatArgs.FilenameArguments.Add(TEXT("output_height"), FString::FromInt(OutputResolutionAsIntPoint.Y));
+		OutMergedFormatArgs.FilenameArguments.Add(TEXT("output_width"), FString::FromInt(NamedResolution.Resolution.X));
+		OutMergedFormatArgs.FilenameArguments.Add(TEXT("output_height"), FString::FromInt(NamedResolution.Resolution.Y));
 	}
 
 	// We don't resolve the version here because that's handled on a per-file/shot basis
@@ -95,19 +80,3 @@ EMovieGraphBranchRestriction UMovieGraphGlobalOutputSettingNode::GetBranchRestri
 }
 #endif // WITH_EDITOR
 
-FIntPoint UMovieGraphGlobalOutputSettingNode::GetSyncedOutputResolution() const
-{
-	// Try to find a matching entry from Project Settings to stay in sync
-	const UMovieGraphProjectSettings* MovieGraphProjectSettings = GetDefault<UMovieGraphProjectSettings>();
-	if (ensureAlwaysMsgf(MovieGraphProjectSettings, TEXT("%hs: Failed to find UMovieGraphProjectSettings!"), __FUNCTION__))
-	{
-		const FMovieGraphNamedResolution* FoundResolution = MovieGraphProjectSettings->FindNamedResolutionForOption(OutputResolution.ProfileName);
-		if (FoundResolution)
-		{
-			return FoundResolution->Resolution;
-		}
-	}
-
-	// Otherwise return what we have saved locally
-	return OutputResolution.Resolution;
-}
