@@ -46,8 +46,29 @@ UTickableTransformConstraint* UConstraintsScriptingLibrary::CreateFromType(
 bool UConstraintsScriptingLibrary::AddConstraint(UWorld* InWorld, UTransformableHandle* InParentHandle, UTransformableHandle* InChildHandle,
 	UTickableTransformConstraint *InConstraint, const bool bMaintainOffset)
 {
-	bool Val =  FTransformConstraintUtils::AddConstraint(InWorld, InParentHandle, InChildHandle,InConstraint, bMaintainOffset);
-	return Val;
+	if (!InWorld)
+	{
+		UE_LOG(LogTemp, Error, TEXT("AddConstraint: Need Valid World."));
+		return false;
+	}
+	
+	if (!InConstraint)
+	{
+		UE_LOG(LogTemp, Error, TEXT("AddConstraint: InConstraint is null."));
+		return false;
+	}
+	
+	const bool bAdded = FTransformConstraintUtils::AddConstraint(InWorld, InParentHandle, InChildHandle,InConstraint, bMaintainOffset);
+	if (!bAdded)
+	{
+		UE_LOG(LogTemp, Error, TEXT("AddConstraint: Constraint not added"));
+		return false;
+	}
+	
+	FConstraintsManagerController& Controller = FConstraintsManagerController::Get(InWorld);
+	Controller.StaticConstraintCreated(InWorld, InConstraint);
+	
+	return true;
 }
 
 TArray<UTickableConstraint*> UConstraintsScriptingLibrary::GetConstraintsArray(UWorld* InWorld)
