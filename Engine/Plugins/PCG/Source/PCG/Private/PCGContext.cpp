@@ -106,6 +106,12 @@ void FPCGContext::InitializeSettings()
 
 	if (const UPCGSettings* NodeSettings = GetOriginalSettings<UPCGSettings>())
 	{
+		// Don't apply overrides if the original settings are disabled
+		if (!NodeSettings->bEnabled)
+		{
+			return;
+		}
+
 		// Only duplicate the settings if we have overriable params and we have at least one param pin connected.
 		const TArray<FPCGSettingsOverridableParam>& OverridableParams = NodeSettings->OverridableParams();
 		if (!OverridableParams.IsEmpty())
