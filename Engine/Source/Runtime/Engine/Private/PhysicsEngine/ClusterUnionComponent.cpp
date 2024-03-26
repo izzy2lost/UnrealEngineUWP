@@ -1401,6 +1401,14 @@ bool UClusterUnionComponent::IsAnyRigidBodyAwake()
 	return !Interface->AreAllSleeping(PhysicsObjects);
 }
 
+void UClusterUnionComponent::SetMassOverrideInKg(FName BoneName, float MassInKg, bool bOverrideMass)
+{
+	if (PhysicsProxy)
+	{
+		PhysicsProxy->SetMass_External(MassInKg);
+	}
+}
+
 DECLARE_CYCLE_STAT(TEXT("UClusterUnionComponent::LineTraceComponentMulti"), STAT_ClusterUnionComponentLineTraceComponentMulti, STATGROUP_Chaos);
 bool UClusterUnionComponent::LineTraceComponent(TArray<FHitResult>& OutHit, const FVector Start, const FVector End, ECollisionChannel TraceChannel, const struct FCollisionQueryParams& Params, const struct FCollisionResponseParams& ResponseParams, const struct FCollisionObjectQueryParams& ObjectParams)
 {
