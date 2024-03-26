@@ -56,6 +56,7 @@ ANavigationTestingActor::ANavigationTestingActor(const FObjectInitializer& Objec
 	bDrawDistanceToWall = false;
 	ClosestWallLocation = FNavigationSystem::InvalidLocation;
 	bNavDataIsReadyInRadius = false;
+	bNavDataIsReadyToQueryTargetActor = false;
 	OffsetFromCornersDistance = 0.f;
 
 	QueryingExtent = FVector(DEFAULT_NAV_QUERY_EXTENT_HORIZONTAL, DEFAULT_NAV_QUERY_EXTENT_HORIZONTAL, DEFAULT_NAV_QUERY_EXTENT_VERTICAL);
@@ -91,6 +92,13 @@ void ANavigationTestingActor::BeginDestroy()
 		OtherActor->OtherActor = NULL;
 		OtherActor->LastPath.Reset();
 	}
+	if (QueryTargetActor)
+	{
+		if (USceneComponent* RootComp = QueryTargetActor->GetRootComponent())
+		{
+			RootComp->TransformUpdated.RemoveAll(this);
+		}
+	}
 	Super::BeginDestroy();
 }
 
@@ -98,16 +106,28 @@ void ANavigationTestingActor::BeginDestroy()
 void ANavigationTestingActor::PreEditChange(FProperty* PropertyThatWillChange)
 {
 	static const FName NAME_OtherActor = GET_MEMBER_NAME_CHECKED(ANavigationTestingActor, OtherActor);
+	static const FName NAME_QueryTargetActor = GET_MEMBER_NAME_CHECKED(ANavigationTestingActor, QueryTargetActor);
 
-	if (PropertyThatWillChange && PropertyThatWillChange->GetFName() == NAME_OtherActor && OtherActor && OtherActor->OtherActor == this)
+	if (PropertyThatWillChange)
 	{
-		OtherActor->OtherActor = NULL;
-		OtherActor->LastPath.Reset();
-		LastPath.Reset();
-#if WITH_EDITORONLY_DATA
-		OtherActor->EdRenderComp->MarkRenderStateDirty();
-		EdRenderComp->MarkRenderStateDirty();
-#endif
+		const FName ChangedPropName = PropertyThatWillChange->GetFName();
+		if (ChangedPropName == NAME_OtherActor && OtherActor && OtherActor->OtherActor == this)
+		{
+			OtherActor->OtherActor = NULL;
+			OtherActor->LastPath.Reset();
+			LastPath.Reset();
+	#if WITH_EDITORONLY_DATA
+			OtherActor->EdRenderComp->MarkRenderStateDirty();
+			EdRenderComp->MarkRenderStateDirty();
+	#endif
+		}
+		else if (ChangedPropName == NAME_QueryTargetActor && QueryTargetActor)
+		{
+			if (USceneComponent* RootComp = QueryTargetActor->GetRootComponent())
+			{
+				RootComp->TransformUpdated.RemoveAll(this);
+			}
+		}
 	}
 
 	Super::PreEditChange(PropertyThatWillChange);
@@ -117,6 +137,7 @@ void ANavigationTestingActor::PostEditChangeProperty(FPropertyChangedEvent& Prop
 {
 	static const FName NAME_ShouldBeVisibleInGame = GET_MEMBER_NAME_CHECKED(ANavigationTestingActor, bShouldBeVisibleInGame);
 	static const FName NAME_OtherActor = GET_MEMBER_NAME_CHECKED(ANavigationTestingActor, OtherActor);
+	static const FName NAME_QueryTargetActor = GET_MEMBER_NAME_CHECKED(ANavigationTestingActor, QueryTargetActor);
 	static const FName NAME_IsSearchStart = GET_MEMBER_NAME_CHECKED(ANavigationTestingActor, bSearchStart);
 	static const FName NAME_InvokerComponent = GET_MEMBER_NAME_CHECKED(ANavigationTestingActor, InvokerComponent);
 
@@ -128,7 +149,8 @@ void ANavigationTestingActor::PostEditChangeProperty(FPropertyChangedEvent& Prop
 		const FName ChangedCategory = FObjectEditorUtils::GetCategoryFName(PropertyChangedEvent.Property);
 
 		if (ChangedPropName == GET_MEMBER_NAME_CHECKED(FNavAgentProperties,AgentRadius) ||
-			ChangedPropName == GET_MEMBER_NAME_CHECKED(FNavAgentProperties,AgentHeight))
+			ChangedPropName == GET_MEMBER_NAME_CHECKED(FNavAgentProperties,AgentHeight) ||
+			ChangedPropName == GET_MEMBER_NAME_CHECKED(FNavAgentProperties,PreferredNavData))
 		{
 			MyNavData = NULL;
 			UpdateNavData();
@@ -159,20 +181,26 @@ void ANavigationTestingActor::PostEditChangeProperty(FPropertyChangedEvent& Prop
 		}
 		else if (ChangedCategory == TEXT("Query"))
 		{
+			if (ChangedPropName == NAME_QueryTargetActor && QueryTargetActor)
+			{
+				if (USceneComponent* RootComp = QueryTargetActor->GetRootComponent())
+				{
+					RootComp->TransformUpdated.AddUObject(this, &ANavigationTestingActor::OnQueryTargetActorTransformUpdated);
+				}
+			}
+
 			if (bDrawDistanceToWall)
 			{
 				ClosestWallLocation = FindClosestWallLocation();
 			}
-			else if (bDrawIfNavDataIsReadyInRadius)
+			if (bDrawIfNavDataIsReadyInRadius)
 			{
 				bNavDataIsReadyInRadius = CheckIfNavDataIsReadyInRadius();
 			}
-#if WITH_EDITORONLY_DATA
-			else
+			if (bDrawIfNavDataIsReadyToQueryTargetActor)
 			{
-				EdRenderComp->MarkRenderStateDirty();
+				bNavDataIsReadyToQueryTargetActor = CheckIfNavDataIsReadyToActor(QueryTargetActor);
 			}
-#endif
 		}
 		else if (ChangedCategory == TEXT("Pathfinding"))
 		{
@@ -260,6 +288,11 @@ void ANavigationTestingActor::PostEditMove(bool bFinished)
 		{
 			bNavDataIsReadyInRadius = CheckIfNavDataIsReadyInRadius();
 		}
+
+		if (bDrawIfNavDataIsReadyToQueryTargetActor)
+		{
+			bNavDataIsReadyToQueryTargetActor = CheckIfNavDataIsReadyToActor(QueryTargetActor);
+		}
 	}
 }
 
@@ -268,6 +301,14 @@ void ANavigationTestingActor::PostLoad()
 	Super::PostLoad();
 
 	InvokerComponent->bAutoActivate = bActAsNavigationInvoker;
+
+	if (QueryTargetActor)
+	{
+		if (USceneComponent* RootComp = QueryTargetActor->GetRootComponent())
+		{
+			RootComp->TransformUpdated.AddUObject(this, &ANavigationTestingActor::OnQueryTargetActorTransformUpdated);
+		}
+	}
 
 #if WITH_RECAST && WITH_EDITORONLY_DATA
 	if (GIsEditor)
@@ -422,6 +463,35 @@ bool ANavigationTestingActor::CheckIfNavDataIsReadyInRadius()
 #endif // WITH_RECAST
 	
 	return false;
+}
+
+bool ANavigationTestingActor::CheckIfNavDataIsReadyToActor(const AActor* TargetActor)
+{
+#if WITH_EDITORONLY_DATA
+	if (EdRenderComp)
+	{
+		EdRenderComp->MarkRenderStateDirty();
+	}
+#endif // WITH_EDITORONLY_DATA
+
+#if WITH_RECAST
+	UpdateNavData();
+	const ARecastNavMesh* RecastNavMesh = Cast<ARecastNavMesh>(MyNavData);
+	if (RecastNavMesh && TargetActor)
+	{
+		return RecastNavMesh->HasCompleteDataAroundSegment(GetActorLocation(), TargetActor->GetActorLocation(), RadiusUsedToValidateNavData);
+	}
+#endif // WITH_RECAST
+
+	return false;
+}
+
+void ANavigationTestingActor::OnQueryTargetActorTransformUpdated(USceneComponent* InRootComponent, EUpdateTransformFlags UpdateTransformFlags, ETeleportType Teleport)
+{
+	if (bDrawIfNavDataIsReadyToQueryTargetActor)
+	{
+		bNavDataIsReadyToQueryTargetActor = CheckIfNavDataIsReadyToActor(QueryTargetActor);
+	}
 }
 
 void ANavigationTestingActor::SearchPathTo(ANavigationTestingActor* Goal)
