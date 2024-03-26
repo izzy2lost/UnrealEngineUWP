@@ -170,6 +170,9 @@ struct FNDIRigidMeshCollisionData
 
 	/** Indicates that a full update of the arrays is required */
 	bool bRequiresFullUpdate = false;
+
+	/** Indicates that we are currently in a failure state because we've found more components in the actors than we can support */
+	bool bExceedingComponentLimits = false;
 };
 
 /** Data Interface used to collide against static meshes - whether it is the mesh distance field or a physics asset's collision primitive */
