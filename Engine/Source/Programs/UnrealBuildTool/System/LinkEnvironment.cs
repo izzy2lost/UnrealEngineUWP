@@ -424,6 +424,7 @@ namespace UnrealBuildTool
 			bPGOProfile = Other.bPGOProfile;
 			PGODirectory = Other.PGODirectory;
 			PGOFilenamePrefix = Other.PGOFilenamePrefix;
+			PGOMergedFilenamePrefix = Other.PGOMergedFilenamePrefix;
 			bCreateMapFile = Other.bCreateMapFile;
 			bUsePDBFiles = Other.bUsePDBFiles;
 			bUseFastPDBLinking = Other.bUseFastPDBLinking;
