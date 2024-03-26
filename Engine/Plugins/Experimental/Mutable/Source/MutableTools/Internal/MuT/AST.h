@@ -554,16 +554,18 @@ namespace mu
         // Code linking
         //---------------------------------------------------------------------------------------------
 
-        //!
-        static void FullLink( Ptr<ASTOp>& root, FProgram&, FLinkerOptions*);
-
-        //!
-        static void ClearLinkData( Ptr<ASTOp>& root );
+		/** Convert the operation graph at Root into code in the given program.
+		* Potentially destroys the data in this operation, so it shouldn't be used after calling Link.
+		*/
+		static OP::ADDRESS FullLink( Ptr<ASTOp>& Root, FProgram&, FLinkerOptions* );
 
     private:
 
-        //!
-        virtual void Link( FProgram& program, FLinkerOptions* Options ) = 0;
+        /** Convert this operation into code in the given program. 
+		* It assumes children have been linked already
+		* Potentially destroys the data in this operation, so it shouldn't be used after calling Link. 
+		*/
+        virtual void Link( FProgram&, FLinkerOptions* ) = 0;
 
     protected:
 

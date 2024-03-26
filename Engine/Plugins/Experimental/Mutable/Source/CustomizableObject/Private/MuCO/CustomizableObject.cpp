@@ -812,7 +812,7 @@ void UCustomizableObjectPrivate::LoadCompiledDataFromDisk()
 }
 
 
-void UCustomizableObjectPrivate::CachePlatformData(const ITargetPlatform* InTargetPlatform, const TArray64<uint8>& InModelBytes, const TArray64<uint8>& InBulkBytes, const TArray64<uint8>& InMorphBytes)
+void UCustomizableObjectPrivate::CachePlatformData(const ITargetPlatform* InTargetPlatform, TArray64<uint8>& InModelBytes, TArray64<uint8>& InBulkBytes, TArray64<uint8>& InMorphBytes)
 {
 	MUTABLE_CPUPROFILER_SCOPE(CachePlatformData)
 
@@ -828,11 +828,8 @@ void UCustomizableObjectPrivate::CachePlatformData(const ITargetPlatform* InTarg
 	Data.ModelData.Append(InModelBytes);
 
 	// Cache streamable bulk data
-	Data.StreamableData.SetNumUninitialized(InBulkBytes.Num(), EAllowShrinking::No);
-	FMemory::Memcpy(Data.StreamableData.GetData(), InBulkBytes.GetData(), InBulkBytes.Num());
-
-	Data.MorphData.SetNumUninitialized(InMorphBytes.Num(), EAllowShrinking::No);
-	FMemory::Memcpy(Data.MorphData.GetData(), InMorphBytes.GetData(), Data.MorphData.Num());
+	Data.StreamableData = MoveTemp(InBulkBytes);
+	Data.MorphData = MoveTemp(InMorphBytes);
 }
 
 

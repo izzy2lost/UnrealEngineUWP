@@ -281,7 +281,7 @@ mu::Ptr<ASTOp> Sink_MeshFormatAST::Visit(const mu::Ptr<ASTOp>& at, const ASTOpMe
 		MeshPtrConst pTargetMorphFormat = MakeMorphTargetFormat(pTargetFormat);
 
 		mu::Ptr<ASTOpConstantResource> motaop = new ASTOpConstantResource();
-		motaop->type = OP_TYPE::ME_CONSTANT;
+		motaop->Type = OP_TYPE::ME_CONSTANT;
 		motaop->SetValue(pTargetMorphFormat, nullptr);
 		auto targetMorphFormatAt = motaop;
 
@@ -321,7 +321,7 @@ mu::Ptr<ASTOp> Sink_MeshFormatAST::Visit(const mu::Ptr<ASTOp>& at, const ASTOpMe
 		MeshPtrConst pTargetMorphFormat = MakeMorphTargetFormat(pTargetFormat);
 
 		mu::Ptr<ASTOpConstantResource> motaop = new ASTOpConstantResource();
-		motaop->type = OP_TYPE::ME_CONSTANT;
+		motaop->Type = OP_TYPE::ME_CONSTANT;
 		motaop->SetValue(pTargetMorphFormat, nullptr );
 		auto targetMorphFormatAt = motaop;
 

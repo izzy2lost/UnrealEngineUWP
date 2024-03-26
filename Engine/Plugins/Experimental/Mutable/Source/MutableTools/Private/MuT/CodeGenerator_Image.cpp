@@ -210,7 +210,7 @@ namespace mu
 		else
 		{
 			Ptr<ASTOpConstantResource> op = new ASTOpConstantResource();
-			op->type = OP_TYPE::IM_CONSTANT;
+			op->Type = OP_TYPE::IM_CONSTANT;
 			op->SetValue(pImage, m_compilerOptions->OptimisationOptions.DiskCacheContext);
 			Result.op = op;
 		}
@@ -1437,7 +1437,7 @@ namespace mu
                 // For wrapping projector we need the entire mesh. The actual project operation
                 // will remove the faces that are not in the layout block we are generating.
                 Ptr<ASTOpConstantResource> cop = new ASTOpConstantResource();
-                cop->type = OP_TYPE::ME_CONSTANT;
+                cop->Type = OP_TYPE::ME_CONSTANT;
 				Ptr<Mesh> FormatMeshResult = new Mesh();
 				CreateMeshOptimisedForWrappingProjection(FormatMeshResult.get(), node.m_layout);
 
@@ -1468,7 +1468,7 @@ namespace mu
 
                 // Reformat the mesh to a more efficient format for this operation
                 Ptr<ASTOpConstantResource> cop = new ASTOpConstantResource();
-                cop->type = OP_TYPE::ME_CONSTANT;
+                cop->Type = OP_TYPE::ME_CONSTANT;
 
 				Ptr<Mesh> FormatMeshResult = new Mesh();
                 CreateMeshOptimisedForProjection(FormatMeshResult.get(), node.m_layout);
@@ -1493,7 +1493,7 @@ namespace mu
             // This argument is required
             Ptr<const Mesh> TempMesh = new Mesh();
             Ptr<ASTOpConstantResource> cop = new ASTOpConstantResource();
-            cop->type = OP_TYPE::ME_CONSTANT;
+            cop->Type = OP_TYPE::ME_CONSTANT;
             cop->SetValue(TempMesh, m_compilerOptions->OptimisationOptions.DiskCacheContext);
 			ProjectOp->SetChild(ProjectOp->op.args.MeshProject.mesh, cop );
             m_pErrorLog->GetPrivate()->Add( "Projector mesh not set.", ELMT_ERROR, node.m_errorContext );

@@ -699,7 +699,7 @@ public:
 	void LoadCompiledDataFromDisk();
 
 	/** Cache platform data for cook */
-	void CachePlatformData(const ITargetPlatform* InTargetPlatform, const TArray64<uint8>& InObjectBytes, const TArray64<uint8>& InBulkBytes, const TArray64<uint8>& InMorphBytes);
+	void CachePlatformData(const ITargetPlatform* InTargetPlatform, TArray64<uint8>& InObjectBytes, TArray64<uint8>& InBulkBytes, TArray64<uint8>& InMorphBytes);
 	
 	/** Loads data previously compiled in BeginCacheForCookedPlatformData onto the UProperties in *this,
 	  * in preparation for saving the cooked package for *this or for a CustomizableObjectInstance using *this.

@@ -1172,6 +1172,7 @@ void FCustomizableObjectCompiler::CompileInternal(UCustomizableObject* Object, c
 			{
 				SaveDDTask->Init();
 				SaveDDTask->Run();
+				CurrentObject->GetPrivate()->GetModel()->GetPrivate()->UnloadRoms();
 				FinishSavingDerivedData();
 			}
 
@@ -1348,9 +1349,9 @@ void FCustomizableObjectCompiler::FinishSavingDerivedData()
 	{
 		CurrentObject->GetPrivate()->CachePlatformData(
 				SaveDDTask->GetTargetPlatform(), 
-				SaveDDTask->GetModelBytes(), 
-				SaveDDTask->GetBulkBytes(),
-				SaveDDTask->GetMorphBytes());
+				SaveDDTask->Bytes, 
+				SaveDDTask->BulkDataBytes,
+				SaveDDTask->MorphDataBytes);
 	}
 
 	// Order matters

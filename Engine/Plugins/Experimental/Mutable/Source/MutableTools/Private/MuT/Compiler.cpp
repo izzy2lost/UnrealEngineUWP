@@ -340,10 +340,9 @@ namespace mu
         {
 			LinkerOptions.MinTextureResidentMipCount = m_pD->m_options->GetPrivate()->MinTextureResidentMipCount;
 
-            ASTOp::FullLink(s.root,program, &LinkerOptions);
             if (s.root)
             {
-                s.state.m_root = s.root->linkedAddress;
+				s.state.m_root = ASTOp::FullLink(s.root, program, &LinkerOptions);
             }
             else
             {

@@ -21,11 +21,11 @@ namespace mu
 	private:
 
 		//!
-		Ptr<const RefCounted> loadedValue;
-		Ptr<RefCounted> proxy;
+		Ptr<const RefCounted> LoadedValue;
+		Ptr<RefCounted> Proxy;
 
 		//! Value hash
-		uint64 hash;
+		uint64 ValueHash;
 
 		//! We tried to link already but the result is a null op.
 		bool bLinkedAndNull = false;
@@ -33,7 +33,7 @@ namespace mu
 	public:
 
 		//! Type of switch
-		OP_TYPE type;
+		OP_TYPE Type;
 
 	public:
 
@@ -54,7 +54,7 @@ namespace mu
 
 
 		// ASTOp interface
-		OP_TYPE GetOpType() const override { return type; }
+		OP_TYPE GetOpType() const override { return Type; }
 		void ForEachChild(const TFunctionRef<void(ASTChild&)>) override;
 		bool IsEqual(const ASTOp& otherUntyped) const override;
 		Ptr<ASTOp> Clone(MapChildFuncRef mapChild) const override;
