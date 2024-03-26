@@ -436,6 +436,26 @@ bool ContentBrowserUtils::IsItemPluginContent(const FContentBrowserItem& InItem)
 	return IsPluginAttributeValue.IsValid() && IsPluginAttributeValue.GetValue<bool>();
 }
 
+bool ContentBrowserUtils::IsItemPluginRootFolder(const FContentBrowserItem& InItem)
+{
+	if (!InItem.IsFolder())
+	{
+		return false;
+	}
+	FName InternalPath = InItem.GetInternalPath();
+	if (InternalPath.IsNone())
+	{
+		return false;
+	}
+	FNameBuilder PathBuffer(InternalPath);
+	FStringView Path = PathBuffer.ToView();
+	if (int32 Index = 0; Path.RightChop(1).FindChar('/', Index) && Index != INDEX_NONE)
+	{
+		return false; // Contains a second slash, is not a root
+	}
+	return IsItemPluginContent(InItem);
+}
+
 bool ContentBrowserUtils::IsCollectionPath(const FString& InPath, FName* OutCollectionName, ECollectionShareType::Type* OutCollectionShareType)
 {
 	static const FString CollectionsRootPrefix = TEXT("/Collections");
