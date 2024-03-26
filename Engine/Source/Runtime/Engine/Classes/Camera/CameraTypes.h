@@ -61,6 +61,18 @@ struct FMinimalViewInfo
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category=Camera)
 	bool bAutoCalculateOrthoPlanes;
 
+	/** Manually adjusts the planes of this camera, maintaining the distance between them. Positive moves out to the farplane, negative towards the near plane */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Camera)
+	float AutoPlaneShift;
+
+	/** Adjusts the near/far planes and the view origin of the current camera automatically to avoid clipping and light artefacting*/
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Camera)
+	bool bUpdateOrthoPlanes;
+
+	/** If UpdateOrthoPlanes is enabled, this setting will use the cameras current height to compensate the distance to the general view (as a pseudo distance to view target when one isn't present) */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Camera)
+	bool bUseCameraHeightAsViewTarget;
+
 	/** The near plane distance of the orthographic view (in world units) */
 	UPROPERTY(Interp, EditAnywhere, BlueprintReadWrite, Category=Camera)
 	float OrthoNearClipPlane;

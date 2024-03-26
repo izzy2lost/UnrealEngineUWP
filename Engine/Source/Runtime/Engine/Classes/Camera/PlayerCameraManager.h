@@ -409,8 +409,20 @@ public:
 	uint32 bIsOrthographic : 1;
 
 	/** True when this camera should automatically calculated the Near+Far planes */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = PlayerCameraManager)
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = PlayerCameraManager, meta = (EditCondition = "bIsOrthographic"))
 	uint32 bAutoCalculateOrthoPlanes : 1;
+
+	/** Manually adjusts the planes of this camera, maintaining the distance between them. Positive moves out to the farplane, negative towards the near plane */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = PlayerCameraManager, meta = (EditCondition = "bIsOrthographic && bAutoCalculateOrthoPlanes"))
+	float AutoPlaneShift;
+
+	/** Adjusts the near/far planes and the view origin of the current camera automatically to avoid clipping and light artefacting*/
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = PlayerCameraManager, meta = (EditCondition = "bIsOrthographic"))
+	uint32 bUpdateOrthoPlanes : 1;
+
+	/** If UpdateOrthoPlanes is enabled, this setting will use the cameras current height to compensate the distance to the general view (as a pseudo distance to view target when one isn't present) */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = PlayerCameraManager, meta = (EditCondition = "bIsOrthographic && bUpdateOrthoPlanes"))
+	uint32 bUseCameraHeightAsViewTarget : 1;
 
 	/** True if black bars should be added if the destination view has a different aspect ratio (only used when a view target doesn't specify whether or not to constrain the aspect ratio; most of the time the value from a camera component is used instead) */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category=PlayerCameraManager)

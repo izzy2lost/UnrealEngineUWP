@@ -233,7 +233,7 @@ void FMinimalViewInfo::CalculateProjectionMatrixGivenViewRectangle(FMinimalViewI
 	bool bOrthographic = ViewInfo.ProjectionMode == ECameraProjectionMode::Orthographic;
 	if(bOrthographic)
 	{
-		ViewInfo.AutoCalculateOrthoPlanes(InOutProjectionData);	
+		ViewInfo.AutoCalculateOrthoPlanes(InOutProjectionData);
 	}
 
 	// Create the projection matrix (and possibly constrain the view rectangle)
@@ -302,7 +302,7 @@ void FMinimalViewInfo::CalculateProjectionMatrixGivenViewRectangle(FMinimalViewI
 			float FarPlane = ViewInfo.OrthoFarClipPlane;
 			float NearPlane = ViewInfo.OrthoNearClipPlane;
 
-			InOutProjectionData.UpdateOrthoPlanes(NearPlane, FarPlane, OrthoWidth);
+			InOutProjectionData.UpdateOrthoPlanes(NearPlane, FarPlane, OrthoWidth, ViewInfo.bUseCameraHeightAsViewTarget);
 
 			const float ZScale = 1.0f / (FarPlane - NearPlane);
 			const float ZOffset = -NearPlane;
@@ -425,9 +425,9 @@ bool FMinimalViewInfo::AutoCalculateOrthoPlanes(FSceneViewProjectionData& InOutP
 		FarPlane = FMath::Clamp(FarPlane, OrthoHeight, MaxFPValue + NearPlane);
 
 		//The Planes can be scaled in the Z axis without restriction to ensure a user can capture their entire view.
-		const float AutoPlaneShift = CVarOrthoAutoPlaneShift.GetValueOnAnyThread();
-		OrthoNearClipPlane = NearPlane + AutoPlaneShift;
-		OrthoFarClipPlane = FarPlane + AutoPlaneShift;
+		const float GlobalAutoPlaneShift = CVarOrthoAutoPlaneShift.GetValueOnAnyThread();
+		OrthoNearClipPlane = NearPlane + AutoPlaneShift + GlobalAutoPlaneShift;
+		OrthoFarClipPlane = FarPlane + AutoPlaneShift + GlobalAutoPlaneShift;
 		InOutProjectionData.CameraToViewTarget = CameraToViewTarget;
 		return true;
 	}

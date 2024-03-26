@@ -27,20 +27,28 @@ public:
 	TEnumAsByte<ECameraProjectionMode::Type> ProjectionType;
 
 	/** Camera field of view (in degrees). */
-	UPROPERTY(interp, EditAnywhere, BlueprintReadWrite, Category=Projection, meta=(DisplayName = "Field of View", UIMin = "5.0", UIMax = "170", ClampMin = "0.001", ClampMax = "360.0"))
+	UPROPERTY(interp, EditAnywhere, BlueprintReadWrite, Category=Projection, meta=(DisplayName = "Field of View", UIMin = "5.0", UIMax = "170", ClampMin = "0.001", ClampMax = "360.0", editcondition = "ProjectionType==0"))
 	float FOVAngle;
 
 	/** The desired width (in world units) of the orthographic view (ignored in Perspective mode) */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category=Projection)
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category=Projection, meta = (editcondition = "ProjectionType==1"))
 	float OrthoWidth;
 
 	/** Automatically determine a min/max Near/Far clip plane position depending on OrthoWidth value */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category=Projection)
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category=Projection, meta = (editcondition = "ProjectionType==1"))
 	bool bAutoCalculateOrthoPlanes;
 
-	/** Adjusts the view origin to the near plane location, and forces near plane to 0. Helps with artefacting when auto-adjusting the plane range. */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category=Projection)
+	/** Manually adjusts the planes of this camera, maintaining the distance between them. Positive moves out to the farplane, negative towards the near plane */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category=Projection, meta = (editcondition = "ProjectionType==1 && bAutoCalculateOrthoPlanes"))
+	float AutoPlaneShift;
+
+	/** Adjusts the near/far planes and the view origin of the current camera automatically to avoid clipping and light artefacting*/
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category=Projection, meta = (editcondition = "ProjectionType==1"))
 	bool bUpdateOrthoPlanes;
+
+	/** If UpdateOrthoPlanes is enabled, this setting will use the cameras current height to compensate the distance to the general view (as a pseudo distance to view target when one isn't present) */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category=Projection, meta = (editcondition = "ProjectionType==1 && bUpdateOrthoPlanes"))
+	bool bUseCameraHeightAsViewTarget;
 
 	/** Output render target of the scene capture that can be read in materials. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category=SceneCapture)

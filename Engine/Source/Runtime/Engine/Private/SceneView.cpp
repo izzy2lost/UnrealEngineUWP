@@ -611,7 +611,7 @@ FVector4f CreateInvDeviceZToWorldZTransform(const FMatrix& ProjMatrix)
 	}
 }
 
-bool FSceneViewProjectionData::UpdateOrthoPlanes(FSceneViewProjectionData* InOutProjectionData, float& NearPlane, float& FarPlane, float HalfOrthoWidth)
+bool FSceneViewProjectionData::UpdateOrthoPlanes(FSceneViewProjectionData* InOutProjectionData, float& NearPlane, float& FarPlane, float HalfOrthoWidth, bool bUseCameraHeightAsViewTarget)
 {
 	if (!InOutProjectionData || !CVarAllowOrthoNearPlaneCorrection.GetValueOnAnyThread())
 	{
@@ -639,7 +639,7 @@ bool FSceneViewProjectionData::UpdateOrthoPlanes(FSceneViewProjectionData* InOut
 		* Depends on view direction being top down as when we get to a side view, the scale grows much larger and it becomes redundant.
 		*/
 		float CameraHeightAdjustment = 0.0f;
-		if (CVarOrthoCameraHeightAsViewTarget.GetValueOnAnyThread())
+		if (CVarOrthoCameraHeightAsViewTarget.GetValueOnAnyThread() && bUseCameraHeightAsViewTarget)
 		{
 			CameraHeightAdjustment = FMath::Abs(FMath::Min(InOutProjectionData->ViewOrigin.Z, HalfOrthoWidth)) * FMath::Abs((ViewForward.Dot(FVector(0, 0, -1.0f))));
 		}
@@ -653,10 +653,14 @@ bool FSceneViewProjectionData::UpdateOrthoPlanes(FSceneViewProjectionData* InOut
 
 bool FSceneViewProjectionData::UpdateOrthoPlanes(FMinimalViewInfo& MinimalViewInfo)
 {
-	return UpdateOrthoPlanes(MinimalViewInfo.OrthoNearClipPlane, MinimalViewInfo.OrthoFarClipPlane, MinimalViewInfo.OrthoWidth/2.0f);
+	if(MinimalViewInfo.bUpdateOrthoPlanes)
+	{
+		return UpdateOrthoPlanes(MinimalViewInfo.OrthoNearClipPlane, MinimalViewInfo.OrthoFarClipPlane, MinimalViewInfo.OrthoWidth/2.0f, MinimalViewInfo.bUseCameraHeightAsViewTarget);
+	}
+	return false;
 }
 
-bool FSceneViewProjectionData::UpdateOrthoPlanes()
+bool FSceneViewProjectionData::UpdateOrthoPlanes(bool bUseCameraHeightAsViewTarget)
 {
 	/**
 	* This function takes the existing projection matrix and moves the nearplane + view origin.
@@ -684,7 +688,7 @@ bool FSceneViewProjectionData::UpdateOrthoPlanes()
 	{
 		return false;
 	}
-	UpdateOrthoPlanes(NearPlane, FarPlane, 1.0f / HalfInvOrthoWidth);
+	UpdateOrthoPlanes(NearPlane, FarPlane, 1.0f / HalfInvOrthoWidth, bUseCameraHeightAsViewTarget);
 
 	const float ZScale = 1.0f / (FarPlane - NearPlane);
 	const float ZOffset = -NearPlane;
