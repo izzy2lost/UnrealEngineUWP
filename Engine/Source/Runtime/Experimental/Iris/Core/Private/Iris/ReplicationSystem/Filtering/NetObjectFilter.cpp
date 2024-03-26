@@ -6,6 +6,7 @@
 FNetObjectFilteringParams::FNetObjectFilteringParams(const UE::Net::FNetBitArrayView InFilteredObjects)
 : FilteredObjects(InFilteredObjects)
 , FilteringInfos(nullptr)
+, StateBuffers(nullptr)
 , ConnectionId(0)
 {
 }

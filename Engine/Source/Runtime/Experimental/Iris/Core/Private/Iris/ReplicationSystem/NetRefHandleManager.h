@@ -8,12 +8,10 @@
 #include "Containers/ArrayView.h"
 #include "Net/Core/NetBitArray.h"
 #include "Net/Core/NetHandle/NetHandle.h"
-#include "Iris/Core/NetChunkedArray.h"
 #include "Iris/ReplicationState/ReplicationStateDescriptor.h"
 #include "Iris/ReplicationSystem/NetRefHandle.h"
 #include "Iris/ReplicationSystem/NetDependencyData.h"
 #include "UObject/ObjectPtr.h"
-#include "Delegates/Delegate.h"
 
 class FReferenceCollector;
 namespace UE::Net
@@ -121,7 +119,7 @@ public:
 	typedef TMap<FNetHandle, FInternalNetRefIndex> FNetHandleMap;
 
 public:
-	FNetRefHandleManager(FReplicationProtocolManager& InReplicationProtocolManager, uint32 InReplicationSystemId, uint32 InMaxActiveObjectCount, uint32 InPreAllocatedObjectCount);
+	FNetRefHandleManager(FReplicationProtocolManager& InReplicationProtocolManager, uint32 InReplicationSystemId, uint32 MaxActiveObjects);
 
 	/** Callback triggered at the beginning of PreSendUpdate. Used to sync current frame data. */
 	void OnPreSendUpdate();
@@ -169,9 +167,9 @@ public:
 
 	inline const FReplicatedObjectData& GetReplicatedObjectData(FInternalNetRefIndex InternalIndex) const;
 
-	inline const uint8* GetReplicatedObjectStateBufferNoCheck(FInternalNetRefIndex InternalObjectIndex) const { return ReplicatedObjectStateBuffers[InternalObjectIndex]; }
-	inline uint8* GetReplicatedObjectStateBufferNoCheck(FInternalNetRefIndex InternalObjectIndex) { return ReplicatedObjectStateBuffers[InternalObjectIndex]; }
-	inline const TNetChunkedArray<uint8*>& GetReplicatedObjectStateBuffers() const { return ReplicatedObjectStateBuffers; }
+	inline const uint8* GetReplicatedObjectStateBufferNoCheck(FInternalNetRefIndex InternalObjectIndex) const { return ReplicatedObjectStateBuffers.GetData()[InternalObjectIndex]; }
+	inline uint8* GetReplicatedObjectStateBufferNoCheck(FInternalNetRefIndex InternalObjectIndex) { return ReplicatedObjectStateBuffers.GetData()[InternalObjectIndex]; }
+	inline const TArray<uint8*>& GetReplicatedObjectStateBuffers() const { return ReplicatedObjectStateBuffers; }
 
 	/** Verify a handle against internal handle. A handle is valid if it matches internal storage. */
 	inline bool IsValidNetRefHandle(FNetRefHandle Handle) const;
@@ -246,7 +244,6 @@ public:
 
 	uint32 GetMaxActiveObjectCount() const { return MaxActiveObjectCount; }
 	uint32 GetActiveObjectCount() const { return ActiveObjectCount; }
-	uint32 GetPreAllocatedObjectCount() const { return PreAllocatedObjectCount; }
 
 	// We do refcount objects tracked by each connection in order to know when it is safe to reuse an InternalIndex
 	void AddNetObjectRef(FInternalNetRefIndex InternalIndex) { ++ReplicatedObjectRefCount[InternalIndex]; }
@@ -275,7 +272,7 @@ public:
 	UObject* GetReplicatedObjectInstance(FInternalNetRefIndex ObjectIndex) const { return ReplicatedInstances[ObjectIndex]; }
 
 	/** Get the array of all held object pointers */
-	const TNetChunkedArray<TObjectPtr<UObject>>& GetReplicatedInstances() const { return ReplicatedInstances; }
+	const TArray<UObject*>& GetReplicatedInstances() const { return ReplicatedInstances; }
 
 	void AddReferencedObjects(FReferenceCollector& Collector);
 
@@ -290,14 +287,6 @@ public:
 
 	/** Return a string to identify the object linked to an index in logs */
 	FString PrintObjectFromIndex(FInternalNetRefIndex ObjectIndex) const;
-	
-	DECLARE_MULTICAST_DELEGATE_OneParam(FOnLargestIndexIncrease, uint32 LargestIndex);
-
-	/** Return a delegate that will notify when the largest internal index has increased. */
-	FOnLargestIndexIncrease& GetLargestIndexIncreaseDelegate() { return OnLargestIndexIncreaseDelegate; };
-
-	/** Return the largest internal index that has been used. */
-	uint32 GetLargestInternalIndex() const { return LargestInternalIndex; };
 
 public:
 
@@ -334,23 +323,11 @@ private:
 	void InternalRemoveDependentObject(FInternalNetRefIndex ParentInternalIndex, FInternalNetRefIndex DependentInternalIndex, ERemoveDependentObjectFlags Flags = ERemoveDependentObjectFlags::All);
 	void InternalRemoveDependentObject(FInternalNetRefIndex DependentInternalIndex);
 
-	// Ensure that all buffers that depend on the largest internal index are sized correctly.
-	void GrowBuffersToLargestIndex(uint32 InternalIndex);
-
 	// The current replicated object count
 	uint32 ActiveObjectCount;
 
 	// Max allowed replicated object count
 	uint32 MaxActiveObjectCount;
-
-	// The number of pre-allocated objects used by internal buffers.
-	uint32 PreAllocatedObjectCount;
-
-	// The largest internal index value that has been used.
-	uint32 LargestInternalIndex;
-
-	// A delegate that is triggered when the largest encountered internal index increases.
-	FOnLargestIndexIncrease OnLargestIndexIncreaseDelegate;
 
 	uint32 ReplicationSystemId;
 
@@ -422,16 +399,16 @@ private:
 	TArray<FInternalNetRefIndex> PendingDestroyInternalIndices;
 
 	// Just an array containing data about our replicated objects
-	TNetChunkedArray<FReplicatedObjectData> ReplicatedObjectData;
+	TArray<FReplicatedObjectData> ReplicatedObjectData;
 
 	// Pointers to state buffers for all replicated objects
-	TNetChunkedArray<uint8*> ReplicatedObjectStateBuffers;
+	TArray<uint8*> ReplicatedObjectStateBuffers;
 
 	// Refcounts for all tracked objects
-	TNetChunkedArray<uint16> ReplicatedObjectRefCount;
+	TArray<uint16> ReplicatedObjectRefCount;
 
 	// Raw pointers to all bound instances
-	TNetChunkedArray<TObjectPtr<UObject>> ReplicatedInstances;
+	TArray<TObjectPtr<UObject>> ReplicatedInstances;
 
 	// Assign handles
 	uint64 NextStaticHandleIndex;

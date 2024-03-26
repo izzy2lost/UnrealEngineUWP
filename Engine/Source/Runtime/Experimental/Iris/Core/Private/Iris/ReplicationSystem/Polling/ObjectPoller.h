@@ -3,7 +3,6 @@
 #pragma once
 
 #include "Net/Core/NetBitArray.h"
-#include "Iris/Core/NetChunkedArray.h"
 
 // Forward declarations
 class UObjectReplicationBridge;
@@ -80,7 +79,7 @@ private:
 
 	FNetRefHandleManager& LocalNetRefHandleManager;
 	FNetStatsContext* NetStatsContext = nullptr;
-	const TNetChunkedArray<TObjectPtr<UObject>>& ReplicatedInstances;
+	const TArray<UObject*>& ReplicatedInstances;
 
 	const FNetBitArrayView AccumulatedDirtyObjects;
 

@@ -634,18 +634,6 @@ struct FNetDriverReplicationSystemConfig
 	/** Override the max object count when running as a server. If 0 use the default system value. */
 	UPROPERTY()
 	uint32 MaxReplicatedObjectServerCount = 0;
-
-	/** Override the number of pre-allocated objects when running as a client. */
-	UPROPERTY()
-	uint32 PreAllocatedReplicatedObjectClientCount = 0;
-
-	/** Override the number of pre-allocated objects when running as a server. */
-	UPROPERTY()
-	uint32 PreAllocatedReplicatedObjectServerCount = 0;
-
-	/** Override the number of pre-allocated objects in FReplicationWriter on the client. */
-	UPROPERTY()
-	uint32 MaxReplicatedWriterObjectClientCount = 0;
 	
 	/** Override the max compressed object count. If 0 use the default system value. */
 	UPROPERTY()

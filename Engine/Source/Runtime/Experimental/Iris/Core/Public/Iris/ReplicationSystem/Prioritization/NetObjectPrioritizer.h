@@ -41,6 +41,9 @@ struct FNetObjectPrioritizationParams
 	/** PrioritizationInfos for all objects. Index using ObjectIndices[0..ObjectCount-1]. */
 	const FNetObjectPrioritizationInfo* PrioritizationInfos;
 
+	/** State buffers for all objects. Index using ObjectIndices[0..ObjectCount-1]. */
+	uint8 *const* StateBuffers;
+
 	/** ID of the connection that objects are prioritized for. */
 	uint32 ConnectionId;
 
@@ -120,6 +123,9 @@ struct FNetObjectPrioritizerUpdateParams
 
 	/** InstanceProtocols for updated objects. Index using 0..ObjectCount-1. */
 	UE::Net::FReplicationInstanceProtocol const*const* InstanceProtocols;
+
+	/** State buffers for all objects. Index using ObjectIndices[0..ObjectCount-1]. */
+	uint8 *const* StateBuffers;
 
 	/** Infos for all objects. Index using ObjectIndices[0..ObjectCount-1]. */
 	FNetObjectPrioritizationInfo* PrioritizationInfos;
