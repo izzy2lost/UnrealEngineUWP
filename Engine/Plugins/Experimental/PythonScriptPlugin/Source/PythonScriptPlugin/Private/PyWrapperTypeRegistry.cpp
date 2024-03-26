@@ -1841,9 +1841,12 @@ void FPyWrapperTypeRegistry::RegisterWrappedClassType(const FName ClassName, PyT
 	PythonWrappedClasses.Add(ClassName, PyType);
 }
 
-void FPyWrapperTypeRegistry::UnregisterWrappedClassType(const FName ClassName, PyTypeObject* PyType)
+void FPyWrapperTypeRegistry::UnregisterWrappedClassType(const FName ClassName, PyTypeObject* PyType, const bool InUnregisterName)
 {
-	UnregisterPythonTypeName(UTF8_TO_TCHAR(PyType->tp_name), ClassName);
+	if (InUnregisterName)
+	{
+		UnregisterPythonTypeName(UTF8_TO_TCHAR(PyType->tp_name), ClassName);
+	}
 	PythonWrappedClasses.Remove(ClassName);
 }
 
@@ -2139,9 +2142,12 @@ void FPyWrapperTypeRegistry::RegisterWrappedStructType(const FName StructName, P
 	PythonWrappedStructs.Add(StructName, PyType);
 }
 
-void FPyWrapperTypeRegistry::UnregisterWrappedStructType(const FName StructName, PyTypeObject* PyType)
+void FPyWrapperTypeRegistry::UnregisterWrappedStructType(const FName StructName, PyTypeObject* PyType, const bool InUnregisterName)
 {
-	UnregisterPythonTypeName(UTF8_TO_TCHAR(PyType->tp_name), StructName);
+	if (InUnregisterName)
+	{
+		UnregisterPythonTypeName(UTF8_TO_TCHAR(PyType->tp_name), StructName);
+	}
 	PythonWrappedStructs.Remove(StructName);
 }
 
@@ -2319,9 +2325,12 @@ void FPyWrapperTypeRegistry::RegisterWrappedEnumType(const FName EnumName, PyTyp
 	PythonWrappedEnums.Add(EnumName, PyType);
 }
 
-void FPyWrapperTypeRegistry::UnregisterWrappedEnumType(const FName EnumName, PyTypeObject* PyType)
+void FPyWrapperTypeRegistry::UnregisterWrappedEnumType(const FName EnumName, PyTypeObject* PyType, const bool InUnregisterName)
 {
-	UnregisterPythonTypeName(UTF8_TO_TCHAR(PyType->tp_name), EnumName);
+	if (InUnregisterName)
+	{
+		UnregisterPythonTypeName(UTF8_TO_TCHAR(PyType->tp_name), EnumName);
+	}
 	PythonWrappedEnums.Remove(EnumName);
 }
 
@@ -2491,9 +2500,12 @@ void FPyWrapperTypeRegistry::RegisterWrappedDelegateType(const FName DelegateNam
 	PythonWrappedDelegates.Add(DelegateName, PyType);
 }
 
-void FPyWrapperTypeRegistry::UnregisterWrappedDelegateType(const FName DelegateName, PyTypeObject* PyType)
+void FPyWrapperTypeRegistry::UnregisterWrappedDelegateType(const FName DelegateName, PyTypeObject* PyType, const bool InUnregisterName)
 {
-	UnregisterPythonTypeName(UTF8_TO_TCHAR(PyType->tp_name), DelegateName);
+	if (InUnregisterName)
+	{
+		UnregisterPythonTypeName(UTF8_TO_TCHAR(PyType->tp_name), DelegateName);
+	}
 	PythonWrappedDelegates.Remove(DelegateName);
 }
 

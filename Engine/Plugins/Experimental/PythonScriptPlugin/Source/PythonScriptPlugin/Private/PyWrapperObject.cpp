@@ -1978,6 +1978,10 @@ void UPythonGeneratedClass::ReleasePythonResources()
 	if (Py_IsInitialized())
 	{
 		FPyScopedGIL GIL;
+		if (PyType)
+		{
+			FPyWrapperTypeRegistry::Get().UnregisterWrappedClassType(GetFName(), PyType, !HasAnyFlags(RF_NewerVersionExists));
+		}
 		PyType.Reset();
 		PyPostInitFunction.Reset();
 		for (const TSharedPtr<PyGenUtil::FFunctionDef>& FunctionDef : FunctionDefs)
