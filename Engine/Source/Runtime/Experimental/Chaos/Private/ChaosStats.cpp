@@ -67,6 +67,14 @@ DEFINE_STAT(STAT_GatherSleepingEvent)
 DEFINE_STAT(STAT_GatherCrumblingEvent)
 DEFINE_STAT(STAT_AccelerationStructureReset);
 
+DEFINE_STAT(STAT_FinalizeCallbacks);
+DEFINE_STAT(STAT_ResetClusteringEvents);
+DEFINE_STAT(STAT_RewindFinishFrame);
+DEFINE_STAT(STAT_ResetMarshallingData);
+DEFINE_STAT(STAT_ConditionalApplyRewind);
+DEFINE_STAT(STAT_FinalizePullData);
+DEFINE_STAT(STAT_DestroyPendingProxies);
+
 DEFINE_STAT(STAT_ParamUpdateObject);
 DEFINE_STAT(STAT_ParamUpdateField);
 DEFINE_STAT(STAT_SyncEvents_GameThread);
