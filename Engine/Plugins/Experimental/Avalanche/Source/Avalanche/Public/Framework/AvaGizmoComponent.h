@@ -179,11 +179,16 @@ public:
 	/** Sets the custom stencil id, if applicable. */
 	void SetStencilId(const uint8 InStencilId);
 
-protected:
+private:
 	/** Stores all primitive component values (that this overrides). Call before applying gizmo values. */
 	void StoreComponentValues();
 
 	void OnPostRegisterParentComponents(AActor* InActor);
+
+	void ForEachPrimitiveComponent(TFunctionRef<void(UPrimitiveComponent*)> InFunc);
+	
+	/** Variation of ForEachPrimitiveComponent that checks various flags. */
+	void ApplyToEachPrimitiveComponent(TFunctionRef<void(UPrimitiveComponent*)> InFunc);
 
 protected:
 	FDelegateHandle PostRegisterComponentsHandle;
