@@ -24,6 +24,9 @@ enum class EClothAssetAsyncProperties : uint64
 	None = 0,
 	RenderData = 1 << 0,
 	ThumbnailInfo = 1 << 1,
+	ImportedModel = 1 << 2,
+	ClothCollection = 1 << 3,
+	RefSkeleton = 1 << 4,
 	All = MAX_uint64
 };
 ENUM_CLASS_FLAGS(EClothAssetAsyncProperties);
@@ -51,8 +54,20 @@ public:
 	//~ End UObject interface
 
 	//~ Begin USkinnedAsset interface
-	virtual FReferenceSkeleton& GetRefSkeleton()								{ return RefSkeleton; }
-	virtual const FReferenceSkeleton& GetRefSkeleton() const					{ return RefSkeleton; }
+	virtual FReferenceSkeleton& GetRefSkeleton()								
+	{
+		WaitUntilAsyncPropertyReleased(EClothAssetAsyncProperties::RefSkeleton);
+		PRAGMA_DISABLE_DEPRECATION_WARNINGS
+		return RefSkeleton;
+		PRAGMA_ENABLE_DEPRECATION_WARNINGS
+	}
+	virtual const FReferenceSkeleton& GetRefSkeleton() const					
+	{
+		WaitUntilAsyncPropertyReleased(EClothAssetAsyncProperties::RefSkeleton, ESkinnedAssetAsyncPropertyLockType::ReadOnly);
+		PRAGMA_DISABLE_DEPRECATION_WARNINGS
+		return RefSkeleton;
+		PRAGMA_ENABLE_DEPRECATION_WARNINGS
+	}
 	virtual FSkeletalMeshLODInfo* GetLODInfo(int32 Index);
 	virtual const FSkeletalMeshLODInfo* GetLODInfo(int32 Index) const;
 	UFUNCTION(BlueprintGetter)
@@ -100,15 +115,33 @@ public:
 	virtual int32 GetMaxNumOptionalLODs(const ITargetPlatform* TargetPlatform) const override { return 0; }
 #endif
 #if WITH_EDITORONLY_DATA
-	virtual FSkeletalMeshModel* GetImportedModel() const override				{ return MeshModel.Get(); }
+	virtual FSkeletalMeshModel* GetImportedModel() const override
+	{
+		WaitUntilAsyncPropertyReleased(EClothAssetAsyncProperties::ImportedModel);
+		PRAGMA_DISABLE_DEPRECATION_WARNINGS
+		return MeshModel.Get();
+		PRAGMA_ENABLE_DEPRECATION_WARNINGS
+	}
 #endif
 	//~ End USkinnedAsset interface
 
 	/** Return the enclosed Cloth Collection object. */
-	TArray<TSharedRef<FManagedArrayCollection>>& GetClothCollections() { return ClothCollections; }
+	TArray<TSharedRef<FManagedArrayCollection>>& GetClothCollections() 
+	{
+		WaitUntilAsyncPropertyReleased(EClothAssetAsyncProperties::ClothCollection);
+		PRAGMA_DISABLE_DEPRECATION_WARNINGS
+		return ClothCollections;
+		PRAGMA_ENABLE_DEPRECATION_WARNINGS
+	}
 
 	/** Return the enclosed Cloth Collection object, const version. */
-	const TArray<TSharedRef<const FManagedArrayCollection>>& GetClothCollections() const { return reinterpret_cast<const TArray<TSharedRef<const FManagedArrayCollection>>&>(ClothCollections); }
+	const TArray<TSharedRef<const FManagedArrayCollection>>& GetClothCollections() const 
+	{
+		WaitUntilAsyncPropertyReleased(EClothAssetAsyncProperties::ClothCollection, ESkinnedAssetAsyncPropertyLockType::ReadOnly);
+		PRAGMA_DISABLE_DEPRECATION_WARNINGS
+		return reinterpret_cast<const TArray<TSharedRef<const FManagedArrayCollection>>&>(ClothCollections);
+		PRAGMA_ENABLE_DEPRECATION_WARNINGS
+	}
 
 	/** Return the cloth simulation ready LOD model data. */
 	TSharedPtr<const FChaosClothSimulationModel> GetClothSimulationModel() const { return ClothSimulationModel; }
@@ -143,7 +176,7 @@ public:
 	/** Set the bone hierachy to use for this cloth. */
 	UE_DEPRECATED(5.3, "Use SetReferenceSkeleton(const FReferenceSkeleton*, bool, bool) instead")
 	PRAGMA_DISABLE_DEPRECATION_WARNINGS
-	void SetReferenceSkeleton(const FReferenceSkeleton& InReferenceSkeleton, bool bRebuildClothSimulationModel = true) { RefSkeleton = InReferenceSkeleton; UpdateSkeleton(bRebuildClothSimulationModel); }
+	void SetReferenceSkeleton(const FReferenceSkeleton& InReferenceSkeleton, bool bRebuildClothSimulationModel = true) { GetRefSkeleton() = InReferenceSkeleton; UpdateSkeleton(bRebuildClothSimulationModel); }
 	PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 	/** Set the skinning weights for all of the sim vertices to be bound to the root node of the reference skeleton. */
@@ -294,9 +327,11 @@ private:
 	TArray<FMatrix> CachedComposedRefPoseMatrices;
 
 	/** Cloth Collection containing this asset data. One per LOD. */
+	UE_DEPRECATED(5.4, "This must be protected for async build, always use the accessors even internally.")
 	TArray<TSharedRef<FManagedArrayCollection>> ClothCollections;
 
 	/** Reference skeleton created from the provided skeleton asset. */
+	UE_DEPRECATED(5.4, "This must be protected for async build, always use the accessors even internally.")
 	FReferenceSkeleton RefSkeleton;
 
 	/** Reference skeleton precomputed bases. */
@@ -310,6 +345,7 @@ private:
 
 #if WITH_EDITORONLY_DATA
 	/** Source mesh geometry information (not used at runtime). */
+	UE_DEPRECATED(5.4, "This must be protected for async build, always use the accessors even internally.")
 	TSharedPtr<FSkeletalMeshModel> MeshModel;
 #endif
 

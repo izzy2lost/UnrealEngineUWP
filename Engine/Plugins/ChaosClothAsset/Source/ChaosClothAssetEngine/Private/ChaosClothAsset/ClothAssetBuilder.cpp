@@ -137,7 +137,7 @@ void UChaosClothAsset::FBuilder::BuildLod(FSkeletalMeshLODModel& LODModel, const
 
 	// Keep track of the active bone indices for this LOD model
 	TSet<FBoneIndexType> ActiveBoneIndices;
-	ActiveBoneIndices.Reserve(ClothAsset.RefSkeleton.GetNum());
+	ActiveBoneIndices.Reserve(ClothAsset.GetRefSkeleton().GetNum());
 
 	// Load the mesh utilities module used to optimized the index buffer
 	IMeshUtilities& MeshUtilities = FModuleManager::Get().LoadModuleChecked<IMeshUtilities>("MeshUtilities");
@@ -478,10 +478,10 @@ void UChaosClothAsset::FBuilder::BuildLod(FSkeletalMeshLODModel& LODModel, const
 	LODModel.ActiveBoneIndices = ActiveBoneIndices.Array();
 
 	// Ensure parent exists with incoming active bone indices, and the result should be sorted
-	ClothAsset.RefSkeleton.EnsureParentsExistAndSort(LODModel.ActiveBoneIndices);
+	ClothAsset.GetRefSkeleton().EnsureParentsExistAndSort(LODModel.ActiveBoneIndices);
 
 	// Compute the required bones for this model.
-	USkeletalMesh::CalculateRequiredBones(LODModel, ClothAsset.RefSkeleton, nullptr);
+	USkeletalMesh::CalculateRequiredBones(LODModel, ClothAsset.GetRefSkeleton(), nullptr);
 }
 
 #undef LOCTEXT_NAMESPACE
