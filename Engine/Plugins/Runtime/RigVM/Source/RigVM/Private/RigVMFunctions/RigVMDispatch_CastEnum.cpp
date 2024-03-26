@@ -9,7 +9,7 @@
 const FName FRigVMDispatch_CastEnumBase::ValueName = TEXT("Value");
 const FName FRigVMDispatch_CastEnumBase::ResultName = TEXT("Result");
 
-const TArray<FRigVMTemplateArgumentInfo>& FRigVMDispatch_CastEnum::GetArgumentInfos() const
+const TArray<FRigVMTemplateArgumentInfo>& FRigVMDispatch_CastEnumToInt::GetArgumentInfos() const
 {
 	static TArray<FRigVMTemplateArgumentInfo> OutInfos;
 	if (OutInfos.IsEmpty())
@@ -29,7 +29,7 @@ const TArray<FRigVMTemplateArgumentInfo>& FRigVMDispatch_CastEnum::GetArgumentIn
 	return OutInfos;
 }
 
-bool FRigVMDispatch_CastEnum::GetPermutationsFromArgumentType(const FName& InArgumentName, const TRigVMTypeIndex& InTypeIndex, TArray<FRigVMTemplateTypeMap, TInlineAllocator<1>>& OutPermutations) const
+bool FRigVMDispatch_CastEnumToInt::GetPermutationsFromArgumentType(const FName& InArgumentName, const TRigVMTypeIndex& InTypeIndex, TArray<FRigVMTemplateTypeMap, TInlineAllocator<1>>& OutPermutations) const
 {
 	if (InArgumentName == ValueName)
 	{
@@ -56,19 +56,19 @@ bool FRigVMDispatch_CastEnum::GetPermutationsFromArgumentType(const FName& InArg
 
 #if WITH_EDITOR
 
-FString FRigVMDispatch_CastEnum::GetNodeTitle(const FRigVMTemplateTypeMap& InTypes) const
+FString FRigVMDispatch_CastEnumToInt::GetNodeTitle(const FRigVMTemplateTypeMap& InTypes) const
 {
 	return TEXT("Cast to int");
 }
 
-FText FRigVMDispatch_CastEnum::GetNodeTooltip(const FRigVMTemplateTypeMap& InTypes) const
+FText FRigVMDispatch_CastEnumToInt::GetNodeTooltip(const FRigVMTemplateTypeMap& InTypes) const
 {
-	return LOCTEXT("CastToolTip", "Casts from enum to int");
+	return LOCTEXT("CastEnumToolTip", "Casts from enum to int");
 }
 
 #endif
 
-void FRigVMDispatch_CastEnum::Execute(FRigVMExtendedExecuteContext& InContext, FRigVMMemoryHandleArray Handles, FRigVMPredicateBranchArray RigVMBranches)
+void FRigVMDispatch_CastEnumToInt::Execute(FRigVMExtendedExecuteContext& InContext, FRigVMMemoryHandleArray Handles, FRigVMPredicateBranchArray RigVMBranches)
 {
 	const FEnumProperty* ValueProperty = CastFieldChecked<FEnumProperty>(Handles[0].GetProperty());
 	const FProperty* ResultProperty = CastFieldChecked<FProperty>(Handles[1].GetProperty());
@@ -103,7 +103,7 @@ void FRigVMDispatch_CastEnum::Execute(FRigVMExtendedExecuteContext& InContext, F
 
 
 
-const TArray<FRigVMTemplateArgumentInfo>& FRigVMDispatch_CastEnumToInt::GetArgumentInfos() const
+const TArray<FRigVMTemplateArgumentInfo>& FRigVMDispatch_CastIntToEnum::GetArgumentInfos() const
 {
 	static TArray<FRigVMTemplateArgumentInfo> OutInfos;
 	if (OutInfos.IsEmpty())
@@ -123,7 +123,7 @@ const TArray<FRigVMTemplateArgumentInfo>& FRigVMDispatch_CastEnumToInt::GetArgum
 	return OutInfos;
 }
 
-bool FRigVMDispatch_CastEnumToInt::GetPermutationsFromArgumentType(const FName& InArgumentName, const TRigVMTypeIndex& InTypeIndex, TArray<FRigVMTemplateTypeMap, TInlineAllocator<1>>& OutPermutations) const
+bool FRigVMDispatch_CastIntToEnum::GetPermutationsFromArgumentType(const FName& InArgumentName, const TRigVMTypeIndex& InTypeIndex, TArray<FRigVMTemplateTypeMap, TInlineAllocator<1>>& OutPermutations) const
 {
 	if (InArgumentName == ResultName)
 	{
@@ -150,19 +150,19 @@ bool FRigVMDispatch_CastEnumToInt::GetPermutationsFromArgumentType(const FName& 
 
 #if WITH_EDITOR
 
-FString FRigVMDispatch_CastEnumToInt::GetNodeTitle(const FRigVMTemplateTypeMap& InTypes) const
+FString FRigVMDispatch_CastIntToEnum::GetNodeTitle(const FRigVMTemplateTypeMap& InTypes) const
 {
 	return TEXT("Cast to enum");
 }
 
-FText FRigVMDispatch_CastEnumToInt::GetNodeTooltip(const FRigVMTemplateTypeMap& InTypes) const
+FText FRigVMDispatch_CastIntToEnum::GetNodeTooltip(const FRigVMTemplateTypeMap& InTypes) const
 {
-	return LOCTEXT("CastToolTip", "Casts from int to enum");
+	return LOCTEXT("CastIntToEnumToolTip", "Casts from int to enum");
 }
 
 #endif
 
-void FRigVMDispatch_CastEnumToInt::Execute(FRigVMExtendedExecuteContext& InContext, FRigVMMemoryHandleArray Handles, FRigVMPredicateBranchArray RigVMBranches)
+void FRigVMDispatch_CastIntToEnum::Execute(FRigVMExtendedExecuteContext& InContext, FRigVMMemoryHandleArray Handles, FRigVMPredicateBranchArray RigVMBranches)
 {
 	const FProperty* ValueProperty = CastFieldChecked<FProperty>(Handles[0].GetProperty());
 	const FEnumProperty* ResultProperty = CastFieldChecked<FEnumProperty>(Handles[1].GetProperty());

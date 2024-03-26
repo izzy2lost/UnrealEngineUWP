@@ -1061,7 +1061,7 @@ bool URigVMEdGraphNode::DrawAsCompactNode() const
 		{
 			if(TemplateModelNode->GetNotation() == RigVMTypeUtils::GetCastTemplateNotation() ||
 				TemplateModelNode->GetNotation() == FRigVMDispatch_CastObject().GetTemplateNotation() ||
-				TemplateModelNode->GetNotation() == FRigVMDispatch_CastEnum().GetTemplateNotation() ||
+				TemplateModelNode->GetNotation() == FRigVMDispatch_CastIntToEnum().GetTemplateNotation() ||
 				TemplateModelNode->GetNotation() == FRigVMDispatch_CastEnumToInt().GetTemplateNotation())
 			{
 				DrawAsCompactNodeCache = true;
