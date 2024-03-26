@@ -31,6 +31,7 @@ namespace UnrealBuildTool
 		public bool bStrictPreprocessorConformanceMode;
 		public bool bEnableCoroutines;
 		public bool bEnableAddressSanitizer;
+		public bool bUpdatedCPPMacro;
 
 		public IEnumerable<Tuple<string, object?>> GetDiff(ToolchainInfo Other)
 		{
@@ -88,7 +89,8 @@ namespace UnrealBuildTool
 				PrecompiledHeaderAction == Other.PrecompiledHeaderAction && PrecompiledHeaderFile == Other.PrecompiledHeaderFile &&
 				Equals(ForceIncludeFiles, Other.ForceIncludeFiles) && Compiler == Other.Compiler &&
 				bStrictConformanceMode == Other.bStrictConformanceMode && bStrictPreprocessorConformanceMode == Other.bStrictPreprocessorConformanceMode &&
-				bEnableCoroutines == Other.bEnableCoroutines && bEnableAddressSanitizer == Other.bEnableAddressSanitizer;
+				bEnableCoroutines == Other.bEnableCoroutines && bEnableAddressSanitizer == Other.bEnableAddressSanitizer &&
+				bUpdatedCPPMacro == Other.bUpdatedCPPMacro;
 		}
 
 		public override bool Equals(object? Obj)
@@ -132,6 +134,7 @@ namespace UnrealBuildTool
 				HashCode = (HashCode * 397) ^ bStrictPreprocessorConformanceMode.GetHashCode();
 				HashCode = (HashCode * 397) ^ bEnableCoroutines.GetHashCode();
 				HashCode = (HashCode * 397) ^ bEnableAddressSanitizer.GetHashCode();
+				HashCode = (HashCode * 397) ^ bUpdatedCPPMacro.GetHashCode();
 				return HashCode;
 			}
 		}

@@ -9,7 +9,7 @@ namespace UnrealBuildTool
 	/// <summary>
 	/// Base class for platform-specific project generators
 	/// </summary>
-	class MacProjectGenerator : PlatformProjectGenerator
+	class MacProjectGenerator : AppleProjectGenerator
 	{
 		/// <summary>
 		/// Constructor
@@ -27,13 +27,6 @@ namespace UnrealBuildTool
 		public override IEnumerable<UnrealTargetPlatform> GetPlatforms()
 		{
 			yield return UnrealTargetPlatform.Mac;
-		}
-
-		/// <inheritdoc/>
-		public override bool HasVisualStudioSupport(VSSettings InVSSettings)
-		{
-			// Mac is not supported in VisualStudio
-			return false;
 		}
 	}
 }
