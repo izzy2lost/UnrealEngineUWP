@@ -344,9 +344,14 @@ void FHttpManager::Flush(EHttpFlushReason FlushReason)
 			UE_CLOG(ShouldOutputHttpWarnings(), LogHttp, Warning, TEXT("[FHttpManager::Flush] FlushTimeSoftLimitSeconds [%.3fs] exceeded. Cancelling %d outstanding HTTP requests:"), FlushTimeSoftLimitSeconds, RequestsNum);
 
 			{
-				FScopeLock ScopeLock(&RequestLock);
+				TArray<FHttpRequestRef> RequestsToCancel;
 
-				for (TArray<FHttpRequestRef>::TIterator It(Requests); It; ++It)
+				{
+					FScopeLock ScopeLock(&RequestLock);
+					RequestsToCancel = Requests;
+				}
+
+				for (TArray<FHttpRequestRef>::TIterator It(RequestsToCancel); It; ++It)
 				{
 					FHttpRequestRef& Request = *It;
 
