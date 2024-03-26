@@ -14,7 +14,6 @@ class ACTIONABLEMESSAGE_API SActionableMessageEntry : public SCompoundWidget
 public:
 	SLATE_BEGIN_ARGS(SActionableMessageEntry) {}
 	SLATE_ARGUMENT(TSharedPtr<FActionableMessage>, ActionableMessage)
-	SLATE_EVENT(FOnClicked, OnClicked)
 	SLATE_END_ARGS()
 
 	void Construct(const FArguments& InArgs);
@@ -37,10 +36,8 @@ public:
 	TSharedRef<ITableRow> OnGenerateRow(TSharedPtr<FActionableMessage> InActionableMessage, const TSharedRef<STableViewBase>& OwnerTable);
 
 private:
-	TSharedPtr<SActionableMessageEntry> MainActionableMessage;
 	TSharedPtr<SListView<TSharedPtr<FActionableMessage>>> ActionableMessageList;
 	TArray<TSharedPtr<FActionableMessage>> ActionableMessages;
 	uint32 CachedStateID = 0;
-	bool bMainMessageFilled = false;
 	bool bExpanded = false;
 };
