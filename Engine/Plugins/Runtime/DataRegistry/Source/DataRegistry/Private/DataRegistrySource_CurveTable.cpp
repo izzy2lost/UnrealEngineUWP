@@ -24,12 +24,10 @@ void UDataRegistrySource_CurveTable::SetSourceTable(const TSoftObjectPtr<UCurveT
 
 void UDataRegistrySource_CurveTable::SetCachedTable(bool bForceLoad /*= false*/)
 {
-#if WITH_EDITOR
-	if (CachedTable && GIsEditor)
+	if (CachedTable)
 	{
 		CachedTable->OnCurveTableChanged().RemoveAll(this);
 	}
-#endif
 
 	CachedTable = nullptr;
 	UCurveTable* FoundTable = SourceTable.Get();
@@ -89,13 +87,8 @@ void UDataRegistrySource_CurveTable::SetCachedTable(bool bForceLoad /*= false*/)
 			CachedTable = FoundTable;
 			bInvalidSourceTable = false;
 
-#if WITH_EDITOR
-			if (GIsEditor)
-			{
-				// Listen for changes like row 
-				CachedTable->OnCurveTableChanged().AddUObject(this, &UDataRegistrySource_CurveTable::EditorRefreshSource);
-			}
-#endif
+			// Listen for changes like row 
+			CachedTable->OnCurveTableChanged().AddUObject(this, &UDataRegistrySource_CurveTable::OnDataTableChanged);
 		}
 	}
 
@@ -322,12 +315,22 @@ void UDataRegistrySource_CurveTable::OnTableLoaded()
 	HandlePendingAcquires();
 }
 
-#if WITH_EDITOR
-
-void UDataRegistrySource_CurveTable::EditorRefreshSource()
+void UDataRegistrySource_CurveTable::OnDataTableChanged()
 {
-	SetCachedTable(false);
+#if WITH_EDITOR
+	if (GIsEditor)
+	{
+		SetCachedTable(false);
+	}
+#endif
+
+	if (IsInitialized())
+	{
+		GetRegistry()->InvalidateCacheVersion();
+	}
 }
+
+#if WITH_EDITOR
 
 void UDataRegistrySource_CurveTable::PreSave(FObjectPreSaveContext ObjectSaveContext)
 {

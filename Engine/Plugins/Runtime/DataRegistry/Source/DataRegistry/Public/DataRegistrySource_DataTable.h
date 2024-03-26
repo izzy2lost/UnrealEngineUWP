@@ -90,10 +90,10 @@ protected:
 	// Object interface
 	virtual void PostLoad() override;
 
-#if WITH_EDITOR
-	virtual void EditorRefreshSource();
-	virtual void PreSave(FObjectPreSaveContext ObjectSaveContext) override;
+	virtual void OnDataTableChanged();
 
+#if WITH_EDITOR
+	virtual void PreSave(FObjectPreSaveContext ObjectSaveContext) override;
 #endif
 };
 
