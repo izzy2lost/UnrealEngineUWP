@@ -523,7 +523,17 @@ void UMoviePipelineEdGraphNodeBase::OnRuntimeNodeChanged(const UMovieGraphNode* 
 {
 	if (InChangedNode == GetRuntimeNode())
 	{
-		ReconstructNode();
+		// During Undo/Redo ReconstructNode gets called twice. When the runtime UObject gets
+		// its properties restored, we hear the delegate broadcast and this function gets run,
+		// and then the editor objects are restored (and are rebuilt after undo/redo). This
+		// creates a problem where when redoing, it restores the editor nodes to a temporary
+		// mid-transaction state, which then causes a crash.
+		// To avoid this we skip calling ReconstructNode during undo/redo, knowing that it will be
+		// reconstructed later alongside the whole graph.
+		if (!GIsTransacting)
+		{
+			ReconstructNode();
+		}
 	}
 }
 
@@ -591,6 +601,8 @@ void UMoviePipelineEdGraphNodeBase::ReconstructPins()
 		OldPin->SubPins.Remove(nullptr);
 		DestroyPin(OldPin);
 	}
+
+	GetGraph()->NotifyGraphChanged();
 }
 
 void UMoviePipelineEdGraphNodeBase::PrepareForCopying()
