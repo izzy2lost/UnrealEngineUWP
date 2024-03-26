@@ -208,7 +208,7 @@ public:
 	 * BatchSizeInElems*BatchElemSizeInBytes is not multiple of the buffer size.
 	 *
 	 */
-	FORCEINLINE TArrayView<const uint8> GetBatchFirstLODOffset(int32 BatchId, int32 BatchSizeInElems, int32 BatchElemSizeInBytes, int32 OffsetInBytes = 0) const
+	FORCEINLINE TArrayView<const uint8> GetBatchFirstLODOffset(int32 BatchId, int32 BatchSizeInElems, int32 BatchElemSizeInBytes, int32 OffsetInBytes) const
 	{
 		check(!IsVoid());
 		TArrayView<const uint8> FirstLODView = GetLOD(0);
@@ -219,14 +219,15 @@ public:
 	
 		TArrayView<const uint8> OffsetedLODView = MakeArrayView(FirstLODView.GetData() + OffsetInBytes, FirstLODView.Num() - OffsetInBytes);
 
-		const int32 BatchOffset = BatchId * BatchSizeInElems * BatchElemSizeInBytes;
+		const int32 BatchSizeInBytes = BatchSizeInElems * BatchElemSizeInBytes;
+		const int32 BatchOffset = BatchId * BatchSizeInBytes;
 
-		if (OffsetedLODView.Num() > BatchOffset)
+		if (BatchOffset >= OffsetedLODView.Num())
 		{
 			return TArrayView<const uint8>();
 		}
 
-		return MakeArrayView(OffsetedLODView.GetData() + BatchOffset, FMath::Min(BatchSizeInElems, OffsetedLODView.Num() - BatchOffset));
+		return MakeArrayView(OffsetedLODView.GetData() + BatchOffset, FMath::Min(BatchSizeInBytes, OffsetedLODView.Num() - BatchOffset));
 	}
 
 	/**
