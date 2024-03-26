@@ -1116,7 +1116,9 @@ void FSetProperty::SaveToTag(FPropertyTag& Tag)
 
 	const FProperty* LocalElementProp = ElementProp;
 	check(LocalElementProp);
+	PRAGMA_DISABLE_DEPRECATION_WARNINGS;
 	Tag.InnerType = LocalElementProp->GetID();
+	PRAGMA_ENABLE_DEPRECATION_WARNINGS;
 }
 
 bool FSetProperty::LoadTypeName(UE::FPropertyTypeName Type, const FPropertyTag* Tag)

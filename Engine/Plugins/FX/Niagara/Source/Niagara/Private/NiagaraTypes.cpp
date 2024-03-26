@@ -58,7 +58,7 @@ bool FNiagaraVariableBase::ReplaceRootNamespace(const FStringView& ExpectedNames
 
 bool FNiagaraVariableBase::SerializeFromMismatchedTag(const struct FPropertyTag& Tag, FStructuredArchive::FSlot Slot)
 {
-	if (Tag.Type == NAME_StructProperty && Tag.StructName == FNiagaraVariable::StaticStruct()->GetFName())
+	if (Tag.GetType().IsStruct(FNiagaraVariable::StaticStruct()->GetFName()))
 	{
 		FNiagaraVariable Var;
 		FNiagaraVariable::StaticStruct()->SerializeItem(Slot, &Var, nullptr);

@@ -85,7 +85,7 @@ bool FAvaTagHandleContainer::SerializeFromMismatchedTag(const FPropertyTag& InPr
 {
 	static const FName TagHandleContextName = FAvaTagHandle::StaticStruct()->GetFName();
 
-	if (InPropertyTag.Type == NAME_StructProperty && InPropertyTag.StructName == TagHandleContextName)
+	if (InPropertyTag.GetType().IsStruct(TagHandleContextName))
 	{
 		FAvaTagHandle TagHandle;
 		FAvaTagHandle::StaticStruct()->SerializeItem(InSlot, &TagHandle, nullptr);

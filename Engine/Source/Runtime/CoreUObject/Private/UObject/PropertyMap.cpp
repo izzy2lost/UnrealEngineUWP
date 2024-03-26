@@ -1744,8 +1744,10 @@ void FMapProperty::SaveToTag(FPropertyTag& Tag)
 	const FProperty* LocalValueProp = ValueProp;
 	check(LocalKeyProp);
 	check(LocalValueProp);
+	PRAGMA_DISABLE_DEPRECATION_WARNINGS;
 	Tag.InnerType = LocalKeyProp->GetID();
 	Tag.ValueType = LocalValueProp->GetID();
+	PRAGMA_ENABLE_DEPRECATION_WARNINGS;
 }
 
 bool FMapProperty::LoadTypeName(UE::FPropertyTypeName Type, const FPropertyTag* Tag)

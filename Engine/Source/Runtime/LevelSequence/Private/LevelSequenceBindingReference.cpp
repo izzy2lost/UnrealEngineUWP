@@ -191,8 +191,7 @@ bool FUpgradedLevelSequenceBindingReferences::SerializeFromMismatchedTag(const F
 {
 	using namespace UE::UniversalObjectLocator;
 
-	if (Tag.Type != NAME_StructProperty
-		|| Tag.StructName != FLevelSequenceBindingReferences::StaticStruct()->GetFName())
+	if (!Tag.GetType().IsStruct(FLevelSequenceBindingReferences::StaticStruct()->GetFName()))
 	{
 		return false;
 	}

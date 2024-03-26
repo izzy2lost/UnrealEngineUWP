@@ -1281,6 +1281,7 @@ bool FArrayProperty::LoadFromTag(const FPropertyTag& Tag)
 		return false;
 	}
 
+	PRAGMA_DISABLE_DEPRECATION_WARNINGS;
 	FField* Field = FField::TryConstruct(Tag.InnerType, {}, Tag.Name, RF_NoFlags);
 	if (FProperty* Property = CastField<FProperty>(Field))
 	{
@@ -1299,6 +1300,7 @@ bool FArrayProperty::LoadFromTag(const FPropertyTag& Tag)
 			return true;
 		}
 	}
+	PRAGMA_ENABLE_DEPRECATION_WARNINGS;
 	delete Field;
 	return false;
 }
@@ -1309,7 +1311,9 @@ void FArrayProperty::SaveToTag(FPropertyTag& Tag)
 
 	const FProperty* LocalInner = Inner;
 	check(LocalInner);
+	PRAGMA_DISABLE_DEPRECATION_WARNINGS;
 	Tag.InnerType = LocalInner->GetID();
+	PRAGMA_ENABLE_DEPRECATION_WARNINGS;
 }
 
 bool FArrayProperty::LoadTypeName(UE::FPropertyTypeName Type, const FPropertyTag* Tag)

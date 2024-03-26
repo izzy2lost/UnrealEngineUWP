@@ -16166,8 +16166,7 @@ bool FMaterialLayersFunctionsRuntimeData::SerializeFromMismatchedTag(const FProp
 #if WITH_EDITORONLY_DATA
 	static const FName MaterialLayersFunctionsName("MaterialLayersFunctions");
 	static const FName MaterialLayersPropertyName("MaterialLayers");
-	if (Tag.Type == NAME_StructProperty &&
-		Tag.StructName == MaterialLayersFunctionsName &&
+	if (Tag.GetType().IsStruct(MaterialLayersFunctionsName) &&
 		Tag.Name == MaterialLayersPropertyName)
 	{
 		FMaterialLayersFunctions LocalMaterialLayers;

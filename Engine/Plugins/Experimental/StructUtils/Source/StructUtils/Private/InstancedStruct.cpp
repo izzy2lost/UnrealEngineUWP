@@ -321,7 +321,7 @@ bool FInstancedStruct::ImportTextItem(const TCHAR*& Buffer, int32 PortFlags, UOb
 bool FInstancedStruct::SerializeFromMismatchedTag(const FPropertyTag& Tag, FStructuredArchive::FSlot Slot)
 {
 	static const FName NAME_StructVariant = "StructVariant";
-	if (Tag.Type == NAME_StructProperty && Tag.StructName == NAME_StructVariant)
+	if (Tag.GetType().IsStruct(NAME_StructVariant))
 	{
 		auto SerializeStructVariant = [this, &Tag, &Slot]()
 		{

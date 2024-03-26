@@ -332,8 +332,7 @@ FPCGAttributePropertyInputSelector FPCGAttributePropertyInputSelector::CopyAndFi
 
 bool FPCGAttributePropertyInputSelector::SerializeFromMismatchedTag(const struct FPropertyTag& Tag, FStructuredArchive::FSlot Slot)
 {
-	if (Tag.Type == NAME_StructProperty
-		&& Tag.StructName == FPCGAttributePropertySelector::StaticStruct()->GetFName())
+	if (Tag.GetType().IsStruct(FPCGAttributePropertySelector::StaticStruct()->GetFName()))
 	{
 		FPCGAttributePropertyInputSelector::StaticStruct()->SerializeItem(Slot, this, nullptr);
 		return true;
@@ -393,8 +392,7 @@ FPCGAttributePropertyOutputSelector FPCGAttributePropertyOutputSelector::CopyAnd
 
 bool FPCGAttributePropertyOutputSelector::SerializeFromMismatchedTag(const struct FPropertyTag& Tag, FStructuredArchive::FSlot Slot)
 {
-	if (Tag.Type == NAME_StructProperty
-		&& Tag.StructName == FPCGAttributePropertySelector::StaticStruct()->GetFName())
+	if (Tag.GetType().IsStruct(FPCGAttributePropertySelector::StaticStruct()->GetFName()))
 	{
 		FPCGAttributePropertyOutputSelector::StaticStruct()->SerializeItem(Slot, this, nullptr);
 		return true;

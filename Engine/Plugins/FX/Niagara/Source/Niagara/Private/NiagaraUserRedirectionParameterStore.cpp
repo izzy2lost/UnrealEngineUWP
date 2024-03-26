@@ -180,7 +180,7 @@ void FNiagaraUserRedirectionParameterStore::ConvertParameterType(const FNiagaraV
 bool FNiagaraUserRedirectionParameterStore::SerializeFromMismatchedTag(const FPropertyTag & Tag, FStructuredArchive::FSlot Slot)
 {
 	static FName StoreDataName("NiagaraParameterStore");
-	if (Tag.Type == NAME_StructProperty && Tag.StructName == StoreDataName)
+	if (Tag.GetType().IsStruct(StoreDataName))
 	{
 		FNiagaraParameterStore OldStore;
 		FNiagaraParameterStore::StaticStruct()->SerializeItem(Slot, &OldStore, nullptr);
