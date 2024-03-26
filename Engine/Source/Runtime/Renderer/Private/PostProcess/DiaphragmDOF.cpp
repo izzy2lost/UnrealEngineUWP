@@ -640,7 +640,6 @@ BEGIN_SHADER_PARAMETER_STRUCT(FDOFCocModelShaderParameters, )
 	SHADER_PARAMETER(float, CocInFocusRadius)
 	SHADER_PARAMETER_RDG_TEXTURE(Texture2D, DynamicRadiusOffsetLUT)
 	SHADER_PARAMETER_SAMPLER(SamplerState, DynamicRadiusOffsetLUTSampler)
-	SHADER_PARAMETER(FVector2f, DynamicRadiusOffsetLUTInvSize)
 	SHADER_PARAMETER(uint32, bCocEnableDynamicRadiusOffset)
 	SHADER_PARAMETER(float, CocMinRadius)
 	SHADER_PARAMETER(float, CocMaxRadius)
@@ -669,19 +668,15 @@ void SetCocModelParameters(
 	if (CocModel.DynamicRadiusOffsetLUT)
 	{
 		OutParameters->DynamicRadiusOffsetLUT = GraphBuilder.RegisterExternalTexture(CreateRenderTarget(CocModel.DynamicRadiusOffsetLUT, TEXT("DynamicRadiusOffsetLUT")));
-		OutParameters->DynamicRadiusOffsetLUTInvSize.X = 1.0f / CocModel.DynamicRadiusOffsetLUT->GetDesc().Extent.X;
-		OutParameters->DynamicRadiusOffsetLUTInvSize.Y = 1.0f / CocModel.DynamicRadiusOffsetLUT->GetDesc().Extent.Y;
 	}
 	else
 	{
 		const FRDGSystemTextures& SystemTextures = FRDGSystemTextures::Get(GraphBuilder);
 
 		OutParameters->DynamicRadiusOffsetLUT = SystemTextures.Black;
-		OutParameters->DynamicRadiusOffsetLUTInvSize.X = 1.0f;
-		OutParameters->DynamicRadiusOffsetLUTInvSize.Y = 1.0f;
 	}
 
-	OutParameters->DynamicRadiusOffsetLUTSampler = TStaticSamplerState<SF_Bilinear>::GetRHI();
+	OutParameters->DynamicRadiusOffsetLUTSampler = TStaticSamplerState<SF_Bilinear, AM_Clamp, AM_Wrap>::GetRHI();
 }
 
 

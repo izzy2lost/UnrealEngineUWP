@@ -594,24 +594,30 @@ void FDisplayClusterConfigurationICVFX_CameraDepthOfField::UpdateDynamicCompensa
 	if (CompensationLUT)
 	{
 		FSharedImageConstRef CPUTextureRef = CompensationLUT->GetCPUCopy();
-		if (CPUTextureRef.IsValid())
+		if (CPUTextureRef.IsValid() && CPUTextureRef->Format == ERawImageFormat::R32F)
 		{
-			TArray64<uint8> Pixels(CPUTextureRef->RawData);
-			for (int32 Index = 0; Index < Pixels.Num(); ++Index)
+			TArrayView64<const float> SrcPixels = CPUTextureRef->AsR32F();
+			TArray64<FFloat16> DestPixels;
+			DestPixels.AddZeroed(SrcPixels.Num());
+
+			for (int32 Index = 0; Index < SrcPixels.Num(); ++Index)
 			{
 				// Scale the offset encoded in the LUT so that the final CoC when computed in the DoF pipeline is scaled by the gain.
 				// The actual new offset needed to accomplish this comes from the following equation:
 				// c * (CoC_obj + CoC_off) = CoC_obj + newOffset =>
 				// newOffset = (1 - c) * CoC_obj + c * CoC_off
-				const int32 ObjectCoC = Index % CPUTextureRef->GetHeight();
-				const int32 Offset = Pixels[Index] - 128;
-				const int32 ScaledOffset = (1 - DepthOfFieldGain) * ObjectCoC + DepthOfFieldGain * Offset;
-				Pixels[Index] = FMath::Clamp(ScaledOffset + 128, 0, 255);
+				
+				const float ObjectCoC = Index / 32.0f + 1;
+				const float Offset = SrcPixels[Index];
+				const float ScaledOffset = (1 - DepthOfFieldGain) * ObjectCoC + DepthOfFieldGain * Offset;
+				DestPixels[Index] = ScaledOffset;
 			}
+
+			TArrayView<uint8> PixelsView((uint8*)DestPixels.GetData(), int64(DestPixels.Num() * sizeof(FFloat16)));
 
 			// Texture format is assumed to be greyscale (PF_G8), and we must disable sRGB on the texture to ensure the raw byte value, which encodes
 			// the offset in pixels, is passed unmodified to the depth of field shader
-			if (UTexture2D* NewTexture = UTexture2D::CreateTransient(CPUTextureRef->GetWidth(), CPUTextureRef->GetHeight(), PF_G8, NAME_None, Pixels))
+			if (UTexture2D* NewTexture = UTexture2D::CreateTransient(CPUTextureRef->GetWidth(), CPUTextureRef->GetHeight(), PF_R16F, NAME_None, PixelsView))
 			{
 				DynamicCompensationLUT = NewTexture;
 				DynamicCompensationLUT->SRGB = 0;

@@ -161,7 +161,6 @@ float DepthBlurExponent;
 
 Texture2D		DynamicRadiusOffsetLUT;
 SamplerState	DynamicRadiusOffsetLUTSampler;
-float2			DynamicRadiusOffsetLUTInvSize;
 
 //------------------------------------------------------- DEBUG OUTPUT
 
@@ -178,19 +177,14 @@ float GetCocOffset(float CocRadius)
 	float DynamicOffset = 0.0;
 	BRANCH if (bCocEnableDynamicRadiusOffset)
 	{
-		// By convention, the LUT is a 1-to-1 map from CoC size in pixels to CoC offset, so scale the CoC radii by the texture
-		// size to get the texel coordinate. If this assumption ever changes, we will need to scale this value
-		float2 TexCoords = float2(CocRadius, CocInFocusRadius) * DynamicRadiusOffsetLUTInvSize;
-
-		// Assume that the LUT is homogeneous, which means that the value of any pixel at s*uv is equal to s times the value at uv
-		// This allows us to compute what a pixel should be outside the bounds of the LUT by finding the largest integer
-		// scalar s such that uv is between 0 and 1, and then scaling the sampled pixel by that much
-		float WrapCoefficient = ceil(max(TexCoords.x, TexCoords.y));
-
-		// Also by convention, a value of 128 is used as the zero offset value, allowing support for positive and negative offsets, so scale by 255
-		// to put the pixel into byte space, then offset by 128 to get the final value. Also, enforce a maximum offset to be the initial CoC radius;
-		// the offset should only ever make the final CoC between the initial CoC and 0
-		DynamicOffset = -min((DynamicRadiusOffsetLUT.SampleLevel(DynamicRadiusOffsetLUTSampler, TexCoords / WrapCoefficient, 0).r * 255 - 128) * WrapCoefficient, CocRadius);
+		// The 1D LUT is indexed by ratio of object CoC to in-focus CoC, starting at ratio of 1 (since we only care about objects at or beyond the in-focus plane)
+		// and going to a maximum ratio calculated by the number of pixels in the LUT and the starting object and wall CoCs. By convention, the LUT has been
+		// computed with starting CoC of 32
+		float MaxRatio = (256 + 32) / 32;
+		float Ratio = CocInFocusRadius > 0 ? CocRadius / CocInFocusRadius : MaxRatio;
+		float2 TexCoords = float2((Ratio - 1) / (MaxRatio - 1), 0);
+		float Offset = DynamicRadiusOffsetLUT.SampleLevel(DynamicRadiusOffsetLUTSampler, TexCoords, 0).r * CocInFocusRadius;
+		DynamicOffset = -min(Offset, CocRadius);
 	}
 
 	return DynamicOffset;
