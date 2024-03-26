@@ -5,6 +5,7 @@
 #include "ChaosLog.h"
 #include "CoreMinimal.h"
 #include "Dataflow/DataflowConnection.h"
+#include "Dataflow/DataflowInputOutput.h"
 #include "Dataflow/DataflowNodeParameters.h"
 #include "UObject/StructOnScope.h"
 #include "Dataflow/DataflowSettings.h"
@@ -227,9 +228,49 @@ struct FDataflowNode
 	*/
 	template<class T> void SetValue(Dataflow::FContext& Context, T&& Value, const typename TDecay<T>::Type* Reference) const
 	{
-		checkSlow(FindOutput(Reference));
-		FindOutput(Reference)->SetValue(Forward<T>(Value), Context);
+		if (const FDataflowOutput* Output = FindOutput(Reference))
+		{
+			Output->template SetValue<T>(Forward<T>(Value), Context);
+		}
+		else
+		{
+			checkfSlow(false, TEXT("This output could not be found within this node, check this has been properly registered in the node constructor"));
+		}
 	}
+
+	/**
+	*   ForwardInput(...)
+	*
+	*   Forward an input to this output
+	*	this will not cache the value itself but cache a reference to the input connection cache entry 
+	*	this is memory efficient and do not require a runtime copy of the data 
+	*	input and output referecnes must match in type
+	*
+	*   @param Context : The evaluation context that holds the data store.
+	*   @param InputReference : Pointer to a input member of this node that needs to be forwarded
+	*   @param Reference : Pointer to a member of this node that corresponds with the output to set.
+	*/
+	template<class T> void ForwardInput(Dataflow::FContext& Context, const typename TDecay<T>::Type* InputReference, const typename TDecay<T>::Type* Reference) const
+	{
+		if (const FDataflowOutput* Output = FindOutput(Reference))
+		{
+			if (const FDataflowInput* Input = FindInput(Reference))
+			{
+				// we need to pull the value first so the upstream of the graph evaluate 
+				Input->template GetValue<T>(Context, *Reference);
+				Output->ForwardInput(InputReference, Context);
+			}
+			else
+			{
+				checkfSlow(false, TEXT("This input could not be found within this node, check this has been properly registered in the node constructor"));
+			}
+		}
+		else
+		{
+			checkfSlow(false, TEXT("This output could not be found within this node, check this has been properly registered in the node constructor"));
+		}
+	}
+
 
 	/**
 	*   IsConnected(...)
