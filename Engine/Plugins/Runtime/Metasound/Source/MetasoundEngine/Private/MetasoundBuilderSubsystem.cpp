@@ -1550,7 +1550,9 @@ void UMetaSoundSourceBuilder::OnRemovingOutput(int32 OutputIndex) const
 
 void UMetaSoundSourceBuilder::SetBlockRateOverride(float BlockRate)
 {
+#if WITH_EDITORONLY_DATA
 	GetMetaSoundSource().BlockRateOverride.Default = BlockRate;
+#endif //WITH_EDITORONLY_DATA
 }
 
 void UMetaSoundSourceBuilder::SetFormat(EMetaSoundOutputAudioFormat OutputFormat, EMetaSoundBuilderResult& OutResult)
@@ -1610,12 +1612,16 @@ void UMetaSoundSourceBuilder::SetPlatformSampleRateOverride(const FPerPlatformIn
 
 void UMetaSoundSourceBuilder::SetQuality(FName Quality)
 {
+#if WITH_EDITORONLY_DATA
 	GetMetaSoundSource().QualitySetting = Quality;
+#endif //WITH_EDITORONLY_DATA	
 }
 
 void UMetaSoundSourceBuilder::SetSampleRateOverride(int32 SampleRate)
 {
+#if WITH_EDITORONLY_DATA
 	GetMetaSoundSource().SampleRateOverride.Default = SampleRate;
+#endif //WITH_EDITORONLY_DATA	
 }
 
 UMetaSoundPatchBuilder* UMetaSoundBuilderSubsystem::CreatePatchBuilder(FName BuilderName, EMetaSoundBuilderResult& OutResult)

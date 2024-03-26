@@ -113,6 +113,11 @@ void UMetaSoundSettings::PostEditChangeProperty(FPropertyChangedEvent& PropertyC
 	DenyListCacheChangeID++;
 }
 
+FName UMetaSoundSettings::GetQualitySettingPropertyName()
+{
+	return GET_MEMBER_NAME_CHECKED(UMetaSoundSettings, QualitySettings);
+}
+
 #endif //WITH_EDITORONLY_DATA
 
 TArray<FName> UMetaSoundQualityHelper::GetQualityList()
@@ -122,7 +127,7 @@ TArray<FName> UMetaSoundQualityHelper::GetQualityList()
 #if WITH_EDITORONLY_DATA
 	if (const UMetaSoundSettings* Settings = GetDefault<UMetaSoundSettings>())
 	{
-		Algo::Transform(Settings->QualitySettings, Names, [](const FMetaSoundQualitySettings& Quality) -> FName
+		Algo::Transform(Settings->GetQualitySettings(), Names, [](const FMetaSoundQualitySettings& Quality) -> FName
 		{
 			return Quality.Name;
 		});
