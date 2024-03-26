@@ -40,6 +40,9 @@ public:
 	/** Creates the main level sequence and subsequences from the usd stage layers */
 	ULevelSequence* Init(const UE::FUsdStage& UsdStage);
 
+	/** Allows serialization for transaction support */
+	bool Serialize(FArchive& Ar);
+
 	/** Sets the asset cache to use when fetching assets and asset info required for the level sequence animation, like UAnimSequences */
 	void SetInfoCache(TSharedPtr<FUsdInfoCache> InInfoCache);
 

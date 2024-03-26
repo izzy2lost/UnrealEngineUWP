@@ -3943,6 +3943,7 @@ void AUsdStageActor::Serialize(FArchive& Ar)
 		}
 
 		InfoCache->Serialize(Ar);
+		LevelSequenceHelper.Serialize(Ar);
 	}
 
 	// Make sure we clear the old deprecated cache if we still have one, as old scenes may be persisting textures
