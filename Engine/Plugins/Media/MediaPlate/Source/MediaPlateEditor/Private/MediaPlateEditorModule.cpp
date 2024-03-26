@@ -443,7 +443,7 @@ void FMediaPlateEditorModule::OnLevelActorAdded(AActor* InActor)
 		return;
 	}
 
-	if (InActor->GetClass() == AMediaPlate::StaticClass())
+	if (FEngineAnalytics::IsAvailable() && InActor->GetClass() == AMediaPlate::StaticClass())
 	{
 		FEngineAnalytics::GetProvider().RecordEvent(TEXT("Editor.Usage.MediaPlate.AddMediaPlateActorToLevel"));
 	}
