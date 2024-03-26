@@ -1568,8 +1568,7 @@ FSubstrateEnvLightResult SubstrateEvaluateForEnvLight(FSubstrateBSDFContext BSDF
 				BRANCH
 				if (BSDF_GETHASSPECPROFILE(BSDFContext.BSDF))
 				{
-					const float NoR = saturate(dot(SubstrateEnvLightResult.SpecularDirection, BSDFContext.N));
-					SubstrateEnvLightResult.SpecularWeight *= EvaluateSpecularProfile(SLAB_SPECPROFILEID(BSDFContext.BSDF), BSDFContext.SatNoV, NoR, BSDFContext.SatNoV, NoR);
+					SubstrateEnvLightResult.SpecularWeight *= EvaluateSpecularProfileEnv(SLAB_SPECPROFILEID(BSDFContext.BSDF), BSDFContext.SatNoV, SubstrateEnvLightResult.SpecularSafeRoughness);
 				}
 			#endif // SUBSTRATE_COMPLEXSPECIALPATH
 
@@ -1632,8 +1631,7 @@ FSubstrateEnvLightResult SubstrateEvaluateForEnvLight(FSubstrateBSDFContext BSDF
 					BRANCH
 					if (BSDF_GETHASSPECPROFILE(BSDFContext.BSDF))
 					{
-						const float NoR = saturate(dot(SubstrateEnvLightResult.SpecularHazeDirection, BSDFContext.N));
-						SubstrateEnvLightResult.SpecularHazeWeight *= EvaluateSpecularProfile(SLAB_SPECPROFILEID(BSDFContext.BSDF), BSDFContext.SatNoV, NoR, BSDFContext.SatNoV, NoR);
+						SubstrateEnvLightResult.SpecularHazeWeight *= EvaluateSpecularProfileEnv(SLAB_SPECPROFILEID(BSDFContext.BSDF), BSDFContext.SatNoV, SubstrateEnvLightResult.SpecularHazeSafeRoughness);
 					}
 				#endif // SUBSTRATE_COMPLEXSPECIALPATH
 

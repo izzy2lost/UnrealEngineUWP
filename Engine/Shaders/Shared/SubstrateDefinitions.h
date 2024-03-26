@@ -79,6 +79,11 @@
 #define SUBSTRATE_TILE_ENCODING_16BITS 					0
 #define SUBSTRATE_TILE_ENCODING_8BITS  					1
 
+// Specular profile
+#define SUBSTRATE_SPECULAR_PROFILE_ENTRY_LIGHT			0u
+#define SUBSTRATE_SPECULAR_PROFILE_ENTRY_ENV			1u
+#define SUBSTRATE_SPECULAR_PROFILE_ENTRY_COUNT			2u
+
 // sizeof(FRHIDrawIndirectParameters) = 4 uints = 16 bytes
 #define GetSubstrateTileTypeDrawIndirectArgOffset_Byte(x)  (x * 16)
 #define GetSubstrateTileTypeDrawIndirectArgOffset_DWord(x) (x * 4)
