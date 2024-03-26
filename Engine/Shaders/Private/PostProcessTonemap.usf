@@ -28,7 +28,9 @@
 SCREEN_PASS_TEXTURE_VIEWPORT(Color)
 SCREEN_PASS_TEXTURE_VIEWPORT(Output)
 
-#if USE_MULTI_VIEW_ID_SV
+#define MOBILE_MULTI_VIEW_FALLBACK (MOBILE_MULTI_VIEW && INSTANCED_STEREO)
+
+#if USE_MULTI_VIEW_ID_SV || MOBILE_MULTI_VIEW_FALLBACK
 Texture2DArray ColorTexture;
 #else
 Texture2D ColorTexture;
@@ -256,7 +258,7 @@ float max4(float4 x)
 float4 SampleSceneColor(float2 SceneUV, float ArrayIndex)
 {
 	SceneUV = clamp(SceneUV, Color_UVViewportBilinearMin, Color_UVViewportBilinearMax);
-	#if USE_MULTI_VIEW_ID_SV
+	#if USE_MULTI_VIEW_ID_SV || MOBILE_MULTI_VIEW_FALLBACK
 	return Texture2DArraySample(ColorTexture, ColorSampler, float3(SceneUV.xy,ArrayIndex));
 	#else
 	return Texture2DSample(ColorTexture, ColorSampler, SceneUV);
@@ -663,7 +665,7 @@ half4 FetchAndResolveSceneColor(float2 UV, float ArrayIndex)
 		SceneColor = half4(VulkanSubpassFetch0());
 	#endif
 #else
-	#if USE_MULTI_VIEW_ID_SV
+	#if USE_MULTI_VIEW_ID_SV || MOBILE_MULTI_VIEW_FALLBACK
 		SceneColor = Texture2DArraySample(ColorTexture, ColorSampler, float3(UV.xy,ArrayIndex));
 	#else
 		SceneColor = Texture2DSample(ColorTexture, ColorSampler, UV);
@@ -673,24 +675,31 @@ half4 FetchAndResolveSceneColor(float2 UV, float ArrayIndex)
 }
 
 void MobileCustomResolve_MainPS(
+	in float4 SvPosition							: SV_POSITION, 
 	in noperspective float2 UV						: TEXCOORD0,
-	in				 float4 SvPosition				: SV_POSITION,		// after all interpolators
+#if MOBILE_MULTI_VIEW_FALLBACK
+	in nointerpolation uint EyeIndex				: TEXCOORD1,
+#endif
 	out				 float4 OutColor				: SV_Target0
 #if USE_MULTI_VIEW_ID_SV
 	, in nointerpolation uint MultiViewId : SV_ViewID
 #endif
 )
 {
+	uint ArrayIndex = 0;
 #if USE_MULTI_VIEW_ID_SV
 	ResolvedView = ResolveView(MultiViewId);
+	ArrayIndex = MultiViewId;
+#elif MOBILE_MULTI_VIEW_FALLBACK
+	ResolvedView = ResolveView(EyeIndex);
+	ArrayIndex = EyeIndex;
 #else
-	uint MultiViewId = 0;
 	ResolvedView = ResolveView();
-#endif // USE_MULTI_VIEW_ID_SV
+#endif
 	
 	const float OneOverPreExposure = ResolvedView.OneOverPreExposure;
 
-	half4 SceneColor = FetchAndResolveSceneColor(UV, MultiViewId);
+	half4 SceneColor = FetchAndResolveSceneColor(UV, ArrayIndex);
 	SceneColor.a = 1.0;
 
 	half3 LinearColor = SceneColor.rgb * OneOverPreExposure;
@@ -700,4 +709,5 @@ void MobileCustomResolve_MainPS(
 	OutColor.rgb = DeviceColor;
 	OutColor.a = 1.0;
 }
+
 
