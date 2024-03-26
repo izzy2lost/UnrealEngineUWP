@@ -213,18 +213,7 @@ struct FNaniteFullscreenVSToPS
 	StructuredBuffer<uint>			RayTracingDataBuffer;
 #endif
 
-// TODO: Workaround for WaveReadLaneAt(float4x4) being stripped when compiling metal shaders
-// Will remove when we switch to MSC
-float4x4 WaveReadLaneAtMatrix(float4x4 In, uint SrcIndex)
-{
-	float4x4 Result;
-	Result[0] = WaveReadLaneAt(In[0], SrcIndex);
-	Result[1] = WaveReadLaneAt(In[1], SrcIndex);
-	Result[2] = WaveReadLaneAt(In[2], SrcIndex);
-	Result[3] = WaveReadLaneAt(In[3], SrcIndex);
-	return Result;
-}
-
+#if FEATURE_LEVEL >= FEATURE_LEVEL_SM6 || PLATFORM_SUPPORTS_SM6_0_WAVE_OPERATIONS	// TODO: This header can be included from SM5 from BuildInstanceDrawCommands.usf. Refactor it.
 FInstanceDynamicData WaveReadLaneAt(FInstanceDynamicData In, uint SrcIndex)
 {
 	FInstanceDynamicData Result;
@@ -235,6 +224,7 @@ FInstanceDynamicData WaveReadLaneAt(FInstanceDynamicData In, uint SrcIndex)
 
 	return Result;
 }
+#endif
 
 float ClipZFromLinearZ(FNaniteView NaniteView, float LinearZ)
 {
