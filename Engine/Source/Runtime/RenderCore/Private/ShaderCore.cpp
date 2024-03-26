@@ -1286,9 +1286,6 @@ public:
 			// if the preprocessed job cache is enabled we need to strip the preprocessed code, this removes comments, line directives
 			// and blank lines to improve deduplication (and populates data required to remap diagnostic messages to correct line numbers)
 			Job.PreprocessOutput.StripCode(Job.Input.NeedsOriginalShaderSource());
-
-			// always compress the code after stripping to minimize memory footprint
-			Job.PreprocessOutput.CompressCode();
 		}
 
 		Job.PreprocessOutput.ElapsedTime = FPlatformTime::Seconds() - StartPreprocessTime;
@@ -1354,9 +1351,6 @@ public:
 		{
 			PreprocessShaderInternal(Compiler, Job);
 		}
-
-		// decompress if necessary; this is a no-op if source is not compressed.
-		Job.PreprocessOutput.DecompressCode();
 
 		if (Job.PreprocessOutput.bSucceeded)
 		{
@@ -3822,8 +3816,7 @@ void FShaderCompileJob::OnComplete()
 		// (jobs deserialized from the cache/wait list/ddc will have a compiletime of 0.0)
 		&& (CVarDumpDebugInfoForCacheHits.GetValueOnAnyThread() || Output.CompileTime > 0.0f))
 	{
-		// need to decompress the source code before dumping debug data
-		PreprocessOutput.DecompressCode();
+		
 		if (SecondaryPreprocessOutput.IsValid() && SecondaryOutput.IsValid())
 		{
 			ShaderFormat->OutputDebugData(Input, PreprocessOutput, *SecondaryPreprocessOutput, Output, *SecondaryOutput);
