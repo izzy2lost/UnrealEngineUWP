@@ -41,7 +41,7 @@ public:
 		// For the time being the seekable range equals the total range.
 		return GetTotalTimeRange();
 	}
-	FTimeRange GetPlaybackRange() const override;
+	FTimeRange GetPlaybackRange(EPlaybackRangeType InRangeType) const override;
 	void GetSeekablePositions(TArray<FTimespan>& OutPositions) const override
 	{
 		// For the time being we do not return anything here as that would require to iterate the tracks.

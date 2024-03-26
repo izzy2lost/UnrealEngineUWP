@@ -2698,10 +2698,6 @@ void FAdaptiveStreamingPlayer::InternalHandlePendingStartRequest(const FTimeValu
 						// With the period being ready we can now get the initial media segment request.
 						check(PendingStartRequest.IsValid());	// must not have been released yet
 
-						// Now that we have a valid first-ever play start established we clear out the internal
-						// default start time so we can seek backwards/forward from it to a different time.
-						Manifest->ClearDefaultStartTime();
-
 						// At playback start all streams begin in the same period.
 						CurrentPlayPeriodVideo = InitialPlayPeriod;
 						CurrentPlayPeriodAudio = InitialPlayPeriod;
@@ -2792,6 +2788,10 @@ void FAdaptiveStreamingPlayer::InternalHandlePendingStartRequest(const FTimeValu
 								}
 								case IManifest::FResult::EType::Found:
 								{
+									// Now that we have a valid first-ever play start established we clear out the internal
+									// default start time so we can seek backwards/forward from it to a different time.
+									Manifest->ClearDefaultStartTime();
+
 									// For DASH Live check if it would be better to start on the next segment.
 									if (ManifestType == EMediaFormatType::DASH &&
 										Manifest->GetPresentationType() != IManifest::EType::OnDemand)

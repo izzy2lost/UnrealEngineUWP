@@ -65,7 +65,7 @@ FErrorDetail FManifestMP4Internal::Build(TSharedPtrTS<IParserISO14496_12> MP4Par
 {
 	MediaAsset = MakeSharedTS<FTimelineAssetMP4>();
 	FErrorDetail Result = MediaAsset->Build(PlayerSessionServices, MP4Parser, URL);
-	FTimeRange PlaybackRange = GetPlaybackRange();
+	FTimeRange PlaybackRange = GetPlaybackRange(IManifest::EPlaybackRangeType::TemporaryPlaystartRange);
 	DefaultStartTime = PlaybackRange.Start;
 	DefaultEndTime = PlaybackRange.End;
 	return Result;
@@ -126,15 +126,16 @@ void FManifestMP4Internal::GetTrackMetadata(TArray<FTrackMetadata>& OutMetadata,
  *
  * @return Optionally set time range to which playback is restricted.
  */
-FTimeRange FManifestMP4Internal::GetPlaybackRange() const
+FTimeRange FManifestMP4Internal::GetPlaybackRange(EPlaybackRangeType InRangeType) const
 {
 	FTimeRange FromTo;
 
-	// We are interested in the 't' fragment value here.
+	// We are interested in the 't' or 'r' fragment value here.
 	FString Time;
 	for(auto& Fragment : URLFragmentComponents)
 	{
-		if (Fragment.Name.Equals(TEXT("t")))
+		if ((InRangeType == IManifest::EPlaybackRangeType::TemporaryPlaystartRange && Fragment.Name.Equals(TEXT("t"))) ||
+			(InRangeType == IManifest::EPlaybackRangeType::LockedPlaybackRange && Fragment.Name.Equals(TEXT("r"))))
 		{
 			Time = Fragment.Value;
 		}
