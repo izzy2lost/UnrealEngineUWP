@@ -244,6 +244,8 @@ FVulkanRHIGraphicsPipelineState::~FVulkanRHIGraphicsPipelineState()
 #endif	
 	DEC_DWORD_STAT(STAT_VulkanNumGraphicsPSOs);
 
+	Device->PipelineStateCache->NotifyDeletedGraphicsPSO(this);
+
 	for (int ShaderStageIndex = 0; ShaderStageIndex < ShaderStage::NumStages; ShaderStageIndex++)
 	{
 		if (VulkanShaders[ShaderStageIndex] != nullptr)
@@ -251,8 +253,6 @@ FVulkanRHIGraphicsPipelineState::~FVulkanRHIGraphicsPipelineState()
 			VulkanShaders[ShaderStageIndex]->Release();
 		}
 	}
-
-	Device->PipelineStateCache->NotifyDeletedGraphicsPSO(this);
 }
 
 void FVulkanRHIGraphicsPipelineState::GetOrCreateShaderModules(TRefCountPtr<FVulkanShaderModule> (&ShaderModulesOUT)[ShaderStage::NumStages], FVulkanShader*const* Shaders)
