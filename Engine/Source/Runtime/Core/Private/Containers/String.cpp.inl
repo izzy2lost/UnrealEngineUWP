@@ -1440,7 +1440,7 @@ int32 UE_STRING_CLASS::ParseIntoArray(TArray<UE_STRING_CLASS>& OutArray, const E
 		if(!InCullEmpty || SubstringLength != 0)
 		{
 			// ... add new string from substring beginning up to the beginning of this delimiter.
-			OutArray.Emplace(Start + SubstringBeginIndex);
+			OutArray.Emplace(TStringView<ElementType>(Start + SubstringBeginIndex, SubstringLength));
 		}
 	}
 
