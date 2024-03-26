@@ -311,6 +311,12 @@ UUserWidget& UListView::OnGenerateEntryWidgetInternal(UObject* Item, TSubclassOf
 	return GenerateTypedEntry(DesiredEntryClass, OwnerTable);
 }
 
+UObject* UListView::GetListObjectFromEntry(UUserWidget& EntryWidget)
+{
+	const TObjectPtrWrapTypeOf<UObject*>* Item = ITypedUMGListView::ItemFromEntryWidget(EntryWidget);
+	return Item ? *Item : nullptr;
+}
+
 void UListView::OnItemClickedInternal(UObject* ListItem)
 {
 	ITypedUMGListView::OnItemClickedInternal(ListItem);
