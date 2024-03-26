@@ -209,6 +209,8 @@ void FHeterogeneousVolumeSceneProxy::GetDynamicMeshElements(
 
 		Mesh.bCanApplyViewModeOverrides = true;
 		Mesh.bUseWireframeSelectionColoring = IsSelected();
+		Mesh.bUseSelectionOutline = false;
+		Mesh.bSelectable = false;
 
 		Collector.AddMesh(0, Mesh);
 	}
@@ -251,8 +253,8 @@ UHeterogeneousVolumeComponent::UHeterogeneousVolumeComponent(const FObjectInitia
 	StartFrame = 0;
 	EndFrame = 0;
 	StepFactor = 1.0f;
-	ShadowStepFactor = 8.0f;
-	ShadowBiasFactor = 0.0f;
+	ShadowStepFactor = 2.0f;
+	ShadowBiasFactor = 0.5f;
 	LightingDownsampleFactor = 2.0f;
 	MipLevel = 0;
 	bIssueBlockingRequests = false;

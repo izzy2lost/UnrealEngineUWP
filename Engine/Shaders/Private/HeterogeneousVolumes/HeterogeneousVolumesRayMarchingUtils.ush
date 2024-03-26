@@ -28,8 +28,12 @@
 #define DIM_USE_ADAPTIVE_VOLUMETRIC_SHADOW_MAP 0
 #endif // DIM_USE_ADAPTIVE_VOLUMETRIC_SHADOW_MAP
 
+#define APPLY_FOG_INSCATTERING_OFF 0
+#define APPLY_FOG_INSCATTERING_REFERENCE 1
+#define APPLY_FOG_INSCATTERING_STOCHASTIC 2
+
 #ifndef APPLY_FOG_INSCATTERING
-#define APPLY_FOG_INSCATTERING 0
+#define APPLY_FOG_INSCATTERING APPLY_FOG_INSCATTERING_OFF
 #endif // APPLY_FOG_INSCATTERING
 
 #if DIM_USE_ADAPTIVE_VOLUMETRIC_SHADOW_MAP
@@ -50,7 +54,7 @@ float CalcShadowBias()
 		float3 VoxelSize = VolumeBounds * rcp(LightingCacheResolutionAsFloat3);
 		float3 WorldVoxelSize = mul(float4(VoxelSize, 0), GetLocalToWorld()).xyz;
 		float VoxelDiagonal = length(WorldVoxelSize);
-		float WorldShadowBias = VoxelDiagonal * GetLightingCacheVoxelBias();
+		WorldShadowBias = VoxelDiagonal * GetLightingCacheVoxelBias();
 	}
 	return WorldShadowBias;
 }
@@ -313,13 +317,18 @@ void RayMarchSingleScattering(
 )
 {
 	LocalScatterTMin = RayMarchingContext.LocalRayTMax;
-#if APPLY_FOG_INSCATTERING
+#if APPLY_FOG_INSCATTERING != APPLY_FOG_INSCATTERING_OFF
+	float3 FogRadiance = 0;
 	float3 PrevTransmittance = Transmittance;
+	float4 PrevCombinedFog = 0;
 #endif // #if APPLY_FOG_INSCATTERING
 
 	float WorldShadowBias = CalcShadowBias();
+	//float WorldShadowBias = View.GeneralPurposeTweak;
 	float StepSize = RayMarchingContext.StepSize;
 	float JitterSize = StepSize * RayMarchingContext.Jitter;
+	// Reuse jitter as random sample
+	float RandomSample = RayMarchingContext.Jitter;
 
 	float LocalHitT = RayMarchingContext.LocalRayTMin + JitterSize;
 	for (uint StepIndex = 0; StepIndex < StepCount; ++StepIndex)
@@ -359,8 +368,11 @@ void RayMarchSingleScattering(
 		}
 
 		float3 Extinction = SampleExtinction(SampleContext);
-		if (RayMarchingContext.bApplyDirectLighting && (any(Extinction > 0.0)))
+		if (RayMarchingContext.bApplyDirectLighting && (any(Extinction > 0)))
 		{
+			float3 RadianceSample = 0;
+
+			// Evaluate in-scattering
 			float3 Albedo = SampleAlbedo(SampleContext);
 			if (any(Albedo > 0.0))
 			{
@@ -368,10 +380,48 @@ void RayMarchSingleScattering(
 
 				float3 ScatteringCoefficient = Albedo * Extinction;
 				float IsotropicPhase = 1.0 / (4.0 * PI);
-				Radiance += Inscattering * ScatteringCoefficient * IsotropicPhase * Transmittance * StepSize;
+				RadianceSample = Inscattering * ScatteringCoefficient * IsotropicPhase * Transmittance * StepSize;
 			}
 
-			LocalScatterTMin = min(LocalHitT, LocalScatterTMin);
+			// Stochastically decide to record scatter position
+			if (any(Transmittance < RandomSample))
+			{
+				LocalScatterTMin = min(LocalHitT, LocalScatterTMin);
+			}
+
+#if APPLY_FOG_INSCATTERING == APPLY_FOG_INSCATTERING_REFERENCE
+			{
+				float WorldRayT = LocalHitT * RayMarchingContext.LocalToWorldScale;
+				float3 CameraRelative_WorldPosition = RayMarchingContext.WorldRayDirection * WorldRayT;
+				float4 HeightFog = float4(0, 0, 0, 1);
+				if (ShouldApplyHeightFog())
+				{
+					HeightFog = CalculateHeightFog(CameraRelative_WorldPosition);
+				}
+
+				float4 CombinedFog = HeightFog;
+				if (ShouldApplyVolumetricFog() && FogStruct.ApplyVolumetricFog > 0)
+				{
+					float3 WorldPosition = CameraRelative_WorldPosition + RayMarchingContext.WorldRayOrigin;
+					const uint EyeIndex = 0;
+					float3 VolumeUV = ComputeVolumeUV_DEPRECATED(WorldPosition, DFHackToFloat(PrimaryView.WorldToClip));
+					CombinedFog = CombineVolumetricFog(HeightFog, VolumeUV, EyeIndex, WorldRayT);
+				}
+
+				// Attenuate RadianceSample
+				RadianceSample *= CombinedFog.a;
+
+				// Add FogRadiance
+				float3 DeltaTransmittance = clamp(Transmittance / PrevTransmittance, 0.0, 1.0);
+				float3 DeltaFogRadiance = CombinedFog.rgb - PrevCombinedFog.rgb;
+				FogRadiance += DeltaFogRadiance * DeltaTransmittance;
+
+				PrevCombinedFog = CombinedFog;
+			}
+#endif // APPLY_FOG_INSCATTERING_REFERENCE
+
+			// Accumulate radiance
+			Radiance += RadianceSample;
 		}
 
 		// Accumulate transmittance for the next evaluation
@@ -387,13 +437,11 @@ void RayMarchSingleScattering(
 		LocalHitT += StepSize;
 	}
 
-#if APPLY_FOG_INSCATTERING
-	bool bApplyFog = LocalScatterTMin < RayMarchingContext.LocalRayTMax;
-	if (bApplyFog)
+#if APPLY_FOG_INSCATTERING == APPLY_FOG_INSCATTERING_STOCHASTIC
+	if (LocalScatterTMin < RayMarchingContext.LocalRayTMax)
 	{
-		// TODO: Change in-scattering distance to be based on the first scattering event, instead of the
-		// intersection distance of the bounding box near-plane.
 		float WorldRayT = LocalScatterTMin * RayMarchingContext.LocalToWorldScale;
+
 		float3 CameraRelative_WorldPosition = RayMarchingContext.WorldRayDirection * WorldRayT;
 		float4 HeightFog = float4(0, 0, 0, 1);
 		if (ShouldApplyHeightFog())
@@ -410,16 +458,22 @@ void RayMarchSingleScattering(
 			CombinedFog = CombineVolumetricFog(HeightFog, VolumeUV, EyeIndex, WorldRayT);
 		}
 
-		// Simplifying terms to avoid vector division:
-		// float3 DeltaTransmittance = clamp(Transmittance / PrevTransmittance, 0.0, 1.0);
-		// float3 DeltaOpacity = 1.0 - DeltaTransmittance;
-		// float3 FogAlpha = PrevTransmittance * DeltaOpacity;
-		float3 FogAlpha = clamp(PrevTransmittance - Transmittance, 0.0, 1.0);
-
-		// Fogging in-scattering contribution is not currently attenuated by Heterogeneous Volumes
-		// for elements behind the subject. To prevent doubled contribution of in-scattering for 
-		// regions of low density (eg: silhouette edges), blending is interpreted as alpha-masking instead.
-		Radiance = Radiance * CombinedFog.a + CombinedFog.rgb * FogAlpha;
+		// Attenuate Radiance by fog
+		Radiance *= CombinedFog.a;
+		FogRadiance = CombinedFog.rgb;
 	}
+#endif // APPLY_FOG_INSCATTERING
+
+#if APPLY_FOG_INSCATTERING != APPLY_FOG_INSCATTERING_OFF
+	// Simplifying terms to avoid vector division:
+	// float3 DeltaTransmittance = clamp(Transmittance / PrevTransmittance, 0.0, 1.0);
+	// float3 DeltaOpacity = 1.0 - DeltaTransmittance;
+	// float3 FogAlpha = PrevTransmittance * DeltaOpacity;
+	float3 FogAlpha = clamp(PrevTransmittance - Transmittance, 0.0, 1.0);
+
+	// Fogging in-scattering contribution is not currently attenuated by Heterogeneous Volumes
+	// for elements behind the subject. To prevent doubled contribution of in-scattering for 
+	// regions of low density (eg: silhouette edges), blending is interpreted as alpha-masking instead.
+	Radiance += FogRadiance.rgb * FogAlpha;
 #endif // APPLY_FOG_INSCATTERING
 }

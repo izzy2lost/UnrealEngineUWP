@@ -229,6 +229,16 @@ static TAutoConsoleVariable<int32> CVarHeterogeneousVolumesApplyVolumetricFog(
 	ECVF_RenderThreadSafe
 );
 
+static TAutoConsoleVariable<int32> CVarHeterogeneousVolumesApplyFogInscatteringMode(
+	TEXT("r.HeterogeneousVolumes.ApplyFogInscattering"),
+	1,
+	TEXT("Determines the method for applying fog in-scattering (default = 1)\n")
+	TEXT("0: Off\n")
+	TEXT("1: Reference (evaluated per ray-march step)\n")
+	TEXT("2: Stochastic (evaluated once per ray)\n"),
+	ECVF_RenderThreadSafe
+);
+
 static TAutoConsoleVariable<int32> CVarHeterogeneousVolumesVelocity(
 	TEXT("r.HeterogeneousVolumes.Velocity"),
 	0,
@@ -466,6 +476,11 @@ namespace HeterogeneousVolumes
 	bool ShouldApplyVolumetricFog()
 	{
 		return CVarHeterogeneousVolumesApplyVolumetricFog.GetValueOnRenderThread() != 0;
+	}
+
+	EFogMode GetApplyFogInscattering()
+	{
+		return static_cast<EFogMode>(FMath::Clamp(CVarHeterogeneousVolumesApplyFogInscatteringMode.GetValueOnRenderThread(), 0, 2));
 	}
 
 	bool ShouldWriteVelocity()
