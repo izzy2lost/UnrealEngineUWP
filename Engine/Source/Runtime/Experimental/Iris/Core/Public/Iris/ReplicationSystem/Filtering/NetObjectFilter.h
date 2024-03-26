@@ -3,6 +3,7 @@
 #pragma once
 
 #include "Net/Core/NetBitArray.h"
+#include "Iris/Core/NetChunkedArray.h"
 #include "Iris/ReplicationSystem/ReplicationView.h"
 #include "UObject/ObjectMacros.h"
 #include "NetObjectFilter.generated.h"
@@ -55,6 +56,9 @@ struct FNetObjectFilteringParams
 
 	/** FilteringInfos for all objects. Index using the set bit indices in FilteredObjects. */
 	const FNetObjectFilteringInfo* FilteringInfos = nullptr;
+
+	/** State buffers for all objects. Index using the set bit indices in FilteredObjects. */
+	const UE::Net::TNetChunkedArray<uint8*>* StateBuffers = nullptr;
 
 	/** ID of the connection that the filtering applies to. */
 	uint32 ConnectionId;
@@ -193,6 +197,12 @@ struct FNetObjectFilterUpdateParams
 	* NOTE: Only for filters of type FragmentBased; null for Raw types
 	*/
 	UE::Net::FReplicationInstanceProtocol const* const* InstanceProtocols = nullptr;
+
+	/**
+	* State buffers for all objects. Index using ObjectIndices[0..ObjectCount-1].
+	* NOTE: Only for filters of type FragmentBased; null for Raw types
+	*/
+	const UE::Net::TNetChunkedArray<uint8*>* StateBuffers = nullptr;
 };
 
 UCLASS(Abstract)
