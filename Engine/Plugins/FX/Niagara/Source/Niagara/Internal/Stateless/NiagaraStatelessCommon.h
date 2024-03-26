@@ -29,6 +29,7 @@ using FNiagaraStatelessRangeColor	= FNiagaraStatelessRange<FLinearColor>;
 
 struct FNiagaraStatelessGlobals
 {
+	FNiagaraVariableBase	CameraOffsetVariable;
 	FNiagaraVariableBase	ColorVariable;
 	FNiagaraVariableBase	DynamicMaterialParameters0Variable;
 	FNiagaraVariableBase	MeshOrientationVariable;
@@ -43,6 +44,7 @@ struct FNiagaraStatelessGlobals
 	FNiagaraVariableBase	UniqueIDVariable;
 	FNiagaraVariableBase	VelocityVariable;
 
+	FNiagaraVariableBase	PreviousCameraOffsetVariable;
 	//FNiagaraVariableBase	PreviousColorVariable;
 	//FNiagaraVariableBase	PreviousDynamicMaterialParameters0Variable;
 	FNiagaraVariableBase	PreviousMeshOrientationVariable;

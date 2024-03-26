@@ -52,6 +52,10 @@ namespace NiagaraStateless
 		SHADER_PARAMETER(FUintVector3,	DynamicMaterialParameters_Parameter0W)
 	END_SHADER_PARAMETER_STRUCT()
 
+	BEGIN_SHADER_PARAMETER_STRUCT(FCameraOffsetModule_ShaderParameters, NIAGARASHADER_API)
+		SHADER_PARAMETER(FUintVector3,	CameraOffset_Distribution)
+	END_SHADER_PARAMETER_STRUCT()
+
 	BEGIN_SHADER_PARAMETER_STRUCT(FScaleColorModule_ShaderParameters, NIAGARASHADER_API)
 		SHADER_PARAMETER(FUintVector3,	ScaleColor_Distribution)
 	END_SHADER_PARAMETER_STRUCT()

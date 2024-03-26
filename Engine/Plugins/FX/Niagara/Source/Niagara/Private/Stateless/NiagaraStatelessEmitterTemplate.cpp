@@ -11,6 +11,7 @@
 #include "Stateless/Modules/NiagaraStatelessModule_AddVelocity.h"
 #include "Stateless/Modules/NiagaraStatelessModule_AccelerationForce.h"
 #include "Stateless/Modules/NiagaraStatelessModule_CalculateAccurateVelocity.h"
+#include "Stateless/Modules/NiagaraStatelessModule_CameraOffset.h"
 #include "Stateless/Modules/NiagaraStatelessModule_CurlNoiseForce.h"
 #include "Stateless/Modules/NiagaraStatelessModule_Drag.h"
 #include "Stateless/Modules/NiagaraStatelessModule_GravityForce.h"
@@ -73,6 +74,7 @@ void UNiagaraStatelessEmitterDefault::InitModulesAndAttributes()
 		UNiagaraStatelessModule_InitializeParticle::StaticClass(),
 		UNiagaraStatelessModule_InitialMeshOrientation::StaticClass(),
 		UNiagaraStatelessModule_ShapeLocation::StaticClass(),
+		UNiagaraStatelessModule_CameraOffset::StaticClass(),
 		UNiagaraStatelessModule_ScaleColor::StaticClass(),
 		UNiagaraStatelessModule_ScaleSpriteSize::StaticClass(),
 		UNiagaraStatelessModule_ScaleSpriteSizeBySpeed::StaticClass(),
@@ -96,6 +98,7 @@ void UNiagaraStatelessEmitterDefault::InitModulesAndAttributes()
 	{
 		StatelessGlobals.UniqueIDVariable,
 		StatelessGlobals.PositionVariable,
+		StatelessGlobals.CameraOffsetVariable,
 		StatelessGlobals.ColorVariable,
 		StatelessGlobals.DynamicMaterialParameters0Variable,
 		StatelessGlobals.MeshOrientationVariable,
@@ -108,6 +111,7 @@ void UNiagaraStatelessEmitterDefault::InitModulesAndAttributes()
 		StatelessGlobals.SubImageIndexVariable,
 		StatelessGlobals.VelocityVariable,
 		StatelessGlobals.PreviousPositionVariable,
+		StatelessGlobals.PreviousCameraOffsetVariable,
 		StatelessGlobals.PreviousMeshOrientationVariable,
 		StatelessGlobals.PreviousRibbonWidthVariable,
 		StatelessGlobals.PreviousScaleVariable,
@@ -140,6 +144,7 @@ void UNiagaraStatelessEmitterDefault::SetShaderParameters(uint8* ShaderParameter
 	int iComponent = 0;
 	ShaderParameters->Permutation_UniqueIDComponent					= ComponentOffsets[iComponent++];
 	ShaderParameters->Permutation_PositionComponent					= ComponentOffsets[iComponent++];
+	ShaderParameters->Permutation_CameraOffsetComponent				= ComponentOffsets[iComponent++];
 	ShaderParameters->Permutation_ColorComponent					= ComponentOffsets[iComponent++];
 	ShaderParameters->Permutation_DynamicMaterialParameter0Component= ComponentOffsets[iComponent++];
 	ShaderParameters->Permutation_MeshOrientationComponent			= ComponentOffsets[iComponent++];
@@ -152,6 +157,7 @@ void UNiagaraStatelessEmitterDefault::SetShaderParameters(uint8* ShaderParameter
 	ShaderParameters->Permutation_SubImageIndexComponent			= ComponentOffsets[iComponent++];
 	ShaderParameters->Permutation_VelocityComponent					= ComponentOffsets[iComponent++];
 	ShaderParameters->Permutation_PreviousPositionComponent			= ComponentOffsets[iComponent++];
+	ShaderParameters->Permutation_PreviousCameraOffsetComponent		= ComponentOffsets[iComponent++];
 	ShaderParameters->Permutation_PreviousMeshOrientationComponent	= ComponentOffsets[iComponent++];
 	ShaderParameters->Permutation_PreviousRibbonWidthComponent		= ComponentOffsets[iComponent++];
 	ShaderParameters->Permutation_PreviousScaleComponent			= ComponentOffsets[iComponent++];

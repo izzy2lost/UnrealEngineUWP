@@ -12,6 +12,7 @@
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // TBD this might produce sub optimal code, needs investigate and is temporary
 #include "Modules/NiagaraStatelessModule_CalculateAccurateVelocity.ush"
+#include "Modules/NiagaraStatelessModule_CameraOffset.ush"
 #include "Modules/NiagaraStatelessModule_DynamicMaterialParameters.ush"
 #include "Modules/NiagaraStatelessModule_InitializeParticle.ush"
 #include "Modules/NiagaraStatelessModule_InitialMeshOrientation.ush"
