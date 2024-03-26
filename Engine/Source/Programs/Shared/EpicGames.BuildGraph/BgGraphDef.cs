@@ -433,6 +433,18 @@ namespace EpicGames.BuildGraph
 				{
 					jsonWriter.WriteObjectStart();
 					jsonWriter.WriteValue("Name", artifact.Name);
+					if (!String.IsNullOrEmpty(artifact.Type))
+					{
+						jsonWriter.WriteValue("Type", artifact.Type);
+					}
+					if (!String.IsNullOrEmpty(artifact.Description))
+					{
+						jsonWriter.WriteValue("Description", artifact.Description);
+					}
+					if (!String.IsNullOrEmpty(artifact.BasePath))
+					{
+						jsonWriter.WriteValue("BasePath", artifact.BasePath);
+					}
 					jsonWriter.WriteValue("Tag", artifact.Tag);
 					jsonWriter.WriteObjectEnd();
 				}
