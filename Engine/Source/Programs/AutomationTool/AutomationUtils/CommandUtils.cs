@@ -1259,10 +1259,10 @@ namespace AutomationTool
 			var CombinedPath = new StringBuilder(CombinePathMaxLength);
 
 			// Combine all paths
-			CombinedPath.Append(Paths[0]);
+			CombinedPath.Append(Paths[0].Replace("\"", ""));
 			for (int PathIndex = 1; PathIndex < Paths.Length; ++PathIndex)
 			{
-				var NextPath = Paths[PathIndex];
+				var NextPath = Paths[PathIndex].Replace("\"", "");
 				if (String.IsNullOrEmpty(NextPath) == false)
 				{
 					int NextPathStartIndex = 0;
