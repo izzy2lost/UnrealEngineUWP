@@ -71,6 +71,11 @@
 			"color": "Blue"
 		},
 		{
+			"name": "Win-UE5-GPU",
+			"condition": "Platform == 'Win64' && IsInteractive == true",
+			"color": "Blue"
+		},
+		{
 			"name": "Mac-UE5",
 			"condition": "Platform == 'Mac'",
 			"color": "Green"

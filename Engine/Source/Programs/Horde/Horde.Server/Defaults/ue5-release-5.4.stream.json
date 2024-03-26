@@ -171,10 +171,7 @@
 		"Win64":
 		{
 			"pool": "win-ue5",
-			"workspace": "Full",
-			"environment":
-			{
-			}
+			"workspace": "Full"
 		},
 		"Win64_Licensee": // Used for installed engine build
 		{
@@ -183,7 +180,7 @@
 		},
 		"TestWin64":
 		{
-			"pool": "win-ue5",
+			"pool": "win-ue5-gpu",
 			"workspace": "Full"
 		},
 		"IncrementalWin64":
