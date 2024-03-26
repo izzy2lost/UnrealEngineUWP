@@ -292,7 +292,7 @@ namespace uba
 		if (!m_gotExitMessage)
 		{
 			StringBuffer<> err;
-			err.Appendf(TC("ERROR: Process %u not active but did not get exit message. Received %u messages"), m_nativeProcessId, m_messageCount);
+			err.Appendf(TC("ERROR: Process %u (%s) not active but did not get exit message. Received %u messages"), m_nativeProcessId, m_description.c_str(), m_messageCount);
 			LogLine(false, err.data, LogEntryType_Error);
 			m_nativeProcessExitCode = UBA_EXIT_CODE(666);
 		}

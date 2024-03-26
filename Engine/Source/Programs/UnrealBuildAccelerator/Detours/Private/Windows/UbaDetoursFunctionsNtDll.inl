@@ -201,7 +201,8 @@ NTSTATUS NTAPI Detoured_NtQueryDirectoryFile(HANDLE FileHandle, HANDLE Event, PI
 			u8* writeEnd = (u8*)fileNamePos + fileNameBytes;
 			if (writeEnd > bufferEnd)
 			{
-				res = STATUS_BUFFER_OVERFLOW;
+				if (!prevInformation)
+					res = STATUS_BUFFER_OVERFLOW;
 				break;
 			}
 
