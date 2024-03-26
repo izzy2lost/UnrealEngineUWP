@@ -969,7 +969,7 @@ bool URigVMPin::IsValidDefaultValue(const FString& InDefaultValue) const
 			TempStructBuffer.AddUninitialized(ScriptStruct->GetStructureSize());
 			ScriptStruct->InitializeDefaultValue(TempStructBuffer.GetData());
 
-			FRigVMPinDefaultValueImportErrorContext ErrorPipe;
+			FRigVMPinDefaultValueImportErrorContext ErrorPipe(true /* warnings as errors */);
 			{
 				// force logging to the error pipe for error detection
 				LOG_SCOPE_VERBOSITY_OVERRIDE(LogExec, ELogVerbosity::Verbose); 
