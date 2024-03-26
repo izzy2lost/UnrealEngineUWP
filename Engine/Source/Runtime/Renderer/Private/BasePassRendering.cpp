@@ -1514,7 +1514,9 @@ void FDeferredShadingSceneRenderer::RenderBasePassInternal(
 					});
 				}
 
-				const bool bShouldRenderViewForNanite = bNaniteEnabled && (!bDrawSceneViewsInOneNanitePass || ViewIndex == 0); // when bDrawSceneViewsInOneNanitePass, the first view should cover all the other atlased ones
+				const bool bShouldRenderViewForNanite = bNaniteEnabled
+					&& !View.bHasNoVisiblePrimitive
+					&& (!bDrawSceneViewsInOneNanitePass || ViewIndex == 0); // when bDrawSceneViewsInOneNanitePass, the first view should cover all the other atlased ones
 				if (bShouldRenderViewForNanite)
 				{
 					// Should always have a full Z prepass with Nanite
