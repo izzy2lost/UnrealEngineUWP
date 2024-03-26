@@ -10,9 +10,9 @@ class FContentBrowserAliasDataSourceModule : public FDefaultModuleImpl
 {
 public:
 	virtual void StartupModule() override;
-	virtual void ShutdownModule() override;
+	virtual void PreUnloadCallback() override;
 
-	TWeakObjectPtr<UContentBrowserAliasDataSource> GetAliasDataSource() { return AliasDataSource.Get(); }
+	CONTENTBROWSERALIASDATASOURCE_API UContentBrowserAliasDataSource* GetAliasDataSource();
 
 private:
 	TStrongObjectPtr<UContentBrowserAliasDataSource> AliasDataSource;
