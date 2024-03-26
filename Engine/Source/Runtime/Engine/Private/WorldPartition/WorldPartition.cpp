@@ -1909,26 +1909,23 @@ void UWorldPartition::AppendAssetRegistryTags(FAssetRegistryTagsContext Context)
 		Context.AddTag(FAssetRegistryTag(NAME_LevelHasStreamingDisabled, TEXT("1"), FAssetRegistryTag::TT_Hidden));
 	}
 
-	// Append level script references so we can perform changelists validations without loading the world
-	if (const ULevelScriptBlueprint* LevelScriptBlueprint = GetWorld()->PersistentLevel->GetLevelScriptBlueprint(true))
-	{
-		const ActorsReferencesUtils::FGetActorReferencesParams Params = ActorsReferencesUtils::FGetActorReferencesParams((UObject*)LevelScriptBlueprint)
-			.SetRequiredFlags(RF_HasExternalPackage);
-		TArray<ActorsReferencesUtils::FActorReference> LevelScriptExternalActorReferences = ActorsReferencesUtils::GetActorReferences(Params);
+	// Append world references so we can perform changelists validations without loading it
+	const ActorsReferencesUtils::FGetActorReferencesParams Params = ActorsReferencesUtils::FGetActorReferencesParams(GetWorld())
+		.SetRequiredFlags(RF_HasExternalPackage);
+	TArray<ActorsReferencesUtils::FActorReference> WorldExternalActorReferences = ActorsReferencesUtils::GetActorReferences(Params);
 		
-		if (LevelScriptExternalActorReferences.Num())
+	if (WorldExternalActorReferences.Num())
+	{
+		FStringBuilderBase StringBuilder;
+		for (const ActorsReferencesUtils::FActorReference& ActorReference : WorldExternalActorReferences)
 		{
-			FStringBuilderBase StringBuilder;
-			for (const ActorsReferencesUtils::FActorReference& ActorReference : LevelScriptExternalActorReferences)
-			{
-				StringBuilder.Append(ActorReference.Actor->GetActorGuid().ToString(EGuidFormats::Short));
-				StringBuilder.AppendChar(TEXT(','));
-			}
-			StringBuilder.RemoveSuffix(1);
-
-			static const FName NAME_LevelScriptExternalActorsReferences(TEXT("LevelScriptExternalActorsReferences"));
-			Context.AddTag(FAssetRegistryTag(NAME_LevelScriptExternalActorsReferences, StringBuilder.ToString(), FAssetRegistryTag::TT_Hidden));
+			StringBuilder.Append(ActorReference.Actor->GetActorGuid().ToString(EGuidFormats::Short));
+			StringBuilder.AppendChar(TEXT(','));
 		}
+		StringBuilder.RemoveSuffix(1);
+
+		static const FName NAME_WorldExternalActorsReferences(TEXT("WorldExternalActorsReferences"));
+		Context.AddTag(FAssetRegistryTag(NAME_WorldExternalActorsReferences, StringBuilder.ToString(), FAssetRegistryTag::TT_Hidden));
 	}
 }
 

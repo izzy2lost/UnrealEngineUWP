@@ -356,24 +356,22 @@ void UWorldPartitionChangelistValidator::OnInvalidReferenceRuntimeGrid(const IWo
 	}
 }
 
-void UWorldPartitionChangelistValidator::OnInvalidReferenceLevelScriptStreamed(const IWorldPartitionActorDescInstanceView& ActorDescView)
-{
-	if (Filter(ActorDescView))
-	{		
-		FText CurrentError = FText::Format(LOCTEXT("DataValidation.Changelist.WorldPartition.InvalidReferenceLevelScriptStreamed", "Level script blueprint references streamed actor {0}."),
-											FText::FromString(GetFullActorName(ActorDescView)));
-		
-		AssetFails(CurrentAsset, CurrentError);
-	}
-}
-
-void UWorldPartitionChangelistValidator::OnInvalidReferenceLevelScriptDataLayers(const IWorldPartitionActorDescInstanceView& ActorDescView)
+void UWorldPartitionChangelistValidator::OnInvalidWorldReference(const IWorldPartitionActorDescInstanceView& ActorDescView, EWorldReferenceInvalidReason Reason)
 {
 	if (Filter(ActorDescView))
 	{
-		FText CurrentError = FText::Format(LOCTEXT("DataValidation.Changelist.WorldPartition.InvalidReferenceLevelScriptDataLayers", "Level script blueprint references streamed actor {0} with a non empty set of data layers."),
-											FText::FromString(GetFullActorName(ActorDescView)));
+		FText CurrentError;
 
+		switch(Reason)
+		{
+		case EWorldReferenceInvalidReason::ReferencedActorIsSpatiallyLoaded:
+			CurrentError = FText::Format(LOCTEXT("DataValidation.Changelist.WorldPartition.InvalidWorldReferenceSpatiallyLoaded", "World references spatially loaded actor {0}."), FText::FromString(GetFullActorName(ActorDescView)));
+			break;
+		case EWorldReferenceInvalidReason::ReferencedActorHasDataLayers:
+			CurrentError = FText::Format(LOCTEXT("DataValidation.Changelist.WorldPartition.InvalidWorldReferenceDataLayers", "World references actor {0} with data layers."), FText::FromString(GetFullActorName(ActorDescView)));
+			break;
+		}
+		
 		AssetFails(CurrentAsset, CurrentError);
 	}
 }

@@ -47,14 +47,17 @@ void FStreamingGenerationLogErrorHandler::OnInvalidReferenceRuntimeGrid(const IW
 	UE_ASSET_LOG_ACTORDESCVIEW(LogWorldPartition, Log, ActorDescView, TEXT("Actor %s references an actor in a different runtime grid %s"), *GetActorName(ActorDescView), *GetActorName(ReferenceActorDescView));
 }
 
-void FStreamingGenerationLogErrorHandler::OnInvalidReferenceLevelScriptStreamed(const IWorldPartitionActorDescInstanceView& ActorDescView)
+void FStreamingGenerationLogErrorHandler::OnInvalidWorldReference(const IWorldPartitionActorDescInstanceView& ActorDescView, EWorldReferenceInvalidReason Reason)
 {
-	UE_ASSET_LOG_ACTORDESCVIEW(LogWorldPartition, Log, ActorDescView, TEXT("Level Script Blueprint references streamed actor %s"), *GetActorName(ActorDescView));
-}
-
-void FStreamingGenerationLogErrorHandler::OnInvalidReferenceLevelScriptDataLayers(const IWorldPartitionActorDescInstanceView& ActorDescView)
-{
-	UE_ASSET_LOG_ACTORDESCVIEW(LogWorldPartition, Log, ActorDescView, TEXT("Level Script Blueprint references streamed actor %s with a non empty set of data layers"), *GetActorName(ActorDescView));
+	switch(Reason)
+	{
+	case EWorldReferenceInvalidReason::ReferencedActorIsSpatiallyLoaded:
+		UE_ASSET_LOG_ACTORDESCVIEW(LogWorldPartition, Log, ActorDescView, TEXT("World references spatially loaded actor %s"), *GetActorName(ActorDescView));
+		break;
+	case EWorldReferenceInvalidReason::ReferencedActorHasDataLayers:
+		UE_ASSET_LOG_ACTORDESCVIEW(LogWorldPartition, Log, ActorDescView, TEXT("World references actor %s with data layers"), *GetActorName(ActorDescView));
+		break;
+	}	
 }
 
 void FStreamingGenerationLogErrorHandler::OnInvalidReferenceDataLayerAsset(const UDataLayerInstanceWithAsset* DataLayerInstance)

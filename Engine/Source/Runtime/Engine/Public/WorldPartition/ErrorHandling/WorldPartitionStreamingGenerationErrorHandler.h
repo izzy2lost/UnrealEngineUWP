@@ -33,7 +33,7 @@ public:
 	virtual void OnInvalidReferenceGridPlacement(const IWorldPartitionActorDescInstanceView& ActorDescView, const IWorldPartitionActorDescInstanceView& ReferenceActorDescView) = 0;
 
 	/**
-	 * Used to identify an actor data layer error
+	 * Called when there's an error with the data layers used by an actor and one or more referenced actor.
 	 */
 	enum class EDataLayerInvalidReason
 	{
@@ -41,9 +41,6 @@ public:
 		ReferencedActorDifferentExternalDataLayer
 	};
 
-	/**
-	 * Called when there's an error with the data layers used by an actor and one or more referenced actor.
-	 */
 	virtual void OnInvalidReferenceDataLayers(const IWorldPartitionActorDescInstanceView& ActorDescView, const IWorldPartitionActorDescInstanceView& ReferenceActorDescView, EDataLayerInvalidReason Reason) = 0;
 
 	/**
@@ -52,14 +49,15 @@ public:
 	virtual void OnInvalidReferenceRuntimeGrid(const IWorldPartitionActorDescInstanceView& ActorDescView, const IWorldPartitionActorDescInstanceView& ReferenceActorDescView) = 0;
 
 	/**
-	 * Called when the level script references a streamed actor.
+	 * Called when the world references a streamed actor.
 	 */
-	virtual void OnInvalidReferenceLevelScriptStreamed(const IWorldPartitionActorDescInstanceView& ActorDescView) = 0;
+	enum class EWorldReferenceInvalidReason
+	{
+		ReferencedActorIsSpatiallyLoaded,
+		ReferencedActorHasDataLayers
+	};
 
-	/**
-	 * Called when an actor descriptor references an actor using data layers.
-	 */
-	virtual void OnInvalidReferenceLevelScriptDataLayers(const IWorldPartitionActorDescInstanceView& ActorDescView) = 0;
+	virtual void OnInvalidWorldReference(const IWorldPartitionActorDescInstanceView& ActorDescView, EWorldReferenceInvalidReason Reason) = 0;
 
 	/**
 	 * Called when a data layer instance does not have a data layer asset
@@ -86,7 +84,6 @@ public:
 	 */
 	virtual void OnActorNeedsResave(const IWorldPartitionActorDescInstanceView& ActorDescView) = 0;
 
-
 	/**
 	 * Used to identify a level instance actor error
 	 */
@@ -102,12 +99,12 @@ public:
 	virtual void OnLevelInstanceInvalidWorldAsset(const IWorldPartitionActorDescInstanceView& ActorDescView, FName WorldAsset, ELevelInstanceInvalidReason Reason) = 0;
 
 	/**
-	 * Called when an actor descriptor references another actor with a different set of actor filter.
+	 * Called when an actor references another actor with a different set of actor filter.
 	 */
 	virtual void OnInvalidActorFilterReference(const IWorldPartitionActorDescInstanceView& ActorDescView, const IWorldPartitionActorDescInstanceView& ReferenceActorDescView) = 0;
 
 	/**
-	 * Called when an actor descriptor has an invalid HLOD layer.
+	 * Called when an actor has an invalid HLOD layer.
 	 */
 	virtual void OnInvalidHLODLayer(const IWorldPartitionActorDescInstanceView& ActorDescView) = 0;
 
@@ -115,8 +112,6 @@ public:
 	static ENGINE_API FString GetActorName(const IWorldPartitionActorDescInstanceView& ActorDescView);
 	static ENGINE_API FString GetFullActorName(const IWorldPartitionActorDescInstanceView& ActorDescView);
 	
-	PRAGMA_DISABLE_DEPRECATION_WARNINGS
-
 	UE_DEPRECATED(5.4, "Use OnInvalidReferenceDataLayers with EDataLayerInvalidReason instead.")
 	virtual void OnInvalidReferenceDataLayers(const IWorldPartitionActorDescInstanceView& ActorDescView, const IWorldPartitionActorDescInstanceView& ReferenceActorDescView) final {}
 
@@ -156,12 +151,16 @@ public:
 	UE_DEPRECATED(5.4, "Use IWorldPartitionActorDescInstanceView version instead")
 	virtual void OnInvalidHLODLayer(const FWorldPartitionActorDescView& ActorDescView) {}
 
+	UE_DEPRECATED(5.4, "Use OnInvalidWorldReference instead")
+	void OnInvalidReferenceLevelScriptStreamed(const IWorldPartitionActorDescInstanceView& ActorDescView) { OnInvalidWorldReference(ActorDescView, EWorldReferenceInvalidReason::ReferencedActorIsSpatiallyLoaded); }
+
+	UE_DEPRECATED(5.4, "Use OnInvalidWorldReference instead")
+	void OnInvalidReferenceLevelScriptDataLayers(const IWorldPartitionActorDescInstanceView& ActorDescView) { OnInvalidWorldReference(ActorDescView, EWorldReferenceInvalidReason::ReferencedActorHasDataLayers); }
+
 	UE_DEPRECATED(5.4, "Use IWorldPartitionActorDescInstanceView version instead")
 	static ENGINE_API FString GetActorName(const FWorldPartitionActorDescView& ActorDescView) { return FString(); }
 
 	UE_DEPRECATED(5.4, "Use IWorldPartitionActorDescInstanceView version instead")
 	static ENGINE_API FString GetFullActorName(const FWorldPartitionActorDescView& ActorDescView) { return FString(); }
-
-	PRAGMA_ENABLE_DEPRECATION_WARNINGS
 };
 #endif

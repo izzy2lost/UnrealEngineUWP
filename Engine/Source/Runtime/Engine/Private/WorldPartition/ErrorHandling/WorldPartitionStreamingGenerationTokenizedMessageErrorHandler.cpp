@@ -96,26 +96,25 @@ void ITokenizedMessageErrorHandler::OnInvalidReferenceRuntimeGrid(const IWorldPa
 	HandleTokenizedMessage(MoveTemp(Message));
 }
 
-void ITokenizedMessageErrorHandler::OnInvalidReferenceLevelScriptStreamed(const IWorldPartitionActorDescInstanceView& ActorDescView)
+void ITokenizedMessageErrorHandler::OnInvalidWorldReference(const IWorldPartitionActorDescInstanceView& ActorDescView, EWorldReferenceInvalidReason Reason)
 {
 	TSharedRef<FTokenizedMessage> Message = FTokenizedMessage::Create(EMessageSeverity::Error);
-	Message->AddToken(FTextToken::Create(LOCTEXT("TokenMessage_WorldPartition_LevelScriptBlueprintStreamedActorReference", "Level Script Blueprint references streamed actor")))
-		->AddToken(FActorToken::Create(ActorDescView.GetActorSoftPath().ToString(), ActorDescView.GetGuid(), FText::FromString(GetActorName(ActorDescView))))
-		->AddToken(FMapErrorToken::Create(TEXT("WorldPartition_LevelScriptBlueprintRefefenceStreamed_CheckForErrors")));
 
-	HandleTokenizedMessage(MoveTemp(Message));
-	
-}
+	switch(Reason)
+	{
+	case EWorldReferenceInvalidReason::ReferencedActorIsSpatiallyLoaded:
+		Message->AddToken(FTextToken::Create(LOCTEXT("TokenMessage_WorldPartition_WorldReferenceSpatiallyLoadedActor", "World references spatially loaded actor")))
+			->AddToken(FActorToken::Create(ActorDescView.GetActorSoftPath().ToString(), ActorDescView.GetGuid(), FText::FromString(GetActorName(ActorDescView))))
+			->AddToken(FMapErrorToken::Create(TEXT("WorldPartition_WorldReferenceSpatiallyLoadedActor_CheckForErrors")));
+		break;
+	case EWorldReferenceInvalidReason::ReferencedActorHasDataLayers:
+		Message->AddToken(FTextToken::Create(LOCTEXT("TokenMessage_WorldPartition_WorldReferenceActorWithDataLayers", "World references actor with data layers")))
+			->AddToken(FActorToken::Create(ActorDescView.GetActorSoftPath().ToString(), ActorDescView.GetGuid(), FText::FromString(GetActorName(ActorDescView))))
+			->AddToken(FMapErrorToken::Create(TEXT("WorldPartition_WorldReferenceActorWithDataLayers_CheckForErrors")));
+		break;
+	}
 
-void ITokenizedMessageErrorHandler::OnInvalidReferenceLevelScriptDataLayers(const IWorldPartitionActorDescInstanceView& ActorDescView)
-{
-	TSharedRef<FTokenizedMessage> Message = FTokenizedMessage::Create(EMessageSeverity::Error);
-	Message->AddToken(FTextToken::Create(LOCTEXT("TokenMessage_WorldPartition_LevelScriptBlueprintActorReference", "Level Script Blueprint references actor")))
-		->AddToken(FActorToken::Create(ActorDescView.GetActorSoftPath().ToString(), ActorDescView.GetGuid(), FText::FromString(GetActorName(ActorDescView))))
-		->AddToken(FTextToken::Create(LOCTEXT("TokenMessage_WorldPartition_LevelScriptBlueprintDataLayerReference", "with a non empty set of data layers")))
-		->AddToken(FMapErrorToken::Create(TEXT("WorldPartition_LevelScriptBlueprintRefefenceDataLayer_CheckForErrors")));
-
-	HandleTokenizedMessage(MoveTemp(Message));
+	HandleTokenizedMessage(MoveTemp(Message));	
 }
 
 void ITokenizedMessageErrorHandler::OnInvalidReferenceDataLayerAsset(const UDataLayerInstanceWithAsset* DataLayerInstance)

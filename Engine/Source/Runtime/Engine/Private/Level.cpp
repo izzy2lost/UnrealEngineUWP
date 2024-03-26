@@ -555,7 +555,7 @@ void ULevel::Serialize( FArchive& Ar )
 		bContainsStableActorGUIDs = Ar.CustomVer(FFortniteMainBranchObjectVersion::GUID) >= FFortniteMainBranchObjectVersion::ContainsStableActorGUIDs;
 #endif
 	}
-	else if (Ar.IsSaving() && Ar.IsPersistent())
+	else if (Ar.IsPersistent() && (Ar.IsSaving() || Ar.IsObjectReferenceCollector()))
 	{
 		UPackage* LevelPackage = GetOutermost();
 		TArray<AActor*> EmbeddedActors;
@@ -2542,16 +2542,16 @@ bool ULevel::GetIsStreamingDisabledFromAsset(const FAssetData& Asset)
 	return false;
 }
 
-bool ULevel::GetLevelScriptExternalActorsReferencesFromAsset(const FAssetData& Asset, TArray<FGuid>& OutLevelScriptExternalActorsReferences)
+bool ULevel::GetWorldExternalActorsReferencesFromAsset(const FAssetData& Asset, TArray<FGuid>& OutWorldExternalActorsReferences)
 {
-	FString LevelScriptExternalActorsReferencesStr;
-	static const FName NAME_LevelScriptExternalActorsReferences(TEXT("LevelScriptExternalActorsReferences"));
-	if (Asset.GetTagValue(NAME_LevelScriptExternalActorsReferences, LevelScriptExternalActorsReferencesStr))
+	FString WorldExternalActorsReferencesStr;
+	static const FName NAME_WorldExternalActorsReferences(TEXT("WorldExternalActorsReferences"));
+	if (Asset.GetTagValue(NAME_WorldExternalActorsReferences, WorldExternalActorsReferencesStr))
 	{
-		TArray<FString> LevelScriptReferencesStr;
-		if (LevelScriptExternalActorsReferencesStr.ParseIntoArray(LevelScriptReferencesStr, TEXT(",")))
+		TArray<FString> WorldReferencesStr;
+		if (WorldExternalActorsReferencesStr.ParseIntoArray(WorldReferencesStr, TEXT(",")))
 		{
-			Algo::Transform(LevelScriptReferencesStr, OutLevelScriptExternalActorsReferences, [](const FString& GuidStr) { return FGuid(GuidStr); });
+			Algo::Transform(WorldReferencesStr, OutWorldExternalActorsReferences, [](const FString& GuidStr) { return FGuid(GuidStr); });
 			return true;
 		}
 	}
@@ -2566,11 +2566,11 @@ bool ULevel::GetIsStreamingDisabledFromPackage(FName LevelPackage)
 	});
 }
 
-bool ULevel::GetLevelScriptExternalActorsReferencesFromPackage(FName LevelPackage, TArray<FGuid>& OutLevelScriptExternalActorsReferences)
+bool ULevel::GetWorldExternalActorsReferencesFromPackage(FName LevelPackage, TArray<FGuid>& OutWorldExternalActorsReferences)
 {
-	return LevelAssetRegistryHelper::GetLevelInfoFromAssetRegistry(LevelPackage, [&OutLevelScriptExternalActorsReferences](const FAssetData& Asset)
+	return LevelAssetRegistryHelper::GetLevelInfoFromAssetRegistry(LevelPackage, [&OutWorldExternalActorsReferences](const FAssetData& Asset)
 	{
-		return GetLevelScriptExternalActorsReferencesFromAsset(Asset, OutLevelScriptExternalActorsReferences);
+		return GetWorldExternalActorsReferencesFromAsset(Asset, OutWorldExternalActorsReferences);
 	});
 }
 
