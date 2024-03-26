@@ -375,7 +375,6 @@ void UCustomizableObjectPrivate::ClearCompiledData(bool bIsCooking)
 	ParticipatingObjects.Empty();
 #endif
 
-	GetPublic()->HashToStreamableBlock.Empty();
 	GetPublic()->BulkData = nullptr;
 }
 
@@ -563,19 +562,16 @@ void UCustomizableObjectPrivate::SaveCompiledData(FArchive& MemoryWriter, bool b
 	MemoryWriter << LocalModelResources.RealTimeMorphTargetNames;
 	MemoryWriter << LocalModelResources.RealTimeMorphStreamableBlocks;
 
+	MemoryWriter << LocalModelResources.HashToStreamableBlock;
+
 	MemoryWriter << GetPublic()->ClothMeshToMeshVertData;
 	MemoryWriter << GetPublic()->ContributingClothingAssetsData;
 	MemoryWriter << GetPublic()->ClothSharedConfigsData; 
 
-	MemoryWriter << GetPublic()->HashToStreamableBlock;
-
-	MemoryWriter << GetPublic()->LODSettings.NumLODsInRoot;
-	MemoryWriter << GetPublic()->NumMeshComponentsInRoot;
-
-	MemoryWriter << GetPublic()->LODSettings.FirstLODAvailable;
-
-	MemoryWriter << GetPublic()->LODSettings.NumLODsToStream;
-	MemoryWriter << GetPublic()->LODSettings.bLODStreamingEnabled;
+	MemoryWriter << LocalModelResources.NumComponents;
+	MemoryWriter << LocalModelResources.NumLODs;
+	MemoryWriter << LocalModelResources.NumLODsToStream;
+	MemoryWriter << LocalModelResources.FirstLODAvailable;
 
 	// Editor Only data
 	MemoryWriter << bDisableTextureStreaming;
@@ -687,19 +683,16 @@ void UCustomizableObjectPrivate::LoadCompiledData(FArchive& MemoryReader, const 
 		MemoryReader << LocalModelResource.RealTimeMorphTargetNames;
 		MemoryReader << LocalModelResource.RealTimeMorphStreamableBlocks;
 
+		MemoryReader << LocalModelResource.HashToStreamableBlock;
+
 		MemoryReader << GetPublic()->ClothMeshToMeshVertData;
 		MemoryReader << GetPublic()->ContributingClothingAssetsData;
 		MemoryReader << GetPublic()->ClothSharedConfigsData;
 
-		MemoryReader << GetPublic()->HashToStreamableBlock;
-
-		MemoryReader << GetPublic()->LODSettings.NumLODsInRoot;
-		MemoryReader << GetPublic()->NumMeshComponentsInRoot;
-
-		MemoryReader << GetPublic()->LODSettings.FirstLODAvailable;
-
-		MemoryReader << GetPublic()->LODSettings.NumLODsToStream;
-		MemoryReader << GetPublic()->LODSettings.bLODStreamingEnabled;
+		MemoryReader << LocalModelResource.NumComponents;
+		MemoryReader << LocalModelResource.NumLODs;
+		MemoryReader << LocalModelResource.NumLODsToStream;
+		MemoryReader << LocalModelResource.FirstLODAvailable;
 
 		bool bInvalidateModel = false;
 
@@ -1208,11 +1201,12 @@ UCustomizableObject* UCustomizableObjectPrivate::GetPublic() const
 	return Public;
 }
 
-
+#if WITH_EDITORONLY_DATA
 FPostCompileDelegate& UCustomizableObject::GetPostCompileDelegate() const
 {
 	return GetPrivate()->PostCompileDelegate;
 }
+#endif
 
 
 UCustomizableObjectInstance* UCustomizableObject::CreateInstance()
@@ -1231,12 +1225,22 @@ UCustomizableObjectInstance* UCustomizableObject::CreateInstance()
 
 int32 UCustomizableObject::GetNumLODs() const
 {
-	return LODSettings.NumLODsInRoot;
+	if (IsCompiled())
+	{
+		return GetPrivate()->GetModelResources().NumLODs;
+	}
+
+	return 0;
 }
 
 int32 UCustomizableObject::GetComponentCount() const
 {
-	return IsCompiled() ? NumMeshComponentsInRoot : 0;
+	if (IsCompiled())
+	{
+		return GetPrivate()->GetModelResources().NumComponents;
+	}
+
+	return 0;
 }
 
 int32 UCustomizableObject::GetParameterCount() const
@@ -1805,7 +1809,7 @@ int32 UCustomizableObjectPrivate::GetMinLODIndex() const
 		MinLODIdx = GetPublic()->LODSettings.MinLOD.GetValue();
 	}
 
-	return FMath::Max(MinLODIdx, GetPublic()->LODSettings.FirstLODAvailable);
+	return FMath::Max(MinLODIdx, static_cast<int32>(GetModelResources().FirstLODAvailable));
 }
 
 
@@ -1952,17 +1956,6 @@ void UCustomizableObjectPrivate::OnParticipatingObjectDirty(UPackage* Package, b
 	}
 }
 #endif
-
-TMap<uint64, FMutableStreamableBlock>& UCustomizableObjectPrivate::GetHashToStreamableBlock()
-{
-	return GetPublic()->HashToStreamableBlock;
-}
-
-
-int32& UCustomizableObjectPrivate::GetNumMeshComponentsInRoot()
-{
-	return GetPublic()->NumMeshComponentsInRoot;
-}
 
 
 TArray<FString>& UCustomizableObjectPrivate::GetCustomizableObjectClassTags()
@@ -2117,6 +2110,8 @@ void UCustomizableObjectBulk::PrepareBulkData(UCustomizableObject* InOuter, cons
 		return;
 	}
 
+	FModelResources& ModelResources = CustomizableObject->GetPrivate()->GetModelResources(true);
+
 	uint64 TargetBulkDataFileBytes = CustomizableObject->CompileOptions.PackagedDataBytesLimit;
 	const uint64 MaxChunkSize = UCustomizableObjectSystem::GetInstance()->GetMaxChunkSizeForPlatform(TargetPlatform);
 	TargetBulkDataFileBytes = FMath::Min(TargetBulkDataFileBytes, MaxChunkSize);
@@ -2144,7 +2139,7 @@ void UCustomizableObjectBulk::PrepareBulkData(UCustomizableObject* InOuter, cons
 		for (int32 BlockIndex = 0; BlockIndex < NumBlocks; ++BlockIndex)
 		{
 			uint32 BlockId = Model->GetRomId(BlockIndex);
-			const FMutableStreamableBlock& StreamableBlock = CustomizableObject->GetPrivate()->GetHashToStreamableBlock()[BlockId];
+			const FMutableStreamableBlock& StreamableBlock = ModelResources.HashToStreamableBlock[BlockId];
 			const uint32 BlockSize = StreamableBlock.Size;
 
 			FBlock CurrentBlock = { EDataType::Model, BlockId, BlockSize, SourceOffset };
@@ -2271,7 +2266,7 @@ void UCustomizableObjectBulk::PrepareBulkData(UCustomizableObject* InOuter, cons
 			{
 				FBlock ThisBlock = CurrentFile.Blocks[FileBlockIndex];
 
-				FMutableStreamableBlock& StreamableBlock = CustomizableObject->GetPrivate()->GetHashToStreamableBlock()[ThisBlock.Id];
+				FMutableStreamableBlock& StreamableBlock = ModelResources.HashToStreamableBlock[ThisBlock.Id];
 				check(StreamableBlock.Size == ThisBlock.Size);
 				StreamableBlock.FileId = FileId;
 				StreamableBlock.Offset = OffsetInFile;
