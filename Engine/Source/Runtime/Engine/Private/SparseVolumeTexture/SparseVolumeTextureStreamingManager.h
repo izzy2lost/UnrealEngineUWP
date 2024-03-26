@@ -176,7 +176,7 @@ private:
 		uint32 RequestVersion = 0;
 #endif
 		FIoBuffer RequestBuffer;
-		FBulkDataBatchReadRequest Request;
+		FBulkDataBatchRequest Request;
 		uint32 IssuedInFrame = 0;
 		bool bBlocking = false;
 
@@ -194,6 +194,11 @@ private:
 			RetryCount = 0;
 			++RequestVersion;
 #endif
+			if (Request.IsPending())
+			{
+				Request.Cancel();
+				Request.Wait(); // Even after calling Cancel(), we still need to Wait() before we can touch the RequestBuffer.
+			}
 			Request.Reset();
 			RequestBuffer = {};
 			IssuedInFrame = 0;
