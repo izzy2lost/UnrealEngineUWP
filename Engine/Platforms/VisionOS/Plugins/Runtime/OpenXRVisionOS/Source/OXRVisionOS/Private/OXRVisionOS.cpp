@@ -748,15 +748,53 @@ namespace OXRVisionOS
 			hapticActionInfo);
 	}
 
+// XR_EXT_hand_tracking begin
+	XRAPI_ATTR XrResult XRAPI_CALL xrCreateHandTrackerEXT(
+		XrSession                                   session,
+		const XrHandTrackerCreateInfoEXT*           createInfo,
+		XrHandTrackerEXT*                           handTracker)
+	{
+		OXRVISIONOS_CHECK_SESSION_EARLY_RETURN(session);
+		
+		FOXRVisionOSSession* Session = (FOXRVisionOSSession*)session;
+		return Session->XrCreateHandTrackerEXT(
+			createInfo,
+			handTracker);
+	}
+
+	XRAPI_ATTR XrResult XRAPI_CALL xrDestroyHandTrackerEXT(
+		XrHandTrackerEXT                            handTracker)
+	{
+		FOXRVisionOSSession::FOXRVisionOSHandTracker* HandTracker = (FOXRVisionOSSession::FOXRVisionOSHandTracker*)handTracker;
+		return HandTracker->XrDestroyHandTrackerEXT();
+	}
+
+	XRAPI_ATTR XrResult XRAPI_CALL xrLocateHandJointsEXT(
+		XrHandTrackerEXT                            handTracker,
+		const XrHandJointsLocateInfoEXT*            locateInfo,
+		XrHandJointLocationsEXT*                    locations)
+	{
+		FOXRVisionOSSession::FOXRVisionOSHandTracker* HandTracker = (FOXRVisionOSSession::FOXRVisionOSHandTracker*)handTracker;
+		return HandTracker->XrLocateHandJointsEXT(
+			locateInfo,
+			locations);
+	}
+// XR_EXT_hand_tracking end
+
 // Any supported extension functions would need to be mapped as well.  That could go here.
 
 #define OXRVISIONOS_MAP_GLOBAL_FUNCTION(Type,Func) OXRVisionOS::GlobalFunctionMap.Add(FString(TEXT(#Func)), (PFN_xrVoidFunction)(OXRVisionOS::Func));
 #define OXRVISIONOS_MAP_INSTANCE_FUNCTION(Type,Func) OXRVisionOS::InstanceFunctionMap.Add(FString(TEXT(#Func)), (PFN_xrVoidFunction)(OXRVisionOS::Func));
+#define OXRVISIONOS_MAP_INSTANCE_FUNCTION_EXT(Func) OXRVisionOS::InstanceFunctionMap.Add(FString(TEXT(#Func)), (PFN_xrVoidFunction)(OXRVisionOS::Func));
 
 	void BuildFunctionMaps()
 	{
 		ENUM_XR_ENTRYPOINTS_GLOBAL(OXRVISIONOS_MAP_GLOBAL_FUNCTION);
 		ENUM_XR_ENTRYPOINTS(OXRVISIONOS_MAP_INSTANCE_FUNCTION);
+		
+		OXRVISIONOS_MAP_INSTANCE_FUNCTION_EXT(xrCreateHandTrackerEXT);
+		OXRVISIONOS_MAP_INSTANCE_FUNCTION_EXT(xrDestroyHandTrackerEXT);
+		OXRVISIONOS_MAP_INSTANCE_FUNCTION_EXT(xrLocateHandJointsEXT);
 	}
 
 #undef OXRVISIONOS_MAP_INSTANCE_FUNCTION
@@ -781,7 +819,9 @@ void FOXRVisionOS::StartupModule()
 
 	SupportedExtensions.Add(XR_KHR_COMPOSITION_LAYER_DEPTH_EXTENSION_NAME, XR_KHR_composition_layer_depth_SPEC_VERSION);
 	SupportedExtensions.Add(XR_EPIC_OXRVISIONOS_CONTROLLER_NAME, XR_EPIC_oxrvisionos_controller_SPEC_VERSION);
-	//	SupportedExtensions.Add(XR_EXT_EYE_GAZE_INTERACTION_EXTENSION_NAME, XR_EXT_eye_gaze_interaction_SPEC_VERSION);
+	SupportedExtensions.Add(XR_EXT_HAND_TRACKING_EXTENSION_NAME, XR_EXT_hand_tracking);
+	//SupportedExtensions.Add(XR_EXT__EXTENSION_NAME, XR_MSFT_hand_interaction);
+	//SupportedExtensions.Add(XR_EXT__EXTENSION_NAME, XR_EXT_eye_gaze_interaction_SPEC_VERSION);
 }
 
 void FOXRVisionOS::ShutdownModule()
