@@ -463,79 +463,9 @@ void FStructProperty::AppendSchemaHash(FBlake3& Builder, bool bSkipEditorOnly) c
 }
 #endif
 
+#if WITH_EDITORONLY_DATA
 static const FName NAME_StructOriginalType(ANSITEXTVIEW("OriginalType"));
 
-static const FString* FindOriginalTypeName(const FStructProperty* Struct)
-{
-	FUObjectSerializeContext* Context = FUObjectThreadContext::Get().GetSerializeContext();
-	if (Context && Context->bImpersonateProperties)
-	{
-#if WITH_EDITORONLY_DATA
-		if (const FString* OriginalType = Struct->FindMetaData(NAME_StructOriginalType))
-		{
-			return OriginalType;
-		}
-		//@note: To support metadata defined on array of struct in UPROPERTY for testing purposes
-		if (FField* OwnerField = Struct->Owner.ToField())
-		{
-			return OwnerField->FindMetaData(NAME_StructOriginalType);
-		}
-#endif
-	}
-	return nullptr;
-}
-
-bool FStructProperty::LoadFromTag(const FPropertyTag& Tag)
-{
-	if (!Super::LoadFromTag(Tag))
-	{
-		return false;
-	}
-
-	PRAGMA_DISABLE_DEPRECATION_WARNINGS;
-	if (!Tag.StructName.IsNone())
-	{
-		TStringBuilder<256> StructName(InPlace, Tag.StructName);
-		if (UScriptStruct* LocalStruct = FindFirstObject<UScriptStruct>(*StructName, EFindFirstObjectOptions::NativeFirst))
-		{
-			Struct = LocalStruct;
-			return true;
-		}
-	}
-	PRAGMA_ENABLE_DEPRECATION_WARNINGS;
-
-	return false;
-}
-
-void FStructProperty::SaveToTag(FPropertyTag& Tag)
-{
-	Super::SaveToTag(Tag);
-
-	const FString* OriginalType = FindOriginalTypeName(this);
-	const UScriptStruct* LocalStruct = Struct;
-	check(LocalStruct);
-	PRAGMA_DISABLE_DEPRECATION_WARNINGS;
-	Tag.StructName = OriginalType ? FName(**OriginalType) : LocalStruct->GetFName();
-	Tag.StructGuid = LocalStruct->GetCustomGuid();
-	PRAGMA_ENABLE_DEPRECATION_WARNINGS;
-}
-
-void FStructProperty::AssignToTag(FPropertyTag& Tag)
-{
-	Super::AssignToTag(Tag);
-
-	const FString* OriginalType = FindOriginalTypeName(this);
-	const UScriptStruct* LocalStruct = Struct;
-	check(LocalStruct);
-	PRAGMA_DISABLE_DEPRECATION_WARNINGS;
-	if (OriginalType && FName(**OriginalType) == Tag.StructName)
-	{
-		Tag.StructName = LocalStruct->GetFName();
-	}
-	PRAGMA_ENABLE_DEPRECATION_WARNINGS;
-}
-
-#if WITH_EDITORONLY_DATA
 static UE::FPropertyTypeName FindOriginalType(const FStructProperty* Struct)
 {
 	FUObjectSerializeContext* Context = FUObjectThreadContext::Get().GetSerializeContext();

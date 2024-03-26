@@ -689,17 +689,6 @@ void FMulticastSparseDelegateProperty::ClearDelegate(UObject* Parent, void* Prop
 	SparseDelegate.__Internal_Clear(Parent, SparseDelegateFunc->DelegateName);
 }
 
-bool FMulticastSparseDelegateProperty::LoadFromTag(const FPropertyTag& Tag)
-{
-	if (!Super::LoadFromTag(Tag))
-	{
-		return false;
-	}
-
-	// This cannot be used without its SignatureFunction and the tag lacks the information needed to load it.
-	return false;
-}
-
 bool FMulticastSparseDelegateProperty::LoadTypeName(UE::FPropertyTypeName Type, const FPropertyTag* Tag)
 {
 	if (!Super::LoadTypeName(Type, Tag))

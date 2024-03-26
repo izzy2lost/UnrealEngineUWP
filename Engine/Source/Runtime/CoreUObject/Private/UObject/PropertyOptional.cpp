@@ -620,27 +620,6 @@ bool FOptionalProperty::UseBinaryOrNativeSerialization(const FArchive& Ar) const
 	return LocalValueProperty->UseBinaryOrNativeSerialization(Ar);
 }
 
-bool FOptionalProperty::LoadFromTag(const FPropertyTag& Tag)
-{
-	if (!Super::LoadFromTag(Tag))
-	{
-		return false;
-	}
-
-	return false;
-}
-
-void FOptionalProperty::SaveToTag(FPropertyTag& Tag)
-{
-	Super::SaveToTag(Tag);
-
-	const FProperty* LocalValueProperty = ValueProperty;
-	check(LocalValueProperty);
-	PRAGMA_DISABLE_DEPRECATION_WARNINGS;
-	Tag.InnerType = LocalValueProperty->GetID();
-	PRAGMA_ENABLE_DEPRECATION_WARNINGS;
-}
-
 bool FOptionalProperty::LoadTypeName(UE::FPropertyTypeName Type, const FPropertyTag* Tag)
 {
 	if (!Super::LoadTypeName(Type, Tag))

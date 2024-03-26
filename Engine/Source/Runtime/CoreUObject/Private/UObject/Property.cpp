@@ -2104,25 +2104,6 @@ bool FProperty::UseBinaryOrNativeSerialization(const FArchive& Ar) const
 	return Ar.WantBinaryPropertySerialization();
 }
 
-bool FProperty::LoadFromTag(const FPropertyTag& Tag)
-{
-	checkf(GetID() == Tag.Type, TEXT("Failed to load property '%s' of type '%s' from tag of type '%s'"),
-		*WriteToString<64>(GetFName()), *WriteToString<64>(GetID()), *WriteToString<64>(Tag.Type));
-	return true;
-}
-
-void FProperty::SaveToTag(FPropertyTag& Tag)
-{
-	Tag.SetProperty(this);
-	Tag.Type = GetID();
-	Tag.Name = GetFName();
-}
-
-void FProperty::AssignToTag(FPropertyTag& Tag)
-{
-	Tag.SetProperty(this);
-}
-
 bool FProperty::LoadTypeName(UE::FPropertyTypeName Type, const FPropertyTag* Tag)
 {
 	return ensureMsgf(GetID() == Type.GetName(),

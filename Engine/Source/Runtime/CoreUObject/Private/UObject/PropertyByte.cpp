@@ -4,7 +4,6 @@
 
 #include "Algo/Find.h"
 #include "Hash/Blake3.h"
-#include "UObject/Package.h"
 #include "UObject/UnrealTypePrivate.h"
 #include "UObject/UObjectThreadContext.h"
 
@@ -514,52 +513,6 @@ uint64 FByteProperty::GetMaxNetSerializeBits() const
 	const uint64 DesiredBits = Enum ? FMath::CeilLogTwo64(Enum->GetMaxEnumValue() + 1) : MaxBits;
 
 	return FMath::Min(DesiredBits, MaxBits);
-}
-
-bool FByteProperty::LoadFromTag(const FPropertyTag& Tag)
-{
-	if (!Super::LoadFromTag(Tag))
-	{
-		return false;
-	}
-
-	PRAGMA_DISABLE_DEPRECATION_WARNINGS;
-	if (Tag.EnumName.IsNone())
-	{
-		return true;
-	}
-
-	// Update FEnumProperty when making changes here.
-	TStringBuilder<256> EnumName(InPlace, Tag.EnumName);
-	PRAGMA_ENABLE_DEPRECATION_WARNINGS;
-	if (UEnum* LocalEnum = FindFirstObject<UEnum>(*EnumName, EFindFirstObjectOptions::NativeFirst))
-	{
-		Enum = LocalEnum;
-		return true;
-	}
-
-	return false;
-}
-
-void FByteProperty::SaveToTag(FPropertyTag& Tag)
-{
-	Super::SaveToTag(Tag);
-
-	if (const UEnum* LocalEnum = Enum)
-	{
-		PRAGMA_DISABLE_DEPRECATION_WARNINGS;
-		// RobM: Ugly hack so that we can avoid content changes in most of the packages
-		// Update FEnumProperty when making changes here.
-		if (LocalEnum->GetPackage()->HasAnyPackageFlags(PKG_CompiledIn))
-		{				
-			Tag.EnumName = LocalEnum->GetFName();
-		}
-		else
-		{
-			Tag.EnumName = FName(*LocalEnum->GetPathName());
-		}
-		PRAGMA_ENABLE_DEPRECATION_WARNINGS;
-	}
 }
 
 bool FByteProperty::LoadTypeName(UE::FPropertyTypeName Type, const FPropertyTag* Tag)

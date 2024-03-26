@@ -4,7 +4,6 @@
 
 #include "Algo/Find.h"
 #include "Hash/Blake3.h"
-#include "UObject/Package.h"
 #include "UObject/UnrealTypePrivate.h"
 #include "UObject/UObjectThreadContext.h"
 
@@ -536,50 +535,6 @@ uint64 FEnumProperty::GetMaxNetSerializeBits() const
 	const uint64 DesiredBits = FMath::CeilLogTwo64(Enum->GetMaxEnumValue() + 1);
 	
 	return FMath::Min(DesiredBits, MaxBits);
-}
-
-bool FEnumProperty::LoadFromTag(const FPropertyTag& Tag)
-{
-	if (!Super::LoadFromTag(Tag))
-	{
-		return false;
-	}
-
-	// Update FByteProperty when making changes here.
-	PRAGMA_DISABLE_DEPRECATION_WARNINGS;
-	TStringBuilder<256> EnumName(InPlace, Tag.EnumName);
-	PRAGMA_ENABLE_DEPRECATION_WARNINGS;
-	if (UEnum* LocalEnum = FindFirstObject<UEnum>(*EnumName, EFindFirstObjectOptions::NativeFirst))
-	{
-		Enum = LocalEnum;
-		UE_CLOG(Enum->GetMaxEnumValue() >= 256, LogClass, Warning,
-			TEXT("Enum '%s' does not fit in a byte property loading property '%s'."), *Enum->GetName(), *GetName());
-		AddCppProperty(new FByteProperty(this, GetFName(), RF_NoFlags));
-		return true;
-	}
-
-	return false;
-}
-
-void FEnumProperty::SaveToTag(FPropertyTag& Tag)
-{
-	Super::SaveToTag(Tag);
-
-	if (const UEnum* LocalEnum = Enum)
-	{
-		PRAGMA_DISABLE_DEPRECATION_WARNINGS;
-		// RobM: Ugly hack so that we can avoid content changes in most of the packages
-		// Update FByteProperty when making changes here.
-		if (LocalEnum->GetPackage()->HasAnyPackageFlags(PKG_CompiledIn))
-		{				
-			Tag.EnumName = LocalEnum->GetFName();
-		}
-		else
-		{
-			Tag.EnumName = FName(*LocalEnum->GetPathName());
-		}
-		PRAGMA_ENABLE_DEPRECATION_WARNINGS;
-	}
 }
 
 bool FEnumProperty::LoadTypeName(UE::FPropertyTypeName Type, const FPropertyTag* Tag)
