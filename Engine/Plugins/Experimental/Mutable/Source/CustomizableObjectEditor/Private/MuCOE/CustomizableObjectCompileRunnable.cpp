@@ -121,12 +121,37 @@ uint32 FCustomizableObjectCompileRunnable::Run()
 		CompilerOptions->SetImagePixelFormatOverride( UnrealPixelFormatFunc );
 	}
 
-	CompilerOptions->SetReferencedResourceCallback([this](int32 ID, TSharedPtr<mu::Ptr<mu::Image>> ResolvedImage)
+	auto ProviderTick = [this](float)
+		{
+			check(IsInGameThread());
+
+			constexpr double MaxSecondsPerFrame = 0.4;
+
+			double MaxTime = FPlatformTime::Seconds() + MaxSecondsPerFrame;
+
+			FReferenceResourceRequest Request;
+			while (PendingResourceReferenceRequests.Dequeue(Request))
+			{
+				*Request.ResolvedImage = LoadResourceReferenced(Request.ID);
+				Request.CompletionEvent->Trigger();
+
+				// Simple time limit enforcement to avoid blocking the game thread if there are many requests.
+				double CurrentTime = FPlatformTime::Seconds();
+				if (CurrentTime >= MaxTime)
+				{
+					break;
+				}
+			}
+
+			return true;
+		};
+
+	CompilerOptions->SetReferencedResourceCallback([this, &ProviderTick](int32 ID, TSharedPtr<mu::Ptr<mu::Image>> ResolvedImage, bool bRunImmediatlyIfPossible)
 		{
 			// This runs in a random thread
 			UE::Tasks::FTaskEvent CompletionEvent(TEXT("ReferencedResourceCallbackCompletion"));			
 
-			if (IsInGameThread())
+			if (IsInGameThread() && bRunImmediatlyIfPossible)
 			{
 				// Do everything now
 				mu::Ptr<mu::Image> Result = LoadResourceReferenced(ID);
@@ -139,34 +164,12 @@ uint32 FCustomizableObjectCompileRunnable::Run()
 			}
 
 			return CompletionEvent;
-		});
+		}, 
+		ProviderTick
+	);
 
 	// Register the tick function that will process the game-thread image reference resolve requests.
-	FTSTicker::FDelegateHandle ResolveReferenceResourcesTickerHandle = FTSTicker::GetCoreTicker().AddTicker(
-		FTickerDelegate::CreateLambda([this](float)
-			{
-				check(IsInGameThread());
-
-				constexpr double MaxSecondsPerFrame = 0.4;
-
-				double MaxTime = FPlatformTime::Seconds() + MaxSecondsPerFrame;
-
-				FReferenceResourceRequest Request;
-				while (PendingResourceReferenceRequests.Dequeue(Request))
-				{
-					*Request.ResolvedImage = LoadResourceReferenced(Request.ID);
-					Request.CompletionEvent->Trigger();
-
-					// Simple time limit enforcement to avoid blocking the game thread if there are many requests.
-					double CurrentTime = FPlatformTime::Seconds();
-					if (CurrentTime >= MaxTime)
-					{
-						break;
-					}
-				}
-
-				return true;
-			}));
+	FTSTicker::FDelegateHandle ResolveReferenceResourcesTickerHandle = FTSTicker::GetCoreTicker().AddTicker(FTickerDelegate::CreateLambda(ProviderTick));
 
 	const int32 MinResidentMips = UTexture::GetStaticMinTextureResidentMipCount();
 	CompilerOptions->SetDataPackingStrategy( MinResidentMips, Options.EmbeddedDataBytesLimit, Options.PackagedDataBytesLimit );
