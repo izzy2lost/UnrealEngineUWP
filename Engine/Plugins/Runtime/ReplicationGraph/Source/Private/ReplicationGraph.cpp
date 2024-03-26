@@ -1226,9 +1226,8 @@ int32 UReplicationGraph::ServerReplicateActors(float DeltaSeconds)
 
 			if (GatheredReplicationListsForConnection.NumLists() == 0)
 			{
-				// No lists were returned, kind of weird but not fatal. Early out because code below assumes at least 1 list
-				UE_LOG(LogReplicationGraph, Warning, TEXT("No Replication Lists were returned for connection"));
-				return 0;
+				UE_LOG(LogReplicationGraph, Verbose, TEXT("No Replication Lists were returned for connection"));
+				continue;
 			}
 
 			for( const FNetViewer& NetViewer : ConnectionViewers )
