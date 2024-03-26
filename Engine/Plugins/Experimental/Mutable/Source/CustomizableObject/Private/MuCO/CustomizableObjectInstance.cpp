@@ -3523,8 +3523,8 @@ void UCustomizableInstancePrivate::BuildOrCopyMorphTargetsData(const TSharedRef<
 	const UCustomizableObject* CustomizableObject = CustomizableObjectInstance->GetCustomizableObject();
 	const TArray<FName>& MorphTargetNames = CustomizableObject->GetPrivate()->GetModelResources().RealTimeMorphTargetNames;
 
-	const TMap<uint32, TArray<FMorphTargetVertexData>>& ResourceIdToVertexDataMap = 
-			OperationData->InstanceUpdateData.MorphTargetsVertexData;
+	const TMap<uint32, TArray<FMorphTargetVertexData>>& ResourceIdToVertexDataMap =
+		OperationData->InstanceUpdateData.MorphTargetsVertexData;
 
 	if (MorphTargetNames.IsEmpty() || ResourceIdToVertexDataMap.IsEmpty())
 	{
@@ -3541,211 +3541,204 @@ void UCustomizableInstancePrivate::BuildOrCopyMorphTargetsData(const TSharedRef<
 	TArray<TArray<FMorphTargetLODModel>> MorphsData;
 	MorphsData.SetNum(MorphTargetNames.Num());
 
-	const int32 NumLODs = OperationData->NumLODsAvailable;
+	TArray<TObjectPtr<UMorphTarget>>& MorphTargets = SkeletalMesh->GetMorphTargets();
 
-	int32 LastValidLODIndex = OperationData->NumLODsAvailable - 1;
-	for (int32 LODIndex = LastValidLODIndex; LODIndex >= FirstLODAvailable; --LODIndex)
+	const int32 FirstGeneratedLOD = FMath::Max((int32)OperationData->GetRequestedLODs()[ComponentIndex], OperationData->GetMinLOD());
+	for (int32 LODIndex = FirstGeneratedLOD; LODIndex < OperationData->NumLODsAvailable; ++LODIndex)
 	{
+		MUTABLE_CPUPROFILER_SCOPE(BuildMorphTargetsData);
+
 		int32 NumNotFoundLoadedMorphsResources = 0;
 
 		const FInstanceUpdateData::FLOD& LOD = OperationData->InstanceUpdateData.LODs[LODIndex];
+		const FInstanceUpdateData::FComponent& Component = OperationData->InstanceUpdateData.Components[LOD.FirstComponent + ComponentIndex];
+		check(Component.bGenerated);
+		check(Component.Mesh);
 
-		if (LODIndex >= OperationData->GetMinLOD() && OperationData->InstanceUpdateData.Components[LOD.FirstComponent + ComponentIndex].bGenerated)
+		const mu::FMeshBufferSet& MeshSet = Component.Mesh->GetVertexBuffers();
+
+		int32 VertexMorphsInfoIndexBufferIndex, VertexMorphsInfoIndexBufferChannel;
+		MeshSet.FindChannel(mu::MBS_OTHER, 0, &VertexMorphsInfoIndexBufferIndex, &VertexMorphsInfoIndexBufferChannel);
+
+		int32 VertexMorphsCountBufferIndex, VertexMorphsCountBufferChannel;
+		MeshSet.FindChannel(mu::MBS_OTHER, 1, &VertexMorphsCountBufferIndex, &VertexMorphsCountBufferChannel);
+
+		int32 VertexMorphsResourceIdBufferIndex, VertexMorphsResourceIdBufferChannel;
+		MeshSet.FindChannel(mu::MBS_OTHER, 2, &VertexMorphsResourceIdBufferIndex, &VertexMorphsResourceIdBufferChannel);
+
+		if (VertexMorphsInfoIndexBufferIndex < 0 || VertexMorphsCountBufferIndex < 0 || VertexMorphsResourceIdBufferIndex < 0)
 		{
-			LastValidLODIndex = LODIndex;
+			continue;
 		}
 
-		const FInstanceUpdateData::FComponent& Component = OperationData->InstanceUpdateData.Components[OperationData->InstanceUpdateData.LODs[LastValidLODIndex].FirstComponent + ComponentIndex];
+		const int32* const VertexMorphsInfoIndexBuffer = reinterpret_cast<const int32*>(MeshSet.GetBufferData(VertexMorphsInfoIndexBufferIndex));
+		TArrayView<const int32> VertexMorphsInfoIndexView(VertexMorphsInfoIndexBuffer, MeshSet.GetElementCount());
 
-		if (Component.Mesh)
+		const uint16* const VertexMorphsCountBuffer = reinterpret_cast<const uint16*>(MeshSet.GetBufferData(VertexMorphsCountBufferIndex));
+		TArrayView<const uint16> VertexMorphsCountView(VertexMorphsCountBuffer, MeshSet.GetElementCount());
+
+		const uint16* const VertexMorphsResourceIdBuffer = reinterpret_cast<const uint16*>(MeshSet.GetBufferData(VertexMorphsResourceIdBufferIndex));
+		TArrayView<const uint16> VertexMorphsResourceIdView(VertexMorphsResourceIdBuffer, MeshSet.GetElementCount());
+
+		const int32 SurfaceCount = Component.Mesh->GetSurfaceCount();
+		for (int32 Section = 0; Section < SurfaceCount; ++Section)
 		{
-			MUTABLE_CPUPROFILER_SCOPE(BuildOrCopyMorphTargetsData_Build);
+			// Reset SectionMorphTargets.
+			for (int32& Elem : SectionMorphTargetVertices)
+			{
+				Elem = 0;
+			}
 
-			const mu::FMeshBufferSet& MeshSet = Component.Mesh->GetVertexBuffers();
+			int32 FirstVertex, VerticesCount, FirstIndex, IndiciesCount;
+			Component.Mesh->GetSurface(Section, &FirstVertex, &VerticesCount, &FirstIndex, &IndiciesCount, nullptr, nullptr, nullptr);
 
-			int32 VertexMorphsInfoIndexBufferIndex, VertexMorphsInfoIndexBufferChannel;
-			MeshSet.FindChannel(mu::MBS_OTHER, 0, &VertexMorphsInfoIndexBufferIndex, &VertexMorphsInfoIndexBufferChannel);
+			for (int32 VertexIdx = FirstVertex; VertexIdx < FirstVertex + VerticesCount;)
+			{
+				// Find a span with the same VertexMorphResourceId to amortise the cost of finding 
+				// in the loaded resources map. It is expected to find large consecutive mesh sections pointing to
+				// the same loaded resource.
 
-			int32 VertexMorphsCountBufferIndex, VertexMorphsCountBufferChannel;
-			MeshSet.FindChannel(mu::MBS_OTHER, 1, &VertexMorphsCountBufferIndex, &VertexMorphsCountBufferChannel);
+				const int32 SpanStart = VertexIdx++;
+				const uint16 CurrentResourceId = VertexMorphsResourceIdView[SpanStart];
 
-			int32 VertexMorphsResourceIdBufferIndex, VertexMorphsResourceIdBufferChannel;
-			MeshSet.FindChannel(mu::MBS_OTHER, 2, &VertexMorphsResourceIdBufferIndex, &VertexMorphsResourceIdBufferChannel);
+				// Vertex with no morphs are marked with TNumericLimits<uint16>::Max(), skip vertex if the case.
+				if (CurrentResourceId == TNumericLimits<uint16>::Max())
+				{
+					continue;
+				}
 
-			if (VertexMorphsInfoIndexBufferIndex < 0 || VertexMorphsCountBufferIndex < 0 || VertexMorphsResourceIdBufferIndex < 0)
+				for (; VertexIdx < FirstVertex + VerticesCount; ++VertexIdx)
+				{
+					const int32 VertexResourceId = VertexMorphsResourceIdView[VertexIdx];
+					// we can skip vertices with no morph without breaking the span.
+					if (VertexResourceId == TNumericLimits<uint16>::Max())
+					{
+						continue;
+					}
+
+					if (CurrentResourceId != VertexResourceId)
+					{
+						break;
+					}
+				}
+				const int32 SpanEnd = VertexIdx;
+
+				const TArray<FMorphTargetVertexData>* MorphTargetReconstructionData = ResourceIdToVertexDataMap.Find(CurrentResourceId);
+
+				if (!MorphTargetReconstructionData)
+				{
+					++NumNotFoundLoadedMorphsResources;
+					continue;
+				}
+
+				const TArray<FMorphTargetVertexData>& SpanMorphData = *MorphTargetReconstructionData;
+
+
+				// This assumes the number of vertex in an span will be large compared to the number of
+				// morphs. Maybe the allocation could be done in a different pass as an optimization.
+				FMemory::Memzero(UsedMorphSet.GetData(), UsedMorphSet.Num());
+				for (int32 SpanVertexIdx = SpanStart; SpanVertexIdx < SpanEnd; ++SpanVertexIdx)
+				{
+					const int32 MorphCount = VertexMorphsCountView[SpanVertexIdx];
+
+					TArrayView<const FMorphTargetVertexData> MorphsVertexDataView = MakeArrayView(
+						SpanMorphData.GetData() + VertexMorphsInfoIndexView[SpanVertexIdx],
+						MorphCount);
+
+					for (const FMorphTargetVertexData& MorphVertexData : MorphsVertexDataView)
+					{
+						check((uint32)UsedMorphSet.Num() > MorphVertexData.MorphNameIndex);
+						UsedMorphSet[MorphVertexData.MorphNameIndex] = 1;
+					}
+				}
+
+				const int32 NumMorphs = UsedMorphSet.Num();
+				for (int32 MorphIndex = 0; MorphIndex < NumMorphs; ++MorphIndex)
+				{
+					if (!UsedMorphSet[MorphIndex])
+					{
+						continue;
+					}
+
+					if (MorphsData[MorphIndex].IsEmpty())
+					{
+						MorphsData[MorphIndex].SetNum(OperationData->NumLODsAvailable);
+					}
+				}
+
+				for (int32 SpanVertexIdx = SpanStart; SpanVertexIdx < SpanEnd; ++SpanVertexIdx)
+				{
+					const uint16 MorphCount = VertexMorphsCountView[SpanVertexIdx];
+					if (MorphCount == 0)
+					{
+						continue;
+					}
+
+					TArrayView<const FMorphTargetVertexData> MorphsVertexDataView = MakeArrayView(
+						SpanMorphData.GetData() + VertexMorphsInfoIndexView[SpanVertexIdx],
+						MorphCount);
+
+					for (const FMorphTargetVertexData& SourceVertex : MorphsVertexDataView)
+					{
+						FMorphTargetLODModel& DestMorphLODModel = MorphsData[SourceVertex.MorphNameIndex][LODIndex];
+
+						DestMorphLODModel.Vertices.Emplace(
+							FMorphTargetDelta{ SourceVertex.PositionDelta, SourceVertex.TangentZDelta, static_cast<uint32>(SpanVertexIdx) });
+
+						++SectionMorphTargetVertices[SourceVertex.MorphNameIndex];
+					}
+				}
+			}
+
+			const int32 SectionMorphTargetsNum = SectionMorphTargetVertices.Num();
+			for (int32 MorphIdx = 0; MorphIdx < SectionMorphTargetsNum; ++MorphIdx)
+			{
+				if (SectionMorphTargetVertices[MorphIdx] > 0)
+				{
+					FMorphTargetLODModel& MorphTargetLodModel = MorphsData[MorphIdx][LODIndex];
+
+					MorphTargetLodModel.SectionIndices.Add(Section);
+					MorphTargetLodModel.NumVertices += SectionMorphTargetVertices[MorphIdx];
+				}
+			}
+		}
+
+		if (NumNotFoundLoadedMorphsResources > 0)
+		{
+			UE_LOG(LogMutable, Warning, TEXT("Needed realtime morph reconstruction data was not loaded properly. Some realtime morphs may not work correctly."));
+		}
+
+		// Generate the SkeletalMesh data structures. The previous step could be done in an async task.
+		MorphTargets.Empty();
+		const int32 NumMorphs = MorphTargetNames.Num();
+		for (int32 I = 0; I < NumMorphs; ++I)
+		{
+			if (MorphsData[I].IsEmpty())
 			{
 				continue;
 			}
 
-			const int32* const VertexMorphsInfoIndexBuffer = reinterpret_cast<const int32*>(MeshSet.GetBufferData(VertexMorphsInfoIndexBufferIndex));
-			TArrayView<const int32> VertexMorphsInfoIndexView(VertexMorphsInfoIndexBuffer, MeshSet.GetElementCount());
-
-			const uint16* const VertexMorphsCountBuffer = reinterpret_cast<const uint16*>(MeshSet.GetBufferData(VertexMorphsCountBufferIndex));
-			TArrayView<const uint16> VertexMorphsCountView(VertexMorphsCountBuffer, MeshSet.GetElementCount());
-			
-			const uint16* const VertexMorphsResourceIdBuffer = reinterpret_cast<const uint16*>(MeshSet.GetBufferData(VertexMorphsResourceIdBufferIndex));
-			TArrayView<const uint16> VertexMorphsResourceIdView(VertexMorphsResourceIdBuffer, MeshSet.GetElementCount());
-
-			const int32 SurfaceCount = Component.Mesh->GetSurfaceCount();
-			for (int32 Section = 0; Section < SurfaceCount; ++Section)
-			{
-				// Reset SectionMorphTargets.
-				for (int32& Elem : SectionMorphTargetVertices)
-				{
-					Elem = 0;
-				}
-
-				int32 FirstVertex, VerticesCount, FirstIndex, IndiciesCount;
-				Component.Mesh->GetSurface(Section, &FirstVertex, &VerticesCount, &FirstIndex, &IndiciesCount, nullptr, nullptr, nullptr);
-
-				for (int32 VertexIdx = FirstVertex; VertexIdx < FirstVertex + VerticesCount;)
-				{
-					// Find a span with the same VertexMorphResourceId to amortise the cost of finding 
-					// in the loaded resources map. It is expected to find large consecutive mesh sections pointing to
-					// the same loaded resource.
-					
-					const int32 SpanStart = VertexIdx++;
-					const uint16 CurrentResourceId = VertexMorphsResourceIdView[SpanStart];
-					
-					// Vertex with no morphs are marked with TNumericLimits<uint16>::Max(), skip vertex if the case.
-					if (CurrentResourceId == TNumericLimits<uint16>::Max())
-					{
-						continue;
-					}
-
-					for (; VertexIdx < FirstVertex + VerticesCount; ++VertexIdx)
-					{
-						const int32 VertexResourceId = VertexMorphsResourceIdView[VertexIdx];
-						// we can skip vertices with no morph without breaking the span.
-						if (VertexResourceId == TNumericLimits<uint16>::Max())
-						{
-							continue;
-						}
-
-						if (CurrentResourceId != VertexResourceId)
-						{
-							break;
-						}
-					}
-					const int32 SpanEnd = VertexIdx;
-
-					const TArray<FMorphTargetVertexData>* MorphTargetReconstructionData = ResourceIdToVertexDataMap.Find(CurrentResourceId); 
-					
-					if (!MorphTargetReconstructionData)
-					{
-						++NumNotFoundLoadedMorphsResources;
-						continue;
-					}
-
-					const TArray<FMorphTargetVertexData>& SpanMorphData = *MorphTargetReconstructionData;
-
-
-					// This assumes the number of vertex in an span will be large compared to the number of
-					// morphs. Maybe the allocation could be done in a different pass as an optimization.
-					FMemory::Memzero(UsedMorphSet.GetData(), UsedMorphSet.Num());
-					for (int32 SpanVertexIdx = SpanStart; SpanVertexIdx < SpanEnd; ++SpanVertexIdx)
-					{
-						const int32 MorphCount = VertexMorphsCountView[SpanVertexIdx];
-
-						TArrayView<const FMorphTargetVertexData> MorphsVertexDataView = MakeArrayView(
-								SpanMorphData.GetData() + VertexMorphsInfoIndexView[SpanVertexIdx], 
-								MorphCount);
-
-						for (const FMorphTargetVertexData& MorphVertexData : MorphsVertexDataView)
-						{
-							check((uint32)UsedMorphSet.Num() > MorphVertexData.MorphNameIndex);
-							UsedMorphSet[MorphVertexData.MorphNameIndex] = 1;
-						}
-					}
-
-					const int32 NumMorphs = UsedMorphSet.Num();
-					for (int32 MorphIndex = 0; MorphIndex < NumMorphs; ++MorphIndex)
-					{
-						if (!UsedMorphSet[MorphIndex])
-						{
-							continue;
-						}
-
-						if (MorphsData[MorphIndex].IsEmpty())
-						{
-							MorphsData[MorphIndex].SetNum(NumLODs);
-						}
-					}
-
-					for (int32 SpanVertexIdx = SpanStart; SpanVertexIdx < SpanEnd; ++SpanVertexIdx)
-					{
-						const uint16 MorphCount = VertexMorphsCountView[SpanVertexIdx];
-						if (MorphCount == 0)
-						{
-							continue;
-						}
-
-						TArrayView<const FMorphTargetVertexData> MorphsVertexDataView = MakeArrayView(
-								SpanMorphData.GetData() + VertexMorphsInfoIndexView[SpanVertexIdx], 
-								MorphCount);
-
-						for (const FMorphTargetVertexData& SourceVertex : MorphsVertexDataView)
-						{
-							FMorphTargetLODModel& DestMorphLODModel = MorphsData[SourceVertex.MorphNameIndex][LODIndex];
-
-							DestMorphLODModel.Vertices.Emplace(
-									FMorphTargetDelta{ SourceVertex.PositionDelta, SourceVertex.TangentZDelta, static_cast<uint32>(SpanVertexIdx) });
-
-							++SectionMorphTargetVertices[SourceVertex.MorphNameIndex];
-						}
-					}
-				}
-
-				const int32 SectionMorphTargetsNum = SectionMorphTargetVertices.Num();
-				for (int32 MorphIdx = 0; MorphIdx < SectionMorphTargetsNum; ++MorphIdx)
-				{
-					if (SectionMorphTargetVertices[MorphIdx] > 0)
-					{
-						FMorphTargetLODModel& MorphTargetLodModel = MorphsData[MorphIdx][LODIndex];
-
-						MorphTargetLodModel.SectionIndices.Add(Section);
-						MorphTargetLodModel.NumVertices += SectionMorphTargetVertices[MorphIdx];
-					}
-				}
-			}
-
-			if (NumNotFoundLoadedMorphsResources > 0)
-			{
-				UE_LOG(LogMutable, Warning, TEXT("Needed realtime morph reconstruction data was not loaded properly. Some realtime morphs may not work correctly."));
-			}
-			
-			// Generate the SkeletalMesh data structures. The previous step could be done in an async task.
-			SkeletalMesh->GetMorphTargets().Empty();
-			const int32 NumMorphs = MorphTargetNames.Num(); 
-			for (int32 I = 0; I < NumMorphs; ++I)
-			{
-				if (MorphsData[I].IsEmpty())
-				{
-					continue;
-				} 
-
-				UMorphTarget* NewMorphTarget = NewObject<UMorphTarget>(SkeletalMesh, MorphTargetNames[I]);
-				NewMorphTarget->BaseSkelMesh = SkeletalMesh;
-				NewMorphTarget->GetMorphLODModels() = MoveTemp(MorphsData[I]);
-				SkeletalMesh->GetMorphTargets().Add(NewMorphTarget);
-			}
+			UMorphTarget* NewMorphTarget = NewObject<UMorphTarget>(SkeletalMesh, MorphTargetNames[I]);
+			NewMorphTarget->BaseSkelMesh = SkeletalMesh;
+			NewMorphTarget->GetMorphLODModels() = MoveTemp(MorphsData[I]);
+			MorphTargets.Add(NewMorphTarget);
 		}
-		else
-		{
-			MUTABLE_CPUPROFILER_SCOPE(BuildOrCopyMorphTargetsData_Copy);
+	}
 
-			// Copy data from the last valid LOD generated from either the current mesh or the previous mesh
-			const int32 NumMorphTargets = SkeletalMesh->GetMorphTargets().Num();
-			for (int32 MorphTargetIndex = 0; MorphTargetIndex < NumMorphTargets; ++MorphTargetIndex)
-			{
-				SkeletalMesh->GetMorphTargets()[MorphTargetIndex]->GetMorphLODModels()[LODIndex] = 
-						SkeletalMesh->GetMorphTargets()[MorphTargetIndex]->GetMorphLODModels()[LastValidLODIndex];
-			}
+	// Copy MorphTargets from the FirstGeneratedLOD to the LODs below
+	for (int32 LODIndex = OperationData->FirstLODAvailable; LODIndex < FirstGeneratedLOD; ++LODIndex)
+	{
+		MUTABLE_CPUPROFILER_SCOPE(CopyMorphTargetsData);
+
+		const int32 NumMorphTargets = MorphTargets.Num();
+		for (int32 MorphTargetIndex = 0; MorphTargetIndex < NumMorphTargets; ++MorphTargetIndex)
+		{
+			MorphTargets[MorphTargetIndex]->GetMorphLODModels()[LODIndex] =
+				MorphTargets[MorphTargetIndex]->GetMorphLODModels()[FirstGeneratedLOD];
 		}
 	}
 
 	SkeletalMesh->InitMorphTargets();
-
 }
 
 namespace 
@@ -4623,73 +4616,60 @@ bool UCustomizableInstancePrivate::BuildOrCopyRenderData(const TSharedRef<FUpdat
 {
 	MUTABLE_CPUPROFILER_SCOPE(UCustomizableInstancePrivate::BuildOrCopyRenderData);
 
+	FSkeletalMeshRenderData* RenderData = SkeletalMesh->GetResourceForRendering();
+	check(RenderData);
+
 	UCustomizableObject* CustomizableObject = Public->GetCustomizableObject();
 	check(CustomizableObject);
 	const FModelResources& ModelResources = CustomizableObject->GetPrivate()->GetModelResources();
 
-	int32 LastValidLODIndex = OperationData->NumLODsAvailable - 1;
-	for (int32 LODIndex = LastValidLODIndex; LODIndex >= FirstLODAvailable; --LODIndex)
+	const int32 FirstGeneratedLOD = FMath::Max((int32)OperationData->GetRequestedLODs()[ComponentIndex], OperationData->GetMinLOD());
+	for (int32 LODIndex = FirstGeneratedLOD; LODIndex < OperationData->NumLODsAvailable; ++LODIndex)
 	{
-		MUTABLE_CPUPROFILER_SCOPE(BuildOrCopyRenderData_LODLoop);
+		MUTABLE_CPUPROFILER_SCOPE(BuildRenderData);
 
 		const FInstanceUpdateData::FLOD& LOD = OperationData->InstanceUpdateData.LODs[LODIndex];
-		FInstanceUpdateData::FComponent* Component = nullptr;
-		
-		if (ComponentIndex >=  LOD.ComponentCount)
+
+		if (ComponentIndex >= LOD.ComponentCount)
 		{
 			// Interrupt the generation if the LOD is empty and it should have been generated.
-			if (LODIndex >= OperationData->GetMinLOD() && LODIndex < OperationData->NumLODsAvailable)
-			{
-				UE_LOG(LogMutable, Warning, TEXT("Building instance: generated mesh [%s] has LOD [%d] with no component.")
-					, *SkeletalMesh->GetName()
-					, LODIndex);
-
-				// End with failure
-				return false;
-			}
-		}
-		else
-		{
-			Component = &OperationData->InstanceUpdateData.Components[LOD.FirstComponent + ComponentIndex];
-		}
-
-		if (!Component || !Component->bGenerated || Component->SurfaceCount == 0)
-		{
-			TRACE_CPUPROFILER_EVENT_SCOPE_TEXT(*FString::Printf(TEXT("BuildOrCopyRenderData_CopyData: From LOD %d to LOD %d"), LastValidLODIndex, LODIndex));
-
-			// Render Data will be reused from the previously generated component
-			UnrealConversionUtils::CopySkeletalMeshLODRenderData(SkeletalMesh, SkeletalMesh, LastValidLODIndex, LODIndex);
-			continue;
-		}
-
-		// There could be components without a mesh in LODs
-		if (!Component->Mesh)
-		{
-			UE_LOG(LogMutable, Warning, TEXT("Building instance: generated mesh [%s] has LOD [%d] of component [%d] with no mesh.")
+			UE_LOG(LogMutable, Warning, TEXT("Building instance: generated mesh [%s] has LOD [%d] with no component.")
 				, *SkeletalMesh->GetName()
-				, LODIndex
-				, Component->Id);
+				, LODIndex);
 
 			// End with failure
 			return false;
 		}
 
-		TRACE_CPUPROFILER_EVENT_SCOPE_TEXT(*FString::Printf(TEXT("BuildOrCopyRenderData_BuildData: LOD %d"), LODIndex));
+		FInstanceUpdateData::FComponent& Component = OperationData->InstanceUpdateData.Components[LOD.FirstComponent + ComponentIndex];
 
-		SetLastMeshId(Component->Id, LODIndex, Component->MeshID);
+		// There could be components without a mesh in LODs
+		if (!Component.bGenerated || !Component.Mesh || Component.SurfaceCount == 0)
+		{
+			UE_LOG(LogMutable, Warning, TEXT("Building instance: generated mesh [%s] has LOD [%d] of component [%d] with no mesh.")
+				, *SkeletalMesh->GetName()
+				, LODIndex
+				, Component.Id);
 
-		FSkeletalMeshLODRenderData& LODResource = SkeletalMesh->GetResourceForRendering()->LODRenderData[LODIndex];
+			// End with failure
+			return false;
+		}
+
+		TRACE_CPUPROFILER_EVENT_SCOPE_TEXT(*FString::Printf(TEXT("BuildRenderData: Component %d, LOD %d"), ComponentIndex, LODIndex));
+
+		SetLastMeshId(Component.Id, LODIndex, Component.MeshID);
+
+		FSkeletalMeshLODRenderData& LODResource = RenderData->LODRenderData[LODIndex];
 
 		UnrealConversionUtils::SetupRenderSections(
 			LODResource,
-			Component->Mesh,
-			LODIndex,
+			Component.Mesh,
 			OperationData->InstanceUpdateData.BoneMaps,
-			Component->FirstBoneMap);
+			Component.FirstBoneMap);
 
 		UnrealConversionUtils::CopyMutableVertexBuffers(
 			LODResource,
-			Component->Mesh,
+			Component.Mesh,
 			SkeletalMesh->GetLODInfo(LODIndex)->bAllowCPUAccess);
 
 
@@ -4716,14 +4696,14 @@ bool UCustomizableInstancePrivate::BuildOrCopyRenderData(const TSharedRef<FUpdat
 		}
 
 		// Update active and required bones
-		LODResource.ActiveBoneIndices.Append(Component->ActiveBones);
-		LODResource.RequiredBones.Append(Component->ActiveBones);
+		LODResource.ActiveBoneIndices.Append(Component.ActiveBones);
+		LODResource.RequiredBones.Append(Component.ActiveBones);
 
 		if (!ModelResources.SkinWeightProfilesInfo.IsEmpty())
 		{
 			bool bHasSkinWeightProfiles = false;
 
-			const mu::FMeshBufferSet& MutableMeshVertexBuffers = Component->Mesh->GetVertexBuffers();
+			const mu::FMeshBufferSet& MutableMeshVertexBuffers = Component.Mesh->GetVertexBuffers();
 			
 			const int32 SkinWeightProfilesCount = ModelResources.SkinWeightProfilesInfo.Num();
 			for (int32 ProfileIndex = 0; ProfileIndex < SkinWeightProfilesCount; ++ProfileIndex)
@@ -4765,14 +4745,14 @@ bool UCustomizableInstancePrivate::BuildOrCopyRenderData(const TSharedRef<FUpdat
 		}
 
 		// Copy indices.
-		if (!UnrealConversionUtils::CopyMutableIndexBuffers(LODResource, Component->Mesh))
+		if (!UnrealConversionUtils::CopyMutableIndexBuffers(LODResource, Component.Mesh))
 		{
 			// End with failure
 			return false;
 		}
 
 		// Update LOD and streaming data
-		const FMutableRefLODRenderData& RefLODRenderData = ModelResources.ReferenceSkeletalMeshesData[Component->Id].LODData[LODIndex].RenderData;
+		const FMutableRefLODRenderData& RefLODRenderData = ModelResources.ReferenceSkeletalMeshesData[Component.Id].LODData[LODIndex].RenderData;
 		LODResource.bIsLODOptional = RefLODRenderData.bIsLODOptional;
 		LODResource.bStreamedDataInlined = RefLODRenderData.bStreamedDataInlined;
 
@@ -4780,10 +4760,24 @@ bool UCustomizableInstancePrivate::BuildOrCopyRenderData(const TSharedRef<FUpdat
 		// USkeletalMesh::IsMaterialUsed checks this size to see if a material is being used. If it fails the textures used by it won't be included 
 		// in the map of textures to stream.
 		LODResource.BuffersSize = 1;
-
-		LastValidLODIndex = LODIndex;
 	}
 
+	// Copy LODRenderData from the FirstGeneratedLOD to the LODs below
+	for (int32 LODIndex = OperationData->FirstLODAvailable; LODIndex < FirstGeneratedLOD; ++LODIndex)
+	{
+		TRACE_CPUPROFILER_EVENT_SCOPE_TEXT(*FString::Printf(TEXT("CopyRenderData: From LOD %d to LOD %d"), FirstGeneratedLOD, LODIndex));
+
+		// Render Data will be reused from the previously generated component
+		FSkeletalMeshLODRenderData& SourceLODResource = RenderData->LODRenderData[FirstGeneratedLOD];
+		FSkeletalMeshLODRenderData& LODResource = RenderData->LODRenderData[LODIndex];
+
+		UnrealConversionUtils::CopySkeletalMeshLODRenderData(
+			LODResource,
+			SourceLODResource,
+			*SkeletalMesh,
+			SkeletalMesh->GetLODInfo(LODIndex)->bAllowCPUAccess
+		);
+	}
 
 	return true;
 }
@@ -5532,10 +5526,6 @@ void UCustomizableInstancePrivate::BuildMaterials(const TSharedRef<FUpdateContex
 
 	const FModelResources& ModelResources = CustomizableObject->GetPrivate()->GetModelResources();
 
-	// Find skipped LODs. The following valid LOD will be copied into them. 
-	TArray<bool> LODsSkipped;
-	LODsSkipped.SetNum(OperationData->NumLODsAvailable);
-
 	TArray<FGeneratedTexture> NewGeneratedTextures;
 
 	// Temp copy to allow reuse of MaterialInstances
@@ -5590,23 +5580,21 @@ void UCustomizableInstancePrivate::BuildMaterials(const TSharedRef<FUpdateContex
 
 		MUTABLE_CPUPROFILER_SCOPE(BuildMaterials_LODLoop);
 
-		for (int32 LODIndex = FirstLODAvailable; LODIndex < OperationData->NumLODsAvailable; LODIndex++)
+		const int32 FirstGeneratedLOD = FMath::Max((int32)OperationData->GetRequestedLODs()[ComponentIndex], OperationData->GetMinLOD());
+		for (int32 LODIndex = FirstGeneratedLOD; LODIndex < OperationData->NumLODsAvailable; LODIndex++)
 		{
 			const FInstanceUpdateData::FLOD& LOD = OperationData->InstanceUpdateData.LODs[LODIndex];
 			const FInstanceUpdateData::FComponent& Component = OperationData->InstanceUpdateData.Components[LOD.FirstComponent + ComponentIndex];
 
 			if (!Component.bGenerated)
 			{
-				LODsSkipped[LODIndex] = true;
 				continue;
 			}
 
-			if (SkeletalMesh->GetLODInfoArray().Num() != 0)
+			if (SkeletalMesh->GetLODInfoArray().IsValidIndex(LODIndex))
 			{
 				SkeletalMesh->GetLODInfoArray()[LODIndex].LODMaterialMap.Reset();
 			}
-
-			check(Component.bGenerated);
 
 			const FMutableRefSkeletalMeshData& RefSkeletalMeshData = ModelResources.ReferenceSkeletalMeshesData[Component.Id];
 
@@ -6102,32 +6090,23 @@ void UCustomizableInstancePrivate::BuildMaterials(const TSharedRef<FUpdateContex
 		}
 
 		{
-			// Copy data from valid LODs into the skipped ones.
-			int32 LastValidLODIndex = OperationData->NumLODsAvailable - 1;
-			for (int32 LODIndex = LastValidLODIndex; LODIndex >= FirstLODAvailable; --LODIndex)
+			// Copy data from the FirstGeneratedLOD into the LODs below.
+			for (int32 LODIndex = OperationData->FirstLODAvailable; LODIndex < FirstGeneratedLOD; ++LODIndex)
 			{
-				// Copy information from the LastValidLODIndex
-				if (LODsSkipped[LODIndex])
+				SkeletalMesh->GetLODInfoArray()[LODIndex].LODMaterialMap = SkeletalMesh->GetLODInfoArray()[FirstGeneratedLOD].LODMaterialMap;
+
+				TIndirectArray<FSkeletalMeshLODRenderData>& LODRenderData = SkeletalMesh->GetResourceForRendering()->LODRenderData;
+
+				const int32 NumRenderSections = LODRenderData[LODIndex].RenderSections.Num();
+				check(NumRenderSections == LODRenderData[FirstGeneratedLOD].RenderSections.Num());
+
+				if (NumRenderSections == LODRenderData[FirstGeneratedLOD].RenderSections.Num())
 				{
-					SkeletalMesh->GetLODInfoArray()[LODIndex].LODMaterialMap = SkeletalMesh->GetLODInfoArray()[LastValidLODIndex].LODMaterialMap;
-
-					TIndirectArray<FSkeletalMeshLODRenderData>& LODRenderData = SkeletalMesh->GetResourceForRendering()->LODRenderData;
-
-					const int32 NumRenderSections = LODRenderData[LODIndex].RenderSections.Num();
-					check(NumRenderSections == LODRenderData[LastValidLODIndex].RenderSections.Num());
-
-					if (NumRenderSections == LODRenderData[LastValidLODIndex].RenderSections.Num())
+					for (int32 RenderSectionIndex = 0; RenderSectionIndex < NumRenderSections; ++RenderSectionIndex)
 					{
-						for (int32 RenderSectionIndex = 0; RenderSectionIndex < NumRenderSections; ++RenderSectionIndex)
-						{
-							const int32 MaterialIndex = LODRenderData[LastValidLODIndex].RenderSections[RenderSectionIndex].MaterialIndex;
-							LODRenderData[LODIndex].RenderSections[RenderSectionIndex].MaterialIndex = MaterialIndex;
-						}
+						const int32 MaterialIndex = LODRenderData[FirstGeneratedLOD].RenderSections[RenderSectionIndex].MaterialIndex;
+						LODRenderData[LODIndex].RenderSections[RenderSectionIndex].MaterialIndex = MaterialIndex;
 					}
-				}
-				else
-				{
-					LastValidLODIndex = LODIndex;
 				}
 			}
 		}
