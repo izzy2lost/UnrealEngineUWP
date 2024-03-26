@@ -49,6 +49,8 @@ public:
 	int32 GetState() const;
 
 	const TArray<mu::Ptr<const mu::Image>>& GetImageParameterValues() const;
+
+	FString CapturedDescriptor;
 	
 private:
 	FString CustomizableObjectPathName;

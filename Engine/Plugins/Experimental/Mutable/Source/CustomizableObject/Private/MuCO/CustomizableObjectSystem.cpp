@@ -2946,6 +2946,12 @@ namespace impl
 	{
 		MUTABLE_CPUPROFILER_SCOPE(Task_Game_StartUpdate)
 
+		// Check if a level has been loaded
+		if (CVarEnableBenchmark.GetValueOnAnyThread() && GWorld)
+		{
+			Operation->bLevelBegunPlay = GWorld->GetBegunPlay();
+		}
+
 		Operation->StartUpdateTime = FPlatformTime::Seconds();
 
 		UCustomizableObjectSystem::GetInstance()->GetPrivate()->MutableTaskGraph.AllowLaunchingMutableTaskLowPriority(false, false);
