@@ -11,7 +11,7 @@
 	"MarketplaceURL": "",
 	"SupportURL": "",
 	"CanContainContent": true,
-	"IsExperimentalVersion": true,
+	"IsBetaVersion": true,
 	"Installed": false,
 	"Modules": [
 		{
@@ -25,25 +25,9 @@
 			"Type": "Editor",
 			"LoadingPhase": "Default",
 			"PlatformAllowList": [ "Win64" ]
-		},
-		{
-			"Name": "ChaosClothAssetDataflowNodes",
-			"Type": "Editor",
-			"LoadingPhase": "Default",
-			"PlatformAllowList": [ "Win64" ]
-		},
-		{
-			"Name": "ChaosClothAssetTools",
-			"Type": "UncookedOnly",
-			"LoadingPhase": "Default",
-			"PlatformAllowList": [ "Win64" ]
 		}
 	],
 	"Plugins": [
-		{
-			"Name": "GeometryProcessing",
-			"Enabled": true
-		},
 		{
 			"Name": "ChaosClothAsset",
 			"Enabled": true
@@ -51,11 +35,6 @@
 		{
 			"Name": "ChaosCloth",
 			"Enabled": true
-		},
-		{
-			"Name": "MeshModelingToolsetExp",
-			"Enabled": true,
-			"TargetAllowList": [ "Editor" ]
 		},
 		{
 			"Name": "BaseCharacterFXEditor",
@@ -67,18 +46,7 @@
 			"Enabled": true
 		},
 		{
-			"Name": "DatasmithImporter",
-			"Enabled": true
-		},
-		{
 			"Name": "DatasmithCloTranslator",
-			"Enabled": true,
-			"SupportedTargetPlatforms": [
-				"Win64"
-			]
-		},
-		{
-			"Name": "USDImporter",
 			"Enabled": true,
 			"SupportedTargetPlatforms": [
 				"Win64"
