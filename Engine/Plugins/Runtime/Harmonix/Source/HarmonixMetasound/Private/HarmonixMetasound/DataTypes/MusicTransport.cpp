@@ -169,7 +169,7 @@ namespace HarmonixMetasound
 		case EMusicPlayerTransportState::Pausing:    return TEXT("Pausing");
 		case EMusicPlayerTransportState::Paused:     return TEXT("Paused");
 		case EMusicPlayerTransportState::Continuing: return TEXT("Continuing");
-		case EMusicPlayerTransportState::Stopping:   return TEXT("Preparing");
+		case EMusicPlayerTransportState::Stopping:   return TEXT("Stopping");
 		case EMusicPlayerTransportState::Killing:    return TEXT("Killing");
 		}
 		return TEXT("<unknown>");
