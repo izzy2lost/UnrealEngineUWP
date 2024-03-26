@@ -54,8 +54,6 @@ private:
 	TSharedPtr<SWidget> LODSelectorWidget;
 	TSharedPtr<STextBlock> LODSelectorTextWidget;
 
-	TArray< TSharedPtr<FString> > GridComboOptions;
-
 	/** List of available layout grid sizes. */
 	TArray< TSharedPtr< FString > > LayoutGridSizes;
 
