@@ -516,7 +516,7 @@ void FMovieGraphConditionGroupBuilder::GenerateHeaderRowContent(FDetailWidgetRow
 		[
 			SNew(SButton)
 			.HAlign(HAlign_Center)
-			.ToolTip(SNew(SToolTip).Text(LOCTEXT("AddConditionGroupQuery", "Add a condition to this condition group.")))
+			.ToolTip(SNew(SToolTip).Text(LOCTEXT("AddConditionGroupQuery_Tooltip", "Add a condition to this condition group.")))
 			.ButtonStyle(FAppStyle::Get(), "SimpleButton")
 			.OnClicked_Lambda([this]()
 			{
