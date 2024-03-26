@@ -19,7 +19,7 @@ namespace uba
 		const tchar* workingDir = TC("");		// Working directory. Use full path
 		const tchar* description = TC("");		// Description. Used for on-screen logging and log file names if session.logToFile is set but logFile is ""
 		const tchar* logFile = TC("");			// Log file. If set, will always log. If not full path the session log dir will be prepended.
-		u32 priorityClass = 0; // Priority of process
+		u32 priorityClass = 0x00000020;			// Priority of process. Defaults to NORMAL_PRIORITY_CLASS
 		u64 outputStatsThresholdMs = ~u64(0);	// Threshold in milliseconds where process summary should be printed to log
 		bool trackInputs = false;				// Track all files read. Can read result in ProcessHandle.GetTrackedInputs()
 		bool useCustomAllocator = true;			// Disable detouring of allocator inside processes. If Session.disableCustomAllocator is false this will be overridden

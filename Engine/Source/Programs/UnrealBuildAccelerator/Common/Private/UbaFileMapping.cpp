@@ -1,6 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "UbaFileMapping.h"
+#include "UbaBottleneck.h"
 #include "UbaDirectoryIterator.h"
 #include "UbaFile.h"
 #include "UbaPlatform.h"
@@ -15,7 +16,7 @@
 namespace uba
 {
 #if PLATFORM_WINDOWS
-	ReaderWriterLock& g_createFileHandleLock = *new ReaderWriterLock(); // Allocated and leaked just to prevent shutdown asserts in debug
+	Bottleneck& g_createFileHandleBottleneck = *new Bottleneck(8); // Allocated and leaked just to prevent shutdown asserts in debug
 
 	//Atomic<u64> g_fileMappingCount;
 
@@ -29,7 +30,7 @@ namespace uba
 			return ::CreateFileMappingW(hFile, NULL, flProtect, dwMaximumSizeHigh, dwMaximumSizeLow, lpName);
 
 		// Experiment to try to prevent lock happening on AWS servers when lots of helpers are sending back obj files.
-		SCOPED_WRITE_LOCK(g_createFileHandleLock, lock);
+		BottleneckScope bs(g_createFileHandleBottleneck);
 		return ::CreateFileMappingW(hFile, NULL, flProtect, dwMaximumSizeHigh, dwMaximumSizeLow, lpName);
 	}
 #else
