@@ -16,8 +16,6 @@
 #include "UObject/Package.h"
 #endif	// WITH_EDITOR
 
-FOnEnumLoaded UUserDefinedEnum::LoadedEvent;
-
 UUserDefinedEnum::UUserDefinedEnum(const FObjectInitializer& ObjectInitializer)
 	: Super(ObjectInitializer)
 {
@@ -45,11 +43,6 @@ void UUserDefinedEnum::Serialize(FArchive& Ar)
 		}
 	}
 #endif // WITH_EDITOR
-
-	if(Ar.IsLoading() && Ar.IsPersistent())
-	{
-		LoadedEvent.Broadcast(this);
-	}
 }
 
 FString UUserDefinedEnum::GenerateFullEnumName(const TCHAR* InEnumName) const
