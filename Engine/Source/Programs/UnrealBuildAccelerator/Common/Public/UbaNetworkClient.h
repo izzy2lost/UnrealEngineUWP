@@ -63,7 +63,6 @@ namespace uba
 		u64 GetMessageReceiveHeaderSize();
 		const Guid& GetUid() { return m_uid; }
 		LogWriter& GetLogWriter() { return m_logWriter; }
-		NetworkBackendTcp& GetTcpBackend() { return *m_tcpBackend; }
 		u32 GetConnectionCount() { return m_connectionCount; }
 		u64 GetTotalSentBytes() { return m_sendBytes; }
 		u64 GetTotalRecvBytes() { return m_recvBytes; }
@@ -113,7 +112,6 @@ namespace uba
 		Vector<OnDisconnectedFunction> m_onDisconnectedFunctions;
 		OnVersionMismatchFunction m_versionMismatchFunction;
 
-		NetworkBackendTcp* m_tcpBackend; // Used by proxies
 		NetworkBackend* m_listenBackend = nullptr;
 
 		ReaderWriterLock m_connectionsLock;

@@ -14,6 +14,8 @@ namespace uba
 	,	m_client(info.client)
 	,	m_sendCompressed(info.sendCompressed)
 	,	m_zone(info.zone)
+	,	m_getProxyBackendCallback(info.getProxyBackendCallback)
+	,	m_getProxyBackendUserData(info.getProxyBackendUserData)
 	,	m_startProxyCallback(info.startProxyCallback)
 	,	m_startProxyUserData(info.startProxyUserData)
 	{
@@ -42,6 +44,8 @@ namespace uba
 
 				m_storageServerUid = reader.ReadGuid();
 			});
+
+		m_client.RegisterOnDisconnected([this]() { m_logger.isMuted = true; });
 	}
 
 	struct StorageClient::ProxyClient
@@ -300,14 +304,17 @@ namespace uba
 					StringBuffer<> proxyHost;
 					u16 proxyPort;
 					bool isInProcessClient = false;
-					if (reader.ReadBool())
+
+					if (reader.ReadBool()) // This will be true for only one message.. no need to guard it
 					{
 						proxyPort = reader.ReadU16();
 						if (!m_startProxyCallback(m_startProxyUserData, proxyPort, m_storageServerUid))
 						{
 							// TODO: Tell server we failed
+							m_logger.Warning(TC("Failed to create proxy server. This should never happen!"));
+							continue;
 						}
-						proxyHost.Append(TC("127.0.0.1"));
+						proxyHost.Append(TC("inprocess"));
 						isInProcessClient = true;
 					}
 					else
@@ -328,7 +335,6 @@ namespace uba
 						continue;
 					m_lastTestedProxyIp = proxyHost.data;
 
-					NetworkBackendTcp& proxyBackend = m_client.GetTcpBackend();
 					NetworkClientCreateInfo ncci(m_logger.m_writer);
 					bool ctorSuccess = true;
 					proxy = new ProxyClient(ctorSuccess, ncci);
@@ -343,6 +349,8 @@ namespace uba
 					if (!ctorSuccess)
 						continue;
 
+					NetworkBackend& proxyBackend = m_getProxyBackendCallback(m_getProxyBackendUserData, proxyHost.data);
+
 					u64 startTime = GetTime();
 					if (!proxy->client.Connect(proxyBackend, proxyHost.data, proxyPort))
 					{
@@ -350,6 +358,9 @@ namespace uba
 						continue;
 					}
 					
+					//for (u32 i=0;i!=4;++i)
+					//	proxy->client.Connect(proxyBackend, proxyHost.data, proxyPort);
+
 					u64 connectTime = GetTime() - startTime;
 					if (connectTime > MsToTime(2000))
 						m_logger.Info(TC("Took %s to connect to proxy %s:%u"), TimeToText(connectTime).str, proxyHost.data, proxyPort);
@@ -375,6 +386,7 @@ namespace uba
 					destroyProxy.Cancel();
 
 					++proxy->refCount;
+					proxy->client.SetWorkTracker(m_client.GetWorkTracker());
 					m_proxyClient = proxy;
 					continue;
 				}
@@ -425,7 +437,7 @@ namespace uba
 			// This is here just to prevent server from getting a million messages at the same time.
 			// In theory we could have 10 clients with 48 processes each where each one of the processes asks for a large file (64 messages in flight)
 			// So worst case in that scenario would be 10*48*64 = 30000 messages.
-			bool oneAtTheTime = left > client->GetMessageMaxSize() * 2;
+			bool oneAtTheTime = false;//left > client->GetMessageMaxSize() * 2;
 			if (oneAtTheTime)
 				m_retrieveOneBatchAtTheTimeLock.EnterWrite();
 			auto oatg = MakeGuard([&]() { if (oneAtTheTime) m_retrieveOneBatchAtTheTimeLock.LeaveWrite(); });
@@ -774,6 +786,13 @@ namespace uba
 			return;
 		m_proxyClientKeepAliveTime = now;
 		m_proxyClient->client.SendKeepAlive();
+	}
+
+	void StorageClient::PrintSummary(Logger& logger)
+	{
+		StorageImpl::PrintSummary(logger);
+		if (m_proxyClient)
+			m_proxyClient->client.PrintSummary(logger);
 	}
 
 	bool StorageClient::SendBatchMessages(NetworkClient& client, u16 fetchId, u8* slot, u64 capacity, u64 left, u32 messageMaxSize, u32& readIndex, u32& responseSize)
