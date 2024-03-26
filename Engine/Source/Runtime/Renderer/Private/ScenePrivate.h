@@ -2929,10 +2929,22 @@ public:
 
 	TArray<int32> PersistentPrimitiveIdToIndexMap;
 
+	/**
+	 * Defines a bucket "type" in the sorted order of the primitive arrays, as defined by the type-offset table.
+	 */
+	struct FPrimitiveSceneProxyType
+	{
+		FPrimitiveSceneProxyType(const FPrimitiveSceneProxy *PrimitiveSceneProxy);
+		bool operator ==(const FPrimitiveSceneProxyType&) const = default;
+
+		SIZE_T ProxyTypeHash; 
+		bool bIsAlwaysVisible;
+	};
+
 	struct FTypeOffsetTableEntry
 	{
-		FTypeOffsetTableEntry(SIZE_T InPrimitiveSceneProxyType, uint32 InOffset) : PrimitiveSceneProxyType(InPrimitiveSceneProxyType), Offset(InOffset) {}
-		SIZE_T PrimitiveSceneProxyType;
+		FTypeOffsetTableEntry(const FPrimitiveSceneProxyType &InPrimitiveSceneProxyType, uint32 InOffset) : PrimitiveSceneProxyType(InPrimitiveSceneProxyType), Offset(InOffset) {}
+		FPrimitiveSceneProxyType PrimitiveSceneProxyType;
 		uint32 Offset; //(e.g. prefix sum where the next type starts)
 	};
 	/* During insertion and deletion, used to skip large chunks of items of the same type */
