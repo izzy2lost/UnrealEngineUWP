@@ -32,7 +32,7 @@ public:
 
 	void SetText(const FText& InText);
 
-	void OnItemClicked(TSharedPtr<FString>) const;
+	void OnItemClicked(TSharedPtr<FString>);
 
 	static void FindAutoCompletableTextAtPos(const FString& InWholeString, int32 InCursorPos, FString& OutStr, bool& bShowAutoComplete);
 
@@ -47,8 +47,6 @@ public:
 	void SetActiveSuggestionIndex(int32 InIndex);
 
 	TSharedRef<ITableRow> HandleSuggestionListViewGenerateRow(TSharedPtr<FString> Text, const TSharedRef<STableViewBase>& OwnerTable) const;
-
-	void HandleSuggestionListViewSelectionChanged(TSharedPtr<FString> NewValue, ESelectInfo::Type SelectInfo);
 
 private:
 	TSharedPtr<SListView<TSharedPtr<FString>>> SuggestionListView;

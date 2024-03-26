@@ -34,7 +34,6 @@ void SMoviePipelineFormatTokenAutoCompleteBox::Construct(const FArguments& InArg
 					.ListItemsSource(&Suggestions)
 					.SelectionMode(ESelectionMode::Single)
 					.OnGenerateRow(this, &SMoviePipelineFormatTokenAutoCompleteBox::HandleSuggestionListViewGenerateRow)
-					.OnSelectionChanged(this, &SMoviePipelineFormatTokenAutoCompleteBox::HandleSuggestionListViewSelectionChanged)
 					.OnMouseButtonClick(this, &SMoviePipelineFormatTokenAutoCompleteBox::OnItemClicked)
 				]
 			]
@@ -111,9 +110,10 @@ void SMoviePipelineFormatTokenAutoCompleteBox::SetText(const FText& InText)
 	TextBox->GoTo(OriginalCursorLocation);
 }
 
-void SMoviePipelineFormatTokenAutoCompleteBox::OnItemClicked(TSharedPtr<FString> Item) const
+void SMoviePipelineFormatTokenAutoCompleteBox::OnItemClicked(TSharedPtr<FString> Item)
 {
 	ReplaceRelevantTextWithSuggestion(*Item);
+	CloseMenuAndReset();
 }
 
 void SMoviePipelineFormatTokenAutoCompleteBox::FindAutoCompletableTextAtPos(const FString& InWholeString, int32 InCursorPos, FString& OutStr, bool& bShowAutoComplete)
@@ -285,16 +285,4 @@ TSharedRef<ITableRow> SMoviePipelineFormatTokenAutoCompleteBox::HandleSuggestion
 				.Text(FText::FromString(SuggestionText))
 			]
 		];
-}
-
-void SMoviePipelineFormatTokenAutoCompleteBox::HandleSuggestionListViewSelectionChanged(TSharedPtr<FString> NewValue, ESelectInfo::Type SelectInfo)
-{
-	// This is called when clicking on an item and when navigating the menu via arrow keys, but we already
-	// handle arrow keys in OnKeyDown so we only want to handle mouse click here.
-	if (SelectInfo == ESelectInfo::Type::OnMouseClick)
-	{
-		// Trigger the auto-complete for the highlighted suggestion
-		ReplaceRelevantTextWithSuggestion(*NewValue);
-		CloseMenuAndReset();
-	}
 }
