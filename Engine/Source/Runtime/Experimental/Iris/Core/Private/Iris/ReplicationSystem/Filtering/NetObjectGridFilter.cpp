@@ -54,11 +54,11 @@ bool UNetObjectGridFilter::AddObject(uint32 ObjectIndex, FNetObjectFilterAddObje
 
 	AddCellInfoForObject(ObjectLocationInfo, Params.InstanceProtocol);
 	
-	if (PerObjectInfo.GetCullDistance() > Config->MaxCullDistance)
+	if (Config->MaxCullDistance > 0.0f && PerObjectInfo.GetCullDistance() > Config->MaxCullDistance)
 	{
 		// Too big an object. We expect it to be costly to move it across cells.
+		UE_LOG(LogIris, Warning, TEXT("ReplicatedObject %u cull distance %f is above the max %f. Object will become always relevant instead"), ObjectIndex, PerObjectInfo.GetCullDistance(), Config->MaxCullDistance);
 		RemoveObject(ObjectIndex, ObjectLocationInfo);
-		//TODO: Should we log these objects so they can get flagged and properly set always relevant ?
 		return false;
 	}
 

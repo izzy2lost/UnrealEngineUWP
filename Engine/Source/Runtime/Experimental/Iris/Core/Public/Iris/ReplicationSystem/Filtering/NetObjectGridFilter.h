@@ -33,9 +33,9 @@ public:
 	UPROPERTY(Config)
 	float CellSizeY = 20000.0f;
 
-	/** Objects with larger sqrt(NetCullDistanceSqr) will be rejected. */
+	/** Objects with larger sqrt(NetCullDistanceSqr) will be rejected. Disabled when value is zero. */
 	UPROPERTY(Config)
-	float MaxCullDistance = 20000.0f;
+	float MaxCullDistance = 0;
 
 	/** Objects without a NetCullDistanceSquared property will assume to have this value but squared unless there's a cull distance override. */
 	UPROPERTY(Config)
