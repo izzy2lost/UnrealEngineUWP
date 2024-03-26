@@ -195,24 +195,28 @@ int32 FPropertyTypeNameTable::StoreByIndex(const FPropertyTypeNameNode* Nodes, i
 		return 0;
 	}
 
+	check(Count <= GPropertyTypeNameBlockOffsetCount);
+
 	int32 Index;
-	int32 BlockIndex;
-	int32 BlockOffset;
-	do
+	for (int32 BaseIndex = NextIndex.load(std::memory_order_relaxed);;)
 	{
-		Index = NextIndex.fetch_add(Count, std::memory_order_relaxed);
-		BlockIndex = Index >> GPropertyTypeNameBlockOffsetBits;
-		BlockOffset = Index & GPropertyTypeNameBlockOffsetMask;
+		const int32 RemainingCountInBlock = GPropertyTypeNameBlockOffsetCount - (BaseIndex & GPropertyTypeNameBlockOffsetMask);
+		Index = BaseIndex + (RemainingCountInBlock <= Count ? RemainingCountInBlock : 0);
+		if (LIKELY(NextIndex.compare_exchange_weak(BaseIndex, Index + Count, std::memory_order_relaxed)))
+		{
+			break;
+		}
 	}
-	while (UNLIKELY(BlockOffset + Count >= GPropertyTypeNameBlockOffsetCount));
 
-	check(Index + Count < GPropertyTypeNameBlockCount * GPropertyTypeNameBlockOffsetCount);
+	check(Index + Count <= GPropertyTypeNameBlockCount * GPropertyTypeNameBlockOffsetCount);
 
+	const int32 BlockIndex = Index >> GPropertyTypeNameBlockOffsetBits;
 	FPropertyTypeNameNode* Block = Blocks[BlockIndex].load(std::memory_order_acquire);
 	if (UNLIKELY(!Block))
 	{
 		Block = AllocateBlock(BlockIndex);
 	}
+	const int32 BlockOffset = Index & GPropertyTypeNameBlockOffsetMask;
 	for (FPropertyTypeNameNode* Target = Block + BlockOffset; Count > 0; --Count)
 	{
 		*Target++ = *Nodes++;
