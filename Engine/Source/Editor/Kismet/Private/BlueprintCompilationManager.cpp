@@ -1363,19 +1363,24 @@ void FBlueprintCompilationManagerImpl::FlushCompilationQueueImpl(bool bSuppressB
 				if(BP->GeneratedClass)
 				{
 					BP->GeneratedClass->bLayoutChanging = true;
+					CompilerData.Reinstancer->SaveSparseClassData(BP->GeneratedClass);
 				}
 			}
 		}
 
 		SlowTask.EnterProgressFrame();
 
-		// STAGE XI: Reinstancing done, lets fix up child->parent pointers
+		// STAGE XI: Reinstancing done, lets fix up child->parent pointers and take ownership of SCD:
 		for (FCompilerData& CompilerData : CurrentlyCompilingBPs)
 		{
 			UBlueprint* BP = CompilerData.BP;
 			if(BP->GeneratedClass && BP->GeneratedClass->GetSuperClass()->HasAnyClassFlags(CLASS_NewerVersionExists))
 			{
 				BP->GeneratedClass->SetSuperStruct(BP->GeneratedClass->GetSuperClass()->GetAuthoritativeClass());
+			}
+			if(BP->GeneratedClass && CompilerData.Reinstancer.IsValid())
+			{
+				CompilerData.Reinstancer->TakeOwnershipOfSparseClassData(BP->GeneratedClass);
 			}
 		}
 
@@ -1405,6 +1410,8 @@ void FBlueprintCompilationManagerImpl::FlushCompilationQueueImpl(bool bSuppressB
 					// Reset the flag, so if the user tries to use PIE it will warn them if the BP did not compile
 					BP->bDisplayCompilePIEWarning = true;
 		
+					// this will create FProperties for the UClass and generate the sparse class data
+					// if the compiler in question wants to:
 					FKismetCompilerContext& CompilerContext = *(CompilerData.Compiler);
 					CompilerContext.CompileClassLayout(EInternalCompilerFlags::PostponeLocalsGenerationUntilPhaseTwo);
 
@@ -1466,6 +1473,10 @@ void FBlueprintCompilationManagerImpl::FlushCompilationQueueImpl(bool bSuppressB
 					(	BPGC->ClassDefaultObject == nullptr || 
 						BPGC->ClassDefaultObject->GetClass() != BPGC) )
 				{
+					if (CompilerData.Reinstancer.IsValid())
+					{
+						CompilerData.Reinstancer->PropagateSparseClassDataToNewClass(BPGC);
+					}
 					// relink, generate CDO:
 					BPGC->bLayoutChanging = false;
 					BPGC->Bind();
@@ -2079,9 +2090,11 @@ void FBlueprintCompilationManagerImpl::ReparentHierarchies(const TMap<UClass*, U
 
 			for(UClass* DerivedClass : DerivedClasses)
 			{
-				if(DerivedClass->ClassDefaultObject == nullptr)
+				if (DerivedClass->ClassDefaultObject == nullptr && 
+					DerivedClass->GetSparseClassData(EGetSparseClassDataMethod::ReturnIfNull) == nullptr)
 				{
-					// on CDO->no other instances->no need to reinstance..
+					// no CDO->no other instances->no need to reinstance..
+					// and we have no sparse classs data to manage...
 					continue;
 				}
 
@@ -2127,11 +2140,21 @@ void FBlueprintCompilationManagerImpl::ReparentHierarchies(const TMap<UClass*, U
 			) );
 
 			FReinstancingJob& ReinstancingJob = Reinstancers.Last();
+			ReinstancingJob.Reinstancer->SaveSparseClassData(Class);
 			ensure(ReinstancingJob.Reinstancer->DuplicatedClass && ReinstancingJob.Reinstancer->ClassToReinstance);
 		}
 	}
-	
-	// Reparent and Link:
+
+	for (const FReinstancingJob& ReinstancingJob : Reinstancers)
+	{
+		if (ReinstancingJob.Reinstancer.IsValid())
+		{
+			ReinstancingJob.Reinstancer->TakeOwnershipOfSparseClassData(ReinstancingJob.OldToNew.Value);
+		}
+	}
+
+	// Reparent and Link - this is .. kind of pointless.. ReinstanceBatch should
+	// be doing this
 	TMap<UClass*, UClass*> OldClassToNewClassIncludingChildren = OldToNewClasses;
 	for(const FReinstancingJob& ReinstancingJob : Reinstancers)
 	{
@@ -2148,7 +2171,6 @@ void FBlueprintCompilationManagerImpl::ReparentHierarchies(const TMap<UClass*, U
 			UClass* const* NewParent = OldToNewClasses.Find(ClassToReinstance->GetSuperClass());
 			if(NewParent)
 			{
-				ClassToReinstance->ClearSparseClassDataStruct(false);
 				ClassToReinstance->SetSuperStruct(*NewParent);
 			}
 
@@ -2236,7 +2258,8 @@ void FBlueprintCompilationManagerImpl::ReinstanceBatch(TArray<FReinstancingJob>&
 	const auto FilterOutOfDateClasses = [](TArray<UClass*>& ClassList)
 	{
 		// Old versions of classes can be abandoned, classes without CDOs have no instances and don't require reinstancing
-		ClassList.RemoveAllSwap( [](UClass* Class) { return Class->HasAnyClassFlags(CLASS_NewerVersionExists) || Class->ClassDefaultObject == nullptr; } );
+		// but they may still require reparenting..
+		ClassList.RemoveAllSwap( [](UClass* Class) { return Class->HasAnyClassFlags(CLASS_NewerVersionExists); } );
 	};
 
 	const auto HasChildren = [FilterOutOfDateClasses](UClass* InClass) -> bool
@@ -2294,7 +2317,14 @@ void FBlueprintCompilationManagerImpl::ReinstanceBatch(TArray<FReinstancingJob>&
 			{
 				if(IsValid(ClassToReinstance))
 				{
-					ClassesToReinstance.Add(ClassToReinstance);
+					if (ClassToReinstance->ClassDefaultObject)
+					{
+						ClassesToReinstance.Add(ClassToReinstance);
+					}
+					else
+					{
+						ClassesToReparent.Add(ClassToReinstance);
+					}
 				}
 			}
 		}
@@ -2424,7 +2454,28 @@ void FBlueprintCompilationManagerImpl::ReinstanceBatch(TArray<FReinstancingJob>&
 		return Dependencies;
 	});
 
-	// 2. Copy defaults from old CDO - CDO may be missing if this class was reinstanced and relinked here,
+	// 2. Update Sparse Class Data
+	for (const FReinstancingJob* ReinstancingJobPtr : ReinstancersPtr)
+	{
+		TSharedPtr<FBlueprintCompileReinstancer> const& Reinstancer = ReinstancingJobPtr->Reinstancer;
+		if (!Reinstancer.IsValid())
+		{
+			continue; // no reinstancer, we're not responsible for recreating this class (e.g. it came from verse compile or asset reload)
+		}
+
+		// if the new class already has a sparse class data, that indicates
+		// it was generated by its compiler and we can discard the old data:
+		UClass* NewClass = ReinstancingJobPtr->OldToNew.Value;
+		if (!NewClass || NewClass->GetSparseClassData(EGetSparseClassDataMethod::ReturnIfNull) != nullptr)
+		{
+			continue;
+		}
+
+		// New class has not created a sparse class data, if the old class had one copy it over:
+		Reinstancer->PropagateSparseClassDataToNewClass(NewClass);
+	}
+
+	// 3. Copy defaults from old CDO - CDO may be missing if this class was reinstanced and relinked here,
 	// so use GetDefaultObject(true):
 	for (const FReinstancingJob* ReinstancingJobPtr : ReinstancersPtr)
 	{
@@ -2534,7 +2585,7 @@ void FBlueprintCompilationManagerImpl::ReinstanceBatch(TArray<FReinstancingJob>&
 
 	TMap<UObject*, UObject*> OldArchetypeToNewArchetype;
 
-	// 3. Update any remaining instances that are tagged as RF_ArchetypeObject or RF_InheritableComponentTemplate - 
+	// 4. Update any remaining instances that are tagged as RF_ArchetypeObject or RF_InheritableComponentTemplate - 
 	// we may need to do further sorting to ensure that interdependent archetypes are initialized correctly:
 	TSet<UObject*> ArchetypeReferencers;
 
@@ -2746,7 +2797,7 @@ void FBlueprintCompilationManagerImpl::ReinstanceBatch(TArray<FReinstancingJob>&
 	// Reassociate relevant property bags
 	UE::FPropertyBagRepository::Get().ReassociateObjects(OldArchetypeToNewArchetype);
 	
-	// 4. update known references to archetypes (e.g. component templates, WidgetTree). We don't want to run the normal 
+	// 5. update known references to archetypes (e.g. component templates, WidgetTree). We don't want to run the normal 
 	// reference finder to update these because searching the entire object graph is time consuming. Instead we just replace
 	// all references in our UBlueprint and its generated class:
 	for (const FReinstancingJob* ReinstancingJobPtr : ReinstancersPtr)
