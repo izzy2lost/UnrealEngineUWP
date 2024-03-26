@@ -2,6 +2,7 @@
 
 #include "Widgets/SChaosVDRecordingControls.h"
 
+#include "AsyncCompilationHelpers.h"
 #include "ChaosVDEngine.h"
 #include "ChaosVDModule.h"
 #include "ChaosVDStyle.h"
@@ -14,10 +15,12 @@
 #include "ToolMenu.h"
 #include "ToolMenus.h"
 #include "Framework/MultiBox/MultiBoxBuilder.h"
+#include "Misc/ScopedSlowTask.h"
 #include "Widgets/Images/SImage.h"
 #include "Widgets/Input/SButton.h"
 #include "Widgets/SChaosVDMainTab.h"
 #include "Widgets/Input/SComboButton.h"
+#include "Widgets/Notifications/SNotificationList.h"
 #include "Widgets/Text/STextBlock.h"
 
 #define LOCTEXT_NAMESPACE "ChaosVisualDebugger"
@@ -225,6 +228,11 @@ SChaosVDRecordingControls::~SChaosVDRecordingControls()
 		FChaosVDRuntimeModule::Get().RemoveRecordingStartedCallback(RecordingStartedHandle);
 		FChaosVDRuntimeModule::Get().RemoveRecordingStopCallback(RecordingStoppedHandle);
 	}
+
+	if (ConnectionAttemptNotification.IsValid())
+	{
+		ConnectionAttemptNotification->ExpireAndFadeout();
+	}
 }
 
 const FSlateBrush* SChaosVDRecordingControls::GetRecordOrStopButton(EChaosVDRecordingMode RecordingMode) const
@@ -293,7 +301,12 @@ void SChaosVDRecordingControls::HandleRecordingStart()
 
 void SChaosVDRecordingControls::AttemptToConnectToLiveSession()
 {
-	bAutoConnectionAttemptInProgress = true;
+	if(!bAutoConnectionAttemptInProgress)
+	{
+		bAutoConnectionAttemptInProgress = true;
+		PushConnectionAttemptNotification();
+	}
+
 	// We need to wait at least one tick before attempting to connect
 	FTSTicker::GetCoreTicker().AddTicker(FTickerDelegate::CreateLambda([WeakThis = AsWeak()](float DeltaTime)
 	{
@@ -301,6 +314,10 @@ void SChaosVDRecordingControls::AttemptToConnectToLiveSession()
 		{
 			if (const TSharedPtr<SChaosVDMainTab> MainTabSharedPtr = RecordingControlsPtr->MainTabWeakPtr.Pin())
 			{
+				RecordingControlsPtr->CurrentConnectionAttempts++;
+
+				RecordingControlsPtr->UpdateConnectionAttemptNotification();
+
 				static FString SessionAddress(TEXT("127.0.0.1"));
 			
 				int32 SessionID = 0;
@@ -325,13 +342,13 @@ void SChaosVDRecordingControls::AttemptToConnectToLiveSession()
 					}
 					else
 					{
-						RecordingControlsPtr->bAutoConnectionAttemptInProgress = false;
+						RecordingControlsPtr->HandleConnectionAttemptResult(EChaosVDLiveConnectionAttemptResult::Failed);
 						UE_LOG(LogChaosVDEditor, Error, TEXT("[%s] Failed to connect to live session | [%d] attempts exhausted..."), ANSI_TO_TCHAR(__FUNCTION__), RecordingControlsPtr->MaxAutoplayConnectionAttempts);	
 					}
 				}
 				else
 				{
-					RecordingControlsPtr->bAutoConnectionAttemptInProgress = false;
+					RecordingControlsPtr->HandleConnectionAttemptResult(EChaosVDLiveConnectionAttemptResult::Success);
 				}
 			}
 		}
@@ -351,7 +368,12 @@ FReply SChaosVDRecordingControls::ToggleRecordingState(EChaosVDRecordingMode Rec
 
 			FChaosVDRuntimeModule::Get().StartRecording(RecordingArgs);
 
-			AttemptToConnectToLiveSession();
+			// Only attempt to connect if we managed to start a recording.
+			// If we failed, the runtime module takes care of showing a pop-up error in the editor already
+			if (FChaosVDRuntimeModule::Get().IsRecording())
+			{
+				AttemptToConnectToLiveSession();
+			}	
 		}
 		else
 		{
@@ -480,6 +502,53 @@ FText SChaosVDRecordingControls::GetRecordingTimeText() const
 	FText SecondsText = FText::AsNumber(FChaosVDRuntimeModule::Get().GetAccumulatedRecordingTime(), &FormatOptions);
 	
 	return FText::Format(LOCTEXT("RecordingTimer","{0} s"), SecondsText);
+}
+
+void SChaosVDRecordingControls::PushConnectionAttemptNotification()
+{
+	FNotificationInfo Info(LOCTEXT("ConnectingToLiceSessionMessge", "Connecting to Live Session ..."));
+	Info.bFireAndForget = false;
+	Info.FadeOutDuration = 3.0f;
+	Info.ExpireDuration = 0.0f;
+
+	ConnectionAttemptNotification = FSlateNotificationManager::Get().AddNotification(Info);
+	
+	if (ConnectionAttemptNotification.IsValid())
+	{
+		ConnectionAttemptNotification->SetCompletionState(SNotificationItem::CS_Pending);
+	}
+}
+
+void SChaosVDRecordingControls::UpdateConnectionAttemptNotification()
+{
+	if (ConnectionAttemptNotification.IsValid())
+	{
+		ConnectionAttemptNotification->SetSubText(FText::FormatOrdered(LOCTEXT("SessionConnectionAttemptSubText", "Attempt {0} / {1}"), CurrentConnectionAttempts, MaxAutoplayConnectionAttempts));
+	}
+}
+
+void SChaosVDRecordingControls::HandleConnectionAttemptResult(EChaosVDLiveConnectionAttemptResult Result)
+{
+	CurrentConnectionAttempts = 0;
+	bAutoConnectionAttemptInProgress = false;
+
+	if (ConnectionAttemptNotification.IsValid())
+	{
+		if (Result == EChaosVDLiveConnectionAttemptResult::Success)
+		{
+			ConnectionAttemptNotification->SetText(LOCTEXT("SessionConnectionSuccess", "Connected!"));
+			ConnectionAttemptNotification->SetSubText(FText::GetEmpty());
+			ConnectionAttemptNotification->SetCompletionState(SNotificationItem::ECompletionState::CS_Success);
+		}
+		else
+		{
+			ConnectionAttemptNotification->SetText(LOCTEXT("SessionConnectionFailedText", "Failed to connect"));
+			ConnectionAttemptNotification->SetSubText(LOCTEXT("SessionConnectionFailedSubText", "See the logs for more details..."));
+			ConnectionAttemptNotification->SetCompletionState(SNotificationItem::ECompletionState::CS_Fail);
+		}
+
+		ConnectionAttemptNotification->ExpireAndFadeout();
+	}
 }
 
 #undef LOCTEXT_NAMESPACE 

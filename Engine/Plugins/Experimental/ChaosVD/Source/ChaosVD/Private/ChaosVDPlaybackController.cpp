@@ -51,7 +51,6 @@ bool FChaosVDPlaybackController::LoadChaosVDRecordingFromTraceSession(const FCha
 {
 	if (!ensure(!InSessionDescriptor.SessionName.IsEmpty()))
 	{
-		FMessageDialog::Open(EAppMsgType::Ok, LOCTEXT("LoadRecordingSessionFailedMessage", "Failed to create a session from the selected CVD recording. Please see the logs for more details... "));
 		return false;
 	}
 
