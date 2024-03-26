@@ -1277,11 +1277,6 @@ void UVCamComponent::EnsureInitializedIfAllowed()
 	}
 }
 
-bool UVCamComponent::IsInitialized() const
-{
-	return bIsInitialized;
-}
-
 void UVCamComponent::Initialize()
 {
 	if (!UE::VCamCore::CanInitVCamInstance(this))

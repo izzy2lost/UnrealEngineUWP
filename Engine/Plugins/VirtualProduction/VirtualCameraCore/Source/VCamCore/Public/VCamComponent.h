@@ -380,6 +380,9 @@ public:
 	
 	/** Updates all actor Locks on viewports to be as configured. */
 	void UpdateActorViewportLocks();
+
+	/** Whether this component is initialized, i.e. the input subsystem is set up and the output providers are allowed to be active. */
+	bool IsInitialized() const { return bIsInitialized; }
 	
 private:
 	
@@ -502,7 +505,6 @@ private:
 
 	/** Calls Initialize if not already initialized and this component is enabled. */
 	void EnsureInitializedIfAllowed();
-	bool IsInitialized() const;
 	/** Initializes the input system, modifiers, output providers, and locks the viewport if needed. */
 	virtual void Initialize();
 	/** De-initializes all systems initialized in Initialize(). */
