@@ -68,8 +68,6 @@ namespace uba
 
 		virtual void AddWork(const Function<void()>& work, u32 count, const tchar* desc) override final;
 		virtual u32 GetWorkerCount() override final;
-		virtual u32 TrackWorkStart(const tchar* desc) override final;
-		virtual void TrackWorkEnd(u32 id) override final;
 
 		struct ClientStats
 		{
@@ -80,14 +78,11 @@ namespace uba
 
 		u64 GetTotalSentBytes();
 		u64 GetTotalRecvBytes();
+		u32 GetConnectionCount();
 		void GetClientStats(ClientStats& out, u32 clientId);
 
 		bool DoAdditionalWork();
 
-		using WorkBeginFunction = Function<void(u32, const tchar*)>;
-		using WorkEndFunction = Function<void(u32)>;
-		void SetWorkListener(const WorkBeginFunction& start, const WorkEndFunction& end);
-		void ResetWorkListener();
 
 		class Worker;
 	private:
@@ -161,11 +156,6 @@ namespace uba
 		Atomic<u64> m_sendBytes;
 		Atomic<u64> m_recvBytes;
 		Atomic<u32> m_recvCount;
-
-		bool m_trackWork = false;
-		WorkBeginFunction m_startWork;
-		WorkEndFunction m_endWork;
-		Atomic<u32> m_workCounter;
 
 		NetworkServer(const NetworkServer&) = delete;
 		void operator=(const NetworkServer&) = delete;

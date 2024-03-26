@@ -86,7 +86,7 @@ namespace uba
 		}
 
 
-		if (m_channel.Init())
+		if (namedTrace && m_channel.Init())
 			m_channel.Write(namedTrace);
 
 		return true;
@@ -121,6 +121,18 @@ namespace uba
 		UnmapViewOfFile(m_memoryBegin, m_memoryCapacity, TC("Trace"));
 		m_memoryBegin = nullptr;
 		return true;
+	}
+
+	u32 Trace::TrackWorkStart(const tchar* desc)
+	{
+		u32 workId = m_workCounter++;
+		BeginWork(workId, desc);
+		return workId;
+	}
+
+	void Trace::TrackWorkEnd(u32 id)
+	{
+		EndWork(id);
 	}
 
 	u32 Trace::AddString(const tchar* string)
