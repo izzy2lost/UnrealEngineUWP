@@ -5,6 +5,8 @@
 #include "WorldPartition/WorldPartitionLevelStreamingPolicy.h"
 #include "WorldPartition/WorldPartitionDebugHelper.h"
 #include "WorldPartition/WorldPartitionStreamingGenerationContext.h"
+#include "WorldPartition/WorldPartitionRuntimeHash.h"
+#include "WorldPartition/WorldPartitionStreamingPolicy.h"
 #include "Engine/LevelStreaming.h"
 #include "Engine/Level.h"
 #include "Misc/HierarchicalLogArchive.h"
@@ -426,6 +428,42 @@ bool UWorldPartitionRuntimeLevelStreamingCell::OnPopulateGeneratorPackageForCook
 	return PrepareCellForCook(InPackage);
 }
 
+// Helper used by UWorldPartitionRuntimeLevelStreamingCell::OnPopulateGeneratedPackageForCook
+class FScopedCookingExternalStreamingObject
+{
+private:
+	FScopedCookingExternalStreamingObject(const URuntimeHashExternalStreamingObjectBase* InExternalStreamingObject)
+		: ExternalStreamingObject(const_cast<URuntimeHashExternalStreamingObjectBase*>(InExternalStreamingObject))
+	{
+		check(IsRunningCookCommandlet());
+		if (ExternalStreamingObject)
+		{
+			UWorld* World = ExternalStreamingObject->GetOuterWorld();
+			check(World);
+			UWorldPartition* WorldPartition = World->GetWorldPartition();
+			check(WorldPartition);
+			check(WorldPartition->StreamingPolicy);
+			verify(WorldPartition->StreamingPolicy->InjectExternalStreamingObject(const_cast<URuntimeHashExternalStreamingObjectBase*>(ExternalStreamingObject)));
+		}
+	}
+
+	~FScopedCookingExternalStreamingObject()
+	{
+		if (ExternalStreamingObject)
+		{
+			UWorld* World = ExternalStreamingObject->GetOuterWorld();
+			check(World);
+			UWorldPartition* WorldPartition = World->GetWorldPartition();
+			check(WorldPartition);
+			check(WorldPartition->StreamingPolicy);
+			verify(WorldPartition->StreamingPolicy->RemoveExternalStreamingObject(ExternalStreamingObject));
+		}
+	}
+
+	URuntimeHashExternalStreamingObjectBase* ExternalStreamingObject;
+	friend class UWorldPartitionRuntimeLevelStreamingCell;
+};
+
 bool UWorldPartitionRuntimeLevelStreamingCell::OnPopulateGeneratedPackageForCook(UPackage* InPackage, TArray<UPackage*>& OutModifiedPackages)
 {
 	check(!IsAlwaysLoaded());
@@ -463,6 +501,10 @@ bool UWorldPartitionRuntimeLevelStreamingCell::OnPopulateGeneratedPackageForCook
 		check(NewLevel->GetPackage() == InPackage);
 		FWorldPartitionLevelHelper::MoveExternalActorsToLevel(Packages, NewLevel, OutModifiedPackages);
 
+		// Push temporarily the cooking ExternalStreamingObject in the policy for RemapLevelSoftObjectPaths to use it to resolve softobjectpaths
+		const URuntimeHashExternalStreamingObjectBase* ExternalStreamingObject = GetTypedOuter<URuntimeHashExternalStreamingObjectBase>();
+		FScopedCookingExternalStreamingObject ScopeCookingExternalStreamingObject(ExternalStreamingObject);
+		
 		// Remap Level's SoftObjectPaths
 		FWorldPartitionLevelHelper::RemapLevelSoftObjectPaths(NewLevel, WorldPartition);
 	}

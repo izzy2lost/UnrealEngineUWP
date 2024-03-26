@@ -1118,10 +1118,17 @@ public:
 	 * @param InLevelPackage the package to get the external actors package name of
 	 * @param InActorPackagingScheme the packaging scheme to use
 	 * @param InActorPath the fully qualified actor path, in the format: 'Outermost.Outer.Name'
-	 * @param InMountPointContext an optional context object used to determine the mount point of the package
+	 * @param InLevelMountPointContext an optional context object used to determine the mount point of the package
 	 * @return the package name
 	 */
-	static ENGINE_API FString GetActorPackageName(UPackage* InLevelPackage, EActorPackagingScheme InActorPackagingScheme, const FString& InActorPath, const UObject* InMountPointContext = nullptr);
+	static ENGINE_API FString GetActorPackageName(UPackage* InLevelPackage, EActorPackagingScheme InActorPackagingScheme, const FString& InActorPath, const UObject* InLevelMountPointContext = nullptr);
+
+	/**
+	 * Returns a resolved level path using the level mount point context
+	 * @param InLevelPackage the level package name
+	 * @param InLevelMountPointContext an optional context object used to determine the mount point of the package
+	 */
+	static ENGINE_API FString ResolveRootPath(const FString& LevelPackageName, const UObject* InLevelMountPointContext = nullptr);
 
 	/**
 	 * Get the package name for this actor

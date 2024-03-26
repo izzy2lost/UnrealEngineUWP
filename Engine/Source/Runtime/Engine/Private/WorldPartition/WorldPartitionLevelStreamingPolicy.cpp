@@ -210,21 +210,6 @@ bool UWorldPartitionLevelStreamingPolicy::ConvertEditorPathToRuntimePath(const F
 		return false;
 	}
 
-	// In the editor, the _LevelInstance_ID is appended to the persistent level, while at runtime it is appended to each cell package, so we need to remap it there if present.
-	// Also handle prefixes like "/Temp"
-	FString LevelInstanceSuffix;
-	FString LevelInstancePrefix;
-	const FString WorldAssetPackageName = WorldAssetPath.GetPackageName().ToString();
-	const FString SourceWorldAssetPackageName = SourceWorldAssetPath.GetPackageName().ToString();
-	if (WorldAssetPackageName.Len() > SourceWorldAssetPackageName.Len())
-	{
-		if (const int32 Index = WorldAssetPackageName.Find(SourceWorldAssetPackageName); Index != INDEX_NONE)
-		{
-			LevelInstancePrefix = WorldAssetPackageName.Mid(0, Index);
-			LevelInstanceSuffix = WorldAssetPackageName.Mid(Index + SourceWorldAssetPackageName.Len());
-		}
-	}
-
 	FString SubObjectString;
 	FString SubObjectContext;
 	if (SrcObjectPath.GetSubPathString().Split(TEXT("."), &SubObjectContext, &SubObjectString))
@@ -232,7 +217,8 @@ bool UWorldPartitionLevelStreamingPolicy::ConvertEditorPathToRuntimePath(const F
 		if (SubObjectContext == TEXT("PersistentLevel"))
 		{
 			FString OutSubObjectString;
-			const FName* CellName = FindCellNameForSubObject(SubObjectString, true, OutSubObjectString);
+			const UObject* OutLevelMountPointContext = nullptr;
+			const FName* CellName = FindCellNameForSubObject(SubObjectString, true, OutSubObjectString, OutLevelMountPointContext);
 			FString SubPathString = SubObjectContext + TEXT(".") + OutSubObjectString;
 
 			if (!CellName)
@@ -248,6 +234,28 @@ bool UWorldPartitionLevelStreamingPolicy::ConvertEditorPathToRuntimePath(const F
 #endif
 			else
 			{
+				// In the editor, the _LevelInstance_ID is appended to the persistent level, while at runtime it is appended to each cell package, so we need to remap it there if present.
+				// Also handle prefixes like "/Temp"
+				FString LevelInstanceSuffix;
+				FString LevelInstancePrefix;
+				const FString WorldAssetPackageName = WorldAssetPath.GetPackageName().ToString();
+#if WITH_EDITOR
+				// Transform if necessary the world package name using the level mount point context object
+				const FString SourceWorldAssetPackageName = ULevel::ResolveRootPath(SourceWorldAssetPath.GetPackageName().ToString(), OutLevelMountPointContext);
+#else
+				//@todo_ow: Verify if we need to make ULevel::ResolveRootPath available at runtime
+				const FString SourceWorldAssetPackageName = SourceWorldAssetPath.GetPackageName().ToString();
+#endif
+
+				if (WorldAssetPackageName.Len() > SourceWorldAssetPackageName.Len())
+				{
+					if (const int32 Index = WorldAssetPackageName.Find(SourceWorldAssetPackageName); Index != INDEX_NONE)
+					{
+						LevelInstancePrefix = WorldAssetPackageName.Mid(0, Index);
+						LevelInstanceSuffix = WorldAssetPackageName.Mid(Index + SourceWorldAssetPackageName.Len());
+					}
+				}
+
 				OutPath = FString::Printf(TEXT("%s%s/_Generated_/%s%s.%s:%s"), *LevelInstancePrefix, *SourceWorldAssetPackageName, *(CellName->ToString()), *LevelInstanceSuffix, *WorldAssetPath.GetAssetName().ToString(), *SubPathString);
 			}
 
@@ -383,8 +391,10 @@ void UWorldPartitionLevelStreamingPolicy::DrawRuntimeCellsDetails(UCanvas* Canva
 	Offset.Y = MaxPosY;
 }
 
-const FName* UWorldPartitionLevelStreamingPolicy::FindCellNameForSubObject(const FString& InSubObjectString, bool bInResolveContainers, FString& OutSubPathString) const
+const FName* UWorldPartitionLevelStreamingPolicy::FindCellNameForSubObject(const FString& InSubObjectString, bool bInResolveContainers, FString& OutSubPathString, const UObject*& OutLevelMountPointContext) const
 {
+	OutLevelMountPointContext = nullptr;
+
 	FString SubObjectString;
 	FString SubObjectContext(InSubObjectString);
 	InSubObjectString.Split(TEXT("."), &SubObjectContext, &SubObjectString);
@@ -401,8 +411,10 @@ const FName* UWorldPartitionLevelStreamingPolicy::FindCellNameForSubObject(const
 	{
 		if (ExternalStreamingObject.IsValid())
 		{
-			if (const FName* CellName = ExternalStreamingObject.Get()->SubObjectsToCellRemapping.Find(*SubObjectContext))
+			const URuntimeHashExternalStreamingObjectBase* ExternalStreamingObjectPtr = ExternalStreamingObject.Get();
+			if (const FName* CellName = ExternalStreamingObjectPtr->SubObjectsToCellRemapping.Find(*SubObjectContext))
 			{
+				OutLevelMountPointContext = ExternalStreamingObjectPtr->GetLevelMountPointContextObject();
 				return CellName;
 			}
 		}
@@ -413,7 +425,7 @@ const FName* UWorldPartitionLevelStreamingPolicy::FindCellNameForSubObject(const
 	{
 		if (ContainerResolver.ResolveContainerPath(InSubObjectString, OutResolvedSubPathString))
 		{
-			return FindCellNameForSubObject(OutResolvedSubPathString, false, OutSubPathString);
+			return FindCellNameForSubObject(OutResolvedSubPathString, false, OutSubPathString, OutLevelMountPointContext);
 		}
 
 		for (const TWeakObjectPtr<URuntimeHashExternalStreamingObjectBase>& ExternalStreamingObject : ExternalStreamingObjects)
@@ -422,7 +434,7 @@ const FName* UWorldPartitionLevelStreamingPolicy::FindCellNameForSubObject(const
 			{
 				if (ExternalStreamingObject.Get()->ContainerResolver.ResolveContainerPath(InSubObjectString, OutResolvedSubPathString))
 				{
-					return FindCellNameForSubObject(OutResolvedSubPathString, false, OutSubPathString);
+					return FindCellNameForSubObject(OutResolvedSubPathString, false, OutSubPathString, OutLevelMountPointContext);
 				}
 			}
 		}
