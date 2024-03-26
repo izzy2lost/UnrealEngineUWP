@@ -24,14 +24,21 @@ extern "C"
 THIRD_PARTY_INCLUDES_END
 UE_POP_MACRO("TEXT")
 
-bool GeForceNOWWrapper::bIsSdkInitialized = false;
+GeForceNOWWrapper::GeForceNOWWrapper()
+	: bIsInitialized(false)
+{
 
-GeForceNOWWrapper* GeForceNOWWrapper::Singleton = nullptr;
+}
+
+GeForceNOWWrapper::~GeForceNOWWrapper()
+{
+	Shutdown();
+}
 
 GeForceNOWWrapper& GeForceNOWWrapper::Get()
 {
-	check(Singleton); //Crashing here means we're fetching the wrapper too soon.
-	return *(Singleton);
+	static GeForceNOWWrapper Singleton;
+	return Singleton;
 }
 
 /*static*/ const FString GeForceNOWWrapper::GetGfnOsTypeString(GfnOsType OsType)
@@ -70,10 +77,10 @@ GeForceNOWWrapper& GeForceNOWWrapper::Get()
 
 bool GeForceNOWWrapper::IsRunningInGFN()
 {
-	return IsRunningMockGFN() || IsSdkInitialized() && IsRunningInCloud();
+	return IsRunningMockGFN() || IsInitialized() && IsRunningInCloud();
 }
 
-/*static*/ bool GeForceNOWWrapper::IsRunningMockGFN()
+bool GeForceNOWWrapper::IsRunningMockGFN() const
 {
 #if !UE_BUILD_SHIPPING
 	static bool bIsMockGFN = FParse::Param(FCommandLine::Get(), TEXT("MockGFN"));
@@ -87,21 +94,16 @@ bool GeForceNOWWrapper::IsRunningInGFN()
 	return bIsMockGFN;
 }
 
-/*static*/ GfnRuntimeError GeForceNOWWrapper::Initialize()
+GfnRuntimeError GeForceNOWWrapper::Initialize()
 {
-	if (!Singleton)
+	if (IsRunningMockGFN())
 	{
-		Singleton = new GeForceNOWWrapper();
-	}
-
-	if (bIsSdkInitialized)
-	{
+		bIsInitialized = true;
 		return gfnSuccess;
 	}
 
-	if (IsRunningMockGFN())
+	if (bIsInitialized)
 	{
-		bIsSdkInitialized = true;
 		return gfnSuccess;
 	}
 
@@ -109,14 +111,14 @@ bool GeForceNOWWrapper::IsRunningInGFN()
 	FString GFNDllFullPath = IFileManager::Get().ConvertToAbsolutePathForExternalAppForRead(*GFNDllPath);
 	GFNDllFullPath.ReplaceInline(TEXT("/"), TEXT("\\"), ESearchCase::CaseSensitive);
 	const GfnRuntimeError ErrorCode = GfnInitializeSdkFromPathW(gfnDefaultLanguage, *GFNDllFullPath);
-	bIsSdkInitialized = ErrorCode == gfnSuccess || ErrorCode == gfnInitSuccessClientOnly;
+	bIsInitialized = ErrorCode == gfnSuccess || ErrorCode == gfnInitSuccessClientOnly;
 
 	return ErrorCode;
 }
 
 bool GeForceNOWWrapper::InitializeActionZoneProcessor()
 {
-	if (bIsSdkInitialized)
+	if (bIsInitialized)
 	{
 		ActionZoneProcessor = MakeShared<GeForceNOWActionZoneProcessor>();
 		return ActionZoneProcessor->Initialize();
@@ -124,30 +126,15 @@ bool GeForceNOWWrapper::InitializeActionZoneProcessor()
 	return false;
 }
 
-/*static*/ GfnRuntimeError GeForceNOWWrapper::Shutdown()
+GfnRuntimeError GeForceNOWWrapper::Shutdown()
 {
-	if (Singleton)
+	bIsInitialized = false;
+	if (ActionZoneProcessor.IsValid())
 	{
-		GeForceNOWWrapper& Wrapper = GeForceNOWWrapper::Get();
-		if (Wrapper.ActionZoneProcessor.IsValid())
-		{
-			Wrapper.ActionZoneProcessor->Terminate();
-			Wrapper.ActionZoneProcessor.Reset();
-		}
-
-		delete Singleton;
-		Singleton = nullptr;
+		ActionZoneProcessor->Terminate();
+		ActionZoneProcessor.Reset();
 	}
-
-	if (bIsSdkInitialized)
-	{
-		bIsSdkInitialized = false;
-		return GfnShutdownSdk();
-	}
-	else
-	{
-		return gfnSuccess;
-	}
+	return GfnShutdownSdk();
 }
 
 bool GeForceNOWWrapper::IsRunningInCloud()
@@ -157,7 +144,7 @@ bool GeForceNOWWrapper::IsRunningInCloud()
 		return true;
 	}
 
-	if (!bIsSdkInitialized)
+	if (!bIsInitialized)
 	{
 		return false;
 	}
