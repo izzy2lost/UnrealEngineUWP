@@ -6,11 +6,9 @@
 #include "Widgets/SCompoundWidget.h"
 
 class STextBlock;
+class SVerticalBox;
 
-namespace UE::ConcertSharedSlate
-{
-	class IReplicationStreamModel;
-}
+namespace UE::ConcertSharedSlate { class IReplicationStreamModel; }
 
 namespace UE::MultiUserClient
 {
@@ -37,6 +35,9 @@ namespace UE::MultiUserClient
 			/** Delegate which enumerates every replicated object. */
 			SLATE_EVENT(FForEachReplicatedObject, ForEachReplicatedObject)
 		SLATE_END_ARGS()
+
+		/** Adds a separator and SReplicationStatus to the bottom of the VerticalBox- */
+		static void AppendReplicationStatus(SVerticalBox& VerticalBox, FGlobalAuthorityCache& InAuthorityCache, const FArguments& InArgs);
 
 		void Construct(const FArguments& InArgs, FGlobalAuthorityCache& InAuthorityCache);
 		virtual ~SReplicationStatus() override;

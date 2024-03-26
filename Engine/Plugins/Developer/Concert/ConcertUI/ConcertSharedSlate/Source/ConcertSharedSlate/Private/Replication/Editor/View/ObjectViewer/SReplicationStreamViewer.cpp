@@ -259,7 +259,7 @@ namespace UE::ConcertSharedSlate
 				.HeaderContent()
 				[
 					SNew(STextBlock)
-					.Text(LOCTEXT("ReplicatedProperties", "Subobjects & Properties"))
+					.Text(LOCTEXT("ReplicatedProperties", "Properties"))
 					.Font(FAppStyle::Get().GetFontStyle("DetailsView.CategoryFontStyle"))
 					.ShadowOffset(FVector2D(1.0f, 1.0f))
 				]
