@@ -327,11 +327,21 @@
 
 		<!-- nanosvg -->
 		Engine/Source/ThirdParty/nanosvg/...
+		
+		<!-- LiveLinkHub files -->
+		Engine/Binaries/Win64/LiveLinkHub-Win64-Shipping.exe
+		Engine/Binaries/Win64/ViconDataStreamSDK_CPP.dll
+		Engine/Binaries/Win64/boost_thread-vc141-mt-x64-1_75.dll
+		Engine/Programs/LiveLinkHub/...
 	</Property>
 
 	<Property Name="CopyEditorExceptionsWin64" Value="$(CopyEditorExceptions)">
 		<!-- Exclude Mac binaries on windows here, because previous wildcard for plugin resources matches OSX dsym resources on Windows -->
 		Engine/Plugins/.../Binaries/Mac/...
+		
+		Engine/Binaries/Win64/LiveLinkHub-Win64-Shipping.pdb
+		Engine/Binaries/Linux/LiveLinkHub-Linux-Shipping.debug
+		Engine/Binaries/Linux/LiveLinkHub-Linux-Shipping.sym
 	</Property>
 
 	<!-- Mac editor specific dependencies -->
@@ -377,6 +387,10 @@
 		Engine/Binaries/Mac/zenserver
 		Engine/Binaries/Mac/zen
 		Engine/Binaries/Mac/crashpad_handler
+		
+		<!-- LiveLinkHub files -->
+		Engine/Binaries/Mac/LiveLinkHub-Mac-Shipping.app/...
+		Engine/Programs/LiveLinkHub/...
 	</Property>
 
 	<Property Name="CopyEditorExceptionsMac" Value="$(CopyEditorExceptions)">
@@ -433,6 +447,11 @@
 		<!-- zenserver is the tool for Unreal Zen Storage services like Local DDC and optionally cooked output storage -->
 		Engine/Binaries/Linux/zenserver
 		Engine/Binaries/Linux/zen
+		
+		<!-- LiveLinkHub Files -->
+		Engine/Binaries/Linux/LiveLinkHub-Linux-Shipping
+		Engine/Programs/LiveLinkHub/...
+		
 	</Property>
 	<Property Name="CopyEditorExceptionsLinux" Value="$(CopyEditorExceptions)">
 		<!-- Exclude Windows/Mac binaries on Linux here -->
@@ -446,6 +465,10 @@
 		<!-- Don't want The Windows/Mac Python packages -->
 		Engine/Plugins/Experimental/PythonFoundationPackages/Content/Python/Lib/Win64/...
 		Engine/Plugins/Experimental/PythonFoundationPackages/Content/Python/Lib/Mac/...
+		
+		<!-- We remove these in an attempt to save space. -->
+		Engine/Binaries/Linux/LiveLinkHub-Linux-Shipping.debug
+		Engine/Binaries/Linux/LiveLinkHub-Linux-Shipping.sym
 	</Property>
 
 	<!-- Target Platform Filters/Exceptions -->
