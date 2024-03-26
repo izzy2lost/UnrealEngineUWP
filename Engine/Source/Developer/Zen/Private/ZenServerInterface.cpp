@@ -2399,7 +2399,7 @@ FZenServiceInstance::AutoLaunch(const FServiceAutoLaunchSettings& InSettings, FS
 
 	// When limiting process lifetime, always re-launch to add sponsor process IDs.
 	// When not limiting process lifetime, only launch if the process is not already live.
-	if (bLaunchNewInstance || InSettings.bLimitProcessLifetime)
+	if (bLaunchNewInstance)
 	{
 		if (InSettings.bIsDefaultDataPath && InSettings.bIsDefaultSharedRunContext)
 		{
