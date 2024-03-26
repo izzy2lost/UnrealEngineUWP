@@ -5,6 +5,7 @@
 #include "MuCO/CustomizableObjectSystem.h"
 #include "MuCO/CustomizableObjectSystemPrivate.h"
 #include "MuCO/CustomizableObjectMipDataProvider.h"
+#include "MuCO/CustomizableObjectMeshUpdate.h"
 
 #include "MuR/Model.h"
 #include "MuR/MutableTrace.h"
@@ -593,6 +594,52 @@ namespace CustomizableObjectMipDataProvider::ImplDeprecated
 					OperationData->RescheduleCallback();
 				}
 			}
+		}
+	}
+}
+
+namespace CustomizableObjectMeshUpdate::ImplDeprecated
+{
+	void Task_Mutable_UpdateMesh(const TSharedPtr<FMutableMeshOperationData>& OperationData)
+	{
+		MUTABLE_CPUPROFILER_SCOPE(Task_Mutable_UpdateMesh);
+
+		mu::SystemPtr System = OperationData->System;
+		const TSharedPtr<mu::Model, ESPMode::ThreadSafe> Model = OperationData->Model;
+
+#if WITH_EDITOR
+		// Recompiling a CO in the editor will invalidate the previously generated Model. Check that it is valid before accessing the streamed data.
+		if (!Model || !Model->IsValid())
+		{
+			return;
+		}
+#endif
+
+		// For now, we are forcing the recreation of mutable-side instances with every update.
+		mu::Instance::ID InstanceID = System->NewInstance(Model);
+		UE_LOG(LogMutable, Verbose, TEXT("Creating Mutable instance with id [%d] for a mesh update"), InstanceID);
+
+		// LOD mask, set to all ones to build all LODs
+		const uint32 LODMask = 0xFFFFFFFF;
+
+		// Main instance generation step
+		const mu::Instance* Instance = System->BeginUpdate(InstanceID, OperationData->Parameters, OperationData->State, LODMask);
+		check(Instance);
+
+		// Generate the required meshes
+		for (int32 Index = OperationData->PendingFirstLODIdx; Index < OperationData->CurrentFirstLODIdx; ++Index)
+		{
+			const mu::FResourceID MeshID = OperationData->MeshIDs[Index];
+			OperationData->Meshes[Index] = System->GetMeshInline(InstanceID, MeshID);
+		}
+
+		// End update
+		System->EndUpdate(InstanceID);
+		System->ReleaseInstance(InstanceID);
+
+		if (CVarClearWorkingMemoryOnUpdateEnd.GetValueOnAnyThread())
+		{
+			System->ClearWorkingMemory();
 		}
 	}
 }

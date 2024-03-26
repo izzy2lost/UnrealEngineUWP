@@ -10,6 +10,8 @@
 
 class FUpdateContextPrivate;
 struct FMutableImageOperationData;
+struct FMutableMeshOperationData;
+
 namespace mu
 {
 	class Model;
@@ -36,4 +38,11 @@ namespace CustomizableObjectMipDataProvider::ImplDeprecated
 {
 	// This runs in the mutable thread.
 	void Task_Mutable_UpdateImage(TSharedPtr<FMutableImageOperationData> OperationData);
+}
+
+
+namespace CustomizableObjectMeshUpdate::ImplDeprecated
+{
+	// This runs in the mutable thread.
+	void Task_Mutable_UpdateMesh(const TSharedPtr<FMutableMeshOperationData>& OperationData);
 }

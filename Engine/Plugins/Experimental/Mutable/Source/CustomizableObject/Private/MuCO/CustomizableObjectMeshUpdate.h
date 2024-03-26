@@ -53,6 +53,8 @@ class FCustomizableObjectMeshStreamIn : public FSkeletalMeshStreamIn
 public:
 	FCustomizableObjectMeshStreamIn(const USkeletalMesh* InMesh, bool bHighPrio, bool bRenderThread);
 
+	void OnUpdateMeshFinished();
+
 private:
 
 	void DoInitiate(const FContext& Context);
