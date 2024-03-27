@@ -64,6 +64,7 @@ private:
 	//~ Begin FDataflowNode interface
 	virtual void Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
 	virtual void Serialize(FArchive& Archive) override;
+	virtual bool IsDeprecated() override { return true; }
 	//~ End FDataflowNode interface
 
 	bool EvaluateImpl(Dataflow::FContext& Context, FManagedArrayCollection& OutCollection) const;

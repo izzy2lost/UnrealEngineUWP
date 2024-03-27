@@ -70,9 +70,12 @@ public:
 	const TArray<FName>& GetCachedCollectionGroupNames() const { return CachedCollectionGroupNames; }
 
 private:
+	//~ Begin FDataflowNode interface
 	virtual void Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
 	virtual void OnSelected(Dataflow::FContext& Context) override;
 	virtual void OnDeselected() override;
+	virtual bool IsExperimental() override { return true; }
+	//~ End FDataflowNode interface
 
 	TArray<FName> CachedCollectionGroupNames;
 };
