@@ -315,9 +315,6 @@ void FMaterialsCollectionTracker::SetMaterialsForMeshActor(const TSharedPtr<IDat
 }
 
 
-// Copied from
-// FDatasmithMaxSceneParser::MaterialEnum
-// FDatasmithMaxSceneParser::TexEnum
 // Collects actual materials that are used by the top-level material(assigned to node)
 class FMaterialEnum
 {
