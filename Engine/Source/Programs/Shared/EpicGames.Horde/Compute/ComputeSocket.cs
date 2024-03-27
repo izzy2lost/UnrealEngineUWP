@@ -414,11 +414,11 @@ namespace EpicGames.Horde.Compute
 		/// </summary>
 		public async ValueTask CloseAsync(CancellationToken cancellationToken)
 		{
+			// Close the transport layer, freeing the remote end to shutdown.
+			await _transport.MarkCompleteAsync(cancellationToken);
+
 			// Close all the buffers
 			await DetachAllBuffersAsync(true, true, cancellationToken);
-
-			// Send a final message indicating that the lease is done. This will allow the senders on the remote end to terminate.
-			await _transport.MarkCompleteAsync(cancellationToken);
 
 			// Wait for the reader to stop
 			if (_recvTask != null)

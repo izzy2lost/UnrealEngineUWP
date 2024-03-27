@@ -129,7 +129,7 @@ public sealed class TcpSslTransport : ComputeTransport
 	/// <inheritdoc/>
 	public override ValueTask MarkCompleteAsync(CancellationToken cancelationToken)
 	{
-		_socket.Shutdown(SocketShutdown.Send);
+		_socket.Shutdown(SocketShutdown.Both);
 		return new ValueTask();
 	}
 
