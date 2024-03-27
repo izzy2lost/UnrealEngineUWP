@@ -1,0 +1,93 @@
+// Copyright Epic Games, Inc. All Rights Reserved.
+
+#include "Dataflow/DataflowConstructionViewport.h"
+
+#include "Dataflow/DataflowActor.h"
+#include "Dataflow/DataflowEditorMode.h"
+#include "Dataflow/DataflowConstructionViewportClient.h"
+#include "Dataflow/DataflowEditorToolkit.h"
+#include "EditorModeManager.h"
+#include "Dataflow/DataflowContent.h"
+#include "Dataflow/DataflowConstructionViewportToolbar.h"
+#include "Dataflow/DataflowEditorScenes.h"
+#include "Dataflow/DataflowSimulationPanel.h"
+
+#define LOCTEXT_NAMESPACE "SDataflowConstructionViewport"
+
+
+SDataflowConstructionViewport::SDataflowConstructionViewport()
+{
+}
+
+void SDataflowConstructionViewport::Construct(const FArguments& InArgs, const FAssetEditorViewportConstructionArgs& InViewportConstructionArgs)
+{
+	SAssetEditorViewport::FArguments ParentArgs;
+	ParentArgs._EditorViewportClient = InArgs._ViewportClient;
+	SAssetEditorViewport::Construct(ParentArgs, InViewportConstructionArgs);
+	Client->VisibilityDelegate.BindSP(this, &SDataflowConstructionViewport::IsVisible);
+}
+
+TSharedPtr<SWidget> SDataflowConstructionViewport::MakeViewportToolbar()
+{
+	return SNew(SDataflowConstructionViewportSelectionToolBar, SharedThis(this));
+}
+
+void SDataflowConstructionViewport::OnFocusViewportToSelection()
+{
+	if(const FDataflowPreviewScene* PreviewScene = static_cast<FDataflowPreviewScene*>(Client->GetPreviewScene()))
+	{
+		const FBox SceneBoundingBox = PreviewScene->GetBoundingBox();
+		Client->FocusViewportOnBox(SceneBoundingBox);
+	}
+}
+
+UDataflowEditorMode* SDataflowConstructionViewport::GetEdMode() const
+{
+	if (const FEditorModeTools* const EditorModeTools = Client->GetModeTools())
+	{
+		if (UDataflowEditorMode* const DataflowEdMode = Cast<UDataflowEditorMode>(EditorModeTools->GetActiveScriptableMode(UDataflowEditorMode::EM_DataflowEditorModeId)))
+		{
+			return DataflowEdMode;
+		}
+	}
+	return nullptr;
+}
+
+void SDataflowConstructionViewport::BindCommands()
+{
+	SAssetEditorViewport::BindCommands();
+}
+
+bool SDataflowConstructionViewport::IsVisible() const
+{
+	// Intentionally not calling SEditorViewport::IsVisible because it will return false if our simulation is more than 250ms.
+	return ViewportWidget.IsValid();
+}
+
+TSharedRef<class SEditorViewport> SDataflowConstructionViewport::GetViewportWidget()
+{
+	return SharedThis(this);
+}
+
+TSharedPtr<FExtender> SDataflowConstructionViewport::GetExtenders() const
+{
+	TSharedPtr<FExtender> Result(MakeShareable(new FExtender));
+	return Result;
+}
+
+void SDataflowConstructionViewport::OnFloatingButtonClicked()
+{
+}
+
+float SDataflowConstructionViewport:: GetViewMinInput() const
+{
+	return static_cast<FDataflowPreviewScene*>(Client->GetPreviewScene())->GetDataflowContent()->GetSimulationRange()[0];
+}
+
+float SDataflowConstructionViewport::GetViewMaxInput() const
+{
+	return static_cast<FDataflowPreviewScene*>(Client->GetPreviewScene())->GetDataflowContent()->GetSimulationRange()[1];
+}
+
+
+#undef LOCTEXT_NAMESPACE

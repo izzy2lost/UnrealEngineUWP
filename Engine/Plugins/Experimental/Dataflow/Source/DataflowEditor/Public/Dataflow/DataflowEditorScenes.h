@@ -159,6 +159,10 @@ public:
 	
 	/** Check if the preview scene can run simulation */
 	virtual bool CanRunSimulation() const { return true; }
+
+	void ResetSimulationScene() {}
+	bool HasRenderableGeometry() { return true; }
+
 };
 
 

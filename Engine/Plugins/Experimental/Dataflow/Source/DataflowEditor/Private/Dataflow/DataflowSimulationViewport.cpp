@@ -1,34 +1,31 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#include "Dataflow/DataflowEditorViewport.h"
+#include "Dataflow/DataflowSimulationViewport.h"
 
 #include "Dataflow/DataflowActor.h"
 #include "Dataflow/DataflowEditorMode.h"
-#include "Dataflow/DataflowConstructionViewportClient.h"
 #include "Dataflow/DataflowSimulationViewportClient.h"
 #include "Dataflow/DataflowEditorToolkit.h"
 #include "EditorModeManager.h"
 #include "Dataflow/DataflowContent.h"
-#include "Dataflow/DataflowConstructionViewportToolbar.h"
 #include "Dataflow/DataflowEditorScenes.h"
 #include "Dataflow/DataflowSimulationPanel.h"
 
-#define LOCTEXT_NAMESPACE "SDataflowEditorViewport"
+#define LOCTEXT_NAMESPACE "SDataflowSimulationViewport"
 
 
-SDataflowEditorViewport::SDataflowEditorViewport()
+SDataflowSimulationViewport::SDataflowSimulationViewport()
 {
 }
 
-void SDataflowEditorViewport::Construct(const FArguments& InArgs, const FAssetEditorViewportConstructionArgs& InViewportConstructionArgs)
+void SDataflowSimulationViewport::Construct(const FArguments& InArgs, const FAssetEditorViewportConstructionArgs& InViewportConstructionArgs)
 {
 	SAssetEditorViewport::FArguments ParentArgs;
 	ParentArgs._EditorViewportClient = InArgs._ViewportClient;
 	SAssetEditorViewport::Construct(ParentArgs, InViewportConstructionArgs);
-	Client->VisibilityDelegate.BindSP(this, &SDataflowEditorViewport::IsVisible);
+	Client->VisibilityDelegate.BindSP(this, &SDataflowSimulationViewport::IsVisible);
 
-	/*
-	if(static_cast<FDataflowPreviewScene*>(Client->GetPreviewScene())->CanRunSimulation())
+	if(static_cast<FDataflowSimulationScene*>(Client->GetPreviewScene())->CanRunSimulation())
 	{
 		TSharedPtr<FDataflowSimulationViewportClient> DataflowClient = StaticCastSharedPtr<FDataflowSimulationViewportClient>(Client);
 		TWeakPtr<FDataflowSimulationScene> SimulationScene = DataflowClient->GetDataflowEditorToolkit().Pin()->GetSimulationScene();
@@ -48,21 +45,15 @@ void SDataflowEditorViewport::Construct(const FArguments& InArgs, const FAssetEd
 				.Padding(10.0f, 2.0f)
 				[
 					SNew(SDataflowSimulationPanel, SimulationScene)
-					.ViewInputMin(this, &SDataflowEditorViewport::GetViewMinInput)
-					.ViewInputMax(this, &SDataflowEditorViewport::GetViewMaxInput)
+					.ViewInputMin(this, &SDataflowSimulationViewport::GetViewMinInput)
+					.ViewInputMax(this, &SDataflowSimulationViewport::GetViewMaxInput)
 				]
 			]
 		];
 	}
-	*/
 }
 
-TSharedPtr<SWidget> SDataflowEditorViewport::MakeViewportToolbar()
-{
-	return SNew(SDataflowConstructionViewportSelectionToolBar, SharedThis(this));
-}
-
-void SDataflowEditorViewport::OnFocusViewportToSelection()
+void SDataflowSimulationViewport::OnFocusViewportToSelection()
 {
 	if(const FDataflowPreviewScene* PreviewScene = static_cast<FDataflowPreviewScene*>(Client->GetPreviewScene()))
 	{
@@ -71,7 +62,7 @@ void SDataflowEditorViewport::OnFocusViewportToSelection()
 	}
 }
 
-UDataflowEditorMode* SDataflowEditorViewport::GetEdMode() const
+UDataflowEditorMode* SDataflowSimulationViewport::GetEdMode() const
 {
 	if (const FEditorModeTools* const EditorModeTools = Client->GetModeTools())
 	{
@@ -83,38 +74,38 @@ UDataflowEditorMode* SDataflowEditorViewport::GetEdMode() const
 	return nullptr;
 }
 
-void SDataflowEditorViewport::BindCommands()
+void SDataflowSimulationViewport::BindCommands()
 {
 	SAssetEditorViewport::BindCommands();
 }
 
-bool SDataflowEditorViewport::IsVisible() const
+bool SDataflowSimulationViewport::IsVisible() const
 {
 	// Intentionally not calling SEditorViewport::IsVisible because it will return false if our simulation is more than 250ms.
 	return ViewportWidget.IsValid();
 }
 
-TSharedRef<class SEditorViewport> SDataflowEditorViewport::GetViewportWidget()
+TSharedRef<class SEditorViewport> SDataflowSimulationViewport::GetViewportWidget()
 {
 	return SharedThis(this);
 }
 
-TSharedPtr<FExtender> SDataflowEditorViewport::GetExtenders() const
+TSharedPtr<FExtender> SDataflowSimulationViewport::GetExtenders() const
 {
 	TSharedPtr<FExtender> Result(MakeShareable(new FExtender));
 	return Result;
 }
 
-void SDataflowEditorViewport::OnFloatingButtonClicked()
+void SDataflowSimulationViewport::OnFloatingButtonClicked()
 {
 }
 
-float SDataflowEditorViewport:: GetViewMinInput() const
+float SDataflowSimulationViewport:: GetViewMinInput() const
 {
 	return static_cast<FDataflowPreviewScene*>(Client->GetPreviewScene())->GetDataflowContent()->GetSimulationRange()[0];
 }
 
-float SDataflowEditorViewport::GetViewMaxInput() const
+float SDataflowSimulationViewport::GetViewMaxInput() const
 {
 	return static_cast<FDataflowPreviewScene*>(Client->GetPreviewScene())->GetDataflowContent()->GetSimulationRange()[1];
 }

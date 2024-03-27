@@ -295,6 +295,10 @@ void UDataflowEditorMode::Exit()
 	ConstructionScene->ResetConstructionScene();
 	ConstructionScene = nullptr;
 
+	SimulationScene->ResetSimulationScene();
+	SimulationScene = nullptr;
+
+
 	Super::Exit();
 }
 
@@ -318,6 +322,11 @@ void UDataflowEditorMode::SetDataflowConstructionScene(FDataflowConstructionScen
 
 	PreviewToolManager->OnToolStarted.AddSP(DataflowModeToolkit, &FDataflowEditorModeToolkit::OnToolStarted);
 	PreviewToolManager->OnToolEnded.AddSP(DataflowModeToolkit, &FDataflowEditorModeToolkit::OnToolEnded);
+}
+
+void UDataflowEditorMode::SetDataflowSimlationScene(FDataflowSimulationScene* InSimulationScene)
+{
+	SimulationScene = InSimulationScene;
 }
 
 void UDataflowEditorMode::CreateToolTargets(const TArray<TObjectPtr<UObject>>& AssetsIn)
@@ -349,7 +358,7 @@ bool UDataflowEditorMode::IsComponentSelected(const UPrimitiveComponent* InCompo
 	return false;
 }
 
-void UDataflowEditorMode::RefocusRestSpaceViewportClient()
+void UDataflowEditorMode::RefocusConstructionViewportClient()
 {
 	TSharedPtr<FDataflowConstructionViewportClient, ESPMode::ThreadSafe> PinnedVC = ConstructionViewportClient.Pin();
 	if (PinnedVC.IsValid())
@@ -378,7 +387,25 @@ void UDataflowEditorMode::RefocusRestSpaceViewportClient()
 	}
 }
 
-void UDataflowEditorMode::FirstTimeFocusRestSpaceViewport()
+void UDataflowEditorMode::RefocusSimulationViewportClient()
+{
+	TSharedPtr<FDataflowSimulationViewportClient, ESPMode::ThreadSafe> PinnedVC = SimulationViewportClient.Pin();
+	if (PinnedVC.IsValid())
+	{
+		// This will happen in FocusViewportOnBox anyways; do it now to get a consistent end result
+		PinnedVC->ToggleOrbitCamera(false);
+
+		const FBox SceneBounds = SceneBoundingBox();
+
+		// 3D space
+		PinnedVC->SetInitialViewTransform(ELevelViewportType::LVT_Perspective, FVector(0, 150, 200), FRotator(0, 0, 0), DEFAULT_ORTHOZOOM);
+
+		constexpr bool bInstant = true;
+		PinnedVC->FocusViewportOnBox(SceneBounds, bInstant);
+	}
+}
+
+void UDataflowEditorMode::FirstTimeFocusConstructionViewport()
 {
 	// If this is the first time seeing a valid 2D or 3D mesh, refocus the camera on it.
 	const bool bIsValid = (ConstructionScene->HasRenderableGeometry());
@@ -389,13 +416,24 @@ void UDataflowEditorMode::FirstTimeFocusRestSpaceViewport()
 		if (bIs2D && bFirstValid2DMesh)
 		{
 			bFirstValid2DMesh = false;
-			RefocusRestSpaceViewportClient();
+			RefocusConstructionViewportClient();
 		}
 		else if (!bIs2D && bFirstValid3DMesh)
 		{
 			bFirstValid3DMesh = false;
-			RefocusRestSpaceViewportClient();
+			RefocusConstructionViewportClient();
 		}
+	}
+}
+
+void UDataflowEditorMode::FirstTimeFocusSimulationViewport()
+{
+	// If this is the first time seeing a valid 2D or 3D mesh, refocus the camera on it.
+	const bool bIsValid = (SimulationScene->HasRenderableGeometry());
+
+	if (bIsValid)
+	{
+		RefocusSimulationViewportClient();
 	}
 }
 
@@ -447,16 +485,28 @@ void UDataflowEditorMode::ModeTick(float DeltaTime)
 	}
 }
 
-void UDataflowEditorMode::RestSpaceViewportResized(FViewport* RestspaceViewport, uint32 /*Unused*/)
+void UDataflowEditorMode::ConstructionViewportResized(FViewport* ConstructionViewport, uint32 /*Unused*/)
 {
-	// We'd like to call RefocusRestSpaceViewportClient() when the viewport is first created, however in Ortho mode the
+	// We'd like to call RefocusConstructionViewportClient() when the viewport is first created, however in Ortho mode the
 	// viewport needs to have non-zero size for FocusViewportOnBox() to work properly. So we wait until the viewport is resized here.
-	if (bShouldFocusRestSpaceView && RestspaceViewport && RestspaceViewport->GetSizeXY().X > 0 && RestspaceViewport->GetSizeXY().Y > 0)
+	if (bShouldFocusConstructionView && ConstructionViewport && ConstructionViewport->GetSizeXY().X > 0 && ConstructionViewport->GetSizeXY().Y > 0)
 	{
-		RefocusRestSpaceViewportClient();
-		bShouldFocusRestSpaceView = false;
+		RefocusConstructionViewportClient();
+		bShouldFocusConstructionView = false;
 	}
 }
+
+void UDataflowEditorMode::SimulationViewportResized(FViewport* SimulationViewport, uint32 /*Unused*/)
+{
+	// We'd like to call RefocusConstructionViewportClient() when the viewport is first created, however in Ortho mode the
+	// viewport needs to have non-zero size for FocusViewportOnBox() to work properly. So we wait until the viewport is resized here.
+	if (bShouldFocusSimulationView && SimulationViewport && SimulationViewport->GetSizeXY().X > 0 && SimulationViewport->GetSizeXY().Y > 0)
+	{
+		RefocusSimulationViewportClient();
+		bShouldFocusSimulationView = false;
+	}
+}
+
 
 FBox UDataflowEditorMode::SceneBoundingBox() const
 {
@@ -505,7 +555,7 @@ void UDataflowEditorMode::SetConstructionViewMode(Dataflow::EDataflowPatternVert
 	}
 
 	// If we are switching to a mode with a valid mesh for the first time, focus the camera on it
-	FirstTimeFocusRestSpaceViewport();
+	FirstTimeFocusConstructionViewport();
 
 	if (bEndedActiveTool)
 	{
@@ -572,7 +622,7 @@ bool UDataflowEditorMode::CanSetConstructionViewWireframeActive() const
 	return DataflowToolBuilder->CanSetConstructionViewWireframeActive();
 }
 
-void UDataflowEditorMode::SetRestSpaceViewportClient(TWeakPtr<FDataflowConstructionViewportClient, ESPMode::ThreadSafe> InViewportClient)
+void UDataflowEditorMode::SetConstructionViewportClient(TWeakPtr<FDataflowConstructionViewportClient, ESPMode::ThreadSafe> InViewportClient)
 {
 	ConstructionViewportClient = InViewportClient;
 
@@ -584,7 +634,21 @@ void UDataflowEditorMode::SetRestSpaceViewportClient(TWeakPtr<FDataflowConstruct
 
 		if (VC->Viewport)
 		{
-			VC->Viewport->ViewportResizedEvent.AddUObject(this, &UDataflowEditorMode::RestSpaceViewportResized);
+			VC->Viewport->ViewportResizedEvent.AddUObject(this, &UDataflowEditorMode::ConstructionViewportResized);
+		}
+	}
+}
+
+void UDataflowEditorMode::SetSimulationViewportClient(TWeakPtr<FDataflowSimulationViewportClient, ESPMode::ThreadSafe> InViewportClient)
+{
+	SimulationViewportClient = InViewportClient;
+
+	TSharedPtr<FDataflowSimulationViewportClient> VC = SimulationViewportClient.Pin();
+	if (VC.IsValid())
+	{
+		if (VC->Viewport)
+		{
+			VC->Viewport->ViewportResizedEvent.AddUObject(this, &UDataflowEditorMode::SimulationViewportResized);
 		}
 	}
 }
@@ -595,13 +659,13 @@ void UDataflowEditorMode::InitializeContextObject()
 
 	if (TObjectPtr<UDataflowBaseContent> DataflowContent = ConstructionScene->GetDataflowContent())
 	{
-		UEditorInteractiveToolsContext* const RestSpaceToolsContext = GetInteractiveToolsContext();
+		UEditorInteractiveToolsContext* const ConstructionToolsContext = GetInteractiveToolsContext();
 
-		UDataflowContextObject* ContextObject = RestSpaceToolsContext->ContextObjectStore->FindContext<UDataflowContextObject>();
+		UDataflowContextObject* ContextObject = ConstructionToolsContext->ContextObjectStore->FindContext<UDataflowContextObject>();
 		if (!ContextObject)
 		{
 			ContextObject = DataflowContent;
-			RestSpaceToolsContext->ContextObjectStore->AddContextObject(ContextObject);
+			ConstructionToolsContext->ContextObjectStore->AddContextObject(ContextObject);
 		}
 
 		check(ContextObject);
@@ -612,10 +676,10 @@ void UDataflowEditorMode::InitializeContextObject()
 
 void UDataflowEditorMode::DeleteContextObject()
 {
-	UEditorInteractiveToolsContext* const RestSpaceToolsContext = GetInteractiveToolsContext();
-	if (UDataflowContextObject* ContextObject = RestSpaceToolsContext->ContextObjectStore->FindContext<UDataflowContextObject>())
+	UEditorInteractiveToolsContext* const ConstructionToolsContext = GetInteractiveToolsContext();
+	if (UDataflowContextObject* ContextObject = ConstructionToolsContext->ContextObjectStore->FindContext<UDataflowContextObject>())
 	{
-		RestSpaceToolsContext->ContextObjectStore->RemoveContextObject(ContextObject);
+		ConstructionToolsContext->ContextObjectStore->RemoveContextObject(ContextObject);
 	}
 }
 

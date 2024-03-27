@@ -10,6 +10,8 @@ class UDataflowComponent;
 class FDataflowConstructionScene;
 class SDataflowGraphEditor;
 class FDataflowConstructionViewportClient;
+class FDataflowSimulationScene;
+class FDataflowSimulationViewportClient;
 class IDataflowEditorToolBuilder;
 struct FManagedArrayCollection;
 class UEdGraphNode;
@@ -64,6 +66,9 @@ public:
 	FDataflowConstructionScene* GetDataflowConstructionScene() { return ConstructionScene; }
 	const FDataflowConstructionScene* GetDataflowConstructionScene() const { return ConstructionScene; }
 
+	void SetDataflowSimlationScene(FDataflowSimulationScene* InSimulationScene);
+
+
 	/** Set the data flow graph editor to create nodes once the tools have ended*/
 	void SetDataflowGraphEditor(TSharedPtr<SDataflowGraphEditor> DataflowGraphEditor);
 
@@ -106,9 +111,13 @@ private:
 
 	void RegisterAddNodeCommand(TSharedPtr<FUICommandInfo> AddNodeCommand, const FName& NewNodeType, TSharedPtr<FUICommandInfo> StartToolCommand);
 
-	void SetRestSpaceViewportClient(TWeakPtr<FDataflowConstructionViewportClient, ESPMode::ThreadSafe> ViewportClient);
-	void RefocusRestSpaceViewportClient();
-	void FirstTimeFocusRestSpaceViewport();
+	void SetSimulationViewportClient(TWeakPtr<FDataflowSimulationViewportClient, ESPMode::ThreadSafe>);
+	void RefocusSimulationViewportClient();
+	void FirstTimeFocusSimulationViewport();
+
+	void SetConstructionViewportClient(TWeakPtr<FDataflowConstructionViewportClient, ESPMode::ThreadSafe>);
+	void RefocusConstructionViewportClient();
+	void FirstTimeFocusConstructionViewport();
 	bool IsComponentSelected(const UPrimitiveComponent* InComponent);
 	void OnDataflowNodeDeleted(const TSet<UObject*>& DeletedNodes);
 
@@ -148,6 +157,7 @@ private:
 
 	/** Dataflow preview scene from the toolkit */
 	FDataflowConstructionScene* ConstructionScene = nullptr;
+	FDataflowSimulationScene* SimulationScene = nullptr;
 
 	/** Correspondence between node types and commands to launch tools */
 	TMap<FName, TSharedPtr<const FUICommandInfo>> NodeTypeToToolCommandMap;
@@ -170,16 +180,19 @@ private:
 	TObjectPtr<UEditorInteractiveToolsContext> ActiveToolsContext = nullptr;
 
 	TWeakPtr<FDataflowConstructionViewportClient, ESPMode::ThreadSafe> ConstructionViewportClient;
+	TWeakPtr<FDataflowSimulationViewportClient, ESPMode::ThreadSafe> SimulationViewportClient;
 
 	// The first time we get a valid mesh, refocus the camera on it
 	bool bFirstValid2DMesh = true;
 	bool bFirstValid3DMesh = true;
 
 	// Whether the rest space viewport should focus on the rest space mesh on the next tick
-	bool bShouldFocusRestSpaceView = true;
+	bool bShouldFocusConstructionView = true;
+	bool bShouldFocusSimulationView = true;
 
-	//@todo(brice) : Move to Construction
-	void RestSpaceViewportResized(FViewport* RestspaceViewport, uint32 Unused);
+	//@todo(Dataflow) : Move to Construction and Simulaiton
+	void ConstructionViewportResized(FViewport* ConstructionViewport, uint32 Unused);
+	void SimulationViewportResized(FViewport* ConstructionViewport, uint32 Unused);
 
 	// Dataflow node type whose corresponding tool should be started on the next Tick
 	FName NodeTypeForPendingToolStart;

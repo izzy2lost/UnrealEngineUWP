@@ -10,7 +10,8 @@
 #include "TickableEditorObject.h"
 #include "Dataflow/DataflowSelectionView.h"
 #include "Dataflow/DataflowCollectionSpreadSheet.h"
-#include "Dataflow/DataflowEditorViewport.h"
+#include "Dataflow/DataflowConstructionViewport.h"
+#include "Dataflow/DataflowSimulationViewport.h"
 
 class FEditorViewportTabContent;
 class IDetailsView;
@@ -131,8 +132,8 @@ private:
 	static const FName SimulationViewportTabId;
 
 	// List of all the widgets shared ptr that will be built in the editor
-	TSharedPtr<SDataflowEditorViewport> DataflowEditorViewport;
-	TSharedPtr<SDataflowEditorViewport> DataflowSimulationViewport;
+	TSharedPtr<SDataflowConstructionViewport> DataflowConstructionViewport;
+	TSharedPtr<SDataflowSimulationViewport> DataflowSimulationViewport;
 	TSharedPtr<SDataflowGraphEditor> GraphEditor;
 	TSharedPtr<IStructureDetailsView> NodeDetailsEditor;
 	TSharedPtr<class ISkeletonTree> SkeletalEditor;

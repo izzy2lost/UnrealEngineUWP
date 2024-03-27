@@ -5,7 +5,8 @@
 #include "BaseCharacterFXEditorModeToolkit.h"
 
 class UEditorInteractiveToolsContext;
-class SDataflowEditorViewport;
+class SDataflowConstructionViewport;
+class SDataflowSimulationViewport;
 class SBaseCharacterFXEditorViewport;
 
 /**
@@ -35,8 +36,8 @@ public:
 	virtual FName GetToolkitFName() const override;
 	virtual FText GetBaseToolkitName() const override;
 
-	void SetConstructionViewportWidget(TWeakPtr<SDataflowEditorViewport>);
-	//void SetPreviewViewportWidget(TWeakPtr<SChaosClothAssetEditor3DViewport>);
+	void SetConstructionViewportWidget(TWeakPtr<SDataflowConstructionViewport>);
+	void SetSimulationViewportWidget(TWeakPtr<SDataflowSimulationViewport>);
 
 private:
 
@@ -46,6 +47,6 @@ private:
 
 	UEditorInteractiveToolsContext* GetCurrentToolsContext();
 
-	TWeakPtr<SDataflowEditorViewport> ConstructionViewportWidget;
-	//TWeakPtr<SChaosClothAssetEditor3DViewport> PreviewViewportWidget;
+	TWeakPtr<SDataflowConstructionViewport> ConstructionViewportWidget;
+	TWeakPtr<SDataflowSimulationViewport> SimulationViewportWidget;
 };

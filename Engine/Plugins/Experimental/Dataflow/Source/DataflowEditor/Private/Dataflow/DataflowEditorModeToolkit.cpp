@@ -6,7 +6,7 @@
 #include "Dataflow/DataflowEditorCommands.h"
 #include "Dataflow/DataflowEditorMode.h"
 #include "Dataflow/DataflowEditorStyle.h"
-#include "Dataflow/DataflowEditorViewport.h"
+#include "Dataflow/DataflowConstructionViewport.h"
 #include "Dataflow/DataflowEditorScenes.h"
 #include "EdModeInteractiveToolsContext.h"
 #include "Framework/Application/SlateApplication.h"
@@ -174,7 +174,7 @@ SBaseCharacterFXEditorViewport* FDataflowEditorModeToolkit::GetViewportWidgetFor
 					//}
 					//else
 					//{
-					if (const TSharedPtr<SDataflowEditorViewport> Widget = ConstructionViewportWidget.Pin())
+					if (const TSharedPtr<SDataflowConstructionViewport> Widget = ConstructionViewportWidget.Pin())
 					{
 						return Widget.Get();
 					}
@@ -283,10 +283,16 @@ void FDataflowEditorModeToolkit::OnToolEnded(UInteractiveToolManager* Manager, U
 
 }
 
-void FDataflowEditorModeToolkit::SetConstructionViewportWidget(TWeakPtr<SDataflowEditorViewport> InConstructionViewportWidget)
+void FDataflowEditorModeToolkit::SetConstructionViewportWidget(TWeakPtr<SDataflowConstructionViewport> InConstructionViewportWidget)
 {
 	ConstructionViewportWidget = InConstructionViewportWidget;
 }
+
+void FDataflowEditorModeToolkit::SetSimulationViewportWidget(TWeakPtr<SDataflowSimulationViewport> InSimulationViewportWidget)
+{
+	SimulationViewportWidget = InSimulationViewportWidget;
+}
+
 
 
 #undef LOCTEXT_NAMESPACE

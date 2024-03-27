@@ -15,7 +15,7 @@
 #include "Dataflow/DataflowEditorModeToolkit.h"
 #include "Dataflow/DataflowEditorModule.h"
 #include "Dataflow/DataflowEditorModeUILayer.h"
-#include "Dataflow/DataflowEditorViewport.h"
+#include "Dataflow/DataflowConstructionViewport.h"
 #include "Dataflow/DataflowEdNode.h"
 #include "Dataflow/DataflowGraphEditor.h"
 #include "Dataflow/DataflowNodeFactory.h"
@@ -345,12 +345,14 @@ void FDataflowEditorToolkit::PostInitAssetEditor()
 	SetCommonViewportClientOptions(ViewportClient.Get());
 	SetCommonViewportClientOptions(SimulationViewportClient.Get());
 
-	//@todo(brice) : FChaosClothAssetEditorToolkit::PostInitAssetEditor() has alot more going on. 
+	//@todo(Dataflow) : FChaosClothAssetEditorToolkit::PostInitAssetEditor() has alot more going on. 
 
 	//@todo(brice) : can we remove this coupling of the viewport and mode
 	UDataflowEditorMode* const DataflowMode = CastChecked<UDataflowEditorMode>(EditorModeManager->GetActiveScriptableMode(UDataflowEditorMode::EM_DataflowEditorModeId));
-	const TWeakPtr<FViewportClient> WeakViewportClient(ViewportClient);
-	DataflowMode->SetRestSpaceViewportClient(StaticCastWeakPtr<FDataflowConstructionViewportClient>(WeakViewportClient));
+	const TWeakPtr<FViewportClient> WeakConstructionViewportClient(ViewportClient);
+	DataflowMode->SetConstructionViewportClient(StaticCastWeakPtr<FDataflowConstructionViewportClient>(WeakConstructionViewportClient));
+	const TWeakPtr<FViewportClient> WeakSimulationViewportClient(SimulationViewportClient);
+	DataflowMode->SetSimulationViewportClient(StaticCastWeakPtr<FDataflowSimulationViewportClient>(WeakSimulationViewportClient));
 }
 
 void FDataflowEditorToolkit::InitializeEdMode(UBaseCharacterFXEditorMode* EdMode)
@@ -372,7 +374,8 @@ void FDataflowEditorToolkit::InitializeEdMode(UBaseCharacterFXEditorMode* EdMode
 	if (TSharedPtr<FModeToolkit> ModeToolkit = DataflowMode->GetToolkit().Pin())
 	{
 		FDataflowEditorModeToolkit* DataflowModeToolkit = static_cast<FDataflowEditorModeToolkit*>(ModeToolkit.Get());
-		DataflowModeToolkit->SetConstructionViewportWidget(DataflowEditorViewport);
+		DataflowModeToolkit->SetConstructionViewportWidget(DataflowConstructionViewport);
+		DataflowModeToolkit->SetSimulationViewportWidget(DataflowSimulationViewport);
 
 		FName ParentToolbarName;
 		const FName ToolBarName = GetToolMenuToolbarName(ParentToolbarName);
@@ -431,8 +434,20 @@ AssetEditorViewportFactoryFunction FDataflowEditorToolkit::GetViewportDelegate()
 {
 	AssetEditorViewportFactoryFunction TempViewportDelegate = [this](FAssetEditorViewportConstructionArgs InArgs)
 	{
-		return SAssignNew(DataflowEditorViewport, SDataflowEditorViewport, InArgs)
+		TSharedRef<SDataflowConstructionViewport> Viewport = SAssignNew(DataflowConstructionViewport, SDataflowConstructionViewport, InArgs)
 			.ViewportClient(StaticCastSharedPtr<FDataflowConstructionViewportClient>(ViewportClient));
+
+		if (UDataflowEditorMode* const DataflowMode = Cast<UDataflowEditorMode>(EditorModeManager->GetActiveScriptableMode(UDataflowEditorMode::EM_DataflowEditorModeId)))
+		{
+			if (TSharedPtr<FModeToolkit> ModeToolkit = DataflowMode->GetToolkit().Pin())
+			{
+				if (FDataflowEditorModeToolkit* DataflowModeToolkit = static_cast<FDataflowEditorModeToolkit*>(ModeToolkit.Get()))
+				{
+					DataflowModeToolkit->SetConstructionViewportWidget(DataflowConstructionViewport);
+				}
+			}
+		}
+		return Viewport;
 	};
 
 	return TempViewportDelegate;
@@ -465,8 +480,20 @@ void FDataflowEditorToolkit::CreateSimulationViewportClient()
 
 	SimulationViewportDelegate = [this](FAssetEditorViewportConstructionArgs InArgs)
 	{
-		return SAssignNew(DataflowSimulationViewport, SDataflowEditorViewport, InArgs)
+		TSharedRef<SDataflowSimulationViewport> Viewport = SAssignNew(DataflowSimulationViewport, SDataflowSimulationViewport, InArgs)
 			.ViewportClient(StaticCastSharedPtr<FDataflowSimulationViewportClient>(SimulationViewportClient));
+
+		if (UDataflowEditorMode* const DataflowMode = Cast<UDataflowEditorMode>(EditorModeManager->GetActiveScriptableMode(UDataflowEditorMode::EM_DataflowEditorModeId)))
+		{
+			if (TSharedPtr<FModeToolkit> ModeToolkit = DataflowMode->GetToolkit().Pin())
+			{
+				if (FDataflowEditorModeToolkit* DataflowModeToolkit = static_cast<FDataflowEditorModeToolkit*>(ModeToolkit.Get()))
+				{
+					DataflowModeToolkit->SetSimulationViewportWidget(DataflowSimulationViewport);
+				}
+			}
+		}
+		return Viewport;
 	};
 }
 

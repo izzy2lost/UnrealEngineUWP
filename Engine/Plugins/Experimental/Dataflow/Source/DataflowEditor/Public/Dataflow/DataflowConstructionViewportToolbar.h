@@ -5,7 +5,7 @@
 #include "SCommonEditorViewportToolbarBase.h"
 
 // ----------------------------------------------------------------------------------
-class SDataflowEditorViewport;
+class SDataflowConstructionViewport;
 
 /** Base toolbar for the dataflow. Should be extended to add more features */
 class SDataflowConstructionViewportSelectionToolBar : public SCommonEditorViewportToolbarBase
@@ -15,9 +15,9 @@ public:
 	SLATE_END_ARGS()
 
 	/** Constructs this widget with the given parameters */
-	void Construct(const FArguments& InArgs, TSharedPtr<SDataflowEditorViewport> InDataflowViewport);
+	void Construct(const FArguments& InArgs, TSharedPtr<SDataflowConstructionViewport> InDataflowViewport);
 	
 private:
 	/** Reference to the parent viewport */
-	TWeakPtr<SDataflowEditorViewport> EditorViewport;
+	TWeakPtr<SDataflowConstructionViewport> EditorViewport;
 };

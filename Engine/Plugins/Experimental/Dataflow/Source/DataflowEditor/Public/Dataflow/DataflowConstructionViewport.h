@@ -12,14 +12,14 @@ class FDataflowConstructionViewportClient;
 
 // ----------------------------------------------------------------------------------
 
-class SDataflowEditorViewport : public SBaseCharacterFXEditorViewport, public ICommonEditorViewportToolbarInfoProvider
+class SDataflowConstructionViewport : public SBaseCharacterFXEditorViewport, public ICommonEditorViewportToolbarInfoProvider
 {
 public:
-	SLATE_BEGIN_ARGS(SDataflowEditorViewport) {}
+	SLATE_BEGIN_ARGS(SDataflowConstructionViewport) {}
 	SLATE_ARGUMENT(TSharedPtr<FEditorViewportClient>, ViewportClient)
 		SLATE_END_ARGS()
 
-	SDataflowEditorViewport();
+	SDataflowConstructionViewport();
 
 	void Construct(const FArguments& InArgs, const FAssetEditorViewportConstructionArgs& InViewportConstructionArgs);
 
