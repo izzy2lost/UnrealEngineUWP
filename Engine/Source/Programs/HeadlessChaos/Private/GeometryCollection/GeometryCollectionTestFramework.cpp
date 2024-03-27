@@ -148,11 +148,11 @@ namespace GeometryCollectionTest
 		InitMaterialToZero(NewHandle.Get());
 		Chaos::FPhysicalMaterialManager::Get().UpdateMaterial(NewHandle);
 
-		TSharedPtr<FGeometryDynamicCollection> DynamicCollection = GeometryCollectionToGeometryDynamicCollection(RestCollection.Get(), Params.DynamicState);
+		TSharedPtr<FGeometryDynamicCollection> DynamicCollection = GeometryCollectionToGeometryDynamicCollection(RestCollection, Params.DynamicState);
 
 		FSimulationParameters SimulationParams;
 		{
-			SimulationParams.RestCollection = RestCollection.Get();
+			SimulationParams.RestCollectionShared = RestCollection;
 			SimulationParams.PhysicalMaterialHandle = NewHandle;
 			SimulationParams.Shared.Mass = Params.Mass;
 			SimulationParams.Shared.bMassAsDensity = Params.bMassAsDensity;
