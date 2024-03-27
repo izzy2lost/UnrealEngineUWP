@@ -1174,6 +1174,35 @@ bool UInterchangeMaterialFactory::SetSourceFilename(const UObject* Object, const
 	return false;
 }
 
+void UInterchangeMaterialFactory::BackupSourceData(const UObject* Object) const
+{
+#if WITH_EDITORONLY_DATA
+	if (const UMaterialInterface* MaterialInterface = Cast<UMaterialInterface>(Object))
+	{
+		UE::Interchange::FFactoryCommon::BackupSourceData(MaterialInterface->AssetImportData.Get());
+	}
+#endif
+}
+
+void UInterchangeMaterialFactory::ReinstateSourceData(const UObject* Object) const
+{
+#if WITH_EDITORONLY_DATA
+	if (const UMaterialInterface* MaterialInterface = Cast<UMaterialInterface>(Object))
+	{
+		UE::Interchange::FFactoryCommon::ReinstateSourceData(MaterialInterface->AssetImportData.Get());
+	}
+#endif
+}
+void UInterchangeMaterialFactory::ClearBackupSourceData(const UObject* Object) const
+{
+#if WITH_EDITORONLY_DATA
+	if (const UMaterialInterface* MaterialInterface = Cast<UMaterialInterface>(Object))
+	{
+		UE::Interchange::FFactoryCommon::ClearBackupSourceData(MaterialInterface->AssetImportData.Get());
+	}
+#endif
+}
+
 #if WITH_EDITOR
 void UInterchangeMaterialFactory::SetupMaterial(UMaterial* Material, const FImportAssetObjectParams& Arguments, const UInterchangeBaseMaterialFactoryNode* BaseMaterialFactoryNode)
 {

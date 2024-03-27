@@ -36,6 +36,7 @@ void UInterchangeReimportHandler::SetReimportPaths(UObject* Obj, const FString& 
 	if (const UClass* FactoryClass = InterchangeManager.GetRegisteredFactoryClass(Obj->GetClass()))
 	{
 		UInterchangeFactoryBase* FactoryBase = FactoryClass->GetDefaultObject<UInterchangeFactoryBase>();
+		FactoryBase->BackupSourceData(Obj);
 		FactoryBase->SetSourceFilename(Obj, NewReimportPath, SourceFileIndex);
 	}
 }

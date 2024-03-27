@@ -1984,6 +1984,28 @@ UInterchangeManager::ImportInternal(const FString& ContentPath, const UInterchan
 
 		AsyncHelper->InitCancel();
 		AsyncHelper->CleanUp();
+
+		//if it is a re-import, re-instate the backedup source data:
+		if (UObject* ReimportCandidate = AsyncHelper->TaskData.ReimportObject)
+		{
+			if (const UClass* FactoryClass = GetRegisteredFactoryClass(ReimportCandidate->GetClass()))
+			{
+				UInterchangeFactoryBase* FactoryBase = FactoryClass->GetDefaultObject<UInterchangeFactoryBase>();
+				FactoryBase->ReinstateSourceData(ReimportCandidate);
+			}
+		}
+	}
+	else
+	{
+		//If it is a re-import, clear the backedup source data:
+		if (UObject* ReimportCandidate = AsyncHelper->TaskData.ReimportObject)
+		{
+			if (const UClass* FactoryClass = GetRegisteredFactoryClass(ReimportCandidate->GetClass()))
+			{
+				UInterchangeFactoryBase* FactoryBase = FactoryClass->GetDefaultObject<UInterchangeFactoryBase>();
+				FactoryBase->ClearBackupSourceData(ReimportCandidate);
+			}
+		}
 	}
 
 	AsyncHelper->ContentBasePath = ContentBasePath;

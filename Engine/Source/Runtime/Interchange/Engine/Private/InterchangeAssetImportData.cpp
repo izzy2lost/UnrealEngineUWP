@@ -382,3 +382,27 @@ void UInterchangeAssetImportData::ProcessDeprecatedData() const
 		}
 	}
 }
+
+void UInterchangeAssetImportData::BackupSourceData() const
+{
+#if WITH_EDITORONLY_DATA
+	if (SourceDataBackup.SourceFiles.Num() == 0)
+	{
+		SourceDataBackup = SourceData;
+	}
+#endif
+}
+
+void UInterchangeAssetImportData::ClearBackupSourceData() const
+{
+#if WITH_EDITORONLY_DATA
+	SourceDataBackup = FAssetImportInfo();
+#endif
+}
+
+void UInterchangeAssetImportData::ReinstateBackupSourceData()
+{
+#if WITH_EDITORONLY_DATA
+	SourceData = SourceDataBackup;
+#endif
+}

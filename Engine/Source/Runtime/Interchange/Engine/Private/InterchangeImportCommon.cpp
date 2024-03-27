@@ -248,6 +248,33 @@ namespace UE::Interchange
 		return AssetImportData;
 	}
 
+	void FFactoryCommon::BackupSourceData(const UAssetImportData* AssetImportData)
+	{
+		TRACE_CPUPROFILER_EVENT_SCOPE(UE::Interchange::FFactoryCommon::BackupSourceFilenames)
+		if (const UInterchangeAssetImportData* InterchangeAssetImportData = Cast<UInterchangeAssetImportData>(AssetImportData))
+		{
+			InterchangeAssetImportData->BackupSourceData();
+		}
+	}
+
+	void FFactoryCommon::ReinstateSourceData(UAssetImportData* AssetImportData)
+	{
+		TRACE_CPUPROFILER_EVENT_SCOPE(UE::Interchange::FFactoryCommon::ReinstateSourceData)
+		if (UInterchangeAssetImportData* InterchangeAssetImportData = Cast<UInterchangeAssetImportData>(AssetImportData))
+		{
+			InterchangeAssetImportData->ReinstateBackupSourceData();
+		}
+	}
+
+	void FFactoryCommon::ClearBackupSourceData(const UAssetImportData* AssetImportData)
+	{
+		TRACE_CPUPROFILER_EVENT_SCOPE(UE::Interchange::FFactoryCommon::ClearBackupSourceData)
+		if (const UInterchangeAssetImportData* InterchangeAssetImportData = Cast<UInterchangeAssetImportData>(AssetImportData))
+		{
+			InterchangeAssetImportData->ClearBackupSourceData();
+		}
+	}
+
 	bool FFactoryCommon::GetSourceFilenames(const UAssetImportData* AssetImportData, TArray<FString>& OutSourceFilenames)
 	{
 		TRACE_CPUPROFILER_EVENT_SCOPE(UE::Interchange::FFactoryCommon::GetSourceFilenames)

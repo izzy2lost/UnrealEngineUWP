@@ -2144,6 +2144,38 @@ bool UInterchangeSkeletalMeshFactory::SetSourceFilename(const UObject* Object, c
 	return false;
 }
 
+void UInterchangeSkeletalMeshFactory::BackupSourceData(const UObject* Object) const
+{
+	TRACE_CPUPROFILER_EVENT_SCOPE(UInterchangeSkeletalMeshFactory::BackupSourceData)
+#if WITH_EDITORONLY_DATA
+	if (const USkeletalMesh* SkeletalMesh = Cast<USkeletalMesh>(Object))
+	{
+		UE::Interchange::FFactoryCommon::BackupSourceData(SkeletalMesh->GetAssetImportData());
+	}
+#endif
+}
+
+void UInterchangeSkeletalMeshFactory::ReinstateSourceData(const UObject* Object) const
+{
+	TRACE_CPUPROFILER_EVENT_SCOPE(UInterchangeSkeletalMeshFactory::ReinstateSourceData)
+#if WITH_EDITORONLY_DATA
+		if (const USkeletalMesh* SkeletalMesh = Cast<USkeletalMesh>(Object))
+		{
+			UE::Interchange::FFactoryCommon::ReinstateSourceData(SkeletalMesh->GetAssetImportData());
+		}
+#endif
+}
+void UInterchangeSkeletalMeshFactory::ClearBackupSourceData(const UObject* Object) const
+{
+	TRACE_CPUPROFILER_EVENT_SCOPE(UInterchangeSkeletalMeshFactory::ClearBackupSourceData)
+#if WITH_EDITORONLY_DATA
+		if (const USkeletalMesh* SkeletalMesh = Cast<USkeletalMesh>(Object))
+		{
+			UE::Interchange::FFactoryCommon::ClearBackupSourceData(SkeletalMesh->GetAssetImportData());
+		}
+#endif
+}
+
 bool UInterchangeSkeletalMeshFactory::SetReimportSourceIndex(const UObject* Object, int32 SourceIndex) const
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(UInterchangeSkeletalMeshFactory::SetReimportSourceIndex)

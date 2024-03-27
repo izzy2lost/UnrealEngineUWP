@@ -293,6 +293,27 @@ public:
 	}
 
 	/**
+	 * Backups SourceData from the AssetData.
+	 */
+	virtual void BackupSourceData(const UObject* Object) const
+	{
+	}
+
+	/**
+	 * Reinstates the backedup SourceData from the Backup to the AssetData.
+	 */
+	virtual void ReinstateSourceData(const UObject* Object) const
+	{
+	}
+
+	/**
+	 * Clears the backedup SourceData from the Backup to the AssetData.
+	 */
+	virtual void ClearBackupSourceData(const UObject* Object) const
+	{
+	}
+
+	/**
 	 * Set the object's reimport source at the specified index value.
 	 */
 	virtual bool SetReimportSourceIndex(const UObject* Object, int32 SourceIndex) const

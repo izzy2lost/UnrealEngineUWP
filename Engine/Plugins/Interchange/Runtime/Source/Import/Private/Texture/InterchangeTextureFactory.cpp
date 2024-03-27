@@ -2039,4 +2039,34 @@ bool UInterchangeTextureFactory::SetSourceFilename(const UObject* Object, const 
 	return false;
 }
 
+void UInterchangeTextureFactory::BackupSourceData(const UObject* Object) const
+{
+#if WITH_EDITORONLY_DATA
+	if (const UTexture* Texture = Cast<UTexture>(Object))
+	{
+		UE::Interchange::FFactoryCommon::BackupSourceData(Texture->AssetImportData.Get());
+	}
+#endif
+}
+
+void UInterchangeTextureFactory::ReinstateSourceData(const UObject* Object) const
+{
+#if WITH_EDITORONLY_DATA
+	if (const UTexture* Texture = Cast<UTexture>(Object))
+	{
+		UE::Interchange::FFactoryCommon::ReinstateSourceData(Texture->AssetImportData.Get());
+	}
+#endif
+}
+
+void UInterchangeTextureFactory::ClearBackupSourceData(const UObject* Object) const
+{
+#if WITH_EDITORONLY_DATA
+	if (const UTexture* Texture = Cast<UTexture>(Object))
+	{
+		UE::Interchange::FFactoryCommon::ClearBackupSourceData(Texture->AssetImportData.Get());
+	}
+#endif
+}
+
 #undef LOCTEXT_NAMESPACE

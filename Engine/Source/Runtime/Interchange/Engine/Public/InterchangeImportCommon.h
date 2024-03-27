@@ -92,6 +92,21 @@ namespace UE::Interchange
 		static INTERCHANGEENGINE_API bool GetSourceFilenames(const UAssetImportData* AssetImportData, TArray<FString>& OutSourceFilenames);
 
 		/**
+		 * Backups the SourceData. Primary usage for re-instating SourceData on Re-Import cancellation.
+		 */
+		static INTERCHANGEENGINE_API void BackupSourceData(const UAssetImportData* AssetImportData);
+
+		/**
+		 * Reinstates the backedup SourceData. Primary usage for re-instating SourceData on Re-Import cancellation.
+		 */
+		static INTERCHANGEENGINE_API void ReinstateSourceData(UAssetImportData* AssetImportData);
+
+		/**
+		 * Clears the backedup SourceData. Primary usage for re-instating SourceData on Re-Import cancellation.
+		 */
+		static INTERCHANGEENGINE_API void ClearBackupSourceData(const UAssetImportData* AssetImportData);
+
+		/**
 		 * Sets the SourceFileName value at the specified index.
 		 */
 		static INTERCHANGEENGINE_API bool SetSourceFilename(UAssetImportData* AssetImportData, const FString& SourceFilename, int32 SourceIndex, const FString& SourceLabel = FString());

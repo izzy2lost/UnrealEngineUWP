@@ -1391,6 +1391,36 @@ bool UInterchangeAnimSequenceFactory::SetSourceFilename(const UObject* Object, c
 	return false;
 }
 
+void UInterchangeAnimSequenceFactory::BackupSourceData(const UObject* Object) const
+{
+#if WITH_EDITORONLY_DATA
+	if (const UAnimSequence* TempAnimSequence = Cast<UAnimSequence>(Object))
+	{
+		UE::Interchange::FFactoryCommon::BackupSourceData(TempAnimSequence->AssetImportData.Get());
+	}
+#endif
+}
+
+void UInterchangeAnimSequenceFactory::ReinstateSourceData(const UObject* Object) const
+{
+#if WITH_EDITORONLY_DATA
+	if (const UAnimSequence* TempAnimSequence = Cast<UAnimSequence>(Object))
+	{
+		UE::Interchange::FFactoryCommon::ReinstateSourceData(TempAnimSequence->AssetImportData.Get());
+	}
+#endif
+}
+
+void UInterchangeAnimSequenceFactory::ClearBackupSourceData(const UObject* Object) const
+{
+#if WITH_EDITORONLY_DATA
+	if (const UAnimSequence* TempAnimSequence = Cast<UAnimSequence>(Object))
+	{
+		UE::Interchange::FFactoryCommon::ClearBackupSourceData(TempAnimSequence->AssetImportData.Get());
+	}
+#endif
+}
+
 bool UInterchangeAnimSequenceFactory::IsBoneTrackAnimationValid(const UInterchangeAnimSequenceFactoryNode* AnimSequenceFactoryNode, const FImportAssetObjectParams& Arguments)
 {
 	bool bResult = true;

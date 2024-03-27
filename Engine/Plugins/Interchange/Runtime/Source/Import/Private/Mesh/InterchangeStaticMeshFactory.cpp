@@ -1834,3 +1834,32 @@ bool UInterchangeStaticMeshFactory::SetSourceFilename(const UObject* Object, con
 	return false;
 }
 
+void UInterchangeStaticMeshFactory::BackupSourceData(const UObject* Object) const
+{
+#if WITH_EDITORONLY_DATA
+	if (const UStaticMesh* StaticMesh = Cast<UStaticMesh>(Object))
+	{
+		UE::Interchange::FFactoryCommon::BackupSourceData(StaticMesh->GetAssetImportData());
+	}
+#endif
+}
+
+void UInterchangeStaticMeshFactory::ReinstateSourceData(const UObject* Object) const
+{
+#if WITH_EDITORONLY_DATA
+	if (const UStaticMesh* StaticMesh = Cast<UStaticMesh>(Object))
+	{
+		UE::Interchange::FFactoryCommon::ReinstateSourceData(StaticMesh->GetAssetImportData());
+	}
+#endif
+}
+
+void UInterchangeStaticMeshFactory::ClearBackupSourceData(const UObject* Object) const
+{
+#if WITH_EDITORONLY_DATA
+	if (const UStaticMesh* StaticMesh = Cast<UStaticMesh>(Object))
+	{
+		UE::Interchange::FFactoryCommon::ClearBackupSourceData(StaticMesh->GetAssetImportData());
+	}
+#endif
+}

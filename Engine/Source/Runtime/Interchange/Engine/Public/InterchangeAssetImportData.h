@@ -166,6 +166,10 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Interchange | AssetImportData")
 	INTERCHANGEENGINE_API void SetTranslatorSettings(UInterchangeTranslatorSettings* TranslatorSettings) const;
 
+	/** Won't overwrite an existing backup. Backup has to be cleared before a new one can be stored. */
+	INTERCHANGEENGINE_API void BackupSourceData() const;
+	INTERCHANGEENGINE_API void ClearBackupSourceData() const;
+	INTERCHANGEENGINE_API void ReinstateBackupSourceData();
 
 private:
 	UPROPERTY(meta = (DeprecatedProperty, DeprecationMessage = "Use GetNodeContainer/SetNodeContainer instead."))
@@ -189,6 +193,11 @@ private:
 	mutable TArray64<uint8> CachedNodeContainer;
 	mutable TArray<TPair<FString, FString>> CachedPipelines; //Class, Data(serialized JSON) pair
 	mutable TPair<FString, FString> CachedTranslatorSettings;
+
+#if WITH_EDITORONLY_DATA
+	/** Source file data describing the files that were used to import this asset. Temporary, Primary usage is for Re-import cancellations. */
+	mutable FAssetImportInfo SourceDataBackup;
+#endif
 };
 
 /**
