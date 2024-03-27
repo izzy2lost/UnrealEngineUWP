@@ -5,6 +5,7 @@
 #include "Containers/ArrayView.h"
 #include "Misc/AssertionMacros.h"
 #include "Math/NumericLimits.h"
+#include "HAL/IConsoleManager.h"
 #include "Templates/AlignmentTemplates.h"
 #include "Templates/UnrealTemplate.h"
 
@@ -452,6 +453,14 @@ uint32 FBitTree::CountOnes(uint32 UpTo) const
 }
 
 #endif
+
+float GMallocBinnedFlushThreadCacheMaxWaitTime = 0.2f;
+static FAutoConsoleVariableRef GMallocBinnedFlushThreadCacheMaxWaitTimeCVar(
+	TEXT("MallocBinned.FlushThreadCacheMaxWaitTime"),
+	GMallocBinnedFlushThreadCacheMaxWaitTime,
+	TEXT("The threshold of time before warning about FlushCurrentThreadCache taking too long (seconds)."),
+	ECVF_ReadOnly
+);
 
 #if UE_BINNEDCOMMON_ALLOW_RUNTIME_TWEAKING
 

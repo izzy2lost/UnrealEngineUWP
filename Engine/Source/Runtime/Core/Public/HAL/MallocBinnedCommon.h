@@ -6,7 +6,10 @@
 #include "HAL/MemoryBase.h"
 #include "Math/UnrealMathUtility.h"
 #include "HAL/PlatformTLS.h"
+#include "Async/Mutex.h"
 #include "Templates/AlignmentTemplates.h"
+
+#include <atomic>
 
 #if PLATFORM_HAS_FPlatformVirtualMemoryBlock
 
@@ -156,6 +159,7 @@ extern CORE_API int32 GMallocBinnedBundleCount;
 #	define UE_BINNEDCOMMON_ALLOCATOR_STATS (!UE_BUILD_SHIPPING || WITH_EDITOR)
 #endif
 
+extern CORE_API float GMallocBinnedFlushThreadCacheMaxWaitTime;
 
 class FMallocBinnedCommonBase : public FMalloc
 {
@@ -306,13 +310,21 @@ protected:
 	static std::atomic<int64> TLSMemory;
 	static std::atomic<int64> ConsolidatedMemory;
 #endif
+	std::atomic<uint64> MemoryTrimEpoch{ 0 };
 };
 
 template <class AllocType, int MinAlign, int MaxAlign, int MinAlignShift, int NumSmallPools, int MaxSmallPoolSize>
 class TMallocBinnedCommon : public FMallocBinnedCommonBase
 {
 	static_assert(sizeof(FBundleNode) <= MinAlign, "Bundle nodes must fit into the smallest block size");
+	friend class FMallocBinnedCommonUtils;
 
+	static constexpr int MIN_ALIGN           = MinAlign;
+	static constexpr int MAX_ALIGN           = MaxAlign;
+	static constexpr int MIN_ALIGN_SHIFT     = MinAlignShift;
+	static constexpr int NUM_SMALL_POOLS     = NumSmallPools;
+	static constexpr int MAX_SMALL_POOL_SIZE = MaxSmallPoolSize;
+	
 protected:
 	struct FFreeBlockList
 	{
@@ -438,8 +450,27 @@ protected:
 				TLSMemory.fetch_add(TLSSize, std::memory_order_relaxed);
 #endif
 				verify(ThreadSingleton);
+				ThreadSingleton->Lock();
 				FPlatformTLS::SetTlsValue(BinnedTlsSlot, ThreadSingleton);
 				AllocType::RegisterThreadFreeBlockLists(ThreadSingleton);
+			}
+		}
+
+		static void UnlockTLS()
+		{
+			FPerThreadFreeBlockLists* ThreadSingleton = (FPerThreadFreeBlockLists*)FPlatformTLS::GetTlsValue(BinnedTlsSlot);
+			if (ThreadSingleton)
+			{
+				ThreadSingleton->Unlock();
+			}
+		}
+
+		static void LockTLS()
+		{
+			FPerThreadFreeBlockLists* ThreadSingleton = (FPerThreadFreeBlockLists*)FPlatformTLS::GetTlsValue(BinnedTlsSlot);
+			if (ThreadSingleton)
+			{
+				ThreadSingleton->Lock();
 			}
 		}
 
@@ -454,7 +485,7 @@ protected:
 				TLSMemory.fetch_sub(TLSSize, std::memory_order_relaxed);
 #endif
 				AllocType::UnregisterThreadFreeBlockLists(ThreadSingleton);
-
+				ThreadSingleton->Unlock();
 				ThreadSingleton->~FPerThreadFreeBlockLists();
 
 				AllocType::FreeMetaDataMemory(ThreadSingleton, TLSSize);
@@ -498,11 +529,40 @@ protected:
 			return FreeLists[InPoolIndex].PopBundles(InPoolIndex);
 		}
 
+		void Lock()
+		{
+			Mutex.Lock();
+		}
+
+		bool TryLock()
+		{
+			return Mutex.TryLock();
+		}
+
+		void Unlock()
+		{
+			Mutex.Unlock();
+		}
+
+		// should only be called from inside the Lock.
+		bool UpdateEpoch(uint64 NewEpoch)
+		{
+			if (MemoryTrimEpoch >= NewEpoch)
+			{
+				return false;
+			}
+
+			MemoryTrimEpoch = NewEpoch;
+			return true;
+		}
+
 #if UE_BINNEDCOMMON_ALLOCATOR_STATS
 	public:
 		int64 AllocatedMemory = 0;
 #endif
 	private:
+		UE::FMutex Mutex;
+		uint64 MemoryTrimEpoch = 0;
 		FFreeBlockList FreeLists[NumSmallPools];
 	};
 

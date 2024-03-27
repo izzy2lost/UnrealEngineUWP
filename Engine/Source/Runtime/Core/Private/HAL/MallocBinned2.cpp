@@ -1,6 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "HAL/MallocBinned2.h"
+#include "HAL/MallocBinnedCommonUtils.h"
 #include "Logging/LogMacros.h"
 #include "Misc/ScopeLock.h"
 #include "Templates/Function.h"
@@ -85,15 +86,6 @@ static FAutoConsoleVariableRef GGMallocBinned2MoveOSFreesOffTimeCriticalThreadsC
 );
 #endif
 
-
-
-float GMallocBinned2FlushThreadCacheMaxWaitTime = 0.02f;
-static FAutoConsoleVariableRef GMallocBinned2FlushThreadCacheMaxWaitTimeCVar(
-	TEXT("MallocBinned2.FlushThreadCacheMaxWaitTime"),
-	GMallocBinned2FlushThreadCacheMaxWaitTime,
-	TEXT("The threshold of time before warning about FlushCurrentThreadCache taking too long (seconds)."),
-	ECVF_ReadOnly
-);
 
 #if BINNED2_ALLOCATOR_STATS
 TAtomic<int64> AllocatedSmallPoolMemory(0); // memory that's requested to be allocated by the game
@@ -779,7 +771,7 @@ void FMallocBinned2::OnPreFork()
 	// Trim caches so we don't use them in the child process and cause pages to be copied
 	if (GMallocBinned2PerThreadCaches)
 	{
-		FlushCurrentThreadCache();
+		FMallocBinnedCommonUtils::FlushCurrentThreadCache(*this);
 		FMallocBinned2::Private::CheckThreadFreeBlockListsForFork();
 	}
 
@@ -805,7 +797,7 @@ void FMallocBinned2::OnPostFork()
 #if BINNED2_FORK_SUPPORT
 	if (GMallocBinned2PerThreadCaches)
 	{
-		FlushCurrentThreadCache();
+		FMallocBinnedCommonUtils::FlushCurrentThreadCache(*this);
 		FMallocBinned2::Private::CheckThreadFreeBlockListsForFork();
 	}
 
@@ -1203,72 +1195,30 @@ bool FMallocBinned2::ValidateHeap()
 
 const TCHAR* FMallocBinned2::GetDescriptiveName()
 {
-	return TEXT("binned2");
+	return TEXT("Binned2");
 }
 
-void FMallocBinned2::FlushCurrentThreadCache()
+void FMallocBinned2::FreeBundles(FBundleNode* Bundles, uint32 PoolIndex)
 {
-	TRACE_CPUPROFILER_EVENT_SCOPE(FMallocBinned2::FlushCurrentThreadCache);
-	NOALLOC_SCOPE_CYCLE_COUNTER(STAT_FMallocBinned2_FlushCurrentThreadCache);
-	FPerThreadFreeBlockLists* Lists = FPerThreadFreeBlockLists::Get();
-
-	double WaitForMutexTime = 0.0;
-	double WaitForMutexAndTrimTime = 0.0;
-
-	if (Lists)
-	{
-		const double StartTimeInner = FPlatformTime::Seconds();
-		FScopeLock Lock(&Mutex);
-		WaitForMutexTime = FPlatformTime::Seconds() - StartTimeInner;
-		for (int32 PoolIndex = 0; PoolIndex != BINNED2_SMALL_POOL_COUNT; ++PoolIndex)
-		{
-			FBundleNode* Bundles = Lists->PopBundles(PoolIndex);
-			if (Bundles)
-			{
-				Private::FreeBundles(*this, Bundles, PoolIndexToBlockSize(PoolIndex), PoolIndex);
-			}
-		}
-		WaitForMutexAndTrimTime = FPlatformTime::Seconds() - StartTimeInner;
-	}
-
-	// These logs must happen outside the above mutex to avoid deadlocks
-	if (WaitForMutexTime > GMallocBinned2FlushThreadCacheMaxWaitTime)
-	{
-		UE_LOG(LogMemory, Warning, TEXT("FMallocBinned2 took %6.2fms to wait for mutex for trim."), WaitForMutexTime * 1000.0f);
-	}
-	if (WaitForMutexAndTrimTime > GMallocBinned2FlushThreadCacheMaxWaitTime)
-	{
-		UE_LOG(LogMemory, Warning, TEXT("FMallocBinned2 took %6.2fms to wait for mutex AND trim."), WaitForMutexAndTrimTime * 1000.0f);
-	}
+	Private::FreeBundles(*this, Bundles, PoolIndexToBlockSize(PoolIndex), PoolIndex);
 }
 
-#include "Async/TaskGraphInterfaces.h"
+FCriticalSection& FMallocBinned2::GetFreeBlockListsRegistrationMutex()
+{
+	return Private::GetFreeBlockListsRegistrationMutex();
+}
+
+TArray<FMallocBinned2::FPerThreadFreeBlockLists*>& FMallocBinned2::GetRegisteredFreeBlockLists()
+{
+	return Private::GetRegisteredFreeBlockLists();
+}
 
 void FMallocBinned2::Trim(bool bTrimThreadCaches)
 {
-	NOALLOC_SCOPE_CYCLE_COUNTER(STAT_FMallocBinned2_Trim);
+	if (GMallocBinned2PerThreadCaches && bTrimThreadCaches)
+	{
+		FMallocBinnedCommonUtils::Trim(*this);
 
-	if (GMallocBinned2PerThreadCaches  &&  bTrimThreadCaches)
-	{
-		//double StartTime = FPlatformTime::Seconds();
-		TFunction<void(ENamedThreads::Type CurrentThread)> Broadcast =
-			[this](ENamedThreads::Type MyThread)
-		{
-			FlushCurrentThreadCache();
-		};
-		// Skip task threads on desktop platforms as it is too slow and they don't have much memory
-		if (PLATFORM_DESKTOP)
-		{
-			FTaskGraphInterface::BroadcastSlow_OnlyUseForSpecialPurposes(false, false, Broadcast);
-		}
-		else
-		{
-			FTaskGraphInterface::BroadcastSlow_OnlyUseForSpecialPurposes(FPlatformProcess::SupportsMultithreading() && FApp::ShouldUseThreadingForPerformance(), false, Broadcast);
-		}
-		//UE_LOG(LogTemp, Display, TEXT("Trim Broadcast = %6.2fms"), 1000.0f * float(FPlatformTime::Seconds() - StartTime));
-	}
-	{
-		//double StartTime = FPlatformTime::Seconds();
 #if !UE_USE_VERYLARGEPAGEALLOCATOR
 		FScopeLock Lock(&Mutex);
 		// this cache is recycled anyway, if you need to trim it based on being OOM, it's already too late.
@@ -1297,8 +1247,25 @@ void FMallocBinned2::SetupTLSCachesOnCurrentThread()
 void FMallocBinned2::ClearAndDisableTLSCachesOnCurrentThread()
 {
 	NOALLOC_SCOPE_CYCLE_COUNTER(STAT_FMallocBinned2_ClearTLSCachesOnCurrentThread);
-	FlushCurrentThreadCache();
+	FMallocBinnedCommonUtils::FlushCurrentThreadCache(*this);
 	FPerThreadFreeBlockLists::ClearTLS();
+}
+
+void FMallocBinned2::MarkTLSCachesAsUsedOnCurrentThread()
+{
+	NOALLOC_SCOPE_CYCLE_COUNTER(STAT_FMallocBinned2_MarkTLSCachesAsUsedOnCurrentThread);
+	FPerThreadFreeBlockLists::LockTLS();
+}
+
+void FMallocBinned2::MarkTLSCachesAsUnusedOnCurrentThread()
+{
+	NOALLOC_SCOPE_CYCLE_COUNTER(STAT_FMallocBinned2_MarkTLSCachesAsUnusedOnCurrentThread);
+
+	// Will only flush if memory trimming epoch has been bumped while the thread was active.
+	const bool bNewEpochOnly = true;
+	FMallocBinnedCommonUtils::FlushCurrentThreadCache(*this, bNewEpochOnly);
+
+	FPerThreadFreeBlockLists::UnlockTLS();
 }
 
 void FMallocBinned2::CanaryTest(const FFreeBlock* Block) const
