@@ -102,14 +102,9 @@ namespace UE::Chaos::ClothAsset
 		// Create solver config simulation thread object first. Need to know which solver type we're creating.
 		const int32 SolverConfigIndex = Configs.Emplace(MakeUnique<FClothingSimulationConfig>(ClothComponent.GetPropertyCollections()));  // TODO: Use a separate solver config for outfits
 
-		// Create a solver which can handle force-based solving if any of the LODs require it.
-		bool bForceBasedSolver = false;
-		Configs[SolverConfigIndex]->ForAllProperties([&bForceBasedSolver](Softs::FCollectionPropertyFacade& Property)
-		{
-			bForceBasedSolver = bForceBasedSolver || Property.GetValue<bool>(TEXT("EnableForceBasedSolver"), false);
-		});
-
-		Solver = MakeUnique<::Chaos::FClothingSimulationSolver>(bForceBasedSolver, Configs[SolverConfigIndex].Get());
+		// Use new SoftsEvolution, not PBDEvolution.
+		constexpr bool bUseLegacySolver = false;
+		Solver = MakeUnique<::Chaos::FClothingSimulationSolver>(Configs[SolverConfigIndex].Get(), bUseLegacySolver);
 		Visualization = MakeUnique<::Chaos::FClothVisualization>(Solver.Get());
 
 		// Need a valid context to initialize the mesh

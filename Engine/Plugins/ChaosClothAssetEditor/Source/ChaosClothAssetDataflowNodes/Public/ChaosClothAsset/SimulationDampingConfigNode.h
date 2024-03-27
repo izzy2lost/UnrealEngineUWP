@@ -16,7 +16,6 @@ public:
 	/**
 	 * The amount of global damping applied to the cloth velocities, also known as point damping.
 	 * Point damping improves simulation stability, but can also cause an overall slow-down effect and therefore is best left to very small percentage amounts.
-	 * Weight map only works with UseForceBasedSolver (on SolverConfig). Otherwise, Low value is always used.
 	 */
 	UPROPERTY(EditAnywhere, Category = "Damping Properties", Meta = (UIMin = "0", UIMax = "1", ClampMin = "0", ClampMax = "1"))
 	FChaosClothAssetWeightedValue DampingCoefficientWeighted = {true, 0.01f, 0.01f, TEXT("DampingCoefficient")};

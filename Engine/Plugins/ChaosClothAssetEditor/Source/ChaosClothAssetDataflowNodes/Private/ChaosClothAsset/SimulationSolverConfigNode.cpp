@@ -19,11 +19,6 @@ void FChaosClothAssetSimulationSolverConfigNode::AddProperties(FPropertyHelper& 
 	PropertyHelper.SetProperty(TEXT("DynamicSubstepDeltaTime"), DynamicSubstepDeltaTimeValue);
 	PropertyHelper.SetPropertyBool(this, &bEnableNumSelfCollisionSubsteps);
 	PropertyHelper.SetProperty(this, &NumSelfCollisionSubsteps);
-	PropertyHelper.SetPropertyBool(this, &bEnableForceBasedSolver, {}, ECollectionPropertyFlags::Intrinsic);
-	PropertyHelper.SetProperty(this, &NumNewtonIterations);
-	PropertyHelper.SetProperty(this, &MaxNumCGIterations);
-	PropertyHelper.SetProperty(this, &CGResidualTolerance);
-	PropertyHelper.SetPropertyBool(this, &bDoQuasistatics);
 	
 	PropertyHelper.SetSolverProperty(FName(TEXT("NumSubsteps")), NumSubstepsImported,
 		[](UE::Chaos::ClothAsset::FCollectionClothFacade& ClothFacade)-> int32
@@ -35,16 +30,8 @@ void FChaosClothAssetSimulationSolverConfigNode::AddProperties(FPropertyHelper& 
 void FChaosClothAssetSimulationSolverConfigNode::Serialize(FArchive& Ar)
 {
 	Super::Serialize(Ar);
-	Ar.UsingCustomVersion(FFortniteValkyrieBranchObjectVersion::GUID);
 	if (Ar.IsLoading())
 	{
-		if (Ar.CustomVer(FFortniteValkyrieBranchObjectVersion::GUID) < FFortniteValkyrieBranchObjectVersion::ChaosClothAssetWeightedMassAndGravity)
-		{
-			if (!bEnableForceBasedSolver)
-			{
-				NumNewtonIterations = 0;
-			}
-		}
 #if WITH_EDITORONLY_DATA
 		if (NumSubsteps_DEPRECATED != UE::Chaos::ClothAsset::FDefaultSolver::SubSteps)
 		{

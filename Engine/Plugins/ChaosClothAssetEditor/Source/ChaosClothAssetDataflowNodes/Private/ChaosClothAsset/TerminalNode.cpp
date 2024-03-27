@@ -75,10 +75,6 @@ namespace UE::Chaos::ClothAsset::Private
 					return false;
 				}
 			}
-			if (Property0.GetValue<bool>(TEXT("EnableForceBasedSolver"), false) != Property1.GetValue<bool>(TEXT("EnableForceBasedSolver"), false))
-			{
-				return false;
-			}
 		}
 		return true;
 	}

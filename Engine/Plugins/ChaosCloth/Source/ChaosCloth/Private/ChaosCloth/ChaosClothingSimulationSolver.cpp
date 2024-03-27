@@ -160,7 +160,7 @@ TArrayView<T> GetCollisionParticleArrayView(TUniquePtr<Softs::FEvolution>& Evolu
 }
 }
 
-FClothingSimulationSolver::FClothingSimulationSolver(bool bForceBasedSolver, FClothingSimulationConfig* InConfig)
+FClothingSimulationSolver::FClothingSimulationSolver(FClothingSimulationConfig* InConfig, bool bUseLegacySolver)
 	: Evolution(nullptr), PBDEvolution(nullptr)
 	, OldLocalSpaceLocation(0.)
 	, LocalSpaceLocation(0.)
@@ -178,7 +178,7 @@ FClothingSimulationSolver::FClothingSimulationSolver(bool bForceBasedSolver, FCl
 {
 	SetConfig(InConfig); // This will generate a local default config if nullptr so we have something to use if there are no cloth assets..
 
-	if (bForceBasedSolver)
+	if (!bUseLegacySolver)
 	{
 		Evolution.Reset(
 			new Softs::FEvolution(
