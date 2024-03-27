@@ -74,11 +74,14 @@ static TAutoConsoleVariable<int32> CVarLumenHardwareRayTracingMaxIterations(
 	ECVF_Scalability | ECVF_RenderThreadSafe
 );
 
-static TAutoConsoleVariable<int32> CVarLumenHardwareRayTracingAvoidSelfIntersections(
+static TAutoConsoleVariable<int32> CVarLumenRadiosityHardwareRayTracingAvoidSelfIntersections(
 	TEXT("r.Lumen.HardwareRayTracing.AvoidSelfIntersections"),
-	1,
-	TEXT("Whether to skip back face hits for a small distance in order to avoid self-intersections when BLAS mismatches rasterized geometry. Enabling it has a performance cost. Distance is controlled by r.Lumen.HardwareRayTracing.SkipBackFaceHitDistance"),
-	ECVF_RenderThreadSafe | ECVF_Scalability
+	2,
+	TEXT("Whether to skip back face hits for a small distance in order to avoid self-intersections when BLAS mismatches rasterized geometry.\n")
+	TEXT("0 - Disabled. May have extra leaking, but it's the fastest mode.\n")
+	TEXT("1 - Enabled. This mode retraces to skip first backface hit up to r.Lumen.HardwareRayTracing.SkipBackFaceHitDistance. Faster on platforms without inline AHS.\n")
+	TEXT("2 - Enabled. This mode uses AHS to skip any backface hits up to r.Lumen.HardwareRayTracing.SkipBackFaceHitDistance. Faster on platforms with inline AHS."),
+	ECVF_Scalability | ECVF_RenderThreadSafe
 );
 
 static TAutoConsoleVariable<int32> CVarLumenHardwareRayTracingSurfaceCacheAlphaMasking(
@@ -135,9 +138,10 @@ bool LumenHardwareRayTracing::IsRayGenSupported()
 	return GRHISupportsRayTracingShaders && GRHISupportsRayTracingDispatchIndirect;
 }
 
-bool LumenHardwareRayTracing::UseAvoidSelfIntersections()
+LumenHardwareRayTracing::EAvoidSelfIntersectionsMode LumenHardwareRayTracing::GetAvoidSelfIntersectionsMode()
 {
-	return CVarLumenHardwareRayTracingAvoidSelfIntersections.GetValueOnRenderThread() != 0;
+	return (LumenHardwareRayTracing::EAvoidSelfIntersectionsMode)
+		FMath::Clamp(CVarLumenRadiosityHardwareRayTracingAvoidSelfIntersections.GetValueOnRenderThread(), 0, (uint32)LumenHardwareRayTracing::EAvoidSelfIntersectionsMode::MAX - 1);
 }
 
 bool Lumen::IsUsingRayTracingLightingGrid(const FSceneViewFamily& ViewFamily, const FViewInfo& View, bool bLumenGIEnabled)

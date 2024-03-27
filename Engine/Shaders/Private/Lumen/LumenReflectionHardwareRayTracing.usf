@@ -155,7 +155,7 @@ LUMEN_HARDWARE_RAY_TRACING_ENTRY(LumenReflectionHardwareRayTracing)
 			MeshSectionVisibilityTest != 0,
 			SurfaceCacheAlphaMasking != 0);
 
-		Context.bHiResSurface == UseHighResSurface != 0;
+		Context.bHiResSurface = UseHighResSurface != 0;
 		Context.MaxReflectionBounces = MaxReflectionBounces;
 		Context.FarFieldMaxTraceDistance = FarFieldMaxTraceDistance;
 		Context.FarFieldReferencePos = FarFieldReferencePos;

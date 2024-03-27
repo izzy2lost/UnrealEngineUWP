@@ -401,10 +401,10 @@ class FLumenRadiosityHardwareRayTracing : public FLumenHardwareRayTracingShaderB
 		SHADER_PARAMETER(float, MaxRayIntensity)
 		SHADER_PARAMETER_RDG_TEXTURE_UAV(RWTexture2D, RWTraceRadianceAtlas)
 		SHADER_PARAMETER_RDG_TEXTURE_UAV(RWTexture2D, RWTraceHitDistanceAtlas)
-	END_SHADER_PARAMETER_STRUCT()
+		END_SHADER_PARAMETER_STRUCT()
 
-	class FAvoidSelfIntersections : SHADER_PERMUTATION_BOOL("AVOID_SELF_INTERSECTIONS");
-	using FPermutationDomain = TShaderPermutationDomain<FLumenHardwareRayTracingShaderBase::FBasePermutationDomain, FAvoidSelfIntersections>;
+	class FAvoidSelfIntersectionsMode : SHADER_PERMUTATION_ENUM_CLASS("AVOID_SELF_INTERSECTIONS_MODE", LumenHardwareRayTracing::EAvoidSelfIntersectionsMode);
+	using FPermutationDomain = TShaderPermutationDomain<FLumenHardwareRayTracingShaderBase::FBasePermutationDomain, FAvoidSelfIntersectionsMode>;
 
 	static void ModifyCompilationEnvironment(const FGlobalShaderPermutationParameters& Parameters, Lumen::ERayTracingShaderDispatchType ShaderDispatchType, FShaderCompilerEnvironment& OutEnvironment)
 	{
@@ -434,7 +434,7 @@ void FDeferredShadingSceneRenderer::PrepareLumenHardwareRayTracingRadiosityLumen
 	if (Lumen::ShouldRenderRadiosityHardwareRayTracing(*View.Family) && !Lumen::UseHardwareInlineRayTracing(*View.Family))
 	{
 		FLumenRadiosityHardwareRayTracingRGS::FPermutationDomain PermutationVector;
-		PermutationVector.Set<FLumenRadiosityHardwareRayTracingRGS::FAvoidSelfIntersections>(LumenHardwareRayTracing::UseAvoidSelfIntersections());
+		PermutationVector.Set<FLumenRadiosityHardwareRayTracingRGS::FAvoidSelfIntersectionsMode>(LumenHardwareRayTracing::GetAvoidSelfIntersectionsMode());
 		TShaderRef<FLumenRadiosityHardwareRayTracingRGS> RayGenerationShader = View.ShaderMap->GetShader<FLumenRadiosityHardwareRayTracingRGS>(PermutationVector);
 		OutRayGenShaders.Add(RayGenerationShader.GetRayTracingShader());
 	}
@@ -794,7 +794,7 @@ void LumenRadiosity::AddRadiosityPass(
 		PassParameters->MaxTraceDistance = Lumen::GetMaxTraceDistance(View);
 
 		FLumenRadiosityHardwareRayTracing::FPermutationDomain PermutationVector;
-		PermutationVector.Set<FLumenRadiosityHardwareRayTracing::FAvoidSelfIntersections>(LumenHardwareRayTracing::UseAvoidSelfIntersections());
+		PermutationVector.Set<FLumenRadiosityHardwareRayTracing::FAvoidSelfIntersectionsMode>(LumenHardwareRayTracing::GetAvoidSelfIntersectionsMode());
 
 		const FIntPoint DispatchResolution = FIntPoint(NumThreadsToDispatch, 1);
 		FString Resolution = FString::Printf(TEXT("%ux%u"), DispatchResolution.X, DispatchResolution.Y);

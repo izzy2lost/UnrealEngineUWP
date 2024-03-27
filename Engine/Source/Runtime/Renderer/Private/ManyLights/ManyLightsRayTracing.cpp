@@ -95,13 +95,14 @@ static TAutoConsoleVariable<int32> CVarManyLightsHardwareRayTracingMeshSectionVi
 );
 
 // #ml_todo: Separate config cvars from Lumen once we support multiple SBT with same RayTracingPipeline or Global Uniform Buffers in Ray Tracing
-static TAutoConsoleVariable<bool> CVarManyLightsHardwareRayTracingAvoidSelfIntersections(
+static TAutoConsoleVariable<int32> CVarManyLightsHardwareRayTracingAvoidSelfIntersections(
 	TEXT("r.ManyLights.HardwareRayTracing.AvoidSelfIntersections"),
-	true,
-	TEXT("Whether to skip back face hits for a small distance in order to avoid self-intersections when BLAS mismatches rasterized geometry.Enabling it has a performance cost.Distance is controlled by r.Lumen.HardwareRayTracing.SkipBackFaceHitDistance.\n")
+	1,
+	TEXT("Whether to skip back face hits for a small distance in order to avoid self-intersections when BLAS mismatches rasterized geometry.\n")
 	TEXT("Currently shares config with Lumen:\n")
-	TEXT("- r.Lumen.HardwareRayTracing.SkipBackFaceHitDistance\n")
-	TEXT("- r.Lumen.HardwareRayTracing.SkipTwoSidedHitDistance\n"),
+	TEXT("0 - Disabled. May have extra leaking, but it's the fastest mode.\n")
+	TEXT("1 - Enabled. This mode retraces to skip first backface hit up to r.Lumen.HardwareRayTracing.SkipBackFaceHitDistance. Good default on most platforms.\n")
+	TEXT("2 - Enabled. This mode uses AHS to skip any backface hits up to r.Lumen.HardwareRayTracing.SkipBackFaceHitDistance. Faster on platforms with inline AHS support."),
 	ECVF_Scalability | ECVF_RenderThreadSafe
 );
 
@@ -159,6 +160,12 @@ namespace ManyLights
 		return IsEnabled() 
 			&& CVarManyLightsWorldSpaceTraces.GetValueOnRenderThread() != 0 
 			&& !UseHardwareRayTracing(ViewFamily);
+	}
+
+	LumenHardwareRayTracing::EAvoidSelfIntersectionsMode GetAvoidSelfIntersectionsMode()
+	{
+		return (LumenHardwareRayTracing::EAvoidSelfIntersectionsMode)
+			FMath::Clamp(CVarManyLightsHardwareRayTracingAvoidSelfIntersections.GetValueOnRenderThread(), 0, (uint32)LumenHardwareRayTracing::EAvoidSelfIntersectionsMode::MAX - 1);
 	}
 
 	BEGIN_SHADER_PARAMETER_STRUCT(FHairVoxelTraceParameters, )
@@ -284,14 +291,29 @@ class FHardwareRayTraceLightSamples : public FLumenHardwareRayTracingShaderBase
 
 	class FEvaluateMaterials : SHADER_PERMUTATION_BOOL("MANY_LIGHTS_EVALUATE_MATERIALS");
 	class FSupportContinuation : SHADER_PERMUTATION_BOOL("SUPPORT_CONTINUATION");
-	class FAvoidSelfIntersections : SHADER_PERMUTATION_BOOL("AVOID_SELF_INTERSECTIONS");
+	class FAvoidSelfIntersectionsMode : SHADER_PERMUTATION_ENUM_CLASS("AVOID_SELF_INTERSECTIONS_MODE", LumenHardwareRayTracing::EAvoidSelfIntersectionsMode);
 	class FHairVoxelTraces : SHADER_PERMUTATION_BOOL("HAIR_VOXEL_TRACES");
 	class FDebugMode : SHADER_PERMUTATION_BOOL("DEBUG_MODE");
-	using FPermutationDomain = TShaderPermutationDomain<FLumenHardwareRayTracingShaderBase::FBasePermutationDomain, FEvaluateMaterials, FSupportContinuation, FAvoidSelfIntersections, FHairVoxelTraces, FDebugMode>;
+	using FPermutationDomain = TShaderPermutationDomain<FLumenHardwareRayTracingShaderBase::FBasePermutationDomain, FEvaluateMaterials, FSupportContinuation, FAvoidSelfIntersectionsMode, FHairVoxelTraces, FDebugMode>;
+
+	static FPermutationDomain RemapPermutation(FPermutationDomain PermutationVector)
+	{
+		if (PermutationVector.Get<FEvaluateMaterials>())
+		{
+			PermutationVector.Set<FAvoidSelfIntersectionsMode>(LumenHardwareRayTracing::EAvoidSelfIntersectionsMode::Disabled);
+		}
+
+		return PermutationVector;
+	}
 
 	static bool ShouldCompilePermutation(const FGlobalShaderPermutationParameters& Parameters, Lumen::ERayTracingShaderDispatchType ShaderDispatchType)
 	{
 		FPermutationDomain PermutationVector(Parameters.PermutationId);
+
+		if (RemapPermutation(PermutationVector) != PermutationVector)
+		{
+			return false;
+		}
 
 		if (ShaderDispatchType == Lumen::ERayTracingShaderDispatchType::Inline && PermutationVector.Get<FEvaluateMaterials>())
 		{
@@ -425,10 +447,13 @@ void FDeferredShadingSceneRenderer::PrepareManyLightsHardwareRayTracing(const FV
 			FHardwareRayTraceLightSamplesRGS::FPermutationDomain PermutationVector;
 			PermutationVector.Set<FHardwareRayTraceLightSamplesRGS::FEvaluateMaterials>(true);
 			PermutationVector.Set<FHardwareRayTraceLightSamplesRGS::FSupportContinuation>(false);
-			PermutationVector.Set<FHardwareRayTraceLightSamplesRGS::FAvoidSelfIntersections>(CVarManyLightsHardwareRayTracingAvoidSelfIntersections.GetValueOnRenderThread());
+			PermutationVector.Set<FHardwareRayTraceLightSamplesRGS::FAvoidSelfIntersectionsMode>(ManyLights::GetAvoidSelfIntersectionsMode());
 			PermutationVector.Set<FHardwareRayTraceLightSamplesRGS::FHairVoxelTraces>(HairVoxelTraces != 0);
 			PermutationVector.Set<FHardwareRayTraceLightSamplesRGS::FDebugMode>(ManyLights::GetDebugMode() != 0);
+			PermutationVector = FHardwareRayTraceLightSamplesRGS::RemapPermutation(PermutationVector);
+
 			TShaderRef<FHardwareRayTraceLightSamplesRGS> RayGenerationShader = View.ShaderMap->GetShader<FHardwareRayTraceLightSamplesRGS>(PermutationVector);
+
 			OutRayGenShaders.Add(RayGenerationShader.GetRayTracingShader());
 		}
 	}
@@ -447,10 +472,13 @@ void FDeferredShadingSceneRenderer::PrepareManyLightsHardwareRayTracingLumenMate
 			FHardwareRayTraceLightSamplesRGS::FPermutationDomain PermutationVector;
 			PermutationVector.Set<FHardwareRayTraceLightSamplesRGS::FEvaluateMaterials>(false);
 			PermutationVector.Set<FHardwareRayTraceLightSamplesRGS::FSupportContinuation>(bEvaluateMaterials);
-			PermutationVector.Set<FHardwareRayTraceLightSamplesRGS::FAvoidSelfIntersections>(CVarManyLightsHardwareRayTracingAvoidSelfIntersections.GetValueOnRenderThread());
+			PermutationVector.Set<FHardwareRayTraceLightSamplesRGS::FAvoidSelfIntersectionsMode>(ManyLights::GetAvoidSelfIntersectionsMode());
 			PermutationVector.Set<FHardwareRayTraceLightSamplesRGS::FHairVoxelTraces>(HairVoxelTraces != 0);
 			PermutationVector.Set<FHardwareRayTraceLightSamplesRGS::FDebugMode>(ManyLights::GetDebugMode() != 0);
+			PermutationVector = FHardwareRayTraceLightSamplesRGS::RemapPermutation(PermutationVector);
+
 			TShaderRef<FHardwareRayTraceLightSamplesRGS> RayGenerationShader = View.ShaderMap->GetShader<FHardwareRayTraceLightSamplesRGS>(PermutationVector);
+
 			OutRayGenShaders.Add(RayGenerationShader.GetRayTracingShader());
 		}
 	}
@@ -663,9 +691,10 @@ void ManyLights::RayTraceLightSamples(
 				FHardwareRayTraceLightSamples::FPermutationDomain PermutationVector;
 				PermutationVector.Set<FHardwareRayTraceLightSamples::FEvaluateMaterials>(false);
 				PermutationVector.Set<FHardwareRayTraceLightSamples::FSupportContinuation>(bSupportContinuation);
-				PermutationVector.Set<FHardwareRayTraceLightSamples::FAvoidSelfIntersections>(CVarManyLightsHardwareRayTracingAvoidSelfIntersections.GetValueOnRenderThread());
+				PermutationVector.Set<FHardwareRayTraceLightSamples::FAvoidSelfIntersectionsMode>(ManyLights::GetAvoidSelfIntersectionsMode());
 				PermutationVector.Set<FHardwareRayTraceLightSamples::FHairVoxelTraces>(bHairVoxelTraces);
 				PermutationVector.Set<FHardwareRayTraceLightSamples::FDebugMode>(bDebug);
+				PermutationVector = FHardwareRayTraceLightSamples::RemapPermutation(PermutationVector);
 
 				if (ManyLights::UseInlineHardwareRayTracing(ViewFamily))
 				{
@@ -716,9 +745,10 @@ void ManyLights::RayTraceLightSamples(
 				FHardwareRayTraceLightSamples::FPermutationDomain PermutationVector;
 				PermutationVector.Set<FHardwareRayTraceLightSamples::FEvaluateMaterials>(true);
 				PermutationVector.Set<FHardwareRayTraceLightSamples::FSupportContinuation>(false);
-				PermutationVector.Set<FHardwareRayTraceLightSamples::FAvoidSelfIntersections>(false);
+				PermutationVector.Set<FHardwareRayTraceLightSamples::FAvoidSelfIntersectionsMode>(LumenHardwareRayTracing::EAvoidSelfIntersectionsMode::Disabled);
 				PermutationVector.Set<FHardwareRayTraceLightSamples::FHairVoxelTraces>(bHairVoxelTraces);
 				PermutationVector.Set<FHardwareRayTraceLightSamples::FDebugMode>(bDebug);
+				PermutationVector = FHardwareRayTraceLightSamples::RemapPermutation(PermutationVector);
 
 				FHardwareRayTraceLightSamplesRGS::AddLumenRayTracingDispatchIndirect(
 					GraphBuilder,

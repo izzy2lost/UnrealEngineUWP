@@ -62,8 +62,13 @@ float3 CalcPrevTranslatedWorldPositionFromGPUSceneInstanceIndex(float3 Translate
 #endif
 
 // Whether to skip back-face and two-sided hits for a short distance
-#ifndef AVOID_SELF_INTERSECTIONS
-	#define AVOID_SELF_INTERSECTIONS 0
+// Must match LumenHardwareRaytracing::EAvoidSelfIntersectionsMode
+#define AVOID_SELF_INTERSECTIONS_MODE_DISABLED	0
+#define AVOID_SELF_INTERSECTIONS_MODE_RETRACE	1
+#define AVOID_SELF_INTERSECTIONS_MODE_AHS		2
+
+#ifndef AVOID_SELF_INTERSECTIONS_MODE
+	#define AVOID_SELF_INTERSECTIONS_MODE AVOID_SELF_INTERSECTIONS_MODE_DISABLED
 #endif
 
 // Helper macro to set common entry point for passes that have both inline (CS) and non-inline (RGS) version.
@@ -345,7 +350,7 @@ bool LumenMinimalRayAnyHitShader(uint UserData, float HitT, bool bHitBackFace, b
 		return false;
 	}
 
-	#if AVOID_SELF_INTERSECTIONS
+	#if AVOID_SELF_INTERSECTIONS_MODE == AVOID_SELF_INTERSECTIONS_MODE_AHS
 	{
 		// Avoid self-shadowing by skipping back face hits for some distance
 		if (bHitBackFace && HitT < LumenHardwareRayTracingUniformBuffer.SkipBackFaceHitDistance)
@@ -406,20 +411,22 @@ FLumenMinimalRayResult TraceLumenMinimalRay(
 	RayFlags |= Context.bSkipClosestHitShader ? RAY_FLAG_SKIP_CLOSEST_HIT_SHADER : 0;
 	RayFlags |= Context.bMeshSectionVisibilityTest ? 0 : RAY_FLAG_FORCE_OPAQUE;
 
-	#if AVOID_SELF_INTERSECTIONS
+	// "Avoid Self Intersections" will force ray to be two-sided in order to minimize leaking
+	#if AVOID_SELF_INTERSECTIONS_MODE == AVOID_SELF_INTERSECTIONS_MODE_DISABLED
 	{
-		// If needed force any-hit shader on all instances for handling "avoid self intersection" in Lumen minimal AHS
+		RayFlags |= Context.CullingMode;
+	}
+	#endif
+
+	#if AVOID_SELF_INTERSECTIONS_MODE == AVOID_SELF_INTERSECTIONS_MODE_AHS
+	{
+		// If needed force any-hit shader on all instances for handling "Avoid Self Intersections" in Lumen minimal AHS
 		const float AvoidSelfIntersectionsDistance = max(LumenHardwareRayTracingUniformBuffer.SkipTwoSidedHitDistance, LumenHardwareRayTracingUniformBuffer.SkipBackFaceHitDistance);
 		if (Ray.TMin < AvoidSelfIntersectionsDistance)
 		{
 			RayFlags &= ~RAY_FLAG_FORCE_OPAQUE;
 			RayFlags |= RAY_FLAG_FORCE_NON_OPAQUE;
 		}
-	}
-	#else
-	{
-		// AVOID_SELF_INTERSECTIONS will force ray to be two-sided in order to minimize leaking
-		RayFlags |= Context.CullingMode;
 	}
 	#endif
 
@@ -488,8 +495,8 @@ FLumenMinimalRayResult TraceLumenMinimalRay(
 	}
 	#else
 	{
-		// AVOID_SELF_INTERSECTIONS AHS permutation is stored as two HitGroups
-		const uint ShaderSlotIndex = AVOID_SELF_INTERSECTIONS ? RAY_TRACING_SHADER_SLOT_SHADOW : RAY_TRACING_SHADER_SLOT_MATERIAL;
+		// AVOID_SELF_INTERSECTIONS_MODE_AHS permutation is stored as two HitGroups
+		const uint ShaderSlotIndex = AVOID_SELF_INTERSECTIONS_MODE == AVOID_SELF_INTERSECTIONS_MODE_AHS ? RAY_TRACING_SHADER_SLOT_SHADOW : RAY_TRACING_SHADER_SLOT_MATERIAL;
 		TraceLumenRay(TLAS, RayFlags, Context.InstanceMask, ShaderSlotIndex, RAY_TRACING_NUM_SHADER_SLOTS, 0, Ray.GetNativeDesc(), Payload, MinimalRayResult.Bookmark);
 	}
 	#endif
@@ -1012,6 +1019,30 @@ FRayTracedLightingResult TraceSurfaceCacheRay(
 	FRayTracedLightingContext Context)
 {
 	FLumenMinimalRayResult MinimalRayResult = TraceLumenMinimalRay(TLAS, Ray, Context);
+
+	#if AVOID_SELF_INTERSECTIONS_MODE == AVOID_SELF_INTERSECTIONS_MODE_RETRACE
+	if (MinimalRayResult.bHit)
+	{
+		float SkipDistance = -1;
+
+		if (MinimalRayResult.bTwoSided && MinimalRayResult.HitT < LumenHardwareRayTracingUniformBuffer.SkipTwoSidedHitDistance)
+		{
+			SkipDistance = MinimalRayResult.HitT + 0.01f;
+		}
+		else if (!MinimalRayResult.bTwoSided && MinimalRayResult.HitT < LumenHardwareRayTracingUniformBuffer.SkipBackFaceHitDistance)
+		{
+			SkipDistance = LumenHardwareRayTracingUniformBuffer.SkipBackFaceHitDistance;
+		}
+
+		if (SkipDistance > 0.0f)
+		{
+			float PrevTMin = Ray.TMin;
+			Ray.TMin = SkipDistance;
+			MinimalRayResult = TraceLumenMinimalRay(TLAS, Ray, Context);
+			Ray.TMin = PrevTMin;
+		}
+	}
+	#endif
 
 	FSurfaceCacheSample SurfaceCacheSample = InitSurfaceCacheSample();
 	if (MinimalRayResult.bHit && MinimalRayResult.bCompleted)

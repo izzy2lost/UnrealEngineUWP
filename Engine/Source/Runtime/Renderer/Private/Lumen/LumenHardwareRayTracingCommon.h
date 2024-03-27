@@ -12,10 +12,19 @@
 
 namespace LumenHardwareRayTracing
 {
+	enum class EAvoidSelfIntersectionsMode : uint8
+	{
+		Disabled,
+		Retrace,
+		AHS,
+
+		MAX
+	};
+
 	bool IsInlineSupported();
 	bool IsRayGenSupported();
 	float GetFarFieldBias();
-	bool UseAvoidSelfIntersections();
+	EAvoidSelfIntersectionsMode GetAvoidSelfIntersectionsMode();
 }
 
 #if RHI_RAYTRACING
