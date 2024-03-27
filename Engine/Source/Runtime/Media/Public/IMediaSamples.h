@@ -127,7 +127,8 @@ public:
 		return EFetchBestSampleResult::NotSupported;
 	}
 
-	virtual bool PeekVideoSampleTime(FMediaTimeStamp & TimeStamp) = 0;
+	virtual bool PeekVideoSampleTime(FMediaTimeStamp& TimeStamp) = 0;
+	virtual bool PeekVideoSampleTimeRange(TRange<FMediaTimeStamp>& TimeRange) { return false; }
 
 	virtual bool DiscardVideoSamples(const TRange<FMediaTimeStamp>& TimeRange, bool bReverse) { return false; }
 	virtual bool DiscardAudioSamples(const TRange<FMediaTimeStamp>& TimeRange, bool bReverse) { return false; }

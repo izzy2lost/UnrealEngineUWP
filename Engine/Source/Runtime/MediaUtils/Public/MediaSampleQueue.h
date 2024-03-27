@@ -69,7 +69,7 @@ public:
 		}
 
 		TSharedPtr<SampleType, ESPMode::ThreadSafe> Sample(Samples[0]);
-			
+
 		if (!Sample.IsValid())
 		{
 			return false; // pending flush
@@ -99,6 +99,29 @@ public:
 		}
 
 		OutSample = Sample;
+
+		return true;
+	}
+
+	virtual bool PeekFrontAndBack(TSharedPtr<SampleType, ESPMode::ThreadSafe>& OutFirstSample, TSharedPtr<SampleType, ESPMode::ThreadSafe>& OutLastSample) override
+	{
+		FScopeLock Lock(&CriticalSection);
+
+		if (Samples.Num() == 0)
+		{
+			return false; // empty queue
+		}
+
+		TSharedPtr<SampleType, ESPMode::ThreadSafe> FirstSample(Samples[0]);
+		TSharedPtr<SampleType, ESPMode::ThreadSafe> LastSample(Samples.Last());
+
+		if (!FirstSample.IsValid() || !LastSample.IsValid())
+		{
+			return false; // pending flush
+		}
+
+		OutFirstSample = FirstSample;
+		OutLastSample = LastSample;
 
 		return true;
 	}
@@ -150,7 +173,7 @@ public:
 		// - Reverse playback still works with increasing indices in the queue. PTS values will be going down in it, rather than up,
 		//   but the order of indices is still identical.
 		// - The code below must be able to deal with time ranges that span loop points (different secondary sequence indices)
-		
+
 		// Code below assumes a fully specified range, no open bounds!
 		check(TimeRange.HasLowerBound() && TimeRange.HasUpperBound());
 
@@ -215,7 +238,7 @@ public:
 				//
 				// Return the first sample with maximum possible coverage given the time range or nothing if the sample is not yet in the queue
 				// (this yields reproducible results between instances as far as the selection of frames is concerned if the passed in ranges are identical in each run / instance)
-				// 
+				//
 
 				for (int32 Idx = FirstPossibleIndex; Idx <= LastPossibleIndex; ++Idx)
 				{

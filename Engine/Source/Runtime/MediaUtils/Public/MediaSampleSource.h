@@ -38,6 +38,17 @@ public:
 	virtual bool Peek(TSharedPtr<SampleType, ESPMode::ThreadSafe>& OutSample) = 0;
 
 	/**
+	 * Simultaneously peeks at the next (the frontmost) and last samples in the queue without removing them.
+	 * The samples could be identical if there is only one element in the queue.
+	 *
+	 * @param OutFirstSample Will contain the frontmost sample.
+	 * @param OutLastSample Will contain the last sample, which could be identical to the frontmost one.
+	 * @return true if samples are returned, false otherwise.
+	 * @see Peek, Dequeue, Pop
+	 */
+	virtual bool PeekFrontAndBack(TSharedPtr<SampleType, ESPMode::ThreadSafe>& OutFirstSample, TSharedPtr<SampleType, ESPMode::ThreadSafe>& OutLastSample) = 0;
+
+	/**
 	 * Remove the next sample from the queue.
 	 *
 	 * @return true if a sample was removed, false otherwise.

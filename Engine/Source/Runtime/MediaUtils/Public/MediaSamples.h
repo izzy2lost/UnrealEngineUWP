@@ -180,6 +180,17 @@ public:
 		return true;
 	}
 
+	virtual bool PeekVideoSampleTimeRange(TRange<FMediaTimeStamp>& TimeRange) override
+	{
+		TSharedPtr<IMediaTextureSample, ESPMode::ThreadSafe> First, Last;
+		if (!VideoSampleQueue.PeekFrontAndBack(First, Last))
+		{
+			return false;
+		}
+		TimeRange = TRange<FMediaTimeStamp>(First->GetTime(), Last->GetTime() + Last->GetDuration());
+		return true;
+	}
+
 	virtual bool DiscardVideoSamples(const TRange<FMediaTimeStamp>& TimeRange, bool bReverse) override
 	{
 		return VideoSampleQueue.Discard(TimeRange, bReverse);
