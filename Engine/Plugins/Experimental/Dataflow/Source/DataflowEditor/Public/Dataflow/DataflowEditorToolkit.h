@@ -21,6 +21,7 @@ class UDataflow;
 class USkeletalMesh;
 class SDataflowGraphEditor;
 class FDataflowConstructionScene;
+class FDataflowSimulationViewportClient;
 class UDataflowBaseContent;
 class FDataflowSimulationScene;
 
@@ -187,5 +188,5 @@ private:
 	AssetEditorViewportFactoryFunction SimulationViewportDelegate;
 
 	/** Simulation Viewport client */
-	TSharedPtr<FDataflowEditorViewportClient> SimulationViewportClient;
+	TSharedPtr<FDataflowSimulationViewportClient> SimulationViewportClient;
 };

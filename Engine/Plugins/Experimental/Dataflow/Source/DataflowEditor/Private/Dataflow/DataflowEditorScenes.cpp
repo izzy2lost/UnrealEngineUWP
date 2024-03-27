@@ -1,6 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#include "Dataflow/DataflowPreviewScene.h"
+#include "Dataflow/DataflowEditorScenes.h"
 
 #include "Animation/AnimSingleNodeInstance.h"
 #include "AssetEditorModeManager.h"

@@ -1,6 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#include "Dataflow/CollectionSpreadSheetWidget.h"
+#include "Dataflow/DataflowCollectionSpreadSheetWidget.h"
 #include "Widgets/Input/SButton.h"
 #include "Styling/StarshipCoreStyle.h"
 #include "Widgets/Layout/SScrollBox.h"

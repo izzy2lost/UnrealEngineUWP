@@ -4,12 +4,13 @@
 
 #include "Dataflow/DataflowActor.h"
 #include "Dataflow/DataflowEditorMode.h"
-#include "Dataflow/DataflowEditorViewportClient.h"
+#include "Dataflow/DataflowConstructionViewportClient.h"
+#include "Dataflow/DataflowSimulationViewportClient.h"
 #include "Dataflow/DataflowEditorToolkit.h"
 #include "EditorModeManager.h"
 #include "Dataflow/DataflowContent.h"
-#include "Dataflow/DataflowEditorViewportToolbar.h"
-#include "Dataflow/DataflowPreviewScene.h"
+#include "Dataflow/DataflowConstructionViewportToolbar.h"
+#include "Dataflow/DataflowEditorScenes.h"
 #include "Dataflow/DataflowSimulationPanel.h"
 
 #define LOCTEXT_NAMESPACE "SDataflowEditorViewport"
@@ -26,9 +27,10 @@ void SDataflowEditorViewport::Construct(const FArguments& InArgs, const FAssetEd
 	SAssetEditorViewport::Construct(ParentArgs, InViewportConstructionArgs);
 	Client->VisibilityDelegate.BindSP(this, &SDataflowEditorViewport::IsVisible);
 
+	/*
 	if(static_cast<FDataflowPreviewScene*>(Client->GetPreviewScene())->CanRunSimulation())
 	{
-		TSharedPtr<FDataflowEditorViewportClient> DataflowClient = StaticCastSharedPtr<FDataflowEditorViewportClient>(Client);
+		TSharedPtr<FDataflowSimulationViewportClient> DataflowClient = StaticCastSharedPtr<FDataflowSimulationViewportClient>(Client);
 		TWeakPtr<FDataflowSimulationScene> SimulationScene = DataflowClient->GetDataflowEditorToolkit().Pin()->GetSimulationScene();
             
 		ViewportOverlay->AddSlot()
@@ -52,11 +54,12 @@ void SDataflowEditorViewport::Construct(const FArguments& InArgs, const FAssetEd
 			]
 		];
 	}
+	*/
 }
 
 TSharedPtr<SWidget> SDataflowEditorViewport::MakeViewportToolbar()
 {
-	return SNew(SDataflowViewportSelectionToolBar, SharedThis(this));
+	return SNew(SDataflowConstructionViewportSelectionToolBar, SharedThis(this));
 }
 
 void SDataflowEditorViewport::OnFocusViewportToSelection()

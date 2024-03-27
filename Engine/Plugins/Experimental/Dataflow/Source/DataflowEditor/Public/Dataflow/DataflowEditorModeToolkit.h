@@ -35,17 +35,17 @@ public:
 	virtual FName GetToolkitFName() const override;
 	virtual FText GetBaseToolkitName() const override;
 
-	void SetRestSpaceViewportWidget(TWeakPtr<SDataflowEditorViewport>);
+	void SetConstructionViewportWidget(TWeakPtr<SDataflowEditorViewport>);
 	//void SetPreviewViewportWidget(TWeakPtr<SChaosClothAssetEditor3DViewport>);
 
 private:
 
 	// Get the viewport widget associated with the given manager
-	// TODO: This should not be necessary any more as we do not run tools in the Cloth Preview Viewport (JIRA UE-201248)
+	// TODO: This should not be necessary any more as we do not run tools in the Simulation Viewport (JIRA UE-201248)
 	SBaseCharacterFXEditorViewport* GetViewportWidgetForManager(UInteractiveToolManager* Manager);
 
 	UEditorInteractiveToolsContext* GetCurrentToolsContext();
 
-	TWeakPtr<SDataflowEditorViewport> RestSpaceViewportWidget;
+	TWeakPtr<SDataflowEditorViewport> ConstructionViewportWidget;
 	//TWeakPtr<SChaosClothAssetEditor3DViewport> PreviewViewportWidget;
 };

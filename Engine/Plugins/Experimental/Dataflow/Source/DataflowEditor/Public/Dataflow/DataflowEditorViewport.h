@@ -8,7 +8,7 @@
 class ADataflowActor;
 class FAdvancedPreviewScene;
 class UDataflowEditorMode;
-class FDataflowEditorViewportClient;
+class FDataflowConstructionViewportClient;
 
 // ----------------------------------------------------------------------------------
 
@@ -16,7 +16,7 @@ class SDataflowEditorViewport : public SBaseCharacterFXEditorViewport, public IC
 {
 public:
 	SLATE_BEGIN_ARGS(SDataflowEditorViewport) {}
-	SLATE_ARGUMENT(TSharedPtr<FDataflowEditorViewportClient>, ViewportClient)
+	SLATE_ARGUMENT(TSharedPtr<FEditorViewportClient>, ViewportClient)
 		SLATE_END_ARGS()
 
 	SDataflowEditorViewport();
@@ -40,3 +40,4 @@ private:
 
 	UDataflowEditorMode* GetEdMode() const;
 };
+

@@ -5,7 +5,7 @@
 #include "Widgets/SCompoundWidget.h"
 #include "Widgets/Views/SListView.h"
 #include "Dataflow/DataflowEdNode.h"
-#include "Dataflow/CollectionSpreadSheetWidget.h"
+#include "Dataflow/DataflowCollectionSpreadSheetWidget.h"
 #include "Dataflow/DataflowSelection.h"
 #include "Dataflow/DataflowView.h"
 

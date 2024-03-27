@@ -10,13 +10,14 @@
 #include "DataflowEditorTools/DataflowEditorWeightMapPaintTool.h"
 #include "Dataflow/DataflowComponentToolTarget.h"
 #include "Dataflow/DataflowCollectionAddScalarVertexPropertyNode.h"
+#include "Dataflow/DataflowConstructionViewportClient.h"
 #include "Dataflow/DataflowEditor.h"
 #include "Dataflow/DataflowContent.h"
 #include "Dataflow/DataflowEditorCommands.h"
 #include "Dataflow/DataflowEditorModeToolkit.h"
-#include "Dataflow/DataflowEditorViewportClient.h"
 #include "Dataflow/DataflowGraphEditor.h"
-#include "Dataflow/DataflowPreviewScene.h"
+#include "Dataflow/DataflowEditorScenes.h"
+#include "Dataflow/DataflowSimulationViewportClient.h"
 #include "Dataflow/DataflowSNode.h"
 #include "Dataflow/DataflowToolTarget.h"
 #include "EditorModeManager.h"
@@ -213,9 +214,9 @@ bool UDataflowEditorMode::ShouldToolStartBeAllowed(const FString& ToolIdentifier
 		return false;
 	}
 
-	if (PreviewScene && PreviewScene->GetDataflowModeManager() && PreviewScene->GetDataflowModeManager()->GetInteractiveToolsContext())
+	if (ConstructionScene && ConstructionScene->GetDataflowModeManager() && ConstructionScene->GetDataflowModeManager()->GetInteractiveToolsContext())
 	{
-		if (PreviewScene->GetDataflowModeManager()->GetInteractiveToolsContext()->HasActiveTool())
+		if (ConstructionScene->GetDataflowModeManager()->GetInteractiveToolsContext()->HasActiveTool())
 		{
 			return false;
 		}
@@ -251,7 +252,7 @@ void UDataflowEditorMode::OnToolEnded(UInteractiveToolManager* Manager, UInterac
 	}
 	else
 	{
-		PreviewScene->ResetConstructionScene();
+		ConstructionScene->ResetConstructionScene();
 	}
 
 	if (TSharedPtr<SDataflowGraphEditor> GraphEditor = DataflowGraphEditor.Pin())
@@ -291,17 +292,17 @@ void UDataflowEditorMode::Exit()
 {
 	UActorComponent::MarkRenderStateDirtyEvent.RemoveAll(this);
 
-	PreviewScene->ResetConstructionScene();
-	PreviewScene = nullptr;
+	ConstructionScene->ResetConstructionScene();
+	ConstructionScene = nullptr;
 
 	Super::Exit();
 }
 
-void UDataflowEditorMode::SetDataflowConstructionScene(FDataflowConstructionScene* InPreviewScene)
+void UDataflowEditorMode::SetDataflowConstructionScene(FDataflowConstructionScene* InConstructionScene)
 {
-	PreviewScene = InPreviewScene;
+	ConstructionScene = InConstructionScene;
 
-	UEditorInteractiveToolsContext* const PreviewToolsContext = PreviewScene->GetDataflowModeManager()->GetInteractiveToolsContext();
+	UEditorInteractiveToolsContext* const PreviewToolsContext = ConstructionScene->GetDataflowModeManager()->GetInteractiveToolsContext();
 	UInteractiveToolManager* const PreviewToolManager = PreviewToolsContext->ToolManager;
 	//#todo(brice): Make sure AddToolTargetFactories has been called. 
 	//PreviewToolsContext->TargetManager->AddTargetFactory(NewObject<UClothComponentToolTargetFactory>(PreviewToolManager));
@@ -322,7 +323,7 @@ void UDataflowEditorMode::SetDataflowConstructionScene(FDataflowConstructionScen
 void UDataflowEditorMode::CreateToolTargets(const TArray<TObjectPtr<UObject>>& AssetsIn)
 {
 	ToolTargets.Reset();
-	if (TObjectPtr<UDataflowBaseContent> EditorContent = PreviewScene->GetDataflowContent())
+	if (TObjectPtr<UDataflowBaseContent> EditorContent = ConstructionScene->GetDataflowContent())
 	{
 		if (UToolTarget* Target = GetInteractiveToolsContext()->TargetManager->BuildTarget(EditorContent, GetToolTargetRequirements()))
 		{
@@ -350,7 +351,7 @@ bool UDataflowEditorMode::IsComponentSelected(const UPrimitiveComponent* InCompo
 
 void UDataflowEditorMode::RefocusRestSpaceViewportClient()
 {
-	TSharedPtr<FDataflowEditorViewportClient, ESPMode::ThreadSafe> PinnedVC = ConstructionViewportClient.Pin();
+	TSharedPtr<FDataflowConstructionViewportClient, ESPMode::ThreadSafe> PinnedVC = ConstructionViewportClient.Pin();
 	if (PinnedVC.IsValid())
 	{
 		// This will happen in FocusViewportOnBox anyways; do it now to get a consistent end result
@@ -380,7 +381,7 @@ void UDataflowEditorMode::RefocusRestSpaceViewportClient()
 void UDataflowEditorMode::FirstTimeFocusRestSpaceViewport()
 {
 	// If this is the first time seeing a valid 2D or 3D mesh, refocus the camera on it.
-	const bool bIsValid = (PreviewScene->HasRenderableGeometry());
+	const bool bIsValid = (ConstructionScene->HasRenderableGeometry());
 	const bool bIs2D = ConstructionViewMode == Dataflow::EDataflowPatternVertexType::Sim3D;
 
 	if (bIsValid)
@@ -407,11 +408,11 @@ void UDataflowEditorMode::InitializeTargets(const TArray<TObjectPtr<UObject>>& O
 	// @todo(brice) : What are the ToolTargets storing?
 	// ... for(ToolTarget& : ToolTargets){
 	// ... UE::ToolTarget::GetDynamicMeshCopy(Target)
-	// ... UE::ToolTarget::GetMaterialSet(Target).Materials for PreviewScene->AddDynamicMeshComponent
+	// ... UE::ToolTarget::GetMaterialSet(Target).Materials for ConstructionScene->AddDynamicMeshComponent
 	// ... }
 
 	// @todo(michael) : do we need to update the construction scene?
-	PreviewScene->UpdateConstructionScene();
+	ConstructionScene->UpdateConstructionScene();
 }
 
 void UDataflowEditorMode::ModeTick(float DeltaTime)
@@ -459,13 +460,13 @@ void UDataflowEditorMode::RestSpaceViewportResized(FViewport* RestspaceViewport,
 
 FBox UDataflowEditorMode::SceneBoundingBox() const
 {
-	return PreviewScene->GetBoundingBox();
+	return ConstructionScene->GetBoundingBox();
 }
 
 FBox UDataflowEditorMode::SelectionBoundingBox() const
 {
 	// If the selection is on the GetBoundingBox is automatically computing the selection one
-	FBox Bounds = PreviewScene->GetBoundingBox();
+	FBox Bounds = ConstructionScene->GetBoundingBox();
 	if (Bounds.IsValid)
 	{
 		return Bounds;
@@ -495,9 +496,9 @@ void UDataflowEditorMode::SetConstructionViewMode(Dataflow::EDataflowPatternVert
 	}
 
 	ConstructionViewMode = InMode;
-	PreviewScene->UpdateConstructionScene();
+	ConstructionScene->UpdateConstructionScene();
 
-	const TSharedPtr<FDataflowEditorViewportClient> VC = ConstructionViewportClient.Pin();
+	const TSharedPtr<FDataflowConstructionViewportClient> VC = ConstructionViewportClient.Pin();
 	if (VC.IsValid())
 	{
 		VC->SetConstructionViewMode(ConstructionViewMode);
@@ -553,7 +554,7 @@ void UDataflowEditorMode::ToggleConstructionViewWireframe()
 {
 	check(false);
 	bConstructionViewWireframe = !bConstructionViewWireframe;
-	PreviewScene->UpdateConstructionScene();
+	ConstructionScene->UpdateConstructionScene();
 }
 
 bool UDataflowEditorMode::CanSetConstructionViewWireframeActive() const
@@ -571,11 +572,11 @@ bool UDataflowEditorMode::CanSetConstructionViewWireframeActive() const
 	return DataflowToolBuilder->CanSetConstructionViewWireframeActive();
 }
 
-void UDataflowEditorMode::SetRestSpaceViewportClient(TWeakPtr<FDataflowEditorViewportClient, ESPMode::ThreadSafe> InViewportClient)
+void UDataflowEditorMode::SetRestSpaceViewportClient(TWeakPtr<FDataflowConstructionViewportClient, ESPMode::ThreadSafe> InViewportClient)
 {
 	ConstructionViewportClient = InViewportClient;
 
-	TSharedPtr<FDataflowEditorViewportClient> VC = ConstructionViewportClient.Pin();
+	TSharedPtr<FDataflowConstructionViewportClient> VC = ConstructionViewportClient.Pin();
 	if (VC.IsValid())
 	{
 		VC->SetConstructionViewMode(ConstructionViewMode);
@@ -590,9 +591,9 @@ void UDataflowEditorMode::SetRestSpaceViewportClient(TWeakPtr<FDataflowEditorVie
 
 void UDataflowEditorMode::InitializeContextObject()
 {
-	check(PreviewScene);
+	check(ConstructionScene);
 
-	if (TObjectPtr<UDataflowBaseContent> DataflowContent = PreviewScene->GetDataflowContent())
+	if (TObjectPtr<UDataflowBaseContent> DataflowContent = ConstructionScene->GetDataflowContent())
 	{
 		UEditorInteractiveToolsContext* const RestSpaceToolsContext = GetInteractiveToolsContext();
 
@@ -690,7 +691,7 @@ UEdGraphNode* UDataflowEditorMode::CreateNewNode(const FName& NewNodeTypeName)
 		return nullptr;
 	}
 
-	if (TObjectPtr<UDataflowBaseContent> EditorContent = PreviewScene->GetDataflowContent())
+	if (TObjectPtr<UDataflowBaseContent> EditorContent = ConstructionScene->GetDataflowContent())
 	{
 		if (TObjectPtr<UDataflow> DataflowGraph = EditorContent->GetDataflowAsset())
 		{
@@ -707,7 +708,7 @@ UEdGraphNode* UDataflowEditorMode::CreateNewNode(const FName& NewNodeTypeName)
 
 UEdGraphNode* UDataflowEditorMode::CreateAndConnectNewNode(const FName& NewNodeTypeName, UEdGraphNode& UpstreamNode, const FName& ConnectionTypeName, const FName& NewNodeConnectionName)
 {
-	if (TObjectPtr<UDataflowBaseContent> EditorContent = PreviewScene->GetDataflowContent())
+	if (TObjectPtr<UDataflowBaseContent> EditorContent = ConstructionScene->GetDataflowContent())
 	{
 		if (TObjectPtr<UDataflow> DataflowGraph = EditorContent->GetDataflowAsset())
 		{

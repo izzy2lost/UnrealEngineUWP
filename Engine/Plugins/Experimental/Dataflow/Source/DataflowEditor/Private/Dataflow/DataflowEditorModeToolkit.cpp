@@ -7,7 +7,7 @@
 #include "Dataflow/DataflowEditorMode.h"
 #include "Dataflow/DataflowEditorStyle.h"
 #include "Dataflow/DataflowEditorViewport.h"
-#include "Dataflow/DataflowPreviewScene.h"
+#include "Dataflow/DataflowEditorScenes.h"
 #include "EdModeInteractiveToolsContext.h"
 #include "Framework/Application/SlateApplication.h"
 #include "InteractiveToolManager.h"
@@ -174,7 +174,7 @@ SBaseCharacterFXEditorViewport* FDataflowEditorModeToolkit::GetViewportWidgetFor
 					//}
 					//else
 					//{
-					if (const TSharedPtr<SDataflowEditorViewport> Widget = RestSpaceViewportWidget.Pin())
+					if (const TSharedPtr<SDataflowEditorViewport> Widget = ConstructionViewportWidget.Pin())
 					{
 						return Widget.Get();
 					}
@@ -283,9 +283,9 @@ void FDataflowEditorModeToolkit::OnToolEnded(UInteractiveToolManager* Manager, U
 
 }
 
-void FDataflowEditorModeToolkit::SetRestSpaceViewportWidget(TWeakPtr<SDataflowEditorViewport> InRestSpaceViewportWidget)
+void FDataflowEditorModeToolkit::SetConstructionViewportWidget(TWeakPtr<SDataflowEditorViewport> InConstructionViewportWidget)
 {
-	RestSpaceViewportWidget = InRestSpaceViewportWidget;
+	ConstructionViewportWidget = InConstructionViewportWidget;
 }
 
 

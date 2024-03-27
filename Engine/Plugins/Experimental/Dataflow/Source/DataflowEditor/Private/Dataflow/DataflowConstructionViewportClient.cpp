@@ -1,5 +1,5 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
-#include "Dataflow/DataflowEditorViewportClient.h"
+#include "Dataflow/DataflowConstructionViewportClient.h"
 
 #include "AssetEditorModeManager.h"
 #include "Dataflow/DataflowObject.h"
@@ -8,7 +8,7 @@
 #include "Dataflow/DataflowEditorCollectionComponent.h"
 #include "Dataflow/DataflowEngineSceneHitProxies.h"
 #include "Dataflow/DataflowGraphEditor.h"
-#include "Dataflow/DataflowPreviewScene.h"
+#include "Dataflow/DataflowEditorScenes.h"
 #include "EditorModeManager.h"
 #include "EdModeInteractiveToolsContext.h"
 #include "GraphEditor.h"
@@ -19,7 +19,7 @@
 
 
 
-FDataflowEditorViewportClient::FDataflowEditorViewportClient(FEditorModeTools* InModeTools,
+FDataflowConstructionViewportClient::FDataflowConstructionViewportClient(FEditorModeTools* InModeTools,
                                                              FPreviewScene* InPreviewScene,  const bool bCouldTickScene,
                                                              const TWeakPtr<SEditorViewport> InEditorViewportWidget)
 	: FEditorViewportClient(InModeTools, InPreviewScene, InEditorViewportWidget)
@@ -34,22 +34,22 @@ FDataflowEditorViewportClient::FDataflowEditorViewportClient(FEditorModeTools* I
 	bEnableSceneTicking = bCouldTickScene;
 }
 
-void FDataflowEditorViewportClient::SetDataflowEditorToolkit(TWeakPtr<FDataflowEditorToolkit> InDataflowEditorToolkitPtr)
+void FDataflowConstructionViewportClient::SetDataflowEditorToolkit(TWeakPtr<FDataflowEditorToolkit> InDataflowEditorToolkitPtr)
 {
 	DataflowEditorToolkitPtr = InDataflowEditorToolkitPtr;
 }
 
-void FDataflowEditorViewportClient::SetToolCommandList(TWeakPtr<FUICommandList> InToolCommandList)
+void FDataflowConstructionViewportClient::SetToolCommandList(TWeakPtr<FUICommandList> InToolCommandList)
 {
 	ToolCommandList = InToolCommandList;
 }
 
-//const UInputBehaviorSet* FDataflowEditorViewportClient::GetInputBehaviors() const
+//const UInputBehaviorSet* FDataflowConstructionViewportClient::GetInputBehaviors() const
 //{
 //	return BehaviorSet;
 //}
 
-void FDataflowEditorViewportClient::Tick(float DeltaSeconds)
+void FDataflowConstructionViewportClient::Tick(float DeltaSeconds)
 {
 	Super::Tick(DeltaSeconds);
 	if (PreviewScene)
@@ -58,7 +58,7 @@ void FDataflowEditorViewportClient::Tick(float DeltaSeconds)
 	}
 }
 
-void FDataflowEditorViewportClient::ProcessClick(FSceneView& View, HHitProxy* HitProxy, FKey Key, EInputEvent Event, uint32 HitX, uint32 HitY)
+void FDataflowConstructionViewportClient::ProcessClick(FSceneView& View, HHitProxy* HitProxy, FKey Key, EInputEvent Event, uint32 HitX, uint32 HitY)
 {
 	Super::ProcessClick(View, HitProxy, Key, Event, HitX, HitY);
 
@@ -167,7 +167,7 @@ void FDataflowEditorViewportClient::ProcessClick(FSceneView& View, HHitProxy* Hi
 	}
 }
 
-void FDataflowEditorViewportClient::SetConstructionViewMode(Dataflow::EDataflowPatternVertexType InViewMode)
+void FDataflowConstructionViewportClient::SetConstructionViewMode(Dataflow::EDataflowPatternVertexType InViewMode)
 {
 	// @todo(Dataflow) : Add support for Sim2D
 	//const bool bSwitching2D3D = (ConstructionViewMode == Dataflow::EDataflowPatternVertexType::Sim2D) != (InViewMode == Dataflow::EDataflowPatternVertexType::Sim2D);
@@ -204,12 +204,12 @@ void FDataflowEditorViewportClient::SetConstructionViewMode(Dataflow::EDataflowP
 }
 
 
-Dataflow::EDataflowPatternVertexType FDataflowEditorViewportClient::GetConstructionViewMode() const
+Dataflow::EDataflowPatternVertexType FDataflowConstructionViewportClient::GetConstructionViewMode() const
 {
 	return Dataflow::EDataflowPatternVertexType::Sim3D;// ConstructionViewMode;
 }
 
-void FDataflowEditorViewportClient::AddReferencedObjects(FReferenceCollector& Collector)
+void FDataflowConstructionViewportClient::AddReferencedObjects(FReferenceCollector& Collector)
 {
 	Super::AddReferencedObjects(Collector);
 	Collector.AddReferencedObject(BehaviorSet);

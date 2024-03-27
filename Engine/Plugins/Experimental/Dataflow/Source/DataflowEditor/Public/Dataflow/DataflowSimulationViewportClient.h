@@ -16,21 +16,15 @@ class FTransformGizmoDataBinder;
 class FDataflowPreviewScene;
 class UInputBehaviorSet;
 
-class DATAFLOWEDITOR_API FDataflowEditorViewportClient : public FEditorViewportClient //, public IInputBehaviorSource
+class DATAFLOWEDITOR_API FDataflowSimulationViewportClient : public FEditorViewportClient //, public IInputBehaviorSource
 {
 //@todo(brice) : Add BehaviorUI support
 
 public:
 	using Super = FEditorViewportClient;
 
-	FDataflowEditorViewportClient(FEditorModeTools* InModeTools, FPreviewScene* InPreviewScene,  const bool bCouldTickScene,
+	FDataflowSimulationViewportClient(FEditorModeTools* InModeTools, FPreviewScene* InPreviewScene,  const bool bCouldTickScene,
 								  const TWeakPtr<SEditorViewport> InEditorViewportWidget = nullptr);
-
-	void SetConstructionViewMode(Dataflow::EDataflowPatternVertexType InViewMode);
-	Dataflow::EDataflowPatternVertexType GetConstructionViewMode() const;
-
-	// IInputBehaviorSource
-	// virtual const UInputBehaviorSet* GetInputBehaviors() const override;
 
 	/** Set the data flow toolkit used to create the client*/
 	void SetDataflowEditorToolkit(TWeakPtr<FDataflowEditorToolkit> DataflowToolkit);
@@ -43,7 +37,7 @@ public:
 
 	// FGCObject Interface
 	virtual void AddReferencedObjects(FReferenceCollector& Collector) override;
-	virtual FString GetReferencerName() const override { return TEXT("FDataflowEditorViewportClient"); }
+	virtual FString GetReferencerName() const override { return TEXT("FDataflowSimulationViewportClient"); }
 
 private:
 
@@ -59,9 +53,6 @@ private:
 
 	// @todo(brice) : Is this needed?
 	TWeakPtr<FUICommandList> ToolCommandList;
-
-	/** Construction view mode */
-	Dataflow::EDataflowPatternVertexType ConstructionViewMode = Dataflow::EDataflowPatternVertexType::Sim3D;
 
 	/** Behavior set for the behavior UI */
 	TObjectPtr<UInputBehaviorSet> BehaviorSet;

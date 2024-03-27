@@ -8,10 +8,10 @@
 class SDataflowEditorViewport;
 
 /** Base toolbar for the dataflow. Should be extended to add more features */
-class SDataflowViewportSelectionToolBar : public SCommonEditorViewportToolbarBase
+class SDataflowConstructionViewportSelectionToolBar : public SCommonEditorViewportToolbarBase
 {
 public:
-	SLATE_BEGIN_ARGS(SDataflowViewportSelectionToolBar) {}
+	SLATE_BEGIN_ARGS(SDataflowConstructionViewportSelectionToolBar) {}
 	SLATE_END_ARGS()
 
 	/** Constructs this widget with the given parameters */

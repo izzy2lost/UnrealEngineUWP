@@ -1,7 +1,7 @@
 ﻿// Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "Dataflow/DataflowSimulationPanel.h"
-#include "Dataflow/DataflowPreviewScene.h"
+#include "Dataflow/DataflowEditorScenes.h"
 #include "Widgets/SBoxPanel.h"
 #include "SScrubControlPanel.h"
 #include "Animation/AnimSingleNodeInstance.h"
