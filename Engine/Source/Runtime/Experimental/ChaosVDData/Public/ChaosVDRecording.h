@@ -13,13 +13,13 @@
 #include "ChaosVisualDebugger/ChaosVDMemWriterReader.h"
 #include "DataWrappers/ChaosVDJointDataWrappers.h"
 #include "DataWrappers/ChaosVDQueryDataWrappers.h"
+#include <atomic>
 
 namespace Chaos::VisualDebugger
 {
-class FChaosVDSerializableNameTable;
+	class FChaosVDSerializableNameTable;
 }
 
-DECLARE_MULTICAST_DELEGATE(FChaosVDRecordingUpdated)
 DECLARE_MULTICAST_DELEGATE_TwoParams(FChaosVDGeometryDataLoaded, const Chaos::FConstImplicitObjectPtr&, const uint32 GeometryID)
 
 struct FChaosVDStepData
@@ -197,9 +197,6 @@ struct CHAOSVDDATA_API FChaosVDRecording
 	 */
 	void AddGameFrameData(const FChaosVDGameFrameData& InFrameData);
 
-	/** Called each time the recording changes - Mainly when a new frame is added from the Trace analysis */
-	FChaosVDRecordingUpdated& OnRecordingUpdated() { return RecordingUpdatedDelegate; };
-
 	/** Called each time new geometry data becomes available in the recording - Mainly when a new frame is added from the Trace analysis */
 	FChaosVDGeometryDataLoaded& OnGeometryDataLoaded() { return GeometryDataLoaded; };
 
@@ -280,6 +277,9 @@ struct CHAOSVDDATA_API FChaosVDRecording
 	/** Returns true if this recording does not have any usable data */
 	bool IsEmpty() const;
 
+	/** Returns the last Platform Cycle on which this recording was updated (A new frame was added) */
+	uint64 GetLastUpdatedTimeAsCycle() { return LastUpdatedTimeAsCycle; }
+
 protected:
 
 	/** Adds an Implicit Object to the recording and takes ownership of it */
@@ -298,7 +298,7 @@ protected:
 	TMap<int32, TMap<int32, FChaosVDSolverFrameData>> GeneratedKeyFrameDataPerSolver;
 	TMap<int32, TArray<int32>> RecordedKeyFramesNumberPerSolver;
 	TArray<FChaosVDGameFrameData> GameFrames;
-	FChaosVDRecordingUpdated RecordingUpdatedDelegate;
+
 	FChaosVDGeometryDataLoaded GeometryDataLoaded;
 
 	/** Id to Ptr map of all shared geometry data required to visualize */
@@ -310,6 +310,9 @@ protected:
 
 	/** True if this recording is being populated from a live session */
 	bool bIsLive = false;
+
+	/** Last Platform Cycle on which this recording was updated */
+	std::atomic<uint64> LastUpdatedTimeAsCycle;
 
 	/** Map that temporary holds generated particle data during the key frame generation process, keeping its memory allocation between generated frames*/
 	TMap<int32, TSharedPtr<FChaosVDParticleDataWrapper>> ParticlesOnCurrentGeneratedKeyframe;

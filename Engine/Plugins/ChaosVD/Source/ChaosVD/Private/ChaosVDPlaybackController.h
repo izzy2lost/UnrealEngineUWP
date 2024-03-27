@@ -283,6 +283,9 @@ protected:
 	/** Set to true when the recording data controlled by this Playback Controller is updated, the update delegate will be called on the GT */
 	std::atomic<bool> bHasPendingGTUpdateBroadcast;
 
+	/** Last seen Platform Cycle on which the loaded recording was updated */
+	uint64 RecordingLastSeenTimeUpdatedAsCycle = 0;
+
 	/** Queue with a copy of all Track Info Updates that needs to be done in the Game thread */
 	TQueue<FChaosVDQueuedTrackInfoUpdate, EQueueMode::Mpsc> TrackInfoUpdateGTQueue;
 

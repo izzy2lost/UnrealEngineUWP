@@ -76,8 +76,6 @@ bool FChaosVDPlaybackController::LoadChaosVDRecordingFromTraceSession(const FCha
 
 	LoadedRecording->SetIsLive(InSessionDescriptor.bIsLiveSession);
 
-	LoadedRecording->OnRecordingUpdated().AddRaw(this, &FChaosVDPlaybackController::HandleCurrentRecordingUpdated);
-
 	HandleCurrentRecordingUpdated();
 
 	LoadedRecording->OnGeometryDataLoaded().AddRaw(this, &FChaosVDPlaybackController::EnqueueGeometryDataUpdate);
@@ -94,11 +92,12 @@ bool FChaosVDPlaybackController::LoadChaosVDRecordingFromTraceSession(const FCha
 
 void FChaosVDPlaybackController::UnloadCurrentRecording(EChaosVDUnloadRecordingFlags UnloadOptions)
 {
+	RecordingLastSeenTimeUpdatedAsCycle = 0;
+
 	TrackInfoUpdateGTQueue.Empty();
 	
 	if (LoadedRecording.IsValid())
 	{
-		LoadedRecording->OnRecordingUpdated().RemoveAll(this);
 		LoadedRecording.Reset();
 	}
 
@@ -633,6 +632,14 @@ bool FChaosVDPlaybackController::Tick(float DeltaTime)
 
 	if (LoadedRecording.IsValid())
 	{
+		uint64 CurrentLastUpdatedTime = LoadedRecording->GetLastUpdatedTimeAsCycle();
+		if (CurrentLastUpdatedTime != RecordingLastSeenTimeUpdatedAsCycle)
+		{
+			RecordingLastSeenTimeUpdatedAsCycle = CurrentLastUpdatedTime;
+
+			HandleCurrentRecordingUpdated();
+		}
+
 		// Load at least the first frame
 		if (!bPlayedFirstFrame)
 		{
