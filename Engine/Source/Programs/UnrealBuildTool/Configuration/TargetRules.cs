@@ -1562,6 +1562,10 @@ namespace UnrealBuildTool
 		private bool? bBuildAdditionalConsoleAppOverride;
 
 		/// <summary>
+		/// If true, only creates an additional console application. Overrides bBuildAdditionalConsoleApp.		
+		/// </summary>
+		public bool bBuildConsoleAppOnly { get; set; } = false;
+		/// <summary>
 		/// True if debug symbols that are cached for some platforms should not be created.
 		/// </summary>
 		public bool bDisableSymbolCache { get; set; } = true;

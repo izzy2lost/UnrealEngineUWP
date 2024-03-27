@@ -98,6 +98,12 @@ namespace UnrealBuildTool
 		public bool bBuildAdditionalConsoleApp = false;
 
 		/// <summary>
+		/// If true, replaces the executable with a console application. Hack for Windows, where it's not possible to conditionally inherit a parent's console Window depending on how
+		/// the application is invoked
+		/// </summary>
+		public bool bBuildConsoleAppOnly = false;
+
+		/// <summary>
 		/// 
 		/// </summary>
 		public bool bUsePrecompiled;
@@ -130,6 +136,7 @@ namespace UnrealBuildTool
 		/// <param name="IntermediateDirectory"></param>
 		/// <param name="bAllowExports"></param>
 		/// <param name="bBuildAdditionalConsoleApp"></param>
+		/// <param name="bBuildConsoleAppOnly"></param>
 		/// <param name="PrimaryModule"></param>
 		/// <param name="bUsePrecompiled"></param>
 		public UEBuildBinary(
@@ -138,6 +145,7 @@ namespace UnrealBuildTool
 				DirectoryReference IntermediateDirectory,
 				bool bAllowExports,
 				bool bBuildAdditionalConsoleApp,
+				bool bBuildConsoleAppOnly,
 				UEBuildModuleCPP PrimaryModule,
 				bool bUsePrecompiled
 			)
@@ -148,6 +156,7 @@ namespace UnrealBuildTool
 			this.IntermediateDirectory = IntermediateDirectory;
 			this.bAllowExports = bAllowExports;
 			this.bBuildAdditionalConsoleApp = bBuildAdditionalConsoleApp;
+			this.bBuildConsoleAppOnly = bBuildConsoleAppOnly;			
 			this.PrimaryModule = PrimaryModule;
 			this.bUsePrecompiled = bUsePrecompiled;
 
@@ -273,34 +282,44 @@ namespace UnrealBuildTool
 			// Create the import library if needed
 			OutputFiles.AddRange(ToolChain.LinkImportLibrary(BinaryLinkEnvironment, Graph));
 
-			// Link the binary.
-			FileItem[] Executables = ToolChain.LinkAllFiles(BinaryLinkEnvironment, false, Graph);
-			OutputFiles.AddRange(Executables);
-
-			// Save all the output items for this binary. This is used for hot-reload, and excludes any items added in PostBuild (such as additional files copied into the app).
-			if (Target.LinkType == TargetLinkType.Modular)
-			{
-				Graph.SetOutputItemsForModule(PrimaryModule.Name, OutputFiles.ToArray());
-			}
-
-			// Produce additional console app if requested
-			if (bBuildAdditionalConsoleApp)
-			{
+			
+			// Override the build to be a console app (i.e. only build a console app)
+			if (bBuildConsoleAppOnly)
+			{				
+				BinaryLinkEnvironment.bIsBuildingConsoleApplication = true;
+				BinaryLinkEnvironment.bCodeCoverage = CompileEnvironment.bCodeCoverage;
+				BinaryLinkEnvironment.WindowsEntryPointOverride = "WinMainCRTStartup";       // For WinMain() instead of "main()" for Launch module
+				BinaryLinkEnvironment.OutputFilePaths = BinaryLinkEnvironment.OutputFilePaths.Select(Path => GetAdditionalConsoleAppPath(Path)).ToList();
+			} 
+			else if (bBuildAdditionalConsoleApp)
+			{				
 				// Produce additional binary but link it as a console app
-				LinkEnvironment ConsoleAppLinkEvironment = new LinkEnvironment(BinaryLinkEnvironment);
-				ConsoleAppLinkEvironment.bIsBuildingConsoleApplication = true;
-				ConsoleAppLinkEvironment.bCodeCoverage = CompileEnvironment.bCodeCoverage;
-				ConsoleAppLinkEvironment.WindowsEntryPointOverride = "WinMainCRTStartup";       // For WinMain() instead of "main()" for Launch module
-				ConsoleAppLinkEvironment.OutputFilePaths = ConsoleAppLinkEvironment.OutputFilePaths.Select(Path => GetAdditionalConsoleAppPath(Path)).ToList();
+				LinkEnvironment ConsoleAppLinkEnvironment = new LinkEnvironment(BinaryLinkEnvironment);
+				ConsoleAppLinkEnvironment.bIsBuildingConsoleApplication = true;
+				ConsoleAppLinkEnvironment.bCodeCoverage = CompileEnvironment.bCodeCoverage;
+				ConsoleAppLinkEnvironment.WindowsEntryPointOverride = "WinMainCRTStartup";       // For WinMain() instead of "main()" for Launch module
+				ConsoleAppLinkEnvironment.OutputFilePaths = ConsoleAppLinkEnvironment.OutputFilePaths.Select(Path => GetAdditionalConsoleAppPath(Path)).ToList();
 
 				// Link the console app executable
-				FileItem[] ConsoleAppOutputFiles = ToolChain.LinkAllFiles(ConsoleAppLinkEvironment, false, Graph);
+				FileItem[] ConsoleAppOutputFiles = ToolChain.LinkAllFiles(ConsoleAppLinkEnvironment, false, Graph);
 				OutputFiles.AddRange(ConsoleAppOutputFiles);
 
 				foreach (FileItem Executable in ConsoleAppOutputFiles)
 				{
-					OutputFiles.AddRange(ToolChain.PostBuild(Target, Executable, ConsoleAppLinkEvironment, Graph));
+					OutputFiles.AddRange(ToolChain.PostBuild(Target, Executable, ConsoleAppLinkEnvironment, Graph));
 				}
+			}
+
+	
+
+			// Link the binary.
+			FileItem[] Executables = ToolChain.LinkAllFiles(BinaryLinkEnvironment, false, Graph);
+			OutputFiles.AddRange(Executables);
+			
+			// Save all the output items for this binary. This is used for hot-reload, and excludes any items added in PostBuild (such as additional files copied into the app).
+			if (Target.LinkType == TargetLinkType.Modular)
+			{
+				Graph.SetOutputItemsForModule(PrimaryModule.Name, OutputFiles.ToArray());
 			}
 
 			foreach (FileItem Executable in Executables)
@@ -540,13 +559,23 @@ namespace UnrealBuildTool
 
 				// Add the primary build products
 				string[] DebugExtensions = UEBuildPlatform.GetBuildPlatform(Target.Platform).GetDebugInfoExtensions(Target, Type);
-				foreach (FileReference OutputFilePath in OutputFilePaths)
+
+				if (Type == UEBuildBinaryType.Executable && bBuildConsoleAppOnly)
 				{
-					AddBuildProductAndDebugFiles(OutputFilePath, OutputType, DebugExtensions, BuildProducts, ToolChain, bCreateDebugInfo);
+					foreach (FileReference OutputFilePath in OutputFilePaths)
+					{
+						AddBuildProductAndDebugFiles(GetAdditionalConsoleAppPath(OutputFilePath), OutputType, DebugExtensions, BuildProducts, ToolChain, bCreateDebugInfo);
+					}
+				} else 
+				{
+					foreach (FileReference OutputFilePath in OutputFilePaths)
+					{
+						AddBuildProductAndDebugFiles(OutputFilePath, OutputType, DebugExtensions, BuildProducts, ToolChain, bCreateDebugInfo);
+					}
 				}
 
 				// Add the console app, if there is one
-				if (Type == UEBuildBinaryType.Executable && bBuildAdditionalConsoleApp)
+				if (Type == UEBuildBinaryType.Executable && !bBuildConsoleAppOnly && bBuildAdditionalConsoleApp)
 				{
 					foreach (FileReference OutputFilePath in OutputFilePaths)
 					{

@@ -310,6 +310,8 @@ namespace UnrealBuildTool
 
 		public bool bBuildAdditionalConsoleApp => Inner.bBuildAdditionalConsoleApp;
 
+		public bool bBuildConsoleAppOnly => Inner.bBuildConsoleAppOnly;
+
 		public bool bDisableSymbolCache => Inner.bDisableSymbolCache;
 
 		public bool bUseUnityBuild => Inner.bUseUnityBuild;

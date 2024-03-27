@@ -4167,6 +4167,7 @@ namespace UnrealBuildTool
 				IntermediateDirectory: Module.IntermediateDirectory,
 				bAllowExports: true,
 				bBuildAdditionalConsoleApp: false,
+				bBuildConsoleAppOnly: false,
 				PrimaryModule: Module,
 				bUsePrecompiled: Module.Rules.bUsePrecompiled
 			);
@@ -4805,6 +4806,7 @@ namespace UnrealBuildTool
 				IntermediateDirectory: IntermediateDirectory,
 				bAllowExports: Rules.bHasExports,
 				bBuildAdditionalConsoleApp: Rules.bBuildAdditionalConsoleApp,
+				bBuildConsoleAppOnly: Rules.bBuildConsoleAppOnly,
 				PrimaryModule: LaunchModule,
 				bUsePrecompiled: LaunchModule.Rules.bUsePrecompiled && OutputPaths[0].IsUnderDirectory(Unreal.EngineDirectory)
 			);
@@ -4962,7 +4964,7 @@ namespace UnrealBuildTool
 			if (RelativeBaseDir != null)
 			{
 				GlobalCompileEnvironment.Definitions.Add(String.Format("UE_RELATIVE_BASE_DIR=\"{0}/\"", RelativeBaseDir));
-				if (Rules.bBuildAdditionalConsoleApp)
+				if (Rules.bBuildAdditionalConsoleApp || Rules.bBuildConsoleAppOnly)
 				{
 					string? CmdletRelativeBaseDir = GetRelativeBaseDir(GetExecutableDir(), Platform);
 					GlobalCompileEnvironment.Definitions.Add(String.Format("UE_CMDLET_RELATIVE_BASE_DIR=\"{0}/\"", CmdletRelativeBaseDir));
