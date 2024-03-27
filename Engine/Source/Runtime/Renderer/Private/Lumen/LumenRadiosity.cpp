@@ -134,13 +134,6 @@ static TAutoConsoleVariable<int32> CVarLumenRadiosityHardwareRayTracing(
 	ECVF_RenderThreadSafe
 );
 
-static TAutoConsoleVariable<bool> CVarLumenRadiosityHardwareRayTracingAvoidSelfIntersections(
-	TEXT("r.LumenScene.Radiosity.AvoidSelfIntersections"),
-	true,
-	TEXT("Whether to skip back face hits for a small distance in order to avoid self-intersections when BLAS mismatches rasterized geometry. Enabling it has a performance cost. Distance is controlled by r.Lumen.HardwareRayTracing.SkipBackFaceHitDistance"),
-	ECVF_Scalability | ECVF_RenderThreadSafe
-);
-
 int32 GLumenRadiosityTemporalAccumulation = 1;
 FAutoConsoleVariableRef CVarLumenRadiosityTemporalAccumulation(
 	TEXT("r.LumenScene.Radiosity.Temporal"),
@@ -441,7 +434,7 @@ void FDeferredShadingSceneRenderer::PrepareLumenHardwareRayTracingRadiosityLumen
 	if (Lumen::ShouldRenderRadiosityHardwareRayTracing(*View.Family) && !Lumen::UseHardwareInlineRayTracing(*View.Family))
 	{
 		FLumenRadiosityHardwareRayTracingRGS::FPermutationDomain PermutationVector;
-		PermutationVector.Set<FLumenRadiosityHardwareRayTracingRGS::FAvoidSelfIntersections>(CVarLumenRadiosityHardwareRayTracingAvoidSelfIntersections.GetValueOnRenderThread() != 0);
+		PermutationVector.Set<FLumenRadiosityHardwareRayTracingRGS::FAvoidSelfIntersections>(LumenHardwareRayTracing::UseAvoidSelfIntersections());
 		TShaderRef<FLumenRadiosityHardwareRayTracingRGS> RayGenerationShader = View.ShaderMap->GetShader<FLumenRadiosityHardwareRayTracingRGS>(PermutationVector);
 		OutRayGenShaders.Add(RayGenerationShader.GetRayTracingShader());
 	}
@@ -801,7 +794,7 @@ void LumenRadiosity::AddRadiosityPass(
 		PassParameters->MaxTraceDistance = Lumen::GetMaxTraceDistance(View);
 
 		FLumenRadiosityHardwareRayTracing::FPermutationDomain PermutationVector;
-		PermutationVector.Set<FLumenRadiosityHardwareRayTracing::FAvoidSelfIntersections>(CVarLumenRadiosityHardwareRayTracingAvoidSelfIntersections.GetValueOnRenderThread() != 0);
+		PermutationVector.Set<FLumenRadiosityHardwareRayTracing::FAvoidSelfIntersections>(LumenHardwareRayTracing::UseAvoidSelfIntersections());
 
 		const FIntPoint DispatchResolution = FIntPoint(NumThreadsToDispatch, 1);
 		FString Resolution = FString::Printf(TEXT("%ux%u"), DispatchResolution.X, DispatchResolution.Y);

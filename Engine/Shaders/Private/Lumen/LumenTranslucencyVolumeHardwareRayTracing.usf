@@ -45,6 +45,8 @@ RWTexture3D<float3> RWVolumeTraceRadiance;
 RWTexture3D<float> RWVolumeTraceHitDistance;
 Texture3D<float3> VolumeFroxelProbeRadiance;
 uint MaxTraversalIterations;
+uint MeshSectionVisibilityTest;
+uint SurfaceCacheAlphaMasking;
 
 // Applying an offset from the depth buffer helps with reducing self intersection with global distance field tracing.
 void ApplyDepthconstraintsToOffset(float3 GridCoordinate, inout float3 LocalFrameJitterOffset)
@@ -128,8 +130,15 @@ LUMEN_HARDWARE_RAY_TRACING_ENTRY(LumenTranslucencyVolumeHardwareRayTracing)
 			RayCone = PropagateRayCone(RayCone, ConeHalfAngle, 0.0);
 
 			const uint LinearCoord = GridCoordinate.y * TranslucencyGIGridSize.x + GridCoordinate.x;
-			const uint CullingMode = 0;
-			FRayTracedLightingContext Context = CreateRayTracedLightingContext(RayCone, GridCoordinate.xy, LinearCoord, CullingMode, MaxTraversalIterations);
+
+			FRayTracedLightingContext Context = CreateRayTracedLightingContext(
+				RayCone,
+				GridCoordinate.xy,
+				LinearCoord,
+				/*CullingMode*/ RAY_FLAG_NONE, // Disable culling in order to minimize leaking when rays start inside walls
+				MaxTraversalIterations,
+				MeshSectionVisibilityTest != 0,
+				SurfaceCacheAlphaMasking != 0);
 
 			#if DIM_LIGHTING_MODE == LIGHTING_FROM_SURFACE_CACHE
 				{

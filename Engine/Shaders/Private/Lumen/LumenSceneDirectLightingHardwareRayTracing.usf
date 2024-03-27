@@ -61,6 +61,8 @@ Buffer<uint2> ShadowTraceTileData;
 Buffer<int> VirtualShadowMapIds;
 
 uint MaxTraversalIterations;
+uint MeshSectionVisibilityTest;
+uint SurfaceCacheAlphaMasking;
 uint ViewIndex;
 
 uint LumenLightType;
@@ -160,13 +162,15 @@ LUMEN_HARDWARE_RAY_TRACING_ENTRY(LumenSceneDirectLightingHardwareRayTracing)
 
 				{
 					FRayCone RayCone = (FRayCone)0;
-					uint CullingMode = RAY_FLAG_CULL_FRONT_FACING_TRIANGLES;
+
 					FRayTracedLightingContext Context = CreateRayTracedLightingContext(
 						RayCone,
 						CoordInCardTile,
 						CoordInCardTile.x, // dummy coordinate
-						CullingMode,
-						MaxTraversalIterations);
+						/*CullingMode*/ RAY_FLAG_CULL_FRONT_FACING_TRIANGLES,
+						MaxTraversalIterations,
+						MeshSectionVisibilityTest != 0,
+						SurfaceCacheAlphaMasking != 0);
 
 					// Shadows don't need closest hit distance
 					Context.bAcceptFirstHitAndEndSearch = true;

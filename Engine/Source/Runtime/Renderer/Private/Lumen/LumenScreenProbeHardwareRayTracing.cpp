@@ -42,13 +42,6 @@ static TAutoConsoleVariable<int32> CVarLumenScreenProbeGatherHardwareRayTracingR
 	ECVF_RenderThreadSafe
 );
 
-static TAutoConsoleVariable<bool> CVarLumenScreenProbeGatherHardwareRayTracingAvoidSelfIntersections(
-	TEXT("r.Lumen.ScreenProbeGather.HardwareRayTracing.AvoidSelfIntersections"),
-	true,
-	TEXT("Whether to skip back face hits for a small distance in order to avoid self-intersections when BLAS mismatches rasterized geometry. Enabling it has a performance cost. Distance is controlled by r.Lumen.HardwareRayTracing.SkipBackFaceHitDistance"),
-	ECVF_Scalability | ECVF_RenderThreadSafe
-);
-
 namespace Lumen
 {
 	bool UseHardwareRayTracedScreenProbeGather(const FSceneViewFamily& ViewFamily)
@@ -209,7 +202,7 @@ void FDeferredShadingSceneRenderer::PrepareLumenHardwareRayTracingScreenProbeGat
 		{
 			FLumenScreenProbeGatherHardwareRayTracingRGS::FPermutationDomain PermutationVector;
 			PermutationVector.Set<FLumenScreenProbeGatherHardwareRayTracingRGS::FRayTracingPass>(LumenScreenProbeGather::ERayTracingPass::Default);
-			PermutationVector.Set<FLumenScreenProbeGatherHardwareRayTracingRGS::FAvoidSelfIntersections>(CVarLumenScreenProbeGatherHardwareRayTracingAvoidSelfIntersections.GetValueOnRenderThread() != 0);
+			PermutationVector.Set<FLumenScreenProbeGatherHardwareRayTracingRGS::FAvoidSelfIntersections>(LumenHardwareRayTracing::UseAvoidSelfIntersections());
 			PermutationVector.Set<FLumenScreenProbeGatherHardwareRayTracingRGS::FRadianceCache>(bUseRadianceCache);
 			PermutationVector.Set<FLumenScreenProbeGatherHardwareRayTracingRGS::FStructuredImportanceSamplingDim>(LumenScreenProbeGather::UseImportanceSampling(View));
 			PermutationVector = FLumenScreenProbeGatherHardwareRayTracingRGS::RemapPermutation(PermutationVector);
@@ -223,7 +216,7 @@ void FDeferredShadingSceneRenderer::PrepareLumenHardwareRayTracingScreenProbeGat
 		{
 			FLumenScreenProbeGatherHardwareRayTracingRGS::FPermutationDomain PermutationVector;
 			PermutationVector.Set<FLumenScreenProbeGatherHardwareRayTracingRGS::FRayTracingPass>(LumenScreenProbeGather::ERayTracingPass::FarField);
-			PermutationVector.Set<FLumenScreenProbeGatherHardwareRayTracingRGS::FAvoidSelfIntersections>(CVarLumenScreenProbeGatherHardwareRayTracingAvoidSelfIntersections.GetValueOnRenderThread() != 0);
+			PermutationVector.Set<FLumenScreenProbeGatherHardwareRayTracingRGS::FAvoidSelfIntersections>(LumenHardwareRayTracing::UseAvoidSelfIntersections());
 			PermutationVector.Set<FLumenScreenProbeGatherHardwareRayTracingRGS::FRadianceCache>(false);
 			PermutationVector.Set<FLumenScreenProbeGatherHardwareRayTracingRGS::FStructuredImportanceSamplingDim>(LumenScreenProbeGather::UseImportanceSampling(View));
 			PermutationVector = FLumenScreenProbeGatherHardwareRayTracingRGS::RemapPermutation(PermutationVector);
@@ -372,7 +365,7 @@ void RenderHardwareRayTracingScreenProbe(
 
 		FLumenScreenProbeGatherHardwareRayTracing::FPermutationDomain PermutationVector;
 		PermutationVector.Set<FLumenScreenProbeGatherHardwareRayTracing::FRayTracingPass>(LumenScreenProbeGather::ERayTracingPass::Default);
-		PermutationVector.Set<FLumenScreenProbeGatherHardwareRayTracing::FAvoidSelfIntersections>(CVarLumenScreenProbeGatherHardwareRayTracingAvoidSelfIntersections.GetValueOnRenderThread() != 0);
+		PermutationVector.Set<FLumenScreenProbeGatherHardwareRayTracing::FAvoidSelfIntersections>(LumenHardwareRayTracing::UseAvoidSelfIntersections());
 		PermutationVector.Set<FLumenScreenProbeGatherHardwareRayTracing::FRadianceCache>(bUseRadianceCache);
 		PermutationVector.Set<FLumenScreenProbeGatherHardwareRayTracing::FStructuredImportanceSamplingDim>(bUseImportanceSampling);
 		PermutationVector = FLumenScreenProbeGatherHardwareRayTracing::RemapPermutation(PermutationVector);
@@ -396,7 +389,7 @@ void RenderHardwareRayTracingScreenProbe(
 
 		FLumenScreenProbeGatherHardwareRayTracing::FPermutationDomain PermutationVector;
 		PermutationVector.Set<FLumenScreenProbeGatherHardwareRayTracing::FRayTracingPass>(LumenScreenProbeGather::ERayTracingPass::FarField);
-		PermutationVector.Set<FLumenScreenProbeGatherHardwareRayTracing::FAvoidSelfIntersections>(CVarLumenScreenProbeGatherHardwareRayTracingAvoidSelfIntersections.GetValueOnRenderThread() != 0);
+		PermutationVector.Set<FLumenScreenProbeGatherHardwareRayTracing::FAvoidSelfIntersections>(LumenHardwareRayTracing::UseAvoidSelfIntersections());
 		PermutationVector.Set<FLumenScreenProbeGatherHardwareRayTracing::FRadianceCache>(false);
 		PermutationVector.Set<FLumenScreenProbeGatherHardwareRayTracing::FStructuredImportanceSamplingDim>(bUseImportanceSampling);
 		PermutationVector = FLumenScreenProbeGatherHardwareRayTracing::RemapPermutation(PermutationVector);

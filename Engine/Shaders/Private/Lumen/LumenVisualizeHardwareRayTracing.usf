@@ -438,6 +438,8 @@ uint GroupCount;
 uint LightingMode;
 uint UseReflectionCaptures;
 uint MaxTraversalIterations;
+uint MeshSectionVisibilityTest;
+uint SurfaceCacheAlphaMasking;
 float3 FarFieldReferencePos;
 float NearFieldMaxTraceDistanceDitherScale;
 float NearFieldSceneRadius;
@@ -500,16 +502,16 @@ LUMEN_HARDWARE_RAY_TRACING_ENTRY(LumenVisualizeHardwareRayTracing)
 		RayCone.SpreadAngle = View.EyeToPixelSpreadAngle;
 		int LinearCoord = TraceCoord.y * View.BufferSizeAndInvSize.x + TraceCoord.x;
 
-		const uint CullingMode = 0;
-		const bool bHiResSurface = VisualizeHiResSurface != 0 ? true : false;
-
 		FRayTracedLightingContext Context = CreateRayTracedLightingContext(
 			RayCone,
 			TraceCoord,
 			LinearCoord,
-			CullingMode,
+			/*CullingMode*/ RAY_FLAG_NONE,
 			MaxTraversalIterations,
-			bHiResSurface);
+			MeshSectionVisibilityTest != 0,
+			SurfaceCacheAlphaMasking != 0);
+
+		Context.bHiResSurface = VisualizeHiResSurface != 0;
 		Context.MaxReflectionBounces = MaxReflectionBounces;
 		Context.FarFieldMaxTraceDistance = FarFieldMaxTraceDistance;
 		Context.FarFieldReferencePos = FarFieldReferencePos;

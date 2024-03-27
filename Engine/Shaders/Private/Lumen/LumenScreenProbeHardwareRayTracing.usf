@@ -61,6 +61,8 @@ float AvoidSelfIntersectionTraceDistance;
 float SkipFirstTwoSidedHitDistance;
 float MinTraceDistanceToSampleSurfaceCache;
 uint MaxTraversalIterations;
+uint MeshSectionVisibilityTest;
+uint SurfaceCacheAlphaMasking;
 
 LUMEN_HARDWARE_RAY_TRACING_ENTRY(LumenScreenProbeGatherHardwareRayTracing)
 {
@@ -109,13 +111,15 @@ LUMEN_HARDWARE_RAY_TRACING_ENTRY(LumenScreenProbeGatherHardwareRayTracing)
 		FRayCone RayCone = (FRayCone)0;
 		RayCone = PropagateRayCone(RayCone, ConeHalfAngle, 0.0);
 
-		uint CullingMode = 0;
 		FRayTracedLightingContext Context = CreateRayTracedLightingContext(
 			RayCone,
 			ScreenTileCoord,
 			ScreenTileCoord.y * ScreenProbeViewSize.x + ScreenTileCoord.x,
-			CullingMode,
-			MaxTraversalIterations);
+			/*CullingMode*/ RAY_FLAG_CULL_BACK_FACING_TRIANGLES,
+			MaxTraversalIterations,
+			MeshSectionVisibilityTest != 0,
+			SurfaceCacheAlphaMasking != 0);
+
 		Context.bCalculateHitVelocity = true;
 		Context.MinTraceDistanceToSampleSurfaceCache = MinTraceDistanceToSampleSurfaceCache;
 

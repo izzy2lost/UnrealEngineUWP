@@ -311,8 +311,15 @@ RAY_TRACING_ENTRY_RAYGEN(LumenValidateReservoirsRGS)
 		const uint CullingMode = 0;
 		//@todo - use ReservoirCoord?
 		uint LinearCoord = ScreenCoord.y * View.BufferSizeAndInvSize.x + ScreenCoord.x;
-		const bool bHiResSurface = false;
-		FRayTracedLightingContext Context = CreateRayTracedLightingContext(RayCone, ScreenCoord, LinearCoord, CullingMode, /* MaxTraversalIterations */8192, bHiResSurface);
+
+		FRayTracedLightingContext Context = CreateRayTracedLightingContext(
+			RayCone,
+			ScreenCoord,
+			LinearCoord,
+			CullingMode,
+			/* MaxTraversalIterations */8192,
+			/*MeshSectionVisibilityTest*/ true,
+			/*SurfaceCacheAlphaMasking*/ true);
 
 		FRayTracedLightingResult Result = CreateRayTracedLightingResult();
 
@@ -416,8 +423,15 @@ RAY_TRACING_ENTRY_RAYGEN(LumenInitialSamplingRGS)
 		const uint CullingMode = 0;
 		//@todo - use ReservoirCoord?
 		uint LinearCoord = ScreenCoord.y * View.BufferSizeAndInvSize.x + ScreenCoord.x;
-		const bool bHiResSurface = false;
-		FRayTracedLightingContext Context = CreateRayTracedLightingContext(RayCone, ScreenCoord, LinearCoord, CullingMode, /* MaxTraversalIterations */8192, bHiResSurface);
+
+		FRayTracedLightingContext Context = CreateRayTracedLightingContext(
+			RayCone,
+			ScreenCoord,
+			LinearCoord,
+			CullingMode,
+			/* MaxTraversalIterations */8192,
+			/*MeshSectionVisibilityTest*/ true,
+			/*SurfaceCacheAlphaMasking*/ true);
 
 		FRayTracedLightingResult Result = CreateRayTracedLightingResult();
 

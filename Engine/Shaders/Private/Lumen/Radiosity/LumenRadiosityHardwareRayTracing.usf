@@ -49,6 +49,8 @@ uint NumThreadsToDispatch;
 float TanRadiosityRayConeHalfAngle;
 uint MaxTraversalIterations;
 float MinTraceDistanceToSampleSurfaceCache;
+uint MeshSectionVisibilityTest;
+uint SurfaceCacheAlphaMasking;
 
 LUMEN_HARDWARE_RAY_TRACING_ENTRY(LumenRadiosityHardwareRayTracing)
 {	
@@ -99,8 +101,16 @@ LUMEN_HARDWARE_RAY_TRACING_ENTRY(LumenRadiosityHardwareRayTracing)
 				RayCone = PropagateRayCone(RayCone, ConeHalfAngle, 0.0);
 
 				const uint LinearCoord = CoordInCardTile.y * CARD_TILE_SIZE + CoordInCardTile.x;
-				const uint OriginalCullingMode = 0;
-				FRayTracedLightingContext Context = CreateRayTracedLightingContext(RayCone, CoordInCardTile, LinearCoord, OriginalCullingMode, MaxTraversalIterations);
+
+				FRayTracedLightingContext Context = CreateRayTracedLightingContext(
+					RayCone,
+					CoordInCardTile,
+					LinearCoord,
+					/*CullingMode*/ RAY_FLAG_CULL_BACK_FACING_TRIANGLES,
+					MaxTraversalIterations,
+					MeshSectionVisibilityTest != 0,
+					SurfaceCacheAlphaMasking != 0);
+
 				Context.MinTraceDistanceToSampleSurfaceCache = MinTraceDistanceToSampleSurfaceCache;
 
 #if LUMEN_HARDWARE_INLINE_RAYTRACING

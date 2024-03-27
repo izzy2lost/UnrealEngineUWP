@@ -17,6 +17,7 @@ float RayTracingBias;
 float RayTracingNormalBias;
 uint DebugMode;
 uint MaxTraversalIterations;
+uint MeshSectionVisibilityTest;
 RaytracingAccelerationStructure TLAS;
 
 #if LUMEN_HARDWARE_INLINE_RAYTRACING
@@ -80,8 +81,10 @@ RAY_TRACING_ENTRY_RAYGEN_OR_INLINE(HardwareRayTraceLightSamples)
 			RayCone,
 			0,
 			0, // dummy coordinate
-			RAY_FLAG_NONE,
-			MaxTraversalIterations);
+			/*CullingMode*/ RAY_FLAG_CULL_FRONT_FACING_TRIANGLES,
+			MaxTraversalIterations,
+			MeshSectionVisibilityTest != 0,
+			/*SurfaceCacheAlphaMasking*/ false);
 
 		// Shadows don't need closest hit distance
 		LightingContext.bAcceptFirstHitAndEndSearch = true;

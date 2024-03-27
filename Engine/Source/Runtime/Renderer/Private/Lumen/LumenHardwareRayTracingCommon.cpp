@@ -74,9 +74,23 @@ static TAutoConsoleVariable<int32> CVarLumenHardwareRayTracingMaxIterations(
 	ECVF_Scalability | ECVF_RenderThreadSafe
 );
 
+static TAutoConsoleVariable<int32> CVarLumenHardwareRayTracingAvoidSelfIntersections(
+	TEXT("r.Lumen.HardwareRayTracing.AvoidSelfIntersections"),
+	1,
+	TEXT("Whether to skip back face hits for a small distance in order to avoid self-intersections when BLAS mismatches rasterized geometry. Enabling it has a performance cost. Distance is controlled by r.Lumen.HardwareRayTracing.SkipBackFaceHitDistance"),
+	ECVF_RenderThreadSafe | ECVF_Scalability
+);
+
+static TAutoConsoleVariable<int32> CVarLumenHardwareRayTracingSurfaceCacheAlphaMasking(
+	TEXT("r.Lumen.HardwareRayTracing.SurfaceCacheAlphaMasking"),
+	1,
+	TEXT("Whether to support alpha masking based on the surface cache alpha channel."),
+	ECVF_RenderThreadSafe | ECVF_Scalability
+);
+
 static TAutoConsoleVariable<int32> CVarLumenHardwareRayTracingMeshSectionVisibilityTest(
 	TEXT("r.Lumen.HardwareRayTracing.MeshSectionVisibilityTest"),
-	0,
+	1,
 	TEXT("Whether to test mesh section visibility at runtime.\n")
 	TEXT("When enabled translucent mesh sections are automatically hidden based on the material, but it slows down performance due to extra visibility tests per intersection.\n")
 	TEXT("When disabled translucent meshes can be hidden only if they are fully translucent. Individual mesh sections need to be hidden upfront inside the static mesh editor."),
@@ -97,17 +111,6 @@ static TAutoConsoleVariable<float> CVarLumenHardwareRayTracingSurfaceCacheSampli
 	ECVF_Scalability | ECVF_RenderThreadSafe
 );
 
-bool LumenHardwareRayTracing::IsInlineSupported()
-{
-	return GRHISupportsInlineRayTracing;
-}
-
-bool LumenHardwareRayTracing::IsRayGenSupported()
-{
-	// Indirect RayGen dispatch is required for Lumen RayGen shaders
-	return GRHISupportsRayTracingShaders && GRHISupportsRayTracingDispatchIndirect;
-}
-
 bool Lumen::UseHardwareRayTracing(const FSceneViewFamily& ViewFamily)
 {
 #if RHI_RAYTRACING
@@ -119,6 +122,22 @@ bool Lumen::UseHardwareRayTracing(const FSceneViewFamily& ViewFamily)
 #else
 	return false;
 #endif
+}
+
+bool LumenHardwareRayTracing::IsInlineSupported()
+{
+	return GRHISupportsInlineRayTracing;
+}
+
+bool LumenHardwareRayTracing::IsRayGenSupported()
+{
+	// Indirect RayGen dispatch is required for Lumen RayGen shaders
+	return GRHISupportsRayTracingShaders && GRHISupportsRayTracingDispatchIndirect;
+}
+
+bool LumenHardwareRayTracing::UseAvoidSelfIntersections()
+{
+	return CVarLumenHardwareRayTracingAvoidSelfIntersections.GetValueOnRenderThread() != 0;
 }
 
 bool Lumen::IsUsingRayTracingLightingGrid(const FSceneViewFamily& ViewFamily, const FViewInfo& View, bool bLumenGIEnabled)
@@ -315,6 +334,7 @@ void SetLumenHardwareRayTracingSharedParameters(
 	SharedParameters->MinTraceDistanceToSampleSurfaceCache = CVarLumenHardwareRayTracingMinTraceDistanceToSampleSurfaceCache.GetValueOnRenderThread();
 	SharedParameters->SurfaceCacheSamplingDepthBias = CVarLumenHardwareRayTracingSurfaceCacheSamplingDepthBias.GetValueOnRenderThread();
 	SharedParameters->MeshSectionVisibilityTest = CVarLumenHardwareRayTracingMeshSectionVisibilityTest.GetValueOnRenderThread();
+	SharedParameters->SurfaceCacheAlphaMasking = CVarLumenHardwareRayTracingSurfaceCacheAlphaMasking.GetValueOnRenderThread();
 }
 
 #endif // RHI_RAYTRACING
