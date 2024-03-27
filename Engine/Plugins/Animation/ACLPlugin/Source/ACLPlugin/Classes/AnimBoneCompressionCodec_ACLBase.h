@@ -30,7 +30,16 @@ enum class ACLSafetyFallbackResult
 	Ignored,	// No safety fallback used
 };
 
-struct FACLCompressedAnimData final : public ICompressedAnimData
+struct FACLCompressedAnimDataBase : public ICompressedAnimData
+{
+	/** Whether or not compression failed */
+	bool bCompressionFailed = false;
+
+	// ICompressedAnimData implementation
+	virtual void SerializeCompressedData(UObject* DataOwner, FArchive& Ar) override;
+};
+
+struct FACLCompressedAnimData final : public FACLCompressedAnimDataBase
 {
 	/** Holds the compressed_tracks instance */
 	TArrayView<uint8> CompressedByteStream;

@@ -450,7 +450,10 @@ struct ICompressedAnimData
 	/* Virtual interface codecs must implement */
 	virtual ~ICompressedAnimData() {}
 
+	UE_DEPRECATED(5.5, "SerializeCompressedData now accepts the DataOwner as an argument")
 	ENGINE_API virtual void SerializeCompressedData(class FArchive& Ar);
+
+	ENGINE_API virtual void SerializeCompressedData(UObject* DataOwner, class FArchive& Ar);
 	virtual void Bind(const TArrayView<uint8> BulkData) = 0;
 
 	virtual int64 GetApproxCompressedSize() const = 0;

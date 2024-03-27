@@ -26,9 +26,9 @@ THIRD_PARTY_INCLUDES_END
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(AnimBoneCompressionCodec_ACLDatabase)
 
-void FACLDatabaseCompressedAnimData::SerializeCompressedData(FArchive& Ar)
+void FACLDatabaseCompressedAnimData::SerializeCompressedData(UObject* DataOwner, FArchive& Ar)
 {
-	ICompressedAnimData::SerializeCompressedData(Ar);
+	FACLCompressedAnimDataBase::SerializeCompressedData(DataOwner, Ar);
 
 	Ar << SequenceNameHash;
 

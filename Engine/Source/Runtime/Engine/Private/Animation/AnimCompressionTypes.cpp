@@ -1133,7 +1133,9 @@ FArchive& operator<<(FArchive& Ar, AnimationKeyFormat& Fmt)
 
 void FUECompressedAnimData::SerializeCompressedData(FArchive& Ar)
 {
+	PRAGMA_DISABLE_DEPRECATION_WARNINGS
 	ICompressedAnimData::SerializeCompressedData(Ar);
+	PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 	Ar << KeyEncodingFormat;
 	Ar << TranslationCompressionFormat;
@@ -1223,7 +1225,7 @@ void FUECompressedAnimDataMutable::BuildFinalBuffer(TArray<uint8>& OutCompressed
 	WriteArray(MemoryWriter, CompressedByteStream);
 }
 
-void ICompressedAnimData::SerializeCompressedData(class FArchive& Ar)
+void ICompressedAnimData::SerializeCompressedData(FArchive& Ar)
 {
 	Ar << CompressedNumberOfKeys;
 
@@ -1237,6 +1239,14 @@ void ICompressedAnimData::SerializeCompressedData(class FArchive& Ar)
 		Ar << BoneCompressionErrorStats;
 	}
 #endif
+}
+
+void ICompressedAnimData::SerializeCompressedData(UObject* DataOwner, FArchive& Ar)
+{
+	PRAGMA_DISABLE_DEPRECATION_WARNINGS
+	// When we remove the deprecated function, we can inline it here
+	SerializeCompressedData(Ar);
+	PRAGMA_ENABLE_DEPRECATION_WARNINGS
 }
 
 #if WITH_EDITOR
@@ -1383,7 +1393,7 @@ void FCompressedAnimSequence::SerializeCompressedData(FArchive& Ar, bool bDDCDat
 		if (BoneCompressionCodec != nullptr)
 		{
 			CompressedDataStructure = BoneCompressionCodec->AllocateAnimData();
-			CompressedDataStructure->SerializeCompressedData(Ar);
+			CompressedDataStructure->SerializeCompressedData(DataOwner, Ar);
 			CompressedDataStructure->Bind(CompressedByteStream);
 
 			// The codec can be null if we are a default object, a sequence with no raw bone data (just curves),
@@ -1500,7 +1510,7 @@ void FCompressedAnimSequence::SerializeCompressedData(FArchive& Ar, bool bDDCDat
 
 		if (BoneCompressionCodec != nullptr)
 		{
-			CompressedDataStructure->SerializeCompressedData(Ar);
+			CompressedDataStructure->SerializeCompressedData(DataOwner, Ar);
 		}
 	}
 

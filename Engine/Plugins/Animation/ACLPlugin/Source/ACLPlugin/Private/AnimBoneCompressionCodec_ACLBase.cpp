@@ -27,6 +27,23 @@ THIRD_PARTY_INCLUDES_END
 
 #include <acl/core/compressed_tracks.h>
 
+void FACLCompressedAnimDataBase::SerializeCompressedData(UObject* DataOwner, FArchive& Ar)
+{
+	ICompressedAnimData::SerializeCompressedData(DataOwner, Ar);
+
+	Ar << bCompressionFailed;
+
+	if (bCompressionFailed && (Ar.IsLoading() || Ar.IsCooking()))
+	{
+		// Compression failed due to invalid settings or data (see below in Compress(..))
+		// We'll end up outputting the bind pose during decompression
+		// We report an error to cause the cook to fail
+		UE_LOG(LogAnimationCompression, Error,
+			TEXT("ACL failed to compress an anim sequence and will output the bind pose at runtime: %s"),
+			DataOwner != nullptr ? *DataOwner->GetPathName() : TEXT("[Unknown Sequence]"));
+	}
+}
+
 bool FACLCompressedAnimData::IsValid() const
 {
 	if (CompressedByteStream.Num() == 0)
@@ -218,13 +235,47 @@ static void StripBindPose(const FCompressibleAnimData& CompressibleAnimData, acl
 	}
 }
 
+static void ResetTracksToIdentity(const FCompressibleAnimData& CompressibleAnimData, bool bBuildAdditiveBase, acl::track_array_qvvf& ACLTracks)
+{
+	// This resets the input ACL tracks to the identity transform but retains all other values
+	const uint32 NumSamples = 1;
+	const float SampleRate = 30.0f;
+
+	// Additive animations have 0,0,0 scale as the default since we add it
+	const bool bIsAdditive = bBuildAdditiveBase ? false : CompressibleAnimData.bIsValidAdditive;
+	const FVector3f UE4DefaultScale(bIsAdditive ? 0.0f : 1.0f);
+	const rtm::vector4f ACLDefaultScale = rtm::vector_set(bIsAdditive ? 0.0f : 1.0f);
+
+	rtm::qvvf ACLIdentityTransform = rtm::qvv_identity();
+	ACLIdentityTransform.scale = ACLDefaultScale;
+
+	const acl::track_desc_transformf DefaultDesc;
+
+	for (acl::track_qvvf& ACLTrack : ACLTracks)
+	{
+		// Reset everything to the identity transform and default values
+		// Retain the output index to ensure proper output size
+		acl::track_desc_transformf Desc = ACLTrack.get_description();	// Copy
+		Desc.default_value = ACLIdentityTransform;
+		Desc.precision = DefaultDesc.precision;
+		Desc.shell_distance = DefaultDesc.shell_distance;
+		Desc.parent_index = acl::k_invalid_track_index;
+
+		// Reset track to a single sample
+		ACLTrack = acl::track_qvvf::make_reserve(Desc, ACLAllocatorImpl, NumSamples, SampleRate);
+		ACLTrack[0] = ACLIdentityTransform;
+	}
+}
+
 bool UAnimBoneCompressionCodec_ACLBase::Compress(const FCompressibleAnimData& CompressibleAnimData, FCompressibleAnimDataResult& OutResult)
 {
 	acl::track_array_qvvf ACLTracks = BuildACLTransformTrackArray(ACLAllocatorImpl, CompressibleAnimData, DefaultVirtualVertexDistance, SafeVirtualVertexDistance, false, PhantomTrackMode);
 
 	acl::track_array_qvvf ACLBaseTracks;
 	if (CompressibleAnimData.bIsValidAdditive)
+	{
 		ACLBaseTracks = BuildACLTransformTrackArray(ACLAllocatorImpl, CompressibleAnimData, DefaultVirtualVertexDistance, SafeVirtualVertexDistance, true, PhantomTrackMode);
+	}
 
 	UE_LOG(LogAnimationCompression, Verbose, TEXT("ACL Animation raw size: %u bytes [%s]"), ACLTracks.get_raw_size(), *CompressibleAnimData.FullName);
 
@@ -269,12 +320,43 @@ bool UAnimBoneCompressionCodec_ACLBase::Compress(const FCompressibleAnimData& Co
 
 	acl::output_stats Stats;
 	acl::compressed_tracks* CompressedTracks = nullptr;
-	const acl::error_result CompressionResult = acl::compress_track_list(ACLAllocatorImpl, ACLTracks, Settings, ACLBaseTracks, AdditiveFormat, CompressedTracks, Stats);
+	acl::error_result CompressionResult = acl::compress_track_list(ACLAllocatorImpl, ACLTracks, Settings, ACLBaseTracks, AdditiveFormat, CompressedTracks, Stats);
 
-	if (!CompressionResult.empty() || CompressedTracks == nullptr)
+	bool bEnableErrorReporting = true;
+	bool bCompressionFailed = false;
+
+	if (!CompressionResult.empty())
 	{
-		UE_LOG(LogAnimationCompression, Warning, TEXT("ACL failed to compress clip: %s [%s]"), ANSI_TO_TCHAR(CompressionResult.c_str()), *CompressibleAnimData.FullName);
-		return false;
+		// If compression failed, one of two things happened:
+		//    * Invalid settings were used, this would be a code/logic error that results in an improper usage of ACL
+		//    * Invalid data was provided, this would be a validation error that should ideally be caught earlier (e.g import, save)
+		// 
+		// Either way, if we get here, we cannot recover and we cannot fail as the engine assumes that compression always succeeds.
+		// We must handle failure gracefully. To that end, we compress an empty stub to ensure that something is present to
+		// decompress. Because the stub is empty, we'll simply output the bind pose. We still log this as an error to signal that
+		// this is a problem that needs to be fixed. This will allow the editor to continue working with the bind pose we'll output
+		// but cooking will fail preventing us from running with invalid state.
+
+		UE_LOG(LogAnimationCompression, Error, TEXT("ACL failed to compress anim sequence: %s [%s]"), ANSI_TO_TCHAR(CompressionResult.c_str()), *CompressibleAnimData.FullName);
+
+		// We reset the tracks to the identity, getting rid of any potentially invalid data.
+		// By setting them to the identity along with their default value as well, bind pose stripping will
+		// strip the single keyframe. This will result in the bind pose being outputted during decompression
+		// for non-additive animations and additive animations will retain the additive identity.
+		ResetTracksToIdentity(CompressibleAnimData, false, ACLTracks);
+		if (CompressibleAnimData.bIsValidAdditive)
+		{
+			ResetTracksToIdentity(CompressibleAnimData, true, ACLBaseTracks);
+		}
+
+		CompressionResult = acl::compress_track_list(ACLAllocatorImpl, ACLTracks, Settings, ACLBaseTracks, AdditiveFormat, CompressedTracks, Stats);
+
+		// The stub compression should never fail
+		check(CompressionResult.empty() && CompressedTracks != nullptr);
+
+		// Because we compress an empty stub, disable error reporting below
+		bEnableErrorReporting = false;
+		bCompressionFailed = true;
 	}
 
 	checkSlow(CompressedTracks->is_valid(true).empty());
@@ -291,7 +373,11 @@ bool UAnimBoneCompressionCodec_ACLBase::Compress(const FCompressibleAnimData& Co
 
 	OutResult.AnimData->CompressedNumberOfKeys = GetNumSamples(CompressibleAnimData);
 
+	FACLCompressedAnimDataBase& AnimData = static_cast<FACLCompressedAnimDataBase&>(*OutResult.AnimData);
+	AnimData.bCompressionFailed = bCompressionFailed;
+
 #if !NO_LOGGING
+	if (bEnableErrorReporting)
 	{
 		// Use debug settings in case codec picked is the fallback
 		acl::decompression_context<UE4DebugDecompressionSettings> Context;
@@ -321,7 +407,7 @@ void UAnimBoneCompressionCodec_ACLBase::PopulateDDCKey(const UE::Anim::Compressi
 {
 	Super::PopulateDDCKey(KeyArgs, Ar);
 
-	uint32 ForceRebuildVersion = 18;
+	uint32 ForceRebuildVersion = 19;
 
 	Ar << ForceRebuildVersion << DefaultVirtualVertexDistance << SafeVirtualVertexDistance << ErrorThreshold;
 	Ar << CompressionLevel;
