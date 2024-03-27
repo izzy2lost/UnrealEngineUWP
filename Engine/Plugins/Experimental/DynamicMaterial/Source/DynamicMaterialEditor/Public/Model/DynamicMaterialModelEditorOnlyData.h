@@ -51,6 +51,9 @@ public:
 	static const FString OpacitySlotPathToken; // @TODO This will probably need to change when other slot types are opened up.
 	static const FString PropertiesPathToken;
 
+	static const TArray<EMaterialDomain> SupportedDomains;
+	static const TArray<EBlendMode> SupportedBlendModes;
+
 	static UDynamicMaterialModelEditorOnlyData* Get(UDynamicMaterialModel* InModel);
 	static UDynamicMaterialModelEditorOnlyData* Get(TWeakObjectPtr<UDynamicMaterialModel> InModelWeak);
 	static UDynamicMaterialModelEditorOnlyData* Get(const TScriptInterface<IDynamicMaterialModelEditorOnlyDataInterface>& InInterface);
@@ -85,6 +88,18 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Material Designer")
 	void SetShadingModel(EDMMaterialShadingModel InShadingModel);
 
+	UFUNCTION(BlueprintPure, Category = "Material Designer")
+	bool IsPixelAnimationFlagSet() const;
+
+	UFUNCTION(BlueprintCallable, Category = "Material Designer")
+	void SetPixelAnimationFlag(bool bInFlagValue);
+
+	UFUNCTION(BlueprintPure, Category = "Material Designer")
+	bool IsTwoSidedFlagSet() const;
+
+	UFUNCTION(BlueprintCallable, Category = "Material Designer")
+	void SetTwoSidedFlag(bool bInFlagValue);
+
 	UFUNCTION(BlueprintCallable, Category = "Material Designer")
 	void OpenMaterialEditor() const;
 
@@ -117,12 +132,6 @@ public:
 
 	UFUNCTION(BlueprintCallable, Category = "Material Designer")
 	void UnassignMaterialProperty(EDMMaterialPropertyType Property);
-
-	UFUNCTION(BlueprintPure, Category = "Material Designer")
-	bool IsPixelAnimationFlagSet() const;
-
-	UFUNCTION(BlueprintCallable, Category = "Material Designer")
-	void SetPixelAnimationFlag(bool bInFlagValue);
 	
 	FDMOnMaterialBuilt& GetOnMaterialBuiltDelegate() { return OnMaterialBuiltDelegate; }
 	FDMOnValueListUpdated& GetOnValueListUpdateDelegate() { return OnValueListUpdateDelegate; }
@@ -134,6 +143,10 @@ public:
 		EDMMaterialPropertyType InFromProperty, UMaterialExpression*& OutExpression, int32& OutOutputIndex, int32& OutOutputChannel) const;
 
 	TSharedRef<FDMMaterialBuildState> CreateBuildState(UMaterial* InMaterialToBuild, bool bInDirtyAssets = true) const;
+
+	bool NeedsWizard() const;
+
+	void OnWizardComplete();
 
 	//~ Begin FNotifyHook
 	virtual void NotifyPreChange(class FEditPropertyChain* PropertyAboutToChange) {}
@@ -180,6 +193,12 @@ protected:
 	UPROPERTY(EditInstanceOnly, BlueprintReadOnly, Category = "Material Designer")
 	EDMMaterialShadingModel ShadingModel = EDMMaterialShadingModel::Unlit;
 
+	UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, Category = "Material Designer")
+	bool bPixelAnimationFlag;
+
+	UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, Category = "Material Designer")
+	bool bTwoSidedFlag;
+
 	UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, Instanced, Category = "Material Designer")
 	TMap<EDMMaterialPropertyType, TObjectPtr<UDMMaterialProperty>> Properties;
 
@@ -195,8 +214,12 @@ protected:
 	UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, Category = "Material Designer")
 	bool bCreateMaterialPackage;
 
-	UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, Category = "Material Designer")
-	bool bPixelAnimationFlag;
+	/**
+	 * This is just a quick, transient flag that marks this model as needing to
+	 * open the wizard when it is opened by the material designer. It is initially
+	 * set to true, but set to false on first opening and on post load.
+	 */
+	bool bUseWizard;
 
 	FDMOnMaterialBuilt OnMaterialBuiltDelegate;
 	FDMOnValueListUpdated OnValueListUpdateDelegate;

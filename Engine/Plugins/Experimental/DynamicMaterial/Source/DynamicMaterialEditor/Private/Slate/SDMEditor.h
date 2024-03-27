@@ -134,7 +134,6 @@ protected:
 	void BindCommands();
 
 	TSharedRef<SWidget> CreateMainLayout();
-	TSharedRef<SWidget> CreateMaterialSettingsRow();
 	TSharedRef<SWidget> CreateGlobalOpacityWidget();
 	TSharedRef<SWidget> CreateParametersArea();
 

@@ -32,9 +32,362 @@
 namespace UE::DynamicMaterialEditor::Private
 {
 	static FName ToolBarEditorLayoutMenuName = TEXT("MaterialDesigner.EditorLayout");
-	static FName ToolBarPreviewOptionsSectionName = TEXT("PreviewOptions");
-	static FName ToolBarTooltipOptionsSectionName = TEXT("TooltipOptions");
-	static FName ToolBarExportSectionName = TEXT("Export");
+	static FName ToolBarMaterialInstanceSectionName = TEXT("MaterialInstance");
+	static FName ToolBarMaterialExportSectionName = TEXT("MaterialExport");
+	static FName ToolBarMaterialDesignerSettingsSectionName = TEXT("MaterialDesignerSettings");
+
+	void AddToolBarMaterialInstanceDomainMenu_Execute(const FToolMenuContext& InContext, EMaterialDomain InDomain)
+	{
+		if (UDMMenuContext* Context = InContext.FindContext<UDMMenuContext>())
+		{
+			if (UDynamicMaterialModel* MaterialModel = Context->GetModel())
+			{
+				if (UDynamicMaterialModelEditorOnlyData* EditorOnlyData = UDynamicMaterialModelEditorOnlyData::Get(MaterialModel))
+				{
+					EditorOnlyData->SetDomain(InDomain);
+				}
+			}
+		}
+	}
+
+	bool AddToolBarMaterialInstanceDomainMenu_CanExecute(const FToolMenuContext& InContext, EMaterialDomain InDomain)
+	{
+		if (UDMMenuContext* Context = InContext.FindContext<UDMMenuContext>())
+		{
+			if (UDynamicMaterialModel* MaterialModel = Context->GetModel())
+			{
+				return !!UDynamicMaterialModelEditorOnlyData::Get(MaterialModel);
+			}
+		}
+
+		return false;
+	}
+
+	ECheckBoxState AddToolBarMaterialInstanceDomainMenu_GetCheckState(const FToolMenuContext& InContext, EMaterialDomain InDomain)
+	{
+		if (UDMMenuContext* Context = InContext.FindContext<UDMMenuContext>())
+		{
+			if (UDynamicMaterialModel* MaterialModel = Context->GetModel())
+			{
+				if (UDynamicMaterialModelEditorOnlyData* EditorOnlyData = UDynamicMaterialModelEditorOnlyData::Get(MaterialModel))
+				{
+					return EditorOnlyData->GetDomain() == InDomain
+						? ECheckBoxState::Checked
+						: ECheckBoxState::Unchecked;
+				}
+			}
+		}
+
+		return ECheckBoxState::Undetermined;
+	}
+
+	void AddToolBarMaterialInstanceDomainMenu(UToolMenu* InMenu)
+	{
+		UEnum* DomainEnum = StaticEnum<EMaterialDomain>();
+
+		FToolMenuSection& NewSection = InMenu->AddSection("MaterialDomains", LOCTEXT("MaterialDomains", "Material Domains"));
+
+		for (EMaterialDomain Domain : UDynamicMaterialModelEditorOnlyData::SupportedDomains)
+		{
+			FToolUIAction DomainAction;
+			DomainAction.ExecuteAction = FToolMenuExecuteAction::CreateStatic(&AddToolBarMaterialInstanceDomainMenu_Execute, Domain);
+			DomainAction.CanExecuteAction = FToolMenuCanExecuteAction::CreateStatic(&AddToolBarMaterialInstanceDomainMenu_CanExecute, Domain);
+			DomainAction.GetActionCheckState = FToolMenuGetActionCheckState::CreateStatic(&AddToolBarMaterialInstanceDomainMenu_GetCheckState, Domain);
+
+			NewSection.AddMenuEntry(
+				DomainEnum->GetNameByValue(Domain),
+				DomainEnum->GetDisplayNameTextByValue(Domain),
+				FText::GetEmpty(),
+				TAttribute<FSlateIcon>(),
+				FToolUIActionChoice(	DomainAction),
+				EUserInterfaceActionType::RadioButton
+			);
+		}
+	}
+
+	void AddToolBarMaterialInstanceBlendModeMenu_Execute(const FToolMenuContext& InContext, EBlendMode InBlendMode)
+	{
+		if (UDMMenuContext* Context = InContext.FindContext<UDMMenuContext>())
+		{
+			if (UDynamicMaterialModel* MaterialModel = Context->GetModel())
+			{
+				if (UDynamicMaterialModelEditorOnlyData* EditorOnlyData = UDynamicMaterialModelEditorOnlyData::Get(MaterialModel))
+				{
+					EditorOnlyData->SetBlendMode(InBlendMode);
+				}
+			}
+		}
+	}
+
+	bool AddToolBarMaterialInstanceBlendModeMenu_CanExecute(const FToolMenuContext& InContext, EBlendMode InBlendMode)
+	{
+		if (UDMMenuContext* Context = InContext.FindContext<UDMMenuContext>())
+		{
+			if (UDynamicMaterialModel* MaterialModel = Context->GetModel())
+			{
+				return !!UDynamicMaterialModelEditorOnlyData::Get(MaterialModel);
+			}
+		}
+
+		return false;
+	}
+
+	ECheckBoxState AddToolBarMaterialInstanceBlendModeMenu_GetCheckState(const FToolMenuContext& InContext, EBlendMode InBlendMode)
+	{
+		if (UDMMenuContext* Context = InContext.FindContext<UDMMenuContext>())
+		{
+			if (UDynamicMaterialModel* MaterialModel = Context->GetModel())
+			{
+				if (UDynamicMaterialModelEditorOnlyData* EditorOnlyData = UDynamicMaterialModelEditorOnlyData::Get(MaterialModel))
+				{
+					return EditorOnlyData->GetBlendMode() == InBlendMode
+						? ECheckBoxState::Checked
+						: ECheckBoxState::Unchecked;
+				}
+			}
+		}
+
+		return ECheckBoxState::Undetermined;
+	}
+
+	void AddToolBarMaterialInstanceBlendModeMenu(UToolMenu* InMenu)
+	{
+		UEnum* BlendModeEnum = StaticEnum<EBlendMode>();
+
+		FToolMenuSection& NewSection = InMenu->AddSection("MaterialBlendModes", LOCTEXT("MaterialBlendModes", "Material Blend Modes"));
+
+		for (EBlendMode BlendMode : UDynamicMaterialModelEditorOnlyData::SupportedBlendModes)
+		{
+			FToolUIAction BlendModeAction;
+			BlendModeAction.ExecuteAction = FToolMenuExecuteAction::CreateStatic(&AddToolBarMaterialInstanceBlendModeMenu_Execute, BlendMode);
+			BlendModeAction.CanExecuteAction = FToolMenuCanExecuteAction::CreateStatic(&AddToolBarMaterialInstanceBlendModeMenu_CanExecute, BlendMode);
+			BlendModeAction.GetActionCheckState = FToolMenuGetActionCheckState::CreateStatic(&AddToolBarMaterialInstanceBlendModeMenu_GetCheckState, BlendMode);
+
+			NewSection.AddMenuEntry(
+				BlendModeEnum->GetNameByValue(BlendMode),
+				BlendModeEnum->GetDisplayNameTextByValue(BlendMode),
+				FText::GetEmpty(),
+				TAttribute<FSlateIcon>(),
+				FToolUIActionChoice(BlendModeAction),
+				EUserInterfaceActionType::RadioButton
+			);
+		}
+	}
+
+	void AddToolBarMaterialInstanceUnlitMenu_Execute(const FToolMenuContext& InContext)
+	{
+		if (UDMMenuContext* Context = InContext.FindContext<UDMMenuContext>())
+		{
+			if (UDynamicMaterialModel* MaterialModel = Context->GetModel())
+			{
+				if (UDynamicMaterialModelEditorOnlyData* EditorOnlyData = UDynamicMaterialModelEditorOnlyData::Get(MaterialModel))
+				{
+					switch (EditorOnlyData->GetShadingModel())
+					{
+						case EDMMaterialShadingModel::DefaultLit:
+							EditorOnlyData->SetShadingModel(EDMMaterialShadingModel::Unlit);
+							break;
+
+						case EDMMaterialShadingModel::Unlit:
+							EditorOnlyData->SetShadingModel(EDMMaterialShadingModel::DefaultLit);
+							break;
+					}
+				}
+			}
+		}
+	}
+
+	bool AddToolBarMaterialInstanceUnlitMenu_CanExecute(const FToolMenuContext& InContext)
+	{
+		if (UDMMenuContext* Context = InContext.FindContext<UDMMenuContext>())
+		{
+			if (UDynamicMaterialModel* MaterialModel = Context->GetModel())
+			{
+				return !!UDynamicMaterialModelEditorOnlyData::Get(MaterialModel);
+			}
+		}
+
+		return false;
+	}
+
+	ECheckBoxState AddToolBarMaterialInstanceUnlitMenu_GetCheckState(const FToolMenuContext& InContext)
+	{
+		if (UDMMenuContext* Context = InContext.FindContext<UDMMenuContext>())
+		{
+			if (UDynamicMaterialModel* MaterialModel = Context->GetModel())
+			{
+				if (UDynamicMaterialModelEditorOnlyData* EditorOnlyData = UDynamicMaterialModelEditorOnlyData::Get(MaterialModel))
+				{
+					switch (EditorOnlyData->GetShadingModel())
+					{
+						case EDMMaterialShadingModel::DefaultLit:
+							return ECheckBoxState::Unchecked;
+
+						case EDMMaterialShadingModel::Unlit:
+							return ECheckBoxState::Checked;
+					}
+				}
+			}
+		}
+
+		return ECheckBoxState::Undetermined;
+	}
+
+	void AddToolBarMaterialInstanceAnimatedMenu_Execute(const FToolMenuContext& InContext)
+	{
+		if (UDMMenuContext* Context = InContext.FindContext<UDMMenuContext>())
+		{
+			if (UDynamicMaterialModel* MaterialModel = Context->GetModel())
+			{
+				if (UDynamicMaterialModelEditorOnlyData* EditorOnlyData = UDynamicMaterialModelEditorOnlyData::Get(MaterialModel))
+				{
+					EditorOnlyData->SetPixelAnimationFlag(!EditorOnlyData->IsPixelAnimationFlagSet());
+				}
+			}
+		}
+	}
+
+	bool AddToolBarMaterialInstanceAnimatedMenu_CanExecute(const FToolMenuContext& InContext)
+	{
+		if (UDMMenuContext* Context = InContext.FindContext<UDMMenuContext>())
+		{
+			if (UDynamicMaterialModel* MaterialModel = Context->GetModel())
+			{
+				return !!UDynamicMaterialModelEditorOnlyData::Get(MaterialModel);
+			}
+		}
+
+		return false;
+	}
+
+	ECheckBoxState AddToolBarMaterialInstanceAnimatedMenu_GetCheckState(const FToolMenuContext& InContext)
+	{
+		if (UDMMenuContext* Context = InContext.FindContext<UDMMenuContext>())
+		{
+			if (UDynamicMaterialModel* MaterialModel = Context->GetModel())
+			{
+				if (UDynamicMaterialModelEditorOnlyData* EditorOnlyData = UDynamicMaterialModelEditorOnlyData::Get(MaterialModel))
+				{
+					return EditorOnlyData->IsPixelAnimationFlagSet()
+						? ECheckBoxState::Checked
+						: ECheckBoxState::Unchecked;
+				}
+			}
+		}
+
+		return ECheckBoxState::Undetermined;
+	}
+
+	void AddToolBarMaterialInstanceTwoSidedMenu_Execute(const FToolMenuContext& InContext)
+	{
+		if (UDMMenuContext* Context = InContext.FindContext<UDMMenuContext>())
+		{
+			if (UDynamicMaterialModel* MaterialModel = Context->GetModel())
+			{
+				if (UDynamicMaterialModelEditorOnlyData* EditorOnlyData = UDynamicMaterialModelEditorOnlyData::Get(MaterialModel))
+				{
+					EditorOnlyData->SetTwoSidedFlag(!EditorOnlyData->IsTwoSidedFlagSet());
+				}
+			}
+		}
+	}
+
+	bool AddToolBarMaterialInstanceTwoSidedMenu_CanExecute(const FToolMenuContext& InContext)
+	{
+		if (UDMMenuContext* Context = InContext.FindContext<UDMMenuContext>())
+		{
+			if (UDynamicMaterialModel* MaterialModel = Context->GetModel())
+			{
+				return !!UDynamicMaterialModelEditorOnlyData::Get(MaterialModel);
+			}
+		}
+
+		return false;
+	}
+
+	ECheckBoxState AddToolBarMaterialInstanceTwoSidedMenu_GetCheckState(const FToolMenuContext& InContext)
+	{
+		if (UDMMenuContext* Context = InContext.FindContext<UDMMenuContext>())
+		{
+			if (UDynamicMaterialModel* MaterialModel = Context->GetModel())
+			{
+				if (UDynamicMaterialModelEditorOnlyData* EditorOnlyData = UDynamicMaterialModelEditorOnlyData::Get(MaterialModel))
+				{
+					return EditorOnlyData->IsTwoSidedFlagSet()
+						? ECheckBoxState::Checked
+						: ECheckBoxState::Unchecked;
+				}
+			}
+		}
+
+		return ECheckBoxState::Undetermined;
+	}
+
+	void AddToolBarInstanceMenu(UToolMenu* InMenu)
+	{
+		if (!IsValid(InMenu) || InMenu->ContainsSection(ToolBarMaterialInstanceSectionName))
+		{
+			return;
+		}
+
+		FToolMenuSection& NewSection = InMenu->AddSection(ToolBarMaterialInstanceSectionName, LOCTEXT("MaterialInstanceSection", "Material Instance"));
+
+		NewSection.AddSubMenu(
+			"Domain",
+			LOCTEXT("MaterialInstanceDomain", "Material Domain"),
+			LOCTEXT("MaterialInstanceDomain_ToolTip", "Set the material domain for the active material designer instance."),
+			FNewToolMenuDelegate::CreateStatic(&AddToolBarMaterialInstanceDomainMenu)
+		);
+
+		NewSection.AddSubMenu(
+			"BlendMode",
+			LOCTEXT("MaterialInstanceBlendMode", "Material Blend Mode"),
+			LOCTEXT("MaterialInstanceBlendMode_ToolTip", "Set the material blend mode for the active material designer instance."),
+			FNewToolMenuDelegate::CreateStatic(&AddToolBarMaterialInstanceBlendModeMenu)
+		);
+
+		FToolUIAction UnlitAction;
+		UnlitAction.ExecuteAction = FToolMenuExecuteAction::CreateStatic(&AddToolBarMaterialInstanceUnlitMenu_Execute);
+		UnlitAction.CanExecuteAction = FToolMenuCanExecuteAction::CreateStatic(&AddToolBarMaterialInstanceUnlitMenu_CanExecute);
+		UnlitAction.GetActionCheckState = FToolMenuGetActionCheckState::CreateStatic(&AddToolBarMaterialInstanceUnlitMenu_GetCheckState);
+
+		NewSection.AddMenuEntry(
+			"Unlit",
+			LOCTEXT("Unlit", "Unlit"),
+			LOCTEXT("UnlitTooltip", "Whether this material requires light to be seen."),
+			TAttribute<FSlateIcon>(),
+			FToolUIActionChoice(UnlitAction),
+			EUserInterfaceActionType::ToggleButton
+		);
+
+		FToolUIAction AnimatedAction;
+		AnimatedAction.ExecuteAction = FToolMenuExecuteAction::CreateStatic(&AddToolBarMaterialInstanceAnimatedMenu_Execute);
+		AnimatedAction.CanExecuteAction = FToolMenuCanExecuteAction::CreateStatic(&AddToolBarMaterialInstanceAnimatedMenu_CanExecute);
+		AnimatedAction.GetActionCheckState = FToolMenuGetActionCheckState::CreateStatic(&AddToolBarMaterialInstanceAnimatedMenu_GetCheckState);
+
+		NewSection.AddMenuEntry(
+			"Animated",
+			LOCTEXT("Animated", "Animated"),
+			LOCTEXT("AnimatedTooltip", "Enables motion vectors in supported materials."),
+			TAttribute<FSlateIcon>(),
+			FToolUIActionChoice(AnimatedAction),
+			EUserInterfaceActionType::ToggleButton
+		);
+
+		FToolUIAction TwoSidedAction;
+		TwoSidedAction.ExecuteAction = FToolMenuExecuteAction::CreateStatic(&AddToolBarMaterialInstanceTwoSidedMenu_Execute);
+		TwoSidedAction.CanExecuteAction = FToolMenuCanExecuteAction::CreateStatic(&AddToolBarMaterialInstanceTwoSidedMenu_CanExecute);
+		TwoSidedAction.GetActionCheckState = FToolMenuGetActionCheckState::CreateStatic(&AddToolBarMaterialInstanceTwoSidedMenu_GetCheckState);
+
+		NewSection.AddMenuEntry(
+			"TwoSided",
+			LOCTEXT("TwoSided", "Two Sided"),
+			LOCTEXT("TwoSidedTooltip", "Whether this material will render on both the back and front of geometry."),
+			TAttribute<FSlateIcon>(),
+			FToolUIActionChoice(TwoSidedAction),
+			EUserInterfaceActionType::ToggleButton
+		);
+	}
 
 	void OpenMaterialEditorFromContext(UDMMenuContext* InMenuContext)
 	{
@@ -291,14 +644,14 @@ namespace UE::DynamicMaterialEditor::Private
 		);
 	}
 
-	void AddToolbarExportMenu(UToolMenu* InMenu)
+	void AddToolBarExportMenu(UToolMenu* InMenu)
 	{
-		if (!IsValid(InMenu) || InMenu->ContainsSection(ToolBarExportSectionName))
+		if (!IsValid(InMenu) || InMenu->ContainsSection(ToolBarMaterialExportSectionName))
 		{
 			return;
 		}
 
-		const UDMMenuContext* const MenuContext = InMenu->FindContext<UDMMenuContext>();
+		UDMMenuContext* const MenuContext = InMenu->FindContext<UDMMenuContext>();
 
 		if (!MenuContext)
 		{
@@ -327,7 +680,17 @@ namespace UE::DynamicMaterialEditor::Private
 			return;
 		}
 
-		FToolMenuSection& NewSection = InMenu->AddSection("Export", LOCTEXT("ExportSection", "Export"));
+		FToolMenuSection& NewSection = InMenu->AddSection(ToolBarMaterialExportSectionName, LOCTEXT("ExportSection", "Export"));
+
+		NewSection.AddMenuEntry(NAME_None,
+			LOCTEXT("OpenInUEMaterialEditor", "Open in Standard Material Editor"),
+			LOCTEXT("OpenInUEMaterialEditorTooltip", "Opens the currently editing generated Material Designer Instance material in the standard material editor."),
+			FSlateIcon(),
+			FUIAction(FExecuteAction::CreateStatic(
+				&OpenMaterialEditorFromContext,
+				MenuContext
+			))
+		);
 
 		if (bAllowInstanceExport)
 		{
@@ -367,12 +730,12 @@ namespace UE::DynamicMaterialEditor::Private
 
 	void AddToolBarTooltipOptionsSection(UToolMenu* InMenu)
 	{
-		if (!IsValid(InMenu) || InMenu->ContainsSection(ToolBarTooltipOptionsSectionName))
+		if (!IsValid(InMenu))
 		{
 			return;
 		}
 
-		FToolMenuSection& NewSection = InMenu->AddSection(ToolBarTooltipOptionsSectionName, LOCTEXT("TooltipOptionsSection", "Tooltip Options"));
+		FToolMenuSection& NewSection = InMenu->AddSection("TooltipOptions", LOCTEXT("TooltipOptionsSection", "Tooltip Options"));
 
 		AddToolBarBoolOptionMenuEntry(NewSection,
 			GET_MEMBER_NAME_CHECKED(UDynamicMaterialEditorSettings, bShowTooltipPreview),
@@ -408,24 +771,20 @@ namespace UE::DynamicMaterialEditor::Private
 
 	void AddToolBarPreviewOptionsSection(UToolMenu* InMenu)
 	{
-		if (!IsValid(InMenu) || InMenu->ContainsSection(ToolBarPreviewOptionsSectionName))
+		if (!IsValid(InMenu))
 		{
 			return;
 		}
 
-		FToolMenuSection& NewSection = InMenu->AddSection(ToolBarPreviewOptionsSectionName, LOCTEXT("PreviewOptionsSection", "Preview Options"));
+		FToolMenuSection& NewSection = InMenu->AddSection("PreviewOptions", LOCTEXT("PreviewOptionsSection", "Preview Options"));
 
 		AddToolBarIntOptionMenuEntry(NewSection,
 			GET_MEMBER_NAME_CHECKED(UDynamicMaterialEditorSettings, LayerPreviewSize)
 		);
 
-		NewSection.AddSeparator(NAME_None);
-
 		AddToolBarIntOptionMenuEntry(NewSection,
 			GET_MEMBER_NAME_CHECKED(UDynamicMaterialEditorSettings, DetailsPreviewSize)
 		);
-
-		NewSection.AddSeparator(NAME_None);
 	}
 
 	void AddToolBarAdvancedSection(UToolMenu* InMenu)
@@ -435,8 +794,6 @@ namespace UE::DynamicMaterialEditor::Private
 		InMenu->AddDynamicSection(NAME_None, FNewToolMenuDelegate::CreateStatic(&AddToolBarPreviewOptionsSection));
 
 		InMenu->AddDynamicSection(NAME_None, FNewToolMenuDelegate::CreateStatic(&AddToolBarTooltipOptionsSection));
-
-		NewSection.AddSeparator(NAME_None);
 
 		NewSection.AddMenuEntry(NAME_None,
 			LOCTEXT("ResetAllSettingsToDefaults", "Reset All To Defaults"),
@@ -449,23 +806,14 @@ namespace UE::DynamicMaterialEditor::Private
 		);
 	}
 
-	void AddToolBarEditorLayoutMenu(UToolMenu* InMenu)
+	void AddToolBarSettingsMenu(UToolMenu* InMenu)
 	{
-		AddToolbarExportMenu(InMenu);
+		if (!IsValid(InMenu) || InMenu->ContainsSection(ToolBarMaterialDesignerSettingsSectionName))
+		{
+			return;
+		}
 
-		FToolMenuSection& NewSection = InMenu->AddSection("MaterialDesigner", LOCTEXT("MaterialDesignerSection", "Material Designer"));
-
-		UDMMenuContext* MenuContext = InMenu->FindContext<UDMMenuContext>();
-
-		NewSection.AddMenuEntry(NAME_None,
-			LOCTEXT("OpenInUEMaterialEditor", "Open in UE Material Editor..."),
-			LOCTEXT("OpenInUEMaterialEditorTooltip", "Opens the currently editing generated Material Designer Instance material in the Unreal Engine material editor."),
-			FSlateIcon(),
-			FUIAction(FExecuteAction::CreateStatic(
-				&OpenMaterialEditorFromContext,
-				MenuContext
-			))
-		);
+		FToolMenuSection& NewSection = InMenu->AddSection(ToolBarMaterialDesignerSettingsSectionName, LOCTEXT("MaterialDesignerSection", "Material Designer"));
 
 		NewSection.AddSubMenu(
 			"AdvancedSettings",
@@ -475,14 +823,21 @@ namespace UE::DynamicMaterialEditor::Private
 		);
 
 		NewSection.AddMenuEntry(NAME_None,
-			LOCTEXT("OpenSettings", "Material Designer Settings..."),
-			LOCTEXT("OpenSettingsTooltip", "Opens the Material Designer settings window."),
+			LOCTEXT("OpenSettings", "Material Designer Editor Settings"),
+			LOCTEXT("OpenSettingsTooltip", "Opens the Editor Settings and navigates to Material Designer section."),
 			FSlateIcon(FAppStyle::GetAppStyleSetName(), "FoliageEditMode.Settings"),
 			FUIAction(FExecuteAction::CreateUObject(
 				UDynamicMaterialEditorSettings::Get(),
 				&UDynamicMaterialEditorSettings::OpenEditorSettingsWindow)
 			)
 		);
+	}
+
+	void AddToolBarEditorLayoutMenu(UToolMenu* InMenu)
+	{
+		AddToolBarInstanceMenu(InMenu);
+		AddToolBarExportMenu(InMenu);
+		AddToolBarSettingsMenu(InMenu);
 	}
 }
 
@@ -500,7 +855,7 @@ TSharedRef<SWidget> FDMToolBarMenus::MakeEditorLayoutMenu(const TSharedPtr<SDMEd
 		}
 
 		FToolMenuSection& NewSection = NewToolMenu->AddDynamicSection(
-			"MaterialDesigner", 
+			"MaterialDesignerSettings", 
 			FNewToolMenuDelegate::CreateStatic(&AddToolBarEditorLayoutMenu)
 		);
 	}

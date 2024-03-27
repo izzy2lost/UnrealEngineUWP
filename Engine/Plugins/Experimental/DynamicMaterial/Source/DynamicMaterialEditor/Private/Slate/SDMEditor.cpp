@@ -2,9 +2,7 @@
 
 #include "SDMEditor.h"
 #include "AssetThumbnail.h"
-#include "AssetToolsModule.h"
 #include "Components/DMMaterialLayer.h"
-#include "Components/DMMaterialProperty.h"
 #include "Components/DMMaterialSlot.h"
 #include "Components/DMMaterialValue.h"
 #include "Components/MaterialStageExpressions/DMMSETextureSample.h"
@@ -24,30 +22,24 @@
 #include "Framework/Commands/InputChord.h"
 #include "HAL/PlatformApplicationMisc.h"
 #include "IDetailTreeNode.h"
-#include "IDocumentation.h"
 #include "IPropertyRowGenerator.h"
 #include "MaterialDomain.h"
 #include "Menus/DMToolBarMenus.h"
 #include "Misc/CoreDelegates.h"
 #include "Model/DynamicMaterialModel.h"
 #include "Model/DynamicMaterialModelEditorOnlyData.h"
-#include "PropertyCustomizationHelpers.h"
 #include "PropertyHandle.h"
-#include "SEnumCombo.h"
 #include "Slate/Properties/Editors/SDMPropertyEditOpacity.h"
-#include "Slate/Properties/SDMBlendMode.h"
-#include "Slate/Properties/SDMDomain.h"
 #include "Slate/Properties/SDMMaterialParameters.h"
-#include "Slate/SDMSlot.h"
 #include "Slate/SDMComponentEdit.h"
+#include "Slate/SDMMaterialWizard.h"
+#include "Slate/SDMSlot.h"
 #include "Slate/SDMToolBar.h"
 #include "SlateOptMacros.h"
 #include "Styling/StyleColors.h"
 #include "ThumbnailRendering/ThumbnailManager.h"
-#include "Widgets/Colors/SColorBlock.h"
 #include "Widgets/Input/SButton.h"
 #include "Widgets/Layout/SBox.h"
-#include "Widgets/Layout/SConstraintCanvas.h"
 #include "Widgets/Layout/SExpandableArea.h"
 #include "Widgets/Layout/SScrollBox.h"
 #include "Widgets/SBoxPanel.h"
@@ -293,13 +285,23 @@ void SDMEditor::SetMaterialModel(UDynamicMaterialModel* InMaterialModel)
 		return;
 	}
 
-	Container->SetContent(CreateMainLayout());
+	UDynamicMaterialModelEditorOnlyData* EditorOnlyData = UDynamicMaterialModelEditorOnlyData::Get(InMaterialModel);
 
-	if (UDynamicMaterialModelEditorOnlyData* ModelEditorOnlyData = UDynamicMaterialModelEditorOnlyData::Get(InMaterialModel))
+	if (EditorOnlyData && EditorOnlyData->NeedsWizard())
 	{
-		ModelEditorOnlyData->GetOnMaterialBuiltDelegate().AddSP(this, &SDMEditor::OnMaterialBuilt);
-		ModelEditorOnlyData->GetOnValueListUpdateDelegate().AddSP(this, &SDMEditor::OnValuesUpdated);
-		ModelEditorOnlyData->GetOnSlotListUpdateDelegate().AddSP(this, &SDMEditor::OnSlotsUpdated);
+		Container->SetContent(SNew(SDMMaterialWizard, SharedThis(this)));
+		EditorOnlyData->OnWizardComplete();
+	}
+	else
+	{
+		Container->SetContent(CreateMainLayout());
+	}
+
+	if (EditorOnlyData)
+	{
+		EditorOnlyData->GetOnMaterialBuiltDelegate().AddSP(this, &SDMEditor::OnMaterialBuilt);
+		EditorOnlyData->GetOnValueListUpdateDelegate().AddSP(this, &SDMEditor::OnValuesUpdated);
+		EditorOnlyData->GetOnSlotListUpdateDelegate().AddSP(this, &SDMEditor::OnSlotsUpdated);
 	}
 }
 
@@ -560,26 +562,6 @@ TSharedRef<SWidget> SDMEditor::CreateMainLayout()
 			.HAlign(HAlign_Fill)
 			.VAlign(VAlign_Fill)
 			[
-				SNew(SBorder)
-				.HAlign(HAlign_Fill)
-				.VAlign(VAlign_Center)
-				.Padding(3.0f, 3.0f, 3.0f, 3.0f)
-				.BorderImage(FDynamicMaterialEditorStyle::GetBrush("Border.Bottom"))
-				.BorderBackgroundColor(FLinearColor(1, 1, 1, 0.05f))
-				[
-					CreateMaterialSettingsRow()
-				]
-			]
-		]
-		+ SVerticalBox::Slot()
-		.AutoHeight()
-		.HAlign(HAlign_Fill)
-		.VAlign(VAlign_Fill)
-		[
-			SAssignNew(GlobalOpacityContainer, SBox)
-			.HAlign(HAlign_Fill)
-			.VAlign(VAlign_Fill)
-			[
 				CreateGlobalOpacityWidget()
 			]
 		]
@@ -610,95 +592,6 @@ TSharedRef<SWidget> SDMEditor::CreateMainLayout()
 			.VAlign(VAlign_Fill)
 			[
 				CreateSlotsWidget()
-			]
-		];
-}
-
-TSharedRef<SWidget> SDMEditor::CreateMaterialSettingsRow()
-{
-	return 
-		SNew(SHorizontalBox)
-		+ SHorizontalBox::Slot()
-		.FillWidth(1.0f)
-		.HAlign(HAlign_Fill)
-		.VAlign(VAlign_Center)
-		.Padding(5.0f, 0.0f, 0.0f, 2.0f)
-		[
-			SNew(SDMDomain)
-			.ToolTipText(LOCTEXT("MaterialDesignerInstanceDomainTooltip", "Change the Material Designer Instance Domain"))
-			.SelectedItem(this, &SDMEditor::GetSelectedDomain)
-			.OnSelectedItemChanged(this, &SDMEditor::OnDomainChanged)
-			.IsEnabled(this, &SDMEditor::CanChangeDomain)
-		]
-		+ SHorizontalBox::Slot()
-		.FillWidth(1.0f)
-		.HAlign(HAlign_Fill)
-		.VAlign(VAlign_Center)
-		.Padding(5.0f, 0.0f, 0.0f, 2.0f)
-		[
-			SNew(SDMBlendMode)
-			.ToolTipText(LOCTEXT("MaterialDesignerInstanceBlendModeTooltip", "Change the Material Designer Instance Blend Mode"))
-			.SelectedItem(this, &SDMEditor::GetSelectedBlendMode)
-			.OnSelectedItemChanged(this, &SDMEditor::OnBlendModeChanged)
-			.IsEnabled(this, &SDMEditor::CanChangeBlendType)
-		]
-		+ SHorizontalBox::Slot()
-		.AutoWidth()
-		.HAlign(HAlign_Right)
-		.VAlign(VAlign_Center)
-		.Padding(10.f, 0.0f, 5.0f, 2.0f)
-		[
-			SNew(SHorizontalBox)
-			.ToolTipText(LOCTEXT("MaterialDesignerInstanceUnlitTooltip", "Toggle between Default Lit and Unlit for this Material Designer Instance."))
-			+ SHorizontalBox::Slot()
-			.AutoWidth()
-			.HAlign(HAlign_Left)
-			.VAlign(VAlign_Center)
-			.Padding(0.0f, 0.0f, 5.0f, 0.0f)
-			[
-				SNew(STextBlock)
-				.Text(LOCTEXT("MaterialDesignerInstanceUnlit", "Unlit"))
-			]
-			+ SHorizontalBox::Slot()
-			.AutoWidth()
-			.HAlign(HAlign_Left)
-			.VAlign(VAlign_Center)
-			[
-				SNew(SCheckBox)
-				.IsChecked(this, &SDMEditor::IsMaterialUnlit)
-				.OnCheckStateChanged(this, &SDMEditor::OnMaterialUnlitChanged)
-				.IsEnabled(this, &SDMEditor::CanChangeMaterialShadingModel)
-			]
-		]
-		+ SHorizontalBox::Slot()
-		.AutoWidth()
-		.HAlign(HAlign_Right)
-		.VAlign(VAlign_Center)
-		.Padding(10.0f, 0.0f, 0.0f, 2.0f)
-		[
-			SNew(SHorizontalBox)
-			.ToolTipText(LOCTEXT("MaterialDesignerInstanceTypeTooltip", "Enables the material's TSR pixel animation flag. Not available in translucent blend modes."))
-			+ SHorizontalBox::Slot()
-			.AutoWidth()
-			.HAlign(HAlign_Left)
-			.VAlign(VAlign_Center)
-			[
-				SNew(SBox)
-				.Padding(0.f, 0.f, 5.f, 0.f)
-				[
-					SNew(STextBlock)
-					.Text(LOCTEXT("MaterialDesignerInstanceAnimaed", "Animated"))
-				]
-			]
-			+ SHorizontalBox::Slot()
-			.AutoWidth()
-			.HAlign(HAlign_Left)
-			.VAlign(VAlign_Center)
-			[
-				SNew(SCheckBox)
-				.IsChecked(this, &SDMEditor::IsMaterialAnimated)
-				.IsEnabled(this, &SDMEditor::CanMaterialBeAnimated)
-				.OnCheckStateChanged(this, &SDMEditor::OnMaterialAnimatedChanged)
 			]
 		];
 }

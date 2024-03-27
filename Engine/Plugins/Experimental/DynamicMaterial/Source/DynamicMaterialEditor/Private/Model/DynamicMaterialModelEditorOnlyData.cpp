@@ -64,6 +64,22 @@ const FString UDynamicMaterialModelEditorOnlyData::RGBSlotPathToken     = FStrin
 const FString UDynamicMaterialModelEditorOnlyData::OpacitySlotPathToken = FString(TEXT("OpacitySlot"));
 const FString UDynamicMaterialModelEditorOnlyData::PropertiesPathToken  = FString(TEXT("Properties"));
 
+const TArray<EMaterialDomain> UDynamicMaterialModelEditorOnlyData::SupportedDomains =
+{
+	EMaterialDomain::MD_Surface,
+	EMaterialDomain::MD_PostProcess,
+	EMaterialDomain::MD_DeferredDecal
+};
+
+const TArray<EBlendMode> UDynamicMaterialModelEditorOnlyData::SupportedBlendModes =
+{
+	EBlendMode::BLEND_Opaque,
+	EBlendMode::BLEND_Masked,
+	EBlendMode::BLEND_Translucent,
+	EBlendMode::BLEND_Additive,
+	EBlendMode::BLEND_Modulate
+};
+
 UDynamicMaterialModelEditorOnlyData* UDynamicMaterialModelEditorOnlyData::Get(UDynamicMaterialModel* InModel)
 {
 	if (InModel)
@@ -96,6 +112,8 @@ UDynamicMaterialModelEditorOnlyData::UDynamicMaterialModelEditorOnlyData()
 	BlendMode = EBlendMode::BLEND_Translucent;
 	ShadingModel = EDMMaterialShadingModel::Unlit;
 	bPixelAnimationFlag = false;
+	bTwoSidedFlag = false;
+	bUseWizard = true;
 
 	Properties.Emplace(EDMMaterialPropertyType::BaseColor,           CreateDefaultSubobject<UDMMaterialPropertyBaseColor>(          "MaterialProperty_BaseColor"));
 	Properties.Emplace(EDMMaterialPropertyType::EmissiveColor,       CreateDefaultSubobject<UDMMaterialPropertyEmissiveColor>(      "MaterialProperty_EmissiveColor"));
@@ -217,6 +235,7 @@ void UDynamicMaterialModelEditorOnlyData::BuildMaterial(bool bInDirtyAssets)
 	MaterialModel->DynamicMaterial->MaterialDomain = Domain;
 	MaterialModel->DynamicMaterial->BlendMode = BlendMode;
 	MaterialModel->DynamicMaterial->bHasPixelAnimation = bPixelAnimationFlag;
+	MaterialModel->DynamicMaterial->TwoSided = bTwoSidedFlag;
 
 	switch (ShadingModel)
 	{
@@ -605,6 +624,16 @@ TSharedRef<FDMMaterialBuildState> UDynamicMaterialModelEditorOnlyData::CreateBui
 	return MakeShared<FDMMaterialBuildState>(InMaterialToBuild, MaterialModel, bInDirtyAssets);
 }
 
+bool UDynamicMaterialModelEditorOnlyData::NeedsWizard() const
+{
+	return bUseWizard;
+}
+
+void UDynamicMaterialModelEditorOnlyData::OnWizardComplete()
+{
+	bUseWizard = false;
+}
+
 UDMMaterialComponent* UDynamicMaterialModelEditorOnlyData::GetSubComponentByPath(FDMComponentPath& InPath,
 	const FDMComponentPathSegment& InPathSegment) const
 {
@@ -798,6 +827,66 @@ void UDynamicMaterialModelEditorOnlyData::SetShadingModel(EDMMaterialShadingMode
 					Layer->SetMaterialProperty(EDMMaterialPropertyType::BaseColor);
 					break;
 			}
+		}
+	}
+
+	RequestMaterialBuild();
+}
+
+bool UDynamicMaterialModelEditorOnlyData::IsPixelAnimationFlagSet() const
+{
+	return bPixelAnimationFlag;
+}
+
+void UDynamicMaterialModelEditorOnlyData::SetPixelAnimationFlag(bool bInFlagValue)
+{
+	if (bPixelAnimationFlag == bInFlagValue)
+	{
+		return;
+	}
+
+	bPixelAnimationFlag = bInFlagValue;
+
+	if (MaterialModel)
+	{
+		if (UMaterial* Material = MaterialModel->GetGeneratedMaterial())
+		{
+			if (GUndo)
+			{
+				Material->Modify();
+			}
+
+			Material->bHasPixelAnimation = bPixelAnimationFlag;
+		}
+	}
+
+	RequestMaterialBuild();
+}
+
+bool UDynamicMaterialModelEditorOnlyData::IsTwoSidedFlagSet() const
+{
+	return bTwoSidedFlag;
+}
+
+void UDynamicMaterialModelEditorOnlyData::SetTwoSidedFlag(bool bInFlagValue)
+{
+	if (bTwoSidedFlag == bInFlagValue)
+	{
+		return;
+	}
+
+	bTwoSidedFlag = bInFlagValue;
+
+	if (MaterialModel)
+	{
+		if (UMaterial* Material = MaterialModel->GetGeneratedMaterial())
+		{
+			if (GUndo)
+			{
+				Material->Modify();
+			}
+
+			Material->TwoSided = bTwoSidedFlag;
 		}
 	}
 
@@ -1088,36 +1177,6 @@ void UDynamicMaterialModelEditorOnlyData::UnassignMaterialProperty(EDMMaterialPr
 	RequestMaterialBuild();
 }
 
-bool UDynamicMaterialModelEditorOnlyData::IsPixelAnimationFlagSet() const
-{
-	return bPixelAnimationFlag;
-}
-
-void UDynamicMaterialModelEditorOnlyData::SetPixelAnimationFlag(bool bInFlagValue)
-{
-	if (bPixelAnimationFlag == bInFlagValue)
-	{
-		return;
-	}
-
-	bPixelAnimationFlag = bInFlagValue;
-
-	if (MaterialModel)
-	{
-		if (UMaterial* Material = MaterialModel->GetGeneratedMaterial())
-		{
-			if (GUndo)
-			{
-				Material->Modify();
-			}
-
-			Material->bHasPixelAnimation = bPixelAnimationFlag;
-		}
-	}
-
-	RequestMaterialBuild();
-}
-
 void UDynamicMaterialModelEditorOnlyData::NotifyPostChange(const FPropertyChangedEvent& PropertyChangedEvent, class FEditPropertyChain* PropertyThatChanged)
 {
 	RequestMaterialBuild();
@@ -1142,6 +1201,8 @@ void UDynamicMaterialModelEditorOnlyData::PostLoad()
 	SetFlags(RF_Transactional);
 
 	ReinitComponents();
+
+	bUseWizard = false;
 }
 
 void UDynamicMaterialModelEditorOnlyData::PostEditUndo()
