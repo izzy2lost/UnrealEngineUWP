@@ -322,6 +322,19 @@ struct STRUCTUTILS_API FSharedStruct
 		return !operator==(Other);
 	}
 
+	/**
+	 * Determines whether Other contains same values as `this`
+	 * @return whether the values stored are equal
+	 */
+	template <typename OtherType>
+	bool CompareStructValues(const OtherType& Other, uint32 PortFlags = 0) const
+	{
+		UE::StructUtils::CheckWrapperType<OtherType>();
+		const UScriptStruct* ScriptStruct = GetScriptStruct();
+		return (ScriptStruct == Other.GetScriptStruct())
+			&& (!ScriptStruct || ScriptStruct->CompareScriptStruct(GetMemory(), Other.GetMemory(), PortFlags));
+	}
+
 protected:
 	TSharedPtr<FStructSharedMemory> StructMemoryPtr;
 };
@@ -531,6 +544,19 @@ struct STRUCTUTILS_API FConstSharedStruct
 	bool operator!=(const OtherType& Other) const
 	{
 		return !operator==(Other);
+	}
+
+	/** 
+	 * Determines whether Other contains same values as `this` 
+	 * @return whether the values stored are equal
+	 */
+	template <typename OtherType>
+	bool CompareStructValues(const OtherType& Other, uint32 PortFlags = 0) const
+	{
+		UE::StructUtils::CheckWrapperType<OtherType>();
+		const UScriptStruct* ScriptStruct = GetScriptStruct();
+		return (ScriptStruct == Other.GetScriptStruct())
+			&& (!ScriptStruct || ScriptStruct->CompareScriptStruct(GetMemory(), Other.GetMemory(), PortFlags));
 	}
 
 protected:

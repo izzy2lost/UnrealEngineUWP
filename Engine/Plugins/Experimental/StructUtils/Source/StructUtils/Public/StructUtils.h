@@ -17,6 +17,16 @@ namespace UE::StructUtils
 					  !TIsDerivedFrom<T, struct FConstSharedStruct>::IsDerived, "It does not make sense to create wrapper over these types.");
 	}
 
+	template <typename T>
+	void CheckWrapperType()
+	{
+		static_assert(TIsDerivedFrom<T, struct FInstancedStruct>::IsDerived
+			|| TIsDerivedFrom<T, struct FStructView>::IsDerived
+			|| TIsDerivedFrom<T, struct FConstStructView>::IsDerived
+			|| TIsDerivedFrom<T, struct FSharedStruct>::IsDerived
+			|| TIsDerivedFrom<T, struct FConstSharedStruct>::IsDerived, "This function is meant to compare contents of wrapped structs.");
+	}
+
 	/** Returns reference to the struct, this assumes that all data is valid. */
 	template<typename T>
 	T& GetStructRef(const UScriptStruct* ScriptStruct, void* StructMemory)
