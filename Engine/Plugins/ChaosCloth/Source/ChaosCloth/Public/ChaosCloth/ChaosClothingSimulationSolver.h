@@ -31,7 +31,7 @@ namespace Chaos
 	class FClothingSimulationSolver final : public FPhysicsSolverEvents
 	{
 	public:
-		CHAOSCLOTH_API FClothingSimulationSolver(bool bForceBasedSolver = false, FClothingSimulationConfig* InConfig = nullptr);
+		CHAOSCLOTH_API FClothingSimulationSolver(FClothingSimulationConfig* InConfig = nullptr, bool bUseLegacySolver = true);
 		CHAOSCLOTH_API ~FClothingSimulationSolver();
 		
 		FClothingSimulationSolver(const FClothingSimulationSolver&) = delete;
@@ -39,7 +39,7 @@ namespace Chaos
 		FClothingSimulationSolver& operator=(const FClothingSimulationSolver&) = delete;
 		FClothingSimulationSolver& operator=(FClothingSimulationSolver&&) = delete;
 
-		bool IsForceBasedSolver() const { return !!Evolution; }
+		bool IsLegacySolver() const { return !!PBDEvolution; }
 
 		// ---- Animatable property setters ----
 		CHAOSCLOTH_API void SetLocalSpaceLocation(const FVec3& InLocalSpaceLocation, bool bReset = false);

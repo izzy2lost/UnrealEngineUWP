@@ -343,7 +343,7 @@ void FClothingSimulationCollider::FLODData::Add(
 			// Add bone proxies first so they get updated first?
 			TArray<int32> SolverBoneIndices;
 			SolverBoneIndices.Reserve(SkinnedCollisionData.MappedSkinnedBones.Num());
-			const int32 GlobalBoneOffset = Solver->IsForceBasedSolver() ? 0 : CollisionRangeId;
+			const int32 GlobalBoneOffset = Solver->IsLegacySolver() ? CollisionRangeId : 0;
 			for (int32 MappedSubBoneIndex : SkinnedCollisionData.MappedSkinnedBones)
 			{
 				// Always initialize the collision particle transforms before setting any geometry as otherwise NaNs gets detected during the bounding box updates

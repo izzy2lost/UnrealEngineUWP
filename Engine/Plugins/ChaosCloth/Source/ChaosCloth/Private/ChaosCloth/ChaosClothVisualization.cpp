@@ -148,8 +148,8 @@ FLinearColor PseudoRandomColor(int32 NumColorRotations)
 			{
 				continue;
 			}
-			// Elements are local indexed for force based solver
-			const int32 Offset = Solver->IsForceBasedSolver() ? 0 : ParticleRangeId;
+			// Elements are local indexed for new solver
+			const int32 Offset = Solver->IsLegacySolver() ? ParticleRangeId : 0;
 
 			const TConstArrayView<TVec3<int32>> Elements = Cloth->GetTriangleMesh(Solver).GetElements();
 			const TConstArrayView<Softs::FSolverVec3> Positions = Cloth->GetParticlePositions(Solver);
@@ -249,8 +249,8 @@ FLinearColor PseudoRandomColor(int32 NumColorRotations)
 			{
 				continue;
 			}
-			// Elements are local indexed for force based solver
-			const int32 Offset = Solver->IsForceBasedSolver() ? 0 : ParticleRangeId;
+			// Elements are local indexed for new solver
+			const int32 Offset = Solver->IsLegacySolver() ? ParticleRangeId : 0;
 
 			const TArray<TVec3<int32>>& Elements = Cloth->GetTriangleMesh(Solver).GetElements();
 			const TConstArrayView<Softs::FSolverVec3> Positions = Cloth->GetParticlePositions(Solver);
@@ -342,8 +342,8 @@ FLinearColor PseudoRandomColor(int32 NumColorRotations)
 			{
 				continue;
 			}
-			// Elements are local indexed for force based solver
-			const int32 Offset = Solver->IsForceBasedSolver() ? 0 : ParticleRangeId;
+			// Elements are local indexed for new solver
+			const int32 Offset = Solver->IsLegacySolver() ? ParticleRangeId : 0;
 			const TConstArrayView<TVec3<int32>> Elements = Cloth->GetTriangleMesh(Solver).GetElements();
 			const TConstArrayView<Softs::FSolverVec3> Positions = Cloth->GetParticlePositions(Solver);
 			const TConstArrayView<FRealSingle>& WeightMap = Cloth->GetWeightMapByName(Solver, Name);
@@ -414,8 +414,8 @@ FLinearColor PseudoRandomColor(int32 NumColorRotations)
 			{
 				continue;
 			}
-			// Elements are local indexed for force based solver
-			const int32 Offset = Solver->IsForceBasedSolver() ? 0 : ParticleRangeId;
+			// Elements are local indexed for new solver
+			const int32 Offset = Solver->IsLegacySolver() ? ParticleRangeId : 0;
 			const TConstArrayView<TVec3<int32>> Elements = Cloth->GetTriangleMesh(Solver).GetElements();
 			const TConstArrayView<Softs::FSolverVec3> Positions = Cloth->GetParticlePositions(Solver);
 			const TConstArrayView<int32>& WeightMap = Cloth->GetFaceIntMapByProperty(Solver, TEXT("SelfCollisionLayers"));
@@ -825,7 +825,7 @@ FLinearColor PseudoRandomColor(int32 NumColorRotations)
 			const FClothConstraints& ClothConstraints = Solver->GetClothConstraints(ParticleRangeId);
 			if (const Softs::FExternalForces* const ExternalForces = ClothConstraints.GetExternalForces().Get())
 			{
-				check(Solver->IsForceBasedSolver());
+				check(!Solver->IsLegacySolver());
 				if (ExternalForces->HasPerParticleGravity())
 				{
 					const FVec3& LocalSpaceLocation = Solver->GetLocalSpaceLocation();
@@ -875,7 +875,7 @@ FLinearColor PseudoRandomColor(int32 NumColorRotations)
 			const FClothConstraints& ClothConstraints = Solver->GetClothConstraints(ParticleRangeId);
 			if (const Softs::FExternalForces* const ExternalForces = ClothConstraints.GetExternalForces().Get())
 			{
-				check(Solver->IsForceBasedSolver());
+				check(!Solver->IsLegacySolver());
 				{
 					const FVec3& LocalSpaceLocation = Solver->GetLocalSpaceLocation();
 					const TConstArrayView<Softs::FSolverVec3> Positions = Solver->GetParticleXsView(ParticleRangeId);
@@ -914,8 +914,8 @@ FLinearColor PseudoRandomColor(int32 NumColorRotations)
 			{
 				continue;
 			}
-			// Elements are local indexed for force based solver
-			const int32 Offset = Solver->IsForceBasedSolver() ? 0 : ParticleRangeId;
+			// Elements are local indexed for new solver
+			const int32 Offset = Solver->IsLegacySolver() ? ParticleRangeId : 0;
 			const TConstArrayView<TVec3<int32>> Elements = Cloth->GetTriangleMesh(Solver).GetElements();
 			const TConstArrayView<Softs::FSolverVec3> Positions = Cloth->GetParticlePositions(Solver);
 			const TConstArrayView<Softs::FSolverReal> InvMasses = Cloth->GetParticleInvMasses(Solver);
@@ -958,8 +958,8 @@ FLinearColor PseudoRandomColor(int32 NumColorRotations)
 			{
 				continue;
 			}
-			// Elements are local indexed for force based solver
-			const int32 Offset = Solver->IsForceBasedSolver() ? 0 : ParticleRangeId;
+			// Elements are local indexed for new solver
+			const int32 Offset = Solver->IsLegacySolver() ? ParticleRangeId : 0;
 
 			const TConstArrayView<TVec3<int32>> Elements = Cloth->GetTriangleMesh(Solver).GetElements();
 			const TConstArrayView<Softs::FSolverVec3> Positions = Cloth->GetAnimationPositions(Solver);
@@ -1024,8 +1024,8 @@ FLinearColor PseudoRandomColor(int32 NumColorRotations)
 			{
 				continue;
 			}
-			// Elements are local indexed for force based solver
-			const int32 Offset = Solver->IsForceBasedSolver() ? 0 : ParticleRangeId;
+			// Elements are local indexed for new solver
+			const int32 Offset = Solver->IsLegacySolver() ? ParticleRangeId : 0;
 
 			const TConstArrayView<TVec3<int32>> Elements = Cloth->GetTriangleMesh(Solver).GetElements();
 			const TConstArrayView<Softs::FSolverVec3> Positions = Cloth->GetAnimationPositions(Solver);
@@ -1911,9 +1911,8 @@ FLinearColor PseudoRandomColor(int32 NumColorRotations)
 
 			const FClothConstraints& ClothConstraints = Solver->GetClothConstraints(ParticleRangeId);
 
-			// Constraints are locally indexed for force based solver
-			const TConstArrayView<Softs::FSolverVec3> Positions = Solver->IsForceBasedSolver() ? Solver->GetParticleXsView(ParticleRangeId)
-				: TConstArrayView<Softs::FSolverVec3>(Solver->GetParticleXs());
+			// Constraints are locally indexed for new solver
+			const TConstArrayView<Softs::FSolverVec3> Positions = Solver->IsLegacySolver() ? TConstArrayView<Softs::FSolverVec3>(Solver->GetParticleXs()) : Solver->GetParticleXsView(ParticleRangeId);
 
 			if (const Softs::FPBDEdgeSpringConstraints* const EdgeConstraints = ClothConstraints.GetEdgeSpringConstraints().Get())
 			{
@@ -2025,9 +2024,8 @@ FLinearColor PseudoRandomColor(int32 NumColorRotations)
 			const FClothConstraints& ClothConstraints = Solver->GetClothConstraints(ParticleRangeId);
 
 
-			// Constraints are locally indexed for force based solver
-			const TConstArrayView<Softs::FSolverVec3> Positions = Solver->IsForceBasedSolver() ? Solver->GetParticleXsView(ParticleRangeId)
-				: TConstArrayView<Softs::FSolverVec3>(Solver->GetParticleXs());
+			// Constraints are locally indexed for new solver
+			const TConstArrayView<Softs::FSolverVec3> Positions = Solver->IsLegacySolver() ? TConstArrayView<Softs::FSolverVec3>(Solver->GetParticleXs()) : Solver->GetParticleXsView(ParticleRangeId);
 
 			if (const Softs::FPBDBendingSpringConstraints* const BendingConstraints = ClothConstraints.GetBendingSpringConstraints().Get())
 			{
@@ -2199,7 +2197,7 @@ FLinearColor PseudoRandomColor(int32 NumColorRotations)
 			}
 
 			const Softs::FVelocityAndPressureField* VelocityField = nullptr;
-			if (Solver->IsForceBasedSolver())
+			if (!Solver->IsLegacySolver())
 			{
 				const FClothConstraints& ClothConstraints = Solver->GetClothConstraints(ParticleRangeId);
 				VelocityField = ClothConstraints.GetVelocityAndPressureField().Get();
@@ -2213,11 +2211,9 @@ FLinearColor PseudoRandomColor(int32 NumColorRotations)
 				VelocityField = &Solver->GetWindVelocityAndPressureField(Cloth->GetGroupId());
 			}
 
-			// Constraints are locally indexed for force based solver
-			const TConstArrayView<Softs::FSolverVec3> Positions = Solver->IsForceBasedSolver() ? Solver->GetParticleXsView(ParticleRangeId)
-				: TConstArrayView<Softs::FSolverVec3>(Solver->GetParticleXs());
-			const TConstArrayView<Softs::FSolverReal> InvMasses = Solver->IsForceBasedSolver() ? Solver->GetParticleInvMassesView(ParticleRangeId)
-				: TConstArrayView<Softs::FSolverReal>(Solver->GetParticleInvMasses());
+			// Constraints are locally indexed for new solver
+			const TConstArrayView<Softs::FSolverVec3> Positions = Solver->IsLegacySolver() ? TConstArrayView<Softs::FSolverVec3>(Solver->GetParticleXs()) : Solver->GetParticleXsView(ParticleRangeId);
+			const TConstArrayView<Softs::FSolverReal> InvMasses = Solver->IsLegacySolver() ? TConstArrayView<Softs::FSolverReal>(Solver->GetParticleInvMasses()) : Solver->GetParticleInvMassesView(ParticleRangeId);
 
 			const TConstArrayView<TVec3<int32>>& Elements = VelocityField->GetElements();
 			const TConstArrayView<Softs::FSolverVec3> Forces = VelocityField->GetForces();
@@ -2286,10 +2282,9 @@ FLinearColor PseudoRandomColor(int32 NumColorRotations)
 
 			if (const Softs::FPBDCollisionSpringConstraints* const SelfCollisionConstraints = ClothConstraints.GetSelfCollisionConstraints().Get())
 			{
-				// Constraints are locally indexed for force based solver
-				const TConstArrayView<Softs::FSolverVec3> Positions = Solver->IsForceBasedSolver() ? Solver->GetParticleXsView(ParticleRangeId)
-					: TConstArrayView<Softs::FSolverVec3>(Solver->GetParticleXs());
-				const int32 Offset = Solver->IsForceBasedSolver() ? 0 : ParticleRangeId;
+				// Constraints are locally indexed for new solver
+				const TConstArrayView<Softs::FSolverVec3> Positions = Solver->IsLegacySolver() ? TConstArrayView<Softs::FSolverVec3>(Solver->GetParticleXs()) : Solver->GetParticleXsView(ParticleRangeId);
+				const int32 Offset = Solver->IsLegacySolver() ? ParticleRangeId : 0;
 				const TArray<TVec4<int32>>& Constraints = SelfCollisionConstraints->GetConstraints();
 				const TArray<Softs::FSolverVec3>& Barys = SelfCollisionConstraints->GetBarys();
 				const TArray<bool>& FlipNormals = SelfCollisionConstraints->GetFlipNormals();
@@ -2359,10 +2354,9 @@ FLinearColor PseudoRandomColor(int32 NumColorRotations)
 			if (const Softs::FPBDSelfCollisionSphereConstraints* const SelfCollisionSphereConstraints =
 				ClothConstraints.GetSelfCollisionSphereConstraints().Get())
 			{
-				// Constraints are locally indexed for force based solver
-				const TConstArrayView<Softs::FSolverVec3> Positions = Solver->IsForceBasedSolver() ? Solver->GetParticleXsView(ParticleRangeId)
-					: TConstArrayView<Softs::FSolverVec3>(Solver->GetParticleXs());
-				const int32 Offset = Solver->IsForceBasedSolver() ? 0 : ParticleRangeId;
+				// Constraints are locally indexed for new solver
+				const TConstArrayView<Softs::FSolverVec3> Positions = Solver->IsLegacySolver() ? TConstArrayView<Softs::FSolverVec3>(Solver->GetParticleXs()) : Solver->GetParticleXsView(ParticleRangeId);
+				const int32 Offset = Solver->IsLegacySolver() ? ParticleRangeId : 0;
 				const TArray<TVec2<int32>>& Constraints = SelfCollisionSphereConstraints->GetConstraints();
 				for (int32 Index = 0; Index < Constraints.Num(); ++Index)
 				{
@@ -2417,11 +2411,9 @@ FLinearColor PseudoRandomColor(int32 NumColorRotations)
 
 			if (const Softs::FPBDTriangleMeshCollisions* const SelfCollisionInit = ClothConstraints.GetSelfCollisionInit().Get())
 			{
-				// Constraints are locally indexed for force based solver
-				const TConstArrayView<Softs::FSolverVec3> Positions = Solver->IsForceBasedSolver() ? Solver->GetParticleXsView(ParticleRangeId)
-					: TConstArrayView<Softs::FSolverVec3>(Solver->GetParticleXs());
-
-				const int32 Offset = Solver->IsForceBasedSolver() ? 0 : ParticleRangeId;
+				// Constraints are locally indexed for new solver
+				const TConstArrayView<Softs::FSolverVec3> Positions = Solver->IsLegacySolver() ? TConstArrayView<Softs::FSolverVec3>(Solver->GetParticleXs()) : Solver->GetParticleXsView(ParticleRangeId);
+				const int32 Offset = Solver->IsLegacySolver() ? ParticleRangeId : 0;
 
 				const FTriangleMesh& TriangleMesh = Cloth->GetTriangleMesh(Solver);
 
@@ -2557,7 +2549,7 @@ FLinearColor PseudoRandomColor(int32 NumColorRotations)
 
 				if (const Softs::FPBDCollisionSpringConstraints* const SelfCollisionConstraints = ClothConstraints.GetSelfCollisionConstraints().Get())
 				{
-					const int32 Offset = Solver->IsForceBasedSolver() ? 0 : ParticleRangeId;
+					const int32 Offset = Solver->IsLegacySolver() ? ParticleRangeId : 0;
 					const TConstArrayView<Softs::FSolverVec3> Positions = Cloth->GetParticlePositions(Solver);
 					const TConstArrayView<Softs::FSolverReal> InvMasses = Cloth->GetParticleInvMasses(Solver);
 					const TConstArrayView<int32>& WeightMap = Cloth->GetFaceIntMapByProperty(Solver, TEXT("SelfCollisionLayers"));
@@ -2607,7 +2599,7 @@ FLinearColor PseudoRandomColor(int32 NumColorRotations)
 
 				if (const Softs::FPBDCollisionSpringConstraints* const SelfCollisionConstraints = ClothConstraints.GetSelfCollisionConstraints().Get())
 				{
-					const int32 Offset = Solver->IsForceBasedSolver() ? 0 : ParticleRangeId;
+					const int32 Offset = Solver->IsLegacySolver() ? ParticleRangeId : 0;
 					const TConstArrayView<Softs::FSolverVec3> Positions = Cloth->GetParticlePositions(Solver);
 					const TConstArrayView<Softs::FSolverReal> InvMasses = Cloth->GetParticleInvMasses(Solver);
 
@@ -2669,8 +2661,8 @@ FLinearColor PseudoRandomColor(int32 NumColorRotations)
 			if (const Softs::FPBDTriangleMeshCollisions* const SelfCollisionInit = ClothConstraints.GetSelfCollisionInit().Get())
 			{
 				const FTriangleMesh& KinematicColliderMesh = SelfCollisionInit->GetCollidableSubMesh().GetKinematicColliderSubMesh();
-				// Elements are local indexed for force based solver
-				const int32 Offset = Solver->IsForceBasedSolver() ? 0 : ParticleRangeId;
+				// Elements are local indexed for new solver
+				const int32 Offset = Solver->IsLegacySolver() ? ParticleRangeId : 0;
 				const TConstArrayView<TVec3<int32>> Elements = KinematicColliderMesh.GetElements();
 				const TConstArrayView<Softs::FSolverVec3> Positions = Cloth->GetParticlePositions(Solver);
 				for (int32 ElementIndex = 0; ElementIndex < Elements.Num(); ++ElementIndex)
@@ -2712,8 +2704,8 @@ FLinearColor PseudoRandomColor(int32 NumColorRotations)
 			if (const Softs::FPBDTriangleMeshCollisions* const SelfCollisionInit = ClothConstraints.GetSelfCollisionInit().Get())
 			{
 				const FTriangleMesh& KinematicColliderMesh = SelfCollisionInit->GetCollidableSubMesh().GetKinematicColliderSubMesh();
-				// Elements are local indexed for force based solver
-				const int32 Offset = Solver->IsForceBasedSolver() ? 0 : ParticleRangeId;
+				// Elements are local indexed for new solver
+				const int32 Offset = Solver->IsLegacySolver() ? ParticleRangeId : 0;
 				const TConstArrayView<TVec3<int32>> Elements = KinematicColliderMesh.GetElements();
 				const TConstArrayView<Softs::FSolverVec3> Positions = Cloth->GetParticlePositions(Solver);
 				for (int32 ElementIndex = 0; ElementIndex < Elements.Num(); ++ElementIndex, VertexIndex += 3)

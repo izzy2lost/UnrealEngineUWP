@@ -176,7 +176,7 @@ void FClothingSimulationCloth::FLODData::AddParticles(FClothingSimulationSolver*
 		return;
 	}
 
-	if (!Solver->IsForceBasedSolver())
+	if (Solver->IsLegacySolver())
 	{
 		const TArray<TVec3<int32>>& Elements = NoOffsetTriangleMesh.GetElements();
 		TArray<TVec3<int32>> OffsetElements;
@@ -193,7 +193,7 @@ void FClothingSimulationCloth::FLODData::AddParticles(FClothingSimulationSolver*
 		SolverDatum.OffsetTriangleMesh.GetPointToTriangleMap(); // Builds map for later use by GetPointNormals(), and the velocity fields
 	}
 
-	const FTriangleMesh& TriangleMesh = Solver->IsForceBasedSolver() ? NoOffsetTriangleMesh : SolverDatum.OffsetTriangleMesh;
+	const FTriangleMesh& TriangleMesh = Solver->IsLegacySolver() ? SolverDatum.OffsetTriangleMesh : NoOffsetTriangleMesh;
 
 	PRAGMA_DISABLE_DEPRECATION_WARNINGS  // TODO: CHAOS_IS_CLOTHINGSIMULATIONMESH_ABSTRACT
 	// Update source mesh for this LOD, this is required prior to reset the start pose
@@ -277,7 +277,7 @@ void FClothingSimulationCloth::FLODData::Add(FClothingSimulationSolver* Solver, 
 	const Softs::FSolverReal MeshScale = Cloth->Mesh->GetScale();
 	PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
-	const FTriangleMesh& TriangleMesh = Solver->IsForceBasedSolver() ? NoOffsetTriangleMesh : SolverDatum.OffsetTriangleMesh;
+	const FTriangleMesh& TriangleMesh = Solver->IsLegacySolver() ? SolverDatum.OffsetTriangleMesh : NoOffsetTriangleMesh;
 
 	// Retrieve config properties
 	check(Cloth->Config);
@@ -287,9 +287,9 @@ void FClothingSimulationCloth::FLODData::Add(FClothingSimulationSolver* Solver, 
 	TSharedPtr<Softs::FMultiResConstraints> FineLODMultiResConstraint;
 	const FTriangleMesh* CoarseLODTriangleMesh = nullptr;
 	int32 CoarseLODParticleRangeId = INDEX_NONE;
-	if (Solver->IsForceBasedSolver())
+	if (!Solver->IsLegacySolver())
 	{
-		// Multi-Res is only supported with ForceBasedSolver
+		// Multi-Res isn't supported by legacy solver
 		if (InLODIndex == 0)
 		{
 			// Only allow LOD0 to be a fine LOD for now.
@@ -885,7 +885,7 @@ int32 FClothingSimulationCloth::GetParticleRangeId(const FClothingSimulationSolv
 TVec3<FRealSingle> FClothingSimulationCloth::GetGravity(const FClothingSimulationSolver* Solver) const
 {
 	check(Solver);
-	if (Solver->IsForceBasedSolver())
+	if (!Solver->IsLegacySolver())
 	{
 		const int32 ParticleRangeId = GetParticleRangeId(Solver);
 		if (const Softs::FExternalForces* const ExternalForces = Solver->GetClothConstraints(ParticleRangeId).GetExternalForces().Get())
@@ -945,7 +945,7 @@ const FTriangleMesh& FClothingSimulationCloth::GetTriangleMesh(const FClothingSi
 	const int32 LODIndex = LODIndices.FindChecked(Solver);
 	static const FTriangleMesh EmptyTriangleMesh;
 
-	return LODData.IsValidIndex(LODIndex) ? (Solver->IsForceBasedSolver() ? LODData[LODIndex]->NoOffsetTriangleMesh : LODData[LODIndex]->SolverData.FindChecked(Solver).OffsetTriangleMesh) : EmptyTriangleMesh;
+	return LODData.IsValidIndex(LODIndex) ? (Solver->IsLegacySolver() ? LODData[LODIndex]->SolverData.FindChecked(Solver).OffsetTriangleMesh: LODData[LODIndex]->NoOffsetTriangleMesh) : EmptyTriangleMesh;
 }
 
 
@@ -1114,7 +1114,7 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 				Solver->GetParticleXs(ParticleRangeId),
 				Solver->GetParticleVs(ParticleRangeId));
 
-			if(!Solver->IsForceBasedSolver())
+			if(Solver->IsLegacySolver())
 			{
 				// Update the wind velocity field for the new LOD mesh
 				Solver->SetWindAndPressureGeometry(GroupId, GetTriangleMesh(Solver), ConfigProperties, LODData[LODIndex]->WeightMaps);
@@ -1182,7 +1182,7 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 			OutAngularVelocityScale,
 			FictitiousAngularScale,
 			OutMaxVelocityScale);
-		if (Solver->IsForceBasedSolver())
+		if (!Solver->IsLegacySolver())
 		{
 			Solver->SetProperties(ParticleRangeId, ConfigProperties, LODData[LODIndex]->WeightMaps);
 			if (CoarseLODIndex != INDEX_NONE)
