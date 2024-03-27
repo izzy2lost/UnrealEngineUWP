@@ -241,7 +241,7 @@ void FSimModuleTree::SimulateNode(float DeltaTime, FAllInputs& Inputs, int NodeI
 	{
 		if (Module->IsEnabled())
 		{
-			Module->Simulate(DeltaTime, Inputs, *this);
+			Module->Simulate(PhysicsProxy, DeltaTime, Inputs, *this);
 
 			if (IsAnimationEnabled() && Module->IsAnimationEnabled())
 			{

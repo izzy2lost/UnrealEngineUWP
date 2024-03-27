@@ -222,6 +222,14 @@ namespace Chaos
 		/**
 		 * The main Simulation function that is called from the physics async callback thread
 		 */
+		virtual void Simulate(Chaos::FClusterUnionPhysicsProxy* Proxy, float DeltaTime, const FAllInputs& Inputs, FSimModuleTree& VehicleModuleSystem) 
+		{
+			Simulate(DeltaTime, Inputs, VehicleModuleSystem);
+		}
+
+		/**
+		* The main Simulation function that is called from the physics async callback thread
+		*/
 		virtual void Simulate(float DeltaTime, const FAllInputs& Inputs, FSimModuleTree& VehicleModuleSystem) {}
 
 		/**
@@ -275,6 +283,9 @@ namespace Chaos
 		 * Note: forces are applied in local coordinates of the module
 		 */
 		void AddLocalForceAtPosition(const FVector& Force, const FVector& Position, bool bAllowSubstepping = true, bool bIsLocalForce = false, bool bLevelSlope = false, const FColor& DebugColorIn = FColor::Blue);
+
+
+		void AddForceAtCOMPosition(const FVector& Force, const FVector& OffsetFromCOM = FVector::ZeroVector, bool bAllowSubstepping = true, bool bLevelSlope = false, const FColor& DebugColorIn = FColor::Blue);
 
 		/**
 		 * Force application function, handles deferred force application and applying the force at the collect location based on whether the GC cluster is intact or fractured

@@ -19,6 +19,15 @@ void ISimulationModuleBase::AddLocalForceAtPosition(const FVector& Force, const 
 	}
 }
 
+void ISimulationModuleBase::AddForceAtCOMPosition(const FVector& Force, const FVector& OffsetFromCOM /*= = FVector::ZeroVector*/, bool bAllowSubstepping /*= true*/, bool bLevelSlope /*= false*/, const FColor& DebugColorIn /*= FColor::Blue*/)
+{
+	AppliedForce = Force;
+	if (SimModuleTree)
+	{
+		SimModuleTree->AccessDeferredForces().AddCOM(FDeferredForcesModular::FApplyForceAtPositionData(ComponentTransform, TransformIndex, ParticleIdx.Idx, Force, OffsetFromCOM, bAllowSubstepping, false, bLevelSlope, DebugColorIn));
+	}
+}
+
 void ISimulationModuleBase::AddLocalForce(const FVector& Force, bool bAllowSubstepping, bool bIsLocalForce, bool bLevelSlope, const FColor& DebugColorIn)
 {
 	AppliedForce = Force;

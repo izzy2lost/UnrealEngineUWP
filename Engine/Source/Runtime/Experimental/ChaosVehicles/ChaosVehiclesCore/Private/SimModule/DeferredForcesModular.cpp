@@ -178,6 +178,14 @@ Chaos::FPBDRigidParticleHandle* FDeferredForcesModular::GetParticle(const FTrans
 	return ClusterParticles[SingleChassisIndex];
 }
 
+Chaos::FPBDRigidParticleHandle* FDeferredForcesModular::GetClusterParticle(TArray<Chaos::FPBDRigidClusteredParticleHandle*>& ClusterParticles)
+{
+	using namespace Chaos;
+	ensure(ClusterParticles.Num() == 1);
+	const int SingleChassisIndex = 0;
+	return ClusterParticles[SingleChassisIndex];
+}
+
 template<typename TransformType>
 void FDeferredForcesModular::ApplyTemplate(FGeometryCollectionPhysicsProxy* Proxy
 		, const TManagedArray<TransformType>& Transforms
@@ -290,6 +298,16 @@ void FDeferredForcesModular::Apply(TArray<Chaos::FPBDRigidParticleHandle*>& Part
 			}
 		}
 
+		for (const FApplyForceAtPositionData& Data : ApplyForceAtCOMDatas)
+		{
+			Chaos::FPBDRigidParticleHandle* RigidHandle = GetClusterParticle(ClusterParticles);
+			if (RigidHandle)
+			{
+				AddForceAtCOM(RigidHandle, Data);
+			}
+		}
+
+
 		for (const FApplyForceAtPositionData& Data : ApplyForceAtPositionDatas)
 		{
 			Chaos::FPBDRigidParticleHandle* RigidHandle = GetParticle(Data.OffsetTransform, Particles, ClusterParticles, Data.ParticleIdx, Data.Position, RelativeTransform);
@@ -310,6 +328,7 @@ void FDeferredForcesModular::Apply(TArray<Chaos::FPBDRigidParticleHandle*>& Part
 	}
 
 	ApplyForceDatas.Empty();
+	ApplyForceAtCOMDatas.Empty();
 	ApplyForceAtPositionDatas.Empty();
 	ApplyTorqueDatas.Empty();
 }
@@ -387,6 +406,16 @@ void FDeferredForcesModular::AddForce(Chaos::FPBDRigidParticleHandle* RigidHandl
 		AddForce_Implementation(RigidHandle, DataIn.OffsetTransform, DataIn.Force, OffsetTransform, (DataIn.Flags & EForceFlags::LevelSlope) == EForceFlags::LevelSlope, DataIn.DebugColor);
 	}
 
+}
+
+void FDeferredForcesModular::AddForceAtCOM(Chaos::FPBDRigidParticleHandle* RigidHandle, const FApplyForceAtPositionData& DataIn)
+{
+	if (ensure(RigidHandle))
+	{
+		FTransform OffsetTransform = FTransform::Identity;
+		OffsetTransform.SetTranslation(RigidHandle->CenterOfMass() + DataIn.Position);
+		AddForce_Implementation(RigidHandle, FTransform::Identity, DataIn.Force, OffsetTransform, (DataIn.Flags & EForceFlags::LevelSlope) == EForceFlags::LevelSlope, DataIn.DebugColor);
+	}
 }
 
 void FDeferredForcesModular::AddForceAtPosition(Chaos::FPBDRigidParticleHandle* RigidHandle, const FApplyForceAtPositionData& DataIn, const FTransform& OffsetTransform)
