@@ -324,7 +324,8 @@ TSharedPtr<class ISinglePropertyView> FPropertyEditorModule::CreateSinglePropert
 		.NameOverride(InitParams.NameOverride)
 		.NotifyHook(InitParams.NotifyHook)
 		.PropertyFont(InitParams.Font)
-		.bShouldHideAssetThumbnail(InitParams.bHideAssetThumbnail);
+		.bShouldHideAssetThumbnail(InitParams.bHideAssetThumbnail)
+		.bShouldHideResetToDefault(InitParams.bHideResetToDefault);
 
 	if (Property->HasValidProperty())
 	{

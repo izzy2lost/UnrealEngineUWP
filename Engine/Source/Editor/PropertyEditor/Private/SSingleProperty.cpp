@@ -117,6 +117,7 @@ void SSingleProperty::Construct( const FArguments& InArgs )
 	NamePlacement = InArgs._NamePlacement;
 	NotifyHook = InArgs._NotifyHook;
 	PropertyFont = InArgs._PropertyFont;
+	bShouldHideResetToDefault = InArgs._bShouldHideResetToDefault;
 
 	PropertyUtilities = MakeShareable( new FSinglePropertyUtilities( SharedThis( this ), InArgs._bShouldHideAssetThumbnail ) );
 
@@ -270,7 +271,7 @@ bool SSingleProperty::GeneratePropertyCustomization()
 			];			
 		}
 
-		if (!PropertyEditor->GetPropertyHandle()->HasMetaData(TEXT("NoResetToDefault")))
+		if (!PropertyEditor->GetPropertyHandle()->HasMetaData(TEXT("NoResetToDefault")) && !bShouldHideResetToDefault)
 		{
 			HorizontalBox->AddSlot()
 			.Padding( 2.0f )
@@ -298,7 +299,7 @@ bool SSingleProperty::GeneratePropertyCustomization()
 }
 
 
-void SSingleProperty::SetOnPropertyValueChanged( FSimpleDelegate& InOnPropertyValueChanged )
+void SSingleProperty::SetOnPropertyValueChanged( const FSimpleDelegate& InOnPropertyValueChanged )
 {
 	if( HasValidProperty() )
 	{
