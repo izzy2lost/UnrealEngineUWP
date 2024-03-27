@@ -169,6 +169,11 @@ namespace EpicGames.Horde.Storage.Bundles.V2
 			{
 				throw;
 			}
+			catch (ObjectNotFoundException ex)
+			{
+				Utf8String locator = GetLocator();
+				throw new ObjectNotFoundException(ex.Key, $"Unable to read {locator}: {ex.Message}", ex);
+			}
 			catch (Exception ex)
 			{
 				Utf8String locator = GetLocator();

@@ -4,6 +4,7 @@ using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
+using System.Net;
 using System.Runtime.CompilerServices;
 using System.Threading;
 using System.Threading.Tasks;
@@ -24,14 +25,14 @@ namespace Horde.Server.Storage.ObjectStores
 	/// <summary>
 	/// Exception wrapper for S3 requests
 	/// </summary>
-	public sealed class AwsException : Exception
+	public sealed class AwsException : StorageException
 	{
 		/// <summary>
 		/// Constructor
 		/// </summary>
 		/// <param name="message">Message for the exception</param>
 		/// <param name="innerException">Inner exception data</param>
-		public AwsException(string? message, Exception? innerException)
+		public AwsException(string message, Exception? innerException)
 			: base(message, innerException)
 		{
 		}
@@ -325,7 +326,15 @@ namespace Horde.Server.Storage.ObjectStores
 				}
 
 				_logger.LogWarning(ex, "Unable to read {Path} from S3", fullPath);
-				throw new StorageException($"Unable to read {fullPath} from {_options.AwsBucketName}", ex);
+
+				if (ex is AmazonS3Exception s3ex && s3ex.StatusCode == HttpStatusCode.NotFound)
+				{
+					throw new ObjectNotFoundException(key, $"Object {key} not found in bucket {_options.AwsBucketName}", ex);
+				}
+				else
+				{
+					throw new StorageException($"Unable to read {fullPath} from {_options.AwsBucketName}: {ex.Message}", ex);
+				}
 			}
 		}
 

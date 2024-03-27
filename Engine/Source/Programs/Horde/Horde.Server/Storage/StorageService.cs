@@ -608,9 +608,13 @@ namespace Horde.Server.Storage
 								{
 									await TickBlobAsync(storageClient, blobInfo, cancellationToken);
 								}
+								catch (ObjectNotFoundException ex)
+								{
+									_logger.LogInformation(ex, "Unable to read references for {NamespaceId} blob {BlobId}: {Message}", blobInfo.NamespaceId, blobInfo.Id, GetObjectKey(blobInfo.Locator), ex.Message);
+								}
 								catch (Exception ex)
 								{
-									_logger.LogInformation(ex, "Unable to read references for {NamespaceId} blob {BlobId} (key: {ObjectKey}): {Message}", blobInfo.NamespaceId, blobInfo.Id, GetObjectKey(blobInfo.Locator), ex.Message);
+									_logger.LogWarning(ex, "Unable to read references for {NamespaceId} blob {BlobId} (key: {ObjectKey}): {Message}", blobInfo.NamespaceId, blobInfo.Id, GetObjectKey(blobInfo.Locator), ex.Message);
 								}
 							}
 						}
