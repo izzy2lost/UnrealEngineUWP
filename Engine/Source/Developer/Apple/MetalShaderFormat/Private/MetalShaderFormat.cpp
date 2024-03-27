@@ -611,7 +611,7 @@ FString FMetalCompilerToolchain::XcrunPath(TEXT("/usr/bin/xcrun"));
 FString FMetalCompilerToolchain::MetalMacSDK(TEXT("macosx"));
 FString FMetalCompilerToolchain::MetalMobileSDK(TEXT("iphoneos"));
 
-FString FMetalCompilerToolchain::DefaultWindowsToolchainPath(TEXT("c:/Program Files/Metal Developer Tools"));
+FString FMetalCompilerToolchain::WindowsToolchainVersion(TEXT("4.1"));
 
 // Static methods
 
@@ -912,14 +912,28 @@ FMetalCompilerToolchain::EMetalToolchainStatus FMetalCompilerToolchain::DoWindow
 	int32 Result = 0;
 	
 	FString ToolchainBase;
-	GConfig->GetString(TEXT("/Script/IOSRuntimeSettings.IOSRuntimeSettings"), TEXT("WindowsMetalToolchainOverride"), ToolchainBase, GEngineIni);
 
-	const bool bUseOverride = (!ToolchainBase.IsEmpty() && FPaths::DirectoryExists(ToolchainBase));
-	if (!bUseOverride)
+	static const FString SDKRootEnvFar(TEXT("UE_SDKS_ROOT"));
+	FString SDKPath = FPlatformMisc::GetEnvironmentVariable(*SDKRootEnvFar);
+	FString ProgramFilesPath = FPlatformMisc::GetEnvironmentVariable(TEXT("ProgramFiles"));;
+
+	if (SDKPath.Len() != 0)
 	{
-		ToolchainBase = DefaultWindowsToolchainPath;
+		FString HostPlatform(TEXT("HostWin64"));
+		ToolchainBase = FPaths::Combine(*SDKPath, *HostPlatform, TEXT("Win64"), TEXT("MetalDeveloperTools"), WindowsToolchainVersion);
 	}
+	
+	const bool bUseAutoSDK = (!ToolchainBase.IsEmpty() && FPaths::DirectoryExists(ToolchainBase));
+	if(!bUseAutoSDK)
+	{
+		GConfig->GetString(TEXT("/Script/IOSRuntimeSettings.IOSRuntimeSettings"), TEXT("WindowsMetalToolchainOverride"), ToolchainBase, GEngineIni);
 
+		const bool bUseOverride = (!ToolchainBase.IsEmpty() && FPaths::DirectoryExists(ToolchainBase));
+		if (!bUseOverride)
+		{
+			ToolchainBase = FPaths::Combine(*ProgramFilesPath, TEXT("Metal Developer Tools"));;
+		}
+	}
 	// Look for the windows native toolchain
 	MetalFrontendBinaryCommand[AppleSDKMac] = ToolchainBase / TEXT("metal") / TEXT("macos") / TEXT("bin") / MetalFrontendBinary;
 	MetalFrontendBinaryCommand[AppleSDKMobile] = ToolchainBase / TEXT("metal") / TEXT("ios") / TEXT("bin") / MetalFrontendBinary;

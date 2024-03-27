@@ -1033,7 +1033,8 @@ namespace UnrealBuildTool
 
 			if ((Target.Platform == UnrealTargetPlatform.Win64) || (Target.Platform == UnrealTargetPlatform.Mac))
 			{
-				bool bBuildShaderFormats = Target.bForceBuildShaderFormats;
+				// For Windows we use the MetalDeveloperTools and we will check if the toolchain is present at runtime
+				bool bBuildShaderFormats = Target.bForceBuildShaderFormats || Target.Platform == UnrealTargetPlatform.Win64;
 				if (!Target.bBuildRequiresCookedData)
 				{
 					if (ModuleName == "Engine")
@@ -1084,7 +1085,7 @@ namespace UnrealBuildTool
 						}
 					}
 
-					if (bBuildShaderFormats && bIsPlatformAvailableForTargetWithSDK)
+					if (bBuildShaderFormats)
 					{
 						Rules.DynamicallyLoadedModuleNames.Add("MetalShaderFormat");
 					}
