@@ -356,7 +356,7 @@ void UMoviePipelineExecutorJob::SetSequence(FSoftObjectPath InSequence)
 	}
 }
 
-TObjectPtr<UMovieJobVariableAssignmentContainer> UMoviePipelineExecutorJob::GetOrCreateJobVariableAssignmentsForGraph(const UMovieGraphConfig* InGraph)
+UMovieJobVariableAssignmentContainer* UMoviePipelineExecutorJob::GetOrCreateJobVariableAssignmentsForGraph(const UMovieGraphConfig* InGraph)
 {
 	if (InGraph)
 	{
@@ -419,7 +419,7 @@ void UMoviePipelineExecutorShot::SetGraphPreset(const UMovieGraphConfig* InGraph
 	OnShotGraphPresetChanged.Broadcast(this, GraphPreset.Get());
 }
 
-TObjectPtr<UMovieJobVariableAssignmentContainer> UMoviePipelineExecutorShot::GetOrCreateJobVariableAssignmentsForGraph(const UMovieGraphConfig* InGraph, const bool bIsForPrimaryOverrides)
+UMovieJobVariableAssignmentContainer* UMoviePipelineExecutorShot::GetOrCreateJobVariableAssignmentsForGraph(const UMovieGraphConfig* InGraph, const bool bIsForPrimaryOverrides)
 {
 	if (InGraph)
 	{
