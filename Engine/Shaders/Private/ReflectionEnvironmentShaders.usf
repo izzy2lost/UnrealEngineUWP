@@ -242,7 +242,7 @@ uint NumMips;
 #ifdef USE_COMPUTE
 int FaceThreadGroupSize;
 int2 ValidDispatchCoord;
-RWTextureCube<float4> OutTextureMipColor;	// All slices, i.e. faces, of a cube map mip level
+RWTexture2DArray<float4> OutTextureMipColor;	// All slices, i.e. faces, of a cube map mip level
 #endif 
 
 #ifdef USE_COMPUTE
