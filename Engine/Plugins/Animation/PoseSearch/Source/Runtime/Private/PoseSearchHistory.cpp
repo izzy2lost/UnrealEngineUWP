@@ -472,7 +472,7 @@ FPoseHistory& FPoseHistory::operator=(FPoseHistory&& Other)
 	FThreadSafeCounter& OtherWriteDataThreadSafeCounter = Other.WriteDataThreadSafeCounter;
 	CheckThreadSafetyWrite(OtherReadDataThreadSafeCounter);
 	CheckThreadSafetyWrite(OtherWriteDataThreadSafeCounter);
-#endif ENABLE_ANIM_DEBUG
+#endif // ENABLE_ANIM_DEBUG
 
 	MaxNumPoses = MoveTemp(Other.MaxNumPoses);
 	SamplingInterval = MoveTemp(Other.SamplingInterval);
