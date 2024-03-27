@@ -344,7 +344,7 @@ Name | Description
 `id` | `string`<br>Unique identifier for the tool
 `name` | `string`<br>Name of the tool
 `description` | `string`<br>Description for the tool
-`parentId` | `string`<br>Tool id to nest this tool under
+`category` | `string`<br>Category for the tool. Will cause the tool to be shown in a different tab in the dashboard.
 `public` | `boolean`<br>Whether this tool should be exposed for download on a public endpoint without authentication
 `showInUgs` | `boolean`<br>Whether to show this tool for download in the UGS tools menu
 `showInDashboard` | `boolean`<br>Whether to show this tool for download in the dashboard
