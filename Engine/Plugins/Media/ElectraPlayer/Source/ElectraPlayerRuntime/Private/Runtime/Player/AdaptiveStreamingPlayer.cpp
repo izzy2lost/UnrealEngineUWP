@@ -1019,9 +1019,8 @@ void FAdaptiveStreamingPlayer::QueryStreamBufferInfo(FStreamBufferInfo& OutStrea
 				// These AUs are not in the player buffer any more.
 				{
 					FScopeLock lock(&DiagnosticsCriticalSection);
-					IDecoderOutputBufferListener::FDecodeReadyStats* Ready = InStreamType == EStreamType::Video ? &VideoBufferStats.DecoderOutputBuffer :
-																			 InStreamType == EStreamType::Audio ? &AudioBufferStats.DecoderOutputBuffer :
-																			 nullptr;
+					// Video or audio buffer? (see switch-case we are in above)
+					IDecoderOutputBufferListener::FDecodeReadyStats* Ready = InStreamType == EStreamType::Video ? &VideoBufferStats.DecoderOutputBuffer : &AudioBufferStats.DecoderOutputBuffer;
 					if (Ready && Ready->InDecoderTimeRangePTS.IsValid())
 					{
 						OutStreamBufferInfo.TimeEnqueued.Emplace(Ready->InDecoderTimeRangePTS);
