@@ -125,16 +125,6 @@
 		FChaosVisualDebuggerTrace::TraceMidPhasesFromCollisionConstraints(CollisionConstraints);
 	#endif
 
-	#ifndef CVD_TRACE_NON_SOLVER_LOCATION
-		#define CVD_TRACE_NON_SOLVER_LOCATION(Location, DebugName) \
-		FChaosVisualDebuggerTrace::TraceNonSolverLocation(Location, DebugName);
-	#endif
-
-	#ifndef CVD_TRACE_NON_SOLVER_TRANSFORM
-		#define CVD_TRACE_NON_SOLVER_TRANSFORM(Transform, DebugName) \
-		FChaosVisualDebuggerTrace::TraceNonSolverTransform(Transform, DebugName);
-	#endif
-
 	#ifndef CVD_TRACE_INVALIDATE_CACHED_GEOMETRY
 		#define CVD_TRACE_INVALIDATE_CACHED_GEOMETRY(ImplicitObjectPtr) \
 		FChaosVisualDebuggerTrace::InvalidateGeometryFromCache(ImplicitObjectPtr);
@@ -234,14 +224,6 @@
 
 	#ifndef CVD_TRACE_STEP_MID_PHASES_FROM_COLLISION_CONSTRAINTS
 		#define CVD_TRACE_STEP_MID_PHASES_FROM_COLLISION_CONSTRAINTS(DataChannel, CollisionConstraints)
-	#endif
-
-	#ifndef CVD_TRACE_NON_SOLVER_LOCATION
-	      #define CVD_TRACE_NON_SOLVER_LOCATION(Location, DebugName)
-	#endif
-
-	#ifndef CVD_TRACE_NON_SOLVER_TRANSFORM
-		#define CVD_TRACE_NON_SOLVER_TRANSFORM(Transform, DebugName)
 	#endif
 
 	#ifndef CVD_TRACE_INVALIDATE_CACHED_GEOMETRY

@@ -245,22 +245,6 @@ public:
 	 */
 	static CHAOS_API void InvalidateGeometryFromCache(const Chaos::FImplicitObject* CachedGeometryToInvalidate);
 
-	/**
-	 * Traces the provided location using with the provided ID -
-	 * These are not tied to any solver step so they will be recorded as part of the current game frame data
-	 * @param InLocation Location to Trace
-	 * @param DebugNameID Name to use as ID
-	 */
-	static CHAOS_API void TraceNonSolverLocation(const FVector& InLocation, FStringView DebugNameID);
-
-	/**
-	 * Traces the provided transform using with the provided ID -
-	 * These are not tied to any solver step so they will be recorded as part of the current game frame data
-	 * @param InTransform Transform to Trace
-	 * @param DebugNameID Name to use as ID
-	 */
-	static CHAOS_API void TraceNonSolverTransform(const FTransform& InTransform, FStringView DebugNameID);
-
 	static CHAOS_API void TraceSceneQueryStart(const Chaos::FImplicitObject* InputGeometry, const FQuat& GeometryOrientation, const FVector& Start, const FVector& End, ECollisionChannel TraceChannel, FChaosVDCollisionQueryParams&& Params, FChaosVDCollisionResponseParams&& ResponseParams, FChaosVDCollisionObjectQueryParams&& ObjectParams, EChaosVDSceneQueryType QueryType, EChaosVDSceneQueryMode QueryMode, int32 SolverID, bool bIsRetry);
 	static CHAOS_API void TraceSceneQueryVisit(FChaosVDQueryVisitStep&& InQueryVisitData);
 
@@ -301,6 +285,22 @@ private:
 	 * @param ContextData Context to be used to tied this Trace event to a specific solver frame and step
 	 */
 	static CHAOS_API void TraceParticle(Chaos::FGeometryParticleHandle* ParticleHandle, const FChaosVDContext& ContextData);
+
+	/**
+	 * Traces the provided location using with the provided ID -
+	 * These are not tied to any solver step so they will be recorded as part of the current game frame data
+	 * @param InLocation Location to Trace
+	 * @param DebugNameID Name to use as ID
+	 */
+	static void TraceNonSolverLocation(const FVector& InLocation, FStringView DebugNameID);
+
+	/**
+	 * Traces the provided transform using with the provided ID -
+	 * These are not tied to any solver step so they will be recorded as part of the current game frame data
+	 * @param InTransform Transform to Trace
+	 * @param DebugNameID Name to use as ID
+	 */
+	static void TraceNonSolverTransform(const FTransform& InTransform, FStringView DebugNameID);
 	
 	/** Resets the state of the CVD Tracer */
 	static void Reset();
