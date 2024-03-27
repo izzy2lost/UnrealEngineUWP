@@ -484,7 +484,7 @@ export const PoolPivot: React.FC = () => {
 
    pivotItems.unshift(<PivotItem headerText="All" itemKey="all" key={"all"} style={{ color: modeColors.text }} />);
 
-   return <Stack grow>
+   return <Stack grow style={{paddingBottom: 12}}>
       <Pivot className={hordeClasses.pivot}
          overflowBehavior='menu'
          selectedKey={handler.category?.name ?? "all"}
@@ -556,7 +556,7 @@ export const PoolsView: React.FC = observer(() => {
       <Stack styles={{ root: { width: "100%", backgroundColor: modeColors.background } }}>
          <Stack style={{ width: "100%", backgroundColor: modeColors.background }}>
             <Stack style={{ position: "relative", width: "100%", height: 'calc(100vh - 148px)' }}>
-               {<Stack style={{ paddingTop: "30px", paddingBottom: "4px" }}>
+               {<Stack style={{ paddingTop: "12px", paddingBottom: "4px" }}>
                   <Stack style={{ width: 1440, marginLeft: centerAlign }}>
                      <Stack horizontal style={{ width: "100%" }}>
                         {!poolId && <PoolPivot />}
