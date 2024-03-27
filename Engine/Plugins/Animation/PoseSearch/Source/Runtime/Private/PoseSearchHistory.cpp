@@ -448,7 +448,7 @@ FPoseHistory& FPoseHistory::operator=(const FPoseHistory& Other)
 	FThreadSafeCounter& OtherWriteDataThreadSafeCounter = Other.WriteDataThreadSafeCounter;
 	CheckThreadSafetyWrite(OtherReadDataThreadSafeCounter);
 	CheckThreadSafetyWrite(OtherWriteDataThreadSafeCounter);
-#endif ENABLE_ANIM_DEBUG
+#endif // ENABLE_ANIM_DEBUG
 
 	MaxNumPoses = Other.MaxNumPoses;
 	SamplingInterval = Other.SamplingInterval;
