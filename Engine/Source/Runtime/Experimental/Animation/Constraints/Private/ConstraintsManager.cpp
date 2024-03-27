@@ -766,7 +766,7 @@ bool FConstraintsManagerController::RemoveAllConstraints(bool bDoNotCompensate)
 	return false;
 }
 
-static void SortConstraints(UWorld* InWorld, TArray< TWeakObjectPtr<UTickableConstraint> >& SortedConstraints)
+static void SortConstraints(UWorld* InWorld, TArray< TWeakObjectPtr<UTickableConstraint> >& InOutSortedConstraints)
 {
 	using ConstraintPtr = TWeakObjectPtr<UTickableConstraint>;
 	// LHS ticks before RHS = LHS is a prerex of RHS 
@@ -785,13 +785,13 @@ static void SortConstraints(UWorld* InWorld, TArray< TWeakObjectPtr<UTickableCon
 		return bIsLHSAPrerexOfRHS;
 	};
 
-	Algo::StableSort(SortedConstraints, [TicksBefore](const ConstraintPtr& LHS, const ConstraintPtr& RHS)
-		{
-			return TicksBefore(*LHS, *RHS);
-		});
+	Algo::Sort(InOutSortedConstraints, [TicksBefore](const ConstraintPtr& LHS, const ConstraintPtr& RHS)
+	{
+		return TicksBefore(*LHS, *RHS);
+	});
 }
 
-static void SortConstraints(UWorld* InWorld, TArray< TObjectPtr<UTickableConstraint> > &SortedConstraints)
+static void SortConstraints(UWorld* InWorld, TArray< TObjectPtr<UTickableConstraint> >& InOutSortedConstraints)
 {
 	using ConstraintPtr = TObjectPtr<UTickableConstraint>;
 	// LHS ticks before RHS = LHS is a prerex of RHS 
@@ -806,10 +806,10 @@ static void SortConstraints(UWorld* InWorld, TArray< TObjectPtr<UTickableConstra
 		return bIsLHSAPrerexOfRHS;
 	};
 
-	Algo::StableSort(SortedConstraints, [TicksBefore](const ConstraintPtr& LHS, const ConstraintPtr& RHS)
-		{
-			return TicksBefore(*LHS, *RHS);
-		});
+	Algo::Sort(InOutSortedConstraints, [TicksBefore](const ConstraintPtr& LHS, const ConstraintPtr& RHS)
+	{
+		return TicksBefore(*LHS, *RHS);
+	});
 }
 
 TArray< TObjectPtr<UTickableConstraint> > FConstraintsManagerController::GetStaticConstraints(const bool bSorted) const
@@ -868,12 +868,15 @@ TArray< TWeakObjectPtr<UTickableConstraint> > FConstraintsManagerController::Get
 
 void FConstraintsManagerController::EvaluateAllConstraints() const
 {
-	TArray< TWeakObjectPtr<UTickableConstraint>>Constraints = GetAllConstraints(true);
-	for (const TWeakObjectPtr<UTickableConstraint>& InConstraint : Constraints)
+	using ConstraintPtr = TWeakObjectPtr<UTickableConstraint>;
+
+	static constexpr bool bSorted = true, bTickHandles = true;
+	const TArray<ConstraintPtr> Constraints = GetAllConstraints(bSorted);
+	for (const ConstraintPtr& Constraint : Constraints)
 	{
-		if (InConstraint.IsValid())
+		if (Constraint.IsValid())
 		{
-			InConstraint->Evaluate(true);
+			Constraint->Evaluate(bTickHandles);
 		}
 	}
 }

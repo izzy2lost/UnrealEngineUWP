@@ -40,8 +40,8 @@ struct FConstraintNode
 struct FConstraintsEvaluationGraph: public TSharedFromThis<FConstraintsEvaluationGraph>
 {
 public:
-	explicit FConstraintsEvaluationGraph(FConstraintsInWorld& InConstraintsInWorld)
-		: ConstraintsInWorld(InConstraintsInWorld)
+	explicit FConstraintsEvaluationGraph(const FConstraintsInWorld* InConstraintsInWorld)
+		: ConstraintsInWorld(*InConstraintsInWorld)
 	{}
 
 	/**
@@ -97,7 +97,7 @@ private:
 	TArray<FConstraintNode> Nodes;
 
 	/* References to the actual stored data. */
-	FConstraintsInWorld& ConstraintsInWorld;
+	const FConstraintsInWorld& ConstraintsInWorld;
 	
 	/* Current graph state. */
 	EGraphState	State = InvalidData;
