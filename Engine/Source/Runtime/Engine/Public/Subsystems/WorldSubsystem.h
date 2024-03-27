@@ -47,7 +47,10 @@ protected:
 
 /**
  * UTickableWorldSubsystem
- * Base class for auto instanced and initialized systems that share the lifetime of a UWorld and are ticking along with it
+ * Base class for auto instanced and initialized systems that share the lifetime of a UWorld and are ticking along with it.
+ * With the default implementation, it will start ticking after Initialize and stop during Deinitialize,
+ * and it will call IsTickable every frame (defaults to true) before calling Tick.
+ * Subclasses must forward calls to the Initialize/Deinitialize functions to correctly enable ticking.
  */
 UCLASS(Abstract, MinimalAPI)
 class UTickableWorldSubsystem : public UWorldSubsystem, public FTickableGameObject
@@ -58,7 +61,7 @@ public:
 	ENGINE_API UTickableWorldSubsystem();
 
 	// FTickableGameObject implementation Begin
-	virtual UWorld* GetTickableGameObjectWorld() const override { return GetWorld(); }
+	ENGINE_API UWorld* GetTickableGameObjectWorld() const override;
 	ENGINE_API virtual ETickableTickType GetTickableTickType() const override;
 	ENGINE_API virtual bool IsAllowedToTick() const override final;
 	ENGINE_API virtual void Tick(float DeltaTime) override;
@@ -68,8 +71,10 @@ public:
 	// USubsystem implementation Begin
 	ENGINE_API virtual void Initialize(FSubsystemCollectionBase& Collection) override;
 	ENGINE_API virtual void Deinitialize() override;
+	ENGINE_API virtual void BeginDestroy() override;
 	// USubsystem implementation End
 
+	/** Returns true if Initialize has been called but Deinitialize has not */
 	bool IsInitialized() const { return bInitialized; }
 
 private:

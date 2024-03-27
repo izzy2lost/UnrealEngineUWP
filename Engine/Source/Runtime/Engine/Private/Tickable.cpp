@@ -6,130 +6,174 @@
 
 DECLARE_CYCLE_STAT(TEXT("TickableGameObjects Time"), STAT_TickableGameObjectsTime, STATGROUP_Game);
 
-struct FTickableStatics
+void FTickableObjectBase::FTickableStatics::QueueTickableObjectForAdd(FTickableObjectBase* InTickable)
 {
-	FCriticalSection TickableObjectsCritical;
-	TArray<FTickableObjectBase::FTickableObjectEntry> TickableObjects;
+	// This only needs to lock the new object queue
+	FScopeLock NewTickableObjectsLock(&NewTickableObjectsCritical);
+	NewTickableObjects.Add(InTickable, ETickableTickType::NewObject);
+}
 
-	FCriticalSection NewTickableObjectsCritical;
-	TSet<FTickableGameObject*> NewTickableObjects;
+void FTickableObjectBase::FTickableStatics::SetTickTypeForTickableObject(FTickableObjectBase* InTickable, ETickableTickType NewTickType)
+{
+	FScopeLock TickableObjectsLock(&TickableObjectsCritical);
+	FScopeLock NewTickableObjectsLock(&NewTickableObjectsCritical);
+	
+	// Existing entries should never be set to new object
+	check(NewTickType != ETickableTickType::NewObject);
 
-	bool bIsTickingObjects = false;
-
-	void QueueTickableObjectForAdd(FTickableGameObject* InTickable)
+	const int32 Pos = TickableObjects.IndexOfByKey(InTickable);
+	if (NewTickType == ETickableTickType::Never)
 	{
-		FScopeLock NewTickableObjectsLock(&NewTickableObjectsCritical);
-		NewTickableObjects.Add(InTickable);
-	}
-
-	void RemoveTickableObjectFromNewObjectsQueue(FTickableGameObject* InTickable)
-	{
-		FScopeLock NewTickableObjectsLock(&NewTickableObjectsCritical);
+		// Remove from pending list if it hasn't been registered yet
 		NewTickableObjects.Remove(InTickable);
-	}
 
-	static FTickableStatics& Get()
-	{
-		static FTickableStatics Singleton;
-		return Singleton;
-	}
-};
-
-void FTickableObjectBase::AddTickableObject(TArray<FTickableObjectEntry>& TickableObjects, FTickableObjectBase* TickableObject)
-{
-	check(!TickableObjects.Contains(TickableObject));
-	const ETickableTickType TickType = TickableObject->GetTickableTickType();
-	if (TickType != ETickableTickType::Never)
-	{
-		TickableObjects.Add({ TickableObject, TickType });
-	}
-}
-
-void FTickableObjectBase::RemoveTickableObject(TArray<FTickableObjectEntry>& TickableObjects, FTickableObjectBase* TickableObject, const bool bIsTickingObjects)
-{
-	const int32 Pos = TickableObjects.IndexOfByKey(TickableObject);
-
-#if 0 // virtual from destructor doesn't work ... need to rethink how to do warning
-	// ensure that GetTickableTickType did not change over time
-	switch (TickableObject->GetTickableTickType())
-	{
-	case ETickableTickType::Always:
-		ensureMsgf(Pos != INDEX_NONE && TickableObjects[Pos].TickType == ETickableTickType::Always, TEXT("TickType has changed since object was created. Result of GetTickableTickType must be invariant for a given object."));
-		break;
-
-	case ETickableTickType::Conditional:
-		ensureMsgf(Pos != INDEX_NONE && TickableObjects[Pos].TickType == ETickableTickType::Conditional, TEXT("TickType has changed since object was created. Result of GetTickableTickType must be invariant for a given object."));
-		break;
-
-	case ETickableTickType::Never:
-		ensureMsgf(Pos == INDEX_NONE, TEXT("TickType has changed since object was created. Result of GetTickableTickType must be invariant for a given object."));
-		break;
-	}
-#endif
-
-	if (Pos != INDEX_NONE)
-	{
-		if (bIsTickingObjects)
+		// The item may be missing depending on destruction order during shutdown
+		if (Pos != INDEX_NONE)
 		{
-			TickableObjects[Pos].TickableObject = nullptr;
+			if (bIsTickingObjects)
+			{
+				// During ticking it is not safe to modify the array so null and mark for later
+				TickableObjects[Pos].TickableObject = nullptr;
+				bNeedsCleanup = true;
+			}
+			else
+			{
+				TickableObjects.RemoveAt(Pos);
+			}
 		}
-		else
-		{
-			TickableObjects.RemoveAt(Pos);
-		}
-	}
-}
-
-FTickableGameObject::FTickableGameObject()
-{
-	FTickableStatics& Statics = FTickableStatics::Get();
-
-	if (UObjectInitialized())
-	{
-		Statics.QueueTickableObjectForAdd(this);
 	}
 	else
 	{
-		AddTickableObject(Statics.TickableObjects, this);
+		if (Pos != INDEX_NONE)
+		{
+			// If this is registered, it was removed from the new list in BeginTicking
+			check(!NewTickableObjects.Contains(InTickable));
+
+			// This will modify behavior for the current frame if it has not ticked yet
+			TickableObjects[Pos].TickType = NewTickType;
+		}
+		else
+		{
+			// Add to the pending list (which could override previous request), this will apply it next frame
+			NewTickableObjects.Add(InTickable, NewTickType);
+		}
 	}
+}
+
+void FTickableObjectBase::FTickableStatics::StartTicking()
+{
+	check(!bIsTickingObjects);
+
+	FScopeLock NewTickableObjectsLock(&NewTickableObjectsCritical);
+
+	for (TPair<FTickableObjectBase*, ETickableTickType> Pair : NewTickableObjects)
+	{
+		FTickableObjectBase* NewTickableObject = Pair.Key;
+		ETickableTickType TickType = Pair.Value;
+
+		// SetTickTypeForTickableObject will not add to new list if it already exists in TickableObjects
+		check(!TickableObjects.Contains(NewTickableObject));
+
+		if (TickType == ETickableTickType::NewObject)
+		{
+			// Query object if unknown
+			TickType = NewTickableObject->GetTickableTickType();
+		}
+
+		if (TickType != ETickableTickType::Never)
+		{
+			TickableObjects.Add({ NewTickableObject, TickType });
+		}
+	}
+	NewTickableObjects.Empty();
+
+	bIsTickingObjects = true;
+}
+
+void FTickableObjectBase::FTickableStatics::FinishTicking()
+{
+	check(bIsTickingObjects);
+	if (bNeedsCleanup)
+	{
+		TickableObjects.RemoveAll([](const FTickableObjectEntry& Entry) { return Entry.TickableObject == nullptr; });
+		bNeedsCleanup = false;
+	}
+
+	bIsTickingObjects = false;
+}
+
+
+void FTickableObjectBase::SimpleTickObjects(FTickableStatics& Statics, TFunctionRef<void(FTickableObjectBase*)> TickFunc)
+{
+	FScopeLock LockTickableObjects(&Statics.TickableObjectsCritical);
+
+	Statics.StartTicking();
+
+	for (const FTickableObjectEntry& TickableEntry : Statics.TickableObjects)
+	{
+		if (FTickableObjectBase* TickableObject = TickableEntry.TickableObject)
+		{
+			// NOTE: This deliberately does not call IsAllowedToTick as it is deprecated and was not called in code this is replacing
+			if ((TickableEntry.TickType == ETickableTickType::Always) || TickableObject->IsTickable())
+			{
+				TickFunc(TickableObject);
+			}
+		}
+	}
+
+	Statics.FinishTicking();
+}
+
+
+// FTickableGameObject implementation
+
+FTickableGameObject::FTickableGameObject()
+{
+	FTickableStatics& Statics = GetStatics();
+
+	// Queue for creation, this can get called very early in startup
+	Statics.QueueTickableObjectForAdd(this);
 }
 
 FTickableGameObject::~FTickableGameObject()
 {
-	FTickableStatics& Statics = FTickableStatics::Get();	
-	Statics.RemoveTickableObjectFromNewObjectsQueue(this);	
-	FScopeLock LockTickableObjects(&Statics.TickableObjectsCritical);
-	RemoveTickableObject(Statics.TickableObjects, this, Statics.bIsTickingObjects);
+	// Depending on destruction order this could create a new statics object during shutdown, but the removal request will be ignored
+	FTickableStatics& Statics = GetStatics();
+	
+	// This won't do anything if it was already set to Never
+	Statics.SetTickTypeForTickableObject(this, ETickableTickType::Never);
 }
 
-void FTickableGameObject::TickObjects(UWorld* World, const int32 InTickType, const bool bIsPaused, const float DeltaSeconds)
+void FTickableGameObject::SetTickableTickType(ETickableTickType NewTickType)
+{
+	if (ensure(NewTickType != ETickableTickType::NewObject))
+	{
+		FTickableStatics& Statics = GetStatics();
+		Statics.SetTickTypeForTickableObject(this, NewTickType);
+	}
+}
+
+FTickableObjectBase::FTickableStatics& FTickableGameObject::GetStatics()
+{
+	static FTickableStatics Singleton;
+	return Singleton;
+}
+
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
+void FTickableGameObject::TickObjects(UWorld* World, const ELevelTick LevelTickType, const bool bIsPaused, const float DeltaSeconds)
 {
 	SCOPE_CYCLE_COUNTER(STAT_TickableGameObjectsTime);
 	CSV_SCOPED_TIMING_STAT_EXCLUSIVE(Tickables);
 
-	FTickableStatics& Statics = FTickableStatics::Get();
+	FTickableStatics& Statics = GetStatics();
 
 	check(IsInGameThread());
 
-	// It's a long lock but it's ok, the only thing we can block here is the GC worker thread that destroys UObjects
-	FScopeLock LockTickableObjects(&Statics.TickableObjectsCritical);
-
 	{
-		FScopeLock NewTickableObjectsLock(&Statics.NewTickableObjectsCritical);
-		for (FTickableGameObject* NewTickableObject : Statics.NewTickableObjects)
-		{
-			AddTickableObject(Statics.TickableObjects, NewTickableObject);
-		}
-		Statics.NewTickableObjects.Empty();
-	}
+		// It's a long lock but it's ok, the only thing we can block here is the GC worker thread that destroys UObjects
+		FScopeLock LockTickableObjects(&Statics.TickableObjectsCritical);
 
-	if (Statics.TickableObjects.Num() > 0)
-	{
-		check(!Statics.bIsTickingObjects);
-		Statics.bIsTickingObjects = true;
-
-		bool bNeedsCleanup = false;
-		const ELevelTick TickType = (ELevelTick)InTickType;
+		Statics.StartTicking();
 
 		for (const FTickableObjectEntry& TickableEntry : Statics.TickableObjects)
 		{
@@ -140,34 +184,22 @@ void FTickableGameObject::TickObjects(UWorld* World, const int32 InTickType, con
 					&& ((TickableEntry.TickType == ETickableTickType::Always) || TickableObject->IsTickable())
 					&& (TickableObject->GetTickableGameObjectWorld() == World))
 				{
-					const bool bIsGameWorld = InTickType == LEVELTICK_All || (World && World->IsGameWorld());
+					// If tick type is All because at least one game world ticked, this will treat the null world as a game world
+					const bool bIsGameWorld = LevelTickType == LEVELTICK_All || (World && World->IsGameWorld());
+
 					// If we are in editor and it is editor tickable, always tick
 					// If this is a game world then tick if we are not doing a time only (paused) update and we are not paused or the object is tickable when paused
 					if ((GIsEditor && TickableObject->IsTickableInEditor()) ||
-						(bIsGameWorld && ((!bIsPaused && TickType != LEVELTICK_TimeOnly) || (bIsPaused && TickableObject->IsTickableWhenPaused()))))
+						(bIsGameWorld && ((!bIsPaused && LevelTickType != LEVELTICK_TimeOnly) || (bIsPaused && TickableObject->IsTickableWhenPaused()))))
 					{
 						FScopeCycleCounter Context(TickableObject->GetStatId());
 						TickableObject->Tick(DeltaSeconds);
-
-						// In case it was removed during tick
-						if (TickableEntry.TickableObject == nullptr)
-						{
-							bNeedsCleanup = true;
-						}
 					}
 				}
 			}
-			else
-			{
-				bNeedsCleanup = true;
-			}
 		}
 
-		if (bNeedsCleanup)
-		{
-			Statics.TickableObjects.RemoveAll([](const FTickableObjectEntry& Entry) { return Entry.TickableObject == nullptr; });
-		}
-
-		Statics.bIsTickingObjects = false;
+		Statics.FinishTicking();
 	}
 }
+PRAGMA_ENABLE_DEPRECATION_WARNINGS

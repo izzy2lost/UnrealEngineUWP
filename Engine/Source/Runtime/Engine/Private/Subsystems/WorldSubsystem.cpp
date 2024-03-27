@@ -49,35 +49,58 @@ UTickableWorldSubsystem::UTickableWorldSubsystem()
 
 }
 
+UWorld* UTickableWorldSubsystem::GetTickableGameObjectWorld() const
+{
+	return GetWorld();
+}
+
 ETickableTickType UTickableWorldSubsystem::GetTickableTickType() const 
-{ 
-	// By default (if the child class doesn't override GetTickableTickType), don't let CDOs ever tick: 
-	return IsTemplate() ? ETickableTickType::Never : FTickableGameObject::GetTickableTickType(); 
+{
+	// If this is a template or has not been initialized yet, set to never tick and it will be enabled when it is initialized
+	if (IsTemplate() || !bInitialized)
+	{
+		return ETickableTickType::Never;
+	}
+
+	// Otherwise default to conditional
+	return ETickableTickType::Conditional;
 }
 
 bool UTickableWorldSubsystem::IsAllowedToTick() const
 {
-	// No matter what IsTickable says, don't let CDOs or uninitialized world subsystems tick :
-	// Note: even if GetTickableTickType was overridden by the child class and returns something else than ETickableTickType::Never for CDOs, 
-	//  it's probably a mistake, so by default, don't allow ticking. If the child class really intends its CDO to tick, it can always override IsAllowedToTick...
-	// NOTE: `bInitialized` must be checked first as `IsTemplate()` might access a dangling `Outer` if we are awaiting GC but `Outer` has already been deleted.
-	return bInitialized && !IsTemplate();
+	// This function is now deprecated and subclasses should implement IsTickable instead
+	// This should never be false because Initialize should always be called before the first tick and Deinitialize cancels the tick
+	ensureMsgf(bInitialized, TEXT("Tickable subsystem %s tried to tick when not initialized! Check for missing Super call"), *GetFullName());
+
+	return bInitialized;
 }
 
 void UTickableWorldSubsystem::Tick(float DeltaTime)
 {
-	checkf(IsInitialized(), TEXT("Ticking should have been disabled for an uninitialized subsystem : remember to call IsInitialized in the subsystem's IsTickable, IsTickableInEditor and/or IsTickableWhenPaused implementation"));
+	checkf(IsInitialized(), TEXT("Ticking should have been disabled for an uninitialized subsystem!"));
 }
 
 void UTickableWorldSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 {
 	check(!bInitialized);
 	bInitialized = true;
+
+	// Refresh the tick type after initialization
+	SetTickableTickType(GetTickableTickType());
 }
 
 void UTickableWorldSubsystem::Deinitialize()
 {
 	check(bInitialized);
 	bInitialized = false;
+
+	// Always cancel tick as this is about to be destroyed
+	SetTickableTickType(ETickableTickType::Never);
 }
 
+void UTickableWorldSubsystem::BeginDestroy()
+{
+	Super::BeginDestroy();
+
+	ensureMsgf(!bInitialized, TEXT("Tickable subsystem %s was destroyed while still initialized! Check for missing Super call"), *GetFullName());
+}
