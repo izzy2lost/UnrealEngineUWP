@@ -143,7 +143,7 @@
 #define SEARCH_XBOX_LIVE_SESSION_TEMPLATE_NAME UE_DEPRECATED_MACRO(5.4, "SEARCH_XBOX_LIVE_SESSION_TEMPLATE_NAME has been deprecated. Use SETTING_SESSION_TEMPLATE_NAME instead.")  SETTING_SESSION_TEMPLATE_NAME
 /** Selection method used to determine which match to join when multiple are returned (valid only on Switch) */
 #define SEARCH_SWITCH_SELECTION_METHOD FName(TEXT("SWITCHSELECTIONMETHOD"))
-/** Whether to use lobbies vs sessions */
+/** Whether to search for lobbies instead of sessions */
 #define SEARCH_LOBBIES FName(TEXT("LOBBYSEARCH"))
 
 // User attributes for searching (FSessionMatchmakingUser::Attributes)

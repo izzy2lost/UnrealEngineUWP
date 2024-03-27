@@ -1333,11 +1333,6 @@ void FOnlineSessionEOS::AddAttribute(EOS_HSessionModification SessionModHandle, 
 
 void FOnlineSessionEOS::SetAttributes(EOS_HSessionModification SessionModHandle, FNamedOnlineSession* Session)
 {
-	// The first will let us find it on session searches
-	const FString SearchPresence(SEARCH_PRESENCE.ToString());
-	const FAttributeOptions SearchPresenceAttribute(TCHAR_TO_UTF8(*SearchPresence), true);
-	AddAttribute(SessionModHandle, &SearchPresenceAttribute);
-
 	FAttributeOptions Opt1("NumPrivateConnections", Session->SessionSettings.NumPrivateConnections);
 	AddAttribute(SessionModHandle, &Opt1);
 
@@ -2198,8 +2193,8 @@ bool FOnlineSessionEOS::FindSessions(int32 SearchingPlayerNum, const TSharedRef<
 		// Check if its a LAN query
 		if (!SearchSettings->bIsLanQuery)
 		{
-			bool bUssLobbiesIfAvailable = false;
-			if (SearchSettings->QuerySettings.Get(SEARCH_LOBBIES, bUssLobbiesIfAvailable) && bUssLobbiesIfAvailable)
+			bool bFindLobbies = false;
+			if (SearchSettings->QuerySettings.Get(SEARCH_LOBBIES, bFindLobbies) && bFindLobbies)
 			{
 				Return = FindLobbySession(SearchingPlayerNum, SearchSettings);
 			}
@@ -2434,7 +2429,6 @@ void FOnlineSessionEOS::AddSearchResult(const TSharedRef<FSessionDetailsEOS>& Se
 		int32 Position = SearchSettings->SearchResults.AddZeroed();
 		FOnlineSessionSearchResult& SearchResult = SearchSettings->SearchResults[Position];
 
-
 		// This will set the host address and port
 		TSharedPtr<FOnlineSessionInfoEOS> OnlineSessionInfo = MakeShared<FOnlineSessionInfoEOS>(FOnlineSessionInfoEOS::Create(FUniqueNetIdEOSSession::Create(EosSessionDetailsInfo->SessionId), SessionHandle));
 		SearchResult.Session.SessionInfo = OnlineSessionInfo;
@@ -2479,6 +2473,12 @@ uint32 FOnlineSessionEOS::FindEOSSession(int32 SearchingPlayerNum, const TShared
 	{
 		const FName Key = It.Key();
 		const FOnlineSessionSearchParam& SearchParam = It.Value();
+
+		// Game server keys are skipped
+		if (Key == SEARCH_DEDICATED_ONLY || Key == SETTING_MAPNAME || Key == SEARCH_EMPTY_SERVERS_ONLY || Key == SEARCH_SECURE_SERVERS_ONLY || Key == SEARCH_PRESENCE || Key == SEARCH_LOBBIES)
+		{
+			continue;
+		}
 
 		if (!IsSessionSettingTypeSupported(SearchParam.Data.GetType()))
 		{
@@ -4260,16 +4260,6 @@ void FOnlineSessionEOS::SetLobbyAttributes(EOS_HLobbyModification LobbyModificat
 {
 	check(Session != nullptr);
 
-	// The first will let us find it on session searches
-	const FString SearchPresence(SEARCH_PRESENCE.ToString());
-	const FLobbyAttributeOptions SearchPresenceAttribute(TCHAR_TO_UTF8(*SearchPresence), true);
-	AddLobbyAttribute(LobbyModificationHandle, &SearchPresenceAttribute);
-
-	// The second will let us find it on lobby searches
-	const FString SearchLobbies(SEARCH_LOBBIES.ToString());
-	const FLobbyAttributeOptions SearchLobbiesAttribute(TCHAR_TO_UTF8(*SearchLobbies), true);
-	AddLobbyAttribute(LobbyModificationHandle, &SearchLobbiesAttribute);
-
 	// Now the session settings
 	const FLobbyAttributeOptions Opt1("NumPrivateConnections", Session->SessionSettings.NumPrivateConnections);
 	AddLobbyAttribute(LobbyModificationHandle, &Opt1);
@@ -4537,6 +4527,12 @@ uint32 FOnlineSessionEOS::FindLobbySession(int32 SearchingPlayerNum, const TShar
 			const FName Key = It.Key();
 			const FOnlineSessionSearchParam& SearchParam = It.Value();
 
+			// Game server keys are skipped
+			if (Key == SEARCH_DEDICATED_ONLY || Key == SETTING_MAPNAME || Key == SEARCH_EMPTY_SERVERS_ONLY || Key == SEARCH_SECURE_SERVERS_ONLY || Key == SEARCH_PRESENCE || Key == SEARCH_LOBBIES)
+			{
+				continue;
+			}
+
 			if (!IsSessionSettingTypeSupported(SearchParam.Data.GetType()))
 			{
 				continue;
@@ -4710,7 +4706,8 @@ void FOnlineSessionEOS::CopyLobbyData(const TSharedRef<FLobbyDetailsEOS>& LobbyD
 
 	OutSession.SessionSettings.bUseLobbiesIfAvailable = true;
 	OutSession.SessionSettings.bIsLANMatch = false;
-	OutSession.SessionSettings.bUsesPresence = LobbyDetailsInfo->bPresenceEnabled == EOS_TRUE;
+	 // By default, we'll set the search result's bUsesPresence to false. bUsesPresence should be set by the game side before calling JoinSession.
+	OutSession.SessionSettings.bUsesPresence = false;
 	OutSession.SessionSettings.Set(SETTING_HOST_MIGRATION, LobbyDetailsInfo->bAllowHostMigration, EOnlineDataAdvertisementType::DontAdvertise);
 #if WITH_EOS_RTC
 	OutSession.SessionSettings.bUseLobbiesVoiceChatIfAvailable = LobbyDetailsInfo->bRTCRoomEnabled == EOS_TRUE;
