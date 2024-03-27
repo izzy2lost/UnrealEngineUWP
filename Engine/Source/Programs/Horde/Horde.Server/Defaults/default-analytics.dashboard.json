@@ -84,11 +84,17 @@
 				},
 				{
 					"name": "Platform",
-					"group": "Platform"
+					"group": "Platform",
+					"defaults": [
+						"Win64"
+					]
 				},
 				{
 					"name": "Configuration",
-					"group": "Configuration"
+					"group": "Configuration",
+					"defaults": [
+						"Development"
+					]
 				}
 			],
 			"categories": [
