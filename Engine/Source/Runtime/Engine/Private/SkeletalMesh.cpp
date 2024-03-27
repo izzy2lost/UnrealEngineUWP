@@ -5416,6 +5416,13 @@ const FSkeletalMeshLODInfo* USkeletalMesh::GetLODInfo(int32 Index) const
 	PRAGMA_ENABLE_DEPRECATION_WARNINGS
 }
 
+#if WITH_EDITOR
+FSimpleMulticastDelegate& USkeletalMesh::GetOnVertexAttributesArrayChanged()
+{
+	return OnVertexAttributesArrayChanged;
+}
+#endif
+
 const UAnimSequence* USkeletalMesh::GetBakePose(int32 LODIndex) const
 {
 	const FSkeletalMeshLODInfo* LOD = GetLODInfo(LODIndex);

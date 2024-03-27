@@ -2880,10 +2880,11 @@ void FPersonaMeshDetails::AddLODLevelCategories(IDetailLayoutBuilder& DetailLayo
 
 		LodCategories.Empty(SkelMeshLODCount);
 		DetailDisplayLODs.Reset();
-		auto ClearLODInfoLayouts = [this, &SkelMeshLODCount]()
+		auto ClearLODInfoLayouts = [this, &SkelMeshLODCount, SkelMesh]()
 		{
 			for (ULODInfoUILayout* LODInfoUILayout : LODInfoUILayouts)
 			{
+				SkelMesh->GetOnVertexAttributesArrayChanged().RemoveAll(LODInfoUILayout);
 				LODInfoUILayout->RemoveFromRoot();
 				LODInfoUILayout->MarkAsGarbage();
 				LODInfoUILayout = nullptr;
