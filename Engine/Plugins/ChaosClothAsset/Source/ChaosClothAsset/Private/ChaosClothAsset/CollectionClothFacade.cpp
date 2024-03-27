@@ -534,11 +534,7 @@ namespace UE::Chaos::ClothAsset
 		SetNumRenderPatterns(0);
 		SetNumSeams(0); // Do this after removing SimVertices3D and SimPatterns. Otherwise, Seams will do a bunch of unnecessary work to unseam stuff.
 		SetNumFabrics(0); 
-
-		if (IsValid(EClothCollectionOptionalSchemas::Solvers))
-		{
-			GetClothCollection()->SetNumElements(0, ClothCollectionGroup::Solvers);
-		}
+		GetClothCollection()->SetNumElements(0, ClothCollectionGroup::Solvers);
 	}
 
 	void FCollectionClothFacade::Initialize(const FCollectionClothConstFacade& Other)

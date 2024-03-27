@@ -239,6 +239,8 @@ namespace UE::Chaos::ClothAsset
 		//~ LODs Group (There should be only one LOD per ClothCollection)
 		TManagedArray<FString>* GetPhysicsAssetPathName(){ return PhysicsAssetPathName; }
 		TManagedArray<FString>* GetSkeletalMeshPathName() { return SkeletalMeshPathName; }
+		
+		//~ Solver Group
 		TManagedArray<FVector3f>* GetSolverGravity() { return SolverGravity; }
 		TManagedArray<float>* GetSolverAirDamping() { return SolverAirDamping; }
 		TManagedArray<int32>* GetSolverSubSteps() { return SolverSubSteps; }
