@@ -359,6 +359,8 @@ void TranslucencyVolumeIntegrateCS(
 // From FLumenHardwareRayTracingShaderBase::SharedParameters
 RaytracingAccelerationStructure TLAS;
 uint MaxTraversalIterations;
+uint MeshSectionVisibilityTest;
+uint SurfaceCacheAlphaMasking;
 
 #endif // LUMEN_HARDWARE_RAYTRACING
 
@@ -428,7 +430,9 @@ void TranslucencyVolumeFroxelProbesCS(
 
 			const uint LinearCoord = FroxelProbeGridCoordinate.y * TranslucencyVolumeTracingFroxelProbesGridSize.x + FroxelProbeGridCoordinate.x;
 			const uint CullingMode = 0;
-			FRayTracedLightingContext Context = CreateRayTracedLightingContext(RayCone, FroxelProbeGridCoordinate.xy, LinearCoord, CullingMode, MaxTraversalIterations);
+			FRayTracedLightingContext Context = CreateRayTracedLightingContext(
+				RayCone, FroxelProbeGridCoordinate.xy, LinearCoord, CullingMode, MaxTraversalIterations,
+				MeshSectionVisibilityTest != 0,	SurfaceCacheAlphaMasking != 0);
 
 			FRayTracedLightingResult TraceLightingResult;
 			TraceLightingResult.Radiance = 0;
