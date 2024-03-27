@@ -32,8 +32,8 @@ public:
 	void GetRequestedStreams(TArray<TSharedPtrTS<IStreamSegment>>& OutRequestedStreams) override;
 	void GetEndedStreams(TArray<TSharedPtrTS<IStreamSegment>>& OutAlreadyEndedStreams) override;
 
-	//! Returns the first PTS value as indicated by the media timeline. This should correspond to the actual absolute PTS of the sample.
 	FTimeValue GetFirstPTS() const override;
+	FTimeRange GetTimeRange() const override;
 
 	int32 GetQualityIndex() const override;
 	int32 GetBitrate() const override;

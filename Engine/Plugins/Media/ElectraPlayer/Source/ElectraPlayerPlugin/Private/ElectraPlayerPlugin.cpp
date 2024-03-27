@@ -1003,6 +1003,45 @@ bool FElectraPlayerPlugin::SetPlaybackTimeRange(const TRange<FTimespan>& InTimeR
 	return true;
 }
 
+bool FElectraPlayerPlugin::QueryCacheState(EMediaCacheState State, TRangeSet<FTimespan>& OutTimeRanges) const
+{
+	// Note: The data of time ranges returned here will not actually get "cached" as
+	//       it is always only transient. We thus report the ranges only for `Loaded` and `Loading`,
+	//       but never for `Cached`!
+	switch(State)
+	{
+		case EMediaCacheState::Loaded:
+		case EMediaCacheState::Loading:
+		{
+			// When asked to provide what's already loaded we look at what we have in the sample queue
+			// and add that to the result. These samples have already left the player but are ready
+			// for use.
+			if (State == EMediaCacheState::Loaded)
+			{
+				TRange<FMediaTimeStamp> QueuedRange;
+				if (MediaSamples.IsValid() && MediaSamples->PeekVideoSampleTimeRange(QueuedRange))
+				{
+					OutTimeRanges.Add(TRange<FTimespan>(QueuedRange.GetLowerBoundValue().Time, QueuedRange.GetUpperBoundValue().Time));
+				}
+			}
+
+			// Get the data time range from the player. It returns both current and future data in one call, so we
+			// separate the result here based on what is being asked for.
+			IElectraPlayerInterface::FStreamBufferInfo vidBuf, audBuf;
+			bool bHaveVid = Player->GetStreamBufferInformation(vidBuf, IElectraPlayerInterface::EPlayerTrackType::Video);
+			bool bHaveAud = !bHaveVid ? Player->GetStreamBufferInformation(audBuf, IElectraPlayerInterface::EPlayerTrackType::Audio) : false;
+			const IElectraPlayerInterface::FStreamBufferInfo* Buffer = bHaveVid ? &vidBuf : bHaveAud ? &audBuf : nullptr;
+			const TArray<IElectraPlayerInterface::FStreamBufferInfo::FTimeRange>* tr = Buffer ? (State == EMediaCacheState::Loaded ? &Buffer->TimeAvailable : &Buffer->TimeRequested) : nullptr;
+			for(int32 i=0,iMax=tr?tr->Num():0; i<iMax; ++i)
+			{
+				OutTimeRanges.Add(TRange<FTimespan>(tr->operator[](i).Start.Time, tr->operator[](i).End.Time));
+			}
+			return true;
+		}
+	}
+	return false;
+}
+
 
 bool FElectraPlayerPlugin::GetAudioTrackFormat(int32 TrackIndex, int32 FormatIndex, FMediaAudioTrackFormat& OutFormat) const
 {

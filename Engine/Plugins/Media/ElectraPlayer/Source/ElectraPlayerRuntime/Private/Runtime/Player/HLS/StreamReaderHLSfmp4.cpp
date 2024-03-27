@@ -116,6 +116,16 @@ FTimeValue FStreamSegmentRequestHLSfmp4::GetFirstPTS() const
 	return EarliestPTS.IsValid() && !EarliestPTS.IsPositiveInfinity() && EarliestPTS > AbsoluteDateTime ? EarliestPTS : AbsoluteDateTime;
 }
 
+FTimeRange FStreamSegmentRequestHLSfmp4::GetTimeRange() const
+{
+	FTimeRange tr;
+	tr.Start = AbsoluteDateTime;
+	tr.End = AbsoluteDateTime + SegmentDuration;
+	tr.Start.SetSequenceIndex(TimestampSequenceIndex);
+	tr.End.SetSequenceIndex(TimestampSequenceIndex);
+	return tr;
+}
+
 int32 FStreamSegmentRequestHLSfmp4::GetQualityIndex() const
 {
 	return QualityLevel;

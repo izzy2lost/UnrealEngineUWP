@@ -135,6 +135,8 @@ UEMediaError FElectraRendererAudio::ReturnBuffer(IBuffer* Buffer, bool bRender, 
 
 	FMediaBufferSharedPtrWrapper* MediaBufferSharedPtrWrapper = static_cast<FMediaBufferSharedPtrWrapper*>(Buffer);
 
+	IAudioDecoderOutputPtr DecoderOutput = MediaBufferSharedPtrWrapper->DecoderOutput;
+	DecoderOutput->GetMutablePropertyDictionary() = InOutSampleProperties;
 	if (bRender)
 	{
 		const FVariantValue& variantNumChannels = InOutSampleProperties.GetValue(RenderOptionKeys::NumChannels);
@@ -167,8 +169,6 @@ UEMediaError FElectraRendererAudio::ReturnBuffer(IBuffer* Buffer, bool bRender, 
 			return UEMEDIA_ERROR_BAD_ARGUMENTS;
 		}
 
-		IAudioDecoderOutputPtr DecoderOutput = MediaBufferSharedPtrWrapper->DecoderOutput;
-
 		uint32 InNumChannels = (uint32)variantNumChannels.GetInt64();
 		uint32 InSampleRate = (uint32)variantSampleRate.GetInt64();
 		uint32 InUsedBufferBytes = (uint32)variantBufferUsedBytes.GetInt64();
@@ -179,7 +179,6 @@ UEMediaError FElectraRendererAudio::ReturnBuffer(IBuffer* Buffer, bool bRender, 
 
 		//UE_LOG(LogElectraPlayer, VeryVerbose, TEXT("-- FElectraRendererAudio::ReturnBuffer: Audio sample for time %s"), *InPts.ToString(TEXT("%h:%m:%s.%f")));
 
-		DecoderOutput->GetMutablePropertyDictionary() = InOutSampleProperties;
 		DecoderOutput->Initialize(IAudioDecoderOutput::ESampleFormat::Float, InNumChannels, InSampleRate, InDuration, FDecoderTimeStamp(InPts, InSequenceIndex), InUsedBufferBytes);
 
 		// Push buffer to output queue...

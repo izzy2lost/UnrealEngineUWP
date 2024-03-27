@@ -103,6 +103,16 @@ FTimeValue FStreamSegmentRequestMKV::GetFirstPTS() const
 	return EarliestPTS > FirstPTS ? EarliestPTS : FirstPTS;
 }
 
+FTimeRange FStreamSegmentRequestMKV::GetTimeRange() const
+{
+	FTimeRange tr;
+	tr.Start = FirstPTS;
+	tr.End = FirstPTS + SegmentDuration;
+	tr.Start.SetSequenceIndex(TimestampSequenceIndex);
+	tr.End.SetSequenceIndex(TimestampSequenceIndex);
+	return tr;
+}
+
 int32 FStreamSegmentRequestMKV::GetQualityIndex() const
 {
 	// No quality choice here.
@@ -831,7 +841,7 @@ FStreamReaderMKV::EEmitResult FStreamReaderMKV::EmitSamples(EEmitType InEmitType
 				{
 					break;
 				}
-				
+
 				// If emitting only one sample we leave this loop.
 				if (InEmitType == EEmitType::One)
 				{

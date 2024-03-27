@@ -140,6 +140,7 @@ public:
 	TSharedPtr<TMap<FString, TArray<TSharedPtr<Electra::IMediaStreamMetadata::IItem, ESPMode::ThreadSafe>>>, ESPMode::ThreadSafe> GetMediaMetadata() const override;
 
 	void NotifyOfOptionChange() override;
+	bool GetStreamBufferInformation(FStreamBufferInfo& OutBufferInformation, EPlayerTrackType InTrackType) const override;
 
 	void SuspendOrResumeDecoders(bool bSuspend, const Electra::FParamDict& InOptions) override;
 

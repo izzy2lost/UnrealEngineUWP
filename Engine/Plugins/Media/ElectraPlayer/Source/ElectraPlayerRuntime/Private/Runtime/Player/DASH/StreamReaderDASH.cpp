@@ -122,6 +122,16 @@ FTimeValue FStreamSegmentRequestDASH::GetFirstPTS() const
 	return AST + AdditionalAdjustmentTime + PeriodStart + FTimeValue((Segment.bFrameAccuracyRequired ? Segment.MediaLocalFirstPTS : Segment.Time) - Segment.PTO, Segment.Timescale);
 }
 
+FTimeRange FStreamSegmentRequestDASH::GetTimeRange() const
+{
+	FTimeRange tr;
+	tr.Start = AST + AdditionalAdjustmentTime + PeriodStart + FTimeValue(Segment.Time - Segment.PTO, Segment.Timescale);
+	tr.End = AST + AdditionalAdjustmentTime + PeriodStart + FTimeValue(Segment.Time + Segment.Duration - Segment.PTO, Segment.Timescale);
+	tr.Start.SetSequenceIndex(TimestampSequenceIndex);
+	tr.End.SetSequenceIndex(TimestampSequenceIndex);
+	return tr;
+}
+
 int32 FStreamSegmentRequestDASH::GetQualityIndex() const
 {
 	return Representation->GetQualityIndex();

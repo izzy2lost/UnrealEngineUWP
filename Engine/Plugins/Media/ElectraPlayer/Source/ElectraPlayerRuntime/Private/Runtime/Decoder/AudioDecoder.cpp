@@ -70,12 +70,7 @@ private:
 	{
 		~FDecoderInput()
 		{
-			ReleasePayload();
-		}
-		void ReleasePayload()
-		{
 			FAccessUnit::Release(AccessUnit);
-			AccessUnit = nullptr;
 		}
 
 		FAccessUnit*	AccessUnit = nullptr;
@@ -397,10 +392,20 @@ void FAudioDecoderImpl::NotifyReadyBufferListener(bool bHaveOutput)
 	if (ReadyBufferListener)
 	{
 		IDecoderOutputBufferListener::FDecodeReadyStats stats;
-		stats.MaxDecodedElementsReady = MaxDecodeBufferSize;
-		stats.NumElementsInDecoder = CurrentOutputBuffer ? 1 : 0;
+		stats.OutputBufferPoolSize = MaxDecodeBufferSize;
+		if ((stats.NumElementsInDecoder = InDecoderInput.Num()) != 0)
+		{
+			stats.InDecoderTimeRangePTS.Start = InDecoderInput[0]->AccessUnit->PTS;
+			stats.InDecoderTimeRangePTS.End = InDecoderInput.Last()->AccessUnit->PTS + InDecoderInput.Last()->AccessUnit->Duration;
+		}
+		if (CurrentAccessUnit)
+		{
+			stats.InDecoderTimeRangePTS.Start = Utils::Min(CurrentAccessUnit->AccessUnit->PTS, stats.InDecoderTimeRangePTS.Start.IsValid() ? stats.InDecoderTimeRangePTS.Start : FTimeValue::GetPositiveInfinity());
+			stats.InDecoderTimeRangePTS.End = Utils::Max(CurrentAccessUnit->AccessUnit->PTS + CurrentAccessUnit->AccessUnit->Duration, stats.InDecoderTimeRangePTS.End.IsValid() ? stats.InDecoderTimeRangePTS.End : FTimeValue::GetNegativeInfinity());
+		}
+		stats.InDecoderTimeRangePTS.End.SetSequenceIndex(stats.InDecoderTimeRangePTS.Start.GetSequenceIndex());
 		stats.bOutputStalled = !bHaveOutput;
-		stats.bEODreached = NextAccessUnits.ReachedEOD() && stats.NumDecodedElementsReady == 0 && stats.NumElementsInDecoder == 0;
+		stats.bEODreached = NextAccessUnits.ReachedEOD() && CurrentOutputBuffer == nullptr;
 		ListenerMutex.Lock();
 		if (ReadyBufferListener)
 		{
@@ -511,7 +516,7 @@ bool FAudioDecoderImpl::InternalDecoderCreate()
 		}
 	}
 
-	
+
 	return true;
 }
 
@@ -621,7 +626,7 @@ FAudioDecoderImpl::EAUChangeFlags FAudioDecoderImpl::GetAndPrepareInputAU()
 			}
 			ListenerMutex.Unlock();
 		}
-		
+
 		// Get the AU to be decoded if one is there.
 		if (NextAccessUnits.Wait(1000 * 10))
 		{
@@ -630,7 +635,7 @@ FAudioDecoderImpl::EAUChangeFlags FAudioDecoderImpl::GetAndPrepareInputAU()
 			{
 				PrepareAU(CurrentAccessUnit);
 				// Is there a discontinuity/break in sequence of sorts?
-				if (CurrentAccessUnit->AccessUnit->bTrackChangeDiscontinuity || 
+				if (CurrentAccessUnit->AccessUnit->bTrackChangeDiscontinuity ||
 					(!bInDummyDecodeMode && CurrentAccessUnit->AccessUnit->bIsDummyData) ||
 					(CurrentSequenceIndex.IsSet() && CurrentSequenceIndex.GetValue() != CurrentAccessUnit->AccessUnit->PTS.GetSequenceIndex()))
 				{
@@ -913,8 +918,8 @@ bool FAudioDecoderImpl::HandleDecoding()
 			{
 				InDecoderInput.Emplace(CurrentAccessUnit);
 				InDecoderInput.Sort([](const TSharedPtr<FDecoderInput, ESPMode::ThreadSafe>& a, const TSharedPtr<FDecoderInput, ESPMode::ThreadSafe>& b)
-				{ 
-					return a->PTS < b->PTS; 
+				{
+					return a->PTS < b->PTS;
 				});
 
 				// If this was the last access unit in a period we need to drain the decoder _after_ having sent it
@@ -943,7 +948,7 @@ bool FAudioDecoderImpl::SendSilenceOrEOS(ESendMode InSendMode)
 {
 	check(CurrentAccessUnit.IsValid() || InSendMode == ESendMode::SendEOS);
 	check(bIsDecoderClean);
-	
+
 	// Get output unless flushing or terminating
 	while(!TerminateThreadSignal.IsSignaled() && !FlushDecoderSignal.IsSignaled())
 	{

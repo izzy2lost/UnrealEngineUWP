@@ -73,12 +73,7 @@ private:
 	{
 		~FDecoderInput()
 		{
-			ReleasePayload();
-		}
-		void ReleasePayload()
-		{
 			FAccessUnit::Release(AccessUnit);
-			AccessUnit = nullptr;
 		}
 
 		FTimeValue		AdjustedPTS;
@@ -469,10 +464,20 @@ void FVideoDecoderImpl::NotifyReadyBufferListener(bool bHaveOutput)
 	if (ReadyBufferListener)
 	{
 		IDecoderOutputBufferListener::FDecodeReadyStats stats;
-		stats.MaxDecodedElementsReady = MaxOutputBuffers;
-		stats.NumElementsInDecoder = CurrentOutputBuffer ? 1 : 0;
+		stats.OutputBufferPoolSize = MaxOutputBuffers;
+		if ((stats.NumElementsInDecoder = InDecoderInput.Num()) != 0)
+		{
+			stats.InDecoderTimeRangePTS.Start = InDecoderInput[0]->AccessUnit->PTS;
+			stats.InDecoderTimeRangePTS.End = InDecoderInput.Last()->AccessUnit->PTS + InDecoderInput.Last()->AccessUnit->Duration;
+		}
+		if (CurrentAccessUnit)
+		{
+			stats.InDecoderTimeRangePTS.Start = Utils::Min(CurrentAccessUnit->AccessUnit->PTS, stats.InDecoderTimeRangePTS.Start.IsValid() ? stats.InDecoderTimeRangePTS.Start : FTimeValue::GetPositiveInfinity());
+			stats.InDecoderTimeRangePTS.End = Utils::Max(CurrentAccessUnit->AccessUnit->PTS + CurrentAccessUnit->AccessUnit->Duration, stats.InDecoderTimeRangePTS.End.IsValid() ? stats.InDecoderTimeRangePTS.End : FTimeValue::GetNegativeInfinity());
+		}
+		stats.InDecoderTimeRangePTS.End.SetSequenceIndex(stats.InDecoderTimeRangePTS.Start.GetSequenceIndex());
 		stats.bOutputStalled = !bHaveOutput;
-		stats.bEODreached = NextAccessUnits.ReachedEOD() && stats.NumDecodedElementsReady == 0 && stats.NumElementsInDecoder == 0;
+		stats.bEODreached = NextAccessUnits.ReachedEOD() && CurrentOutputBuffer == nullptr;
 		ListenerMutex.Lock();
 		if (ReadyBufferListener)
 		{

@@ -324,6 +324,23 @@ public:
 
 	virtual void NotifyOfOptionChange() = 0;
 
+	struct FStreamBufferInfo
+	{
+		struct FTimeValue
+		{
+			FTimespan Time;
+			int64 SequenceIndex = -1;
+		};
+		struct FTimeRange
+		{
+			FTimeValue Start;
+			FTimeValue End;
+		};
+		TArray<FTimeRange> TimeAvailable;
+		TArray<FTimeRange> TimeRequested;
+	};
+	virtual bool GetStreamBufferInformation(FStreamBufferInfo& OutBufferInformation, EPlayerTrackType InTrackType) const = 0;
+
 	// Suspends or resumes decoder instances. Not supported on all platforms.
 	virtual void SuspendOrResumeDecoders(bool bSuspend, const Electra::FParamDict& InOptions) = 0;
 

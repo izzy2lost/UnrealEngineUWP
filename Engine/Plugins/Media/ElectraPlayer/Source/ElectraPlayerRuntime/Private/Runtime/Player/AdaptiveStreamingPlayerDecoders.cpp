@@ -632,15 +632,14 @@ void FAdaptiveStreamingPlayer::FeedDecoder(EStreamType Type, IAccessUnitBufferIn
 			FTimeValue PushedDuration = FromMultistreamBuffer->GetPlayableDurationPushedSinceEOT();
 			if (!bEODSet && !bEOTSet && FromMultistreamBuffer->Num() == 0 && PushedDuration >= MinPushedDuration)
 			{
-				FTimeValue EnqueuedDuration(FTimeValue::GetZero());
 				int32 NumEnqueuedSamples = 0;
 				if (Type == EStreamType::Video && VideoRender.Renderer.IsValid())
 				{
-					NumEnqueuedSamples = VideoRender.Renderer->GetNumEnqueuedSamples(&EnqueuedDuration);
+					NumEnqueuedSamples = VideoRender.Renderer->GetNumEnqueuedSamples(nullptr);
 				}
 				else if (Type == EStreamType::Audio && AudioRender.Renderer.IsValid())
 				{
-					NumEnqueuedSamples = AudioRender.Renderer->GetNumEnqueuedSamples(&EnqueuedDuration);
+					NumEnqueuedSamples = AudioRender.Renderer->GetNumEnqueuedSamples(nullptr);
 				}
 				if (NumEnqueuedSamples <= 1)
 				{

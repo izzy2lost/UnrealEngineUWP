@@ -100,7 +100,7 @@ public:
 	 * This also affects looping which implicitly seeks back to the loop point when the end is reached.
 	 * Frame accurate seeking is enabled by default.
 	 * This method is intended mostly to disable frame accurate seeking on this player instance.
-	 * 
+	 *
 	 * This should be called prior to SeekTo() and should only be called once on the player instance to
 	 * disable or re-enable frame accurate seeking.
 	 * Calling this during playback may have undesired results.
@@ -144,15 +144,15 @@ public:
 		// Ignore the seek for sequence index updates
 		TOptional<bool> bIgnoreForSequenceIndex;
 	};
-	
+
 	/**
 	 * Seek to a new position and play from there. This includes first playstart.
 	 * Playback is initially paused on first player use and must be resumed to begin.
 	 * Query the seekable range (GetSeekableRange()) to get the valid time range.
-	 * 
+	 *
 	 * If the seek-to time is not set the seek will start at the beginning for
 	 * on-demand presentations and on the Live edge for Live presentations.
-	 * 
+	 *
 	 * Seeks can be issued while a seek is already executing. The seek parameters
 	 * control behaviour. If seeking is performed for scrubbing any new seek will
 	 * be performed only when the previous seek has completed, otherwise the current
@@ -187,20 +187,20 @@ public:
 	 * Constrains playback to the specified time range, which should be a subset of GetTimelineRange().
 	 * The playback range can be specified via URL fragment parameters on the URL given to LoadManifest()
 	 * if the mime type allows for it.
-	 * 
+	 *
 	 * If you set the playback range before calling LoadManifest() the URL parameter will not be used.
 	 * Otherwise the URL parameters set the playback range if they are specified.
 	 * You can query the playback range set by URL parameters as soon as HaveMetadata() returns true.
 	 * Setting a playback range through this method overrides URL parameters.
-	 * 
+	 *
 	 * To set or change only the start or end of the playback range, set only the corresponding TOptional<>
 	 * and leave the other unset.
 	 * To disable either start or end set the value to FTimeValue::GetInvalid().
-	 * 
+	 *
 	 * If you only set start or end, the other value may be set by the respective URL parameter.
 	 * To fully disable any playback range that may be present on the URL you should set the range to
 	 * invalid values once HaveMetadata() returns true.
-	 * 
+	 *
 	 * Setting a playback range during playback will result in an immediate seek to the current
 	 * playback position. Frame accurate seeking is recommended.
 	 */
@@ -239,18 +239,18 @@ public:
 	 * Returns ranges the playback rate can be set to.
 	 * There are two types, one `Unthinned`, where (ideally) no frames will be dropped and
 	 * `Thinned`, where frames will be dropped to maintain the playback rate.
-	 * 
+	 *
 	 * Either way, the player will not resample audio or generate interpolated frames of video.
 	 * Decoded samples will be delivered to the renderer as they are. It is also up to the
 	 * renderers to consume the data at a faster or slower rate to actually realize the desired
 	 * playback rate.
-	 * 
+	 *
 	 * The range of supported rates depends on the type of media and the decoder capability to
 	 * decode faster than realtime. If the media allows for adaptive bitrate selection the player
 	 * will choose the stream to play back accordingly.
 	 * In thinned mode it will need to drop and not decode samples, so the renderer will not
 	 * receive all the possible data.
-	 * 
+	 *
 	 * Live streams will only allow for rates of 0.0 (pause) and 1.0 (real time play forward).
 	 */
 	virtual TRangeSet<double> GetSupportedRates(EPlaybackRateType InForPlayRateType) = 0;
@@ -331,6 +331,19 @@ public:
 
 	//! Returns true if the track stream of the specified type has beed deselected through DeselectTrack().
 	virtual bool IsTrackDeselected(EStreamType StreamType) = 0;
+
+
+	//-------------------------------------------------------------------------
+	// Buffer related functions
+	//
+	struct FStreamBufferInfo
+	{
+		TArray<FTimeRange> TimeAvailable;		//!< Time range currently available in the buffer
+		TArray<FTimeRange> TimeRequested;		//!< Time range requested for download.
+		TArray<FTimeRange> TimeEnqueued;		//!< Time range already enqueued with the renderer.
+		bool bIsBufferActive = false;			//!< true if the buffer is active, false if not (eg. track not selected)
+	};
+	virtual void QueryStreamBufferInfo(FStreamBufferInfo& OutStreamBufferInfo, EStreamType InStreamType) = 0;
 
 
 	//-------------------------------------------------------------------------

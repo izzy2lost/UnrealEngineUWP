@@ -585,6 +585,48 @@ void FElectraPlayer::NotifyOfOptionChange()
 
 //-----------------------------------------------------------------------------
 /**
+ * Provides information about the time ranges that are currently available to the
+ * player and those that are being loaded.
+ */
+bool FElectraPlayer::GetStreamBufferInformation(IElectraPlayerInterface::FStreamBufferInfo& OutBufferInformation, EPlayerTrackType InTrackType) const
+{
+	TSharedPtr<FInternalPlayerImpl, ESPMode::ThreadSafe> Player = CurrentPlayer;
+	if (Player.IsValid())
+	{
+		IAdaptiveStreamingPlayer::FStreamBufferInfo bi;
+		if (InTrackType == EPlayerTrackType::Video)
+		{
+			Player->AdaptivePlayer->QueryStreamBufferInfo(bi, Electra::EStreamType::Video);
+		}
+		else if (InTrackType == EPlayerTrackType::Audio)
+		{
+			Player->AdaptivePlayer->QueryStreamBufferInfo(bi, Electra::EStreamType::Audio);
+		}
+		if (bi.bIsBufferActive)
+		{
+			auto AddRanges = [](TArray<IElectraPlayerInterface::FStreamBufferInfo::FTimeRange>& OutRanges, const TArray<Electra::FTimeRange>& InRanges) -> void
+			{
+				for(int32 i=0; i<InRanges.Num(); ++i)
+				{
+					IElectraPlayerInterface::FStreamBufferInfo::FTimeRange& tv = OutRanges.Emplace_GetRef();
+					tv.Start.Time = InRanges[i].Start.GetAsTimespan();
+					tv.Start.SequenceIndex = InRanges[i].Start.GetSequenceIndex();
+					tv.End.Time = InRanges[i].End.GetAsTimespan();
+					tv.End.SequenceIndex = InRanges[i].End.GetSequenceIndex();
+				}
+			};
+			AddRanges(OutBufferInformation.TimeAvailable, bi.TimeEnqueued);
+			AddRanges(OutBufferInformation.TimeAvailable, bi.TimeAvailable);
+			AddRanges(OutBufferInformation.TimeRequested, bi.TimeRequested);
+			return true;
+		}
+	}
+	return false;
+}
+
+
+//-----------------------------------------------------------------------------
+/**
 */
 void FElectraPlayer::SetAsyncResourceReleaseNotification(IAsyncResourceReleaseNotifyContainer* InAsyncResourceReleaseNotification)
 {
@@ -1405,7 +1447,7 @@ bool FElectraPlayer::GetAudioTrackFormat(int32 TrackIndex, int32 FormatIndex, FA
 			OutFormat.BitsPerSample = 16;
 			OutFormat.NumChannels = (uint32)ci.GetNumberOfChannels();
 			OutFormat.SampleRate = (uint32)ci.GetSamplingRate();
-			OutFormat.TypeName = ci.GetCodecSpecifierRFC6381();
+			OutFormat.TypeName = ci.GetHumanReadableCodecName();
 			return true;
 		}
 	}
@@ -1426,7 +1468,7 @@ bool FElectraPlayer::GetVideoTrackFormat(int32 TrackIndex, int32 FormatIndex, FV
 			OutFormat.Dim.Y = ci.GetResolution().Height;
 			OutFormat.FrameRate = (float)ci.GetFrameRate().GetAsDouble();
 			OutFormat.FrameRates = TRange<float>{ OutFormat.FrameRate };
-			OutFormat.TypeName = ci.GetCodecSpecifierRFC6381();
+			OutFormat.TypeName = ci.GetHumanReadableCodecName();
 			return true;
 		}
 	}

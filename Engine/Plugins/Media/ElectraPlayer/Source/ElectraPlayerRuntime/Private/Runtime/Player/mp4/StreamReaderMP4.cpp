@@ -116,6 +116,16 @@ FTimeValue FStreamSegmentRequestMP4::GetFirstPTS() const
 	return EarliestPTS > FirstPTS ? EarliestPTS : FirstPTS;
 }
 
+FTimeRange FStreamSegmentRequestMP4::GetTimeRange() const
+{
+	FTimeRange tr;
+	tr.Start = FirstPTS;
+	tr.End = FirstPTS + SegmentDuration;
+	tr.Start.SetSequenceIndex(TimestampSequenceIndex);
+	tr.End.SetSequenceIndex(TimestampSequenceIndex);
+	return tr;
+}
+
 int32 FStreamSegmentRequestMP4::GetQualityIndex() const
 {
 	// No quality choice here.
@@ -593,7 +603,7 @@ void FStreamReaderMP4::HandleRequest()
 						// If we need to decrypt we have to wait for the decrypter to become ready.
 						if (bIsSampleEncrypted && Decrypter.IsValid())
 						{
-							while(!bTerminate && !HasBeenAborted() && 
+							while(!bTerminate && !HasBeenAborted() &&
 								(Decrypter->GetState() == ElectraCDM::ECDMState::WaitingForKey || Decrypter->GetState() == ElectraCDM::ECDMState::Idle))
 							{
 								FMediaRunnable::SleepMilliseconds(100);

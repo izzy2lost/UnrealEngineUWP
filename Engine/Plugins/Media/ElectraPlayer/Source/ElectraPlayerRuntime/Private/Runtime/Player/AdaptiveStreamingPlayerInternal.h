@@ -46,18 +46,44 @@
 #define INTERR_REBUFFER_SHALL_THROW_ERROR		0x200
 
 
+// Set this to `1` to signal no data availability right at the start of a seek (and initial playback) and at the end.
+// Set to `0` to only notify about mid-playback state changes.
+#define NOTIFY_DATA_AVAILABILITY_AT_START_AND_END 0
+
 
 namespace Electra
 {
 class FAdaptiveStreamingPlayer;
 
+inline int32 StreamTypeToArrayIndex(EStreamType StreamType)
+{
+	switch(StreamType)
+	{
+		case EStreamType::Video:
+			return 0;
+		case EStreamType::Audio:
+			return 1;
+		case EStreamType::Subtitle:
+			return 2;
+		default:
+			return 3;
+	}
+}
+
+
 
 class IAdaptiveStreamingWrappedRenderer : public IMediaRenderer
 {
 public:
+	struct FEnqueuedSampleInfo
+	{
+		FTimeValue PTS;
+		FTimeValue Duration;
+	};
+
 	virtual ~IAdaptiveStreamingWrappedRenderer() = default;
 	virtual FTimeValue GetEnqueuedSampleDuration() = 0;
-	virtual int32 GetNumEnqueuedSamples(FTimeValue* OutOptionalDuration) = 0;
+	virtual int32 GetNumEnqueuedSamples(TArray<FEnqueuedSampleInfo>* OutOptionalSampleInfos) = 0;
 
 	virtual void DisableHoldbackOfFirstRenderableVideoFrame(bool bDisableHoldback) = 0;
 
@@ -85,7 +111,7 @@ public:
 		if (Clk)
 		{
 			FTimeValue Now(MEDIAutcTime::Current());
-			FMediaCriticalSection::ScopedLock lock(Lock);
+			FScopeLock lock(&Lock);
 			Clk->RenderTime = CurrentRenderTime;
 			Clk->LastSystemBaseTime = Now;
 			Clk->RunningTimeOffset.SetToZero();
@@ -98,7 +124,7 @@ public:
 		if (Clk)
 		{
 			FTimeValue Now(MEDIAutcTime::Current());
-			FMediaCriticalSection::ScopedLock lock(Lock);
+			FScopeLock lock(&Lock);
 			FTimeValue diff = !bIsPaused ? Now - Clk->LastSystemBaseTime : FTimeValue::GetZero();
 			FTimeValue r(Clk->RenderTime);
 			r += Clk->RunningTimeOffset + diff;
@@ -110,7 +136,7 @@ public:
 	void Start()
 	{
 		FTimeValue Now(MEDIAutcTime::Current());
-		FMediaCriticalSection::ScopedLock lock(Lock);
+		FScopeLock lock(&Lock);
 		if (bIsPaused)
 		{
 			for(int32 i = 0; i < FMEDIA_STATIC_ARRAY_COUNT(Clock); ++i)
@@ -124,7 +150,7 @@ public:
 	void Stop()
 	{
 		FTimeValue Now(MEDIAutcTime::Current());
-		FMediaCriticalSection::ScopedLock lock(Lock);
+		FScopeLock lock(&Lock);
 		if (!bIsPaused)
 		{
 			bIsPaused = true;
@@ -175,9 +201,9 @@ private:
 		return Clk;
 	}
 
-	FMediaCriticalSection		Lock;
-	FClock			Clock[3];
-	bool			bIsPaused;
+	FCriticalSection Lock;
+	FClock Clock[3];
+	bool bIsPaused;
 };
 
 
@@ -217,6 +243,10 @@ struct FPlaybackState
 		bPlayrangeHasChanged = false;
 		bLoopStateHasChanged = false;
 		bShouldPlayOnLiveEdge = false;
+		for(int32 i=0; i<UE_ARRAY_COUNT(CurrentSegmentDownloadTimeRange); ++i)
+		{
+			CurrentSegmentDownloadTimeRange[i].Reset();
+		}
 	}
 
 	mutable FCriticalSection				Lock;
@@ -247,6 +277,7 @@ struct FPlaybackState
 	TArray<FTrackMetadata>					AudioTracks;
 	TArray<FTrackMetadata>					SubtitleTracks;
 	TArray<FTimespan>						SeekablePositions;
+	FTimeRange								CurrentSegmentDownloadTimeRange[4];	// 0=video, 1=audio, 2=subtitiles, 3=UNSUPPORTED
 
 
 	void SetSeekableRange(const FTimeRange& TimeRange)
@@ -591,6 +622,22 @@ struct FPlaybackState
 	{
 		FScopeLock lock(&Lock);
 		return EndPlaybackAtTime;
+	}
+
+	FTimeRange GetCurrentDownloadRequestTimeRange(EStreamType InStreamType)
+	{
+		FScopeLock lock(&Lock);
+		return CurrentSegmentDownloadTimeRange[StreamTypeToArrayIndex(InStreamType)];
+	}
+	void SetCurrentDownloadRequestTimeRange(EStreamType InStreamType, const FTimeRange& InRange)
+	{
+		FScopeLock lock(&Lock);
+		CurrentSegmentDownloadTimeRange[StreamTypeToArrayIndex(InStreamType)] = InRange;
+	}
+	void ClearCurrentDownloadRequestTimeRange(EStreamType InStreamType)
+	{
+		FScopeLock lock(&Lock);
+		CurrentSegmentDownloadTimeRange[StreamTypeToArrayIndex(InStreamType)].Reset();
 	}
 
 };
@@ -1065,6 +1112,8 @@ public:
 	void SelectTrackByAttributes(EStreamType StreamType, const FStreamSelectionAttributes& Attributes) override;
 	void DeselectTrack(EStreamType StreamType) override;
 	bool IsTrackDeselected(EStreamType StreamType) override;
+
+	void QueryStreamBufferInfo(FStreamBufferInfo& OutStreamBufferInfo, EStreamType InStreamType) override;
 
 	void SuspendOrResumeDecoders(bool bSuspend, const FParamDict& InOptions) override;
 
@@ -2288,6 +2337,7 @@ private:
 	FPlayerSequenceState												CurrentPlaybackSequenceState;
 
 	uint32																CurrentPlaybackSequenceID[4]; // 0=video, 1=audio, 2=subtitiles, 3=UNSUPPORTED
+	FTimeRange															CurrentSegmentDownloadTimeRange[4];
 
 	FVideoRenderer														VideoRender;
 	FAudioRenderer														AudioRender;
@@ -2298,10 +2348,10 @@ private:
 	TArray<TWeakPtrTS<IAdaptiveStreamingPlayerSubtitleReceiver>>		SubtitleReceivers;
 
 
-	FMediaCriticalSection												MetricListenerCriticalSection;
+	FCriticalSection													MetricListenerCriticalSection;
 	TArray<IAdaptiveStreamingPlayerMetrics*, TInlineAllocator<4>>		MetricListeners;
 
-	FMediaCriticalSection												DiagnosticsCriticalSection;
+	mutable FCriticalSection											DiagnosticsCriticalSection;
 	FBufferStats														VideoBufferStats;
 	FBufferStats														AudioBufferStats;
 	FBufferStats														TextBufferStats;

@@ -25,7 +25,7 @@ class IElectraSafeMediaOptionInterface;
 class FElectraPlayerResourceDelegate;
 
 
-DECLARE_LOG_CATEGORY_EXTERN(LogElectraPlayerPlugin, Log, All);
+ELECTRAPLAYERPLUGIN_API DECLARE_LOG_CATEGORY_EXTERN(LogElectraPlayerPlugin, Log, All);
 
 //-----------------------------------------------------------------------------
 
@@ -129,6 +129,10 @@ private:
 
 	TRange<FTimespan> GetPlaybackTimeRange(EMediaTimeRangeType InRangeToGet) const override;
 	bool SetPlaybackTimeRange(const TRange<FTimespan>& InTimeRange) override;
+
+	// From IMediaCache
+	bool QueryCacheState(EMediaCacheState State, TRangeSet<FTimespan>& OutTimeRanges) const override;
+
 
 	// From IMediaTracks
 	bool GetAudioTrackFormat(int32 TrackIndex, int32 FormatIndex, FMediaAudioTrackFormat& OutFormat) const override;

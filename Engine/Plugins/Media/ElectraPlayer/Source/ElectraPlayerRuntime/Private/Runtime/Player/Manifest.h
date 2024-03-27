@@ -126,8 +126,15 @@ namespace Electra
 		 */
 		virtual void GetEndedStreams(TArray<TSharedPtrTS<IStreamSegment>>& OutAlreadyEndedStreams) = 0;
 
-		//! Returns the first PTS value as indicated by the media timeline. This should correspond to the actual absolute PTS of the sample.
+		/**
+		 * Returns the first PTS value as indicated by the media timeline. This should correspond to the actual absolute PTS of the sample.
+		 */
 		virtual FTimeValue GetFirstPTS() const = 0;
+
+		/**
+		 * Returns the time range this request covers.
+		 */
+		virtual FTimeRange GetTimeRange() const = 0;
 
 		virtual int32 GetQualityIndex() const = 0;
 		virtual int32 GetBitrate() const = 0;

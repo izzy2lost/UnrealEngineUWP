@@ -205,6 +205,8 @@ namespace Electra
 		void Clear()
 		{
 			FrontDTS.SetToInvalid();
+			SmallestPTS.SetToInvalid();
+			LargestPTSPlusDur.SetToInvalid();
 			PushedDuration.SetToZero();
 			PlayableDuration.SetToZero();
 			CurrentMemInUse = 0;
@@ -215,6 +217,8 @@ namespace Electra
 		}
 
 		FTimeValue			FrontDTS;
+		FTimeValue			SmallestPTS;
+		FTimeValue			LargestPTSPlusDur;
 		FTimeValue			PushedDuration;
 		FTimeValue			PlayableDuration;
 		int64				CurrentMemInUse;
@@ -247,6 +251,8 @@ namespace Electra
 
 		FAccessUnitBuffer()
 			: FrontDTS(FTimeValue::GetInvalid())
+			, SmallestPTS(FTimeValue::GetInvalid())
+			, LargestPTSPlusDur(FTimeValue::GetInvalid())
 			, PushedDuration(FTimeValue::GetZero())
 			, PlayableDuration(FTimeValue::GetZero())
 			, CurrentMemInUse(0)
@@ -289,6 +295,8 @@ namespace Electra
 		{
 			FScopeLock Lock(&AccessLock);
 			OutStats.FrontDTS = FrontDTS;
+			OutStats.SmallestPTS = SmallestPTS;
+			OutStats.LargestPTSPlusDur = LargestPTSPlusDur;
 			OutStats.PushedDuration = PushedDuration;
 			OutStats.PlayableDuration = PlayableDuration;
 			OutStats.CurrentMemInUse = CurrentMemInUse;
@@ -319,6 +327,16 @@ namespace Electra
 					if (!FrontDTS.IsValid())
 					{
 						FrontDTS = AU->DTS;
+					}
+					if (!SmallestPTS.IsValid() || AU->PTS < SmallestPTS)
+					{
+						SmallestPTS = AU->PTS;
+					}
+					FTimeValue End = AU->PTS + AU->Duration;
+					End.SetSequenceIndex(AU->PTS.GetSequenceIndex());
+					if (!LargestPTSPlusDur.IsValid() || End > LargestPTSPlusDur)
+					{
+						LargestPTSPlusDur = End;
 					}
 					PlayableDuration += AU->Duration;
 				}
@@ -382,6 +400,23 @@ namespace Electra
 							}
 						}
 					}
+					SmallestPTS.SetToPositiveInfinity();
+					for(int32 i=0,iMax=AccessUnits.Num(),j=0; i<iMax; ++i)
+					{
+						if (AccessUnits[i]->DropState == FAccessUnit::EDropState::None)
+						{
+							if (AccessUnits[i]->PTS < SmallestPTS)
+							{
+								SmallestPTS = AccessUnits[i]->PTS;
+							}
+							// Look only at the first couple of AU's. The smallest one is going to be among them
+							// unless there is a huge amount of reordered samples.
+							if (++j >= 10)
+							{
+								break;
+							}
+						}
+					}
 					if (OutAU->DropState == FAccessUnit::EDropState::None)
 					{
 						PlayableDuration -= OutAU->Duration;
@@ -391,6 +426,8 @@ namespace Electra
 				else
 				{
 					FrontDTS.SetToInvalid();
+					SmallestPTS.SetToInvalid();
+					LargestPTSPlusDur.SetToInvalid();
 					PlayableDuration.SetToZero();
 					PushedDuration.SetToZero();
 				}
@@ -638,6 +675,8 @@ namespace Electra
 		TMediaQueueDynamicNoLock<FAccessUnit*>		AccessUnits;
 		FMediaSemaphore								NumInSemaphore;
 		FTimeValue									FrontDTS;					//!< DTS of first AU in buffer
+		FTimeValue									SmallestPTS;				//!< Smallest PTS in buffer
+		FTimeValue									LargestPTSPlusDur;			//!< Largest PTS plus the AU duration in buffer
 		FTimeValue									PushedDuration;
 		FTimeValue									PlayableDuration;
 		int64										CurrentMemInUse = 0;
@@ -828,19 +867,17 @@ namespace Electra
 			}
 			void Clear()
 			{
-				ReadyDuration.SetToInvalid();
-				NumDecodedElementsReady = 0;
-				MaxDecodedElementsReady = 0;
+				InDecoderTimeRangePTS.Reset();
+				OutputBufferPoolSize = 0;
 				NumElementsInDecoder = 0;
 				bOutputStalled = false;
 				bEODreached = false;
 			}
-			FTimeValue				ReadyDuration;				//!< Duration of the ready material
-			int64					NumDecodedElementsReady;	//!< Number of decoded elements ready for rendering
-			int64					MaxDecodedElementsReady;	//!< Maximum number of decoded elements.
-			int64					NumElementsInDecoder;		//!< Number of elements currently in the decoder pipeline
+			FTimeRange				InDecoderTimeRangePTS;		//!< Time range of elements in the decoder pipeline by PTS.
+			int64					OutputBufferPoolSize;		//!< Maximum number of decoded elements the output pool can hold.
+			int64					NumElementsInDecoder;		//!< Number of elements currently in the decoder pipeline.
 			bool					bOutputStalled;				//!< true if the output is full and decoding is delayed until there's room again.
-			bool					bEODreached;				//!< true when the final decoded element has been passed on.
+			bool					bEODreached;				//!< true when the final decoded element has been passed on (but may still be in the queue).
 		};
 
 		virtual void DecoderOutputReady(const FDecodeReadyStats& CurrentReadyStats) = 0;
