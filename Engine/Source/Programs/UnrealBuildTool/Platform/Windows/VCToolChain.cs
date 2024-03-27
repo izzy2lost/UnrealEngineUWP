@@ -2724,6 +2724,7 @@ namespace UnrealBuildTool
 						// Only use the merged pgd file if it actually exists, otherwise keep the default behavior
 						PGDFile = MergedPGDFile;
 						bUsingMergedPGD = true;
+						Environment.SetEnvironmentVariable("PGOMGR", "/nowarn:188", EnvironmentVariableTarget.Process);
 					}
 					else
 					{
