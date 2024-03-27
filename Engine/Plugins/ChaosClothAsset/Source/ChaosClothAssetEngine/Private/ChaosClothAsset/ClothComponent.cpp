@@ -398,10 +398,15 @@ void UChaosClothComponent::SetSkinnedAssetAndUpdate(USkinnedAsset* InSkinnedAsse
 	}
 }
 
-void UChaosClothComponent::GetAdditionalRequiredBonesForLeader(int32 LODIndex, TArray<FBoneIndexType>& InOutRequiredBones) const
+void UChaosClothComponent::GetAdditionalRequiredBonesForLeader(int32 LeaderLODIndex, TArray<FBoneIndexType>& InOutRequiredBones) const
 {
 	if (const FSkeletalMeshRenderData* const SkeletalMeshRenderData = GetSkeletalMeshRenderData())
 	{
+		const int32 MinLODIndex = ComputeMinLOD();
+		const int32 MaxLODIndex = FMath::Max(GetNumLODs() - 1, MinLODIndex);
+
+		const int32 LODIndex = FMath::Clamp(LeaderLODIndex, MinLODIndex, MaxLODIndex);
+
 		if (SkeletalMeshRenderData->LODRenderData.IsValidIndex(LODIndex))
 		{
 			// Gather the follower's bones
