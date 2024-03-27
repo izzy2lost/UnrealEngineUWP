@@ -126,4 +126,5 @@ public:
 
 private:
 	virtual void AddProperties(FPropertyHelper& PropertyHelper) const override;
+	virtual bool IsDeprecated() override { return true; }
 };

@@ -120,4 +120,5 @@ public:
 
 private:
 	virtual void AddProperties(FPropertyHelper& PropertyHelper) const override;
+	virtual bool IsExperimental() override { return true; }
 };
