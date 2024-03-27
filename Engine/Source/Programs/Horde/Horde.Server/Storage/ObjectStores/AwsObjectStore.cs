@@ -373,6 +373,7 @@ namespace Horde.Server.Storage.ObjectStores
 				newGetRequest.ResponseHeaderOverrides.CacheControl = "private, max-age=2592000, immutable"; // 30 days
 
 				string url = _client.GetPreSignedURL(newGetRequest);
+				_logger.LogDebug("Creating presigned URL for {Verb} to {Path}", verb, fullPath);
 				return new Uri(url);
 			}
 			catch (Exception ex)
@@ -399,7 +400,7 @@ namespace Horde.Server.Storage.ObjectStores
 				{
 					using IDisposable semaLock = await _semaphore.WaitDisposableAsync(cancellationToken);
 					await WriteInternalAsync(fullPath, inputStream, cancellationToken);
-					_logger.LogDebug("Written data to {Path}", key);
+					_logger.LogDebug("Written data to {Path}", fullPath);
 					break;
 				}
 				catch (Exception ex) when (ex is not OperationCanceledException)
