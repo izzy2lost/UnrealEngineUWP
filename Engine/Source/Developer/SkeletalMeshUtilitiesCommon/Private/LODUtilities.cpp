@@ -42,6 +42,7 @@
 #include "Rendering/SkeletalMeshLODModel.h"
 #include "Rendering/SkeletalMeshModel.h"
 #include "Tasks/Task.h"
+#include "Async/TaskGraphInterfaces.h"
 #include "UObject/GarbageCollection.h"
 #include "UObject/UObjectIterator.h"
 #include "Widgets/Notifications/SNotificationList.h"
@@ -3169,6 +3170,20 @@ bool FLODUtilities::UpdateLODInfoVertexAttributes(
 	// Wait for all the attribute conversion tasks to complete.
 	UE::Tasks::Wait(ConversionTasks);
 
+#if WITH_EDITOR
+	// Notify UI and other systems of the change
+	// Dispatch it on the game thread for thread safty as this can be called during cook on a worker thread
+	FFunctionGraphTask::CreateAndDispatchWhenReady(
+		[WeakSkelMesh = TWeakObjectPtr<USkeletalMesh>(InSkeletalMesh)]()
+		{
+			USkeletalMesh* InSkeletalMesh = WeakSkelMesh.Get();
+			if (InSkeletalMesh)
+			{
+				InSkeletalMesh->GetOnVertexAttributesArrayChanged().Broadcast();
+			}
+		}, TStatId(), NULL, ENamedThreads::GameThread);	
+#endif
+	
 	return true;
 }
 
