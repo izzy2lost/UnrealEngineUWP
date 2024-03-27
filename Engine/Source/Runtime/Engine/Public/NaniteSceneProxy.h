@@ -13,6 +13,9 @@
 struct FPerInstanceRenderData;
 class UStaticMeshComponent;
 class USkinnedMeshComponent;
+class USkinnedAsset;
+class FSkeletalMeshRenderData;
+class FSkeletalMeshLODRenderData;
 class UWorld;
 enum ECollisionTraceFlag : int;
 enum EMaterialDomain : int;
