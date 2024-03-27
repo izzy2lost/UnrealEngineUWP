@@ -97,7 +97,7 @@ void STableViewBase::ConstructChildren( const TAttribute<float>& InItemWidth, co
 			.Style(InScrollBarStyle ? InScrollBarStyle : &FAppStyle::Get().GetWidgetStyle<FScrollBarStyle>("ScrollBar"))
 			.PreventThrottling(bInPreventThrottling);
 
-		const FOptionalSize ScrollBarSize(16.f);
+		const FOptionalSize ScrollBarSize(InScrollBarStyle ? InScrollBarStyle->Thickness : 16.f);
 
 		if (Orientation == Orient_Vertical)
 		{
