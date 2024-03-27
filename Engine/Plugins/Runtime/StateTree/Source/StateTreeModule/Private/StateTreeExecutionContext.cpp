@@ -1059,7 +1059,7 @@ bool FStateTreeExecutionContext::IsHandleSourceValid(const FStateTreeExecutionFr
 	case EStateTreeDataSourceType::ActiveInstanceData:
 	case EStateTreeDataSourceType::ActiveInstanceDataObject:
 		return CurrentFrame.ActiveInstanceIndexBase.IsValid()
-			&& CurrentFrame.ActiveStates.Contains(Handle.GetState())
+			&& CurrentFrame.ActiveStates.Contains(Handle.GetState(), CurrentFrame.NumCurrentlyActiveStates)
 			&& InstanceDataStorage->IsValidIndex(CurrentFrame.ActiveInstanceIndexBase.Get() + Handle.GetIndex());
 		
 	case EStateTreeDataSourceType::SharedInstanceData:
@@ -1084,7 +1084,7 @@ bool FStateTreeExecutionContext::IsHandleSourceValid(const FStateTreeExecutionFr
 
 	case EStateTreeDataSourceType::StateParameterData:
 		return CurrentFrame.ActiveInstanceIndexBase.IsValid()
-			&& CurrentFrame.ActiveStates.Contains(Handle.GetState())
+			&& CurrentFrame.ActiveStates.Contains(Handle.GetState(), CurrentFrame.NumCurrentlyActiveStates)
 			&& InstanceDataStorage->IsValidIndex(CurrentFrame.ActiveInstanceIndexBase.Get() + Handle.GetIndex());
 
 	case EStateTreeDataSourceType::TransitionEvent:
@@ -1466,6 +1466,7 @@ EStateTreeRunStatus FStateTreeExecutionContext::EnterState(FStateTreeTransitionR
 					__FUNCTION__, *GetStateStatusString(Exec), *GetNameSafe(&Owner), *GetFullNameSafe(&RootStateTree));
 				break;
 			}
+			CurrentFrame.NumCurrentlyActiveStates = static_cast<uint8>(CurrentFrame.ActiveStates.Num());
 
 			if (State.Type == EStateTreeStateType::Linked
 				|| State.Type == EStateTreeStateType::LinkedAsset)
@@ -3064,6 +3065,8 @@ bool FStateTreeExecutionContext::SelectState(const FStateTreeExecutionFrame& Cur
 	{
 		LastFrame.ActiveStates.Push(ParentStates[Index]);
 	}
+	// Existing state's data is safe to access during select.
+	LastFrame.NumCurrentlyActiveStates = static_cast<uint8>(LastFrame.ActiveStates.Num());
 
 	FStateSelectionResult InitialSelection;
 
@@ -3235,16 +3238,16 @@ bool FStateTreeExecutionContext::SelectStateInternal(
 		}
 
 		// Check if we're still tracking on the current active frame and state.
-		// If not, mark the ActiveInstanceIndexBase as invalid because we no longer can access the instance data during selection.
-		const FStateTreeIndex16 PrevActiveInstanceIndexBase = CurrentFrame.ActiveInstanceIndexBase; 
+		// If we are, update the NumCurrentlyActiveStates to indicate that this state's instance data can be accessed. 
+		const uint8 PrevNumCurrentlyActiveStates = CurrentFrame.NumCurrentlyActiveStates; 
 		if (CurrentFrame.ActiveInstanceIndexBase.IsValid()
 			&& CurrentFrameInActiveFrames)
 		{
 			const int32 CurrentStateIndex = CurrentFrame.ActiveStates.Num() - 1;
 			const FStateTreeStateHandle MatchingActiveHandle = CurrentFrameInActiveFrames->ActiveStates.GetStateSafe(CurrentStateIndex);
-			if (MatchingActiveHandle != NextStateHandle)
+			if (MatchingActiveHandle == NextStateHandle)
 			{
-				CurrentFrame.ActiveInstanceIndexBase = FStateTreeIndex16();
+				CurrentFrame.NumCurrentlyActiveStates = static_cast<uint8>(CurrentFrame.ActiveStates.Num());
 			}
 		}
 		
@@ -3541,7 +3544,7 @@ bool FStateTreeExecutionContext::SelectStateInternal(
 		}
 
 		// State could not be selected, restore.
-		CurrentFrame.ActiveInstanceIndexBase = PrevActiveInstanceIndexBase;
+		CurrentFrame.NumCurrentlyActiveStates = PrevNumCurrentlyActiveStates;
 		CurrentFrame.ActiveStates.Pop();
 	}
 
