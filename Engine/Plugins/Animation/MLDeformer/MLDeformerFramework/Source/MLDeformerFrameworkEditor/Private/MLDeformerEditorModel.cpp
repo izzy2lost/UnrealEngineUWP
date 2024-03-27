@@ -910,6 +910,7 @@ namespace UE::MLDeformer
 			SkeletalMeshComponent->SetPosition(CurrentPlayTime);
 			SkeletalMeshComponent->SetPlayRate(TestAnimSpeed);
 			SkeletalMeshComponent->Play(true);
+			UpdateStepInterpolationMode();
 		}
 
 		// Update all compare actors.
@@ -1200,6 +1201,11 @@ namespace UE::MLDeformer
 		{
 			SetHeatMapMaterialEnabled(Model->GetVizSettings()->GetShowHeatMap());
 			UpdateDeformerGraph();
+			UpdateStepInterpolationMode();
+		}
+		else if (Property->GetFName() == UMLDeformerVizSettings::GetHeatMapModePropertyName())
+		{
+			UpdateStepInterpolationMode();
 		}
 		else
 		if (Property->GetFName() == UMLDeformerVizSettings::GetDrawLinearSkinnedActorPropertyName() ||
@@ -3161,6 +3167,28 @@ namespace UE::MLDeformer
 			}
 		}
 	}
+
+	void FMLDeformerEditorModel::UpdateStepInterpolationMode()
+	{
+		// Force step interpolation when viewing the heatmap in ground truth mode.
+		UMLDeformerVizSettings* VizSettings = Model->GetVizSettings();
+		FMLDeformerEditorActor* MLDeformerEditorActor = static_cast<FMLDeformerEditorActor*>(FindEditorActor(ActorID_Test_MLDeformed));
+		if (MLDeformerEditorActor)
+		{
+			USkeletalMeshComponent* SkelMeshComponent = MLDeformerEditorActor->GetSkeletalMeshComponent();
+			if (SkelMeshComponent)
+			{
+				UAnimSingleNodeInstance* AnimInstance = Cast<UAnimSingleNodeInstance>(SkelMeshComponent->GetAnimInstance());
+				if (AnimInstance)
+				{
+					const bool bForceStepInterpolation = VizSettings->GetShowHeatMap() && (VizSettings->GetHeatMapMode() == EMLDeformerHeatMapMode::GroundTruth) && VizSettings->HasTestGroundTruth();
+					const TOptional<EAnimInterpolationType> InterpolationOverride = bForceStepInterpolation ? EAnimInterpolationType::Step : TOptional<EAnimInterpolationType>();
+					AnimInstance->SetInterpolationOverride(InterpolationOverride);
+				}
+			}
+		}
+	}
+
 }	// namespace UE::MLDeformer
 
 #undef LOCTEXT_NAMESPACE

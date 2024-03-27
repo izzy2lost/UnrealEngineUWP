@@ -130,9 +130,12 @@ FComputeDataProviderRenderProxy* UDEPRECATED_VertexDeltaGraphDebugDataProvider::
 	if (DeformerComponent && DeformerAsset && DeformerComponent->GetModelInstance() && DeformerComponent->GetModelInstance()->IsValidForDataProvider())
 	{
 		UE::VertexDeltaModel::FVertexDeltaGraphDebugDataProviderProxy* Proxy = new UE::VertexDeltaModel::FVertexDeltaGraphDebugDataProviderProxy(DeformerComponent, DeformerAsset, this);
-		const float SampleTime = DeformerComponent->GetModelInstance()->GetSkeletalMeshComponent()->GetPosition();
 		UMLDeformerModel* Model = DeformerAsset->GetModel();
-		Model->SampleGroundTruthPositions(SampleTime, Proxy->GetGroundTruthPositions());
+		if (Model->GetVizSettings()->GetHeatMapMode() == EMLDeformerHeatMapMode::GroundTruth)
+		{
+			const float SampleTime = DeformerComponent->GetModelInstance()->GetSkeletalMeshComponent()->GetPosition();
+			Model->SampleGroundTruthPositions(SampleTime, Proxy->GetGroundTruthPositions());
+		}
 		Proxy->HandleZeroGroundTruthPositions();
 		return Proxy;
 	}

@@ -1080,6 +1080,13 @@ namespace UE::MLDeformer
 
 		void UpdateLODMappings();
 
+		/**
+		 * Update whether we force to use step interpolation on the ML Deformed model or not.
+		 * Step interpolation is needed when we are enabled heatmaps and have a ground truth mesh and are in ground truth heatmap mode.
+		 * This will modify the AnimInstance's ForceStepInterpolation state on just the ML Deformed model. It can also disable it when needed.
+		 */
+		void UpdateStepInterpolationMode();
+
 	protected:
 		struct FLODInfo
 		{
