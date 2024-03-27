@@ -149,6 +149,13 @@ void AWaterBody::PostEditMove(bool bFinished)
 		return;
 	}
 
+	// We want to avoid modifying the water body if the world is being cleaned up.
+	// World Partition unloads will call PostEditMove during the cleanup process and we don't want to unnecessarily make changes to the water body now.
+	if (GetWorld() && GetWorld()->IsBeingCleanedUp())
+	{
+		return;
+	}
+
 	WaterBodyComponent->FixupEditorTransform();
 
 	if (bFinished)
