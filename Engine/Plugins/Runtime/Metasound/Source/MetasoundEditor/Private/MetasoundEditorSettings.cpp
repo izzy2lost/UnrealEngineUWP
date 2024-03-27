@@ -1,10 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 #include "MetasoundEditorSettings.h"
 
-#include "AudioMaterialSlate/AudioMaterialSlateTypes.h"
-#include "AudioWidgetsStyle.h"
 #include "Styling/AppStyle.h"
-#include "Styling/SlateWidgetStyleAsset.h"
 #include "UObject/UnrealType.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(MetasoundEditorSettings)
@@ -33,15 +30,3 @@ UMetasoundEditorSettings::UMetasoundEditorSettings(const FObjectInitializer& Obj
 	VariableNodeTitleColor = FLinearColor(0.211f, 0.513f, 0.035f);				// copper
 }
 
-const FAudioMaterialKnobStyle* UMetasoundEditorSettings::GetKnobStyle() const
-{
-	if (const UObject* Style = KnobStyleOverride.TryLoad())
-	{
-		if (const USlateWidgetStyleAsset* SlateWidgetStyleAsset = CastChecked<USlateWidgetStyleAsset>(Style))
-		{
-			return SlateWidgetStyleAsset->GetStyle<FAudioMaterialKnobStyle>();
-		}
-	}
-
-	return &FAudioWidgetsStyle::Get().GetWidgetStyle<FAudioMaterialKnobStyle>("AudioMaterialKnob.Style");
-}
