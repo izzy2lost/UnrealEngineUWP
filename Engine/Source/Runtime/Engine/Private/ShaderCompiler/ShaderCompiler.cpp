@@ -404,10 +404,9 @@ private:
 /** Map element type for job cache */
 struct FShaderJobData
 {
-	using FJobInputHash = FBlake3Hash;
 	using FJobOutputHash = FBlake3Hash;
 
-	FJobInputHash InputHash;
+	FShaderCompilerInputHash InputHash;
 
 	/** Output hash will be zero if output data has not been written yet, or can be cleared if output data has been removed */
 	FJobOutputHash OutputHash;
@@ -455,8 +454,8 @@ public:
 		Reserve(FShaderJobDataBlock::BlockSize);
 	}
 
-	FShaderJobData* Find(const FShaderJobData::FJobInputHash& Key);
-	FShaderJobCacheRef FindOrAdd(const FShaderJobData::FJobInputHash& Key);
+	FShaderJobData* Find(const FShaderCompilerInputHash& Key);
+	FShaderJobCacheRef FindOrAdd(const FShaderCompilerInputHash& Key);
 
 	FORCEINLINE int32 Num() const
 	{
@@ -762,7 +761,6 @@ public:
 	int32 GetPendingJobs(EShaderCompilerWorkerType InWorkerType, EShaderCompileJobPriority InPriority, int32 MinNumJobs, int32 MaxNumJobs, TArray<FShaderCommonCompileJobPtr>& OutJobs);
 
 private:
-	using FJobInputHash = FShaderCommonCompileJob::FInputHash;
 	using FJobOutputHash = FBlake3Hash;
 	using FJobCachedOutput = FSharedBuffer;
 	using FStoredOutput = FShaderJobCacheStoredOutput;
@@ -778,10 +776,10 @@ private:
 	void InternalSetPriority(FShaderCommonCompileJob* Job, EShaderCompileJobPriority InPriority);
 
 	/** Looks for or adds an entry for the given hash in the cache.  Returns cached output if it exists, or may initialize DDC request if one has been issued. */
-	FShaderJobCacheRef FindOrAdd(const FJobInputHash& Hash, EShaderCompileJobPriority JobPriority, const bool bCheckDDC, TPimplPtr<UE::DerivedData::FRequestOwner>& InoutRequestOwner, FJobCachedOutput*& OutCachedOutput);
+	FShaderJobCacheRef FindOrAdd(const FShaderCompilerInputHash& Hash, EShaderCompileJobPriority JobPriority, const bool bCheckDDC, TPimplPtr<UE::DerivedData::FRequestOwner>& InoutRequestOwner, FJobCachedOutput*& OutCachedOutput);
 
 	/** Find an existing item in the cache. */
-	FShaderJobData* Find(const FJobInputHash& Hash);
+	FShaderJobData* Find(const FShaderCompilerInputHash& Hash);
 
 	/** Add a reference to a duplicate job (to the DuplicateJobs array) */
 	void AddDuplicateJob(FShaderCommonCompileJob* DuplicateJob);
@@ -790,7 +788,7 @@ private:
 	void RemoveDuplicateJob(FShaderCommonCompileJob* DuplicateJob);
 
 	/** Adds a job output to the cache */
-	void AddJobOutput(FShaderJobData& JobData, const FShaderCommonCompileJob* FinishedJob, const FJobInputHash& Hash, const FJobCachedOutput& Contents, int32 InitialHitCount, const bool bAddToDDC);
+	void AddJobOutput(FShaderJobData& JobData, const FShaderCommonCompileJob* FinishedJob, const FShaderCompilerInputHash& Hash, const FJobCachedOutput& Contents, int32 InitialHitCount, const bool bAddToDDC);
 
 	/** Returns memory used by the cache*/
 	uint64 GetAllocatedMemory() const;
@@ -994,7 +992,7 @@ static FShaderJobData& GetShaderJobData(const FShaderJobCacheRef& CacheRef)
 	return CacheRef.Block->Data[CacheRef.IndexInBlock];
 }
 
-FShaderJobData* FShaderJobDataMap::Find(const FShaderJobData::FJobInputHash& Key)
+FShaderJobData* FShaderJobDataMap::Find(const FShaderCompilerInputHash& Key)
 {
 	// Search for key with linear probing
 	for (uint32 TableIndex = GetTypeHash(Key) & HashTableMask; HashTable[TableIndex] != INDEX_NONE; TableIndex = (TableIndex + 1) & HashTableMask)
@@ -1007,7 +1005,7 @@ FShaderJobData* FShaderJobDataMap::Find(const FShaderJobData::FJobInputHash& Key
 	return nullptr;
 }
 
-FShaderJobCacheRef FShaderJobDataMap::FindOrAdd(const FShaderJobData::FJobInputHash& Key)
+FShaderJobCacheRef FShaderJobDataMap::FindOrAdd(const FShaderCompilerInputHash& Key)
 {
 	// Search for key with linear probing
 	uint32 TableIndex;
@@ -1621,7 +1619,7 @@ void FShaderJobCache::SubmitJob(FShaderCommonCompileJob* Job)
 	{
 		bJobCacheLocked = true;
 
-		const FShaderCommonCompileJob::FInputHash& InputHash = Job->GetInputHash();
+		const FShaderCompilerInputHash& InputHash = Job->GetInputHash();
 
 		const bool bCheckDDC = GShaderCompilerPerShaderDDCGlobal || !(Job->bIsDefaultMaterial || Job->bIsGlobalShader);
 
@@ -1704,7 +1702,7 @@ void FShaderJobCache::SubmitJob(FShaderCommonCompileJob* Job)
 	else if (ShaderCompiler::IsJobCacheDebugValidateEnabled())
 	{
 		FSharedBuffer* ExistingOutput;
-		const FShaderCommonCompileJob::FInputHash& InputHash = Job->GetInputHash();
+		const FShaderCompilerInputHash& InputHash = Job->GetInputHash();
 		const bool bCheckDDC = !(Job->bIsDefaultMaterial || Job->bIsGlobalShader);
 		JobLock.WriteLock();
 		Job->JobCacheRef = FindOrAdd(InputHash, Job->Priority, bCheckDDC, Job->RequestOwner, ExistingOutput);
@@ -1872,7 +1870,7 @@ void FShaderJobCache::AddToCacheAndProcessPending(FShaderCommonCompileJob* Finis
 
 	ensureMsgf(FinishedJob->bInputHashSet, TEXT("Finished job didn't have input hash set, was shader compiler jobs cache toggled runtime?"));
 
-	const FShaderCommonCompileJob::FInputHash& InputHash = FinishedJob->GetInputHash();
+	const FShaderCompilerInputHash& InputHash = FinishedJob->GetInputHash();
 	TArray<uint8> Output;
 	FMemoryWriter Writer(Output);
 	FinishedJob->SerializeOutput(Writer);
@@ -10867,7 +10865,7 @@ namespace
 }
 #endif
 
-FShaderJobCacheRef FShaderJobCache::FindOrAdd(const FJobInputHash& Hash, EShaderCompileJobPriority JobPriority, const bool bCheckDDC, TPimplPtr<UE::DerivedData::FRequestOwner>& InoutRequestOwner, FJobCachedOutput*& OutCachedOutput)
+FShaderJobCacheRef FShaderJobCache::FindOrAdd(const FShaderCompilerInputHash& Hash, EShaderCompileJobPriority JobPriority, const bool bCheckDDC, TPimplPtr<UE::DerivedData::FRequestOwner>& InoutRequestOwner, FJobCachedOutput*& OutCachedOutput)
 {
 	LLM_SCOPE_BYTAG(ShaderCompiler);
 
@@ -11146,7 +11144,7 @@ FShaderJobCacheRef FShaderJobCache::FindOrAdd(const FJobInputHash& Hash, EShader
 	return JobCacheRef;
 }
 
-FShaderJobData* FShaderJobCache::Find(const FJobInputHash& Hash)
+FShaderJobData* FShaderJobCache::Find(const FShaderCompilerInputHash& Hash)
 {
 	check(ShaderCompiler::IsJobCacheEnabled());
 
@@ -11207,7 +11205,7 @@ FShaderJobCache::~FShaderJobCache()
 	}
 }
 
-void FShaderJobCache::AddJobOutput(FShaderJobData& JobData, const FShaderCommonCompileJob* FinishedJob, const FJobInputHash& Hash, const FJobCachedOutput& Contents, int32 InitialHitCount, const bool bAddToDDC)
+void FShaderJobCache::AddJobOutput(FShaderJobData& JobData, const FShaderCommonCompileJob* FinishedJob, const FShaderCompilerInputHash& Hash, const FJobCachedOutput& Contents, int32 InitialHitCount, const bool bAddToDDC)
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(FShaderJobCache::Add);
 

@@ -13,6 +13,9 @@ struct FShaderCompilerEnvironment;
 struct FShaderCompilerError;
 struct FShaderCompilerInput;
 
+RENDERCORE_API FShaderSource::FViewType GetShaderSourceDebugHashPrefix();
+RENDERCORE_API FStringView GetShaderSourceDebugHashPrefixWide();
+
 /*
 * Helper class used to remap compiler diagnostic messages from stripped preprocessed source (i.e. source with all whitespace normalized
 * and comments and line directives removed) back to line numbers/locations from the original source. 
@@ -66,6 +69,11 @@ public:
 	{
 		static FString Empty;
 		return Empty;
+	}
+
+	FShaderSource::FViewType GetSourceView() const
+	{
+		return PreprocessedSource.GetView();
 	}
 
 	FAnsiStringView GetSourceViewAnsi() const

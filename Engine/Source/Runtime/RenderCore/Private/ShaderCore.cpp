@@ -1502,6 +1502,17 @@ public:
 			// and blank lines to improve deduplication (and populates data required to remap diagnostic messages to correct line numbers)
 			Job.PreprocessOutput.StripCode(Job.Input.NeedsOriginalShaderSource());
 
+			FShaderCompilerInputHash Hash = Job.GetInputHash();
+			// Replace the placeholder debug hash value appended in StripCode with the real job input hash
+			FShaderSource::FViewType DebugHashStr = GetShaderSourceDebugHashPrefix();
+			FShaderSource::FViewType SourceView = Job.PreprocessOutput.GetSourceView();
+			int32 DebugHashLoc = SourceView.Find(DebugHashStr) + DebugHashStr.Len();
+			int32 NewlineLoc = SourceView.Find(SHADER_SOURCE_VIEWLITERAL("\n"), DebugHashLoc);
+			FShaderSource::TStringBuilder<2 * sizeof(FShaderCompilerInputHash::ByteArray) + 1> HashStr;
+			HashStr << Hash;
+			check(NewlineLoc - DebugHashLoc == HashStr.Len());
+			FMemory::Memcpy(Job.PreprocessOutput.EditSource().GetData() + DebugHashLoc, HashStr.GetData(), sizeof(FShaderSource::CharType) * HashStr.Len());
+
 			// always compress the code after stripping to minimize memory footprint
 			Job.PreprocessOutput.CompressCode();
 		}
@@ -3758,26 +3769,26 @@ FArchive& operator<<(FArchive& Ar, FShaderCompilerInput& Input)
 	return Ar;
 }
 
-FShaderCommonCompileJob::FInputHash FShaderPipelineCompileJob::GetInputHash()
+FShaderCompilerInputHash FShaderPipelineCompileJob::GetInputHash()
 {
 	if (bInputHashSet)
 	{
 		return InputHash;
 	}
-	static_assert(sizeof(FShaderCommonCompileJob::FInputHash) == 32);
+	static_assert(sizeof(FShaderCompilerInputHash) == 32);
 	int256 CombinedHash = 0u;
 	for (int32 Index = 0; Index < StageJobs.Num(); ++Index)
 	{
 		if (StageJobs[Index])
 		{
-			const FShaderCommonCompileJob::FInputHash StageHash = StageJobs[Index]->GetInputHash();
-			const FShaderCommonCompileJob::FInputHash::ByteArray& StageHashBytes = StageHash.GetBytes();
+			const FShaderCompilerInputHash StageHash = StageJobs[Index]->GetInputHash();
+			const FShaderCompilerInputHash::ByteArray& StageHashBytes = StageHash.GetBytes();
 			static_assert(sizeof(StageHashBytes) == sizeof(int256));
 			CombinedHash += int256(StageHashBytes, sizeof(StageHashBytes));
 		}
 	}
 
-	InputHash = FShaderCommonCompileJob::FInputHash(reinterpret_cast<FShaderCommonCompileJob::FInputHash::ByteArray&>(*CombinedHash.GetBits()));
+	InputHash = FShaderCompilerInputHash(reinterpret_cast<FShaderCompilerInputHash::ByteArray&>(*CombinedHash.GetBits()));
 	bInputHashSet = true;
 	return InputHash;
 }
@@ -3818,7 +3829,7 @@ struct FShaderVirtualFileContents
 	{}
 };
 
-FShaderCommonCompileJob::FInputHash FShaderCompileJob::GetInputHash()
+FShaderCompilerInputHash FShaderCompileJob::GetInputHash()
 {
 	if (bInputHashSet)
 	{
@@ -4064,19 +4075,18 @@ void FShaderCompileJob::SerializeOutput(FArchive& Ar)
 
 void FShaderCompileJob::OnComplete()
 {
-	const IShaderFormat* ShaderFormat = GetTargetPlatformManagerRef().FindShaderFormat(Input.ShaderFormat);
+	if (Input.NeedsOriginalShaderSource())
+	{
+		// Decompress the code if needed by debug info or source extraction
+		PreprocessOutput.DecompressCode();
+	}
+
 	// For jobs using the preprocessed cache, we need to remap error messages whether or not the job was actually the one that ran
 	// the compilation step. In addition since we always run preprocessing we set the total preprocess time accordingly.
 	if (Input.bCachePreprocessed)
 	{
 		PreprocessOutput.RemapErrors(Output);
 		Output.PreprocessTime = PreprocessOutput.ElapsedTime;
-	}
-
-	if (Input.NeedsOriginalShaderSource())
-	{
-		// Decompress the code if needed by debug info or source extraction
-		PreprocessOutput.DecompressCode();
 	}
 
 	// dump debug info for the job at this point if the preprocessed cache is enabled
@@ -4088,6 +4098,7 @@ void FShaderCompileJob::OnComplete()
 		// (jobs deserialized from the cache/wait list/ddc will have a compiletime of 0.0)
 		&& (CVarDumpDebugInfoForCacheHits.GetValueOnAnyThread() || Output.CompileTime > 0.0f))
 	{
+		const IShaderFormat* ShaderFormat = GetTargetPlatformManagerRef().FindShaderFormat(Input.ShaderFormat);
 		if (SecondaryPreprocessOutput.IsValid() && SecondaryOutput.IsValid())
 		{
 			ShaderFormat->OutputDebugData(Input, PreprocessOutput, *SecondaryPreprocessOutput, Output, *SecondaryOutput);

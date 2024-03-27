@@ -44,7 +44,7 @@ void FShaderSource::Set(FAnsiStringView InSrc)
 FShaderSource& FShaderSource::operator=(FShaderSource::FStringType&& InSrc)
 {
 	SourceCompressed.Empty();
-	DecompressedSize = 0;
+	DecompressedCharCount = 0;
 
 	int32 InInitialLen = InSrc.Len();
 	// input char array already has a null terminator appended, so can add one less padding char
@@ -66,15 +66,15 @@ void FShaderSource::Compress()
 
 	FOodleDataCompression::ECompressionLevel CompressionLevel = static_cast<FOodleDataCompression::ECompressionLevel>(GShaderSourceCompressionLevel);
 	
-	DecompressedSize = Source.Num();
-	int32 CompressionBufferSize = FOodleDataCompression::CompressedBufferSizeNeeded(DecompressedSize);
+	DecompressedCharCount = Source.Num();
+	int32 CompressionBufferSize = FOodleDataCompression::CompressedBufferSizeNeeded(GetDecompressedSize());
 	SourceCompressed.SetNumUninitialized(CompressionBufferSize);
 
 	int32 CompressedSize = FOodleDataCompression::Compress(
 		SourceCompressed.GetData(), 
 		CompressionBufferSize, 
 		Source.GetData(), 
-		DecompressedSize, 
+		GetDecompressedSize(),
 		Compressor,
 		CompressionLevel);
 
@@ -86,16 +86,16 @@ void FShaderSource::Decompress()
 {
 	if (IsCompressed())
 	{
-		Source.SetNumUninitialized(DecompressedSize);
-		FOodleDataCompression::Decompress(Source.GetData(), DecompressedSize, SourceCompressed.GetData(), SourceCompressed.Num());
+		Source.SetNumUninitialized(DecompressedCharCount);
+		FOodleDataCompression::Decompress(Source.GetData(), GetDecompressedSize(), SourceCompressed.GetData(), SourceCompressed.Num());
 		SourceCompressed.Empty();
-		DecompressedSize = 0;
+		DecompressedCharCount = 0;
 	}
 }
 
 FArchive& operator<<(FArchive& Ar, FShaderSource& Src)
 {
-	Ar << Src.DecompressedSize;
+	Ar << Src.DecompressedCharCount;
 	if (Src.IsCompressed())
 	{
 		Ar << Src.SourceCompressed;

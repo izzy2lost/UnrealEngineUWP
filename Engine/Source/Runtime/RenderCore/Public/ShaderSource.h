@@ -6,6 +6,7 @@
 #include "Containers/Array.h"
 #include "Containers/StringView.h"
 #include "Containers/UnrealString.h"
+#include "Misc/StringBuilder.h"
 
 #define SHADER_SOURCE_ANSI 1
 
@@ -29,7 +30,7 @@ private:
 		FMemory::Memzero(Source.GetData() + Num, sizeof(CharType) * ShaderSourceSimdPadding);
 
 		SourceCompressed.Empty();
-		DecompressedSize = 0;
+		DecompressedCharCount = 0;
 	}
 
 public:
@@ -38,11 +39,17 @@ public:
 	typedef FAnsiStringView FViewType;
 	typedef FAnsiString FStringType;
 	typedef FCStringAnsi FCStringType;
+
+	template <int NumChars>
+	using TStringBuilder = TAnsiStringBuilder<NumChars>;
 #else
 	typedef TCHAR CharType;
 	typedef FStringView FViewType;
 	typedef FString FStringType;
 	typedef FCString FCStringType;
+
+	template <int NumChars>
+	using TStringBuilder = TStringBuilder<NumChars * 2>; // Buffer size for string builder is in bytes, not characters, hence *2
 #endif
 
 	/** Constexpr predicate indicating whether wide or ansi chars are used */
@@ -133,7 +140,12 @@ public:
 
 	inline bool IsCompressed() const
 	{
-		return DecompressedSize != 0; // DecompressedSize member is only set when compression occurs
+		return DecompressedCharCount != 0; // DecompressedCharCount member is only set when compression occurs
+	}
+
+	inline int32 GetDecompressedSize() const
+	{
+		return DecompressedCharCount * sizeof(FShaderSource::CharType);
 	}
 
 	/* FArchive serialization operator. Note this currently serializes padding for simplicity's sake.
@@ -153,6 +165,6 @@ private:
 #endif
 	TArray<CharType> Source;
 	TArray<uint8> SourceCompressed;
-	int32 DecompressedSize = 0;
+	int32 DecompressedCharCount = 0;
 };
 
