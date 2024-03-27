@@ -561,6 +561,14 @@
 			"property": "$.Payload.FailureRate",
 			"function": "Average",
 			"interval": "00:30:00"
+		},
+		{
+			"id": "ubt-completed-duration",
+			"filter": "$[?(@.Payload.EventName == 'Core.UBT.Completed' )]",
+			"groupBy": "$.Payload.Target,$.Payload.Mode,$.Payload.Configuration,$.Payload.Platform",
+			"property": "$.Payload.Duration",
+			"function": "Average",
+			"interval": "00:30:00"
 		}
 	]
 }

@@ -566,10 +566,10 @@
 					]
 				},
 				{
-					"name": "UBA",
+					"name": "UBT",
 					"charts": [
 						{
-							"name": "Compile Duration",
+							"name": "UBA Compile WallTime (Average)",
 							"metrics": [
 								{
 									"id": "ubt-uba-duration"
@@ -577,7 +577,7 @@
 							]
 						},
 						{
-							"name": "Compile Distribution",
+							"name": "UBA Compile Distribution (Average)",
 							"display": "Ratio",
 							"metrics": [
 								{
@@ -591,7 +591,7 @@
 							]
 						},
 						{
-							"name": "Compile Actions (Average)",
+							"name": "UBA Compile Actions (Average)",
 							"display": "Value",
 							"metrics": [
 								{
@@ -609,7 +609,7 @@
 							]
 						},
 						{
-							"name": "Compile Actions (Total)",
+							"name": "UBA Compile Actions (Total)",
 							"display": "Value",
 							"metrics": [
 								{
@@ -627,11 +627,20 @@
 							]
 						},
 						{
-							"name": "Failure Rate",
+							"name": "UBA Failure Rate (Average)",
 							"display": "Ratio",
 							"metrics": [
 								{
 									"id": "ubt-uba-failure-rate"
+
+								}
+							]
+						},
+						{
+							"name": "UBT Wall Time (Average)",
+							"metrics": [
+								{
+									"id": "ubt-completed-duration"
 
 								}
 							]
