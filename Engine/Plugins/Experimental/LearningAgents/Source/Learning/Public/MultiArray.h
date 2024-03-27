@@ -917,7 +917,7 @@ public:
 	/** Implicit cast to TArrayView. */
 	FORCEINLINE operator TArrayView<ElementType, SizeType>() const
 	{
-		return TArrayView(GetData(), Num());
+		return TArrayView<ElementType, SizeType>(GetData(), Num());
 	}
 
 public:
