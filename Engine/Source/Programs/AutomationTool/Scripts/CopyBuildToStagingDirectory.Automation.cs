@@ -984,6 +984,12 @@ namespace AutomationScripts
 					}
 				}
 				SC.MetadataDir = DirectoryReference.Combine(SC.PlatformCookDir, DLCCookedSubDir, "Metadata");
+				if (!DirectoryReference.Exists(SC.MetadataDir))
+				{
+					DirectoryReference DLCMetaDataDir = DirectoryReference.Combine(new DirectoryReference(Params.CookOutputDir), DLCCookedSubDir, "Metadata");
+					Logger.LogInformation($"{SC.MetadataDir} Does not exist. Using alternative dir {DLCMetaDataDir}");
+					SC.MetadataDir = DLCMetaDataDir;
+				}
 			}
 			else
 			{
