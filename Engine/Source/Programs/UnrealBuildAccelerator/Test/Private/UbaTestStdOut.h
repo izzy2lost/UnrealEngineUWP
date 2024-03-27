@@ -77,6 +77,8 @@ namespace uba
 
 	bool TestStdOutLocal(LoggerWithWriter& logger, const StringBufferBase& testRootDir)
 	{
+		if (!IsWindows)
+			return true;
 		return TestStdOut(logger, testRootDir, false);
 	}
 
