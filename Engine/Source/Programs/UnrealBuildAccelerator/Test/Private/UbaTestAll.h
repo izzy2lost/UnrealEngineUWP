@@ -8,6 +8,7 @@
 #include "UbaTestSession.h"
 #include "UbaTestStorage.h"
 #include "UbaTestStress.h"
+#include "UbaTestStdOut.h"
 
 namespace uba
 {
@@ -22,6 +23,7 @@ namespace uba
 		UBA_TEST(TestLocalScheduleReuse) \
 		UBA_TEST(TestDetouredTouch) \
 		UBA_TEST(TestRemoteScheduleReuse) \
+		UBA_TEST(TestStdOutLocal) \
 
 #endif 
 
@@ -81,6 +83,7 @@ namespace uba
 			filter = argv[1];
 
 		//UBA_TEST(TestStress) // This can not be submitted.. it depends on CoordinatorHorde and credentials
+		//UBA_TEST(TestStdOutRemote) // This can not be submitted.. depends on a running UbaAgent
 		UBA_TESTS
 
 		logger.Info(TC("Tests finished successfully!"));

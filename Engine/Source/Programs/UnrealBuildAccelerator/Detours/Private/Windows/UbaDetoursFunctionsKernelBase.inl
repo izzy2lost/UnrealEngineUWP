@@ -324,7 +324,7 @@ BOOL Detoured_WriteConsoleA(HANDLE hConsoleOutput, const VOID* lpBuffer, DWORD n
 BOOL Detoured_WriteConsoleW(HANDLE hConsoleOutput, const VOID* lpBuffer, DWORD nNumberOfCharsToWrite, LPDWORD lpNumberOfCharsWritten, LPVOID lpReserved)
 {
 	DETOURED_CALL(WriteConsoleW);
-	//DEBUG_LOG_DETOURED(L"WriteConsoleW"", L""); // Too much spam
+	//DEBUG_LOG_DETOURED(L"WriteConsoleW", L""); // Too much spam
 	Shared_WriteConsole((const wchar_t*)lpBuffer, nNumberOfCharsToWrite, false);
 	if (lpNumberOfCharsWritten)
 		*lpNumberOfCharsWritten = nNumberOfCharsToWrite;
@@ -565,8 +565,11 @@ BOOL Detoured_WriteFile(HANDLE hFile, LPCVOID lpBuffer, DWORD nNumberOfBytesToWr
 	else if (hFile == g_stdHandle[1] || hFile == g_stdHandle[0])
 	{
 		WriteStdFile(lpBuffer, nNumberOfBytesToWrite, hFile == g_stdHandle[0]);
+		*lpNumberOfBytesWritten = nNumberOfBytesToWrite;
 		SetLastError(ERROR_SUCCESS);
 		return true;
+		//if (GetFileType(trueHandle) != FILE_TYPE_CHAR )
+		//return True_WriteFile(trueHandle, lpBuffer, nNumberOfBytesToWrite, lpNumberOfBytesWritten, lpOverlapped);
 	}
 
 	BOOL res = True_WriteFile(trueHandle, lpBuffer, nNumberOfBytesToWrite, lpNumberOfBytesWritten, lpOverlapped);
@@ -2537,6 +2540,10 @@ BOOL Detoured_CreateProcessW(LPCWSTR lpApplicationName, LPWSTR lpCommandLine, LP
 		}
 	}
 
+	StringBuffer<> application;
+	if (lpApplicationName)
+		FixPath(application, lpApplicationName);
+
 	TString commandLine;
 	TString currentDir;
 	u32 processId = 0;
@@ -2546,7 +2553,7 @@ BOOL Detoured_CreateProcessW(LPCWSTR lpApplicationName, LPWSTR lpCommandLine, LP
 		SCOPED_WRITE_LOCK(g_communicationLock, pcs);
 		BinaryWriter writer;
 		writer.WriteByte(MessageType_CreateProcess);
-		writer.WriteString(lpApplicationName ? lpApplicationName : L"");
+		writer.WriteString(application.data);
 		writer.WriteString(lpCommandLine ? lpCommandLine : L"");
 		writer.WriteString(lpCurrentDirectory ? lpCurrentDirectory : g_virtualWorkingDir.data);
 		writer.Flush();
@@ -2562,7 +2569,7 @@ BOOL Detoured_CreateProcessW(LPCWSTR lpApplicationName, LPWSTR lpCommandLine, LP
 
 		currentDir = reader.ReadString();
 		commandLine = reader.ReadString();
-		DEBUG_LOG_PIPE(L"CreateProcess", L"%ls %ls", lpApplicationName, lpCommandLine ? lpCommandLine : L"");
+		DEBUG_LOG_PIPE(L"CreateProcess", L"%ls %ls", application.data, lpCommandLine ? lpCommandLine : L"");
 	}
 
 	LPCSTR dlls[] = { dll };
@@ -2634,7 +2641,7 @@ BOOL Detoured_CreateProcessW(LPCWSTR lpApplicationName, LPWSTR lpCommandLine, LP
 	detouredHandle->trueHandle = trueHandle;
 	lpProcessInformation->hProcess = makeDetouredHandle(detouredHandle);
 
-	DEBUG_LOG_DETOURED(L"CreateProcessW", L"%llu", u64(lpProcessInformation->hProcess));
+	DEBUG_LOG_DETOURED(L"CreateProcessW", L"%llu (0x%llx)", lpProcessInformation->hProcess, trueHandle);
 	return TRUE;
 }
 
@@ -2715,14 +2722,15 @@ DWORD Detoured_WaitForSingleObjectEx(HANDLE hHandle, DWORD dwMilliseconds, BOOL 
 {
 	DETOURED_CALL(WaitForSingleObjectEx);
 	bool isProcess = false;
+	HANDLE trueHandle = hHandle;
 	if (isDetouredHandle(hHandle))
 	{
 		DetouredHandle& dh = asDetouredHandle(hHandle);
-		hHandle = asDetouredHandle(hHandle).trueHandle;
+		trueHandle = asDetouredHandle(hHandle).trueHandle;
 		isProcess = dh.type == HandleType_Process;
 	}
 
-	auto res = True_WaitForSingleObjectEx(hHandle, dwMilliseconds, bAlertable);
+	auto res = True_WaitForSingleObjectEx(trueHandle, dwMilliseconds, bAlertable);
 
 	if (res != WAIT_OBJECT_0 || !isProcess)
 		return res;
@@ -2732,8 +2740,8 @@ DWORD Detoured_WaitForSingleObjectEx(HANDLE hHandle, DWORD dwMilliseconds, BOOL 
 	{
 		auto lastError = GetLastError();
 		DWORD exitCode;
-		True_GetExitCodeProcess(hHandle, &exitCode);
-		DEBUG_LOG_DETOURED(L"WaitForSingleObjectEx", L"for process %llu. Exit code: %u", uintptr_t(hHandle), exitCode);
+		True_GetExitCodeProcess(trueHandle, &exitCode);
+		DEBUG_LOG_DETOURED(L"WaitForSingleObjectEx", L"for process %llu (0x%llx). Exit code: %u", hHandle, trueHandle, exitCode);
 		SetLastError(lastError);
 	}
 #endif
@@ -3313,6 +3321,15 @@ BOOL Detoured_CreatePipe(PHANDLE hReadPipe, PHANDLE hWritePipe, LPSECURITY_ATTRI
 	DETOURED_CALL(CreatePipe);
 	DEBUG_LOG_TRUE(L"CreatePipe", L"");
 	return True_CreatePipe(hReadPipe, hWritePipe, lpPipeAttributes, nSize);
+}
+
+
+BOOL Detoured_SetHandleInformation(HANDLE hObject, DWORD dwMask, DWORD dwFlags)
+{
+	DETOURED_CALL(SetHandleInformation);
+	DEBUG_LOG_TRUE(L"SetHandleInformation", L"%llu", uintptr_t(hObject));
+	UBA_ASSERT(!isDetouredHandle(hObject));
+	return True_SetHandleInformation(hObject, dwMask, dwFlags);
 }
 
 HANDLE Detoured_CreateNamedPipeW(LPCWSTR lpName, DWORD dwOpenMode, DWORD dwPipeMode, DWORD nMaxInstances, DWORD nOutBufferSize, DWORD nInBufferSize, DWORD nDefaultTimeOut, LPSECURITY_ATTRIBUTES lpSecurityAttributes)

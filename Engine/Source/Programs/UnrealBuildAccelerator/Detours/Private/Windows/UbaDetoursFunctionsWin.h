@@ -251,6 +251,7 @@
 	DETOURED_FUNCTION(CreateWaitableTimerExW) \
 	DETOURED_FUNCTION(CreateIoCompletionPort) \
 	DETOURED_FUNCTION(CreatePipe) \
+	DETOURED_FUNCTION(SetHandleInformation) \
 	DETOURED_FUNCTION(CreateNamedPipeW) \
 	DETOURED_FUNCTION(PeekNamedPipe) \
 	DETOURED_FUNCTION(GetKernelObjectSecurity) \

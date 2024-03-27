@@ -535,11 +535,30 @@ void CloseCaches()
 
 bool g_exitMessageSent;
 
+void SendExitMessage(DWORD exitCode, u64 startTime);
+void OnModuleLoaded(HMODULE moduleHandle, const wchar_t* name);
+
+// Variables used to communicate state from kernelbase functions to ntdll functions
+thread_local const wchar_t* t_renameFileNewName;
+thread_local const wchar_t* t_createFileFileName;
+
+#include "UbaDetoursFunctionsMiMalloc.inl"
+#include "UbaDetoursFunctionsNtDll.inl"
+#include "UbaDetoursFunctionsKernelBase.inl"
+#include "UbaDetoursFunctionsUcrtBase.inl"
+#include "UbaDetoursFunctionsImagehlp.inl"
+#include "UbaDetoursFunctionsDbgHelp.inl"
+
+extern u32 g_consoleStringIndex;
+
 void SendExitMessage(DWORD exitCode, u64 startTime)
 {
 	if (g_exitMessageSent)
 		return;
 	g_exitMessageSent = true;
+
+	if (g_consoleStringIndex)
+		Shared_WriteConsole(L"\n", 1, 0);
 
 	if (g_trackInputsMem)
 	{
@@ -579,19 +598,6 @@ void SendExitMessage(DWORD exitCode, u64 startTime)
 	// the parent might move on before Exit message has been processed on session side
 	writer.Flush(g_isChild);
 }
-
-void OnModuleLoaded(HMODULE moduleHandle, const wchar_t* name);
-
-// Variables used to communicate state from kernelbase functions to ntdll functions
-thread_local const wchar_t* t_renameFileNewName;
-thread_local const wchar_t* t_createFileFileName;
-
-#include "UbaDetoursFunctionsMiMalloc.inl"
-#include "UbaDetoursFunctionsNtDll.inl"
-#include "UbaDetoursFunctionsKernelBase.inl"
-#include "UbaDetoursFunctionsUcrtBase.inl"
-#include "UbaDetoursFunctionsImagehlp.inl"
-#include "UbaDetoursFunctionsDbgHelp.inl"
 
 void DetourAttachFunction(void** trueFunc, void* detouredFunc, const char* funcName)
 {
@@ -814,7 +820,7 @@ void PreInit(const DetoursPayload& payload)
 			FatalError(1349, L"Failed to reserve memory for cl.exe (%u)", GetLastError());
 	}
 
-	// Special link.exe handling.. it seems loading bcrypt.dll can deadlock when using mimalloc so we make sure ti load it here directly instead
+	// Special link.exe handling.. it seems loading bcrypt.dll can deadlock when using mimalloc so we make sure to load it here directly instead
 	// There is a setting to disable bcrypt dll loading inside mimalloc but with that change mimalloc does not work with older versions of windows
 	if (payload.rulesIndex == 2)
 	{

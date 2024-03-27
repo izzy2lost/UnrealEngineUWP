@@ -96,7 +96,7 @@ namespace uba
 			DWORD wasRead = 0;
 			if (!::ReadFile(asHANDLE(fileHandle), buffer, toRead, &wasRead, NULL))
 				if (GetLastError() != ERROR_IO_PENDING)
-					return logger.Error(TC("ERROR reading file %s (error: %s)"), fileName, LastErrorToText().data);
+					return logger.Error(TC("ERROR reading %llu bytes from file %s (error: %s)"), toRead, fileName, LastErrorToText().data);
 #else
 			ssize_t wasRead = read(asFileDescriptor(fileHandle), buffer, toRead);
 			if (wasRead == -1)

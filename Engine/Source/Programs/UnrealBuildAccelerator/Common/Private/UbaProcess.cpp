@@ -727,8 +727,7 @@ namespace uba
 		static bool subreaper = []() { prctl(PR_SET_CHILD_SUBREAPER, 1, 0, 0, 0); return true; }();
 		#endif
 
-		StringBuffer<> application;
-		reader.ReadString(application);
+		TString applicationStr = reader.ReadString();
 		StringBuffer<64*1024*2> fullCommandLine;
 		reader.ReadString(fullCommandLine);
 		StringBuffer<> currentDir;
@@ -746,8 +745,8 @@ namespace uba
 				second = fullCommandLine.data + fullCommandLine.count;
 			//UBA_ASSERTF(second, TC("Missing second '\"' in command line: %s"), fullCommandLine.data); // "Unsupported cmd line format"
 			commandLine = second + 1;
-			if (application.IsEmpty())
-				application.Append(fullCommandLine.data + 1, u64(second - fullCommandLine.data - 1));
+			if (applicationStr.empty())
+				applicationStr.assign(fullCommandLine.data + 1, u64(second - fullCommandLine.data - 1));
 		}
 		else
 		{
@@ -756,9 +755,12 @@ namespace uba
 				commandLine = TC("");
 			else
 				commandLine = secondParamStart + 1;
-			if (application.IsEmpty())
-				application.Append(fullCommandLine.data, u64(secondParamStart - fullCommandLine.data));
+			if (applicationStr.empty())
+				applicationStr.assign(fullCommandLine.data, u64(secondParamStart - fullCommandLine.data));
 		}
+
+		StringBuffer<512> application;
+		FixPath(applicationStr.c_str(), nullptr, 0, application);
 
 		while (*commandLine == ' ')
 			++commandLine;

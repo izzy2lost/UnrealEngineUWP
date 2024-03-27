@@ -181,6 +181,60 @@ int wmain(int argc, wchar_t* argv[])
 
 		return 0;
 	}
+	else if (wcsncmp(argv[1], L"-stdout=", 8) == 0)
+	{
+		const wchar_t* str = argv[1] + 8;
+		if (wcscmp(str, L"rootprocess") == 0)
+		{
+			STARTUPINFOW si;
+			memset(&si, 0, sizeof(si));
+			PROCESS_INFORMATION pi;
+			memset(&pi, 0, sizeof(pi));
+			wchar_t arg[1024];
+			wcscpy_s(arg, 1024, argv[0]);
+			wcscat_s(arg, 1024, L" -stdout=childprocess");
+			//wcscpy_s(arg, 1024, L"\"c:\\sdk\\AutoSDK/HostWin64/Win64/MetalDeveloperTools/4.1/metal/macos/bin/metal.exe\" -v --target=air64-apple-darwin18.7.0 16384");
+
+			SECURITY_ATTRIBUTES saAttr;
+			saAttr.nLength = sizeof(SECURITY_ATTRIBUTES);
+			saAttr.bInheritHandle = TRUE;
+			saAttr.lpSecurityDescriptor = NULL;
+			HANDLE readPipe;
+			HANDLE writePipe;
+			if (!CreatePipe(&readPipe, &writePipe, &saAttr, 0))
+				return 1;
+
+			if (!SetHandleInformation(readPipe, HANDLE_FLAG_INHERIT, 0))
+				return 2;
+
+			si.dwFlags = STARTF_USESTDHANDLES;
+			si.hStdInput = GetStdHandle(STD_INPUT_HANDLE);
+			si.hStdOutput = writePipe;
+			si.hStdError = writePipe;
+
+			DWORD flags = 0;//CREATE_NO_WINDOW;
+			if (!CreateProcessW(nullptr, arg, nullptr, nullptr, TRUE, flags, nullptr, nullptr, &si, &pi))
+				return 3;
+			CloseHandle(pi.hThread);
+			CloseHandle(writePipe);
+
+			char buf[4096] = { 0 };
+			DWORD readCount = 0;
+			if (!::ReadFile(readPipe, buf, sizeof(buf) - 1, &readCount, NULL))
+			{
+				LogError(L"Failed to read pipe %u %u", GetLastError(), readCount);
+				return 4;
+			}
+			buf[readCount] = 0;
+			if (strncmp(buf, "childprocess", 12) != 0)
+				return 5;
+
+			if (WaitForSingleObject(pi.hProcess, INFINITE) != WAIT_OBJECT_0)
+				return 6;
+			CloseHandle(pi.hProcess);
+		}
+		wprintf(L"%s\n", str);
+	}
 	else
 	{
 		using u32 = unsigned int;

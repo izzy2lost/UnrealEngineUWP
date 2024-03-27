@@ -320,7 +320,8 @@ namespace uba
 		{
 			return EndsWith(file, fileLen, TC(".dummy.h"))
 				|| EndsWith(file, fileLen, TC(".ispc.bc"))
-				|| EndsWith(file, fileLen, TC(".ispc.txt"));
+				|| EndsWith(file, fileLen, TC(".ispc.txt"))
+				|| EndsWith(file, fileLen, TC(".obj"));
 		}
 	};
 

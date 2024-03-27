@@ -524,7 +524,9 @@ NTSTATUS NTAPI Shared_NtCreateFile(bool IsCreateFunc, PHANDLE hFileHandle, ACCES
 		}
 		else if (memcmp(buf, L"\\??\\", 8) == 0)
 		{
-			if (!FixPath(fileName, buf + 4))
+			if (g_isRunningWine && StartsWith(buf+4, L"pipe\\")) // This is where CreatePipe on wine ends up
+				suppressCreateFileDetour = true;
+			else if (!FixPath(fileName, buf + 4))
 				UBA_ASSERTF(false, L"FixPath failed for string '%ls'", buf + 4);
 		}
 		else
