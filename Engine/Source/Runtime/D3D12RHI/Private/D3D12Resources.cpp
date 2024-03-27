@@ -998,7 +998,7 @@ void FD3D12Adapter::TraceMemoryAllocation(FD3D12Resource* Resource)
 		const D3D12_RESOURCE_ALLOCATION_INFO Info = Resource->GetParentDevice()->GetResourceAllocationInfo(Resource->GetDesc());
 		D3D12_GPU_VIRTUAL_ADDRESS GPUAddress = Resource->GetGPUVirtualAddress();
 		// Textures don't have valid GPUVirtualAddress when IsTrackingAllAllocations() is false, so don't do memory trace in this case.
-		if (IsTrackingAllAllocations() || GPUAddress != 0)
+		if (IsTrackingAllAllocations() && GPUAddress != 0)
 		{
 			MemoryTrace_Alloc(GPUAddress, Info.SizeInBytes, Info.Alignment, EMemoryTraceRootHeap::VideoMemory);
 		}
