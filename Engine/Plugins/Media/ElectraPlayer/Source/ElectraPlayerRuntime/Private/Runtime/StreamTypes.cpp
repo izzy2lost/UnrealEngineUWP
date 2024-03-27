@@ -366,6 +366,154 @@ namespace Electra
 		}
 	}
 
+	const FString& FStreamCodecInformation::GetHumanReadableCodecName() const
+	{
+		if (HumanReadableCodecName.IsEmpty())
+		{
+			if (!TryConstructHumanReadableCodecName())
+			{
+				HumanReadableCodecName = CodecSpecifier;
+			}
+		}
+		return HumanReadableCodecName;
+	}
+
+	bool FStreamCodecInformation::TryConstructHumanReadableCodecName() const
+	{
+		switch(GetCodec())
+		{
+			case ECodec::H264:
+			{
+				HumanReadableCodecName = TEXT("AVC (H.264)");
+				if (ProfileLevel.Profile == 66)
+				{
+					HumanReadableCodecName.Append(TEXT(", Baseline"));
+				}
+				else if (ProfileLevel.Profile == 77)
+				{
+					HumanReadableCodecName.Append(TEXT(", Main"));
+				}
+				else if (ProfileLevel.Profile == 100)
+				{
+					HumanReadableCodecName.Append(TEXT(", High"));
+				}
+				else
+				{
+					HumanReadableCodecName.Append(TEXT(", Unknown profile"));
+				}
+				HumanReadableCodecName.Append(FString::Printf(TEXT(", level %d.%d"), ProfileLevel.Level/10, ProfileLevel.Level%10));
+				return true;
+			}
+			case ECodec::H265:
+			{
+				HumanReadableCodecName = TEXT("HEVC (H.265)");
+				if (ProfileLevel.Profile == 1)
+				{
+					HumanReadableCodecName.Append(TEXT(", Main"));
+				}
+				else if (ProfileLevel.Profile == 2)
+				{
+					HumanReadableCodecName.Append(TEXT(", Main10"));
+				}
+				else
+				{
+					HumanReadableCodecName.Append(TEXT(", Unknown profile"));
+				}
+				HumanReadableCodecName.Append(FString::Printf(TEXT(", level %d.%d"), ProfileLevel.Level/30, ProfileLevel.Level%30));
+				return true;
+			}
+			case ECodec::Video4CC:
+			{
+				switch(GetCodec4CC())
+				{
+					case Make4CC('v','p','0','8'):
+						HumanReadableCodecName = TEXT("VP8");
+						return true;
+					case Make4CC('v','p','0','9'):
+						HumanReadableCodecName = TEXT("VP9");
+						return true;
+
+					case Make4CC('a','p','c','h'):
+						HumanReadableCodecName = TEXT("Apple ProRes 422 High Quality");
+						return true;
+					case Make4CC('a','p','c','n'):
+						HumanReadableCodecName = TEXT("Apple ProRes 422 Standard Definition");
+						return true;
+					case Make4CC('a','p','c','s'):
+						HumanReadableCodecName = TEXT("Apple ProRes 422 LT");
+						return true;
+					case Make4CC('a','p','c','o'):
+						HumanReadableCodecName = TEXT("Apple ProRes 422 Proxy");
+						return true;
+					case Make4CC('a','p','4','h'):
+						HumanReadableCodecName = TEXT("Apple ProRes 4444");
+						return true;
+
+					case Make4CC('H','a','p','1'):
+						HumanReadableCodecName = TEXT("Hap");
+						return true;
+					case Make4CC('H','a','p','5'):
+						HumanReadableCodecName = TEXT("Hap Alpha");
+						return true;
+					case Make4CC('H','a','p','Y'):
+						HumanReadableCodecName = TEXT("Hap Q");
+						return true;
+					case Make4CC('H','a','p','M'):
+						HumanReadableCodecName = TEXT("Hap Q Alpha");
+						return true;
+					case Make4CC('H','a','p','7'):
+						HumanReadableCodecName = TEXT("Hap R");
+						return true;
+					case Make4CC('H','a','p','H'):
+						HumanReadableCodecName = TEXT("Hap HDR");
+						return true;
+
+					case Make4CC('A','V','d','h'):
+						HumanReadableCodecName = TEXT("Avid DNxHD");
+						return true;
+				}
+				HumanReadableCodecName = Printable4CC(GetCodec4CC());
+				return true;
+			}
+			case ECodec::AAC:
+			{
+				HumanReadableCodecName = TEXT("MPEG AAC");
+				return true;
+			}
+			case ECodec::EAC3:
+			{
+				HumanReadableCodecName = TEXT("Dolby Digital");
+				return true;
+			}
+			case ECodec::Audio4CC:
+			{
+				switch(GetCodec4CC())
+				{
+					case Make4CC('O','p','u','s'):
+						HumanReadableCodecName = TEXT("Opus");
+						return true;
+				}
+				HumanReadableCodecName = Printable4CC(GetCodec4CC());
+				return true;
+			}
+			case ECodec::WebVTT:
+			{
+				HumanReadableCodecName = TEXT("WebVTT");
+				return true;
+			}
+			case ECodec::TTML:
+			{
+				HumanReadableCodecName = TEXT("TTML");
+				return true;
+			}
+			case ECodec::TX3G:
+			{
+				HumanReadableCodecName = TEXT("SRT/TX3G");
+				return true;
+			}
+		}
+		return false;
+	}
 
 
 
@@ -508,7 +656,7 @@ namespace Electra
 		}
 		return true;
 	}
-	
+
 	int32 FCodecSelectionPriorities::GetClassPriority(const FString& CodecSpecifierRFC6381) const
 	{
 		for(auto &CodecClass : ClassPriorities)
@@ -520,7 +668,7 @@ namespace Electra
 		}
 		return -1;
 	}
-	
+
 	int32 FCodecSelectionPriorities::GetStreamPriority(const FString& CodecSpecifierRFC6381) const
 	{
 		for(auto &CodecClass : ClassPriorities)
