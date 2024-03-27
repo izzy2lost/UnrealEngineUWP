@@ -320,15 +320,15 @@ FConstraintsEvaluationGraph& FConstraintsInWorld::GetEvaluationGraph()
 {
 	if (!EvaluationGraph)
 	{
-		EvaluationGraph = MakeShared<FConstraintsEvaluationGraph>(*this);
+		EvaluationGraph = MakeShared<FConstraintsEvaluationGraph>(this);
 	}
 	return *EvaluationGraph;
 }
 
-void FConstraintsInWorld::InvalidateGraph() const
+void FConstraintsInWorld::InvalidateGraph()
 {
 	if (EvaluationGraph)
 	{
-		EvaluationGraph->InvalidateData();
+		EvaluationGraph.Reset();
 	}
 }

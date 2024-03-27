@@ -130,7 +130,7 @@ void FConstraintsEvaluationGraph::Rebuild()
 		});
 		return bIsLHSAPrerexOfRHS;
 	};
-	Algo::StableSort(Nodes, EvaluationOrderPredicate);
+	Algo::Sort(Nodes, EvaluationOrderPredicate);
 
 	// store node index after re-ordering
 	for (int32 NodeIndex = 0; NodeIndex < Nodes.Num(); NodeIndex++)

@@ -30,7 +30,7 @@ public:
 	CONSTRAINTS_API void RemoveConstraints(UWorld* World);
 
 	FConstraintsEvaluationGraph& GetEvaluationGraph();
-	void InvalidateGraph() const;
+	void InvalidateGraph();
 
 private:
 	TSharedPtr<FConstraintsEvaluationGraph> EvaluationGraph = nullptr;
