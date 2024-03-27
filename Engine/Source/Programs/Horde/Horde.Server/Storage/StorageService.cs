@@ -608,9 +608,13 @@ namespace Horde.Server.Storage
 								{
 									await TickBlobAsync(storageClient, blobInfo, cancellationToken);
 								}
+								catch (ObjectNotFoundException ex)
+								{
+									_logger.LogInformation(ex, "Unable to read references for {NamespaceId} blob {BlobId}: {Message}", blobInfo.NamespaceId, blobInfo.Id, ex.Message);
+								}
 								catch (Exception ex)
 								{
-									_logger.LogInformation(ex, "Unable to read references for blob {Locator}: {Message}", blobInfo.Locator, ex.Message);
+									_logger.LogWarning(ex, "Unable to read references for {NamespaceId} blob {BlobId} (key: {ObjectKey}): {Message}", blobInfo.NamespaceId, blobInfo.Id, GetObjectKey(blobInfo.Locator), ex.Message);
 								}
 							}
 						}
@@ -647,6 +651,7 @@ namespace Horde.Server.Storage
 			await _blobCollection.UpdateOneAsync(x => x.Id == blobInfo.Id, Builders<BlobInfo>.Update.Set(x => x.Imports, importInfoIds), null, cancellationToken);
 
 			AddGcCheckRecord(blobInfo.NamespaceId, blobInfo.Id);
+			_logger.LogDebug("Added {Count} imports for {NamespaceId} blob {BlobId}", importInfoIds.Count, blobInfo.NamespaceId, blobInfo.Id);
 		}
 
 		#endregion
@@ -1013,7 +1018,7 @@ namespace Horde.Server.Storage
 							}
 
 							ObjectKey objectKey = GetObjectKey(new BlobLocator(info.Path));
-							_logger.LogDebug("Deleting {NamespaceId} blob {BlobId}, key: {Key} ({ImportCount} imports)", namespaceInfo.Id, blobInfoId, objectKey, info.Imports?.Count ?? 0);
+							_logger.LogDebug("Deleting {NamespaceId} blob {BlobId}, key: {ObjectKey} ({ImportCount} imports)", namespaceInfo.Id, blobInfoId, objectKey, info.Imports?.Count ?? 0);
 							await namespaceInfo.Store.DeleteAsync(objectKey, cancellationToken);
 							numItemsRemoved++;
 						}

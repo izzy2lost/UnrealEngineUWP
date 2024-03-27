@@ -28,7 +28,7 @@ namespace EpicGames.Horde.Compute
 		public abstract ValueTask<int> RecvAsync(Memory<byte> buffer, CancellationToken cancellationToken);
 
 		/// <summary>
-		/// Indicate that all data has been written to the transport layer, and that there will be no more calls to <see cref="SendAsync(ReadOnlySequence{Byte}, CancellationToken)"/>
+		/// Indicate that all data has been read and written to the transport layer, and that there will be no more calls to send/recv
 		/// </summary>
 		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		public abstract ValueTask MarkCompleteAsync(CancellationToken cancellationToken);

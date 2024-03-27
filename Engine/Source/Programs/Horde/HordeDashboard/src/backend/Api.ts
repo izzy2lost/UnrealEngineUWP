@@ -5059,6 +5059,9 @@ export type GetToolSummaryResponse = {
 	/** Name of tool */
 	name: string;
 
+	/** Category of the tool */
+	category?: string;
+
 	/** Description of tool */
 	description: string;
 

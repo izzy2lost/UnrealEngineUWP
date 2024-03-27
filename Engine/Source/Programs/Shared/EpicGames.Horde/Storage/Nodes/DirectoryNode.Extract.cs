@@ -46,15 +46,18 @@ namespace EpicGames.Horde.Storage.Nodes
 		readonly object _lockObject = new object();
 		readonly Stopwatch _timer = Stopwatch.StartNew();
 		readonly IProgress<IExtractStats>? _progress;
+		readonly TimeSpan _frequency;
 		long _lastTotalSize;
+		readonly Queue<double> _rateSamples = new Queue<double>();
 
 		public int Count { get; set; }
 		public long Size { get; set; }
 		public double Rate { get; set; }
 
-		public ExtractStats(IProgress<IExtractStats>? progress)
+		public ExtractStats(IProgress<IExtractStats>? progress, TimeSpan frequency)
 		{
 			_progress = progress;
+			_frequency = frequency;
 		}
 
 		public void Update(int count, long size)
@@ -65,7 +68,7 @@ namespace EpicGames.Horde.Storage.Nodes
 				{
 					Count += count;
 					Size += size;
-					if (_timer.Elapsed > TimeSpan.FromSeconds(5.0))
+					if (_timer.Elapsed > _frequency)
 					{
 						FlushInternal();
 					}
@@ -86,7 +89,13 @@ namespace EpicGames.Horde.Storage.Nodes
 
 		void FlushInternal()
 		{
-			Rate = (Size - _lastTotalSize) / _timer.Elapsed.TotalSeconds;
+			_rateSamples.Enqueue((Size - _lastTotalSize) / _timer.Elapsed.TotalSeconds);
+			while (_rateSamples.Count > Math.Max(1, 10.0 / _frequency.TotalSeconds))
+			{
+				_rateSamples.Dequeue();
+			}
+
+			Rate = _rateSamples.Average();
 			_lastTotalSize = Size;
 
 			_progress!.Report(this);
@@ -272,12 +281,26 @@ namespace EpicGames.Horde.Storage.Nodes
 		/// <param name="progress">Sink for progress updates</param>
 		/// <param name="logger">Logger for output</param>
 		/// <param name="cancellationToken">Cancellation token for the operation</param>
-		public static async Task CopyToDirectoryAsync(this DirectoryNode directoryNode, DirectoryInfo directoryInfo, IProgress<IExtractStats>? progress, ILogger logger, CancellationToken cancellationToken)
+		public static Task CopyToDirectoryAsync(this DirectoryNode directoryNode, DirectoryInfo directoryInfo, IProgress<IExtractStats>? progress, ILogger logger, CancellationToken cancellationToken)
+		{
+			return CopyToDirectoryAsync(directoryNode, directoryInfo, progress, TimeSpan.FromSeconds(5.0), logger, cancellationToken);
+		}
+
+		/// <summary>
+		/// Utility function to allow extracting a packed directory to disk
+		/// </summary>
+		/// <param name="directoryNode">Directory to update</param>
+		/// <param name="directoryInfo">Direcotry to write to</param>
+		/// <param name="progress">Sink for progress updates</param>
+		/// <param name="frequency">Frequency for progress updates</param>
+		/// <param name="logger">Logger for output</param>
+		/// <param name="cancellationToken">Cancellation token for the operation</param>
+		public static async Task CopyToDirectoryAsync(this DirectoryNode directoryNode, DirectoryInfo directoryInfo, IProgress<IExtractStats>? progress, TimeSpan frequency, ILogger logger, CancellationToken cancellationToken)
 		{
 			int numTasks = Math.Min(1 + (int)(directoryNode.Length / (16 * 1024 * 1024)), 16);
 			logger.LogInformation("Splitting read into {NumThreads} threads", numTasks);
 
-			ExtractStats extractStats = new ExtractStats(progress);
+			ExtractStats extractStats = new ExtractStats(progress, frequency);
 			using (CancellationTokenSource cancellationSource = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken))
 			{
 				// Helper method to run a background task and set a cancellation source on error

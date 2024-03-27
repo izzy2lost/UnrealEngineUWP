@@ -44,9 +44,9 @@ namespace Horde.Server.Tools
 		public string Description { get; set; }
 
 		/// <summary>
-		/// Tool id to nest this tool under
+		/// Category for the tool. Will cause the tool to be shown in a different tab in the dashboard.
 		/// </summary>
-		public ToolId? ParentId { get; set; }
+		public string? Category { get; set; }
 
 		/// <summary>
 		/// Whether this tool should be exposed for download on a public endpoint without authentication

@@ -232,7 +232,7 @@ namespace Horde.Server.Streams
 		public string? NotificationChannel { get; set; }
 
 		/// <summary>
-		/// Notification channel filter for this template. Can be Success|Failure|Warnings
+		/// Notification channel filter for this template. Can be a combination of "Success", "Failure" and "Warnings" separated by pipe characters.
 		/// </summary>
 		public string? NotificationChannelFilter { get; set; }
 
@@ -326,7 +326,7 @@ namespace Horde.Server.Streams
 		public string? NotificationChannel { get; set; }
 
 		/// <summary>
-		/// Notification channel filter for this template. Can be Success|Failure|Warnings
+		/// Notification channel filter for this template. Can be a combination of "Success", "Failure" and "Warnings" separated by pipe characters.
 		/// </summary>
 		public string? NotificationChannelFilter { get; set; }
 

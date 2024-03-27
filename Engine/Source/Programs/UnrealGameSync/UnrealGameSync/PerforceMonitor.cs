@@ -17,7 +17,7 @@ namespace UnrealGameSync
 {
 	interface IArchiveInfoSource
 	{
-		IReadOnlyList<IArchiveInfo> AvailableArchives { get; }
+		IReadOnlyList<IArchiveChannel> AvailableArchiveChannels { get; }
 	}
 
 	class PerforceMonitor : IDisposable, IArchiveInfoSource
@@ -45,7 +45,7 @@ namespace UnrealGameSync
 		SortedSet<ChangesRecord> _changes = new SortedSet<ChangesRecord>(new PerforceChangeSorter());
 		readonly SortedDictionary<int, PerforceChangeDetails> _changeDetails = new SortedDictionary<int, PerforceChangeDetails>();
 		readonly SortedSet<int> _promotedChangeNumbers = new SortedSet<int>();
-		List<BaseArchiveInfo> _archives = new List<BaseArchiveInfo>();
+		List<BaseArchiveChannel> _archives = new List<BaseArchiveChannel>();
 		readonly AsyncEvent _refreshEvent = new AsyncEvent();
 		readonly ILogger _logger;
 		readonly bool _isEnterpriseProject;
@@ -89,7 +89,7 @@ namespace UnrealGameSync
 			_cancellationSource = new CancellationTokenSource();
 			_hordeClient = serviceProvider.GetRequiredService<IHordeClient>();
 
-			AvailableArchives = (new List<IArchiveInfo>()).AsReadOnly();
+			AvailableArchiveChannels = (new List<IArchiveChannel>()).AsReadOnly();
 		}
 
 		public void Start()
@@ -316,9 +316,9 @@ namespace UnrealGameSync
 			if (perforceConfigSection != null && perforceConfigSection.GetValue("FindAllChangesForPCBs", false))
 			{
 				int minZippedChangeNumber = -1;
-				foreach (BaseArchiveInfo archive in _archives)
+				foreach (BaseArchiveChannel archive in _archives)
 				{
-					foreach (int changeNumber in archive.ChangeNumberToArchiveKey.Keys)
+					foreach (int changeNumber in archive.ChangeNumberToArchive.Keys)
 					{
 						if (changeNumber > minZippedChangeNumber && changeNumber <= oldestChangeNumber)
 						{
@@ -375,7 +375,7 @@ namespace UnrealGameSync
 						foreach (ChangesRecord change in _changes)
 						{
 							trimmedChanges.Add(change);
-							if (trimmedChanges.Count >= maxChanges && _archives.Any(x => x.ChangeNumberToArchiveKey.Count == 0 || x.ChangeNumberToArchiveKey.ContainsKey(change.Number) || x.ChangeNumberToArchiveKey.First().Key > change.Number))
+							if (trimmedChanges.Count >= maxChanges && _archives.Any(x => x.ChangeNumberToArchive.Count == 0 || x.ChangeNumberToArchive.ContainsKey(change.Number) || x.ChangeNumberToArchive.First().Key > change.Number))
 							{
 								break;
 							}
@@ -495,13 +495,13 @@ namespace UnrealGameSync
 
 		async Task<bool> UpdateArchivesAsync(IPerforceConnection perforce, CancellationToken cancellationToken)
 		{
-			List<BaseArchiveInfo> newArchives = await BaseArchive.EnumerateAsync(perforce, _hordeClient, LatestProjectConfigFile, _selectedProjectIdentifier, cancellationToken);
+			List<BaseArchiveChannel> newArchives = await BaseArchive.EnumerateChannelsAsync(perforce, _hordeClient, LatestProjectConfigFile, _selectedProjectIdentifier, cancellationToken);
 
 			// Check if the information has changed
 			if (!Enumerable.SequenceEqual(_archives, newArchives))
 			{
 				_archives = newArchives;
-				AvailableArchives = _archives.Select(x => (IArchiveInfo)x).ToList();
+				AvailableArchiveChannels = _archives.Select(x => (IArchiveChannel)x).ToList();
 
 				if (_changes.Count > 0)
 				{
@@ -565,7 +565,7 @@ namespace UnrealGameSync
 			private set;
 		}
 
-		public IReadOnlyList<IArchiveInfo> AvailableArchives
+		public IReadOnlyList<IArchiveChannel> AvailableArchiveChannels
 		{
 			get;
 			private set;

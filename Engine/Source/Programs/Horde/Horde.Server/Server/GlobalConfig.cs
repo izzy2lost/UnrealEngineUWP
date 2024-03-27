@@ -5,7 +5,6 @@ using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
 using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
-using System.IO;
 using System.Linq;
 using System.Net;
 using System.Security.Claims;
@@ -318,27 +317,6 @@ namespace Horde.Server.Server
 			{
 				_toolLookup.Add(tool.Id, tool);
 				tool.PostLoad(this);
-			}
-
-			foreach (ToolConfig tool in Tools)
-			{
-				if (tool.ParentId != null)
-				{
-					if (tool.ParentId.Value == tool.Id)
-					{
-						throw new InvalidDataException($"Tool {tool.Id} cannot be parented to itself");
-					}
-
-					ToolConfig? parentToolConfig;
-					if (!_toolLookup.TryGetValue(tool.ParentId.Value, out parentToolConfig))
-					{
-						throw new InvalidDataException($"Tool {tool.Id} has an invalid parent tool id of '{tool.ParentId.Value}'");
-					}
-					else if (parentToolConfig.ParentId != null)
-					{
-						throw new InvalidDataException($"Tool {tool.Id} cannot be nested under two parents ({tool.ParentId.Value} -> {parentToolConfig.ParentId.Value})");
-					}
-				}
 			}
 
 			_computeClusterLookup.Clear();

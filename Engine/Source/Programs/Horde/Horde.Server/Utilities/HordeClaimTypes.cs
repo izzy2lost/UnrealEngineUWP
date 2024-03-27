@@ -1,6 +1,5 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-using System.Linq;
 using System.Security.Claims;
 using EpicGames.Horde.Accounts;
 using EpicGames.Horde.Users;
@@ -138,41 +137,6 @@ namespace Horde.Server.Utilities
 			{
 				return UserId.Parse(idValue);
 			}
-		}
-
-		/// <summary>
-		/// Gets the Horde user name from a principal
-		/// </summary>
-		/// <param name="principal"></param>
-		/// <returns></returns>
-		public static string? GetUserName(this ClaimsPrincipal principal)
-		{
-			return principal.FindFirstValue(HordeClaimTypes.User) ?? principal.FindFirstValue(ClaimTypes.Name);
-		}
-
-		/// <summary>
-		/// Get the email for the given user
-		/// </summary>
-		/// <param name="user">The user to query the email for</param>
-		/// <returns>The user's email address or null if not found</returns>
-		public static string? GetEmail(this ClaimsPrincipal user)
-		{
-			return user.Claims.FirstOrDefault(x => x.Type == ClaimTypes.Email)?.Value;
-		}
-
-		/// <summary>
-		/// Gets the perforce username for the given principal
-		/// </summary>
-		/// <param name="user">The principal to get the Perforce user for</param>
-		/// <returns>Perforce user name</returns>
-		public static string? GetPerforceUser(this ClaimsPrincipal user)
-		{
-			Claim? claim = user.FindFirst(HordeClaimTypes.PerforceUser);
-			if (claim == null)
-			{
-				return null;
-			}
-			return claim.Value;
 		}
 
 		/// <summary>

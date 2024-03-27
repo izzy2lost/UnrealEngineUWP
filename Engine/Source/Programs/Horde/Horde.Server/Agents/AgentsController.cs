@@ -15,6 +15,7 @@ using Horde.Server.Agents.Leases;
 using Horde.Server.Agents.Sessions;
 using Horde.Server.Auditing;
 using Horde.Server.Server;
+using Horde.Server.Users;
 using Horde.Server.Utilities;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -32,15 +33,17 @@ namespace Horde.Server.Agents
 	public class AgentsController : HordeControllerBase
 	{
 		readonly AgentService _agentService;
+		readonly IUserCollection _userCollection;
 		readonly IOptionsSnapshot<GlobalConfig> _globalConfig;
 		readonly ILogger<AgentsController> _logger;
 
 		/// <summary>
 		/// Constructor
 		/// </summary>
-		public AgentsController(AgentService agentService, IOptionsSnapshot<GlobalConfig> globalConfig, ILogger<AgentsController> logger)
+		public AgentsController(AgentService agentService, IUserCollection userCollection, IOptionsSnapshot<GlobalConfig> globalConfig, ILogger<AgentsController> logger)
 		{
 			_agentService = agentService;
+			_userCollection = userCollection;
 			_globalConfig = globalConfig;
 			_logger = logger;
 		}
@@ -197,7 +200,8 @@ namespace Horde.Server.Agents
 
 			List<PoolId>? updatePools = update.Pools?.ConvertAll(x => new PoolId(x));
 
-			string userName = User.GetUserName() ?? "Unknown";
+			IUser? user = await _userCollection.GetUserAsync(User, HttpContext.RequestAborted);
+			string userName = user?.Name ?? "Unknown";
 
 			for (; ; )
 			{

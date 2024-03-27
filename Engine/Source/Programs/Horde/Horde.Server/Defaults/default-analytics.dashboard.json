@@ -70,6 +70,25 @@
 				{
 					"name": "StepName",
 					"group": "StepName"
+				},
+				{
+					"name": "Target",
+					"group": "Target"
+				},
+				{
+					"name": "Mode",
+					"group": "Mode",
+					"defaults": [
+						"Rebuild"
+					]
+				},
+				{
+					"name": "Platform",
+					"group": "Platform"
+				},
+				{
+					"name": "Configuration",
+					"group": "Configuration"
 				}
 			],
 			"categories": [
@@ -544,6 +563,93 @@
 							"metrics": [
 								{
 									"id": "horde-incremental-compile-jobs"
+								}
+							]
+						}	
+					]
+				},
+				{
+					"name": "UBA",
+					"charts": [
+						{
+							"name": "Compile WallTime (Average)",
+							"metrics": [
+								{
+									"id": "ubt-uba-duration"
+								}
+							]
+						},
+						{
+							"name": "Compile Distribution (Average)",
+							"display": "Ratio",
+							"metrics": [
+								{
+									"id": "ubt-uba-remote-usage",
+									"alias": "Remote"
+								},
+								{
+									"id": "ubt-uba-local-usage",
+									"alias": "Local"
+								}
+							]
+						},
+						{
+							"name": "Compile Actions (Average)",
+							"display": "Value",
+							"metrics": [
+								{
+									"id": "ubt-uba-total-actions-avg",
+									"alias": "Total"
+								},
+								{
+									"id": "ubt-uba-remote-actions-avg",
+									"alias": "Remote"
+								},
+								{
+									"id": "ubt-uba-local-actions-avg",
+									"alias": "Local"
+								}
+							]
+						},
+						{
+							"name": "Compile Actions (Total)",
+							"display": "Value",
+							"metrics": [
+								{
+									"id": "ubt-uba-total-actions",
+									"alias": "Total"
+								},
+								{
+									"id": "ubt-uba-remote-actions",
+									"alias": "Remote"
+								},
+								{
+									"id": "ubt-uba-local-actions",
+									"alias": "Local"
+								}
+							]
+						},
+						{
+							"name": "Failure Rate (Average)",
+							"display": "Ratio",
+							"metrics": [
+								{
+									"id": "ubt-uba-failure-rate"
+
+								}
+							]
+						}
+					]
+				},
+				{
+					"name": "UBT",
+					"charts": [
+						{
+							"name": "Wall Time (Average)",
+							"metrics": [
+								{
+									"id": "ubt-completed-duration"
+
 								}
 							]
 						}

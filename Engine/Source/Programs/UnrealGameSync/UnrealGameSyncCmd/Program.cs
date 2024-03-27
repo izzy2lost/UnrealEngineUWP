@@ -869,15 +869,15 @@ namespace UnrealGameSyncCmd
 
 				if (syncOptions.Binaries)
 				{
-					List<BaseArchiveInfo> archives = await BaseArchive.EnumerateAsync(perforceClient, context._hordeClient, projectConfig, state.Current.ProjectIdentifier, CancellationToken.None);
+					List<BaseArchiveChannel> archives = await BaseArchive.EnumerateChannelsAsync(perforceClient, context._hordeClient, projectConfig, state.Current.ProjectIdentifier, CancellationToken.None);
 
-					BaseArchiveInfo? editorArchiveInfo = archives.FirstOrDefault(x => x.Name == IArchiveInfo.EditorArchiveType);
+					BaseArchiveChannel? editorArchiveInfo = archives.FirstOrDefault(x => x.Name == IArchiveChannel.EditorArchiveType);
 					if (editorArchiveInfo == null)
 					{
 						throw new UserErrorException("No editor archives found for project");
 					}
 
-					KeyValuePair<int, string> revision = editorArchiveInfo.ChangeNumberToArchiveKey.LastOrDefault(x => x.Key <= change);
+					KeyValuePair<int, IArchive> revision = editorArchiveInfo.ChangeNumberToArchive.LastOrDefault(x => x.Key <= change);
 					if (revision.Key == 0)
 					{
 						throw new UserErrorException($"No editor archives found for CL {change}");
@@ -907,7 +907,7 @@ namespace UnrealGameSyncCmd
 					}
 
 					updateContext.Options |= WorkspaceUpdateOptions.SyncArchives;
-					updateContext.ArchiveTypeToArchive[IArchiveInfo.EditorArchiveType] = Tuple.Create<IArchiveInfo, string>(editorArchiveInfo, revision.Value);
+					updateContext.ArchiveTypeToArchive[IArchiveChannel.EditorArchiveType] = revision.Value;
 				}
 
 				WorkspaceUpdate update = new WorkspaceUpdate(updateContext);

@@ -916,10 +916,9 @@ namespace Horde.Server.Issues
 			}
 
 			IUser? user = await _userCollection.GetUserAsync(User, cancellationToken);
-
 			if (user == null)
 			{
-				return BadRequest($"Missing user for {User.GetUserName()}");
+				return BadRequest($"Missing user for {User.GetUserId()}");
 			}
 
 			(string? key, string? url) = await _externalIssueService.CreateIssueAsync(user, User.GetExternalIssueUser(), issueRequest.IssueId, issueRequest.Summary, issueRequest.ProjectId, issueRequest.ComponentId, issueRequest.IssueTypeId, issueRequest.Description, issueRequest.HordeIssueLink, cancellationToken);

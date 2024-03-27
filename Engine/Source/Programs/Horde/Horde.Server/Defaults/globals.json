@@ -40,7 +40,7 @@
 //			[
 //				{
 //					// DNS name and port for the server
-//					"serverAndPort": "perforce:1666",
+//					"serverAndPort": "perforce:1666"
 //				}
 //			],
 //

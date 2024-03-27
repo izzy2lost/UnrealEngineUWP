@@ -29,7 +29,7 @@ namespace EpicGames.Horde.Storage
 	/// <summary>
 	/// Exception thrown when an object does not exist
 	/// </summary>
-	public sealed class ObjectNotFoundException : Exception
+	public sealed class ObjectNotFoundException : StorageException
 	{
 		/// <summary>
 		/// Path to the object
@@ -39,8 +39,16 @@ namespace EpicGames.Horde.Storage
 		/// <summary>
 		/// Constructor
 		/// </summary>
-		public ObjectNotFoundException(ObjectKey key)
-			: base($"Object '{key}' was not found")
+		public ObjectNotFoundException(ObjectKey key, Exception? innerException = null)
+			: this(key, $"Object '{key}' was not found", innerException)
+		{
+		}
+
+		/// <summary>
+		/// Constructor
+		/// </summary>
+		public ObjectNotFoundException(ObjectKey key, string message, Exception? innerException = null)
+			: base(message, innerException)
 		{
 			Key = key;
 		}

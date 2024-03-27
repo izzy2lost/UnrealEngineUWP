@@ -3,6 +3,7 @@
 using System;
 using System.Diagnostics.CodeAnalysis;
 using System.Windows.Forms;
+using EpicGames.Core;
 
 namespace UnrealGameSync.Forms
 {
@@ -14,7 +15,7 @@ namespace UnrealGameSync.Forms
 			Font = new System.Drawing.Font("Segoe UI", 8.25F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
 		}
 
-		public static bool Show(string source, string defaultOutputDir, [NotNullWhen(true)] out string? outputDir)
+		public static bool Show(string source, string defaultOutputDir, [NotNullWhen(true)] out DirectoryReference? outputDir)
 		{
 			using DownloadSettingsWindow window = new DownloadSettingsWindow();
 			window.SourceText.Text = source;
@@ -26,7 +27,7 @@ namespace UnrealGameSync.Forms
 				return false;
 			}
 
-			outputDir = window.OutputFolderText.Text;
+			outputDir = new DirectoryReference(window.OutputFolderText.Text);
 			return true;
 		}
 

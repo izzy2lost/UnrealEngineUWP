@@ -197,7 +197,6 @@ namespace UnrealGameSync
 		readonly SynchronizationContext _mainThreadSynchronizationContext;
 		bool _isDisposing;
 
-		//		JupiterMonitor _jupiterMonitor;
 		PerforceMonitor _perforceMonitor;
 		Workspace _workspace;
 #pragma warning disable CA2213 //warning CA2213: 'WorkspaceControl' contains field '_issueMonitor' that is of IDisposable type 'IssueMonitor', but it is never disposed. Change the Dispose method on 'WorkspaceControl' to call Close or Dispose on this field.
@@ -210,7 +209,7 @@ namespace UnrealGameSync
 		HashSet<int> _promotedChangeNumbers = new HashSet<int>();
 		List<int> _listIndexToChangeIndex = new List<int>();
 		List<int> _sortedChangeNumbers = new List<int>();
-		readonly Dictionary<string, Dictionary<int, string?>> _archiveToChangeNumberToArchiveKey = new Dictionary<string, Dictionary<int, string?>>();
+		readonly Dictionary<string, Dictionary<int, IArchive?>> _archiveToChangeNumberToArchiveKey = new Dictionary<string, Dictionary<int, IArchive?>>();
 		readonly Dictionary<int, ChangeLayoutInfo> _changeNumberToLayoutInfo = new Dictionary<int, ChangeLayoutInfo>();
 		readonly List<ContextMenuStrip> _customStatusPanelMenus = new List<ContextMenuStrip>();
 		readonly List<(string, Action<Point, Rectangle>)> _customStatusPanelLinks = new List<(string, Action<Point, Rectangle>)>();
@@ -364,9 +363,6 @@ namespace UnrealGameSync
 			ILogger eventLogger = _serviceProvider.GetRequiredService<ILogger<EventMonitor>>();
 			_eventMonitor = new EventMonitor(_apiUrl, PerforceUtils.GetClientOrDepotDirectoryName(SelectedProjectIdentifier), openProjectInfo.PerforceSettings.UserName, _serviceProvider);
 			_eventMonitor.OnUpdatesReady += UpdateReviewsCallback;
-
-			//			ILogger<JupiterMonitor> jupiterLogger = _serviceProvider.GetRequiredService<ILogger<JupiterMonitor>>();
-			//			_jupiterMonitor = JupiterMonitor.CreateFromConfigFile(inOidcTokenManager, jupiterLogger, openProjectInfo.LatestProjectConfigFile, SelectedProjectIdentifier);
 
 			UpdateColumnSettings(true);
 			Font = new System.Drawing.Font("Segoe UI", 8.25F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point);
@@ -741,11 +737,6 @@ namespace UnrealGameSync
 				_badgeFont.Dispose();
 				_badgeFont = null!;
 			}
-			//			if (_jupiterMonitor != null)
-			//			{
-			//				_jupiterMonitor.Dispose();
-			//				_jupiterMonitor = null!;
-			//			}
 
 			base.Dispose(disposing);
 		}
@@ -909,23 +900,23 @@ namespace UnrealGameSync
 			WorkspaceUpdateContext context = new WorkspaceUpdateContext(changeNumber, options, GetEditorBuildConfig(), combinedSyncFilter, _projectSettings.BuildSteps, null);
 			if (options.HasFlag(WorkspaceUpdateOptions.SyncArchives))
 			{
-				IReadOnlyList<IArchiveInfo> archives = GetArchives();
-				foreach (IArchiveInfo archive in archives)
+				IReadOnlyList<IArchiveChannel> archives = GetArchiveChannels();
+				foreach (IArchiveChannel archive in archives)
 				{
 					context.ArchiveTypeToArchive[archive.Type] = null;
 				}
 
-				List<IArchiveInfo> selectedArchives = GetSelectedArchives(archives);
-				foreach (IArchiveInfo archive in selectedArchives)
+				List<IArchiveChannel> selectedArchiveChannels = GetSelectedArchiveChannels(archives);
+				foreach (IArchiveChannel archiveChannel in selectedArchiveChannels)
 				{
-					string? archivePath = GetArchiveKeyForChangeNumber(archive, changeNumber);
+					IArchive? archivePath = GetArchiveForChangeNumber(archiveChannel, changeNumber);
 					if (archivePath == null)
 					{
-						MessageBox.Show(String.Format("There are no compiled {0} binaries for this change. To sync it, you must disable syncing of precompiled editor binaries.", archive.Name));
+						MessageBox.Show(String.Format("There are no compiled {0} binaries for this change. To sync it, you must disable syncing of precompiled editor binaries.", archiveChannel.Name));
 						return;
 					}
 
-					if (archive.Type == IArchiveInfo.EditorArchiveType)
+					if (archiveChannel.Type == IArchiveChannel.EditorArchiveType)
 					{
 						context.Options &= ~(WorkspaceUpdateOptions.Build | WorkspaceUpdateOptions.GenerateProjectFiles | WorkspaceUpdateOptions.OpenSolutionAfterSync);
 					}
@@ -936,7 +927,7 @@ namespace UnrealGameSync
 						context.SyncFilter.AddRange(zippedBinariesSyncFilter);
 					}
 
-					context.ArchiveTypeToArchive[archive.Type] = new Tuple<IArchiveInfo, string>(archive, archivePath);
+					context.ArchiveTypeToArchive[archiveChannel.Type] = archivePath;
 				}
 			}
 			StartWorkspaceUpdate(context, callback);
@@ -965,8 +956,8 @@ namespace UnrealGameSync
 			{
 				if (!context.Options.HasFlag(WorkspaceUpdateOptions.ContentOnly) && (context.CustomBuildSteps == null || context.CustomBuildSteps.Count == 0))
 				{
-					bool usingPrecompiledEditor = context.ArchiveTypeToArchive.TryGetValue(IArchiveInfo.EditorArchiveType, out Tuple<IArchiveInfo, string>? archiveInfo) && archiveInfo != null;
-					bool usingLastSyncedEditorArchive = archiveInfo != null && archiveInfo.Item2 == _workspace.State.LastSyncEditorArchive;
+					bool usingPrecompiledEditor = context.ArchiveTypeToArchive.TryGetValue(IArchiveChannel.EditorArchiveType, out IArchive? archive) && archive != null;
+					bool usingLastSyncedEditorArchive = archive != null && archive.Key == _workspace.State.LastSyncEditorArchive;
 					if (!usingPrecompiledEditor || !usingLastSyncedEditorArchive)
 					{
 						FileReference targetFile = ConfigUtils.GetEditorTargetFile(_workspace.Project, _workspace.ProjectConfigFile);
@@ -2029,40 +2020,58 @@ namespace UnrealGameSync
 			}
 		}
 
-		private string? GetArchiveKeyForChangeNumber(IArchiveInfo archive, int changeNumber)
+		private IArchive? GetArchiveForChangeNumber(IArchiveChannel archiveChannel, int changeNumber)
 		{
-			Dictionary<int, string?>? changeNumberToArchivePath;
-			if (!_archiveToChangeNumberToArchiveKey.TryGetValue(archive.Name, out changeNumberToArchivePath))
+			Dictionary<int, IArchive?>? changeNumberToArchive;
+			if (!_archiveToChangeNumberToArchiveKey.TryGetValue(archiveChannel.Name, out changeNumberToArchive))
 			{
-				changeNumberToArchivePath = new Dictionary<int, string?>();
-				_archiveToChangeNumberToArchiveKey[archive.Name] = changeNumberToArchivePath;
+				changeNumberToArchive = new Dictionary<int, IArchive?>();
+				_archiveToChangeNumberToArchiveKey[archiveChannel.Name] = changeNumberToArchive;
 			}
-			return GetArchiveKeyForChangeNumber(archive, changeNumber, changeNumber, changeNumberToArchivePath);
+			return GetArchiveForChangeNumber(archiveChannel, changeNumber, changeNumber, changeNumberToArchive);
 		}
 
-		private string? GetArchiveKeyForChangeNumber(IArchiveInfo archive, int changeNumber, int maxChangeNumber, Dictionary<int, string?> changeNumberToArchivePath)
+		private IArchive? GetArchiveForChangeNumber(IArchiveChannel archiveChannel, int changeNumber, int maxChangeNumber, Dictionary<int, IArchive?> changeNumberToArchive)
 		{
-			string? archivePath;
-			if (!changeNumberToArchivePath.TryGetValue(changeNumber, out archivePath))
+			IArchive? archive;
+			if (!changeNumberToArchive.TryGetValue(changeNumber, out archive))
 			{
-				PerforceChangeDetails? details;
-				if (_perforceMonitor.TryGetChangeDetails(changeNumber, out details))
-				{
-					// Try to get the archive for this CL
-					if (!archive.TryGetArchiveKeyForChangeNumber(changeNumber, maxChangeNumber, out archivePath) && !details.ContainsCode)
-					{
-						// Otherwise if it's a content-only change, find the previous build any use the archive path from that
-						int index = _sortedChangeNumbers.BinarySearch(changeNumber);
-						if (index > 0)
-						{
-							archivePath = GetArchiveKeyForChangeNumber(archive, _sortedChangeNumbers[index - 1], maxChangeNumber, changeNumberToArchivePath);
-						}
-					}
-				}
-				changeNumberToArchivePath.Add(changeNumber, archivePath);
+				archive = GetArchiveForChangeNumberUncached(archiveChannel, changeNumber, maxChangeNumber);
+				changeNumberToArchive.Add(changeNumber, archive);
+			}
+			return archive;
+		}
+
+		private IArchive? GetArchiveForChangeNumberUncached(IArchiveChannel archiveChannel, int changeNumber, int maxChangeNumber)
+		{
+			int idx = _sortedChangeNumbers.BinarySearch(changeNumber);
+			if (idx < 0)
+			{
+				return null;
 			}
 
-			return archivePath;
+			PerforceChangeDetails? details;
+			while (idx > 0 && _perforceMonitor.TryGetChangeDetails(_sortedChangeNumbers[idx], out details) && !details.ContainsCode)
+			{
+				idx--;
+			}
+
+			for (; ; )
+			{
+				IArchive? archive = archiveChannel.TryGetArchiveForChangeNumber(_sortedChangeNumbers[idx], maxChangeNumber);
+				if (archive != null)
+				{
+					return archive;
+				}
+
+				idx++;
+				if (idx >= _sortedChangeNumbers.Count 
+					|| !_perforceMonitor.TryGetChangeDetails(_sortedChangeNumbers[idx], out details) 
+					|| details.ContainsCode)
+				{
+					return null;
+				}
+			}
 		}
 
 		private static Color Blend(Color first, Color second, float t)
@@ -2077,8 +2086,8 @@ namespace UnrealGameSync
 				return false;
 			}
 
-			List<IArchiveInfo> selectedArchives = GetSelectedArchives(GetArchives());
-			return selectedArchives.Count == 0 || selectedArchives.All(x => GetArchiveKeyForChangeNumber(x, changeNumber) != null);
+			List<IArchiveChannel> selectedArchives = GetSelectedArchiveChannels(GetArchiveChannels());
+			return selectedArchives.Count == 0 || selectedArchives.All(x => GetArchiveForChangeNumber(x, changeNumber) != null);
 		}
 
 		/// <summary>
@@ -4554,10 +4563,10 @@ namespace UnrealGameSync
 			return null;
 		}
 
-		private List<IArchiveInfo> GetSelectedArchives(IReadOnlyList<IArchiveInfo> archives)
+		private List<IArchiveChannel> GetSelectedArchiveChannels(IReadOnlyList<IArchiveChannel> archives)
 		{
-			Dictionary<string, KeyValuePair<IArchiveInfo, int>> archiveTypeToSelection = new Dictionary<string, KeyValuePair<IArchiveInfo, int>>();
-			foreach (IArchiveInfo archive in archives)
+			Dictionary<string, KeyValuePair<IArchiveChannel, int>> archiveTypeToSelection = new Dictionary<string, KeyValuePair<IArchiveChannel, int>>();
+			foreach (IArchiveChannel archive in archives)
 			{
 				ArchiveSettings? archiveSettings = _settings.Archives.FirstOrDefault(x => x.Type == archive.Type);
 				if (archiveSettings != null && archiveSettings.Enabled)
@@ -4568,10 +4577,10 @@ namespace UnrealGameSync
 						preference = archiveSettings.Order.Count;
 					}
 
-					KeyValuePair<IArchiveInfo, int> existingItem;
+					KeyValuePair<IArchiveChannel, int> existingItem;
 					if (!archiveTypeToSelection.TryGetValue(archive.Type, out existingItem) || existingItem.Value > preference)
 					{
-						archiveTypeToSelection[archive.Type] = new KeyValuePair<IArchiveInfo, int>(archive, preference);
+						archiveTypeToSelection[archive.Type] = new KeyValuePair<IArchiveChannel, int>(archive, preference);
 					}
 				}
 			}
@@ -4589,7 +4598,7 @@ namespace UnrealGameSync
 			UpdateSelectedArchives();
 		}
 
-		private void SetSelectedArchive(IArchiveInfo archive, bool selected)
+		private void SetSelectedArchive(IArchiveChannel archive, bool selected)
 		{
 			ArchiveSettings? archiveSettings = _settings.Archives.FirstOrDefault(x => x.Type == archive.Type);
 			if (archiveSettings == null)
@@ -4627,8 +4636,8 @@ namespace UnrealGameSync
 
 			OptionsContextMenu_SyncPrecompiledBinaries.DropDownItems.Clear();
 
-			IReadOnlyList<IArchiveInfo> archives = GetArchives();
-			if (archives == null || archives.Count == 0)
+			IReadOnlyList<IArchiveChannel> channels = GetArchiveChannels();
+			if (channels == null || channels.Count == 0)
 			{
 				OptionsContextMenu_SyncPrecompiledBinaries.Enabled = false;
 				OptionsContextMenu_SyncPrecompiledBinaries.ToolTipText = String.Format("Precompiled binaries are not available for {0}", SelectedProjectIdentifier);
@@ -4636,13 +4645,13 @@ namespace UnrealGameSync
 			}
 			else
 			{
-				List<IArchiveInfo> selectedArchives = GetSelectedArchives(archives);
+				List<IArchiveChannel> selectedArchives = GetSelectedArchiveChannels(channels);
 
 				OptionsContextMenu_SyncPrecompiledBinaries.Enabled = true;
 				OptionsContextMenu_SyncPrecompiledBinaries.ToolTipText = null;
 				OptionsContextMenu_SyncPrecompiledBinaries.Checked = selectedArchives.Count > 0;
 
-				if (archives.Count > 1 || archives[0].Type != IArchiveInfo.EditorArchiveType)
+				if (channels.Count > 1 || channels[0].Type != IArchiveChannel.EditorArchiveType)
 				{
 					ToolStripMenuItem disableItem = new ToolStripMenuItem("Disable (compile locally)");
 					disableItem.Checked = (selectedArchives.Count == 0);
@@ -4652,16 +4661,13 @@ namespace UnrealGameSync
 					ToolStripSeparator separator = new ToolStripSeparator();
 					OptionsContextMenu_SyncPrecompiledBinaries.DropDownItems.Add(separator);
 
-					foreach (IArchiveInfo archive in archives)
+					foreach (IArchiveChannel channel in channels)
 					{
-						ToolStripMenuItem item = new ToolStripMenuItem(archive.Name);
-						item.Enabled = archive.Exists();
-						if (!item.Enabled)
-						{
-							item.ToolTipText = String.Format("No valid archives found at {0}", archive.BasePath);
-						}
-						item.Checked = selectedArchives.Contains(archive);
-						item.Click += (sender, args) => SetSelectedArchive(archive, !item.Checked);
+						ToolStripMenuItem item = new ToolStripMenuItem(channel.Name);
+						item.Enabled = channel.HasAny();
+						item.ToolTipText = channel.ToolTip;
+						item.Checked = selectedArchives.Contains(channel);
+						item.Click += (sender, args) => SetSelectedArchive(channel, !item.Checked);
 						OptionsContextMenu_SyncPrecompiledBinaries.DropDownItems.Add(item);
 					}
 				}
@@ -4683,21 +4689,14 @@ namespace UnrealGameSync
 			OptionsContextMenu.Show(OptionsButton, new Point(OptionsButton.Width - OptionsContextMenu.Size.Width, OptionsButton.Height));
 		}
 
-		private IReadOnlyList<IArchiveInfo> GetArchives()
+		private IReadOnlyList<IArchiveChannel> GetArchiveChannels()
 		{
-			//			IReadOnlyList<IArchiveInfo>? availableArchives = _jupiterMonitor?.AvailableArchives;
-			//			if (availableArchives != null && availableArchives.Count != 0)
-			//			{
-			//				return availableArchives;
-			//			}
-
-			// if jupiter had no archives we fallback to the perforce monitor
 			if (_perforceMonitor != null)
 			{
-				return _perforceMonitor.AvailableArchives;
+				return _perforceMonitor.AvailableArchiveChannels;
 			}
 
-			return new List<IArchiveInfo>();
+			return new List<IArchiveChannel>();
 		}
 
 		private void BuildAfterSyncCheckBox_CheckedChanged(object sender, EventArgs e)
@@ -5686,7 +5685,7 @@ namespace UnrealGameSync
 			}
 		}
 
-		private bool ShouldSyncPrecompiledEditor => _settings.Archives.Any(x => x.Enabled && x.Type == IArchiveInfo.EditorArchiveType) && GetArchives().Any(x => x.Type == "Editor");
+		private bool ShouldSyncPrecompiledEditor => _settings.Archives.Any(x => x.Enabled && x.Type == IArchiveChannel.EditorArchiveType) && GetArchiveChannels().Any(x => x.Type == "Editor");
 
 		public BuildConfig GetEditorBuildConfig()
 		{
@@ -5723,7 +5722,7 @@ namespace UnrealGameSync
 		{
 			if (OptionsContextMenu_SyncPrecompiledBinaries.DropDownItems.Count == 0)
 			{
-				IArchiveInfo? editorArchive = GetArchives().FirstOrDefault(x => x.Type == IArchiveInfo.EditorArchiveType);
+				IArchiveChannel? editorArchive = GetArchiveChannels().FirstOrDefault(x => x.Type == IArchiveChannel.EditorArchiveType);
 				if (editorArchive != null)
 				{
 					SetSelectedArchive(editorArchive, !OptionsContextMenu_SyncPrecompiledBinaries.Checked);
