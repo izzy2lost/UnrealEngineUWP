@@ -95,72 +95,68 @@ LUMEN_HARDWARE_RAY_TRACING_ENTRY(LumenSceneDirectLightingHardwareRayTracing)
 	uint ShadowTraceIndexOffset = DispatchThreadIndex.x % 64;
 	uint ShadowTraceGroup = DispatchThreadIndex.y;
 	uint ShadowTraceIndex = ShadowTraceGroup * 64 + ShadowTraceIndexOffset;
-	FShadowTrace ShadowTrace = UnpackShadowTrace(ShadowTraces[ShadowTraceIndex]);
-	uint2 CoordInCardTile = ShadowTrace.LightTileCoord;	
-	const FLightTileForShadowMaskPass LightTile = UnpackLightTileForShadowMaskPass(LightTiles[ShadowTrace.LightTileIndex]);
 
-	if (LightTile.ViewIndex == ViewIndex)
+	if (ShadowTraceIndex < ShadowTraceAllocator[0])
 	{
-		uint2 TexelInCardPageCoord = LightTile.TileCoord * CARD_TILE_SIZE + CoordInCardTile;
+		FShadowTrace ShadowTrace = UnpackShadowTrace(ShadowTraces[ShadowTraceIndex]);
+		uint2 CoordInCardTile = ShadowTrace.LightTileCoord;	
+		const FLightTileForShadowMaskPass LightTile = UnpackLightTileForShadowMaskPass(LightTiles[ShadowTrace.LightTileIndex]);
 
-		const FLumenLight LumenLight = LoadLumenLight(LightTile.LightIndex, DFHackToFloat(PrimaryView.PreViewTranslation), PrimaryView.PreExposure);
-
-		if (all(CoordInCardTile < CARD_TILE_SIZE))
+		if (LightTile.ViewIndex == ViewIndex)
 		{
-			FShadowMaskRay ShadowMaskRay;
-			ReadShadowMaskRayRW(ShadowTrace.LightTileIndex, CoordInCardTile, ShadowMaskRay);
+			uint2 TexelInCardPageCoord = LightTile.TileCoord * CARD_TILE_SIZE + CoordInCardTile;
 
-			// Trace visibility ray
-			if (!ShadowMaskRay.bShadowFactorComplete)
+			const FLumenLight LumenLight = LoadLumenLight(LightTile.LightIndex, DFHackToFloat(PrimaryView.PreViewTranslation), PrimaryView.PreExposure);
+
+			if (all(CoordInCardTile < CARD_TILE_SIZE))
 			{
-				FLumenCardPageData CardPage = GetLumenCardPageData(LightTile.CardPageIndex);
-				FLumenCardData Card = GetLumenCardData(CardPage.CardIndex);
-				float2 AtlasUV = CardPage.PhysicalAtlasUVRect.xy + CardPage.PhysicalAtlasUVTexelScale * (TexelInCardPageCoord + 0.5f);
-				float2 CardUV = CardPage.CardUVRect.xy + CardPage.CardUVTexelScale * (TexelInCardPageCoord + 0.5f);
+				FShadowMaskRay ShadowMaskRay;
+				ReadShadowMaskRayRW(ShadowTrace.LightTileIndex, CoordInCardTile, ShadowMaskRay);
 
-				FLumenSurfaceCacheData SurfaceCacheData = GetSurfaceCacheData(Card, CardUV, AtlasUV);
-
-				float3 WorldPosition = SurfaceCacheData.WorldPosition;
-				float3 WorldNormal = SurfaceCacheData.WorldNormal;
-				float3 TranslatedWorldPosition = WorldPosition + DFHackToFloat(PrimaryView.PreViewTranslation); // LUMEN_LWC_TODO
-
-				float3 L = LumenLight.DeferredLightData.Direction;
-				float3 ToLight = L;
-				float NearFieldTMax = MaxTraceDistance;
-				float FarFieldTMax = FarFieldMaxTraceDistance;
-
-				if (LumenLight.Type != LIGHT_TYPE_DIRECTIONAL)
+				// Trace visibility ray
+				if (!ShadowMaskRay.bShadowFactorComplete)
 				{
-					ToLight = LumenLight.DeferredLightData.TranslatedWorldPosition - TranslatedWorldPosition;
-					float LengthToLight = length(ToLight);
-					NearFieldTMax = min(NearFieldTMax, LengthToLight);
-					FarFieldTMax = min(FarFieldTMax, LengthToLight);
-					L = normalize(ToLight);
-				}
+					FLumenCardPageData CardPage = GetLumenCardPageData(LightTile.CardPageIndex);
+					FLumenCardData Card = GetLumenCardData(CardPage.CardIndex);
+					float2 AtlasUV = CardPage.PhysicalAtlasUVRect.xy + CardPage.PhysicalAtlasUVTexelScale * (TexelInCardPageCoord + 0.5f);
+					float2 CardUV = CardPage.CardUVRect.xy + CardPage.CardUVTexelScale * (TexelInCardPageCoord + 0.5f);
 
-				FRayDesc Ray;
-				const float2 RandSample = 0.5;
+					FLumenSurfaceCacheData SurfaceCacheData = GetSurfaceCacheData(Card, CardUV, AtlasUV);
 
-#if 0
-				bool bIsValid = GenerateOcclusionRay(LumenLight.Type, LightParameters, WorldPosition, WorldNormal, RandSample,
-					Ray.Origin, Ray.Direction, Ray.TMin, Ray.TMax);
-#else
+					float3 WorldPosition = SurfaceCacheData.WorldPosition;
+					float3 WorldNormal = SurfaceCacheData.WorldNormal;
+					float3 TranslatedWorldPosition = WorldPosition + DFHackToFloat(PrimaryView.PreViewTranslation); // LUMEN_LWC_TODO
 
-				float ReceiverBias = 0.0f;
-				#if !ENABLE_HEIGHTFIELD_PROJECTION_BIAS
-				if (Card.bHeightfield)
-				{
-					ReceiverBias = CalculateDistanceBasedHeightfieldBias(HeightfieldShadowReceiverBias, TranslatedWorldPosition, PrimaryView.TranslatedWorldCameraOrigin);
-				}
-				#endif
+					float3 L = LumenLight.DeferredLightData.Direction;
+					float3 ToLight = L;
+					float NearFieldTMax = MaxTraceDistance;
+					float FarFieldTMax = FarFieldMaxTraceDistance;
 
-				Ray.Origin = GetCardWorldPositionForShadowing(TranslatedWorldPosition, L, WorldNormal, HardwareRayTracingShadowRayBias + ReceiverBias);
-				Ray.Direction = L;
-#endif
-				Ray.TMin = 0;
-				Ray.TMax = NearFieldTMax;
+					if (LumenLight.Type != LIGHT_TYPE_DIRECTIONAL)
+					{
+						ToLight = LumenLight.DeferredLightData.TranslatedWorldPosition - TranslatedWorldPosition;
+						float LengthToLight = length(ToLight);
+						NearFieldTMax = min(NearFieldTMax, LengthToLight);
+						FarFieldTMax = min(FarFieldTMax, LengthToLight);
+						L = normalize(ToLight);
+					}
 
-				{
+					FRayDesc Ray;
+					const float2 RandSample = 0.5;
+
+					float ReceiverBias = 0.0f;
+					#if !ENABLE_HEIGHTFIELD_PROJECTION_BIAS
+					if (Card.bHeightfield)
+					{
+						ReceiverBias = CalculateDistanceBasedHeightfieldBias(HeightfieldShadowReceiverBias, TranslatedWorldPosition, PrimaryView.TranslatedWorldCameraOrigin);
+					}
+					#endif
+
+					Ray.Origin = GetCardWorldPositionForShadowing(TranslatedWorldPosition, L, WorldNormal, HardwareRayTracingShadowRayBias + ReceiverBias);
+					Ray.Direction = L;
+					Ray.TMin = 0;
+					Ray.TMax = NearFieldTMax;
+
 					FRayCone RayCone = (FRayCone)0;
 
 					FRayTracedLightingContext Context = CreateRayTracedLightingContext(
@@ -175,14 +171,16 @@ LUMEN_HARDWARE_RAY_TRACING_ENTRY(LumenSceneDirectLightingHardwareRayTracing)
 					// Shadows don't need closest hit distance
 					Context.bAcceptFirstHitAndEndSearch = true;
 
-#if LUMEN_HARDWARE_INLINE_RAYTRACING
-					Context.HitGroupData = HitGroupData;
-					Context.RayTracingSceneMetadata = RayTracingSceneMetadata;
-#endif // LUMEN_HARDWARE_INLINE_RAYTRACING
+					#if LUMEN_HARDWARE_INLINE_RAYTRACING
+					{
+						Context.HitGroupData = HitGroupData;
+						Context.RayTracingSceneMetadata = RayTracingSceneMetadata;
+					}
+					#endif
 
 					bool bRayOccluded = false;
 
-#if ENABLE_FAR_FIELD_TRACING
+					#if ENABLE_FAR_FIELD_TRACING
 					{
 						Context.bSkipClosestHitShader = true;
 						Context.FarFieldReferencePos = FarFieldReferencePos;
@@ -193,10 +191,10 @@ LUMEN_HARDWARE_RAY_TRACING_ENTRY(LumenSceneDirectLightingHardwareRayTracing)
 
 						Context.bSkipClosestHitShader = false;
 					}
-#endif // ENABLE_FAR_FIELD_TRACING
+					#endif
 
-#if ENABLE_HEIGHTFIELD_PROJECTION_BIAS
 					// Find the heightfield intersection that corresponds to the given card position.
+					#if ENABLE_HEIGHTFIELD_PROJECTION_BIAS
 					if (Card.bHeightfield && !bRayOccluded)
 					{
 						float SearchRadius = HeightfieldProjectionBiasSearchRadius;
@@ -217,7 +215,7 @@ LUMEN_HARDWARE_RAY_TRACING_ENTRY(LumenSceneDirectLightingHardwareRayTracing)
 							Ray.Origin = ProjectedRay.Origin + ProjectedRay.Direction * SearchResult.HitT + SearchResult.HitNormal * Epsilon;
 						}
 					}
-#endif // ENABLE_HEIGHTFIELD_PROJECTION_BIAS
+					#endif
 
 					if (!bRayOccluded)
 					{						
