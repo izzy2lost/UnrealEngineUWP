@@ -1221,6 +1221,10 @@ public:
 	ENGINE_API void SetSelectedEditorMaterial(int32 NewSelectedEditorMaterial);
 
 #endif // WITH_EDITOR
+
+	/** Function returns whether Nanite should be used to render and skin this mesh. */
+	ENGINE_API virtual bool ShouldNaniteSkin();
+
 	/**
 	 * Function returns whether or not CPU skinning should be applied
 	 * Allows the editor to override the skinning state for editor tools

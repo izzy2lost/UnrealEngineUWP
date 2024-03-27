@@ -15,6 +15,7 @@
 #include "SceneInterface.h"
 #include "SkeletalRenderCPUSkin.h"
 #include "SkeletalRenderGPUSkin.h"
+#include "SkeletalRenderNanite.h"
 #include "SkeletalRenderStatic.h"
 #include "Animation/AnimStats.h"
 #include "SkeletalMeshDeformerHelpers.h"
@@ -44,6 +45,7 @@
 #include "Rendering/RenderCommandPipes.h"
 #include "Rendering/NaniteResources.h"
 #include "ProfilingDebugging/AssetMetadataTrace.h"
+#include "NaniteSceneProxy.h"
 
 DEFINE_LOG_CATEGORY_STATIC(LogSkinnedMeshComp, Log, All);
 
@@ -512,7 +514,15 @@ void USkinnedMeshComponent::UpdateMorphMaterialUsageOnProxy()
 	}
 
 	// If no morph targets are active, then this function needs to know that as well.
-	static_cast<FSkeletalMeshSceneProxy*>(SceneProxy)->UpdateMorphMaterialUsage_GameThread(MaterialUsingMorphTarget);
+	if (SceneProxy->IsNaniteMesh())
+	{
+		// Nanite::FSkinnedSceneProxy
+		// TODO: Nanite-Skinning
+	}
+	else
+	{
+		static_cast<FSkeletalMeshSceneProxy*>(SceneProxy)->UpdateMorphMaterialUsage_GameThread(MaterialUsingMorphTarget);
+	}
 }
 
 
@@ -531,7 +541,7 @@ FPrimitiveSceneProxy* USkinnedMeshComponent::CreateSceneProxy()
 {
 	LLM_SCOPE(ELLMTag::SkeletalMesh);
 	ERHIFeatureLevel::Type SceneFeatureLevel = GetWorld()->GetFeatureLevel();
-	FSkeletalMeshSceneProxy* Result = nullptr;
+	FPrimitiveSceneProxy* Result = nullptr;
 	FSkeletalMeshRenderData* SkelMeshRenderData = GetSkeletalMeshRenderData();
 
 	if (CheckPSOPrecachingAndBoostPriority() && GetPSOPrecacheProxyCreationStrategy() == EPSOPrecacheProxyCreationStrategy::DelayUntilPSOPrecached)
@@ -552,7 +562,14 @@ FPrimitiveSceneProxy* USkinnedMeshComponent::CreateSceneProxy()
 		int32 MaxSupportedNumBones = MeshObject->IsCPUSkinned() ? MAX_int32 : FGPUBaseSkinVertexFactory::GetMaxGPUSkinBones();
 		if (MaxBonesPerChunk <= MaxSupportedNumBones)
 		{
-			Result = ::new FSkeletalMeshSceneProxy(this, SkelMeshRenderData);
+			if (ShouldNaniteSkin())
+			{
+				Result = ::new Nanite::FSkinnedSceneProxy(this, SkelMeshRenderData);
+			}
+			else
+			{
+				Result = ::new FSkeletalMeshSceneProxy(this, SkelMeshRenderData);
+			}
 		}
 	}
 
@@ -605,6 +622,8 @@ void USkinnedMeshComponent::CollectPSOPrecacheData(const FPSOPrecacheParams& Bas
 	{
 		return;
 	}
+
+	// TODO: Nanite-Skinning
 
 	ERHIFeatureLevel::Type FeatureLevel = GetWorld() ? GetWorld()->GetFeatureLevel() : GMaxRHIFeatureLevel;
 	int32 MinLODIndex = ComputeMinLOD();
@@ -976,7 +995,12 @@ void USkinnedMeshComponent::CreateRenderState_Concurrent(FRegisterComponentConte
 				if (!MeshObject)
 				{
 					// Also check if skeletal mesh has too many bones/chunk for GPU skinning.
-					if (bRenderStatic)
+					if (ShouldNaniteSkin())
+					{
+						// TODO: Nanite-Skinning, do we need to allow falling back to CPU skinning for certain editor tools?
+						MeshObject = ::new FSkeletalMeshObjectNanite(this, SkelMeshRenderData, SceneFeatureLevel);
+					}
+					else if (bRenderStatic)
 					{
 						// GPU skin vertex buffer + LocalVertexFactory
 						MeshObject = ::new FSkeletalMeshObjectStatic(this, SkelMeshRenderData, SceneFeatureLevel);
@@ -1543,6 +1567,12 @@ TArray<FName> USkinnedMeshComponent::GetMaterialSlotNames() const
 bool USkinnedMeshComponent::IsMaterialSlotNameValid(FName MaterialSlotName) const
 {
 	return GetMaterialIndex(MaterialSlotName) >= 0;
+}
+
+bool USkinnedMeshComponent::ShouldNaniteSkin()
+{
+	const EShaderPlatform ShaderPlatform = GetScene() ? GetScene()->GetShaderPlatform() : GMaxRHIShaderPlatform;
+	return UseNanite(ShaderPlatform) && HasValidNaniteData();
 }
 
 bool USkinnedMeshComponent::ShouldCPUSkin()

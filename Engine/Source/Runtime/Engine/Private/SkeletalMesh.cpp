@@ -6510,15 +6510,15 @@ void FSkeletalMeshSceneProxy::DrawStaticElements(FStaticPrimitiveDrawInterface* 
 					const FSectionElementInfo& SectionElementInfo = Iter.GetSectionElementInfo();
 					const FVertexFactory* VertexFactory = MeshObject->GetSkinVertexFactory(nullptr, LODIndex, SectionIndex);
 				
+					if (!VertexFactory)
+					{
+						// Hide this part
+						continue;
+					}
+
 					// If hidden skip the draw
 					if (MeshObject->IsMaterialHidden(LODIndex, SectionElementInfo.UseMaterialIndex))
 					{
-						continue;
-					}
-					
-					if (!VertexFactory)
-					{
-						// hide this part
 						continue;
 					}
 
@@ -6533,7 +6533,7 @@ void FSkeletalMeshSceneProxy::DrawStaticElements(FStaticPrimitiveDrawInterface* 
 					FMeshBatch MeshElement;
 					FMeshBatchElement& BatchElement = MeshElement.Elements[0];
 					MeshElement.DepthPriorityGroup = PrimitiveDPG;
-					MeshElement.VertexFactory = MeshObject->GetSkinVertexFactory(nullptr, LODIndex, SectionIndex);
+					MeshElement.VertexFactory = VertexFactory;
 					MeshElement.MaterialRenderProxy = SectionElementInfo.Material->GetRenderProxy();
 					MeshElement.ReverseCulling = IsLocalToWorldDeterminantNegative();
 					MeshElement.CastShadow = SectionElementInfo.bEnableShadowCasting;
@@ -6901,7 +6901,7 @@ void FSkeletalMeshSceneProxy::GetDynamicElementsSection(const TArray<const FScen
 			}
 
 			const int32 NumVertices = Section.GetNumVertices();
-			INC_DWORD_STAT_BY(STAT_GPUSkinVertices,(uint32)(bIsCPUSkinned ? 0 : NumVertices));
+			INC_DWORD_STAT_BY(STAT_GPUSkinVertices,(uint32)(bIsCPUSkinned ? 0 : NumVertices)); // TODO: Nanite-Skinning
 			INC_DWORD_STAT_BY(STAT_SkelMeshTriangles,Mesh.GetNumPrimitives());
 			INC_DWORD_STAT(STAT_SkelMeshDrawCalls);
 

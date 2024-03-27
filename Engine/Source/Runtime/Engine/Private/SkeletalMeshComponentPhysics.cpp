@@ -253,8 +253,9 @@ void USkeletalMeshComponent::OnComponentCollisionSettingsChanged(bool bUpdateOve
 		}
 	}
 
-	if (SceneProxy)
+	if (SceneProxy && !SceneProxy->IsNaniteMesh())
 	{
+		// TODO: Nanite-Skinning
 		((FSkeletalMeshSceneProxy*)SceneProxy)->SetCollisionEnabled_GameThread(IsCollisionEnabled());
 	}
 

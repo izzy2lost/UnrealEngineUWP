@@ -369,13 +369,13 @@ public:
 	ENGINE_API virtual void PreGDMECallback(FRHICommandList& RHICmdList, FGPUSkinCache* GPUSkinCache, uint32 FrameNumber) override;
 	ENGINE_API virtual const FVertexFactory* GetSkinVertexFactory(const FSceneView* View, int32 LODIndex,int32 ChunkIdx, ESkinVertexFactoryMode VFMode = ESkinVertexFactoryMode::Default) const override;
 	ENGINE_API virtual const FSkinBatchVertexFactoryUserData* GetVertexFactoryUserData(const int32 LODIndex, int32 ChunkIdx, ESkinVertexFactoryMode VFMode) const override;
-	virtual bool IsCPUSkinned() const override { return false; }
-	virtual bool IsGPUSkinMesh() const override { return true; }
 	ENGINE_API virtual TArray<FTransform>* GetComponentSpaceTransforms() const override;
 	ENGINE_API virtual const TArray<FMatrix44f>& GetReferenceToLocalMatrices() const override;
 	ENGINE_API virtual bool GetCachedGeometry(FCachedGeometry& OutCachedGeometry) const override;
 	
 	ENGINE_API FMeshDeformerGeometry& GetDeformerGeometry(int32 LODIndex);
+
+	virtual bool IsGPUSkinMesh() const override { return true; }
 
 #if RHI_RAYTRACING
 	/** Geometry for ray tracing. */

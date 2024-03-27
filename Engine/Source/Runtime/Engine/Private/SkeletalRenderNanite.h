@@ -1,0 +1,122 @@
+// Copyright Epic Games, Inc. All Rights Reserved.
+
+#pragma once
+
+#include "CoreMinimal.h"
+#include "ProfilingDebugging/ResourceSize.h"
+#include "RenderResource.h"
+#include "RayTracingGeometry.h"
+#include "ShaderParameters.h"
+#include "Components/ExternalMorphSet.h"
+#include "Components/SkinnedMeshComponent.h"
+#include "GlobalShader.h"
+#include "SkeletalRenderPublic.h"
+#include "ClothingSystemRuntimeTypes.h"
+#include "Rendering/SkeletalMeshRenderData.h"
+#include "Rendering/SkeletalMeshLODRenderData.h"
+#include "Animation/MeshDeformerGeometry.h"
+
+class FPrimitiveDrawInterface;
+class UMorphTarget;
+
+/** 
+* Stores the updated matrices needed to skin the verts.
+* Created by the game thread and sent to the rendering thread as an update 
+*/
+class FDynamicSkelMeshObjectDataNanite
+{
+public:
+	ENGINE_API FDynamicSkelMeshObjectDataNanite(
+		USkinnedMeshComponent* InComponent,
+		FSkeletalMeshRenderData* InRenderData,
+		int32 InLODIndex
+	);
+
+	ENGINE_API virtual ~FDynamicSkelMeshObjectDataNanite();
+
+	// Reference pose to local space transforms
+	TArray<FMatrix44f> ReferenceToLocal;
+
+#if !(UE_BUILD_SHIPPING || UE_BUILD_TEST) 
+	// Component space bone transforms
+	TArray<FTransform> ComponentSpaceTransforms;
+#endif
+
+	// Current LOD for bones being updated
+	int32 LODIndex;
+
+	// Returns the size of memory allocated by render data
+	ENGINE_API void GetResourceSizeEx(FResourceSizeEx& CumulativeResourceSize);
+};
+
+class FSkeletalMeshObjectNanite : public FSkeletalMeshObject
+{
+public:
+	ENGINE_API FSkeletalMeshObjectNanite(USkinnedMeshComponent* InComponent, FSkeletalMeshRenderData* InRenderData, ERHIFeatureLevel::Type InFeatureLevel);
+	ENGINE_API virtual ~FSkeletalMeshObjectNanite();
+
+	ENGINE_API virtual void InitResources(USkinnedMeshComponent* InComponent) override;
+	ENGINE_API virtual void ReleaseResources() override;
+	
+	virtual void Update(
+		int32 LODIndex,
+		USkinnedMeshComponent* InComponent,
+		const FMorphTargetWeightMap& InActiveMorphTargets,
+		const TArray<float>& MorphTargetWeights,
+		EPreviousBoneTransformUpdateMode PreviousBoneTransformUpdateMode,
+		const FExternalMorphWeightData& InExternalMorphWeightData) override;
+
+	ENGINE_API void UpdateDynamicData_RenderThread(
+		FRHICommandList& RHICmdList,
+		FDynamicSkelMeshObjectDataNanite* InDynamicData,
+		uint64 FrameNumberToPrepare,
+		uint32 RevisionNumber
+	);
+
+	ENGINE_API virtual void EnableOverlayRendering(
+		bool bEnabled,
+		const TArray<int32>* InBonesOfInterest,
+		const TArray<UMorphTarget*>* InMorphTargetOfInterest) override;
+
+	ENGINE_API virtual const FVertexFactory* GetSkinVertexFactory(const FSceneView* View, int32 LODIndex, int32 ChunkIdx, ESkinVertexFactoryMode VFMode = ESkinVertexFactoryMode::Default) const override;
+	ENGINE_API virtual TArray<FTransform>* GetComponentSpaceTransforms() const override;
+	ENGINE_API virtual const TArray<FMatrix44f>& GetReferenceToLocalMatrices() const override;
+
+	virtual int32 GetLOD() const override;
+
+	virtual void DrawVertexElements(FPrimitiveDrawInterface* PDI, const FMatrix& ToWorldSpace, bool bDrawNormals, bool bDrawTangents, bool bDrawBinormals) const override;
+	
+	virtual bool HaveValidDynamicData() const override;
+
+	virtual void GetResourceSizeEx(FResourceSizeEx& CumulativeResourceSize) override;
+
+	virtual void UpdateSkinWeightBuffer(USkinnedMeshComponent* InMeshComponent) override;
+
+	virtual bool IsNaniteMesh() const override { return true; }
+
+private:
+	FDynamicSkelMeshObjectDataNanite* DynamicData = nullptr;
+
+	struct FSkeletalMeshObjectLOD
+	{
+		FSkeletalMeshRenderData* RenderData;
+		int32 LODIndex;
+		bool bInitialized;
+
+		FSkeletalMeshObjectLOD(ERHIFeatureLevel::Type InFeatureLevel, FSkeletalMeshRenderData* InRenderData, int32 InLOD)
+		: RenderData(InRenderData)
+		, LODIndex(InLOD)
+		, bInitialized(false)
+		{
+		}
+
+		void InitResources(FSkelMeshComponentLODInfo* LODInfo);
+		void ReleaseResources();
+		void GetResourceSizeEx(FResourceSizeEx& CumulativeResourceSize);
+		void UpdateSkinWeights(FSkelMeshComponentLODInfo* LODInfo);
+	};
+
+	TArray<FSkeletalMeshObjectLOD> LODs;
+
+	mutable int32 CachedLOD;
+};

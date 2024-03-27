@@ -1966,8 +1966,9 @@ void USkeletalMeshComponent::ComputeRequiredBones(TArray<FBoneIndexType>& OutReq
 
 /*static*/ void USkeletalMeshComponent::GetShadowShapeRequiredBones(const USkeletalMeshComponent* SkeletalMeshComponent, TArray<FBoneIndexType>& OutRequiredBones)
 {
-	if (FSkeletalMeshSceneProxy* SkeletalMeshProxy = (FSkeletalMeshSceneProxy*)SkeletalMeshComponent->SceneProxy)
+	if (SkeletalMeshComponent->SceneProxy && !SkeletalMeshComponent->SceneProxy->IsNaniteMesh()) // TODO: Nanite-Skinning
 	{
+		FSkeletalMeshSceneProxy* SkeletalMeshProxy = (FSkeletalMeshSceneProxy*)SkeletalMeshComponent->SceneProxy;
 		const TArray<FBoneIndexType>& ShadowShapeBones = SkeletalMeshProxy->GetSortedShadowBoneIndices();
 
 		if (ShadowShapeBones.Num())
@@ -4071,7 +4072,7 @@ void USkeletalMeshComponent::SendRenderDynamicData_Concurrent()
 		return;
 	}
 
-	if (SceneProxy)
+	if (SceneProxy && !SceneProxy->IsNaniteMesh()) // TODO: Nanite-Skinning
 	{
 		UpdatePoseWatches();
 		FPoseWatchDynamicData* NewDynamicData = new FPoseWatchDynamicData(this);

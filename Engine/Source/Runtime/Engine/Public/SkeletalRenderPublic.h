@@ -122,12 +122,17 @@ public:
 	/**
 	 * Returns true if this mesh performs skinning on the CPU.
 	 */
-	virtual bool IsCPUSkinned() const = 0;
+	virtual bool IsCPUSkinned() const { return false; }
 
 	/**
 	 * Returns true if this mesh is an FSkeletalMeshObjectGPUSkin
 	 */
 	virtual bool IsGPUSkinMesh() const { return false; }
+
+	/**
+	 * Returns true if this mesh is an FSkeletalMeshObjectNanite
+	 */
+	virtual bool IsNaniteMesh() const { return false; }
 
 	/** 
 	 *	Get the array of component-space bone transforms. 

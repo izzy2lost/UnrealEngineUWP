@@ -2563,8 +2563,13 @@ void FDynamicSkelMeshObjectDataGPUSkin::InitDynamicSkelMeshObjectDataGPUSkin(
 	ExternalMorphSets = InMeshComponent->GetExternalMorphSets(InLODIndex);
 
 	// Gather any bones referenced by shadow shapes
-	FSkeletalMeshSceneProxy* SkeletalMeshProxy = (FSkeletalMeshSceneProxy*)InMeshComponent->SceneProxy;
-	const TArray<FBoneIndexType>* ExtraRequiredBoneIndices = SkeletalMeshProxy ? &SkeletalMeshProxy->GetSortedShadowBoneIndices() : nullptr;
+	const TArray<FBoneIndexType>* ExtraRequiredBoneIndices = nullptr;
+	if (InMeshComponent->SceneProxy && !InMeshComponent->SceneProxy->IsNaniteMesh())
+	{
+		// TODO: Nanite-Skinning
+		FSkeletalMeshSceneProxy* SkeletalMeshProxy = (FSkeletalMeshSceneProxy*)InMeshComponent->SceneProxy;
+		ExtraRequiredBoneIndices = &SkeletalMeshProxy->GetSortedShadowBoneIndices();
+	}
 
 #if RHI_RAYTRACING
 	RayTracingLODIndex = FMath::Clamp(FMath::Max(LODIndex + GetRayTracingSkeletalMeshGlobalLODBias(), InMeshObject->RayTracingMinLOD), LODIndex, InSkeletalMeshRenderData->LODRenderData.Num() - 1);
@@ -2677,8 +2682,10 @@ void FDynamicSkelMeshObjectDataGPUSkin::InitDynamicSkelMeshObjectDataGPUSkin(
 	}
 
 #if RHI_RAYTRACING
-	if (SkeletalMeshProxy != nullptr)
+	if (InMeshComponent->SceneProxy && !InMeshComponent->SceneProxy->IsNaniteMesh())
 	{
+		// TODO: Nanite-Skinning
+		FSkeletalMeshSceneProxy* SkeletalMeshProxy = (FSkeletalMeshSceneProxy*)InMeshComponent->SceneProxy;
 		bAnySegmentUsesWorldPositionOffset = SkeletalMeshProxy->bAnySegmentUsesWorldPositionOffset;
 	}
 #endif

@@ -8,10 +8,13 @@
 #include "HAL/LowLevelMemStats.h"
 #include "Rendering/NaniteStreamingManager.h"
 #include "Rendering/RayTracingGeometryManager.h"
+#include "Rendering/SkeletalMeshRenderData.h"
 #include "Components/HierarchicalInstancedStaticMeshComponent.h"
 #include "EngineUtils.h"
 #include "Engine/MapBuildDataRegistry.h"
 #include "Engine/InstancedStaticMesh.h"
+#include "Engine/SkinnedAssetCommon.h"
+#include "SkeletalRenderPublic.h"
 #include "Materials/Material.h"
 #include "Materials/MaterialRenderProxy.h"
 #include "CommonRenderResources.h"
@@ -2165,6 +2168,301 @@ uint32 FSceneProxy::GetMemoryFootprint() const
 	return sizeof( *this ) + GetAllocatedSize();
 }
 
+FSkinnedSceneProxy::FSkinnedSceneProxy(USkinnedMeshComponent* InComponent, FSkeletalMeshRenderData* InSkeletalRenderData)
+: FSceneProxyBase(InComponent)
+, SkinnedAsset(InComponent->GetSkinnedAsset())
+, Resources(InComponent->GetNaniteResources())
+, SkeletalRenderData(InSkeletalRenderData)
+{
+	LLM_SCOPE_BYTAG(Nanite);
+
+	// TODO: Nanite-Skinning
+	//Nanite::FMaterialAudit MaterialAudit{};
+
+	// This should always be valid.
+	checkSlow(Resources && Resources->PageStreamingStates.Num() > 0);
+
+	// Use fast path that does not update static draw lists.
+	bStaticElementsAlwaysUseProxyPrimitiveUniformBuffer = true;
+
+	// Nanite always uses GPUScene, so we can skip expensive primitive uniform buffer updates.
+	bVFRequiresPrimitiveUniformBuffer = false;
+
+	// Indicates if 1 or more materials contain settings not supported by Nanite.
+	//bHasMaterialErrors = false;
+
+	// Get the pre-skinned local bounds
+	//InComponent->GetPreSkinnedLocalBounds(PreSkinnedLocalBounds);
+
+	const USkinnedMeshComponent* SkinnedMeshComponent = Cast<const USkinnedMeshComponent>(InComponent);
+	if (SkinnedMeshComponent && SkinnedMeshComponent->bPerBoneMotionBlur)
+	{
+		bAlwaysHasVelocity = true;
+	}
+
+	const uint32 FirstLODIndex = 0; // Only data from LOD0 is used.
+	const FSkeletalMeshLODRenderData& MeshResources = SkeletalRenderData->LODRenderData[FirstLODIndex];
+	const FSkeletalMeshLODInfo& MeshInfo = *(SkinnedAsset->GetLODInfo(FirstLODIndex));
+
+	const TArray<FSkelMeshRenderSection>& MeshSections = MeshResources.RenderSections;
+
+	MaterialSections.SetNumZeroed(MeshSections.Num());
+
+	for (int32 SectionIndex = 0; SectionIndex < MeshSections.Num(); ++SectionIndex)
+	{
+		const FSkelMeshRenderSection& MeshSection = MeshSections[SectionIndex];
+		FMaterialSection& MaterialSection = MaterialSections[SectionIndex];
+		MaterialSection.MaterialIndex = MeshSection.MaterialIndex;
+	#if WITH_EDITORONLY_DATA
+		MaterialSection.bSelected = false;
+	#endif
+
+		// If we are at a dropped LOD, route material index through the LODMaterialMap in the LODInfo struct.
+		{
+			if (SectionIndex < MeshInfo.LODMaterialMap.Num() && SkinnedAsset->IsValidMaterialIndex(MeshInfo.LODMaterialMap[SectionIndex]))
+			{
+				MaterialSection.MaterialIndex = MeshInfo.LODMaterialMap[SectionIndex];
+				MaterialSection.MaterialIndex = FMath::Clamp(MaterialSection.MaterialIndex, 0, SkinnedAsset->GetNumMaterials());
+			}
+		}
+
+		// Keep track of highest observed material index.
+		MaterialMaxIndex = FMath::Max(MaterialSection.MaterialIndex, MaterialMaxIndex);
+
+		// If Section is hidden, do not cast shadow
+		MaterialSection.bHidden = InComponent->MeshObject->IsMaterialHidden(FirstLODIndex, MaterialSection.MaterialIndex);
+
+		// If the material is NULL, or isn't flagged for use with skeletal meshes, it will be replaced by the default material.
+		UMaterialInterface* ShadingMaterial = InComponent->GetMaterial(MaterialSection.MaterialIndex);
+		//check(ShadingMaterial);
+		/*if (bForceDefaultMaterial || (GForceDefaultMaterial && Material && !IsTranslucentBlendMode(*Material)))
+		{
+			Material = UMaterial::GetDefaultMaterial(MD_Surface);
+			MaterialRelevance |= Material->GetRelevance(FeatureLevel);
+		}*/
+
+		bool bValidUsage = ShadingMaterial && ShadingMaterial->CheckMaterialUsage_Concurrent(MATUSAGE_SkeletalMesh) && ShadingMaterial->CheckMaterialUsage_Concurrent(MATUSAGE_Nanite);
+
+		if (ShadingMaterial == nullptr || !bValidUsage)// || ProxyDesc.ShouldRenderProxyFallbackToDefaultMaterial())
+		{
+			ShadingMaterial = MaterialSection.bHidden ? GEngine->NaniteHiddenSectionMaterial.Get() : UMaterial::GetDefaultMaterial(MD_Surface);
+		}
+
+		MaterialSection.ShadingMaterialProxy = ShadingMaterial->GetRenderProxy();
+
+		//MaterialsInUse_GameThread.Add(ShadingMaterial);
+	}
+
+	// Now that the material sections are initialized, we can make material-dependent calculations
+	OnMaterialsUpdated();
+
+	// Nanite supports distance field representation for fully opaque meshes.
+	bSupportsDistanceFieldRepresentation = false;// CombinedMaterialRelevance.bOpaque&& DistanceFieldData&& DistanceFieldData->IsValid();;
+
+#if RHI_RAYTRACING
+	//bHasRayTracingInstances = false;
+#endif
+
+	FilterFlags = EFilterFlags::SkeletalMesh;
+	FilterFlags |= InComponent->Mobility == EComponentMobility::Static ? EFilterFlags::StaticMobility : EFilterFlags::NonStaticMobility;
+
+	bReverseCulling = false;// InComponent->bReverseCulling;
+
+	bOpaqueOrMasked = true; // Nanite only supports opaque
+	UpdateVisibleInLumenScene();
+}
+
+FSkinnedSceneProxy::~FSkinnedSceneProxy()
+{
+}
+
+void FSkinnedSceneProxy::CreateRenderThreadResources(FRHICommandListBase& RHICmdList)
+{
+	check(Resources->RuntimeResourceID != INDEX_NONE && Resources->HierarchyOffset != INDEX_NONE);
+}
+
+SIZE_T FSkinnedSceneProxy::GetTypeHash() const
+{
+	static size_t UniquePointer;
+	return reinterpret_cast<size_t>(&UniquePointer);
+}
+
+FPrimitiveViewRelevance	FSkinnedSceneProxy::GetViewRelevance(const FSceneView* View) const
+{
+	LLM_SCOPE_BYTAG(Nanite);
+
+#if WITH_EDITOR
+	const bool bOptimizedRelevance = false;
+#else
+	const bool bOptimizedRelevance = true;
+#endif
+
+	FPrimitiveViewRelevance Result;
+	Result.bDrawRelevance = IsShown(View) && View->Family->EngineShowFlags.NaniteMeshes;
+	Result.bShadowRelevance = IsShadowCast(View);
+	Result.bRenderCustomDepth = Nanite::GetSupportsCustomDepthRendering() && ShouldRenderCustomDepth();
+	Result.bUsesLightingChannels = GetLightingChannelMask() != GetDefaultLightingChannelMask();
+
+	// Always render the Nanite mesh data with static relevance.
+	Result.bStaticRelevance = true;
+
+	// Should always be covered by constructor of Nanite scene proxy.
+	Result.bRenderInMainPass = true;
+
+	if (bOptimizedRelevance) // No dynamic relevance if optimized.
+	{
+		CombinedMaterialRelevance.SetPrimitiveViewRelevance(Result);
+		Result.bVelocityRelevance = DrawsVelocity();
+	}
+	else
+	{
+	#if WITH_EDITOR
+		//only check these in the editor
+		Result.bEditorVisualizeLevelInstanceRelevance = IsEditingLevelInstanceChild();
+		Result.bEditorStaticSelectionRelevance = (IsSelected() || IsHovered());
+	#endif
+
+	#if 0//NANITE_ENABLE_DEBUG_RENDERING
+		bool bDrawSimpleCollision = false, bDrawComplexCollision = false;
+		const bool bInCollisionView = IsCollisionView(View->Family->EngineShowFlags, bDrawSimpleCollision, bDrawComplexCollision);
+	#else
+		bool bInCollisionView = false;
+	#endif
+
+		// Set dynamic relevance for overlays like collision and bounds.
+		bool bSetDynamicRelevance = false;
+	#if !(UE_BUILD_SHIPPING) || WITH_EDITOR
+		bSetDynamicRelevance |= (
+			// Nanite doesn't respect rich view enabling dynamic relevancy.
+			//IsRichView(*View->Family) ||
+			View->Family->EngineShowFlags.Collision ||
+			bInCollisionView ||
+			View->Family->EngineShowFlags.Bounds ||
+			View->Family->EngineShowFlags.VisualizeInstanceUpdates
+		);
+	#endif
+	#if WITH_EDITOR
+		// Nanite doesn't render debug vertex colors.
+		//bSetDynamicRelevance |= (IsSelected() && View->Family->EngineShowFlags.VertexColors);
+	#endif
+	#if 0//NANITE_ENABLE_DEBUG_RENDERING
+		bSetDynamicRelevance |= bDrawMeshCollisionIfComplex || bDrawMeshCollisionIfSimple;
+	#endif
+
+		if (bSetDynamicRelevance)
+		{
+			Result.bDynamicRelevance = true;
+
+		#if NANITE_ENABLE_DEBUG_RENDERING
+			// If we want to draw collision, needs to make sure we are considered relevant even if hidden
+			if (View->Family->EngineShowFlags.Collision || bInCollisionView)
+			{
+				Result.bDrawRelevance = true;
+			}
+		#endif
+		}
+
+		if (!View->Family->EngineShowFlags.Materials
+		#if NANITE_ENABLE_DEBUG_RENDERING
+			|| bInCollisionView
+		#endif
+			)
+		{
+			Result.bOpaque = true;
+		}
+
+		CombinedMaterialRelevance.SetPrimitiveViewRelevance(Result);
+		Result.bVelocityRelevance = Result.bOpaque && Result.bRenderInMainPass && DrawsVelocity();
+	}
+
+	return Result;
+}
+
+#if WITH_EDITOR
+
+HHitProxy* FSkinnedSceneProxy::CreateHitProxies(UPrimitiveComponent* Component, TArray<TRefCountPtr<HHitProxy>>& OutHitProxies)
+{
+	LLM_SCOPE_BYTAG(Nanite);
+
+	switch (HitProxyMode)
+	{
+	case FSceneProxyBase::EHitProxyMode::MaterialSection:
+	{
+		if (Component->GetOwner())
+		{
+			// Generate separate hit proxies for each material section, so that we can perform hit tests against each one.
+			for (int32 SectionIndex = 0; SectionIndex < MaterialSections.Num(); ++SectionIndex)
+			{
+				FMaterialSection& Section = MaterialSections[SectionIndex];
+				HHitProxy* ActorHitProxy = Component->CreateMeshHitProxy(SectionIndex, SectionIndex);
+
+				if (ActorHitProxy)
+				{
+					check(!Section.HitProxy);
+					Section.HitProxy = ActorHitProxy;
+					OutHitProxies.Add(ActorHitProxy);
+				}
+			}
+		}
+		break;
+	}
+
+	default:
+		break;
+	}
+
+	return Super::CreateHitProxies(Component, OutHitProxies);
+}
+
+#endif
+
+void FSkinnedSceneProxy::DrawStaticElements(FStaticPrimitiveDrawInterface* PDI)
+{
+	const FLightCacheInterface* LCI = nullptr;
+	DrawStaticElementsInternal(PDI, LCI);
+}
+
+uint32 FSkinnedSceneProxy::GetMemoryFootprint() const
+{
+	return sizeof(*this) + GetAllocatedSize();
+}
+
+FResourceMeshInfo FSkinnedSceneProxy::GetResourceMeshInfo() const
+{
+	FResourceMeshInfo OutInfo;
+
+	OutInfo.NumClusters = Resources->NumClusters;
+	OutInfo.NumNodes = Resources->NumHierarchyNodes;
+	OutInfo.NumVertices = Resources->NumInputVertices;
+	OutInfo.NumTriangles = Resources->NumInputTriangles;
+	OutInfo.NumMaterials = MaterialMaxIndex + 1;
+	OutInfo.DebugName = SkinnedAsset->GetFName();
+
+	OutInfo.NumResidentClusters = Resources->NumResidentClusters;
+
+#if 0 // TODO: Nanite-Skinning
+	SkinnedAsset->GetResourceForRendering()
+
+	{
+		const uint32 FirstLODIndex = 0; // Only data from LOD0 is used.
+		const FStaticMeshLODResources& MeshResources = RenderData->LODResources[FirstLODIndex];
+		const FStaticMeshSectionArray& MeshSections = MeshResources.Sections;
+
+		OutInfo.NumSegments = MeshSections.Num();
+
+		OutInfo.SegmentMapping.Init(INDEX_NONE, MaterialMaxIndex + 1);
+
+		for (int32 SectionIndex = 0; SectionIndex < MeshSections.Num(); ++SectionIndex)
+		{
+			const FStaticMeshSection& MeshSection = MeshSections[SectionIndex];
+			OutInfo.SegmentMapping[MeshSection.MaterialIndex] = SectionIndex;
+		}
+	}
+#endif
+
+	return MoveTemp(OutInfo);
+}
+
 struct FAuditMaterialSlotInfo
 {
 	UMaterialInterface* Material;
@@ -2309,6 +2607,13 @@ FMaterialAudit& AuditMaterialsImp(const T* InProxyDesc, FMaterialAudit& Audit, b
 	return Audit;
 }
 
+void AuditMaterials(const USkinnedMeshComponent* Component, FMaterialAudit& Audit, bool bSetMaterialUsage)
+{
+	Audit.bHasAnyError = false;
+	Audit.Entries.Reset();
+
+	// TODO: Nanite-Skinning
+}
 
 void AuditMaterials(const UStaticMeshComponent* Component, FMaterialAudit& Audit, bool bSetMaterialUsage)
 {

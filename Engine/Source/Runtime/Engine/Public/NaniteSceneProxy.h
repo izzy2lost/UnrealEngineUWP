@@ -12,6 +12,7 @@
 
 struct FPerInstanceRenderData;
 class UStaticMeshComponent;
+class USkinnedMeshComponent;
 class UWorld;
 enum ECollisionTraceFlag : int;
 enum EMaterialDomain : int;
@@ -117,6 +118,7 @@ struct ENGINE_API FMaterialAudit
 	}
 };
 
+ENGINE_API void AuditMaterials(const USkinnedMeshComponent* Component, FMaterialAudit& Audit, bool bSetMaterialUsage = true);
 ENGINE_API void AuditMaterials(const UStaticMeshComponent* Component, FMaterialAudit& Audit, bool bSetMaterialUsage = true);
 ENGINE_API void AuditMaterials(const FStaticMeshSceneProxyDesc* ProxyDesc, FMaterialAudit& Audit, bool bSetMaterialUsage = true);
 
@@ -593,6 +595,45 @@ protected:
 
 	TArray<FFallbackLODInfo> FallbackLODs;
 #endif
+};
+
+class FSkinnedSceneProxy : public FSceneProxyBase
+{
+public:
+	using Super = FSceneProxyBase;
+	
+	ENGINE_API FSkinnedSceneProxy(USkinnedMeshComponent* Component, FSkeletalMeshRenderData* SkeletalRenderData);
+	ENGINE_API virtual ~FSkinnedSceneProxy();
+
+public:
+	// FPrimitiveSceneProxy interface.
+	virtual void CreateRenderThreadResources(FRHICommandListBase& RHICmdList) override;
+	virtual SIZE_T GetTypeHash() const override;
+	virtual FPrimitiveViewRelevance	GetViewRelevance(const FSceneView* View) const override;
+#if WITH_EDITOR
+	virtual HHitProxy* CreateHitProxies(UPrimitiveComponent* Component, TArray<TRefCountPtr<HHitProxy> >& OutHitProxies) override;
+#endif
+	virtual void DrawStaticElements(FStaticPrimitiveDrawInterface* PDI) override;
+
+	virtual uint32 GetMemoryFootprint() const override;
+
+	ENGINE_API virtual FResourceMeshInfo GetResourceMeshInfo() const override;
+
+	// FSceneProxyBase interface.
+	virtual void GetNaniteResourceInfo(uint32& OutResourceID, uint32& OutHierarchyOffset, uint32& OutImposterIndex) const override
+	{
+		OutResourceID = Resources->RuntimeResourceID;
+		OutHierarchyOffset = Resources->HierarchyOffset;
+		OutImposterIndex = Resources->ImposterIndex;
+	}
+
+protected:
+	const USkinnedAsset* SkinnedAsset = nullptr;
+	const FResources* Resources = nullptr;
+	const FSkeletalMeshRenderData* SkeletalRenderData;
+
+	uint32 NaniteResourceID = INDEX_NONE;
+	uint32 NaniteHierarchyOffset = INDEX_NONE;
 };
 
 } // namespace Nanite
