@@ -26,12 +26,6 @@ void SAudioMaterialKnob::Construct(const FArguments& InArgs)
 	OnMouseCaptureBegin = InArgs._OnMouseCaptureBegin;
 	OnMouseCaptureEnd = InArgs._OnMouseCaptureEnd;
 
-	//For now check if owner is not a widget -> use the default style.
-	if (!Cast<UWidget>(Owner))
-	{
-		AudioMaterialKnobStyle = &FAudioWidgetsStyle::Get().GetWidgetStyle<FAudioMaterialKnobStyle>("AudioMaterialKnob.Style");
-	}
-
 	ApplyNewMaterial();
 
 	if (InArgs._Value.IsSet())

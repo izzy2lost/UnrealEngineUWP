@@ -41,6 +41,7 @@ void SAudioMaterialLabeledKnob::Construct(const FArguments& InArgs)
 	// Underlying Knob widget
 	SAssignNew(Knob, SAudioMaterialKnob)
 		.Owner(InArgs._Owner)
+		.AudioMaterialKnobStyle(Style)
 		.OnFloatValueChanged_Lambda([this](float Value)
 		{
 			ValueAttribute.Set(Value);
