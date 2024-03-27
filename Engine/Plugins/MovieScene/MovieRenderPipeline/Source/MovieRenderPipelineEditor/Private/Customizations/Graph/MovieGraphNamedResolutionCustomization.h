@@ -5,8 +5,7 @@
 #include "IDetailChildrenBuilder.h"
 #include "DetailLayoutBuilder.h"
 #include "IPropertyTypeCustomization.h"
-
-class FScopedTransaction;
+#include "ScopedTransaction.h"
 
 /* Customizes how named resolutions are displayed in the details pane. */
 class MOVIERENDERPIPELINEEDITOR_API FMovieGraphNamedResolutionCustomization : public IPropertyTypeCustomization
