@@ -10,6 +10,23 @@
 class UScriptStruct;
 class USubsystem;
 
+namespace UE
+{
+	// Work around missing header/implementations on some platforms
+	namespace detail
+	{
+		template<typename T, typename U>
+		concept SameHelper = std::is_same_v<T, U>;
+	}
+	template<typename T, typename U>
+	concept same_as = detail::SameHelper<T, U> && detail::SameHelper<U, T>;
+
+	template<typename From, typename To>
+	concept convertible_to = std::is_convertible_v<From, To> && requires { static_cast<To>(std::declval<From>()); };
+
+	template<typename Derived, typename Base>
+	concept derived_from = std::is_base_of_v<Base, Derived> && std::is_convertible_v<const volatile Derived*, const volatile Base*>;
+}
 /**
  * The TypedElementQueryBuilder allows for the construction of queries for use by the Typed Element Data Storage.
  * There are two types of queries, simple and normal. Simple queries are guaranteed to be supported by the data
@@ -110,6 +127,21 @@ namespace TypedElementQueryBuilder
 	TYPEDELEMENTFRAMEWORK_API const UScriptStruct* operator""_Type(const char* Name, std::size_t NameSize);
 	TYPEDELEMENTFRAMEWORK_API const UScriptStruct* operator""_TypeOptional(const char* Name, std::size_t NameSize);
 
+	template<typename T>
+	concept TDataColumnType = UE::derived_from<T, FTypedElementDataStorageColumn>;
+
+	template<typename T>
+	concept TTagColumnType = UE::derived_from<T, FTypedElementDataStorageTag>;
+
+	template<typename T>
+	concept TColumnType = TDataColumnType<T> || TTagColumnType<T>;
+
+	enum class EOptional
+	{
+		No,
+		Yes
+	};
+
 	class FDependency final
 	{
 		friend class Count;
@@ -145,15 +177,15 @@ namespace TypedElementQueryBuilder
 		TYPEDELEMENTFRAMEWORK_API FDependency DependsOn();
 		TYPEDELEMENTFRAMEWORK_API ITypedElementDataStorageInterface::FQueryDescription&& Compile();
 
-		template<typename... TargetTypes>
+		template<TColumnType... TargetTypes>
 		FSimpleQuery& All();
 		TYPEDELEMENTFRAMEWORK_API FSimpleQuery& All(const UScriptStruct* Target);
 		TYPEDELEMENTFRAMEWORK_API FSimpleQuery& All(TConstArrayView<const UScriptStruct*> Targets);
-		template<typename... TargetTypes>
+		template<TColumnType... TargetTypes>
 		FSimpleQuery& Any();
 		TYPEDELEMENTFRAMEWORK_API FSimpleQuery& Any(const UScriptStruct* Target);
 		TYPEDELEMENTFRAMEWORK_API FSimpleQuery& Any(TConstArrayView<const UScriptStruct*> Targets);
-		template<typename... TargetTypes>
+		template<TColumnType... TargetTypes>
 		FSimpleQuery& None();
 		TYPEDELEMENTFRAMEWORK_API FSimpleQuery& None(const UScriptStruct* Target);
 		TYPEDELEMENTFRAMEWORK_API FSimpleQuery& None(TConstArrayView<const UScriptStruct*> Targets);
@@ -194,14 +226,14 @@ namespace TypedElementQueryBuilder
 
 		TYPEDELEMENTFRAMEWORK_API FObserver(EEvent MonitorForEvent, const UScriptStruct* MonitoredColumn);
 
-		template<typename ColumnType>
+		template<TColumnType ColumnType>
 		static FObserver OnAdd();
-		template<typename ColumnType>
+		template<TColumnType ColumnType>
 		static FObserver OnRemove();
 
 		TYPEDELEMENTFRAMEWORK_API FObserver& SetEvent(EEvent MonitorForEvent);
 		TYPEDELEMENTFRAMEWORK_API FObserver& SetMonitoredColumn(const UScriptStruct* MonitoredColumn);
-		template<typename ColumnType>
+		template<TColumnType ColumnType>
 		FObserver& SetMonitoredColumn();
 		TYPEDELEMENTFRAMEWORK_API FObserver& ForceToGameThread(bool bForce);
 		TYPEDELEMENTFRAMEWORK_API FObserver& MakeActivatable(FName Name);
@@ -296,18 +328,42 @@ namespace TypedElementQueryBuilder
 	public:
 		TYPEDELEMENTFRAMEWORK_API Select();
 
+		/** Select the columns to operate one, giving read - only or read / write access. */
 		template<typename CallbackType, typename Function>
 		Select(FName Name, const CallbackType& Type, Function&& Callback);
+		/** Select the columns to operate one, giving read - only or read / write access. */
 		template<typename CallbackType, typename Class, typename Function>
 		Select(FName Name, const CallbackType& Type, Class* Instance, Function&& Callback);
 
-		template<typename... TargetTypes>
+		/** Request read-only access to the listed columns. */
+		template<TDataColumnType... TargetTypes>
 		Select& ReadOnly();
+		/** Request read-only access to the listed columns. */
 		TYPEDELEMENTFRAMEWORK_API Select& ReadOnly(const UScriptStruct* Target);
+		/** Request read-only access to the listed columns. */
 		TYPEDELEMENTFRAMEWORK_API Select& ReadOnly(TConstArrayView<const UScriptStruct*> Targets);
-		template<typename... TargetTypes>
+		/** 
+		 * Request read-only access to the listed columns. If optional is true read access will be given if the column is in the table but
+		 * it will not be used for finding matching tables. Columns bound with optional can not be bound to a query callback argument.
+		 */
+		template<TDataColumnType... TargetTypes>
+		Select& ReadOnly(EOptional Optional);
+		/**
+		 * Request read-only access to the listed columns. If optional is true read access will be given if the column is in the table but
+		 * it will not be used for finding matching tables. Columns bound with optional can not be bound to a query callback argument.
+		 */
+		TYPEDELEMENTFRAMEWORK_API Select& ReadOnly(const UScriptStruct* Target, EOptional Optional);
+		/**
+		 * Request read-only access to the listed columns. If optional is true read access will be given if the column is in the table but
+		 * it will not be used for finding matching tables. Columns bound with optional can not be bound to a query callback argument.
+		 */
+		TYPEDELEMENTFRAMEWORK_API Select& ReadOnly(TConstArrayView<const UScriptStruct*> Targets, EOptional Optionall);
+		/** Request read and write access to the listed columns. */
+		template<TDataColumnType... TargetTypes>
 		Select& ReadWrite();
+		/** Request read and write access to the listed columns. */
 		TYPEDELEMENTFRAMEWORK_API Select& ReadWrite(const UScriptStruct* Target);
+		/** Request read and write access to the listed columns. */
 		TYPEDELEMENTFRAMEWORK_API Select& ReadWrite(TConstArrayView<const UScriptStruct*> Targets);
 
 		TYPEDELEMENTFRAMEWORK_API ITypedElementDataStorageInterface::FQueryDescription&& Compile();

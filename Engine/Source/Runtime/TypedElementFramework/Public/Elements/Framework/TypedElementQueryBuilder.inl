@@ -10,24 +10,6 @@
 #include "Elements/Common/TypedElementQueryDescription.h"
 #include "Elements/Common/TypedElementQueryTypes.h"
 
-// Work around missing header/implementations on some platforms
-namespace UE
-{
-	namespace detail
-	{
-		template< class T, class U >
-		concept SameHelper = std::is_same_v<T, U>;
-	}
-	template< class T, class U >
-	concept same_as = detail::SameHelper<T, U> && detail::SameHelper<U, T>;
-
-	template <class From, class To>
-	concept convertible_to = std::is_convertible_v<From, To> && requires { static_cast<To>(std::declval<From>()); };
-
-	template< class Derived, class Base >
-	concept derived_from = std::is_base_of_v<Base, Derived> && std::is_convertible_v<const volatile Derived*, const volatile Base*>;
-}
-
 namespace TypedElementQueryBuilder
 {
 	namespace Internal
@@ -108,19 +90,19 @@ namespace TypedElementQueryBuilder
 	// FObserver
 	//
 	
-	template<typename ColumnType>
+	template<TColumnType ColumnType>
 	FObserver FObserver::OnAdd()
 	{
 		return FObserver(FObserver::EEvent::Add, ColumnType::StaticStruct());
 	}
 
-	template<typename ColumnType>
+	template<TColumnType ColumnType>
 	FObserver FObserver::OnRemove()
 	{
 		return FObserver(FObserver::EEvent::Remove, ColumnType::StaticStruct());
 	}
 
-	template<typename ColumnType>
+	template<TColumnType ColumnType>
 	FObserver& FObserver::SetMonitoredColumn()
 	{
 		return SetMonitoredColumn(ColumnType::StaticStruct());
@@ -1135,14 +1117,21 @@ e.g. void(FCachedQueryContext<Subsystem1, const Subsystem2>& Context, TypedEleme
 		Internal::BindQueryFunction<TypedElementDataStorage::IQueryContext, ValidateColumns>(Query.Callback.Function, Instance, Callback);
 	}
 
-	template<typename... TargetTypes>
+	template<TDataColumnType... TargetTypes>
 	Select& Select::ReadOnly()
 	{
 		ReadOnly({ TargetTypes::StaticStruct()... });
 		return *this;
 	}
 
-	template<typename... TargetTypes>
+	template<TDataColumnType... TargetTypes>
+	Select& Select::ReadOnly(EOptional Optional)
+	{
+		ReadOnly({ TargetTypes::StaticStruct()... }, Optional);
+		return *this;
+	}
+
+	template<TDataColumnType... TargetTypes>
 	Select& Select::ReadWrite()
 	{
 		ReadWrite({ TargetTypes::StaticStruct()... });
@@ -1154,21 +1143,21 @@ e.g. void(FCachedQueryContext<Subsystem1, const Subsystem2>& Context, TypedEleme
 	// FSimpleQuery
 	//
 
-	template<typename... TargetTypes>
+	template<TColumnType... TargetTypes>
 	FSimpleQuery& FSimpleQuery::All()
 	{
 		All({ TargetTypes::StaticStruct()... });
 		return *this;
 	}
 
-	template<typename... TargetTypes>
+	template<TColumnType... TargetTypes>
 	FSimpleQuery& FSimpleQuery::Any()
 	{
 		Any({ TargetTypes::StaticStruct()... });
 		return *this;
 	}
 
-	template<typename... TargetTypes>
+	template<TColumnType... TargetTypes>
 	FSimpleQuery& FSimpleQuery::None()
 	{
 		None({ TargetTypes::StaticStruct()... });

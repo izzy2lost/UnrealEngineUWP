@@ -202,6 +202,74 @@ private:
 	FMassEntityQuery NativeSubqueries[4];
 };
 
+UCLASS()
+class UTypedElementQueryProcessorCallbackAdapterProcessorWith5Subqueries final : public UTypedElementQueryProcessorCallbackAdapterProcessorBase
+{
+	GENERATED_BODY()
+
+public:
+	bool ConfigureQueryCallback(
+		FTypedElementExtendedQuery& Query,
+		FTypedElementExtendedQueryStore::Handle QueryHandle,
+		FTypedElementExtendedQueryStore& QueryStore,
+		FTypedElementDatabaseEnvironment& Environment) override;
+
+private:
+	UPROPERTY(transient)
+		FMassEntityQuery NativeSubqueries[5];
+};
+
+UCLASS()
+class UTypedElementQueryProcessorCallbackAdapterProcessorWith6Subqueries final : public UTypedElementQueryProcessorCallbackAdapterProcessorBase
+{
+	GENERATED_BODY()
+
+public:
+	bool ConfigureQueryCallback(
+		FTypedElementExtendedQuery& Query,
+		FTypedElementExtendedQueryStore::Handle QueryHandle,
+		FTypedElementExtendedQueryStore& QueryStore,
+		FTypedElementDatabaseEnvironment& Environment) override;
+
+private:
+	UPROPERTY(transient)
+		FMassEntityQuery NativeSubqueries[6];
+};
+
+UCLASS()
+class UTypedElementQueryProcessorCallbackAdapterProcessorWith7Subqueries final : public UTypedElementQueryProcessorCallbackAdapterProcessorBase
+{
+	GENERATED_BODY()
+
+public:
+	bool ConfigureQueryCallback(
+		FTypedElementExtendedQuery& Query,
+		FTypedElementExtendedQueryStore::Handle QueryHandle,
+		FTypedElementExtendedQueryStore& QueryStore,
+		FTypedElementDatabaseEnvironment& Environment) override;
+
+private:
+	UPROPERTY(transient)
+		FMassEntityQuery NativeSubqueries[7];
+};
+
+UCLASS()
+class UTypedElementQueryProcessorCallbackAdapterProcessorWith8Subqueries final : public UTypedElementQueryProcessorCallbackAdapterProcessorBase
+{
+	GENERATED_BODY()
+
+public:
+	bool ConfigureQueryCallback(
+		FTypedElementExtendedQuery& Query,
+		FTypedElementExtendedQueryStore::Handle QueryHandle,
+		FTypedElementExtendedQueryStore& QueryStore,
+		FTypedElementDatabaseEnvironment& Environment) override;
+
+private:
+	UPROPERTY(transient)
+		FMassEntityQuery NativeSubqueries[8];
+};
+
 /**
  * Adapts observer queries callback for MASS.
  */
@@ -315,3 +383,74 @@ private:
 	UPROPERTY(transient)
 	FMassEntityQuery NativeSubqueries[4];
 };
+
+UCLASS()
+class UTypedElementQueryObserverCallbackAdapterProcessorWith5Subqueries final : public UTypedElementQueryObserverCallbackAdapterProcessorBase
+{
+	GENERATED_BODY()
+
+public:
+	bool ConfigureQueryCallback(
+		FTypedElementExtendedQuery& Query,
+		FTypedElementExtendedQueryStore::Handle QueryHandle,
+		FTypedElementExtendedQueryStore& QueryStore,
+		FTypedElementDatabaseEnvironment& Environment) override;
+
+private:
+	UPROPERTY(transient)
+		FMassEntityQuery NativeSubqueries[5];
+};
+
+UCLASS()
+class UTypedElementQueryObserverCallbackAdapterProcessorWith6Subqueries final : public UTypedElementQueryObserverCallbackAdapterProcessorBase
+{
+	GENERATED_BODY()
+
+public:
+	bool ConfigureQueryCallback(
+		FTypedElementExtendedQuery& Query,
+		FTypedElementExtendedQueryStore::Handle QueryHandle,
+		FTypedElementExtendedQueryStore& QueryStore,
+		FTypedElementDatabaseEnvironment& Environment) override;
+
+private:
+	UPROPERTY(transient)
+		FMassEntityQuery NativeSubqueries[6];
+};
+
+UCLASS()
+class UTypedElementQueryObserverCallbackAdapterProcessorWith7Subqueries final : public UTypedElementQueryObserverCallbackAdapterProcessorBase
+{
+	GENERATED_BODY()
+
+public:
+	bool ConfigureQueryCallback(
+		FTypedElementExtendedQuery& Query,
+		FTypedElementExtendedQueryStore::Handle QueryHandle,
+		FTypedElementExtendedQueryStore& QueryStore,
+		FTypedElementDatabaseEnvironment& Environment) override;
+
+private:
+	UPROPERTY(transient)
+		FMassEntityQuery NativeSubqueries[7];
+};
+
+UCLASS()
+class UTypedElementQueryObserverCallbackAdapterProcessorWith8Subqueries final : public UTypedElementQueryObserverCallbackAdapterProcessorBase
+{
+	GENERATED_BODY()
+
+public:
+	bool ConfigureQueryCallback(
+		FTypedElementExtendedQuery& Query,
+		FTypedElementExtendedQueryStore::Handle QueryHandle,
+		FTypedElementExtendedQueryStore& QueryStore,
+		FTypedElementDatabaseEnvironment& Environment) override;
+
+private:
+	UPROPERTY(transient)
+		FMassEntityQuery NativeSubqueries[8];
+};
+
+
+

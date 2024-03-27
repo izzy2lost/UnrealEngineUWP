@@ -1,4 +1,4 @@
-﻿// Copyright Epic Games, Inc. All Rights Reserved.
+// Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "TEDSTypedElementActorHandleFactory.h"
 
@@ -36,7 +36,7 @@ void UTEDSTypedElementActorHandleFactory::RegisterQueries(ITypedElementDataStora
 	using namespace TypedElementDataStorage;
 	GetAllActorsQuery = DataStorage.RegisterQuery(
 	Select()
-		.ReadOnly<FMassActorFragment>()
+		.ReadOnly(FMassActorFragment::StaticStruct())
 	.Compile());
 }
 
@@ -67,7 +67,7 @@ void UTEDSTypedElementActorHandleFactory::RegisterQuery_ActorHandlePopulate(ITyp
 		}
 	)
 	.Where()
-		.All<FMassActorFragment>()
+		.All(FMassActorFragment::StaticStruct())
 	.Compile());
 }
 

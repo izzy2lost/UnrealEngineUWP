@@ -76,7 +76,7 @@ namespace Private
 						Select()
 							.ReadOnly<FTypedElementUObjectColumn, FTypedElementLabelColumn>()
 						.Where()
-							.All<Conditions...>()
+							.All(Conditions::StaticStruct()...)
 						.Compile());
 				}
 				else
@@ -184,7 +184,8 @@ FAutoConsoleCommandWithOutputDevice CheckActorAndObjectAddressCommand(
 				{
 					return DataStorage->RegisterQuery(
 						Select()
-							.ReadOnly<FTypedElementUObjectColumn, FMassActorFragment>()
+							.ReadOnly<FTypedElementUObjectColumn>()
+							.ReadOnly(FMassActorFragment::StaticStruct())
 						.Compile());
 				}();
 				

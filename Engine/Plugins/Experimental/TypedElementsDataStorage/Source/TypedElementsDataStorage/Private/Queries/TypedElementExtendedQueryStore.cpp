@@ -413,6 +413,18 @@ FMassEntityQuery& FTypedElementExtendedQueryStore::SetupNativeQuery(
 			case 4:
 				Processor = NewObject<UTypedElementQueryProcessorCallbackAdapterProcessorWith4Subqueries>();
 				break;
+			case 5:
+				Processor = NewObject<UTypedElementQueryProcessorCallbackAdapterProcessorWith5Subqueries>();
+				break;
+			case 6:
+				Processor = NewObject<UTypedElementQueryProcessorCallbackAdapterProcessorWith6Subqueries>();
+				break;
+			case 7:
+				Processor = NewObject<UTypedElementQueryProcessorCallbackAdapterProcessorWith7Subqueries>();
+				break;
+			case 8:
+				Processor = NewObject<UTypedElementQueryProcessorCallbackAdapterProcessorWith8Subqueries>();
+				break;
 			default:
 				checkf(false, TEXT("The current Typed Elements Data Storage backend doesn't support %i subqueries per processor query."), 
 					Query.Subqueries.Num());
@@ -442,6 +454,18 @@ FMassEntityQuery& FTypedElementExtendedQueryStore::SetupNativeQuery(
 				break;
 			case 4:
 				Observer = NewObject<UTypedElementQueryObserverCallbackAdapterProcessorWith4Subqueries>();
+				break;
+			case 5:
+				Observer = NewObject<UTypedElementQueryObserverCallbackAdapterProcessorWith5Subqueries>();
+				break;
+			case 6:
+				Observer = NewObject<UTypedElementQueryObserverCallbackAdapterProcessorWith6Subqueries>();
+				break;
+			case 7:
+				Observer = NewObject<UTypedElementQueryObserverCallbackAdapterProcessorWith7Subqueries>();
+				break;
+			case 8:
+				Observer = NewObject<UTypedElementQueryObserverCallbackAdapterProcessorWith8Subqueries>();
 				break;
 			default:
 				checkf(false, TEXT("The current Typed Elements Data Storage backend doesn't support %i subqueries per observer query."),
@@ -482,7 +506,7 @@ bool FTypedElementExtendedQueryStore::SetupSelectedColumns(
 			for (int SelectionIndex = 0; SelectionIndex < SelectionCount; ++SelectionIndex)
 			{
 				TWeakObjectPtr<const UScriptStruct>& Type = Query.SelectionTypes[SelectionIndex];
-				
+				DSI::EQueryAccessType AccessType = Query.SelectionAccessTypes[SelectionIndex];
 				if (ensureMsgf(Type.IsValid(), TEXT("Provided query selection type can not be null.")) &&
 					ensureMsgf(
 						Type->IsChildOf(FTypedElementDataStorageColumn::StaticStruct()) ||
@@ -490,7 +514,7 @@ bool FTypedElementExtendedQueryStore::SetupSelectedColumns(
 						TEXT("Provided query selection type '%s' is not based on FTypedElementDataStorageColumn or another supported base type."),
 						*Type->GetStructPathName().ToString()))
 				{
-					NativeQuery.AddRequirement(Type.Get(), ConvertToNativeAccessType(Query.SelectionAccessTypes[SelectionIndex]));
+					NativeQuery.AddRequirement(Type.Get(), ConvertToNativeAccessType(AccessType), ConvertToNativePresenceType(AccessType));
 				}
 				else
 				{
@@ -695,12 +719,30 @@ EMassFragmentAccess FTypedElementExtendedQueryStore::ConvertToNativeAccessType(I
 	switch (AccessType)
 	{
 	case ITypedElementDataStorageInterface::EQueryAccessType::ReadOnly:
+		// Fall through
+	case ITypedElementDataStorageInterface::EQueryAccessType::OptionalReadOnly:
 		return EMassFragmentAccess::ReadOnly;
 	case ITypedElementDataStorageInterface::EQueryAccessType::ReadWrite:
 		return EMassFragmentAccess::ReadWrite;
 	default:
 		checkf(false, TEXT("Invalid query access type: %i."), static_cast<uint32>(AccessType));
 		return EMassFragmentAccess::MAX;
+	}
+}
+
+EMassFragmentPresence FTypedElementExtendedQueryStore::ConvertToNativePresenceType(ITypedElementDataStorageInterface::EQueryAccessType AccessType)
+{
+	switch (AccessType)
+	{
+	case ITypedElementDataStorageInterface::EQueryAccessType::ReadOnly:
+		return EMassFragmentPresence::All;
+	case ITypedElementDataStorageInterface::EQueryAccessType::OptionalReadOnly:
+		return EMassFragmentPresence::Optional;
+	case ITypedElementDataStorageInterface::EQueryAccessType::ReadWrite:
+		return EMassFragmentPresence::All;
+	default:
+		checkf(false, TEXT("Invalid query access type: %i."), static_cast<uint32>(AccessType));
+		return EMassFragmentPresence::MAX;
 	}
 }
 

@@ -75,9 +75,13 @@ namespace TypedElementDataStorage
 		Max //< Value indicating the maximum value in this enum. Not to be used as an enum value.
 	};
 
-	enum class EQueryAccessType : bool
+	enum class EQueryAccessType : uint8
 	{
+		/** Provide read-only access. */
 		ReadOnly,
+		/** Provide read-only access, but do not include when finding matching tables. */
+		OptionalReadOnly,
+		/** Provide read and write access. */
 		ReadWrite
 	};
 
