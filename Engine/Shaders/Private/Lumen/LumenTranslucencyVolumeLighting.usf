@@ -183,75 +183,6 @@ void TranslucencyVolumeTraceVoxelsCS(
 	}
 }
 
-
-[numthreads(THREADGROUP_SIZE, THREADGROUP_SIZE, 1)]
-void TranslucencyVolumeFroxelProbesCS(
-	uint3 GroupId : SV_GroupID,
-	uint3 DispatchThreadId : SV_DispatchThreadID,
-	uint3 GroupThreadId : SV_GroupThreadID)
-{
-	uint3 FroxelProbeGridCoordinate = uint3(DispatchThreadId.xy / TranslucencyVolumeTracingFroxelProbesOctahedronResolution, DispatchThreadId.z);
-	uint2 FroxelProbeTraceTexelCoord = DispatchThreadId.xy - FroxelProbeGridCoordinate.xy * TranslucencyVolumeTracingFroxelProbesOctahedronResolution;
-	
-	uint3 FroxelGridCoordinate = FroxelProbeGridCoordinate * TranslucencyVolumeTracingFroxelProbesFroxelSize;
-
-	if (all(FroxelProbeGridCoordinate < TranslucencyVolumeTracingFroxelProbesGridSize) && all(FroxelProbeTraceTexelCoord < TranslucencyVolumeTracingFroxelProbesOctahedronResolution))
-	{
-		float3 TraceRadiance = 0;
-		float TraceHitDistance = MaxTraceDistance;
-
-		if (IsFroxelProbeVisible(FroxelProbeGridCoordinate)) 
-		{
-			float3 LocalFrameJitterOffset = 0.5f; // Do not Jitter for now
-			ApplyDepthconstraintsToOffset(FroxelGridCoordinate + TranslucencyVolumeTracingFroxelProbesFroxelSize/2, LocalFrameJitterOffset);
-
-			float3 WorldPosition = ComputeCellWorldPosition(FroxelGridCoordinate, LocalFrameJitterOffset);
-			float3 TranslatedWorldPosition = ComputeCellTranslatedWorldPosition(FroxelGridCoordinate, LocalFrameJitterOffset);
-
-			float2 ProbeUV;
-			float ConeHalfAngle;
-			const float2 ProbeTexelCenter = 0.5; // No jittering so not using GetProbeTexelCenter for stability
-			GetFroxelProbeTracingUV(FroxelProbeTraceTexelCoord, 0.5, ProbeUV, ConeHalfAngle);
-
-			float3 WorldConeDirection = EquiAreaSphericalMapping(ProbeUV);
-			
-			float VoxelTraceStartDistance = CalculateVoxelTraceStartDistance(0, MaxTraceDistance, MaxMeshSDFTraceDistance, false) * VoxelTraceStartDistanceScale;
-
-			FConeTraceInput TraceInput;
-			TraceInput.Setup(WorldPosition, TranslatedWorldPosition, WorldConeDirection, ConeHalfAngle, 0, 0, MaxTraceDistance, StepFactor);
-			TraceInput.VoxelTraceStartDistance = VoxelTraceStartDistance;
-			TraceInput.SDFStepFactor = 1;
-
-			FConeTraceResult TraceResult = (FConeTraceResult) 0;
-			TraceResult.Transparency = 1;
-			
-			RayTraceGlobalDistanceField(TraceInput, TraceResult);
-
-			if (TraceResult.Transparency <= .5f)
-			{
-				TraceHitDistance = TraceResult.OpaqueHitDistance;
-			}
-			
-			ApplySkylightToTraceResult(WorldConeDirection, TraceResult);
-
-			TraceRadiance = TraceResult.Lighting;
-
-			TraceRadiance *= View.PreExposure;
-
-			float MaxLighting = max3(TraceRadiance.x, TraceRadiance.y, TraceRadiance.z);
-
-			if (MaxLighting > MaxRayIntensity)
-			{
-				TraceRadiance *= MaxRayIntensity / MaxLighting;
-			}
-		}
-
-		uint3 WriteCoord = uint3(FroxelProbeGridCoordinate.xy * TranslucencyVolumeTracingFroxelProbesOctahedronResolution + FroxelProbeTraceTexelCoord, FroxelProbeGridCoordinate.z);
-		RWVolumeTraceRadiance[WriteCoord] = TraceRadiance;
-		RWVolumeTraceHitDistance[WriteCoord] = min(TraceHitDistance, MaxHalfFloat);
-	}
-}
-
 Texture3D<float3> VolumeTraceRadiance;
 Texture3D<float> VolumeTraceHitDistance;
 
@@ -412,3 +343,158 @@ void TranslucencyVolumeIntegrateCS(
 		}
 	}
 }
+
+////////////////////////////////////////////////////////////////////////////////////////////////////
+// Froxel probe tracing.
+
+#if LUMEN_HARDWARE_RAYTRACING
+
+#include "/Engine/Shared/RayTracingTypes.h"
+#include "LumenHardwareRayTracingCommon.ush"
+
+#ifndef DIM_LIGHTING_MODE
+#define DIM_LIGHTING_MODE LIGHTING_FROM_SURFACE_CACHE
+#endif
+
+// From FLumenHardwareRayTracingShaderBase::SharedParameters
+RaytracingAccelerationStructure TLAS;
+uint MaxTraversalIterations;
+
+#endif // LUMEN_HARDWARE_RAYTRACING
+
+#if LUMEN_HARDWARE_INLINE_RAYTRACING
+
+	// From FLumenHardwareRayTracingShaderBase::SharedParameters
+	StructuredBuffer<FHitGroupRootConstants> HitGroupData;
+	StructuredBuffer<FRayTracingSceneMetadataRecord> RayTracingSceneMetadata;
+
+	FLumenTraceRayInlineCallback InitLumenTraceRayInlineCallback()
+	{
+		FLumenTraceRayInlineCallback Callback;
+		Callback.HitGroupData = HitGroupData;
+		Callback.bShadowRay = false;
+		return Callback;
+	}
+#endif // LUMEN_HARDWARE_INLINE_RAYTRACING
+
+#if LUMEN_HARDWARE_RAYTRACING
+LUMEN_HARDWARE_RAY_TRACING_ENTRY(TranslucencyVolumeFroxelProbesRayTracing)
+{
+	uint OctahedralAtlasSizeX = TranslucencyVolumeTracingFroxelProbesGridSize.x * TranslucencyVolumeTracingFroxelProbesOctahedronResolution.x;
+	uint3 DispatchThreadId = uint3(DispatchThreadIndex.x % OctahedralAtlasSizeX, DispatchThreadIndex.y, DispatchThreadIndex.x / OctahedralAtlasSizeX);
+#else // LUMEN_HARDWARE_RAYTRACING
+[numthreads(THREADGROUP_SIZE, THREADGROUP_SIZE, 1)]
+void TranslucencyVolumeFroxelProbesCS(
+	uint3 DispatchThreadId : SV_DispatchThreadID)
+{
+#endif // LUMEN_HARDWARE_RAYTRACING
+	uint3 FroxelProbeGridCoordinate = uint3(DispatchThreadId.xy / TranslucencyVolumeTracingFroxelProbesOctahedronResolution, DispatchThreadId.z);
+	uint2 FroxelProbeTraceTexelCoord = DispatchThreadId.xy - FroxelProbeGridCoordinate.xy * TranslucencyVolumeTracingFroxelProbesOctahedronResolution;
+	
+	uint3 FroxelGridCoordinate = FroxelProbeGridCoordinate * TranslucencyVolumeTracingFroxelProbesFroxelSize;
+
+	if (all(FroxelProbeGridCoordinate < TranslucencyVolumeTracingFroxelProbesGridSize) && all(FroxelProbeTraceTexelCoord < TranslucencyVolumeTracingFroxelProbesOctahedronResolution))
+	{
+		float3 TraceRadiance = 0;
+		float TraceHitDistance = MaxTraceDistance;
+
+		if (IsFroxelProbeVisible(FroxelProbeGridCoordinate)) 
+		{
+			float3 LocalFrameJitterOffset = 0.5f; // Do not Jitter for now
+			ApplyDepthconstraintsToOffset(FroxelGridCoordinate + TranslucencyVolumeTracingFroxelProbesFroxelSize/2, LocalFrameJitterOffset);
+
+			float3 WorldPosition = ComputeCellWorldPosition(FroxelGridCoordinate, LocalFrameJitterOffset);
+			float3 TranslatedWorldPosition = ComputeCellTranslatedWorldPosition(FroxelGridCoordinate, LocalFrameJitterOffset);
+
+			float2 ProbeUV;
+			float ConeHalfAngle;
+			const float2 ProbeTexelCenter = 0.5; // No jittering so not using GetProbeTexelCenter for stability
+			GetFroxelProbeTracingUV(FroxelProbeTraceTexelCoord, 0.5, ProbeUV, ConeHalfAngle);
+
+			float3 WorldConeDirection = EquiAreaSphericalMapping(ProbeUV);
+			
+#if LUMEN_HARDWARE_RAYTRACING
+
+			float TraceDistance = MaxTraceDistance;
+
+			FRayDesc Ray;
+			Ray.Origin = WorldPosition + DFHackToFloat(PrimaryView.PreViewTranslation); // LUMEN_LWC_TODO
+			Ray.Direction = WorldConeDirection;
+			Ray.TMin = 0;
+			Ray.TMax = TraceDistance;
+
+			FRayCone RayCone = (FRayCone)0;
+			RayCone = PropagateRayCone(RayCone, ConeHalfAngle, 0.0);
+
+			const uint LinearCoord = FroxelProbeGridCoordinate.y * TranslucencyVolumeTracingFroxelProbesGridSize.x + FroxelProbeGridCoordinate.x;
+			const uint CullingMode = 0;
+			FRayTracedLightingContext Context = CreateRayTracedLightingContext(RayCone, FroxelProbeGridCoordinate.xy, LinearCoord, CullingMode, MaxTraversalIterations);
+
+			FRayTracedLightingResult TraceLightingResult;
+			TraceLightingResult.Radiance = 0;
+			TraceLightingResult.TraceHitDistance = MaxTraceDistance;
+	#if DIM_LIGHTING_MODE == LIGHTING_FROM_SURFACE_CACHE
+		#if LUMEN_HARDWARE_INLINE_RAYTRACING
+			Context.HitGroupData = HitGroupData;
+			Context.RayTracingSceneMetadata = RayTracingSceneMetadata;
+		#endif
+			TraceLightingResult = TraceAndCalculateRayTracedLightingFromSurfaceCache(TLAS, Ray, Context);
+	#else
+			TraceLightingResult = TraceAndCalculateRayTracedLighting(TLAS, Ray, Context, DIM_LIGHTING_MODE, false);
+	#endif
+
+			FConeTraceResult TraceResult = (FConeTraceResult) 0;
+			TraceResult.OpaqueHitDistance = TraceLightingResult.TraceHitDistance;
+			TraceResult.Lighting = TraceLightingResult.Radiance;
+			if (TraceLightingResult.bIsHit)
+			{
+				TraceResult.Transparency = 0.0;
+			}
+			else
+			{
+				TraceResult.Transparency = 1.0;
+				ApplySkylightToTraceResult(WorldConeDirection, TraceResult);
+			}
+
+
+#else // LUMEN_HARDWARE_RAYTRACING
+
+			float VoxelTraceStartDistance = CalculateVoxelTraceStartDistance(0, MaxTraceDistance, MaxMeshSDFTraceDistance, false) * VoxelTraceStartDistanceScale;
+
+			FConeTraceInput TraceInput;
+			TraceInput.Setup(WorldPosition, TranslatedWorldPosition, WorldConeDirection, ConeHalfAngle, 0, 0, MaxTraceDistance, StepFactor);
+			TraceInput.VoxelTraceStartDistance = VoxelTraceStartDistance;
+			TraceInput.SDFStepFactor = 1;
+
+			FConeTraceResult TraceResult = (FConeTraceResult) 0;
+			TraceResult.Transparency = 1;
+			
+			RayTraceGlobalDistanceField(TraceInput, TraceResult);
+
+			if (TraceResult.Transparency <= .5f)
+			{
+				TraceHitDistance = TraceResult.OpaqueHitDistance;
+			}
+			
+			ApplySkylightToTraceResult(WorldConeDirection, TraceResult);
+
+#endif // LUMEN_HARDWARE_RAYTRACING
+
+			TraceRadiance = TraceResult.Lighting;
+
+			TraceRadiance *= View.PreExposure;
+
+			float MaxLighting = max3(TraceRadiance.x, TraceRadiance.y, TraceRadiance.z);
+
+			if (MaxLighting > MaxRayIntensity)
+			{
+				TraceRadiance *= MaxRayIntensity / MaxLighting;
+			}
+		}
+
+		uint3 WriteCoord = uint3(FroxelProbeGridCoordinate.xy * TranslucencyVolumeTracingFroxelProbesOctahedronResolution + FroxelProbeTraceTexelCoord, FroxelProbeGridCoordinate.z);
+		RWVolumeTraceRadiance[WriteCoord] = TraceRadiance;
+		RWVolumeTraceHitDistance[WriteCoord] = min(TraceHitDistance, MaxHalfFloat);
+	}
+}
+

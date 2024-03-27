@@ -101,6 +101,18 @@ extern void HardwareRayTraceTranslucencyVolume(
 	ERDGPassFlags ComputePassFlags
 );
 
+extern void HardwareRayTraceTranslucencyVolumeFroxelProbes(
+	FRDGBuilder& GraphBuilder,
+	const FViewInfo& View,
+	const FLumenCardTracingParameters& TracingParameters,
+	FLumenTranslucencyLightingVolumeParameters VolumeParameters,
+	FLumenTranslucencyLightingVolumeTraceSetupParameters TraceSetupParameters,
+	FRDGTextureRef VolumeFroxelProbeRadiance,
+	FRDGTextureRef VolumeFroxelProbeHitDistance,
+	ERDGPassFlags ComputePassFlags,
+	const bool bDynamicSkyLight
+);
+
 namespace LumenTranslucencyVolumeRadianceCache
 {
 	extern LumenRadianceCache::FRadianceCacheInputs SetupRadianceCacheInputs(const FViewInfo& View);

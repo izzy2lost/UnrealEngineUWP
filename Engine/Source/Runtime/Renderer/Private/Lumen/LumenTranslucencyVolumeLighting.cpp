@@ -931,7 +931,6 @@ void FDeferredShadingSceneRenderer::ComputeLumenTranslucencyGIVolume(
 			FRDGTextureRef VolumeFroxelProbeHitDistance = nullptr;
 			if (GTranslucencyVolumeRadianceCacheFrustumProbes > 0)
 			{
-
 				const FIntVector FroxelProbeAtlasSize(
 					VolumeParameters.TranslucencyVolumeTracingFroxelProbesGridSize.X * VolumeParameters.TranslucencyVolumeTracingFroxelProbesOctahedronResolution,
 					VolumeParameters.TranslucencyVolumeTracingFroxelProbesGridSize.Y * VolumeParameters.TranslucencyVolumeTracingFroxelProbesOctahedronResolution,
@@ -942,17 +941,34 @@ void FDeferredShadingSceneRenderer::ComputeLumenTranslucencyGIVolume(
 				VolumeFroxelProbeHitDistance = GraphBuilder.CreateTexture(VolumeFroxelProbeHitDistanceDesc, TEXT("Lumen.TranslucencyVolume.FroxelProbeHitDistance"));
 
 				const bool bDynamicSkyLight = Lumen::ShouldHandleSkyLight(Scene, ViewFamily);
-				TraceFroxelProbesTranslucencyVolume(
-					GraphBuilder,
-					View,
-					bDynamicSkyLight,
-					TracingParameters,
-					RadianceCacheParameters,
-					VolumeParameters,
-					TraceSetupParameters,
-					VolumeFroxelProbeRadiance,
-					VolumeFroxelProbeHitDistance,
-					ComputePassFlags);
+
+				if (Lumen::UseHardwareRayTracedTranslucencyVolume(ViewFamily))
+				{
+					HardwareRayTraceTranslucencyVolumeFroxelProbes(
+						GraphBuilder,
+						View,
+						TracingParameters,
+						VolumeParameters,
+						TraceSetupParameters,
+						VolumeFroxelProbeRadiance,
+						VolumeFroxelProbeHitDistance,
+						ComputePassFlags,
+						bDynamicSkyLight);
+				}
+				else
+				{
+					TraceFroxelProbesTranslucencyVolume(
+						GraphBuilder,
+						View,
+						bDynamicSkyLight,
+						TracingParameters,
+						RadianceCacheParameters,
+						VolumeParameters,
+						TraceSetupParameters,
+						VolumeFroxelProbeRadiance,
+						VolumeFroxelProbeHitDistance,
+						ComputePassFlags);
+				}
 			}
 
 			if (Lumen::UseHardwareRayTracedTranslucencyVolume(ViewFamily) && GLumenTranslucencyVolumeTraceFromVolume != 0)
