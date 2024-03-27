@@ -231,11 +231,11 @@ void FAssetEditorToolkit::InitAssetEditor( const EToolkitMode::Type Mode, const 
 						{
 							if (AsyncAsset->IsCompiling())
 							{
-								return EVisibility::Collapsed;
+								return EVisibility::Hidden;
 							}
 						}
 					}
-					return EVisibility::All;
+					return EVisibility::Visible;
 				})
 			.OnRequestClose(this, &FAssetEditorToolkit::OnRequestClose, EAssetEditorCloseReason::AssetEditorHostClosed)
 			.OnClose(this, &FAssetEditorToolkit::OnClose)
