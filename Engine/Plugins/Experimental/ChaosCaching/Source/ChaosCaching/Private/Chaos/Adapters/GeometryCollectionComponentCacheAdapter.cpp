@@ -72,8 +72,8 @@ namespace Chaos
 
 		const FCachedEventData& ProxyCachedEventData = CachedData[Proxy];
 
-		const Chaos::FPhysicsSolver* Solver         = Proxy->GetSolver<Chaos::FPhysicsSolver>();
-		const FGeometryCollection*   RestCollection = Proxy->GetSimParameters().RestCollection;
+		const Chaos::FPhysicsSolver* Solver = Proxy->GetSolver<Chaos::FPhysicsSolver>();
+		TSharedPtr<const FGeometryCollection> RestCollection = Proxy->GetSimParameters().RestCollectionShared;
 
 		if(!RestCollection || !Solver)
 		{
@@ -253,8 +253,8 @@ namespace Chaos
 		}
 
 		const FTransform ComponentToWorld = Proxy->GetSimParameters().WorldTransform;
-		const FGeometryCollection* RestCollection = Proxy->GetSimParameters().RestCollection;
-		Chaos::FPhysicsSolver*     Solver         = Proxy->GetSolver<Chaos::FPhysicsSolver>();
+		TSharedPtr<const FGeometryCollection> RestCollection = Proxy->GetSimParameters().RestCollectionShared;
+		Chaos::FPhysicsSolver* Solver = Proxy->GetSolver<Chaos::FPhysicsSolver>();
 
 		if(!RestCollection || !Solver)
 		{

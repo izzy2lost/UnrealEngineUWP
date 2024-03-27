@@ -3735,7 +3735,7 @@ void UGeometryCollectionComponent::ResetDynamicCollection()
 #endif
 	if (bCreateDynamicCollection && RestCollection && RestCollection->GetGeometryCollection())
 	{
-		DynamicCollection = MakeUnique<FGeometryDynamicCollection>(RestCollection->GetGeometryCollection().Get());
+		DynamicCollection = MakeUnique<FGeometryDynamicCollection>(RestCollection->GetGeometryCollection());
 
 		IndirectParentArray = nullptr;
 		GetParentArrayCopyOnWrite();
@@ -3911,7 +3911,11 @@ void UGeometryCollectionComponent::RegisterAndInitializePhysicsProxy()
 		if (RestCollection)
 		{
 			RestCollection->GetSharedSimulationParams(SimulationParameters.Shared);
-			SimulationParameters.RestCollection = RestCollection->GetGeometryCollection().Get();
+			SimulationParameters.RestCollectionShared = RestCollection->GetGeometryCollection();
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
+			// To be removed when RestCollection is removed post-deprecation. Here for back compat
+			SimulationParameters.RestCollection = SimulationParameters.RestCollectionShared.Get();
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
 			SimulationParameters.InitialRootIndex = RestCollection->GetRootIndex();
 			ClusterCollectionType = RestCollection->ClusterConnectionType;
 			ConnectionGraphBoundsFilteringMargin = RestCollection->ConnectionGraphBoundsFilteringMargin;

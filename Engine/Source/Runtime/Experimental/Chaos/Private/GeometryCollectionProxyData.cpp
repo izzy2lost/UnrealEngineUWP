@@ -14,10 +14,27 @@ GeometryCollectionProxyData.cpp:
 
 FTransformDynamicCollection::FTransformDynamicCollection(const FGeometryCollection* InRestCollection)
 	: FManagedArrayCollection()
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
 	, RestCollection(InRestCollection)
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	, bTransformHasChanged(false)
 {
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
 	check(RestCollection != nullptr);
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
+	Construct();
+}
+
+FTransformDynamicCollection::FTransformDynamicCollection(TSharedPtr<const FGeometryCollection> InRestCollection)
+	: FManagedArrayCollection()
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
+	// To be removed with RestCollection post-deprecation
+	, RestCollection(InRestCollection.Get())
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
+	, RestCollectionShared(InRestCollection)
+	, bTransformHasChanged(false)
+{
+	check(RestCollectionShared);
 	Construct();
 }
 
@@ -34,7 +51,7 @@ void FTransformDynamicCollection::InitializeTransforms()
 	if (bTransformHasChanged == false)
 	{
 		AddExternalAttribute<FTransform3f>(FTransformCollection::TransformAttribute, FTransformCollection::TransformGroup, Transform);
-		CopyAttribute(*RestCollection, FTransformCollection::TransformAttribute, FTransformCollection::TransformGroup);
+		CopyAttribute(*RestCollectionShared, FTransformCollection::TransformAttribute, FTransformCollection::TransformGroup);
 
 		bTransformHasChanged = true;
 	}
@@ -44,7 +61,7 @@ const FTransform3f& FTransformDynamicCollection::GetTransform(int32 Index) const
 {
 	if (bTransformHasChanged == false)
 	{
-		return RestCollection->Transform[Index];
+		return RestCollectionShared->Transform[Index];
 	}
 	return Transform[Index];
 }
@@ -57,8 +74,8 @@ void FTransformDynamicCollection::SetTransform(int32 Index, const FTransform3f& 
 
 int32 FTransformDynamicCollection::GetNumTransforms() const
 {
-	ensure(!bTransformHasChanged || RestCollection->Transform.Num() == Transform.Num());
-	return RestCollection->Transform.Num();
+	ensure(!bTransformHasChanged || RestCollectionShared->Transform.Num() == Transform.Num());
+	return RestCollectionShared->Transform.Num();
 }
 
 void FTransformDynamicCollection::ResetInitialTransforms()
@@ -88,13 +105,13 @@ void FTransformDynamicCollection::SetHasParent(int32 Index, bool Value)
 
 int32 FTransformDynamicCollection::GetParent(int32 Index) const 
 {
-	check(RestCollection != nullptr);
-	return HasParent[Index] ? RestCollection->Parent[Index] : INDEX_NONE;
+	check(RestCollectionShared);
+	return HasParent[Index] ? RestCollectionShared->Parent[Index] : INDEX_NONE;
 }
 
 bool FTransformDynamicCollection::HasChildren(int32 Index) const
 {
-	const TSet<int32>& Children(RestCollection->Children[Index]);
+	const TSet<int32>& Children(RestCollectionShared->Children[Index]);
 	for (int32 Child : Children)
 	{
 		if (HasParent[Child])
@@ -125,6 +142,22 @@ const FName FGeometryDynamicCollection::CollisionMaskAttribute("CollisionMask");
 const FName FGeometryDynamicCollection::CollisionGroupAttribute("CollisionGroup");
 
 FGeometryDynamicCollection::FGeometryDynamicCollection(const FGeometryCollection* InRestCollection)
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
+	: FTransformDynamicCollection(InRestCollection)
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
+	, OptionalLinearVelocityAttribute(nullptr)
+	, OptionalAngularVelocityAttribute(nullptr)
+	, OptionalAnimateTransformAttribute(nullptr)
+{
+	// Transform Group
+	AddExternalAttribute<bool>(FGeometryDynamicCollection::ActiveAttribute, FTransformCollection::TransformGroup, Active);
+	AddExternalAttribute<uint8>(FGeometryDynamicCollection::DynamicStateAttribute, FTransformCollection::TransformGroup, DynamicState);
+	AddExternalAttribute(SimplicialsAttribute, FTransformCollection::TransformGroup, Simplicials);
+	AddExternalAttribute(SimulatableParticlesAttribute, FGeometryCollection::TransformGroup, SimulatableParticles);
+	AddExternalAttribute(InternalClusterParentTypeAttribute, FGeometryCollection::TransformGroup, InternalClusterParentType);
+}
+
+FGeometryDynamicCollection::FGeometryDynamicCollection(TSharedPtr<const FGeometryCollection> InRestCollection)
 	: FTransformDynamicCollection(InRestCollection)
 	, OptionalLinearVelocityAttribute(nullptr)
 	, OptionalAngularVelocityAttribute(nullptr)
@@ -141,7 +174,7 @@ FGeometryDynamicCollection::FGeometryDynamicCollection(const FGeometryCollection
 const TManagedArrayAccessor<int32> FGeometryDynamicCollection::GetInitialLevels() const
 {
 	static const FName LevelAttributeName = "Level";
-	return TManagedArrayAccessor<int32>(*RestCollection, LevelAttributeName, FGeometryCollection::TransformGroup);
+	return TManagedArrayAccessor<int32>(*RestCollectionShared, LevelAttributeName, FGeometryCollection::TransformGroup);
 }
 
 void FGeometryDynamicCollection::AddVelocitiesAttributes()

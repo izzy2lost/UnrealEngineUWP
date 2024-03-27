@@ -170,7 +170,10 @@ struct FSimulationParameters
 {
 	FSimulationParameters()
 		: Name("")
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
 		, RestCollection(nullptr)
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
+		, RestCollectionShared(nullptr)
 		, InitialRootIndex(INDEX_NONE)
 		, RecordedTrack(nullptr)
 		, bOwnsTrack(false)
@@ -232,7 +235,10 @@ struct FSimulationParameters
 
 	FSimulationParameters(const FSimulationParameters& Other)
 		: Name(Other.Name)
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
 		, RestCollection(Other.RestCollection)
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
+		, RestCollectionShared(Other.RestCollectionShared)
 		, InitialRootIndex(Other.InitialRootIndex)
 		, InitializationCommands(Other.InitializationCommands)
 		, RecordedTrack(Other.RecordedTrack)
@@ -308,7 +314,12 @@ struct FSimulationParameters
 	bool IsCachePlaying() { return CacheType == EGeometryCollectionCacheType::Play || CacheType == EGeometryCollectionCacheType::RecordAndPlay; }
 
 	FString Name;
+	
+	UE_DEPRECATED(5.4, "Raw pointer no longer in use, instead prefer RestCollectionShared")
 	const FGeometryCollection* RestCollection;
+
+	TSharedPtr<const FGeometryCollection> RestCollectionShared;
+
 	int32 InitialRootIndex;
 	TArray<FFieldSystemCommand> InitializationCommands;
 	const FRecordedTransformTrack* RecordedTrack;
