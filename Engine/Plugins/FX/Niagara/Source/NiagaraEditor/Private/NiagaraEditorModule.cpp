@@ -324,7 +324,7 @@ class FNiagaraEditorOnlyDataUtilities : public INiagaraEditorOnlyDataUtilities
 		{
 			const TCHAR* SystemStateName = TEXT("/Niagara/Modules/System/SystemState.SystemState");
 			TArray<UNiagaraNodeFunctionCall*> Nodes;
-			if (ensure(ScriptSource->NodeGraph))
+			if (ScriptSource->NodeGraph)
 			{
 				ScriptSource->NodeGraph->GetNodesOfClass<UNiagaraNodeFunctionCall>(Nodes);
 			}
