@@ -320,7 +320,7 @@ const PoolList: React.FC = observer(() => {
    },];
 
    const onRenderDetailsHeader: IDetailsListProps['onRenderDetailsHeader'] = (props) => {
-      const customStyles: Partial<IDetailsHeaderStyles> = {};
+      const customStyles: Partial<IDetailsHeaderStyles> = {root: {paddingTop: 0}};
       if (props) {
          return (
             <Sticky stickyPosition={StickyPositionType.Header} isScrollSynced={true}>
