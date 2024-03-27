@@ -62,6 +62,8 @@ protected:
 
 	void HandlePlaybackButtonClicked(EChaosVDPlaybackButtonsID ButtonID);
 
+	bool CanPlayback() const;
+
 	TSharedPtr<SChaosVDTimelineWidget> GameFramesTimelineWidget;
 
 	TSharedPtr<FChaosVDPlaybackViewportClient> PlaybackViewportClient;

@@ -85,6 +85,7 @@ void SChaosVDPlaybackViewport::Construct(const FArguments& InArgs, TWeakPtr<FCha
 			+SVerticalBox::Slot()
 			[
 				SAssignNew(GameFramesTimelineWidget, SChaosVDTimelineWidget)
+				.IsEnabled_Raw(this, &SChaosVDPlaybackViewport::CanPlayback)
 				.ButtonVisibilityFlags(static_cast<uint16>(EChaosVDTimelineElementIDFlags::AllPlayback))
 				.OnFrameChanged_Raw(this, &SChaosVDPlaybackViewport::OnFrameSelectionUpdated)
 				.OnButtonClicked(this, &SChaosVDPlaybackViewport::HandlePlaybackButtonClicked)
@@ -292,6 +293,13 @@ void SChaosVDPlaybackViewport::OnFrameSelectionUpdated(int32 NewFrameIndex) cons
 void SChaosVDPlaybackViewport::HandlePlaybackButtonClicked(EChaosVDPlaybackButtonsID ButtonID)
 {
 	Chaos::VisualDebugger::HandleUserPlaybackInputControl(ButtonID, *this, PlaybackController);
+}
+
+bool SChaosVDPlaybackViewport::CanPlayback() const
+{
+	const TSharedPtr<FChaosVDPlaybackController> PlaybackControllerPtr = PlaybackController.Pin();
+
+	return PlaybackControllerPtr && PlaybackControllerPtr->IsRecordingLoaded();
 }
 
 #undef LOCTEXT_NAMESPACE
