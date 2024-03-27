@@ -75,6 +75,11 @@ namespace Horde.Server.Authentication
 				}
 			}
 
+			MapAdminClaim(settings, identity);
+		}
+
+		public static void MapAdminClaim(ServerSettings settings, ClaimsIdentity identity)
+		{
 			if (!String.IsNullOrEmpty(settings.AdminClaimType) && !String.IsNullOrEmpty(settings.AdminClaimValue))
 			{
 				if (identity.HasClaim(settings.AdminClaimType, settings.AdminClaimValue))
