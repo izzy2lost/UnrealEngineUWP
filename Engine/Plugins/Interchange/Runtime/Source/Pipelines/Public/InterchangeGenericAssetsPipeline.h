@@ -126,7 +126,6 @@ public:
 		bool bMatch = false;
 		bool bConflict = false;
 		bool bChildConflict = false;
-		bool bInitialAutoExpand = false;
 		TSharedPtr<FSkeletonJoint> Parent;
 		TArray<TSharedPtr<FSkeletonJoint>> Children;
 	};
@@ -314,6 +313,7 @@ private:
 	//////////////////////////////////////////////////////////////////////////
 	//Collapse generic
 	bool bShowSectionFlag[EInterchangeSkeletonCompareSection::Count];
+	FReply OnExpandToConflict();
 	FReply SetSectionVisible(EInterchangeSkeletonCompareSection SectionIndex);
 	EVisibility IsSectionVisible(EInterchangeSkeletonCompareSection SectionIndex);
 	const FSlateBrush* GetCollapsableArrow(EInterchangeSkeletonCompareSection SectionIndex) const;

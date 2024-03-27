@@ -556,14 +556,14 @@ void UInterchangeGenericAssetsPipeline::InternalRecursiveFillJointsFromNodeConta
 namespace UE::Interchange::Private
 {
 	void SetParentChildConflict(TSharedPtr<UInterchangeGenericAssetsPipeline::FSkeletonJoint> ParentJoint)
+	{
+		TSharedPtr<UInterchangeGenericAssetsPipeline::FSkeletonJoint> ParentJointIter = ParentJoint;
+		while (ParentJointIter.IsValid() && !ParentJointIter->bChildConflict)
 		{
-			TSharedPtr<UInterchangeGenericAssetsPipeline::FSkeletonJoint> ParentJointIter = ParentJoint;
-			while (ParentJointIter.IsValid() && !ParentJointIter->bChildConflict)
-			{
-				ParentJointIter->bChildConflict = true;
-				ParentJointIter = ParentJointIter->Parent;
-			}
-		};
+			ParentJointIter->bChildConflict = true;
+			ParentJointIter = ParentJointIter->Parent;
+		}
+	}
 
 	void RecursivelyFillJointRemoved(TSharedPtr<UInterchangeGenericAssetsPipeline::FSkeletonJoint> AssetJoint
 		, TSharedPtr<UInterchangeGenericAssetsPipeline::FSkeletonJoint> ParentJoint
@@ -1772,6 +1772,47 @@ void SInterchangeGenericAssetSkeletonConflictWidget::Construct(const FArguments&
 	];
 }
 
+namespace UE::Interchange::Private
+{
+	void RecursivelyCollapseTreeItem(TSharedPtr<STreeView<TSharedPtr<UInterchangeGenericAssetsPipeline::FSkeletonJoint>>> CompareTree
+		, TSharedPtr<UInterchangeGenericAssetsPipeline::FSkeletonJoint> JointItem)
+	{
+		CompareTree->SetItemExpansion(JointItem, false);
+		for (TSharedPtr<UInterchangeGenericAssetsPipeline::FSkeletonJoint> ChildJoint : JointItem->Children)
+		{
+			RecursivelyCollapseTreeItem(CompareTree, ChildJoint);
+		}
+	}
+
+	void RecursivelyExpandTreeItem(TSharedPtr<STreeView<TSharedPtr<UInterchangeGenericAssetsPipeline::FSkeletonJoint>>> CompareTree
+		, TSharedPtr<UInterchangeGenericAssetsPipeline::FSkeletonJoint> JointItem)
+	{
+		if (!JointItem->bMatch || !JointItem->bChildConflict)
+		{
+			return;
+		}
+		CompareTree->SetItemExpansion(JointItem, true);
+		for (TSharedPtr<UInterchangeGenericAssetsPipeline::FSkeletonJoint> ChildJoint : JointItem->Children)
+		{
+			RecursivelyExpandTreeItem(CompareTree, ChildJoint);
+		}
+	}
+}
+
+FReply SInterchangeGenericAssetSkeletonConflictWidget::OnExpandToConflict()
+{
+	for (TSharedPtr<UInterchangeGenericAssetsPipeline::FSkeletonJoint> Joint : Joints)
+	{
+		UE::Interchange::Private::RecursivelyCollapseTreeItem(CompareTree, Joint);
+	}
+
+	for (TSharedPtr<UInterchangeGenericAssetsPipeline::FSkeletonJoint> Joint : Joints)
+	{
+		UE::Interchange::Private::RecursivelyExpandTreeItem(CompareTree, Joint);
+	}
+	return FReply::Handled();
+}
+
 FReply SInterchangeGenericAssetSkeletonConflictWidget::SetSectionVisible(EInterchangeSkeletonCompareSection SectionIndex)
 {
 	bShowSectionFlag[SectionIndex] = !bShowSectionFlag[SectionIndex];
@@ -1786,24 +1827,6 @@ EVisibility SInterchangeGenericAssetSkeletonConflictWidget::IsSectionVisible(EIn
 const FSlateBrush* SInterchangeGenericAssetSkeletonConflictWidget::GetCollapsableArrow(EInterchangeSkeletonCompareSection SectionIndex) const
 {
 	return bShowSectionFlag[SectionIndex] ? FAppStyle::GetBrush("Symbols.DownArrow") : FAppStyle::GetBrush("Symbols.RightArrow");
-}
-
-namespace UE::Interchange::Private
-{
-	void RecursivelyExpandTreeItem(TSharedPtr<STreeView<TSharedPtr<UInterchangeGenericAssetsPipeline::FSkeletonJoint>>> CompareTree
-		, TSharedPtr<UInterchangeGenericAssetsPipeline::FSkeletonJoint> JointItem)
-	{
-		if (JointItem->bInitialAutoExpand || !JointItem->bMatch || !JointItem->bChildConflict)
-		{
-			return;
-		}
-		JointItem->bInitialAutoExpand = true;
-		CompareTree->SetItemExpansion(JointItem, true);
-		for (TSharedPtr<UInterchangeGenericAssetsPipeline::FSkeletonJoint> ChildJoint : JointItem->Children)
-		{
-			RecursivelyExpandTreeItem(CompareTree, ChildJoint);
-		}
-	}
 }
 
 TSharedPtr<SWidget> SInterchangeGenericAssetSkeletonConflictWidget::ConstructSkeletonComparison()
@@ -1872,10 +1895,26 @@ TSharedPtr<SWidget> SInterchangeGenericAssetSkeletonConflictWidget::ConstructSke
 						.AutoHeight()
 						.Padding(2)
 						[
-							SNew(STextBlock)
-							.Font(FAppStyle::GetFontStyle("DetailsView.CategoryFontStyle"))
-							.Text(SkeletonStatus)
-							.ColorAndOpacity(SInterchangeGenericAssetMaterialConflictWidget::SlateColorFullConflict)
+							SNew(SHorizontalBox)
+							+SHorizontalBox::Slot()
+							.AutoWidth()
+							[
+								SNew(SButton)
+								.HAlign(HAlign_Center)
+								.Text(NSLOCTEXT("SInterchangeGenericAssetMaterialConflictWidget", "SInterchangeGenericAssetMaterialConflic_ExpandToConflict", "Expand To Conflict"))
+								.OnClicked(this, &SInterchangeGenericAssetSkeletonConflictWidget::OnExpandToConflict)
+							]
+							+SHorizontalBox::Slot()
+							.FillWidth(1.0f)
+							.VAlign(VAlign_Center)
+							.HAlign(HAlign_Left)
+							.Padding(6.0f, 0.0f)
+							[
+								SNew(STextBlock)
+								.Font(FAppStyle::GetFontStyle("DetailsView.CategoryFontStyle"))
+								.Text(SkeletonStatus)
+								.ColorAndOpacity(SInterchangeGenericAssetMaterialConflictWidget::SlateColorFullConflict)
+							]
 						]
 						+SVerticalBox::Slot()
 						.AutoHeight()
