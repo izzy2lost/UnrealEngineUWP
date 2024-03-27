@@ -401,6 +401,16 @@ void UAnimSingleNodeInstance::SetBlendSpacePosition(const FVector& InPosition)
 	GetProxyOnGameThread<FAnimSingleNodeInstanceProxy>().SetBlendSpacePosition(InPosition);
 }
 
+void UAnimSingleNodeInstance::SetInterpolationOverride(TOptional<EAnimInterpolationType> InterpolationType)
+{
+	GetProxyOnGameThread<FAnimSingleNodeInstanceProxy>().SetInterpolationOverride(InterpolationType);
+}
+
+TOptional<EAnimInterpolationType> UAnimSingleNodeInstance::GetInterpolationOverride() const
+{
+	return GetProxyOnGameThread<FAnimSingleNodeInstanceProxy>().GetInterpolationOverride();
+}
+
 void UAnimSingleNodeInstance::GetBlendSpaceState(FVector& OutPosition, FVector& OutFilteredPosition) const
 {
 	GetProxyOnGameThread<FAnimSingleNodeInstanceProxy>().GetBlendSpaceState(OutPosition, OutFilteredPosition);

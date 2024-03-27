@@ -10,7 +10,9 @@
 
 #include "CoreMinimal.h"
 #include "UObject/ObjectMacros.h"
+#include "Misc/Optional.h"
 #include "Animation/AnimInstance.h"
+#include "Animation/AnimTypes.h"
 #include "AnimSingleNodeInstance.generated.h"
 
 struct FAnimInstanceProxy;
@@ -77,6 +79,7 @@ public:
 	/** Set pose value */
  	UFUNCTION(BlueprintCallable, Category = "Animation")
  	ENGINE_API void SetPreviewCurveOverride(const FName& PoseName, float Value, bool bRemoveIfZero);
+
 public:
 	/** Gets the current state of any BlendSpace */
 	ENGINE_API void GetBlendSpaceState(FVector& OutPosition, FVector& OutFilteredPosition) const;
@@ -118,6 +121,14 @@ public:
 
 	/** Get the last filter output */
 	ENGINE_API FVector GetFilterLastOutput();
+
+	/** Set animation interpolation type override. If not set, it will not override. */
+	ENGINE_API void SetInterpolationOverride(TOptional<EAnimInterpolationType> InterpolationType);
+
+	/** Get animation interpolation type override. If not set, it will not override. */
+ 	ENGINE_API TOptional<EAnimInterpolationType> GetInterpolationOverride() const;
+
+
 protected:
 	ENGINE_API virtual FAnimInstanceProxy* CreateAnimInstanceProxy() override;
 };

@@ -246,7 +246,7 @@ static void SampleUE4Clip(const acl::track_array_qvvf& Tracks, USkeleton* UE4Ske
 		FTransform BoneTransform;
 		if (BoneTreeIndex != INDEX_NONE && Model->IsValidBoneTrackName(BoneName))
 		{
-			UE4Clip->GetBoneTransform(BoneTransform, FSkeletonPoseBoneIndex(BoneTreeIndex), double(SampleTime), false);
+			UE4Clip->GetBoneTransform(BoneTransform, FSkeletonPoseBoneIndex(BoneTreeIndex), double(SampleTime), false, TOptional<EAnimInterpolationType>());
 		}
 		else
 		{

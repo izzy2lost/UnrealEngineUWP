@@ -559,6 +559,12 @@ public:
 	 **/
 	ENGINE_API void AddAnimNotifies(const TArray<FAnimNotifyEventReference>& NewNotifies, const float InstanceWeight);
 
+	/** Set the optional animation interpolation type override. When not set, it will use the interpolation type set inside the animation asset. */
+	ENGINE_API void SetInterpolationOverride(TOptional<EAnimInterpolationType> InterpolationType);
+
+	/** Get the interpolation type override. If not set, it will use the iterpolation type set inside the animation asset. */
+	ENGINE_API TOptional<EAnimInterpolationType> GetInterpolationOverride() const;
+
 	/** Only restricted classes can access the protected interface */
 	friend class UAnimInstance;
 	friend class UAnimSingleNodeInstance;
@@ -1089,6 +1095,9 @@ protected:
 	uint64 FrameCounterForUpdate;
 	uint64 FrameCounterForNodeUpdate;
 
+	/** Optional override of the animation interpolation type. If not set, it is ignored. */
+	TOptional<EAnimInterpolationType> InterpolationOverride;
+
 private:
 	// Root motion extracted from animation since the last time ConsumeExtractedRootMotion was called
 	FRootMotionMovementParams ExtractedRootMotion;
@@ -1152,12 +1161,10 @@ private:
 	bool bUpdatingRoot;
 
 protected:
-
 	/** When RequiredBones mapping has changed, AnimNodes need to update their bones caches. */
 	uint8 bBoneCachesInvalidated : 1;
 
 private:
-
 	// Diplicate of bool result of ShouldExtractRootMotion()
 	uint8 bShouldExtractRootMotion : 1;
 

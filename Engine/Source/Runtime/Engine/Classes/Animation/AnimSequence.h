@@ -541,10 +541,12 @@ public:
 	 * @param	TrackIndex		Index of track to interpolate.
 	 * @param	Time			Time on track to interpolate to.
 	 * @param	bUseRawData		If true, use raw animation data instead of compressed data.
+	 * @param   InterpolationOverride The optional animation interpolation type to use. If not set, it will use the AnimSequence interpolation type.
 	 */
+	ENGINE_API void GetBoneTransform(FTransform& OutAtom, FSkeletonPoseBoneIndex BoneIndex, double Time, bool bUseRawData, TOptional<EAnimInterpolationType> InterpolationOverride=TOptional<EAnimInterpolationType>()) const;
+
 	UE_DEPRECATED(5.1, "Use other GetBoneTransform signature using double and skeleton index")
 	void GetBoneTransform(FTransform& OutAtom, int32 TrackIndex, float Time, bool bUseRawData) const {}
-	ENGINE_API void GetBoneTransform(FTransform& OutAtom, FSkeletonPoseBoneIndex BoneIndex, double Time, bool bUseRawData) const;
 
 	/**
 	 * Get Bone Transform of the Time given, relative to Parent for the Track Given

@@ -282,6 +282,14 @@ struct FAnimExtractContext
 	 */
 	TArray<bool> BonesRequired;
 
+	/** 
+	 * The optional interpolation mode override.
+	 * If not set, it will simply use the interpolation mode provided by the asset.
+	 * One example where this could be used is if you want to force sampling the animation with Step interpolation
+	 * even when the animation sequence asset is set to Linear interpolation.
+	 */
+	TOptional<EAnimInterpolationType> InterpolationOverride;
+
 #if WITH_EDITOR
 	bool bIgnoreRootLock;
 #endif 
@@ -294,6 +302,7 @@ struct FAnimExtractContext
 		, bLooping(InbLooping)
 		, PoseCurves()
 		, BonesRequired()
+		, InterpolationOverride()
 #if WITH_EDITOR
 		, bIgnoreRootLock(false)
 #endif 
@@ -307,6 +316,7 @@ struct FAnimExtractContext
 		, bLooping(InbLooping)
 		, PoseCurves()
 		, BonesRequired()
+		, InterpolationOverride()
 #if WITH_EDITOR
 		, bIgnoreRootLock(false)
 #endif 
