@@ -9,6 +9,7 @@
 #include "Widgets/SLeafWidget.h"
 
 class UWidget;
+struct FMeterChannelInfo;
 
 /**
  * A simple slate that renders the meter in single material and modifies the material on value change.
@@ -18,19 +19,20 @@ class AUDIOWIDGETS_API SAudioMaterialMeter : public SLeafWidget
 {
 public:
 	SLATE_BEGIN_ARGS(SAudioMaterialMeter)
+	: _Orientation(EOrientation::Orient_Vertical)
 	{}
+
+	/** The meter's orientation. */
+	SLATE_ARGUMENT(EOrientation, Orientation)
 
 	/** The owner object*/
 	SLATE_ARGUMENT(TWeakObjectPtr<UObject>, Owner)
 
-	/** A value that drives how the Meter is rendered*/
-	SLATE_ATTRIBUTE(float, ValueAttribute)
-
 	/** The style used to draw the meter. */
 	SLATE_STYLE_ARGUMENT(FAudioMaterialMeterStyle, AudioMaterialMeterStyle)
 
-	/** Called when the value is changed in the Meter */
-	SLATE_EVENT(FOnFloatValueChanged, OnValueChanged)
+	/** Attribute representing the meter values */
+	SLATE_ATTRIBUTE(TArray<FMeterChannelInfo>, MeterChannelInfo)
 
 	SLATE_END_ARGS()
 
@@ -39,29 +41,27 @@ public:
 	*/
 	void Construct(const FArguments& InArgs);
 
-	// SWidget overrides
+	//SWidget
 	virtual int32 OnPaint(const FPaintArgs& Args, const FGeometry& AllottedGeometry, const FSlateRect& MyCullingRect, FSlateWindowElementList& OutDrawElements, int32 LayerId, const FWidgetStyle& InWidgetStyle, bool bParentEnabled) const override;
 	virtual FVector2D ComputeDesiredSize(float) const override;
+	//~SWidget
 
-	/** Set the Value attribute */
-	void SetValue(float InValueAttribute);
+	/**Set the Orientation attribute*/
+	void SetOrientation(EOrientation InOrientation);
 
-	/** Apply new material to be used to render the Slate.*/
-	void ApplyNewMaterial();
+	/** Apply new material to be used to render the Meter.*/
+	TArray<TWeakObjectPtr<UMaterialInstanceDynamic>> ApplyNewMaterial();
 
-public:
+	/**Set the MeterChannelInfo attribute*/
+	void SetMeterChannelInfo(const TAttribute<TArray<FMeterChannelInfo>>& InMeterChannelInfo);
 
-	// Holds a delegate that is executed when the slider's value changed.
-	FOnFloatValueChanged OnValueChanged;	
+	/**Get the MeterChannelInfo attribute*/
+	TArray<FMeterChannelInfo> GetMeterChannelInfo() const;
 
 private:
 
-	/**
-	* Commits the specified meter value.
-	*
-	* @param NewValue The value to commit.
-	*/
-	void CommitValue(float NewValue);
+	// Returns the scale width based off font size and hash width
+	float GetScaleWidth() const;
 
 private:
 
@@ -69,9 +69,15 @@ private:
 	TWeakObjectPtr<UObject> Owner;
 
 	// Holds the style for the Slate
-	const FAudioMaterialMeterStyle* AudioMaterialMeterStyle = nullptr;
+	const FAudioMaterialMeterStyle* Style = nullptr;
 
-	//Holds the current value
-	TAttribute<float> ValueAttribute = 0.f;
+	// Holds the Modifiable Materials that represent the Meters
+	mutable TArray<TWeakObjectPtr<UMaterialInstanceDynamic>> DynamicMaterials;
+
+	// Holds the Meter's orientation.
+	EOrientation Orientation;
+
+	//Holds the MeterChannelInfoAttributes
+	TAttribute<TArray<FMeterChannelInfo>> MeterChannelInfoAttribute;
 
 };

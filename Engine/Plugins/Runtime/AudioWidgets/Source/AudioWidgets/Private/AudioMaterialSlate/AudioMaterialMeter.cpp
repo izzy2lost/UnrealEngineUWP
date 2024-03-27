@@ -2,18 +2,30 @@
 
 
 #include "AudioMaterialSlate/AudioMaterialMeter.h"
+#include "AudioBusSubsystem.h"
 #include "AudioMaterialSlate/AudioMaterialSlateTypes.h"
 #include "AudioMaterialSlate/SAudioMaterialMeter.h"
+#include "AudioMixerDevice.h"
 #include "AudioWidgetsStyle.h"
-#include "Widgets/SWeakWidget.h"
 #include "Components/AudioComponent.h"
+#include "SAudioMeter.h"
+#include "UObject/UObjectGlobals.h"
+#include "Widgets/SWeakWidget.h"
 
 #define LOCTEXT_NAMESPACE "AudioWidgets"
 
 UAudioMaterialMeter::UAudioMaterialMeter()
 {
+	Orientation = EOrientation::Orient_Vertical;
+
 	//get default style
 	WidgetStyle = FAudioWidgetsStyle::Get().GetWidgetStyle<FAudioMaterialMeterStyle>("AudioMaterialMeter.Style");
+
+	// Add a single channel as a default just so it can be seen when somebody makes one
+	FMeterChannelInfo DefaultInfo;
+	DefaultInfo.MeterValue = -6.0f;
+	DefaultInfo.PeakValue = -3.0f;
+	MeterChannelInfo.Add(DefaultInfo);
 }
 
 #if WITH_EDITOR
@@ -33,7 +45,10 @@ void UAudioMaterialMeter::SynchronizeProperties()
 	}
 
 	Meter->ApplyNewMaterial();
-	Meter->SetValue(MeterValue);
+	Meter->SetOrientation(Orientation);
+
+	TAttribute<TArray<FMeterChannelInfo>> MeterChannelInfoBinding = PROPERTY_BINDING(TArray<FMeterChannelInfo>, MeterChannelInfo);
+	Meter->SetMeterChannelInfo(MeterChannelInfoBinding);
 }
 
 void UAudioMaterialMeter::ReleaseSlateResources(bool bReleaseChildren)
@@ -41,22 +56,20 @@ void UAudioMaterialMeter::ReleaseSlateResources(bool bReleaseChildren)
 	Meter.Reset();
 }
 
-float UAudioMaterialMeter::GetValue() const
-{
-	return MeterValue;
-}
-
-void UAudioMaterialMeter::SetValue(float InValue)
+TArray<FMeterChannelInfo> UAudioMaterialMeter::GetMeterChannelInfo() const
 {
 	if (Meter.IsValid())
 	{
-		Meter->SetValue(InValue);
+		return Meter->GetMeterChannelInfo();
 	}
+	return TArray<FMeterChannelInfo>();
+}
 
-	if (MeterValue != InValue)
+void UAudioMaterialMeter::SetMeterChannelInfo(const TArray<FMeterChannelInfo>& InMeterChannelInfo)
+{
+	if (Meter.IsValid())
 	{
-		MeterValue = InValue;
-		HandleOnValueChanged(InValue);
+		Meter->SetMeterChannelInfo(InMeterChannelInfo);
 	}
 }
 
@@ -64,16 +77,9 @@ TSharedRef<SWidget> UAudioMaterialMeter::RebuildWidget()
 {
 	Meter = SNew(SAudioMaterialMeter)
 		.Owner(this)
-		.AudioMaterialMeterStyle(&WidgetStyle)
-		.ValueAttribute(MeterValue)
-		.OnValueChanged(BIND_UOBJECT_DELEGATE(FOnFloatValueChanged, HandleOnValueChanged));
+		.AudioMaterialMeterStyle(&WidgetStyle);
 
 	return Meter.ToSharedRef();
-}
-
-void UAudioMaterialMeter::HandleOnValueChanged(float InValue)
-{
-	OnValueChanged.Broadcast(InValue);
 }
 
 #undef LOCTEXT_NAMESPACE

@@ -224,6 +224,63 @@ struct AUDIOWIDGETS_API FAudioMaterialMeterStyle : public FAudioMaterialWidgetSt
 	FLinearColor MeterOffFillColor;
 	FAudioMaterialMeterStyle& SetMeterOffFillColor(const FLinearColor& InColor) { MeterOffFillColor = InColor; return *this; }
 
+	// How much padding to add around the meter
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Appearance)
+	FVector2D MeterPadding;
+	FAudioMaterialMeterStyle& SetMeterpadding(const FVector2D InPadding) { MeterPadding = InPadding; return *this; }
+
+	// The minimum and maximum value to display in dB (values are clamped in this range)
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Appearance)
+	FVector2D ValueRangeDb;
+	FAudioMaterialMeterStyle& SetValueRangeDb(const FVector2D& InValueRangeDb) { ValueRangeDb = InValueRangeDb; return *this; }
+
+	// Whether or not to show the decibel scale alongside the meter
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Appearance)
+	bool bShowScale;
+	FAudioMaterialMeterStyle& SetShowScale(bool bInShowScale) { bShowScale = bInShowScale; return *this; }
+
+	// Which side to show the scale. If vertical, true means left side, false means right side. If horizontal, true means above, false means below.
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Appearance)
+	bool bScaleSide;
+	FAudioMaterialMeterStyle& SetScaleSide(bool bInScaleSide) { bScaleSide = bInScaleSide; return *this; }
+
+	// Offset for the hashes
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Appearance)
+	float ScaleHashOffset;
+	FAudioMaterialMeterStyle& SetScaleHashOffset(float InScaleHashOffset) { ScaleHashOffset = InScaleHashOffset; return *this; }
+
+	// The width of each hash mark
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Appearance)
+	float ScaleHashWidth;
+	FAudioMaterialMeterStyle& SetScaleHashWidth(float InScaleHashWidth) { ScaleHashWidth = InScaleHashWidth; return *this; }
+
+	// The height of each hash mark
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Appearance)
+	float ScaleHashHeight;
+	FAudioMaterialMeterStyle& SetScaleHashHeight(float InScaleHashHeight) { ScaleHashHeight = InScaleHashHeight; return *this; }
+
+	// How wide to draw the decibel scale, if it's enabled
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Appearance, meta = (UIMin = "3", ClampMin = "3", UIMax = "10"))
+	int32 DecibelsPerHash;
+	FAudioMaterialMeterStyle& SetDecibelsPerHash(float InDecibelsPerHash) { DecibelsPerHash = InDecibelsPerHash; return *this; }
+
+	/** Font family and size to be used when displaying the meter scale. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Appearance)
+	FSlateFontInfo Font;
+	FAudioMaterialMeterStyle& SetFont(const FSlateFontInfo& InFont) { Font = InFont; return *this; }
+	FAudioMaterialMeterStyle& SetFont(TSharedPtr<const FCompositeFont> InCompositeFont, const int32 InSize, const FName& InTypefaceFontName = NAME_None) { Font = FSlateFontInfo(InCompositeFont, InSize, InTypefaceFontName); return *this; }
+	FAudioMaterialMeterStyle& SetFont(const UObject* InFontObject, const int32 InSize, const FName& InTypefaceFontName = NAME_None) { Font = FSlateFontInfo(InFontObject, InSize, InTypefaceFontName); return *this; }
+	FAudioMaterialMeterStyle& SetFont(const FName& InFontName, uint16 InSize) { Font = FSlateFontInfo(InFontName, InSize); return *this; }
+	FAudioMaterialMeterStyle& SetFont(const FString& InFontName, uint16 InSize) { Font = FSlateFontInfo(*InFontName, InSize); return *this; }
+	FAudioMaterialMeterStyle& SetFont(const WIDECHAR* InFontName, uint16 InSize) { Font = FSlateFontInfo(InFontName, InSize); return *this; }
+	FAudioMaterialMeterStyle& SetFont(const ANSICHAR* InFontName, uint16 InSize) { Font = FSlateFontInfo(InFontName, InSize); return *this; }
+	FAudioMaterialMeterStyle& SetFontName(const FName& InFontName) { Font = FSlateFontInfo(InFontName, Font.Size); return *this; }
+	FAudioMaterialMeterStyle& SetFontName(const FString& InFontName) { Font = FSlateFontInfo(InFontName, Font.Size); return *this; }
+	FAudioMaterialMeterStyle& SetFontName(const WIDECHAR* InFontName) { Font = FSlateFontInfo(InFontName, Font.Size); return *this; }
+	FAudioMaterialMeterStyle& SetFontName(const ANSICHAR* InFontName) { Font = FSlateFontInfo(InFontName, Font.Size); return *this; }
+	FAudioMaterialMeterStyle& SetFontSize(uint16 InSize) { Font.Size = InSize; return *this; }
+	FAudioMaterialMeterStyle& SetTypefaceFontName(const FName& InTypefaceFontName) { Font.TypefaceFontName = InTypefaceFontName; return *this; }
+
 };
 
 /**

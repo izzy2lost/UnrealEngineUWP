@@ -2,6 +2,7 @@
 
 
 #include "AudioMaterialSlate/AudioMaterialSlateTypes.h"
+#include "Styling/StyleDefaults.h"
 
 FAudioMaterialWidgetStyle::FAudioMaterialWidgetStyle()
 	:DesiredSize(32.f, 32.f)
@@ -94,12 +95,21 @@ void FAudioMaterialKnobStyle::GetResources(TArray<const FSlateBrush*>& OutBrushe
 }
 
 FAudioMaterialMeterStyle::FAudioMaterialMeterStyle()
-	:MeterFillMinColor(FLinearColor::White)
+	: MeterFillMinColor(FLinearColor::White)
 	, MeterFillMidColor(FLinearColor::White)
 	, MeterFillMaxColor(FLinearColor::White)
 	, MeterOffFillColor(FLinearColor::Black)
+	, MeterPadding(FVector2D(10.0f, 5.0f))
+	, ValueRangeDb(FVector2D(-60, 10))
+	, bShowScale(true)
+	, bScaleSide(true)
+	, ScaleHashOffset(5.0f)
+	, ScaleHashWidth(10.0f)
+	, ScaleHashHeight(1.0f)
+	, DecibelsPerHash(5)
+	, Font(FStyleDefaults::GetFontInfo(5))
 {
-	DesiredSize = FVector2f(32.f, 512.f);
+	DesiredSize = FVector2f(25.f, 512.f);
 }
 
 const FName FAudioMaterialMeterStyle::TypeName(TEXT("FAudioMaterialMeterStyle"));

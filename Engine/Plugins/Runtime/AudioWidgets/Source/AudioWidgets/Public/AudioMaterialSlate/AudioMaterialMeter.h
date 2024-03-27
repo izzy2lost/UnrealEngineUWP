@@ -2,14 +2,15 @@
 
 #pragma once
 
+#include "AudioDefines.h"
 #include "AudioMaterialSlate/AudioMaterialSlateTypes.h"
+#include "AudioMeterStyle.h"
+#include "AudioMeterTypes.h"
 #include "Components/Widget.h"
 #include "Delegates/Delegate.h"
 #include "AudioMaterialMeter.generated.h"
 
 class SAudioMaterialMeter;
-
-DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnMeterValueChangedEvent, float, Value);
 
 /**
  * Meter is rendered by using material instead of texture.
@@ -29,6 +30,10 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Style", meta = (DisplayName = "Style", ShowOnlyInnerProperties))
 	FAudioMaterialMeterStyle WidgetStyle;
 
+	/** The Meter's orientation. */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = Appearance)
+	TEnumAsByte<EOrientation> Orientation;
+
 public:
 
 #if WITH_EDITOR
@@ -43,19 +48,21 @@ public:
 	virtual void ReleaseSlateResources(bool bReleaseChildren) override;
 	// End of UVisual
 
-	/** Get the current value of the meter.*/
-	UFUNCTION(BlueprintPure, Category = "Behavior")
-	float GetValue() const;
-
-	/** Set the current value of the Meter.*/
+	/** Gets the current linear values of the meter. */
 	UFUNCTION(BlueprintCallable, Category = "Behavior")
-	void SetValue(float InValue);
+	TArray<FMeterChannelInfo> GetMeterChannelInfo() const;
+
+	/** Sets the current meter values. */
+	UFUNCTION(BlueprintCallable, Category = "Behavior")
+	void SetMeterChannelInfo(const TArray<FMeterChannelInfo>& InMeterChannelInfo);
 
 public:
 
-	/** Called when the meter value changes. */
-	UPROPERTY(BlueprintAssignable, Category = "Widget Event")
-	FOnMeterValueChangedEvent OnValueChanged;
+	DECLARE_DYNAMIC_DELEGATE_RetVal(TArray<FMeterChannelInfo>, FGetMeterChannelInfo);
+
+	///** A bindable delegate to allow logic to drive the value of the meter */
+	UPROPERTY()
+	FGetMeterChannelInfo MeterChannelInfoDelegate;	
 
 protected:
 
@@ -63,15 +70,15 @@ protected:
 	virtual TSharedRef<SWidget> RebuildWidget() override;
 	// End of UWidget
 
-	void HandleOnValueChanged(float InValue);
+	PROPERTY_BINDING_IMPLEMENTATION(TArray<FMeterChannelInfo>, MeterChannelInfo);
 
 private:
 
-	/**Current Value of the Meter*/
-	UPROPERTY(EditAnywhere, BlueprintSetter = SetValue, BlueprintGetter = GetValue, Category = "Appearance", meta = (UIMin = "0", UIMax = "1"))
-	float MeterValue = 1.f;
-
 	/** Native Slate Widget */
 	TSharedPtr<SAudioMaterialMeter> Meter;
+
+	/** The current meter value to display. */
+	UPROPERTY(EditAnywhere, BlueprintSetter = SetMeterChannelInfo, BlueprintGetter = GetMeterChannelInfo, Category = MeterValues)
+	TArray<FMeterChannelInfo> MeterChannelInfo;
 
 };
