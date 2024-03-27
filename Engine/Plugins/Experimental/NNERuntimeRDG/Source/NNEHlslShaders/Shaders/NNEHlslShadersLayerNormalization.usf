@@ -1,0 +1,144 @@
+// Copyright Epic Games, Inc. All Rights Reserved.
+ 
+#include "/Engine/Public/Platform.ush"
+#include "NNEHlslShadersBroadcastHelper.ush"
+
+//NOTE: once have support for more datatypes, make BUFFER_TYPE into a variant and WORK_TYPE depend on stash_type
+#define WORK_TYPE float
+#define BUFFER_TYPE float
+#define READ(x) x
+#define WRITE(x) x
+
+Buffer<BUFFER_TYPE> Input;
+uint4 InputTensorInfo[NUM_DIMENSIONS];
+Buffer<BUFFER_TYPE> InputScale;
+uint4 ScaleTensorInfo[NUM_DIMENSIONS];
+Buffer<BUFFER_TYPE> InputBias;
+uint4 BiasTensorInfo[NUM_DIMENSIONS];
+RWBuffer<BUFFER_TYPE> Output;
+RWBuffer<BUFFER_TYPE> OutputMean;
+RWBuffer<BUFFER_TYPE> OutputInvStdDev;
+uint Axis;
+float Epsilon;
+uint LayerSize;
+
+#define STRIDE_IDX 0
+
+#define STATIC_LOOP(Var, From, To) \
+[unroll] \
+for(uint Var = From; Var < To; ++Var)
+
+void GetDimIterator(const uint GlobalIdx, const uint4 TensorInfo[NUM_DIMENSIONS], out uint DimIterator[NUM_DIMENSIONS])
+{
+	uint Offset = GlobalIdx;
+	STATIC_LOOP(DimIdx, 0, NUM_DIMENSIONS)
+	{
+		uint Remainder;
+		DivMod(Offset, TensorInfo[DimIdx][STRIDE_IDX], DimIterator[DimIdx], Remainder);
+		Offset = Remainder;
+	}
+}
+
+uint GetInnerIdx(const uint DimIterator[NUM_DIMENSIONS], const uint4 TensorInfo[NUM_DIMENSIONS], const uint Axis)
+{
+	uint Offset = 0;
+	for(uint DimIdx = 0; DimIdx < NUM_DIMENSIONS - Axis; ++DimIdx)
+	{
+		Offset += DimIterator[DimIdx + Axis] * TensorInfo[DimIdx][STRIDE_IDX];
+	}
+	return Offset;
+}
+
+groupshared WORK_TYPE SharedMemoryMean[THREADGROUP_SIZE];
+groupshared WORK_TYPE SharedMemoryMean2[THREADGROUP_SIZE];
+groupshared WORK_TYPE SharedMemoryCount[THREADGROUP_SIZE];
+
+[numthreads(THREADGROUP_SIZE, 1, 1)]
+void LayerNormalization(in const uint3 GroupID : SV_GroupID, in const uint3 GroupThreadID : SV_GroupThreadID, in const uint3 DispatchThreadID : SV_DispatchThreadID)
+{
+	const int SliceIdx = GroupID.x; // each thread group processes a slice
+	const int InputStartIdx = SliceIdx * LayerSize;
+	
+
+	// Online Welford using sharedmem and THREADGROUP_SIZE threads along the dimensions after `Axis` (included)
+	{
+		WORK_TYPE Mean = 0;
+		WORK_TYPE Mean2 = 0;
+		int Count = 0;
+
+		for (int InElemIdx = GroupThreadID.x; InElemIdx < LayerSize; InElemIdx += THREADGROUP_SIZE)
+		{
+			WORK_TYPE Value = (WORK_TYPE) READ(Input[InElemIdx + InputStartIdx]);
+		
+			Count += 1;
+			WORK_TYPE Delta = Value - Mean;
+			Mean += Delta / (WORK_TYPE)Count;
+			WORK_TYPE Delta2 = Value - Mean;
+			Mean2 += Delta * Delta2;
+		}
+
+		SharedMemoryMean[GroupThreadID.x] = Mean;
+		SharedMemoryMean2[GroupThreadID.x] = Mean2;
+		SharedMemoryCount[GroupThreadID.x] = Count;
+	}
+
+	GroupMemoryBarrierWithGroupSync();
+
+	if (GroupThreadID.x == 0)
+	{
+		WORK_TYPE Mean = 0;
+		WORK_TYPE Mean2 = 0;
+		int Count = 0;
+
+		UNROLL
+		for (int Idx = 0; Idx < THREADGROUP_SIZE; Idx++)
+		{
+			WORK_TYPE CurrMean = SharedMemoryMean[Idx];
+			WORK_TYPE CurrMean2 = SharedMemoryMean2[Idx];
+			int CurrCount = SharedMemoryCount[Idx];
+			int NewCount = Count + CurrCount;
+			WORK_TYPE Delta = CurrMean - Mean;
+			Mean = (CurrCount * CurrMean + Count * Mean) / NewCount;
+			Mean2 += CurrMean2 + Delta * Delta * (WORK_TYPE)Count * (WORK_TYPE)CurrCount / (WORK_TYPE)NewCount;
+			Count = NewCount;
+		}
+
+		SharedMemoryMean[0] = Mean;
+		SharedMemoryMean2[0] = Mean2;
+		SharedMemoryCount[0] = Count;
+		
+	}
+
+	GroupMemoryBarrierWithGroupSync();
+
+	WORK_TYPE Mean = SharedMemoryMean[0];
+	WORK_TYPE Mean2 = SharedMemoryMean2[0];
+	int Count = SharedMemoryCount[0];
+
+	WORK_TYPE Variance = Mean2 / (WORK_TYPE)Count;
+	WORK_TYPE InvStdDev = (WORK_TYPE)1 / sqrt(Variance + Epsilon);
+
+	for (int InElemIdx = GroupThreadID.x; InElemIdx < LayerSize; InElemIdx += THREADGROUP_SIZE)
+	{
+		const int ElementIdx = InElemIdx + InputStartIdx;
+
+		BUFFER_TYPE Normalized = (BUFFER_TYPE) ( (READ(Input[ElementIdx]) - Mean) * InvStdDev );
+
+		uint InputDimIterator[NUM_DIMENSIONS];
+		GetDimIterator(ElementIdx, InputTensorInfo, InputDimIterator);
+
+		BUFFER_TYPE NormalizedScaled = Normalized * READ( InputScale[GetInnerIdx(InputDimIterator, ScaleTensorInfo, Axis)]);
+#if HAS_B == 0
+		Output[ElementIdx] = WRITE( NormalizedScaled );
+#else
+		Output[ElementIdx] = WRITE( NormalizedScaled + READ( InputBias[GetInnerIdx(InputDimIterator, BiasTensorInfo, Axis)] ) );
+#endif
+
+	}
+#if WRITE_MEAN != 0
+	OutputMean[SliceIdx] = WRITE( (BUFFER_TYPE) Mean );
+#endif
+#if WRITE_INVSTDDEV != 0
+	OutputInvStdDev[SliceIdx] = WRITE( (BUFFER_TYPE) InvStdDev );
+#endif
+}
