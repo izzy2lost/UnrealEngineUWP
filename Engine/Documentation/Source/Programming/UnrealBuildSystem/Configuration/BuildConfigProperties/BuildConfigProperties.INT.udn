@@ -12,21 +12,17 @@ $ bPrintDebugInfo : Whether debug info should be written to the console.
 
 $ bAllowHybridExecutor : Whether the hybrid executor will be used (a remote executor and local executor). No longer supported.
 
-$ RemoteExecutorPriority : Priority order for remote executors (XGE, SNDBS, FASTBuild, UBAExecutor)
+$ RemoteExecutorPriority : Priority order for remote executors (XGE, SNDBS, FASTBuild, UBA)
 
-$ bAllowBoxExecutor : This property is being renamed and should not be used
+$ bAllowUBAExecutor : Whether the UnrealBuildAccelerator executor will be used.
 
-$ bAllowUBAExecutor : Whether the experimental UnrealBuildAccelerator executor will be used.
-
-$ bAllowBoxLocalExecutor : This property is being renamed and should not be used
-
-$ bAllowUBALocalExecutor : Whether the experimental UnrealBuildAccelerator (local only) executor will be used.
+$ bAllowUBALocalExecutor : Whether the UnrealBuildAccelerator (local only) executor will be used.
 
 $ bAllowXGE : Whether XGE may be used if available, default is true.
 
-$ bAllowFASTBuild : Whether FASTBuild may be used if availabe, default is true.
+$ bAllowFASTBuild : Whether FASTBuild may be used if available, default is true.
 
-$ bAllowSNDBS : Whether SN-DBS may be used if availabe, default is true.
+$ bAllowSNDBS : Whether SN-DBS may be used if available, default is true.
 
 $ bUseUBTMakefiles : Enables support for very fast iterative builds by caching target data. Turning this on causes Unreal Build Tool to emit 'UBT Makefiles' for targets when they are built the first time. Subsequent builds will load these Makefiles and begin outdatedness checking and build invocation very quickly. The caveat is that if source files are added or removed to the project, UBT will need to gather information about those in order for your build to complete successfully. Currently, you must run the project file generator after adding/removing source files to tell UBT to re-gather this information. 
     * Events that can invalidate the 'UBT Makefile':
@@ -59,10 +55,6 @@ $ bForceUnityBuild : Whether to force C++ source files to be combined into large
 $ DefaultWarningLevel : Default treatment of uncategorized warnings
 
 $ DeprecationWarningLevel : Level to report deprecation warnings as errors
-
-$ bStaticAnalyzerProjectOnly : Only run static analysis against project modules, skipping engine modules
-
-$ bStaticAnalyzerIncludeGenerated : When enabled, generated source files will be analyzed
 
 $ bDebugBuildsActuallyUseDebugCRT : Enables the debug C++ runtime (CRT) for debug builds. By default we always use the release runtime, since the debug version isn't particularly useful when debugging Unreal Engine projects, and linking against the debug CRT libraries forces our third party library dependencies to also be compiled using the debug CRT (and often perform more slowly). Often it can be inconvenient to require a separate copy of the debug versions of third party static libraries simply so that you can debug your program's code.
 
@@ -151,6 +143,12 @@ $ StaticAnalyzer : Whether static code analysis should be enabled.
 $ StaticAnalyzerOutputType : The output type to use for the static analyzer. This is only supported for Clang.
 
 $ StaticAnalyzerMode : The mode to use for the static analyzer. This is only supported for Clang. Shallow mode completes quicker but is generally not recommended.
+
+$ StaticAnalyzerPVSPrintLevel : The level of warnings to print when analyzing using PVS-Studio
+
+$ bStaticAnalyzerProjectOnly : Only run static analysis against project modules, skipping engine modules
+
+$ bStaticAnalyzerIncludeGenerated : When enabled, generated source files will be analyzed
 
 $ MinFilesUsingPrecompiledHeader : The minimum number of files that must use a pre-compiled header before it will be created and used.
 
@@ -290,7 +288,7 @@ $ bWarnOnCppUnrealHeaderTool : If true, generate warnings when C++ UHT is used
 
 $ MaxRootPathLength : Maximum recommended root path length.
 
-$ MaxNestedPathLength : Maximum length of a path relative to the root directory. Used on Windows to ensure paths are portable between machines. Defaults to off.
+$ MaxNestedPathLength : Maximum length of a path relative to the root directory. Used on Windows to ensure paths are portable between machines.
 
 $ bIgnoreStalePGOData : If -PGOOptimize is specified but the linker flags have changed since the last -PGOProfile, this will emit a warning and build without PGO instead of failing during link with LNK1268.
 
@@ -392,6 +390,36 @@ $ MsvcCRTRedistVersion : Which MSVC CRT Redist version to use
 
 $ CompilerVersion : Which MSVC Compiler version to use
 
+### ParallelExecutor
+
+$ MaxProcessorCount : Maximum processor count for local execution.
+
+$ ProcessorCountMultiplier : Processor count multiplier for local execution. Can be below 1 to reserve CPU for other tasks. When using the local executor (not XGE), run a single action on each CPU core. Note that you can set this to a larger value to get slightly faster build times in many cases, but your computer's responsiveness during compiling may be much worse. This value is ignored if the CPU does not support hyper-threading.
+
+$ MemoryPerActionBytes : Free memory per action in bytes, used to limit the number of parallel actions if the machine is memory starved. Set to 0 to disable free memory checking.
+
+$ ProcessPriority : The priority to set for spawned processes. Valid Settings: Idle, BelowNormal, Normal, AboveNormal, High Default: BelowNormal or Normal for an Asymmetrical processor as BelowNormal can cause scheduling issues.
+
+$ bStopCompilationAfterErrors : When enabled, will stop compiling targets after a compile error occurs.
+
+$ bShowCompilationTimes : Whether to show compilation times along with worst offenders or not.
+
+$ bShowPerActionCompilationTimes : Whether to show compilation times for each executed action
+
+$ bLogActionCommandLines : Whether to log command lines for actions being executed
+
+$ bPrintActionTargetNames : Add target names for each action executed
+
+$ bUseActionWeights : Whether to take into account the Action's weight when determining to do more work or not.
+
+$ bShowCPUUtilization : Whether to show CPU utilization after the work is complete.
+
+### SNDBS
+
+$ bAllowOverVpn : When set to false, SNDBS will not be enabled when running connected to the coordinator over VPN. Configure VPN-assigned subnets via the VpnSubnets parameter.
+
+$ VpnSubnets : List of subnets containing IP addresses assigned by VPN
+
 ### UnrealBuildAccelerator
 
 $ bDisableRemote : When set to true, UBA will not use any remote help
@@ -444,7 +472,7 @@ $ bDisableCustomAlloc : Set to true to disable mimalloc and detouring of memory 
 
 $ Zone : The zone to use for UBA.
 
-$ bUseCrypto : Set to true to enable encryption when transfering files over the network.
+$ bUseCrypto : Set to true to enable encryption when transferring files over the network.
 
 $ bUseKnownInputs : Set to true to provide known inputs to processes that are run remote. This is an experimental feature to speed up build times when ping is higher
 
@@ -485,36 +513,6 @@ $ ConnectionMode : Connection mode for agent/compute communication for valid mod
 $ Encryption : Encryption to use for agent/compute communication. Note that UBA agent uses its own encryption. for valid modes.
 
 $ UBASentryUrl : Sentry URL to send box data to. Optional.
-
-### ParallelExecutor
-
-$ MaxProcessorCount : Maximum processor count for local execution.
-
-$ ProcessorCountMultiplier : Processor count multiplier for local execution. Can be below 1 to reserve CPU for other tasks. When using the local executor (not XGE), run a single action on each CPU core. Note that you can set this to a larger value to get slightly faster build times in many cases, but your computer's responsiveness during compiling may be much worse. This value is ignored if the CPU does not support hyper-threading.
-
-$ MemoryPerActionBytes : Free memory per action in bytes, used to limit the number of parallel actions if the machine is memory starved. Set to 0 to disable free memory checking.
-
-$ ProcessPriority : The priority to set for spawned processes. Valid Settings: Idle, BelowNormal, Normal, AboveNormal, High Default: BelowNormal or Normal for an Asymmetrical processor as BelowNormal can cause scheduling issues.
-
-$ bStopCompilationAfterErrors : When enabled, will stop compiling targets after a compile error occurs.
-
-$ bShowCompilationTimes : Whether to show compilation times along with worst offenders or not.
-
-$ bShowPerActionCompilationTimes : Whether to show compilation times for each executed action
-
-$ bLogActionCommandLines : Whether to log command lines for actions being executed
-
-$ bPrintActionTargetNames : Add target names for each action executed
-
-$ bUseActionWeights : Whether to take into account the Action's weight when determining to do more work or not.
-
-$ bShowCPUUtilization : Whether to show CPU utilization after the work is complete.
-
-### SNDBS
-
-$ bAllowOverVpn : When set to false, SNDBS will not be enabled when running connected to the coordinator over VPN. Configure VPN-assigned subnets via the VpnSubnets parameter.
-
-$ VpnSubnets : List of subnets containing IP addresses assigned by VPN
 
 ### XGE
 
