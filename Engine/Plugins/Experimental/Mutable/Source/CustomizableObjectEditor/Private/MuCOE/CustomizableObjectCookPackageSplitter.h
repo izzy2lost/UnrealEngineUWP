@@ -46,6 +46,11 @@ public:
 	 * should expect them to still be in memory after a garbage collect so long as the splitter is alive.
 	 */
 	virtual bool UseInternalReferenceToAvoidGarbageCollect() override { return true; }
+	/**
+	 * If true, the cooker will not call any splitter work functions (GetGenerateList, Populate*, PreSave*, PostSave*)
+	 * until BeginCacheForCookedPlatformData has been called for all objects in the generator package.
+	 */
+	virtual bool NeedCachedPlatformDataBeforeSplit() override { return true; }
 
 private:
 

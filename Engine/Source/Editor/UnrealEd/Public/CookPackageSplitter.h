@@ -39,7 +39,9 @@ public:
 
 
 	// Virtual API functions - functions called from the cooker after creating the splitter.
-	virtual ~ICookPackageSplitter() {}
+	virtual ~ICookPackageSplitter()
+	{
+	}
 
 	enum class ETeardown
 	{
@@ -47,13 +49,28 @@ public:
 		Canceled,
 	};
 	/** Do teardown actions after all packages have saved, or when the cook is cancelled. Always called before destruction. */
-	virtual void Teardown(ETeardown Status) {}
+	virtual void Teardown(ETeardown Status)
+	{
+	}
 
 	/**
 	 * If true, this splitter forces the Generator package objects it needs to remain referenced, and the cooker
 	 * should expect them to still be in memory after a garbage collect so long as the splitter is alive.
 	 */
-	virtual bool UseInternalReferenceToAvoidGarbageCollect() { return false; }
+	virtual bool UseInternalReferenceToAvoidGarbageCollect()
+	{
+		return false;
+	}
+	/**
+	 * If true, the cooker will not call any splitter work functions (GetGenerateList, Populate*, PreSave*, PostSave*)
+	 * until BeginCacheForCookedPlatformData has been called for all objects in the generator package. This reduces
+	 * MPCook performance - generated packages have to be saved on the same Worker that saved the generator - but is
+	 * otherwise not a problem.
+	 */
+	virtual bool NeedCachedPlatformDataBeforeSplit() 
+	{
+		 return false;
+	 }
 
 	/** Data sent to the cooker to describe each desired generated package */
 	struct FGeneratedPackage

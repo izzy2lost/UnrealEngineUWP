@@ -11483,22 +11483,30 @@ void UCookOnTheFlyServer::GetPackagesToRetract(int32 NumToRetract, TArray<FName>
 			// on WorldPartition packages, if we abort them and then try to restart them later.
 			return false;
 		}
-		if (MPCookGeneratorSplit == UE::Cook::EMPCookGeneratorSplit::AllOnSameWorker && PackageData->IsGenerated())
+		if (PackageData->IsGenerated())
 		{
-			// With the legacy AllOnSameWorker setting, GeneratedPackages are automatically constrained to this worker.
-			return false;
-		}
-		if (MPCookGeneratorSplit != UE::Cook::EMPCookGeneratorSplit::AnyWorker)
-		{
-			if (FGenerationHelper* GenerationHelper = PackageData->GetGenerationHelper())
+			if (PackageData->IsGeneratedNeedCachedPlatformDataBeforeSplit()
+				|| MPCookGeneratorSplit == UE::Cook::EMPCookGeneratorSplit::AllOnSameWorker)
 			{
-				if (GenerationHelper->GetOwnerInfo().GetSaveState() >=
-					FCookGenerationInfo::ESaveState::QueueGeneratedPackages)
+				// With IsNeedCachedPlatformDataBeforeSplit or the AllOnSameWorker setting, GeneratedPackages are
+				// constrained to this worker.
+				return false;
+			}
+		}
+		if (FGenerationHelper* GenerationHelper = PackageData->GetGenerationHelper())
+		{
+			if (GenerationHelper->IsInitialized() &&
+				GenerationHelper->GetOwnerInfo().GetSaveState()
+					>= FCookGenerationInfo::ESaveState::QueueGeneratedPackages)
+			{
+				if (GenerationHelper->IsNeedCachedPlatformDataBeforeSplit() ||
+					MPCookGeneratorSplit != UE::Cook::EMPCookGeneratorSplit::AnyWorker)
 				{
-					// With any EMPCookGeneratorSplit setting other than AnyWorker, we make assignment decisions based
-					// on the worker that saved and queued the generator package. We do not track queuing separately;
-					// we assume it happened on the worker that saved the package. Therefore, do not allow retraction
-					// of a generator package if it has already entered the QueueGeneratedPackages state.
+					// With IsNeedCachedPlatformDataBeforeSplit or with any MPCookGeneratorSplit setting other than
+					// AnyWorker, we make assignment decisions based on the worker that saved and queued the generator
+					// package. We do not track queuing separately; we assume it happened on the worker that saved the
+					// package. Therefore, do not allow retraction of a generator package if it has already entered
+					// the QueueGeneratedPackages state.
 					return false;
 				}
 			}

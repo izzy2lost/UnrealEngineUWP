@@ -666,6 +666,10 @@ public:
 	 */
 	TRefCountPtr<FGenerationHelper> TryCreateValidParentGenerationHelper();
 
+	/** Get/Set true if this is a generated package and its splitter reports NeedCachedPlatformDataBeforeSplit. */
+	bool IsGeneratedNeedCachedPlatformDataBeforeSplit() const;
+	void SetGeneratedNeedCachedPlatformDataBeforeSplit(bool bValue);
+
 	/**
 	 * Return the instigator for this package. The Instigator is the first code location or
 	 * referencing package that causes the package to enter the requested state.
@@ -847,6 +851,7 @@ private:
 	uint32 bGenerated : 1;
 	uint32 bKeepReferencedDuringGC : 1;
 	uint32 bWasCookedThisSession : 1;
+	uint32 bGeneratedNeedCachedPlatformDataBeforeSplit : 1;
 };
 
 /**
@@ -1022,6 +1027,8 @@ public:
 	const FName GetSplitDataObjectName() const;
 	/** Return the Splitter's value for virtual bool UseInternalReferenceToAvoidGarbageCollect(). */
 	bool IsUseInternalReferenceToAvoidGarbageCollect() const;
+	/** Return the Splitter's value for virtual bool NeedCachedPlatformDataBeforeSplit(). */
+	bool IsNeedCachedPlatformDataBeforeSplit() const;
 	/** Return the cached pointer to the SplitDataObject. Returns null if no longer in memory or marked as garbage. */
 	UObject* GetWeakSplitDataObject() const;
 	/**
@@ -1162,6 +1169,7 @@ private:
 	FWorkerId WorkerIdThatSavedGenerator = FWorkerId::Invalid();
 	EInitializeStatus InitializeStatus = EInitializeStatus::Uninitialized;
 	bool bUseInternalReferenceToAvoidGarbageCollect = false;
+	bool bNeedCachedPlatformDataBeforeSplit = false;
 	bool bGeneratedList = false;
 };
 
@@ -1817,6 +1825,16 @@ inline TRefCountPtr<FGenerationHelper> FPackageData::GetParentGenerationHelper()
 	return ParentGenerationHelper;
 }
 
+inline bool FPackageData::IsGeneratedNeedCachedPlatformDataBeforeSplit() const
+{
+	return bGeneratedNeedCachedPlatformDataBeforeSplit != 0;
+}
+
+inline void FPackageData::SetGeneratedNeedCachedPlatformDataBeforeSplit(bool bValue)
+{
+	bGeneratedNeedCachedPlatformDataBeforeSplit = (uint32)bValue;
+}
+
 inline bool FGenerationHelper::IsInitialized() const
 {
 	return InitializeStatus != EInitializeStatus::Uninitialized;
@@ -1875,6 +1893,12 @@ inline bool FGenerationHelper::IsUseInternalReferenceToAvoidGarbageCollect() con
 {
 	ConditionalInitialize();
 	return bUseInternalReferenceToAvoidGarbageCollect;
+}
+
+inline bool FGenerationHelper::IsNeedCachedPlatformDataBeforeSplit() const
+{
+	ConditionalInitialize();
+	return bNeedCachedPlatformDataBeforeSplit;
 }
 
 inline UObject* FGenerationHelper::GetWeakSplitDataObject() const
