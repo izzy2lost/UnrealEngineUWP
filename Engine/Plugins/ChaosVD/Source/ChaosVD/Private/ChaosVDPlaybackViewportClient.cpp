@@ -3,6 +3,7 @@
 #include "ChaosVDPlaybackViewportClient.h"
 
 #include "ChaosVDEditorSettings.h"
+#include "ChaosVDEngine.h"
 #include "ChaosVDModule.h"
 #include "ChaosVDParticleActor.h"
 #include "ChaosVDPlaybackController.h"
@@ -191,146 +192,23 @@ void FChaosVDPlaybackViewportClient::HandleViewportSettingsChanged(UChaosVDEdito
 	}
 }
 
-void FChaosVDPlaybackViewportClient::TrackActor(AActor* ActorToTrack, EChaosVDActorTrackingMode TrackingMode)
-{
-	if (!ActorToTrack)
-	{
-		return;
-	}
-	
-	if (const UChaosVDEditorSettings* CVDEditorSettings = GetDefault<UChaosVDEditorSettings>())
-	{
-		switch(TrackingMode)
-		{
-			case EChaosVDActorTrackingMode::ByBoundingBox:
-				{
-					FBox ActorBounds = ActorToTrack->GetComponentsBoundingBox(false);
-					FocusViewportOnBox(ActorBounds.ExpandBy(CVDEditorSettings->ExpandViewTrackingBy), true);
-					break;
-				}
-			case EChaosVDActorTrackingMode::ByDistanceOffset:
-			case EChaosVDActorTrackingMode::MatchTransform:
-				{
-					TrackTransform(ActorToTrack->GetActorTransform(), TrackingMode);
-					break;
-				}
-			default:
-				{
-					ensureMsgf(false, TEXT("Actor tracking requested with invalid options. The actor will not be tracked"));
-					break;
-				}
-		}	
-	}
-}
-
-void FChaosVDPlaybackViewportClient::TrackTransform(const FTransform& TransformToTrack, EChaosVDActorTrackingMode TrackingMode)
-{
-	if (const UChaosVDEditorSettings* CVDEditorSettings = GetDefault<UChaosVDEditorSettings>())
-	{
-		switch(TrackingMode)
-		{
-		case EChaosVDActorTrackingMode::ByBoundingBox:
-			{
-				ensureMsgf(false, TEXT("Tracking by Bounding box only supported with Actors"));
-				break;
-			}
-		case EChaosVDActorTrackingMode::ByDistanceOffset:
-			{
-				FViewportCameraTransform& ViewTransform = GetViewTransform();
-				FVector ActorLocation = TransformToTrack.GetLocation();
-					
-				constexpr bool bEnable = false;
-				ToggleOrbitCamera(bEnable);
-
-				FVector ActorToCamDir = ViewTransform.GetLocation() - ActorLocation;
-				ActorToCamDir.Normalize();
-
-				FVector TargetLocation = ActorLocation + ActorToCamDir * CVDEditorSettings->TrackingDistanceOffset;
-
-				ViewTransform.SetRotation((-ActorToCamDir).Rotation());
-				ViewTransform.SetLookAt(ActorLocation);
-				ViewTransform.TransitionToLocation(TargetLocation, EditorViewportWidget, true);
-					
-				// Tell the viewport to redraw itself.
-				Invalidate();
-				break;
-			}
-		case EChaosVDActorTrackingMode::MatchTransform:
-			{
-				constexpr bool bEnable = false;
-				ToggleOrbitCamera(bEnable);
-					
-				FViewportCameraTransform& ViewTransform = GetViewTransform();
-				ViewTransform.SetRotation(TransformToTrack.GetRotation().Rotator());
-
-				ViewTransform.SetLookAt(TransformToTrack.GetLocation());
-				ViewTransform.TransitionToLocation(TransformToTrack.GetLocation(), EditorViewportWidget, true);
-
-				Invalidate();
-				break;
-			}		
-		default:
-			{
-				ensureMsgf(false, TEXT("Actor tracking requested with invalid options. The actor will not be tracked"));
-				break;
-			}
-		}	
-	}
-}
-
-void FChaosVDPlaybackViewportClient::PerformSelectedTrackingForFrame(FChaosVDGameFrameData* FrameData)
+void FChaosVDPlaybackViewportClient::TrackSelectedObject()
 {
 	if (const TSharedPtr<FChaosVDScene> CVDSceneSharedPtr = CVDScene.Pin())
 	{
 		if (const UChaosVDEditorSettings* CVDEditorSettings = GetDefault<UChaosVDEditorSettings>())
 		{
-			switch (CVDEditorSettings->TrackingTarget)
+			if (ModeTools.IsValid() && CVDEditorSettings->TrackingTarget == EChaosVDActorTrackingTarget::SelectedObject)
 			{
-			case EChaosVDActorTrackingTarget::SelectedObject:
+				USelection* CurrentSelection = ModeTools->GetSelectedActors();
+
+				//TODO: Update this if we add multi selection support
+				if (const AActor* SelectedActor = CurrentSelection ? CurrentSelection->GetTop<AActor>() : nullptr)
 				{
-					if (ModeTools.IsValid())
-					{
-						USelection* CurrentSelection = ModeTools->GetSelectedActors();
-		
-						//TODO: Update this if we add multi selection support
-						if (AActor* SelectedActor = CurrentSelection ? CurrentSelection->GetTop<AActor>() : nullptr)
-						{
-							TrackActor(SelectedActor, CVDEditorSettings->TrackingOptions);
-						}
-					}
-					break;
+					const FBox ActorBounds = SelectedActor->GetComponentsBoundingBox(false);
+					FocusViewportOnBox(ActorBounds.ExpandBy(CVDEditorSettings->ExpandViewTrackingBy), true);		
 				}
-			case EChaosVDActorTrackingTarget::RecordedTransform:
-				{
-					// TODO: Find a better place to store the current selected Transform name, it should not be the editor settings object
-					if (const TSharedPtr<FName>& TransformName = CVDEditorSettings->SelectedTrackedTransformName)
-					{
-						if (const FChaosVDTrackedTransform* TrackedTransform = FrameData->RecordedNonSolverTransformsByID.Find(*TransformName))
-						{
-							TrackTransform(TrackedTransform->Transform, CVDEditorSettings->TrackingOptions);
-						}
-					}
-								
-					break;
-				}
-			case EChaosVDActorTrackingTarget::RecordedLocation:
-				{
-					// TODO: Find a better place to store the current selected Location name, it should not be the editor settings object
-					if (const TSharedPtr<FName>& LocationName = CVDEditorSettings->SelectedTrackedLocationName)
-					{
-						if (const FChaosVDTrackedLocation* TrackedTransform = FrameData->RecordedNonSolverLocationsByID.Find(*LocationName))
-						{
-							FTransform LocationTransform;
-							LocationTransform.SetLocation(TrackedTransform->Location);
-							TrackTransform(LocationTransform, CVDEditorSettings->TrackingOptions);
-						}
-					}
-								
-					break;
-				}
-			default:
-				break;
-			}			
+			}
 		}
 	}
 }
@@ -346,6 +224,15 @@ bool FChaosVDPlaybackViewportClient::InputKey(const FInputKeyEventArgs& EventArg
 	return FEditorViewportClient::InputKey(EventArgs);
 }
 
+void FChaosVDPlaybackViewportClient::ToggleObjectTrackingIfSelected()
+{
+	// Currently we only have two options, so toggle between them
+	if (UChaosVDEditorSettings* CVDEditorSettings = GetMutableDefault<UChaosVDEditorSettings>())
+	{
+		CVDEditorSettings->TrackingTarget = CVDEditorSettings->TrackingTarget == EChaosVDActorTrackingTarget::Disabled ? EChaosVDActorTrackingTarget::SelectedObject : EChaosVDActorTrackingTarget::Disabled;
+	}
+}
+
 void FChaosVDPlaybackViewportClient::Draw(const FSceneView* View, FPrimitiveDrawInterface* PDI)
 {
 	if (View)
@@ -355,6 +242,8 @@ void FChaosVDPlaybackViewportClient::Draw(const FSceneView* View, FPrimitiveDraw
 		// A proper fix would be have a way to override this per viewport, which could be done by adding a new method to FViewElementDrawer
 		const_cast<FSceneView*>(View)->bAllowTranslucentPrimitivesInHitProxy = true;
 	}
+
+	TrackSelectedObject();
 
 	const TSharedPtr<SChaosVDMainTab> MainTabToolkitHost = ModeTools.IsValid() ? StaticCastSharedPtr<SChaosVDMainTab>(ModeTools->GetToolkitHost()) : nullptr;
 	if (!MainTabToolkitHost.IsValid())

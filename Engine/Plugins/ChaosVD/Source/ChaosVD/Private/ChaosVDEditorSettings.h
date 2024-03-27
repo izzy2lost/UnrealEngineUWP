@@ -20,27 +20,12 @@ class UMaterial;
 DECLARE_MULTICAST_DELEGATE_OneParam(FChaosVDSettingChaged, UChaosVDEditorSettings* CVDEditorSettingsObject)
 
 UENUM()
-enum class EChaosVDActorTrackingMode
-{
-	/** Follow the selected target keeping the specified distance from it. */
-	ByDistanceOffset,
-	/** Follow the selected target keeping its bounding box inside of CVD's camera view. */
-	ByBoundingBox,
-	/** Snap CVD's camera to the transform of the current selected object */
-	MatchTransform 
-};
-
-UENUM()
 enum class EChaosVDActorTrackingTarget
 {
 	/** Disable Camera Auto-Tracking */
 	Disabled,
 	/** Follow the current selected object */
 	SelectedObject,
-	/** Follow the selected recorded transform ID */
-	RecordedTransform,
-	/** Follow the selected recorded location ID */
-	RecordedLocation
 };
 
 UENUM(meta = (Bitflags, UseEnumValuesAsMaskValuesInEditor = "true"))
@@ -363,16 +348,8 @@ public:
 	UPROPERTY(EditAnywhere, Category = "Viewport Tracking")
 	EChaosVDActorTrackingTarget TrackingTarget;
 
-	/** Sets how tracking should be performed by CVD's Camera */
-	UPROPERTY(EditAnywhere, Category = "Viewport Tracking", meta=(EditCondition = "TrackingTarget != EChaosVDActorTrackingTarget::Disabled", EditConditionHides))
-	EChaosVDActorTrackingMode TrackingOptions;
-
-	/** Distance from the selected tracking target CVD's camera should attempt to be at */
-	UPROPERTY(EditAnywhere, Category = "Viewport Tracking", meta=(EditCondition = "TrackingOptions == EChaosVDActorTrackingMode::ByDistanceOffset && TrackingTarget != EChaosVDActorTrackingTarget::Disabled", EditConditionHides))
-	float TrackingDistanceOffset = 1500.0f;
-
 	/** By how much we should expand the bounding box used to track a target by bounding box. Used to see more of the screen while tracking in Bounding Box mode */
-	UPROPERTY(EditAnywhere, Category = "Viewport Tracking", meta=(EditCondition = "TrackingOptions == EChaosVDActorTrackingMode::ByBoundingBox && TrackingTarget != EChaosVDActorTrackingTarget::Disabled", EditConditionHides))
+	UPROPERTY(EditAnywhere, Category = "Viewport Tracking", meta=(EditCondition = "TrackingTarget != EChaosVDActorTrackingTarget::Disabled"))
 	float ExpandViewTrackingBy = 60.0f;
 
 	/** Set of flags to enable/disable visibility of specific types of geometry/particles */
@@ -403,9 +380,6 @@ public:
 	FChaosVDSettingChaged& OnFarClippingOverrideChanged() { return FarClippingOverrideChangedDelegate; }
 
 	FChaosVDSettingChaged& OnPlaybackSettingsChanged() { return PlaybackSettingsChangedDelegate ; }
-
-	TSharedPtr<FName> SelectedTrackedTransformName;
-	TSharedPtr<FName> SelectedTrackedLocationName;
 	
 	virtual void PostEditUndo() override;
 

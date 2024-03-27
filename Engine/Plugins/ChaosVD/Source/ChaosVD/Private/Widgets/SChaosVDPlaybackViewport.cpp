@@ -2,6 +2,7 @@
 
 #include "Widgets/SChaosVDPlaybackViewport.h"
 
+#include "ChaosVDCommands.h"
 #include "ChaosVDEditorMode.h"
 #include "ChaosVDEditorModeTools.h"
 #include "ChaosVDEditorSettings.h"
@@ -103,6 +104,21 @@ TSharedRef<SEditorViewport> SChaosVDPlaybackViewport::GetViewportWidget()
 TSharedPtr<FExtender> SChaosVDPlaybackViewport::GetExtenders() const
 {
 	return Extender;
+}
+
+void SChaosVDPlaybackViewport::BindCommands()
+{
+	SEditorViewport::BindCommands();
+
+	const FChaosVDCommands& Commands = FChaosVDCommands::Get();
+
+	if (ensure(Client))
+	{
+		const TSharedRef<FChaosVDPlaybackViewportClient> ViewportClientRef = StaticCastSharedRef<FChaosVDPlaybackViewportClient>(Client.ToSharedRef());
+		CommandList->MapAction(
+			Commands.TrackUntrackSelectedObject,
+			FExecuteAction::CreateSP(ViewportClientRef, &FChaosVDPlaybackViewportClient::ToggleObjectTrackingIfSelected));
+	}
 }
 
 EVisibility SChaosVDPlaybackViewport::GetTransformToolbarVisibility() const
@@ -217,14 +233,6 @@ void SChaosVDPlaybackViewport::HandleControllerTrackFrameUpdated(TWeakPtr<FChaos
 			}
 
 			GameFramesTimelineWidget->SetTargetFrameTime(ControllerSharedPtr->GetFrameTimeForTrack(EChaosVDTrackType::Game, FChaosVDPlaybackController::GameTrackID, *GameTrackInfo));
-
-			if (const TSharedPtr<FChaosVDRecording> RecordingData = ControllerSharedPtr->GetCurrentRecording().Pin())
-			{
-				if (FChaosVDGameFrameData* FrameData = RecordingData->GetGameFrameData_AssumesLocked(GameTrackFrame))
-				{
-					PlaybackViewportClient->PerformSelectedTrackingForFrame(FrameData);
-				}
-			}
 		}
 	}
 }
@@ -236,7 +244,7 @@ void SChaosVDPlaybackViewport::HandlePostSelectionChange(const UTypedElementSele
 
 void SChaosVDPlaybackViewport::OnPlaybackSceneUpdated()
 {
-	PlaybackViewportClient->bNeedsRedraw = true;	
+	PlaybackViewportClient->bNeedsRedraw = true;
 }
 
 void SChaosVDPlaybackViewport::OnSolverVisibilityUpdated(int32 SolverID, bool bNewVisibility)

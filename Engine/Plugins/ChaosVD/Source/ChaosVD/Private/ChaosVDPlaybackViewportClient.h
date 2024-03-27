@@ -26,19 +26,19 @@ public:
 
 	virtual void Draw(const FSceneView* View, FPrimitiveDrawInterface* PDI) override;
 	virtual void DrawCanvas(FViewport& InViewport, FSceneView& View, FCanvas& Canvas) override;
-	
-	void TrackActor(AActor* ActorToTrack, EChaosVDActorTrackingMode TrackingMode);
-	void TrackTransform(const FTransform& TransformToTrack, EChaosVDActorTrackingMode TrackingMode);
-	
-	void PerformSelectedTrackingForFrame(FChaosVDGameFrameData* FrameData);
 
 	virtual bool InputKey(const FInputKeyEventArgs& EventArgs) override;
 
+	void ToggleObjectTrackingIfSelected();
+
 private:
+
+	void TrackSelectedObject();
+
 	void HandleObjectFocused(UObject* FocusedObject);
 	void HandleActorMoving(AActor* MovedActor) const;
 	void HandleViewportSettingsChanged(UChaosVDEditorSettings* SettingsObject);
-	
+
 	FDelegateHandle ObjectFocusedDelegateHandle;
 	UWorld* CVDWorld;
 	TWeakPtr<FChaosVDScene> CVDScene;

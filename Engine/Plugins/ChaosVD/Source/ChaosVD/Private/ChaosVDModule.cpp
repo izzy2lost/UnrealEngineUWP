@@ -1,6 +1,8 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "ChaosVDModule.h"
+
+#include "ChaosVDCommands.h"
 #include "ChaosVDStyle.h"
 #include "ChaosVDParticleActorCustomization.h"
 #include "ChaosVDTabsIDs.h"
@@ -37,6 +39,8 @@ FChaosVDModule& FChaosVDModule::Get()
 void FChaosVDModule::StartupModule()
 {	
 	FChaosVDStyle::Initialize();
+	
+	FChaosVDCommands::Register();
 
 	RegisterClassesCustomDetails();
 
@@ -54,6 +58,8 @@ void FChaosVDModule::StartupModule()
 void FChaosVDModule::ShutdownModule()
 {
 	FChaosVDStyle::Shutdown();
+	
+	FChaosVDCommands::Unregister();
 
 	FGlobalTabmanager::Get()->UnregisterNomadTabSpawner(FChaosVDTabID::ChaosVisualDebuggerTab);
 
