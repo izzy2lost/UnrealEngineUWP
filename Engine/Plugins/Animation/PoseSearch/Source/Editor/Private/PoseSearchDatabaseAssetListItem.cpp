@@ -115,40 +115,41 @@ namespace UE::PoseSearch
 
 	FReply SDatabaseAssetListItem::OnMouseButtonDoubleClick(const FGeometry& InMyGeometry, const FPointerEvent& InMouseEvent)
 	{
-		TSharedPtr<FDatabaseAssetTreeNode> Node = WeakAssetTreeNode.Pin();
-		TSharedPtr<FDatabaseViewModel> ViewModel = EditorViewModel.Pin();
-		if (const UPoseSearchDatabase* Database = ViewModel->GetPoseSearchDatabase())
+		if (TSharedPtr<FDatabaseAssetTreeNode> AssetTreeNode = WeakAssetTreeNode.Pin())
 		{
-			if (const FPoseSearchDatabaseAnimationAssetBase* DatabaseAnimationAsset = Database->GetAnimationAssetBase(Node->SourceAssetIdx))
+			TSharedPtr<FDatabaseViewModel> ViewModel = EditorViewModel.Pin();
+			if (const UPoseSearchDatabase* Database = ViewModel->GetPoseSearchDatabase())
 			{
-				if (UAssetEditorSubsystem* AssetEditorSS = GEditor->GetEditorSubsystem<UAssetEditorSubsystem>())
+				if (const FPoseSearchDatabaseAnimationAssetBase* DatabaseAnimationAsset = Database->GetAnimationAssetBase(AssetTreeNode->SourceAssetIdx))
 				{
-					if (UObject* AnimationAsset = DatabaseAnimationAsset->GetAnimationAsset())
+					if (UAssetEditorSubsystem* AssetEditorSS = GEditor->GetEditorSubsystem<UAssetEditorSubsystem>())
 					{
-						AssetEditorSS->OpenEditorForAsset(AnimationAsset);
-
-						if (IAssetEditorInstance* Editor = AssetEditorSS->FindEditorForAsset(AnimationAsset, true))
+						if (UObject* AnimationAsset = DatabaseAnimationAsset->GetAnimationAsset())
 						{
-							if (Editor->GetEditorName() == "AnimationEditor")
+							AssetEditorSS->OpenEditorForAsset(AnimationAsset);
+
+							if (IAssetEditorInstance* Editor = AssetEditorSS->FindEditorForAsset(AnimationAsset, true))
 							{
-								float AnimationAssetTime = 0.f;
-								FVector AnimationAssetBlendParameters = FVector::ZeroVector;
-								ViewModel->GetAnimationTime(Node->SourceAssetIdx, AnimationAssetTime, AnimationAssetBlendParameters);
+								if (Editor->GetEditorName() == "AnimationEditor")
+								{
+									float AnimationAssetTime = 0.f;
+									FVector AnimationAssetBlendParameters = FVector::ZeroVector;
+									ViewModel->GetAnimationTime(AssetTreeNode->SourceAssetIdx, AnimationAssetTime, AnimationAssetBlendParameters);
 
-								const IAnimationEditor* AnimationEditor = static_cast<IAnimationEditor*>(Editor);
-								const UDebugSkelMeshComponent* PreviewComponent = AnimationEditor->GetPersonaToolkit()->GetPreviewMeshComponent();
+									const IAnimationEditor* AnimationEditor = static_cast<IAnimationEditor*>(Editor);
+									const UDebugSkelMeshComponent* PreviewComponent = AnimationEditor->GetPersonaToolkit()->GetPreviewMeshComponent();
 
-								// Open asset paused and at specific time as seen on the pose search debugger.
-								PreviewComponent->PreviewInstance->SetPosition(AnimationAssetTime);
-								PreviewComponent->PreviewInstance->SetPlaying(false);
-								PreviewComponent->PreviewInstance->SetBlendSpacePosition(AnimationAssetBlendParameters);
+									// Open asset paused and at specific time as seen on the pose search debugger.
+									PreviewComponent->PreviewInstance->SetPosition(AnimationAssetTime);
+									PreviewComponent->PreviewInstance->SetPlaying(false);
+									PreviewComponent->PreviewInstance->SetBlendSpacePosition(AnimationAssetBlendParameters);
+								}
 							}
 						}
 					}
 				}
 			}
 		}
-
 		return STableRow<TSharedPtr<FDatabaseAssetTreeNode>>::OnMouseButtonDoubleClick(InMyGeometry, InMouseEvent);
 	}
 
@@ -158,12 +159,13 @@ namespace UE::PoseSearch
 
 		if (const UPoseSearchDatabase* Database = ViewModel->GetPoseSearchDatabase())
 		{
-			TSharedPtr<FDatabaseAssetTreeNode> Node = WeakAssetTreeNode.Pin();
-			if (const FPoseSearchDatabaseAnimationAssetBase* DatabaseAnimationAsset = Database->GetAnimationAssetBase(Node->SourceAssetIdx))
+			if (TSharedPtr<FDatabaseAssetTreeNode> AssetTreeNode = WeakAssetTreeNode.Pin())
 			{
-				return FText::FromString(DatabaseAnimationAsset->GetName());
+				if (const FPoseSearchDatabaseAnimationAssetBase* DatabaseAnimationAsset = Database->GetAnimationAssetBase(AssetTreeNode->SourceAssetIdx))
+				{
+					return FText::FromString(DatabaseAnimationAsset->GetName());
+				}
 			}
-
 			return FText::FromString(Database->GetName());
 		}
 
@@ -172,12 +174,16 @@ namespace UE::PoseSearch
 
 	TSharedRef<SWidget> SDatabaseAssetListItem::GenerateItemWidget()
 	{
-		TSharedPtr<FDatabaseAssetTreeNode> Node = WeakAssetTreeNode.Pin();
-		
+		int32 SourceAssetIdx = INDEX_NONE;
+		if (TSharedPtr<FDatabaseAssetTreeNode> AssetTreeNode = WeakAssetTreeNode.Pin())
+		{
+			SourceAssetIdx = AssetTreeNode->SourceAssetIdx;
+		}
+
 		TSharedPtr<SWidget> ItemWidget;
 		const FDetailColumnSizeData& ColumnSizeData = SkeletonView.Pin()->GetColumnSizeData();
 		
-		if (Node->SourceAssetIdx == INDEX_NONE)
+		if (SourceAssetIdx == INDEX_NONE)
 		{
 			// it's a group
 			SAssignNew(ItemWidget, SBorder)
@@ -211,7 +217,7 @@ namespace UE::PoseSearch
 			TSharedPtr<FDatabaseViewModel> ViewModel = EditorViewModel.Pin();
 			if (UPoseSearchDatabase* Database = ViewModel->GetPoseSearchDatabase())
 			{
-				if (const FPoseSearchDatabaseAnimationAssetBase* DatabaseAnimationAsset = Database->GetAnimationAssetBase(Node->SourceAssetIdx))
+				if (const FPoseSearchDatabaseAnimationAssetBase* DatabaseAnimationAsset = Database->GetAnimationAssetBase(SourceAssetIdx))
 				{
 					SAssignNew(ItemIconWidget, SImage)
 						.Image(FSlateIconFinder::FindIconBrushForClass(DatabaseAnimationAsset->GetAnimationAssetStaticClass()));
@@ -385,15 +391,16 @@ namespace UE::PoseSearch
 	EVisibility SDatabaseAssetListItem::GetSelectedActorIconVisbility() const
 	{
 		TSharedPtr<FDatabaseViewModel> ViewModelPtr = EditorViewModel.Pin();
-		TSharedPtr<FDatabaseAssetTreeNode> TreeNodePtr = WeakAssetTreeNode.Pin();
-		if (const FSearchIndexAsset* SelectedIndexAsset = ViewModelPtr->GetSelectedActorIndexAsset())
+		if (TSharedPtr<FDatabaseAssetTreeNode> AssetTreeNode = WeakAssetTreeNode.Pin())
 		{
-			if (TreeNodePtr->SourceAssetIdx == SelectedIndexAsset->GetSourceAssetIdx())
+			if (const FSearchIndexAsset* SelectedIndexAsset = ViewModelPtr->GetSelectedActorIndexAsset())
 			{
-				return EVisibility::Visible;
+				if (AssetTreeNode->SourceAssetIdx == SelectedIndexAsset->GetSourceAssetIdx())
+				{
+					return EVisibility::Visible;
+				}
 			}
 		}
-
 		return EVisibility::Hidden;
 	}
 
@@ -412,12 +419,14 @@ namespace UE::PoseSearch
 		TSharedPtr<FDatabaseViewModel> ViewModelPtr = EditorViewModel.Pin();
 		if (const UPoseSearchDatabase* Database = ViewModelPtr->GetPoseSearchDatabase())
 		{
-			TSharedPtr<FDatabaseAssetTreeNode> TreeNodePtr = WeakAssetTreeNode.Pin();
-			if (Database->GetAnimationAssets().IsValidIndex(TreeNodePtr->SourceAssetIdx))
+			if (TSharedPtr<FDatabaseAssetTreeNode> AssetTreeNode = WeakAssetTreeNode.Pin())
 			{
-				if (ViewModelPtr->IsDisableReselection(TreeNodePtr->SourceAssetIdx))
+				if (Database->GetAnimationAssets().IsValidIndex(AssetTreeNode->SourceAssetIdx))
 				{
-					return ECheckBoxState::Checked;
+					if (ViewModelPtr->IsDisableReselection(AssetTreeNode->SourceAssetIdx))
+					{
+						return ECheckBoxState::Checked;
+					}
 				}
 			}
 		}
@@ -430,17 +439,18 @@ namespace UE::PoseSearch
 		const TSharedPtr<FDatabaseViewModel> ViewModelPtr = EditorViewModel.Pin();
 		if (UPoseSearchDatabase* PoseSearchDatabase = ViewModelPtr->GetPoseSearchDatabase())
 		{
-			const FScopedTransaction Transaction(LOCTEXT("EnableChangedForAssetInPoseSearchDatabase", "Update enabled flag for item from Pose Search Database"));
+			if (const TSharedPtr<FDatabaseAssetTreeNode> AssetTreeNode = WeakAssetTreeNode.Pin())
+			{
+				const FScopedTransaction Transaction(LOCTEXT("EnableChangedForAssetInPoseSearchDatabase", "Update enabled flag for item from Pose Search Database"));
 
-			const TSharedPtr<FDatabaseAssetTreeNode> TreeNodePtr = WeakAssetTreeNode.Pin();
+				PoseSearchDatabase->Modify();
 
-			PoseSearchDatabase->Modify();
+				ViewModelPtr->SetDisableReselection(AssetTreeNode->SourceAssetIdx, NewCheckboxState == ECheckBoxState::Checked ? true : false);
 
-			ViewModelPtr->SetDisableReselection(TreeNodePtr->SourceAssetIdx, NewCheckboxState == ECheckBoxState::Checked ? true : false);
+				SkeletonView.Pin()->RefreshTreeView(false, true);
 
-			SkeletonView.Pin()->RefreshTreeView(false, true);
-
-			// no need to rebuild the SearchIndex (ViewModelPtr->BuildSearchIndex()), since bDisableReselection is a runtime only parameter
+				// no need to rebuild the SearchIndex (ViewModelPtr->BuildSearchIndex()), since bDisableReselection is a runtime only parameter
+			}
 		}
 	}
 
@@ -449,12 +459,14 @@ namespace UE::PoseSearch
 		TSharedPtr<FDatabaseViewModel> ViewModelPtr = EditorViewModel.Pin();
 		if (const UPoseSearchDatabase* Database = ViewModelPtr->GetPoseSearchDatabase())
 		{
-			TSharedPtr<FDatabaseAssetTreeNode> TreeNodePtr = WeakAssetTreeNode.Pin();
-			if (Database->GetAnimationAssets().IsValidIndex(TreeNodePtr->SourceAssetIdx))
+			if (TSharedPtr<FDatabaseAssetTreeNode> AssetTreeNode = WeakAssetTreeNode.Pin())
 			{
-				if (ViewModelPtr->IsEnabled(TreeNodePtr->SourceAssetIdx))
+				if (Database->GetAnimationAssets().IsValidIndex(AssetTreeNode->SourceAssetIdx))
 				{
-					return ECheckBoxState::Checked;
+					if (ViewModelPtr->IsEnabled(AssetTreeNode->SourceAssetIdx))
+					{
+						return ECheckBoxState::Checked;
+					}
 				}
 			}
 		}
@@ -466,12 +478,13 @@ namespace UE::PoseSearch
 		const FScopedTransaction Transaction(LOCTEXT("EnableChangedForAssetInPoseSearchDatabase", "Update enabled flag for item from Pose Search Database"));
 
 		const TSharedPtr<FDatabaseViewModel> ViewModelPtr = EditorViewModel.Pin();
-		const TSharedPtr<FDatabaseAssetTreeNode> TreeNodePtr = WeakAssetTreeNode.Pin();
+		if (const TSharedPtr<FDatabaseAssetTreeNode> AssetTreeNode = WeakAssetTreeNode.Pin())
+		{
+			ViewModelPtr->SetIsEnabled(AssetTreeNode->SourceAssetIdx, NewCheckboxState == ECheckBoxState::Checked);
 
-		ViewModelPtr->SetIsEnabled(TreeNodePtr->SourceAssetIdx, NewCheckboxState == ECheckBoxState::Checked);
-
-		SkeletonView.Pin()->RefreshTreeView(false, true);
-		ViewModelPtr->BuildSearchIndex();
+			SkeletonView.Pin()->RefreshTreeView(false, true);
+			ViewModelPtr->BuildSearchIndex();
+		}
 	}
 
 	FSlateColor SDatabaseAssetListItem::GetNameTextColorAndOpacity() const
@@ -479,17 +492,19 @@ namespace UE::PoseSearch
 		TSharedPtr<FDatabaseViewModel> ViewModelPtr = EditorViewModel.Pin();
 		if (const UPoseSearchDatabase* Database = ViewModelPtr->GetPoseSearchDatabase())
 		{
-			TSharedPtr<FDatabaseAssetTreeNode> TreeNodePtr = WeakAssetTreeNode.Pin();
-			if (const FPoseSearchDatabaseAnimationAssetBase* DatabaseAnimationAssetBase = Database->GetAnimationAssetBase(TreeNodePtr->SourceAssetIdx))
+			if (TSharedPtr<FDatabaseAssetTreeNode> AssetTreeNode = WeakAssetTreeNode.Pin())
 			{
-				if (DatabaseAnimationAssetBase->IsEnabled())
+				if (const FPoseSearchDatabaseAnimationAssetBase* DatabaseAnimationAssetBase = Database->GetAnimationAssetBase(AssetTreeNode->SourceAssetIdx))
 				{
-					if (DatabaseAnimationAssetBase->bSynchronizeWithExternalDependency)
+					if (DatabaseAnimationAssetBase->IsEnabled())
 					{
-						return FColor::Turquoise;
-					}
+						if (DatabaseAnimationAssetBase->bSynchronizeWithExternalDependency)
+						{
+							return FColor::Turquoise;
+						}
 
-					return FLinearColor::White;
+						return FLinearColor::White;
+					}
 				}
 			}
 		}
@@ -498,84 +513,113 @@ namespace UE::PoseSearch
 
 	FSlateColor SDatabaseAssetListItem::GetLoopingColorAndOpacity() const
 	{
-		const TSharedPtr<FDatabaseAssetTreeNode> Node = WeakAssetTreeNode.Pin();
-		return Node->IsLooping() ? FLinearColor::White : DisabledColor;
+		if (const TSharedPtr<FDatabaseAssetTreeNode> AssetTreeNode = WeakAssetTreeNode.Pin())
+		{
+			if (AssetTreeNode->IsLooping())
+			{
+				return FLinearColor::White;
+			}
+		}
+		
+		return DisabledColor;
 	}
 
 	FText SDatabaseAssetListItem::GetLoopingToolTip() const
 	{
-		const TSharedPtr<FDatabaseAssetTreeNode> Node = WeakAssetTreeNode.Pin();
-		return Node->IsLooping() ? LOCTEXT("NodeLoopEnabledToolTip", "Looping (Read only)") : LOCTEXT("NodeLoopDisabledToolTip", "Not looping (Read only)");
+		if (const TSharedPtr<FDatabaseAssetTreeNode> AssetTreeNode = WeakAssetTreeNode.Pin())
+		{
+			if (AssetTreeNode->IsLooping())
+			{
+				return LOCTEXT("NodeLoopEnabledToolTip", "Looping (Read only)");
+			}
+		}
+
+		return LOCTEXT("NodeLoopDisabledToolTip", "Not looping (Read only)");
 	}
 
 	FSlateColor SDatabaseAssetListItem::GetRootMotionColorAndOpacity() const
 	{
-		const TSharedPtr<FDatabaseAssetTreeNode> Node = WeakAssetTreeNode.Pin();
-		return Node->IsRootMotionEnabled() ? FLinearColor::White : DisabledColor;
+		if (const TSharedPtr<FDatabaseAssetTreeNode> AssetTreeNode = WeakAssetTreeNode.Pin())
+		{
+			if (AssetTreeNode->IsRootMotionEnabled())
+			{
+				return FLinearColor::White;
+			}
+		}
+		
+		return DisabledColor;
 	}
 
 	FText SDatabaseAssetListItem::GetRootMotionOptionToolTip() const
 	{
-		const TSharedPtr<FDatabaseAssetTreeNode> Node = WeakAssetTreeNode.Pin();
-		return Node->IsRootMotionEnabled() ? LOCTEXT("NodeRootMotionEnabledToolTip", "Root motion enabled (Read only)") : LOCTEXT("NodeRootMotionDisabledToolTip", "No root motion enabled (Read only)");
-
+		if (const TSharedPtr<FDatabaseAssetTreeNode> AssetTreeNode = WeakAssetTreeNode.Pin())
+		{
+			if (AssetTreeNode->IsRootMotionEnabled())
+			{
+				return LOCTEXT("NodeRootMotionEnabledToolTip", "Root motion enabled (Read only)");
+			}
+		}
+		
+		return LOCTEXT("NodeRootMotionDisabledToolTip", "No root motion enabled (Read only)");
 	}
+
 	const FSlateBrush* SDatabaseAssetListItem::GetMirrorOptionSlateBrush() const
 	{
-		const TSharedPtr<FDatabaseAssetTreeNode> Node = WeakAssetTreeNode.Pin();
-
-		// TODO: Update icons when appropriate assets become available.
-		switch (Node->GetMirrorOption())
+		if (const TSharedPtr<FDatabaseAssetTreeNode> AssetTreeNode = WeakAssetTreeNode.Pin())
 		{
-			case EPoseSearchMirrorOption::UnmirroredOnly: 
+			// TODO: Update icons when appropriate assets become available.
+			switch (AssetTreeNode->GetMirrorOption())
+			{
+			case EPoseSearchMirrorOption::UnmirroredOnly:
 				return FAppStyle::Get().GetBrush("GraphEditor.AlignNodesRight");
-			
-			case EPoseSearchMirrorOption::MirroredOnly: 
+
+			case EPoseSearchMirrorOption::MirroredOnly:
 				return FAppStyle::Get().GetBrush("GraphEditor.AlignNodesLeft");
-			
+
 			case EPoseSearchMirrorOption::UnmirroredAndMirrored:
 				return FAppStyle::Get().GetBrush("GraphEditor.AlignNodesCenter");
-			
-			default:
-				return nullptr;
+			}
 		}
+		
+		return nullptr;
 	}
 
 	FText SDatabaseAssetListItem::GetMirrorOptionToolTip() const
 	{
-		const TSharedPtr<FDatabaseAssetTreeNode> Node = WeakAssetTreeNode.Pin();
-		return FText::FromString(LOCTEXT("ToolTipMirrorOption", "Mirror Option: ").ToString() + (Node ? UEnum::GetDisplayValueAsText(Node->GetMirrorOption()).ToString() : LOCTEXT("ToolTipMirrorOption_Invalid", "Invalid").ToString()));
+		const TSharedPtr<FDatabaseAssetTreeNode> AssetTreeNode = WeakAssetTreeNode.Pin();
+		return FText::FromString(LOCTEXT("ToolTipMirrorOption", "Mirror Option: ").ToString() + (AssetTreeNode ? UEnum::GetDisplayValueAsText(AssetTreeNode->GetMirrorOption()).ToString() : LOCTEXT("ToolTipMirrorOption_Invalid", "Invalid").ToString()));
 	}
 
 	FReply SDatabaseAssetListItem::MirrorOptionOnMouseButtonDown(const FGeometry& InMyGeometry, const FPointerEvent& InMouseEvent)
 	{
-		const TSharedPtr<FDatabaseAssetTreeNode> Node = WeakAssetTreeNode.Pin();
-		const TSharedPtr<FDatabaseViewModel> ViewModel = EditorViewModel.Pin();
-
-		if(InMouseEvent.GetEffectingButton() == EKeys::LeftMouseButton)
+		if (const TSharedPtr<FDatabaseAssetTreeNode> AssetTreeNode = WeakAssetTreeNode.Pin())
 		{
-			if (UPoseSearchDatabase* Database = ViewModel->GetPoseSearchDatabase())
-			{
-				if (FPoseSearchDatabaseAnimationAssetBase* DatabaseAnimationAsset = Database->GetMutableAnimationAssetBase(Node->SourceAssetIdx))
-				{
-					const FScopedTransaction Transaction(LOCTEXT("OnClickEditMirrorOptionPoseSearchDatabase", "Edit Mirror Option"));
-				
-					// Get next mirror option
-					static const TArray<EPoseSearchMirrorOption> OptionArray = { EPoseSearchMirrorOption::UnmirroredOnly, EPoseSearchMirrorOption::MirroredOnly, EPoseSearchMirrorOption::UnmirroredAndMirrored };
-					const int32 NextOption = (static_cast<int32>(DatabaseAnimationAsset->MirrorOption) + 1) % OptionArray.Num();
+			const TSharedPtr<FDatabaseViewModel> ViewModel = EditorViewModel.Pin();
 
-					// Modify asset (@todo: this should be done through the viewmodel).
-					Database->Modify();
-					DatabaseAnimationAsset->MirrorOption = OptionArray[NextOption];
-				
-					SkeletonView.Pin()->RefreshTreeView(false, true);
-					ViewModel->BuildSearchIndex();
-				
-					return FReply::Handled();
+			if (InMouseEvent.GetEffectingButton() == EKeys::LeftMouseButton)
+			{
+				if (UPoseSearchDatabase* Database = ViewModel->GetPoseSearchDatabase())
+				{
+					if (FPoseSearchDatabaseAnimationAssetBase* DatabaseAnimationAsset = Database->GetMutableAnimationAssetBase(AssetTreeNode->SourceAssetIdx))
+					{
+						const FScopedTransaction Transaction(LOCTEXT("OnClickEditMirrorOptionPoseSearchDatabase", "Edit Mirror Option"));
+
+						// Get next mirror option
+						static const TArray<EPoseSearchMirrorOption> OptionArray = { EPoseSearchMirrorOption::UnmirroredOnly, EPoseSearchMirrorOption::MirroredOnly, EPoseSearchMirrorOption::UnmirroredAndMirrored };
+						const int32 NextOption = (static_cast<int32>(DatabaseAnimationAsset->MirrorOption) + 1) % OptionArray.Num();
+
+						// Modify asset (@todo: this should be done through the viewmodel).
+						Database->Modify();
+						DatabaseAnimationAsset->MirrorOption = OptionArray[NextOption];
+
+						SkeletonView.Pin()->RefreshTreeView(false, true);
+						ViewModel->BuildSearchIndex();
+
+						return FReply::Handled();
+					}
 				}
 			}
 		}
-		
 		return FReply::Unhandled();
 	}
 

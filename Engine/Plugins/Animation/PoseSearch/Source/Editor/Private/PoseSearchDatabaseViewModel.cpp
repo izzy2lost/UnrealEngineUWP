@@ -32,6 +32,7 @@ namespace UE::PoseSearch
 {
 #if ENABLE_ANIM_DEBUG
 static TAutoConsoleVariable<float> CVarDatabasePreviewDebugDrawSamplerSize(TEXT("a.DatabasePreview.DebugDrawSamplerSize"), 0.f, TEXT("Debug Draw Sampler Positions Size"));
+static TAutoConsoleVariable<float> CVarDatabasePreviewDebugDrawSamplerTimeOffset(TEXT("a.DatabasePreview.DebugDrawSamplerTimeOffset"), 0.f, TEXT("Debug Draw Sampler Positions At Time Offset"));
 #endif
 
 constexpr float StepDeltaTime = 1.0f / 30.0f;
@@ -378,23 +379,32 @@ bool FDatabasePreviewActor::DrawPreviewActors(TArrayView<FDatabasePreviewActor> 
 		const float DebugDrawSamplerSize = CVarDatabasePreviewDebugDrawSamplerSize.GetValueOnAnyThread();
 		if (DebugDrawSamplerSize > UE_KINDA_SMALL_NUMBER)
 		{
-			// drawing the pose extracted from the Sampler to visually compare with the pose features and the mesh drawing
+			const float DebugDrawSamplerTimeOffset = CVarDatabasePreviewDebugDrawSamplerTimeOffset.GetValueOnAnyThread();
+			
+			const int32 NumDrawPasses = FMath::IsNearlyZero(DebugDrawSamplerTimeOffset) ? 1 : 2;
+
 			FMemMark Mark(FMemStack::Get());
 			FCompactPose Pose;
-			Pose.SetBoneContainer(&PreviewActor.GetAnimPreviewInstance()->GetRequiredBonesOnAnyThread());
-
-			PreviewActor.Sampler.ExtractPose(PreviewActor.CurrentTime, Pose);
-			MirrorDataCache.MirrorPose(Pose);
-
-			const FTransform RootTransform = MirrorDataCache.MirrorTransform(PreviewActor.Sampler.ExtractRootTransform(PreviewActor.CurrentTime));
-
 			FCSPose<FCompactPose> ComponentSpacePose;
-			ComponentSpacePose.InitPose(MoveTemp(Pose));
 
-			for (int32 BoneIndex = 0; BoneIndex < ComponentSpacePose.GetPose().GetNumBones(); ++BoneIndex)
+			for (int32 DrawPass = 0; DrawPass < NumDrawPasses; ++DrawPass)
 			{
-				const FTransform BoneWorldTransforms = ComponentSpacePose.GetComponentSpaceTransform(FCompactPoseBoneIndex(BoneIndex)) * RootTransform;
-				DrawParams.DrawPoint(BoneWorldTransforms.GetTranslation(), FColor::Red, DebugDrawSamplerSize);
+				// drawing the pose extracted from the Sampler to visually compare with the pose features and the mesh drawing
+				Pose.SetBoneContainer(&PreviewActor.GetAnimPreviewInstance()->GetRequiredBonesOnAnyThread());
+
+				const float SamplerTime = DrawPass ? PreviewActor.CurrentTime + DebugDrawSamplerTimeOffset : PreviewActor.CurrentTime;
+				const FColor DebugColor = DrawPass ? FColor::Blue : FColor::Red;
+
+				PreviewActor.Sampler.ExtractPose(SamplerTime, Pose);
+				MirrorDataCache.MirrorPose(Pose);
+				ComponentSpacePose.InitPose(MoveTemp(Pose));
+
+				const FTransform RootTransform = MirrorDataCache.MirrorTransform(PreviewActor.Sampler.ExtractRootTransform(SamplerTime));
+				for (int32 BoneIndex = 0; BoneIndex < ComponentSpacePose.GetPose().GetNumBones(); ++BoneIndex)
+				{
+					const FTransform BoneWorldTransforms = ComponentSpacePose.GetComponentSpaceTransform(FCompactPoseBoneIndex(BoneIndex)) * RootTransform;
+					DrawParams.DrawPoint(BoneWorldTransforms.GetTranslation(), DebugColor, DebugDrawSamplerSize);
+				}
 			}
 		}
 #endif // ENABLE_ANIM_DEBUG
