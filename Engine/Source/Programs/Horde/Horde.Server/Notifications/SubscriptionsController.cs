@@ -155,20 +155,11 @@ namespace Horde.Server.Notifications
 				objectId = newObjectId;
 				return true;
 			}
-
-			string? currentUserName = User.GetUserName();
-			if (currentUserName != null && String.Equals(userName, currentUserName, StringComparison.OrdinalIgnoreCase))
+			else
 			{
-				UserId? currentUserId = User.GetUserId();
-				if (currentUserId != null)
-				{
-					objectId = currentUserId.Value;
-					return true;
-				}
+				objectId = default;
+				return false;
 			}
-
-			objectId = default;
-			return false;
 		}
 	}
 }
