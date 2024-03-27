@@ -919,6 +919,7 @@ static void DirectCompile(const TArray<const class IShaderFormat*>& ShaderFormat
 	FName FormatName;
 	FName ShaderPlatformName;
 	FString Entry = TEXT("Main");
+	uint32 SupportedHardwareMask = 0;
 	FString DumpDebugInfoPath;
 	bool bPipeline = false;
 	EShaderFrequency Frequency = SF_Pixel;
@@ -946,6 +947,10 @@ static void DirectCompile(const TArray<const class IShaderFormat*>& ShaderFormat
 			else if (Token.StartsWith(TEXT("shaderPlatformName=")))
 			{
 				ShaderPlatformName = FName(*Token.RightChop(19));
+			}
+			else if (Token.StartsWith(TEXT("supportedHardwareMask=")))
+			{
+				SupportedHardwareMask = (uint32)FCString::Atoi64(*Token.RightChop(22));
 			}
 			else if (Token.StartsWith(TEXT("DebugInfoPath=")))
 			{
@@ -1025,6 +1030,7 @@ static void DirectCompile(const TArray<const class IShaderFormat*>& ShaderFormat
 	Job.Input.EntryPointName = Entry;
 	Job.Input.ShaderFormat = FormatName;
 	Job.Input.ShaderPlatformName = ShaderPlatformName;
+	Job.Input.SupportedHardwareMask = SupportedHardwareMask;
 	Job.Input.VirtualSourceFilePath = InputFile;
 	Job.Input.Target.Platform =  ShaderFormatNameToShaderPlatform(FormatName);
 	Job.Input.Target.Frequency = Frequency;

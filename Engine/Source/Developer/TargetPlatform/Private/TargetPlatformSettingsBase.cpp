@@ -45,6 +45,11 @@ bool FTargetPlatformSettingsBase::UsesRayTracing() const
 	return CVar ? (CVar->GetInt() != 0) : false;
 }
 
+uint32 FTargetPlatformSettingsBase::GetSupportedHardwareMask() const
+{
+	return 0;
+}
+
 EOfflineBVHMode FTargetPlatformSettingsBase::GetStaticMeshOfflineBVHMode() const
 {
 	return EOfflineBVHMode::Disabled;

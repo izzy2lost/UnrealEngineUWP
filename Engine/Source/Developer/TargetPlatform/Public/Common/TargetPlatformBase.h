@@ -90,6 +90,8 @@ public:
 
 	TARGETPLATFORM_API virtual bool UsesRayTracing() const override;
 
+	TARGETPLATFORM_API virtual uint32 GetSupportedHardwareMask() const override;
+
 	TARGETPLATFORM_API virtual EOfflineBVHMode GetStaticMeshOfflineBVHMode() const override;
 
 	TARGETPLATFORM_API virtual bool GetStaticMeshOfflineBVHCompression() const override;
@@ -797,6 +799,10 @@ public:
 	virtual bool UsesRayTracing() const override 
 	{
 		return TargetPlatformSettings->UsesRayTracing();
+	}
+	virtual uint32 GetSupportedHardwareMask() const override
+	{
+		return TargetPlatformSettings->GetSupportedHardwareMask();
 	}
 	virtual EOfflineBVHMode GetStaticMeshOfflineBVHMode() const override 
 	{

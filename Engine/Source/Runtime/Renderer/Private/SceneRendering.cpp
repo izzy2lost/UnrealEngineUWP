@@ -3033,6 +3033,16 @@ void FSceneRenderer::PrepareViewRectsForRendering(FRHICommandListImmediate& RHIC
 	check(IsInRenderingThread());
 	TRACE_CPUPROFILER_EVENT_SCOPE(PrepareViewRectsForRendering);
 
+	// If we support screen percentage, update the dynamic resolution state with our current temporal upscaler, which clamps the screen percentage to its supported range.
+	if (ViewFamily.SupportsScreenPercentage())
+	{
+		IDynamicResolutionState* DynamicResolutionState = GEngine->GetDynamicResolutionState();
+		if (DynamicResolutionState)
+		{
+			DynamicResolutionState->SetTemporalUpscaler(ViewFamily.GetTemporalUpscalerInterface());
+		}
+	}
+
 	// Read the resolution data.
 	{
 		check(ViewFamily.ScreenPercentageInterface);

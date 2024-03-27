@@ -254,6 +254,14 @@ void ULocalPlayer::InitOnlineSession()
 void ULocalPlayer::PlayerRemoved()
 {
 	SubsystemCollection.Deinitialize();
+
+	if (!IsTemplate())
+	{
+		for (FSceneViewStateReference& ViewState : ViewStates)
+		{
+			ViewState.Destroy();
+		}
+	}
 }
 
 bool ULocalPlayer::SpawnPlayActor(const FString& URL,FString& OutError, UWorld* InWorld)
@@ -372,18 +380,6 @@ void ULocalPlayer::SendSplitJoin(TArray<FString>& Options)
 			bSentSplitJoin = true;
 		}
 	}
-}
-
-void ULocalPlayer::FinishDestroy()
-{
-	if ( !IsTemplate() )
-	{
-		for (FSceneViewStateReference& ViewState : ViewStates)
-		{
-			ViewState.Destroy();
-		}
-	}
-	Super::FinishDestroy();
 }
 
 /**

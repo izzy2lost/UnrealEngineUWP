@@ -248,7 +248,7 @@ TRequest<PayloadType>& TRequest<PayloadType>::BindHeaderReceivedCallback(TFuncti
 template <typename PayloadType>
 TRequest<PayloadType>& TRequest<PayloadType>::SetPayloadData(const PayloadType& InPayloadData)
 {
-	static_assert(TModels_V<CStaticStructProvider, PayloadType>, TEXT("PayloadType must be a UStruct"));
+	static_assert(TModels_V<CStaticStructProvider, PayloadType>, "PayloadType must be a UStruct");
 
 	FString PayloadAsString = PayloadToString_Internal(InPayloadData).GetValue();
 	PayloadAsString.Append(TEXT("]")).InsertAt(0, TEXT("["));
@@ -273,7 +273,7 @@ bool TRequest<PayloadType>::HasPayload() const
 template <typename PayloadType>
 TValueOrError<FString, FString> TRequest<PayloadType>::PayloadToString_Internal(const PayloadType& InContent) const
 {
-	static_assert(TModels_V<CStaticStructProvider, PayloadType>, TEXT("PayloadType must be a UStruct"));
+	static_assert(TModels_V<CStaticStructProvider, PayloadType>, "PayloadType must be a UStruct");
 
 	FString StringifiedContent;
 	if (!FJsonObjectConverter::UStructToJsonObjectString(InContent, StringifiedContent))

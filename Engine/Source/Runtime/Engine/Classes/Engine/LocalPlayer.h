@@ -238,7 +238,6 @@ private:
 
 public:
 	// UObject interface
-	ENGINE_API virtual void FinishDestroy() override;
 	static ENGINE_API void AddReferencedObjects(UObject* InThis, FReferenceCollector& Collector);
 	// End of UObject interface
 

@@ -539,6 +539,11 @@ public:
 		RHIContext->RHIResummarizeHTile(DepthTexture);
 	}
 
+	virtual void* RHIGetNativeCommandBuffer() override final
+	{
+		return RHIContext->RHIGetNativeCommandBuffer();
+	}
+
 	virtual void RHIBeginTransitions(TArrayView<const FRHITransition*> Transitions) override final
 	{
 		ensureMsgf(!State.bInsideBeginRenderPass, TEXT("Beginning a transition within a renderpass is not supported!"));

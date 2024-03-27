@@ -164,6 +164,14 @@ public:
 	virtual bool UsesRayTracing() const = 0;
 
 	/**
+	 * Gets a platform-dependent bitfield describing which hardware generations are supported.
+	 * Applies to platforms with multiple iterations of the device, which may vary in performance.
+	 * Each bit represents a supported device version.
+	 * Return 0 if information is not provided by the platform.
+	 */
+	virtual uint32 GetSupportedHardwareMask() const = 0;
+
+	/**
 	* Gets static mesh offline BVH mode
 	*/
 	virtual EOfflineBVHMode GetStaticMeshOfflineBVHMode() const = 0;
