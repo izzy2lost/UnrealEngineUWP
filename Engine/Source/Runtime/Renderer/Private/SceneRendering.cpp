@@ -5024,6 +5024,17 @@ void FRendererModule::BeginRenderingViewFamilies(FCanvas* Canvas, TArrayView<FSc
 		}
 	}
 
+	// Add streaming view origins
+	const uint32 StreamingViewCount = IStreamingManager::Get().GetNumViews();
+	for (FSceneViewFamily* ViewFamily : ViewFamilies)
+	{
+		ViewFamily->StreamingViewOrigins.Empty(StreamingViewCount);
+		for (uint32 StreamingViewIndex = 0; StreamingViewIndex < StreamingViewCount; ++StreamingViewIndex)
+		{
+			ViewFamily->StreamingViewOrigins.Add(IStreamingManager::Get().GetViewInformation(StreamingViewIndex).ViewOrigin);
+		}
+	}
+
 	for (FSceneViewFamily* ViewFamily : ViewFamilies)
 	{
 		ViewFamily->FrameCounter = GFrameCounter;

@@ -62,6 +62,8 @@ static TAutoConsoleVariable<int32> CVarOrthoLumenSceneMinCardResolution(
 	ECVF_Scalability | ECVF_RenderThreadSafe
 );
 
+void AddLumenStreamingViewOrigins(const FSceneViewFamily& ViewFamily, TArray<FVector, TInlineAllocator<LUMEN_MAX_VIEWS>>& OutOrigins);
+
 float LumenScene::GetCardMaxDistance(const FViewInfo& View)
 {
 	// Limit to global distance field range
@@ -346,6 +348,9 @@ void LumenScene::GPUDrivenUpdate(FRDGBuilder& GraphBuilder, const FScene* Scene,
 				bHasOrthographicView = true;
 			}
 		}
+
+		// Add streaming view origins
+		AddLumenStreamingViewOrigins(*Views[0].Family, LumenSceneCameraOrigins);
 
 		FLumenSceneUpdateCS::FParameters* PassParameters = GraphBuilder.AllocParameters<FLumenSceneUpdateCS::FParameters>();
 		PassParameters->View = Views[0].ViewUniformBuffer;

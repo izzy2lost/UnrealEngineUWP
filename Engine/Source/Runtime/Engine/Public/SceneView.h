@@ -2262,6 +2262,9 @@ public:
 	 */
 	float* ProfileSceneRenderTime;
 
+	/** Views' origin of the (optional) streaming views. Used for prefetching rendering data ahead of time. */
+	TArray<FVector, TInlineAllocator<2>> StreamingViewOrigins;
+
 	/** Initialization constructor. */
 	ENGINE_API FSceneViewFamily( const ConstructionValues& CVS );
 	ENGINE_API virtual ~FSceneViewFamily();

@@ -216,6 +216,13 @@ static TAutoConsoleVariable<int32> CVarLumenSceneGPUDrivenUpdate(
 	ECVF_Scalability | ECVF_RenderThreadSafe
 );
 
+static TAutoConsoleVariable<int32> CVarLumenSceneViewOriginDistanceThreshold(
+	TEXT("r.LumenScene.ViewOriginDistanceThreshold"),
+	100,
+	TEXT("Distance threshold below which views' origins are considered identical. Used for streaming request with multiple views. Default 100 (= 1 meter)"),
+	ECVF_RenderThreadSafe
+);
+
 #if ENABLE_LOW_LEVEL_MEM_TRACKER
 DECLARE_LLM_MEMORY_STAT(TEXT("Lumen"), STAT_LumenLLM, STATGROUP_LLMFULL);
 DECLARE_LLM_MEMORY_STAT(TEXT("Lumen"), STAT_LumenSummaryLLM, STATGROUP_LLM);
@@ -296,6 +303,30 @@ void FLumenSceneData::IncrementSurfaceCacheUpdateFrameIndex()
 		if (SurfaceCacheUpdateFrameIndex == 0)
 		{
 			++SurfaceCacheUpdateFrameIndex;
+		}
+	}
+}
+
+void AddLumenStreamingViewOrigins(const FSceneViewFamily& ViewFamily, TArray<FVector, TInlineAllocator<LUMEN_MAX_VIEWS>>& OutOrigins)
+{
+	// Add streaming view origins, only if there are futher apart than existing origins
+	const float DistanceThreshold = CVarLumenSceneViewOriginDistanceThreshold.GetValueOnRenderThread();
+	const float SqDistanceThreshold = DistanceThreshold * DistanceThreshold;
+	for (const FVector& StreamViewOrigin : ViewFamily.StreamingViewOrigins)
+	{
+		bool bAddOrigin = true;
+		for (const FVector& Origin : OutOrigins)
+		{
+			if (FVector::DistSquared(StreamViewOrigin, Origin) < SqDistanceThreshold)
+			{
+				bAddOrigin = false;
+				break;
+			}
+		}
+
+		if (bAddOrigin)
+		{
+			OutOrigins.Add(StreamViewOrigin);
 		}
 	}
 }
@@ -1541,6 +1572,9 @@ void FDeferredShadingSceneRenderer::BeginUpdateLumenSceneTasks(FRDGBuilder& Grap
 			LumenSceneDetail = FMath::Max(LumenSceneDetail, FMath::Clamp<float>(View.FinalPostProcessSettings.LumenSceneDetail, .125f, 8.0f));
 			bAddTranslucentToCache |= LumenReflections::UseTranslucentRayTracing(View) && LumenReflections::UseHitLighting(View, GetViewPipelineState(View).DiffuseIndirectMethod == EDiffuseIndirectMethod::Lumen);
 		}
+
+		// Add streaming view origins, only if there are futher apart than existing origins
+		AddLumenStreamingViewOrigins(ViewFamily, LumenSceneCameraOrigins);
 
 		const int32 MaxTileCapturesPerFrame = GetMaxTileCapturesPerFrame();
 
