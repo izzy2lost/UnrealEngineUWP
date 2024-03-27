@@ -15,7 +15,6 @@
 #include "Widgets/Input/SComboBox.h"
 #include "Widgets/Input/SNumericEntryBox.h"
 #include "Widgets/SBoxPanel.h"
-#include "ScopedTransaction.h"
 
 #define LOCTEXT_NAMESPACE "FMovieGraphNamedResolutionCustomization"
 
