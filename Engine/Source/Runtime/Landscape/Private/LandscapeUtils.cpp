@@ -110,13 +110,14 @@ bool IsVisibilityLayer(const ULandscapeLayerInfoObject* InLayerInfoObject)
 
 uint32 GetTypeHash(const FTextureCopyRequest& InKey)
 {
-	uint32 Hash = GetTypeHash(InKey.Source);
-	return HashCombine(Hash, GetTypeHash(InKey.Destination));
+	uint32 Hash = ::GetTypeHash(InKey.Source);
+	uint32 HashSlice = ::GetTypeHash(InKey.DestinationSlice);
+	return HashCombine(Hash, ::GetTypeHash(InKey.Destination));
 }
 
 bool operator==(const FTextureCopyRequest& InEntryA, const FTextureCopyRequest& InEntryB)
 {
-	return (InEntryA.Source == InEntryB.Source) && (InEntryA.Destination == InEntryB.Destination);
+	return (InEntryA.Source == InEntryB.Source) && (InEntryA.Destination == InEntryB.Destination) && (InEntryA.DestinationSlice == InEntryB.DestinationSlice);
 }
 
 bool FBatchTextureCopy::AddWeightmapCopy(UTexture* InDestination, int8 InDestinationSlice, int8 InDestinationChannel, const ULandscapeComponent* InComponent, ULandscapeLayerInfoObject* InLayerInfo)
@@ -270,7 +271,7 @@ static FAutoConsoleVariableRef CVarLandscapeMobileWeightTextureArray(
 	TEXT("landscape.MobileWeightTextureArray"),
 	LandscapeMobileWeightTextureArray,
 	TEXT("Use Texture Arrays for weights on Mobile platforms"),
-	ECVF_ReadOnly);
+	ECVF_ReadOnly | ECVF_MobileShaderChange);
 
 bool IsMobileWeightmapTextureArrayEnabled()
 {

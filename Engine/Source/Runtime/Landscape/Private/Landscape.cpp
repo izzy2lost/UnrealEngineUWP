@@ -79,6 +79,7 @@ Landscape.cpp: Terrain rendering
 #include "Misc/ArchiveMD5.h"
 #include "LandscapeEditLayer.h"
 #include "LandscapeTextureStorageProvider.h"
+#include "LandscapeUtils.h"
 #include "LandscapeVersion.h"
 #include "UObject/FortniteMainBranchObjectVersion.h"
 #include "UObject/FortniteReleaseBranchCustomObjectVersion.h"
@@ -637,6 +638,9 @@ void ULandscapeComponent::CheckGenerateMobilePlatformData(bool bIsCooking, const
 	// Serialize the version guid as part of the hash so we can invalidate DDC data if needed
 	FString MobileVersion = FDevSystemGuids::GetSystemGuid(FDevSystemGuids::Get().LANDSCAPE_MOBILE_COOK_VERSION).ToString();
 	ComponentStateAr << MobileVersion;
+
+	bool IsTextureArrayEnabled = UE::Landscape::IsMobileWeightmapTextureArrayEnabled();
+	ComponentStateAr << IsTextureArrayEnabled;
 
 	uint32 Hash[5];
 	FSHA1::HashBuffer(ComponentStateAr.GetData(), ComponentStateAr.Num(), (uint8*)Hash);
