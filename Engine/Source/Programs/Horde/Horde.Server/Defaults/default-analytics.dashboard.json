@@ -77,7 +77,10 @@
 				},
 				{
 					"name": "Mode",
-					"group": "Mode"
+					"group": "Mode",
+					"defaults": [
+						"Rebuild"
+					]
 				},
 				{
 					"name": "Platform",
