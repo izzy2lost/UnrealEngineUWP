@@ -32,6 +32,22 @@ namespace EpicGames.Horde.Artifacts
 	public record CreateArtifactResponse(ArtifactId ArtifactId, NamespaceId NamespaceId, RefName RefName, RefName? PrevRefName, string Token);
 
 	/// <summary>
+	/// Type of data to download for an artifact
+	/// </summary>
+	public enum DownloadArtifactFormat
+	{
+		/// <summary>
+		/// Download as a zip file
+		/// </summary>
+		Zip,
+
+		/// <summary>
+		/// Download as a UGS link
+		/// </summary>
+		Ugs
+	}
+
+	/// <summary>
 	/// Describes an artifact
 	/// </summary>
 	public class GetArtifactResponse

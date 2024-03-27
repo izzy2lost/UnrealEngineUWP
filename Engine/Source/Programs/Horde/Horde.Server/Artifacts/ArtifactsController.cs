@@ -174,7 +174,7 @@ namespace Horde.Server.Artifacts
 		/// <returns>Information about all the artifacts</returns>
 		[HttpGet]
 		[Route("/api/v2/artifacts/{id}")]
-		[ProducesResponseType(typeof(FindArtifactsResponse), 200)]
+		[ProducesResponseType(typeof(GetArtifactResponse), 200)]
 		public async Task<ActionResult<object>> GetArtifactAsync(ArtifactId id, [FromQuery] PropertyFilter? filter = null)
 		{
 			IArtifact? artifact = await _artifactCollection.GetAsync(id, HttpContext.RequestAborted);
@@ -467,34 +467,36 @@ namespace Horde.Server.Artifacts
 		}
 
 		/// <summary>
-		/// Downloads an individual file from an artifact
+		/// Downloads the artifact data
 		/// </summary>
 		/// <param name="id">Identifier of the artifact to retrieve</param>
-		/// <param name="filter">Paths to include in the zip file. The post version of this request allows for more parameters than can fit in a request string.</param>
+		/// <param name="format">Format for the download type</param>
+		/// <param name="filter">Paths to include. The post version of this request allows for more parameters than can fit in a request string.</param>
 		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		/// <returns>Information about all the artifacts</returns>
 		[HttpGet]
-		[Route("/api/v2/artifacts/{id}/zip")]
-		public async Task<ActionResult<object>> GetZipAsync(ArtifactId id, [FromQuery(Name = "filter")] string[]? filter, CancellationToken cancellationToken = default)
+		[Route("/api/v2/artifacts/{id}/download")]
+		public async Task<ActionResult<object>> DownloadAsync(ArtifactId id, [FromQuery] DownloadArtifactFormat? format, [FromQuery(Name = "filter")] string[]? filter, CancellationToken cancellationToken = default)
 		{
-			return await GetZipInternalAsync(id, filter, cancellationToken);
+			return await DownloadInternalAsync(id, format, filter, cancellationToken);
 		}
 
 		/// <summary>
 		/// Downloads an individual file from an artifact
 		/// </summary>
 		/// <param name="id">Identifier of the artifact to retrieve</param>
+		/// <param name="format">Format for the download type</param>
 		/// <param name="request">Filter for the zip file</param>
 		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		/// <returns>Information about all the artifacts</returns>
 		[HttpPost]
-		[Route("/api/v2/artifacts/{id}/zip")]
-		public async Task<ActionResult<object>> CreateZipFromFilterAsync(ArtifactId id, CreateZipRequest request, CancellationToken cancellationToken = default)
+		[Route("/api/v2/artifacts/{id}/download")]
+		public async Task<ActionResult<object>> DownloadWithFilterAsync(ArtifactId id, [FromQuery] DownloadArtifactFormat? format, CreateZipRequest request, CancellationToken cancellationToken = default)
 		{
-			return await GetZipInternalAsync(id, request.Filter, cancellationToken);
+			return await DownloadInternalAsync(id, format, request.Filter, cancellationToken);
 		}
 
-		async Task<ActionResult> GetZipInternalAsync(ArtifactId id, IEnumerable<string>? fileFilter, CancellationToken cancellationToken)
+		async Task<ActionResult> DownloadInternalAsync(ArtifactId id, DownloadArtifactFormat? format, IReadOnlyList<string>? fileFilter, CancellationToken cancellationToken)
 		{
 			IArtifact? artifact = await _artifactCollection.GetAsync(id, cancellationToken);
 			if (artifact == null)
@@ -506,6 +508,19 @@ namespace Horde.Server.Artifacts
 				return Forbid(ArtifactAclAction.ReadArtifact, artifact.AclScope);
 			}
 
+			switch (format ?? DownloadArtifactFormat.Zip)
+			{
+				case DownloadArtifactFormat.Zip:
+					return await GetZipInternalAsync(artifact, fileFilter, cancellationToken);
+				case DownloadArtifactFormat.Ugs:
+					return GetDescriptorInternal(artifact, fileFilter);
+				default:
+					return BadRequest("Unhandled download format");
+			}
+		}
+
+		async Task<ActionResult> GetZipInternalAsync(IArtifact artifact, IEnumerable<string>? fileFilter, CancellationToken cancellationToken)
+		{
 			FileFilter? filter = null;
 			if (fileFilter != null && fileFilter.Any())
 			{
@@ -527,6 +542,44 @@ namespace Horde.Server.Artifacts
 				throw;
 			}
 #pragma warning restore CA2000
+		}
+
+		ActionResult GetDescriptorInternal(IArtifact artifact, IReadOnlyList<string>? fileFilter)
+		{
+			Uri baseUri = new Uri(_globalConfig.ServerSettings.ServerUrl, $"api/v2/artfiacts/{artifact.Id}");
+
+			ArtifactDescriptor descriptor = new ArtifactDescriptor(baseUri, new RefName("default"), fileFilter);
+
+			byte[] data = descriptor.Serialize();
+			return new FileStreamResult(new MemoryStream(data), "application/x-horde-artifact") { FileDownloadName = $"{artifact.Name}.uartifact" };
+		}
+
+		/// <summary>
+		/// Downloads an individual file from an artifact
+		/// </summary>
+		/// <param name="id">Identifier of the artifact to retrieve</param>
+		/// <param name="filter">Paths to include in the zip file. The post version of this request allows for more parameters than can fit in a request string.</param>
+		/// <param name="cancellationToken">Cancellation token for the operation</param>
+		/// <returns>Information about all the artifacts</returns>
+		[HttpGet]
+		[Route("/api/v2/artifacts/{id}/zip")]
+		public async Task<ActionResult> GetZipAsync(ArtifactId id, [FromQuery(Name = "filter")] string[]? filter, CancellationToken cancellationToken = default)
+		{
+			return await DownloadInternalAsync(id, DownloadArtifactFormat.Zip, filter, cancellationToken);
+		}
+
+		/// <summary>
+		/// Downloads an individual file from an artifact
+		/// </summary>
+		/// <param name="id">Identifier of the artifact to retrieve</param>
+		/// <param name="request">Filter for the zip file</param>
+		/// <param name="cancellationToken">Cancellation token for the operation</param>
+		/// <returns>Information about all the artifacts</returns>
+		[HttpPost]
+		[Route("/api/v2/artifacts/{id}/zip")]
+		public async Task<ActionResult<object>> CreateZipFromFilterAsync(ArtifactId id, CreateZipRequest request, CancellationToken cancellationToken = default)
+		{
+			return await DownloadInternalAsync(id, DownloadArtifactFormat.Zip, request.Filter, cancellationToken);
 		}
 
 		/// <summary>

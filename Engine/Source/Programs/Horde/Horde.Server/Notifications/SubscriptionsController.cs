@@ -1,6 +1,5 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
 using EpicGames.Horde.Users;
@@ -147,7 +146,7 @@ namespace Horde.Server.Notifications
 		/// <param name="userName"></param>
 		/// <param name="objectId"></param>
 		/// <returns></returns>
-		bool TryParseUserId(string userName, out UserId objectId)
+		static bool TryParseUserId(string userName, out UserId objectId)
 		{
 			UserId newObjectId;
 			if (UserId.TryParse(userName, out newObjectId))

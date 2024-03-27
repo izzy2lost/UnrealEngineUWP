@@ -610,7 +610,7 @@ namespace Horde.Server.Storage
 								}
 								catch (ObjectNotFoundException ex)
 								{
-									_logger.LogInformation(ex, "Unable to read references for {NamespaceId} blob {BlobId}: {Message}", blobInfo.NamespaceId, blobInfo.Id, GetObjectKey(blobInfo.Locator), ex.Message);
+									_logger.LogInformation(ex, "Unable to read references for {NamespaceId} blob {BlobId}: {Message}", blobInfo.NamespaceId, blobInfo.Id, ex.Message);
 								}
 								catch (Exception ex)
 								{
