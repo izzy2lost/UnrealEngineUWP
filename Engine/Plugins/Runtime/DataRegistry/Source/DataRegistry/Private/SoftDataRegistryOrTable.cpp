@@ -75,7 +75,7 @@ void FSoftDataRegistryOrTable::LoadAsync(FStreamableDelegate DelegateToCall)
 {
 	if (bUseDataRegistry || !Table.IsPending())
 	{
-		DelegateToCall.Execute();
+		FStreamableHandle::ExecuteDelegate(DelegateToCall);
 		return;
 	}
 
