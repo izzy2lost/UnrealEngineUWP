@@ -2728,6 +2728,11 @@ bool FRemoteControlModule::CanInterceptFunction(const FRCCall& RCCall) const
 {
 	if (RCCall.IsValid())
 	{
+		if (!RCCall.CallRef.Function.IsValid())
+		{
+			return false;
+		}
+
 		for (TFieldIterator<FProperty> It(RCCall.CallRef.Function.Get()); It; ++It)
 		{
 			// At the moment interceptors do not support return values.
