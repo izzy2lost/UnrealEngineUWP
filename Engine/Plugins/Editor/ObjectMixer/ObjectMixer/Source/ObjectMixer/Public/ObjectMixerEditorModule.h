@@ -7,7 +7,7 @@
 #include "Widgets/Docking/SDockTab.h"
 
 class FObjectMixerEditorList;
-class FObjectMixerEditorList;
+class ISequencer;
 
 class OBJECTMIXEREDITOR_API FObjectMixerEditorModule : public IModuleInterface
 {
@@ -31,6 +31,9 @@ public:
 	
 	virtual TSharedPtr<SWidget> MakeObjectMixerDialog(
 		TSubclassOf<UObjectMixerObjectFilter> InDefaultFilterClass = nullptr);
+
+	/** Get a list of sequencers that are currently active in the editor. */
+	virtual TArray<TWeakPtr<ISequencer>> GetSequencers() const;
 
 	/**
 	 * Tries to find the nomad tab assigned to this instance of Object Mixer.

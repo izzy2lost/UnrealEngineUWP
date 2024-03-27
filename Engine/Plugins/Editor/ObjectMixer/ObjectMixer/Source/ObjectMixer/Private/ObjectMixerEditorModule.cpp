@@ -152,6 +152,11 @@ TSharedPtr<SWidget> FObjectMixerEditorModule::MakeObjectMixerDialog(
 	return ObjectMixerDialog;
 }
 
+TArray<TWeakPtr<ISequencer>> FObjectMixerEditorModule::GetSequencers() const
+{
+	return FLevelEditorSequencerIntegration::Get().GetSequencers();
+}
+
 TSharedPtr<SDockTab> FObjectMixerEditorModule::FindNomadTab()
 {
 	if (!DockTab.IsValid())
@@ -388,9 +393,8 @@ void FObjectMixerEditorModule::BindDelegates()
 	{
 		RequestRebuildList();
 	}));
-	
-	DelegateHandles.Add(FLevelEditorSequencerIntegration::Get().GetOnSequencersChanged().AddLambda(
-	[this]
+
+	DelegateHandles.Add(FLevelEditorSequencerIntegration::Get().GetOnSequencersChanged().AddLambda([this]
 	{
 		RegenerateListWidget();
 	}));
