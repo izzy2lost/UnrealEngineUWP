@@ -1199,7 +1199,9 @@ bool ULandscapeHeightfieldCollisionComponent::CookCollisionData(const FName& For
 	}
 
 	COOK_STAT(auto Timer = LandscapeCollisionCookStats::HeightfieldUsageStats.TimeSyncWork());
-	 
+	// If we aren't using DDC, only track time spent, so we aren't affecting hit/miss stats
+	COOK_STAT(if (GLandscapeCollisionSkipDDC) { Timer.TrackCyclesOnly(); });
+
 	// we have 2 versions of collision objects
 	const int32 CookedDataIndex = bUseDefaultMaterialOnly ? 0 : 1;
 
