@@ -150,6 +150,8 @@ public:
 	
 	void InsertTextureBarrier();
 
+	inline bool IsWithinRenderPass() const { return bWithinRenderPass; }
+
 #if METAL_RHI_RAYTRACING
 	// TODO: Crappy workaround for inline raytracing support.
 	inline void SetRayTracingInstanceBufferSRV(TRefCountPtr<FMetalShaderResourceView>& SRV) { InstanceBufferSRV = SRV; }

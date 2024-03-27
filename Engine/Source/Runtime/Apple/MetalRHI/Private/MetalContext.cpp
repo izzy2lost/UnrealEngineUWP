@@ -1080,7 +1080,13 @@ void FMetalContext::TransitionResource(FRHITexture* InResource)
 
 void FMetalContext::SubmitCommandsHint(uint32 const Flags)
 {
-	// When the command-buffer is submitted for a reason other than a break of a logical command-buffer (where one high-level command-sequence becomes more than one command-buffer).
+    if (RenderPass.IsWithinRenderPass() && !StateCache.CanRestartRenderPass())
+    {
+		// Make sure we don't try to end render-passes that can't be restarted (eg. render-passes with a memoryless targets)
+		return;
+    }
+    
+    // When the command-buffer is submitted for a reason other than a break of a logical command-buffer (where one high-level command-sequence becomes more than one command-buffer).
 	if (!(Flags & EMetalSubmitFlagsBreakCommandBuffer))
 	{
 		// Release the current query buffer if there are outstanding writes so that it isn't transitioned by a future encoder that will cause a resource access conflict and lifetime error.
