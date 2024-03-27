@@ -26,55 +26,56 @@ namespace UE::Chaos::ClothAsset
 	
 	FCollectionClothFabricConstFacade::FAnisotropicData FCollectionClothFabricConstFacade::GetBendingStiffness() const
 	{
-		return FCollectionClothFabricConstFacade::FAnisotropicData(
-			ClothCollection->GetElements(ClothCollection->GetFabricBendingStiffness())[GetElementIndex()]);
+		return ClothCollection->GetFabricBendingStiffness() ? FCollectionClothFabricConstFacade::FAnisotropicData(
+			ClothCollection->GetElements(ClothCollection->GetFabricBendingStiffness())[GetElementIndex()]) : FAnisotropicData(FDefaultFabric::BendingStiffness);
 	}
 	
 	float FCollectionClothFabricConstFacade::GetBucklingRatio() const
 	{
-		return ClothCollection->GetElements(ClothCollection->GetFabricBucklingRatio())[GetElementIndex()];
+		return ClothCollection->GetFabricBucklingRatio() ? ClothCollection->GetElements(ClothCollection->GetFabricBucklingRatio())[GetElementIndex()] :
+				FDefaultFabric::BucklingRatio;
 	}
 	
 	FCollectionClothFabricConstFacade::FAnisotropicData FCollectionClothFabricConstFacade::GetBucklingStiffness() const
 	{
-		return FCollectionClothFabricConstFacade::FAnisotropicData(
-			ClothCollection->GetElements(ClothCollection->GetFabricBucklingStiffness())[GetElementIndex()]);
+		return ClothCollection->GetFabricBucklingStiffness() ? FCollectionClothFabricConstFacade::FAnisotropicData(
+			ClothCollection->GetElements(ClothCollection->GetFabricBucklingStiffness())[GetElementIndex()]) : FAnisotropicData(FDefaultFabric::BucklingStiffness);
 	}
 	
 	FCollectionClothFabricConstFacade::FAnisotropicData FCollectionClothFabricConstFacade::GetStretchStiffness() const
 	{
-		return FCollectionClothFabricConstFacade::FAnisotropicData(
-			ClothCollection->GetElements(ClothCollection->GetFabricStretchStiffness())[GetElementIndex()]);
+		return ClothCollection->GetFabricStretchStiffness() ? FCollectionClothFabricConstFacade::FAnisotropicData(
+			ClothCollection->GetElements(ClothCollection->GetFabricStretchStiffness())[GetElementIndex()]) : FAnisotropicData(FDefaultFabric::StretchStiffness);
 	}
 	
 	float FCollectionClothFabricConstFacade::GetDensity() const
 	{
-		return ClothCollection->GetElements(ClothCollection->GetFabricDensity())[GetElementIndex()];
+		return ClothCollection->GetFabricDensity() ? ClothCollection->GetElements(ClothCollection->GetFabricDensity())[GetElementIndex()] : FDefaultFabric::Density;
 	}
 	
 	float FCollectionClothFabricConstFacade::GetDamping() const
 	{
-		return ClothCollection->GetElements(ClothCollection->GetFabricDamping())[GetElementIndex()];
+		return ClothCollection->GetFabricDamping() ? ClothCollection->GetElements(ClothCollection->GetFabricDamping())[GetElementIndex()] : FDefaultFabric::Damping;
 	}
 	
 	float FCollectionClothFabricConstFacade::GetFriction() const
 	{
-		return ClothCollection->GetElements(ClothCollection->GetFabricFriction())[GetElementIndex()];
+		return ClothCollection->GetFabricFriction() ? ClothCollection->GetElements(ClothCollection->GetFabricFriction())[GetElementIndex()] : FDefaultFabric::Friction;
 	}
 	
 	float FCollectionClothFabricConstFacade::GetPressure() const
 	{
-		return ClothCollection->GetElements(ClothCollection->GetFabricPressure())[GetElementIndex()];
+		return ClothCollection->GetFabricPressure() ? ClothCollection->GetElements(ClothCollection->GetFabricPressure())[GetElementIndex()] : FDefaultFabric::Pressure;
 	}
 	
 	int32 FCollectionClothFabricConstFacade::GetLayer() const
 	{
-		return ClothCollection->GetElements(ClothCollection->GetFabricLayer())[GetElementIndex()];
+		return ClothCollection->GetFabricLayer() ? ClothCollection->GetElements(ClothCollection->GetFabricLayer())[GetElementIndex()] : FDefaultFabric::Layer;
 	}
 
 	float FCollectionClothFabricConstFacade::GetCollisionThickness() const
 	{
-		return ClothCollection->GetElements(ClothCollection->GetFabricCollisionThickness())[GetElementIndex()];
+		return ClothCollection->GetFabricCollisionThickness() ? ClothCollection->GetElements(ClothCollection->GetFabricCollisionThickness())[GetElementIndex()] : FDefaultFabric::CollisionThickness;
 	}
 	
 	FCollectionClothFabricConstFacade::FCollectionClothFabricConstFacade(const TSharedRef<const FClothCollection>& ClothCollection, int32 InFabricIndex)
@@ -93,6 +94,10 @@ namespace UE::Chaos::ClothAsset
 		check((ElementIndex >= 0) && (ElementIndex < ClothCollection->GetNumElements(ClothCollectionGroup::Fabrics)));
 		
 		const TSharedRef<class FClothCollection> ClothCol = GetClothCollection();
+		if (!ClothCol->IsValid(EClothCollectionOptionalSchemas::Fabrics))
+		{
+			ClothCol->DefineSchema(EClothCollectionOptionalSchemas::Fabrics);
+		}
 		
 		ClothCol->GetElements(ClothCol->GetFabricBendingStiffness())[ElementIndex] = BendingStiffness.GetVectorDatas();
 		ClothCol->GetElements(ClothCol->GetFabricBucklingRatio())[ElementIndex] = BucklingRatio;

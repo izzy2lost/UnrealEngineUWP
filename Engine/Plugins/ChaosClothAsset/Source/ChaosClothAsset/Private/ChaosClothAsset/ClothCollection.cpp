@@ -279,16 +279,17 @@ namespace UE::Chaos::ClothAsset
 			SimIndices3D &&
 
 			// Fabrics Group
-			FabricBendingStiffness &&
-			FabricBucklingStiffness &&
-			FabricStretchStiffness &&
-			FabricBucklingRatio &&
-			FabricDensity &&
-			FabricFriction &&
-			FabricDamping &&
-			FabricPressure &&
-			FabricLayer &&
-			FabricCollisionThickness &&
+			(!EnumHasAnyFlags(OptionalSchemas, EClothCollectionOptionalSchemas::Fabrics) ||
+				(FabricBendingStiffness &&
+				FabricBucklingStiffness &&
+				FabricStretchStiffness &&
+				FabricBucklingRatio &&
+				FabricDensity &&
+				FabricFriction &&
+				FabricDamping &&
+				FabricPressure &&
+				FabricLayer &&
+				FabricCollisionThickness )) &&
 
 			// Sim Vertices 2D Group
 			SimPosition2D &&
@@ -376,16 +377,19 @@ namespace UE::Chaos::ClothAsset
 		RenderMaterialPathName = &ManagedArrayCollection->AddAttribute<FString>(ClothCollectionAttribute::RenderMaterialPathName, ClothCollectionGroup::RenderPatterns);
 
 		//~ Fabric Group
-		FabricBendingStiffness = &ManagedArrayCollection->AddAttribute<FVector3f>(ClothCollectionAttribute::FabricBendingStiffness, ClothCollectionGroup::Fabrics);
-		FabricBucklingStiffness = &ManagedArrayCollection->AddAttribute<FVector3f>(ClothCollectionAttribute::FabricBucklingStiffness, ClothCollectionGroup::Fabrics);
-		FabricStretchStiffness = &ManagedArrayCollection->AddAttribute<FVector3f>(ClothCollectionAttribute::FabricStretchStiffness, ClothCollectionGroup::Fabrics);
-		FabricBucklingRatio = &ManagedArrayCollection->AddAttribute<float>(ClothCollectionAttribute::FabricBucklingRatio, ClothCollectionGroup::Fabrics);
-		FabricDensity = &ManagedArrayCollection->AddAttribute<float>(ClothCollectionAttribute::FabricDensity, ClothCollectionGroup::Fabrics);
-		FabricFriction = &ManagedArrayCollection->AddAttribute<float>(ClothCollectionAttribute::FabricFriction, ClothCollectionGroup::Fabrics);
-		FabricDamping = &ManagedArrayCollection->AddAttribute<float>(ClothCollectionAttribute::FabricDamping, ClothCollectionGroup::Fabrics);
-		FabricPressure = &ManagedArrayCollection->AddAttribute<float>(ClothCollectionAttribute::FabricPressure, ClothCollectionGroup::Fabrics);
-		FabricLayer = &ManagedArrayCollection->AddAttribute<int32>(ClothCollectionAttribute::FabricLayer, ClothCollectionGroup::Fabrics);
-		FabricCollisionThickness = &ManagedArrayCollection->AddAttribute<float>(ClothCollectionAttribute::FabricCollisionThickness, ClothCollectionGroup::Fabrics);
+		if (EnumHasAnyFlags(OptionalSchemas, EClothCollectionOptionalSchemas::Fabrics))
+		{
+			FabricBendingStiffness = &ManagedArrayCollection->AddAttribute<FVector3f>(ClothCollectionAttribute::FabricBendingStiffness, ClothCollectionGroup::Fabrics);
+			FabricBucklingStiffness = &ManagedArrayCollection->AddAttribute<FVector3f>(ClothCollectionAttribute::FabricBucklingStiffness, ClothCollectionGroup::Fabrics);
+			FabricStretchStiffness = &ManagedArrayCollection->AddAttribute<FVector3f>(ClothCollectionAttribute::FabricStretchStiffness, ClothCollectionGroup::Fabrics);
+			FabricBucklingRatio = &ManagedArrayCollection->AddAttribute<float>(ClothCollectionAttribute::FabricBucklingRatio, ClothCollectionGroup::Fabrics);
+			FabricDensity = &ManagedArrayCollection->AddAttribute<float>(ClothCollectionAttribute::FabricDensity, ClothCollectionGroup::Fabrics);
+			FabricFriction = &ManagedArrayCollection->AddAttribute<float>(ClothCollectionAttribute::FabricFriction, ClothCollectionGroup::Fabrics);
+			FabricDamping = &ManagedArrayCollection->AddAttribute<float>(ClothCollectionAttribute::FabricDamping, ClothCollectionGroup::Fabrics);
+			FabricPressure = &ManagedArrayCollection->AddAttribute<float>(ClothCollectionAttribute::FabricPressure, ClothCollectionGroup::Fabrics);
+			FabricLayer = &ManagedArrayCollection->AddAttribute<int32>(ClothCollectionAttribute::FabricLayer, ClothCollectionGroup::Fabrics);
+			FabricCollisionThickness = &ManagedArrayCollection->AddAttribute<float>(ClothCollectionAttribute::FabricCollisionThickness, ClothCollectionGroup::Fabrics);
+		}
 		
 		// Sim Faces Group
 		SimIndices2D = &ManagedArrayCollection->AddAttribute<FIntVector3>(ClothCollectionAttribute::SimIndices2D, ClothCollectionGroup::SimFaces, SimVertices2DDependency);

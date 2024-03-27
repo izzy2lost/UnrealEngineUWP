@@ -400,7 +400,7 @@ void FChaosClothAssetSimulationBaseConfigNode::FPropertyHelper::SetSolverPropert
 	const TArray<FName>& SimilarPropertyNames, ECollectionPropertyFlags PropertyFlags)
 {
 	UE::Chaos::ClothAsset::FCollectionClothFacade ClothFacade(GetClothCollection());
-	if(PropertyValue.bUseImportedValue && ClothFacade.IsValid() && ClothFacade.HasSolverElement())
+	if(PropertyValue.bUseImportedValue && ClothFacade.IsValid(UE::Chaos::ClothAsset::EClothCollectionOptionalSchemas::Solvers) && ClothFacade.HasSolverElement())
 	{
 		PropertyValue.ImportedValue = SolverValueFunction(ClothFacade);
 	}
@@ -413,7 +413,7 @@ void FChaosClothAssetSimulationBaseConfigNode::FPropertyHelper::SetFabricPropert
 	const TArray<FName>& SimilarPropertyNames, ECollectionPropertyFlags PropertyFlags)
 {
 	UE::Chaos::ClothAsset::FCollectionClothFacade ClothFacade(GetClothCollection());
-	if(PropertyValue.bUseImportedValue && ClothFacade.IsValid() && ClothFacade.GetNumFabrics() > 0)
+	if(PropertyValue.bUseImportedValue && ClothFacade.IsValid(UE::Chaos::ClothAsset::EClothCollectionOptionalSchemas::Fabrics) && ClothFacade.GetNumFabrics() > 0)
 	{
 		const int32 NumFabrics = ClothFacade.GetNumFabrics();
 		
@@ -436,7 +436,7 @@ void FChaosClothAssetSimulationBaseConfigNode::FPropertyHelper::SetFabricPropert
 	const TArray<FName>& SimilarPropertyNames, ECollectionPropertyFlags PropertyFlags)
 {
 	UE::Chaos::ClothAsset::FCollectionClothFacade ClothFacade(GetClothCollection());
-	if(PropertyValue.bCouldUseFabrics && ClothFacade.IsValid() && (ClothFacade.GetNumFabrics() > 0) &&
+	if(PropertyValue.bCouldUseFabrics && ClothFacade.IsValid(UE::Chaos::ClothAsset::EClothCollectionOptionalSchemas::Fabrics) && (ClothFacade.GetNumFabrics() > 0) &&
 			(PropertyValue.bImportFabricBounds || PropertyValue.bBuildFabricMaps))
 	{
 		UE::Chaos::ClothAsset::FWeightedValueBounds WeightedValueBounds;
@@ -468,7 +468,7 @@ void FChaosClothAssetSimulationBaseConfigNode::FPropertyHelper::SetFabricPropert
 	const TArray<FName>& SimilarPropertyNames, ECollectionPropertyFlags PropertyFlags, const FName& GroupName)
 {
 	UE::Chaos::ClothAsset::FCollectionClothFacade ClothFacade(GetClothCollection());
-	if(PropertyValue.bCouldUseFabrics && ClothFacade.IsValid() && (ClothFacade.GetNumFabrics() > 0) && PropertyValue.bBuildFabricMaps)
+	if(PropertyValue.bCouldUseFabrics && ClothFacade.IsValid(UE::Chaos::ClothAsset::EClothCollectionOptionalSchemas::Fabrics) && (ClothFacade.GetNumFabrics() > 0) && PropertyValue.bBuildFabricMaps)
 	{
 		const int32 NumPatterns = ClothFacade.GetNumSimPatterns();
 
@@ -522,7 +522,7 @@ void FChaosClothAssetSimulationBaseConfigNode::FPropertyHelper::SetSolverPropert
 	const TArray<FName>& SimilarPropertyNames, ECollectionPropertyFlags PropertyFlags)
 {
 	UE::Chaos::ClothAsset::FCollectionClothFacade ClothFacade(GetClothCollection());
-	if(PropertyValue.bCouldUseFabrics && (ClothFacade.IsValid() && ClothFacade.HasSolverElement()) && PropertyValue.bImportFabricBounds)
+	if(PropertyValue.bCouldUseFabrics && (ClothFacade.IsValid(UE::Chaos::ClothAsset::EClothCollectionOptionalSchemas::Solvers) && ClothFacade.HasSolverElement()) && PropertyValue.bImportFabricBounds)
 	{
 		const float SolverValue = SolverValueFunction(ClothFacade);
 	
