@@ -147,9 +147,17 @@ struct FTestTask_B : public FStateTreeTaskBase
 	using FInstanceDataType = FTestTask_BInstanceData;
 
 	FTestTask_B() = default;
+	FTestTask_B(const FName InName) { Name = InName; }
 	virtual ~FTestTask_B() override {}
 	
 	virtual const UStruct* GetInstanceDataType() const override { return FInstanceDataType::StaticStruct(); }
+
+	virtual EStateTreeRunStatus EnterState(FStateTreeExecutionContext& Context, const FStateTreeTransitionResult& Transition) const override
+	{
+		FTestStateTreeExecutionContext& TestContext = static_cast<FTestStateTreeExecutionContext&>(Context);
+		TestContext.Log(Name,  TEXT("EnterState"));
+		return EStateTreeRunStatus::Running;
+	}
 };
 
 USTRUCT()

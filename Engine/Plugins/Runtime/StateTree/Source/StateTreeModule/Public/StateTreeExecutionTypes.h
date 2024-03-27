@@ -354,6 +354,20 @@ struct STATETREEMODULE_API FStateTreeActiveStates
 		return false;
 	}
 
+	/** Returns true of the array contains specified state within MaxNumStatesToCheck states. */
+	bool Contains(const FStateTreeStateHandle StateHandle, const uint8 MaxNumStatesToCheck) const
+	{
+		const int32 Num = (int32)FMath::Min(NumStates, MaxNumStatesToCheck);
+		for (int32 Index = 0; Index < Num; Index++)
+		{
+			if (States[Index] == StateHandle)
+			{
+				return true;
+			}
+		}
+		return false;
+	}
+
 	/** Returns index of a state, searching in reverse order. */
 	int32 IndexOfReverse(const FStateTreeStateHandle StateHandle) const
 	{
@@ -570,6 +584,9 @@ struct STATETREEMODULE_API FStateTreeExecutionFrame
 	UPROPERTY()
 	FStateTreeDataHandle GlobalParameterDataHandle = FStateTreeDataHandle::Invalid; 
 
+	/** Number of states in ActiveStates which have instance data. Used during state selection to decide which active state data is safe to access. */
+	uint8 NumCurrentlyActiveStates = 0;
+	
 	/** If true, the global tasks of the State Tree should be handle in this frame. */
 	UPROPERTY()
 	uint8 bIsGlobalFrame : 1 = false;
