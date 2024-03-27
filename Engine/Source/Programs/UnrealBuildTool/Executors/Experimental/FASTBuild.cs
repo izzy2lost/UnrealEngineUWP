@@ -309,6 +309,11 @@ namespace UnrealBuildTool
 			return false;
 		}
 
+		private TelemetryExecutorEvent? telemetryEvent;
+
+		/// <inheritdoc/>
+		public override TelemetryExecutorEvent? GetTelemetryEvent() => telemetryEvent ?? LocalExecutor.GetTelemetryEvent();
+
 		//////////////////////////////////////////
 		// Action Helpers
 
@@ -476,13 +481,15 @@ namespace UnrealBuildTool
 			IEnumerable<LinkedAction> CompileActions = Actions.Where(Action => Action.ActionType == ActionType.Compile && Action.bCanExecuteRemotely && Action.bCanExecuteRemotelyWithSNDBS);
 			if (CompileActions.Any() && DetectBuildType(CompileActions, Logger))
 			{
+				DateTime startTimeUTC = DateTime.UtcNow;
 				string FASTBuildFilePath = Path.Combine(Unreal.EngineDirectory.FullName, "Intermediate", "Build", "fbuild.bff");
 				if (!CreateBffFile(Actions, FASTBuildFilePath, Logger))
 				{
 					return false;
 				}
 
-				return ExecuteBffFile(FASTBuildFilePath, Logger);
+				bool result = ExecuteBffFile(FASTBuildFilePath, Logger);
+				telemetryEvent = new TelemetryExecutorEvent(Name, startTimeUTC, result, Actions.Count(), -1, -1, DateTime.UtcNow);
 			}
 
 			return await LocalExecutor.ExecuteActionsAsync(Actions, Logger, actionArtifactCache);

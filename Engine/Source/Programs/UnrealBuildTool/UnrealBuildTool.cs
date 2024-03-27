@@ -25,6 +25,26 @@ namespace UnrealBuildTool
 		public static DateTime StartTimeUtc { get; } = DateTime.UtcNow;
 
 		/// <summary>
+		/// Whether this is a recursive run of of the application
+		/// </summary>
+		public static bool IsRecursive = false;
+
+		/// <summary>
+		/// Unique id to track this session
+		/// </summary>
+		public static string SessionIdentifier = Guid.NewGuid().ToString("B");
+
+		/// <summary>
+		///  The mode of this instance
+		/// </summary>
+		public static string BuildMode = "BuildMode";
+
+		/// <summary>
+		/// The result of running the application
+		/// </summary>
+		private static CompilationResult ApplicationResult = CompilationResult.Unknown;
+
+		/// <summary>
 		/// The environment at boot time.
 		/// </summary>
 		public static System.Collections.IDictionary? InitialEnvironment;
@@ -321,6 +341,24 @@ namespace UnrealBuildTool
 			public bool bDeleteTempDirectory = false;
 
 			/// <summary>
+			/// Providers to load opt-in telemetry connection information from ini. If unset, or the provider categories do not contain connection info, no telemetry will be sent.
+			/// </summary>
+			[XmlConfigFile(Category = "Telemetry", Name = "Providers")]
+			public string[] TelemetryProviders = Array.Empty<string>();
+
+			/// <summary>
+			/// Additional command line providers to load opt-in telemetry connection information from ini.
+			/// </summary>
+			[CommandLine(Prefix = "-TelemetryProvider", Description = "List of ini providers for telemetry", ListSeparator = '+')]
+			public List<string> CmdTelemetryProviders = new();
+
+			/// <summary>
+			/// Session identifier for this run of UBT, if unset defaults to a random Guid
+			/// </summary>
+			[CommandLine(Prefix = "-Session", Description = "Session identifier for this run of UBT, if unset defaults to a random Guid")]
+			public string? TelemetrySession = null;
+
+			/// <summary>
 			/// Initialize the options with the given command line arguments
 			/// </summary>
 			/// <param name="Arguments"></param>
@@ -525,6 +563,7 @@ namespace UnrealBuildTool
 						return 1;
 					}
 				}
+				BuildMode = ModeType.Name;
 
 				// Get the options for which systems have to be initialized for this mode
 				ToolModeOptions ModeOptions = ModeType.GetCustomAttribute<ToolModeAttribute>()!.Options;
@@ -568,6 +607,16 @@ namespace UnrealBuildTool
 				{
 					Log.AddFileWriter("LogTraceListener", Options.LogFileName);
 				}
+
+				// Initialize the telemetry service
+				if (!String.IsNullOrEmpty(Options.TelemetrySession))
+				{
+					IsRecursive = true;
+					SessionIdentifier = Options.TelemetrySession;
+				}
+
+				TelemetryService.Get().AddTelemetryConfigProviders(Options.TelemetryProviders.Concat(Options.CmdTelemetryProviders));
+				TelemetryService.Get().AddEndpointsFromConfig();
 
 				// Create a UbtRun file
 				try
@@ -684,18 +733,21 @@ namespace UnrealBuildTool
 					}
 				}
 
+				ApplicationResult = (CompilationResult)Result;
 				return Result;
 			}
 			catch (CompilationResultException Ex)
 			{
 				// Used to return a propagate a specific exit code after an error has occurred.
 				Ex.LogException(Logger);
+				ApplicationResult = Ex.Result;
 				return (int)Ex.Result;
 			}
 			catch (BuildLogEventException Ex)
 			{
 				// BuildExceptions should have nicely formatted messages.
 				Ex.LogException(Logger);
+				ApplicationResult = CompilationResult.OtherCompilationError;
 				return (int)CompilationResult.OtherCompilationError;
 			}
 			catch (JsonException Ex)
@@ -704,6 +756,7 @@ namespace UnrealBuildTool
 				LogValue FileValue = LogValue.SourceFile(source, source.GetFileName());
 				Logger.LogError(KnownLogEvents.Compiler, "{File}({Line}): error:{Message}", FileValue, Ex.LineNumber ?? 0, ExceptionUtils.FormatException(Ex));
 				Logger.LogDebug(KnownLogEvents.Compiler, "{File}({Line}): error:{Message}", FileValue, Ex.LineNumber ?? 0, ExceptionUtils.FormatExceptionDetails(Ex));
+				ApplicationResult = CompilationResult.OtherCompilationError;
 				return (int)CompilationResult.OtherCompilationError;
 			}
 			catch (BuildException Ex)
@@ -717,6 +770,7 @@ namespace UnrealBuildTool
 				// Unhandled exception.
 				Logger.LogError(Ex, "Unhandled exception: {Ex}", ExceptionUtils.FormatException(Ex));
 				Logger.LogDebug(Ex, "Unhandled exception: {Ex}", ExceptionUtils.FormatExceptionDetails(Ex));
+				ApplicationResult = CompilationResult.OtherCompilationError;
 				return (int)CompilationResult.OtherCompilationError;
 			}
 			finally
@@ -736,6 +790,14 @@ namespace UnrealBuildTool
 				// Uncomment this to output a file that contains all files that UBT has scanned.
 				// Useful when investigating why UBT takes time.
 				//DirectoryItem.WriteDebugFileWithAllEnumeratedFiles(@"c:\temp\AllFiles.txt");
+
+				if (!IsRecursive)
+				{
+					TelemetryService.Get().RecordEvent(new TelemetryCompletedEvent(ArgumentsArray, StartTimeUtc, ApplicationResult, DateTime.UtcNow));
+				}
+
+				// Flush any remaining telemetry events
+				TelemetryService.Get().FlushEvents();
 
 				Utils.LogWriteFileIfChangedActivity(Logger);
 

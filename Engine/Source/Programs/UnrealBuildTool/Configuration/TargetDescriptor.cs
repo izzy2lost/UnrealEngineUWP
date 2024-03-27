@@ -607,6 +607,10 @@ namespace UnrealBuildTool
 					}
 				}
 			}
+
+			// Register any found descriptors for telemetry, using the first as the primary target
+			TelemetryService.Get().SetPrimaryTargetDetails(TargetDescriptors.FirstOrDefault());
+			TargetDescriptors.ForEach(x => TelemetryService.Get().AddEndpointsFromConfig(x.ProjectFile?.Directory));
 		}
 
 		/// <summary>

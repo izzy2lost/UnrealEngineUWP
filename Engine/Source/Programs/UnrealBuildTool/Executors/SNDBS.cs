@@ -216,6 +216,11 @@ namespace UnrealBuildTool
 			return true;
 		}
 
+		private TelemetryExecutorEvent? telemetryEvent;
+
+		/// <inheritdoc/>
+		public override TelemetryExecutorEvent? GetTelemetryEvent() => telemetryEvent;
+
 		/// <inheritdoc/>
 		public override Task<bool> ExecuteActionsAsync(IEnumerable<LinkedAction> ActionsToExecute, ILogger Logger, IActionArtifactCache? actionArtifactCache)
 		{
@@ -353,6 +358,7 @@ namespace UnrealBuildTool
 				try
 				{
 					// Start the process, redirecting stdout/stderr if requested.
+					DateTime startTimeUTC = DateTime.UtcNow;
 					Process LocalProcess = new Process();
 					LocalProcess.StartInfo = SnDbsStartInfo;
 					bool bShouldRedirectOuput = EventHandlerWrapper != null;
@@ -377,7 +383,10 @@ namespace UnrealBuildTool
 
 					// Wait until the process is finished and return whether it all the tasks successfully executed.
 					LocalProcess.WaitForExit();
-					return LocalProcess.ExitCode == 0;
+					bool result = LocalProcess.ExitCode == 0;
+
+					telemetryEvent = new TelemetryExecutorEvent(Name, startTimeUTC, result, NumActions, -1, -1, DateTime.UtcNow);
+					return result;
 				}
 				catch (Exception Ex)
 				{

@@ -22,32 +22,32 @@ namespace EpicGames.Core.Telemetry
 		/// <summary>
 		/// The app's id
 		/// </summary>
-		protected string AppId { get; } = String.Empty;
+		protected string AppId { get; set; } = String.Empty;
 
 		/// <summary>
 		/// The app's version
 		/// </summary>
-		protected string AppVersion { get; } = String.Empty;
+		protected string AppVersion { get; set; } = String.Empty;
 
 		/// <summary>
 		/// The app's environment
 		/// </summary>
-		protected string AppEnvironment { get; } = String.Empty;
+		protected string AppEnvironment { get; set; } = String.Empty;
 
 		/// <summary>
 		/// The upload type
 		/// </summary>
-		protected string UploadType { get; } = String.Empty;
+		protected string UploadType { get; set; } = String.Empty;
 
 		/// <summary>
 		///  The user's id
 		/// </summary>
-		protected string UserId { get; } = String.Empty;
+		protected string UserId { get; set; } = String.Empty;
 
 		/// <summary>
 		/// The session's id
 		/// </summary>
-		protected string SessionId { get; } = String.Empty;
+		protected string SessionId { get; set; } = String.Empty;
 
 		/// <summary>
 		/// The TimeStamp of when the event was added to queue UNTIL we serialize so we use the name TimeStamp in code, and serialize as DateOffset
@@ -66,6 +66,15 @@ namespace EpicGames.Core.Telemetry
 		public abstract string EventName
 		{
 			get;
+		}
+
+		/// <summary>
+		/// Constructor
+		/// </summary>
+		/// <param name="inTimeStamp"></param>
+		protected DataRouterEvent(DateTime? inTimeStamp = null)
+		{
+			TimeStamp = inTimeStamp ?? DateTime.UtcNow;
 		}
 
 		/// <summary>
@@ -211,6 +220,67 @@ namespace EpicGames.Core.Telemetry
 			string offsetString = offset.ToString(@"hh\:mm\:ss\.fff");
 
 			writer.WriteStringValue($"+{offsetString}");
+		}
+	}
+
+	/// <summary>
+	/// DateTime converter for data router events to convert to Unix timestamp
+	/// </summary>
+	public class UnixTimestampDataRouterEventConverter : JsonConverter<DateTime>
+	{
+		/// <summary>
+		/// Reader
+		/// </summary>
+		/// <param name="reader"></param>
+		/// <param name="typeToConvert"></param>
+		/// <param name="options"></param>
+		/// <returns></returns>
+		/// <exception cref="NotImplementedException"></exception>
+		public override DateTime Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+		{
+			throw new NotImplementedException();
+		}
+
+		/// <summary>
+		/// Writer
+		/// </summary>
+		/// <param name="writer"></param>
+		/// <param name="value"></param>
+		/// <param name="options"></param>
+		public override void Write(Utf8JsonWriter writer, DateTime value, JsonSerializerOptions options)
+		{
+			TimeSpan diff = value.ToUniversalTime() - DateTime.UnixEpoch;
+			writer.WriteNumberValue(diff.TotalSeconds);
+		}
+	}
+
+	/// <summary>
+	/// TimeSpan converter for data router events to convert to seconds
+	/// </summary>
+	public class DurationDataRouterEventConverter : JsonConverter<TimeSpan>
+	{
+		/// <summary>
+		/// Reader
+		/// </summary>
+		/// <param name="reader"></param>
+		/// <param name="typeToConvert"></param>
+		/// <param name="options"></param>
+		/// <returns></returns>
+		/// <exception cref="NotImplementedException"></exception>
+		public override TimeSpan Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+		{
+			throw new NotImplementedException();
+		}
+
+		/// <summary>
+		/// Writer
+		/// </summary>
+		/// <param name="writer"></param>
+		/// <param name="value"></param>
+		/// <param name="options"></param>
+		public override void Write(Utf8JsonWriter writer, TimeSpan value, JsonSerializerOptions options)
+		{
+			writer.WriteNumberValue(value.TotalSeconds);
 		}
 	}
 

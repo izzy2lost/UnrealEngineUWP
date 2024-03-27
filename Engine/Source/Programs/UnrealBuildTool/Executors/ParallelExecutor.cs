@@ -151,6 +151,14 @@ namespace UnrealBuildTool
 		}
 
 		/// <summary>
+		/// Telemetry event for this executor
+		/// </summary>
+		protected TelemetryExecutorEvent? telemetryEvent;
+
+		/// <inheritdoc/>
+		public override TelemetryExecutorEvent? GetTelemetryEvent() => telemetryEvent;
+
+		/// <summary>
 		/// Create an action queue
 		/// </summary>
 		/// <param name="actionsToExecute">Actions to be executed</param>
@@ -179,6 +187,9 @@ namespace UnrealBuildTool
 				return true;
 			}
 
+			DateTime startTimeUTC = DateTime.UtcNow;
+			bool result;
+
 			// The "useAutomaticQueue" should always be true unless manual queue is being tested
 			bool useAutomaticQueue = true;
 			if (useAutomaticQueue)
@@ -188,7 +199,10 @@ namespace UnrealBuildTool
 				queue.CreateAutomaticRunner(action => RunAction(queue, action), bUseActionWeights, actionLimit, NumParallelProcesses);
 				queue.Start();
 				queue.StartManyActions();
-				return await queue.RunTillDone();
+				result = await queue.RunTillDone();
+
+				queue.GetActionResultCounts(out int totalActions, out int succeededActions, out int failedActions);
+				telemetryEvent = new TelemetryExecutorEvent(Name, startTimeUTC, result, totalActions, succeededActions, failedActions, DateTime.UtcNow);
 			}
 			else
 			{
@@ -198,8 +212,13 @@ namespace UnrealBuildTool
 				queue.Start();
 				using Timer timer = new((_) => queue.StartManyActions(runner), null, 0, 500);
 				queue.StartManyActions();
-				return await queue.RunTillDone();
+				result = await queue.RunTillDone();
+
+				queue.GetActionResultCounts(out int totalActions, out int succeededActions, out int failedActions);
+				telemetryEvent = new TelemetryExecutorEvent(Name, startTimeUTC, result, totalActions, succeededActions, failedActions, DateTime.UtcNow);
 			}
+
+			return result;
 		}
 
 		private static Func<Task>? RunAction(ImmediateActionQueue queue, LinkedAction action)

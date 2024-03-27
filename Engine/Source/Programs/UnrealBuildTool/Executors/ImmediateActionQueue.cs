@@ -508,6 +508,19 @@ namespace UnrealBuildTool
 		}
 
 		/// <summary>
+		/// Get the number of actions that were run, and how many succeeded or failed
+		/// </summary>
+		/// <param name="totalActions">Out parameter, the total number of actions</param>
+		/// <param name="succeededActions">Out parameter, the number of successful actions</param>
+		/// <param name="failedActions">Out parameter, the number of failed actions</param>
+		public void GetActionResultCounts(out int totalActions, out int succeededActions, out int failedActions)
+		{
+			totalActions = Actions.Length;
+			succeededActions = Actions.Where(x => x.Results?.ExitCode == 0).Count();
+			failedActions = Actions.Where(x => x.Results != null && x.Results.ExitCode != 0).Count();
+		}
+
+		/// <summary>
 		/// Return an enumeration of ready compile tasks.  This is not executed under a lock and 
 		/// does not modify the state of any actions.
 		/// </summary>

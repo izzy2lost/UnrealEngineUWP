@@ -443,6 +443,7 @@ namespace UnrealBuildTool
 				// Execute the build
 				Stopwatch Timer = Stopwatch.StartNew();
 				bool Result = await Executor.ExecuteActionsAsync(ActionsToExecute, Logger, actionArtifactCache);
+				Executor.PostTelemetryEvent();
 
 				Logger.LogInformation("Total time in {ExecutorName} executor: {TotalSeconds:0.00} seconds", Executor.Name, Timer.Elapsed.TotalSeconds);
 

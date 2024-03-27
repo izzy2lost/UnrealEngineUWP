@@ -1,5 +1,8 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
+using EpicGames.Core;
+using EpicGames.UBA;
+using Microsoft.Extensions.Logging;
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
@@ -7,10 +10,8 @@ using System.Linq;
 using System.Management;
 using System.Runtime.InteropServices;
 using System.Runtime.Versioning;
+using System.Threading;
 using System.Threading.Tasks;
-using EpicGames.Core;
-using EpicGames.UBA;
-using Microsoft.Extensions.Logging;
 using UnrealBuildBase;
 using UnrealBuildTool.Artifacts;
 
@@ -36,6 +37,11 @@ namespace UnrealBuildTool
 		readonly ConcurrentDictionary<LinkedAction, bool> _localRetryActions = new();
 		// Tracking for LinkedActions that failed locally that should be retried without UBA
 		readonly ConcurrentDictionary<LinkedAction, bool> _forcedRetryActions = new();
+
+		// Tracking for all actions processed locally
+		int _localProcessedActions = 0;
+		// Tracking for all actions processed remotely
+		int _remoteProcessedActions = 0;
 
 		protected override void Dispose(bool disposing)
 		{
@@ -328,6 +334,7 @@ namespace UnrealBuildTool
 		/// <returns>True if all the tasks successfully executed, or false if any of them failed.</returns>
 		bool ExecuteActionsInternal(IEnumerable<LinkedAction> inputActions, ISessionServer session, Microsoft.Extensions.Logging.ILogger logger, IActionArtifactCache? actionArtifactCache)
 		{
+			DateTime startTimeUTC = DateTime.UtcNow;
 			using ImmediateActionQueue queue = CreateActionQueue(inputActions, actionArtifactCache, logger);
 			int actionLimit = Math.Min(NumParallelProcesses, queue.TotalActions);
 			queue.CreateAutomaticRunner(action => RunActionLocal(queue, action), bUseActionWeights, actionLimit, NumParallelProcesses);
@@ -393,6 +400,11 @@ namespace UnrealBuildTool
 				}
 
 				bool res = queue.RunTillDone().Result; // Using inline wait to avoid possible thread switch
+
+				queue.GetActionResultCounts(out int totalActions, out int succeededActions, out int failedActions);
+				telemetryEvent = new TelemetryExecutorUBAEvent(Name, startTimeUTC, res, totalActions, succeededActions, failedActions,
+					_localProcessedActions, _remoteProcessedActions, _localRetryActions.Count, _forcedRetryActions.Count, DateTime.UtcNow);
+
 				return res;
 			}
 			finally
@@ -485,6 +497,7 @@ namespace UnrealBuildTool
 				ProcessStartInfo startInfo = GetActionStartInfo(action, out FileItem? pchItem);
 				using (IProcess process = _session!.RunProcess(startInfo, false, null, enableDetour))
 				{
+					Interlocked.Add(ref _localProcessedActions, 1);
 					if (process.ExitCode != 0 && UBAConfig.bForcedRetry)
 					{
 						_threadedLogger.LogWarning("{Description} {StatusDescription}: Exited with error code {ExitCode}. This action will retry without UBA", action.CommandDescription, action.StatusDescription, process.ExitCode);
@@ -555,6 +568,7 @@ namespace UnrealBuildTool
 				ProcessStartInfo startInfo = GetActionStartInfo(action, out FileItem? pchItem);
 				_session!.RunProcessRemote(startInfo, (s, e) =>
 				{
+					Interlocked.Add(ref _remoteProcessedActions, 1);
 					if (e.ExitCode != 0 && !e.LogLines.Any())
 					{
 						RemoteActionFailedNoOutput(queue, action, e.ExitCode, e.ExecutingHost ?? "Unknown");
