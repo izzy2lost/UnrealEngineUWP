@@ -7,6 +7,8 @@ using System.Threading;
 using System.Threading.Tasks;
 using EpicGames.Core;
 
+#pragma warning disable CA2227
+
 namespace EpicGames.Horde.Storage
 {
 	/// <summary>
@@ -27,12 +29,21 @@ namespace EpicGames.Horde.Storage
 		/// <summary>
 		/// Filter for the files selected for download
 		/// </summary>
-		public List<string>? Filter { get; }
+		public List<string>? Filter { get; set; }
+
+		/// <summary>
+		/// Default constructor
+		/// </summary>
+		public ArtifactDescriptor()
+		{
+			BaseUrl = new Uri("http://horde");
+			RefName = new RefName("default");
+		}
 
 		/// <summary>
 		/// Constructor
 		/// </summary>
-		public ArtifactDescriptor(Uri baseUrl, RefName refName, IReadOnlyCollection<string>? filter)
+		public ArtifactDescriptor(Uri baseUrl, RefName refName, IReadOnlyCollection<string>? filter = null)
 		{
 			BaseUrl = baseUrl;
 			RefName = refName;

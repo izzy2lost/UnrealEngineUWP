@@ -27,7 +27,7 @@ namespace UnrealGameSync.Forms
 			StatusMessage.Name = "StatusMessage";
 			StatusMessage.Size = new System.Drawing.Size(418, 42);
 			StatusMessage.TabIndex = 0;
-			StatusMessage.Text = "Syncing files, please wait...";
+			StatusMessage.Text = "Downloading files, please wait...";
 			StatusMessage.TextAlign = System.Drawing.ContentAlignment.MiddleCenter;
 			// 
 			// DownloadProgressWindow
@@ -42,7 +42,7 @@ namespace UnrealGameSync.Forms
 			Name = "DownloadProgressWindow";
 			SizeGripStyle = System.Windows.Forms.SizeGripStyle.Hide;
 			StartPosition = System.Windows.Forms.FormStartPosition.CenterScreen;
-			Text = "Syncing Files...";
+			Text = "Downloading Files...";
 			FormClosing += DownloadProgressWindow_FormClosing;
 			Load += DownloadProcessWindow_Load;
 			ResumeLayout(false);

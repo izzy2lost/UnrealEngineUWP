@@ -117,6 +117,12 @@ namespace UnrealGameSync
 						return;
 					}
 
+					// Handle any .uartifact downloads
+					if (ArtifactDownload.ProcessCommandLine(args))
+					{
+						return;
+					}
+
 					// Launch the application proper
 					if (firstInstance)
 					{
@@ -186,6 +192,8 @@ namespace UnrealGameSync
 					SyncVersion = null;
 				}
 			}
+
+			ArtifactDownload.RegisterFileAssociations(updateSpawn ?? GetCurrentExecutable());
 
 			DirectoryReference dataFolder = DirectoryReference.Combine(DirectoryReference.GetSpecialFolder(Environment.SpecialFolder.LocalApplicationData)!, "UnrealGameSync");
 			DirectoryReference.CreateDirectory(dataFolder);
