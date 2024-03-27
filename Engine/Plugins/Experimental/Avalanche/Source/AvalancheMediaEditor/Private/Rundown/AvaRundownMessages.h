@@ -243,6 +243,12 @@ public:
 	FString PageName;
 
 	UPROPERTY()
+	FString PageSummary;
+
+	UPROPERTY()
+	FString FriendlyName;
+
+	UPROPERTY()
 	bool IsTemplate = false;
 
 	UPROPERTY()

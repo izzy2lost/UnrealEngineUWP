@@ -45,6 +45,8 @@ namespace UE::AvaRundownServer::Private
 		FAvaRundownPageInfo PageInfo;
 		PageInfo.PageId = InPage.GetPageId();
 		PageInfo.PageName = InPage.GetPageName();
+		PageInfo.PageSummary = InPage.GetPageSummary().ToString();
+		PageInfo.FriendlyName = InPage.GetPageFriendlyName().ToString();
 		PageInfo.IsTemplate = InPage.IsTemplate();
 		PageInfo.TemplateId = InPage.GetTemplateId();
 		PageInfo.CombinedTemplateIds = InPage.GetCombinedTemplateIds();
