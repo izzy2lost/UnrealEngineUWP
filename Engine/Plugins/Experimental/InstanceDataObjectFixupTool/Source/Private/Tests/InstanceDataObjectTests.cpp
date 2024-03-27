@@ -310,7 +310,7 @@ static UObject* CreateInstanceDataObjectWithSubObjects(UObject* Owner)
 {
 	TArray<UObject*> SubObjects = {Owner};
 	GetObjectsWithOuter(Owner, SubObjects);
-	for (const UObject* SubObject : SubObjects)
+	for (UObject* SubObject : SubObjects)
 	{
 		UE::FPropertyBagRepository::Get().CreateInstanceDataObject(SubObject);
 	}

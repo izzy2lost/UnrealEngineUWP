@@ -12,6 +12,7 @@
 #include "UObject/UnrealType.h"
 
 static const FName NAME_ValuesSetBySerialization(ANSITEXTVIEW("_ValuesSetBySerialization"));
+static const FName NAME_InstanceDataObject(ANSITEXTVIEW("InstanceDataObject"));
 
 /** Type used for InstanceDataObject structs to provide support for hashing and custom guids. */
 class UInstanceDataObjectStruct final : public UScriptStruct
@@ -684,6 +685,7 @@ namespace UE
 		{
 			Result->SetMetaData(TEXT("DisplayName"), *DisplayName);
 		}
+		Result->SetMetaData(NAME_InstanceDataObject, TEXT("true"));
 #endif
 
 		SetClassFlags(Result, OwnerClass);
