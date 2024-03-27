@@ -99,7 +99,7 @@ FAutoConsoleVariableRef CVarVolumetricFogUsesLightFunctionAtlas(
 );
 
 // This deferred CVar includes deferred lights splatting (batched or not) as well as clustered lighting.
-int GDeferredUsesLightFunctionAtlas = 0;
+int GDeferredUsesLightFunctionAtlas = 1;
 FAutoConsoleVariableRef CVarDeferredLightsUsesLightFunctionAtlas(
 	TEXT("r.Deferred.UsesLightFunctionAtlas"),
 	GDeferredUsesLightFunctionAtlas,

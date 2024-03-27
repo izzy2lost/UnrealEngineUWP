@@ -1700,6 +1700,8 @@ void FHLSLMaterialTranslator::DoTranslate()
 	bUsesAnisotropy = IsMaterialPropertyUsed(MP_Anisotropy, Chunk[MP_Anisotropy], FLinearColor(0, 0, 0, 0), 1);
 	MaterialCompilationOutput.bUsesAnisotropy = bUsesAnisotropy;
 
+	MaterialCompilationOutput.bIsLightFunctionAtlasCompatible = !bUsesVertexPosition && !bUsesSceneDepth;
+
 	EMaterialDecalResponse MDR = (EMaterialDecalResponse)Material->GetMaterialDecalResponse();
 	if (MDR == MDR_Color || MDR == MDR_ColorNormal || MDR == MDR_ColorRoughness || MDR == MDR_ColorNormalRoughness)
 	{

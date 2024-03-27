@@ -513,6 +513,7 @@ FMaterialRelevance UMaterialInterface::GetRelevance_Internal(const UMaterial* Ma
 		MaterialRelevance.SubstrateClosureCountMask = SubstrateBSDFCountMask;
 		MaterialRelevance.SubstrateUintPerPixel = SubstrateUintPerPixel;
 		MaterialRelevance.bUsesComplexSpecialRenderPath = MaterialResource->MaterialGetSubstrateUsesComplexSpecialRenderPath_GameThread();
+		MaterialRelevance.bIsLightFunctionAtlasCompatible = MaterialResource->MaterialIsLightFunctionAtlasCompatible_GameThread();
 
 		return MaterialRelevance;
 	}
