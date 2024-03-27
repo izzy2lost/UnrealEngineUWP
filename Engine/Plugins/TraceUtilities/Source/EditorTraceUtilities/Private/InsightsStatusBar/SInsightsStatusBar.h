@@ -2,7 +2,7 @@
 
 #pragma once
 
-#include "CoreMinimal.h"
+#include "EditorTraceUtilities.h"
 #include "ProfilingDebugging/TraceAuxiliary.h"
 #include "Widgets/DeclarativeSyntaxSupport.h"
 #include "Widgets/SWidget.h"
@@ -15,6 +15,8 @@ class STraceServerControl;
 
 TSharedRef<SWidget> CreateInsightsStatusBarWidget();
 
+namespace UE::EditorTraceUtilities
+{
 struct FTraceFileInfo
 {
 	FString FilePath;
@@ -33,13 +35,6 @@ struct FTraceFileInfo
  */
 class SInsightsStatusBarWidget : public SCompoundWidget
 {
-private:
-	enum class ETraceDestination : uint32
-	{
-		TraceStore = 0,
-		File = 1
-	};
-
 	struct FChannelData
 	{
 		FString Name;
@@ -55,6 +50,10 @@ private:
 	};
 
 public:
+
+	/** Settings this widget uses. */
+	static FStatusBarTraceSettings StatusBarTraceSettings;
+	
 	SLATE_BEGIN_ARGS(SInsightsStatusBarWidget) {}
 	SLATE_END_ARGS()
 
@@ -110,9 +109,6 @@ private:
 	void LogMessage(const FText& Text);
 	void ShowNotification(const FText& Text, const FText& SubText);
 
-	void SetTraceChannels(const TCHAR* InChannels);
-	bool IsPresetSet(const TCHAR* InChannels) const;
-
 	bool GetBooleanSettingValue(const TCHAR* InSettingName);
 	void ToggleBooleanSettingValue(const TCHAR* InSettingName);
 
@@ -151,7 +147,6 @@ private:
 	static const TCHAR* OpenInsightsAfterTraceSettingName;
 	static const TCHAR* ShowInExplorerAfterTraceSettingName;
 
-	ETraceDestination TraceDestination = ETraceDestination::TraceStore;
 	bool bIsTraceRecordButtonHovered = false;
 	mutable double ConnectionStartTime = 0.0f;
 
@@ -169,3 +164,4 @@ private:
 	TArray<TSharedPtr<FTraceFileInfo>> Traces;
 	FName LogListingName;
 };
+}

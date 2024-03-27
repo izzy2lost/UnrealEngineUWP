@@ -40,6 +40,10 @@
 
 #define LOCTEXT_NAMESPACE "InsightsEditor"
 
+namespace UE::EditorTraceUtilities
+{
+FStatusBarTraceSettings SInsightsStatusBarWidget::StatusBarTraceSettings;
+
 const TCHAR* SInsightsStatusBarWidget::DefaultPreset = TEXT("default");
 const TCHAR* SInsightsStatusBarWidget::MemoryPreset= TEXT("default,memory");
 const TCHAR* SInsightsStatusBarWidget::TaskGraphPreset = TEXT("default,task");
@@ -223,11 +227,11 @@ void SInsightsStatusBarWidget::Construct(const FArguments& InArgs)
 
 	if (FTraceAuxiliary::GetConnectionType() == FTraceAuxiliary::EConnectionType::Network)
 	{
-		TraceDestination = ETraceDestination::TraceStore;
+		StatusBarTraceSettings.TraceDestination = ETraceDestination::TraceStore;
 	}
 	if (FTraceAuxiliary::GetConnectionType() == FTraceAuxiliary::EConnectionType::File)
 	{
-		TraceDestination = ETraceDestination::File;
+		StatusBarTraceSettings.TraceDestination = ETraceDestination::File;
 	}
 
 	LogListingName = TEXT("UnrealInsights");
@@ -703,12 +707,12 @@ FString SInsightsStatusBarWidget::GetLatestTraceFileFromFolder(const FString& In
 
 void SInsightsStatusBarWidget::SetTraceDestination_Execute(ETraceDestination InDestination)
 {
-	TraceDestination = InDestination;
+	StatusBarTraceSettings.TraceDestination = InDestination;
 }
 
 bool SInsightsStatusBarWidget::SetTraceDestination_IsChecked(ETraceDestination InDestination)
 {
-	return InDestination == TraceDestination;
+	return InDestination == StatusBarTraceSettings.TraceDestination;
 }
 
 bool SInsightsStatusBarWidget::SetTraceDestination_CanExecute()
@@ -723,7 +727,7 @@ bool SInsightsStatusBarWidget::SetTraceDestination_CanExecute()
 
 void SInsightsStatusBarWidget::SaveSnapshot()
 {
-	if (TraceDestination == ETraceDestination::File)
+	if (StatusBarTraceSettings.TraceDestination == ETraceDestination::File)
 	{
 		const bool bResult = FTraceAuxiliary::WriteSnapshot(nullptr);
 		if (bResult)
@@ -833,11 +837,11 @@ void SInsightsStatusBarWidget::TogglePauseTrace_OnClicked()
 
 bool SInsightsStatusBarWidget::StartTracing()
 {
-	if (TraceDestination == ETraceDestination::TraceStore)
+	if (StatusBarTraceSettings.TraceDestination == ETraceDestination::TraceStore)
 	{
 		return FTraceAuxiliary::Start(FTraceAuxiliary::EConnectionType::Network, TEXT("localhost"), nullptr);
 	}
-	else if (TraceDestination == ETraceDestination::File)
+	else if (StatusBarTraceSettings.TraceDestination == ETraceDestination::File)
 	{
 		return FTraceAuxiliary::Start(FTraceAuxiliary::EConnectionType::File, nullptr, nullptr);
 	}
@@ -1115,5 +1119,6 @@ void SInsightsStatusBarWidget::OpenTrace(int32 Index)
 		FUnrealInsightsLauncher::Get()->TryOpenTraceFromDestination(Traces[Index]->FilePath);
 	}
 }
+} // namespace UE::EditorTraceUtilities
 
 #undef LOCTEXT_NAMESPACE
