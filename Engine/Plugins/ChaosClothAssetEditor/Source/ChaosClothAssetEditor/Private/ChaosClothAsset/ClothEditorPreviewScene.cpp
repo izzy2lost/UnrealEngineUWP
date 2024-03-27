@@ -82,27 +82,6 @@ namespace UE::Chaos::ClothAsset::Private
 					UE_LOG(LogChaosClothAssetEditor, Warning, TEXT("%s"), *MissingBonesMsg.ToString());
 					bAnyMissingBones = true;
 				}
-
-				// These should be the bones that are required by the follower cloth component
-				const int32 ClothLODIndex = FMath::Min(ClothComponent.GetNumLODs() - 1, LODIndex);
-				if (ensure(ClothRenderData->LODRenderData.IsValidIndex(ClothLODIndex)))
-				{
-					CheckRequiredBones(ClothRenderData->LODRenderData[ClothLODIndex].ActiveBoneIndices,
-						SKMFillComponentSpaceTransformsRequiredBones, MissingBones);
-
-					if (MissingBones.Num())
-					{
-						FText MissingBonesMsg = FText::FormatOrdered(LOCTEXT("MissingClothBones", "SkeletalMesh \"{0}\" (LOD {1}) will not update the following bones required by \"{2}\" (LOD {3}): "),
-							FText::FromString(SkeletalMeshComponent->GetSkinnedAsset()->GetName()),
-							FText::AsNumber(LODIndex), FText::FromString(ClothAsset->GetName()), FText::AsNumber(ClothLODIndex));
-						for (const FBoneIndexType MissingBone : MissingBones)
-						{
-							MissingBonesMsg = FText::Format(LOCTEXT("MissingClothBoneList", "{0} {1}"), MissingBonesMsg, FText::FromName(RefSkeleton.GetBoneName(MissingBone)));
-						}
-						UE_LOG(LogChaosClothAssetEditor, Warning, TEXT("%s"), *MissingBonesMsg.ToString());
-						bAnyMissingBones = true;
-					}
-				}
 			}
 
 			if (bAnyMissingBones)
