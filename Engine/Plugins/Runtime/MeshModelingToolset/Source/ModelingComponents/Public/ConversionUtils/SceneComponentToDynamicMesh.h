@@ -85,6 +85,37 @@ namespace Conversion {
 		USceneComponent* SceneComponent, const FToMeshOptions& ConversionOptions, bool bTransformToWorld, 
 		Geometry::FDynamicMesh3& OutMesh, FTransform& OutTransform, FText& OutErrorMessage, 
 		TArray<UMaterialInterface*>* OutComponentMaterials = nullptr, TArray<UMaterialInterface*>* OutAssetMaterials = nullptr);
+
+	// Options for converting Static Mesh assets
+	struct FStaticMeshConversionOptions
+	{
+		// Whether to apply Build Settings during the mesh copy.
+		bool bApplyBuildSettings = true;
+
+		// Whether to request tangents on the copied mesh. If tangents are not requested, tangent-related build settings will also be ignored.
+		bool bRequestTangents = true;
+
+		// Whether to ignore the 'remove degenerates' option from Build Settings. Note: Only applies if 'Apply Build Settings' is enabled.
+		bool bIgnoreRemoveDegenerates = true;
+
+		// Whether to scale the copied mesh by the Build Setting's 'Build Scale'. Note: This is considered separately from the 'Apply Build Settings' option.
+		bool bUseBuildScale = true;
+	};
+
+	/**
+	 * Converts geometry from Static Mesh to Dynamic Mesh
+	 * 
+	 * @param InMesh			Static Mesh to convert
+	 * @param OutMesh			Dynamic Mesh to contain static mesh geometry
+	 * @param OutErrorMessage	If method returns false, contains error message
+	 * @param ConversionOptions	Static mesh conversion settings
+	 * @param LODType			Source of data to convert (e.g., render data, source data, or hi res source data)
+	 * @param LODIndex			LOD index to convert
+	 * @param bUseClosestLOD	Whether to remap to the most similar available LOD rather than fail, if the requested LOD type is not available
+	 */
+	bool MODELINGCOMPONENTS_API StaticMeshToDynamicMesh(
+		UStaticMesh* InMesh, Geometry::FDynamicMesh3& OutMesh, FText& OutErrorMessage, const FStaticMeshConversionOptions& ConversionOptions,
+		EMeshLODType LODType = EMeshLODType::SourceModel, int32 LODIndex = 0, bool bUseClosestLOD = true);
 	
 	/**
 	 * Helper to quickly test if we expect to be able to convert SceneComponent to a dynamic mesh

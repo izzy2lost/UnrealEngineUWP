@@ -22,6 +22,7 @@
 #include "DynamicMeshToMeshDescription.h"
 #include "StaticMeshLODResourcesToDynamicMesh.h"
 #include "AssetUtils/StaticMeshMaterialUtil.h"
+#include "ConversionUtils/SceneComponentToDynamicMesh.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(MeshAssetFunctions)
 
@@ -36,176 +37,35 @@ using namespace UE::Geometry;
 #define LOCTEXT_NAMESPACE "UGeometryScriptLibrary_MeshAssetFunctions"
 
 
-
-
-static UDynamicMesh* CopyMeshFromStaticMesh_SourceData(	
-	UStaticMesh* FromStaticMeshAsset, 
-	UDynamicMesh* ToDynamicMesh, 
-	FGeometryScriptCopyMeshFromAssetOptions AssetOptions,
-	FGeometryScriptMeshReadLOD RequestedLOD,
-	EGeometryScriptOutcomePins& Outcome,
-	UGeometryScriptDebug* Debug
-)
+static void ConvertGeometryScriptReadLOD(const FGeometryScriptMeshReadLOD& ReadLOD, UE::Conversion::EMeshLODType& OutLODType, int32& OutLODIndex)
 {
-	if (RequestedLOD.LODType != EGeometryScriptLODType::MaxAvailable && RequestedLOD.LODType != EGeometryScriptLODType::SourceModel && RequestedLOD.LODType != EGeometryScriptLODType::HiResSourceModel)
-	{
-		UE::Geometry::AppendError(Debug, EGeometryScriptErrorType::InvalidInputs, LOCTEXT("CopyMeshFromStaticMesh_LODNotAvailable", "CopyMeshFromStaticMesh: Requested LOD Type is not available"));
-		return ToDynamicMesh;
-	}
-
-#if WITH_EDITOR
-	if (RequestedLOD.LODType == EGeometryScriptLODType::HiResSourceModel && FromStaticMeshAsset->IsHiResMeshDescriptionValid() == false)
-	{
-		UE::Geometry::AppendError(Debug, EGeometryScriptErrorType::InvalidInputs, LOCTEXT("CopyMeshFromStaticMesh_HiResLODNotAvailable", "CopyMeshFromStaticMesh: HiResSourceModel LOD Type is not available"));
-		return ToDynamicMesh;
-	}
-
-	const FMeshDescription* SourceMesh = nullptr;
-	const FMeshBuildSettings* BuildSettings = nullptr;
-
-	if ((RequestedLOD.LODType == EGeometryScriptLODType::HiResSourceModel) ||
-		(RequestedLOD.LODType == EGeometryScriptLODType::MaxAvailable && FromStaticMeshAsset->IsHiResMeshDescriptionValid()))
-	{
-		SourceMesh = FromStaticMeshAsset->GetHiResMeshDescription();
-		const FStaticMeshSourceModel& SourceModel = FromStaticMeshAsset->GetHiResSourceModel();
-		BuildSettings = &SourceModel.BuildSettings;
-	}
-	else
-	{
-		int32 UseLODIndex = FMath::Clamp(RequestedLOD.LODIndex, 0, FromStaticMeshAsset->GetNumSourceModels() - 1);
-		SourceMesh = FromStaticMeshAsset->GetMeshDescription(UseLODIndex);
-		const FStaticMeshSourceModel& SourceModel = FromStaticMeshAsset->GetSourceModel(UseLODIndex);
-		BuildSettings = &SourceModel.BuildSettings;
-	}
-
-	if (SourceMesh == nullptr)
-	{
-		UE::Geometry::AppendError(Debug, EGeometryScriptErrorType::InvalidInputs, LOCTEXT("CopyMeshFromStaticMesh_SourceLODIsNull", "CopyMeshFromStaticMesh: Requested SourceModel LOD is null, only RenderData Mesh is available"));
-		return ToDynamicMesh;
-	}
-
-	bool bHasDirtyBuildSettings = BuildSettings->bRecomputeNormals
-		|| (BuildSettings->bRecomputeTangents && AssetOptions.bRequestTangents);
-	bool bNeedsBuildScale = AssetOptions.bUseBuildScale && BuildSettings && !BuildSettings->BuildScale3D.Equals(FVector::OneVector);
-	bool bNeedsOtherBuildSettings = AssetOptions.bApplyBuildSettings && bHasDirtyBuildSettings;
-
-	FMeshDescription LocalSourceMeshCopy;
-	if (bNeedsBuildScale || bNeedsOtherBuildSettings)
-	{
-		LocalSourceMeshCopy = *SourceMesh;
-
-		FStaticMeshAttributes Attributes(LocalSourceMeshCopy);
-
-		if (bNeedsBuildScale)
+	using namespace UE::Conversion;
+	OutLODType = [](const EGeometryScriptLODType& LODType)
 		{
-			FTransform BuildScaleTransform = FTransform::Identity;
-			BuildScaleTransform.SetScale3D(BuildSettings->BuildScale3D);
-			FStaticMeshOperations::ApplyTransform(LocalSourceMeshCopy, BuildScaleTransform, true /*use correct normal transforms*/);
-		}
-
-		if (bNeedsOtherBuildSettings)
-		{
-			if (!Attributes.GetTriangleNormals().IsValid() || !Attributes.GetTriangleTangents().IsValid())
+			switch (LODType)
 			{
-				// If these attributes don't exist, create them and compute their values for each triangle
-				FStaticMeshOperations::ComputeTriangleTangentsAndNormals(LocalSourceMeshCopy);
+			case EGeometryScriptLODType::MaxAvailable:
+				return EMeshLODType::MaxAvailable;
+			case EGeometryScriptLODType::HiResSourceModel:
+				return EMeshLODType::HiResSourceModel;
+			case EGeometryScriptLODType::SourceModel:
+				return EMeshLODType::SourceModel;
+			case EGeometryScriptLODType::RenderData:
+				return EMeshLODType::RenderData;
+			default:
+				checkNoEntry();
+				return EMeshLODType::RenderData;
 			}
-
-			EComputeNTBsFlags ComputeNTBsOptions = EComputeNTBsFlags::BlendOverlappingNormals;
-			ComputeNTBsOptions |= BuildSettings->bRecomputeNormals ? EComputeNTBsFlags::Normals : EComputeNTBsFlags::None;
-			if (AssetOptions.bRequestTangents)
-			{
-				ComputeNTBsOptions |= BuildSettings->bRecomputeTangents ? EComputeNTBsFlags::Tangents : EComputeNTBsFlags::None;
-				ComputeNTBsOptions |= BuildSettings->bUseMikkTSpace ? EComputeNTBsFlags::UseMikkTSpace : EComputeNTBsFlags::None;
-			}
-			ComputeNTBsOptions |= BuildSettings->bComputeWeightedNormals ? EComputeNTBsFlags::WeightedNTBs : EComputeNTBsFlags::None;
-			if (AssetOptions.bIgnoreRemoveDegenerates == false)
-			{
-				ComputeNTBsOptions |= BuildSettings->bRemoveDegenerates ? EComputeNTBsFlags::IgnoreDegenerateTriangles : EComputeNTBsFlags::None;
-			}
-
-			FStaticMeshOperations::ComputeTangentsAndNormals(LocalSourceMeshCopy, ComputeNTBsOptions);
-		}
-
-		SourceMesh = &LocalSourceMeshCopy;
-	}
-
-	FDynamicMesh3 NewMesh;
-	FMeshDescriptionToDynamicMesh Converter;
-	Converter.Convert(SourceMesh, NewMesh, AssetOptions.bRequestTangents);
-
-	ToDynamicMesh->SetMesh(MoveTemp(NewMesh));
-
-	Outcome = EGeometryScriptOutcomePins::Success;
-#else
-	UE::Geometry::AppendError(Debug, EGeometryScriptErrorType::InvalidInputs, LOCTEXT("CopyMeshFromAsset_EditorOnly", "CopyMeshFromStaticMesh: Source Models are not available at Runtime"));
-#endif
-
-	return ToDynamicMesh;
+		}(ReadLOD.LODType);
+	OutLODIndex = ReadLOD.LODIndex;
 }
 
-
-
-static UDynamicMesh* CopyMeshFromStaticMesh_RenderData(	
-	UStaticMesh* FromStaticMeshAsset, 
-	UDynamicMesh* ToDynamicMesh, 
-	FGeometryScriptCopyMeshFromAssetOptions AssetOptions,
-	FGeometryScriptMeshReadLOD RequestedLOD,
-	EGeometryScriptOutcomePins& Outcome,
-	UGeometryScriptDebug* Debug
-)
+static void ConvertGeometryScriptWriteLOD(const FGeometryScriptMeshWriteLOD& WriteLOD, UE::Conversion::EMeshLODType& OutLODType, int32& OutLODIndex)
 {
-	if (RequestedLOD.LODType != EGeometryScriptLODType::MaxAvailable && RequestedLOD.LODType != EGeometryScriptLODType::RenderData)
-	{
-		UE::Geometry::AppendError(Debug, EGeometryScriptErrorType::InvalidInputs, LOCTEXT("CopyMeshFromStaticMesh_LODNotAvailable", "CopyMeshFromStaticMesh: Requested LOD Type is not available"));
-		return ToDynamicMesh;
-	}
-
-#if !WITH_EDITOR
-	if (FromStaticMeshAsset->bAllowCPUAccess == false)
-	{
-		UE::Geometry::AppendError(Debug, EGeometryScriptErrorType::InvalidInputs, LOCTEXT("CopyMeshFromStaticMesh_CPUAccess", "CopyMeshFromStaticMesh: StaticMesh bAllowCPUAccess must be set to true to read mesh data at Runtime"));
-		return ToDynamicMesh;
-	}
-#endif
-
-	int32 UseLODIndex = FMath::Clamp(RequestedLOD.LODIndex, 0, FromStaticMeshAsset->GetNumLODs() - 1);
-
-	const FStaticMeshLODResources* LODResources = nullptr;
-	if (FStaticMeshRenderData* RenderData = FromStaticMeshAsset->GetRenderData())
-	{
-		LODResources = &RenderData->LODResources[UseLODIndex];
-	}
-	if (LODResources == nullptr)
-	{
-		UE::Geometry::AppendError(Debug, EGeometryScriptErrorType::InvalidInputs, LOCTEXT("CopyMeshFromStaticMesh_NoLODResources", "CopyMeshFromStaticMesh: LOD Data is not available"));
-		return ToDynamicMesh;
-	}
-
-	FStaticMeshLODResourcesToDynamicMesh::ConversionOptions ConvertOptions;
-#if WITH_EDITOR
-	if (AssetOptions.bUseBuildScale)
-	{
-		// respect BuildScale build setting
-		const FMeshBuildSettings& LODBuildSettings = FromStaticMeshAsset->GetSourceModel(UseLODIndex).BuildSettings;
-		ConvertOptions.BuildScale = (FVector3d)LODBuildSettings.BuildScale3D;
-	}
-#else
-	if (!AssetOptions.bUseBuildScale)
-	{
-		UE::Geometry::AppendError(Debug, EGeometryScriptErrorType::InvalidInputs, LOCTEXT("CopyMeshFromStaticMesh_BuildScaleAlreadyBaked", "CopyMeshFromStaticMesh: Requested mesh without BuildScale, but BuildScale is already baked into the RenderData."));
-	}
-#endif
-
-	FDynamicMesh3 NewMesh;
-	FStaticMeshLODResourcesToDynamicMesh Converter;
-	Converter.Convert(LODResources, ConvertOptions, NewMesh);
-
-	ToDynamicMesh->SetMesh(MoveTemp(NewMesh));
-	Outcome = EGeometryScriptOutcomePins::Success;
-	return ToDynamicMesh;
+	using namespace UE::Conversion;
+	OutLODType = WriteLOD.bWriteHiResSource ? EMeshLODType::HiResSourceModel : EMeshLODType::SourceModel;
+	OutLODIndex = WriteLOD.LODIndex;
 }
-
 
 
 UDynamicMesh*  UGeometryScriptLibrary_StaticMeshFunctions::CopyMeshFromStaticMesh(
@@ -229,18 +89,30 @@ UDynamicMesh*  UGeometryScriptLibrary_StaticMeshFunctions::CopyMeshFromStaticMes
 		return ToDynamicMesh;
 	}
 
-#if WITH_EDITOR
-	if (RequestedLOD.LODType == EGeometryScriptLODType::RenderData)
+	using namespace UE::Conversion;
+	EMeshLODType LODType;
+	int32 LODIndex;
+	ConvertGeometryScriptReadLOD(RequestedLOD, LODType, LODIndex);
+	FStaticMeshConversionOptions ConversionOptions;
+	ConversionOptions.bApplyBuildSettings = AssetOptions.bApplyBuildSettings;
+	ConversionOptions.bRequestTangents = AssetOptions.bRequestTangents;
+	ConversionOptions.bIgnoreRemoveDegenerates = AssetOptions.bIgnoreRemoveDegenerates;
+	ConversionOptions.bUseBuildScale = AssetOptions.bUseBuildScale;
+
+	FText ErrorMessage;
+
+	FDynamicMesh3 NewMesh;
+	bool bSuccess = StaticMeshToDynamicMesh(FromStaticMeshAsset, NewMesh, ErrorMessage, ConversionOptions, LODType, LODIndex);
+	if (!bSuccess)
 	{
-		return CopyMeshFromStaticMesh_RenderData(FromStaticMeshAsset, ToDynamicMesh, AssetOptions, RequestedLOD, Outcome, Debug);
+		UE::Geometry::AppendError(Debug, EGeometryScriptErrorType::InvalidInputs, ErrorMessage);
 	}
 	else
 	{
-		return CopyMeshFromStaticMesh_SourceData(FromStaticMeshAsset, ToDynamicMesh, AssetOptions, RequestedLOD, Outcome, Debug);
+		ToDynamicMesh->SetMesh(MoveTemp(NewMesh));
+		Outcome = EGeometryScriptOutcomePins::Success;
 	}
-#else
-	return CopyMeshFromStaticMesh_RenderData(FromStaticMeshAsset, ToDynamicMesh, AssetOptions, RequestedLOD, Outcome, Debug);	
-#endif
+	return ToDynamicMesh;
 }
 
 
@@ -384,6 +256,14 @@ UDynamicMesh*  UGeometryScriptLibrary_StaticMeshFunctions::CopyMeshToStaticMesh(
 
 		FConversionToMeshDescriptionOptions ConversionOptions;
 		FDynamicMeshToMeshDescription Converter(ConversionOptions);
+		if (!Options.bReplaceMaterials)
+		{
+			UE::Conversion::EMeshLODType LODType;
+			int32 LODIndex;
+			ConvertGeometryScriptWriteLOD(TargetLOD, LODType, LODIndex);
+			TArray<int32> MaterialIDMap = UE::Conversion::GetPolygonGroupToMaterialIndexMap(ToStaticMeshAsset, LODType, LODIndex);
+			Converter.SetMaterialIDMapFromInverseMap(MaterialIDMap);
+		}
 		FromDynamicMesh->ProcessMesh([&](const FDynamicMesh3& ReadMesh)
 		{
 			Converter.Convert(&ReadMesh, *MeshDescription, !Options.bEnableRecomputeTangents);
@@ -422,6 +302,7 @@ UDynamicMesh*  UGeometryScriptLibrary_StaticMeshFunctions::CopyMeshToStaticMesh(
 
 			// Reset the section info map
 			ToStaticMeshAsset->GetSectionInfoMap().Clear();
+			// TODO: populate the section info map here
 		}
 
 		ToStaticMeshAsset->CommitMeshDescription(UseLODIndex);
