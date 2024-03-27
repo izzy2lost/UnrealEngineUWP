@@ -5192,7 +5192,7 @@ TSharedRef<SWidget> FPersonaMeshDetails::OnGenerateCustomNameWidgetsForSection(i
 			.Padding(0, 2, 0, 0)
 			[
 				SNew(SBox)
-				.Visibility(LodIndex == 0 && !IsSectionChunked ? EVisibility::All : EVisibility::Collapsed)
+				.Visibility(LodIndex == 0 && !IsSectionChunked ? EVisibility::Visible : EVisibility::Collapsed)
 				[
 					SNew(SHorizontalBox)
 					+SHorizontalBox::Slot()
@@ -5395,12 +5395,12 @@ bool FPersonaMeshDetails::IsSectionEnabled(int32 LodIndex, int32 SectionIndex) c
 
 EVisibility FPersonaMeshDetails::ShowEnabledSectionDetail(int32 LodIndex, int32 SectionIndex) const
 {
-	return IsSectionEnabled(LodIndex, SectionIndex) ? EVisibility::All : EVisibility::Collapsed;
+	return IsSectionEnabled(LodIndex, SectionIndex) ? EVisibility::Visible : EVisibility::Collapsed;
 }
 
 EVisibility FPersonaMeshDetails::ShowDisabledSectionDetail(int32 LodIndex, int32 SectionIndex) const
 {
-	return IsSectionEnabled(LodIndex, SectionIndex) ? EVisibility::Collapsed : EVisibility::All;
+	return IsSectionEnabled(LodIndex, SectionIndex) ? EVisibility::Collapsed : EVisibility::Visible;
 }
 
 void FPersonaMeshDetails::OnSectionEnabledChanged(int32 LodIndex, int32 SectionIndex, bool bEnable)
@@ -5547,7 +5547,7 @@ EVisibility FPersonaMeshDetails::ShowSectionGenerateUpToSlider(int32 LodIndex, i
 	{
 		return EVisibility::Collapsed;
 	}
-	return SkeletalMeshPtr->GetImportedModel()->LODModels[LodIndex].Sections[SectionIndex].GenerateUpToLodIndex == -1 ? EVisibility::Collapsed : EVisibility::All;
+	return SkeletalMeshPtr->GetImportedModel()->LODModels[LodIndex].Sections[SectionIndex].GenerateUpToLodIndex == -1 ? EVisibility::Collapsed : EVisibility::Visible;
 }
 
 ECheckBoxState FPersonaMeshDetails::IsGenerateUpToSectionEnabled(int32 LodIndex, int32 SectionIndex) const
@@ -5658,7 +5658,7 @@ EVisibility FPersonaMeshDetails::LodComboBoxVisibilityForLodPicker() const
 	{
 		return EVisibility::Hidden;
 	}
-	return EVisibility::All;
+	return EVisibility::Visible;
 }
 
 bool FPersonaMeshDetails::IsLodComboBoxEnabledForLodPicker() const

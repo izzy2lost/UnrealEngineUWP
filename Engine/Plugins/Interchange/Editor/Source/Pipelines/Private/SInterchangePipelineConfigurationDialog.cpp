@@ -89,7 +89,7 @@ void SInterchangePipelineItem::Construct(
 				.Image(ConflictBrush)
 				.Visibility_Lambda([this]()->EVisibility
 					{
-						return PipelineElement->ConflictInfos.Num() > 0 ? EVisibility::All : EVisibility::Collapsed;
+						return PipelineElement->ConflictInfos.Num() > 0 ? EVisibility::Visible : EVisibility::Collapsed;
 					})
 				.ColorAndOpacity(this, &SInterchangePipelineItem::GetTextColor)
 			]
@@ -372,7 +372,7 @@ TSharedRef<SBox> SInterchangePipelineConfigurationDialog::SpawnPipelineConfigura
 		StackTextComboBox = SNew(SHorizontalBox)
 		.Visibility_Lambda([this]()
 			{
-				return bBasicLayout ? EVisibility::Collapsed : EVisibility::All;
+				return bBasicLayout ? EVisibility::Collapsed : EVisibility::Visible;
 			})
 		+ SHorizontalBox::Slot()
 		.VAlign(VAlign_Center)
@@ -520,7 +520,7 @@ void SInterchangePipelineConfigurationDialog::Construct(const FArguments& InArgs
 					SNew(SButton)
 					.Visibility_Lambda([this]()
 						{
-							return !TranslatorSettings ? EVisibility::Collapsed : EVisibility::All;
+							return !TranslatorSettings ? EVisibility::Collapsed : EVisibility::Visible;
 						})
 					.ToolTipText(LOCTEXT("SInterchangePipelineConfigurationDialog_TranslatorSettings_Tooltip", "Edit translator project settings."))
 					.OnClicked(this, &SInterchangePipelineConfigurationDialog::OnEditTranslatorSettings)
@@ -571,7 +571,7 @@ void SInterchangePipelineConfigurationDialog::Construct(const FArguments& InArgs
 					.ToolTipText(LOCTEXT("SInterchangePipelineConfigurationDialog_FilterPipelineOptions_tooltip", "Filter the pipeline options using the source content data."))
 					.Visibility_Lambda([this]()
 						{
-							return bReimport ? EVisibility::Collapsed : EVisibility::All;
+							return bReimport ? EVisibility::Collapsed : EVisibility::Visible;
 						})
 					+ SHorizontalBox::Slot()
 					.AutoWidth()

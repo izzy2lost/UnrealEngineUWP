@@ -1780,7 +1780,7 @@ FReply SInterchangeGenericAssetSkeletonConflictWidget::SetSectionVisible(EInterc
 
 EVisibility SInterchangeGenericAssetSkeletonConflictWidget::IsSectionVisible(EInterchangeSkeletonCompareSection SectionIndex)
 {
-	return bShowSectionFlag[SectionIndex] ? EVisibility::All : EVisibility::Collapsed;
+	return bShowSectionFlag[SectionIndex] ? EVisibility::Visible : EVisibility::Collapsed;
 }
 
 const FSlateBrush* SInterchangeGenericAssetSkeletonConflictWidget::GetCollapsableArrow(EInterchangeSkeletonCompareSection SectionIndex) const

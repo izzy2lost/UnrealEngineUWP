@@ -139,7 +139,7 @@ FReply SFbxSkeltonConflictWindow::SetSectionVisible(EFBXCompareSection SectionIn
 
 EVisibility SFbxSkeltonConflictWindow::IsSectionVisible(EFBXCompareSection SectionIndex)
 {
-	return bShowSectionFlag[SectionIndex] ? EVisibility::All : EVisibility::Collapsed;
+	return bShowSectionFlag[SectionIndex] ? EVisibility::Visible : EVisibility::Collapsed;
 }
 
 const FSlateBrush* SFbxSkeltonConflictWindow::GetCollapsableArrow(EFBXCompareSection SectionIndex) const
