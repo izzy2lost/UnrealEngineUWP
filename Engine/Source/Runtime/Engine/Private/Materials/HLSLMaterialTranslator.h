@@ -56,6 +56,7 @@
 
 class Error;
 class FAddUniformExpressionScope;
+class FShaderKeyGenerator;
 
 namespace UE::DerivedData
 {
@@ -575,6 +576,7 @@ public:
 	 * Returns a string representation that identify the translator version. Used to keep shader DDC keys valid when material translation internals change.
 	 */
 	static void AppendVersionString(FString& Output, EShaderPlatform Platform);
+	static void AppendVersion(FShaderKeyGenerator& KeyGen, EShaderPlatform Platform);
 
 	FHLSLMaterialTranslator(FMaterial* InMaterial,
 		FMaterialCompilationOutput& InMaterialCompilationOutput,

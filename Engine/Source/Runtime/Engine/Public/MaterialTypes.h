@@ -10,6 +10,7 @@
 #include "Shader/ShaderTypes.h"
 #include "MaterialTypes.generated.h"
 
+class FShaderKeyGenerator;
 class UTexture;
 class UCurveLinearColor;
 class UCurveLinearColorAtlas;
@@ -56,12 +57,8 @@ struct FMaterialParameterInfo
 
 	ENGINE_API explicit FMaterialParameterInfo(const struct FMemoryImageMaterialParameterInfo& Rhs);
 
-	void AppendString(FString& Out) const
-	{
-		Name.AppendString(Out);
-		Out.AppendInt(Association);
-		Out.AppendInt(Index);
-	}
+	ENGINE_API void AppendString(FString& Out) const;
+	ENGINE_API void Append(FShaderKeyGenerator& KeyGen) const;
 	FString ToString() const
 	{
 		FString Out;
@@ -469,11 +466,14 @@ struct FSubstrateCompilationConfig
 	int16 BytesPerPixelOverride = -1;
 	int16 ClosuresPerPixelOverride = -1;
 
+#if WITH_EDITOR
 	FString GetShaderMapKeyString() const;
+	void Append(FShaderKeyGenerator& KeyGen) const;
 
 	void UpdateHash(FSHA1& Hasher) const;
 
 	void Serialize(FArchive& Ar);
+#endif
 
 	friend inline bool operator==(const FSubstrateCompilationConfig& Lhs, const FSubstrateCompilationConfig& Rhs)
 	{
@@ -484,4 +484,12 @@ struct FSubstrateCompilationConfig
 	{
 		return !operator==(Lhs, Rhs);
 	}
+private:
+#if WITH_EDITOR
+	// Hidden friend for the FShaderKeyGenerator Append API
+	friend inline void Append(FShaderKeyGenerator& KeyGen, const FSubstrateCompilationConfig& Value)
+	{
+		Value.Append(KeyGen);
+	}
+#endif
 };

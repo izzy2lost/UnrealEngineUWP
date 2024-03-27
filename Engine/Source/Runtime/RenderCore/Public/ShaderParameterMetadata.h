@@ -29,6 +29,7 @@
 using FThreadSafeSharedStringPtr = TSharedPtr<FString, ESPMode::ThreadSafe>;
 using FThreadSafeSharedAnsiStringPtr = TSharedPtr<TArray<ANSICHAR>, ESPMode::ThreadSafe>;
 using FThreadSafeNameBufferPtr = TSharedPtr<TArray<TCHAR>, ESPMode::ThreadSafe>;
+class FShaderKeyGenerator;
 struct FShaderResourceTableMap;
 
 namespace EShaderPrecisionModifier
@@ -395,13 +396,8 @@ public:
 	}
 
 #if WITH_EDITOR
-	inline void AppendKeyString(FString& OutKeyString) const
-	{
-		TStringBuilder<sizeof(TCHAR) * (sizeof(FBlake3Hash::ByteArray) * 2 + 4)> StrBuilder;
-		StrBuilder << "SPM_";
-		StrBuilder << LayoutSignature;
-		OutKeyString.Append(StrBuilder.ToView());
-	}
+	RENDERCORE_API void AppendKeyString(FString& OutKeyString) const;
+	RENDERCORE_API void Append(FShaderKeyGenerator& KeyGen) const;
 #endif
 
 	inline const FBlake3Hash& GetLayoutSignature() const

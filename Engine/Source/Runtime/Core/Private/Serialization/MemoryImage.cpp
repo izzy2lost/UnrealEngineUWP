@@ -1,6 +1,8 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "Serialization/MemoryImage.h"
+
+#include "Containers/StringView.h"
 #include "Containers/UnrealString.h"
 #include "Misc/SecureHash.h"
 #include "Misc/StringBuilder.h"
@@ -12,6 +14,7 @@
 #include "Misc/ScopeRWLock.h"
 #include "Misc/DataDrivenPlatformInfoRegistry.h"
 #include "Serialization/Archive.h"
+#include "Serialization/ShaderKeyGenerator.h"
 #include "Async/ParallelFor.h"
 
 DEFINE_LOG_CATEGORY_STATIC(LogMemoryImage, Log, All);
@@ -109,7 +112,24 @@ FArchive& FPlatformTypeLayoutParameters::Serialize(FArchive& Ar)
 
 void FPlatformTypeLayoutParameters::AppendKeyString(FString& KeyString) const
 {
-	KeyString += FString::Printf(TEXT("FL_%08x_MFA_%08x_V_" MEMORYIMAGE_DERIVEDDATA_VER_ANSI), Flags, MaxFieldAlignment);
+	FShaderKeyGenerator KeyGen(KeyString);
+	Append(KeyGen);
+}
+
+void FPlatformTypeLayoutParameters::Append(FShaderKeyGenerator& KeyGen) const
+{
+	if (KeyGen.IsBinary())
+	{
+		KeyGen.BinaryAppend(&Flags, sizeof(Flags));
+		KeyGen.BinaryAppend(&MaxFieldAlignment, sizeof(MaxFieldAlignment));
+		FAnsiStringView VersionText(MEMORYIMAGE_DERIVEDDATA_VER_ANSI);
+		KeyGen.BinaryAppend(VersionText.GetData(), VersionText.Len() * sizeof(VersionText[0]));
+	}
+	else
+	{
+		KeyGen.TextGetResultString() +=
+			FString::Printf(TEXT("FL_%08x_MFA_%08x_V_" MEMORYIMAGE_DERIVEDDATA_VER_ANSI), Flags, MaxFieldAlignment);
+	}
 }
 
 // evaluated during static-initialization, so logging from regular check() macros won't work correctly

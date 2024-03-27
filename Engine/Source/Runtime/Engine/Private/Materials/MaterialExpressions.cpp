@@ -296,6 +296,7 @@
 #include "Framework/Notifications/NotificationManager.h"
 #include "Widgets/Notifications/SNotificationList.h"
 #include "MaterialGraph/MaterialGraphSchema.h"
+#include "Serialization/ShaderKeyGenerator.h"
 #include "SubstrateMaterial.h"
 #else
 #include "Materials/MaterialExpressionVertexInterpolator.h"
@@ -16254,20 +16255,25 @@ void FMaterialLayersFunctionsID::UpdateHash(FSHA1& HashState) const
 	HashState.Update((const uint8*)LayerStates.GetData(), LayerStates.Num()*LayerStates.GetTypeSize());
 }
 
-
 void FMaterialLayersFunctionsID::AppendKeyString(FString& KeyString) const
+{
+	FShaderKeyGenerator KeyGen(KeyString);
+	Append(KeyGen);
+}
+
+void FMaterialLayersFunctionsID::Append(FShaderKeyGenerator& KeyGen) const
 {
 	for (const FGuid &Guid : LayerIDs)
 	{
-		KeyString += Guid.ToString();
+		KeyGen.Append(Guid);
 	}
 	for (const FGuid &Guid : BlendIDs)
 	{
-		KeyString += Guid.ToString();
+		KeyGen.Append(Guid);
 	}
 	for (bool State : LayerStates)
 	{
-		KeyString += FString::FromInt(State);
+		KeyGen.AppendBoolInt(State);
 	}
 }
 #endif // WITH_EDITOR
@@ -16351,8 +16357,14 @@ const FMaterialLayersFunctionsID FMaterialLayersFunctionsRuntimeData::GetID(cons
 FString FMaterialLayersFunctions::GetStaticPermutationString() const
 {
 	FString StaticKeyString;
-	GetID().AppendKeyString(StaticKeyString);
+	FShaderKeyGenerator KeyGen(StaticKeyString);
+	AppendStaticPermutationKey(KeyGen);
 	return StaticKeyString;
+}
+
+void FMaterialLayersFunctions::AppendStaticPermutationKey(FShaderKeyGenerator& KeyGen) const
+{
+	GetID().Append(KeyGen);
 }
 
 void FMaterialLayersFunctions::SerializeLegacy(FArchive& Ar)

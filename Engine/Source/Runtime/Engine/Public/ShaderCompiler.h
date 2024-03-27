@@ -36,6 +36,7 @@ class IDistributedBuildController;
 class FMaterialShaderMap;
 class FShaderCompileJob;
 class FShaderCompilerStats;
+class FShaderKeyGenerator;
 class FShaderPipelineCompileJob;
 struct FAnalyticsEventAttribute;
 
@@ -264,6 +265,7 @@ public:
 	static ENGINE_API void GenerateBrdfHeaders(const FName& ShaderFormat);
 	static void ApplyDerivedDefines(FShaderCompilerEnvironment& OutEnvironment, FShaderCompilerEnvironment* SharedEnvironment, const EShaderPlatform Platform);
 	static void AppendGBufferDDCKeyString(const EShaderPlatform Platform, FString& KeyString);
+	static void AppendGBufferDDCKey(const EShaderPlatform Platform, FShaderKeyGenerator& KeyGen);
 	static ENGINE_API void WriteGBufferInfoAutogen(EShaderPlatform TargetPlatform, ERHIFeatureLevel::Type FeatureLevel);
 
 	static void ApplyFetchEnvironment(FShaderMaterialPropertyDefines& DefineData, const FShaderCompilerEnvironment& Environment);
@@ -1277,9 +1279,13 @@ extern ENGINE_API void CompileGlobalShaderMap(EShaderPlatform Platform, bool bRe
 extern ENGINE_API void CompileGlobalShaderMap(EShaderPlatform Platform, const ITargetPlatform* TargetPlatform, bool bRefreshShaderMap);
 extern ENGINE_API void ShutdownGlobalShaderMap();
 
+UE_DEPRECATED(5.5, "Use GetGlobalShaderMapDDCGuid")
 extern ENGINE_API const FString& GetGlobalShaderMapDDCKey();
+extern ENGINE_API const FGuid& GetGlobalShaderMapDDCGuid();
 
+UE_DEPRECATED(5.5, "Use GetMaterialShaderMapDDCGuid")
 extern ENGINE_API const FString& GetMaterialShaderMapDDCKey();
+extern ENGINE_API const FGuid& GetMaterialShaderMapDDCGuid();
 
 extern ENGINE_API bool ShouldDumpShaderDDCKeys();
 UE_DEPRECATED(5.4, "DumpShaderDDCKeyToFile now takes DebugGroupName as parameter (these files now go into the ShaderDebugInfo folder alongside other debug artifacts).")

@@ -40,6 +40,7 @@
 #include "StringTemplate.h"
 #include "ParameterCollection.h"
 #include "RenderUtils.h"
+#include "Serialization/ShaderKeyGenerator.h"
 #include "Stats/StatsMisc.h"
 #include "Stats/StatsTrace.h"
 #include "SubstrateDefinitions.h"
@@ -593,12 +594,18 @@ void FHLSLMaterialTranslator::FSubstrateCompilationContext::Initialise()
 
 void FHLSLMaterialTranslator::AppendVersionString(FString& Output, EShaderPlatform Platform)
 {
+	FShaderKeyGenerator KeyGen(Output);
+	AppendVersion(KeyGen, Platform);
+}
+
+void FHLSLMaterialTranslator::AppendVersion(FShaderKeyGenerator& KeyGen, EShaderPlatform Platform)
+{
 	static const FGuid DDCVersion = FDevSystemGuids::GetSystemGuid(FDevSystemGuids::Get().MaterialTranslationDDCVersion);
-	Output.Append(TEXT("_MatTransl_"));
-	Output.Append(FMaterialSourceTemplate::Get().GetTemplateHashString(Platform));
-	Output.Append(TEXT("_"));
-	DDCVersion.AppendString(Output);
-	Output.Append(TEXT("_"));
+	KeyGen.AppendDebugText(TEXT("_MatTransl_"));
+	KeyGen.Append(FMaterialSourceTemplate::Get().GetTemplateHashString(Platform));
+	KeyGen.AppendSeparator();
+	KeyGen.Append(DDCVersion);
+	KeyGen.AppendSeparator();
 }
 
 FHLSLMaterialTranslator::FHLSLMaterialTranslator(FMaterial* InMaterial,

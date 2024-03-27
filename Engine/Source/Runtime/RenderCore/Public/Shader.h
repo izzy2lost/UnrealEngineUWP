@@ -72,6 +72,7 @@ class FNiagaraShaderType;
 class FOpenColorIOShaderType;
 class FRHIComputeCommandList;
 class FShader;
+class FShaderKeyGenerator;
 class FShaderMapBase;
 class FShaderMapPointerTable;
 class FShaderParametersMetadata;
@@ -2554,3 +2555,4 @@ extern RENDERCORE_API bool IsDxcEnabledForPlatform(EShaderPlatform Platform, boo
 
 /** Appends to KeyString for all shaders. */
 extern RENDERCORE_API void ShaderMapAppendKeyString(EShaderPlatform Platform, FString& KeyString);
+extern RENDERCORE_API void ShaderMapAppendKey(EShaderPlatform Platform, FShaderKeyGenerator& KeyGen);

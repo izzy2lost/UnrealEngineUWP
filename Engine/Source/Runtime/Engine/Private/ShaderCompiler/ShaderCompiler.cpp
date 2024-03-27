@@ -1224,14 +1224,26 @@ namespace GlobalShaderCookStats
 
 const FString& GetGlobalShaderMapDDCKey()
 {
-	static FString GlobalShaderMapDDCKey = FDevSystemGuids::GetSystemGuid(FDevSystemGuids::Get().GLOBALSHADERMAP_DERIVEDDATA_VER).ToString();
+	static FString GlobalShaderMapDDCKey = GetGlobalShaderMapDDCGuid().ToString();
 	return GlobalShaderMapDDCKey;
+}
+
+const FGuid& GetGlobalShaderMapDDCGuid()
+{
+	static FGuid GlobalShaderMapDDCGuid = FDevSystemGuids::GetSystemGuid(FDevSystemGuids::Get().GLOBALSHADERMAP_DERIVEDDATA_VER);
+	return GlobalShaderMapDDCGuid;
 }
 
 const FString& GetMaterialShaderMapDDCKey()
 {
-	static FString MaterialShaderMapDDCKey = FDevSystemGuids::GetSystemGuid(FDevSystemGuids::Get().MATERIALSHADERMAP_DERIVEDDATA_VER).ToString();
+	static FString MaterialShaderMapDDCKey = GetMaterialShaderMapDDCGuid().ToString();
 	return MaterialShaderMapDDCKey;
+}
+
+const FGuid& GetMaterialShaderMapDDCGuid()
+{
+	static FGuid MaterialShaderMapDDCGuid = FDevSystemGuids::GetSystemGuid(FDevSystemGuids::Get().MATERIALSHADERMAP_DERIVEDDATA_VER);
+	return MaterialShaderMapDDCGuid;
 }
 
 bool ShouldDumpShaderDDCKeys()
@@ -9684,7 +9696,7 @@ static FString GetGlobalShaderMapKeyString(const FGlobalShaderMapId& ShaderMapId
 	check(EnvHashString.GetAllocatedSize() == 0);
 	ShaderMapKeyString.Append(EnvHashString.ToView());
 
-	return FString::Printf(TEXT("%s_%s_%s"), TEXT("GSM"), *GetGlobalShaderMapDDCKey(), *ShaderMapKeyString);
+	return FString::Printf(TEXT("%s_%s_%s"), TEXT("GSM"), *GetGlobalShaderMapDDCGuid().ToString(), *ShaderMapKeyString);
 }
 
 /** Creates a string key for the derived data cache entry for the global shader map. */

@@ -13,6 +13,7 @@ enum EMaterialShadingModel : int;
 enum EShaderFrequency : uint8;
 
 class FMaterialCompiler;
+class FShaderKeyGenerator;
 class UMaterial;
 
 struct FMaterialShadingModelField;
@@ -130,6 +131,7 @@ public:
 
 	/** Appends a hash of the property map intended for use with the DDC key */
 	static ENGINE_API void AppendDDCKeyString(FString& String);
+	static ENGINE_API void AppendDDCKey(FShaderKeyGenerator& KeyGen);
 
 	/** Appends a new attribute definition to the custom output list */
 	static ENGINE_API void AddCustomAttribute(const FGuid& AttributeID, const FString& AttributeName, const FString& FunctionName, EMaterialValueType ValueType, const FVector4& DefaultValue, MaterialAttributeBlendFunction BlendFunction = nullptr);

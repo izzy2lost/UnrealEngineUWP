@@ -15,6 +15,7 @@
 #include "Templates/UnrealTemplate.h"
 
 class FHashedName;
+class FShaderKeyGenerator;
 class FSHA1;
 class FMemoryImageWriter;
 class FMemoryUnfreezeContent;
@@ -854,6 +855,14 @@ struct FPlatformTypeLayoutParameters
 	 * even if binary layouts happen to be compatible.
 	 */
 	CORE_API void AppendKeyString(FString& KeyString) const;
+	CORE_API void Append(FShaderKeyGenerator& KeyGen) const;
+
+private:
+	// Hidden friend for FShaderKeyGenerator Append function
+	friend inline void Append(FShaderKeyGenerator& KeyGen, const FPlatformTypeLayoutParameters& Value)
+	{
+		Value.Append(KeyGen);
+	}
 };
 
 #if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_5

@@ -7,6 +7,7 @@
 #include "Materials/Material.h"
 #include "Materials/MaterialExpressionShadingModel.h"
 #include "Materials/MaterialExpressionSubstrate.h"
+#include "Serialization/ShaderKeyGenerator.h"
 #include "SubstrateDefinitions.h"
 
 #define LOCTEXT_NAMESPACE "MaterialShared"
@@ -484,6 +485,12 @@ FString FMaterialAttributeDefinitionMap::GetPinNameFromShadingModelField(FMateri
 
 void FMaterialAttributeDefinitionMap::AppendDDCKeyString(FString& String)
 {
+	FShaderKeyGenerator KeyGen(String);
+	AppendDDCKey(KeyGen);
+}
+
+void FMaterialAttributeDefinitionMap::AppendDDCKey(FShaderKeyGenerator& KeyGen)
+{
 	FString& DDCString = GMaterialPropertyAttributesMap.AttributeDDCString;
 
 	if (DDCString.Len() == 0)
@@ -513,7 +520,7 @@ void FMaterialAttributeDefinitionMap::AppendDDCKeyString(FString& String)
 		// TODO: In debug force re-generate DDC string and compare to catch invalid runtime changes
 	}
 
-	String.Append(DDCString);
+	KeyGen.Append(DDCString);
 }
 
 void FMaterialAttributeDefinitionMap::AddCustomAttribute(const FGuid& AttributeID, const FString& AttributeName, const FString& FunctionName, EMaterialValueType ValueType, const FVector4& DefaultValue, MaterialAttributeBlendFunction BlendFunction /*= nullptr*/)

@@ -1,6 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "MaterialShader.h"
+
 #include "DerivedDataCache.h"
 #include "DerivedDataRequestOwner.h"
 #include "RenderUtils.h"
@@ -24,6 +25,7 @@
 #include "ProfilingDebugging/LoadTimeTracker.h"
 #include "Misc/PathViews.h"
 #include "SceneTexturesConfig.h"
+#include "Serialization/ShaderKeyGenerator.h"
 #include "ShaderCodeLibrary.h"
 #include "UObject/UE5ReleaseStreamObjectVersion.h"
 #include "Materials/Material.h"
@@ -187,24 +189,38 @@ FString GetBlendModeString(EBlendMode BlendMode)
 
 #if WITH_EDITOR
 /** Creates a string key for the derived data cache given a shader map id. */
-FString GetMaterialShaderMapKeyString(const FMaterialShaderMapId& ShaderMapId, const FMaterialShaderParameters& ShaderParameters, EShaderPlatform Platform, bool bIncludeKeyStringShaderDependencies)
+FString GetMaterialShaderMapKeyString(const FMaterialShaderMapId& ShaderMapId,
+	const FMaterialShaderParameters& ShaderParameters, EShaderPlatform Platform,
+	bool bIncludeKeyStringShaderDependencies)
 {
-	TRACE_CPUPROFILER_EVENT_SCOPE(GetMaterialShaderMapKeyString);
-	FName Format = LegacyShaderPlatformToShaderFormat(Platform);
 	FString ShaderMapKeyString;
 	ShaderMapKeyString.Reserve(16384);
+	FShaderKeyGenerator KeyGen(ShaderMapKeyString);
+	GetMaterialShaderMapKey(KeyGen, ShaderMapId, ShaderParameters, Platform,
+		bIncludeKeyStringShaderDependencies);
+	return ShaderMapKeyString;
+}
+
+void GetMaterialShaderMapKey(FShaderKeyGenerator& KeyGen, const FMaterialShaderMapId& ShaderMapId,
+	const FMaterialShaderParameters& ShaderParameters, EShaderPlatform Platform,
+	bool bIncludeKeyStringShaderDependencies)
+{
+	TRACE_CPUPROFILER_EVENT_SCOPE(GetMaterialShaderMapKeyString);
+
+	FName Format = LegacyShaderPlatformToShaderFormat(Platform);
 	
-	ShaderMapKeyString.Append(TEXTVIEW("MATSM_"));
-	ShaderMapKeyString.Append(GetMaterialShaderMapDDCKey());
-	ShaderMapKeyString.AppendChar('_');
+	KeyGen.AppendDebugText(TEXTVIEW("MATSM_"));
+	KeyGen.Append(GetMaterialShaderMapDDCGuid());
+	KeyGen.AppendSeparator();
 
-	Format.AppendString(ShaderMapKeyString);
-	ShaderMapKeyString.AppendChar('_');
-	ShaderMapKeyString.AppendInt(GetTargetPlatformManagerRef().ShaderFormatVersion(Format));
-	ShaderMapKeyString.AppendChar('_');
+	KeyGen.Append(Format);
+	KeyGen.AppendSeparator();
+	KeyGen.Append(GetTargetPlatformManagerRef().ShaderFormatVersion(Format));
+	KeyGen.AppendSeparator();
 
-	ShaderMapAppendKeyString(Platform, ShaderMapKeyString);
-	ShaderMapId.AppendKeyString(ShaderMapKeyString, true, bIncludeKeyStringShaderDependencies);
+	ShaderMapAppendKey(Platform, KeyGen);
+	ShaderMapId.Append(KeyGen, true, bIncludeKeyStringShaderDependencies);
+
 
 	FMemoryHasherBlake3 EnvHasher;
 
@@ -240,18 +256,13 @@ FString GetMaterialShaderMapKeyString(const FMaterialShaderMapId& ShaderMapId, c
 			}
 		}
 	}
-	// * 2 for hex representation of hash; + 6 for tag/underscores
-	TStringBuilder<sizeof(TCHAR) * (sizeof(FBlake3Hash::ByteArray) * 2 + 6)> EnvHashString;
-	EnvHashString << "_EMH_" << EnvHasher.Finalize() << '_';
-	check(EnvHashString.GetAllocatedSize() == 0);
-	ShaderMapKeyString.Append(EnvHashString.ToView());
+	KeyGen.AppendDebugText(TEXTVIEW("_EMH_"));
+	KeyGen.Append(EnvHasher.Finalize());
+	KeyGen.AppendSeparator();
 
-	FMaterialAttributeDefinitionMap::AppendDDCKeyString(ShaderMapKeyString);
-	FShaderCompileUtilities::AppendGBufferDDCKeyString(Platform, ShaderMapKeyString);
-
-	FHLSLMaterialTranslator::AppendVersionString(ShaderMapKeyString, Platform);
-
-	return ShaderMapKeyString;
+	FMaterialAttributeDefinitionMap::AppendDDCKey(KeyGen);
+	FShaderCompileUtilities::AppendGBufferDDCKey(Platform, KeyGen);
+	FHLSLMaterialTranslator::AppendVersion(KeyGen, Platform);
 }
 
 static UE::DerivedData::FCacheKey GetMaterialShaderMapKey(const FStringView MaterialShaderMapKey)
@@ -309,6 +320,59 @@ void UpdateMaterialShaderCompilingStats(const FMaterial* Material)
 	{
 		INC_DWORD_STAT_BY(STAT_ShaderCompiling_NumSkinnedMaterialShaders,1);
 	}
+}
+
+void FStaticParameterBase::AppendKeyString(FString& KeyString) const
+{
+	FShaderKeyGenerator KeyGen(KeyString);
+	Append(KeyGen);
+}
+
+void FStaticParameterBase::Append(FShaderKeyGenerator& KeyGen) const
+{
+	ParameterInfo.Append(KeyGen);
+	KeyGen.AppendBoolInt(bOverride);
+	KeyGen.Append(ExpressionGUID);
+}
+
+void FStaticSwitchParameter::AppendKeyString(FString& KeyString) const
+{
+	FShaderKeyGenerator KeyGen(KeyString);
+	Append(KeyGen);
+}
+
+void FStaticSwitchParameter::Append(FShaderKeyGenerator& KeyGen) const
+{
+	FStaticParameterBase::Append(KeyGen);
+	KeyGen.Append(Value);
+}
+
+void FStaticComponentMaskParameter::AppendKeyString(FString& KeyString) const
+{
+	FShaderKeyGenerator KeyGen(KeyString);
+	Append(KeyGen);
+}
+
+void FStaticComponentMaskParameter::Append(FShaderKeyGenerator& KeyGen) const
+{
+	FStaticParameterBase::Append(KeyGen);
+	KeyGen.AppendBoolInt(R);
+	KeyGen.AppendBoolInt(G);
+	KeyGen.AppendBoolInt(B);
+	KeyGen.AppendBoolInt(A);
+}
+
+void FStaticTerrainLayerWeightParameter::AppendKeyString(FString& KeyString) const
+{
+	FShaderKeyGenerator KeyGen(KeyString);
+	Append(KeyGen);
+}
+
+void FStaticTerrainLayerWeightParameter::Append(FShaderKeyGenerator& KeyGen) const
+{
+	KeyGen.Append(LayerName);
+	KeyGen.Append(WeightmapIndex);
+	KeyGen.AppendBoolInt(bWeightBasedBlend);
 }
 
 FStaticParameterSet::FStaticParameterSet(const FStaticParameterSet& InValue) = default;
@@ -622,10 +686,27 @@ void FStaticParameterSet::SetStaticComponentMaskParameterValue(const FMaterialPa
 FString FSubstrateCompilationConfig::GetShaderMapKeyString() const
 {
 	FString SubStrateCompStr;
-	if (bFullSimplify)					SubStrateCompStr += TEXT("_SBSTRFS");
-	if (BytesPerPixelOverride >= 0)		SubStrateCompStr += TEXT("_SBSTRBS");
-	if (ClosuresPerPixelOverride >= 0)	SubStrateCompStr += TEXT("_SBSTRCS");
+	FShaderKeyGenerator KeyGen(SubStrateCompStr);
+	Append(KeyGen);
 	return SubStrateCompStr;
+}
+void FSubstrateCompilationConfig::Append(FShaderKeyGenerator& KeyGen) const
+{
+	if (bFullSimplify)
+	{
+		KeyGen.AppendSeparator();
+		KeyGen.Append(TEXT("SBSTRFS"));
+	}
+	if (BytesPerPixelOverride >= 0)
+	{
+		KeyGen.AppendSeparator();
+		KeyGen.Append(TEXT("SBSTRBS"));
+	}
+	if (ClosuresPerPixelOverride >= 0)
+	{
+		KeyGen.AppendSeparator();
+		KeyGen.Append(TEXT("SBSTRCS"));
+	}
 }
 
 void FSubstrateCompilationConfig::UpdateHash(FSHA1& Hasher) const
@@ -1116,115 +1197,120 @@ uint32 GetTypeHash(FPlatformTypeLayoutParameters Params) { return HashCombine(Pa
 
 void FMaterialShaderMapId::AppendStaticParametersString(FString& ParamsString) const
 {
+	FShaderKeyGenerator KeyGen(ParamsString);
+	AppendStaticParameters(KeyGen);
+}
+
+void FMaterialShaderMapId::AppendStaticParameters(FShaderKeyGenerator& KeyGen) const
+{
 	for (const FStaticSwitchParameter& StaticSwitchParameter : StaticSwitchParameters)
 	{
-		StaticSwitchParameter.AppendKeyString(ParamsString);
+		StaticSwitchParameter.Append(KeyGen);
 	}
 	for (const FStaticComponentMaskParameter& StaticComponentMaskParameter : StaticComponentMaskParameters)
 	{
-		StaticComponentMaskParameter.AppendKeyString(ParamsString);
+		StaticComponentMaskParameter.Append(KeyGen);
 	}
 	for (const FStaticTerrainLayerWeightParameter& StaticTerrainLayerWeightParameter : TerrainLayerWeightParameters)
 	{
-		StaticTerrainLayerWeightParameter.AppendKeyString(ParamsString);
+		StaticTerrainLayerWeightParameter.Append(KeyGen);
 	}
 }
 
 void FMaterialShaderMapId::AppendKeyString(FString& KeyString, bool bIncludeSourceAndMaterialState, bool bIncludeKeyStringShaderDependencies) const
 {
+	FShaderKeyGenerator KeyGen(KeyString);
+	Append(KeyGen, bIncludeSourceAndMaterialState, bIncludeKeyStringShaderDependencies);
+}
+
+void FMaterialShaderMapId::Append(FShaderKeyGenerator& KeyGen, bool bIncludeSourceAndMaterialState, bool bIncludeKeyStringShaderDependencies) const
+{
 	check(IsContentValid());
 	if (bIncludeSourceAndMaterialState)
 	{
-		BaseMaterialId.AppendString(KeyString);
-		KeyString.AppendChar('_');
+		KeyGen.Append(BaseMaterialId);
+		KeyGen.AppendSeparator();
 	}
 
-	GetMaterialQualityLevelFName(QualityLevel).AppendString(KeyString);
-	KeyString.AppendChar('_');
+	KeyGen.Append(GetMaterialQualityLevelFName(QualityLevel));
+	KeyGen.AppendSeparator();
 
 	FName FeatureLevelName;
 	GetFeatureLevelName(FeatureLevel, FeatureLevelName);
-	FeatureLevelName.AppendString(KeyString);
-	KeyString.AppendChar('_');
+	KeyGen.Append(FeatureLevelName);
+	KeyGen.AppendSeparator();
 
-	LayoutParams.AppendKeyString(KeyString);
+	LayoutParams.Append(KeyGen);
 
-	AppendStaticParametersString(KeyString);
+	AppendStaticParameters(KeyGen);
 
 	if (MaterialLayersId)
 	{
-		MaterialLayersId->AppendKeyString(KeyString);
+		MaterialLayersId->Append(KeyGen);
 	}
 
-	KeyString.AppendChar('_');
-	KeyString.AppendInt(Usage);
-	KeyString.AppendChar('_');
+	KeyGen.AppendSeparator();
+	KeyGen.Append(static_cast<int32>(Usage));
+	KeyGen.AppendSeparator();
 
 	if (Usage == EMaterialShaderMapUsage::MaterialExportCustomOutput)
 	{
-		KeyString += UsageCustomOutput;
-		KeyString.AppendChar('_');
+		KeyGen.Append(UsageCustomOutput);
+		KeyGen.AppendSeparator();
 	}
 
 	if (bIncludeSourceAndMaterialState)
 	{
-		// Add any referenced functions to the key so that we will recompile when they are changed
-		for (int32 FunctionIndex = 0; FunctionIndex < ReferencedFunctions.Num(); FunctionIndex++)
-		{
-			ReferencedFunctions[FunctionIndex].AppendString(KeyString);
-		}
+		::Append(KeyGen, ReferencedFunctions);
 	}
 
 	{
 		const FSHAHash LayoutHash = GetShaderTypeLayoutHash(StaticGetTypeLayoutDesc<FMaterialShaderMapContent>(), LayoutParams);
-		KeyString.AppendChar('_');
-		LayoutHash.AppendString(KeyString);
-		KeyString.AppendChar('_');
+		KeyGen.AppendSeparator();
+		KeyGen.Append(LayoutHash);
+		KeyGen.AppendSeparator();
 	}
 
-	KeyString.AppendChar('_');
+	KeyGen.AppendSeparator();
 
 	if (bIncludeSourceAndMaterialState)
 	{
-		for (int32 CollectionIndex = 0; CollectionIndex < ReferencedParameterCollections.Num(); CollectionIndex++)
-		{
-			ReferencedParameterCollections[CollectionIndex].AppendString(KeyString);
-		}
+		::Append(KeyGen, ReferencedParameterCollections);
 	}
 
 	// Add the inputs for any shaders that are stored inline in the shader map
 	if (bIncludeKeyStringShaderDependencies)
 	{
-		AppendKeyStringShaderDependencies(
+		AppendShaderDependencies(
+			KeyGen,
 			MakeArrayView(ShaderTypeDependencies),
 			MakeArrayView(ShaderPipelineTypeDependencies),
 			MakeArrayView(VertexFactoryTypeDependencies),
 			LayoutParams,
-			KeyString,
 			bIncludeSourceAndMaterialState);
 	}
 
-	BytesToHex(&TextureReferencesHash.Hash[0], sizeof(TextureReferencesHash.Hash), KeyString);
+	KeyGen.Append(TextureReferencesHash);
 
-	BytesToHex(&ExpressionIncludesHash.Hash[0], sizeof(ExpressionIncludesHash.Hash), KeyString);
+	KeyGen.Append(ExpressionIncludesHash);
 
-	BytesToHex(&BasePropertyOverridesHash.Hash[0], sizeof(BasePropertyOverridesHash.Hash), KeyString);
+	KeyGen.Append(BasePropertyOverridesHash);
 
 	if (bUsingNewHLSLGenerator)
 	{
-		KeyString += FString::Printf(TEXT("_NewHLSL%d"), FMaterialHLSLGenerator::Version);
+		KeyGen.AppendDebugText(TEXT("_NewHLSL"));
+		KeyGen.Append(FMaterialHLSLGenerator::Version);
 	}
 
-	KeyString += SubstrateCompilationConfig.GetShaderMapKeyString();
+	SubstrateCompilationConfig.Append(KeyGen);
 }
 
 void FMaterialShaderMapId::SetShaderDependencies(const TArray<FShaderType*>& ShaderTypes, const TArray<const FShaderPipelineType*>& ShaderPipelineTypes, const TArray<FVertexFactoryType*>& VFTypes, EShaderPlatform ShaderPlatform)
 {
 	if (!FPlatformProperties::RequiresCookedData() && AllowShaderCompiling())
 	{
-		for (int32 ShaderTypeIndex = 0; ShaderTypeIndex < ShaderTypes.Num(); ShaderTypeIndex++)
+		for (const FShaderType* ShaderType : ShaderTypes)
 		{
-			FShaderType* ShaderType = ShaderTypes[ShaderTypeIndex];
 			FShaderTypeDependency Dependency;
 			Dependency.ShaderTypeName = ShaderType->GetHashedName();
 			Dependency.SourceHash = ShaderType->GetSourceHash(ShaderPlatform);
@@ -1235,17 +1321,16 @@ void FMaterialShaderMapId::SetShaderDependencies(const TArray<FShaderType*>& Sha
 			}
 		}
 
-		for (int32 VFTypeIndex = 0; VFTypeIndex < VFTypes.Num(); VFTypeIndex++)
+		for (const FVertexFactoryType* VFType : VFTypes)
 		{
 			FVertexFactoryTypeDependency Dependency;
-			Dependency.VertexFactoryTypeName = VFTypes[VFTypeIndex]->GetHashedName();
-			Dependency.VFSourceHash = VFTypes[VFTypeIndex]->GetSourceHash(ShaderPlatform);
+			Dependency.VertexFactoryTypeName = VFType->GetHashedName();
+			Dependency.VFSourceHash = VFType->GetSourceHash(ShaderPlatform);
 			VertexFactoryTypeDependencies.Add(Dependency);
 		}
 
-		for (int32 TypeIndex = 0; TypeIndex < ShaderPipelineTypes.Num(); TypeIndex++)
+		for (const FShaderPipelineType* Pipeline : ShaderPipelineTypes)
 		{
-			const FShaderPipelineType* Pipeline = ShaderPipelineTypes[TypeIndex];
 			FShaderPipelineTypeDependency Dependency;
 			Dependency.ShaderPipelineTypeName = Pipeline->GetHashedName();
 			Dependency.StagesSourceHash = Pipeline->GetSourceHash(ShaderPlatform);

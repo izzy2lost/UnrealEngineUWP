@@ -29,6 +29,7 @@ class FMaterialShaderMap;
 class FMaterialShaderMapId;
 class FShaderCommonCompileJob;
 class FShaderCompileJob;
+class FShaderKeyGenerator;
 class FUniformExpressionSet;
 class FVertexFactoryType;
 struct FMaterialShaderParameters;
@@ -51,6 +52,7 @@ extern ENGINE_API FString GetShadingModelFieldString(FMaterialShadingModelField 
 /** Converts an EBlendMode to a string description. */
 extern ENGINE_API FString GetBlendModeString(EBlendMode BlendMode);
 
+#if WITH_EDITOR
 /** Creates a string key for the derived data cache given a shader map id. */
 UE_DEPRECATED(5.5, "GetMaterialShaderMapKeyString now requires passing an FMaterialShaderParameters instance as input.")
 inline FString GetMaterialShaderMapKeyString(const FMaterialShaderMapId& ShaderMapId, EShaderPlatform Platform, bool bIncludeKeyStringShaderDependencies = true)
@@ -63,6 +65,13 @@ extern ENGINE_API FString GetMaterialShaderMapKeyString(
 	const FMaterialShaderParameters& ShaderParameters,
 	EShaderPlatform Platform,
 	bool bIncludeKeyStringShaderDependencies = true);
+extern ENGINE_API void GetMaterialShaderMapKey(
+	FShaderKeyGenerator& KeyGen,
+	const FMaterialShaderMapId& ShaderMapId,
+	const FMaterialShaderParameters& ShaderParameters,
+	EShaderPlatform Platform,
+	bool bIncludeKeyStringShaderDependencies = true);
+#endif
 
 /** Called for every material shader to update the appropriate stats. */
 extern void UpdateMaterialShaderCompilingStats(const FMaterial* Material);

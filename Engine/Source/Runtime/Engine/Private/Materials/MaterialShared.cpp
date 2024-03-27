@@ -31,6 +31,7 @@
 #include "Engine/Texture2D.h"
 #include "Engine/Font.h"
 #include "SceneView.h"
+#include "Serialization/ShaderKeyGenerator.h"
 #include "PSOPrecacheMaterial.h"
 #include "ShaderPlatformQualitySettings.h"
 #include "MaterialShaderQualitySettings.h"
@@ -5380,6 +5381,19 @@ static bool RemapParameterLayerIndex(TArrayView<const int32> IndexRemap, const T
 		break;
 	}
 	return false;
+}
+
+void FMaterialParameterInfo::AppendString(FString& Out) const
+{
+	FShaderKeyGenerator KeyGen(Out);
+	Append(KeyGen);
+}
+
+void FMaterialParameterInfo::Append(FShaderKeyGenerator& KeyGen) const
+{
+	KeyGen.Append(Name);
+	KeyGen.Append(Association);
+	KeyGen.Append(Index);
 }
 
 bool FMaterialParameterInfo::RemapLayerIndex(TArrayView<const int32> IndexRemap, FMaterialParameterInfo& OutResult) const

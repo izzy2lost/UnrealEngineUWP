@@ -67,6 +67,7 @@ class FUniformExpressionSet;
 class FMeshMaterialShaderType;
 class FSceneView;
 class FShaderCommonCompileJob;
+class FShaderKeyGenerator;
 enum class EShaderCompileJobPriority : uint8;
 class FVirtualTexture2DResource;
 class IAllocatedVirtualTexture;
@@ -1167,7 +1168,11 @@ public:
 	void UpdateFromParameterSet(const FStaticParameterSet& StaticParameters);
 
 	/** Appends string representations of this Id to a key string. */
-	void AppendKeyString(FString& KeyString, bool bIncludeSourceAndMaterialState = true, bool bIncludeKeyStringShaderDependencies = true) const;
+	void AppendKeyString(FString& KeyString, bool bIncludeSourceAndMaterialState = true,
+		bool bIncludeKeyStringShaderDependencies = true) const;
+	void Append(FShaderKeyGenerator& KeyGen, bool bIncludeSourceAndMaterialState = true,
+		bool bIncludeKeyStringShaderDependencies = true) const;
+	UE_DEPRECATED(5.5, "Internal function only, called through AppendKeyString.")
 	void AppendStaticParametersString(FString& ParamsString) const;
 
 	const TArray<FStaticSwitchParameter> &GetStaticSwitchParameters() const 					{ return StaticSwitchParameters; }
@@ -1184,6 +1189,11 @@ public:
 	/** Returns true if the requested vertex factory type is a dependency of this shader map Id. */
 	bool ContainsVertexFactoryType(const FVertexFactoryType* VFType) const;
 #endif // WITH_EDITOR
+
+private:
+#if WITH_EDITOR
+	void AppendStaticParameters(FShaderKeyGenerator& KeyGen) const;
+#endif
 };
 
 /**

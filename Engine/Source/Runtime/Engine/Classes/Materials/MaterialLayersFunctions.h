@@ -14,6 +14,7 @@
 #define LOCTEXT_NAMESPACE "MaterialLayersFunctions"
 
 class FArchive;
+class FShaderKeyGenerator;
 struct FMaterialLayersFunctions;
 
 UENUM()
@@ -48,6 +49,7 @@ struct FMaterialLayersFunctionsID
 
 	//TODO: Investigate whether this is really required given it is only used by FMaterialShaderMapId AND that one also uses UpdateHash
 	void AppendKeyString(FString& KeyString) const;
+	void Append(FShaderKeyGenerator& KeyGen) const;
 	#endif
 };
 
@@ -272,6 +274,7 @@ struct FMaterialLayersFunctions : public FMaterialLayersFunctionsRuntimeData
 
 	/** Gets a string representation of the ID */
 	ENGINE_API FString GetStaticPermutationString() const;
+	ENGINE_API void AppendStaticPermutationKey(FShaderKeyGenerator& KeyGen) const;
 
 	ENGINE_API void UnlinkLayerFromParent(int32 Index);
 	ENGINE_API bool IsLayerLinkedToParent(int32 Index) const;

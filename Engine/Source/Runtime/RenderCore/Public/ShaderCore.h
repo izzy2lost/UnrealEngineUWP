@@ -50,6 +50,7 @@ class FMemoryUnfreezeContent;
 class FPointerTableBase;
 class FShaderCompilerDefinitions;
 class FShaderCompileUtilities;
+class FShaderKeyGenerator;
 class FShaderPreprocessorUtilities;
 class FSHA1;
 class ITargetPlatform;
@@ -1258,6 +1259,13 @@ extern RENDERCORE_API void AppendKeyStringShaderDependencies(
 	TConstArrayView<FVertexFactoryTypeDependency> VertexFactoryTypeDependencies,
 	FPlatformTypeLayoutParameters LayoutParams,
 	FString& OutKeyString,
+	bool bIncludeSourceHashes = true);
+extern RENDERCORE_API void AppendShaderDependencies(
+	FShaderKeyGenerator& KeyGen,
+	TConstArrayView<FShaderTypeDependency> ShaderTypeDependencies,
+	TConstArrayView<FShaderPipelineTypeDependency> ShaderPipelineTypeDependencies,
+	TConstArrayView<FVertexFactoryTypeDependency> VertexFactoryTypeDependencies,
+	FPlatformTypeLayoutParameters LayoutParams,
 	bool bIncludeSourceHashes = true);
 #endif // WITH_EDITOR
 

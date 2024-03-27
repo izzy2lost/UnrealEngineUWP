@@ -14,6 +14,7 @@
 #include "Materials/MaterialLayersFunctions.h"
 #include "StaticParameterSet.generated.h"
 
+class FShaderKeyGenerator;
 class FSHA1;
 struct FStaticParameterSet;
 
@@ -76,12 +77,8 @@ struct FStaticParameterBase
 		HashState.Update((const uint8*)&Override, sizeof(Override));
 	}
 
-	void AppendKeyString(FString& KeyString) const
-	{
-		ParameterInfo.AppendString(KeyString);
-		KeyString.AppendInt(bOverride);
-		ExpressionGUID.AppendString(KeyString);
-	}
+	ENGINE_API void AppendKeyString(FString& KeyString) const;
+	ENGINE_API void Append(FShaderKeyGenerator& KeyGen) const;
 };
 
 
@@ -133,11 +130,8 @@ struct FStaticSwitchParameter : public FStaticParameterBase
 		HashState.Update((const uint8*)&HashValue, sizeof(HashValue));
 	}
 
-	void AppendKeyString(FString& KeyString) const
-	{
-		FStaticParameterBase::AppendKeyString(KeyString);
-		KeyString.AppendInt(Value);
-	}
+	ENGINE_API void AppendKeyString(FString& KeyString) const;
+	ENGINE_API void Append(FShaderKeyGenerator& KeyGen) const;
 
 	void GetValue(FMaterialParameterMetadata& OutResult) const
 	{
@@ -217,14 +211,8 @@ struct FStaticComponentMaskParameter : public FStaticParameterBase
 		HashState.Update((const uint8*)&Values, sizeof(Values));
 	}
 
-	void AppendKeyString(FString& KeyString) const
-	{
-		FStaticParameterBase::AppendKeyString(KeyString);
-		KeyString += FString::FromInt(R);
-		KeyString += FString::FromInt(G);
-		KeyString += FString::FromInt(B);
-		KeyString += FString::FromInt(A);
-	}
+	ENGINE_API void AppendKeyString(FString& KeyString) const;
+	ENGINE_API void Append(FShaderKeyGenerator& KeyGen) const;
 
 	void GetValue(FMaterialParameterMetadata& OutResult) const
 	{
@@ -338,13 +326,8 @@ struct FStaticTerrainLayerWeightParameter
 		Values[1] = bWeightBasedBlend;
 		HashState.Update((const uint8*)&Values, sizeof(Values));
 	}
-
-	void AppendKeyString(FString& KeyString) const
-	{
-		KeyString += LayerName.ToString();
-		KeyString += FString::FromInt(WeightmapIndex);
-		KeyString += FString::FromInt(bWeightBasedBlend);
-	}
+	ENGINE_API void AppendKeyString(FString& KeyString) const;
+	ENGINE_API void Append(FShaderKeyGenerator& KeyGen) const;
 };
 
 struct UE_DEPRECATED(5.0, "Material layers are no longer material parameters, use FStaticParameterSet::MaterialLayers") FStaticMaterialLayersParameter;

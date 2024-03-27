@@ -14,6 +14,7 @@
 #include "Misc/FileHelper.h"
 #include "RenderUtils.h"
 #include "SceneManagement.h"
+#include "Serialization/ShaderKeyGenerator.h"
 #include "ShaderCompilerDefinitions.h"
 #include "ShaderMaterial.h"
 
@@ -2039,12 +2040,23 @@ void FShaderCompileUtilities::ApplyDerivedDefines(FShaderCompilerEnvironment& Ou
 
 void FShaderCompileUtilities::AppendGBufferDDCKeyString(const EShaderPlatform Platform, FString& KeyString)
 {
+	FShaderKeyGenerator KeyGen(KeyString);
+	AppendGBufferDDCKey(Platform, KeyGen);
+}
+
+void FShaderCompileUtilities::AppendGBufferDDCKey(const EShaderPlatform Platform, FShaderKeyGenerator& KeyGen)
+{
 	for (uint32 Layout = 0; Layout < GBL_Num; ++Layout)
 	{
 		FShaderGlobalDefines GlobalDefines = FetchShaderGlobalDefines(Platform, (EGBufferLayout)Layout);
-		KeyString.Appendf(TEXT("_%d%d%d"),GlobalDefines.GBUFFER_HAS_VELOCITY, GlobalDefines.GBUFFER_HAS_TANGENT, GlobalDefines.ALLOW_STATIC_LIGHTING);
+		KeyGen.AppendSeparator();
+		KeyGen.AppendBoolInt(GlobalDefines.GBUFFER_HAS_VELOCITY);
+		KeyGen.AppendBoolInt(GlobalDefines.GBUFFER_HAS_TANGENT);
+		KeyGen.AppendBoolInt(GlobalDefines.ALLOW_STATIC_LIGHTING);
 	}
-	KeyString.Appendf(TEXT("_%d;\n"), GBufferGeneratorVersion);
+	KeyGen.AppendSeparator();
+	KeyGen.Append(GBufferGeneratorVersion);
+	KeyGen.AppendDebugText(TEXTVIEW(";\n"));
 }
 
 static FGBufferInfo GLastGBufferInfo[SP_NumPlatforms] = {};

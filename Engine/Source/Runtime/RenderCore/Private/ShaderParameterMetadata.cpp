@@ -12,6 +12,7 @@
 #include "RenderCore.h"
 #include "RHIUniformBufferLayoutInitializer.h"
 #include "Serialization/MemoryHasher.h"
+#include "Serialization/ShaderKeyGenerator.h"
 #include "ShaderCore.h"
 #include "ShaderCompilerCore.h"
 #include "ShaderParameters.h"
@@ -459,6 +460,18 @@ void FShaderParametersMetadata::InitializeAllUniformBufferStructs()
 }
 
 #if WITH_EDITOR
+
+void FShaderParametersMetadata::AppendKeyString(FString& OutKeyString) const
+{
+	FShaderKeyGenerator KeyGen(OutKeyString);
+	Append(KeyGen);
+}
+
+void FShaderParametersMetadata::Append(FShaderKeyGenerator& KeyGen) const
+{
+	KeyGen.AppendDebugText(TEXT("SPM_"));
+	KeyGen.Append(LayoutSignature);
+}
 
 void FShaderParametersMetadata::FMember::HashLayout(FMemoryHasherBlake3& Hasher)
 {

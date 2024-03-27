@@ -30,6 +30,7 @@
 #include "RHIShaderFormatDefinitions.inl"
 #include "Serialization/MemoryHasher.h"
 #include "Serialization/MemoryWriter.h"
+#include "Serialization/ShaderKeyGenerator.h"
 #include "Shader.h"
 #include "ShaderCompilerCore.h"
 #include "ShaderCompilerDefinitions.h"
@@ -3367,6 +3368,19 @@ void AppendKeyStringShaderDependencies(
 	FString& OutKeyString,
 	bool bIncludeSourceHashes)
 {
+	FShaderKeyGenerator KeyGen(OutKeyString);
+	AppendShaderDependencies(KeyGen, ShaderTypeDependencies, ShaderPipelineTypeDependencies,
+		VertexFactoryTypeDependencies, LayoutParams, bIncludeSourceHashes);
+}
+
+void AppendShaderDependencies(
+	FShaderKeyGenerator& KeyGen,
+	TConstArrayView<FShaderTypeDependency> ShaderTypeDependencies,
+	TConstArrayView<FShaderPipelineTypeDependency> ShaderPipelineTypeDependencies,
+	TConstArrayView<FVertexFactoryTypeDependency> VertexFactoryTypeDependencies,
+	FPlatformTypeLayoutParameters LayoutParams,
+	bool bIncludeSourceHashes)
+{
 	FMemMark MemMark(FMemStack::Get());
 	using FMemStackSetAllocator = TSetAllocator<TSparseArrayAllocator<TMemStackAllocator<>, TMemStackAllocator<>>, TMemStackAllocator<>>;
 	TSet<const FShaderParametersMetadata*, DefaultKeyFuncs<const FShaderParametersMetadata*>, FMemStackSetAllocator> ReferencedUniformBuffers;
@@ -3375,30 +3389,31 @@ void AppendKeyStringShaderDependencies(
 	for (const FShaderTypeDependency& ShaderTypeDependency : ShaderTypeDependencies)
 	{
 		const FShaderType* ShaderType = FindShaderTypeByName(ShaderTypeDependency.ShaderTypeName);
-		checkf(ShaderType != nullptr, TEXT("Failed to find FShaderType for dependency %hs (total in the NameToTypeMap: %d)"), ShaderTypeDependency.ShaderTypeName.GetDebugString().String.Get(), FShaderType::GetNameToTypeMap().Num());
+		checkf(ShaderType != nullptr,
+			TEXT("Failed to find FShaderType for dependency %hs (total in the NameToTypeMap: %d)"),
+			ShaderTypeDependency.ShaderTypeName.GetDebugString().String.Get(), FShaderType::GetNameToTypeMap().Num());
 
-		OutKeyString.AppendChar('_');
-		OutKeyString.Append(ShaderType->GetName());
-		OutKeyString.AppendInt(ShaderTypeDependency.PermutationId);
-		OutKeyString.AppendChar('_');
+		KeyGen.AppendSeparator();
+		KeyGen.Append(ShaderType->GetName());
+		KeyGen.Append(ShaderTypeDependency.PermutationId);
+		KeyGen.AppendSeparator();
 		ERayTracingPayloadType RayTracingPayloadType = ShaderType->GetRayTracingPayloadType(ShaderTypeDependency.PermutationId);
-		OutKeyString.AppendInt(static_cast<uint32>(RayTracingPayloadType));
-		OutKeyString.AppendChar('_');
-		OutKeyString.AppendInt(GetRayTracingPayloadTypeMaxSize(RayTracingPayloadType));
+		KeyGen.Append(static_cast<uint32>(RayTracingPayloadType));
+		KeyGen.AppendSeparator();
+		KeyGen.Append(GetRayTracingPayloadTypeMaxSize(RayTracingPayloadType));
 
 		if (bIncludeSourceHashes)
 		{
 			// Add the type's source hash so that we can invalidate cached shaders when .usf changes are made
-			ShaderTypeDependency.SourceHash.AppendString(OutKeyString);
+			KeyGen.Append(ShaderTypeDependency.SourceHash);
 		}
 
 		if (const FShaderParametersMetadata* ParameterStructMetadata = ShaderType->GetRootParametersMetadata())
 		{
-			ParameterStructMetadata->AppendKeyString(OutKeyString);
+			ParameterStructMetadata->Append(KeyGen);
 		}
 
-		const FSHAHash LayoutHash = GetShaderTypeLayoutHash(ShaderType->GetLayout(), LayoutParams);
-		LayoutHash.AppendString(OutKeyString);
+		KeyGen.Append(GetShaderTypeLayoutHash(ShaderType->GetLayout(), LayoutParams));
 
 		for (const FShaderParametersMetadata* UniformBuffer : ShaderType->GetReferencedUniformBuffers())
 		{
@@ -3410,21 +3425,23 @@ void AppendKeyStringShaderDependencies(
 	for (const FShaderPipelineTypeDependency& Dependency : ShaderPipelineTypeDependencies)
 	{
 		const FShaderPipelineType* ShaderPipelineType = FShaderPipelineType::GetShaderPipelineTypeByName(Dependency.ShaderPipelineTypeName);
-		checkf(ShaderPipelineType != nullptr, TEXT("Failed to find FShaderPipelineType for dependency %hs (total in the NameToTypeMap: %d)"), Dependency.ShaderPipelineTypeName.GetDebugString().String.Get(), FShaderType::GetNameToTypeMap().Num());
+		checkf(ShaderPipelineType != nullptr,
+			TEXT("Failed to find FShaderPipelineType for dependency %hs (total in the NameToTypeMap: %d)"),
+			Dependency.ShaderPipelineTypeName.GetDebugString().String.Get(), FShaderType::GetNameToTypeMap().Num());
 
-		OutKeyString.AppendChar('_');
-		OutKeyString.Append(ShaderPipelineType->GetName());
+		KeyGen.AppendSeparator();
+		KeyGen.Append(ShaderPipelineType->GetName());
 
 		if (bIncludeSourceHashes)
 		{
-			Dependency.StagesSourceHash.AppendString(OutKeyString);
+			KeyGen.Append(Dependency.StagesSourceHash);
 		}
 
 		for (const FShaderType* ShaderType : ShaderPipelineType->GetStages())
 		{
 			if (const FShaderParametersMetadata* ParameterStructMetadata = ShaderType->GetRootParametersMetadata())
 			{
-				ParameterStructMetadata->AppendKeyString(OutKeyString);
+				ParameterStructMetadata->Append(KeyGen);
 			}
 
 			for (const FShaderParametersMetadata* UniformBuffer : ShaderType->GetReferencedUniformBuffers())
@@ -3436,15 +3453,15 @@ void AppendKeyStringShaderDependencies(
 
 	for (const FVertexFactoryTypeDependency& VFDependency : VertexFactoryTypeDependencies)
 	{
-		OutKeyString.AppendChar('_');
+		KeyGen.AppendSeparator();
 
 		const FVertexFactoryType* VertexFactoryType = FVertexFactoryType::GetVFByName(VFDependency.VertexFactoryTypeName);
 
-		OutKeyString.Append(VertexFactoryType->GetName());
+		KeyGen.Append(VertexFactoryType->GetName());
 
 		if (bIncludeSourceHashes)
 		{
-			VFDependency.VFSourceHash.AppendString(OutKeyString);
+			KeyGen.Append(VFDependency.VFSourceHash);
 		}
 
 		for (int32 Frequency = 0; Frequency < SF_NumFrequencies; Frequency++)
@@ -3453,7 +3470,7 @@ void AppendKeyStringShaderDependencies(
 			if (ParameterLayout)
 			{
 				const FSHAHash LayoutHash = GetShaderTypeLayoutHash(*ParameterLayout, LayoutParams);
-				LayoutHash.AppendString(OutKeyString);
+				KeyGen.Append(LayoutHash);
 			}
 		}
 
@@ -3476,7 +3493,7 @@ void AppendKeyStringShaderDependencies(
 	// Save uniform buffer member info so we can detect when layout has changed
 	for (const FShaderParametersMetadata* UniformBufferMetadata : ReferencedUniformBuffers)
 	{
-		UniformBufferMetadata->AppendKeyString(OutKeyString);
+		UniformBufferMetadata->Append(KeyGen);
 	}
 }
 
