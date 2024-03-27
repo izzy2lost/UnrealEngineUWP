@@ -88,6 +88,18 @@ enum class EDynamicMeshDrawPath : uint8
 
 
 /**
+ * Mesh Signed Distance Field (SDF) mode
+ */
+UENUM(BlueprintType)
+enum class EDynamicMeshComponentDistanceFieldMode : uint8
+{
+	/** Do not compute a distance field */
+	NoDistanceField = 0,
+	/** Compute a distance field in a background thread */
+	AsyncCPUDistanceField = 1 UMETA(DisplayName = "Async CPU Distance Field")
+};
+
+/**
  * Color Transform to apply to Vertex Colors when converting from internal DynamicMesh
  * Color attributes (eg Color Overlay stored in FVector4f) to RHI Render Buffers (FColor).
  * 
@@ -97,11 +109,11 @@ UENUM(BlueprintType)
 enum class EDynamicMeshVertexColorTransformMode : uint8
 {
 	/** Do not apply any color-space transform to Vertex Colors */
-	NoTransform,
+	NoTransform = 0,
 	/** Assume Vertex Colors are in Linear space and transform to SRGB */
 	LinearToSRGB,
 	/** Assume Vertex Colors are in SRGB space and convert to Linear */
-	SRGBToLinear
+	SRGBToLinear UMETA(DisplayName = "SRGB To Linear")
 };
 
 
@@ -343,7 +355,7 @@ public:
 	GEOMETRYFRAMEWORK_API virtual void SetEnableFlatShading(bool bEnable);
 
 	/**
-	 * @return active Color used for Constant Color Override Mode
+	 * @return Whether mesh will be rendered with per-triangle normals
 	 */
 	UFUNCTION(BlueprintCallable, Category = "Dynamic Mesh Component|Rendering")
 	virtual bool GetFlatShadingEnabled() const { return bEnableFlatShading; }
@@ -541,6 +553,32 @@ public:
 	 */
 	UFUNCTION(BlueprintPure, Category = "Dynamic Mesh Component")
 	GEOMETRYFRAMEWORK_API virtual EDynamicMeshDrawPath GetMeshDrawPath() const;
+
+protected:
+	/** Controls how distance field is computed */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, 
+				BlueprintSetter = SetDistanceFieldMode, BlueprintGetter = GetDistanceFieldMode,
+					Category = "Dynamic Mesh Component|Rendering")
+	EDynamicMeshComponentDistanceFieldMode DistanceFieldMode = EDynamicMeshComponentDistanceFieldMode::NoDistanceField;
+
+public:
+	/**
+	 * Configure Distance Field computation mode
+	 */
+	UFUNCTION(BlueprintCallable, Category = "Dynamic Mesh Component")
+	GEOMETRYFRAMEWORK_API virtual void SetDistanceFieldMode(EDynamicMeshComponentDistanceFieldMode NewDistFieldMode);
+
+	/**
+	 * @return Method used to compute the distance field
+	 */
+	UFUNCTION(BlueprintPure, Category = "Dynamic Mesh Component")
+	GEOMETRYFRAMEWORK_API virtual EDynamicMeshComponentDistanceFieldMode GetDistanceFieldMode() const;
+
+protected:
+	// this will be called if a change to distance field mode is detected
+	GEOMETRYFRAMEWORK_API virtual void OnNewDistanceFieldMode();
+
+
 
 	//===============================================================================================================
 	// Standard Component interfaces

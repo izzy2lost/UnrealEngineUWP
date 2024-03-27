@@ -90,6 +90,11 @@ UDynamicMeshComponent::UDynamicMeshComponent(const FObjectInitializer& ObjectIni
 
 	MeshObjectChangedHandle = MeshObject->OnMeshChanged().AddUObject(this, &UDynamicMeshComponent::OnMeshObjectChanged);
 
+	DistanceFieldComputeQueue.OnComputeCompleted = [this](TUniquePtr<FDistanceFieldVolumeData> NewData)
+	{
+		OnNewDistanceFieldData_Async(MoveTemp(NewData));
+	};
+
 	ResetProxy();
 }
 
@@ -134,8 +139,24 @@ void UDynamicMeshComponent::PostLoad()
 
 	// make sure BodySetup is created
 	GetBodySetup();
+
+	// Note we don't serialize the distance field, so recompute on load (and below in PostEditImport, on duplicate/copy)
+	// (Note if we do switch to serializing it, it is DDC cache data and not versioned, so must be checked vs its DDC key and potentially invalidated)
+	if (CurrentDistanceField.IsValid() != (DistanceFieldMode != EDynamicMeshComponentDistanceFieldMode::NoDistanceField))
+	{
+		OnNewDistanceFieldMode();
+	}
 }
 
+void UDynamicMeshComponent::PostEditImport()
+{
+	Super::PostEditImport();
+
+	if (CurrentDistanceField.IsValid() != (DistanceFieldMode != EDynamicMeshComponentDistanceFieldMode::NoDistanceField))
+	{
+		OnNewDistanceFieldMode();
+	}
+}
 
 #if WITH_EDITOR
 void UDynamicMeshComponent::PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent)
@@ -972,6 +993,17 @@ FPrimitiveSceneProxy* UDynamicMeshComponent::CreateSceneProxy()
 			NewProxy->Initialize();
 		}
 
+		// set new distance field
+		if ( DistanceFieldMode != EDynamicMeshComponentDistanceFieldMode::NoDistanceField )
+		{
+			DistanceFieldLock.Lock();
+			if ( CurrentDistanceField.IsValid() )
+			{
+				NewProxy->SetNewDistanceField(CurrentDistanceField, true);
+			}
+			DistanceFieldLock.Unlock();
+		}
+
 		NewProxy->SetVerifyUsedMaterials(bProxyVerifyUsedMaterials);
 	}
 
@@ -988,6 +1020,85 @@ void UDynamicMeshComponent::NotifyMaterialSetUpdated()
 		GetCurrentSceneProxy()->UpdatedReferencedMaterials();
 	}
 }
+
+
+
+void UDynamicMeshComponent::OnNewDistanceFieldMode()
+{
+	UpdateDistanceField();
+}
+
+
+void UDynamicMeshComponent::UpdateDistanceField()
+{
+	if (DistanceFieldMode == EDynamicMeshComponentDistanceFieldMode::NoDistanceField)
+	{
+		FScopeLock Lock(&DistanceFieldLock);
+		CurrentDistanceField = TSharedPtr<FDistanceFieldVolumeData>();
+		if (GetCurrentSceneProxy() != nullptr)
+		{
+			GetCurrentSceneProxy()->SetNewDistanceField(CurrentDistanceField, false);
+		}
+		return;
+	}
+
+	DistanceFieldComputeQueue.LaunchJob(TEXT("DynamicMeshComponentDistanceField"), 
+		[this](FProgressCancel& Progress)
+		{
+			return ComputeNewDistanceField_TaskFunction(Progress);
+		});
+}
+
+
+TUniquePtr<FDistanceFieldVolumeData> UDynamicMeshComponent::ComputeNewDistanceField_TaskFunction(FProgressCancel& Progress)
+{
+	TUniquePtr<FDistanceFieldVolumeData> NewDistanceField;
+	ProcessMesh( [&](const FDynamicMesh3& ReadMesh)
+	{
+		float DistanceFieldResolutionScale = 1.0f;
+		bool bMostlyTwoSided = false;
+		if (ReadMesh.Attributes() && ReadMesh.Attributes()->GetMaterialID())
+		{
+			TArray<bool> MatIsTwoSided;
+			MatIsTwoSided.SetNumUninitialized(BaseMaterials.Num());
+			for (int32 Idx = 0; Idx < BaseMaterials.Num(); ++Idx)
+			{
+				MatIsTwoSided[Idx] = BaseMaterials[Idx] ? BaseMaterials[Idx]->IsTwoSided() : false;
+			}
+			const FDynamicMeshMaterialAttribute* Materials = ReadMesh.Attributes()->GetMaterialID();
+			int32 TwoSidedTriCount = 0;
+			for (int32 TID : ReadMesh.TriangleIndicesItr())
+			{
+				int32 MID = Materials->GetValue(TID);
+				TwoSidedTriCount += MatIsTwoSided.IsValidIndex(MID) ? (int32)MatIsTwoSided[MID] : 0;
+			}
+			bMostlyTwoSided = TwoSidedTriCount * 2 >= ReadMesh.TriangleCount();
+		}
+		// TODO: Consider optionally building distance field via collision mesh, allowing this mesh to be unlocked. (But note the collision mesh may not be available, especially for a large mesh)
+		NewDistanceField =
+			FDynamicMeshSceneProxy::ComputeDistanceFieldForMesh(ReadMesh, Progress, DistanceFieldResolutionScale, bMostlyTwoSided);
+	});
+	return NewDistanceField;
+}
+
+void UDynamicMeshComponent::OnNewDistanceFieldData_Async(TUniquePtr<FDistanceFieldVolumeData> NewData)
+{
+	// WARNING: this function will be called from TAsyncComponentDataComputeQueue background tasks
+
+	TSharedPtr<FDistanceFieldVolumeData> NewDistanceField(NewData.Release());
+
+	DistanceFieldLock.Lock();
+	CurrentDistanceField = NewDistanceField;
+	if (GetCurrentSceneProxy() != nullptr)
+	{
+		// the new distance field will be set when the scene proxy is re-created
+		MarkRenderStateDirty();
+	}
+	DistanceFieldLock.Unlock();
+}
+
+
+
 
 
 void UDynamicMeshComponent::SetTriangleColorFunction(
@@ -1247,6 +1358,8 @@ void UDynamicMeshComponent::InternalOnMeshUpdated()
 	{
 		RebuildPhysicsData();
 	}
+
+	UpdateDistanceField();
 }
 
 bool UDynamicMeshComponent::GetTriMeshSizeEstimates(struct FTriMeshCollisionDataEstimates& OutTriMeshEstimates, bool bInUseAllTriData) const

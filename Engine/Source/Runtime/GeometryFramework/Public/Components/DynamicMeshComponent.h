@@ -12,6 +12,11 @@
 #include "UDynamicMesh.h"
 #include "PhysicsEngine/BodySetup.h"
 
+#include "Misc/ScopeLock.h"
+#include "Tasks/Task.h"
+#include "Util/ProgressCancel.h"
+#include "DistanceFieldAtlas.h"
+
 #include "DynamicMeshComponent.generated.h"
 
 // predecl
@@ -46,6 +51,108 @@ enum class EDynamicMeshComponentRenderUpdateMode
 	/** Attempt to do partial update of render data if possible */
 	FastUpdate = 2
 };
+
+
+template<typename DataType>
+struct TAsyncComponentDataComputeQueue
+{
+	std::atomic<int> JobCounter = 0;
+	bool bIsShuttingDown = false;
+
+	~TAsyncComponentDataComputeQueue()
+	{
+		WaitForAllJobsDuringShutdown();
+	}
+
+	struct FComputeJob
+	{
+		UE::Tasks::FTask Task;
+		int JobTimestamp = 0;
+		TUniquePtr<FProgressCancel> Progress;
+		bool bCancelled = false;
+		bool bHasCompleted = false;
+	};
+
+	TArray<TUniquePtr<FComputeJob>> PendingJobs;
+	FCriticalSection PendingJobsLock;
+
+	// This function will be called w/ the data computed by a job
+	// when it finishes, if it is still valid
+	// Note this method will be run from a background thread, and should be thread-safe!
+	TFunction<void(TUniquePtr<DataType> NewData)> OnComputeCompleted;
+
+	void LaunchJob(const TCHAR* DebugName, TFunction<TUniquePtr<DataType>(FProgressCancel& Progress)> JobWork)
+	{
+		// OnComputeCompleted function must be set to something
+		check(OnComputeCompleted);
+
+		if (!ensure(bIsShuttingDown == false))
+		{
+			return;
+		}
+
+		JobCounter++;
+		int CurrentTimestamp = JobCounter;
+
+		// cancel any existing jobs and clear them out if they have returned
+		{
+			FScopeLock RemovePending(&PendingJobsLock);
+			for (int32 k = 0; k < PendingJobs.Num(); ++k)
+			{
+				PendingJobs[k]->bCancelled = true;
+				if (PendingJobs[k]->bHasCompleted)
+				{
+					PendingJobs.RemoveAtSwap(k, 1, EAllowShrinking::No);
+					k--;		// reconsider element that was just swapped in to this position
+				}
+			}
+		}
+
+		// set up the new job
+		TUniquePtr<FComputeJob> NewJob = MakeUnique<FComputeJob>();
+		FComputeJob* JobPtr = NewJob.Get();
+		NewJob->Progress = MakeUnique<FProgressCancel>();
+		FProgressCancel* ProgressPtr = NewJob->Progress.Get();
+		NewJob->Progress->CancelF = [this, JobPtr]() { return bIsShuttingDown || JobPtr->bCancelled; };
+		NewJob->JobTimestamp = CurrentTimestamp;
+
+		// launch it
+		NewJob->Task = UE::Tasks::Launch(DebugName, 
+			[this, JobWork, JobPtr]() {
+				// TODO: limit the number of in-progress active jobs
+				TUniquePtr<DataType> Result = JobWork( *JobPtr->Progress );
+				if (JobPtr->JobTimestamp == this->JobCounter && JobPtr->bCancelled == false)
+				{
+					if (!bIsShuttingDown && this->OnComputeCompleted)
+					{
+						this->OnComputeCompleted(MoveTemp(Result));
+					}
+				}
+				JobPtr->bHasCompleted = true;
+			},
+			LowLevelTasks::ETaskPriority::BackgroundNormal, 
+			UE::Tasks::EExtendedTaskPriority::None );
+
+		// add new job
+		{
+			FScopeLock AddJob(&PendingJobsLock);
+			PendingJobs.Add(MoveTemp(NewJob));
+		}
+	}
+
+
+	void WaitForAllJobsDuringShutdown()
+	{
+		bIsShuttingDown = true;
+		FScopeLock PendingLock(&PendingJobsLock);
+		for (int32 k = 0; k < PendingJobs.Num(); ++k)
+		{
+			UE::Tasks::Wait({PendingJobs[k]->Task});
+		}
+	}
+
+};
+
 
 
 /** 
@@ -534,6 +641,23 @@ protected:
 	GEOMETRYFRAMEWORK_API void UpdateAutoCalculatedTangents();
 
 
+	//===============================================================================================================
+	//
+	// Distance Field Support
+	//
+protected:
+	FCriticalSection DistanceFieldLock;
+	TSharedPtr<FDistanceFieldVolumeData> CurrentDistanceField;
+
+	GEOMETRYFRAMEWORK_API virtual void UpdateDistanceField();
+
+	TAsyncComponentDataComputeQueue<FDistanceFieldVolumeData> DistanceFieldComputeQueue;
+	GEOMETRYFRAMEWORK_API virtual TUniquePtr<FDistanceFieldVolumeData> ComputeNewDistanceField_TaskFunction(FProgressCancel& Progress);
+	GEOMETRYFRAMEWORK_API virtual void OnNewDistanceFieldData_Async(TUniquePtr<FDistanceFieldVolumeData> NewData);
+
+	// UBaseDynamicMeshComponent API
+	GEOMETRYFRAMEWORK_API virtual void OnNewDistanceFieldMode() override;
+
 
 	//===============================================================================================================
 	//
@@ -716,7 +840,8 @@ protected:
 
 	//~ UObject Interface.
 	GEOMETRYFRAMEWORK_API virtual void Serialize(FArchive& Ar) override;
-	GEOMETRYFRAMEWORK_API virtual void PostLoad() override;
+	GEOMETRYFRAMEWORK_API virtual void PostLoad() override; // called after load
+	GEOMETRYFRAMEWORK_API virtual void PostEditImport() override; // called after duplicate/copy
 	GEOMETRYFRAMEWORK_API virtual void BeginDestroy() override;
 #if WITH_EDITOR
 	GEOMETRYFRAMEWORK_API void PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent) override;

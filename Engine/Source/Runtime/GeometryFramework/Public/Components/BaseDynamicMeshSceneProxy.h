@@ -13,6 +13,9 @@
 #include "DynamicMeshBuilder.h"
 #include "Components/BaseDynamicMeshComponent.h"
 #include "RayTracingGeometry.h"
+#include "Templates/PimplPtr.h"
+#include "Util/ProgressCancel.h"
+#include "DistanceFieldAtlas.h"
 
 #include "PhysicsEngine/AggregateGeom.h"
 
@@ -27,6 +30,7 @@ class FDynamicPrimitiveUniformBuffer;
 class FMaterialRenderProxy;
 class UMaterialInterface;
 struct FRayTracingMaterialGatheringContext;
+class FCardRepresentationData;
 
 /**
  * FMeshRenderBufferSet stores a set of RenderBuffers for a mesh
@@ -1017,6 +1021,42 @@ public:
 
 
 #endif // RHI_RAYTRACING
+
+
+	//
+	// Lumen APIs
+	//
+
+
+public:
+	GEOMETRYFRAMEWORK_API virtual const FCardRepresentationData* GetMeshCardRepresentation() const override;
+
+protected:
+	TPimplPtr<FCardRepresentationData> MeshCards;
+	bool bMeshCardsValid = false;
+
+	// Helper to set lumen cards
+	void UpdateLumenCardsFromBounds();
+
+
+public:
+	GEOMETRYFRAMEWORK_API virtual void GetDistanceFieldAtlasData(const class FDistanceFieldVolumeData*& OutDistanceFieldData, float& SelfShadowBias) const;
+	GEOMETRYFRAMEWORK_API virtual void GetDistanceFieldInstanceData(TArray<FRenderTransform>& InstanceLocalToPrimitiveTransforms) const override;
+	GEOMETRYFRAMEWORK_API virtual bool HasDistanceFieldRepresentation() const override;
+	GEOMETRYFRAMEWORK_API virtual bool HasDynamicIndirectShadowCasterRepresentation() const override;
+
+
+protected:
+	TSharedPtr<FDistanceFieldVolumeData> DistanceField;
+	bool bDistanceFieldValid = false;
+public:
+	static TUniquePtr<FDistanceFieldVolumeData> ComputeDistanceFieldForMesh(
+		const FDynamicMesh3& Mesh, 
+		FProgressCancel& Progress,
+		float DistanceFieldResolutionScale = 1.0, 
+		bool bGenerateAsIfTwoSided = false );
+
+	GEOMETRYFRAMEWORK_API void SetNewDistanceField(TSharedPtr<FDistanceFieldVolumeData> NewDistanceField, bool bInInitialize);
 
 public:
 	// Set the collision data to use for debug drawing, or do nothing if debug drawing is not enabled

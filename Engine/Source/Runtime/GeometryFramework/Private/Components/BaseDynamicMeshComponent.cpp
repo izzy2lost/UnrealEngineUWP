@@ -31,6 +31,10 @@ void UBaseDynamicMeshComponent::PostEditChangeProperty(FPropertyChangedEvent& Pr
 	{
 		OnRenderingStateChanged(false);
 	}
+	else if ( (PropName == GET_MEMBER_NAME_CHECKED(UBaseDynamicMeshComponent, DistanceFieldMode))  )
+	{
+		OnNewDistanceFieldMode();
+	}
 }
 #endif
 
@@ -119,6 +123,26 @@ bool UBaseDynamicMeshComponent::GetEnableRaytracing() const
 {
 	return bEnableRaytracing;
 }
+
+void UBaseDynamicMeshComponent::SetDistanceFieldMode(EDynamicMeshComponentDistanceFieldMode NewDistFieldMode)
+{
+	if (DistanceFieldMode != NewDistFieldMode)
+	{
+		DistanceFieldMode = NewDistFieldMode;
+		OnNewDistanceFieldMode();
+	}
+}
+
+EDynamicMeshComponentDistanceFieldMode UBaseDynamicMeshComponent::GetDistanceFieldMode() const
+{
+	return DistanceFieldMode;
+}
+
+void UBaseDynamicMeshComponent::OnNewDistanceFieldMode()
+{
+	// no-op in base class, does not directly support distance field
+}
+
 
 
 void UBaseDynamicMeshComponent::SetMeshDrawPath(EDynamicMeshDrawPath NewDrawPath)

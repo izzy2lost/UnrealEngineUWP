@@ -85,6 +85,10 @@ public:
 			bIsSingleBuffer = true;
 			InitializeSingleBufferSet(RenderBufferSets[0]);
 		}
+
+		// set (or clear) simple Lumen cards via the bounding box
+		// TODO: Implement a better method to set up the lumen cards
+		UpdateLumenCardsFromBounds();
 	}
 
 
