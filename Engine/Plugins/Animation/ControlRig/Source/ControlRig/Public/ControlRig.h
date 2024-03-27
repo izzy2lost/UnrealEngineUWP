@@ -707,7 +707,10 @@ public:
 	void SetIsAdditive(const bool bInIsAdditive)
 	{
 		bIsAdditive = bInIsAdditive;
-		GetHierarchy()->bUsePreferredEulerAngles = !bIsAdditive;
+		if (URigHierarchy* Hierarchy = GetHierarchy())
+		{
+			Hierarchy->bUsePreferredEulerAngles = !bIsAdditive;
+		}
 	}
 
 private:
