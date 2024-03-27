@@ -386,15 +386,15 @@ namespace Gauntlet
 		}
 
 		/// <summary>
-		/// Checks whether version of deployed bundle matches local IPA
+		/// Checks whether version of deployed bundle matches local Build
 		/// </summary>
-		bool CheckDeployedIPA(IOSBuild Build)
+		bool CheckDeployedApp(IOSBuild Build)
 		{
 			try
 			{
-				Log.Verbose("Checking deployed IPA hash");
+				Log.Verbose("Checking deployed App hash");
 
-				string CommandLine = String.Format("--bundle_id {0} --download={1} --to {2}", Build.PackageName, "/Documents/IPAHash.txt", LocalCachePath);
+				string CommandLine = String.Format("--bundle_id {0} --download={1} --to {2}", Build.PackageName, "/Documents/AppHash.txt", LocalCachePath);
 				IProcessResult Result = ExecuteIOSDeployCommand(CommandLine, 120);
 
 				if (Result.ExitCode != 0)
@@ -402,12 +402,12 @@ namespace Gauntlet
 					return false;
 				}
 
-				string Hash = File.ReadAllText(LocalCachePath + "/Documents/IPAHash.txt").Trim();
-				string StoredHash = File.ReadAllText(IPAHashFilename).Trim();
+				string Hash = File.ReadAllText(LocalCachePath + "/Documents/AppHash.txt").Trim();
+				string StoredHash = File.ReadAllText(AppHashFilename).Trim();
 
 				if (Hash == StoredHash)
 				{
-					Log.Verbose("Deployed app hash matched cached IPA hash");
+					Log.Verbose("Deployed app hash matched cached App hash");
 					return true;
 				}
 
@@ -416,11 +416,11 @@ namespace Gauntlet
 			{
 				if (!Ex.Message.Contains("is denied"))
 				{
-					Log.Verbose("Unable to pull cached IPA cache from device, cached file may not exist: {0}", Ex.Message);
+					Log.Verbose("Unable to pull cached App cache from device, cached file may not exist: {0}", Ex.Message);
 				}
 			}
 
-			Log.Verbose("Deployed app hash doesn't match, IPA will be installed");
+			Log.Verbose("Deployed app hash doesn't match, App will be installed");
 			return false;
 
 		}
@@ -509,8 +509,8 @@ namespace Gauntlet
 			}
 		}
 
-		// We need to lock around setting up the IPA
-		static object IPALock = new object();
+		// We need to lock around setting up the App
+		static object AppLock = new object();
 		public IAppInstall InstallApplication(UnrealAppConfig AppConfig)
 		{
             IOSBuild Build = AppConfig.Build as IOSBuild;
@@ -521,107 +521,138 @@ namespace Gauntlet
 				throw new AutomationException("Invalid build for IOS!");
 			}
 
-			bool CacheResigned = false;
-			bool UseLocalExecutable = Globals.Params.ParseParam("dev");
-
-			lock(IPALock)
+			if (!AppConfig.SkipInstall)
 			{
-				Log.Info("Installing using IPA {0}", Build.SourceIPAPath);
+				bool CacheResigned = false;
+				bool UseLocalExecutable = Globals.Params.ParseParam("dev");
 
-				// device artifact path
-				DeviceArtifactPath = string.Format("/Documents/{0}/Saved", AppConfig.ProjectName);
-
-				CacheResigned = File.Exists(CacheResignedFilename);
-
-				if (CacheResigned && !UseLocalExecutable)
+				lock (AppLock)
 				{
-					if (File.Exists(IPAHashFilename))
+					Log.Info("Installing using build source {0}", Build.SourcePath);
+
+					// device artifact path
+					DeviceArtifactPath = string.Format("/Documents/{0}/Saved", AppConfig.ProjectName);
+
+					CacheResigned = File.Exists(CacheResignedFilename);
+
+					if (CacheResigned && !UseLocalExecutable)
 					{
-						Log.Verbose("App was resigned, invalidating app cache");
-						File.Delete(IPAHashFilename);
+						if (File.Exists(AppHashFilename))
+						{
+							Log.Verbose("App was resigned, invalidating app cache");
+							File.Delete(AppHashFilename);
+						}
+					}
+
+					if (Build.IsIPAFile)
+					{
+						PrepareIPA(Build);
+					}
+					else
+					{
+						LocalAppBundle = Build.SourcePath;
+					}
+
+					// local executable support
+					if (UseLocalExecutable)
+					{
+						ResignApplication(AppConfig);
 					}
 				}
 
-				PrepareIPA(Build);
-
-				// local executable support
-				if (UseLocalExecutable)
+				if (CacheResigned || UseLocalExecutable || !CheckDeployedApp(Build))
 				{
-					ResignApplication(AppConfig);
+					// uninstall will clean all device artifacts
+					ExecuteIOSDeployCommand(String.Format("--uninstall -b \"{0}\"", LocalAppBundle), 20 * 60);
 				}
-			}
+				else
+				{
+					// remove device artifacts
+					CleanDeviceArtifacts(Build);
+				}
 
-			if (CacheResigned || UseLocalExecutable || !CheckDeployedIPA(Build))
-			{
-				// uninstall will clean all device artifacts
-				ExecuteIOSDeployCommand(String.Format("--uninstall -b \"{0}\"", LocalAppBundle), 20 * 60);
+				// parallel iOS tests use same app install folder, so lock it as setup is quick
+				lock (Globals.MainLock)
+				{
+					// local app install with additional files, this directory will be mirrored to device in a single operation
+					string AppInstallPath;
+
+					AppInstallPath = Path.Combine(Globals.TempDir, "iOSAppInstall");
+
+					if (Directory.Exists(AppInstallPath))
+					{
+						Directory.Delete(AppInstallPath, true);
+					}
+
+					Directory.CreateDirectory(AppInstallPath);
+
+					if (LocalDirectoryMappings.Count == 0)
+					{
+						PopulateDirectoryMappings(AppInstallPath);
+					}
+
+					//@todo: Combine Build and AppConfig files, this should be done in higher level code, not per device implementation
+
+					if (AppConfig.FilesToCopy != null)
+					{
+						foreach (UnrealFileToCopy FileToCopy in AppConfig.FilesToCopy)
+						{
+							string PathToCopyTo = Path.Combine(LocalDirectoryMappings[FileToCopy.TargetBaseDirectory], FileToCopy.TargetRelativeLocation);
+
+							if (File.Exists(FileToCopy.SourceFileLocation))
+							{
+								FileInfo SrcInfo = new FileInfo(FileToCopy.SourceFileLocation);
+								SrcInfo.IsReadOnly = false;
+								string DirectoryToCopyTo = Path.GetDirectoryName(PathToCopyTo);
+								if (!Directory.Exists(DirectoryToCopyTo))
+								{
+									Directory.CreateDirectory(DirectoryToCopyTo);
+								}
+								if (File.Exists(PathToCopyTo))
+								{
+									FileInfo ExistingFile = new FileInfo(PathToCopyTo);
+									ExistingFile.IsReadOnly = false;
+								}
+
+								SrcInfo.CopyTo(PathToCopyTo, true);
+								Log.Verbose("Copying app install: {0} to {1}", FileToCopy, DirectoryToCopyTo);
+							}
+							else
+							{
+								Log.Warning(KnownLogEvents.Gauntlet_DeviceEvent, "File to copy {File} not found", FileToCopy);
+							}
+						}
+					}
+
+					// copy mapped files in a single pass
+					string CopyCommand = String.Format("--bundle_id {0} --upload={1} --to {2}", Build.PackageName, AppInstallPath, DeviceArtifactPath);
+					ExecuteIOSDeployCommand(CopyCommand, 120);
+
+					// store the App hash to avoid redundant deployments
+					if (File.Exists(AppHashFilename))
+					{
+						CopyCommand = String.Format("--bundle_id {0} --upload={1} --to {2}", Build.PackageName, AppHashFilename, "/Documents/AppHash.txt");
+						ExecuteIOSDeployCommand(CopyCommand, 120);
+					}
+				}
 			}
 			else
 			{
-				// remove device artifacts
-				CleanDeviceArtifacts(Build);
-			}
-
-			// parallel iOS tests use same app install folder, so lock it as setup is quick
-			lock (Globals.MainLock)
-			{
-				// local app install with additional files, this directory will be mirrored to device in a single operation
-				string AppInstallPath;
-
-				AppInstallPath = Path.Combine(Globals.TempDir, "iOSAppInstall");
-
-				if (Directory.Exists(AppInstallPath))
+				// Skipping installation
+				Log.Info("Skipping installation as per config.");
+				if (Build.IsIPAFile)
 				{
-					Directory.Delete(AppInstallPath, true);
-				}
-
-				Directory.CreateDirectory(AppInstallPath);
-
-				if (LocalDirectoryMappings.Count == 0)
-				{
-					PopulateDirectoryMappings(AppInstallPath);
-				}
-
-				//@todo: Combine Build and AppConfig files, this should be done in higher level code, not per device implementation
-
-				if (AppConfig.FilesToCopy != null)
-				{
-					foreach (UnrealFileToCopy FileToCopy in AppConfig.FilesToCopy)
+					string PayloadDir = Path.Combine(GauntletAppCache, "Payload");
+					LocalAppBundle = Directory.GetDirectories(PayloadDir).Where(D => Path.GetExtension(D) == ".app").FirstOrDefault();
+					if (string.IsNullOrEmpty(LocalAppBundle))
 					{
-						string PathToCopyTo = Path.Combine(LocalDirectoryMappings[FileToCopy.TargetBaseDirectory], FileToCopy.TargetRelativeLocation);
-
-						if (File.Exists(FileToCopy.SourceFileLocation))
-						{
-							FileInfo SrcInfo = new FileInfo(FileToCopy.SourceFileLocation);
-							SrcInfo.IsReadOnly = false;
-							string DirectoryToCopyTo = Path.GetDirectoryName(PathToCopyTo);
-							if (!Directory.Exists(DirectoryToCopyTo))
-							{
-								Directory.CreateDirectory(DirectoryToCopyTo);
-							}
-							if (File.Exists(PathToCopyTo))
-							{
-								FileInfo ExistingFile = new FileInfo(PathToCopyTo);
-								ExistingFile.IsReadOnly = false;
-							}
-
-							SrcInfo.CopyTo(PathToCopyTo, true);
-							Log.Verbose("Copying app install: {0} to {1}", FileToCopy, DirectoryToCopyTo);
-						}
-						else
-						{
-							Log.Warning(KnownLogEvents.Gauntlet_DeviceEvent, "File to copy {File} not found", FileToCopy);
-						}
+						throw new AutomationException($"Could not find local IPA payload at {PayloadDir}");
 					}
 				}
-
-				// copy mapped files in a single pass
-				string CopyCommand = String.Format("--bundle_id {0} --upload={1} --to {2}", Build.PackageName, AppInstallPath, DeviceArtifactPath);
-				ExecuteIOSDeployCommand(CopyCommand, 120);
-
-				// store the IPA hash to avoid redundant deployments
-				CopyCommand = String.Format("--bundle_id {0} --upload={1} --to {2}", Build.PackageName, IPAHashFilename, "/Documents/IPAHash.txt");
-				ExecuteIOSDeployCommand(CopyCommand, 120);
+				else
+				{
+					LocalAppBundle = Build.SourcePath;
+				}
 			}
 
 			IOSAppInstall IOSApp = new IOSAppInstall(AppConfig.Name, this, Build.PackageName, AppConfig.CommandLine);
@@ -843,8 +874,8 @@ namespace Gauntlet
 		// Note: ios-deploy works with app bundles, which requires the IPA be unzipped for deployment (this will allow us to resign in the future as well)
 		string LocalAppBundle = null;
 
-		// the current IPA MD5 hash, which is tracked to avoid unneccessary deployments and unzip operations
-		string IPAHashFilename { get { return Path.Combine(GauntletAppCache, "IPAHash.txt"); } }
+		// the current App MD5 hash, which is tracked to avoid unneccessary deployments and unzip operations
+		string AppHashFilename { get { return Path.Combine(GauntletAppCache, "AppHash.txt"); } }
 
 		// file whose presence signals that cache was resigned
 		string CacheResignedFilename { get { return Path.Combine(GauntletAppCache, "Resigned.txt"); } }
@@ -855,7 +886,7 @@ namespace Gauntlet
 		/// </summary>
 		private bool PrepareIPA(IOSBuild Build)
 		{	
-			Log.Info("Preparing IPA {0}", Build.SourceIPAPath);
+			Log.Info("Preparing IPA {0}", Build.SourcePath);
 
 			try
 			{	
@@ -864,7 +895,7 @@ namespace Gauntlet
 				string StoredHash = null;
 				using (var MD5Hash = MD5.Create())
 				{
-					using (var Stream = File.OpenRead(Build.SourceIPAPath))
+					using (var Stream = File.OpenRead(Build.SourcePath))
 					{
 						Hash = BitConverter.ToString(MD5Hash.ComputeHash(Stream)).Replace("-", "").ToLowerInvariant();
 					}
@@ -872,12 +903,12 @@ namespace Gauntlet
 				string PayloadDir = Path.Combine(GauntletAppCache, "Payload");
 				string SymbolsDir = Path.Combine(GauntletAppCache, "Symbols");
 				
-				if (File.Exists(IPAHashFilename) && Directory.Exists(PayloadDir))
+				if (File.Exists(AppHashFilename) && Directory.Exists(PayloadDir))
 				{
-					StoredHash = File.ReadAllText(IPAHashFilename).Trim();
+					StoredHash = File.ReadAllText(AppHashFilename).Trim();
 					if (Hash != StoredHash)
 					{
-						Log.Verbose("IPA hash out of date, clearing cache");
+						Log.Verbose("App hash out of date, clearing cache");
 						StoredHash = null;
 					}
 				}
@@ -899,16 +930,16 @@ namespace Gauntlet
 						File.Delete(CacheResignedFilename);
 					}
 
-					Log.Verbose("Unzipping IPA {0} to cache at: {1}", Build.SourceIPAPath, GauntletAppCache);
+					Log.Verbose("Unzipping IPA {0} to cache at: {1}", Build.SourcePath, GauntletAppCache);
 
 					string Output;
-					if (!IOSBuild.ExecuteIPADittoCommand(String.Format("-x -k {0} {1}", Build.SourceIPAPath, GauntletAppCache), out Output, PayloadDir))
+					if (!IOSBuild.ExecuteIPADittoCommand(String.Format("-x -k {0} {1}", Build.SourcePath, GauntletAppCache), out Output, PayloadDir))
 					{
-						throw new Exception(String.Format("Unable to extract IPA {0}", Build.SourceIPAPath));
+						throw new Exception(String.Format("Unable to extract IPA {0}", Build.SourcePath));
 					}
 
 					// Cache symbols for symbolicated callstacks
-					string SymbolsZipFile = string.Format("{0}/../../Symbols/{1}.dSYM.zip", Path.GetDirectoryName(Build.SourceIPAPath), Path.GetFileNameWithoutExtension(Build.SourceIPAPath));
+					string SymbolsZipFile = string.Format("{0}/../../Symbols/{1}.dSYM.zip", Path.GetDirectoryName(Build.SourcePath), Path.GetFileNameWithoutExtension(Build.SourcePath));
 
 					Log.Verbose("Checking Symbols at {0}", SymbolsZipFile);
 
@@ -923,13 +954,13 @@ namespace Gauntlet
 					}					
 
 					// store hash
-					File.WriteAllText(IPAHashFilename, Hash);
+					File.WriteAllText(AppHashFilename, Hash);
 
-					Log.Verbose("IPA cached");
+					Log.Verbose("App cached");
 				}
 				else
 				{
-					Log.Verbose("Using cached IPA");
+					Log.Verbose("Using cached App");
 				}
 
 				LocalAppBundle = Directory.GetDirectories(PayloadDir).Where(D => Path.GetExtension(D) == ".app").FirstOrDefault();
@@ -942,7 +973,7 @@ namespace Gauntlet
 			}
 			catch (Exception Ex)
 			{
-				throw new AutomationException("Unable to prepare {0} : {1}", Build.SourceIPAPath, Ex.Message);
+				throw new AutomationException("Unable to prepare {0} : {1}", Build.SourcePath, Ex.Message);
 			}		
 
 			return true;

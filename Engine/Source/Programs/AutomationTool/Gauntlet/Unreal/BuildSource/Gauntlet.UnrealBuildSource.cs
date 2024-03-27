@@ -514,15 +514,24 @@ namespace Gauntlet
 			// new system of retrieving and encapsulating the info needed to install/launch. Android & Mac
 			Config.Build = GetMatchingBuilds(Role.RoleType, Role.Platform, Role.Configuration, Role.RequiredBuildFlags, Role.RequiredFlavor).OrderBy(B => B.PreferenceOrder).FirstOrDefault();
 
-			if (Config.Build == null && Role.IsNullRole() == false)
+			if (Config.Build == null)
 			{
-				var SupportedBuilds = String.Join("\n", DiscoveredBuilds.Select(B => B.ToString()));
+				if (Role.IsNullRole())
+				{
+					Log.Warning("No supported build found, however role is Null and not configure to run anything.");
+				}
+				else
+				{
+					var SupportedBuilds = String.Join("\n", DiscoveredBuilds.Select(B => B.ToString()));
 
-				Log.Info("Available builds:\n{0}", SupportedBuilds);
-				throw new AutomationException("No build found that can support a role of {0}.", Role);
+					Log.Info("Available builds:\n{0}", SupportedBuilds);
+					throw new AutomationException("No build found that can support a role of {0}.", Role);
+				}
 			}
-
-			Log.Info("Selected build {Build} for test run.", Config.Build.ToString());
+			else
+			{
+				Log.Info("Selected build {Build} for test run.", Config.Build.ToString());
+			}
 
 			if (Role.Options != null)
 			{
