@@ -6,6 +6,10 @@
 #include "Engine/MeshMerging.h"
 #include "Engine/CollisionProfile.h"
 
+#if WITH_EDITOR
+#include "Engine/Texture2D.h"
+#endif
+
 FAttachmentTransformRules FAttachmentTransformRules::KeepRelativeTransform(EAttachmentRule::KeepRelative, false);
 FAttachmentTransformRules FAttachmentTransformRules::KeepWorldTransform(EAttachmentRule::KeepWorld, false);
 FAttachmentTransformRules FAttachmentTransformRules::SnapToTargetNotIncludingScale(EAttachmentRule::SnapToTarget, EAttachmentRule::SnapToTarget, EAttachmentRule::KeepWorld, false);
@@ -244,5 +248,45 @@ const TCHAR* LexToString(const EWorldType::Type Value)
 		break;
 	}
 }
+
+#if WITH_EDITOR
+
+void SerializeNaniteSettingsForDDC(FArchive& Ar, FMeshNaniteSettings& NaniteSettings, bool bIsNaniteForceEnabled)
+{
+	bool bIsEnabled = NaniteSettings.bEnabled || bIsNaniteForceEnabled;
+
+	// Note: this serializer is only used to build the mesh DDC key, no versioning is required
+	FArchive_Serialize_BitfieldBool(Ar, bIsEnabled);
+	FArchive_Serialize_BitfieldBool(Ar, NaniteSettings.bPreserveArea);
+	FArchive_Serialize_BitfieldBool(Ar, NaniteSettings.bExplicitTangents);
+	FArchive_Serialize_BitfieldBool(Ar, NaniteSettings.bLerpUVs);
+	Ar << NaniteSettings.PositionPrecision;
+	Ar << NaniteSettings.NormalPrecision;
+	Ar << NaniteSettings.TangentPrecision;
+	Ar << NaniteSettings.TargetMinimumResidencyInKB;
+	Ar << NaniteSettings.KeepPercentTriangles;
+	Ar << NaniteSettings.TrimRelativeError;
+	Ar << NaniteSettings.FallbackTarget;
+	Ar << NaniteSettings.FallbackPercentTriangles;
+	Ar << NaniteSettings.FallbackRelativeError;
+	Ar << NaniteSettings.MaxEdgeLengthFactor;
+	Ar << NaniteSettings.DisplacementUVChannel;
+
+	for (auto& DisplacementMap : NaniteSettings.DisplacementMaps)
+	{
+		if (IsValid(DisplacementMap.Texture))
+		{
+			FGuid TextureId = DisplacementMap.Texture->Source.GetId();
+			Ar << TextureId;
+			Ar << DisplacementMap.Texture->AddressX;
+			Ar << DisplacementMap.Texture->AddressY;
+		}
+
+		Ar << DisplacementMap.Magnitude;
+		Ar << DisplacementMap.Center;
+	}
+}
+
+#endif
 
 /// @endcond

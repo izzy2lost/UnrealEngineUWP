@@ -571,6 +571,7 @@ bool FBuilderModule::Build(
 
 	FBuilderSettings BuilderSettings;
 	BuilderSettings.NumTexCoords		= InputMeshData.NumTexCoords;
+	BuilderSettings.NumBoneInfluences	= InputMeshData.NumBoneInfluences;
 	BuilderSettings.MaxEdgeLengthFactor	= Settings.MaxEdgeLengthFactor;
 	BuilderSettings.bHasTangents		= Settings.bExplicitTangents;
 	BuilderSettings.bHasColors			= bHasVertexColor;

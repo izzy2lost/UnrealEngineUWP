@@ -13,6 +13,7 @@
 #include "MeshBuild.h"
 #include "Rendering/SkeletalMeshModel.h"
 #include "Rendering/SkeletalMeshLODModel.h"
+#include "Rendering/SkeletalMeshRenderData.h"
 #include "GPUSkinVertexFactory.h"
 #include "ThirdPartyBuildOptimizationHelper.h"
 #include "Misc/ScopedSlowTask.h"
@@ -23,6 +24,8 @@
 #include "Interfaces/ITargetPlatform.h"
 #include "Interfaces/ITargetPlatformManagerModule.h"
 #include "Misc/CoreMisc.h"
+#include "NaniteBuilder.h"
+#include "Rendering/NaniteResources.h"
 
 DEFINE_LOG_CATEGORY(LogSkeletalMeshBuilder);
 
@@ -57,6 +60,138 @@ FSkeletalMeshBuilder::FSkeletalMeshBuilder()
 {
 }
 
+static bool BuildNanite(
+	USkeletalMesh* SkeletalMesh,
+	FSkeletalMeshLODModel& LODModel,
+	const FMeshDescription& MeshDescription,
+	Nanite::FResources& NaniteResources
+)
+{
+	TRACE_CPUPROFILER_EVENT_SCOPE(FStaticMeshBuilder::BuildNanite);
+
+	Nanite::IBuilderModule& NaniteBuilderModule = Nanite::IBuilderModule::Get();
+
+	// Build new vertex buffers
+	Nanite::IBuilderModule::FInputMeshData InputMeshData;
+
+	InputMeshData.NumTexCoords = LODModel.NumTexCoords;
+
+	InputMeshData.MaterialIndices.SetNumUninitialized(LODModel.IndexBuffer.Num() / 3);
+
+	InputMeshData.Vertices.Position.SetNumUninitialized(LODModel.NumVertices);
+	InputMeshData.Vertices.TangentX.SetNumUninitialized(LODModel.NumVertices);
+	InputMeshData.Vertices.TangentY.SetNumUninitialized(LODModel.NumVertices);
+	InputMeshData.Vertices.TangentZ.SetNumUninitialized(LODModel.NumVertices);
+
+	InputMeshData.Vertices.UVs.SetNum(LODModel.NumTexCoords);
+	for (uint32 UVCoord = 0; UVCoord < LODModel.NumTexCoords; ++UVCoord)
+	{
+		InputMeshData.Vertices.UVs[UVCoord].SetNumUninitialized(LODModel.NumVertices);
+	}
+
+	// We can save memory by figuring out the max number of influences across all sections instead of allocating MAX_TOTAL_INFLUENCES
+	// Also check if any of the sections actually require 16bit, or if 8bit will suffice
+	bool b16BitSkinning = false;
+	InputMeshData.NumBoneInfluences = 0;
+	for (const FSkelMeshSection& Section : LODModel.Sections)
+	{
+		InputMeshData.NumBoneInfluences = FMath::Max(InputMeshData.NumBoneInfluences, uint32(Section.MaxBoneInfluences));
+		b16BitSkinning |= Section.Use16BitBoneIndex();
+	}
+
+	InputMeshData.Vertices.BoneIndices.SetNum(InputMeshData.NumBoneInfluences);
+	InputMeshData.Vertices.BoneWeights.SetNum(InputMeshData.NumBoneInfluences);
+	for (uint32 Influence = 0; Influence < InputMeshData.NumBoneInfluences; ++Influence)
+	{
+		InputMeshData.Vertices.BoneIndices[Influence].SetNumZeroed(LODModel.NumVertices);
+		InputMeshData.Vertices.BoneWeights[Influence].SetNumZeroed(LODModel.NumVertices);
+	}
+
+	// TODO: Nanite-Skinning
+	//InputMeshData.Vertices.Color.SetNumUninitialized(LODModel.NumVertices);
+
+	InputMeshData.TriangleIndices = LODModel.IndexBuffer;
+
+	uint32 CheckIndices = 0;
+	uint32 CheckVertices = 0;
+
+	for (int32 SectionIndex = 0; SectionIndex < LODModel.Sections.Num(); ++SectionIndex)
+	{
+		const FSkelMeshSection& Section = LODModel.Sections[SectionIndex];
+
+		check(CheckIndices  == Section.BaseIndex);
+		check(CheckVertices == Section.BaseVertexIndex);
+
+		for (int32 VertIndex = 0; VertIndex < Section.SoftVertices.Num(); ++VertIndex)
+		{
+			const FSoftSkinVertex& SoftVertex = Section.SoftVertices[VertIndex];
+
+			InputMeshData.Vertices.Position[Section.BaseVertexIndex + VertIndex] = SoftVertex.Position;
+			InputMeshData.Vertices.TangentX[Section.BaseVertexIndex + VertIndex] = SoftVertex.TangentX;
+			InputMeshData.Vertices.TangentY[Section.BaseVertexIndex + VertIndex] = SoftVertex.TangentY;
+			InputMeshData.Vertices.TangentZ[Section.BaseVertexIndex + VertIndex] = SoftVertex.TangentZ;
+
+			InputMeshData.VertexBounds += SoftVertex.Position;
+
+			for (uint32 UVCoord = 0; UVCoord < LODModel.NumTexCoords; ++UVCoord)
+			{
+				InputMeshData.Vertices.UVs[UVCoord][Section.BaseVertexIndex + VertIndex] = SoftVertex.UVs[UVCoord];
+			}
+
+			for (int32 Influence = 0; Influence < Section.MaxBoneInfluences; ++Influence)
+			{
+				InputMeshData.Vertices.BoneIndices[Influence][Section.BaseVertexIndex + VertIndex] = SoftVertex.InfluenceBones[Influence];
+				InputMeshData.Vertices.BoneWeights[Influence][Section.BaseVertexIndex + VertIndex] = SoftVertex.InfluenceWeights[Influence];
+			}
+
+			//InputMeshData.Vertices.Color[Section.BaseVertexIndex + VertIndex] = SoftVertex.Color;
+		}
+
+		for (uint32 MaterialIndex = 0; MaterialIndex < Section.NumTriangles; ++MaterialIndex)
+		{
+			InputMeshData.MaterialIndices[(CheckIndices / 3) + MaterialIndex] = Section.MaterialIndex;
+		}
+
+		CheckIndices += Section.NumTriangles * 3;
+		CheckVertices += Section.NumVertices;
+	}
+
+	check(CheckVertices == LODModel.NumVertices);
+	check(CheckIndices == LODModel.IndexBuffer.Num());
+
+	InputMeshData.TriangleCounts.Add(LODModel.IndexBuffer.Num() / 3);
+
+	auto OnFreeInputMeshData = Nanite::IBuilderModule::FOnFreeInputMeshData::CreateLambda([&InputMeshData](bool bFallbackIsReduced)
+	{
+		if (bFallbackIsReduced)
+		{
+			InputMeshData.Vertices.Empty();
+			InputMeshData.TriangleIndices.Empty();
+		}
+
+		InputMeshData.MaterialIndices.Empty();
+	});
+
+	FMeshNaniteSettings NaniteSettings = SkeletalMesh->NaniteSettings;
+	NaniteSettings.KeepPercentTriangles = 1.0f;
+	NaniteSettings.TrimRelativeError = 0.0f;
+	NaniteSettings.FallbackPercentTriangles = 1.0f; // 100% - no reduction
+	NaniteSettings.FallbackRelativeError = 0.0f;
+
+	TArrayView<Nanite::IBuilderModule::FOutputMeshData> OutputLODMeshData;
+	if (!NaniteBuilderModule.Build(
+		NaniteResources,
+		InputMeshData,
+		OutputLODMeshData,
+		NaniteSettings,
+		OnFreeInputMeshData))
+	{
+		UE_LOG(LogStaticMesh, Error, TEXT("Failed to build Nanite for skeletal mesh. See previous line(s) for details."));
+		return false;
+	}
+
+	return true;
+}
 
 bool FSkeletalMeshBuilder::Build(const FSkeletalMeshBuildParameters& SkeletalMeshBuildParameters)
 {
@@ -74,7 +209,9 @@ bool FSkeletalMeshBuilder::Build(const FSkeletalMeshBuildParameters& SkeletalMes
 
 	const FReferenceSkeleton& RefSkeleton = SkeletalMesh->GetRefSkeleton();
 
-	FScopedSlowTask SlowTask(6.01f, NSLOCTEXT("SkeltalMeshBuilder", "BuildingSkeletalMeshLOD", "Building skeletal mesh LOD"));
+	const bool bNaniteBuildEnabled = SkeletalMesh->IsNaniteEnabled();
+
+	FScopedSlowTask SlowTask(bNaniteBuildEnabled ? 7.01f : 6.01f, NSLOCTEXT("SkeltalMeshBuilder", "BuildingSkeletalMeshLOD", "Building skeletal mesh LOD"));
 	SlowTask.MakeDialog();
 
 	//Prevent any PostEdit change during the build
@@ -145,6 +282,25 @@ bool FSkeletalMeshBuilder::Build(const FSkeletalMeshBuildParameters& SkeletalMes
 
 		// Re-Apply the user section changes, the UserSectionsData is map to original section and should match the built LODModel
 		BuildLODModel.SyncronizeUserSectionsDataArray();
+
+		if (bNaniteBuildEnabled)
+		{
+			SlowTask.EnterProgressFrame(1.0f, NSLOCTEXT("SkeltalMeshBuilder", "BuildingNaniteData", "Building Nanite data..."));
+
+			FSkeletalMeshRenderData* SkeletalMeshRenderData = SkeletalMesh->GetResourceForRendering();
+			check(SkeletalMeshRenderData != nullptr);
+
+			ClearNaniteResources(SkeletalMeshRenderData->NaniteResourcesPtr);
+
+			Nanite::FResources& NaniteResources = *SkeletalMeshRenderData->NaniteResourcesPtr.Get();
+
+			bool bBuildSuccess = BuildNanite(
+				SkeletalMesh,
+				BuildLODModel,
+				SkeletalMeshModel,
+				NaniteResources
+			);
+		}
 
 		// Re-apply the morph target
 		SlowTask.EnterProgressFrame(1.0f, NSLOCTEXT("SkeltalMeshBuilder", "RebuildMorphTarget", "Rebuilding morph targets..."));
