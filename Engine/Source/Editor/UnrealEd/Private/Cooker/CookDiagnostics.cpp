@@ -5,6 +5,7 @@
 #include "AssetRegistry/IAssetRegistry.h"
 #include "Containers/Array.h"
 #include "Containers/RingBuffer.h"
+#include "Cooker/CookGenerationHelper.h"
 #include "Cooker/CookPackageData.h"
 #include "Cooker/CookRequestCluster.h"
 #include "Cooker/CookTypes.h"

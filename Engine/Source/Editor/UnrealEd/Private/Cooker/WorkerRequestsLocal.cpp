@@ -3,6 +3,7 @@
 #include "WorkerRequestsLocal.h"
 
 #include "CookTypes.h"
+#include "Cooker/CookGenerationHelper.h"
 #include "Cooker/CookPackageData.h"
 #include "Cooker/CookRequests.h"
 #include "HAL/Event.h"

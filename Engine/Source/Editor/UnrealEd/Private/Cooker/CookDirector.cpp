@@ -4,6 +4,7 @@
 
 #include "Async/Fundamental/Scheduler.h"
 #include "CompactBinaryTCP.h"
+#include "Cooker/CookGenerationHelper.h"
 #include "Cooker/CookPackageData.h"
 #include "Cooker/CookPlatformManager.h"
 #include "Cooker/CookWorkerServer.h"

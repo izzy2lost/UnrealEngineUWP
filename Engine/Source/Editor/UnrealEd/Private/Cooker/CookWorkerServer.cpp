@@ -6,6 +6,7 @@
 #include "Commandlets/AssetRegistryGenerator.h"
 #include "Cooker/CompactBinaryTCP.h"
 #include "Cooker/CookDirector.h"
+#include "Cooker/CookGenerationHelper.h"
 #include "Cooker/CookPackageData.h"
 #include "Cooker/CookPlatformManager.h"
 #include "HAL/PlatformProcess.h"

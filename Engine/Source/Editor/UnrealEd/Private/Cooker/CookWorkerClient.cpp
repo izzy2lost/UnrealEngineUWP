@@ -4,6 +4,7 @@
 
 #include "Cooker/CompactBinaryTCP.h"
 #include "Cooker/CookDirector.h"
+#include "Cooker/CookGenerationHelper.h"
 #include "Cooker/CookPackageData.h"
 #include "Cooker/CookPlatformManager.h"
 #include "Cooker/CookTypes.h"
