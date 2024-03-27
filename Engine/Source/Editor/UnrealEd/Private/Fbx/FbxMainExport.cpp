@@ -1717,16 +1717,15 @@ FLevelSequenceAnimTrackAdapter::FLevelSequenceAnimTrackAdapter(IMovieScenePlayer
 	MovieScene = MovieSceneSequence->GetMovieScene();
 	RootToLocalTransform = InRootToLocalTransform;
 	AnimTrack = InAnimTrack;
+	MovieSceneSequence = nullptr;
+	RootMovieSceneSequence = nullptr;
 	if (MovieScene)
 	{
-		UMovieSceneSequence* OwnerSceneSequence = MovieScene->GetTypedOuter<UMovieSceneSequence>();
-		MovieSceneSequence = OwnerSceneSequence;
-		RootMovieSceneSequence = OwnerSceneSequence;
-	}
-	else
-	{
-		MovieSceneSequence = nullptr;
-		RootMovieSceneSequence = nullptr;
+		if (UMovieSceneSequence* OwnerSceneSequence = MovieScene->GetTypedOuter<UMovieSceneSequence>())
+		{
+			MovieSceneSequence = OwnerSceneSequence;
+			RootMovieSceneSequence = OwnerSceneSequence;
+		}
 	}
 }
 
