@@ -233,7 +233,6 @@ void FChaosVDRecording::GenerateAndStoreKeyframeForSolver_AssumesLocked(const in
 	}
 }
 
-
 void FChaosVDRecording::AddFrameForSolver(const int32 SolverID, FChaosVDSolverFrameData&& InFrameData)
 {
 	int32 CurrentFrameNumber;
@@ -288,7 +287,7 @@ void FChaosVDRecording::AddFrameForSolver(const int32 SolverID, FChaosVDSolverFr
 		AddKeyFrameNumberForSolver(SolverID, CurrentFrameNumber);
 	}
 
-	OnRecordingUpdated().Broadcast();
+	LastUpdatedTimeAsCycle = FPlatformTime::Cycles64();
 }
 
 void FChaosVDRecording::AddGameFrameData(const FChaosVDGameFrameData& InFrameData)
