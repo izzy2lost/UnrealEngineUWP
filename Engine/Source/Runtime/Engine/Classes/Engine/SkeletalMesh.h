@@ -930,19 +930,6 @@ public:
 	TArray<struct FBoneMirrorInfo> SkelMirrorTable;
 #endif
 
-#if 0 // TODO: Nanite-Skinning
-	/** Settings related to building Nanite data. */
-	UPROPERTY(EditAnywhere, Category = NaniteSettings)
-#endif
-	FMeshNaniteSettings NaniteSettings;
-
-#if WITH_EDITORONLY_DATA
-	/**
-	 * Returns true if this skeletal mesh should have Nanite built for it.
-	 */
-	ENGINE_API bool IsNaniteEnabled() const;
-#endif
-
 private:
 	/** Struct containing information for each LOD level, such as materials to use, and when use the LOD. */
 	UE_DEPRECATED(5.0, "This must be protected for async build, always use the accessors even internally.")

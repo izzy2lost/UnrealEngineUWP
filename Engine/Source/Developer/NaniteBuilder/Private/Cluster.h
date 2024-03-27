@@ -16,7 +16,6 @@ namespace Nanite
 struct FBuilderSettings
 {
 	uint32	NumTexCoords		= 0;
-	uint32	NumBoneInfluences	= 0;
 	float	MaxEdgeLengthFactor	= 0.0f;
 	bool	bHasTangents		: 1 = false;
 	bool	bHasColors			: 1 = false;
@@ -25,7 +24,7 @@ struct FBuilderSettings
 
 	FORCEINLINE uint32 GetVertSize() const
 	{
-		return 6 + ( bHasTangents ? 4 : 0 ) + ( bHasColors ? 4 : 0 ) + (NumTexCoords * 2) + (NumBoneInfluences * 2);
+		return 6 + ( bHasTangents ? 4 : 0 ) + ( bHasColors ? 4 : 0 ) + NumTexCoords * 2;
 	}
 
 	FORCEINLINE uint32 GetColorOffset() const
@@ -36,11 +35,6 @@ struct FBuilderSettings
 	FORCEINLINE uint32 GetUVOffset() const
 	{
 		return 6 + ( bHasTangents ? 4 : 0 ) + ( bHasColors ? 4 : 0 );
-	}
-
-	FORCEINLINE uint32 GetBoneInfluenceOffset() const
-	{
-		return 6 + (bHasTangents ? 4 : 0) + (bHasColors ? 4 : 0) + (NumTexCoords * 2);
 	}
 };
 
@@ -105,7 +99,6 @@ public:
 	float&				GetTangentYSign( uint32 VertIndex );
 	FLinearColor&		GetColor( uint32 VertIndex );
 	FVector2f*			GetUVs( uint32 VertIndex );
-	FVector2f*			GetBoneInfluences(uint32 VertIndex);
 
 	const FVector3f&	GetPosition( uint32 VertIndex ) const;
 	const FVector3f&	GetNormal( uint32 VertIndex ) const;
@@ -113,7 +106,6 @@ public:
 	const float&		GetTangentYSign( uint32 VertIndex ) const;
 	const FLinearColor&	GetColor( uint32 VertIndex ) const;
 	const FVector2f*	GetUVs( uint32 VertIndex ) const;
-	const FVector2f*	GetBoneInfluences(uint32 VertIndex) const;
 
 	void				SanitizeVertexData();
 
@@ -228,16 +220,6 @@ FORCEINLINE FVector2f* FCluster::GetUVs( uint32 VertIndex )
 FORCEINLINE const FVector2f* FCluster::GetUVs( uint32 VertIndex ) const
 {
 	return reinterpret_cast< const FVector2f* >( &Verts[ VertIndex * GetVertSize() + Settings.GetUVOffset() ] );
-}
-
-FORCEINLINE FVector2f* FCluster::GetBoneInfluences(uint32 VertIndex)
-{
-	return reinterpret_cast<FVector2f*>(&Verts[VertIndex * GetVertSize() + Settings.GetBoneInfluenceOffset()]);
-}
-
-FORCEINLINE const FVector2f* FCluster::GetBoneInfluences(uint32 VertIndex) const
-{
-	return reinterpret_cast<const FVector2f*>(&Verts[VertIndex * GetVertSize() + Settings.GetBoneInfluenceOffset()]);
 }
 
 } // namespace Nanite

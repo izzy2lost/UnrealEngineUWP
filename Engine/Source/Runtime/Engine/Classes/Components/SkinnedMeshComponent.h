@@ -39,11 +39,6 @@ class USkinnedAsset;
 struct FExternalMorphSet;
 struct FExternalMorphWeightData;
 
-namespace Nanite
-{
-	struct FResources;
-}
-
 DECLARE_DELEGATE_OneParam(FOnAnimUpdateRateParamsCreated, FAnimUpdateRateParameters*)
 DECLARE_MULTICAST_DELEGATE_ThreeParams(FOnTickPose, USkinnedMeshComponent* /*SkinnedMeshComponent*/, float /*DeltaTime*/, bool /*bNeedsValidRootMotion*/)
 
@@ -520,13 +515,6 @@ public:
 	ENGINE_API void GetCPUSkinnedVertices(TArray<struct FFinalSkinVertex>& OutVertices, int32 InLODIndex) const;
 
 	ENGINE_API void GetCPUSkinnedCachedFinalVertices(TArray<FFinalSkinVertex>& OutVertices) const;
-
-	ENGINE_API virtual const Nanite::FResources* GetNaniteResources() const;
-
-	/**
-	 * Returns true if the component has valid Nanite render data.
-	 */
-	ENGINE_API virtual bool HasValidNaniteData() const;
 
 #if UE_ENABLE_DEBUG_DRAWING
 	/** Get whether to draw this mesh's debug skeleton */

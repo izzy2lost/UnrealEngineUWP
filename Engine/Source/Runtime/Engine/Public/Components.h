@@ -78,8 +78,6 @@ struct FConstMeshBuildVertexView
 	TStridedView<const FVector3f> TangentX;
 	TStridedView<const FVector3f> TangentY;
 	TStridedView<const FVector3f> TangentZ;
-	TArray<TStridedView<const uint16>> BoneIndices;
-	TArray<TStridedView<const uint16>> BoneWeights;
 	TArray<TStridedView<const FVector2f>, TInlineAllocator<1>> UVs;
 	TStridedView<const FColor> Color;
 };
@@ -90,8 +88,6 @@ struct FMeshBuildVertexView
 	TStridedView<FVector3f> TangentX;
 	TStridedView<FVector3f> TangentY;
 	TStridedView<FVector3f> TangentZ;
-	TArray<TStridedView<uint16>> BoneIndices;
-	TArray<TStridedView<uint16>> BoneWeights;
 	TArray<TStridedView<FVector2f>, TInlineAllocator<1>> UVs;
 	TStridedView<FColor> Color;
 };
@@ -102,32 +98,21 @@ struct FMeshBuildVertexData
 	TArray<FVector3f> TangentX;
 	TArray<FVector3f> TangentY;
 	TArray<FVector3f> TangentZ;
-	TArray<TArray<uint16>> BoneIndices;
-	TArray<TArray<uint16>> BoneWeights;
 	TArray<TArray<FVector2f>, TInlineAllocator<1>> UVs;
 	TArray<FColor> Color;
 
-	inline void Empty(int32 Slack = 0, int32 NumTexCoords = 0, int32 NumBoneInfluences = 0)
+	inline void Empty(int32 Slack = 0, int32 NumTexCoords = 0)
 	{
 		Position.Empty(Slack);
 		TangentX.Empty(Slack);
 		TangentY.Empty(Slack);
 		TangentZ.Empty(Slack);
-		Color.Empty(Slack);
-
-		BoneIndices.SetNum(NumBoneInfluences);
-		BoneWeights.SetNum(NumBoneInfluences);
-		for (int32 Influence = 0; Influence < NumBoneInfluences; ++Influence)
-		{
-			BoneIndices[Influence].Empty(Slack);
-			BoneWeights[Influence].Empty(Slack);
-		}
-
 		UVs.SetNum(NumTexCoords);
 		for (int32 TexCoord = 0; TexCoord < NumTexCoords; ++TexCoord)
 		{
 			UVs[TexCoord].Empty(Slack);
 		}
+		Color.Empty(Slack);
 	}
 };
 
@@ -226,43 +211,15 @@ inline FConstMeshBuildVertexView MakeConstMeshBuildVertexView(const TConstArrayV
 	return View;
 }
 
-/** Make a strided mesh build vertex view from FMeshBuildVertexData. */
+/** Make a strided mesh build vertex view from FNaniteBuildColorVertex. */
 inline FMeshBuildVertexView MakeMeshBuildVertexView(FMeshBuildVertexData& InVertexData)
 {
 	FMeshBuildVertexView View{};
 	{
-		View.Position	= MakeStridedView(InVertexData.Position);
-		View.TangentX	= MakeStridedView(InVertexData.TangentX);
-		View.TangentY	= MakeStridedView(InVertexData.TangentY);
-		View.TangentZ	= MakeStridedView(InVertexData.TangentZ);
-		View.Color		= MakeStridedView(InVertexData.Color);
-
-		View.BoneIndices.Reserve(InVertexData.BoneIndices.Num());
-		for (int32 Influence = 0; Influence < InVertexData.BoneIndices.Num(); ++Influence)
-		{
-			if (InVertexData.BoneIndices[Influence].Num() > 0)
-			{
-				View.BoneIndices.Add(MakeStridedView(sizeof(uint16), &InVertexData.BoneIndices[Influence][0], InVertexData.BoneIndices[Influence].Num()));
-			}
-			else
-			{
-				View.BoneIndices.Add({});
-			}
-		}
-
-		View.BoneWeights.Reserve(InVertexData.BoneWeights.Num());
-		for (int32 Influence = 0; Influence < InVertexData.BoneWeights.Num(); ++Influence)
-		{
-			if (InVertexData.BoneWeights[Influence].Num() > 0)
-			{
-				View.BoneWeights.Add(MakeStridedView(sizeof(uint16), &InVertexData.BoneWeights[Influence][0], InVertexData.BoneWeights[Influence].Num()));
-			}
-			else
-			{
-				View.BoneWeights.Add({});
-			}
-		}
-
+		View.Position = MakeStridedView(InVertexData.Position);
+		View.TangentX = MakeStridedView(InVertexData.TangentX);
+		View.TangentY = MakeStridedView(InVertexData.TangentY);
+		View.TangentZ = MakeStridedView(InVertexData.TangentZ);
 		View.UVs.Reserve(InVertexData.UVs.Num());
 		for (int32 UVCoord = 0; UVCoord < InVertexData.UVs.Num(); ++UVCoord)
 		{
@@ -276,6 +233,7 @@ inline FMeshBuildVertexView MakeMeshBuildVertexView(FMeshBuildVertexData& InVert
 			}
 		}
 
+		View.Color = MakeStridedView(InVertexData.Color);
 		RemoveInvalidVertexColor(View);
 	}
 	return View;
@@ -285,38 +243,10 @@ inline FConstMeshBuildVertexView MakeConstMeshBuildVertexView(const FMeshBuildVe
 {
 	FConstMeshBuildVertexView View{};
 	{
-		View.Position	= MakeStridedView(InVertexData.Position);
-		View.TangentX	= MakeStridedView(InVertexData.TangentX);
-		View.TangentY	= MakeStridedView(InVertexData.TangentY);
-		View.TangentZ	= MakeStridedView(InVertexData.TangentZ);
-		View.Color		= MakeStridedView(InVertexData.Color);
-
-		View.BoneIndices.Reserve(InVertexData.BoneIndices.Num());
-		for (int32 Influence = 0; Influence < InVertexData.BoneIndices.Num(); ++Influence)
-		{
-			if (InVertexData.BoneIndices[Influence].Num() > 0)
-			{
-				View.BoneIndices.Add(MakeStridedView(sizeof(uint16), &InVertexData.BoneIndices[Influence][0], InVertexData.BoneIndices[Influence].Num()));
-			}
-			else
-			{
-				View.BoneIndices.Add({});
-			}
-		}
-
-		View.BoneWeights.Reserve(InVertexData.BoneWeights.Num());
-		for (int32 Influence = 0; Influence < InVertexData.BoneWeights.Num(); ++Influence)
-		{
-			if (InVertexData.BoneWeights[Influence].Num() > 0)
-			{
-				View.BoneWeights.Add(MakeStridedView(sizeof(uint16), &InVertexData.BoneWeights[Influence][0], InVertexData.BoneWeights[Influence].Num()));
-			}
-			else
-			{
-				View.BoneWeights.Add({});
-			}
-		}
-		
+		View.Position = MakeStridedView(InVertexData.Position);
+		View.TangentX = MakeStridedView(InVertexData.TangentX);
+		View.TangentY = MakeStridedView(InVertexData.TangentY);
+		View.TangentZ = MakeStridedView(InVertexData.TangentZ);
 		View.UVs.Reserve(InVertexData.UVs.Num());
 		for (int32 UVCoord = 0; UVCoord < InVertexData.UVs.Num(); ++UVCoord)
 		{
@@ -330,6 +260,7 @@ inline FConstMeshBuildVertexView MakeConstMeshBuildVertexView(const FMeshBuildVe
 			}
 		}
 
+		View.Color = MakeStridedView(InVertexData.Color);
 		RemoveInvalidVertexColor(View);
 	}
 	return View;

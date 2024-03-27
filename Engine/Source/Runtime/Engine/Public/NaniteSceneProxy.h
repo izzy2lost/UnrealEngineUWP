@@ -156,7 +156,6 @@ enum class EFilterFlags : uint8
 	Landscape				= (1u << 4u),
 	StaticMobility			= (1u << 5u),
 	NonStaticMobility		= (1u << 6u),
-	SkeletalMesh			= (1u << 7u),
 	All						= 0xFF
 };
 

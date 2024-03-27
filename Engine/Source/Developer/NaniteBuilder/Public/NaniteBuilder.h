@@ -54,10 +54,9 @@ public:
 		TArray<int32>  MaterialIndices;
 		FStaticMeshSectionArray Sections;
 		FBounds3f VertexBounds;
-		uint32 NumTexCoords = 0;
-		uint32 NumBoneInfluences = 0;
-		float PercentTriangles = 1.0f;
-		float MaxDeviation = 0.0f;
+		uint32 NumTexCoords;
+		float PercentTriangles;
+		float MaxDeviation;
 	};
 
 	struct FOutputMeshData
@@ -65,8 +64,8 @@ public:
 		FMeshBuildVertexData Vertices;
 		TArray<uint32> TriangleIndices;
 		FStaticMeshSectionArray Sections;
-		float PercentTriangles = 1.0f;
-		float MaxDeviation = 0.0f;
+		float PercentTriangles;
+		float MaxDeviation;
 	};
 
 	virtual bool Build(

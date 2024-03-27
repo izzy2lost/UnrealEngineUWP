@@ -46,7 +46,6 @@
 #include "Engine/AssetUserData.h"
 #include "Animation/NodeMappingContainer.h"
 #include "Rendering/SkeletalMeshRenderData.h"
-#include "Rendering/NaniteResources.h"
 #include "Rendering/RenderCommandPipes.h"
 #include "AnimationRuntime.h"
 #include "Animation/AnimSequence.h"
@@ -64,7 +63,6 @@
 #include "IMeshReductionInterfaces.h"
 #include "SkinnedAssetCompiler.h"
 #include "MeshUtilities.h"
-#include "NaniteBuilder.h"
 #include "Engine/SkeletalMeshEditorData.h"
 #include "DerivedDataCacheInterface.h"
 #include "DerivedDataCacheKey.h"
@@ -670,15 +668,6 @@ void USkeletalMesh::SetMaterials(const TArray<FSkeletalMaterial>& InMaterials)
 	Materials = InMaterials;
 	PRAGMA_ENABLE_DEPRECATION_WARNINGS
 }
-
-#if WITH_EDITORONLY_DATA
-
-bool USkeletalMesh::IsNaniteEnabled() const
-{
-	return NaniteSettings.bEnabled;
-}
-
-#endif
 
 void USkeletalMesh::AddClothingAsset(UClothingAssetBase* InNewAsset)
 {
@@ -4872,7 +4861,6 @@ void USkeletalMesh::ClearAllCachedCookedPlatformData()
 {
 	LLM_SCOPE(ELLMTag::SkeletalMesh);
 	GetResourceForRendering()->NextCachedRenderData.Reset();
-	GetResourceForRendering()->NaniteResourcesPtr->DropBulkData();
 	
 	if (FApp::CanEverRender())
 	{
@@ -4916,9 +4904,6 @@ extern int32 GSkeletalMeshKeepMobileMinLODSettingOnDesktop;
 
 FString USkeletalMesh::BuildDerivedDataKey(const ITargetPlatform* TargetPlatform)
 {
-	TArray<uint8> TempBytes;
-	TempBytes.Reserve(64);
-
 	FString KeySuffix(TEXT(""));
 
 	FString TmpPartialKeySuffix;
@@ -4963,26 +4948,6 @@ FString USkeletalMesh::BuildDerivedDataKey(const ITargetPlatform* TargetPlatform
 
 	// Include the global default bone influences limit in case any LODs don't set an explicit limit (highly likely)
 	KeySuffix += FString::FromInt(GetDefault<URendererSettings>()->DefaultBoneInfluenceLimit.GetValueForPlatform(*TargetPlatform->IniPlatformName()));
-
-	if (IsNaniteEnabled())
-	{
-		TempBytes.Reset();
-		FMemoryWriter Ar(TempBytes, /*bIsPersistent=*/ true);
-		SerializeNaniteSettingsForDDC(Ar, NaniteSettings, false /* Is force enabled */);
-
-		const uint8* SettingsAsBytes = TempBytes.GetData();
-		KeySuffix.Reserve(KeySuffix.Len() + TempBytes.Num() + 1);
-		for (int32 ByteIndex = 0; ByteIndex < TempBytes.Num(); ++ByteIndex)
-		{
-			ByteToHex(SettingsAsBytes[ByteIndex], KeySuffix);
-		}
-
-		// Nanite skeletal mesh version
-		KeySuffix += TEXT("_NSK_WIP_1");
-
-		static FString CachedNaniteVersion = FDevSystemGuids::GetSystemGuid(FDevSystemGuids::Get().NANITE_DERIVEDDATA_VER).ToString();
-		KeySuffix += *CachedNaniteVersion;
-	}
 
 #if PLATFORM_CPU_ARM_FAMILY
 	// Separate out arm keys as x64 and arm64 clang do not generate the same data for a given

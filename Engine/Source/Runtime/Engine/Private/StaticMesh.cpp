@@ -2580,6 +2580,42 @@ void UStaticMesh::PostDuplicate(bool bDuplicateForPIE)
 	}
 }
 
+static void SerializeNaniteSettingsForDDC(FArchive& Ar, FMeshNaniteSettings& NaniteSettings, bool bIsNaniteForceEnabled)
+{
+	bool bIsEnabled = NaniteSettings.bEnabled || bIsNaniteForceEnabled;
+
+	// Note: this serializer is only used to build the mesh DDC key, no versioning is required
+	FArchive_Serialize_BitfieldBool(Ar, bIsEnabled);
+	FArchive_Serialize_BitfieldBool(Ar, NaniteSettings.bPreserveArea);
+	FArchive_Serialize_BitfieldBool(Ar, NaniteSettings.bExplicitTangents);
+	FArchive_Serialize_BitfieldBool(Ar, NaniteSettings.bLerpUVs);
+	Ar << NaniteSettings.PositionPrecision;
+	Ar << NaniteSettings.NormalPrecision;
+	Ar << NaniteSettings.TangentPrecision;
+	Ar << NaniteSettings.TargetMinimumResidencyInKB;
+	Ar << NaniteSettings.KeepPercentTriangles;
+	Ar << NaniteSettings.TrimRelativeError;
+	Ar << NaniteSettings.FallbackTarget;
+	Ar << NaniteSettings.FallbackPercentTriangles;
+	Ar << NaniteSettings.FallbackRelativeError;
+	Ar << NaniteSettings.MaxEdgeLengthFactor;
+	Ar << NaniteSettings.DisplacementUVChannel;
+
+	for( auto& DisplacementMap : NaniteSettings.DisplacementMaps )
+	{
+		if (IsValid(DisplacementMap.Texture))
+		{
+			FGuid TextureId = DisplacementMap.Texture->Source.GetId();
+			Ar << TextureId;
+			Ar << DisplacementMap.Texture->AddressX;
+			Ar << DisplacementMap.Texture->AddressY;
+		}
+
+		Ar << DisplacementMap.Magnitude;
+		Ar << DisplacementMap.Center;
+	}
+}
+
 static void SerializeReductionSettingsForDDC(FArchive& Ar, FMeshReductionSettings& ReductionSettings)
 {
 	// Note: this serializer is only used to build the mesh DDC key, no versioning is required
@@ -2704,7 +2740,7 @@ static FString BuildStaticMeshDerivedDataKeySuffix(const ITargetPlatform* Target
 	}
 #endif
 
-	if (Mesh->IsNaniteEnabled())
+	if (DoesTargetPlatformSupportNanite(TargetPlatform))
 	{
 		TempBytes.Reset();
 		FMemoryWriter Ar(TempBytes, /*bIsPersistent=*/ true);

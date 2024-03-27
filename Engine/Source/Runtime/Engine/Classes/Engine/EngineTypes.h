@@ -3968,12 +3968,6 @@ enum class ELevelCollectionType : uint8
 	MAX
 };
 
-#if WITH_EDITOR
-
-ENGINE_API void SerializeNaniteSettingsForDDC(FArchive& Ar, FMeshNaniteSettings& NaniteSettings, bool bIsNaniteForceEnabled);
-
-#endif
-
 #if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_2
 #include "CoreMinimal.h"
 #endif

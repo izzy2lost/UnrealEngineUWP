@@ -5,7 +5,6 @@
 #include "RHIDefinitions.h"
 #include "Containers/IndirectArray.h"
 #include "Rendering/SkeletalMeshLODRenderData.h"
-#include "Rendering/NaniteInterface.h"
 
 struct FMeshUVChannelInfo;
 class USkeletalMesh;
@@ -19,9 +18,6 @@ class FSkeletalMeshRenderData
 public:
 	/** Per-LOD render data. */
 	TIndirectArray<FSkeletalMeshLODRenderData> LODRenderData;
-
-	/** Nanite resource data. */
-	TPimplPtr<Nanite::FResources> NaniteResourcesPtr;
 
 	/** True if rhi resources are initialized */
 	bool bReadyForStreaming;
@@ -129,8 +125,6 @@ public:
 	{
 		return bInitialized;
 	}
-
-	ENGINE_API bool HasValidNaniteData() const;
 
 private:
 
