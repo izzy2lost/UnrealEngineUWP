@@ -97,7 +97,6 @@ namespace EpicGames.Horde.Compute.Transports
 		/// <inheritdoc/>
 		public override async ValueTask MarkCompleteAsync(CancellationToken cancellationToken)
 		{
-			await _reader.CompleteAsync();
 			await _writer.CompleteAsync();
 		}
 	}
