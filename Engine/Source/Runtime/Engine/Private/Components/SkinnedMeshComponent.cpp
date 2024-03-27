@@ -42,6 +42,7 @@
 #include "HAL/LowLevelMemStats.h"
 #include "UObject/Package.h"
 #include "Rendering/RenderCommandPipes.h"
+#include "Rendering/NaniteResources.h"
 #include "ProfilingDebugging/AssetMetadataTrace.h"
 
 DEFINE_LOG_CATEGORY_STATIC(LogSkinnedMeshComp, Log, All);
@@ -4256,6 +4257,22 @@ void USkinnedMeshComponent::GetCPUSkinnedCachedFinalVertices(TArray<FFinalSkinVe
 		// Copy our vertices out. We know we are using CPU skinning now, so this cast is safe
 		OutVertices = static_cast<FSkeletalMeshObjectCPUSkin*>(MeshObject)->GetCachedFinalVertices();
 	}
+}
+
+const Nanite::FResources* USkinnedMeshComponent::GetNaniteResources() const
+{
+	if (GetSkinnedAsset() && GetSkinnedAsset()->GetResourceForRendering())
+	{
+		return GetSkinnedAsset()->GetResourceForRendering()->NaniteResourcesPtr.Get();
+	}
+
+	return nullptr;
+}
+
+bool USkinnedMeshComponent::HasValidNaniteData() const
+{
+	const Nanite::FResources* NaniteResources = GetNaniteResources();
+	return NaniteResources != nullptr ? NaniteResources->PageStreamingStates.Num() > 0 : false;
 }
 
 void USkinnedMeshComponent::ReleaseResources()

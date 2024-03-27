@@ -105,6 +105,16 @@ FCluster::FCluster(
 					UVs[UVIndex] = InVerts.UVs[UVIndex][OldIndex];
 				}
 
+				if (Settings.NumBoneInfluences > 0)
+				{
+					FVector2f* BoneInfluences = GetBoneInfluences(NewIndex);
+					for (uint32 Influence = 0; Influence < Settings.NumBoneInfluences; Influence++)
+					{
+						BoneInfluences[Influence].X = InVerts.BoneIndices[Influence][OldIndex];
+						BoneInfluences[Influence].Y = InVerts.BoneWeights[Influence][OldIndex];
+					}
+				}
+
 				float* Attributes = GetAttributes( NewIndex );
 
 				// Make sure this vertex is valid from the start
@@ -369,6 +379,18 @@ float FCluster::Simplify( uint32 TargetNumTris, float TargetError, uint32 LimitN
 		*WeightsPtr++ = UVWeight;
 		*WeightsPtr++ = UVWeight;
 	}
+
+	for (uint32 Influence = 0; Influence < Settings.NumBoneInfluences; Influence++)
+	{
+		// Set all bone index/weight values to 0.0 so that the closest
+		// original vertex to the new position will copy its data wholesale.
+		// Similar to the !bLerpUV path, but always used for skinning data.
+		float InfluenceWeight = 0.0f;
+
+		*WeightsPtr++ = InfluenceWeight; // Bone index
+		*WeightsPtr++ = InfluenceWeight; // Bone weight
+	}
+
 	check( ( WeightsPtr - AttributeWeights ) == NumAttributes );
 
 	FMeshSimplifier Simplifier( Verts.GetData(), NumVerts, Indexes.GetData(), Indexes.Num(), MaterialIndexes.GetData(), NumAttributes );
@@ -482,6 +504,12 @@ float FCluster::SimplifyFallback( uint32 TargetNumTris, float TargetError, uint3
 		*WeightsPtr++ = 0.1f;
 		*WeightsPtr++ = 0.1f;
 		*WeightsPtr++ = 0.1f;
+	}
+
+	if (Settings.NumBoneInfluences > 0)
+	{
+		// TODO: Nanite-Skinning
+		checkNoEntry(); // Not yet implemented
 	}
 
 	// Normalize UVWeights
@@ -730,10 +758,20 @@ void FCluster::SanitizeVertexData()
 		}
 
 		FVector2f* UVs = GetUVs( VertexIndex );
-		for( uint32 UvIndex = 0; UvIndex < Settings.NumTexCoords; UvIndex++ )
+		for( uint32 UVIndex = 0; UVIndex < Settings.NumTexCoords; UVIndex++ )
 		{
-			SanitizeFloat( UVs[ UvIndex ].X, -FltThreshold, FltThreshold, 0.0f );
-			SanitizeFloat( UVs[ UvIndex ].Y, -FltThreshold, FltThreshold, 0.0f );
+			SanitizeFloat( UVs[UVIndex].X, -FltThreshold, FltThreshold, 0.0f );
+			SanitizeFloat( UVs[UVIndex].Y, -FltThreshold, FltThreshold, 0.0f );
+		}
+
+		if (Settings.NumBoneInfluences > 0)
+		{
+			FVector2f* BoneInfluences = GetBoneInfluences(VertexIndex);
+			for (uint32 Influence = 0; Influence < Settings.NumBoneInfluences; Influence++)
+			{
+				SanitizeFloat(BoneInfluences[Influence].X, -FltThreshold, FltThreshold, 0.0f);
+				SanitizeFloat(BoneInfluences[Influence].Y, -FltThreshold, FltThreshold, 0.0f);
+			}
 		}
 	}
 }

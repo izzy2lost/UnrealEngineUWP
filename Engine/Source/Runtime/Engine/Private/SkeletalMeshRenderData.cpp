@@ -3,6 +3,7 @@
 #include "Rendering/SkeletalMeshRenderData.h"
 #include "Engine/SkinnedAsset.h"
 #include "Rendering/SkeletalMeshModel.h"
+#include "Rendering/NaniteResources.h"
 #include "Engine/SkeletalMesh.h"
 #include "Engine/SkinnedAssetAsyncCompileUtils.h"
 #include "Engine/SkinnedAssetCommon.h"
@@ -217,6 +218,9 @@ void FSkeletalMeshRenderData::Cache(const ITargetPlatform* TargetPlatform, USkin
 
 	check(LODRenderData.Num() == 0); // Should only be called on new, empty RenderData
 	check(TargetPlatform);
+
+	check(NaniteResourcesPtr.IsValid());
+	Nanite::FResources& NaniteResources = *NaniteResourcesPtr.Get();
 
 	auto SerializeLODModelDDCData = [&Owner](FSkeletalMeshLODModel* LODModel, FArchive& Ar)
 	{
@@ -455,7 +459,9 @@ FSkeletalMeshRenderData::FSkeletalMeshRenderData()
 	, LODBiasModifier(0)
 	, bSupportRayTracing(true)
 	, bInitialized(false)
-{}
+{
+	ClearNaniteResources(NaniteResourcesPtr);
+}
 
 FSkeletalMeshRenderData::~FSkeletalMeshRenderData()
 {
@@ -568,6 +574,9 @@ void FSkeletalMeshRenderData::Serialize(FArchive& Ar, USkinnedAsset* Owner)
 
 	LODRenderData.Serialize(Ar, Owner);
 
+	check(NaniteResourcesPtr.IsValid());
+	NaniteResourcesPtr->Serialize(Ar, Owner, false /* bCooked */);
+
 #if WITH_EDITOR
 	if (Ar.IsSaving())
 	{
@@ -620,6 +629,9 @@ void FSkeletalMeshRenderData::InitResources(bool bNeedsVertexColors, TArray<UMor
 			}
 		}
 
+		check(NaniteResourcesPtr.IsValid());
+		NaniteResourcesPtr->InitResources(Owner);
+
 		ENQUEUE_RENDER_COMMAND(CmdSetSkeletalMeshReadyForStreaming)(UE::RenderCommandPipe::SkeletalMesh,
 			[this, Owner]
 		{
@@ -639,6 +651,10 @@ void FSkeletalMeshRenderData::ReleaseResources()
 		{
 			LODRenderData[LODIndex].ReleaseResources();
 		}
+
+		check(NaniteResourcesPtr.IsValid());
+		NaniteResourcesPtr->ReleaseResources();
+
 		bInitialized = false;
 	}
 }
@@ -680,6 +696,8 @@ void FSkeletalMeshRenderData::GetResourceSizeEx(FResourceSizeEx& CumulativeResou
 		const FSkeletalMeshLODRenderData& RenderData = LODRenderData[LODIndex];
 		RenderData.GetResourceSizeEx(CumulativeResourceSize);
 	}
+
+	GetNaniteResourcesSizeEx(NaniteResourcesPtr, CumulativeResourceSize);
 }
 
 SIZE_T FSkeletalMeshRenderData::GetCPUAccessMemoryOverhead() const
@@ -742,4 +760,9 @@ int32 FSkeletalMeshRenderData::GetFirstValidLODIdx(int32 MinIdx) const
 		++LODIndex;
 	}
 	return (LODIndex < LODCount) ? LODIndex : INDEX_NONE;
+}
+
+bool FSkeletalMeshRenderData::HasValidNaniteData() const
+{
+	return NaniteResourcesPtr->PageStreamingStates.Num() > 0;
 }
