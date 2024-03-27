@@ -2036,13 +2036,13 @@ namespace UnrealGameSync
 			IArchive? archive;
 			if (!changeNumberToArchive.TryGetValue(changeNumber, out archive))
 			{
-				archive = GetArchiveForChangeNumberUncached(archiveChannel, changeNumber, maxChangeNumber, changeNumberToArchive);
+				archive = GetArchiveForChangeNumberUncached(archiveChannel, changeNumber, maxChangeNumber);
 				changeNumberToArchive.Add(changeNumber, archive);
 			}
 			return archive;
 		}
 
-		private IArchive? GetArchiveForChangeNumberUncached(IArchiveChannel archiveChannel, int changeNumber, int maxChangeNumber, Dictionary<int, IArchive?> changeNumberToArchive)
+		private IArchive? GetArchiveForChangeNumberUncached(IArchiveChannel archiveChannel, int changeNumber, int maxChangeNumber)
 		{
 			int idx = _sortedChangeNumbers.BinarySearch(changeNumber);
 			if (idx < 0)

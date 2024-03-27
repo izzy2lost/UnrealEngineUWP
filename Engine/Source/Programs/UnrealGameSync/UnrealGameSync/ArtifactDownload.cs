@@ -9,10 +9,7 @@ using System.Threading.Tasks;
 using System.Windows.Forms;
 using EpicGames.Core;
 using EpicGames.Horde;
-using EpicGames.Horde.Artifacts;
 using EpicGames.Horde.Storage;
-using EpicGames.Horde.Storage.Bundles;
-using EpicGames.Horde.Storage.Clients;
 using EpicGames.Horde.Storage.Nodes;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -115,7 +112,7 @@ namespace UnrealGameSync
 			{
 				Download(artifactFile.Substring(ArtifactArg.Length));
 			}
-			catch(Exception ex)
+			catch (Exception ex)
 			{
 				MessageBox.Show(ex.ToString());
 			}

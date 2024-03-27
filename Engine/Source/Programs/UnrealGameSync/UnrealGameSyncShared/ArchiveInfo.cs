@@ -10,7 +10,6 @@ using System.Threading.Tasks;
 using EpicGames.Core;
 using EpicGames.Horde;
 using EpicGames.Horde.Artifacts;
-using EpicGames.Horde.Streams;
 using EpicGames.Perforce;
 using Microsoft.Extensions.Logging;
 
@@ -103,7 +102,7 @@ namespace UnrealGameSync
 		public override bool Equals(object? other)
 		{
 			PerforceArchiveChannel? otherArchive = other as PerforceArchiveChannel;
-			return otherArchive != null && Name == otherArchive.Name && Type == otherArchive.Type && DepotPath == otherArchive.DepotPath && Target == otherArchive.Target 
+			return otherArchive != null && Name == otherArchive.Name && Type == otherArchive.Type && DepotPath == otherArchive.DepotPath && Target == otherArchive.Target
 				&& Enumerable.SequenceEqual(ChangeNumberToArchive.Select(x => (x.Key, x.Value)), otherArchive.ChangeNumberToArchive.Select(x => (x.Key, x.Value)));
 		}
 
@@ -167,8 +166,6 @@ namespace UnrealGameSync
 			string? target = obj.GetValue("Target", null);
 
 			string type = obj.GetValue("Type", null) ?? name;
-
-			string? streamName = obj.GetValue("StreamName", null);
 
 			// Build a new list of zipped binaries
 			channel = new PerforceArchiveChannel(name, type, depotPath, target);
@@ -239,12 +236,9 @@ namespace UnrealGameSync
 
 	public class HordeArchiveChannel : BaseArchiveChannel
 	{
-		private readonly IHordeClient _hordeClient;
-
-		public HordeArchiveChannel(IHordeClient hordeClient, string name, string type)
+		public HordeArchiveChannel(string name, string type)
 			: base(name, type)
 		{
-			_hordeClient = hordeClient;
 		}
 
 		public override bool Equals(object? other)
@@ -324,7 +318,7 @@ namespace UnrealGameSync
 						string name = first.Description ?? first.Name.ToString();
 
 						const string ArchiveTypePrefix = "ArchiveType=";
-						string? archiveType = first.Metadata?.FirstOrDefault(x => x.StartsWith(ArchiveTypePrefix));
+						string? archiveType = first.Metadata?.FirstOrDefault(x => x.StartsWith(ArchiveTypePrefix, StringComparison.OrdinalIgnoreCase));
 
 						string type = IArchiveChannel.EditorArchiveType;
 						if (archiveType != null)
@@ -332,7 +326,7 @@ namespace UnrealGameSync
 							type = archiveType.Substring(ArchiveTypePrefix.Length);
 						}
 
-						HordeArchiveChannel channel = new HordeArchiveChannel(hordeClient, name, type);
+						HordeArchiveChannel channel = new HordeArchiveChannel(name, type);
 						foreach (GetArtifactResponse response in group)
 						{
 							HordeArchive archive = new HordeArchive(hordeClient, response.Id);
