@@ -80,6 +80,8 @@ bool UGameplayBehavior_BehaviorTree::Trigger(AActor& InAvatar, const UGameplayBe
 		BTComp->ResumeLogic(TEXT("Allow inner BT to run within GameplayBehavior_BehaviorTree"));
 	}
 
+	AIController->OnPossessedPawnChanged.AddDynamic(this, &ThisClass::OnPossessedPawnChanged);
+
 	return true;
 }
 
@@ -110,13 +112,34 @@ void UGameplayBehavior_BehaviorTree::OnTimerTick()
 	}
 }
 
+void UGameplayBehavior_BehaviorTree::OnPossessedPawnChanged(APawn* OldPawn, APawn*)
+{
+	if (OldPawn != nullptr)
+	{
+		EndBehavior(*OldPawn, /*bInterrupted*/true);
+	}
+}
+
 void UGameplayBehavior_BehaviorTree::EndBehavior(AActor& InAvatar, const bool bInterrupted)
 {
 	Super::EndBehavior(InAvatar, bInterrupted);
 
-	if (PreviousBT && AIController)
+	if (AIController)
 	{
-		AIController->RunBehaviorTree(PreviousBT);
+		AIController->OnPossessedPawnChanged.RemoveAll(this);
+
+		if (bInterrupted)
+		{
+			if (UBehaviorTreeComponent* BTComp = Cast<UBehaviorTreeComponent>(AIController->GetBrainComponent()))
+			{
+				BTComp->StopTree(EBTStopMode::Safe);
+			}
+		}
+
+		if (PreviousBT)
+		{
+			AIController->RunBehaviorTree(PreviousBT);
+		}
 	}
 }
 

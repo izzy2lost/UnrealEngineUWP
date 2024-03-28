@@ -24,6 +24,9 @@ protected:
 
 	void OnTimerTick();
 
+	UFUNCTION()
+	void OnPossessedPawnChanged(APawn* OldPawn, APawn* NewPawn);
+
 	UPROPERTY()
 	TObjectPtr<UBehaviorTree> PreviousBT;
 
