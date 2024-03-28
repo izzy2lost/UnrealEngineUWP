@@ -353,7 +353,7 @@ class FDistanceFieldShadowingCS : public FGlobalShader
 			return EShaderPermutationPrecacheRequest::NotUsed;
 		}
 
-		if (PermutationVector.Get<FCompactCulledObjects>() != (GDFShadowCompactCulledObjects  != 0))
+		if (PermutationVector.Get<FCompactCulledObjects>() != (GDFShadowCompactCulledObjects != 0 && (PermutationVector.Get<FCullingType>() == DFS_DirectionalLightScatterTileCulling)))
 		{
 			return EShaderPermutationPrecacheRequest::NotUsed;
 		}
