@@ -1,14 +1,11 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
-
-#include "UniversalObjectLocatorFragmentEditor.h"
+#include "UniversalObjectLocatorEditor.h"
 #include "UniversalObjectLocator.h"
 
 namespace UE::UniversalObjectLocator
 {
-	UClass* ILocatorFragmentEditor::ResolveClass(const FUniversalObjectLocatorFragment& InFragment, UObject* InContext) const
+	FUniversalObjectLocator ILocatorEditor::MakeDefaultLocator() const
 	{
-		const FResolveParams ResolveParams(InContext);
-		UObject* Object = InFragment.Resolve(ResolveParams).SyncGet().Object;
-		return Object != nullptr ? Object->GetClass() : nullptr;
+		return FUniversalObjectLocator();
 	}
 }

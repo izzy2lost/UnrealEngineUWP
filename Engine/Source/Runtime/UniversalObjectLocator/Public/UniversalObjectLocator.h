@@ -9,12 +9,6 @@
 #include "UniversalObjectLocatorFragmentType.h"
 #include "UniversalObjectLocator.generated.h"
 
-namespace UE::UniversalObjectLocator
-{
-	struct FUniversalObjectLocatorCustomization;
-	struct FFragmentItem;
-}
-
 /**
  * Universal Object Locators (UOLs) define an address to an object.
  *
@@ -201,12 +195,6 @@ public:
 	 */
 	UNIVERSALOBJECTLOCATOR_API const FUniversalObjectLocatorFragment* GetLastFragment() const;
 
-	/**
-	 * Iterate the fragments in this address
-	 * @param InFunction       The visitor function to call for each fragment in this address. Function should return false to stop iteration.
-	 * @return false if the iteration was stopped early, true if the iteration succeeded (or if empty)
-	 */
-	UNIVERSALOBJECTLOCATOR_API bool ForEachFragment(TFunctionRef<bool(int32, int32, const FUniversalObjectLocatorFragment&)> InFunction) const;
 
 	/*
 	* Iterates over all fragments and combines their types' default flags.
@@ -237,8 +225,9 @@ public:
 	/*~ End TStructOpsTypeTraits implementation */
 
 private:
-	/** Adds the 'best' fragment according to the input object and context, as well as any potential required relative fragments */
-	UNIVERSALOBJECTLOCATOR_API bool AddFragment(const UObject* Object, UObject* Context, UObject* StopAtContext);
+
+	/**  */
+	bool AddFragment(const UObject* Object, UObject* Context, UObject* StopAtContext);
 
 	FResolveResult ResolveSyncImpl(const FResolveParams& Params) const;
 	FResolveResult ResolveAsyncImpl(const FResolveParams& Params) const;
@@ -248,9 +237,6 @@ private:
 	/** Array of relative locators ordered sequentially from outer to inner. The first locator is probably 'absolute' and is resolved with no context, although that is not a hard restriction */
 	UPROPERTY()
 	TArray<FUniversalObjectLocatorFragment> Fragments;
-
-	friend struct UE::UniversalObjectLocator::FUniversalObjectLocatorCustomization;
-	friend struct UE::UniversalObjectLocator::FFragmentItem;
 };
 
 template<typename FragmentType, typename ...ArgTypes>

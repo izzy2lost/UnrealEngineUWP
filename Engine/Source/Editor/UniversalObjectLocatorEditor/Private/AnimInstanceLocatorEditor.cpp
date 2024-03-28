@@ -4,7 +4,7 @@
 #include "UniversalObjectLocatorFragmentTypeHandle.h"
 #include "UniversalObjectLocators/AnimInstanceLocatorFragment.h"
 #include "UniversalObjectLocator.h"
-#include "UniversalObjectLocatorFragmentEditor.h"
+#include "UniversalObjectLocatorEditor.h"
 #include "IUniversalObjectLocatorEditorModule.h"
 #include "IUniversalObjectLocatorCustomization.h"
 #include "ISequencerModule.h"
@@ -14,7 +14,6 @@
 #include "Framework/MultiBox/MultiBoxBuilder.h"
 
 #include "PropertyCustomizationHelpers.h"
-#include "Animation/AnimInstance.h"
 
 #include "GameFramework/Actor.h"
 #include "Components/SkeletalMeshComponent.h"
@@ -30,10 +29,72 @@ class SAnimInstanceLocatorEditorUI : public SCompoundWidget
 	SLATE_BEGIN_ARGS(SAnimInstanceLocatorEditorUI){}
 	SLATE_END_ARGS()
 
-	void Construct(const FArguments& InArgs, TSharedPtr<IFragmentEditorHandle> InHandle)
+	void Construct(const FArguments& InArgs, TSharedPtr<IUniversalObjectLocatorCustomization> InCustomization)
 	{
-		WeakHandle = InHandle;
+		WeakCustomization = InCustomization;
 
+		TSharedRef<SObjectPropertyEntryBox> EditWidget = SNew(SObjectPropertyEntryBox)
+		.ObjectPath(InCustomization.ToSharedRef(), &IUniversalObjectLocatorCustomization::GetPathToObject)
+		.AllowedClass(USkeletalMeshComponent::StaticClass())
+		.OnObjectChanged(this, &SAnimInstanceLocatorEditorUI::OnSetObject)
+		.AllowClear(true)
+		.DisplayUseSelected(true)
+		.DisplayBrowse(true)
+		.DisplayThumbnail(true);
+
+		float MinWidth = 100.f;
+		float MaxWidth = 500.f;
+		EditWidget->GetDesiredWidth(MinWidth, MaxWidth);
+
+		ChildSlot
+		[
+			SNew(SHorizontalBox)
+
+			+SHorizontalBox::Slot()
+			[
+				SNew(SBox)
+				.MinDesiredWidth(MinWidth)
+				.MaxDesiredWidth(MaxWidth)
+				[
+					EditWidget
+				]
+			]
+
+			+ SHorizontalBox::Slot()
+			.AutoWidth()
+			[
+				SNew(SComboButton)
+				.OnGetMenuContent(this, &SAnimInstanceLocatorEditorUI::CreateAnimInstanceTypeMenuContent)
+				.ButtonContent()
+				[
+					SNew(STextBlock)
+					.Text(this, &SAnimInstanceLocatorEditorUI::GetCurrentAnimInstanceTypeText)
+				]
+			]
+		];
+	}
+
+private:
+
+	void OnSetObject(const FAssetData& InNewObject)
+	{
+		TSharedPtr<IUniversalObjectLocatorCustomization> Customization = WeakCustomization.Pin();
+		if (!Customization)
+		{
+			return;
+		}
+
+		UObject* Object  = InNewObject.FastGetAsset(true);
+
+		if (Object)
+		{
+			FUniversalObjectLocator NewRef(Object);
+			Customization->SetValue(MoveTemp(NewRef));
+		}
+	}
+
+	TSharedRef<SWidget> CreateAnimInstanceTypeMenuContent()
+	{
 		const bool bCloseAfterSelection = true;
 		FMenuBuilder MenuBuilder(bCloseAfterSelection, nullptr);
 
@@ -63,14 +124,9 @@ class SAnimInstanceLocatorEditorUI : public SCompoundWidget
 			NAME_None,
 			EUserInterfaceActionType::RadioButton
 		);
-		
-		ChildSlot
-		[
-			MenuBuilder.MakeWidget()
-		];
+		return MenuBuilder.MakeWidget();
 	}
 
-private:
 	FText GetCurrentAnimInstanceTypeText() const
 	{
 		TOptional<EAnimInstanceLocatorFragmentType> CommonType = GetCurrentType();
@@ -88,13 +144,29 @@ private:
 
 	void ChangeType(EAnimInstanceLocatorFragmentType InType)
 	{
-		TSharedPtr<IFragmentEditorHandle> Handle = WeakHandle.Pin();
-		if (Handle)
+		TSharedPtr<IUniversalObjectLocatorCustomization> Customization = WeakCustomization.Pin();
+		if (Customization)
 		{
-			FUniversalObjectLocatorFragment Fragment(FAnimInstanceLocatorFragment::FragmentType);
-			FAnimInstanceLocatorFragment* Payload = Fragment.GetPayloadAs(FAnimInstanceLocatorFragment::FragmentType);
-			Payload->Type = InType;
-			Handle->SetValue(Fragment);
+			TSharedPtr<IPropertyHandle>    Property          = Customization->GetProperty();
+			const FStructProperty*         RawProperty       = CastFieldChecked<const FStructProperty>(Property->GetProperty());
+
+			Property->NotifyPreChange();
+			Property->EnumerateRawData([this, InType](void* RawData, const int32, const int32){
+
+				FUniversalObjectLocatorFragment* Locator = static_cast<FUniversalObjectLocator*>(RawData)->GetLastFragment();
+
+				FAnimInstanceLocatorFragment* Payload = nullptr;
+				if (Locator && Locator->TryGetPayloadAs(FAnimInstanceLocatorFragment::FragmentType, Payload))
+				{
+					Payload->Type = InType;
+				}
+
+				// Continue to the next property value
+				return true;
+			});
+
+			Property->NotifyPostChange(EPropertyChangeType::ValueSet);
+			Property->NotifyFinishedChangingProperties();
 		}
 	}
 
@@ -106,26 +178,45 @@ private:
 
 	TOptional<EAnimInstanceLocatorFragmentType> GetCurrentType() const
 	{
-		TOptional<EAnimInstanceLocatorFragmentType> Type;
+		TOptional<EAnimInstanceLocatorFragmentType> CommonType;
 
-		TSharedPtr<IFragmentEditorHandle> Handle = WeakHandle.Pin();
-		if (Handle)
+		TSharedPtr<IUniversalObjectLocatorCustomization> Customization = WeakCustomization.Pin();
+		if (Customization)
 		{
-			const FUniversalObjectLocatorFragment& Fragment = Handle->GetFragment();
-			const FAnimInstanceLocatorFragment* Payload = Fragment.GetPayloadAs(FAnimInstanceLocatorFragment::FragmentType);
-			Type = Payload->Type;
+			TSharedPtr<IPropertyHandle> Property    = Customization->GetProperty();
+			const FStructProperty*      RawProperty = CastFieldChecked<const FStructProperty>(Property->GetProperty());
+
+			Property->EnumerateRawData([this, &CommonType](void* RawData, const int32, const int32){
+
+				FUniversalObjectLocatorFragment* LastFragment = static_cast<FUniversalObjectLocator*>(RawData)->GetLastFragment();
+
+				FAnimInstanceLocatorFragment* Payload = nullptr;
+				if (LastFragment && LastFragment->TryGetPayloadAs(FAnimInstanceLocatorFragment::FragmentType, Payload))
+				{
+					if (!CommonType.IsSet())
+					{
+						CommonType = Payload->Type;
+					}
+					else if (CommonType.GetValue() != Payload->Type)
+					{
+						// Different type - common type is undefined
+						CommonType.Reset();
+						// Stop iterating and return an unset optional
+						return false;
+					}
+				}
+
+				// Continue to the next property value
+				return true;
+			});
 		}
 
-		return Type;
+		return CommonType;
 	}
 
-	TWeakPtr<IFragmentEditorHandle> WeakHandle;
+	TWeakPtr<IUniversalObjectLocatorCustomization> WeakCustomization;
+	EAnimInstanceLocatorFragmentType CurrentType;
 };
-
-ELocatorFragmentEditorType FAnimInstanceLocatorEditor::GetLocatorFragmentEditorType() const
-{
-	return ELocatorFragmentEditorType::Relative;
-}
 
 bool FAnimInstanceLocatorEditor::IsDragSupported(TSharedPtr<FDragDropOperation> DragOperation, UObject* Context) const
 {
@@ -139,7 +230,7 @@ bool FAnimInstanceLocatorEditor::IsDragSupported(TSharedPtr<FDragDropOperation> 
 	else if (DragOperation->IsOfType<FActorDragDropOp>())
 	{
 		ActorDrag = StaticCastSharedPtr<FActorDragDropOp>(DragOperation);
-	}
+	}		
 
 	if (ActorDrag)
 	{
@@ -183,83 +274,25 @@ UObject* FAnimInstanceLocatorEditor::ResolveDragOperation(TSharedPtr<FDragDropOp
 	return nullptr;
 }
 
-TSharedPtr<SWidget> FAnimInstanceLocatorEditor::MakeEditUI(const FEditUIParameters& InParameters)
+TSharedPtr<SWidget> FAnimInstanceLocatorEditor::MakeEditUI(TSharedPtr<IUniversalObjectLocatorCustomization> Customization)
 {
-	return SNew(SAnimInstanceLocatorEditorUI, InParameters.Handle);
+	return SNew(SAnimInstanceLocatorEditorUI, Customization);
 }
 
-FText FAnimInstanceLocatorEditor::GetDisplayText(const FUniversalObjectLocatorFragment* InFragment) const
+FText FAnimInstanceLocatorEditor::GetDisplayText() const
 {
-	if(InFragment != nullptr)
-	{
-		ensure(InFragment->GetFragmentTypeHandle() == FAnimInstanceLocatorFragment::FragmentType);
-		const FAnimInstanceLocatorFragment* AnimInstanceLocatorFragment = InFragment->GetPayloadAs(FAnimInstanceLocatorFragment::FragmentType);
-		if(AnimInstanceLocatorFragment)
-		{
-			if(AnimInstanceLocatorFragment->Type == EAnimInstanceLocatorFragmentType::AnimInstance)
-			{
-				return LOCTEXT("AnimInstanceLocatorLabel", "Anim Instance");
-			}
-			else
-			{
-				return LOCTEXT("PostProcessInstanceLocatorLabel", "Post-process Anim Instance");
-			}
-		}
-	}
-	return LOCTEXT("AnimInstanceLocatorLabel", "Anim Instance");
+	return LOCTEXT("AnimInstanceLocatorName", "Anim Instance");
 }
-
-FText FAnimInstanceLocatorEditor::GetDisplayTooltip(const FUniversalObjectLocatorFragment* InFragment) const
+FText FAnimInstanceLocatorEditor::GetDisplayTooltip() const
 {
-	if(InFragment != nullptr)
-	{
-		ensure(InFragment->GetFragmentTypeHandle() == FAnimInstanceLocatorFragment::FragmentType);
-		const FAnimInstanceLocatorFragment* AnimInstanceLocatorFragment = InFragment->GetPayloadAs(FAnimInstanceLocatorFragment::FragmentType);
-		if(AnimInstanceLocatorFragment)
-		{
-			if(AnimInstanceLocatorFragment->Type == EAnimInstanceLocatorFragmentType::AnimInstance)
-			{
-				return LOCTEXT("AnimInstanceLocatorTooltip", "A reference to an Anim Instance");
-			}
-			else
-			{
-				return LOCTEXT("PostProcessInstanceLocatorTooltip", "A reference to a Post-process Anim Instance");
-			}
-		}
-	}
-
-	return LOCTEXT("AnimInstanceLocatorTooltip", "A reference to an Anim Instance");
+	return LOCTEXT("AnimInstanceLocatorTooltip", "Change this to a reference to an Anim Instance");
 }
-
-FSlateIcon FAnimInstanceLocatorEditor::GetDisplayIcon(const FUniversalObjectLocatorFragment* InFragment) const
+FSlateIcon FAnimInstanceLocatorEditor::GetDisplayIcon() const
 {
-	return FSlateIcon(FAppStyle::GetAppStyleSetName(), "ClassIcon.AnimBlueprint");
-}
-
-UClass* FAnimInstanceLocatorEditor::ResolveClass(const FUniversalObjectLocatorFragment& InFragment, UObject* InContext) const
-{
-	if(UClass* Class = ILocatorFragmentEditor::ResolveClass(InFragment, InContext))
-	{
-		return Class;
-	}
-
-	if(USkeletalMeshComponent* SkeletalMeshComponent = Cast<USkeletalMeshComponent>(InContext))
-	{
-		if(SkeletalMeshComponent->AnimClass != nullptr)
-		{
-			return SkeletalMeshComponent->AnimClass;
-		}
-	}
-
-	return UAnimInstance::StaticClass();
-}
-
-FUniversalObjectLocatorFragment FAnimInstanceLocatorEditor::MakeDefaultLocatorFragment() const
-{
-	FUniversalObjectLocatorFragment NewFragment(FAnimInstanceLocatorFragment::FragmentType);
-	return NewFragment;
+	return FSlateIcon();
 }
 
 } // namespace UE::UniversalObjectLocator
+
 
 #undef LOCTEXT_NAMESPACE

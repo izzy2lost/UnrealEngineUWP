@@ -2,7 +2,6 @@
 
 #pragma once
 
-#include "EditorUndoClient.h"
 #include "IPropertyTypeCustomization.h"
 #include "Internationalization/Text.h"
 #include "Templates/SharedPointer.h"
@@ -11,7 +10,6 @@
 
 #include "UniversalObjectLocator.h"
 #include "IUniversalObjectLocatorCustomization.h"
-#include "Layout/Visibility.h"
 
 struct FGeometry;
 struct FAssetData;
@@ -28,25 +26,23 @@ class AActor;
 
 class SBox;
 class SWidget;
-class SWrapBox;
 
 namespace UE::UniversalObjectLocator
 {
 
-class ILocatorFragmentEditor;
-struct FFragmentItem;
+class ILocatorEditor;
 
-struct FUniversalObjectLocatorCustomization final : public IPropertyTypeCustomization, public IUniversalObjectLocatorCustomization, public FSelfRegisteringEditorUndoClient
+struct FUniversalObjectLocatorCustomization final : public IPropertyTypeCustomization, public IUniversalObjectLocatorCustomization
 {
 	static TSharedRef<IPropertyTypeCustomization> MakeInstance();
 
 	void CustomizeHeader(TSharedRef<IPropertyHandle> StructPropertyHandle, FDetailWidgetRow& HeaderRow, IPropertyTypeCustomizationUtils& StructCustomizationUtils) override;
 	void CustomizeChildren(TSharedRef<IPropertyHandle> StructPropertyHandle, IDetailChildrenBuilder& StructBuilder, IPropertyTypeCustomizationUtils& StructCustomizationUtils) override;
 
-	UObject* GetContext() const override { return WeakContext.Get(); }
+	UObject* GetContext() const override { return nullptr; }
 	UObject* GetSingleObject() const override;
 	FString GetPathToObject() const override;
-	void SetValue(FUniversalObjectLocator&& InNewValue) override;
+	void SetValue(FUniversalObjectLocator&& InNewValue) const override;
 	TSharedPtr<IPropertyHandle> GetProperty() const override;
 
 private:
@@ -56,57 +52,40 @@ private:
 		TOptional<FUniversalObjectLocator> PropertyValue;
 		TWeakObjectPtr<> WeakObject;
 		FString ObjectPath;
+		TOptional<FFragmentTypeHandle> FragmentType;
+		FText FragmentTypeText;
+		FName LocatorEditorType;
 	};
 
 private:
 
-	virtual void PostUndo(bool bSuccess) override { Rebuild(); }
-	virtual void PostRedo(bool bSuccess) override { Rebuild(); }
+	void Rebuild() const;
 
-	void Rebuild();
+	TSharedRef<SWidget> GetUserExposedFragmentTypeList();
+	FText GetCurrentFragmentTypeText() const;
 
-	void TrimAbsoluteFragments();
-
-	TSharedRef<SWidget> GetUserExposedFragmentTypeList(TWeakPtr<FFragmentItem> InWeakFragmentItem);
-	FText GetFragmentText(TWeakPtr<FFragmentItem> InWeakFragmentItem) const;
-	FText GetFragmentTooltipText(TWeakPtr<FFragmentItem> InWeakFragmentItem) const;
-	const FSlateBrush* GetFragmentIcon(TWeakPtr<FFragmentItem> InWeakFragmentItem) const;
-
-	TSharedRef<SWidget> GetFragmentTypeWidget(TWeakPtr<FFragmentItem> InWeakFragmentItem);
-
-	bool HandleIsDragAllowed(TSharedPtr<FDragDropOperation> InDragOperation, TWeakPtr<FFragmentItem> InWeakFragmentItem);
-	FReply HandleDrop(const FGeometry& InGeometry, const FDragDropEvent& InDropEvent, TWeakPtr<FFragmentItem> InWeakFragmentItem);
+	bool HandleIsDragAllowed(TSharedPtr<FDragDropOperation> InDragOperation);
+	FReply HandleDrop(const FGeometry& InGeometry, const FDragDropEvent& InDropEvent);
 
 	void SetActor(AActor* InActor);
 
 	const FCachedData& GetCachedData() const;
 
-	FUniversalObjectLocator* GetCommonPropertyValue();
-	const FUniversalObjectLocator* GetCommonPropertyValue() const;
+	FUniversalObjectLocator* GetSinglePropertyValue();
+	const FUniversalObjectLocator* GetSinglePropertyValue() const;
 
-	void ChangeEditorType(TWeakPtr<ILocatorFragmentEditor> InNewLocatorEditor, TWeakPtr<FFragmentItem> InWeakFragmentItem);
-	bool CompareCurrentEditorType(TWeakPtr<ILocatorFragmentEditor> InNewLocatorEditor, TWeakPtr<FFragmentItem> InWeakFragmentItem) const;
-
-	void RemoveFragment(TWeakPtr<FFragmentItem> InWeakFragmentItem);
-	void ClearFragments();
+	void ChangeEditorType(FName InNewEditor);
+	bool CompareCurrentEditorType(FName InNewEditor) const;
 
 private:
 
 	TSharedPtr<IPropertyUtilities> PropertyUtilities;
 	TSharedPtr<IPropertyHandle> PropertyHandle;
+	TSharedPtr<SBox> Content;
 
 	mutable FCachedData CachedData;
 
-	TMap<FName, TSharedPtr<ILocatorFragmentEditor>> ApplicableLocators;
-
-	mutable TArray<TSharedRef<FFragmentItem>> Fragments;
-
-	TSharedPtr<SWrapBox> WrapBox;
-
-	TWeakObjectPtr<> WeakContext;
-	TWeakObjectPtr<UClass> WeakContextClass;
-
-	friend struct FFragmentItem;
+	TMap<FName, TSharedPtr<ILocatorEditor>> ApplicableLocators;
 };
 
 

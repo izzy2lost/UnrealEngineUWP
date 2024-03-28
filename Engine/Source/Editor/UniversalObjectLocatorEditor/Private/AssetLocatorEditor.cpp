@@ -4,16 +4,13 @@
 #include "Modules/ModuleManager.h"
 #include "UniversalObjectLocatorFragmentTypeHandle.h"
 #include "UniversalObjectLocator.h"
-#include "UniversalObjectLocatorFragmentEditor.h"
+#include "UniversalObjectLocatorEditor.h"
 #include "IUniversalObjectLocatorEditorModule.h"
 #include "IUniversalObjectLocatorCustomization.h"
 
 #include "DragAndDrop/AssetDragDropOp.h"
 
 #include "PropertyCustomizationHelpers.h"
-#include "AssetRegistry/AssetRegistryModule.h"
-#include "Styling/SlateIconFinder.h"
-#include "UniversalObjectLocators/AssetLocatorFragment.h"
 
 #include "Widgets/Layout/SBox.h"
 
@@ -22,11 +19,6 @@
 
 namespace UE::UniversalObjectLocator
 {
-
-ELocatorFragmentEditorType FAssetLocatorEditor::GetLocatorFragmentEditorType() const
-{
-	return ELocatorFragmentEditorType::Absolute;
-}
 
 bool FAssetLocatorEditor::IsDragSupported(TSharedPtr<FDragDropOperation> DragOperation, UObject* Context) const
 {
@@ -60,125 +52,56 @@ UObject* FAssetLocatorEditor::ResolveDragOperation(TSharedPtr<FDragDropOperation
 	return nullptr;
 }
 
-TSharedPtr<SWidget> FAssetLocatorEditor::MakeEditUI(const FEditUIParameters& InParameters)
+TSharedPtr<SWidget> FAssetLocatorEditor::MakeEditUI(TSharedPtr<IUniversalObjectLocatorCustomization> Customization)
 {
-	FAssetData InitialAsset = GetAsset(InParameters.Handle);
-	const bool bAllowClear = true;
-	const bool bAllowCopyPaste = true;
-	const TArray<const UClass*> AllowedClasses = { UObject::StaticClass() };
-	const FOnShouldFilterAsset OnShouldFilterAsset = FOnShouldFilterAsset::CreateLambda([](const FAssetData&){ return false; });
-	const FOnAssetSelected OnAssetSelected = FOnAssetSelected::CreateSP(this, &FAssetLocatorEditor::OnSetAsset, TWeakPtr<IFragmentEditorHandle>(InParameters.Handle));
+	TSharedRef<SObjectPropertyEntryBox> EditWidget = SNew(SObjectPropertyEntryBox)
+	.ObjectPath(Customization.ToSharedRef(), &IUniversalObjectLocatorCustomization::GetPathToObject)
+	.PropertyHandle(Customization->GetProperty())
+	.AllowedClass(UObject::StaticClass())
+	.OnObjectChanged(this, &FAssetLocatorEditor::OnSetObject, TWeakPtr<IUniversalObjectLocatorCustomization>(Customization))
+	.AllowClear(true)
+	.DisplayUseSelected(true)
+	.DisplayBrowse(true)
+	.DisplayThumbnail(true);
 
-	return
-		SNew(SBox)
-		.MinDesiredWidth(400.0f)
-		.MaxDesiredWidth(400.0f)
-		[
-			PropertyCustomizationHelpers::MakeAssetPickerWithMenu(
-				InitialAsset,
-				bAllowClear,
-				bAllowCopyPaste,
-				AllowedClasses,
-				TArray<const UClass*>(),
-				TArray<UFactory*>(),
-				OnShouldFilterAsset,
-				OnAssetSelected,
-				FSimpleDelegate(),
-				nullptr,
-				TArray<FAssetData>())
-		];
+	float MinWidth = 100.f;
+	float MaxWidth = 500.f;
+	EditWidget->GetDesiredWidth(MinWidth, MaxWidth);
+
+	return SNew(SBox)
+	.MinDesiredWidth(MinWidth)
+	.MaxDesiredWidth(MaxWidth)
+	[
+		EditWidget
+	];
 }
 
-FAssetData FAssetLocatorEditor::GetAsset(TWeakPtr<IFragmentEditorHandle> InWeakHandle) const
+FText FAssetLocatorEditor::GetDisplayText() const
 {
-	if (TSharedPtr<IFragmentEditorHandle> Handle = InWeakHandle.Pin())
-	{
-		const FUniversalObjectLocatorFragment& Fragment = Handle->GetFragment();
-		ensure(Fragment.GetFragmentTypeHandle() == FAssetLocatorFragment::FragmentType);
-		const FAssetLocatorFragment* Payload = Fragment.GetPayloadAs(FAssetLocatorFragment::FragmentType);
-		const IAssetRegistry& AssetRegistry = FModuleManager::Get().LoadModuleChecked<FAssetRegistryModule>("AssetRegistry").Get();
-		return AssetRegistry.GetAssetByObjectPath(FSoftObjectPath(Payload->Path));
-	}
-
-	return FAssetData();
-}
-
-FText FAssetLocatorEditor::GetDisplayText(const FUniversalObjectLocatorFragment* InFragment) const
-{
-	if(InFragment != nullptr)
-	{
-		ensure(InFragment->GetFragmentTypeHandle() == FAssetLocatorFragment::FragmentType);
-		const FAssetLocatorFragment* Payload = InFragment->GetPayloadAs(FAssetLocatorFragment::FragmentType);
-		if(Payload)
-		{
-			return FText::FromName(Payload->Path.GetAssetName());
-		}
-	}
-
 	return LOCTEXT("AssetLocatorName", "Asset");
 }
 
-FText FAssetLocatorEditor::GetDisplayTooltip(const FUniversalObjectLocatorFragment* InFragment) const
+FText FAssetLocatorEditor::GetDisplayTooltip() const
 {
-	if(InFragment != nullptr)
-	{
-		ensure(InFragment->GetFragmentTypeHandle() == FAssetLocatorFragment::FragmentType);
-		const FAssetLocatorFragment* Payload = InFragment->GetPayloadAs(FAssetLocatorFragment::FragmentType);
-		if(Payload)
-		{
-			static const FTextFormat TextFormat(LOCTEXT("AssetLocatorTooltipFormat", "A reference to asset {0}"));
-			return FText::Format(TextFormat, FText::FromString(Payload->Path.ToString()));
-		}
-	}
-
-	return LOCTEXT("AssetLocatorTooltip", "An asset reference");
+	return LOCTEXT("AssetLocatorTooltip", "Change this to an asset reference");
 }
 
-FSlateIcon FAssetLocatorEditor::GetDisplayIcon(const FUniversalObjectLocatorFragment* InFragment) const
+FSlateIcon FAssetLocatorEditor::GetDisplayIcon() const
 {
-	if(InFragment != nullptr)
-	{
-		ensure(InFragment->GetFragmentTypeHandle() == FAssetLocatorFragment::FragmentType);
-		const FAssetLocatorFragment* Payload = InFragment->GetPayloadAs(FAssetLocatorFragment::FragmentType);
-		if(Payload)
-		{
-			IAssetRegistry& AssetRegistry = FModuleManager::LoadModuleChecked<FAssetRegistryModule>("AssetRegistry").Get();
-			FAssetData AssetData = AssetRegistry.GetAssetByObjectPath(FSoftObjectPath(Payload->Path));
-			return FSlateIconFinder::FindIconForClass(AssetData.GetClass());
-		}
-	}
-
-	return FSlateIcon(FAppStyle::GetAppStyleSetName(), "ClassIcon.Object");
+	return FSlateIcon();
 }
 
-UClass* FAssetLocatorEditor::ResolveClass(const FUniversalObjectLocatorFragment& InFragment, UObject* InContext) const
+void FAssetLocatorEditor::OnSetObject(const FAssetData& InNewObject, TWeakPtr<IUniversalObjectLocatorCustomization> WeakCustomization)
 {
-	if(UClass* Class = ILocatorFragmentEditor::ResolveClass(InFragment, InContext))
-	{
-		return Class;
-	}
-
-	return UObject::StaticClass();
-}
-
-void FAssetLocatorEditor::OnSetAsset(const FAssetData& InNewAsset, TWeakPtr<IFragmentEditorHandle> InWeakHandle)
-{
-	if (TSharedPtr<IFragmentEditorHandle> Handle = InWeakHandle.Pin())
+	TSharedPtr<IUniversalObjectLocatorCustomization> Customization = WeakCustomization.Pin();
+	if (Customization)
 	{
 		// Assets are always absolute
-		UObject* Object = InNewAsset.FastGetAsset(true);
+		UObject* Object = InNewObject.FastGetAsset(true);
 
-		FUniversalObjectLocatorFragment NewFragment(FAssetLocatorFragment::FragmentType);
-		FAssetLocatorFragment* Payload = NewFragment.GetPayloadAs(FAssetLocatorFragment::FragmentType);
-		Payload->Path = FTopLevelAssetPath(Object);
-		Handle->SetValue(NewFragment);
+		FUniversalObjectLocator NewRef(Object, nullptr);
+		Customization->SetValue(MoveTemp(NewRef));
 	}
-}
-
-FUniversalObjectLocatorFragment FAssetLocatorEditor::MakeDefaultLocatorFragment() const
-{
-	FUniversalObjectLocatorFragment NewFragment(FAssetLocatorFragment::FragmentType);
-	return NewFragment;
 }
 
 } // namespace UE::UniversalObjectLocator

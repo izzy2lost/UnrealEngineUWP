@@ -26,10 +26,8 @@ public class UniversalObjectLocatorEditor : ModuleRules
 				"SceneOutliner",
 				"Slate",
 				"SlateCore",
-				"InputCore",
 				"Sequencer",
 				"UniversalObjectLocator",
-				"UnrealEd",
 			}
 		);
 	}

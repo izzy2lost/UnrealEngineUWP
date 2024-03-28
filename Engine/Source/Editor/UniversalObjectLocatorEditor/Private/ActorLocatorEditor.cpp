@@ -4,7 +4,7 @@
 #include "Modules/ModuleManager.h"
 #include "UniversalObjectLocatorFragmentTypeHandle.h"
 #include "UniversalObjectLocator.h"
-#include "UniversalObjectLocatorFragmentEditor.h"
+#include "UniversalObjectLocatorEditor.h"
 #include "IUniversalObjectLocatorEditorModule.h"
 #include "IUniversalObjectLocatorCustomization.h"
 
@@ -14,19 +14,12 @@
 #include "PropertyCustomizationHelpers.h"
 
 #include "GameFramework/Actor.h"
-#include "String/Split.h"
-#include "UniversalObjectLocators/ActorLocatorFragment.h"
 
 
 #define LOCTEXT_NAMESPACE "ActorLocatorEditor"
 
 namespace UE::UniversalObjectLocator
 {
-
-ELocatorFragmentEditorType FActorLocatorEditor::GetLocatorFragmentEditorType() const
-{
-	return ELocatorFragmentEditorType::Absolute;
-}
 
 bool FActorLocatorEditor::IsDragSupported(TSharedPtr<FDragDropOperation> DragOperation, UObject* Context) const
 {
@@ -84,116 +77,58 @@ UObject* FActorLocatorEditor::ResolveDragOperation(TSharedPtr<FDragDropOperation
 	return nullptr;
 }
 
-TSharedPtr<SWidget> FActorLocatorEditor::MakeEditUI(const FEditUIParameters& InParameters)
+TSharedPtr<SWidget> FActorLocatorEditor::MakeEditUI(TSharedPtr<IUniversalObjectLocatorCustomization> Customization)
 {
-	AActor* InitialActor = GetActor(InParameters.Handle);
-	const bool bAllowClear = true;
-	const bool bAllowPickingLevelInstanceContent = true;
-	const FOnActorSelected OnActorSelected = FOnActorSelected::CreateSP(this, &FActorLocatorEditor::OnSetActor, TWeakPtr<IFragmentEditorHandle>(InParameters.Handle));
-	const FOnShouldFilterActor OnShouldFilterActor = FOnShouldFilterActor::CreateLambda([](const AActor*){ return true; });
+	TSharedRef<SObjectPropertyEntryBox> EditWidget = SNew(SObjectPropertyEntryBox)
+	.ObjectPath(Customization.ToSharedRef(), &IUniversalObjectLocatorCustomization::GetPathToObject)
+	// Disabling this for now since it causes issues
+	//.PropertyHandle(Customization->GetProperty())
+	.AllowedClass(AActor::StaticClass())
+	.OnObjectChanged(this, &FActorLocatorEditor::OnSetObject, TWeakPtr<IUniversalObjectLocatorCustomization>(Customization))
+	.AllowClear(true)
+	.DisplayUseSelected(false)
+	.DisplayBrowse(true)
+	.DisplayThumbnail(true);
 
-	return
-		SNew(SBox)
-		.MinDesiredWidth(400.0f)
-		.MaxDesiredWidth(400.0f)
-		[
-			PropertyCustomizationHelpers::MakeActorPickerWithMenu(
-				InitialActor,
-				bAllowClear,
-				bAllowPickingLevelInstanceContent,
-				OnShouldFilterActor,
-				OnActorSelected,
-				FSimpleDelegate(),
-				FSimpleDelegate())
-		];
+	float MinWidth = 100.f;
+	float MaxWidth = 500.f;
+	EditWidget->GetDesiredWidth(MinWidth, MaxWidth);
+
+	return SNew(SBox)
+	.MinDesiredWidth(MinWidth)
+	.MaxDesiredWidth(MaxWidth)
+	[
+		EditWidget
+	];
 }
 
-AActor* FActorLocatorEditor::GetActor(TWeakPtr<IFragmentEditorHandle> InWeakHandle) const
+FText FActorLocatorEditor::GetDisplayText() const
 {
-	if (TSharedPtr<IFragmentEditorHandle> Handle = InWeakHandle.Pin())
-	{
-		const FUniversalObjectLocatorFragment& Fragment = Handle->GetFragment();
-		ensure(Fragment.GetFragmentTypeHandle() == FActorLocatorFragment::FragmentType);
-		const FActorLocatorFragment* Payload = Fragment.GetPayloadAs(FActorLocatorFragment::FragmentType);
-		return (AActor*)Payload->Path.ResolveObject();
-	}
-
-	return nullptr;
-}
-
-FText FActorLocatorEditor::GetDisplayText(const FUniversalObjectLocatorFragment* InFragment) const
-{
-	if(InFragment != nullptr)
-	{
-		ensure(InFragment->GetFragmentTypeHandle() == FActorLocatorFragment::FragmentType);
-		const FActorLocatorFragment* Payload = InFragment->GetPayloadAs(FActorLocatorFragment::FragmentType);
-		if(Payload)
-		{
-			const FString& SubPathString = Payload->Path.GetSubPathString();
-			if(!SubPathString.IsEmpty())
-			{
-				FStringView LevelStringView, ActorStringView;
-				UE::String::SplitLast(SubPathString, TEXT("."), LevelStringView, ActorStringView);
-				if(!ActorStringView.IsEmpty())
-				{
-					return FText::FromStringView(ActorStringView);
-				}
-			}
-		}
-	}
-
 	return LOCTEXT("ExternalActorLocatorName", "Actor");
 }
 
-FText FActorLocatorEditor::GetDisplayTooltip(const FUniversalObjectLocatorFragment* InFragment) const
+FText FActorLocatorEditor::GetDisplayTooltip() const
 {
-	if(InFragment != nullptr)
-	{
-		ensure(InFragment->GetFragmentTypeHandle() == FActorLocatorFragment::FragmentType);
-		const FActorLocatorFragment* Payload = InFragment->GetPayloadAs(FActorLocatorFragment::FragmentType);
-		if(Payload && Payload->Path.IsValid())
-		{
-			static const FTextFormat TextFormat(LOCTEXT("ExternalActorLocatorTooltipFormat", "A reference to actor {0}"));
-			return FText::Format(TextFormat, FText::FromString(Payload->Path.ToString()));
-		}
-	}
-
-	return LOCTEXT("ExternalActorLocatorTooltip", "An actor reference");
+	return LOCTEXT("ExternalActorLocatorTooltip", "Change this to an actor reference");
 }
 
-FSlateIcon FActorLocatorEditor::GetDisplayIcon(const FUniversalObjectLocatorFragment* InFragment) const
+FSlateIcon FActorLocatorEditor::GetDisplayIcon() const
 {
-	return FSlateIcon(FAppStyle::GetAppStyleSetName(), "ClassIcon.Actor");
+	return FSlateIcon();
 }
 
-UClass* FActorLocatorEditor::ResolveClass(const FUniversalObjectLocatorFragment& InFragment, UObject* InContext) const
+void FActorLocatorEditor::OnSetObject(const FAssetData& InNewObject, TWeakPtr<IUniversalObjectLocatorCustomization> WeakCustomization)
 {
-	if(UClass* Class = ILocatorFragmentEditor::ResolveClass(InFragment, InContext))
-	{
-		return Class;
-	}
-
-	return AActor::StaticClass();
-}
-
-void FActorLocatorEditor::OnSetActor(AActor* InActor, TWeakPtr<IFragmentEditorHandle> InWeakHandle)
-{
-	TSharedPtr<IFragmentEditorHandle> Handle = InWeakHandle.Pin();
-	if (!Handle)
+	TSharedPtr<IUniversalObjectLocatorCustomization> Customization = WeakCustomization.Pin();
+	if (!Customization)
 	{
 		return;
 	}
 
-	FUniversalObjectLocatorFragment NewFragment(FActorLocatorFragment::FragmentType);
-	FActorLocatorFragment* Payload = NewFragment.GetPayloadAs(FActorLocatorFragment::FragmentType);
-	Payload->Path = InActor;
-	Handle->SetValue(NewFragment);
-}
+	UObject* Object = InNewObject.FastGetAsset(true);
 
-FUniversalObjectLocatorFragment FActorLocatorEditor::MakeDefaultLocatorFragment() const
-{
-	FUniversalObjectLocatorFragment NewFragment(FActorLocatorFragment::FragmentType);
-	return NewFragment;
+	FUniversalObjectLocator NewRef(Object);
+	Customization->SetValue(MoveTemp(NewRef));
 }
 
 } // namespace UE::UniversalObjectLocator

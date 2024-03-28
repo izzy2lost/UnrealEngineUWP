@@ -3,42 +3,33 @@
 #pragma once
 
 #include "CoreTypes.h"
-#include "UniversalObjectLocatorFragmentEditor.h"
+#include "UniversalObjectLocatorEditor.h"
 #include "Templates/SharedPointerFwd.h"
 
 struct FAssetData;
-class AActor;
 
 namespace UE::UniversalObjectLocator
 {
 
 class IUniversalObjectLocatorCustomization;
 
-class FActorLocatorEditor : public ILocatorFragmentEditor
+class FActorLocatorEditor : public ILocatorEditor
 {
-	ELocatorFragmentEditorType GetLocatorFragmentEditorType() const override;
-
 	bool IsDragSupported(TSharedPtr<FDragDropOperation> DragOperation, UObject* Context) const override;
 
 	UObject* ResolveDragOperation(TSharedPtr<FDragDropOperation> DragOperation, UObject* Context) const override;
 
-	TSharedPtr<SWidget> MakeEditUI(const FEditUIParameters& InParameters) override;
+	TSharedPtr<SWidget> MakeEditUI(TSharedPtr<IUniversalObjectLocatorCustomization> Customization) override;
 
-	FText GetDisplayText(const FUniversalObjectLocatorFragment* InFragment = nullptr) const override;
+	FText GetDisplayText() const override;
 
-	FText GetDisplayTooltip(const FUniversalObjectLocatorFragment* InFragment = nullptr) const override;
+	FText GetDisplayTooltip() const override;
 
-	FSlateIcon GetDisplayIcon(const FUniversalObjectLocatorFragment* InFragment = nullptr) const override;
-
-	UClass* ResolveClass(const FUniversalObjectLocatorFragment& InFragment, UObject* InContext) const override; 
-
-	FUniversalObjectLocatorFragment MakeDefaultLocatorFragment() const override;
+	FSlateIcon GetDisplayIcon() const override;
 
 private:
 
-	AActor* GetActor(TWeakPtr<IFragmentEditorHandle> InWeakHandle) const;
-
-	void OnSetActor(AActor* InActor, TWeakPtr<IFragmentEditorHandle> InWeakHandle);
+	void OnSetObject(const FAssetData& InNewObject, TWeakPtr<IUniversalObjectLocatorCustomization> WeakCustomization);
 };
 
 } // namespace UE::UniversalObjectLocator

@@ -11,7 +11,7 @@
 namespace UE::UniversalObjectLocator
 {
 
-class ILocatorFragmentEditor;
+class ILocatorEditor;
 
 class FUniversalObjectLocatorEditorModule
 	: public IUniversalObjectLocatorEditorModule
@@ -22,19 +22,11 @@ public:
 
 	void ShutdownModule() override;
 
-	void RegisterLocatorEditor(FName LocatorName, TSharedPtr<ILocatorFragmentEditor> LocatorEditor) override;
+	void RegisterLocatorEditor(FName LocatorName, TSharedPtr<ILocatorEditor> LocatorEditor) override;
 
 	void UnregisterLocatorEditor(FName LocatorName) override;
 
-	TSharedPtr<ILocatorFragmentEditor> FindLocatorEditor(FName Name) override;
-
-	void RegisterEditorContext(FName Name, TSharedPtr<ILocatorFragmentEditorContext> LocatorEditorContext) override;
-
-	void UnregisterEditorContext(FName Name) override;
-
-	TMap<FName, TSharedPtr<ILocatorFragmentEditor>> LocatorEditors;
-
-	TMap<FName, TSharedPtr<ILocatorFragmentEditorContext>> LocatorEditorContexts;
+	TMap<FName, TSharedPtr<ILocatorEditor>> LocatorEditors;
 };
 
 } // namespace UE::UniversalObjectLocator
