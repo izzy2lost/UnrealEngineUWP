@@ -258,7 +258,7 @@ UE::PoseSearch::TLabelBuilder& UPoseSearchFeatureChannel_Heading::GetLabel(UE::P
 
 	const UPoseSearchSchema* Schema = GetSchema();
 	check(Schema);
-	if (SchemaBoneIdx != RootSchemaBoneIdx)
+	if (SchemaBoneIdx > RootSchemaBoneIdx)
 	{
 		LabelBuilder.Append(TEXT("_"));
 		LabelBuilder.Append(Schema->GetBoneReferences(SampleRole)[SchemaBoneIdx].BoneName.ToString());
@@ -280,7 +280,7 @@ UE::PoseSearch::TLabelBuilder& UPoseSearchFeatureChannel_Heading::GetLabel(UE::P
 		LabelBuilder.Append(TEXT("]"));
 	}
 
-	if (SchemaOriginBoneIdx != RootSchemaBoneIdx)
+	if (SchemaOriginBoneIdx > RootSchemaBoneIdx)
 	{
 		LabelBuilder.Append(TEXT("_"));
 		LabelBuilder.Append(Schema->GetBoneReferences(OriginRole)[SchemaOriginBoneIdx].BoneName.ToString());
