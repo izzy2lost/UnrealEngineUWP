@@ -201,7 +201,7 @@ namespace Horde.Agent
 		public bool Ephemeral { get; set; } = false;
 
 		/// <summary>
-		/// The executor to use for jobs. Defaults to the Perforce executor.
+		/// The executor to use for jobs
 		/// </summary>
 		public string Executor { get; set; } = Execution.WorkspaceExecutor.Name;
 
