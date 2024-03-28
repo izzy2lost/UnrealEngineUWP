@@ -19,11 +19,6 @@
 
 #include "Windows/AllowWindowsPlatformTypes.h"
 
-/*
-*/
-#define WMF_PLAYER_ENABLE_INTERNALCLOCK_ONLY	1
-
-
 /* FWmfVideoPlayer structors
  *****************************************************************************/
 
@@ -35,9 +30,8 @@ FWmfMediaPlayer::FWmfMediaPlayer(IMediaEventSink& InEventSink)
 {
 	check(Session != NULL);
 	check(Tracks.IsValid());
-#if WMFMEDIA_PLAYER_VERSION >= 2
 	Session->SetTracks(Tracks);
-#endif // WMFMEDIA_PLAYER_VERSION >= 2
+	Tracks->SetSession(Session);
 }
 
 
@@ -167,11 +161,7 @@ bool FWmfMediaPlayer::Open(const TSharedRef<FArchive, ESPMode::ThreadSafe>& Arch
 	return InitializePlayer(Archive, OriginalUrl, false, nullptr);
 }
 
-#if WMFMEDIA_PLAYER_VERSION == 1
-void FWmfMediaPlayer::TickFetch(FTimespan /*DeltaTime*/, FTimespan /*Timecode*/)
-#else // WMFMEDIA_PLAYER_VERSION == 1
 void FWmfMediaPlayer::Tick()
-#endif // WMFMEDIA_PLAYER_VERSION == 1
 {
 	bool MediaSourceChanged = false;
 	bool TrackSelectionChanged = false;
@@ -226,9 +216,7 @@ void FWmfMediaPlayer::Tick()
 
 void FWmfMediaPlayer::TickInput(FTimespan DeltaTime, FTimespan /*Timecode*/)
 {
-#if WMFMEDIA_PLAYER_VERSION >= 2
 	Tick();
-#endif // WMFMEDIA_PLAYER_VERSION >= 2
 
 	// forward session events
 	TArray<EMediaEvent> OutEvents;
@@ -240,17 +228,18 @@ void FWmfMediaPlayer::TickInput(FTimespan DeltaTime, FTimespan /*Timecode*/)
 	}
 }
 
-#if WMFMEDIA_PLAYER_VERSION >= 2
 
 bool FWmfMediaPlayer::FlushOnSeekStarted() const
 {
 	return true;
 }
 
+
 bool FWmfMediaPlayer::FlushOnSeekCompleted() const
 {
 	return false;
 }
+
 
 bool FWmfMediaPlayer::GetPlayerFeatureFlag(EFeatureFlag Flag) const
 {
@@ -258,15 +247,10 @@ bool FWmfMediaPlayer::GetPlayerFeatureFlag(EFeatureFlag Flag) const
 	{
 		case EFeatureFlag::UsePlaybackTimingV2:
 		case EFeatureFlag::PlayerUsesInternalFlushOnSeek:
-#if WMF_PLAYER_ENABLE_INTERNALCLOCK_ONLY
-		case EFeatureFlag::AlwaysPullNewestVideoFrame:
-#endif
 			return true;
 	}
 	return IMediaPlayer::GetPlayerFeatureFlag(Flag);
 }
-
-#endif // WMFMEDIA_PLAYER_VERSION >= 2
 
 
 /* FWmfMediaPlayer implementation
