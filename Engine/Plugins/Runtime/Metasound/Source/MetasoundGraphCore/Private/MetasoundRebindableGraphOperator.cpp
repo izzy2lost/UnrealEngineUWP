@@ -14,21 +14,9 @@
 
 namespace Metasound
 {
-	FRebindableGraphOperator::FRebindableGraphOperator(DirectedGraphAlgo::FGraphOperatorData&& InOperatorData)
-	: GraphOperatorData(MoveTemp(InOperatorData))
+	FRebindableGraphOperator::FRebindableGraphOperator(const FOperatorSettings& InOperatorSettings)
+	: GraphOperatorData(InOperatorSettings)
 	{
-	}
-
-	FDataReferenceCollection FRebindableGraphOperator::GetInputs() const
-	{
-		checkNoEntry();
-		return FDataReferenceCollection();
-	}
-
-	FDataReferenceCollection FRebindableGraphOperator::GetOutputs() const
-	{
-		checkNoEntry();
-		return FDataReferenceCollection();
 	}
 
 	// Bind the graph's interface data references to FVertexInterfaceData.
@@ -85,6 +73,11 @@ namespace Metasound
 	{
 		check(InOperator);
 		static_cast<FRebindableGraphOperator*>(InOperator)->PostExecute();
+	}
+
+	DynamicGraph::FDynamicGraphOperatorData& FRebindableGraphOperator::GetDynamicGraphOperatorData()
+	{
+		return GraphOperatorData;
 	}
 }
 

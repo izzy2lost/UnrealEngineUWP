@@ -13,15 +13,11 @@ namespace Metasound
 	class FOutputVertexInterfaceData;
 
 
-	class FRebindableGraphOperator : public TExecutableOperator<FRebindableGraphOperator>
+	class FRebindableGraphOperator : public TExecutableOperator<FRebindableGraphOperator>, public DynamicGraph::IDynamicGraphInPlaceBuildable
 	{
 	public:
 
-		FRebindableGraphOperator(DirectedGraphAlgo::FGraphOperatorData&& InOperatorState);
-
-		virtual FDataReferenceCollection GetInputs() const override;
-
-		virtual FDataReferenceCollection GetOutputs() const override;
+		FRebindableGraphOperator(const FOperatorSettings& InOperatorSettigns);
 
 		// Bind the graph's interface data references to FVertexInterfaceData.
 		virtual void BindInputs(FInputVertexInterfaceData& InOutVertexData) override;
@@ -35,6 +31,9 @@ namespace Metasound
 
 	private:
 		static void StaticPostExecute(IOperator* InOperator);
+
+		// Interface for FOperatorBuilder to access internal data structure.
+		virtual DynamicGraph::FDynamicGraphOperatorData& GetDynamicGraphOperatorData() override;
 
 		DynamicGraph::FDynamicGraphOperatorData GraphOperatorData;
 	};
