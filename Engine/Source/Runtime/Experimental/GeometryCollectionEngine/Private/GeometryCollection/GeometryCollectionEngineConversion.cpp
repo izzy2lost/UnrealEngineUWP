@@ -1515,4 +1515,26 @@ void FGeometryCollectionEngineConversion::ConvertStaticMeshToGeometryCollection(
 #endif //WITH_EDITORONLY_DATA
 }
 
+void FGeometryCollectionEngineConversion::ConvertGeometryCollectionToGeometryCollection(const TObjectPtr<UGeometryCollection> InGeometryCollectionAssetPtr, FManagedArrayCollection& OutCollection, TArray<TObjectPtr<UMaterial>>& OutMaterials, TArray<FGeometryCollectionAutoInstanceMesh>& OutInstancedMeshes)
+{
+	if (InGeometryCollectionAssetPtr)
+	{
+		const TSharedPtr<FGeometryCollection, ESPMode::ThreadSafe> NewGeometryCollectionPtr = InGeometryCollectionAssetPtr->GetGeometryCollection();
+
+		// Materials
+		for (auto& Material : InGeometryCollectionAssetPtr->Materials)
+		{
+			OutMaterials.Emplace(Material->GetMaterial());
+		}
+
+		// InstanceMeshes
+		OutInstancedMeshes = InGeometryCollectionAssetPtr->AutoInstanceMeshes;
+			
+		if (NewGeometryCollectionPtr)
+		{
+			NewGeometryCollectionPtr->CopyTo(&OutCollection);
+		}
+	}
+}
+
 #undef LOCTEXT_NAMESPACE 

@@ -185,4 +185,14 @@ public:
 	*  @param bSplitComponents : Split the components
 	*/
 	static GEOMETRYCOLLECTIONENGINE_API void ConvertStaticMeshToGeometryCollection(const TObjectPtr<UStaticMesh> StaticMesh, FManagedArrayCollection& OutCollection, TArray<TObjectPtr<UMaterial>>& OutMaterials, TArray<FGeometryCollectionAutoInstanceMesh>& OutInstancedMeshes, bool bSetInternalFromMaterialIndex = true, bool bSplitComponents = false);
+
+	/**
+	*  Converts a UGeometryCollection asset to an FManagedArrayCollection, and arrays of materials and instanced meshes
+	*  @param GeometryCollection : UGeometryCollection input to convert
+	*  @param OutCollection : FGeometryCollection output
+	*  @param OutMaterials : Materials from the UGeometryCollection
+	*  @param OutInstancedMeshes : InstancedMeshes
+	*/	
+	static GEOMETRYCOLLECTIONENGINE_API void ConvertGeometryCollectionToGeometryCollection(const TObjectPtr<UGeometryCollection> InGeometryCollectionAssetPtr, FManagedArrayCollection& OutCollection, TArray<TObjectPtr<UMaterial>>& OutMaterials, TArray<FGeometryCollectionAutoInstanceMesh>& OutInstancedMeshes);
+
 };
