@@ -781,7 +781,12 @@ bool FLinkerSave::SerializeBulkData(FBulkData& BulkData, const FBulkDataSerializ
 	DataResource.LegacyBulkDataFlags	= SerializedMeta.Flags;
 	DataResource.OuterIndex				= ObjectIndicesMap.FindRef(Params.Owner);
 
-	SerializedBulkData.Add(&BulkData, ResourceIndex);
+#if WITH_EDITOR
+	if (bUpdatingLoadedPath)
+	{
+		SerializedBulkData.Add(&BulkData, ResourceIndex);
+	}
+#endif //WITH_EDITOR
 
 	return true;
 }
@@ -789,16 +794,15 @@ bool FLinkerSave::SerializeBulkData(FBulkData& BulkData, const FBulkDataSerializ
 void FLinkerSave::OnPostSaveBulkData()
 {
 #if WITH_EDITOR
-	if (bUpdatingLoadedPath)
+	ensure(SerializedBulkData.IsEmpty() || bUpdatingLoadedPath == true);
+ 
+	for (TPair<FBulkData*, int32>& Kv : SerializedBulkData)
 	{
-		for (TPair<FBulkData*, int32>& Kv : SerializedBulkData)
-		{
-			FBulkData& BulkData = *Kv.Key;
-			const FObjectDataResource& DataResource = DataResourceMap[Kv.Value];
-			BulkData.SetFlagsFromDiskWrittenValues(static_cast<EBulkDataFlags>(DataResource.LegacyBulkDataFlags), DataResource.SerialOffset, DataResource.SerialSize, Summary.BulkDataStartOffset);
-		}
+		FBulkData& BulkData = *Kv.Key;
+		const FObjectDataResource& DataResource = DataResourceMap[Kv.Value];
+		BulkData.SetFlagsFromDiskWrittenValues(static_cast<EBulkDataFlags>(DataResource.LegacyBulkDataFlags), DataResource.SerialOffset, DataResource.SerialSize, Summary.BulkDataStartOffset);
 	}
-#endif
-
+	
 	SerializedBulkData.Empty();
+#endif //WITH_EDITOR
 }

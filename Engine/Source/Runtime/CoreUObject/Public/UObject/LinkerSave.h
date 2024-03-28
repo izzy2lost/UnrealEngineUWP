@@ -315,8 +315,12 @@ private:
 	/** The index of the last derived data chunk added to the package. */
 	int32 LastDerivedDataIndex = -1;
 #endif
+
+#if WITH_EDITOR
 	/** Map from bulk data object to resource index. */
 	TMap<FBulkData*, int32> SerializedBulkData;
+#endif //WITH_EDITOR
+
 	/** Default bulk data archive. */
 	FFileRegionMemoryWriter BulkDataAr;
 	/** Optional bulk data archive. */
