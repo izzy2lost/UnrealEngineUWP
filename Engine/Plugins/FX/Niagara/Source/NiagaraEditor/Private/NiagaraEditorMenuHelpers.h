@@ -6,4 +6,6 @@ namespace NiagaraEditorMenuHelpers
 {
 	void RegisterToolMenus();
 	void RegisterMenuExtensions();
+
+	void RegisterAssetBrowserViewOptionsProfile();
 }

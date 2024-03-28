@@ -362,6 +362,7 @@ void SAssetPicker::Construct( const FArguments& InArgs )
 		.CustomColumns(InArgs._AssetPickerConfig.CustomColumns)
 		.OnSearchOptionsChanged(this, &SAssetPicker::HandleSearchSettingsChanged)
 		.InitialThumbnailSize(InArgs._AssetPickerConfig.InitialThumbnailSize)
+		.AssetViewOptionsProfile(InArgs._AssetPickerConfig.AssetViewOptionsProfile)
 	];
 	// clang-format on
 

@@ -126,6 +126,8 @@ void NiagaraEditorMenuHelpers::RegisterToolMenus()
 
 void NiagaraEditorMenuHelpers::RegisterMenuExtensions()
 {
+	RegisterAssetBrowserViewOptionsProfile();
+	
 	using namespace FNiagaraEditorUtilities::AssetBrowser;
 	
 	UToolMenus::Get()->RegisterStartupCallback(FSimpleMulticastDelegate::FDelegate::CreateLambda([]()
@@ -441,6 +443,20 @@ void NiagaraEditorMenuHelpers::RegisterMenuExtensions()
 
 			// Then, we register the standalone menu as the parent of the submenu. This will 'link' the empty submenu with our standalone menu.
 			UToolMenus::Get()->RegisterMenu(AssetContextMenuNameWithSubMenu, StandaloneTagManagementMenuName);
+		}
+	}));
+}
+
+void NiagaraEditorMenuHelpers::RegisterAssetBrowserViewOptionsProfile()
+{
+	UToolMenus::Get()->RegisterStartupCallback(FSimpleMulticastDelegate::FDelegate::CreateLambda([]()
+	{
+		const FName ProfileName("NiagaraAssetBrowser");
+
+		FToolMenuProfile* NiagaraAssetBrowserProfile = UToolMenus::Get()->AddRuntimeMenuProfile(FName("ContentBrowser.AssetViewOptions"), ProfileName);
+		if(FCustomizedToolMenuSection* Section = NiagaraAssetBrowserProfile->AddSection("View"))
+		{
+			Section->Visibility = ECustomizedToolMenuVisibility::Hidden;
 		}
 	}));
 }

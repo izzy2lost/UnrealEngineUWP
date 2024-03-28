@@ -19,6 +19,7 @@ void SNiagaraAssetBrowserContent::Construct(const FArguments& InArgs)
 	Config.SyncToAssetsDelegates.Add(&SyncToAssetsDelegate);
 	Config.SetFilterDelegates.Add(&SetNewFilterDelegate);
 	Config.bCanShowRealTimeThumbnails = true;
+	Config.AssetViewOptionsProfile = FName("NiagaraAssetBrowser");
 	
 	FContentBrowserModule& ContentBrowserModule = FModuleManager::Get().LoadModuleChecked<FContentBrowserModule>("ContentBrowser");
 	ChildSlot

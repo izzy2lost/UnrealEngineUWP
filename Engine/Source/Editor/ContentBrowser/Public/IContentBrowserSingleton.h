@@ -312,6 +312,9 @@ struct FAssetPickerConfig
 	/** If we display filters & set to true, we will add sections instead of sub-menus for other filters. Useful if the number of additional filters is small. */
 	bool bUseSectionsForCustomFilterCategories;
 
+	/** If specified, the asset view options menu will use this tool menu profile for customization purposes. */
+	TOptional<FName> AssetViewOptionsProfile;
+
 	FAssetPickerConfig()
 		: SelectionMode( ESelectionMode::Multi )
 		, ThumbnailLabel( EThumbnailLabel::ClassName )

@@ -288,6 +288,9 @@ public:
 
 		/** The content browser that owns this view if any */
 		SLATE_ARGUMENT(TSharedPtr<SContentBrowser>, OwningContentBrowser)
+
+		/** The menu profile to use for the asset view options. The profile needs to be registered with the ToolMenus API. */
+		SLATE_ARGUMENT(TOptional<FName>, AssetViewOptionsProfile)
 	SLATE_END_ARGS()
 
 	~SAssetView();
@@ -995,6 +998,9 @@ private:
 	/** Called when opening view options menu */
 	FOnExtendAssetViewOptionsMenuContext OnExtendAssetViewOptionsMenuContext;
 
+	/** An optional profile name for the asset view options menu. */
+	TOptional<FName> AssetViewOptionsProfile;
+	
 	/** When true, filtered list items will be sorted next tick. Provided another sort hasn't happened recently or we are renaming an asset */
 	bool bPendingSortFilteredItems;
 	double CurrentTime;

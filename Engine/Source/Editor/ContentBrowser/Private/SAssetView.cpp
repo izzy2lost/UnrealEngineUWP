@@ -323,7 +323,8 @@ void SAssetView::Construct( const FArguments& InArgs )
 	OnSearchOptionsChanged = InArgs._OnSearchOptionsChanged;
 	bShowPathViewFilters = InArgs._bShowPathViewFilters;
 	OnExtendAssetViewOptionsMenuContext = InArgs._OnExtendAssetViewOptionsMenuContext;
-
+	AssetViewOptionsProfile = InArgs._AssetViewOptionsProfile;
+	
 	if ( InArgs._InitialViewType >= 0 && InArgs._InitialViewType < EAssetViewType::MAX )
 	{
 		CurrentViewType = InArgs._InitialViewType;
@@ -2605,6 +2606,13 @@ TSharedRef<SWidget> SAssetView::GetViewButtonContent()
 
 	TSharedPtr<FExtender> MenuExtender = FExtender::Combine(Extenders);
 	FToolMenuContext MenuContext(nullptr, MenuExtender, Context);
+
+	if(AssetViewOptionsProfile.IsSet())
+	{
+		UToolMenuProfileContext* ProfileContext = NewObject<UToolMenuProfileContext>();
+		ProfileContext->ActiveProfiles.Add(AssetViewOptionsProfile.GetValue());
+		MenuContext.AddObject(ProfileContext);
+	}
 
 	if (OnExtendAssetViewOptionsMenuContext.IsBound())
 	{
