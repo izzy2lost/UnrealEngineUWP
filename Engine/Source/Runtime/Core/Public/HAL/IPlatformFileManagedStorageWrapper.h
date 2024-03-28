@@ -364,7 +364,7 @@ public:
 		// FPersistentStorageManager depends on GConfig.
 		// FPersistentStorageManager can't be constructed until its dependencies are ready
 		// FPersistentStorageManager will try and allocate memory during a crash but this could hang during log file flushing
-		return bCreated && GConfig && GConfig->IsReadyForUse() && FCommandLine::IsInitialized() && !GIsCriticalError;
+		return GConfig && GConfig->IsReadyForUse() && FCommandLine::IsInitialized() && !GIsCriticalError;
 	}
 
 	/** Singleton access **/
@@ -621,16 +621,6 @@ public:
 private:
 	friend class FManagedStorageScopeFileLock; // For access to Categories
 
-	static bool IsReadyInternal()
-	{
-		// FPersistentStorageManager depends on FPaths which depends on the command line being initialized.
-		// FPersistentStorageManager depends on GConfig.
-		// FPersistentStorageManager can't be constructed until its dependencies are ready
-		// FPersistentStorageManager will try and allocate memory during a crash but this could hang during log file flushing
-		return GConfig && GConfig->IsReadyForUse() && FCommandLine::IsInitialized() && !GIsCriticalError;
-	}
-
-	static bool bCreated;
 	bool bInitialized;
 
 	// Top level of all managed storage
