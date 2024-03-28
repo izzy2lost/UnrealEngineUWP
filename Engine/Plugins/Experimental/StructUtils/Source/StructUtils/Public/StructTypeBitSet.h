@@ -5,6 +5,7 @@
 #include "Containers/BitArray.h"
 #include "StructUtilsTypes.h"
 #include "InstancedStruct.h"
+#include "Templates/FunctionFwd.h"
 
 
 class FArchive;
@@ -561,6 +562,27 @@ public:
 			if (It.GetValue())
 			{
 				OutTypes.Add(Cast<TOutStructType>(TStructTrackerWrapper::StructTracker.GetStructType(It.GetIndex())));
+			}
+			++It;
+		}
+	}
+
+	/**
+	 * Lists all types used by this bit set, calling the provided callback for each one. Returning false from
+	 * the callback will early-out of iterating over the types.
+	 * 
+	 * note that this function is slow(ish) due to the FStructTracker utilizing WeakObjectPtrs to store types.
+	 * @todo To be improved.
+	 */
+	void ExportTypes(TFunctionRef<bool(const TUStructType*)> Callback) const
+	{
+		TBitArray<>::FConstIterator It(StructTypesBitArray);
+		bool bKeepGoing = true;
+		while (bKeepGoing && It)
+		{
+			if (It.GetValue())
+			{
+				bKeepGoing = Callback(GetTypeAtIndex(It.GetIndex()));
 			}
 			++It;
 		}
