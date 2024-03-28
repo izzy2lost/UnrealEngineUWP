@@ -494,7 +494,7 @@ public:
 					ExpectedState.SetWriterThreadId(FPlatformTLS::GetCurrentThreadId());
 				}
 
-				GetDestructionSentinelStackTls().RemoveAt(DestructionSentinelIndex, 1, EAllowShrinking::No);
+				GetDestructionSentinelStackTls().RemoveAtSwap(DestructionSentinelIndex);
 				--DestructionSentinelIndex;
 			}
 		}
@@ -554,7 +554,7 @@ public:
 		checkfSlow(GetDestructionSentinelStackTls().Num() != 0, TEXT("An attempt to remove a not registered destruction sentinel"));
 		checkfSlow(GetDestructionSentinelStackTls().Last() == &DestructionSentinel, TEXT("Mismatched destruction sentinel: %p != %p"), GetDestructionSentinelStackTls().Last(), &DestructionSentinel);
 
-		GetDestructionSentinelStackTls().RemoveAt(GetDestructionSentinelStackTls().Num() - 1, 1, EAllowShrinking::No);
+		GetDestructionSentinelStackTls().RemoveAtSwap(GetDestructionSentinelStackTls().Num() - 1);
 	}
 
 	FORCEINLINE void AcquireWriteAccess()
@@ -641,7 +641,7 @@ public:
 		checkfSlow(GetDestructionSentinelStackTls().Num() != 0, TEXT("An attempt to remove a not registered destruction sentinel"));
 		checkfSlow(GetDestructionSentinelStackTls().Last() == &DestructionSentinel, TEXT("Mismatched destruction sentinel: %p != %p"), GetDestructionSentinelStackTls().Last(), &DestructionSentinel);
 
-		GetDestructionSentinelStackTls().RemoveAt(GetDestructionSentinelStackTls().Num() - 1, 1, EAllowShrinking::No);
+		GetDestructionSentinelStackTls().RemoveAtSwap(GetDestructionSentinelStackTls().Num() - 1);
 	}
 };
 
