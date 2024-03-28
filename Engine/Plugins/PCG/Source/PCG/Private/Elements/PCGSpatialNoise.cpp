@@ -7,6 +7,7 @@
 
 #include "PCGComponent.h"
 #include "PCGContext.h"
+#include "PCGCustomVersion.h"
 #include "PCGPin.h"
 
 #include "Data/PCGPointData.h"
@@ -26,6 +27,44 @@ UPCGSpatialNoiseSettings::UPCGSpatialNoiseSettings()
 	bUseSeed = true;
 	ValueTarget.SetPointProperty(EPCGPointProperties::Density);
 }
+
+void UPCGSpatialNoiseSettings::PostLoad()
+{
+	Super::PostLoad();
+
+	if (bForceNoUseSeed)
+	{
+		bUseSeed = false;
+	}
+}
+
+void UPCGSpatialNoiseSettings::PostEditImport()
+{
+	Super::PostEditImport();
+
+	if (bForceNoUseSeed)
+	{
+		bUseSeed = false;
+	}
+}
+
+#if WITH_EDITOR
+void UPCGSpatialNoiseSettings::ApplyDeprecation(UPCGNode* InOutNode)
+{
+	// Important note: this version change is not related to the reason we do deprecation here, but
+	// this happened in a close timeframe and we can close the gap here. The original issue is that
+	// we've added seed usage on the SpatialNoise settings at a slightly later version (a few days),
+	// but since this applies at the CDO level too, this was adding seed usage also to the data prior to
+	// this change, which had an effect on generated results.
+	if (DataVersion < FPCGCustomVersion::NoMoreSpatialDataConversionToPointDataByDefaultOnNonPointPins)
+	{
+		bForceNoUseSeed = true;
+		bUseSeed = false;
+	}
+
+	Super::ApplyDeprecation(InOutNode);
+}
+#endif // WITH_EDITOR
 
 TArray<FPCGPinProperties> UPCGSpatialNoiseSettings::InputPinProperties() const
 {

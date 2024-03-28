@@ -63,14 +63,18 @@ class UPCGSpatialNoiseSettings : public UPCGSettings
 
 public:
 	UPCGSpatialNoiseSettings();
+	//~Begin UObject interface
+	virtual void PostLoad() override;
+	virtual void PostEditImport() override;
+	//~End UObject interface
 
 	//~Begin UPCGSettings interface
 #if WITH_EDITOR
 	virtual FName GetDefaultNodeName() const override { return FName(TEXT("Spatial Noise")); }
 	virtual FText GetDefaultNodeTitle() const override { return NSLOCTEXT("PCGSpatialNoise", "NodeTitle", "Spatial Noise"); }
 	virtual EPCGSettingsType GetType() const override { return EPCGSettingsType::Spatial; }
+	virtual void ApplyDeprecation(UPCGNode* InOutNode) override;
 #endif
-	
 
 protected:
 	virtual TArray<FPCGPinProperties> InputPinProperties() const override;
@@ -145,6 +149,11 @@ public:
 	// will makes the falloff harsher or softer
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings, meta = (EditCondition = "Mode == PCGSpatialNoiseMode::EdgeMask2D", EditConditionHides, ClampMin = "0", PCG_Overridable))
 	float EdgeBlendCurveIntensity = 1.0;
+
+private:
+	// Private field to fix a deprecation issue related to seed usage between UE 5.3 and UE 5.4
+	UPROPERTY()
+	bool bForceNoUseSeed = false;
 };
 
 class FPCGSpatialNoise : public FPCGPointProcessingElementBase
