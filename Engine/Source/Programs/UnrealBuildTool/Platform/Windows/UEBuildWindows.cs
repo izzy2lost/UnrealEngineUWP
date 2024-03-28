@@ -623,6 +623,21 @@ namespace UnrealBuildTool
 		public bool bOptimizeGlobalData = true;
 
 		/// <summary>
+		/// Whether to reduce optimizations for huge functions over an instruction threshold to improve compile time
+		/// https://devblogs.microsoft.com/cppblog/msvc-backend-updates-in-visual-studio-2019-versions-16-3-and-16-4/
+		/// </summary>
+		[XmlConfigFile(Category = "WindowsPlatform")]
+		[RequiresUniqueBuildEnvironment]
+		public bool bReducedOptimizeHugeFunctions = false;
+
+		/// <summary>
+		/// The instruction threshold to use when reducing optimizations for huge functions, default 20000.
+		/// </summary>
+		[XmlConfigFile(Category = "WindowsPlatform")]
+		[RequiresUniqueBuildEnvironment]
+		public int bReducedOptimizeHugeFunctionsThreshold = 20000;
+
+		/// <summary>
 		/// (Experimental) Appends the -ftime-trace argument to the command line for Clang to output a JSON file containing a timeline for the compile. 
 		/// See http://aras-p.info/blog/2019/01/16/time-trace-timeline-flame-chart-profiler-for-Clang/ for more info.
 		/// </summary>
@@ -897,6 +912,10 @@ namespace UnrealBuildTool
 		public bool bMergeIdenticalCOMDATs => Inner.bMergeIdenticalCOMDATs;
 
 		public bool bOptimizeGlobalData => Inner.bOptimizeGlobalData;
+
+		public bool bReducedOptimizeHugeFunctions => Inner.bReducedOptimizeHugeFunctions;
+
+		public int bReducedOptimizeHugeFunctionsThreshold => Inner.bReducedOptimizeHugeFunctionsThreshold;
 
 		public bool bClangTimeTrace => Inner.bClangTimeTrace;
 

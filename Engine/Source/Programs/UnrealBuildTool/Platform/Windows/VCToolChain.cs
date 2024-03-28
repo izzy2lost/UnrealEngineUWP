@@ -491,6 +491,13 @@ namespace UnrealBuildTool
 				Arguments.Add("/Gw");
 			}
 
+            // Reduce optimizations for huge functions, may improve compile time a the expense of speed for functions over the threshold
+            if (Target.WindowsPlatform.Compiler.IsMSVC() && Target.WindowsPlatform.bReducedOptimizeHugeFunctions)
+            {
+                Arguments.Add("/d2ReducedOptimizeHugeFunctions");
+                Arguments.Add($"/d2ReducedOptimizeThreshold:{Target.WindowsPlatform.bReducedOptimizeHugeFunctionsThreshold}");
+            }
+
 			// Separate functions for linker.
 			Arguments.Add("/Gy");
 
@@ -1353,10 +1360,17 @@ namespace UnrealBuildTool
 				//Arguments.Add("/PDBCompress"); // Do not turn this on, it makes link times almost 2x slower. This is _only_ to save local disk space. Will _not_ make actual file smaller for network transfer
 			}
 
-			//
-			//	Shipping & LTCG
-			//
-			if (LinkEnvironment.bAllowLTCG)
+            // Reduce optimizations for huge functions, may improve compile time a the expense of speed for functions over the threshold
+            if (Target.WindowsPlatform.Compiler.IsMSVC() && Target.WindowsPlatform.bReducedOptimizeHugeFunctions)
+            {
+                Arguments.Add("/d2:\"-ReducedOptimizeHugeFunctions\"");
+                Arguments.Add($"/d2:\"-ReducedOptimizeThreshold:{Target.WindowsPlatform.bReducedOptimizeHugeFunctionsThreshold}\"");
+            }
+
+            //
+            //	Shipping & LTCG
+            //
+            if (LinkEnvironment.bAllowLTCG)
 			{
 				// Use link-time code generation.
 				Arguments.Add("/LTCG");
