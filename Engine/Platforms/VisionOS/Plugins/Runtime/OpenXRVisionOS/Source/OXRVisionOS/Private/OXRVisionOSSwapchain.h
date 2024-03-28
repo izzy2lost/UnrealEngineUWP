@@ -54,6 +54,8 @@ public:
 
 	XrResult XrReleaseSwapchainImage(
 		const XrSwapchainImageReleaseInfo*			releaseInfo);
+	
+	const FSwapchainImage& GetLastWaitedImage() const;
 
 	const FSwapchainImage& GetLastReleasedImage() const;
 
