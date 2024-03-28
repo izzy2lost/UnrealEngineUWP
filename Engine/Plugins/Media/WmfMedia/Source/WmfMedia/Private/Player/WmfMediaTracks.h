@@ -23,12 +23,14 @@ class FWmfMediaAudioSamplePool;
 class FWmfMediaSampler;
 class FWmfMediaTextureSamplePool;
 class FWmfMediaHardwareVideoDecodingTextureSamplePool;
+class FWmfMediaSession;
 class IMediaAudioSample;
 class IMediaBinarySample;
 class IMediaOverlaySample;
 class IMediaTextureSample;
 class FWmfMediaTextureSample;
 class FMediaTimeStamp;
+class FWmfMediaStreamSink;
 
 enum class EMediaTextureSampleFormat;
 enum class EMediaTrackType;
@@ -187,15 +189,28 @@ public:
 	 */
 	void SetSessionState(EMediaState InState);
 
-#if WMFMEDIA_PLAYER_VERSION >= 2
+public:
+
 	/**
-	 * Call this when seeking so that we will discard subsequent samples until
-	 * we find one that matches this seek time.
-	 *
-	 * @param InTime Seek time to wait for.
+	 * Notify track of triggered seek
 	 */
-	void SeekStarted(const FTimespan& InTime);
-#endif // WMFMEDIA_PLAYER_VERSION >= 2
+	void SeekStarted(const FTimespan& InTime, uint32 UserIssuedSeeks, float UnpausedSessionRate);
+
+	/**
+	 * Notify track of triggered loop
+	 */
+	void LoopStarted(float UnpausedSessionRate);
+
+	void SetSession(FWmfMediaSession* InSession)
+	{
+		Session = InSession;
+	}
+
+	void SessionEnded();
+
+	void RequestMoreVideoDataFromStreamSink();
+
+	bool ExecuteOnceMediaStreamSinkHasNoPendingRequests(TFunction<void()>&& ExecuteOnIdle);
 
 public:
 
@@ -212,9 +227,9 @@ public:
 	virtual bool FetchVideo(TRange<FMediaTimeStamp> TimeRange, TSharedPtr<IMediaTextureSample, ESPMode::ThreadSafe>& OutSample) override;
 
 	virtual void FlushSamples() override;
-#if WMFMEDIA_PLAYER_VERSION >= 2
+
 	virtual EFetchBestSampleResult FetchBestVideoSampleForTimeRange(const TRange<FMediaTimeStamp>& TimeRange, TSharedPtr<IMediaTextureSample, ESPMode::ThreadSafe>& OutSample, bool bReverse, bool bConsistentResult) override;
-#endif // WMFMEDIA_PLAYER_VERSION >= 2
+
 	virtual bool DiscardVideoSamples(const TRange<FMediaTimeStamp>& TimeRange, bool bReverse) override;
 	virtual bool DiscardAudioSamples(const TRange<FMediaTimeStamp>& TimeRange, bool bReverse) override;
 	virtual bool DiscardCaptionSamples(const TRange<FMediaTimeStamp>& TimeRange, bool bReverse) override;
@@ -313,7 +328,6 @@ private:
 	FMediaTimeStamp AdjustTimeStamp(FTimespan Time, EMediaTrackType TrackType);
 
 private:
-
 	/** Audio sample object pool. */
 	FWmfMediaAudioSamplePool* AudioSamplePool;
 
@@ -340,6 +354,9 @@ private:
 
 	/** The currently opened media. */
 	TComPtr<IMFMediaSource> MediaSource;
+
+	// Hardware Acccelerated Stream Sink
+	TComPtr<FWmfMediaStreamSink> MediaStreamSink;
 
 	/** Whether the media source has changed. */
 	bool MediaSourceChanged;
@@ -387,18 +404,11 @@ private:
 	/** Current state of the session. */
 	EMediaState SessionState;
 
-#if WMFMEDIA_PLAYER_VERSION >= 2
+	FWmfMediaSession* Session;
+
 	/** SequenceIndex tracking */
 	int32 SeekIndex;
-	int32 AudioLoopIndex;
-	int32 VideoLoopIndex;
-	int32 MetaDataLoopIndex;
-	int32 CaptionLoopIndex;
-	TOptional<FTimespan> LastAudioTime;
-	TOptional<FTimespan> LastVideoTime;
-	TOptional<FTimespan> LastMetaDataTime;
-	TOptional<FTimespan> LastCaptionTime;
-#endif // WMFMEDIA_PLAYER_VERSION >= 2
+	int32 LoopIndex;
 };
 
 

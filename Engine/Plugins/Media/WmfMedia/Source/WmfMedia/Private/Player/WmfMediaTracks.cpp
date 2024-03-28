@@ -30,6 +30,7 @@
 #include "WmfMediaSettings.h"
 #include "Wmf/WmfMediaSink.h"
 #include "Wmf/WmfMediaStreamSink.h"
+#include "Wmf/WmfMediaSession.h"
 #include "Wmf/WmfMediaTopologyLoader.h"
 #include "Wmf/WmfMediaUtils.h"
 
@@ -55,6 +56,7 @@ FWmfMediaTracks::FWmfMediaTracks()
 	, VideoSamplePool(nullptr)
 	, VideoHardwareVideoDecodingSamplePool(nullptr)
 	, SessionState(EMediaState::Closed)
+	, Session(nullptr)
 {}
 
 
@@ -207,7 +209,6 @@ FTimespan FWmfMediaTracks::GetDuration() const
 
 	UINT64 PresentationDuration = 0;
 	HRESULT Result = PresentationDescriptor->GetUINT64(MF_PD_DURATION, &PresentationDuration);
-#if WMFMEDIA_PLAYER_VERSION >= 2
 	if (SUCCEEDED(Result) == false)
 	{
 		// Live streams like webcam do not have a duration.
@@ -217,7 +218,7 @@ FTimespan FWmfMediaTracks::GetDuration() const
 	
 	// The duration reported here for HAP videos can be larger than they really are be by this amount.
 	PresentationDuration -= 10000;
-#endif
+
 	return FTimespan(PresentationDuration);
 }
 
@@ -346,6 +347,7 @@ void FWmfMediaTracks::Shutdown()
 	{
 		VideoHardwareVideoDecodingSamplePool->Reset();
 	}
+	MediaStreamSink = nullptr;
 
 	SelectedAudioTrack = INDEX_NONE;
 	SelectedCaptionTrack = INDEX_NONE;
@@ -370,17 +372,8 @@ void FWmfMediaTracks::Shutdown()
 	MediaSourceChanged = false;
 	SelectionChanged = false;
 
-#if WMFMEDIA_PLAYER_VERSION >= 2
 	SeekIndex = 0;
-	AudioLoopIndex = 0;
-	VideoLoopIndex = 0;
-	MetaDataLoopIndex = 0;
-	CaptionLoopIndex = 0;
-	LastAudioTime.Reset();
-	LastVideoTime.Reset();
-	LastMetaDataTime.Reset();
-	LastCaptionTime.Reset();
-#endif // WMFMEDIA_PLAYER_VERSION >= 2
+	LoopIndex = 0;
 }
 
 void FWmfMediaTracks::SetSessionState(EMediaState InState)
@@ -389,16 +382,78 @@ void FWmfMediaTracks::SetSessionState(EMediaState InState)
 	SessionState = InState;
 }
 
-#if WMFMEDIA_PLAYER_VERSION >= 2
 
-void FWmfMediaTracks::SeekStarted(const FTimespan& InTime)
+void FWmfMediaTracks::SeekStarted(const FTimespan& InTime, uint32 UserIssuedSeeks, float UnpausedSessionRate)
 {
 	UE_LOG(LogWmfMedia, VeryVerbose, TEXT("FWmfMediaTracks::SeekStarted %f"), InTime.GetTotalSeconds());
+
+	{
 	FScopeLock Lock(&CriticalSection);
-	++SeekIndex;
+	if (UnpausedSessionRate >= 0.0f)
+	{
+		SeekIndex += UserIssuedSeeks;
+	}
+	else
+	{
+		SeekIndex -= UserIssuedSeeks;
+	}
+	LoopIndex = 0;
+	}
+
+	if (MediaStreamSink)
+	{
+		MediaStreamSink->OnSeekStarted();
+	}
 }
 
-#endif // WMFMEDIA_PLAYER_VERSION >= 2
+void FWmfMediaTracks::LoopStarted(float SessionRate)
+{
+	FScopeLock Lock(&CriticalSection);
+	{
+	if (SessionRate >= 0.0f)
+	{
+		++LoopIndex;
+	}
+	else
+	{
+		--LoopIndex;
+	}
+	}
+
+	if (MediaStreamSink)
+	{
+		// We loop, but then: for the sink it's really just a seek
+		MediaStreamSink->OnSeekStarted();
+	}
+}
+
+
+void FWmfMediaTracks::SessionEnded()
+{
+	if (MediaStreamSink)
+	{
+		MediaStreamSink->OnSessionEnded();
+	}
+}
+
+
+void FWmfMediaTracks::RequestMoreVideoDataFromStreamSink()
+{
+	if (MediaStreamSink)
+	{
+		MediaStreamSink->OnRequestMoreData();
+	}
+}
+
+
+bool FWmfMediaTracks::ExecuteOnceMediaStreamSinkHasNoPendingRequests(TFunction<void()>&& ExecuteOnIdle)
+{
+	if (MediaStreamSink)
+	{
+		return MediaStreamSink->ExecuteOnceNoPendingRequests(MoveTemp(ExecuteOnIdle));
+	}
+	return false;
+}
 
 /* IMediaSamples interface
  *****************************************************************************/
@@ -500,6 +555,8 @@ bool FWmfMediaTracks::FetchVideo(TRange<FMediaTimeStamp> TimeRange, TSharedPtr<I
 		return false;
 	}
 
+	Session->RequestMoreVideoData();
+
 	if (!VideoSampleQueue.Dequeue(Sample))
 	{
 		return false;
@@ -513,31 +570,52 @@ bool FWmfMediaTracks::FetchVideo(TRange<FMediaTimeStamp> TimeRange, TSharedPtr<I
 
 void FWmfMediaTracks::FlushSamples()
 {
-	UE_LOG(LogWmfMedia, VeryVerbose, TEXT("FWmfMediaTracks::FlushSamples"));
-	AudioSampleQueue.RequestFlush();
-	CaptionSampleQueue.RequestFlush();
-	MetadataSampleQueue.RequestFlush();
-	VideoSampleQueue.RequestFlush();
+	Session->EnqueueWorkItem(FWmfMediaSession::FWorkItem([this](TComPtr<IMFMediaEvent> MediaEvent, MediaEventType EventType, HRESULT EventStatus, FWmfMediaSession::FBaseWorkItemState* BaseState) -> FWmfMediaSession::EWorkItemResult
+		{
+			{
+			FScopeLock Lock(&CriticalSection);
+
+			UE_LOG(LogWmfMedia, VeryVerbose, TEXT("FWmfMediaTracks::FlushSamples"));
+
+			AudioSampleQueue.RequestFlush();
+			CaptionSampleQueue.RequestFlush();
+			MetadataSampleQueue.RequestFlush();
+			VideoSampleQueue.RequestFlush();
+
+			SeekIndex = 0;
+			LoopIndex = 0;
+			}
+
+			Session->Flush();
+
+			return FWmfMediaSession::EWorkItemResult::Done;
+		}));
 }
 
-#if WMFMEDIA_PLAYER_VERSION >= 2
 
 IMediaSamples::EFetchBestSampleResult FWmfMediaTracks::FetchBestVideoSampleForTimeRange(const TRange<FMediaTimeStamp>& TimeRange, TSharedPtr<IMediaTextureSample, ESPMode::ThreadSafe>& OutSample, bool bReverse, bool bConsistentResult)
 {
-	return VideoSampleQueue.FetchBestSampleForTimeRange(TimeRange, OutSample, bReverse, bConsistentResult) ? EFetchBestSampleResult::Ok : EFetchBestSampleResult::NoSample;
+	EFetchBestSampleResult Ret = VideoSampleQueue.FetchBestSampleForTimeRange(TimeRange, OutSample, bReverse, bConsistentResult) ? EFetchBestSampleResult::Ok : EFetchBestSampleResult::NoSample;
+
+	Session->RequestMoreVideoData();
+
+	return Ret;
 }
 
-#endif // WMFMEDIA_PLAYER_VERSION >= 2
 
 bool FWmfMediaTracks::PeekVideoSampleTime(FMediaTimeStamp & TimeStamp)
 {
 	TSharedPtr<IMediaTextureSample, ESPMode::ThreadSafe> Sample;
-	if (!VideoSampleQueue.Peek(Sample))
+
+	bool Ret = VideoSampleQueue.Peek(Sample);
+
+	Session->RequestMoreVideoData();
+
+	if (Ret)
 	{
-		return false;
+		TimeStamp = Sample->GetTime();
 	}
-	TimeStamp = Sample->GetTime();
-	return true;
+	return Ret;
 }
 
 bool FWmfMediaTracks::DiscardVideoSamples(const TRange<FMediaTimeStamp>& TimeRange, bool bReverse)
@@ -1153,9 +1231,6 @@ bool FWmfMediaTracks::AddTrackToTopology(const FTrack& Track, IMFTopology& Topol
 	// set up output node
 	TComPtr<IMFTopologyNode> OutputNode;
 
-	// Hardware Acccelerated Stream Sink
-	TComPtr<FWmfMediaStreamSink> MediaStreamSink;
-
 	const UWmfMediaSettings* WmfMediaSettings = GetDefault<UWmfMediaSettings>();
 
 	if (VideoSamplePool)
@@ -1192,6 +1267,7 @@ bool FWmfMediaTracks::AddTrackToTopology(const FTrack& Track, IMFTopology& Topol
 	else
 #endif
 	{
+//TODO: >>> SOFTWARE VERSION OR WHAT? THIS IS ALL 100% DIFFERENT?!?!? WTH? (just a "standard" output node takes over) ===========> Sounds like a VERY bad idea!
 		VideoSamplePool = new FWmfMediaTextureSamplePool();
 		if (!VideoSamplePool)
 		{
@@ -1898,28 +1974,7 @@ void FWmfMediaTracks::HandleMediaSamplerClock(EWmfMediaSamplerClockEvent Event, 
 FMediaTimeStamp FWmfMediaTracks::AdjustTimeStamp(FTimespan Time, EMediaTrackType TrackType)
 {
 	FScopeLock Lock(&CriticalSection);
-
-	int32* IndexPtr = nullptr;
-	TOptional<FTimespan>* TimePtr = nullptr;
-	switch (TrackType)
-	{
-	case EMediaTrackType::Audio: IndexPtr = &AudioLoopIndex; TimePtr = &LastAudioTime; break;
-	case EMediaTrackType::Video: IndexPtr = &VideoLoopIndex; TimePtr = &LastVideoTime; break;
-	case EMediaTrackType::Metadata: IndexPtr = &MetaDataLoopIndex; TimePtr = &LastMetaDataTime; break;
-	case EMediaTrackType::Caption: IndexPtr = &CaptionLoopIndex; TimePtr = &LastCaptionTime; break;
-	}
-	check(IndexPtr && TimePtr);
-
-	if (TimePtr->IsSet())
-	{
-		if (TimePtr->GetValue() > Time)
-		{
-			++(*IndexPtr);
-		}
-	}
-	*TimePtr = Time;
-
-	return FMediaTimeStamp(Time, FMediaTimeStamp::MakeSequenceIndex(SeekIndex, *IndexPtr));
+	return FMediaTimeStamp(Time, FMediaTimeStamp::MakeSequenceIndex(SeekIndex, LoopIndex));
 }
 
 
