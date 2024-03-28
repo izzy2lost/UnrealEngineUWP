@@ -71,6 +71,12 @@ LRESULT CALLBACK SplashScreenWindowProc(HWND hWnd, uint32 message, WPARAM wParam
 	{
 		case WM_PAINT:
 			{
+				// We can continue to receive messages for a period after we've torn down the bitmap resource
+				if (!GSplashScreenBitmap)
+				{
+					return 0;
+				}
+
 				hdc = BeginPaint(hWnd, &ps);
 
 				// Draw splash bitmap
