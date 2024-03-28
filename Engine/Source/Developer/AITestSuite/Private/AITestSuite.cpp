@@ -1,10 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "AITestSuite.h"
-#include "AITestsCommon.h"
 
-DEFINE_LOG_CATEGORY(LogAITestSuite);
-DEFINE_LOG_CATEGORY(LogBehaviorTreeTest);
 
 class FAITestSuite : public IAITestSuite
 {

@@ -4,6 +4,15 @@
 #include "EngineGlobals.h"
 #include "Engine/Engine.h"
 
+DEFINE_LOG_CATEGORY(LogAITestSuite);
+DEFINE_LOG_CATEGORY(LogBehaviorTreeTest);
+DEFINE_LOG_CATEGORY(LogTestableEnsures);
+
+
+namespace UE::AITestSuite
+{
+	int32 TestsInProgress = 0;
+} // namespace UE::AITestSuite
 
 namespace FAITestHelpers
 {

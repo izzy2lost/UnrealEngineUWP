@@ -2,13 +2,13 @@
 
 #pragma once
 
-#include "CoreMinimal.h"
 #include "UObject/Package.h"
 #include "UObject/UObjectGlobals.h"
+#include "CoreGlobals.h"
 #include "Misc/AutomationTest.h"
 #include "TestLogger.h"
 #include "Engine/EngineBaseTypes.h"
-
+#include "TestableEnsures.h"
 
 DECLARE_LOG_CATEGORY_EXTERN(LogAITestSuite, Log, All);
 DECLARE_LOG_CATEGORY_EXTERN(LogBehaviorTreeTest, Log, All);
@@ -25,7 +25,6 @@ public:
 private: 
 	bool bAlreadyRun;
 };
-
 
 namespace FAITestHelpers
 {
