@@ -103,7 +103,7 @@ void FChaosClothAssetSimulationBendingConfigNode::AddProperties(FPropertyHelper&
 			PropertyHelper.SetFabricPropertyWeighted(FName(TEXT("XPBDAnisoBucklingStiffnessWarp")), BucklingStiffnessWarp, [](
 				const UE::Chaos::ClothAsset::FCollectionClothFabricFacade& FabricFacade)-> float
 			 {
-				 return FabricFacade.GetBucklingStiffness().Warp;
+				 return FabricFacade.GetBucklingRatio() > UE_SMALL_NUMBER ? FabricFacade.GetBucklingStiffness().Warp : FabricFacade.GetBendingStiffness().Warp;
 			 }, {
 				FName(TEXT("BucklingStiffness")),    
 				FName(TEXT("XPBDBucklingStiffness"))});
@@ -111,13 +111,13 @@ void FChaosClothAssetSimulationBendingConfigNode::AddProperties(FPropertyHelper&
 			PropertyHelper.SetFabricPropertyWeighted(FName(TEXT("XPBDAnisoBucklingStiffnessWeft")), BucklingStiffnessWeft, [](
 				const UE::Chaos::ClothAsset::FCollectionClothFabricFacade& FabricFacade)-> float
 			{
-				return FabricFacade.GetBucklingStiffness().Weft;
+				return FabricFacade.GetBucklingRatio() > UE_SMALL_NUMBER ? FabricFacade.GetBucklingStiffness().Weft : FabricFacade.GetBendingStiffness().Weft;
 			},{});
 			
 			PropertyHelper.SetFabricPropertyWeighted(FName(TEXT("XPBDAnisoBucklingStiffnessBias")), BucklingStiffnessBias, [](
 				const UE::Chaos::ClothAsset::FCollectionClothFabricFacade& FabricFacade)-> float
 			{
-				return FabricFacade.GetBucklingStiffness().Bias;
+				return FabricFacade.GetBucklingRatio() > UE_SMALL_NUMBER ? FabricFacade.GetBucklingStiffness().Bias : FabricFacade.GetBendingStiffness().Bias;
 			},{});
 
 			PropertyHelper.SetFabricPropertyWeighted(FName(TEXT("XPBDAnisoBendingDamping")), BendingAnisoDamping, [](

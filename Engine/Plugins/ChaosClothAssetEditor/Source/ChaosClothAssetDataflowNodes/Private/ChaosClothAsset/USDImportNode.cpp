@@ -793,14 +793,17 @@ bool FChaosClothAssetUSDImportNode::ImportFromFile(const FString& UsdFilePath, c
 			
 			FCollectionClothFabricFacade::FAnisotropicData StretchStiffness(
 				StretchWeft*StretchShearScaling, StretchWarp*StretchShearScaling, 0.5f * (ShearLeft+ShearRight)*StretchShearScaling);
-			
-			FCollectionClothFabricFacade::FAnisotropicData BucklingStiffness(
-				BendingStiffness.Weft * BucklingStiffnessWeft, BendingStiffness.Warp * BucklingStiffnessWarp,
-				BendingStiffness.Bias * 0.5f * (BucklingStiffnessBiasLeft+BucklingStiffnessBiasRight));
 
 			// Only scalar value used in the solver right now
 			const float BucklingRatio = (BucklingRatioWeft + BucklingRatioWarp +
-				0.5f * (BucklingRatioBiasLeft+BucklingRatioBiasRight)) / 3.0f;
+				0.5f * (BucklingRatioBiasLeft + BucklingRatioBiasRight)) / 3.0f;
+			
+			FCollectionClothFabricFacade::FAnisotropicData BucklingStiffness = 
+				BucklingRatio < UE_SMALL_NUMBER ? BendingStiffness : 
+				FCollectionClothFabricFacade::FAnisotropicData(
+				BendingStiffness.Weft * BucklingStiffnessWeft, BendingStiffness.Warp * BucklingStiffnessWarp,
+				BendingStiffness.Bias * 0.5f * (BucklingStiffnessBiasLeft+BucklingStiffnessBiasRight));
+
 
 			Fabric.Initialize(BendingStiffness, BucklingRatio, BucklingStiffness, StretchStiffness,
 				Density * DensityScaling, Friction, Damping, 0.0f, 0, Thickness * ThicknessScaling);
