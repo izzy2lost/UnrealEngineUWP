@@ -91,7 +91,7 @@ const static float MinReflectionConeAngle = 0.00001f;
 uint PackRayTraceDistance(float RayTraceDistance, bool bUseRadianceCache)
 {
 	uint PackedData =
-		(f32tof16(RayTraceDistance) & 0x7FFF) |
+		(f32tof16(min(RayTraceDistance, GetMaxHitDistance())) & 0x7FFF) |
 		(bUseRadianceCache << 15);
 	return PackedData;
 }
