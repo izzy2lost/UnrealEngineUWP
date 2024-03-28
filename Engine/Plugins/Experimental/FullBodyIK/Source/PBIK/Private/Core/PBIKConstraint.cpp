@@ -65,8 +65,8 @@ void FJointConstraint::Solve(const FPBIKSolverSettings& Settings)
 	const FVector CorrectA = N * (C * (WA / W));
 	const FVector CorrectB = N * (C * (WB / W));
 
-	A->ApplyPushToPosition(CorrectA);
-	B->ApplyPushToPosition(-CorrectB);
+	A->ApplyPositionDelta(CorrectA);
+	B->ApplyPositionDelta(-CorrectB);
 }
 
 void FJointConstraint::RemoveStretch(const float Percent)
@@ -277,17 +277,14 @@ float FJointConstraint::SignedAngleBetweenNormals(
 FPinConstraint::FPinConstraint(
 	FRigidBody* InBody,
 	const FVector& InPinPositionOrig,
-	const FQuat& InPinRotationOrig,
-	const bool bInLockRotation)
+	const FQuat& InPinRotationOrig)
 {
 	GoalPosition = InPinPositionOrig;
 	GoalRotation = InPinRotationOrig;
 	
 	A = InBody;
 	PinPointLocalToA = A->Rotation.Inverse() * (GoalPosition - A->Position);
-
 	ARotLocalToPin = A->Rotation * GoalRotation.Inverse();
-	bLockRotation = bInLockRotation;
 }
 
 void FPinConstraint::Solve(const FPBIKSolverSettings& Settings)
@@ -297,31 +294,18 @@ void FPinConstraint::Solve(const FPBIKSolverSettings& Settings)
 		return;
 	}
 
-	if (bLockRotation)
-	{
-		// keep body at fixed rotation relative to the pin goal rotation
-		A->Rotation = ARotLocalToPin * GoalRotation;
+	// get positional correction for rotation
+	FVector AToPinPoint;
+	FVector Correction = GetPositionCorrection(AToPinPoint);
 		
-		// move body to pin location
-		FVector AToPinPoint;
-		const FVector Correction = GetPositionCorrection(AToPinPoint);
-		A->Position += Correction;
-		
-	}else
-	{
-		// get positional correction for rotation
-		FVector AToPinPoint;
-		FVector Correction = GetPositionCorrection(AToPinPoint);
-		
-		// rotate body from alignment of pin points
-		A->ApplyPushToRotateBody(Correction, AToPinPoint);
+	// rotate body from alignment of pin points
+	A->ApplyPushToRotateBody(Correction, AToPinPoint);
 
-		// apply positional correction to Body to align with target (after rotation)
-		// (applying directly without considering PositionStiffness because PinConstraints need
-		// to precisely pull the attached body to achieve convergence)
-		Correction = GetPositionCorrection(AToPinPoint);
-		A->Position += Correction * Settings.OverRelaxation; 
-	}
+	// apply positional correction to Body to align with target (after rotation)
+	// (applying directly without considering PositionStiffness because PinConstraints need
+	// to precisely pull the attached body to achieve convergence)
+	Correction = GetPositionCorrection(AToPinPoint);
+	A->Position += Correction * Settings.OverRelaxation; 
 }
 
 void FPinConstraint::SetGoal(const FVector& InGoalPosition, const FQuat& InGoalRotation, const float InAlpha)
@@ -329,13 +313,6 @@ void FPinConstraint::SetGoal(const FVector& InGoalPosition, const FQuat& InGoalR
 	GoalPosition = InGoalPosition;
 	GoalRotation = InGoalRotation;
 	Alpha = InAlpha;
-}
-
-void FPinConstraint::EnableInCurrentState()
-{
-	GoalPosition = A->Position;
-	GoalRotation = A->Rotation;
-	bEnabled = true;
 }
 
 FVector FPinConstraint::GetPositionCorrection(FVector& OutBodyToPinPoint) const

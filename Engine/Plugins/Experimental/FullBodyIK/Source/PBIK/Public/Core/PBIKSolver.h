@@ -296,7 +296,6 @@ private:
 		FVector& OutCurrentCentroid);
 	
 	PBIK::FBone* SolverRoot = nullptr;
-	TWeakPtr<PBIK::FPinConstraint> RootPin = nullptr;
 	TArray<PBIK::FBone> Bones;
 	TArray<PBIK::FRigidBody> Bodies;
 	TArray<TSharedPtr<PBIK::FConstraint>> Constraints;

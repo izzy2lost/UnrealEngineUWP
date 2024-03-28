@@ -121,13 +121,7 @@ FRigidBody* FRigidBody::GetParentBody() const
 
 bool FRigidBody::IsAllowedToRotate() const
 {
-	const bool bIsLockedByPin= Pin && Pin->bEnabled && Pin->bLockRotation;
-	if (bIsLockedByPin || bIsLockedBySubSolve)
-	{
-		return false; // body not allowed to rotate
-	}
-
-	return true;
+	return !bIsLockedBySubSolve && InvMass > SMALL_NUMBER;
 }
 
 void FRigidBody::ApplyPushToRotateBody(const FVector& Push, const FVector& Offset)
@@ -143,9 +137,9 @@ void FRigidBody::ApplyPushToRotateBody(const FVector& Push, const FVector& Offse
 	ApplyRotationDelta(DeltaQ);
 }
 
-void FRigidBody::ApplyPushToPosition(const FVector& Push)
+void FRigidBody::ApplyPositionDelta(const FVector& DeltaP)
 {
-	Position += Push * (1.0f - J.PositionStiffness) * SolverSettings->OverRelaxation;
+	Position += DeltaP * (1.0f - J.PositionStiffness) * SolverSettings->OverRelaxation;
 }
 
 void FRigidBody::ApplyRotationDelta(const FQuat& DeltaQ)
