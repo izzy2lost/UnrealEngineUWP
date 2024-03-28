@@ -185,8 +185,11 @@ public:
 	/** Sets the multiplier applied when wheel scrolling. Higher numbers will cover more distance per click of the wheel. */
 	SLATE_API void SetWheelScrollMultiplier(float NewWheelScrollMultiplier);
 
-	/** Enables/disables being able to scroll. This should be use as a temporary mean to disable scrolling. */
+	/** Enables/disables being able to scroll via pointer. This should be use as a temporary mean to disable scrolling. */
 	SLATE_API void SetIsPointerScrollingEnabled(bool bInIsPointerScrollingEnabled);
+
+	/** Enables/disables being able to scroll via gamepad. */
+	SLATE_API void SetIsGamepadScrollingEnabled(bool bInIsGamepadScrollingEnabled);
 
 	/** Sets the Background Brush */
 	SLATE_API void SetBackgroundBrush(const TAttribute<const FSlateBrush*>& InBackgroundBrush);
@@ -478,8 +481,11 @@ protected:
 	/** How much to scroll when using mouse wheel */
 	float WheelScrollMultiplier;
 
-	/** Wheter the list is allowed to scroll. */
+	/** Whether the list is allowed to scroll via cursor. */
 	bool bIsPointerScrollingEnabled = true;
+
+	/** Whether the list is allowed to scroll via gamepad. */
+	bool bIsGamepadScrollingEnabled = true;
 
 	/** The layout and scroll orientation of the list */
 	EOrientation Orientation = Orient_Vertical;

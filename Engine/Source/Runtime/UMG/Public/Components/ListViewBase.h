@@ -546,6 +546,10 @@ public:
 	UFUNCTION(BlueprintCallable, Category = ListViewBase)
 	UMG_API void SetIsPointerScrollingEnabled(bool bInIsPointerScrollingEnabled);
 
+	/** Enable/Disable the ability of the list to scroll via gamepad. */
+	UFUNCTION(BlueprintCallable, Category = ListViewBase)
+	UMG_API void SetIsGamepadScrollingEnabled(bool bInIsGamepadScrollingEnabled);
+
 	/**
 	 * Sets the list to refresh on the next tick.
 	 *
@@ -697,6 +701,10 @@ protected:
 	/** Enable/Disable scrolling using Touch or Mouse. */
 	UPROPERTY(EditDefaultsOnly, Category = Scrolling)
 	bool bIsPointerScrollingEnabled = true;
+
+	/** Enable/Disable scrolling using Gamepad. */
+	UPROPERTY(EditDefaultsOnly, Category = Scrolling)
+	bool bIsGamepadScrollingEnabled = true;
 
 	UPROPERTY(EditAnywhere, Category = Scrolling)
 	bool bEnableFixedLineOffset = false;

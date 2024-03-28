@@ -99,6 +99,15 @@ UMG_API void UListViewBase::SetIsPointerScrollingEnabled(bool bInIsPointerScroll
 	}
 }
 
+UMG_API void UListViewBase::SetIsGamepadScrollingEnabled(bool bInIsGamepadScrollingEnabled)
+{
+	bIsGamepadScrollingEnabled = bInIsGamepadScrollingEnabled;
+	if (MyTableViewBase)
+	{
+		MyTableViewBase->SetIsGamepadScrollingEnabled(bInIsGamepadScrollingEnabled);
+	}
+}
+
 const TArray<UUserWidget*>& UListViewBase::GetDisplayedEntryWidgets() const
 { 
 	return EntryWidgetPool.GetActiveWidgets(); 

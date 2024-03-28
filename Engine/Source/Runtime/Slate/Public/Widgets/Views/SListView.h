@@ -525,7 +525,7 @@ public:
 			}
 
 			// If it's valid we'll scroll it into view and return an explicit widget in the FNavigationReply
-			if (ItemsSourceRef.IsValidIndex(AttemptSelectIndex))
+			if (ItemsSourceRef.IsValidIndex(AttemptSelectIndex) && this->bIsGamepadScrollingEnabled)
 			{
 				TOptional<ItemType> ItemToSelect = Private_FindNextSelectableOrNavigableWithIndexAndDirection(ItemsSourceRef[AttemptSelectIndex], AttemptSelectIndex, AttemptSelectIndex >= CurSelectionIndex);
 				if (ItemToSelect.IsSet())

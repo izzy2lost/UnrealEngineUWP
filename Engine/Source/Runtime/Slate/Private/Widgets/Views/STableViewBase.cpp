@@ -936,6 +936,11 @@ void STableViewBase::SetIsPointerScrollingEnabled(bool bInIsPointerScrollingEnab
 	bIsPointerScrollingEnabled = bInIsPointerScrollingEnabled;
 }
 
+void STableViewBase::SetIsGamepadScrollingEnabled(bool bInIsGamepadScrollingEnabled)
+{
+	bIsGamepadScrollingEnabled = bInIsGamepadScrollingEnabled;
+}
+
 void STableViewBase::SetBackgroundBrush(const TAttribute<const FSlateBrush*>& InBackgroundBrush)
 {
 	BackgroundBrush.SetImage(*this, InBackgroundBrush);

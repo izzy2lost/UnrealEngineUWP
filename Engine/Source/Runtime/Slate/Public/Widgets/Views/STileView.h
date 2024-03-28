@@ -256,7 +256,7 @@ public:
 			}
 
 			// If it's valid we'll scroll it into view and return an explicit widget in the FNavigationReply
-			if (ItemsSourceRef.IsValidIndex(AttemptSelectIndex))
+			if (ItemsSourceRef.IsValidIndex(AttemptSelectIndex) && this->bIsGamepadScrollingEnabled)
 			{
 				this->NavigationSelect(ItemsSourceRef[AttemptSelectIndex], InNavigationEvent);
 				return FNavigationReply::Explicit(nullptr);
