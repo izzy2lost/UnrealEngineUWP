@@ -873,9 +873,10 @@ public:
 	 * @param Viewport - the viewport that we're trying to draw
 	 * @param bInAllowNonRealtimeViewportToDraw - whether or not to allow non-realtime viewports to update
 	 * @param bLinkedOrthoMovement	True if orthographic viewport movement is linked
+	 * @param bOutViewportDrawn If non-null, will be set to true if the viewport was drawn in this call.
 	 * @return - Whether a NON-realtime viewport has updated in this call.  Used to help time-slice canvas redraws
 	 */
-	UNREALED_API bool UpdateSingleViewportClient(FEditorViewportClient* InViewportClient, const bool bInAllowNonRealtimeViewportToDraw, bool bLinkedOrthoMovement );
+	UNREALED_API bool UpdateSingleViewportClient(FEditorViewportClient* InViewportClient, const bool bInAllowNonRealtimeViewportToDraw, bool bLinkedOrthoMovement, bool* bOutViewportDrawn = nullptr );
 
 	/** Used for generating status bar text */
 	enum EMousePositionType
