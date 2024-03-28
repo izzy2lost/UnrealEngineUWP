@@ -1026,8 +1026,10 @@ void FLiveCodingModule::ShowNotification(bool Success, const FText& Title, const
 	{
 		Info.SubText = *SubText;
 	}
-	TSharedPtr<SNotificationItem> CompileNotification = FSlateNotificationManager::Get().AddNotification(Info);
-	CompileNotification->SetCompletionState(Success ? SNotificationItem::CS_Success : SNotificationItem::CS_Fail);
+	if (TSharedPtr<SNotificationItem> CompileNotification = FSlateNotificationManager::Get().AddNotification(Info))
+	{
+		CompileNotification->SetCompletionState(Success ? SNotificationItem::CS_Success : SNotificationItem::CS_Fail);
+	}
 }
 #endif
 
