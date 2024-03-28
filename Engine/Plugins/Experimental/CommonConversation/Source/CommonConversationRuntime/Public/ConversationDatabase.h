@@ -134,6 +134,9 @@ private:
 	TArray<TObjectPtr<UEdGraph>> SourceGraphs;
 
 public:
+	FGuid GetGuidFromNode(const UConversationNode* NodeToFind) const;
+	TObjectPtr<class UEdGraphNode> GetSourceGraphNodeFromGuid(FGuid NodeToFind) const;
+
 	// Info about the graphs we last edited
 	UPROPERTY()
 	TArray<FEditedDocumentInfo> LastEditedDocuments;
