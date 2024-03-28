@@ -252,6 +252,11 @@ EVisibility SActionableMessageViewportWidget::GetVisibility()
 		});
 
 		CachedStateID = SubsystemStateID;
+
+		if (ActionableMessageList.IsValid())
+		{
+			ActionableMessageList->RebuildList();
+		}
 		
 		return ActionableMessages.IsEmpty() ? EVisibility::Collapsed : EVisibility::Visible;
 	}
