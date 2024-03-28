@@ -321,45 +321,46 @@ void FWaterViewExtension::SetupView(FSceneViewFamily& InViewFamily, FSceneView& 
 		AWaterZone* WaterZone = Pair.Key;
 		check(WaterZone != nullptr);
 		FWaterZoneInfo* WaterZoneInfo = WaterZoneInfos.Find(WaterZone);
-		check(WaterZoneInfo != nullptr);
-
-		if (WaterZone->IsLocalOnlyTessellationEnabled())
+		if (ensureMsgf(WaterZoneInfo != nullptr, TEXT("We are trying to rendering a water info texture for a water zone that is not registered!")))
 		{
-			UWaterMeshComponent* WaterMesh= WaterZone->GetWaterMeshComponent();
-			check(WaterMesh);
-
-			const double TileSize = WaterMesh->GetTileSize();
-
-			const FVector WaterMeshCenter(ViewLocation.GridSnap(TileSize));
-
-			const FVector2D WaterInfoHalfExtent(WaterZone->GetDynamicWaterInfoExtent() / 2.0);
-			const FBox2D WaterInfoBounds(FVector2D(WaterMeshCenter) - WaterInfoHalfExtent, FVector2D(WaterMeshCenter) + WaterInfoHalfExtent);
-
-			WaterZone->SetLocalTessellationCenter(WaterMeshCenter);
-
-			// Trigger the next update when the camera is <UpdateMargin> units away from the border of the current window.
-			const FVector2D UpdateMargin(CVarLocalTessellationUpdateMargin.GetValueOnGameThread());
-
-			// Keep a minimum of <1., 1.> bounds to avoid updating every frame if the update margin is larger than the zone.
-			const FVector2D UpdateExtents = FVector2D::Max(FVector2D(1., 1.), WaterInfoHalfExtent - UpdateMargin);
-			WaterZoneInfo->UpdateBounds.Emplace(FVector2D(WaterMeshCenter) - UpdateExtents, FVector2D(WaterMeshCenter) + UpdateExtents);
-
-			const FVector2D WaterQuadTreeHalfExtent = WaterMesh->GetExtentInTiles() * TileSize;
-			const FVector2D WaterQuadTreeCenter = WaterMesh->GetDynamicWaterMeshCenter();
-			const FBox2D WaterQuadTreeBounds(WaterQuadTreeCenter - WaterQuadTreeHalfExtent, WaterQuadTreeCenter + WaterQuadTreeHalfExtent);
-
-			// If the new water info bounds would be outside the water mesh, recenter and rebuild the water mesh
-			if (!WaterQuadTreeBounds.IsInside(WaterInfoBounds.ExpandBy(WaterInfoBounds.GetExtent())))
+			if (WaterZone->IsLocalOnlyTessellationEnabled())
 			{
-				WaterMesh->SetDynamicWaterMeshCenter(FVector2D(WaterMeshCenter));
-			}
+				UWaterMeshComponent* WaterMesh= WaterZone->GetWaterMeshComponent();
+				check(WaterMesh);
 
-			// Mark GPU data dirty since we have a new WaterArea parameter and need to push this to water bodies.
-			MarkGPUDataDirty();
-		}
-		else
-		{
-			WaterZoneInfo->UpdateBounds.Reset();
+				const double TileSize = WaterMesh->GetTileSize();
+
+				const FVector WaterMeshCenter(ViewLocation.GridSnap(TileSize));
+
+				const FVector2D WaterInfoHalfExtent(WaterZone->GetDynamicWaterInfoExtent() / 2.0);
+				const FBox2D WaterInfoBounds(FVector2D(WaterMeshCenter) - WaterInfoHalfExtent, FVector2D(WaterMeshCenter) + WaterInfoHalfExtent);
+
+				WaterZone->SetLocalTessellationCenter(WaterMeshCenter);
+
+				// Trigger the next update when the camera is <UpdateMargin> units away from the border of the current window.
+				const FVector2D UpdateMargin(CVarLocalTessellationUpdateMargin.GetValueOnGameThread());
+
+				// Keep a minimum of <1., 1.> bounds to avoid updating every frame if the update margin is larger than the zone.
+				const FVector2D UpdateExtents = FVector2D::Max(FVector2D(1., 1.), WaterInfoHalfExtent - UpdateMargin);
+				WaterZoneInfo->UpdateBounds.Emplace(FVector2D(WaterMeshCenter) - UpdateExtents, FVector2D(WaterMeshCenter) + UpdateExtents);
+
+				const FVector2D WaterQuadTreeHalfExtent = WaterMesh->GetExtentInTiles() * TileSize;
+				const FVector2D WaterQuadTreeCenter = WaterMesh->GetDynamicWaterMeshCenter();
+				const FBox2D WaterQuadTreeBounds(WaterQuadTreeCenter - WaterQuadTreeHalfExtent, WaterQuadTreeCenter + WaterQuadTreeHalfExtent);
+
+				// If the new water info bounds would be outside the water mesh, recenter and rebuild the water mesh
+				if (!WaterQuadTreeBounds.IsInside(WaterInfoBounds.ExpandBy(WaterInfoBounds.GetExtent())))
+				{
+					WaterMesh->SetDynamicWaterMeshCenter(FVector2D(WaterMeshCenter));
+				}
+
+				// Mark GPU data dirty since we have a new WaterArea parameter and need to push this to water bodies.
+				MarkGPUDataDirty();
+			}
+			else
+			{
+				WaterZoneInfo->UpdateBounds.Reset();
+			}
 		}
 
 		const UE::WaterInfo::FRenderingContext& Context(Pair.Value);
@@ -451,4 +452,6 @@ void FWaterViewExtension::AddWaterZone(AWaterZone* InWaterZone)
 void FWaterViewExtension::RemoveWaterZone(AWaterZone* InWaterZone)
 {
 	WaterZoneInfos.FindAndRemoveChecked(InWaterZone);
+	// Remove any WaterInfoContexts that might be trying to rendering for this water zone this frame. They are no longer valid.
+	WaterInfoContextsToRender.Remove(InWaterZone);
 }
