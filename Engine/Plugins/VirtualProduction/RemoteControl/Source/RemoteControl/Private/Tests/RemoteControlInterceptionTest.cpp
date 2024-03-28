@@ -18,83 +18,9 @@
 #include "Backends/CborStructDeserializerBackend.h"
 #include "Backends/JsonStructDeserializerBackend.h"
 #include "IRemoteControlModule.h"
-#include "IRemoteControlInterceptionFeature.h"
+#include "RemoteControlInterceptionForwardInterceptor.h"
 #include "Serialization/MemoryWriter.h"
 #include "Serialization/MemoryReader.h"
-
-/**
- * Interceptor interface implementation
- */
-class FRemoteControlTestFeatureInterceptor : public IRemoteControlInterceptionFeatureInterceptor
-{
-public:
-	FRemoteControlTestFeatureInterceptor() = default;
-	virtual ~FRemoteControlTestFeatureInterceptor() = default;
-
-protected:
-	// IRemoteControlInterceptionCommands interface
-	virtual ERCIResponse SetObjectProperties(FRCIPropertiesMetadata& InObjectProperties) override
-	{
-		// Get processor feature
-		IRemoteControlInterceptionFeatureProcessor* const Processor = static_cast<IRemoteControlInterceptionFeatureProcessor*>(
-			IModularFeatures::Get().GetModularFeatureImplementation(IRemoteControlInterceptionFeatureProcessor::GetName(), 0));
-
-		// In case the processor feature has been registered, forward data directly to the processor
-		if (Processor)
-		{
-			Processor->SetObjectProperties(InObjectProperties);
-		}
-
-		return ERCIResponse::Intercept;
-	}
-
-	virtual ERCIResponse ResetObjectProperties(FRCIObjectMetadata& InObject) override
-	{
-		// Get processor feature
-		IRemoteControlInterceptionFeatureProcessor* const Processor = static_cast<IRemoteControlInterceptionFeatureProcessor*>(
-			IModularFeatures::Get().GetModularFeatureImplementation(IRemoteControlInterceptionFeatureProcessor::GetName(), 0));
-
-		// In case the processor feature has been registered, forward data directly to the processor
-		if (Processor)
-		{
-			Processor->ResetObjectProperties(InObject);
-		}
-
-		return ERCIResponse::Intercept;
-	}
-
-	virtual ERCIResponse InvokeCall(FRCIFunctionMetadata& InFunction) override
-	{
-		// Get processor feature
-		IRemoteControlInterceptionFeatureProcessor* const Processor = static_cast<IRemoteControlInterceptionFeatureProcessor*>(
-			IModularFeatures::Get().GetModularFeatureImplementation(IRemoteControlInterceptionFeatureProcessor::GetName(), 0));
-
-		// In case the processor feature has been registered, forward data directly to the processor
-		if (Processor)
-		{
-			Processor->InvokeCall(InFunction);
-		}
-		
-		return ERCIResponse::Intercept;
-	}
-
-	virtual ERCIResponse SetPresetController(FRCIControllerMetadata& InController)
-	{
-		// Get processor feature
-		IRemoteControlInterceptionFeatureProcessor* const Processor = static_cast<IRemoteControlInterceptionFeatureProcessor*>(
-			IModularFeatures::Get().GetModularFeatureImplementation(IRemoteControlInterceptionFeatureProcessor::GetName(), 0));
-
-		// In case the processor feature has been registered, forward data directly to the processor
-		if (Processor)
-		{
-			Processor->SetPresetController(InController);
-		}
-
-		return ERCIResponse::Intercept;
-	}
-
-	// ~IRemoteControlInterceptionCommands interface
-};
 
 struct FRemoteControlInterceptionTest
 {
@@ -110,9 +36,15 @@ struct FRemoteControlInterceptionTest
 		// Expose property
 		CustomStructProperty = FindFProperty<FProperty>(URemoteControlInterceptionTestObject::StaticClass(),  GET_MEMBER_NAME_CHECKED(URemoteControlInterceptionTestObject,  CustomStruct));
 		Int32ValueProperty   = FindFProperty<FProperty>(FRemoteControlInterceptionTestStruct::StaticStruct(), GET_MEMBER_NAME_CHECKED(FRemoteControlInterceptionTestStruct, Int32Value));
-		FString Int32ValuePropertyFullPath = FString::Printf(TEXT("%s.%s"), *CustomStructProperty->GetName(), *Int32ValueProperty->GetName());
+		const FString Int32ValuePropertyFullPath = FString::Printf(TEXT("%s.%s"), *CustomStructProperty->GetName(), *Int32ValueProperty->GetName());
 		Int32ValuePropertyRCProp = Preset->ExposeProperty(RemoteControlInterceptionTestObject.Get(), FRCFieldPathInfo{ Int32ValuePropertyFullPath }).Pin();
 
+		// Expose property with setter
+		static const FName ValueWithSetterName(TEXT("ValueWithSetter"));
+		ValueWithSetterProperty = FindFProperty<FProperty>(URemoteControlInterceptionTestObject::StaticClass(), ValueWithSetterName);
+		check(ValueWithSetterProperty);
+		ValueWithSetterRCProp = Preset->ExposeProperty(RemoteControlInterceptionTestObject.Get(), FRCFieldPathInfo{ ValueWithSetterProperty->GetName() }).Pin();
+		
 		// Expose function
 		UClass* TestObjectClass = RemoteControlInterceptionTestObject->StaticClass();
 		UFunction* TestFunctionClass = TestObjectClass->FindFunctionByName("TestFunction");
@@ -122,7 +54,7 @@ struct FRemoteControlInterceptionTest
 		RemoteControlInterceptionTestObject->CustomStruct.Int32Value = FRemoteControlInterceptionTestStruct::Int32ValueDefault;
 
 		// Instantiate the interceptor and processor features
-		FeatureInterceptor = MakeUnique<FRemoteControlTestFeatureInterceptor>();
+		FeatureInterceptor = MakeUnique<FRemoteControlInterceptionForwardInterceptor>();
 		FeatureProcessor   = MakeUnique<FRemoteControlInterceptionProcessor>();
 
 		// Register the features
@@ -212,7 +144,7 @@ struct FRemoteControlInterceptionTest
 		FJsonStructSerializerBackend SerializerBackend(Writer, EStructSerializerBackendFlags::Default);
 		FJsonStructDeserializerBackend DeserializerBackend(Reader);
 
-		// Serialize with test value and change the to default value back
+		// Serialize with test value and change the value back to default
 		RemoteControlInterceptionTestObject->CustomStruct.Int32Value = Int32ValueTest; // Set test value before serialization
 		FStructSerializer::SerializeElement(&RemoteControlInterceptionTestObject->CustomStruct, Int32ValueProperty, INDEX_NONE, SerializerBackend, FStructSerializerPolicies());
 		RemoteControlInterceptionTestObject->CustomStruct.Int32Value = FRemoteControlInterceptionTestStruct::Int32ValueDefault; // Set default value after serialization
@@ -226,11 +158,44 @@ struct FRemoteControlInterceptionTest
 		for (UObject* Object : Int32ValuePropertyRCProp->GetBoundObjects())
 		{
 			IRemoteControlModule::Get().ResolveObjectProperty(ObjectRef.Access, Object, ObjectRef.PropertyPathInfo, ObjectRef);
-			// Arhive should be intercepted inside SetObjectProperties
+			// Archive should be intercepted inside SetObjectProperties
 			IRemoteControlModule::Get().SetObjectProperties(ObjectRef, DeserializerBackend, ERCPayloadType::Json, JsonBuffer);
 		}
 	}
 
+	void TestValueWithSetter_Json()
+	{
+		// Set testing Archives
+		TArray<uint8> JsonBuffer;
+		FMemoryReader Reader(JsonBuffer);
+		FMemoryWriter Writer(JsonBuffer);
+
+		// Set serializers
+		FJsonStructSerializerBackend SerializerBackend(Writer, EStructSerializerBackendFlags::Default);
+		FJsonStructDeserializerBackend DeserializerBackend(Reader);
+
+		// Serialize with test value and change the value back to default
+		const FString TestValue = TEXT("ValueWithSetter_TestValue");
+		const FString DefaultValue = RemoteControlInterceptionTestObject->GetValueWithSetter();
+		RemoteControlInterceptionTestObject->SetValueWithSetter(TestValue); // Set test value before serialization
+		FStructSerializer::SerializeElement(RemoteControlInterceptionTestObject.Get(), ValueWithSetterProperty, INDEX_NONE, SerializerBackend, FStructSerializerPolicies());
+		RemoteControlInterceptionTestObject->SetValueWithSetter(DefaultValue); // Set default value after serialization
+
+		// Set object reference
+		FRCObjectReference ObjectRef;
+		ObjectRef.Property = ValueWithSetterRCProp->GetProperty();
+		ObjectRef.Access = ERCAccess::WRITE_TRANSACTION_ACCESS;
+		ObjectRef.PropertyPathInfo = ValueWithSetterRCProp->FieldPathInfo.ToString();
+
+		for (UObject* Object : ValueWithSetterRCProp->GetBoundObjects())
+		{
+			IRemoteControlModule::Get().ResolveObjectProperty(ObjectRef.Access, Object, ObjectRef.PropertyPathInfo, ObjectRef);
+			IRemoteControlModule::Get().SetObjectProperties(ObjectRef, DeserializerBackend, ERCPayloadType::Json, JsonBuffer);
+		}
+
+		Test->TestEqual(TEXT("Property value with setter different than expected"), RemoteControlInterceptionTestObject->GetValueWithSetter(), TestValue);
+	}
+	
 	void ResetObjectProperties()
 	{
 		// Set reset value before reset object property
@@ -383,6 +348,9 @@ private:
 	FProperty* Int32ValueProperty = nullptr;
 	const int32 Int32ValueTest = 34780;
 
+	TSharedPtr<FRemoteControlProperty> ValueWithSetterRCProp;
+	FProperty* ValueWithSetterProperty = nullptr;
+
 	TUniquePtr<IRemoteControlInterceptionFeatureInterceptor> FeatureInterceptor;
 	TUniquePtr<IRemoteControlInterceptionFeatureProcessor>   FeatureProcessor;
 };
@@ -397,6 +365,7 @@ bool FRemoteControlPresetInterceptionTest::RunTest(const FString& Parameters)
 	RemoteControlInterceptionTest.TestJson();
 	RemoteControlInterceptionTest.ResetObjectProperties();
 	RemoteControlInterceptionTest.InvokeCall();
+	RemoteControlInterceptionTest.TestValueWithSetter_Json();
 	
 	return true;
 }
