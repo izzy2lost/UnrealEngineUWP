@@ -237,7 +237,7 @@ public:
 
 	/** Creates a node and copies the input settings. Returns the created node. */
 	UFUNCTION(BlueprintCallable, Category = Graph, meta = (DeterminesOutputType = "InSettings", DynamicOutputParam = "OutCopiedSettings"))
-	UPCGNode* AddNodeCopy(UPCGSettings* InSettings, UPCGSettings*& DefaultNodeSettings);
+	UPCGNode* AddNodeCopy(const UPCGSettings* InSettings, UPCGSettings*& DefaultNodeSettings);
 
 	/** Removes a node from the graph. */
 	UFUNCTION(BlueprintCallable, Category = Graph)

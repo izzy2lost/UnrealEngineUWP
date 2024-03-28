@@ -55,6 +55,13 @@ class PCG_API UPCGNamedRerouteDeclarationSettings : public UPCGNamedRerouteBaseS
 {
 	GENERATED_BODY()
 
+public:
+#if WITH_EDITOR
+	//~Begin UPCGSettings interface
+	virtual FName GetDefaultNodeName() const override { return FName("NamedRerouteDeclaration"); }
+	//~End UPCGSettings interface
+#endif
+
 protected:
 	virtual TArray<FPCGPinProperties> OutputPinProperties() const override;
 
@@ -68,6 +75,13 @@ UCLASS(BlueprintType, ClassGroup = (Procedural))
 class PCG_API UPCGNamedRerouteUsageSettings : public UPCGNamedRerouteBaseSettings
 {
 	GENERATED_BODY()
+
+public:
+#if WITH_EDITOR
+	//~Begin UPCGSettings interface
+	virtual FName GetDefaultNodeName() const override { return FName("NamedRerouteUsage"); }
+	//~End UPCGSettings interface
+#endif
 
 protected:
 	virtual TArray<FPCGPinProperties> InputPinProperties() const override;
