@@ -829,9 +829,9 @@ FString URigVMPin::GetDefaultValue(const URigVMPin::FPinOverride& InOverride, bo
 			if(GetScriptStruct() == TBaseStructure<FQuat>::Get())
 			{
 				// quaternions also allow default values stored as rotators
-				FRigVMPinDefaultValueImportErrorContext ErrorPipe;
+				FRigVMPinDefaultValueImportErrorContext ErrorPipe(ELogVerbosity::Verbose);
 				FRotator Rotator = FRotator::ZeroRotator;
-				LOG_SCOPE_VERBOSITY_OVERRIDE(LogExec, ELogVerbosity::Verbose); 
+				LOG_SCOPE_VERBOSITY_OVERRIDE(LogExec, ErrorPipe.GetMaxVerbosity()); 
 				TBaseStructure<FRotator>::Get()->ImportText(*DefaultValue, &Rotator, nullptr, PPF_None, &ErrorPipe, TBaseStructure<FRotator>::Get()->GetName());
 				if(ErrorPipe.NumErrors == 0)
 				{
@@ -955,9 +955,9 @@ bool URigVMPin::IsValidDefaultValue(const FString& InDefaultValue) const
 			if(ScriptStruct == TBaseStructure<FQuat>::Get())
 			{
 				// quaternions also allow default values stored as rotators
-				FRigVMPinDefaultValueImportErrorContext ErrorPipe;
+				FRigVMPinDefaultValueImportErrorContext ErrorPipe(ELogVerbosity::Verbose);
 				FRotator Rotator = FRotator::ZeroRotator;
-				LOG_SCOPE_VERBOSITY_OVERRIDE(LogExec, ELogVerbosity::Verbose); 
+				LOG_SCOPE_VERBOSITY_OVERRIDE(LogExec, ErrorPipe.GetMaxVerbosity()); 
 				TBaseStructure<FRotator>::Get()->ImportText(*Value, &Rotator, nullptr, PPF_None, &ErrorPipe, TBaseStructure<FRotator>::Get()->GetName());
 				if(ErrorPipe.NumErrors == 0)
 				{
@@ -969,10 +969,10 @@ bool URigVMPin::IsValidDefaultValue(const FString& InDefaultValue) const
 			TempStructBuffer.AddUninitialized(ScriptStruct->GetStructureSize());
 			ScriptStruct->InitializeDefaultValue(TempStructBuffer.GetData());
 
-			FRigVMPinDefaultValueImportErrorContext ErrorPipe(true /* warnings as errors */);
+			FRigVMPinDefaultValueImportErrorContext ErrorPipe(ELogVerbosity::Verbose);
 			{
 				// force logging to the error pipe for error detection
-				LOG_SCOPE_VERBOSITY_OVERRIDE(LogExec, ELogVerbosity::Verbose); 
+				LOG_SCOPE_VERBOSITY_OVERRIDE(LogExec, ErrorPipe.GetMaxVerbosity()); 
 				ScriptStruct->ImportText(*Value, TempStructBuffer.GetData(), nullptr, PPF_None, &ErrorPipe, ScriptStruct->GetName()); 
 			}
 

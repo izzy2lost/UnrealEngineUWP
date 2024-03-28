@@ -13754,10 +13754,10 @@ FName URigVMController::AddDecorator(URigVMNode* InNode, UScriptStruct* InDecora
 
 	if(!InDefaultValue.IsEmpty())
 	{
-		FRigVMPinDefaultValueImportErrorContext ErrorPipe;
+		FRigVMPinDefaultValueImportErrorContext ErrorPipe(ELogVerbosity::Verbose);
 		{
 			// force logging to the error pipe for error detection
-			LOG_SCOPE_VERBOSITY_OVERRIDE(LogExec, ELogVerbosity::Verbose); 
+			LOG_SCOPE_VERBOSITY_OVERRIDE(LogExec, ErrorPipe.GetMaxVerbosity()); 
 			InDecoratorScriptStruct->ImportText(*InDefaultValue, Decorator, nullptr, PPF_None, &ErrorPipe, InDecoratorScriptStruct->GetName()); 
 		}
 	}

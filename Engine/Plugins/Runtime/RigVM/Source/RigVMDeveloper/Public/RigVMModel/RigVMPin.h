@@ -570,22 +570,23 @@ public:
 
 	int32 NumErrors;
 
-	FRigVMPinDefaultValueImportErrorContext(bool InTreatWarningAsErrors = false)
+	FRigVMPinDefaultValueImportErrorContext( ELogVerbosity::Type InMaxVerbosity = ELogVerbosity::Warning )
 		: FOutputDevice()
 		, NumErrors(0)
-		, bTreatWarningAsErrors(InTreatWarningAsErrors)
+		, MaxVerbosity(InMaxVerbosity)
 	{
 	}
 
 	virtual void Serialize(const TCHAR* V, ELogVerbosity::Type Verbosity, const class FName& Category) override
 	{
-		const ELogVerbosity::Type MaxVerbosity = bTreatWarningAsErrors ? ELogVerbosity::Warning : ELogVerbosity::Error;
 		if(Verbosity <= MaxVerbosity)
 		{
 			NumErrors++;
 		}
 	}
 
+	ELogVerbosity::Type GetMaxVerbosity() const { return MaxVerbosity; }
+
 private:
-	bool bTreatWarningAsErrors;
+	ELogVerbosity::Type MaxVerbosity;
 };

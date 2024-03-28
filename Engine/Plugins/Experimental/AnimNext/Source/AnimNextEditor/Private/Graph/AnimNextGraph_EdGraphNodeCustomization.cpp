@@ -102,8 +102,8 @@ void FAnimNextGraph_EdGraphNodeCustomization::GenerateTraitData(UAnimNextGraph_E
 						const int32 ScopedDataIndex = TraitData->ScopedSharedDataInstances.Add(MakeShared<FStructOnScope>(TraitSharedInstanceData));
 
 						// Fill the scoped data with the pin data
-						FRigVMPinDefaultValueImportErrorContext ErrorPipe;
-						LOG_SCOPE_VERBOSITY_OVERRIDE(LogExec, ELogVerbosity::Verbose);
+						FRigVMPinDefaultValueImportErrorContext ErrorPipe(ELogVerbosity::Verbose);
+						LOG_SCOPE_VERBOSITY_OVERRIDE(LogExec, ErrorPipe.GetMaxVerbosity());
 						const FString DefaultValue = TraitPin->GetDefaultValue();
 						TraitSharedInstanceData->ImportText(*DefaultValue, TraitData->ScopedSharedDataInstances[ScopedDataIndex]->GetStructMemory(), nullptr, PPF_SerializedAsImportText, &ErrorPipe, TraitSharedInstanceData->GetName());
 					}
