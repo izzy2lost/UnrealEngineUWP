@@ -512,8 +512,8 @@ FString FIKRetargetEditor::GetWorldCentricTabPrefix() const
 void FIKRetargetEditor::Tick(float DeltaTime)
 {
 	// update with latest offsets
-	EditorController->AddOffsetToMeshComponent(FVector::ZeroVector, EditorController->SourceSkelMeshComponent);
-	EditorController->AddOffsetToMeshComponent(FVector::ZeroVector, EditorController->TargetSkelMeshComponent);
+	EditorController->UpdateMeshOffset(ERetargetSourceOrTarget::Source);
+	EditorController->UpdateMeshOffset(ERetargetSourceOrTarget::Target);
 
 	// retargeter IK planting must be reset when time is reversed or playback jumps ahead 
 	const float CurrentTime = EditorController->SourceAnimInstance->GetCurrentTime();
@@ -633,6 +633,9 @@ void FIKRetargetEditor::HandlePreviewSceneCreated(const TSharedRef<IPersonaPrevi
 	EditorController->TargetSkelMeshComponent->SetAnimationMode(EAnimationMode::AnimationCustomMode);
 	
 	// must call AddComponent() BEFORE assigning the mesh to prevent auto-assignment of a default anim instance
+	EditorController->SourceRootComponent = NewObject<USceneComponent>(Actor);
+	EditorController->SourceSkelMeshComponent->AttachToComponent(EditorController->SourceRootComponent, FAttachmentTransformRules::KeepRelativeTransform);
+	InPersonaPreviewScene->AddComponent(EditorController->SourceRootComponent, FTransform::Identity);
 	InPersonaPreviewScene->AddComponent(EditorController->SourceSkelMeshComponent, FTransform::Identity);
     InPersonaPreviewScene->AddComponent(EditorController->TargetSkelMeshComponent, FTransform::Identity);
     

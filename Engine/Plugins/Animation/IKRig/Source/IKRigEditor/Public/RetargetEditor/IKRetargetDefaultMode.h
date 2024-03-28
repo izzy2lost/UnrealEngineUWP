@@ -26,43 +26,23 @@ public:
 
 	/** IPersonaEditMode interface */
 	virtual bool GetCameraTarget(FSphere& OutTarget) const override;
-	virtual class IPersonaPreviewScene& GetAnimPreviewScene() const override;
+	virtual IPersonaPreviewScene& GetAnimPreviewScene() const override;
 	/** END IPersonaEditMode interface */
 
 	/** FEdMode interface */
 	virtual void Initialize() override;
 	virtual void Tick(FEditorViewportClient* ViewportClient, float DeltaTime) override;
 	virtual void Render(const FSceneView* View, FViewport* Viewport, FPrimitiveDrawInterface* PDI) override;
-	virtual bool IsCompatibleWith(FEditorModeID OtherModeID) const override { return true; }
-	virtual bool AllowWidgetMove() override;
-	virtual bool ShouldDrawWidget() const override;
-	virtual bool UsesTransformWidget() const override;
-	virtual bool UsesTransformWidget(UE::Widget::EWidgetMode CheckMode) const override;
-	virtual FVector GetWidgetLocation() const override;
+	virtual bool IsCompatibleWith(FEditorModeID OtherModeID) const override { return true; };
 	virtual bool HandleClick(FEditorViewportClient* InViewportClient, HHitProxy* HitProxy, const FViewportClick& Click) override;
-	virtual bool StartTracking(FEditorViewportClient* InViewportClient, FViewport* InViewport) override;
-	virtual bool EndTracking(FEditorViewportClient* InViewportClient, FViewport* InViewport) override;
-	virtual bool BeginTransform(const FGizmoState& InState) override;
-	virtual bool EndTransform(const FGizmoState& InState) override;
-	virtual bool InputDelta(FEditorViewportClient* InViewportClient, FViewport* InViewport, FVector& InDrag, FRotator& InRot, FVector& InScale) override;
-	virtual bool GetCustomDrawingCoordinateSystem(FMatrix& InMatrix, void* InData) override;
-	virtual bool GetCustomInputCoordinateSystem(FMatrix& InMatrix, void* InData) override;
-
 	virtual void Enter() override;
 	virtual void Exit() override;
-	// IS THIS NEEDED
-	virtual bool IsSelectionAllowed( AActor* InActor, bool bInSelection ) const override { return true; }
 	/** END FEdMode interface */
 
 private:
 	void RenderDebugProxies(FPrimitiveDrawInterface* PDI, const FIKRetargetEditorController* Controller) const;
-	static void ApplyOffsetToMeshTransform(const FVector& Offset, USceneComponent* Component);
-
-	bool HandleBeginTransform(const FEditorViewportClient* InViewportClient);
-	bool HandleEndTransform();
 	
 	// the skeleton currently being edited
-	UDebugSkelMeshComponent* GetCurrentlyEditedMesh() const;
 	ERetargetSourceOrTarget SkeletonMode;
 	
 	/** The hosting app */

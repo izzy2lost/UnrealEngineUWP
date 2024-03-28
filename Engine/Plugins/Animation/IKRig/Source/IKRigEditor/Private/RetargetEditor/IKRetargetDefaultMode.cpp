@@ -40,10 +40,6 @@ void FIKRetargetDefaultMode::Initialize()
 		return; 
 	}
 
-	// update offsets on preview meshes
-	Controller->AddOffsetToMeshComponent(FVector::ZeroVector, Controller->SourceSkelMeshComponent);
-	Controller->AddOffsetToMeshComponent(FVector::ZeroVector, Controller->TargetSkelMeshComponent);
-
 	bIsInitialized = true;
 }
 
@@ -228,49 +224,6 @@ void FIKRetargetDefaultMode::RenderDebugProxies(FPrimitiveDrawInterface* PDI, co
 	PDI->SetHitProxy(nullptr);
 }
 
-bool FIKRetargetDefaultMode::AllowWidgetMove()
-{
-	return false;
-}
-
-bool FIKRetargetDefaultMode::ShouldDrawWidget() const
-{
-	return UsesTransformWidget(CurrentWidgetMode);
-}
-
-bool FIKRetargetDefaultMode::UsesTransformWidget() const
-{
-	return UsesTransformWidget(CurrentWidgetMode);
-}
-
-bool FIKRetargetDefaultMode::UsesTransformWidget(UE::Widget::EWidgetMode CheckMode) const
-{
-	const TSharedPtr<FIKRetargetEditorController> Controller = EditorController.Pin();
-	if (!Controller.IsValid())
-	{
-		return false; 
-	}
-	
-	const bool bTranslating = CheckMode == UE::Widget::EWidgetMode::WM_Translate;
-	return bTranslating && IsValid(Controller->GetSelectedMesh());
-}
-
-FVector FIKRetargetDefaultMode::GetWidgetLocation() const
-{
-	const TSharedPtr<FIKRetargetEditorController> Controller = EditorController.Pin();
-	if (!Controller.IsValid())
-	{
-		return FVector::ZeroVector; 
-	}
-	
-	if (!Controller->GetSelectedMesh())
-	{
-		return FVector::ZeroVector; // shouldn't get here
-	}
-
-	return Controller->GetSelectedMesh()->GetComponentTransform().GetLocation();
-}
-
 bool FIKRetargetDefaultMode::HandleClick(FEditorViewportClient* InViewportClient, HHitProxy* HitProxy, const FViewportClick& Click)
 {
 	const TSharedPtr<FIKRetargetEditorController> Controller = EditorController.Pin();
@@ -283,15 +236,6 @@ bool FIKRetargetDefaultMode::HandleClick(FEditorViewportClient* InViewportClient
 	const bool bCtrlOrShiftHeld = Click.IsControlDown() || Click.IsShiftDown();
 	const ESelectionEdit EditMode = bCtrlOrShiftHeld ? ESelectionEdit::Add : ESelectionEdit::Replace;
 	
-	// did we click on an actor in the viewport?
-	const bool bHitActor = HitProxy && HitProxy->IsA(HActor::StaticGetType());
-	if (bLeftButtonClicked && bHitActor)
-	{
-		const HActor* ActorProxy = static_cast<HActor*>(HitProxy);
-		Controller->SetSelectedMesh(ConstCast(ActorProxy->PrimComponent));
-		return true;
-	}
-
 	// did we click on a bone in the viewport?
 	const bool bHitBone = HitProxy && HitProxy->IsA(HIKRetargetEditorBoneProxy::StaticGetType());
 	if (bLeftButtonClicked && bHitBone)
@@ -327,117 +271,6 @@ bool FIKRetargetDefaultMode::HandleClick(FEditorViewportClient* InViewportClient
 	return true;
 }
 
-bool FIKRetargetDefaultMode::StartTracking(FEditorViewportClient* InViewportClient, FViewport* InViewport)
-{
-	return HandleBeginTransform(InViewportClient);
-}
-
-bool FIKRetargetDefaultMode::EndTracking(FEditorViewportClient* InViewportClient, FViewport* InViewport)
-{
-	return HandleEndTransform();
-}
-
-bool FIKRetargetDefaultMode::BeginTransform(const FGizmoState& InState)
-{
-	return HandleBeginTransform(Owner->GetFocusedViewportClient());
-}
-
-bool FIKRetargetDefaultMode::EndTransform(const FGizmoState& InState)
-{
-	return HandleEndTransform();
-}
-
-bool FIKRetargetDefaultMode::HandleBeginTransform(const FEditorViewportClient* InViewportClient)
-{
-	if (!InViewportClient)
-	{
-		return false;
-	}
-	
-	bIsTranslating = false;
-
-	// not manipulating any widget axes, so stop tracking
-	const EAxisList::Type CurrentAxis = InViewportClient->GetCurrentWidgetAxis();
-	if (CurrentAxis == EAxisList::None)
-	{
-		return false; 
-	}
-
-	const TSharedPtr<FIKRetargetEditorController> Controller = EditorController.Pin();
-	if (!Controller.IsValid())
-	{
-		return false; // invalid editor state
-	}
-
-	const bool bTranslating = InViewportClient->GetWidgetMode() == UE::Widget::EWidgetMode::WM_Translate;
-	if (bTranslating && IsValid(Controller->GetSelectedMesh()))
-	{
-		bIsTranslating = true;
-		GEditor->BeginTransaction(LOCTEXT("MovePreviewMesh", "Move Preview Mesh"));
-		Controller->AssetController->GetAsset()->Modify();
-		return true;
-	}
-
-	return false;
-}
-
-bool FIKRetargetDefaultMode::HandleEndTransform()
-{
-	GEditor->EndTransaction();
-	bIsTranslating = false;
-	return true;
-}
-
-bool FIKRetargetDefaultMode::InputDelta(
-	FEditorViewportClient* InViewportClient,
-	FViewport* InViewport,
-	FVector& InDrag,
-	FRotator& InRot,
-	FVector& InScale)
-{
-	const TSharedPtr<FIKRetargetEditorController> Controller = EditorController.Pin();
-	if (!Controller.IsValid())
-	{
-		return false; 
-	}
-	
-	if (!(bIsTranslating && IsValid(Controller->GetSelectedMesh())))
-	{
-		return false; // not handled
-	}
-
-	if(InViewportClient->GetWidgetMode() != UE::Widget::WM_Translate)
-	{
-		return false;
-	}
-
-	Controller->AddOffsetToMeshComponent(InDrag, Controller->GetSelectedMesh());
-	
-	return true;
-}
-
-bool FIKRetargetDefaultMode::GetCustomDrawingCoordinateSystem(FMatrix& InMatrix, void* InData)
-{
-	const TSharedPtr<FIKRetargetEditorController> Controller = EditorController.Pin();
-	if (!Controller.IsValid())
-	{
-		return false; 
-	}
-
-	if (!Controller->GetSelectedMesh())
-	{
-		return false;
-	}
-
-	InMatrix = Controller->GetSelectedMesh()->GetComponentTransform().ToMatrixNoScale().RemoveTranslation();
-	return true;
-}
-
-bool FIKRetargetDefaultMode::GetCustomInputCoordinateSystem(FMatrix& InMatrix, void* InData)
-{
-	return GetCustomDrawingCoordinateSystem(InMatrix, InData);
-}
-
 void FIKRetargetDefaultMode::Enter()
 {
 	IPersonaEditMode::Enter();
@@ -461,25 +294,6 @@ void FIKRetargetDefaultMode::Exit()
 	}
 	
 	IPersonaEditMode::Exit();
-}
-
-UDebugSkelMeshComponent* FIKRetargetDefaultMode::GetCurrentlyEditedMesh() const
-{
-	const TSharedPtr<FIKRetargetEditorController> Controller = EditorController.Pin();
-	if (!Controller.IsValid())
-	{
-		return nullptr; 
-	}
-	
-	return SkeletonMode == ERetargetSourceOrTarget::Source ? Controller->SourceSkelMeshComponent : Controller->TargetSkelMeshComponent;
-}
-
-void FIKRetargetDefaultMode::ApplyOffsetToMeshTransform(const FVector& Offset, USceneComponent* Component)
-{
-	constexpr bool bSweep = false;
-	constexpr FHitResult* OutSweepHitResult = nullptr;
-	constexpr ETeleportType Teleport = ETeleportType::ResetPhysics;
-	Component->SetWorldLocation(Offset, bSweep, OutSweepHitResult, Teleport);
 }
 
 void FIKRetargetDefaultMode::Tick(FEditorViewportClient* ViewportClient, float DeltaTime)
