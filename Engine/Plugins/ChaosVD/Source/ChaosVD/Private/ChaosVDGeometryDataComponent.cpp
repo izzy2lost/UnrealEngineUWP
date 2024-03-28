@@ -90,12 +90,12 @@ void FChaosVDMeshDataInstanceHandle::UpdateMeshComponentForCollisionData(const F
 			{
 				if (RequiredMeshAttributes != CVDOldGeometryComponent->GetMeshComponentAttributeFlags())
 				{
-					CVDOldGeometryComponent->RemoveMeshInstance(AsShared());
-
 					if (bIsSelected)
 					{
 						CVDOldGeometryComponent->SetIsSelected(AsShared(), false);
 					}
+
+					CVDOldGeometryComponent->RemoveMeshInstance(AsShared());
 
 					GeometryBuilderPtr->UpdateMeshDataInstance<UChaosVDInstancedStaticMeshComponent>(AsShared(), RequiredMeshAttributes);
 
