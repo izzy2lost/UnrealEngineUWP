@@ -205,11 +205,8 @@ UPCGGetPCGComponentSettings::UPCGGetPCGComponentSettings()
 	bDisplayModeSettings = false;
 	Mode = EPCGGetDataFromActorMode::GetDataFromPCGComponent;
 
-	// It doesn't make sense (for dependency reasons) to look for components on self/same hierarchy, so we can just hide those options.
 	ActorSelector.bShowActorFilter = false;
 	ActorSelector.ActorFilter = EPCGActorFilter::AllWorldActors;
-	ActorSelector.bShowIgnoreSelfAndChildren = false;
-	ActorSelector.bIgnoreSelfAndChildren = true;
 }
 
 TArray<FPCGPinProperties> UPCGGetPCGComponentSettings::OutputPinProperties() const
@@ -226,7 +223,7 @@ FText UPCGGetPCGComponentSettings::GetNodeTooltipText() const
 {
 	return LOCTEXT("GetPCGComponentTooltip", "Builds a collection of data from other PCG components on the selected actors.\n"
 		"Automatically tags each output with the grid size it was collected from, prefixed by \"PCG_GridSize_\" (e.g.PCG_GridSize_12800).\n"
-		"Note: a component cannot get component data from itself or other components in its hierarchy, as it could create a circular dependency.");
+		"Note: a component cannot get component data from itself or other components in its execution context, as it could create a circular dependency.");
 }
 #endif
 
