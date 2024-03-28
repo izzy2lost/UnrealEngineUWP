@@ -15,7 +15,6 @@
 #include "Materials/MaterialInterface.h"
 #include "Serialization/MemoryReader.h"
 #include "Serialization/MemoryWriter.h"
-#include "UObject/StrProperty.h"
 #include "UObject/TextProperty.h"
 
 #if WITH_EDITOR

@@ -8,7 +8,6 @@
 #include "Components/SceneComponent.h"
 #include "Serialization/BufferArchive.h"
 #include "Serialization/MemoryReader.h"
-#include "UObject/StrProperty.h"
 #include "UObject/WeakFieldPtr.h"
 
 #if WITH_EDITOR
