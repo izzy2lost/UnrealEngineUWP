@@ -479,7 +479,7 @@ FLumenMinimalRayResult TraceLumenMinimalRay(
 			);
 
 			float3 LocalNormal = cross(Attributes.LocalPositions[2] - Attributes.LocalPositions[0], Attributes.LocalPositions[1] - Attributes.LocalPositions[0]);
-			float3 WorldNormal = normalize(mul((float3x3)TraceResult.ObjectToWorld3x4, LocalNormal));
+			float3 WorldNormal = normalize(mul(LocalNormal, (float3x3)TraceResult.WorldToObject3x4));
 #else
 			float3 WorldNormal = TraceResult.WorldGeometryNormal;
 #endif // PLATFORM_SUPPORTS_INLINE_RAY_TRACING_TRIANGLE_ATTRIBUTES

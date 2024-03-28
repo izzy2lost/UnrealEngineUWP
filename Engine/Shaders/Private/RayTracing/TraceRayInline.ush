@@ -102,8 +102,8 @@ FTraceRayInlineResult TraceRayInlineWithCallback(RaytracingAccelerationStructure
 			CandidateTraceRayResult.bIsFrontFace = RayQ.CandidateTriangleFrontFace();
 			CandidateTraceRayResult.InstanceContributionToHitGroupIndex = RayQ.CandidateInstanceContributionToHitGroupIndex();
 
-			float3x4 ObjectToWorld3x4 = RayQ.CandidateObjectToWorld3x4();
-			CandidateTraceRayResult.ObjectToWorld3x4 = ObjectToWorld3x4;
+			float3x4 WorldToObject3x4 = RayQ.CandidateWorldToObject3x4();
+			CandidateTraceRayResult.WorldToObject3x4 = WorldToObject3x4;
 
 			// placeholder
 			CandidateTraceRayResult.WorldGeometryNormal = RayQ.WorldRayDirection();
@@ -139,7 +139,7 @@ FTraceRayInlineResult TraceRayInlineWithCallback(RaytracingAccelerationStructure
 		TraceRayResult.Bookmark[1] = asuint(TraceRayResult.HitT);
 
 #if PLATFORM_SUPPORTS_INLINE_RAY_TRACING_INSTANCE_MATRIX
-		TraceRayResult.ObjectToWorld3x4 = RayQ.CommittedObjectToWorld3x4();
+		TraceRayResult.WorldToObject3x4 = RayQ.CommittedWorldToObject3x4();
 #endif // PLATFORM_SUPPORTS_INLINE_RAY_TRACING_INSTANCE_MATRIX
 
 #if ENABLE_TRACE_RAY_INLINE_TRAVERSAL_STATISTICS
@@ -167,7 +167,7 @@ FTraceRayInlineResult TraceRayInlineWithCallback(RaytracingAccelerationStructure
 		TraceRayResult.Bookmark[1] = asuint(TraceRayResult.HitT);
 
 #if PLATFORM_SUPPORTS_INLINE_RAY_TRACING_INSTANCE_MATRIX
-		TraceRayResult.ObjectToWorld3x4 = RayQ.CommittedObjectToWorld3x4();
+		TraceRayResult.WorldToObject3x4 = RayQ.CommittedWorldToObject3x4();
 #endif // PLATFORM_SUPPORTS_INLINE_RAY_TRACING_INSTANCE_MATRIX
 		break;
 	}

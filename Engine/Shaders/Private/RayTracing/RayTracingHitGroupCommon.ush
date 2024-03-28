@@ -151,10 +151,6 @@ float3 GetGeometryNormalFromTriangleBaseAttributes(uint PrimitiveIndex)
 		PointLocalNoWPO[1] - PointLocalNoWPO[0],
 		PointLocalNoWPO[2] - PointLocalNoWPO[0]
 	};
-	float3 LocalNormal = cross(LocalEdges[1], LocalEdges[0]);
-
-	float3x3 InverseTranspose3x3 = transpose((float3x3)WorldToObject4x3());
-	float3 WorldNormal = normalize(mul(LocalNormal, InverseTranspose3x3));
 #else
 	FTriangleBaseAttributes Tri = LoadTriangleBaseAttributes(PrimitiveIndex);
 
@@ -162,11 +158,12 @@ float3 GetGeometryNormalFromTriangleBaseAttributes(uint PrimitiveIndex)
 		Tri.LocalPositions[1] - Tri.LocalPositions[0],
 		Tri.LocalPositions[2] - Tri.LocalPositions[0]
 	};
-	float3 LocalNormal = cross(LocalEdges[1], LocalEdges[0]);
-
-	float3x3 InverseTranspose3x3 = transpose((float3x3)WorldToObject4x3());
-	float3 WorldNormal = normalize(mul(LocalNormal, InverseTranspose3x3));
 #endif
+	
+	float3x3 InverseTranspose3x3 = (float3x3)WorldToObject4x3();
+	float3 LocalNormal = cross(LocalEdges[1], LocalEdges[0]);
+	float3 WorldNormal = normalize(mul(InverseTranspose3x3, LocalNormal));
+
 	return WorldNormal;
 }
 
