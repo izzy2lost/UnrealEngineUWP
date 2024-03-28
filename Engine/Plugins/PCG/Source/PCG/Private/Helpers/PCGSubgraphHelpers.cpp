@@ -10,6 +10,7 @@
 #include "PCGPin.h"
 #include "PCGSettings.h"
 #include "PCGSubgraph.h"
+#include "Elements/PCGReroute.h"
 #include "Elements/PCGUserParameterGet.h"
 
 #include "Algo/AnyOf.h"
@@ -19,47 +20,9 @@
 
 namespace PCGSubgraphHelpersExtra
 {
-	// Function that will create a new pin in the input/output node of the subgraph, with a unique name that will
-	// be the related to the pin passed as argument. It will be formatted like this:
-	// "{NodeName} {PinName} {OptionalIndex}"
-	FName CreateNewCustomPin(UPCGGraph* InGraph, UPCGPin* InPinToClone, bool bIsInput, TMap<FString, int>& InOutNameCollisionMapping)
-	{
-		UPCGNode* NewInputOutputNode = bIsInput ? InGraph->GetInputNode() : InGraph->GetOutputNode();
-		UPCGGraphInputOutputSettings* NewInputOutputSettings = CastChecked<UPCGGraphInputOutputSettings>(NewInputOutputNode->GetSettings());
-		FString NewName = InPinToClone->Node->GetNodeTitle(EPCGNodeTitleType::ListView).ToString() + " " + InPinToClone->Properties.Label.ToString();
-		if (InOutNameCollisionMapping.Contains(NewName))
-		{
-			if (!bIsInput)
-			{
-				// Output pin can be re-used. If there is a clash, just return the new name, the pin was already added.
-				return FName(NewName);
-			}
-
-			NewName += " " + FString::FormatAsNumber(++InOutNameCollisionMapping[NewName]);
-		}
-		else
-		{
-			InOutNameCollisionMapping.Emplace(NewName, 1);
-		}
-
-		FPCGPinProperties NewProperties = InPinToClone->Properties;
-
-		// For the pin type, narrow it down to the input edges (if it is an input pin)
-		if (bIsInput)
-		{
-			const EPCGDataType FirstPinTypeUnion = InPinToClone->Node->GetSettings()->GetTypeUnionOfIncidentEdges(InPinToClone->Properties.Label);
-			if (FirstPinTypeUnion != EPCGDataType::None)
-			{
-				NewProperties.AllowedTypes = FirstPinTypeUnion;
-			}
-		}
-
-		NewProperties.Label = FName(NewName);
-		NewProperties = NewInputOutputSettings->AddPin(NewProperties);
-		NewInputOutputNode->UpdateAfterSettingsChangeDuringCreation();
-		return NewProperties.Label;
-	}
-
+	/**
+	* Structure that will hold the necessary information during the collapse and execute it.
+	*/
 	struct FCollapsingInformation
 	{
 #if WITH_EDITOR
@@ -69,31 +32,109 @@ namespace PCGSubgraphHelpersExtra
 		int32 MaxX = std::numeric_limits<int32>::min();
 #endif // WITH_EDITOR
 
-		// Those 3 sets are used to keep track of the subgraph pins
-		// and will be used to extract pins that will be outside the subgraph
-		// and will need special treatment.
-		TSet<UPCGPin*> InputFromSubgraphPins;
-		TSet<UPCGPin*> OutputToSubgraphPins;
-		TSet<UPCGPin*> AllSubgraphPins;
+		/** First pass on the nodes to collapse, gathering information about special nodes like Graph Parameters. */
+		static FCollapsingInformation CreateAndInitialize(const TArray<UPCGNode*>& InNodesToCollapse, const FInstancedPropertyBag& InGraphParameters, UPCGGraph* InOriginalGraph);
+		bool ValidateCollapseIsNotIntroducingCycle();
 
-		// Also keep track of all the edges in the subgraph. Use a set to be able to add the
-		// same edge twice without duplicates.
-		TSet<UPCGEdge*> PCGGraphEdges;
+		void SetNewGraphAndUpdatePositions(UPCGGraph* NewGraph);
 
-		// Keep track of all graph parameters used, they will need to be forwarded to the new graph.
-		TArray<const FPropertyBagPropertyDesc*> GraphParametersUsed;
+		void AddDiscoveredGraphParameters();
+		void CopyNodes(const TArray<UObject*>& ExtraNodesToCollapse);
+		void DeleteNodes(const TArray<UObject*>& ExtraNodesToCollapse);
+		void CreateSubgraphNodeAndConnectRemainingPins();
 
+		/**
+		* Go through all the collapsed nodes and reconnect all of them according to the original connections.
+		* Will also handle any special cases (named reroutes, graph parameters, ...)
+		*/
+		void ReconnectAllNodes();
+
+		// After reconnection, clean up edges that needs to be cleaned up
+		void CleanUpOriginalEdges();
+
+		bool HasEnoughValidNodes() { return ValidNodesToCollapse.Num() > 1; }
+
+	private:
+		// Use initialize to create the struct.
+		FCollapsingInformation() = default;
+
+		// List of all the nodes that are valid to collapse and so will be copied.
 		TArray<UPCGNode*> ValidNodesToCollapse;
-
-		// Keep track of all user parameters output pins
-		TMap<FGuid, UPCGPin*> GetUserParametersOutputPins;
-		// Also keep track of duplicated get user parameters, to only keep a single one for each user parameter.
+		// By default all nodes that are collapsed are removed, but some might have to stay (like graph parameters getters)
+		TArray<UPCGNode*> NodesToRemove;
+		// Also some node can be mark superfluous, meaning that they can be removed if at the end, there is no edges remaining.
 		TArray<UPCGNode*> SuperfluousNodes;
+
+		// Keep a list of all outside pins and the name of the label to connect to.
+		TArray<TPair<UPCGPin*, FName>> OutsideSubgraphPinToSubgraphPinLabel;
+
+		// Keep a mapping between pins from the inside pin and its connected pin on the input/output node in the subgraph.
+		TMap<UPCGPin*, UPCGPin*> SubgraphInsidePinToInputOutputPinMapping;
+		TMap<FString, int> NameCollisionMapping;
+
+		// Keep a mapping between original nodes and new nodes
+		TMap<const UPCGNode*, UPCGNode*> OriginalToNewNodesMapping;
+
+		UPCGGraph* OriginalGraph = nullptr;
+		UPCGGraph* NewGraph = nullptr;
+
+		/** 
+		* Connect two pins that cross the subgraph boundaries. The Inside Pin is the pin that is inside the subgraph (NewGraph) and outside pin the pin in the main graph.
+		* bIsSubgraphInputBoundary is set if it is the input boundary that is crossed. Otherwise, it is the output boundary.
+		* Returns true if a new custom pin was added, false otherwise.
+		*/
+		bool ConnectPinsBetweenSubgraphBoundaries(UPCGPin* OriginalPin, UPCGPin* NewInsidePin, UPCGPin* OutsidePin, bool bIsSubgraphInputBoundary);
+
+		/**
+		* Function that will create a new pin in the input / output node of the subgraph, with a unique name that will
+		* be the related to the pin passed as argument. It will be formatted like this:
+		* "{OptionalNodeName} {PinName} {OptionalIndex}"
+		* OptionalNodeName and OptionalIndex are added if there are any name clash.
+		*/
+		FName CreateNewCustomPin(UPCGGraph* InGraph, const UPCGPin* InPinToClone, bool bIsInput);
+
+		void ReconnectNode(UPCGNode* NewNode, UPCGPin* OriginalPin);
+
+		////////////////
+		// Graph parameters specific
+		////////////////
+
+		// Keep a mapping between PropertyDesc and their getter node. Useful to discard other getters that can be removed if unused.
+		TMap<const FPropertyBagPropertyDesc*, UPCGNode*> GraphParametersDescToNodeGetters;
+
+		// Also keep a reference of the original graph parameters.
+		const FInstancedPropertyBag* GraphParameters = nullptr;
+
+		/** 
+		* If a graph parameter getter is collapse, this will connect the original getter to the override pin on the subgraph node (it's not a real connect, just adding to OutsideSubgraphPinToSubgraphPinLabelMapping, for placeholder).
+		* returns true if it is the first time we see that graph parameter.
+		*/
+		bool ConnectGraphParameterGetterToSubgraphInput(const UPCGUserParameterGetSettings* InSettings, UPCGNode* InNode);
+
+		/**
+		* Special handling if a graph parameter getter is outside the subgraph. If the graph parameter is part of the subgraph, we will use the getter inside the subgraph for the same parameter.
+		* Otherwise, it is a normal boundary cross.
+		*/
+		void HandleExternalGraphParameterGetter(UPCGPin* OriginalInsidePin, UPCGPin* NewInsidePin, UPCGPin* OutsidePin);
+
+		////////////////
+		// Named reroute specific
+		////////////////
+
+		void HandleReconnectNamedRerouteDeclaration(UPCGNode* OriginalNode, const UPCGNamedRerouteDeclarationSettings* OriginalSettings);
+		void HandleReconnectNamedRerouteUsage(UPCGNode* OriginalNode, const UPCGNamedRerouteUsageSettings* OriginalSettings);
+
+		// List of original pins to break edges. Need to be done after the reconnection, to not alter it.
+		TSet<UPCGPin*> OriginalPinsToBreakEdges;
 	};
 
-	FCollapsingInformation GatheringCollapseInformation(const TArray<UPCGNode*>& InNodesToCollapse, const FInstancedPropertyBag& InGraphParameters)
+	FCollapsingInformation FCollapsingInformation::CreateAndInitialize(const TArray<UPCGNode*>& InNodesToCollapse, const FInstancedPropertyBag& InGraphParameters, UPCGGraph* InOriginalGraph)
 	{
+		check(InOriginalGraph);
+
 		FCollapsingInformation CollapseInfo{};
+		CollapseInfo.GraphParameters = &InGraphParameters;
+		CollapseInfo.OriginalGraph = InOriginalGraph;
 
 		for (UPCGNode* PCGNode : InNodesToCollapse)
 		{
@@ -107,57 +148,18 @@ namespace PCGSubgraphHelpersExtra
 				continue;
 			}
 
+			bool bShouldRemove = true;
+
 			if (const UPCGUserParameterGetSettings* GetSettings = Cast<UPCGUserParameterGetSettings>(NodeSettings))
 			{
-				if (const FPropertyBagPropertyDesc* PropertyDesc = InGraphParameters.FindPropertyDescByID(GetSettings->PropertyGuid))
+				bShouldRemove = false;
+				// If it was connected, we want to keep this node outside, so don't remove it.
+				// Otherwise, we already discovered this graph parameter, so we can remove it from the top graph
+				const bool bAlreadyDiscovered = !CollapseInfo.ConnectGraphParameterGetterToSubgraphInput(GetSettings, PCGNode);
+				if (bAlreadyDiscovered)
 				{
-					CollapseInfo.GraphParametersUsed.AddUnique(PropertyDesc);
-
-					if (CollapseInfo.GetUserParametersOutputPins.Contains(PropertyDesc->ID))
-					{
-						CollapseInfo.SuperfluousNodes.Add(PCGNode);
-					}
-					else
-					{
-						CollapseInfo.GetUserParametersOutputPins.Emplace(PropertyDesc->ID, PCGNode->GetOutputPins()[0]);
-					}
+					CollapseInfo.SuperfluousNodes.Add(PCGNode);
 				}
-				else
-				{
-					// Invalid node
-					continue;
-				}
-			}
-
-			// For each pin of the subgraph, gather all its edges in a set and store the other pin of
-			// the edge as an input from or output to the subgraph. It will be useful for tracking pins
-			// that are outside the subgraph.
-			for (UPCGPin* InputPin : PCGNode->GetInputPins())
-			{
-				check(InputPin);
-
-				for (UPCGEdge* Edge : InputPin->Edges)
-				{
-					check(Edge);
-					CollapseInfo.PCGGraphEdges.Add(Edge);
-					CollapseInfo.OutputToSubgraphPins.Add(Edge->InputPin);
-				}
-
-				CollapseInfo.AllSubgraphPins.Add(InputPin);
-			}
-
-			for (UPCGPin* OutputPin : PCGNode->GetOutputPins())
-			{
-				check(OutputPin);
-
-				for (UPCGEdge* Edge : OutputPin->Edges)
-				{
-					check(Edge);
-					CollapseInfo.PCGGraphEdges.Add(Edge);
-					CollapseInfo.InputFromSubgraphPins.Add(Edge->OutputPin);
-				}
-
-				CollapseInfo.AllSubgraphPins.Add(OutputPin);
 			}
 
 			CollapseInfo.ValidNodesToCollapse.Add(PCGNode);
@@ -169,6 +171,11 @@ namespace PCGSubgraphHelpersExtra
 			CollapseInfo.MinX = FMath::Min(CollapseInfo.MinX, PCGNode->PositionX);
 			CollapseInfo.MaxX = FMath::Max(CollapseInfo.MaxX, PCGNode->PositionY);
 #endif // WITH_EDITOR
+
+			if (bShouldRemove)
+			{
+				CollapseInfo.NodesToRemove.Add(PCGNode);
+			}
 		}
 
 #if WITH_EDITOR
@@ -179,273 +186,77 @@ namespace PCGSubgraphHelpersExtra
 		}
 #endif // WITH_EDITOR
 
-		// Gather the pins that are outside the subgraph
-		CollapseInfo.InputFromSubgraphPins = CollapseInfo.InputFromSubgraphPins.Difference(CollapseInfo.AllSubgraphPins);
-		CollapseInfo.OutputToSubgraphPins = CollapseInfo.OutputToSubgraphPins.Difference(CollapseInfo.AllSubgraphPins);
-
 		return CollapseInfo;
 	}
-}
 
-UPCGGraph* FPCGSubgraphHelpers::CollapseIntoSubgraph(UPCGGraph* InOriginalGraph, const TArray<UPCGNode*>& InNodesToCollapse, const TArray<UObject*>& InExtraNodesToCollapse, UPCGGraph* OptionalPreAllocatedGraph)
-{
-	// Don't collapse into a subgraph if you don't have at least 2 nodes
-	if (!InOriginalGraph || InNodesToCollapse.Num() < 2)
+	void FCollapsingInformation::SetNewGraphAndUpdatePositions(UPCGGraph* InNewGraph)
 	{
-		return nullptr;
-	}
-
-	const FInstancedPropertyBag* GraphParameters = InOriginalGraph->GetUserParametersStruct();
-	check(GraphParameters);
-
-	PCGSubgraphHelpersExtra::FCollapsingInformation CollapseInfo = PCGSubgraphHelpersExtra::GatheringCollapseInformation(InNodesToCollapse, *GraphParameters);
-
-	// If we have at most 1 valid node to collapse, just exit
-	if (CollapseInfo.ValidNodesToCollapse.Num() <= 1)
-	{
-		UE_LOG(LogPCG, Warning, TEXT("There were less than 2 PCG nodes selected, abort"));
-		return nullptr;
-	}
-
-	// 2. Create a new subgraph if necessary.
-	UPCGGraph* NewPCGGraph = OptionalPreAllocatedGraph;
-	if (!NewPCGGraph)
-	{
-		NewPCGGraph = NewObject<UPCGGraph>();
-	}
+		check(InNewGraph);
+		NewGraph = InNewGraph;
 
 #if WITH_EDITOR
-	// Do some clean-up on input/output nodes
-	constexpr int32 Padding = 200;
-	NewPCGGraph->GetInputNode()->PositionX = CollapseInfo.MinX - Padding;
-	NewPCGGraph->GetInputNode()->PositionY = CollapseInfo.AveragePosition.Y;
-	NewPCGGraph->GetOutputNode()->PositionX = CollapseInfo.MaxX + Padding;
-	NewPCGGraph->GetOutputNode()->PositionY = CollapseInfo.AveragePosition.Y;
+		// Do some clean-up on input/output nodes
+		constexpr int32 Padding = 300;
+		NewGraph->GetInputNode()->PositionX = MinX - Padding;
+		NewGraph->GetInputNode()->PositionY = AveragePosition.Y;
+		NewGraph->GetOutputNode()->PositionX = MaxX + Padding;
+		NewGraph->GetOutputNode()->PositionY = AveragePosition.Y;
 #endif // WITH_EDITOR
-
-	// 4. Duplicate all the nodes, and keep a mapping between the old pins and new pins
-	TMap<UPCGPin*, UPCGPin*> PinMapping;
-	for (const UPCGNode* PCGNode : CollapseInfo.ValidNodesToCollapse)
-	{
-		check(PCGNode);
-
-		// Reconstruct a new node, same as PCGNode, but without any edges in the new graph 
-		UPCGNode* NewNode = NewPCGGraph->ReconstructNewNode(PCGNode);
-
-		// Safeguard: We should have a 1 for 1 matching between pins labels between the original node
-		// and the copied node. If for some reason we don't (perhaps the node was not updated correctly after pins were added/removed)
-		// we will log an error and try to connect as best as we can (probably breaking some edges on the process).
-
-		auto Mapping = [&PinMapping, PCGNode](const TArray<UPCGPin*>& OriginalPins, const TArray<UPCGPin*>& NewPins)
-		{
-			TSet<FName> UnmatchedOriginal;
-			TMap<FName, UPCGPin*> NewMapping;
-
-			for (UPCGPin* NewPin : NewPins)
-			{
-				NewMapping.Emplace(NewPin->Properties.Label, NewPin);
-			}
-
-			for (UPCGPin* OriginalPin : OriginalPins)
-			{
-				FName PinLabel = OriginalPin->Properties.Label;
-				if (UPCGPin** NewPinPtr = NewMapping.Find(PinLabel))
-				{
-					PinMapping.Emplace(OriginalPin, *NewPinPtr);
-				}
-				else if (OriginalPin->IsConnected())
-				{
-					// It is only problematic if the pin was connected
-					UE_LOG(LogPCG, Error, TEXT("[CollapseInSubgraph - %s] %s pin %s does not exist anymore. Edges will be broken."),
-						*PCGNode->GetNodeTitle(EPCGNodeTitleType::ListView).ToString(), (OriginalPin->IsOutputPin() ? TEXT("Output") : TEXT("Input")), *PinLabel.ToString());
-				}
-			}
-		};
-
-		Mapping(PCGNode->GetInputPins(), NewNode->GetInputPins());
-		Mapping(PCGNode->GetOutputPins(), NewNode->GetOutputPins());
 	}
+
+	void FCollapsingInformation::AddDiscoveredGraphParameters()
+	{
+		check(OriginalGraph && NewGraph);
+		TArray<FPropertyBagPropertyDesc> GraphParametersUsed;
+		Algo::Transform(GraphParametersDescToNodeGetters, GraphParametersUsed, [](const auto& It) { check(It.Key); return *It.Key; });
+		NewGraph->AddUserParameters(GraphParametersUsed, OriginalGraph);
+	}
+
+	void FCollapsingInformation::CopyNodes(const TArray<UObject*>& ExtraNodesToCollapse)
+	{
+		check(NewGraph);
+		for (UPCGNode* PCGNode : ValidNodesToCollapse)
+		{
+			check(PCGNode);
+
+			// Reconstruct a new node, same as PCGNode, but without any edges in the new graph 
+			UPCGNode* NewNode = NewGraph->ReconstructNewNode(PCGNode);
+			check(NewNode);
+
+			NewNode->NodeTitle = PCGNode->NodeTitle;
+			OriginalToNewNodesMapping.Emplace(PCGNode, NewNode);
+		}
 
 #if WITH_EDITOR
-	// Also duplicate the extra nodes and assign them to the new graph
-	TArray<TObjectPtr<const UObject>> NewExtraGraphNodes;
-	for (const UObject* ExtraNode : InExtraNodesToCollapse)
-	{
-		NewExtraGraphNodes.Add(DuplicateObject(ExtraNode, NewPCGGraph));
-	}
+		// Also duplicate the extra nodes and assign them to the new graph
+		TArray<TObjectPtr<const UObject>> NewExtraGraphNodes;
+		for (const UObject* ExtraNode : ExtraNodesToCollapse)
+		{
+			NewExtraGraphNodes.Add(DuplicateObject(ExtraNode, NewGraph));
+		}
 
-	NewPCGGraph->SetExtraEditorNodes(NewExtraGraphNodes);
+		NewGraph->SetExtraEditorNodes(NewExtraGraphNodes);
 #endif ///WITH_EDITOR
-
-	// 5. Iterate over all the edges and create edges "placeholders"
-	// Most of them will already be complete, but for those that needs to be connected to the new
-	// subgraph nodes, the pins don't exist yet. Therefore we identify them with their pin labels.
-	//
-	// The logic behind the new pins is this:
-	// -> If the pin is connected to the simple pin of the input/output node, let it like this
-	// -> If the pin is part of the original input/output advanced pins, we will trigger the advanced pins flag on the input/output node in the subgraph
-	// -> If the pin is connected to a get user parameters that is outside of the subgraph, we'll create a new node and connect it to it.
-	// -> Otherwise, we add a new custom pin, with the name of the node, the name of the pin and a number if there is name collision
-	struct EdgePlaceholder
-	{
-		UPCGPin* InputPin = nullptr;
-		UPCGPin* OutputPin = nullptr;
-		FName InputPinLabel;
-		FName OutputPinLabel;
-	};
-
-	TArray<EdgePlaceholder> EdgePlaceholders;
-	TMap<FString, int> NameCollisionMapping;
-
-	// For all internal parameters, create extra edges to connect those nodes to their override pin counterparts
-	for (const TPair<FGuid, UPCGPin*>& It : CollapseInfo.GetUserParametersOutputPins)
-	{
-		check(It.Value);
-
-		EdgePlaceholder OutsideSubgraphEdge;
-		OutsideSubgraphEdge.InputPin = It.Value;
-		// Gymnastics to make sure we have a 1 to 1 match between labels, because subgraph override uses the display text name.
-		OutsideSubgraphEdge.OutputPinLabel = FName(FName::NameToDisplayString(OutsideSubgraphEdge.InputPin->Properties.Label.ToString(), /*bIsBool=*/ false));
-
-		EdgePlaceholders.Add(std::move(OutsideSubgraphEdge));
 	}
 
-	for (UPCGEdge* Edge : CollapseInfo.PCGGraphEdges)
+	void FCollapsingInformation::DeleteNodes(const TArray<UObject*>& ExtraNodesToCollapse)
 	{
-		UPCGPin* const* InPin = PinMapping.Find(Edge->InputPin);
-		UPCGPin* const* OutPin = PinMapping.Find(Edge->OutputPin);
+		check(OriginalGraph);
 
-		check(InPin || OutPin);
-
-		if (InPin == nullptr)
-		{
-			// The edge comes from outside the graph.
-			// If it is from the input node, we have a special behavior
-			// Same if it is from a get user parameter
-			EdgePlaceholder OutsideSubgraphEdge;
-			EdgePlaceholder InsideSubgraphEdge;
-			bool bProcessed = false;
-
-			OutsideSubgraphEdge.InputPin = Edge->InputPin;
-			InsideSubgraphEdge.OutputPin = *OutPin;
-
-			if (Edge->InputPin->Node && Edge->InputPin->Node->GetSettings() && Edge->InputPin->Node->GetSettings()->IsA<UPCGUserParameterGetSettings>())
-			{
-				const UPCGUserParameterGetSettings* OldSettings = CastChecked<const UPCGUserParameterGetSettings>(Edge->InputPin->Node->GetSettings());
-				if (CollapseInfo.GetUserParametersOutputPins.Contains(OldSettings->PropertyGuid))
-				{
-					if (CollapseInfo.GetUserParametersOutputPins[OldSettings->PropertyGuid] != Edge->InputPin->Node->GetOutputPins()[0])
-					{
-						CollapseInfo.SuperfluousNodes.Add(Edge->InputPin->Node);
-					}
-				}
-				else
-				{
-					CollapseInfo.GetUserParametersOutputPins.Emplace(OldSettings->PropertyGuid, Edge->InputPin->Node->GetOutputPins()[0]);
-				}
-
-				check(CollapseInfo.GetUserParametersOutputPins.Contains(OldSettings->PropertyGuid));
-
-				// The label will be the same as the input pin, since it will be an override pin.
-				OutsideSubgraphEdge.InputPin = CollapseInfo.GetUserParametersOutputPins[OldSettings->PropertyGuid];
-				// Gymnastics to make sure we have a 1 to 1 match between labels, because subgraph override uses the display text name.
-				OutsideSubgraphEdge.OutputPinLabel = FName(FName::NameToDisplayString(OutsideSubgraphEdge.InputPin->Properties.Label.ToString(), /*bIsBool=*/ false));
-
-				// Create a new node and connect it to it.
-				UPCGSettings* NewSettings = nullptr;
-				UPCGNode* NewNode = NewPCGGraph->AddNodeCopy(Edge->InputPin->Node->GetSettings(), NewSettings);
-				check(NewNode && NewSettings && NewNode->GetOutputPins().Num() == 1);
-
-				// Also need to add this parameter to the list.
-				if (const FPropertyBagPropertyDesc* PropertyDesc = GraphParameters->FindPropertyDescByID(OldSettings->PropertyGuid))
-				{
-					CollapseInfo.GraphParametersUsed.AddUnique(PropertyDesc);
-				}
-
-				InsideSubgraphEdge.InputPin = NewNode->GetOutputPins()[0];
-
-				bProcessed = true;
-#if WITH_EDITOR
-				// Place the newly created node slightly to the left of the output pin node.
-				if (ensure(Edge->OutputPin->Node))
-				{
-					constexpr int32 OffsetX = -200;
-					NewNode->PositionX = Edge->OutputPin->Node->PositionX + OffsetX;
-					NewNode->PositionY = Edge->OutputPin->Node->PositionY;
-				}
-#endif // WITH_EDITOR
-			}
-
-			if (!bProcessed)
-			{
-				FName NewPinName = PCGSubgraphHelpersExtra::CreateNewCustomPin(NewPCGGraph, Edge->OutputPin, true, NameCollisionMapping);
-				OutsideSubgraphEdge.OutputPinLabel = NewPinName;
-				InsideSubgraphEdge.InputPin = NewPCGGraph->GetInputNode()->GetOutputPin(NewPinName);
-			}
-
-			EdgePlaceholders.Add(std::move(OutsideSubgraphEdge));
-			EdgePlaceholders.Add(std::move(InsideSubgraphEdge));
-		}
-		else if (OutPin == nullptr)
-		{
-			// The edge comes from outside the graph.
-			// If it is from the output node, we have a special behavior
-			EdgePlaceholder OutsideSubgraphEdge;
-			EdgePlaceholder InsideSubgraphEdge;
-			bool bProcessed = false;
-
-			OutsideSubgraphEdge.OutputPin = Edge->OutputPin;
-			InsideSubgraphEdge.InputPin = *InPin;
-
-			if (!bProcessed)
-			{
-				FName NewPinName = PCGSubgraphHelpersExtra::CreateNewCustomPin(NewPCGGraph, Edge->InputPin, false, NameCollisionMapping);
-				OutsideSubgraphEdge.InputPinLabel = NewPinName;
-				InsideSubgraphEdge.OutputPin = NewPCGGraph->GetOutputNode()->GetInputPin(NewPinName);
-			}
-
-			EdgePlaceholders.Add(std::move(OutsideSubgraphEdge));
-			EdgePlaceholders.Add(std::move(InsideSubgraphEdge));
-		}
-		else
-		{
-			// Both nodes are inside
-			EdgePlaceholders.Add(EdgePlaceholder{ *InPin, *OutPin });
-		}
-	}
-
-	// Transfer the values from the original graph parameters to the new graph
-	TArray<FPropertyBagPropertyDesc> GraphParametersUsed;
-	Algo::Transform(CollapseInfo.GraphParametersUsed, GraphParametersUsed, [](const FPropertyBagPropertyDesc* In) { check(In); return *In; });
-	NewPCGGraph->AddUserParameters(GraphParametersUsed, InOriginalGraph);
-
-	// 6. Create subgraph and delete old nodes, extra nodes and superfluous nodes
-	UPCGNode* SubgraphNode = nullptr;
-	{
-		TArray<UPCGNode*> NodesToRemove;
-		NodesToRemove.Reserve(CollapseInfo.ValidNodesToCollapse.Num());
-
-		for (UPCGNode* PCGNode : CollapseInfo.ValidNodesToCollapse)
-		{
-			const UPCGSettings* NodeSettings = PCGNode->GetSettings();
-
-			// Don't delete input, output and get user parameters nodes from the subgraph.
-			if (!NodeSettings || NodeSettings->IsA<UPCGGraphInputOutputSettings>() || NodeSettings->IsA<UPCGUserParameterGetSettings>())
-			{
-				continue;
-			}
-
-			NodesToRemove.Add(PCGNode);
-		}
+		// First remove all the nodes that were valid and should be removed.
+		OriginalGraph->RemoveNodes(NodesToRemove);
 
 #if WITH_EDITOR
-		for (const UObject* ExtraNode : InExtraNodesToCollapse)
+		for (const UObject* ExtraNode : ExtraNodesToCollapse)
 		{
-			InOriginalGraph->RemoveExtraEditorNode(ExtraNode);
+			OriginalGraph->RemoveExtraEditorNode(ExtraNode);
 		}
 #endif // WITH_EDITOR
 
-		for (UPCGNode* SuperfluousNode : CollapseInfo.SuperfluousNodes)
+		// Then for all the remaining nodes to remove, make sure they have no edges anymore.
+		TArray<UPCGNode*> SuperfluousNodesToRemove;
+		SuperfluousNodesToRemove.Reserve(SuperfluousNodes.Num());
+		for (UPCGNode* SuperfluousNode : SuperfluousNodes)
 		{
 			check(SuperfluousNode);
 			// Only remove them if they have no edges anymore
@@ -454,47 +265,530 @@ UPCGGraph* FPCGSubgraphHelpers::CollapseIntoSubgraph(UPCGGraph* InOriginalGraph,
 
 			if (!bHasAnyEdges)
 			{
-				NodesToRemove.Add(SuperfluousNode);
+				SuperfluousNodesToRemove.Add(SuperfluousNode);
 			}
 		}
 
 		// Finally remove them all in one go
-		InOriginalGraph->RemoveNodes(NodesToRemove);
+		OriginalGraph->RemoveNodes(SuperfluousNodesToRemove);
+	}
+
+	void FCollapsingInformation::CreateSubgraphNodeAndConnectRemainingPins()
+	{
+		check(OriginalGraph && NewGraph);
 
 		UPCGSettings* DefaultNodeSettings = nullptr;
-		SubgraphNode = InOriginalGraph->AddNodeOfType(UPCGSubgraphSettings::StaticClass(), DefaultNodeSettings);
+		UPCGNode* SubgraphNode = OriginalGraph->AddNodeOfType(UPCGSubgraphSettings::StaticClass(), DefaultNodeSettings);
 		UPCGSubgraphSettings* DefaultSubgraphSettings = CastChecked<UPCGSubgraphSettings>(DefaultNodeSettings);
-		DefaultSubgraphSettings->SetSubgraph(NewPCGGraph);
+		DefaultSubgraphSettings->SetSubgraph(NewGraph);
+
+		check(SubgraphNode);
 
 #if WITH_EDITOR
-		SubgraphNode->PositionX = CollapseInfo.AveragePosition.X;
-		SubgraphNode->PositionY = CollapseInfo.AveragePosition.Y;
+		SubgraphNode->PositionX = AveragePosition.X;
+		SubgraphNode->PositionY = AveragePosition.Y;
 #endif // WITH_EDITOR
 
 		SubgraphNode->UpdateAfterSettingsChangeDuringCreation();
+
+		for (const auto& [OutsidePin, SubgraphPinLabel] : OutsideSubgraphPinToSubgraphPinLabel)
+		{
+			check(OutsidePin);
+			UPCGNode* OutsideNode = OutsidePin->Node;
+			check(OutsideNode);
+
+			if (OutsidePin->IsOutputPin())
+			{
+				OutsidePin->AddEdgeTo(SubgraphNode->GetInputPin(SubgraphPinLabel));
+			}
+			else
+			{
+				SubgraphNode->GetOutputPin(SubgraphPinLabel)->AddEdgeTo(OutsidePin);
+			}
+		}
 	}
 
-	// 8. Connect all the edges
-	TSet<UPCGNode*> TouchedNodes;
-	for (EdgePlaceholder& Edge : EdgePlaceholders)
+	void FCollapsingInformation::ReconnectAllNodes()
 	{
-		if (Edge.InputPin == nullptr)
+		for (UPCGNode* OriginalNode : ValidNodesToCollapse)
 		{
-			SubgraphNode->GetOutputPin(Edge.InputPinLabel)->AddEdgeTo(Edge.OutputPin, &TouchedNodes);
+			check(OriginalToNewNodesMapping.Contains(OriginalNode));
+			UPCGNode* NewNode = OriginalToNewNodesMapping[OriginalNode];
+			check(NewNode);
+
+			// Named reroute specifics.
+			if (const UPCGNamedRerouteDeclarationSettings* OriginalDeclSettings = Cast<UPCGNamedRerouteDeclarationSettings>(OriginalNode->GetSettings()))
+			{
+				HandleReconnectNamedRerouteDeclaration(OriginalNode, OriginalDeclSettings);
+				continue;
+			}
+			else if (const UPCGNamedRerouteUsageSettings* OriginalUsageSettings = Cast<UPCGNamedRerouteUsageSettings>(OriginalNode->GetSettings()))
+			{
+				HandleReconnectNamedRerouteUsage(OriginalNode, OriginalUsageSettings);
+				continue;
+			}
+
+			for (UPCGPin* OriginalInputPin : OriginalNode->GetInputPins())
+			{
+				ReconnectNode(NewNode, OriginalInputPin);
+			}
+
+			for (UPCGPin* OriginalOutputPin : OriginalNode->GetOutputPins())
+			{
+				ReconnectNode(NewNode, OriginalOutputPin);
+			}
 		}
-		else if (Edge.OutputPin == nullptr)
+	}
+
+	void FCollapsingInformation::CleanUpOriginalEdges()
+	{
+		for (UPCGPin* OriginalPin : OriginalPinsToBreakEdges)
 		{
-			Edge.InputPin->AddEdgeTo(SubgraphNode->GetInputPin(Edge.OutputPinLabel), &TouchedNodes);
+			if (ensure(OriginalPin))
+			{
+				OriginalPin->BreakAllEdges();
+			}
+		}
+	}
+
+	FName FCollapsingInformation::CreateNewCustomPin(UPCGGraph* InGraph, const UPCGPin* InPinToClone, bool bIsInput)
+	{
+		check(InGraph && InPinToClone);
+
+		UPCGNode* NewInputOutputNode = bIsInput ? InGraph->GetInputNode() : InGraph->GetOutputNode();
+		UPCGGraphInputOutputSettings* NewInputOutputSettings = CastChecked<UPCGGraphInputOutputSettings>(NewInputOutputNode->GetSettings());
+		const UPCGNode* PinToCloneNode = InPinToClone->Node;
+		const UPCGSettings* PinToCloneSettings = PinToCloneNode ? PinToCloneNode->GetSettings() : nullptr;
+		check(PinToCloneNode && PinToCloneSettings);
+
+		// First try with just the pin name
+		FString NewName = InPinToClone->Properties.Label.ToString();
+		if (NameCollisionMapping.Contains(NewName))
+		{
+			// If there is a clash, use the node title on top.
+			NewName = PinToCloneNode->GetNodeTitle(EPCGNodeTitleType::ListView).ToString() + " " + NewName;
+			if (NameCollisionMapping.Contains(NewName))
+			{
+				NewName += " " + FString::FormatAsNumber(++NameCollisionMapping[NewName]);
+			}
+			else
+			{
+				NameCollisionMapping.Emplace(NewName, 1);
+			}
 		}
 		else
 		{
-			Edge.InputPin->AddEdgeTo(Edge.OutputPin, &TouchedNodes);
+			NameCollisionMapping.Emplace(NewName, 1);
+		}
+
+		FPCGPinProperties NewProperties = InPinToClone->Properties;
+
+		// For the pin type, narrow it down to the input edges (if it is an input pin)
+		if (!InPinToClone->IsOutputPin())
+		{
+			const EPCGDataType FirstPinTypeUnion = PinToCloneSettings->GetTypeUnionOfIncidentEdges(InPinToClone->Properties.Label);
+			if (FirstPinTypeUnion != EPCGDataType::None)
+			{
+				NewProperties.AllowedTypes = FirstPinTypeUnion;
+			}
+		}
+		else
+		{
+			NewProperties.AllowedTypes = PinToCloneSettings->GetCurrentPinTypes(InPinToClone);
+		}
+
+		NewProperties.Label = FName(NewName);
+		NewProperties = NewInputOutputSettings->AddPin(NewProperties);
+		NewInputOutputNode->UpdateAfterSettingsChangeDuringCreation();
+		return NewProperties.Label;
+	}
+
+	void FCollapsingInformation::ReconnectNode(UPCGNode* NewNode, UPCGPin* OriginalPin)
+	{
+		check(NewGraph && NewNode && OriginalPin);
+		const bool bIsInput = !OriginalPin->IsOutputPin();
+
+		UPCGPin* NewPin = bIsInput ? NewNode->GetInputPin(OriginalPin->Properties.Label) : NewNode->GetOutputPin(OriginalPin->Properties.Label);
+		check(NewPin);
+
+		for (UPCGEdge* Edge : OriginalPin->Edges)
+		{
+			check(Edge);
+			UPCGPin* OtherOriginalPin = bIsInput ? Edge->InputPin : Edge->OutputPin;
+			check(OtherOriginalPin);
+
+			const UPCGNode* OtherOriginalNode = OtherOriginalPin->Node;
+			check(OtherOriginalNode);
+
+			// If the other original is in the mapping, it is part of the subgraph. So Connect the 2, only if the new node is the input pin, as we will pass there twice (once per edge extremity)
+			if (UPCGNode** OtherNewNodePtr = OriginalToNewNodesMapping.Find(OtherOriginalNode))
+			{
+				if (bIsInput)
+				{
+					check(OtherOriginalPin->IsOutputPin());
+					UPCGPin* OtherNewPin = (*OtherNewNodePtr)->GetOutputPin(OtherOriginalPin->Properties.Label);
+					check(OtherNewPin);
+					OtherNewPin->AddEdgeTo(NewPin);
+				}
+			}
+			else
+			{
+				if (const UPCGUserParameterGetSettings* GraphParameterSettings = Cast<const UPCGUserParameterGetSettings>(OtherOriginalNode->GetSettings()))
+				{
+					HandleExternalGraphParameterGetter(OriginalPin, NewPin, OtherOriginalPin);
+				}
+				else if (Cast<const UPCGUserParameterGetSettings>(NewNode->GetSettings()) != nullptr)
+				{
+					// If the inside node is a graph parameter that goes outside, we have nothing to do, the edge already exists on the original node and the original node won't be deleted.
+				}
+				else
+				{
+					ConnectPinsBetweenSubgraphBoundaries(OriginalPin, NewPin, OtherOriginalPin, bIsInput);
+				}
+			}
 		}
 	}
 
+	// Returns true if a custom pin was created.
+	bool FCollapsingInformation::ConnectPinsBetweenSubgraphBoundaries(UPCGPin* OriginalInsidePin, UPCGPin* NewInsidePin, UPCGPin* OutsidePin, bool bIsSubgraphInputBoundary)
+	{
+		check(OriginalInsidePin && NewInsidePin && OutsidePin && NewGraph);
+
+		bool bCustomPinCreated = false;
+
+		// IO pins are a 1 for 1 with the pins that are inside the subgraph.
+		// So we keep a mapping between the subgraph IO pins and the inside pins, and only create a new IO pin if we have a new inside pin that cross boundaries.
+		UPCGPin* EdgeInputPin = bIsSubgraphInputBoundary ? OutsidePin : OriginalInsidePin;
+		UPCGPin** SubgraphIOPinPtr = SubgraphInsidePinToInputOutputPinMapping.Find(EdgeInputPin);
+		UPCGPin* SubgraphIOPin = nullptr;
+		if (!SubgraphIOPinPtr)
+		{
+			FName SubgraphPinLabel = CreateNewCustomPin(NewGraph, EdgeInputPin, bIsSubgraphInputBoundary);
+			SubgraphIOPin = bIsSubgraphInputBoundary ? NewGraph->GetInputNode()->GetOutputPin(SubgraphPinLabel) : NewGraph->GetOutputNode()->GetInputPin(SubgraphPinLabel);
+			check(SubgraphIOPin);
+			SubgraphInsidePinToInputOutputPinMapping.Emplace(EdgeInputPin, SubgraphIOPin);
+
+			bCustomPinCreated = true;
+		}
+		else
+		{
+			SubgraphIOPin = *SubgraphIOPinPtr;
+		}
+
+		check(SubgraphIOPin);
+
+		// And we keep a list of all the outside pins and the label they should connect to, when the subgraph node will be created later.
+		if (bCustomPinCreated || !bIsSubgraphInputBoundary)
+		{
+			OutsideSubgraphPinToSubgraphPinLabel.Emplace(OutsidePin, SubgraphIOPin->Properties.Label);
+		}
+		
+		if (bCustomPinCreated || bIsSubgraphInputBoundary)
+		{
+			if (bIsSubgraphInputBoundary)
+			{
+				SubgraphIOPin->AddEdgeTo(NewInsidePin);
+			}
+			else
+			{
+				NewInsidePin->AddEdgeTo(SubgraphIOPin);
+			}
+		}
+
+		return bCustomPinCreated;
+	}
+
+	bool FCollapsingInformation::ConnectGraphParameterGetterToSubgraphInput(const UPCGUserParameterGetSettings* InSettings, UPCGNode* InNode)
+	{
+		check(InSettings && InNode);
+		const FPropertyBagPropertyDesc* PropertyDesc = GraphParameters->FindPropertyDescByID(InSettings->PropertyGuid);
+
+		if (ensure(PropertyDesc) && !GraphParametersDescToNodeGetters.Contains(PropertyDesc))
+		{
+			GraphParametersDescToNodeGetters.Emplace(PropertyDesc, InNode);
+			check(InNode->GetOutputPins().Num() == 1);
+			UPCGPin* GraphParameterPin = InNode->GetOutputPins()[0];
+			check(GraphParameterPin);
+			OutsideSubgraphPinToSubgraphPinLabel.Emplace(GraphParameterPin, FName(FName::NameToDisplayString(GraphParameterPin->Properties.Label.ToString(), /*bIsBool=*/ false)));
+
+			return true;
+		}
+
+		// Already connected or invalid.
+		return false;
+	}
+
+	void FCollapsingInformation::HandleExternalGraphParameterGetter(UPCGPin* OriginalInsidePin, UPCGPin* NewInsidePin, UPCGPin* OutsidePin)
+	{
+		check(OriginalInsidePin && NewInsidePin && OutsidePin);
+		UPCGNode* ExternalGraphParameterNode = OutsidePin->Node;
+		check(ExternalGraphParameterNode);
+		const UPCGUserParameterGetSettings* Settings = CastChecked<const UPCGUserParameterGetSettings>(ExternalGraphParameterNode->GetSettings());
+
+		const FPropertyBagPropertyDesc* PropertyDesc = GraphParameters->FindPropertyDescByID(Settings->PropertyGuid);
+		check(PropertyDesc);
+
+		// If the graph parameter exists, we should use that new getter inside the subgraph, and mark the external as superfluous.
+		if (UPCGNode** ExistingGraphParameterNode = GraphParametersDescToNodeGetters.Find(PropertyDesc))
+		{
+			check(*ExistingGraphParameterNode);
+			UPCGNode* ExistingGraphParameterNodeInsideSubgraph = OriginalToNewNodesMapping.FindChecked(*ExistingGraphParameterNode);
+			check(ExistingGraphParameterNodeInsideSubgraph && ExistingGraphParameterNodeInsideSubgraph->GetOutputPins().Num() == 1);
+
+			ExistingGraphParameterNodeInsideSubgraph->GetOutputPins()[0]->AddEdgeTo(NewInsidePin);
+			SuperfluousNodes.Add(ExternalGraphParameterNode);
+		}
+		// If the external graph parameter is not part of the subgraph, we treat it as a normal node.
+		else
+		{
+			ConnectPinsBetweenSubgraphBoundaries(OriginalInsidePin, NewInsidePin, OutsidePin, /*bIsSubgraphInputBoundary=*/true);
+		}
+	}
+
+	void FCollapsingInformation::HandleReconnectNamedRerouteDeclaration(UPCGNode* OriginalDeclNode, const UPCGNamedRerouteDeclarationSettings* OriginalDeclSettings)
+	{
+		check(OriginalDeclNode && OriginalDeclSettings);
+		UPCGNode* NewDeclNode = OriginalToNewNodesMapping.FindChecked(OriginalDeclNode);
+		check(NewDeclNode);
+
+		// Connect all the input pins normally
+		for (UPCGPin* OriginalInputPin : OriginalDeclNode->GetInputPins())
+		{
+			ReconnectNode(NewDeclNode, OriginalInputPin);
+		}
+
+		// Connect all the output pins normally, except the Invisible Pin
+		UPCGPin* InvisiblePin = OriginalDeclNode->GetOutputPin(PCGNamedRerouteConstants::InvisiblePinLabel);
+		check(InvisiblePin);
+		for (UPCGPin* OriginalOutputPin : OriginalDeclNode->GetOutputPins())
+		{
+			if (!ensure(OriginalOutputPin) || OriginalOutputPin == InvisiblePin)
+			{
+				continue;
+			}
+
+			ReconnectNode(NewDeclNode, OriginalOutputPin);
+		}
+
+		// Then for the invisible pin, only check for usages that could be outside. If they are outside, we don't remove the original declaration node, 
+		// we make sure to create a new output pin to the subgraph and connect the original to this pin. We also break all the edges at the output, as they would be rewired normally.
+		// For the usage inside, they will be patched and rewired in the Usage case.
+		for (const UPCGEdge* Edge : InvisiblePin->Edges)
+		{
+			const UPCGPin* OtherPin = Edge->OutputPin;
+			check(OtherPin && OtherPin != InvisiblePin);
+			const UPCGNode* OtherNode = OtherPin->Node;
+			check(OtherNode);
+			const UPCGNamedRerouteUsageSettings* OtherUsageSettings = Cast<UPCGNamedRerouteUsageSettings>(OtherNode->GetSettings());
+			if (!OriginalToNewNodesMapping.Contains(OtherNode) && OtherUsageSettings && NodesToRemove.Contains(OriginalDeclNode))
+			{
+				NodesToRemove.RemoveSwap(OriginalDeclNode);
+				UPCGPin* OriginalInputPin = OriginalDeclNode->GetInputPin(PCGPinConstants::DefaultInputLabel);
+				check(OriginalInputPin);
+				OriginalPinsToBreakEdges.Add(OriginalInputPin);
+
+				UPCGPin* OriginalOutputPin = OriginalDeclNode->GetOutputPin(PCGPinConstants::DefaultOutputLabel);
+				check(OriginalOutputPin);
+				OriginalPinsToBreakEdges.Add(OriginalOutputPin);
+
+				UPCGPin* NewOutputPin = NewDeclNode->GetOutputPin(PCGPinConstants::DefaultOutputLabel);
+				check(NewOutputPin);
+				ConnectPinsBetweenSubgraphBoundaries(OriginalOutputPin, NewOutputPin, OriginalInputPin, /*bIsInput=*/false);
+				break;
+			}
+		}
+	}
+
+	void FCollapsingInformation::HandleReconnectNamedRerouteUsage(UPCGNode* OriginalUsageNode, const UPCGNamedRerouteUsageSettings* OriginalUsageSettings)
+	{
+		check(OriginalUsageNode && OriginalUsageSettings)
+		UPCGNode* NewUsageNode = OriginalToNewNodesMapping.FindChecked(OriginalUsageNode);
+		check(NewUsageNode);
+		UPCGNamedRerouteUsageSettings* NewUsageSettings = CastChecked<UPCGNamedRerouteUsageSettings>(NewUsageNode->GetSettings());
+
+		const UPCGNamedRerouteDeclarationSettings* OriginalDeclSettings = OriginalUsageSettings->Declaration;
+		if (!ensure(OriginalDeclSettings))
+		{
+			return;
+		}
+
+		UPCGNode* OriginalDeclNode = CastChecked<UPCGNode>(OriginalDeclSettings->GetOuter());
+		UPCGNode** NewDeclNode = OriginalToNewNodesMapping.Find(OriginalDeclNode);
+		if (!NewDeclNode)
+		{
+			// If the declaration is outside of the subgraph, we need to create a new declaration inside the subgraph.
+			UPCGNode* NewlyCreatedDeclNode = NewGraph->ReconstructNewNode(OriginalDeclNode);
+			check(NewlyCreatedDeclNode);
+			NewlyCreatedDeclNode->NodeTitle = OriginalDeclNode->NodeTitle;
+			OriginalToNewNodesMapping.Emplace(OriginalDeclNode, NewlyCreatedDeclNode);
+
+			UPCGPin* OriginalOutputPin = OriginalDeclNode->GetOutputPin(PCGPinConstants::DefaultOutputLabel);
+			UPCGPin* NewInputPin = NewlyCreatedDeclNode->GetInputPin(PCGPinConstants::DefaultInputLabel);
+			check(OriginalOutputPin && NewInputPin);
+			ConnectPinsBetweenSubgraphBoundaries(OriginalOutputPin, NewInputPin, OriginalOutputPin, /*bIsInput=*/true);
+
+			NewDeclNode = &NewlyCreatedDeclNode;
+		}
+
+		// Patch and connect the edges.
+		check(NewDeclNode && *NewDeclNode);
+		NewUsageSettings->Declaration = CastChecked<UPCGNamedRerouteDeclarationSettings>((*NewDeclNode)->GetSettings());
+		UPCGPin* InvisiblePin = (*NewDeclNode)->GetOutputPin(PCGNamedRerouteConstants::InvisiblePinLabel);
+		UPCGPin* InputUsagePin = NewUsageNode->GetInputPin(PCGPinConstants::DefaultInputLabel);
+		check(InvisiblePin && InputUsagePin);
+		InvisiblePin->AddEdgeTo(InputUsagePin);
+
+		// And finally connect all the output pins normally
+		for (UPCGPin* OriginalOutputPin : OriginalUsageNode->GetOutputPins())
+		{
+			ReconnectNode(NewUsageNode, OriginalOutputPin);
+		}
+	}
+
+	/** Pre validation before starting the collapse, to verify that we won't introduce a cycle by collapsing. */
+	bool FCollapsingInformation::ValidateCollapseIsNotIntroducingCycle()
+	{
+		const TSet<UPCGNode*> NodesToCollapse{ ValidNodesToCollapse };
+
+		for (const UPCGNode* Node : NodesToCollapse)
+		{
+			if (!Node)
+			{
+				continue;
+			}
+
+			// We can only switch boundaries once, otherwise it will introduce cycle
+			// Also keep track of all seen nodes, so our algorithm stops even if there are cycles already existing.
+			TSet<const UPCGNode*> SeenNodes;
+
+			auto Visitor = [&NodesToCollapse, &SeenNodes](const UPCGNode* CurrentNode, bool bInSubgraphBoundary, auto VisitorRecurse) -> bool
+			{
+				if (!CurrentNode || SeenNodes.Contains(CurrentNode))
+				{
+					//Nothing to do
+					return true;
+				}
+
+				SeenNodes.Add(CurrentNode);
+
+				for (const UPCGPin* OutputPin : CurrentNode->GetOutputPins())
+				{
+					if (!OutputPin)
+					{
+						continue;
+					}
+
+					for (const UPCGEdge* Edge : OutputPin->Edges)
+					{
+						if (!Edge)
+						{
+							continue;
+						}
+
+						if (const UPCGNode* OtherNode = Edge->OutputPin ? Edge->OutputPin->Node : nullptr)
+						{
+							const bool bNodeInSubgraphBoundary = NodesToCollapse.Contains(OtherNode);
+							if (!bInSubgraphBoundary && bNodeInSubgraphBoundary)
+							{
+								// We crossed twice, we can't collapse
+								return false;
+							}
+
+							if (!VisitorRecurse(OtherNode, bNodeInSubgraphBoundary, VisitorRecurse))
+							{
+								return false;
+							}
+						}
+					}
+				}
+
+				return true;
+			};
+
+			if (!Visitor(Node, /*bIsInSubgraphBoundary=*/true, Visitor))
+			{
+				return false;
+			}
+		}
+
+		return true;
+	}
+}
+
+UPCGGraph* FPCGSubgraphHelpers::CollapseIntoSubgraph(UPCGGraph* InOriginalGraph, const TArray<UPCGNode*>& InNodesToCollapse, const TArray<UObject*>& InExtraNodesToCollapse, UPCGGraph* OptionalPreAllocatedGraph)
+{
+	FText OutFailReason;
+	UPCGGraph* OutSubgraph = CollapseIntoSubgraphWithReason(InOriginalGraph, InNodesToCollapse, InExtraNodesToCollapse, OutFailReason, OptionalPreAllocatedGraph);
+	if (!OutSubgraph)
+	{
+		UE_LOG(LogPCG, Warning, TEXT("%s"), *OutFailReason.ToString());
+	}
+
+	return OutSubgraph;
+}
+
+UPCGGraph* FPCGSubgraphHelpers::CollapseIntoSubgraphWithReason(UPCGGraph* InOriginalGraph, const TArray<UPCGNode*>& InNodesToCollapse, const TArray<UObject*>& InExtraNodesToCollapse, FText& OutFailReason, UPCGGraph* OptionalPreAllocatedGraph)
+{
+	// Don't collapse into a subgraph if you don't have at least 2 nodes
+	if (!InOriginalGraph)
+	{
+		OutFailReason = LOCTEXT("InvalidGraph", "Original Graph is invalid.");
+		return nullptr;
+	}
+
+	if (InNodesToCollapse.Num() < 2)
+	{
+		OutFailReason = LOCTEXT("CollapseLessThanTwoNodes", "Try to collapse less than 2 nodes.");
+		return nullptr;
+	}
+
+	const FInstancedPropertyBag* GraphParameters = InOriginalGraph->GetUserParametersStruct();
+	check(GraphParameters);
+
+	PCGSubgraphHelpersExtra::FCollapsingInformation CollapseInfo = PCGSubgraphHelpersExtra::FCollapsingInformation::CreateAndInitialize(InNodesToCollapse, *GraphParameters, InOriginalGraph);
+
+	// If we have at most 1 valid node to collapse, just exit
+	if (!CollapseInfo.HasEnoughValidNodes())
+	{
+		OutFailReason = LOCTEXT("ValidLessThanTwoNodes", "There were less than 2 PCG nodes selected, abort");
+		return nullptr;
+	}
+
+	if (!CollapseInfo.ValidateCollapseIsNotIntroducingCycle())
+	{
+		OutFailReason = LOCTEXT("CycleDetected", "Collapsing would introduce a cycle (A -> B -> C situation when we try to collapse A and C, B would be connected to both ends). Abort.");
+		return nullptr;
+	}
+
+	// Create a new subgraph if necessary.
+	UPCGGraph* NewPCGGraph = OptionalPreAllocatedGraph;
+	if (!NewPCGGraph)
+	{
+		NewPCGGraph = NewObject<UPCGGraph>();
+	}
+
+	CollapseInfo.SetNewGraphAndUpdatePositions(NewPCGGraph);
+
 #if WITH_EDITOR
+	// Disable all notifications for both graphs as we do our changes.
+	InOriginalGraph->DisableNotificationsForEditor();
+	NewPCGGraph->DisableNotificationsForEditor();
+#endif // WITH_EDITOR
+
+	CollapseInfo.AddDiscoveredGraphParameters();
+	CollapseInfo.CopyNodes(InExtraNodesToCollapse);
+	CollapseInfo.ReconnectAllNodes();
+	CollapseInfo.CleanUpOriginalEdges();
+	CollapseInfo.DeleteNodes(InExtraNodesToCollapse);
+	CollapseInfo.CreateSubgraphNodeAndConnectRemainingPins();
+
+#if WITH_EDITOR
+	// Trigger a structural change for original graph and flush all notifications for subgraph and re-enable notifications for both.
 	InOriginalGraph->NotifyGraphChanged(EPCGChangeType::Structural);
 	NewPCGGraph->NotifyGraphChanged(EPCGChangeType::Structural);
+
+	InOriginalGraph->EnableNotificationsForEditor();
+	NewPCGGraph->EnableNotificationsForEditor();
 #endif // WITH_EDITOR
 
 	return NewPCGGraph;

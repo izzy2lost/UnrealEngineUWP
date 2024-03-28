@@ -63,6 +63,7 @@
 #include "Framework/Notifications/NotificationManager.h"
 #include "HAL/PlatformApplicationMisc.h"
 #include "Misc/ITransaction.h"
+#include "Misc/MessageDialog.h"
 #include "Misc/TransactionObjectEvent.h"
 #include "Preferences/UnrealEdOptions.h"
 #include "Widgets/Docking/SDockTab.h"
@@ -1643,31 +1644,32 @@ void FPCGEditor::OnCollapseNodesInSubgraph()
 
 	// Create a new subgraph, by creating a new PCGGraph asset.
 	TObjectPtr<UPCGGraph> NewPCGGraph = nullptr;
+
+	IAssetTools& AssetTools = FModuleManager::Get().LoadModuleChecked<FAssetToolsModule>("AssetTools").Get();
+
+	TObjectPtr<UPCGGraphFactory> Factory = NewObject<UPCGGraphFactory>();
+
+	FString NewPackageName;
+	FString NewAssetName;
+	PCGEditorUtils::GetParentPackagePathAndUniqueName(PCGGraph, LOCTEXT("NewPCGSubgraphAsset", "NewPCGSubgraph").ToString(), NewPackageName, NewAssetName);
+
+	NewPCGGraph = Cast<UPCGGraph>(AssetTools.CreateAssetWithDialog(NewAssetName, NewPackageName, PCGGraph->GetClass(), Factory, "PCGEditor_CollapseInSubgraph"));
+
+	if (NewPCGGraph == nullptr)
+	{
+		UE_LOG(LogPCGEditor, Warning, TEXT("Subgraph asset creation was aborted or failed, abort."));
+		return;
+	}
+
 	{
 		FScopedTransaction Transaction(LOCTEXT("PCGCollapseInSubgraphMessage", "[PCG] Collapse into Subgraph"));
-
-		IAssetTools& AssetTools = FModuleManager::Get().LoadModuleChecked<FAssetToolsModule>("AssetTools").Get();
-
-		TObjectPtr<UPCGGraphFactory> Factory = NewObject<UPCGGraphFactory>();
-
-		FString NewPackageName;
-		FString NewAssetName;
-		PCGEditorUtils::GetParentPackagePathAndUniqueName(PCGGraph, LOCTEXT("NewPCGSubgraphAsset", "NewPCGSubgraph").ToString(), NewPackageName, NewAssetName);
-
-		NewPCGGraph = Cast<UPCGGraph>(AssetTools.CreateAssetWithDialog(NewAssetName, NewPackageName, PCGGraph->GetClass(), Factory, "PCGEditor_CollapseInSubgraph"));
+		FText OutFailReason;
+		NewPCGGraph = FPCGSubgraphHelpers::CollapseIntoSubgraphWithReason(PCGGraph, NodesToCollapse, ExtraNodesToCollapse, OutFailReason, NewPCGGraph);
 
 		if (NewPCGGraph == nullptr)
 		{
-			UE_LOG(LogPCGEditor, Warning, TEXT("Subgraph asset creation was aborted or failed, abort."));
+			FMessageDialog::Open(EAppMsgType::Ok, OutFailReason, LOCTEXT("PCGCollapseInSubgraphFailed", "PCG Subgraph Collapse Failed"));
 			Transaction.Cancel();
-			return;
-		}
-
-		NewPCGGraph = FPCGSubgraphHelpers::CollapseIntoSubgraph(PCGGraph, NodesToCollapse, ExtraNodesToCollapse, NewPCGGraph);
-
-		if (NewPCGGraph == nullptr)
-		{
-			UE_LOG(LogPCGEditor, Warning, TEXT("Subgraph collapse failed, abort."));
 			return;
 		}
 
@@ -1675,11 +1677,14 @@ void FPCGEditor::OnCollapseNodesInSubgraph()
 		PCGEditorGraph->ReconstructGraph();
 	}
 
-	// Save the new asset
-	UEditorAssetLibrary::SaveLoadedAsset(NewPCGGraph);
+	if (NewPCGGraph)
+	{
+		// Save the new asset
+		UEditorAssetLibrary::SaveLoadedAsset(NewPCGGraph);
 
-	// Notify the widget
-	GraphEditorWidget->NotifyGraphChanged();
+		// Notify the widget
+		GraphEditorWidget->NotifyGraphChanged();
+	}
 }
 
 bool FPCGEditor::CanExportNodes() const

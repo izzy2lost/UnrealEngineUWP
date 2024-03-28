@@ -1,18 +1,26 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
+#include "PCGComponent.h"
 #include "PCGContext.h"
 #include "PCGEdge.h"
 #include "PCGGraph.h"
-#include "PCGSubgraph.h"
 #include "PCGInputOutputSettings.h"
+#include "PCGPoint.h"
+#include "PCGSubgraph.h"
+#include "Data/PCGPointData.h"
 #include "Elements/PCGAttributeNoise.h"
 #include "Elements/PCGSurfaceSampler.h"
 #include "Elements/PCGUserParameterGet.h"
+#include "Graph/PCGGraphExecutor.h"
 #include "Helpers/PCGSubgraphHelpers.h"
 #include "Tests/PCGTestsCommon.h"
 
+#include "UObject/Package.h"
+
+
 IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(FPCGCollapseSubgraphSimple, FPCGTestBaseClass, "Plugins.PCG.Subgraph.Collapse.Simple", PCGTestsCommon::TestFlags);
 IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(FPCGCollapseSubgraphWithParams, FPCGTestBaseClass, "Plugins.PCG.Subgraph.Collapse.WithParams", PCGTestsCommon::TestFlags);
+IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(FPCGCollapseSubgraphCombinationOfCollapses, FPCGTestBaseClass, "Plugins.PCG.Subgraph.Collapse.Combination", PCGTestsCommon::TestFlags);
 
 namespace PCGCollapseSubgraphTests
 {
@@ -173,7 +181,7 @@ bool FPCGCollapseSubgraphSimple::RunTest(const FString& Parameters)
 	UTEST_NOT_NULL("Node is a subgraph node", SubgraphSettings);
 	UTEST_EQUAL("Subgraph graph is the right one", SubgraphSettings->SubgraphInstance->GetGraph(), Subgraph);
 
-	const FName InputPinSubgraphLabel = TEXT("Surface Sampler Surface");
+	const FName InputPinSubgraphLabel = TEXT("Landscape");
 
 	// Landscape pin from input is connected to created pin of subgraph node
 	VALIDATE_EDGE(UPCGGraphInputOutputSettings, UPCGSubgraphSettings, MainGraph, InputLandscapePin.Label, InputPinSubgraphLabel)
@@ -246,6 +254,146 @@ bool FPCGCollapseSubgraphWithParams::RunTest(const FString& Parameters)
 	VALIDATE_EDGE(UPCGUserParameterGetSettings, UPCGSurfaceSamplerSettings, Subgraph, NAME_None, TEXT("Point Extents"))
 
 	return true;
+}
+
+bool FPCGCollapseSubgraphCombinationOfCollapses::RunTest(const FString& Parameters)
+{
+	const FSoftObjectPath UnitTestGraphAssetPath(TEXT("/Script/PCG.PCGGraph'/PCG/UnitTest/UnitTestSubgraphCollapse.UnitTestSubgraphCollapse'"));
+	UPCGGraph* UnitTestGraph = TSoftObjectPtr<UPCGGraph>(UnitTestGraphAssetPath).LoadSynchronous();
+	UTEST_NOT_NULL("UnitTest graph was successfully loaded", UnitTestGraph);
+	check(UnitTestGraph);
+
+	// We expect our graph to have 12 nodes, as it will impact the number of combinations below.
+	UTEST_EQUAL("Expected number of nodes", UnitTestGraph->GetNodes().Num(), 12);
+
+	PCGTestsCommon::FTestData TestData{};
+
+	// Temporary solution to run a full graph and extract the resulting points.
+	auto ExecuteGraph = [&TestData](UPCGGraph* GraphToExecute, double FirstConstant, double SecondConstant) -> TArray<FPCGPoint>
+	{
+		FPCGGraphExecutor GraphExecutor;
+		TArray<FPCGPoint> OutputPoints;
+		bool bDone = false;
+
+		TestData.TestPCGComponent->SetGraphLocal(GraphToExecute);
+		TestData.TestPCGComponent->GetGraphInstance()->SetGraphParameter<double>(TEXT("FloatConstant"), FirstConstant);
+		TestData.TestPCGComponent->GetGraphInstance()->SetGraphParameter<double>(TEXT("AnotherConstant"), SecondConstant);
+
+		const FPCGTaskId TaskId = GraphExecutor.Schedule(TestData.TestPCGComponent);
+		const FPCGTaskId FinalTaskId = GraphExecutor.ScheduleGeneric([&OutputPoints, &GraphExecutor, TaskId, &bDone]() -> bool
+		{
+			FPCGDataCollection OutputData{};
+			GraphExecutor.GetOutputData(TaskId, OutputData);
+
+			if (OutputData.TaggedData.Num() == 1)
+			{
+				if (const UPCGPointData* PointData = Cast<UPCGPointData>(OutputData.TaggedData[0].Data))
+				{
+					OutputPoints = PointData->GetPoints();
+				}
+			}
+
+			bDone = true;
+			return true;
+		}, TestData.TestPCGComponent, { TaskId });
+
+		while(!bDone)
+		{
+			GraphExecutor.Execute();
+		}
+
+		return OutputPoints;
+	};
+
+	auto ComparePoints = [this](const TArray<FPCGPoint>& InPointsA, const TArray<FPCGPoint>& InPointsB, const FString& Name) -> bool
+	{
+		UTEST_EQUAL(*FString::Printf(TEXT("%s: Same number of points"), *Name), InPointsB.Num(), InPointsA.Num());
+		for (int i = 0; i < InPointsA.Num(); ++i)
+		{
+			UTEST_EQUAL(*FString::Printf(TEXT("%s: Same position"), *Name), InPointsB[i].Transform.GetLocation(), InPointsA[i].Transform.GetLocation());
+		}
+
+		return true;
+	};
+
+	constexpr double FirstConstantValue = 50.0;
+	constexpr double FirstConstantValue2 = 100.0;
+	constexpr double SecondConstantValue = 500.0;
+	constexpr double SecondConstantValue2 = 5000.0;
+
+	// Run 3 times with different graph parameters on each
+	const TArray<FPCGPoint> FirstRunPoints = ExecuteGraph(UnitTestGraph, FirstConstantValue, SecondConstantValue);
+	const TArray<FPCGPoint> SecondRunPoints = ExecuteGraph(UnitTestGraph, FirstConstantValue2, SecondConstantValue);
+	const TArray<FPCGPoint> ThirdRunPoints = ExecuteGraph(UnitTestGraph, FirstConstantValue, SecondConstantValue2);
+
+	// Then do all the 4 nodes collapse combinations. We expect our initial node to have 12 nodes. 12 choose 4 is 495 (which is the sum of ExpectedNumberOfCycles and ExpectedNumberOfSuccess)
+	bool bSuccess = true;
+	const int32 NodesNum = UnitTestGraph->GetNodes().Num();
+	constexpr int32 ExpectedNumberOfCycles = 315;
+	constexpr int32 ExpectedNumberOfSuccess = 180;
+	int32 NumberOfCycles = 0;
+	int32 NumberOfSuccess = 0;
+	for (int i = 0; i < NodesNum && bSuccess; ++i)
+	{
+		for (int j = i + 1; j < NodesNum && bSuccess; j++)
+		{
+			for (int k = j + 1; k < NodesNum && bSuccess; ++k)
+			{
+				for (int l = k + 1; l < NodesNum && bSuccess; ++l)
+				{
+					UPCGGraph* OriginalGraph = DuplicateObject(UnitTestGraph, GetTransientPackage(), TEXT("UnitTest_GraphDuplicate"));
+					check(OriginalGraph);
+					OriginalGraph->SetFlags(RF_Transient);
+
+					FString Name = FString::Printf(TEXT("[%d, %d, %d, %d]"), i, j, k, l);
+					FString AllNodes = FString::Printf(TEXT("[%s, %s, %s, %s]"), *OriginalGraph->GetNodes()[i]->GetName(), *OriginalGraph->GetNodes()[j]->GetName(), *OriginalGraph->GetNodes()[k]->GetName(), *OriginalGraph->GetNodes()[l]->GetName());
+
+					const TArray<UPCGNode*> NodesToCollapse = { OriginalGraph->GetNodes()[i], OriginalGraph->GetNodes()[j], OriginalGraph->GetNodes()[k], OriginalGraph->GetNodes()[l] };
+					FText OutFailReason;
+					if (UPCGGraph* Subgraph = FPCGSubgraphHelpers::CollapseIntoSubgraphWithReason(OriginalGraph, NodesToCollapse, {}, OutFailReason))
+					{
+						Subgraph->SetFlags(RF_Transient);
+
+						const TArray<FPCGPoint> FirstRunCollapsedPoints = ExecuteGraph(OriginalGraph, FirstConstantValue, SecondConstantValue);
+						const TArray<FPCGPoint> SecondRunCollapsedPoints = ExecuteGraph(OriginalGraph, FirstConstantValue2, SecondConstantValue);
+						const TArray<FPCGPoint> ThirdRunCollapsedPoints = ExecuteGraph(OriginalGraph, FirstConstantValue, SecondConstantValue2);
+
+						bool bLocalSuccess = ComparePoints(FirstRunPoints, FirstRunCollapsedPoints, Name + TEXT(" First run"));
+						bLocalSuccess &= ComparePoints(SecondRunPoints, SecondRunCollapsedPoints, Name + TEXT(" Second run"));
+						bLocalSuccess &= ComparePoints(ThirdRunPoints, ThirdRunCollapsedPoints, Name + TEXT(" Third run"));
+
+						if (!bLocalSuccess)
+						{
+							UE_LOG(LogPCG, Log, TEXT("Combination %s failed. Nodes: %s"), *Name, *AllNodes);
+						}
+						else
+						{
+							NumberOfSuccess++;
+						}
+
+						bSuccess &= bLocalSuccess;
+
+						Subgraph->MarkAsGarbage();
+					}
+					else
+					{
+						UE_LOG(LogPCG, Log, TEXT("Combination %s has probably a cycle (Msg: %s)"), *Name, *OutFailReason.ToString());
+						NumberOfCycles++;
+					}
+
+					OriginalGraph->MarkAsGarbage();
+				}
+			}
+		}
+	}
+
+	if (bSuccess)
+	{
+		UTEST_EQUAL("Number of success expected", NumberOfSuccess, ExpectedNumberOfSuccess);
+		UTEST_EQUAL("Number of cycles expected", NumberOfCycles, ExpectedNumberOfCycles);
+	}
+
+	return bSuccess;
 }
 
 #undef VALIDATE_EDGE
