@@ -1,6 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "ReplicationSystemServerClientTestFixture.h"
+#include "Logging/LogScopedVerbosityOverride.h"
 #include "Iris/Core/IrisLog.h"
 #include "Iris/ReplicationSystem/ReplicationSystem.h"
 #include "Iris/ReplicationSystem/ReplicationSystemInternal.h"
@@ -65,6 +66,8 @@ void FDataStreamTestUtil::AddDataStreamDefinition(const TCHAR* StreamName, const
 FReplicationSystemTestNode::FReplicationSystemTestNode(bool bIsServer, const TCHAR* Name)
 {
 	ReplicationBridge = NewObject<UReplicatedTestObjectBridge>();
+	check(ReplicationBridge != nullptr);
+
 	CreatedObjects.Add(TStrongObjectPtr<UObject>(ReplicationBridge));
 
 	UReplicationSystem::FReplicationSystemParams Params;
@@ -72,15 +75,12 @@ FReplicationSystemTestNode::FReplicationSystemTestNode(bool bIsServer, const TCH
 	Params.bIsServer = bIsServer;
 	Params.bAllowObjectReplication = bIsServer;
 
-	auto IrisLogVerbosity = UE_GET_LOG_VERBOSITY(LogIris);
-	LogIris.SetVerbosity(ELogVerbosity::Error);
+	LOG_SCOPE_VERBOSITY_OVERRIDE(LogIris, ELogVerbosity::Error);
 	ReplicationSystem = FReplicationSystemFactory::CreateReplicationSystem(Params);	
 	if (!bIsServer)
 	{
 		ReplicationBridge->SetCreatedObjectsOnNode(&CreatedObjects);
 	}
-	LogIris.SetVerbosity(IrisLogVerbosity);
-	check(ReplicationBridge != nullptr);
 
 	UE_NET_TRACE_UPDATE_INSTANCE(GetNetTraceId(), bIsServer, Name);
 }
@@ -88,6 +88,8 @@ FReplicationSystemTestNode::FReplicationSystemTestNode(bool bIsServer, const TCH
 FReplicationSystemTestNode::~FReplicationSystemTestNode()
 {
 	const uint32 NetTraceId = ReplicationSystem->GetId();
+
+	LOG_SCOPE_VERBOSITY_OVERRIDE(LogIris, ELogVerbosity::Error);
 	FReplicationSystemFactory::DestroyReplicationSystem(ReplicationSystem);
 	CreatedObjects.Empty();
 

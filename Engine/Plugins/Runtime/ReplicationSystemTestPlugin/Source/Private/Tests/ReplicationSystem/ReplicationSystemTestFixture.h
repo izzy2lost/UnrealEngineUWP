@@ -34,7 +34,7 @@ protected:
 		Params.bAllowObjectReplication = true;
 
 		// In a testing environment without configs the creation of the ReplicationSystem can be quite spammy
-		auto IrisLogVerbosity = UE_GET_LOG_VERBOSITY(LogIris);
+		ELogVerbosity::Type IrisLogVerbosity = UE_GET_LOG_VERBOSITY(LogIris);
 		LogIris.SetVerbosity(ELogVerbosity::Error);
 		ReplicationSystem = FReplicationSystemFactory::CreateReplicationSystem(Params);
 		LogIris.SetVerbosity(IrisLogVerbosity);
@@ -44,7 +44,10 @@ protected:
 
 	virtual void TearDown() override
 	{
+		const ELogVerbosity::Type IrisLogVerbosity = UE_GET_LOG_VERBOSITY(LogIris);
+		LogIris.SetVerbosity(ELogVerbosity::Error);
 		FReplicationSystemFactory::DestroyReplicationSystem(ReplicationSystem);
+		LogIris.SetVerbosity(IrisLogVerbosity);
 		CreatedObjects.Empty();
 	}
 
