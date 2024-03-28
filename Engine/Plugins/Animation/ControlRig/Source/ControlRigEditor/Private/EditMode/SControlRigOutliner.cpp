@@ -1242,12 +1242,17 @@ void SControlRigOutliner::HandleOnObjectBoundToControlRig(UObject* InObject)
 {
 	//just refresh the views, but do so on nex tick sine with FK control rig's the controls aren't set up
 	//until AFTER we are bound.
-	GEditor->GetTimerManager()->SetTimerForNextTick([this]()
+	TWeakPtr<SControlRigOutliner> WeakPtr = StaticCastSharedRef<SControlRigOutliner>(this->AsShared());
+	GEditor->GetTimerManager()->SetTimerForNextTick([WeakPtr]()
 	{
-		if (FControlRigEditMode* EditMode = static_cast<FControlRigEditMode*>(ModeTools->GetActiveMode(FControlRigEditMode::ModeName)))
+		if (WeakPtr.IsValid())
 		{
-			TArrayView<TWeakObjectPtr<UControlRig>> ControlRigs = EditMode->GetControlRigs();
-			HierarchyTreeView->GetTreeView()->SetControlRigs(ControlRigs); //will refresh tree
+			TSharedPtr<SControlRigOutliner> StrongPtr = WeakPtr.Pin();
+			if (FControlRigEditMode* EditMode = static_cast<FControlRigEditMode*>(StrongPtr->ModeTools->GetActiveMode(FControlRigEditMode::ModeName)))
+			{
+				TArrayView<TWeakObjectPtr<UControlRig>> ControlRigs = EditMode->GetControlRigs();
+				StrongPtr->HierarchyTreeView->GetTreeView()->SetControlRigs(ControlRigs); //will refresh tree
+			}
 		}
 	});
 

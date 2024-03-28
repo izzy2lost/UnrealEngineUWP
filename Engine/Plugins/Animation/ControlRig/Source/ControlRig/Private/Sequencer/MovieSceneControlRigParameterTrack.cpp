@@ -8,6 +8,7 @@
 #include "MovieScene.h"
 #include "MovieSceneTimeHelpers.h"
 #include "Channels/MovieSceneChannelProxy.h"
+#include "Rigs/FKControlRig.h"
 #include "Rigs/RigHierarchyController.h"
 #include "UObject/Package.h"
 #include "Async/Async.h"
@@ -880,7 +881,17 @@ UControlRig* UMovieSceneControlRigParameterTrack::GetGameWorldControlRig(UWorld*
 	{
 		UControlRig* NewGameWorldControlRig = NewObject<UControlRig>(this, ControlRig->GetClass(), NAME_None, RF_Transient);
 		NewGameWorldControlRig->Initialize();
-		NewGameWorldControlRig->SetIsAdditive(ControlRig->IsAdditive());
+		if (UFKControlRig* FKControlRig = Cast<UFKControlRig>(Cast<UControlRig>(ControlRig)))
+		{
+			if (UFKControlRig* NewFKControlRig = Cast<UFKControlRig>(Cast<UControlRig>(NewGameWorldControlRig)))
+			{
+				NewFKControlRig->SetApplyMode(FKControlRig->GetApplyMode());
+			}
+		}
+		else
+		{
+			NewGameWorldControlRig->SetIsAdditive(ControlRig->IsAdditive());
+		}
 		GameWorldControlRigs.Add(InWorld, NewGameWorldControlRig);
 	}
 	TObjectPtr<UControlRig> * GameWorldControlRig = GameWorldControlRigs.Find(InWorld);
