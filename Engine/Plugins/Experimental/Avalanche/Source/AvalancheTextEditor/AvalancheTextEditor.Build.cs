@@ -65,5 +65,10 @@ public class AvalancheTextEditor : ModuleRules
 				"AvalancheEditorCore"
 			});
 		}
+
+		if (Target.Platform == UnrealTargetPlatform.Mac)
+		{
+			PublicFrameworks.AddRange(new string[] { "Foundation", "CoreText", "ApplicationServices"});
+		}
 	}
 }
