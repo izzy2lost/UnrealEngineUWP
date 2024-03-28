@@ -1494,6 +1494,12 @@ void UIKRetargetProcessor::Initialize(
 		UIKRetargeter* InRetargeterAsset,
 		const bool bSuppressWarnings)
 {
+	// don't attempt reinitialization with same assets
+	if (RetargeterAsset == InRetargeterAsset && AssetVersionInitializedWith == InRetargeterAsset->GetVersion())
+	{
+		return;
+	}
+	
 	// reset all initialized flags
 	bIsInitialized = false;
 	bRootsInitialized = false;
@@ -2249,10 +2255,13 @@ bool UIKRetargetProcessor::WasInitializedWithTheseAssets(
 	{
 		return false;
 	}
-	
-	// asset has been modified in a way that requires reinitialization
-	if (AssetVersionInitializedWith != InRetargetAsset->GetVersion())
+
+	// check that the retarget asset is the same as what we initialized with
+	const bool bSameAsset = InRetargetAsset == RetargeterAsset;
+	const bool bSameVersion = AssetVersionInitializedWith == InRetargetAsset->GetVersion();
+	if (!(bSameAsset && bSameVersion))
 	{
+		// asset has been modified in a way that requires reinitialization
 		return false;
 	}
 
@@ -2263,12 +2272,7 @@ bool UIKRetargetProcessor::WasInitializedWithTheseAssets(
 	const bool bTargetMatches = InTargetMesh == TargetRetargetSkeleton.SkeletalMesh;
 	if (!(bSourceMatches && bTargetMatches))
 	{
-		return false;
-	}
-
-	// check that the retarget asset is the same as what we initialized with
-	if (InRetargetAsset != RetargeterAsset)
-	{
+		// skeletal mesh swapped out
 		return false;
 	}
 
@@ -2277,6 +2281,7 @@ bool UIKRetargetProcessor::WasInitializedWithTheseAssets(
 	const bool bTargetHasSameNumberOfBones = InTargetMesh->GetRefSkeleton().GetNum() == TargetRetargetSkeleton.BoneNames.Num();
 	if (!(bSourceHasSameNumberOfBones && bTargetHasSameNumberOfBones))
 	{
+		// skeletal mesh modified
 		return false;
 	}
 	
