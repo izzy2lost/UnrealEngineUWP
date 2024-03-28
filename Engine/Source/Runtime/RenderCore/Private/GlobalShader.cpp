@@ -163,6 +163,8 @@ private:
 
 	static const FPlatformInfo* GetPlatformInfoAndErrorCheck(EShaderPlatform ShaderPlatform, FName& OutShaderFormat)
 	{
+		OutShaderFormat = LegacyShaderPlatformToShaderFormat(ShaderPlatform);
+		
 		const TArray<ITargetPlatform*> AllPlatforms = GetTargetPlatformManagerRef().GetTargetPlatforms();
 		if (AllPlatforms.Num() != ConfigDefines.Num())
 		{
@@ -179,8 +181,6 @@ private:
 		{
 			return PerPlatformConfigs[ShaderPlatform];
 		}
-
-		OutShaderFormat = LegacyShaderPlatformToShaderFormat(ShaderPlatform);
 
 		// Search for all target platforms that support this shader platform
 		TArray<const ITargetPlatform*, TInlineAllocator<16>> IniPlatforms;
