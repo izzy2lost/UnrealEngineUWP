@@ -1510,14 +1510,7 @@ namespace Chaos
 							// just got re-enabled in RemoveParticlesFromCluster.
 							for (FPBDRigidParticleHandle* Particle : Island)
 							{
-								if (FPBDRigidClusteredParticleHandle* ClusterParticle = Particle->CastToClustered())
-								{
-									DisableCluster(ClusterParticle);
-								}
-								else
-								{
-									MEvolution.DisableParticle(Particle);
-								}
+								MEvolution.DisableParticle(Particle);
 							}
 						}
 					}
