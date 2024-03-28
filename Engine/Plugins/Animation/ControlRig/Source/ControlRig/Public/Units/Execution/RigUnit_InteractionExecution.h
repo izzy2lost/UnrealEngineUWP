@@ -23,5 +23,5 @@ struct CONTROLRIG_API FRigUnit_InteractionExecution : public FRigUnit
 	UPROPERTY(EditAnywhere, Transient, DisplayName = "Execute", Category = "BeginExecution", meta = (Output))
 	FControlRigExecuteContext ExecuteContext;
 
-	static FName EventName;
+	static inline const FLazyName EventName = FLazyName(TEXT("Interaction"));
 };

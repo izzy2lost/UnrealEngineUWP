@@ -1212,8 +1212,8 @@ template<>
 inline FString FRigControlValue::ToString<bool>() const
 {
 	const bool Value = Get<bool>();
-	static const FString True = TEXT("True");
-	static const FString False = TEXT("False");
+	static const TCHAR* True = TEXT("True");
+	static const TCHAR* False = TEXT("False");
 	return Value ? True : False;
 }
 

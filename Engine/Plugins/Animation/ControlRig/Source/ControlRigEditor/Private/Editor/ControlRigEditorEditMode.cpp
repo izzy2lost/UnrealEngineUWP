@@ -10,8 +10,6 @@
 #include "Preferences/PersonaOptions.h"
 #include "SkeletalDebugRendering.h"
 
-FName FControlRigEditorEditMode::ModeName("EditMode.ControlRigEditor");
-
 void FControlRigEditorEditMode::Render(const FSceneView* View, FViewport* Viewport, FPrimitiveDrawInterface* PDI)
 {
 	FControlRigEditMode::Render(View, Viewport, PDI);
@@ -266,5 +264,3 @@ void FControlRigEditorEditMode::GetOnScreenDebugInfo(TArray<FText>& OutDebugInfo
 {
 
 }
-
-FName FModularRigEditorEditMode::ModeName("EditMode.ModularRigEditor");

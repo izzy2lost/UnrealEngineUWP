@@ -5,10 +5,6 @@
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(RigUnit_BeginExecution)
 
-FName FRigUnit_BeginExecution::EventName = TEXT("Forwards Solve");
-FName FRigUnit_PreBeginExecution::EventName = TEXT("Pre Forwards Solve");
-FName FRigUnit_PostBeginExecution::EventName = TEXT("Post Forwards Solve");
-
 FRigUnit_BeginExecution_Execute()
 {
     DECLARE_SCOPE_HIERARCHICAL_COUNTER_RIGUNIT()

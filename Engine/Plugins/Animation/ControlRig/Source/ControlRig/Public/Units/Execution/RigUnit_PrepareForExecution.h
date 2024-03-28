@@ -24,5 +24,5 @@ struct CONTROLRIG_API FRigUnit_PrepareForExecution : public FRigUnit
 	UPROPERTY(EditAnywhere, Transient, DisplayName = "Execute", Category = "PrepareForExecution", meta = (Output))
 	FControlRigExecuteContext ExecuteContext;
 
-	static FName EventName;
+	static inline const FLazyName EventName = FLazyName(TEXT("Construction"));
 };

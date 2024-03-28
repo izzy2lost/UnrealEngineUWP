@@ -5,8 +5,6 @@
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(RigUnit_InteractionExecution)
 
-FName FRigUnit_InteractionExecution::EventName = TEXT("Interaction");
-
 FRigUnit_InteractionExecution_Execute()
 {
     DECLARE_SCOPE_HIERARCHICAL_COUNTER_RIGUNIT()

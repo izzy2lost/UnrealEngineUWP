@@ -128,9 +128,6 @@ void UControlRigEditModeDelegateHelper::RemoveDelegates()
 	}
 }
 
-
-FName FControlRigEditMode::ModeName("EditMode.ControlRig");
-
 #define LOCTEXT_NAMESPACE "ControlRigEditMode"
 
 /** The different parts of a transform that manipulators can support */

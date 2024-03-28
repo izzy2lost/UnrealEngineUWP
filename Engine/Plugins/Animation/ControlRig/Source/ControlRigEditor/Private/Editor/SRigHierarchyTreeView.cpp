@@ -1146,7 +1146,7 @@ TPair<const FSlateBrush*, FSlateColor> SRigHierarchyItem::GetBrushForElementType
 				}
 				else
 				{
-					static FName TypeIcon(TEXT("Kismet.VariableList.TypeIcon"));
+					static const FLazyName TypeIcon(TEXT("Kismet.VariableList.TypeIcon"));
 					Brush = FAppStyle::GetBrush(TypeIcon);
 					ShapeColor = GetColorForControlType(Control->Settings.ControlType, Control->Settings.ControlEnum);
 				}

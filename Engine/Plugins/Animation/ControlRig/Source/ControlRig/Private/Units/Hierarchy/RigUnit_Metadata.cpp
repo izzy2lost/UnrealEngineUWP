@@ -13,15 +13,6 @@
 #include "RigVMModel/RigVMPin.h"
 #endif
 
-FName FRigDispatch_MetadataBase::ItemArgName = TEXT("Item");
-FName FRigDispatch_MetadataBase::NameArgName = TEXT("Name");
-FName FRigDispatch_MetadataBase::NameSpaceArgName = TEXT("NameSpace");
-FName FRigDispatch_MetadataBase::CacheArgName = TEXT("Cache");
-FName FRigDispatch_MetadataBase::DefaultArgName = TEXT("Default");
-FName FRigDispatch_MetadataBase::ValueArgName = TEXT("Value");
-FName FRigDispatch_MetadataBase::FoundArgName = TEXT("Found");
-FName FRigDispatch_MetadataBase::SuccessArgName = TEXT("Success");
-
 #if WITH_EDITOR
 
 FString FRigDispatch_MetadataBase::GetNodeTitle(const FRigVMTemplateTypeMap& InTypes) const

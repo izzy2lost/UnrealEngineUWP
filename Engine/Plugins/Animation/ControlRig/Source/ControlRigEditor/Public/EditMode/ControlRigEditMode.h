@@ -125,7 +125,7 @@ private:
 class CONTROLRIGEDITOR_API FControlRigEditMode : public IPersonaEditMode
 {
 public:
-	static FName ModeName;
+	static inline const FLazyName ModeName = FLazyName(TEXT("EditMode.ControlRig"));
 
 	FControlRigEditMode();
 	~FControlRigEditMode();

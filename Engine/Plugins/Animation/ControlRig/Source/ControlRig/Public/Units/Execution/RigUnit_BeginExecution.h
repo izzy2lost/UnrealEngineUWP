@@ -24,7 +24,7 @@ struct CONTROLRIG_API FRigUnit_BeginExecution : public FRigUnit
 	UPROPERTY(EditAnywhere, Transient, DisplayName = "Execute", Category = "BeginExecution", meta = (Output))
 	FControlRigExecuteContext ExecuteContext;
 
-	static FName EventName;
+	static inline const FLazyName EventName = FLazyName(TEXT("Forwards Solve"));
 };
 
 /**
@@ -45,7 +45,7 @@ struct CONTROLRIG_API FRigUnit_PreBeginExecution : public FRigUnit
 	UPROPERTY(EditAnywhere, Transient, DisplayName = "Execute", Category = "BeginExecution", meta = (Output))
 	FControlRigExecuteContext ExecuteContext;
 
-	static FName EventName;
+	static inline const FLazyName EventName = FLazyName(TEXT("Pre Forwards Solve"));
 };
 
 /**
@@ -66,5 +66,5 @@ struct CONTROLRIG_API FRigUnit_PostBeginExecution : public FRigUnit
 	UPROPERTY(EditAnywhere, Transient, DisplayName = "Execute", Category = "BeginExecution", meta = (Output))
 	FControlRigExecuteContext ExecuteContext;
 
-	static FName EventName;
+	static inline const FLazyName EventName = FLazyName(TEXT("Post Forwards Solve"));
 };

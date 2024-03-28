@@ -1109,8 +1109,8 @@ FText FRigModuleInstanceDetails::GetBindingText(const FProperty* InProperty) con
 
 const FSlateBrush* FRigModuleInstanceDetails::GetBindingImage(const FProperty* InProperty) const
 {
-	static FName TypeIcon(TEXT("Kismet.VariableList.TypeIcon"));
-	static FName ArrayTypeIcon(TEXT("Kismet.VariableList.ArrayTypeIcon"));
+	static const FLazyName TypeIcon(TEXT("Kismet.VariableList.TypeIcon"));
+	static const FLazyName ArrayTypeIcon(TEXT("Kismet.VariableList.ArrayTypeIcon"));
 
 	if(CastField<FArrayProperty>(InProperty))
 	{

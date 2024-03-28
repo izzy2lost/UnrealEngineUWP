@@ -10,16 +10,6 @@
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(RigUnit_AnimAttribute)
 
-FName FRigDispatch_AnimAttributeBase::NameArgName = TEXT("Name");
-FName FRigDispatch_AnimAttributeBase::BoneNameArgName = TEXT("BoneName");
-FName FRigDispatch_AnimAttributeBase::CachedBoneNameArgName = TEXT("CachedBoneName");
-FName FRigDispatch_AnimAttributeBase::CachedBoneIndexArgName = TEXT("CachedBoneIndex");
-FName FRigDispatch_AnimAttributeBase::DefaultArgName = TEXT("Default");
-FName FRigDispatch_AnimAttributeBase::ValueArgName = TEXT("Value");
-FName FRigDispatch_AnimAttributeBase::FoundArgName = TEXT("Found");
-FName FRigDispatch_AnimAttributeBase::SuccessArgName = TEXT("Success");
-
-
 bool FRigDispatch_AnimAttributeBase::IsTypeSupported(const TRigVMTypeIndex& InTypeIndex)
 {
 	const FRigVMRegistry_NoLock& Registry = FRigVMRegistry_NoLock::GetForRead();

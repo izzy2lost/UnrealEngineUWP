@@ -207,7 +207,7 @@ public:
 		return FModuleInstanceHandle();
 	}
 
-	static const FString NamespaceSeparator;
+	static inline const TCHAR* NamespaceSeparator = TEXT(":");
 
 protected:
 

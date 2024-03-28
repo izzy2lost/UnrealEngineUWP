@@ -24,5 +24,5 @@ struct CONTROLRIG_API FRigUnit_InverseExecution : public FRigUnit
 	UPROPERTY(EditAnywhere, Transient, DisplayName = "Execute", Category = "InverseExecution", meta = (Output))
 	FControlRigExecuteContext ExecuteContext;
 
-	static FName EventName;
+	static inline const FLazyName EventName = FLazyName(TEXT("Backwards Solve"));
 };

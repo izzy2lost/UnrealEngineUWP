@@ -48,8 +48,7 @@ FName UFKControlRig::GetControlName(const FName& InName, const ERigElementType& 
 					ScratchString.Append(CurvePostFix);
 				}
 
-				static FString ControlPostFix = TEXT("_CONTROL");
-		
+				static const TCHAR* ControlPostFix = TEXT("_CONTROL");
 				ScratchString.Append(ControlPostFix);
 				return NameToControlMapping.Add(InName, FName(*ScratchString));
 			}

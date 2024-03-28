@@ -172,16 +172,15 @@ protected:
 	// hidden
 	mutable int32 CachedBoneNameArgIndex = INDEX_NONE;
 	mutable int32 CachedBoneIndexArgIndex = INDEX_NONE;
-	
-	static FName NameArgName;
-	static FName BoneNameArgName;
-	static FName CachedBoneNameArgName;
-	static FName CachedBoneIndexArgName;
-	static FName DefaultArgName;
-	static FName ValueArgName;
-	static FName FoundArgName;
-	static FName SuccessArgName;
 
+	static inline const FLazyName NameArgName = FLazyName(TEXT("Name"));
+	static inline const FLazyName BoneNameArgName = FLazyName(TEXT("BoneName"));
+	static inline const FLazyName CachedBoneNameArgName = FLazyName(TEXT("CachedBoneName"));
+	static inline const FLazyName CachedBoneIndexArgName = FLazyName(TEXT("CachedBoneIndex"));
+	static inline const FLazyName DefaultArgName = FLazyName(TEXT("Default"));
+	static inline const FLazyName ValueArgName = FLazyName(TEXT("Value"));
+	static inline const FLazyName FoundArgName = FLazyName(TEXT("Found"));
+	static inline const FLazyName SuccessArgName = FLazyName(TEXT("Success"));
 };
 
 
