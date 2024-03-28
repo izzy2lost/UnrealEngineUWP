@@ -130,6 +130,11 @@ const UE::PoseSearch::FRole UPoseSearchSchema::GetDefaultRole() const
 	}
 	return UE::PoseSearch::DefaultRole;
 }
+
+const TArray<FPoseSearchRoledSkeleton>& UPoseSearchSchema::GetRoledSkeletons() const
+{
+	return Skeletons;
+}
 #endif // WITH_EDITOR
 
 USkeleton* UPoseSearchSchema::GetSkeleton(const UE::PoseSearch::FRole& Role) const

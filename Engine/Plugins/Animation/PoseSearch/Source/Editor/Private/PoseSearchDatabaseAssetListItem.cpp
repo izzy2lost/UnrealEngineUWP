@@ -503,6 +503,11 @@ namespace UE::PoseSearch
 							return FColor::Turquoise;
 						}
 
+						if (!DatabaseAnimationAssetBase->IsSkeletonCompatible(Database->Schema))
+						{
+							return FColor::Red;
+						}
+						
 						return FLinearColor::White;
 					}
 				}

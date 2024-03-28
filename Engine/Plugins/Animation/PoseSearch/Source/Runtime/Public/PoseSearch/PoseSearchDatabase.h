@@ -61,6 +61,7 @@ struct POSESEARCH_API FPoseSearchDatabaseAnimationAssetBase
 
 #if WITH_EDITOR
 	virtual int32 GetFrameAtTime(float Time) const;
+	virtual bool IsSkeletonCompatible(TObjectPtr<const UPoseSearchSchema> InSchema) const;
 #endif // WITH_EDITOR
 
 #if WITH_EDITORONLY_DATA

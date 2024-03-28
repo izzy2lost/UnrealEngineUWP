@@ -144,6 +144,7 @@ public:
 #if WITH_EDITOR
 	virtual void PostEditChangeProperty(struct FPropertyChangedEvent& PropertyChangedEvent) override;
 	const UE::PoseSearch::FRole GetDefaultRole() const;
+	const TArray<FPoseSearchRoledSkeleton> & GetRoledSkeletons() const;
 #endif // WITH_EDITOR
 
 	TConstArrayView<float> BuildQuery(UE::PoseSearch::FSearchContext& SearchContext) const;

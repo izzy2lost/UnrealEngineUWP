@@ -330,6 +330,38 @@ int32 FPoseSearchDatabaseAnimationAssetBase::GetFrameAtTime(float Time) const
 	}
 	return 0.f;
 }
+
+bool FPoseSearchDatabaseAnimationAssetBase::IsSkeletonCompatible(TObjectPtr<const UPoseSearchSchema> InSchema) const
+{
+	if (InSchema)
+	{
+		TArray<FPoseSearchRoledSkeleton> RoledSkeletons = InSchema->GetRoledSkeletons();
+
+		if (GetAnimationAsset())
+		{
+			const int32 NumRoles = GetNumRoles();
+			for (int RoleIdx = 0; RoleIdx < NumRoles; ++RoleIdx)
+			{
+				UE::PoseSearch::FRole Role = GetRole(RoleIdx);
+				FAssetData AssetData = IAssetRegistry::Get()->GetAssetByObjectPath(FSoftObjectPath(GetAnimationAssetForRole(Role)));
+		
+				for (const FPoseSearchRoledSkeleton& RoledSkeleton : RoledSkeletons)
+				{
+					if (RoledSkeleton.Role == Role)
+					{
+						// Match skeleton
+						if (RoledSkeleton.Skeleton->IsCompatibleForEditor(AssetData))
+						{
+							return true;
+						}
+					}
+				}
+			}
+		}
+	}
+	
+	return false;
+}
 #endif // WITH_EDITOR
 
 UAnimationAsset* FPoseSearchDatabaseAnimationAssetBase::GetAnimationAssetForRole(const UE::PoseSearch::FRole& Role) const
