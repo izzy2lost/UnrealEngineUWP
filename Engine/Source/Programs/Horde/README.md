@@ -33,14 +33,14 @@ See also: [Feature Status](Docs/Features.md)
 
 ## Getting Started
 
-* **[Installing Horde](Docs/Tutorials/InstallHorde.md)**
-* **[Setting up remote C++ compilation with Unreal Build Accelerator](Docs/Tutorials/RemoteCompilation.md)**
-* **[Setting up build automation](Docs/Tutorials/BuildAutomation.md)**
-* **[Setting up test automation](Docs/Tutorials/TestAutomation.md)**
-* **[Setting up studio analytics](Docs/Tutorials/Analytics.md)**
-* **[Setting up mobile and console devices](Docs/Tutorials/DeviceManager.md)**
-* **[Setting up UnrealGameSync and distributing Unreal Editor to content creators](Docs/Tutorials/UnrealGameSync.md)**
-* **[Setting up authorization](Docs/Tutorials/Authorization.md)**
+* **[Install the Horde agent](Docs/Tutorials/InstallHorde.md)**
+* **[Enable remote C++ compilation with Unreal Build Accelerator](Docs/Tutorials/RemoteCompilation.md)**
+* **[Set up build automation](Docs/Tutorials/BuildAutomation.md)**
+* **[Enable test automation with Gauntlet](Docs/Tutorials/TestAutomation.md)**
+* **[Get telemetry and analytics for your team](Docs/Tutorials/Analytics.md)**
+* **[Work with mobile and console devices](Docs/Tutorials/DeviceManager.md)**
+* **[Install UnrealGameSync and distribute Unreal Editor to your team](Docs/Tutorials/UnrealGameSync.md)**
+* **[Enable authentication](Docs/Tutorials/Authentication.md)**
 
 ## Reference
 

@@ -222,13 +222,13 @@ telemetry capture are [listed here](ServerSettings.md#opentelemetrysettings).
 In order to separate lighter request traffic from heavier background operations, the Horde server can be configured to
 run in different RunModes. You can configure these via the [RunMode](ServerSettings.md) setting.
 
-### Authorization
+### Authentication
 
 Horde supports [OpenID Connect (OIDC)](https://openid.net/developers/how-connect-works/) for authentication using
 an external identity provider. OIDC is a widely used auth standard, and Okta, AWS, Azure, Google, Facebook, and
 many others implement identity providers compatible with it.
 
-The [Getting Started > Authorization](../Tutorials/Authorization.md) page explains how to configure Horde's internal
+The [Getting Started > Authentication](../Tutorials/Authentication.md) page explains how to configure Horde's internal
 account system and OIDC provider.
 
 The following settings in [Server.json](ServerSettings.md) are required to configure an external OIDC provider:
