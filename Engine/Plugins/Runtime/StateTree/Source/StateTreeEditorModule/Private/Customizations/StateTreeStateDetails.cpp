@@ -36,8 +36,12 @@ void FStateTreeStateDetails::CustomizeDetails(IDetailLayoutBuilder& DetailBuilde
 		}
 	}
 	const UStateTreeSchema* Schema = EditorData ? EditorData->Schema : nullptr;
-
+	const FString SchemaPath = Schema ? Schema->GetClass()->GetPathName() : FString();
+	
 	const TSharedPtr<IPropertyHandle> IDProperty = DetailBuilder.GetProperty(GET_MEMBER_NAME_CHECKED(UStateTreeState, ID));
+	const TSharedPtr<IPropertyHandle> NameProperty = DetailBuilder.GetProperty(GET_MEMBER_NAME_CHECKED(UStateTreeState, Name));
+	const TSharedPtr<IPropertyHandle> TagProperty = DetailBuilder.GetProperty(GET_MEMBER_NAME_CHECKED(UStateTreeState, Tag));
+	const TSharedPtr<IPropertyHandle> ColorRefProperty = DetailBuilder.GetProperty(GET_MEMBER_NAME_CHECKED(UStateTreeState, ColorRef));
 	const TSharedPtr<IPropertyHandle> EnabledProperty = DetailBuilder.GetProperty(GET_MEMBER_NAME_CHECKED(UStateTreeState, bEnabled));
 	const TSharedPtr<IPropertyHandle> TasksProperty = DetailBuilder.GetProperty(GET_MEMBER_NAME_CHECKED(UStateTreeState, Tasks));
 	const TSharedPtr<IPropertyHandle> SingleTaskProperty = DetailBuilder.GetProperty(GET_MEMBER_NAME_CHECKED(UStateTreeState, SingleTask));
@@ -48,8 +52,14 @@ void FStateTreeStateDetails::CustomizeDetails(IDetailLayoutBuilder& DetailBuilde
 	const TSharedPtr<IPropertyHandle> LinkedAssetProperty = DetailBuilder.GetProperty(GET_MEMBER_NAME_CHECKED(UStateTreeState, LinkedAsset));
 	const TSharedPtr<IPropertyHandle> ParametersProperty = DetailBuilder.GetProperty(GET_MEMBER_NAME_CHECKED(UStateTreeState, Parameters));
 	const TSharedPtr<IPropertyHandle> SelectionBehaviorProperty = DetailBuilder.GetProperty(GET_MEMBER_NAME_CHECKED(UStateTreeState, SelectionBehavior));
+	const TSharedPtr<IPropertyHandle> RequiredEventToEnterProperty = DetailBuilder.GetProperty(GET_MEMBER_NAME_CHECKED(UStateTreeState, RequiredEventToEnter));
 
+	
+
+	// Never show enabled
 	EnabledProperty->MarkHiddenByCustomization();
+
+	// Show ID only for debugging
 	if (UE::StateTree::Editor::GbDisplayItemIds == false)
 	{
 		IDProperty->MarkHiddenByCustomization();
@@ -58,26 +68,72 @@ void FStateTreeStateDetails::CustomizeDetails(IDetailLayoutBuilder& DetailBuilde
 	uint8 StateTypeValue = 0;
 	TypeProperty->GetValue(StateTypeValue);
 	const EStateTreeStateType StateType = (EStateTreeStateType)StateTypeValue;
-	
+
 	IDetailCategoryBuilder& StateCategory = DetailBuilder.EditCategory(TEXT("State"), LOCTEXT("StateDetailsState", "State"));
 	StateCategory.SetSortOrder(0);
 
 	StateCategory.HeaderContent(UE::StateTreeEditor::DebuggerExtensions::CreateStateWidget(DetailBuilder, EditorData));
 
-	if (StateType != EStateTreeStateType::Linked)
+	// Name
+	NameProperty->MarkHiddenByCustomization();
+	StateCategory.AddProperty(NameProperty);
+
+	// Tag
+	TagProperty->MarkHiddenByCustomization();
+	StateCategory.AddProperty(TagProperty);
+
+	// Color
+	ColorRefProperty->MarkHiddenByCustomization();
+	StateCategory.AddProperty(ColorRefProperty);
+
+	// Type
+	TypeProperty->MarkHiddenByCustomization();
+	StateCategory.AddProperty(TypeProperty);
+
+	// Per state type properties
+	SelectionBehaviorProperty->MarkHiddenByCustomization();
+	LinkedSubtreeProperty->MarkHiddenByCustomization();
+	LinkedAssetProperty->MarkHiddenByCustomization();
+
+	if (StateType == EStateTreeStateType::State)
 	{
-		LinkedSubtreeProperty->MarkHiddenByCustomization();
+		StateCategory.AddProperty(SelectionBehaviorProperty);
 	}
-	if (StateType != EStateTreeStateType::LinkedAsset)
+	else if (StateType == EStateTreeStateType::Linked)
 	{
-		LinkedAssetProperty->MarkHiddenByCustomization();
+		StateCategory.AddProperty(LinkedSubtreeProperty);
 	}
-	
-	if (StateType == EStateTreeStateType::Linked || StateType == EStateTreeStateType::LinkedAsset)
+	else if (StateType == EStateTreeStateType::LinkedAsset)
 	{
-		SelectionBehaviorProperty->MarkHiddenByCustomization();
+		// Custom widget for the linked asset, to add filtering to the assets.
+		IDetailPropertyRow& Row = StateCategory.AddProperty(LinkedAssetProperty);
+		Row.CustomWidget()
+		.NameContent()
+		[
+			LinkedAssetProperty->CreatePropertyNameWidget()
+		]
+		.ValueContent()
+		[
+			SNew(SObjectPropertyEntryBox)
+			.PropertyHandle(LinkedAssetProperty)
+			.AllowedClass(UStateTree::StaticClass())
+			.ThumbnailPool(DetailBuilder.GetPropertyUtilities()->GetThumbnailPool())
+			.OnShouldFilterAsset_Lambda([SchemaPath](const FAssetData& InAssetData)
+			{
+				return !SchemaPath.IsEmpty() && !InAssetData.TagsAndValues.ContainsKeyValue(UE::StateTree::SchemaTag, SchemaPath);
+			})
+		];
 	}
-	
+
+	// Parameters
+	ParametersProperty->MarkHiddenByCustomization();
+	StateCategory.AddProperty(ParametersProperty);
+
+	// Event
+	RequiredEventToEnterProperty->MarkHiddenByCustomization();
+	StateCategory.AddProperty(RequiredEventToEnterProperty);
+
+	// Enter conditions
 	const FName EnterConditionsCategoryName(TEXT("Enter Conditions"));
 	if (Schema && Schema->AllowEnterConditions())
 	{
@@ -88,6 +144,7 @@ void FStateTreeStateDetails::CustomizeDetails(IDetailLayoutBuilder& DetailBuilde
 		DetailBuilder.EditCategory(EnterConditionsCategoryName).SetCategoryVisibility(false);
 	}
 
+	// Tasks
 	if ((StateType == EStateTreeStateType::State || StateType == EStateTreeStateType::Subtree))
 	{
 		if (Schema && Schema->AllowMultipleTasks())
@@ -114,6 +171,7 @@ void FStateTreeStateDetails::CustomizeDetails(IDetailLayoutBuilder& DetailBuilde
 		TasksProperty->MarkHiddenByCustomization();
 	}
 
+	// Transitions
 	MakeArrayCategory(DetailBuilder, "Transitions", LOCTEXT("StateDetailsTransitions", "Transitions"), 4, TransitionsProperty);
 
 	// Refresh the UI when the type changes.	

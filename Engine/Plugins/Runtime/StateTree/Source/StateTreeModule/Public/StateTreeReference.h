@@ -3,6 +3,7 @@
 #pragma once
 
 #include "PropertyBag.h"
+#include "GameplayTagContainer.h"
 #include "StateTreeReference.generated.h"
 
 class UStateTree;
@@ -111,6 +112,71 @@ struct TStructOpsTypeTraits<FStateTreeReference> : public TStructOpsTypeTraitsBa
 };
 
 
-#if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_2
-#include "StateTreeTypes.h"
-#endif
+/**
+ * Item describing a state tree override for a state with a specific tag.
+ */
+USTRUCT()
+struct STATETREEMODULE_API FStateTreeReferenceOverrideItem
+{
+	GENERATED_BODY()
+
+	FStateTreeReferenceOverrideItem() = default;
+	FStateTreeReferenceOverrideItem(const FGameplayTag InStateTag, const FStateTreeReference& InStateTreeReference)
+		: StateTag(InStateTag)
+		, StateTreeReference(InStateTreeReference)
+	{
+	}
+	
+	FGameplayTag GetStateTag() const
+	{
+		return StateTag;
+	}
+
+	const FStateTreeReference& GetStateTreeReference() const
+	{
+		return StateTreeReference;
+	}
+	
+private:
+
+	/** Exact tag used to match against a tag on a linked State Tree state. */
+	UPROPERTY(EditAnywhere, Category = "")
+	FGameplayTag StateTag;
+
+	/** State Tree and parameters to replace the linked state asset with. */
+	UPROPERTY(EditAnywhere, Category = "")
+	FStateTreeReference StateTreeReference;
+	
+	friend class FStateTreeReferenceOverridesDetails;
+};
+
+/**
+ * Overrides for linked State Trees. This table is used to override State Tree references on linked states.
+ * If a linked state's tag is exact match of the tag specified on the table, the reference from the table is used instead.
+ */
+USTRUCT()
+struct STATETREEMODULE_API FStateTreeReferenceOverrides
+{
+	GENERATED_BODY()
+
+	void Reset()
+	{
+		OverrideItems.Reset();	
+	}
+	
+	void AddOverride(const FGameplayTag StateTag, FStateTreeReference& StateTreeReference)
+	{
+		OverrideItems.Emplace(StateTag, StateTreeReference);
+	}
+
+	TConstArrayView<FStateTreeReferenceOverrideItem> GetOverrideItems() const
+	{
+		return OverrideItems;		
+	}
+	
+private:
+	UPROPERTY(EditAnywhere, Category = "")
+	TArray<FStateTreeReferenceOverrideItem> OverrideItems;
+
+	friend class FStateTreeReferenceOverridesDetails;
+};

@@ -618,13 +618,17 @@ struct STATETREEMODULE_API FCompactStateTreeState
 	UPROPERTY()
 	FName Name;
 
+	/** GameplayTag describing the State */
+	UPROPERTY()
+	FGameplayTag Tag;
+
+	UPROPERTY()
+	TObjectPtr<UStateTree> LinkedAsset = nullptr;
+
 	/** Linked state handle if the state type is linked state. */
 	UPROPERTY()
 	FStateTreeStateHandle LinkedState = FStateTreeStateHandle::Invalid; 
 
-	UPROPERTY()
-	TObjectPtr<UStateTree> LinkedAsset = nullptr;
-	
 	/** Parent state handle, invalid if root state. */
 	UPROPERTY()
 	FStateTreeStateHandle Parent = FStateTreeStateHandle::Invalid;

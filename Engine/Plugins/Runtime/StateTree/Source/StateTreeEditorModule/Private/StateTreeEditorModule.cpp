@@ -9,11 +9,13 @@
 #include "Customizations/StateTreeEditorDataDetails.h"
 #include "Customizations/StateTreeEditorNodeDetails.h"
 #include "Customizations/StateTreeReferenceDetails.h"
+#include "Customizations/StateTreeReferenceOverridesDetails.h"
 #include "Customizations/StateTreeStateDetails.h"
 #include "Customizations/StateTreeStateLinkDetails.h"
 #include "Customizations/StateTreeStateParametersDetails.h"
 #include "Customizations/StateTreeTransitionDetails.h"
 #include "Customizations/StateTreeEventDescDetails.h"
+#include "Customizations/StateTreeBlueprintPropertyRefDetails.h"
 #include "PropertyEditorModule.h"
 #include "StateTree.h"
 #include "StateTreeCompiler.h"
@@ -25,7 +27,6 @@
 #include "StateTreeEditorStyle.h"
 #include "StateTreeNodeClassCache.h"
 #include "Modules/ModuleManager.h"
-#include "Customizations/StateTreeBlueprintPropertyRefDetails.h"
 
 #define LOCTEXT_NAMESPACE "StateTreeEditor"
 
@@ -92,6 +93,7 @@ void FStateTreeEditorModule::StartupModule()
 	PropertyModule.RegisterCustomPropertyTypeLayout("StateTreeStateParameters", FOnGetPropertyTypeCustomizationInstance::CreateStatic(&FStateTreeStateParametersDetails::MakeInstance));
 	PropertyModule.RegisterCustomPropertyTypeLayout("StateTreeAnyEnum", FOnGetPropertyTypeCustomizationInstance::CreateStatic(&FStateTreeAnyEnumDetails::MakeInstance));
 	PropertyModule.RegisterCustomPropertyTypeLayout("StateTreeReference", FOnGetPropertyTypeCustomizationInstance::CreateStatic(&FStateTreeReferenceDetails::MakeInstance));
+	PropertyModule.RegisterCustomPropertyTypeLayout("StateTreeReferenceOverrides", FOnGetPropertyTypeCustomizationInstance::CreateStatic(&FStateTreeReferenceOverridesDetails::MakeInstance));
 	PropertyModule.RegisterCustomPropertyTypeLayout("StateTreeEditorColorRef", FOnGetPropertyTypeCustomizationInstance::CreateStatic(&FStateTreeEditorColorRefDetails::MakeInstance));
 	PropertyModule.RegisterCustomPropertyTypeLayout("StateTreeEditorColor", FOnGetPropertyTypeCustomizationInstance::CreateStatic(&FStateTreeEditorColorDetails::MakeInstance));
 	PropertyModule.RegisterCustomPropertyTypeLayout("StateTreeBlueprintPropertyRef", FOnGetPropertyTypeCustomizationInstance::CreateStatic(&FStateTreeBlueprintPropertyRefDetails::MakeInstance));
@@ -125,7 +127,13 @@ void FStateTreeEditorModule::ShutdownModule()
 		PropertyModule.UnregisterCustomPropertyTypeLayout("StateTreeEditorNode");
 		PropertyModule.UnregisterCustomPropertyTypeLayout("StateTreeStateParameters");
 		PropertyModule.UnregisterCustomPropertyTypeLayout("StateTreeAnyEnum");
+		PropertyModule.UnregisterCustomPropertyTypeLayout("StateTreeReference");
+		PropertyModule.UnregisterCustomPropertyTypeLayout("StateTreeReferenceOverrides");
+		PropertyModule.UnregisterCustomPropertyTypeLayout("StateTreeEditorColorRef");
+		PropertyModule.UnregisterCustomPropertyTypeLayout("StateTreeEditorColor");
 		PropertyModule.UnregisterCustomPropertyTypeLayout("StateTreeBlueprintPropertyRef");
+		PropertyModule.UnregisterCustomClassLayout("StateTreeState");
+		PropertyModule.UnregisterCustomClassLayout("StateTreeEditorData");
 		PropertyModule.NotifyCustomizationModuleChanged();
 	}
 }

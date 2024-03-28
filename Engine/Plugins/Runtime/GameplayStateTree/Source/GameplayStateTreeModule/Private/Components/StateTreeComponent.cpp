@@ -65,6 +65,7 @@ bool UStateTreeComponent::CollectExternalData(const FStateTreeExecutionContext& 
 
 bool UStateTreeComponent::SetContextRequirements(FStateTreeExecutionContext& Context, bool bLogErrors)
 {
+	Context.SetLinkedStateTreeOverrides(&LinkedStateTreeOverrides);
 	Context.SetCollectExternalDataCallback(FOnCollectStateTreeExternalData::CreateUObject(this, &UStateTreeComponent::CollectExternalData));
 	return UStateTreeComponentSchema::SetContextRequirements(*this, Context);
 }

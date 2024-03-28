@@ -10,6 +10,7 @@
 #include "Engine/World.h"
 #include "Async/ParallelFor.h"
 #include "GameplayTagsManager.h"
+#include "StateTreeReference.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(StateTreeTest)
 
@@ -2880,6 +2881,100 @@ struct FStateTreeTest_DeferredStop_ExitTask : FStateTreeTest_DeferredStop
 };
 IMPLEMENT_AI_INSTANT_TEST(FStateTreeTest_DeferredStop_ExitTask, "System.StateTree.DeferredStop.ExitTask");
 
+
+// Test nested tree overrides
+struct FStateTreeTest_NestedOverride : FAITestBase
+{
+	virtual bool InstantTest() override
+	{
+		FStateTreeCompilerLog Log;
+		
+		const FGameplayTag Tag = UE::StateTree::Tests::FNativeGameplayTags::Get().TestTag;
+
+		// Asset 2
+		UStateTree& StateTree2 = UE::StateTree::Tests::NewStateTree(&GetWorld());
+		UStateTreeEditorData& EditorData2 = *Cast<UStateTreeEditorData>(StateTree2.EditorData);
+		EditorData2.RootParameters.Parameters.AddProperty(FName(TEXT("Int")), EPropertyBagPropertyType::Int32);
+		UStateTreeState& Root2 = EditorData2.AddSubTree(FName(TEXT("Root2")));
+		TStateTreeEditorNode<FTestTask_Stand>& TaskRoot2 = Root2.AddTask<FTestTask_Stand>(FName(TEXT("TaskRoot2")));
+
+		FStateTreeCompiler Compiler2(Log);
+		const bool bResult2 = Compiler2.Compile(StateTree2);
+		AITEST_TRUE("StateTree2 should get compiled", bResult2);
+
+		
+		// Asset 3
+		UStateTree& StateTree3 = UE::StateTree::Tests::NewStateTree(&GetWorld());
+		UStateTreeEditorData& EditorData3 = *Cast<UStateTreeEditorData>(StateTree3.EditorData);
+		EditorData3.RootParameters.Parameters.AddProperty(FName(TEXT("Float")), EPropertyBagPropertyType::Float); // Different parameters
+		UStateTreeState& Root3 = EditorData3.AddSubTree(FName(TEXT("Root3")));
+		TStateTreeEditorNode<FTestTask_Stand>& TaskRoot3 = Root3.AddTask<FTestTask_Stand>(FName(TEXT("TaskRoot3")));
+
+		FStateTreeCompiler Compiler3(Log);
+		const bool bResult3 = Compiler3.Compile(StateTree3);
+		AITEST_TRUE("StateTree3 should get compiled", bResult3);
+
+		// Main asset
+		UStateTree& StateTree = UE::StateTree::Tests::NewStateTree(&GetWorld());
+		UStateTreeEditorData& EditorData = *Cast<UStateTreeEditorData>(StateTree.EditorData);
+
+		EditorData.RootParameters.Parameters.AddProperty(FName(TEXT("Int")), EPropertyBagPropertyType::Int32);
+		
+		UStateTreeState& Root = EditorData.AddSubTree(FName(TEXT("Root1")));
+		UStateTreeState& StateA = Root.AddChildState(FName(TEXT("A1")), EStateTreeStateType::LinkedAsset);
+		StateA.Tag = Tag;
+		StateA.SetLinkedStateAsset(&StateTree2);
+
+		FStateTreeCompiler Compiler(Log);
+		const bool bResult = Compiler.Compile(StateTree);
+		AITEST_TRUE("StateTree should get compiled", bResult);
+
+		const FString TickStr(TEXT("Tick"));
+		const FString EnterStateStr(TEXT("EnterState"));
+		const FString ExitStateStr(TEXT("ExitState"));
+
+		// Without overrides
+		{
+			EStateTreeRunStatus Status = EStateTreeRunStatus::Unset;
+			FStateTreeInstanceData InstanceData;
+			FTestStateTreeExecutionContext Exec(StateTree, StateTree, InstanceData);
+			const bool bInitSucceeded = Exec.IsValid();
+			AITEST_TRUE("StateTree should init", bInitSucceeded);
+
+			Status = Exec.Start();
+			AITEST_EQUAL("Start should complete with Running", Status, EStateTreeRunStatus::Running);
+			AITEST_TRUE("StateTree should enter TaskRoot2", Exec.Expect(TaskRoot2.GetName(), EnterStateStr));
+
+			Exec.LogClear();
+		}
+
+		// With overrides
+		{
+			EStateTreeRunStatus Status = EStateTreeRunStatus::Unset;
+			FStateTreeInstanceData InstanceData;
+
+			FStateTreeReferenceOverrides Overrides;
+			FStateTreeReference OverrideRef;
+			OverrideRef.SetStateTree(&StateTree3);
+			Overrides.AddOverride(Tag, OverrideRef);
+			
+			FTestStateTreeExecutionContext Exec(StateTree, StateTree, InstanceData);
+			Exec.SetLinkedStateTreeOverrides(&Overrides);
+			
+			const bool bInitSucceeded = Exec.IsValid();
+			AITEST_TRUE("StateTree should init", bInitSucceeded);
+			
+			Status = Exec.Start();
+			AITEST_EQUAL("Start should complete with Running", Status, EStateTreeRunStatus::Running);
+			AITEST_TRUE("StateTree should enter TaskRoot3", Exec.Expect(TaskRoot3.GetName(), EnterStateStr));
+
+			Exec.LogClear();
+		}
+
+		return true;
+	}
+};
+IMPLEMENT_AI_INSTANT_TEST(FStateTreeTest_NestedOverride, "System.StateTree.NestedOverride");
 
 UE_ENABLE_OPTIMIZATION_SHIP
 

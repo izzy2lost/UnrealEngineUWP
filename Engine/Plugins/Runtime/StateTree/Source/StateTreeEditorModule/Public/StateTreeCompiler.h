@@ -14,6 +14,7 @@ struct FStateTreeStateHandle;
 class UStateTree;
 class UStateTreeState;
 class UStateTreeEditorData;
+class UStateTreeSchema;
 struct FStateTreeEditorNode;
 struct FStateTreeStateLink;
 struct FStateTreeNodeBase;
@@ -63,6 +64,7 @@ private:
 	FStateTreeCompilerLog& Log;
 	UStateTree* StateTree = nullptr;
 	UStateTreeEditorData* EditorData = nullptr;
+	UStateTreeSchema* Schema = nullptr;
 	TMap<FGuid, int32> IDToNode;
 	TMap<FGuid, int32> IDToState;
 	TMap<FGuid, int32> IDToTransition;

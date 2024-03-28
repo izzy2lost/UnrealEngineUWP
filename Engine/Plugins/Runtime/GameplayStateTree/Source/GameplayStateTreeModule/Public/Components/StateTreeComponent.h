@@ -100,9 +100,17 @@ protected:
 	TObjectPtr<UStateTree> StateTree_DEPRECATED;
 #endif
 
+	/** State Tree asset to run on the component. */
 	UPROPERTY(EditAnywhere, Category = AI, meta=(Schema="/Script/GameplayStateTreeModule.StateTreeComponentSchema", SchemaCanBeOverriden))
 	FStateTreeReference StateTreeRef;
 
+	/**
+	 * Overrides for linked State Trees. This table is used to override State Tree references on linked states.
+	 * If a linked state's tag is exact match of the tag specified on the table, the reference from the table is used instead.
+	 */
+	UPROPERTY(EditAnywhere, Category = AI, meta=(Schema="/Script/GameplayStateTreeModule.StateTreeComponentSchema"))
+	FStateTreeReferenceOverrides LinkedStateTreeOverrides;
+	
 	/** If true, the StateTree logic is started on begin play. Otherwise StartLogic() needs to be called. */
 	UPROPERTY(EditAnywhere, Category = AI)
 	bool bStartLogicAutomatically = true;

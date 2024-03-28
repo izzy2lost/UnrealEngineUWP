@@ -4,6 +4,7 @@
 #include "StateTreeTaskBase.h"
 #include "StateTreeEvaluatorBase.h"
 #include "StateTreeConditionBase.h"
+#include "StateTreeReference.h"
 #include "Containers/StaticArray.h"
 #include "Debugger/StateTreeTrace.h"
 #include "Debugger/StateTreeTraceTypes.h"
@@ -120,7 +121,6 @@ FStateTreeExecutionContext::FStateTreeExecutionContext(UObject& InOwner, const U
 	}
 }
 
-
 FStateTreeExecutionContext::FStateTreeExecutionContext(const FStateTreeExecutionContext& InContextToCopy, const UStateTree& InStateTree, FStateTreeInstanceData& InInstanceData)
 	: FStateTreeExecutionContext(InContextToCopy.Owner, InStateTree, InInstanceData, InContextToCopy.CollectExternalDataDelegate)
 {
@@ -154,6 +154,30 @@ void FStateTreeExecutionContext::SetCollectExternalDataCallback(const FOnCollect
 {
 	CollectExternalDataDelegate = Callback;
 }
+
+void FStateTreeExecutionContext::SetLinkedStateTreeOverrides(const FStateTreeReferenceOverrides* InLinkedStateTreeOverrides)
+{
+	LinkedStateTreeOverrides = InLinkedStateTreeOverrides;
+}
+
+const FStateTreeReference* FStateTreeExecutionContext::GetLinkedStateTreeOverrideForTag(const FGameplayTag StateTag) const
+{
+	if (!LinkedStateTreeOverrides)
+	{
+		return nullptr;
+	}
+	
+	for (const FStateTreeReferenceOverrideItem& Item : LinkedStateTreeOverrides->GetOverrideItems())
+	{
+		if (Item.GetStateTag() == StateTag)
+		{
+			return &Item.GetStateTreeReference();
+		}
+	}
+
+	return nullptr;
+}
+
 
 bool FStateTreeExecutionContext::AreContextDataViewsValid() const
 {
@@ -820,8 +844,22 @@ void FStateTreeExecutionContext::UpdateInstanceData(TConstArrayView<FStateTreeEx
 				{
 					// Linked state's instance data is the parameters.
 					check(State.ParameterDataHandle.IsValid());
-					const FConstStructView ParamsInstanceData = NextFrame.StateTree->DefaultInstanceData.GetStruct(State.ParameterTemplateIndex.Get());
-					InstanceStructs[BaseIndex + State.ParameterDataHandle.GetIndex()] = ParamsInstanceData;
+
+					const FCompactStateTreeParameters* Params = nullptr;
+					if (FInstancedStruct* TempParamsInstanceData = FindInstanceTempData(NextFrame, State.ParameterDataHandle))
+					{
+						// If we have temp data for the parameters, then setup the instance data with just a type, so that we can steal the temp data below (TempInstanceStructs).
+						// We expect overridden linked assets to hit this code path. 
+						InstanceStructs[BaseIndex + State.ParameterDataHandle.GetIndex()] = FConstStructView(TempParamsInstanceData->GetScriptStruct());
+						Params = TempParamsInstanceData->GetPtr<const FCompactStateTreeParameters>();
+					}
+					else
+					{
+						// If not temp data, use the states default values.
+						const FConstStructView ParamsInstanceData = NextFrame.StateTree->DefaultInstanceData.GetStruct(State.ParameterTemplateIndex.Get());
+						InstanceStructs[BaseIndex + State.ParameterDataHandle.GetIndex()] = ParamsInstanceData;
+						Params = ParamsInstanceData.GetPtr<const FCompactStateTreeParameters>();
+					}
 
 					if (State.Type == EStateTreeStateType::Linked
 						|| State.Type == EStateTreeStateType::LinkedAsset)
@@ -830,8 +868,6 @@ void FStateTreeExecutionContext::UpdateInstanceData(TConstArrayView<FStateTreeEx
 						check(State.ParameterDataHandle.GetSource() == EStateTreeDataSourceType::StateParameterData);
 						checkf(!NextStateParameterDataHandle.IsValid(), TEXT("NextStateParameterDataIndex not should be set yet when we encounter a linked state."));
 						NextStateParameterDataHandle = State.ParameterDataHandle;
-					
-						const FCompactStateTreeParameters* Params = ParamsInstanceData.GetPtr<const FCompactStateTreeParameters>();
 						NextStateParameterDataStruct = Params ? Params->Parameters.GetPropertyBagStruct() : nullptr;
 					}
 				}
@@ -3155,6 +3191,18 @@ bool FStateTreeExecutionContext::SelectStateInternal(
 		return false;
 	}
 
+	// Look up linked state overrides
+	const UStateTree* NextLinkedStateAssetOverride = nullptr;
+	const FInstancedPropertyBag* NextLinkedStateParameterOverride = nullptr;
+	if (NextState.Type == EStateTreeStateType::LinkedAsset)
+	{
+		if (const FStateTreeReference* Override = GetLinkedStateTreeOverrideForTag(NextState.Tag))
+		{
+			NextLinkedStateAssetOverride = Override->GetStateTree();
+			NextLinkedStateParameterOverride = &Override->GetParameters();
+		}
+	}
+
 	if (NextState.ParameterDataHandle.IsValid())
 	{
 		// Instantiate state parameters if not done yet.
@@ -3162,14 +3210,30 @@ bool FStateTreeExecutionContext::SelectStateInternal(
 		if (!NextStateParametersView.IsValid())
 		{
 			// Allocate temporary instance for parameters if the state has params.
-			const FConstStructView DefaultStateParamsInstanceData = CurrentFrame.StateTree->DefaultInstanceData.GetStruct(NextState.ParameterTemplateIndex.Get());
-			const FCompactStateTreeParameters& DefaultStateParams = DefaultStateParamsInstanceData.Get<const FCompactStateTreeParameters>();
-			if (DefaultStateParams.Parameters.IsValid())
+			if (NextLinkedStateParameterOverride)
 			{
-				FStateTreeDataView TempStateParametersView = AddTemporaryInstance(CurrentFrame, FStateTreeIndex16::Invalid, NextState.ParameterDataHandle, DefaultStateParamsInstanceData);
-				check(TempStateParametersView.IsValid());
-				FCompactStateTreeParameters& StateParams = TempStateParametersView.GetMutable<FCompactStateTreeParameters>();
-				NextStateParametersView = FStateTreeDataView(StateParams.Parameters.GetMutableValue());
+				// Create from an override.
+				if (NextLinkedStateParameterOverride->IsValid())
+				{
+					FStateTreeDataView TempStateParametersView = AddTemporaryInstance(CurrentFrame, FStateTreeIndex16::Invalid, NextState.ParameterDataHandle, FConstStructView(TBaseStructure<FCompactStateTreeParameters>::Get()));
+					check(TempStateParametersView.IsValid());
+					FCompactStateTreeParameters& StateParams = TempStateParametersView.GetMutable<FCompactStateTreeParameters>();
+					StateParams.Parameters = *NextLinkedStateParameterOverride;
+					NextStateParametersView = FStateTreeDataView(StateParams.Parameters.GetMutableValue());
+				}
+			}
+			else
+			{
+				// Create from template in the asset.
+				const FConstStructView DefaultStateParamsInstanceData = CurrentFrame.StateTree->DefaultInstanceData.GetStruct(NextState.ParameterTemplateIndex.Get());
+				const FCompactStateTreeParameters& DefaultStateParams = DefaultStateParamsInstanceData.Get<const FCompactStateTreeParameters>();
+				if (DefaultStateParams.Parameters.IsValid())
+				{
+					FStateTreeDataView TempStateParametersView = AddTemporaryInstance(CurrentFrame, FStateTreeIndex16::Invalid, NextState.ParameterDataHandle, DefaultStateParamsInstanceData);
+					check(TempStateParametersView.IsValid());
+					FCompactStateTreeParameters& StateParams = TempStateParametersView.GetMutable<FCompactStateTreeParameters>();
+					NextStateParametersView = FStateTreeDataView(StateParams.Parameters.GetMutableValue());
+				}
 			}
 		}
 
@@ -3179,6 +3243,7 @@ bool FStateTreeExecutionContext::SelectStateInternal(
 			&& NextState.ParameterBindingsBatch.IsValid())
 		{
 			// Note: the parameters are for the current (linked) state, stored in current frame.
+			// The copy can fail, if the overridden parameters do not match, this is by design.
 			CopyBatchWithValidation(CurrentParentFrame, CurrentFrame, NextStateParametersView, NextState.ParameterBindingsBatch);
 		}
 	}
@@ -3318,7 +3383,17 @@ bool FStateTreeExecutionContext::SelectStateInternal(
 		}
 		else if (NextState.Type == EStateTreeStateType::LinkedAsset)
 		{
-			if (NextState.LinkedAsset)
+			const UStateTree* LinkedAsset = NextState.LinkedAsset;
+			if (NextLinkedStateAssetOverride)
+			{
+				STATETREE_LOG(VeryVerbose, TEXT("%hs: In state '%s', overriding linked asset '%s' with '%s'. '%s' using StateTree '%s'."),
+					__FUNCTION__, *GetSafeStateName(CurrentFrame, NextStateHandle),
+					*GetFullNameSafe(NextState.LinkedAsset), *GetFullNameSafe(NextLinkedStateAssetOverride),
+					*GetNameSafe(&Owner), *GetFullNameSafe(CurrentFrame.StateTree));
+				LinkedAsset = NextLinkedStateAssetOverride;
+			}
+			
+			if (LinkedAsset)
 			{
 				if (OutSelectionResult.IsFull())
 				{
@@ -3328,15 +3403,15 @@ bool FStateTreeExecutionContext::SelectStateInternal(
 				}
 
 				// The linked state tree should have compatible context requirements.
-				if (!NextState.LinkedAsset->HasCompatibleContextData(RootStateTree))
+				if (!LinkedAsset->HasCompatibleContextData(RootStateTree))
 				{
 					STATETREE_LOG(Error, TEXT("%hs: The linked State Tree '%s' does not have compatible schema, trying to select state %s from '%s'.  '%s' using StateTree '%s'."),
-						__FUNCTION__, *GetFullNameSafe(NextState.LinkedAsset), *GetSafeStateName(CurrentFrame, NextStateHandle), *GetStateStatusString(Exec), *GetNameSafe(&Owner), *GetFullNameSafe(CurrentFrame.StateTree));
+						__FUNCTION__, *GetFullNameSafe(LinkedAsset), *GetSafeStateName(CurrentFrame, NextStateHandle), *GetStateStatusString(Exec), *GetNameSafe(&Owner), *GetFullNameSafe(CurrentFrame.StateTree));
 					return false;
 				}
 				
 				FStateTreeExecutionFrame NewFrame;
-				NewFrame.StateTree = NextState.LinkedAsset;
+				NewFrame.StateTree = LinkedAsset;
 				NewFrame.RootState = FStateTreeStateHandle::Root;
 				NewFrame.bIsGlobalFrame = true;
 

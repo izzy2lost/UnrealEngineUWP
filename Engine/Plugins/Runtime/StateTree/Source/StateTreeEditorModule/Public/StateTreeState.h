@@ -9,6 +9,7 @@
 #include "StateTreeState.generated.h"
 
 class UStateTreeState;
+class UStateTree;
 
 /**
  * Editor representation of an event description.
@@ -160,11 +161,11 @@ struct STATETREEEDITORMODULE_API FStateTreeStateParameters
 {
 	GENERATED_BODY()
 
-	void Reset()
+	void ResetParametersAndOverrides()
 	{
+		// Reset just the parameters, keep the bFixedLayout intact.
 		Parameters.Reset();
 		PropertyOverrides.Reset();
-		bFixedLayout = false;
 	}
 
 	/** Removes overrides that do appear in Parameters. */
@@ -271,6 +272,14 @@ public:
 		return static_cast<TStateTreeEditorNode<T>&>(TaskItem);
 	}
 
+	/** Sets linked asset and updates parameters to match the linked asset. */
+	void SetLinkedStateAsset(UStateTree* InLinkedAsset)
+	{
+		check(Type == EStateTreeStateType::LinkedAsset);
+		LinkedAsset = InLinkedAsset;
+		UpdateParametersFromLinkedSubtree();
+	}
+	
 	/**
 	 * Adds Transition.
 	 * @return reference to the new Transition.
@@ -304,9 +313,15 @@ public:
 
 	// ~IStateTreeSchemaProvider API
 
+	// Note: these properties are customized out in FStateTreeStateDetails, adding a new property might require to adjust the customization.
+	
 	/** Display name of the State */
 	UPROPERTY(EditDefaultsOnly, Category = "State")
 	FName Name;
+
+	/** GameplayTag describing the State */
+	UPROPERTY(EditDefaultsOnly, Category = "State")
+	FGameplayTag Tag;
 
 	/** Display color of the State */
 	UPROPERTY(EditDefaultsOnly, Category = "State", DisplayName = "Color")

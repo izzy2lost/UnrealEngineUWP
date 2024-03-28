@@ -11,12 +11,14 @@
 struct FGameplayTag;
 struct FInstancedPropertyBag;
 struct FStateTreeExecutionContext;
+struct FStateTreeReferenceOverrides;
 struct FStateTreeEvaluatorBase;
 struct FStateTreeTaskBase;
 struct FStateTreeConditionBase;
 struct FStateTreeEvent;
 struct FStateTreeTransitionRequest;
 struct FStateTreeInstanceDebugId;
+struct FStateTreeReference;
 
 /**
  * Delegate used by the execution context to collect external data views for a given StateTree asset.
@@ -108,6 +110,11 @@ public:
 
 	/** Sets callback used to collect external data views during State Tree execution. */
 	void SetCollectExternalDataCallback(const FOnCollectStateTreeExternalData& Callback);
+
+	/** */
+	void SetLinkedStateTreeOverrides(const FStateTreeReferenceOverrides* InLinkedStateTreeOverrides);
+
+	const FStateTreeReference* GetLinkedStateTreeOverrideForTag(const FGameplayTag StateTag) const;
 	
 	/** @return the StateTree asset in use. */
 	const UStateTree* GetStateTree() const { return &RootStateTree; }
@@ -664,6 +671,9 @@ protected:
 	/** Data storage of the instance data, cached for less indirections. */
 	FStateTreeInstanceStorage* InstanceDataStorage = nullptr;
 
+	/** Pointer to linked state tree overrides. */
+	const FStateTreeReferenceOverrides* LinkedStateTreeOverrides = nullptr;
+	
 	/** Data view of the context data. */
 	TArray<FStateTreeDataView, TConcurrentLinearArrayAllocator<FDefaultBlockAllocationTag>> ContextAndExternalDataViews;
 

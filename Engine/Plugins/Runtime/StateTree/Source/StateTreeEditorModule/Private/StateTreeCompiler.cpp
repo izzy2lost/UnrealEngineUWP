@@ -190,9 +190,15 @@ bool FStateTreeCompiler::Compile(UStateTree& InStateTree)
 	{
 		return false;
 	}
-
 	// Cleanup existing state
 	StateTree->ResetCompiled();
+
+	if (!EditorData->Schema)
+	{
+		Log.Reportf(EMessageSeverity::Error, TEXT("Missing Schema. Please set valid schema in the State Tree Asset settings."));
+		return false;
+	}
+	Schema = EditorData->Schema;
 
 	if (!BindingsCompiler.Init(StateTree->PropertyBindings, Log))
 	{
@@ -406,6 +412,7 @@ bool FStateTreeCompiler::CreateStateRecursive(UStateTreeState& State, const FSta
 	const int32 StateIdx = StateTree->States.AddDefaulted();
 	FCompactStateTreeState& CompactState = StateTree->States[StateIdx];
 	CompactState.Name = State.Name;
+	CompactState.Tag = State.Tag;
 	CompactState.Parent = Parent;
 	CompactState.bEnabled = State.bEnabled;
 
@@ -841,6 +848,28 @@ bool FStateTreeCompiler::CreateStateTransitions()
 				return false;
 			}
 
+			// Linked asset must have same schema.
+			const UStateTreeSchema* LinkedAssetSchema = SourceState->LinkedAsset ? SourceState->LinkedAsset->GetSchema() : nullptr;
+
+			if (!LinkedAssetSchema)
+			{
+				Log.Reportf(EMessageSeverity::Error,
+					TEXT("Linked State Tree asset must have valid schema."));
+				return false;
+			}
+			
+			check(Schema);
+			if (LinkedAssetSchema->GetClass() != Schema->GetClass())
+			{
+				Log.Reportf(EMessageSeverity::Error,
+					TEXT("Linked State Tree asset '%s' must have same schema class as this asset. Linked asset has '%s', expected '%s'."),
+					*GetFullNameSafe(SourceState->LinkedAsset),
+					*LinkedAssetSchema->GetClass()->GetDisplayNameText().ToString(),
+					*Schema->GetClass()->GetDisplayNameText().ToString()
+				);
+				return false;
+			}
+			
 			CompactState.LinkedAsset = SourceState->LinkedAsset;
 		}
 		

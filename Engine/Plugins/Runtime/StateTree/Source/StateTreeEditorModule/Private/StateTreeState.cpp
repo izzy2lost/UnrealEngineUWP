@@ -105,7 +105,7 @@ void UStateTreeState::PreEditChange(FEditPropertyChain& PropertyAboutToChange)
 		if (Type == EStateTreeStateType::Linked
 			|| Type == EStateTreeStateType::LinkedAsset)
 		{
-			Parameters.Reset();
+			Parameters.ResetParametersAndOverrides();
 		}
 	}
 }
@@ -430,7 +430,7 @@ void UStateTreeState::UpdateParametersFromLinkedSubtree()
 	}
 	else
 	{
-		Parameters.Reset();
+		Parameters.ResetParametersAndOverrides();
 	}
 }
 
