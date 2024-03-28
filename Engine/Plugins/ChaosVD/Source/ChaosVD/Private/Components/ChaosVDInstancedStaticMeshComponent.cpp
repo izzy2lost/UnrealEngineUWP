@@ -52,6 +52,12 @@ void UChaosVDInstancedStaticMeshComponent::SetIsSelected(const TSharedPtr<FChaos
 
 	const int32 InstanceIndex = InInstanceHandle->GetMeshInstanceIndex();
 
+	if (!ensure(IsValidInstance(InstanceIndex)))
+	{
+		UE_LOG(LogChaosVDEditor, Error, TEXT("[%s] Attempted to update a mesh instance using a handle with an invalid instance index | Handle Instance Index [%d] | Current Instance Conut [%d]"), ANSI_TO_TCHAR(__FUNCTION__), InstanceIndex, GetInstanceCount());
+		return;
+	}
+
 	NotifySMInstanceSelectionChanged({this, InstanceIndex}, bIsSelected);
 }
 
