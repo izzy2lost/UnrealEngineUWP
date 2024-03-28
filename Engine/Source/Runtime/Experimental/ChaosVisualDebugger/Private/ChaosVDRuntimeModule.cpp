@@ -98,6 +98,11 @@ int32 FChaosVDRuntimeModule::GenerateUniqueID()
 	return LastGeneratedID.Increment();
 }
 
+FString FChaosVDRuntimeModule::GetLastRecordingFileNamePath() const
+{
+	return LastRecordingFileNamePath;
+}
+
 void FChaosVDRuntimeModule::StopTrace()
 {
 	bRequestedStop = true;
@@ -106,14 +111,7 @@ void FChaosVDRuntimeModule::StopTrace()
 
 void FChaosVDRuntimeModule::GenerateRecordingFileName(FString& OutFileName)
 {
-	const TCHAR* FilePrefix = TEXT("ChaosVD");
-	const FString FullPathPrefix = FPaths::ProfilingDir() / FilePrefix;
-
-	int32 Tries = 0;
-	do
-	{
-		OutFileName = FString::Printf(TEXT("%s_%d.utrace"), *FullPathPrefix, Tries++);
-	} while (IFileManager::Get().FileExists(*OutFileName));
+	OutFileName = TEXT("ChaosVD-") + FDateTime::Now().ToString(TEXT("%Y%m%d_%H%M%S.utrace"));
 }
 
 bool FChaosVDRuntimeModule::RequestFullCapture(float DeltaTime)
@@ -179,10 +177,14 @@ void FChaosVDRuntimeModule::StartRecording(TConstArrayView<FString> Args)
 
 	if (Args.Num() == 0 || Args[0] == TEXT("File"))
 	{
-		ActiveRecordingFileName.Empty();
-		GenerateRecordingFileName(ActiveRecordingFileName);
+		LastRecordingFileNamePath.Empty();
+		GenerateRecordingFileName(LastRecordingFileNamePath);
 
-		bIsRecording = FTraceAuxiliary::Start(FTraceAuxiliary::EConnectionType::File, *ActiveRecordingFileName, nullptr, &TracingOptions);
+		UE_LOG(LogChaosVDRuntime, Log, TEXT("[%s] Generated trace file name [%s]"), ANSI_TO_TCHAR(__FUNCTION__), *LastRecordingFileNamePath);
+
+		bIsRecording = FTraceAuxiliary::Start(FTraceAuxiliary::EConnectionType::File, *LastRecordingFileNamePath, nullptr, &TracingOptions);
+
+		LastRecordingFileNamePath = bIsRecording ? FTraceAuxiliary::GetTraceDestinationString() : TEXT("");
 	}
 	else if(Args[0] == TEXT("Server"))
 	{
@@ -233,7 +235,10 @@ void FChaosVDRuntimeModule::StartRecording(TConstArrayView<FString> Args)
 		FMessageDialog::Open(EAppMsgType::Ok, FText::FormatOrdered(LOCTEXT("StartRecordingFailedMessage", "Failed to start CVD recording. \n\n{0}"), FailureReason));
 #endif
 
-		RecordingStartFailedDelegate.Broadcast(FailureReason);
+		{
+			FReadScopeLock ReadLock(DelegatesRWLock);
+			RecordingStartFailedDelegate.Broadcast(FailureReason);
+		}	
 	}
 
 }
