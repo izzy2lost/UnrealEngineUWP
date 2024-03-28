@@ -1045,7 +1045,7 @@ FRayTracedLightingResult TraceSurfaceCacheRay(
 	#endif
 
 	FSurfaceCacheSample SurfaceCacheSample = InitSurfaceCacheSample();
-	if (MinimalRayResult.bHit && MinimalRayResult.bCompleted)
+	if (MinimalRayResult.bHit && MinimalRayResult.bCompleted && !(Context.bIsShadowRay && !Context.bSurfaceCacheAlphaMasking))
 	{
 		SurfaceCacheSample = SampleLumenMinimalRayHit(Ray, Context, MinimalRayResult);
 	}
