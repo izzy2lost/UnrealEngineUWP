@@ -154,6 +154,11 @@ void FSVGActorEditorComponentVisualizer::EndEditing()
 
 void FSVGActorEditorComponentVisualizer::TrackingStopped(FEditorViewportClient* InViewportClient, bool bInDidMove)
 {
+	if (!bIsExtruding)
+	{
+		return;
+	}
+
 	if (ASVGActor* SVGActor = SVGActorWeak.Get())
 	{
 		SVGActor->Modify();
