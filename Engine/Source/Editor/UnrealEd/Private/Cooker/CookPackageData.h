@@ -999,7 +999,7 @@ public:
 	uint32 Remove(FPackageData* PackageData);
 	bool Contains(const FPackageData* PackageData) const;
 	bool DiscoveryQueueContains(FPackageData* PackageData) const;
-	void Empty(FPackageDatas& PackageDatas);
+	void Empty();
 
 	void AddRequest(FPackageData* PackageData, bool bForceUrgent=false);
 

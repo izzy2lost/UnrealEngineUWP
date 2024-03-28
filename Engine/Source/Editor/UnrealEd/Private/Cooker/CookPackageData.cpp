@@ -108,6 +108,10 @@ FPackageData::~FPackageData()
 {
 	// ClearReferences should have been called earlier, but call it here in case it was missed
 	ClearReferences();
+	// FPackageDatas guarantees that all references to GenerationHelper are removed before any PackageDatas are deleted.
+	// We rely on that so that we can be sure that when this PackageData is being deleted, its GenerationHelper - which
+	// assumes the FPackageData lifetime exceeds its own - has already been deleted.
+	check(GenerationHelper == nullptr);
 	// We need to send OnLastCookedPlatformRemoved message to the monitor, so call SetPlatformsNotCooked
 	ClearCookResults();
 	// Update the monitor's counters and call exit functions
@@ -2539,7 +2543,7 @@ void FPackageDatas::Clear()
 {
 	FWriteScopeLock ExistenceWriteLock(ExistenceLock);
 	PendingCookedPlatformDataLists.Empty(); // These destructors will read/write PackageDatas
-	RequestQueue.Empty(*this);
+	RequestQueue.Empty();
 	SaveQueue.Empty();
 	PackageNameToPackageData.Empty();
 	FileNameToPackageData.Empty();
@@ -2776,12 +2780,12 @@ void FPackageDatas::DebugInstigator(FPackageData& PackageData)
 	UpdateThreadsafePackageData(PackageData);
 }
 
-void FRequestQueue::Empty(FPackageDatas& PackageDatas)
+void FRequestQueue::Empty()
 {
 	RestartedRequests.Empty();
 	DiscoveryQueue.Empty();
 	RequestClusters.Empty();
-	NotifyRequestFencePassed(PackageDatas);
+	RequestFencePackageListeners.Empty();
 	NormalRequests.Empty();
 	UrgentRequests.Empty();
 }
@@ -2860,7 +2864,8 @@ bool FRequestQueue::IsReadyRequestsEmpty() const
 
 bool FRequestQueue::HasRequestsToExplore() const
 {
-	return !RequestClusters.IsEmpty() | !RestartedRequests.IsEmpty() | !DiscoveryQueue.IsEmpty();
+	return !RequestClusters.IsEmpty() | !RestartedRequests.IsEmpty() | !DiscoveryQueue.IsEmpty()
+		| !RequestFencePackageListeners.IsEmpty();
 }
 
 uint32 FRequestQueue::ReadyRequestsNum() const

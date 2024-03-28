@@ -446,6 +446,8 @@ void FGenerationHelper::StartQueueGeneratedPackages(UCookOnTheFlyServer& COTFS)
 	bool bHybridIterativeEnabled = COTFS.bHybridIterativeEnabled;
 	if (!PreviousGeneratedPackages.IsEmpty())
 	{
+		TMap<FName, FIoHash> RemainingPreviousPackages = PreviousGeneratedPackages;
+
 		FPackageData& OwnerPackageData = GetOwner();
 		TArray<const ITargetPlatform*, TInlineAllocator<1>> PlatformsToCook;
 		OwnerPackageData.GetPlatformsNeedingCooking(PlatformsToCook);
@@ -453,7 +455,7 @@ void FGenerationHelper::StartQueueGeneratedPackages(UCookOnTheFlyServer& COTFS)
 		int32 NumIterativeUnmodified = 0;
 		int32 NumIterativeModified = 0;
 		int32 NumIterativeRemoved = 0;
-		int32 NumIterativePrevious = PreviousGeneratedPackages.Num();
+		int32 NumIterativePrevious = RemainingPreviousPackages.Num();
 
 		for (FCookGenerationInfo& GeneratedInfo : PackagesToGenerate)
 		{
@@ -462,7 +464,7 @@ void FGenerationHelper::StartQueueGeneratedPackages(UCookOnTheFlyServer& COTFS)
 				continue;
 			}
 			FIoHash PreviousHash;
-			if (PreviousGeneratedPackages.RemoveAndCopyValue(GeneratedInfo.PackageData->GetPackageName(), PreviousHash)
+			if (RemainingPreviousPackages.RemoveAndCopyValue(GeneratedInfo.PackageData->GetPackageName(), PreviousHash)
 				&& !bHybridIterativeEnabled)
 			{
 				bool bIterativelyUnmodified;
@@ -470,19 +472,17 @@ void FGenerationHelper::StartQueueGeneratedPackages(UCookOnTheFlyServer& COTFS)
 				++(bIterativelyUnmodified ? NumIterativeUnmodified : NumIterativeModified);
 			}
 		}
-		if (!PreviousGeneratedPackages.IsEmpty())
+		if (!RemainingPreviousPackages.IsEmpty())
 		{
-			NumIterativeRemoved = PreviousGeneratedPackages.Num();
-			for (TPair<FName, FIoHash>& Pair : PreviousGeneratedPackages)
+			NumIterativeRemoved = RemainingPreviousPackages.Num();
+			for (TPair<FName, FIoHash>& Pair : RemainingPreviousPackages)
 			{
 				for (const ITargetPlatform* TargetPlatform : PlatformsToCook)
 				{
 					COTFS.DeleteOutputForPackage(Pair.Key, TargetPlatform);
 				}
 			}
-			PreviousGeneratedPackages.Empty();
 		}
-		ClearKeepForIterative();
 
 		if (NumIterativePrevious > 0 && !bHybridIterativeEnabled)
 		{
@@ -646,6 +646,12 @@ void FGenerationHelper::ResetSaveState(FCookGenerationInfo& Info, UPackage* Pack
 
 		if (Info.IsGenerator())
 		{
+			// Now that we've finished saving, we know that we will not call QueueGeneratedPackages again, so we can
+			// teardown iterative results as well
+			ClearKeepForIterative();
+			PreviousGeneratedPackages.Empty();
+
+			// And also teardown data needed during save
 			ClearKeepForGeneratorSave();
 			Info.SetSaveState(FCookGenerationInfo::ESaveState::StartSave);
 		}
