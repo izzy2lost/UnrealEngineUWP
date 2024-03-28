@@ -875,7 +875,7 @@ public:
 		if (InEdMode->UISettings->bUseFlattenTarget && bTargetIsHeightmap)
 		{
 			FTransform LocalToWorld = InTarget.LandscapeInfo->GetLandscapeProxy()->ActorToWorld();
-			float Height = static_cast<float>((InEdMode->UISettings->FlattenTarget - LocalToWorld.GetTranslation().Z) / LocalToWorld.GetScale3D().Z);
+			float Height = static_cast<float>((InEdMode->UISettings->GetFlattenTarget(/*bInReturnPreviewValueIfActive = */false) - LocalToWorld.GetTranslation().Z) / LocalToWorld.GetScale3D().Z);
 			FlattenValue = static_cast<ValueType>(LandscapeDataAccess::GetTexHeight(Height));
 			bInitializedFlattenValue = true;
 		}
@@ -1141,18 +1141,13 @@ class FLandscapeToolFlatten : public FLandscapeToolPaintBase<ToolTarget, FLandsc
 protected:
 	TObjectPtr<UStaticMesh> HeightmapFlattenPlaneMesh;
 	TObjectPtr<UStaticMeshComponent> HeightmapFlattenPreviewComponent;
-	bool CanToolBeActivatedNextTick;
-	bool CanToolBeActivatedValue;
-	float EyeDropperFlattenTargetValue;
+	bool bCanToolBeActivatedNextTick = false;
+	bool bCanToolBeActivatedValue = false;
 
 public:
 	FLandscapeToolFlatten(FEdModeLandscape* InEdMode)
 		: Super(InEdMode)
 		, HeightmapFlattenPlaneMesh(LoadObject<UStaticMesh>(nullptr, TEXT("/Engine/EditorLandscapeResources/FlattenPlaneMesh.FlattenPlaneMesh")))
-		, HeightmapFlattenPreviewComponent(nullptr)
-		, CanToolBeActivatedNextTick(false)
-		, CanToolBeActivatedValue(false)
-		, EyeDropperFlattenTargetValue(0.0f)
 	{
 		check(HeightmapFlattenPlaneMesh);
 	}
@@ -1170,8 +1165,8 @@ public:
 
 	virtual void SetCanToolBeActivated(bool Value) override
 	{ 
-		CanToolBeActivatedNextTick = true;
-		CanToolBeActivatedValue = Value;
+		bCanToolBeActivatedNextTick = true;
+		bCanToolBeActivatedValue = Value;
 	}
 
 	virtual void AddReferencedObjects(FReferenceCollector& Collector) override
@@ -1186,18 +1181,29 @@ public:
 
 	virtual void Tick(FEditorViewportClient* ViewportClient, float DeltaTime) override
 	{
-		if (CanToolBeActivatedNextTick)
+		if (bCanToolBeActivatedNextTick)
 		{
-			this->bCanToolBeActivated = CanToolBeActivatedValue;
-			CanToolBeActivatedNextTick = false;
+			this->bCanToolBeActivated = bCanToolBeActivatedValue;
+			bCanToolBeActivatedNextTick = false;
 		}
 
 		Super::Tick(ViewportClient, DeltaTime);
+
+		if (this->EdMode->UISettings->bFlattenEyeDropperModeActivated)
+		{
+			this->EdMode->UISettings->bFlattenEyeDropperModeMousingOverViewport = false;
+		}
 
 		if (HeightmapFlattenPreviewComponent != nullptr)
 		{
 			bool bShowGrid = this->EdMode->UISettings->bUseFlattenTarget && this->EdMode->UISettings->bShowFlattenTargetPreview;
 			HeightmapFlattenPreviewComponent->SetVisibility(bShowGrid);
+
+			// Always adjust the preview component's Z so that we react to the FlattenTarget changes in the details panel, which greatly helps eyeballing the adjustment : 
+			const FTransform LocalToWorld = this->EdMode->CurrentToolTarget.LandscapeInfo->GetLandscapeProxy()->ActorToWorld();
+			FVector Origin = HeightmapFlattenPreviewComponent->GetRelativeLocation();
+			Origin.Z = ConvertFlattenTargetToLocalZ(/*bInReturnPreviewValueIfActive = */true);
+			HeightmapFlattenPreviewComponent->SetRelativeLocation(Origin, /*bSweep = */false);
 		}
 	}
 
@@ -1205,24 +1211,32 @@ public:
 	{
 		bool bResult = Super::MouseMove(ViewportClient, Viewport, x, y);
 
-		if (ViewportClient->IsLevelEditorClient() && HeightmapFlattenPreviewComponent != nullptr)
+		if (ViewportClient->IsLevelEditorClient())
 		{
-			FVector MousePosition;
-			if (this->EdMode->LandscapeMouseTrace((FEditorViewportClient*)ViewportClient, x, y, MousePosition))
+			if (this->EdMode->UISettings->bFlattenEyeDropperModeActivated)
 			{
-				const FTransform LocalToWorld = this->EdMode->CurrentToolTarget.LandscapeInfo->GetLandscapeProxy()->ActorToWorld();
-				FVector Origin;
-				Origin.X = FMath::RoundToFloat(MousePosition.X);
-				Origin.Y = FMath::RoundToFloat(MousePosition.Y);
-				Origin.Z = (FMath::RoundToFloat((this->EdMode->UISettings->FlattenTarget - LocalToWorld.GetTranslation().Z) / LocalToWorld.GetScale3D().Z * LANDSCAPE_INV_ZSCALE) - 0.1f) * LANDSCAPE_ZSCALE;
-				HeightmapFlattenPreviewComponent->SetRelativeLocation(Origin, false);
+				this->EdMode->UISettings->bFlattenEyeDropperModeMousingOverViewport = true;
+			}
 
-				// Clamp the value to the height map
-				uint16 TexHeight = LandscapeDataAccess::GetTexHeight(static_cast<float>(MousePosition.Z));
-				float Height = LandscapeDataAccess::GetLocalHeight(TexHeight);
+			if (HeightmapFlattenPreviewComponent != nullptr)
+			{
+				FVector MousePosition;
+				if (this->EdMode->LandscapeMouseTrace((FEditorViewportClient*)ViewportClient, x, y, MousePosition))
+				{
+					const FTransform LocalToWorld = this->EdMode->CurrentToolTarget.LandscapeInfo->GetLandscapeProxy()->ActorToWorld();
+					FVector Origin;
+					Origin.X = FMath::RoundToDouble(MousePosition.X);
+					Origin.Y = FMath::RoundToDouble(MousePosition.Y);
+					Origin.Z = ConvertFlattenTargetToLocalZ(/*bInReturnPreviewValueIfActive = */true);
+					HeightmapFlattenPreviewComponent->SetRelativeLocation(Origin, false);
 
-				// Convert the height back to world space
-				this->EdMode->UISettings->FlattenEyeDropperModeDesiredTarget = static_cast<float>(Height * LocalToWorld.GetScale3D().Z + LocalToWorld.GetTranslation().Z);
+					// Clamp the value to the height map
+					uint16 TexHeight = LandscapeDataAccess::GetTexHeight(static_cast<float>(MousePosition.Z));
+					float Height = LandscapeDataAccess::GetLocalHeight(TexHeight);
+
+					// Convert the height back to world space
+					this->EdMode->UISettings->FlattenEyeDropperModeDesiredTarget = static_cast<float>(Height * LocalToWorld.GetScale3D().Z + LocalToWorld.GetTranslation().Z);
+				}
 			}
 		}
 
@@ -1236,6 +1250,8 @@ public:
 		{
 			return;
 		}
+
+		this->EdMode->UISettings->bFlattenEyeDropperModeMousingOverViewport = false;
 
 		if (ToolTarget::TargetType == ELandscapeToolTargetType::Heightmap)
 		{
@@ -1252,7 +1268,7 @@ public:
 			// Try to set a sane initial location for the preview grid
 			const FTransform LocalToWorld = this->EdMode->CurrentToolTarget.LandscapeInfo->GetLandscapeProxy()->GetRootComponent()->GetComponentToWorld();
 			FVector Origin = FVector::ZeroVector;
-			Origin.Z = (FMath::RoundToFloat((this->EdMode->UISettings->FlattenTarget - LocalToWorld.GetTranslation().Z) / LocalToWorld.GetScale3D().Z * LANDSCAPE_INV_ZSCALE) - 0.1f) * LANDSCAPE_ZSCALE;
+			Origin.Z = ConvertFlattenTargetToLocalZ(/*bInReturnPreviewValueIfActive = */false);
 			HeightmapFlattenPreviewComponent->SetRelativeLocation(Origin, false);
 		}
 	}
@@ -1267,6 +1283,17 @@ public:
 			HeightmapFlattenPreviewComponent->DestroyComponent();
 			HeightmapFlattenPreviewComponent = nullptr;
 		}
+
+		// Make sure the eye dropper tool is reset upon leaving the flatten tool :
+		this->EdMode->UISettings->bFlattenEyeDropperModeActivated = false;
+		this->EdMode->UISettings->bFlattenEyeDropperModeMousingOverViewport = false;
+	}
+
+private:
+	double ConvertFlattenTargetToLocalZ(bool bInReturnPreviewValueIfActive) const
+	{
+		const FTransform LocalToWorld = this->EdMode->CurrentToolTarget.LandscapeInfo->GetLandscapeProxy()->ActorToWorld();
+		return (FMath::RoundToDouble((this->EdMode->UISettings->GetFlattenTarget(bInReturnPreviewValueIfActive) - LocalToWorld.GetTranslation().Z) / LocalToWorld.GetScale3D().Z * LANDSCAPE_INV_ZSCALE) - 0.1f) * LANDSCAPE_ZSCALE;
 	}
 };
 

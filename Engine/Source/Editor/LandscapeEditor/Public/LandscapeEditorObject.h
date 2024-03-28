@@ -328,7 +328,7 @@ class ULandscapeEditorObject : public UObject
 	float FlattenTarget;
 
 	// Whether to show the preview grid for the flatten target height
-	UPROPERTY(Category = "Tool Settings", EditAnywhere, NonTransactional, AdvancedDisplay, meta = (DisplayName = "Show Preview Grid", ShowForTools = "Flatten", ShowForTargetTypes = "Heightmap", EditCondition = "bUseFlattenTarget", HideEditConditionToggle, UIMin = "-32768", UIMax = "32768"))
+	UPROPERTY(Category = "Tool Settings", EditAnywhere, NonTransactional, AdvancedDisplay, meta = (DisplayName = "Show Preview Grid", ShowForTools = "Flatten", ShowForTargetTypes = "Heightmap", EditCondition = "bUseFlattenTarget", HideEditConditionToggle))
 	bool bShowFlattenTargetPreview;
 
 	// Height of the terrace intervals in unreal units, for the terrace flatten mode 
@@ -342,6 +342,10 @@ class ULandscapeEditorObject : public UObject
 	// Whether the Eye Dropper mode is activated
 	UPROPERTY(NonTransactional, Transient)
 	bool bFlattenEyeDropperModeActivated;
+
+	// When in Eye Dropper mode, indicates whether we're currently mousing over the viewport 
+	UPROPERTY(NonTransactional, Transient)
+	bool bFlattenEyeDropperModeMousingOverViewport;
 
 	UPROPERTY(NonTransactional, Transient)
 	float FlattenEyeDropperModeDesiredTarget;
@@ -812,6 +816,8 @@ public:
 
 	float GetCurrentToolBrushFalloff() const;
 	void SetCurrentToolBrushFalloff(float NewBrushFalloff);
+
+	float GetFlattenTarget(bool bInReturnPreviewValueIfActive) const;
 
 private:
 

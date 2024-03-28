@@ -259,7 +259,12 @@ void ULandscapeEditorObject::Load()
 	bool InbUseFlattenTarget = bUseFlattenTarget;
 	GConfig->GetBool(TEXT("LandscapeEdit"), TEXT("bUseFlattenTarget"), InbUseFlattenTarget, GEditorPerProjectIni);
 	bUseFlattenTarget = InbUseFlattenTarget;
+
 	GConfig->GetFloat(TEXT("LandscapeEdit"), TEXT("FlattenTarget"), FlattenTarget, GEditorPerProjectIni);
+
+	bool InbShowFlattenTargetPreview = bShowFlattenTargetPreview;
+	GConfig->GetBool(TEXT("LandscapeEdit"), TEXT("bShowFlattenTargetPreview"), InbShowFlattenTargetPreview, GEditorPerProjectIni);
+	bShowFlattenTargetPreview = InbShowFlattenTargetPreview;
 
 	GConfig->GetFloat(TEXT("LandscapeEdit"), TEXT("TerraceSmooth"), TerraceSmooth, GEditorPerProjectIni);
 	GConfig->GetFloat(TEXT("LandscapeEdit"), TEXT("TerraceInterval"), TerraceInterval, GEditorPerProjectIni);
@@ -413,7 +418,7 @@ void ULandscapeEditorObject::Save()
 	GConfig->SetBool(TEXT("LandscapeEdit"), TEXT("bPickValuePerApply"), bPickValuePerApply, GEditorPerProjectIni);
 	GConfig->SetBool(TEXT("LandscapeEdit"), TEXT("bUseFlattenTarget"), bUseFlattenTarget, GEditorPerProjectIni);
 	GConfig->SetFloat(TEXT("LandscapeEdit"), TEXT("FlattenTarget"), FlattenTarget, GEditorPerProjectIni);
-
+	GConfig->SetBool(TEXT("LandscapeEdit"), TEXT("bShowFlattenTargetPreview"), bShowFlattenTargetPreview, GEditorPerProjectIni);
 	GConfig->SetFloat(TEXT("LandscapeEdit"), TEXT("TerraceSmooth"), TerraceSmooth, GEditorPerProjectIni);
 	GConfig->SetFloat(TEXT("LandscapeEdit"), TEXT("TerraceInterval"), TerraceInterval, GEditorPerProjectIni);
 
@@ -1057,4 +1062,9 @@ void ULandscapeEditorObject::SetCurrentToolBrushFalloff(float NewBrushFalloff)
 	{
 		BrushFalloff = NewBrushFalloff;
 	}
+}
+
+float ULandscapeEditorObject::GetFlattenTarget(bool bInReturnPreviewValueIfActive) const
+{
+	return (bFlattenEyeDropperModeActivated && bInReturnPreviewValueIfActive) ? FlattenEyeDropperModeDesiredTarget : FlattenTarget;
 }
