@@ -4,6 +4,7 @@
 #include "UObject/Field.h"
 #include "UObject/TextProperty.h"
 #include "UObject/EnumProperty.h"
+#include "UObject/StrProperty.h"
 
 #if WITH_EDITOR
 #include "Containers/ContainersFwd.h"

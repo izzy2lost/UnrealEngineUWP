@@ -13,6 +13,7 @@
 #include "UObject/SoftObjectPtr.h"
 #include "UObject/Interface.h"
 #include "UObject/UnrealType.h"
+#include "UObject/StrProperty.h"
 #include "UObject/TextProperty.h"
 #include "UObject/FieldPathProperty.h"
 #include "UObject/PropertyPortFlags.h"

@@ -21,6 +21,7 @@
 #include "UObject/LinkerLoad.h"
 #include "UObject/ObjectMacros.h"
 #include "UObject/Package.h"
+#include "UObject/StrProperty.h"
 #include "UObject/PropertyOptional.h"
 #include "UObject/PropertyTempVal.h"
 #include "UObject/UnrealType.h"

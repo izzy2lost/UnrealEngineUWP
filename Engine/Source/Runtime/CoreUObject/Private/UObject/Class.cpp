@@ -26,6 +26,7 @@
 #include "Templates/Casts.h"
 #include "UObject/DebugSerializationFlags.h"
 #include "UObject/PropertyTag.h"
+#include "UObject/StrProperty.h"
 #include "UObject/UnrealType.h"
 #include "UObject/UnrealTypePrivate.h"
 #include "UObject/Reload.h"

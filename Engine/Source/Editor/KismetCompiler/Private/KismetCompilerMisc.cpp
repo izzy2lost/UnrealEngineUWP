@@ -10,6 +10,7 @@
 #include "Misc/CoreMisc.h"
 #include "UObject/MetaData.h"
 #include "UObject/UnrealType.h"
+#include "UObject/StrProperty.h"
 #include "UObject/TextProperty.h"
 #include "UObject/FieldPathProperty.h"
 #include "UObject/ObjectRedirector.h"
