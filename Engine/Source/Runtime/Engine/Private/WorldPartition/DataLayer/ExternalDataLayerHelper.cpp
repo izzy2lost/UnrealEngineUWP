@@ -246,6 +246,9 @@ bool FExternalDataLayerHelper::MoveActorsToExternalDataLayer(const TArray<AActor
 		bool bLevelPackageWasDirty = InActor->GetLevel()->GetPackage()->IsDirty();
 		InActor->SetPackageExternal(false, bShouldDirty);
 
+		// Clear Content Bundle Guid
+		FSetActorContentBundleGuid(InActor, FGuid());
+
 		// If set, remove EDL from actor
 		const UExternalDataLayerAsset* OldExternalDataLayerAsset = InActor->GetExternalDataLayerAsset();
 		if (OldExternalDataLayerAsset)

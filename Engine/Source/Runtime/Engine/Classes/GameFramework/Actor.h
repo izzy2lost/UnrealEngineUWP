@@ -4535,6 +4535,7 @@ private:
 		InActor->ContentBundleGuid = InContentBundleGuid;
 	}
 	friend class FContentBundleEditor;
+	friend class FExternalDataLayerHelper;
 	friend class UGameFeatureActionConvertContentBundleWorldPartitionBuilder;
 };
 
