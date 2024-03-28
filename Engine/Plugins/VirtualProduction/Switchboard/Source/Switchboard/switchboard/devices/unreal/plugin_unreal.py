@@ -20,7 +20,7 @@ from typing import Callable, Generator, Optional, Union
 import uuid
 import time
 
-from PySide2 import QtCore, QtGui, QtWidgets
+from PySide6 import QtCore, QtGui, QtWidgets
 
 from switchboard import message_protocol, switchboard_application, ugs_utils
 import switchboard.config_osc as osc

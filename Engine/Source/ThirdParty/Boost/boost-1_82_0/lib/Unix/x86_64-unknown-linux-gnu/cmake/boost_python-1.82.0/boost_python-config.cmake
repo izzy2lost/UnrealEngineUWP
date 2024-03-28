@@ -13,6 +13,16 @@ mark_as_advanced(boost_python_DIR)
 # Compute the include and library directories relative to this file.
 
 get_filename_component(_BOOST_CMAKEDIR "${CMAKE_CURRENT_LIST_DIR}/../" REALPATH)
+
+# If the computed and the original directories are symlink-equivalent, use original
+if(EXISTS "/unreal-full-install/Engine/Source/ThirdParty/Boost/boost-1_82_0/lib/Unix/x86_64-unknown-linux-gnu/cmake")
+  get_filename_component(_BOOST_CMAKEDIR_ORIGINAL "/unreal-full-install/Engine/Source/ThirdParty/Boost/boost-1_82_0/lib/Unix/x86_64-unknown-linux-gnu/cmake" REALPATH)
+  if(_BOOST_CMAKEDIR STREQUAL _BOOST_CMAKEDIR_ORIGINAL)
+    set(_BOOST_CMAKEDIR "/unreal-full-install/Engine/Source/ThirdParty/Boost/boost-1_82_0/lib/Unix/x86_64-unknown-linux-gnu/cmake")
+  endif()
+  unset(_BOOST_CMAKEDIR_ORIGINAL)
+endif()
+
 get_filename_component(_BOOST_INCLUDEDIR "${_BOOST_CMAKEDIR}/../../../../include/" ABSOLUTE)
 get_filename_component(_BOOST_LIBDIR "${_BOOST_CMAKEDIR}/../" ABSOLUTE)
 

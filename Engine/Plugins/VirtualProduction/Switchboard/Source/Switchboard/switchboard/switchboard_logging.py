@@ -7,7 +7,7 @@ import tempfile
 import calendar
 import datetime
 
-from PySide2 import QtCore
+from PySide6 import QtCore
 
 logging.MESSAGE_LEVEL_NUM = logging.DEBUG - 2
 logging.OSC_LEVEL_NUM = logging.DEBUG - 1

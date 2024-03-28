@@ -98,7 +98,7 @@ TSharedRef<SWidget> SSwitchboardSetupWizard::Construct_Page_Intro()
 		.AutoHeight()
 		[
 			SNew(STextBlock)
-			.Text(LOCTEXT("Wizard_Intro_TextBlock", "Switchboard requires the following library/framework dependencies to launch:\n\n\t\u25CF  aioquic\n\n\t\u25CF  PySide2\n\n\t\u25CF  python-osc\n\n\t\u25CF  requests\n\n\t\u25CF  six\n\n\t\u25CF  cwRsync\n\n\nUnreal Engine will install the dependencies into the following directory:\n"))
+			.Text(LOCTEXT("Wizard_Intro_TextBlock", "Switchboard requires the following library/framework dependencies to launch:\n\n\t\u25CF  aioquic\n\n\t\u25CF  PySide6\n\n\t\u25CF  python-osc\n\n\t\u25CF  requests\n\n\t\u25CF  six\n\n\t\u25CF  cwRsync\n\n\nUnreal Engine will install the dependencies into the following directory:\n"))
 		]
 		+ SVerticalBox::Slot()
 		.AutoHeight()

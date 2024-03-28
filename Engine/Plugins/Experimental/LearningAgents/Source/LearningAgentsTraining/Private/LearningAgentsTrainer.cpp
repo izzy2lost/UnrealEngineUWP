@@ -392,7 +392,7 @@ void ULearningAgentsTrainer::BeginTraining(
 
 	// Check Paths
 
-	const FString PythonExecutablePath = UE::Learning::Trainer::GetPythonExecutablePath(TrainerPathSettings.GetEditorEnginePath());
+	const FString PythonExecutablePath = UE::Learning::Trainer::GetPythonExecutablePath(TrainerPathSettings.GetIntermediatePath());
 
 	if (!FPaths::FileExists(PythonExecutablePath))
 	{
@@ -405,14 +405,6 @@ void ULearningAgentsTrainer::BeginTraining(
 	if (!FPaths::DirectoryExists(PythonContentPath))
 	{
 		UE_LOG(LogLearning, Error, TEXT("%s: Can't find LearningAgents plugin Content \"%s\"."), *GetName(), *PythonContentPath);
-		return;
-	}
-
-	const FString SitePackagesPath = UE::Learning::Trainer::GetSitePackagesPath(TrainerPathSettings.GetEditorEnginePath());
-
-	if (!FPaths::DirectoryExists(SitePackagesPath))
-	{
-		UE_LOG(LogLearning, Error, TEXT("%s: Can't find Python site-packages \"%s\"."), *GetName(), *SitePackagesPath);
 		return;
 	}
 
@@ -538,7 +530,7 @@ void ULearningAgentsTrainer::BeginTraining(
 	Trainer = MakeUnique<UE::Learning::FSharedMemoryPPOTrainer>(
 		GetName(),
 		PythonExecutablePath,
-		SitePackagesPath,
+		TEXT(""),
 		PythonContentPath,
 		IntermediatePath,
 		*ReplayBuffer,

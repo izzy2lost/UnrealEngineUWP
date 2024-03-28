@@ -9,8 +9,8 @@ import struct
 import traceback
 from typing import Optional
 
-from PySide2 import QtCore
-from PySide2 import QtWidgets
+from PySide6 import QtCore
+from PySide6 import QtWidgets
 
 from switchboard import message_protocol, switchboard_application
 from switchboard import switchboard_utils as sb_utils

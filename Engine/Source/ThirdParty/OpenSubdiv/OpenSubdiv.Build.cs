@@ -11,7 +11,7 @@ public class OpenSubdiv : ModuleRules
 
 		bool bDebug = (Target.Configuration == UnrealTargetConfiguration.Debug && Target.bDebugBuildsActuallyUseDebugCRT);
 
-		string DeploymentDirectory = Path.Combine(ModuleDirectory, "Deploy", "OpenSubdiv-3.5.0");
+		string DeploymentDirectory = Path.Combine(ModuleDirectory, "Deploy", "OpenSubdiv-3.6.0");
 
 		PublicSystemIncludePaths.Add(Path.Combine(DeploymentDirectory, "include"));
 

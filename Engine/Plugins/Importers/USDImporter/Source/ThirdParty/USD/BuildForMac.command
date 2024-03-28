@@ -2,21 +2,26 @@
 
 set -e
 
-OPENUSD_VERSION=23.11
+OPENUSD_VERSION=24.03
 
 # This path may be adjusted to point to wherever the OpenUSD source is located.
 # It is typically obtained by either downloading a zip/tarball of the source
 # code, or more commonly by cloning the GitHub repository, e.g. for the
 # current engine OpenUSD version:
-#     git clone --branch v23.11 https://github.com/PixarAnimationStudios/OpenUSD.git OpenUSD_src
+#     git clone --branch v24.03 https://github.com/PixarAnimationStudios/OpenUSD.git OpenUSD_src
 # We apply a patch for the usdMtlx plugin to ensure that we do not
 # bake a hard-coded path to the MaterialX standard data libraries into the
 # built plugin:
-#     git apply OpenUSD_v2311_usdMtlx_undef_stdlib_dir.patch
+#     git apply OpenUSD_v2403_usdMtlx_undef_stdlib_dir.patch
 # We apply a patch to explicitly declare, define, and export a destructor for
 # SdfAssetPaths so that allocations of its member strings can be tracked and
 # deallocated using the correct deallocator:
-#     git apply OpenUSD_v2311_explicit_SdfAssetPath_dtor.patch
+#     git apply OpenUSD_v2403_explicit_SdfAssetPath_dtor.patch
+# We apply a patch to switch between two alternative set of macros in the Tf
+# library based on whether we're compiling with MSVC *and* whether its
+# "traditional" preprocessor is being used, not just whether we're using
+# MSVC or not:
+#     git apply OpenUSD_v2403_msvc_preprocessor_version_handling.patch
 # Note also that this path may be emitted as part of OpenUSD error messages, so
 # it is suggested that it not reveal any sensitive information.
 OPENUSD_SOURCE_LOCATION="/tmp/OpenUSD_src"
@@ -29,13 +34,13 @@ UE_THIRD_PARTY_LOCATION="$UE_ENGINE_LOCATION/Source/ThirdParty"
 TBB_LOCATION="$UE_THIRD_PARTY_LOCATION/Intel/TBB/IntelTBB-2019u8"
 TBB_INCLUDE_LOCATION="$TBB_LOCATION/include"
 TBB_LIB_LOCATION="$TBB_LOCATION/lib/Mac"
-BOOST_LOCATION="$UE_THIRD_PARTY_LOCATION/Boost/boost-1_80_0"
+BOOST_LOCATION="$UE_THIRD_PARTY_LOCATION/Boost/boost-1_82_0"
 BOOST_INCLUDE_LOCATION="$BOOST_LOCATION/include"
 BOOST_LIB_LOCATION="$BOOST_LOCATION/lib/Mac"
 IMATH_LOCATION="$UE_THIRD_PARTY_LOCATION/Imath/Deploy/Imath-3.1.9"
 IMATH_LIB_LOCATION="$IMATH_LOCATION/Mac"
 IMATH_CMAKE_LOCATION="$IMATH_LIB_LOCATION/lib/cmake/Imath"
-OPENSUBDIV_LOCATION="$UE_THIRD_PARTY_LOCATION/OpenSubdiv/Deploy/OpenSubdiv-3.5.0"
+OPENSUBDIV_LOCATION="$UE_THIRD_PARTY_LOCATION/OpenSubdiv/Deploy/OpenSubdiv-3.6.0"
 OPENSUBDIV_INCLUDE_DIR="$OPENSUBDIV_LOCATION/include"
 OPENSUBDIV_LIB_LOCATION="$OPENSUBDIV_LOCATION/Mac/lib"
 ALEMBIC_LOCATION="$UE_THIRD_PARTY_LOCATION/Alembic/Deploy/alembic-1.8.6"
@@ -49,7 +54,7 @@ PYTHON_BINARIES_LOCATION="$UE_ENGINE_LOCATION/Binaries/ThirdParty/Python3/Mac"
 PYTHON_EXECUTABLE_LOCATION="$PYTHON_BINARIES_LOCATION/bin/python3"
 PYTHON_SOURCE_LOCATION="$UE_THIRD_PARTY_LOCATION/Python3/Mac"
 PYTHON_INCLUDE_LOCATION="$PYTHON_SOURCE_LOCATION/include"
-PYTHON_LIBRARY_LOCATION="$PYTHON_BINARIES_LOCATION/libpython3.9.dylib"
+PYTHON_LIBRARY_LOCATION="$PYTHON_BINARIES_LOCATION/libpython3.11.dylib"
 
 UE_MODULE_USD_LOCATION=$SCRIPT_DIR
 

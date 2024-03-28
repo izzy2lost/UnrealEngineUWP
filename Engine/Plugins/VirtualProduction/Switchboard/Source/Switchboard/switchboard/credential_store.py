@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from abc import abstractmethod, ABC
+from abc import abstractmethod, ABC, ABCMeta
 from dataclasses import dataclass
 import json
 import logging
@@ -14,14 +14,17 @@ import tempfile
 import threading
 from typing import Callable, Optional
 
-from PySide2 import QtCore, QtWidgets
+from PySide6 import QtCore, QtWidgets
 
 
-class QObjectABCMeta(type(ABC), type(QtCore.QObject)):
+QObjectMeta = type(QtCore.QObject)
+
+
+class QObjectABCMeta(QObjectMeta, ABCMeta):
     pass
 
 
-class CredentialStore(ABC, QtCore.QObject, metaclass=QObjectABCMeta):
+class CredentialStore(QtCore.QObject, ABC, metaclass=QObjectABCMeta):
     @dataclass
     class Credential:
         username: str

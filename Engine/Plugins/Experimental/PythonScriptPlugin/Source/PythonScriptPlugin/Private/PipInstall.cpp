@@ -324,6 +324,12 @@ void FPipInstall::SetupPipEnv(FFeedbackContext* Context, bool bForceRebuild /* =
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(FPipInstall::SetupPipEnv);
 
+	const FString EngineInterp = PyUtil::GetInterpreterExecutablePath();
+#ifdef PYTHON_CHECK_SYSEXEC
+	// HACK: Set this compiler variable to check what sys.executable python subproceses get (should match python executable unreal was built against)
+	RunPythonCmd(LOCTEXT("PipInstall.DebugInterpWeirdness", "Check Python sys.executable..."), EngineInterp, TEXT("-c \"import sys; print(f'sys.executable: {sys.executable}')\""), Context);
+#endif //PYTHON_CHECK_SYSEXEC
+
 	if (!bForceRebuild && FPaths::FileExists(VenvInterp))
 	{
 		SetupPipInstallUtils(Context);
@@ -337,7 +343,6 @@ void FPipInstall::SetupPipEnv(FFeedbackContext* Context, bool bForceRebuild /* =
 		PlatformFile.DeleteDirectoryRecursively(*PipInstallPath);
 	}
 
-	const FString EngineInterp = PyUtil::GetInterpreterExecutablePath();
 	const FString VenvCmd = FString::Printf(TEXT("-m venv \"%s\""), *FPaths::ConvertRelativePathToFull(PipInstallPath));
 	int32 Res = RunPythonCmd(LOCTEXT("PipInstall.SetupVenv", "Setting up pip install environment..."), EngineInterp, VenvCmd, Context);
 	if (Res != 0)
@@ -618,7 +623,7 @@ int32 FPipInstall::RunPythonCmd(const FText& Description, const FString& PythonI
 	UE_LOG(LogPython, Log, TEXT("Running python command: \"%s\" %s"), *PythonInterp, *Cmd);
 
 	int32 Result = 0;
-	RunLoggedSubprocess(&Result, Description, FPaths::ConvertRelativePathToFull(PythonInterp), Cmd, Context, CmdParser);
+	RunLoggedSubprocess(&Result, Description, PythonInterp, Cmd, Context, CmdParser);
 
 	return Result;
 }

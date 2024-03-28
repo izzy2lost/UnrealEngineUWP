@@ -292,11 +292,11 @@ namespace UE::Learning::Trainer
 		return FMath::Pow(0.5f, 1.0f / FMath::Max(HalfLifeSteps, 1));
 	}
 
-	FString GetPythonExecutablePath(const FString& EngineDir)
+	FString GetPythonExecutablePath(const FString& IntermediateDir)
 	{
 		UE_LEARNING_CHECKF(PLATFORM_WINDOWS || PLATFORM_MAC || PLATFORM_LINUX, TEXT("Python only supported on Windows, Mac, and Linux."));
 
-		return EngineDir / TEXT("Binaries/ThirdParty/Python3") / FPlatformMisc::GetUBTPlatform() / (PLATFORM_WINDOWS ? TEXT("python.exe") : TEXT("bin/python"));
+		return IntermediateDir / TEXT("PipInstall") / (PLATFORM_WINDOWS ? TEXT("Scripts/python.exe") : TEXT("bin/python3"));
 	}
 
 	FString GetSitePackagesPath(const FString& EngineDir)

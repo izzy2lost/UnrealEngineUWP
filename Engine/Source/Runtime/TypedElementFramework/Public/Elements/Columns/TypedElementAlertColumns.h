@@ -36,7 +36,7 @@ struct FTypedElementAlertColumn final : public FTypedElementDataStorageColumn
 	// therefore this is kept small to stay within the padding of the struct. This could even be reduced to a 8 bit value if needed.
 	uint16 RemoveCycleId;
 
-	UPROPERTY()
+	UPROPERTY(meta = (IgnoreForMemberInitializationTest))
 	FTypedElementAlertColumnType AlertType;
 };
 

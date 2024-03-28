@@ -16,7 +16,7 @@ from aioquic.asyncio.protocol import QuicConnectionProtocol
 from aioquic.quic.configuration import QuicConfiguration
 from aioquic.quic.events import QuicEvent, HandshakeCompleted
 from cryptography.hazmat.primitives import hashes
-from PySide2 import QtCore
+from PySide6 import QtCore
 
 from . import message_protocol
 from .credential_store import CredentialStore, CREDENTIAL_STORE

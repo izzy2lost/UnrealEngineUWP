@@ -67,6 +67,12 @@ namespace UnrealBuildTool.Modes
 		public string? OverrideIndexUrl = null;
 
 		/// <summary>
+		/// Run pip installer on all plugins in project and engine
+		/// </summary>
+		[CommandLine("-AllPlugins", Description = "Run pip installer on all plugins in project and engine")]
+		public bool bAllPlugins = false;
+
+		/// <summary>
 		/// Execute the command
 		/// </summary>
 		/// <param name="Arguments">Command line arguments</param>
@@ -74,6 +80,9 @@ namespace UnrealBuildTool.Modes
 		/// <returns>Exit code</returns>
 		public override Task<int> ExecuteAsync(CommandLineArguments Arguments, ILogger Logger)
 		{
+			// HACK: This env var must be cleared or it carries into python subprocesses and python sys.executable detection breaking venvs
+			Environment.SetEnvironmentVariable("PYTHONEXECUTABLE", null);
+
 			Arguments.ApplyTo(this);
 
 			// Create the build configuration object, and read the settings
@@ -133,7 +142,7 @@ namespace UnrealBuildTool.Modes
 				// Make sure the virtual environment used for installs is compatible with python interpreter version
 				Pip.RemoveInvalidVenv(PythonInterpreter);
 
-				Pip.WritePluginsListing(Target, Logger);
+				Pip.WritePluginsListing(Target, Logger, bAllPlugins);
 				if (!Pip.WritePluginDependencies())
 				{
 					return 1;
@@ -250,7 +259,7 @@ namespace UnrealBuildTool.Modes
 			}
 		}
 
-		public void WritePluginsListing(UEBuildTarget Target, ILogger Logger)
+		public void WritePluginsListing(UEBuildTarget Target, ILogger Logger, bool bAllPlugins = false)
 		{
 			// TODO: The path listing file won't match the .pth generated in-engine.
 			// In particular the additional paths setting
@@ -265,14 +274,27 @@ namespace UnrealBuildTool.Modes
 				FileReference.Delete(PluginsListingFile);
 			}
 
-			if (Target.EnabledPlugins == null)
+			List<PluginInfo> CheckPlugins = new List<PluginInfo>();
+			if ( bAllPlugins )
+			{
+				CheckPlugins.AddAll(Plugins.ReadEnginePlugins(Unreal.EngineDirectory).ToArray());
+				CheckPlugins.AddAll(Plugins.ReadProjectPlugins(Target.ProjectDirectory).ToArray());
+			}
+			else if (Target.EnabledPlugins != null)
+			{
+				foreach (UEBuildPlugin Plugin in Target.EnabledPlugins)
+				{
+					CheckPlugins.Add(Plugin.Info);
+				}
+			}
+			else
 			{
 				return;
 			}
 
 			List<string> PluginsSitePackages = new List<string>();
 			List<string> PluginsList = new List<string>();
-			foreach (UEBuildPlugin Plugin in Target.EnabledPlugins)
+			foreach (PluginInfo Plugin in CheckPlugins)
 			{
 				DirectoryReference PythonContentPath = DirectoryReference.Combine(Plugin.Directory, "Content", "Python");
 				DirectoryReference PluginPlatformSitePackagesPath = DirectoryReference.Combine(PythonContentPath, "Lib", Target.Platform.ToString(), "site-packages");

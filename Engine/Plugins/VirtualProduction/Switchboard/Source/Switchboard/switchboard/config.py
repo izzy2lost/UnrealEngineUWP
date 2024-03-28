@@ -15,9 +15,9 @@ from typing import Any, Callable, Optional, Tuple, Type, Union
 from enum import Enum
 from pathlib import Path
 
-from PySide2 import QtCore
-from PySide2 import QtGui
-from PySide2 import QtWidgets
+from PySide6 import QtCore
+from PySide6 import QtGui
+from PySide6 import QtWidgets
 
 from switchboard import switchboard_widgets as sb_widgets
 from switchboard.switchboard_logging import LOGGER

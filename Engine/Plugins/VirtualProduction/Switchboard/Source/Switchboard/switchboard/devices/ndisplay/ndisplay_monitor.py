@@ -5,9 +5,9 @@ from itertools import count
 import time
 import traceback
 
-from PySide2 import QtCore
-from PySide2.QtCore import QAbstractTableModel, QModelIndex, Qt, QTimer
-from PySide2.QtGui import QColor
+from PySide6 import QtCore
+from PySide6.QtCore import QAbstractTableModel, QModelIndex, Qt, QTimer
+from PySide6.QtGui import QColor
 
 from switchboard import message_protocol
 from switchboard.switchboard_logging import LOGGER
@@ -558,18 +558,18 @@ class nDisplayMonitor(QAbstractTableModel):
         return len(self.colnames)
 
     def headerData(self, section, orientation, role):
-        if role == Qt.DisplayRole:
-            if orientation == Qt.Horizontal:
+        if role == Qt.ItemDataRole.DisplayRole:
+            if orientation == Qt.Orientation.Horizontal:
                 return self.colnames[section]
             else:
                 return "{}".format(section)
 
-        if role == Qt.ToolTipRole:
+        if role == Qt.ItemDataRole.ToolTipRole:
             return self.tooltips[section]
 
         return None
 
-    def data(self, index, role=Qt.DisplayRole):
+    def data(self, index, role=Qt.ItemDataRole.DisplayRole):
         column = index.column()
         row = index.row()
 
@@ -581,17 +581,17 @@ class nDisplayMonitor(QAbstractTableModel):
         data = devicedata['data']
         value = data[colname]
 
-        if role == Qt.DisplayRole:
+        if role == Qt.ItemDataRole.DisplayRole:
             return value
 
-        elif role == Qt.BackgroundRole:
+        elif role == Qt.ItemDataRole.BackgroundRole:
             return self.color_for_column(colname=colname, value=value,
                                          data=data)
 
-        elif role == Qt.TextAlignmentRole:
+        elif role == Qt.ItemDataRole.TextAlignmentRole:
             if colname in ('CpuUtilization', 'GpuUtilization'):
-                return Qt.AlignLeft
-            return Qt.AlignRight
+                return Qt.AlignmentFlag.AlignLeft
+            return Qt.AlignmentFlag.AlignRight
 
         return None
 

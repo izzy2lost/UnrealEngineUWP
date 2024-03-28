@@ -3187,7 +3187,7 @@ TArray<UE::FSdfPath> UsdUtils::DuplicatePrims(const TArray<UE::FUsdPrim>& Prims,
 															   const pxr::SdfLayerHandle& DstLayer,
 															   const pxr::SdfPath& DstPath,
 															   bool FieldInDst,
-															   boost::optional<pxr::VtValue>* ValueToCopy) -> bool
+															   std::optional<pxr::VtValue>* ValueToCopy) -> bool
 				{
 					// Only copy a field over if it has a value. Otherwise it seems to clear the destination spec
 					// for nothing
@@ -3201,8 +3201,8 @@ TArray<UE::FSdfPath> UsdUtils::DuplicatePrims(const TArray<UE::FUsdPrim>& Prims,
 																	 const pxr::SdfLayerHandle& DstLayer,
 																	 const pxr::SdfPath& DstPath,
 																	 bool FieldInDst,
-																	 boost::optional<pxr::VtValue>* SrcChildren,
-																	 boost::optional<pxr::VtValue>* DstChildren) -> bool
+																	 std::optional<pxr::VtValue>* SrcChildren,
+																	 std::optional<pxr::VtValue>* DstChildren) -> bool
 				{
 					return true;
 				};
