@@ -2,4 +2,4 @@
 
 #pragma once
 
-#pragma message("D3D12RHIBridge.h is deprecated. Please switch to using ID3D12DynamicRHI.h")
+UE_DEPRECATED_HEADER(5.3, "D3D12RHIBridge.h is deprecated. Please switch to using ID3D12DynamicRHI.h")
