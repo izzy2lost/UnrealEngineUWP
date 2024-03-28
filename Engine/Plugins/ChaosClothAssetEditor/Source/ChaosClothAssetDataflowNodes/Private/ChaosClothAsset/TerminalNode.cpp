@@ -2,12 +2,12 @@
 
 #include "ChaosClothAsset/TerminalNode.h"
 #include "ChaosClothAsset/ClothAsset.h"
+#include "ChaosClothAsset/ClothCollectionGroup.h"
 #include "ChaosClothAsset/ClothDataflowTools.h"
 #include "ChaosClothAsset/ClothGeometryTools.h"
 #include "ChaosClothAsset/ClothLODTransitionDataCache.h"
 #include "ChaosClothAsset/CollectionClothFacade.h"
 #include "ChaosClothAsset/CollectionClothSelectionFacade.h"
-#include "ChaosClothAsset/ClothCollectionGroup.h"
 #include "Animation/Skeleton.h"
 #include "Chaos/CollectionPropertyFacade.h"
 #include "Dataflow/DataflowInputOutput.h"
@@ -31,7 +31,14 @@ namespace UE::Chaos::ClothAsset::Private
 			if (Cloth.HasValidData())
 			{
 				Checksum = Cloth.CalculateTypeHash(bIncludeWeightMapsTrue, Checksum);
-				Checksum = Cloth.CalculateUserDefinedAttributesTypeHash<int32>(ClothCollectionGroup::SimFaces, Checksum);
+
+				const TArray<FName> GroupNames = ClothCollection->GroupNames();
+				for (const FName& GroupName : GroupNames)
+				{
+					Checksum = Cloth.CalculateUserDefinedAttributesTypeHash<int32>(GroupName, Checksum);
+					Checksum = Cloth.CalculateUserDefinedAttributesTypeHash<float>(GroupName, Checksum);
+					Checksum = Cloth.CalculateUserDefinedAttributesTypeHash<FVector3f>(GroupName, Checksum);
+				}
 			}
 			FCollectionClothSelectionConstFacade Selection(ClothCollection);
 			if (Selection.IsValid())

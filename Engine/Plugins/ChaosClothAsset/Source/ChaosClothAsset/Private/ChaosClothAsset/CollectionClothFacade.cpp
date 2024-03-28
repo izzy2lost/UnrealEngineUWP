@@ -468,6 +468,11 @@ namespace UE::Chaos::ClothAsset
 	template CHAOSCLOTHASSET_API TConstArrayView<float> FCollectionClothConstFacade::GetUserDefinedAttribute<float>(const FName& Name, const FName& GroupName) const;
 	template CHAOSCLOTHASSET_API TConstArrayView<FVector3f> FCollectionClothConstFacade::GetUserDefinedAttribute<FVector3f>(const FName& Name, const FName& GroupName) const;
 
+	bool FCollectionClothConstFacade::IsValidClothCollectionGroupName(const FName& GroupName)
+	{
+		return FClothCollection::IsValidClothCollectionGroupName(GroupName);
+	}
+
 	void FCollectionClothConstFacade::BuildSimulationMesh(TArray<FVector3f>& Positions, TArray<FVector3f>& Normals, TArray<uint32>& Indices, TArray<FVector2f>& PatternsPositions, TArray<uint32>& PatternsIndices,
 		TArray<uint32>& PatternToWeldedIndices, TArray<TArray<int32>>* OptionalWeldedToPatternIndices) const
 	{
@@ -1123,11 +1128,6 @@ namespace UE::Chaos::ClothAsset
 	template CHAOSCLOTHASSET_API TArrayView<int32> FCollectionClothFacade::GetUserDefinedAttribute<int32>(const FName& Name, const FName& GroupName);
 	template CHAOSCLOTHASSET_API TArrayView<float> FCollectionClothFacade::GetUserDefinedAttribute<float>(const FName& Name, const FName& GroupName);
 	template CHAOSCLOTHASSET_API TArrayView<FVector3f> FCollectionClothFacade::GetUserDefinedAttribute<FVector3f>(const FName& Name, const FName& GroupName);
-
-	bool FCollectionClothFacade::IsValidClothCollectionGroupName(const FName& GroupName)
-	{
-		return FClothCollection::IsValidClothCollectionGroupName(GroupName);
-	}
 
 	void FCollectionClothFacade::SetDefaults()
 	{

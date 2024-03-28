@@ -172,6 +172,7 @@ namespace UE::Chaos::ClothAsset
 		TArray<FName> GetUserDefinedAttributeNames(const FName& GroupName) const;
 		template<typename T, TEMPLATE_REQUIRES(TIsUserAttributeType<T>::Value)>
 		TConstArrayView<T> GetUserDefinedAttribute(const FName& Name, const FName& GroupName) const;
+		static bool IsValidClothCollectionGroupName(const FName& GroupName);
 
 		void BuildSimulationMesh(TArray<FVector3f>& Positions, TArray<FVector3f>& Normals, TArray<uint32>& Indices, TArray<FVector2f>& PatternsPositions, TArray<uint32>& PatternsIndices, 
 			TArray<uint32>& PatternToWeldedIndices, TArray<TArray<int32>>* OptionalWeldedToPatternIndices = nullptr) const;
@@ -351,7 +352,6 @@ namespace UE::Chaos::ClothAsset
 		void RemoveUserDefinedAttribute(const FName& Name, const FName& GroupName);
 		template<typename T, TEMPLATE_REQUIRES(TIsUserAttributeType<T>::Value)>
 		TArrayView<T> GetUserDefinedAttribute(const FName& Name, const FName& GroupName);
-		static bool IsValidClothCollectionGroupName(const FName& GroupName);
 
 	private:
 		
