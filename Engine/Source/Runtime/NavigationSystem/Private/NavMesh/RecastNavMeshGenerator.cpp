@@ -4921,7 +4921,7 @@ void FRecastNavMeshGenerator::UpdateNavigationBounds()
 		{
 			InclusionBounds.Reset(1);
 			TotalNavBounds = NavSys->GetWorldBounds();
-			if (!TotalNavBounds.IsValid)
+			if (TotalNavBounds.IsValid)
 			{
 				InclusionBounds.Add(TotalNavBounds);
 			}
