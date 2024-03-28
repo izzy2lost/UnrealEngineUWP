@@ -1415,9 +1415,9 @@ void UChaosClothAssetEditorMode::DeleteContextObject()
 
 void UChaosClothAssetEditorMode::SetDataflowGraphEditor(TSharedPtr<SDataflowGraphEditor> InGraphEditor)
 {
+	DataflowGraphEditor = InGraphEditor;
 	if (InGraphEditor)
 	{
-		DataflowGraphEditor = InGraphEditor;
 		InitializeContextObject();
 	}
 	else
@@ -1495,11 +1495,13 @@ UEdGraphNode* UChaosClothAssetEditorMode::CreateNewNode(const FName& NewNodeType
 		return nullptr;
 	}
 
+	checkf(DataflowGraph.IsValid(), TEXT("Dataflow pointer is invalid in UChaosClothAssetEditorMode"));
+
 	const TSharedPtr<FAssetSchemaAction_Dataflow_CreateNode_DataflowEdNode> NodeAction =
-		FAssetSchemaAction_Dataflow_CreateNode_DataflowEdNode::CreateAction(DataflowGraph, NewNodeTypeName);
+		FAssetSchemaAction_Dataflow_CreateNode_DataflowEdNode::CreateAction(DataflowGraph.Get(), NewNodeTypeName);
 	constexpr UEdGraphPin* FromPin = nullptr;
 	constexpr bool bSelectNewNode = true;
-	UEdGraphNode* const NewEdNode = NodeAction->PerformAction(DataflowGraph, FromPin, PinnedDataflowGraphEditor->GetPasteLocation(), bSelectNewNode);
+	UEdGraphNode* const NewEdNode = NodeAction->PerformAction(DataflowGraph.Get(), FromPin, PinnedDataflowGraphEditor->GetPasteLocation(), bSelectNewNode);
 
 	return NewEdNode;
 }
@@ -1507,6 +1509,8 @@ UEdGraphNode* UChaosClothAssetEditorMode::CreateNewNode(const FName& NewNodeType
 
 UEdGraphNode* UChaosClothAssetEditorMode::CreateAndConnectNewNode(const FName& NewNodeTypeName, UEdGraphNode& UpstreamNode, const FName& ConnectionTypeName, const FName& NewNodeConnectionName)
 {
+	checkf(DataflowGraph.IsValid(), TEXT("Dataflow pointer is invalid in UChaosClothAssetEditorMode"));
+
 	// First find the specified output of the upstream node, plus any pins it's connected to
 
 	UEdGraphPin* UpstreamNodeOutputPin = nullptr;
