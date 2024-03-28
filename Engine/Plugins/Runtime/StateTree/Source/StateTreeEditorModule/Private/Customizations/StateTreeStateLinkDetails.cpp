@@ -10,9 +10,14 @@
 #include "Widgets/Images/SImage.h"
 #include "Framework/MultiBox/MultiBoxBuilder.h"
 #include "ScopedTransaction.h"
+#include "StateTreeEditorStyle.h"
 #include "StateTreePropertyHelpers.h"
+#include "Widgets/Input/SSearchBox.h"
 
 #define LOCTEXT_NAMESPACE "StateTreeEditor"
+
+TMap<FObjectKey, FStateTreeStateLinkDetails::FStateExpansionState> FStateTreeStateLinkDetails::StateExpansionStates;
+
 
 TSharedRef<IPropertyTypeCustomization> FStateTreeStateLinkDetails::MakeInstance()
 {
@@ -47,8 +52,8 @@ void FStateTreeStateLinkDetails::CustomizeHeader(TSharedRef<class IPropertyHandl
 		.ValueContent()
 		.VAlign(VAlign_Center)
 		[
-			SNew(SComboButton)
-			.OnGetMenuContent(this, &FStateTreeStateLinkDetails::OnGetStateContent)
+			SAssignNew(ComboButton, SComboButton)
+			.OnGetMenuContent(this, &FStateTreeStateLinkDetails::GenerateStatePicker)
 			.ButtonContent()
 			[
 				SNew(SHorizontalBox)
@@ -58,25 +63,34 @@ void FStateTreeStateLinkDetails::CustomizeHeader(TSharedRef<class IPropertyHandl
 				.VAlign(VAlign_Center)
 				.Padding(0,0,4,0)
 				[
-					SNew(SBox)
-					[
-						SNew(SImage)
-						.ToolTipText(LOCTEXT("MissingState", "The specified state cannot be found."))
-						.Visibility_Lambda([this]()
-						{
-							return IsValidLink() ? EVisibility::Collapsed : EVisibility::Visible;
-						})
-						.Image(FAppStyle::GetBrush("Icons.ErrorWithColor"))
-					]
+					SNew(SImage)
+					.ToolTipText(LOCTEXT("MissingState", "The specified state cannot be found."))
+					.Visibility_Lambda([this]()
+					{
+						return IsValidLink() ? EVisibility::Collapsed : EVisibility::Visible;
+					})
+					.Image(FAppStyle::GetBrush("Icons.ErrorWithColor"))
 				]
 
+				+SHorizontalBox::Slot()
+				.HAlign(HAlign_Left)
+				.VAlign(VAlign_Center)
+				.Padding(0, 2.0f, 4.0f, 2.0f)
+				.AutoWidth()
+				[
+					SNew(SImage)
+					.DesiredSizeOverride(FVector2D(16.0f, 16.0f))
+					.Image(this, &FStateTreeStateLinkDetails::GetCurrentStateIcon)
+					.ColorAndOpacity(this, &FStateTreeStateLinkDetails::GetCurrentStateColor)
+				]
+				
 				+SHorizontalBox::Slot()
 				.AutoWidth()
 				.VAlign(VAlign_Center)
 				[
 					SNew(STextBlock)
 					.Text(this, &FStateTreeStateLinkDetails::GetCurrentStateDesc)
-					.Font(IDetailLayoutBuilder::GetDetailFont())
+					.Font(this, &FStateTreeStateLinkDetails::GetCurrentStateFont)
 				]
 			]
 		];
@@ -93,7 +107,7 @@ void FStateTreeStateLinkDetails::OnIdentifierChanged(const UStateTree& StateTree
 	CacheStates();
 }
 
-void FStateTreeStateLinkDetails::CacheStates(const UStateTreeState* State)
+void FStateTreeStateLinkDetails::CacheStates(TSharedPtr<FStateTreeStateItem> ParentNode, const UStateTreeState* State)
 {
 	if (State == nullptr)
 	{
@@ -113,213 +127,549 @@ void FStateTreeStateLinkDetails::CacheStates(const UStateTreeState* State)
 	
 	if (bShouldAdd)
 	{
-		CachedNames.Add(State->Name);
-		CachedIDs.Add(State->ID);
+		TSharedRef<FStateTreeStateItem> StateItem = MakeShared<FStateTreeStateItem>();
+		StateItem->Desc = FText::FromName(State->Name);
+		StateItem->TransitionType = EStateTreeTransitionType::GotoState;
+		StateItem->StateID = State->ID;
+		StateItem->Color = FLinearColor(1.f, 1.f, 1.f, 0.25f);
+		StateItem->bIsSubTree = State->Type == EStateTreeStateType::Subtree;
+
+		// Figure out icon.
+		if (State->SelectionBehavior == EStateTreeStateSelectionBehavior::None)
+		{
+			StateItem->Icon = FStateTreeEditorStyle::Get().GetBrush("StateTreeEditor.SelectNone");
+		}
+		else if (State->SelectionBehavior == EStateTreeStateSelectionBehavior::TryEnterState)
+		{
+			StateItem->Icon = FStateTreeEditorStyle::Get().GetBrush("StateTreeEditor.TryEnterState");			
+		}
+		else if (State->SelectionBehavior == EStateTreeStateSelectionBehavior::TrySelectChildrenInOrder)
+		{
+			if (State->Children.IsEmpty()
+				|| State->Type == EStateTreeStateType::Linked
+				|| State->Type == EStateTreeStateType::LinkedAsset)
+			{
+				StateItem->Icon = FStateTreeEditorStyle::Get().GetBrush("StateTreeEditor.TryEnterState");			
+			}
+			else
+			{
+				StateItem->Icon = FStateTreeEditorStyle::Get().GetBrush("StateTreeEditor.TrySelectChildrenInOrder");
+			}
+		}
+		else if (State->SelectionBehavior == EStateTreeStateSelectionBehavior::TryFollowTransitions)
+		{
+			StateItem->Icon = FStateTreeEditorStyle::Get().GetBrush("StateTreeEditor.TryFollowTransitions");
+		}
+
+		// Linked states
+		if (State->Type == EStateTreeStateType::Linked)
+		{
+			StateItem->bIsLinked = true;
+			StateItem->LinkedDesc = FText::FromName(State->LinkedSubtree.Name);
+		}
+		else if (State->Type == EStateTreeStateType::LinkedAsset)
+		{
+			StateItem->bIsLinked = true;
+			StateItem->LinkedDesc = FText::FromString(GetNameSafe(State->LinkedAsset.Get()));
+		}
+		
+		ParentNode->Children.Add(StateItem);
+
+		ParentNode = StateItem;
 	}
 
 	for (UStateTreeState* ChildState : State->Children)
 	{
-		CacheStates(ChildState);
+		CacheStates(ParentNode, ChildState);
 	}
 }
 
 void FStateTreeStateLinkDetails::CacheStates()
 {
-	CachedNames.Reset();
-	CachedIDs.Reset();
+	RootItem = MakeShared<FStateTreeStateItem>();
 
+	if (!bDirectStatesOnly)
+	{
+		RootItem->Children.Add(MakeShared<FStateTreeStateItem>(
+			LOCTEXT("TransitionNone", "None"),
+			LOCTEXT("TransitionNoneTooltip", "No transition."),
+			FStateTreeEditorStyle::Get().GetBrush("StateTreeEditor.Transition.None"),
+			EStateTreeTransitionType::None));
+
+		RootItem->Children.Add(MakeShared<FStateTreeStateItem>(
+			LOCTEXT("TransitionNextState", "Next State"),
+			LOCTEXT("TransitionNextTooltip", "Goto next sibling State."),
+			FStateTreeEditorStyle::Get().GetBrush("StateTreeEditor.Transition.Next"),
+			EStateTreeTransitionType::NextState));
+
+		RootItem->Children.Add(MakeShared<FStateTreeStateItem>(
+			LOCTEXT("TransitionNextSelectableState", "Next Selectable State"),
+			LOCTEXT("TransitionNextSelectableTooltip", "Goto next sibling state, whose enter conditions pass."),
+			FStateTreeEditorStyle::Get().GetBrush("StateTreeEditor.Transition.Next"),
+			EStateTreeTransitionType::NextSelectableState));
+
+		RootItem->Children.Add(MakeShared<FStateTreeStateItem>(
+			LOCTEXT("TransitionTreeSucceeded", "Tree Succeeded"),
+			LOCTEXT("TransitionTreeSuccessTooltip", "Complete tree with success."),
+			FStateTreeEditorStyle::Get().GetBrush("StateTreeEditor.Transition.Succeeded"),
+			EStateTreeTransitionType::Succeeded));
+
+		RootItem->Children.Add(MakeShared<FStateTreeStateItem>(
+			LOCTEXT("TransitionTreeFailed", "Tree Failed"),
+			LOCTEXT("TransitionTreeFailedTooltip", "Complete tree with failure."),
+			FStateTreeEditorStyle::Get().GetBrush("StateTreeEditor.Transition.Failed"),
+			EStateTreeTransitionType::Failed));
+	}
+	
 	TArray<UObject*> OuterObjects;
 	StructProperty->GetOuterObjects(OuterObjects);
 	for (int32 ObjectIdx = 0; ObjectIdx < OuterObjects.Num(); ObjectIdx++)
 	{
-		UStateTree* OuterStateTree = OuterObjects[ObjectIdx]->GetTypedOuter<UStateTree>();
-		if (OuterStateTree)
+		if (const UStateTree* OuterStateTree = OuterObjects[ObjectIdx]->GetTypedOuter<UStateTree>())
 		{
-			if (UStateTreeEditorData* TreeData = Cast<UStateTreeEditorData>(OuterStateTree->EditorData))
+			if (const UStateTreeEditorData* TreeData = Cast<UStateTreeEditorData>(OuterStateTree->EditorData))
 			{
+				WeakStateTree = OuterStateTree;
 				for (const UStateTreeState* SubTree : TreeData->SubTrees)
 				{
-					CacheStates(SubTree);
+					CacheStates(RootItem, SubTree);
 				}
 			}
 			break;
 		}
 	}
 
+	FilteredRootItem = RootItem;
 }
 
-void FStateTreeStateLinkDetails::OnStateComboChange(int Idx)
+TSharedRef<SWidget> FStateTreeStateLinkDetails::GenerateStatePicker()
 {
-	if (NameProperty && IDProperty)
+	check(ComboButton);
+	
+	CacheStates();
+
+	TSharedRef<SWidget> MenuWidget = 
+		SNew(SBox)
+		.MinDesiredWidth(300.f)
+		.MaxDesiredHeight(400.f)
+		.Padding(2)	
+		[
+			SNew(SVerticalBox)
+			+ SVerticalBox::Slot()
+			.HAlign(HAlign_Fill)
+			.VAlign(VAlign_Top)
+			.Padding(4, 2, 4, 2)
+			.AutoHeight()
+			[
+				SAssignNew(SearchBox, SSearchBox)
+				.OnTextChanged(this, &FStateTreeStateLinkDetails::OnSearchBoxTextChanged)
+			]
+			+ SVerticalBox::Slot()
+			[
+				SAssignNew(StateItemTree, STreeView<TSharedPtr<FStateTreeStateItem>>)
+				.SelectionMode(ESelectionMode::Single)
+				.ItemHeight(20.0f)
+				.TreeItemsSource(&FilteredRootItem->Children)
+				.OnGenerateRow(this, &FStateTreeStateLinkDetails::GenerateStateItemRow)
+				.OnGetChildren(this, &FStateTreeStateLinkDetails::GetStateItemChildren)
+				.OnSelectionChanged(this, &FStateTreeStateLinkDetails::OnStateItemSelected)
+				.OnExpansionChanged(this, &FStateTreeStateLinkDetails::OnStateItemExpansionChanged)
+			]
+		];
+
+	// Restore category expansion state from previous use.
+	RestoreExpansionState();
+	
+	// Expand and select currently selected item.
+	TArray<TSharedPtr<FStateTreeStateItem>> Path;
+	if (GetCurrentStateItem(Path))
+	{
+		// Expand all categories up to the selected item.
+		bIsRestoringExpansion = true;
+		for (int32 Index = 0; Index < Path.Num() - 1; Index++)
+		{
+			StateItemTree->SetItemExpansion(Path[Index], true);
+		}
+		bIsRestoringExpansion = false;
+		
+		StateItemTree->SetItemSelection(Path.Last(), true);
+		StateItemTree->RequestScrollIntoView(Path.Last());
+	}
+	
+	ComboButton->SetMenuContentWidgetToFocus(SearchBox);
+
+	return MenuWidget;
+}
+
+FSlateFontInfo FStateTreeStateLinkDetails::GetItemFont(TSharedPtr<FStateTreeStateItem> Item)
+{
+	FSlateFontInfo Font = FAppStyle::Get().GetFontStyle("PropertyWindow.NormalFont");
+	if (Item->TransitionType != EStateTreeTransitionType::GotoState)
+	{
+		Font = FAppStyle::Get().GetFontStyle("PropertyWindow.ItalicFont");
+	}
+	else if (Item->bIsSubTree)
+	{
+		Font = FAppStyle::Get().GetFontStyle("PropertyWindow.BoldFont");
+	}
+	return Font;	
+}
+
+TSharedRef<ITableRow> FStateTreeStateLinkDetails::GenerateStateItemRow(TSharedPtr<FStateTreeStateItem> Item, const TSharedRef<STableViewBase>& OwnerTable)
+{
+	const FSlateFontInfo Font = GetItemFont(Item);
+
+	TSharedRef<SHorizontalBox> Container = SNew(SHorizontalBox);
+
+	// Icon
+	Container->AddSlot()
+		.HAlign(HAlign_Left)
+		.VAlign(VAlign_Center)
+		.Padding(0, 2.0f, 4.0f, 2.0f)
+		.AutoWidth()
+		[
+			SNew(SImage)
+			.Visibility(Item->Icon ? EVisibility::Visible : EVisibility::Collapsed)
+			.DesiredSizeOverride(FVector2D(16.0f, 16.0f))
+			.Image(Item->Icon)
+			.ColorAndOpacity(Item->Color)
+		];
+
+	// Name
+	Container->AddSlot()
+		.HAlign(HAlign_Fill)
+		.VAlign(VAlign_Center)
+		.AutoWidth()
+		[
+			SNew(STextBlock)
+			.Font(Font)
+			.Text(Item->Desc)
+			.ToolTipText(Item->TooltipText)
+			.HighlightText_Lambda([this]() { return SearchBox.IsValid() ? SearchBox->GetText() : FText::GetEmpty(); })
+		];
+
+	// Link
+	if (Item->bIsLinked)
+	{
+		// Link icon
+		Container->AddSlot()
+			.HAlign(HAlign_Left)
+			.VAlign(VAlign_Center)
+			.Padding(4.f, 0.f)
+			.AutoWidth()
+			[
+				SNew(SImage)
+				.ColorAndOpacity(FSlateColor::UseSubduedForeground())
+				.Image(FStateTreeEditorStyle::Get().GetBrush("StateTreeEditor.StateLinked"))
+		];
+
+		// Linked name
+		Container->AddSlot()
+			.HAlign(HAlign_Fill)
+			.VAlign(VAlign_Center)
+			.AutoWidth()
+			[
+				SNew(STextBlock)
+				.Font(FAppStyle::Get().GetFontStyle("PropertyWindow.NormalFont"))
+				.ColorAndOpacity(FSlateColor::UseSubduedForeground())
+				.Text(Item->LinkedDesc)
+			];
+	}
+	
+	return SNew(STableRow<TSharedPtr<FStateTreeStateItem>>, OwnerTable)
+		[
+			Container
+		];
+}
+
+void FStateTreeStateLinkDetails::GetStateItemChildren(TSharedPtr<FStateTreeStateItem> Item, TArray<TSharedPtr<FStateTreeStateItem>>& OutItems) const
+{
+	if (Item.IsValid())
+	{
+		OutItems = Item->Children;
+	}
+}
+
+void FStateTreeStateLinkDetails::OnStateItemSelected(TSharedPtr<FStateTreeStateItem> SelectedItem, ESelectInfo::Type Type)
+{
+	// Skip selection from code
+	if (Type == ESelectInfo::Direct)
+	{
+		return;
+	}
+	
+	if (SelectedItem
+		&& NameProperty
+		&& IDProperty)
 	{
 		FScopedTransaction Transaction(FText::Format(LOCTEXT("SetPropertyValue", "Set {0}"), StructProperty->GetPropertyDisplayName()));
-		if (Idx >= 0)
+
+		LinkTypeProperty->SetValue((uint8)SelectedItem->TransitionType);
+
+		if (SelectedItem->TransitionType == EStateTreeTransitionType::GotoState)
 		{
-			LinkTypeProperty->SetValue((uint8)EStateTreeTransitionType::GotoState);
-			NameProperty->SetValue(CachedNames[Idx], EPropertyValueSetFlags::NotTransactable);
-			UE::StateTree::PropertyHelpers::SetStructValue<FGuid>(IDProperty, CachedIDs[Idx], EPropertyValueSetFlags::NotTransactable);
+			NameProperty->SetValue(FName(SelectedItem->Desc.ToString()), EPropertyValueSetFlags::NotTransactable);
+			UE::StateTree::PropertyHelpers::SetStructValue<FGuid>(IDProperty, SelectedItem->StateID, EPropertyValueSetFlags::NotTransactable);
 		}
 		else
 		{
-			switch (Idx)
-			{
-			case ComboSucceeded:
-				LinkTypeProperty->SetValue((uint8)EStateTreeTransitionType::Succeeded);
-				break;
-			case ComboFailed:
-				LinkTypeProperty->SetValue((uint8)EStateTreeTransitionType::Failed);
-				break;
-			case ComboNextState:
-				LinkTypeProperty->SetValue((uint8)EStateTreeTransitionType::NextState);
-				break;
-			case ComboNextSelectableState:
-				LinkTypeProperty->SetValue((uint8)EStateTreeTransitionType::NextSelectableState);
-				break;
-			case ComboNotSet:
-			default:
-				LinkTypeProperty->SetValue((uint8)EStateTreeTransitionType::None);
-				break;
-			}
 			// Clear name and id.
 			NameProperty->SetValue(FName(), EPropertyValueSetFlags::NotTransactable);
 			UE::StateTree::PropertyHelpers::SetStructValue<FGuid>(IDProperty, FGuid(), EPropertyValueSetFlags::NotTransactable);
 		}
 	}
+
+	check(ComboButton);
+	ComboButton->SetIsOpen(false);
 }
 
-TSharedRef<SWidget> FStateTreeStateLinkDetails::OnGetStateContent() const
+void FStateTreeStateLinkDetails::OnStateItemExpansionChanged(TSharedPtr<FStateTreeStateItem> ExpandedItem, bool bInExpanded) const
 {
-	FMenuBuilder MenuBuilder(true, NULL);
-
-	if (!bDirectStatesOnly)
+	// Do not save expansion state we're restoring expansion state, or when showing filtered results. 
+	if (bIsRestoringExpansion || FilteredRootItem != RootItem)
 	{
-		const FUIAction NotSetItemAction(FExecuteAction::CreateSP(const_cast<FStateTreeStateLinkDetails*>(this), &FStateTreeStateLinkDetails::OnStateComboChange, ComboNotSet));
-		MenuBuilder.AddMenuEntry(LOCTEXT("TransitionNone", "None"), LOCTEXT("TransitionNoneTooltip", "No transition."), FSlateIcon(), NotSetItemAction);
-
-		const FUIAction NextItemAction(FExecuteAction::CreateSP(const_cast<FStateTreeStateLinkDetails*>(this), &FStateTreeStateLinkDetails::OnStateComboChange, ComboNextState));
-		MenuBuilder.AddMenuEntry(LOCTEXT("TransitionNextState", "Next State"), LOCTEXT("TransitionNextTooltip", "Goto next sibling State."), FSlateIcon(), NextItemAction);
-
-		const FUIAction NextSelectableItemAction(FExecuteAction::CreateSP(const_cast<FStateTreeStateLinkDetails*>(this), &FStateTreeStateLinkDetails::OnStateComboChange, ComboNextSelectableState));
-		MenuBuilder.AddMenuEntry(LOCTEXT("TransitionNextSelectableState", "Next Selectable State"), LOCTEXT("TransitionNextSelectableTooltip", "Goto next sibling state, whose enter conditions pass."), FSlateIcon(), NextSelectableItemAction);
-
-		const FUIAction SucceededItemAction(FExecuteAction::CreateSP(const_cast<FStateTreeStateLinkDetails*>(this), &FStateTreeStateLinkDetails::OnStateComboChange, ComboSucceeded));
-		MenuBuilder.AddMenuEntry(LOCTEXT("TransitionTreeSucceeded", "Tree Succeeded"), LOCTEXT("TransitionTreeSuccessTooltip", "Complete tree with success."), FSlateIcon(), SucceededItemAction);
-
-		const FUIAction FailedItemAction(FExecuteAction::CreateSP(const_cast<FStateTreeStateLinkDetails*>(this), &FStateTreeStateLinkDetails::OnStateComboChange, ComboFailed));
-		MenuBuilder.AddMenuEntry(LOCTEXT("TransitionTreeFailed", "Tree Failed"), LOCTEXT("TransitionTreeFailedTooltip", "Complete tree with failure."), FSlateIcon(), FailedItemAction);
+		return;
 	}
 
-	if (CachedNames.Num() > 0)
+	if (ExpandedItem.IsValid() && ExpandedItem->StateID.IsValid())
 	{
-		MenuBuilder.BeginSection(FName(), LOCTEXT("TransitionGotoStateSection", "Go to State"));
-
-		for (int32 Idx = 0; Idx < CachedNames.Num(); Idx++)
+		FStateExpansionState& ExpansionState = StateExpansionStates.FindOrAdd(FObjectKey(WeakStateTree.Get()));
+		if (bInExpanded)
 		{
-			FUIAction ItemAction(FExecuteAction::CreateSP(const_cast<FStateTreeStateLinkDetails*>(this), &FStateTreeStateLinkDetails::OnStateComboChange, Idx));
-			MenuBuilder.AddMenuEntry(FText::FromName(CachedNames[Idx]), FText::Format(LOCTEXT("TransitionGotoStateTooltip", "Go to State {0}."), FText::FromName(CachedNames[Idx])), FSlateIcon(), ItemAction);
+			ExpansionState.CollapsedStates.Remove(ExpandedItem->StateID);
+		}
+		else
+		{
+			ExpansionState.CollapsedStates.Add(ExpandedItem->StateID);
+		}
+	}
+}
+
+void FStateTreeStateLinkDetails::OnSearchBoxTextChanged(const FText& NewText)
+{
+	if (!StateItemTree.IsValid())
+	{
+		return;
+	}
+	
+	FilteredRootItem.Reset();
+
+	TArray<FString> FilterStrings;
+	NewText.ToString().ParseIntoArrayWS(FilterStrings);
+	FilterStrings.RemoveAll([](const FString& String) { return String.IsEmpty(); });
+	
+	if (FilterStrings.IsEmpty())
+	{
+		// Show all when there's no filter string.
+		FilteredRootItem = RootItem;
+		StateItemTree->SetTreeItemsSource(&FilteredRootItem->Children);
+		RestoreExpansionState();
+		StateItemTree->RequestTreeRefresh();
+		return;
+	}
+
+	FilteredRootItem = MakeShared<FStateTreeStateItem>();
+	FilterStateItemChildren(FilterStrings, /*bParentMatches*/false, RootItem->Children, FilteredRootItem->Children);
+
+	StateItemTree->SetTreeItemsSource(&FilteredRootItem->Children);
+	ExpandAll(FilteredRootItem->Children);
+
+	// Update selection based on filtered items.
+	TArray<TSharedPtr<FStateTreeStateItem>> Path;
+	const EStateTreeTransitionType TransitionType = GetTransitionType().Get(EStateTreeTransitionType::Failed);
+	FGuid StateID;
+	if (IDProperty
+		&& UE::StateTree::PropertyHelpers::GetStructValue<FGuid>(IDProperty, StateID) == FPropertyAccess::Success)
+	{
+		// Use RootItem (not filtered) to get any result even during search.
+		if (FindStateByIDRecursive(FilteredRootItem, TransitionType, StateID, Path))
+		{
+			StateItemTree->SetItemSelection(Path.Last(), true);
+		}
+	}
+
+	StateItemTree->RequestTreeRefresh();
+}
+
+
+int32 FStateTreeStateLinkDetails::FilterStateItemChildren(const TArray<FString>& FilterStrings, const bool bParentMatches,
+															const TArray<TSharedPtr<FStateTreeStateItem>>& SourceArray,
+															TArray<TSharedPtr<FStateTreeStateItem>>& OutDestArray)
+{
+	int32 NumFound = 0;
+
+	auto MatchFilter = [&FilterStrings](const TSharedPtr<FStateTreeStateItem>& SourceItem)
+	{
+		const FString ItemName = SourceItem->Desc.ToString();
+		for (const FString& Filter : FilterStrings)
+		{
+			if (ItemName.Contains(Filter))
+			{
+				return true;
+			}
+		}
+		return false;
+	};
+
+	for (const TSharedPtr<FStateTreeStateItem>& SourceItem : SourceArray)
+	{
+		// Check if our name matches the filters
+		// If bParentMatches is true, the search matched a parent category.
+		const bool bMatchesFilters = bParentMatches || MatchFilter(SourceItem);
+
+		int32 NumChildren = 0;
+		if (bMatchesFilters)
+		{
+			NumChildren++;
 		}
 
-		MenuBuilder.EndSection();
+		// if we don't match, then we still want to check all our children
+		TArray<TSharedPtr<FStateTreeStateItem>> FilteredChildren;
+		NumChildren += FilterStateItemChildren(FilterStrings, bMatchesFilters, SourceItem->Children, FilteredChildren);
+
+		// then add this item to the destination array
+		if (NumChildren > 0)
+		{
+			TSharedPtr<FStateTreeStateItem>& NewItem = OutDestArray.Add_GetRef(MakeShared<FStateTreeStateItem>());
+			*NewItem = *SourceItem;
+			NewItem->Children = FilteredChildren;
+
+			NumFound += NumChildren;
+		}
 	}
 
-	return MenuBuilder.MakeWidget();
+	return NumFound;
+}
+
+void FStateTreeStateLinkDetails::RestoreExpansionState()
+{
+	check(StateItemTree.IsValid());
+	
+	FStateExpansionState& ExpansionState = StateExpansionStates.FindOrAdd(FObjectKey(WeakStateTree.Get()));
+
+	bIsRestoringExpansion = true;
+
+	// Default state is expanded.
+	ExpandAll(FilteredRootItem->Children);
+
+	// Collapse the ones that are specifically collapsed.
+	for (const FGuid& StateID : ExpansionState.CollapsedStates)
+	{
+		TArray<TSharedPtr<FStateTreeStateItem>> Path;
+		if (FindStateByIDRecursive(FilteredRootItem, EStateTreeTransitionType::GotoState, StateID, Path))
+		{
+			StateItemTree->SetItemExpansion(Path.Last(), false);
+		}
+	}
+
+	bIsRestoringExpansion = false;
+}
+
+void FStateTreeStateLinkDetails::ExpandAll(const TArray<TSharedPtr<FStateTreeStateItem>>& Items)
+{
+	for (const TSharedPtr<FStateTreeStateItem>& Item : Items)
+	{
+		StateItemTree->SetItemExpansion(Item, true);
+		ExpandAll(Item->Children);
+	}
+}
+
+bool FStateTreeStateLinkDetails::FindStateByIDRecursive(const TSharedPtr<FStateTreeStateItem>& Item, const EStateTreeTransitionType TransitionType, const FGuid StateID, TArray<TSharedPtr<FStateTreeStateItem>>& OutPath)
+{
+	OutPath.Push(Item);
+
+	if (!Item->Desc.IsEmpty()
+		&& Item->TransitionType == TransitionType
+		&& Item->StateID == StateID)
+	{
+		return true;
+	}
+
+	for (const TSharedPtr<FStateTreeStateItem>& ChildItem : Item->Children)
+	{
+		if (FindStateByIDRecursive(ChildItem, TransitionType, StateID, OutPath))
+		{
+			return true;
+		}
+	}
+
+	OutPath.Pop();
+
+	return false;
+}
+
+bool FStateTreeStateLinkDetails::GetCurrentStateItem(TArray<TSharedPtr<FStateTreeStateItem>>& OutPath) const
+{
+	OutPath.Reset();
+	const EStateTreeTransitionType TransitionType = GetTransitionType().Get(EStateTreeTransitionType::Failed);
+	FGuid StateID;
+	if (IDProperty
+		&& UE::StateTree::PropertyHelpers::GetStructValue<FGuid>(IDProperty, StateID) == FPropertyAccess::Success)
+	{
+		// Use RootItem (not filtered) to get any result even during search.
+		return FindStateByIDRecursive(RootItem, TransitionType, StateID, OutPath);
+	}
+	return false;
 }
 
 FText FStateTreeStateLinkDetails::GetCurrentStateDesc() const
 {
-	const EStateTreeTransitionType TransitionType = GetTransitionType().Get(EStateTreeTransitionType::Failed);
-
-	FText Result;
-	switch (TransitionType)
+	TArray<TSharedPtr<FStateTreeStateItem>> Path;
+	if (GetCurrentStateItem(Path))
 	{
-	case EStateTreeTransitionType::None:
-		Result = LOCTEXT("TransitionNone", "None");
-		break;
-	case EStateTreeTransitionType::NextState:
-		Result = LOCTEXT("TransitionNextState", "Next State");
-		break;
-	case EStateTreeTransitionType::NextSelectableState:
-		Result = LOCTEXT("TransitionNextSelectableState", "Next Selectable State");
-		break;
-	case EStateTreeTransitionType::Succeeded:
-		Result = LOCTEXT("TransitionTreeSucceeded", "Tree Succeeded");
-		break;
-	case EStateTreeTransitionType::Failed:
-		Result = LOCTEXT("TransitionTreeFailed", "Tree Failed");
-		break;
-	case EStateTreeTransitionType::GotoState:
+		return Path.Last()->Desc;
+	}
+	// Could not find item, try to display old name as a hint what is missing.
+	if (NameProperty)
+	{
+		FName OldName;
+		if (NameProperty->GetValue(OldName) == FPropertyAccess::Success)
 		{
-			FName OldName;
-			if (NameProperty && IDProperty)
-			{
-				NameProperty->GetValue(OldName);
-
-				FGuid StateID;
-				if (UE::StateTree::PropertyHelpers::GetStructValue<FGuid>(IDProperty, StateID) == FPropertyAccess::Success)
-				{
-					if (!StateID.IsValid())
-					{
-						return LOCTEXT("None", "None");
-					}
-					else
-					{
-						for (int32 Idx = 0; Idx < CachedIDs.Num(); Idx++)
-						{
-							if (CachedIDs[Idx] == StateID)
-							{
-								return FText::FromName(CachedNames[Idx]);
-							}
-						}
-					}
-				}
-			}
-
 			return FText::FromName(OldName);
 		}
-		break;
-	default:
-		ensureMsgf(false, TEXT("FStateTreeStateLinkDetails: Unhnandled enum %s"), *UEnum::GetValueAsString(TransitionType));
-		Result = LOCTEXT("TransitionInvalid", "Invalid");
-		break;
 	}
+	return LOCTEXT("TransitionInvalid", "Invalid");
+}
 
-	return Result;
+const FSlateBrush* FStateTreeStateLinkDetails::GetCurrentStateIcon() const
+{
+	TArray<TSharedPtr<FStateTreeStateItem>> Path;
+	if (GetCurrentStateItem(Path))
+	{
+		return Path.Last()->Icon;
+	}
+	return nullptr;
+}
+
+FSlateColor FStateTreeStateLinkDetails::GetCurrentStateColor() const
+{
+	TArray<TSharedPtr<FStateTreeStateItem>> Path;
+	if (GetCurrentStateItem(Path))
+	{
+		return Path.Last()->Color;
+	}
+	return {};
+}
+
+FSlateFontInfo FStateTreeStateLinkDetails::GetCurrentStateFont() const
+{
+	TArray<TSharedPtr<FStateTreeStateItem>> Path;
+	if (GetCurrentStateItem(Path))
+	{
+		return GetItemFont(Path.Last());
+	}
+	return FAppStyle::Get().GetFontStyle("NormalText");
 }
 
 bool FStateTreeStateLinkDetails::IsValidLink() const
 {
-	const EStateTreeTransitionType TransitionType = GetTransitionType().Get(EStateTreeTransitionType::Failed);
-
-	bool bIsValid = false;
-	switch (TransitionType)
+	TArray<TSharedPtr<FStateTreeStateItem>> Path;
+	if (GetCurrentStateItem(Path))
 	{
-	// all these are unconditionally valid		
-	case EStateTreeTransitionType::None: // fall through on purpose
-	case EStateTreeTransitionType::NextState: // fall through on purpose
-	case EStateTreeTransitionType::NextSelectableState: // fall through on purpose
-	case EStateTreeTransitionType::Succeeded: // fall through on purpose
-	case EStateTreeTransitionType::Failed:
-		bIsValid = true;
-		break;
-	case EStateTreeTransitionType::GotoState:
-		{
-			bIsValid = false;
-			if (NameProperty && IDProperty)
-			{
-				FGuid StateID;
-				if (UE::StateTree::PropertyHelpers::GetStructValue<FGuid>(IDProperty, StateID) == FPropertyAccess::Success)
-				{
-					bIsValid = !StateID.IsValid() || CachedIDs.Contains(StateID);
-				}
-			}
-		}
-		break;
-	default:
-		bIsValid = false;
-		break;
+		return true;
 	}
-
-	return bIsValid;
+	// The state is missing.
+	return false;
 }
 
 TOptional<EStateTreeTransitionType> FStateTreeStateLinkDetails::GetTransitionType() const

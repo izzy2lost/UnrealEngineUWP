@@ -807,7 +807,9 @@ const FSlateBrush* SStateTreeViewRow::GetSelectorIcon() const
 		}
 		else if (State->SelectionBehavior == EStateTreeStateSelectionBehavior::TrySelectChildrenInOrder)
 		{
-			if (State->Children.IsEmpty())
+			if (State->Children.IsEmpty()
+				|| State->Type == EStateTreeStateType::Linked
+				|| State->Type == EStateTreeStateType::LinkedAsset)
 			{
 				// Backwards compatible behavior
 				return FStateTreeEditorStyle::Get().GetBrush("StateTreeEditor.TryEnterState");			
