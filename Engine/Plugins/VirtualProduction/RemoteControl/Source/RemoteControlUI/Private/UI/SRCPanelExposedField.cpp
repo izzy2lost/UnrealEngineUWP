@@ -423,149 +423,152 @@ TSharedRef<SWidget> SRCPanelExposedField::ConstructWidget()
 	if (TSharedPtr<FRemoteControlField> Field = WeakField.Pin())
 	{
 		// For the moment, just use the first object.
-		UObject* Object = Field->GetBoundObject();
-		if (Object && GetFieldType() == EExposedFieldType::Property)
+		if (const URemoteControlPreset* RCPreset = Preset.Get();
+			RCPreset && RCPreset->SelectedWorld.IsValid())
 		{
-			if (TSharedPtr<FRCPanelWidgetRegistry> Registry = WidgetRegistry.Pin())
+			UObject* Object = Field->GetBoundObjectForWorld(RCPreset->SelectedWorld.Get());
+			if (Object && GetFieldType() == EExposedFieldType::Property)
 			{
-				TRACE_CPUPROFILER_EVENT_SCOPE(SRCPanelExposedField::BeforeGetObjectTreeNode);
-
-				if (TSharedPtr<IDetailTreeNode> Node = Registry->GetObjectTreeNode(Object, Field->FieldPathInfo.ToPathPropertyString(), ERCFindNodeMethod::Path))
+				if (TSharedPtr<FRCPanelWidgetRegistry> Registry = WidgetRegistry.Pin())
 				{
-					TSharedPtr<SWidget> ValueWidget = SNullWidget::NullWidget;
-					TSharedPtr<SWidget> EditConditionWidget = SNullWidget::NullWidget;
-					TSharedPtr<IPropertyHandle> PropertyHandle;
-					bool bIsChildPropertyWidgetCreated = false;
+					TRACE_CPUPROFILER_EVENT_SCOPE(SRCPanelExposedField::BeforeGetObjectTreeNode);
 
-					if (!ExposedFieldUtils::IsFieldPathMatchingWithNodePath(Node, Field))
+					if (TSharedPtr<IDetailTreeNode> Node = Registry->GetObjectTreeNode(Object, Field->FieldPathInfo.ToPathPropertyString(), ERCFindNodeMethod::Path))
 					{
-						bIsChildPropertyWidgetCreated = ExposedFieldUtils::TryCreateWidgetForChildProperty(Node, Field, PropertyHandle, ValueWidget, EditConditionWidget);
-					}
+						TSharedPtr<SWidget> ValueWidget = SNullWidget::NullWidget;
+						TSharedPtr<SWidget> EditConditionWidget = SNullWidget::NullWidget;
+						TSharedPtr<IPropertyHandle> PropertyHandle;
+						bool bIsChildPropertyWidgetCreated = false;
 
-					if (!bIsChildPropertyWidgetCreated)
-					{
-						TArray<TSharedRef<IDetailTreeNode>> ChildNodes;
-						Node->GetChildren(ChildNodes);
-						ChildWidgets.Reset(ChildNodes.Num());
-
-						for (const TSharedRef<IDetailTreeNode>& ChildNode : ChildNodes)
+						if (!ExposedFieldUtils::IsFieldPathMatchingWithNodePath(Node, Field))
 						{
-							ChildWidgets.Add(SNew(SRCPanelFieldChildNode, ChildNode, ColumnSizeData));
+							bIsChildPropertyWidgetCreated = ExposedFieldUtils::TryCreateWidgetForChildProperty(Node, Field, PropertyHandle, ValueWidget, EditConditionWidget);
 						}
 
-						ExposedFieldUtils::CreateWidgets(Node, ValueWidget, EditConditionWidget);
-
-						PropertyHandle = Node->CreatePropertyHandle();
-					}
-
-					TSharedPtr<SHorizontalBox> FieldWidget = SNew(SHorizontalBox);
-					FieldWidget->AddSlot()
-					[
-						ValueWidget.ToSharedRef()
-					];
-					if (PropertyHandle && PropertyHandle->IsValidHandle() && (PropertyHandle->GetParentHandle()->GetPropertyDisplayName().ToString() == FString("Transform")
-						|| PropertyHandle->GetOuterBaseClass() == UMaterialInstanceDynamic::StaticClass()))
-					{
-						// Set up a Zeroed DefaultValue, in case an ExposedEntity doesn't have a native Default. Needed for certain ResetToDefault cases.
-						void* ValuePtr;
-						if (PropertyHandle->GetValueData(ValuePtr) == FPropertyAccess::Result::Success)
+						if (!bIsChildPropertyWidgetCreated)
 						{
-							DefaultValue.Reset(new uint8[PropertyHandle->GetProperty()->GetSize()]);
-							PropertyHandle->GetProperty()->CopyCompleteValue(DefaultValue.Get(), ValuePtr);
-							PropertyHandle->GetProperty()->ClearValue(DefaultValue.Get());
-						}
+							TArray<TSharedRef<IDetailTreeNode>> ChildNodes;
+							Node->GetChildren(ChildNodes);
+							ChildWidgets.Reset(ChildNodes.Num());
 
-						TWeakPtr<SRCPanelExposedField> WeakFieldPtr = SharedThis(this);
-						auto IsVisible = [WeakFieldPtr, PropertyHandle]()
-						{
-							TSharedPtr<SRCPanelExposedField> FieldPtr = WeakFieldPtr.Pin();
-							if (FieldPtr && PropertyHandle && PropertyHandle->IsValidHandle())
+							for (const TSharedRef<IDetailTreeNode>& ChildNode : ChildNodes)
 							{
-								void* DataPtr;
-								if (PropertyHandle->GetValueData(DataPtr) == FPropertyAccess::Result::Success)
-								{
-									FProperty* NodeProperty = PropertyHandle->GetProperty();
-									bool bVisible = !NodeProperty->Identical(FieldPtr->DefaultValue.Get(), DataPtr);
-									return bVisible ? EVisibility::Visible : EVisibility::Hidden;
-								}
+								ChildWidgets.Add(SNew(SRCPanelFieldChildNode, ChildNode, ColumnSizeData));
 							}
-							return EVisibility::Hidden;
-						};
 
-						ResetButtonWidget = SNew(SBox)
-							.HAlign(HAlign_Center)
-							.VAlign(VAlign_Center)
-							.Padding(2.f, 4.f)
-							[
-								SNew(SButton)
-								.IsFocusable(false)
-								.ButtonStyle(&RCPanelStyle->FlatButtonStyle)
-								.ContentPadding(RCPanelStyle->PanelPadding)
-								.Visibility_Lambda(IsVisible)
-								.OnClicked_Lambda([Node]()
+							ExposedFieldUtils::CreateWidgets(Node, ValueWidget, EditConditionWidget);
+
+							PropertyHandle = Node->CreatePropertyHandle();
+						}
+
+						TSharedPtr<SHorizontalBox> FieldWidget = SNew(SHorizontalBox);
+						FieldWidget->AddSlot()
+						[
+							ValueWidget.ToSharedRef()
+						];
+						if (PropertyHandle && PropertyHandle->IsValidHandle() && (PropertyHandle->GetParentHandle()->GetPropertyDisplayName().ToString() == FString("Transform")
+							|| PropertyHandle->GetOuterBaseClass() == UMaterialInstanceDynamic::StaticClass()))
+						{
+							// Set up a Zeroed DefaultValue, in case an ExposedEntity doesn't have a native Default. Needed for certain ResetToDefault cases.
+							void* ValuePtr;
+							if (PropertyHandle->GetValueData(ValuePtr) == FPropertyAccess::Result::Success)
+							{
+								DefaultValue.Reset(new uint8[PropertyHandle->GetProperty()->GetSize()]);
+								PropertyHandle->GetProperty()->CopyCompleteValue(DefaultValue.Get(), ValuePtr);
+								PropertyHandle->GetProperty()->ClearValue(DefaultValue.Get());
+							}
+
+							TWeakPtr<SRCPanelExposedField> WeakFieldPtr = SharedThis(this);
+							auto IsVisible = [WeakFieldPtr, PropertyHandle]()
+							{
+								TSharedPtr<SRCPanelExposedField> FieldPtr = WeakFieldPtr.Pin();
+								if (FieldPtr && PropertyHandle && PropertyHandle->IsValidHandle())
 								{
-									Node->CreatePropertyHandle()->ResetToDefault();
-									return FReply::Handled();
-								})
-								.Content()
+									void* DataPtr;
+									if (PropertyHandle->GetValueData(DataPtr) == FPropertyAccess::Result::Success)
+									{
+										FProperty* NodeProperty = PropertyHandle->GetProperty();
+										bool bVisible = !NodeProperty->Identical(FieldPtr->DefaultValue.Get(), DataPtr);
+										return bVisible ? EVisibility::Visible : EVisibility::Hidden;
+									}
+								}
+								return EVisibility::Hidden;
+							};
+
+							ResetButtonWidget = SNew(SBox)
+								.HAlign(HAlign_Center)
+								.VAlign(VAlign_Center)
+								.Padding(2.f, 4.f)
 								[
-									SNew(SImage)
-									.Image(FAppStyle::GetBrush("PropertyWindow.DiffersFromDefault"))
-									.ColorAndOpacity(FSlateColor::UseForeground())
-								]
-							];
+									SNew(SButton)
+									.IsFocusable(false)
+									.ButtonStyle(&RCPanelStyle->FlatButtonStyle)
+									.ContentPadding(RCPanelStyle->PanelPadding)
+									.Visibility_Lambda(IsVisible)
+									.OnClicked_Lambda([PropertyHandle]()
+									{
+										PropertyHandle->ResetToDefault();
+										return FReply::Handled();
+									})
+									.Content()
+									[
+										SNew(SImage)
+										.Image(FAppStyle::GetBrush("PropertyWindow.DiffersFromDefault"))
+										.ColorAndOpacity(FSlateColor::UseForeground())
+									]
+								];
+						}
+						else
+						{
+							ResetButtonWidget = SNew(SBox)
+								.HAlign(HAlign_Center)
+								.VAlign(VAlign_Center)
+								.Padding(2.f, 4.f)
+								[
+									ConstructResetToDefaultWidget(Object, PropertyHandle)
+								];
+						}
+
+						return MakeFieldWidget(FieldWidget.ToSharedRef(), EditConditionWidget.ToSharedRef());
 					}
 					else
 					{
-						ResetButtonWidget = SNew(SBox)
-							.HAlign(HAlign_Center)
-							.VAlign(VAlign_Center)
-							.Padding(2.f, 4.f)
-							[
-								ConstructResetToDefaultWidget(Object, PropertyHandle)
-							];
-					}
+						FString PropertyName = Field->FieldPathInfo.ToPathPropertyString();
+						FString TargetName = Object->GetName();
 
-					return MakeFieldWidget(FieldWidget.ToSharedRef(), EditConditionWidget.ToSharedRef());
-				}
-				else
-				{
-					FString PropertyName = Field->FieldPathInfo.ToPathPropertyString();
-					FString TargetName = Object->GetName();
+						FRCFieldPathInfo& FieldPath = Field->FieldPathInfo;
 
-					FRCFieldPathInfo& FieldPath = Field->FieldPathInfo;
-
-					if (FieldPath.Resolve(Object))
-					{
-						FRCFieldResolvedData ResolvedData = FieldPath.GetResolvedData();
-						const FRCFieldPathSegment& LastSegment = FieldPath.GetFieldSegment(FieldPath.GetSegmentCount() - 1);
-						if (LastSegment.ArrayIndex != INDEX_NONE)
+						if (FieldPath.Resolve(Object))
 						{
-							if (FArrayProperty* ArrayProperty = CastField<FArrayProperty>(ResolvedData.Field))
+							FRCFieldResolvedData ResolvedData = FieldPath.GetResolvedData();
+							const FRCFieldPathSegment& LastSegment = FieldPath.GetFieldSegment(FieldPath.GetSegmentCount() - 1);
+							if (LastSegment.ArrayIndex != INDEX_NONE)
 							{
-								FScriptArrayHelper_InContainer Helper(ArrayProperty, ResolvedData.ContainerAddress);
-								int32 ArrayNum = Helper.Num();
-								if (!Helper.IsValidIndex(LastSegment.ArrayIndex))
+								if (FArrayProperty* ArrayProperty = CastField<FArrayProperty>(ResolvedData.Field))
 								{
-									PropertyName = LastSegment.ToString();
-
-									if (FieldPath.GetSegmentCount() > 1)
+									FScriptArrayHelper_InContainer Helper(ArrayProperty, ResolvedData.ContainerAddress);
+									int32 ArrayNum = Helper.Num();
+									if (!Helper.IsValidIndex(LastSegment.ArrayIndex))
 									{
-										TargetName = Object->GetName() + TEXT(".") + FieldPath.ToString(FieldPath.GetSegmentCount() - 1);
+										PropertyName = LastSegment.ToString();
+
+										if (FieldPath.GetSegmentCount() > 1)
+										{
+											TargetName = Object->GetName() + TEXT(".") + FieldPath.ToString(FieldPath.GetSegmentCount() - 1);
+										}
 									}
 								}
 							}
 						}
+
+						FText ErrorText = FText::Format(LOCTEXT("ExposedPropertyInvalidErrorMessage", "Could not find property {0} on object {1}"), FText::FromString(PropertyName), FText::FromString(TargetName));
+						IRemoteControlModule::BroadcastError(ErrorText.ToString());
+
+						return MakeFieldWidget(CreateInvalidWidget(ErrorText));
 					}
-
-					FText ErrorText = FText::Format(LOCTEXT("ExposedPropertyInvalidErrorMessage", "Could not find property {0} on object {1}"), FText::FromString(PropertyName), FText::FromString(TargetName));
-					IRemoteControlModule::BroadcastError(ErrorText.ToString());
-
-					return MakeFieldWidget(CreateInvalidWidget(ErrorText));
 				}
 			}
 		}
-
 		return MakeFieldWidget(CreateInvalidWidget());
 	}
 

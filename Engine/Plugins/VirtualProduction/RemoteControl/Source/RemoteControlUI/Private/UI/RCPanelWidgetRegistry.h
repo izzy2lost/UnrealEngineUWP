@@ -61,9 +61,9 @@ public:
 	void Refresh(const TSharedPtr<FStructOnScope>& InStruct);
 
 	/**
-	 * Replace old object if found with new object
+	 * Update the InOldOObject generator and the tree cache with the InNewObject.
 	 */
-	void ReplaceGeneratorObject(UObject* InOldObject, UObject* InNewObject);
+	void UpdateGeneratorAndTreeCache(UObject* InOldObject, UObject* InNewObject, FString InPath);
 
 	/**
 	 * Clear the registry and its cache.
@@ -86,7 +86,10 @@ private:
 	void OnRowsRefreshed(TSharedPtr<IPropertyRowGenerator> Generator);
 	/** Create a property row generator */
 	TSharedPtr<IPropertyRowGenerator> CreateGenerator(UObject* InObject);
-
+	/** Replace old object if found with new object */
+	void ReplaceGeneratorObject(UObject* InOldObject, UObject* InNewObject);
+	/** Update Cached tree, main use when switching between different world needs to be called after ReplaceGeneratorObject */
+	void ReplaceTreeCacheObject(UObject* InOldObject, UObject* InNewObject, FString InPath);
 private:
 	/** Map of objects to row generator, used to have one row generator per object. */
 	TMap<TWeakObjectPtr<UObject>, TSharedPtr<IPropertyRowGenerator>> ObjectToRowGenerator;

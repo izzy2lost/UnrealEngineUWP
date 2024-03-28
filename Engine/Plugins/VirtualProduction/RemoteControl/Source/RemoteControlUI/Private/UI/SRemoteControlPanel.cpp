@@ -29,6 +29,7 @@
 #include "Kismet/BlueprintFunctionLibrary.h"
 #include "Layout/Visibility.h"
 #include "Materials/Material.h"
+#include "MenuContext/RemoteControlPanelMenuContext.h"
 #include "Modules/ModuleManager.h"
 #include "PropertyCustomizationHelpers.h"
 #include "PropertyEditorModule.h"
@@ -84,6 +85,7 @@
 
 const FName SRemoteControlPanel::DefaultRemoteControlPanelToolBarName("RemoteControlPanel.DefaultToolBar");
 const FName SRemoteControlPanel::AuxiliaryRemoteControlPanelToolBarName("RemoteControlPanel.AuxiliaryToolBar");
+const FName SRemoteControlPanel::TargetWorldRemoteControlPanelMenuName("RemoteControlPanel.TargetWorld");
 const float SRemoteControlPanel::MinimumPanelWidth = 640.f;
 
 TSharedRef<SBox> SRemoteControlPanel::CreateNoneSelectedWidget()
@@ -1446,16 +1448,41 @@ void SRemoteControlPanel::BindRemoteControlCommands()
 
 void SRemoteControlPanel::OnObjectReplaced(const TMap<UObject*, UObject*>& InObjectReplaced)
 {
-	if (!WidgetRegistry.IsValid())
+	if (!WidgetRegistry.IsValid() || !Preset.IsValid() || !Preset->SelectedWorld.IsValid())
 	{
 		return;
 	}
 
-	for (const TPair<UObject*, UObject*> ReplacedObject : InObjectReplaced)
+	for (TWeakPtr<FRemoteControlField> FieldWeak : Preset->GetExposedEntities<FRemoteControlField>())
 	{
-		if (ReplacedObject.Key && ReplacedObject.Value)
+		if (const TSharedPtr<FRemoteControlField> Field = FieldWeak.Pin())
 		{
-			WidgetRegistry->ReplaceGeneratorObject(ReplacedObject.Key, ReplacedObject.Value);
+			const UObject* BoundObject = Field->GetBoundObjectForWorld(Preset->SelectedWorld.Get());
+			for (const TPair<UObject*, UObject*>& ObjectReplaced : InObjectReplaced)
+			{
+				if (ObjectReplaced.Value == BoundObject)
+				{
+					WidgetRegistry->UpdateGeneratorAndTreeCache(ObjectReplaced.Key, ObjectReplaced.Value, Field->FieldPathInfo.ToPathPropertyString());
+				}
+			}
+		}
+	}
+}
+
+void SRemoteControlPanel::OnEndPIE(const bool bInIsSimulating)
+{
+	if (Preset.IsValid() && (!Preset->SelectedWorld.IsValid() || bInIsSimulating == false))
+	{
+		if (Preset->IsEmbeddedPreset() && Preset->SelectedWorld.Get()->WorldType == EWorldType::PIE)
+		{
+			OpenEditorEmbeddedPreset();
+		}
+		else
+		{
+			if (GEditor && IsValid(GEditor->EditorWorld))
+			{
+				UpdatePanelForWorld(GEditor->EditorWorld);
+			}
 		}
 	}
 }
@@ -1481,6 +1508,7 @@ void SRemoteControlPanel::RegisterEvents()
 
 	UMaterial::OnMaterialCompilationFinished().AddSP(this, &SRemoteControlPanel::OnMaterialCompiled);
 	FCoreUObjectDelegates::OnObjectsReplaced.AddSP(this, &SRemoteControlPanel::OnObjectReplaced);
+	FEditorDelegates::EndPIE.AddSP(this, &SRemoteControlPanel::OnEndPIE);
 }
 
 void SRemoteControlPanel::UnregisterEvents()
@@ -1503,6 +1531,7 @@ void SRemoteControlPanel::UnregisterEvents()
 	FEditorDelegates::MapChange.RemoveAll(this);
 	UMaterial::OnMaterialCompilationFinished().RemoveAll(this);
 	FCoreUObjectDelegates::OnObjectsReplaced.RemoveAll(this);
+	FEditorDelegates::EndPIE.RemoveAll(this);
 }
 
 void SRemoteControlPanel::RegisterPanels()
@@ -2054,6 +2083,20 @@ void SRemoteControlPanel::GenerateToolbar()
 	const URemoteControlSettings* Settings = GetMutableDefault<URemoteControlSettings>();
 	const FName& DefaultPanelMode = Settings->DefaultPanelMode;
 
+	if (!Preset->SelectedWorld.IsValid())
+	{
+		Preset->SelectedWorld = Preset->GetWorld(true);
+	}
+
+	if (Preset->SelectedWorld.IsValid())
+	{
+		SelectedWorldName = Preset->SelectedWorld->StreamingLevelsPrefix + Preset->SelectedWorld->GetName();
+	}
+	else
+	{
+		SelectedWorldName = TEXT("WORLD NOT FOUND");
+	}
+
 	Toolbar =
 		SNew(SHorizontalBox)
 		+ SHorizontalBox::Slot()
@@ -2069,6 +2112,27 @@ void SRemoteControlPanel::GenerateToolbar()
 		[
 			SNew(STextBlock)
 			.Text(this, &SRemoteControlPanel::HandlePresetName)
+		]
+		+ SHorizontalBox::Slot()
+		.Padding(5.f, 0.f)
+		.HAlign(HAlign_Fill)
+		.VAlign(VAlign_Center)
+		.AutoWidth()
+		[
+			SNew(SComboButton)
+			.ToolTipText(LOCTEXT("RCFieldsGroupingTooltip", "Select grouping type for the fields"))
+			.HAlign(HAlign_Center)
+			.VAlign(VAlign_Center)
+			.ButtonStyle(&RCPanelStyle->FlatButtonStyle)
+			.CollapseMenuOnParentFocus(true)
+			.HasDownArrow(false)
+			.ContentPadding(FMargin(4.f, 2.f))
+			.OnGetMenuContent(this, &SRemoteControlPanel::OnGetSelectedWorldButtonContent)
+			.ButtonContent()
+			[
+				SNew(STextBlock) 
+				.Text_Lambda([this] () { return FText::FromString(SelectedWorldName); })
+			]
 		]
 		+ SHorizontalBox::Slot()
 		.Padding(5.f, 0.f)
@@ -2738,6 +2802,174 @@ void SRemoteControlPanel::SaveSettings()
 
 		// Save all our data using the settings string as a key in the user settings ini.
 		FilterPtr->SaveSettings(GEditorPerProjectIni, IRemoteControlUIModule::SettingsIniSection, SettingsString);
+	}
+}
+
+TSharedRef<SWidget> SRemoteControlPanel::OnGetSelectedWorldButtonContent()
+{
+	UToolMenus* ToolMenus = UToolMenus::Get();
+
+	if (!ensure(ToolMenus))
+	{
+		return SNullWidget::NullWidget;
+	}
+
+	if (!ToolMenus->IsMenuRegistered(TargetWorldRemoteControlPanelMenuName))
+	{
+		UToolMenu* Menu = ToolMenus->RegisterMenu(TargetWorldRemoteControlPanelMenuName, NAME_None, EMultiBoxType::Menu);
+
+		if (!ensure(Menu))
+		{
+			return SNullWidget::NullWidget;
+		}
+
+		Menu->AddDynamicSection(TEXT("Worlds"), FNewToolMenuDelegate::CreateStatic(&CreateTargetWorldButtonDynamicEntries));
+	}
+
+	URemoteControlPanelMenuContext* RemoteControlContext = NewObject<URemoteControlPanelMenuContext>();
+	RemoteControlContext->RemoteControlPanel = SharedThis(this);
+
+	const FToolMenuContext Context(RemoteControlContext);
+	return ToolMenus->GenerateWidget(TargetWorldRemoteControlPanelMenuName, Context);
+}
+
+void SRemoteControlPanel::UpdatePanelForWorld(const UWorld* InWorld)
+{
+	if (!IsValid(InWorld) || !Preset->SelectedWorld.IsValid() || InWorld == Preset->SelectedWorld.Get())
+	{
+		return;
+	}
+
+	if (Preset->IsEmbeddedPreset())
+	{
+		OpenPanelForEmbeddedPreset(InWorld);
+	}
+	else
+	{
+		// Map of old world objects to new target world objects
+		TMap<UObject*, UObject*> OldToNewObject;
+		for (const TObjectPtr<URemoteControlBinding>& Binding : Preset->Bindings)
+		{
+			UObject* OldObject = Binding->ResolveForWorld(Preset->SelectedWorld.Get());
+			UObject* NewObject = Binding->ResolveForWorld(InWorld);
+			OldToNewObject.Add(OldObject, NewObject);
+		}
+
+		for (TWeakPtr<FRemoteControlField> FieldWeak : Preset->GetExposedEntities<FRemoteControlField>())
+		{
+			if (const TSharedPtr<FRemoteControlField> Field = FieldWeak.Pin())
+			{
+				// Get the bound object in the correct world
+				UObject* BoundObject = Field->GetBoundObjectForWorld(Preset->SelectedWorld.Get());
+				if (UObject** NewObject = OldToNewObject.Find(BoundObject))
+				{
+					WidgetRegistry->UpdateGeneratorAndTreeCache(BoundObject, *NewObject, Field->FieldPathInfo.ToPathPropertyString());
+				}
+			}
+		}
+
+		if (EntityList.IsValid())
+		{
+			EntityList->Refresh();
+		}
+
+		SelectedWorldName = InWorld->StreamingLevelsPrefix + InWorld->GetName();
+		Preset->SelectedWorld = InWorld;
+	}
+}
+
+void SRemoteControlPanel::OpenEmbeddedPreset(const FSoftObjectPath& InPresetToOpenPath)
+{
+	URemoteControlPreset* EditorRCPreset = nullptr;
+	if (UObject* EditorPreset = InPresetToOpenPath.ResolveObject())
+	{
+		EditorRCPreset = Cast<URemoteControlPreset>(EditorPreset);
+	}
+	else
+	{
+		EditorRCPreset = Cast<URemoteControlPreset>(InPresetToOpenPath.TryLoad());
+	}
+
+	if (IsValid(EditorRCPreset))
+	{
+		UAssetEditorSubsystem* AssetSubsystem = GEditor ? GEditor->GetEditorSubsystem<UAssetEditorSubsystem>() : nullptr;
+		if (AssetSubsystem)
+		{
+			AssetSubsystem->OpenEditorForAsset(EditorRCPreset);
+		}
+	}
+}
+
+void SRemoteControlPanel::OpenEditorEmbeddedPreset()
+{
+	if (GEditor && GEditor->EditorWorld)
+	{
+		if (const UPackage* EditorWorldPackage = GEditor->EditorWorld.GetPackage())
+		{
+			const FSoftObjectPath RemotePreset = Preset.Get();
+			// Fix path for the editor world
+			const FSoftObjectPath EditorPresetPath = FSoftObjectPath(EditorWorldPackage->GetFName(), RemotePreset.GetAssetFName(), RemotePreset.GetSubPathString());
+			OpenEmbeddedPreset(EditorPresetPath);
+		}
+	}
+}
+
+void SRemoteControlPanel::OpenPanelForEmbeddedPreset(const UWorld* InWorld)
+{
+	if (const UPackage* Package = InWorld->GetPackage())
+	{
+		const int32 PIEInstanceId = Package->GetPIEInstanceID();
+		if (PIEInstanceId != INDEX_NONE)
+		{
+			FSoftObjectPath CurrentPresetSoftPath = Preset.Get();
+			// Fix path for the current selected world
+			CurrentPresetSoftPath = FSoftObjectPath(Package->GetFName(), CurrentPresetSoftPath.GetAssetFName(), CurrentPresetSoftPath.GetSubPathString());
+			OpenEmbeddedPreset(CurrentPresetSoftPath);
+		}
+		else if (InWorld->WorldType == EWorldType::Editor)
+		{
+			OpenEditorEmbeddedPreset();
+		}
+	}
+}
+
+void SRemoteControlPanel::CreateTargetWorldButtonDynamicEntries(UToolMenu* InMenu)
+{
+	const URemoteControlPanelMenuContext* Context = InMenu->FindContext<URemoteControlPanelMenuContext>();
+
+	if (!Context || !Context->RemoteControlPanel.IsValid())
+	{
+		return;
+	}
+
+	const TSharedPtr<SRemoteControlPanel> CurrentPanel = Context->RemoteControlPanel.Pin();
+
+	TSet<const UWorld*> Worlds;
+	if (GEngine)
+	{
+		for (const FWorldContext& WorldContext : GEngine->GetWorldContexts())
+		{
+			const UWorld* CurrentWorld = WorldContext.World();
+			if (CurrentWorld && (CurrentWorld->WorldType == EWorldType::Editor || CurrentWorld->WorldType == EWorldType::PIE))
+			{
+				Worlds.Add(CurrentWorld);
+			}
+		}
+	}
+
+	if (!Worlds.IsEmpty())
+	{
+		FToolMenuSection& Section = InMenu->FindOrAddSection(TEXT("Worlds"));
+		for (const UWorld* World : Worlds)
+		{
+			Section.AddMenuEntry(
+				FName(World->StreamingLevelsPrefix + World->GetName()),
+				FText::FromString(World->StreamingLevelsPrefix + World->GetName()),
+				LOCTEXT("RCSetTargetWorld_Tooltip", "Set this world as the target world for RC"),
+				FSlateIcon(),
+				FExecuteAction::CreateSP(CurrentPanel.Get(), &SRemoteControlPanel::UpdatePanelForWorld, World)
+				);
+		}
 	}
 }
 

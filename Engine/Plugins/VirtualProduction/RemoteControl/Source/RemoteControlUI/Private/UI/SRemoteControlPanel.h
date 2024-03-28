@@ -179,6 +179,9 @@ private:
 	/** Called when object are replaced, blueprint for example */
 	void OnObjectReplaced(const TMap<UObject*, UObject*>& InObjectReplaced);
 
+	/** Called when PIE ends */
+	void OnEndPIE(const bool bInIsSimulating);
+
 	/** Register editor events needed to handle reloading objects and blueprint libraries. */
 	void RegisterEvents();
 	/** Unregister editor events */
@@ -365,9 +368,28 @@ private:
 	/** Retrieves active logic panel. */
 	TSharedPtr<SRCLogicPanelBase> GetActiveLogicPanel() const;
 
+	/** Get the menu content for the SelectedWorld button */
+	TSharedRef<SWidget> OnGetSelectedWorldButtonContent();
+
+	/** Update the panel for the new World */
+	void UpdatePanelForWorld(const UWorld* InWorld);
+
+	/** try to Open the given preset path */
+	void OpenEmbeddedPreset(const FSoftObjectPath& InPresetToOpenPath);
+
+	/** try to open the editor preset of the current Preset */
+	void OpenEditorEmbeddedPreset();
+
+	/** Handle the TargetWorld change for embedded presets */
+	void OpenPanelForEmbeddedPreset(const UWorld* World);
+
+	/** Handle the TargetWorld ComboButton entries creation */
+	static void CreateTargetWorldButtonDynamicEntries(UToolMenu* InMenu);
+
 private:
 	static const FName DefaultRemoteControlPanelToolBarName;
 	static const FName AuxiliaryRemoteControlPanelToolBarName;
+	static const FName TargetWorldRemoteControlPanelMenuName;
 	/** Holds the preset asset. */
 	TStrongObjectPtr<URemoteControlPreset> Preset;
 	/** Whether the panel is in protocols mode. */
@@ -432,7 +454,8 @@ private:
 	ERCPanels ActivePanel;
 	/** Input Preprocessor which catches the Delete Key when Docked. */
 	TSharedPtr<IInputProcessor> InputProcessor;
-
+	/** Currently selected world name */
+	FString SelectedWorldName;
 	// ~ Remote Control Logic Panels ~
 
 	/** Controller panel UI widget for Remote Control Logic*/

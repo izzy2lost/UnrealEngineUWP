@@ -718,6 +718,10 @@ public:
 	UPROPERTY(EditAnywhere, Category = "Remote Control Preset")
 	TArray<TObjectPtr<URemoteControlBinding>> Bindings;
 
+#if WITH_EDITOR
+	/** Current selected world used only in the editor to let you switch world */
+	TWeakObjectPtr<const UWorld> SelectedWorld = nullptr;
+#endif
 	/** ~~~Virtual Property Wrapper Functions ~~~
 	* 
 	* The goal is to hide the Controller Container and provide a simple interface for Controller access to UI and Web.

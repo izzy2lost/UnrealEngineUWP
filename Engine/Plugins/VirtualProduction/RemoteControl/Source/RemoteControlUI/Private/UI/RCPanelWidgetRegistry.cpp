@@ -211,9 +211,20 @@ void FRCPanelWidgetRegistry::Refresh(const TSharedPtr<FStructOnScope>& InStruct)
 	}
 }
 
+void FRCPanelWidgetRegistry::UpdateGeneratorAndTreeCache(UObject* InOldObject, UObject* InNewObject, FString InPath)
+{
+	ReplaceGeneratorObject(InOldObject, InNewObject);
+	ReplaceTreeCacheObject(InOldObject, InNewObject, InPath);
+}
+
 void FRCPanelWidgetRegistry::ReplaceGeneratorObject(UObject* InOldObject, UObject* InNewObject)
 {
-	for (TPair<TWeakObjectPtr<UObject>, TSharedPtr<IPropertyRowGenerator>> Generator : ObjectToRowGenerator)
+	if (!InOldObject || !InNewObject)
+	{
+		return;
+	}
+
+	for (TPair<TWeakObjectPtr<UObject>, TSharedPtr<IPropertyRowGenerator>>& Generator : ObjectToRowGenerator)
 	{
 		if (InOldObject && Generator.Value.IsValid() && Generator.Key != InNewObject)
 		{
@@ -222,6 +233,27 @@ void FRCPanelWidgetRegistry::ReplaceGeneratorObject(UObject* InOldObject, UObjec
 				Generator.Key = InNewObject;
 				Generator.Value->SetObjects({InNewObject});
 			}
+		}
+	}
+}
+
+void FRCPanelWidgetRegistry::ReplaceTreeCacheObject(UObject* InOldObject, UObject* InNewObject, FString InPath)
+{
+	if (!InOldObject || !InNewObject)
+	{
+		return;
+	}
+
+	const TPair<TWeakObjectPtr<UObject>, FString> OldCacheKey{InOldObject, InPath};
+	if (TreeNodeCache.Contains(OldCacheKey))
+	{
+		if (TSharedPtr<IPropertyRowGenerator>* Generator = ObjectToRowGenerator.Find(InNewObject))
+		{
+			const TPair<TWeakObjectPtr<UObject>, FString> NewCacheKey{InNewObject, InPath};
+			TreeNodeCache.Remove(OldCacheKey);
+			const TSharedPtr<IDetailTreeNode> Node = WidgetRegistryUtils::FindNode((*Generator)->GetRootTreeNodes(), InPath, ERCFindNodeMethod::Path);
+			// Cache the node to avoid having to do the recursive find again.
+			TreeNodeCache.Add(NewCacheKey, Node);
 		}
 	}
 }

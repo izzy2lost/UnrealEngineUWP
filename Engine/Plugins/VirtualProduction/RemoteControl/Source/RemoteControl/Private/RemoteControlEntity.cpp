@@ -30,6 +30,21 @@ UObject* FRemoteControlEntity::GetBoundObject() const
 	return Obj ? *Obj : nullptr;
 }
 
+UObject* FRemoteControlEntity::GetBoundObjectForWorld(const UWorld* InWorld) const
+{
+	if (Bindings.IsEmpty())
+	{
+		return nullptr;
+	}
+
+	if (!Bindings[0].IsValid() || Bindings[0].IsStale())
+	{
+		return nullptr;
+	}
+
+	return Bindings[0]->ResolveForWorld(InWorld);
+}
+
 const TArray<TWeakObjectPtr<URemoteControlBinding>>& FRemoteControlEntity::GetBindings() const
 {
 	return Bindings;
@@ -70,7 +85,6 @@ void FRemoteControlEntity::BindObject(UObject* InObjectToBind)
 		if (URemoteControlBinding* MatchingBinding = Owner->FindMatchingBinding(Bindings[0].Get(), InObjectToBind))
 		{
 			Bindings[0] = MatchingBinding;
-			
 		}
 		else
 		{

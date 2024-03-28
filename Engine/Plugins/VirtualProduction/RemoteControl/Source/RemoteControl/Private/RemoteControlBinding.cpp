@@ -12,6 +12,7 @@
 #include "IRemoteControlModule.h"
 #include "RemoteControlPreset.h"
 #include "RemoteControlSettings.h"
+#include "UObject/Package.h"
 #include "UObject/SoftObjectPath.h"
 #include "UObject/SoftObjectPtr.h"
 
@@ -85,41 +86,30 @@ namespace UE::RemoteControlBinding
 namespace
 {
 	/**
-	 * What world are we looking in to find the counterpart actor/component
-	 */
-	enum class ECounterpartWorldTarget
-	{
-		Editor,
-		PIE
-	};
-
-	/**
-	 * Find the counterpart actor/component in PIE/Editor
+	 * Find the Object in Editor
 	 * 
 	 * @TODO Does this need to be updated to possibly include a non-editor related preset?
 	 */
-	UObject* FindObjectInCounterpartWorld(UObject* Object, ECounterpartWorldTarget WorldTarget)
+	UObject* FindObjectInEditorWorld(UObject* InObject)
 	{
 		UObject* CounterpartObject = nullptr;
 #if WITH_EDITOR
-		if (Object && GEditor)
+		if (InObject && GEditor)
 		{
-			const bool bForPie = WorldTarget == ECounterpartWorldTarget::PIE ? true : false;
-			
-			if (AActor* Actor = Cast<AActor>(Object))
+			if (AActor* Actor = Cast<AActor>(InObject))
 			{
-				CounterpartObject = bForPie ? EditorUtilities::GetSimWorldCounterpartActor(Actor) : EditorUtilities::GetEditorWorldCounterpartActor(Actor);
+				CounterpartObject = EditorUtilities::GetEditorWorldCounterpartActor(Actor);
 			}
-			else if(AActor* Owner = Object->GetTypedOuter<AActor>())
+			else if(AActor* Owner = InObject->GetTypedOuter<AActor>())
 			{
-				if (AActor* CounterpartWorldOwner = bForPie ? EditorUtilities::GetSimWorldCounterpartActor(Owner) : EditorUtilities::GetEditorWorldCounterpartActor(Owner))
+				if (AActor* CounterpartWorldOwner = EditorUtilities::GetEditorWorldCounterpartActor(Owner))
 				{
-					CounterpartObject = FindObject<UObject>(CounterpartWorldOwner, *Object->GetName());
+					CounterpartObject = FindObject<UObject>(CounterpartWorldOwner, *InObject->GetName());
 				}
 			}
 		}
 #endif
-		return CounterpartObject ? CounterpartObject : Object;
+		return CounterpartObject ? CounterpartObject : InObject;
 	}
 
 	void DumpBindings(const TArray<FString>& Args)
@@ -170,6 +160,11 @@ UObject* URemoteControlLevelIndependantBinding::Resolve() const
 	return BoundObject.Get();
 }
 
+UObject* URemoteControlLevelIndependantBinding::ResolveForWorld(const UWorld* InWorld) const
+{
+	return BoundObject.Get();
+}
+
 bool URemoteControlLevelIndependantBinding::IsValid() const
 {
 	return BoundObject.IsValid();
@@ -205,8 +200,8 @@ void URemoteControlLevelDependantBinding::SetBoundObject(const TSoftObjectPtr<UO
 {
 	if (ensure(InObject))
 	{
-		UObject* EditorObject = FindObjectInCounterpartWorld(InObject.Get(), ECounterpartWorldTarget::Editor);
-		ULevel* OuterLevel = EditorObject->GetTypedOuter<ULevel>();
+		const UObject* EditorObject = FindObjectInEditorWorld(InObject.Get());
+		const ULevel* OuterLevel = EditorObject->GetTypedOuter<ULevel>();
 		BoundObjectMapByPath.FindOrAdd(OuterLevel) = EditorObject;
 		SubLevelSelectionMapByPath.FindOrAdd(OuterLevel->GetWorld()) = OuterLevel;
 		
@@ -271,7 +266,7 @@ UObject* URemoteControlLevelDependantBinding::Resolve() const
 	bool bAllowPIE = true;
 
 	// Disallow PIE for Embedded Presets as there should be an Embedded Preset counterpart in PIE taking care of this
-	URemoteControlPreset* Preset = Cast<URemoteControlPreset>(GetOuter());
+	const URemoteControlPreset* Preset = Cast<URemoteControlPreset>(GetOuter());
 	if (Preset && Preset->IsEmbeddedPreset())
 	{
 		bAllowPIE = false;
@@ -287,7 +282,7 @@ UObject* URemoteControlLevelDependantBinding::Resolve() const
 			return Object;
 		}
 		// Make sure we don't resolve on a subobject of a dying parent actor.
-		if (AActor* OwnerActor = Object->GetTypedOuter<AActor>())
+		if (const AActor* OwnerActor = Object->GetTypedOuter<AActor>())
 		{
 			if (!::IsValid(OwnerActor))
 			{
@@ -307,11 +302,46 @@ UObject* URemoteControlLevelDependantBinding::Resolve() const
 		}
 	}
 
+#if WITH_EDITOR
 	if (bAllowPIE)
 	{
-		return FindObjectInCounterpartWorld(Object, ECounterpartWorldTarget::PIE);
+		if (Preset && Preset->SelectedWorld.IsValid())
+		{
+			if (UObject* ObjectToReturn = ResolveForWorld(Preset->SelectedWorld.Get()))
+			{
+				return ObjectToReturn;
+			}
+		}
 	}
+#endif
 	return Object;
+}
+
+UObject* URemoteControlLevelDependantBinding::ResolveForWorld(const UWorld* InWorld) const
+{
+	if (!InWorld)
+	{
+		return nullptr;
+	}
+
+	if (const UPackage* WorldPackage = InWorld->GetPackage())
+	{
+		const UObject* CurrentResolvedObject = ResolveForCurrentWorld(true).Get();
+		FSoftObjectPath ObjectPath = CurrentResolvedObject;
+		ObjectPath = FSoftObjectPath(WorldPackage->GetFName(), ObjectPath.GetAssetFName(), ObjectPath.GetSubPathString());
+
+		if (UObject* ResolvedObject = ObjectPath.ResolveObject())
+		{
+			return ResolvedObject;
+		}
+
+		if (UObject* LoadedObject = ObjectPath.TryLoad())
+		{
+			return LoadedObject;
+		}
+	}
+
+	return nullptr;
 }
 
 bool URemoteControlLevelDependantBinding::IsValid() const
