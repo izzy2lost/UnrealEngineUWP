@@ -377,6 +377,7 @@ public:
 
 	CORE_API static const TCHAR* const CrashContextExtension;
 	CORE_API static const TCHAR* const RuntimePropertiesTag;
+	CORE_API static const TCHAR* const DeploymentNameTag;
 	CORE_API static const TCHAR* const PlatformPropertiesTag;
 	CORE_API static const TCHAR* const EngineDataTag;
 	CORE_API static const TCHAR* const GameDataTag;
