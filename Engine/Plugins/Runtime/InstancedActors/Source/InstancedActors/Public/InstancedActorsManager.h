@@ -240,6 +240,9 @@ protected:
 	// @param TimeDelta		Real time in seconds since serialization (0 when saving)
 	void SerializeInstancePersistenceData(FStructuredArchive::FRecord Record, UInstancedActorsData* InstanceData, int64 TimeDelta) const;
 
+	// Despawns all entities spawned by individual UInstancedActorsData instances. 
+	virtual void DespawnAllEntities();
+
 	// Attempts to run any 'pending' modifiers in ModifierVolumes where are appropriate to run givem HasSpawnedEntities
 	// Called in BeginPlay prior to, and then again after SpawnEntities. Also called in AddModifierVolume.
 	// @see UInstancedActorsModifierBase::bRequiresSpawnedEntities

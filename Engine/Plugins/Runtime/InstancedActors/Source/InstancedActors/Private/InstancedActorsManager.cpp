@@ -180,7 +180,16 @@ void AInstancedActorsManager::BeginPlay()
 
 void AInstancedActorsManager::OnAddedToSubsystem(UInstancedActorsSubsystem& InInstancedActorSubsystem, FInstancedActorsManagerHandle InManagerHandle)
 {
-	checkf(!IsValid(InstancedActorSubsystem), TEXT("Manager %s has already been added to a UInstancedActorsSubsystem"), *GetPathName());
+	if (IsValid(InstancedActorSubsystem) && (InstancedActorSubsystem != &InInstancedActorSubsystem))
+	{
+		// we need to unregister from the previous subsystem first
+		DespawnAllEntities();
+		InstancedActorSubsystem->RemoveManager(ManagerHandle);
+		InstancedActorSubsystem = nullptr;
+		ManagerHandle.Reset();
+	}
+	
+	checkf(!IsValid(InstancedActorSubsystem), TEXT("Manager %s has already been added to a %s"), *GetPathName(), *InstancedActorSubsystem->GetName());
 	checkf(!ManagerHandle.IsValid(), TEXT("Manager %s has already been added to a UInstancedActorsSubsystem"), *GetPathName());
 	check(InManagerHandle.IsValid());
 
@@ -192,7 +201,8 @@ void AInstancedActorsManager::OnAddedToSubsystem(UInstancedActorsSubsystem& InIn
 	InstancedActorSubsystem->ForEachModifierVolume(InstanceBounds, [this](UInstancedActorsModifierVolumeComponent& ModifierVolume)
 		{
 			AddModifierVolume(ModifierVolume);
-			return true; });
+			return true; 
+		});
 
 	if (UE::InstancedActors::CVars::bDeferSpawnEntities)
 	{
@@ -250,16 +260,7 @@ void AInstancedActorsManager::InitializeModifyAndSpawnEntities()
 
 void AInstancedActorsManager::EndPlay(const EEndPlayReason::Type EndPlayReason)
 {
-	// DespawnEntities for all PerActorClassInstanceData
-	if (HasSpawnedEntities())
-	{
-		for (TObjectPtr<UInstancedActorsData> InstanceData : PerActorClassInstanceData)
-		{
-			// Reconstruct instance data from Mass then destroy all Mass entities
-			InstanceData->DespawnEntities();
-		}
-		bHasSpawnedEntities = false;
-	}
+	DespawnAllEntities();
 
 	// Deregister with UInstancedActorsSubsystem
 	if (InstancedActorSubsystem)
@@ -734,6 +735,20 @@ void AInstancedActorsManager::RuntimeRemoveAllInstances()
 	for (TObjectPtr<UInstancedActorsData> InstanceData : PerActorClassInstanceData)
 	{
 		InstanceData->RuntimeRemoveAllInstances();
+	}
+}
+
+void AInstancedActorsManager::DespawnAllEntities()
+{
+	// DespawnEntities for all PerActorClassInstanceData
+	if (HasSpawnedEntities())
+	{
+		for (TObjectPtr<UInstancedActorsData> InstanceData : PerActorClassInstanceData)
+		{
+			// Reconstruct instance data from Mass then destroy all Mass entities
+			InstanceData->DespawnEntities();
+		}
+		bHasSpawnedEntities = false;
 	}
 }
 
