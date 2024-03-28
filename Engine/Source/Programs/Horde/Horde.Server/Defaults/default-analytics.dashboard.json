@@ -602,6 +602,15 @@
 							]
 						},
 						{
+							"name": "Failure Rate All (Average)",
+							"display": "Ratio",
+							"metrics": [
+								{
+									"id": "ubt-uba-failure-rate-all"
+								}
+							]
+						},
+						{
 							"name": "Compile WallTime (Average)",
 							"metrics": [
 								{
