@@ -49,6 +49,13 @@ namespace UnrealBuildTool
 		/// </summary>
 		[ConfigFile(ConfigHierarchyType.Engine, "/Script/AndroidTargetPlatform.AndroidTargetSettings")]
 		public bool bEnableRayTracing = false;
+
+		/// <summary>
+		/// Enables ASIS plugin and STANDALONE support.
+		/// </summary>
+		[ConfigFile(ConfigHierarchyType.Engine, "/Script/AndroidSingleInstanceServiceEditor.AndroidSingleInstanceServiceRuntimeSettings")]
+		public bool bEnableASISPlugin = false;
+
 	}
 
 	/// <summary>
@@ -87,6 +94,8 @@ namespace UnrealBuildTool
 		public bool bEnableMinimalUndefinedBehaviorSanitizer => Inner.bEnableMinimalUndefinedBehaviorSanitizer;
 
 		public bool bEnableRayTracing => Inner.bEnableRayTracing;
+
+		public bool bEnableASISPlugin => Inner.bEnableASISPlugin;
 
 		public AndroidTargetRules TargetRules => Inner;
 
@@ -414,24 +423,9 @@ namespace UnrealBuildTool
 		{
 		}
 
-		public static bool IsMakeAAREnabled(FileReference? ProjectFile, ILogger InLogger)
+		public static bool IsMakeAAREnabled(ReadOnlyTargetRules Target)
 		{
-			// look in ini settings for what platforms to compile for
-			DirectoryReference? ProjectDirectory = DirectoryReference.FromFile(ProjectFile);
-			ConfigHierarchy Ini = ConfigCache.ReadHierarchy(ConfigHierarchyType.Engine, DirectoryReference.FromFile(ProjectFile), UnrealTargetPlatform.Android);
-			bool bEnablePlugin = false;
-
-			if (Ini != null)
-			{
-				Ini.GetBool("/Script/AndroidSingleInstanceServiceEditor.AndroidSingleInstanceServiceRuntimeSettings", "bEnablePlugin", out bEnablePlugin);
-				// Only log if enabled to avoid adding extra logging to builds that don't use this feature.
-				if (bEnablePlugin)
-				{
-					InLogger.LogInformation("IsMakeAAREnabled {Ini} and {ProjectFile} , {ProjectDirectory}, {bEnablePlugin}", Ini, ProjectFile, ProjectDirectory, bEnablePlugin);
-				}
-			}
-
-			return bEnablePlugin;
+			return Target.AndroidPlatform.bEnableASISPlugin;
 		}
 
 
@@ -465,11 +459,7 @@ namespace UnrealBuildTool
 
 			CompileEnvironment.Definitions.Add("WITH_EDITOR=0");
 			CompileEnvironment.Definitions.Add("USE_NULL_RHI=0");
-			if (IsMakeAAREnabled(Target.ProjectFile, Logger))
-			{
-				Logger.LogInformation("SetUpSpecificEnvironment is adding USE_ANDROID_STANDALONE because IsMakeAAREnabled({ProjectFile}) was true!", Target.ProjectFile);
-				CompileEnvironment.Definitions.Add("USE_ANDROID_STANDALONE=1");
-			}
+
 
 			DirectoryReference NdkDir = new DirectoryReference(NDKPath);
 			//CompileEnvironment.SystemIncludePaths.Add(DirectoryReference.Combine(NdkDir, "sources/cxx-stl/llvm-libc++/include"));
@@ -519,6 +509,12 @@ namespace UnrealBuildTool
 			{
 				Logger.LogInformation("Compiling with ray tracing enabled");
 				CompileEnvironment.Definitions.Add("RHI_RAYTRACING=1");
+			}
+
+			if (Target.AndroidPlatform.bEnableASISPlugin)
+			{
+				Logger.LogInformation("Compiling with USE_ANDROID_STANDALONE");
+				CompileEnvironment.Definitions.Add("USE_ANDROID_STANDALONE=1");
 			}
 
 			if (Target.bPGOOptimize || Target.bPGOProfile)
