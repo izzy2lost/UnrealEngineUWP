@@ -65,7 +65,6 @@
 #include "WorldPartition/DataLayer/ExternalDataLayerEngineSubsystem.h"
 #include "WorldPartition/DataLayer/WorldDataLayers.h"
 #include "WorldPartition/WorldPartition.h"
-#include "WorldPartition/ContentBundle/ContentBundleEditorSubsystemInterface.h"
 
 class SWidget;
 
@@ -577,11 +576,6 @@ TSharedRef<SWidget> UDataLayerEditorSubsystem::GetActorEditorContextWidget(UWorl
 
 void UDataLayerEditorSubsystem::AddToActorEditorContext(UDataLayerInstance* InDataLayerInstance)
 {
-	// EDL has priority over Content Bundle
-	if (InDataLayerInstance->IsA<UExternalDataLayerInstance>())
-	{
-		IContentBundleEditorSubsystemInterface::Get()->DeactivateCurrentContentBundleEditing();
-	}
 	check(InDataLayerInstance->CanBeInActorEditorContext());
 	if (InDataLayerInstance->AddToActorEditorContext())
 	{

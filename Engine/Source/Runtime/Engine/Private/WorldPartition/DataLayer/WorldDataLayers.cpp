@@ -26,6 +26,7 @@
 #if WITH_EDITOR
 #include "WorldPartition/WorldPartitionEditorPerProjectUserSettings.h"
 #include "WorldPartition/DataLayer/WorldDataLayersActorDesc.h"
+#include "WorldPartition/ContentBundle/ContentBundleEditorSubsystemInterface.h"
 #include "LevelInstance/LevelInstanceSubsystem.h"
 #include "Interfaces/IPluginManager.h"
 #include "Algo/Find.h"
@@ -890,6 +891,9 @@ bool AWorldDataLayers::AddToActorEditorContext(UDataLayerInstance* InDataLayerIn
 		{
 			CurrentDataLayers.DataLayerInstanceNames.Remove(DataLayerInstanceName);
 		}
+
+		// EDL has priority over Content Bundle
+		IContentBundleEditorSubsystemInterface::Get()->DeactivateCurrentContentBundleEditing();
 
 		bSuccess = true;
 	}
