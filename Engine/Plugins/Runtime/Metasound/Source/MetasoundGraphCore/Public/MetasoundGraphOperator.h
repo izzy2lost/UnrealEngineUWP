@@ -15,7 +15,7 @@ namespace Metasound
 	// Forward declare
 	namespace DirectedGraphAlgo
 	{
-		struct FStaticGraphOperatorData;
+		struct FGraphOperatorData;
 	}
 
 	class METASOUNDGRAPHCORE_API FGraphOperator : public TExecutableOperator<FGraphOperator>
@@ -27,7 +27,7 @@ namespace Metasound
 			using FResetParams = IOperator::FResetParams;
 
 			FGraphOperator() = default;
-			FGraphOperator(TUniquePtr<DirectedGraphAlgo::FStaticGraphOperatorData> InOperatorData);
+			FGraphOperator(TUniquePtr<DirectedGraphAlgo::FGraphOperatorData>&& InOperatorData);
 
 			virtual ~FGraphOperator() = default;
 
@@ -37,6 +37,10 @@ namespace Metasound
 			// Set the vertex interface data. This data will be copied to output 
 			// during calls to Bind(InOutVertexData).
 			void SetVertexInterfaceData(FVertexInterfaceData&& InVertexData);
+
+			virtual FDataReferenceCollection GetInputs() const override;
+
+			virtual FDataReferenceCollection GetOutputs() const override;
 
 			// Bind the graph's interface data references to FVertexInterfaceData.
 			virtual void BindInputs(FInputVertexInterfaceData& InOutVertexData) override;

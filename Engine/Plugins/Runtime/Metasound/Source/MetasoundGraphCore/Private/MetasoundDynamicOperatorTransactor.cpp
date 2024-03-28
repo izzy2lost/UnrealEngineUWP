@@ -7,7 +7,6 @@
 #include "MetasoundAudioBuffer.h"
 #include "MetasoundBuilderInterface.h"
 #include "MetasoundDataReference.h"
-#include "MetasoundDynamicGraphAlgo.h"
 #include "MetasoundDynamicOperator.h"
 #include "MetasoundGraph.h"
 #include "MetasoundGraphAlgo.h"
@@ -42,6 +41,24 @@ namespace Metasound
 			// Literal nodes always have output vertex with this name. 
 			static const FLazyName LiteralNodeOutputVertexName("Value");
 			
+			// Sorts the graph and determines order of operator execution.
+			TArray<FOperatorID> DetermineOperatorOrder(const IGraph& InGraph)
+			{
+				/* determine new operator order. */
+				TArray<const INode*> NodeOrder;
+
+				bool bSuccess = DirectedGraphAlgo::DepthFirstTopologicalSort(InGraph, NodeOrder);
+				if (!bSuccess)
+				{
+					UE_LOG(LogMetaSound, Error, TEXT("Cycles found in dynamic graph"));
+				}
+
+				TArray<FOperatorID> OperatorOrder;
+				Algo::Transform(NodeOrder, OperatorOrder, static_cast<FOperatorID(*)(const INode*)>(DirectedGraphAlgo::GetOperatorID)); //< Static cast to help deduce which overloaded version of GetOperatorID to call in Algo::Transform
+
+				return OperatorOrder;
+			}
+
 			FString GetDebugNodeNameString(const INode& InNode)
 			{
 				return FString::Printf(TEXT("%s_v%d.%d"), *InNode.GetMetadata().ClassName.GetFullName().ToString(), InNode.GetMetadata().MajorVersion, InNode.GetMetadata().MinorVersion);
@@ -51,219 +68,7 @@ namespace Metasound
 			{
 				return FString::Printf(TEXT("%s:%s"), *InNodeID.ToString(), *GetDebugNodeNameString(InNode));
 			}
-			
-
-
 		}
-
-#if METASOUND_DEBUG_DYNAMIC_TRANSACTOR
-		namespace Debug
-		{
-			// Represents an edge between two operators. Also supports sorting
-			// and special logic for when we do not know the vertex name.
-			// 
-			// This struct allows for easy comparison between two arrays of operator edges.
-			struct FOperatorEdge
-			{
-				FOperatorID FromOperator;
-				FOperatorID ToOperator;
-				FVertexName FromVertex;
-				FVertexName ToVertex;
-
-				friend bool operator<(const FOperatorEdge& InLHS, const FOperatorEdge& InRHS)
-				{
-					if (InLHS.FromOperator == InRHS.FromOperator)
-					{
-						if (InLHS.ToOperator == InRHS.ToOperator)
-						{
-							if (InLHS.FromVertex.IsNone() || InRHS.ToVertex.IsNone())
-							{
-								// For scenarios where we don't have a vertex name, 
-								// assume that they are equivalent vertex names
-								return false;
-							} 
-							else
-							{
-								if (InLHS.FromVertex == InRHS.FromVertex)
-								{
-									return InLHS.ToVertex.FastLess(InRHS.ToVertex);
-								}
-								else
-								{
-									return InLHS.FromVertex.FastLess(InRHS.FromVertex);
-								}
-							}
-						}
-						else
-						{
-							return InLHS.ToOperator < InRHS.ToOperator;
-						}
-					}
-					else
-					{
-						return InLHS.FromOperator < InRHS.FromOperator;
-					}
-				}
-			};
-
-			/** This debugger compares the multiple graph representations that exist to ensure that they
-			  * are all the same. 
-			  * 
-			  * Note: These could be free functions, but it is easy to implement friendship on a class level
-			  *        as opposed to making multiple friend functions.
-			  */
-			class FDynamicOperatorDebugger
-			{
-			public:
-				// Get operator edges from an IGraph
-				static TArray<FOperatorEdge> FindGraphOperatorEdges(const IGraph& InGraph)
-				{
-					auto DataEdgeToOperatorEdge = [](const FDataEdge& InDataEdge) -> FOperatorEdge
-					{
-						return FOperatorEdge 
-						{
-							DirectedGraphAlgo::GetOperatorID(InDataEdge.From.Node),
-							DirectedGraphAlgo::GetOperatorID(InDataEdge.To.Node),
-							InDataEdge.From.Vertex.VertexName,
-							InDataEdge.To.Vertex.VertexName
-						};
-					};
-
-					TArray<FOperatorEdge> OperatorEdges;
-					Algo::Transform(InGraph.GetDataEdges(), OperatorEdges, DataEdgeToOperatorEdge);
-					return OperatorEdges;
-				}
-				
-				// Get operator edges from an incremental graph sorter
-				static TArray<FOperatorEdge> FindGraphOperatorEdges(const FDynamicGraphIncrementalSorter& InGraphSorter)
-				{
-					TArray<FOperatorEdge> OperatorEdges;
-
-					for (const TPair<FOperatorID, FDynamicGraphIncrementalSorter::FIncrementalSortOperatorInfo>& Pair : InGraphSorter.OperatorMap)
-					{
-						for (const FOperatorID& Output : Pair.Value.Outputs)
-						{
-							// We do not know what the vertex names are within the sorter
-							// so we leave them as NONE.
-							OperatorEdges.Add(FOperatorEdge{Pair.Key, Output}); 
-						}
-					}
-
-					return OperatorEdges;
-				}
-
-				// Get operator eges from Graph Operator Data
-				static TArray<FOperatorEdge> FindGraphOperatorEdges(const DirectedGraphAlgo::FGraphOperatorData& InGraphData)
-				{
-					using namespace DirectedGraphAlgo;
-
-					TArray<FOperatorEdge> OperatorEdges;
-
-					for (const TPair<FOperatorID, FGraphOperatorData::FOperatorInfo>& OpInfoPair : InGraphData.OperatorMap)
-					{
-						for (const TPair<FVertexName, TArray<FGraphOperatorData::FVertexDestination>>& OutConnectPair : OpInfoPair.Value.OutputConnections)
-						{
-							for (const FGraphOperatorData::FVertexDestination& Destination : OutConnectPair.Value)
-							{
-								OperatorEdges.Add(FOperatorEdge{OpInfoPair.Key, Destination.OperatorID, OutConnectPair.Key, Destination.VertexName});
-							}
-						}
-					}
-
-					return OperatorEdges;
-				}
-
-				static void LogMissingEdge(const TCHAR* InWhereIsMissing, const FOperatorEdge& InEdge)
-				{
-					UE_LOG(LogMetaSound, Display, TEXT("%s Missing Edge %d %s -> %d %s"), InWhereIsMissing, InEdge.FromOperator, *InEdge.FromVertex.ToString(), InEdge.ToOperator, *InEdge.ToVertex.ToString());
-				}
-
-				// Returns true if arrays are equivalent, false otherwise. 
-				// Differences are logged.
-				// Input arrays must be sorted. 
-				static bool CompareAndLogEdgeArrays(const TCHAR* InSourceA, const TArray<FOperatorEdge>& InEdgesA, const TCHAR* InSourceB, const TArray<FOperatorEdge>& InEdgesB)
-				{
-					bool bEqual = true;
-
-					const FOperatorEdge* EdgeA = InEdgesA.GetData();
-					const FOperatorEdge* const EdgeAEnd = EdgeA + InEdgesA.Num();
-					const FOperatorEdge* EdgeB = InEdgesB.GetData();
-					const FOperatorEdge* const EdgeBEnd = EdgeB + InEdgesB.Num();
-
-					// Increment through both arrays simultaneously.
-					while ((EdgeA != EdgeAEnd) && (EdgeB != EdgeBEnd))
-					{
-						if (*EdgeA < *EdgeB)
-						{
-							LogMissingEdge(InSourceB, *EdgeA);
-							EdgeA++;
-							bEqual = false;
-						}
-						else if (*EdgeB < *EdgeA)
-						{
-							LogMissingEdge(InSourceA, *EdgeB);
-							EdgeB++;
-							bEqual = false;
-						}
-						else
-						{
-							// Matching
-							EdgeA++;
-							EdgeB++;
-						}
-					}
-
-					// Any left over edges are unmatched.
-					while (EdgeA != EdgeAEnd)
-					{
-						LogMissingEdge(InSourceB, *EdgeA);
-						EdgeA++;
-						bEqual = false;
-					}
-
-					while (EdgeB != EdgeBEnd)
-					{
-						LogMissingEdge(InSourceA, *EdgeB);
-						EdgeB++;
-						bEqual = false;
-					}
-
-					return bEqual;
-				}
-
-				// Returns true if the graph representations are equivalent, false otherwise.
-				// Differences are logged.
-				static bool CompareAndLogGraphRepresentationDiscrepancies(const FDynamicOperatorTransactor& InTransactor, const FDynamicOperator& InDynamicOperator)
-				{
-					using namespace Debug;
-
-					// Gather edges from various graph representations
-					TArray<FOperatorEdge> GraphEdges = FindGraphOperatorEdges(InTransactor.Graph);
-					TArray<FOperatorEdge> GraphSorterEdges = FindGraphOperatorEdges(InTransactor.GraphSorter);
-					TArray<FOperatorEdge> RuntimeEdges = FindGraphOperatorEdges(InDynamicOperator.DynamicOperatorData);
-
-					// Edges must be sorted before performing comparison
-					GraphEdges.Sort();
-					GraphSorterEdges.Sort();
-					RuntimeEdges.Sort();
-
-					// Run comparison
-					bool bEqualGraphAndSorter = CompareAndLogEdgeArrays(TEXT("Graph"), GraphEdges, TEXT("GraphSorter"), GraphSorterEdges);
-					bool bEqualGraphAndRuntime = CompareAndLogEdgeArrays(TEXT("Graph"), GraphEdges, TEXT("DynamicRuntime"), RuntimeEdges);
-					bool bEqualRuntimeAndSorter = CompareAndLogEdgeArrays(TEXT("DynamicRuntime"), RuntimeEdges, TEXT("GraphSorter"), GraphSorterEdges);
-
-					return bEqualGraphAndSorter && bEqualGraphAndRuntime && bEqualRuntimeAndSorter;
-				}
-			};
-
-			// Returns true if the graph representations are equivalent, false otherwise.
-			// Differences are logged.
-			bool CompareAndLogGraphRepresentationDiscrepancies(const FDynamicOperatorTransactor& InTransactor, const FDynamicOperator& InDynamicOperator)
-			{
-				return FDynamicOperatorDebugger::CompareAndLogGraphRepresentationDiscrepancies(InTransactor, InDynamicOperator);
-			}
-		}
-#endif // if METASOUND_DEBUG_DYNAMIC_TRANSACTOR
 
 		bool operator<(const FDynamicOperatorTransactor::FLiteralNodeID& InLHS, const FDynamicOperatorTransactor::FLiteralNodeID& InRHS)
 		{
@@ -281,288 +86,11 @@ namespace Metasound
 			}
 		}
 
-		FDynamicGraphIncrementalSorter::FDynamicGraphIncrementalSorter()
-		{
-		}
-
-		FDynamicGraphIncrementalSorter::FDynamicGraphIncrementalSorter(const IGraph& InGraph)
-		{
-			Init(InGraph);
-		}
-
-		/** Add a node to the graph. */
-		int32 FDynamicGraphIncrementalSorter::InsertOperator(FOperatorID InOperator, FDynamicGraphIncrementalSorter::EInsertLocation InLocation)
-		{
-			int32 NewOrdinal = ORDINAL_NONE;
-
-			switch (InLocation)
-			{
-				case EInsertLocation::First:
-					MinOrdinal--;
-					NewOrdinal = MinOrdinal;
-					break;
-
-				case EInsertLocation::Last:
-					MaxOrdinal++;
-					NewOrdinal = MaxOrdinal;
-					break;
-			}
-
-			check(NewOrdinal != ORDINAL_NONE);
-
-			if (FIncrementalSortOperatorInfo* Info = OperatorMap.Find(InOperator))
-			{
-				UE_LOG(LogMetaSound, Warning, TEXT("Attempt to add operator %d when operator already exists"), InOperator);
-				Info->Ordinal = NewOrdinal;
-			}
-			else
-			{	
-				OperatorMap.Add(InOperator, { NewOrdinal });
-			}
-
-			return NewOrdinal;
-		}
-
-		/** Remove a node from the graph. */
-		int32 FDynamicGraphIncrementalSorter::RemoveOperator(FOperatorID InOperatorID)
-		{
-			int32 RemovedOrdinal = ORDINAL_NONE;
-
-			if (FIncrementalSortOperatorInfo* Info = OperatorMap.Find(InOperatorID))
-			{
-				RemovedOrdinal = Info->Ordinal;
-
-				// Remove any remaining connections
-				for (FOperatorID InputOperatorID : Info->Inputs)
-				{
-					if (FIncrementalSortOperatorInfo* InputInfo = OperatorMap.Find(InputOperatorID))
-					{
-						InputInfo->Outputs.RemoveSwap(InOperatorID);
-					}
-				}
-
-				for (FOperatorID OutputOperatorID : Info->Outputs)
-				{
-					if (FIncrementalSortOperatorInfo* OutputInfo = OperatorMap.Find(OutputOperatorID))
-					{
-						OutputInfo->Inputs.RemoveSwap(InOperatorID);
-					}
-				}
-				
-				// Remove operator
-				OperatorMap.Remove(InOperatorID);
-			}
-
-			return RemovedOrdinal;
-		}
-
-		void FDynamicGraphIncrementalSorter::GenerateOrdinals(TMap<FOperatorID, int32>& OutOrdinals) const
-		{
-			for (const TPair<FOperatorID, FIncrementalSortOperatorInfo>& Entry : OperatorMap)
-			{
-				OutOrdinals.Emplace(Entry.Key, Entry.Value.Ordinal);
-			}
-		}
-
-		/** Add an edge to the graph, connecting two vertices from two 
-		 * nodes. 
-		 *
-		 * @param InFromOperatorID - Operator which contains the output vertex.
-		 * @param InToOperatorID - Operator which contains the input vertex.
-		 * @param OutOrdinalUpdates - Array to populate with ordinal updates to maintain topological sort of graph.
-		 */
-		void FDynamicGraphIncrementalSorter::AddDataEdge(FOperatorID InFromOperatorID, FOperatorID InToOperatorID, TArray<FOrdinalSwap>& OutOrdinalUpdates)
-		{
-			// Vertex names are not stored here, but if there are multiple edges 
-			// conneting two operators, then there will be multiple entries in the 
-			// FIncrementalSortOperatorInfo::Outputs & FIncrementalSortOperatorInfo::Inputs arrays. 	
-			FIncrementalSortOperatorInfo* FromInfo = OperatorMap.Find(InFromOperatorID);
-			if (!FromInfo)
-			{
-				UE_LOG(LogMetaSound, Error, TEXT("Could not find source operator ID %d for adding edge. Dynamic MetaSound may not render properly."), InFromOperatorID);
-				return;
-			}
-
-			FIncrementalSortOperatorInfo* ToInfo = OperatorMap.Find(InToOperatorID);
-			if (!ToInfo)
-			{
-				UE_LOG(LogMetaSound, Error, TEXT("Could not find destination operator ID %d for adding edge. Dynamic MetaSound may not render properly."), InToOperatorID);
-				return;
-				
-			}
-
-			// Add edge to operator info structs
-			FromInfo->Outputs.Add(InToOperatorID);
-			ToInfo->Inputs.Add(InFromOperatorID);
-
-			// Only sort if the "From" operator isn't executing before the "To" operator. 
-			if (FromInfo->Ordinal > ToInfo->Ordinal)
-			{
-				// Perform incremental sort
-				IncrementalTopologicalSortForNewEdge(InFromOperatorID, FromInfo->Ordinal, InToOperatorID, ToInfo->Ordinal, OutOrdinalUpdates);
-
-				// Apply sort changes internally.
-				for (const FOrdinalSwap& Update: OutOrdinalUpdates)
-				{
-					OperatorMap[Update.OperatorID].Ordinal = Update.NewOrdinal;
-				}
-			}
-		}
-
-		/** Remove the given data edge. */
-		void FDynamicGraphIncrementalSorter::RemoveDataEdge(FOperatorID InFromOperatorID, FOperatorID InToOperatorID)
-		{
-			// Vertex names are not stored here, but if there are multiple edges 
-			// conneting two operators, then there will be multiple entries in the 
-			// FIncrementalSortOperatorInfo::Outputs & FIncrementalSortOperatorInfo::Inputs arrays. 
-			if (FIncrementalSortOperatorInfo* FromInfo = OperatorMap.Find(InFromOperatorID))
-			{
-				FromInfo->Outputs.RemoveSingleSwap(InToOperatorID);
-			}
-			else
-			{
-				UE_LOG(LogMetaSound, Warning, TEXT("Could not find source operator ID %d for removing edge. Dynamic MetaSound may not render properly."), InFromOperatorID);
-			}
-
-			if (FIncrementalSortOperatorInfo* ToInfo = OperatorMap.Find(InToOperatorID))
-			{
-				ToInfo->Inputs.RemoveSingleSwap(InFromOperatorID);
-			}
-			else	
-			{
-				UE_LOG(LogMetaSound, Warning, TEXT("Could not find destination operator ID %d for removing edge. Dynamic MetaSound may not render properly."), InToOperatorID);
-			}
-		}
-
-
-		void FDynamicGraphIncrementalSorter::Init(const IGraph& InGraph)
-		{
-			/* determine new operator order. */
-			TArray<const INode*> NodeOrder;
-
-			bool bSuccess = DirectedGraphAlgo::DepthFirstTopologicalSort(InGraph, NodeOrder);
-			if (!bSuccess)
-			{
-				UE_LOG(LogMetaSound, Error, TEXT("Cycles found in dynamic graph"));
-			}
-
-			// Initialize ordinals in operator map
-			const int32 Num = NodeOrder.Num();
-			const INode** NodeData = NodeOrder.GetData();
-			for (int32 Ordinal = 0; Ordinal < Num; Ordinal++)
-			{
-				OperatorMap.Add(DirectedGraphAlgo::GetOperatorID(*NodeData[Ordinal]), FIncrementalSortOperatorInfo{ Ordinal });
-			}
-
-			// The next available ordinal for any operators added after initialization. 
-			MaxOrdinal = Num;
-
-			// Initialize edges in operator map
-			for (const FDataEdge& Edge : InGraph.GetDataEdges())
-			{
-				FOperatorID FromOperatorID = DirectedGraphAlgo::GetOperatorID(Edge.From.Node);
-				FOperatorID ToOperatorID = DirectedGraphAlgo::GetOperatorID(Edge.To.Node);
-
-				OperatorMap[FromOperatorID].Outputs.Add(ToOperatorID);
-				OperatorMap[ToOperatorID].Inputs.Add(FromOperatorID);
-			}
-		}
-
-		void FDynamicGraphIncrementalSorter::IncrementalTopologicalSortForNewEdge(FOperatorID InFromOperatorID, int32 InFromOrdinal, FOperatorID InToOperatorID, int32 InToOrdinal, TArray<FOrdinalSwap>& OutUpdates)
-		{
-			UE_CLOG(InToOrdinal > InFromOrdinal, LogMetaSound, Warning, TEXT("Operators are already in order. Only perform incremental sort if necessary."));
-
-
-			// Incremental topological sort maintains that the "FromOperator"
-			// is sorted before the "ToOperator", but does so in an incremental way 
-			// to avoid resorting the entire graph. To achieve this it:
-			
-			// 1. Searches for all the operators and their ordinals which need to be 
-			//    resorted..
-			// 2. Sorts the operators appropriately, but only using the set of ordinals 
-			//    already associated with the operators of interest.
-			
-			TArray<FOperatorID> SearchStack;
-			
-			// Find operators which need to be move before the "ToOperator"
-			// 
-			// Starting with the "FromOperator", find all operators which are:
-			//  - Directly or indirectly connected to the input of the "FromOperator"
-			//  AND
-			//  - Are set to execute after the "ToOperator". 
-			SearchStack.Add(InFromOperatorID);
-			while (SearchStack.Num())
-			{
-				FOperatorID CandidateOperatorID = SearchStack.Pop();
-				if (!OutUpdates.Contains(CandidateOperatorID))
-				{
-					const FIncrementalSortOperatorInfo& CandidateOperatorInfo = OperatorMap[CandidateOperatorID];
-					if (CandidateOperatorInfo.Ordinal > InToOrdinal)
-					{
-						OutUpdates.Add({CandidateOperatorID, CandidateOperatorInfo.Ordinal, CandidateOperatorInfo.Ordinal});
-						for (const FOperatorID& Connection : CandidateOperatorInfo.Inputs)
-						{
-							SearchStack.AddUnique(Connection);
-						}
-					}
-				}
-			}
-
-
-			const int32 NumOutputsLessThanOrdinal = OutUpdates.Num();
-			OutUpdates.Sort(FOrdinalSwap::OriginalOrdinalLessThan); // Sort by ascending original ordinal to maintain relative order
-
-			// Find operators which need to be moved after the "FromOperator"
-			// 
-			// Starting with the "ToOperator", find all operators which are:
-			//  - Directly or indirectly connected to the output of the "ToOperator"
-			//  AND
-			//  - Are set to execute before the "FromOperator". 
-			SearchStack.Add(InToOperatorID);
-			while (SearchStack.Num())
-			{
-				FOperatorID CandidateOperatorID = SearchStack.Pop();
-				if (!OutUpdates.Contains(CandidateOperatorID))
-				{
-					const FIncrementalSortOperatorInfo& CandidateOperatorInfo = OperatorMap[CandidateOperatorID];
-					if (CandidateOperatorInfo.Ordinal < InFromOrdinal)
-					{
-						OutUpdates.Add({CandidateOperatorID, CandidateOperatorInfo.Ordinal, CandidateOperatorInfo.Ordinal});
-						for (const FOperatorID& Connection : CandidateOperatorInfo.Outputs)
-						{
-							SearchStack.AddUnique(Connection);
-						}
-					}
-				}
-			}
-			const int32 NumInputsGreaterThanOrdinal = OutUpdates.Num() - NumOutputsLessThanOrdinal;
-
-			// Sort 2nd half of operators in ascending order w/o modifying order of 1st set of operators. 
-			// After this sort, the OutUpdates array will contain operators in the desired
-			// order but with incorrect "ordinal" values. 
-			Algo::Sort(TArrayView<FOrdinalSwap>(&OutUpdates[NumOutputsLessThanOrdinal], NumInputsGreaterThanOrdinal), FOrdinalSwap::OriginalOrdinalLessThan);
-
-			// Gather the available ordinals and sort them in ascending order
-			TArray<int32> AvailableOrdinals;
-			Algo::Transform(OutUpdates, AvailableOrdinals, [](const FOrdinalSwap& InOperatorOrdinal) { return InOperatorOrdinal.OriginalOrdinal; });
-			AvailableOrdinals.Sort();
-			
-			// Assign the sorted ordinals to the sorted operators. 
-			const int32 Num = OutUpdates.Num();
-			const int32* AvailableOrdinalData = AvailableOrdinals.GetData();
-			FOrdinalSwap* UpdateData = OutUpdates.GetData();
-
-			for (int32 i = 0; i < Num; i++)
-			{
-				UpdateData[i].NewOrdinal = AvailableOrdinalData[i];
-			}
-		}
-
 		FDynamicOperatorTransactor::FDynamicOperatorTransactor(const FGraph& InGraph)
 		: OperatorBuilder(DynamicOperatorTransactorPrivate::GetOperatorBuilderSettings())
 		, Graph(InGraph)
-		, GraphSorter(InGraph)
 		{
+			CurrentOperatorOrder = DynamicOperatorTransactorPrivate::DetermineOperatorOrder(Graph);
 		}
 
 		FDynamicOperatorTransactor::FDynamicOperatorTransactor()
@@ -576,14 +104,6 @@ namespace Metasound
 			TSharedRef<TSpscQueue<TUniquePtr<IDynamicOperatorTransform>>> Queue = MakeShared<TSpscQueue<TUniquePtr<IDynamicOperatorTransform>>>();
 			OperatorInfos.Add(FDynamicOperatorInfo{InOperatorSettings, InEnvironment, Queue});
 
-			TMap<FOperatorID, int32> OperatorOrdinals;
-			GraphSorter.GenerateOrdinals(OperatorOrdinals);
-
-			// All of these initial operations have to happen in one fell swoop for the 
-			// dynamic metasound to be setup correctly. We use an atomic transform
-			// to ensure they are all applied before generating audio.
-			TArray<TUniquePtr<IDynamicOperatorTransform>> AtomicTransforms;
-
 			// Unconnected nodes are intentionally skipped by the operator builder
 			// in order to reduce perf. In a dynamic operator, these nodes may be
 			// connected in the future. We queue them up to be added here so that
@@ -594,27 +114,14 @@ namespace Metasound
 			{
 				for (const TPair<FGuid, const INode*>& GuidAndNode : UnconnectedNodes)
 				{
-					if (const int32* Ordinal = OperatorOrdinals.Find(DirectedGraphAlgo::GetOperatorID(GuidAndNode.Value)))
-					{
-						AtomicTransforms.Add(CreateInsertOperatorTransform(*GuidAndNode.Value, *Ordinal, InOperatorSettings, InEnvironment));
-					}
+					// Only add to this queue because we do not know at what point
+					// the other queues and dynamic operators were created.
+					Queue->Enqueue(CreateAddOperatorTransform(*GuidAndNode.Value, EExecutionOrderInsertLocation::Last, InOperatorSettings, InEnvironment));
 				}
 			}
 
-			// When we create a new Dynamic Operator, the first thing that needs
-			// to synchronize is the initial set of operator ordinals. The ordinals
-			// in the DynamicOperator and the FDynamicGraphIncrementalSorter must
-			// be exactly equal so that subsequent modifications to the ordinals
-			// result in equal ordinals between the two objects.
-			//
-			// Note: The ordinals in FDynamicGraphIncrementalSorter are NOT 
-			// expected to be equal to the ordinals set in the FOperatorBuilder
-			// because they use different algorithms to determine order.
-			AtomicTransforms.Add(MakeUnique<FSetOperatorOrdinalsAndSort>(OperatorOrdinals));
-
-			// Only add to THIS queue because we do not know at what point
-			// the other queues and dynamic operators were created.
-			Queue->Enqueue(MakeUnique<FAtomicTransform>(MoveTemp(AtomicTransforms)));
+			// Force order to be synchronized to internal execution order.
+			Queue->Enqueue(MakeUnique<FSetOperatorOrder>(CurrentOperatorOrder));
 
 			return Queue;
 		}
@@ -633,9 +140,8 @@ namespace Metasound
 			TSharedRef<const INode> NodePtr(InNode.Release());
 
 			Graph.AddNode(InNodeID, NodePtr);
-			int32 OperatorOrdinal = GraphSorter.InsertOperator(GetOperatorID(*NodePtr), FDynamicGraphIncrementalSorter::EInsertLocation::Last);
 
-			EnqueueInsertOperatorTransform(*NodePtr, OperatorOrdinal);
+			EnqueueAddOperatorTransform(*NodePtr, EExecutionOrderInsertLocation::Last);
 		}
 
 		void FDynamicOperatorTransactor::RemoveNode(const FGuid& InNodeID)
@@ -656,15 +162,18 @@ namespace Metasound
 					}
 				}
 
-				constexpr bool bRemoveDataEdgesWithNode = true;
 				if (OutputsToFade.Num())
 				{
-					FadeAndRemoveNodeInternal(*Node, OutputsToFade, bRemoveDataEdgesWithNode);
+					EnqueueFadeAndRemoveOperatorTransform(*Node, OutputsToFade);
 				}
 				else
 				{
-					RemoveNodeInternal(*Node, bRemoveDataEdgesWithNode);
+					EnqueueRemoveOperatorTransform(*Node);
 				}
+
+				constexpr bool bRemoveDataEdgesWithNode = true;
+				bool bRemovedNodeFromGraph = Graph.RemoveNode(InNodeID, bRemoveDataEdgesWithNode);
+				check(bRemovedNodeFromGraph); //< Should always be true because we know the node exists in the Graph from `Graph.FindNode(...)`
 			}
 			else
 			{
@@ -699,9 +208,7 @@ namespace Metasound
 
 			const INode* FromNode = Graph.FindNode(InFromNodeID);
 			const INode* ToNode = Graph.FindNode(InToNodeID);
-			const FOperatorID FromOperatorID = DirectedGraphAlgo::GetOperatorID(FromNode);
-			const FOperatorID ToOperatorID = DirectedGraphAlgo::GetOperatorID(ToNode);
-			const FOperatorID LiteralOperatorID = DirectedGraphAlgo::GetOperatorID(InReplacementLiteralNode.Get());
+			const INode* ReplacementLiteralNode = InReplacementLiteralNode.Get(); // Cache pointer because TUniquePtr<INode> will get moved
 
 			if ((nullptr == ToNode) || (nullptr == FromNode))
 			{
@@ -728,40 +235,25 @@ namespace Metasound
 				UE_LOG(LogMetaSound, Error, TEXT("Failed to remove edge from %s:%s to %s:%s on internal graph."), *InFromNodeID.ToString(), *InFromVertex.ToString(), *InToNodeID.ToString(), *InToVertex.ToString());
 				return;
 			}
-			GraphSorter.RemoveDataEdge(FromOperatorID, ToOperatorID);
 
-
-			bSuccess = Graph.AddDataEdge(*InReplacementLiteralNode, DynamicOperatorTransactorPrivate::LiteralNodeOutputVertexName, *ToNode, InToVertex);
+			// Store literal node associated with the target of the literal value.
+			LiteralNodeMap.Add(FLiteralNodeID{ InToNodeID, InToVertex }, MoveTemp(InReplacementLiteralNode));
+			bSuccess = Graph.AddDataEdge(*ReplacementLiteralNode, DynamicOperatorTransactorPrivate::LiteralNodeOutputVertexName, *ToNode, InToVertex);
 			if (!bSuccess)
 			{
 				UE_LOG(LogMetaSound, Error, TEXT("Failed to add literal for %s:%s on internal graph."), *InToNodeID.ToString(), *InToVertex.ToString());
 				return;
 			}
 
-			INode& LiteralNodeRef = *InReplacementLiteralNode; // Store ref since pointer will be moved. 
-			// Store literal node associated with the target of the literal value.
-			LiteralNodeMap.Add(FLiteralNodeID{ InToNodeID, InToVertex }, MoveTemp(InReplacementLiteralNode));
-
-			// Put literals in the front of the execution stack to simplify updating 
-			// runtime instances. No need to sort the entire graph if we are just
-			// inserting something at the beginning of the execution stack. 
-			int32 LiteralOrdinal = GraphSorter.InsertOperator(LiteralOperatorID, FDynamicGraphIncrementalSorter::EInsertLocation::First);
-			TArray<FOrdinalSwap> OrdinalSwaps;
-			GraphSorter.AddDataEdge(LiteralOperatorID, ToOperatorID, OrdinalSwaps);
-
-			// There should not be any ordinal swaps because the literal operator was inserted before any 
-			// other operator and so will always have it's output data ready before the ToOperator executes. 
-			check(OrdinalSwaps.Num() == 0); 
-
-			// Immediately disconnect non-audio edges. 
 			if (ToNode->GetVertexInterface().GetInputVertex(InToVertex).DataTypeName == GetMetasoundDataTypeName<FAudioBuffer>())
 			{
 				// Handle audio edge removal with a fade out.
-				EnqueueFadeAndRemoveEdgeOperatorTransform(*FromNode, InFromVertex, *ToNode, InToVertex, LiteralNodeRef, LiteralOrdinal);
+				EnqueueFadeAndRemoveEdgeOperatorTransform(*FromNode, InFromVertex, *ToNode, InToVertex, *ReplacementLiteralNode);
 			}
 			else
 			{
-				EnqueueRemoveEdgeOperatorTransform(*FromNode, InFromVertex, *ToNode, InToVertex, LiteralNodeRef, LiteralOrdinal);
+				// Immediately disconnect non-audio edges. 
+				EnqueueRemoveEdgeOperatorTransform(*FromNode, InFromVertex, *ToNode, InToVertex, *ReplacementLiteralNode);
 			}
 		}
 
@@ -785,11 +277,11 @@ namespace Metasound
 			}
 
 			// Always insert new literal nodes first in execution order.
-			int32 LiteralOrdinal = GraphSorter.InsertOperator(DirectedGraphAlgo::GetOperatorID(LiteralNode), FDynamicGraphIncrementalSorter::EInsertLocation::First);
+			CurrentOperatorOrder.Insert(DirectedGraphAlgo::GetOperatorID(*LiteralNode), 0);
 
 			auto CreateAddNodeTransform = [&](const FOperatorSettings& InOperatorSettings, const FMetasoundEnvironment& InEnvironment) -> TUniquePtr<IDynamicOperatorTransform>
 			{
-				return CreateInsertOperatorTransform(*LiteralNode, LiteralOrdinal, InOperatorSettings, InEnvironment);
+				return CreateAddOperatorTransform(*LiteralNode, EExecutionOrderInsertLocation::First, InOperatorSettings, InEnvironment);
 			};
 
 			EnqueueTransformOnOperatorQueues(CreateAddNodeTransform);
@@ -924,128 +416,107 @@ namespace Metasound
 			 * Literal nodes are stored on the FDynamicOperatorTransactor and need to be 
 			 * disconnected and removed if they are no longer being used. 
 			 */
+			const FLiteralNodeID LiteralNodeKey{InToNodeID, InToVertex};
 			TUniquePtr<INode> PriorLiteralNode;
-			bool bPriorLiteralNodeExists = LiteralNodeMap.RemoveAndCopyValue(FLiteralNodeID{InToNodeID, InToVertex}, PriorLiteralNode);
-
-			// Get relevant operator IDs.
-			const FOperatorID PriorLiteralOperatorID = DirectedGraphAlgo::GetOperatorID(PriorLiteralNode.Get());
-			const FOperatorID ToOperatorID = DirectedGraphAlgo::GetOperatorID(InToNode);
-			const FOperatorID FromOperatorID = DirectedGraphAlgo::GetOperatorID(InFromNode);
-
-			// Update edges on internal graph
-			if (bPriorLiteralNodeExists)
+			if (LiteralNodeMap.RemoveAndCopyValue(LiteralNodeKey, PriorLiteralNode))
 			{
 				Graph.RemoveDataEdge(*PriorLiteralNode, DynamicOperatorTransactorPrivate::LiteralNodeOutputVertexName, InToNode, InToVertex);
-				GraphSorter.RemoveDataEdge(PriorLiteralOperatorID, ToOperatorID);
 			}
 
+			/* add edge to internal graph. */
 			Graph.AddDataEdge(InFromNode, InFromVertex, InToNode, InToVertex);
-			TArray<FOrdinalSwap> OrdinalUpdates;
-			GraphSorter.AddDataEdge(FromOperatorID, ToOperatorID, OrdinalUpdates);
-		
-			if (bPriorLiteralNodeExists)
-			{
-				// The Graph does not maintain literal nodes so there is no need to remove the PriorLiteralNode from the Graph. Those are
-				// managed in the LiteralNodeMap. But, the GraphSorter DOES maintain literal operators, and so we have to still remove
-				// the literal operator from the GraphSorter.
-				GraphSorter.RemoveOperator(PriorLiteralOperatorID);
-			}
-
+			
 			if (InputVertex->DataTypeName == GetMetasoundDataTypeName<FAudioBuffer>())
 			{
 				// If edge is audio, then the connection needs to be faded
-				EnqueueFadeAndAddEdgeOperatorTransform(InFromNode, InFromVertex, InToNode, InToVertex, PriorLiteralNode.Get(), OrdinalUpdates);
+				EnqueueFadeAndAddEdgeOperatorTransform(InFromNode, InFromVertex, InToNode, InToVertex, PriorLiteralNode.Get());
 			}
 			else
 			{
 				// If the edge is not audio, then no fading is performed. 
-				EnqueueAddEdgeOperatorTransform(InFromNode, InFromVertex, InToNode, InToVertex, PriorLiteralNode.Get(), OrdinalUpdates);
+				EnqueueAddEdgeOperatorTransform(InFromNode, InFromVertex, InToNode, InToVertex, PriorLiteralNode.Get());
 			}
 		}
 		
-		void FDynamicOperatorTransactor::EnqueueInsertOperatorTransform(const INode& InNode, int32 InOrdinal)
+		void FDynamicOperatorTransactor::EnqueueAddOperatorTransform(const INode& InNode, EExecutionOrderInsertLocation InLocation)
 		{
+			// Update the CurrentOperatorOrder based on the insert location of new node. 
+			// This avoids resorting of entire graph on rendering dynamic metasounds by
+			// simply appending to a specific location.
+			switch (InLocation)
+			{
+				case EExecutionOrderInsertLocation::First:
+					CurrentOperatorOrder.Insert(DirectedGraphAlgo::GetOperatorID(InNode), 0);
+					break;
+
+				case EExecutionOrderInsertLocation::Last:
+					CurrentOperatorOrder.Add(DirectedGraphAlgo::GetOperatorID(InNode));
+					break;
+			}
+
 			auto CreateAddNodeTransform = [&](const FOperatorSettings& InOperatorSettings, const FMetasoundEnvironment& InEnvironment) -> TUniquePtr<IDynamicOperatorTransform>
 			{
-				return CreateInsertOperatorTransform(InNode, InOrdinal, InOperatorSettings, InEnvironment);
+				return CreateAddOperatorTransform(InNode, InLocation, InOperatorSettings, InEnvironment);
 			};
 
 			EnqueueTransformOnOperatorQueues(CreateAddNodeTransform);
 		}
 
-		void FDynamicOperatorTransactor::RemoveNodeInternal(const INode& InNode, bool bInRemoveDataEdgesWithNode)
-		{
-			// Find any existing edges and remove them from the graph
-			TArray<FOperatorID> OperatorsConnectedToInput;
-			if (bInRemoveDataEdgesWithNode)
-			{
-				for (const FDataEdge& Edge : Graph.GetDataEdges())
-				{
-					if ((Edge.From.Node == &InNode) || (Edge.To.Node == &InNode))
-					{
-						// Remove edge from graph sorter
-						GraphSorter.RemoveDataEdge(DirectedGraphAlgo::GetOperatorID(Edge.From.Node), DirectedGraphAlgo::GetOperatorID(Edge.To.Node));
-
-						if (Edge.To.Node == &InNode)
-						{
-							// Track all incomding edges to remove them from dynamic operator's model.
-							OperatorsConnectedToInput.AddUnique(DirectedGraphAlgo::GetOperatorID(Edge.From.Node));
-						}
-					}
-				}
-			}
-
-			
-			GraphSorter.RemoveOperator(DirectedGraphAlgo::GetOperatorID(InNode));
-
-			// that do not exist will stay on the runtime model. 
-			// There's an open question about whether we should fade disconnections. We probably should, 
-			// but we lack the literal node's to do so. 
-			EnqueueRemoveOperatorTransform(InNode, OperatorsConnectedToInput);
-
-			bool bRemovedNodeFromGraph = Graph.RemoveNode(InNode.GetInstanceID(), bInRemoveDataEdgesWithNode);
-			check(bRemovedNodeFromGraph); //< Should always be true because callers of RemoveNodeInternal() ensure that the node exists in graph.
-		}
-
-		void FDynamicOperatorTransactor::FadeAndRemoveNodeInternal(const INode& InNode, TArrayView<const FVertexName> InOutputsToFade, bool bInRemoveDataEdgesWithNode)
+		void FDynamicOperatorTransactor::EnqueueFadeAndRemoveOperatorTransform(const INode& InNode, TArrayView<const FVertexName> InOutputsToFade)
 		{
 			TArrayView<const FVertexName> InputsToFade; // We do not need to fade any inputs when removing a node.
 
 			EnqueueBeginFadeOperatorTransform(InNode, EAudioFadeType::FadeOut, InputsToFade, InOutputsToFade);
 
-			// We can skip the FEndAudioFadeTransform as an optimization here.
-			// FEndAudioFadeTransform removes the fading wrapper around the node,
-			// but since the node is being removed, we can remove the wrapper
-			// and the node with a single FRemoveOperator transform.
-			RemoveNodeInternal(InNode, bInRemoveDataEdgesWithNode);
+			const FOperatorID OperatorID = DirectedGraphAlgo::GetOperatorID(InNode);
+			CurrentOperatorOrder.RemoveSingle(OperatorID);
+
+			auto CreateEndFadeOutTransform = [&](const FOperatorSettings& InOperatorSettings, const FMetasoundEnvironment& InEnvironment) -> TUniquePtr<IDynamicOperatorTransform>
+			{
+				// We can skip the FEndAudioFadeTransform as an optimization here.
+				// FEndAudioFadeTransform removes the fading wrapper around the node,
+				// but since the node is being removed, we can remove the wrapper
+				// and the node with a single FRemoveOperator transform.
+				return MakeUnique<FRemoveOperator>(OperatorID);
+			};
+
+			EnqueueTransformOnOperatorQueues(CreateEndFadeOutTransform);
 		}
 
-		void FDynamicOperatorTransactor::EnqueueAddEdgeOperatorTransform(const INode& InFromNode, const FVertexName& InFromVertex, const INode& InToNode, const FVertexName& InToVertex, const INode* InPriorLiteralNode, const TArray<FOrdinalSwap>& InOrdinalUpdates)
+		void FDynamicOperatorTransactor::EnqueueAddEdgeOperatorTransform(const INode& InFromNode, const FVertexName& InFromVertex, const INode& InToNode, const FVertexName& InToVertex, const INode* InPriorLiteralNode)
 		{
 			/* enqueue an update. */
-			const FOperatorID FromOperatorID = DirectedGraphAlgo::GetOperatorID(InFromNode);
-			const FOperatorID ToOperatorID = DirectedGraphAlgo::GetOperatorID(InToNode);
-			const FOperatorID PriorLiteralOperatorID = DirectedGraphAlgo::GetOperatorID(InPriorLiteralNode);
+			FOperatorID FromOperatorID = DirectedGraphAlgo::GetOperatorID(InFromNode);
+			FOperatorID ToOperatorID = DirectedGraphAlgo::GetOperatorID(InToNode);
 
-			// Create transforms for runtime
+			if (InPriorLiteralNode)
+			{
+				CurrentOperatorOrder.RemoveSingle(DirectedGraphAlgo::GetOperatorID(InPriorLiteralNode));
+			}
+
+			// Find order of operators after adding edge. 
+			TArray<FOperatorID> NewOperatorOrder = DynamicOperatorTransactorPrivate::DetermineOperatorOrder(Graph);
+
+			// Only set new order if it's different than existing.
+			bool bSetNewOperatorOrder = NewOperatorOrder != CurrentOperatorOrder;
+			if (bSetNewOperatorOrder)
+			{
+				CurrentOperatorOrder = NewOperatorOrder;
+			}
+
 			auto CreateAddEdgeTransform = [&](const FOperatorSettings& InOperatorSettings, const FMetasoundEnvironment& InEnvironment) -> TUniquePtr<IDynamicOperatorTransform>
 			{
 				TArray<TUniquePtr<IDynamicOperatorTransform>> AtomicTransforms;
 
-				if (InOrdinalUpdates.Num() > 0)
-				{
-					AtomicTransforms.Add(MakeUnique<FSwapOperatorOrdinalsAndSort>(InOrdinalUpdates));
-				}
-
 				if (InPriorLiteralNode)
 				{
-					AtomicTransforms.Add(MakeUnique<FSwapOperatorConnection>(PriorLiteralOperatorID, DynamicOperatorTransactorPrivate::LiteralNodeOutputVertexName, FromOperatorID, InFromVertex, ToOperatorID, InToVertex));
-					AtomicTransforms.Add(MakeUnique<FRemoveOperator>(PriorLiteralOperatorID, TArray<FOperatorID>() /* OperatorsConnectedToInput */));
+					AtomicTransforms.Add(MakeUnique<FRemoveOperator>(DirectedGraphAlgo::GetOperatorID(InPriorLiteralNode)));
 				}
-				else
+				if (bSetNewOperatorOrder)
 				{
-					AtomicTransforms.Add(MakeUnique<FConnectOperators>(FromOperatorID, InFromVertex, ToOperatorID, InToVertex));
+					AtomicTransforms.Add(MakeUnique<FSetOperatorOrder>(NewOperatorOrder));
 				}
+				AtomicTransforms.Add(MakeUnique<FConnectOperators>(FromOperatorID, InFromVertex, ToOperatorID, InToVertex));
 
 				return MakeUnique<FAtomicTransform>(MoveTemp(AtomicTransforms));
 			};
@@ -1053,38 +524,47 @@ namespace Metasound
 			EnqueueTransformOnOperatorQueues(CreateAddEdgeTransform);
 		}
 
-		void FDynamicOperatorTransactor::EnqueueFadeAndAddEdgeOperatorTransform(const INode& InFromNode, const FVertexName& InFromVertex, const INode& InToNode, const FVertexName& InToVertex, const INode* InPriorLiteralNode, const TArray<FOrdinalSwap>& InOrdinalUpdates)
+		void FDynamicOperatorTransactor::EnqueueFadeAndAddEdgeOperatorTransform(const INode& InFromNode, const FVertexName& InFromVertex, const INode& InToNode, const FVertexName& InToVertex, const INode* InPriorLiteralNode)
 		{
-			const FOperatorID FromOperatorID = DirectedGraphAlgo::GetOperatorID(InFromNode);
-			const FOperatorID ToOperatorID = DirectedGraphAlgo::GetOperatorID(InToNode);
-			const FOperatorID PriorLiteralOperatorID = DirectedGraphAlgo::GetOperatorID(InPriorLiteralNode);
-
+			FOperatorID FromOperatorID = DirectedGraphAlgo::GetOperatorID(InFromNode);
+			FOperatorID ToOperatorID = DirectedGraphAlgo::GetOperatorID(InToNode);
+			
 			// Fade inputs on the receiving node when adding an edge. We don't fade the source node's outputs
 			// because those outputs could also be connected to other nodes which we do not want to fade. 
 			TArrayView<const FVertexName> InputsToFade(&InToVertex, 1);
 			TArrayView<const FVertexName> OutputsToFade;
 
+			if (InPriorLiteralNode)
+			{
+				CurrentOperatorOrder.RemoveSingle(DirectedGraphAlgo::GetOperatorID(InPriorLiteralNode));
+			}
+
+			// Find order of operators after removing literal and adding edge. 
+			TArray<FOperatorID> NewOperatorOrder = DynamicOperatorTransactorPrivate::DetermineOperatorOrder(Graph);
+
+			// Only set new order if it's different than existing.
+			bool bSetNewOperatorOrder = NewOperatorOrder != CurrentOperatorOrder;
+			if (bSetNewOperatorOrder)
+			{
+				CurrentOperatorOrder = NewOperatorOrder;
+			}
+
 			auto CreateBeginFadeAndAddEdgeTransform = [&](const FOperatorSettings& InOperatorSettings, const FMetasoundEnvironment& InEnvironment) -> TUniquePtr<IDynamicOperatorTransform>
 			{
 				TArray<TUniquePtr<IDynamicOperatorTransform>> AtomicTransforms;
 
-				
-				if (InOrdinalUpdates.Num() > 0)
-				{
-					AtomicTransforms.Add(MakeUnique<FSwapOperatorOrdinalsAndSort>(InOrdinalUpdates));
-				}
 				if (InPriorLiteralNode)
 				{
-					AtomicTransforms.Add(MakeUnique<FSwapOperatorConnection>(PriorLiteralOperatorID, DynamicOperatorTransactorPrivate::LiteralNodeOutputVertexName, FromOperatorID, InFromVertex, ToOperatorID, InToVertex));
 					// We assume that any FAudioBuffer created from a literal node is just silent audio. That means we can
 					// Remove that literal node without fading out the audio from the literal node connected to the destination node. 
-					AtomicTransforms.Add(MakeUnique<FRemoveOperator>(DirectedGraphAlgo::GetOperatorID(InPriorLiteralNode), TArray<FOperatorID>() /* OperatorsConnectedToInput */));
+					AtomicTransforms.Add(MakeUnique<FRemoveOperator>(DirectedGraphAlgo::GetOperatorID(InPriorLiteralNode)));
 				}
-				else
+				
+				if (bSetNewOperatorOrder)
 				{
-					AtomicTransforms.Add(MakeUnique<FConnectOperators>(FromOperatorID, InFromVertex, ToOperatorID, InToVertex));
+					AtomicTransforms.Add(MakeUnique<FSetOperatorOrder>(NewOperatorOrder));
 				}
-
+				AtomicTransforms.Add(MakeUnique<FConnectOperators>(FromOperatorID, InFromVertex, ToOperatorID, InToVertex));
 				AtomicTransforms.Add(MakeUnique<FBeginAudioFadeTransform>(ToOperatorID, EAudioFadeType::FadeIn, InputsToFade, OutputsToFade));
 				
 				// Fence must be the last transform since the fade must be performed
@@ -1134,18 +614,22 @@ namespace Metasound
 			EnqueueTransformOnOperatorQueues(CreateEndAudioFadeTransform);
 		}
 
-		void FDynamicOperatorTransactor::EnqueueRemoveOperatorTransform(const INode& InNode, const TArray<FOperatorID>& InOperatorsConnectedToInput)
+		void FDynamicOperatorTransactor::EnqueueRemoveOperatorTransform(const INode& InNode)
 		{
-			const FOperatorID OperatorID = DirectedGraphAlgo::GetOperatorID(InNode);
+			FOperatorID OperatorID = DirectedGraphAlgo::GetOperatorID(InNode);
 
-			auto CreateRemoveNodeTransform = [&OperatorID, &InOperatorsConnectedToInput](const FOperatorSettings& InOperatorSettings, const FMetasoundEnvironment& InEnvironment) -> TUniquePtr<IDynamicOperatorTransform>
+			// Removing operator does not require a re-sort because existing dependencies
+			// are still met due to DAG structure. 
+			CurrentOperatorOrder.RemoveSingle(OperatorID);
+
+			auto CreateRemoveNodeTransform = [&](const FOperatorSettings& InOperatorSettings, const FMetasoundEnvironment& InEnvironment) -> TUniquePtr<IDynamicOperatorTransform>
 			{
-				return MakeUnique<FRemoveOperator>(OperatorID, InOperatorsConnectedToInput);
+				return MakeUnique<FRemoveOperator>(OperatorID);
 			};
 			EnqueueTransformOnOperatorQueues(CreateRemoveNodeTransform);
 		}
 
-		void FDynamicOperatorTransactor::EnqueueRemoveEdgeOperatorTransform(const INode& InFromNode, const FVertexName& InFromVertex, const INode& InToNode, const FVertexName& InToVertex, const INode& InReplacementLiteralNode, int32 InLiteralOrdinal)
+		void FDynamicOperatorTransactor::EnqueueRemoveEdgeOperatorTransform(const INode& InFromNode, const FVertexName& InFromVertex, const INode& InToNode, const FVertexName& InToVertex, const INode& InReplacementLiteralNode)
 		{
 			using namespace DynamicOperatorTransactorPrivate;
 
@@ -1153,10 +637,15 @@ namespace Metasound
 			const FOperatorID ToOperatorID = DirectedGraphAlgo::GetOperatorID(InToNode);
 			const FOperatorID LiteralOperatorID = DirectedGraphAlgo::GetOperatorID(InReplacementLiteralNode);
 
+			// Put literals in the front of the execution stack to simplify updating 
+			// runtime instances. No need to sort the entire graph if we are just
+			// inserting something at the beginning of the execution stack. 
+			CurrentOperatorOrder.Insert(LiteralOperatorID, 0);
+
 			auto CreateRemoveEdgeTransform = [&](const FOperatorSettings& InOperatorSettings, const FMetasoundEnvironment& InEnvironment) -> TUniquePtr<IDynamicOperatorTransform>
 			{
 				// Add the literal node.
-				TUniquePtr<IDynamicOperatorTransform> AddNodeTransform = CreateInsertOperatorTransform(InReplacementLiteralNode, InLiteralOrdinal, InOperatorSettings, InEnvironment);
+				TUniquePtr<IDynamicOperatorTransform> AddNodeTransform = CreateAddOperatorTransform(InReplacementLiteralNode, EExecutionOrderInsertLocation::First, InOperatorSettings, InEnvironment);
 
 				// Swap prior connection with new connections.
 				TUniquePtr<IDynamicOperatorTransform> ConnectOperatorsTransform = MakeUnique<FSwapOperatorConnection>(FromOperatorID, InFromVertex, LiteralOperatorID, DynamicOperatorTransactorPrivate::LiteralNodeOutputVertexName, ToOperatorID, InToVertex);
@@ -1182,7 +671,7 @@ namespace Metasound
 			EnqueueTransformOnOperatorQueues(CreateRemoveEdgeTransform);
 		}
 
-		void FDynamicOperatorTransactor::EnqueueFadeAndRemoveEdgeOperatorTransform(const INode& InFromNode, const FVertexName& InFromVertex, const INode& InToNode, const FVertexName& InToVertex, const INode& InReplacementLiteralNode, int32 InLiteralOrdinal)
+		void FDynamicOperatorTransactor::EnqueueFadeAndRemoveEdgeOperatorTransform(const INode& InFromNode, const FVertexName& InFromVertex, const INode& InToNode, const FVertexName& InToVertex, const INode& InReplacementLiteralNode)
 		{
 			// Fade the input to the node getting disconnected rather than the output of the source node. The source node
 			// may be connected to other nodes and fading it's output would fade all the other connected nodes' inputs. 
@@ -1199,13 +688,15 @@ namespace Metasound
 			// If we ever find ourselves creating audio buffers with literals which 
 			// are anything other than silent buffers, we should rework this operation
 			// to do either a cross-fade, or an additional "fade in" to the new value. 
-			EnqueueRemoveEdgeOperatorTransform(InFromNode, InFromVertex, InToNode, InToVertex, InReplacementLiteralNode, InLiteralOrdinal);
+			EnqueueRemoveEdgeOperatorTransform(InFromNode, InFromVertex, InToNode, InToVertex, InReplacementLiteralNode);
 
 			// Remove fade operation. 
 			EnqueueEndFadeOperatorTransform(InToNode);
 		}
 
-		TUniquePtr<IDynamicOperatorTransform> FDynamicOperatorTransactor::CreateInsertOperatorTransform(const INode& InNode, int32 InOrdinal, const FOperatorSettings& InOperatorSettings, const FMetasoundEnvironment& InEnvironment) const
+
+
+		TUniquePtr<IDynamicOperatorTransform> FDynamicOperatorTransactor::CreateAddOperatorTransform(const INode& InNode, EExecutionOrderInsertLocation InLocation, const FOperatorSettings& InOperatorSettings, const FMetasoundEnvironment& InEnvironment) const
 		{
 			using namespace DynamicOperatorTransactorPrivate;
 
@@ -1238,12 +729,11 @@ namespace Metasound
 
 				FOperatorInfo OpInfo
 				{
-					InOrdinal,
 					MoveTemp(Operator),
 					MoveTemp(InterfaceData)
 				};
 
-				return MakeUnique<FInsertOperator>(OperatorID, MoveTemp(OpInfo));
+				return MakeUnique<FAddOperator>(OperatorID, InLocation, MoveTemp(OpInfo));
 			}
 			else
 			{

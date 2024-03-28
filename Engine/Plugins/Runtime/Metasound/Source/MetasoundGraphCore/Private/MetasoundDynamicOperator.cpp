@@ -4,7 +4,6 @@
 
 #include "Containers/Array.h"
 #include "HAL/IConsoleManager.h"
-#include "MetasoundDynamicGraphAlgo.h"
 #include "MetasoundDynamicOperatorAudioFade.h"
 #include "MetasoundNodeInterface.h"
 #include "MetasoundOperatorInterface.h"
@@ -37,14 +36,40 @@ namespace Metasound
 
 		namespace DynamicOperatorPrivate
 		{
-			float MetaSoundExperimentalTransformTimeoutInSeconds = -1.0f;
+			float MetaSoundExperimentalTransformTimeoutInSeconds = 0.010f;
 			FAutoConsoleVariableRef CVarMetaSoundExperimentalTransformTimeoutInSeconds(
 				TEXT("au.MetaSound.Experimental.DynamicOperatorTransformTimeoutInSeconds"),
 				MetaSoundExperimentalTransformTimeoutInSeconds,
 				TEXT("Sets the number of seconds allowed to process pending dynamic graph transformations for a single MetaSound render cycle .\n")
-				TEXT("[Less than zero]: Disabled, [Greater than zero]: Enabled, (disabled by default)"),
+				TEXT("[Less than zero]: Disabled, [Greater than zero]: Enabled, 0.010s (default)"),
 				ECVF_Default);
 			
+			// Table sorter helper so we don't rewrite this algorithm for each differe
+			// stack type (Execute/PostExecute/Reset)
+			struct FTableSorter
+			{
+				template<typename TableEntryType>
+				static void SortTable(const TArray<FOperatorID>& OperatorOrder, TArray<TableEntryType>& InOutTable)
+				{
+					uint32 TargetIndex = 0;
+					for (const FOperatorID& OperatorID : OperatorOrder)
+					{
+						uint32 CurrentIndex = InOutTable.IndexOfByPredicate([&](const TableEntryType& Entry) 
+							{ 
+								return Entry.OperatorID == OperatorID; 
+							}
+						);
+
+						// The operator may not exist in the stack if it doesn't
+						// have an applicable function.
+						if (INDEX_NONE != CurrentIndex)
+						{
+							InOutTable.Swap(TargetIndex, CurrentIndex);
+							TargetIndex++;
+						}
+					}
+				}
+			};
 
 			template<typename VertexInterfaceDataType>
 			class TScopeUnfreeze final
@@ -67,7 +92,6 @@ namespace Metasound
 				VertexInterfaceDataType& VertexData;
 			};
 
-
 		} // namespace DynamicOperatorPrivate
 
 		FDynamicOperator::FDynamicOperator(const FOperatorSettings& InSettings)
@@ -80,8 +104,8 @@ namespace Metasound
 			}
 		}
 
-		FDynamicOperator::FDynamicOperator(const FOperatorSettings& InSettings, TSharedPtr<TSpscQueue<TUniquePtr<IDynamicOperatorTransform>>> InTransformQueue, const FDynamicOperatorUpdateCallbacks& InOperatorUpdateCallbacks)
-		: DynamicOperatorData(InSettings, InOperatorUpdateCallbacks)
+		FDynamicOperator::FDynamicOperator(DirectedGraphAlgo::FGraphOperatorData&& InGraphOperatorData, TSharedPtr<TSpscQueue<TUniquePtr<IDynamicOperatorTransform>>> InTransformQueue, const FDynamicOperatorUpdateCallbacks& InOperatorUpdateCallbacks)
+		: DynamicOperatorData(MoveTemp(InGraphOperatorData), InOperatorUpdateCallbacks)
 		, TransformQueue(InTransformQueue)
 		{
 			// Ensure that a transform queue exists. 
@@ -130,11 +154,6 @@ namespace Metasound
 					}
 				}
 			}
-		}
-
-		FDynamicGraphOperatorData& FDynamicOperator::GetDynamicGraphOperatorData()
-		{
-			return DynamicOperatorData;
 		}
 
 		void FDynamicOperator::ApplyTransformsUntilFence()
@@ -258,63 +277,121 @@ namespace Metasound
 		}
 
 		// Set the order of operators in the graph
-		FSetOperatorOrdinalsAndSort::FSetOperatorOrdinalsAndSort(TMap<FOperatorID, int32> InOrdinals)
-		: Ordinals(MoveTemp(InOrdinals))
+		FSetOperatorOrder::FSetOperatorOrder(TArray<FOperatorID> InOrder)
+		: Order(MoveTemp(InOrder))
 		{
 		}
 
-		EDynamicOperatorTransformQueueAction FSetOperatorOrdinalsAndSort::Transform(FDynamicGraphOperatorData& InOutGraphOperatorData)
+		EDynamicOperatorTransformQueueAction FSetOperatorOrder::Transform(FDynamicGraphOperatorData& InOutGraphOperatorData)
 		{
-			METASOUND_TRACE_CPUPROFILER_EVENT_SCOPE(Metasound::DynamicOperator::SetOperatorOrdinalsAndSort)
+			METASOUND_TRACE_CPUPROFILER_EVENT_SCOPE(Metasound::DynamicOperator::SetOperatorOrder)
 
-			SetOrdinalsAndSort(Ordinals, InOutGraphOperatorData);
+			using namespace DynamicOperatorPrivate;
 
-			return EDynamicOperatorTransformQueueAction::Continue;
-		}
+			InOutGraphOperatorData.OperatorOrder = Order;
 
-		// Swaps order of operators. 
-		FSwapOperatorOrdinalsAndSort::FSwapOperatorOrdinalsAndSort(TArray<FOrdinalSwap> InSwaps)
-		: Swaps(MoveTemp(InSwaps))
-		{
-		}
-
-		EDynamicOperatorTransformQueueAction FSwapOperatorOrdinalsAndSort::Transform(FDynamicGraphOperatorData& InOutGraphOperatorData)
-		{
-			METASOUND_TRACE_CPUPROFILER_EVENT_SCOPE(Metasound::DynamicOperator::SwapOperatorOrdinalsAndSort)
-
-			SwapOrdinalsAndSort(Swaps, InOutGraphOperatorData);
+			// Sort operator tables to be in the correct order.
+			FTableSorter::SortTable(Order, InOutGraphOperatorData.ExecuteTable);
+			FTableSorter::SortTable(Order, InOutGraphOperatorData.PostExecuteTable);
+			FTableSorter::SortTable(Order, InOutGraphOperatorData.ResetTable);
 
 			return EDynamicOperatorTransformQueueAction::Continue;
 		}
 
 		// Add an operator to the grpah
-		FInsertOperator::FInsertOperator(FOperatorID InOperatorID, FOperatorInfo InInfo)
+		FAddOperator::FAddOperator(FOperatorID InOperatorID, EExecutionOrderInsertLocation InLocation, FOperatorInfo&& InInfo)
 		: OperatorID(InOperatorID)
+		, Location(InLocation)
 		, OperatorInfo(MoveTemp(InInfo))
 		{
 		}
 
-		EDynamicOperatorTransformQueueAction FInsertOperator::Transform(FDynamicGraphOperatorData& InOutGraphOperatorData)
+		EDynamicOperatorTransformQueueAction FAddOperator::Transform(FDynamicGraphOperatorData& InGraphOperatorData)
 		{
-			METASOUND_TRACE_CPUPROFILER_EVENT_SCOPE(Metasound::DynamicOperator::InsertOperator)
+			METASOUND_TRACE_CPUPROFILER_EVENT_SCOPE(Metasound::DynamicOperator::AddOperator)
 
-			InsertOperator(OperatorID, MoveTemp(OperatorInfo), InOutGraphOperatorData);
+			if (OperatorInfo.Operator.IsValid())
+			{
+				IOperator* Operator = OperatorInfo.Operator.Get();
+
+				if (FOperatorInfo* ExistingInfo = InGraphOperatorData.OperatorMap.Find(OperatorID))
+				{
+					// The options here are not good. The prior operator will be 
+					// removed and replaced with this new operator.
+					// Another option would be to leave the existing operator unchanged. 
+					// Neither option is satisfactory.
+					UE_LOG(LogMetaSound, Warning, TEXT("Overriding existing operator with the same operator ID %d. Duplicate operator IDs will lead to undefined behavior. Remove existing operators before adding a new one with the same ID"), OperatorID);
+
+					FRemoveOperator(OperatorID).Transform(InGraphOperatorData);
+				}
+
+				InGraphOperatorData.OperatorMap.Add(OperatorID, MoveTemp(OperatorInfo));
+				switch (Location)
+				{
+					case EExecutionOrderInsertLocation::First:
+						{
+							InGraphOperatorData.OperatorOrder.Insert(OperatorID, 0);
+							// Update execution tables
+							if (IOperator::FExecuteFunction ExecuteFunc = Operator->GetExecuteFunction())
+							{
+								InGraphOperatorData.ExecuteTable.Insert(FExecuteEntry(OperatorID, *Operator, ExecuteFunc), 0);
+							}
+
+							if (IOperator::FPostExecuteFunction PostExecuteFunc = Operator->GetPostExecuteFunction())
+							{
+								InGraphOperatorData.PostExecuteTable.Insert(FPostExecuteEntry(OperatorID, *Operator, PostExecuteFunc), 0);
+							}
+
+							if (IOperator::FResetFunction ResetFunc = Operator->GetResetFunction())
+							{
+								InGraphOperatorData.ResetTable.Insert(FResetEntry(OperatorID, *Operator, ResetFunc), 0);
+							}
+						}
+						break;
+
+					case EExecutionOrderInsertLocation::Last:
+						{
+							InGraphOperatorData.OperatorOrder.Add(OperatorID);
+							// Update execution tables
+							if (IOperator::FExecuteFunction ExecuteFunc = Operator->GetExecuteFunction())
+							{
+								InGraphOperatorData.ExecuteTable.Add(FExecuteEntry(OperatorID, *Operator, ExecuteFunc));
+							}
+
+							if (IOperator::FPostExecuteFunction PostExecuteFunc = Operator->GetPostExecuteFunction())
+							{
+								InGraphOperatorData.PostExecuteTable.Add(FPostExecuteEntry(OperatorID, *Operator, PostExecuteFunc));
+							}
+
+							if (IOperator::FResetFunction ResetFunc = Operator->GetResetFunction())
+							{
+								InGraphOperatorData.ResetTable.Add(FResetEntry(OperatorID, *Operator, ResetFunc));
+							}
+						}
+						break;
+				}
+			}
 
 			return EDynamicOperatorTransformQueueAction::Continue;
 		}
 
 		// Remove an operator from the graph
-		FRemoveOperator::FRemoveOperator(FOperatorID InOperatorID, TArray<FOperatorID> InOperatorsConnectedToInput)
+		FRemoveOperator::FRemoveOperator(FOperatorID InOperatorID)
 		: OperatorID(InOperatorID)
-		, OperatorsConnectedToInput(MoveTemp(InOperatorsConnectedToInput))
 		{
 		}
 
-		EDynamicOperatorTransformQueueAction FRemoveOperator::Transform(FDynamicGraphOperatorData& InOutGraphOperatorData) 
+		EDynamicOperatorTransformQueueAction FRemoveOperator::Transform(FDynamicGraphOperatorData& InGraphOperatorData) 
 		{
 			METASOUND_TRACE_CPUPROFILER_EVENT_SCOPE(Metasound::DynamicOperator::RemoveOperator)
 
-			RemoveOperator(OperatorID, OperatorsConnectedToInput, InOutGraphOperatorData);
+			InGraphOperatorData.OperatorOrder.Remove(OperatorID);
+			InGraphOperatorData.OperatorMap.Remove(OperatorID);
+
+			// Update execution tables
+			InGraphOperatorData.ExecuteTable.RemoveAll([&](const FExecuteEntry& InEntry) { return InEntry.OperatorID == OperatorID; });
+			InGraphOperatorData.PostExecuteTable.RemoveAll([&](const FPostExecuteEntry& InEntry) { return InEntry.OperatorID == OperatorID; });
+			InGraphOperatorData.ResetTable.RemoveAll([&](const FResetEntry& InEntry) { return InEntry.OperatorID == OperatorID; });
 
 			return EDynamicOperatorTransformQueueAction::Continue;
 		}

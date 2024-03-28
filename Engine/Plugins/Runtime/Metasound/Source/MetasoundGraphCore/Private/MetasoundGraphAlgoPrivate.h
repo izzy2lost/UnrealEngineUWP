@@ -34,11 +34,6 @@ namespace Metasound
 
 			struct FOperatorInfo
 			{
-				// The ordinal associated with the operator. Ordinals can be used
-				// to determine ordering of operators, but shouldn't be considered
-				// as indexes.
-				int32 Ordinal;
-
 				TUniquePtr<IOperator> Operator;
 
 				// Vertex Data bound to operator.
@@ -55,8 +50,10 @@ namespace Metasound
 
 			// Vertex Data bound to the graph
 			FVertexInterfaceData VertexData;
-			
-			// Map of all operators in graph
+
+			// Sorted order of operators for execution.
+			TArray<FOperatorID> OperatorOrder;
+
 			TSortedMap<FOperatorID, FOperatorInfo> OperatorMap;
 
 			// Map with input vertex name as key, and OperatorID of input node as value.
@@ -64,18 +61,6 @@ namespace Metasound
 
 			// Map with output vertex name as key, and OperatorID of output node as value.
 			TSortedVertexNameMap<FOperatorID> OutputVertexMap;
-		};
-
-		/** FStaticGraphOperatorData contains FGraphOperatorData plus a static ordering
-		 * of nodes. This structure allows the FOpeatorBuilder to more efficiently inform
-		 * the FGraphOperator how the operators should order execution tables. 
-		 */
-		struct FStaticGraphOperatorData : FGraphOperatorData
-		{
-			using FGraphOperatorData::FGraphOperatorData; // Inherit constructor
-
-			// Order of node execution
-			TArray<const INode*> NodeOrder;
 		};
 	}
 }
