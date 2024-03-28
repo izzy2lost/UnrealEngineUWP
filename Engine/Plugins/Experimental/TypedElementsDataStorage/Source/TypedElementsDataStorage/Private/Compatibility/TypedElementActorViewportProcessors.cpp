@@ -1,4 +1,4 @@
-﻿// Copyright Epic Games, Inc. All Rights Reserved.
+// Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "Compatibility/TypedElementActorViewportProcessors.h"
 
@@ -64,7 +64,8 @@ FAutoConsoleCommandWithArgsAndOutputDevice SetOutlineColorConsoleCommand(
 
 				for (TypedElementRowHandle Row : RowHandles)
 				{
-					DataStorage->AddOrGetColumn<FTypedElementViewportOutlineColorColumn>(Row)->SelectionOutlineColorIndex = ColorIndex;
+					DataStorage->AddOrGetColumn(Row, 
+						FTypedElementViewportOutlineColorColumn{ .SelectionOutlineColorIndex = static_cast<uint8>(ColorIndex) });
 					DataStorage->AddColumn<FTypedElementSyncBackToWorldTag>(Row);
 				}
 			}
@@ -116,7 +117,7 @@ FAutoConsoleCommandWithArgsAndOutputDevice SetSelectionOverlayColorConsoleComman
 
 				for (TypedElementRowHandle Row : RowHandles)
 				{
-					DataStorage->AddOrGetColumn<FTypedElementViewportOverlayColorColumn>(Row)->OverlayColor = Color;
+					DataStorage->AddOrGetColumn(Row, FTypedElementViewportOverlayColorColumn{ .OverlayColor = Color });
 					DataStorage->AddColumn<FTypedElementSyncBackToWorldTag>(Row);
 				}
 			}

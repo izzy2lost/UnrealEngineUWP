@@ -2059,8 +2059,13 @@ bool FPerforceUpdateStatusWorker::UpdateStates() const
 			return;
 		}
 		
-		DataStorage->AddOrGetColumn<FSCCRevisionIdColumn>(Row)->RevisionId.Id[0] = State.LocalRevNumber;
-		DataStorage->AddOrGetColumn<FSCCExternalRevisionIdColumn>(Row)->RevisionId.Id[0] = State.DepotRevNumber;
+		FSCCRevisionIdColumn RevisionId;
+		RevisionId.RevisionId.Id[0] = State.LocalRevNumber;
+		DataStorage->AddOrGetColumn(Row, MoveTemp(RevisionId));
+		
+		FSCCExternalRevisionIdColumn ExternalRevisionId;
+		ExternalRevisionId.RevisionId.Id[0] = State.DepotRevNumber;
+		DataStorage->AddOrGetColumn(Row, MoveTemp(ExternalRevisionId));
 
 		TArray<UScriptStruct*> ToAdd { FTypedElementSyncFromWorldTag::StaticStruct() };
 		TArray<UScriptStruct*> ToRemove;
@@ -2080,7 +2085,7 @@ bool FPerforceUpdateStatusWorker::UpdateStates() const
 		{
 			if (bCondition)
 			{
-				DataStorage->AddOrGetColumn<FSCCStatusColumn>(Row)->Modification = Modification;
+				DataStorage->AddOrGetColumn(Row, FSCCStatusColumn{ .Modification = Modification });
 				bAnyStatus = true;
 			}
 		};
@@ -2097,7 +2102,9 @@ bool FPerforceUpdateStatusWorker::UpdateStates() const
 		const bool bIsCheckedOutByOther = State.IsCheckedOutOther(&WhoCheckedOut);
 		if (bIsCheckedOutByOther && State.bExclusiveCheckout)
 		{
-			DataStorage->AddOrGetColumn<FSCCExternallyLockedColumn>(Row)->LockedBy.Name = WhoCheckedOut;
+			FSCCExternallyLockedColumn Locked;
+			Locked.LockedBy.Name = WhoCheckedOut;
+			DataStorage->AddOrGetColumn(Row, MoveTemp(Locked));
 		}
 		else
 		{

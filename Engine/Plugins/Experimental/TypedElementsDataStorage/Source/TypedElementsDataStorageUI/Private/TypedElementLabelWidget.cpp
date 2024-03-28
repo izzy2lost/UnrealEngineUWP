@@ -226,8 +226,7 @@ TSharedPtr<SWidget> FTypedElementLabelWidgetConstructor::Construct(
 
 bool FTypedElementLabelWidgetConstructor::SetColumns(ITypedElementDataStorageInterface* DataStorage, TypedElementRowHandle Row)
 {
-	DataStorage->GetColumn<FTypedElementU64IntValueCacheColumn>(Row)->Value = 0;
-	DataStorage->AddOrGetColumn<FTypedElementLabelWidgetColumn>(Row)->bShowHashInTooltip = (MatchedColumnTypes.Num() == 2);
+	DataStorage->AddOrGetColumn(Row, FTypedElementLabelWidgetColumn{ .bShowHashInTooltip = (MatchedColumnTypes.Num() == 2) });
 	return true;
 }
 

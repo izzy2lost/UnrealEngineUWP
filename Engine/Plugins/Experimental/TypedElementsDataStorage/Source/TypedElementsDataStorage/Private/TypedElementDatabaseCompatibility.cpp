@@ -600,11 +600,13 @@ void UTypedElementDatabaseCompatibility::TickPendingUObjectRegistration()
 				if (AActor* Actor = Cast<AActor>(Object))
 				{
 					constexpr bool bIsOwnedByMass = false;
-					Storage->AddOrGetColumn<FMassActorFragment>(Row)->SetNoHandleMapUpdate(FMassEntityHandle::FromNumber(Row), Actor, bIsOwnedByMass);
+					FMassActorFragment ActorColumn;
+					ActorColumn.SetNoHandleMapUpdate(FMassEntityHandle::FromNumber(Row), Actor, bIsOwnedByMass);
+					Storage->AddOrGetColumn(Row, MoveTemp(ActorColumn));
 				}
 
-				Storage->AddOrGetColumn<FTypedElementUObjectColumn>(Row, FTypedElementUObjectColumn{ .Object = Object });
-				Storage->AddOrGetColumn<FTypedElementClassTypeInfoColumn>(Row, FTypedElementClassTypeInfoColumn{ .TypeInfo = Object->GetClass() });
+				Storage->AddOrGetColumn(Row, FTypedElementUObjectColumn{ .Object = Object });
+				Storage->AddOrGetColumn(Row, FTypedElementClassTypeInfoColumn{ .TypeInfo = Object->GetClass() });
 				// Make sure the new row is tagged for update.
 				Storage->AddColumn<FTypedElementSyncFromWorldTag>(Row);
 				OnObjectAdded(Object.Get(), Object->GetClass(), Row);

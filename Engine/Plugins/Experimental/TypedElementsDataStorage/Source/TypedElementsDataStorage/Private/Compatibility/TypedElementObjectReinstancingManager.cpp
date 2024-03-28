@@ -109,7 +109,7 @@ void UTypedElementObjectReinstancingManager::HandleOnObjectsReinstanced(
 			if (NewInstanceObject == nullptr)
 			{
 				// Reinstancing resulted in no target object.  Delete the memento.
-				Database->AddOrGetColumn<FTypedElementMementoReinstanceAborted>(Memento);
+				Database->AddColumn(Memento, FTypedElementMementoReinstanceAborted::StaticStruct());
 				continue;
 			}
 			
