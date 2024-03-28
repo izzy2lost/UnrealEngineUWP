@@ -5,6 +5,7 @@
 #include "StructSerializationUtilities.h"
 #include "UObject/EnumProperty.h"
 #include "UObject/PropertyPortFlags.h"
+#include "UObject/StrProperty.h"
 #include "UObject/TextProperty.h"
 #include "UObject/UnrealType.h"
 

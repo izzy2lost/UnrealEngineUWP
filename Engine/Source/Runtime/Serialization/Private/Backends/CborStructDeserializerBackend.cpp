@@ -6,6 +6,7 @@
 #include "StructSerializationUtilities.h"
 #include "UObject/Class.h"
 #include "UObject/EnumProperty.h"
+#include "UObject/StrProperty.h"
 #include "UObject/TextProperty.h"
 #include "UObject/UnrealType.h"
 

@@ -30,6 +30,7 @@
 #include "Engine/Selection.h"
 
 #include "UObject/PropertyOptional.h"
+#include "UObject/StrProperty.h"
 
 #define LOCTEXT_NAMESPACE "PropertyEditor"
 

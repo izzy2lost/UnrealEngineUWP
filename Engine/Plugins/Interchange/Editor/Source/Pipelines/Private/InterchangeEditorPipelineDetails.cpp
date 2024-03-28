@@ -9,6 +9,7 @@
 #include "Nodes/InterchangeBaseNode.h"
 #include "ScopedTransaction.h"
 #include "Styling/StyleColors.h"
+#include "UObject/StrProperty.h"
 #include "Widgets/Input/SButton.h"
 #include "Widgets/Input/SNumericEntryBox.h"
 #include "Widgets/Input/STextComboBox.h"

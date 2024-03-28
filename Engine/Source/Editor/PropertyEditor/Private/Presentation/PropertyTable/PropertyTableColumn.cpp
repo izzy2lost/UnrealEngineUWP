@@ -3,6 +3,7 @@
 #include "Presentation/PropertyTable/PropertyTableColumn.h"
 #include "Editor/EditorEngine.h"
 #include "IPropertyTableCell.h"
+#include "UObject/StrProperty.h"
 #include "UObject/TextProperty.h"
 #include "ObjectPropertyNode.h"
 #include "Presentation/PropertyTable/PropertyTableCell.h"

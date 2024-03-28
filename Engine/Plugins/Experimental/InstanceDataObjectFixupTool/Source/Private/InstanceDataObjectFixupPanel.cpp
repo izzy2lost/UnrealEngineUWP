@@ -13,6 +13,7 @@
 
 #include "UObject/OverriddenPropertySet.h"
 #include "UObject/OverridableManager.h"
+#include "UObject/StrProperty.h"
 #include "UObject/TextProperty.h"
 
 #define LOCTEXT_NAMESPACE "InstanceDataObjectFixupPanel"

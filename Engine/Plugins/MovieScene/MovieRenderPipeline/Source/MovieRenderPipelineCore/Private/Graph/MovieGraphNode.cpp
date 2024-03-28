@@ -3,6 +3,7 @@
 #include "Graph/MovieGraphNode.h"
 
 #include "Graph/MovieGraphConfig.h"
+#include "UObject/StrProperty.h"
 #include "UObject/TextProperty.h"
 
 FName UMovieGraphNode::GlobalsPinName = FName("Globals");

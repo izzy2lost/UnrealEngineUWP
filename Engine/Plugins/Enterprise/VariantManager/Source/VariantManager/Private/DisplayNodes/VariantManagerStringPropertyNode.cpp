@@ -10,6 +10,7 @@
 #include "VariantManagerLog.h"
 #include "PropertyHandle.h"
 #include "ISinglePropertyView.h"
+#include "UObject/StrProperty.h"
 #include "UObject/TextProperty.h"
 #include "Widgets/Layout/SBox.h"
 #include "Widgets/Text/STextBlock.h"

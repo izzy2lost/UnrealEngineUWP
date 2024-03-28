@@ -5,6 +5,7 @@
 #include "Misc/TVariantMeta.h"
 #include "UObject/EnumProperty.h"
 #include "Templates/ValueOrError.h"
+#include "UObject/StrProperty.h"
 #include "UObject/TextProperty.h"
 #include "NetcodeUnitTest.h"
 
