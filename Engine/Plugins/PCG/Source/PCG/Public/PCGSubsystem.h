@@ -36,6 +36,17 @@ class UWorld;
 DECLARE_MULTICAST_DELEGATE_OneParam(FPCGOnComponentGenerationCompleteOrCancelled, UPCGSubsystem*);
 #endif // WITH_EDITOR
 
+USTRUCT()
+struct FConstructionScriptSourceComponents
+{
+	GENERATED_USTRUCT_BODY()
+
+#if WITH_EDITORONLY_DATA
+	UPROPERTY(Transient)
+	TMap<FName, TObjectPtr<UPCGComponent>> SourceComponentsMap;
+#endif
+};
+
 /**
 * UPCGSubsystem
 */
@@ -74,6 +85,9 @@ public:
 #if WITH_EDITOR
 	/** Returns PIE world if it is active, otherwise returns editor world. */
 	static UPCGSubsystem* GetActiveEditorInstance();
+
+	void SetConstructionScriptSourceComponent(UPCGComponent* InComponent);
+	bool RemoveAndCopyConstructionScriptSourceComponent(AActor* InComponentOwner, FName InComponentName, UPCGComponent*& OutSourceComponent);
 #endif
 
 	/** Subsystem must not be used without this condition being true. */
@@ -321,6 +335,11 @@ private:
 
 #if WITH_EDITOR
 	FCriticalSection PCGWorldActorLock;
+#endif
+
+#if WITH_EDITORONLY_DATA
+	UPROPERTY(Transient)
+	TMap<TObjectPtr<AActor>, FConstructionScriptSourceComponents> PerActorConstructionScriptSourceComponents;
 #endif
 };
 

@@ -1160,6 +1160,7 @@ void FPCGGraphExecutor::ClearAllTasks()
 	ReadyTasks.Reset();
 	ActiveTasks.Reset();
 	SleepingTasks.Reset();
+	TaskSuccessors.Reset();
 }
 
 void FPCGGraphExecutor::QueueNextTasks(FPCGTaskId FinishedTask, bool bIgnoreMissingTasks)
