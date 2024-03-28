@@ -153,5 +153,3 @@ protected:
 	*/
 	TUniquePtr<FScopedTransaction> InteractiveResolutionEditTransaction;
 };
-
-#undef LOCTEXT_NAMESPACE
