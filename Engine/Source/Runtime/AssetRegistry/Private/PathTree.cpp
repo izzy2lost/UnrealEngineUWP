@@ -2,6 +2,7 @@
 
 #include "AssetRegistry/PathTree.h"
 
+#include "Misc/PathViews.h"
 #include "Misc/ReverseIterate.h"
 #include "UObject/NameTypes.h"
 
@@ -43,18 +44,17 @@ bool FPathTree::CachePath(FName InPath, TFunctionRef<void(FName)> OnPathAdded)
 	TArray<FName, TInlineAllocator<16>> NewPaths;
 	NewPaths.Add(InPath);
 	ParentPathToChildPaths.FindOrAdd(InPath, {}); // Add this new path with no children
+	FName LastPath = InPath;
 
 	// Walk backwards through the string until we encounter a path we've already created
-	FName LastPath = InPath;
-	FName ParentPath;
-	while (ParentPath != Root)
-	{
-		// Strip the last path element from PathView to get the parent of LastPath
-		// i.e. /Game/Maps/Something -> /Game/Maps 
-		int32 SlashIndex = UE::String::FindLastChar(PathView, '/');	
-		PathView.LeftInline(SlashIndex);
-		ParentPath = PathView.IsEmpty() ? Root : FName(PathView);
-		
+	FPathViews::IterateAncestors(PathView, [this, &NewPaths, &LastPath, PathView](FStringView InAncestor) {
+		if (InAncestor == PathView)
+		{
+			// Initial input path was already handled
+			return true;
+		}
+
+		FName ParentPath = InAncestor.IsEmpty() ? Root : FName(InAncestor);
 		ChildPathToParentPath.FindOrAdd(LastPath, ParentPath);
 
 		uint32 Hash = GetTypeHash(ParentPath);
@@ -63,16 +63,17 @@ bool FPathTree::CachePath(FName InPath, TFunctionRef<void(FName)> OnPathAdded)
 		{
 			// Parent path already existed in tree, no need to continue looking at parents
 			Children->Add(LastPath);
-			break; 
+			return false;
 		}
 		else
 		{
 			ParentPathToChildPaths.AddByHash(Hash, ParentPath).Add(LastPath);
 			NewPaths.Add(ParentPath);
 			LastPath = ParentPath;
+			return true;
 		}
-	} 
-	
+	});
+
 	// Notify caller of each path created in order from root to leaf
 	for (FName NewPath : ReverseIterate(NewPaths))
 	{

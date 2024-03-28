@@ -138,13 +138,42 @@ public:
 
 	/**
 	 * Splits InPath into individual directory components, and calls ComponentVisitor on each.
+	 * Note that this function does not properly handle Windows network paths such as //ShareName/Path and
+	 * drive components such as C: (without trailing slash) may not be considered valid paths by some APIs.
 	 *
 	 * Examples:
 	 * "A/B.C" -> {"A", "B.C"}
 	 * "A/B/C" -> {"A", "B", "C"}
 	 * "../../A/B/C.D" -> {"..", "..", "A", "B", "C.D" }
+	 * "/A/B/C" -> { "", "A", "B", "C" }
+	 * "C:/A/B/C" -> { "C:", "A", "B", "C" }
+	 * "//ShareName/Path" -> { "", "", "ShareName", "Path" }
 	 */
 	static CORE_API void IterateComponents(FStringView InPath, TFunctionRef<void(FStringView)> ComponentVisitor);
+
+	/**
+	 * Calls AncestorVisitor with the given path and its ancestor paths.
+	 * If AncestorVisitor returns false, iteration stops.
+	 * If the string begins with a path root as understood by SplitVolumeSpecifier, that will be the last item visited
+	 * with the modification that a separator following a drive specifier will be included by this function.
+	 *
+	 * Examples:
+	 * "" -> { "" }
+	 * "/" -> { "/" }
+	 * "A/B.C" -> { "A/B.C", "A" }
+	 * "A/B/C" -> { "A/B/C", "A/B", "A" }
+	 * "../../A/B/C.D" -> { "../../A/B/C.D", "../../A/B", "../../A", "../..", ".." }
+	 * "/A/B" -> { "/A/B", "/A", "/" }
+	 * "/A/B/" -> { "/A/B", "/A", "/" }
+	 * "C:/A/B" -> { "C:/A/B", "C:/A", "C:/" }
+	 * "C:A/B" -> { "C:A/B", "C:A", "C:" }
+	 * "\\ShareName/A/B" -> { "\\ShareName/A/B", "\\ShareName/A", "\\ShareName" }
+	 *
+	 * When moving to the next ancestor, extra trailing separators are also removed, e.g.
+	 * "/A//B" -> { "/A//B", "/A" }
+	 * Note that separators are not removed except at the end of the current path, as with visiting "/A//B" above.
+	 */
+	static CORE_API void IterateAncestors(FStringView InPath, TFunctionRef<bool(FStringView)> AncestorVisitor);
 
 	/**
 	 * Splits a path into three parts, any of which may be empty: the path, the clean name, and the extension.

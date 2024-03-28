@@ -11,6 +11,7 @@
 #include "HAL/PlatformMisc.h"
 #include "HAL/PlatformProcess.h"
 #include "Math/UnrealMathUtility.h"
+#include "Misc/AsciiSet.h"
 #include "Misc/AssertionMacros.h"
 #include "Misc/CString.h"
 #include "Misc/Char.h"
@@ -222,7 +223,56 @@ bool FPathViews::IsPathLeaf(FStringView InPath)
 
 void FPathViews::IterateComponents(FStringView InPath, TFunctionRef<void(FStringView)> ComponentVisitor)
 {
-	UE::String::ParseTokensMultiple(InPath, { TEXT('/'), TEXT('\\') }, ComponentVisitor);
+	UE::String::ParseTokensMultiple(InPath, { '/', '\\' }, ComponentVisitor);
+}
+
+void FPathViews::IterateAncestors(FStringView InPath, TFunctionRef<bool(FStringView)> AncestorVisitor)
+{
+	constexpr const FAsciiSet Separators("\\/");
+	constexpr const FAsciiSet NonSeparators(~Separators);
+
+	// First check for a root specifier such as C:\, /Root, //ShareName
+	// When we reach this root we stop searching for path separators and yield it as the final ancestor.
+	FStringView Root;
+	FStringView Remainder;
+	FPathViews::SplitVolumeSpecifier(InPath, Root, Remainder);
+	if (Root.Len() > 0 && Root[Root.Len() - 1] == ':' && Remainder.Len() > 0 && Separators.Contains(Remainder[0]))
+	{
+		// SplitVolumeSpecifier returns Drive: without separator but it's more convenient to yield Drive:\ for use as a path in other APIs
+		Root = { Root.GetData(), Root.Len() + 1 };
+	}
+	else if (Root.Len() == 0 && InPath.Len() > 0 && Separators.Contains(InPath[0]))
+	{
+		// SplitVolumeSpecifier does not return a linux/package path-style root of / - split it out explicitly
+		Root = { InPath.GetData(), 1 };
+	}
+
+	do
+	{
+		// Strip any trailing path separators
+		InPath = FAsciiSet::TrimSuffixWithout(InPath, NonSeparators);
+
+		// If we've iterated into the root, yield that as the last element
+		// Need to use pointer checks rather than length here because we may have stripped extra separators from the root
+		if (InPath.GetData() + InPath.Len() <= Root.GetData() + Root.Len())
+		{
+			break;
+		}
+
+		if (!AncestorVisitor(InPath))
+		{
+			return;
+		}
+
+		// Find next separator
+		InPath = FAsciiSet::TrimSuffixWithout(InPath, Separators);
+	}
+	while (!InPath.IsEmpty());
+
+	if (!Root.IsEmpty())
+	{
+		AncestorVisitor(Root);
+	}
 }
 
 void FPathViews::Split(const FStringView& InPath, FStringView& OutPath, FStringView& OutName, FStringView& OutExt)
