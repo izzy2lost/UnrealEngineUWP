@@ -676,14 +676,16 @@ namespace UE::Chaos::ClothAsset
 
 		TArray<FName> UserDefinedAttributeNames;
 
-		const TArray<FName>& FixedAttributeNames = FixedAttributeNamesMap.FindChecked(GroupName);  // Also checks that the group name is a recognized group name 
-		const TArray<FName> AttributeNames = ManagedArrayCollection->AttributeNames(GroupName);
-
-		for (const FName& AttributeName : AttributeNames)
+		if (const TArray<FName>* const FixedAttributeNames = FixedAttributeNamesMap.Find(GroupName))  // Also checks that the group name is a recognized group name
 		{
-			if (!FixedAttributeNames.Contains(AttributeName) && ManagedArrayCollection->FindAttributeTyped<T>(AttributeName, GroupName))
+			const TArray<FName> AttributeNames = ManagedArrayCollection->AttributeNames(GroupName);
+
+			for (const FName& AttributeName : AttributeNames)
 			{
-				UserDefinedAttributeNames.Add(AttributeName);
+				if (!FixedAttributeNames->Contains(AttributeName) && ManagedArrayCollection->FindAttributeTyped<T>(AttributeName, GroupName))
+				{
+					UserDefinedAttributeNames.Add(AttributeName);
+				}
 			}
 		}
 

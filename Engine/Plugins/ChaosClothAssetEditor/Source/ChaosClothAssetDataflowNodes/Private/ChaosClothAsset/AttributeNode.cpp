@@ -87,11 +87,23 @@ void FChaosClothAssetAttributeNode::Evaluate(Dataflow::FContext& Context, const 
 
 void FChaosClothAssetAttributeNode::OnSelected(Dataflow::FContext& Context)
 {
+	using namespace UE::Chaos::ClothAsset;
+
 	// Re-evaluate the input collection
-	const FManagedArrayCollection& SelectionCollection = GetValue<FManagedArrayCollection>(Context, &Collection);
+	FManagedArrayCollection InCollection = GetValue<FManagedArrayCollection>(Context, &Collection);
+	const TSharedRef<FManagedArrayCollection> ClothCollection = MakeShared<FManagedArrayCollection>(MoveTemp(InCollection));
+	FCollectionClothFacade Cloth(ClothCollection);
 
 	// Update the list of used group for the UI customization
-	CachedCollectionGroupNames = SelectionCollection.GroupNames();
+	const TArray<FName> GroupNames = ClothCollection->GroupNames();
+	CachedCollectionGroupNames.Reset(GroupNames.Num());
+	for (const FName& GroupName : GroupNames)
+	{
+		if (Cloth.IsValidClothCollectionGroupName(GroupName))  // Restrict to the cloth facade groups
+		{
+			CachedCollectionGroupNames.Emplace(GroupName);
+		}
+	}
 }
 
 void FChaosClothAssetAttributeNode::OnDeselected()
