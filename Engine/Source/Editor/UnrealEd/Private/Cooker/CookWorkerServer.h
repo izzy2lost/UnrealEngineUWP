@@ -135,6 +135,13 @@ private:
 		WaitForDisconnect,
 		LostConnection,
 	};
+	enum class EWorkerDetachType
+	{
+		Dismissed,
+		StillRunning,
+		ForceTerminated,
+		Crashed,
+	};
 	enum class ETickAction
 	{
 		Tick,
@@ -183,7 +190,7 @@ private:
 	/** Send this into the given state. Update any state-dependent variables. */
 	void SendToState(EConnectStatus TargetStatus);
 	/** Close the connection and connection resources to the remote process. Does not kill the process. */
-	void DetachFromRemoteProcess();
+	void DetachFromRemoteProcess(EWorkerDetachType DetachType);
 	/** Report from the log of the crashed CookWorker. */
 	void SendCrashDiagnostics();
 	/** Kill the Client process (non-graceful termination), and close the connection resources. */

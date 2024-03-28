@@ -47,14 +47,14 @@ FCookWorkerServer::~FCookWorkerServer()
 			TEXT("CookWorkerServer %d was destroyed before it finished Disconnect. The remote process may linger and may interfere with writes of future packages."),
 			ProfileId);
 	}
-	DetachFromRemoteProcess();
+	DetachFromRemoteProcess(EWorkerDetachType::StillRunning);
 }
 
-void FCookWorkerServer::DetachFromRemoteProcess()
+void FCookWorkerServer::DetachFromRemoteProcess(EWorkerDetachType DetachType)
 {
 	if (Socket != nullptr)
 	{
-		FCoreDelegates::OnMultiprocessWorkerDetached.Broadcast({WorkerId.GetMultiprocessId()});
+		FCoreDelegates::OnMultiprocessWorkerDetached.Broadcast({WorkerId.GetMultiprocessId(), DetachType != EWorkerDetachType::Dismissed});
 	}
 	Sockets::CloseSocket(Socket);
 	CookWorkerHandle = FProcHandle();
@@ -226,12 +226,13 @@ void FCookWorkerServer::SendCrashDiagnostics()
 
 void FCookWorkerServer::ShutdownRemoteProcess()
 {
-	Sockets::CloseSocket(Socket);
+	EWorkerDetachType DetachType = EWorkerDetachType::Dismissed;
 	if (CookWorkerHandle.IsValid())
 	{
 		FPlatformProcess::TerminateProc(CookWorkerHandle, /* bKillTree */true);
+		DetachType = EWorkerDetachType::ForceTerminated;
 	}
-	DetachFromRemoteProcess();
+	DetachFromRemoteProcess(DetachType);
 }
 
 void FCookWorkerServer::AppendAssignments(TArrayView<FPackageData*> Assignments,
@@ -351,7 +352,7 @@ void FCookWorkerServer::SendToState(EConnectStatus TargetStatus)
 		ConnectTestStartTimeSeconds = ConnectStartTimeSeconds;
 		break;
 	case EConnectStatus::LostConnection:
-		DetachFromRemoteProcess();
+		DetachFromRemoteProcess(bNeedCrashDiagnostics ? EWorkerDetachType::Crashed : EWorkerDetachType::Dismissed);
 		break;
 	default:
 		break;
