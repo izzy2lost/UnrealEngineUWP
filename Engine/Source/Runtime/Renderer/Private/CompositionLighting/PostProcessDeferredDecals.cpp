@@ -518,7 +518,14 @@ void CollectDeferredDecalPassPSOInitializers(
 	RenderTargetsInfo.NumSamples = 1;
 	GetDeferredDecalRenderTargetsInfo(SceneTexturesConfig, ShaderPlatform, DecalRenderTargetMode, RenderTargetsInfo);
 	ApplyTargetsInfo(GraphicsPSOInit, RenderTargetsInfo);
-	
+
+	if (FeatureLevel == ERHIFeatureLevel::ES3_1)
+	{
+		// subpass info set during the submission of the draws in a mobile renderer
+		GraphicsPSOInit.SubpassIndex = 1; // all decals use second sub-pass on mobile
+		GraphicsPSOInit.SubpassHint = SceneTexturesConfig.bIsUsingGBuffers ? ESubpassHint::DeferredShadingSubpass : ESubpassHint::DepthReadSubpass;
+	}
+		
 	const auto AddDeferredDecalPSO = [&](bool bInsideDecal,	bool bReverseHanded, bool bReverseCulling, bool bDecalUsesStencil)
 	{
 		const EDecalRasterizerState DecalRasterizerState = DecalRendering::GetDecalRasterizerState(bInsideDecal, bReverseHanded, bReverseCulling);

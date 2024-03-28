@@ -389,6 +389,15 @@ void FMeshDecalMeshProcessor::CollectDeferredDecalMeshPSOInitializers(
 	RenderTargetsInfo.NumSamples = 1;
 	GetDeferredDecalRenderTargetsInfo(SceneTexturesConfig, ShaderPlatform, LocalRenderTargetMode, RenderTargetsInfo);
 
+	uint8 SubpassIndex = 0;
+	ESubpassHint SubpassHint = ESubpassHint::None;
+	if (FeatureLevel == ERHIFeatureLevel::ES3_1)
+	{
+		// subpass info set during the submission of the draws in a mobile renderer
+		SubpassIndex = 1; // all decals use second sub-pass on mobile
+		SubpassHint = SceneTexturesConfig.bIsUsingGBuffers ? ESubpassHint::DeferredShadingSubpass : ESubpassHint::DepthReadSubpass;
+	}
+
 	AddGraphicsPipelineStateInitializer(
 		VertexFactoryData,
 		Material,
@@ -399,7 +408,10 @@ void FMeshDecalMeshProcessor::CollectDeferredDecalMeshPSOInitializers(
 		MeshCullMode,
 		PT_TriangleList,
 		EMeshPassFeatures::Default,
+		SubpassHint,
+		SubpassIndex,
 		true /*bRequired*/,
+		PSOCollectorIndex,
 		PSOInitializers);
 }
 
