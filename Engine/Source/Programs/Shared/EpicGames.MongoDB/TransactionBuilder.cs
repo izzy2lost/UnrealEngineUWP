@@ -1,16 +1,11 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-using MongoDB.Bson.Serialization;
-using MongoDB.Bson.Serialization.Serializers;
 using MongoDB.Driver;
 using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Linq.Expressions;
 using System.Reflection;
-using System.Runtime.CompilerServices;
-using System.Threading.Tasks;
-using System.Transactions;
 
 namespace EpicGames.MongoDB
 {
@@ -78,15 +73,12 @@ namespace EpicGames.MongoDB
 		/// <summary>
 		/// List of field updates
 		/// </summary>
-		List<FieldUpdate> FieldUpdates = new List<FieldUpdate>();
+		readonly List<FieldUpdate> FieldUpdates = new List<FieldUpdate>();
 
 		/// <summary>
 		/// Whether the transaction is currenty empty
 		/// </summary>
-		public bool IsEmpty
-		{
-			get { return FieldUpdates.Count == 0; }
-		}
+		public bool IsEmpty => FieldUpdates.Count == 0;
 
 		/// <summary>
 		/// Adds a setting to this transaction
@@ -97,7 +89,7 @@ namespace EpicGames.MongoDB
 		public void Set<TField>(Expression<Func<TDocument, TField>> Expr, TField Value)
 		{
 			UpdateDefinition<TDocument> Update = Builders<TDocument>.Update.Set(Expr, Value);
-			Action<object> Apply = Target => Assign(Target, Expr, Value);
+			void Apply(object Target) => Assign(Target, Expr, Value);
 			FieldUpdates.Add(new FieldUpdate(Update, Apply));
 		}
 
@@ -108,7 +100,7 @@ namespace EpicGames.MongoDB
 		public void Unset(Expression<Func<TDocument, object>> Expr)
 		{
 			UpdateDefinition<TDocument> Update = Builders<TDocument>.Update.Unset(Expr);
-			Action<object> Apply = Target => Unassign(Target, Expr.Body);
+			void Apply(object Target) => Unassign(Target, Expr.Body);
 			FieldUpdates.Add(new FieldUpdate(Update, Apply));
 		}
 

@@ -19,7 +19,7 @@ namespace EpicGames.Horde.Accounts
 		/// <inheritdoc cref="BinaryId.Parse(System.String)"/>
 		public static AccountId Parse(string text) => new AccountId(BinaryId.Parse(text));
 
-		/// <inheritdoc cref="BinaryId.TryParse(ReadOnlySpan{char}, out BinaryId)"/>
+		/// <inheritdoc cref="BinaryId.TryParse(ReadOnlySpan{Char}, out BinaryId)"/>
 		public static bool TryParse(ReadOnlySpan<char> text, out AccountId result)
 		{
 			BinaryId binaryId;

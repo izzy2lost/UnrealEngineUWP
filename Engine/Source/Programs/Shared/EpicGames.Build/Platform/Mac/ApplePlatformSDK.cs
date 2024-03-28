@@ -16,7 +16,7 @@ namespace UnrealBuildBase
 	{
 		public static readonly string? InstalledSDKVersion = GetInstalledSDKVersion();
 
-		public static bool TryConvertVersionToInt(string? StringValue, out UInt64 OutValue)
+		public static bool TryConvertVersionToInt(string? StringValue, out ulong OutValue)
 		{
 			OutValue = 0;
 
@@ -77,12 +77,12 @@ namespace UnrealBuildBase
 					Registry.GetValue(
 						"HKEY_LOCAL_MACHINE\\SOFTWARE\\Wow6432Node\\Apple Inc.\\Apple Mobile Device Support\\Shared",
 						"iTunesMobileDeviceDLL", null) as string;
-				if (string.IsNullOrEmpty(DllPath) || !File.Exists(DllPath))
+				if (String.IsNullOrEmpty(DllPath) || !File.Exists(DllPath))
 				{
 					DllPath = Registry.GetValue(
 						"HKEY_LOCAL_MACHINE\\SOFTWARE\\Wow6432Node\\Apple Inc.\\Apple Mobile Device Support\\Shared",
 						"MobileDeviceDLL", null) as string;
-					if (string.IsNullOrEmpty(DllPath) || !File.Exists(DllPath))
+					if (String.IsNullOrEmpty(DllPath) || !File.Exists(DllPath))
 					{
 						// iTunes >= 12.7 doesn't have a key specifying the 32-bit DLL but it does have a ASMapiInterfaceDLL key and MobileDevice.dll is in usually in the same directory
 						DllPath = Registry.GetValue(
@@ -92,14 +92,14 @@ namespace UnrealBuildBase
 							? null
 							: DllPath.Substring(0, DllPath.LastIndexOf('\\') + 1) + "MobileDevice.dll";
 
-						if (string.IsNullOrEmpty(DllPath) || !File.Exists(DllPath))
+						if (String.IsNullOrEmpty(DllPath) || !File.Exists(DllPath))
 						{
 							DllPath = FindWindowsStoreITunesDLL();
 						}
 					}
 				}
 
-				if (!string.IsNullOrEmpty(DllPath) && File.Exists(DllPath))
+				if (!String.IsNullOrEmpty(DllPath) && File.Exists(DllPath))
 				{
 					string? DllVersion = FileVersionInfo.GetVersionInfo(DllPath).FileVersion;
 					// Only return the DLL version as the SDK version if we can correctly parse it

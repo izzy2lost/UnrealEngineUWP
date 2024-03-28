@@ -174,7 +174,7 @@ namespace UnrealBuildBase
 			string ProjectName = Path.GetFileNameWithoutExtension(Project);
 
 			// Search known .uprojects by name, then as relative path, then relative path for Project/Project.uproject
-			return EnumerateProjectFiles(Logger).FirstOrDefault(x => string.Equals(x.GetFileNameWithoutExtension(), ProjectName, StringComparison.OrdinalIgnoreCase)) ??
+			return EnumerateProjectFiles(Logger).FirstOrDefault(x => String.Equals(x.GetFileNameWithoutExtension(), ProjectName, StringComparison.OrdinalIgnoreCase)) ??
 				FindRelativeFileReference(Project, Logger) ??
 				FindRelativeFileReference(Path.Combine(ProjectName, $"{ProjectName}.uproject"), Logger);
 		}

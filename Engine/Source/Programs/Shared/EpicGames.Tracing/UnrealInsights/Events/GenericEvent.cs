@@ -44,7 +44,7 @@ namespace EpicGames.Tracing.UnrealInsights.Events
 		readonly Field[] Fields;
 		public Field[] GetFields() => Fields;
 		public EventType Type => EventType;
-		private EventType EventType;
+		private readonly EventType EventType;
 
 		public GenericEvent(uint Serial, Field[] Fields, EventType EventType)
 		{
@@ -58,7 +58,8 @@ namespace EpicGames.Tracing.UnrealInsights.Events
 			get
 			{
 				ushort TotalSize = 0;
-				if (EventType.HasSerial) TotalSize += 3; // 24-bit serial
+				if (EventType.HasSerial)
+					TotalSize += 3; // 24-bit serial
 				TotalSize += EventType.GetEventSize();
 				if (EventType.MaybeHasAux())
 				{
@@ -105,20 +106,53 @@ namespace EpicGames.Tracing.UnrealInsights.Events
 			{
 				EventTypeField FieldType = EventType.Fields[i];
 
-				if (FieldType.TypeInfo == EventTypeField.TypeInt8) { Writer.Write((byte)Fields[i].Int!); }
-				else if (FieldType.TypeInfo == EventTypeField.TypeInt16) { Writer.Write((ushort)Fields[i].Int!); }
-				else if (FieldType.TypeInfo == EventTypeField.TypeInt32) { Writer.Write((uint)Fields[i].Int!); }
-				else if (FieldType.TypeInfo == EventTypeField.TypeInt64) { Writer.Write((ulong)Fields[i].Long!); }
-				else if (FieldType.TypeInfo == EventTypeField.TypePointer) { Writer.Write((ulong)Fields[i].Long!); }
-				else if (FieldType.TypeInfo == EventTypeField.TypeFloat32) { Writer.Write((float)Fields[i].Float!); }
-				else if (FieldType.TypeInfo == EventTypeField.TypeFloat64) { Writer.Write((double)Fields[i].Float!); }
-				else if (FieldType.TypeInfo == EventTypeField.TypeAnsiString) {  } // Write later as aux-data
-				else if (FieldType.TypeInfo == EventTypeField.TypeWideString) {  } // Write later as aux-data
-				else if (FieldType.TypeInfo == EventTypeField.TypeArray) {  } // Write later as aux-data
-				else if (FieldType.TypeInfo == EventTypeField.TypeBool) { Writer.Write(Fields[i].Bool!.Value ? (byte)1 : (byte)0); }
-				else { throw new Exception($"Found unknown TypeInfo {FieldType.TypeInfo}"); }
+				if (FieldType.TypeInfo == EventTypeField.TypeInt8)
+				{
+					Writer.Write((byte)Fields[i].Int!);
+				}
+				else if (FieldType.TypeInfo == EventTypeField.TypeInt16)
+				{
+					Writer.Write((ushort)Fields[i].Int!);
+				}
+				else if (FieldType.TypeInfo == EventTypeField.TypeInt32)
+				{
+					Writer.Write((uint)Fields[i].Int!);
+				}
+				else if (FieldType.TypeInfo == EventTypeField.TypeInt64)
+				{
+					Writer.Write((ulong)Fields[i].Long!);
+				}
+				else if (FieldType.TypeInfo == EventTypeField.TypePointer)
+				{
+					Writer.Write((ulong)Fields[i].Long!);
+				}
+				else if (FieldType.TypeInfo == EventTypeField.TypeFloat32)
+				{
+					Writer.Write((float)Fields[i].Float!);
+				}
+				else if (FieldType.TypeInfo == EventTypeField.TypeFloat64)
+				{
+					Writer.Write((double)Fields[i].Float!);
+				}
+				else if (FieldType.TypeInfo == EventTypeField.TypeAnsiString)
+				{
+				} // Write later as aux-data
+				else if (FieldType.TypeInfo == EventTypeField.TypeWideString)
+				{
+				} // Write later as aux-data
+				else if (FieldType.TypeInfo == EventTypeField.TypeArray)
+				{
+				} // Write later as aux-data
+				else if (FieldType.TypeInfo == EventTypeField.TypeBool)
+				{
+					Writer.Write(Fields[i].Bool!.Value ? (byte)1 : (byte)0);
+				}
+				else
+				{
+					throw new Exception($"Found unknown TypeInfo {FieldType.TypeInfo}");
+				}
 			}
-			
+
 			if (EventType.MaybeHasAux())
 			{
 				for (int i = 0; i < EventType.Fields.Count; i++)
@@ -186,18 +220,51 @@ namespace EpicGames.Tracing.UnrealInsights.Events
 			{
 				EventTypeField FieldType = EventType.Fields[i];
 
-				if (FieldType.TypeInfo == EventTypeField.TypeInt8) { Fields[i] = Field.FromInt(Reader.ReadByte()); }
-				else if (FieldType.TypeInfo == EventTypeField.TypeInt16) { Fields[i] = Field.FromInt(Reader.ReadUInt16()); }
-				else if (FieldType.TypeInfo == EventTypeField.TypeInt32) { Fields[i] = Field.FromInt((int)Reader.ReadUInt32()); }
-				else if (FieldType.TypeInfo == EventTypeField.TypeInt64) { Fields[i] = Field.FromLong((long) Reader.ReadUInt64()); }
-				else if (FieldType.TypeInfo == EventTypeField.TypePointer) { Fields[i] = Field.FromLong((long) Reader.ReadUInt64()); }
-				else if (FieldType.TypeInfo == EventTypeField.TypeFloat32) { Fields[i] = Field.FromFloat(Reader.ReadSingle()); }
-				else if (FieldType.TypeInfo == EventTypeField.TypeFloat64) { Fields[i] = Field.FromDouble(Reader.ReadDouble()); }
-				else if (FieldType.TypeInfo == EventTypeField.TypeAnsiString) {  } // Read later as aux-data
-				else if (FieldType.TypeInfo == EventTypeField.TypeWideString) {  } // Read later as aux-data
-				else if (FieldType.TypeInfo == EventTypeField.TypeArray) {  } // Read later as aux-data
-				else if (FieldType.TypeInfo == EventTypeField.TypeBool) { Fields[i] = Field.FromBool(Reader.ReadByte() == 1); }
-				else { throw new Exception($"Found unknown TypeInfo {FieldType.TypeInfo}"); }
+				if (FieldType.TypeInfo == EventTypeField.TypeInt8)
+				{
+					Fields[i] = Field.FromInt(Reader.ReadByte());
+				}
+				else if (FieldType.TypeInfo == EventTypeField.TypeInt16)
+				{
+					Fields[i] = Field.FromInt(Reader.ReadUInt16());
+				}
+				else if (FieldType.TypeInfo == EventTypeField.TypeInt32)
+				{
+					Fields[i] = Field.FromInt((int)Reader.ReadUInt32());
+				}
+				else if (FieldType.TypeInfo == EventTypeField.TypeInt64)
+				{
+					Fields[i] = Field.FromLong((long) Reader.ReadUInt64());
+				}
+				else if (FieldType.TypeInfo == EventTypeField.TypePointer)
+				{
+					Fields[i] = Field.FromLong((long) Reader.ReadUInt64());
+				}
+				else if (FieldType.TypeInfo == EventTypeField.TypeFloat32)
+				{
+					Fields[i] = Field.FromFloat(Reader.ReadSingle());
+				}
+				else if (FieldType.TypeInfo == EventTypeField.TypeFloat64)
+				{
+					Fields[i] = Field.FromDouble(Reader.ReadDouble());
+				}
+				else if (FieldType.TypeInfo == EventTypeField.TypeAnsiString)
+				{
+				} // Read later as aux-data
+				else if (FieldType.TypeInfo == EventTypeField.TypeWideString)
+				{
+				} // Read later as aux-data
+				else if (FieldType.TypeInfo == EventTypeField.TypeArray)
+				{
+				} // Read later as aux-data
+				else if (FieldType.TypeInfo == EventTypeField.TypeBool)
+				{
+					Fields[i] = Field.FromBool(Reader.ReadByte() == 1);
+				}
+				else
+				{
+					throw new Exception($"Found unknown TypeInfo {FieldType.TypeInfo}");
+				}
 			}
 
 			if (EventType.MaybeHasAux())
@@ -247,7 +314,7 @@ namespace EpicGames.Tracing.UnrealInsights.Events
 
 			return new GenericEvent(Serial, Fields, EventType);
 		}
-		
+
 		private static uint SetBits(uint Word, uint Value, int Pos, int Size)
 		{
 			uint mask = (((uint)1 << Size) - 1) << Pos;

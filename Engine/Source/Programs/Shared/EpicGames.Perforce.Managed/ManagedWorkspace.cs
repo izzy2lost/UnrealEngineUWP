@@ -886,10 +886,7 @@ namespace EpicGames.Perforce.Managed
 				else
 				{
 					contents = await TryLoadClientContentsAsync(cacheFile, new Utf8String(streamName), cancellationToken);
-					if (contents == null)
-					{
-						contents = await FindAndSaveClientContentsAsync(perforce, new Utf8String(streamName), view, changeNumber, cacheFile, cancellationToken);
-					}
+					contents ??= await FindAndSaveClientContentsAsync(perforce, new Utf8String(streamName), view, changeNumber, cacheFile, cancellationToken);
 				}
 
 				// Sync all the appropriate files
@@ -2125,10 +2122,7 @@ namespace EpicGames.Perforce.Managed
 					{
 						connectionPool.TryPop(out connection);
 					}
-					if (connection == null)
-					{
-						connection = await PerforceConnection.CreateAsync(client.Settings, client.Logger);
-					}
+					connection ??= await PerforceConnection.CreateAsync(client.Settings, client.Logger);
 
 					// Note: Explicitly disable parallel syncing here; the P4 API attempts to shell out to p4.exe, which may not be installed.
 					await connection.SyncAsync(options, -1, 0, -1, -1, -1, -1, files, cancellationToken).ToListAsync(cancellationToken);

@@ -29,7 +29,7 @@ namespace EpicGames.Tracing.Tests.UnrealInsights
 		[TestMethod]
 		public void GetPackedUid()
 		{
-			void AssertGetPackedUid(ushort ExpectedUid, bool ExpectedIsTwoByteUid, byte UidLow, byte UidHigh)
+			static void AssertGetPackedUid(ushort ExpectedUid, bool ExpectedIsTwoByteUid, byte UidLow, byte UidHigh)
 			{
 				Assert.AreEqual(ExpectedUid, BinaryReaderExtensions.GetPackedUid(UidLow, UidHigh, out bool IsTwoByteUid));
 				Assert.AreEqual(ExpectedIsTwoByteUid, IsTwoByteUid);
@@ -57,7 +57,7 @@ namespace EpicGames.Tracing.Tests.UnrealInsights
 		[TestMethod]
 		public void WritePackedUid()
 		{
-			void AssertWriteUid(ushort Uid, bool ExpectTwoByteUid)
+			static void AssertWriteUid(ushort Uid, bool ExpectTwoByteUid)
 			{
 				using MemoryStream Ms = new MemoryStream();
 				using BinaryWriter Writer = new BinaryWriter(Ms);
@@ -86,7 +86,7 @@ namespace EpicGames.Tracing.Tests.UnrealInsights
 		[TestMethod]
 		public void Deserialize7Bit()
 		{
-			void Assert7Bit(ulong ExpectedValue, string ActualBytesHex)
+			static void Assert7Bit(ulong ExpectedValue, string ActualBytesHex)
 			{
 				byte[] ActualBytes = GenericEventTest.StringToByteArray(ActualBytesHex.Replace(" ", "", StringComparison.Ordinal));
 				using MemoryStream Ms = new MemoryStream(ActualBytes);
@@ -124,7 +124,7 @@ namespace EpicGames.Tracing.Tests.UnrealInsights
 		[TestMethod]
 		public void Serialize7Bit()
 		{
-			void Assert7Bit(ulong Value, string ExpectedBytesHex)
+			static void Assert7Bit(ulong Value, string ExpectedBytesHex)
 			{
 				byte[] ExpectedBytes = GenericEventTest.StringToByteArray(ExpectedBytesHex.Replace(" ", "", StringComparison.Ordinal));
 				using MemoryStream Ms = new MemoryStream();

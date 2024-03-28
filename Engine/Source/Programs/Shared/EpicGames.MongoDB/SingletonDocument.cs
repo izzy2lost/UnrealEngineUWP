@@ -5,8 +5,6 @@ using MongoDB.Bson.Serialization;
 using MongoDB.Bson.Serialization.Attributes;
 using MongoDB.Driver;
 using System;
-using System.Collections.Generic;
-using System.Linq;
 using System.Reflection;
 using System.Threading.Tasks;
 
@@ -75,11 +73,7 @@ namespace EpicGames.MongoDB
 
 			static ObjectId GetSingletonId()
 			{
-				SingletonDocumentAttribute? Attribute = typeof(T).GetCustomAttribute<SingletonDocumentAttribute>();
-				if (Attribute == null)
-				{
-					throw new Exception($"Type {typeof(T).Name} is missing a {nameof(SingletonDocumentAttribute)} annotation");
-				}
+				SingletonDocumentAttribute? Attribute = typeof(T).GetCustomAttribute<SingletonDocumentAttribute>() ?? throw new Exception($"Type {typeof(T).Name} is missing a {nameof(SingletonDocumentAttribute)} annotation");
 				return ObjectId.Parse(Attribute.Id);
 			}
 		}
@@ -124,12 +118,12 @@ namespace EpicGames.MongoDB
 		/// <summary>
 		/// The database service instance
 		/// </summary>
-		IMongoCollection<T> Collection;
+		readonly IMongoCollection<T> Collection;
 
 		/// <summary>
 		/// Unique id for the singleton document
 		/// </summary>
-		ObjectId ObjectId;
+		readonly ObjectId ObjectId;
 
 		/// <summary>
 		/// Static constructor. Registers the document using the automapper.
@@ -147,12 +141,7 @@ namespace EpicGames.MongoDB
 		{
 			this.Collection = Collection.OfType<T>();
 
-			SingletonDocumentAttribute? Attribute = typeof(T).GetCustomAttribute<SingletonDocumentAttribute>();
-			if (Attribute == null)
-			{
-				throw new Exception($"Type {typeof(T).Name} is missing a {nameof(SingletonDocumentAttribute)} annotation");
-			}
-
+			SingletonDocumentAttribute? Attribute = typeof(T).GetCustomAttribute<SingletonDocumentAttribute>() ?? throw new Exception($"Type {typeof(T).Name} is missing a {nameof(SingletonDocumentAttribute)} annotation");
 			ObjectId = new ObjectId(Attribute.Id);
 		}
 

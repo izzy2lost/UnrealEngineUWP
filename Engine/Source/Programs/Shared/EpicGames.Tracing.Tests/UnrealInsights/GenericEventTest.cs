@@ -226,7 +226,7 @@ namespace EpicGames.Tracing.Tests.UnrealInsights
 		[TestMethod]
 		public void CpuProfiler_EventBatch_EncodeDecodeTimestamp()
 		{
-			void AssertTimestamp(ulong ExpectedTimestamp, bool ExpectedIsScopeEnter)
+			static void AssertTimestamp(ulong ExpectedTimestamp, bool ExpectedIsScopeEnter)
 			{
 				ulong Temp = CpuProfilerSerializer.EncodeTimestamp(ExpectedTimestamp, ExpectedIsScopeEnter);
 				(ulong ActualTimestamp, bool ActualIsScopeEnter) = CpuProfilerSerializer.DecodeTimestamp(Temp);
@@ -292,7 +292,7 @@ namespace EpicGames.Tracing.Tests.UnrealInsights
 			using MemoryStream Ms = new MemoryStream(new byte[] {0x01, 0xC1, 0x0D, 0x00});
 			using BinaryReader Reader = new BinaryReader(Ms);
 
-			var (Uid, FieldIndex, Size) = GenericEvent.DeserializeAuxHeader(Reader.ReadUInt32());
+			(ushort Uid, int FieldIndex, int Size) = GenericEvent.DeserializeAuxHeader(Reader.ReadUInt32());
 			Assert.AreEqual(PredefinedEventUid.AuxData, Uid);
 			Assert.AreEqual(1, FieldIndex);
 			Assert.AreEqual(110, Size);
@@ -311,7 +311,7 @@ namespace EpicGames.Tracing.Tests.UnrealInsights
 			Assert.AreEqual(0x0D, Data[2]);
 			Assert.AreEqual(0x00, Data[3]);
 			
-			var (Uid, FieldIndex, Size) = GenericEvent.DeserializeAuxHeader(Header);
+			(ushort Uid, int FieldIndex, int Size) = GenericEvent.DeserializeAuxHeader(Header);
 			Assert.AreEqual(PredefinedEventUid.AuxData, Uid);
 			Assert.AreEqual(1, FieldIndex);
 			Assert.AreEqual(110, Size);

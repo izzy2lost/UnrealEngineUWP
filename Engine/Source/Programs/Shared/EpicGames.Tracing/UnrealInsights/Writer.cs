@@ -15,7 +15,7 @@ namespace EpicGames.Tracing.UnrealInsights
 		readonly Dictionary<ushort, List<ITraceEvent>> ThreadToEvents = new Dictionary<ushort, List<ITraceEvent>>();
 		
 		private ushort UidCounter = PredefinedEventUid._WellKnownNum; // IDs below 16 are reserved for well-known events
-		private object Lock = new object();
+		private readonly object Lock = new object();
 
 		public UnrealInsightsWriter()
 		{

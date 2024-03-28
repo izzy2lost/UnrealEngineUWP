@@ -9,6 +9,7 @@ using System.Text;
 namespace EpicGames.Tracing.UnrealInsights.Events
 {
 	[System.Diagnostics.CodeAnalysis.SuppressMessage("Performance", "CA1823:Avoid unused private fields")]
+	[System.Diagnostics.CodeAnalysis.SuppressMessage("Style", "IDE1006:Naming Styles")]
 	public class EventTypeField
 	{
 		public ushort Offset { get; private set; }
@@ -52,17 +53,28 @@ namespace EpicGames.Tracing.UnrealInsights.Events
 
 		public static string TypeInfoToString(byte ByteInfo)
 		{
-			if (ByteInfo == TypeInt8) return "int8";
-			if (ByteInfo == TypeInt16) return "int16";
-			if (ByteInfo == TypeInt32) return "int32";
-			if (ByteInfo == TypeInt64) return "int64";
-			if (ByteInfo == TypePointer) return "ptr";
-			if (ByteInfo == TypeFloat32) return "float32";
-			if (ByteInfo == TypeFloat64) return "float64";
-			if (ByteInfo == TypeAnsiString) return "ansi_str";
-			if (ByteInfo == TypeWideString) return "wide_str";
-			if (ByteInfo == TypeArray) return "array";
-			if (ByteInfo == TypeBool) return "bool";
+			if (ByteInfo == TypeInt8)
+				return "int8";
+			if (ByteInfo == TypeInt16)
+				return "int16";
+			if (ByteInfo == TypeInt32)
+				return "int32";
+			if (ByteInfo == TypeInt64)
+				return "int64";
+			if (ByteInfo == TypePointer)
+				return "ptr";
+			if (ByteInfo == TypeFloat32)
+				return "float32";
+			if (ByteInfo == TypeFloat64)
+				return "float64";
+			if (ByteInfo == TypeAnsiString)
+				return "ansi_str";
+			if (ByteInfo == TypeWideString)
+				return "wide_str";
+			if (ByteInfo == TypeArray)
+				return "array";
+			if (ByteInfo == TypeBool)
+				return "bool";
 			throw new Exception($"Unable to convert type info {ByteInfo} to string");
 		}
 
@@ -96,7 +108,7 @@ namespace EpicGames.Tracing.UnrealInsights.Events
 
 		public void SetName(string Name)
 		{
-			this.NameSize = (byte) Encoding.UTF8.GetBytes(Name).Length;
+			NameSize = (byte) Encoding.UTF8.GetBytes(Name).Length;
 			this.Name = Name;
 		}
 
@@ -147,11 +159,11 @@ namespace EpicGames.Tracing.UnrealInsights.Events
 
 		public EventType(string LoggerName, string EventName, byte Flags)
 		{
-			this.NewEventUid = 0;
+			NewEventUid = 0;
 			this.LoggerName = LoggerName;
 			this.EventName = EventName;
 			this.Flags = Flags;
-			this.Fields = new List<EventTypeField>();
+			Fields = new List<EventTypeField>();
 		}
 
 		public static EventType WellKnown(ushort Uid, string Name)
@@ -212,11 +224,14 @@ namespace EpicGames.Tracing.UnrealInsights.Events
 		
 		public string ToStringDetailed()
 		{
-			string FieldText = string.Join(',', Fields.Select(x => x.ToString()));
+			string FieldText = String.Join(',', Fields.Select(x => x.ToString()));
 			string FlagText = "";
-			if (IsImportant()) FlagText += ",Important";
-			if (MaybeHasAux()) FlagText += ",MaybeHasAux";
-			if (IsNoSync()) FlagText += ",NoSync";
+			if (IsImportant())
+				FlagText += ",Important";
+			if (MaybeHasAux())
+				FlagText += ",MaybeHasAux";
+			if (IsNoSync())
+				FlagText += ",NoSync";
 			FlagText = FlagText.Trim(',');
 			return $"EventType(Uid={NewEventUid} {LoggerName} {EventName} Flags={FlagText} FlagRaw={Flags} Fields={FieldText})";
 		}
@@ -251,9 +266,12 @@ namespace EpicGames.Tracing.UnrealInsights.Events
 
 		public override bool Equals(object? obj)
 		{
-			if (ReferenceEquals(null, obj)) return false;
-			if (ReferenceEquals(this, obj)) return true;
-			if (obj.GetType() != this.GetType()) return false;
+			if (obj is null)
+				return false;
+			if (ReferenceEquals(this, obj))
+				return true;
+			if (obj.GetType() != GetType())
+				return false;
 			return Equals((EventType) obj);
 		}
 

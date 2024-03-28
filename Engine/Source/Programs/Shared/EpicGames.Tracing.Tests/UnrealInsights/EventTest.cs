@@ -3,7 +3,6 @@
 using System.IO;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using EpicGames.Tracing.UnrealInsights;
-using EpicGames.Tracing.UnrealInsights.Events;
 
 namespace EpicGames.Tracing.Tests.UnrealInsights
 {

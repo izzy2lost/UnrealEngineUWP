@@ -48,12 +48,15 @@ namespace EpicGames.Tracing.UnrealInsights
 		
 		public static bool IsNormalThread(ushort ThreadId)
 		{
-			if (ThreadId == ThreadIdEvents) return false;
-			if (ThreadId == ThreadIdInternal) return false;
-			if (ThreadId == ThreadIdImportants) return false;
+			if (ThreadId == ThreadIdEvents)
+				return false;
+			if (ThreadId == ThreadIdInternal)
+				return false;
+			if (ThreadId == ThreadIdImportants)
+				return false;
 			return true;
 		}
-		
+
 		public void Serialize(BinaryWriter Writer, IEnumerable<(ushort, ITraceEvent)> Events)
 		{
 			ushort TotalSize = (ushort) Events.Sum(x =>
