@@ -479,6 +479,8 @@ namespace EpicGames.Horde.Storage.Nodes
 		/// <returns>Handle to the root node of the tree</returns>
 		public static async Task<ChunkedDataNodeRef> CreateTreeAsync(List<ChunkedDataNodeRef> nodeRefs, InteriorChunkedDataNodeOptions chunkingOptions, IBlobWriter writer, CancellationToken cancellationToken)
 		{
+			await using MemoryBlobWriter memoryWriter = new MemoryBlobWriter(writer.Options);
+
 			List<ChunkedDataNodeRef> handleBuffer = new List<ChunkedDataNodeRef>();
 
 			List<(InteriorChunkedDataNode, long)> interiorNodes = new List<(InteriorChunkedDataNode, long)>();
@@ -490,14 +492,35 @@ namespace EpicGames.Horde.Storage.Nodes
 				handleBuffer.Clear();
 				foreach ((InteriorChunkedDataNode interiorNode, long interiorLength) in interiorNodes)
 				{
-					IBlobRef<InteriorChunkedDataNode> interiorHandle = await writer.WriteBlobAsync(interiorNode, cancellationToken);
+					IBlobRef<InteriorChunkedDataNode> interiorHandle = await memoryWriter.WriteBlobAsync(interiorNode, cancellationToken);
 					handleBuffer.Add(new ChunkedDataNodeRef(ChunkedDataNodeType.Interior, interiorLength, interiorHandle));
 				}
 
 				nodeRefs = handleBuffer;
 			}
 
-			return nodeRefs[0];
+			return await OrderTreeAsync(nodeRefs[0], writer, cancellationToken);
+		}
+
+		static async Task<ChunkedDataNodeRef> OrderTreeAsync(ChunkedDataNodeRef source, IBlobWriter writer, CancellationToken cancellationToken)
+		{
+			if (source.Type != ChunkedDataNodeType.Interior)
+			{
+				return source;
+			}
+
+			InteriorChunkedDataNode sourceNode = await source.Handle.ReadBlobAsync<InteriorChunkedDataNode>(cancellationToken: cancellationToken);
+
+			List<ChunkedDataNodeRef> children = new List<ChunkedDataNodeRef>(sourceNode.Children);
+			for (int idx = children.Count - 1; idx >= 0; idx--)
+			{
+				children[idx] = await OrderTreeAsync(children[idx], writer, cancellationToken);
+			}
+
+			InteriorChunkedDataNode targetNode = new InteriorChunkedDataNode(children);
+			IBlobRef<InteriorChunkedDataNode> targetHandle = await writer.WriteBlobAsync(targetNode, cancellationToken);
+
+			return new ChunkedDataNodeRef(source.Length, targetHandle);
 		}
 
 		/// <summary>

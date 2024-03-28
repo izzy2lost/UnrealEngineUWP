@@ -2,6 +2,8 @@
 
 using System;
 using System.Collections.Generic;
+using System.Diagnostics.CodeAnalysis;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using EpicGames.Core;
@@ -202,5 +204,95 @@ namespace EpicGames.Horde.Storage
 
 		/// <inheritdoc/>
 		public abstract ValueTask DisposeAsync();
+	}
+
+	/// <summary>
+	/// Implementation of <see cref="IBlobWriter"/> which just buffers data in memory
+	/// </summary>
+	public class MemoryBlobWriter : BlobWriter
+	{
+		class BlobRef : IBlobRef
+		{
+			readonly int _index;
+			readonly IoHash _hash;
+			readonly BlobData _data;
+
+			public BlobRef(int index, BlobData data)
+			{
+				_index = index;
+				_hash = IoHash.Compute(data.Data.Span);
+				_data = data;
+			}
+
+			public IoHash Hash
+				=> _hash;
+
+			public int Index
+				=> _index;
+
+			public IBlobHandle Innermost
+				=> this;
+
+			public ValueTask FlushAsync(CancellationToken cancellationToken = default)
+				=> default;
+
+			public ValueTask<BlobData> ReadBlobDataAsync(CancellationToken cancellationToken = default)
+				=> new ValueTask<BlobData>(_data);
+
+			public bool TryGetLocator([NotNullWhen(true)] out BlobLocator locator)
+				=> throw new NotSupportedException();
+		}
+
+		readonly ChunkedMemoryWriter _memoryWriter;
+		int _nextIndex;
+
+		/// <summary>
+		/// Constructor
+		/// </summary>
+		public MemoryBlobWriter(BlobSerializerOptions options)
+			: base(options)
+		{
+			_memoryWriter = new ChunkedMemoryWriter();
+		}
+
+		/// <inheritdoc/>
+		public override ValueTask DisposeAsync()
+		{
+			GC.SuppressFinalize(this);
+			_memoryWriter.Dispose();
+			return new ValueTask();
+		}
+
+		/// <summary>
+		/// Clears the contents of this writer
+		/// </summary>
+		public void Clear()
+			=> _memoryWriter.Clear();
+
+		/// <inheritdoc/>
+		public override Task FlushAsync(CancellationToken cancellationToken = default)
+			=> Task.CompletedTask;
+
+		/// <inheritdoc/>
+		public override IBlobWriter Fork()
+			=> new MemoryBlobWriter(Options);
+
+		/// <inheritdoc/>
+		public override Memory<byte> GetOutputBuffer(int usedSize, int desiredSize)
+			=> _memoryWriter.GetMemory(usedSize, desiredSize);
+
+		/// <inheritdoc/>
+		public override ValueTask<IBlobRef> WriteBlobAsync(BlobType type, int size, IReadOnlyList<IBlobHandle> imports, IReadOnlyList<AliasInfo> aliases, CancellationToken cancellationToken)
+		{
+			Memory<byte> memory = _memoryWriter.GetMemoryAndAdvance(size);
+			BlobData data = new BlobData(type, memory, imports.ToArray());
+			return new ValueTask<IBlobRef>(new BlobRef(++_nextIndex, data));
+		}
+
+		/// <summary>
+		/// Helper function to get the index of a blob
+		/// </summary>
+		public static int GetIndex(IBlobRef handle)
+			=> ((BlobRef)handle.Innermost).Index;
 	}
 }

@@ -350,18 +350,34 @@ namespace EpicGames.Core
 
 		/// <inheritdoc/>
 		public Memory<byte> GetMemory(int sizeHint)
+			=> GetMemory(0, sizeHint);
+
+		/// <summary>
+		/// Gets a block of memory to write to, preserving existing (but uncommitted) data in previously returned buffers.
+		/// </summary>
+		/// <param name="usedSize">Size of data in the buffer which has not been committed via a call to Advance</param>
+		/// <param name="desiredSize">Desired size of the buffer to write to</param>
+		/// <returns>New block of memory to write to</returns>
+		public Memory<byte> GetMemory(int usedSize, int desiredSize)
 		{
-			int requiredSize = _currentChunk.Length + Math.Max(sizeHint, 1);
+			int requiredSize = _currentChunk.Length + Math.Max(desiredSize, 1);
 			if (requiredSize > _currentChunk.Data.Length)
 			{
 				int runningIndex = _currentChunk.RunningIndex + _currentChunk.Length;
+				Chunk nextChunk = CreateChunk(runningIndex, Math.Max(desiredSize, _chunkSize));
+
+				if (usedSize > 0)
+				{
+					ReadOnlyMemory<byte> usedData = _currentChunk.Data.Slice(_currentChunk.Length, usedSize);
+					usedData.CopyTo(nextChunk.Data);
+				}
 				if (_currentChunk.Length == 0)
 				{
 					_currentChunk.Release();
 					_chunks.RemoveAt(_chunks.Count - 1);
 				}
 
-				_currentChunk = CreateChunk(runningIndex, Math.Max(sizeHint, _chunkSize));
+				_currentChunk = nextChunk;
 				_chunks.Add(_currentChunk);
 			}
 			return _currentChunk.Data.Slice(_currentChunk.Length);
