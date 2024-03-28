@@ -41,6 +41,17 @@ export const lightTheme = createTheme({
                 }
             }
         },
+        "PrimaryButton": {
+            styles: {
+                splitButtonDivider: {
+                    backgroundColor: bodyText
+                },
+
+                splitButtonMenuButton: {
+                    backgroundColor: "#0078D4"
+                }
+            }
+        },
         "Stack": {
             styles: {
                 root: {
