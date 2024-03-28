@@ -144,6 +144,27 @@ TArrayView<TSharedPtr<IPropertyHandle>> FDetailLayoutCustomization::GetPropertyH
 	return TArrayView<TSharedPtr<IPropertyHandle>>();
 }
 
+FText FDetailLayoutCustomization::GetFilterTextString() const
+{
+	if (HasCustomWidget())
+	{
+		return WidgetDecl->FilterTextString;
+	}
+	else if (HasCustomBuilder() && CustomBuilderRow->GetWidgetRow())
+	{
+		return CustomBuilderRow->GetWidgetRow()->FilterTextString;
+	}
+	else if (HasPropertyNode())
+	{
+		return PropertyRow->GetFilterTextString();
+	}
+	else if (DetailGroup->GetHeaderPropertyRow())
+	{
+		return DetailGroup->GetHeaderPropertyRow()->GetFilterTextString();
+	}
+	return {};
+}
+
 const IDetailLayoutRow* FDetailLayoutCustomization::GetDetailLayoutRow() const
 {
 	if (HasCustomWidget())

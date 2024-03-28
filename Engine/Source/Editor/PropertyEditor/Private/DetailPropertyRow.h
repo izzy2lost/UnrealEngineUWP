@@ -88,8 +88,11 @@ public:
 	/** @return The widget row that should be displayed for this property row */
 	FDetailWidgetRow GetWidgetRow();
 
-	/** returns only the widget for editing this property. Use GetWidgetRow to get the full row with property name */
+	/** @return properties being customized */
 	TArrayView<TSharedPtr<IPropertyHandle>> GetPropertyHandles() const;
+
+	/** @return the filter text associated with this row, if any */
+	FText GetFilterTextString() const;
 
 	/**
 	 * @return The property node for this row
@@ -102,7 +105,7 @@ public:
 	TSharedPtr<FComplexPropertyNode> GetExternalRootNode() const { return ExternalRootNode; }
 
 	/**
-	 * @return The property node for this row
+	 * @return The property editor for this row
 	 */
 	TSharedPtr<FPropertyEditor> GetPropertyEditor() { return PropertyEditor; }
 

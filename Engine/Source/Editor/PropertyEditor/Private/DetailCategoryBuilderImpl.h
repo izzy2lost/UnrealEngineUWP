@@ -58,6 +58,8 @@ struct FDetailLayoutCustomization
 	FDetailWidgetRow GetWidgetRow() const;
 	/** @return properties being customized */
 	TArrayView<TSharedPtr<IPropertyHandle>> GetPropertyHandles() const;
+	/** @return the filter text associated with this row, if any */
+	FText GetFilterTextString() const;
 	/** Whether or not this customization is considered an advanced property. */
 	bool bAdvanced { false };
 	/** Whether or not this customization is custom or a default one. */

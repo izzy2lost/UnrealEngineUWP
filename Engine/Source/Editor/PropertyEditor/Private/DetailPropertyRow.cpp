@@ -309,6 +309,18 @@ TArrayView<TSharedPtr<IPropertyHandle>> FDetailPropertyRow::GetPropertyHandles()
 	return TArrayView<TSharedPtr<IPropertyHandle>>(const_cast<TSharedPtr<IPropertyHandle>*>(&PropertyHandle), 1);
 }
 
+FText FDetailPropertyRow::GetFilterTextString() const
+{
+	if (CustomPropertyWidget)
+	{
+		return CustomPropertyWidget->FilterTextString;
+	}
+	else
+	{
+		return {};
+	}
+}
+
 static bool IsHeaderRowRequired(const TSharedPtr<IPropertyHandle>& PropertyHandle)
 {
 	TSharedPtr<IPropertyHandle> ParentHandle = PropertyHandle->GetParentHandle();
