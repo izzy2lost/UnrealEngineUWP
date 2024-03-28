@@ -71,6 +71,9 @@ class UHeterogeneousVolumeComponent : public UMeshComponent
 	UPROPERTY(Transient)
 	TObjectPtr<UMaterialInstanceDynamic> MaterialInstanceDynamic;
 
+	UFUNCTION(BlueprintCallable, Category = "Volume")
+	ENGINE_API void SetVolumeResolution(FIntVector NewValue);
+
 	UFUNCTION(BlueprintCallable, Category = "Animation")
 	ENGINE_API void SetFrame(float NewValue);
 
