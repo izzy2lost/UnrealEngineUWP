@@ -10,9 +10,6 @@
 #include "UObject/Package.h"
 #include "UObject/UnrealType.h"
 #include "UObject/EnumProperty.h"
-#include "UObject/StrProperty.h"
-#include "UObject/AnsiStrProperty.h"
-#include "UObject/Utf8StrProperty.h"
 #include "UObject/TextProperty.h"
 #include "UObject/FieldPathProperty.h"
 

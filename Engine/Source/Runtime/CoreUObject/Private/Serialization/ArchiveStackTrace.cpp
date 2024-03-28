@@ -6,7 +6,6 @@
 #include "UObject/ObjectMacros.h"
 #include "UObject/UObjectThreadContext.h"
 #include "UObject/UnrealType.h"
-#include "UObject/StrProperty.h"
 #include "HAL/PlatformStackWalk.h"
 #include "Serialization/AsyncLoading.h"
 #include "HAL/PlatformFileManager.h"

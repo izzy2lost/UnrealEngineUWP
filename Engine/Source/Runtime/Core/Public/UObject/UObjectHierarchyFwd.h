@@ -52,5 +52,3 @@ class		FMulticastDelegateProperty;
 class		FMapProperty;
 class		FSetProperty;
 class		FEnumProperty;
-class		FUtf8StrProperty;
-class		FAnsiStrProperty;

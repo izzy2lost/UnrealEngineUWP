@@ -4,7 +4,6 @@
 #include "Engine/BlueprintGeneratedClass.h"
 #include "GameFramework/Actor.h"
 #include "UObject/PropertyPortFlags.h"
-#include "UObject/StrProperty.h"
 #include "UObject/TextProperty.h"
 #include "Widgets/DeclarativeSyntaxSupport.h"
 #include "Widgets/SWidget.h"

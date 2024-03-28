@@ -2,7 +2,6 @@
 
 #include "DataTableEditorUtils.h"
 #include "UObject/UObjectHash.h"
-#include "UObject/StrProperty.h"
 #include "UObject/UObjectIterator.h"
 #include "Styling/SlateTypes.h"
 #include "Fonts/FontMeasure.h"

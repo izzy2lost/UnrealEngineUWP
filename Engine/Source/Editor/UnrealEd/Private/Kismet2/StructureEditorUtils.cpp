@@ -6,7 +6,6 @@
 #include "Modules/ModuleManager.h"
 #include "UObject/UObjectHash.h"
 #include "UObject/UnrealType.h"
-#include "UObject/StrProperty.h"
 #include "UObject/TextProperty.h"
 #include "Engine/Blueprint.h"
 #include "Engine/DataTable.h"

@@ -7,7 +7,6 @@
 #include "UObject/WeakObjectPtr.h"
 #include "UObject/UnrealType.h"
 #include "UObject/EnumProperty.h"
-#include "UObject/StrProperty.h"
 #include "UObject/TextProperty.h"
 #include "Math/InterpCurvePoint.h"
 

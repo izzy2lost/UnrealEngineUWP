@@ -51,8 +51,6 @@ REGISTER_NAME(33,CoreUObject)
 // More class properties
 REGISTER_NAME(34,EnumProperty)
 REGISTER_NAME(35,OptionalProperty)
-REGISTER_NAME(36,Utf8StrProperty)
-REGISTER_NAME(37,AnsiStrProperty)
 
 
 // Special types.

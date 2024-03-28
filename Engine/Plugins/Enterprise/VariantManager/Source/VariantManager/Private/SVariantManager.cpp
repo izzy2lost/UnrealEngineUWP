@@ -52,7 +52,6 @@
 #include "Widgets/Layout/SSeparator.h"
 #include "Widgets/Notifications/SNotificationList.h"
 #include "Widgets/Text/SRichTextBlock.h"
-#include "UObject/StrProperty.h"
 
 #define LOCTEXT_NAMESPACE "SVariantManager"
 

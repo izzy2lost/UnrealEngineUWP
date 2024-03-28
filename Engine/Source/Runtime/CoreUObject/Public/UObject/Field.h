@@ -247,7 +247,7 @@ FField* TClass::Construct(const FFieldVariant& InOwner, const FName& InName, EOb
 } \
 FFieldClass* TClass::StaticClass() \
 { \
-	static FFieldClass StaticFieldClass(TEXT(PREPROCESSOR_TO_STRING(TClass)), TClass::StaticClassCastFlagsPrivate(), TClass::StaticClassCastFlags(), TClass::Super::StaticClass(), &TClass::Construct); \
+	static FFieldClass StaticFieldClass(TEXT(#TClass), TClass::StaticClassCastFlagsPrivate(), TClass::StaticClassCastFlags(), TClass::Super::StaticClass(), &TClass::Construct); \
 	return &StaticFieldClass; \
 } \
 

@@ -24,7 +24,6 @@
 #include "Serialization/NullArchive.h"
 #include "UObject/SoftObjectPtr.h"
 #include "UObject/PropertyPortFlags.h"
-#include "UObject/StrProperty.h"
 #include "UObject/UnrealType.h"
 #include "UObject/Stack.h"
 #include "UObject/Reload.h"

@@ -3281,6 +3281,51 @@ public:
 };
 
 /*-----------------------------------------------------------------------------
+	FStrProperty.
+-----------------------------------------------------------------------------*/
+
+//
+// Describes a dynamic string variable.
+//
+class COREUOBJECT_API FStrProperty : public TProperty_WithEqualityAndSerializer<FString, FProperty>
+{
+	DECLARE_FIELD(FStrProperty, (TProperty_WithEqualityAndSerializer<FString, FProperty>), CASTCLASS_FStrProperty)
+public:
+	using TTypeFundamentals = Super::TTypeFundamentals;
+	using TCppType = TTypeFundamentals::TCppType;
+
+	FStrProperty(FFieldVariant InOwner, const FName& InName, EObjectFlags InObjectFlags)
+		: Super(InOwner, InName, InObjectFlags)
+	{
+	}
+
+	/**
+	 * Constructor used for constructing compiled in properties
+	 * @param InOwner Owner of the property
+	 * @param PropBase Pointer to the compiled in structure describing the property
+	 **/
+	FStrProperty(FFieldVariant InOwner, const UECodeGen_Private::FStrPropertyParams& Prop);
+
+#if WITH_EDITORONLY_DATA
+	explicit FStrProperty(UField* InField)
+		: Super(InField)
+	{
+	}
+#endif // WITH_EDITORONLY_DATA
+
+	// FProperty interface
+protected:
+	virtual void ExportText_Internal( FString& ValueStr, const void* PropertyValueOrContainer, EPropertyPointerType PropertyPointerType, const void* DefaultValue, UObject* Parent, int32 PortFlags, UObject* ExportRootScope ) const override;
+	virtual const TCHAR* ImportText_Internal(const TCHAR* Buffer, void* ContainerOrPropertyPtr, EPropertyPointerType PropertyPointerType, UObject* OwnerObject, int32 PortFlags, FOutputDevice* ErrorText) const override;
+public:
+	virtual EConvertFromTypeResult ConvertFromType(const FPropertyTag& Tag, FStructuredArchive::FSlot Slot, uint8* Data, UStruct* DefaultsStruct, const uint8* Defaults) override;
+	UE_DEPRECATED(5.4, "UnrealHeaderTool only API.  No replacement available.")
+	virtual FString GetCPPTypeForwardDeclaration() const override;
+	uint32 GetValueTypeHashInternal(const void* Src) const override;
+	// End of FProperty interface
+};
+
+/*-----------------------------------------------------------------------------
 	FArrayProperty.
 -----------------------------------------------------------------------------*/
 
@@ -7096,5 +7141,4 @@ class COREUOBJECT_API UMulticastInlineDelegatePropertyWrapper : public UMulticas
 
 #if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_5
 #include "Templates/IsTriviallyDestructible.h"
-#include "UObject/StrProperty.h"
 #endif

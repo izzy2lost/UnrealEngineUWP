@@ -19,7 +19,6 @@
 #include "UObject/UObjectIterator.h"
 #include "UObject/StructOnScope.h"
 #include "UObject/MetaData.h"
-#include "UObject/StrProperty.h"
 #include "UObject/TextProperty.h"
 #include "Widgets/DeclarativeSyntaxSupport.h"
 #include "Styling/CoreStyle.h"

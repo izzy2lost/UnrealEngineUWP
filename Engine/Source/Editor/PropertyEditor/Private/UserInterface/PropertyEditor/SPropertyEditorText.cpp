@@ -16,7 +16,6 @@
 #include "PropertyNode.h"
 #include "SlotBase.h"
 #include "UObject/NameTypes.h"
-#include "UObject/StrProperty.h"
 #include "UObject/TextProperty.h"
 #include "UObject/UnrealNames.h"
 #include "UObject/UnrealType.h"

@@ -4,7 +4,6 @@
 #include "IDocumentation.h"
 
 #include "PropertyEditorHelpers.h"
-#include "UObject/StrProperty.h"
 #include "UserInterface/PropertyEditor/SPropertyComboBox.h"
 
 

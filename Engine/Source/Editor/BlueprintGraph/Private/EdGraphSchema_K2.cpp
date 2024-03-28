@@ -7,7 +7,6 @@
 #include "Modules/ModuleManager.h"
 #include "UObject/Interface.h"
 #include "UObject/UnrealType.h"
-#include "UObject/StrProperty.h"
 #include "UObject/TextProperty.h"
 #include "UObject/ConstructorHelpers.h"
 #include "Engine/Blueprint.h"

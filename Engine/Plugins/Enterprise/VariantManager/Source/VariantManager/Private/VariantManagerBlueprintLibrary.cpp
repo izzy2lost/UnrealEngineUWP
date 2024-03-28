@@ -7,7 +7,6 @@
 #include "LevelVariantSetsActor.h"
 #include "Trace/Trace.inl"
 #include "Variant.h"
-#include "UObject/StrProperty.h"
 #include "UObject/TextProperty.h"
 #include "VariantManager.h"
 #include "VariantManagerContentEditorModule.h"

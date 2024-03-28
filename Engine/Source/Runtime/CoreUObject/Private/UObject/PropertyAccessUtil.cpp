@@ -2,7 +2,6 @@
 
 #include "UObject/PropertyAccessUtil.h"
 #include "UObject/EnumProperty.h"
-#include "UObject/StrProperty.h"
 #include "UObject/TextProperty.h"
 #include "UObject/Object.h"
 #include "UObject/Class.h"
