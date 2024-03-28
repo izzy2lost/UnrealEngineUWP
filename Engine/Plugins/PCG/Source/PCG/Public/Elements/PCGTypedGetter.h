@@ -142,7 +142,7 @@ public:
  * Builds a collection of data from other PCG components on the selected actors. Automatically tags each output with the grid size it was collected
  * from, prefixed by "PCG_GridSize_" (e.g. PCG_GridSize_12800).
  *
- * Note: a component cannot get component data from itself or other components in its hierarchy, as it could create a circular dependency.
+ * Note: a component cannot get component data from itself or other components in its execution context, as it could create a circular dependency.
  */
 UCLASS(BlueprintType, ClassGroup = (Procedural))
 class PCG_API UPCGGetPCGComponentSettings : public UPCGDataFromActorSettings

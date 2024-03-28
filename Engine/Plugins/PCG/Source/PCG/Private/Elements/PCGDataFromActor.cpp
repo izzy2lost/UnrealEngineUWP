@@ -444,14 +444,15 @@ void FPCGDataFromActorElement::GatherWaitTasks(AActor* FoundActor, FPCGContext* 
 	check(Settings);
 
 	UPCGComponent* SourceComponent = Context->SourceComponent.IsValid() ? Context->SourceComponent.Get() : nullptr;
+	const UPCGComponent* SourceOriginalComponent = SourceComponent ? SourceComponent->GetOriginalComponent() : nullptr;
 
-	if (!SourceComponent)
+	if (!SourceOriginalComponent)
 	{
 		return;
 	}
 
 	// We will prevent gathering the current execution - this task cannot wait on itself
-	AActor* ThisOwner = SourceComponent->GetOwner();
+	const AActor* SourceOwner = SourceOriginalComponent->GetOwner();
 
 	TInlineComponentArray<UPCGComponent*, 1> PCGComponents = PCGDataFromActorHelpers::GetPCGComponentsFromActor(
 		FoundActor,
@@ -460,11 +461,14 @@ void FPCGDataFromActorElement::GatherWaitTasks(AActor* FoundActor, FPCGContext* 
 		Settings->bGetDataOnAllGrids,
 		Settings->AllowedGrids,
 		Settings->bComponentsMustOverlapSelf,
-		(Settings->bComponentsMustOverlapSelf && SourceComponent) ? SourceComponent->GetGridBounds() : FBox());
+		Settings->bComponentsMustOverlapSelf ? SourceComponent->GetGridBounds() : FBox());
 
 	for (UPCGComponent* Component : PCGComponents)
 	{
-		if (Component->GetOwner() == ThisOwner)
+		const UPCGComponent* OriginalComponent = Component ? Component->GetOriginalComponent() : nullptr;
+
+		// Avoid waiting on our own execution (including local components).
+		if (!OriginalComponent || OriginalComponent == SourceOriginalComponent || (Settings->ActorSelector.bIgnoreSelfAndChildren && OriginalComponent->GetOwner() == SourceOwner))
 		{
 			continue;
 		}
@@ -606,20 +610,19 @@ void FPCGDataFromActorElement::ProcessActor(FPCGContext* Context, const UPCGData
 	check(Settings);
 
 	UPCGComponent* SourceComponent = Context->SourceComponent.IsValid() ? Context->SourceComponent.Get() : nullptr;
+	const UPCGComponent* SourceOriginalComponent = SourceComponent ? SourceComponent->GetOriginalComponent() : nullptr;
 
-	if (!FoundActor || !IsValid(FoundActor) || !SourceComponent)
+	if (!FoundActor || !IsValid(FoundActor) || !SourceOriginalComponent)
 	{
 		return;
 	}
 
-	AActor* ThisOwner = SourceComponent->GetOwner();
+	const AActor* SourceOwner = SourceOriginalComponent->GetOwner();
 	TInlineComponentArray<UPCGComponent*, 1> PCGComponents;
 	bool bHasGeneratedPCGData = false;
 	FProperty* FoundProperty = nullptr;
 
-	const bool bCanGetDataFromComponent = (FoundActor != ThisOwner);
-
-	if (bCanGetDataFromComponent && (Settings->Mode == EPCGGetDataFromActorMode::GetDataFromPCGComponent || Settings->Mode == EPCGGetDataFromActorMode::GetDataFromPCGComponentOrParseComponents))
+	if (Settings->Mode == EPCGGetDataFromActorMode::GetDataFromPCGComponent || Settings->Mode == EPCGGetDataFromActorMode::GetDataFromPCGComponentOrParseComponents)
 	{
 		PCGComponents = PCGDataFromActorHelpers::GetPCGComponentsFromActor(
 			FoundActor,
@@ -629,6 +632,16 @@ void FPCGDataFromActorElement::ProcessActor(FPCGContext* Context, const UPCGData
 			Settings->AllowedGrids,
 			Settings->bComponentsMustOverlapSelf,
 			Settings->bComponentsMustOverlapSelf ? SourceComponent->GetGridBounds() : FBox());
+
+		// Remove any PCG components that don't belong to an external execution context (i.e. share the same original component), or that share a common root actor.
+		PCGComponents.RemoveAllSwap([Settings, SourceOwner, SourceOriginalComponent](UPCGComponent* Component)
+		{
+			const UPCGComponent* OriginalComponent = Component ? Component->GetOriginalComponent() : nullptr;
+
+			return !OriginalComponent
+				|| OriginalComponent == SourceOriginalComponent
+				|| (Settings->ActorSelector.bIgnoreSelfAndChildren && OriginalComponent->GetOwner() == SourceOwner);
+		});
 
 		for (UPCGComponent* Component : PCGComponents)
 		{
@@ -646,15 +659,11 @@ void FPCGDataFromActorElement::ProcessActor(FPCGContext* Context, const UPCGData
 	// Some additional validation
 	if (Settings->Mode == EPCGGetDataFromActorMode::GetDataFromPCGComponent && !bHasGeneratedPCGData)
 	{
-		if (bCanGetDataFromComponent)
+		if (!PCGComponents.IsEmpty())
 		{
 			PCGE_LOG(Log, GraphAndLog, FText::Format(LOCTEXT("ActorHasNoGeneratedData", "Actor '{0}' does not have any previously generated data"), FText::FromName(FoundActor->GetFName())));
 		}
-		else
-		{
-			PCGE_LOG(Error, GraphAndLog, FText::Format(LOCTEXT("ActorCannotGetOwnData", "Actor '{0}' cannot get its own generated data during generation"), FText::FromName(FoundActor->GetFName())));
-		}
-		
+
 		return;
 	}
 	else if (Settings->Mode == EPCGGetDataFromActorMode::GetDataFromProperty && !FoundProperty)
