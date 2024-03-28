@@ -98,8 +98,8 @@ public:
 	/** Returns the accumulated recording time in seconds since the recording started */
 	float GetAccumulatedRecordingTime() const { return AccumulatedRecordingTime; }
 
-	/** Returns the relative file name path of the active recording */
-	const FString& GetActiveRecordingFileName() const { return ActiveRecordingFileName; }
+	/** Returns the full path of the active recording file*/
+	FString GetLastRecordingFileNamePath() const;
 
 private:
 
@@ -134,7 +134,7 @@ private:
 
 	FThreadSafeCounter LastGeneratedID;
 
-	FString ActiveRecordingFileName;
+	FString LastRecordingFileNamePath;
 
 	static FRWLock DelegatesRWLock;
 };
