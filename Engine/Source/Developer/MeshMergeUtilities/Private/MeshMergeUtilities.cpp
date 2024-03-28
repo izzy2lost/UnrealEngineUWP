@@ -459,6 +459,11 @@ void FMeshMergeUtilities::BakeMaterialsForComponent(TArray<TWeakObjectPtr<UObjec
 
 void FMeshMergeUtilities::BakeMaterialsForComponent(USkeletalMeshComponent* SkeletalMeshComponent) const
 {
+	if (!SkeletalMeshComponent || !SkeletalMeshComponent->GetSkeletalMeshAsset())
+	{
+		return;
+	}
+
 	// Retrieve settings object
 	UMaterialOptions* MaterialOptions = DuplicateObject(GetMutableDefault<UMaterialOptions>(), GetTransientPackage());
 	UAssetBakeOptions* AssetOptions = GetMutableDefault<UAssetBakeOptions>();
@@ -481,6 +486,11 @@ void FMeshMergeUtilities::BakeMaterialsForComponent(USkeletalMeshComponent* Skel
 
 void FMeshMergeUtilities::BakeMaterialsForComponent(UStaticMeshComponent* StaticMeshComponent) const
 {
+	if (!StaticMeshComponent || !StaticMeshComponent->GetStaticMesh())
+	{
+		return;
+	}
+
 	// Retrieve settings object
 	UMaterialOptions* MaterialOptions = DuplicateObject(GetMutableDefault<UMaterialOptions>(), GetTransientPackage());
 	UAssetBakeOptions* AssetOptions = GetMutableDefault<UAssetBakeOptions>();
@@ -502,6 +512,11 @@ void FMeshMergeUtilities::BakeMaterialsForComponent(UStaticMeshComponent* Static
 
 void FMeshMergeUtilities::BakeMaterialsForMesh(UStaticMesh* StaticMesh) const
 {
+	if (!StaticMesh)
+	{
+		return;
+	}
+
 	// Retrieve settings object
 	UMaterialOptions* MaterialOptions = DuplicateObject(GetMutableDefault<UMaterialOptions>(), GetTransientPackage());
 	UAssetBakeOptions* AssetOptions = GetMutableDefault<UAssetBakeOptions>();
