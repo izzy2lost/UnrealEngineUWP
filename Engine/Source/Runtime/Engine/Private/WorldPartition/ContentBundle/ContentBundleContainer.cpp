@@ -35,7 +35,7 @@ UWorld* FContentBundleContainer::GetInjectedWorld() const
 void FContentBundleContainer::Initialize()
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(FContentBundleContainer::Initialize);
-	UE_LOG(LogContentBundle, Log, TEXT("%s Creating new container."), *ContentBundle::Log::MakeDebugInfoString(*this));
+	UE_LOG(LogContentBundle, Verbose, TEXT("%s Creating new container."), *ContentBundle::Log::MakeDebugInfoString(*this));
 
 #if WITH_EDITOR
 	if (UseEditorContentBundle())
@@ -68,7 +68,7 @@ void FContentBundleContainer::Deinitialize()
 
 	if (GetInjectedWorld())
 	{
-		UE_LOG(LogContentBundle, Log, TEXT("%s Deleting container."), *ContentBundle::Log::MakeDebugInfoString(*this));
+		UE_LOG(LogContentBundle, Verbose, TEXT("%s Deleting container."), *ContentBundle::Log::MakeDebugInfoString(*this));
 
 #if WITH_EDITOR
 		if (UseEditorContentBundle())
@@ -235,7 +235,7 @@ FContentBundleBase& FContentBundleContainer::InitializeContentBundle(TSharedPtr<
 
 	FContentBundleBase* ContentBundle = nullptr;
 
-	UE_LOG(LogContentBundle, Log, TEXT("%s Creating new content bundle from client %s with client state %s."), 
+	UE_LOG(LogContentBundle, Verbose, TEXT("%s Creating new content bundle from client %s with client state %s."), 
 		*ContentBundle::Log::MakeDebugInfoString(*ContentBundleClient , GetInjectedWorld()), *ContentBundleClient->GetDisplayName(), *UEnum::GetDisplayValueAsText(ContentBundleClient->GetState()).ToString());
 
 #if WITH_EDITOR
@@ -380,7 +380,7 @@ void FContentBundleContainer::InitializeContentBundlesForegisteredClients()
 
 	if (!ContentBundleClients.IsEmpty())
 	{
-		UE_LOG(LogContentBundle, Log, TEXT("%s Begin initializing ContentBundles from %u registered clients."), *ContentBundle::Log::MakeDebugInfoString(*this), ContentBundleClients.Num());
+		UE_LOG(LogContentBundle, Verbose, TEXT("%s Begin initializing ContentBundles from %u registered clients."), *ContentBundle::Log::MakeDebugInfoString(*this), ContentBundleClients.Num());
 
 		for (TSharedPtr<FContentBundleClient>& ContentBundleClient : ContentBundleClients)
 		{
@@ -388,7 +388,7 @@ void FContentBundleContainer::InitializeContentBundlesForegisteredClients()
 			InjectContentBundle(ContentBundle);
 		}
 
-		UE_LOG(LogContentBundle, Log, TEXT("%s End initializing ContentBundles."), *ContentBundle::Log::MakeDebugInfoString(*this));
+		UE_LOG(LogContentBundle, Verbose, TEXT("%s End initializing ContentBundles."), *ContentBundle::Log::MakeDebugInfoString(*this));
 	}
 }
 

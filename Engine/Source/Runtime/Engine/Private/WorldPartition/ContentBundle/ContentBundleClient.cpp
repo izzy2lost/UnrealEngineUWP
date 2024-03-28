@@ -20,7 +20,7 @@ FContentBundleClient::FContentBundleClient(const UContentBundleDescriptor* InCon
 	, DisplayName(InDisplayName)
 	, State(EContentBundleClientState::Unregistered)
 {
-	UE_LOG(LogContentBundle, Log, TEXT("[CB: %s] Client Created"), *GetDescriptor()->GetDisplayName());
+	UE_LOG(LogContentBundle, Verbose, TEXT("[CB: %s] Client Created"), *GetDescriptor()->GetDisplayName());
 	SetState(EContentBundleClientState::Registered);
 }
 
@@ -126,12 +126,12 @@ void FContentBundleClient::SetWorldContentState(UWorld* World, EWorldContentStat
 {
 	if (EWorldContentState* OldState = WorldContentStates.Find(World))
 	{
-		UE_LOG(LogContentBundle, Log, TEXT("%s Client WorldState changing from %s to %s"), *ContentBundle::Log::MakeDebugInfoString(*this, World), *UEnum::GetDisplayValueAsText(*OldState).ToString(), *UEnum::GetDisplayValueAsText(NewState).ToString());
+		UE_LOG(LogContentBundle, Verbose, TEXT("%s Client WorldState changing from %s to %s"), *ContentBundle::Log::MakeDebugInfoString(*this, World), *UEnum::GetDisplayValueAsText(*OldState).ToString(), *UEnum::GetDisplayValueAsText(NewState).ToString());
 		*OldState = NewState;
 		return;
 	}
 	
-	UE_LOG(LogContentBundle, Log, TEXT("%s Client WorldState changing to %s"), *ContentBundle::Log::MakeDebugInfoString(*this, World), *UEnum::GetDisplayValueAsText(NewState).ToString());
+	UE_LOG(LogContentBundle, Verbose, TEXT("%s Client WorldState changing to %s"), *ContentBundle::Log::MakeDebugInfoString(*this, World), *UEnum::GetDisplayValueAsText(NewState).ToString());
 	WorldContentStates.Add(World, NewState);
 }
 
@@ -163,6 +163,8 @@ void FContentBundleClient::SetState(EContentBundleClientState NewState)
 {
 	check(NewState != State);
 
-	UE_LOG(LogContentBundle, Log, TEXT("%s Client State changing from %s to %s"), *ContentBundle::Log::MakeDebugInfoString(*this), *UEnum::GetDisplayValueAsText(State).ToString(), *UEnum::GetDisplayValueAsText(NewState).ToString());
+	UE_LOG(LogContentBundle, Verbose, TEXT("%s Client State changing from %s to %s"), 
+		*ContentBundle::Log::MakeDebugInfoString(*this), *UEnum::GetDisplayValueAsText(State).ToString(), *UEnum::GetDisplayValueAsText(NewState).ToString());
+
 	State = NewState;
 }
