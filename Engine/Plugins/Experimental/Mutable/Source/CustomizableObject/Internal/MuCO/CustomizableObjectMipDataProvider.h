@@ -50,7 +50,9 @@ public:
 
 	const TArray<mu::Ptr<const mu::Image>>& GetImageParameterValues() const;
 
+	// Benchmarking Utility data (it may not always be present)
 	FString CapturedDescriptor;
+	bool bLevelBegunPlay = false;
 	
 private:
 	FString CustomizableObjectPathName;

@@ -5599,6 +5599,10 @@ void UCustomizableInstancePrivate::BuildMaterials(const TSharedRef<FUpdateContex
 	if (CVarEnableBenchmark.GetValueOnAnyThread())
 	{
 		UpdateContext->CapturedDescriptor = OperationData->GetCapturedDescriptor().ToString();
+		if (GWorld)
+		{
+			UpdateContext->bLevelBegunPlay = GWorld->GetBegunPlay();
+		}
 	}
 	
 	const bool bReuseTextures = OperationData->bReuseInstanceTextures;
