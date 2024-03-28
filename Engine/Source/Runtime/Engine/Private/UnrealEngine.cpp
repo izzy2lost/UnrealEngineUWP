@@ -338,7 +338,7 @@ void FEngineModule::StartupModule()
 			}
 			{
 				FFragmentTypeParameters FragmentTypeParams("animinst", NSLOCTEXT("Engine", "AnimInstanceLocatorFragment", "AnimInstance"));
-				FragmentTypeParams.PrimaryEditorType = "Component";
+				FragmentTypeParams.PrimaryEditorType = "AnimInstance";
 				FAnimInstanceLocatorFragment::FragmentType = UolModule.RegisterFragmentType<FAnimInstanceLocatorFragment>(FragmentTypeParams);
 			}
 			{
