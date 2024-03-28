@@ -1780,6 +1780,13 @@ BOOL Detoured_GetFileInformationByHandleEx(HANDLE hFile, FILE_INFO_BY_HANDLE_CLA
 			return FALSE;
 			*/
 		}
+		else if (fileInformationClass == FileAttributeTagInfo)
+		{
+			auto& data = *(FILE_ATTRIBUTE_TAG_INFO*)lpFileInformation;
+			data.FileAttributes = entryInfo.attributes;
+			data.ReparseTag = 0;
+			return TRUE;
+		}
 		else
 		{
 			UBA_ASSERTF(trueHandle != INVALID_HANDLE_VALUE, L"GetFileInformationByHandleEx with class %u not Implemented (%ls)", fileInformationClass, HandleToName(hFile));
