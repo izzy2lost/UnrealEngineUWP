@@ -652,11 +652,14 @@ protected:
 	GEOMETRYFRAMEWORK_API virtual void UpdateDistanceField();
 
 	TAsyncComponentDataComputeQueue<FDistanceFieldVolumeData> DistanceFieldComputeQueue;
-	GEOMETRYFRAMEWORK_API virtual TUniquePtr<FDistanceFieldVolumeData> ComputeNewDistanceField_TaskFunction(FProgressCancel& Progress);
 	GEOMETRYFRAMEWORK_API virtual void OnNewDistanceFieldData_Async(TUniquePtr<FDistanceFieldVolumeData> NewData);
 
 	// UBaseDynamicMeshComponent API
 	GEOMETRYFRAMEWORK_API virtual void OnNewDistanceFieldMode() override;
+
+private:
+	// Internal method to compute the distance field, run in a background thread.
+	TUniquePtr<FDistanceFieldVolumeData> ComputeNewDistanceField_TaskFunction(FProgressCancel& Progress, const FDynamicMesh3& Mesh, bool bMostlyTwoSided);
 
 
 	//===============================================================================================================
