@@ -128,7 +128,12 @@
 		},
 		{
 			"Name": "Interchange",
-			"Enabled": true
+			"Enabled": true,
+			"PlatformAllowList": [
+				"Win64",
+				"Mac",
+				"Linux"
+			]
 		},
 		{
 			"Name": "LevelSequenceEditor",
@@ -140,7 +145,12 @@
 		},
 		{
 			"Name": "MDLImporter",
-			"Enabled": true
+			"Enabled": true,
+			"PlatformAllowList": [
+				"Win64",
+				"Mac",
+				"Linux"
+			]
 		},
 		{
 			"Name": "PythonScriptPlugin",
