@@ -1279,9 +1279,9 @@ void FReplicationWriter::HandleDroppedRecord<FReplicationWriter::EReplicatedObje
 			StopReplication(InternalIndex);
 		}
 	}
-	else if (CurrentState == EReplicatedObjectState::SubObjectPendingDestroy)
+	else if (CurrentState == EReplicatedObjectState::SubObjectPendingDestroy || CurrentState == EReplicatedObjectState::PendingDestroy)
 	{
-		// If SubObject has been destroyed while we where waiting for creation ack we can just stop replication
+		// If Object has been destroyed while we where waiting for creation ack we can just stop replication
 		SetState(InternalIndex, EReplicatedObjectState::WaitOnDestroyConfirmation);
 		SetState(InternalIndex, EReplicatedObjectState::Destroyed);
 		StopReplication(InternalIndex);
