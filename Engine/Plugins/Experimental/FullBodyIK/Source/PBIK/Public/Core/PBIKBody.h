@@ -118,7 +118,7 @@ public:
 
 	void ApplyPushToRotateBody(const FVector& Push, const FVector& Offset);
 	
-	void ApplyPushToPosition(const FVector& Push);
+	void ApplyPositionDelta(const FVector& InDeltaP);
 
 	void ApplyRotationDelta(const FQuat& InDelta);
 };

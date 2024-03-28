@@ -223,11 +223,11 @@ void FPBIKSolver::Solve(const FPBIKSolverSettings& Settings)
 	}
 
 	// optionally pin root in-place (convenience, does not require an effector)
-	if (RootPin.IsValid())
+	if (Settings.RootBehavior == EPBIKRootBehavior::PinToInput)
 	{
-		RootPin.Pin()->bEnabled = Settings.RootBehavior == EPBIKRootBehavior::PinToInput;
-		// pin to animated input root pose
-		RootPin.Pin()->SetGoal(SolverRoot->Position, SolverRoot->Rotation, 1.0f);
+		// we can safely override the mass here to pin the root body
+		// if the user switches to a different root mode, the call to Body.UpdateFromInputs() will restore the correct InvMass for the body
+		SolverRoot->Body->InvMass = 0.0f;
 	}
 
 	// lazily updates effector chain depths (IFF settings change at runtime)
@@ -294,11 +294,9 @@ void FPBIKSolver::UpdateBonesFromBodies()
 		}
 
 		// optionally pin rotation to that of effector
-		if (Effector.Settings.PinRotation > SMALL_NUMBER)
-		{
-			const float RotAmount = FMath::Clamp(Effector.Settings.PinRotation, 0.0f, 1.0f);
-			Bone->Rotation = FQuat::FastLerp(Bone->Rotation, Effector.Rotation, RotAmount).GetNormalized();
-		}
+		const FQuat RotationWithoutEffector = Bone->Parent ? Bone->Parent->Rotation * Bone->LocalRotationFromInput : Bone->Rotation; 
+		const float RotAmount = FMath::Clamp(Effector.Settings.PinRotation, 0.0f, 1.0f);
+		Bone->Rotation = FQuat::FastLerp(RotationWithoutEffector, Effector.Rotation, RotAmount).GetNormalized();
 	}
 
 	// propagate to non-solved bones (requires storage in root to tip order)
@@ -741,7 +739,7 @@ bool FPBIKSolver::InitConstraints()
 		}
 
 		FRigidBody* Body = BodyBone->Body;
-		TSharedPtr<FPinConstraint> Constraint = MakeShared<FPinConstraint>(Body, Effector.Position, Effector.Rotation, false);
+		TSharedPtr<FPinConstraint> Constraint = MakeShared<FPinConstraint>(Body, Effector.Position, Effector.Rotation);
 		Effector.Pin = Constraint;
 		Body->Effector = &Effector;
 		Body->Pin = Constraint.Get();
@@ -760,17 +758,6 @@ bool FPBIKSolver::InitConstraints()
 
 		TSharedPtr<FJointConstraint> Constraint = MakeShared<FJointConstraint>(ParentBody, &Body);
 		Constraints.Add(Constraint);
-	}
-
-	// pin root body to animated location 
-	// this constraint is by default off in solver settings
-	// this constraint is added last to ensure it is fully solved at the end of the iteration loop
-	if (!SolverRoot->Body->Effector) // only add if user hasn't added their own root effector
-	{
-		const TSharedPtr<FPinConstraint> RootConstraint = MakeShared<FPinConstraint>(SolverRoot->Body, SolverRoot->Position, SolverRoot->Rotation, true);
-		Constraints.Add(RootConstraint);
-		RootPin = RootConstraint;
-		SolverRoot->Body->Pin = RootConstraint.Get();
 	}
 
 	// now we can set the initial effector depths
@@ -829,7 +816,6 @@ void FPBIKSolver::Reset()
 	
 	bReadyToSimulate = false;
 	SolverRoot = nullptr;
-	RootPin = nullptr;
 	Bodies.Empty();
 	Bones.Empty();
 	Constraints.Empty();
