@@ -310,6 +310,9 @@ void UPCGSubsystem::DestroyCurrentPCGWorldActor()
 
 void UPCGSubsystem::DestroyAllPCGWorldActors()
 {
+	// Delete all PAs first to avoid leaving orphans behind.
+	DeleteSerializedPartitionActors(/*bOnlyDeleteUnused=*/false);
+
 	// Get rid of current PCG world actor first
 	DestroyCurrentPCGWorldActor();
 	
@@ -934,8 +937,9 @@ FPCGTaskId UPCGSubsystem::ForAllOverlappingCells(const FBox& InBounds, const PCG
 
 	PCGHiGenGrid::FSizeArray GridSizes = InGridSizes;
 
-	// We have no use for unbounded grids as this is a grid-centric function.
+	// We have no use for unbounded grids as this is a grid-centric function. Also discard invalid grid sizes.
 	GridSizes.Remove(static_cast<uint32>(EPCGHiGenGrid::Unbounded));
+	GridSizes.RemoveAll([](uint32 GridSize) { return !ensure(PCGHiGenGrid::IsValidGridSize(GridSize)); });
 
 	if (GridSizes.IsEmpty())
 	{
@@ -951,7 +955,6 @@ FPCGTaskId UPCGSubsystem::ForAllOverlappingCells(const FBox& InBounds, const PCG
 	TArray<FPCGTaskId> CellTasks;
 	for (uint32 GridSize : GridSizes)
 	{
-		ensure(PCGHiGenGrid::IsValidGridSize(GridSize));
 		const FGuid* GuidPtr = GridSizeToGuid.Find(GridSize);
 		if (!ensure(GuidPtr))
 		{
