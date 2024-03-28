@@ -73,7 +73,9 @@ void UControlRigControlsProxy::AddControlRigControl(UControlRig* InControlRig, c
 	}
 	else
 	{
-		Name = ControlElement->GetDisplayName();
+		FText ControlNameText = InControlRig->GetHierarchy()->GetDisplayNameForUI(ControlElement);
+		FString ControlNameString = ControlNameText.ToString();
+		Name = FName(*ControlNameString);
 	}
 }
 
