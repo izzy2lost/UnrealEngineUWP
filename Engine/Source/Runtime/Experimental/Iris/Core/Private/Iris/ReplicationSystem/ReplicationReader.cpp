@@ -745,11 +745,8 @@ uint32 FReplicationReader::ReadObjectBatch(FNetSerializationContext& Context)
 		{
 			if (Context.GetError() == GNetError_BrokenNetHandle)
 			{
-				const uint32 ErrorType = 1; //TBD
-				ReplicationBridge->ReportErrorWithNetRefHandle(ErrorType, IncompleteHandle, Parameters.ConnectionId);
+				ReplicationBridge->SendErrorWithNetRefHandle(UE::Net::ENetRefHandleError::ReplicationDisabled, IncompleteHandle, Parameters.ConnectionId);
  
-				// $TODO: Report this to the server so it knows that the state of data in the batch is unknown
-
 				// Log error and try to recover, if get more incoming data for an object in the broken state we will skip it.
 				UE_LOG(LogIris, Error, TEXT("FReplicationReader::ReadObject Failed to read object batch handle: %s skipping batch data"), ToCStr(IncompleteHandle.ToString()));
 					
@@ -2369,4 +2366,4 @@ void FReplicationReader::SetRemoteNetTokenStoreState(FNetTokenStoreState* InRemo
 	ResolveContext.RemoteNetTokenStoreState = InRemoteTokenStoreState;
 }
 
-}
+} // end namespace UE::Net::Private

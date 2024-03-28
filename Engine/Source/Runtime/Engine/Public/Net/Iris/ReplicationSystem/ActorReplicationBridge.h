@@ -14,11 +14,16 @@ class UWorld;
 class UNetDriver;
 class UIrisObjectReferencePackageMap;
 
-namespace UE::Net::Private
+namespace UE::Net
 {
-	struct FActorReplicationBridgeCreationHeader;
-	struct FActorCreationHeader;
-	struct FSubObjectCreationHeader;
+	enum class ENetRefHandleError : uint32;
+
+	namespace Private
+	{
+		struct FActorReplicationBridgeCreationHeader;
+		struct FActorCreationHeader;
+		struct FSubObjectCreationHeader;
+	}
 }
 
 namespace UE::Net
@@ -79,7 +84,7 @@ public:
 	UIrisObjectReferencePackageMap* GetObjectReferencePackageMap() const { return ObjectReferencePackageMap; }
 
 	/** Tell the remote connection that we detected a reading error with a specific replicated object */
-	ENGINE_API virtual void ReportErrorWithNetRefHandle(uint32 ErrorType, FNetRefHandle RefHandle, uint32 ConnectionId) override;
+	ENGINE_API virtual void SendErrorWithNetRefHandle(UE::Net::ENetRefHandleError ErrorType, FNetRefHandle RefHandle, uint32 ConnectionId) override;
 	
 	/** Updates the level group for an actor that changed levels */
 	void ActorChangedLevel(const AActor* Actor, const ULevel* PreviousLevel);

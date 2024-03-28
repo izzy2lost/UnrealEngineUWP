@@ -21,6 +21,8 @@ class UNetDriver;
 
 namespace UE::Net
 {
+	enum class UE::Net::ENetRefHandleError : uint32;
+
 	struct FNetDependencyInfo;
 	class FNetTokenStoreState;
 	class FReplicationFragment;
@@ -269,10 +271,10 @@ protected:
 	IRISCORE_API virtual void OnProtocolMismatchReported(FNetRefHandle RefHandle, uint32 ConnectionId) {}
 
 	/** Called when a remote connection has a critical error caused by a specific NetRefHandle */
-	IRISCORE_API virtual void OnErrorWithNetRefHandleReported(uint32 ErrorType, FNetRefHandle RefHandle, uint32 ConnectionId) {}
+	IRISCORE_API virtual void OnErrorWithNetRefHandleReported(UE::Net::ENetRefHandleError ErrorType, FNetRefHandle RefHandle, uint32 ConnectionId) {}
 
 	/** Tell the remote connection that we detected a reading error with a specific replicated object */
-	IRISCORE_API virtual void ReportErrorWithNetRefHandle(uint32 ErrorType, FNetRefHandle RefHandle, uint32 ConnectionId) {}
+	IRISCORE_API virtual void SendErrorWithNetRefHandle(UE::Net::ENetRefHandleError ErrorType, FNetRefHandle RefHandle, uint32 ConnectionId) {}
 
 private:
 

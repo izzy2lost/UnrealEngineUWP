@@ -909,4 +909,18 @@ FString FNetRefHandleManager::PrintObjectFromIndex(FInternalNetRefIndex ObjectIn
 	}
 }
 
+FString FNetRefHandleManager::PrintObjectFromNetRefHandle(FNetRefHandle ObjectHandle) const
+{ 
+	const FInternalNetRefIndex ObjectIndex = GetInternalIndex(ObjectHandle);
+	if (ObjectIndex != InvalidInternalIndex)
+	{
+		return PrintObjectFromIndex(ObjectIndex);
+	}
+	else
+	{
+		return FString::Printf(TEXT("NetObject None (InternalIndex: None) (%s)"), *ObjectHandle.ToString());
+	}
+	
+}
+
 } // end namespace UE::Net::Private

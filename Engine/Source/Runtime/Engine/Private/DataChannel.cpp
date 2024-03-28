@@ -17,6 +17,7 @@
 #include "Net/Core/Trace/Private/NetTraceInternal.h"
 #include "Net/Core/Misc/GuidReferences.h"
 #include "Net/Core/NetCoreModule.h"
+#include "Net/Core/Connection/NetEnums.h"
 #include "UObject/UObjectIterator.h"
 #include "EngineStats.h"
 #include "Engine/Engine.h"
@@ -1873,14 +1874,14 @@ void UControlChannel::ReceivedBunch( FInBunch& Bunch )
 		}
 		else if (MessageType == NMT_IrisNetRefHandleError)
 		{
-			uint32 ErrorType = 0; //TBD
+			UE::Net::ENetRefHandleError NetRefHandleError = UE::Net::ENetRefHandleError::None;
 			uint64 NetRefHandleId = 0;
-			if (FNetControlMessage<NMT_IrisNetRefHandleError>::Receive(Bunch, ErrorType, NetRefHandleId))
+			if (FNetControlMessage<NMT_IrisNetRefHandleError>::Receive(Bunch, NetRefHandleError, NetRefHandleId))
 			{
 #if UE_WITH_IRIS
 				if (UReplicationSystem* IrisRepSystem = Connection->Driver->GetReplicationSystem())
 				{
-					IrisRepSystem->ReportErrorWithNetRefHandle(ErrorType, NetRefHandleId, Connection->GetConnectionId());
+					IrisRepSystem->ReportErrorWithNetRefHandle(NetRefHandleError, NetRefHandleId, Connection->GetConnectionId());
 				}
 #endif
 			}

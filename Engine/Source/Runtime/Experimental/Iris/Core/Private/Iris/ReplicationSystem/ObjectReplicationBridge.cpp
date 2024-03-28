@@ -16,6 +16,7 @@
 
 #include "Net/Core/NetBitArrayPrinter.h"
 #include "Net/Core/NetHandle/NetHandleManager.h"
+#include "Net/Core/Connection/NetEnums.h"
 #include "Net/Core/PropertyConditions/PropertyConditionsDelegates.h"
 #include "Net/Core/Trace/NetTrace.h"
 #include "Net/Core/Trace/NetDebugName.h"
@@ -89,6 +90,13 @@ static FAutoConsoleVariableRef CVarEnableForceNetUpdate(
 	TEXT("When true the system only allows ForceNetUpdate to skip the poll frequency of objects. When false any MarkDirty object will be immediately polled.")
 );
 
+static int32 GEnsureNetRefHandleError = 0;
+static FAutoConsoleVariableRef CvarEnsureNetRefHandleError(
+	TEXT("net.Iris.EnsureNetRefHandleError"),
+	GEnsureNetRefHandleError,
+	TEXT("Chooses if we should ensure when a NetRefHandleError was reported. -1=never ensure. 0=always ensure. 1..X=ensure only for specific error type")
+);
+
 UObjectReplicationBridge::FCreateNetRefHandleParams UObjectReplicationBridge::DefaultCreateNetRefHandleParams =
 {
 	.bCanReceive=false, 
@@ -140,6 +148,8 @@ UObjectReplicationBridge::~UObjectReplicationBridge()
 void UObjectReplicationBridge::Initialize(UReplicationSystem* InReplicationSystem)
 {
 	LLM_SCOPE_BYTAG(Iris);
+
+	ensureMsgf((GEnsureNetRefHandleError == -1 || GEnsureNetRefHandleError < (int32)UE::Net::ENetRefHandleError::Max), TEXT("GEnsureNetRefHandleError is set to an invalid value: %u"), GEnsureNetRefHandleError);
 
 	Super::Initialize(InReplicationSystem);
 
@@ -2025,7 +2035,7 @@ void UObjectReplicationBridge::OnProtocolMismatchReported(FNetRefHandle RefHandl
 	}
 }
 
-void UObjectReplicationBridge::OnErrorWithNetRefHandleReported(uint32 ErrorType, FNetRefHandle RefHandle, uint32 ConnectionId)
+void UObjectReplicationBridge::OnErrorWithNetRefHandleReported(UE::Net::ENetRefHandleError ErrorType, FNetRefHandle RefHandle, uint32 ConnectionId)
 {
 	using namespace UE::Net;
 	using namespace UE::Net::Private;
@@ -2033,20 +2043,35 @@ void UObjectReplicationBridge::OnErrorWithNetRefHandleReported(uint32 ErrorType,
 	// Ensure at the end so the log contains all the relevant information
 	ON_SCOPE_EXIT
 	{
-		ensureMsgf(false, TEXT("NetRefHandle error: %u reported for %s. Look at the log for important information on the object tied to the handle."), ErrorType, *RefHandle.ToString());
+		if (GEnsureNetRefHandleError==0 || GEnsureNetRefHandleError==(int32)ErrorType)
+		{
+			// Use different calls for every error type to prevent only reporting the first error that occured.
+			switch(ErrorType)
+			{
+				case ENetRefHandleError::BitstreamCorrupted:
+				{
+					ensureMsgf(false, TEXT("NetRefHandle error: Bitstream corrupted reported with %s. Look at the log for important information on the object tied to the handle."), *NetRefHandleManager->PrintObjectFromNetRefHandle(RefHandle));
+				} break;
+				case ENetRefHandleError::ReplicationDisabled:
+				{
+					ensureMsgf(false, TEXT("NetRefHandle error: Replication disabled for %s. Client was unable to read the creation data and did not spawn the netobject."), *NetRefHandleManager->PrintObjectFromNetRefHandle(RefHandle));
+				} break;
+				default:
+				{
+					ensureMsgf(false, TEXT("NetRefHandle error: %s reported for %s. This should not occur. Missing switch case or wrong error type used."), LexToString(ErrorType), *NetRefHandleManager->PrintObjectFromNetRefHandle(RefHandle));
+				} break;
+			}
+		}
 	};
 
 	const FInternalNetRefIndex ObjectInternalIndex = NetRefHandleManager->GetInternalIndex(RefHandle);
 	if (ObjectInternalIndex == FNetRefHandleManager::InvalidInternalIndex)
 	{
-		UE_LOG(LogIris, Warning, TEXT("OnErrorWithNetRefHandleReported: %u from client %s for %s but object has no InternalIndex."), ErrorType, *PrintConnectionInfo(ConnectionId), *RefHandle.ToString());
+		UE_LOG(LogIris, Warning, TEXT("OnErrorWithNetRefHandleReported: %s from client %s for %s but object has no InternalIndex."), LexToString(ErrorType), *PrintConnectionInfo(ConnectionId), *RefHandle.ToString());
 		return;
 	}
 
-	UE_LOG(LogIris, Error, TEXT("OnErrorWithNetRefHandleReported: %u from client %s. Problematic object was %s"), 
-		ErrorType, *PrintConnectionInfo(ConnectionId),
-		*NetRefHandleManager->PrintObjectFromIndex(ObjectInternalIndex)
-	);
+	UE_LOG(LogIris, Error, TEXT("OnErrorWithNetRefHandleReported: %s from client %s. Problematic object was %s"),  LexToString(ErrorType), *PrintConnectionInfo(ConnectionId), *NetRefHandleManager->PrintObjectFromIndex(ObjectInternalIndex));
 }
 
 TArray<uint32> UObjectReplicationBridge::FindConnectionsFromArgs(const TArray<FString>& Args) const

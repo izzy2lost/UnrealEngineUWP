@@ -113,3 +113,32 @@ namespace ESecurityEvent
 #if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_2
 #include "CoreMinimal.h"
 #endif
+
+
+namespace UE::Net
+{
+
+/**
+ * Error types used when reporting an error on a specific Iris handle
+ */
+enum class ENetRefHandleError : uint32
+{
+	None = 0,
+	BitstreamCorrupted, // An error while reading detected an irrecoverable bitstream corruption. Client was forced to disconnect
+	ReplicationDisabled, // An error while reading was recoverable but prevents this NetObject from replicating.
+	Max, // always keep last
+};
+
+inline const TCHAR* LexToString(ENetRefHandleError NetRefHandleError)
+{
+	switch (NetRefHandleError)
+	{
+		case ENetRefHandleError::None: return TEXT("None");
+		case ENetRefHandleError::BitstreamCorrupted: return TEXT("BitstreamCorrupted");
+		case ENetRefHandleError::ReplicationDisabled: return TEXT("ReplicationDisabled");
+		case ENetRefHandleError::Max: return TEXT("Max");
+		default: return TEXT("missing");
+	}
+}
+
+} // end namespace UE::Net

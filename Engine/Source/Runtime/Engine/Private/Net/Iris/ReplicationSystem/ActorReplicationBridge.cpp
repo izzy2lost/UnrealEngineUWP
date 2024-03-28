@@ -34,6 +34,7 @@
 #include "HAL/LowLevelMemStats.h"
 #include "Net/DataBunch.h"
 #include "Net/DataChannel.h"
+#include "Net/Core/Connection/NetEnums.h"
 #include "Net/Core/Connection/NetCloseResult.h"
 #include "Net/Core/Misc/NetSubObjectRegistry.h"
 #include "Net/Core/Trace/NetDebugName.h"
@@ -1212,7 +1213,7 @@ void UActorReplicationBridge::OnProtocolMismatchReported(FNetRefHandle RefHandle
 	}
 }
 
-void UActorReplicationBridge::ReportErrorWithNetRefHandle(uint32 ErrorType, FNetRefHandle RefHandle, uint32 ConnectionId)
+void UActorReplicationBridge::SendErrorWithNetRefHandle(UE::Net::ENetRefHandleError ErrorType, FNetRefHandle RefHandle, uint32 ConnectionId)
 {
 	if (NetDriver)
 	{
@@ -1223,7 +1224,7 @@ void UActorReplicationBridge::ReportErrorWithNetRefHandle(uint32 ErrorType, FNet
 		}
 		else
 		{
-			UE_LOG(LogIrisBridge, Error, TEXT("UActorReplicationBridge::ReportErrorWithNetRefHandle could not find Connection for id:%u"), ConnectionId);
+			UE_LOG(LogIrisBridge, Error, TEXT("UActorReplicationBridge::SendErrorWithNetRefHandle could not find Connection for id:%u"), ConnectionId);
 		}
 	}
 }

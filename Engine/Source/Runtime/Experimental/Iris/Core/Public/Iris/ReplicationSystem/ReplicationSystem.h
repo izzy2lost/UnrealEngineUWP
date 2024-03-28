@@ -27,6 +27,7 @@ namespace UE::Net
 	class FNetBitArray;
 	class FNetCullDistanceOverrides;
 	enum class ENetFilterStatus : uint32;
+	enum class ENetRefHandleError : uint32;
 	class FNetObjectAttachment;
 	enum class ENetObjectDeltaCompressionStatus : unsigned;
 	typedef uint32 FNetObjectFilterHandle;
@@ -604,7 +605,7 @@ public:
 	IRISCORE_API void ReportProtocolMismatch(uint64 NetRefHandleId, uint32 ConnectionId);
 
 	/** Called when a connection reports a critical error with a netrefhandle object */
-	IRISCORE_API void ReportErrorWithNetRefHandle(uint32 ErrorType, uint64 NetRefHandleId, uint32 ConnectionId);
+	IRISCORE_API void ReportErrorWithNetRefHandle(UE::Net::ENetRefHandleError ErrorType, uint64 NetRefHandleId, uint32 ConnectionId);
 
 public:
 	// For internal use and not exported.
