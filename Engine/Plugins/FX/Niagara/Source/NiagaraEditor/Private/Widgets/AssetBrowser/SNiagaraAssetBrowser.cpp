@@ -998,16 +998,7 @@ void SNiagaraAddEmitterToSystemWindow::Construct(const FArguments& InArgs, TShar
 		   .HAlign(HAlign_Left)
 		   [
 			   SNew(SButton)
-			   .OnClicked_Lambda([this]()
-			   {
-			   		if(WeakSystemViewModel.IsValid())
-			   		{
-						WeakSystemViewModel.Pin()->AddEmptyEmitter();
-			   			RequestDestroyWindow();
-			   		}
-			   	
-				   return FReply::Handled();
-			   })
+			   .OnClicked(this, &SNiagaraAddEmitterToSystemWindow::AddEmptyEmitter)
 			   [
 				   SNew(SHorizontalBox)
 				   + SHorizontalBox::Slot()
@@ -1069,7 +1060,7 @@ void SNiagaraAddEmitterToSystemWindow::OnAssetsActivatedInternal(const TArray<FA
 	{
 		if(AssetData.Num() == 0)
 		{
-			WeakSystemViewModel.Pin()->AddEmptyEmitter();
+			WeakSystemViewModel.Pin()->AddDefaultEmptyEmitter();
 		}
 		else
 		{

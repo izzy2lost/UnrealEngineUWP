@@ -286,7 +286,7 @@ FActionMenuContent SNiagaraOverviewGraph::OnCreateGraphActionMenu(UEdGraph* InGr
 
 void SNiagaraOverviewGraph::OnCreateEmptyEmitter()
 {
-	ViewModel->GetSystemViewModel()->AddEmptyEmitter();
+	ViewModel->GetSystemViewModel()->AddDefaultEmptyEmitter();
 }
 
 void SNiagaraOverviewGraph::OnCreateStatelessEmitter()

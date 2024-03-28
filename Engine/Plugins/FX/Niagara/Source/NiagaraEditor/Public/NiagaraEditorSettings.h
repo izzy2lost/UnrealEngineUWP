@@ -362,6 +362,10 @@ public:
 	UPROPERTY(config, EditAnywhere, Category = Niagara)
 	FSoftObjectPath DefaultModuleScript;
 
+	/** Niagara emitter to duplicate as the base for empty emitters. Useful to set up default state. If empty, a truly empty emitter will be used. */
+	UPROPERTY(config, EditAnywhere, Category = Niagara, meta=(AllowedClasses="/Script/Niagara.NiagaraEmitter"))
+	FSoftObjectPath DefaultEmptyEmitter;
+
 	/** Niagara script which is required in the system update script to control system state. */
 	UPROPERTY(config, EditAnywhere, Category = Niagara)
 	FSoftObjectPath RequiredSystemUpdateScript;
