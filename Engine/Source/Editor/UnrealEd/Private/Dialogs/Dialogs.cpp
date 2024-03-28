@@ -918,6 +918,7 @@ FSuppressableWarningDialog::EResult FSuppressableWarningDialog::ShowModal() cons
 				{
 					GConfig->SetBool(*ConfigSection, *ResponseIniSettingName, true, IniSettingFileName);
 				}
+				GConfig->Flush(false, IniSettingFileName);
 			}
 		}
 		else
@@ -926,6 +927,7 @@ FSuppressableWarningDialog::EResult FSuppressableWarningDialog::ShowModal() cons
 			{
 				GConfig->SetBool(*ConfigSection, *IniSettingName, bShouldSuppressDialog, IniSettingFileName);
 				GConfig->SetBool(*ConfigSection, *ResponseIniSettingName, false, IniSettingFileName);
+				GConfig->Flush(false, IniSettingFileName);
 			}
 		}
 	}
