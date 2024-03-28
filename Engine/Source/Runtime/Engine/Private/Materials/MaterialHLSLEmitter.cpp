@@ -403,6 +403,17 @@ static void GetMaterialEnvironment(EShaderPlatform InPlatform,
 		OutEnvironment.SetDefine(TEXT("NEEDS_WORLD_POSITION_EXCLUDING_SHADER_OFFSETS"), TEXT("1"));
 	}
 
+	const bool bNeedsInstanceWorldToLocalPS = 
+		EmitMaterialData.IsExternalInputUsed(SF_Pixel, Material::EExternalInput::PositionInstanceSpace) ||
+		EmitMaterialData.IsExternalInputUsed(SF_Pixel, Material::EExternalInput::PositionInstanceSpace_NoOffsets) ||
+		EmitMaterialData.IsExternalInputUsed(SF_Pixel, Material::EExternalInput::PrevPositionInstanceSpace) ||
+		EmitMaterialData.IsExternalInputUsed(SF_Pixel, Material::EExternalInput::PrevPositionInstanceSpace_NoOffsets);
+
+	if (bNeedsInstanceWorldToLocalPS)
+	{
+		OutEnvironment.SetDefine(TEXT("NEEDS_INSTANCE_WORLD_TO_LOCAL_PS"), TEXT("1"));
+	}
+
 	const bool bNeedsParticleSize = EmitMaterialData.IsExternalInputUsed(Material::EExternalInput::ParticleSize);
 
 	if (bNeedsParticleSize)

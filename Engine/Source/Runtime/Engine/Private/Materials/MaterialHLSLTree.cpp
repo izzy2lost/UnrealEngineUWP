@@ -62,6 +62,16 @@ FExternalInputDescription GetExternalInputDescription(EExternalInput Input)
 	case EExternalInput::VertexColor_Ddx: return FExternalInputDescription(TEXT("VertexColor_Ddx"), Shader::EValueType::Float4);
 	case EExternalInput::VertexColor_Ddy: return FExternalInputDescription(TEXT("VertexColor_Ddy"), Shader::EValueType::Float4);
 
+	case EExternalInput::PositionInstanceSpace: return FExternalInputDescription(TEXT("PositionInstanceSpace"), Shader::EValueType::Float3, EExternalInput::None, EExternalInput::None, EExternalInput::PrevPositionInstanceSpace);
+	case EExternalInput::PositionInstanceSpace_NoOffsets: return FExternalInputDescription(TEXT("PositionInstanceSpace_NoOffsets"), Shader::EValueType::Float3, EExternalInput::None, EExternalInput::None, EExternalInput::PrevPositionInstanceSpace_NoOffsets);
+	case EExternalInput::PositionPrimitiveSpace: return FExternalInputDescription(TEXT("PositionPrimitiveSpace"), Shader::EValueType::Float3, EExternalInput::None, EExternalInput::None, EExternalInput::PrevPositionPrimitiveSpace);
+	case EExternalInput::PositionPrimitiveSpace_NoOffsets: return FExternalInputDescription(TEXT("PositionPrimitiveSpace_NoOffsets"), Shader::EValueType::Float3, EExternalInput::None, EExternalInput::PrevPositionPrimitiveSpace_NoOffsets);
+
+	case EExternalInput::PrevPositionInstanceSpace: return FExternalInputDescription(TEXT("PrevPositionInstanceSpace"), Shader::EValueType::Float3);
+	case EExternalInput::PrevPositionInstanceSpace_NoOffsets: return FExternalInputDescription(TEXT("PrevPositionInstanceSpace_NoOffsets"), Shader::EValueType::Float3);
+	case EExternalInput::PrevPositionPrimitiveSpace: return FExternalInputDescription(TEXT("PrevPositionPrimitiveSpace"), Shader::EValueType::Float3);
+	case EExternalInput::PrevPositionPrimitiveSpace_NoOffsets: return FExternalInputDescription(TEXT("PrevPositionPrimitiveSpace_NoOffsets"), Shader::EValueType::Float3);
+
 	case EExternalInput::WorldPosition: return FExternalInputDescription(TEXT("WorldPosition"), Shader::EValueType::Double3, EExternalInput::WorldPosition_Ddx, EExternalInput::WorldPosition_Ddy, EExternalInput::PrevWorldPosition);
 	case EExternalInput::WorldPosition_NoOffsets: return FExternalInputDescription(TEXT("WorldPosition_NoOffsets"), Shader::EValueType::Double3, EExternalInput::WorldPosition_Ddx, EExternalInput::WorldPosition_Ddy, EExternalInput::PrevWorldPosition_NoOffsets);
 	case EExternalInput::TranslatedWorldPosition: return FExternalInputDescription(TEXT("TranslatedWorldPosition"), Shader::EValueType::Float3, EExternalInput::WorldPosition_Ddx, EExternalInput::WorldPosition_Ddy, EExternalInput::PrevTranslatedWorldPosition);
@@ -235,6 +245,18 @@ EExternalInput FExpressionExternalInput::GetResolvedInputType(EShaderFrequency S
 	{
 		switch (Result)
 		{
+		case EExternalInput::PrevPositionInstanceSpace:
+			Result = EExternalInput::PositionInstanceSpace;
+			break;
+		case EExternalInput::PrevPositionInstanceSpace_NoOffsets:
+			Result = EExternalInput::PositionInstanceSpace_NoOffsets;
+			break;
+		case EExternalInput::PrevPositionPrimitiveSpace:
+			Result = EExternalInput::PositionPrimitiveSpace;
+			break;
+		case EExternalInput::PrevPositionPrimitiveSpace_NoOffsets:
+			Result = EExternalInput::PositionPrimitiveSpace_NoOffsets;
+			break;
 		case EExternalInput::PrevWorldPosition:
 			Result = EExternalInput::WorldPosition;
 			break;
@@ -255,6 +277,18 @@ EExternalInput FExpressionExternalInput::GetResolvedInputType(EShaderFrequency S
 	{
 		switch (Result)
 		{
+		case EExternalInput::PositionInstanceSpace_NoOffsets:
+			Result = EExternalInput::PositionInstanceSpace;
+			break;
+		case EExternalInput::PositionPrimitiveSpace_NoOffsets:
+			Result = EExternalInput::PositionPrimitiveSpace;
+			break;
+		case EExternalInput::PrevPositionInstanceSpace_NoOffsets:
+			Result = EExternalInput::PrevPositionInstanceSpace;
+			break;
+		case EExternalInput::PrevPositionPrimitiveSpace_NoOffsets:
+			Result = EExternalInput::PrevPositionPrimitiveSpace;
+			break;
 		case EExternalInput::WorldPosition_NoOffsets:
 			Result = EExternalInput::WorldPosition;
 			break;
@@ -353,6 +387,16 @@ void FExpressionExternalInput::EmitValueShader(FEmitContext& Context, FEmitScope
 		case EExternalInput::VertexColor: Code = TEXT("Parameters.VertexColor"); break;
 		case EExternalInput::VertexColor_Ddx: Code = TEXT("Parameters.VertexColor_DDX"); break;
 		case EExternalInput::VertexColor_Ddy: Code = TEXT("Parameters.VertexColor_DDY"); break;
+		
+		case EExternalInput::PositionInstanceSpace:					Code = TEXT("GetPositionInstanceSpace(Parameters)"); break;
+		case EExternalInput::PositionInstanceSpace_NoOffsets: 		Code = TEXT("GetPositionInstanceSpace_NoMaterialOffsets(Parameters)"); break;
+		case EExternalInput::PositionPrimitiveSpace:				Code = TEXT("GetPositionPrimitiveSpace(Parameters)"); break;
+		case EExternalInput::PositionPrimitiveSpace_NoOffsets:		Code = TEXT("GetPositionPrimitiveSpace_NoMaterialOffsets(Parameters)"); break;
+		case EExternalInput::PrevPositionInstanceSpace:				Code = TEXT("GetPrevPositionInstanceSpace(Parameters)"); break;
+		case EExternalInput::PrevPositionInstanceSpace_NoOffsets:	checkNoEntry(); break;
+		case EExternalInput::PrevPositionPrimitiveSpace:			Code = TEXT("GetPrevPositionPrimitiveSpace(Parameters)"); break;
+		case EExternalInput::PrevPositionPrimitiveSpace_NoOffsets:	checkNoEntry(); break;
+		
 		case EExternalInput::WorldPosition: Code = TEXT("GetWorldPosition(Parameters)"); break;
 		case EExternalInput::WorldPosition_NoOffsets: Code = TEXT("GetWorldPosition_NoMaterialOffsets(Parameters)"); break;
 		case EExternalInput::TranslatedWorldPosition: Code = TEXT("GetTranslatedWorldPosition(Parameters)"); break;

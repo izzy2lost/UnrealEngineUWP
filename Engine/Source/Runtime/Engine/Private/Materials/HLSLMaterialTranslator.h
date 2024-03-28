@@ -962,6 +962,7 @@ protected:
 	virtual int32 ParticleSize() override;
 	virtual int32 ParticleSpriteRotation() override;
 
+	virtual int32 LocalPosition(EPositionIncludedOffsets IncludedOffsets, ELocalPositionOrigin OriginType) override;
 	virtual int32 WorldPosition(EWorldPositionIncludedOffsets WorldPositionIncludedOffsets) override;
 
 	virtual int32 ObjectWorldPosition(EPositionOrigin OriginType) override;

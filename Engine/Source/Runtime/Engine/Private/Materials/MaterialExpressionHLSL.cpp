@@ -107,6 +107,7 @@
 #include "Materials/MaterialExpressionLightVector.h"
 #include "Materials/MaterialExpressionLinearInterpolate.h"
 #include "Materials/MaterialExpressionLightmassReplace.h"
+#include "Materials/MaterialExpressionLocalPosition.h"
 #include "Materials/MaterialExpressionLogarithm.h"
 #include "Materials/MaterialExpressionLogarithm10.h"
 #include "Materials/MaterialExpressionLogarithm2.h"
@@ -1014,6 +1015,43 @@ bool UMaterialExpressionPixelDepth::GenerateHLSLExpression(FMaterialHLSLGenerato
 {
 	using namespace UE::HLSLTree::Material;
 	OutExpression = Generator.GetTree().NewExpression<FExpressionExternalInput>(EExternalInput::PixelDepth);
+	return true;
+}
+
+bool UMaterialExpressionLocalPosition::GenerateHLSLExpression(FMaterialHLSLGenerator& Generator, UE::HLSLTree::FScope& Scope, int32 OutputIndex, UE::HLSLTree::FExpression const*& OutExpression) const
+{
+	using namespace UE::HLSLTree::Material;
+
+	if (LocalOrigin == ELocalPositionOrigin::InstancePreSkinning)
+	{
+		OutExpression = Generator.NewExternalInput(EExternalInput::PreSkinnedPosition);
+		return true;
+	}
+
+	if (IncludedOffsets == EPositionIncludedOffsets::IncludeOffsets
+		&& LocalOrigin == ELocalPositionOrigin::Instance)
+	{
+		OutExpression = Generator.NewExternalInput(EExternalInput::PositionInstanceSpace);
+	}
+	else if (IncludedOffsets == EPositionIncludedOffsets::IncludeOffsets
+		&& LocalOrigin == ELocalPositionOrigin::Primitive)
+	{
+		OutExpression = Generator.NewExternalInput(EExternalInput::PositionPrimitiveSpace);
+	}
+	else if (IncludedOffsets == EPositionIncludedOffsets::ExcludeOffsets
+		&& LocalOrigin == ELocalPositionOrigin::Instance)
+	{
+		OutExpression = Generator.NewExternalInput(EExternalInput::PositionInstanceSpace_NoOffsets);
+	}
+	else if (IncludedOffsets == EPositionIncludedOffsets::ExcludeOffsets
+		&& LocalOrigin == ELocalPositionOrigin::Primitive)
+	{
+		OutExpression = Generator.NewExternalInput(EExternalInput::PositionPrimitiveSpace_NoOffsets);
+	}
+	else
+	{
+		checkNoEntry();
+	}
 	return true;
 }
 

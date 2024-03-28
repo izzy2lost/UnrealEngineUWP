@@ -5935,20 +5935,96 @@ int32 FHLSLMaterialTranslator::ParticleSpriteRotation()
 	return AddInlinedCodeChunkZeroDeriv(MCT_Float2, TEXT("float2(Parameters.Particle.SpriteRotation, Parameters.Particle.SpriteRotation * 57.2957795131f)"));
 }
 
+int32 FHLSLMaterialTranslator::LocalPosition(EPositionIncludedOffsets IncludedOffsets, ELocalPositionOrigin OriginType)
+{
+	if (OriginType == ELocalPositionOrigin::InstancePreSkinning)
+	{
+		if (ShaderFrequency != SF_Vertex)
+		{
+			return Errorf(TEXT("Pre-skinned position is only available in the vertex shader, pass through custom interpolators if needed."));
+		}
+
+		return AddInlinedCodeChunk(MCT_Float3,TEXT("Parameters.PreSkinnedPosition"));
+	}
+
+	// If compiling for the previous frame in the vertex shader
+	bool bPreviousIsAvailable = ShaderFrequency == SF_Vertex;
+	const TCHAR* PrevPart = (bCompilingPreviousFrame && bPreviousIsAvailable) ? TEXT("Prev") : TEXT("");
+
+	const TCHAR* OriginPart = nullptr;
+	switch (OriginType)
+	{
+		case ELocalPositionOrigin::Instance:
+		{
+			OriginPart = TEXT("Instance");
+			break;
+		}
+		case ELocalPositionOrigin::Primitive:
+		{
+			OriginPart = TEXT("Primitive");
+			break;
+		}
+		default: checkNoEntry();
+	}
+
+	const TCHAR* NoMaterialOffsetsPart = nullptr;
+	switch (IncludedOffsets)
+	{
+		case EPositionIncludedOffsets::IncludeOffsets:
+		{
+			NoMaterialOffsetsPart = TEXT("");
+			break;
+		}
+		case EPositionIncludedOffsets::ExcludeOffsets:
+		{
+			// No material offset only available in the pixel shader.
+			if (ShaderFrequency == SF_Pixel)
+			{
+				NoMaterialOffsetsPart = TEXT("_NoMaterialOffsets");
+			}
+			else
+			{
+				NoMaterialOffsetsPart = TEXT("");
+			}
+			break;
+		}
+		default: checkNoEntry();
+	}
+
+	bUsesInstanceWorldToLocalPS |= (ShaderFrequency == SF_Pixel && OriginType == ELocalPositionOrigin::Instance);
+
+	TArray<FStringFormatArg> FormatArgs =
+	{
+		PrevPart,
+		OriginPart,
+		NoMaterialOffsetsPart,
+	};
+	FString FiniteCode = FString::Format(TEXT("Get{0}Position{1}Space{2}(Parameters)"), FormatArgs);
+
+	return AddInlinedCodeChunk(MCT_Float3, *FiniteCode);
+}
+
 int32 FHLSLMaterialTranslator::WorldPosition(EWorldPositionIncludedOffsets WorldPositionIncludedOffsets)
 {
-	FString FunctionNamePattern;
-	EMaterialValueType Type = (EMaterialValueType)0;
+	// If compiling for the previous frame in the vertex shader
+	bool bPreviousIsAvailable = ShaderFrequency == SF_Vertex;
+	const TCHAR* PrevPart = (bCompilingPreviousFrame && bPreviousIsAvailable) ? TEXT("Prev") : TEXT("");
+
+	bool bNoMaterialOffsetsIsAvailable = ShaderFrequency == SF_Pixel;
 
 	// If this material has no expressions for world position offset or world displacement, the non-offset world position will
 	// be exactly the same as the offset one, so there is no point bringing in the extra code.
 	// Also, we can't access the full offset world position in anything other than the pixel shader, because it won't have
 	// been calculated yet
+	const TCHAR* OriginPart = nullptr;
+	const TCHAR* NoMaterialOffsetsPart = nullptr;
+	EMaterialValueType Type = (EMaterialValueType)0;
 	switch (WorldPositionIncludedOffsets)
 	{
 	case WPT_Default:
 		{
-			FunctionNamePattern = TEXT("Get<PREV>WorldPosition");
+			OriginPart = TEXT("World");
+			NoMaterialOffsetsPart = TEXT("");
 			Type = MCT_LWCVector3;
 			break;
 		}
@@ -5956,14 +6032,16 @@ int32 FHLSLMaterialTranslator::WorldPosition(EWorldPositionIncludedOffsets World
 	case WPT_ExcludeAllShaderOffsets:
 		{
 			bNeedsWorldPositionExcludingShaderOffsets |= (ShaderFrequency == SF_Pixel);
-			FunctionNamePattern = TEXT("Get<PREV>WorldPosition<NO_MATERIAL_OFFSETS>");
+			OriginPart = TEXT("World");
+			NoMaterialOffsetsPart = bNoMaterialOffsetsIsAvailable ? TEXT("_NoMaterialOffsets") : TEXT("");
 			Type = MCT_LWCVector3;
 			break;
 		}
 
 	case WPT_CameraRelative:
 		{
-			FunctionNamePattern = TEXT("Get<PREV>TranslatedWorldPosition");
+			OriginPart = TEXT("TranslatedWorld");
+			NoMaterialOffsetsPart = TEXT("");
 			Type = MCT_Float3;
 			break;
 		}
@@ -5971,7 +6049,8 @@ int32 FHLSLMaterialTranslator::WorldPosition(EWorldPositionIncludedOffsets World
 	case WPT_CameraRelativeNoOffsets:
 		{
 			bNeedsWorldPositionExcludingShaderOffsets |= (ShaderFrequency == SF_Pixel);
-			FunctionNamePattern = TEXT("Get<PREV>TranslatedWorldPosition<NO_MATERIAL_OFFSETS>");
+			OriginPart = TEXT("TranslatedWorld");
+			NoMaterialOffsetsPart = bNoMaterialOffsetsIsAvailable ? TEXT("_NoMaterialOffsets") : TEXT("");
 			Type = MCT_Float3;
 			break;
 		}
@@ -5982,23 +6061,17 @@ int32 FHLSLMaterialTranslator::WorldPosition(EWorldPositionIncludedOffsets World
 			return INDEX_NONE;
 		}
 	}
-
-	// If compiling for the previous frame in the vertex shader
-	FunctionNamePattern.ReplaceInline(TEXT("<PREV>"), bCompilingPreviousFrame && ShaderFrequency == SF_Vertex ? TEXT("Prev") : TEXT(""));
-		
-	if (ShaderFrequency == SF_Pixel)
-	{
-		// No material offset only available in the vertex shader.
-		FunctionNamePattern.ReplaceInline(TEXT("<NO_MATERIAL_OFFSETS>"), TEXT("_NoMaterialOffsets"));
-	}
-	else
-	{
-		FunctionNamePattern.ReplaceInline(TEXT("<NO_MATERIAL_OFFSETS>"), TEXT(""));
-	}
-
+	
 	bUsesVertexPosition = true;
 
-	FString FiniteCode = FString::Printf(TEXT("%s(Parameters)"), *FunctionNamePattern);
+	TArray<FStringFormatArg> FormatArgs =
+	{
+		PrevPart,
+		OriginPart,
+		NoMaterialOffsetsPart,
+	};
+	FString FiniteCode = FString::Format(TEXT("Get{0}{1}Position{2}(Parameters)"), FormatArgs);
+
 	int32 Result = INDEX_NONE;
 	if (IsAnalyticDerivEnabled())
 	{

@@ -133,6 +133,7 @@
 #include "Materials/MaterialExpressionExponential.h"
 #include "Materials/MaterialExpressionExponential2.h"
 #include "Materials/MaterialExpressionLength.h"
+#include "Materials/MaterialExpressionLocalPosition.h"
 #include "Materials/MaterialExpressionLogarithm.h"
 #include "Materials/MaterialExpressionLogarithm2.h"
 #include "Materials/MaterialExpressionLogarithm10.h"
@@ -13213,6 +13214,75 @@ void UMaterialExpressionFontSampleParameter::SetEditableName(const FString& NewN
 #endif
 
 ///////////////////////////////////////////////////////////////////////////////
+// UMaterialExpressionLocalPosition
+///////////////////////////////////////////////////////////////////////////////
+
+UMaterialExpressionLocalPosition::UMaterialExpressionLocalPosition(const FObjectInitializer& ObjectInitializer)
+	: Super(ObjectInitializer)
+{
+#if WITH_EDITORONLY_DATA
+	// Structure to hold one-time initialization
+	struct FConstructorStatics
+	{
+		FText NAME_Coordinates;
+		FConstructorStatics()
+		: NAME_Coordinates(LOCTEXT( "Coordinates", "Coordinates" ))
+		{
+		}
+	};
+	static FConstructorStatics ConstructorStatics;
+
+	MenuCategories.Add(ConstructorStatics.NAME_Coordinates);
+
+	Outputs.Reset();
+	Outputs.Add(FExpressionOutput(TEXT("XYZ"), 1, 1, 1, 1, 0));
+	Outputs.Add(FExpressionOutput(TEXT("XY"), 1, 1, 1, 0, 0));
+	Outputs.Add(FExpressionOutput(TEXT("Z"), 1, 0, 0, 1, 0));
+
+	bShowOutputNameOnPin = true;
+	bShaderInputData = true;
+#endif
+
+	IncludedOffsets = EPositionIncludedOffsets::IncludeOffsets;
+	LocalOrigin = ELocalPositionOrigin::Instance;
+}
+
+#if WITH_EDITOR
+int32 UMaterialExpressionLocalPosition::Compile(class FMaterialCompiler* Compiler, int32 OutputIndex)
+{
+	return Compiler->LocalPosition(IncludedOffsets, LocalOrigin);
+}
+
+void UMaterialExpressionLocalPosition::GetCaption(TArray<FString>& OutCaptions) const
+{
+	if (LocalOrigin == ELocalPositionOrigin::InstancePreSkinning)
+	{
+		OutCaptions.Add(NSLOCTEXT("MaterialExpressions", "LocalPositionInstanceIncludingOffsetsText", "Pre-Skinned Local Position").ToString());
+	}
+	else if (IncludedOffsets == EPositionIncludedOffsets::IncludeOffsets && LocalOrigin == ELocalPositionOrigin::Instance)
+	{
+		OutCaptions.Add(NSLOCTEXT("MaterialExpressions", "LocalPositionInstanceIncludingOffsetsText", "Local Position").ToString());
+	}
+	else if (IncludedOffsets == EPositionIncludedOffsets::ExcludeOffsets && LocalOrigin == ELocalPositionOrigin::Instance)
+	{
+		OutCaptions.Add(NSLOCTEXT("MaterialExpressions", "LocalPositionInstanceExcludingOffsetsText", "Local Position (Excluding Material Offsets)").ToString());
+	}
+	else if (IncludedOffsets == EPositionIncludedOffsets::IncludeOffsets && LocalOrigin == ELocalPositionOrigin::Primitive)
+	{
+		OutCaptions.Add(NSLOCTEXT("MaterialExpressions", "LocalPositionComponentIncludingOffsetsText", "Component Local Position").ToString());
+	}
+	else if (IncludedOffsets == EPositionIncludedOffsets::ExcludeOffsets && LocalOrigin == ELocalPositionOrigin::Primitive)
+	{
+		OutCaptions.Add(NSLOCTEXT("MaterialExpressions", "LocalPositionComponentExcludingOffsetsText", "Component Local Position (Excluding Material Offsets)").ToString());
+	}
+	else
+	{
+		checkNoEntry();
+	}
+}
+#endif // WITH_EDITOR
+
+///////////////////////////////////////////////////////////////////////////////
 // UMaterialExpressionWorldPosition
 ///////////////////////////////////////////////////////////////////////////////
 UMaterialExpressionWorldPosition::UMaterialExpressionWorldPosition(const FObjectInitializer& ObjectInitializer)
@@ -22710,13 +22780,14 @@ int32 UMaterialExpressionPreSkinnedPosition::Compile(class FMaterialCompiler* Co
 
 void UMaterialExpressionPreSkinnedPosition::GetCaption(TArray<FString>& OutCaptions) const
 {
-	OutCaptions.Add(TEXT("Pre-Skinned Local Position"));
+	OutCaptions.Add(TEXT("Pre-Skinned Local Position (deprecated)"));
 }
 
 void UMaterialExpressionPreSkinnedPosition::GetExpressionToolTip(TArray<FString>& OutToolTip) 
 {
-	ConvertToMultilineToolTip(TEXT("Returns pre-skinned local position for skeletal meshes, usable in vertex shader only."
-		"Returns the local position for non-skeletal meshes. Incompatible with GPU skin cache feature."), 40, OutToolTip);
+	ConvertToMultilineToolTip(TEXT("Deprecated, has been merged into 'Local Position'."
+	                               "Returns pre-skinned local position for skeletal meshes, usable in vertex shader only."
+	                               "Returns the local position for non-skeletal meshes. Incompatible with GPU skin cache feature."), 40, OutToolTip);
 }
 #endif // WITH_EDITOR
 

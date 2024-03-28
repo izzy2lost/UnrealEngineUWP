@@ -11,6 +11,7 @@
 #include "MaterialShared.h"
 #include "Materials/MaterialExpressionSpeedTree.h"
 #include "Materials/MaterialExpressionTextureSample.h"
+#include "Materials/MaterialExpressionLocalPosition.h"
 #include "Materials/MaterialExpressionWorldPosition.h"
 #include "Materials/MaterialExpressionTextureProperty.h"
 #include "Materials/MaterialExpressionViewProperty.h"
@@ -235,6 +236,7 @@ public:
 
 	virtual int32 GetViewportUV() = 0;
 	virtual int32 GetPixelPosition() = 0;
+	virtual int32 LocalPosition(EPositionIncludedOffsets IncludedOffsets, ELocalPositionOrigin OriginType) = 0;
 	virtual int32 WorldPosition(EWorldPositionIncludedOffsets WorldPositionIncludedOffsets) = 0;
 	virtual int32 ObjectWorldPosition(EPositionOrigin OriginType) = 0;
 	UE_DEPRECATED(5.4, "Use ObjectWorldPosition(EPositionOrigin) instead")
@@ -842,6 +844,7 @@ public:
 
 	virtual int32 GetViewportUV() override { return Compiler->GetViewportUV(); }
 	virtual int32 GetPixelPosition() override { return Compiler->GetPixelPosition(); }
+	virtual int32 LocalPosition(EPositionIncludedOffsets IncludedOffsets, ELocalPositionOrigin OriginType) { return Compiler->LocalPosition(IncludedOffsets, OriginType); }
 	virtual int32 WorldPosition(EWorldPositionIncludedOffsets WorldPositionIncludedOffsets) override { return Compiler->WorldPosition(WorldPositionIncludedOffsets); }
 	virtual int32 ObjectWorldPosition(EPositionOrigin OriginType) override { return Compiler->ObjectWorldPosition(OriginType); }
 	virtual int32 ObjectRadius() override { return Compiler->ObjectRadius(); }

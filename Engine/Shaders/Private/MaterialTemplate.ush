@@ -970,17 +970,17 @@ FWSVector3 GetPrevParticleWorldPosition(FMaterialPixelParameters Parameters)
 
 // Local position
 
-float3 GetPrimitiveSpacePosition(FMaterialPixelParameters Parameters)
+float3 GetPositionPrimitiveSpace(FMaterialPixelParameters Parameters)
 {
 	return DFFastMultiplyDemote(Parameters.AbsoluteWorldPosition, GetPrimitiveData(Parameters).WorldToLocal);
 }
 
-float3 GetPrimitiveSpacePosition(FMaterialVertexParameters Parameters)
+float3 GetPositionPrimitiveSpace(FMaterialVertexParameters Parameters)
 {
 	return Parameters.PositionPrimitiveSpace;
 }
 
-float3 GetPrevPrimitiveSpacePosition(FMaterialVertexParameters Parameters)
+float3 GetPrevPositionPrimitiveSpace(FMaterialVertexParameters Parameters)
 {
 	// Previous position and current position are sharing the
 	// same attribute in Parameters, because in BasePassVertexShader.usf
@@ -989,22 +989,22 @@ float3 GetPrevPrimitiveSpacePosition(FMaterialVertexParameters Parameters)
 	return Parameters.PositionPrimitiveSpace;
 }
 
-float3 GetPrimitiveSpacePosition_NoMaterialOffsets(FMaterialPixelParameters Parameters)
+float3 GetPositionPrimitiveSpace_NoMaterialOffsets(FMaterialPixelParameters Parameters)
 {
 	return DFFastMultiplyDemote(Parameters.WorldPosition_NoOffsets, GetPrimitiveData(Parameters).WorldToLocal);
 }
 
-float3 GetInstanceSpacePosition(FMaterialPixelParameters Parameters)
+float3 GetPositionInstanceSpace(FMaterialPixelParameters Parameters)
 {
 	return DFFastMultiplyDemote(Parameters.AbsoluteWorldPosition, GetWorldToInstanceDF(Parameters));
 }
 
-float3 GetInstanceSpacePosition(FMaterialVertexParameters Parameters)
+float3 GetPositionInstanceSpace(FMaterialVertexParameters Parameters)
 {
 	return Parameters.PositionInstanceSpace;
 }
 
-float3 GetPrevInstanceSpacePosition(FMaterialVertexParameters Parameters)
+float3 GetPrevPositionInstanceSpace(FMaterialVertexParameters Parameters)
 {
 	// Previous position and current position are sharing the
 	// same attribute in Parameters, because in BasePassVertexShader.usf
@@ -1013,7 +1013,7 @@ float3 GetPrevInstanceSpacePosition(FMaterialVertexParameters Parameters)
 	return Parameters.PositionInstanceSpace;
 }
 
-float3 GetInstanceSpacePosition_NoMaterialOffsets(FMaterialPixelParameters Parameters)
+float3 GetPositionInstanceSpace_NoMaterialOffsets(FMaterialPixelParameters Parameters)
 {
 	return DFFastMultiplyDemote(Parameters.WorldPosition_NoOffsets, GetWorldToInstanceDF(Parameters));
 }

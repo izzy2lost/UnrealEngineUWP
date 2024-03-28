@@ -97,6 +97,16 @@ enum class EExternalInput : uint8
 	VertexColor_Ddx,
 	VertexColor_Ddy,
 
+	PositionInstanceSpace,
+	PositionInstanceSpace_NoOffsets,
+	PositionPrimitiveSpace,
+	PositionPrimitiveSpace_NoOffsets,
+
+	PrevPositionInstanceSpace,
+	PrevPositionInstanceSpace_NoOffsets,
+	PrevPositionPrimitiveSpace,
+	PrevPositionPrimitiveSpace_NoOffsets,
+
 	WorldPosition,
 	WorldPosition_NoOffsets,
 	TranslatedWorldPosition,
