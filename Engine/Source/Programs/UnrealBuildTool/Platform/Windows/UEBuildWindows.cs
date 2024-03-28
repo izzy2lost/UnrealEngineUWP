@@ -635,7 +635,7 @@ namespace UnrealBuildTool
 		/// </summary>
 		[XmlConfigFile(Category = "WindowsPlatform")]
 		[RequiresUniqueBuildEnvironment]
-		public int bReducedOptimizeHugeFunctionsThreshold = 20000;
+		public int ReducedOptimizeHugeFunctionsThreshold = 20000;
 
 		/// <summary>
 		/// (Experimental) Appends the -ftime-trace argument to the command line for Clang to output a JSON file containing a timeline for the compile. 
@@ -915,7 +915,7 @@ namespace UnrealBuildTool
 
 		public bool bReducedOptimizeHugeFunctions => Inner.bReducedOptimizeHugeFunctions;
 
-		public int bReducedOptimizeHugeFunctionsThreshold => Inner.bReducedOptimizeHugeFunctionsThreshold;
+		public int ReducedOptimizeHugeFunctionsThreshold => Inner.ReducedOptimizeHugeFunctionsThreshold;
 
 		public bool bClangTimeTrace => Inner.bClangTimeTrace;
 

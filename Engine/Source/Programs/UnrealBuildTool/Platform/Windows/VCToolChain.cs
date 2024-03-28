@@ -495,7 +495,7 @@ namespace UnrealBuildTool
             if (Target.WindowsPlatform.Compiler.IsMSVC() && Target.WindowsPlatform.bReducedOptimizeHugeFunctions)
             {
                 Arguments.Add("/d2ReducedOptimizeHugeFunctions");
-                Arguments.Add($"/d2ReducedOptimizeThreshold:{Target.WindowsPlatform.bReducedOptimizeHugeFunctionsThreshold}");
+                Arguments.Add($"/d2ReducedOptimizeThreshold:{Target.WindowsPlatform.ReducedOptimizeHugeFunctionsThreshold}");
             }
 
 			// Separate functions for linker.
@@ -1364,7 +1364,7 @@ namespace UnrealBuildTool
             if (Target.WindowsPlatform.Compiler.IsMSVC() && Target.WindowsPlatform.bReducedOptimizeHugeFunctions)
             {
                 Arguments.Add("/d2:\"-ReducedOptimizeHugeFunctions\"");
-                Arguments.Add($"/d2:\"-ReducedOptimizeThreshold:{Target.WindowsPlatform.bReducedOptimizeHugeFunctionsThreshold}\"");
+                Arguments.Add($"/d2:\"-ReducedOptimizeThreshold:{Target.WindowsPlatform.ReducedOptimizeHugeFunctionsThreshold}\"");
             }
 
             //
