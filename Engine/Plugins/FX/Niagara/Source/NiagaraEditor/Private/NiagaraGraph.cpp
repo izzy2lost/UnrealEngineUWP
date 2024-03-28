@@ -2931,7 +2931,11 @@ void UNiagaraGraph::ScriptVariableChanged(FNiagaraVariable Variable)
 		MapGet->SynchronizeDefaultPins();
 	}
 
-	ValidateDefaultPins();
+	if(GIsTransacting == false)
+	{
+		ValidateDefaultPins();
+	}
+	
 	NotifyGraphChanged();
 }
 
