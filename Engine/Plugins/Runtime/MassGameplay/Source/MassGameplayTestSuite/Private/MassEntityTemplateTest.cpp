@@ -64,11 +64,11 @@ struct FEntityTemplate_Composition : FEntityTemplateBase
 		TemplateData.AddFragment<FTestFragment_Float>();
 		TemplateData.AddChunkFragment<FTestChunkFragment_Int>();
 		{
-			FSharedStruct SharedFragment = EntityManager->GetOrCreateSharedFragmentByHash<FTestSharedFragment_Int>(0);
+			FSharedStruct SharedFragment = EntityManager->GetOrCreateSharedFragment<FTestSharedFragment_Int>();
 			TemplateData.AddSharedFragment(SharedFragment);
 		}
 		{
-			FSharedStruct SharedFragment = EntityManager->GetOrCreateSharedFragmentByHash<FTestSharedFragment_Float>(1);
+			FSharedStruct SharedFragment = EntityManager->GetOrCreateSharedFragment<FTestSharedFragment_Float>();
 			TemplateData.AddConstSharedFragment(SharedFragment);
 		}
 		TemplateData.Sort();
