@@ -2,10 +2,11 @@
 
 #include "Details/PCGComponentDetails.h"
 #include "PCGComponent.h"
+#include "PCGEditorStyle.h"
 #include "PCGSubsystem.h"
-
 #include "Framework/Application/SlateApplication.h"
 #include "Widgets/Text/STextBlock.h"
+#include "Widgets/Images/SImage.h"
 #include "Widgets/Input/SButton.h"
 #include "DetailLayoutBuilder.h"
 #include "DetailWidgetRow.h"
@@ -68,36 +69,72 @@ void FPCGComponentDetails::CustomizeDetails(IDetailLayoutBuilder& DetailBuilder)
 			SNew(SHorizontalBox)
 			+ SHorizontalBox::Slot()
 			.AutoWidth()
-			.Padding(4.0f)
+			.Padding(2.0f, 0.0f)
+			.VAlign(VAlign_Fill)
 			[
 				SNew(SButton)
 				.OnClicked(this, &FPCGComponentDetails::OnGenerateClicked)
 				.ToolTipText(FText::FromString("Generates graph data. \nCtrl + Click flushes the cache and force generates."))
 				.Visibility(this, &FPCGComponentDetails::GenerateButtonVisible)
 				[
-					SNew(STextBlock)
-					.Font(IDetailLayoutBuilder::GetDetailFont())
-					.Text(LOCTEXT("GenerateButton", "Generate"))
+					SNew(SHorizontalBox)
+					+SHorizontalBox::Slot()
+					.Padding(0.0f, 0.0f, 6.0f, 0.0f)
+					.VAlign(VAlign_Center)
+					.AutoWidth()
+					[
+						SNew(SImage)
+						.DesiredSizeOverride(FVector2D(16,16))
+						.Image_Lambda([]() { return FSlateApplication::Get().GetModifierKeys().IsControlDown() ? FPCGEditorStyle::Get().GetBrush("PCG.Command.ForceRegenClearCache") : FPCGEditorStyle::Get().GetBrush("PCG.Command.ForceRegen"); })
+						.ColorAndOpacity(FSlateColor::UseForeground())
+					]
+					+SHorizontalBox::Slot()
+					.VAlign(VAlign_Center)
+					.AutoWidth()
+					[
+						SNew(STextBlock)
+						.Font(IDetailLayoutBuilder::GetDetailFont())
+						.Text_Lambda([]() { return FSlateApplication::Get().GetModifierKeys().IsControlDown() ? LOCTEXT("ForceRegenerateButton", "Force Generate") : LOCTEXT("GenerateButton", "Generate"); })
+					]
 				]
 			]
 			+ SHorizontalBox::Slot()
 			.AutoWidth()
-			.Padding(4.0f)
+			.Padding(2.0f, 0.0f)
+			.VAlign(VAlign_Fill)
 			[
 				SNew(SButton)
 				.OnClicked(this, &FPCGComponentDetails::OnCancelClicked)
 				.Visibility(this, &FPCGComponentDetails::CancelButtonVisible)
 				[
-					SNew(STextBlock)
-					.Font(IDetailLayoutBuilder::GetDetailFont())
-					.Text(LOCTEXT("CancelButton", "Cancel"))
+					SNew(SHorizontalBox)
+					+ SHorizontalBox::Slot()
+					.Padding(0.0f, 0.0f, 6.0f, 0.0f)
+					.VAlign(VAlign_Center)
+					.AutoWidth()
+					[
+						SNew(SImage)
+						.DesiredSizeOverride(FVector2D(16, 16))
+						.Image(FPCGEditorStyle::Get().GetBrush("PCG.Command.StopRegen"))
+						.ColorAndOpacity(FSlateColor::UseForeground())
+					]
+					+ SHorizontalBox::Slot()
+					.VAlign(VAlign_Center)
+					.AutoWidth()
+					[
+						SNew(STextBlock)
+						.Font(IDetailLayoutBuilder::GetDetailFont())
+						.Text(LOCTEXT("CancelButton", "Cancel"))
+					]
 				]
 			]
 			+ SHorizontalBox::Slot()
 			.AutoWidth()
-			.Padding(4.0f)
+			.VAlign(VAlign_Fill)
+			.Padding(2.0f, 0.0f)
 			[
 				SNew(SButton)
+				.VAlign(VAlign_Center)
 				.OnClicked(this, &FPCGComponentDetails::OnCleanupClicked)
 				.ToolTipText(FText::FromString("Cleans up graph data. \nCtrl + Click purges all components and attached actors tagged as created by PCG."))
 				.Visibility(this, &FPCGComponentDetails::CleanupButtonVisible)
@@ -109,9 +146,11 @@ void FPCGComponentDetails::CustomizeDetails(IDetailLayoutBuilder& DetailBuilder)
 			]
 			+ SHorizontalBox::Slot()
 			.AutoWidth()
-			.Padding(4.0f)
+			.VAlign(VAlign_Fill)
+			.Padding(2.0f, 0.0f)
 			[
 				SNew(SButton)
+				.VAlign(VAlign_Center)
 				.OnClicked(this, &FPCGComponentDetails::OnRefreshClicked)
 				.Visibility(this, &FPCGComponentDetails::RefreshButtonVisible)
 				[
@@ -122,9 +161,11 @@ void FPCGComponentDetails::CustomizeDetails(IDetailLayoutBuilder& DetailBuilder)
 			]
 			+ SHorizontalBox::Slot()
 			.AutoWidth()
-			.Padding(4.0f)
+			.VAlign(VAlign_Fill)
+			.Padding(2.0f, 0.0f)
 			[
 				SNew(SButton)
+				.VAlign(VAlign_Center)
 				.OnClicked(this, &FPCGComponentDetails::OnClearPCGLinkClicked)
 				[
 					SNew(STextBlock)

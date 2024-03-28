@@ -29,6 +29,7 @@
 #include "PCGEditorGraphSchemaActions.h"
 #include "PCGEditorMenuContext.h"
 #include "PCGEditorSettings.h"
+#include "PCGEditorStyle.h"
 #include "PCGEditorUtils.h"
 #include "SPCGEditorGraphAttributeListView.h"
 #include "SPCGEditorGraphDebugObjectTree.h"
@@ -597,31 +598,38 @@ void FPCGEditor::RegisterToolbar() const
 			PCGEditorCommands.Find,
 			TAttribute<FText>(),
 			TAttribute<FText>(),
-			FSlateIcon(FAppStyle::GetAppStyleSetName(), "BlueprintEditor.FindInBlueprint")));
+			FSlateIcon(FPCGEditorStyle::Get().GetStyleSetName(), "PCG.Command.Find")));
 
 		Section.AddEntry(FToolMenuEntry::InitToolBarButton(
 			FPCGEditorCommands::Get().PauseAutoRegeneration,
 			TAttribute<FText>(),
 			TAttribute<FText>(),
-			FSlateIcon(FAppStyle::GetAppStyleSetName(), "PlayWorld.PausePlaySession")));
+			FSlateIcon(FPCGEditorStyle::Get().GetStyleSetName(), "PCG.Command.PauseRegen")));
 
 		Section.AddEntry(FToolMenuEntry::InitToolBarButton(
 			FPCGEditorCommands::Get().ForceGraphRegeneration,
 			TAttribute<FText>(),
 			TAttribute<FText>(),
-			FSlateIcon(FAppStyle::GetAppStyleSetName(), "SourceControl.Actions.Refresh")));
+			TAttribute<FSlateIcon>::CreateLambda([]()
+			{
+				static const FSlateIcon ForceRegen = FSlateIcon(FPCGEditorStyle::Get().GetStyleSetName(), "PCG.Command.ForceRegen");
+				static const FSlateIcon ForceRegenClearCache = FSlateIcon(FPCGEditorStyle::Get().GetStyleSetName(), "PCG.Command.ForceRegenClearCache");
+					
+				FModifierKeysState ModifierKeys = FSlateApplication::Get().GetModifierKeys();
+				return ModifierKeys.IsControlDown() ? ForceRegenClearCache : ForceRegen;
+			})));
 
 		Section.AddEntry(FToolMenuEntry::InitToolBarButton(
 			FPCGEditorCommands::Get().CancelExecution,
 			TAttribute<FText>(),
 			TAttribute<FText>(),
-			FSlateIcon(FAppStyle::GetAppStyleSetName(), "Icons.Toolbar.Stop")));
-
+			FSlateIcon(FPCGEditorStyle::Get().GetStyleSetName(), "PCG.Command.StopRegen")));
+				
 		Section.AddEntry(FToolMenuEntry::InitToolBarButton(
 			FPCGEditorCommands::Get().OpenDebugObjectTreeTab,
 			TAttribute<FText>(),
 			TAttribute<FText>(),
-			FSlateIcon(FAppStyle::GetAppStyleSetName(), "LevelEditor.CreateBlankBlueprintClass")));
+			FSlateIcon(FPCGEditorStyle::Get().GetStyleSetName(), "PCG.Command.OpenDebugTreeTab")));
 
 		Section.AddSeparator(NAME_None);
 
@@ -629,7 +637,7 @@ void FPCGEditor::RegisterToolbar() const
 			 PCGEditorCommands.RunDeterminismGraphTest,
 			 TAttribute<FText>(),
 			 TAttribute<FText>(),
-			 FSlateIcon(FAppStyle::GetAppStyleSetName(), "BlueprintDebugger.TabIcon")));
+			 FSlateIcon(FPCGEditorStyle::Get().GetStyleSetName(), "PCG.Command.RunDeterminismTest")));
 
 		Section.AddSeparator(NAME_None);
 
@@ -637,7 +645,7 @@ void FPCGEditor::RegisterToolbar() const
 			 PCGEditorCommands.EditGraphSettings,
 			 TAttribute<FText>(),
 			 TAttribute<FText>(),
-			 FSlateIcon(FAppStyle::GetAppStyleSetName(), "FullBlueprintEditor.EditClassDefaults")));
+			 FSlateIcon(FPCGEditorStyle::Get().GetStyleSetName(), "PCG.Command.GraphSettings")));
 	}
 }
 
