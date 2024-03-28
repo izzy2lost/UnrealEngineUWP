@@ -183,15 +183,23 @@ namespace EpicGames.Horde.Storage.Nodes
 	/// </summary>
 	public class DirectoryUpdate
 	{
+		class ReverseStringComparer : IComparer<string>
+		{
+			public static ReverseStringComparer Instance { get; } = new ReverseStringComparer();
+
+			public int Compare(string? x, string? y)
+				=> -StringComparer.Ordinal.Compare(x, y);
+		}
+
 		/// <summary>
 		/// Directories to be updated
 		/// </summary>
-		public SortedDictionary<string, DirectoryUpdate?> Directories { get; } = new SortedDictionary<string, DirectoryUpdate?>(StringComparer.Ordinal);
+		public SortedDictionary<string, DirectoryUpdate?> Directories { get; } = new SortedDictionary<string, DirectoryUpdate?>(ReverseStringComparer.Instance);
 
 		/// <summary>
 		/// Files to be updated
 		/// </summary>
-		public SortedDictionary<string, FileUpdate?> Files { get; } = new SortedDictionary<string, FileUpdate?>(StringComparer.Ordinal);
+		public SortedDictionary<string, FileUpdate?> Files { get; } = new SortedDictionary<string, FileUpdate?>(ReverseStringComparer.Instance);
 
 		/// <summary>
 		/// Reset this instance

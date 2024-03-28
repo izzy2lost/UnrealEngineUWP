@@ -84,11 +84,17 @@
 				},
 				{
 					"name": "Platform",
-					"group": "Platform"
+					"group": "Platform",
+					"defaults": [
+						"Win64"
+					]
 				},
 				{
 					"name": "Configuration",
-					"group": "Configuration"
+					"group": "Configuration",
+					"defaults": [
+						"Development"
+					]
 				}
 			],
 			"categories": [
@@ -565,14 +571,46 @@
 									"id": "horde-incremental-compile-jobs"
 								}
 							]
-						}	
+						}
 					]
 				},
 				{
 					"name": "UBA",
 					"charts": [
 						{
-							"name": "Compile WallTime (Average)",
+							"name": "Remote Distibution All (Average)",
+							"display": "Ratio",
+							"metrics": [
+								{
+									"id": "ubt-uba-remote-usage-all"
+								}
+							]
+						},
+						{
+							"name": "Actions All (Sum)",
+							"display": "Value",
+							"metrics": [
+								{
+									"id": "ubt-uba-total-actions-all",
+									"alias": "Total"
+								},
+								{
+									"id": "ubt-uba-remote-actions-all",
+									"alias": "Remote"
+								}
+							]
+						},
+						{
+							"name": "Failure Rate All (Average)",
+							"display": "Ratio",
+							"metrics": [
+								{
+									"id": "ubt-uba-failure-rate-all"
+								}
+							]
+						},
+						{
+							"name": "WallTime (Average)",
 							"metrics": [
 								{
 									"id": "ubt-uba-duration"
@@ -580,21 +618,16 @@
 							]
 						},
 						{
-							"name": "Compile Distribution (Average)",
+							"name": "Remote Distribution (Average)",
 							"display": "Ratio",
 							"metrics": [
 								{
-									"id": "ubt-uba-remote-usage",
-									"alias": "Remote"
-								},
-								{
-									"id": "ubt-uba-local-usage",
-									"alias": "Local"
+									"id": "ubt-uba-remote-usage"
 								}
 							]
 						},
 						{
-							"name": "Compile Actions (Average)",
+							"name": "Actions (Average)",
 							"display": "Value",
 							"metrics": [
 								{
@@ -604,15 +637,11 @@
 								{
 									"id": "ubt-uba-remote-actions-avg",
 									"alias": "Remote"
-								},
-								{
-									"id": "ubt-uba-local-actions-avg",
-									"alias": "Local"
 								}
 							]
 						},
 						{
-							"name": "Compile Actions (Total)",
+							"name": "Actions (Sum)",
 							"display": "Value",
 							"metrics": [
 								{
@@ -622,10 +651,6 @@
 								{
 									"id": "ubt-uba-remote-actions",
 									"alias": "Remote"
-								},
-								{
-									"id": "ubt-uba-local-actions",
-									"alias": "Local"
 								}
 							]
 						},
@@ -635,7 +660,6 @@
 							"metrics": [
 								{
 									"id": "ubt-uba-failure-rate"
-
 								}
 							]
 						}

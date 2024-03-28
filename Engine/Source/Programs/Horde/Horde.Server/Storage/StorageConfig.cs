@@ -51,6 +51,11 @@ namespace Horde.Server.Storage
 	public class StorageConfig
 	{
 		/// <summary>
+		/// Whether to enable garbage collection
+		/// </summary>
+		public bool EnableGC { get; set; } = true;
+
+		/// <summary>
 		/// List of storage backends
 		/// </summary>
 		public List<BackendConfig> Backends { get; set; } = new List<BackendConfig>();

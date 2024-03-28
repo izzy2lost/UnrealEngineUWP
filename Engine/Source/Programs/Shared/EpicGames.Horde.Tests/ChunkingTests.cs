@@ -1,6 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Text;
@@ -203,6 +204,50 @@ namespace EpicGames.Horde.Tests
 			finally
 			{
 				tempDir.Delete(true);
+			}
+		}
+
+		[TestMethod]
+		public async Task ChunkOrderAsync()
+		{
+			InteriorChunkedDataNodeOptions interiorOptions = new InteriorChunkedDataNodeOptions(2, 2, 2);
+
+			BlobSerializerOptions serializerOptions = new BlobSerializerOptions();
+			serializerOptions.Converters.Add(new InteriorChunkedDataNodeConverter());
+
+			await using MemoryBlobWriter blobWriter = new MemoryBlobWriter(new BlobSerializerOptions());
+
+			IBlobRef<LeafChunkedDataNode> leafRef = await blobWriter.WriteBlobAsync(new LeafChunkedDataNode(new byte[] { 1, 2, 3 }));
+			int leafRefIndex = MemoryBlobWriter.GetIndex((IBlobRef)leafRef);
+			ChunkedDataNodeRef leafChunkedRef = new ChunkedDataNodeRef(3, leafRef);
+
+			List<ChunkedDataNodeRef> leafNodeRefs = Enumerable.Repeat(leafChunkedRef, 10000).ToList();
+			ChunkedDataNodeRef root = await InteriorChunkedDataNode.CreateTreeAsync(leafNodeRefs, interiorOptions, blobWriter, CancellationToken.None);
+
+			List<IBlobHandle> list = new List<IBlobHandle>();
+			await GetReadOrderAsync(root.Handle, list);
+
+			int prevIndex = Int32.MaxValue;
+			for (int idx = 0; idx < list.Count; idx++)
+			{
+				int index = MemoryBlobWriter.GetIndex((IBlobRef)list[idx].Innermost);
+				if (index != leafRefIndex)
+				{
+					Console.WriteLine("{0}", index);
+					Assert.IsTrue(index <= prevIndex);
+					prevIndex = index;
+				}
+			}
+		}
+
+		static async Task GetReadOrderAsync(IBlobHandle handle, List<IBlobHandle> list)
+		{
+			list.Add(handle);
+
+			using BlobData blobData = await handle.ReadBlobDataAsync(CancellationToken.None);
+			foreach (IBlobHandle childHandle in blobData.Imports)
+			{
+				await GetReadOrderAsync(childHandle, list);
 			}
 		}
 	}

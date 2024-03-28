@@ -1201,7 +1201,7 @@ export type GetReportResponse = {
 
 export type GetJobArtifactResponse = {
 	/// Identifier for this artifact
-	artifactId: string;
+	id: string;
 	/// Name of the artifact
 	name: string;
 	/// Artifact type

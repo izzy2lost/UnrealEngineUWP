@@ -61,6 +61,10 @@ namespace EpicGames.Horde.Storage
 						{
 							// Allow uppercase characters for now
 						}
+						else if (character == '+')
+						{
+							// Allow plus characters for now
+						}
 						else if (path[idx] == '/' && path[idx - 1] != '/')
 						{
 							// Non-consecutive path separator; allowed.

@@ -478,7 +478,7 @@
 			"id": "horde-incremental-compile-jobs",
 			"filter": "$[?(@.Payload.EventName == 'State.JobStepRef' && @.Payload.JobName=='Incremental CI' && search(@.Payload.StepName, \"Incremental Compile\") && @.Payload.Duration>0 && @.Payload.State=='Completed')]",
 			"groupBy": "$.Payload.StreamId,$.Payload.StepName",
-			"property": "Build_BranchName$.Payload.Duration",
+			"property": "$.Payload.Duration",
 			"function": "Average",
 			"interval": "01:00:00"
 		},
@@ -501,7 +501,7 @@
 		{
 			"id": "ubt-uba-local-usage",
 			"filter": "$[?(@.Payload.EventName == 'Core.UBT.Executor' && search(@.Payload.Executor, \"Unreal Build Accelerator\") )]",
-			"groupBy": "$.Payload.Target,$.Payload.Mode,$.Payload.Configuration,$.Payload.Platform",
+			"groupBy": "$.Payload.Build_BranchName,$.Payload.Target,$.Payload.Mode,$.Payload.Configuration,$.Payload.Platform",
 			"property": "$.Payload.LocalUsage",
 			"function": "Average",
 			"interval": "00:30:00"
@@ -558,6 +558,38 @@
 			"id": "ubt-uba-failure-rate",
 			"filter": "$[?(@.Payload.EventName == 'Core.UBT.Executor' && search(@.Payload.Executor, \"Unreal Build Accelerator\") )]",
 			"groupBy": "$.Payload.Build_BranchName,$.Payload.Target,$.Payload.Mode,$.Payload.Configuration,$.Payload.Platform",
+			"property": "$.Payload.FailureRate",
+			"function": "Average",
+			"interval": "00:30:00"
+		},
+		{
+			"id": "ubt-uba-remote-usage-all",
+			"filter": "$[?(@.Payload.EventName == 'Core.UBT.Executor' && search(@.Payload.Executor, \"Unreal Build Accelerator\") )]",
+			"groupBy": "$.Payload.Build_BranchName",
+			"property": "$.Payload.RemoteUsage",
+			"function": "Average",
+			"interval": "00:30:00"
+		},
+		{
+			"id": "ubt-uba-remote-actions-all",
+			"filter": "$[?(@.Payload.EventName == 'Core.UBT.Executor' && search(@.Payload.Executor, \"Unreal Build Accelerator\") )]",
+			"groupBy": "$.Payload.Build_BranchName",
+			"property": "$.Payload.RemoteActions",
+			"function": "Sum",
+			"interval": "00:30:00"
+		},
+		{
+			"id": "ubt-uba-total-actions-all",
+			"filter": "$[?(@.Payload.EventName == 'Core.UBT.Executor' && search(@.Payload.Executor, \"Unreal Build Accelerator\") )]",
+			"groupBy": "$.Payload.Build_BranchName",
+			"property": "$.Payload.TotalActions",
+			"function": "Sum",
+			"interval": "00:30:00"
+		},
+		{
+			"id": "ubt-uba-failure-rate-all",
+			"filter": "$[?(@.Payload.EventName == 'Core.UBT.Executor' && search(@.Payload.Executor, \"Unreal Build Accelerator\") )]",
+			"groupBy": "$.Payload.Build_BranchName",
 			"property": "$.Payload.FailureRate",
 			"function": "Average",
 			"interval": "00:30:00"

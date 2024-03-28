@@ -452,7 +452,7 @@ const DownloadButton: React.FC<{ handler: ArtifactsHandler }> = observer(({ hand
    }
 
    return <Stack horizontal verticalAlign="center" tokens={{ childrenGap: 8 }}>
-      <PrimaryButton styles={{ root: { fontFamily: 'Horde Open Sans SemiBold !important' } }} disabled={!selection.size} onClick={async () => {
+      <PrimaryButton styles={{ root: { fontFamily: 'Horde Open Sans SemiBold !important' } }} disabled={!selection.filesSelected && !selection.directoriesSelected} onClick={async () => {
 
          const selection = handler.currentSelection.items;
 
