@@ -322,7 +322,7 @@ class FVirtualShadowMapProjectionCS : public FGlobalShader
 		FPermutationDomain PermutationVector(Parameters.PermutationId);
 		if (PermutationVector.Get<FVisualizeOutputDim>())
 		{
-			return EShaderPermutationPrecacheRequest::NotUsed;
+			return EShaderPermutationPrecacheRequest::NotPrecached;
 		}
 
 		return EShaderPermutationPrecacheRequest::Precached;
