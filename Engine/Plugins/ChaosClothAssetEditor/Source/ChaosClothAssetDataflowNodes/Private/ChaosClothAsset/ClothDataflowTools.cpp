@@ -451,7 +451,7 @@ namespace UE::Chaos::ClothAsset
 		NotificationInfo.ExpireDuration = 5.0f;
 		FSlateNotificationManager::Get().AddNotification(NotificationInfo);
 
-		UE_LOG(LogChaosClothAssetDataflowNodes, Display, TEXT("%s"), *Text.ToString());
+		UE_LOG(LogChaosClothAssetDataflowNodes, Warning, TEXT("%s"), *Text.ToString());
 	}
 
 	void FClothDataflowTools::MakeCollectionName(FString& InOutString)

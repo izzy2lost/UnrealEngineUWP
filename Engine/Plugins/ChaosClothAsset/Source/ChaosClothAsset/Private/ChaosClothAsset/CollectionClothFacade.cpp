@@ -540,10 +540,6 @@ namespace UE::Chaos::ClothAsset
 	void FCollectionClothFacade::Initialize(const FCollectionClothConstFacade& Other)
 	{
 		Reset();
-
-		// LODs Group
-		SetPhysicsAssetPathName(Other.GetPhysicsAssetPathName());
-		SetSkeletalMeshPathName(Other.GetSkeletalMeshPathName());
 		
 		// Solvers Group
 		if (Other.IsValid(EClothCollectionOptionalSchemas::Solvers) && Other.HasSolverElement())
@@ -567,7 +563,15 @@ namespace UE::Chaos::ClothAsset
 #endif
 
 		// LODs Group 
-		// Just keep original data.
+		// Keep original data unless our data is empty. Then take Other's data.
+		if (GetPhysicsAssetPathName().IsEmpty())
+		{
+			SetPhysicsAssetPathName(Other.GetPhysicsAssetPathName());
+		}
+		if (GetSkeletalMeshPathName().IsEmpty())
+		{
+			SetSkeletalMeshPathName(Other.GetSkeletalMeshPathName());
+		}
 
 		// Very important order of operations to ensure indices don't get messed up:
 		// 1) Append 3D Vertices, but don't set 2D Lookups or SeamStitch Lookups because those indices don't exist yet.
