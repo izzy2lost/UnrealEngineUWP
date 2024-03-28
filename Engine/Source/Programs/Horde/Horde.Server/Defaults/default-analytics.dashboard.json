@@ -578,6 +578,30 @@
 					"name": "UBA",
 					"charts": [
 						{
+							"name": "Compile Distibution All (Average)",
+							"display": "Ratio",
+							"metrics": [
+								{
+									"id": "ubt-uba-remote-usage-all",
+									"alias": "Remote"
+								}
+							]
+						},
+						{
+							"name": "Compile Actions All (Sum)",
+							"display": "Value",
+							"metrics": [
+								{
+									"id": "ubt-uba-total-actions-all",
+									"alias": "Total"
+								},
+								{
+									"id": "ubt-uba-remote-actions-all",
+									"alias": "Remote"
+								}
+							]
+						},
+						{
 							"name": "Compile WallTime (Average)",
 							"metrics": [
 								{
@@ -610,7 +634,7 @@
 							]
 						},
 						{
-							"name": "Compile Actions (Total)",
+							"name": "Compile Actions (Sum)",
 							"display": "Value",
 							"metrics": [
 								{
@@ -629,7 +653,6 @@
 							"metrics": [
 								{
 									"id": "ubt-uba-failure-rate"
-
 								}
 							]
 						}
