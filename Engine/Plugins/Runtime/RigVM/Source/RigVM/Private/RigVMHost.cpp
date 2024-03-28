@@ -148,7 +148,7 @@ void URigVMHost::PostLoad()
 {
 	Super::PostLoad();
 	
-	FRigVMRegistry::Get().RefreshEngineTypesIfRequired();
+	FRigVMRegistry_RWLock::Get().RefreshEngineTypesIfRequired();
 	
 	FRigVMExtendedExecuteContext& ExtendedExecuteContext = GetRigVMExtendedExecuteContext();
 
@@ -1185,7 +1185,7 @@ TArray<const UObject*> URigVMHost::GetUserDefinedDependencies(const TArray<const
 	const TArray<const FRigVMFunction*>& Functions = VM->GetFunctions();
 	for (const FRigVMFunction* Function : Functions)
 	{
-		const FRigVMRegistry& Registry = FRigVMRegistry::Get();
+		const FRigVMRegistry_RWLock& Registry = FRigVMRegistry_RWLock::Get();
 		const TArray<TRigVMTypeIndex>& TypeIndices = Function->GetArgumentTypeIndices();
 		for (const TRigVMTypeIndex& TypeIndex : TypeIndices)
 		{

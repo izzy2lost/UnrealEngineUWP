@@ -61,7 +61,7 @@ FText FRigVMDispatchFactory::GetNodeTooltip(const FRigVMTemplateTypeMap& InTypes
 
 FString FRigVMDispatchFactory::GetArgumentDefaultValue(const FName& InArgumentName, TRigVMTypeIndex InTypeIndex) const
 {
-	if(FRigVMRegistry::Get().IsArrayType(InTypeIndex))
+	if(FRigVMRegistry_RWLock::Get().IsArrayType(InTypeIndex))
 	{
 		static const FString EmptyArrayString = TEXT("()");
 		return EmptyArrayString;
@@ -85,32 +85,32 @@ FString FRigVMDispatchFactory::GetArgumentDefaultValue(const FName& InArgumentNa
 	{
 		return FName(NAME_None).ToString();
 	}
-	if(InTypeIndex == FRigVMRegistry::Get().GetTypeIndex<FVector2D>())
+	if(InTypeIndex == FRigVMRegistry_RWLock::Get().GetTypeIndex<FVector2D>())
 	{
 		static FString DefaultValueString = GetDefaultValueForStruct(FVector2D::ZeroVector);
 		return DefaultValueString;
 	}
-	if(InTypeIndex == FRigVMRegistry::Get().GetTypeIndex<FVector>())
+	if(InTypeIndex == FRigVMRegistry_RWLock::Get().GetTypeIndex<FVector>())
 	{
 		static FString DefaultValueString = GetDefaultValueForStruct(FVector::ZeroVector); 
 		return DefaultValueString;
 	}
-	if(InTypeIndex == FRigVMRegistry::Get().GetTypeIndex<FRotator>())
+	if(InTypeIndex == FRigVMRegistry_RWLock::Get().GetTypeIndex<FRotator>())
 	{
 		static FString DefaultValueString = GetDefaultValueForStruct(FRotator::ZeroRotator); 
 		return DefaultValueString;
 	}
-	if(InTypeIndex == FRigVMRegistry::Get().GetTypeIndex<FQuat>())
+	if(InTypeIndex == FRigVMRegistry_RWLock::Get().GetTypeIndex<FQuat>())
 	{
 		static FString DefaultValueString = GetDefaultValueForStruct(FQuat::Identity); 
 		return DefaultValueString;
 	}
-	if(InTypeIndex == FRigVMRegistry::Get().GetTypeIndex<FTransform>())
+	if(InTypeIndex == FRigVMRegistry_RWLock::Get().GetTypeIndex<FTransform>())
 	{
 		static FString DefaultValueString = GetDefaultValueForStruct(FTransform::Identity); 
 		return DefaultValueString;
 	}
-	if(InTypeIndex == FRigVMRegistry::Get().GetTypeIndex<FLinearColor>())
+	if(InTypeIndex == FRigVMRegistry_RWLock::Get().GetTypeIndex<FLinearColor>())
 	{
 		static FString DefaultValueString = GetDefaultValueForStruct(FLinearColor::White); 
 		return DefaultValueString;
@@ -204,12 +204,12 @@ const TArray<FRigVMTemplateArgumentInfo>& FRigVMDispatchFactory::GetArgumentInfo
 	return EmptyArguments;
 }
 
-TArray<FRigVMExecuteArgument> FRigVMDispatchFactory::GetExecuteArguments(const FRigVMDispatchContext& InContext) const
+TArray<FRigVMExecuteArgument> FRigVMDispatchFactory::GetExecuteArguments_NoLock(const FRigVMDispatchContext& InContext) const
 {
 	TArray<FRigVMExecuteArgument> Arguments = GetExecuteArguments_Impl(InContext);
 	for(FRigVMExecuteArgument& Argument : Arguments)
 	{
-		if(Argument.TypeIndex != INDEX_NONE && FRigVMRegistry::Get().IsArrayType(Argument.TypeIndex))
+		if(Argument.TypeIndex != INDEX_NONE && FRigVMRegistry_NoLock::GetForRead().IsArrayType_NoLock(Argument.TypeIndex))
 		{
 			Argument.TypeIndex = RigVMTypeUtils::TypeIndex::ExecuteArray;
 		}
@@ -230,20 +230,18 @@ const TArray<FRigVMExecuteArgument>& FRigVMDispatchFactory::GetExecuteArguments_
 
 FRigVMFunctionPtr FRigVMDispatchFactory::GetOrCreateDispatchFunction(const FRigVMTemplateTypeMap& InTypes) const
 {
-	FScopeLock DispatchFunctionScopeLock(&FRigVMRegistry::DispatchFunctionMutex);
+	const FRigVMRegistryWriteLock _;
+	return GetOrCreateDispatchFunction_NoLock(InTypes);
+}
 
-	const FString PermutationName = GetPermutationNameImpl(InTypes);
-	if(const FRigVMFunction* ExistingFunction = FRigVMRegistry::Get().FindFunction(*PermutationName))
+FRigVMFunctionPtr FRigVMDispatchFactory::GetOrCreateDispatchFunction_NoLock(const FRigVMTemplateTypeMap& InTypes) const
+{
+	const FString PermutationName = GetPermutationNameImpl(InTypes, false);
+	if(const FRigVMFunction* ExistingFunction = FRigVMRegistry_NoLock::GetForRead().FindFunction_NoLock(*PermutationName))
 	{
 		return ExistingFunction->FunctionPtr;
 	}
 	
-	return CreateDispatchFunction_NoLock(InTypes);
-}
-
-FRigVMFunctionPtr FRigVMDispatchFactory::CreateDispatchFunction(const FRigVMTemplateTypeMap& InTypes) const
-{
-	FScopeLock DispatchFunctionScopeLock(&FRigVMRegistry::DispatchFunctionMutex);
 	return CreateDispatchFunction_NoLock(InTypes);
 }
 
@@ -252,18 +250,12 @@ FRigVMFunctionPtr FRigVMDispatchFactory::CreateDispatchFunction_NoLock(const FRi
 	return GetDispatchFunctionImpl(InTypes);
 }
 
-TArray<FRigVMFunction> FRigVMDispatchFactory::CreateDispatchPredicates(const FRigVMTemplateTypeMap& InTypes) const
-{
-	FScopeLock DispatchPredicatesScopeLock(&FRigVMRegistry::DispatchPredicatesMutex);
-	return CreateDispatchPredicates_NoLock(InTypes);
-}
-
 TArray<FRigVMFunction> FRigVMDispatchFactory::CreateDispatchPredicates_NoLock(const FRigVMTemplateTypeMap& InTypes) const
 {
 	return GetDispatchPredicatesImpl(InTypes);
 }
 
-FString FRigVMDispatchFactory::GetPermutationName(const FRigVMTemplateTypeMap& InTypes) const
+FString FRigVMDispatchFactory::GetPermutationName(const FRigVMTemplateTypeMap& InTypes, const bool bLockRegistry) const
 {
 #if WITH_EDITOR
 	const TArray<FRigVMTemplateArgumentInfo>& Arguments = GetArgumentInfos();
@@ -275,7 +267,7 @@ FString FRigVMDispatchFactory::GetPermutationName(const FRigVMTemplateTypeMap& I
 		check(InTypes.Contains(Argument.Name));
 	}
 #endif
-	return GetPermutationNameImpl(InTypes);
+	return GetPermutationNameImpl(InTypes, bLockRegistry);
 }
 
 TArray<FRigVMTemplateArgumentInfo> FRigVMDispatchFactory::BuildArgumentListFromPrimaryArgument(const TArray<FRigVMTemplateArgumentInfo>& InInfos, const FName& InPrimaryArgumentName) const
@@ -350,10 +342,10 @@ TArray<FRigVMTemplateArgumentInfo> FRigVMDispatchFactory::BuildArgumentListFromP
 	return NewInfos;
 }
 
-FString FRigVMDispatchFactory::GetPermutationNameImpl(const FRigVMTemplateTypeMap& InTypes) const
+FString FRigVMDispatchFactory::GetPermutationNameImpl(const FRigVMTemplateTypeMap& InTypes, const bool bLockRegistry) const
 {
 	static constexpr TCHAR Format[] = TEXT("%s::%s");
-	const FString TypePairStrings = FRigVMTemplate::GetStringFromArgumentTypes(InTypes);
+	const FString TypePairStrings = FRigVMTemplate::GetStringFromArgumentTypes(InTypes, bLockRegistry);
 	return FString::Printf(Format, *GetFactoryName().ToString(), *TypePairStrings);
 }
 
@@ -363,15 +355,21 @@ bool FRigVMDispatchFactory::CopyProperty(const FProperty* InTargetProperty, uint
 	return URigVMMemoryStorage::CopyProperty(InTargetProperty, InTargetPtr, InSourceProperty, InSourcePtr);
 }
 
-const FRigVMTemplate* FRigVMDispatchFactory::GetTemplate() const
+const FRigVMTemplate* FRigVMDispatchFactory::GetTemplate_RWLock() const
+{
+	const FRigVMRegistryWriteLock _;
+	return GetTemplate_NoLock();
+}
+
+const FRigVMTemplate* FRigVMDispatchFactory::GetTemplate_NoLock() const
 {
 	// make sure to rely on the instance of this factory that's stored under the registry
-	FRigVMRegistry& Registry = FRigVMRegistry::Get();
+	FRigVMRegistry_NoLock& Registry = FRigVMRegistry_NoLock::GetForWrite();
 	const FName FactoryName = GetFactoryName();
-	const FRigVMDispatchFactory* ThisFactory = Registry.FindDispatchFactory(FactoryName);
+	const FRigVMDispatchFactory* ThisFactory = Registry.FindDispatchFactory_NoLock(FactoryName);
 	if(ThisFactory != this)
 	{
-		return ThisFactory->GetTemplate();
+		return ThisFactory->GetTemplate_NoLock();
 	}
 
 	FScopeLock GetTemplateScopeLock(&GetTemplateMutex);
@@ -380,7 +378,6 @@ const FRigVMTemplate* FRigVMDispatchFactory::GetTemplate() const
 	{
 		return CachedTemplate;
 	}
-
 	
 	// we don't allow execute types on arguments	
 	const TArray<FRigVMTemplateArgumentInfo>& Infos = GetArgumentInfos();
@@ -389,7 +386,7 @@ const FRigVMTemplate* FRigVMDispatchFactory::GetTemplate() const
 		const FRigVMTemplateArgument Argument = Info.GetArgument();
 		const int32 Index = Argument.IndexOfByPredicate([&](const TRigVMTypeIndex TypeIndex)
 		{
-			return Registry.IsExecuteType(TypeIndex);
+			return Registry.IsExecuteType_NoLock(TypeIndex);
 		});
 		
 		if (Index != INDEX_NONE)
@@ -404,16 +401,16 @@ const FRigVMTemplate* FRigVMDispatchFactory::GetTemplate() const
 	Delegates.GetDispatchFactoryDelegate = FRigVMTemplate_GetDispatchFactoryDelegate::CreateLambda(
 	[FactoryName]()
 	{
-		return FRigVMRegistry::Get().FindDispatchFactory(FactoryName);
+		return FRigVMRegistry_NoLock::GetForRead().FindDispatchFactory_NoLock(FactoryName);
 	});
 
-	CachedTemplate = Registry.AddTemplateFromArguments(GetFactoryName(), Infos, Delegates); 
+	CachedTemplate = Registry.AddTemplateFromArguments_NoLock(GetFactoryName(), Infos, Delegates); 
 	return CachedTemplate;
 }
 
 FName FRigVMDispatchFactory::GetTemplateNotation() const
 {
-	if(const FRigVMTemplate* Template = GetTemplate())
+	if(const FRigVMTemplate* Template = GetTemplate_RWLock())
 	{
 		return Template->GetNotation();
 	}

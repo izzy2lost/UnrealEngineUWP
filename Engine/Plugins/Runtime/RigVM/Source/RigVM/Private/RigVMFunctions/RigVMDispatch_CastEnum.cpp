@@ -38,7 +38,7 @@ bool FRigVMDispatch_CastEnumToInt::GetPermutationsFromArgumentType(const FName& 
 	}
 	else if (InArgumentName == ResultName && InTypeIndex == RigVMTypeUtils::TypeIndex::Int32)
 	{
-		const TArray<TRigVMTypeIndex>& EnumTypes = FRigVMRegistry::Get().GetTypesForCategory(FRigVMTemplateArgument::ETypeCategory_SingleEnumValue);
+		const TArray<TRigVMTypeIndex>& EnumTypes = FRigVMRegistry_NoLock::GetForRead().GetTypesForCategory_NoLock(FRigVMTemplateArgument::ETypeCategory_SingleEnumValue);
 		for (const TRigVMTypeIndex& Type : EnumTypes)
 		{
 			OutPermutations.Add(
@@ -132,7 +132,7 @@ bool FRigVMDispatch_CastIntToEnum::GetPermutationsFromArgumentType(const FName& 
 	}
 	else if (InArgumentName == ValueName && InTypeIndex == RigVMTypeUtils::TypeIndex::Int32)
 	{
-		const TArray<TRigVMTypeIndex>& EnumTypes = FRigVMRegistry::Get().GetTypesForCategory(FRigVMTemplateArgument::ETypeCategory_SingleEnumValue);
+		const TArray<TRigVMTypeIndex>& EnumTypes = FRigVMRegistry_NoLock::GetForRead().GetTypesForCategory_NoLock(FRigVMTemplateArgument::ETypeCategory_SingleEnumValue);
 		for (const TRigVMTypeIndex& Type : EnumTypes)
 		{
 			OutPermutations.Add(

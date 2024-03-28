@@ -171,7 +171,8 @@ struct RIGVM_API FRigVMFunction
 	const TArray<FRigVMFunctionArgument>& GetArguments() const { return Arguments; }
 	const TArray<TRigVMTypeIndex>& GetArgumentTypeIndices() const;
 	const FRigVMTemplate* GetTemplate() const;
-	const UScriptStruct* GetExecuteContextStruct() const;
+	const FRigVMTemplate* GetTemplate_NoLock() const;
+	const UScriptStruct* GetExecuteContextStruct(bool bLockRegistry = true) const;
 	bool SupportsExecuteContextStruct(const UScriptStruct* InExecuteContextStruct) const;
 	const FName& GetArgumentNameForOperandIndex(int32 InOperandIndex, int32 InTotalOperands) const;
 };

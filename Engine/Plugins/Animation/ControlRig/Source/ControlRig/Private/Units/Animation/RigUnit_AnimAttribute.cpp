@@ -22,15 +22,15 @@ FName FRigDispatch_AnimAttributeBase::SuccessArgName = TEXT("Success");
 
 bool FRigDispatch_AnimAttributeBase::IsTypeSupported(const TRigVMTypeIndex& InTypeIndex)
 {
-	const FRigVMRegistry& Registry = FRigVMRegistry::Get();
+	const FRigVMRegistry_NoLock& Registry = FRigVMRegistry_NoLock::GetForRead();
 
 	static const TArray<TRigVMTypeIndex> SpecialTypes = {
 		RigVMTypeUtils::TypeIndex::Float,
 		RigVMTypeUtils::TypeIndex::Int32,
 		RigVMTypeUtils::TypeIndex::FString,
-		Registry.GetTypeIndex<FTransform>(false),
-		Registry.GetTypeIndex<FVector>(false),
-		Registry.GetTypeIndex<FQuat>(false),
+		Registry.GetTypeIndex_NoLock<FTransform>(false),
+		Registry.GetTypeIndex_NoLock<FVector>(false),
+		Registry.GetTypeIndex_NoLock<FQuat>(false),
 	};
 
 	if (SpecialTypes.Contains(InTypeIndex))
@@ -38,7 +38,7 @@ bool FRigDispatch_AnimAttributeBase::IsTypeSupported(const TRigVMTypeIndex& InTy
 		return true;
 	}
 
-	const FRigVMTemplateArgumentType& InType = Registry.GetType(InTypeIndex);
+	const FRigVMTemplateArgumentType& InType = Registry.GetType_NoLock(InTypeIndex);
 
 	// cpp type object can become invalid because users can choose to delete
 	// user defined structs
@@ -46,6 +46,14 @@ bool FRigDispatch_AnimAttributeBase::IsTypeSupported(const TRigVMTypeIndex& InTy
 	{
 		if (UScriptStruct* ScriptStruct = Cast<UScriptStruct>(InType.CPPTypeObject))
 		{
+			if (ScriptStruct->IsA<UUserDefinedStruct>())
+			{
+				// allow all user defined structs because even if a struct is not registered with anim attribute system,
+				// it could be added to or removed from the system easily. allowing all of them as valid permutations
+				// avoids having to create orphan pins.
+				return true;
+			}
+
 			static const TArray<TWeakObjectPtr<const UScriptStruct>> SpecialAttributeTypes = {
 				FFloatAnimationAttribute::StaticStruct(),
 				FIntegerAnimationAttribute::StaticStruct(),
@@ -60,15 +68,7 @@ bool FRigDispatch_AnimAttributeBase::IsTypeSupported(const TRigVMTypeIndex& InTy
 				// these type have been added, above, rejecting them here so we don't have duplicated types
 				return false;
 			}
-
-			if (UUserDefinedStruct* UserDefinedStruct = Cast<UUserDefinedStruct>(ScriptStruct))
-			{
-				// allow all user defined structs because even if a struct is not registered with anim attribute system,
-				// it could be added to or removed from the system easily. allowing all of them as valid permutations
-				// avoids having to create orphan pins.
-				return true;
-			}
-			
+		
 			return UE::Anim::AttributeTypes::IsTypeRegistered(ScriptStruct);
 		}
 	}
@@ -272,11 +272,12 @@ void FRigDispatch_SetAnimAttribute::SetAnimAttributeDispatch(FRigVMExtendedExecu
 	}	
 }
 
-void FRigDispatch_AnimAttributeBase::RegisterDependencyTypes() const
+void FRigDispatch_AnimAttributeBase::RegisterDependencyTypes_NoLock() const
 {
-	Super::RegisterDependencyTypes();
+	Super::RegisterDependencyTypes_NoLock();
 
-	FRigVMRegistry& Registry = FRigVMRegistry::Get();
+	FRigVMRegistry_NoLock& Registry = FRigVMRegistry_NoLock::GetForWrite();
+	Registry.FindOrAddType_NoLock(FRigVMTemplateArgumentType(), true);
 	
 	TArray<TWeakObjectPtr<const UScriptStruct>> AttributeTypes = UE::Anim::AttributeTypes::GetRegisteredTypes();
 	for (TWeakObjectPtr<const UScriptStruct> Type : AttributeTypes)
@@ -284,7 +285,7 @@ void FRigDispatch_AnimAttributeBase::RegisterDependencyTypes() const
 		UScriptStruct* TypePtr = const_cast<UScriptStruct*>(Type.Get());
 		if (TypePtr)
 		{
-			Registry.FindOrAddType(FRigVMTemplateArgumentType(TypePtr));
+			Registry.FindOrAddType_NoLock(FRigVMTemplateArgumentType(TypePtr));
 		}
 	}
 }
@@ -417,7 +418,7 @@ FRigVMTemplateTypeMap FRigDispatch_GetAnimAttribute::OnNewArgumentType(const FNa
 
 FRigVMFunctionPtr FRigDispatch_GetAnimAttribute::GetDispatchFunctionImpl(const FRigVMTemplateTypeMap& InTypes) const
 {
-	const FRigVMRegistry& Registry = FRigVMRegistry::Get();
+	const FRigVMRegistry_NoLock& Registry = FRigVMRegistry_NoLock::GetForRead();
 	const TRigVMTypeIndex& ValueTypeIndex = InTypes.FindChecked(TEXT("Value"));
 
 	if (ValueTypeIndex == RigVMTypeUtils::TypeIndex::Float)
@@ -432,20 +433,20 @@ FRigVMFunctionPtr FRigDispatch_GetAnimAttribute::GetDispatchFunctionImpl(const F
 	{
 		return &FRigDispatch_GetAnimAttribute::GetAnimAttributeDispatch<FString>;
 	}
-	if (ValueTypeIndex == Registry.GetTypeIndex<FTransform>(false))
+	if (ValueTypeIndex == Registry.GetTypeIndex_NoLock<FTransform>(false))
 	{
 		return &FRigDispatch_GetAnimAttribute::GetAnimAttributeDispatch<FTransform>;
 	}
-	if (ValueTypeIndex == Registry.GetTypeIndex<FQuat>(false))
+	if (ValueTypeIndex == Registry.GetTypeIndex_NoLock<FQuat>(false))
 	{
 		return &FRigDispatch_GetAnimAttribute::GetAnimAttributeDispatch<FQuat>;
 	}
-	if (ValueTypeIndex == Registry.GetTypeIndex<FVector>(false))
+	if (ValueTypeIndex == Registry.GetTypeIndex_NoLock<FVector>(false))
 	{
 		return &FRigDispatch_GetAnimAttribute::GetAnimAttributeDispatch<FVector>;
 	}
 	
-	const FRigVMTemplateArgumentType& ValueType = Registry.GetType(ValueTypeIndex);
+	const FRigVMTemplateArgumentType& ValueType = Registry.GetType_NoLock(ValueTypeIndex);
 	
 	if (UScriptStruct* ScriptStruct = Cast<UScriptStruct>(ValueType.CPPTypeObject))
 	{
@@ -506,7 +507,7 @@ FRigVMTemplateTypeMap FRigDispatch_SetAnimAttribute::OnNewArgumentType(const FNa
 
 FRigVMFunctionPtr FRigDispatch_SetAnimAttribute::GetDispatchFunctionImpl(const FRigVMTemplateTypeMap& InTypes) const
 {
-	const FRigVMRegistry& Registry = FRigVMRegistry::Get();
+	const FRigVMRegistry_NoLock& Registry = FRigVMRegistry_NoLock::GetForRead();
 	const TRigVMTypeIndex& ValueTypeIndex = InTypes.FindChecked(TEXT("Value"));
 
 	if (ValueTypeIndex == RigVMTypeUtils::TypeIndex::Float)
@@ -521,20 +522,20 @@ FRigVMFunctionPtr FRigDispatch_SetAnimAttribute::GetDispatchFunctionImpl(const F
 	{
 		return &FRigDispatch_SetAnimAttribute::SetAnimAttributeDispatch<FString>;
 	}
-	if (ValueTypeIndex == Registry.GetTypeIndex<FTransform>(false))
+	if (ValueTypeIndex == Registry.GetTypeIndex_NoLock<FTransform>(false))
 	{
 		return &FRigDispatch_SetAnimAttribute::SetAnimAttributeDispatch<FTransform>;
 	}
-	if (ValueTypeIndex == Registry.GetTypeIndex<FQuat>(false))
+	if (ValueTypeIndex == Registry.GetTypeIndex_NoLock<FQuat>(false))
 	{
 		return &FRigDispatch_SetAnimAttribute::SetAnimAttributeDispatch<FQuat>;
 	}
-	if (ValueTypeIndex == Registry.GetTypeIndex<FVector>(false))
+	if (ValueTypeIndex == Registry.GetTypeIndex_NoLock<FVector>(false))
 	{
 		return &FRigDispatch_SetAnimAttribute::SetAnimAttributeDispatch<FVector>;
 	}
 	
-	const FRigVMTemplateArgumentType& ValueType = Registry.GetType(ValueTypeIndex);
+	const FRigVMTemplateArgumentType& ValueType = Registry.GetType_NoLock(ValueTypeIndex);
 	
 	if (UScriptStruct* ScriptStruct = Cast<UScriptStruct>(ValueType.CPPTypeObject))
 	{

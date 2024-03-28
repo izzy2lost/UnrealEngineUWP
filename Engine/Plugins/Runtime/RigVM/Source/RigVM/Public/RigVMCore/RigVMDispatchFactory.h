@@ -21,6 +21,7 @@
 
 #include "RigVMDispatchFactory.generated.h"
 
+struct FRigVMRegistry_RWLock;
 struct FRigVMDispatchFactory;
 class URigVMPin;
 
@@ -137,14 +138,16 @@ public:
 	// Returns truf if this factory supports a given executecontext struct
 	RIGVM_API bool SupportsExecuteContextStruct(const UScriptStruct* InExecuteContextStruct) const;
 
-	// registered needed types during registration of the factory
-	virtual void RegisterDependencyTypes() const {}
+	// registered needed types during registration of the factory.
+	// this is called within a NoLock code path - so make sure to access
+	// the FRigVMRegistry_NoLock within as needed.
+	virtual void RegisterDependencyTypes_NoLock() const {}
 
 	// returns the arguments of the template
 	RIGVM_API virtual const TArray<FRigVMTemplateArgumentInfo>& GetArgumentInfos() const;
 
 	// returns the execute arguments of the template
-	RIGVM_API TArray<FRigVMExecuteArgument> GetExecuteArguments(const FRigVMDispatchContext& InContext) const;
+	RIGVM_API TArray<FRigVMExecuteArgument> GetExecuteArguments_NoLock(const FRigVMDispatchContext& InContext) const;
 
 	// this function is deprecated, please use GetPermutationsFromArgumentType
 	// returns the new permutation argument types after a new type is defined for one argument
@@ -170,31 +173,41 @@ public:
 	RIGVM_API FRigVMFunctionPtr GetOrCreateDispatchFunction(const FRigVMTemplateTypeMap& InTypes) const;
 
 	// builds and returns the template
-	RIGVM_API const FRigVMTemplate* GetTemplate() const;
+	RIGVM_API const FRigVMTemplate* GetTemplate() const
+	{
+		return GetTemplate_RWLock();
+	}
 
 	// returns the name of the factory template
 	RIGVM_API FName GetTemplateNotation() const;
 
 	// returns the name of the permutation for a given set of types
-	RIGVM_API FString GetPermutationName(const FRigVMTemplateTypeMap& InTypes) const;
+	RIGVM_API FString GetPermutationName(const FRigVMTemplateTypeMap& InTypes, const bool bLockRegistry = true) const;
 
 	// returns true if the dispatch uses the same function ptr for all permutations
 	virtual bool IsSingleton() const { return false; } 
 
 protected:
 
+	// returns the dispatch function for a given type set
+	RIGVM_API FRigVMFunctionPtr GetOrCreateDispatchFunction_NoLock(const FRigVMTemplateTypeMap& InTypes) const;
+
+	// builds and returns the template
+	RIGVM_API const FRigVMTemplate* GetTemplate_RWLock() const;
+
+	// builds and returns the template
+	RIGVM_API const FRigVMTemplate* GetTemplate_NoLock() const;
+
 	// for each type defined in the primary argument, this function will call GetPermutationsFromArgumentType to construct an array of arguments with the appropiate permutations
 	RIGVM_API TArray<FRigVMTemplateArgumentInfo> BuildArgumentListFromPrimaryArgument(const TArray<FRigVMTemplateArgumentInfo>& InInfos, const FName& InPrimaryArgumentName) const;
 
 	// returns the name of the permutation for a given set of types
-	RIGVM_API FString GetPermutationNameImpl(const FRigVMTemplateTypeMap& InTypes) const;
+	RIGVM_API FString GetPermutationNameImpl(const FRigVMTemplateTypeMap& InTypes, const bool bLockRegistry = true) const;
 
-	RIGVM_API FRigVMFunctionPtr CreateDispatchFunction(const FRigVMTemplateTypeMap& InTypes) const;
 	FRigVMFunctionPtr CreateDispatchFunction_NoLock(const FRigVMTemplateTypeMap& InTypes) const;
 
 	virtual FRigVMFunctionPtr GetDispatchFunctionImpl(const FRigVMTemplateTypeMap& InTypes) const { return nullptr; }
 	
-	RIGVM_API TArray<FRigVMFunction> CreateDispatchPredicates(const FRigVMTemplateTypeMap& InTypes) const;
 	TArray<FRigVMFunction> CreateDispatchPredicates_NoLock(const FRigVMTemplateTypeMap& InTypes) const;
 	
 	virtual TArray<FRigVMFunction> GetDispatchPredicatesImpl(const FRigVMTemplateTypeMap& InTypes) const { return TArray<FRigVMFunction>(); }
@@ -260,7 +273,7 @@ protected:
 	mutable TMap<int32, TSharedPtr<TArray<FName>>> ArgumentNamesMap;
 	FCriticalSection* ArgumentNamesMutex;
 	friend struct FRigVMTemplate;
-	friend struct FRigVMRegistry;
+	friend struct FRigVMRegistry_NoLock;
 	friend struct FRigVMFunction;
 	friend class URigVM;
 };

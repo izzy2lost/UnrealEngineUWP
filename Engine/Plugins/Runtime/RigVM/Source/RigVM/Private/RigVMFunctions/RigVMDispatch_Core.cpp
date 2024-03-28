@@ -69,27 +69,27 @@ FRigVMFunctionPtr FRigVMDispatch_CoreEquals::GetDispatchFunctionImpl(const FRigV
 	{
 		return &FRigVMDispatch_CoreEquals::StringEquals;
 	}
-	if(TypeIndex == FRigVMRegistry::Get().GetTypeIndex<FVector>())
+	if(TypeIndex == FRigVMRegistry_NoLock::GetForRead().GetTypeIndex_NoLock<FVector>())
 	{
 		return &FRigVMDispatch_CoreEquals::MathTypeEquals<FVector>;
 	}
-	if(TypeIndex == FRigVMRegistry::Get().GetTypeIndex<FVector2D>())
+	if(TypeIndex == FRigVMRegistry_NoLock::GetForRead().GetTypeIndex_NoLock<FVector2D>())
 	{
 		return &FRigVMDispatch_CoreEquals::MathTypeEquals<FVector2D>;
 	}
-	if(TypeIndex == FRigVMRegistry::Get().GetTypeIndex<FRotator>())
+	if(TypeIndex == FRigVMRegistry_NoLock::GetForRead().GetTypeIndex_NoLock<FRotator>())
 	{
 		return &FRigVMDispatch_CoreEquals::MathTypeEquals<FRotator>;
 	}
-	if(TypeIndex == FRigVMRegistry::Get().GetTypeIndex<FQuat>())
+	if(TypeIndex == FRigVMRegistry_NoLock::GetForRead().GetTypeIndex_NoLock<FQuat>())
 	{
 		return &FRigVMDispatch_CoreEquals::MathTypeEquals<FQuat>;
 	}
-	if(TypeIndex == FRigVMRegistry::Get().GetTypeIndex<FTransform>())
+	if(TypeIndex == FRigVMRegistry_NoLock::GetForRead().GetTypeIndex_NoLock<FTransform>())
 	{
 		return &FRigVMDispatch_CoreEquals::MathTypeEquals<FTransform>;
 	}
-	if(TypeIndex == FRigVMRegistry::Get().GetTypeIndex<FLinearColor>())
+	if(TypeIndex == FRigVMRegistry_NoLock::GetForRead().GetTypeIndex_NoLock<FLinearColor>())
 	{
 		return &FRigVMDispatch_CoreEquals::MathTypeEquals<FLinearColor>;
 	}

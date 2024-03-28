@@ -29,7 +29,7 @@ bool FRigVMDispatch_CastObject::GetPermutationsFromArgumentType(const FName& InA
 {
 	if (InArgumentName == ValueName)
 	{
-		const TArray<TRigVMTypeIndex>& ObjectTypes = FRigVMRegistry::Get().GetTypesForCategory(FRigVMTemplateArgument::ETypeCategory_SingleObjectValue);
+		const TArray<TRigVMTypeIndex>& ObjectTypes = FRigVMRegistry_NoLock::GetForRead().GetTypesForCategory_NoLock(FRigVMTemplateArgument::ETypeCategory_SingleObjectValue);
 		for (const TRigVMTypeIndex& Type : ObjectTypes)
 		{
 			OutPermutations.Add(
@@ -41,7 +41,7 @@ bool FRigVMDispatch_CastObject::GetPermutationsFromArgumentType(const FName& InA
 	}
 	else if (InArgumentName == ResultName)
 	{
-		const TArray<TRigVMTypeIndex>& ObjectTypes = FRigVMRegistry::Get().GetTypesForCategory(FRigVMTemplateArgument::ETypeCategory_SingleObjectValue);
+		const TArray<TRigVMTypeIndex>& ObjectTypes = FRigVMRegistry_NoLock::GetForRead().GetTypesForCategory_NoLock(FRigVMTemplateArgument::ETypeCategory_SingleObjectValue);
 		for (const TRigVMTypeIndex& Type : ObjectTypes)
 		{
 			OutPermutations.Add(

@@ -643,7 +643,7 @@ int32 URigVM::AddRigVMFunction(const FString& InFunctionName)
 		return FunctionIndex;
 	}
 
-	const FRigVMFunction* Function = FRigVMRegistry::Get().FindFunction(*InFunctionName);
+	const FRigVMFunction* Function = FRigVMRegistry_RWLock::Get().FindFunction(*InFunctionName);
 	if (Function == nullptr)
 	{
 		return INDEX_NONE;
@@ -984,7 +984,7 @@ bool URigVM::ResolveFunctionsIfRequired()
 		for (int32 FunctionIndex = 0; FunctionIndex < FunctionNames.Num(); FunctionIndex++)
 		{
 			const FString FunctionNameString = FunctionNames[FunctionIndex].ToString();
-			if(const FRigVMFunction* Function = FRigVMRegistry::Get().FindFunction(*FunctionNameString, TypeResolver))
+			if(const FRigVMFunction* Function = FRigVMRegistry_RWLock::Get().FindFunction(*FunctionNameString, TypeResolver))
 			{
 				GetFunctions()[FunctionIndex] = Function;
 				GetFactories()[FunctionIndex] = Function->Factory;

@@ -72,11 +72,11 @@ const FRigVMTemplate* UDEPRECATED_RigVMSelectNode::GetTemplate() const
 				if(InArgumentName == ValueFName)
 				{
 					ValueTypeIndex = InTypeIndex;
-					ResultTypeIndex = FRigVMRegistry::Get().GetBaseTypeFromArrayTypeIndex(InTypeIndex);
+					ResultTypeIndex = FRigVMRegistry_NoLock::GetForRead().GetBaseTypeFromArrayTypeIndex_NoLock(InTypeIndex);
 				}
 				else if(InArgumentName == ResultFName)
 				{
-					ValueTypeIndex = FRigVMRegistry::Get().GetArrayTypeFromBaseTypeIndex(InTypeIndex);;
+					ValueTypeIndex = FRigVMRegistry_NoLock::GetForRead().GetArrayTypeFromBaseTypeIndex_NoLock(InTypeIndex);;
 					ResultTypeIndex = InTypeIndex;
 				}
 				

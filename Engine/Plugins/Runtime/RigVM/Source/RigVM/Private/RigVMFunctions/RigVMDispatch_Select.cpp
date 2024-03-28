@@ -48,11 +48,11 @@ FRigVMTemplateTypeMap FRigVMDispatch_SelectInt32::OnNewArgumentType(const FName&
 	if(InArgumentName == ValuesName)
 	{
 		Types.Add(ValuesName, InTypeIndex);
-		Types.Add(ResultName, FRigVMRegistry::Get().GetBaseTypeFromArrayTypeIndex(InTypeIndex));
+		Types.Add(ResultName, FRigVMRegistry_NoLock::GetForRead().GetBaseTypeFromArrayTypeIndex_NoLock(InTypeIndex));
 	}
 	else
 	{
-		Types.Add(ValuesName, FRigVMRegistry::Get().GetArrayTypeFromBaseTypeIndex(InTypeIndex));
+		Types.Add(ValuesName, FRigVMRegistry_NoLock::GetForRead().GetArrayTypeFromBaseTypeIndex_NoLock(InTypeIndex));
 		Types.Add(ResultName, InTypeIndex);
 	}
 	return Types;

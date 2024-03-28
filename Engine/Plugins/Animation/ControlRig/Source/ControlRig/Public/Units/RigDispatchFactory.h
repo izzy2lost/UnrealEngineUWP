@@ -18,11 +18,12 @@ struct CONTROLRIG_API FRigDispatchFactory : public FRigVMDispatchFactory
 		return FControlRigExecuteContext::StaticStruct();
 	}
 
-	virtual void RegisterDependencyTypes() const override
+	virtual void RegisterDependencyTypes_NoLock() const override
 	{
-		FRigVMRegistry::Get().FindOrAddType(FControlRigExecuteContext::StaticStruct());
-		FRigVMRegistry::Get().FindOrAddType(FRigElementKey::StaticStruct());
-    	FRigVMRegistry::Get().FindOrAddType(FCachedRigElement::StaticStruct());
+		FRigVMRegistry_NoLock& Registry = FRigVMRegistry_NoLock::GetForWrite();
+		Registry.FindOrAddType_NoLock(FControlRigExecuteContext::StaticStruct());
+		Registry.FindOrAddType_NoLock(FRigElementKey::StaticStruct());
+    	Registry.FindOrAddType_NoLock(FCachedRigElement::StaticStruct());
 	}
 
 #if WITH_EDITOR

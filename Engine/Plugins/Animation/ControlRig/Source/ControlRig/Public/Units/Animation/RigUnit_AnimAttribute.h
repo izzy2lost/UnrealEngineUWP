@@ -139,7 +139,7 @@ struct CONTROLRIG_API FRigDispatch_AnimAttributeBase : public FRigDispatchFactor
 {
 	GENERATED_BODY()
 
-	virtual void RegisterDependencyTypes() const override;
+	virtual void RegisterDependencyTypes_NoLock() const override;
 
 #if WITH_EDITOR
 	virtual FString GetNodeTitle(const FRigVMTemplateTypeMap& InTypes) const override;;

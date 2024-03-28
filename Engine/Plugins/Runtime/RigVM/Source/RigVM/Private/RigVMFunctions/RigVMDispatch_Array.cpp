@@ -508,12 +508,12 @@ FRigVMTemplateTypeMap FRigVMDispatch_ArrayGetAtIndex::OnNewArgumentType(const FN
 		return {
 			{ArrayName, InTypeIndex},
 			{IndexName, RigVMTypeUtils::TypeIndex::Int32},
-			{ElementName, FRigVMRegistry::Get().GetBaseTypeFromArrayTypeIndex(InTypeIndex)}
+			{ElementName, FRigVMRegistry_NoLock::GetForRead().GetBaseTypeFromArrayTypeIndex_NoLock(InTypeIndex)}
 		};
 	}
 
 	return {
-		{ArrayName, FRigVMRegistry::Get().GetArrayTypeFromBaseTypeIndex(InTypeIndex)},
+		{ArrayName, FRigVMRegistry_NoLock::GetForRead().GetArrayTypeFromBaseTypeIndex_NoLock(InTypeIndex)},
 		{IndexName, RigVMTypeUtils::TypeIndex::Int32},
 		{ElementName, InTypeIndex}
 	};
@@ -593,12 +593,12 @@ FRigVMTemplateTypeMap FRigVMDispatch_ArraySetAtIndex::OnNewArgumentType(const FN
 		return {
 			{ArrayName, InTypeIndex},
 			{IndexName, RigVMTypeUtils::TypeIndex::Int32},
-			{ElementName, FRigVMRegistry::Get().GetBaseTypeFromArrayTypeIndex(InTypeIndex)}
+			{ElementName, FRigVMRegistry_NoLock::GetForRead().GetBaseTypeFromArrayTypeIndex_NoLock(InTypeIndex)}
 		};
 	}
 
 	return {
-		{ArrayName, FRigVMRegistry::Get().GetArrayTypeFromBaseTypeIndex(InTypeIndex)},
+		{ArrayName, FRigVMRegistry_NoLock::GetForRead().GetArrayTypeFromBaseTypeIndex_NoLock(InTypeIndex)},
 		{IndexName, RigVMTypeUtils::TypeIndex::Int32},
 		{ElementName, InTypeIndex}
 	};
@@ -897,14 +897,14 @@ FRigVMTemplateTypeMap FRigVMDispatch_ArrayFind::OnNewArgumentType(const FName& I
 	{
 		return {
 			{ArrayName, InTypeIndex},
-			{ElementName, FRigVMRegistry::Get().GetBaseTypeFromArrayTypeIndex(InTypeIndex)},
+			{ElementName, FRigVMRegistry_NoLock::GetForRead().GetBaseTypeFromArrayTypeIndex_NoLock(InTypeIndex)},
 			{IndexName, RigVMTypeUtils::TypeIndex::Int32},
 			{SuccessName, RigVMTypeUtils::TypeIndex::Bool}
 		};
 	}
 
 	return {
-		{ArrayName, FRigVMRegistry::Get().GetArrayTypeFromBaseTypeIndex(InTypeIndex)},
+		{ArrayName, FRigVMRegistry_NoLock::GetForRead().GetArrayTypeFromBaseTypeIndex_NoLock(InTypeIndex)},
 		{ElementName, InTypeIndex},
 		{IndexName, RigVMTypeUtils::TypeIndex::Int32},
 		{SuccessName, RigVMTypeUtils::TypeIndex::Bool}
@@ -1476,7 +1476,7 @@ FRigVMTemplateTypeMap FRigVMDispatch_ArrayIterator::OnNewArgumentType(const FNam
 	{
 		return {
 			{ArrayName, InTypeIndex},
-			{ElementName, FRigVMRegistry::Get().GetBaseTypeFromArrayTypeIndex(InTypeIndex)},
+			{ElementName, FRigVMRegistry_NoLock::GetForRead().GetBaseTypeFromArrayTypeIndex_NoLock(InTypeIndex)},
 			{IndexName, RigVMTypeUtils::TypeIndex::Int32},
 			{CountName, RigVMTypeUtils::TypeIndex::Int32},
 			{RatioName, RigVMTypeUtils::TypeIndex::Float},
@@ -1485,7 +1485,7 @@ FRigVMTemplateTypeMap FRigVMDispatch_ArrayIterator::OnNewArgumentType(const FNam
 	}
 
 	return {
-		{ArrayName, FRigVMRegistry::Get().GetArrayTypeFromBaseTypeIndex(InTypeIndex)},
+		{ArrayName, FRigVMRegistry_NoLock::GetForRead().GetArrayTypeFromBaseTypeIndex_NoLock(InTypeIndex)},
 		{ElementName, InTypeIndex},
 		{IndexName, RigVMTypeUtils::TypeIndex::Int32},
 		{CountName, RigVMTypeUtils::TypeIndex::Int32},

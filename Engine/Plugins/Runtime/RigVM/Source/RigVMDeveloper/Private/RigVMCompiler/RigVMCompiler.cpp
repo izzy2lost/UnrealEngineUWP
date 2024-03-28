@@ -845,7 +845,7 @@ bool URigVMCompiler::Compile(const FRigVMCompileSettings& InSettings, TArray<URi
 					{
 						for (TFieldIterator<FProperty> It(ScriptStruct, EFieldIterationFlags::None); It; ++It)
 						{
-							const FRigVMTemplateArgument ExpectedArgument(*It);
+							const FRigVMTemplateArgument ExpectedArgument = FRigVMTemplateArgument::Make(*It);
 							const TRigVMTypeIndex ExpectedTypeIndex = ExpectedArgument.GetSupportedTypeIndices()[0];
 							if (URigVMPin* Pin = UnitNode->FindPin(ExpectedArgument.Name.ToString()))
 							{

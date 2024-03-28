@@ -16598,7 +16598,7 @@ bool URigVMController::FullyResolveTemplateNode(URigVMTemplateNode* InNode, int3
 			{
 				for (TFieldIterator<FProperty> It(StructToVisit, EFieldIterationFlags::None); It; ++It)
 				{
-					const FRigVMTemplateArgument ExpectedArgument(*It);
+					const FRigVMTemplateArgument ExpectedArgument = FRigVMTemplateArgument::Make(*It);
 					const TRigVMTypeIndex ExpectedTypeIndex = ExpectedArgument.GetSupportedTypeIndices()[0];
 
 					if(URigVMPin* Pin = InNode->FindPin(It->GetFName().ToString()))
