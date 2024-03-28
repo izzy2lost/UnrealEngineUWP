@@ -3,10 +3,10 @@
 #if WITH_VERSE_VM || defined(__INTELLISENSE__)
 #include "VerseVM/VVMVerse.h"
 #include "AutoRTFM/AutoRTFM.h"
-#include "UObject/CoreRedirects.h"
 #include "UObject/VerseValueProperty.h"
 #include "VerseVM/VVMEmergentTypeCreator.h"
 #include "VerseVM/VVMFalse.h"
+#include "VerseVM/VVMGlobalProgram.h"
 #include "VerseVM/VVMHeap.h"
 
 namespace Verse
@@ -34,9 +34,12 @@ void VerseVM::Startup()
 	FVValueProperty::StaticClass();
 	FVRestValueProperty::StaticClass();
 
-	TArray<FCoreRedirect> Redirects;
-	Redirects.Emplace(ECoreRedirectFlags::Type_Class, TEXT("/Script/Solaris.VerseClass"), TEXT("/Script/CoreUObject.VerseVMClass"));
-	FCoreRedirects::AddRedirectList(Redirects, TEXT("VerseVM"));
+	if (!Verse::GlobalProgram)
+	{
+		FRunningContext::Create([](FRunningContext Context) {
+			GlobalProgram.Set(Context, &VProgram::New(Context, 32));
+		});
+	}
 }
 
 void VerseVM::Shutdown()
