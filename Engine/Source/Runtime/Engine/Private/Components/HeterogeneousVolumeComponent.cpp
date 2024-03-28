@@ -270,6 +270,16 @@ void UHeterogeneousVolumeComponent::SetStreamingMipBias(int32 NewValue)
 	}
 }
 
+void UHeterogeneousVolumeComponent::SetVolumeResolution(FIntVector NewValue)
+{
+	if (AreDynamicDataChangesAllowed()
+		&& VolumeResolution != NewValue)
+	{
+		VolumeResolution = NewValue;
+		MarkRenderStateDirty();
+	}
+}
+
 void UHeterogeneousVolumeComponent::SetFrame(float NewValue)
 {
 	if (AreDynamicDataChangesAllowed()
@@ -424,23 +434,26 @@ UMaterialInstanceDynamic* UHeterogeneousVolumeComponent::CreateOrCastToMID(UMate
 
 void UHeterogeneousVolumeComponent::OnSparseVolumeTextureChanged(const USparseVolumeTexture* SparseVolumeTexture)
 {
-	if (SparseVolumeTexture)
+	if (SparseVolumeTexture != PreviousSVT)
 	{
-		VolumeResolution = SparseVolumeTexture->GetVolumeResolution();
-		StartFrame = 0;
-		EndFrame = SparseVolumeTexture->GetNumFrames() - 1;
-		Frame = FMath::Clamp(Frame, StartFrame, EndFrame);
-	}
-	else
-	{
-		VolumeResolution = FIntVector(128);
-		Frame = 0.0f;
-		StartFrame = 0.0f;
-		EndFrame = 0.0f;
-	}
+		if (SparseVolumeTexture)
+		{
+			VolumeResolution = SparseVolumeTexture->GetVolumeResolution();
+			StartFrame = 0;
+			EndFrame = SparseVolumeTexture->GetNumFrames() - 1;
+			Frame = FMath::Clamp(Frame, StartFrame, EndFrame);
+		}
+		else
+		{
+			VolumeResolution = FIntVector(128);
+			Frame = 0.0f;
+			StartFrame = 0.0f;
+			EndFrame = 0.0f;
+		}
 
-	PreviousSVT = SparseVolumeTexture;
-	MarkRenderStateDirty();
+		PreviousSVT = SparseVolumeTexture;
+		MarkRenderStateDirty();
+	}
 }
 
 UMaterialInterface* UHeterogeneousVolumeComponent::GetHeterogeneousVolumeMaterial() const
