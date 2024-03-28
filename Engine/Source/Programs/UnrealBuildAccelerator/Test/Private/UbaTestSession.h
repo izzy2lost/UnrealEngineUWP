@@ -289,30 +289,21 @@ namespace uba
 
 	bool TestCustomService(LoggerWithWriter& logger, const StringBufferBase& testRootDir)
 	{
-		if (!IsWindows)
-			return true;
-
 		return RunRemote(logger, testRootDir, RunCustomService);
 	}
 
 	bool TestDetouredClang(LoggerWithWriter& logger, const StringBufferBase& testRootDir)
 	{
-		if (IsWindows)
-			return true;
 		return RunLocal(logger, testRootDir, RunClang);
 	}
 
 	bool TestRemoteDetouredClang(LoggerWithWriter& logger, const StringBufferBase& testRootDir)
 	{
-		if (IsWindows)
-			return true;
 		return RunRemote(logger, testRootDir, RunClang);
 	}
 
 	bool TestDetouredTouch(LoggerWithWriter& logger, const StringBufferBase& testRootDir)
 	{
-		if (IsWindows)
-			return true;
 		return RunLocal(logger, testRootDir, [](LoggerWithWriter& logger, SessionServer& session, const tchar* workingDir, const RunProcessFunction& runProcess)
 			{
 				StringBuffer<> file;

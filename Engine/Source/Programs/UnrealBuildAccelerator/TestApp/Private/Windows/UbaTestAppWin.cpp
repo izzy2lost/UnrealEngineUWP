@@ -19,20 +19,21 @@ int LogError(const wchar_t* format, ...)
 int wmain(int argc, wchar_t* argv[])
 {
 	HMODULE detoursHandle = GetModuleHandleW(L"UbaDetours.dll");
-	if (!detoursHandle)
-		return LogError(L"Did not find UbaDetours.dll in process!!!\n");
-
-	using UbaRunningRemoteFunc = bool();
-	UbaRunningRemoteFunc* runningRemoteFunc = (UbaRunningRemoteFunc*)GetProcAddress(detoursHandle, "UbaRunningRemote");
-	if (!runningRemoteFunc)
-		return LogError(L"Couldn't find UbaRunningRemote function in UbaDetours.dll");
-	bool runningRemote = (*runningRemoteFunc)();
 
 	using UbaRequestNextProcessFunc = bool(unsigned int prevExitCode, wchar_t* outArguments, unsigned int outArgumentsCapacity);
 	static UbaRequestNextProcessFunc* requestNextProcess = (UbaRequestNextProcessFunc*)(void*)GetProcAddress(detoursHandle, "UbaRequestNextProcess");
 
 	if (argc == 1)
 	{
+		if (!detoursHandle)
+			return LogError(L"Did not find UbaDetours.dll in process!!!\n");
+
+		using UbaRunningRemoteFunc = bool();
+		UbaRunningRemoteFunc* runningRemoteFunc = (UbaRunningRemoteFunc*)GetProcAddress(detoursHandle, "UbaRunningRemote");
+		if (!runningRemoteFunc)
+			return LogError(L"Couldn't find UbaRunningRemote function in UbaDetours.dll");
+		bool runningRemote = (*runningRemoteFunc)();
+
 		HMODULE modules[] = { 0, detoursHandle, GetModuleHandleW(L"UbaTestApp.exe") };
 		for (HMODULE module : modules)
 		{
@@ -237,6 +238,9 @@ int wmain(int argc, wchar_t* argv[])
 	}
 	else
 	{
+		if (!detoursHandle)
+			return LogError(L"Did not find UbaDetours.dll in process!!!\n");
+
 		using u32 = unsigned int;
 		using UbaSendCustomMessageFunc = u32(const void* send, u32 sendSize, void* recv, u32 recvCapacity);
 

@@ -12,22 +12,8 @@
 
 namespace uba
 {
-#if PLATFORM_MAC
-	#define UBA_EXTRA_TESTS
-#else
-	#define UBA_EXTRA_TESTS \
-		UBA_TEST(TestMultipleDetouredProcesses) \
-		UBA_TEST(TestLogLines) \
-		UBA_TEST(TestLogLinesNoDetour) \
-		UBA_TEST(TestLocalSchedule) \
-		UBA_TEST(TestLocalScheduleReuse) \
-		UBA_TEST(TestDetouredTouch) \
-		UBA_TEST(TestRemoteScheduleReuse) \
-		UBA_TEST(TestStdOutLocal) \
 
-#endif 
-
-	#define UBA_TESTS \
+#define UBA_ALLPLATFORM_TESTS \
 		UBA_TEST(TestTime) \
 		UBA_TEST(TestEvents) \
 		UBA_TEST(TestPaths) \
@@ -41,10 +27,61 @@ namespace uba
 		UBA_TEST(TestClientServerMem) \
 		UBA_TEST(TestStorage) \
 		UBA_TEST(TestDetouredTestApp) \
-		UBA_TEST(TestDetouredClang) \
 		UBA_TEST(TestRemoteDetouredTestApp) \
+
+
+#define UBA_POSIX_TESTS \
+		UBA_TEST(TestDetouredClang) \
+		UBA_TEST(TestRemoteDetouredClang) \
+		UBA_TEST(TestDetouredTouch) \
+
+
+#define UBA_NONMAC_TESTS \
+		UBA_TEST(TestMultipleDetouredProcesses) \
+		UBA_TEST(TestLogLines) \
+		UBA_TEST(TestLogLinesNoDetour) \
+		UBA_TEST(TestLocalSchedule) \
+		UBA_TEST(TestLocalScheduleReuse) \
+		UBA_TEST(TestRemoteScheduleReuse) \
+
+#define UBA_WINDOWS_TESTS \
+		UBA_NONMAC_TESTS \
 		UBA_TEST(TestCustomService) \
-		UBA_EXTRA_TESTS
+		UBA_TEST(TestStdOutLocal) \
+		UBA_TEST(TestStdOutViaCmd) \
+
+
+#define UBA_LINUX_TESTS \
+		UBA_NONMAC_TESTS \
+		UBA_POSIX_TESTS \
+
+
+#define UBA_MAC_TESTS \
+		UBA_POSIX_TESTS
+
+
+
+
+#if !PLATFORM_WINDOWS
+#undef UBA_WINDOWS_TESTS
+#define UBA_WINDOWS_TESTS
+#endif
+
+#if !PLATFORM_LINUX
+#undef UBA_LINUX_TESTS
+#define UBA_LINUX_TESTS
+#endif
+
+#if !PLATFORM_MAC
+#undef  UBA_MAC_TESTS
+#define UBA_MAC_TESTS
+#endif
+
+#define UBA_TESTS \
+		UBA_ALLPLATFORM_TESTS \
+		UBA_WINDOWS_TESTS \
+		UBA_LINUX_TESTS \
+		UBA_MAC_TESTS \
 
 
 	#define UBA_TEST(x) \
@@ -87,7 +124,7 @@ namespace uba
 		UBA_TESTS
 
 		logger.Info(TC("Tests finished successfully!"));
-		Sleep(3000);
+		Sleep(2000);
 
 		return true;
 	}

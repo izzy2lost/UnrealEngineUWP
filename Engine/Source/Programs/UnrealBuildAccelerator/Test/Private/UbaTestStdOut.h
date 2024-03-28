@@ -7,7 +7,7 @@
 
 namespace uba
 {
-	bool TestStdOut(LoggerWithWriter& logger, const StringBufferBase& testRootDir, bool remote)
+	bool TestStdOut(LoggerWithWriter& logger, const StringBufferBase& testRootDir, bool remote, const tchar* app = nullptr, const tchar* arg = nullptr, const tchar* expectedOut = nullptr)
 	{
 		LogWriter& logWriter = logger.m_writer;
 		NetworkBackendTcp networkBackend(logWriter);
@@ -47,11 +47,20 @@ namespace uba
 			return logger.Error(TC("Failed to listen"));
 
 		StringBuffer<> testApp;
-		GetTestAppPath(logger, testApp);
+		if (!app)
+		{
+			GetTestAppPath(logger, testApp);
+			app = testApp.data;
+		}
+		if (!arg)
+		{
+			arg = TC("-stdout=rootprocess");
+			expectedOut = TC("rootprocess");
+		}
 
 		ProcessStartInfo pi;
-		pi.application = testApp.data;
-		pi.arguments = TC("-stdout=rootprocess");
+		pi.application = app;
+		pi.arguments = arg;
 		pi.workingDir = workingDir.data;
 		pi.description = TC("StdOutDesc");
 		pi.logFile = TC("Log");
@@ -68,9 +77,9 @@ namespace uba
 
 		auto& logLines = ph.GetLogLines();
 		if (logLines.size() != 1)
-			return false;
-		if (!Equals(logLines[0].text.c_str(), TC("rootprocess")))
-			return false;
+			return logger.Error(TC("Application %s produced %u log line(s) but expected 1"), app, u32(logLines.size()));
+		if (!Equals(logLines[0].text.c_str(), expectedOut))
+			return logger.Error(TC("Application %s produced non-matching log line: %s"), app, logLines[0].text.c_str());
 
 		return true;
 	}
@@ -85,5 +94,16 @@ namespace uba
 	bool TestStdOutRemote(LoggerWithWriter& logger, const StringBufferBase& testRootDir)
 	{
 		return TestStdOut(logger, testRootDir, true);
+	}
+
+	bool TestStdOutViaCmd(LoggerWithWriter& logger, const StringBufferBase& testRootDir)
+	{
+		if (!IsWindows)
+			return true;
+		StringBuffer<> args;
+		args.Append(TC("/c \""));
+		GetTestAppPath(logger, args);
+		args.Append(TC(" -stdout=foo\""));
+		return TestStdOut(logger, testRootDir, false, TC("c:\\windows\\system32\\cmd.exe"), args.data, TC("foo"));
 	}
 }

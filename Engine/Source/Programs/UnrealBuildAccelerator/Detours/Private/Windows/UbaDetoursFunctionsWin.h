@@ -128,6 +128,7 @@
 	DETOURED_FUNCTION(NtQueryObject) \
 	DETOURED_FUNCTION(NtQueryInformationProcess) \
 	DETOURED_FUNCTION(NtSetInformationFile) \
+	DETOURED_FUNCTION(NtSetInformationObject) \
 	DETOURED_FUNCTION(NtCreateSection) \
 	DETOURED_FUNCTION(RtlSizeHeap) \
 	DETOURED_FUNCTION(RtlFreeHeap) \
@@ -341,6 +342,7 @@ extern "C" {
 	NTSTATUS NTAPI NtFlushBuffersFileEx(HANDLE FileHandle, ULONG Flags, PVOID Parameters, ULONG ParametersSize, PIO_STATUS_BLOCK IoStatusBlock);
 	NTSTATUS NTAPI NtReadFile(HANDLE FileHandle, HANDLE Event, PIO_APC_ROUTINE ApcRoutine, PVOID ApcContext, PIO_STATUS_BLOCK IoStatusBlock, PVOID Buffer, ULONG Length, PLARGE_INTEGER ByteOffset, PULONG Key);
 	NTSTATUS NTAPI NtSetInformationFile(HANDLE FileHandle, PIO_STATUS_BLOCK IoStatusBlock, PVOID FileInformation, ULONG Length, FILE_INFORMATION_CLASS FileInformationClass);
+	NTSTATUS NTAPI NtSetInformationObject(HANDLE ObjectHandle, OBJECT_INFORMATION_CLASS ObjectInformationClass, PVOID ObjectInformation, ULONG Length);
 	NTSTATUS NTAPI NtCreateSection(PHANDLE SectionHandle, ACCESS_MASK DesiredAccess, POBJECT_ATTRIBUTES ObjectAttributes, PLARGE_INTEGER MaximumSize, ULONG SectionPageProtection, ULONG AllocationAttributes, HANDLE FileHandle);
 	NTSTATUS NTAPI NtCreateIoCompletion(PHANDLE IoCompletionHandle, ACCESS_MASK DesiredAccess, POBJECT_ATTRIBUTES ObjectAttributes, ULONG Count);
 	NTSTATUS NTAPI ZwCreateFile(PHANDLE FileHandle, ACCESS_MASK DesiredAccess, POBJECT_ATTRIBUTES ObjectAttributes, PIO_STATUS_BLOCK IoStatusBlock, PLARGE_INTEGER AllocationSize, ULONG FileAttributes, ULONG ShareAccess, ULONG CreateDisposition, ULONG CreateOptions, PVOID EaBuffer, ULONG EaLength);
@@ -404,17 +406,57 @@ struct FILE_RENAME_INFORMATION {
 };
 
 struct FILE_IS_REMOTE_DEVICE_INFORMATION {
-  BOOLEAN IsRemote;
+	BOOLEAN IsRemote;
+	};
+
+	struct FILE_ID_INFORMATION {
+	ULONGLONG   VolumeSerialNumber;
+	FILE_ID_128 FileId;
+	};
+
+	struct FILE_NAME_INFORMATION {
+	ULONG FileNameLength;
+	WCHAR FileName[1];
+	};
+
+	struct FILE_BASIC_INFORMATION {
+	LARGE_INTEGER CreationTime;
+	LARGE_INTEGER LastAccessTime;
+	LARGE_INTEGER LastWriteTime;
+	LARGE_INTEGER ChangeTime;
+	DWORD FileAttributes;
+	};
+
+	struct FILE_STANDARD_INFORMATION {
+	LARGE_INTEGER AllocationSize;
+	LARGE_INTEGER EndOfFile;
+	ULONG         NumberOfLinks;
+	BOOLEAN       DeletePending;
+	BOOLEAN       Directory;
 };
 
-struct FILE_ID_INFORMATION {
-  ULONGLONG   VolumeSerialNumber;
-  FILE_ID_128 FileId;
+struct FILE_INTERNAL_INFORMATION {
+	LARGE_INTEGER IndexNumber;
 };
 
-struct FILE_NAME_INFORMATION {
-  ULONG FileNameLength;
-  WCHAR FileName[1];
+struct FILE_ALL_INFORMATION {
+	FILE_BASIC_INFORMATION     BasicInformation;
+	FILE_STANDARD_INFORMATION  StandardInformation;
+	FILE_INTERNAL_INFORMATION  InternalInformation;
+	//FILE_EA_INFORMATION        EaInformation;
+	//FILE_ACCESS_INFORMATION    AccessInformation;
+	//FILE_POSITION_INFORMATION  PositionInformation;
+	//FILE_MODE_INFORMATION      ModeInformation;
+	//FILE_ALIGNMENT_INFORMATION AlignmentInformation;
+	//FILE_NAME_INFORMATION      NameInformation;
+};
+
+struct FILE_FS_VOLUME_INFORMATION {
+	LARGE_INTEGER VolumeCreationTime;
+	ULONG         VolumeSerialNumber;
+	ULONG         VolumeLabelLength;
+	BOOLEAN       SupportsObjects;
+	WCHAR         VolumeLabel[1];
 };
 
 namespace uba

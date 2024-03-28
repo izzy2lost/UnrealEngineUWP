@@ -2222,12 +2222,16 @@ DWORD Detoured_GetFinalPathNameByHandleW(HANDLE hFile, LPTSTR lpszFilePath, DWOR
 		UBA_ASSERT(fo && fo->fileInfo->originalName);
 		const wchar_t* fileName = fo->fileInfo->originalName;
 
-		if (dwFlags == 0)
+		if (dwFlags == 0 || dwFlags == 2)
 		{
 			if (!fo->newName.empty())
 				fileName = fo->newName.c_str();
 			StringBuffer<> buffer;
-			FixPath2(fileName, g_virtualWorkingDir.data, g_virtualWorkingDir.count, buffer.data, buffer.capacity, &buffer.count);
+
+			if (dwFlags == 2)
+				buffer.Append(L"\\??\\");
+
+			FixPath(fileName, g_virtualWorkingDir.data, g_virtualWorkingDir.count, buffer);
 
 			if (cchFilePath <= buffer.count)
 			{
@@ -2239,6 +2243,8 @@ DWORD Detoured_GetFinalPathNameByHandleW(HANDLE hFile, LPTSTR lpszFilePath, DWOR
 			// Unfortunately casing can be wrong here.. and we need to fix that. Let's use the directory table for that
 			// Note, this really only matters when building linux target from windows.. then there is path validation that errors if this is not properly fixed
 			StringBuffer<> buffer2;
+			if (dwFlags == 2)
+				buffer2.Append(L"\\??\\");
 			g_directoryTable.GetFinalPath(buffer2, fileName);
 			UBA_ASSERT(buffer2.count == buffer.count);
 
@@ -2491,10 +2497,12 @@ BOOL Detoured_GetConsoleMode(HANDLE hConsoleHandle, LPDWORD lpMode)
 BOOL Detoured_SetConsoleMode(HANDLE hConsoleHandle, DWORD mode)
 {
 	DETOURED_CALL(SetConsoleMode);
-	DEBUG_LOG_DETOURED(L"SetConsoleMode", L"(%u)", mode);
+	DEBUG_LOG_DETOURED(L"SetConsoleMode", L"%llu (%u)", u64(hConsoleHandle), mode);
 
-	g_echoOn = (mode & ~503) != 0; // TODO: This might be wrong. Trying to figure out how echo off in batch files work in terms of win32 calls
+	if (hConsoleHandle == g_stdHandle[1])
 	{
+		g_echoOn = (mode & ~503) != 0; // TODO: This might be wrong. Trying to figure out how echo off in batch files work in terms of win32 calls
+
 		SCOPED_WRITE_LOCK(g_communicationLock, pcs);
 		BinaryWriter writer;
 		writer.WriteByte(MessageType_EchoOn);
@@ -2516,7 +2524,7 @@ BOOL Detoured_CreateProcessW(LPCWSTR lpApplicationName, LPWSTR lpCommandLine, LP
 	DWORD dwCreationFlags, LPVOID lpEnvironment, LPCWSTR lpCurrentDirectory, LPSTARTUPINFOW lpStartupInfo, LPPROCESS_INFORMATION lpProcessInformation)
 {
 	DETOURED_CALL(CreateProcessW);
-	DEBUG_LOG_DETOURED(L"CreateProcessW", L"%ls %ls %u %u %llu", lpApplicationName, lpCommandLine ? lpCommandLine : L"", dwCreationFlags, lpStartupInfo->dwFlags, u64(lpStartupInfo->hStdInput));
+	DEBUG_LOG_DETOURED(L"CreateProcessW", L"%ls %ls CreationFlags: 0x%x StartupFlags: 0x%u Stdin: %llu", lpApplicationName, lpCommandLine ? lpCommandLine : L"", dwCreationFlags, lpStartupInfo->dwFlags, u64(lpStartupInfo->hStdInput));
 
 	if ((!lpApplicationName || !*lpApplicationName) && (!lpCommandLine || !*lpCommandLine))
 	{
@@ -3328,8 +3336,7 @@ BOOL Detoured_SetHandleInformation(HANDLE hObject, DWORD dwMask, DWORD dwFlags)
 {
 	DETOURED_CALL(SetHandleInformation);
 	DEBUG_LOG_TRUE(L"SetHandleInformation", L"%llu", uintptr_t(hObject));
-	UBA_ASSERT(!isDetouredHandle(hObject));
-	return True_SetHandleInformation(hObject, dwMask, dwFlags);
+	return True_SetHandleInformation(hObject, dwMask, dwFlags); // Calls NtQueryObject and NtSetInformationObject internally
 }
 
 HANDLE Detoured_CreateNamedPipeW(LPCWSTR lpName, DWORD dwOpenMode, DWORD dwPipeMode, DWORD nMaxInstances, DWORD nOutBufferSize, DWORD nInBufferSize, DWORD nDefaultTimeOut, LPSECURITY_ATTRIBUTES lpSecurityAttributes)

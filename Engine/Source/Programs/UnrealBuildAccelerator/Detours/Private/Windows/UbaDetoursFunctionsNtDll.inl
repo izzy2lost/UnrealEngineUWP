@@ -34,7 +34,26 @@ NTSTATUS Detoured_NtQueryVolumeInformationFile(HANDLE FileHandle, PIO_STATUS_BLO
 			}
 		}
 		TrueHandle = dh.trueHandle;
-		UBA_ASSERTF(TrueHandle != INVALID_HANDLE_VALUE, L"NtQueryVolumeInformationFile using class %u not handled (%ls)", FsInformationClass, HandleToName(FileHandle));
+		if (TrueHandle == INVALID_HANDLE_VALUE)
+		{
+			if (FsInformationClass == 1) // FileFsVolumeInformation
+			{
+				// TODO This code path is here to handle nodejs queries..
+				
+				auto& info = *(FILE_FS_VOLUME_INFORMATION*)FsInformation;
+				UBA_ASSERT(dh.dirTableOffset != ~0u);
+				DirectoryTable::EntryInformation entryInfo;
+				g_directoryTable.GetEntryInformation(entryInfo, dh.dirTableOffset);
+				UBA_ASSERT(entryInfo.attributes != 0);
+				info.VolumeCreationTime.QuadPart = 0;
+				info.VolumeSerialNumber = entryInfo.volumeSerial;
+				info.VolumeLabelLength = 0;
+				info.SupportsObjects = false;
+				info.VolumeLabel[0] = 0;
+				return STATUS_SUCCESS;
+			}
+			UBA_ASSERTF(false, L"NtQueryVolumeInformationFile using class %u not handled %ls (%ls)", FsInformationClass, dh.fileObject->fileInfo->name, dh.fileObject->fileInfo->originalName);
+		}
 	}
 	else if (isListDirectoryHandle(FileHandle))
 	{
@@ -114,27 +133,49 @@ NTSTATUS Detoured_NtQueryInformationFile(HANDLE FileHandle, PIO_STATUS_BLOCK IoS
 	if (isDetouredHandle(FileHandle))
 	{
 		auto& dh = asDetouredHandle(FileHandle);
-		/*
-		if (FileInformationClass == 9) // FileNameInformation
+		TrueHandle = dh.trueHandle;
+
+		if (TrueHandle == INVALID_HANDLE_VALUE)
 		{
-			const wchar_t* name = dh.fileObject->fileInfo->originalName;
-			auto& info = *(FILE_NAME_INFORMATION*)FileInformation;
-			info.FileName[0] = '\\';
-			info.FileNameLength = 2;
-			//return STATUS_SUCCESS;
-			u32 nameLen = u32(wcslen(name));
-			//UBA_ASSERT(info.FileNameLength/2 > nameLen);
-			//memcpy(info.FileName, name, nameLen*2+2);
-			//info.FileNameLength = nameLen;
-			memcpy(info.FileName, L"\\\\", 4);
-			info.FileNameLength = 2;
-			return STATUS_SUCCESS;
-		}
-		else
-		*/
-		{
-			TrueHandle = dh.trueHandle;
-			UBA_ASSERTF(TrueHandle != INVALID_HANDLE_VALUE, L"NtQueryInformationFile (%u) failed using detoured handle %ls (%ls)", FileInformationClass, dh.fileObject->fileInfo->name, dh.fileObject->fileInfo->originalName);
+			if (FileInformationClass == 18) // FileAllInformation 
+			{
+				UBA_ASSERT(dh.dirTableOffset != ~0u);
+				DirectoryTable::EntryInformation entryInfo;
+				g_directoryTable.GetEntryInformation(entryInfo, dh.dirTableOffset);
+				UBA_ASSERT(entryInfo.attributes != 0);
+
+				// TODO This code path is here to handle nodejs queries.. Is not properly implemented and miss things
+				auto& info = *(FILE_ALL_INFORMATION*)FileInformation;
+				info.BasicInformation.CreationTime.QuadPart = entryInfo.lastWrite;
+				info.BasicInformation.LastAccessTime.QuadPart = entryInfo.lastWrite;
+				info.BasicInformation.LastWriteTime.QuadPart = entryInfo.lastWrite;
+				info.BasicInformation.ChangeTime.QuadPart = entryInfo.lastWrite;
+				info.BasicInformation.FileAttributes = entryInfo.attributes;
+				info.StandardInformation.AllocationSize.QuadPart = entryInfo.size;
+				info.StandardInformation.EndOfFile.QuadPart = entryInfo.size;
+				info.StandardInformation.NumberOfLinks = 0;
+				info.StandardInformation.DeletePending = false;
+				info.StandardInformation.Directory = false;
+				info.InternalInformation.IndexNumber.QuadPart = entryInfo.fileIndex;
+				return STATUS_SUCCESS;
+			}
+
+			//if (FileInformationClass == 9) // FileNameInformation
+			//{
+			//	const wchar_t* name = dh.fileObject->fileInfo->originalName;
+			//	auto& info = *(FILE_NAME_INFORMATION*)FileInformation;
+			//	info.FileName[0] = '\\';
+			//	info.FileNameLength = 2;
+			//	//return STATUS_SUCCESS;
+			//	u32 nameLen = u32(wcslen(name));
+			//	//UBA_ASSERT(info.FileNameLength/2 > nameLen);
+			//	//memcpy(info.FileName, name, nameLen*2+2);
+			//	//info.FileNameLength = nameLen;
+			//	memcpy(info.FileName, L"\\\\", 4);
+			//	info.FileNameLength = 2;
+			//	return STATUS_SUCCESS;
+			//}
+			UBA_ASSERTF(false, L"NtQueryInformationFile (%u) failed using detoured handle %ls (%ls)", FileInformationClass, dh.fileObject->fileInfo->name, dh.fileObject->fileInfo->originalName);
 		}
 	}
 
@@ -395,6 +436,19 @@ NTSTATUS Detoured_NtSetInformationFile(HANDLE FileHandle, PIO_STATUS_BLOCK IoSta
 	}
 	auto res = True_NtSetInformationFile(trueHandle, IoStatusBlock, FileInformation, Length, FileInformationClass);
 	DEBUG_LOG_TRUE(L"NtSetInformationFile", L"(%u) %llu (%ls) -> %ls", FileInformationClass, uintptr_t(FileHandle), HandleToName(FileHandle), ToString(res));
+	return res;
+}
+
+NTSTATUS NTAPI Detoured_NtSetInformationObject(HANDLE ObjectHandle, OBJECT_INFORMATION_CLASS ObjectInformationClass, PVOID ObjectInformation, ULONG Length)
+{
+	if (isDetouredHandle(ObjectHandle))
+	{
+		DetouredHandle& h = asDetouredHandle(ObjectHandle);
+		ObjectHandle = h.trueHandle;
+		UBA_ASSERT(ObjectHandle != INVALID_HANDLE_VALUE);
+	}
+	auto res = True_NtSetInformationObject(ObjectHandle, ObjectInformationClass, ObjectInformation, Length);
+	DEBUG_LOG_TRUE(L"NtSetInformationObject", L"(%u) %llu (%ls) -> %ls", ObjectInformationClass, uintptr_t(ObjectHandle), HandleToName(ObjectHandle), ToString(res));
 	return res;
 }
 
