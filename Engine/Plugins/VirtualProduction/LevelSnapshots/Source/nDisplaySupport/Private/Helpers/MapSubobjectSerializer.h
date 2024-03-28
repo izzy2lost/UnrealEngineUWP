@@ -6,7 +6,6 @@
 #include "LevelSnapshotsLog.h"
 #include "Interfaces/ICustomObjectSnapshotSerializer.h"
 #include "Params/ObjectSnapshotSerializationData.h"
-#include "UObject/StrProperty.h"
 #include "UObject/UnrealType.h"
 
 class FScriptMapHelper;

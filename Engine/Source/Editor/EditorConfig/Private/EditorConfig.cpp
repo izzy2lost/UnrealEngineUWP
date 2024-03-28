@@ -16,7 +16,6 @@
 #include "UObject/Field.h"
 #include "UObject/NameTypes.h"
 #include "UObject/PropertyPortFlags.h"
-#include "UObject/StrProperty.h"
 #include "UObject/TextProperty.h"
 #include "UObject/UnrealType.h"
 

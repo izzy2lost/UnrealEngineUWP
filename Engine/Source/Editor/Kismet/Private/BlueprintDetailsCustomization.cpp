@@ -136,7 +136,6 @@
 #include "UObject/Package.h"
 #include "UObject/ReflectedTypeAccessors.h"
 #include "UObject/SoftObjectPath.h"
-#include "UObject/StrProperty.h"
 #include "UObject/StructOnScope.h"
 #include "UObject/TextProperty.h"
 #include "UObject/TopLevelAssetPath.h"
