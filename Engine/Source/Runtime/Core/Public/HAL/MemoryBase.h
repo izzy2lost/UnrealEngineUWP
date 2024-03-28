@@ -108,6 +108,17 @@ public:
 	 * Free
 	 */
 	virtual void Free( void* Original ) = 0;
+
+	/**
+	 * Malloc zeroed memory
+	 */
+	CORE_API virtual void* MallocZeroed(SIZE_T Count, uint32 Alignment = DEFAULT_ALIGNMENT);
+
+	/**
+	 * TryMalloc - like MallocZeroed(), but may return a nullptr result if the allocation
+	 *             request cannot be satisfied.
+	 */
+	CORE_API virtual void* TryMallocZeroed(SIZE_T Count, uint32 Alignment = DEFAULT_ALIGNMENT);
 		
 	/** 
 	* For some allocators this will return the actual size that should be requested to eliminate

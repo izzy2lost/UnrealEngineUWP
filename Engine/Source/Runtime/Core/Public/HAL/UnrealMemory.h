@@ -214,12 +214,7 @@ struct FMemory
 	static CORE_API void Free(void* Original);
 	static CORE_API SIZE_T GetAllocSize(void* Original);
 
-	UE_ALLOCATION_FUNCTION(1, 2) static FORCEINLINE_DEBUGGABLE void* MallocZeroed(SIZE_T Count, uint32 Alignment = DEFAULT_ALIGNMENT)
-	{
-		void* Memory = Malloc(Count, Alignment);
-		Memzero(Memory, Count);
-		return Memory;
-	}
+	UE_ALLOCATION_FUNCTION(1, 2) static CORE_API void* MallocZeroed(SIZE_T Count, uint32 Alignment = DEFAULT_ALIGNMENT);
 
 	/**
 	* For some allocators this will return the actual size that should be requested to eliminate
@@ -296,6 +291,7 @@ private:
 	static CORE_API void* ReallocExternal(void* Original, SIZE_T Count, uint32 Alignment = DEFAULT_ALIGNMENT);
 	static CORE_API void FreeExternal(void* Original);
 	static CORE_API SIZE_T GetAllocSizeExternal(void* Original);
+	static CORE_API void* MallocZeroedExternal(SIZE_T Count, uint32 Alignment = DEFAULT_ALIGNMENT);
 	static CORE_API SIZE_T QuantizeSizeExternal(SIZE_T Count, uint32 Alignment = DEFAULT_ALIGNMENT);
 };
 

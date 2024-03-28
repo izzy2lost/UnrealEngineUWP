@@ -531,6 +531,16 @@ SIZE_T FMemory::GetAllocSizeExternal(void* Original)
 	return GMalloc->GetAllocationSize(Original, Size) ? Size : 0;
 }
 
+void* FMemory::MallocZeroedExternal(SIZE_T Count, uint32 Alignment)
+{
+	if (!GMalloc)
+	{
+		GCreateMalloc();
+		CA_ASSUME(GMalloc != NULL);	// Don't want to assert, but suppress static analysis warnings about potentially NULL GMalloc
+	}
+	return GMalloc->MallocZeroed(Count, Alignment);
+}
+
 SIZE_T FMemory::QuantizeSizeExternal(SIZE_T Count, uint32 Alignment)
 { 
 	if (!GMalloc)

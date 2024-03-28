@@ -168,6 +168,45 @@ FMEMORY_INLINE_FUNCTION_DECORATOR SIZE_T FMemory::GetAllocSize(void* Original)
 	return Result;
 }
 
+FMEMORY_INLINE_FUNCTION_DECORATOR void* FMemory::MallocZeroed(SIZE_T Count, uint32 Alignment)
+{
+	void* Ptr = nullptr; // Silence bogus static analysis warnings.
+
+	// AutoRTFM: For non-transactional code, all of these calls optimize away and the
+	// behavior is the same as it always has been.
+	// For transactional code, we call the allocator in the 'open' as an optimization, so that
+	// we don't end up keeping track of the writes to the allocator's internal data structures.
+	// This is because allocators are already transactional - malloc can be rolled back by
+	// calling free.
+	UE_AUTORTFM_OPEN(
+		{
+			if (!FMEMORY_INLINE_GMalloc)
+			{
+				Ptr = MallocZeroedExternal(Count, Alignment);
+			}
+			else
+			{
+				DoGamethreadHook(0);
+				FScopedMallocTimer Timer(0);
+				Ptr = FMEMORY_INLINE_GMalloc->MallocZeroed(Count, Alignment);
+			}
+	// optional tracking of every allocation
+	LLM_IF_ENABLED(FLowLevelMemTracker::Get().OnLowLevelAlloc(ELLMTracker::Default, Ptr, Count, ELLMTag::Untagged, ELLMAllocType::FMalloc));
+		});
+
+	// AutoRTFM: This is a no-op for non-transactional code.
+	// For transactional code, this defers a call to Free if the transaction aborts,
+	// so that rolling back this allocation will end up freeing the memory.
+	AutoRTFM::OnAbort([Ptr]
+		{
+			// Disable the code analysis warning that complains that Free is being passed
+			// a pointer that may be null. Free explicitly handles this case already.
+			Free(Ptr); //-V575
+		});
+
+	return AutoRTFM::DidAllocate(Ptr, Count);
+}
+
 FMEMORY_INLINE_FUNCTION_DECORATOR SIZE_T FMemory::QuantizeSize(SIZE_T Count, uint32 Alignment)
 {
 	SIZE_T Result;
