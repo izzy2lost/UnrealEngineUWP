@@ -292,8 +292,7 @@ private:
 	UPROPERTY()
 	TObjectPtr<UDataflowComponent> DataflowComponent = nullptr;
 
-	UPROPERTY()
-	TObjectPtr<UDataflow> DataflowGraph = nullptr;
+	TWeakObjectPtr<UDataflow> DataflowGraph = nullptr;
 
 	TWeakPtr<SDataflowGraphEditor> DataflowGraphEditor;
 

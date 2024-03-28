@@ -139,6 +139,9 @@ private:
 	void OnNodeDeleted(const TSet<UObject*>& DeletedNodes);
 	void OnNodeSingleClicked(UObject* ClickedNode) const;
 
+	// Delegates
+	void HandlePackageReloaded(const EPackageReloadPhase InPackageReloadPhase, FPackageReloadedEvent* InPackageReloadedEvent);
+
 	/** Scene in which the 3D sim space preview meshes live. Ownership shared with AdvancedPreviewSettingsWidget*/
 	TSharedPtr<FChaosClothPreviewScene> ClothPreviewScene;
 
@@ -171,5 +174,8 @@ private:
 	static const FName NodeDetailsTabId;
 	TSharedPtr<SDockTab> NodeDetailsTab;
 	TSharedPtr<IStructureDetailsView> NodeDetailsEditor;
+
+	FDelegateHandle OnPackageReloadedDelegateHandle;
+	
 };
 } // namespace UE::Chaos::ClothAsset
