@@ -1472,6 +1472,7 @@ public:
 
 	/** Adds an envelope follower delegate to the submix for this audio device. */
 	ENGINE_API virtual void AddEnvelopeFollowerDelegate(USoundSubmix* InSubmix, const FOnSubmixEnvelopeBP& OnSubmixEnvelopeBP);
+	ENGINE_API virtual void RemoveEnvelopeFollowerDelegate(USoundSubmix* InSubmix, const FOnSubmixEnvelopeBP& OnSubmixEnvelopeBP);
 
 	ENGINE_API virtual void StartSpectrumAnalysis(USoundSubmix* InSubmix, const FSoundSpectrumAnalyzerSettings& InSettings);
 	ENGINE_API virtual void StopSpectrumAnalysis(USoundSubmix* InSubmix);

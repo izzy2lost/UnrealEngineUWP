@@ -411,6 +411,13 @@ public:
 	ENGINE_API void AddEnvelopeFollowerDelegate(const UObject* WorldContextObject, const FOnSubmixEnvelopeBP& OnSubmixEnvelopeBP);
 
 	/**
+	 *	Remove an envelope follower delegate.
+	 *	@param	OnSubmixEnvelopeBP	The event delegate to remove.
+	 */
+	UFUNCTION(BlueprintCallable, Category = "Audio|EnvelopeFollowing", meta = (WorldContext = "WorldContextObject"))
+	ENGINE_API void RemoveEnvelopeFollowerDelegate(const UObject* WorldContextObject, const FOnSubmixEnvelopeBP& OnSubmixEnvelopeBP);
+
+	/**
 	 *	Adds a spectral analysis delegate to receive notifications when this submix has spectrum analysis enabled.
 	 *	@param	InBandsettings					The frequency bands to analyze and their envelope-following settings.
 	 *  @param  OnSubmixSpectralAnalysisBP		Event to fire when new spectral data is available.

@@ -2501,6 +2501,35 @@ namespace Audio
 		}
 	}
 
+	void FMixerDevice::RemoveEnvelopeFollowerDelegate(USoundSubmix* InSubmix, const FOnSubmixEnvelopeBP& OnSubmixEnvelopeBP)
+	{
+		if (!IsInAudioThread())
+		{
+			DECLARE_CYCLE_STAT(TEXT("FAudioThreadTask.RemoveEnvelopeFollowerDelegate"), STAT_RemoveEnvelopeFollowerDelegate, STATGROUP_AudioThreadCommands);
+
+			FAudioThread::RunCommandOnAudioThread([this, InSubmix, OnSubmixEnvelopeBP]()
+			{
+				CSV_SCOPED_TIMING_STAT(Audio, RemoveEnvelopeFollowerDelegate);
+				RemoveEnvelopeFollowerDelegate(InSubmix, OnSubmixEnvelopeBP);
+			}, GET_STATID(STAT_RemoveEnvelopeFollowerDelegate));
+			return;
+		}
+
+		// Fallback to the master submix if the provided submix isn't found to match behavior from ::AddEnvelopeFollowerDelegate
+		FMixerSubmixPtr FoundSubmix = GetSubmixInstance(InSubmix).Pin();
+		if (FoundSubmix.IsValid())
+		{
+			FoundSubmix->RemoveEnvelopeFollowerDelegate(OnSubmixEnvelopeBP);
+		}
+		else
+		{
+			FMixerSubmixWeakPtr MainSubmix = GetMasterSubmix();
+			FMixerSubmixPtr MainSubmixPtr = MainSubmix.Pin();
+			check(MainSubmixPtr.IsValid());
+
+			MainSubmixPtr->RemoveEnvelopeFollowerDelegate(OnSubmixEnvelopeBP);
+		}
+	}
 
 	void FMixerDevice::StartSpectrumAnalysis(USoundSubmix* InSubmix, const FSoundSpectrumAnalyzerSettings& InSettings)
 	{

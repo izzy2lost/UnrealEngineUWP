@@ -274,6 +274,9 @@ namespace Audio
 		// Adds an envelope follower delegate
 		AUDIOMIXER_API void AddEnvelopeFollowerDelegate(const FOnSubmixEnvelopeBP& OnSubmixEnvelopeBP);
 
+		// Removes an existing envelope follower delegate
+		AUDIOMIXER_API void RemoveEnvelopeFollowerDelegate(const FOnSubmixEnvelopeBP& OnSubmixEnvelopeBP);
+
 		// Initializes a new FFT analyzer for this submix and immediately begins feeding audio to it.
 		AUDIOMIXER_API void StartSpectrumAnalysis(const FSoundSpectrumAnalyzerSettings& InSettings);
 
