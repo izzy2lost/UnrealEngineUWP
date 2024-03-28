@@ -81,9 +81,9 @@ struct FLobbyCreateHelper : public FTestPipeline::FStep
 
 protected:
 	UE::Online::FCreateLobby::Params* CreateParams;
+	TFunction<void(UE::Online::FLobby)> LobbyGetter;
 	bool bShouldPass;
 
 	UE::Online::ILobbiesPtr OnlineLobbiesPtr = nullptr;
 
-	TFunction<void(UE::Online::FLobby)> LobbyGetter;
 };
