@@ -314,6 +314,7 @@ void APCGWorldActor::OnPartitionGridSizeChanged()
 
 	// Then delete all PCGPartitionActors
 	PCGSubsystem->DeleteSerializedPartitionActors(/*bDeleteOnlyUnused=*/false);
+	SerializedPartitionActorRecords.Reset();
 
 	// And finally, regenerate all components that are partitioned (registered to the PCGSubsystem)
 	// to let them recreate the needed PCG Partition Actors.

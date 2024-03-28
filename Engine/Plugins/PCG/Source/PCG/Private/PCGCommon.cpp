@@ -2,6 +2,7 @@
 
 #include "PCGCommon.h"
 #include "PCGSubsystem.h"
+#include "PCGWorldActor.h"
 
 namespace PCGFeatureSwitches
 {
@@ -31,9 +32,17 @@ namespace PCGHiGenGrid
 	{
 		// Must be a power of 2 (in m) and within the valid range
 		// TODO: support other units
-		return FMath::IsPowerOfTwo(InGridSize / 100)
+		if (FMath::IsPowerOfTwo(InGridSize / 100)
 			&& InGridSize >= GridToGridSize(EPCGHiGenGrid::GridMin)
-			&& InGridSize <= GridToGridSize(EPCGHiGenGrid::GridMax);
+			&& InGridSize <= GridToGridSize(EPCGHiGenGrid::GridMax))
+		{
+			return true;
+		}
+
+		UPCGSubsystem* PCGSubsystem = UPCGSubsystem::GetSubsystemForCurrentWorld();
+		APCGWorldActor* PCGWorldActor = PCGSubsystem ? PCGSubsystem->GetPCGWorldActor() : nullptr;
+
+		return !PCGWorldActor || PCGWorldActor->PartitionGridSize == InGridSize;
 	}
 
 	bool IsValidGrid(EPCGHiGenGrid InGrid)
