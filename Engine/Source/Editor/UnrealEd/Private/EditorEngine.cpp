@@ -2202,11 +2202,12 @@ void UEditorEngine::Tick( float DeltaSeconds, bool bIdleMode )
 			{
 				bool bAllowNonRealtimeViewports = true;
 				GCurrentLevelEditingViewportClient->SetIsCurrentLevelEditingFocus(true);
-				bool bWasNonRealtimeViewportDrawn = UpdateSingleViewportClient(GCurrentLevelEditingViewportClient, bAllowNonRealtimeViewports, bUpdateLinkedOrthoViewports);
+				bool bViewportDrawn;
+				bool bWasNonRealtimeViewportDrawn = UpdateSingleViewportClient(GCurrentLevelEditingViewportClient, bAllowNonRealtimeViewports, bUpdateLinkedOrthoViewports, &bViewportDrawn);
 				if (GCurrentLevelEditingViewportClient->IsLevelEditorClient())
 				{
 					bEditorFrameNonRealtimeViewportDrawn |= bWasNonRealtimeViewportDrawn;
-					bAnyLevelEditorsDrawn |= GCurrentLevelEditingViewportClient->IsRealtime() || bWasNonRealtimeViewportDrawn;
+					bAnyLevelEditorsDrawn |= bViewportDrawn;
 				}
 			}
 		}
@@ -2230,11 +2231,12 @@ void UEditorEngine::Tick( float DeltaSeconds, bool bIdleMode )
 						//if we haven't drawn a non-realtime viewport OR not one of the main viewports
 						bool bAllowNonRealtimeViewports = (!bEditorFrameNonRealtimeViewportDrawn) || !(ViewportClient->IsLevelEditorClient());
 						ViewportClient->SetIsCurrentLevelEditingFocus(true);
-						bool bWasNonRealtimeViewportDrawn = UpdateSingleViewportClient(ViewportClient, bAllowNonRealtimeViewports, bUpdateLinkedOrthoViewports);
+						bool bViewportDrawn;
+						bool bWasNonRealtimeViewportDrawn = UpdateSingleViewportClient(ViewportClient, bAllowNonRealtimeViewports, bUpdateLinkedOrthoViewports, &bViewportDrawn);
 						if (ViewportClient->IsLevelEditorClient())
 						{
 							bEditorFrameNonRealtimeViewportDrawn |= bWasNonRealtimeViewportDrawn;
-							bAnyLevelEditorsDrawn |= ViewportClient->IsRealtime() || bWasNonRealtimeViewportDrawn;
+							bAnyLevelEditorsDrawn |= bViewportDrawn;
 						}
 					}
 				}
@@ -2444,9 +2446,10 @@ void UEditorEngine::SetRealTimeAudioVolume(float VolumeLevel)
 	LevelEditorMiscSettings->PostEditChange();
 }
 
-bool UEditorEngine::UpdateSingleViewportClient(FEditorViewportClient* InViewportClient, const bool bInAllowNonRealtimeViewportToDraw, bool bLinkedOrthoMovement )
+bool UEditorEngine::UpdateSingleViewportClient(FEditorViewportClient* InViewportClient, const bool bInAllowNonRealtimeViewportToDraw, bool bLinkedOrthoMovement, bool* bOutViewportDrawn /*= nullptr*/)
 {
 	bool bUpdatedNonRealtimeViewport = false;
+	bool bViewportDrawn = false;
 
 	if (InViewportClient->Viewport->IsSlateViewport())
 	{
@@ -2506,6 +2509,7 @@ bool UEditorEngine::UpdateSingleViewportClient(FEditorViewportClient* InViewport
 			InViewportClient->Viewport->Draw();
 			InViewportClient->bNeedsRedraw = false;
 			InViewportClient->bNeedsLinkedRedraw = false;
+			bViewportDrawn = true;
 		}
 		// Redraw any linked ortho viewports that need to be updated this frame.
 		else if( InViewportClient->IsOrtho() && bLinkedOrthoMovement && InViewportClient->IsVisible() )
@@ -2516,6 +2520,7 @@ bool UEditorEngine::UpdateSingleViewportClient(FEditorViewportClient* InViewport
 				InViewportClient->Viewport->Draw();
 				InViewportClient->bNeedsLinkedRedraw = false;
 				InViewportClient->bNeedsRedraw = false;
+				bViewportDrawn = true;
 			}
 			else
 			{
@@ -2528,6 +2533,7 @@ bool UEditorEngine::UpdateSingleViewportClient(FEditorViewportClient* InViewport
 		{
 			InViewportClient->Viewport->Draw();
 			InViewportClient->bNeedsRedraw = false;
+			bViewportDrawn = true;
 			bUpdatedNonRealtimeViewport = true;
 		}
 		else if(UWorld* World = GetWorld())
@@ -2549,6 +2555,11 @@ bool UEditorEngine::UpdateSingleViewportClient(FEditorViewportClient* InViewport
 			InViewportClient->Viewport->InvalidateHitProxy();
 			InViewportClient->bNeedsInvalidateHitProxy = false;
 		}
+	}
+
+	if (bOutViewportDrawn)
+	{
+		*bOutViewportDrawn = bViewportDrawn;
 	}
 
 	return bUpdatedNonRealtimeViewport;
