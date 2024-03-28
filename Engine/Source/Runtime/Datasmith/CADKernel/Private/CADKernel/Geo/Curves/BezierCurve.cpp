@@ -8,35 +8,159 @@
 namespace UE::CADKernel
 {
 
-void FBezierCurve::EvaluatePoint(double Coordinate, FCurvePoint& OutPoint, int32 DerivativeOrder) const
+bool FBezierCurve::IsBezier(const FNurbsCurveData& NurbsCurveData)
 {
-	OutPoint.DerivativeOrder = DerivativeOrder;
-	OutPoint.Init();
+	bool bIsBezier = ((NurbsCurveData.Poles.Num() - 1) % NurbsCurveData.Degree) == 0;
+	bIsBezier &= ((NurbsCurveData.NodalVector.Num() - 2) % NurbsCurveData.Degree) == 0;
 
-	TArray<double> Bernstein;
-	TArray<double> BernsteinD1;
-	TArray<double> BernsteinD2;
-
-	BSpline::Bernstein(Poles.Num()-1, Coordinate, Bernstein, BernsteinD1, BernsteinD2);
-
-	for (int32 Index = 0; Index < Poles.Num(); Index++)
+	if (!bIsBezier)
 	{
-		OutPoint.Point += Poles[Index] * Bernstein[Index];
+		return false;
 	}
 
-	if (DerivativeOrder > 0)
+	const int32 NumSegments = (NurbsCurveData.Poles.Num() - 1) / NurbsCurveData.Degree;
+	for (int32 Index = 0, KnotIndex = 1; Index < NumSegments && bIsBezier; ++Index)
 	{
-		for (int32 Index = 0; Index < Poles.Num(); Index++)
+		const double KValue = NurbsCurveData.NodalVector[KnotIndex++];
+		for (int32 Jndex = 1; Jndex < NurbsCurveData.Degree; ++Jndex, ++KnotIndex)
 		{
-			OutPoint.Gradient += Poles[Index] * BernsteinD1[Index];
+			if (!FMath::IsNearlyEqual(KValue, NurbsCurveData.NodalVector[KnotIndex], UE_DOUBLE_SMALL_NUMBER))
+			{
+				bIsBezier = false;
+				break;
+			}
 		}
 	}
 
-	if (DerivativeOrder > 1)
+	return bIsBezier;
+}
+
+FBezierCurve::FBezierCurve(const FNurbsCurveData& NurbsCurveData)
+{
+	ensure(IsBezier(NurbsCurveData));
+
+	Degree = NurbsCurveData.Degree;
+	Dimension = (int8)NurbsCurveData.Dimension;
+
+	NumSegments = (NurbsCurveData.Poles.Num() - 1) / NurbsCurveData.Degree;
+
+	NodalVector.SetNum(NumSegments+1);
+	for (int32 Index = 0, Offset = Degree; Index <= NumSegments; ++Index, Offset += Degree)
 	{
-		for (int32 Index = 0; Index < Poles.Num(); Index++)
+		NodalVector[Index] = NurbsCurveData.NodalVector[Offset];
+	}
+
+	Poles = NurbsCurveData.Poles;
+	Weights = NurbsCurveData.Weights;
+
+	// Validate the curve is actually rational
+	if (NurbsCurveData.bIsRational)
+	{
+		const double WeightRef = Weights[0];
+		bIsRational = false;
+		for (int32 Index = 1; Index < Weights.Num() && !bIsRational; ++Index)
 		{
-			OutPoint.Laplacian += Poles[Index] * BernsteinD2[Index];
+			if (!FMath::IsNearlyEqual(WeightRef, Weights[Index], UE_DOUBLE_SMALL_NUMBER))
+			{
+				bIsRational = true;
+				break;
+			}
+		}
+
+		if (!bIsRational && !FMath::IsNearlyEqual(WeightRef, 1., UE_DOUBLE_SMALL_NUMBER))
+		{
+			const double InvWeight = 1. / WeightRef;
+			for (FPoint& Pole : Poles)
+			{
+				Pole *= InvWeight;
+			}
+		}
+	}
+
+	Boundary.Set(NodalVector[0], NodalVector[NumSegments]);
+}
+
+void FBezierCurve::EvaluatePoint(double Coordinate, FCurvePoint& OutPoint, int32 DerivativeOrder) const
+{
+	// Adjust coordinate value to curve's boundaries
+	if (!ensure(Coordinate >= (NodalVector[0] - UE_DOUBLE_SMALL_NUMBER)))
+	{
+		Coordinate = NodalVector[0];
+	}
+
+	if (!ensure(Coordinate <= (NodalVector[NumSegments] + UE_DOUBLE_SMALL_NUMBER)))
+	{
+		Coordinate = NodalVector[NumSegments];
+	}
+
+	int32 SegmentIndex = 0;
+	if (FMath::IsNearlyEqual(Coordinate, NodalVector[NumSegments], UE_DOUBLE_SMALL_NUMBER))
+	{
+		SegmentIndex = NumSegments - 1;
+	}
+	else
+	{
+		for (; SegmentIndex < NumSegments + 1; ++SegmentIndex)
+		{
+			if (Coordinate < NodalVector[SegmentIndex])
+			{
+				--SegmentIndex;
+				break;
+			}
+		}
+	}
+	ensure(SegmentIndex < NumSegments);
+
+	OutPoint.DerivativeOrder = DerivativeOrder;
+	OutPoint.Init();
+
+	// Normalize input coordinates as Bezier computation is not impacted by knots' values
+	double NormalizedValue = (Coordinate - NodalVector[SegmentIndex]) / (NodalVector[SegmentIndex + 1] - NodalVector[SegmentIndex]);
+	
+	if (Degree == 1)
+	{
+		// Simple linear interpolation...
+		OutPoint.Point = Poles[0] * (1. - NormalizedValue) + Poles[1] * NormalizedValue;
+	}
+	else
+	{
+		const int32 Order = Degree + 1;
+		
+		TArray<double> BernsteinCoeffs;
+		BernsteinCoeffs.SetNum(DerivativeOrder > 1 ? 3 * Order : (DerivativeOrder > 0 ? 2 * Order : Order));
+		double* Bernstein = BernsteinCoeffs.GetData();
+		double* BernsteinD1 = DerivativeOrder > 0 ? Bernstein + Order : nullptr;
+		double* BernsteinD2 = DerivativeOrder > 1 ? BernsteinD1 + Order : nullptr;
+
+		BSpline::Bernstein(Degree, NormalizedValue, Bernstein, BernsteinD1, BernsteinD2);
+
+		double Weight = 0.;
+		for (int32 Index = 0, PolesIndex = SegmentIndex * Degree; Index < Order; ++Index, ++PolesIndex)
+		{
+			OutPoint.Point += Poles[PolesIndex] * Bernstein[Index];
+			Weight += Weights[PolesIndex] * Bernstein[Index];
+		}
+
+		if (bIsRational)
+		{
+			const double InvWeight = 1. / Weight;
+			OutPoint.Point *= InvWeight;
+		}
+
+		if (BernsteinD1)
+		{
+		for (int32 Index = 0, PolesIndex = SegmentIndex * Degree; Index < Order; ++Index, ++PolesIndex)
+			{
+				OutPoint.Gradient += Poles[PolesIndex] * BernsteinD1[Index];
+			}
+
+			if (BernsteinD2)
+			{
+		for (int32 Index = 0, PolesIndex = SegmentIndex * Degree; Index < Order; ++Index, ++PolesIndex)
+				{
+					OutPoint.Laplacian += Poles[PolesIndex] * BernsteinD2[Index];
+				}
+			}
 		}
 	}
 }

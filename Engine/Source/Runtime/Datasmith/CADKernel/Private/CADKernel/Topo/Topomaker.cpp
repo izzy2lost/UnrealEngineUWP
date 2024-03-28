@@ -177,7 +177,7 @@ FTopologicalVertex* SplitAndLink(FTopologicalVertex& StartVertex, FTopologicalEd
 	}
 
 	double SquareDistanceToOtherPoint = ProjectedPoint.SquareDistance(EndVertex->GetBarycenter());
-	if (SquareDistanceToOtherPoint < SquareMinEdgeLength)
+	if (FMath::IsNearlyEqual(UProjectedPoint, EdgeToSplit.GetBoundary().GetMax(), UE_DOUBLE_SMALL_NUMBER) || SquareDistanceToOtherPoint < SquareMinEdgeLength)
 	{
 		// the new point is closed to the extremity, a degenerated edge will be created, so the edges are joined
 		VertexToLink->Link(*EndVertex);
@@ -186,7 +186,7 @@ FTopologicalVertex* SplitAndLink(FTopologicalVertex& StartVertex, FTopologicalEd
 	}
 
 	SquareDistanceToProjectedPoint = ProjectedPoint.SquareDistance(StartVertex.GetBarycenter());
-	if (SquareDistanceToProjectedPoint < SquareMinEdgeLength)
+	if (FMath::IsNearlyEqual(UProjectedPoint, EdgeToSplit.GetBoundary().GetMin(), UE_DOUBLE_SMALL_NUMBER) || SquareDistanceToProjectedPoint < SquareMinEdgeLength)
 	{
 		VertexToLink->Link(StartVertex);
 		EdgeToLink.SetAsDegenerated();

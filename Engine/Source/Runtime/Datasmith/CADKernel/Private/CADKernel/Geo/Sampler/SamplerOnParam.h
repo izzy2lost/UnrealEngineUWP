@@ -194,6 +194,7 @@ protected:
 		else
 		{
 			Curve.Evaluate2DPoints(CandidatePoints.Coordinates, CandidatePoints.Points2D);
+			Surface.ValidateUVPoints(CandidatePoints.Points2D);
 			Surface.EvaluatePoints(CandidatePoints);
 		}
 	};

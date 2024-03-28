@@ -24,7 +24,7 @@ namespace BSpline
 /**
  * Compute the values of Bernstein polynomial
  */
-CADKERNEL_API void Bernstein(int32 Degree, double InCoordinateU, TArray<double>& BernsteinValuesAtU, TArray<double>& BernsteinGradientsAtU, TArray<double>& BernsteinLaplaciansAtU);
+CADKERNEL_API void Bernstein(int32 Degree, double InCoordinateU, double* BernsteinValuesAtU, double* BernsteinGradientsAtU, double* BernsteinLaplaciansAtU);
 
 CADKERNEL_API void FindNotDerivableParameters(const FNURBSCurve&, int32 InDerivativeOrder, const FLinearBoundary& Boundary, TArray<double>& OutNotDerivableParameters);
 CADKERNEL_API void FindNotDerivableParameters(const FNURBSSurface&, int32 InDerivativeOrder, const FSurfacicBoundary& Boundary, FCoordinateGrid& OutNotDerivableParameters);

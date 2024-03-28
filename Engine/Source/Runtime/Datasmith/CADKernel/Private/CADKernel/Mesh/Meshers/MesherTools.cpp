@@ -221,7 +221,7 @@ void FMesherTools::ComputeFinalCuttingPointsWithImposedCuttingPoints(const TArra
 		double TravelTime = 0;
 
 		TravelTimeByStep.Empty();
-		for (;;)
+		while(CrossingIndex < CrossingUs.Num() - 1)
 		{
 			double Step = CrossingUs[CrossingIndex + 1];
 			Step = FMath::Min(Step, EndU);

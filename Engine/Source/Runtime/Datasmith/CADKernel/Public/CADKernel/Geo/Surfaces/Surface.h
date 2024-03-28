@@ -90,6 +90,8 @@ public:
 	static TSharedPtr<FSurface> MakeSphericalSurface(const double InToleranceGeometric, const FMatrixH& InMatrix, double InRadius, const FSurfacicBoundary& InBoundary);
 	static TSharedPtr<FSurface> MakeTorusSurface(const double InToleranceGeometric, const FMatrixH& InMatrix, double InMajorRadius, double InMinorRadius, const FSurfacicBoundary& InBoundary);
 
+	virtual void ValidateUVPoints(TArray<FPoint2D>& UVPoints) const {}
+
 	virtual void Serialize(FCADKernelArchive& Ar) override
 	{
 		// Surface's type is serialize because it is used to instantiate the correct entity on de-serialization (@see Deserialize(FCADKernelArchive& Archive))

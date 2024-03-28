@@ -132,7 +132,11 @@ void FParametricMesher::PreMeshingTasks()
 #endif
 		if (Face == nullptr || Face->IsNotMeshable())
 		{
+#ifdef CADKernelMultiThread
 			return;
+#else
+			continue;
+#endif
 		}
 		ApplyFaceCriteria(*Face, Criteria, MeshingTolerance, bThinZone);
 		if (!Face->IsDeletedOrDegenerated())

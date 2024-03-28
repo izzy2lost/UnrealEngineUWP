@@ -69,22 +69,19 @@ int32 CoefficientBinomial(int32 n, int32 k)
 	return fact(n) / (fact(k) * fact(n - k));
 }
 
-void Bernstein(int32 Degree, double InCoordinateU, TArray<double>& BernsteinValuesAtU, TArray<double>& BernsteinGradientsAtU, TArray<double>& BernsteinLaplaciansAtU)
+// #cadkernel_check: Precompute Bernstein values.
+void Bernstein(int32 Degree, double InCoordinateU, double* BernsteinValuesAtU, double* BernsteinGradientsAtU, double* BernsteinLaplaciansAtU)
 {
-	TArray<double> ti;
-	TArray<double> si;
-	TArray<double> ci;
-
 	int32 i;
 	double t, s;
 
-	ti.SetNum(Degree + 1);
-	si.SetNum(Degree + 1);
-	ci.SetNum(Degree + 1);
+	const int32 Order = Degree + 1;
+	TArray<double> Buffer;
+	Buffer.SetNum(3 * Order);
 
-	BernsteinValuesAtU.SetNum(Degree + 1);
-	BernsteinGradientsAtU.SetNum(Degree + 1);
-	BernsteinLaplaciansAtU.SetNum(Degree + 1);
+	double* ti = Buffer.GetData();
+	double* si = ti + Order;
+	double* ci = si + Order;
 
 	// calculer les coefficient ci
 	ci[0] = 1;
@@ -92,15 +89,15 @@ void Bernstein(int32 Degree, double InCoordinateU, TArray<double>& BernsteinValu
 
 	for (i = 1; i < Degree; i++)
 	{
-		ci[i] = ci[i - 1] * (Degree - i + 1) / i;
+		ci[i] = ci[i - 1] * (Order - i) / (double)i;
 	}
 
-	ti[0] = 1.0f;
-	si[0] = 1.0f;
+	ti[0] = 1.;
+	si[0] = 1.;
 
 	// calculer les monomes t**i et s**i=(1-t)**i
 	t = InCoordinateU;
-	s = 1.0f - InCoordinateU;
+	s = 1. - InCoordinateU;
 	for (i = 1; i <= Degree; i++)
 	{
 		ti[i] = ti[i - 1] * t;
@@ -113,34 +110,40 @@ void Bernstein(int32 Degree, double InCoordinateU, TArray<double>& BernsteinValu
 		BernsteinValuesAtU[i] = ci[i] * ti[i] * si[Degree - i];
 	}
 
-	// calculer les derivees premieres
-	BernsteinGradientsAtU[0] = -Degree * si[Degree - 1];
-	BernsteinGradientsAtU[Degree] = Degree * ti[Degree - 1];
-	for (i = 1; i < Degree; i++)
+	if (BernsteinGradientsAtU)
 	{
-		BernsteinGradientsAtU[i] = ci[i] * (i * ti[i - 1] * si[Degree - i] - (Degree - i) * ti[i] * si[Degree - i - 1]);
-	}
-
-	// calculer les derivees secondes
-	if (Degree > 1)
-	{
-		BernsteinLaplaciansAtU[0] = Degree * (Degree - 1) * si[Degree - 2];
-		BernsteinLaplaciansAtU[1] = ci[1] * (-2) * (Degree - 1) * si[Degree - 2];
-		if (Degree > 2) BernsteinLaplaciansAtU[1] += ci[1] * (Degree - 1) * (Degree - 2) * ti[1] * si[Degree - 3];
-		BernsteinLaplaciansAtU[Degree] = Degree * (Degree - 1) * ti[Degree - 2];
-		BernsteinLaplaciansAtU[Degree - 1] = ci[Degree - 1] * (-2) * (Degree - 1) * ti[Degree - 2];
-		if (Degree > 2) BernsteinLaplaciansAtU[Degree - 1] += ci[Degree - 1] * (Degree - 1) * (Degree - 2) * ti[Degree - 3] * si[1];
-
-		for (i = 2; i < Degree - 1; i++)
+		// calculer les derivees premieres
+		BernsteinGradientsAtU[0] = -Degree * si[Degree - 1];
+		BernsteinGradientsAtU[Degree] = Degree * ti[Degree - 1];
+		for (i = 1; i < Degree; i++)
 		{
-			BernsteinLaplaciansAtU[i] = ci[i] * (i * (i - 1) * ti[i - 2] * si[Degree - i]
-				- 2 * i * (Degree - i) * ti[i - 1] * si[Degree - i - 1]
-				+ (Degree - i) * (Degree - i - 1) * ti[i] * si[Degree - i - 2]);
+			BernsteinGradientsAtU[i] = ci[i] * (i * ti[i - 1] * si[Degree - i] - (Degree - i) * ti[i] * si[Degree - i - 1]);
 		}
-	}
-	else
-	{
-		BernsteinLaplaciansAtU[0] = 0.0f;
+
+		if (BernsteinLaplaciansAtU)
+		{
+			// calculer les derivees secondes
+			if (Degree > 1)
+			{
+				BernsteinLaplaciansAtU[0] = Degree * (Degree - 1) * si[Degree - 2];
+				BernsteinLaplaciansAtU[1] = ci[1] * (-2) * (Degree - 1) * si[Degree - 2];
+				if (Degree > 2) BernsteinLaplaciansAtU[1] += ci[1] * (Degree - 1) * (Degree - 2) * ti[1] * si[Degree - 3];
+				BernsteinLaplaciansAtU[Degree] = Degree * (Degree - 1) * ti[Degree - 2];
+				BernsteinLaplaciansAtU[Degree - 1] = ci[Degree - 1] * (-2) * (Degree - 1) * ti[Degree - 2];
+				if (Degree > 2) BernsteinLaplaciansAtU[Degree - 1] += ci[Degree - 1] * (Degree - 1) * (Degree - 2) * ti[Degree - 3] * si[1];
+
+				for (i = 2; i < Degree - 1; i++)
+				{
+					BernsteinLaplaciansAtU[i] = ci[i] * (i * (i - 1) * ti[i - 2] * si[Degree - i]
+						- 2 * i * (Degree - i) * ti[i - 1] * si[Degree - i - 1]
+						+ (Degree - i) * (Degree - i - 1) * ti[i] * si[Degree - i - 2]);
+				}
+			}
+			else
+			{
+				BernsteinLaplaciansAtU[0] = 0.0f;
+			}
+		}
 	}
 }
 

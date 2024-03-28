@@ -108,6 +108,40 @@ protected:
 
 public:
 
+
+	virtual void ValidateUVPoints(TArray<FPoint2D>& UVPoints) const
+	{
+		auto ValidateValue = [](double& Value, const double& Reference)
+			{
+				if (FMath::IsNearlyEqual(Value, Reference, UE_DOUBLE_KINDA_SMALL_NUMBER))
+				{
+					Value = Reference;
+					return true;
+				}
+
+				return false;
+			};
+
+		for (FPoint2D& UVPoint : UVPoints)
+		{
+			for (const double& NodalValue : UNodalVector)
+			{
+				if (ValidateValue(UVPoint.U, NodalValue))
+				{
+					break;
+				}
+			}
+
+			for (const double& NodalValue : VNodalVector)
+			{
+				if (ValidateValue(UVPoint.V, NodalValue))
+				{
+					break;
+				}
+			}
+		}
+	}
+
 	virtual void Serialize(FCADKernelArchive& Ar) override
 	{
 		FSurface::Serialize(Ar);
@@ -170,7 +204,7 @@ public:
 		return Weights;
 	}
 
-	TArray<double> GetHPoles() const
+	const TArray<double>& GetHPoles() const
 	{
 		return HomogeneousPoles;
 	}

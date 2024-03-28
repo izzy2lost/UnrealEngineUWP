@@ -10,6 +10,10 @@ namespace UE::CADKernel
 
 TSharedPtr<FCurve> FCurve::MakeNurbsCurve(FNurbsCurveData& InNurbsData)
 {
+	if (FBezierCurve::IsBezier(InNurbsData))
+	{
+		return FEntity::MakeShared<UE::CADKernel::FBezierCurve>(InNurbsData);
+	}
 	return FEntity::MakeShared<UE::CADKernel::FNURBSCurve>(InNurbsData);
 }
 

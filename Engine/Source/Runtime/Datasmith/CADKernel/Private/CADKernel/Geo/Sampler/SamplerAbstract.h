@@ -149,7 +149,6 @@ protected:
 	 */
 	void RunSampling()
 	{
-
 		// < 100000 : check to avoid that the process loops endlessly
 		int32 CandidatePointsCount = CandidatePoints.Size();
 		while (CandidatePointsCount && Sampling.Coordinates.Num() < 100000)
@@ -251,6 +250,10 @@ protected:
 	/** Adds coordinates of the next candidate points in NextCoordinates array */
 	void AddIntermediateCoordinates(double UMin, double UMax, int32 PointNum)
 	{
+		if (FMath::IsNearlyEqual(UMin, UMax, UE_DOUBLE_SMALL_NUMBER))
+		{
+			return;
+		}
 		double DeltaCoord = (UMax - UMin) / (PointNum + 1);
 		double UCoord = UMin;
 		for (int32 Index = 0; Index < PointNum; Index++)

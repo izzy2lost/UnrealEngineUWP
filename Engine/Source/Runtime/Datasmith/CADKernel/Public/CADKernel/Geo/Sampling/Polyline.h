@@ -109,6 +109,11 @@ public:
 	void SwapCoordinates(TArray<double>& NewCoordinates)
 	{
 		Swap(NewCoordinates, Coordinates);
+		Points.Empty(Coordinates.Num());
+		if (bWithTangent)
+		{
+			Tangent.Empty(Coordinates.Num());
+		}
 	}
 
 	void GetAt(int32 Index, double& Coordinate, PointType& Point)

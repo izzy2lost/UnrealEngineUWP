@@ -303,6 +303,16 @@ public:
 	void SwapCoordinates(TArray<double>& NewCoordinates)
 	{
 		Swap(NewCoordinates, Coordinates);
+		Points2D.Empty(Coordinates.Num());
+		Points3D.Empty(Coordinates.Num());
+		if (bWithNormals)
+		{
+			Normals.Empty(Coordinates.Num());
+		}
+		if (bWithTangent)
+		{
+			Tangents.Empty(Coordinates.Num());
+		}
 	}
 
 	/**

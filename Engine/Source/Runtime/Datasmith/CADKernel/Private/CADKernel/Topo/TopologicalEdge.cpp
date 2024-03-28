@@ -29,6 +29,7 @@ FTopologicalEdge::FTopologicalEdge(const TSharedRef<FRestrictionCurve>& InCurve,
 	, Length3D(-1)
 {
 	ensureCADKernel(Boundary.IsValid());
+	ensureCADKernel(Boundary.GetMin() < Boundary.GetMax());
 }
 
 FTopologicalEdge::FTopologicalEdge(const TSharedRef<FRestrictionCurve>& InCurve, const TSharedRef<FTopologicalVertex>& InVertex1, const TSharedRef<FTopologicalVertex>& InVertex2)
@@ -404,6 +405,11 @@ FTopologicalFace* FTopologicalEdge::GetFace() const
 
 void FTopologicalEdge::ComputeCrossingPointCoordinates()
 {
+	if (FMath::IsNearlyEqual(Boundary.GetMin(), Boundary.GetMax(), UE_DOUBLE_SMALL_NUMBER))
+	{
+		// #cadkernel_check: Why could this happen? Shouldn't it be detected way earlier?
+		return;
+	}
 	double Tolerance = GetTolerance3D();
 
 	FSurfacicPolyline Presampling;

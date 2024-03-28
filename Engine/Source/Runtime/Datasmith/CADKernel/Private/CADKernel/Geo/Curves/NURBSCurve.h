@@ -8,7 +8,7 @@ namespace UE::CADKernel
 {
 struct FNurbsCurveData
 {
-	bool bIsRational;
+	bool bIsRational = false;
 	int32 Dimension = 0;
 
 	int32 Degree = 0;
@@ -90,7 +90,7 @@ public:
 		return Weights;
 	}
 
-	TArray<double> GetHPoles() const
+	const TArray<double>& GetHPoles() const
 	{
 		return HomogeneousPoles;
 	}
