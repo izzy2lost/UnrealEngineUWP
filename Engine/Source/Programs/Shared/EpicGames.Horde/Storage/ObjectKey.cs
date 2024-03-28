@@ -94,7 +94,7 @@ namespace EpicGames.Horde.Storage
 			for (int idx = 0; idx < path.Length; idx++)
 			{
 				byte character = path[idx];
-				if (!StringId.IsValidCharacter(character) && character != '/')
+				if (!StringId.IsValidCharacter(character) && character != '/' && character != '+')
 				{
 					data ??= path.Memory.ToArray();
 					if (character >= 'A' && character <= 'Z')
