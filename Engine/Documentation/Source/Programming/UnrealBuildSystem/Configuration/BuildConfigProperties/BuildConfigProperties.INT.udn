@@ -984,3 +984,7 @@ $ bBackupLogFiles : Whether to backup an existing log file, rather than overwrit
 
 $ LogFileBackupCount : The number of log file backups to preserve. Older backups will be deleted.
 
+### Telemetry
+
+$ Providers : Providers to load opt-in telemetry connection information from ini. If unset, or the provider categories do not contain connection info, no telemetry will be sent.
+

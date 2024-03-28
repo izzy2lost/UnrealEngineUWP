@@ -322,6 +322,8 @@ $ bIsBuildingConsoleApplication (Boolean): True if this is a console application
 
 $ bBuildAdditionalConsoleApp (Boolean): If true, creates an additional console application. Hack for Windows, where it's not possible to conditionally inherit a parent's console Window depending on how the application is invoked; you have to link the same executable with a different subsystem setting.
 
+$ bBuildConsoleAppOnly (Boolean): If true, only creates an additional console application. Overrides bBuildAdditionalConsoleApp.
+
 $ bDisableSymbolCache (Boolean): True if debug symbols that are cached for some platforms should not be created.
 
 $ bUseUnityBuild (Boolean): Whether to unify C++ code into larger files for faster compilation.
