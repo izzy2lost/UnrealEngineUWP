@@ -73,6 +73,7 @@ public:
 	template <int N>			TPayloadBuilder(const char (&Path)[N]);
 	template <int N> void		AddInteger(const char (&Name)[N], int64 Value);
 	template <int N> void		AddString(const char (&Name)[N], const char* Value, int32 Length=-1);
+	template <int N> void		AddString(const char (&Name)[N], const FStringView& String);
 	template <int N> void		AddStringArray(const char(&Name)[N], const TArray<FString>& Values);
 	template <int N, typename T>
 					void		AddArray(const char(&Name)[N], const TArrayView<T>& Values);
@@ -122,7 +123,17 @@ inline void TPayloadBuilder<Size>::AddString(
 	CborWriter.WriteValue(Name, N - 1);
 	CborWriter.WriteValue(Value, Length);
 }
+
+////////////////////////////////////////////////////////////////////////////////
+template <int Size>
+template <int N>
+void TPayloadBuilder<Size>::AddString(const char(& Name)[N], const FStringView& String)
+{
 	
+	CborWriter.WriteValue(Name, N - 1);
+	CborWriter.WriteValue(String);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 template<int Size>
 template<int N>

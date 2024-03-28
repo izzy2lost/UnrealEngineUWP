@@ -405,7 +405,7 @@ bool FStoreCborClient::SetStoreDirectories(const TCHAR* StoreDir, const TArray<F
 	TPayloadBuilder<> Builder("v1/settings/write");
 	if (StoreDir)
 	{
-		Builder.AddString("StoreDir", TCHAR_TO_ANSI(StoreDir));
+		Builder.AddString("StoreDir", FStringView(StoreDir));
 	}
 	TArray<FString> WatchDirs;
 	if (!RemoveWatchDir.IsEmpty())

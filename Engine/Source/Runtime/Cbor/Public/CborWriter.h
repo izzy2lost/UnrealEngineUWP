@@ -49,6 +49,7 @@ public:
 	CBOR_API void WriteValue(float Value);
 	CBOR_API void WriteValue(double Value);
 	CBOR_API void WriteValue(const FString& Value);
+	CBOR_API void WriteValue(const FStringView& Value);
 	CBOR_API void WriteValue(const char* CString, uint64 Length);
 	CBOR_API void WriteValue(const uint8* Bytes, uint64 Length);
 
