@@ -34,7 +34,7 @@ AUTORTFM_NO_ASAN UE_AUTORTFM_FORCEINLINE void FTransaction::RecordWriteMaxPageSi
 
 AUTORTFM_NO_ASAN UE_AUTORTFM_FORCEINLINE void FTransaction::RecordWrite(void* LogicalAddress, size_t Size)
 {
-    if (0 == Size)
+    if (UNLIKELY(0 == Size))
     {
         return;
     }
@@ -49,7 +49,12 @@ AUTORTFM_NO_ASAN UE_AUTORTFM_FORCEINLINE void FTransaction::RecordWrite(void* Lo
         return;
     }
 
-    if (Size <= FWriteLogBumpAllocator::MaxSize)
+	// The cutoff here is arbitrarily any number less than UINT16_MAX, but its a
+	// weigh up what a good size is. Because the hitset doesn't detect when you
+	// are trying to write to a subregion of a previous hit (like memset something,
+	// then write to an individual element), we've got to balance the cost of
+	// recording meaningless hits, against the potential to hit again.
+    if (Size <= 16)
     {
         FMemoryLocation Key(LogicalAddress);
         Key.SetTopTag(static_cast<uint16_t>(Size));

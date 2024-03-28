@@ -27,8 +27,8 @@ namespace AutoRTFM
 
 			// The capacity is always a power of two so that the range reduction is optimal.
 			static_assert(0 == (InitialCapacity & (InitialCapacity - 1)));
-
-			Payload = new uintptr_t[InitialCapacity]();
+			
+			Payload = static_cast<uintptr_t*>(FMemory::MallocZeroed(InitialCapacity * sizeof(uintptr_t)));
 			ASSERT(nullptr != Payload);
 
 			SixtyFourMinusLogCapacity = 64 - LogInitialCapacity;
@@ -37,7 +37,7 @@ namespace AutoRTFM
 
 		~FHitSet()
 		{
-			delete[] Payload;
+			FMemory::Free(Payload);
 		}
 
 		// Insert something in the HitSet, returning true if the put succeeded
@@ -107,7 +107,7 @@ namespace AutoRTFM
 
 		void Resize()
 		{
-			const uintptr_t* const OldPayload = Payload;
+			uintptr_t* const OldPayload = Payload;
 			const uint32_t OldCapacity = Capacity();
 			const uint32_t OldSize = Size;
 
@@ -119,7 +119,7 @@ namespace AutoRTFM
 
 				IncreaseCapacity();
 
-				Payload = new uintptr_t[Capacity()]();
+				Payload = static_cast<uintptr_t*>(FMemory::MallocZeroed(Capacity() * sizeof(uintptr_t)));
 				ASSERT(nullptr != Payload);
 
 				// Now we need to rehash and reinsert all the items. We need to
@@ -147,7 +147,7 @@ namespace AutoRTFM
 
 				if (NeedAnotherResize)
 				{
-					delete[] Payload;
+					FMemory::Free(Payload);
 					continue;
 				}
 
@@ -156,7 +156,7 @@ namespace AutoRTFM
 
 			ASSERT(OldSize == Size);
 
-			delete[] OldPayload;
+			FMemory::Free(OldPayload);
 
 			return;
 		}
@@ -227,6 +227,11 @@ namespace AutoRTFM
 			// Then, if that fails, we use a second more complicated hash with a linear probe.
 			const uintptr_t Hash = SecondHash(Raw);
 
+			// Clang goes way over the top with loop unrolling, and makes this code noticably
+			// slower as a result. So we disable it!
+#ifdef __clang__
+#pragma clang loop unroll(disable)
+#endif
 			for (uint32_t D = 0; D < LinearProbeDepth; D++)
 			{
 				const uintptr_t I = FirstHashInRange(Hash + D);
