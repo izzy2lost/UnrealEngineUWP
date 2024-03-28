@@ -27,6 +27,10 @@ struct NAVCORRIDOR_API FNavCorridorParams
 	UPROPERTY(EditAnywhere, Category = "Pathfinding", meta=(ClampMin="10.0"))
 	float Width = 200.0f;
 
+	/** Distance to maintain between the path and the corridor boundaries. If the corridor is too tight, the offset will be reduced to the available space. */
+	UPROPERTY(EditAnywhere, Category = "Pathfinding", meta = (ClampMin = "0.0"))
+	float PathOffsetFromBoundaries = 0.f;
+
 	/** How much the outer edges of obstacles are tapered out. This prevents small sectors and local traps.  */
 	UPROPERTY(EditAnywhere, Category = "Pathfinding", meta=(ClampMin="10.0", ClampMax="45.0"))
 	float ObstacleTaperAngle = 30.0f;
@@ -135,7 +139,7 @@ struct NAVCORRIDOR_API FNavCorridor : public TSharedFromThis<FNavCorridor>
 	/** @return target vector that is visible from Source. */
 	FVector ConstrainVisibility(const FNavCorridorLocation& PathLocation, const FVector Source, const FVector Target, const float ForceLookAheadDistance = 0.0f) const;
 
-	/** @return true if the segment hints the corridor boundary. */
+	/** @return true if the segment hits the corridor boundary. */
 	bool HitTest(const FVector SegmentStart, const FVector SegmentEnd, double& HitT);
 
 	/** Portal points defining the corridor. */
