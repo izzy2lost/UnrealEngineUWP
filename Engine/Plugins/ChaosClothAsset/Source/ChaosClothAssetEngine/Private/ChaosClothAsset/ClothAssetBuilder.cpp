@@ -417,15 +417,16 @@ void UChaosClothAsset::FBuilder::BuildLod(FSkeletalMeshLODModel& LODModel, const
 					SectionRenderNormals,
 					SectionRenderTangents,
 					SectionRenderIndices);
-
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
 				ClothingMeshUtils::GenerateMeshToMeshVertData(
 					Section.ClothMappingDataLODs[0],
 					TargetMesh,
 					SourceMesh,
 					&MaxDistances,
-					ClothAsset.bSmoothTransition,
-					ClothAsset.bUseMultipleInfluences,
-					ClothAsset.SkinningKernelRadius);
+					ClothAsset.bSmoothTransition_DEPRECATED,
+					ClothAsset.bUseMultipleInfluences_DEPRECATED,
+					ClothAsset.SkinningKernelRadius_DEPRECATED);
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
 			}
 		}
 
