@@ -54,7 +54,13 @@ struct FWorldConditionBase;
 struct WORLDCONDITIONS_API FWorldConditionContextData
 {
 	FWorldConditionContextData() = default;
-	
+
+	/** FWorldConditionContextData should not be stored for longer durations. */
+	FWorldConditionContextData(const FWorldConditionContextData& Other) = delete;
+	FWorldConditionContextData(FWorldConditionContextData&& Other) = delete;
+	FWorldConditionContextData& operator=(const FWorldConditionContextData& Other) = delete;
+	FWorldConditionContextData& operator=(FWorldConditionContextData&& Other) = delete;
+
 	explicit FWorldConditionContextData(const UWorldConditionSchema& InSchema)
 	{
 		SetSchema(InSchema);
@@ -189,6 +195,12 @@ struct WORLDCONDITIONS_API FWorldConditionContext
 	{
 		World = IsValid(QueryState.GetOwner()) ? QueryState.GetOwner()->GetWorld() : nullptr;
 	}
+
+	/** FWorldConditionContext should not be stored for longer durations. */
+	FWorldConditionContext(const FWorldConditionContext& Other) = delete;
+	FWorldConditionContext(FWorldConditionContext&& Other) = delete;
+	FWorldConditionContext& operator=(const FWorldConditionContext& Other) = delete;
+	FWorldConditionContext& operator=(FWorldConditionContext&& Other) = delete;
 
 	/** @return Pointer to owner of the world conditions to be updated. */
 	const UObject* GetOwner() const { return QueryState.GetOwner(); }

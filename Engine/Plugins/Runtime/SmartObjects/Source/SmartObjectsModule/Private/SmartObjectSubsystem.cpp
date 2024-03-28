@@ -1240,24 +1240,6 @@ bool USmartObjectSubsystem::EvaluateSlotConditions(
 	return true;
 }
 
-FSmartObjectClaimHandle USmartObjectSubsystem::Claim(const FSmartObjectHandle Handle, const FSmartObjectRequestFilter& Filter)
-{
-	const FSmartObjectRuntime* SmartObjectRuntime = GetValidatedRuntime(Handle, __FUNCTION__);
-	if (SmartObjectRuntime == nullptr)
-	{
-		return FSmartObjectClaimHandle::InvalidHandle;
-	}
-
-	TArray<FSmartObjectSlotHandle> SlotHandles;
-	FindSlots(Handle, *SmartObjectRuntime, Filter, SlotHandles, {});
-	if (SlotHandles.IsEmpty())
-	{
-		return FSmartObjectClaimHandle::InvalidHandle;
-	}
-
-	return MarkSlotAsClaimed(SlotHandles.Top(), {});
-}
-
 FSmartObjectClaimHandle USmartObjectSubsystem::MarkSlotAsClaimed(const FSmartObjectSlotHandle SlotHandle, const FConstStructView UserData)
 {
 	return MarkSlotAsClaimed(SlotHandle, ESmartObjectClaimPriority::Normal, UserData);

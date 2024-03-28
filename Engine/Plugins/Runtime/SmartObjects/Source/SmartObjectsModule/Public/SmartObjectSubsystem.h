@@ -37,21 +37,6 @@ struct SMARTOBJECTSMODULE_API FSmartObjectRequestFilter
 {
 	GENERATED_BODY()
 
-	// Macro needed to avoid deprecation errors with members being copied or created in the default methods
-PRAGMA_DISABLE_DEPRECATION_WARNINGS
-	FSmartObjectRequestFilter() = default;
-	
-	FSmartObjectRequestFilter(const FSmartObjectRequestFilter&) = default;
-	FSmartObjectRequestFilter(FSmartObjectRequestFilter&&) = default;
-	FSmartObjectRequestFilter& operator=(const FSmartObjectRequestFilter&) = default;
-	FSmartObjectRequestFilter& operator=(FSmartObjectRequestFilter&&) = default;
-PRAGMA_ENABLE_DEPRECATION_WARNINGS
-
-	/** Pointer to the Actor requesting the Smart Object slot (Optional). */
-	UE_DEPRECATED(5.3, "User actor is no longer provided by the request filter. Instead you must provide user data struct to claim find objects or use filter methods.")
-	UPROPERTY(Transient)
-	TObjectPtr<AActor> UserActor = nullptr;
-
 	/** Gameplay tags of the Actor or Entity requesting the Smart Object slot. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = SmartObject)
 	FGameplayTagContainer UserTags;
@@ -68,7 +53,7 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = SmartObject)
 	TArray<TSubclassOf<USmartObjectBehaviorDefinition>> BehaviorDefinitionClasses;
 
-	/** If true will evaluate the slot and object conditions, otherwise will skip them. */
+	/** If true, will evaluate the slot and object conditions, otherwise will skip them. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = SmartObject)
 	bool bShouldEvaluateConditions = true;
 
@@ -82,13 +67,6 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 	/** Is set, will filter out any SmartObject that does not pass the predicate. */
 	TFunction<bool(FSmartObjectHandle)> Predicate;
-
-	/**
-	 * If set, will pass the context data for the selection preconditions.
-	 * Any SmartObject that has selection preconditions but does not match the schema set the in the context data will be skipped.
-	 */
-	UE_DEPRECATED(5.3, "Condition context data is no longer provided by the request filter. Instead you must provide user data struct to find objects or use filter methods.")
-	FWorldConditionContextData ConditionContextData;
 };
 
 /**
@@ -1407,13 +1385,6 @@ public:
 	const TMap<FSmartObjectHandle, FSmartObjectRuntime>& DebugGetRuntimeObjects() const { return RuntimeSmartObjects; }
 	uint32 DebugGetNumRegisteredComponents() const { return RegisteredSOComponents.Num(); }
 
-	UE_DEPRECATED(5.3, "DebugGetRuntimeSlots() is not supported anymore, slots are accessed via object runtime instead.")
-	const TMap<FSmartObjectSlotHandle, FSmartObjectRuntimeSlot>& DebugGetRuntimeSlots() const
-	{
-		static TMap<FSmartObjectSlotHandle, FSmartObjectRuntimeSlot> Dummy;
-		return Dummy;
-	}
-
 	/** Debugging helper to remove all registered smart objects from the simulation */
 	void DebugUnregisterAllSmartObjects();
 
@@ -1429,28 +1400,8 @@ public:
 
 	/** DEPRECATED BLOCK BEGIN */
 public:
-	UE_DEPRECATED(5.3, "Please use MarkSlotAsClaimed instead")
-	[[nodiscard]] FSmartObjectClaimHandle Claim(const FSmartObjectSlotHandle SlotHandle, const FConstStructView UserData = {})
-	{
-		return MarkSlotAsClaimed(SlotHandle, ESmartObjectClaimPriority::Normal, UserData);
-	}
-
-	UE_DEPRECATED(5.3, "Please use MarkSlotAsClaimed passing only the slot handle")
-	[[nodiscard]] FSmartObjectClaimHandle Claim(const FSmartObjectHandle Handle, FSmartObjectSlotHandle SlotHandle) { return MarkSlotAsClaimed(SlotHandle, {}); }
-
-	UE_DEPRECATED(5.3, "Please use both FindSlots and MarkSlotAsClaimed using only the slot handle. This will allow proper support of selection conditions.")
-   [[nodiscard]] FSmartObjectClaimHandle Claim(const FSmartObjectHandle Handle, const FSmartObjectRequestFilter& Filter);
-
 	UE_DEPRECATED(5.4, "Please use version of MarkSlotAsClaimed() with claim priority.")
 	[[nodiscard]] FSmartObjectClaimHandle MarkSlotAsClaimed(const FSmartObjectSlotHandle SlotHandle, const FConstStructView UserData = {});
-
-	template <typename DefinitionType>
-	UE_DEPRECATED(5.3, "Please use MarkSlotAsOccupied instead")
-	const DefinitionType* Use(const FSmartObjectClaimHandle& ClaimHandle)
-	{
-		static_assert(TIsDerivedFrom<DefinitionType, USmartObjectBehaviorDefinition>::IsDerived, "DefinitionType must derive from USmartObjectBehaviorDefinition");
-		return Cast<const DefinitionType>(MarkSlotAsOccupied(ClaimHandle, DefinitionType::StaticClass()));
-	}
 
 	UFUNCTION(BlueprintCallable, Category = "SmartObject", meta=(DisplayName="Find Smart Objects (Pure)", DeprecatedFunction, DeprecationMessage="The pure version is deprecated, place a new Find Smart Objects node and connect the exec pin"))
 	bool FindSmartObjects(const FSmartObjectRequest& Request, TArray<FSmartObjectRequestResult>& OutResults, const AActor* UserActor = nullptr) const
@@ -1458,37 +1409,15 @@ public:
 		return FindSmartObjects(Request, OutResults, FConstStructView::Make(FSmartObjectActorUserData(UserActor)));
 	}
 
-	UE_DEPRECATED(5.3, "Please use MarkSmartObjectSlotAsClaimed instead")
-	UFUNCTION(BlueprintCallable, Category = "SmartObject", meta = (DeprecatedFunction, DeprecationMessage = "Use MarkSmartObjectSlotAsClaimed instead."))
-	FSmartObjectClaimHandle Claim(const FSmartObjectRequestResult& RequestResult, const AActor* UserActor = nullptr)
-	{
-		return MarkSlotAsClaimed(RequestResult.SlotHandle, ESmartObjectClaimPriority::Normal, FConstStructView::Make(FSmartObjectActorUserData(UserActor)));
-	}
-
-	UE_DEPRECATED(5.3, "Please use MarkSmartObjectSlotAsOccupied instead")
-	UFUNCTION(BlueprintCallable, Category = "SmartObject", meta = (DeprecatedFunction, DeprecationMessage = "Use MarkSmartObjectSlotAsOccupied instead."))
-	const USmartObjectBehaviorDefinition* Use(const FSmartObjectClaimHandle& ClaimHandle, TSubclassOf<USmartObjectBehaviorDefinition> DefinitionClass)
-	{
-		return MarkSlotAsOccupied(ClaimHandle, DefinitionClass);
-	}
-
 	UFUNCTION(BlueprintCallable, Category = "SmartObject", meta = (DeprecatedFunction, DeprecationMessage = "Use MarkSmartObjectSlotAsFree instead."))
 	bool Release(const FSmartObjectClaimHandle& ClaimHandle)
 	{
 		return MarkSlotAsFree(ClaimHandle);
 	}
-	
-	UE_DEPRECATED(5.3, "Data is now added synchronously, use AddSlotData instead.")
-	void AddSlotDataDeferred(const FSmartObjectClaimHandle& ClaimHandle, FConstStructView InData) { AddSlotData(ClaimHandle, InData); }
 
 protected:
 	UE_DEPRECATED(5.4, "Use RegisterSmartObject instead.")
 	bool RegisterSmartObjectInternal(USmartObjectComponent& SmartObjectComponent);
-
-	UE_DEPRECATED(5.3, "Use InitializeRuntime() without Mass entity manager.")
-	void InitializeRuntime(const TSharedPtr<FMassEntityManager>& InEntityManager)
-	{
-	}
 
 	UE_DEPRECATED(5.4, "Use overload using ANSICHAR instead.")
 	bool IsSlotValidVerbose(const FSmartObjectSlotHandle SlotHandle, const TCHAR* LogContext) const
@@ -1508,52 +1437,10 @@ protected:
 		return GetValidatedMutableRuntimeAndSlot(SlotHandle, OutSmartObjectRuntime, OutSlot, TCHAR_TO_ANSI(LogContext));
 	}
 
-	UE_DEPRECATED(5.3, "Use GetValidatedRuntimeAndSlot() instead.")
-	const FSmartObjectRuntimeSlot* GetSlotVerbose(const FSmartObjectSlotHandle SlotHandle, const TCHAR* LogContext) const
-	{
-		return nullptr;
-	}
-
-	UE_DEPRECATED(5.3, "Use GetValidatedMutableRuntimeAndSlot() instead.")
-	FSmartObjectRuntimeSlot* GetMutableSlotVerbose(const FSmartObjectSlotHandle SlotHandle, const TCHAR* LogContext)
-	{
-		return nullptr;
-	}
-
-	UE_DEPRECATED(5.3, "Use GetValidatedMutableRuntimeAndSlot() instead.")
-	FSmartObjectRuntimeSlot* GetMutableSlot(const FSmartObjectClaimHandle& ClaimHandle)
-	{
-		return nullptr;
-	}
-
 	UE_DEPRECATED(5.4, "Use overload using ANSICHAR instead.")
 	FSmartObjectRuntime* GetValidatedMutableRuntime(const FSmartObjectHandle Handle, const TCHAR* LogContext) const
 	{
 		return GetValidatedMutableRuntime(Handle, TCHAR_TO_ANSI(LogContext));
-	}
-
-	UE_DEPRECATED(5.3, "FindSlots() was changed to require object handle as parameter too.")
-	void FindSlots(
-		const FSmartObjectRuntime& SmartObjectRuntime,
-		const FSmartObjectRequestFilter& Filter,
-		 TArray<FSmartObjectSlotHandle>& OutResults,
-		 const FConstStructView UserData) const
-	{
-	}
-
-	UE_DEPRECATED(5.3, "MarkSlotAsOccupied() was changed to require SmartObjectRuntime to be passed as mutable.")
-	const USmartObjectBehaviorDefinition* MarkSlotAsOccupied(
-		const FSmartObjectRuntime& SmartObjectRuntime,
-		const FSmartObjectClaimHandle& ClaimHandle,
-		TSubclassOf<USmartObjectBehaviorDefinition> DefinitionClass
-		)
-	{
-		return nullptr;
-	}
-
-	UE_DEPRECATED(5.3, "AbortAll() was changed to require object handle as parameter too.")
-	void AbortAll(const FSmartObjectRuntime& SmartObjectRuntime)
-	{
 	}
 
 	UE_DEPRECATED(5.4, "Use overload using ANSICHAR instead.")
@@ -1562,54 +1449,8 @@ protected:
 		return GetValidatedRuntime(Handle, TCHAR_TO_ANSI(LogContext));
 	}
 
-	UE_DEPRECATED(5.3, "bCommitChanges is not used anymore, use the version without.")
-	FSmartObjectRuntime* AddCollectionEntryToSimulation(
-		const FSmartObjectCollectionEntry& Entry,
-		const USmartObjectDefinition& Definition,
-		USmartObjectComponent* OwnerComponent,
-		const bool bCommitChanges)
-	{
-		return nullptr;
-	}
-
-	UE_DEPRECATED(5.3, "bCommitChanges is not used anymore, use the version without.")
-	FSmartObjectRuntime* AddComponentToSimulation(
-		USmartObjectComponent& SmartObjectComponent,
-		const FSmartObjectCollectionEntry& CollectionEntry,
-		const bool bCommitChanges
-		)
-	{
-		return nullptr;
-	}
-
 	UE_DEPRECATED(5.4, "Use variation taking FSmartObjectRuntime.")
 	bool RemoveRuntimeInstanceFromSimulation(const FSmartObjectHandle Handle, USmartObjectComponent* SmartObjectComponent);
-
-	UE_DEPRECATED(5.3, "EntityManagerRef is not used anymore, use the version without.")
-	void DestroyRuntimeInstanceInternal(const FSmartObjectHandle Handle, FSmartObjectRuntime& SmartObjectRuntime, const FMassEntityManager& EntityManagerRef)
-	{
-	}
-
-	UE_DEPRECATED(5.3, "Use the version that takes smart object runtime and slot handle.")
-	[[nodiscard]] bool EvaluateSlotConditions(
-		FWorldConditionContextData& ConditionContextData,
-		const FSmartObjectSlotHandle SlotHandle,
-		const FSmartObjectRuntimeSlot& Slot
-		) const
-	{
-		return false;
-	}
-
-	UE_DEPRECATED(5.3, "EvaluateConditionsForFiltering() was changed to rewuire smart object runtime as parameter.")
-	[[nodiscard]] bool EvaluateConditionsForFiltering(
-		const FSmartObjectSlotHandle SlotHandle,
-		FWorldConditionContextData& ContextData,
-		const FConstStructView UserData,
-		TPair<const FSmartObjectRuntime*, bool>& LastEvaluatedRuntime
-		) const
-	{
-		return false;
-	}
 
 	/** DEPRECATED BLOCK END */
 };
