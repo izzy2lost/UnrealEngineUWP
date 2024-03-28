@@ -336,17 +336,11 @@ namespace EpicGames.UHT.Tokenizer
 			_savedInputPos = InputPos;
 			if (_comments != null)
 			{
-				if (_savedComments == null)
-				{
-					_savedComments = new List<StringView>();
-				}
+				_savedComments ??= new List<StringView>();
 				_savedComments.Clear();
 				_savedComments.AddRange(_comments);
 			}
-			if (_tokenPreprocessor != null)
-			{
-				_tokenPreprocessor.SaveState();
-			}
+			_tokenPreprocessor?.SaveState();
 		}
 
 		/// <inheritdoc/>
@@ -365,10 +359,7 @@ namespace EpicGames.UHT.Tokenizer
 				_comments.Clear();
 				_comments.AddRange(_savedComments);
 			}
-			if (_tokenPreprocessor != null)
-			{
-				_tokenPreprocessor.RestoreState();
-			}
+			_tokenPreprocessor?.RestoreState();
 		}
 
 		/// <inheritdoc/>
@@ -1043,10 +1034,7 @@ ResetStateMachineCheck:
 
 		private void AddComment(StringView comment)
 		{
-			if (_comments == null)
-			{
-				_comments = new List<StringView>(4);
-			}
+			_comments ??= new List<StringView>(4);
 			_comments.Add(comment);
 		}
 		#endregion

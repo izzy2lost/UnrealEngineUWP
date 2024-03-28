@@ -17,7 +17,7 @@ namespace EpicGames.Core
 	/// </summary>
 	[JsonConverter(typeof(Sha1HashJsonConverter))]
 	[TypeConverter(typeof(Sha1HashTypeConverter))]
-	public struct Sha1Hash : IEquatable<Sha1Hash>, IComparable<Sha1Hash>
+	public readonly struct Sha1Hash : IEquatable<Sha1Hash>, IComparable<Sha1Hash>
 	{
 		/// <summary>
 		/// Length of an Sha1Hash

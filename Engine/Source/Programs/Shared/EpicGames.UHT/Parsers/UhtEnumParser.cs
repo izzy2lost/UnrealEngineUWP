@@ -63,10 +63,7 @@ namespace EpicGames.UHT.Parsers
 					specifiers.ParseFieldMetaData();
 					specifiers.ParseDeferred();
 
-					if (enumObject.Outer != null)
-					{
-						enumObject.Outer.AddChild(enumObject);
-					}
+					enumObject.Outer?.AddChild(enumObject);
 
 					if ((topScope.HeaderParser.GetCurrentCompositeCompilerDirective() & UhtCompilerDirective.WithEditorOnlyData) != 0)
 					{

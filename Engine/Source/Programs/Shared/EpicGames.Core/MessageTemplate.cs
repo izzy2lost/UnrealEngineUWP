@@ -147,10 +147,7 @@ namespace EpicGames.Core
 						{
 							break;
 						}
-						if (names == null)
-						{
-							names = new List<(int, int)>();
-						}
+						names ??= new List<(int, int)>();
 
 						names.Add((startIdx, idx - startIdx));
 					}

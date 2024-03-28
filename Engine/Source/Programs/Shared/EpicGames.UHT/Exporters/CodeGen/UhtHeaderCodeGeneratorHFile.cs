@@ -815,18 +815,16 @@ namespace EpicGames.UHT.Exporters.CodeGen
 		{
 			if (getterSetterProperties.Any())
 			{
-				using (UhtMacroCreator macro = new(builder, this, classObj, AccessorsMacroSuffix))
+				using UhtMacroCreator macro = new(builder, this, classObj, AccessorsMacroSuffix);
+				foreach (UhtProperty property in getterSetterProperties)
 				{
-					foreach (UhtProperty property in getterSetterProperties)
+					if (property.PropertyExportFlags.HasAnyFlags(UhtPropertyExportFlags.GetterFound))
 					{
-						if (property.PropertyExportFlags.HasAnyFlags(UhtPropertyExportFlags.GetterFound))
-						{
-							builder.Append("static void ").AppendPropertyGetterWrapperName(property).Append("(const void* Object, void* OutValue); \\\r\n");
-						}
-						if (property.PropertyExportFlags.HasAnyFlags(UhtPropertyExportFlags.SetterFound))
-						{
-							builder.Append("static void ").AppendPropertySetterWrapperName(property).Append("(void* Object, const void* InValue); \\\r\n");
-						}
+						builder.Append("static void ").AppendPropertyGetterWrapperName(property).Append("(const void* Object, void* OutValue); \\\r\n");
+					}
+					if (property.PropertyExportFlags.HasAnyFlags(UhtPropertyExportFlags.SetterFound))
+					{
+						builder.Append("static void ").AppendPropertySetterWrapperName(property).Append("(void* Object, const void* InValue); \\\r\n");
 					}
 				}
 			}

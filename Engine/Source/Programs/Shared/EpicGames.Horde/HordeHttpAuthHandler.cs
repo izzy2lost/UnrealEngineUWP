@@ -337,7 +337,7 @@ namespace EpicGames.Horde
 			if (result == null && allowLogin)
 			{
 				_logger.LogInformation("Logging in to {Server}...", serverUrl);
-				result = await oidcTokenManager.Login(oidcProvider, cancellationToken);
+				result = await oidcTokenManager.LoginAsync(oidcProvider, cancellationToken);
 			}
 
 			return new AuthState(authConfig.Method, result);

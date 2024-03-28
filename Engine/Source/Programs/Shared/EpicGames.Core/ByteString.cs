@@ -16,7 +16,7 @@ namespace EpicGames.Core
 	[JsonSchemaString]
 	[JsonConverter(typeof(ByteStringJsonConverter))]
 	[TypeConverter(typeof(ByteStringTypeConverter))]
-	public struct ByteString : IEquatable<ByteString>, IComparable<ByteString>
+	public readonly struct ByteString : IEquatable<ByteString>, IComparable<ByteString>
 	{
 		/// <summary>
 		/// Underlying data for this string
@@ -35,28 +35,28 @@ namespace EpicGames.Core
 		public ByteString(ReadOnlyMemory<byte> data) => Data = data;
 
 		/// <summary>
-		/// Parses a byte string from a hexidecimal string
+		/// Parses a byte string from a hexadecimal string
 		/// </summary>
 		/// <param name="text">Text to parse</param>
 		/// <returns>New byte string instance</returns>
 		public static ByteString Parse(ReadOnlySpan<byte> text) => new ByteString(StringUtils.ParseHexString(text));
 
 		/// <summary>
-		/// Parses a byte string from a hexidecimal string
+		/// Parses a byte string from a hexadecimal string
 		/// </summary>
 		/// <param name="text">Text to parse</param>
 		/// <returns>New byte string instance</returns>
 		public static ByteString Parse(Utf8String text) => Parse(text.Span);
 
 		/// <summary>
-		/// Parses a byte string from a hexidecimal string
+		/// Parses a byte string from a hexadecimal string
 		/// </summary>
 		/// <param name="text">Text to parse</param>
 		/// <returns>New byte string instance</returns>
 		public static ByteString Parse(string text) => new ByteString(StringUtils.ParseHexString(text));
 
 		/// <summary>
-		/// Attempts to parse a hexidecimal string as a byte string
+		/// Attempts to parse a hexadecimal string as a byte string
 		/// </summary>
 		/// <param name="text">Text to parse</param>
 		/// <param name="byteString">On success, receives the parsed string</param>
@@ -77,7 +77,7 @@ namespace EpicGames.Core
 		}
 
 		/// <summary>
-		/// Attempts to parse a hexidecimal string as a byte string
+		/// Attempts to parse a hexadecimal string as a byte string
 		/// </summary>
 		/// <param name="text">Text to parse</param>
 		/// <param name="byteString">On success, receives the parsed string</param>
@@ -85,7 +85,7 @@ namespace EpicGames.Core
 		public static bool TryParse(Utf8String text, out ByteString byteString) => TryParse(text.Span, out byteString);
 
 		/// <summary>
-		/// Attempts to parse a hexidecimal string as a byte string
+		/// Attempts to parse a hexadecimal string as a byte string
 		/// </summary>
 		/// <param name="text">Text to parse</param>
 		/// <param name="byteString">On success, receives the parsed string</param>
@@ -135,7 +135,7 @@ namespace EpicGames.Core
 		public override string ToString() => StringUtils.FormatHexString(Data.Span);
 
 		/// <summary>
-		/// Creates a Utf8 string represending the bytes in this string
+		/// Creates a Utf8 string representing the bytes in this string
 		/// </summary>
 		public Utf8String ToUtf8String() => StringUtils.FormatUtf8HexString(Data.Span);
 

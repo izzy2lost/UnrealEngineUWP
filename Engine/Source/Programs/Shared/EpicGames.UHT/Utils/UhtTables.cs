@@ -4,6 +4,7 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
 using System.IO;
+using System.Linq;
 using System.Reflection;
 using EpicGames.Core;
 using EpicGames.UHT.Tables;
@@ -525,7 +526,7 @@ namespace EpicGames.UHT.Utils
 				{
 					if (type.IsClass)
 					{
-						foreach (Attribute classAttribute in type.GetCustomAttributes(false))
+						foreach (Attribute classAttribute in type.GetCustomAttributes(false).Cast<Attribute>())
 						{
 							if (classAttribute is UnrealHeaderToolAttribute || classAttribute is UhtEngineClassAttribute)
 							{
@@ -597,9 +598,8 @@ namespace EpicGames.UHT.Utils
 		{
 			if (type.IsClass)
 			{
-
 				// Loop through the attributes
-				foreach (Attribute classAttribute in type.GetCustomAttributes(false))
+				foreach (Attribute classAttribute in type.GetCustomAttributes(false).Cast<Attribute>())
 				{
 					if (classAttribute is UnrealHeaderToolAttribute parserAttribute)
 					{

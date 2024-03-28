@@ -47,9 +47,9 @@ namespace EpicGames.UHT.Parsers
 		}
 		
 		[UhtSpecifier(Extends = UhtTableNames.PropertyArgument, ValueType = UhtSpecifierValueType.None)]
-		private static void RequiredSpecifier(UhtSpecifierContext SpecifierContext)
+		private static void RequiredSpecifier(UhtSpecifierContext specifierContext)
 		{
-			UhtPropertySpecifierContext context = (UhtPropertySpecifierContext)SpecifierContext;
+			UhtPropertySpecifierContext context = (UhtPropertySpecifierContext)specifierContext;
 			context.PropertySettings.PropertyFlags |= EPropertyFlags.RequiredParm;
 		}
 		#endregion

@@ -1466,7 +1466,6 @@ namespace EpicGames.Serialization
 		/// <inheritdoc cref="CbFieldUtils.IsTimeSpan(CbFieldType)"/>
 		public bool IsTimeSpan() => CbFieldUtils.IsTimeSpan(TypeWithFlags);
 
-
 		/// <inheritdoc cref="CbFieldUtils.IsObjectId(CbFieldType)"/>
 		public bool IsObjectId() => CbFieldUtils.IsObjectId(TypeWithFlags);
 

@@ -28,7 +28,7 @@ namespace EpicGames.Core
 	/// <summary>
 	/// Represents an array of uniformly sized <see cref="ReadOnlyMemory{Byte}"/> objects in a parent <see cref="ReadOnlyMemory{Byte}"/> instance.
 	/// </summary>
-	public struct UniformReadOnlyMemoryArray : IReadOnlyMemoryArray
+	public readonly struct UniformReadOnlyMemoryArray : IReadOnlyMemoryArray
 	{
 		/// <inheritdoc/>
 		public ReadOnlyMemory<byte> Data { get; }
@@ -85,7 +85,7 @@ namespace EpicGames.Core
 	/// <summary>
 	/// Represents an array of variably sized <see cref="ReadOnlyMemory{Byte}"/> objects in a parent <see cref="ReadOnlyMemory{Byte}"/> instance.
 	/// </summary>
-	public struct JaggedReadOnlyMemoryArray : IReadOnlyMemoryArray
+	public readonly struct JaggedReadOnlyMemoryArray : IReadOnlyMemoryArray
 	{
 		/// <inheritdoc/>
 		public ReadOnlyMemory<byte> Data { get; }

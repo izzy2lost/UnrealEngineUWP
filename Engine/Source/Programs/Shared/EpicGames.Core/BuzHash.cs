@@ -148,7 +148,7 @@ namespace EpicGames.Core
 			{
 				for (int idx = 0; idx < data.Length; idx++)
 				{
-					state = state ^ Rol32(s_table[dataPtr[idx]], --count);
+					state ^= Rol32(s_table[dataPtr[idx]], --count);
 				}
 			}
 			return state;
@@ -193,7 +193,7 @@ namespace EpicGames.Core
 						state = hash;
 						return idx;
 					}
-					hash = hash ^ Rol32(table[prevPtr[idx]], prev.Length - 1);
+					hash ^= Rol32(table[prevPtr[idx]], prev.Length - 1);
 				}
 				state = hash;
 			}

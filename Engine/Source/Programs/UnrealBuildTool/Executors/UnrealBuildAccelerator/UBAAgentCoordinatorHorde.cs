@@ -415,7 +415,7 @@ namespace UnrealBuildTool
 			}
 			catch (NotLoggedInException)
 			{
-				result = await oidcTokenManager.Login(oidcProvider, cancellationToken);
+				result = await oidcTokenManager.LoginAsync(oidcProvider, cancellationToken);
 			}
 
 			if (result.AccessToken == null)

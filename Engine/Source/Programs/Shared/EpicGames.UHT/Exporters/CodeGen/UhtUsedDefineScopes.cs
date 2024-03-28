@@ -4,6 +4,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
+using EpicGames.Core;
 using EpicGames.UHT.Types;
 using EpicGames.UHT.Utils;
 
@@ -24,7 +25,7 @@ namespace EpicGames.UHT.Exporters.CodeGen
 		/// <summary>
 		/// Collection of instances
 		/// </summary>
-		public List<T> Instances { get; set; } = new();
+		public List<T> Instances { get; } = new();
 
 		/// <summary>
 		/// If true, there are no instances
@@ -116,7 +117,7 @@ namespace EpicGames.UHT.Exporters.CodeGen
 		/// </summary>
 		public void OrderByDefineScope()
 		{
-			Instances = Instances.OrderBy(x => x.DefineScope).ToList();
+			Instances.SortBy(x => x.DefineScope);
 		}
 
 		/// <summary>

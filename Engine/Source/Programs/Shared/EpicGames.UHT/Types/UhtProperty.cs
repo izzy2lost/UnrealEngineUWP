@@ -1982,7 +1982,7 @@ namespace EpicGames.UHT.Types
 		/// Customization point for subclasses for NeedsGCBarrierWhenPassedToFunction
 		/// </summary>
 		/// <returns>True if GC barriers need to run</returns>		
-		protected virtual bool NeedsGCBarrierWhenPassedToFunctionImpl(UhtFunction function)
+		protected virtual bool NeedsGCBarrierWhenPassedToFunctionImpl(UhtFunction uhtFunction)
 		{
 			return false;
 		}

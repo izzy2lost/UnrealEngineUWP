@@ -147,18 +147,6 @@ namespace UnrealBuildBase
 
 			return InstallPath;
 		}
-		
-		/// <summary>
-		/// Runs a command line process, and returns simple StdOut output. This doesn't handle errors or return codes
-		/// </summary>
-		/// <returns>The entire StdOut generated from the process as a single trimmed string</returns>
-		/// <param name="Command">Command to run</param>
-		/// <param name="Args">Arguments to Command</param>
-		/// <param name="Logger">Logger for output</param>
-		private static string RunLocalProcessAndReturnStdOut(string Command, string Args, ILogger? Logger = null)
-		{
-			return RunLocalProcessAndReturnStdOut(Command, Args, out _, Logger);	
-		}
 
 		/// <summary>
 		/// Runs a command line process, and returns simple StdOut output.

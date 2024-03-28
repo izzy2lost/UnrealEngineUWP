@@ -15,7 +15,7 @@ namespace EpicGames.Core
 	/// Struct representing a strongly typed Md5Hash value
 	/// </summary>
 	[TypeConverter(typeof(Md5HashTypeConverter))]
-	public struct Md5Hash : IEquatable<Md5Hash>, IComparable<Md5Hash>
+	public readonly struct Md5Hash : IEquatable<Md5Hash>, IComparable<Md5Hash>
 	{
 		/// <summary>
 		/// Length of an Md5Hash

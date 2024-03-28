@@ -377,12 +377,12 @@ namespace UnrealBuildBase
 				return true;
 			}
 
-			if (ReferenceEquals(obj, null))
+			if (obj is null)
 			{
 				return false;
 			}
 
-			return Equals((DirectoryItem?)obj);
+			return Equals(obj as DirectoryItem);
 		}
 
 		public override int GetHashCode()
@@ -392,9 +392,9 @@ namespace UnrealBuildBase
 
 		public static bool operator ==(DirectoryItem? left, DirectoryItem? right)
 		{
-			if (ReferenceEquals(left, null))
+			if (left is null)
 			{
-				return ReferenceEquals(right, null);
+				return right is null;
 			}
 
 			return left.Equals(right);
@@ -407,22 +407,22 @@ namespace UnrealBuildBase
 
 		public static bool operator <(DirectoryItem? left, DirectoryItem? right)
 		{
-			return ReferenceEquals(left, null) ? !ReferenceEquals(right, null) : left.CompareTo(right) < 0;
+			return left is null ? right is not null : left.CompareTo(right) < 0;
 		}
 
 		public static bool operator <=(DirectoryItem? left, DirectoryItem? right)
 		{
-			return ReferenceEquals(left, null) || left.CompareTo(right) <= 0;
+			return left is null || left.CompareTo(right) <= 0;
 		}
 
 		public static bool operator >(DirectoryItem? left, DirectoryItem? right)
 		{
-			return !ReferenceEquals(left, null) && left.CompareTo(right) > 0;
+			return left is not null && left.CompareTo(right) > 0;
 		}
 
 		public static bool operator >=(DirectoryItem? left, DirectoryItem? right)
 		{
-			return ReferenceEquals(left, null) ? ReferenceEquals(right, null) : left.CompareTo(right) >= 0;
+			return left is null ? right is null : left.CompareTo(right) >= 0;
 		}
 		#endregion
 	}
@@ -474,6 +474,5 @@ namespace UnrealBuildBase
 		{
 			return Reader.ReadDirectoryItem()!.Location;
 		}
-
 	}
 }

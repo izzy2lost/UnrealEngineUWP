@@ -42,7 +42,7 @@ namespace EpicGames.Serialization
 
 		private const int Length = sizeof(uint) * 4;
 
-		public static async Task<CbPackageHeader> Read(Stream s)
+		public static async Task<CbPackageHeader> ReadAsync(Stream s)
 		{
 			// using async reading of stream because Asp.net requires this
 			byte[] buf = new byte[Length];
@@ -124,7 +124,7 @@ namespace EpicGames.Serialization
 		/// </summary>
 		/// <param name="s">The stream to read from</param>
 		/// <returns>The read package attachment</returns>
-		internal static async Task<CbPackageAttachmentEntry> Read(Stream s)
+		internal static async Task<CbPackageAttachmentEntry> ReadAsync(Stream s)
 		{
 			byte[] buf = new byte[Length];
 			int readBytes = await s.ReadAsync(buf, 0, Length);
@@ -206,9 +206,9 @@ namespace EpicGames.Serialization
 		/// </summary>
 		/// <param name="s">A stream</param>
 		/// <returns>A package reader instance</returns>
-		public static async Task<CbPackageReader> Create(Stream s)
+		public static async Task<CbPackageReader> CreateAsync(Stream s)
 		{
-			CbPackageHeader header = await CbPackageHeader.Read(s);
+			CbPackageHeader header = await CbPackageHeader.ReadAsync(s);
 
 			List<CbPackageAttachmentEntry> entries = new List<CbPackageAttachmentEntry>();
 			// we expect a extra entry for the root object
@@ -216,7 +216,7 @@ namespace EpicGames.Serialization
 
 			for (int i = 0; i < attachmentsCount; i++)
 			{
-				CbPackageAttachmentEntry entry = await CbPackageAttachmentEntry.Read(s);
+				CbPackageAttachmentEntry entry = await CbPackageAttachmentEntry.ReadAsync(s);
 				entries.Add(entry);
 			}
 
@@ -255,7 +255,7 @@ namespace EpicGames.Serialization
 		/// Iterates over the attachments, returning the attachment entry and the attachment (in memory)
 		/// </summary>
 		/// <returns></returns>
-		public async IAsyncEnumerable<(CbPackageAttachmentEntry, byte[])> IterateAttachments()
+		public async IAsyncEnumerable<(CbPackageAttachmentEntry, byte[])> IterateAttachmentsAsync()
 		{
 			// close the stream after we have iterated the attachments as there should be nothing left in it
 			await using Stream s = _attachmentsStream;
@@ -348,7 +348,7 @@ namespace EpicGames.Serialization
 		/// Generate a contiguous buffer of the cb package
 		/// </summary>
 		/// <returns></returns>
-		public async Task<byte[]> ToByteArray()
+		public async Task<byte[]> ToByteArrayAsync()
 		{
 			MemoryStream packageBuffer = new MemoryStream();
 

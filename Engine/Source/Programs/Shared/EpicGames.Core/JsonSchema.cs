@@ -90,7 +90,7 @@ namespace EpicGames.Core
 			/// <inheritdoc/>
 			public void WriteType(JsonSchemaType type)
 			{
-				if (!(type is JsonSchemaPrimitiveType))
+				if (type is not JsonSchemaPrimitiveType)
 				{
 					TypeRefCount.TryGetValue(type, out int refCount);
 					if (refCount < 2)

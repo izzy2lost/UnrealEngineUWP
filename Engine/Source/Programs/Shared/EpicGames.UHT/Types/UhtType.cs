@@ -933,10 +933,7 @@ namespace EpicGames.UHT.Types
 		/// <param name="child">The child to be added.</param>
 		public virtual void AddChild(UhtType child)
 		{
-			if (_children == null)
-			{
-				_children = new List<UhtType>();
-			}
+			_children ??= new();
 			_children.Add(child);
 		}
 

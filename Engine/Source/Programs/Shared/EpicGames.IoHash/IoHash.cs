@@ -18,7 +18,7 @@ namespace EpicGames.Core
 	/// </summary>
 	[JsonConverter(typeof(IoHashJsonConverter))]
 	[TypeConverter(typeof(IoHashTypeConverter))]
-	public struct IoHash : IEquatable<IoHash>, IComparable<IoHash>
+	public readonly struct IoHash : IEquatable<IoHash>, IComparable<IoHash>
 	{
 		/// <summary>
 		/// Length of an IoHash

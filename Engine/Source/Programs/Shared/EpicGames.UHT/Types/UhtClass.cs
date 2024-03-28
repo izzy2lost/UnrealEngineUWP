@@ -564,10 +564,7 @@ namespace EpicGames.UHT.Types
 		/// <param name="function">If parsed as part of a UFUNCTION, this will reference it</param>
 		public void AddDeclaration(UhtCompilerDirective compilerDirectives, List<UhtToken> tokens, UhtFunction? function)
 		{
-			if (_declarations == null)
-			{
-				_declarations = new List<UhtDeclaration>();
-			}
+			_declarations ??= new List<UhtDeclaration>();
 			_declarations.Add(new UhtDeclaration { CompilerDirectives = compilerDirectives, Tokens = tokens.ToArray(), Function = function });
 		}
 
@@ -1445,10 +1442,7 @@ namespace EpicGames.UHT.Types
 		/// <returns>Resulting dictionary</returns>
 		private static Dictionary<string, List<GetterSetterToResolve>> AddGetterSetter(Dictionary<string, List<GetterSetterToResolve>>? gsToResolve, string name, UhtProperty property, bool setter)
 		{
-			if (gsToResolve == null)
-			{
-				gsToResolve = new Dictionary<string, List<GetterSetterToResolve>>();
-			}
+			gsToResolve ??= new Dictionary<string, List<GetterSetterToResolve>>();
 			if (!gsToResolve.TryGetValue(name, out List<GetterSetterToResolve>? gsList))
 			{
 				gsList = new List<GetterSetterToResolve>();

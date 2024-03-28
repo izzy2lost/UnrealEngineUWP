@@ -325,7 +325,7 @@ namespace EpicGames.UHT.Parsers
 	/// <summary>
 	/// Helper class thread specified object cache
 	/// </summary>
-	public struct UhtThreadBorrower<T> : IDisposable where T : new()
+	public readonly struct UhtThreadBorrower<T> : IDisposable where T : new()
 	{
 		private static readonly ThreadLocal<List<T>> s_tls = new(() => new());
 		private readonly T _instance;
@@ -1115,11 +1115,7 @@ namespace EpicGames.UHT.Parsers
 			propertySettings.SourceName = propertySettings.PropertyCategory == UhtPropertyCategory.Return ? "ReturnValue" : nameToken.Value.ToString();
 
 			// Try to resolve the property using any immediate mode property types
-			UhtProperty? newProperty = ResolveProperty(UhtPropertyResolvePhase.Parsing, propertySettings, propertySettings.Outer.HeaderFile.Data.Memory, typeTokens);
-			if (newProperty == null)
-			{
-				newProperty = new UhtPreResolveProperty(propertySettings, typeTokens);
-			}
+			UhtProperty newProperty = ResolveProperty(UhtPropertyResolvePhase.Parsing, propertySettings, propertySettings.Outer.HeaderFile.Data.Memory, typeTokens) ?? new UhtPreResolveProperty(propertySettings, typeTokens);
 
 			// Force the category in non-engine projects
 			if (newProperty.PropertyCategory == UhtPropertyCategory.Member)

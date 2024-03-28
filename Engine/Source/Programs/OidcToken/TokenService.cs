@@ -92,7 +92,7 @@ namespace OidcToken
 					if (status == OidcStatus.NotLoggedIn && !Settings.CurrentValue.Unattended)
 					{
 						Logger.LogInformation("Logging in to provider {ProviderName}", providerName);
-						tokenInfo = await TokenManager.Login(providerName);
+						tokenInfo = await TokenManager.LoginAsync(providerName);
 					}
 					else
 					{
@@ -112,7 +112,7 @@ namespace OidcToken
 							else
 							{
 								Logger.LogInformation("Logging in to provider {ProviderName}", providerName);
-								tokenInfo = await TokenManager.Login(providerName);
+								tokenInfo = await TokenManager.LoginAsync(providerName);
 							}
 						}
 					}

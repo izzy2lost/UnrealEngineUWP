@@ -132,10 +132,7 @@ namespace EpicGames.UHT.Parsers
 					// Process the deferred specifiers
 					specifiers.ParseDeferred();
 
-					if (scriptStruct.Outer != null)
-					{
-						scriptStruct.Outer.AddChild(scriptStruct);
-					}
+					scriptStruct.Outer?.AddChild(scriptStruct);
 
 					topScope.HeaderParser.ParseStatements('{', '}', true);
 

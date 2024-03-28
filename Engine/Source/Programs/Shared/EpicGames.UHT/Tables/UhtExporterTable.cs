@@ -121,7 +121,7 @@ namespace EpicGames.UHT.Tables
 	/// <summary>
 	/// Defines an exporter in the table
 	/// </summary>
-	public struct UhtExporter
+	public readonly struct UhtExporter
 	{
 
 		/// <summary>

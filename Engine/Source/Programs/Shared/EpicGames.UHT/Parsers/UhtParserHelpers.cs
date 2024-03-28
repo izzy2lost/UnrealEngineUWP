@@ -41,10 +41,7 @@ namespace EpicGames.UHT.Parsers
 					},
 					(UhtTokenList identifier) =>
 					{
-						if (baseIdentifiersTemp == null)
-						{
-							baseIdentifiersTemp = new List<UhtToken[]>();
-						}
+						baseIdentifiersTemp ??= new List<UhtToken[]>();
 						baseIdentifiersTemp.Add(identifier.ToArray());
 					});
 				superIdentifier = superIdentifierTemp;

@@ -10,7 +10,7 @@ using EpicGames.UHT.Utils;
 
 namespace EpicGames.UHT.Exporters.CodeGen
 {
-	internal struct UhtCodeBlockComment : IDisposable
+	internal readonly struct UhtCodeBlockComment : IDisposable
 	{
 		private readonly StringBuilder _builder;
 		private readonly UhtType? _primaryType = null;
@@ -1564,7 +1564,6 @@ namespace EpicGames.UHT.Exporters.CodeGen
 						builder.Append("\t};\r\n");
 						builder.Append("\tstatic_assert(UE_ARRAY_COUNT(").Append("FuncInfo) < 2048);\r\n");
 					});
-
 
 				if (hasInterfaces)
 				{

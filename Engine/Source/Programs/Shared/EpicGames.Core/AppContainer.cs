@@ -132,11 +132,7 @@ public sealed class AppContainer : IDisposable
 			}
 			
 			string? sidString = Marshal.PtrToStringAuto(sidStringPtr);
-			if (sidString == null)
-			{
-				throw new AppContainerException("Failed converting string pointer");
-			}
-			return sidString;
+			return sidString ?? throw new AppContainerException("Failed converting string pointer");
 		}
 		finally
 		{

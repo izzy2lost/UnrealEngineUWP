@@ -859,14 +859,18 @@ namespace EpicGames.UHT.Types
 			builder.Append(Outer!.SourceName).Append("::").Append(functionName).Append('(');
 
 			bool first = true;
-			foreach (UhtProperty arg in ParameterProperties.Span)
+			foreach (UhtType property in ParameterProperties.Span)
 			{
-				if (!first)
+				UhtProperty? arg = property as UhtProperty;
+				if (arg != null)
 				{
-					builder.Append(", ");
+					if (!first)
+					{
+						builder.Append(", ");
+					}
+					first = false;
+					builder.AppendFullDecl(arg, UhtPropertyTextType.EventFunctionArgOrRetVal, true);
 				}
-				first = false;
-				builder.AppendFullDecl(arg, UhtPropertyTextType.EventFunctionArgOrRetVal, true);
 			}
 
 			builder.Append(')');

@@ -618,7 +618,7 @@ namespace EpicGames.UHT.Exporters.CodeGen
 			}));
 
 			// We want properties followed by functions
-			notifyTypes.Instances = notifyTypes.Instances.OrderBy(x => (x is UhtProperty ? 0 : 1) * (int)UhtDefineScope.ScopeCount + x.DefineScope).ToList();
+			notifyTypes.Instances.SortBy(x => (x is UhtProperty ? 0 : 1) * (int)UhtDefineScope.ScopeCount + x.DefineScope);
 			return notifyTypes;
 		}
 		#endregion

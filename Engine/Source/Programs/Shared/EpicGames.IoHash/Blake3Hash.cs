@@ -12,7 +12,7 @@ namespace EpicGames.Core
 	/// <summary>
 	/// Struct representing a strongly typed Blake3 hash value (a 32-byte Blake3 hash).
 	/// </summary>
-	public struct Blake3Hash : IEquatable<Blake3Hash>, IComparable<Blake3Hash>
+	public readonly struct Blake3Hash : IEquatable<Blake3Hash>, IComparable<Blake3Hash>
 	{
 		/// <summary>
 		/// Length of an Blake3Hash

@@ -12,7 +12,7 @@ namespace EpicGames.Core
 	/// <summary>
 	/// Defines a preformatted Json log event, which can pass through raw Json data directly or format it as a regular string
 	/// </summary>
-	public struct JsonLogEvent : IEnumerable<KeyValuePair<string, object?>>
+	public readonly struct JsonLogEvent : IEnumerable<KeyValuePair<string, object?>>
 	{
 		/// <summary>
 		/// The log level
@@ -70,12 +70,7 @@ namespace EpicGames.Core
 				return jsonLogEvent;
 			}
 
-			LogEvent? logEvent = state as LogEvent;
-			if (logEvent == null)
-			{
-				logEvent = LogEvent.FromState(logLevel, eventId, state, exception, formatter);
-			}
-
+			LogEvent? logEvent = state as LogEvent ?? LogEvent.FromState(logLevel, eventId, state, exception, formatter);
 			return new JsonLogEvent(logLevel, eventId, 0, 1, logEvent.ToJsonBytes());
 		}
 

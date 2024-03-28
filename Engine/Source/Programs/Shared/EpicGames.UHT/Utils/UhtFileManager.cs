@@ -1,7 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 using System;
-using System.Buffers;
 using System.IO;
 using System.Text;
 using EpicGames.Core;
@@ -108,10 +107,10 @@ namespace EpicGames.UHT.Utils
 				using UhtBorrowByteBuffer byteBuffer = new((int)fs.Length);
 				Span<byte> byteSpan = byteBuffer.Buffer.Memory.Span;
 				int readLength = fs.Read(byteSpan);
-				byteSpan = byteSpan.Slice(0, readLength);
+				byteSpan = byteSpan[..readLength];
 
 				Encoding encoding = GetEncoding(byteSpan, out int skipBytes);
-				byteSpan = byteSpan.Slice(skipBytes);
+				byteSpan = byteSpan[skipBytes..];
 
 				int charCount = encoding.GetCharCount(byteBuffer.Buffer.Memory.Span);
 				UhtBuffer initialBuffer = UhtBuffer.Borrow(charCount);
@@ -140,10 +139,10 @@ namespace EpicGames.UHT.Utils
 				using UhtRentedPoolBuffer<byte> byteBuffer = new((int)fs.Length);
 				Span<byte> byteSpan = byteBuffer.Buffer.Memory.Span;
 				int readLength = fs.Read(byteSpan);
-				byteSpan = byteSpan.Slice(0, readLength);
+				byteSpan = byteSpan[..readLength];
 
 				Encoding encoding = GetEncoding(byteSpan, out int skipBytes);
-				byteSpan = byteSpan.Slice(skipBytes);
+				byteSpan = byteSpan[skipBytes..];
 
 				int charCount = encoding.GetCharCount(byteBuffer.Buffer.Memory.Span);
 				output = UhtPoolBuffers.Rent<char>(charCount);
@@ -212,10 +211,10 @@ namespace EpicGames.UHT.Utils
 				using UhtRentedPoolBuffer<byte> byteBuffer = new((int)fs.Length);
 				Span<byte> byteSpan = byteBuffer.Buffer.Memory.Span;
 				int readLength = fs.Read(byteSpan);
-				byteSpan = byteSpan.Slice(0, readLength);
+				byteSpan = byteSpan[..readLength];
 
 				Encoding encoding = GetEncoding(byteSpan, out int skipBytes);
-				byteSpan = byteSpan.Slice(skipBytes);
+				byteSpan = byteSpan[skipBytes..];
 
 				int charCount = encoding.GetCharCount(byteSpan);
 				char[] initialBuffer = new char[charCount];

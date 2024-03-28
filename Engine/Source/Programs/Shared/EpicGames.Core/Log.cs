@@ -1207,7 +1207,7 @@ namespace EpicGames.Core
 
 						string timePrefixActual =
 							IncludeTimestamps &&
-							!(listener is DefaultTraceListener) // no timestamps when writing to the Visual Studio debug window
+							listener is not DefaultTraceListener // no timestamps when writing to the Visual Studio debug window
 							? timePrefix
 							: String.Empty;
 

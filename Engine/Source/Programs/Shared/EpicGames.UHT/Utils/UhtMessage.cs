@@ -527,10 +527,7 @@ namespace EpicGames.UHT.Utils
 		/// <param name="exceptionContext"></param>
 		public void PushExtraContext(object? exceptionContext)
 		{
-			if (_extraContexts == null)
-			{
-				_extraContexts = new Stack<object?>(8);
-			}
+			_extraContexts ??= new Stack<object?>(8);
 			_extraContexts.Push(exceptionContext);
 		}
 
@@ -539,10 +536,7 @@ namespace EpicGames.UHT.Utils
 		/// </summary>
 		public void PopExtraContext()
 		{
-			if (_extraContexts != null)
-			{
-				_extraContexts.Pop();
-			}
+			_extraContexts?.Pop();
 		}
 
 		/// <summary>
@@ -561,7 +555,7 @@ namespace EpicGames.UHT.Utils
 	/// <summary>
 	/// A "using" object to automate the push/pop of extra context to the thread's current extra context
 	/// </summary>
-	public struct UhtMessageContext : IDisposable
+	public readonly struct UhtMessageContext : IDisposable
 	{
 		private readonly UhtTlsMessageExtraContext? _stack;
 
@@ -572,10 +566,7 @@ namespace EpicGames.UHT.Utils
 		public UhtMessageContext(object? extraContext)
 		{
 			_stack = UhtTlsMessageExtraContext.GetTls();
-			if (_stack != null)
-			{
-				_stack.PushExtraContext(extraContext);
-			}
+			_stack?.PushExtraContext(extraContext);
 		}
 
 		/// <summary>
@@ -597,10 +588,7 @@ namespace EpicGames.UHT.Utils
 		/// </summary>
 		public void Dispose()
 		{
-			if (_stack != null)
-			{
-				_stack.PopExtraContext();
-			}
+			_stack?.PopExtraContext();
 		}
 	}
 }

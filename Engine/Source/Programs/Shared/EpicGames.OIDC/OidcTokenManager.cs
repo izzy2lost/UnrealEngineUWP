@@ -4,13 +4,11 @@ using System;
 using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
 using System.Diagnostics;
-using System.Diagnostics.CodeAnalysis;
 using System.IO;
 using System.Linq;
 using System.Net;
 using System.Net.Http;
 using System.Runtime.InteropServices;
-using System.Runtime.Versioning;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
@@ -20,7 +18,6 @@ using IdentityModel.OidcClient.Results;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
-using Microsoft.Win32;
 
 #pragma warning disable CS1591 // Missing XML documentation on public types
 #pragma warning disable CA2227 // Remote property setters on collection types
@@ -129,7 +126,7 @@ namespace EpicGames.OIDC
 			return _tokenClients.Any(pair => pair.Value.GetStatus() == OidcStatus.NotLoggedIn);
 		}
 
-		public async Task<OidcTokenInfo> Login(string providerIdentifier, CancellationToken cancellationToken = default)
+		public async Task<OidcTokenInfo> LoginAsync(string providerIdentifier, CancellationToken cancellationToken = default)
 		{
 			OidcTokenClient tokenClient = _tokenClients[providerIdentifier];
 
@@ -220,7 +217,7 @@ namespace EpicGames.OIDC
 			_tokenStore.TryGetRefreshToken(name, out _refreshToken);
 		}
 
-		private async Task<OidcClientOptions> BuildClientOptions(Uri redirectUri, CancellationToken cancellationToken)
+		private async Task<OidcClientOptions> BuildClientOptionsAsync(Uri redirectUri, CancellationToken cancellationToken)
 		{
 			OidcClientOptions options = new OidcClientOptions
 			{
@@ -237,7 +234,7 @@ namespace EpicGames.OIDC
 
 			// we need to fetch the discovery document ourselves to support OIDC Authorities which have a subresource for it
 			// with Okta has for authorization servers for instance.
-			DiscoveryDocumentResponse discoveryDocument = await GetDiscoveryDocument(cancellationToken);
+			DiscoveryDocumentResponse discoveryDocument = await GetDiscoveryDocumentAsync(cancellationToken);
 			options.ProviderInformation = new ProviderInformation
 			{
 				IssuerName = discoveryDocument.Issuer,
@@ -270,7 +267,7 @@ namespace EpicGames.OIDC
 					http.Prefixes.Add(prefix);
 					http.Start();
 
-					OidcClientOptions options = await BuildClientOptions(uri, cancellationToken);
+					OidcClientOptions options = await BuildClientOptionsAsync(uri, cancellationToken);
 					OidcClient oidcClient = new OidcClient(options);
 					// generate the appropriate codes we need to login
 					AuthorizeState loginState = await oidcClient!.PrepareLoginAsync(cancellationToken: cancellationToken);
@@ -283,7 +280,7 @@ namespace EpicGames.OIDC
 						{
 							try
 							{
-								Task<LoginResult> processHttpTask = ProcessHttpRequest(http, loginState, oidcClient);
+								Task<LoginResult> processHttpTask = ProcessHttpRequestAsync(http, loginState, oidcClient);
 								Task finishedTask = await Task.WhenAny(Task.Delay(_loginTimeout, cancellationToken), processHttpTask);
 								if (finishedTask == processHttpTask)
 								{
@@ -340,7 +337,7 @@ namespace EpicGames.OIDC
 			};
 		}
 
-		private static async Task<LoginResult> ProcessHttpRequest(HttpListener http, AuthorizeState loginState, OidcClient oidcClient)
+		private static async Task<LoginResult> ProcessHttpRequestAsync(HttpListener http, AuthorizeState loginState, OidcClient oidcClient)
 		{
 			LoginResult? loginResult = null;
 			const int MaxAttempts = 5;
@@ -471,26 +468,10 @@ namespace EpicGames.OIDC
 			return version.Contains("microsoft", StringComparison.InvariantCultureIgnoreCase) || version.Contains("wsl2", StringComparison.InvariantCultureIgnoreCase);
 		}
 
-		[SupportedOSPlatform("windows")]
-		static bool TryReadRegistryString(RegistryKey rootKey, string path, string? name, [NotNullWhen(true)] out string? value)
-		{
-			using (RegistryKey? registryKey = rootKey.OpenSubKey(path))
-			{
-				if (registryKey != null)
-				{
-					value = registryKey.GetValue(name) as string;
-					return value != null;
-				}
-			}
-
-			value = null;
-			return false;
-		}
-
-		private async Task<OidcTokenInfo?> TryDoRefreshToken(string inRefreshToken, CancellationToken cancellationToken)
+		private async Task<OidcTokenInfo?> TryDoRefreshTokenAsync(string inRefreshToken, CancellationToken cancellationToken)
 		{
 			// redirect uri is not used for refrehs tokens so we can just pick one of them to configure the client
-			OidcClientOptions options = await BuildClientOptions(_redirectUris.First(), cancellationToken);
+			OidcClientOptions options = await BuildClientOptionsAsync(_redirectUris.First(), cancellationToken);
 			OidcClient oidcClient = new OidcClient(options);
 
 			// use the refresh token to acquire a new access token
@@ -526,7 +507,7 @@ namespace EpicGames.OIDC
 			};
 		}
 
-		private async Task<DiscoveryDocumentResponse> GetDiscoveryDocument(CancellationToken cancellationToken)
+		private async Task<DiscoveryDocumentResponse> GetDiscoveryDocumentAsync(CancellationToken cancellationToken)
 		{
 			string baseUrl = _authorityUri.ToString().TrimEnd('/');
 			string discoUrl = $"{baseUrl}/.well-known/openid-configuration";
@@ -576,7 +557,7 @@ namespace EpicGames.OIDC
 				};
 			}
 
-			return await TryDoRefreshToken(_refreshToken, cancellationToken);
+			return await TryDoRefreshTokenAsync(_refreshToken, cancellationToken);
 		}
 
 		public OidcStatus GetStatus()

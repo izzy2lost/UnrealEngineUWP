@@ -39,7 +39,7 @@ namespace EpicGames.UHT.Parsers
 	/// Compiler directives
 	/// </summary>
 	[Flags]
-	public enum UhtCompilerDirective : uint
+	public enum UhtCompilerDirective
 	{
 		/// <summary>
 		/// No compile directives
@@ -440,10 +440,7 @@ namespace EpicGames.UHT.Parsers
 		/// <returns>Property parser</returns>
 		public UhtPropertyParser GetCachedPropertyParser()
 		{
-			if (PropertyParser == null)
-			{
-				PropertyParser = new();
-			}
+			PropertyParser ??= new();
 			return PropertyParser;
 		}
 
@@ -644,7 +641,7 @@ namespace EpicGames.UHT.Parsers
 						{
 							List<string> strings = (keywordInfo.AllowedCompilerDirectives).ToStringList();
 							string directives = UhtUtilities.MergeTypeNames(strings, "or", false);
-							topScope.TokenReader.LogError($"'{token.Value.ToString()}' must not be inside preprocessor blocks, except for {directives}");
+							topScope.TokenReader.LogError($"'{token.Value}' must not be inside preprocessor blocks, except for {directives}");
 						}
 						parseResult = keywordInfo.Delegate(topScope, currentScope, ref token);
 					}

@@ -144,7 +144,7 @@ namespace EpicGames.UHT.Utils
 					.AppendNameDef(staticsName, namePrefix, name, nameSuffix).Append(metaNameSuffix)
 					.Append("), ")
 					.AppendNameDef(staticsName, namePrefix, name, nameSuffix).Append(metaNameSuffix)
-					.Append(")");
+					.Append(')');
 			}
 			else
 			{
@@ -514,7 +514,7 @@ namespace EpicGames.UHT.Utils
 	/// Structure to automate the borrowing and returning of a StringBuilder.
 	/// Use some form of a "using" pattern.
 	/// </summary>
-	public struct BorrowStringBuilder : IDisposable
+	public readonly struct BorrowStringBuilder : IDisposable
 	{
 
 		/// <summary>
