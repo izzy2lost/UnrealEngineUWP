@@ -7,6 +7,7 @@
 #include "HAL/CriticalSection.h"
 #include "UObject/GCObject.h"
 
+class UObjectBase;
 class UObject;
 
 namespace UE
@@ -40,12 +41,14 @@ private:
 
 	/** Map of objects/subobjects to their top level property bag. */
 	// TODO: Currently will only exist in editor world, but could tracking per world make some sense for teardown in future? We're relying on object destruction to occur properly to free these up. 
-	TMap<const UObject*, FPropertyBagAssociationData> AssociatedData;
+	TMap<const UObjectBase*, FPropertyBagAssociationData> AssociatedData;
+	// /** Map of subobject/container/struct/etc. paths (needs FPropertyBagPath) to their property bag. Might not want to track subobjects here (they'll be in ObjectToPropertyBagMap already). */
+	// TMap<FSoftObjectPath, FPropertyBag*> ObjectPathToPropertySubBagMap;
 	
-	TMap<const UObject*, const UObject*> InstanceDataObjectToOwner;
+	//TMap<const UObjectBase*, UObject*> ObjectToInstanceDataObjectMap;
 
 	// used to make sure IDOs don't have name overlap
-	TMap<const UObject*, TObjectPtr<UObject>> Namespaces;
+	TMap<const UObjectBase*, TObjectPtr<UObject>> Namespaces;
 
 	/** Internal registry that tracks the current set of types for property bag container objects instanced as placeholders for package exports that have invalid or missing class imports on load. */
 	TUniquePtr<class FPropertyBagPlaceholderTypeRegistry> PropertyBagPlaceholderTypeRegistry;
@@ -64,7 +67,7 @@ public:
 	
 	// TODO: Restrict bag creation to actor creation and UStruct::SerializeVersionedTaggedProperties?
 	// Object owner is tracked internally
-	FPropertyBag* CreateOuterBag(const UObject* Owner);
+	FPropertyBag* CreateOuterBag(const UObjectBase* Owner);
 
 	// Future version for reworked InstanceDataObjects - track InstanceDataObject rather than bag (directly):
 	/**
@@ -73,11 +76,11 @@ public:
 	 * @param Archive		- used to read value of new archive from. Leave this set to nullptr to use the object's linker or copy Owner
 	 * @return				- Custom InstanceDataObject object, UClass derived from associated bag.
 	 */
-	COREUOBJECT_API UObject* CreateInstanceDataObject(UObject* Owner, FArchive* Archive = nullptr);
+	COREUOBJECT_API UObject* CreateInstanceDataObject(const UObjectBase* Owner, FArchive* Archive = nullptr);
 
 	// TODO: Restrict property bag  destruction to within UObject::BeginDestroy() & FPropertyBagProperty destructor.
 	// Removes bag, InstanceDataObject, and all associated data for this object.
-	void DestroyOuterBag(const UObject* Owner);
+	void DestroyOuterBag(const UObjectBase* Owner);
 
 	/**
 	 * ReassociateObjects
@@ -96,18 +99,16 @@ public:
 	 * @param Object	- Object to test.
 	 * @return			- Does the object's InstanceDataObject contain any loose properties requiring user fixup before the object may be published?
 	 */
-	COREUOBJECT_API bool RequiresFixup(const UObject* Object) const;
+	COREUOBJECT_API bool RequiresFixup(const UObjectBase* Object) const;
 	
 	// Accessors
-	COREUOBJECT_API bool HasBag(const UObject* Owner) const;
-	COREUOBJECT_API FPropertyBag* FindBag(const UObject* Owner);
-	COREUOBJECT_API const FPropertyBag* FindBag(const UObject* Owner) const;
+	COREUOBJECT_API bool HasBag(const UObjectBase* Owner) const;
+	COREUOBJECT_API FPropertyBag* FindBag(const UObjectBase* Owner);
+	COREUOBJECT_API const FPropertyBag* FindBag(const UObjectBase* Owner) const;
 
-	COREUOBJECT_API bool HasInstanceDataObject(const UObject* Owner) const;
-	COREUOBJECT_API UObject* FindInstanceDataObject(const UObject* Owner);
-	COREUOBJECT_API const UObject* FindInstanceDataObject(const UObject* Owner) const;
-
-	COREUOBJECT_API const UObject* FindInstanceForDataObject(const UObject* InstanceDataObject) const;
+	COREUOBJECT_API bool HasInstanceDataObject(const UObjectBase* Owner) const;
+	COREUOBJECT_API UObject* FindInstanceDataObject(const UObjectBase* Owner);
+	COREUOBJECT_API const UObject* FindInstanceDataObject(const UObjectBase* Owner) const;
 	
 	// query whether a property in an object was set when the object was deserialized
 	COREUOBJECT_API static bool WasPropertySetBySerialization(UObject* Object, const FPropertyPathName& Path);
@@ -143,10 +144,10 @@ private:
 	// Internal functions requiring the repository to be locked before being called
 
 	// Delete owner reference and disassociate all data. Returns success.
-	bool RemoveAssociationUnsafe(const UObject* Owner);
+	bool RemoveAssociationUnsafe(const UObjectBase* Owner);
 	
 	// Instantiate InstanceDataObject within BagData. Returns InstanceDataObject object. 
-	void CreateInstanceDataObjectUnsafe(UObject* Owner, FPropertyBagAssociationData& BagData, FArchive* Archive = nullptr);
+	void CreateInstanceDataObjectUnsafe(const UObjectBase* Owner, FPropertyBagAssociationData& BagData, FArchive* Archive = nullptr);
 };
 
 } // UE

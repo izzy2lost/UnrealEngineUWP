@@ -5,7 +5,6 @@
 #include "UObject/Object.h"
 #include "UObject/UObjectAnnotation.h"
 #include "UObject/OverriddenPropertySet.h"
-#include "UObject/PropertyBagRepository.h"
 
 /*
  *************************************************************************************
@@ -39,44 +38,27 @@ public:
 
 	FOverriddenPropertySet* Find(const UObject& Object)
 	{
-		const UObjectBase* KeyObject = GetKeyObject(Object);
-		FOverriddenPropertyAnnotation Annotation = GetAnnotation(KeyObject);
+		FOverriddenPropertyAnnotation Annotation = GetAnnotation(&Object);
 		return Annotation.OverriddenProperties.Get();
 	}
 
 	FOverriddenPropertySet& FindChecked(const UObject& Object)
 	{
-		const UObjectBase* KeyObject = GetKeyObject(Object);
-		FOverriddenPropertyAnnotation Annotation = GetAnnotation(KeyObject);
+		FOverriddenPropertyAnnotation Annotation = GetAnnotation(&Object);
 		checkf(!Annotation.IsDefault(), TEXT("Caller is expecting the object to have overridable serialization enabled"));
 		return *Annotation.OverriddenProperties.Get();
 	}
 
 	FOverriddenPropertySet& FindOrAdd(UObject& Object)
 	{
-		UObject* KeyObject = GetKeyObject(Object);
-		FOverriddenPropertyAnnotation Annotation = GetAnnotation(KeyObject);
+		FOverriddenPropertyAnnotation Annotation = GetAnnotation(&Object);
 		if (Annotation.IsDefault())
 		{
-			Annotation.OverriddenProperties = MakeShared<FOverriddenPropertySet>(*KeyObject);
+			Annotation.OverriddenProperties = MakeShared<FOverriddenPropertySet>(Object);
 			AddAnnotation(&Object, Annotation);
 		}
 
 		return *Annotation.OverriddenProperties;
-	}
-private:
-	static UObject* GetKeyObject(const UObject& Object)
-	{
-		const UObject* Found = nullptr;
-#if WITH_EDITOR
-		static const FName NAME_InstanceDataObject(ANSITEXTVIEW("InstanceDataObject"));
-		const UClass* Class = Object.GetClass();
-		if (Class && !Class->HasAnyClassFlags(EClassFlags::CLASS_Native) && Class->GetBoolMetaData(NAME_InstanceDataObject))
-		{
-			Found = UE::FPropertyBagRepository::Get().FindInstanceForDataObject(&Object);
-		}
-#endif
-		return const_cast<UObject*>(Found ? Found : &Object);
 	}
 };
 

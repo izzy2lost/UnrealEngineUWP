@@ -12,6 +12,7 @@
 #include "UObject/UObjectThreadContext.h"
 #include "UObject/LinkerLoad.h"
 #include "UObject/InstanceDataObjectUtils.h"
+#include "UObject/OverridableManager.h"
 #include "UObject/Package.h"
 
 #if WITH_EDITOR
@@ -122,16 +123,6 @@ FPropertyBagRepository& FPropertyBagRepository::Get()
 FPropertyBagRepository::FPropertyBagRepository()
 {
 	PropertyBagPlaceholderTypeRegistry = MakeUnique<FPropertyBagPlaceholderTypeRegistry>();
-#if WITH_EDITOR
-	FCoreUObjectDelegates::OnObjectModified.AddLambda([](const UObject* Object)
-	{
-		// if this object is an InstanceDataObject, modify it's owner as well
-		if (const UObject* Owner = Get().FindInstanceForDataObject(Object))
-		{
-			const_cast<UObject*>(Owner)->Modify();
-		}
-	});
-#endif
 }
 
 void FPropertyBagRepository::ReassociateObjects(const TMap<UObject*, UObject*>& ReplacedObjects)
@@ -142,12 +133,9 @@ void FPropertyBagRepository::ReassociateObjects(const TMap<UObject*, UObject*>& 
 	{
 		if(AssociatedData.RemoveAndCopyValue(Pair.Key, OldBagData))
 		{
-			InstanceDataObjectToOwner.Remove(OldBagData.InstanceDataObject);
 			if (Pair.Value != nullptr) // Pair.Value can be nullptr when an object was destroyed like for example a UClass when it's deleted
 			{
 				FPropertyBagAssociationData& NewBagData = AssociatedData.FindChecked(Pair.Value);
-				
-				InstanceDataObjectToOwner.Add(NewBagData.InstanceDataObject, Pair.Value);
 				
 				CopyPropertySetBySerializationData(
 					OldBagData.InstanceDataObject->GetClass(), OldBagData.InstanceDataObject,
@@ -171,7 +159,7 @@ void FPropertyBagRepository::CleanupLevel(const UObject* Level)
 }
 
 // TODO: Create these by class on construction?
-FPropertyBag* FPropertyBagRepository::CreateOuterBag(const UObject* Owner)
+FPropertyBag* FPropertyBagRepository::CreateOuterBag(const UObjectBase* Owner)
 {
 	FPropertyBagRepositoryLock LockRepo(this);
 	const FPropertyBagAssociationData* BagData = AssociatedData.Find(Owner);
@@ -184,7 +172,7 @@ FPropertyBag* FPropertyBagRepository::CreateOuterBag(const UObject* Owner)
 	return BagData->Bag;
 }
 
-UObject* FPropertyBagRepository::CreateInstanceDataObject(UObject* Owner, FArchive* Archive)
+UObject* FPropertyBagRepository::CreateInstanceDataObject(const UObjectBase* Owner, FArchive* Archive)
 {
 	FPropertyBagRepositoryLock LockRepo(this);
 	FPropertyBagAssociationData& BagData = AssociatedData.FindOrAdd(Owner);
@@ -196,24 +184,23 @@ UObject* FPropertyBagRepository::CreateInstanceDataObject(UObject* Owner, FArchi
 }
 
 // TODO: Remove this? Bag destruction to be handled entirely via UObject::BeginDestroy() (+ FPropertyBagProperty destructor)?
-void FPropertyBagRepository::DestroyOuterBag(const UObject* Owner)
+void FPropertyBagRepository::DestroyOuterBag(const UObjectBase* Owner)
 {
 	FPropertyBagRepositoryLock LockRepo(this);
 	RemoveAssociationUnsafe(Owner);
 }
 
-bool FPropertyBagRepository::RequiresFixup(const UObject* Object) const
+bool FPropertyBagRepository::RequiresFixup(const UObjectBase* Object) const
 {
 	const FPropertyBag* PropertyBag = FindBag(Object);
 	return !PropertyBag || PropertyBag->IsEmpty();
 }
 
-bool FPropertyBagRepository::RemoveAssociationUnsafe(const UObject* Owner)
+bool FPropertyBagRepository::RemoveAssociationUnsafe(const UObjectBase* Owner)
 {
 	FPropertyBagAssociationData OldData;
 	if(AssociatedData.RemoveAndCopyValue(Owner, OldData))
 	{
-		InstanceDataObjectToOwner.Remove(OldData.InstanceDataObject);
 		OldData.Destroy();
 		return true;
 	}
@@ -224,7 +211,7 @@ bool FPropertyBagRepository::RemoveAssociationUnsafe(const UObject* Owner)
 	return false;
 }
 
-bool FPropertyBagRepository::HasBag(const UObject* Object) const
+bool FPropertyBagRepository::HasBag(const UObjectBase* Object) const
 {
 	// TODO: Should be consistent across all objects of a given type, so handle via TStructOpsTypeTraits or similar?
 	FPropertyBagRepositoryLock LockRepo(this);
@@ -232,42 +219,35 @@ bool FPropertyBagRepository::HasBag(const UObject* Object) const
 	return FindBag(Object) != nullptr;
 }
 
-FPropertyBag* FPropertyBagRepository::FindBag(const UObject* Object)
+FPropertyBag* FPropertyBagRepository::FindBag(const UObjectBase* Object)
 {
 	FPropertyBagRepositoryLock LockRepo(this);
 	const FPropertyBagAssociationData* BagData = AssociatedData.Find(Object);
 	return BagData ? BagData->Bag : nullptr;
 }
 
-const FPropertyBag* FPropertyBagRepository::FindBag(const UObject* Object) const
+const FPropertyBag* FPropertyBagRepository::FindBag(const UObjectBase* Object) const
 {
 	return const_cast<FPropertyBagRepository*>(this)->FindBag(Object);
 }
 
-bool FPropertyBagRepository::HasInstanceDataObject(const UObject* Object) const
+bool FPropertyBagRepository::HasInstanceDataObject(const UObjectBase* Object) const
 {
 	FPropertyBagRepositoryLock LockRepo(this);
 	// May be lazily instantiated, but implied from existence of object data.
 	return AssociatedData.Contains(Object);
 }
 
-UObject* FPropertyBagRepository::FindInstanceDataObject(const UObject* Object)
+UObject* FPropertyBagRepository::FindInstanceDataObject(const UObjectBase* Object)
 {
 	FPropertyBagRepositoryLock LockRepo(this);
 	const FPropertyBagAssociationData* BagData = AssociatedData.Find(Object);
 	return BagData ? BagData->InstanceDataObject : nullptr;
 }
 
-const UObject* FPropertyBagRepository::FindInstanceDataObject(const UObject* Object) const
+const UObject* FPropertyBagRepository::FindInstanceDataObject(const UObjectBase* Object) const
 {
 	return const_cast<FPropertyBagRepository*>(this)->FindInstanceDataObject(Object);
-}
-
-const UObject* FPropertyBagRepository::FindInstanceForDataObject(const UObject* InstanceDataObject) const
-{
-	FPropertyBagRepositoryLock LockRepo(this);
-	const UObject* const* Owner = InstanceDataObjectToOwner.Find(InstanceDataObject);
-	return Owner ? *Owner : nullptr;
 }
 
 bool FPropertyBagRepository::WasPropertySetBySerialization(UObject* Object, const FPropertyPathName& Path)
@@ -282,11 +262,11 @@ bool FPropertyBagRepository::WasPropertySetBySerialization(const UStruct* Struct
 
 void FPropertyBagRepository::AddReferencedObjects(FReferenceCollector& Collector)
 {
-	for (TPair<const UObject*, FPropertyBagAssociationData>& Element : AssociatedData)
+	for (TPair<const UObjectBase*, FPropertyBagAssociationData>& Element : AssociatedData)
 	{
 		Collector.AddReferencedObject(Element.Value.InstanceDataObject);
 	}
-	for (TPair<const UObject*, TObjectPtr<UObject>>& Element : Namespaces)
+	for (TPair<const UObjectBase*, TObjectPtr<UObject>>& Element : Namespaces)
 	{
 		Collector.AddReferencedObject(Element.Value);
 	}
@@ -299,7 +279,7 @@ FString FPropertyBagRepository::GetReferencerName() const
 	return TEXT("FPropertyBagRepository");
 }
 
-void FPropertyBagRepository::CreateInstanceDataObjectUnsafe(UObject* Owner, FPropertyBagAssociationData& BagData, FArchive* Archive)
+void FPropertyBagRepository::CreateInstanceDataObjectUnsafe(const UObjectBase* Owner, FPropertyBagAssociationData& BagData, FArchive* Archive)
 {
 	check(!BagData.InstanceDataObject);	// No repeated calls
 	const FPropertyBag* PropertyBag = BagData.Bag;
@@ -334,7 +314,6 @@ void FPropertyBagRepository::CreateInstanceDataObjectUnsafe(UObject* Owner, FPro
 	Params.Outer = *OuterPtr;
 	UObject* InstanceDataObjectObject = StaticConstructObject_Internal(Params);
 	BagData.InstanceDataObject = InstanceDataObjectObject;
-	InstanceDataObjectToOwner.Add(InstanceDataObjectObject, Owner);
 	
 	// setup load context to mark properties the that were set by serialization
 	FUObjectSerializeContext* LoadContext = FUObjectThreadContext::Get().GetSerializeContext();
@@ -352,12 +331,13 @@ void FPropertyBagRepository::CreateInstanceDataObjectUnsafe(UObject* Owner, FPro
 		Dest->GetClass()->SerializeTaggedProperties(Reader, (uint8*)Dest, Dest->GetClass(), (uint8*)Dest->GetArchetype());
 	};
 	
+	UObject* OwnerAsObject = (UObject*)Owner;
 	if (Archive)
 	{
 		// re-deserialize Owner but redirect it into the IDO instead using impersonation
-		Owner->Serialize(*Archive);
+		OwnerAsObject->Serialize(*Archive);
 	}
-	else if (FLinkerLoad* Linker = Owner->GetLinker())
+	else if (FLinkerLoad* Linker = OwnerAsObject->GetLinker())
 	{
 		const FDelegateHandle OnTaggedPropertySerializeHandle = LoadContext->OnTaggedPropertySerialize.AddLambda(
 			[&BagData](const FUObjectSerializeContext& Context)
@@ -371,18 +351,18 @@ void FPropertyBagRepository::CreateInstanceDataObjectUnsafe(UObject* Owner, FPro
 
 		// TODO: @jordan.hoffmann - this is very inefficient! We should remove this call to Preload. To do so, we'd need to change MarkPropertySetBySerialization
 		// to cache the serialized property list in the property bag instead of the structs. We'd also need to copy the property bag values to the IDO
-		Owner->SetFlags(RF_NeedLoad);
-		Linker->Preload(Owner);
+		OwnerAsObject->SetFlags(RF_NeedLoad);
+		Linker->Preload(OwnerAsObject);
 		LoadContext->OnTaggedPropertySerialize.Remove(OnTaggedPropertySerializeHandle);
 		
 		// copy data from owner to IDO
-		CopyTaggedProperties(Owner, BagData.InstanceDataObject);
+		CopyTaggedProperties(OwnerAsObject, BagData.InstanceDataObject);
 	}
 	else
 	{
 		ensureMsgf(BagData.Bag == nullptr, TEXT("Linker missing when generating IDO for an object with loose properties. Loose properties will be lost"));
 		// copy data from owner to IDO
-		CopyTaggedProperties(Owner, BagData.InstanceDataObject);
+		CopyTaggedProperties(OwnerAsObject, BagData.InstanceDataObject);
 	}
 }
 
@@ -391,7 +371,6 @@ void FPropertyBagRepository::ShrinkMaps()
 {
 	FPropertyBagRepositoryLock LockRepo(this);
 	AssociatedData.Compact();
-	InstanceDataObjectToOwner.Compact();
 }
 
 bool FPropertyBagRepository::IsPropertyBagPlaceholderType(UStruct* Type)
