@@ -498,7 +498,7 @@ FSlateAttributeDescriptor::FContainerInitializer FSlateAttributeDescriptor::AddC
 	check(!ContainerName.IsNone());
 
 	const FContainer* FoundAttribute = FindContainer(ContainerName);
-	if (ensureAlwaysMsgf(FoundAttribute == nullptr, TEXT("The container '%s' already exist. (Do you have the correct parrent class in SLATE_DECLARE_WIDGET)"), *ContainerName.ToString()))
+	if (ensureAlwaysMsgf(FoundAttribute == nullptr, TEXT("The container '%s' already exist. (Do you have the correct parent class in SLATE_DECLARE_WIDGET)"), *ContainerName.ToString()))
 	{
 		Containers.Emplace(ContainerName, Offset);
 	}
@@ -512,7 +512,7 @@ FSlateAttributeDescriptor::FInitializer::FAttributeEntry FSlateAttributeDescript
 
 	int32 NewIndex = INDEX_NONE;
 	FAttribute const* FoundAttribute = FindAttribute(AttributeName);
-	if (ensureAlwaysMsgf(FoundAttribute == nullptr, TEXT("The attribute '%s' already exist. (Do you have the correct parrent class in SLATE_DECLARE_WIDGET)"), *AttributeName.ToString()))
+	if (ensureAlwaysMsgf(FoundAttribute == nullptr, TEXT("The attribute '%s' already exist. (Do you have the correct parent class in SLATE_DECLARE_WIDGET)"), *AttributeName.ToString()))
 	{
 		NewIndex = Attributes.Emplace(AttributeName, Offset, MoveTemp(Reason));
 	}
@@ -527,7 +527,7 @@ FSlateAttributeDescriptor::FContainerInitializer::FAttributeEntry FSlateAttribut
 
 	int32 NewIndex = INDEX_NONE;
 	FAttribute const* FoundAttribute = FindAttribute(AttributeName);
-	if (ensureAlwaysMsgf(FoundAttribute == nullptr, TEXT("The attribute '%s' already exist. (Do you have the correct parrent class in SLATE_DECLARE_WIDGET)"), *AttributeName.ToString()))
+	if (ensureAlwaysMsgf(FoundAttribute == nullptr, TEXT("The attribute '%s' already exist. (Do you have the correct parent class in SLATE_DECLARE_WIDGET)"), *AttributeName.ToString()))
 	{
 		NewIndex = Attributes.Emplace(ContainerName, AttributeName, Offset, MoveTemp(Reason));
 	}
