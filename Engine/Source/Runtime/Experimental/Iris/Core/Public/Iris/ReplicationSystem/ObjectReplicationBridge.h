@@ -15,7 +15,7 @@ DECLARE_LOG_CATEGORY_EXTERN(LogIrisFilterConfig, Log, All);
 
 namespace UE::Net
 {
-	enum class UE::Net::ENetRefHandleError : uint32;
+	enum class ENetRefHandleError : uint32;
 
 	struct FNetObjectResolveContext;
 	typedef uint32 FNetObjectFilterHandle;

@@ -21,7 +21,7 @@ class UNetDriver;
 
 namespace UE::Net
 {
-	enum class UE::Net::ENetRefHandleError : uint32;
+	enum class ENetRefHandleError : uint32;
 
 	struct FNetDependencyInfo;
 	class FNetTokenStoreState;
