@@ -73,10 +73,10 @@ public:
 	void GetTransientGridGuids(PCGHiGenGrid::FSizeToGuidMap& OutSizeToGuidMap) const;
 
 	/** Add a record for tracking loaded and unloaded partition actors. */
-	void AddSerializedPartitionActorRecord(const FPCGPartitionActorRecord& PartitionActorRecord) { SerializedPartitionActorRecords.Add(PartitionActorRecord); Modify(); }
+	void AddSerializedPartitionActorRecord(const FPCGPartitionActorRecord& PartitionActorRecord) { Modify(); SerializedPartitionActorRecords.Add(PartitionActorRecord); }
 
 	/** Remove a record for tracking loaded and unloaded partition actors. */
-	void RemoveSerializedPartitionActorRecord(const FPCGPartitionActorRecord& PartitionActorRecord) { SerializedPartitionActorRecords.Remove(PartitionActorRecord); Modify(); }
+	void RemoveSerializedPartitionActorRecord(const FPCGPartitionActorRecord& PartitionActorRecord) { Modify(); SerializedPartitionActorRecords.Remove(PartitionActorRecord); }
 
 	/** Returns true if there is record of a partition actor living in a certain grid cell, regardless of whether or not it is loaded. */
 	bool DoesSerializedPartitionActorExist(const FGuid& GridGuid, uint32 GridSize, const FIntVector& GridCoords) const { return SerializedPartitionActorRecords.Contains({ GridGuid, GridSize, GridCoords }); }

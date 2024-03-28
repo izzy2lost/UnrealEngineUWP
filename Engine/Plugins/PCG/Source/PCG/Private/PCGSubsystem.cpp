@@ -213,11 +213,45 @@ UPCGSubsystem* UPCGSubsystem::GetActiveEditorInstance()
 
 	return nullptr;
 }
+
+void UPCGSubsystem::SetConstructionScriptSourceComponent(UPCGComponent* InComponent)
+{
+	if (InComponent)
+	{
+		if (AActor* Owner = InComponent->GetOwner())
+		{
+			PerActorConstructionScriptSourceComponents.FindOrAdd(Owner).SourceComponentsMap.Add(InComponent->GetFName(), InComponent);
+		}
+	}
+}
+
+bool UPCGSubsystem::RemoveAndCopyConstructionScriptSourceComponent(AActor* InComponentOwner, FName InComponentName, UPCGComponent*& OutSourceComponent)
+{
+	OutSourceComponent = nullptr;
+	if (FConstructionScriptSourceComponents* Found = PerActorConstructionScriptSourceComponents.Find(InComponentOwner))
+	{
+		TObjectPtr<UPCGComponent> FoundComponent;
+		if (Found->SourceComponentsMap.RemoveAndCopyValue(InComponentName, FoundComponent))
+		{
+			OutSourceComponent = FoundComponent;
+			if (Found->SourceComponentsMap.IsEmpty())
+			{
+				PerActorConstructionScriptSourceComponents.Remove(InComponentOwner);
+			}
+		}
+	}
+
+	return OutSourceComponent != nullptr;
+}
 #endif
 
 void UPCGSubsystem::Tick(float DeltaSeconds)
 {
 	Super::Tick(DeltaSeconds);
+
+#if WITH_EDITOR
+	PerActorConstructionScriptSourceComponents.Empty();
+#endif
 
 	if (!bHasTickedOnce)
 	{

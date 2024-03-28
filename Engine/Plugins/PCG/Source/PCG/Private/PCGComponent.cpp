@@ -68,6 +68,11 @@ namespace PCGComponent
 		false,
 		TEXT("Disable refresh for all PCG Components."));
 
+	static TAutoConsoleVariable<bool> CVarConstructionScriptFix(
+		TEXT("pcg.ConstructionScriptFix"),
+		true,
+		TEXT("This CVar will be removed in future releases, it allows disabling this fix if regressions are found."));
+
 	template <typename DelegateType>
 	static void BroadcastDynamicDelegate(const DelegateType& Delegate, UPCGComponent* PCGComponent)
 	{
@@ -1264,6 +1269,11 @@ void UPCGComponent::OnComponentDestroyed(bool bDestroyingHierarchy)
 		if (!PCGHelpers::IsRuntimeOrPIE())
 		{
 			Subsystem->UnregisterPCGComponent(this);
+		}
+
+		if (IsCreatedByConstructionScript() && PCGComponent::CVarConstructionScriptFix.GetValueOnAnyThread())
+		{
+			Subsystem->SetConstructionScriptSourceComponent(this);
 		}
 	}
 #endif // WITH_EDITOR
@@ -3327,18 +3337,11 @@ FPCGComponentInstanceData::FPCGComponentInstanceData(const UPCGComponent* InSour
 	: FActorComponentInstanceData(InSourceComponent)
 	, SourceComponent(InSourceComponent)
 {
-	if (SourceComponent)
-	{
-		SourceComponent->GetManagedResources(GeneratedResources);
-#if WITH_EDITOR
-		LoadedPreviewResources = SourceComponent->LoadedPreviewResources;
-#endif
-	}
 }
 
 bool FPCGComponentInstanceData::ContainsData() const
 {
-	return GeneratedResources.Num() > 0 || Super::ContainsData();
+	return true;
 }
 
 void FPCGComponentInstanceData::ApplyToComponent(UActorComponent* Component, const ECacheApplyPhase CacheApplyPhase)
@@ -3350,13 +3353,28 @@ void FPCGComponentInstanceData::ApplyToComponent(UActorComponent* Component, con
 		UPCGComponent* PCGComponent = CastChecked<UPCGComponent>(Component);
 
 		// IMPORTANT NOTE:
+		// ConstructionSourceComponent: The previous instance of the PCGComponent (not related to annotation, will be the OldComponent in the OnObjectsReplaced call)
+		// We will transfer/copy properties/resources from this component that flow forward only (aren't undo/redoable)
+		//
+		// SourceComponent: The previous instance (same as ConstructionSourceComponent on a regular edit but an annotated Component when in a Undo/Redo operation)
+		// We will transfer/copy properties from this component that should reflect undo redo (annotation)
+		const UPCGComponent* ConstructionSourceComponent = SourceComponent;
+#if WITH_EDITOR
+		if (UPCGSubsystem* Subsystem = PCGComponent->GetSubsystem())
+		{
+			UPCGComponent* FoundConstructionSourceComponent = nullptr;
+			if(Subsystem->RemoveAndCopyConstructionScriptSourceComponent(Component->GetOwner(), Component->GetFName(), FoundConstructionSourceComponent))
+			{
+				ConstructionSourceComponent = FoundConstructionSourceComponent;
+			}
+		}
+#endif
+		// IMPORTANT NOTE:
 		// Any non-visible (i.e. UPROPERTY() with no specifiers) are NOT copied over when re-running the construction script
 		// This means that some properties need to be reapplied here manually unless we make them visible
 		if (SourceComponent)
 		{
-			// Critical: LastGeneratedBounds & GeneratedGraphOutput
-			PCGComponent->LastGeneratedBounds = SourceComponent->LastGeneratedBounds;
-
+			// Critical: GeneratedGraphOutput
 			PCGComponent->GeneratedGraphOutput = SourceComponent->GeneratedGraphOutput;
 			// Re-outer any data moved here
 			for (FPCGTaggedData& TaggedData : PCGComponent->GeneratedGraphOutput.TaggedData)
@@ -3368,9 +3386,6 @@ void FPCGComponentInstanceData::ApplyToComponent(UActorComponent* Component, con
 			}
 
 #if WITH_EDITOR
-			// bDirtyGenerated is transient.
-			PCGComponent->bDirtyGenerated = SourceComponent->bDirtyGenerated;
-
 			// While this is serialized, it is not properly copied because it is not visible. This is needed otherwise a refresh can retoggle from not generated to generated
 			PCGComponent->bForceGenerateOnBPAddedToWorld = SourceComponent->bForceGenerateOnBPAddedToWorld;
 
@@ -3383,46 +3398,57 @@ void FPCGComponentInstanceData::ApplyToComponent(UActorComponent* Component, con
 			// TODO Validate usefulness + move accordingly
 		}
 		
-		// Duplicate generated resources + retarget them
-		TArray<TObjectPtr<UPCGManagedResource>> DuplicatedResources;
-		for (const TObjectPtr<UPCGManagedResource>& Resource : GeneratedResources)
+		if (ConstructionSourceComponent)
 		{
-			if (Resource)
-			{
-				UPCGManagedResource* DuplicatedResource = CastChecked<UPCGManagedResource>(StaticDuplicateObject(Resource, PCGComponent, FName()));
-				DuplicatedResource->PostApplyToComponent();
-				DuplicatedResources.Add(DuplicatedResource);
-			}
-		}
+			// Critical: LastGeneratedBounds
+			PCGComponent->LastGeneratedBounds = ConstructionSourceComponent->LastGeneratedBounds;
 
-		if (DuplicatedResources.Num() > 0)
-		{
-			PCGComponent->SetManagedResources(DuplicatedResources);
+			// Duplicate generated resources + retarget them
+			TArray<TObjectPtr<UPCGManagedResource>> DuplicatedResources;
+			for (const TObjectPtr<UPCGManagedResource>& Resource : ConstructionSourceComponent->GeneratedResources)
+			{
+				if (Resource)
+				{
+					UPCGManagedResource* DuplicatedResource = CastChecked<UPCGManagedResource>(StaticDuplicateObject(Resource, PCGComponent, FName()));
+					DuplicatedResource->PostApplyToComponent();
+					DuplicatedResources.Add(DuplicatedResource);
+				}
+			}
+
+			if (DuplicatedResources.Num() > 0)
+			{
+				PCGComponent->SetManagedResources(DuplicatedResources);
+			}
+
+#if WITH_EDITOR
+			// bDirtyGenerated is transient.
+			PCGComponent->bDirtyGenerated = ConstructionSourceComponent->bDirtyGenerated;
+
+			TArray<TObjectPtr<UPCGManagedResource>> DuplicateLoadedPreviewResources;
+			for (const TObjectPtr<UPCGManagedResource>& Resource : ConstructionSourceComponent->LoadedPreviewResources)
+			{
+				if (Resource)
+				{
+					UPCGManagedResource* DuplicatedResource = CastChecked<UPCGManagedResource>(StaticDuplicateObject(Resource, PCGComponent, FName()));
+					DuplicatedResource->PostApplyToComponent();
+					DuplicateLoadedPreviewResources.Add(DuplicatedResource);
+				}
+			}
+
+			if (DuplicateLoadedPreviewResources.Num() > 0)
+			{
+				PCGComponent->LoadedPreviewResources = DuplicateLoadedPreviewResources;
+			}
+
+			// Move over invocation lists for dynamic delegates
+			PCGComponent->OnPCGGraphStartGeneratingExternal = ConstructionSourceComponent->OnPCGGraphStartGeneratingExternal;
+			PCGComponent->OnPCGGraphCancelledExternal = ConstructionSourceComponent->OnPCGGraphCancelledExternal;
+			PCGComponent->OnPCGGraphGeneratedExternal = ConstructionSourceComponent->OnPCGGraphGeneratedExternal;
+			PCGComponent->OnPCGGraphCleanedExternal = ConstructionSourceComponent->OnPCGGraphCleanedExternal;
+#endif
 		}
 
 #if WITH_EDITOR
-		TArray<TObjectPtr<UPCGManagedResource>> DuplicateLoadedPreviewResources;
-		for (const TObjectPtr<UPCGManagedResource>& Resource : LoadedPreviewResources)
-		{
-			if (Resource)
-			{
-				UPCGManagedResource* DuplicatedResource = CastChecked<UPCGManagedResource>(StaticDuplicateObject(Resource, PCGComponent, FName()));
-				DuplicatedResource->PostApplyToComponent();
-				DuplicateLoadedPreviewResources.Add(DuplicatedResource);
-			}
-		}
-
-		if (DuplicateLoadedPreviewResources.Num() > 0)
-		{
-			PCGComponent->LoadedPreviewResources = DuplicateLoadedPreviewResources;
-		}
-
-		// Move over invocation lists for dynamic delegates
-		PCGComponent->OnPCGGraphStartGeneratingExternal = SourceComponent->OnPCGGraphStartGeneratingExternal;
-		PCGComponent->OnPCGGraphCancelledExternal = SourceComponent->OnPCGGraphCancelledExternal;
-		PCGComponent->OnPCGGraphGeneratedExternal = SourceComponent->OnPCGGraphGeneratedExternal;
-		PCGComponent->OnPCGGraphCleanedExternal = SourceComponent->OnPCGGraphCleanedExternal;
-
 		// Reconnect callbacks
 		if (PCGComponent->GraphInstance)
 		{
@@ -3436,23 +3462,23 @@ void FPCGComponentInstanceData::ApplyToComponent(UActorComponent* Component, con
 
 		// Also remap
 		UPCGSubsystem* Subsystem = PCGComponent->GetSubsystem();
-		if (Subsystem && SourceComponent)
+		if (Subsystem && ConstructionSourceComponent)
 		{
-			Subsystem->RemapPCGComponent(SourceComponent, PCGComponent, bDoActorMapping);
+			Subsystem->RemapPCGComponent(ConstructionSourceComponent, PCGComponent, bDoActorMapping);
 		}
 
 #if WITH_EDITOR
 		// Disconnect callbacks on source.
-		if (SourceComponent && SourceComponent->GraphInstance)
+		if (ConstructionSourceComponent && ConstructionSourceComponent->GraphInstance)
 		{
-			SourceComponent->GraphInstance->TeardownCallbacks();
+			ConstructionSourceComponent->GraphInstance->TeardownCallbacks();
 		}
 
 		// Finally, start a delayed refresh task (if there is not one already), in editor only
 		// It is important to be delayed, because we cannot spawn Partition Actors within this scope,
 		// because we are in a construction script.
 		// Note that we only do this if we are not currently loading
-		if (!SourceComponent || !SourceComponent->HasAllFlags(RF_WasLoaded))
+		if (!ConstructionSourceComponent || !ConstructionSourceComponent->HasAllFlags(RF_WasLoaded))
 		{
 			PCGComponent->Refresh();
 		}
@@ -3465,7 +3491,6 @@ void FPCGComponentInstanceData::AddReferencedObjects(FReferenceCollector& Collec
 	Super::AddReferencedObjects(Collector);
 
 	Collector.AddReferencedObject(SourceComponent);
-	Collector.AddReferencedObjects(GeneratedResources);
 }
 
 #undef LOCTEXT_NAMESPACE

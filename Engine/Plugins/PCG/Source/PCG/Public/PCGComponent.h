@@ -649,14 +649,6 @@ protected:
 	virtual void AddReferencedObjects(FReferenceCollector& Collector) override;
 
 	UPROPERTY()
-	TArray<TObjectPtr<UPCGManagedResource>> GeneratedResources;
-
-#if WITH_EDITORONLY_DATA
-	UPROPERTY()
-	TArray<TObjectPtr<UPCGManagedResource>> LoadedPreviewResources;
-#endif
-
-	UPROPERTY()
 	TObjectPtr<const UPCGComponent> SourceComponent;
 };
 
