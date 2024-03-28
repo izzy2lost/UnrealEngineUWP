@@ -698,6 +698,8 @@ void UAnimGraphNode_IKRig::CustomizeDetails(IDetailLayoutBuilder& DetailBuilder)
 		IDetailCategoryBuilder& GoalsCategoryBuilder = DetailBuilder.EditCategory(GET_MEMBER_NAME_CHECKED(FAnimNode_IKRig, Goals));
 		GoalsCategoryBuilder.AddCustomBuilder(InputArgumentGroup);
 	}
+	// Hide normal goals properties
+	DetailBuilder.HideCategory("Goal");
 
 	// Handle property changed notification
 	const FSimpleDelegate OnValueChanged = FSimpleDelegate::CreateLambda([&DetailBuilder]()
