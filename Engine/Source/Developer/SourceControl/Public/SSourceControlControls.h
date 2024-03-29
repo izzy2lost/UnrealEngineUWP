@@ -63,6 +63,7 @@ public:
 
 public:
 	static int32 GetNumConflictsRemaining();
+	static int32 GetNumConflictsUpcoming();
 
 public:
 	static void SetIsSyncLatestEnabled(const FIsEnabled& InSyncLatestEnabled) { IsSyncLatestEnabled = InSyncLatestEnabled; }
@@ -92,6 +93,7 @@ private:
 	FDelegateHandle SourceControlStateChangedHandle;
 
 	static int32 NumConflictsRemaining;
+	static int32 NumConflictsUpcoming;
 
 	static FIsEnabled IsSyncLatestEnabled;
 	static FIsEnabled IsCheckInChangesEnabled;

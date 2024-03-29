@@ -14,6 +14,7 @@
 #define LOCTEXT_NAMESPACE "SSkeinSourceControlWidgets"
 
 int32 SSourceControlControls::NumConflictsRemaining = 0;
+int32 SSourceControlControls::NumConflictsUpcoming = 0;
 
 FIsEnabled SSourceControlControls::IsSyncLatestEnabled;
 FIsEnabled SSourceControlControls::IsCheckInChangesEnabled;
@@ -204,19 +205,39 @@ void SSourceControlControls::OnSourceControlStateChanged()
 {
 	ISourceControlProvider& SourceControlProvider = ISourceControlModule::Get().GetProvider();
 
-	TArray<FSourceControlStateRef> Conflicts = SourceControlProvider.GetCachedStateByPredicate(
+	TArray<FSourceControlStateRef> ConflictsRemaining = SourceControlProvider.GetCachedStateByPredicate(
 		[](const FSourceControlStateRef& State)
 		{
 			return State->IsConflicted();
 		}
 	);
 
-	NumConflictsRemaining = Conflicts.Num(); // Atomic write.
+	TArray<FSourceControlStateRef> ConflictsUpcoming = SourceControlProvider.GetCachedStateByPredicate(
+		[](const FSourceControlStateRef& State)
+		{
+			if (State->IsCurrent())
+			{
+				return false;
+			}
+			else
+			{
+				return State->IsModified() || State->IsDeleted() || State->IsAdded();
+			}
+		}
+	);
+
+	NumConflictsRemaining = ConflictsRemaining.Num(); // Atomic write.
+	NumConflictsUpcoming = ConflictsUpcoming.Num(); // Atomic write.
 }
 
 int32 SSourceControlControls::GetNumConflictsRemaining()
 {
 	return NumConflictsRemaining;
+}
+
+int32 SSourceControlControls::GetNumConflictsUpcoming()
+{
+	return NumConflictsUpcoming;
 }
 
 /** Sync Status */
@@ -308,6 +329,10 @@ FText SSourceControlControls::GetSourceControlSyncStatusToolTipText()
 	{
 		return LOCTEXT("SyncLatestButtonNotAtHeadTooltipTextConflict", "Some of your local changes conflict with the latest snapshot of the project. Click here to review these conflicts.");
 	}
+	if (GetNumConflictsUpcoming() > 0)
+	{
+		return LOCTEXT("SyncLatestButtonNotAtHeadTooltipTextConflictUpcoming", "Some of your local changes conflict with the latest snapshot of the project. Click here to review these conflicts.");
+	}
 	if (HasSourceControlChangesToSync())
 	{
 		return LOCTEXT("SyncLatestButtonNotAtHeadTooltipText", "Sync to the latest Snapshot for this project");
@@ -323,6 +348,10 @@ const FSlateBrush* SSourceControlControls::GetSourceControlSyncStatusIcon()
 	static const FSlateBrush* NotAtHeadBrush = FRevisionControlStyleManager::Get().GetBrush("RevisionControl.StatusBar.NotAtLatestRevision");
 
 	if (GetNumConflictsRemaining() > 0)
+	{
+		return ConflictBrush;
+	}
+	if (GetNumConflictsUpcoming() > 0)
 	{
 		return ConflictBrush;
 	}
@@ -447,6 +476,10 @@ FText SSourceControlControls::GetSourceControlCheckInStatusToolTipText()
 	{
 		return LOCTEXT("CheckInButtonChangesTooltipTextConflict", "Some of your local changes conflict with the latest snapshot of the project. Click here to review these conflicts.");
 	}
+	if (GetNumConflictsUpcoming() > 0)
+	{
+		return LOCTEXT("CheckInButtonChangesTooltipTextConflictUpcoming", "Some of your local changes conflict with the latest snapshot of the project. Click here to review these conflicts.");
+	}
 	if (HasSourceControlChangesToCheckIn())
 	{
 		return FText::Format(LOCTEXT("CheckInButtonChangesTooltipText", "Check-in {0} change(s) to this project"), GetNumLocalChanges());
@@ -462,6 +495,10 @@ const FSlateBrush* SSourceControlControls::GetSourceControlCheckInStatusIcon()
 	static const FSlateBrush* HasLocalChangesBrush = FRevisionControlStyleManager::Get().GetBrush("RevisionControl.StatusBar.HasLocalChanges");
 
 	if (GetNumConflictsRemaining() > 0)
+	{
+		return ConflictBrush;
+	}
+	if (GetNumConflictsUpcoming() > 0)
 	{
 		return ConflictBrush;
 	}
