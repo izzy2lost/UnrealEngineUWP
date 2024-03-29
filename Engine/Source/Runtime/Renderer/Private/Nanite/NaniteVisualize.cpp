@@ -83,28 +83,18 @@ static FRDGBufferSRVRef GetEditorSelectedHitProxyIdsSRV(FRDGBuilder& GraphBuilde
 	FRDGBufferRef HitProxyIdsBuffer = nullptr;
 
 #if WITH_EDITOR
-	uint32 IdCount = View.EditorSelectedNaniteHitProxyIds.Num();
-	uint32 BufferCount = FMath::Max(FMath::RoundUpToPowerOfTwo(IdCount), 1u);
-
 	TConstArrayView<uint32> HitProxyIds = View.EditorSelectedNaniteHitProxyIds;
-	TArray<uint32, SceneRenderingAllocator> HitProxyIdsCopy;
-	if (BufferCount > IdCount)
+	uint32 BufferCount = HitProxyIds.Num();
+	if (BufferCount > 0)
 	{
-		const uint32 FillValue = IdCount == 0 ? FHitProxyId().GetColor().ToPackedARGB() : HitProxyIds.Last();
-		HitProxyIdsCopy.Reserve(BufferCount);
-		HitProxyIdsCopy.Append(View.EditorSelectedNaniteHitProxyIds);
-		for (uint32 i = IdCount; i < BufferCount; ++i)
-		{
-			HitProxyIdsCopy.Add(FillValue);
-		}
-		HitProxyIds = HitProxyIdsCopy;
+		HitProxyIdsBuffer = GraphBuilder.CreateBuffer(FRDGBufferDesc::CreateUploadDesc(sizeof(uint32), BufferCount), TEXT("EditorSelectedNaniteHitProxyIds"));
+		GraphBuilder.QueueBufferUpload(HitProxyIdsBuffer, HitProxyIds);
 	}
-
-	HitProxyIdsBuffer = GraphBuilder.CreateBuffer(FRDGBufferDesc::CreateUploadDesc(sizeof(uint32), BufferCount), TEXT("EditorSelectedNaniteHitProxyIds"));
-	GraphBuilder.QueueBufferUpload(HitProxyIdsBuffer, HitProxyIds);
-#else
-	HitProxyIdsBuffer = GSystemTextures.GetDefaultBuffer<uint32>(GraphBuilder);
+	else
 #endif
+	{
+		HitProxyIdsBuffer = GSystemTextures.GetDefaultBuffer<uint32>(GraphBuilder);
+	}
 
 	return GraphBuilder.CreateSRV(HitProxyIdsBuffer, PF_R32_UINT);
 }
@@ -286,9 +276,10 @@ public:
 	DECLARE_GLOBAL_SHADER(FExportDebugViewPS);
 	SHADER_USE_PARAMETER_STRUCT(FExportDebugViewPS, FNaniteGlobalShader);
 
-	class FSearchBufferCountDim : SHADER_PERMUTATION_INT("EDITOR_SELECTED_BUFFER_COUNT_LOG_2", 25);
-	using FPermutationDomain = TShaderPermutationDomain<FSearchBufferCountDim>;
-
+	static const uint32 kMSAASampleCountMaxLog2 = 3; // = log2(MSAASampleCountMax)
+	class FSampleCountDimension : SHADER_PERMUTATION_RANGE_INT("MSAA_SAMPLE_COUNT_LOG2", 0, kMSAASampleCountMaxLog2 + 1);
+	using FPermutationDomain = TShaderPermutationDomain<FSampleCountDimension>;
+	
 	BEGIN_SHADER_PARAMETER_STRUCT(FParameters, )
 		SHADER_PARAMETER_STRUCT_INCLUDE(FViewShaderParameters, View)
 		SHADER_PARAMETER_RDG_UNIFORM_BUFFER(FSceneUniformParameters, Scene)
@@ -298,6 +289,7 @@ public:
 		SHADER_PARAMETER(float, InvShaderBudget)
 		SHADER_PARAMETER(FVector3f, SelectionColor)
 		SHADER_PARAMETER(uint32, DebugViewMode)
+		SHADER_PARAMETER(uint32, NumEditorSelectedHitProxyIds)
 		SHADER_PARAMETER_RDG_BUFFER_SRV(ByteAddressBuffer, ClusterPageData)
 		SHADER_PARAMETER_RDG_TEXTURE(Texture2D<UlongType>, VisBuffer64)
 		SHADER_PARAMETER_RDG_TEXTURE(Texture2D<float>, SceneDepth)
@@ -325,9 +317,9 @@ public:
 		FNaniteGlobalShader::ModifyCompilationEnvironment(Parameters, OutEnvironment);
 		OutEnvironment.SetDefine(TEXT("NANITE_USE_VIEW_UNIFORM_BUFFER"), 1);
 
-		FPermutationDomain PermutationVector(Parameters.PermutationId);
-		uint32 SelectedBufferCount = 1u << (uint32)PermutationVector.Get<FSearchBufferCountDim>();
-		OutEnvironment.SetDefine(TEXT("EDITOR_SELECTED_BUFFER_COUNT"), SelectedBufferCount);
+		const FPermutationDomain PermutationVector(Parameters.PermutationId);
+		const int32 SampleCount = 1 << PermutationVector.Get<FSampleCountDimension>();
+		OutEnvironment.SetDefine(TEXT("MSAA_SAMPLE_COUNT"), SampleCount);
 
 		// Note: Must match EDebugViewMode in NaniteVisualize.h
 		OutEnvironment.SetDefine(TEXT("DEBUG_VIEW_NONE"),				(uint32)Nanite::EDebugViewMode::None);
@@ -986,12 +978,12 @@ void RenderDebugViewMode(
 #else
 	const uint32 HitProxyIdCount = 0;
 #endif
+	PassParameters->NumEditorSelectedHitProxyIds = HitProxyIdCount;
 
-	const uint32 SelectionCount = FMath::RoundUpToPowerOfTwo(HitProxyIdCount);
-	const uint32 SearchBufferCountDim = FMath::Min(uint32(FExportDebugViewPS::FSearchBufferCountDim::MaxValue), FMath::FloorLog2(SelectionCount));
+	const int MSAASampleCountDim = FMath::FloorLog2(InputDepthTexture->Desc.NumSamples);
 
 	FExportDebugViewPS::FPermutationDomain PermutationVector;
-	PermutationVector.Set<FExportDebugViewPS::FSearchBufferCountDim>(SearchBufferCountDim);
+	PermutationVector.Set<FExportDebugViewPS::FSampleCountDimension>(MSAASampleCountDim);
 
 	auto PixelShader = View.ShaderMap->GetShader<FExportDebugViewPS>(PermutationVector.ToDimensionValueId());
 
