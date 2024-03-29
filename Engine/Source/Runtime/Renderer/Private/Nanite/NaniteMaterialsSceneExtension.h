@@ -7,7 +7,6 @@
 #include "Containers/Map.h"
 #include "SceneExtensions.h"
 #include "NaniteDefinitions.h"
-#include "SpanAllocator.h"
 #include "NaniteMaterials.h"
 #include "RendererPrivateUtils.h"
 
