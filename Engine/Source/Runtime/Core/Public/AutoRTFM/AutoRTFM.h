@@ -8,6 +8,10 @@
 #define UE_AUTORTFM 0
 #endif
 
+#if !defined(UE_AUTORTFM_ENABLED_RUNTIME_BY_DEFAULT)
+#define UE_AUTORTFM_ENABLED_RUNTIME_BY_DEFAULT 1
+#endif
+
 #if UE_AUTORTFM
 #if defined(__has_feature)
 #if __has_feature(autostm)

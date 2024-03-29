@@ -8,7 +8,11 @@
 namespace
 {
 	// Move this to a local only and use functions to access this
+#if UE_AUTORTFM_ENABLED_RUNTIME_BY_DEFAULT
 	int GAutoRTFMRuntimeEnabled = AutoRTFM::EAutoRTFMEnabledState::AutoRTFM_Enabled;
+#else
+	int GAutoRTFMRuntimeEnabled = AutoRTFM::EAutoRTFMEnabledState::AutoRTFM_Disabled;
+#endif // UE_AUTORTFM_ENABLED_RUNTIME_BY_DEFAULT
 
 	void UpdateAutoRTFMRuntimeCrashData()
 	{
