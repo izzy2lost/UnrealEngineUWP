@@ -734,12 +734,12 @@ bool FSwitchboardAuthHelper::Initialize(const FSwitchboardAuthHelper::FSettings&
 	// Finally, load the auth password (or its hash)
 	if (CredentialManager->IsEncryptedAtRest())
 	{
+		// This salt is ephemeral since we store the plain text password.
+		HashSalt = GenerateHashSalt();
+
 		if (TSharedPtr<ICredential> SavedPassword = CredentialManager->LoadCredential(PlainPasswordCredentialName))
 		{
 			UE_LOGFMT(LogSwitchboard, Display, "Using stored password");
-
-			// This salt is ephemeral since we store the plain text password.
-			HashSalt = GenerateHashSalt();
 
 			const bool bExpireExistingTokens_false = false;
 			ensure(SetAuthPassword(SavedPassword->GetBlob(), bExpireExistingTokens_false));
