@@ -2247,8 +2247,8 @@ bool APlayerController::ProjectWorldLocationToScreenWithDistance(FVector WorldLo
 					ScreenPosition2D -= FVector2D(ProjectionData.GetConstrainedViewRect().Min);
 				}
 
-				ScreenLocation = FVector(ScreenPosition2D.X, ScreenPosition2D.Y, FVector::Dist(ProjectionData.ViewOrigin, WorldLocation));
 				PostProcessWorldToScreen(WorldLocation, ScreenPosition2D, bPlayerViewportRelative);
+				ScreenLocation = FVector(ScreenPosition2D.X, ScreenPosition2D.Y, FVector::Dist(ProjectionData.ViewOrigin, WorldLocation));
 
 				return true;
 			}
