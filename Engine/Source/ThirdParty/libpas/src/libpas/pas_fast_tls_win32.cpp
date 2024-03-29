@@ -1,4 +1,4 @@
-// Copyright (c) 2023 Epic Games, Inc. All Rights Reserved.
+// Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "pas_config.h"
 
