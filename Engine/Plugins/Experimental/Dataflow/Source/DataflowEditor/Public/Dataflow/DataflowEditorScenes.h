@@ -16,6 +16,7 @@ class ADataflowActor;
 class UMeshElementsVisualizer;
 class UInteractiveToolPropertySet;
 class UDataflowEdNode;
+class UDataflowEditor;
 
 namespace UE
 {
@@ -34,15 +35,15 @@ class DATAFLOWEDITOR_API FDataflowPreviewScene : public FAdvancedPreviewScene
 {
 public:
 
-	FDataflowPreviewScene(FPreviewScene::ConstructionValues ConstructionValues, TObjectPtr<UDataflowBaseContent> InDataflowContent);
+	FDataflowPreviewScene(FPreviewScene::ConstructionValues ConstructionValues, UDataflowEditor* Editor);
 	virtual ~FDataflowPreviewScene();
 	
 	// FGCObject interface
 	virtual void AddReferencedObjects(FReferenceCollector& Collector) override;
 
 	/** Dataflow content accessors */
-	TObjectPtr<UDataflowBaseContent> GetDataflowContent() { return DataflowContent; }
-	const TObjectPtr<UDataflowBaseContent> GetDataflowContent() const { return DataflowContent; }
+	TObjectPtr<UDataflowBaseContent> GetDataflowContent();
+		const TObjectPtr<UDataflowBaseContent> GetDataflowContent() const;
 
 	/** Root scene actor accessors */
 	TObjectPtr<AActor> GetRootActor() { return RootSceneActor; }
@@ -68,9 +69,8 @@ protected:
 	
 	/** Root scene actor */
 	TObjectPtr<AActor> RootSceneActor = nullptr;
-	
-	/** Data flows assets datas used to build the scene components */
-	TObjectPtr<UDataflowBaseContent> DataflowContent = nullptr;
+
+	UDataflowEditor* DataflowEditor = nullptr;
 
 	/** Mode Manager for selection */
 	TSharedPtr<FAssetEditorModeManager> DataflowModeManager;
@@ -86,7 +86,7 @@ class DATAFLOWEDITOR_API FDataflowConstructionScene : public FDataflowPreviewSce
 
 public:
 
-	FDataflowConstructionScene(FPreviewScene::ConstructionValues ConstructionValues, TObjectPtr<UDataflowBaseContent> InEditorContent);
+	FDataflowConstructionScene(FPreviewScene::ConstructionValues ConstructionValues, UDataflowEditor* Editor);
 	virtual ~FDataflowConstructionScene();
 
 	// FGCObject interface
@@ -151,7 +151,7 @@ class DATAFLOWEDITOR_API FDataflowSimulationScene : public FDataflowPreviewScene
 {
 public:
 
-	FDataflowSimulationScene(FPreviewScene::ConstructionValues ConstructionValues, TObjectPtr<UDataflowBaseContent> InEditorContent);
+	FDataflowSimulationScene(FPreviewScene::ConstructionValues ConstructionValues, UDataflowEditor* Editor);
 	virtual ~FDataflowSimulationScene();
 
 	/** Tick data flow scene */

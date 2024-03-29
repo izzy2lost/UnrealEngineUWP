@@ -74,6 +74,7 @@ namespace Dataflow
 
 		const FProperty* GetProperty() const { return Property; }
 		const FTimestamp& GetTimestamp() const { return Timestamp; }
+		void SetTimestamp(const FTimestamp& InTimestamp) { Timestamp = InTimestamp; }
 
 		const FGuid& GetNodeGuid() const { return NodeGuid; }
 		const uint32 GetNodeHash() const { return NodeHash; }

@@ -131,8 +131,32 @@ namespace DataflowContextDefinitionHelpers
 
 		UDataflowBaseContent* BaseContent = Cast< UDataflowBaseContent>(Asset.Get());
 		if (!BaseContent) return false;
+		if (!BaseContent->GetDataflowContext()) return false;
 
-		BaseContent->SetLastModifiedTimestamp(DataflowAsset->GetRenderingTimestamp().Value+1, false /*bMakeDirty*/);
+		Dataflow::FTimestamp NewTimestamp = DataflowAsset->GetRenderingTimestamp().Value + 1;
+		BaseContent->SetLastModifiedTimestamp(NewTimestamp, false /*bMakeDirty*/);
+
+		TSharedPtr<FEngineContext>& Context = BaseContent->GetDataflowContext();
+		TSet<FContextCacheKey> Keys; Context->GetKeys(Keys);
+		for (FContextCacheKey Key : Keys)
+		{
+			if (TUniquePtr<FContextCacheElementBase>* Data = Context->GetBaseData(Key))
+			{
+				if (*Data)
+				{
+					(*Data)->SetTimestamp(NewTimestamp);
+				}
+				else
+				{
+					return false;
+				}
+			}
+			else
+			{
+				return false;
+			}
+		}
+		Context->Timestamp = NewTimestamp;
 
 		return true;
 	}

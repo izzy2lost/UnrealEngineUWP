@@ -23,10 +23,11 @@ bool bDataflowShowFloorDefault = false;
 FAutoConsoleVariableRef CVARDataflowShowFloorDefault(TEXT("p.Dataflow.Editor.ShowFloor"), bDataflowShowFloorDefault, TEXT("Show the floor in the dataflow editor[def:false]"));
 
 
-FDataflowPreviewScene::FDataflowPreviewScene(FPreviewScene::ConstructionValues ConstructionValues, TObjectPtr<UDataflowBaseContent> InEditorContent) 
-	: FAdvancedPreviewScene(ConstructionValues), DataflowContent(InEditorContent)
+FDataflowPreviewScene::FDataflowPreviewScene(FPreviewScene::ConstructionValues ConstructionValues, UDataflowEditor* InEditor)
+	: FAdvancedPreviewScene(ConstructionValues)
+	, DataflowEditor(InEditor)
 {
-	check(DataflowContent);
+	check(DataflowEditor);
 	SetFloorVisibility(bDataflowShowFloorDefault, true);
 
 	RootSceneActor = GetWorld()->SpawnActor<AActor>(AActor::StaticClass());
@@ -35,10 +36,19 @@ FDataflowPreviewScene::FDataflowPreviewScene(FPreviewScene::ConstructionValues C
 FDataflowPreviewScene::~FDataflowPreviewScene()
 {}
 
+TObjectPtr<UDataflowBaseContent> FDataflowPreviewScene::GetDataflowContent() 
+{ 
+	return DataflowEditor->GetDataflowContent();
+}
+
+const TObjectPtr<UDataflowBaseContent> FDataflowPreviewScene::GetDataflowContent() const 
+{ 
+	return DataflowEditor->GetDataflowContent();
+}
+
 void FDataflowPreviewScene::AddReferencedObjects(FReferenceCollector& Collector)
 {
 	FAdvancedPreviewScene::AddReferencedObjects(Collector);
-	Collector.AddReferencedObject(DataflowContent);
 	Collector.AddReferencedObject(RootSceneActor);
 	if (GetDataflowContent())
 	{
@@ -90,8 +100,12 @@ FBox FDataflowPreviewScene::GetBoundingBox() const
 	return SceneBounds;
 }
 
-FDataflowConstructionScene::FDataflowConstructionScene(FPreviewScene::ConstructionValues ConstructionValues, TObjectPtr<UDataflowBaseContent> InEditorContent) 
-	: FDataflowPreviewScene(ConstructionValues,InEditorContent)
+//
+// Construction Scene
+//
+
+FDataflowConstructionScene::FDataflowConstructionScene(FPreviewScene::ConstructionValues ConstructionValues, UDataflowEditor* InEditor)
+	: FDataflowPreviewScene(ConstructionValues, InEditor)
 {}
 
 FDataflowConstructionScene::~FDataflowConstructionScene()
@@ -118,18 +132,21 @@ FORCEINLINE Dataflow::FTimestamp LatestTimestamp(const UDataflow* Dataflow, cons
 
 void FDataflowConstructionScene::TickDataflowScene(const float DeltaSeconds)
 {
-	if (const TSharedPtr<Dataflow::FContext> DataflowContext = DataflowContent->GetDataflowContext())
+	if (TObjectPtr<UDataflowBaseContent> DataflowContent = GetDataflowContent())
 	{
-		if (const UDataflow* Dataflow = DataflowContent->GetDataflowAsset())
+		if (const TSharedPtr<Dataflow::FContext> DataflowContext = DataflowContent->GetDataflowContext())
 		{
-			const Dataflow::FTimestamp SystemTimestamp = LatestTimestamp(Dataflow, DataflowContext.Get());
-			if (SystemTimestamp >= DataflowContent->GetLastModifiedTimestamp() || DataflowContent->IsDirty())
+			if (const UDataflow* Dataflow = DataflowContent->GetDataflowAsset())
 			{
-				DataflowContent->SetLastModifiedTimestamp(SystemTimestamp.Value + 1);
-
-				if(DataflowContent->IsDirty())
+				const Dataflow::FTimestamp SystemTimestamp = LatestTimestamp(Dataflow, DataflowContext.Get());
+				if (SystemTimestamp >= DataflowContent->GetLastModifiedTimestamp() || DataflowContent->IsDirty())
 				{
-					UpdateConstructionScene();
+					DataflowContent->SetLastModifiedTimestamp(SystemTimestamp.Value + 1);
+
+					if (DataflowContent->IsDirty())
+					{
+						UpdateConstructionScene();
+					}
 				}
 			}
 		}
@@ -164,7 +181,7 @@ void FDataflowConstructionScene::UpdateDynamicMeshComponents()
 	// list of UPrimitiveComponents for rendering.
 	ResetDynamicMeshComponents();
 
-	if (DataflowContent)
+	if (TObjectPtr<UDataflowBaseContent> DataflowContent = GetDataflowContent())
 	{
 		const TObjectPtr<UDataflow>& DataflowAsset = DataflowContent->GetDataflowAsset();
 		const TSharedPtr<Dataflow::FEngineContext>& DataflowContext = DataflowContent->GetDataflowContext();
@@ -228,6 +245,7 @@ TObjectPtr<UDynamicMeshComponent>& FDataflowConstructionScene::AddDynamicMeshCom
 	DynamicMeshComponent->SetMesh(MoveTemp(DynamicMesh));
 	
 	// @todo(Material) This is just to have a material, we should transfer the materials from the assets if they have them. 
+	TObjectPtr<UDataflowBaseContent> DataflowContent = GetDataflowContent();
 	if (DataflowContent && DataflowContent->GetDataflowAsset() && DataflowContent->GetDataflowAsset()->Material)
 	{
 		DynamicMeshComponent->ConfigureMaterialSet({ DataflowContent->GetDataflowAsset()->Material });
@@ -344,13 +362,23 @@ void FDataflowConstructionScene::UpdateConstructionScene()
 	// Attach a wireframe renderer to the DynamicMeshComponents
 	UpdateWireframeMeshElementsVisualizer();
 
-	DataflowContent->SetIsDirty(false);
+	if (TObjectPtr<UDataflowBaseContent> DataflowContent = GetDataflowContent())
+	{
+		DataflowContent->SetIsDirty(false);
+	}
 }
 
-FDataflowSimulationScene::FDataflowSimulationScene(FPreviewScene::ConstructionValues ConstructionValues, TObjectPtr<UDataflowBaseContent> InEditorContent) 
-	: FDataflowPreviewScene(ConstructionValues,InEditorContent)
+//
+// FDataflowSimulationScene
+//
+
+FDataflowSimulationScene::FDataflowSimulationScene(FPreviewScene::ConstructionValues ConstructionValues, UDataflowEditor* InEditor)
+	: FDataflowPreviewScene(ConstructionValues, InEditor)
 {
-	DataflowContent->RegisterWorldContent(this, RootSceneActor);
+	if (TObjectPtr<UDataflowBaseContent> DataflowContent = GetDataflowContent())
+	{
+		DataflowContent->RegisterWorldContent(this, RootSceneActor);
+	}
 
 	TInlineComponentArray<UPrimitiveComponent*> PrimComponents;
 	RootSceneActor->GetComponents(PrimComponents);
@@ -371,8 +399,11 @@ FDataflowSimulationScene::~FDataflowSimulationScene()
 	{
 		PrimComponent->SelectionOverrideDelegate.Unbind();
 	}
-	
-	DataflowContent->UnregisterWorldContent(this);
+
+	if (TObjectPtr<UDataflowBaseContent> DataflowContent = GetDataflowContent())
+	{
+		DataflowContent->UnregisterWorldContent(this);
+	}
 }
 
 void FDataflowSimulationScene::TickDataflowScene(const float DeltaSeconds)

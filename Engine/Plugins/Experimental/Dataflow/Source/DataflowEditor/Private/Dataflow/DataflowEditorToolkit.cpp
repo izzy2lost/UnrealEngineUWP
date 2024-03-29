@@ -156,8 +156,8 @@ FDataflowEditorToolkit::FDataflowEditorToolkit(UAssetEditor* InOwningAssetEditor
 	PreviewSceneArgs.bShouldSimulatePhysics = 1;
 	PreviewSceneArgs.bCreatePhysicsScene = 1;
 	
-	ObjectScene = MakeUnique<FDataflowConstructionScene>(PreviewSceneArgs, GetDataflowContent());
-	SimulationScene = MakeShared<FDataflowSimulationScene>(PreviewSceneArgs, GetDataflowContent());
+	ObjectScene = MakeUnique<FDataflowConstructionScene>(PreviewSceneArgs, Cast<UDataflowEditor>(InOwningAssetEditor));
+	SimulationScene = MakeShared<FDataflowSimulationScene>(PreviewSceneArgs, Cast<UDataflowEditor>(InOwningAssetEditor));
 }
 
 FDataflowEditorToolkit::~FDataflowEditorToolkit()
