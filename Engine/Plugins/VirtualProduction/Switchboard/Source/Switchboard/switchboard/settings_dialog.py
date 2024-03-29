@@ -33,7 +33,7 @@ class SettingsDialog(QtCore.QObject):
 
         # Set the UI object
         self.ui = QtWidgets.QDialog()
-        self.ui.resize(600, 800)
+        self.ui.resize(650, 800)
         dialog_layout = QtWidgets.QVBoxLayout(self.ui)
         dialog_layout.setContentsMargins(2, 2, 2, 2)
         self.ui.setWindowTitle("Settings")
