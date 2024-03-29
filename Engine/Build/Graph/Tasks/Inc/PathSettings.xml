@@ -31,14 +31,20 @@
 
 	-->
 
+	<Property Name="IsEpicInternal" Value="false"/>
+	<Property Name="IsEpicInternal" Value="true" If="Exists('Engine/Restricted/NotForLicensees/Build/EpicInternal.txt')"/>
+
+	<Property Name="IsEpicBuildMachine" Value="false"/>
+	<Property Name="IsEpicBuildMachine" Value="true" If="$(IsBuildMachine) and $(IsEpicInternal)"/>
+
 	<!-- Publish packaged builds to the network ?-->
-	<Option Name="PublishBuilds" DefaultValue="$(IsBuildMachine)" Description="Publish packaged builds to the builds folder on the network"/>
+	<Option Name="PublishBuilds" DefaultValue="$(IsEpicBuildMachine)" Description="Publish packaged builds to the builds folder on the network"/>
 
 	<!-- Publish a hashed staging data that developers can quickly sync to -->
 	<Option Name="PublishHashedStagingData" DefaultValue="false" Restrict="true|false" Description="Create hashes for syncing via Unsync" />
 
 	<!-- Publish automation reports to the network-->
-	<Option Name="PublishReports" DefaultValue="$(IsBuildMachine)" Description="Publish packaged builds to the builds folder on the netwok"/>
+	<Option Name="PublishReports" DefaultValue="$(IsEpicBuildMachine)" Description="Publish packaged builds to the builds folder on the netwok"/>
 
 	<!-- For pre-generated build -->
 	<Option Name="GeneratedBuildVersion" DefaultValue="" Description="The pre-generated build version"/>
@@ -70,7 +76,7 @@
 	<Property Name="NetworkOutputDirectory" Value="$(NetworkOutputDirectory)/$(EscapedBranch)/$(BuildNamePath)" If="'$(NetworkOutputDirectory)' != ''"/>
 
 	<!-- Automation can publish reports to a folder that is mapped to a website -->
-	<Do If="$(IsBuildMachine) or $(PublishReports)" >
+	<Do If="$(IsEpicBuildMachine) or $(PublishReports)" >
 		<Property Name="AutomationReportOutputDirectory" Value="$(NetworkReportRoot)"/>
 		<Property Name="AutomationReportOutputDirectory" Value="$(AutomationReportOutputDirectory)/$(EscapedBranch)/$(ProjectName)/$(CL-String)"/>
 		<Property Name="AutomationReportUrl" Value="http://automation.epicgames.net/reports/$(EscapedBranch)/$(ProjectName)/$(CL-String)"/>
