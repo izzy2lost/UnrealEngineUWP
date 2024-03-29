@@ -297,6 +297,14 @@ FMetalDynamicRHI::FMetalDynamicRHI(ERHIFeatureLevel::Type RequestedFeatureLevel)
 #endif	// PLATFORM_TVOS
         GMaxRHIFeatureLevel = ERHIFeatureLevel::ES3_1;
 	}
+
+	#if USE_STATIC_SHADER_PLATFORM_ENUMS
+		GMaxRHIShaderPlatform = UE_IOS_STATIC_SHADER_PLATFORM;
+	#endif
+	#if	USE_STATIC_FEATURE_LEVEL_ENUMS
+		GMaxRHIFeatureLevel = UE_IOS_STATIC_FEATURE_LEVEL;
+	#endif
+		
 		
 	FPlatformMemoryStats Stats = FPlatformMemory::GetStats();
 		
