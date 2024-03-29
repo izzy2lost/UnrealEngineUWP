@@ -18,6 +18,7 @@ class FCameraCalibrationCurveEditor;
 class SCameraCalibrationCurveEditorPanel;
 class FCameraCalibrationStepsController;
 class FCameraCalibrationTimeSliderController;
+enum class ELensDataChangedReason : uint8;
 
 /** Widget used to display data from the LensFile */
 class SLensDataViewer : public SCompoundWidget, public FSelfRegisteringEditorUndoClient
@@ -97,8 +98,8 @@ private:
 	/** Callbacked when user clicks AddPoint from the dialog */
 	void OnLensDataPointAdded();
 
-	/** Callbacked when user clicks remove point buttons */
-	void OnDataPointRemoved(float InFocus, TOptional<float> InZoom);
+	/** Callbacked when user changes anything about the data point that may require a refresh */
+	void OnDataPointChanged(ELensDataChangedReason ChangedReason, float InFocus, TOptional<float> InZoom);
 	
 	/** Called when the data table points list of a data category was updated */
 	void OnDataTablePointsUpdated(ELensDataCategory InCategory);
@@ -119,7 +120,7 @@ private:
 	 * If category hasn't changed, don't recreate data entries
 	 */
 	TSharedPtr<FLensDataCategoryItem> CachedSelectedCategoryItem;
-
+	
 	/** Data items associated with selected data category TreeView */
 	TSharedPtr<STreeView<TSharedPtr<FLensDataListItem>>> DataEntriesTree;
 

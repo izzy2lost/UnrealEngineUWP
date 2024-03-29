@@ -21,6 +21,74 @@ namespace LensDataTableUtils
     	}
 	}
 
+	/** Changes the value of a focus point in the container */
+	template<typename FocusPointType>
+	void ChangeFocusPoint(TArray<FocusPointType>& Container, float InExistingFocus, float InNewFocus, float InputTolerance = KINDA_SMALL_NUMBER)
+	{
+		const int32 FoundIndex = Container.IndexOfByPredicate([InExistingFocus, InputTolerance](const FocusPointType& Point)
+		{
+			return FMath::IsNearlyEqual(Point.Focus, InExistingFocus, InputTolerance);
+		});
+		
+		if (FoundIndex != INDEX_NONE)
+		{
+			Container[FoundIndex].Focus = InNewFocus;
+		}
+	}
+
+	/** Merges the points in the specified source focus into the specified destination focus */
+	template<typename FocusPointType>
+	void MergeFocusPoint(TArray<FocusPointType>& Container, float InSrcFocus, float InDestFocus, bool bReplaceExistingZoomPoints, float InputTolerance = KINDA_SMALL_NUMBER)
+	{
+		const int32 SrcIndex = Container.IndexOfByPredicate([InSrcFocus, InputTolerance](const FocusPointType& Point)
+		{
+			return FMath::IsNearlyEqual(Point.Focus, InSrcFocus, InputTolerance);
+		});
+		
+		const int32 DestIndex = Container.IndexOfByPredicate([InDestFocus, InputTolerance](const FocusPointType& Point)
+		{
+			return FMath::IsNearlyEqual(Point.Focus, InDestFocus, InputTolerance);
+		});
+		
+		if (SrcIndex != INDEX_NONE)
+		{
+			if (DestIndex != INDEX_NONE)
+			{
+				FocusPointType& SrcPoint = Container[SrcIndex];
+				FocusPointType& DestPoint = Container[DestIndex];
+
+				for (int32 Index = 0; Index < SrcPoint.GetNumPoints(); ++Index)
+				{
+					float Zoom = SrcPoint.GetZoom(Index);
+
+					typename FocusPointType::PointType SrcData;
+					SrcPoint.GetPoint(Zoom, SrcData);
+					bool bIsCalibrationPoint = SrcPoint.IsCalibrationPoint(Zoom);
+
+					typename FocusPointType::PointType DestData;
+					if (DestPoint.GetPoint(Zoom, DestData))
+					{
+						if (!bReplaceExistingZoomPoints)
+						{
+							continue;
+						}
+
+						DestPoint.RemovePoint(Zoom);
+					}
+					
+					DestPoint.AddPoint(Zoom, SrcData, InputTolerance, bIsCalibrationPoint);
+				}
+
+				RemoveFocusPoint(Container, InSrcFocus);
+			}
+			else
+			{
+				// The destination doesn't exist, so we can just change the source focus point to the destination focus point
+				ChangeFocusPoint(Container, InSrcFocus, InDestFocus);
+			}
+		}
+	}
+
 	/** Gets all point info for specific data table */
 	template<typename FPointInfoType, typename FDataTableType>
 	TArray<FPointInfoType> GetAllPointsInfo(const FDataTableType& InTable)
@@ -69,6 +137,27 @@ namespace LensDataTableUtils
 		}
 	}
 
+	/** Changes the value of a zoom point for a given focus value in a container */
+	template<typename FocusPointType>
+	void ChangeZoomPoint(TArray<FocusPointType>& Container, float InFocus, float InExistingZoom, float InNewZoom, float InputTolerance = KINDA_SMALL_NUMBER)
+	{
+		const int32 FoundIndex = Container.IndexOfByPredicate([InFocus, InputTolerance](const FocusPointType& Point)
+		{
+			return FMath::IsNearlyEqual(Point.Focus, InFocus, InputTolerance);
+		});
+		
+		if (FoundIndex != INDEX_NONE)
+		{
+			typename FocusPointType::PointType PointData;
+			Container[FoundIndex].GetPoint(InExistingZoom, PointData);
+			
+			bool bIsCalibrationPoint = Container[FoundIndex].IsCalibrationPoint(InExistingZoom);
+			
+			Container[FoundIndex].RemovePoint(InExistingZoom);
+			Container[FoundIndex].AddPoint(InNewZoom, PointData, InputTolerance, bIsCalibrationPoint);
+		}
+	}
+	
 	/** Adds a point at a specified focus and zoom input values */
 	template<typename FocusPointType, typename DataType>
 	bool AddPoint(TArray<FocusPointType>& InContainer, float InFocus, float InZoom, const DataType& InData, float InputTolerance, bool bIsCalibrationPoint)

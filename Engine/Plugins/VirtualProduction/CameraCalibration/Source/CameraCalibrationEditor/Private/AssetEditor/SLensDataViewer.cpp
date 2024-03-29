@@ -54,19 +54,19 @@ namespace LensDataUtils
 	const FName RotationZLabel(TEXT("Roll"));
 
 	template<typename TFocusPoint>
-	void MakeFocusEntries(ULensFile* InLensFile, ELensDataCategory InCategory, int32 InSubCategoryIndex, TConstArrayView<TFocusPoint> FocusPoints, TArray<TSharedPtr<FLensDataListItem>>& OutDataItems, FOnDataRemoved InDataRemovedCallback)
+	void MakeFocusEntries(ULensFile* InLensFile, ELensDataCategory InCategory, int32 InSubCategoryIndex, TConstArrayView<TFocusPoint> FocusPoints, TArray<TSharedPtr<FLensDataListItem>>& OutDataItems, FOnDataChanged InDataChangedCallback)
 	{
 		OutDataItems.Reserve(FocusPoints.Num());
 		for (const TFocusPoint& Point : FocusPoints)
 		{
 			//Add entry for focus
-			TSharedPtr<FFocusDataListItem> CurrentFocus = MakeShared<FFocusDataListItem>(InLensFile, InCategory, InSubCategoryIndex, Point.Focus, InDataRemovedCallback);
+			TSharedPtr<FFocusDataListItem> CurrentFocus = MakeShared<FFocusDataListItem>(InLensFile, InCategory, InSubCategoryIndex, Point.Focus, InDataChangedCallback);
 			OutDataItems.Add(CurrentFocus);
 
 			for(int32 Index = 0; Index < Point.GetNumPoints(); ++Index)
 			{
 				//Add zoom points for this focus
-				TSharedPtr<FZoomDataListItem> ZoomItem = MakeShared<FZoomDataListItem>(InLensFile, InCategory, InSubCategoryIndex, CurrentFocus.ToSharedRef(),Point.GetZoom(Index), InDataRemovedCallback);
+				TSharedPtr<FZoomDataListItem> ZoomItem = MakeShared<FZoomDataListItem>(InLensFile, InCategory, InSubCategoryIndex, CurrentFocus.ToSharedRef(),Point.GetZoom(Index), InDataChangedCallback);
 				CurrentFocus->Children.Add(ZoomItem);
 			}
 		}
@@ -485,11 +485,25 @@ void SLensDataViewer::RefreshDataEntriesTree()
 {
 	TSharedPtr<FLensDataListItem> CurrentSelection = GetSelectedDataEntry();
 
+	// Save the items that are expanded, so that the expanded state can be restored after the tree has been refreshed
+	TSet<TSharedPtr<FLensDataListItem>> ExpandedItems;
+	DataEntriesTree->GetExpandedItems(ExpandedItems);
+
+	TArray<float> FocusesToExpand;
+	for (const TSharedPtr<FLensDataListItem>& Item : ExpandedItems)
+	{
+		TOptional<float> ItemFocus = Item->GetFocus();
+		if (ItemFocus.IsSet())
+		{
+			FocusesToExpand.Add(ItemFocus.GetValue());
+		}
+	}
+	
 	DataEntries.Reset();
 
 	if (TSharedPtr<FLensDataCategoryItem> CategoryItem = GetDataCategorySelection())
 	{
-		FOnDataRemoved DataRemovedCallback = FOnDataRemoved::CreateSP(this, &SLensDataViewer::OnDataPointRemoved);
+		FOnDataChanged DataChangedCallback = FOnDataChanged::CreateSP(this, &SLensDataViewer::OnDataPointChanged);
 
 		switch (CategoryItem->Category)
 		{
@@ -497,7 +511,7 @@ void SLensDataViewer::RefreshDataEntriesTree()
 			{
 				for (int32 Index = 0; Index <LensFile->EncodersTable.GetNumFocusPoints(); ++Index)
 				{
-					DataEntries.Add(MakeShared<FEncoderDataListItem>(LensFile.Get(), CategoryItem->Category, LensFile->EncodersTable.GetFocusInput(Index), Index, DataRemovedCallback));
+					DataEntries.Add(MakeShared<FEncoderDataListItem>(LensFile.Get(), CategoryItem->Category, LensFile->EncodersTable.GetFocusInput(Index), Index, DataChangedCallback));
 				}
 				break;
 			}
@@ -505,38 +519,38 @@ void SLensDataViewer::RefreshDataEntriesTree()
 			{
 				for (int32 Index = 0; Index <LensFile->EncodersTable.GetNumIrisPoints(); ++Index)
 				{
-					DataEntries.Add(MakeShared<FEncoderDataListItem>(LensFile.Get(), CategoryItem->Category, LensFile->EncodersTable.GetIrisInput(Index), Index, DataRemovedCallback));
+					DataEntries.Add(MakeShared<FEncoderDataListItem>(LensFile.Get(), CategoryItem->Category, LensFile->EncodersTable.GetIrisInput(Index), Index, DataChangedCallback));
 				}
 				break;
 			}
 			case ELensDataCategory::Zoom:
 			{
 				const TConstArrayView<FFocalLengthFocusPoint> FocusPoints = LensFile->FocalLengthTable.GetFocusPoints();
-				LensDataUtils::MakeFocusEntries(LensFile.Get(), CategoryItem->Category, CategoryItem->GetParameterIndex(), FocusPoints, DataEntries, DataRemovedCallback);
+				LensDataUtils::MakeFocusEntries(LensFile.Get(), CategoryItem->Category, CategoryItem->GetParameterIndex(), FocusPoints, DataEntries, DataChangedCallback);
 				break;
 			}
 			case ELensDataCategory::Distortion:
 			{
 				const TConstArrayView<FDistortionFocusPoint> FocusPoints = LensFile->DistortionTable.GetFocusPoints();
-				LensDataUtils::MakeFocusEntries(LensFile.Get(), CategoryItem->Category, CategoryItem->GetParameterIndex(), FocusPoints, DataEntries, DataRemovedCallback);
+				LensDataUtils::MakeFocusEntries(LensFile.Get(), CategoryItem->Category, CategoryItem->GetParameterIndex(), FocusPoints, DataEntries, DataChangedCallback);
 				break;
 			}
 			case ELensDataCategory::ImageCenter:
 			{
 				const TConstArrayView<FImageCenterFocusPoint> FocusPoints = LensFile->ImageCenterTable.GetFocusPoints();
-				LensDataUtils::MakeFocusEntries(LensFile.Get(), CategoryItem->Category, CategoryItem->GetParameterIndex(), FocusPoints, DataEntries, DataRemovedCallback);
+				LensDataUtils::MakeFocusEntries(LensFile.Get(), CategoryItem->Category, CategoryItem->GetParameterIndex(), FocusPoints, DataEntries, DataChangedCallback);
 				break;
 			}
 			case ELensDataCategory::NodalOffset:
 			{
 				const TConstArrayView<FNodalOffsetFocusPoint> Points = LensFile->NodalOffsetTable.GetFocusPoints();
-				LensDataUtils::MakeFocusEntries(LensFile.Get(), CategoryItem->Category, CategoryItem->GetParameterIndex(), Points, DataEntries, DataRemovedCallback);
+				LensDataUtils::MakeFocusEntries(LensFile.Get(), CategoryItem->Category, CategoryItem->GetParameterIndex(), Points, DataEntries, DataChangedCallback);
 				break;
 			}
 			case ELensDataCategory::STMap:
 			{
 				const TConstArrayView<FSTMapFocusPoint> Points = LensFile->STMapTable.GetFocusPoints();
-				LensDataUtils::MakeFocusEntries(LensFile.Get(), CategoryItem->Category, CategoryItem->GetParameterIndex(), Points, DataEntries, DataRemovedCallback);
+				LensDataUtils::MakeFocusEntries(LensFile.Get(), CategoryItem->Category, CategoryItem->GetParameterIndex(), Points, DataEntries, DataChangedCallback);
 				break;
 			}
 		}
@@ -545,6 +559,16 @@ void SLensDataViewer::RefreshDataEntriesTree()
 	//When data entries have been repopulated, refresh the tree and select first item
 	DataEntriesTree->RequestListRefresh();
 
+	// Restore the expanded items by focus. 
+	for (const TSharedPtr<FLensDataListItem>& Item : DataEntries)
+	{
+		TOptional<float> ItemFocus = Item->GetFocus();
+		if (ItemFocus.IsSet() && FocusesToExpand.Contains(ItemFocus.GetValue()))
+		{
+			DataEntriesTree->SetItemExpansion(Item, true);
+		}
+	}
+	
 	//Try to put back the same selected Focus/Zoom item
 	UpdateDataSelection(CurrentSelection);
 }
@@ -687,7 +711,7 @@ void SLensDataViewer::OnLensDataPointAdded()
 	RefreshDataEntriesTree();
 }
 
-void SLensDataViewer::OnDataPointRemoved(float InFocus, TOptional<float> InZoom)
+void SLensDataViewer::OnDataPointChanged(ELensDataChangedReason ChangedReason, float InFocus, TOptional<float> InZoom)
 {
 	RefreshDataEntriesTree();
 }

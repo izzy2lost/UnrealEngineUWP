@@ -39,7 +39,9 @@ USTRUCT()
 struct CAMERACALIBRATIONCORE_API FFocalLengthFocusPoint : public FBaseFocusPoint
 {
 	GENERATED_BODY()
-	
+
+	using PointType = FFocalLengthInfo;
+
 public:
 	//~ Begin FBaseFocusPoint Interface
 	virtual float GetFocus() const override { return Focus; }
@@ -47,14 +49,17 @@ public:
 	virtual float GetZoom(int32 Index) const override;
 	//~ End FBaseFocusPoint Interface
 
-	/** Returns zoom value for a given float */
-	bool GetPoint(float InZoom, FFocalLengthZoomPoint& OutZoomPont, float InputTolerance = KINDA_SMALL_NUMBER) const;
+	/** Returns data type copy value for a given float  */
+	bool GetPoint(float InZoom, FFocalLengthInfo& OutData, float InputTolerance = KINDA_SMALL_NUMBER) const;
 
 	/** Adds a new point at InZoom. Updates existing one if tolerance is met */
 	bool AddPoint(float InZoom, const FFocalLengthInfo& InData, float InputTolerance, bool bIsCalibrationPoint);
 
 	/** Sets an existing point at InZoom. Updates existing one if tolerance is met */
 	bool SetPoint(float InZoom, const FFocalLengthInfo& InData, float InputTolerance = KINDA_SMALL_NUMBER);
+
+	/** Gets whether the point at InZoom is a calibration point. */
+	bool IsCalibrationPoint(float InZoom, float InputTolerance = KINDA_SMALL_NUMBER);
 
 	/** Returns data at the requested index */
 	bool GetValue(int32 Index, FFocalLengthInfo& OutData) const;
@@ -128,18 +133,32 @@ public:
 	/** Removes a focus point identified as InFocusIdentifier */
 	void RemoveFocusPoint(float InFocus);
 
+	/** Checks to see if there exists a focus point matching the specified focus value */
+	bool HasFocusPoint(float InFocus, float InputTolerance = KINDA_SMALL_NUMBER) const;
+
+	/** Changes the value of a focus point */
+	void ChangeFocusPoint(float InExistingFocus, float InNewFocus, float InputTolerance = KINDA_SMALL_NUMBER);
+
+	/** Merges the points in the specified source focus into the specified destination focus */
+	void MergeFocusPoint(float InSrcFocus, float InDestFocus, bool bReplaceExistingZoomPoints, float InputTolerance = KINDA_SMALL_NUMBER);
+
 	/** Removes a zoom point from a focus point*/
 	void RemoveZoomPoint(float InFocus, float InZoom);
 
+	/** Checks to see if there exists a zoom point matching the specified zoom and focus values */
+	bool HasZoomPoint(float InFocus, float InZoom, float InputTolerance = KINDA_SMALL_NUMBER);
+
+	/** Changes the value of a zoom point */
+	void ChangeZoomPoint(float InFocus, float InExistingZoom, float InNewZoom, float InputTolerance = KINDA_SMALL_NUMBER);
+	
 	/** Adds a new point in the table */
-	bool AddPoint(float InFocus, float InZoom, const FFocalLengthInfo& InData,  float InputTolerance, bool bIsCalibrationPoint);
+	bool AddPoint(float InFocus, float InZoom, const FFocalLengthInfo& InData, float InputTolerance, bool bIsCalibrationPoint);
 
 	/** Get the point from the table */
 	bool GetPoint(const float InFocus, const float InZoom, FFocalLengthInfo& OutData, float InputTolerance = KINDA_SMALL_NUMBER) const;
 
 	/** Set a new point into the table */
 	bool SetPoint(float InFocus, float InZoom, const FFocalLengthInfo& InData, float InputTolerance = KINDA_SMALL_NUMBER);
-
 
 public:
 

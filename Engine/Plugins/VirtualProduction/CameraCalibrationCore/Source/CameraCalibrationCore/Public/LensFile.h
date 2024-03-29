@@ -190,10 +190,30 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Lens Table")
 	void RemoveFocusPoint(ELensDataCategory InDataCategory, float InFocus);
 
+	/** Checks to see if there is a focal point for the specified focus in the data category */
+	UFUNCTION(BlueprintCallable, Category = "Lens Table")
+	bool HasFocusPoint(ELensDataCategory InDataCategory, float InFocus) const;
+
+	/** Changes the value of a focus point */
+	UFUNCTION(BlueprintCallable, Category = "Lens Table")
+	void ChangeFocusPoint(ELensDataCategory InDataCategory, float InExistingFocus, float InNewFocus);
+
+	/** Merges the contents of one focus point into another focus point */
+	UFUNCTION(BlueprintCallable, Category = "Lens Table")
+	void MergeFocusPoint(ELensDataCategory InDataCategory, float InSrcFocus, float InDestFocus, bool bReplaceExistingZoomPoints);
+
 	/** Removes a zoom point */
 	UFUNCTION(BlueprintCallable, Category = "Lens Table")
 	void RemoveZoomPoint(ELensDataCategory InDataCategory, float InFocus, float InZoom);
 
+	/** Removes a zoom point */
+	UFUNCTION(BlueprintCallable, Category = "Lens Table")
+	bool HasZoomPoint(ELensDataCategory InDataCategory, float InFocus, float InZoom);
+
+	/** Changes the value of a zoom point */
+	UFUNCTION(BlueprintCallable, Category = "Lens Table")
+	void ChangeZoomPoint(ELensDataCategory InDataCategory, float InFocus, float InExistingZoom, float InNewZoom);
+	
 	/** Removes all points of all tables */
 	UFUNCTION(BlueprintCallable, Category = "Lens Table")
 	void ClearAll();

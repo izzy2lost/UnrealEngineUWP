@@ -1086,35 +1086,27 @@ void ULensFile::AddSTMapPoint(float NewFocus, float NewZoom, const FSTMapInfo& N
 	STMapTable.AddPoint(NewFocus, NewZoom, NewPoint, InputTolerance, false);
 }
 
+// Helper macros that fill in switch cases for the base lens tables for calling a function
+#define FUNCTION_LENS_TABLE_CASE(DataCategoryName, TableName, FuncCall) case DataCategoryName: TableName.FuncCall; break;
+#define SWITCH_FUNCTION_ON_BASE_LENS_TABLES(DataCategory, FuncCall) FUNCTION_LENS_TABLE_CASE(ELensDataCategory::Distortion, DistortionTable, FuncCall) \
+	FUNCTION_LENS_TABLE_CASE(ELensDataCategory::ImageCenter, ImageCenterTable, FuncCall) \
+	FUNCTION_LENS_TABLE_CASE(ELensDataCategory::Zoom, FocalLengthTable, FuncCall) \
+	FUNCTION_LENS_TABLE_CASE(ELensDataCategory::STMap, STMapTable, FuncCall) \
+	FUNCTION_LENS_TABLE_CASE(ELensDataCategory::NodalOffset, NodalOffsetTable, FuncCall) \
+
+#define FUNCTION_RETVAL_LENS_TABLE_CASE(DataCategoryName, TableName, FuncCall) case DataCategoryName: return TableName.FuncCall;
+#define SWITCH_FUNCTION_RETVAL_ON_BASE_LENS_TABLES(DataCategory, FuncCall) FUNCTION_RETVAL_LENS_TABLE_CASE(ELensDataCategory::Distortion, DistortionTable, FuncCall) \
+	FUNCTION_RETVAL_LENS_TABLE_CASE(ELensDataCategory::ImageCenter, ImageCenterTable, FuncCall) \
+	FUNCTION_RETVAL_LENS_TABLE_CASE(ELensDataCategory::Zoom, FocalLengthTable, FuncCall) \
+	FUNCTION_RETVAL_LENS_TABLE_CASE(ELensDataCategory::STMap, STMapTable, FuncCall) \
+	FUNCTION_RETVAL_LENS_TABLE_CASE(ELensDataCategory::NodalOffset, NodalOffsetTable, FuncCall) \
+
 void ULensFile::RemoveFocusPoint(ELensDataCategory InDataCategory, float InFocus)
 {
 	switch(InDataCategory)
 	{
-		case ELensDataCategory::Distortion:
-		{
-			DistortionTable.RemoveFocusPoint(InFocus);
-			break;
-		}
-		case ELensDataCategory::ImageCenter:
-		{
-			ImageCenterTable.RemoveFocusPoint(InFocus);
-			break;
-		}
-		case ELensDataCategory::Zoom:
-		{
-			FocalLengthTable.RemoveFocusPoint(InFocus);
-			break;
-		}
-		case ELensDataCategory::STMap:
-		{
-			STMapTable.RemoveFocusPoint(InFocus);
-			break;
-		}
-		case ELensDataCategory::NodalOffset:
-		{
-			NodalOffsetTable.RemoveFocusPoint(InFocus);
-			break;
-		}
+		SWITCH_FUNCTION_ON_BASE_LENS_TABLES(InDataCategory, RemoveFocusPoint(InFocus))
+		
 		case ELensDataCategory::Focus:
 		{
 			EncodersTable.RemoveFocusPoint(InFocus);
@@ -1130,35 +1122,87 @@ void ULensFile::RemoveFocusPoint(ELensDataCategory InDataCategory, float InFocus
 	}
 }
 
+bool ULensFile::HasFocusPoint(ELensDataCategory InDataCategory, float InFocus) const
+{
+	switch(InDataCategory)
+	{
+		SWITCH_FUNCTION_RETVAL_ON_BASE_LENS_TABLES(InDataCategory, HasFocusPoint(InFocus, InputTolerance))
+
+		// Unsupported on encoder tables
+		case ELensDataCategory::Focus:
+		case ELensDataCategory::Iris:
+		default:
+		{
+			return false;
+		}
+	}
+}
+
+void ULensFile::ChangeFocusPoint(ELensDataCategory InDataCategory, float InExistingFocus, float InNewFocus)
+{
+	switch(InDataCategory)
+	{
+		SWITCH_FUNCTION_ON_BASE_LENS_TABLES(InDataCategory, ChangeFocusPoint(InExistingFocus, InNewFocus, InputTolerance))
+
+		// Changing focus points is unsupported on encoder tables
+		case ELensDataCategory::Focus:
+		case ELensDataCategory::Iris:
+		default:
+		{}
+	}
+}
+
+void ULensFile::MergeFocusPoint(ELensDataCategory InDataCategory, float InSrcFocus, float InDestFocus, bool bReplaceExistingZoomPoints)
+{
+	switch(InDataCategory)
+	{
+		SWITCH_FUNCTION_ON_BASE_LENS_TABLES(InDataCategory, MergeFocusPoint(InSrcFocus, InDestFocus, bReplaceExistingZoomPoints, InputTolerance))
+
+		// Merging focus points is unsupported on encoder tables
+		case ELensDataCategory::Focus:
+		case ELensDataCategory::Iris:
+		default:
+		{}
+	}
+}
+
 void ULensFile::RemoveZoomPoint(ELensDataCategory InDataCategory, float InFocus, float InZoom)
 {
 	switch(InDataCategory)
 	{
-		case ELensDataCategory::Distortion:
+		SWITCH_FUNCTION_ON_BASE_LENS_TABLES(InDataCategory, RemoveZoomPoint(InFocus, InZoom))
+
+		// Encoder tables don't have zoom points
+		case ELensDataCategory::Focus:
+		case ELensDataCategory::Iris:
+		default:
+		{}
+	}
+}
+
+bool ULensFile::HasZoomPoint(ELensDataCategory InDataCategory, float InFocus, float InZoom)
+{
+	switch(InDataCategory)
+	{
+		SWITCH_FUNCTION_RETVAL_ON_BASE_LENS_TABLES(InDataCategory, HasZoomPoint(InFocus, InZoom, InputTolerance))
+
+		// Encoder tables don't have zoom points
+		case ELensDataCategory::Focus:
+		case ELensDataCategory::Iris:
+		default:
 		{
-			DistortionTable.RemoveZoomPoint(InFocus, InZoom);
-			break;
+			return false;
 		}
-		case ELensDataCategory::ImageCenter:
-		{
-			ImageCenterTable.RemoveZoomPoint(InFocus, InZoom);
-			break;
-		}
-		case ELensDataCategory::Zoom:
-		{
-			FocalLengthTable.RemoveZoomPoint(InFocus, InZoom);
-			break;
-		}
-		case ELensDataCategory::STMap:
-		{
-			STMapTable.RemoveZoomPoint(InFocus, InZoom);
-			break;
-		}
-		case ELensDataCategory::NodalOffset:
-		{
-			NodalOffsetTable.RemoveZoomPoint(InFocus, InZoom);
-			break;
-		}
+	}
+}
+
+void ULensFile::ChangeZoomPoint(ELensDataCategory InDataCategory, float InFocus, float InExistingZoom, float InNewZoom)
+{
+	switch(InDataCategory)
+	{
+		SWITCH_FUNCTION_ON_BASE_LENS_TABLES(InDataCategory, ChangeZoomPoint(InFocus, InExistingZoom, InNewZoom, InputTolerance))
+
+		// Encoder tables don't have zoom points
 		case ELensDataCategory::Focus:
 		case ELensDataCategory::Iris:
 		default:

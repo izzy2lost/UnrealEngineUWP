@@ -90,6 +90,21 @@ bool FSTMapFocusPoint::SetPoint(float InZoom, const FSTMapInfo& InData, float In
 	return false;
 }
 
+bool FSTMapFocusPoint::IsCalibrationPoint(float InZoom, float InputTolerance)
+{
+	const FKeyHandle Handle = MapBlendingCurve.FindKey(InZoom, InputTolerance);
+	if(Handle != FKeyHandle::Invalid())
+	{
+		const int32 PointIndex = MapBlendingCurve.GetIndexSafe(Handle);
+		if(ensure(ZoomPoints.IsValidIndex(PointIndex)))
+		{
+			return ZoomPoints[PointIndex].bIsCalibrationPoint;
+		}
+	}
+
+	return false;
+}
+
 void FSTMapFocusPoint::RemovePoint(float InZoomValue)
 {
 	const int32 FoundIndex = ZoomPoints.IndexOfByPredicate([InZoomValue](const FSTMapZoomPoint& Point) { return FMath::IsNearlyEqual(Point.Zoom, InZoomValue); });
@@ -195,9 +210,34 @@ void FSTMapTable::RemoveFocusPoint(float InFocus)
 	LensDataTableUtils::RemoveFocusPoint(FocusPoints, InFocus);
 }
 
+bool FSTMapTable::HasFocusPoint(float InFocus, float InputTolerance) const
+{
+	return DoesFocusPointExists(InFocus, InputTolerance);
+}
+
+void FSTMapTable::ChangeFocusPoint(float InExistingFocus, float InNewFocus, float InputTolerance)
+{
+	LensDataTableUtils::ChangeFocusPoint(FocusPoints, InExistingFocus, InNewFocus, InputTolerance);
+}
+
+void FSTMapTable::MergeFocusPoint(float InSrcFocus, float InDestFocus, bool bReplaceExistingZoomPoints, float InputTolerance)
+{
+	LensDataTableUtils::MergeFocusPoint(FocusPoints, InSrcFocus, InDestFocus, bReplaceExistingZoomPoints, InputTolerance);
+}
+
 void FSTMapTable::RemoveZoomPoint(float InFocus, float InZoom)
 {
 	LensDataTableUtils::RemoveZoomPoint(FocusPoints, InFocus, InZoom);
+}
+
+bool FSTMapTable::HasZoomPoint(float InFocus, float InZoom, float InputTolerance)
+{
+	return DoesZoomPointExists(InFocus, InZoom, InputTolerance);
+}
+
+void FSTMapTable::ChangeZoomPoint(float InFocus, float InExistingZoom, float InNewZoom, float InputTolerance)
+{
+	LensDataTableUtils::ChangeZoomPoint(FocusPoints, InFocus, InExistingZoom, InNewZoom, InputTolerance);
 }
 
 TMap<ELensDataCategory, FLinkPointMetadata> FSTMapTable::GetLinkedCategories() const

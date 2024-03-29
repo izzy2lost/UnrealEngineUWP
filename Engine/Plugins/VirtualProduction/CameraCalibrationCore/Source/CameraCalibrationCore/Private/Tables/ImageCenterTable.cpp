@@ -197,9 +197,34 @@ void FImageCenterTable::RemoveFocusPoint(float InFocus)
 	LensDataTableUtils::RemoveFocusPoint(FocusPoints, InFocus);
 }
 
+bool FImageCenterTable::HasFocusPoint(float InFocus, float InputTolerance) const
+{
+	return DoesFocusPointExists(InFocus, InputTolerance);
+}
+
+void FImageCenterTable::ChangeFocusPoint(float InExistingFocus, float InNewFocus, float InputTolerance)
+{
+	LensDataTableUtils::ChangeFocusPoint(FocusPoints, InExistingFocus, InNewFocus, InputTolerance);
+}
+
+void FImageCenterTable::MergeFocusPoint(float InSrcFocus, float InDestFocus, bool bReplaceExistingZoomPoints, float InputTolerance)
+{
+	LensDataTableUtils::MergeFocusPoint(FocusPoints, InSrcFocus, InDestFocus, bReplaceExistingZoomPoints, InputTolerance);
+}
+
 void FImageCenterTable::RemoveZoomPoint(float InFocus, float InZoom)
 {
 	LensDataTableUtils::RemoveZoomPoint(FocusPoints, InFocus, InZoom);
+}
+
+bool FImageCenterTable::HasZoomPoint(float InFocus, float InZoom, float InputTolerance)
+{
+	return DoesZoomPointExists(InFocus, InZoom, InputTolerance);
+}
+
+void FImageCenterTable::ChangeZoomPoint(float InFocus, float InExistingZoom, float InNewZoom, float InputTolerance)
+{
+	LensDataTableUtils::ChangeZoomPoint(FocusPoints, InFocus, InExistingZoom, InNewZoom, InputTolerance);
 }
 
 bool FImageCenterTable::AddPoint(float InFocus, float InZoom, const FImageCenterInfo& InData, float InputTolerance,

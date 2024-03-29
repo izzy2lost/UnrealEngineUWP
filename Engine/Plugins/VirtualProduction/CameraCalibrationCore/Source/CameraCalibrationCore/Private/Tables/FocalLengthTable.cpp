@@ -15,7 +15,7 @@ float FFocalLengthFocusPoint::GetZoom(int32 Index) const
 	return Fx.Keys[Index].Time;
 }
 
-bool FFocalLengthFocusPoint::GetPoint(float InZoom, FFocalLengthZoomPoint& OutZoomPont, float InputTolerance) const
+bool FFocalLengthFocusPoint::GetPoint(float InZoom, FFocalLengthInfo& OutData, float InputTolerance) const
 {
 	const FKeyHandle FxHandle = Fx.FindKey(InZoom, InputTolerance);
 	if(FxHandle != FKeyHandle::Invalid())
@@ -24,9 +24,8 @@ bool FFocalLengthFocusPoint::GetPoint(float InZoom, FFocalLengthZoomPoint& OutZo
 		const int32 PointIndex = Fx.GetIndexSafe(FxHandle);
 		check(FyHandle != FKeyHandle::Invalid() && ZoomPoints.IsValidIndex(PointIndex))
 
-		OutZoomPont.FocalLengthInfo.FxFy.X = Fx.GetKeyValue(FxHandle);
-		OutZoomPont.FocalLengthInfo.FxFy.Y = Fy.GetKeyValue(FyHandle);
-		OutZoomPont.bIsCalibrationPoint = ZoomPoints[PointIndex].bIsCalibrationPoint;
+		OutData.FxFy.X = Fx.GetKeyValue(FxHandle);
+		OutData.FxFy.Y = Fy.GetKeyValue(FyHandle);
 
 		return true;
 	}
@@ -75,6 +74,20 @@ bool FFocalLengthFocusPoint::SetPoint(float InZoom, const FFocalLengthInfo& InDa
 		ZoomPoints[PointIndex].FocalLengthInfo = InData;
 
 		return true;
+	}
+
+	return false;
+}
+
+bool FFocalLengthFocusPoint::IsCalibrationPoint(float InZoom, float InputTolerance)
+{
+	const FKeyHandle FxHandle = Fx.FindKey(InZoom, InputTolerance);
+	if (FxHandle != FKeyHandle::Invalid())
+	{
+		const int32 PointIndex = Fx.GetIndexSafe(FxHandle);
+		check(ZoomPoints.IsValidIndex(PointIndex))
+
+		return ZoomPoints[PointIndex].bIsCalibrationPoint;
 	}
 
 	return false;
@@ -211,9 +224,34 @@ void FFocalLengthTable::RemoveFocusPoint(float InFocus)
 	LensDataTableUtils::RemoveFocusPoint(FocusPoints, InFocus);
 }
 
+bool FFocalLengthTable::HasFocusPoint(float InFocus,  float InputTolerance) const
+{
+	return DoesFocusPointExists(InFocus, InputTolerance);
+}
+
+void FFocalLengthTable::ChangeFocusPoint(float InExistingFocus, float InNewFocus,  float InputTolerance)
+{
+	LensDataTableUtils::ChangeFocusPoint(FocusPoints, InExistingFocus, InNewFocus, InputTolerance);
+}
+
+void FFocalLengthTable::MergeFocusPoint(float InSrcFocus, float InDestFocus, bool bReplaceExistingZoomPoints,  float InputTolerance)
+{
+	LensDataTableUtils::MergeFocusPoint(FocusPoints, InSrcFocus, InDestFocus, bReplaceExistingZoomPoints, InputTolerance);
+}
+
 void FFocalLengthTable::RemoveZoomPoint(float InFocus, float InZoom)
 {
 	LensDataTableUtils::RemoveZoomPoint(FocusPoints, InFocus, InZoom);
+}
+
+bool FFocalLengthTable::HasZoomPoint(float InFocus, float InZoom,  float InputTolerance)
+{
+	return DoesZoomPointExists(InFocus, InZoom, InputTolerance);
+}
+
+void FFocalLengthTable::ChangeZoomPoint(float InFocus, float InExistingZoom, float InNewZoom,  float InputTolerance)
+{
+	LensDataTableUtils::ChangeZoomPoint(FocusPoints, InFocus, InExistingZoom, InNewZoom, InputTolerance);
 }
 
 bool FFocalLengthTable::DoesFocusPointExists(float InFocus, float InputTolerance) const
@@ -235,11 +273,8 @@ bool FFocalLengthTable::GetPoint(const float InFocus, const float InZoom, FFocal
 {
 	if (const FFocalLengthFocusPoint* FocalLengthFocusPoint = GetFocusPoint(InFocus, InputTolerance))
 	{
-		FFocalLengthZoomPoint ZoomPont;
-		if (FocalLengthFocusPoint->GetPoint(InZoom, ZoomPont, InputTolerance))
+		if (FocalLengthFocusPoint->GetPoint(InZoom, OutData, InputTolerance))
 		{
-			// Copy struct to outer
-			OutData = ZoomPont.FocalLengthInfo;
 			return true;
 		}
 	}
