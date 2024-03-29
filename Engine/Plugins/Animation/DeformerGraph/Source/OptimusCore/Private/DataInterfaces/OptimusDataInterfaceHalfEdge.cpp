@@ -173,13 +173,17 @@ UComputeDataProvider* UOptimusHalfEdgeDataInterface::CreateDataProvider(TObjectP
 void UOptimusHalfEdgeDataProvider::BeginDestroy()
 {
 	Super::BeginDestroy();
-	OnDemandHalfEdgeBuffers.Reset();
 	DestroyFence.BeginFence();
 }
 
 bool UOptimusHalfEdgeDataProvider::IsReadyForFinishDestroy()
 {
-	return Super::IsReadyForFinishDestroy() && DestroyFence.IsFenceComplete();
+	if (Super::IsReadyForFinishDestroy() && DestroyFence.IsFenceComplete())
+	{
+		OnDemandHalfEdgeBuffers.Reset();
+		return true;
+	}
+	return false;
 }
 
 FComputeDataProviderRenderProxy* UOptimusHalfEdgeDataProvider::GetRenderProxy()
