@@ -288,7 +288,7 @@ namespace EpicGames.BuildGraph
 			}
 			NameToAggregate = newNameToAggregate;
 
-			// Remove any labels that are no longer value
+			// Remove any labels that are no longer valid
 			foreach (BgLabelDef label in Labels)
 			{
 				label.RequiredNodes.RemoveWhere(x => !retainNodes.Contains(x));
@@ -298,6 +298,17 @@ namespace EpicGames.BuildGraph
 
 			// Remove any badges which do not have all their dependencies
 			Badges.RemoveAll(x => x.Nodes.Any(y => !retainNodes.Contains(y)));
+
+			// Rebuild the tag name to output dictionary
+			Dictionary<string, BgNodeOutput> newTagNameToNodeOutput = new Dictionary<string, BgNodeOutput>(TagNameToNodeOutput.Comparer);
+			foreach (BgNodeOutput output in Agents.SelectMany(x => x.Nodes).SelectMany(x => x.Outputs))
+			{
+				newTagNameToNodeOutput.Add(output.TagName, output);
+			}
+			TagNameToNodeOutput = newTagNameToNodeOutput;
+
+			// Remove any artifacts which are not produced
+			Artifacts.RemoveAll(x => !TagNameToNodeOutput.ContainsKey(x.TagName));
 		}
 
 		/// <summary>
@@ -718,6 +729,18 @@ namespace EpicGames.BuildGraph
 				foreach (string aggregateName in aggregates.Select(x => x.Name))
 				{
 					logger.LogInformation("    {Aggregate}", aggregateName);
+				}
+				logger.LogInformation("");
+			}
+
+			// Print all the produced artifacts
+			BgArtifactDef[] artifacts = Artifacts.OrderBy(x => x.Name).ToArray();
+			if (artifacts.Length > 0)
+			{
+				logger.LogInformation("Artifacts:");
+				foreach (BgArtifactDef artifact in artifacts.OrderBy(x => x.Description))
+				{
+					logger.LogInformation("    {Name}", artifact.Name);
 				}
 				logger.LogInformation("");
 			}

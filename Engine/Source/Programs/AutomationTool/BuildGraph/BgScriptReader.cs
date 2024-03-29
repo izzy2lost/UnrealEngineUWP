@@ -1244,6 +1244,10 @@ namespace AutomationTool
 				{
 					tag = $"#{name}";
 				}
+				if (!_graph.TagNameToNodeOutput.TryGetValue(tag, out _))
+				{
+					LogError(element, "Artifact '{Name}' references non-existent tag '{Tag}'", name, tag);
+				}
 
 				string[] keys = ReadListAttribute(element, "Keys");
 				string[] metadata = ReadListAttribute(element, "Metadata");
