@@ -29,14 +29,11 @@ public class BinkAudioDecoder : ModuleRules
         {
             return Path.Combine(ModuleDirectory, "..", "SDK", "BinkAudio", "Lib", "libbinka_ue_decode_osx_static.a");
         }
-        if (Target.Platform == UnrealTargetPlatform.IOS)
+        if (Target.IsInPlatformGroup(UnrealPlatformGroup.IOS))
         {
 			string LibExt = (Target.Architecture == UnrealArch.IOSSimulator) ? "_sim.a" : ".a";
-            return Path.Combine(ModuleDirectory, "..", "SDK", "BinkAudio", "Lib", "libbinka_ue_decode_ios_static" + LibExt);
-        }
-        if (Target.Platform == UnrealTargetPlatform.TVOS)
-        {
-            return Path.Combine(ModuleDirectory, "..", "SDK", "BinkAudio", "Lib", "libbinka_ue_decode_tvos_static.a");
+            string PlatformName = Target.Platform.ToString().ToLower();
+            return Path.Combine(ModuleDirectory, "..", "SDK", "BinkAudio", "Lib", $"libbinka_ue_decode_{PlatformName}_static{LibExt}");
         }
         return null;
     }
