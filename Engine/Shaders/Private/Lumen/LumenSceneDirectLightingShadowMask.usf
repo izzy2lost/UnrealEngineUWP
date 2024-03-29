@@ -155,6 +155,12 @@ void LumenSceneDirectLightingShadowMaskFromLightAttenuationCS(
 				ShadowMaskRay.ShadowFactor *= ComputeLightProfileMultiplier(TranslatedWorldPosition, DeferredLightUniforms.TranslatedWorldPosition, -DeferredLightUniforms.Direction, DeferredLightUniforms.Tangent, DeferredLightUniforms.IESAtlasIndex);
 				ShadowMaskRay.bShadowFactorComplete = ShadowMaskRay.bShadowFactorComplete || ShadowMaskRay.ShadowFactor < 0.01f;
 			}
+
+			const bool bCastShadows = LightData.ShadowedBits >= 3;
+			if (!bCastShadows)
+			{
+				ShadowMaskRay.bShadowFactorComplete = true;
+			}
 		}
 		else
 		{
