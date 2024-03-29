@@ -506,6 +506,9 @@ private:
 	void TickControlShape(AControlRigShapeActor* ShapeActor, const FTransform& ComponentTransform) const;
 	bool ModeSupportedByShapeActor(const AControlRigShapeActor* ShapeActor, UE::Widget::EWidgetMode InMode) const;
 
+public:
+	//notify driven controls, should this be inside CR instead?
+	static void NotifyDrivenControls(UControlRig* InControlRig, const FRigElementKey& InKey, const FRigControlModifiedContext& InContext);
 
 protected:
 	
@@ -525,7 +528,6 @@ private:
 	// Post pose update handler
 	void OnPoseInitialized();
 	void PostPoseUpdate() const;
-	void NotifyDrivenControls(UControlRig* InControlRig, const FRigElementKey& InKey);
 	void UpdateSelectabilityOnSkeletalMeshes(UControlRig* InControlRig, bool bEnabled);
 
 	bool IsMovingCamera(const FViewport* InViewport) const;

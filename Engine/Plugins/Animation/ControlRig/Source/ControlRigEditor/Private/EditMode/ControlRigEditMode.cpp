@@ -3303,6 +3303,8 @@ void FControlRigEditMode::ZeroTransforms(bool bSelectionOnly)
 	}
 
 	FScopedTransaction Transaction(LOCTEXT("HierarchyZeroTransforms", "Zero Transforms"));
+	FRigControlModifiedContext Context;
+	Context.SetKey = EControlRigSetKey::DoNotCare;
 
 	for (UControlRig* ControlRig : ControlRigs)
 	{
@@ -3395,10 +3397,11 @@ void FControlRigEditMode::ZeroTransforms(bool bSelectionOnly)
 			}
 			if (ControlElement)
 			{
-				ControlRig->SetControlLocalTransform(ElementToReset.Name, InitialLocalTransform, true, FRigControlModifiedContext(), true, true);
+				ControlRig->SetControlLocalTransform(ElementToReset.Name, InitialLocalTransform, true, Context, true, true);
 				const FVector InitialAngles = ControlRig->GetHierarchy()->GetControlPreferredEulerAngles(ControlElement, ControlElement->Settings.PreferredRotationOrder, true);
 				ControlRig->GetHierarchy()->SetControlPreferredEulerAngles(ControlElement, InitialAngles, ControlElement->Settings.PreferredRotationOrder);
-				NotifyDrivenControls(ControlRig, ElementToReset);
+				NotifyDrivenControls(ControlRig, ElementToReset, Context);
+
 				if (bHasNonDefaultParent == false)
 				{
 					ControlRig->ControlModified().Broadcast(ControlRig, ControlElement, EControlRigSetKey::DoNotCare);
@@ -3432,7 +3435,7 @@ void FControlRigEditMode::ZeroTransforms(bool bSelectionOnly)
 						FTransform GlobalTransform = ControlRig->GetHierarchy()->GetGlobalTransform(ElementToReset);
 						GlobalTransforms.Add(ElementToReset, GlobalTransform);
 					}
-					NotifyDrivenControls(ControlRig, ElementToReset);
+					NotifyDrivenControls(ControlRig, ElementToReset,Context);
 				}
 				else
 				{
@@ -3474,7 +3477,7 @@ void FControlRigEditMode::ZeroTransforms(bool bSelectionOnly)
 							{
 								ControlRig->SetControlGlobalTransform(ElementToReset.Name, *GlobalTransform, true);
 								ControlRig->Evaluate_AnyThread();
-								NotifyDrivenControls(ControlRig, ElementToReset);
+								NotifyDrivenControls(ControlRig, ElementToReset, Context);
 							}
 						}
 						else
@@ -3504,7 +3507,7 @@ void FControlRigEditMode::ZeroTransforms(bool bSelectionOnly)
 			ControlRig->Evaluate_AnyThread();
 			for (const FRigElementKey& ControlToReset : ControlsToReset)
 			{
-				NotifyDrivenControls(ControlRig, ControlToReset);
+				NotifyDrivenControls(ControlRig, ControlToReset, Context);
 			}
 		}
 	}
@@ -4812,7 +4815,7 @@ void FControlRigEditMode::MoveControlShape(AControlRigShapeActor* ShapeActor, co
 				ControlRig->Evaluate_AnyThread();
 				SetControlShapeTransform(ShapeActor, NewTransform, ToWorldTransform, Context, bPrintPythonCommands, /*fix flips*/ true);
 				//UpdatePreferredEulerAngles(ControlRig);
-				NotifyDrivenControls(ControlRig, ShapeActor->GetElementKey());
+				NotifyDrivenControls(ControlRig, ShapeActor->GetElementKey(),Context);
 				if(const FRigControlElement* ControlElement = ControlRig->FindControl(ShapeActor->ControlName))
 				{
 					if(!bIsTransientControl)
@@ -5455,14 +5458,14 @@ void FControlRigEditMode::PostPoseUpdate() const
 
 }
 
-void FControlRigEditMode::NotifyDrivenControls(UControlRig* InControlRig, const FRigElementKey& InKey)
+void FControlRigEditMode::NotifyDrivenControls(UControlRig* InControlRig, const FRigElementKey& InKey, const FRigControlModifiedContext& InContext)
 {
 	// if we are changing a proxy control - we also need to notify the change for the driven controls
 	if (FRigControlElement* ControlElement = InControlRig->GetHierarchy()->Find<FRigControlElement>(InKey))
 	{
 		if(ControlElement->CanDriveControls())
 		{
-			FRigControlModifiedContext Context;
+			FRigControlModifiedContext Context(InContext);
 			Context.EventName = FRigUnit_BeginExecution::EventName;
 
 			for(const FRigElementKey& DrivenKey : ControlElement->Settings.DrivenControls)

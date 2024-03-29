@@ -1695,6 +1695,8 @@ void FControlRigParameterTrackEditor::OnAddTransformKeysForSelectedObjects(EMovi
 	FScopedTransaction KeyTransaction(LOCTEXT("SetKeysOnControls", "Set Keys On Controls"), !GIsTransacting);
 
 	static constexpr bool bInConstraintSpace = true;
+	FRigControlModifiedContext NotifyDrivenContext;
+	NotifyDrivenContext.SetKey = EControlRigSetKey::Always;
 	for (const TPair<UControlRig*, TArray<FRigElementKey>>& Selection : SelectedControls)
 	{
 		UControlRig* ControlRig = Selection.Key;
@@ -1707,8 +1709,12 @@ void FControlRigParameterTrackEditor::OnAddTransformKeysForSelectedObjects(EMovi
 				const TArray<FName> ControlNames = ControlRig->CurrentControlSelection();
 				for (const FName& ControlName : ControlNames)
 				{
-					AddControlKeys(Object, ControlRig, Name, ControlName, ChannelsToKey,
-						ESequencerKeyMode::ManualKeyForced, FLT_MAX, bInConstraintSpace);
+					if (FRigControlElement* ControlElement = ControlRig->FindControl(ControlName))
+					{
+						AddControlKeys(Object, ControlRig, Name, ControlName, ChannelsToKey,
+							ESequencerKeyMode::ManualKeyForced, FLT_MAX, bInConstraintSpace);
+						FControlRigEditMode::NotifyDrivenControls(ControlRig, ControlElement->GetKey(), NotifyDrivenContext);
+					}
 				}
 			}
 		}

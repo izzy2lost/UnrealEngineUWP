@@ -240,6 +240,8 @@ static EAnimDetailSelectionState CachePropertySelection(TWeakPtr<FCurveEditor>& 
 
 void UAnimDetailControlsKeyedProxy::SetKey(TSharedPtr<ISequencer>& Sequencer, const IPropertyHandle& KeyedPropertyHandle)
 {
+	FRigControlModifiedContext NotifyDrivenContext; //always key ever
+	NotifyDrivenContext.SetKey = EControlRigSetKey::Always;
 	for (const TPair<TWeakObjectPtr<UControlRig>, FControlRigProxyItem>& Items : ControlRigItems)
 	{
 		if (UControlRig* ControlRig = Items.Value.ControlRig.Get())
@@ -255,6 +257,7 @@ void UAnimDetailControlsKeyedProxy::SetKey(TSharedPtr<ISequencer>& Sequencer, co
 						FName PropertyName = KeyedPropertyHandle.GetProperty()->GetFName();
 						Context.KeyMask = (uint32)GetChannelToKeyFromPropertyName(PropertyName);
 						SetControlRigElementValueFromCurrent(ControlRig, ControlElement, Context);
+						FControlRigEditMode::NotifyDrivenControls(ControlRig, ControlElement->GetKey(), NotifyDrivenContext);
 					}
 				}
 			}
@@ -3691,6 +3694,17 @@ bool UControlRigDetailPanelControlProxies::SelectPropertyInternal(UControlRigCon
 								if (UMovieSceneControlRigParameterTrack* Track = Cast<UMovieSceneControlRigParameterTrack>(TrackModel->GetTrack()))
 								{
 									if (Track->GetControlRig() != ControlRig)
+									{
+										continue;
+									}
+									if (TViewModelPtr<FChannelGroupOutlinerModel> ChannelModel = CastViewModel<FChannelGroupOutlinerModel>(OutlinerExtenstionIt.GetCurrentItem()))
+									{
+										if (ChannelModel->GetChannel(Track->GetSectionToKey()) == nullptr) //if not section to key we also don't select it.
+										{
+											continue;
+										}
+									}
+									else
 									{
 										continue;
 									}

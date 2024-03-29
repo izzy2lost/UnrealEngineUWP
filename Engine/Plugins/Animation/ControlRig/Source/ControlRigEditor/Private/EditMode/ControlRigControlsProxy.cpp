@@ -253,6 +253,49 @@ void UControlRigControlsProxy::SelectionChanged(bool bInSelected)
 	}
 }
 
+void UControlRigControlsProxy::AddInteractions(EControlRigContextChannelToKey ChannelsToKey, EPropertyChangeType::Type ChangeType)
+{
+	if (ChangeType == EPropertyChangeType::Interactive || ChangeType == EPropertyChangeType::ValueSet)
+	{
+		EControlRigInteractionType InteractionType = EControlRigInteractionType::None;
+		if (EnumHasAnyFlags(ChannelsToKey, EControlRigContextChannelToKey::TranslationX)
+			|| EnumHasAnyFlags(ChannelsToKey, EControlRigContextChannelToKey::TranslationY)
+			|| EnumHasAnyFlags(ChannelsToKey, EControlRigContextChannelToKey::TranslationZ))
+		{
+			EnumAddFlags(InteractionType, EControlRigInteractionType::Translate);
+		}
+		if (EnumHasAnyFlags(ChannelsToKey, EControlRigContextChannelToKey::RotationX)
+			|| EnumHasAnyFlags(ChannelsToKey, EControlRigContextChannelToKey::RotationY)
+			|| EnumHasAnyFlags(ChannelsToKey, EControlRigContextChannelToKey::RotationZ))
+		{
+			EnumAddFlags(InteractionType, EControlRigInteractionType::Rotate);
+		}
+		if (EnumHasAnyFlags(ChannelsToKey, EControlRigContextChannelToKey::ScaleX)
+			|| EnumHasAnyFlags(ChannelsToKey, EControlRigContextChannelToKey::ScaleY)
+			|| EnumHasAnyFlags(ChannelsToKey, EControlRigContextChannelToKey::ScaleZ))
+		{
+			EnumAddFlags(InteractionType, EControlRigInteractionType::Scale);
+		}
+		for (const TPair<TWeakObjectPtr<UControlRig>, FControlRigProxyItem>& Items : ControlRigItems)
+		{
+			if (UControlRig* ControlRig = Items.Value.ControlRig.Get())
+			{
+				for (const FName& CName : Items.Value.ControlElements)
+				{
+					if (FRigControlElement* ControlElement = Items.Value.GetControlElement(CName))
+					{
+						if (InteractionScopes.Contains(ControlElement) == false)
+						{
+							FControlRigInteractionScope* InteractionScope = new FControlRigInteractionScope(ControlRig, ControlElement->GetKey(), InteractionType);
+							InteractionScopes.Add(ControlElement, InteractionScope);
+						}
+					}
+				}
+			}
+		}
+	}
+}
+
 void UControlRigControlsProxy::PostEditChangeChainProperty(struct FPropertyChangedChainEvent& PropertyChangedEvent)
 {
 	Super::PostEditChangeChainProperty(PropertyChangedEvent);
@@ -268,62 +311,12 @@ void UControlRigControlsProxy::PostEditChangeChainProperty(struct FPropertyChang
 			OwnerControlRig.Get()->SelectControl(OwnerControlElement.GetKey().Name, bSelected);
 			OwnerControlRig.Get()->Evaluate_AnyThread();
 		}
+		return;
 	}
 #if WITH_EDITOR
 	if (PropertyChangedEvent.Property)
 	{
-		if (PropertyChangedEvent.ChangeType == EPropertyChangeType::Interactive)
-		{
-			EControlRigInteractionType InteractionType = EControlRigInteractionType::None;
-			FProperty* Owner = PropertyChangedEvent.Property->GetOwnerProperty();
-			if (FEditPropertyChain::TDoubleLinkedListNode* MemberNode = PropertyChangedEvent.PropertyChain.GetActiveMemberNode())
-			{
-				if (FProperty* MemberProperty = MemberNode->GetValue())
-				{
-					if (MemberProperty->GetFName() == GET_MEMBER_NAME_CHECKED(FEulerTransform, Location))
-					{
-						InteractionType = EControlRigInteractionType::Translate;
-					}
-					else if (MemberProperty->GetFName() == GET_MEMBER_NAME_CHECKED(FEulerTransform, Rotation))
-					{
-						InteractionType = EControlRigInteractionType::Rotate;
-					}
-					else if (MemberProperty->GetFName() == GET_MEMBER_NAME_CHECKED(FEulerTransform, Scale))
-					{
-						InteractionType = EControlRigInteractionType::Scale;
-					}
-				}
-			}
-			for (const TPair<TWeakObjectPtr<UControlRig>, FControlRigProxyItem>& Items : ControlRigItems)
-			{
-				if (UControlRig* ControlRig = Items.Value.ControlRig.Get())
-				{
-					for (const FName& CName : Items.Value.ControlElements)
-					{
-						if (FRigControlElement * ControlElement = Items.Value.GetControlElement(CName))
-						{
-							if (InteractionScopes.Contains(ControlElement) == false)
-							{
-								FControlRigInteractionScope* InteractionScope = new FControlRigInteractionScope(ControlRig, ControlElement->GetKey(), InteractionType);
-								InteractionScopes.Add(ControlElement, InteractionScope);
-							}
-						}
-					}
-				}
-			}
-		}
-		else
-		{
-			for (TPair<FRigControlElement*, FControlRigInteractionScope*>& Scope : InteractionScopes)
-			{
-				if (Scope.Value)
-				{
-					delete Scope.Value;
-				}
-			}
-			InteractionScopes.Reset();
-		}
-
+		
 		//set values
 		FProperty* Property = PropertyChangedEvent.Property;
 		FProperty* MemberProperty = nullptr;
@@ -333,9 +326,14 @@ void UControlRigControlsProxy::PostEditChangeChainProperty(struct FPropertyChang
 		}
 		if (PropertyIsOnProxy(Property, MemberProperty))
 		{
+			EControlRigContextChannelToKey ChannelToKeyContext = GetChannelToKeyFromPropertyName(Property->GetFName());
+			AddInteractions(ChannelToKeyContext, PropertyChangedEvent.ChangeType);
 			FRigControlModifiedContext Context;
 			Context.SetKey = EControlRigSetKey::DoNotCare;
-			Context.KeyMask = (uint32)GetChannelToKeyFromPropertyName(Property->GetFName());
+			Context.KeyMask = (uint32)ChannelToKeyContext;
+			FRigControlModifiedContext NotifyDrivenContext; //we key all for them
+			Context.SetKey = EControlRigSetKey::DoNotCare;
+
 			UWorld* World = GCurrentLevelEditingViewportClient ? GCurrentLevelEditingViewportClient->GetWorld() : nullptr;
 			const FConstraintsManagerController& Controller = FConstraintsManagerController::Get(World);
 			Controller.EvaluateAllConstraints();
@@ -344,13 +342,20 @@ void UControlRigControlsProxy::PostEditChangeChainProperty(struct FPropertyChang
 			{
 				if (UControlRig* ControlRig = Items.Value.ControlRig.Get())
 				{
+					bool bDoReavaluate = false;
 					//we do this backwards so ValueChanged later is set up correctly since that iterates in the other direction
 					for (int32 Index = Items.Value.ControlElements.Num() - 1; Index >= 0; --Index)
 					{
 						if (FRigControlElement* ControlElement = Items.Value.GetControlElement(Items.Value.ControlElements[Index]))
 						{
 							SetControlRigElementValueFromCurrent(ControlRig, ControlElement, Context);
+							FControlRigEditMode::NotifyDrivenControls(ControlRig, ControlElement->GetKey(), NotifyDrivenContext);
+							bDoReavaluate = true;
 						}
+					}
+					if (bDoReavaluate)
+					{
+						ControlRig->Evaluate_AnyThread();
 					}
 				}
 			}
@@ -367,8 +372,19 @@ void UControlRigControlsProxy::PostEditChangeChainProperty(struct FPropertyChang
 					SetBindingValueFromCurrent(SItems.Key.Get(), Binding.Binding, Context, PropertyChangedEvent.ChangeType == EPropertyChangeType::Interactive);
 				}
 			}
+			if (PropertyChangedEvent.ChangeType != EPropertyChangeType::Interactive)
+			{
+				for (TPair<FRigControlElement*, FControlRigInteractionScope*>& Scope : InteractionScopes)
+				{
+					if (Scope.Value)
+					{
+						delete Scope.Value;
+					}
+				}
+				InteractionScopes.Reset();
+			}
+			ValueChanged();
 		}
-		ValueChanged();
 	}
 #endif
 }

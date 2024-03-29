@@ -120,6 +120,8 @@ private:
 
 	FCachedRigElement& GetOwnerControlElement();
 
+	void AddInteractions(EControlRigContextChannelToKey ChannelsToKey, EPropertyChangeType::Type ChangeType);
+
 public:
 
 	//if individual it will show up independently, this will happen for certain nested controls
