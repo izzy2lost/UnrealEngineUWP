@@ -730,6 +730,7 @@ Exports an snapshot from Zen to a specified destination.
 | SnapshotDescriptorCloudHttpVersion | String             | Optional | The http version to use when writing a snapshot descriptor for a cloud destination                                           |
 | DestinationCloudNamespace          | String             | Optional | The namespace to use when exporting to a cloud destination                                                                   |
 | DestinationCloudBucket             | String             | Optional | A custom bucket name to use when exporting to a cloud destination                                                            |
+| DestinationZenHost                 | String             | Optional | The host name to use when exporting to a zen destination                                                                     |
 | DestinationFileDir                 | DirectoryReference | Optional | The directory to use when exporting to a file destination                                                                    |
 | DestinationFileName                | String             | Optional | The filename to use when exporting to a file destination                                                                     |
 | OverridePlatformCookedDir          | String             | Optional | Optional. Where to look for the ue.projectstore The pattern {Platform} can be used for exporting multiple platforms at once. |
