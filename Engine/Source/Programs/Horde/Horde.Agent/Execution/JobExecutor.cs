@@ -225,6 +225,7 @@ namespace Horde.Agent.Execution
 		protected BeginBatchResponse Batch { get; }
 
 		protected List<string> _additionalArguments = new List<string>();
+		protected bool _allowTargetChanges;
 
 		protected bool _compileAutomationTool = true;
 
@@ -312,6 +313,10 @@ namespace Horde.Agent.Execution
 				else if (argument.Equals("-SavePreprocessed", StringComparison.OrdinalIgnoreCase))
 				{
 					_savePreprocessedScript = true;
+				}
+				else if (argument.Equals("-AllowTargetChanges", StringComparison.OrdinalIgnoreCase))
+				{
+					_allowTargetChanges = true;
 				}
 				else if (argument.StartsWith(TargetArgumentPrefix, StringComparison.OrdinalIgnoreCase))
 				{
@@ -485,6 +490,15 @@ namespace Horde.Agent.Execution
 			}
 			arguments.AppendArgument("-HordeExport=", definitionFile.FullName);
 			arguments.AppendArgument("-ListOnly");
+
+			if (!_allowTargetChanges)
+			{
+				foreach (string target in _targets)
+				{
+					arguments.AppendArgument(TargetArgumentPrefix + target);
+				}
+			}
+
 			//Arguments.AppendArgument("-TokenSignature=", JobId.ToString());
 			foreach (string additionalArgument in _additionalArguments)
 			{
