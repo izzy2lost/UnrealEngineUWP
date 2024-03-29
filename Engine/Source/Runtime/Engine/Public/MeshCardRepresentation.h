@@ -152,6 +152,11 @@ public:
 		return UE::Math::TBox<T>(BoxMin, BoxMax);
 	}
 
+	bool ContainsNaN() const
+	{
+		return Origin.ContainsNaN() || AxisX.ContainsNaN() || AxisY.ContainsNaN() || AxisZ.ContainsNaN() || Extent.ContainsNaN();
+	}
+
 	friend FArchive& operator<<(FArchive& Ar, TLumenCardOBB<T>& Data)
 	{
 		Ar << Data.AxisX;

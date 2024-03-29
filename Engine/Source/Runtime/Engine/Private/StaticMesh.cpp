@@ -1649,6 +1649,13 @@ void FStaticMeshRenderData::SerializeInlineDataRepresentations(FArchive& Ar, USt
 					LOD.CardRepresentationData = new FCardRepresentationData();
 				}
 
+#if !UE_BUILD_SHIPPING
+				if (LOD.CardRepresentationData->ContainsNaN())
+				{
+					UE_LOG(LogStaticMesh, Display, TEXT("FStaticMeshRenderData::SerializeInlineDataRepresentations found NaN in CardRepresentationData of '%s'. LOD:%d"), *GetPathNameSafe(Owner), ResourceIndex);
+				}
+#endif // UE_BUILD_SHIPPING
+
 				Ar << *(LOD.CardRepresentationData);
 			}
 		}
@@ -1814,6 +1821,12 @@ void FStaticMeshRenderData::Serialize(FArchive& Ar, UStaticMesh* Owner, bool bCo
 							LOD.DistanceFieldData->AssetName = Owner->GetFName();
 						}
 
+#if !UE_BUILD_SHIPPING
+						if (LOD.DistanceFieldData->LocalSpaceMeshBounds.ContainsNaN())
+						{
+							UE_LOG(LogStaticMesh, Display, TEXT("FStaticMeshRenderData::Serialize found NaN in DistanceFieldData of '%s'. LOD:%d"), *GetPathNameSafe(Owner), ResourceIndex);
+						}
+#endif // UE_BUILD_SHIPPING
 						LOD.DistanceFieldData->Serialize(Ar, Owner);
 					}
 				}
