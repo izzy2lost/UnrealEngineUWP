@@ -4,14 +4,14 @@
 
 **Horde** has been installed successfully. To continue setting up your deployment, check out the following guides:
 
-* **[Installing the Horde Agent software](Tutorials/InstallHorde.md#horde-agents)**
-* **[Setting up remote C++ compilation with Unreal Build Accelerator](Tutorials/RemoteCompilation.md)**
-* **[Setting up build automation](Tutorials/BuildAutomation.md)**
-* **[Setting up test automation](Tutorials/TestAutomation.md)**
-* **[Setting up analytics for your team](Tutorials/Analytics.md)**
-* **[Setting up mobile and console devices](Tutorials/DeviceManager.md)**
-* **[Setting up UnrealGameSync and distributing Unreal Editor to content creators](Tutorials/UnrealGameSync.md)**
-* **[Setting up authorization](Tutorials/Authorization.md)**
+* **[Install the Horde agent](Tutorials/InstallHorde.md)**
+* **[Enable remote C++ compilation with Unreal Build Accelerator](Tutorials/RemoteCompilation.md)**
+* **[Set up build automation](Tutorials/BuildAutomation.md)**
+* **[Enable test automation with Gauntlet](Tutorials/TestAutomation.md)**
+* **[Get telemetry and analytics for your team](Tutorials/Analytics.md)**
+* **[Work with mobile and console devices](Tutorials/DeviceManager.md)**
+* **[Install UnrealGameSync and distribute Unreal Editor to your team](Tutorials/UnrealGameSync.md)**
+* **[Enable authentication](Tutorials/Authentication.md)**
 
 Alternatively, check out the full documentation through the `Help` menu at the top right of the page.
 

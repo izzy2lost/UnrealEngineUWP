@@ -2,22 +2,14 @@
 
 ## Getting Started
 
-* **[Installing Horde](Tutorials/InstallHorde.md)**
-* **[Setting up remote C++ compilation with Unreal Build Accelerator](Tutorials/RemoteCompilation.md)**
-* **[Setting up build automation](Tutorials/BuildAutomation.md)**
-* **[Setting up test automation](Tutorials/TestAutomation.md)**
-* **[Setting up analytics for your team](Tutorials/Analytics.md)**
-* **[Setting up mobile and console devices](Tutorials/DeviceManager.md)**
-* **[Setting up UnrealGameSync and distributing Unreal Editor to content creators](Tutorials/UnrealGameSync.md)**
-* **[Setting up authorization](Tutorials/Authorization.md)**
-
-## Status
-
-Horde is under heavy development, and large parts of it are still in flux. While we use aspects of it
-(particularly the CI system) heavily at Epic, we consider it experimental for Unreal Engine licensees
-and offer limited support for it.
-
-See also: [Feature Status](Features.md)
+* **[Install the Horde agent](Tutorials/InstallHorde.md)**
+* **[Enable remote C++ compilation with Unreal Build Accelerator](Tutorials/RemoteCompilation.md)**
+* **[Set up build automation](Tutorials/BuildAutomation.md)**
+* **[Enable test automation with Gauntlet](Tutorials/TestAutomation.md)**
+* **[Get telemetry and analytics for your team](Tutorials/Analytics.md)**
+* **[Work with mobile and console devices](Tutorials/DeviceManager.md)**
+* **[Install UnrealGameSync and distribute Unreal Editor to your team](Tutorials/UnrealGameSync.md)**
+* **[Enable authentication](Tutorials/Authentication.md)**
 
 ## Reference
 
@@ -32,6 +24,14 @@ Horde's reference documentation is divided into sections by target audience:
 * [**Horde Internals**](Internals.md)
   * Describes how to build and modify Horde, and its architecture.
   * **Target audience:** Developers wishing to extend Horde.
+
+## Status
+
+Horde is under heavy development, and large parts of it are still in flux. While we use aspects of it
+(particularly the CI system) heavily at Epic, we consider it experimental for Unreal Engine licensees
+and offer limited support for it.
+
+See also: [Feature Status](Features.md)
 
 ## Further Reading
 

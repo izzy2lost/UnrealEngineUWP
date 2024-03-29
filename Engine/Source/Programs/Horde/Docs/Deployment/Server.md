@@ -196,8 +196,45 @@ Settings for port usage are defined in [Server.json](ServerSettings.md):
 
 ### HTTPS
 
-To serve data over HTTPS, set the `HttpsPort` property in the [Server.json](ServerSettings.md) file. The server
-machine must have a correctly configured certificate to serve data correctly.
+To serve data over HTTPS, set the `HttpsPort` property in the [Server.json](ServerSettings.md) file.
+
+Configure the certificate for [Kestrel](https://learn.microsoft.com/en-us/aspnet/core/fundamentals/servers/kestrel?view=aspnetcore-8.0)
+(the NET Core web server) by setting the default certificate in the same file.
+
+Cross-platform:
+
+   ```json
+    "Kestrel": {
+        "Certificates": {
+            "Default": {
+                "Path": "C:\\cert\\test.pfx",
+                "Password": "my-password"
+            }
+        }
+    }
+   ```
+
+Windows (using the system certificate store):
+
+   ```json
+    "Kestrel": {
+        "Certificates": {
+            "Default":
+            {
+                "Subject": "my-domain.com",
+
+                // Use the 'Personal' certificate store on the local machine
+                "Store": "My",
+                "Location": "LocalMachine"
+            }
+        }
+    }
+   ```
+
+> **Note**: The `Kestrel` object must be added at the root scope of the file, not within the `Horde` object.
+
+Other ways to configure certificates for Kestrel are listed on
+[MSDN](https://learn.microsoft.com/en-us/aspnet/core/fundamentals/servers/kestrel/endpoints?view=aspnetcore-8.0#configure-https).
 
 Both HTTP/1.1 and HTTP/2.0 traffic can be served over the `HttpsPort`. Unencrypted traffic can be disabled by
 setting `HttpPort` and `Http2Port` to zero.
@@ -206,6 +243,8 @@ There are occasions where the server provides links back to itself (the OIDC dis
 Horde's internal account system, for example), and it's important that these URLs match the HTTPS certificate.
 By default, this URL is derived from the server's reported DNS name, but this can be overridden through the
 `ServerUrl` property.
+
+To set up a self-signed certificate for testing see [Tutorials > Self Signed Certs](..\Tutorials\SelfSignedCerts.md).
 
 ### Monitoring
 
@@ -222,13 +261,13 @@ telemetry capture are [listed here](ServerSettings.md#opentelemetrysettings).
 In order to separate lighter request traffic from heavier background operations, the Horde server can be configured to
 run in different RunModes. You can configure these via the [RunMode](ServerSettings.md) setting.
 
-### Authorization
+### Authentication
 
 Horde supports [OpenID Connect (OIDC)](https://openid.net/developers/how-connect-works/) for authentication using
 an external identity provider. OIDC is a widely used auth standard, and Okta, AWS, Azure, Google, Facebook, and
 many others implement identity providers compatible with it.
 
-The [Getting Started > Authorization](../Tutorials/Authorization.md) page explains how to configure Horde's internal
+The [Getting Started > Authentication](../Tutorials/Authentication.md) page explains how to configure Horde's internal
 account system and OIDC provider.
 
 The following settings in [Server.json](ServerSettings.md) are required to configure an external OIDC provider:

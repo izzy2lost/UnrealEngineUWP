@@ -398,6 +398,7 @@ Configuration for storage
 
 Name | Description
 ---- | -----------
+`enableGC` | `boolean`<br>Whether to enable garbage collection
 `backends` | [`BackendConfig`](#backendconfig)`[]`<br>List of storage backends
 `namespaces` | [`NamespaceConfig`](#namespaceconfig)`[]`<br>List of namespaces for storage
 

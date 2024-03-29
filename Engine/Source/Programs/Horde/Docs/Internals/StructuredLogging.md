@@ -87,10 +87,6 @@ over plain text output and construct structured log events from them. Some are i
 `Engine/Source/Programs/AutomationTool/AutomationUtils/Matchers/...`).
 These are used by the `LogEventParser` class in EpicGames.Core.
 
-* TODO: ILogCursor - window
-* TODO: ILogMatcher - MUST be stateless
-* TODO: Explain where to implement log parsers
-
 To implement a new matcher for plain-text log output, create a class that implements the `ILogEventMatcher` interface
 from `EpicGames.Core`, and ensure it's registered 
 

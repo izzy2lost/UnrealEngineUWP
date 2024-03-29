@@ -1,6 +1,6 @@
-[Horde](../../README.md) > Getting Started: Authorization
+[Horde](../../README.md) > Getting Started: Authentication
 
-# Getting Started: Authorization
+# Getting Started: Authentication
 
 ## Introduction
 
@@ -10,7 +10,7 @@ deployments will probably want users to log in, and restrict the actions they ca
 To do this, Horde supports **[OAuth2](https://oauth.net/2/)** and **[OIDC](https://openid.net/developers/how-connect-works/)**,
 which is supported by most third party identity providers - including Okta, AWS, Azure, and Google.
 Configuring an external identity provider is out of scope for this documentation, though the relevant configuration
-points are touched on in the [Deployment > Server](../Deployment/Server.md#authorization) page.
+points are touched on in the [Deployment > Server](../Deployment/Server.md#authentication) page.
 
 If you don't have an existing OIDC-compatible identity provider, Horde includes it's own - which this guide covers.
 

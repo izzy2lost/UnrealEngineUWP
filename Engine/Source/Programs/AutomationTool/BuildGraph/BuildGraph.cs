@@ -452,12 +452,6 @@ namespace AutomationTool
 				}
 			}
 
-			// Export the graph for Horde
-			if (HordeExportFileName != null)
-			{
-				Graph.ExportForHorde(new FileReference(HordeExportFileName));
-			}
-
 			// Create the temp storage handler
 			DirectoryReference RootDir = new DirectoryReference(CommandUtils.CmdEnv.LocalRoot);
 			TempStorage Storage = new TempStorage(RootDir, DirectoryReference.Combine(RootDir, "Engine", "Saved", "BuildGraph"), (SharedStorageDir == null) ? null : new DirectoryReference(SharedStorageDir), bWriteToSharedStorage);
@@ -604,6 +598,12 @@ namespace AutomationTool
 				BgReport NewReport = new BgReport(ReportName);
 				NewReport.Nodes.UnionWith(Graph.Agents.SelectMany(x => x.Nodes));
 				Graph.NameToReport.Add(ReportName, NewReport);
+			}
+
+			// Export the graph for Horde
+			if (HordeExportFileName != null)
+			{
+				Graph.ExportForHorde(new FileReference(HordeExportFileName));
 			}
 
 			// Write out the preprocessed script
