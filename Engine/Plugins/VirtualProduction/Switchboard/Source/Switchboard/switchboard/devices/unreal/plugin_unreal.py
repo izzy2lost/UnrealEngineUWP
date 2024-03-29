@@ -785,7 +785,7 @@ class DeviceUnreal(Device):
             sync_filters.categories.items(), key=lambda item: item[1].name))
 
         # The UUIDs are stable, but the names/object identities change
-        include_setting = cls.csettings['included_sync_categories']
+        include_setting = DeviceUnreal.csettings['included_sync_categories']
         include_setting.possible_values.clear()
         for category in sync_filters.categories.values():
             option = SyncCategoryOption(category.id, category.name)
@@ -2667,6 +2667,7 @@ class DeviceUnreal(Device):
 
         return None
 
+    @QtCore.Slot()
     def reregister_rsync_client(self):
         DeviceUnreal.rsync_server.unregister_client(self)
         DeviceUnreal.rsync_server.register_client(
