@@ -7,6 +7,7 @@
 #include "TextureGraph.h"
 #include "Export/TextureExporter.h"
 #include "Data/Blob.h"
+#include "TG_Graph.h"
 #include "TG_Node.h"
 #include "2D/TextureHelper.h"
 
