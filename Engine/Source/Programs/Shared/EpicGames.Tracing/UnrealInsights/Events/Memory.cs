@@ -14,7 +14,7 @@ namespace EpicGames.Tracing.UnrealInsights.Events
 		public ushort Size => throw new NotImplementedException();
 		public EventType Type => EventType;
 		
-		public void Serialize(ushort Uid, BinaryWriter Writer)
+		public void Serialize(ushort uid, BinaryWriter writer)
 		{
 			throw new NotImplementedException();
 		}

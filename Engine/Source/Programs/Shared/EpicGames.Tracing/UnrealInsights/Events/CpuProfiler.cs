@@ -14,32 +14,32 @@ namespace EpicGames.Tracing.UnrealInsights.Events
 				new EventTypeField(4, 0, EventTypeField.TypeAnsiString, "Name")
 			});
 		
-		public ushort Size => (ushort) (GenericEvent.Size + TraceImportantEventHeader.HeaderSize);
+		public ushort Size => (ushort) (_genericEvent.Size + TraceImportantEventHeader.HeaderSize);
 		public EventType Type => EventType;
 
 		public uint Id { get; }
-		readonly string Name;
+		readonly string _name;
 
-		private readonly GenericEvent GenericEvent;
+		private readonly GenericEvent _genericEvent;
 
-		public CpuProfilerEventSpecEvent(uint Id, string Name)
+		public CpuProfilerEventSpecEvent(uint id, string name)
 		{
-			this.Id = Id;
-			this.Name = Name;
+			Id = id;
+			_name = name;
 			
-			Field[] Fields =
+			Field[] fields =
 			{
-				Field.FromInt((int) Id),
-				Field.FromString(Name),
+				Field.FromInt((int) id),
+				Field.FromString(name),
 			};
 			
-			GenericEvent = new GenericEvent(0, Fields, EventType);
+			_genericEvent = new GenericEvent(0, fields, EventType);
 		}
 
-		public void Serialize(ushort Uid, BinaryWriter Writer)
+		public void Serialize(ushort uid, BinaryWriter writer)
 		{
-			new TraceImportantEventHeader(Uid, GenericEvent.Size).Serialize(Writer);
-			GenericEvent.Serialize(Uid, Writer);
+			new TraceImportantEventHeader(uid, _genericEvent.Size).Serialize(writer);
+			_genericEvent.Serialize(uid, writer);
 		}
 	}
 	
@@ -48,21 +48,21 @@ namespace EpicGames.Tracing.UnrealInsights.Events
 		public static readonly EventType EventType = new EventType(0, "CpuProfiler", "EventBatch", EventType.FlagMaybeHasAux | EventType.FlagNoSync,
 			new List<EventTypeField>() { new EventTypeField(0, 0, EventTypeField.TypeArray, "Data") });
 		
-		public ushort Size => (ushort) (GenericEvent.Size + sizeof(ushort));
+		public ushort Size => (ushort) (_genericEvent.Size + sizeof(ushort));
 		public EventType Type => EventType;
 
-		readonly GenericEvent GenericEvent;
+		readonly GenericEvent _genericEvent;
 
-		public CpuProfilerEventBatchEvent(byte[] Data)
+		public CpuProfilerEventBatchEvent(byte[] data)
 		{
-			Field[] Fields = {Field.FromArray(Data)};
-			GenericEvent = new GenericEvent(0, Fields, EventType);
+			Field[] fields = { Field.FromArray(data) };
+			_genericEvent = new GenericEvent(0, fields, EventType);
 		}
 		
-		public void Serialize(ushort Uid, BinaryWriter Writer)
+		public void Serialize(ushort uid, BinaryWriter writer)
 		{
-			Writer.WritePackedUid(Uid);
-			GenericEvent.Serialize(Uid, Writer);
+			writer.WritePackedUid(uid);
+			_genericEvent.Serialize(uid, writer);
 		}
 	}
 	
@@ -72,17 +72,17 @@ namespace EpicGames.Tracing.UnrealInsights.Events
 		public bool IsEnterScope { get; }
 		public uint? SpecId { get; }
 
-		public CpuProfilerScopeEvent(ulong Timestamp, bool IsEnterScope, uint? SpecId)
+		public CpuProfilerScopeEvent(ulong timestamp, bool isEnterScope, uint? specId)
 		{
-			this.Timestamp = Timestamp;
-			this.IsEnterScope = IsEnterScope;
-			this.SpecId = SpecId;
+			Timestamp = timestamp;
+			IsEnterScope = isEnterScope;
+			SpecId = specId;
 		}
 
 		public override string ToString()
 		{
-			string Name = IsEnterScope ? "EnterScope" : "ExitScope";
-			return $"{nameof(CpuProfilerScopeEvent)}({Name} {nameof(Timestamp)}={Timestamp} {nameof(SpecId)}={SpecId})";
+			string name = IsEnterScope ? "EnterScope" : "ExitScope";
+			return $"{nameof(CpuProfilerScopeEvent)}({name} {nameof(Timestamp)}={Timestamp} {nameof(SpecId)}={SpecId})";
 		}
 	}
 	
@@ -91,104 +91,104 @@ namespace EpicGames.Tracing.UnrealInsights.Events
 	/// </summary>
 	public class CpuProfilerSerializer
 	{
-		private readonly ulong CycleFrequency;
+		private readonly ulong _cycleFrequency;
 		public List<CpuProfilerScopeEvent> ScopeEvents { get; } = new List<CpuProfilerScopeEvent>();
 
-		public CpuProfilerSerializer(ulong CycleFrequency)
+		public CpuProfilerSerializer(ulong cycleFrequency)
 		{
-			this.CycleFrequency = CycleFrequency;
+			_cycleFrequency = cycleFrequency;
 		}
 		
-		public void Read(byte[] EventBatchData)
+		public void Read(byte[] eventBatchData)
 		{
-			using MemoryStream Ms = new MemoryStream(EventBatchData);
-			using BinaryReader Reader = new BinaryReader(Ms);
+			using MemoryStream ms = new MemoryStream(eventBatchData);
+			using BinaryReader reader = new BinaryReader(ms);
 			
-			ulong AbsTimestamp = 0;
-			ulong LastTimestamp = 0;
+			ulong absTimestamp = 0;
+			ulong lastTimestamp = 0;
 
-			while (Reader.BaseStream.Position != Reader.BaseStream.Length)
+			while (reader.BaseStream.Position != reader.BaseStream.Length)
 			{
-				ulong Value = TraceUtils.Read7BitUint(Reader);
-				(ulong Timestamp, bool IsEnterScope) = DecodeTimestamp(Value);
+				ulong value = TraceUtils.Read7BitUint(reader);
+				(ulong timestamp, bool isEnterScope) = DecodeTimestamp(value);
 
-				if (AbsTimestamp == 0)
+				if (absTimestamp == 0)
 				{
-					AbsTimestamp = Timestamp; // First timestamp is always absolute
+					absTimestamp = timestamp; // First timestamp is always absolute
 				}
 				else
 				{
-					Timestamp = LastTimestamp + Timestamp * CycleFrequency; // Make timestamp absolute
+					timestamp = lastTimestamp + timestamp * _cycleFrequency; // Make timestamp absolute
 				}
-				LastTimestamp = Timestamp;
+				lastTimestamp = timestamp;
 
-				if (IsEnterScope)
+				if (isEnterScope)
 				{
-					ulong SpecId = TraceUtils.Read7BitUint(Reader);
-					CpuProfilerScopeEvent ScopeEvent = new CpuProfilerScopeEvent(Timestamp, true, (uint?) SpecId);
-					ScopeEvents.Add(ScopeEvent);
+					ulong specId = TraceUtils.Read7BitUint(reader);
+					CpuProfilerScopeEvent scopeEvent = new CpuProfilerScopeEvent(timestamp, true, (uint?)specId);
+					ScopeEvents.Add(scopeEvent);
 				}
 				else
 				{
-					CpuProfilerScopeEvent ScopeEvent = new CpuProfilerScopeEvent(Timestamp, false, null);
-					ScopeEvents.Add(ScopeEvent);
+					CpuProfilerScopeEvent scopeEvent = new CpuProfilerScopeEvent(timestamp, false, null);
+					ScopeEvents.Add(scopeEvent);
 				}
 			}
 		}
 		
 		public List<byte[]> Write()
 		{
-			List<MemoryStream> Streams = new List<MemoryStream>();
-			MemoryStream Stream = new MemoryStream();
-			BinaryWriter Writer = new BinaryWriter(Stream);
-			Streams.Add(Stream);
+			List<MemoryStream> streams = new List<MemoryStream>();
+			MemoryStream stream = new MemoryStream();
+			BinaryWriter writer = new BinaryWriter(stream);
+			streams.Add(stream);
 			
-			ulong LastAbsTimestamp = 0;
-			foreach (CpuProfilerScopeEvent Scope in ScopeEvents)
+			ulong lastAbsTimestamp = 0;
+			foreach (CpuProfilerScopeEvent scope in ScopeEvents)
 			{
-				ulong Timestamp;
-				if (LastAbsTimestamp == 0)
+				ulong timestamp;
+				if (lastAbsTimestamp == 0)
 				{
-					Timestamp = Scope.Timestamp;
+					timestamp = scope.Timestamp;
 				}
 				else
 				{
-					Timestamp = (Scope.Timestamp - LastAbsTimestamp) / CycleFrequency;
+					timestamp = (scope.Timestamp - lastAbsTimestamp) / _cycleFrequency;
 				}
-				LastAbsTimestamp = Scope.Timestamp;
+				lastAbsTimestamp = scope.Timestamp;
 				
-				TraceUtils.Write7BitUint(Writer, EncodeTimestamp(Timestamp, Scope.IsEnterScope));
-				if (Scope.IsEnterScope)
+				TraceUtils.Write7BitUint(writer, EncodeTimestamp(timestamp, scope.IsEnterScope));
+				if (scope.IsEnterScope)
 				{
-					TraceUtils.Write7BitUint(Writer, (ulong) Scope.SpecId!);
+					TraceUtils.Write7BitUint(writer, (ulong) scope.SpecId!);
 				}
 
 				// Split buffers after 250 bytes
-				if (Stream.Position > 250)
+				if (stream.Position > 250)
 				{
-					Writer.Close();
-					Stream = new MemoryStream();
-					Writer = new BinaryWriter(Stream);
-					LastAbsTimestamp = 0;
+					writer.Close();
+					stream = new MemoryStream();
+					writer = new BinaryWriter(stream);
+					lastAbsTimestamp = 0;
 				}
 			}
 
-			Writer.Close();
+			writer.Close();
 
-			return Streams.Select(x => x.ToArray()).ToList();
+			return streams.Select(x => x.ToArray()).ToList();
 		}
 		
-		internal static ulong EncodeTimestamp(ulong Timestamp, bool IsScopeEnter)
+		internal static ulong EncodeTimestamp(ulong timestamp, bool isScopeEnter)
 		{
-			ulong Value = (Timestamp << 1) | (uint) (IsScopeEnter ? 1 : 0);
-			return Value;
+			ulong value = (timestamp << 1) | (uint)(isScopeEnter ? 1 : 0);
+			return value;
 		}
 		
-		internal static (ulong Timestamp, bool IsScopeEnter) DecodeTimestamp(ulong Value)
+		internal static (ulong Timestamp, bool IsScopeEnter) DecodeTimestamp(ulong value)
 		{
-			bool IsScopeEnter = (Value & 1) != 0;
-			ulong Timestamp = Value >> 1; // Strip the IsScopeEnter bit
-			return (Timestamp, IsScopeEnter);
+			bool isScopeEnter = (value & 1) != 0;
+			ulong timestamp = value >> 1; // Strip the IsScopeEnter bit
+			return (timestamp, isScopeEnter);
 		}
 	}
 }

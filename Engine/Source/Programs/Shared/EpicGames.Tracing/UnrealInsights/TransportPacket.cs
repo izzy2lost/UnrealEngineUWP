@@ -21,10 +21,10 @@ namespace EpicGames.Tracing.UnrealInsights
 		public ushort PacketSize { get; private set; }
 		public ushort ThreadIdAndMarkers { get; private set; }
 		public ushort DecodedSize { get; private set; }
-		byte[] Data = Array.Empty<byte>();
+		byte[] _data = Array.Empty<byte>();
 		public byte[] GetData()
 		{
-			return Data;
+			return _data;
 		}
 	
 		private TransportPacket()
@@ -46,32 +46,41 @@ namespace EpicGames.Tracing.UnrealInsights
 			return (ushort) (ThreadIdAndMarkers & ThreadIdMask);
 		}
 		
-		public static bool IsNormalThread(ushort ThreadId)
+		public static bool IsNormalThread(ushort threadId)
 		{
-			if (ThreadId == ThreadIdEvents)
+			if (threadId == ThreadIdEvents)
+			{
 				return false;
-			if (ThreadId == ThreadIdInternal)
+			}
+
+			if (threadId == ThreadIdInternal)
+			{
 				return false;
-			if (ThreadId == ThreadIdImportants)
+			}
+
+			if (threadId == ThreadIdImportants)
+			{
 				return false;
+			}
+
 			return true;
 		}
 
-		public void Serialize(BinaryWriter Writer, IEnumerable<(ushort, ITraceEvent)> Events)
+		public void Serialize(BinaryWriter writer, IEnumerable<(ushort, ITraceEvent)> events)
 		{
-			ushort TotalSize = (ushort) Events.Sum(x =>
+			ushort totalSize = (ushort)events.Sum(x =>
 			{
-				ITraceEvent Event = x.Item2;
-				return Event.Size;
+				ITraceEvent @event = x.Item2;
+				return @event.Size;
 			});
-			TotalSize += 4; // The two uint16 writes below are included
+			totalSize += 4; // The two uint16 writes below are included
 			
-			Writer.Write(TotalSize);
-			Writer.Write(ThreadIdAndMarkers);
+			writer.Write(totalSize);
+			writer.Write(ThreadIdAndMarkers);
 
-			foreach ((ushort Uid, ITraceEvent Event) in Events)
+			foreach ((ushort uid, ITraceEvent @event) in events)
 			{
-				Event.Serialize(Uid, Writer);
+				@event.Serialize(uid, writer);
 			}
 		}
 
@@ -80,30 +89,30 @@ namespace EpicGames.Tracing.UnrealInsights
 			return $"TransportPacket(ThreadId={GetThreadId()} PacketSize={PacketSize} IsEncoded={IsEncoded()} IsPartial={IsPartial()})";
 		}
 
-		public static TransportPacket Create(ushort PacketSize, ushort ThreadId)
+		public static TransportPacket Create(ushort packetSize, ushort threadId)
 		{
-			TransportPacket Packet = new TransportPacket();
-			Packet.PacketSize = PacketSize;
-			Packet.ThreadIdAndMarkers = ThreadId;
-			return Packet;
+			TransportPacket packet = new TransportPacket();
+			packet.PacketSize = packetSize;
+			packet.ThreadIdAndMarkers = threadId;
+			return packet;
 		}
 
-		public static TransportPacket Deserialize(BinaryReader Reader)
+		public static TransportPacket Deserialize(BinaryReader reader)
 		{
-			TransportPacket Packet = new TransportPacket();
-			Packet.PacketSize = Reader.ReadUInt16();
-			Packet.ThreadIdAndMarkers = Reader.ReadUInt16();
+			TransportPacket packet = new TransportPacket();
+			packet.PacketSize = reader.ReadUInt16();
+			packet.ThreadIdAndMarkers = reader.ReadUInt16();
 
-			int HeaderSize = sizeof(ushort) + sizeof(ushort); // PacketSize + ThreadId
-			if (Packet.IsEncoded())
+			int headerSize = sizeof(ushort) + sizeof(ushort); // PacketSize + ThreadId
+			if (packet.IsEncoded())
 			{
-				Packet.DecodedSize = Reader.ReadUInt16();
-				HeaderSize += sizeof(ushort); // sizeof(DecodedSize) 
+				packet.DecodedSize = reader.ReadUInt16();
+				headerSize += sizeof(ushort); // sizeof(DecodedSize) 
 			}
 
-			int BytesToRead = Packet.PacketSize - HeaderSize;
-			Packet.Data = Reader.ReadBytesStrict(BytesToRead);
-			return Packet;
+			int bytesToRead = packet.PacketSize - headerSize;
+			packet._data = reader.ReadBytesStrict(bytesToRead);
+			return packet;
 		}
 	}
 }

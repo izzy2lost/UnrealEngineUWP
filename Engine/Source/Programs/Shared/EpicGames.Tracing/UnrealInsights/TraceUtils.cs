@@ -6,39 +6,39 @@ namespace EpicGames.Tracing.UnrealInsights
 {
 	public static class TraceUtils
 	{
-		public static ulong Read7BitUint(BinaryReader Reader)
+		public static ulong Read7BitUint(BinaryReader reader)
 		{
-			ulong Value = 0;
-			ulong ByteIndex = 0;
-			bool HasMoreBytes;
+			ulong value = 0;
+			ulong byteIndex = 0;
+			bool hasMoreBytes;
 			
 			do
 			{
-				byte ByteValue = Reader.ReadByte();
-				HasMoreBytes = (ByteValue & 0x80) != 0;
-				Value |= (ulong)(ByteValue & 0x7f) << (int)(ByteIndex * 7);
-				++ByteIndex;
-			} while (HasMoreBytes);
+				byte byteValue = reader.ReadByte();
+				hasMoreBytes = (byteValue & 0x80) != 0;
+				value |= (ulong)(byteValue & 0x7f) << (int)(byteIndex * 7);
+				++byteIndex;
+			} while (hasMoreBytes);
 			
-			return Value;
+			return value;
 		}
 
-		public static int Write7BitUint(BinaryWriter Writer, ulong Value)
+		public static int Write7BitUint(BinaryWriter writer, ulong value)
 		{
-			int NumBytesWritten = 0;
+			int numBytesWritten = 0;
 			do
 			{
-				byte HasMoreBytesBit = (byte) (Value > 0x7F ? 1 : 0);
-				byte HasMoreBytes = (byte)(HasMoreBytesBit << 7);
-				byte ByteToWrite = (byte)((Value & 0x7F) | HasMoreBytes);
+				byte hasMoreBytesBit = (byte)(value > 0x7F ? 1 : 0);
+				byte hasMoreBytes = (byte)(hasMoreBytesBit << 7);
+				byte byteToWrite = (byte)((value & 0x7F) | hasMoreBytes);
 				
-				Writer.Write(ByteToWrite);
-				Value >>= 7;
-				NumBytesWritten++;
+				writer.Write(byteToWrite);
+				value >>= 7;
+				numBytesWritten++;
 				
-			} while (Value > 0);
+			} while (value > 0);
 
-			return NumBytesWritten;
+			return numBytesWritten;
 		}
 	}
 }

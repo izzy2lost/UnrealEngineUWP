@@ -54,27 +54,60 @@ namespace EpicGames.Tracing.UnrealInsights.Events
 		public static string TypeInfoToString(byte ByteInfo)
 		{
 			if (ByteInfo == TypeInt8)
+			{
 				return "int8";
+			}
+
 			if (ByteInfo == TypeInt16)
+			{
 				return "int16";
+			}
+
 			if (ByteInfo == TypeInt32)
+			{
 				return "int32";
+			}
+
 			if (ByteInfo == TypeInt64)
+			{
 				return "int64";
+			}
+
 			if (ByteInfo == TypePointer)
+			{
 				return "ptr";
+			}
+
 			if (ByteInfo == TypeFloat32)
+			{
 				return "float32";
+			}
+
 			if (ByteInfo == TypeFloat64)
+			{
 				return "float64";
+			}
+
 			if (ByteInfo == TypeAnsiString)
+			{
 				return "ansi_str";
+			}
+
 			if (ByteInfo == TypeWideString)
+			{
 				return "wide_str";
+			}
+
 			if (ByteInfo == TypeArray)
+			{
 				return "array";
+			}
+
 			if (ByteInfo == TypeBool)
+			{
 				return "bool";
+			}
+
 			throw new Exception($"Unable to convert type info {ByteInfo} to string");
 		}
 
@@ -140,35 +173,35 @@ namespace EpicGames.Tracing.UnrealInsights.Events
 		
 		public string Name => $"{LoggerName}.{EventName}";
 
-		private int EventSize;
+		private int _eventSize;
 
 		public const byte FlagNone = 0;
 		public const byte FlagImportant = 1 << 0;
 		public const byte FlagMaybeHasAux = 1 << 1;
 		public const byte FlagNoSync = 1 << 2;
 
-		public EventType(ushort NewEventUid, string LoggerName, string EventName, byte Flags, List<EventTypeField> Fields)
+		public EventType(ushort newEventUid, string loggerName, string eventName, byte flags, List<EventTypeField> fields)
 		{
-			this.NewEventUid = NewEventUid;
-			this.LoggerName = LoggerName;
-			this.EventName = EventName;
-			this.Flags = Flags;
-			this.Fields = Fields;
-			EventSize += this.Fields.Sum(f => f.Size);
+			NewEventUid = newEventUid;
+			LoggerName = loggerName;
+			EventName = eventName;
+			Flags = flags;
+			Fields = fields;
+			_eventSize += Fields.Sum(f => f.Size);
 		}
 
-		public EventType(string LoggerName, string EventName, byte Flags)
+		public EventType(string loggerName, string eventName, byte flags)
 		{
 			NewEventUid = 0;
-			this.LoggerName = LoggerName;
-			this.EventName = EventName;
-			this.Flags = Flags;
+			LoggerName = loggerName;
+			EventName = eventName;
+			Flags = flags;
 			Fields = new List<EventTypeField>();
 		}
 
-		public static EventType WellKnown(ushort Uid, string Name)
+		public static EventType WellKnown(ushort uid, string name)
 		{
-			return new EventType(Uid, "WellKnown", Name, 0, new List<EventTypeField>());
+			return new EventType(uid, "WellKnown", name, 0, new List<EventTypeField>());
 		}
 		
 		private static EventType Self()
@@ -176,16 +209,16 @@ namespace EpicGames.Tracing.UnrealInsights.Events
 			return new EventType(0, "EventType", "Self", 0, new List<EventTypeField>());
 		}
 
-		public void AddEventType(ushort Offset, ushort Size, byte TypeInfo, string Name)
+		public void AddEventType(ushort offset, ushort size, byte typeInfo, string name)
 		{
-			EventTypeField Field = new EventTypeField(Offset, Size, TypeInfo, Name);
-			Fields.Add(Field);
-			EventSize += Field.Size;
+			EventTypeField field = new EventTypeField(offset, size, typeInfo, name);
+			Fields.Add(field);
+			_eventSize += field.Size;
 		}
 		
 		public bool IsWellKnown()
 		{
-			return NewEventUid < PredefinedEventUid._WellKnownNum;
+			return NewEventUid < PredefinedEventUid.WellKnownNum;
 		}
 
 		public bool IsImportant()
@@ -214,7 +247,7 @@ namespace EpicGames.Tracing.UnrealInsights.Events
 		/// <returns></returns>
 		public ushort GetEventSize()
 		{
-			return (ushort) EventSize;
+			return (ushort) _eventSize;
 		}
 
 		public override string ToString()
@@ -224,31 +257,40 @@ namespace EpicGames.Tracing.UnrealInsights.Events
 		
 		public string ToStringDetailed()
 		{
-			string FieldText = String.Join(',', Fields.Select(x => x.ToString()));
-			string FlagText = "";
+			string fieldText = String.Join(',', Fields.Select(x => x.ToString()));
+			string flagText = "";
 			if (IsImportant())
-				FlagText += ",Important";
+			{
+				flagText += ",Important";
+			}
+
 			if (MaybeHasAux())
-				FlagText += ",MaybeHasAux";
+			{
+				flagText += ",MaybeHasAux";
+			}
+
 			if (IsNoSync())
-				FlagText += ",NoSync";
-			FlagText = FlagText.Trim(',');
-			return $"EventType(Uid={NewEventUid} {LoggerName} {EventName} Flags={FlagText} FlagRaw={Flags} Fields={FieldText})";
+			{
+				flagText += ",NoSync";
+			}
+
+			flagText = flagText.Trim(',');
+			return $"EventType(Uid={NewEventUid} {LoggerName} {EventName} Flags={flagText} FlagRaw={Flags} Fields={fieldText})";
 		}
 
 		public ushort Size
 		{
 			get
 			{
-				byte[] LoggerNameBytes = Encoding.UTF8.GetBytes(LoggerName);
-				byte[] EventNameBytes = Encoding.UTF8.GetBytes(EventName);
+				byte[] loggerNameBytes = Encoding.UTF8.GetBytes(LoggerName);
+				byte[] eventNameBytes = Encoding.UTF8.GetBytes(EventName);
 
-				ushort FieldArraySize = (ushort) (Fields.Count * EventTypeField.StructSize);
-				ushort NamesSize = (ushort) (LoggerNameBytes.Length + EventNameBytes.Length + Fields.Sum(x => x.NameSize));
-				ushort NewEventSize = (ushort) (2 + 1 + 1 + 1 + 1 + FieldArraySize + NamesSize);
+				ushort fieldArraySize = (ushort)(Fields.Count * EventTypeField.StructSize);
+				ushort namesSize = (ushort)(loggerNameBytes.Length + eventNameBytes.Length + Fields.Sum(x => x.NameSize));
+				ushort newEventSize = (ushort)(2 + 1 + 1 + 1 + 1 + fieldArraySize + namesSize);
 				
-				NewEventSize += TraceImportantEventHeader.HeaderSize;
-				return NewEventSize;
+				newEventSize += TraceImportantEventHeader.HeaderSize;
+				return newEventSize;
 			}
 		}
 
@@ -267,72 +309,81 @@ namespace EpicGames.Tracing.UnrealInsights.Events
 		public override bool Equals(object? obj)
 		{
 			if (obj is null)
+			{
 				return false;
+			}
+
 			if (ReferenceEquals(this, obj))
+			{
 				return true;
+			}
+
 			if (obj.GetType() != GetType())
+			{
 				return false;
+			}
+
 			return Equals((EventType) obj);
 		}
 
-		public void Serialize(ushort Uid, BinaryWriter Writer)
+		public void Serialize(ushort uid, BinaryWriter writer)
 		{
-			new TraceImportantEventHeader(PredefinedEventUid.NewEvent, (ushort) (Size - TraceImportantEventHeader.HeaderSize)).Serialize(Writer);
+			new TraceImportantEventHeader(PredefinedEventUid.NewEvent, (ushort) (Size - TraceImportantEventHeader.HeaderSize)).Serialize(writer);
 			
-			byte[] LoggerNameBytes = Encoding.UTF8.GetBytes(LoggerName);
-			byte[] EventNameBytes = Encoding.UTF8.GetBytes(EventName);
+			byte[] loggerNameBytes = Encoding.UTF8.GetBytes(LoggerName);
+			byte[] eventNameBytes = Encoding.UTF8.GetBytes(EventName);
 
-			Writer.Write(Uid); // UID of the new event to declare
-			Writer.Write((byte) Fields.Count);
-			Writer.Write(Flags);
-			Writer.Write((byte) LoggerNameBytes.Length);
-			Writer.Write((byte) EventNameBytes.Length);
+			writer.Write(uid); // UID of the new event to declare
+			writer.Write((byte) Fields.Count);
+			writer.Write(Flags);
+			writer.Write((byte) loggerNameBytes.Length);
+			writer.Write((byte) eventNameBytes.Length);
 
-			foreach (EventTypeField Field in Fields)
+			foreach (EventTypeField field in Fields)
 			{
-				Writer.Write(Field.Offset);
-				Writer.Write(Field.Size);
-				Writer.Write(Field.TypeInfo);
-				Writer.Write(Field.NameSize);
+				writer.Write(field.Offset);
+				writer.Write(field.Size);
+				writer.Write(field.TypeInfo);
+				writer.Write(field.NameSize);
 			}
 
-			Writer.Write(LoggerNameBytes);
-			Writer.Write(EventNameBytes);
+			writer.Write(loggerNameBytes);
+			writer.Write(eventNameBytes);
 
-			foreach (EventTypeField Field in Fields)
+			foreach (EventTypeField field in Fields)
 			{
-				Writer.Write(Encoding.UTF8.GetBytes(Field.Name));
+				writer.Write(Encoding.UTF8.GetBytes(field.Name));
 			}
 		}
 
-		public static (ushort, EventType) Deserialize(BinaryReader Reader)
+		public static (ushort, EventType) Deserialize(BinaryReader reader)
 		{
-			ushort NewEventUid = Reader.ReadUInt16();
-			byte FieldCount = Reader.ReadByte();
-			byte Flags = Reader.ReadByte();
-			byte LoggerNameSize = Reader.ReadByte();
-			byte EventNameSize = Reader.ReadByte();
+			ushort newEventUid = reader.ReadUInt16();
+			byte fieldCount = reader.ReadByte();
+			byte flags = reader.ReadByte();
+			byte loggerNameSize = reader.ReadByte();
+			byte eventNameSize = reader.ReadByte();
 			
-			EventTypeField[] Fields = new EventTypeField[FieldCount];
+			EventTypeField[] fields = new EventTypeField[fieldCount];
 
-			for (int i = 0; i < FieldCount; i++)
+			for (int i = 0; i < fieldCount; i++)
 			{
-				ushort Offset = Reader.ReadUInt16();
-				ushort Size = Reader.ReadUInt16();
-				byte TypeInfo = Reader.ReadByte();
-				byte NameSize = Reader.ReadByte();
-				Fields[i] = new EventTypeField(Offset, Size, TypeInfo, NameSize);
+				ushort offset = reader.ReadUInt16();
+				ushort size = reader.ReadUInt16();
+				byte typeInfo = reader.ReadByte();
+				byte nameSize = reader.ReadByte();
+				fields[i] = new EventTypeField(offset, size, typeInfo, nameSize);
 			}
 
-			string LoggerName = Encoding.UTF8.GetString(Reader.ReadBytesStrict(LoggerNameSize));
-			string EventName = Encoding.UTF8.GetString(Reader.ReadBytesStrict(EventNameSize));
+			string loggerName = Encoding.UTF8.GetString(reader.ReadBytesStrict(loggerNameSize));
+			string eventName = Encoding.UTF8.GetString(reader.ReadBytesStrict(eventNameSize));
 
-			for (int i = 0; i < FieldCount; i++)
+			for (int i = 0; i < fieldCount; i++)
 			{
-				Fields[i].SetName(Encoding.UTF8.GetString(Reader.ReadBytesStrict(Fields[i].NameSize)));
+				fields[i].SetName(Encoding.UTF8.GetString(reader.ReadBytesStrict(fields[i].NameSize)));
 			}
 
-			return (NewEventUid, new EventType(NewEventUid, LoggerName, EventName, Flags, Fields.ToList()));
+			return (newEventUid, new EventType(newEventUid, loggerName, eventName, flags, fields.ToList()));
 		}
 	}
 }

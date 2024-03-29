@@ -19,31 +19,31 @@ namespace EpicGames.Tracing.UnrealInsights.Events
 				new EventTypeField(5, 1, EventTypeField.TypeInt8, "TargetType"),
 			});
 		
-		public ushort Size => (ushort) (GenericEvent.Size + TraceImportantEventHeader.HeaderSize);
+		public ushort Size => (ushort) (_genericEvent.Size + TraceImportantEventHeader.HeaderSize);
 		public EventType Type => EventType;
-		private readonly GenericEvent GenericEvent;
+		private readonly GenericEvent _genericEvent;
 
-		public DiagnosticsSession2Event(string Platform, string AppName, string CommandLine, string Branch, string BuildVersion, int ChangeList, int ConfigurationType, int TargetType)
+		public DiagnosticsSession2Event(string platform, string appName, string commandLine, string branch, string buildVersion, int changeList, int configurationType, int targetType)
 		{
-			Field[] Fields =
+			Field[] fields =
 			{
-				Field.FromString(Platform),
-				Field.FromString(AppName),
-				Field.FromString(CommandLine),
-				Field.FromString(Branch),
-				Field.FromString(BuildVersion),
-				Field.FromInt(ChangeList),
-				Field.FromInt(ConfigurationType),
-				Field.FromInt(TargetType),
+				Field.FromString(platform),
+				Field.FromString(appName),
+				Field.FromString(commandLine),
+				Field.FromString(branch),
+				Field.FromString(buildVersion),
+				Field.FromInt(changeList),
+				Field.FromInt(configurationType),
+				Field.FromInt(targetType),
 			};
 
-			GenericEvent = new GenericEvent(0, Fields, EventType);
+			_genericEvent = new GenericEvent(0, fields, EventType);
 		}
 		
-		public void Serialize(ushort Uid, BinaryWriter Writer)
+		public void Serialize(ushort uid, BinaryWriter writer)
 		{
-			new TraceImportantEventHeader(Uid, GenericEvent.Size).Serialize(Writer);
-			GenericEvent.Serialize(Uid, Writer);
+			new TraceImportantEventHeader(uid, _genericEvent.Size).Serialize(writer);
+			_genericEvent.Serialize(uid, writer);
 		}
 	}
 }

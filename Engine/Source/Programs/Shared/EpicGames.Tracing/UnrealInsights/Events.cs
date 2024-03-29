@@ -12,29 +12,31 @@ namespace EpicGames.Tracing.UnrealInsights
 {
 	public static class BinaryReaderExtensions
 	{
-		public static byte[] ReadBytesStrict(this BinaryReader Reader, int Count)
+		public static byte[] ReadBytesStrict(this BinaryReader reader, int count)
 		{
-			byte[] Result = Reader.ReadBytes(Count);
-			if (Result.Length != Count)
+			byte[] result = reader.ReadBytes(count);
+			if (result.Length != count)
+			{
 				throw new EndOfStreamException();
+			}
 
-			return Result;
+			return result;
 		}
 
 		/// <summary>
 		/// Check if bit is set for a given byte
 		/// </summary>
-		/// <param name="Value">Value to check</param>
-		/// <param name="Pos">Pos 0 is least significant bit, pos 7 is most</param>
+		/// <param name="value">Value to check</param>
+		/// <param name="pos">Pos 0 is least significant bit, pos 7 is most</param>
 		/// <returns>True if set</returns>
-		internal static bool IsBitSet(byte Value, int Pos)
+		internal static bool IsBitSet(byte value, int pos)
 		{
-			return (Value & (1 << Pos)) != 0;
+			return (value & (1 << pos)) != 0;
 		}
 
-		internal static bool IsTwoByteUid(byte UidLow)
+		internal static bool IsTwoByteUid(byte uidLow)
 		{
-			return IsBitSet(UidLow, 0);
+			return IsBitSet(uidLow, 0);
 		}
 
 		internal static byte GetHighByte(ushort a)
@@ -57,12 +59,12 @@ namespace EpicGames.Tracing.UnrealInsights
 			return (ushort)(a & 0xffff);
 		}
 
-		internal static ushort MakeShort(byte LowByte, byte HighByte)
+		internal static ushort MakeShort(byte lowByte, byte highByte)
 		{
-			return (ushort)((byte)(LowByte & 0xff) | (ushort)(HighByte & 0xff) << 8);
+			return (ushort)((byte)(lowByte & 0xff) | (ushort)(highByte & 0xff) << 8);
 		}
 
-		internal static ushort GetPackedUid(byte UidLow, byte UidHigh, out bool IsTwoByteUidArg)
+		internal static ushort GetPackedUid(byte uidLow, byte uidHigh, out bool isTwoByteUidArg)
 		{
 			// struct packed_uid
 			// {
@@ -71,61 +73,61 @@ namespace EpicGames.Tracing.UnrealInsights
 			// 	(uint8  uid_high) // if is_two_byte_uid == 1
 			// }
 
-			IsTwoByteUidArg = IsTwoByteUid(UidLow);
-			byte UidLowNoBit = (byte) (UidLow >> 1); // Strip the is_two_byte_uid bit
+			isTwoByteUidArg = IsTwoByteUid(uidLow);
+			byte uidLowNoBit = (byte)(uidLow >> 1); // Strip the is_two_byte_uid bit
 
-			return MakeShort(UidLowNoBit, IsTwoByteUidArg ? UidHigh : (byte) 0x00);
+			return MakeShort(uidLowNoBit, isTwoByteUidArg ? uidHigh : (byte) 0x00);
 		}
 
-		public static ushort ReadPackedUid(this BinaryReader Reader, out bool IsTwoByteUid)
+		public static ushort ReadPackedUid(this BinaryReader reader, out bool isTwoByteUid)
 		{
-			byte UidLow = Reader.ReadByte();
-			byte UidHigh = Reader.ReadByte();
-			Reader.BaseStream.Position -= 1; // UidLow is always consumed, but UidHigh maybe not.
+			byte uidLow = reader.ReadByte();
+			byte uidHigh = reader.ReadByte();
+			reader.BaseStream.Position -= 1; // UidLow is always consumed, but UidHigh maybe not.
 			
-			ushort Uid = GetPackedUid(UidLow, UidHigh, out IsTwoByteUid);
-			if (IsTwoByteUid)
+			ushort uid = GetPackedUid(uidLow, uidHigh, out isTwoByteUid);
+			if (isTwoByteUid)
 			{
-				Reader.ReadByte();  // Consume UidHigh
+				reader.ReadByte();  // Consume UidHigh
 			}
 
-			return Uid;
+			return uid;
 		}
 		
-		public static void EnsureEntireStreamIsConsumed(this BinaryReader Reader)
+		public static void EnsureEntireStreamIsConsumed(this BinaryReader reader)
 		{
-			bool IsEntireStreamConsumed = Reader.BaseStream.Position == Reader.BaseStream.Length;
-			if (!IsEntireStreamConsumed)
+			bool isEntireStreamConsumed = reader.BaseStream.Position == reader.BaseStream.Length;
+			if (!isEntireStreamConsumed)
 			{
-				throw new Exception($"Entire stream/buffer was not consumed. Pos={Reader.BaseStream.Position} Len={Reader.BaseStream.Length}");
+				throw new Exception($"Entire stream/buffer was not consumed. Pos={reader.BaseStream.Position} Len={reader.BaseStream.Length}");
 			}
 		}
 		
-		public static bool IsEntireStreamConsumed(this BinaryReader Reader)
+		public static bool IsEntireStreamConsumed(this BinaryReader reader)
 		{
-			return Reader.BaseStream.Position == Reader.BaseStream.Length;
+			return reader.BaseStream.Position == reader.BaseStream.Length;
 		}
 	}
 
 	public static class BinaryWriterExtensions
 	{
-		public static void WritePackedUid(this BinaryWriter Writer, ushort Uid)
+		public static void WritePackedUid(this BinaryWriter writer, ushort uid)
 		{
-			if (Uid < PredefinedEventUid._WellKnownNum)
+			if (uid < PredefinedEventUid.WellKnownNum)
 			{
-				byte UidLow = (byte) Uid;
-				UidLow = (byte) (UidLow << 1);
+				byte uidLow = (byte)uid;
+				uidLow = (byte) (uidLow << 1);
 				// LSB is 0 after shifting, indicating a one-byte UID
-				Writer.Write(UidLow);
+				writer.Write(uidLow);
 			}
-			else if (Uid < 127)
+			else if (uid < 127)
 			{
-				byte UidLow = BinaryReaderExtensions.GetLowByte(Uid);
-				byte UidHigh = BinaryReaderExtensions.GetHighByte(Uid);
-				UidLow = (byte) (UidLow << 1);
-				UidLow = (byte) (UidLow | 1);
-				Writer.Write(UidLow);
-				Writer.Write(UidHigh);
+				byte uidLow = BinaryReaderExtensions.GetLowByte(uid);
+				byte uidHigh = BinaryReaderExtensions.GetHighByte(uid);
+				uidLow = (byte) (uidLow << 1);
+				uidLow = (byte) (uidLow | 1);
+				writer.Write(uidLow);
+				writer.Write(uidHigh);
 			}
 			else
 			{
@@ -138,21 +140,21 @@ namespace EpicGames.Tracing.UnrealInsights
 	{
 		ushort Size { get; }
 		EventType Type { get; }
-		public void Serialize(ushort Uid, BinaryWriter Writer);
+		public void Serialize(ushort uid, BinaryWriter writer);
 	}
 
 	public class EnterScopeEvent : ITraceEvent
 	{
 		public ushort Size => 0;
 		public EventType Type => EventType.WellKnown(PredefinedEventUid.EnterScope, "EnterScope");
-		public void Serialize(ushort Uid, BinaryWriter Writer) { throw new NotImplementedException(); }
+		public void Serialize(ushort uid, BinaryWriter writer) { throw new NotImplementedException(); }
 	}
 	
 	public class LeaveScopeEvent : ITraceEvent
 	{
 		public ushort Size => 0;
 		public EventType Type => EventType.WellKnown(PredefinedEventUid.LeaveScope, "LeaveScope");
-		public void Serialize(ushort Uid, BinaryWriter Writer) { throw new NotImplementedException(); }
+		public void Serialize(ushort uid, BinaryWriter writer) { throw new NotImplementedException(); }
 	}
 	
 	public class EnterScopeEventTimestamp : ITraceEvent
@@ -161,25 +163,25 @@ namespace EpicGames.Tracing.UnrealInsights
 		public EventType Type => EventType.WellKnown(PredefinedEventUid.EnterScope_T, "EnterScopeTimestamp");
 		public ulong Timestamp { get; }
 
-		public EnterScopeEventTimestamp(ulong Timestamp)
+		public EnterScopeEventTimestamp(ulong timestamp)
 		{
-			this.Timestamp = Timestamp;
+			Timestamp = timestamp;
 		}
 
-		public void Serialize(ushort Uid, BinaryWriter Writer) { throw new NotImplementedException(); }
+		public void Serialize(ushort uid, BinaryWriter writer) { throw new NotImplementedException(); }
 
-		public static EnterScopeEventTimestamp Deserialize(BinaryReader Reader)
+		public static EnterScopeEventTimestamp Deserialize(BinaryReader reader)
 		{
-			ulong Value = Reader.ReadUInt64();
-			ushort UidFound = BinaryReaderExtensions.GetPackedUid((byte) (Value & 0xFF), 0x00, out bool _);
+			ulong value = reader.ReadUInt64();
+			ushort uidFound = BinaryReaderExtensions.GetPackedUid((byte)(value & 0xFF), 0x00, out bool _);
 
-			if (UidFound != PredefinedEventUid.EnterScope_T)
+			if (uidFound != PredefinedEventUid.EnterScope_T)
 			{
-				throw new ArgumentException($"Bad UID found when deserializing 0x{UidFound:X4}/{UidFound}");
+				throw new ArgumentException($"Bad UID found when deserializing 0x{uidFound:X4}/{uidFound}");
 			}
 
-			ulong Timestamp = Value >> 8;
-			return new EnterScopeEventTimestamp(Timestamp);
+			ulong timestamp = value >> 8;
+			return new EnterScopeEventTimestamp(timestamp);
 		}
 	}
 	
@@ -187,27 +189,27 @@ namespace EpicGames.Tracing.UnrealInsights
 	{
 		public ushort Size => 7;
 		public EventType Type => EventType.WellKnown(PredefinedEventUid.EnterScope_T, "LeaveScopeTimestamp");
-		readonly ulong Timestamp;
+		readonly ulong _timestamp;
 
-		public LeaveScopeEventTimestamp(ulong Timestamp)
+		public LeaveScopeEventTimestamp(ulong timestamp)
 		{
-			this.Timestamp = Timestamp;
+			_timestamp = timestamp;
 		}
 
-		public void Serialize(ushort Uid, BinaryWriter Writer) { throw new NotImplementedException(); }
+		public void Serialize(ushort uid, BinaryWriter writer) { throw new NotImplementedException(); }
 		
-		public static LeaveScopeEventTimestamp Deserialize(BinaryReader Reader)
+		public static LeaveScopeEventTimestamp Deserialize(BinaryReader reader)
 		{
-			ulong Value = Reader.ReadUInt64();
-			ushort UidFound = BinaryReaderExtensions.GetPackedUid((byte) (Value & 0xFF), 0x00, out bool _);
+			ulong value = reader.ReadUInt64();
+			ushort uidFound = BinaryReaderExtensions.GetPackedUid((byte)(value & 0xFF), 0x00, out bool _);
 
-			if (UidFound != PredefinedEventUid.LeaveScope_T)
+			if (uidFound != PredefinedEventUid.LeaveScope_T)
 			{
-				throw new ArgumentException($"Bad UID found when deserializing 0x{UidFound:X4}/{UidFound}");
+				throw new ArgumentException($"Bad UID found when deserializing 0x{uidFound:X4}/{uidFound}");
 			}
 
-			ulong Timestamp = Value >> 8;
-			return new LeaveScopeEventTimestamp(Timestamp);
+			ulong timestamp = value >> 8;
+			return new LeaveScopeEventTimestamp(timestamp);
 		}
 	}
 
@@ -218,25 +220,25 @@ namespace EpicGames.Tracing.UnrealInsights
 
 		public const ushort HeaderSize = sizeof(ushort) + sizeof(ushort); 
 
-		public TraceImportantEventHeader(ushort Uid, ushort EventSize)
+		public TraceImportantEventHeader(ushort uid, ushort eventSize)
 		{
 #pragma warning disable CA1508 // Avoid dead conditional code
 			Debug.Assert(HeaderSize == 4);
 #pragma warning restore CA1508 // Avoid dead conditional code
-			this.Uid = Uid;
-			this.EventSize = EventSize;
+			Uid = uid;
+			EventSize = eventSize;
 		}
 
-		public void Serialize(BinaryWriter Writer)
+		public void Serialize(BinaryWriter writer)
 		{
-			Writer.Write(Uid);
-			Writer.Write(EventSize);
+			writer.Write(Uid);
+			writer.Write(EventSize);
 		}
 
-		public static TraceImportantEventHeader Deserialize(BinaryReader Reader)
+		public static TraceImportantEventHeader Deserialize(BinaryReader reader)
 		{
-			ushort Uid = Reader.ReadUInt16();
-			return new TraceImportantEventHeader(Uid, Reader.ReadUInt16());
+			ushort uid = reader.ReadUInt16();
+			return new TraceImportantEventHeader(uid, reader.ReadUInt16());
 		}
 	}
 }

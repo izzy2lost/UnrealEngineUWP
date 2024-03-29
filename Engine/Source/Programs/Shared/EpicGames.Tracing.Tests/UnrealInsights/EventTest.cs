@@ -13,17 +13,17 @@ namespace EpicGames.Tracing.Tests.UnrealInsights
 		public void EnterScopeEventTimestampDeserialize()
 		{
 			{
-				using MemoryStream Ms = new MemoryStream(new byte[] {0x10, 0x05, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00});
-				using BinaryReader Reader = new BinaryReader(Ms);
-				EnterScopeEventTimestamp Event = EnterScopeEventTimestamp.Deserialize(Reader);
-				Assert.AreEqual((ulong)0x05, Event.Timestamp);
+				using MemoryStream ms = new MemoryStream(new byte[] { 0x10, 0x05, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00 });
+				using BinaryReader reader = new BinaryReader(ms);
+				EnterScopeEventTimestamp @event = EnterScopeEventTimestamp.Deserialize(reader);
+				Assert.AreEqual((ulong)0x05, @event.Timestamp);
 			}
 
 			{
-				using MemoryStream Ms = new MemoryStream(new byte[] {0x10, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xFF});
-				using BinaryReader Reader = new BinaryReader(Ms);
-				EnterScopeEventTimestamp Event = EnterScopeEventTimestamp.Deserialize(Reader);
-				Assert.AreEqual((ulong)0x00_FF_00_00_00_00_00_00, Event.Timestamp);
+				using MemoryStream ms = new MemoryStream(new byte[] { 0x10, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xFF });
+				using BinaryReader reader = new BinaryReader(ms);
+				EnterScopeEventTimestamp @event = EnterScopeEventTimestamp.Deserialize(reader);
+				Assert.AreEqual((ulong)0x00_FF_00_00_00_00_00_00, @event.Timestamp);
 			}
 		}
 	}

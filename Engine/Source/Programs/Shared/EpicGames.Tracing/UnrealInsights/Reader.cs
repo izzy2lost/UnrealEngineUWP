@@ -27,7 +27,7 @@ namespace EpicGames.Tracing.UnrealInsights
 		// public const ushort _LeaveScope_T_Unused0 = 13;
 		// public const ushort _LeaveScope_T_Unused1 = 14;
 		// public const ushort _LeaveScope_T_Unused2 = 15;
-		public const ushort _WellKnownNum = 16;
+		public const ushort WellKnownNum = 16;
 	}
 	
 	public class UnrealInsightsReader
@@ -43,22 +43,22 @@ namespace EpicGames.Tracing.UnrealInsights
 			EventTypes[PredefinedEventUid.LeaveScope_T] = new LeaveScopeEventTimestamp(0).Type;
 		}
 
-		public void Read(Stream Stream)
+		public void Read(Stream stream)
 		{
-			using BinaryReader Reader = new BinaryReader(Stream);
-			StreamHeader.Deserialize(Reader);
+			using BinaryReader reader = new BinaryReader(stream);
+			StreamHeader.Deserialize(reader);
 
-			Dictionary<ushort, MemoryStream> ThreadStreams = Demux(Reader);
-			Reader.EnsureEntireStreamIsConsumed(); // There should be no more trailing bytes once all packets are consumed.
+			Dictionary<ushort, MemoryStream> threadStreams = Demux(reader);
+			reader.EnsureEntireStreamIsConsumed(); // There should be no more trailing bytes once all packets are consumed.
 			
-			void ReadThreadStream(ushort ThreadId)
+			void ReadThreadStream(ushort threadId)
 			{
-				MemoryStream ThreadStream = ThreadStreams[ThreadId];
-				using BinaryReader ThreadReader = new BinaryReader(ThreadStream);
-				EventsPerThread[ThreadId] = ReadEvents(ThreadId, ThreadReader);
-				ThreadReader.EnsureEntireStreamIsConsumed();
-				ThreadStream.Dispose();
-				ThreadStreams.Remove(ThreadId);
+				MemoryStream threadStream = threadStreams[threadId];
+				using BinaryReader threadReader = new BinaryReader(threadStream);
+				EventsPerThread[threadId] = ReadEvents(threadId, threadReader);
+				threadReader.EnsureEntireStreamIsConsumed();
+				threadStream.Dispose();
+				threadStreams.Remove(threadId);
 			}
 
 			// Read the NewEvents first to ensure event types are registered
@@ -67,9 +67,9 @@ namespace EpicGames.Tracing.UnrealInsights
 			// Read the important events next
 			ReadThreadStream(TransportPacket.ThreadIdImportants);
 			
-			foreach (ushort ThreadId in ThreadStreams.Keys)
+			foreach (ushort threadId in threadStreams.Keys)
 			{
-				ReadThreadStream(ThreadId);
+				ReadThreadStream(threadId);
 			}
 		}
 
@@ -79,69 +79,71 @@ namespace EpicGames.Tracing.UnrealInsights
 		///
 		/// It's a naive and simple enough for our parsing purposes but it definitely won't read larger trace files.
 		/// </summary>
-		/// <param name="Reader">Reader to consume</param>
+		/// <param name="reader">Reader to consume</param>
 		/// <returns>A stream of data per thread</returns>
-		public Dictionary<ushort, MemoryStream> Demux(BinaryReader Reader)
+		public Dictionary<ushort, MemoryStream> Demux(BinaryReader reader)
 		{
-			Dictionary<ushort, MemoryStream> ThreadStreams = new Dictionary<ushort, MemoryStream>();
-			while (Reader.BaseStream.Position < Reader.BaseStream.Length)
+			Dictionary<ushort, MemoryStream> threadStreams = new Dictionary<ushort, MemoryStream>();
+			while (reader.BaseStream.Position < reader.BaseStream.Length)
 			{
-				TransportPacket Packet = TransportPacket.Deserialize(Reader);
+				TransportPacket packet = TransportPacket.Deserialize(reader);
 
-				if (!ThreadStreams.TryGetValue(Packet.GetThreadId(), out MemoryStream? ThreadStream))
+				if (!threadStreams.TryGetValue(packet.GetThreadId(), out MemoryStream? threadStream))
 				{
-					ThreadStream = new MemoryStream(5 * 1024 * 1024);
-					ThreadStreams[Packet.GetThreadId()] = ThreadStream;
+					threadStream = new MemoryStream(5 * 1024 * 1024);
+					threadStreams[packet.GetThreadId()] = threadStream;
 				}
 
-				ThreadStream.Write(Packet.GetData());
+				threadStream.Write(packet.GetData());
 				NumTransportPacketsRead++;
 			}
-			Reader.EnsureEntireStreamIsConsumed();
+			reader.EnsureEntireStreamIsConsumed();
 			
 			// Reset stream positions so it can be read from the beginning once returned
-			ThreadStreams.Values.ToList().ForEach(Ms => Ms.Position = 0);
+			threadStreams.Values.ToList().ForEach(ms => ms.Position = 0);
 
-			return ThreadStreams;
+			return threadStreams;
 		}
 
-		public List<ITraceEvent> ReadEvents(int ThreadId, BinaryReader Reader)
+		public List<ITraceEvent> ReadEvents(int threadId, BinaryReader reader)
 		{
-			List<ITraceEvent> EventsRead = new List<ITraceEvent>();
-			while (Reader.BaseStream.Position != Reader.BaseStream.Length)
+			List<ITraceEvent> eventsRead = new List<ITraceEvent>();
+			while (reader.BaseStream.Position != reader.BaseStream.Length)
 			{
-				ushort Uid;
-				ushort Size = 0;
-				if (ThreadId == TransportPacket.ThreadIdEvents || ThreadId == TransportPacket.ThreadIdImportants)
+				ushort uid;
+				ushort size = 0;
+				if (threadId == TransportPacket.ThreadIdEvents || threadId == TransportPacket.ThreadIdImportants)
 				{
-					Uid = Reader.ReadUInt16();
-					Size = Reader.ReadUInt16(); // TODO: validate and respect the size
+					uid = reader.ReadUInt16();
+					size = reader.ReadUInt16(); // TODO: validate and respect the size
 				}
 				else
 				{
-					Uid = Reader.ReadPackedUid(out _);
+					uid = reader.ReadPackedUid(out _);
 				}
 				
-				if (Uid >= PredefinedEventUid._WellKnownNum)
+				if (uid >= PredefinedEventUid.WellKnownNum)
 				{
-					if (!EventTypes.TryGetValue(Uid, out EventType? EventType))
+					if (!EventTypes.TryGetValue(uid, out EventType? eventType))
 					{
-						throw new Exception($"No event type registered for UID {Uid} / 0x{Uid:X4}");
+						throw new Exception($"No event type registered for UID {uid} / 0x{uid:X4}");
 					}
 				
-					GenericEvent Event = GenericEvent.Deserialize(Uid, Reader, EventType);
-					EventsRead.Add(Event);
+					GenericEvent @event = GenericEvent.Deserialize(uid, reader, eventType);
+					eventsRead.Add(@event);
 				}
 				else
 				{
-					switch (Uid)
+					switch (uid)
 					{
 						case PredefinedEventUid.NewEvent:
-							if (ThreadId != TransportPacket.ThreadIdEvents)
+							if (threadId != TransportPacket.ThreadIdEvents)
+							{
 								throw new Exception("NewEvents are only allowed on thread ID " + TransportPacket.ThreadIdEvents);
+							}
 
-							(ushort NewEventUid, EventType NewEvent) = EventType.Deserialize(Reader);
-							EventTypes[NewEventUid] = NewEvent;
+							(ushort newEventUid, EventType newEvent) = EventType.Deserialize(reader);
+							EventTypes[newEventUid] = newEvent;
 							break;
 						
 						case PredefinedEventUid.EnterScope:
@@ -151,50 +153,50 @@ namespace EpicGames.Tracing.UnrealInsights
 							break;
 						
 						case PredefinedEventUid.EnterScope_T:
-							Reader.BaseStream.Position -= 1; // Reset so UID can be read inside event's deserialize method
-							EventsRead.Add(EnterScopeEventTimestamp.Deserialize(Reader));
+							reader.BaseStream.Position -= 1; // Reset so UID can be read inside event's deserialize method
+							eventsRead.Add(EnterScopeEventTimestamp.Deserialize(reader));
 							break;
 
 						case PredefinedEventUid.LeaveScope_T:
-							Reader.BaseStream.Position -= 1; // Reset so UID can be read inside event's deserialize method
-							EventsRead.Add(LeaveScopeEventTimestamp.Deserialize(Reader));
+							reader.BaseStream.Position -= 1; // Reset so UID can be read inside event's deserialize method
+							eventsRead.Add(LeaveScopeEventTimestamp.Deserialize(reader));
 							break;
 
 						default:
-							throw new Exception($"Cannot handle unknown UID {Uid}/0x{Uid:X4}");
+							throw new Exception($"Cannot handle unknown UID {uid}/0x{uid:X4}");
 					}
 				}
 			}
 
-			return EventsRead;
+			return eventsRead;
 		}
 		
 		public Dictionary<ushort, List<ITraceEvent>> GetEventsPerUid()
 		{
-			Dictionary<ushort, List<ITraceEvent>> EventsPerUid = new Dictionary<ushort, List<ITraceEvent>>();
+			Dictionary<ushort, List<ITraceEvent>> eventsPerUid = new Dictionary<ushort, List<ITraceEvent>>();
 			
-			foreach ((ushort _, List<ITraceEvent> ThreadEvents) in EventsPerThread)
+			foreach ((ushort _, List<ITraceEvent> threadEvents) in EventsPerThread)
 			{
-				foreach (ITraceEvent Event in ThreadEvents)
+				foreach (ITraceEvent @event in threadEvents)
 				{
-					ushort Uid = EventTypes.First(x => Event.Type.Name == x.Value.Name).Key;
-					if (!EventsPerUid.TryGetValue(Uid, out List<ITraceEvent>? Events))
+					ushort uid = EventTypes.First(x => @event.Type.Name == x.Value.Name).Key;
+					if (!eventsPerUid.TryGetValue(uid, out List<ITraceEvent>? events))
 					{
-						Events = new List<ITraceEvent>();
-						EventsPerUid[Uid] = Events;
+						events = new List<ITraceEvent>();
+						eventsPerUid[uid] = events;
 					}
-					Events.Add(Event);
+					events.Add(@event);
 				}
 			}
 		
-			return EventsPerUid;
+			return eventsPerUid;
 		}
 
 		public void PrintEventSummary()
 		{
-			foreach ((ushort Uid, List<ITraceEvent> Events) in GetEventsPerUid())
+			foreach ((ushort uid, List<ITraceEvent> events) in GetEventsPerUid())
 			{
-				Console.WriteLine($"{Uid,4} {EventTypes[Uid].Name,-45} {Events.Count}");
+				Console.WriteLine($"{uid,4} {EventTypes[uid].Name,-45} {events.Count}");
 			}
 		}
 	}
