@@ -754,6 +754,7 @@ public:
 	inline bool AllowApproximateOcclusion() const { return bAllowApproximateOcclusion; }
 	inline bool Holdout() const { return bHoldout; }
 	inline bool IsSplineMesh() const { return bSplineMesh; }
+	inline bool IsSkinnedMesh() const { return bSkinnedMesh; }
 
 	inline FRHIUniformBuffer* GetUniformBuffer() const
 	{
@@ -1402,7 +1403,11 @@ protected:
 	 */
 	uint8 bHoldout : 1;
 
+	/** If this is True, this primitive is a spline mesh */
 	uint8 bSplineMesh : 1;
+
+	/** If this is True, this primitive is a skinned mesh */
+	uint8 bSkinnedMesh : 1;
 	
 private:
 

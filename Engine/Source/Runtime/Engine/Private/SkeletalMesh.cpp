@@ -6170,6 +6170,9 @@ FSkeletalMeshSceneProxy::FSkeletalMeshSceneProxy(const USkinnedMeshComponent* Co
 	PoseWatchDynamicData = nullptr;
 #endif
 
+	// Skinning is supported by this proxy
+	bSkinnedMesh = true;
+
 	// Skeletal meshes DO deform internally, unless bRenderStatic is used to force static mesh behaviour.
 	bHasDeformableMesh = !bRenderStatic;
 

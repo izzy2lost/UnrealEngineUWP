@@ -14,6 +14,7 @@ struct FPerInstanceRenderData;
 class UStaticMeshComponent;
 class USkinnedMeshComponent;
 class USkinnedAsset;
+class FSkeletalMeshObject;
 class FSkeletalMeshRenderData;
 class FSkeletalMeshLODRenderData;
 class UWorld;
@@ -353,7 +354,6 @@ protected:
 #endif
 
 private:
-
 	uint32 RayTracingId = INDEX_NONE;
 	uint32 RayTracingDataOffset = INDEX_NONE;
 };
@@ -605,7 +605,7 @@ class FSkinnedSceneProxy : public FSceneProxyBase
 public:
 	using Super = FSceneProxyBase;
 	
-	ENGINE_API FSkinnedSceneProxy(USkinnedMeshComponent* Component, FSkeletalMeshRenderData* SkeletalRenderData);
+	ENGINE_API FSkinnedSceneProxy(USkinnedMeshComponent* InComponent, FSkeletalMeshRenderData* InRenderData);
 	ENGINE_API virtual ~FSkinnedSceneProxy();
 
 public:
@@ -630,13 +630,25 @@ public:
 		OutImposterIndex = Resources->ImposterIndex;
 	}
 
+	ENGINE_API uint32 GetMaxBoneTransformCount() const;
+	ENGINE_API uint32 GetMaxBoneInfluenceCount() const;
+
+	inline const FSkeletalMeshObject* GetMeshObject() const
+	{
+		return MeshObject;
+	}
+
 protected:
 	const USkinnedAsset* SkinnedAsset = nullptr;
 	const FResources* Resources = nullptr;
-	const FSkeletalMeshRenderData* SkeletalRenderData;
+	const FSkeletalMeshRenderData* RenderData = nullptr;
+	const FSkeletalMeshObject* MeshObject = nullptr;
 
 	uint32 NaniteResourceID = INDEX_NONE;
 	uint32 NaniteHierarchyOffset = INDEX_NONE;
+
+	uint16 MaxBoneTransformCount = 0u;
+	uint16 MaxBoneInfluenceCount = 0u;
 };
 
 } // namespace Nanite

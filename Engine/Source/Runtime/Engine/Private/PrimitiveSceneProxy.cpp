@@ -485,6 +485,7 @@ FPrimitiveSceneProxy::FPrimitiveSceneProxy(const FPrimitiveSceneProxyDesc& InPro
 ,	bAllowApproximateOcclusion(InProxyDesc.Mobility != EComponentMobility::Movable)
 ,   bHoldout(InProxyDesc.bHoldout)
 ,	bSplineMesh(false)
+,	bSkinnedMesh(false)
 ,	bUseAsOccluder(InProxyDesc.bUseAsOccluder)
 ,	bSelectable(InProxyDesc.bSelectable)
 ,	bHasPerInstanceHitProxies(InProxyDesc.bHasPerInstanceHitProxies)
@@ -834,6 +835,7 @@ void FPrimitiveSceneProxy::BuildUniformShaderParameters(FPrimitiveUniformShaderP
 			.PrimitiveComponentId(GetPrimitiveComponentId().PrimIDValue)
 			.EditorColors(GetWireframeColor(), GetPrimitiveColor())
 			.SplineMesh(IsSplineMesh())
+			.SkinnedMesh(IsSkinnedMesh())
 			.HasPixelAnimation(AnyMaterialHasPixelAnimation())
 			.RayTracingFarField(IsRayTracingFarField())
 			.RayTracingHasGroupId(GetRayTracingGroupId() != FPrimitiveSceneProxy::InvalidRayTracingGroupId);

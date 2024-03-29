@@ -2168,19 +2168,25 @@ uint32 FSceneProxy::GetMemoryFootprint() const
 	return sizeof( *this ) + GetAllocatedSize();
 }
 
-FSkinnedSceneProxy::FSkinnedSceneProxy(USkinnedMeshComponent* InComponent, FSkeletalMeshRenderData* InSkeletalRenderData)
+FSkinnedSceneProxy::FSkinnedSceneProxy(USkinnedMeshComponent* InComponent, FSkeletalMeshRenderData* InRenderData)
 : FSceneProxyBase(InComponent)
 , SkinnedAsset(InComponent->GetSkinnedAsset())
 , Resources(InComponent->GetNaniteResources())
-, SkeletalRenderData(InSkeletalRenderData)
+, RenderData(InRenderData)
+, MeshObject(InComponent->MeshObject)
 {
 	LLM_SCOPE_BYTAG(Nanite);
 
 	// TODO: Nanite-Skinning
 	//Nanite::FMaterialAudit MaterialAudit{};
 
+	check(InComponent->MeshObject->IsNaniteMesh());
+
 	// This should always be valid.
 	checkSlow(Resources && Resources->PageStreamingStates.Num() > 0);
+
+	// Skinning is supported by this proxy
+	bSkinnedMesh = true;
 
 	// Use fast path that does not update static draw lists.
 	bStaticElementsAlwaysUseProxyPrimitiveUniformBuffer = true;
@@ -2200,8 +2206,12 @@ FSkinnedSceneProxy::FSkinnedSceneProxy(USkinnedMeshComponent* InComponent, FSkel
 		bAlwaysHasVelocity = true;
 	}
 
+	const FReferenceSkeleton& RefSkeleton = SkinnedAsset->GetRefSkeleton();
+	MaxBoneTransformCount = uint16(RefSkeleton.GetRawBoneNum());
+	MaxBoneInfluenceCount = RenderData->GetNumBoneInfluences();
+
 	const uint32 FirstLODIndex = 0; // Only data from LOD0 is used.
-	const FSkeletalMeshLODRenderData& MeshResources = SkeletalRenderData->LODRenderData[FirstLODIndex];
+	const FSkeletalMeshLODRenderData& MeshResources = RenderData->LODRenderData[FirstLODIndex];
 	const FSkeletalMeshLODInfo& MeshInfo = *(SkinnedAsset->GetLODInfo(FirstLODIndex));
 
 	const TArray<FSkelMeshRenderSection>& MeshSections = MeshResources.RenderSections;
@@ -2461,6 +2471,16 @@ FResourceMeshInfo FSkinnedSceneProxy::GetResourceMeshInfo() const
 #endif
 
 	return MoveTemp(OutInfo);
+}
+
+uint32 FSkinnedSceneProxy::GetMaxBoneTransformCount() const
+{
+	return MaxBoneTransformCount;
+}
+
+uint32 FSkinnedSceneProxy::GetMaxBoneInfluenceCount() const
+{
+	return MaxBoneInfluenceCount;
 }
 
 struct FAuditMaterialSlotInfo

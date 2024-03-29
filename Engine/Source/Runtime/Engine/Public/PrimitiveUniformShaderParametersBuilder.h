@@ -59,6 +59,7 @@ public:
 		bHoldout									= false;
 		bDisableMaterialInvalidations				= false;
 		bSplineMesh									= false;
+		bSkinnedMesh								= false;
 		bAllowInstanceCullingOcclusionQueries		= false;
 		bHasPixelAnimation                          = false;
 		bRayTracingFarField							= false;
@@ -127,6 +128,7 @@ public:
 	PRIMITIVE_UNIFORM_BUILDER_FLAG_METHOD(bool,			Holdout);
 	PRIMITIVE_UNIFORM_BUILDER_FLAG_METHOD(bool,			DisableMaterialInvalidations);
 	PRIMITIVE_UNIFORM_BUILDER_FLAG_METHOD(bool,			SplineMesh);
+	PRIMITIVE_UNIFORM_BUILDER_FLAG_METHOD(bool,			SkinnedMesh);
 	PRIMITIVE_UNIFORM_BUILDER_FLAG_METHOD(bool,			AllowInstanceCullingOcclusionQueries);
 	PRIMITIVE_UNIFORM_BUILDER_FLAG_METHOD(bool,			HasAlwaysEvaluateWPOMaterials);
 	PRIMITIVE_UNIFORM_BUILDER_FLAG_METHOD(bool,			HasPixelAnimation);
@@ -421,6 +423,7 @@ public:
 		Parameters.Flags |= bHoldout ? PRIMITIVE_SCENE_DATA_FLAG_HOLDOUT : 0u;
 		Parameters.Flags |= bDisableMaterialInvalidations ? PRIMITIVE_SCENE_DATA_FLAG_DISABLE_MATERIAL_INVALIDATIONS : 0u;
 		Parameters.Flags |= bSplineMesh ? PRIMITIVE_SCENE_DATA_FLAG_SPLINE_MESH : 0u;
+		Parameters.Flags |= bSkinnedMesh ? PRIMITIVE_SCENE_DATA_FLAG_SKINNED_MESH : 0u;
 		Parameters.Flags |= bAllowInstanceCullingOcclusionQueries ? PRIMITIVE_SCENE_DATA_FLAG_INSTANCE_CULLING_OCCLUSION_QUERIES: 0u;
 		Parameters.Flags |= bHasPixelAnimation ? PRIMITIVE_SCENE_DATA_FLAG_HAS_PIXEL_ANIMATION : 0u;
 		Parameters.Flags |= bRayTracingFarField ? PRIMITIVE_SCENE_DATA_FLAG_RAYTRACING_FAR_FIELD : 0u;
@@ -487,6 +490,7 @@ private:
 	uint32 bHoldout : 1;
 	uint32 bDisableMaterialInvalidations : 1;
 	uint32 bSplineMesh : 1;
+	uint32 bSkinnedMesh : 1;
 	uint32 bAllowInstanceCullingOcclusionQueries : 1;
 	uint32 bHasPixelAnimation : 1;
 	uint32 bRayTracingFarField : 1;

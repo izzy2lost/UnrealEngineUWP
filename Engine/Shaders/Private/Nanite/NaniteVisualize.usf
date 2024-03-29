@@ -201,6 +201,15 @@ void VisualizeCS(uint3 DTID : SV_DispatchThreadID, uint3 GID : SV_GroupID)
 		FPrimitiveSceneData PrimitiveData			= GetPrimitiveData(InstanceData.PrimitiveId);
 		FCluster Cluster							= GetCluster(VisibleCluster.PageIndex, VisibleCluster.ClusterIndex);
 
+		const bool bIsSkinned = (PrimitiveData.Flags & PRIMITIVE_SCENE_DATA_FLAG_SKINNED_MESH) != 0;
+
+		FNaniteSkinningHeader SkinningHeader = (FNaniteSkinningHeader)0;
+		BRANCH
+		if (bIsSkinned)
+		{
+			SkinningHeader = LoadNaniteSkinningHeader(InstanceData.PrimitiveId);
+		}
+
 		const uint3 TriIndices = DecodeTriangleIndices(Cluster, TriIndex);
 
 		const float3 PointLocal0 = DecodePosition(TriIndices.x, Cluster);
