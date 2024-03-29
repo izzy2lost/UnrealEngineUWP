@@ -32,7 +32,6 @@ namespace uba
 
 #define UBA_POSIX_TESTS \
 		UBA_TEST(TestDetouredClang) \
-		UBA_TEST(TestRemoteDetouredClang) \
 		UBA_TEST(TestDetouredTouch) \
 
 
@@ -54,6 +53,7 @@ namespace uba
 #define UBA_LINUX_TESTS \
 		UBA_NONMAC_TESTS \
 		UBA_POSIX_TESTS \
+		UBA_TEST(TestRemoteDetouredClang) \
 
 
 #define UBA_MAC_TESTS \
