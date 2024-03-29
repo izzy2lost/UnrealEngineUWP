@@ -419,7 +419,7 @@ TConstArrayView<const UScriptStruct*> FTypedElementAlertHeaderWidgetConstructor:
 bool FTypedElementAlertHeaderWidgetConstructor::FinalizeWidget(ITypedElementDataStorageInterface* DataStorage, 
 	ITypedElementDataStorageUiInterface* DataStorageUi, TypedElementDataStorage::RowHandle Row, const TSharedPtr<SWidget>& Widget)
 {
-	DataStorage->AddOrGetColumn(Row, FUIHeaderPropertiesColumn
+	DataStorage->AddColumn(Row, FUIHeaderPropertiesColumn
 		{
 			.ColumnSizeMode = EColumnSizeMode::Fixed,
 			.Width = 24.0f

@@ -2061,11 +2061,11 @@ bool FPerforceUpdateStatusWorker::UpdateStates() const
 		
 		FSCCRevisionIdColumn RevisionId;
 		RevisionId.RevisionId.Id[0] = State.LocalRevNumber;
-		DataStorage->AddOrGetColumn(Row, MoveTemp(RevisionId));
+		DataStorage->AddColumn(Row, MoveTemp(RevisionId));
 		
 		FSCCExternalRevisionIdColumn ExternalRevisionId;
 		ExternalRevisionId.RevisionId.Id[0] = State.DepotRevNumber;
-		DataStorage->AddOrGetColumn(Row, MoveTemp(ExternalRevisionId));
+		DataStorage->AddColumn(Row, MoveTemp(ExternalRevisionId));
 
 		TArray<UScriptStruct*> ToAdd;
 		TArray<UScriptStruct*> ToRemove;
@@ -2085,7 +2085,7 @@ bool FPerforceUpdateStatusWorker::UpdateStates() const
 		{
 			if (bCondition)
 			{
-				DataStorage->AddOrGetColumn(Row, FSCCStatusColumn{ .Modification = Modification });
+				DataStorage->AddColumn(Row, FSCCStatusColumn{ .Modification = Modification });
 				bAnyStatus = true;
 			}
 		};
@@ -2104,7 +2104,7 @@ bool FPerforceUpdateStatusWorker::UpdateStates() const
 		{
 			FSCCExternallyLockedColumn Locked;
 			Locked.LockedBy.Name = WhoCheckedOut;
-			DataStorage->AddOrGetColumn(Row, MoveTemp(Locked));
+			DataStorage->AddColumn(Row, MoveTemp(Locked));
 		}
 		else
 		{

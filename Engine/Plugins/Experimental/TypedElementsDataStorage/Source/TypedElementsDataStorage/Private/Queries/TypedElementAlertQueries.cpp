@@ -44,7 +44,7 @@ FAutoConsoleCommand AddRandomAlertToRowConsoleCommand(
 				{
 					int32 Random = FMath::RandRange(0, 2);
 					bool bIsWarning = (Random & 0x1) == 1;
-					DataStorage->AddOrGetColumn(Row, FTypedElementAlertColumn
+					DataStorage->AddColumn(Row, FTypedElementAlertColumn
 						{
 							.Message = FText::FromString(bIsWarning ? TEXT("Test warning") : TEXT("Test error")),
 							.AlertType = bIsWarning
@@ -55,7 +55,7 @@ FAutoConsoleCommand AddRandomAlertToRowConsoleCommand(
 					
 					if (((Random >> 1) & 0x1) == 1)
 					{
-						DataStorage->AddOrGetColumn(Row, FTypedElementAlertActionColumn
+						DataStorage->AddColumn(Row, FTypedElementAlertActionColumn
 							{
 								.Action = [](RowHandle)
 								{

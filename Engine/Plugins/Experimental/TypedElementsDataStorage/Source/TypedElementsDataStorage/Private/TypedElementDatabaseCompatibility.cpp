@@ -597,18 +597,27 @@ void UTypedElementDatabaseCompatibility::TickPendingUObjectRegistration()
 		UObjectsPendingRegistration.ProcessEntries(*Storage, *this,
 			[this](TypedElementRowHandle Row, const TWeakObjectPtr<UObject>& Object)
 			{
+				ITypedElementDataStorageInterface* Interface = Storage;
 				if (AActor* Actor = Cast<AActor>(Object))
 				{
 					constexpr bool bIsOwnedByMass = false;
 					FMassActorFragment ActorColumn;
 					ActorColumn.SetNoHandleMapUpdate(FMassEntityHandle::FromNumber(Row), Actor, bIsOwnedByMass);
-					Storage->AddOrGetColumn(Row, MoveTemp(ActorColumn));
+					Interface->AddColumnData(Row, FMassActorFragment::StaticStruct(),
+						[&ActorColumn](void* Column, const UScriptStruct& ColumnType)
+						{
+							*reinterpret_cast<FMassActorFragment*>(Column) = MoveTemp(ActorColumn);
+						},
+						[](const UScriptStruct& ColumnType, void* Destination, void* Source)
+						{
+							*reinterpret_cast<FMassActorFragment*>(Destination) = *reinterpret_cast<FMassActorFragment*>(Source);
+						});
 				}
 
-				Storage->AddOrGetColumn(Row, FTypedElementUObjectColumn{ .Object = Object });
-				Storage->AddOrGetColumn(Row, FTypedElementClassTypeInfoColumn{ .TypeInfo = Object->GetClass() });
+				Interface->AddColumn(Row, FTypedElementUObjectColumn{ .Object = Object });
+				Interface->AddColumn(Row, FTypedElementClassTypeInfoColumn{ .TypeInfo = Object->GetClass() });
 				// Make sure the new row is tagged for update.
-				Storage->AddColumn<FTypedElementSyncFromWorldTag>(Row);
+				Interface->AddColumn<FTypedElementSyncFromWorldTag>(Row);
 				OnObjectAdded(Object.Get(), Object->GetClass(), Row);
 			});
 

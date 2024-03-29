@@ -182,7 +182,7 @@ void FTypedElementOutlinerMode::OnItemSelectionChanged(FSceneOutlinerTreeItemPtr
 		{
 			TypedElementDataStorage::RowHandle RowHandle = TEDSItem->GetRowHandle();
 
-			Storage->AddOrGetColumn(RowHandle, FTypedElementSelectionColumn{ .SelectionSet = SelectionSetName });
+			Storage->AddColumn(RowHandle, FTypedElementSelectionColumn{ .SelectionSet = SelectionSetName });
 		}
 	});
 }
@@ -318,7 +318,7 @@ void FTypedElementOutlinerMode::OnDrop(ISceneOutlinerTreeItem& DropTarget, const
 		
 		for(TypedElementDataStorage::RowHandle RowHandle : DraggedRowHandles)
 		{
-			Storage->AddOrGetColumn(RowHandle, FTypedElementParentColumn{ .Parent = DropTargetRowHandle });
+			Storage->AddColumn(RowHandle, FTypedElementParentColumn{ .Parent = DropTargetRowHandle });
 			Storage->AddColumn<FTypedElementSyncBackToWorldTag>(RowHandle);
 		}
 	}

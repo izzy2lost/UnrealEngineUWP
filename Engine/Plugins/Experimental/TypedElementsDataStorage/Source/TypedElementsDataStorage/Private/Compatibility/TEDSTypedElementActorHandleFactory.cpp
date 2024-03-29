@@ -106,7 +106,7 @@ void UTEDSTypedElementActorHandleFactory::HandleBridgeEnabled(bool bEnabled)
 			if (const AActor* Actor = Actors[Index].Get())
 			{
 				FTypedElementHandle Handle = UEngineElementsLibrary::AcquireEditorActorElementHandle(Actor);
-				DataStorage->AddOrGetColumn(CollatedRowHandles[Index], FTEDSTypedElementColumn
+				DataStorage->AddColumn(CollatedRowHandles[Index], FTEDSTypedElementColumn
 				{
 					.Handle = Handle
 				});

@@ -64,7 +64,7 @@ FAutoConsoleCommandWithArgsAndOutputDevice SetOutlineColorConsoleCommand(
 
 				for (TypedElementRowHandle Row : RowHandles)
 				{
-					DataStorage->AddOrGetColumn(Row, 
+					DataStorage->AddColumn(Row, 
 						FTypedElementViewportOutlineColorColumn{ .SelectionOutlineColorIndex = static_cast<uint8>(ColorIndex) });
 					DataStorage->AddColumn<FTypedElementSyncBackToWorldTag>(Row);
 				}
@@ -117,7 +117,7 @@ FAutoConsoleCommandWithArgsAndOutputDevice SetSelectionOverlayColorConsoleComman
 
 				for (TypedElementRowHandle Row : RowHandles)
 				{
-					DataStorage->AddOrGetColumn(Row, FTypedElementViewportOverlayColorColumn{ .OverlayColor = Color });
+					DataStorage->AddColumn(Row, FTypedElementViewportOverlayColorColumn{ .OverlayColor = Color });
 					DataStorage->AddColumn<FTypedElementSyncBackToWorldTag>(Row);
 				}
 			}
