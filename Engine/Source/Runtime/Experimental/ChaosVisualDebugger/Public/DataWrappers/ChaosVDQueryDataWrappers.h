@@ -295,6 +295,7 @@ struct FChaosVDQueryHitData : public FChaosVDWrapperDataBase
 	UPROPERTY(VisibleAnywhere, Category=QueryData)
 	FVector WorldNormal = FVector::ZeroVector;
 
+	/** This is not used for Line Traces */
 	UPROPERTY(VisibleAnywhere, Category=QueryData)
 	FVector FaceNormal = FVector::ZeroVector;
 };
