@@ -33,6 +33,10 @@ namespace Horde.Server.Commands.Generate
 		public string? Description { get; set; }
 
 		[CommandLine]
+		[Description("Category for the tool")]
+		public string? Category { get; set; }
+
+		[CommandLine]
 		[Description("Version string for the tool")]
 		public string? Version { get; set; }
 
@@ -101,6 +105,10 @@ namespace Horde.Server.Commands.Generate
 				if (!String.IsNullOrEmpty(Description))
 				{
 					bundledTool[nameof(BundledToolConfig.Description)] = Description;
+				}
+				if (!String.IsNullOrEmpty(Category))
+				{
+					bundledTool[nameof(BundledToolConfig.Category)] = Category;
 				}
 				if (!String.IsNullOrEmpty(Version))
 				{
