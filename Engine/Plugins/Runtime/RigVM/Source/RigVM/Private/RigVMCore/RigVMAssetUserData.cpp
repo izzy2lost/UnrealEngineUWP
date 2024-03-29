@@ -457,13 +457,32 @@ const TArray<const UNameSpacedUserData::FUserData*>& UDataAssetLink::GetUserData
 	return EmptyUserDatas;
 }
 
+void UDataAssetLink::Serialize(FArchive& Ar)
+{
+	// Treat the cached ptr as transient unless we're cooking this out.
+	const bool bIsSavingAssetToStorage = Ar.IsSaving() && Ar.IsPersistent() && !Ar.IsCooking(); 
+	UDataAsset* SavedDataAsset = DataAssetCached; 
+	if (bIsSavingAssetToStorage)
+	{
+		DataAssetCached = nullptr;
+	}
+
+	Super::Serialize(Ar);
+	
+	if (bIsSavingAssetToStorage)
+	{
+		DataAssetCached = SavedDataAsset;
+	}
+}
+
+#if WITH_EDITOR
+
 void UDataAssetLink::PostLoad()
 {
 	Super::PostLoad();
 
 	DataAssetCached = DataAsset.Get();
-
-	if(DataAssetCached == nullptr)
+	if(DataAssetCached == nullptr && !DataAsset.IsNull())
 	{
 		// We need to check if the mount point exists - since the data asset library link may
 		// refer to an editor-only asset in a runtime game.
@@ -475,21 +494,11 @@ void UDataAssetLink::PostLoad()
 
 			// load without throwing additional warnings / errors
 			DataAssetCached = LoadObject<UDataAsset>(nullptr, *ObjectPath, nullptr, LOAD_Quiet | LOAD_NoWarn);
-
-			if(DataAssetCached)
-			{
-				if(NameSpace.IsEmpty())
-				{
-					NameSpace = DataAsset->GetName();
-				}
-
-				verify(DataAssetCached == DataAsset.Get());
-			}
+			SetDataAsset(DataAsset);
 		}
 	}
 }
 
-#if WITH_EDITOR
 
 void UDataAssetLink::PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent)
 {

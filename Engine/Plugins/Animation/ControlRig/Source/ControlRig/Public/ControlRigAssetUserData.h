@@ -29,9 +29,10 @@ public:
 	virtual const FUserData* GetUserData(const FString& InPath, FString* OutErrorMessage = nullptr) const override;
 	virtual const TArray<const FUserData*>& GetUserDataArray(const FString& InParentPath = FString(), FString* OutErrorMessage = nullptr) const override;
 
+	virtual void Serialize(FArchive& Ar) override;
+#if WITH_EDITOR
 	virtual bool IsPostLoadThreadSafe() const override { return false; }
 	virtual void PostLoad() override;
-#if WITH_EDITOR
 	virtual void PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent) override;
 #endif
 
@@ -40,7 +41,7 @@ protected:
 	UPROPERTY(transient)
 	TArray<FName> ShapeNames;
 
-	UPROPERTY(transient)
+	UPROPERTY()
 	TObjectPtr<UControlRigShapeLibrary> ShapeLibraryCached;
 	
 
