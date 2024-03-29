@@ -618,6 +618,7 @@ namespace uba
 				writer.WriteBool(m_resetCas);
 				writer.WriteU32(sessionId);
 				writer.WriteU32(m_uiLanguage);
+				writer.WriteBool(m_storeObjFilesCompressed);
 				writer.WriteBool(m_detailedTrace);
 				writer.WriteBool(m_remoteLogEnabled);
 				writer.WriteBool(m_remoteTraceEnabled);
@@ -807,7 +808,8 @@ namespace uba
 
 					if (ShouldWriteToDisk(destination.data, destination.count))
 					{
-						success = m_storage.CopyOrLink(casKey, destination.data, attributes);
+						bool writeCompressed = m_storeObjFilesCompressed && destination.EndsWith(TC(".obj"));
+						success = m_storage.CopyOrLink(casKey, destination.data, attributes, writeCompressed);
 						if (!success)
 							m_logger.Error(TC("Failed to copy cas from %s to %s"), CasKeyString(casKey).str, destination.data);
 					}

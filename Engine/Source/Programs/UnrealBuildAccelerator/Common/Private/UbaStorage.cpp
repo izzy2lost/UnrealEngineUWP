@@ -1896,7 +1896,7 @@ namespace uba
 		return out != CasKeyZero;
 	}
 
-	bool StorageImpl::CopyOrLink(const CasKey& casKey, const tchar* destination, u32 fileAttributes)
+	bool StorageImpl::CopyOrLink(const CasKey& casKey, const tchar* destination, u32 fileAttributes, bool writeCompressed)
 	{
 		UBA_ASSERT(casKey != CasKeyZero);
 		UBA_ASSERT(fileAttributes);
@@ -1938,9 +1938,9 @@ namespace uba
 
 		TimerScope ts(stats.copyOrLink);
 
-		CasKey actualKey = AsCompressed(casKey, false);
+		CasKey actualKey = AsCompressed(casKey, writeCompressed);
 
-		bool testCompressed = true;
+		bool testCompressed = !writeCompressed;
 		while (true)
 		{
 			CasEntry* casEntry = nullptr;
@@ -1979,6 +1979,15 @@ namespace uba
 					if (!compressedData)
 						return m_logger.Error(TC("Failed to map view of mapping %s (%s)"), casFile.data, LastErrorToText().data);
 
+					if (writeCompressed)
+					{
+						FileAccessor destinationFile(m_logger, destination);
+						if (!destinationFile.CreateMemoryWrite(false, fileAttributes, mappedView.size, m_tempPath.data))
+							return false;
+						memcpy(destinationFile.GetData(), mappedView.memory, mappedView.size);
+						return destinationFile.Close();
+					}
+
 					decompressedSize = *(u64*)compressedData;
 					readData = compressedData + sizeof(u64);
 				}
@@ -1990,6 +1999,9 @@ namespace uba
 #else
 					UBA_ASSERT(false);
 #endif
+					if (writeCompressed)
+						return m_logger.Error(TC("NOT IMPLEMENTED %s"), destination);
+
 					if (!OpenFileSequentialRead(m_logger, casFile.data, readHandle))
 						return m_logger.Error(TC("Failed to open file %s for read (%s)"), casFile.data, LastErrorToText().data);
 
@@ -2443,12 +2455,12 @@ namespace uba
 			while (left)
 			{
 				u32 sizes[2];
-				if (!ReadFile(m_logger, TC(""), fileHandle, sizes, sizeof(u32) * 2))
+				if (!ReadFile(m_logger, fileName, fileHandle, sizes, sizeof(u32) * 2))
 					return false;
 				u32 compressedBlockSize = sizes[0];
 				u32 decompressedBlockSize = sizes[1];
 
-				if (!ReadFile(m_logger, TC(""), fileHandle, readBuffer, compressedBlockSize))
+				if (!ReadFile(m_logger, fileName, fileHandle, readBuffer, compressedBlockSize))
 					return false;
 				TimerScope ts(stats.decompressToMem);
 				OO_SINTa decompLen = OodleLZ_Decompress(readBuffer, (OO_SINTa)compressedBlockSize, writePos, (OO_SINTa)decompressedBlockSize);

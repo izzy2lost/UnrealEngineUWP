@@ -960,6 +960,8 @@ namespace uba
 		m_shouldWriteToDisk = info.shouldWriteToDisk;
 		UBA_ASSERTF(m_shouldWriteToDisk || m_allowMemoryMaps, TC("Can't disable both should write to disk and allow memory maps"));
 
+		m_storeObjFilesCompressed = info.storeObjFilesCompressed;
+
 		m_detailedTrace = info.detailedTrace;
 		m_logToFile = info.logToFile;
 		if (info.extraInfo)
@@ -1977,6 +1979,13 @@ namespace uba
 				//PrefetchVirtualMemory(mem, fileSize);
 
 				auto memClose = MakeGuard([&](){ UnmapViewOfFile(mem, fileSize, file.name.c_str()); });
+
+
+				if (m_storeObjFilesCompressed && EndsWith(file.name.c_str(), file.name.size(), TC(".obj")))
+				{
+					Storage::WriteResult res;
+					return m_storage.WriteCompressed(res, TC("MemoryMap"), InvalidFileHandle, mem, fileSize, file.name.c_str());
+				}
 
 				// Seems like best combo (for windows at least) is to use writes with overlap and max 16 at the same time.
 				// On one machine we get twice as fast without overlap if no bottleneck. On another machine (ntfs compression on) we get twice as slow without overlap

@@ -165,6 +165,7 @@ namespace uba
 		bool m_shouldWriteToDisk;
 		bool m_detailedTrace;
 		bool m_logToFile;
+		bool m_storeObjFilesCompressed;
 
 		u64 m_keepOutputFileMemoryMapsThreshold;
 

@@ -41,8 +41,8 @@ DETOURED_FUNCTIONS_MEMORY
 #include "UbaWinBinDependencyParser.h"
 #include "UbaDetoursPayload.h"
 #include "UbaApplicationRules.h"
-
 #include "UbaDetoursShared.h"
+#include "UbaDetoursObjFilesPreloader.h"
 
 #include "Shlwapi.h"
 #include <detours/detours.h>
@@ -127,111 +127,8 @@ void TrackInput(const wchar_t* file)
 	}
 }
 
-struct MemoryFile
-{
-	MemoryFile(u8* data = nullptr, bool localOnly = true) : baseAddress(data), isLocalOnly(localOnly) {}
-	MemoryFile(bool localOnly, u64 reserveSize_) : isLocalOnly(localOnly)
-	{
-		Reserve(reserveSize_);
-	}
-
-	void Reserve(u64 reserveSize_)
-	{
-		reserveSize = reserveSize_;
-		if (isLocalOnly)
-		{
-			baseAddress = (u8*)VirtualAlloc(NULL, reserveSize, MEM_RESERVE, PAGE_READWRITE);
-			if (!baseAddress)
-				FatalError(1354, L"VirtualAlloc failed trying to reserve %llu. (Error code: %u)", reserveSize, GetLastError());
-			mappedSize = reserveSize;
-		}
-		else
-		{
-			mappedSize = 32 * 1024 * 1024;
-			mappingHandle = True_CreateFileMappingW(INVALID_HANDLE_VALUE, NULL, PAGE_READWRITE | SEC_RESERVE, ToHigh(reserveSize), ToLow(reserveSize), NULL);
-			if (!mappingHandle)
-				FatalError(1348, L"CreateFileMappingW failed trying to reserve %llu. (Error code: %u)", reserveSize, GetLastError());
-			baseAddress = (u8*)True_MapViewOfFile(mappingHandle, FILE_MAP_READ | FILE_MAP_WRITE, 0, 0, mappedSize);
-			if (!baseAddress)
-				FatalError(1353, L"MapViewOfFile failed trying to map %llu. ReservedSize: %llu (Error code: %u)", mappedSize, reserveSize, GetLastError());
-		}
-	}
-
-	void Unreserve()
-	{
-		if (isLocalOnly)
-		{
-			VirtualFree(baseAddress, 0, MEM_RELEASE);
-		}
-		else
-		{
-			True_UnmapViewOfFile(baseAddress);
-			CloseHandle(mappingHandle);
-			mappingHandle = nullptr;
-		}
-		baseAddress = nullptr;
-		committedSize = 0;
-	}
-
-	void Write(struct DetouredHandle& handle, LPCVOID lpBuffer, u64 nNumberOfBytesToWrite);
-	void EnsureCommited(struct DetouredHandle& handle, u64 size);
-
-	u64 fileIndex = ~u64(0);
-	u64 fileTime = ~u64(0);
-	u32 volumeSerial = 0;
-
-	HANDLE mappingHandle = nullptr;
-	u8* baseAddress;
-	u64 reserveSize = 0;
-	u64 mappedSize = 0;
-	u64 committedSize = 0;
-	u64 writtenSize = 0;
-	bool isLocalOnly;
-	bool isReported = false;
-};
 u8 g_emptyMemoryFileMem;
 MemoryFile& g_emptyMemoryFile = *new MemoryFile(&g_emptyMemoryFileMem, true);
-
-struct FileObject
-{
-	void* operator new(size_t size);
-	void operator delete(void* p);
-	FileInfo* fileInfo = nullptr;
-	u32 refCount = 1;
-	u32 closeId = 0;
-	u32 desiredAccess = 0;
-	bool deleteOnClose = false;
-	bool ownsFileInfo = false;
-	TString newName;
-};
-BlockAllocator<FileObject> g_fileObjectAllocator(g_memoryBlock);
-void* FileObject::operator new(size_t size) { return g_fileObjectAllocator.Allocate(); }
-void FileObject::operator delete(void* p) { g_fileObjectAllocator.Free(p); }
-
-
-enum HandleType
-{
-	HandleType_File,
-	HandleType_FileMapping,
-	HandleType_Process,
-	HandleType_Std,
-};
-
-struct DetouredHandle
-{
-	void* operator new(size_t size);
-	void operator delete(void* p);
-
-	DetouredHandle(HandleType t, HANDLE th = INVALID_HANDLE_VALUE) : trueHandle(th), type(t) {}
-
-	HANDLE trueHandle;
-	u32 dirTableOffset = ~u32(0);
-	HandleType type;
-
-	// Only for files
-	FileObject* fileObject = nullptr;
-    u64 pos = 0;
-};
 
 constexpr u64 DetouredHandleMaxCount = 200*1024; // ~200000 handles enough?
 constexpr u64 DetouredHandleStart = 300000; // Let's hope noone uses the handles starting at 300000! :)
@@ -295,6 +192,9 @@ inline ListDirectoryHandle& asListDirectoryHandle(HANDLE h) { return *(ListDirec
 ReaderWriterLock g_loadedModulesLock;
 UnorderedMap<HMODULE, TString> g_loadedModules;
 u64 g_memoryFileIndexCounter = ~u64(0) - 1000000; // I really hope this will not collide with anything
+
+ObjFilesPreloader g_objFilesPreloader;
+
 
 struct SuppressCreateFileDetourScope
 {
@@ -965,12 +865,17 @@ void Init(const DetoursPayload& payload, u64 startTime)
 	UBA_ASSERT(directoryTableMem);
 	g_directoryTable.Init(directoryTableMem, directoryTableCount, directoryTableSize);
 
+	if (payload.storeObjFilesCompressed && g_rulesIndex == 2) 	// Rules index 2 is link.exe.. compressed obj files is experimental so solution is a bit hacky
+		g_objFilesPreloader.Start(cmdLine);
+
 	g_stats.attach.time += GetTime() - startTime;
 	g_stats.attach.count = 1;
 }
 
 void Deinit(u64 startTime)
 {
+	g_objFilesPreloader.Stop();
+
 	if (g_isRunningWine) // mt.exe etc fails if detaching is not done during shutdown
 	{
 		DetourTransactionBegin();

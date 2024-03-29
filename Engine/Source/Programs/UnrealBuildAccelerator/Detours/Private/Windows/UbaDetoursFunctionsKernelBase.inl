@@ -3681,7 +3681,7 @@ BOOL Detoured_PathIsDirectoryEmptyW(LPCWSTR pszPath)
 
 HRESULT Detoured_SHCreateStreamOnFileW(LPCWSTR pszFile, DWORD grfMode, IStream** ppstm)
 {
-	UBA_ASSERTF(!g_runningRemote, L"%ls", pszFile);
+	//UBA_ASSERTF(!g_runningRemote, L"%ls", pszFile);
 	return True_SHCreateStreamOnFileW(pszFile, grfMode, ppstm);
 }
 

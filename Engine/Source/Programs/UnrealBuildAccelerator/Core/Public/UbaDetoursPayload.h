@@ -23,6 +23,7 @@ namespace uba
 		bool useCustomAllocator = true;
 		bool isRunningWine = false;
 		bool isChild = false;
+		bool storeObjFilesCompressed = false;
 		int uiLanguage = 0;
 		StringBuffer<256> logFile;
 	};

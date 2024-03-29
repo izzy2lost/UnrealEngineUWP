@@ -322,7 +322,7 @@ uba::StorageClient* CreateStorageClient(uba::NetworkClient& client, const uba::t
 	}
 */
 
-	uba::SessionServerCreateInfo* CreateSessionServerCreateInfo(uba::Storage& storage, uba::NetworkServer& client, uba::LogWriter& writer, const uba::tchar* rootDir, const uba::tchar* traceOutputFile, bool disableCustomAllocator, bool launchVisualizer, bool resetCas, bool writeToDisk, bool detailedTrace, bool allowWaitOnMem, bool allowKillOnMem)
+	uba::SessionServerCreateInfo* CreateSessionServerCreateInfo(uba::Storage& storage, uba::NetworkServer& client, uba::LogWriter& writer, const uba::tchar* rootDir, const uba::tchar* traceOutputFile, bool disableCustomAllocator, bool launchVisualizer, bool resetCas, bool writeToDisk, bool detailedTrace, bool allowWaitOnMem, bool allowKillOnMem, bool storeObjFilesCompressed)
 	{
 		auto info = new uba::SessionServerCreateInfo(storage, client, writer);
 		info->rootDir = TStrdup(rootDir);
@@ -334,6 +334,7 @@ uba::StorageClient* CreateStorageClient(uba::NetworkClient& client, const uba::t
 		info->detailedTrace = detailedTrace;
 		info->allowWaitOnMem = allowWaitOnMem;
 		info->allowKillOnMem = allowKillOnMem;
+		info->storeObjFilesCompressed = storeObjFilesCompressed;
 		//info->remoteTraceEnabled = true;
 		//info->remoteLogEnabled = true;
 		return info;

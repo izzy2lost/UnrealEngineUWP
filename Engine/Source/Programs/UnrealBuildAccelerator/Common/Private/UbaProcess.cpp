@@ -1394,6 +1394,7 @@ namespace uba
 			payload.trackInputs = m_startInfo.trackInputs;
 			payload.useCustomAllocator = m_startInfo.useCustomAllocator && GetApplicationRules()[m_rulesIndex].rules->AllowMiMalloc();
 			payload.isRunningWine = IsRunningWine();
+			payload.storeObjFilesCompressed = m_session.m_storeObjFilesCompressed;
 			payload.uiLanguage = m_startInfo.uiLanguage;
 			if (*m_startInfo.logFile)
 			{

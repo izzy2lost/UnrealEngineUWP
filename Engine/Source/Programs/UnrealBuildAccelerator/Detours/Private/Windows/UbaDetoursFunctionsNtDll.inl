@@ -884,6 +884,8 @@ NTSTATUS NTAPI Shared_NtCreateFile(bool IsCreateFunc, PHANDLE hFileHandle, ACCES
 	}
 	else
 	{
+		g_objFilesPreloader.Wait(fileNameKey); // Wait for on-going preload if existing
+
 		if (!info.originalName)
 			info.originalName = g_memoryBlock.Strdup(fileName.data);
 		if (isWrite) //(info.lastDesiredAccess != dwDesiredAccess)
@@ -997,10 +999,6 @@ NTSTATUS NTAPI Shared_NtCreateFile(bool IsCreateFunc, PHANDLE hFileHandle, ACCES
 
 	if (keepInMemory || info.memoryFile)
 	{
-		auto fileObject = new FileObject();
-		DetouredHandle* dh = new DetouredHandle(HandleType_File);
-		dh->fileObject = fileObject;
-
 		if (!info.memoryFile)
 		{
 			if (NeedsSharedMemory(fileName.data))
@@ -1069,6 +1067,9 @@ NTSTATUS NTAPI Shared_NtCreateFile(bool IsCreateFunc, PHANDLE hFileHandle, ACCES
 		}
 		_.Leave();
 
+		auto fileObject = new FileObject();
+		DetouredHandle* dh = new DetouredHandle(HandleType_File);
+		dh->fileObject = fileObject;
 		dh->dirTableOffset = dirTableOffset;
 		dh->fileObject->desiredAccess = dwDesiredAccess;
 		dh->fileObject->closeId = closeId;
@@ -1079,6 +1080,22 @@ NTSTATUS NTAPI Shared_NtCreateFile(bool IsCreateFunc, PHANDLE hFileHandle, ACCES
 		TrackFileInput();
 
 		DEBUG_LOG_DETOURED(funcName, L"(MEMORY)%ls %llu (%ls) (%ls) -> Success", isWriteStr, uintptr_t(*hFileHandle), lpFileName, (fileName.data != lpFileName ? fileName.data : L""));
+		return STATUS_SUCCESS;
+	}
+
+	if (lpFileName[0] == ':')
+	{
+		auto fileObject = new FileObject();
+		DetouredHandle* dh = new DetouredHandle(HandleType_File);
+		dh->fileObject = fileObject;
+		dh->dirTableOffset = dirTableOffset;
+		dh->fileObject->desiredAccess = dwDesiredAccess;
+		dh->fileObject->closeId = closeId;
+		dh->fileObject->fileInfo = &info;
+		dh->fileObject->deleteOnClose = isDeleteOnClose;
+		*hFileHandle = makeDetouredHandle(dh);
+
+		DEBUG_LOG_DETOURED(funcName, L"(PRELOAD)%ls %llu (%ls) (%ls) -> Success", isWriteStr, uintptr_t(*hFileHandle), lpFileName, (fileName.data != lpFileName ? fileName.data : L""));
 		return STATUS_SUCCESS;
 	}
 

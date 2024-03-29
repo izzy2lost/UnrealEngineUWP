@@ -266,8 +266,11 @@ namespace uba
 			HMODULE hm = NULL;
 			if (!GetModuleHandleEx(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS | GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT, (LPCWSTR)&GetDirectoryOfCurrentModule, &hm))
 				return logger.Error(TC("GetModuleHandleEx failed (%s)"), LastErrorToText().data);
-			if (!GetModuleFileNameW(hm, out.data, out.capacity))
+			u32 len = GetModuleFileNameW(hm, out.data + out.count, out.capacity - out.count);
+			if (!len)
 				return logger.Error(TC("GetModuleFileNameW failed (%s)"), LastErrorToText().data);
+			out.count += len;
+			UBA_ASSERTF(GetLastError() == ERROR_SUCCESS, TC("GetModuleFileNameW failed (%s)"), LastErrorToText().data);
 			const tchar* lastSlash = out.Last('\\');
 			out.Resize(lastSlash - out.data);
 			return true;

@@ -19,6 +19,7 @@ public class UbaDetours : ModuleRules
 		{
 			PrivateDependencyModuleNames.AddRange(new string[] {
 				"Detours",
+				"OodleDataCompression",
 			});
 
 			PublicSystemLibraries.AddRange(new string[] {

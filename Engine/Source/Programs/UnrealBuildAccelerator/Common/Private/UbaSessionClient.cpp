@@ -1077,6 +1077,7 @@ namespace uba
 
 		m_sessionId = reader.ReadU32();
 		m_uiLanguage = reader.ReadU32();
+		m_storeObjFilesCompressed = reader.ReadBool();
 		m_detailedTrace = reader.ReadBool();
 		m_shouldSendLogToServer = reader.ReadBool();
 		m_shouldSendTraceToServer = reader.ReadBool();
