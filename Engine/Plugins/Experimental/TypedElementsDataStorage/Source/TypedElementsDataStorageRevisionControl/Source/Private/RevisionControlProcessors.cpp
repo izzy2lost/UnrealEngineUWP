@@ -135,7 +135,7 @@ void UTypedElementRevisionControlFactory::RegisterQueries(ITypedElementDataStora
 	TypedElementQueryHandle ObjectToSCCQuery = DataStorage.RegisterQuery(
 		Select()
 			.ReadOnly<FTypedElementPackagePathColumn>()
-			.ReadOnly<FSCCStatusColumn>(EOptional::Yes)
+			.ReadOnly<FSCCStatusColumn, FSCCExternallyLockedColumn>(EOptional::Yes)
 		.Compile());
 
 	DataStorage.RegisterQuery(
@@ -163,6 +163,8 @@ void UTypedElementRevisionControlFactory::RegisterQueries(ITypedElementDataStora
 				);
 			}
 		)
+		.Where()
+			.Any<FSCCNotCurrentTag, FSCCLockedTag>()
 		.DependsOn()
 			.SubQuery(ObjectToSCCQuery)
 		.Compile()

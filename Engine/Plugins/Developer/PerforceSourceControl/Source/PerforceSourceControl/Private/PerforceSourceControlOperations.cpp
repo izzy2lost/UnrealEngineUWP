@@ -2067,7 +2067,7 @@ bool FPerforceUpdateStatusWorker::UpdateStates() const
 		ExternalRevisionId.RevisionId.Id[0] = State.DepotRevNumber;
 		DataStorage->AddOrGetColumn(Row, MoveTemp(ExternalRevisionId));
 
-		TArray<UScriptStruct*> ToAdd { FTypedElementSyncFromWorldTag::StaticStruct() };
+		TArray<UScriptStruct*> ToAdd;
 		TArray<UScriptStruct*> ToRemove;
 		auto SyncTagFromState = [&](bool bCondition, UScriptStruct* Tag)
 		{
