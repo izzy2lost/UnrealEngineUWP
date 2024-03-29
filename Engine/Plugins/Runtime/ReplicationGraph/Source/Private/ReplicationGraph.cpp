@@ -1395,7 +1395,6 @@ void UReplicationGraph::ReplicateActorListsForConnections_Default(UNetReplicatio
 	FNativeClassAccumulator DormancyClassAccumulator;
 	FNativeClassAccumulator DistanceClassAccumulator;
 
-	int32 NumGatheredListsOnConnection = 0;
 	int32 NumGatheredActorsOnConnection = 0;
 	int32 NumPrioritizedActorsOnConnection = 0;
 
@@ -1415,192 +1414,188 @@ void UReplicationGraph::ReplicateActorListsForConnections_Default(UNetReplicatio
 		PrioritizedReplicationList.Reset();
 		TArray<FPrioritizedRepList::FItem>* SortingArray = &PrioritizedReplicationList.Items;
 
-		NumGatheredListsOnConnection += GatheredReplicationListsForConnection.NumLists();
-
 		const float MaxDistanceScaling = PrioritizationConstants.MaxDistanceScaling;
 		const uint32 MaxFramesSinceLastRep = PrioritizationConstants.MaxFramesSinceLastRep;
 
-		const TArray<FActorRepListConstView>& GatheredLists = GatheredReplicationListsForConnection.GetLists(EActorRepListTypeFlags::Default);
-		for (const FActorRepListConstView& List : GatheredLists)
+		// Add actors from gathered list
+		const TArrayView<const FActorRepListType> Actors = GatheredReplicationListsForConnection.ViewActors(EActorRepListTypeFlags::Default);
+		NumGatheredActorsOnConnection += Actors.Num();
+
+		for (const FActorRepListType& Actor : Actors)
 		{
-			// Add actors from gathered list
-			NumGatheredActorsOnConnection += List.Num();
-			for (const FActorRepListType& Actor : List)
+			RG_QUICK_SCOPE_CYCLE_COUNTER(Prioritize_InnerLoop);
+
+			if (!ensureMsgf(IsActorValidForReplication_LogMoreInfo(Actor), TEXT("Actor not valid for replication")))
 			{
-				RG_QUICK_SCOPE_CYCLE_COUNTER(Prioritize_InnerLoop);
+				continue;
+			}
 
-				if (!ensureMsgf(IsActorValidForReplication_LogMoreInfo(Actor), TEXT("Actor not valid for replication")))
+			// -----------------------------------------------------------------------------------------------------------------
+			//	Prioritize Actor for Connection: this is the main block of code for calculating a final score for this actor
+			//		-This is still pretty rough. It would be nice if this was customizable per project without suffering virtual calls.
+			// -----------------------------------------------------------------------------------------------------------------
+
+			if (RepGraphConditionalActorBreakpoint(Actor, NetConnection))
+			{
+				UE_LOG(LogReplicationGraph, Display, TEXT("UReplicationGraph PrioritizeActor: %s"), *Actor->GetName());
+			}
+
+			FConnectionReplicationActorInfo& ConnectionData = ConnectionActorInfoMap.FindOrAdd(Actor);
+
+			RG_QUICK_SCOPE_CYCLE_COUNTER(Prioritize_InnerLoop_ConnGlobalLookUp);
+
+			// Skip if dormant on this connection. We want this to always be the first/quickest check.
+			if (ConnectionData.bDormantOnConnection)
+			{
+				DO_REPGRAPH_DETAILS(PrioritizedReplicationList.GetNextSkippedDebugDetails(Actor)->bWasDormant = true);
+				if (bDoCulledOnConnectionCount)
 				{
-					continue;
+					DormancyClassAccumulator.Increment(Actor->GetClass());
 				}
+				continue;
+			}
 
-				// -----------------------------------------------------------------------------------------------------------------
-				//	Prioritize Actor for Connection: this is the main block of code for calculating a final score for this actor
-				//		-This is still pretty rough. It would be nice if this was customizable per project without suffering virtual calls.
-				// -----------------------------------------------------------------------------------------------------------------
+			FGlobalActorReplicationInfo& GlobalData = GlobalActorReplicationInfoMap.Get(Actor);
 
-				if (RepGraphConditionalActorBreakpoint(Actor, NetConnection))
-				{
-					UE_LOG(LogReplicationGraph, Display, TEXT("UReplicationGraph PrioritizeActor: %s"), *Actor->GetName());
-				}
+			RG_QUICK_SCOPE_CYCLE_COUNTER(Prioritize_InnerLoop_PostGlobalLookUp);
 
-				FConnectionReplicationActorInfo& ConnectionData = ConnectionActorInfoMap.FindOrAdd(Actor);
+			// Skip if its not time to replicate on this connection yet. We have to look at ForceNetUpdateFrame here. It would be possible to clear
+			// NextReplicationFrameNum on all connections when ForceNetUpdate is called. This probably means more work overall per frame though. Something to consider.
+			if (!ReadyForNextReplication(ConnectionData, GlobalData, FrameNum))
+			{
+				DO_REPGRAPH_DETAILS(PrioritizedReplicationList.GetNextSkippedDebugDetails(Actor)->FramesTillNextReplication = (FrameNum - ConnectionData.LastRepFrameNum));
+				continue;
+			}
 
-				RG_QUICK_SCOPE_CYCLE_COUNTER(Prioritize_InnerLoop_ConnGlobalLookUp);
+			RG_QUICK_SCOPE_CYCLE_COUNTER(Prioritize_InnerLoop_PostReady);
 
-				// Skip if dormant on this connection. We want this to always be the first/quickest check.
-				if (ConnectionData.bDormantOnConnection)
-				{
-					DO_REPGRAPH_DETAILS(PrioritizedReplicationList.GetNextSkippedDebugDetails(Actor)->bWasDormant = true);
-					if (bDoCulledOnConnectionCount)
-					{
-						DormancyClassAccumulator.Increment(Actor->GetClass());
-					}
-					continue;
-				}
+			// Output record for full debugging. This is not used in the actual sorting/prioritization of the list, just for logging/debugging purposes
+			FPrioritizedActorFullDebugDetails* DebugDetails = nullptr;
+			if (DO_REPGRAPH_DETAILS(UNLIKELY(bEnableFullActorPrioritizationDetails)))
+			{
+				DO_REPGRAPH_DETAILS(DebugDetails = PrioritizedReplicationList.GetNextFullDebugDetails(Actor));
+			}
 
-				FGlobalActorReplicationInfo& GlobalData = GlobalActorReplicationInfoMap.Get(Actor);
+			float AccumulatedPriority = GlobalData.Settings.AccumulatedNetPriorityBias;
 
-				RG_QUICK_SCOPE_CYCLE_COUNTER(Prioritize_InnerLoop_PostGlobalLookUp);
-
-				// Skip if its not time to replicate on this connection yet. We have to look at ForceNetUpdateFrame here. It would be possible to clear
-				// NextReplicationFrameNum on all connections when ForceNetUpdate is called. This probably means more work overall per frame though. Something to consider.
-				if (!ReadyForNextReplication(ConnectionData, GlobalData, FrameNum))
-				{
-					DO_REPGRAPH_DETAILS(PrioritizedReplicationList.GetNextSkippedDebugDetails(Actor)->FramesTillNextReplication = (FrameNum - ConnectionData.LastRepFrameNum));
-					continue;
-				}
-
-				RG_QUICK_SCOPE_CYCLE_COUNTER(Prioritize_InnerLoop_PostReady);
-
-				// Output record for full debugging. This is not used in the actual sorting/prioritization of the list, just for logging/debugging purposes
-				FPrioritizedActorFullDebugDetails* DebugDetails = nullptr;
-				if (DO_REPGRAPH_DETAILS(UNLIKELY(bEnableFullActorPrioritizationDetails)))
-				{
-					DO_REPGRAPH_DETAILS(DebugDetails = PrioritizedReplicationList.GetNextFullDebugDetails(Actor));
-				}
-
-				float AccumulatedPriority = GlobalData.Settings.AccumulatedNetPriorityBias;
-
-				// -------------------
-				// Distance Scaling
-				// -------------------
-				if (GlobalData.Settings.DistancePriorityScale > 0.f)
-				{
-					// Always compute distance even for AlwaysRelevant actors since the priority scaling needs it.
-					FVector::FReal SmallestDistanceSq = std::numeric_limits<FVector::FReal>::max();
-					int32 ViewersThatSkipActor = 0;
-					
-					for (const FNetViewer& CurViewer : Viewers)
-					{
-						const FVector::FReal DistSq = (GlobalData.WorldLocation - CurViewer.ViewLocation).SizeSquared();
-						SmallestDistanceSq = FMath::Min(DistSq, SmallestDistanceSq);
-
-						// Figure out if we should be skipping this actor
-						if (bDoDistanceCull && ConnectionData.GetCullDistanceSquared() > 0.f && DistSq > ConnectionData.GetCullDistanceSquared())
-						{
-							++ViewersThatSkipActor;
-							continue;
-						}
-					}
-
-					// If no one is near this actor, skip it.
-					if (ViewersThatSkipActor >= Viewers.Num())
-					{
-						DO_REPGRAPH_DETAILS(PrioritizedReplicationList.GetNextSkippedDebugDetails(Actor)->DistanceCulled = static_cast<float>(FMath::Sqrt(SmallestDistanceSq)));
-
-						// Skipped actors should not have any 
-						if (bDoCulledOnConnectionCount)
-						{
-							DistanceClassAccumulator.Increment(Actor->GetClass());
-						}
-						continue;
-					}
-
-					const float DistanceFactor = FMath::Clamp(static_cast<float>(SmallestDistanceSq / MaxDistanceScaling), 0.f, 1.f) * GlobalData.Settings.DistancePriorityScale;
-					if (DO_REPGRAPH_DETAILS(UNLIKELY(DebugDetails)))
-					{
-						DebugDetails->DistanceSq = SmallestDistanceSq;
-						DebugDetails->DistanceFactor = DistanceFactor;
-					}
-
-					AccumulatedPriority += DistanceFactor;
-				}
-
-				RG_QUICK_SCOPE_CYCLE_COUNTER(Prioritize_InnerLoop_PostCull);
-
-				// Update the timeout frame number here. (Since this was returned by the graph, regardless if we end up replicating or not, we bump up the timeout frame num. This has to be done here because Distance Scaling can cull the actor
-				UpdateActorChannelCloseFrameNum(Actor, ConnectionData, GlobalData, FrameNum, NetConnection);
-
-				//UE_CLOG(DebugConnection, LogReplicationGraph, Display, TEXT("0x%X0x%X ConnectionData.ActorChannelCloseFrameNum=%d on %d"), Actor, NetConnection, ConnectionData.ActorChannelCloseFrameNum, FrameNum);
-
-				// -------------------
-				// Starvation Scaling
-				// -------------------
-				if (GlobalData.Settings.StarvationPriorityScale > 0.f)
-				{
-					// StarvationPriorityScale = scale "Frames since last rep". E.g, 2.0 means treat every missed frame as if it were 2, etc.
-					const float FramesSinceLastRep = ((float)(FrameNum - ConnectionData.LastRepFrameNum)) * GlobalData.Settings.StarvationPriorityScale;
-					const float StarvationFactor = 1.f - FMath::Clamp<float>(FramesSinceLastRep / (float)MaxFramesSinceLastRep, 0.f, 1.f);
-
-					AccumulatedPriority += StarvationFactor;
-
-					if (DO_REPGRAPH_DETAILS(UNLIKELY(DebugDetails)))
-					{
-						DebugDetails->FramesSinceLastRap = static_cast<uint32>(FMath::TruncToInt32(FramesSinceLastRep));
-						DebugDetails->StarvationFactor = StarvationFactor;
-					}
-				}
-
-				// ------------------------
-				// Pending dormancy scaling
-				// ------------------------
-
-				// Make sure pending dormant actors that have replicated at least once are prioritized,
-				// so we actually mark them dormant quickly, skip future work, and close their channels.
-				// Otherwise, newly spawned or never-replicated actors may starve out existing actors trying to go dormant.
-				if (GlobalData.bWantsToBeDormant && ConnectionData.LastRepFrameNum > 0)
-				{
-					AccumulatedPriority -= 1.5f;
-				}
-
-				// -------------------
-				//	Game code priority
-				// -------------------
-
-				if (GlobalData.ForceNetUpdateFrame > ConnectionData.LastRepFrameNum)
-				{
-					// Note that in legacy ForceNetUpdate did not actually bump priority. This gives us a hard coded bump if we haven't replicated since the last ForceNetUpdate frame.
-					AccumulatedPriority -= 1.f;
-
-					if (DO_REPGRAPH_DETAILS(UNLIKELY(DebugDetails)))
-					{
-						DebugDetails->GameCodeScaling = -1.f;
-					}
-                }
+			// -------------------
+			// Distance Scaling
+			// -------------------
+			if (GlobalData.Settings.DistancePriorityScale > 0.f)
+			{
+				// Always compute distance even for AlwaysRelevant actors since the priority scaling needs it.
+				FVector::FReal SmallestDistanceSq = std::numeric_limits<FVector::FReal>::max();
+				int32 ViewersThatSkipActor = 0;
 				
-				// -------------------
-				// Always prioritize the connection's owner and view target, since these are the most important actors for the client.
-				// -------------------
 				for (const FNetViewer& CurViewer : Viewers)
 				{
-					// We need to find if this is anyone's viewer or viewtarget, not just the parent connection.
-					if (Actor == CurViewer.ViewTarget || Actor == CurViewer.InViewer)
+					const FVector::FReal DistSq = (GlobalData.WorldLocation - CurViewer.ViewLocation).SizeSquared();
+					SmallestDistanceSq = FMath::Min(DistSq, SmallestDistanceSq);
+
+					// Figure out if we should be skipping this actor
+					if (bDoDistanceCull && ConnectionData.GetCullDistanceSquared() > 0.f && DistSq > ConnectionData.GetCullDistanceSquared())
 					{
-						if (UE::Net::CVar_ForceConnectionViewerPriority > 0)
-						{
-							AccumulatedPriority = -MAX_FLT;
-						}
-						else
-						{
-							AccumulatedPriority -= 10.0f;
-						}
-						break;
+						++ViewersThatSkipActor;
+						continue;
 					}
 				}
 
-				SortingArray->Emplace(FPrioritizedRepList::FItem(AccumulatedPriority, Actor, &GlobalData, &ConnectionData));
+				// If no one is near this actor, skip it.
+				if (ViewersThatSkipActor >= Viewers.Num())
+				{
+					DO_REPGRAPH_DETAILS(PrioritizedReplicationList.GetNextSkippedDebugDetails(Actor)->DistanceCulled = static_cast<float>(FMath::Sqrt(SmallestDistanceSq)));
+
+					// Skipped actors should not have any 
+					if (bDoCulledOnConnectionCount)
+					{
+						DistanceClassAccumulator.Increment(Actor->GetClass());
+					}
+					continue;
+				}
+
+				const float DistanceFactor = FMath::Clamp(static_cast<float>(SmallestDistanceSq / MaxDistanceScaling), 0.f, 1.f) * GlobalData.Settings.DistancePriorityScale;
+				if (DO_REPGRAPH_DETAILS(UNLIKELY(DebugDetails)))
+				{
+					DebugDetails->DistanceSq = SmallestDistanceSq;
+					DebugDetails->DistanceFactor = DistanceFactor;
+				}
+
+				AccumulatedPriority += DistanceFactor;
 			}
+
+			RG_QUICK_SCOPE_CYCLE_COUNTER(Prioritize_InnerLoop_PostCull);
+
+			// Update the timeout frame number here. (Since this was returned by the graph, regardless if we end up replicating or not, we bump up the timeout frame num. This has to be done here because Distance Scaling can cull the actor
+			UpdateActorChannelCloseFrameNum(Actor, ConnectionData, GlobalData, FrameNum, NetConnection);
+
+			//UE_CLOG(DebugConnection, LogReplicationGraph, Display, TEXT("0x%X0x%X ConnectionData.ActorChannelCloseFrameNum=%d on %d"), Actor, NetConnection, ConnectionData.ActorChannelCloseFrameNum, FrameNum);
+
+			// -------------------
+			// Starvation Scaling
+			// -------------------
+			if (GlobalData.Settings.StarvationPriorityScale > 0.f)
+			{
+				// StarvationPriorityScale = scale "Frames since last rep". E.g, 2.0 means treat every missed frame as if it were 2, etc.
+				const float FramesSinceLastRep = ((float)(FrameNum - ConnectionData.LastRepFrameNum)) * GlobalData.Settings.StarvationPriorityScale;
+				const float StarvationFactor = 1.f - FMath::Clamp<float>(FramesSinceLastRep / (float)MaxFramesSinceLastRep, 0.f, 1.f);
+
+				AccumulatedPriority += StarvationFactor;
+
+				if (DO_REPGRAPH_DETAILS(UNLIKELY(DebugDetails)))
+				{
+					DebugDetails->FramesSinceLastRap = static_cast<uint32>(FMath::TruncToInt32(FramesSinceLastRep));
+					DebugDetails->StarvationFactor = StarvationFactor;
+				}
+			}
+
+			// ------------------------
+			// Pending dormancy scaling
+			// ------------------------
+
+			// Make sure pending dormant actors that have replicated at least once are prioritized,
+			// so we actually mark them dormant quickly, skip future work, and close their channels.
+			// Otherwise, newly spawned or never-replicated actors may starve out existing actors trying to go dormant.
+			if (GlobalData.bWantsToBeDormant && ConnectionData.LastRepFrameNum > 0)
+			{
+				AccumulatedPriority -= 1.5f;
+			}
+
+			// -------------------
+			//	Game code priority
+			// -------------------
+
+			if (GlobalData.ForceNetUpdateFrame > ConnectionData.LastRepFrameNum)
+			{
+				// Note that in legacy ForceNetUpdate did not actually bump priority. This gives us a hard coded bump if we haven't replicated since the last ForceNetUpdate frame.
+				AccumulatedPriority -= 1.f;
+
+				if (DO_REPGRAPH_DETAILS(UNLIKELY(DebugDetails)))
+				{
+					DebugDetails->GameCodeScaling = -1.f;
+				}
+			}
+			
+			// -------------------
+			// Always prioritize the connection's owner and view target, since these are the most important actors for the client.
+			// -------------------
+			for (const FNetViewer& CurViewer : Viewers)
+			{
+				// We need to find if this is anyone's viewer or viewtarget, not just the parent connection.
+				if (Actor == CurViewer.ViewTarget || Actor == CurViewer.InViewer)
+				{
+					if (UE::Net::CVar_ForceConnectionViewerPriority > 0)
+					{
+						AccumulatedPriority = -MAX_FLT;
+					}
+					else
+					{
+						AccumulatedPriority -= 10.0f;
+					}
+					break;
+				}
+			}
+
+			SortingArray->Emplace(FPrioritizedRepList::FItem(AccumulatedPriority, Actor, &GlobalData, &ConnectionData));
 		}
 
 		{
@@ -1627,7 +1622,7 @@ void UReplicationGraph::ReplicateActorListsForConnections_Default(UNetReplicatio
 		UE_LOG(LogReplicationGraph, Display, TEXT("Saturated Connections: %d"), GNumSaturatedConnections);
 		UE_LOG(LogReplicationGraph, Display, TEXT(""));
 
-		UE_LOG(LogReplicationGraph, Display, TEXT("Gathered Lists: %d Gathered Actors: %d  PrioritizedActors: %d"), NumGatheredListsOnConnection, NumGatheredActorsOnConnection, NumPrioritizedActorsOnConnection);
+		UE_LOG(LogReplicationGraph, Display, TEXT("Gathered Actors: %d, PrioritizedActors: %d"), NumGatheredActorsOnConnection, NumPrioritizedActorsOnConnection);
 		UE_LOG(LogReplicationGraph, Display, TEXT("Connection Loaded Streaming Levels: %d"), NetConnection->ClientVisibleLevelNames.Num());
 	}
 #endif // WITH_SERVER_CODE
@@ -1747,95 +1742,91 @@ void UReplicationGraph::ReplicateActorListsForConnections_FastShared(UNetReplica
 	// This really isn't ideal. We want to have better ways of tracking and limiting network traffic. This feels pretty hacky in implementation but conceptually is good.
 	FScopedQueuedBits ScopedQueuedBits(NetConnection->QueuedBits, TotalBitsWritten);
 
-	const TArray<FActorRepListConstView>& GatheredLists = GatheredReplicationListsForConnection.GetLists(EActorRepListTypeFlags::FastShared);
-	for (int32 ListIdx = 0; ListIdx < GatheredLists.Num(); ++ListIdx)
+	const TArrayView<const FActorRepListType> Actors = GatheredReplicationListsForConnection.ViewActors(EActorRepListTypeFlags::FastShared);
+	for (int32 i = 0; i < Actors.Num(); ++i)
 	{
-		const FActorRepListConstView& List = GatheredLists[(ListIdx + FrameNum) % GatheredLists.Num()];
-		for (int32 i = 0; i < List.Num(); ++i)
+		// Round robin through the list over multiple frames. We want to avoid sorting this list based on 'time since last rep'. This is a good balance
+		AActor* Actor = Actors[(StartIdx + i) % Actors.Num()];
+
+		int32 BitsWritten = 0;
+
+		if (RepGraphConditionalActorBreakpoint(Actor, NetConnection))
 		{
-			// Round robin through the list over multiple frames. We want to avoid sorting this list based on 'time since last rep'. This is a good balance
-			AActor* Actor = List[(i + StartIdx) % List.Num()];
+			UE_LOG(LogReplicationGraph, Display, TEXT("UReplicationGraph FastShared Path Replication: %s"), *Actor->GetName());
+		}
 
-			int32 BitsWritten = 0;
+		FConnectionReplicationActorInfo& ConnectionData = ConnectionActorInfoMap.FindOrAdd(Actor);
 
-			if (RepGraphConditionalActorBreakpoint(Actor, NetConnection))
+		// Don't fast path rep if we already repped in the default path this frame
+		if (UNLIKELY(ConnectionData.LastRepFrameNum == FrameNum))
+		{
+			continue;
+		}
+
+		if (UNLIKELY(ConnectionData.bTearOff))
+		{
+			continue;
+		}
+
+		// Actor channel must already be established to rep fast path
+		UActorChannel* ActorChannel = ConnectionData.Channel;
+		if (ActorChannel == nullptr || ActorChannel->Closing)
+		{
+			continue;
+		}
+
+		FGlobalActorReplicationInfo& GlobalActorInfo = GlobalActorReplicationInfoMap.Get(Actor);
+		if (GlobalActorInfo.Settings.FastSharedReplicationFunc == nullptr)
+		{
+			// This actor does not support fastshared replication
+			// FIXME: we should avoid this by keeping these actors on separate lists
+			continue;
+		}
+
+		// Determine if this actor has any view relevancy to any connection this client has
+		bool bNoViewRelevency = true;
+		for (const FNetViewer& CurView : Viewers)
+		{
+			const FVector& ConnectionViewLocation = CurView.ViewLocation;
+			const FVector& ConnectionViewDir = CurView.ViewDir;
+
+			// Simple dot product rejection: only fast rep actors in front of this connection
+			const FVector DirToActor = GlobalActorInfo.WorldLocation - ConnectionViewLocation;
+			if (!(FVector::DotProduct(DirToActor, ConnectionViewDir) < 0.f))
 			{
-				UE_LOG(LogReplicationGraph, Display, TEXT("UReplicationGraph FastShared Path Replication: %s"), *Actor->GetName());
+				bNoViewRelevency = false;
+				break;
 			}
 
-			FConnectionReplicationActorInfo& ConnectionData = ConnectionActorInfoMap.FindOrAdd(Actor);
-
-			// Don't fast path rep if we already repped in the default path this frame
-			if (UNLIKELY(ConnectionData.LastRepFrameNum == FrameNum))
+			// Simple distance cull
+			const FVector::FReal DistSq = DirToActor.SizeSquared();
+			if (!(DistSq > (ConnectionData.GetCullDistanceSquared() * FastSharedDistanceRequirementPct)))
 			{
-				continue;
+				bNoViewRelevency = false;
+				break;
 			}
+		}
 
-			if (UNLIKELY(ConnectionData.bTearOff))
-			{
-				continue;
-			}
+		// Skip out if they have none.
+		if (bNoViewRelevency)
+		{
+			continue;
+		}
 
-			// Actor channel must already be established to rep fast path
-			UActorChannel* ActorChannel = ConnectionData.Channel;
-			if (ActorChannel == nullptr || ActorChannel->Closing)
-			{
-				continue;
-			}
-
-			FGlobalActorReplicationInfo& GlobalActorInfo = GlobalActorReplicationInfoMap.Get(Actor);
-			if (GlobalActorInfo.Settings.FastSharedReplicationFunc == nullptr)
-			{
-				// This actor does not support fastshared replication
-				// FIXME: we should avoid this by keeping these actors on separate lists
-				continue;
-			}
-
-			// Determine if this actor has any view relevancy to any connection this client has
-			bool bNoViewRelevency = true;
-			for (const FNetViewer& CurView : Viewers)
-			{
-				const FVector& ConnectionViewLocation = CurView.ViewLocation;
-				const FVector& ConnectionViewDir = CurView.ViewDir;
-
-				// Simple dot product rejection: only fast rep actors in front of this connection
-				const FVector DirToActor = GlobalActorInfo.WorldLocation - ConnectionViewLocation;
-				if (!(FVector::DotProduct(DirToActor, ConnectionViewDir) < 0.f))
-				{
-					bNoViewRelevency = false;
-					break;
-				}
-
-				// Simple distance cull
-				const FVector::FReal DistSq = DirToActor.SizeSquared();
-				if (!(DistSq > (ConnectionData.GetCullDistanceSquared() * FastSharedDistanceRequirementPct)))
-				{
-					bNoViewRelevency = false;
-					break;
-				}
-			}
-
-			// Skip out if they have none.
-			if (bNoViewRelevency)
-			{
-				continue;
-			}
-
-			BitsWritten = (int32)ReplicateSingleActor_FastShared(Actor, ConnectionData, GlobalActorInfo, *ConnectionManager, FrameNum);
-			TotalBitsWritten += BitsWritten;
+		BitsWritten = (int32)ReplicateSingleActor_FastShared(Actor, ConnectionData, GlobalActorInfo, *ConnectionManager, FrameNum);
+		TotalBitsWritten += BitsWritten;
 
 #if !(UE_BUILD_SHIPPING || UE_BUILD_TEST)
-			static bool SkipCheck = false;
-			if (SkipCheck)
-			{
-				continue;
-			}
+		static bool SkipCheck = false;
+		if (SkipCheck)
+		{
+			continue;
+		}
 #endif
-			if (TotalBitsWritten > MaxBits)
-			{
-				NotifyConnectionFastPathSaturated();
-				return;
-			}
+		if (TotalBitsWritten > MaxBits)
+		{
+			NotifyConnectionFastPathSaturated();
+			return;
 		}
 	}
 #endif // WITH_SERVER_CODE
@@ -2130,38 +2121,35 @@ int64 UReplicationGraph::ReplicateSingleActor(const FActorRepListType& Actor, FC
 
 		const int32 CloseFrameNum = ActorInfo.ActorChannelCloseFrameNum;
 		
-		const TArray<FActorRepListConstView>& DependentLists = ListGatherer.GetLists(EActorRepListTypeFlags::Default);
+		const TArrayView<const FActorRepListType> DependentActors = ListGatherer.ViewActors(EActorRepListTypeFlags::Default);
 
-		for (const FActorRepListConstView& DependentActorList : DependentLists)
+		for (AActor* DependentActor : DependentActors)
 		{
-			for (AActor* DependentActor : DependentActorList)
+			repCheck(DependentActor);
+
+			FConnectionReplicationActorInfo& DependentActorConnectionInfo = ConnectionActorInfoMap.FindOrAdd(DependentActor);
+			FGlobalActorReplicationInfo& DependentActorGlobalData = GlobalActorReplicationInfoMap.Get(DependentActor);
+
+			UpdateActorChannelCloseFrameNum(DependentActor, DependentActorConnectionInfo, DependentActorGlobalData, FrameNum, NetConnection);
+
+			// Dependent actor channel will stay open as long as the owning actor channel is open
+			DependentActorConnectionInfo.ActorChannelCloseFrameNum = FMath::Max<uint32>(CloseFrameNum, DependentActorConnectionInfo.ActorChannelCloseFrameNum);
+
+			if (!ReadyForNextReplication(DependentActorConnectionInfo, DependentActorGlobalData, FrameNum))
 			{
-				repCheck(DependentActor);
-
-				FConnectionReplicationActorInfo& DependentActorConnectionInfo = ConnectionActorInfoMap.FindOrAdd(DependentActor);
-				FGlobalActorReplicationInfo& DependentActorGlobalData = GlobalActorReplicationInfoMap.Get(DependentActor);
-
-				UpdateActorChannelCloseFrameNum(DependentActor, DependentActorConnectionInfo, DependentActorGlobalData, FrameNum, NetConnection);
-
-				// Dependent actor channel will stay open as long as the owning actor channel is open
-				DependentActorConnectionInfo.ActorChannelCloseFrameNum = FMath::Max<uint32>(CloseFrameNum, DependentActorConnectionInfo.ActorChannelCloseFrameNum);
-
-				if (!ReadyForNextReplication(DependentActorConnectionInfo, DependentActorGlobalData, FrameNum))
-				{
-					continue;
-				}
-
-				if (!ensureMsgf(IsActorValidForReplication(DependentActor), TEXT("DependentActor %s (Owner: %s) not valid for replication (BeingDestroyed:%d) (IsValid:%d) (Unreachable:%d) (TearOff:%d)! Channel = %s"),
-					*DependentActor->GetFullName(), *Actor->GetFullName(),
-					DependentActor->IsActorBeingDestroyed(), IsValid(DependentActor), DependentActor->IsUnreachable(), DependentActor->GetTearOff(),
-					*DescribeSafe(DependentActorConnectionInfo.Channel)))
-				{
-					continue;
-				}
-
-				//UE_LOG(LogReplicationGraph, Display, TEXT("DependentActor %s %s. NextReplicationFrameNum: %d. FrameNum: %d. ForceNetUpdateFrame: %d. LastRepFrameNum: %d."), *DependentActor->GetPathName(), *NetConnection->GetName(), DependentActorConnectionInfo.NextReplicationFrameNum, FrameNum, DependentActorGlobalData.ForceNetUpdateFrame, DependentActorConnectionInfo.LastRepFrameNum);
-				BitsWritten += ReplicateSingleActor(DependentActor, DependentActorConnectionInfo, DependentActorGlobalData, ConnectionActorInfoMap, ConnectionManager, FrameNum);
+				continue;
 			}
+
+			if (!ensureMsgf(IsActorValidForReplication(DependentActor), TEXT("DependentActor %s (Owner: %s) not valid for replication (BeingDestroyed:%d) (IsValid:%d) (Unreachable:%d) (TearOff:%d)! Channel = %s"),
+				*DependentActor->GetFullName(), *Actor->GetFullName(),
+				DependentActor->IsActorBeingDestroyed(), IsValid(DependentActor), DependentActor->IsUnreachable(), DependentActor->GetTearOff(),
+				*DescribeSafe(DependentActorConnectionInfo.Channel)))
+			{
+				continue;
+			}
+
+			//UE_LOG(LogReplicationGraph, Display, TEXT("DependentActor %s %s. NextReplicationFrameNum: %d. FrameNum: %d. ForceNetUpdateFrame: %d. LastRepFrameNum: %d."), *DependentActor->GetPathName(), *NetConnection->GetName(), DependentActorConnectionInfo.NextReplicationFrameNum, FrameNum, DependentActorGlobalData.ForceNetUpdateFrame, DependentActorConnectionInfo.LastRepFrameNum);
+			BitsWritten += ReplicateSingleActor(DependentActor, DependentActorConnectionInfo, DependentActorGlobalData, ConnectionActorInfoMap, ConnectionManager, FrameNum);
 		}
 	}
 
@@ -2197,14 +2185,11 @@ void UReplicationGraph::HandleStarvedActorList(const UNetReplicationGraphConnect
 
 		
 		GlobalActorInfo.GatherDependentActorLists(RepGraphConnection, DependentListContainer);
-		const TArray<FActorRepListConstView>& DependentLists = DependentListContainer.GetLists(EActorRepListTypeFlags::Default);
-		for (const FActorRepListConstView& DependentList : DependentLists)
+		const TArrayView<const FActorRepListType> DependentActors = DependentListContainer.ViewActors(EActorRepListTypeFlags::Default);
+		for (AActor* DependentActor : DependentActors)
 		{
-			for (AActor* DependentActor : DependentList)
-			{
-				FConnectionReplicationActorInfo& DependentActorConnectionInfo = ConnectionActorInfoMap.FindOrAdd(DependentActor);
-				DependentActorConnectionInfo.ActorChannelCloseFrameNum = FMath::Max<uint32>(CloseFrameNum, DependentActorConnectionInfo.ActorChannelCloseFrameNum);
-			}
+			FConnectionReplicationActorInfo& DependentActorConnectionInfo = ConnectionActorInfoMap.FindOrAdd(DependentActor);
+			DependentActorConnectionInfo.ActorChannelCloseFrameNum = FMath::Max<uint32>(CloseFrameNum, DependentActorConnectionInfo.ActorChannelCloseFrameNum);
 		}
 		DependentListContainer.Reset();
 	}
@@ -4400,14 +4385,11 @@ void UReplicationGraphNode_DynamicSpatialFrequency::CalcFrequencyForActor(AActor
 
 				// Update the dependent actor's timeout frame too
 				GlobalInfo.GatherDependentActorLists(RepGraphConnection, DependentListContainer);
-				const TArray<FActorRepListConstView>& DependentLists = DependentListContainer.GetLists(EActorRepListTypeFlags::Default);
-				for (const FActorRepListConstView& DependentList : DependentLists)
+				const TArrayView<const FActorRepListType> DependentActors = DependentListContainer.ViewActors(EActorRepListTypeFlags::Default);
+				for (AActor* DependentActor : DependentActors)
 				{
-					for (AActor* DependentActor : DependentList)
-					{
-						FConnectionReplicationActorInfo& DependentActorConnectionInfo = ConnectionMap.FindOrAdd(DependentActor);
-						DependentActorConnectionInfo.ActorChannelCloseFrameNum = FMath::Max<uint32>(ConnectionInfo.ActorChannelCloseFrameNum, ConnectionInfo.NextReplicationFrameNum + 1);
-					}
+					FConnectionReplicationActorInfo& DependentActorConnectionInfo = ConnectionMap.FindOrAdd(DependentActor);
+					DependentActorConnectionInfo.ActorChannelCloseFrameNum = FMath::Max<uint32>(ConnectionInfo.ActorChannelCloseFrameNum, ConnectionInfo.NextReplicationFrameNum + 1);
 				}
 				DependentListContainer.Reset();
 

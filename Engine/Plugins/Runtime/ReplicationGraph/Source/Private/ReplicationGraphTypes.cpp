@@ -611,6 +611,30 @@ void FActorRepListStatCollector::VisitExplicitStreamingLevelList(FName ListOwner
 	StreamingLevelStats.MaxListSize = FMath::Max(StreamingLevelStats.MaxListSize, ListSize);
 }
 
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
+const TArray<FActorRepListConstView>& FGatheredReplicationActorLists::GetLists(EActorRepListTypeFlags ListFlags) const
+{
+	// Synthesize an array of views of actors for backwards compatibility.
+	// All actors appear in a single FActorRepListConstView.
+	static FActorRepListRefView ActorListView;
+	ActorListView.Reset();
+
+	const TArrayView<const FActorRepListType> Actors = ViewActors(ListFlags);
+	ActorListView.Reserve(Actors.Num());
+	for (const FActorRepListType& Actor : Actors)
+	{
+		ActorListView.Add(Actor);
+	}
+
+	static TArray<FActorRepListConstView> ArrayOfViewsOfActors;
+	ArrayOfViewsOfActors.Reset();
+	ArrayOfViewsOfActors.Reserve(1);
+	ArrayOfViewsOfActors.Add(FActorRepListConstView(ActorListView));
+
+	return ArrayOfViewsOfActors;
+}
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
+
 void FLevelBasedActorList::AddNetworkActor(AActor* NetActor)
 {
 	FNewReplicatedActorInfo ActorInfo(NetActor);

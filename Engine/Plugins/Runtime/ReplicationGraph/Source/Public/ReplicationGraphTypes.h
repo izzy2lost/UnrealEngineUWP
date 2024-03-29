@@ -485,8 +485,9 @@ private:
  * Gives temporary read-only access to a FActorRepListRefView by holding a reference to it.
  */
 struct REPLICATIONGRAPH_API FActorRepListConstView
+UE_DEPRECATED(5.4, "Use TArrayView<const FActorRepListType> instead")
 {
-	FActorRepListConstView(const FActorRepListRefView& InListReferenced) :
+	explicit FActorRepListConstView(const FActorRepListRefView& InListReferenced) :
 		ListReferenced(InListReferenced)
 	{}
 
@@ -507,8 +508,6 @@ private:
 	const FActorRepListRefView& ListReferenced;
 };
 
-/** A read only, non owning (ref counting) view to an actor replication list: essentially a raw pointer and the category of the list. These are only created *from* FActorRepListRefView */
-
 #if !(UE_BUILD_SHIPPING || UE_BUILD_TEST)
 	// Intended to be called from immediate mode window while debugging
 	extern "C" DLLEXPORT void PrintRepListDetails(int32 PoolSize, int32 BlockIdx, int32 ListIdx);
@@ -524,7 +523,7 @@ private:
 // --------------------------------------------------------------------------------------------------------------------------------------------
 // --------------------------------------------------------------------------------------------------------------------------------------------
 
-// This represents "the list of gathered lists". This is what we push down the Replication Graph and nodes will either Push/Pop List Categories or will add their Replication Lists.
+// This represents "the list of gathered actors". This is what we push down the Replication Graph and nodes will either Push/Pop List Categories or will add their Replication Lists.
 struct REPLICATIONGRAPH_API FGatheredReplicationActorLists
 {
 	void AddReplicationActorList(const FActorRepListRefView& List, EActorRepListTypeFlags Flags = EActorRepListTypeFlags::Default)
@@ -533,11 +532,7 @@ struct REPLICATIONGRAPH_API FGatheredReplicationActorLists
 		if (CVar_RepGraph_Verify)
 			List.VerifyContents_Slow();
 #endif
-		if (List.Num() > 0)
-		{
-			ReplicationLists[(uint32)Flags].Emplace(FActorRepListConstView(List));
-			CachedNum++;
-		}
+		List.AppendToTArray(ReplicationLists[(uint32)Flags]);
 	}
 
 	FORCEINLINE void Reset()
@@ -546,17 +541,22 @@ struct REPLICATIONGRAPH_API FGatheredReplicationActorLists
 		{
 			ReplicationLists[i].Reset();
 		}
-		CachedNum = 0;
 	}
 	FORCEINLINE int32 NumLists() const
 	{
-		return CachedNum;
+		return ReplicationLists.Num();
 	}
 
-	FORCEINLINE const TArray<FActorRepListConstView>& GetLists(EActorRepListTypeFlags ListFlags) const
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
+	UE_DEPRECATED(5.4, "Use ViewActors() instead")
+	FORCEINLINE const TArray<FActorRepListConstView>& GetLists(EActorRepListTypeFlags ListFlags) const;
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
+
+	FORCEINLINE TArrayView<const FActorRepListType> ViewActors(EActorRepListTypeFlags ListFlags) const
 	{
 		return ReplicationLists[(uint32)ListFlags];
 	}
+
 	FORCEINLINE bool ContainsLists(EActorRepListTypeFlags Flags) const
 	{
 		return ReplicationLists[(uint32)Flags].Num() > 0;
@@ -564,8 +564,7 @@ struct REPLICATIONGRAPH_API FGatheredReplicationActorLists
 
 private:
 
-	TStaticArray< TArray<FActorRepListConstView>, (uint32)EActorRepListTypeFlags::Max > ReplicationLists;
-	int32 CachedNum = 0;
+	TStaticArray< TArray<FActorRepListType>, (uint32)EActorRepListTypeFlags::Max > ReplicationLists;
 };
 
 // --------------------------------------------------------------------------------------------------------------------------------------------
@@ -1221,20 +1220,17 @@ struct FGlobalActorReplicationInfoMap
 		FGatheredReplicationActorLists ListContainer;
 		MainActorInfo->DependentActorList.AppendAllLists(ListContainer);
 
-		// Remove the actor from his child dependents
-		const TArray<FActorRepListConstView>& DependentActorLists = ListContainer.GetLists(EActorRepListTypeFlags::Default);
-		for (const FActorRepListConstView& DependentActorList : DependentActorLists)
+		// Remove the actor from its child dependents
+		const TArrayView<const FActorRepListType> DependentActorsList = ListContainer.ViewActors(EActorRepListTypeFlags::Default);
+		for (AActor* DependentActor : DependentActorsList)
 		{
-			for (AActor* DependentActor : DependentActorList)
+			if (FGlobalActorReplicationInfo* ChildInfo = Find(DependentActor))
 			{
-				if (FGlobalActorReplicationInfo* ChildInfo = Find(DependentActor))
-				{
-					ChildInfo->ParentActorList.RemoveSingleSwap(MainActor);
-				}
+				ChildInfo->ParentActorList.RemoveSingleSwap(MainActor);
 			}
 		}
 
-		// Remove the actor from his parents
+		// Remove the actor from its parents
 		FNewReplicatedActorInfo LevelActorInfo(MainActor);
 
 		for (AActor* ParentActor : MainActorInfo->ParentActorList)
