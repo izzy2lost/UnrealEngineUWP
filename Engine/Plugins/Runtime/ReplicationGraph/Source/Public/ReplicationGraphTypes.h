@@ -484,8 +484,8 @@ private:
 /**
  * Gives temporary read-only access to a FActorRepListRefView by holding a reference to it.
  */
-struct REPLICATIONGRAPH_API FActorRepListConstView
 UE_DEPRECATED(5.4, "Use TArrayView<const FActorRepListType> instead")
+struct REPLICATIONGRAPH_API FActorRepListConstView
 {
 	explicit FActorRepListConstView(const FActorRepListRefView& InListReferenced) :
 		ListReferenced(InListReferenced)
