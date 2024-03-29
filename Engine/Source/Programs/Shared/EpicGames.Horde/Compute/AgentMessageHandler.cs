@@ -410,7 +410,7 @@ namespace EpicGames.Horde.Compute
 					}
 
 					ReadOnlySpan<byte> line = span.Slice(0, newlineIdx);
-					if (line.Length > 0 && line[line.Length - 1] == (byte)'\r')
+					if (line.Length > 0 && line[^1] == (byte)'\r')
 					{
 						line = line.Slice(0, line.Length - 1);
 					}

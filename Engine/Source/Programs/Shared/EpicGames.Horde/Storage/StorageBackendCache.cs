@@ -223,7 +223,7 @@ namespace EpicGames.Horde.Storage
 		/// <param name="logger">Logger for error/warning messages</param>
 		public StorageBackendCache(DirectoryReference? cacheDir, long? maxSize, ILogger logger)
 		{
-			cacheDir ??= new DirectoryReference(Path.Combine(Path.GetTempPath(), $"horde-{Guid.NewGuid().ToString("n")}"));
+			cacheDir ??= new DirectoryReference(Path.Combine(Path.GetTempPath(), $"horde-{Guid.NewGuid():n}"));
 			FileUtils.ForceDeleteDirectoryContents(cacheDir);
 
 			_memoryMappedFileCache = new MemoryMappedFileCache();

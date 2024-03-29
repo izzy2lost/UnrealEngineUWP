@@ -158,7 +158,7 @@ namespace EpicGames.Redis.Converters
 		{
 			if (data == null)
 			{
-				return default(T)!;
+				return default!;
 			}
 
 			object?[] arguments = new object?[_properties.Length];
