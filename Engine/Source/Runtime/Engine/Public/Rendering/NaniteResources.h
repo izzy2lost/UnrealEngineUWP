@@ -111,6 +111,12 @@ struct FPackedCluster
 																// UV0 Offset: 8, UV1 Offset: 8, UV2 Offset: 8, UV3 Offset: 8
 	uint32		PackedMaterialInfo;
 
+	// TODO: Nanite-Skinning: Bloating even non-skinning clusters by 16 bytes is not ideal - optimize this. Put Bone header in optional decode info section instead?
+	uint32		BoneDataOffset_NumBones;						// BoneDataOffset: 22, NumBones: 10
+	uint32		BoneIndexBits_BoneWeightBits;					// BoneIndexBits: 6, BoneIndexBits: 6
+	uint32		Dummy0;
+	uint32		Dummy1;
+
 	uint32		VertReuseBatchInfo[4];
 
 	uint32		GetNumVerts() const						{ return GetBits(NumVerts_PositionOffset, 9, 0); }
@@ -156,6 +162,11 @@ struct FPackedCluster
 	void		SetColorBitsG(uint32 NumBits)			{ SetBits(ColorBits_GroupIndex, NumBits, 4, 4); }
 	void		SetColorBitsB(uint32 NumBits)			{ SetBits(ColorBits_GroupIndex, NumBits, 4, 8); }
 	void		SetColorBitsA(uint32 NumBits)			{ SetBits(ColorBits_GroupIndex, NumBits, 4, 12); }
+
+	void		SetBoneDataOffset(uint32 Offset)		{ SetBits(BoneDataOffset_NumBones, Offset, 22, 0); }
+	void		SetNumBones(uint32 Num)					{ SetBits(BoneDataOffset_NumBones, Num, 10, 22); }
+	void		SetBoneIndexBits(uint32 NumBits)		{ SetBits(BoneIndexBits_BoneWeightBits, NumBits, 6, 0); }
+	void		SetBoneWeightBits(uint32 NumBits)		{ SetBits(BoneIndexBits_BoneWeightBits, NumBits, 6, 6); }
 
 	void		SetGroupIndex(uint32 GroupIndex)		{ SetBits(ColorBits_GroupIndex, GroupIndex & 0xFFFFu, 16, 16); }
 

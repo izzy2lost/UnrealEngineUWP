@@ -473,6 +473,22 @@ float3 UnpackTangentX(float3 TangentZ, uint TangentAngleBits, uint NumTangentBit
 	return TangentX;
 }
 
+void DecodeBoneInfluence(FCluster Cluster, uint VertIndex, uint InfluenceIndex, inout uint OutBoneIndex, inout float OutBoneWeight)
+{
+	if (InfluenceIndex >= Cluster.NumBones)
+	{
+		OutBoneIndex = 0;
+		OutBoneWeight = 0.0f;
+	}
+
+	const uint BitsPerInfluence = (Cluster.NumBoneIndexBits + Cluster.NumBoneWeightBits);
+	
+	const uint BitOffset = (VertIndex * Cluster.NumBones + InfluenceIndex) * BitsPerInfluence;
+	FBitStreamReaderState BoneDataStream = BitStreamReader_Create_Aligned(Cluster.PageBaseAddress + Cluster.BoneDataOffset, BitOffset, 32);
+
+	OutBoneIndex = BitStreamReader_Read_RO(ClusterPageData, BoneDataStream, Cluster.NumBoneIndexBits, 16);
+	OutBoneWeight = (float)BitStreamReader_Read_RO(ClusterPageData, BoneDataStream, Cluster.NumBoneWeightBits, 16) / 65535.0f;
+}
 
 // Decodes vertex attributes for N vertices. N must be compile-time constant and <= 3.
 // Decoding multiple vertices from the same cluster simultaneously tends to generate better code than decoding them individually.

@@ -38,6 +38,7 @@ struct FPageSections
 	uint32 Cluster				= 0;
 	uint32 MaterialTable		= 0;
 	uint32 VertReuseBatchInfo	= 0;
+	uint32 BoneData				= 0;
 	uint32 DecodeInfo			= 0;
 	uint32 Index				= 0;
 	uint32 Position				= 0;
@@ -45,12 +46,14 @@ struct FPageSections
 
 	uint32 GetMaterialTableSize() const			{ return Align(MaterialTable, 16); }
 	uint32 GetVertReuseBatchInfoSize() const	{ return Align(VertReuseBatchInfo, 16); }
+	uint32 GetBoneDataSize() const				{ return Align(BoneData, 16); }		//TODO: Nanite-Skinning: Just put in copy block for now
 	uint32 GetDecodeInfoSize() const			{ return Align(DecodeInfo, 16); }
 
 	uint32 GetClusterOffset() const				{ return NANITE_GPU_PAGE_HEADER_SIZE; }
 	uint32 GetMaterialTableOffset() const		{ return GetClusterOffset() + Cluster; }
 	uint32 GetVertReuseBatchInfoOffset() const	{ return GetMaterialTableOffset() + GetMaterialTableSize(); }
-	uint32 GetDecodeInfoOffset() const			{ return GetVertReuseBatchInfoOffset() + GetVertReuseBatchInfoSize(); }
+	uint32 GetBoneDataOffset() const			{ return GetVertReuseBatchInfoOffset() + GetVertReuseBatchInfoSize(); }
+	uint32 GetDecodeInfoOffset() const			{ return GetBoneDataOffset() + GetBoneDataSize(); } 
 	uint32 GetIndexOffset() const				{ return GetDecodeInfoOffset() + GetDecodeInfoSize(); }
 	uint32 GetPositionOffset() const			{ return GetIndexOffset() + Index; }
 	uint32 GetAttributeOffset() const			{ return GetPositionOffset() + Position; }
@@ -63,6 +66,7 @@ struct FPageSections
 			GetClusterOffset(),
 			GetMaterialTableOffset(),
 			GetVertReuseBatchInfoOffset(),
+			GetBoneDataOffset(),
 			GetDecodeInfoOffset(),
 			GetIndexOffset(),
 			GetPositionOffset(),
@@ -75,6 +79,7 @@ struct FPageSections
 		Cluster				+=	Other.Cluster;
 		MaterialTable		+=	Other.MaterialTable;
 		VertReuseBatchInfo	+=	Other.VertReuseBatchInfo;
+		BoneData			+=	Other.BoneData;
 		DecodeInfo			+=	Other.DecodeInfo;
 		Index				+=	Other.Index;
 		Position			+=	Other.Position;
@@ -154,6 +159,10 @@ struct FEncodingInfo
 	FIntVector4 ColorMin = FIntVector4(0, 0, 0, 0);
 	FIntVector4 ColorBits = FIntVector4(0, 0, 0, 0);
 
+	uint32		NumBones = 0;
+	uint32		BitsPerBoneIndex = 0;
+	uint32		BitsPerBoneWeight = 0;
+	
 	FPageSections GpuSizes;
 
 	FUVRange	UVRanges[NANITE_MAX_UVS];
@@ -779,6 +788,12 @@ static void PackCluster(Nanite::FPackedCluster& OutCluster, const Nanite::FClust
 		BitOffset += UVRange.NumBits.X + UVRange.NumBits.Y;
 	}
 
+	// 6
+	OutCluster.SetBoneDataOffset(0);
+	OutCluster.SetNumBones(EncodingInfo.NumBones);
+	OutCluster.SetBoneIndexBits(EncodingInfo.BitsPerBoneIndex);
+	OutCluster.SetBoneWeightBits(EncodingInfo.BitsPerBoneWeight);
+
 	OutCluster.SetBitsPerAttribute(EncodingInfo.BitsPerAttribute);
 	OutCluster.SetNormalPrecision(EncodingInfo.NormalPrecision);
 	OutCluster.SetTangentPrecision(EncodingInfo.TangentPrecision);
@@ -1099,6 +1114,8 @@ static void CalculateEncodingInfo(FEncodingInfo& Info, const Nanite::FCluster& C
 	Info.NormalPrecision = 0;
 	Info.TangentPrecision = 0;
 
+	// TODO: Nanite-Skinning: Implement uncompressed path
+
 	GpuSizes.Position = NumClusterVerts * 3 * sizeof(float);
 	GpuSizes.Attribute = NumClusterVerts * AttribBytesPerVertex;
 #else
@@ -1182,6 +1199,40 @@ static void CalculateEncodingInfo(FEncodingInfo& Info, const Nanite::FCluster& C
 		Info.BitsPerAttribute	+= UVRange.NumBits.X + UVRange.NumBits.Y;
 	}
 
+	const uint32 MaxBones = Cluster.Settings.NumBoneInfluences;
+	if (MaxBones > 0)
+	{
+		uint32 NumBones = 0;
+		
+		uint32 MaxBoneIndex = 0;
+		uint32 MaxBoneWeight = 0;
+		for (uint32 i = 0; i < NumClusterVerts; i++)
+		{
+			const FVector2f* BoneInfluences = Cluster.GetBoneInfluences(i);
+			uint32 NumVertexBones = 0;
+			for (uint32 j = 0; j < MaxBones; j++)
+			{
+				const uint32 BoneIndex	= (uint32)BoneInfluences[j].X;
+				const uint32 BoneWeight = (uint32)BoneInfluences[j].Y;
+				
+				if (BoneWeight > 0)
+				{
+					MaxBoneIndex = FMath::Max(MaxBoneIndex, BoneIndex);
+					MaxBoneWeight = FMath::Max(MaxBoneWeight, BoneWeight);
+					NumVertexBones++;
+				}
+			}
+			NumBones = FMath::Max(NumBones, NumVertexBones);
+		}
+		Info.NumBones = NumBones;
+		Info.BitsPerBoneIndex	= FMath::CeilLogTwo(MaxBoneIndex + 1u);
+		Info.BitsPerBoneWeight	= FMath::CeilLogTwo(MaxBoneWeight + 1u);
+
+		// TODO: Nanite-Skinning: Make this more compact. Range of indices? Palette of indices? Omit the last weight?
+		GpuSizes.BoneData		= (NumClusterVerts * NumBones * (Info.BitsPerBoneIndex + Info.BitsPerBoneWeight) + 31) / 32 * 4;
+	}
+	
+
 	const uint32 PositionBitsPerVertex = Cluster.QuantizedPosBits.X + Cluster.QuantizedPosBits.Y + Cluster.QuantizedPosBits.Z;
 	GpuSizes.Position = (NumClusterVerts * PositionBitsPerVertex + 31) / 32 * 4;
 	GpuSizes.Attribute = (NumClusterVerts * Info.BitsPerAttribute + 31) / 32 * 4;
@@ -1234,6 +1285,7 @@ static void EncodeGeometryData(	const uint32 LocalClusterIndex, const FCluster& 
 								TArray<uint32>& PageClusterMapData,
 								TArray<uint32>& VertexRefBitmask, TArray<uint16>& VertexRefData,
 								TArray<uint8>& LowByteStream, TArray<uint8>& MidByteStream, TArray<uint8>& HighByteStream,
+								TArray<uint8>& BoneDataStream,
 								const TArrayView<uint32> PageDependencies, const TArray<TMap<FVariableVertex, FVertexMapEntry>>& PageVertexMaps,
 								TMap<FVariableVertex, uint32>& UniqueVertices, uint32& NumCodedVertices, bool bHasTangents)
 {
@@ -1584,6 +1636,35 @@ static void EncodeGeometryData(	const uint32 LocalClusterIndex, const FCluster& 
 			WriteZigZagDelta(UVDelta.Y, BytesPerTexCoordComponent);
 			PrevUV = UV;
 		}
+	}
+
+	if (EncodingInfo.NumBones > 0)
+	{
+		// TODO: Nanite-Skinning: support parent references
+		FBitWriter BitWriter(BoneDataStream);
+		
+		const uint32 NumBones = EncodingInfo.NumBones;
+		for (uint32 i = 0; i < NumClusterVerts; i++)
+		{
+			const FVector2f* BoneInfluences = Cluster.GetBoneInfluences(i);
+			for (uint32 j = 0; j < NumBones; j++)
+			{
+				const uint32 BoneIndex = (uint32)BoneInfluences[j].X;
+				const uint32 BoneWeight = (uint32)BoneInfluences[j].Y;
+				if (BoneWeight == 0)
+				{
+					BitWriter.PutBits(0, EncodingInfo.BitsPerBoneIndex);
+					BitWriter.PutBits(0, EncodingInfo.BitsPerBoneWeight);
+				}
+				else
+				{
+					BitWriter.PutBits(BoneIndex, EncodingInfo.BitsPerBoneIndex);
+					BitWriter.PutBits(BoneWeight, EncodingInfo.BitsPerBoneWeight);
+				}
+			}
+		}
+		
+		BitWriter.Flush(sizeof(uint32));
 	}
 
 
@@ -2118,6 +2199,7 @@ static void WritePages(	FResources& Resources,
 		TArray<uint32>				NumPageClusterPairsPerCluster;
 		TArray<FPackedCluster>		PackedClusters;
 
+		TArray<uint8>				BoneData;
 		TArray<uint8>				LowByteStream;
 		TArray<uint8>				MidByteStream;
 		TArray<uint8>				HighByteStream;
@@ -2160,10 +2242,12 @@ static void WritePages(	FResources& Resources,
 				check((GpuSectionOffsets.Index & 3) == 0);
 				check((GpuSectionOffsets.Position & 3) == 0);
 				check((GpuSectionOffsets.Attribute & 3) == 0);
+				check((GpuSectionOffsets.BoneData & 3) == 0);
 				PackedCluster.SetIndexOffset(GpuSectionOffsets.Index);
 				PackedCluster.SetPositionOffset(GpuSectionOffsets.Position);
 				PackedCluster.SetAttributeOffset(GpuSectionOffsets.Attribute);
 				PackedCluster.SetDecodeInfoOffset(GpuSectionOffsets.DecodeInfo);
+				PackedCluster.SetBoneDataOffset(GpuSectionOffsets.BoneData);
 
 				PackedCluster.SetVertResourceBatchInfo(LocalVertReuseBatchInfo, GpuSectionOffsets.VertReuseBatchInfo, Cluster.MaterialRanges.Num());
 				if (Cluster.MaterialRanges.Num() > 3)
@@ -2186,6 +2270,7 @@ static void WritePages(	FResources& Resources,
 									CombinedStripBitmaskData, CombinedIndexData,
 									CombinedPageClusterPairData, CombinedVertexRefBitmaskData, CombinedVertexRefData,
 									LowByteStream, MidByteStream, HighByteStream,
+									BoneData,
 									PageDependencies, PageVertexMaps,
 									UniqueVertices, NumCodedVertices, bHasTangents);
 
@@ -2199,7 +2284,8 @@ static void WritePages(	FResources& Resources,
 		}
 		check(GpuSectionOffsets.Cluster							== Page.GpuSizes.GetMaterialTableOffset());
 		check(Align(GpuSectionOffsets.MaterialTable, 16)		== Page.GpuSizes.GetVertReuseBatchInfoOffset());
-		check(Align(GpuSectionOffsets.VertReuseBatchInfo, 16)	== Page.GpuSizes.GetDecodeInfoOffset());
+		check(Align(GpuSectionOffsets.VertReuseBatchInfo, 16)	== Page.GpuSizes.GetBoneDataOffset());
+		check(Align(GpuSectionOffsets.BoneData, 16)				== Page.GpuSizes.GetDecodeInfoOffset());
 		check(Align(GpuSectionOffsets.DecodeInfo, 16)			== Page.GpuSizes.GetIndexOffset());
 		check(GpuSectionOffsets.Index							== Page.GpuSizes.GetPositionOffset());
 		check(GpuSectionOffsets.Position						== Page.GpuSizes.GetAttributeOffset());
@@ -2271,6 +2357,7 @@ static void WritePages(	FResources& Resources,
 		// 16-byte align material range data to make it easy to copy during GPU transcoding
 		MaterialRangeData.SetNum(Align(MaterialRangeData.Num(), 4));
 		VertReuseBatchInfo.SetNum(Align(VertReuseBatchInfo.Num(), 4));
+		BoneData.SetNum(Align(BoneData.Num(), 16));
 
 		static_assert(sizeof(FPageGPUHeader) % 16 == 0, "sizeof(FGPUPageHeader) must be a multiple of 16");
 		static_assert(sizeof(FPackedCluster) % 16 == 0, "sizeof(FPackedCluster) must be a multiple of 16");
@@ -2316,6 +2403,14 @@ static void WritePages(	FResources& Resources,
 			uint8* VertReuseBatchInfoData = PageWriter.Append_Ptr<uint8>(VertReuseBatchInfoSize);
 			FMemory::Memcpy(VertReuseBatchInfoData, VertReuseBatchInfo.GetData(), VertReuseBatchInfoSize);
 			check(VertReuseBatchInfoSize == Page.GpuSizes.GetVertReuseBatchInfoSize());
+		}
+
+		{
+			// Bone data
+			const uint32 BoneDataSize = BoneData.Num() * BoneData.GetTypeSize();
+			uint8* BoneDataPtr = PageWriter.Append_Ptr<uint8>(BoneDataSize);
+			FMemory::Memcpy(BoneDataPtr, BoneData.GetData(), BoneDataSize);
+			check(BoneDataSize == Page.GpuSizes.GetBoneDataSize());
 		}
 
 		// Decode information

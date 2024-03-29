@@ -120,7 +120,7 @@
 
 #define NANITE_MAX_TRANSCODE_GROUPS_PER_PAGE				128
 
-#define NANITE_NUM_PACKED_CLUSTER_FLOAT4S					7
+#define NANITE_NUM_PACKED_CLUSTER_FLOAT4S					8
 #define NANITE_GPU_PAGE_HEADER_SIZE							16
 
 #define NANITE_MAX_COORDINATE_VALUE							1e12f	// Should be large enough for all practical purposes, while still leaving enough headroom to avoid overflows.
