@@ -28,6 +28,7 @@ struct FMeshConversionContext
 	TArray<int32> VertexIds;
 	TArray<int32> SymmetricVertexIds;
 	TSet<int32> PatchesToMesh;
+	bool bSkipThinZoneMeshing = false;
 
 	FMeshConversionContext(const FImportParameters& InImportParams, const FMeshParameters& InMeshParameters)
 		: ImportParameters(InImportParams)

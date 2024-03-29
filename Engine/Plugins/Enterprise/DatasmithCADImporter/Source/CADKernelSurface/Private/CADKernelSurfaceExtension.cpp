@@ -64,8 +64,7 @@ bool UCADKernelParametricSurfaceData::Tessellate(UStaticMesh& StaticMesh, const 
 		CADKernelSession->AddDatabase(RawData);
 
 		FModel& CADKernelModel = CADKernelSession->GetModel();
-		TArray<TSharedPtr<FBody>> CADKernelBodies = CADKernelModel.GetBodies();
-		if (CADKernelBodies.Num() != 1)
+		if (CADKernelModel.GetBodies().IsEmpty())
 		{
 			return bSuccessfulTessellation;
 		}

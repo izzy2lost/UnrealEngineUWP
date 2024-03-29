@@ -29,7 +29,32 @@ typedef double AlMatrix4x4[4][4];
 
 namespace UE_DATASMITHWIRETRANSLATOR_NAMESPACE
 {
+	template<typename T>
+	class TAlObjectPtr
+	{
+	public:
+		TAlObjectPtr(T* AlObject) : Ptr(AlObject) {}
 
+		bool IsValid() { return Ptr && AlIsValid(Ptr); }
+
+		T* operator->() const
+		{
+			return Ptr;
+		}
+
+		T& operator*() const
+		{
+			return *Ptr;
+		}
+
+		T* Get() const
+		{
+			return Ptr;
+		}
+
+	private:
+		T* Ptr = nullptr;
+	};
 enum class ETesselatorType : uint8
 {
 	Fast,

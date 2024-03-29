@@ -4,6 +4,7 @@
 
 #include "CoreMinimal.h"
 
+#include "OpenModelUtils.h"
 #include "ParametricSurfaceTranslator.h"
 #include "UObject/ObjectMacros.h"
 

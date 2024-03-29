@@ -67,6 +67,7 @@ public class DatasmithWireTranslator2020 : DatasmithWireTranslatorBase
 	public DatasmithWireTranslator2020(ReadOnlyTargetRules Target) 
 		: base(Target)
 	{
+		PublicDefinitions.Add("IS_MAIN_MODULE");
 	}
 
 	public override string GetAliasVersion()

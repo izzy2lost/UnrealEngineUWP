@@ -2,6 +2,8 @@
 
 #include "AliasModelToTechSoftConverter.h"
 
+#include "OpenModelUtils.h"
+
 #include "Hal/PlatformMemory.h"
 #include "Math/Color.h"
 #include "MeshDescriptionHelper.h"
@@ -11,6 +13,10 @@
 
 
 #ifdef USE_OPENMODEL
+
+#if PLATFORM_WINDOWS
+#include "Windows/AllowWindowsPlatformTypes.h"
+#endif
 
 // Alias API wrappes object in AlObjects. This is an abstract base class which holds a reference to an anonymous data structure.
 // The only way to compare two AlObjects is to compare their data structure. That is the reason why private fields are made public. 
@@ -25,6 +31,10 @@
 #include "AlTrimCurve.h"
 #include "AlTrimRegion.h"
 #include "AlTM.h"
+
+#if PLATFORM_WINDOWS
+#include "Windows/HideWindowsPlatformTypes.h"
+#endif
 
 namespace UE_DATASMITHWIRETRANSLATOR_NAMESPACE
 {
@@ -240,7 +250,7 @@ A3DTopoCoEdge* FAliasModelToTechSoftConverter::CreateEdge(const AlTrimCurve& Tri
 	A3DTopoCoEdge* CoEdgePtr = CADLibrary::TechSoftInterface::CreateTopoCoEdge(*CoEdgeData);
 
 	// Only TrimCurve with twin need to be in the map used in LinkEdgesLoop 
-	TUniquePtr<AlTrimCurve> TwinCurve(TrimCurve.getTwinCurve());
+	TAlObjectPtr<AlTrimCurve> TwinCurve(TrimCurve.getTwinCurve());
 	if (TwinCurve.IsValid())
 	{
 		AlEdgeToTSCoEdge.Add(TrimCurve.fSpline, CoEdgePtr);
@@ -253,7 +263,7 @@ A3DTopoLoop* FAliasModelToTechSoftConverter::CreateTopoLoop(const AlTrimBoundary
 	TArray<A3DTopoCoEdge*> Edges;
 	Edges.Reserve(20);
 
-	for (TUniquePtr<AlTrimCurve> TrimCurve(TrimBoundary.firstCurve()); TrimCurve.IsValid(); TrimCurve = TUniquePtr<AlTrimCurve>(TrimCurve->nextCurve()))
+	for (TAlObjectPtr<AlTrimCurve> TrimCurve(TrimBoundary.firstCurve()); TrimCurve.IsValid(); TrimCurve = TAlObjectPtr<AlTrimCurve>(TrimCurve->nextCurve()))
 	{
 		A3DTopoCoEdge* Edge = CreateEdge(*TrimCurve);
 		if (Edge != nullptr)
@@ -278,7 +288,7 @@ A3DTopoLoop* FAliasModelToTechSoftConverter::CreateTopoLoop(const AlTrimBoundary
 
 void FAliasModelToTechSoftConverter::LinkEdgesLoop(const AlTrimBoundary& TrimBoundary)
 {
-	for (TUniquePtr<AlTrimCurve> TrimCurve(TrimBoundary.firstCurve()); TrimCurve.IsValid(); TrimCurve = TUniquePtr<AlTrimCurve>(TrimCurve->nextCurve()))
+	for (TAlObjectPtr<AlTrimCurve> TrimCurve(TrimBoundary.firstCurve()); TrimCurve.IsValid(); TrimCurve = TAlObjectPtr<AlTrimCurve>(TrimCurve->nextCurve()))
 	{
 		A3DTopoCoEdge** Edge = AlEdgeToTSCoEdge.Find(TrimCurve->fSpline);
 		if (Edge == nullptr)
@@ -287,7 +297,7 @@ void FAliasModelToTechSoftConverter::LinkEdgesLoop(const AlTrimBoundary& TrimBou
 		}
 
 		// Link edges
-		TUniquePtr<AlTrimCurve> TwinCurve(TrimCurve->getTwinCurve());
+		TAlObjectPtr<AlTrimCurve> TwinCurve(TrimCurve->getTwinCurve());
 		if (TwinCurve.IsValid())
 		{
 			if (A3DTopoCoEdge** TwinEdge = AlEdgeToTSCoEdge.Find(TwinCurve->fSpline))
@@ -313,7 +323,7 @@ A3DTopoFace* FAliasModelToTechSoftConverter::AddTrimRegion(const AlTrimRegion& I
 	TArray<A3DTopoLoop*> Loops;
 	Loops.Reserve(5);
 
-	for (TUniquePtr<AlTrimBoundary> TrimBoundary(InTrimRegion.firstBoundary()); TrimBoundary.IsValid(); TrimBoundary = TUniquePtr<AlTrimBoundary>(TrimBoundary->nextBoundary()))
+	for (TAlObjectPtr<AlTrimBoundary> TrimBoundary(InTrimRegion.firstBoundary()); TrimBoundary.IsValid(); TrimBoundary = TAlObjectPtr<AlTrimBoundary>(TrimBoundary->nextBoundary()))
 	{
 		A3DTopoLoop* Loop = CreateTopoLoop(*TrimBoundary);
 		if (Loop != nullptr)
@@ -370,10 +380,10 @@ bool FAliasModelToTechSoftConverter::AddBRep(AlDagNode& DagNode, const FColor& C
 	{
 		if (AlShellNode* ShellNode = DagNode.asShellNodePtr())
 		{
-			TUniquePtr<AlShell> AliasShell(ShellNode->shell());
+			TAlObjectPtr<AlShell> AliasShell(ShellNode->shell());
 			if(AlIsValid(AliasShell.Get()))
 			{
-				for (TUniquePtr<AlTrimRegion> TrimRegion(AliasShell->firstTrimRegion()); TrimRegion.IsValid(); TrimRegion = TUniquePtr<AlTrimRegion>(TrimRegion->nextRegion()))
+				for (TAlObjectPtr<AlTrimRegion> TrimRegion(AliasShell->firstTrimRegion()); TrimRegion.IsValid(); TrimRegion = TAlObjectPtr<AlTrimRegion>(TrimRegion->nextRegion()))
 				{
 					A3DTopoFace* TSFace = AddTrimRegion(*TrimRegion, Color, InObjectReference, AlMatrix);
 					if (TSFace != nullptr)
@@ -390,13 +400,13 @@ bool FAliasModelToTechSoftConverter::AddBRep(AlDagNode& DagNode, const FColor& C
 	{
 		if (AlSurfaceNode* SurfaceNode = DagNode.asSurfaceNodePtr())
 		{
-			TUniquePtr<AlSurface> AliasSurface(SurfaceNode->surface());
+			TAlObjectPtr<AlSurface> AliasSurface(SurfaceNode->surface());
 			if (AlIsValid(AliasSurface.Get()))
 			{
-				TUniquePtr<AlTrimRegion> TrimRegion(AliasSurface->firstTrimRegion());
+				TAlObjectPtr<AlTrimRegion> TrimRegion(AliasSurface->firstTrimRegion());
 				if (TrimRegion.IsValid())
 				{
-					for (; TrimRegion.IsValid(); TrimRegion = TUniquePtr<AlTrimRegion>(TrimRegion->nextRegion()))
+					for (; TrimRegion.IsValid(); TrimRegion = TAlObjectPtr<AlTrimRegion>(TrimRegion->nextRegion()))
 					{
 						A3DTopoFace* TSFace = AddTrimRegion(*TrimRegion, Color, InObjectReference, AlMatrix);
 						if (TSFace != nullptr)
