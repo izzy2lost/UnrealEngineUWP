@@ -225,6 +225,10 @@ static void SetupMobileGBufferFlags(FGBufferBindings GBufferBindings[GBL_Num], b
 		// memoryless GBuffer cant be used with compute
 		RemoveFlags |= TexCreate_UAV;
 	}
+	else
+	{
+		RemoveFlags |= TexCreate_Memoryless;
+	}
 
 	for (uint32 Layout = 0; Layout < GBL_Num; ++Layout)
 	{
