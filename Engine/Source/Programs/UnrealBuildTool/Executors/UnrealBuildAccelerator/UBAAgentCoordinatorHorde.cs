@@ -532,6 +532,9 @@ namespace UnrealBuildTool
 							}
 						}
 						logger.LogDebug("Shutting down process");
+						int ExitCode = await process.WaitForExitAsync(cancellationToken);
+						if (ExitCode != 0)
+							logger.LogInformation($"UbaAgent exited with exit code: {ExitCode}");
 					}
 
 					logger.LogDebug("Closing channel");
