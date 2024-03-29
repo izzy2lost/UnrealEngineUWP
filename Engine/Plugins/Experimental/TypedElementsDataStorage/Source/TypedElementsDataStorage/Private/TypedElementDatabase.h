@@ -88,30 +88,29 @@ public:
 	TypedElementRowHandle ReserveRow() override;
 	TypedElementRowHandle AddRow(TypedElementTableHandle Table) override;
 	bool AddRow(TypedElementRowHandle ReservedRow, TypedElementTableHandle Table) override;
-	bool BatchAddRow(TypedElementTableHandle Table, int32 Count, TypedElementDataStorageCreationCallbackRef OnCreated) override;
+	bool BatchAddRow(TypedElementTableHandle Table, int32 Count, TypedElementDataStorage::RowCreationCallbackRef OnCreated) override;
 	bool BatchAddRow(TypedElementTableHandle Table, TConstArrayView<TypedElementRowHandle> ReservedHandles,
-		TypedElementDataStorageCreationCallbackRef OnCreated) override;
+		TypedElementDataStorage::RowCreationCallbackRef OnCreated) override;
 	void RemoveRow(TypedElementRowHandle Row) override;
 	bool IsRowAvailable(TypedElementRowHandle Row) const override;
 	bool HasRowBeenAssigned(TypedElementRowHandle Row) const override;
 
-	bool AddColumn(TypedElementRowHandle Row, const UScriptStruct* ColumnType) override;
-	bool AddColumn(TypedElementRowHandle Row, FTopLevelAssetPath ColumnName) override;
+	void AddColumn(TypedElementRowHandle Row, const UScriptStruct* ColumnType) override;
+	void AddColumnData(TypedElementRowHandle Row, const UScriptStruct* ColumnType,
+		const TypedElementDataStorage::ColumnCreationCallbackRef& Initializer,
+		TypedElementDataStorage::ColumnCopyOrMoveCallback Relocator) override;
 	void RemoveColumn(TypedElementRowHandle Row, const UScriptStruct* ColumnType) override;
-	void RemoveColumn(TypedElementRowHandle Row, FTopLevelAssetPath ColumnName) override;
-	void* AddOrGetColumnData(TypedElementRowHandle Row, const UScriptStruct* ColumnType) override;
-	ColumnDataResult AddOrGetColumnData(TypedElementRowHandle Row, FTopLevelAssetPath ColumnName) override;
+	void* AddOrGetColumnData(TypedElementRowHandle Row, const UScriptStruct* ColumnType,
+		const TypedElementDataStorage::ColumnCreationCallbackRef& Initializer,
+		TypedElementDataStorage::ColumnCopyOrMoveCallback Relocator) override;
 	void* GetColumnData(TypedElementRowHandle Row, const UScriptStruct* ColumnType) override;
 	const void* GetColumnData(TypedElementRowHandle Row, const UScriptStruct* ColumnType) const override;
-	ColumnDataResult AddOrGetColumnData(TypedElementRowHandle Row, FTopLevelAssetPath ColumnName,
-		TConstArrayView<TypedElement::ColumnUtils::Argument> Arguments) override;
-	bool AddColumns(TypedElementRowHandle Row, TConstArrayView<const UScriptStruct*> Columns) override;
+	void AddColumns(TypedElementRowHandle Row, TConstArrayView<const UScriptStruct*> Columns) override;
 	void RemoveColumns(TypedElementRowHandle Row, TConstArrayView<const UScriptStruct*> Columns) override;
-	bool AddRemoveColumns(TypedElementRowHandle Row, TConstArrayView<const UScriptStruct*> ColumnsToAdd,
+	void AddRemoveColumns(TypedElementRowHandle Row, TConstArrayView<const UScriptStruct*> ColumnsToAdd,
 		TConstArrayView<const UScriptStruct*> ColumnsToRemove) override;
-	bool BatchAddRemoveColumns(TConstArrayView<TypedElementRowHandle> Rows,TConstArrayView<const UScriptStruct*> ColumnsToAdd,
+	void BatchAddRemoveColumns(TConstArrayView<TypedElementRowHandle> Rows,TConstArrayView<const UScriptStruct*> ColumnsToAdd,
 		TConstArrayView<const UScriptStruct*> ColumnsToRemove) override;
-	ColumnDataResult GetColumnData(TypedElementRowHandle Row, FTopLevelAssetPath ColumnName) override;
 	bool HasColumns(TypedElementRowHandle Row, TConstArrayView<const UScriptStruct*> ColumnTypes) const override;
 	bool HasColumns(TypedElementRowHandle Row, TConstArrayView<TWeakObjectPtr<const UScriptStruct>> ColumnTypes) const override;
 	bool MatchesColumns(TypedElementDataStorage::RowHandle Row, const TypedElementDataStorage::FQueryConditions& Conditions) const override;
@@ -169,8 +168,6 @@ private:
 	TArray<FFactoryTypePair> Factories;
 
 	TUniquePtr<FTypedElementDatabaseEnvironment> Environment;
-	
-	FTypedElementDatabaseCommandBuffer::CommandBuffer DeferredCommands;
 	
 	FTypedElementOnDataStorageUpdate OnUpdateDelegate;
 	FDelegateHandle OnPreMassTickHandle;

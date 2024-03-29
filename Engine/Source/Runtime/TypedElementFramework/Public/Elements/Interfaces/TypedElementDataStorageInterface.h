@@ -2,9 +2,11 @@
 
 #pragma once
 
+#include <type_traits>
 #include "Containers/Array.h"
 #include "Containers/ContainersFwd.h"
 #include "Delegates/Delegate.h"
+#include "Elements/Common/TypedElementCommonTypes.h"
 #include "Elements/Common/TypedElementHandles.h"
 #include "Elements/Common/TypedElementQueryConditions.h"
 #include "Elements/Common/TypedElementQueryDescription.h"
@@ -25,14 +27,6 @@ class USubsystem;
 class UScriptStruct;
 class UTypedElementDataStorageFactory;
 
-struct ColumnDataResult
-{
-	/** Pointer to the structure that holds the description of the returned data. */
-	const UScriptStruct* Description;
-	/** Pointer to the column data. The type is guaranteed to match type described in Description. */
-	void* Data;
-};
-
 using TypedElementTableHandle = TypedElementDataStorage::TableHandle;
 static constexpr auto TypedElementInvalidTableHandle = TypedElementDataStorage::InvalidTableHandle;
 using TypedElementRowHandle = TypedElementDataStorage::RowHandle;
@@ -43,26 +37,6 @@ static constexpr auto TypedElementInvalidQueryHandle = TypedElementDataStorage::
 using FTypedElementOnDataStorageCreation = FSimpleMulticastDelegate;
 using FTypedElementOnDataStorageDestruction = FSimpleMulticastDelegate;
 using FTypedElementOnDataStorageUpdate = FSimpleMulticastDelegate;
-
-using TypedElementDataStorageCreationCallbackRef = TFunctionRef<void(TypedElementRowHandle Row)>;
-
-/**
- * Base for the data structures for a column.
- */
-USTRUCT()
-struct FTypedElementDataStorageColumn
-{
-	GENERATED_BODY()
-};
-
-/**
- * Base for the data structures that act as tags to rows. Tags should not have any data.
- */
-USTRUCT()
-struct FTypedElementDataStorageTag
-{
-	GENERATED_BODY()
-};
 
 UINTERFACE(MinimalAPI)
 class UTypedElementDataStorageInterface : public UInterface
@@ -143,14 +117,14 @@ public:
 	 * Add multiple rows at once. For each new row the OnCreated callback is called. Callers are expected to use the callback to
 	 * initialize the row if needed.
 	 */
-	virtual bool BatchAddRow(TypedElementTableHandle Table, int32 Count, TypedElementDataStorageCreationCallbackRef OnCreated) = 0;
+	virtual bool BatchAddRow(TypedElementTableHandle Table, int32 Count, TypedElementDataStorage::RowCreationCallbackRef OnCreated) = 0;
 	/**
 	 * Add multiple rows at once. For each new row the OnCreated callback is called. Callers are expected to use the callback to
 	 * initialize the row if needed. This version uses a set of previously reserved rows. Any row that can't be used will be 
 	 * released.
 	 */
 	virtual bool BatchAddRow(TypedElementTableHandle Table, TConstArrayView<TypedElementRowHandle> ReservedHandles,
-		TypedElementDataStorageCreationCallbackRef OnCreated) = 0;
+		TypedElementDataStorage::RowCreationCallbackRef OnCreated) = 0;
 
 	/** Removes a previously reserved or added row. If the row handle is invalid or already removed, nothing happens */
 	virtual void RemoveRow(TypedElementRowHandle Row) = 0;
@@ -166,59 +140,87 @@ public:
 	 */
 
 	/** Adds a column to a row or does nothing if already added. */
-	virtual bool AddColumn(TypedElementRowHandle Row, const UScriptStruct* ColumnType) = 0;
-	virtual bool AddColumn(TypedElementRowHandle Row, FTopLevelAssetPath ColumnName) = 0;
+	virtual void AddColumn(TypedElementRowHandle Row, const UScriptStruct* ColumnType) = 0;
+	template<TypedElementDataStorage::TColumnType ColumnType>
+	void AddColumn(TypedElementRowHandle Row);
+	/**
+	 * Adds a new data column and initializes it. The relocator will be used to copy or move the column out of
+	 * its temporary location into the final table if the addition needs to be deferred.
+	 */
+	virtual void AddColumnData(TypedElementRowHandle Row, const UScriptStruct* ColumnType,
+		const TypedElementDataStorage::ColumnCreationCallbackRef& Initializer,
+		TypedElementDataStorage::ColumnCopyOrMoveCallback Relocator) = 0;
+	template<TypedElementDataStorage::TDataColumnType ColumnType>
+	void AddColumn(TypedElementRowHandle Row, ColumnType&& Column);
+
 	/**
 	 * Adds multiple columns from a row. This is typically more efficient than adding columns one 
 	 * at a time.
 	 */
-	virtual bool AddColumns(TypedElementRowHandle Row, TConstArrayView<const UScriptStruct*> Columns) = 0;
+	virtual void AddColumns(TypedElementRowHandle Row, TConstArrayView<const UScriptStruct*> Columns) = 0;
+	template<typename... Columns>
+	void AddColumns(TypedElementRowHandle Row);
 
 	/** Removes a column from a row or does nothing if already removed. */
 	virtual void RemoveColumn(TypedElementRowHandle Row, const UScriptStruct* ColumnType) = 0;
-	virtual void RemoveColumn(TypedElementRowHandle Row, FTopLevelAssetPath ColumnName) = 0;
+	template<typename Column>
+	void RemoveColumn(TypedElementRowHandle Row);
 	/**
 	 * Removes multiple columns from a row. This is typically more efficient than adding columns one
 	 * at a time.
 	 */
 	virtual void RemoveColumns(TypedElementRowHandle Row, TConstArrayView<const UScriptStruct*> Columns) = 0;
+	template<typename... Columns>
+	void RemoveColumns(TypedElementRowHandle Row);
+
 	/** 
 	 * Adds and removes the provided column types from the provided row. This is typically more efficient 
 	 * than individually adding and removing columns as well as being faster than adding and removing
 	 * columns separately.
 	 */
-	virtual bool AddRemoveColumns(TypedElementRowHandle Row, TConstArrayView<const UScriptStruct*> ColumnsToAdd,
+	virtual void AddRemoveColumns(TypedElementRowHandle Row, TConstArrayView<const UScriptStruct*> ColumnsToAdd,
 		TConstArrayView<const UScriptStruct*> ColumnsToRemove) = 0;
-
+	
 	/** Adds and removes the provided column types from the provided list of rows. */
-	virtual bool BatchAddRemoveColumns(
+	virtual void BatchAddRemoveColumns(
 		TConstArrayView<TypedElementRowHandle> Rows,
 		TConstArrayView<const UScriptStruct*> ColumnsToAdd,
 		TConstArrayView<const UScriptStruct*> ColumnsToRemove) = 0;
 
 	/**
-	 * Adds a new column to a row. If the column already exists it will be returned instead. If the colum couldn't
+	 * Adds a new column to a row. If the column already exists it will be returned instead. If the column couldn't
 	 * be added or the column type points to a tag an nullptr will be returned.
+	 * This version allows a new object to be initialized before OnAdd observers are called as well as provide a
+	 * bespoke call to move the object from temporary locations to the final table location.
 	 */
-	virtual void* AddOrGetColumnData(TypedElementRowHandle Row, const UScriptStruct* ColumnType) = 0;
-	virtual ColumnDataResult AddOrGetColumnData(TypedElementRowHandle Row, FTopLevelAssetPath ColumnName) = 0;
+	virtual void* AddOrGetColumnData(TypedElementRowHandle Row, const UScriptStruct* ColumnType,
+		const TypedElementDataStorage::ColumnCreationCallbackRef& Initializer,
+		TypedElementDataStorage::ColumnCopyOrMoveCallback Relocator) = 0;
 	/**
-	 * Sets the data of a column using the provided argument bag. This is only meant for simple initialization for 
-	 * fragments that use UPROPERTY to expose properties. For complex initialization or when the fragment type is known
-	 * it's recommended to use calls that work directly on the type for better performance and a wider range of configuration options.
-	 * If the column couldn't be created or the column name points to a tag, then the result will contain only nullptrs.
+	 * Returns a pointer to the column of the given row or creates a new one if not found.
+	 * Enables type deduction of ColumnType from Column argument.
+	 *
+	 * For example, FTransformColumn added and deduced from second argument:
+	 * StorageInterface->AddOrGetColumn(Row, FTransformColumn{.Transform = Transform});
 	 */
-	virtual ColumnDataResult AddOrGetColumnData(TypedElementRowHandle Row, FTopLevelAssetPath ColumnName,
-		TConstArrayView<TypedElement::ColumnUtils::Argument> Arguments) = 0;
+	template<typename ColumnType>
+	ColumnType* AddOrGetColumn(TypedElementRowHandle Row, ColumnType&& Column);
 	
 	/** Retrieves a pointer to the column of the given row or a nullptr if not found or if the column type is a tag. */
 	virtual void* GetColumnData(TypedElementRowHandle Row, const UScriptStruct* ColumnType) = 0;
 	virtual const void* GetColumnData(TypedElementRowHandle Row, const UScriptStruct* ColumnType) const = 0;
-	virtual ColumnDataResult GetColumnData(TypedElementRowHandle Row, FTopLevelAssetPath ColumnName) = 0;
-
+	/** Returns a pointer to the column of the given row or a nullptr if the type couldn't be found or the row doesn't exist. */
+	template<typename ColumnType>
+	ColumnType* GetColumn(TypedElementRowHandle Row);
+	template<typename ColumnType>
+	const ColumnType* GetColumn(TypedElementRowHandle Row) const;
+	
 	/** Determines if the provided row contains the collection of columns and tags. */
 	virtual bool HasColumns(TypedElementRowHandle Row, TConstArrayView<const UScriptStruct*> ColumnTypes) const = 0;
 	virtual bool HasColumns(TypedElementRowHandle Row, TConstArrayView<TWeakObjectPtr<const UScriptStruct>> ColumnTypes) const = 0;
+	template<typename... ColumnTypes>
+	bool HasColumns(TypedElementRowHandle Row) const;
+
 	/** Determines if the columns in the row match the query conditions. */
 	virtual bool MatchesColumns(TypedElementDataStorage::RowHandle Row, const TypedElementDataStorage::FQueryConditions& Conditions) const = 0;
 	
@@ -320,66 +322,6 @@ public:
 	/** Returns a pointer to the registered external system if found, otherwise null. */
 	virtual void* GetExternalSystemAddress(UClass* Target) = 0;
 
-	
-
-	/**
-	 *
-	 * The following are utility functions that are not part of the interface but are provided in order to make using the
-	 * interface easier.
-	 *
-	 */
-	
-	
-	/** Adds a column to a row or does nothing if already added. */
-	template<typename Column>
-	bool AddColumn(TypedElementRowHandle Row);
-
-	/** Removes a tag from a row or does nothing if already removed. */
-	template<typename Column>
-	void RemoveColumn(TypedElementRowHandle Row);
-	
-	/**
-	 * Adds multiple columns from a row. This is typically more efficient than adding columns one
-	 * at a time.
-	 */
-	template<typename... Columns>
-	void AddColumns(TypedElementRowHandle Row);
-
-	/**
-	 * Removes multiple columns from a row. This is typically more efficient than adding columns one
-	 * at a time.
-	 */
-	template<typename... Columns>
-	void RemoveColumns(TypedElementRowHandle Row);
-
-	/**
-	 * Returns a pointer to the column of the given row or creates a new one if not found. Optionally arguments can be provided
-	 * to update or initialize the column's data.
-	 */
-	template<typename ColumnType, typename... Args>
-	ColumnType* AddOrGetColumn(TypedElementRowHandle Row, Args... Arguments);
-
-	/**
-	 * Returns a pointer to the column of the given row or creates a new one if not found.
-	 * Enables type deduction of ColumnType from Column argument.
-	 * 
-	 * For example, FTransformColumn added and deduced from second argument:
-	 * StorageInterface->AddOrGetColumn(Row, FTransformColumn{.Transform = Transform});
-	 */
-	template<typename ColumnType>
-	ColumnType* AddOrGetColumn(TypedElementRowHandle Row, ColumnType&& Column);
-	
-	/** Returns a pointer to the column of the given row or a nullptr if the type couldn't be found or the row doesn't exist. */
-	template<typename ColumnType>
-	ColumnType* GetColumn(TypedElementRowHandle Row);
-
-	/** Returns a pointer to the column of the given row or a nullptr if the type couldn't be found or the row doesn't exist. */
-	template<typename ColumnType>
-	const ColumnType* GetColumn(TypedElementRowHandle Row) const;
-
-	template<typename... ColumnTypes>
-	bool HasColumns(TypedElementRowHandle Row) const;
-
 	/** Returns a pointer to the registered external system if found, otherwise null. */
 	template<typename SystemType>
 	SystemType* GetExternalSystem();
@@ -395,10 +337,10 @@ const FactoryT* ITypedElementDataStorageInterface::FindFactory() const
 	return static_cast<const FactoryT*>(FindFactory(FactoryT::StaticClass()));
 }
 
-template<typename Column>
-bool ITypedElementDataStorageInterface::AddColumn(TypedElementRowHandle Row)
+template<TypedElementDataStorage::TColumnType Column>
+void ITypedElementDataStorageInterface::AddColumn(TypedElementRowHandle Row)
 {
-	return AddColumn(Row, Column::StaticStruct());
+	AddColumn(Row, Column::StaticStruct());
 }
 
 template<typename Column>
@@ -419,46 +361,38 @@ void ITypedElementDataStorageInterface::RemoveColumns(TypedElementRowHandle Row)
 	RemoveColumns(Row, { Columns::StaticStruct()...});
 }
 
-template<typename ColumnType, typename FirstArg, typename... NextArgs>
-struct TConstructFromSlicedObjectDisabler
+template<TypedElementDataStorage::TDataColumnType ColumnType>
+void ITypedElementDataStorageInterface::AddColumn(TypedElementRowHandle Row, ColumnType&& Column)
 {
-	// Fail assertion if the only argument is derived from FTypedElementDataStorageColumn and not the same as ColumnType
-	// This gives a good indication that object slicing is probably happening.
-	static_assert(!(
-		sizeof...(NextArgs) == 0 &&                                    // There is only one argument to the callback and ...
-		std::is_base_of_v<FTypedElementDataStorageColumn, FirstArg> && // ... the type of the argument derives from FTypedElementDataStorageColumn
-		!std::is_same_v<ColumnType, FirstArg>),                        // ... but it isn't the same type as the column we are trying to add
-		"Probable object slicing detected. The invoked constructor of ColumnType uses a different column type as it's first argument. "
-		"This is detected as a likely object slice and disabled. "
-		"If this is what you intended, then explicitly slice the object using the constructor before passing it as an argument");
-};
-
-template<typename ColumnType, typename... Args>
-ColumnType* ITypedElementDataStorageInterface::AddOrGetColumn(TypedElementRowHandle Row, Args... Arguments)
-{
-	ColumnType* Result = static_cast<ColumnType*>(AddOrGetColumnData(Row, ColumnType::StaticStruct()));
-	if constexpr (sizeof...(Arguments) > 0)
-	{
-		[[maybe_unused]] TConstructFromSlicedObjectDisabler<ColumnType, Args...> SliceDisabler;
-		
-		if (Result)
-		{
-			new(Result) ColumnType{ std::forward<Args>(Arguments)... };
-		}
-	}
-	return Result;
+	AddOrGetColumn<ColumnType>(Row, Forward<ColumnType>(Column));
 }
 
 template<typename ColumnType>
 ColumnType* ITypedElementDataStorageInterface::AddOrGetColumn(TypedElementRowHandle Row, ColumnType&& Column)
 {
-	ColumnType* Result = static_cast<ColumnType*>(AddOrGetColumnData(Row, ColumnType::StaticStruct()));
-
-	if (Result)
-	{
-		new(Result) ColumnType(MoveTemp(Column));
-	}
-	return Result;
+	return reinterpret_cast<ColumnType*>(AddOrGetColumnData(Row, ColumnType::StaticStruct(),
+		[&Column](void* ColumnData, const UScriptStruct&)
+		{
+			if constexpr (std::is_move_constructible_v<ColumnType>)
+			{
+				new(ColumnData) ColumnType(MoveTemp(Column));
+			}
+			else
+			{
+				new(ColumnData) ColumnType(Column);
+			}
+		},
+		[](const UScriptStruct&, void* Destination, void* Source)
+		{
+			if constexpr (std::is_move_assignable_v<ColumnType>)
+			{
+				*reinterpret_cast<ColumnType*>(Destination) = MoveTemp(*reinterpret_cast<ColumnType*>(Source));
+			}
+			else
+			{
+				*reinterpret_cast<ColumnType*>(Destination) = *reinterpret_cast<ColumnType*>(Source);
+			}
+		}));
 }
 
 template<typename ColumnType>

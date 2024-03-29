@@ -90,19 +90,19 @@ namespace TypedElementQueryBuilder
 	// FObserver
 	//
 	
-	template<TColumnType ColumnType>
+	template<TypedElementDataStorage::TColumnType ColumnType>
 	FObserver FObserver::OnAdd()
 	{
 		return FObserver(FObserver::EEvent::Add, ColumnType::StaticStruct());
 	}
 
-	template<TColumnType ColumnType>
+	template<TypedElementDataStorage::TColumnType ColumnType>
 	FObserver FObserver::OnRemove()
 	{
 		return FObserver(FObserver::EEvent::Remove, ColumnType::StaticStruct());
 	}
 
-	template<TColumnType ColumnType>
+	template<TypedElementDataStorage::TColumnType ColumnType>
 	FObserver& FObserver::SetMonitoredColumn()
 	{
 		return SetMonitoredColumn(ColumnType::StaticStruct());
@@ -1117,21 +1117,21 @@ e.g. void(FCachedQueryContext<Subsystem1, const Subsystem2>& Context, TypedEleme
 		Internal::BindQueryFunction<TypedElementDataStorage::IQueryContext, ValidateColumns>(Query.Callback.Function, Instance, Callback);
 	}
 
-	template<TDataColumnType... TargetTypes>
+	template<TypedElementDataStorage::TDataColumnType... TargetTypes>
 	Select& Select::ReadOnly()
 	{
 		ReadOnly({ TargetTypes::StaticStruct()... });
 		return *this;
 	}
 
-	template<TDataColumnType... TargetTypes>
+	template<TypedElementDataStorage::TDataColumnType... TargetTypes>
 	Select& Select::ReadOnly(EOptional Optional)
 	{
 		ReadOnly({ TargetTypes::StaticStruct()... }, Optional);
 		return *this;
 	}
 
-	template<TDataColumnType... TargetTypes>
+	template<TypedElementDataStorage::TDataColumnType... TargetTypes>
 	Select& Select::ReadWrite()
 	{
 		ReadWrite({ TargetTypes::StaticStruct()... });
@@ -1143,21 +1143,21 @@ e.g. void(FCachedQueryContext<Subsystem1, const Subsystem2>& Context, TypedEleme
 	// FSimpleQuery
 	//
 
-	template<TColumnType... TargetTypes>
+	template<TypedElementDataStorage::TColumnType... TargetTypes>
 	FSimpleQuery& FSimpleQuery::All()
 	{
 		All({ TargetTypes::StaticStruct()... });
 		return *this;
 	}
 
-	template<TColumnType... TargetTypes>
+	template<TypedElementDataStorage::TColumnType... TargetTypes>
 	FSimpleQuery& FSimpleQuery::Any()
 	{
 		Any({ TargetTypes::StaticStruct()... });
 		return *this;
 	}
 
-	template<TColumnType... TargetTypes>
+	template<TypedElementDataStorage::TColumnType... TargetTypes>
 	FSimpleQuery& FSimpleQuery::None()
 	{
 		None({ TargetTypes::StaticStruct()... });

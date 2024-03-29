@@ -4,6 +4,7 @@
 
 #include "MassEntityManager.h"
 #include "MassProcessingPhaseManager.h"
+#include "TypedElementDatabaseCommandBuffer.h"
 #include "TypedElementDatabaseScratchBuffer.h"
 #include "TypedElementDatabaseIndexTable.h"
 #include "Queries/TypedElementExtendedQueryStore.h"
@@ -13,6 +14,9 @@ class FTypedElementDatabaseEnvironment final
 public:
 	FTypedElementDatabaseEnvironment(FMassEntityManager& InMassEntityManager, FMassProcessingPhaseManager& InMassPhaseManager);
 
+	FTypedElementDatabaseCommandBuffer& GetDirectDeferredCommands();
+	const FTypedElementDatabaseCommandBuffer& GetDirectDeferredCommands() const;
+	
 	FTypedElementDatabaseIndexTable& GetIndexTable();
 	const FTypedElementDatabaseIndexTable& GetIndexTable() const;
 
@@ -32,6 +36,7 @@ public:
 	uint64 GetUpdateCycleId() const;
 
 private:
+	FTypedElementDatabaseCommandBuffer DirectDeferredCommands;
 	FTypedElementDatabaseIndexTable IndexTable;
 	FTypedElementDatabaseScratchBuffer ScratchBuffer;
 	FTypedElementExtendedQueryStore Queries;

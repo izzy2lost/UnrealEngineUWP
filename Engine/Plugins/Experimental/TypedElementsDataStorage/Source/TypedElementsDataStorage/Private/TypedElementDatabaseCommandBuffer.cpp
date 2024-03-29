@@ -2,55 +2,162 @@
 
 #include "TypedElementDatabaseCommandBuffer.h"
 
+#include "HAL/UnrealMemory.h"
 #include "MassEntityManager.h"
 #include "TypedElementDatabaseEnvironment.h"
+
+// 
+// Commands section
+//
+
+FTypedElementDatabaseCommandBuffer::FTypedElementDatabaseCommandBuffer(FTypedElementDatabaseEnvironment& InEnvironment)
+	: Environment(InEnvironment)
+{
+}
+
+void* FTypedElementDatabaseCommandBuffer::GetQueuedDataColumn(
+	TypedElementDataStorage::RowHandle Row, const UScriptStruct* ColumnType)
+{
+	checkf(ColumnType->IsChildOf(FMassFragment::StaticStruct()),
+		TEXT("Trying to get the column '%s' which isn't a data column."), *ColumnType->GetName());
+
+	void* const* StoredData = PendingColumns.Find(PendingColumnMappingKey(Row, ColumnType));
+	if (StoredData)
+	{
+		if (*StoredData != nullptr)
+		{
+			return *StoredData;
+		}
+		else
+		{
+			// If the column was created but had no data assigned to it, create data for it now. If this code path triggers
+			// a lot there may be a large number of AddColumn followed by GetColumn calls. These can be more efficiently done
+			// with an AddorGetColumn call.
+			void* Result = Queue_AddDataColumnCommandUnitialized(Row, ColumnType,
+				[](const UScriptStruct& ColumnType, void* Destination, void* Source)
+				{
+					ColumnType.CopyScriptStruct(Destination, Source);
+				});
+			return Result;
+		}
+	}
+	else
+	{
+		return nullptr;
+	}
+}
+
+bool FTypedElementDatabaseCommandBuffer::HasColumn(TypedElementDataStorage::RowHandle Row, const UScriptStruct* ColumnType) const
+{
+	return PendingColumns.Contains(PendingColumnMappingKey(Row, ColumnType));
+}
+
+void FTypedElementDatabaseCommandBuffer::Clear(TypedElementDataStorage::RowHandle Row)
+{
+	for (TMap<PendingColumnMappingKey, void*>::TIterator It = PendingColumns.CreateIterator(); It; ++It)
+	{
+		if (It.Key().Key == Row)
+		{
+			It.RemoveCurrent();
+		}
+	}
+
+	for (TArray<FCommand>::TIterator It = Commands.CreateIterator(); It; ++It)
+	{
+		if (It->Row == Row)
+		{
+			It.RemoveCurrent(); // Don't swap as the order of commands is important.
+		}
+	}
+}
+
+FTypedElementDatabaseCommandBuffer::FAddDataColumnCommand::~FAddDataColumnCommand()
+{
+	if (ColumnType.IsValid() && (ColumnType->StructFlags & (STRUCT_IsPlainOldData | STRUCT_NoDestructor)) == 0)
+	{
+		ColumnType->DestroyStruct(Data);
+	}
+}
 
 //
 // Queue section
 //
 
-void FTypedElementDatabaseCommandBuffer::Queue_AddColumnCommand(
-	CommandBuffer& Buffer,
-	TypedElementDataStorage::RowHandle Row,
-	const UScriptStruct* ColumnType)
+void FTypedElementDatabaseCommandBuffer::Queue_AddColumnCommand(TypedElementDataStorage::RowHandle Row, const UScriptStruct* ColumnType)
 {
-	AddCommand(Buffer, Row, FAddColumnCommand
+	AddCommand(Row, FAddColumnCommand
 		{ 
 			.ColumnType = ColumnType 
 		});
+	PendingColumns.FindOrAdd(PendingColumnMappingKey(Row, ColumnType), nullptr);
 }
 
-void FTypedElementDatabaseCommandBuffer::Queue_AddColumnsCommand(
-	CommandBuffer& Buffer,
-	TypedElementDataStorage::RowHandle Row,
-	FMassFragmentBitSet FragmentsToAdd,
-	FMassTagBitSet TagsToAdd)
+void* FTypedElementDatabaseCommandBuffer::Queue_AddDataColumnCommandUnitialized(
+	TypedElementDataStorage::RowHandle Row, const UScriptStruct* ColumnType, TypedElementDataStorage::ColumnCopyOrMoveCallback Relocator)
 {
-	AddCommand(Buffer, Row, FAddColumnsCommand
+	checkf(ColumnType->IsChildOf(FMassFragment::StaticStruct()),
+		TEXT("Trying to queue a data column creation for '%s' which isn't a data column."), *ColumnType->GetName());
+
+	PendingColumnMappingKey Key(Row, ColumnType);
+	if (void** StoredData = PendingColumns.Find(Key); StoredData == nullptr || *StoredData == nullptr)
+	{
+		void* Data = Environment.GetScratchBuffer().Allocate(ColumnType->GetStructureSize(), ColumnType->GetMinAlignment());
+		// Initialize to zero to replicate the default from Mass.
+		FMemory::Memzero(Data, ColumnType->GetStructureSize());
+		PendingColumns.Add(PendingColumnMappingKey(Row, ColumnType), Data);
+		AddCommand(Row, FAddDataColumnCommand
+			{
+				.ColumnType = ColumnType,
+				.Relocator = Relocator,
+				.Data = Data
+			});
+		return Data;
+	}
+	else
+	{
+		return *StoredData;
+	}
+}
+
+void FTypedElementDatabaseCommandBuffer::Queue_AddColumnsCommand(TypedElementDataStorage::RowHandle Row, 
+	FMassFragmentBitSet FragmentsToAdd, FMassTagBitSet TagsToAdd)
+{
+	auto AddColumn = [this, Row](const UScriptStruct* ColumnType)
+	{
+		PendingColumns.FindOrAdd(PendingColumnMappingKey(Row, ColumnType), nullptr);
+		return true;
+	};
+	FragmentsToAdd.ExportTypes(AddColumn);
+	TagsToAdd.ExportTypes(AddColumn);
+
+	AddCommand(Row, FAddColumnsCommand
 		{ 
 			.FragmentsToAdd = MoveTemp(FragmentsToAdd), 
 			.TagsToAdd = MoveTemp(TagsToAdd) 
 		});
 }
 
-void FTypedElementDatabaseCommandBuffer::Queue_RemoveColumnCommand(
-	CommandBuffer& Buffer,
-	TypedElementDataStorage::RowHandle Row,
-	const UScriptStruct* ColumnType)
+void FTypedElementDatabaseCommandBuffer::Queue_RemoveColumnCommand(TypedElementDataStorage::RowHandle Row, const UScriptStruct* ColumnType)
 {
-	AddCommand(Buffer, Row, FRemoveColumnCommand
+	AddCommand(Row, FRemoveColumnCommand
 		{ 
 			.ColumnType = ColumnType 
 		});
+	PendingColumns.Remove(PendingColumnMappingKey(Row, ColumnType));
 }
 
-void FTypedElementDatabaseCommandBuffer::Queue_RemoveColumnsCommand(
-	CommandBuffer& Buffer,
-	TypedElementDataStorage::RowHandle Row,
-	FMassFragmentBitSet FragmentsToRemove,
-	FMassTagBitSet TagsToRemove)
+void FTypedElementDatabaseCommandBuffer::Queue_RemoveColumnsCommand(TypedElementDataStorage::RowHandle Row,
+	FMassFragmentBitSet FragmentsToRemove, FMassTagBitSet TagsToRemove)
 {
-	AddCommand(Buffer, Row, FRemoveColumnsCommand
+	auto RemoveColumn = [this, Row](const UScriptStruct* ColumnType)
+	{
+		PendingColumns.Remove(PendingColumnMappingKey(Row, ColumnType));
+		return true;
+	};
+	FragmentsToRemove.ExportTypes(RemoveColumn);
+	TagsToRemove.ExportTypes(RemoveColumn);
+	
+	AddCommand(Row, FRemoveColumnsCommand
 		{ 
 			.FragmentsToRemove = MoveTemp(FragmentsToRemove), 
 			.TagsToRemove = MoveTemp(TagsToRemove) 
@@ -91,6 +198,33 @@ void FTypedElementDatabaseCommandBuffer::Execute_AddColumnCommand(
 			{
 				MassEntityManager.AddFragmentToEntity(Entity, ColumnType);
 			}
+		}
+	}
+}
+
+void FTypedElementDatabaseCommandBuffer::Execute_AddDataColumnCommand(
+	FMassEntityManager& MassEntityManager, TypedElementDataStorage::RowHandle Row, const UScriptStruct* ColumnType,
+	void* Data, TypedElementDataStorage::ColumnCopyOrMoveCallback Relocator)
+{
+	if (ColumnType)
+	{
+		checkf(ColumnType->IsChildOf(FMassFragment::StaticStruct()),
+			TEXT("Trying to create a data column for '%s' from a deferred command that isn't a data column."), *ColumnType->GetName());
+
+		FMassEntityHandle Entity = FMassEntityHandle::FromNumber(Row); 
+		FStructView Column = MassEntityManager.GetFragmentDataStruct(Entity, ColumnType);
+		// Only add if not already added to avoid asserts from Mass.
+		if (!Column.IsValid())
+		{
+			MassEntityManager.AddFragmentToEntity(Entity, ColumnType,
+				[Data, Relocator](void* Fragment, const UScriptStruct& FragmentType)
+				{
+					Relocator(FragmentType, Fragment, Data);
+				});
+		}
+		else
+		{
+			Relocator(*ColumnType, Column.GetMemory(), Data);
 		}
 	}
 }
@@ -136,11 +270,11 @@ void FTypedElementDatabaseCommandBuffer::Execute_RemoveColumnsCommand(
 	MassEntityManager.RemoveCompositionFromEntity(FMassEntityHandle::FromNumber(Row), RemoveComposition);
 }
 
-void FTypedElementDatabaseCommandBuffer::ProcessBuffer(CommandBuffer& Buffer, FTypedElementDatabaseEnvironment& Environment)
+void FTypedElementDatabaseCommandBuffer::ProcessCommands()
 {
 	using namespace TypedElementDataStorage;
 
-	Buffer.StableSort(
+	Commands.StableSort(
 		[](const FCommand& Lhs, const FCommand& Rhs)
 		{
 			return Lhs.Row < Rhs.Row;
@@ -151,13 +285,14 @@ void FTypedElementDatabaseCommandBuffer::ProcessBuffer(CommandBuffer& Buffer, FT
 		FMassEntityManager& EntityManager;
 		RowHandle Row;
 		void operator()(const FAddColumnCommand& Command) { Execute_AddColumnCommand(EntityManager, Row, Command.ColumnType.Get()); }
+		void operator()(const FAddDataColumnCommand& Command) { Execute_AddDataColumnCommand(EntityManager, Row, Command.ColumnType.Get(), Command.Data, Command.Relocator); }
 		void operator()(const FAddColumnsCommand& Command) { Execute_AddColumnsCommand(EntityManager, Row, Command.FragmentsToAdd, Command.TagsToAdd); }
 		void operator()(const FRemoveColumnCommand& Command) { Execute_RemoveColumnCommand(EntityManager, Row, Command.ColumnType.Get()); }
 		void operator()(const FRemoveColumnsCommand& Command) { Execute_RemoveColumnsCommand(EntityManager, Row, Command.FragmentsToRemove, Command.TagsToRemove); }
 	};
 	
 	FProcessor Processor{ .EntityManager = Environment.GetMassEntityManager() };
-	for (FCommand& Command : Buffer)
+	for (FCommand& Command : Commands)
 	{
 		if (Execute_HasRowBeenAssigned(Environment.GetMassEntityManager(), Command.Row))
 		{
@@ -165,6 +300,9 @@ void FTypedElementDatabaseCommandBuffer::ProcessBuffer(CommandBuffer& Buffer, FT
 			Visit(Processor, Command.Data);
 		}
 	}
+
+	PendingColumns.Reset();
+	Commands.Reset();
 }
 
 // 
@@ -172,10 +310,10 @@ void FTypedElementDatabaseCommandBuffer::ProcessBuffer(CommandBuffer& Buffer, FT
 //
 
 template<typename T>
-void FTypedElementDatabaseCommandBuffer::AddCommand(CommandBuffer& Buffer, TypedElementDataStorage::RowHandle Row, T&& Args)
+void FTypedElementDatabaseCommandBuffer::AddCommand(TypedElementDataStorage::RowHandle Row, T&& Args)
 {
 	FCommand Command;
 	Command.Row = Row;
 	Command.Data.Emplace<T>(Forward<T>(Args));
-	Buffer.Add(MoveTemp(Command));
+	Commands.Add(MoveTemp(Command));
 }

@@ -4,9 +4,20 @@
 
 FTypedElementDatabaseEnvironment::FTypedElementDatabaseEnvironment(
 	FMassEntityManager& InMassEntityManager, FMassProcessingPhaseManager& InMassPhaseManager)
-	: MassEntityManager(InMassEntityManager)
+	: DirectDeferredCommands(*this)
+	, MassEntityManager(InMassEntityManager)
 	, MassPhaseManager(InMassPhaseManager)
 {
+}
+
+FTypedElementDatabaseCommandBuffer& FTypedElementDatabaseEnvironment::GetDirectDeferredCommands()
+{
+	return DirectDeferredCommands;
+}
+
+const FTypedElementDatabaseCommandBuffer& FTypedElementDatabaseEnvironment::GetDirectDeferredCommands() const
+{
+	return DirectDeferredCommands;
 }
 
 FTypedElementDatabaseIndexTable& FTypedElementDatabaseEnvironment::GetIndexTable()

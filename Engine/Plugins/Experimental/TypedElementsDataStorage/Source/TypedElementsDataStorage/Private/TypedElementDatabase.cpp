@@ -240,8 +240,7 @@ void UTypedElementDatabase::OnPreMassTick(float DeltaTime)
 	OnUpdateDelegate.Broadcast();
 	// Process pending commands after other systems have had a chance to update. Other systems may have executed work needed
 	// to complete pending work.
-	FTypedElementDatabaseCommandBuffer::ProcessBuffer(DeferredCommands, *Environment);
-	DeferredCommands.Reset();
+	Environment->GetDirectDeferredCommands().ProcessCommands();
 }
 
 void UTypedElementDatabase::OnPostMassTick(float DeltaTime)
@@ -330,7 +329,7 @@ bool UTypedElementDatabase::AddRow(TypedElementRowHandle ReservedRow, TypedEleme
 	}
 }
 
-bool UTypedElementDatabase::BatchAddRow(TypedElementTableHandle Table, int32 Count, TypedElementDataStorageCreationCallbackRef OnCreated)
+bool UTypedElementDatabase::BatchAddRow(TypedElementTableHandle Table, int32 Count, TypedElementDataStorage::RowCreationCallbackRef OnCreated)
 {
 	OnCreated.CheckCallable();
 	checkf(Table < Tables.Num(), TEXT("Attempting to add multiple rows to a non-existing table."));
@@ -352,7 +351,7 @@ bool UTypedElementDatabase::BatchAddRow(TypedElementTableHandle Table, int32 Cou
 }
 
 bool UTypedElementDatabase::BatchAddRow(TypedElementTableHandle Table, TConstArrayView<TypedElementRowHandle> ReservedHandles,
-	TypedElementDataStorageCreationCallbackRef OnCreated)
+	TypedElementDataStorage::RowCreationCallbackRef OnCreated)
 {
 	OnCreated.CheckCallable();
 	checkf(Table < Tables.Num(), TEXT("Attempting to add multiple rows to a non-existing table."));
@@ -393,6 +392,7 @@ void UTypedElementDatabase::RemoveRow(TypedElementRowHandle Row)
 		}
 		else
 		{
+			Environment->GetDirectDeferredCommands().Clear(Row);
 			ActiveEditorEntityManager->ReleaseReservedEntity(FMassEntityHandle::FromNumber(Row));
 		}
 	}
@@ -408,100 +408,94 @@ bool UTypedElementDatabase::HasRowBeenAssigned(TypedElementRowHandle Row) const
 	return ActiveEditorEntityManager ? FTypedElementDatabaseCommandBuffer::Execute_HasRowBeenAssigned(*ActiveEditorEntityManager, Row) : false;
 }
 
-bool UTypedElementDatabase::AddColumn(TypedElementRowHandle Row, const UScriptStruct* ColumnType)
+void UTypedElementDatabase::AddColumn(TypedElementRowHandle Row, const UScriptStruct* ColumnType)
 {
-	if (ColumnType && ActiveEditorEntityManager && HasRowBeenAssigned(Row))
+	if (ColumnType && ActiveEditorEntityManager)
 	{
-		FTypedElementDatabaseCommandBuffer::Execute_AddColumnCommand(*ActiveEditorEntityManager, Row, ColumnType);
+		if (HasRowBeenAssigned(Row))
+		{
+			FTypedElementDatabaseCommandBuffer::Execute_AddColumnCommand(*ActiveEditorEntityManager, Row, ColumnType);
+		}
+		else
+		{
+			Environment->GetDirectDeferredCommands().Queue_AddColumnCommand(Row, ColumnType);
+		}
 	}
-	else
-	{
-		FTypedElementDatabaseCommandBuffer::Queue_AddColumnCommand(DeferredCommands, Row, ColumnType);
-	}
-	return true;
 }
 
-bool UTypedElementDatabase::AddColumn(TypedElementRowHandle Row, FTopLevelAssetPath ColumnName)
+void UTypedElementDatabase::AddColumnData(TypedElementRowHandle Row, const UScriptStruct* ColumnType,
+	const TypedElementDataStorage::ColumnCreationCallbackRef& Initializer,
+	TypedElementDataStorage::ColumnCopyOrMoveCallback Relocator)
 {
-	bool bExactMatch = true;
-	UScriptStruct* ColumnStructInfo = Cast<UScriptStruct>(StaticFindObject(UScriptStruct::StaticClass(), ColumnName, bExactMatch));
-	return ColumnStructInfo ? AddColumn(Row, ColumnStructInfo) : false;
+	AddOrGetColumnData(Row, ColumnType, Initializer, Relocator);
 }
 
 void UTypedElementDatabase::RemoveColumn(TypedElementRowHandle Row, const UScriptStruct* ColumnType)
 {
-	if (ActiveEditorEntityManager && HasRowBeenAssigned(Row))
+	if (ColumnType && ActiveEditorEntityManager)
 	{
-		FTypedElementDatabaseCommandBuffer::Execute_RemoveColumnCommand(*ActiveEditorEntityManager, Row, ColumnType);
-	}
-	else
-	{
-		FTypedElementDatabaseCommandBuffer::Queue_RemoveColumnCommand(DeferredCommands, Row, ColumnType);
-	}
-}
-
-void UTypedElementDatabase::RemoveColumn(TypedElementRowHandle Row, FTopLevelAssetPath ColumnName)
-{
-	bool bExactMatch = true;
-	if (UScriptStruct* ColumnStructInfo = Cast<UScriptStruct>(StaticFindObject(UScriptStruct::StaticClass(), ColumnName, bExactMatch)))
-	{
-		RemoveColumn(Row, ColumnStructInfo);
+		if (HasRowBeenAssigned(Row))
+		{
+			FTypedElementDatabaseCommandBuffer::Execute_RemoveColumnCommand(*ActiveEditorEntityManager, Row, ColumnType);
+		}
+		else
+		{
+			Environment->GetDirectDeferredCommands().Queue_RemoveColumnCommand(Row, ColumnType);
+		}
 	}
 }
 
-void* UTypedElementDatabase::AddOrGetColumnData(TypedElementRowHandle Row, const UScriptStruct* ColumnType)
+void* UTypedElementDatabase::AddOrGetColumnData(TypedElementRowHandle Row, const UScriptStruct* ColumnType,
+	const TypedElementDataStorage::ColumnCreationCallbackRef& Initializer, TypedElementDataStorage::ColumnCopyOrMoveCallback Relocator)
 {
 	FMassEntityHandle Entity = FMassEntityHandle::FromNumber(Row);
-	if (ActiveEditorEntityManager && ActiveEditorEntityManager->IsEntityActive(Entity) &&
-		ColumnType && ColumnType->IsChildOf(FMassFragment::StaticStruct()))
+	if (ActiveEditorEntityManager && ColumnType && ColumnType->IsChildOf(FMassFragment::StaticStruct()))
 	{
-		FStructView Column = ActiveEditorEntityManager->GetFragmentDataStruct(Entity, ColumnType);
-		if (!Column.IsValid())
+		if (HasRowBeenAssigned(Row))
 		{
-			ActiveEditorEntityManager->AddFragmentToEntity(Entity, ColumnType);
-			Column = ActiveEditorEntityManager->GetFragmentDataStruct(Entity, ColumnType);
-			checkf(Column.IsValid(), TEXT("Added a new column to the Typed Element's data store, but it couldn't be retrieved."));
+			FStructView Column = ActiveEditorEntityManager->GetFragmentDataStruct(Entity, ColumnType);
+			if (!Column.IsValid())
+			{
+				ActiveEditorEntityManager->AddFragmentToEntity(Entity, ColumnType, Initializer);
+				Column = ActiveEditorEntityManager->GetFragmentDataStruct(Entity, ColumnType);
+				checkf(Column.IsValid(), TEXT("Added a new column to the Typed Element's data store, but it couldn't be retrieved."));
+				return Column.GetMemory();
 
+			}
+			else
+			{
+				void* Result = Column.GetMemory();
+				Initializer(Result, *ColumnType);
+				return Result;
+			}
 		}
-		return Column.GetMemory();
+		else
+		{
+			void* Result = Environment->GetDirectDeferredCommands().Queue_AddDataColumnCommandUnitialized(Row, ColumnType, Relocator);
+			Initializer(Result, *ColumnType);
+			return Result;
+		}
 	}
 	return nullptr;
-}
-
-ColumnDataResult UTypedElementDatabase::AddOrGetColumnData(TypedElementRowHandle Row, FTopLevelAssetPath ColumnName)
-{
-	constexpr bool bExactMatch = true;
-	UScriptStruct* FragmentStructInfo = Cast<UScriptStruct>(StaticFindObject(UScriptStruct::StaticClass(), ColumnName, bExactMatch));
-	return FragmentStructInfo ?
-		ColumnDataResult{ FragmentStructInfo, AddOrGetColumnData(Row, FragmentStructInfo) }:
-		ColumnDataResult{ nullptr, nullptr };
-}
-
-ColumnDataResult UTypedElementDatabase::AddOrGetColumnData(TypedElementRowHandle Row, FTopLevelAssetPath ColumnName,
-	TConstArrayView<TypedElement::ColumnUtils::Argument> Arguments)
-{
-	ColumnDataResult Result = AddOrGetColumnData(Row, ColumnName);
-	if (Result.Description && Result.Data)
-	{
-		TypedElement::ColumnUtils::SetColumnValues(Result.Data, Result.Description, Arguments);
-		return Result;
-	}
-	else
-	{
-		return ColumnDataResult{ nullptr, nullptr };
-	}
 }
 
 const void* UTypedElementDatabase::GetColumnData(TypedElementRowHandle Row, const UScriptStruct* ColumnType) const
 {
 	FMassEntityHandle Entity = FMassEntityHandle::FromNumber(Row);
-	if (ActiveEditorEntityManager && ActiveEditorEntityManager->IsEntityActive(Entity) &&
+	if (ActiveEditorEntityManager &&
 		ColumnType && ColumnType->IsChildOf(FMassFragment::StaticStruct()))
 	{
-		FStructView Column = ActiveEditorEntityManager->GetFragmentDataStruct(Entity, ColumnType);
-		if (Column.IsValid())
+		if (ActiveEditorEntityManager->IsEntityActive(Entity))
 		{
-			return Column.GetMemory();
+			FStructView Column = ActiveEditorEntityManager->GetFragmentDataStruct(Entity, ColumnType);
+			if (Column.IsValid())
+			{
+				return Column.GetMemory();
+			}
+		}
+		else
+		{
+			return Environment->GetDirectDeferredCommands().GetQueuedDataColumn(Row, ColumnType);
 		}
 	}
 	return nullptr;
@@ -512,35 +506,7 @@ void* UTypedElementDatabase::GetColumnData(TypedElementRowHandle Row, const UScr
 	return const_cast<void*>(static_cast<const UTypedElementDatabase*>(this)->GetColumnData(Row, ColumnType));
 }
 
-ColumnDataResult UTypedElementDatabase::GetColumnData(TypedElementRowHandle Row, FTopLevelAssetPath ColumnName)
-{
-	FMassEntityHandle Entity = FMassEntityHandle::FromNumber(Row);
-	if (ActiveEditorEntityManager && ActiveEditorEntityManager->IsEntityActive(Entity))
-	{
-		const UScriptStruct* FragmentType = nullptr;
-		FMassArchetypeHandle Archetype = ActiveEditorEntityManager->GetArchetypeForEntityUnsafe(Entity);
-		ActiveEditorEntityManager->ForEachArchetypeFragmentType(Archetype, 
-			[ColumnName, &FragmentType](const UScriptStruct* Fragment)
-			{
-				if (Fragment->GetStructPathName() == ColumnName)
-				{
-					FragmentType = Fragment;
-				}
-			});
-
-		if (FragmentType && FragmentType->IsChildOf(FMassFragment::StaticStruct()))
-		{
-			FStructView Column = ActiveEditorEntityManager->GetFragmentDataStruct(Entity, FragmentType);
-			if (Column.IsValid())
-			{
-				return ColumnDataResult{ FragmentType, Column.GetMemory() };
-			}
-		}
-	}
-	return ColumnDataResult{ nullptr, nullptr };
-}
-
-bool UTypedElementDatabase::AddColumns(TypedElementRowHandle Row, TConstArrayView<const UScriptStruct*> Columns)
+void UTypedElementDatabase::AddColumns(TypedElementRowHandle Row, TConstArrayView<const UScriptStruct*> Columns)
 {
 	if (ActiveEditorEntityManager)
 	{
@@ -557,12 +523,10 @@ bool UTypedElementDatabase::AddColumns(TypedElementRowHandle Row, TConstArrayVie
 			}
 			else
 			{
-				FTypedElementDatabaseCommandBuffer::Queue_AddColumnsCommand(DeferredCommands, Row, FragmentsToAdd, TagsToAdd);
+				Environment->GetDirectDeferredCommands().Queue_AddColumnsCommand(Row, FragmentsToAdd, TagsToAdd);
 			}
-			return true;
 		}
 	}
-	return false;
 }
 
 void UTypedElementDatabase::RemoveColumns(TypedElementRowHandle Row, TConstArrayView<const UScriptStruct*> Columns)
@@ -582,45 +546,54 @@ void UTypedElementDatabase::RemoveColumns(TypedElementRowHandle Row, TConstArray
 			}
 			else
 			{
-				FTypedElementDatabaseCommandBuffer::Queue_RemoveColumnsCommand(DeferredCommands, Row, FragmentsToRemove, TagsToRemove);
+				Environment->GetDirectDeferredCommands().Queue_RemoveColumnsCommand(Row, FragmentsToRemove, TagsToRemove);
 			}
 		}
 	}
 }
 
-bool UTypedElementDatabase::AddRemoveColumns(TypedElementRowHandle Row,
+void UTypedElementDatabase::AddRemoveColumns(TypedElementRowHandle Row,
 	TConstArrayView<const UScriptStruct*> ColumnsToAdd, TConstArrayView<const UScriptStruct*> ColumnsToRemove)
 {
-	bool bResult = false;
-	FMassEntityHandle Entity = FMassEntityHandle::FromNumber(Row);
-	if (ActiveEditorEntityManager && ActiveEditorEntityManager->IsEntityActive(Entity))
+	if (ActiveEditorEntityManager)
 	{
+		FMassEntityHandle Entity = FMassEntityHandle::FromNumber(Row);
 		FMassArchetypeHandle Archetype = ActiveEditorEntityManager->GetArchetypeForEntity(Entity);
 
 		FMassFragmentBitSet FragmentsToAdd;
 		FMassTagBitSet TagsToAdd;
-		if (TypedElementDatabasePrivate::ColumnsToBitSets(ColumnsToAdd, FragmentsToAdd, TagsToAdd).MustUpdate())
-		{
-			FMassArchetypeCompositionDescriptor AddComposition(
-				MoveTemp(FragmentsToAdd), MoveTemp(TagsToAdd), FMassChunkFragmentBitSet(), FMassSharedFragmentBitSet());
-			ActiveEditorEntityManager->AddCompositionToEntity_GetDelta(Entity, AddComposition);
-			bResult = true;
-		}
-
 		FMassTagBitSet TagsToRemove;
 		FMassFragmentBitSet FragmentsToRemove;
-		if (TypedElementDatabasePrivate::ColumnsToBitSets(ColumnsToRemove, FragmentsToRemove, TagsToRemove).MustUpdate())
+
+		bool bMustAddColumns = TypedElementDatabasePrivate::ColumnsToBitSets(ColumnsToAdd, FragmentsToAdd, TagsToAdd).MustUpdate();
+		bool bMustRemoveColumns = TypedElementDatabasePrivate::ColumnsToBitSets(ColumnsToRemove, FragmentsToRemove, TagsToRemove).MustUpdate();
+		
+		if (ActiveEditorEntityManager->IsEntityActive(Entity))
 		{
-			FMassArchetypeCompositionDescriptor RemoveComposition(
-				MoveTemp(FragmentsToRemove), MoveTemp(TagsToRemove), FMassChunkFragmentBitSet(), FMassSharedFragmentBitSet());
-			ActiveEditorEntityManager->RemoveCompositionFromEntity(Entity, RemoveComposition);
-			bResult = true;
+			if (bMustAddColumns)
+			{
+				FTypedElementDatabaseCommandBuffer::Execute_AddColumnsCommand(*ActiveEditorEntityManager, Row, FragmentsToAdd, TagsToAdd);
+			}
+			if (bMustRemoveColumns)
+			{
+				FTypedElementDatabaseCommandBuffer::Execute_RemoveColumnsCommand(*ActiveEditorEntityManager, Row, FragmentsToRemove, TagsToRemove);
+			}
+		}
+		else
+		{
+			if (bMustAddColumns)
+			{
+				Environment->GetDirectDeferredCommands().Queue_AddColumnsCommand(Row, FragmentsToAdd, TagsToAdd);
+			}
+			if (bMustRemoveColumns)
+			{
+				Environment->GetDirectDeferredCommands().Queue_RemoveColumnsCommand(Row, FragmentsToRemove, TagsToRemove);
+			}
 		}
 	}
-	return bResult;
 }
 
-bool UTypedElementDatabase::BatchAddRemoveColumns(TConstArrayView<TypedElementRowHandle> Rows, 
+void UTypedElementDatabase::BatchAddRemoveColumns(TConstArrayView<TypedElementRowHandle> Rows, 
 	TConstArrayView<const UScriptStruct*> ColumnsToAdd, TConstArrayView<const UScriptStruct*> ColumnsToRemove)
 {	
 	if (ActiveEditorEntityManager)
@@ -642,6 +615,8 @@ bool UTypedElementDatabase::BatchAddRemoveColumns(TConstArrayView<TypedElementRo
 			using EntityArchetypeLookup = TMap<FMassArchetypeHandle, EntityHandleArray, TInlineSetAllocator<32>>;
 			using ArchetypeEntityArray = TArray<FMassArchetypeEntityCollection, TInlineAllocator<32>>;
 
+			FTypedElementDatabaseCommandBuffer& CommandBuffer = Environment->GetDirectDeferredCommands();
+			
 			// Sort rows (entities) into to matching table (archetype) bucket.
 			EntityArchetypeLookup LookupTable;
 			for (TypedElementRowHandle EntityId : Rows)
@@ -652,6 +627,17 @@ bool UTypedElementDatabase::BatchAddRemoveColumns(TConstArrayView<TypedElementRo
 					FMassArchetypeHandle Archetype = ActiveEditorEntityManager->GetArchetypeForEntity(Entity);
 					EntityHandleArray& EntityCollection = LookupTable.FindOrAdd(Archetype);
 					EntityCollection.Add(Entity);
+				}
+				else
+				{
+					if (AddResult.MustUpdate())
+					{
+						CommandBuffer.Queue_AddColumnsCommand(EntityId, FragmentsToAdd, TagsToAdd);
+					}
+					if (RemoveResult.MustUpdate())
+					{
+						CommandBuffer.Queue_RemoveColumnsCommand(EntityId, FragmentsToRemove, TagsToRemove);
+					}
 				}
 			}
 		
@@ -672,35 +658,46 @@ bool UTypedElementDatabase::BatchAddRemoveColumns(TConstArrayView<TypedElementRo
 			{
 				ActiveEditorEntityManager->BatchChangeTagsForEntities(EntityCollections, TagsToAdd, TagsToRemove);
 			}
-			return true;
 		}
 	}
-	return false;
 }
 
 bool UTypedElementDatabase::HasColumns(TypedElementRowHandle Row, TConstArrayView<const UScriptStruct*> ColumnTypes) const
 {
-	FMassEntityHandle Entity = FMassEntityHandle::FromNumber(Row);
-	if (ActiveEditorEntityManager && ActiveEditorEntityManager->IsEntityActive(Entity))
+	if (ActiveEditorEntityManager)
 	{
-		FMassArchetypeHandle Archetype = ActiveEditorEntityManager->GetArchetypeForEntity(Entity);
-		const FMassArchetypeCompositionDescriptor& Composition = ActiveEditorEntityManager->GetArchetypeComposition(Archetype);
-
 		bool bHasAllColumns = true;
-		const UScriptStruct* const* ColumnTypesEnd = ColumnTypes.end();
-		for (const UScriptStruct* const* ColumnType = ColumnTypes.begin(); ColumnType != ColumnTypesEnd && bHasAllColumns; ++ColumnType)
+		
+		FMassEntityHandle Entity = FMassEntityHandle::FromNumber(Row);
+		if (ActiveEditorEntityManager->IsEntityActive(Entity))
 		{
-			if ((*ColumnType)->IsChildOf(FMassFragment::StaticStruct()))
+			FMassArchetypeHandle Archetype = ActiveEditorEntityManager->GetArchetypeForEntity(Entity);
+			const FMassArchetypeCompositionDescriptor& Composition = ActiveEditorEntityManager->GetArchetypeComposition(Archetype);
+
+			const UScriptStruct* const* ColumnTypesEnd = ColumnTypes.end();
+			for (const UScriptStruct* const* ColumnType = ColumnTypes.begin(); ColumnType != ColumnTypesEnd && bHasAllColumns; ++ColumnType)
 			{
-				bHasAllColumns = Composition.Fragments.Contains(**ColumnType);
+				if ((*ColumnType)->IsChildOf(FMassFragment::StaticStruct()))
+				{
+					bHasAllColumns = Composition.Fragments.Contains(**ColumnType);
+				}
+				else if ((*ColumnType)->IsChildOf(FMassTag::StaticStruct()))
+				{
+					bHasAllColumns = Composition.Tags.Contains(**ColumnType);
+				}
+				else
+				{
+					return false;
+				}
 			}
-			else if ((*ColumnType)->IsChildOf(FMassTag::StaticStruct()))
+		}
+		else
+		{
+			const FTypedElementDatabaseCommandBuffer& CommandBuffer = Environment->GetDirectDeferredCommands();
+			const UScriptStruct* const* ColumnTypesEnd = ColumnTypes.end();
+			for (const UScriptStruct* const* ColumnType = ColumnTypes.begin(); ColumnType != ColumnTypesEnd && bHasAllColumns; ++ColumnType)
 			{
-				bHasAllColumns = Composition.Tags.Contains(**ColumnType);
-			}
-			else
-			{
-				return false;
+				bHasAllColumns = CommandBuffer.HasColumn(Row, *ColumnType);
 			}
 		}
 
@@ -711,30 +708,43 @@ bool UTypedElementDatabase::HasColumns(TypedElementRowHandle Row, TConstArrayVie
 
 bool UTypedElementDatabase::HasColumns(TypedElementRowHandle Row, TConstArrayView<TWeakObjectPtr<const UScriptStruct>> ColumnTypes) const
 {
-	FMassEntityHandle Entity = FMassEntityHandle::FromNumber(Row);
-	if (ActiveEditorEntityManager && ActiveEditorEntityManager->IsEntityActive(Entity))
+	if (ActiveEditorEntityManager)
 	{
-		FMassArchetypeHandle Archetype = ActiveEditorEntityManager->GetArchetypeForEntity(Entity);
-		const FMassArchetypeCompositionDescriptor& Composition = ActiveEditorEntityManager->GetArchetypeComposition(Archetype);
-
 		bool bHasAllColumns = true;
-		const TWeakObjectPtr<const UScriptStruct>* ColumnTypesEnd = ColumnTypes.end();
-		for (const TWeakObjectPtr<const UScriptStruct>* ColumnType = ColumnTypes.begin(); ColumnType != ColumnTypesEnd && bHasAllColumns; ++ColumnType)
+	
+		FMassEntityHandle Entity = FMassEntityHandle::FromNumber(Row);
+		if (ActiveEditorEntityManager->IsEntityActive(Entity))
 		{
-			if (ColumnType->IsValid())
+			FMassArchetypeHandle Archetype = ActiveEditorEntityManager->GetArchetypeForEntity(Entity);
+			const FMassArchetypeCompositionDescriptor& Composition = ActiveEditorEntityManager->GetArchetypeComposition(Archetype);
+
+			const TWeakObjectPtr<const UScriptStruct>* ColumnTypesEnd = ColumnTypes.end();
+			for (const TWeakObjectPtr<const UScriptStruct>* ColumnType = ColumnTypes.begin(); ColumnType != ColumnTypesEnd && bHasAllColumns; ++ColumnType)
 			{
-				if ((*ColumnType)->IsChildOf(FMassFragment::StaticStruct()))
+				if (ColumnType->IsValid())
 				{
-					bHasAllColumns = Composition.Fragments.Contains(**ColumnType);
-					continue;
+					if ((*ColumnType)->IsChildOf(FMassFragment::StaticStruct()))
+					{
+						bHasAllColumns = Composition.Fragments.Contains(**ColumnType);
+						continue;
+					}
+					else if ((*ColumnType)->IsChildOf(FMassTag::StaticStruct()))
+					{
+						bHasAllColumns = Composition.Tags.Contains(**ColumnType);
+						continue;
+					}
 				}
-				else if ((*ColumnType)->IsChildOf(FMassTag::StaticStruct()))
-				{
-					bHasAllColumns = Composition.Tags.Contains(**ColumnType);
-					continue;
-				}
+				return false;
 			}
-			return false;
+		}
+		else
+		{
+			const FTypedElementDatabaseCommandBuffer& CommandBuffer = Environment->GetDirectDeferredCommands();
+			const TWeakObjectPtr<const UScriptStruct>* ColumnTypesEnd = ColumnTypes.end();
+			for (const TWeakObjectPtr<const UScriptStruct>* ColumnType = ColumnTypes.begin(); ColumnType != ColumnTypesEnd && bHasAllColumns; ++ColumnType)
+			{
+				bHasAllColumns = CommandBuffer.HasColumn(Row, ColumnType->Get());
+			}
 		}
 
 		return bHasAllColumns;
@@ -744,28 +754,44 @@ bool UTypedElementDatabase::HasColumns(TypedElementRowHandle Row, TConstArrayVie
 
 bool UTypedElementDatabase::MatchesColumns(TypedElementDataStorage::RowHandle Row, const TypedElementDataStorage::FQueryConditions& Conditions) const
 {
-	FMassEntityHandle Entity = FMassEntityHandle::FromNumber(Row);
-	if (ActiveEditorEntityManager && ActiveEditorEntityManager->IsEntityActive(Entity))
+	if (ActiveEditorEntityManager)
 	{
-		FMassArchetypeHandle Archetype = ActiveEditorEntityManager->GetArchetypeForEntity(Entity);
-		const FMassArchetypeCompositionDescriptor& Composition = ActiveEditorEntityManager->GetArchetypeComposition(Archetype);
-
-		auto Callback = [&Composition](uint8_t ColumnIndex, TWeakObjectPtr<const UScriptStruct> Column)
+		FMassEntityHandle Entity = FMassEntityHandle::FromNumber(Row);
+		if (ActiveEditorEntityManager->IsEntityActive(Entity))
 		{
-			if (Column.IsValid())
+			FMassArchetypeHandle Archetype = ActiveEditorEntityManager->GetArchetypeForEntity(Entity);
+			const FMassArchetypeCompositionDescriptor& Composition = ActiveEditorEntityManager->GetArchetypeComposition(Archetype);
+
+			auto Callback = [&Composition](uint8_t ColumnIndex, TWeakObjectPtr<const UScriptStruct> ColumnType)
 			{
-				if (Column->IsChildOf(FMassFragment::StaticStruct()))
+				if (ColumnType.IsValid())
 				{
-					return Composition.Fragments.Contains(*Column);
+					if (ColumnType->IsChildOf(FMassFragment::StaticStruct()))
+					{
+						return Composition.Fragments.Contains(*ColumnType);
+					}
+					else if (ColumnType->IsChildOf(FMassTag::StaticStruct()))
+					{
+						return Composition.Tags.Contains(*ColumnType);
+					}
 				}
-				else if (Column->IsChildOf(FMassTag::StaticStruct()))
+				return false;
+			};
+			return Conditions.Verify(Callback);
+		}
+		else
+		{
+			auto Callback = [Row, &CommandBuffer = Environment->GetDirectDeferredCommands()]
+				(uint8_t ColumnIndex, TWeakObjectPtr<const UScriptStruct> ColumnType)
+			{
+				if (ColumnType.IsValid())
 				{
-					return Composition.Tags.Contains(*Column);
+					return CommandBuffer.HasColumn(Row, ColumnType.Get());
 				}
-			}
-			return false;
-		};
-		return Conditions.Verify(Callback);
+				return false;
+			};
+			return Conditions.Verify(Callback);
+		}
 	}
 	return false;
 }
