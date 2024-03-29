@@ -4,6 +4,7 @@
 
 #include "IPropertyTypeCustomization.h"
 #include "StateTreeTypes.h"
+#include "UObject/ObjectKey.h"
 #include "Widgets/Views/STreeView.h"
 
 enum class EStateTreeTransitionType : uint8;

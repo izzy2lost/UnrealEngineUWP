@@ -5,6 +5,7 @@
 #include "DetailLayoutBuilder.h"
 #include "PropertyCustomizationHelpers.h"
 #include "IPropertyUtilities.h"
+#include "StateTree.h"
 #include "StateTreeEditor.h"
 #include "StateTreeEditorData.h"
 #include "StateTreeSchema.h"
