@@ -1411,7 +1411,7 @@ void FGeometryCollectionPhysicsProxy::InitializeBodiesPT(Chaos::FPBDRigidsSolver
 					// Cluster parent
 					GameThreadCollection.IterateThroughChildren(TransformGroupIndex, [&](int32 ChildIndex)
 					{
-						if (SubTreeContainsSimulatableParticle[ChildIndex])
+						if (SubTreeContainsSimulatableParticle.IsValidIndex(ChildIndex) && SubTreeContainsSimulatableParticle[ChildIndex])
 						{
 							SubTreeContainsSimulatableParticle[TransformGroupIndex] = true;
 							return false;

@@ -45,15 +45,18 @@ public:
 	template<typename Lambda>
 	void IterateThroughChildren(int32 Index, Lambda&& LambdaIt) const
 	{
-		const TSet<int32>& Children = RestCollectionShared->Children[Index];
-		for (const int32 Child : Children)
-		{
-			if (GetHasParent(Child))
+		if (RestCollectionShared && RestCollectionShared->Children.IsValidIndex(Index))
+		{	
+			const TSet<int32>& Children = RestCollectionShared->Children[Index];
+			for (const int32 Child : Children)
 			{
-				bool bContinue = LambdaIt(Child);
-				if (!bContinue)
+				if (GetHasParent(Child))
 				{
-					break;
+					bool bContinue = LambdaIt(Child);
+					if (!bContinue)
+					{
+						break;
+					}
 				}
 			}
 		}
