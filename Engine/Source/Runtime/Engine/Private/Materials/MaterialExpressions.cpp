@@ -13257,7 +13257,7 @@ void UMaterialExpressionLocalPosition::GetCaption(TArray<FString>& OutCaptions) 
 {
 	if (LocalOrigin == ELocalPositionOrigin::InstancePreSkinning)
 	{
-		OutCaptions.Add(NSLOCTEXT("MaterialExpressions", "LocalPositionInstanceIncludingOffsetsText", "Pre-Skinned Local Position").ToString());
+		OutCaptions.Add(NSLOCTEXT("MaterialExpressions", "LocalPositionPreSkinnedText", "Pre-Skinned Local Position").ToString());
 	}
 	else if (IncludedOffsets == EPositionIncludedOffsets::IncludeOffsets && LocalOrigin == ELocalPositionOrigin::Instance)
 	{
