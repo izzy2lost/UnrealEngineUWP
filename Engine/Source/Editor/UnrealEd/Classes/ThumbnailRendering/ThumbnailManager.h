@@ -71,6 +71,12 @@ struct FThumbnailRenderingInfo
 	UPROPERTY()
 	TObjectPtr<class UThumbnailRenderer> Renderer;
 
+	/**
+	 * Should we get the default object from the specified object before passing it to the renderer?  (only used for blueprints)
+	 */
+	UPROPERTY()
+	bool bUseClassDefaultObject = false;
+
 public:
 	FThumbnailRenderingInfo()
 		: ClassNeedingThumbnail(NULL)
@@ -235,6 +241,5 @@ private:
 	/** Handler to dirty cached thumbnails in packages to make sure they are re-rendered later */
 	void DirtyThumbnailForObject(UObject* ObjectBeingModified);
 };
-
 
 

@@ -5075,6 +5075,18 @@ namespace ThumbnailTools
 		// Get the rendering info for this object
 		FThumbnailRenderingInfo* RenderInfo = GUnrealEd ? GUnrealEd->GetThumbnailManager()->GetRenderingInfo( InObject ) : nullptr;
 
+		UObject* ObjectToRender = InObject;
+		if ((RenderInfo != nullptr) && RenderInfo->bUseClassDefaultObject)
+		{
+			if (UBlueprint* Blueprint = Cast<UBlueprint>(InObject))
+			{
+				if (Blueprint->GeneratedClass != nullptr)
+				{
+					ObjectToRender = Blueprint->GeneratedClass->ClassDefaultObject;
+				}
+			}
+		}
+
 		if( InFlushMode == EThumbnailTextureFlushMode::AlwaysFlush )
 		{
 			// Wait for pending load requests.
@@ -5115,7 +5127,7 @@ namespace ThumbnailTools
 					if( RenderInfo->Renderer->IsA( UTextureThumbnailRenderer::StaticClass() ) )
 					{
 						RenderInfo->Renderer->GetThumbnailSize(
-							InObject,
+							ObjectToRender,
 							ZoomFactor,
 							DesiredWidth,		// Out
 							DesiredHeight );	// Out
@@ -5149,7 +5161,7 @@ namespace ThumbnailTools
 			const int32 YPos = 0;
 			const bool bAdditionalViewFamily = false;
 			RenderInfo->Renderer->Draw(
-				InObject,
+				ObjectToRender,
 				XPos,
 				YPos,
 				DrawWidth,
@@ -5814,4 +5826,3 @@ namespace ThumbnailTools
 		return false;
 	}
 		}
-
