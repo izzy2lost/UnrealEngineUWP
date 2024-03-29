@@ -90,6 +90,8 @@ public:
 
 	void SetAutoStopEnabled(bool bNewEnabled) { bAutoStopEnabled = bNewEnabled; }
 
+	int32 GetCurrentFrame() const { return CurrentFrame; }
+
 	void Play();
 	FReply  Stop();
 

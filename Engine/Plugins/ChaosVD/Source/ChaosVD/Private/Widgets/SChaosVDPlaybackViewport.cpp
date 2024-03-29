@@ -20,6 +20,15 @@
 
 #define LOCTEXT_NAMESPACE "ChaosVisualDebugger"
 
+namespace Chaos::VisualDebugger::Cvars
+{
+	static bool bBroadcastGameFrameUpdateEvenIfNotChanged = false;
+	static FAutoConsoleVariableRef CVarChaosVDBroadcastGameFrameUpdateEvenIfNotChanged(
+		TEXT("p.Chaos.VD.Tool.BroadcastGameFrameUpdateEvenIfNotChanged"),
+		bBroadcastGameFrameUpdateEvenIfNotChanged,
+		TEXT("If true, each time we get a controller data updated event, a game frame update will be triggered even if the frame didn't change..."));
+}
+
 SChaosVDPlaybackViewport::~SChaosVDPlaybackViewport()
 {
 	PlaybackViewportClient->Viewport = nullptr;
@@ -182,7 +191,9 @@ void SChaosVDPlaybackViewport::HandlePlaybackControllerDataUpdated(TWeakPtr<FCha
 		{
 			// Max is inclusive and we use this to request as the index on the recorded frames/steps arrays so we need to -1 to the available frames/steps
 			GameFramesTimelineWidget->UpdateMinMaxValue(0, TrackInfo->MaxFrames != INDEX_NONE ? TrackInfo->MaxFrames -1  : 0);
-			GameFramesTimelineWidget->SetCurrentTimelineFrame(TrackInfo->CurrentFrame);
+
+			const bool bNeedsToBroadcastChange = Chaos::VisualDebugger::Cvars::bBroadcastGameFrameUpdateEvenIfNotChanged || (GameFramesTimelineWidget->GetCurrentFrame() != TrackInfo->CurrentFrame);
+			GameFramesTimelineWidget->SetCurrentTimelineFrame(TrackInfo->CurrentFrame, bNeedsToBroadcastChange ? EChaosVDSetTimelineFrameFlags::BroadcastChange : EChaosVDSetTimelineFrameFlags::Silent);
 
 			constexpr uint16 PlaybackElementDisabledDuringLiveSession = static_cast<uint16>(EChaosVDTimelineElementIDFlags::Stop | EChaosVDTimelineElementIDFlags::Next | EChaosVDTimelineElementIDFlags::Prev);
 			if (ControllerSharedPtr->IsPlayingLiveSession())
