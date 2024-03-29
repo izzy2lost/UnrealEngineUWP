@@ -6,15 +6,15 @@ namespace EpicGames.MongoDB
 {
 	static class ObjectIdHelpers
 	{
-		public static ObjectId ToObjectId(this string Text)
+		public static ObjectId ToObjectId(this string text)
 		{
-			if (Text.Length == 0)
+			if (text.Length == 0)
 			{
 				return ObjectId.Empty;
 			}
 			else
 			{
-				return ObjectId.Parse(Text);
+				return ObjectId.Parse(text);
 			}
 		}
 	}
