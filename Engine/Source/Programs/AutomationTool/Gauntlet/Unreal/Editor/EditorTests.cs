@@ -285,9 +285,6 @@ namespace UEPerf
 
 			// Enforcing PIE to allow the Gauntlet controller to start
 			AppConfig.CommandLineParams.Add("PIE");
-
-			// Log Channels to listen for activity
-			LogCategoriesForEvents = UnrealLog.EditorBusyChannels.ToList();
 		}
 	}
 
@@ -297,6 +294,15 @@ namespace UEPerf
 		private bool ValidateResolveMap = false;
 		public EditorGauntletTestController(UnrealTestContext InContext) : base(InContext)
 		{
+		}
+
+		/// <summary>
+		/// Log Channels to listen for activity
+		/// </summary>
+		/// <returns></returns>
+		public override IEnumerable<string> GetHeartbeatLogCategories()
+		{
+			return UnrealLog.EditorBusyChannels;
 		}
 
 		public override EditorGauntletTestControllerConfig GetConfiguration()
