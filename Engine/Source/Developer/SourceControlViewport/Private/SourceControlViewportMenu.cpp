@@ -1,53 +1,45 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#include "SourceControlViewportOutlineMenu.h"
+#include "SourceControlViewportMenu.h"
 #include "RevisionControlStyle/RevisionControlStyle.h"
-#include "HAL/IConsoleManager.h"
+#include "Widgets/Input/SSpinBox.h"
 #include "EngineAnalytics.h"
 #include "LevelEditorMenuContext.h"
 #include "LevelEditorViewport.h"
 #include "ToolMenus.h"
 
-#define LOCTEXT_NAMESPACE "SourceControlViewportOutlineMenu"
-
-static bool bEnableViewportOutlineMenu = false;
-TAutoConsoleVariable<bool> CVarSourceControlEnableViewportOutlineMenu(
-	TEXT("SourceControl.ViewportOutlineMenu.Enable"),
-	bEnableViewportOutlineMenu,
-	TEXT("Enables an options menu that allows to toggle source control outlines on or off."),
-	ECVF_Default);
+#define LOCTEXT_NAMESPACE "SourceControlViewportMenu"
 
 static const FName MenuName("LevelEditor.LevelViewportToolbar.Show");
-static const FName SectionName("RevisionControl");
+static const FName SectionName("LevelViewportEditorShow");
 static const FName SubMenuName("ShowRevisionControlMenu");
 
-FSourceControlViewportOutlineMenu::FSourceControlViewportOutlineMenu()
+FSourceControlViewportMenu::FSourceControlViewportMenu()
 {
 }
 
-FSourceControlViewportOutlineMenu::~FSourceControlViewportOutlineMenu()
+FSourceControlViewportMenu::~FSourceControlViewportMenu()
 {
-	RemoveViewportOutlineMenu();
+	RemoveViewportMenu();
 }
 
-void FSourceControlViewportOutlineMenu::Init()
+void FSourceControlViewportMenu::Init()
 {
-	CVarSourceControlEnableViewportOutlineMenu->AsVariable()->OnChangedDelegate().AddSPLambda(this,
-		[this](IConsoleVariable* EnableViewportOutlineMenu)
-		{
-			if (EnableViewportOutlineMenu->GetBool())
-			{
-				InsertViewportOutlineMenu();
-			}
-			else
-			{
-				RemoveViewportOutlineMenu();
-			}
-		}
-	);
 }
 
-void FSourceControlViewportOutlineMenu::InsertViewportOutlineMenu()
+void FSourceControlViewportMenu::SetEnabled(bool bInEnabled)
+{
+	if (bInEnabled)
+	{
+		InsertViewportMenu();
+	}
+	else
+	{
+		RemoveViewportMenu();
+	}
+}
+
+void FSourceControlViewportMenu::InsertViewportMenu()
 {
 	if (UToolMenus* ToolMenus = UToolMenus::TryGet())
 	{
@@ -55,13 +47,13 @@ void FSourceControlViewportOutlineMenu::InsertViewportOutlineMenu()
 		if (Menu != nullptr)
 		{
 			Menu->AddDynamicSection(SectionName,
-				FNewToolMenuDelegate::CreateSP(this, &FSourceControlViewportOutlineMenu::PopulateViewportOutlineMenu)
+				FNewToolMenuDelegate::CreateSP(this, &FSourceControlViewportMenu::PopulateViewportMenu)
 			);
 		}
 	}
 }
 
-void FSourceControlViewportOutlineMenu::PopulateViewportOutlineMenu(UToolMenu* InMenu)
+void FSourceControlViewportMenu::PopulateViewportMenu(UToolMenu* InMenu)
 {
 	check(InMenu);
 
@@ -80,18 +72,43 @@ void FSourceControlViewportOutlineMenu::PopulateViewportOutlineMenu(UToolMenu* I
 				return;
 			}
 
-			FToolMenuSection& RevisionControlSection = InMenu->FindOrAddSection(SectionName, LOCTEXT("RevisionControl", "Revision Control"));
+			OpacityWidget = SNew(SSpinBox<uint8>)
+				.ClearKeyboardFocusOnCommit(true)
+				.OnValueChanged_Lambda(
+					[this, ViewportClient](uint8 InNewValue)
+					{
+						SetOpacityValue(ViewportClient, InNewValue);
+					}
+				)
+				.OnValueCommitted_Lambda(
+					[this, ViewportClient](uint8 InNewValue, ETextCommit::Type InCommitType)
+					{
+						SetOpacityValue(ViewportClient, InNewValue);
+					}
+				)
+				.Value_Lambda(
+					[this, ViewportClient]()
+					{
+						return GetOpacityValue(ViewportClient);
+					}
+				)
+				.MinValue(0)
+				.MinSliderValue(0)
+				.MaxValue(100)
+				.MaxSliderValue(100);
+
+			FToolMenuSection& RevisionControlSection = InMenu->FindOrAddSection(TEXT("LevelViewportEditorShow"));
 			RevisionControlSection.AddDynamicEntry(NAME_None, FNewToolMenuSectionDelegate::CreateLambda(
 				[this, ViewportClient](FToolMenuSection& InSection)
 				{
 					InSection.AddSubMenu(
 						SubMenuName,
-						LOCTEXT("RevisionControlSubMenu", "Status Highlighting"),
-						LOCTEXT("RevisionControlSubMenu_ToolTip", "Toggle revision control status highlights in the viewport on or off."),
+						LOCTEXT("RevisionControlSubMenu", "Revision Control"),
+						LOCTEXT("RevisionControlSubMenu_ToolTip", "Toggle revision control viewport options on or off."),
 						FNewToolMenuDelegate::CreateLambda(
 							[this, ViewportClient](UToolMenu* InSubMenu)
 							{
-								FToolMenuSection& DefaultSection = InSubMenu->AddSection(NAME_None);
+								FToolMenuSection& DefaultSection = InSubMenu->AddSection(NAME_None, LOCTEXT("RevisionControlSectionStatus", "Status Highlights"));
 
 								DefaultSection.AddMenuEntry(
 									NAME_None,
@@ -99,7 +116,7 @@ void FSourceControlViewportOutlineMenu::PopulateViewportOutlineMenu(UToolMenu* I
 									LOCTEXT("ShowAll_ToolTip", "Enable highlighting for all statuses"),
 									FSlateIcon(),
 									FUIAction(
-										FExecuteAction::CreateSP(this, &FSourceControlViewportOutlineMenu::ShowAll, ViewportClient)
+										FExecuteAction::CreateSP(this, &FSourceControlViewportMenu::ShowAll, ViewportClient)
 									),
 									EUserInterfaceActionType::Button
 								);
@@ -110,7 +127,7 @@ void FSourceControlViewportOutlineMenu::PopulateViewportOutlineMenu(UToolMenu* I
 									LOCTEXT("HideAll_ToolTip", "Disable highlighting for all statuses"),
 									FSlateIcon(),
 									FUIAction(
-										FExecuteAction::CreateSP(this, &FSourceControlViewportOutlineMenu::HideAll, ViewportClient)
+										FExecuteAction::CreateSP(this, &FSourceControlViewportMenu::HideAll, ViewportClient)
 									),
 									EUserInterfaceActionType::Button
 								);
@@ -121,11 +138,11 @@ void FSourceControlViewportOutlineMenu::PopulateViewportOutlineMenu(UToolMenu* I
 									NAME_None,
 									LOCTEXT("HighlightCheckedOutByOtherUser", "Checked Out by Others"),
 									LOCTEXT("HighlightCheckedOutByOtherUser_ToolTip", "Highlight objects that are checked out by someone else."),
-									FSlateIcon(FRevisionControlStyleManager::GetStyleSetName(), "RevisionControl.CheckedOutByOtherUser"),
+									FSlateIcon(FRevisionControlStyleManager::GetStyleSetName(), "RevisionControl.ShowMenu.CheckedOutByOtherUser"),
 									FUIAction(
-										FExecuteAction::CreateSP(this, &FSourceControlViewportOutlineMenu::ToggleHighlight, ViewportClient, ESourceControlStatus::CheckedOutByOtherUser),
+										FExecuteAction::CreateSP(this, &FSourceControlViewportMenu::ToggleHighlight, ViewportClient, ESourceControlStatus::CheckedOutByOtherUser),
 										FCanExecuteAction(),
-										FIsActionChecked::CreateSP(this, &FSourceControlViewportOutlineMenu::IsHighlighted, ViewportClient, ESourceControlStatus::CheckedOutByOtherUser)
+										FIsActionChecked::CreateSP(this, &FSourceControlViewportMenu::IsHighlighted, ViewportClient, ESourceControlStatus::CheckedOutByOtherUser)
 									),
 									EUserInterfaceActionType::ToggleButton
 								);
@@ -134,11 +151,11 @@ void FSourceControlViewportOutlineMenu::PopulateViewportOutlineMenu(UToolMenu* I
 									NAME_None,
 									LOCTEXT("HighlightNotAtHeadRevision", "Out of Date"),
 									LOCTEXT("HighlightNotAtHeadRevision_ToolTip", "Highlight objects that are not at the latest revision."),
-									FSlateIcon(FRevisionControlStyleManager::GetStyleSetName(), "RevisionControl.NotAtHeadRevision"),
+									FSlateIcon(FRevisionControlStyleManager::GetStyleSetName(), "RevisionControl.ShowMenu.NotAtHeadRevision"),
 									FUIAction(
-										FExecuteAction::CreateSP(this, &FSourceControlViewportOutlineMenu::ToggleHighlight, ViewportClient, ESourceControlStatus::NotAtHeadRevision),
+										FExecuteAction::CreateSP(this, &FSourceControlViewportMenu::ToggleHighlight, ViewportClient, ESourceControlStatus::NotAtHeadRevision),
 										FCanExecuteAction(),
-										FIsActionChecked::CreateSP(this, &FSourceControlViewportOutlineMenu::IsHighlighted, ViewportClient, ESourceControlStatus::NotAtHeadRevision)
+										FIsActionChecked::CreateSP(this, &FSourceControlViewportMenu::IsHighlighted, ViewportClient, ESourceControlStatus::NotAtHeadRevision)
 									),
 									EUserInterfaceActionType::ToggleButton
 								);
@@ -147,11 +164,11 @@ void FSourceControlViewportOutlineMenu::PopulateViewportOutlineMenu(UToolMenu* I
 									NAME_None,
 									LOCTEXT("HighlightCheckedOut", "Checked Out by Me"),
 									LOCTEXT("HighlightCheckedOut_ToolTip", "Highlight objects that are checked out by me."),
-									FSlateIcon(FRevisionControlStyleManager::GetStyleSetName(), "RevisionControl.CheckedOut"),
+									FSlateIcon(FRevisionControlStyleManager::GetStyleSetName(), "RevisionControl.ShowMenu.CheckedOut"),
 									FUIAction(
-										FExecuteAction::CreateSP(this, &FSourceControlViewportOutlineMenu::ToggleHighlight, ViewportClient, ESourceControlStatus::CheckedOut),
+										FExecuteAction::CreateSP(this, &FSourceControlViewportMenu::ToggleHighlight, ViewportClient, ESourceControlStatus::CheckedOut),
 										FCanExecuteAction(),
-										FIsActionChecked::CreateSP(this, &FSourceControlViewportOutlineMenu::IsHighlighted, ViewportClient, ESourceControlStatus::CheckedOut)
+										FIsActionChecked::CreateSP(this, &FSourceControlViewportMenu::IsHighlighted, ViewportClient, ESourceControlStatus::CheckedOut)
 									),
 									EUserInterfaceActionType::ToggleButton
 								);
@@ -160,13 +177,20 @@ void FSourceControlViewportOutlineMenu::PopulateViewportOutlineMenu(UToolMenu* I
 									NAME_None,
 									LOCTEXT("HighlightOpenForAdd", "Newly Added"),
 									LOCTEXT("HighlightOpenForAdd_ToolTip", "Highlight objects that have been added by me."),
-									FSlateIcon(FRevisionControlStyleManager::GetStyleSetName(), "RevisionControl.OpenForAdd"),
+									FSlateIcon(FRevisionControlStyleManager::GetStyleSetName(), "RevisionControl.ShowMenu.OpenForAdd"),
 									FUIAction(
-										FExecuteAction::CreateSP(this, &FSourceControlViewportOutlineMenu::ToggleHighlight, ViewportClient, ESourceControlStatus::OpenForAdd),
+										FExecuteAction::CreateSP(this, &FSourceControlViewportMenu::ToggleHighlight, ViewportClient, ESourceControlStatus::OpenForAdd),
 										FCanExecuteAction(),
-										FIsActionChecked::CreateSP(this, &FSourceControlViewportOutlineMenu::IsHighlighted, ViewportClient, ESourceControlStatus::OpenForAdd)
+										FIsActionChecked::CreateSP(this, &FSourceControlViewportMenu::IsHighlighted, ViewportClient, ESourceControlStatus::OpenForAdd)
 									),
 									EUserInterfaceActionType::ToggleButton
+								);
+
+								DefaultSection.AddEntry(FToolMenuEntry::InitWidget(
+									NAME_None,
+									OpacityWidget.ToSharedRef(),
+									LOCTEXT("Opacity", "Opacity")
+									)
 								);
 							}
 						),
@@ -179,7 +203,7 @@ void FSourceControlViewportOutlineMenu::PopulateViewportOutlineMenu(UToolMenu* I
 	);
 }
 
-void FSourceControlViewportOutlineMenu::RemoveViewportOutlineMenu()
+void FSourceControlViewportMenu::RemoveViewportMenu()
 {
 	if (UToolMenus* ToolMenus = UToolMenus::TryGet())
 	{
@@ -191,7 +215,7 @@ void FSourceControlViewportOutlineMenu::RemoveViewportOutlineMenu()
 	}
 }
 
-void FSourceControlViewportOutlineMenu::ShowAll(FLevelEditorViewportClient* ViewportClient)
+void FSourceControlViewportMenu::ShowAll(FLevelEditorViewportClient* ViewportClient)
 {
 	ensure(ViewportClient);
 
@@ -203,7 +227,7 @@ void FSourceControlViewportOutlineMenu::ShowAll(FLevelEditorViewportClient* View
 	RecordToggleEvent(TEXT("All"), /*bEnabled=*/true);
 }
 
-void FSourceControlViewportOutlineMenu::HideAll(FLevelEditorViewportClient* ViewportClient)
+void FSourceControlViewportMenu::HideAll(FLevelEditorViewportClient* ViewportClient)
 {
 	ensure(ViewportClient);
 
@@ -215,7 +239,7 @@ void FSourceControlViewportOutlineMenu::HideAll(FLevelEditorViewportClient* View
 	RecordToggleEvent(TEXT("All"), /*bEnabled=*/false);
 }
 
-void FSourceControlViewportOutlineMenu::ToggleHighlight(FLevelEditorViewportClient* ViewportClient, ESourceControlStatus Status)
+void FSourceControlViewportMenu::ToggleHighlight(FLevelEditorViewportClient* ViewportClient, ESourceControlStatus Status)
 {
 	ensure(ViewportClient);
 
@@ -228,19 +252,29 @@ void FSourceControlViewportOutlineMenu::ToggleHighlight(FLevelEditorViewportClie
 	RecordToggleEvent(EnumValueWithoutType, bNew);
 }
 
-bool FSourceControlViewportOutlineMenu::IsHighlighted(FLevelEditorViewportClient* ViewportClient, ESourceControlStatus Status) const
+bool FSourceControlViewportMenu::IsHighlighted(FLevelEditorViewportClient* ViewportClient, ESourceControlStatus Status) const
 {
 	ensure(ViewportClient);
 
 	return SourceControlViewportUtils::GetFeedbackEnabled(ViewportClient, Status);
 }
 
-void FSourceControlViewportOutlineMenu::RecordToggleEvent(const FString& Param, bool bEnabled) const
+void FSourceControlViewportMenu::SetOpacityValue(FLevelEditorViewportClient* ViewportClient, uint8 InNewValue)
+{
+	SourceControlViewportUtils::SetFeedbackOpacity(ViewportClient, InNewValue);
+}
+
+uint8 FSourceControlViewportMenu::GetOpacityValue(FLevelEditorViewportClient* ViewportClient) const
+{
+	return SourceControlViewportUtils::GetFeedbackOpacity(ViewportClient);
+}
+
+void FSourceControlViewportMenu::RecordToggleEvent(const FString& Param, bool bEnabled) const
 {
 	if (FEngineAnalytics::IsAvailable())
 	{
 		FEngineAnalytics::GetProvider().RecordEvent(
-			TEXT("Editor.Usage.SourceControl.OutlineSettings"), Param, bEnabled ? TEXT("True") : TEXT("False")
+			TEXT("Editor.Usage.SourceControl.Settings"), Param, bEnabled ? TEXT("True") : TEXT("False")
 		);
 	}
 }

@@ -7,21 +7,23 @@
 
 class FLevelEditorViewportClient;
 class UToolMenu;
+class SWidget;
 
 // Adds an options menu to the Viewport's SHOW pill.
-class FSourceControlViewportOutlineMenu : public TSharedFromThis<FSourceControlViewportOutlineMenu, ESPMode::ThreadSafe>
+class FSourceControlViewportMenu : public TSharedFromThis<FSourceControlViewportMenu, ESPMode::ThreadSafe>
 {
 public:
-	FSourceControlViewportOutlineMenu();
-	~FSourceControlViewportOutlineMenu();
+	FSourceControlViewportMenu();
+	~FSourceControlViewportMenu();
 
 public:
 	void Init();
+	void SetEnabled(bool bInEnabled);
 
 private:
-	void InsertViewportOutlineMenu();
-	void PopulateViewportOutlineMenu(UToolMenu* InMenu);
-	void RemoveViewportOutlineMenu();
+	void InsertViewportMenu();
+	void PopulateViewportMenu(UToolMenu* InMenu);
+	void RemoveViewportMenu();
 
 private:
 	void ShowAll(FLevelEditorViewportClient* ViewportClient);
@@ -30,6 +32,12 @@ private:
 	void ToggleHighlight(FLevelEditorViewportClient* ViewportClient, ESourceControlStatus Status);
 	bool IsHighlighted(FLevelEditorViewportClient* ViewportClient, ESourceControlStatus Status) const;
 
+	void SetOpacityValue(FLevelEditorViewportClient* ViewportClient, uint8 NewValue);
+	uint8 GetOpacityValue(FLevelEditorViewportClient* ViewportClient) const;
+
 private:
 	void RecordToggleEvent(const FString& Param, bool bEnabled) const;
+
+private:
+	TSharedPtr<SWidget> OpacityWidget;
 };

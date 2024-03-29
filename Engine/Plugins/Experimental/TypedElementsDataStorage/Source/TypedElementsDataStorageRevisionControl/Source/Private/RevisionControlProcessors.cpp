@@ -18,56 +18,104 @@
 
 extern TYPEDELEMENTSDATASTORAGE_API FAutoConsoleVariableRef CVarAutoPopulateState;
 
-static bool GEnableOutlines = false;
-static FAutoConsoleVariableRef CVarEnableOutlines(
-	TEXT("TEDS.RevisionControl.UseOutlines"),
-	GEnableOutlines,
-	TEXT("Use revision control status outlines in the viewport")
-);
+static bool gEnableOverlays = true;
+TAutoConsoleVariable<bool> CVarEnableOverlays(
+	TEXT("SourceControl.Overlays.Enable"),
+	gEnableOverlays,
+	TEXT("Enables overlays."),
+	ECVF_Default);
 
-static uint8 DetermineOutlineColorIndex(const TypedElementDataStorage::ICommonQueryContext& Context)
+static bool gEnableOverlayCheckedOutByOtherUser = true;
+TAutoConsoleVariable<bool> CVarEnableOverlayCheckedOutByOtherUser(
+	TEXT("SourceControl.Overlays.CheckedOutByOtherUser.Enable"),
+	gEnableOverlayCheckedOutByOtherUser,
+	TEXT("Enables overlays for files that are checked out by another user."),
+	ECVF_Default);
+
+static bool gEnableOverlayNotAtHeadRevision = true;
+TAutoConsoleVariable<bool> CVarEnableOverlayNotAtHeadRevision(
+	TEXT("SourceControl.Overlays.NotAtHeadRevision.Enable"),
+	gEnableOverlayNotAtHeadRevision,
+	TEXT("Enables overlays for files that are not at the latest revision."),
+	ECVF_Default);
+
+static bool gEnableOverlayCheckedOut = false;
+TAutoConsoleVariable<bool> CVarEnableOverlayCheckedOut(
+	TEXT("SourceControl.Overlays.CheckedOut.Enable"),
+	gEnableOverlayCheckedOut,
+	TEXT("Enables overlays for files that are checked out by user."),
+	ECVF_Default);
+
+static bool gEnableOverlayOpenForAdd = false;
+TAutoConsoleVariable<bool> CVarEnableOverlayOpenForAdd(
+	TEXT("SourceControl.Overlays.OpenForAdd.Enable"),
+	gEnableOverlayOpenForAdd,
+	TEXT("Enables overlays for files that are newly added."),
+	ECVF_Default);
+
+static int32 gOverlayAlpha = 217;
+TAutoConsoleVariable<int32> CVarOverlayAlpha(
+	TEXT("SourceControl.Overlays.Alpha"),
+	gOverlayAlpha,
+	TEXT("Configures overlay opacity."),
+	ECVF_Default);
+
+static FColor DetermineOverlayColor(const TypedElementDataStorage::IQueryContext& ObjectContext, const TypedElementDataStorage::ICommonQueryContext& SCCContext)
 {
-	if (GEnableOutlines)
-	{
-		// TODO: Get this information from TEDS instead of hardcoded pointing into UEditorStyleSettings::AdditionalSelectionColors?
-		constexpr uint8 BasicSelectionColorCount = 2;
-		constexpr uint8 IndexBlue = BasicSelectionColorCount + 0;
-		constexpr uint8 IndexPurple = BasicSelectionColorCount + 1;
-		constexpr uint8 IndexPink = BasicSelectionColorCount + 2;
-		constexpr uint8 IndexRed = BasicSelectionColorCount + 3;
-		constexpr uint8 IndexYellow = BasicSelectionColorCount + 4;
-		constexpr uint8 IndexGreen = BasicSelectionColorCount + 5;
+	check(IsInGameThread());
 
+	bool bEnabled = CVarEnableOverlays.GetValueOnGameThread();
+	bool bSelected = ObjectContext.HasColumn<FTypedElementSelectionColumn>();
+	if (bEnabled && !bSelected)
+	{
 		// Check if the package is outdated because there is a newer version available.
-		if (Context.HasColumn<FSCCNotCurrentTag>())
+		if (SCCContext.HasColumn<FSCCNotCurrentTag>())
 		{
-			return IndexYellow;
+			if (CVarEnableOverlayNotAtHeadRevision.GetValueOnGameThread())
+			{
+				// Yellow.
+				return FColor(255, 255, 61, CVarOverlayAlpha.GetValueOnGameThread());
+			}
 		}
 
 		// Check if the package is locked by someone else.
-		if (Context.HasColumn<FSCCExternallyLockedColumn>())
+		if (SCCContext.HasColumn<FSCCExternallyLockedColumn>())
 		{
-			return IndexRed;
+			if (CVarEnableOverlayCheckedOutByOtherUser.GetValueOnGameThread())
+			{
+				// Red.
+				return FColor(255, 64, 64, CVarOverlayAlpha.GetValueOnGameThread());
+			}
 		}
 
 		// Check if the package is added locally.
-		if (Context.HasColumn<FSCCStatusColumn>())
+		if (SCCContext.HasColumn<FSCCStatusColumn>())
 		{
-			const FSCCStatusColumn* StatusColumn = Context.GetColumn<FSCCStatusColumn>();
-			if (StatusColumn->Modification == ESCCModification::Added)
+			if (CVarEnableOverlayOpenForAdd.GetValueOnGameThread())
 			{
-				return IndexGreen;
+				if (const FSCCStatusColumn* StatusColumn = SCCContext.GetColumn<FSCCStatusColumn>())
+				{
+					if (StatusColumn->Modification == ESCCModification::Added)
+					{
+						// Green.
+						return FColor(134, 194, 74, CVarOverlayAlpha.GetValueOnGameThread());
+					}
+				}
 			}
 		}
 
 		// Check if the package is locked by self.
-		if (Context.HasColumn<FSCCLockedTag>())
+		if (SCCContext.HasColumn<FSCCLockedTag>())
 		{
-			return IndexBlue;
+			if (CVarEnableOverlayCheckedOut.GetValueOnGameThread())
+			{
+				// Blue.
+				return FColor(0, 112, 224, CVarOverlayAlpha.GetValueOnGameThread());
+			}
 		}
 	}
 
-	return 0; // Default outline color.
+	return FColor(ForceInitToZero);
 }
 
 void UTypedElementRevisionControlFactory::RegisterTables(ITypedElementDataStorageInterface& DataStorage)
@@ -87,19 +135,29 @@ void UTypedElementRevisionControlFactory::RegisterQueries(ITypedElementDataStora
 	TypedElementQueryHandle ObjectToSCCQuery = DataStorage.RegisterQuery(
 		Select()
 			.ReadOnly<FTypedElementPackagePathColumn>()
+			.ReadOnly<FSCCStatusColumn>(EOptional::Yes)
 		.Compile());
 
 	DataStorage.RegisterQuery(
 		Select(
 			TEXT("Change selection outline colors based on SCC status"),
 			// This is in PrePhysics because the outline->actor query is in DuringPhysics and contexts don't flush changes between tick groups
-			FProcessor(DSI::EQueryTickPhase::PrePhysics, DataStorage.GetQueryTickGroupName(DSI::EQueryTickGroups::SyncExternalToDataStorage)),
+			FProcessor(DSI::EQueryTickPhase::PrePhysics, DataStorage.GetQueryTickGroupName(DSI::EQueryTickGroups::SyncExternalToDataStorage))
+				.ForceToGameThread(true),
 			[](DSI::IQueryContext& Context, TypedElementRowHandle ObjectRow, const FTypedElementPackageReference& PackageReference)
 			{
 				Context.RunSubquery(0, PackageReference.Row, CreateSubqueryCallbackBinding(
 					[&Context, &ObjectRow](DSI::ISubqueryContext& SubQueryContext)
 					{
-						Context.AddColumn<FTypedElementViewportOutlineColorColumn>(ObjectRow, { .SelectionOutlineColorIndex = DetermineOutlineColorIndex(SubQueryContext) });
+						FColor Color = DetermineOverlayColor(Context, SubQueryContext);
+						if (Color.Bits != 0)
+						{
+							Context.AddColumn<FTypedElementViewportOverlayColorColumn>(ObjectRow, { .OverlayColor = Color });
+						}
+						else
+						{
+							Context.RemoveColumns<FTypedElementViewportOverlayColorColumn>(ObjectRow);
+						}
 						Context.AddColumns<FTypedElementSyncBackToWorldTag>(ObjectRow);
 					})
 				);

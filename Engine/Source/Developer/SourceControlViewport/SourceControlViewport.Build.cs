@@ -11,6 +11,7 @@ public class SourceControlViewport : ModuleRules
 				"Core",
 				"CoreUObject",
 				"Engine",
+				"InputCore",
 				"LevelEditor",
 				"Slate",
 				"SlateCore",
