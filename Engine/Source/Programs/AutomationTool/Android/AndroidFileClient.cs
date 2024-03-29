@@ -28,6 +28,8 @@ namespace AutomationTool
 {
 	public class AndroidFileClient
 	{
+		public delegate bool ShellOutputCallbackType(object Data, string Message);
+
 		protected static ILogger Logger => Log.Logger;
 
 		private const bool TimeBatching = false;
@@ -106,7 +108,6 @@ namespace AutomationTool
 			private const int kIdCloseStdin = 4;
 			private const int kIdWindowSizeChange = 5;
 			private const int kIdInvalid = 255;
-
 
 			public OptimalADB(string ADBExecutable = "", int inPort = DefaultPort)
 			{
@@ -363,7 +364,7 @@ namespace AutomationTool
 				return "'" + source.Replace("'", "'\\''") + "'";
 			}
 
-			public string Shell(string Device, string Command)
+			public string Shell(string Device, string Command, int Timeout = 0, ShellOutputCallbackType OutputCallback = null, object OutputCallbackData = null)
 			{
 				string Result = "FAIL";
 
@@ -405,12 +406,21 @@ namespace AutomationTool
 						return Result;
 					}
 					Result = "";
+					string EncodedData = "";
 
 					if (bUseShellv2)
 					{
 						bool bExit = false;
 						while (!bExit)
 						{
+							if (Timeout > 0 && !ClientSocket.Poll(Timeout * 1000, SelectMode.SelectRead))
+							{
+								if (OutputCallback != null)
+								{
+									Result = "TIMEOUT";
+								}
+								break;
+							}
 							int bytesRecv = ClientSocket.Receive(buffer, kHeaderSize, SocketFlags.None);
 							if (bytesRecv <= 0)
 							{
@@ -429,10 +439,22 @@ namespace AutomationTool
 								switch (id)
 								{
 									case kIdStdOut:
-										Result += Encoding.UTF8.GetString(buffer, 0, bytesRecv);
+										EncodedData = Encoding.UTF8.GetString(buffer, 0, bytesRecv);
+										Result += EncodedData;
+										if (OutputCallback != null && !OutputCallback(OutputCallbackData, EncodedData))
+										{
+											bExit = true;
+											break;
+										}
 										break;
 									case kIdStdErr:
-										Result += Encoding.UTF8.GetString(buffer, 0, bytesRecv);
+										EncodedData = Encoding.UTF8.GetString(buffer, 0, bytesRecv);
+										Result += EncodedData;
+										if (OutputCallback != null && !OutputCallback(OutputCallbackData, EncodedData))
+										{
+											bExit = true;
+											break;
+										}
 										break;
 									case kIdExit:
 										// exit code is buffer[0]
@@ -447,12 +469,25 @@ namespace AutomationTool
 
 					while (true)
 					{
+						if (Timeout > 0 && !ClientSocket.Poll(Timeout * 1000, SelectMode.SelectRead))
+						{
+							if (OutputCallback != null)
+							{
+								Result = "TIMEOUT";
+							}
+							break;
+						}
 						int bytesRecv = ClientSocket.Receive(buffer);
 						if (bytesRecv <= 0)
 						{
 							break;
 						}
-						Result += Encoding.UTF8.GetString(buffer, 0, bytesRecv);
+						EncodedData = Encoding.UTF8.GetString(buffer, 0, bytesRecv);
+						Result += EncodedData;
+						if (OutputCallback != null && !OutputCallback(OutputCallbackData, EncodedData))
+						{
+							break;
+						}
 					}
 				}
 				catch (SocketException)
@@ -1311,6 +1346,88 @@ namespace AutomationTool
 			return false;
 		}
 
+		public static string Logcat(string Device, string Options, int Timeout = 0, ShellOutputCallbackType InCallback = null, object InCallbackData = null)
+		{
+			return adb.Shell(Device, "export ANDROID_LOG_TAGS=; exec logcat " + Options, Timeout, InCallback, InCallbackData);
+		}
+
+		public static string GetLastLogcatTime(string Device)
+		{
+			string LogcatResult = Logcat(Device, "-t 1 -v monotonic");
+			string Result = "0.000";
+			foreach (string Line in LogcatResult.Split('\n'))
+			{
+				string Trimmed = Line.TrimStart();
+				if (string.IsNullOrWhiteSpace(Trimmed) || !char.IsDigit(Trimmed[0]))
+				{
+					continue;
+				}
+				int SpaceIndex = Trimmed.IndexOf(' ');
+				int TabIndex = Trimmed.IndexOf('\t');
+				if (SpaceIndex > 0 && TabIndex > 0)
+				{
+					Result = Trimmed.Substring(0, Math.Min(SpaceIndex, TabIndex));
+				}
+				else if (SpaceIndex > 0)
+				{
+					Result = Trimmed.Substring(0, SpaceIndex);
+				}
+				else if (TabIndex > 0)
+				{
+					Result = Trimmed.Substring(0, TabIndex);
+				}
+			}
+			return Result;
+		}
+
+		private class WaitCallbackData
+		{
+			public string WaitForLine;
+			public string MessageBuffer;
+
+			public WaitCallbackData(string InWaitForLine)
+			{
+				WaitForLine = InWaitForLine;
+				MessageBuffer = "";
+			}
+
+			public bool CheckForLine(string InNewData)
+			{
+				// incoming data may not be a complete line so always append the new data
+				MessageBuffer += InNewData;
+
+				// check if we now have the search line
+				if (MessageBuffer.IndexOf(WaitForLine) >= 0)
+				{
+					MessageBuffer = "";
+					return true;
+				}
+
+				// drop old lines to keep the search faster and free memory
+				int LastLineIndex = MessageBuffer.LastIndexOf('\n');
+				if (LastLineIndex >= 0)
+				{
+					MessageBuffer.Substring(LastLineIndex + 1);
+				}
+
+				return false;
+			}
+		}
+
+		private static bool LogcatWaitCallback(object InData, string Message)
+		{
+			WaitCallbackData WorkData = (WaitCallbackData)InData;
+			return WorkData.CheckForLine(Message) ? false : true;
+		}
+
+		public static bool WaitForLogcat(string Device, string Options, string Line, int Timeout)
+		{
+			WaitCallbackData WorkData = new WaitCallbackData(Line);
+
+			string Result = Logcat(Device, Options, Timeout, LogcatWaitCallback, (object)WorkData);
+			return Result != "TIMEOUT";
+		}
+
 		public static List<string> GetInstalledReceivers(string Device)
 		{
 			List<string> Result = new List<string>();
@@ -1564,7 +1681,7 @@ namespace AutomationTool
 			foreach (string Activity in InstalledActivities)
 			{
 				bDidSendStops = true;
-				adb.Shell(Device, "am start -a com.epicgames.unreal.RemoteFileManager.intent.COMMAND2 -n " + Activity + "/com.epicgames.unreal.RemoteFileManagerActivity -e cmd stop");
+				adb.Shell(Device, "am start -W -a com.epicgames.unreal.RemoteFileManager.intent.COMMAND2 -n " + Activity + "/com.epicgames.unreal.RemoteFileManagerActivity -e cmd stop");
 			}
 
 			// it can take up to 2 seconds for running servers to terminate so check if any binds to port are still active
@@ -1680,7 +1797,7 @@ namespace AutomationTool
 
 			// sent start request (won't do anything if already started)
 //			string StartCommand = "am broadcast -a com.epicgames.unreal.RemoteFileManager.intent.COMMAND -n " + PackageName + "/com.epicgames.unreal.RemoteFileManagerReceiver -e cmd start -e token " + Token + " -ei port " + ServerPort;
-			string StartCommand = "am start -a com.epicgames.unreal.RemoteFileManager.intent.COMMAND2 -n " + PackageName + "/com.epicgames.unreal.RemoteFileManagerActivity -e cmd start -e token " + Token + " -ei port " + ServerPort;
+			string StartCommand = "am start -W -a com.epicgames.unreal.RemoteFileManager.intent.COMMAND2 -n " + PackageName + "/com.epicgames.unreal.RemoteFileManagerActivity -e cmd start -e token " + Token + " -ei port " + ServerPort;
 			adb.Shell(Device, StartCommand);
 
 			// see if we can check listen status
