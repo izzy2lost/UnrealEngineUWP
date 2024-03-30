@@ -33,6 +33,7 @@ class UDataflowWeightMapSmoothBrushOpProps;
 class UPolygonSelectionMechanic;
 class UDataflowContextObject;
 struct FDataflowCollectionAddScalarVertexPropertyNode;
+class UDataflowEditorMode;
 
 DECLARE_STATS_GROUP(TEXT("WeightMapPaintTool"), STATGROUP_WeightMapPaintTool, STATCAT_Advanced);
 DECLARE_CYCLE_STAT(TEXT("WeightMapPaintTool_UpdateROI"), WeightMapPaintTool_UpdateROI, STATGROUP_WeightMapPaintTool);
@@ -58,12 +59,15 @@ UCLASS()
 class DATAFLOWEDITOR_API UDataflowEditorWeightMapPaintToolBuilder : public UMeshSurfacePointMeshEditingToolBuilder, public IDataflowEditorToolBuilder
 {
 	GENERATED_BODY()
+public:
+	void SetEditorMode(UDataflowEditorMode* InMode) { Mode = InMode; }
 
 private:
 	virtual void GetSupportedViewModes(TArray<Dataflow::EDataflowPatternVertexType>& Modes) const override;
 	virtual bool CanBuildTool(const FToolBuilderState& SceneState) const override;
 	virtual UMeshSurfacePointTool* CreateNewTool(const FToolBuilderState& SceneState) const override;
 	virtual bool CanSetConstructionViewWireframeActive() const { return false; }
+	UDataflowEditorMode* Mode = nullptr;
 };
 
 
@@ -284,6 +288,7 @@ public:
 	virtual void CommitResult(UBaseDynamicMeshComponent* Component, bool bModifiedTopology) override;
 
 	void SetDataflowEditorContextObject(TObjectPtr<UDataflowContextObject> InDataflowEditorContextObject);
+	void SetEditorMode(UDataflowEditorMode* InMode) { Mode = InMode; }
 
 public:
 
@@ -486,6 +491,8 @@ protected:
 	void UpdateSelectedNode();
 
 	void UpdateVertexColorOverlay(const TSet<int>* TrianglesToUpdate = nullptr);
+
+	UDataflowEditorMode* Mode = nullptr;
 };
 
 

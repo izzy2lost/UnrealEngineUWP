@@ -107,6 +107,9 @@ public:
 	/** Update the construction scene */
 	void UpdateConstructionScene();
 	
+	/** Hide all or a single component */
+	void SetVisibility(bool bVisible, UActorComponent* Component = nullptr);
+
 private:
 
 	/** Reset the scene mesh visualizer */

@@ -58,6 +58,12 @@ void FDataflowConstructionViewportClient::Tick(float DeltaSeconds)
 	}
 }
 
+USelection* FDataflowConstructionViewportClient::GetSelectedComponents() 
+{ 
+	return ModeTools->GetSelectedComponents(); 
+}
+
+
 void FDataflowConstructionViewportClient::ProcessClick(FSceneView& View, HHitProxy* HitProxy, FKey Key, EInputEvent Event, uint32 HitX, uint32 HitY)
 {
 	Super::ProcessClick(View, HitProxy, Key, Event, HitX, HitY);
@@ -83,6 +89,8 @@ void FDataflowConstructionViewportClient::ProcessClick(FSceneView& View, HHitPro
 									{
 										// Start the corresponding tool
 										DataflowMode->StartToolForSelectedNode(SelectedNode);
+
+										return CollectionComponent;
 									}
 								}
 							}
@@ -91,6 +99,7 @@ void FDataflowConstructionViewportClient::ProcessClick(FSceneView& View, HHitPro
 				}
 			}
 		}
+		return (UDataflowEditorCollectionComponent*)nullptr;
 	};
 
 	auto UpdateSelectedComponentInViewport = [&](USelection* SelectedComponents)
@@ -145,6 +154,15 @@ void FDataflowConstructionViewportClient::ProcessClick(FSceneView& View, HHitPro
 			}
 		}
 		return false;
+	};
+
+	auto IsolateComponent = [&](UDataflowEditorCollectionComponent* SelectedComponent)
+	{
+		if( FDataflowConstructionScene* Scene = static_cast<FDataflowConstructionScene*>(PreviewScene) )
+		{ 
+			Scene->SetVisibility(false);
+			Scene->SetVisibility(true,SelectedComponent);
+		}
 	};
 
 	if (!IsInteractiveToolActive())

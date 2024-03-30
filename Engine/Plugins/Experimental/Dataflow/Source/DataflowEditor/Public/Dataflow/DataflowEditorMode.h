@@ -16,7 +16,7 @@ class IDataflowEditorToolBuilder;
 struct FManagedArrayCollection;
 class UEdGraphNode;
 class FViewport;
-
+class UDataflowEditor;
 
 /**
  * The dataflow editor mode is the mode used in the cloth asset editor. It holds most of the inter-tool state.
@@ -33,6 +33,9 @@ public:
 	const static FEditorModeID EM_DataflowEditorModeId;
 
 	UDataflowEditorMode();
+
+	void SetDataflowEditor(UDataflowEditor* InDataflowEditor);
+	TWeakPtr<FDataflowConstructionViewportClient, ESPMode::ThreadSafe> GetConstructionViewportClient() { return ConstructionViewportClient; }
 
 	/**
 	* Gets the scene bounding box
@@ -197,6 +200,7 @@ private:
 	// Dataflow node type whose corresponding tool should be started on the next Tick
 	FName NodeTypeForPendingToolStart;
 
+	UDataflowEditor* DataflowEditor = nullptr;
 
 };
 

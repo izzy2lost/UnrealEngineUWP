@@ -113,6 +113,37 @@ FDataflowConstructionScene::~FDataflowConstructionScene()
 	ResetDynamicMeshComponents();
 }
 
+/** Hide all or a single component */
+void FDataflowConstructionScene::SetVisibility(bool bVisibility, UActorComponent* InComponent)
+{
+	auto SetCollectionVisiblity = [](bool bVisibility,TObjectPtr<UDataflowEditorCollectionComponent> Component) {
+		Component->SetVisibility(bVisibility);
+		if (Component->WireframeComponent)
+		{
+			Component->WireframeComponent->SetVisibility(bVisibility);
+		}
+	};
+
+	for (FRenderElement& RenderElement : DynamicMeshComponents)
+	{
+		if (TObjectPtr<UDataflowEditorCollectionComponent> DynamicMeshComponent = Cast<UDataflowEditorCollectionComponent>(RenderElement.Value))
+		{
+			if (InComponent != nullptr)
+			{
+				if (InComponent == DynamicMeshComponent.Get())
+				{
+					SetCollectionVisiblity(bVisibility,DynamicMeshComponent);
+				}
+			}
+			else
+			{
+				SetCollectionVisiblity(bVisibility,DynamicMeshComponent);
+			}
+		}
+	}
+}
+
+
 void FDataflowConstructionScene::AddReferencedObjects(FReferenceCollector& Collector)
 {
 	FDataflowPreviewScene::AddReferencedObjects(Collector);
@@ -277,37 +308,39 @@ void FDataflowConstructionScene::AddWireframeMeshElementsVisualizer()
 	ensure(WireframeElements.Num()==0);
 	for(FRenderElement Elem : DynamicMeshComponents)
 	{
-		TObjectPtr<UDynamicMeshComponent> DynamicMeshComponent = Elem.Value;
-
-		// Set up the wireframe display of the rest space mesh.
-
-		TObjectPtr<UMeshElementsVisualizer> WireframeDraw = NewObject<UMeshElementsVisualizer>(RootSceneActor);
-		WireframeElements.Add(DynamicMeshComponent, WireframeDraw);
-
-		WireframeDraw->CreateInWorld(GetWorld(), FTransform::Identity);
-		WireframeDraw->Settings->DepthBias = 2.0;
-		WireframeDraw->Settings->bAdjustDepthBiasUsingMeshSize = false;
-		WireframeDraw->Settings->bShowWireframe = true;
-		WireframeDraw->Settings->bShowBorders = true;
-		WireframeDraw->Settings->bShowUVSeams = false;
-		WireframeDraw->WireframeComponent->BoundaryEdgeThickness = 2;
-
-		WireframeDraw->SetMeshAccessFunction([DynamicMeshComponent](UMeshElementsVisualizer::ProcessDynamicMeshFunc ProcessFunc)
+		if( TObjectPtr<UDataflowEditorCollectionComponent> DynamicMeshComponent = Cast<UDataflowEditorCollectionComponent>(Elem.Value) )
 		{
-			ProcessFunc(*DynamicMeshComponent->GetMesh());
-		});
+			// Set up the wireframe display of the rest space mesh.
 
-		for (FRenderElement RenderElement : DynamicMeshComponents)
-		{
-			RenderElement.Value->OnMeshChanged.Add(FSimpleMulticastDelegate::FDelegate::CreateLambda([WireframeDraw,this]()
+			TObjectPtr<UMeshElementsVisualizer> WireframeDraw = NewObject<UMeshElementsVisualizer>(RootSceneActor);
+			WireframeElements.Add(DynamicMeshComponent, WireframeDraw);
+
+			WireframeDraw->CreateInWorld(GetWorld(), FTransform::Identity);
+			WireframeDraw->Settings->DepthBias = 2.0;
+			WireframeDraw->Settings->bAdjustDepthBiasUsingMeshSize = false;
+			WireframeDraw->Settings->bShowWireframe = true;
+			WireframeDraw->Settings->bShowBorders = true;
+			WireframeDraw->Settings->bShowUVSeams = false;
+			WireframeDraw->WireframeComponent->BoundaryEdgeThickness = 2;
+			DynamicMeshComponent->WireframeComponent = WireframeDraw->WireframeComponent;
+
+			WireframeDraw->SetMeshAccessFunction([DynamicMeshComponent](UMeshElementsVisualizer::ProcessDynamicMeshFunc ProcessFunc)
+				{
+					ProcessFunc(*DynamicMeshComponent->GetMesh());
+				});
+
+			for (FRenderElement RenderElement : DynamicMeshComponents)
 			{
-				WireframeDraw->NotifyMeshChanged();
-			}));
+				RenderElement.Value->OnMeshChanged.Add(FSimpleMulticastDelegate::FDelegate::CreateLambda([WireframeDraw, this]()
+					{
+						WireframeDraw->NotifyMeshChanged();
+					}));
 
-			const bool bRestSpaceMeshVisible = RenderElement.Value->GetVisibleFlag();
-			WireframeDraw->Settings->bVisible = bRestSpaceMeshVisible && bConstructionViewWireframe;
+				const bool bRestSpaceMeshVisible = RenderElement.Value->GetVisibleFlag();
+				WireframeDraw->Settings->bVisible = bRestSpaceMeshVisible && bConstructionViewWireframe;
+			}
+			PropertyObjectsToTick.Add(WireframeDraw->Settings);
 		}
-		PropertyObjectsToTick.Add(WireframeDraw->Settings);
 	}
 }
 

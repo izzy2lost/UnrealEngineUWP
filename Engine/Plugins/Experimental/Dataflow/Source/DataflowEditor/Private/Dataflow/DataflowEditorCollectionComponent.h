@@ -8,7 +8,7 @@
 #include "DataflowEditorCollectionComponent.generated.h"
 
 class UDataflowEdNode;
-
+class UMeshWireframeComponent;
 /**
 *	FleshComponent
 */
@@ -23,5 +23,9 @@ public:
 
 	UPROPERTY()
 	TObjectPtr<const UDataflowEdNode> Node = nullptr;
+
+	UPROPERTY()
+	TObjectPtr<UMeshWireframeComponent> WireframeComponent = nullptr;
+
 
 };

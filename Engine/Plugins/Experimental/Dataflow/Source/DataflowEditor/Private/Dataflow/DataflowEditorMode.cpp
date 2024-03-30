@@ -75,6 +75,11 @@ void UDataflowEditorMode::Enter()
 	UE::TransformGizmoUtil::RegisterTransformGizmoContextObject(GetInteractiveToolsContext());
 }
 
+void UDataflowEditorMode::SetDataflowEditor(UDataflowEditor* InDataflowEditor) 
+{ 
+	DataflowEditor = InDataflowEditor; 
+}
+
 void UDataflowEditorMode::AddToolTargetFactories()
 {
 	GetInteractiveToolsContext()->TargetManager->AddTargetFactory(NewObject<UDynamicMeshComponentToolTargetFactory>(GetToolManager()));
@@ -195,15 +200,10 @@ void UDataflowEditorMode::RegisterTools()
 
 	UEditorInteractiveToolsContext* const ConstructionViewportToolsContext = GetInteractiveToolsContext();
 
-	UDataflowEditorWeightMapPaintToolBuilder* WeightMapPaintToolBuilder = NewObject<UDataflowEditorWeightMapPaintToolBuilder>();
+	UDataflowEditorWeightMapPaintToolBuilder* WeightMapPaintToolBuilder = NewObject<UDataflowEditorWeightMapPaintToolBuilder>(this);
+	WeightMapPaintToolBuilder->SetEditorMode(this);
 	RegisterDataflowTool(CommandInfos.BeginWeightMapPaintTool, FDataflowEditorCommandsImpl::BeginWeightMapPaintToolIdentifier, WeightMapPaintToolBuilder, WeightMapPaintToolBuilder, ConstructionViewportToolsContext);
 	RegisterAddNodeCommand(CommandInfos.AddWeightMapNode, FDataflowCollectionAddScalarVertexPropertyNode::StaticType(), CommandInfos.BeginWeightMapPaintTool);
-
-	// @todo(brice) Remove Example Tools
-	//RegisterTool(CommandInfos.BeginAttributeEditorTool, FDataflowEditorCommandsImpl::BeginAttributeEditorToolIdentifier, NewObject<UAttributeEditorToolBuilder>());
-	//RegisterTool(CommandInfos.BeginMeshSelectionTool, FDataflowEditorCommandsImpl::BeginMeshSelectionToolIdentifier, NewObject<UMeshSelectionToolBuilder>());
-	//RegisterTool(CommandInfos.BeginMeshSelectionTool, FDataflowEditorCommandsImpl::BeginMeshSelectionToolIdentifier, NewObject<UMeshVertexPaintToolBuilder>());
-	//RegisterTool(CommandInfos.BeginMeshSelectionTool, FDataflowEditorCommandsImpl::BeginMeshSelectionToolIdentifier, NewObject<UMeshAttributePaintToolBuilder>());
 }
 
 bool UDataflowEditorMode::ShouldToolStartBeAllowed(const FString& ToolIdentifier) const

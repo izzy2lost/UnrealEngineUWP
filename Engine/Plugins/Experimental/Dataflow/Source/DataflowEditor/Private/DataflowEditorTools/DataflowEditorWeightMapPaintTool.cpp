@@ -11,11 +11,14 @@
 #include "Changes/BasicChanges.h"
 #include "ContextObjectStore.h"
 #include "DataflowEditorTools/DataflowEditorWeightMapPaintBrushOps.h"
+#include "Dataflow/DataflowCollectionAddScalarVertexPropertyNode.h"
+#include "Dataflow/DataflowConstructionViewportClient.h"
 #include "Dataflow/DataflowContent.h"
 #include "Dataflow/DataflowEdNode.h"
 #include "Dataflow/DataflowEditorCollectionComponent.h"
+#include "Dataflow/DataflowEditorMode.h"
+#include "Dataflow/DataflowEditorScenes.h"
 #include "Dataflow/DataflowObject.h"
-#include "Dataflow/DataflowCollectionAddScalarVertexPropertyNode.h"
 #include "Dataflow/DataflowSNode.h"
 #include "Dataflow/DataflowGraphEditor.h"
 #include "Drawing/MeshElementsVisualizer.h"
@@ -35,6 +38,7 @@
 #include "Polygon2.h"
 #include "Sculpting/StampFalloffs.h"
 #include "Sculpting/MeshSculptUtil.h"
+#include "Selection.h"
 #include "Selections/MeshConnectedComponents.h"
 #include "Selections/MeshFaceSelection.h"
 #include "Selections/MeshVertexSelection.h"
@@ -63,7 +67,6 @@ namespace Dataflow::Private
 /*
  * ToolBuilder
  */
-
 void UDataflowEditorWeightMapPaintToolBuilder::GetSupportedViewModes(TArray<Dataflow::EDataflowPatternVertexType>& Modes) const
 {
 	Modes.Add(Dataflow::EDataflowPatternVertexType::Sim3D);
@@ -122,6 +125,7 @@ bool UDataflowEditorWeightMapPaintToolBuilder::CanBuildTool(const FToolBuilderSt
 UMeshSurfacePointTool* UDataflowEditorWeightMapPaintToolBuilder::CreateNewTool(const FToolBuilderState& SceneState) const
 {
 	UDataflowEditorWeightMapPaintTool* PaintTool = NewObject<UDataflowEditorWeightMapPaintTool>(SceneState.ToolManager);
+	PaintTool->SetEditorMode(Mode);
 	PaintTool->SetWorld(SceneState.World);
 
 	if (UDataflowContextObject* ContextObject = SceneState.ToolManager->GetContextObjectStore()->FindContext<UDataflowContextObject>())
@@ -165,6 +169,26 @@ void UDataflowEditorUpdateWeightMapProperties::PostEditChangeProperty(FPropertyC
 void UDataflowEditorWeightMapPaintTool::Setup()
 {
 	UMeshSculptToolBase::Setup();
+
+	auto IsolateComponent = [&](UDataflowEditorCollectionComponent* SelectedComponent)
+	{
+		if (FDataflowConstructionScene* Scene = Mode->GetDataflowConstructionScene())
+		{
+			Scene->SetVisibility(false);
+			Scene->SetVisibility(true, SelectedComponent);
+		}
+	};
+	if (TSharedPtr<FDataflowConstructionViewportClient> VC = Mode->GetConstructionViewportClient().Pin())
+	{
+		if (USelection* SelectedComponents = VC->GetSelectedComponents())
+		{
+			if (UDataflowEditorCollectionComponent* DataflowComponent = SelectedComponents->GetBottom<UDataflowEditorCollectionComponent>())
+			{
+				IsolateComponent(DataflowComponent);
+			}
+		}
+	}
+
 
 	// Get the selected weight map node
 	WeightMapNodeToUpdate = DataflowEditorContextObject->GetPrimarySelectedNodeOfType<FDataflowCollectionAddScalarVertexPropertyNode>();

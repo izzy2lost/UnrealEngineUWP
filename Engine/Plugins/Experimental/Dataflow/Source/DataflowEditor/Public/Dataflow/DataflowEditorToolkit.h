@@ -25,6 +25,7 @@ class FDataflowConstructionScene;
 class FDataflowSimulationViewportClient;
 class UDataflowBaseContent;
 class FDataflowSimulationScene;
+class UDataflowEditor;
 
 namespace Dataflow
 {
@@ -72,6 +73,8 @@ public:
 	const TSharedPtr<FDataflowSimulationScene>& GetSimulationScene() const {return SimulationScene;}
 
 protected:
+
+	UDataflowEditor* DataflowEditor = nullptr;
 
 	// List of dataflow actions callbacks
 	void OnPropertyValueChanged(const FPropertyChangedEvent& PropertyChangedEvent);

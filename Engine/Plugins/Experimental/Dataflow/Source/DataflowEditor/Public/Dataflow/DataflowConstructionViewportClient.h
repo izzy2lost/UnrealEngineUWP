@@ -15,6 +15,7 @@ class UCombinedTransformGizmo;
 class FTransformGizmoDataBinder;
 class FDataflowPreviewScene;
 class UInputBehaviorSet;
+class USelection;
 
 class DATAFLOWEDITOR_API FDataflowConstructionViewportClient : public FEditorViewportClient //, public IInputBehaviorSource
 {
@@ -29,6 +30,7 @@ public:
 
 	// IInputBehaviorSource
 	// virtual const UInputBehaviorSet* GetInputBehaviors() const override;
+	USelection* GetSelectedComponents();
 
 	/** Set the data flow toolkit used to create the client*/
 	void SetDataflowEditorToolkit(TWeakPtr<FDataflowEditorToolkit> DataflowToolkit);
