@@ -2406,7 +2406,7 @@ TOptional<FMeshDescription> FWireTranslatorImpl::ImportMesh(AlMesh& InMesh, TSha
 	return MoveTemp(MeshDescription);
 }
 
-#define TRACK_MESH 1
+#define TRACK_MESH 0
 
 bool FWireTranslatorImpl::LoadStaticMesh(const TSharedRef<IDatasmithMeshElement> MeshElement, FDatasmithMeshElementPayload& OutMeshPayload, const FDatasmithTessellationOptions& InTessellationOptions)
 {
