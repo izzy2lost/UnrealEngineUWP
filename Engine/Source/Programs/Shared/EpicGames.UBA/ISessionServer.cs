@@ -54,6 +54,8 @@ namespace EpicGames.UBA
 		/// </summary>
 		public bool AllowKillOnMem { get; init; }
 
+		public bool StoreObjFilesCompressed { get; init; }
+
 		/// <summary>
 		/// Constructor
 		/// </summary>
@@ -66,7 +68,7 @@ namespace EpicGames.UBA
 		/// <param name="detailedTrace">More detailed trace information</param>
 		/// <param name="allowWaitOnMem">Wait for memory before starting new processes</param>
 		/// <param name="allowKillOnMem">Kill processes when close to run out of memory</param>
-		public SessionServerCreateInfo(string rootDirectory, string traceOutputFile, bool disableCustomAllocator, bool launchVisualizer, bool resetCas, bool writeToDisk, bool detailedTrace, bool allowWaitOnMem, bool allowKillOnMem)
+		public SessionServerCreateInfo(string rootDirectory, string traceOutputFile, bool disableCustomAllocator, bool launchVisualizer, bool resetCas, bool writeToDisk, bool detailedTrace, bool allowWaitOnMem, bool allowKillOnMem, bool storeObjFilesCompressed)
 		{
 			RootDirectory = rootDirectory;
 			TraceOutputFile = traceOutputFile;
@@ -77,6 +79,7 @@ namespace EpicGames.UBA
 			DetailedTrace = detailedTrace;
 			AllowWaitOnMem = allowWaitOnMem;
 			AllowKillOnMem = allowKillOnMem;
+			StoreObjFilesCompressed = storeObjFilesCompressed;
 		}
 	}
 

@@ -159,6 +159,13 @@ namespace UnrealBuildTool
 		public bool bAllowKillOnMem { get; set; }
 
 		/// <summary>
+		/// Store object (.obj) compressed on disk. Requires uba to do link step where it will decompress obj files again
+		/// </summary>
+		[XmlConfigFile(Category = "UnrealBuildAccelerator")]
+		[CommandLine("-UBAStoreObjFilesCompressed", Value = "true")]
+		public bool bStoreObjFilesCompressed { get; set; }
+		
+		/// <summary>
 		/// Threshold for when executor should output logging for the process. Defaults to never
 		/// </summary>
 		[XmlConfigFile(Category = "UnrealBuildAccelerator")]
