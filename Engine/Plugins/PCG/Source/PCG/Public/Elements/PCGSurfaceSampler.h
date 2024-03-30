@@ -74,8 +74,8 @@ namespace PCGSurfaceSampler
 	bool SampleSurface(FPCGContext* Context, const FSurfaceSamplerParams& Settings, const UPCGSpatialData* InSurface, const UPCGSpatialData* InBoundingShape, UPCGPointData* SampledData, const bool bTimeSlicingIsEnabled = false);
 }
 
-UCLASS(BlueprintType, ClassGroup = (Procedural))
-class PCG_API UPCGSurfaceSamplerSettings : public UPCGSettings
+UCLASS(MinimalAPI, BlueprintType, ClassGroup = (Procedural))
+class UPCGSurfaceSamplerSettings : public UPCGSettings
 {
 	GENERATED_BODY()
 

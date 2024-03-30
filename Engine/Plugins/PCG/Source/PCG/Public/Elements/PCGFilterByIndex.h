@@ -7,8 +7,8 @@
 #include "PCGFilterByIndex.generated.h"
 
 /** Filters a data collection based on a user defined index range expression. */
-UCLASS(BlueprintType, ClassGroup = (Procedural))
-class PCG_API UPCGFilterByIndexSettings : public UPCGFilterDataBaseSettings
+UCLASS(MinimalAPI, BlueprintType, ClassGroup = (Procedural))
+class UPCGFilterByIndexSettings : public UPCGFilterDataBaseSettings
 {
 	GENERATED_BODY()
 

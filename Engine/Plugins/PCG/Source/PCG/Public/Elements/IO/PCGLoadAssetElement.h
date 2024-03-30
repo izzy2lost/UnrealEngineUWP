@@ -34,7 +34,7 @@ public:
 	virtual FLinearColor GetNodeTitleColor() const override { return AssetColor; }
 	virtual EPCGSettingsType GetType() const override { return EPCGSettingsType::InputOutput; }
 	virtual void GetStaticTrackedKeys(FPCGSelectionKeyToSettingsMap& OutKeysToSettings, TArray<TObjectPtr<const UPCGGraph>>& OutVisitedGraphs) const override;
-	virtual bool CanDynamicalyTrackKeys() const override { return true; }
+	virtual bool CanDynamicallyTrackKeys() const override { return true; }
 #endif // WITH_EDITOR
 
 	virtual bool HasDynamicPins() const override { return true; }

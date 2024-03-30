@@ -7,8 +7,8 @@
 
 #include "PCGMetadataBreakTransform.generated.h"
 
-UCLASS(BlueprintType, ClassGroup = (Procedural))
-class PCG_API UPCGMetadataBreakTransformSettings : public UPCGMetadataSettingsBase
+UCLASS(MinimalAPI, BlueprintType, ClassGroup = (Procedural))
+class UPCGMetadataBreakTransformSettings : public UPCGMetadataSettingsBase
 {
 	GENERATED_BODY()
 

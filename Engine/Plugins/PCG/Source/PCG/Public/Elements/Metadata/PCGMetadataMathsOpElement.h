@@ -42,8 +42,8 @@ enum class EPCGMetadataMathsOperation : uint16
 };
 ENUM_CLASS_FLAGS(EPCGMetadataMathsOperation);
 
-UCLASS(BlueprintType, ClassGroup = (Procedural))
-class PCG_API UPCGMetadataMathsSettings : public UPCGMetadataSettingsBase
+UCLASS(MinimalAPI, BlueprintType, ClassGroup = (Procedural))
+class UPCGMetadataMathsSettings : public UPCGMetadataSettingsBase
 {
 	GENERATED_BODY()
 

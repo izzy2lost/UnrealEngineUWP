@@ -21,8 +21,8 @@ namespace PCGAttributeGetFromPointIndexConstants
 * 
 * The Index can be overridden by a second Params input.
 */
-UCLASS(BlueprintType, ClassGroup = (Procedural))
-class PCG_API UPCGAttributeGetFromPointIndexSettings : public UPCGSettings
+UCLASS(MinimalAPI, BlueprintType, ClassGroup = (Procedural))
+class UPCGAttributeGetFromPointIndexSettings : public UPCGSettings
 {
 	GENERATED_BODY()
 

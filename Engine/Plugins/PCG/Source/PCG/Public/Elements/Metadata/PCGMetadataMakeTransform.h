@@ -14,8 +14,8 @@ namespace PCGMetadataTransformConstants
 	const FName Scale = TEXT("Scale");
 }
 
-UCLASS(BlueprintType, ClassGroup = (Procedural))
-class PCG_API UPCGMetadataMakeTransformSettings : public UPCGMetadataSettingsBase
+UCLASS(MinimalAPI, BlueprintType, ClassGroup = (Procedural))
+class UPCGMetadataMakeTransformSettings : public UPCGMetadataSettingsBase
 {
 	GENERATED_BODY()
 

@@ -6,8 +6,8 @@
 
 #include "PCGInstanceDataPackerByRegex.generated.h"
 
-UCLASS(BlueprintType, ClassGroup = (Procedural))
-class PCG_API UPCGInstanceDataPackerByRegex : public UPCGInstanceDataPackerBase 
+UCLASS(MinimalAPI, BlueprintType, ClassGroup = (Procedural))
+class UPCGInstanceDataPackerByRegex : public UPCGInstanceDataPackerBase 
 {
 	GENERATED_BODY()
 

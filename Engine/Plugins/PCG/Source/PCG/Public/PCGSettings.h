@@ -300,7 +300,7 @@ public:
 	virtual void GetStaticTrackedKeys(FPCGSelectionKeyToSettingsMap& OutKeysToSettings, TArray<TObjectPtr<const UPCGGraph>>& OutVisitedGraphs) const {}
 
 	/** Derived classes must implement this to communicate that they might have dynamic dependencies. */
-	virtual bool CanDynamicalyTrackKeys() const { return false; }
+	virtual bool CanDynamicallyTrackKeys() const { return false; }
 
 	/** Override this class to provide an UObject to jump to in case of double click on node
 	 *  ie. returning a blueprint instance will open the given blueprint in its editor.
@@ -537,8 +537,8 @@ public:
 };
 
 /** Trivial / Pass-through settings used for input/output nodes */
-UCLASS(BlueprintType, ClassGroup = (Procedural))
-class PCG_API UPCGTrivialSettings : public UPCGSettings
+UCLASS(MinimalAPI, BlueprintType, ClassGroup = (Procedural))
+class UPCGTrivialSettings : public UPCGSettings
 {
 	GENERATED_BODY()
 	
@@ -550,7 +550,7 @@ protected:
 	virtual FPCGElementPtr CreateElement() const override;
 };
 
-class PCG_API FPCGTrivialElement : public IPCGElement
+class FPCGTrivialElement : public IPCGElement
 {
 protected:
 	virtual bool ExecuteInternal(FPCGContext* Context) const override;

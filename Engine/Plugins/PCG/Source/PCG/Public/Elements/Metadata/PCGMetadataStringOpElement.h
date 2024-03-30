@@ -12,8 +12,8 @@ enum class EPCGMetadataStringOperation : uint16
 	Append
 };
 
-UCLASS(BlueprintType, ClassGroup = (Procedural))
-class PCG_API UPCGMetadataStringOpSettings : public UPCGMetadataSettingsBase
+UCLASS(MinimalAPI, BlueprintType, ClassGroup = (Procedural))
+class UPCGMetadataStringOpSettings : public UPCGMetadataSettingsBase
 {
 	GENERATED_BODY()
 

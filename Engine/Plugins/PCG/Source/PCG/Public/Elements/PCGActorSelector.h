@@ -43,7 +43,7 @@ enum class EPCGActorFilter : uint8
 * Actors have more options for selection with Self/Parent/Root/Original and also EPCGActorSelection::ByTag
 */
 USTRUCT()
-struct FPCGSelectionKey
+struct PCG_API FPCGSelectionKey
 {
 	GENERATED_BODY()
 
@@ -87,11 +87,11 @@ struct FPCGSelectionKey
 	TObjectPtr<const UClass> OptionalExtraDependency = nullptr;
 };
 
-FArchive& operator<<(FArchive& Ar, FPCGSelectionKey& Key);
+PCG_API FArchive& operator<<(FArchive& Ar, FPCGSelectionKey& Key);
 
 /** Helper struct for organizing queries against the world to gather actors. */
 USTRUCT(BlueprintType)
-struct FPCGActorSelectorSettings
+struct PCG_API FPCGActorSelectorSettings
 {
 	GENERATED_BODY()
 
@@ -161,6 +161,6 @@ struct FPCGActorSelectorSettings
 
 namespace PCGActorSelector
 {
-	TArray<AActor*> FindActors(const FPCGActorSelectorSettings& Settings, const UPCGComponent* InComponent, const TFunction<bool(const AActor*)>& BoundsCheck, const TFunction<bool(const AActor*)>& SelfIgnoreCheck);
-	AActor* FindActor(const FPCGActorSelectorSettings& InSettings, UPCGComponent* InComponent, const TFunction<bool(const AActor*)>& BoundsCheck, const TFunction<bool(const AActor*)>& SelfIgnoreCheck);
+	PCG_API TArray<AActor*> FindActors(const FPCGActorSelectorSettings& Settings, const UPCGComponent* InComponent, const TFunction<bool(const AActor*)>& BoundsCheck, const TFunction<bool(const AActor*)>& SelfIgnoreCheck);
+	PCG_API AActor* FindActor(const FPCGActorSelectorSettings& InSettings, UPCGComponent* InComponent, const TFunction<bool(const AActor*)>& BoundsCheck, const TFunction<bool(const AActor*)>& SelfIgnoreCheck);
 }

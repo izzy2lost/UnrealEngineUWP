@@ -7,8 +7,8 @@
 
 #include "PCGUnionElement.generated.h"
 
-UCLASS(BlueprintType, ClassGroup = (Procedural))
-class PCG_API UPCGUnionSettings : public UPCGSettings
+UCLASS(MinimalAPI, BlueprintType, ClassGroup = (Procedural))
+class UPCGUnionSettings : public UPCGSettings
 {
 	GENERATED_BODY()
 

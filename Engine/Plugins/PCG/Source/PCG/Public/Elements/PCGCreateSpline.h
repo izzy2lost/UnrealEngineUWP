@@ -19,8 +19,8 @@ enum class EPCGCreateSplineMode : uint8
 };
 
 /** PCG node that creates a spline presentation from the input points data, with optional tangents */
-UCLASS(BlueprintType, ClassGroup = (Procedural))
-class PCG_API UPCGCreateSplineSettings : public UPCGSettings
+UCLASS(MinimalAPI, BlueprintType, ClassGroup = (Procedural))
+class UPCGCreateSplineSettings : public UPCGSettings
 {
 	GENERATED_BODY()
 

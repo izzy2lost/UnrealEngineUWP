@@ -15,8 +15,8 @@ enum class EPCGMetadataBooleanOperation : uint16
 	Xor
 };
 
-UCLASS(BlueprintType, ClassGroup = (Procedural))
-class PCG_API UPCGMetadataBooleanSettings : public UPCGMetadataSettingsBase
+UCLASS(MinimalAPI, BlueprintType, ClassGroup = (Procedural))
+class UPCGMetadataBooleanSettings : public UPCGMetadataSettingsBase
 {
 	GENERATED_BODY()
 

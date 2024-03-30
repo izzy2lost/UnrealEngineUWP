@@ -7,16 +7,8 @@
 
 #include "PCGMetadataElement.generated.h"
 
-UENUM()
-enum class UE_DEPRECATED(5.2, "Not used anymore") EPCGMetadataOperationTarget : uint8
-{
-	PropertyToAttribute,
-	AttributeToProperty,
-	AttributeToAttribute,
-};
-
-UCLASS(BlueprintType, ClassGroup = (Procedural))
-class PCG_API UPCGMetadataOperationSettings : public UPCGSettings
+UCLASS(MinimalAPI, BlueprintType, ClassGroup = (Procedural))
+class UPCGMetadataOperationSettings : public UPCGSettings
 {
 	GENERATED_BODY()
 
@@ -56,22 +48,6 @@ public:
 
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings, meta = (PCG_Overridable))
 	bool bCopyAllAttributes = false;
-
-#if WITH_EDITORONLY_DATA
-	UPROPERTY()
-	FName SourceAttribute_DEPRECATED = NAME_None;
-
-	UPROPERTY()
-	EPCGPointProperties PointProperty_DEPRECATED = EPCGPointProperties::Density;
-
-	UPROPERTY()
-	FName DestinationAttribute_DEPRECATED = NAME_None;
-
-PRAGMA_DISABLE_DEPRECATION_WARNINGS
-	UPROPERTY()
-	EPCGMetadataOperationTarget Target_DEPRECATED = EPCGMetadataOperationTarget::PropertyToAttribute;
-PRAGMA_ENABLE_DEPRECATION_WARNINGS
-#endif // WITH_EDITORONLY_DATA
 };
 
 class FPCGMetadataOperationElement : public IPCGElement

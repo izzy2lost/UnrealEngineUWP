@@ -16,8 +16,8 @@ namespace PCGIntersectionConstants
 		"Empty data passed along on one of the secondary pins will result in an empty intersection output, unless the 'Ignore Empty Secondary Input' flag is enabled.");
 }
 
-UCLASS(BlueprintType, ClassGroup = (Procedural))
-class PCG_API UPCGOuterIntersectionSettings : public UPCGSettingsWithDynamicInputs
+UCLASS(MinimalAPI, BlueprintType, ClassGroup = (Procedural))
+class UPCGOuterIntersectionSettings : public UPCGSettingsWithDynamicInputs
 {
 	GENERATED_BODY()
 

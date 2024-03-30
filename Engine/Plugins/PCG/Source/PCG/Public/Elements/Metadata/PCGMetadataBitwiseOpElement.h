@@ -15,8 +15,8 @@ enum class EPCGMetadataBitwiseOperation : uint16
 	Xor
 };
 
-UCLASS(BlueprintType, ClassGroup = (Procedural))
-class PCG_API UPCGMetadataBitwiseSettings : public UPCGMetadataSettingsBase
+UCLASS(MinimalAPI, BlueprintType, ClassGroup = (Procedural))
+class UPCGMetadataBitwiseSettings : public UPCGMetadataSettingsBase
 {
 	GENERATED_BODY()
 

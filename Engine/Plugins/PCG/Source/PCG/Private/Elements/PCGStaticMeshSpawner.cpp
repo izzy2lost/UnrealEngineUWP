@@ -481,26 +481,6 @@ void UPCGStaticMeshSpawnerSettings::PostLoad()
 {
 	Super::PostLoad();
 
-#if WITH_EDITOR
-	if (Meshes_DEPRECATED.Num() != 0)
-	{
-		SetMeshSelectorType(UPCGMeshSelectorWeighted::StaticClass());
-
-		UPCGMeshSelectorWeighted* MeshSelector = CastChecked<UPCGMeshSelectorWeighted>(MeshSelectorParameters);
-
-		for (const FPCGStaticMeshSpawnerEntry& Entry : Meshes_DEPRECATED)
-		{
-			FPCGMeshSelectorWeightedEntry& NewEntry = MeshSelector->MeshEntries.Emplace_GetRef(Entry.Mesh, Entry.Weight);
-			if (Entry.bOverrideCollisionProfile)
-			{
-				NewEntry.Descriptor.BodyInstance.SetCollisionProfileName(Entry.CollisionProfile.Name);
-			}
-		}
-
-		Meshes_DEPRECATED.Reset();
-	}
-#endif
-
 	const EObjectFlags Flags = GetMaskedFlags(RF_PropagateToSubObjects) | RF_Transactional;
 	
 	if (!MeshSelectorParameters)

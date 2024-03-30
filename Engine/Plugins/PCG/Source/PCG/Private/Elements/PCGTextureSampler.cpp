@@ -247,6 +247,15 @@ FPCGContext* FPCGTextureSamplerElement::CreateContext()
 	return new FPCGTextureSamplerContext();
 }
 
+void UPCGTextureSamplerSettings::SetTexture(TSoftObjectPtr<UTexture> InTexture)
+{
+	Texture = InTexture;
+
+#if WITH_EDITOR
+	UpdateDisplayTextureArrayIndex();
+#endif // WITH_EDITOR
+}
+
 void FPCGTextureSamplerElement::GetDependenciesCrc(const FPCGDataCollection& InInput, const UPCGSettings* InSettings, UPCGComponent* InComponent, FPCGCrc& OutCrc) const
 {
 	FPCGCrc Crc;

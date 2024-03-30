@@ -14,7 +14,7 @@ class ULandscapeInfo;
 class UPCGLandscapeCache;
 
 USTRUCT(BlueprintType)
-struct PCG_API FPCGLandscapeDataProps
+struct FPCGLandscapeDataProps
 {
 	GENERATED_BODY()
 

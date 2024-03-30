@@ -14,8 +14,8 @@ namespace PCGNamedRerouteConstants
 	const FName InvisiblePinLabel = TEXT("InvisiblePin");
 }
 
-UCLASS(BlueprintType, ClassGroup = (Procedural))
-class PCG_API UPCGRerouteSettings : public UPCGSettings
+UCLASS(MinimalAPI, BlueprintType, ClassGroup = (Procedural))
+class UPCGRerouteSettings : public UPCGSettings
 {
 	GENERATED_BODY()
 
@@ -44,14 +44,14 @@ protected:
 };
 
 /** Base class for both reroute declaration and usage to share implementation, but also because they use the same visual node representation in the editor. */
-UCLASS(ClassGroup = (Procedural))
-class PCG_API UPCGNamedRerouteBaseSettings : public UPCGRerouteSettings
+UCLASS(MinimalAPI, ClassGroup = (Procedural))
+class UPCGNamedRerouteBaseSettings : public UPCGRerouteSettings
 {
 	GENERATED_BODY()
 };
 
-UCLASS(BlueprintType, ClassGroup = (Procedural))
-class PCG_API UPCGNamedRerouteDeclarationSettings : public UPCGNamedRerouteBaseSettings
+UCLASS(MinimalAPI, BlueprintType, ClassGroup = (Procedural))
+class UPCGNamedRerouteDeclarationSettings : public UPCGNamedRerouteBaseSettings
 {
 	GENERATED_BODY()
 
@@ -71,8 +71,8 @@ public:
 #endif
 };
 
-UCLASS(BlueprintType, ClassGroup = (Procedural))
-class PCG_API UPCGNamedRerouteUsageSettings : public UPCGNamedRerouteBaseSettings
+UCLASS(MinimalAPI, BlueprintType, ClassGroup = (Procedural))
+class UPCGNamedRerouteUsageSettings : public UPCGNamedRerouteBaseSettings
 {
 	GENERATED_BODY()
 
@@ -96,7 +96,7 @@ public:
 	TObjectPtr<const UPCGNamedRerouteDeclarationSettings> Declaration;
 };
 
-class PCG_API FPCGRerouteElement : public IPCGElement
+class FPCGRerouteElement : public IPCGElement
 {
 protected:
 	virtual bool ExecuteInternal(FPCGContext* Context) const override;

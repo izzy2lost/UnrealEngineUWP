@@ -6,8 +6,8 @@
 
 #include "PCGMetadataRenameElement.generated.h"
 
-UCLASS(BlueprintType, ClassGroup = (Procedural))
-class PCG_API UPCGMetadataRenameSettings : public UPCGSettings
+UCLASS(MinimalAPI, BlueprintType, ClassGroup = (Procedural))
+class UPCGMetadataRenameSettings : public UPCGSettings
 {
 	GENERATED_BODY()
 

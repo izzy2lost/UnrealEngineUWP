@@ -7,8 +7,8 @@
 
 #include "PCGWorldQuery.generated.h"
 
-UCLASS(BlueprintType, ClassGroup = (Procedural))
-class PCG_API UPCGWorldQuerySettings : public UPCGSettings
+UCLASS(MinimalAPI, BlueprintType, ClassGroup = (Procedural))
+class UPCGWorldQuerySettings : public UPCGSettings
 {
 	GENERATED_BODY()
 
@@ -41,8 +41,8 @@ protected:
 	virtual bool ExecuteInternal(FPCGContext* Context) const override;
 };
 
-UCLASS(BlueprintType, ClassGroup = (Procedural))
-class PCG_API UPCGWorldRayHitSettings : public UPCGSettings
+UCLASS(MinimalAPI, BlueprintType, ClassGroup = (Procedural))
+class UPCGWorldRayHitSettings : public UPCGSettings
 {
 	GENERATED_BODY()
 

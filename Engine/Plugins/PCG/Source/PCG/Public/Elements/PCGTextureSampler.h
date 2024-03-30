@@ -11,8 +11,8 @@
 
 class UTexture;
 
-UCLASS(BlueprintType, ClassGroup = (Procedural))
-class PCG_API UPCGTextureSamplerSettings : public UPCGSettings
+UCLASS(MinimalAPI, BlueprintType, ClassGroup = (Procedural))
+class UPCGTextureSamplerSettings : public UPCGSettings
 {
 	GENERATED_BODY()
 
@@ -31,7 +31,7 @@ public:
 	virtual FText GetNodeTooltipText() const override;
 	virtual EPCGSettingsType GetType() const override { return EPCGSettingsType::Spatial; }
 	virtual void GetStaticTrackedKeys(FPCGSelectionKeyToSettingsMap& OutKeysToSettings, TArray<TObjectPtr<const UPCGGraph>>& OutVisitedGraphs) const override;
-	virtual bool CanDynamicalyTrackKeys() const override { return true; }
+	virtual bool CanDynamicallyTrackKeys() const override { return true; }
 #endif
 
 protected:
@@ -45,16 +45,15 @@ protected:
 #endif
 
 public:
+	PCG_API void SetTexture(TSoftObjectPtr<UTexture> InTexture);
+	TSoftObjectPtr<UTexture> GetTexture() const { return Texture; }
+
 	/** Surface transform */
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings, meta = (PCG_Overridable))
 	FTransform Transform = FTransform::Identity;
 
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings, meta = (PCG_Overridable))
 	bool bUseAbsoluteTransform = false;
-
-	/** Texture specific parameters */
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings, meta = (PCG_Overridable))
-	TSoftObjectPtr<UTexture> Texture = nullptr;
 
 	/** Index of texture array slice. Only used when built with editor and if the type of Texture is UTexture2DArray. */
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings, meta = (EditCondition = bDisplayTextureArrayIndex, EditConditionHides, HideEditConditionToggle, ClampMin = '0', PCG_Overridable))
@@ -111,14 +110,20 @@ public:
 	bool bSynchronousLoad = false;
 
 protected:
+	/** Texture specific parameters */
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings, meta = (PCG_Overridable))
+	TSoftObjectPtr<UTexture> Texture = nullptr;
+
 #if WITH_EDITORONLY_DATA
 	// Used to hide the 'TextureArrayIndex' property.
 	UPROPERTY(Transient)
 	bool bDisplayTextureArrayIndex = false;
 #endif
+
+	friend class FPCGTextureSamplerElement;
 };
 
-struct PCG_API FPCGTextureSamplerContext : public FPCGContext, public IPCGAsyncLoadingContext
+struct FPCGTextureSamplerContext : public FPCGContext, public IPCGAsyncLoadingContext
 {
 	bool bTextureReadbackDone = false;
 };

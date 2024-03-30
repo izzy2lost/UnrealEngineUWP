@@ -96,40 +96,6 @@ TArray<FPCGPinProperties> UPCGMetadataOperationSettings::InputPinProperties() co
 void UPCGMetadataOperationSettings::PostLoad()
 {
 	Super::PostLoad();
-
-#if WITH_EDITOR
-PRAGMA_DISABLE_DEPRECATION_WARNINGS
-	if (Target_DEPRECATED != EPCGMetadataOperationTarget::PropertyToAttribute
-		|| (SourceAttribute_DEPRECATED != NAME_None)
-		|| (DestinationAttribute_DEPRECATED != NAME_None)
-		|| (PointProperty_DEPRECATED != EPCGPointProperties::Density))
-	{
-		switch (Target_DEPRECATED)
-		{
-		case EPCGMetadataOperationTarget::PropertyToAttribute:
-			InputSource.SetPointProperty(PointProperty_DEPRECATED);
-			OutputTarget.SetAttributeName(DestinationAttribute_DEPRECATED);
-			break;
-		case EPCGMetadataOperationTarget::AttributeToProperty:
-			InputSource.SetAttributeName(SourceAttribute_DEPRECATED);
-			OutputTarget.SetPointProperty(PointProperty_DEPRECATED);
-			break;
-		case EPCGMetadataOperationTarget::AttributeToAttribute:
-			InputSource.SetAttributeName(SourceAttribute_DEPRECATED);
-			OutputTarget.SetAttributeName(DestinationAttribute_DEPRECATED);
-			break;
-		default:
-			break;
-		}
-
-		// Default values.
-		SourceAttribute_DEPRECATED = NAME_None;
-		DestinationAttribute_DEPRECATED = NAME_None;
-		Target_DEPRECATED = EPCGMetadataOperationTarget::PropertyToAttribute;
-		PointProperty_DEPRECATED = EPCGPointProperties::Density;
-	}
-PRAGMA_ENABLE_DEPRECATION_WARNINGS
-#endif // WITH_EDITOR
 }
 
 bool FPCGMetadataOperationElement::ExecuteInternal(FPCGContext* Context) const

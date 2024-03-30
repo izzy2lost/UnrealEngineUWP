@@ -14,8 +14,8 @@ enum class EPCGFilterByTagOperation
 };
 
 /** Filters a data collection based on some tag criterion */
-UCLASS(BlueprintType, ClassGroup = (Procedural))
-class PCG_API UPCGFilterByTagSettings : public UPCGFilterDataBaseSettings
+UCLASS(MinimalAPI, BlueprintType, ClassGroup = (Procedural))
+class UPCGFilterByTagSettings : public UPCGFilterDataBaseSettings
 {
 	GENERATED_BODY()
 

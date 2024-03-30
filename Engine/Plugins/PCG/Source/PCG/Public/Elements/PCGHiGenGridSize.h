@@ -9,8 +9,8 @@
 /**
  * Set the execution grid size for downstream nodes. Enables executing a single graph across a hierarchy of grids.
  */
-UCLASS(BlueprintType, ClassGroup = (Procedural))
-class PCG_API UPCGHiGenGridSizeSettings : public UPCGSettings
+UCLASS(MinimalAPI, BlueprintType, ClassGroup = (Procedural))
+class UPCGHiGenGridSizeSettings : public UPCGSettings
 {
 	GENERATED_BODY()
 
@@ -29,6 +29,8 @@ public:
 	virtual FString GetAdditionalTitleInformation() const override;
 	virtual EPCGDataType GetCurrentPinTypes(const UPCGPin* InPin) const override;
 
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings, meta = (DisplayName = "HiGen Grid Size"))
+	EPCGHiGenGrid HiGenGridSize = EPCGHiGenGrid::Grid256;
 protected:
 #if WITH_EDITOR
 	virtual EPCGChangeType GetChangeTypeForProperty(const FName& InPropertyName) const override;
@@ -37,9 +39,6 @@ protected:
 	virtual TArray<FPCGPinProperties> OutputPinProperties() const override;
 	virtual FPCGElementPtr CreateElement() const override;
 	//~End UPCGSettings interface
-
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings, meta = (DisplayName = "HiGen Grid Size"))
-	EPCGHiGenGrid HiGenGridSize = EPCGHiGenGrid::Grid256;
 };
 
 class FPCGHiGenGridSizeElement : public IPCGElement

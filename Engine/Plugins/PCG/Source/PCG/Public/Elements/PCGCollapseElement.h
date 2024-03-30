@@ -7,8 +7,8 @@
 #include "PCGCollapseElement.generated.h"
 
 /** Convert input to point data, performing sampling with default settings if necessary */
-UCLASS(BlueprintType, ClassGroup = (Procedural))
-class PCG_API UPCGCollapseSettings : public UPCGSettings
+UCLASS(MinimalAPI, BlueprintType, ClassGroup = (Procedural))
+class UPCGCollapseSettings : public UPCGSettings
 {
 	GENERATED_BODY()
 
@@ -31,8 +31,8 @@ protected:
 };
 
 /** Converts attribute sets to point data */
-UCLASS(BlueprintType, ClassGroup = (Procedural))
-class PCG_API UPCGConvertToPointDataSettings : public UPCGCollapseSettings
+UCLASS(MinimalAPI, BlueprintType, ClassGroup = (Procedural))
+class UPCGConvertToPointDataSettings : public UPCGCollapseSettings
 {
 	GENERATED_BODY()
 

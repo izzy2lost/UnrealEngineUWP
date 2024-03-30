@@ -20,26 +20,8 @@ struct FPCGStaticMeshSpawnerContext;
 
 class UStaticMesh;
 
-USTRUCT(BlueprintType, meta=(Deprecated = "5.0", DeprecationMessage="Use MeshSelectorWeighted instead."))
-struct PCG_API FPCGStaticMeshSpawnerEntry
-{
-	GENERATED_BODY()
-
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings, meta = (ClampMin = "0"))
-	int Weight = 1;
-
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings)
-	TSoftObjectPtr<UStaticMesh> Mesh;
-
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings)
-	bool bOverrideCollisionProfile = false;
-
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings)
-	FCollisionProfileName CollisionProfile;
-};
-
-UCLASS(BlueprintType, ClassGroup = (Procedural), meta = (PrioritizeCategories = "Settings"))
-class PCG_API UPCGStaticMeshSpawnerSettings : public UPCGSettings
+UCLASS(MinimalAPI, BlueprintType, ClassGroup = (Procedural), meta = (PrioritizeCategories = "Settings"))
+class UPCGStaticMeshSpawnerSettings : public UPCGSettings
 {
 	GENERATED_BODY()
 
@@ -71,10 +53,10 @@ public:
 #endif
 
 	UFUNCTION(BlueprintCallable, Category = Settings)
-	void SetMeshSelectorType(TSubclassOf<UPCGMeshSelectorBase> InMeshSelectorType);
+	PCG_API void SetMeshSelectorType(TSubclassOf<UPCGMeshSelectorBase> InMeshSelectorType);
 
 	UFUNCTION(BlueprintCallable, Category = Settings)
-	void SetInstancePackerType(TSubclassOf<UPCGInstanceDataPackerBase> InInstancePackerType);
+	PCG_API void SetInstancePackerType(TSubclassOf<UPCGInstanceDataPackerBase> InInstancePackerType);
 
 public:
 	/** Defines the method of mesh selection per input data */
@@ -112,9 +94,6 @@ public:
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings)
 	TArray<FName> PostProcessFunctionNames;
 
-	UPROPERTY(meta=(DeprecatedProperty, DeprecationMessage="Use MeshSelectorType and MeshSelectorParameters instead."))
-	TArray<FPCGStaticMeshSpawnerEntry> Meshes_DEPRECATED;
-
 	/** Meshes/Materials will be synchronously loaded before spawning instead of asynchronously. */
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Settings|Debug")
 	bool bSynchronousLoad = false;
@@ -141,10 +120,3 @@ protected:
 	virtual void AbortInternal(FPCGContext* Context) const override;
 	void SpawnStaticMeshInstances(FPCGStaticMeshSpawnerContext* Context, const FPCGMeshInstanceList& InstanceList, AActor* TargetActor, const FPCGPackedCustomData& PackedCustomData) const;
 };
-
-
-#if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_2
-#include "CoreMinimal.h"
-#include "InstanceDataPackers/PCGInstanceDataPackerBase.h"
-#include "MeshSelectors/PCGMeshSelectorBase.h"
-#endif

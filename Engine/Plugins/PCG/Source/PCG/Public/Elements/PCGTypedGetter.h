@@ -8,8 +8,8 @@
 #include "PCGTypedGetter.generated.h"
 
 /** Builds a collection of landscape data from the selected actors. */
-UCLASS(BlueprintType, ClassGroup = (Procedural))
-class PCG_API UPCGGetLandscapeSettings : public UPCGDataFromActorSettings
+UCLASS(MinimalAPI, BlueprintType, ClassGroup = (Procedural))
+class UPCGGetLandscapeSettings : public UPCGDataFromActorSettings
 {
 	GENERATED_BODY()
 
@@ -87,8 +87,8 @@ public:
 };
 
 /** Builds a collection of volume data from the selected actors. */
-UCLASS(BlueprintType, ClassGroup = (Procedural))
-class PCG_API UPCGGetVolumeSettings : public UPCGDataFromActorSettings
+UCLASS(MinimalAPI, BlueprintType, ClassGroup = (Procedural))
+class UPCGGetVolumeSettings : public UPCGDataFromActorSettings
 {
 	GENERATED_BODY()
 
@@ -113,8 +113,8 @@ public:
 };
 
 /** Builds a collection of primitive data from primitive components on the selected actors. */
-UCLASS(BlueprintType, ClassGroup = (Procedural))
-class PCG_API UPCGGetPrimitiveSettings : public UPCGDataFromActorSettings
+UCLASS(MinimalAPI, BlueprintType, ClassGroup = (Procedural))
+class UPCGGetPrimitiveSettings : public UPCGDataFromActorSettings
 {
 	GENERATED_BODY()
 
@@ -144,8 +144,8 @@ public:
  *
  * Note: a component cannot get component data from itself or other components in its execution context, as it could create a circular dependency.
  */
-UCLASS(BlueprintType, ClassGroup = (Procedural))
-class PCG_API UPCGGetPCGComponentSettings : public UPCGDataFromActorSettings
+UCLASS(MinimalAPI, BlueprintType, ClassGroup = (Procedural))
+class UPCGGetPCGComponentSettings : public UPCGDataFromActorSettings
 {
 	GENERATED_BODY()
 

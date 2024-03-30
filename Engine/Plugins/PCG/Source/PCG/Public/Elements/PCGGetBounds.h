@@ -9,8 +9,8 @@
 /**
  * Computes the bounds of the inputs as attributes.
  */
-UCLASS(BlueprintType, ClassGroup = (Procedural))
-class PCG_API UPCGGetBoundsSettings : public UPCGSettings
+UCLASS(MinimalAPI, BlueprintType, ClassGroup = (Procedural))
+class UPCGGetBoundsSettings : public UPCGSettings
 {
 	GENERATED_BODY()
 

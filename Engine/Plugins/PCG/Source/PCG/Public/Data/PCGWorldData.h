@@ -81,13 +81,13 @@ struct FPCGWorldVolumetricQueryParams : public FPCGWorldCommonQueryParams
 };
 
 /** Queries volume for presence of world collision or not. Can be used to voxelize environment. */
-UCLASS(BlueprintType, ClassGroup = (Procedural))
-class PCG_API UPCGWorldVolumetricData : public UPCGVolumeData
+UCLASS(MinimalAPI, BlueprintType, ClassGroup = (Procedural))
+class UPCGWorldVolumetricData : public UPCGVolumeData
 {
 	GENERATED_BODY()
 
 public:
-	void Initialize(UWorld* InWorld, const FBox& InBounds = FBox(EForceInit::ForceInit));
+	PCG_API void Initialize(UWorld* InWorld, const FBox& InBounds = FBox(EForceInit::ForceInit));
 
 	//~Begin UPCGSpatialData interface
 	virtual bool IsBounded() const override { return !!Bounds.IsValid; }
@@ -146,13 +146,13 @@ struct FPCGWorldRayHitQueryParams : public FPCGWorldCommonQueryParams
 };
 
 /** Executes collision queries against world collision. */
-UCLASS(BlueprintType, ClassGroup = (Procedural))
-class PCG_API UPCGWorldRayHitData : public UPCGSurfaceData
+UCLASS(MinimalAPI, BlueprintType, ClassGroup = (Procedural))
+class UPCGWorldRayHitData : public UPCGSurfaceData
 {
 	GENERATED_BODY()
 
 public:
-	void Initialize(UWorld* InWorld, const FBox& InBounds = FBox(EForceInit::ForceInit));
+	PCG_API void Initialize(UWorld* InWorld, const FBox& InBounds = FBox(EForceInit::ForceInit));
 
 	// ~Begin UPCGData interface
 	virtual void AddToCrc(FArchiveCrc32& Ar, bool bFullDataCrc) const override;

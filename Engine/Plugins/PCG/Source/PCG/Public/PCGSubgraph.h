@@ -55,7 +55,7 @@ public:
 protected:
 #if WITH_EDITOR
 	virtual void GetStaticTrackedKeys(FPCGSelectionKeyToSettingsMap& OutKeysToSettings, TArray<TObjectPtr<const UPCGGraph>>& OutVisitedGraphs) const override;
-	virtual bool CanDynamicalyTrackKeys() const override { return true; }
+	virtual bool CanDynamicallyTrackKeys() const override { return true; }
 	virtual EPCGChangeType GetChangeTypeForProperty(const FName& InPropertyName) const override;
 #endif
 
@@ -148,8 +148,8 @@ public:
 	virtual TObjectPtr<UPCGGraphInterface> GetSubgraphInterface() const { return nullptr; }
 };
 
-UCLASS(ClassGroup = (Procedural))
-class PCG_API UPCGSubgraphNode : public UPCGBaseSubgraphNode
+UCLASS(MinimalAPI, ClassGroup = (Procedural))
+class UPCGSubgraphNode : public UPCGBaseSubgraphNode
 {
 	GENERATED_BODY()
 
@@ -159,7 +159,7 @@ public:
 	/** ~End UPCGBaseSubgraphNode interface */
 };
 
-struct PCG_API FPCGSubgraphContext : public FPCGContext
+struct FPCGSubgraphContext : public FPCGContext
 {
 	TArray<FPCGTaskId> SubgraphTaskIds;
 	bool bScheduledSubgraph = false;
@@ -175,7 +175,7 @@ protected:
 	virtual void* GetUnsafeExternalContainerForOverridableParam(const FPCGSettingsOverridableParam& InParam) override;
 };
 
-class PCG_API FPCGSubgraphElement : public IPCGElement
+class FPCGSubgraphElement : public IPCGElement
 {
 public:
 	virtual FPCGContext* Initialize(const FPCGDataCollection& InputData, TWeakObjectPtr<UPCGComponent> SourceComponent, const UPCGNode* Node) override;
@@ -188,7 +188,7 @@ protected:
 	void PrepareSubgraphUserParameters(const UPCGSubgraphSettings* Settings, FPCGSubgraphContext* Context, FPCGDataCollection& OutputData) const;
 };
 
-class PCG_API FPCGInputForwardingElement : public IPCGElement
+class FPCGInputForwardingElement : public IPCGElement
 {
 public:
 	FPCGInputForwardingElement(const FPCGDataCollection& InputToForward);
@@ -200,7 +200,3 @@ protected:
 
 	TArray<UPCGData*> RootedData;
 };
-
-#if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_2
-#include "CoreMinimal.h"
-#endif

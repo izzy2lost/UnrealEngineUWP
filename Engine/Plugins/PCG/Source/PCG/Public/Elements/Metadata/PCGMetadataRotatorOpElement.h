@@ -26,8 +26,8 @@ namespace PCGMetadataRotatorHelpers
 	FRotator RLerp(const FRotator& A, const FRotator& B, double Alpha, bool bShortestPath);
 }
 
-UCLASS(BlueprintType, ClassGroup = (Procedural))
-class PCG_API UPCGMetadataRotatorSettings : public UPCGMetadataSettingsBase
+UCLASS(MinimalAPI, BlueprintType, ClassGroup = (Procedural))
+class UPCGMetadataRotatorSettings : public UPCGMetadataSettingsBase
 {
 	GENERATED_BODY()
 

@@ -14,8 +14,8 @@ enum class EPCGTagFilterOperation
 };
 
 /** Filters the tags on the input data. */
-UCLASS(BlueprintType, ClassGroup = (Procedural))
-class PCG_API UPCGDeleteTagsSettings : public UPCGSettings
+UCLASS(MinimalAPI, BlueprintType, ClassGroup = (Procedural))
+class UPCGDeleteTagsSettings : public UPCGSettings
 {
 	GENERATED_BODY()
 

@@ -16,15 +16,15 @@ namespace PCGInputOutputConstants
 	const FName DefaultNewCustomPinName = TEXT("NewPin");
 }
 
-class PCG_API FPCGInputOutputElement : public IPCGElement
+class FPCGInputOutputElement : public IPCGElement
 {
 protected:
 	virtual bool ExecuteInternal(FPCGContext* Context) const override;
 	virtual bool IsCacheable(const UPCGSettings* InSettings) const override { return false; }
 };
 
-UCLASS(NotBlueprintable, Hidden, ClassGroup = (Procedural))
-class PCG_API UPCGGraphInputOutputSettings : public UPCGSettings
+UCLASS(MinimalAPI, NotBlueprintable, Hidden, ClassGroup = (Procedural))
+class UPCGGraphInputOutputSettings : public UPCGSettings
 {
 	GENERATED_BODY()
 
@@ -55,35 +55,30 @@ protected:
 #endif // WITH_EDITOR
 	// ~End UPCGSettings interface
 
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Settings)
+	TArray<FPCGPinProperties> Pins;
+
 public:
 	bool IsInput() const { return bIsInput; }
 	void SetInput(bool bInIsInput);
-	
+
 	// Add a new custom pin
 	// Note that you should use the return value of this function, since it can be different from
 	// the one passed as argument. It will change if its label collides with existing pins.
-	[[nodiscard]] const FPCGPinProperties& AddPin(const FPCGPinProperties& NewCustomPinProperties);
+	PCG_API [[nodiscard]] const FPCGPinProperties& AddPin(const FPCGPinProperties& NewCustomPinProperties);
 
 protected:
 	TArray<FPCGPinProperties> DefaultPinProperties(bool bInvisiblePin) const;
 	void FixPinProperties();
 
-protected:
 	UPROPERTY()
 	TSet<FName> PinLabels_DEPRECATED;
 
 	UPROPERTY()
 	TArray<FPCGPinProperties> CustomPins_DEPRECATED;
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Settings)
-	TArray<FPCGPinProperties> Pins;
-
 	UPROPERTY()
 	bool bHasAddedDefaultPin = false;
 
 	bool bIsInput = false;
 };
-
-#if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_2
-#include "CoreMinimal.h"
-#endif

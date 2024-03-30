@@ -13,8 +13,8 @@
 class UStaticMesh;
 
 // PointFromMesh creates a single point at the origin with an attribute containing a SoftObjectPath to the selected UStaticMesh
-UCLASS(BlueprintType, ClassGroup = (Procedural))
-class PCG_API UPCGPointFromMeshSettings : public UPCGSettings
+UCLASS(MinimalAPI, BlueprintType, ClassGroup = (Procedural))
+class UPCGPointFromMeshSettings : public UPCGSettings
 {
 	GENERATED_BODY()
 

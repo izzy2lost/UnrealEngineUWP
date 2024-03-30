@@ -15,8 +15,8 @@ enum class EPCGLoadAlembicStandardSetup : uint8
 	CitySample UMETA(Tooltip="Uses the same setup as in the City Sample demo: right handed Y-up and the orient and scale mapping to the rotation and scale, respectively")
 };
 
-UCLASS(BlueprintType, ClassGroup = (Procedural))
-class PCGEXTERNALDATAINTEROP_API UPCGLoadAlembicSettings : public UPCGExternalDataSettings
+UCLASS(MinimalAPI, BlueprintType, ClassGroup = (Procedural))
+class UPCGLoadAlembicSettings : public UPCGExternalDataSettings
 {
 	GENERATED_BODY()
 
@@ -56,9 +56,9 @@ public:
 	bool bConversionFlipHandedness = false;
 
 	UFUNCTION(BlueprintCallable, Category = "PCG|AlembicImport")
-	void SetupFromStandard(EPCGLoadAlembicStandardSetup InSetup);
+	PCGEXTERNALDATAINTEROP_API void SetupFromStandard(EPCGLoadAlembicStandardSetup InSetup);
 
-	static void SetupFromStandard(EPCGLoadAlembicStandardSetup InSetup, FVector& InConversionScale, FVector& InConversionRotation, bool& bInConversionFlipHandedness, TMap<FString, FPCGAttributePropertyInputSelector>& InAttributeMapping);
+	static PCGEXTERNALDATAINTEROP_API void SetupFromStandard(EPCGLoadAlembicStandardSetup InSetup, FVector& InConversionScale, FVector& InConversionRotation, bool& bInConversionFlipHandedness, TMap<FString, FPCGAttributePropertyInputSelector>& InAttributeMapping);
 
 #if WITH_EDITORONLY_DATA
 	UPROPERTY(EditAnywhere, Category = "Alembic", meta = (DisplayName="Setup from standard"))

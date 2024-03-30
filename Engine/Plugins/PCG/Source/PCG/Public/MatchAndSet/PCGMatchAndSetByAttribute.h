@@ -30,8 +30,8 @@ struct PCG_API FPCGMatchAndSetByAttributeEntry
 * This Match & Set object looks up an attribute on a given point,
 * then looks up its entries to find a match; if there is one, then it sets it value. 
 */
-UCLASS(BlueprintType, ClassGroup = (Procedural))
-class PCG_API UPCGMatchAndSetByAttribute : public UPCGMatchAndSetBase
+UCLASS(MinimalAPI, BlueprintType, ClassGroup = (Procedural))
+class UPCGMatchAndSetByAttribute : public UPCGMatchAndSetBase
 {
 	GENERATED_BODY()
 

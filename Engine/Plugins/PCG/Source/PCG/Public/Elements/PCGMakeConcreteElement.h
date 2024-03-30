@@ -7,8 +7,8 @@
 #include "PCGMakeConcreteElement.generated.h"
 
 /** Makes data Concrete, collapsing to Point if necessary. Discards non-Spatial data. */
-UCLASS(BlueprintType, ClassGroup = (Procedural))
-class PCG_API UPCGMakeConcreteSettings : public UPCGSettings
+UCLASS(MinimalAPI, BlueprintType, ClassGroup = (Procedural))
+class UPCGMakeConcreteSettings : public UPCGSettings
 {
 	GENERATED_BODY()
 

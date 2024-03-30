@@ -15,8 +15,8 @@ namespace PCGMetadataBreakVectorConstants
 	const FName WLabel = TEXT("W");
 }
 
-UCLASS(BlueprintType, ClassGroup = (Procedural))
-class PCG_API UPCGMetadataBreakVectorSettings : public UPCGMetadataSettingsBase
+UCLASS(MinimalAPI, BlueprintType, ClassGroup = (Procedural))
+class UPCGMetadataBreakVectorSettings : public UPCGMetadataSettingsBase
 {
 	GENERATED_BODY()
 

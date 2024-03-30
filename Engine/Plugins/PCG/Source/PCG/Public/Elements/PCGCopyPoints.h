@@ -38,8 +38,8 @@ enum class EPCGCopyPointsMetadataInheritanceMode : uint8
 	None        UMETA(Tooltip = "Points will have no metadata.")
 };
 
-UCLASS(BlueprintType, ClassGroup = (Procedural))
-class PCG_API UPCGCopyPointsSettings : public UPCGSettings
+UCLASS(MinimalAPI, BlueprintType, ClassGroup = (Procedural))
+class UPCGCopyPointsSettings : public UPCGSettings
 {
 	GENERATED_BODY()
 

@@ -7,8 +7,8 @@
 #include "PCGMergeElement.generated.h"
 
 /** Merges multiple data sources (currently only points supported) into a single output. */
-UCLASS(BlueprintType, Classgroup = (Procedural))
-class PCG_API UPCGMergeSettings : public UPCGSettings
+UCLASS(MinimalAPI, BlueprintType, Classgroup = (Procedural))
+class UPCGMergeSettings : public UPCGSettings
 {
 	GENERATED_BODY()
 

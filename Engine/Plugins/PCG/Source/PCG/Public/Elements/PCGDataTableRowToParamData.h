@@ -10,7 +10,7 @@
 
 class UDataTable;
 
-UCLASS(BlueprintType, ClassGroup = (Procedural))
+UCLASS(MinimalAPI, BlueprintType, ClassGroup = (Procedural))
 class UPCGDataTableRowToParamDataSettings : public UPCGSettings
 {
 	GENERATED_BODY()
@@ -26,7 +26,7 @@ public:
 	virtual FText GetDefaultNodeTitle() const override { return NSLOCTEXT("PCGDataTableRowToParamDataSettings", "NodeTitle", "Data Table Row To Attribute Set"); }
 	virtual EPCGSettingsType GetType() const override { return EPCGSettingsType::InputOutput; }
 	virtual void GetStaticTrackedKeys(FPCGSelectionKeyToSettingsMap& OutKeysToSettings, TArray<TObjectPtr<const UPCGGraph>>& OutVisitedGraphs) const override;
-	virtual bool CanDynamicalyTrackKeys() const override { return true; }
+	virtual bool CanDynamicallyTrackKeys() const override { return true; }
 	virtual void ApplyDeprecationBeforeUpdatePins(UPCGNode* InOutNode, TArray<TObjectPtr<UPCGPin>>& InputPins, TArray<TObjectPtr<UPCGPin>>& OutputPins);
 #endif
 

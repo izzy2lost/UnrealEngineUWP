@@ -7,8 +7,8 @@
 #include "PCGMergeAttributes.generated.h"
 
 /** Merges multiple attribute sets together into a single attribute set */
-UCLASS(BlueprintType, Classgroup = (Procedural))
-class PCG_API UPCGMergeAttributesSettings : public UPCGSettings
+UCLASS(MinimalAPI, BlueprintType, Classgroup = (Procedural))
+class UPCGMergeAttributesSettings : public UPCGSettings
 {
 	GENERATED_BODY()
 

@@ -6,8 +6,8 @@
 
 #include "PCGInstanceDataPackerByAttribute.generated.h"
 
-UCLASS(BlueprintType, ClassGroup = (Procedural))
-class PCG_API UPCGInstanceDataPackerByAttribute : public UPCGInstanceDataPackerBase 
+UCLASS(MinimalAPI, BlueprintType, ClassGroup = (Procedural))
+class UPCGInstanceDataPackerByAttribute : public UPCGInstanceDataPackerBase 
 {
 	GENERATED_BODY()
 

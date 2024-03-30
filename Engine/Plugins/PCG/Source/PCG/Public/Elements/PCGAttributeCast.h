@@ -12,8 +12,8 @@
 /**
 * Cast an attribute to another type. Support broadcastable cast (like double -> FVector) and constructible cast (like double -> float)
 */
-UCLASS(BlueprintType, ClassGroup = (Procedural))
-class PCG_API UPCGAttributeCastSettings : public UPCGSettings
+UCLASS(MinimalAPI, BlueprintType, ClassGroup = (Procedural))
+class UPCGAttributeCastSettings : public UPCGSettings
 {
 	GENERATED_BODY()
 
@@ -47,7 +47,7 @@ protected:
 	//~End UPCGSettings interface
 };
 
-class PCG_API FPCGAttributeCastElement : public IPCGElement
+class FPCGAttributeCastElement : public IPCGElement
 {
 protected:
 	virtual bool ExecuteInternal(FPCGContext* Context) const override;

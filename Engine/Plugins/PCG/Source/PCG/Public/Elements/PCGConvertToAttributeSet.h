@@ -7,8 +7,8 @@
 #include "PCGConvertToAttributeSet.generated.h"
 
 /** Converts point data to an attribute set with one entry per point and the same attributes. */
-UCLASS(BlueprintType, ClassGroup = (Procedural))
-class PCG_API UPCGConvertToAttributeSetSettings : public UPCGSettings
+UCLASS(MinimalAPI, BlueprintType, ClassGroup = (Procedural))
+class UPCGConvertToAttributeSetSettings : public UPCGSettings
 {
 	GENERATED_BODY()
 

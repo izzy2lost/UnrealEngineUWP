@@ -17,8 +17,8 @@ enum class EPCGProxyInterfaceMode : uint8
 	BySettings UMETA(Tooltip = "User defined settings will define the pin interface")
 };
 
-UCLASS(BlueprintType, ClassGroup=(Procedural))
-class PCG_API UPCGIndirectionSettings : public UPCGSettings
+UCLASS(MinimalAPI, BlueprintType, ClassGroup=(Procedural))
+class UPCGIndirectionSettings : public UPCGSettings
 {
 	GENERATED_BODY()
 
@@ -30,7 +30,7 @@ public:
 	virtual FText GetNodeTooltipText() const override;
 	virtual EPCGSettingsType GetType() const override { return EPCGSettingsType::Generic; }
 	virtual void GetStaticTrackedKeys(FPCGSelectionKeyToSettingsMap& OutKeysToSettings, TArray<TObjectPtr<const UPCGGraph>>& OutVisitedGraphs) const override;
-	virtual bool CanDynamicalyTrackKeys() const override { return true; }
+	virtual bool CanDynamicallyTrackKeys() const override { return true; }
 #endif // WITH_EDITOR
 	virtual FString GetAdditionalTitleInformation() const override;
 	virtual bool HasFlippedTitleLines() const override { return true; }

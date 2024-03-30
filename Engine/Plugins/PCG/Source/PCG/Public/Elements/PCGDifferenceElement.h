@@ -13,8 +13,8 @@ namespace PCGDifferenceConstants
 	const FName DifferencesLabel = TEXT("Differences");
 }
 
-UCLASS(BlueprintType, ClassGroup = (Procedural))
-class PCG_API UPCGDifferenceSettings : public UPCGSettings
+UCLASS(MinimalAPI, BlueprintType, ClassGroup = (Procedural))
+class UPCGDifferenceSettings : public UPCGSettings
 {
 	GENERATED_BODY()
 

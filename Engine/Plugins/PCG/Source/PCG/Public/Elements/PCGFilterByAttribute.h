@@ -7,8 +7,8 @@
 #include "PCGFilterByAttribute.generated.h"
 
 /** Separates data on whether they have a specific metadata attribute (not by value) */
-UCLASS(BlueprintType, ClassGroup = (Procedural))
-class PCG_API UPCGFilterByAttributeSettings : public UPCGFilterDataBaseSettings
+UCLASS(MinimalAPI, BlueprintType, ClassGroup = (Procedural))
+class UPCGFilterByAttributeSettings : public UPCGFilterDataBaseSettings
 {
 	GENERATED_BODY()
 

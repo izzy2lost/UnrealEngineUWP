@@ -8,8 +8,8 @@
 #include "PCGGetLoopIndex.generated.h"
 
 /** Returns the current loop iteration index of the "nearest" subgraph in the execution stack */
-UCLASS(BlueprintType, ClassGroup=(Procedural))
-class PCG_API UPCGGetLoopIndexSettings : public UPCGSettings
+UCLASS(MinimalAPI, BlueprintType, ClassGroup=(Procedural))
+class UPCGGetLoopIndexSettings : public UPCGSettings
 {
 	GENERATED_BODY()
 

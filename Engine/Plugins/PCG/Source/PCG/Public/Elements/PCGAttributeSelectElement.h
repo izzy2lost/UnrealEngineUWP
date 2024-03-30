@@ -45,8 +45,8 @@ enum class EPCGAttributeSelectAxis
 *
 * If the OutputAttributeName is None, we will use InputSource.GetName().
 */
-UCLASS(BlueprintType, ClassGroup = (Procedural))
-class PCG_API UPCGAttributeSelectSettings : public UPCGSettings
+UCLASS(MinimalAPI, BlueprintType, ClassGroup = (Procedural))
+class UPCGAttributeSelectSettings : public UPCGSettings
 {
 	GENERATED_BODY()
 

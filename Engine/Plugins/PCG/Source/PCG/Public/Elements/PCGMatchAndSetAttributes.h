@@ -39,8 +39,8 @@ enum class EPCGMatchMaxDistanceMode
 * E.g. for a given point, if the point has the same specified attribute as the matching attribute in the attribute set,
 * then we will copy all the other non-selection attributes to the point.
 */
-UCLASS(BlueprintType, ClassGroup = (Procedural))
-class PCG_API UPCGMatchAndSetAttributesSettings : public UPCGSettings
+UCLASS(MinimalAPI, BlueprintType, ClassGroup = (Procedural))
+class UPCGMatchAndSetAttributesSettings : public UPCGSettings
 {
 	GENERATED_BODY()
 

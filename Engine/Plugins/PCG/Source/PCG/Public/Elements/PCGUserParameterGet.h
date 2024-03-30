@@ -13,8 +13,8 @@
 * Getter for user parameters defined in PCGGraph, by the user.
 * Will pick up the value from the graph instance.
 */
-UCLASS(BlueprintType, ClassGroup = (Procedural))
-class PCG_API UPCGUserParameterGetSettings : public UPCGSettings
+UCLASS(MinimalAPI, BlueprintType, ClassGroup = (Procedural))
+class UPCGUserParameterGetSettings : public UPCGSettings
 {
 	GENERATED_BODY()
 
@@ -52,7 +52,7 @@ protected:
 	//~End UPCGSettings interface
 };
 
-class PCG_API FPCGUserParameterGetElement : public IPCGElement
+class FPCGUserParameterGetElement : public IPCGElement
 {
 public:
 	// Graph parameters access is not thread safe

@@ -23,12 +23,12 @@ enum class EPCGAttributeFilterOperator : uint8
 };
 
 USTRUCT(BlueprintType)
-struct PCG_API FPCGAttributeFilterThresholdSettings
+struct FPCGAttributeFilterThresholdSettings
 {
 	GENERATED_BODY()
 
 #if WITH_EDITOR
-	void OnPostLoad();
+	PCG_API void OnPostLoad();
 #endif
 
 	/** If the threshold in included or excluded from the range. */
@@ -61,8 +61,8 @@ struct PCG_API FPCGAttributeFilterThresholdSettings
 * - Threshold on attribute by metadata attribute(A.aaa < B.bbb)
 * - Threshold on attribute by property(A.aaa == B.color)
 */
-UCLASS(BlueprintType, ClassGroup = (Procedural))
-class PCG_API UPCGAttributeFilteringSettings : public UPCGSettings
+UCLASS(MinimalAPI, BlueprintType, ClassGroup = (Procedural))
+class UPCGAttributeFilteringSettings : public UPCGSettings
 {
 	GENERATED_BODY()
 
@@ -135,8 +135,8 @@ public:
 * - Threshold on attribute by metadata attribute(A.aaa in [B.bbmin, B.bbmax])
 * - Threshold on attribute by property(A.aaa in [B.position, B.scale])
 */
-UCLASS(BlueprintType, ClassGroup = (Procedural))
-class PCG_API UPCGAttributeFilteringRangeSettings : public UPCGSettings
+UCLASS(MinimalAPI, BlueprintType, ClassGroup = (Procedural))
+class UPCGAttributeFilteringRangeSettings : public UPCGSettings
 {
 	GENERATED_BODY()
 

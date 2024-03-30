@@ -6,8 +6,8 @@
 
 #include "PCGLoopElement.generated.h"
 
-UCLASS(BlueprintType, ClassGroup=(Procedural))
-class PCG_API UPCGLoopSettings : public UPCGSubgraphSettings
+UCLASS(MinimalAPI, BlueprintType, ClassGroup=(Procedural))
+class UPCGLoopSettings : public UPCGSubgraphSettings
 {
 	GENERATED_BODY()
 
@@ -61,7 +61,7 @@ public:
 	FString FeedbackPins;
 };
 
-class PCG_API FPCGLoopElement : public FPCGSubgraphElement
+class FPCGLoopElement : public FPCGSubgraphElement
 {
 protected:
 	virtual bool ExecuteInternal(FPCGContext* Context) const override;
@@ -69,7 +69,7 @@ protected:
 };
 
 /** This element does the same static input forwarding mechanism as the FPCGInputForwardingElement, but it also will go fetch the previous iteration data, if any. */
-class PCG_API FPCGLoopInputForwardingElement : public FPCGInputForwardingElement
+class FPCGLoopInputForwardingElement : public FPCGInputForwardingElement
 {
 public:
 	FPCGLoopInputForwardingElement(const FPCGDataCollection& StaticInputToForward, FPCGTaskId InPreviousIterationTaskId, const TArray<FName>& InFeedbackPinNames);

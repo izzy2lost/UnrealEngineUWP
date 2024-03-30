@@ -13,14 +13,14 @@ template <typename ElementType, typename OctreeSemantics> class TOctree2;
 
 class UPCGComponent;
 
-struct PCG_API FPCGComponentOctreeID : public TSharedFromThis<FPCGComponentOctreeID, ESPMode::ThreadSafe>
+struct FPCGComponentOctreeID : public TSharedFromThis<FPCGComponentOctreeID, ESPMode::ThreadSafe>
 {
 	FOctreeElementId2 Id;
 };
 
 using FPCGComponentOctreeIDSharedRef = TSharedRef<struct FPCGComponentOctreeID, ESPMode::ThreadSafe>;
 
-struct PCG_API FPCGComponentRef
+struct FPCGComponentRef
 {
 	FPCGComponentRef(UPCGComponent* InComponent, const FPCGComponentOctreeIDSharedRef& InIdShared);
 
@@ -31,7 +31,7 @@ struct PCG_API FPCGComponentRef
 	FBoxSphereBounds Bounds;
 };
 
-struct PCG_API FPCGComponentRefSemantics
+struct FPCGComponentRefSemantics
 {
 	enum { MaxElementsPerLeaf = 16 };
 	enum { MinInclusiveElementsPerNode = 7 };
@@ -92,7 +92,3 @@ private:
 	FPCGComponentToIdMap ComponentToIdMap;
 	mutable FRWLock Lock;
 };
-
-#if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_2
-#include "Math/GenericOctree.h"
-#endif

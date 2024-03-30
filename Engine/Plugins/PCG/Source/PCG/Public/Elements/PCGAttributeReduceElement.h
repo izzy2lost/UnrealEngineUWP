@@ -24,8 +24,8 @@ enum class EPCGAttributeReduceOperation
 * that would be accurate only if the quaternions are close to each other. The accurate version of the average is using eigenvectors/eigenvalues
 * which is way more complicated and computationally expensive. Quaternion will also be normatilzed at the end. Beware if you are using this average.
 */
-UCLASS(BlueprintType, ClassGroup = (Procedural))
-class PCG_API UPCGAttributeReduceSettings : public UPCGSettings
+UCLASS(MinimalAPI, BlueprintType, ClassGroup = (Procedural))
+class UPCGAttributeReduceSettings : public UPCGSettings
 {
 	GENERATED_BODY()
 
