@@ -8,7 +8,8 @@
 #include "Dataflow/GeometryCollectionNodes.h"
 #include "Dataflow/Nodes/GeometryCollectionAssetNodes.h"
 #include "Dataflow/GeometryCollectionProcessingNodes.h"
-#include "Dataflow/GeometryCollectionSkeletalMeshNodes.h"
+#include "Dataflow/GeometryCollectionSkeletalMeshToCollectionNode.h"
+#include "Dataflow/GeometryCollectionSkeletonToCollectionNode.h"
 #include "Dataflow/GeometryCollectionSelectionNodes.h"
 #include "Dataflow/GeometryCollectionMeshNodes.h"
 #include "Dataflow/GeometryCollectionClusteringNodes.h"
@@ -34,7 +35,6 @@ void IGeometryCollectionNodesPlugin::StartupModule()
 	Dataflow::GeometryCollectionEngineNodes();
 	Dataflow::GeometryCollectionEngineAssetNodes();
 	Dataflow::GeometryCollectionProcessingNodes();
-	Dataflow::GeometryCollectionSkeletalMeshNodes();
 	Dataflow::GeometryCollectionSelectionNodes();
 	Dataflow::GeometryCollectionMeshNodes();
 	Dataflow::GeometryCollectionClusteringNodes();
@@ -51,7 +51,8 @@ void IGeometryCollectionNodesPlugin::StartupModule()
 	Dataflow::GeometryCollectionArrayNodes();
 	Dataflow::GeometryCollectionDebugNodes();
 	DATAFLOW_NODE_REGISTER_CREATION_FACTORY(FGeometryCollectionVertexScalarToVertexIndicesNode);
-
+	DATAFLOW_NODE_REGISTER_CREATION_FACTORY(FSkeletonToCollectionDataflowNode);
+	DATAFLOW_NODE_REGISTER_CREATION_FACTORY(FSkeletalMeshToCollectionDataflowNode);
 }
 
 void IGeometryCollectionNodesPlugin::ShutdownModule()

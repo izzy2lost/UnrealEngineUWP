@@ -6,7 +6,7 @@
 #include "Dataflow/DataflowEngine.h"
 #include "GeometryCollection/ManagedArrayCollection.h"
 
-#include "GeometryCollectionSkeletalMeshNodes.generated.h"
+#include "GeometryCollectionSkeletonToCollectionNode.generated.h"
 
 class USkeletalMesh;
 
@@ -35,10 +35,4 @@ public:
 	virtual void Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
 };
 
-namespace Dataflow
-{
-	void GeometryCollectionSkeletalMeshNodes();
-
-
-}
 
