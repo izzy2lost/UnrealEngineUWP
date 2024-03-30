@@ -12,8 +12,8 @@ namespace PCGProjectionConstants
 	const FName ProjectionTargetLabel = TEXT("Projection Target");
 }
 
-UCLASS(BlueprintType, ClassGroup = (Procedural))
-class PCG_API UPCGProjectionSettings : public UPCGSettings
+UCLASS(MinimalAPI, BlueprintType, ClassGroup = (Procedural))
+class UPCGProjectionSettings : public UPCGSettings
 {
 	GENERATED_BODY()
 

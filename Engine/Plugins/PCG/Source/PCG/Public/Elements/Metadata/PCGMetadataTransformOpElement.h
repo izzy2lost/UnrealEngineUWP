@@ -28,8 +28,8 @@ enum class EPCGTransformLerpMode : uint16
 	DualQuatInterp
 };
 
-UCLASS(BlueprintType, ClassGroup = (Procedural))
-class PCG_API UPCGMetadataTransformSettings : public UPCGMetadataSettingsBase
+UCLASS(MinimalAPI, BlueprintType, ClassGroup = (Procedural))
+class UPCGMetadataTransformSettings : public UPCGMetadataSettingsBase
 {
 	GENERATED_BODY()
 

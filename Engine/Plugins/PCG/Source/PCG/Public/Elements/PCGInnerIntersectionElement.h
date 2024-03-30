@@ -7,8 +7,8 @@
 
 #include "PCGInnerIntersectionElement.generated.h"
 
-UCLASS(BlueprintType, ClassGroup = (Procedural))
-class PCG_API UPCGInnerIntersectionSettings : public UPCGSettings
+UCLASS(MinimalAPI, BlueprintType, ClassGroup = (Procedural))
+class UPCGInnerIntersectionSettings : public UPCGSettings
 {
 	GENERATED_BODY()
 

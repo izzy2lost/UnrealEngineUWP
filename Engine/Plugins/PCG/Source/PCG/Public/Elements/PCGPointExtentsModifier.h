@@ -18,8 +18,8 @@ enum class EPCGPointExtentsModifierMode : uint8
 	Multiply
 };
 
-UCLASS(BlueprintType, ClassGroup = (Procedural))
-class PCG_API UPCGPointExtentsModifierSettings : public UPCGSettings
+UCLASS(MinimalAPI, BlueprintType, ClassGroup = (Procedural))
+class UPCGPointExtentsModifierSettings : public UPCGSettings
 {
 	GENERATED_BODY()
 

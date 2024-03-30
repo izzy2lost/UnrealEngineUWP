@@ -46,7 +46,7 @@ namespace PCGSelfPruningElement
 {
 	// all points are in contiguous memory so this will create a bitset to just look up the index to set/test a bit
 	// this should reduce the 'set' cost to O[1]
-	struct PCG_API FPointBitSet
+	struct FPointBitSet
 	{
 		TArray<uint32> Bits;
 		const FPCGPoint* FirstPoint = nullptr;
@@ -77,8 +77,8 @@ namespace PCGSelfPruningElement
 	PCG_API bool ExecuteSlice(FIterationState& InState, const FPCGSelfPruningParameters& InParameters, FPCGContext* InOptionalContext = nullptr);
 }
 
-UCLASS(BlueprintType, ClassGroup=(Procedural))
-class PCG_API UPCGSelfPruningSettings : public UPCGSettings
+UCLASS(MinimalAPI, BlueprintType, ClassGroup=(Procedural))
+class UPCGSelfPruningSettings : public UPCGSettings
 {
 	GENERATED_BODY()
 

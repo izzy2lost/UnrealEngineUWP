@@ -8,12 +8,8 @@ namespace PCGDeterminismTests
 {
 	namespace DifferenceElement
 	{
-		PCG_API bool RunTestSuite();
+		bool RunTestSuite();
 	}
 }
 
-#endif
-
-#if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_2
-#include "CoreMinimal.h"
 #endif

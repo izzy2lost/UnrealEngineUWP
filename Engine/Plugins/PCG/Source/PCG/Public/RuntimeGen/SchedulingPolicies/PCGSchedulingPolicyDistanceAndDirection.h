@@ -14,8 +14,8 @@ class IPCGGenSourceBase;
  *
  * Distance and Direction are calculated with respect to the Generation Source.
  */
-UCLASS(BlueprintType, ClassGroup = (Procedural))
-class PCG_API UPCGSchedulingPolicyDistanceAndDirection : public UPCGSchedulingPolicyBase
+UCLASS(MinimalAPI, BlueprintType, ClassGroup = (Procedural))
+class UPCGSchedulingPolicyDistanceAndDirection : public UPCGSchedulingPolicyBase
 {
 	GENERATED_BODY()
 

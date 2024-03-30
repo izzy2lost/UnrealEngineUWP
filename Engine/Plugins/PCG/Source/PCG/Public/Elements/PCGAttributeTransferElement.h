@@ -25,8 +25,8 @@ namespace PCGAttributeTransferConstants
 * 
 * To do the same but with a Source param data, use CreateAttribute.
 */
-UCLASS(BlueprintType, ClassGroup = (Procedural))
-class PCG_API UPCGAttributeTransferSettings : public UPCGSettings
+UCLASS(MinimalAPI, BlueprintType, ClassGroup = (Procedural))
+class UPCGAttributeTransferSettings : public UPCGSettings
 {
 	GENERATED_BODY()
 

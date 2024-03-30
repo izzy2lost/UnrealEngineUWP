@@ -20,8 +20,8 @@ enum class EPCGBoundsModifierMode : uint8
 /**
 * This class controls/sets up a node that modifies the min/max bounds of the input points.
 */
-UCLASS(BlueprintType, ClassGroup = (Procedural))
-class PCG_API UPCGBoundsModifierSettings : public UPCGSettings
+UCLASS(MinimalAPI, BlueprintType, ClassGroup = (Procedural))
+class UPCGBoundsModifierSettings : public UPCGSettings
 {
 	GENERATED_BODY()
 

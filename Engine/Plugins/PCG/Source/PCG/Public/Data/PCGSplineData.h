@@ -69,12 +69,13 @@ protected:
 };
 
 /* The projection of a spline onto a surface. */
-UCLASS(BlueprintType, ClassGroup=(Procedural))
-class PCG_API UPCGSplineProjectionData : public UPCGProjectionData
+UCLASS(MinimalAPI, BlueprintType, ClassGroup=(Procedural))
+class UPCGSplineProjectionData : public UPCGProjectionData
 {
 	GENERATED_BODY()
+
 public:
-	void Initialize(const UPCGSplineData* InSourceSpline, const UPCGSpatialData* InTargetSurface, const FPCGProjectionParams& InParams);
+	PCG_API void Initialize(const UPCGSplineData* InSourceSpline, const UPCGSpatialData* InTargetSurface, const FPCGProjectionParams& InParams);
 
 	// ~Begin UPCGData interface
 	virtual EPCGDataType GetDataType() const override { return EPCGDataType::Spline; }

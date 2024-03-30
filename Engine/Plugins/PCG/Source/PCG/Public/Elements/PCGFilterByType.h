@@ -7,8 +7,8 @@
 #include "PCGFilterByType.generated.h"
 
 /** Filters an input collection based on data type. */
-UCLASS(BlueprintType, ClassGroup = (Procedural))
-class PCG_API UPCGFilterByTypeSettings : public UPCGFilterDataBaseSettings
+UCLASS(MinimalAPI, BlueprintType, ClassGroup = (Procedural))
+class UPCGFilterByTypeSettings : public UPCGFilterDataBaseSettings
 {
 	GENERATED_BODY()
 

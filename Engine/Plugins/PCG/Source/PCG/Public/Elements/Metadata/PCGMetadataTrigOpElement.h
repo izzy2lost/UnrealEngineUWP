@@ -20,8 +20,8 @@ enum class EPCGMetadataTrigOperation : uint16
 	RadToDeg
 };
 
-UCLASS(BlueprintType, ClassGroup = (Procedural))
-class PCG_API UPCGMetadataTrigSettings : public UPCGMetadataSettingsBase
+UCLASS(MinimalAPI, BlueprintType, ClassGroup = (Procedural))
+class UPCGMetadataTrigSettings : public UPCGMetadataSettingsBase
 {
 	GENERATED_BODY()
 

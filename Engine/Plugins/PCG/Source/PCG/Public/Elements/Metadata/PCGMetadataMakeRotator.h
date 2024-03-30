@@ -36,8 +36,8 @@ enum class EPCGMetadataMakeRotatorOp : uint8
 };
 
 /* Create a Rotator from 1, 2 or 3 axis. */
-UCLASS(BlueprintType, ClassGroup = (Procedural))
-class PCG_API UPCGMetadataMakeRotatorSettings : public UPCGMetadataSettingsBase
+UCLASS(MinimalAPI, BlueprintType, ClassGroup = (Procedural))
+class UPCGMetadataMakeRotatorSettings : public UPCGMetadataSettingsBase
 {
 	GENERATED_BODY()
 

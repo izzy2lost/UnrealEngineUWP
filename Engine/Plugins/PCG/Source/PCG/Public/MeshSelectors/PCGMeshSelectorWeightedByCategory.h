@@ -32,8 +32,8 @@ struct PCG_API FPCGWeightedByCategoryEntryList
 	TArray<FPCGMeshSelectorWeightedEntry> WeightedMeshEntries;
 };
 
-UCLASS(BlueprintType, ClassGroup = (Procedural))
-class PCG_API UPCGMeshSelectorWeightedByCategory : public UPCGMeshSelectorBase 
+UCLASS(MinimalAPI, BlueprintType, ClassGroup = (Procedural))
+class UPCGMeshSelectorWeightedByCategory : public UPCGMeshSelectorBase 
 {
 	GENERATED_BODY()
 
@@ -53,9 +53,8 @@ public:
 	virtual void PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent) override;
 	// ~End UObject interface
 
-protected:
 	// Refresh MeshEntries display names
-	void RefreshDisplayNames();
+	PCG_API void RefreshDisplayNames();
 #endif // WITH_EDITOR
 
 public:

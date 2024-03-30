@@ -12,8 +12,8 @@
  * Note that by default a low resolution polyline is used to represent the spline. If you observe that your interior samples are not sufficiently accurate,
  * you can resample the spline with a SplineSampler at your desired resolution, and convert the points back to a spline with the CreateSpline node.
  */
-UCLASS(BlueprintType, ClassGroup = (Procedural))
-class PCG_API UPCGCreateSurfaceFromSplineSettings : public UPCGSettings
+UCLASS(MinimalAPI, BlueprintType, ClassGroup = (Procedural))
+class UPCGCreateSurfaceFromSplineSettings : public UPCGSettings
 {
 	GENERATED_BODY()
 

@@ -17,8 +17,8 @@ enum class EPCGMetadataCompareOperation : uint16
 	LessOrEqual
 };
 
-UCLASS(BlueprintType, ClassGroup = (Procedural))
-class PCG_API UPCGMetadataCompareSettings : public UPCGMetadataSettingsBase
+UCLASS(MinimalAPI, BlueprintType, ClassGroup = (Procedural))
+class UPCGMetadataCompareSettings : public UPCGMetadataSettingsBase
 {
 	GENERATED_BODY()
 

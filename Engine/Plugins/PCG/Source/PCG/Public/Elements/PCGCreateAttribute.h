@@ -17,8 +17,8 @@ class UPCGMetadata;
 * New attribute can be a constant, hardcoded in the node, or can come from another Attribute Set.
 * Can also add all the attributes coming from the other Attribute Set.
 */
-UCLASS(BlueprintType, ClassGroup = (Procedural))
-class PCG_API UPCGAddAttributeSettings : public UPCGSettings
+UCLASS(MinimalAPI, BlueprintType, ClassGroup = (Procedural))
+class UPCGAddAttributeSettings : public UPCGSettings
 {
 	GENERATED_BODY()
 
@@ -77,8 +77,8 @@ protected:
 };
 
 /* Creates a new Attribute Set. */
-UCLASS(BlueprintType, ClassGroup = (Procedural))
-class PCG_API UPCGCreateAttributeSetSettings : public UPCGSettings
+UCLASS(MinimalAPI, BlueprintType, ClassGroup = (Procedural))
+class UPCGCreateAttributeSetSettings : public UPCGSettings
 {
 	GENERATED_BODY()
 
@@ -130,7 +130,3 @@ class FPCGAddAttributeElement : public IPCGElement
 protected:
 	virtual bool ExecuteInternal(FPCGContext* Context) const override;
 };
-
-#if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_2
-#include "PCGPoint.h"
-#endif

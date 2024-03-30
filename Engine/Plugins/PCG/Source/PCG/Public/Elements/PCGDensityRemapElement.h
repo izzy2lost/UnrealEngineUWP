@@ -8,8 +8,8 @@
 
 #include "PCGDensityRemapElement.generated.h"
 
-UCLASS(BlueprintType, ClassGroup = (Procedural))
-class PCG_API UPCGDensityRemapSettings : public UPCGSettings
+UCLASS(MinimalAPI, BlueprintType, ClassGroup = (Procedural))
+class UPCGDensityRemapSettings : public UPCGSettings
 {
 	GENERATED_BODY()
 

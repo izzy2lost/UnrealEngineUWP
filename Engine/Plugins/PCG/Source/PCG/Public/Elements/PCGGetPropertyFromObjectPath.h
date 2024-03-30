@@ -11,8 +11,8 @@
 /**
 * Extract property from a list of soft object paths.
 */
-UCLASS(BlueprintType, ClassGroup = (Procedural))
-class PCG_API UPCGGetPropertyFromObjectPathSettings : public UPCGSettings
+UCLASS(MinimalAPI, BlueprintType, ClassGroup = (Procedural))
+class UPCGGetPropertyFromObjectPathSettings : public UPCGSettings
 {
 	GENERATED_BODY()
 
@@ -25,7 +25,7 @@ public:
 	virtual bool CanEditChange(const FProperty* InProperty) const override;
 	virtual bool IsPinUsedByNodeExecution(const UPCGPin* InPin) const override;
 	virtual void GetStaticTrackedKeys(FPCGSelectionKeyToSettingsMap& OutKeysToSettings, TArray<TObjectPtr<const UPCGGraph>>& OutVisitedGraphs) const override;
-	virtual bool CanDynamicalyTrackKeys() const override { return true; }
+	virtual bool CanDynamicallyTrackKeys() const override { return true; }
 #endif
 	virtual bool CanCullTaskIfUnwired() const override { return false; }
 	virtual FString GetAdditionalTitleInformation() const override;

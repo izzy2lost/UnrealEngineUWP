@@ -6,8 +6,8 @@
 
 #include "PCGMeshSelectorByAttribute.generated.h"
 
-UCLASS(BlueprintType, ClassGroup = (Procedural))
-class PCG_API UPCGMeshSelectorByAttribute : public UPCGMeshSelectorBase 
+UCLASS(MinimalAPI, BlueprintType, ClassGroup = (Procedural))
+class UPCGMeshSelectorByAttribute : public UPCGMeshSelectorBase 
 {
 	GENERATED_BODY()
 

@@ -16,9 +16,9 @@ namespace PCGDeterminismTests
 		static void Destroy();
 
 		/** Registers a test function given the StaticClass of an element's settings */
-		static PCG_API void RegisterTestFunction(UClass* SettingsStaticClass, TFunction<bool()> TestFunction);
+		static void RegisterTestFunction(UClass* SettingsStaticClass, TFunction<bool()> TestFunction);
 		/** Deregisters a test function given the StaticClass of an element's settings */
-		static PCG_API void DeregisterTestFunction(const UClass* SettingsStaticClass);
+		static void DeregisterTestFunction(const UClass* SettingsStaticClass);
 		/** Gets a native test function, given an element's UPCGSettings */
 		static PCG_API TFunction<bool()> GetNativeTestFunction(const UPCGSettings* PCGSettings);
 
@@ -33,8 +33,4 @@ namespace PCGDeterminismTests
 		TMap<UClass*, TFunction<bool()>> NativeTestMapping;
 	};
 }
-#endif
-
-#if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_2
-#include "CoreMinimal.h"
 #endif

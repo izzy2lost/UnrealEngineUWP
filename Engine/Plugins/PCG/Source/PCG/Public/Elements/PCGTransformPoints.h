@@ -6,8 +6,8 @@
 
 #include "PCGTransformPoints.generated.h"
 
-UCLASS(BlueprintType, ClassGroup = (Procedural))
-class PCG_API UPCGTransformPointsSettings : public UPCGSettings
+UCLASS(MinimalAPI, BlueprintType, ClassGroup = (Procedural))
+class UPCGTransformPointsSettings : public UPCGSettings
 {
 	GENERATED_BODY()
 

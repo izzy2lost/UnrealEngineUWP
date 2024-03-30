@@ -7,8 +7,8 @@
 #include "PCGDataNum.generated.h"
 
 /** Counts number of data in a data collection */
-UCLASS(BlueprintType, ClassGroup = (Procedural))
-class PCG_API UPCGDataNumSettings : public UPCGSettings
+UCLASS(MinimalAPI, BlueprintType, ClassGroup = (Procedural))
+class UPCGDataNumSettings : public UPCGSettings
 {
 	GENERATED_BODY()
 

@@ -6,8 +6,8 @@
 
 #include "PCGSanityCheckPointData.generated.h"
 
-UCLASS(BlueprintType, ClassGroup = (Procedural))
-class PCG_API UPCGSanityCheckPointDataSettings : public UPCGSettings
+UCLASS(MinimalAPI, BlueprintType, ClassGroup = (Procedural))
+class UPCGSanityCheckPointDataSettings : public UPCGSettings
 {
 	GENERATED_BODY()
 

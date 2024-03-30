@@ -7,8 +7,8 @@
 #include "PCGReplaceTags.generated.h"
 
 /** Replaces the tags on the input data. */
-UCLASS(BlueprintType, ClassGroup = (Procedural))
-class PCG_API UPCGReplaceTagsSettings : public UPCGSettings
+UCLASS(MinimalAPI, BlueprintType, ClassGroup = (Procedural))
+class UPCGReplaceTagsSettings : public UPCGSettings
 {
 	GENERATED_BODY()
 

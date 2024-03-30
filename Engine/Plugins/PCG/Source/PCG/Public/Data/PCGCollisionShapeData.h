@@ -12,14 +12,14 @@
 
 class UShapeComponent;
 
-UCLASS(BlueprintType, ClassGroup = (Procedural))
-class PCG_API UPCGCollisionShapeData : public UPCGSpatialDataWithPointCache
+UCLASS(MinimalAPI, BlueprintType, ClassGroup = (Procedural))
+class UPCGCollisionShapeData : public UPCGSpatialDataWithPointCache
 {
 	GENERATED_BODY()
 
 public:
-	void Initialize(UShapeComponent* InShape);
-	static bool IsSupported(UShapeComponent* InShape);
+	PCG_API void Initialize(UShapeComponent* InShape);
+	PCG_API static bool IsSupported(UShapeComponent* InShape);
 
 	// ~Begin UPCGData interface
 	virtual EPCGDataType GetDataType() const override { return EPCGDataType::Primitive; }

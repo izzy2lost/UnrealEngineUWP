@@ -206,7 +206,7 @@ struct TStructOpsTypeTraits<FPCGAttributePropertyOutputSelector> : public TStruc
 * Helper class to allow the BP to call the custom setters and getters on FPCGAttributePropertySelector.
 */
 UCLASS()
-class PCG_API UPCGAttributePropertySelectorBlueprintHelpers : public UBlueprintFunctionLibrary
+class UPCGAttributePropertySelectorBlueprintHelpers : public UBlueprintFunctionLibrary
 {
 	GENERATED_BODY()
 

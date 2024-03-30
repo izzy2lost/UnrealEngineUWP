@@ -12,7 +12,7 @@ void FPCGDynamicTrackingHelper::EnableAndInitialize(const FPCGContext* InContext
 	if (InContext && InContext->SourceComponent.IsValid())
 	{
 		const UPCGSettings* Settings = InContext->GetOriginalSettings<UPCGSettings>();
-		if (Settings && Settings->CanDynamicalyTrackKeys())
+		if (Settings && Settings->CanDynamicallyTrackKeys())
 		{
 			CachedComponent = InContext->SourceComponent;
 			bDynamicallyTracked = true;

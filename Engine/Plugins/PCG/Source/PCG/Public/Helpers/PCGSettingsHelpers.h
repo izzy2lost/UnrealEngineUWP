@@ -248,7 +248,7 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 		bool bExtractArrays = false;
 	};
 
-	TArray<FPCGSettingsOverridableParam> GetAllOverridableParams(const UStruct* InClass, const FPCGGetAllOverridableParamsConfig& InConfig);
+	PCG_API TArray<FPCGSettingsOverridableParam> GetAllOverridableParams(const UStruct* InClass, const FPCGGetAllOverridableParamsConfig& InConfig);
 }
 
 // Deprecated macro, not necessary anymore. Cf. GetValue

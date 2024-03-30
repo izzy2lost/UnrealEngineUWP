@@ -259,7 +259,7 @@ enum class EPCGEditorDirtyMode : uint8
 };
 
 USTRUCT(BlueprintType)
-struct FPCGRuntimeGenerationRadii
+struct PCG_API FPCGRuntimeGenerationRadii
 {
 	GENERATED_BODY()
 
@@ -343,5 +343,5 @@ namespace PCGQualityHelpers
 	const FName PinLabelCinematic = TEXT("Cinematic");
 
 	/** Get the pin label associated with the current 'pcg.Quality' value. If the quality level is invalid, it will return the default pin label. */
-	FName GetQualityPinLabel();
+	PCG_API FName GetQualityPinLabel();
 }

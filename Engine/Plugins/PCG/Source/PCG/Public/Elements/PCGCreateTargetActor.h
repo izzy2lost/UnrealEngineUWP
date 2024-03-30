@@ -9,8 +9,8 @@
 
 class AActor;
 
-UCLASS(BlueprintType, ClassGroup = (Procedural))
-class PCG_API UPCGCreateTargetActor : public UPCGSettings
+UCLASS(MinimalAPI, BlueprintType, ClassGroup = (Procedural))
+class UPCGCreateTargetActor : public UPCGSettings
 {
 	GENERATED_BODY()
 
@@ -52,15 +52,8 @@ private:
 #endif
 
 public:
-	UPROPERTY(BlueprintReadOnly, EditAnywhere, Category = Settings, meta = (OnlyPlaceable, DisallowCreateNew))
-	TSubclassOf<AActor> TemplateActorClass = nullptr;
-
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Instanced, Category = Settings, meta = (ShowInnerProperties, EditCondition = "bAllowTemplateActorEditing", EditConditionHides))
 	TObjectPtr<AActor> TemplateActor;
-
-	// TODO: make this InlineEditConditionToggle, not done because property changed event does not propagate correctly so we can't track accurately the need to create the target actor
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Settings)
-	bool bAllowTemplateActorEditing = false;
 
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings)
 	EPCGAttachOptions AttachOptions = EPCGAttachOptions::Attached; // Note that this is no longer the default value for new nodes, it is now EPCGAttachOptions::InFolder
@@ -84,6 +77,21 @@ public:
 	/** Specify a list of functions to be called on the target actor after creation. Functions need to be parameter-less and with "CallInEditor" flag enabled. */
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings)
 	TArray<FName> PostProcessFunctionNames;
+
+	PCG_API void SetTemplateActorClass(const TSubclassOf<AActor>& InTemplateActorClass);
+	PCG_API void SetAllowTemplateActorEditing(bool bInAllowTemplateActorEditing);
+	const TSubclassOf<AActor>& GetTemplateActorClass() const { return TemplateActorClass; }
+	bool GetAllowTemplateActorEditing() const { return bAllowTemplateActorEditing; }
+
+protected:
+	UPROPERTY(BlueprintReadOnly, EditAnywhere, Category = Settings, meta = (OnlyPlaceable, DisallowCreateNew))
+	TSubclassOf<AActor> TemplateActorClass = nullptr;
+
+	// TODO: make this InlineEditConditionToggle, not done because property changed event does not propagate correctly so we can't track accurately the need to create the target actor
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Settings)
+	bool bAllowTemplateActorEditing = false;
+
+	friend class FPCGCreateTargetActorElement;
 };
 
 class FPCGCreateTargetActorElement : public IPCGElement

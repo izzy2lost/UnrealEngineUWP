@@ -6,8 +6,8 @@
 
 #include "PCGSelectPoints.generated.h"
 
-UCLASS(BlueprintType, ClassGroup = (Procedural))
-class PCG_API UPCGSelectPointsSettings : public UPCGSettings
+UCLASS(MinimalAPI, BlueprintType, ClassGroup = (Procedural))
+class UPCGSelectPointsSettings : public UPCGSettings
 {
 	GENERATED_BODY()
 

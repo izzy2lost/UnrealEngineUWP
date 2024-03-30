@@ -36,8 +36,8 @@ enum class EPCGMetadataMakeVector4 : uint8
 	Vector3AndValue
 };
 
-UCLASS(BlueprintType, ClassGroup = (Procedural))
-class PCG_API UPCGMetadataMakeVectorSettings : public UPCGMetadataSettingsBase
+UCLASS(MinimalAPI, BlueprintType, ClassGroup = (Procedural))
+class UPCGMetadataMakeVectorSettings : public UPCGMetadataSettingsBase
 {
 	GENERATED_BODY()
 

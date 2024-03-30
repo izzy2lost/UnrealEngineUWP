@@ -13,8 +13,8 @@ class UActorComponent;
 /**
 * Extract a property value from an actor/component into a ParamData.
 */
-UCLASS(BlueprintType, ClassGroup = (Procedural))
-class PCG_API UPCGGetActorPropertySettings : public UPCGSettings
+UCLASS(MinimalAPI, BlueprintType, ClassGroup = (Procedural))
+class UPCGGetActorPropertySettings : public UPCGSettings
 {
 	GENERATED_BODY()
 
@@ -32,7 +32,7 @@ public:
 	virtual FText GetDefaultNodeTitle() const override { return NSLOCTEXT("PCGPropertyToParamDataSettings", "NodeTitle", "Get Actor Property"); }
 	virtual EPCGSettingsType GetType() const override { return EPCGSettingsType::Param; }
 	virtual void GetStaticTrackedKeys(FPCGSelectionKeyToSettingsMap& OutKeysToSettings, TArray<TObjectPtr<const UPCGGraph>>& OutVisitedGraphs) const override;
-	virtual bool CanDynamicalyTrackKeys() const override { return true; }
+	virtual bool CanDynamicallyTrackKeys() const override { return true; }
 #endif
 
 	virtual FString GetAdditionalTitleInformation() const override;

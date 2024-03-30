@@ -222,6 +222,29 @@ void UPCGCreateTargetActor::PostLoad()
 #endif // WITH_EDITOR
 }
 
+void UPCGCreateTargetActor::SetTemplateActorClass(const TSubclassOf<AActor>& InTemplateActorClass)
+{
+#if WITH_EDITOR
+	TeardownBlueprintEvent();
+#endif // WITH_EDITOR
+
+	TemplateActorClass = InTemplateActorClass;
+
+#if WITH_EDITOR
+	SetupBlueprintEvent();
+	RefreshTemplateActor();
+#endif // WITH_EDITOR
+}
+
+void UPCGCreateTargetActor::SetAllowTemplateActorEditing(bool bInAllowTemplateActorEditing)
+{
+	bAllowTemplateActorEditing = bInAllowTemplateActorEditing;
+
+#if WITH_EDITOR
+	RefreshTemplateActor();
+#endif // WITH_EDITOR
+}
+
 bool FPCGCreateTargetActorElement::ExecuteInternal(FPCGContext* Context) const
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(FPCGCreateTargetActorElement::Execute);

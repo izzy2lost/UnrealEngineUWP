@@ -24,8 +24,8 @@ enum class EPCGMetadataVectorOperation : uint16
 	InverseTransformLocation
 };
 
-UCLASS(BlueprintType, ClassGroup = (Procedural))
-class PCG_API UPCGMetadataVectorSettings : public UPCGMetadataSettingsBase
+UCLASS(MinimalAPI, BlueprintType, ClassGroup = (Procedural))
+class UPCGMetadataVectorSettings : public UPCGMetadataSettingsBase
 {
 	GENERATED_BODY()
 

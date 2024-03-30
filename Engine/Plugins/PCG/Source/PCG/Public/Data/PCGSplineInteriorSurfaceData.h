@@ -14,13 +14,13 @@ struct FPCGProjectionParams;
 /**
 * Represents a surface implicitly using the top-down 2D projection of a closed spline.
 */
-UCLASS(BlueprintType, ClassGroup = (Procedural))
-class PCG_API UPCGSplineInteriorSurfaceData : public UPCGSurfaceData
+UCLASS(MinimalAPI, BlueprintType, ClassGroup = (Procedural))
+class UPCGSplineInteriorSurfaceData : public UPCGSurfaceData
 {
 	GENERATED_BODY()
 
 public:
-	void Initialize(const UPCGSplineData* InSplineData);
+	PCG_API void Initialize(const UPCGSplineData* InSplineData);
 
 	// ~Begin UObject interface
 	virtual void PostLoad() override;

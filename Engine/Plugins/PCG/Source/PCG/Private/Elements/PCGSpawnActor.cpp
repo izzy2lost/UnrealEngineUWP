@@ -141,6 +141,29 @@ UPCGNode* UPCGSpawnActorSettings::CreateNode() const
 	return NewObject<UPCGSpawnActorNode>();
 }
 
+void UPCGSpawnActorSettings::SetTemplateActorClass(const TSubclassOf<AActor>& InTemplateActorClass)
+{
+#if WITH_EDITOR
+	TeardownBlueprintEvent();
+#endif // WITH_EDITOR
+
+	TemplateActorClass = InTemplateActorClass;
+
+#if WITH_EDITOR
+	SetupBlueprintEvent();
+	RefreshTemplateActor();
+#endif // WITH_EDITOR
+}
+
+void UPCGSpawnActorSettings::SetAllowTemplateActorEditing(bool bInAllowTemplateActorEditing)
+{
+	bAllowTemplateActorEditing = bInAllowTemplateActorEditing;
+
+#if WITH_EDITOR
+	RefreshTemplateActor();
+#endif // WITH_EDITOR
+}
+
 FPCGElementPtr UPCGSpawnActorSettings::CreateElement() const
 {
 	return MakeShared<FPCGSpawnActorElement>();

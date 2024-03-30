@@ -55,7 +55,7 @@ public:
 
 #if WITH_EDITOR
 	/** Notify that we exited the Landscape edit mode. */
-	PCG_API void NotifyLandscapeEditModeExited();
+	void NotifyLandscapeEditModeExited();
 #endif // WITH_EDITOR
 
 	/** Register a new PCG Component or update it. Returns true if it was added/updated. Thread safe */

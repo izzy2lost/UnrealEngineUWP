@@ -53,7 +53,7 @@ enum class EPCGSplineSamplingInteriorOrientation : uint8
 };
 
 USTRUCT(BlueprintType)
-struct PCG_API FPCGSplineSamplerParams
+struct FPCGSplineSamplerParams
 {
 	GENERATED_BODY()
 
@@ -210,8 +210,8 @@ namespace PCGSplineSamplerHelpers
 	FVector::FReal ProjectOntoSplineInteriorSurface(const TArray<FVector>& SplinePoints, const FVector& PointToProject);
 }
 
-UCLASS(BlueprintType, ClassGroup = (Procedural))
-class PCG_API UPCGSplineSamplerSettings : public UPCGSettings
+UCLASS(MinimalAPI, BlueprintType, ClassGroup = (Procedural))
+class UPCGSplineSamplerSettings : public UPCGSettings
 {
 	GENERATED_BODY()
 

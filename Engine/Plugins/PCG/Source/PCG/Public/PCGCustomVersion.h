@@ -7,7 +7,7 @@
 struct FGuid;
 
 // Custom serialization version for assets/classes in the PCG plugin
-struct PCG_API FPCGCustomVersion
+struct FPCGCustomVersion
 {
 	enum Type
 	{

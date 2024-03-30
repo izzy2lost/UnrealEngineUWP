@@ -14,8 +14,8 @@ class UPCGMatchAndSetBase;
 * on the point data it consumes as input.
 * E.g. for a given point, if it matches with something in the Match & Set object, it will set a value on the point.
 */
-UCLASS(BlueprintType, ClassGroup = (Procedural), meta = (PrioritizeCategories = "Settings"))
-class PCG_API UPCGPointMatchAndSetSettings : public UPCGSettings
+UCLASS(MinimalAPI, BlueprintType, ClassGroup = (Procedural), meta = (PrioritizeCategories = "Settings"))
+class UPCGPointMatchAndSetSettings : public UPCGSettings
 {
 	GENERATED_BODY()
 
@@ -48,7 +48,7 @@ public:
 
 	/** Recreates the match & set instance stored in this settings object if needed. */
 	UFUNCTION(BlueprintCallable, Category = Settings)
-	void SetMatchAndSetType(TSubclassOf<UPCGMatchAndSetBase> InMatchAndSetType);
+	PCG_API void SetMatchAndSetType(TSubclassOf<UPCGMatchAndSetBase> InMatchAndSetType);
 
 protected:
 	void RefreshMatchAndSet();
@@ -70,15 +70,15 @@ public:
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings, meta = (EditCondition = "bSetTargetIsAttribute", HideEditConditionToggle, EditConditionHides))
 	EPCGMetadataTypes SetTargetType = EPCGMetadataTypes::Double;
 
-	/** For string types, the subtype is used to cleanup the UI. */
-	UPROPERTY()
-	EPCGMetadataTypesConstantStructStringMode SetTargetStringMode_DEPRECATED;
-
 private:
 #if WITH_EDITORONLY_DATA
 	// Property used to sidestep edit condition issues - reflects SetTarget.Selection == Attribute
 	UPROPERTY()
 	bool bSetTargetIsAttribute = true;
+
+	/** For string types, the subtype is used to cleanup the UI. */
+	UPROPERTY()
+	EPCGMetadataTypesConstantStructStringMode SetTargetStringMode_DEPRECATED;
 #endif
 };
 

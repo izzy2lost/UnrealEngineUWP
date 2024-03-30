@@ -19,8 +19,8 @@ enum class EPCGAttributeFilterOperation
 * 
 * The output will be the original data with the updated metadata.
 */
-UCLASS(BlueprintType, ClassGroup = (Procedural))
-class PCG_API UPCGDeleteAttributesSettings : public UPCGSettings
+UCLASS(MinimalAPI, BlueprintType, ClassGroup = (Procedural))
+class UPCGDeleteAttributesSettings : public UPCGSettings
 {
 	GENERATED_BODY()
 

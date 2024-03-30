@@ -176,7 +176,7 @@ void IPCGElement::PostExecute(FPCGContext* Context) const
 
 #if WITH_EDITOR
 	// Register the element to the component indicating the element has run and can have dynamic tracked keys.
-	if (Settings && Settings->CanDynamicalyTrackKeys() && Context->SourceComponent.IsValid())
+	if (Settings && Settings->CanDynamicallyTrackKeys() && Context->SourceComponent.IsValid())
 	{
 		Context->SourceComponent->RegisterDynamicTracking(Settings, {});
 	}

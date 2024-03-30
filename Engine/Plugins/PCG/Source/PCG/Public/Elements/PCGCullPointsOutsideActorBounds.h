@@ -9,8 +9,8 @@
 /**
  * Removes points that lie outside the current actor bounds.
  */
-UCLASS(BlueprintType, ClassGroup = (Procedural))
-class PCG_API UPCGCullPointsOutsideActorBoundsSettings : public UPCGSettings
+UCLASS(MinimalAPI, BlueprintType, ClassGroup = (Procedural))
+class UPCGCullPointsOutsideActorBoundsSettings : public UPCGSettings
 {
 	GENERATED_BODY()
 

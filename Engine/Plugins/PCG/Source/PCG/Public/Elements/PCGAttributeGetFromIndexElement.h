@@ -6,8 +6,8 @@
 
 #include "PCGAttributeGetFromIndexElement.generated.h"
 
-UCLASS(BlueprintType, ClassGroup=(Procedural))
-class PCG_API UPCGAttributeGetFromIndexSettings : public UPCGSettings
+UCLASS(MinimalAPI, BlueprintType, ClassGroup=(Procedural))
+class UPCGAttributeGetFromIndexSettings : public UPCGSettings
 {
 	GENERATED_BODY()
 

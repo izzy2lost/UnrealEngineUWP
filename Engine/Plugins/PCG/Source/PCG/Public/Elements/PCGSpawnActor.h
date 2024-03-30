@@ -35,16 +35,13 @@ enum class EPCGSpawnActorGenerationTrigger : uint8
 * as far as data passing and dispatch go.
 * Note that at this point in time, results from the underlying graphs being generated is not propagated back as results of this node.
 */
-UCLASS(BlueprintType, ClassGroup = (Procedural))
-class PCG_API UPCGSpawnActorSettings : public UPCGBaseSubgraphSettings
+UCLASS(MinimalAPI, BlueprintType, ClassGroup = (Procedural))
+class UPCGSpawnActorSettings : public UPCGBaseSubgraphSettings
 {
 	GENERATED_BODY()
 
 public:
 	UPCGSpawnActorSettings(const FObjectInitializer& ObjectInitializer);
-
-	UPROPERTY(BlueprintReadOnly, EditAnywhere, Category = Settings, meta = (OnlyPlaceable, DisallowCreateNew))
-	TSubclassOf<AActor> TemplateActorClass = nullptr;
 
 	/** 
 	 * Can specify a list of functions from the template class to be called on each actor spawned, in order. Need to have "CallInEditor" flag enabled
@@ -69,9 +66,6 @@ public:
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings, meta = (EditCondition = "Option!=EPCGSpawnActorOption::CollapseActors", EditConditionHides))
 	TArray<FName> TagsToAddOnActors;
 
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings, meta = (EditCondition = "Option != EPCGSpawnActorOption::CollapseActors"))
-	bool bAllowTemplateActorEditing = false;
-
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Instanced, Category = Settings, meta = (ShowInnerProperties, EditCondition = "bAllowTemplateActorEditing && Option != EPCGSpawnActorOption::CollapseActors", EditConditionHides))
 	TObjectPtr<AActor> TemplateActor;
 
@@ -91,6 +85,12 @@ public:
 	FName SpawnAttribute = NAME_None;
 
 protected:
+	UPROPERTY(BlueprintReadOnly, EditAnywhere, Category = Settings, meta = (OnlyPlaceable, DisallowCreateNew))
+	TSubclassOf<AActor> TemplateActorClass = nullptr;
+
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings, meta = (EditCondition = "Option != EPCGSpawnActorOption::CollapseActors"))
+	bool bAllowTemplateActorEditing = false;
+
 #if WITH_EDITORONLY_DATA
 	UPROPERTY()
 	EPCGSpawnActorGenerationTrigger bGenerationTrigger_DEPRECATED = EPCGSpawnActorGenerationTrigger::Default;
@@ -111,11 +111,15 @@ public:
 	virtual void PostEditUndo() override;
 #endif // WITH_EDITOR
 
-	//~Begin UCPGSettings interface
-	
+	//~Begin UPCGSettings interface
 	virtual UPCGNode* CreateNode() const override;
 
-#if WITH_EDITOR	
+	PCG_API void SetTemplateActorClass(const TSubclassOf<AActor>& InTemplateActorClass);
+	PCG_API void SetAllowTemplateActorEditing(bool bInAllowTemplateActorEditing);
+	const TSubclassOf<AActor>& GetTemplateActorClass() const { return TemplateActorClass; }
+	bool GetAllowTemplateActorEditing() const { return bAllowTemplateActorEditing; }
+
+#if WITH_EDITOR
 	virtual FName GetDefaultNodeName() const override { return FName(TEXT("SpawnActor")); }
 	virtual FText GetDefaultNodeTitle() const override { return NSLOCTEXT("PCGSpawnActorSettings", "NodeTitle", "Spawn Actor"); }
 	virtual EPCGSettingsType GetType() const override;
@@ -148,10 +152,12 @@ protected:
 private:
 	void RefreshTemplateActor();
 #endif
+
+	friend class FPCGSpawnActorElement;
 };
 
 UCLASS(ClassGroup = (Procedural))
-class PCG_API UPCGSpawnActorNode : public UPCGBaseSubgraphNode
+class UPCGSpawnActorNode : public UPCGBaseSubgraphNode
 {
 	GENERATED_BODY()
 public:
@@ -178,7 +184,3 @@ private:
 	void CollapseIntoTargetActor(FPCGSubgraphContext* Context, AActor* TargetActor, TSubclassOf<AActor> TemplateActorClass, const UPCGPointData* PointData) const;
 	void SpawnActors(FPCGSubgraphContext* Context, AActor* TargetActor, TSubclassOf<AActor> TemplateActorClass, AActor* TemplateActor, FPCGTaggedData& Output, const UPCGPointData* PointData, UPCGPointData* OutPointData) const;
 };
-
-#if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_2
-#include "CoreMinimal.h"
-#endif

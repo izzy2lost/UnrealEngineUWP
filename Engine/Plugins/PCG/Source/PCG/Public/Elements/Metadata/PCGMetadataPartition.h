@@ -7,8 +7,8 @@
 
 #include "PCGMetadataPartition.generated.h"
 
-UCLASS(BlueprintType, ClassGroup = (Procedural))
-class PCG_API UPCGMetadataPartitionSettings : public UPCGSettings
+UCLASS(MinimalAPI, BlueprintType, ClassGroup = (Procedural))
+class UPCGMetadataPartitionSettings : public UPCGSettings
 {
 	GENERATED_BODY()
 

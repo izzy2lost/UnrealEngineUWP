@@ -126,13 +126,13 @@ protected:
 	void CopyBaseTextureData(UPCGBaseTextureData* NewTextureData) const;
 };
 
-UCLASS(BlueprintType, ClassGroup=(Procedural))
-class PCG_API UPCGTextureData : public UPCGBaseTextureData
+UCLASS(MinimalAPI, BlueprintType, ClassGroup=(Procedural))
+class UPCGTextureData : public UPCGBaseTextureData
 {
 	GENERATED_BODY()
 
 public:
-	void Initialize(UTexture* InTexture, uint32 InTextureIndex, const FTransform& InTransform, const TFunction<void()>& PostInitializeCallback, bool bCreateCPUDuplicateEditorOnly = false);
+	PCG_API void Initialize(UTexture* InTexture, uint32 InTextureIndex, const FTransform& InTransform, const TFunction<void()>& PostInitializeCallback, bool bCreateCPUDuplicateEditorOnly = false);
 
 	// ~Begin UPCGData interface
 	virtual EPCGDataType GetDataType() const override { return EPCGDataType::Texture; }

@@ -27,8 +27,8 @@ enum class EPCGAttributeNoiseMode : uint8
 * Apply some noise to an attribute/property. You can select the mode you want and a noise range.
 * Support all numerical types and vectors/rotators.
 */
-UCLASS(BlueprintType, ClassGroup = (Procedural))
-class PCG_API UPCGAttributeNoiseSettings : public UPCGSettings
+UCLASS(MinimalAPI, BlueprintType, ClassGroup = (Procedural))
+class UPCGAttributeNoiseSettings : public UPCGSettings
 {
 	GENERATED_BODY()
 

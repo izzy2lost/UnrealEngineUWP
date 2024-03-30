@@ -47,9 +47,9 @@ namespace PCGTestsCommon
 		FRandomStream RandomStream;
 	};
 
-	PCG_API AActor* CreateTemporaryActor();
+	AActor* CreateTemporaryActor();
 	PCG_API UPCGPointData* CreateEmptyPointData();
-	PCG_API UPCGParamData* CreateEmptyParamData();
+	UPCGParamData* CreateEmptyParamData();
 
 	/** Creates a PointData with a single point at the origin */
 	PCG_API UPCGPointData* CreatePointData();
@@ -59,15 +59,15 @@ namespace PCGTestsCommon
 	/** Creates a PointData with PointCount many points, and randomizes the Transform, Color, and Density */
 	PCG_API UPCGPointData* CreateRandomPointData(int32 PointCount, int32 Seed, bool RandomDensity = false);
 
-	PCG_API UPCGPolyLineData* CreatePolyLineData();
-	PCG_API UPCGSurfaceData* CreateSurfaceData();
-	PCG_API UPCGVolumeData* CreateVolumeData(const FBox& InBounds = FBox::BuildAABB(FVector::ZeroVector, FVector::OneVector * 100));
-	PCG_API UPCGPrimitiveData* CreatePrimitiveData();
+	UPCGPolyLineData* CreatePolyLineData();
+	UPCGSurfaceData* CreateSurfaceData();
+	UPCGVolumeData* CreateVolumeData(const FBox& InBounds = FBox::BuildAABB(FVector::ZeroVector, FVector::OneVector * 100));
+	UPCGPrimitiveData* CreatePrimitiveData();
 
-	PCG_API TArray<FPCGDataCollection> GenerateAllowedData(const FPCGPinProperties& PinProperties);
+	TArray<FPCGDataCollection> GenerateAllowedData(const FPCGPinProperties& PinProperties);
 
 	/** Validates that two Spatial Points are identical */
-	PCG_API bool PointsAreIdentical(const FPCGPoint& FirstPoint, const FPCGPoint& SecondPoint);
+	bool PointsAreIdentical(const FPCGPoint& FirstPoint, const FPCGPoint& SecondPoint);
 
 	/** Generates settings based upon a UPCGSettings subclass */
 	template<typename SettingsType>
@@ -91,7 +91,7 @@ namespace PCGTestsCommon
 	}
 }
 
-class PCG_API FPCGTestBaseClass : public FAutomationTestBase
+class FPCGTestBaseClass : public FAutomationTestBase
 {
 public:
 	using FAutomationTestBase::FAutomationTestBase;
@@ -102,7 +102,3 @@ protected:
 	/** Generates all valid input combinations */
 	bool SmokeTestAnyValidInput(UPCGSettings* InSettings, TFunction<bool(const FPCGDataCollection&, const FPCGDataCollection&)> ValidationFn = TFunction<bool(const FPCGDataCollection&, const FPCGDataCollection&)>());
 };
-
-#if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_2
-#include "Tests/AutomationCommon.h"
-#endif

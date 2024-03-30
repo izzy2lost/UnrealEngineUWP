@@ -86,8 +86,8 @@ namespace PCGHelpers
 };
 
 /** Holds function prototypes used to match against actor function signatures. */
-UCLASS()
-class PCG_API UPCGFunctionPrototypes : public UBlueprintFunctionLibrary
+UCLASS(MinimalAPI)
+class UPCGFunctionPrototypes : public UBlueprintFunctionLibrary
 {
 	GENERATED_BODY()
 
