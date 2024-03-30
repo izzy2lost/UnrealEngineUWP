@@ -1463,6 +1463,11 @@ uint32 UPCGSubsystem::GetGraphCacheEntryCount(IPCGElement* InElement) const
 	return GraphExecutor ? GraphExecutor->GetGraphCacheEntryCount(InElement) : 0;
 }
 
+void UPCGSubsystem::NotifyLandscapeEditModeExited()
+{
+	ActorAndComponentMapping.NotifyLandscapeEditModeExited();
+}
+
 void UPCGSubsystem::ClearExecutionMetadata(const FPCGStack& BaseStack)
 {
 	ClearExecutedStacks(BaseStack);
