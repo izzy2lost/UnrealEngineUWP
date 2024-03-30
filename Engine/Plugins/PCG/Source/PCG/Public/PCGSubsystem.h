@@ -296,7 +296,7 @@ public:
 	FPCGNodeVisualLogs& GetNodeVisualLogsMutable() { return NodeVisualLogs; }
 
 	/** Notify that we exited the Landscape edit mode. */
-	void NotifyLandscapeEditModeExited() { ActorAndComponentMapping.NotifyLandscapeEditModeExited(); }
+	void NotifyLandscapeEditModeExited();
 
 	/** Clear any data collected during execution, normally called prior to generating the component. */
 	void ClearExecutionMetadata(const FPCGStack& BaseStack);
