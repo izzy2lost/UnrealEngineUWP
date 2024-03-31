@@ -34,8 +34,7 @@ void FSkeletalMeshToCollectionDataflowNode::Evaluate(Dataflow::FContext& Context
 				AppendSkeletalMeshComponentsToGeometryCollection(InSkeletalMesh, OutCollection);
 			}
 		}
-		FManagedArrayCollection OutManagedArrayCollection = OutCollection;
-		SetValue(Context, MoveTemp(OutManagedArrayCollection), &Collection);
+		SetValue(Context, FManagedArrayCollection(OutCollection), &Collection);
 	}
 }
 
