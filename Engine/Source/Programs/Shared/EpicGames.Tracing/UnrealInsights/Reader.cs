@@ -111,11 +111,10 @@ namespace EpicGames.Tracing.UnrealInsights
 			while (reader.BaseStream.Position != reader.BaseStream.Length)
 			{
 				ushort uid;
-				ushort size = 0;
 				if (threadId == TransportPacket.ThreadIdEvents || threadId == TransportPacket.ThreadIdImportants)
 				{
 					uid = reader.ReadUInt16();
-					size = reader.ReadUInt16(); // TODO: validate and respect the size
+					reader.ReadUInt16(); // TODO: validate and respect the size
 				}
 				else
 				{

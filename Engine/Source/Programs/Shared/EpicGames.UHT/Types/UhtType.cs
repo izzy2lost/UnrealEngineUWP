@@ -2,6 +2,7 @@
 
 using System;
 using System.Collections.Generic;
+using System.Diagnostics.CodeAnalysis;
 using System.Text;
 using System.Text.Json.Serialization;
 using System.Threading;
@@ -528,6 +529,7 @@ namespace EpicGames.UHT.Types
 	/// Not all types support the given options.
 	/// </summary>
 	[Flags]
+	[SuppressMessage("Usage", "CA2217:Do not mark enums with FlagsAttribute")]
 	public enum UhtDefineScope
 	{
 

@@ -39,6 +39,7 @@ namespace EpicGames.UHT.Parsers
 	/// Compiler directives
 	/// </summary>
 	[Flags]
+	[SuppressMessage("Usage", "CA2217:Do not mark enums with FlagsAttribute")]
 	public enum UhtCompilerDirective
 	{
 		/// <summary>
