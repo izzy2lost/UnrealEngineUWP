@@ -8,7 +8,10 @@ public class libpas : ModuleRules
 {
 	public libpas(ReadOnlyTargetRules Target) : base(Target)
 	{
-		BinariesSubFolder = "NotForLicensees";
+		if (!Target.bUseVerseVM)
+		{
+			BinariesSubFolder = "NotForLicensees";
+		}
 
 		// Disable static analysis for now.
 		bDisableStaticAnalysis = true;

@@ -130,6 +130,8 @@ namespace UnrealBuildTool
 
 		public bool bUseVerseBPVM => Inner.bUseVerseBPVM;
 
+		public bool bUseVerseVM => !bUseVerseBPVM || Inner.GlobalDefinitions.Contains("WITH_VERSE_VM=1") || Inner.GlobalDefinitions.Contains("WITH_VERSE_VM=WITH_COREUOBJECT");
+
 		public bool bUseAutoRTFMCompiler => Inner.bUseAutoRTFMCompiler;
 
 		[Obsolete("Deprecated in UE5.1 - No longer used as Chaos is always enabled.")]

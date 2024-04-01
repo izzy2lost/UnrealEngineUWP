@@ -5,17 +5,11 @@ using UnrealBuildTool;
 
 public class CoreUObject : ModuleRules
 {
-	public static bool IsVerseVMEnabled(ReadOnlyTargetRules Target)
-	{
-		return !Target.bUseVerseBPVM || Target.GlobalDefinitions.Contains("WITH_VERSE_VM=1")
-			|| Target.GlobalDefinitions.Contains("WITH_VERSE_VM=WITH_COREUOBJECT");
-	}
-
 	public static void AddVerseVMDependencies(ModuleRules Rules, ReadOnlyTargetRules Target)
 	{
 		// If using the new VM either by default or directly, then add in a dependency to 
 		// the core VerseVM which contains special compile flags not compatible with CoreUObject
-		if (IsVerseVMEnabled(Target))
+		if (Target.bUseVerseVM)
 		{
 			Rules.PublicDependencyModuleNames.AddRange(
 				new string[]
