@@ -970,5 +970,5 @@ FNaniteSkinningHeader LoadNaniteSkinningHeader(uint InPrimitiveIndex)
 
 float3x4 LoadNaniteBoneTransform(uint TransformIndex)
 {
-	return Scene.NaniteSkinning.BoneTransforms.Load<float3x4>(TransformIndex * sizeof(float3x4));
+	return Scene.NaniteSkinning.BoneTransforms.Load<float3x4>(TransformIndex * (uint)sizeof(float3x4));
 }
