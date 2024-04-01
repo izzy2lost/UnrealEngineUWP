@@ -358,8 +358,6 @@ protected:
 private:
 	bool IsKnownContentPath(const FName InPackagePath) const;
 
-	bool IsRootContentPath(const FName InPackagePath) const;
-
 	static bool GetObjectPathsForCollections(ICollectionManager* CollectionManager, TArrayView<const FCollectionNameType> InCollections, const bool bIncludeChildCollections, TArray<FSoftObjectPath>& OutObjectPaths);
 
 	FContentBrowserItemData CreateAssetFolderItem(const FName InFolderPath);
@@ -442,6 +440,10 @@ private:
 
 	FContentBrowserItemData OnFinalizeDuplicateAsset(const FContentBrowserItemData& InItemData, const FString& InProposedName, FText* OutErrorMsg);
 
+	void AddRootContentPathToStateMachine(const FString& InAssetPath);
+
+	void RemoveRootContentPathFromStateMachine(const FString& InAssetPath);
+
 	IAssetRegistry* AssetRegistry;
 
 	IAssetTools* AssetTools;
@@ -459,6 +461,65 @@ private:
 	 * @note These paths include a trailing slash.
 	 */
 	TArray<FString> RootContentPaths;
+
+	struct FCharacterNode;
+
+	struct FCharacterNodePtr
+	{
+		FCharacterNodePtr()
+			: Node(MakeUnique<FCharacterNode>())
+		{
+		}
+
+		FCharacterNodePtr(FCharacterNodePtr&&) = default;
+		FCharacterNodePtr& operator=(FCharacterNodePtr&&) = default;
+
+		FCharacterNodePtr(const FCharacterNodePtr&) = delete;
+		FCharacterNodePtr& operator=(const FCharacterNodePtr&) = delete;
+
+		const FCharacterNode& operator*() const
+		{
+			return Node.operator*();
+		}
+
+		const FCharacterNode* operator->() const
+		{
+			return Node.operator->();
+		}
+
+		FCharacterNode& operator*()
+		{
+			return Node.operator*();
+		}
+
+		FCharacterNode* operator->()
+		{
+			return Node.operator->();
+		}
+ 
+		const FCharacterNode* Get() const
+		{
+			return Node.Get();
+		}
+
+		FCharacterNode* Get()
+		{
+			return Node.Get();
+		}
+
+	private:
+
+		TUniquePtr<FCharacterNode> Node;
+	};
+
+	struct FCharacterNode
+	{
+		// The next characters in the tree and the number of paths beginning with the prefix including that character for use in removing paths.
+		TMap<TCHAR, TPair<FCharacterNodePtr, int32>> NextNodes;
+	};
+
+	// Tree of character nodes all in lower case. Used to speed up queries against the RootContentPaths Array.
+	FCharacterNode RootContentPathsTrie;
 
 	/**
 	 * Map of folders that have attributes set.

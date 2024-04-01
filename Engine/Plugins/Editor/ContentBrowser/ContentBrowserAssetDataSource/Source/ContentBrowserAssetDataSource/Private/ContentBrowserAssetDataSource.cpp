@@ -17,6 +17,7 @@
 #include "Editor.h"
 #include "IAssetTools.h"
 #include "ToolMenus.h"
+#include "Misc/Char.h"
 #include "Misc/PackageName.h"
 #include "Misc/PathViews.h"
 #include "NewAssetContextMenu.h"
@@ -247,10 +248,13 @@ void UContentBrowserAssetDataSource::Initialize(const bool InAutoRegister)
 
 	BuildRootPathVirtualTree();
 
-	// Mount roots are always visible
 	for (const FString& RootContentPath : RootContentPaths)
 	{
+		// Mount roots are always visible
 		OnAlwaysShowPath(RootContentPath);
+		
+		// Populate the acceleration structure
+		AddRootContentPathToStateMachine(RootContentPath);
 	}
 }
 
@@ -260,6 +264,9 @@ void UContentBrowserAssetDataSource::Shutdown()
 
 	AssetTools = nullptr;
 	AssetRegistry = nullptr;
+
+	RootContentPaths.Empty();
+	RootContentPathsTrie.NextNodes.Empty();
 
 	if (FAssetRegistryModule* AssetRegistryModule = FModuleManager::GetModulePtr<FAssetRegistryModule>(AssetRegistryConstants::ModuleName))
 	{
@@ -2783,28 +2790,36 @@ bool UContentBrowserAssetDataSource::IsKnownContentPath(const FName InPackagePat
 {
 	FNameBuilder PackagePathStr(InPackagePath);
 	const FStringView PackagePathStrView = PackagePathStr;
-	for (const FString& RootContentPath : RootContentPaths)
+
+	const FCharacterNode* CurrentNode = &RootContentPathsTrie;
+
+	for (const TCHAR& Character : PackagePathStrView)
 	{
-		const FStringView RootContentPathNoSlash = FStringView(RootContentPath).LeftChop(1);
-		if (PackagePathStrView.StartsWith(RootContentPath, ESearchCase::IgnoreCase) || PackagePathStrView.Equals(RootContentPathNoSlash, ESearchCase::IgnoreCase))
+		const TPair<FCharacterNodePtr, int32>* NextNodePair = CurrentNode->NextNodes.Find(TChar<TCHAR>::ToLower(Character));
+
+		if (!NextNodePair)
 		{
+			// This text start with no root content path
+			return false;
+		}
+		 
+		const FCharacterNode* NextNode = NextNodePair->Key.Get();
+
+		// Is the next node terminal
+		if (NextNode->NextNodes.IsEmpty())
+		{
+			// The package path start with a root content path
 			return true;
 		}
+
+		CurrentNode = NextNode;
 	}
-
-	return false;
-}
-
-bool UContentBrowserAssetDataSource::IsRootContentPath(const FName InPackagePath) const
-{
-	FNameBuilder PackagePathStr(InPackagePath);
-	PackagePathStr << TEXT('/'); // RootContentPaths have a trailing slash
-
-	const FStringView PackagePathStrView = PackagePathStr;
-	return RootContentPaths.ContainsByPredicate([&PackagePathStrView](const FString& InRootContentPath)
-	{
-		return PackagePathStrView == InRootContentPath;
-	});
+	
+	/**
+	 * Test if the folder is a root folder here like / Game.
+	 * Where the only thing missing is the last '/'.
+	 */
+	return CurrentNode->NextNodes.Contains(TEXT('/'));
 }
 
 bool UContentBrowserAssetDataSource::GetObjectPathsForCollections(ICollectionManager* CollectionManager, TArrayView<const FCollectionNameType> InCollections, const bool bIncludeChildCollections, TArray<FSoftObjectPath>& OutObjectPaths)
@@ -3114,7 +3129,8 @@ void UContentBrowserAssetDataSource::BuildRootPathVirtualTree()
 
 void UContentBrowserAssetDataSource::OnContentPathMounted(const FString& InAssetPath, const FString& InFileSystemPath)
 {
-	RootContentPaths.AddUnique(InAssetPath);
+	RootContentPaths.Add(InAssetPath);
+	AddRootContentPathToStateMachine(InAssetPath);
 
 	RootPathAdded(InAssetPath);
 
@@ -3126,6 +3142,7 @@ void UContentBrowserAssetDataSource::OnContentPathDismounted(const FString& InAs
 {
 	RootPathRemoved(InAssetPath);
 
+	RemoveRootContentPathFromStateMachine(InAssetPath);
 	RootContentPaths.Remove(InAssetPath);
 }
 
@@ -3518,6 +3535,50 @@ FContentBrowserItemData UContentBrowserAssetDataSource::OnFinalizeDuplicateAsset
 	}
 
 	return CreateAssetFileItem(FAssetData(Asset));
+}
+
+void UContentBrowserAssetDataSource::AddRootContentPathToStateMachine(const FString& InAssetPath)
+{
+	/**
+	 * No need to mark the nodes with a terminal attribute on the last node since they always finish with a '/'.
+	 * They never contains more then two '/'. One at the start and the other at end.
+	 */
+	 ensure(InAssetPath[InAssetPath.Len() - 1] == '/') ;
+
+	FCharacterNode* CurrentNode = &RootContentPathsTrie;
+
+	for (const TCHAR& Character : InAssetPath)
+	{
+		TPair<FCharacterNodePtr,int32>& NextNode = CurrentNode->NextNodes.FindOrAdd(TChar<TCHAR>::ToLower(Character));
+		++NextNode.Value;
+		CurrentNode = NextNode.Key.Get();
+	}
+}
+
+void UContentBrowserAssetDataSource::RemoveRootContentPathFromStateMachine(const FString& InAssetPath)
+{
+	FCharacterNode* CurrentNode = &RootContentPathsTrie;
+
+	for (const TCHAR& Character : InAssetPath)
+	{
+		const TCHAR LoweredCharacter = TChar<TCHAR>::ToLower(Character);
+		uint32 Hash = GetTypeHash(LoweredCharacter);
+		TPair<FCharacterNodePtr,int32>* NextNode = CurrentNode->NextNodes.FindByHash(Hash,LoweredCharacter);
+
+		if (!NextNode)
+		{
+			return;
+		}
+
+		--NextNode->Value;
+		if (NextNode->Value == 0)
+		{
+			CurrentNode->NextNodes.RemoveByHash(Hash,LoweredCharacter);
+			return;
+		}
+
+		CurrentNode = NextNode->Key.Get();
+	}
 }
 
 bool UContentBrowserAssetDataSource::PathPassesCompiledDataFilter(const FContentBrowserCompiledAssetDataFilter& InFilter, const FName InInternalPath)
