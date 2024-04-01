@@ -7,6 +7,7 @@
 #include "PCGCommon.h"
 #include "PCGActorAndComponentMapping.h"
 #include "Grid/PCGComponentOctree.h"
+#include "UObject/ObjectKey.h"
 #include "Utils/PCGNodeVisualLogs.h"
 
 #include "PCGSubsystem.generated.h"
@@ -35,17 +36,6 @@ class UWorld;
 #if WITH_EDITOR
 DECLARE_MULTICAST_DELEGATE_OneParam(FPCGOnComponentGenerationCompleteOrCancelled, UPCGSubsystem*);
 #endif // WITH_EDITOR
-
-USTRUCT()
-struct FConstructionScriptSourceComponents
-{
-	GENERATED_USTRUCT_BODY()
-
-#if WITH_EDITORONLY_DATA
-	UPROPERTY(Transient)
-	TMap<FName, TObjectPtr<UPCGComponent>> SourceComponentsMap;
-#endif
-};
 
 /**
 * UPCGSubsystem
@@ -335,11 +325,9 @@ private:
 
 #if WITH_EDITOR
 	FCriticalSection PCGWorldActorLock;
-#endif
-
-#if WITH_EDITORONLY_DATA
-	UPROPERTY(Transient)
-	TMap<TObjectPtr<AActor>, FConstructionScriptSourceComponents> PerActorConstructionScriptSourceComponents;
+		
+	using FConstructionScriptSourceComponents = TMap<FName, TObjectKey<UPCGComponent>>;
+	TMap<TObjectKey<AActor>, FConstructionScriptSourceComponents> PerActorConstructionScriptSourceComponents;
 #endif
 };
 
