@@ -254,6 +254,7 @@ namespace UE
 				UInterchangeFactoryBase* Factory = nullptr; //The factory that created the imported object.
 				UInterchangeFactoryBaseNode* FactoryNode = nullptr; //The node that describes the object.
 				bool bIsReimport;
+				mutable bool bPostEditChangeCalled = false; //This field is set by the PreCompletionTask and need to be mutable
 			};
 
 			FImportedObjectInfo& AddDefaultImportedAssetGetRef(int32 SourceIndex);

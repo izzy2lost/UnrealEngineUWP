@@ -71,7 +71,6 @@ void UE::Interchange::FTaskPreCompletion::DoTask(ENamedThreads::Type CurrentThre
 			if (bCallPostImportGameThreadCallback && ObjectInfo.Factory)
 			{
 				Arguments.ImportedObject = ImportedObject;
-				// Should we assert if there is no factory node?
 				Arguments.FactoryNode = ObjectInfo.FactoryNode;
 				Arguments.NodeUniqueID = ObjectInfo.FactoryNode ? ObjectInfo.FactoryNode->GetUniqueID() : FString();
 				Arguments.bIsReimport = ObjectInfo.bIsReimport;
@@ -128,7 +127,7 @@ void UE::Interchange::FTaskPreCompletion::DoTask(ENamedThreads::Type CurrentThre
 		}
 
 #if WITH_EDITOR
-		//Second iteration to call PostEditChange
+		//Second iteration to call BuildObject
 		for (const FImportAsyncHelper::FImportedObjectInfo& ObjectInfo : ImportedObjects)
 		{
 			UObject* ImportedObject = ObjectInfo.ImportedObject;
@@ -136,7 +135,13 @@ void UE::Interchange::FTaskPreCompletion::DoTask(ENamedThreads::Type CurrentThre
 			{
 				continue;
 			}
-			ImportedObject->PostEditChange();
+			//The base class of the factory will call posteditchange, but other factory can instead simply build
+			//the asset asynchronously and the post edit change will be call later
+			Arguments.ImportedObject = ImportedObject;
+			Arguments.FactoryNode = ObjectInfo.FactoryNode;
+			Arguments.NodeUniqueID = ObjectInfo.FactoryNode ? ObjectInfo.FactoryNode->GetUniqueID() : FString();
+			Arguments.bIsReimport = ObjectInfo.bIsReimport;
+			ObjectInfo.Factory->BuildObject_GameThread(Arguments, ObjectInfo.bPostEditChangeCalled);
 		}
 #endif //WITH_EDITOR
 
@@ -199,13 +204,20 @@ void UE::Interchange::FTaskCompletion::DoTask(ENamedThreads::Type CurrentThread,
 			{
 				for (const FImportAsyncHelper::FImportedObjectInfo& AssetInfo : AssetInfos)
 				{
-					UObject* Asset = AssetInfo.ImportedObject;
-					if (AsyncHelper->TaskData.ReimportObject && AsyncHelper->TaskData.ReimportObject == Asset)
+					if (UObject* Asset = AssetInfo.ImportedObject)
 					{
-						UInterchangeManager::GetInterchangeManager().OnAssetPostReimport.Broadcast(Asset);
+						//Call post edit change if it was not call previously
+						if (!AssetInfo.bPostEditChangeCalled)
+						{
+							Asset->PostEditChange();
+						}
+						if (AsyncHelper->TaskData.ReimportObject && AsyncHelper->TaskData.ReimportObject == Asset)
+						{
+							UInterchangeManager::GetInterchangeManager().OnAssetPostReimport.Broadcast(Asset);
+						}
+						//We broadcast this event for both import and reimport.
+						UInterchangeManager::GetInterchangeManager().OnAssetPostImport.Broadcast(Asset);
 					}
-					//We broadcast this event for both import and reimport.
-					UInterchangeManager::GetInterchangeManager().OnAssetPostImport.Broadcast(Asset);
 				}
 
 				UE_LOG(LogInterchangeEngine, Display, TEXT("Interchange import completed [%s]"), *AsyncHelper->SourceDatas[SourceIndex]->ToDisplayString());

@@ -231,7 +231,7 @@ void FAssetEditorToolkit::InitAssetEditor( const EToolkitMode::Type Mode, const 
 						{
 							if (AsyncAsset->IsCompiling())
 							{
-								return EVisibility::Hidden;
+								return EVisibility::Collapsed;
 							}
 						}
 					}

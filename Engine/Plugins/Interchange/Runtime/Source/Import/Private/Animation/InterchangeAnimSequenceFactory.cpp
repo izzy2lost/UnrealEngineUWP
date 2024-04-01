@@ -1367,6 +1367,29 @@ void UInterchangeAnimSequenceFactory::SetupObject_GameThread(const FSetupObjectP
 #endif
 }
 
+void UInterchangeAnimSequenceFactory::BuildObject_GameThread(const FSetupObjectParams& Arguments, bool& OutPostEditchangeCalled)
+{
+	check(IsInGameThread());
+	OutPostEditchangeCalled = false;
+#if WITH_EDITOR
+	if (Arguments.ImportedObject)
+	{
+		check(AnimSequence == CastChecked<UAnimSequence>(Arguments.ImportedObject));
+		if (AnimSequence)
+		{
+			const bool bNeedPostProcess = !AnimSequence->IsCompressedDataValid();
+
+			// @Todo fix me: This is temporary fix to make sure they always have compressed data
+			if (AnimSequence->IsDataModelValid() && bNeedPostProcess)
+			{
+				AnimSequence->ClearAllCachedCookedPlatformData();
+				AnimSequence->BeginCacheDerivedDataForCurrentPlatform();
+			}
+		}
+	}
+#endif
+}
+
 bool UInterchangeAnimSequenceFactory::GetSourceFilenames(const UObject* Object, TArray<FString>& OutSourceFilenames) const
 {
 #if WITH_EDITORONLY_DATA

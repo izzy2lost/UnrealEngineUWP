@@ -814,6 +814,26 @@ void UInterchangeStaticMeshFactory::SetupObject_GameThread(const FSetupObjectPar
 #endif
 }
 
+void UInterchangeStaticMeshFactory::BuildObject_GameThread(const FSetupObjectParams& Arguments, bool& OutPostEditchangeCalled)
+{
+	check(IsInGameThread());
+	OutPostEditchangeCalled = false;
+#if WITH_EDITOR
+	if (Arguments.ImportedObject)
+	{
+		if (UStaticMesh* StaticMesh = CastChecked<UStaticMesh>(Arguments.ImportedObject))
+		{
+			//Start an async build of the staticmesh
+			UStaticMesh::FBuildParameters BuildParameters;
+			BuildParameters.bInSilent = true;
+			BuildParameters.bInRebuildUVChannelData = true;
+			BuildParameters.bInEnforceLightmapRestrictions = true;
+			StaticMesh->Build(BuildParameters);
+		}
+	}
+#endif
+}
+
 
 TArray<UInterchangeStaticMeshFactory::FMeshPayload> UInterchangeStaticMeshFactory::GetMeshPayloads(const FImportAssetObjectParams& Arguments, const TArray<FString>& MeshUids) const
 {

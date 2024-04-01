@@ -2063,6 +2063,22 @@ void UInterchangeSkeletalMeshFactory::SetupObject_GameThread(const FSetupObjectP
 #endif //WITH_EDITORONLY_DATA
 }
 
+void UInterchangeSkeletalMeshFactory::BuildObject_GameThread(const FSetupObjectParams& Arguments, bool& OutPostEditchangeCalled)
+{
+	check(IsInGameThread());
+	OutPostEditchangeCalled = false;
+#if WITH_EDITOR
+	if (Arguments.ImportedObject)
+	{
+		if (USkeletalMesh* SkeletalMesh = CastChecked<USkeletalMesh>(Arguments.ImportedObject))
+		{
+			//Start an async build of the staticmesh
+			SkeletalMesh->Build();
+		}
+	}
+#endif
+}
+
 void UInterchangeSkeletalMeshFactory::FinalizeObject_GameThread(const FSetupObjectParams& Arguments)
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(UInterchangeSkeletalMeshFactory::FinalizeObject_GameThread)
