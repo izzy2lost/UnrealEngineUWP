@@ -1,12 +1,13 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "AbilitySystemBlueprintLibrary.h"
-#include "GameplayEffectAggregator.h"
-#include "AbilitySystemGlobals.h"
 #include "AbilitySystemComponent.h"
+#include "AbilitySystemGlobals.h"
 #include "AbilitySystemLog.h"
+#include "AbilitySystemPrivate.h"
 #include "Engine/World.h"
 #include "GameplayEffect.h"
+#include "GameplayEffectAggregator.h"
 #include "GameplayEffectComponents/AdditionalEffectsGameplayEffectComponent.h"
 #include "GameplayEffectUIData.h"
 #include "GameplayAbilitySpec.h"
@@ -30,8 +31,16 @@ void UAbilitySystemBlueprintLibrary::SendGameplayEventToActor(AActor* Actor, FGa
 		UAbilitySystemComponent* AbilitySystemComponent = GetAbilitySystemComponent(Actor);
 		if (AbilitySystemComponent != nullptr && IsValidChecked(AbilitySystemComponent))
 		{
-			FScopedPredictionWindow NewScopedWindow(AbilitySystemComponent, true);
-			AbilitySystemComponent->HandleGameplayEvent(EventTag, &Payload);
+			using namespace UE::AbilitySystem::Private;
+			if (EnumHasAnyFlags(static_cast<EAllowPredictiveGEFlags>(CVarAllowPredictiveGEFlagsValue), EAllowPredictiveGEFlags::AllowGameplayEventToApplyGE))
+			{
+				FScopedPredictionWindow NewScopedWindow(AbilitySystemComponent, true);
+				AbilitySystemComponent->HandleGameplayEvent(EventTag, &Payload);
+			}
+			else
+			{
+				AbilitySystemComponent->HandleGameplayEvent(EventTag, &Payload);
+			}
 		}
 		else
 		{
@@ -265,6 +274,20 @@ FGameplayEffectSpecHandle UAbilitySystemBlueprintLibrary::MakeSpecHandle(UGamepl
 	}
 	
 	ABILITY_LOG(Warning, TEXT("%s was called with an invalid GameplayEffect object!"), *FString(__FUNCTION__));
+	return FGameplayEffectSpecHandle();
+}
+
+FGameplayEffectSpecHandle UAbilitySystemBlueprintLibrary::MakeSpecHandleByClass(TSubclassOf<UGameplayEffect> GameplayEffect, AActor* Instigator, AActor* EffectCauser, float Level)
+{
+	if (const UGameplayEffect* GameplayEffectCDO = GameplayEffect.GetDefaultObject())
+	{
+		FGameplayEffectContext* EffectContext = UAbilitySystemGlobals::Get().AllocGameplayEffectContext();
+		EffectContext->AddInstigator(Instigator, EffectCauser);
+
+		return FGameplayEffectSpecHandle(new FGameplayEffectSpec(GameplayEffectCDO, FGameplayEffectContextHandle(EffectContext), Level));
+	}
+
+	ABILITY_LOG(Warning, TEXT("%hs was called with invalid GameplayEffect"), __func__);
 	return FGameplayEffectSpecHandle();
 }
 

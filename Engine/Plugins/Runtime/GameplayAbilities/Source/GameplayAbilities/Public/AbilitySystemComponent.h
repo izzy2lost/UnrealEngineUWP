@@ -392,10 +392,8 @@ class GAMEPLAYABILITIES_API UAbilitySystemComponent : public UGameplayTasksCompo
 	int32 GetAggregatedStackCount(const FGameplayEffectQuery& Query) const;
 
 	/** This only exists so it can be hooked up to a multicast delegate */
-	void RemoveActiveGameplayEffect_NoReturn(FActiveGameplayEffectHandle Handle, int32 StacksToRemove=-1)
-	{
-		RemoveActiveGameplayEffect(Handle, StacksToRemove);
-	}
+	UE_DEPRECATED(5.5, "This shouldn't be public.  Use RemoveActiveGameplayEffect")
+	void RemoveActiveGameplayEffect_NoReturn(FActiveGameplayEffectHandle Handle, int32 StacksToRemove = -1);
 
 	/** Called for predictively added gameplay cue. Needs to remove tag count and possible invoke OnRemove event if misprediction */
 	virtual void OnPredictiveGameplayCueCatchup(FGameplayTag Tag);
@@ -1868,7 +1866,10 @@ protected:
 	void CheckDurationExpired(FActiveGameplayEffectHandle Handle);
 		
 	TArray<TObjectPtr<UGameplayTask>>&	GetAbilityActiveTasks(UGameplayAbility* Ability);
-	
+
+	/** A version of RemoveActiveGameplayEffect that allows us to remove it even when we don't have authority */
+	void RemoveActiveGameplayEffect_AllowClientRemoval(FActiveGameplayEffectHandle Handle, int32 StacksToRemove = -1);
+
 	/** Contains all of the gameplay effects that are currently active on this component */
 	UPROPERTY(Replicated)
 	FActiveGameplayEffectsContainer ActiveGameplayEffects;

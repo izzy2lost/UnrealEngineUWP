@@ -9,6 +9,7 @@
 #include "AbilitySystemStats.h"
 #include "AbilitySystemGlobals.h"
 #include "AbilitySystemComponent.h"
+#include "AbilitySystemPrivate.h"
 #include "Abilities/Tasks/AbilityTask.h"
 #include "Components/SkeletalMeshComponent.h"
 #include "GameplayCue_Types.h"
@@ -143,8 +144,16 @@ void UGameplayAbility::SendGameplayEvent(FGameplayTag EventTag, FGameplayEventDa
 	UAbilitySystemComponent* const AbilitySystemComponent = GetAbilitySystemComponentFromActorInfo_Ensured();
 	if (AbilitySystemComponent)
 	{
-		FScopedPredictionWindow NewScopedWindow(AbilitySystemComponent, true);
-		AbilitySystemComponent->HandleGameplayEvent(EventTag, &Payload);
+		using namespace UE::AbilitySystem::Private;
+		if (EnumHasAnyFlags(static_cast<EAllowPredictiveGEFlags>(CVarAllowPredictiveGEFlagsValue), EAllowPredictiveGEFlags::AllowGameplayEventToApplyGE))
+		{
+			FScopedPredictionWindow NewScopedWindow(AbilitySystemComponent, true);
+			AbilitySystemComponent->HandleGameplayEvent(EventTag, &Payload);
+		}
+		else
+		{
+			AbilitySystemComponent->HandleGameplayEvent(EventTag, &Payload);
+		}
 	}
 }
 

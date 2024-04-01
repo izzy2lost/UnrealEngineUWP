@@ -275,6 +275,7 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	bool IsActive() const;
 
 	void PreReplicatedRemove(const struct FGameplayAbilitySpecContainer& InArraySerializer);
+	void PostReplicatedChange(const struct FGameplayAbilitySpecContainer& InArraySerializer);
 	void PostReplicatedAdd(const struct FGameplayAbilitySpecContainer& InArraySerializer);
 
 	FString GetDebugString();

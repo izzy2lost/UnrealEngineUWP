@@ -1971,7 +1971,7 @@ void UAbilitySystemComponent::InternalServerTryActivateAbility(FGameplayAbilityS
 	if (!Spec)
 	{
 		// Can potentially happen in race conditions where client tries to activate ability that is removed server side before it is received.
-		ABILITY_LOG(Display, TEXT("InternalServerTryActivateAbility. Rejecting ClientActivation of ability with invalid SpecHandle!"));
+		UE_VLOG_UELOG(GetOwner(), LogAbilitySystem, Display, TEXT("%hs: Rejecting ClientActivation of ability with invalid SpecHandle!"), __func__);
 		ClientActivateAbilityFailed(Handle, PredictionKey.Current);
 		return;
 	}
@@ -1980,7 +1980,7 @@ void UAbilitySystemComponent::InternalServerTryActivateAbility(FGameplayAbilityS
 
 	if (!ensure(AbilityToActivate))
 	{
-		ABILITY_LOG(Error, TEXT("InternalServerTryActiveAbility. Rejecting ClientActivation of unconfigured spec ability!"));
+		UE_VLOG_UELOG(GetOwner(), LogAbilitySystem, Error, TEXT("%hs: Rejecting ClientActivation of unconfigured spec ability!"), __func__);
 		ClientActivateAbilityFailed(Handle, PredictionKey.Current);
 		return;
 	}
@@ -1989,7 +1989,7 @@ void UAbilitySystemComponent::InternalServerTryActivateAbility(FGameplayAbilityS
 	if (AbilityToActivate->GetNetSecurityPolicy() == EGameplayAbilityNetSecurityPolicy::ServerOnlyExecution ||
 		AbilityToActivate->GetNetSecurityPolicy() == EGameplayAbilityNetSecurityPolicy::ServerOnly)
 	{
-		ABILITY_LOG(Display, TEXT("InternalServerTryActiveAbility. Rejecting ClientActivation of %s due to security policy violation."), *GetNameSafe(AbilityToActivate));
+		UE_VLOG_UELOG(GetOwner(), LogAbilitySystem, Display, TEXT("%hs: Rejecting ClientActivation of %s due to security policy violation."), __func__, *GetNameSafe(AbilityToActivate));
 		ClientActivateAbilityFailed(Handle, PredictionKey.Current);
 		return;
 	}
@@ -2010,11 +2010,14 @@ void UAbilitySystemComponent::InternalServerTryActivateAbility(FGameplayAbilityS
 	// Attempt to activate the ability (server side) and tell the client if it succeeded or failed.
 	if (InternalTryActivateAbility(Handle, PredictionKey, &InstancedAbility, nullptr, TriggerEventData))
 	{
-		// TryActivateAbility handles notifying the client of success
+		// TryActivateAbility handles notifying the client of success, but let's still log it
+		UE_VLOG_UELOG(GetOwner(), LogAbilitySystem, Verbose, TEXT("%hs: Accepted ClientActivation of %s with PredictionKey %s."), __func__, *GetNameSafe(Spec->Ability), *PredictionKey.ToString());
 	}
 	else
 	{
-		ABILITY_LOG(Display, TEXT("InternalServerTryActivateAbility. Rejecting ClientActivation of %s. InternalTryActivateAbility failed: %s"), *GetNameSafe(Spec->Ability), *InternalTryActivateAbilityFailureTags.ToStringSimple() );
+		UE_VLOG_UELOG(GetOwner(), LogAbilitySystem, Display, TEXT("%hs: Rejecting ClientActivation of %s with PredictionKey %s. InternalTryActivateAbility failed: %s"),
+			__func__, *GetNameSafe(Spec->Ability), *PredictionKey.ToString(), *InternalTryActivateAbilityFailureTags.ToStringSimple() );
+
 		ClientActivateAbilityFailed(Handle, PredictionKey.Current);
 		Spec->InputPressed = false;
 

@@ -66,7 +66,7 @@ protected:
 
 		struct FGameplayEffectDebug
 		{
-			FPredictionKey PredictionKey;
+			int32 ReplicationID = INDEX_NONE; // unique & shared between server/client (or INDEX_NONE if local)
 			FString Effect;
 			FString Context;
 			float Duration = 0.0f;

@@ -5,6 +5,7 @@
 #include "AbilitySystemLog.h"
 #include "Algo/Find.h"
 #include "Misc/DataValidation.h"
+#include "AbilitySystemPrivate.h"
 
 #define LOCTEXT_NAMESPACE "TargetTagRequirementsGameplayEffectComponent"
 
@@ -25,7 +26,7 @@ bool UTargetTagRequirementsGameplayEffectComponent::CanGameplayEffectApply(const
 		return false;
 	}
 
-	if (!RemovalTagRequirements.IsEmpty() && RemovalTagRequirements.RequirementsMet(Tags) == true)
+	if (HaveRemovalRequirementsBeenMet(Tags, ActiveGEContainer.IsNetAuthority()))
 	{
 		return false;
 	}
@@ -41,6 +42,10 @@ bool UTargetTagRequirementsGameplayEffectComponent::OnActiveGameplayEffectAdded(
 	{
 		return false;
 	}
+
+	using namespace UE::AbilitySystem::Private;
+	const bool bAllowClientSideRemoval = EnumHasAnyFlags(static_cast<EAllowPredictiveGEFlags>(CVarAllowPredictiveGEFlagsValue), EAllowPredictiveGEFlags::AllowRemovalByTagRequirements);
+	const bool bAuthority = GEContainer.IsNetAuthority();
 
 	FActiveGameplayEffectHandle ActiveGEHandle = ActiveGE.Handle;
 	if (FActiveGameplayEffectEvents* EventSet = ASC->GetActiveEffectEventSet(ActiveGEHandle))
@@ -69,9 +74,13 @@ bool UTargetTagRequirementsGameplayEffectComponent::OnActiveGameplayEffectAdded(
 		AppendUnique(GameplayTagsToBind, OngoingTagRequirements.IgnoreTags.GetGameplayTagArray());
 		AppendUnique(GameplayTagsToBind, OngoingTagRequirements.RequireTags.GetGameplayTagArray());
 		AppendUnique(GameplayTagsToBind, OngoingTagRequirements.TagQuery.GetGameplayTagArray());
-		AppendUnique(GameplayTagsToBind, RemovalTagRequirements.IgnoreTags.GetGameplayTagArray());
-		AppendUnique(GameplayTagsToBind, RemovalTagRequirements.RequireTags.GetGameplayTagArray());
-		AppendUnique(GameplayTagsToBind, RemovalTagRequirements.TagQuery.GetGameplayTagArray());
+
+		if (bAuthority || bAllowClientSideRemoval)
+		{
+			AppendUnique(GameplayTagsToBind, RemovalTagRequirements.IgnoreTags.GetGameplayTagArray());
+			AppendUnique(GameplayTagsToBind, RemovalTagRequirements.RequireTags.GetGameplayTagArray());
+			AppendUnique(GameplayTagsToBind, RemovalTagRequirements.TagQuery.GetGameplayTagArray());
+		}
 
 		// Add our tag requirements to the ASC's Callbacks map. This helps filter down the amount of callbacks we'll get due to tag changes
 		// (rather than registering for the one callback whenever any tag changes).  We also need to keep track to remove those registered delegates in OnEffectRemoved.
@@ -123,11 +132,11 @@ void UTargetTagRequirementsGameplayEffectComponent::OnTagChanged(const FGameplay
 		FGameplayTagContainer OwnedTags;
 		Owner->GetOwnedGameplayTags(OwnedTags);
 
-		const bool bRemovalRequirementsMet = !RemovalTagRequirements.IsEmpty() && RemovalTagRequirements.RequirementsMet(OwnedTags);
+		const bool bRemovalRequirementsMet = HaveRemovalRequirementsBeenMet(OwnedTags, Owner->IsOwnerActorAuthoritative());
 		if (bRemovalRequirementsMet)
 		{
 			// This is slightly different functionality from pre-UE5.3, we're calling RemoveActiveGameplayEffect rather than InternalRemoveActiveGameplayEffect.
-			// The result is we set the calculated magnitudes back to zero.  This also used to only run on the Server.
+			// The result is we set the calculated magnitudes back to zero.  In UE5.3 this used to also run on the client (incorrect).
 			Owner->RemoveActiveGameplayEffect(ActiveGEHandle);
 		}
 		else
@@ -138,6 +147,15 @@ void UTargetTagRequirementsGameplayEffectComponent::OnTagChanged(const FGameplay
 			Owner->SetActiveGameplayEffectInhibit(MoveTemp(ActiveGEHandle), !bOngoingRequirementsMet, bInvokeCuesIfStateChanged);
 		}
 	}
+}
+
+bool UTargetTagRequirementsGameplayEffectComponent::HaveRemovalRequirementsBeenMet(const FGameplayTagContainer& TargetOwnedTags, bool bNetAuthority) const
+{
+	using namespace UE::AbilitySystem::Private;
+	const bool bAllowClientSideRemoval = EnumHasAnyFlags(static_cast<EAllowPredictiveGEFlags>(CVarAllowPredictiveGEFlagsValue), EAllowPredictiveGEFlags::AllowRemovalByTagRequirements);
+	const bool bRemovalRequirementsMet = (bAllowClientSideRemoval || bNetAuthority) && !RemovalTagRequirements.IsEmpty() && RemovalTagRequirements.RequirementsMet(TargetOwnedTags);
+
+	return bRemovalRequirementsMet;
 }
 
 #if WITH_EDITOR

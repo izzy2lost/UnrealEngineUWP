@@ -2621,6 +2621,11 @@ bool FActiveGameplayEffect::CheckRemovalTagRequirements(const FGameplayTagContai
 
 void FActiveGameplayEffect::PreReplicatedRemove(const struct FActiveGameplayEffectsContainer &InArray)
 {
+	ensureMsgf(InArray.ScopedLockCount > 0, TEXT("%hs needs to be ScopeLocked.  Previously from UAbilitySystemComponent::PreNetReceive."), __func__);
+
+	const int32 PreRemoveIdx = this - InArray.GameplayEffects_Internal.GetData();
+	ensureMsgf(InArray.GameplayEffects_Internal.IsValidIndex(PreRemoveIdx), TEXT("%hs had invalid 'this' pointer which was not part of the passed-in FActiveGameplayEffectsContainer"), __func__);
+
 	if (Spec.Def == nullptr)
 	{
 		UE_LOG(LogGameplayEffects, Error, TEXT("Received PreReplicatedRemove with no UGameplayEffect def."));
@@ -2642,13 +2647,21 @@ void FActiveGameplayEffect::PreReplicatedRemove(const struct FActiveGameplayEffe
 	}
 	GameplayEffectRemovalInfo.EffectContext = Spec.GetEffectContext();
 
-	UE_VLOG_UELOG(InArray.Owner->GetOwnerActor(), LogGameplayEffects, Verbose, TEXT("%s (Non-Auth): %s. Premature: %d Inhibited: %d. Pending( Remove: %d OnActive: %d WhileActive: %d )"), ANSI_TO_TCHAR(__func__), *GetDebugString(), GameplayEffectRemovalInfo.bPrematureRemoval, bIsInhibited, IsPendingRemove, bPendingRepOnActiveGC, bPendingRepWhileActiveGC);
+	UE_VLOG_UELOG(InArray.Owner->GetOwnerActor(), LogGameplayEffects, Verbose, TEXT("%hs (Non-Auth): %s. Premature: %d Inhibited: %d. Pending( Remove: %d OnActive: %d WhileActive: %d )"), __func__, *GetDebugString(), GameplayEffectRemovalInfo.bPrematureRemoval, bIsInhibited, IsPendingRemove, bPendingRepOnActiveGC, bPendingRepWhileActiveGC);
 
 	const_cast<FActiveGameplayEffectsContainer&>(InArray).InternalOnActiveGameplayEffectRemoved(*this, !bIsInhibited, GameplayEffectRemovalInfo);	// Const cast is ok. It is there to prevent mutation of the GameplayEffects array, which this wont do.
+
+	// Make sure no calls caused a realloc of InArray while holding this pointer
+	ensureMsgf(InArray.GameplayEffects_Internal.IsValidIndex(PreRemoveIdx) && &InArray.GameplayEffects_Internal[PreRemoveIdx] == this, TEXT("%hs had realloc of the array holding the item pointed to by 'this'. This will eventually crash"), __func__);
 }
 
 void FActiveGameplayEffect::PostReplicatedAdd(const struct FActiveGameplayEffectsContainer &InArray)
 {
+	ensureMsgf(InArray.ScopedLockCount > 0, TEXT("%hs needs to be ScopeLocked.  Previously from UAbilitySystemComponent::PreNetReceive."), __func__);
+
+	const int32 PreAddIdx = this - InArray.GameplayEffects_Internal.GetData();
+	ensureMsgf(InArray.GameplayEffects_Internal.IsValidIndex(PreAddIdx), TEXT("%hs had invalid 'this' pointer which was not part of the passed-in FActiveGameplayEffectsContainer"), __func__);
+
 	if (Spec.Def == nullptr)
 	{
 		UE_LOG(LogGameplayEffects, Error, TEXT("FActiveGameplayEffect::PostReplicatedAdd Received ReplicatedGameplayEffect with no UGameplayEffect def. (%s)"), *Spec.GetEffectContext().ToString());
@@ -2716,11 +2729,18 @@ void FActiveGameplayEffect::PostReplicatedAdd(const struct FActiveGameplayEffect
 	// Do stuff for adding GEs (add mods, tags, *invoke callbacks*).  But do NOT invoke the GameplayCues as we don't know if this GE ends up inhibited or not (thus the bPendingRepOnActiveGC variables).
 	constexpr bool bInvokeGameplayCueEvents = false;
 	const_cast<FActiveGameplayEffectsContainer&>(InArray).InternalOnActiveGameplayEffectAdded(*this, bInvokeGameplayCueEvents);	// Const cast is ok. It is there to prevent mutation of the GameplayEffects array, which this wont do.
-	
+
+	// Make sure no calls caused a realloc of InArray while holding this pointer
+	ensureMsgf(InArray.GameplayEffects_Internal.IsValidIndex(PreAddIdx) && &InArray.GameplayEffects_Internal[PreAddIdx] == this, TEXT("%hs had realloc of the array holding the item pointed to by 'this'. This will eventually crash"), __func__);
 }
 
 void FActiveGameplayEffect::PostReplicatedChange(const struct FActiveGameplayEffectsContainer &InArray)
 {
+	ensureMsgf(InArray.ScopedLockCount > 0, TEXT("%hs needs to be ScopeLocked.  Previously from UAbilitySystemComponent::PreNetReceive."), __func__);
+
+	const int32 PreChangeIdx = this - InArray.GameplayEffects_Internal.GetData();
+	ensureMsgf(InArray.GameplayEffects_Internal.IsValidIndex(PreChangeIdx), TEXT("%hs had invalid 'this' pointer which was not part of the passed-in FActiveGameplayEffectsContainer"), __func__);
+
 	if (Spec.Def == nullptr)
 	{
 		UE_LOG(LogGameplayEffects, Error, TEXT("FActiveGameplayEffect::PostReplicatedChange Received ReplicatedGameplayEffect with no UGameplayEffect def. (%s)"), *Spec.GetEffectContext().ToString());
@@ -2734,12 +2754,15 @@ void FActiveGameplayEffect::PostReplicatedChange(const struct FActiveGameplayEff
 		return;
 	}
 
+	UE_VLOG_UELOG(InArray.Owner->GetOwnerActor(), LogGameplayEffects, Verbose, TEXT("%hs (Non-Auth): %s. Pending( OnActive: %d. WhileActive: %d )"), __func__, *GetDebugString(), bPendingRepOnActiveGC, bPendingRepWhileActiveGC);
+
 	// Handle potential duration refresh
 	if (CachedStartServerWorldTime != StartServerWorldTime)
 	{
 		RecomputeStartWorldTime(InArray);
 		CachedStartServerWorldTime = StartServerWorldTime;
 
+		// Const cast is ok. It is there to prevent mutation of the GameplayEffects array, which we believe this wont do due to scope lock.
 		const_cast<FActiveGameplayEffectsContainer&>(InArray).OnDurationChange(*this);
 	}
 	
@@ -2747,18 +2770,19 @@ void FActiveGameplayEffect::PostReplicatedChange(const struct FActiveGameplayEff
 	if (ClientCachedStackCount != StackCount)
 	{
 		// If its a stack count change, we just call OnStackCountChange and it will broadcast delegates and update attribute aggregators
-		// Const cast is ok. It is there to prevent mutation of the GameplayEffects array, which this wont do.
+		// Const cast is ok. It is there to prevent mutation of the GameplayEffects array, which we believe this wont do due to scope lock.
 		const_cast<FActiveGameplayEffectsContainer&>(InArray).OnStackCountChange(*this, ClientCachedStackCount, StackCount);
 		ClientCachedStackCount = StackCount;
 	}
 	else
 	{
 		// Stack count didn't change, but something did (like a modifier magnitude). We need to update our attribute aggregators
-		// Const cast is ok. It is there to prevent mutation of the GameplayEffects array, which this wont do.
+		// Const cast is ok. It is there to prevent mutation of the GameplayEffects array, which we believe this wont do due to scope lock.
 		const_cast<FActiveGameplayEffectsContainer&>(InArray).UpdateAllAggregatorModMagnitudes(*this);
 	}
 
-	UE_VLOG_UELOG(InArray.Owner->GetOwnerActor(), LogGameplayEffects, Verbose, TEXT("%s (Non-Auth): %s. Pending( OnActive: %d. WhileActive: %d )"), ANSI_TO_TCHAR(__func__), *GetDebugString(), bPendingRepOnActiveGC, bPendingRepWhileActiveGC);
+	// Make sure no calls caused a realloc of InArray while holding this pointer
+	ensureMsgf(InArray.GameplayEffects_Internal.IsValidIndex(PreChangeIdx) && &InArray.GameplayEffects_Internal[PreChangeIdx] == this, TEXT("%hs had realloc of the array holding the item pointed to by 'this'. This will eventually crash"), __func__);
 }
 
 FString FActiveGameplayEffect::GetDebugString()
@@ -4002,11 +4026,11 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	{
 		FActiveGameplayEffectHandle NewHandle = FActiveGameplayEffectHandle::GenerateNewHandle(Owner);
 
-		if (ScopedLockCount > 0 && GameplayEffects_Internal.GetSlack() <= 0)
+		if (GameplayEffects_Internal.GetSlack() <= 0)
 		{
 			/**
-			 *	If we have no more slack and we are scope locked, we need to put this addition on our pending GE list, which will be moved
-			 *	onto the real active GE list once the scope lock is over.
+			 *	Since we are scope locked, if we have no more slack we need to put this addition on our pending GE list, which will be moved
+			 *	onto the real active GE list once the scope lock is over.  Otherwise we risk moving the pointer of the GE that scope-locked us.
 			 *	
 			 *	To avoid extra heap allocations, each active gameplayeffect container keeps a linked list of pending GEs. This list is allocated
 			 *	on demand and re-used in subsequent pending adds. The code below will either 1) Alloc a new pending GE 2) reuse an existing pending GE.
@@ -4164,7 +4188,7 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 		MarkArrayDirty();
 
 		// Once replicated state has caught up to this prediction key, we must remove this gameplay effect.
-		InPredictionKey.NewRejectOrCaughtUpDelegate(FPredictionKeyEvent::CreateUObject(Owner, &UAbilitySystemComponent::RemoveActiveGameplayEffect_NoReturn, AppliedActiveGE->Handle, -1));
+		InPredictionKey.NewRejectOrCaughtUpDelegate(FPredictionKeyEvent::CreateUObject(Owner, &UAbilitySystemComponent::RemoveActiveGameplayEffect_AllowClientRemoval, AppliedActiveGE->Handle, -1));
 		
 	}
 

@@ -11,6 +11,7 @@
 #include "AbilitySystemStats.h"
 #include "AbilitySystemGlobals.h"
 #include "GameplayCueManager.h"
+#include "AbilitySystemPrivate.h"
 
 #include "Net/UnrealNetwork.h"
 #include "Engine/ActorChannel.h"
@@ -1039,7 +1040,28 @@ const UGameplayEffect* UAbilitySystemComponent::GetGameplayEffectDefForHandle(FA
 
 bool UAbilitySystemComponent::RemoveActiveGameplayEffect(FActiveGameplayEffectHandle Handle, int32 StacksToRemove)
 {
+	using namespace UE::AbilitySystem::Private;
+	if (!EnumHasAnyFlags(static_cast<EAllowPredictiveGEFlags>(CVarAllowPredictiveGEFlagsValue), EAllowPredictiveGEFlags::AllowNativeRemoveByHandle))
+	{
+		if (!IsOwnerActorAuthoritative())
+		{
+			UE_LOG(LogAbilitySystem, Warning, TEXT("%hs called without Authority. Fix-up code, or temporarily patch using AbilitySystem.Fix.AllowPredictiveGEFlags"), __func__);
+			return false;
+		}
+	}
+
 	return ActiveGameplayEffects.RemoveActiveGameplayEffect(Handle, StacksToRemove);
+}
+
+void UAbilitySystemComponent::RemoveActiveGameplayEffect_NoReturn(FActiveGameplayEffectHandle Handle, int32 StacksToRemove)
+{
+	// Legacy version allowed client removal, so let's keep that for now.
+	RemoveActiveGameplayEffect_AllowClientRemoval(Handle, StacksToRemove);
+}
+
+void UAbilitySystemComponent::RemoveActiveGameplayEffect_AllowClientRemoval(FActiveGameplayEffectHandle Handle, int32 StacksToRemove)
+{
+	ActiveGameplayEffects.RemoveActiveGameplayEffect(Handle, StacksToRemove);
 }
 
 void UAbilitySystemComponent::RemoveActiveGameplayEffectBySourceEffect(TSubclassOf<UGameplayEffect> GameplayEffect, UAbilitySystemComponent* InstigatorAbilitySystemComponent, int32 StacksToRemove /*= -1*/)
