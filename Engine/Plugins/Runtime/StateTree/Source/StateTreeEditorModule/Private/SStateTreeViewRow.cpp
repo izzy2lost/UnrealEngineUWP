@@ -1140,8 +1140,6 @@ FText SStateTreeViewRow::GetTransitionsIcon(const UStateTreeState& State, const 
 	{
 		return FEditorFontGlyphs::Level_Up;
 	}
-
-	return FText::GetEmpty();
 }
 
 EVisibility SStateTreeViewRow::GetTransitionsVisibility(const UStateTreeState& State, const EStateTreeTransitionTrigger Trigger) const
