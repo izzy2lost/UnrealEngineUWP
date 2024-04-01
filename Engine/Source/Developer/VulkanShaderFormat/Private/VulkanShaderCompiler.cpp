@@ -1940,26 +1940,6 @@ static bool CompileWithShaderConductor(
 	// Before the shader rewritter removes all traces of it, pull any WAVESIZE directives from the shader source
 	SerializedOutput.Header.WaveSize = ParseWaveSize(InternalState, PreprocessedShader);
 
-	const bool bRewriteHlslSource = !InternalState.IsRayTracingShader();
-	if (bRewriteHlslSource)
-	{
-		// Rewrite HLSL source code to remove unused global resources and variables
-		FString RewrittenHlslSource;
-
-		Options.bRemoveUnusedGlobals = true;
-		if (!CompilerContext.RewriteHlsl(Options, (InternalState.bDebugDump ? &RewrittenHlslSource : nullptr)))
-		{
-			CompilerContext.FlushErrors(Output.Errors);
-			return false;
-		}
-		Options.bRemoveUnusedGlobals = false;
-
-		if (InternalState.bDebugDump)
-		{
-			DumpDebugShaderText(Input, RewrittenHlslSource, TEXT("rewritten.hlsl"));
-		}
-	}
-
 	// Compile HLSL source to SPIR-V binary
 	if (!CompilerContext.CompileHlslToSpirv(Options, SerializedOutput.Spirv.Data))
 	{

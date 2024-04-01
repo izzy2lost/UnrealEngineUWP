@@ -98,6 +98,9 @@
 #include "source/opt/strength_reduction_pass.h"
 #include "source/opt/strip_debug_info_pass.h"
 #include "source/opt/strip_nonsemantic_info_pass.h"
+// UE Change Begin: Pack struct field offsets
+#include "source/opt/struct_packing_pass.h"
+// UE Change ENd: Pack struct field offsets
 #include "source/opt/switch_descriptorset_pass.h"
 #include "source/opt/trim_capabilities_pass.h"
 #include "source/opt/unify_const_pass.h"

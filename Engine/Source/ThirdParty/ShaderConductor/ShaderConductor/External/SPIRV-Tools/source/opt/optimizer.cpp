@@ -229,7 +229,8 @@ Optimizer& Optimizer::RegisterPerformancePasses(bool preserve_interface) {
       .RegisterPass(CreateRedundancyEliminationPass())
       .RegisterPass(CreateSimplificationPass())
       .RegisterPass(CreateAggressiveDCEPass())
-      .RegisterPass(CreateCFGCleanupPass());
+      .RegisterPass(CreateCFGCleanupPass())
+	  .RegisterPass(CreateStructPackingPass("type.$Globals"))
       // UE Change End
       ;
 }
@@ -1229,6 +1230,13 @@ Optimizer::PassToken CreateConvertCompositeToOpAccessChainPass() {
       MakeUnique<opt::ConvertCompositeToOpAccessChainPass>());
 }
 // UE Change End: Convert-Composite-To-Op-Access-Chain-Pass
+
+// UE Change Begin: Pack struct field offsets
+Optimizer::PassToken CreateStructPackingPass(const char* structToPack) {
+  return MakeUnique<Optimizer::PassToken::Impl>(
+      MakeUnique<opt::StructPackingPass>(structToPack));
+}
+// UE Change ENd: Pack struct field offsets
 
 }  // namespace spvtools
 

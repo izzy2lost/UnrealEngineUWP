@@ -1028,6 +1028,10 @@ Optimizer::PassToken CreateReduceConstArrayToStructPass();
 Optimizer::PassToken CreateConvertCompositeToOpAccessChainPass();
 // UE Change End: Convert-Composite-To-Op-Access-Chain-Pass
 
+// UE Change Begin: Pack struct field offsets
+Optimizer::PassToken CreateStructPackingPass(const char* structToPack = nullptr);
+// UE Change ENd: Pack struct field offsets
+
 }  // namespace spvtools
 
 #endif  // INCLUDE_SPIRV_TOOLS_OPTIMIZER_HPP_

@@ -2870,7 +2870,6 @@ static bool CompileToGlslWithShaderConductor(
 	CrossCompiler::FShaderConductorContext CompilerContext;
 
 	const bool bDumpDebugInfo = Input.DumpDebugInfoEnabled();
-	const bool bRewriteHlslSource = true;
 
 	// Initialize compilation options for ShaderConductor
 	CrossCompiler::FShaderConductorOptions Options;
@@ -2937,28 +2936,6 @@ static bool CompileToGlslWithShaderConductor(
 	CompilerContext.LoadSource(SourceData.c_str(), FileName.c_str(), EntryPointName.c_str(), Frequency, &AdditionalDefines);
 
 	bool bCompilationFailed = false;
-
-	if (bRewriteHlslSource)
-	{
-		// Rewrite HLSL source code to remove unused global resources and variables
-		Options.bRemoveUnusedGlobals = true;
-		if (CompilerContext.RewriteHlsl(Options))
-		{
-			// Adopt new rewritten shader source
-			SourceData = CompilerContext.GetSourceString();
-
-			if (bDumpDebugInfo)
-			{
-				DumpDebugShaderText(Input, ANSI_TO_TCHAR(SourceData.c_str()), TEXT("rewritten.hlsl"));
-			}
-		}
-		else
-		{
-			CompilerContext.FlushErrors(Output.Errors);
-			bCompilationFailed = true;
-		}
-		Options.bRemoveUnusedGlobals = false;
-	}
 
 	// Compile HLSL source to SPIR-V binary
 	TArray<uint32> SpirvData;

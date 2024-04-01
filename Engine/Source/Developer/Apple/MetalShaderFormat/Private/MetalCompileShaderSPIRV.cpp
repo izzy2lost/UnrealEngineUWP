@@ -198,14 +198,6 @@ void FMetalCompileShaderSPIRV::DoCompileMetalShader(
 		// Load shader source into compiler context
 		CompilerContext.LoadSource(PreprocessedShader, Input.VirtualSourceFilePath, Input.EntryPointName, Frequency);
 
-		// Rewrite HLSL source code to remove unused global resources and variables
-		Options.bRemoveUnusedGlobals = true;
-		if (!CompilerContext.RewriteHlsl(Options, &PreprocessedShader))
-		{
-			CompilerContext.FlushErrors(Output.Errors);
-		}
-		Options.bRemoveUnusedGlobals = false;
-
 		// Convert shader source to ANSI string
 		std::string SourceData(CompilerContext.GetSourceString(), static_cast<size_t>(CompilerContext.GetSourceLength()));
 
