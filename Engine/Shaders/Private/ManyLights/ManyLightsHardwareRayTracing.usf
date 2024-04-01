@@ -105,10 +105,9 @@ RAY_TRACING_ENTRY_RAYGEN_OR_INLINE(HardwareRayTraceLightSamples)
 			Payload.SetIgnoreTranslucentMaterials();
 			Payload.SetMinimalPayloadMode();
 
-			uint RayFlags = 0;
+			uint RayFlags = RAY_FLAG_SKIP_CLOSEST_HIT_SHADER;
 			RayFlags |= LightingContext.CullingMode;
 			RayFlags |= LightingContext.bAcceptFirstHitAndEndSearch ? RAY_FLAG_ACCEPT_FIRST_HIT_AND_END_SEARCH : 0;
-			RayFlags |= LightingContext.bSkipClosestHitShader ? RAY_FLAG_SKIP_CLOSEST_HIT_SHADER : 0;
 
 			TraceLumenShadingRay(TLAS, RayFlags, LightingContext.InstanceMask, RAY_TRACING_SHADER_SLOT_SHADOW, RAY_TRACING_NUM_SHADER_SLOTS, 0, Ray.GetNativeDesc(), Payload);
 

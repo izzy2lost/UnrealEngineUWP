@@ -152,7 +152,6 @@ struct FRayTracedLightingContext
 
 	bool bHiResSurface;					// Whether to sample high res surface cache data or low res always resident pages
 	bool bAcceptFirstHitAndEndSearch;
-	bool bSkipClosestHitShader;
 	bool bIsShadowRay;
 	bool bCalculateHitVelocity;
 	bool bUseBookmark;
@@ -188,7 +187,6 @@ FRayTracedLightingContext CreateRayTracedLightingContext(
 
 	Context.bHiResSurface = false;
 	Context.bAcceptFirstHitAndEndSearch = false;
-	Context.bSkipClosestHitShader = false;
 	Context.bIsShadowRay = false;
 	Context.bCalculateHitVelocity = false;
 	Context.bUseBookmark = false;
@@ -408,8 +406,13 @@ FLumenMinimalRayResult TraceLumenMinimalRay(
 
 	uint RayFlags = 0;
 	RayFlags |= Context.bAcceptFirstHitAndEndSearch ? RAY_FLAG_ACCEPT_FIRST_HIT_AND_END_SEARCH : 0;
-	RayFlags |= Context.bSkipClosestHitShader ? RAY_FLAG_SKIP_CLOSEST_HIT_SHADER : 0;
 	RayFlags |= Context.bMeshSectionVisibilityTest ? 0 : RAY_FLAG_FORCE_OPAQUE;
+
+	// Alpha masking is done through a re-trace so need to sample surface cache if alpha masking is enabled
+	if (Context.bIsShadowRay && !Context.bSurfaceCacheAlphaMasking)
+	{
+		RayFlags |= RAY_FLAG_SKIP_CLOSEST_HIT_SHADER;
+	}
 
 	// "Avoid Self Intersections" will force ray to be two-sided in order to minimize leaking
 	#if AVOID_SELF_INTERSECTIONS_MODE == AVOID_SELF_INTERSECTIONS_MODE_DISABLED

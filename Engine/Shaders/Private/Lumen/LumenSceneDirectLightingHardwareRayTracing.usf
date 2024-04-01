@@ -182,14 +182,14 @@ LUMEN_HARDWARE_RAY_TRACING_ENTRY(LumenSceneDirectLightingHardwareRayTracing)
 
 					#if ENABLE_FAR_FIELD_TRACING
 					{
-						Context.bSkipClosestHitShader = true;
+						Context.bSurfaceCacheAlphaMasking = false;
 						Context.FarFieldReferencePos = FarFieldReferencePos;
 						Context.FarFieldMaxTraceDistance = FarFieldTMax;
 						
 						FRayTracedLightingResult RayResult = TraceSurfaceCacheFarFieldRay(TLAS, Ray, Context);
 						bRayOccluded = IsRayOccluded(RayResult);
 
-						Context.bSkipClosestHitShader = false;
+						Context.bSurfaceCacheAlphaMasking = SurfaceCacheAlphaMasking != 0;
 					}
 					#endif
 
@@ -221,7 +221,6 @@ LUMEN_HARDWARE_RAY_TRACING_ENTRY(LumenSceneDirectLightingHardwareRayTracing)
 					{						
 						Context.InstanceMask = RAY_TRACING_MASK_OPAQUE_SHADOW;
 						Context.bIsShadowRay = true;
-						Context.bSkipClosestHitShader = false;
 
 						FRayTracedLightingResult RayResult = TraceSurfaceCacheRay(TLAS, Ray, Context);
 						bRayOccluded = IsRayOccluded(RayResult);

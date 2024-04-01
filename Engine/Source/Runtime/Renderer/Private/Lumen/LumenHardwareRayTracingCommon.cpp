@@ -86,8 +86,8 @@ static TAutoConsoleVariable<int32> CVarLumenRadiosityHardwareRayTracingAvoidSelf
 
 static TAutoConsoleVariable<int32> CVarLumenHardwareRayTracingSurfaceCacheAlphaMasking(
 	TEXT("r.Lumen.HardwareRayTracing.SurfaceCacheAlphaMasking"),
-	1,
-	TEXT("Whether to support alpha masking based on the surface cache alpha channel."),
+	0,
+	TEXT("Whether to support alpha masking based on the surface cache alpha channel. Disabled by default, as it slows down ray tracing performance."),
 	ECVF_RenderThreadSafe | ECVF_Scalability
 );
 
