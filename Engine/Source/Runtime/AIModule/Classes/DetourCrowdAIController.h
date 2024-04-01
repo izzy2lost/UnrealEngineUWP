@@ -9,7 +9,7 @@
 #include "DetourCrowdAIController.generated.h"
 
 UCLASS()
-class ADetourCrowdAIController : public AAIController
+class AIMODULE_API ADetourCrowdAIController : public AAIController
 {
 	GENERATED_BODY()
 public:
