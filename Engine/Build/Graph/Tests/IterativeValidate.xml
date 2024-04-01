@@ -39,13 +39,13 @@
 			<Compile Target="ShaderCompileWorker" Platform="$(EditorPlatform)" Project="$(ProjectFile)" Configuration="Development"/>
 			<Compile Target="$(EditorTarget)" Platform="$(EditorPlatform)" Project="$(ProjectFile)" Configuration="Development"/>
 		</Node>
-		<Node Name="$(CookIterativeValidateSinglePhaseName)">
+		<Node Name="$(CookIterativeValidateSinglePhaseName)" Requires="$(CompileNodeName)">
 			<Commandlet Name="Cook" Project="$(ProjectFile)" Arguments="$(CommonCookArgs) -IterativeValidate -IterativeValidateAllowWrite"/>
 		</Node>
-		<Node Name="$(CookIterativeValidatePhase1Name)" Requires="$(CompileNodeName)"  If="'$(ValidateMode)' == 'twophase'">
+		<Node Name="$(CookIterativeValidatePhase1Name)" Requires="$(CompileNodeName)">
 			<Commandlet Name="Cook" Project="$(ProjectFile)" Arguments="$(CommonCookArgs) -IterativeValidatePhase1 -IterativeValidateAllowWrite"/>
 		</Node>
-		<Node Name="$(CookIterativeValidatePhase2Name)" Requires="$(CookIterativeValidatePhase1Name)"  If="'$(ValidateMode)' == 'twophase'">
+		<Node Name="$(CookIterativeValidatePhase2Name)" Requires="$(CookIterativeValidatePhase1Name)">
 			<Commandlet Name="Cook" Project="$(ProjectFile)" Arguments="$(CommonCookArgs) -IterativeValidatePhase2 -IterativeValidateAllowWrite"/>
 		</Node>
 	</Agent>
