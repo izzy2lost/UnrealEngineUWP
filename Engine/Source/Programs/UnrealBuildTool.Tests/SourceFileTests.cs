@@ -25,7 +25,7 @@ namespace UnrealBuildToolTests
 			baseDirectories.Add(DirectoryReference.Combine(Unreal.EngineSourceDirectory, "Developer"));
 			baseDirectories.Add(DirectoryReference.Combine(Unreal.EngineSourceDirectory, "Editor"));
 
-			foreach (FileReference pluginFile in PluginsBase.EnumeratePlugins((FileReference)null))
+			foreach (FileReference pluginFile in PluginsBase.EnumeratePlugins((FileReference?)null))
 			{
 				DirectoryReference pluginSourceDir = DirectoryReference.Combine(pluginFile.Directory, "Source");
 				if (DirectoryReference.Exists(pluginSourceDir))
@@ -57,7 +57,7 @@ namespace UnrealBuildToolTests
 				}
 			}
 
-			List<SourceFile> readSourceFiles = new List<SourceFile>();
+			List<SourceFile>? readSourceFiles = new List<SourceFile>();
 			using (GlobalTracer.Instance.BuildSpan("Reading source file data").StartActive())
 			{
 				using (BinaryArchiveReader reader = new BinaryArchiveReader(tempDataFile))

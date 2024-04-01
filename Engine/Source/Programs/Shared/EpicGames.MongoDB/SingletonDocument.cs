@@ -49,7 +49,6 @@ namespace EpicGames.MongoDB
 		/// <summary>
 		/// Private constructor for serialization
 		/// </summary>
-		/// <param name="Unused"></param>
 		[BsonConstructor]
 		protected SingletonBase()
 		{
@@ -136,7 +135,7 @@ namespace EpicGames.MongoDB
 		/// <summary>
 		/// Constructor
 		/// </summary>
-		/// <param name="DatabaseService">The database service instance</param>
+		/// <param name="collection">The database service instance</param>
 		public SingletonDocument(IMongoCollection<SingletonBase> collection)
 		{
 			_collection = collection.OfType<T>();

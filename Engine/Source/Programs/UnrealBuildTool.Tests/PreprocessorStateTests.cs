@@ -99,7 +99,7 @@ namespace UnrealBuildToolTests
 			{
 				result.AppendFormat("+b {0}\n", branch);
 			}
-			foreach (KeyValuePair<Identifier, PreprocessorMacro> macro in transform.RequiredMacros)
+			foreach (KeyValuePair<Identifier, PreprocessorMacro?> macro in transform.RequiredMacros)
 			{
 				if (macro.Value == null)
 				{
@@ -110,7 +110,7 @@ namespace UnrealBuildToolTests
 					result.AppendFormat("=m {0}\n", macro.Value.ToString().TrimEnd());
 				}
 			}
-			foreach (KeyValuePair<Identifier, PreprocessorMacro> macro in transform.NewMacros)
+			foreach (KeyValuePair<Identifier, PreprocessorMacro?> macro in transform.NewMacros)
 			{
 				if (macro.Value == null)
 				{
@@ -124,7 +124,7 @@ namespace UnrealBuildToolTests
 			return result.ToString();
 		}
 
-		static PreprocessorMacro ParseMacro(string name, List<string> parameters, string value)
+		static PreprocessorMacro ParseMacro(string name, List<string>? parameters, string value)
 		{
 			List<Token> tokens = new List<Token>();
 

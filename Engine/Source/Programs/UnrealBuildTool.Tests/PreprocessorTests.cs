@@ -1,8 +1,10 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 using System.Collections.Generic;
+using System.IO;
 using System.Text;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
+using UnrealBuildBase;
 using UnrealBuildTool;
 
 namespace UnrealBuildToolTests
@@ -220,17 +222,18 @@ namespace UnrealBuildToolTests
 		/// </summary>
 		/// <param name="fragment">The code fragment to preprocess</param>
 		/// <param name="expectedResult">The expected sequence of tokens, as a string. Null to indicate that the input is invalid, and an exception is expected.</param>
-		static void RunTest(string fragment, string expectedResult)
+		static void RunTest(string fragment, string? expectedResult)
 		{
 			string[] lines = fragment.Split('\n');
 
-			SourceFile file = new SourceFile(null, TokenReader.GetNullTerminatedByteArray(fragment));
+			SourceFile file = new SourceFile(FileItem.GetItemByPath(Path.Combine(Path.GetTempPath(), "temp.cpp")), TokenReader.GetNullTerminatedByteArray(fragment));
 
 			Preprocessor instance = new Preprocessor();
 
-			string result;
+			string? result;
 			try
 			{
+				PreprocessorFileContext context = new(file, null);
 				List<Token> outputTokens = new List<Token>();
 				for (int markupIdx = 0; markupIdx < file.Markup.Length; markupIdx++)
 				{
@@ -255,12 +258,12 @@ namespace UnrealBuildToolTests
 								tokens.Add(reader.Current);
 							}
 
-							instance.ExpandMacros(tokens, outputTokens, false, null);
+							instance.ExpandMacros(tokens, outputTokens, false, context);
 						}
 					}
 					else
 					{
-						instance.ParseMarkup(markup.Type, markup.Tokens, null);
+						instance.ParseMarkup(markup.Type, markup.Tokens ?? new(), context);
 					}
 				}
 				result = Token.Format(outputTokens);

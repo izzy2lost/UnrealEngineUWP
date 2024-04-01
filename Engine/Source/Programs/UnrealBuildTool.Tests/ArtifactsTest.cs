@@ -55,7 +55,7 @@ namespace UnrealBuildToolTests
 		}
 
 		[TestMethod]
-		public async Task ArtifactBundleStorageTest1()
+		public async Task ArtifactBundleStorageTest1Async()
 		{
 			CancellationToken cancellationToken = default;
 
