@@ -391,8 +391,7 @@ namespace EpicGames.Core
 		FLargeWorldCoordinatesRealProperty = 0x0080000000000000,
 		FOptionalProperty = 0x0100000000000000,
 		FVValueProperty = 0x0200000000000000,
-		UVerseVMClass = 0x0400000000000000,
-		FVRestValueProperty = 0x0800000000000000,
+		FVRestValueProperty = 0x0400000000000000,
 		AllFlags = UInt64.MaxValue,
 	};
 
