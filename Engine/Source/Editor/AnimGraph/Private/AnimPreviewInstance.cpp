@@ -118,14 +118,6 @@ void FAnimPreviewInstanceProxy::Update(float DeltaSeconds)
 	// we cant update on a worker thread here because of the key delegate needing to be fired
 	check(IsInGameThread());
 
-#if WITH_EDITORONLY_DATA
-	if(bForceRetargetBasePose)
-	{
-		// nothing to be done here
-		return;
-	}
-#endif // #if WITH_EDITORONLY_DATA
-
 	FAnimSingleNodeInstanceProxy::Update(DeltaSeconds);
 }
 
@@ -156,10 +148,7 @@ void FAnimPreviewInstanceProxy::PreUpdate(UAnimInstance* InAnimInstance, float D
 		CopyPoseNode.PreUpdate(InAnimInstance);
 	}
 
-	if (!bForceRetargetBasePose)
-	{
-		CurveSource.PreUpdate(InAnimInstance);
-	}
+	CurveSource.PreUpdate(InAnimInstance);
 }
 
 bool FAnimPreviewInstanceProxy::Evaluate(FPoseContext& Output)
@@ -173,31 +162,13 @@ bool FAnimPreviewInstanceProxy::Evaluate(FPoseContext& Output)
 	}
 	else
 	{
-#if WITH_EDITORONLY_DATA
-		if(bForceRetargetBasePose)
+		if (UPoseAsset* PoseAsset = Cast<UPoseAsset>(CurrentAsset))
 		{
-			USkeletalMeshComponent* MeshComponent = Output.AnimInstanceProxy->GetSkelMeshComponent();
-			if(MeshComponent && MeshComponent->GetSkeletalMeshAsset())
-			{
-				FAnimationRuntime::FillWithRetargetBaseRefPose(Output.Pose, GetSkelMeshComponent()->GetSkeletalMeshAsset());
-			}
-			else
-			{
-				// ideally we'll return just ref pose, but not sure if this will work with LODs
-				Output.Pose.ResetToRefPose();
-			}
+			PoseBlendNode.Evaluate_AnyThread(Output);
 		}
 		else
-#endif // #if WITH_EDITORONLY_DATA
 		{
-			if (UPoseAsset* PoseAsset = Cast<UPoseAsset>(CurrentAsset))
-			{
-				PoseBlendNode.Evaluate_AnyThread(Output);
-			}
-			else
-			{
-				FAnimSingleNodeInstanceProxy::Evaluate(Output);
-			}
+			FAnimSingleNodeInstanceProxy::Evaluate(Output);
 		}
 
 		if (bEnableControllers)
@@ -1220,16 +1191,6 @@ int32 UAnimPreviewInstance::MontagePreview_FindLastSection(int32 StartSectionIdx
 void UAnimPreviewInstance::EnableControllers(bool bEnable)
 {
 	GetProxyOnGameThread<FAnimPreviewInstanceProxy>().EnableControllers(bEnable);
-}
-
-void UAnimPreviewInstance::SetForceRetargetBasePose(bool bInForceRetargetBasePose)
-{
-	GetProxyOnGameThread<FAnimPreviewInstanceProxy>().SetForceRetargetBasePose(bInForceRetargetBasePose);
-}
-
-bool UAnimPreviewInstance::GetForceRetargetBasePose() const
-{
-	return GetProxyOnGameThread<FAnimPreviewInstanceProxy>().GetForceRetargetBasePose();
 }
 
 FAnimInstanceProxy* UAnimPreviewInstance::CreateAnimInstanceProxy()

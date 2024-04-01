@@ -243,19 +243,21 @@ struct FPreviewViewportSummoner : public FWorkflowTabFactory
 struct FRetargetSourcesTabSummoner : public FWorkflowTabFactory
 {
 public:
-	FRetargetSourcesTabSummoner(TSharedPtr<class FAssetEditorToolkit> InHostingApp, const TSharedRef<IEditableSkeleton>& InEditableSkeleton, const TSharedRef<IPersonaPreviewScene>& InPreviewScene, FSimpleMulticastDelegate& InOnPostUndo);
+	FRetargetSourcesTabSummoner(
+		TSharedPtr<class FAssetEditorToolkit> InHostingApp,
+		const TSharedRef<IEditableSkeleton>& InEditableSkeleton,
+		FSimpleMulticastDelegate& InOnPostUndo);
 
 	virtual TSharedRef<SWidget> CreateTabBody(const FWorkflowTabSpawnInfo& Info) const override;
 
 	// Create a tooltip widget for the tab
 	virtual TSharedPtr<SToolTip> CreateTabToolTipWidget(const FWorkflowTabSpawnInfo& Info) const override
 	{
-		return  IDocumentation::Get()->CreateToolTip(LOCTEXT("RetargetSourceTooltip", "In this panel, you can manage retarget sources for animations authored with varying proportions."), NULL, TEXT("Shared/Editors/Persona"), TEXT("RetargetSources"));
+		return IDocumentation::Get()->CreateToolTip(LOCTEXT("RetargetSourceTooltip", "In this panel, you can manage Retarget Sources (for playing animations authored with varying proportions) and Compatible Skeletons (for playing animations from other skeletal meshes)."), NULL, TEXT("Shared/Editors/Persona"), TEXT("RetargetSources"));
 	}
 
 private:
 	TWeakPtr<class IEditableSkeleton> EditableSkeleton;
-	TWeakPtr<class IPersonaPreviewScene> PreviewScene;
 	FSimpleMulticastDelegate& OnPostUndo;
 };
 

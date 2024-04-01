@@ -352,25 +352,27 @@ FTabSpawnerEntry& FPreviewViewportSummoner::RegisterTabSpawner(TSharedRef<FTabMa
 /////////////////////////////////////////////////////
 // FRetargetManagerTabSummoner
 
-FRetargetSourcesTabSummoner::FRetargetSourcesTabSummoner(TSharedPtr<class FAssetEditorToolkit> InHostingApp, const TSharedRef<IEditableSkeleton>& InEditableSkeleton, const TSharedRef<IPersonaPreviewScene>& InPreviewScene, FSimpleMulticastDelegate& InOnPostUndo)
+FRetargetSourcesTabSummoner::FRetargetSourcesTabSummoner(
+	TSharedPtr<class FAssetEditorToolkit> InHostingApp,
+	const TSharedRef<IEditableSkeleton>& InEditableSkeleton,
+	FSimpleMulticastDelegate& InOnPostUndo)
 	: FWorkflowTabFactory(FPersonaTabs::RetargetManagerID, InHostingApp)
 	, EditableSkeleton(InEditableSkeleton)
-	, PreviewScene(InPreviewScene)
 	, OnPostUndo(InOnPostUndo)
 {
-	TabLabel = LOCTEXT("RetargetSourcesTabTitle", "Retarget Sources");
+	TabLabel = LOCTEXT("RetargetingTabTitle", "Retargeting");
 	TabIcon = FSlateIcon(FAppStyle::GetAppStyleSetName(), "Persona.Tabs.RetargetManager");
 
 	EnableTabPadding();
 	bIsSingleton = true;
 
-	ViewMenuDescription = LOCTEXT("RetargetSourcesTabView", "Retarget Sources");
-	ViewMenuTooltip = LOCTEXT("RetargetSourcesTabView_ToolTip", "Retarget Sources indicate what proportions a sequence was authored with so that animation is correctly retargeted to other proportions.\n\nThese become 'Retarget Source' options on sequences.\n\nRetarget Sources are only needed when an animation sequence is authored on a skeletal mesh with proportions that are different than the default skeleton asset.");
+	ViewMenuDescription = LOCTEXT("RetargetingTabView", "Retargeting");
+	ViewMenuTooltip = LOCTEXT("RetargetSourcesTabView_ToolTip", "Specify Retarget Sources and Compatible Skeletons.");
 }
 
 TSharedRef<SWidget> FRetargetSourcesTabSummoner::CreateTabBody(const FWorkflowTabSpawnInfo& Info) const
 {
-	return SNew(SRetargetSources, EditableSkeleton.Pin().ToSharedRef(), PreviewScene.Pin().ToSharedRef(), OnPostUndo);
+	return SNew(SRetargetSources, EditableSkeleton.Pin().ToSharedRef(), OnPostUndo);
 }
 
 

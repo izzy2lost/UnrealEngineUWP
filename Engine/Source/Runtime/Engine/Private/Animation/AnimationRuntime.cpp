@@ -1624,26 +1624,6 @@ void FAnimationRuntime::FillWithRefPose(TArray<FTransform>& OutAtoms, const FBon
 	}
 }
 
-#if WITH_EDITOR
-PRAGMA_DISABLE_DEPRECATION_WARNINGS
-void FAnimationRuntime::FillWithRetargetBaseRefPose(FCompactPose& OutPose, const USkeletalMesh* Mesh)
-{
-	// Copy Target Asset's ref pose.
-	if (Mesh)
-	{
-		for (FCompactPoseBoneIndex BoneIndex : OutPose.ForEachBoneIndex())
-		{
-			int32 PoseIndex = OutPose.GetBoneContainer().MakeMeshPoseIndex(BoneIndex).GetInt();
-			if (Mesh->GetRetargetBasePose().IsValidIndex(PoseIndex))
-			{
-				OutPose[BoneIndex] = Mesh->GetRetargetBasePose()[PoseIndex];
-			}
-		}
-	}
-}
-PRAGMA_ENABLE_DEPRECATION_WARNINGS
-#endif // WITH_EDITOR
-
 void FAnimationRuntime::ConvertPoseToMeshSpace(const TArray<FTransform>& LocalTransforms, TArray<FTransform>& MeshSpaceTransforms, const FBoneContainer& RequiredBones)
 {
 	const int32 NumBones = RequiredBones.GetNumBones();
@@ -2523,6 +2503,7 @@ void FAnimationRuntime::MakeSkeletonRefPoseFromMesh(const USkeletalMesh* InMesh,
 		}
 	}
 }
+
 #if WITH_EDITOR
 void FAnimationRuntime::FillUpComponentSpaceTransformsRefPose(const USkeleton* Skeleton, TArray<FTransform> &ComponentSpaceTransforms)
 {
@@ -2532,31 +2513,7 @@ void FAnimationRuntime::FillUpComponentSpaceTransformsRefPose(const USkeleton* S
 	const TArray<FTransform>& ReferencePose = RefSkeleton.GetRefBonePose();
 	FillUpComponentSpaceTransforms(RefSkeleton, ReferencePose, ComponentSpaceTransforms);
 }
-
-PRAGMA_DISABLE_DEPRECATION_WARNINGS
-void FAnimationRuntime::FillUpComponentSpaceTransformsRetargetBasePose(const USkeletalMesh* Mesh, TArray<FTransform> &ComponentSpaceTransforms)
-{
-	if (Mesh)
-	{
-		const TArray<FTransform>& ReferencePose = Mesh->GetRetargetBasePose();
-		const FReferenceSkeleton& RefSkeleton = Mesh->GetRefSkeleton();
-		FillUpComponentSpaceTransforms(RefSkeleton, ReferencePose, ComponentSpaceTransforms);
-	}
-}
-
-void FAnimationRuntime::FillUpComponentSpaceTransformsRetargetBasePose(const USkeleton* Skeleton, TArray<FTransform> &ComponentSpaceTransforms)
-{
-	check(Skeleton);
-
-	// @Todo fixme: this has to get preview mesh instead of skeleton
-	const USkeletalMesh* PreviewMesh = Skeleton->GetPreviewMesh();
-	if (PreviewMesh)
-	{
-		FillUpComponentSpaceTransformsRetargetBasePose(PreviewMesh, ComponentSpaceTransforms);
-	}
-}
-PRAGMA_ENABLE_DEPRECATION_WARNINGS
-#endif // WITH_EDITOR
+#endif
 
 void FAnimationRuntime::AppendActiveMorphTargets(
 	const USkeletalMesh* InSkeletalMesh,

@@ -2118,46 +2118,6 @@ public:
 		PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	}
 
-	/** This is buffer that saves pose that is used by retargeting*/
-	UE_DEPRECATED(4.27, "Please do not access this member directly; use USkeletalMesh::GetRetargetBasePose() or USkeletalMesh::SetRetargetBasePose().")
-	UPROPERTY()
-	TArray<FTransform> RetargetBasePose;
-
-	UE_DEPRECATED(5.3, "Please do not use the retarget base pose. If you need a separate retarget pose, use the IK Retargeter or adjust the reference pose of the skeletal mesh.")
-	static FName GetRetargetBasePoseMemberName()
-	{
-		PRAGMA_DISABLE_DEPRECATION_WARNINGS
-		return GET_MEMBER_NAME_CHECKED(USkeletalMesh, RetargetBasePose);
-		PRAGMA_ENABLE_DEPRECATION_WARNINGS
-	}
-
-	UE_DEPRECATED(5.3, "Please do not use the retarget base pose. If you need a separate retarget pose, use the IK Retargeter or adjust the reference pose of the skeletal mesh.")
-	TArray<FTransform>& GetRetargetBasePose()
-	{
-		WaitUntilAsyncPropertyReleased(ESkeletalMeshAsyncProperties::RetargetBasePose);
-		PRAGMA_DISABLE_DEPRECATION_WARNINGS
-		return RetargetBasePose;
-		PRAGMA_ENABLE_DEPRECATION_WARNINGS
-	}
-
-	UE_DEPRECATED(5.3, "Please do not use the retarget base pose. If you need a separate retarget pose, use the IK Retargeter or adjust the reference pose of the skeletal mesh.")
-	const TArray<FTransform>& GetRetargetBasePose() const
-	{
-		WaitUntilAsyncPropertyReleased(ESkeletalMeshAsyncProperties::RetargetBasePose, ESkinnedAssetAsyncPropertyLockType::ReadOnly);
-		PRAGMA_DISABLE_DEPRECATION_WARNINGS
-		return RetargetBasePose;
-		PRAGMA_ENABLE_DEPRECATION_WARNINGS
-	}
-
-	UE_DEPRECATED(5.3, "Please do not use the retarget base pose. If you need a separate retarget pose, use the IK Retargeter or adjust the reference pose of the skeletal mesh.")
-	void SetRetargetBasePose(const TArray<FTransform>& InRetargetBasePose)
-	{
-		WaitUntilAsyncPropertyReleased(ESkeletalMeshAsyncProperties::RetargetBasePose);
-		PRAGMA_DISABLE_DEPRECATION_WARNINGS
-		RetargetBasePose = InRetargetBasePose;
-		PRAGMA_ENABLE_DEPRECATION_WARNINGS
-	}
-
 	/** Legacy clothing asset data, will be converted to new assets after loading */
 	UPROPERTY()
 	TArray<FClothingAssetData_Legacy>		ClothingAssets_DEPRECATED;
@@ -2563,9 +2523,6 @@ public:
 #if WITH_EDITOR
 	/** Calculate the required bones for a Skeletal Mesh LOD, including possible extra influences */
 	static ENGINE_API void CalculateRequiredBones(FSkeletalMeshLODModel& LODModel, const struct FReferenceSkeleton& RefSkeleton, const TMap<FBoneIndexType, FBoneIndexType> * BonesToRemove);
-
-	/** Recalculate Retarget Base Pose BoneTransform */
-	ENGINE_API void ReallocateRetargetBasePose();
 
 	/**
 	 *	Add a skeletal socket object to this SkeletalMesh, and optionally promotes it to USkeleton socket.

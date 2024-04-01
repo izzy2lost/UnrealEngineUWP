@@ -715,7 +715,6 @@ TSharedRef<SWidget> SAnimViewportToolBar::GenerateCharacterMenu() const
 				{
 					{
 						FToolMenuSection& Section = InSubMenu->AddSection("AnimViewportMesh", LOCTEXT("CharacterMenu_Actions_Mesh", "Mesh"));
-						Section.AddMenuEntry(FAnimViewportShowCommands::Get().ShowRetargetBasePose);
 						Section.AddMenuEntry(FAnimViewportShowCommands::Get().ShowBound);
 						Section.AddMenuEntry(FAnimViewportShowCommands::Get().UseInGameBound);
 						Section.AddMenuEntry(FAnimViewportShowCommands::Get().UseFixedBounds);

@@ -420,11 +420,6 @@ private:
 	/** Toggles floor alignment in the preview scene */
 	void OnToggleAutoAlignFloor();
 
-	/** Called to toggle showing of reference pose on current preview mesh */
-	void ShowRetargetBasePose();
-	bool CanShowRetargetBasePose() const;
-	bool IsShowRetargetBasePoseEnabled() const;
-
 	/** Called to toggle showing of the bounds of the current preview mesh */
 	void ShowBound();
 	bool CanShowBound() const;

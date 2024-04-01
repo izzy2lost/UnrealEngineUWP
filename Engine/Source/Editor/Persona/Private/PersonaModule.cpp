@@ -295,9 +295,9 @@ TSharedRef<class FWorkflowTabFactory> FPersonaModule::CreateCurveMetadataEditorT
 	return MakeShared<FAnimCurveMetadataEditorTabSummoner>(InHostingApp, InMetadataHost, InPreviewScene, InOnObjectsSelected);
 }
 
-TSharedRef<class FWorkflowTabFactory> FPersonaModule::CreateRetargetSourcesTabFactory(const TSharedRef<class FWorkflowCentricApplication>& InHostingApp, const TSharedRef<class IEditableSkeleton>& InEditableSkeleton, const TSharedRef<IPersonaPreviewScene>& InPreviewScene, FSimpleMulticastDelegate& InOnPostUndo) const
+TSharedRef<class FWorkflowTabFactory> FPersonaModule::CreateRetargetSourcesTabFactory(const TSharedRef<class FWorkflowCentricApplication>& InHostingApp, const TSharedRef<class IEditableSkeleton>& InEditableSkeleton, FSimpleMulticastDelegate& InOnPostUndo) const
 {
-	return MakeShareable(new FRetargetSourcesTabSummoner(InHostingApp, InEditableSkeleton, InPreviewScene, InOnPostUndo));
+	return MakeShareable(new FRetargetSourcesTabSummoner(InHostingApp, InEditableSkeleton, InOnPostUndo));
 }
 
 TSharedRef<class FWorkflowTabFactory> FPersonaModule::CreateAdvancedPreviewSceneTabFactory(const TSharedRef<class FWorkflowCentricApplication>& InHostingApp, const TSharedRef<IPersonaPreviewScene>& InPreviewScene) const

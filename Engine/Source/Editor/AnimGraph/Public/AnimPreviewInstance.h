@@ -40,9 +40,6 @@ public:
 	FAnimPreviewInstanceProxy(UAnimInstance* InAnimInstance)
 		: FAnimSingleNodeInstanceProxy(InAnimInstance)
 		, SkeletalControlAlpha(1.0f)
-#if WITH_EDITORONLY_DATA
-		, bForceRetargetBasePose(false)
-#endif
 		, bEnableControllers(true)
 		, bSetKey(false)
 	{
@@ -63,16 +60,6 @@ public:
 	FAnimNode_ModifyBone& ModifyBone(const FName& InBoneName, bool bCurveController = false);
 
 	void RemoveBoneModification(const FName& InBoneName, bool bCurveController = false);
-
-	void SetForceRetargetBasePose(bool bInForceRetargetBasePose)
-	{ 
-		bForceRetargetBasePose = bInForceRetargetBasePose; 
-	}
-
-	bool GetForceRetargetBasePose() const 
-	{ 
-		return bForceRetargetBasePose; 
-	}
 
 	void EnableControllers(bool bEnable)
 	{
@@ -153,11 +140,7 @@ private:
 
 	/** Shared parameters for previewing blendspace or animsequence **/
 	float SkeletalControlAlpha;
-
-#if WITH_EDITORONLY_DATA
-	bool bForceRetargetBasePose;
-#endif
-
+	
 	/*
 	 * Used to determine if controller has to be applied or not
 	 * Used to disable controller during editing
@@ -262,10 +245,6 @@ public:
 	 * Returns all currently active bone controllers on this instance's proxy
 	 */
 	const TArray<FAnimNode_ModifyBone>& GetBoneControllers();
-
-	void SetForceRetargetBasePose(bool ForceRetargetBasePose);
-
-	bool GetForceRetargetBasePose() const;
 
 #if WITH_EDITOR	
 	/**

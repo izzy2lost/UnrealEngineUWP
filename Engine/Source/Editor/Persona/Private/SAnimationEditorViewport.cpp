@@ -755,12 +755,6 @@ void SAnimationEditorViewportTabBody::BindCommands()
 	const FAnimViewportShowCommands& ViewportShowMenuCommands = FAnimViewportShowCommands::Get();
 
 	CommandList.MapAction(
-		ViewportShowMenuCommands.ShowRetargetBasePose,
-		FExecuteAction::CreateSP(this, &SAnimationEditorViewportTabBody::ShowRetargetBasePose),
-		FCanExecuteAction::CreateSP(this, &SAnimationEditorViewportTabBody::CanShowRetargetBasePose),
-		FIsActionChecked::CreateSP(this, &SAnimationEditorViewportTabBody::IsShowRetargetBasePoseEnabled));
-
-	CommandList.MapAction(
 		ViewportShowMenuCommands.ShowBound,
 		FExecuteAction::CreateSP(this, &SAnimationEditorViewportTabBody::ShowBound),
 		FCanExecuteAction::CreateSP(this, &SAnimationEditorViewportTabBody::CanShowBound),
@@ -1560,41 +1554,6 @@ bool SAnimationEditorViewportTabBody::IsPlaybackSpeedSelected(int32 PlaybackSpee
 {
 	TSharedRef<FAnimationViewportClient> AnimViewportClient = StaticCastSharedRef<FAnimationViewportClient>(LevelViewportClient.ToSharedRef());
 	return PlaybackSpeedMode == AnimViewportClient->GetPlaybackSpeedMode();
-}
-
-void SAnimationEditorViewportTabBody::ShowRetargetBasePose()
-{
-	ForEachDebugMesh([](UDebugSkelMeshComponent* PreviewMeshComponent)
-	{
-		PreviewMeshComponent->PreviewInstance->SetForceRetargetBasePose(!PreviewMeshComponent->PreviewInstance->GetForceRetargetBasePose());
-	});
-}
-
-bool SAnimationEditorViewportTabBody::CanShowRetargetBasePose() const
-{
-	TArray<UDebugSkelMeshComponent*> PreviewMeshComponents = GetPreviewScene()->GetAllPreviewMeshComponents();
-	for (UDebugSkelMeshComponent* PreviewMeshComponent : PreviewMeshComponents)
-	{
-		if (PreviewMeshComponent->PreviewInstance)
-		{
-			return true;
-		}
-	}
-	
-	return false;
-}
-
-bool SAnimationEditorViewportTabBody::IsShowRetargetBasePoseEnabled() const
-{
-	TArray<UDebugSkelMeshComponent*> PreviewMeshComponents = GetPreviewScene()->GetAllPreviewMeshComponents();
-	for (UDebugSkelMeshComponent* PreviewMeshComponent : PreviewMeshComponents)
-	{
-		if (PreviewMeshComponent && PreviewMeshComponent->PreviewInstance)
-		{
-			return PreviewMeshComponent->PreviewInstance->GetForceRetargetBasePose();
-		}
-	}
-	return false;
 }
 
 void SAnimationEditorViewportTabBody::ShowBound()

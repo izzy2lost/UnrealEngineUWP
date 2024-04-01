@@ -33,8 +33,8 @@ public:
 	TSharedPtr<FUICommandInfo> TestSkeletonCurveMetaDataForUse;
 	// Command to show Anim Notify window
 	TSharedPtr<FUICommandInfo> AnimNotifyWindow;
-	// Command to show Retarget Source Manager
-	TSharedPtr<FUICommandInfo> RetargetManager;
+	// Command to show retargeting tools
+	TSharedPtr<FUICommandInfo> Retargeting;
 	// Import Mesh for this Skeleton
 	TSharedPtr<FUICommandInfo> ImportMesh;
 

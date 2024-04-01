@@ -81,7 +81,6 @@ struct FExistingSkelMeshData
 	TArray<UPhysicsAsset*>					ExistingPhysicsAssets;
 	UPhysicsAsset*							ExistingShadowPhysicsAsset;
 	USkeleton*								ExistingSkeleton;
-	TArray<FTransform>						ExistingRetargetBasePose;
 	USkeletalMeshLODSettings*				ExistingLODSettings;
 	TSubclassOf<UAnimInstance>				ExistingPostProcessAnimBlueprint;
 	TSoftObjectPtr<UObject>					ExistingDefaultAnimatingRig;

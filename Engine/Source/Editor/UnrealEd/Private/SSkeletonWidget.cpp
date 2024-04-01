@@ -626,8 +626,6 @@ void SBasePoseViewport::SetSkeleton(USkeleton* Skeleton)
 			{
 				PreviewComponent->SetSkeletalMesh(PreviewSkeletalMesh);
 				PreviewComponent->EnablePreview(true, nullptr);
-//				PreviewComponent->AnimScriptInstance = PreviewComponent->PreviewInstance;
-				PreviewComponent->PreviewInstance->SetForceRetargetBasePose(true);
 				PreviewComponent->RefreshBoneTransforms(nullptr);
 
 				//Place the camera at a good viewer position

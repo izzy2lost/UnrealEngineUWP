@@ -49,9 +49,6 @@ public:
 
 	/** Option to enable/disable post process anim blueprint evaluation */
 	TSharedPtr< FUICommandInfo > DisablePostProcessBlueprint;
-
-	/** Show reference pose on preview mesh */
-	TSharedPtr< FUICommandInfo > ShowRetargetBasePose;
 	
 	/** Show Bound of preview mesh */
 	TSharedPtr< FUICommandInfo > ShowBound;

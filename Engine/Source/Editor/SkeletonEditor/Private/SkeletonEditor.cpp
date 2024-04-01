@@ -180,7 +180,7 @@ void FSkeletonEditor::BindCommands()
 	ToolkitCommands->MapAction(FSkeletonEditorCommands::Get().AnimNotifyWindow,
 		FExecuteAction::CreateSP(this, &FSkeletonEditor::OnAnimNotifyWindow));
 
-	ToolkitCommands->MapAction(FSkeletonEditorCommands::Get().RetargetManager,
+	ToolkitCommands->MapAction(FSkeletonEditorCommands::Get().Retargeting,
 		FExecuteAction::CreateSP(this, &FSkeletonEditor::OnRetargetManager));
 
 	ToolkitCommands->MapAction(FSkeletonEditorCommands::Get().ImportMesh,
@@ -229,7 +229,7 @@ void FSkeletonEditor::ExtendToolbar()
 	{
 		FToolMenuSection& SkeletonSection = ToolMenu->AddSection("Skeleton", LOCTEXT("ToolbarSkeletonSectionLabel", "Skeleton"), SectionInsertLocation);
 		SkeletonSection.AddEntry(FToolMenuEntry::InitToolBarButton(FSkeletonEditorCommands::Get().AnimNotifyWindow));
-		SkeletonSection.AddEntry(FToolMenuEntry::InitToolBarButton(FSkeletonEditorCommands::Get().RetargetManager, LOCTEXT("Toolbar_RetargetManager", "Retarget Manager")));
+		SkeletonSection.AddEntry(FToolMenuEntry::InitToolBarButton(FSkeletonEditorCommands::Get().Retargeting, LOCTEXT("Toolbar_RetargetManager", "Retarget Manager")));
 		SkeletonSection.AddEntry(FToolMenuEntry::InitToolBarButton(FSkeletonEditorCommands::Get().ImportMesh));
 	}
 

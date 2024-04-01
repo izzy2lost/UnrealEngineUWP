@@ -2191,56 +2191,10 @@ void USkeletalMesh::CalculateInvRefMatrices()
 			// Precompute inverse so we can use from-refpose-skin vertices.
 			GetRefBasesInvMatrix()[b] = FMatrix44f(ComposedRefPoseMatrices[b].Inverse());
 		}
-
-#if WITH_EDITORONLY_DATA
-		PRAGMA_DISABLE_DEPRECATION_WARNINGS
-		if(GetRetargetBasePose().Num() == 0)
-		{
-			SetRetargetBasePose(GetRefSkeleton().GetRefBonePose());
-		}
-		PRAGMA_ENABLE_DEPRECATION_WARNINGS
-#endif // WITH_EDITORONLY_DATA
 	}
 }
 
 #if WITH_EDITOR
-
-PRAGMA_DISABLE_DEPRECATION_WARNINGS
-void USkeletalMesh::ReallocateRetargetBasePose()
-{
-	// if you're adding other things here, please note that this function is called during postLoad
-	// fix up retarget base pose if VB has changed
-	// if we have virtual joints, we make sure Retarget Base Pose matches
-	const int32 RawNum = GetRefSkeleton().GetRawBoneNum();
-	const int32 VBNum = GetRefSkeleton().GetVirtualBoneRefData().Num();
-	const int32 BoneNum = GetRefSkeleton().GetNum();
-	check(RawNum + VBNum == BoneNum);
-
-	const int32 OldRetargetBasePoseNum = GetRetargetBasePose().Num();
-	// we want to make sure retarget base pose contains raw numbers PREVIOUSLY
-	// otherwise, we may override wrong transform
-	if (OldRetargetBasePoseNum >= RawNum)
-	{
-		// we have to do this in case buffer size changes (shrink for example)
-		GetRetargetBasePose().SetNum(BoneNum);
-
-		// if we have VB, we should override them
-		// they're not editable, so it's fine to override them from raw bones
-		if (VBNum > 0)
-		{
-			const TArray<FTransform>& BonePose = GetRefSkeleton().GetRefBonePose();
-			check(GetRetargetBasePose().GetTypeSize() == BonePose.GetTypeSize());
-			const int32 ElementSize = GetRetargetBasePose().GetTypeSize();
-			FMemory::Memcpy(GetRetargetBasePose().GetData() + RawNum, BonePose.GetData() + RawNum, ElementSize*VBNum);
-		}
-	}
-	else
-	{
-		// else we think, something has changed, we just override retarget base pose to current pose
-		GetRetargetBasePose() = GetRefSkeleton().GetRefBonePose();
-	}
-}
-PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 void USkeletalMesh::CalculateRequiredBones(FSkeletalMeshLODModel& LODModel, const struct FReferenceSkeleton& InRefSkeleton, const TMap<FBoneIndexType, FBoneIndexType> * BonesToRemove)
 {
@@ -3553,20 +3507,6 @@ void USkeletalMesh::FinishPostLoadInternal(FSkinnedAssetPostLoadContext& Context
 	}
 
 	CalculateInvRefMatrices();
-
-#if WITH_EDITORONLY_DATA
-	PRAGMA_DISABLE_DEPRECATION_WARNINGS
-	if (GetRetargetBasePose().Num() == 0 && !GetOutermost()->bIsCookedForEditor)
-	{
-		GetRetargetBasePose() = GetRefSkeleton().GetRefBonePose();
-	}
-	PRAGMA_ENABLE_DEPRECATION_WARNINGS
-
-	if (GetLinkerCustomVersion(FFortniteMainBranchObjectVersion::GUID) < FFortniteMainBranchObjectVersion::SupportVirtualBoneInRetargeting)
-	{
-		ReallocateRetargetBasePose();
-	}
-#endif
 
 	// Bounds have been loaded - apply extensions.
 	CalculateExtendedBounds();
@@ -5747,25 +5687,15 @@ TSoftObjectPtr<UObject> USkeletalMesh::GetDefaultAnimatingRig() const
 
 void USkeletalMesh::GetMappableNodeData(TArray<FName>& OutNames, TArray<FNodeItem>& OutNodeItems) const
 {
-	TArray<FTransform> ComponentSpaceRefPose;
-#if WITH_EDITORONLY_DATA
-	FAnimationRuntime::FillUpComponentSpaceTransformsRetargetBasePose(this, ComponentSpaceRefPose);
-#else
-	// hasn't tested this route, but we don't have retarget base pose if not editor, wonder we should to non-editor soon
-	ensure(false);
-	FAnimationRuntime::FillUpComponentSpaceTransforms(GetRefSkeleton(), GetRefSkeleton().GetRefBonePose(), ComponentSpaceRefPose);
-#endif //
+	
 
 	const int32 NumJoint = GetRefSkeleton().GetNum();
 	// allocate buffer
 	OutNames.Reset(NumJoint);
 	OutNodeItems.Reset(NumJoint);
 
-	if(ComponentSpaceRefPose.Num() < NumJoint)
-	{
-		// if the mesh's RetargetBasePose is out of whack we should rely on the ref skeleton
-		FAnimationRuntime::FillUpComponentSpaceTransforms(GetRefSkeleton(), GetRefSkeleton().GetRefBonePose(), ComponentSpaceRefPose);
-	}
+	TArray<FTransform> ComponentSpaceRefPose;
+	FAnimationRuntime::FillUpComponentSpaceTransforms(GetRefSkeleton(), GetRefSkeleton().GetRefBonePose(), ComponentSpaceRefPose);
 
 	if (NumJoint > 0)
 	{
