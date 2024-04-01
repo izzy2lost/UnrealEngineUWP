@@ -413,7 +413,7 @@ bool FPropertyBagRepository::IsPropertyBagPlaceholderObjectSupportEnabled()
 	static bool bIsInitialized = false;
 	if (!bIsInitialized)
 	{
-		Private::bEnablePropertyBagPlaceholderObjectSupport = FParse::Param(FCommandLine::Get(), TEXT("WithPropertyBagPlaceholderObjects"));
+		Private::bEnablePropertyBagPlaceholderObjectSupport |= FParse::Param(FCommandLine::Get(), TEXT("WithPropertyBagPlaceholderObjects"));
 		bIsInitialized = true;
 	}
 	
@@ -434,7 +434,8 @@ bool FPropertyBagRepository::IsInstanceDataObjectSupportEnabled(UObject* InObjec
 
 UStruct* FPropertyBagRepository::CreatePropertyBagPlaceholderType(UObject* Outer, UClass* Class, FName Name, EObjectFlags Flags, UStruct* SuperStruct)
 {
-	UStruct* PlaceholderType = NewObject<UClass>(Outer, Class, Name, Flags);
+	// Generate and link a transient type object using the given SuperStruct as its base.
+	UStruct* PlaceholderType = NewObject<UClass>(Outer, Class, Name, Flags | RF_Transient);
 	PlaceholderType->SetSuperStruct(SuperStruct);
 	PlaceholderType->Bind();
 	PlaceholderType->StaticLink(/*bRelinkExistingProperties =*/ true);

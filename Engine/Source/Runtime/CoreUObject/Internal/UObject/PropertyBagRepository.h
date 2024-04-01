@@ -129,7 +129,19 @@ public:
 	// query whether an object supports IDO generation
 	static COREUOBJECT_API bool IsInstanceDataObjectSupportEnabled(UObject* InObject = nullptr);
 
-	// create a new placeholder type object to swap in for a missing class/struct; this will be associated with a property bag when objects are serialized so we don't lose data
+	/**
+	 * Create a new placeholder type object to swap in for a missing class/struct. An object of
+	 * this type will be associated with a property bag when serialized so it doesn't lose data.
+	 * 
+	 * @param Outer			Scope at which to create the placeholder type object (e.g. UPackage).
+	 * @param Class			Type object class (or derivative type). For example, UClass::StaticClass().
+	 * @param Name			Optional object name. If not specified, a unique object name will be created.
+	 * @param Flags			Additional object flags. These will be appended to the default set of type object flags.
+	 *						(Note: All placeholder types are transient by definition and internally default to 'RF_Transient'.)
+	 * @param SuperStruct	Optional super type. By default, placeholder types are derivatives of UObject (NULL implies default).
+	 * 
+	 * @return A reference to a new placeholder type object.
+	 */ 
 	static COREUOBJECT_API UStruct* CreatePropertyBagPlaceholderType(UObject* Outer, UClass* Class, FName Name = NAME_None, EObjectFlags Flags = RF_NoFlags, UStruct* SuperStruct = nullptr);
 	template<typename T = UObject>
 	static UClass* CreatePropertyBagPlaceholderClass(UObject* Outer, UClass* Class, FName Name = NAME_None, EObjectFlags Flags = RF_NoFlags)

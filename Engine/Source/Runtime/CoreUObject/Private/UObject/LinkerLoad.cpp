@@ -3698,25 +3698,47 @@ bool FLinkerLoad::VerifyImportInner(const int32 ImportIndex, FString& WarningSuf
 		{
 			VerifyImport(Import.OuterIndex.ToImport());
 
-			// if the import outer object has been resolved but not linker has been found, we am import to a memory only package (i.e. compiled in)
 			FObjectImport& OuterImport = Imp(Import.OuterIndex);
-			if (!OuterImport.SourceLinker && OuterImport.XObject)
+			if (!OuterImport.SourceLinker)
 			{
-				FObjectImport* Top;
-				for (Top = &OuterImport; Top->OuterIndex.IsImport(); Top = &Imp(Top->OuterIndex))
+				// if the import outer object has been resolved but no linker has been found, we import to a memory only package (i.e. compiled in)
+				if (OuterImport.XObject)
 				{
-					// for loop does what we need
-				}
+					FObjectImport* Top;
+					for (Top = &OuterImport; Top->OuterIndex.IsImport(); Top = &Imp(Top->OuterIndex))
+					{
+						// for loop does what we need
+					}
 
-				UPackage* Package = Cast<UPackage>(Top->XObject);
-				if (Package &&
-					// Assign TmpPkg to resolve the object in memory when there is no source linker available only if the package is MemoryOnly
-					// or we are loading an instanced package in which case the import package might be a duplicated pie package for example for which no linker exists
-					(Package->HasAnyPackageFlags(PKG_InMemoryOnly) || IsContextInstanced()))
-				{
-					// This is an import to a memory-only package, just search for it in the package.
-					TmpPkg = Package;
+					UPackage* Package = Cast<UPackage>(Top->XObject);
+					if (Package &&
+						// Assign TmpPkg to resolve the object in memory when there is no source linker available only if the package is MemoryOnly
+						// or we are loading an instanced package in which case the import package might be a duplicated pie package for example for which no linker exists
+						(Package->HasAnyPackageFlags(PKG_InMemoryOnly) || IsContextInstanced()))
+					{
+						// This is an import to a memory-only package, just search for it in the package.
+						TmpPkg = Package;
+					}
 				}
+#if WITH_EDITOR
+				else
+				{
+					const FUObjectSerializeContext* SerializeContext = GetSerializeContext();
+					if (ensure(SerializeContext))
+					{
+						// If we're serializing a redirector's destination object, validate/create the outer package object if it's a missing type. If this import
+						// represents a non-native type object that's no longer valid, this will allow exports of that type to still be serialized to a property bag,
+						// by creating a placeholder type object in its place. This way we won't lose any previously-serialized data for exports missing their type.
+						const UObjectRedirector* Redirector = Cast<UObjectRedirector>(SerializeContext->SerializedObject);
+						if (Redirector && Redirector->IsSerializingDestinationObject() && TryCreatePlaceholderClassImport(ImportIndex))
+						{
+							// We don't need to do a package search for the import below since we've just created it. Return false to signal that there is no failure.
+							check(Import.XObject);
+							return false;
+						}
+					}
+				}
+#endif
 			}
 
 			// Copy the SourceLinker from the FObjectImport for our Outer if the SourceLinker hasn't been set yet,
@@ -4054,7 +4076,7 @@ UClass* FLinkerLoad::GetExportLoadClass(int32 Index)
 }
 
 #if WITH_EDITOR
-UClass* FLinkerLoad::TryCreatePlaceholderTypeForExport(int32 ExportIndex)
+UClass* FLinkerLoad::TryCreatePlaceholderClassImport(int32 ImportIndex)
 {
 	const bool bAllowPlaceholderImportTypes = UE::FPropertyBagRepository::IsPropertyBagPlaceholderObjectSupportEnabled();
 	if (!bAllowPlaceholderImportTypes)
@@ -4062,45 +4084,62 @@ UClass* FLinkerLoad::TryCreatePlaceholderTypeForExport(int32 ExportIndex)
 		return nullptr;
 	}
 
-	UClass* LoadClass = nullptr;
-	FObjectExport& Export = ExportMap[ExportIndex];
+	UClass* ClassObject = nullptr;
+	FObjectImport& Import = ImportMap[ImportIndex];
 
-	// If the class import is missing, create a placeholder for this export. This will allow us to instance and redirect its data into a property bag.
-	if (Export.ClassIndex.IsImport() && !GEventDrivenLoaderEnabled)
+	// If the import is already set, return NULL to indicate that we didn't create a placeholder type object.
+	if (Import.XObject)
 	{
-		FObjectImport& LoadClassImport = Imp(Export.ClassIndex);
+		return nullptr;
+	}
 
-		// If the outer package import is also missing, create it now so that the full path remains the same. 
-		UObject* LoadClassParent = IndexToObject(LoadClassImport.OuterIndex);
-		if (!LoadClassParent && LoadClassImport.OuterIndex.IsImport())
+	if (UObject* ImportClassPackage = FindObjectFast<UPackage>(nullptr, Import.ClassPackage, /*bExactClass =*/ true))
+	{
+		if (UClass* ImportClass = FindObjectFast<UClass>(ImportClassPackage, Import.ClassName, /*bExactClass =*/ false))
 		{
-			FObjectImport& LoadClassParentImport = Imp(LoadClassImport.OuterIndex);
-			if (LoadClassParentImport.OuterIndex.IsNull())
+			if (ImportClass->IsChildOf<UClass>())
 			{
-				LoadClassParent = CreatePackage(*LoadClassParentImport.ObjectName.ToString());
+				// If the outer package import is also missing, create it now so that the full path remains the same. 
+				UPackage* ClassObjectPackage = Cast<UPackage>(IndexToObject(Import.OuterIndex));
+				if (!ClassObjectPackage && Import.OuterIndex.IsImport())
+				{
+					FObjectImport& OuterImport = Imp(Import.OuterIndex);
+					if (OuterImport.OuterIndex.IsNull())
+					{
+						ClassObjectPackage = CreatePackage(*OuterImport.ObjectName.ToString());
 
-				// Patch it into the import table so that we resolve to this package for future reference.
-				LoadClassParentImport.XObject = LoadClassParent;
-			}
-		}
+						// Patch it into the import table so that we resolve to this package for future reference.
+						OuterImport.XObject = ClassObjectPackage;
+					}
+				}
 
-		if (LoadClassParent)
-		{
-			if (UObject* LoadClassTypePackage = FindObjectFast<UPackage>(nullptr, LoadClassImport.ClassPackage, /*bExactClass =*/ true))
-			{
-				if (UClass* LoadClassType = FindObjectFast<UClass>(LoadClassTypePackage, LoadClassImport.ClassName, /*bExactClass =*/ false))
+				if (ClassObjectPackage)
 				{
 					// Create an opaque, non-native transient type object that has no reflected properties.
-					LoadClass = UE::FPropertyBagRepository::CreatePropertyBagPlaceholderClass(LoadClassParent, LoadClassType, LoadClassImport.ObjectName, RF_Transient);
+					ClassObject = UE::FPropertyBagRepository::CreatePropertyBagPlaceholderClass(ClassObjectPackage, ImportClass, Import.ObjectName);
 
 					// Patch it into the import table so that we resolve to this class for any future exports of this type.
-					LoadClassImport.XObject = LoadClass;
+					Import.XObject = ClassObject;
 				}
 			}
 		}
 	}
 
-	return LoadClass;
+	return ClassObject;
+}
+
+UClass* FLinkerLoad::TryCreatePlaceholderClassForExport(int32 ExportIndex)
+{
+	UClass* ClassObject = nullptr;
+	FObjectExport& Export = ExportMap[ExportIndex];
+
+	// If the class import is missing, create a placeholder for this export. This will allow us to instance and redirect its data into a property bag.
+	if (Export.ClassIndex.IsImport())
+	{
+		ClassObject = TryCreatePlaceholderClassImport(Export.ClassIndex.ToImport());
+	}
+
+	return ClassObject;
 }
 #endif
 
@@ -5044,7 +5083,7 @@ UObject* FLinkerLoad::CreateExport( int32 Index )
 		{
 #if WITH_EDITOR
 			// Try creating a placeholder type for it. This may allow us to instance and redirect its data into a property bag (to avoid data loss).
-			LoadClass = TryCreatePlaceholderTypeForExport(Index);
+			LoadClass = TryCreatePlaceholderClassForExport(Index);
 			if (!LoadClass)
 #endif
 			{

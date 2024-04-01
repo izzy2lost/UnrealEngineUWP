@@ -53,7 +53,12 @@ void UObjectRedirector::Serialize( FStructuredArchive::FRecord Record )
 {
 	Super::Serialize(Record);
 
-	Record << SA_VALUE(TEXT("DestinationObject"), DestinationObject);
+	{
+#if WITH_EDITOR
+		TGuardValue<bool> IsSerializingDestinationObjectScope(bIsSerializingDestinationObject, true);
+#endif
+		Record << SA_VALUE(TEXT("DestinationObject"), DestinationObject);
+	}
 }
 
 bool UObjectRedirector::NeedsLoadForEditorGame() const
