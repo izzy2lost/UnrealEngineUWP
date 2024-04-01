@@ -259,14 +259,22 @@ public:
 	};
 
 	/*
-	 * Do any UObject setup required before the build (before PostEditChange) and after all dependency UObjects have been imported.
-	 * @note - This function is called when starting the pre-completion task (before PostEditChange is called for the asset).
+	 * Do any UObject setup required before the build and after all dependency UObjects have been imported.
+	 * @note - This function is called when starting the pre-completion task (before asset build is called for the asset).
 	 */
 	virtual void SetupObject_GameThread(const FSetupObjectParams& Arguments)
 	{
 		check(IsInGameThread());
 	}
 	
+	/*
+	 * Build the asset if it can be built.
+	 * 
+	 * @Param Arguments - The setup object data.
+	 * @Param OutPostEditchangeCalled - Set it to true if your implementation has called PostEditChange. Set it to false, interchange will call PostEditChange at the end of the import.
+	 * @note - This function is called when starting the pre-completion task.
+	 * @note - The default implementation for asset that do not have any build step is to call PostEditChange and set OutPostEditchangeCalled to true.
+	 */
 	virtual void BuildObject_GameThread(const FSetupObjectParams& Arguments, bool &OutPostEditchangeCalled)
 	{
 		check(IsInGameThread());
@@ -280,8 +288,8 @@ public:
 	}
 
 	/*
-	 * Do any final UObject setup after the build (after PostEditChange).
-	 * @note - This function is called at the end of the pre-completion task (after PostEditChange is called for the asset).
+	 * Do any final UObject setup after the asset is built
+	 * @note - This function is called after asset is built in FTaskWaitAssetCompilation
 	 */
 	virtual void FinalizeObject_GameThread(const FSetupObjectParams& Arguments)
 	{

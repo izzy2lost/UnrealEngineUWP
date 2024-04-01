@@ -207,10 +207,12 @@ void UE::Interchange::FTaskCompletion::DoTask(ENamedThreads::Type CurrentThread,
 					if (UObject* Asset = AssetInfo.ImportedObject)
 					{
 						//Call post edit change if it was not call previously
+#if WITH_EDITOR
 						if (!AssetInfo.bPostEditChangeCalled)
 						{
 							Asset->PostEditChange();
 						}
+#endif //WITH_EDITOR
 						if (AsyncHelper->TaskData.ReimportObject && AsyncHelper->TaskData.ReimportObject == Asset)
 						{
 							UInterchangeManager::GetInterchangeManager().OnAssetPostReimport.Broadcast(Asset);
