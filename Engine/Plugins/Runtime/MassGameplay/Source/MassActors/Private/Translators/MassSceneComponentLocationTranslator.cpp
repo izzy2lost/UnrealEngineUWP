@@ -3,8 +3,6 @@
 #include "Translators/MassSceneComponentLocationTranslator.h"
 #include "MassCommonTypes.h"
 #include "Components/SceneComponent.h"
-#include "MassEntityManager.h"
-#include "MassCommonTypes.h"
 #include "MassExecutionContext.h"
 
 //----------------------------------------------------------------------//
