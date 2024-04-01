@@ -85,9 +85,7 @@ static FAutoConsoleVariableRef CVarIgnoreEmptyDirectories(
 	bIgnoreEmptyDirectories,
 	TEXT("If true, completely empty leaf directories are ignored by the asset registry while scanning"));
 
-//@TODO This should be set to false (enabling multithreaded processing) only after resolving UE-209921 
-// (relating to the GC lock).
-bool bTickGatherOnGTOnly = true;
+bool bTickGatherOnGTOnly = false;
 static FAutoConsoleVariableRef CVarTickGatherOnGTOnly(
 	TEXT("AssetRegistry.TickGatherOnGTOnly"),
 	bTickGatherOnGTOnly,
