@@ -12,6 +12,8 @@ uint DownsampledTileDataStride;
 uint2 DownsampledViewMin;
 uint2 DownsampledViewSize;
 
+#ifdef TileClassificationCS
+
 /**
  * Run tile classification to generate tiles for each subsequent pass
  */
@@ -130,10 +132,14 @@ void TileClassificationCS(
 	}
 }
 
+#endif
+
 RWBuffer<uint> RWTileIndirectArgs;
 RWBuffer<uint> RWDownsampledTileIndirectArgs;
 StructuredBuffer<uint> TileAllocator;
 StructuredBuffer<uint> DownsampledTileAllocator;
+
+#ifdef InitTileIndirectArgsCS
 
 [numthreads(THREADGROUP_SIZE, 1, 1)]
 void InitTileIndirectArgsCS(uint3 DispatchThreadId : SV_DispatchThreadID)
@@ -146,9 +152,13 @@ void InitTileIndirectArgsCS(uint3 DispatchThreadId : SV_DispatchThreadID)
 	}
 }
 
+#endif
+
 RWBuffer<uint> RWIndirectArgs;
 StructuredBuffer<uint> CompositeTileAllocator;
 uint MaxCompositeTiles;
+
+#ifdef InitCompositeIndirectArgsCS
 
 [numthreads(THREADGROUP_SIZE, 1, 1)]
 void InitCompositeIndirectArgsCS(uint3 DispatchThreadId : SV_DispatchThreadID)
@@ -161,10 +171,14 @@ void InitCompositeIndirectArgsCS(uint3 DispatchThreadId : SV_DispatchThreadID)
 	}
 }
 
+#endif
+
 RWTexture2D<float4> RWCompositeUpsampleWeights;
 
 Texture2D<float> DownsampledSceneDepth;
 float2 DownsampledBufferInvSize;
+
+#ifdef InitCompositeUpsampleWeightsCS
 
 /**
  * Prepare weights for upsampling in order to pull out common per pixel composite work into a separate dispatch.
@@ -239,3 +253,5 @@ void InitCompositeUpsampleWeightsCS(
 		RWCompositeUpsampleWeights[ScreenCoord] = InterpolationWeights;
 	}
 }
+
+#endif

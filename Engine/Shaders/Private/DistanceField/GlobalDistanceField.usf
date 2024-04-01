@@ -98,6 +98,8 @@ uint AcceptOftenMovingObjectsOnly;
 uint NumPackedClipmaps;
 uint ObjectIndexBufferStride;
 
+#ifdef CullObjectsToClipmapCS
+
 [numthreads(CULLOBJECTS_THREADGROUP_SIZE, 1, 1)]
 void CullObjectsToClipmapCS(
 	uint GroupIndex : SV_GroupIndex,
@@ -149,10 +151,15 @@ void CullObjectsToClipmapCS(
 	}
 }
 
+#endif
+
 RWBuffer<uint> RWPageComposeIndirectArgBuffer;
 RWBuffer<uint> RWPageUpdateIndirectArgBuffer;
 RWBuffer<uint> RWCullGridUpdateIndirectArgBuffer;
 RWBuffer<uint> RWBuildObjectGridIndirectArgBuffer;
+
+
+#ifdef ClearIndirectArgBufferCS
 
 [numthreads(THREADGROUP_SIZE, 1, 1)]
 void ClearIndirectArgBufferCS(
@@ -169,6 +176,8 @@ void ClearIndirectArgBufferCS(
 		WriteDispatchIndirectArgs(RWBuildObjectGridIndirectArgBuffer, 0, ClearValue);
 	}
 }
+
+#endif
 
 RWStructuredBuffer<uint> RWPageTileBuffer;
 RWBuffer<uint> RWPageIndirectArgBuffer;
@@ -188,6 +197,8 @@ float3 CullGridTileWorldExtent;
 float3 PageGridCoordToTranslatedWorldCenterScale;
 float3 PageGridCoordToTranslatedWorldCenterBias;
 float3 PageGridTileWorldExtent;
+
+#ifdef BuildGridTilesCS
 
 #define MAX_CULLED_TILES 511u
 groupshared uint SharedCulledBoundsList[MAX_CULLED_TILES];
@@ -327,9 +338,13 @@ void BuildGridTilesCS(
 	}
 }
 
+#endif
+
 RWStructuredBuffer<uint> RWPageFreeListBuffer;
 RWStructuredBuffer<int> RWPageFreeListAllocatorBuffer;
 uint GlobalDistanceFieldMaxPageNum;
+
+#ifdef InitPageFreeListCS
 
 [numthreads(THREADGROUP_SIZE, 1, 1)]
 void InitPageFreeListCS(
@@ -349,6 +364,10 @@ void InitPageFreeListCS(
 		RWPageFreeListAllocatorBuffer[0] = GlobalDistanceFieldMaxPageNum;
 	}
 }
+
+#endif
+
+#ifdef AllocatePagesCS
 
 RWTexture3D<uint> RWPageTableCombinedTexture;
 RWTexture3D<uint> RWPageTableLayerTexture;
@@ -540,9 +559,13 @@ void AllocatePagesCS(
 	}
 }
 
+#endif
+
 StructuredBuffer<uint> PageFreeListReturnAllocatorBuffer;
 StructuredBuffer<uint> PageFreeListReturnBuffer;
 RWBuffer<uint> RWFreeListReturnIndirectArgBuffer;
+
+#ifdef PageFreeListReturnIndirectArgBufferCS
 
 [numthreads(1, 1, 1)]
 void PageFreeListReturnIndirectArgBufferCS(
@@ -558,6 +581,10 @@ void PageFreeListReturnIndirectArgBufferCS(
 		RWPageFreeListAllocatorBuffer[0] = max(RWPageFreeListAllocatorBuffer[0], 0);
 	}
 }
+
+#endif
+
+#ifdef PageFreeListReturnCS
 
 [numthreads(THREADGROUP_SIZE_X, 1, 1)]
 void PageFreeListReturnCS(
@@ -575,6 +602,10 @@ void PageFreeListReturnCS(
 		RWPageFreeListBuffer[FreeListLastElementIndex] = PageFreeListReturnBuffer[IndexInReturnList];
 	}
 }
+
+#endif
+
+#ifdef CullObjectsToGridCS
 
 groupshared uint NumObjectsGridCell;
 groupshared uint GridCellStartOffset;
@@ -659,3 +690,5 @@ void CullObjectsToGridCS(
 		}
 	}
 }
+
+#endif

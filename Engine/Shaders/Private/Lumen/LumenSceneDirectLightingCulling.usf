@@ -21,6 +21,8 @@ StructuredBuffer<uint> CardPageIndexData;
 RWStructuredBuffer<uint> RWCardTileAllocator;
 RWStructuredBuffer<uint> RWCardTiles;
 
+#ifdef SpliceCardPagesIntoTilesCS
+
 groupshared uint SharedTileAllocator;
 groupshared uint SharedTiles[THREADGROUP_SIZE * THREADGROUP_SIZE];
 groupshared uint SharedGlobalTileOffset;
@@ -93,9 +95,13 @@ void SpliceCardPagesIntoTilesCS(
 	}
 }
 
+#endif
+
 StructuredBuffer<uint> CardTileAllocator;
 StructuredBuffer<uint> CardTiles;
 RWBuffer<uint> RWDispatchCardTilesIndirectArgs;
+
+#ifdef InitializeCardTileIndirectArgsCS
 
 [numthreads(THREADGROUP_SIZE, 1, 1)]
 void InitializeCardTileIndirectArgsCS(uint3 DispatchThreadId : SV_DispatchThreadID)
@@ -111,6 +117,9 @@ void InitializeCardTileIndirectArgsCS(uint3 DispatchThreadId : SV_DispatchThread
 		WriteDispatchIndirectArgs(RWDispatchCardTilesIndirectArgs, 1, NumCardTiles, 1, 1);
 	}
 }
+
+#endif
+
 
 bool SphereIntersectCone(float4 SphereCenterAndRadius, float3 ConeVertex, float3 ConeAxis, float ConeAngleCos, float ConeAngleSin)
 {
@@ -311,6 +320,8 @@ float GetLightWeight(FLumenLight LumenLight, float3 TranslatedWorldPosition)
 	return Weight;
 }
 
+#ifdef BuildLightTilesCS
+
 /**
  * Pick N most important lights per tile in page selected to update to update this frame, and output a list of light tiles
  */
@@ -408,6 +419,8 @@ void BuildLightTilesCS(
 	}
 }
 
+#endif
+
 StructuredBuffer<uint> LightTileAllocatorPerLight;
 RWStructuredBuffer<uint> RWLightTileOffsetsPerLight;
 
@@ -439,6 +452,8 @@ StructuredBuffer<uint> LightTileAllocator;
 StructuredBuffer<uint2> LightTiles;
 StructuredBuffer<uint> LightTileOffsetsPerLight;
 StructuredBuffer<uint> LightTileOffsetNumPerCardTile;
+
+#ifdef CompactLightTilesCS
 
 /**
  * Compact card tile array
@@ -478,12 +493,16 @@ void CompactLightTilesCS(uint3 DispatchThreadId : SV_DispatchThreadID)
 	}
 }
 
+#endif
+
 RWBuffer<uint> RWDispatchLightTilesIndirectArgs;
 RWBuffer<uint> RWDrawTilesPerLightIndirectArgs;
 RWBuffer<uint> RWDispatchTilesPerLightIndirectArgs;
 
 uint VertexCountPerInstanceIndirect;
 uint PerLightDispatchFactor;
+
+#ifdef InitializeLightTileIndirectArgsCS
 
 [numthreads(THREADGROUP_SIZE, 1, 1)]
 void InitializeLightTileIndirectArgsCS(uint3 DispatchThreadId : SV_DispatchThreadID)
@@ -517,6 +536,10 @@ void InitializeLightTileIndirectArgsCS(uint3 DispatchThreadId : SV_DispatchThrea
 		RWDrawTilesPerLightIndirectArgs[4 * PerViewLightIndex + 3] = 0;
 	}
 }
+
+#endif
+
+#ifdef RasterizeToLightTilesVS
 
 uint LightIndex;
 uint ViewIndex;
@@ -556,3 +579,5 @@ void RasterizeToLightTilesVS(
 		CardInterpolants.CardPageIndex = LightTile.CardPageIndex;
 	}
 }
+
+#endif

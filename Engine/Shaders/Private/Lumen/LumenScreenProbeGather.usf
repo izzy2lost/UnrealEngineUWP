@@ -93,6 +93,8 @@ void WriteDownsampledProbeMaterial(float2 ScreenUV, uint2 ScreenProbeAtlasCoord,
 	RWScreenProbeTranslatedWorldPosition[ScreenProbeAtlasCoord] = ProbeTranslatedWorldPosition;
 }
 
+#ifdef ScreenProbeDownsampleDepthUniformCS
+
 [numthreads(THREADGROUP_SIZE, THREADGROUP_SIZE, 1)]
 void ScreenProbeDownsampleDepthUniformCS(
 	uint3 GroupId : SV_GroupID,
@@ -109,6 +111,8 @@ void ScreenProbeDownsampleDepthUniformCS(
 		WriteDownsampledProbeMaterial(ScreenUV, ScreenProbeAtlasCoord, GetScreenProbeMaterial(ScreenProbeScreenPosition));
 	}
 }
+
+#endif
 
 float GetScreenProbeDepthFromUAV(uint2 ScreenProbeAtlasCoord)
 {
@@ -268,6 +272,8 @@ groupshared FScreenProbeMaterial SharedScreenProbeMaterial[THREADGROUP_SIZE * TH
 
 uint PlacementDownsampleFactor;
 
+#ifdef ScreenProbeAdaptivePlacementCS
+
 [numthreads(THREADGROUP_SIZE, THREADGROUP_SIZE, 1)]
 void ScreenProbeAdaptivePlacementCS(
 	uint3 GroupId : SV_GroupID,
@@ -351,6 +357,8 @@ void ScreenProbeAdaptivePlacementCS(
 	}
 }
 
+#endif
+
 RWBuffer<uint> RWScreenProbeIndirectArgs;
 
 void WriteArgs2D(uint Index, uint2 ThreadCount)
@@ -360,6 +368,8 @@ void WriteArgs2D(uint Index, uint2 ThreadCount)
 		(ThreadCount.y + PROBE_THREADGROUP_SIZE_2D - 1) / PROBE_THREADGROUP_SIZE_2D,
 		1);
 }
+
+#ifdef SetupAdaptiveProbeIndirectArgsCS
 
 [numthreads(1, 1, 1)]
 void SetupAdaptiveProbeIndirectArgsCS(
@@ -377,6 +387,10 @@ void SetupAdaptiveProbeIndirectArgsCS(
 	WriteArgs2D(4, AtlasSizeInProbes * ScreenProbeGatherOctahedronResolutionWithBorder);
 	WriteArgs2D(5, AtlasSizeInProbes * ScreenProbeLightSampleResolutionXY);
 }
+
+#endif
+
+#ifdef MarkRadianceProbesUsedByScreenProbesCS
 
 [numthreads(PROBE_THREADGROUP_SIZE_2D, PROBE_THREADGROUP_SIZE_2D, 1)]
 void MarkRadianceProbesUsedByScreenProbesCS(
@@ -407,6 +421,10 @@ void MarkRadianceProbesUsedByScreenProbesCS(
 		}
 	}
 }
+
+#endif
+
+#ifdef MarkRadianceProbesUsedByHairStrandsCS
 
 int2 HairStrandsResolution;
 float2 HairStrandsInvResolution;
@@ -509,6 +527,8 @@ void MarkRadianceProbesUsedByHairStrandsCS(uint3 DispatchThreadId : SV_DispatchT
 	#endif // HAIRSTRANDS_MARK_USED_METHOD
 }
 
+#endif
+
 #define INTEGRATE_TILE_SIZE 8
 #define INTEGRATE_TILE_SIZE_DIV_AS_SHIFT 3
 #if SUBSTRATE_ENABLED && (INTEGRATE_TILE_SIZE != SUBSTRATE_TILE_SIZE)
@@ -597,6 +617,8 @@ FScreenProbeIntegrateTileData UnpackScreenProbeIntegrateTileData(uint In)
 // Return the indirect args offset depending on the permutation type (i.e., primary/overflow)
 #define TILE_CLASSIFICATION_ARGS_OFFSET (PERMUTATION_OVERFLOW_TILE * TILE_CLASSIFICATION_NUM * DISPATCH_INDIRECT_UINT_COUNT)
 
+#ifdef ScreenProbeTileClassificationMarkCS
+
 [numthreads(INTEGRATE_TILE_SIZE, INTEGRATE_TILE_SIZE, 1)] 
 void ScreenProbeTileClassificationMarkCS(
 	uint2 GroupId : SV_GroupID,
@@ -684,6 +706,8 @@ void ScreenProbeTileClassificationMarkCS(
 	}
 }
 
+#endif
+
 RWStructuredBuffer<uint> RWIntegrateTileData;
 Texture2DArray<uint> TileClassificationModes;
 
@@ -701,6 +725,8 @@ uint GetTileDataOffset(uint2 InViewportIntegrateTileDimensions, uint InMode, boo
 	const uint OverflowOffset = ViewportTileCount * TILE_CLASSIFICATION_NUM * (bOverflow ? 1 : 0);
 	return OverflowOffset + ModeOffset;
 }
+
+#ifdef ScreenProbeTileClassificationBuildListsCS
 
 [numthreads(THREADGROUP_SIZE, 1, 1)] 
 void ScreenProbeTileClassificationBuildListsCS(
@@ -780,6 +806,8 @@ void ScreenProbeTileClassificationBuildListsCS(
 		}
 	}
 }
+
+#endif
 
 Texture2D<float3> ScreenProbeRadianceSHAmbient;
 Texture2D<float4> ScreenProbeRadianceSHDirectional;
@@ -1116,6 +1144,8 @@ float MaxAOMultibounceAlbedo;
 uint LumenReflectionInputIsSSR;
 
 StructuredBuffer<uint> IntegrateTileData;
+
+#ifdef ScreenProbeIntegrateCS
 
 [numthreads(INTEGRATE_TILE_SIZE, INTEGRATE_TILE_SIZE, 1)]  
 void ScreenProbeIntegrateCS(
@@ -1574,6 +1604,8 @@ void ScreenProbeIntegrateCS(
 	}
 }
 
+#endif
+
 RWTexture2DArray<float3> RWNewHistoryDiffuseIndirect;
 RWTexture2DArray<float3> RWNewHistoryBackfaceDiffuseIndirect;
 RWTexture2DArray<float3> RWNewHistoryRoughSpecularIndirect;
@@ -1734,6 +1766,8 @@ float3 GetHistoryNormal(float2 InUV)
 {
 	return DecodeNormal(Texture2DSampleLevel(DiffuseIndirectNormalHistory, GlobalPointClampedSampler, InUV, 0).xyz);
 }
+
+#ifdef ScreenProbeTemporalReprojectionCS
 
 [numthreads(THREADGROUP_SIZE, THREADGROUP_SIZE, 1)]
 void ScreenProbeTemporalReprojectionCS( 
@@ -1990,10 +2024,12 @@ void ScreenProbeTemporalReprojectionCS(
 #endif
 }
 
+#endif
+
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 // Debug screen probe material classification
 
-#if SHADER_MATERIAL_DEBUG
+#ifdef ScreenProbeDebugMain
 
 #include "../ShaderPrint.ush"
 
@@ -2120,4 +2156,4 @@ void ScreenProbeDebugMain(uint3 DispatchThreadId : SV_DispatchThreadID)
 	}
 }
 
-#endif // SHADER_MATERIAL_DEBUG
+#endif // ScreenProbeDebugMain

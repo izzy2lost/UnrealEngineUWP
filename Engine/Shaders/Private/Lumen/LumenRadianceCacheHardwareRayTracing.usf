@@ -67,6 +67,7 @@ RWBuffer<uint> RWHardwareRayTracingIndirectArgs;
 uint2 OutputThreadGroupSize;
 uint TempAtlasNumTraceTiles;
 
+#ifdef LumenRadianceCacheHardwareRayTracingIndirectArgsCS
 [numthreads(1, 1, 1)]
 void LumenRadianceCacheHardwareRayTracingIndirectArgsCS()
 {
@@ -76,6 +77,7 @@ void LumenRadianceCacheHardwareRayTracingIndirectArgsCS()
 	int3 IndirectArgs = GetRayTracingThreadCountWrapped(NumGroups, RADIANCE_CACHE_TRACE_TILE_SIZE_1D);
 	WriteDispatchIndirectArgs(RWHardwareRayTracingIndirectArgs, 0, IndirectArgs);
 }
+#endif
 
 #if LUMEN_HARDWARE_RAYTRACING || LUMEN_HARDWARE_INLINE_RAYTRACING
 
@@ -225,6 +227,7 @@ void LumenRadianceCacheHardwareRayTracingCommon(uint ThreadIndex)
 
 #if LUMEN_HARDWARE_INLINE_RAYTRACING
 
+#ifdef LumenRadianceCacheHardwareRayTracingCS
 [numthreads(INLINE_RAY_TRACING_THREAD_GROUP_SIZE_X, INLINE_RAY_TRACING_THREAD_GROUP_SIZE_Y, 1)]
 void LumenRadianceCacheHardwareRayTracingCS(
 	uint3 GroupId : SV_GroupID,
@@ -234,14 +237,17 @@ void LumenRadianceCacheHardwareRayTracingCS(
 	uint GroupLinearIndex = GetUnWrappedRayTracingDispatchThreadId(GroupId, RADIANCE_CACHE_TRACE_TILE_SIZE_1D);
 	LumenRadianceCacheHardwareRayTracingCommon(GroupLinearIndex * INLINE_RAY_TRACING_THREAD_GROUP_SIZE_X + GroupIndex);
 }
+#endif
 
 #else // LUMEN_HARDWARE_RAYTRACING
 
+#ifdef LumenRadianceCacheHardwareRayTracingRGS
 RAY_TRACING_ENTRY_RAYGEN(LumenRadianceCacheHardwareRayTracingRGS)
 {
 	uint ThreadIndex = GetUnWrappedRayTracingDispatchThreadId(DispatchRaysIndex(), RADIANCE_CACHE_TRACE_TILE_SIZE_1D);
 	LumenRadianceCacheHardwareRayTracingCommon(ThreadIndex);
 }
+#endif
 
 #endif // LUMEN_HARDWARE_INLINE_RAYTRACING
 
@@ -252,6 +258,8 @@ Texture2D<float> TraceHitTexture;
 
 RWStructuredBuffer<uint> RWCompactedTraceTexelAllocator;
 RWStructuredBuffer<uint> RWCompactedTraceTexelData;
+
+#ifdef RadianceCacheCompactTracesCS
 
 groupshared uint SharedTraceTexelAllocator;
 groupshared uint SharedGlobalTraceTexelStartOffset;
@@ -312,7 +320,9 @@ void RadianceCacheCompactTracesCS(
 		RWCompactedTraceTexelData[SharedGlobalTraceTexelStartOffset + ThreadIndex] = SharedTraceTexels[ThreadIndex];
 	}
 }
+#endif
 
+#ifdef SplatRadianceCacheIntoAtlasCS
 [numthreads(RADIANCE_CACHE_TRACE_TILE_SIZE_2D, RADIANCE_CACHE_TRACE_TILE_SIZE_2D, 1)]
 void SplatRadianceCacheIntoAtlasCS(
 	uint3 GroupId : SV_GroupID,
@@ -392,3 +402,4 @@ void SplatRadianceCacheIntoAtlasCS(
 		}
 	}
 }
+#endif

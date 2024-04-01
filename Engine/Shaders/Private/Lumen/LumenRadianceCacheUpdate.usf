@@ -36,6 +36,8 @@ RWBuffer<uint> RWProbeTraceAllocator;
 Buffer<uint> ProbeTraceAllocator;
 RWBuffer<float4> RWProbeTraceData;
 
+#ifdef ClearRadianceCacheUpdateResourcesCS
+
 /**
  * Batch clear all resources required for the subsequent radiance cache probe update pass
  */
@@ -71,6 +73,8 @@ void ClearRadianceCacheUpdateResourcesCS(
 	}
 }
 
+#endif
+
 uint GetPriorityBucketIndex(uint LastTracedFrameIndex, uint LastUsedFrameIndex, uint ClipmapIndex)
 {
 	uint BucketIndex = 0;
@@ -92,6 +96,8 @@ uint GetPriorityBucketIndex(uint LastTracedFrameIndex, uint LastUsedFrameIndex, 
 
 	return BucketIndex;
 }
+
+#ifdef AllocateUsedProbesCS
 
 /** 
  * Allocate used probes and build their update priority histogram
@@ -169,6 +175,10 @@ void AllocateUsedProbesCS(
 	}
 }
 
+#endif
+
+#ifdef SelectMaxPriorityBucketCS
+
 /** 
  * Compute max bucket histogram to update and how many tiles should be updated in that last bucket 
  */
@@ -202,6 +212,10 @@ void SelectMaxPriorityBucketCS(
 		RWMaxTracesFromMaxUpdateBucket[0] = NumTracesFromPriorityBucket;
 	}
 }
+
+#endif
+
+#ifdef AllocateProbeTracesCS
 
 /**
  * Iterate again over all probes and update them based on the histogram priority max update bucket
@@ -268,6 +282,10 @@ void AllocateProbeTracesCS(
 	}
 }
 
+#endif
+
+#ifdef ClearProbeFreeListCS
+
 [numthreads(THREADGROUP_SIZE, 1, 1)]
 void ClearProbeFreeListCS(
 	uint3 GroupId : SV_GroupID,
@@ -289,10 +307,14 @@ void ClearProbeFreeListCS(
 	}
 }
 
+#endif
+
 Buffer<uint> ProbeAllocator;
 Texture3D<uint> LastFrameRadianceProbeIndirectionTexture;
 float4 PackedLastFrameRadianceProbeCoordToWorldPosition[RADIANCE_PROBE_MAX_CLIPMAPS];
 uint NumFramesToKeepCachedProbes;
+
+#ifdef UpdateCacheForUsedProbesCS
 
 [numthreads(THREADGROUP_SIZE, THREADGROUP_SIZE, THREADGROUP_SIZE)]
 void UpdateCacheForUsedProbesCS(
@@ -352,3 +374,5 @@ void UpdateCacheForUsedProbesCS(
 		}
 	}
 }
+
+#endif

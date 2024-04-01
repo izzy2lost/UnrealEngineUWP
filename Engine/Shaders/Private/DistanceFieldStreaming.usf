@@ -10,6 +10,8 @@
 
 RWTexture3D<UNORM float> RWDistanceFieldBrickAtlas;
 
+#ifdef CopyDistanceFieldAtlasCS
+
 [numthreads(THREADGROUP_SIZE, THREADGROUP_SIZE, THREADGROUP_SIZE)]
 void CopyDistanceFieldAtlasCS(
 	uint3 GroupId : SV_GroupID,
@@ -18,6 +20,10 @@ void CopyDistanceFieldAtlasCS(
 {
 	RWDistanceFieldBrickAtlas[DispatchThreadId] = DistanceFieldBrickTexture[DispatchThreadId].x;
 }
+
+#endif
+
+#ifdef ScatterUploadDistanceFieldAtlasCS
 
 Buffer<uint4> BrickUploadCoordinates;
 Buffer<float> BrickUploadData;
@@ -43,7 +49,12 @@ void ScatterUploadDistanceFieldAtlasCS(
 	}
 }
 
+#endif
+
 RWTexture3D<float4> RWIndirectionAtlas;
+
+#ifdef ScatterUploadDistanceFieldIndirectionAtlasCS
+
 Buffer<uint> IndirectionUploadIndices;
 Buffer<float4> IndirectionUploadData;
 uint3 IndirectionAtlasSize;
@@ -67,6 +78,9 @@ void ScatterUploadDistanceFieldIndirectionAtlasCS(
 		RWIndirectionAtlas[AtlasPosition] = IndirectionUploadData[Index];
 	}
 }
+#endif
+
+#ifdef CopyDistanceFieldIndirectionAtlasCS
 
 uint3 IndirectionDimensions;
 uint3 SrcPosition;
@@ -92,8 +106,12 @@ void CopyDistanceFieldIndirectionAtlasCS(
 	}
 }
 
+#endif
+
 RWStructuredBuffer<uint> RWDistanceFieldAssetWantedNumMips;
 RWStructuredBuffer<uint> RWDistanceFieldAssetStreamingRequests;
+
+#ifdef ComputeDistanceFieldAssetWantedMipsCS
 
 float3 PreViewTranslationHigh;
 float3 PreViewTranslationLow;
@@ -156,6 +174,10 @@ void ComputeDistanceFieldAssetWantedMipsCS(
 	}
 }
 
+#endif
+
+#ifdef GenerateDistanceFieldAssetStreamingRequestsCS
+
 StructuredBuffer<uint> DistanceFieldAssetWantedNumMips;
 uint NumDistanceFieldAssets;
 uint MaxNumStreamingRequests;
@@ -186,3 +208,5 @@ void GenerateDistanceFieldAssetStreamingRequestsCS(
 		}
 	}
 }
+
+#endif

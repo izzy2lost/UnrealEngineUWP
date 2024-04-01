@@ -22,12 +22,13 @@
 RWBuffer<uint> RWHardwareRayTracingIndirectArgs;
 uint2 OutputThreadGroupSize;
 
+#ifdef FLumenScreenProbeHardwareRayTracingIndirectArgsCS
 [numthreads(1, 1, 1)]
 void FLumenScreenProbeHardwareRayTracingIndirectArgsCS()
 {
 	WriteDispatchIndirectArgs(RWHardwareRayTracingIndirectArgs, 0, (CompactedTraceTexelAllocator[0] + OutputThreadGroupSize.x - 1) / OutputThreadGroupSize.x, 1, 1);
 }
-
+#endif
 
 #if LUMEN_HARDWARE_RAYTRACING || LUMEN_HARDWARE_INLINE_RAYTRACING
 

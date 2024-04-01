@@ -22,9 +22,12 @@
 
 #define DEBUG_VISUALIZE_TRACE_TYPES 0
 
+
 RWTexture2DArray<float>  RWTraceHit;
 RWTexture2DArray<float3> RWTraceRadiance;
 RWTexture2DArray<uint>   RWTraceMaterialId;
+
+#ifdef ReflectionClearTracesCS
 
 [numthreads(REFLECTION_THREADGROUP_SIZE_1D, 1, 1)]
 void ReflectionClearTracesCS(
@@ -44,13 +47,16 @@ void ReflectionClearTracesCS(
 	}
 	#endif
 }
- 
+#endif
+
 float MaxTraceDistance;
 float4 HZBUvFactorAndInvFactor;
 float MaxHierarchicalScreenTraceIterations;
 float RelativeDepthThickness;
 float HistoryDepthTestRelativeThickness;
 uint MinimumTracingThreadOccupancy;
+
+#ifdef ReflectionTraceScreenTexturesCS
 
 [numthreads(REFLECTION_THREADGROUP_SIZE_1D, 1, 1)]
 void ReflectionTraceScreenTexturesCS(
@@ -221,10 +227,14 @@ void ReflectionTraceScreenTexturesCS(
 	}
 }
 
+#endif
+
 RWBuffer<uint> RWCompactedTraceTexelAllocator;
 RWBuffer<uint> RWReflectionCompactionIndirectArgs;
 Buffer<uint> ReflectionTracingTileIndirectArgs;
 uint CompactionThreadGroupSize;
+
+#ifdef SetupCompactionIndirectArgsCS
 
 [numthreads(64, 1, 1)]
 void SetupCompactionIndirectArgsCS(uint GroupThreadId : SV_GroupThreadID)
@@ -243,6 +253,8 @@ void SetupCompactionIndirectArgsCS(uint GroupThreadId : SV_GroupThreadID)
 	}
 }
 
+#endif
+
 RWBuffer<uint> RWCompactedTraceTexelData;
 
 // LumenReflections::ETraceCompactionMode
@@ -256,6 +268,8 @@ float CompactionMaxTraceDistance;
 float NearFieldMaxTraceDistance;
 float FarFieldDitheredStartDistanceFactor;
 Texture2DArray<uint> TraceMaterialId;
+
+#ifdef ReflectionCompactTracesCS
 
 groupshared uint SharedGlobalTraceTexelStartOffset;
 
@@ -408,6 +422,10 @@ void ReflectionCompactTracesCS(
 #endif
 }
 
+#endif
+
+#ifdef SetupCompactedTracesIndirectArgsCS
+
 RWBuffer<uint> RWReflectionCompactTracingIndirectArgs;
 RWBuffer<uint> RWReflectionCompactRayTraceDispatchIndirectArgs;
 
@@ -426,6 +444,10 @@ void SetupCompactedTracesIndirectArgsCS()
 	// Ray tracing dispatch dimensions are defined simply in terms of threads/rays, not thread groups.
 	WriteDispatchIndirectArgs(RWReflectionCompactRayTraceDispatchIndirectArgs, 0, CompactedTraceTexelAllocator[0], 1, 1);
 }
+
+#endif
+
+#ifdef ReflectionSortTracesByMaterialCS
 
 #ifndef THREADGROUP_SIZE_1D
 	#define THREADGROUP_SIZE_1D 1
@@ -539,6 +561,8 @@ void ReflectionSortTracesByMaterialCS(
 		}
 	}
 }
+
+#endif
 
 uint CardGridPixelSizeShift;
 float3 CardGridZParams;
@@ -674,6 +698,8 @@ void TraceMeshSDFs(FReflectionTracingCoord ReflectionTracingCoord, float TraceHi
 	#define REFLECTION_TRACE_THREADGROUP_SIZE_1D 64
 #endif
 
+#ifdef ReflectionTraceMeshSDFsCS
+
 [numthreads(REFLECTION_TRACE_THREADGROUP_SIZE_1D, 1, 1)]
 void ReflectionTraceMeshSDFsCS(uint DispatchThreadId : SV_DispatchThreadID)
 {
@@ -687,6 +713,8 @@ void ReflectionTraceMeshSDFsCS(uint DispatchThreadId : SV_DispatchThreadID)
 		TraceMeshSDFs(ReflectionTracingCoord, TraceHitDistance);
 	}
 }
+
+#endif
 
 void TraceVoxels(FReflectionTracingCoord ReflectionTracingCoord, float TraceHitDistance)
 {
@@ -865,6 +893,8 @@ void TraceVoxels(FReflectionTracingCoord ReflectionTracingCoord, float TraceHitD
 	RWTraceHit[ReflectionTracingCoord.CoordFlatten] = EncodeRayDistance(TraceHitDistance, bHit);
 }
 
+#ifdef ReflectionTraceVoxelsCS
+
 [numthreads(REFLECTION_TRACE_THREADGROUP_SIZE_1D, 1, 1)]
 void ReflectionTraceVoxelsCS(uint DispatchThreadId : SV_DispatchThreadID)
 {
@@ -878,6 +908,10 @@ void ReflectionTraceVoxelsCS(uint DispatchThreadId : SV_DispatchThreadID)
 		TraceVoxels(ReflectionTracingCoord, TraceHitDistance);
 	}
 }
+
+#endif
+
+#ifdef VisualizeReflectionTracesCS
 
 [numthreads(THREADGROUP_SIZE, THREADGROUP_SIZE, 1)]
 void VisualizeReflectionTracesCS(
@@ -928,3 +962,5 @@ void VisualizeReflectionTracesCS(
 		}
 	}
 }
+
+#endif

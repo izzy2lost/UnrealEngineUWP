@@ -29,6 +29,7 @@ void LumenFrontLayerTranslucencyClearGBufferPS(
 	OutDepth = SceneTexturesStruct.SceneDepthTexture.Load(int3(PixelCoord, 0)).r;
 }
 
+#ifdef MarkRadianceProbesUsedByTranslucencyVolumeCS
 [numthreads(THREADGROUP_SIZE, THREADGROUP_SIZE, THREADGROUP_SIZE)]
 void MarkRadianceProbesUsedByTranslucencyVolumeCS(
 	uint3 GroupId : SV_GroupID,
@@ -48,6 +49,7 @@ void MarkRadianceProbesUsedByTranslucencyVolumeCS(
 		}
 	}
 }
+#endif
 
 RWTexture3D<float3> RWVolumeTraceRadiance;
 RWTexture3D<float> RWVolumeTraceHitDistance;
@@ -78,6 +80,7 @@ void ApplyDepthconstraintsToOffset(float3 GridCoordinate, inout float3 LocalFram
 	}
 }
 
+#ifdef TranslucencyVolumeTraceVoxelsCS
 [numthreads(THREADGROUP_SIZE, THREADGROUP_SIZE, 1)]
 void TranslucencyVolumeTraceVoxelsCS(
 	uint3 GroupId : SV_GroupID,
@@ -182,6 +185,7 @@ void TranslucencyVolumeTraceVoxelsCS(
 		RWVolumeTraceHitDistance[WriteCoord] = min(TraceHitDistance, MaxHalfFloat);
 	}
 }
+#endif
 
 Texture3D<float3> VolumeTraceRadiance;
 Texture3D<float> VolumeTraceHitDistance;
@@ -201,6 +205,7 @@ float GaussianWeight1d(float Distance)
 	return InvStandardDevTimesSqrt2 * exp(-Distance * Distance * InvStandardDevSquaredTimes2);
 }
 
+#ifdef TranslucencyVolumeSpatialSeparableFilterCS
 [numthreads(THREADGROUP_SIZE, THREADGROUP_SIZE, 1)]
 void TranslucencyVolumeSpatialSeparableFilterCS(
 	uint3 GroupId : SV_GroupID,
@@ -232,6 +237,7 @@ void TranslucencyVolumeSpatialSeparableFilterCS(
 		RWVolumeTraceRadiance[DispatchThreadId] = FilteredRadiance / max(TotalWeight, .00001f);
 	}
 }
+#endif
 
 RWTexture3D<float4> RWTranslucencyGI0;
 RWTexture3D<float4> RWTranslucencyGI1;
@@ -244,6 +250,7 @@ SamplerState TranslucencyGIHistorySampler;
 
 float HistoryWeight; 
 
+#ifdef TranslucencyVolumeIntegrateCS
 [numthreads(THREADGROUP_SIZE, THREADGROUP_SIZE, THREADGROUP_SIZE)]
 void TranslucencyVolumeIntegrateCS(
 	uint3 GroupId : SV_GroupID,
@@ -343,6 +350,7 @@ void TranslucencyVolumeIntegrateCS(
 		}
 	}
 }
+#endif
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 // Froxel probe tracing.
@@ -379,6 +387,7 @@ uint SurfaceCacheAlphaMasking;
 	}
 #endif // LUMEN_HARDWARE_INLINE_RAYTRACING
 
+#if defined(TranslucencyVolumeFroxelProbesCS) || defined(TranslucencyVolumeFroxelProbesRayTracingRGS) || defined(TranslucencyVolumeFroxelProbesRayTracingCS)
 #if LUMEN_HARDWARE_RAYTRACING
 LUMEN_HARDWARE_RAY_TRACING_ENTRY(TranslucencyVolumeFroxelProbesRayTracing)
 {
@@ -501,4 +510,6 @@ void TranslucencyVolumeFroxelProbesCS(
 		RWVolumeTraceHitDistance[WriteCoord] = min(TraceHitDistance, MaxHalfFloat);
 	}
 }
+#endif
+
 

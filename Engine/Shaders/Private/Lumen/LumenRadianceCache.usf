@@ -19,6 +19,8 @@
 #define THREADGROUP_SIZE 1
 #endif
 
+#ifdef ClearProbeIndirectionCS
+
 [numthreads(THREADGROUP_SIZE, THREADGROUP_SIZE, THREADGROUP_SIZE)]
 void ClearProbeIndirectionCS(
 	uint3 GroupId : SV_GroupID,
@@ -28,11 +30,17 @@ void ClearProbeIndirectionCS(
 	RWRadianceProbeIndirectionTexture[DispatchThreadId] = INVALID_PROBE_INDEX;
 }
 
+#endif
+
+RWStructuredBuffer<float4> RWProbeWorldOffset;
+
+
 RWBuffer<int> RWProbeFreeListAllocator;
 RWBuffer<uint> RWProbeFreeList;
 RWBuffer<uint> RWProbeLastUsedFrame;
-RWStructuredBuffer<float4> RWProbeWorldOffset;
 uint MaxNumProbes;
+
+#ifdef MarkRadianceProbesUsedByVisualizeCS
 
 [numthreads(1, 1, 1)]
 void MarkRadianceProbesUsedByVisualizeCS(
@@ -49,8 +57,11 @@ void MarkRadianceProbesUsedByVisualizeCS(
 	}
 }
 
+#endif
+
 // Must match C++
 #define NUM_RADIANCE_PROBE_PDF_COEFFICIENTS (NUM_PDF_SH_COEFFICIENTS + 1)
+
 
 RWBuffer<uint> RWProbeAllocator;
 RWBuffer<uint> RWClearProbePDFsIndirectArgs;
@@ -63,6 +74,8 @@ Buffer<uint> ProbeTraceAllocator;
 uint ClearProbePDFGroupSize;
 uint TraceFromProbesGroupSizeXY;
 uint FilterProbesGroupSizeXY;
+
+#ifdef SetupProbeIndirectArgsCS
 
 [numthreads(1, 1, 1)]
 void SetupProbeIndirectArgsCS()
@@ -110,6 +123,10 @@ void SetupProbeIndirectArgsCS()
 		(FinalProbeResolution + TraceFromProbesGroupSizeXY - 1) / TraceFromProbesGroupSizeXY,
 		NumProbesToTrace);
 }
+
+#endif
+
+#ifdef ComputeProbeWorldOffsetsCS
 
 groupshared float4 SharedBestOffset[THREADGROUP_SIZE];
 groupshared float4 SharedBestOffset2[THREADGROUP_SIZE];
@@ -190,7 +207,11 @@ void ComputeProbeWorldOffsetsCS(
 	}
 }
 
+#endif
+
 RWBuffer<int> RWRadianceProbeSH_PDF;
+
+#ifdef ClearProbePDFs
 
 [numthreads(THREADGROUP_SIZE, 1, 1)]
 void ClearProbePDFs(uint DispatchThreadId : SV_DispatchThreadID)
@@ -201,6 +222,10 @@ void ClearProbePDFs(uint DispatchThreadId : SV_DispatchThreadID)
 
 	RWRadianceProbeSH_PDF[ProbeIndex * NUM_RADIANCE_PROBE_PDF_COEFFICIENTS + CoefficientIndex] = 0;
 }
+
+#endif
+
+#ifdef ScatterScreenProbeBRDFToRadianceProbesCS
 
 [numthreads(THREADGROUP_SIZE, THREADGROUP_SIZE, 1)]
 void ScatterScreenProbeBRDFToRadianceProbesCS(
@@ -261,6 +286,8 @@ void ScatterScreenProbeBRDFToRadianceProbesCS(
 	}
 }
 
+#endif
+
 bool ShouldRefineTraceTile(uint2 TraceTileCoord, uint TraceTileResolution, float LevelPDFThreshold, FThreeBandSHVector BRDF)
 {
 	float2 ProbeUV = (TraceTileCoord + float2(.5f, .5f)) / float(TraceTileResolution);
@@ -278,6 +305,8 @@ float SupersampleTileBRDFThreshold;
 
 RWTexture2D<float> RWDebugBRDFProbabilityDensityFunction;
 uint DebugProbeBRDFOctahedronResolution;
+
+#ifdef GenerateProbeTraceTilesCS
 
 groupshared uint SharedNumPendingTraceTiles;
 groupshared uint2 PendingTraceTileList[THREADGROUP_SIZE * THREADGROUP_SIZE * 4];
@@ -517,6 +546,10 @@ void GenerateProbeTraceTilesCS(
 #endif
 }
 
+#endif
+
+#ifdef SetupTraceFromProbesCS
+
 RWBuffer<uint> RWTraceProbesIndirectArgs;
 RWBuffer<uint> RWSortProbeTraceTilesIndirectArgs;
 RWBuffer<uint> RWRadianceCacheHardwareRayTracingIndirectArgs;
@@ -549,12 +582,17 @@ void SetupTraceFromProbesCS()
 	RWHardwareRayTracingRayAllocatorBuffer[0] = NumProbeTraceTiles * RADIANCE_CACHE_TRACE_TILE_SIZE_1D;
 }
 
+#endif
+
 #ifndef SORT_TILES_THREADGROUP_SIZE
 #define SORT_TILES_THREADGROUP_SIZE 1
 #endif
 
 #define NUM_DIRECTION_BINS_2D 8
 #define NUM_DIRECTION_BINS_1D (NUM_DIRECTION_BINS_2D * NUM_DIRECTION_BINS_2D)
+
+#ifdef SortProbeTraceTilesCS
+
 groupshared uint SharedNumTraceTileBins[NUM_DIRECTION_BINS_1D];
 groupshared uint SharedTraceTileBinOffset[NUM_DIRECTION_BINS_1D];
 
@@ -626,6 +664,8 @@ void SortProbeTraceTilesCS(
 	}
 }
 
+#endif
+
 float StepFactor;
 float MinSampleRadius;
 float MaxMeshSDFTraceDistance;
@@ -644,6 +684,8 @@ FConeTraceResult TraceForProbeTexel(FConeTraceInput TraceInput)
 
 	return TraceResult;
 }
+
+#ifdef TraceFromProbesCS
 
 groupshared float3 SharedTraceRadiance[RADIANCE_CACHE_TRACE_TILE_SIZE_2D][RADIANCE_CACHE_TRACE_TILE_SIZE_2D];
 groupshared float SharedTraceHitDistance[RADIANCE_CACHE_TRACE_TILE_SIZE_2D][RADIANCE_CACHE_TRACE_TILE_SIZE_2D];
@@ -789,11 +831,15 @@ void TraceFromProbesCS(
 	}
 }
 
+#endif
+
 #define MAX_RAY_INTENSITY 10000.0f
 
 Texture2D<float3> RadianceProbeAtlasTexture;
 Texture2D<float> DepthProbeAtlasTexture;
 float SpatialFilterMaxRadianceHitAngle;
+
+#ifdef FilterProbeRadianceWithGatherCS
 
 groupshared uint SharedRadiance[4][THREADGROUP_SIZE][THREADGROUP_SIZE];
 
@@ -1024,6 +1070,10 @@ void FilterProbeRadianceWithGatherCS(
 #endif
 }
 
+#endif
+
+#ifdef CalculateProbeIrradianceCS
+
 RWTexture2D<float3> RWFinalIrradianceAtlas;
 
 #define DOWNSAMPLED_RADIANCE_SIZE 8
@@ -1120,6 +1170,10 @@ void CalculateProbeIrradianceCS(
 	}
 }
 
+#endif
+
+#ifdef PrepareProbeOcclusionCS
+
 RWTexture2D<float2> RWRadianceCacheProbeOcclusionAtlas;
 
 [numthreads(THREADGROUP_SIZE, THREADGROUP_SIZE, 1)]
@@ -1165,6 +1219,10 @@ void PrepareProbeOcclusionCS(
 		RWRadianceCacheProbeOcclusionAtlas[FinalAtlasCoord] = float2(AccumulatedDepth, AccumulatedDepthSq);
 	}
 }
+
+#endif
+
+#ifdef FixupBordersAndGenerateMipsCS
 
 RWTexture2D<float3> RWFinalRadianceAtlasMip0;
 RWTexture2D<float3> RWFinalRadianceAtlasMip1;
@@ -1271,3 +1329,5 @@ void FixupBordersAndGenerateMipsCS(
 	}
 #endif
 }
+
+#endif

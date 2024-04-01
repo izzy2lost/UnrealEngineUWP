@@ -435,6 +435,18 @@ EShaderPermutationPrecacheRequest FShaderType::ShouldPrecachePermutation(const F
 void FShaderType::ModifyCompilationEnvironment(const FShaderPermutationParameters& Parameters, FShaderCompilerEnvironment& OutEnvironment) const
 {
 	(*ModifyCompilationEnvironmentRef)(Parameters, OutEnvironment);
+
+	if (Frequency == SF_RayHitGroup)
+	{
+		// TODO: add a define for each of the 3 possible entry points?
+		// See UE::ShaderCompilerCommon::ParseRayTracingEntryPoint for how to parse them
+	}
+	else
+	{
+		// define the function name as itself so one can use #ifdef to isolate the shader being compiled within a larger .usf file
+		OutEnvironment.SetDefine(FunctionName, FunctionName);
+	}
+
 #if RHI_RAYTRACING
 	ERayTracingPayloadType RayTracingPayloadType = GetRayTracingPayloadType(Parameters.PermutationId);
 	switch (Frequency)

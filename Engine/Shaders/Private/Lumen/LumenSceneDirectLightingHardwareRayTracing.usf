@@ -31,6 +31,7 @@ Buffer<uint> DispatchLightTilesIndirectArgs;
 RWBuffer<uint> RWHardwareRayTracingIndirectArgs;
 uint2 OutputThreadGroupSize;
 
+#ifdef LumenDirectLightingHardwareRayTracingIndirectArgsCS
 [numthreads(1, 1, 1)]
 void LumenDirectLightingHardwareRayTracingIndirectArgsCS()
 {
@@ -39,6 +40,7 @@ void LumenDirectLightingHardwareRayTracingIndirectArgsCS()
 		(DispatchLightTilesIndirectArgs[0] + OutputThreadGroupSize.y - 1) / OutputThreadGroupSize.y,
 		1);
 }
+#endif
 
 #if LUMEN_HARDWARE_RAYTRACING || LUMEN_HARDWARE_INLINE_RAYTRACING
 

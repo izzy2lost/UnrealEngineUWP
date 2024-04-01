@@ -131,6 +131,7 @@ float GlobalExtinctionScale;
 #define THREADGROUP_SIZE_Z THREADGROUP_SIZE
 #endif
 
+#ifdef MaterialSetupCS
 [numthreads(THREADGROUP_SIZE, THREADGROUP_SIZE, THREADGROUP_SIZE)]
 void MaterialSetupCS( 
 	uint3 GroupId : SV_GroupID,
@@ -254,6 +255,7 @@ void MaterialSetupCS(
 #endif
 	}
 }
+#endif
 
 // Positive g = forward scattering
 // Zero g = isotropic
@@ -680,6 +682,7 @@ float3 MobileDirectionalLightDirection;
 
 Texture3D<float> RaytracedShadowsVolume;
 
+#ifdef LightScatteringCS
 [numthreads(THREADGROUP_SIZE_X, THREADGROUP_SIZE_Y, THREADGROUP_SIZE_Z)]
 void LightScatteringCS(
 	uint3 GroupId : SV_GroupID,
@@ -939,12 +942,14 @@ void LightScatteringCS(
 		RWLightScattering[GridCoordinate] = PreExposedScatteringAndExtinction;
 	}
 }
+#endif
 
 Texture3D<float4> LightScattering;
 RWTexture3D<float4> RWIntegratedLightScattering;
 
 float VolumetricFogNearFadeInDistanceInv;
 
+#ifdef FinalIntegrationCS
 [numthreads(THREADGROUP_SIZE, THREADGROUP_SIZE, 1)]
 void FinalIntegrationCS(
 	uint3 GroupId : SV_GroupID,
@@ -987,3 +992,4 @@ void FinalIntegrationCS(
 		RWIntegratedLightScattering[LayerCoordinate] = float4(AccumulatedLighting, AccumulatedTransmittance);
 	}
 }
+#endif

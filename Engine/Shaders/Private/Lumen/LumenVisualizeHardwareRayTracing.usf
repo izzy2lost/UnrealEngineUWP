@@ -71,6 +71,7 @@ FTileData UnpackTileData(FTileDataPacked TileDataPacked)
 RWBuffer<uint> RWTileAllocator;
 RWStructuredBuffer<FTileDataPacked> RWTileDataPacked;
 
+#ifdef FLumenVisualizeCreateTilesCS
 groupshared uint SharedTileNeedsTracing;
 
 [numthreads(THREADGROUP_SIZE_2D, THREADGROUP_SIZE_2D, 1)]
@@ -102,6 +103,7 @@ void FLumenVisualizeCreateTilesCS(
 		RWTileDataPacked[TileOffset] = TileDataPacked;
 	}
 }
+#endif
 
 struct FRayData
 {
@@ -151,6 +153,7 @@ groupshared uint SharedGroupOffset;
 groupshared uint SharedRayAllocator;
 groupshared FRayDataPacked SharedRayDataPacked[THREADGROUP_SIZE_1D];
 
+#ifdef FLumenVisualizeCreateRaysCS
 [numthreads(THREADGROUP_SIZE_1D, 1, 1)]
 void FLumenVisualizeCreateRaysCS(
 	uint2 GroupId : SV_GroupID,
@@ -194,15 +197,18 @@ void FLumenVisualizeCreateRaysCS(
 		RWRayDataPacked[SharedGroupOffset + GroupThreadId] = RayDataPacked;
 	}
 }
+#endif
 
 Buffer<uint> RayAllocator;
 RWBuffer<uint> RWCompactRaysIndirectArgs;
 
+#ifdef FLumenVisualizeCompactRaysIndirectArgsCS
 [numthreads(1, 1, 1)]
 void FLumenVisualizeCompactRaysIndirectArgsCS()
 {
 	WriteDispatchIndirectArgs(RWCompactRaysIndirectArgs, 0, (RayAllocator[0] + THREADGROUP_SIZE_1D - 1) / THREADGROUP_SIZE_1D, 1, 1);
 }
+#endif
 
 /**
  * TraceData can represent three types of rays:
@@ -273,6 +279,7 @@ RWBuffer<uint> RWCompactedRayAllocator;
 RWStructuredBuffer<FRayDataPacked> RWCompactedRayDataPacked;
 RWStructuredBuffer<FTraceDataLocalPacked> RWCompactedTraceDataPacked;
 
+#ifdef FLumenVisualizeCompactRaysCS
 groupshared FTraceDataLocalPacked SharedTraceDataPacked[THREADGROUP_SIZE_1D];
 
 #define COMPACT_MODE_HIT_LIGHTING_RETRACE 0
@@ -323,6 +330,7 @@ void FLumenVisualizeCompactRaysCS(
 		RWCompactedTraceDataPacked[SharedGroupOffset + GroupThreadId] = SharedTraceDataPacked[GroupThreadId];
 	}
 }
+#endif
 
 RWBuffer<uint> RWBucketRaysByMaterialIdIndirectArgs;
 
@@ -330,15 +338,18 @@ RWBuffer<uint> RWBucketRaysByMaterialIdIndirectArgs;
 #define ELEMENTS_PER_THREAD 16
 #endif // ELEMENTS_PER_THREAD
 
+#ifdef FLumenVisualizeBucketRaysByMaterialIdIndirectArgsCS
 [numthreads(1, 1, 1)]
 void FLumenVisualizeBucketRaysByMaterialIdIndirectArgsCS()
 {
 	const uint ElementsPerGroup = THREADGROUP_SIZE_1D * ELEMENTS_PER_THREAD;
 	WriteDispatchIndirectArgs(RWBucketRaysByMaterialIdIndirectArgs, 0, (RayAllocator[0] + ElementsPerGroup - 1) / ElementsPerGroup, 1, 1);
 }
+#endif
 
 RWStructuredBuffer<FTraceDataLocalPacked> RWTraceDataPacked;
 
+#ifdef FLumenVisualizeBucketRaysByMaterialIdCS
 #define NUM_BINS (THREADGROUP_SIZE_1D / 2)
 groupshared uint BinSize[NUM_BINS];
 groupshared uint BinOffset[NUM_BINS];
@@ -406,6 +417,8 @@ void FLumenVisualizeBucketRaysByMaterialIdCS(
 		}
 	}
 }
+#endif
+
 
 RWTexture2D<float3> RWRadiance;
 

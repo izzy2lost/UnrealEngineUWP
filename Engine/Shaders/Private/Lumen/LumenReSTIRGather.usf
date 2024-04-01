@@ -508,6 +508,7 @@ RWTexture2D<float4> RWTemporalReservoirRayDirection;
 RWTexture2D<float> RWTemporalReservoirTraceHitDistance;
 RWTexture2D<UNORM float3> RWTemporalReservoirTraceHitNormal;
 
+#ifdef ClearTemporalHistoryCS
 [numthreads(THREADGROUP_SIZE, THREADGROUP_SIZE, 1)]
 void ClearTemporalHistoryCS(
 	uint2 DispatchThreadId : SV_DispatchThreadID)
@@ -537,6 +538,7 @@ void ClearTemporalHistoryCS(
 			RWTemporalReservoirWeights);
 	}
 }
+#endif
 
 // The Jacobian determinant of the transform from the neighbor sample to ourself transforms the neighbor's PDF to our own solid angle space
 // Equation 11 in ReSTIR GI paper
@@ -595,6 +597,7 @@ Texture2D<UNORM float3> DownsampledWorldNormal;
 float4 HistoryUVMinMax;
 float HistoryDistanceThreshold;
 
+#ifdef TemporalResamplingCS
 [numthreads(THREADGROUP_SIZE, THREADGROUP_SIZE, 1)]
 void TemporalResamplingCS(
 	uint2 DispatchThreadId : SV_DispatchThreadID)
@@ -728,6 +731,7 @@ void TemporalResamplingCS(
 		RWReservoirRayDirection[ReservoirCoord] = 0;
 	}
 }
+#endif
 
 // Returns distance along ray that the first hit occurred, or negative on miss
 float ScreenShadowRayCast(
@@ -794,6 +798,7 @@ uint NumSpatialSamples;
 uint SpatialResamplingPassIndex;
 float SpatialResamplingOcclusionScreenTraceDistance;
 
+#ifdef SpatialResamplingCS
 [numthreads(THREADGROUP_SIZE, THREADGROUP_SIZE, 1)]
 void SpatialResamplingCS(
 	uint2 DispatchThreadId : SV_DispatchThreadID)
@@ -913,6 +918,7 @@ void SpatialResamplingCS(
 		RWReservoirRayDirection[ReservoirCoord] = 0;
 	}
 }
+#endif
 
 struct FScreenProbeSample
 {
@@ -1016,6 +1022,7 @@ uint UpsampleNumSamples;
 
 const static float DisocclusionVariance = 1.0f;
 
+#ifdef UpsampleAndIntegrateCS
 [numthreads(THREADGROUP_SIZE, THREADGROUP_SIZE, 1)]
 void UpsampleAndIntegrateCS(
 	uint2 DispatchThreadId : SV_DispatchThreadID)
@@ -1238,6 +1245,7 @@ void UpsampleAndIntegrateCS(
 		}
 	}
 }
+#endif
 
 RWTexture2DArray<float3> RWNewHistoryDiffuseIndirect;
 RWTexture2DArray<float3> RWNewHistoryRoughSpecularIndirect;
@@ -1375,6 +1383,7 @@ FLumenMaterialCoord GetLumenMaterialCoordForReSTIRGather(uint2 DispatchThreadId,
 	return GetLumenMaterialCoord(DispatchThreadId + View.ViewRectMinAndSize.xy, false);
 }
 
+#ifdef TemporalAccumulationCS
 [numthreads(THREADGROUP_SIZE, THREADGROUP_SIZE, 1)]
 void TemporalAccumulationCS( 
 	uint2 DispatchThreadId : SV_DispatchThreadID)
@@ -1521,6 +1530,7 @@ void TemporalAccumulationCS(
 	RWResolveVariance[Coord.SvPositionFlatten] = AccumulatedResolveVariance;
 #endif
 }
+#endif
 
 #define TONEMAP_WEIGHTING_BILATERAL 1
 
@@ -1548,6 +1558,7 @@ float BilateralFilterDepthWeightScale;
 float BilateralFilterNormalAngleThresholdScale;
 float BilateralFilterStrongBlurVarianceThreshold;
 
+#ifdef BilateralFilterCS
 [numthreads(THREADGROUP_SIZE, THREADGROUP_SIZE, 1)]
 void BilateralFilterCS(
 	uint2 DispatchThreadId : SV_DispatchThreadID)
@@ -1640,3 +1651,4 @@ void BilateralFilterCS(
 	RWDiffuseIndirect[Coord.SvPositionFlatten] = OutDiffuseIndirect;
 	RWRoughSpecularIndirect[Coord.SvPositionFlatten] = OutRoughSpecularIndirect;
 }
+#endif

@@ -30,6 +30,7 @@ Buffer<uint> CulledCardGridHeader;
 #define THREADGROUP_SIZE 0
 #endif
 
+#ifdef VisualizeQuadsCS
 [numthreads(THREADGROUP_SIZE, THREADGROUP_SIZE, 1)]
 void VisualizeQuadsCS(
 	uint3 GroupId : SV_GroupID,
@@ -162,6 +163,7 @@ void VisualizeQuadsCS(
 
 	RWSceneColor[OutputScreenCoord] = FinalColor;
 }
+#endif
 
 Buffer<float4> VisualizeTracesData;
 
@@ -196,6 +198,7 @@ void VisualizeTracesPS(
 	OutColor = float4(Input.TraceLighting, 0);
 }
 
+#ifdef VisualizeTracesCS
 uint NumTracesToVisualize;
 
 [numthreads(THREADGROUP_SIZE, THREADGROUP_SIZE, 1)]
@@ -219,3 +222,4 @@ void VisualizeTracesCS(
 		AddLineWS(Context, WorldPosition0, WorldPosition1, float4(LineColor, 1.0f));
 	}
 }
+#endif
