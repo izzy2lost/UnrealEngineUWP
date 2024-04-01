@@ -1042,13 +1042,18 @@ FPropertyTypeLayoutCallback FPropertyEditorModule::FindPropertyTypeLayoutCallbac
 				static const FName NAME_PresentAsTypeMetadata(TEXT("PresentAsType"));
 				if (const FString* DisplayType = AsStructProperty->Struct->FindMetaData(NAME_PresentAsTypeMetadata))
 				{
-					// try finding DisplayType instead
-					LayoutCallbacks = InstancedPropertyTypeLayoutMap.Find(FName(*DisplayType));
-	
-					if( !LayoutCallbacks )
+					if (UE::FPropertyTypeNameBuilder Type; Type.TryParse(*DisplayType))
 					{
-						LayoutCallbacks = GlobalPropertyTypeToLayoutMap.Find(FName(*DisplayType));
+						const FName DisplayStruct = Type.Build().GetName();
+						// try finding DisplayType instead
+						LayoutCallbacks = InstancedPropertyTypeLayoutMap.Find(DisplayStruct);
+		
+						if( !LayoutCallbacks )
+						{
+							LayoutCallbacks = GlobalPropertyTypeToLayoutMap.Find(DisplayStruct);
+						}
 					}
+					
 				}
 			}
 		}
