@@ -18,7 +18,7 @@ bool UDeletedObjectPlaceholder::IsAsset() const
 
 UDeletedObjectPlaceholder* UDeletedObjectPlaceholder::Create(ULevel* InLevel, UPackage* InPackage, const UObject* InOriginalObject)
 {
-	if (IsRunningCookCommandlet())
+	if (IsRunningCommandlet())
 	{
 		return nullptr;
 	}
@@ -39,7 +39,7 @@ UDeletedObjectPlaceholder* UDeletedObjectPlaceholder::Create(ULevel* InLevel, UP
 
 UDeletedObjectPlaceholder* UDeletedObjectPlaceholder::RemoveFromPackage(UPackage* InPackage)
 {
-	if (IsRunningCookCommandlet())
+	if (IsRunningCommandlet())
 	{
 		return nullptr;
 	}
@@ -58,7 +58,7 @@ UDeletedObjectPlaceholder* UDeletedObjectPlaceholder::RemoveFromPackage(UPackage
 
 UDeletedObjectPlaceholder* UDeletedObjectPlaceholder::FindInPackage(UPackage* InPackage)
 {
-	if (IsRunningCookCommandlet())
+	if (IsRunningCommandlet())
 	{
 		return nullptr;
 	}

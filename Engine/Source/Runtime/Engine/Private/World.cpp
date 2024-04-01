@@ -96,6 +96,7 @@
 	#include "ActorFolder.h"
 	#include "ActorDeferredScriptManager.h"
 	#include "AssetCompilingManager.h"
+	#include "DeletedObjectPlaceholder.h"
 #endif
 
 
@@ -947,7 +948,7 @@ bool UWorld::Rename(const TCHAR* InName, UObject* NewOuter, ERenameFlags Flags)
 			TArray<UObject*> DependantObjects;
 			ForEachObjectWithPackage(ExternalPackage, [&DependantObjects](UObject* Object)
 			{
-				if (!Cast<UMetaData>(Object))
+				if (!Cast<UMetaData>(Object) && !Cast<UDeletedObjectPlaceholder>(Object))
 				{
 					DependantObjects.Add(Object);
 				}
