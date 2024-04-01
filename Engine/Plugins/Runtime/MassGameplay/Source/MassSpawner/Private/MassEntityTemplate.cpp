@@ -12,8 +12,8 @@
 //----------------------------------------------------------------------//
 FString FMassEntityTemplateID::ToString() const
 {
-	return IsValid() ? FString::Printf(TEXT("[Invalid]"))
-		: FString::Printf(TEXT("[%s:%d]"), *ConfigGuid.ToString(EGuidFormats::DigitsLower), FlavorHash);
+	return IsValid() ? FString::Printf(TEXT("[%s:%d]"), *ConfigGuid.ToString(EGuidFormats::DigitsLower), FlavorHash) 
+			: FString::Printf(TEXT("[Invalid]"));
 }
 
 //----------------------------------------------------------------------//
