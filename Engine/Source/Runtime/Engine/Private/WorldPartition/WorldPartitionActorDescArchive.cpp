@@ -68,7 +68,7 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 	if (IsLoading())
 	{
-		auto TryRedirectClass = [](FTopLevelAssetPath& InOutClassPath)
+		auto TryRedirectClass = [](FTopLevelAssetPath& InOutClassPath, bool bNativeClass)
 		{
 			if (InOutClassPath.IsValid())
 			{
@@ -80,14 +80,17 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 					InOutClassPath = FTopLevelAssetPath(RedirectedClassRedirect.ToString());
 				}
 
-				FSoftObjectPath RedirectedClassPath(InOutClassPath.ToString());
-				UAssetRegistryHelpers::FixupRedirectedAssetPath(RedirectedClassPath);
-				InOutClassPath = RedirectedClassPath.GetAssetPath();
+				if (!bNativeClass)
+				{
+					FSoftObjectPath RedirectedClassPath(InOutClassPath.ToString());
+					UAssetRegistryHelpers::FixupRedirectedAssetPath(RedirectedClassPath);
+					InOutClassPath = RedirectedClassPath.GetAssetPath();
+				}
 			}
 		};
 
-		TryRedirectClass(ActorDesc->NativeClass);
-		TryRedirectClass(ActorDesc->BaseClass);
+		TryRedirectClass(ActorDesc->NativeClass, true);
+		TryRedirectClass(ActorDesc->BaseClass, false);
 	}
 
 	// Get the class descriptor to do delta serialization if no base desc was provided

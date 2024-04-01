@@ -234,6 +234,11 @@ UAssetRegistryHelpers::FTemporaryCachingModeScope::~FTemporaryCachingModeScope()
 
 void UAssetRegistryHelpers::FixupRedirectedAssetPath(FSoftObjectPath& InOutSoftObjectPath)
 {
+	if (InOutSoftObjectPath.IsNull())
+	{
+		return;
+	}
+
 	FSoftObjectPath FoundRedirection;
 	InOutSoftObjectPath.FixupCoreRedirects();
 
@@ -253,6 +258,11 @@ void UAssetRegistryHelpers::FixupRedirectedAssetPath(FSoftObjectPath& InOutSoftO
 
 void UAssetRegistryHelpers::FixupRedirectedAssetPath(FName& InOutAssetPath)
 {
+	if (InOutAssetPath.IsNone())
+	{
+		return;
+	}
+
 	FSoftObjectPath SoftObjectPath(InOutAssetPath.ToString());
 	FixupRedirectedAssetPath(SoftObjectPath);
 	InOutAssetPath = FName(*SoftObjectPath.ToString());

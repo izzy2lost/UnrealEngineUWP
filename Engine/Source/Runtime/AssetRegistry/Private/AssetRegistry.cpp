@@ -3149,20 +3149,29 @@ FSoftObjectPath FAssetRegistryImpl::GetRedirectedObjectPath(const FSoftObjectPat
 		RedirectedPath = FSoftObjectPath(Redirector->DestinationObject);
 	}
 
-	if (bNeedsScanning)
+	FString SubPathString;
+
+	auto RetrieveAssetData = [&]()
+	{
+		const FAssetData* AssetData = State.GetAssetByObjectPath(RedirectedPath);
+		if (!AssetData && RedirectedPath.IsSubobject())
+		{
+			// If we found no Asset because it is a subobject, then look for its toplevelobject's Asset
+			SubPathString = RedirectedPath.GetSubPathString();
+			RedirectedPath = FSoftObjectPath(RedirectedPath.GetAssetPath(), FString());
+			AssetData = State.GetAssetByObjectPath(RedirectedPath);
+		}
+		return AssetData;
+	};
+
+	const FAssetData* AssetData = RetrieveAssetData();
+
+	if (!AssetData && bNeedsScanning)
 	{
 		UE::AssetRegistry::Impl::FScanPathContext Context(*EventContext, *InheritanceContext, {}, { RedirectedPath.ToString() });
 		ScanPathsSynchronous(Context);
-	}
 
-	FString SubPathString;
-	const FAssetData* AssetData = State.GetAssetByObjectPath(RedirectedPath);
-	if (!AssetData && RedirectedPath.IsSubobject())
-	{
-		// If we found no Asset because it is a subobject, then look for its toplevelobject's Asset
-		SubPathString = RedirectedPath.GetSubPathString();
-		RedirectedPath = FSoftObjectPath(RedirectedPath.GetAssetPath(), FString());
-		AssetData = State.GetAssetByObjectPath(RedirectedPath);
+		AssetData = RetrieveAssetData();
 	}
 
 	// Most of the time this will either not be a redirector or only have one redirect, so optimize for that case
@@ -3187,14 +3196,16 @@ FSoftObjectPath FAssetRegistryImpl::GetRedirectedObjectPath(const FSoftObjectPat
 			break;
 		}
 
-		if (bNeedsScanning)
+		AssetData = State.GetAssetByObjectPath(RedirectedPath);
+		if (!AssetData && bNeedsScanning)
 		{
 			UE::AssetRegistry::Impl::FScanPathContext Context(*EventContext, *InheritanceContext, {}, { RedirectedPath.ToString() });
 			ScanPathsSynchronous(Context);
+
+			AssetData = State.GetAssetByObjectPath(RedirectedPath);
 		}
 
 		SeenPaths.Add(RedirectedPath);
-		AssetData = State.GetAssetByObjectPath(RedirectedPath);
 	}
 
 	if (!SubPathString.IsEmpty())

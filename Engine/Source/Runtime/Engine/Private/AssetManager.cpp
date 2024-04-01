@@ -401,13 +401,13 @@ void UAssetManager::PostInitProperties()
 	{
 		const UAssetManagerSettings& Settings = GetSettings();
 #if WITH_EDITOR
-		bIsGlobalAsyncScanEnvironment = GIsEditor && !IsRunningCommandlet();
+		IAssetRegistry& AssetRegistry = GetAssetRegistry();
+
+		bIsGlobalAsyncScanEnvironment = AssetRegistry.IsSearchAllAssets();
 
 		if (bIsGlobalAsyncScanEnvironment)
 		{
 			// Listen for when the asset registry has finished discovering files
-			IAssetRegistry& AssetRegistry = GetAssetRegistry();
-
 			AssetRegistry.OnFilesLoaded().AddUObject(this, &UAssetManager::OnAssetRegistryFilesLoaded);
 			AssetRegistry.OnInMemoryAssetCreated().AddUObject(this, &UAssetManager::OnInMemoryAssetCreated);
 			AssetRegistry.OnInMemoryAssetDeleted().AddUObject(this, &UAssetManager::OnInMemoryAssetDeleted);

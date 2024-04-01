@@ -26,14 +26,14 @@ UObjectLibrary::UObjectLibrary(const FObjectInitializer& ObjectInitializer)
 #if WITH_EDITOR
 	if ( !HasAnyFlags(RF_ClassDefaultObject) )
 	{
-		bIsGlobalAsyncScanEnvironment = GIsEditor && !IsRunningCommandlet();
+		FAssetRegistryModule& AssetRegistryModule = FModuleManager::LoadModuleChecked<FAssetRegistryModule>(TEXT("AssetRegistry"));
+		IAssetRegistry& AssetRegistry = AssetRegistryModule.Get();
+
+		bIsGlobalAsyncScanEnvironment = AssetRegistry.IsSearchAllAssets();
 
 		if ( bIsGlobalAsyncScanEnvironment )
 		{
 			// Listen for when the asset registry has finished discovering files
-			FAssetRegistryModule& AssetRegistryModule = FModuleManager::LoadModuleChecked<FAssetRegistryModule>(TEXT("AssetRegistry"));
-			IAssetRegistry& AssetRegistry = AssetRegistryModule.Get();
-
 			AssetRegistry.OnFilesLoaded().AddUObject(this, &UObjectLibrary::OnAssetRegistryFilesLoaded);
 		}
 	}
