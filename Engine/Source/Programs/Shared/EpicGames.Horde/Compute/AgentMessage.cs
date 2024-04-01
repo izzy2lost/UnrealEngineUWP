@@ -11,6 +11,7 @@ using EpicGames.Core;
 using EpicGames.Horde.Storage;
 
 #pragma warning disable CA1054 // URI-like parameters should not be strings
+#pragma warning disable CA1056 // Change string to URI
 
 namespace EpicGames.Horde.Compute
 {

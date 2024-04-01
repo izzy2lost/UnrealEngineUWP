@@ -3,6 +3,8 @@
 using System;
 using System.Text.Json.Serialization;
 
+#pragma warning disable CA1056 // Change string to URI
+
 namespace EpicGames.Horde.Server
 {
 	/// <summary>

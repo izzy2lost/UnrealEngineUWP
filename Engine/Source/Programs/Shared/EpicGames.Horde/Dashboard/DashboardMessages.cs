@@ -6,6 +6,7 @@ using EpicGames.Horde.Common;
 using EpicGames.Horde.Server;
 
 #pragma warning disable CA2227 // Collection properties should be read only
+#pragma warning disable CA1056 // Change string to URI
 
 namespace EpicGames.Horde.Dashboard
 {
