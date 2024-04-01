@@ -14,7 +14,7 @@
 #include "TraitInterfaces/IUpdate.h"
 #include "EvaluationVM/EvaluationVM.h"
 
-namespace UE::AnimNext
+namespace UE::AnimNext::AnimGraph
 {
 
 class FModule : public IModuleInterface, IAnimNextAnimGraph
@@ -76,4 +76,4 @@ public:
 
 }
 
-IMPLEMENT_MODULE(UE::AnimNext::FModule, AnimNextAnimGraph)
+IMPLEMENT_MODULE(UE::AnimNext::AnimGraph::FModule, AnimNextAnimGraph)

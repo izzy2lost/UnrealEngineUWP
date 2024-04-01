@@ -4,14 +4,11 @@
 #include "Modules/ModuleInterface.h"
 #include "Modules/ModuleManager.h"
 
-namespace UE::AnimNext::Tests
+namespace UE::AnimNext::AnimGraph::Tests
 {
-
-class FModule : public IModuleInterface
-{
-public:
-};
-
+	class FModule : public IModuleInterface
+	{
+	};
 }
 
-IMPLEMENT_MODULE(UE::AnimNext::Tests::FModule, AnimNextAnimGraphTestSuite)
+IMPLEMENT_MODULE(UE::AnimNext::AnimGraph::Tests::FModule, AnimNextAnimGraphTestSuite)

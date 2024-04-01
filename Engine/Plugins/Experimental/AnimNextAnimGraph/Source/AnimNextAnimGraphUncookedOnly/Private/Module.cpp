@@ -3,19 +3,11 @@
 #include "CoreMinimal.h"
 #include "Modules/ModuleManager.h"
 
-namespace UE::AnimNext::UncookedOnly
+namespace UE::AnimNext::AnimGraph::UncookedOnly
 {
 	class FModule : public IModuleInterface
 	{
-	private:
-		virtual void StartupModule() override
-		{
-		}
-
-		virtual void ShutdownModule() override
-		{
-		}
 	};
 }
 
-IMPLEMENT_MODULE(UE::AnimNext::UncookedOnly::FModule, AnimNextAnimGraphUncookedOnly);
+IMPLEMENT_MODULE(UE::AnimNext::AnimGraph::UncookedOnly::FModule, AnimNextAnimGraphUncookedOnly);
