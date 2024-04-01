@@ -526,13 +526,11 @@ private:
 
 	struct FFrame : public TConcurrentLinearObject<FFrame>
 	{
-		FFrame(const TCHAR* Name, const UE::Tasks::FTaskEvent& InTaskEvent)
-			: Pipe(Name)
-			, TaskEvent(InTaskEvent)
+		FFrame(const UE::Tasks::FTaskEvent& InTaskEvent)
+			: LastTask(InTaskEvent)
 		{}
 
-		UE::Tasks::FPipe Pipe;
-		UE::Tasks::FTaskEvent TaskEvent;
+		UE::Tasks::FTask LastTask;
 		TArray<FCommand> Queue;
 		FRHICommandList* RHICmdList = nullptr;
 	};
