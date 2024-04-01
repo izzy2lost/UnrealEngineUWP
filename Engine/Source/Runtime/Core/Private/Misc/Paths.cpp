@@ -144,15 +144,31 @@ namespace UE4Paths_Private
 	}
 }
 
+namespace UE::Paths
+{
+	bool bIsComputingStaged = false;
+}
+
+bool FPaths::CanGetProjectDir()
+{
+	return !UE::Paths::bIsComputingStaged;
+}
+
 bool FPaths::IsStaged()
 {
-	// if it's not a program and the platform requires cooked data, then we can assume staged, but if not, then
-	// check if it went through the staging process
-	static bool bIsStaged =
-#if !IS_PROGRAM
-		FPlatformProperties::RequiresCookedData() ||
-#endif
-		FileExists(Combine(EngineConfigDir(), FString::Printf(TEXT("StagedBuild_%s.ini"), FApp::GetProjectName())));
+	static bool bHasInitialized = false;
+	static bool bIsStaged;
+
+	if (!bHasInitialized)
+	{
+		UE::Paths::bIsComputingStaged = true;
+
+		bIsStaged = FPlatformProperties::RequiresCookedData() ||
+			FileExists(Combine(EngineConfigDir(), FString::Printf(TEXT("StagedBuild_%s.ini"), FApp::GetProjectName())));
+
+		UE::Paths::bIsComputingStaged = false;
+	}
+
 	return bIsStaged;
 }
 

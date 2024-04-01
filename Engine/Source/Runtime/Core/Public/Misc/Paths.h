@@ -37,6 +37,11 @@ class FPaths
 public:
 
 	/**
+	 * @return true if ProjectDir() is allowed to be called
+	 */
+	static CORE_API bool CanGetProjectDir();
+
+	/**
 	  * @return true if the build has been staged and uses the simplified remapped directory structure made when staging
 	 */
 	static CORE_API bool IsStaged();
