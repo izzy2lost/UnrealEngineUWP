@@ -377,10 +377,11 @@ void FIterativeValidatePackageWriter::EndCook(const FCookInfo& Info)
 	case EPhase::AllInOnePhase:
 	{
 		UE_LOG(LogIterativeValidate, Display,
-			TEXT("Modified: %d. DetectedUnmodified: %d. ValidatedUnmodified: %d. IterativeFalseNegative: %d."),
-			ModifiedCount, IterativeValidated.Num() + IterativeFalseNegative.Num(), IterativeValidated.Num(), IterativeFalseNegative.Num());
-		FString Message = FString::Printf(TEXT("IterativeFalseNegative: %d."), IterativeFailed.Num());
-		if (IterativeFalseNegative.Num())
+			TEXT("Modified: %d. DetectedUnmodified: %d. ValidatedUnmodified: %d. IterativeSkipFalsePositive: %d."),
+			ModifiedCount, IterativeValidated.Num() + IterativeSkipFalsePositive.Num(), IterativeValidated.Num(),
+			IterativeSkipFalsePositive.Num());
+		FString Message = FString::Printf(TEXT("IterativeSkipFalsePositive: %d."), IterativeSkipFalsePositive.Num());
+		if (IterativeSkipFalsePositive.Num())
 		{
 			UE_LOG(LogIterativeValidate, Error, TEXT("%s"), *Message);
 		}
@@ -392,17 +393,19 @@ void FIterativeValidatePackageWriter::EndCook(const FCookInfo& Info)
 	}
 	case EPhase::Phase1:
 		UE_LOG(LogIterativeValidate, Display,
-			TEXT("Modified: %d. DetectedUnmodified: %d. ValidatedUnmodified: %d. IterativeFalseNegativeOrIndeterminism: %d."),
-			ModifiedCount, IterativeValidated.Num() + IterativeFailed.Num(), IterativeValidated.Num(), IterativeFailed.Num());
+			TEXT("Modified: %d. DetectedUnmodified: %d. ValidatedUnmodified: %d. IterativeSkipFalsePositiveOrIndeterminism: %d."),
+			ModifiedCount, IterativeValidated.Num() + IterativeFailed.Num(), IterativeValidated.Num(),
+			IterativeFailed.Num());
 		Save();
 		break;
 	case EPhase::Phase2:
 	{
 		UE_LOG(LogIterativeValidate, Display,
 			TEXT("Modified: %d. DetectedUnmodified: %d. ValidatedUnmodified: %d. Indeterminism: %d."),
-			ModifiedCount, IterativeValidated.Num() + IterativeFailed.Num(), IterativeValidated.Num(), IndeterminismFailed.Num());
-		FString Message = FString::Printf(TEXT("IterativeFalseNegative: %d."), IterativeFalseNegative.Num());
-		if (IterativeFalseNegative.Num())
+			ModifiedCount, IterativeValidated.Num() + IterativeFailed.Num(), IterativeValidated.Num(),
+			IndeterminismFailed.Num());
+		FString Message = FString::Printf(TEXT("IterativeSkipFalsePositive: %d."), IterativeSkipFalsePositive.Num());
+		if (IterativeSkipFalsePositive.Num())
 		{
 			UE_LOG(LogIterativeValidate, Error, TEXT("%s"), *Message);
 		}
@@ -479,7 +482,7 @@ bool FIterativeValidatePackageWriter::IsAnotherSaveNeeded(FSavePackageResultStru
 
 			if (bIsDifferent && !bNewPackage)
 			{
-				IterativeFalseNegative.Add(BeginInfo.PackageName);
+				IterativeSkipFalsePositive.Add(BeginInfo.PackageName);
 			}
 			else if (!bNewPackage)
 			{
@@ -584,7 +587,7 @@ void FIterativeValidatePackageWriter::LogIterativeDifferences()
 	// It is called immediately after first-pass package save that is run by our super class FDiffPackageWriter, which
 	// compared it against the version that was written to disk during Phase1. If there are differences
 	// now from Phase1, then this package has a determinism issue. We log that information at display rather
-	// than Warning because this cookmode only logs warnings for IterativeFalseNegatives.
+	// than Warning because this cookmode only logs warnings for IterativeSkipFalsePositives.
 	bool bHasDeterminismIssue = bIsDifferent;
 	if (bHasDeterminismIssue)
 	{
@@ -595,9 +598,9 @@ void FIterativeValidatePackageWriter::LogIterativeDifferences()
 	}
 
 	// Otherwise, no determinism issues, so the differences indicate a bug in Diff Package
-	IterativeFalseNegative.Add(BeginInfo.PackageName);
+	IterativeSkipFalsePositive.Add(BeginInfo.PackageName);
 	FMsg::Logf(__FILE__, __LINE__, LogIterativeValidate.GetCategoryName(), ELogVerbosity::Warning,
-		TEXT("IterativeFalseNegative package %s."), *BeginInfo.PackageName.ToString());
+		TEXT("IterativeSkipFalsePositive package %s."), *BeginInfo.PackageName.ToString());
 	TArray<FMessage>& Messages = IterativeFailed.FindOrAdd(BeginInfo.PackageName);
 	for (const FMessage& Message : Messages)
 	{

@@ -7984,7 +7984,7 @@ bool UCookOnTheFlyServer::ArePreviousCookSettingsCompatible(const TMap<FName, FS
 		}
 	}
 
-	if (!bIterativeIgnoreIni && IniSettingsOutOfDate(TargetPlatform))
+	if (!bIterativeIgnoreIni && !bHybridIterativeEnabled && IniSettingsOutOfDate(TargetPlatform))
 	{
 		UE_LOG(LogCook, Display, TEXT("Cook invalidated for platform %s because ini settings have changed. Clearing all cooked content."),
 			*TargetPlatform->PlatformName());
@@ -8074,8 +8074,6 @@ bool UCookOnTheFlyServer::IniSettingsOutOfDate(const ITargetPlatform* TargetPlat
 	}
 
 	TStringBuilder<256> ConfigNameKeyStr;
-	TStringBuilder<128> Filename;
-	TStringBuilder<256> PlatformName;
 	for (const auto& OldIniFile : OldIniSettings)
 	{
 		OldIniFile.Key.ToString(ConfigNameKeyStr);
@@ -8103,18 +8101,18 @@ bool UCookOnTheFlyServer::IniSettingsOutOfDate(const ITargetPlatform* TargetPlat
 		{
 			FName SectionName = OldIniSection.Key;
 			const FConfigSection* IniSection = ConfigFile->FindSection( SectionName.ToString() );
-			auto GetDenyListMessageStart = [&PlatformName, &Filename, SectionName]()
+			auto GetDenyListMessageStart = [&ConfigNameKeyStr, SectionName]()
 				{
 					return FString::Printf(
 						TEXT("To avoid invalidating due to this setting, add a deny list setting")
-						TEXT("\n\tDefaultEditor.ini:[CookSettings]:+CookOnTheFlyConfigSettingDenyList=%s.%s:%s"),
-						*PlatformName, *Filename, *SectionName.ToString());
+						TEXT("\n\tDefaultEditor.ini:[CookSettings]:+CookOnTheFlyConfigSettingDenyList=%s:%s"),
+						*ConfigNameKeyStr, *SectionName.ToString());
 				};
 
 			if ( IniSection == nullptr )
 			{
 				UE_LOG(LogCook, Display,
-					TEXT("Invalidating inisettings: Inisetting used by platform %s is different for %s:[%s], section doesn't exist in current config."),
+					TEXT("Invalidating inisettings: Inisetting used by platform %s is different for %s:[%s]. The section doesn't exist in current config."),
 					*TargetPlatform->PlatformName(), *ConfigNameKeyStr, *SectionName.ToString());
 				UE_LOG(LogCook, Display, TEXT("%s"), *GetDenyListMessageStart());
 				return true;
@@ -8130,7 +8128,7 @@ bool UCookOnTheFlyServer::IniSettingsOutOfDate(const ITargetPlatform* TargetPlat
 				if ( CurrentValues.Num() != OldIniValue.Value.Num() )
 				{
 					UE_LOG(LogCook, Display,
-						TEXT("Invalidating inisettings: Inisetting used by platform %s is different for %s:[%s]:%s, missmatched num array elements %d != %d."),
+						TEXT("Invalidating inisettings: Inisetting used by platform %s is different for %s:[%s]:%s. Mismatched num array elements %d != %d."),
 						*TargetPlatform->PlatformName(), *ConfigNameKeyStr, *SectionName.ToString(),
 						*ValueName.ToString(), CurrentValues.Num(), OldIniValue.Value.Num());
 					UE_LOG(LogCook, Display, TEXT("%s:%s"), *GetDenyListMessageStart(), *ValueName.ToString());
@@ -8142,7 +8140,7 @@ bool UCookOnTheFlyServer::IniSettingsOutOfDate(const ITargetPlatform* TargetPlat
 					if ( FilteredCurrentValue != OldIniValue.Value[Index] )
 					{
 						UE_LOG(LogCook, Display,
-							TEXT("Invalidating inisettings: Inisetting used by platform %s is different for %s:[%s]:%s%s, value '%s' != '%s'."),
+							TEXT("Invalidating inisettings: Inisetting used by platform %s is different for %s:[%s]:%s%s. Value '%s' != '%s'."),
 							*TargetPlatform->PlatformName(), *ConfigNameKeyStr, *SectionName.ToString(),
 							*ValueName.ToString(),
 							(CurrentValues.Num() == 1 ? TEXT("") : *FString::Printf(TEXT(" %d"), Index)),
@@ -10838,7 +10836,9 @@ void UCookOnTheFlyServer::LoadBeginCookIterativeFlagsLocal(FBeginCookContext& Be
 
 		if (bIsDiffOnly)
 		{
-			UE_LOG(LogCook, Display, TEXT("Keeping cooked content for platform %s for DiffOnly"), *TargetPlatform->PlatformName());
+			UE_LOG(LogCook, Display,
+				TEXT("INCREMENTAL COOK: cooking incrementally due to -DiffOnly flag. Keeping cooked content for platform %s."),
+				*TargetPlatform->PlatformName());
 			// When looking for deterministic cooking differences in cooked packages, don't delete the packages on disk
 			PlatformContext.bFullBuild = false;
 			PlatformContext.bAllowIterativeResults = false;
@@ -10851,16 +10851,26 @@ void UCookOnTheFlyServer::LoadBeginCookIterativeFlagsLocal(FBeginCookContext& Be
 			bool bIterativeAllowed = true;
 			if (!bIterative && !PlatformData->bIsSandboxInitialized)
 			{
-				UE_LOG(LogCook, Display, TEXT("Clearing all cooked content for platform %s"), *TargetPlatform->PlatformName());
+				UE_LOG(LogCook, Display,
+					TEXT("FULL COOK: Neither -iterative nor -cookincremental were specified. Clearing all cooked content for platform %s and executing a full cook."),
+					*TargetPlatform->PlatformName());
 				bIterativeAllowed = false;
 			}
 			else if (!ArePreviousCookSettingsCompatible(PlatformContext.CurrentCookSettings, TargetPlatform))
 			{
+				UE_LOG(LogCook, Display,
+					TEXT("FULL COOK: %s was specified, but globally invalidated. Clearing all cooked content for platform %s and executing a full cook."),
+					bHybridIterativeEnabled ? TEXT("-cookincremental") : TEXT("-iterative"),
+					*TargetPlatform->PlatformName());
 				bIterativeAllowed = false;
 			}
 
 			if (bIterativeAllowed)
 			{
+				UE_LOG(LogCook, Display,
+					TEXT("INCREMENTAL COOK: %s was specified and not globally invalidated. Keeping cooked content for platform platform %s."),
+					bHybridIterativeEnabled ? TEXT("-cookincremental") : TEXT("-iterative"),
+					*TargetPlatform->PlatformName());
 				PlatformContext.bFullBuild = false;
 				PlatformContext.bAllowIterativeResults = true;
 				PlatformContext.bClearMemoryResults = false;

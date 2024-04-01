@@ -76,7 +76,7 @@ protected:
 	/**
 	 * Written during Phase1, read during Phase2. Unused in AllInOnePhase. Packages that we thought were iteratively
 	 * unchanged but in which we discovered differences. But the differences might be due to indeterminism. Phase2
-	 * splits this container into IndeterminismFailed entries and IterativeFalseNegative entries.
+	 * splits this container into IndeterminismFailed entries and IterativeSkipFalsePositive entries.
 	 */
 	TMap<FName, TArray<FMessage>> IterativeFailed;
 	/**
@@ -87,9 +87,9 @@ protected:
 	/**
 	 * Read during Phase2. Read/Written during AllInOnePhase. Packages that we thought were iteratively unchanged but that had
 	 * differences when saved, and no indeterminism detected (AllInOnePhase does not search for indeterminism, so all packages
-	 * with differences end up here), so they must be a bug in the iteratvely unchanged decision.
+	 * with differences end up here), so they must be a bug in the decision to iteratively skip.
 	 */
-	TSet<FName> IterativeFalseNegative;
+	TSet<FName> IterativeSkipFalsePositive;
 	/**
 	 * Unused in Phase1,Phase2. In AllInOnePhase, this records packages that we think are iteratively unchanged.
 	 * We do a 2-pass or 3-pass save for these: look for diffs and then save to disk. For packages not in this list

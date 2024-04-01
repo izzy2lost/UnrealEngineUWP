@@ -30,7 +30,7 @@
 	<Property Name="CommonCookArgs" Value="$(CommonCookArgs) -cookprocesscount=1"/>
 
 	<Property Name="CompileNodeName" Value="Compile $(EditorPlatform) $(ProjectName)"/>
-	<Property Name="CookIterativeValidateSinglePhaseName" Value="Cook InteraveValidateSinglePhase $(ProjectName) $(TargetPlatform)"/>
+	<Property Name="CookIterativeValidateSinglePhaseName" Value="Cook IterativeValidateSinglePhase $(ProjectName) $(TargetPlatform)"/>
 	<Property Name="CookIterativeValidatePhase1Name" Value="Cook IterativeValidatePhase1 $(ProjectName) $(TargetPlatform)"/>
 	<Property Name="CookIterativeValidatePhase2Name" Value="Cook IterativeValidatePhase2 $(ProjectName) $(TargetPlatform)"/>
 
