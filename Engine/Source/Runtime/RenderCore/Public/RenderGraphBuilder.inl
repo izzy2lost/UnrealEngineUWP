@@ -273,11 +273,13 @@ FRDGPassRef FRDGBuilder::AddPassInternal(
 
 	FlushAccessModeQueue();
 
+	const TCHAR* NameString = Name.GetTCHAR();
+
 	FRDGPass* Pass = Allocators.Root.AllocNoDestruct<LambdaPassType>(
 		MoveTemp(Name),
 		ParametersMetadata,
 		ParameterStruct,
-		OverridePassFlags(Name.GetTCHAR(), Flags),
+		OverridePassFlags(NameString, Flags),
 		MoveTemp(ExecuteLambda));
 
 	IF_RDG_ENABLE_DEBUG(ClobberPassOutputs(Pass));

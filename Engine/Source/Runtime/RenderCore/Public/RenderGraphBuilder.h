@@ -203,6 +203,13 @@ public:
 
 	//////////////////////////////////////////////////////////////////////////
 
+	/** Adds a callback that is called after pass execution is complete. */
+	void AddPostExecuteCallback(TUniqueFunction<void()>&& Callback)
+	{
+		check(Callback);
+		PostExecuteCallbacks.Emplace(Forward<TUniqueFunction<void()>&&>(Callback));
+	}
+
 	/** Adds a lambda pass to the graph with an accompanied pass parameter struct.
 	 *
 	 *  RDG resources declared in the struct (via _RDG parameter macros) are safe to access in the lambda. The pass parameter struct
@@ -1018,6 +1025,11 @@ private:
 	TSet<FRDGViewableResource*, DefaultKeyFuncs<FRDGViewableResource*>, FRDGSetAllocator> ExternalAccessResources;
 
 	RENDERCORE_API void FlushAccessModeQueue();
+
+	/////////////////////////////////////////////////////////////////////////////
+	// Post-Execution Callbacks
+
+	TArray<TUniqueFunction<void()>, FRDGArrayAllocator> PostExecuteCallbacks;
 
 	/////////////////////////////////////////////////////////////////////////////
 	// Resource Deletion Flushing

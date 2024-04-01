@@ -2004,8 +2004,7 @@ void FRDGBuilder::Execute()
 
 	RHICmdList.SetTrackedAccess(EpilogueResourceAccesses);
 
-	// Wait on the actual parallel execute tasks in the Execute call. When draining is okay to let them overlap with other graph setup.
-	// This also needs to be done before extraction of external resources to be consistent with non-parallel rendering.
+	// Wait on the actual parallel execute tasks in the Execute call. This needs to be done before extraction of external resources to be consistent with non-parallel rendering.
 	if (!ParallelExecute.Tasks.IsEmpty())
 	{
 		UE::Tasks::Wait(ParallelExecute.Tasks);
@@ -2023,6 +2022,12 @@ void FRDGBuilder::Execute()
 		check(ExtractedBuffer.Buffer->PooledBuffer);
 		*ExtractedBuffer.PooledBuffer = ExtractedBuffer.Buffer->PooledBuffer;
 	}
+
+	for (TUniqueFunction<void()>& Callback : PostExecuteCallbacks)
+	{
+		Callback();
+	}
+	PostExecuteCallbacks.Empty();
 
 	IF_RDG_ENABLE_TRACE(Trace.OutputGraphEnd(*this));
 
