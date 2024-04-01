@@ -1197,7 +1197,7 @@ public:
 
 			uint32 Packed = (StreamIndex << 28) | Offset;
 			HashKey.VertexStreams = FHashKey::HashCombine(HashKey.VertexStreams, Packed);
-			HashKey.VertexBuffers = FHashKey::HashCombine(HashKey.VertexBuffers, FHashKey::PointerHash(VertexInputStream.VertexBuffer));
+			HashKey.VertexBuffers = FHashKey::HashCombine(HashKey.VertexBuffers, FHashKey::PointerHash(VertexInputStream.Pointer));
 		}
 
 		HashKey.IndexBuffer = FHashKey::PointerHash(IndexBuffer);

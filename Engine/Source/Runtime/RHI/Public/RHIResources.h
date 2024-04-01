@@ -1395,6 +1395,26 @@ private:
 	FRHIBufferDesc Desc;
 };
 
+/** Represents a simple indirection to a vertex buffer to bind to a source stream. The underlying vertex buffer can be updated dynamically using an RHI command list. */
+class FRHIStreamSourceSlot : public FRHIResource
+{
+	friend FRHICommandListBase;
+	friend FRHICommandList;
+public:
+	static TRefCountPtr<FRHIStreamSourceSlot> Create(FRHIBuffer* InBuffer)
+	{
+		return new FRHIStreamSourceSlot(InBuffer);
+	}
+
+private:
+	FRHIStreamSourceSlot(FRHIBuffer* InBuffer)
+		: FRHIResource(RRT_StreamSourceSlot)
+		, Buffer(InBuffer)
+	{}
+
+	TRefCountPtr<FRHIBuffer> Buffer;
+};
+
 //
 // Textures
 //

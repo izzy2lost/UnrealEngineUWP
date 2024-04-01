@@ -30,6 +30,18 @@ static TMap<FHashedName, FVertexFactoryType*>& GetVFTypeMap()
 	return VTTypeMap;
 }
 
+void FVertexInputStream::SetOnRHICommandList(FRHICommandList& RHICmdList) const
+{
+	if (bStreamSourceSlot)
+	{
+		RHICmdList.SetStreamSourceSlot(StreamIndex, StreamSourceSlot, Offset);
+	}
+	else
+	{
+		RHICmdList.SetStreamSource(StreamIndex, VertexBuffer, Offset);
+	}
+}
+
 /**
  * @return The global shader factory list.
  */
@@ -188,31 +200,32 @@ void FVertexFactory::GetStreams(ERHIFeatureLevel::Type InFeatureLevel, EVertexIn
 	check(IsInitialized());
 	if (VertexStreamType == EVertexInputStreamType::Default)
 	{
+		const bool bSupportsVertexFetch = SupportsManualVertexFetch(InFeatureLevel);
 
-		bool bSupportsVertexFetch = SupportsManualVertexFetch(InFeatureLevel);
-
-		for (int32 StreamIndex = 0;StreamIndex < Streams.Num();StreamIndex++)
+		for (int32 StreamIndex = 0; StreamIndex < Streams.Num(); StreamIndex++)
 		{
 			const FVertexStream& Stream = Streams[StreamIndex];
 
-			if (!(EnumHasAnyFlags(EVertexStreamUsage::ManualFetch, Stream.VertexStreamUsage) && bSupportsVertexFetch))
+			// Skip streams that are bound using manual vertex fetch if we support that.
+			if (EnumHasAnyFlags(Stream.VertexStreamUsage, EVertexStreamUsage::ManualFetch) && bSupportsVertexFetch)
 			{
-				if (!Stream.VertexBuffer)
-				{
-					OutVertexStreams.Add(FVertexInputStream(StreamIndex, 0, nullptr));
-				}
-				else
-				{
-					if (EnumHasAnyFlags(EVertexStreamUsage::Overridden, Stream.VertexStreamUsage) && !Stream.VertexBuffer->IsInitialized())
-					{
-						OutVertexStreams.Add(FVertexInputStream(StreamIndex, 0, nullptr));
-					}
-					else
-					{
-						checkf(Stream.VertexBuffer->IsInitialized(), TEXT("Vertex buffer was not initialized! Stream %u, Stride %u, Name %s"), StreamIndex, Stream.Stride, *Stream.VertexBuffer->GetFriendlyName());
-						OutVertexStreams.Add(FVertexInputStream(StreamIndex, Stream.Offset, Stream.VertexBuffer->VertexBufferRHI));
-					}
-				}
+				continue;
+			}
+
+			// Skip streams that are overridden as they will be provided manually by the vertex factory shader bindings.
+			if (EnumHasAnyFlags(Stream.VertexStreamUsage, EVertexStreamUsage::Overridden))
+			{
+				continue;
+			}
+
+			// Issue a null binding since we don't appear to have one available.
+			if (!Stream.VertexBuffer || !Stream.VertexBuffer->IsInitialized())
+			{
+				OutVertexStreams.Add(FVertexInputStream(StreamIndex, 0, nullptr));
+			}
+			else
+			{
+				OutVertexStreams.Add(FVertexInputStream(StreamIndex, Stream.Offset, Stream.VertexBuffer->VertexBufferRHI));
 			}
 		}
 	}

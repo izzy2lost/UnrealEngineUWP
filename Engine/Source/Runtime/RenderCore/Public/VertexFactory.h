@@ -46,27 +46,59 @@ struct FVertexFactoryShaderPermutationParameters;
 struct FVertexInputStream
 {
 	uint32 StreamIndex : 4;
-	uint32 Offset : 28;
-	FRHIBuffer* VertexBuffer;
+	uint32 Offset : 27;
+	uint32 bStreamSourceSlot : 1;
+
+	union
+	{
+		// Contains the direct vertex buffer pointer
+		FRHIBuffer* VertexBuffer;
+
+		// Contains the stream source slot
+		FRHIStreamSourceSlot* StreamSourceSlot;
+
+		// Represents either ptr type as an opaque int for comparisons.
+		void* Pointer;
+	};
+
+	RENDERCORE_API void SetOnRHICommandList(FRHICommandList& RHICmdList) const;
 
 	FVertexInputStream() :
 		StreamIndex(0),
 		Offset(0),
+		bStreamSourceSlot(0),
 		VertexBuffer(nullptr)
 	{}
 
 	FVertexInputStream(uint32 InStreamIndex, uint32 InOffset, FRHIBuffer* InVertexBuffer)
-		: StreamIndex(InStreamIndex), Offset(InOffset), VertexBuffer(InVertexBuffer)
+		: StreamIndex(InStreamIndex), Offset(InOffset), bStreamSourceSlot(0), VertexBuffer(InVertexBuffer)
 	{
 		// Verify no overflow
 		checkSlow(InStreamIndex == StreamIndex && InOffset == Offset);
 	}
 
+	// Creates a vertex input stream from an RHI stream source slot.
+	static FVertexInputStream CreateFromStreamSourceSlot(uint32 InStreamIndex, uint32 InOffset, FRHIStreamSourceSlot* StreamSourceSlot)
+	{
+		check(StreamSourceSlot);
+
+		FVertexInputStream Stream;
+		Stream.StreamIndex = InStreamIndex;
+		Stream.bStreamSourceSlot = true;
+		Stream.Offset = InOffset;
+		Stream.StreamSourceSlot = StreamSourceSlot;
+
+		// Verify no overflow
+		checkSlow(InStreamIndex == Stream.StreamIndex && InOffset == Stream.Offset);
+
+		return Stream;
+	}
+
 	inline bool operator==(const FVertexInputStream& rhs) const
 	{
 		if (StreamIndex != rhs.StreamIndex ||
-			Offset != rhs.Offset || 
-			VertexBuffer != rhs.VertexBuffer) 
+			Offset != rhs.Offset ||
+			Pointer != rhs.Pointer)
 		{
 			return false;
 		}

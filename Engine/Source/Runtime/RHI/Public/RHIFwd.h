@@ -88,6 +88,7 @@ class FRHIViewableResource;
 class FRHIViewport;
 class FRHIWorkGraphPipelineState;
 class FRHIWorkGraphShader;
+class FRHIStreamSourceSlot;
 
 struct FRHIUniformBufferLayout;
 
@@ -129,6 +130,7 @@ using FVertexDeclarationRHIRef         = TRefCountPtr<FRHIVertexDeclaration>;
 using FVertexShaderRHIRef              = TRefCountPtr<FRHIVertexShader>;
 using FViewportRHIRef                  = TRefCountPtr<FRHIViewport>;
 using FWorkGraphPipelineStateRHIRef    = TRefCountPtr<FRHIWorkGraphPipelineState>;
+using FStreamSourceSlotRHIRef          = TRefCountPtr<FRHIStreamSourceSlot>;
 using FWorkGraphShaderRHIRef           = TRefCountPtr<FRHIWorkGraphShader>;
 
 // Deprecated typenames

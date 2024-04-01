@@ -436,6 +436,7 @@ static const FRHIResourceTypeName GRHIResourceTypeNames[] =
 	RHI_RESOURCE_TYPE_DEF(CustomPresent),
 	RHI_RESOURCE_TYPE_DEF(ShaderLibrary),
 	RHI_RESOURCE_TYPE_DEF(PipelineBinaryLibrary),
+	RHI_RESOURCE_TYPE_DEF(StreamSourceSlot)
 };
 
 ERHIResourceType RHIResourceTypeFromString(const FString& InString)

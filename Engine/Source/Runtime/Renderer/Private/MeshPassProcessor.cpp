@@ -1158,21 +1158,21 @@ void FMeshDrawShaderBindings::SetOnCommandList(FRHIComputeCommandList& RHICmdLis
 bool FMeshDrawShaderBindings::MatchesForDynamicInstancing(const FMeshDrawShaderBindings& Rhs) const
 {
 	if (ShaderFrequencyBits != Rhs.ShaderFrequencyBits)
-{
+	{
 		return false;
 	}
 
 	if (ShaderLayouts.Num() != Rhs.ShaderLayouts.Num())
 	{
 		return false;
-}
+	}
 
 	for (int Index = 0; Index < ShaderLayouts.Num(); Index++)
-{
-		if (!(ShaderLayouts[Index] == Rhs.ShaderLayouts[Index]))
 	{
-		return false;
-	}
+		if (!(ShaderLayouts[Index] == Rhs.ShaderLayouts[Index]))
+		{
+			return false;
+		}
 	}
 
 	const uint8* ShaderBindingDataPtr = GetData();
@@ -1420,7 +1420,7 @@ bool FMeshDrawCommand::SubmitDrawBegin(
 		}
 		else if (StateCache.VertexStreams[Stream.StreamIndex] != Stream)
 		{
-			RHICmdList.SetStreamSource(Stream.StreamIndex, Stream.VertexBuffer, Stream.Offset);
+			Stream.SetOnRHICommandList(RHICmdList);
 			StateCache.VertexStreams[Stream.StreamIndex] = Stream;
 		}
 	}
@@ -2198,7 +2198,7 @@ void FCachedPassMeshDrawListContextDeferred::DeferredFinalizeMeshDrawCommands(co
 		{
 			FPrimitiveSceneInfo* SceneInfo = SceneInfos[SceneInfoIndex];
 			for (auto& CmdInfo : SceneInfo->StaticMeshCommandInfos)
-			{				
+			{
 				check(CmdInfo.MeshPass < EMeshPass::Num);
 				FStateBucketMap& BucketMap = Scene.CachedMeshDrawCommandStateBuckets[CmdInfo.MeshPass];
 				int32 DeferredIndex = CmdInfo.StateBucketId;

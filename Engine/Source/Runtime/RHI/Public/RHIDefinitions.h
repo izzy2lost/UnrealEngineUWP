@@ -953,6 +953,7 @@ enum ERHIResourceType : uint8
 	RRT_ShaderBundle,
 	RRT_WorkGraphShader,
 	RRT_WorkGraphPipelineState,
+	RRT_StreamSourceSlot,
 
 	RRT_Num
 };
