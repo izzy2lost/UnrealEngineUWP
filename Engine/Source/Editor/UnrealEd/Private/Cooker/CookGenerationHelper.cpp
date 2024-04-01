@@ -16,7 +16,7 @@ namespace UE::Cook
 //////////////////////////////////////////////////////////////////////////
 // FGenerationHelper
 
-FGenerationHelper::FGenerationHelper(UE::Cook::FPackageData& InOwner)
+FGenerationHelper::FGenerationHelper(FPackageData& InOwner)
 : OwnerInfo(InOwner, true /* bInGenerator */)
 {
 }
@@ -121,7 +121,7 @@ UPackage* FGenerationHelper::FindOrLoadPackage(UCookOnTheFlyServer& COTFS, FPack
 
 void FGenerationHelper::SearchForRegisteredSplitDataObject(UCookOnTheFlyServer& COTFS,
 	FName PackageName, UPackage* Package,
-	TOptional<TConstArrayView<UE::Cook::FCachedObjectInOuter>> CachedObjectsInOuter,
+	TOptional<TConstArrayView<FCachedObjectInOuter>> CachedObjectsInOuter,
 	UObject*& OutSplitDataObject, UE::Cook::Private::FRegisteredCookPackageSplitter*& OutRegisteredSplitter,
 	TUniquePtr<ICookPackageSplitter>& OutSplitterInstance)
 {
@@ -368,7 +368,7 @@ bool FGenerationHelper::TryGenerateList()
 		FString PackageName = FPaths::RemoveDuplicateSlashes(FString::Printf(TEXT("/%s/%s/%s"),
 			*PackageRoot, GeneratedPackageSubPath, *SplitterData.RelativePath));
 		const FName PackageFName(*PackageName);
-		UE::Cook::FPackageData* PackageData = PackageDatas.TryAddPackageDataByPackageName(PackageFName,
+		FPackageData* PackageData = PackageDatas.TryAddPackageDataByPackageName(PackageFName,
 			false /* bRequireExists */, bCreateAsMap);
 		if (!PackageData)
 		{
@@ -409,7 +409,7 @@ bool FGenerationHelper::TryGenerateList()
 		GeneratedInfo.PackageDependencies.SetNum(Algo::Unique(GeneratedInfo.PackageDependencies));
 		GeneratedInfo.SetIsCreateAsMap(bCreateAsMap);
 		if (bNeedCachedPlatformDataBeforeSplit ||
-			COTFS.MPCookGeneratorSplit == UE::Cook::EMPCookGeneratorSplit::AllOnSameWorker)
+			COTFS.MPCookGeneratorSplit == EMPCookGeneratorSplit::AllOnSameWorker)
 		{
 			PackageData->SetWorkerAssignmentConstraint(FWorkerId::Local());
 		}
@@ -547,26 +547,54 @@ void FGenerationHelper::OnRequestFencePassed(UCookOnTheFlyServer& COTFS)
 	PreviousGeneratedPackages.Empty();
 }
 
-UPackage* FGenerationHelper::CreateGeneratedUPackage(FCookGenerationInfo& GeneratedInfo,
-	const UPackage* InOwnerPackage, const TCHAR* GeneratedPackageName)
+UPackage* FGenerationHelper::TryCreateGeneratedPackage(FCookGenerationInfo& GeneratedInfo)
 {
 	if (!IsValid())
 	{
 		return nullptr;
 	}
 
-#if ENABLE_COOK_STATS
-	++DetailedCookStats::NumRequestedLoads;
-#endif
-	UPackage* GeneratedPackage = CreatePackage(GeneratedPackageName);
-	GeneratedPackage->SetSavedHash(GeneratedInfo.PackageHash);
-	GeneratedPackage->SetPersistentGuid(InOwnerPackage->GetPersistentGuid());
-	GeneratedPackage->SetPackageFlags(PKG_CookGenerated);
-	GeneratedInfo.SetHasCreatedPackage(true);
-	if (!InOwnerPackage->IsLoadedByEditorPropertiesOnly())
+	check(GeneratedInfo.PackageData); // Caller is responsible for validating
+	FPackageData& GeneratedPackageData = *GeneratedInfo.PackageData;
+	const FString GeneratedPackageName = GeneratedPackageData.GetPackageName().ToString();
+	UPackage* LocalOwnerPackage = FindOrLoadOwnerPackage(GetOwner().GetPackageDatas().GetCookOnTheFlyServer());
+	if (!LocalOwnerPackage)
 	{
-		GeneratedPackage->SetLoadedByEditorPropertiesOnly(false);
+		UE_LOG(LogCook, Error,
+			TEXT("TryCreateGeneratedPackage: could not load ParentGeneratorPackage %s for GeneratedPackage %s"),
+			*GetOwner().GetPackageName().ToString(), *GeneratedPackageName);
+		return nullptr;
 	}
+
+	UPackage* GeneratedPackage = FindObject<UPackage>(nullptr, *GeneratedPackageName);
+	if (GeneratedPackage)
+	{
+		// The package might have been created for the generator's presave, or it might have been created and abandoned
+		// by an earlier save attempt of the generated package. Remove all objects from it; generated packages are
+		// created empty and it is the job of the CookPackageSplitter to populate them.
+		TArray<UObject*> ExistingObjects;
+		GetObjectsWithPackage(GeneratedPackage, ExistingObjects, false /* bIncludeNestedObjects */);
+		if (!ExistingObjects.IsEmpty())
+		{
+			UObject* TransientPackage = GetTransientPackage();
+			for (UObject* Existing : ExistingObjects)
+			{
+				Existing->Rename(nullptr, TransientPackage, REN_DontCreateRedirectors);
+			}
+		}
+	}
+	else
+	{
+#if ENABLE_COOK_STATS
+		++DetailedCookStats::NumRequestedLoads;
+#endif
+		GeneratedPackage = CreatePackage(*GeneratedPackageName);
+	}
+	GeneratedPackage->SetSavedHash(GeneratedInfo.PackageHash);
+	GeneratedPackage->SetPersistentGuid(LocalOwnerPackage->GetPersistentGuid());
+	GeneratedPackage->SetPackageFlags(PKG_CookGenerated);
+	GeneratedPackage->SetLoadedByEditorPropertiesOnly(LocalOwnerPackage->IsLoadedByEditorPropertiesOnly());
+	GeneratedInfo.SetHasCreatedPackage(true);
 
 	return GeneratedPackage;
 }

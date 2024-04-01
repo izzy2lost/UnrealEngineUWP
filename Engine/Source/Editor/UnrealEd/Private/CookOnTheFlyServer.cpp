@@ -2911,7 +2911,7 @@ void UCookOnTheFlyServer::LoadPackageInQueue(UE::Cook::FPackageData& PackageData
 			return;
 		}
 
-		LoadedPackage = TryCreateGeneratedPackage(*GenerationHelper, *Info);
+		LoadedPackage = GenerationHelper->TryCreateGeneratedPackage(*Info);
 		if (!LoadedPackage)
 		{
 			RejectPackageToLoad(PackageData, TEXT("is a generated package which could not be populated"),
@@ -3460,7 +3460,12 @@ UE::Cook::EPollStatus UCookOnTheFlyServer::BeginCacheObjectsToMove(UE::Cook::FGe
 		TArray<UPackage*> KeepReferencedPackages;
 		if (Info.IsGenerator())
 		{
-			ConstructGeneratedPackagesForPresave(PackageData, GenerationHelper, GeneratedPackagesForPresave);
+			if (!TryConstructGeneratedPackagesForPresave(PackageData, GenerationHelper, GeneratedPackagesForPresave))
+			{
+				UE_LOG(LogCook, Error, TEXT("PackageSplitter unexpected failure: could not ConstructGeneratedPackagesForPreSave. Splitter=%s"),
+					*GenerationHelper.GetSplitDataObjectName().ToString());
+				return EPollStatus::Error;
+			}
 			FScopedActivePackage ScopedActivePackage(*this, GenerationHelper.GetOwner().GetPackageName(),
 				PackageAccessTrackingOps::NAME_CookerBuildObject);
 			bPopulateSucceeded = Splitter->PopulateGeneratorPackage(Package, SplitDataObject,
@@ -3518,7 +3523,13 @@ UE::Cook::EPollStatus UCookOnTheFlyServer::PreSaveGeneratorPackage(UE::Cook::FPa
 	}
 
 	TArray<UPackage*> KeepReferencedPackages;
-	ConstructGeneratedPackagesForPresave(PackageData, GenerationHelper, GeneratedPackagesForPresave);
+	if (!TryConstructGeneratedPackagesForPresave(PackageData, GenerationHelper, GeneratedPackagesForPresave))
+	{
+		UE_LOG(LogCook, Error, TEXT("PackageSplitter unexpected failure: could not ConstructGeneratedPackagesForPreSave. Splitter=%s"),
+			*GenerationHelper.GetSplitDataObjectName().ToString());
+		return EPollStatus::Error;
+	}
+
 	{
 		FScopedActivePackage ScopedActivePackage(*this, GenerationHelper.GetOwner().GetPackageName(),
 			PackageAccessTrackingOps::NAME_CookerBuildObject);
@@ -3534,7 +3545,7 @@ UE::Cook::EPollStatus UCookOnTheFlyServer::PreSaveGeneratorPackage(UE::Cook::FPa
 	return EPollStatus::Success;
 }
 
-void UCookOnTheFlyServer::ConstructGeneratedPackagesForPresave(UE::Cook::FPackageData& PackageData, UE::Cook::FGenerationHelper& GenerationHelper,
+bool UCookOnTheFlyServer::TryConstructGeneratedPackagesForPresave(UE::Cook::FPackageData& PackageData, UE::Cook::FGenerationHelper& GenerationHelper,
 	TArray<ICookPackageSplitter::FGeneratedPackageForPreSave>& GeneratedPackagesForPresave)
 {
 	using namespace UE::Cook;
@@ -3542,10 +3553,8 @@ void UCookOnTheFlyServer::ConstructGeneratedPackagesForPresave(UE::Cook::FPackag
 	if (GeneratedPackagesForPresave.Num() > 0)
 	{
 		// Already constructed, save time by early exiting
-		return;
+		return true;
 	}
-	UPackage* Package = PackageData.GetPackage();
-	check(Package);
 
 	// We need to find or (create empty stub packages for) each of the PackagesToGenerate so that PreSaveGeneratorPackage
 	// can refer to them to create hardlinks in the cooked Generator package
@@ -3558,14 +3567,13 @@ void UCookOnTheFlyServer::ConstructGeneratedPackagesForPresave(UE::Cook::FPackag
 		SplitterData.RelativePath = Info.RelativePath;
 		SplitterData.GeneratedRootPath = Info.GeneratedRootPath;
 		SplitterData.bCreatedAsMap = Info.IsCreateAsMap();
-
-		const FString GeneratedPackageName = Info.PackageData->GetPackageName().ToString();
-		SplitterData.Package = FindObject<UPackage>(nullptr, *GeneratedPackageName);
+		SplitterData.Package = GenerationHelper.TryCreateGeneratedPackage(Info);
 		if (!SplitterData.Package)
 		{
-			SplitterData.Package = GenerationHelper.CreateGeneratedUPackage(Info, Package, *GeneratedPackageName);
+			return false;
 		}
 	}
+	return true;
 }
 
 UE::Cook::EPollStatus UCookOnTheFlyServer::BeginCachePostMove(UE::Cook::FGenerationHelper& GenerationHelper,
@@ -3637,45 +3645,6 @@ UE::Cook::EPollStatus UCookOnTheFlyServer::BeginCachePostMove(UE::Cook::FGenerat
 	}
 
 	return EPollStatus::Success;
-}
-
-UPackage* UCookOnTheFlyServer::TryCreateGeneratedPackage(UE::Cook::FGenerationHelper& GenerationHelper, UE::Cook::FCookGenerationInfo& Info)
-{
-	using namespace UE::Cook;
-	check(Info.PackageData); // Caller is responsible for validating
-	UE::Cook::FPackageData& GeneratedPackageData = *Info.PackageData;
-	const FString GeneratedPackageName = GeneratedPackageData.GetPackageName().ToString();
-	UPackage* OwnerPackage = GenerationHelper.FindOrLoadOwnerPackage(*this);
-	if (!OwnerPackage)
-	{
-		UE_LOG(LogCook, Error, TEXT("TryCreateGeneratedPackage: could not load ParentGeneratorPackage %s for GeneratedPackage %s"),
-			*GenerationHelper.GetOwner().GetPackageName().ToString(), *GeneratedPackageName);
-		return nullptr;
-	}
-
-	UPackage* GeneratedPackage = FindObject<UPackage>(nullptr, *GeneratedPackageName);
-	if (GeneratedPackage)
-	{
-		if (!Info.HasCreatedPackage())
-		{
-			UE_LOG(LogCook, Error, TEXT("PackageSplitter found an existing copy of a package it was trying to populate;")
-				TEXT("this is unexpected since garbage has been collected and the package should have been unreferenced so it should have been collected.")
-				TEXT("Splitter=%s, Generated=%s."),
-				*GenerationHelper.GetSplitDataObjectName().ToString(), *GeneratedPackageName);
-			EReferenceChainSearchMode SearchMode = EReferenceChainSearchMode::Shortest
-				| EReferenceChainSearchMode::PrintAllResults
-				| EReferenceChainSearchMode::FullChain;
-			FReferenceChainSearch RefChainSearch(GeneratedPackage, SearchMode);
-			return nullptr;
-		}
-		// Otherwise this is the package that was created for the generator's presave, and it is still valid because
-		// there has not been a GC since we created it.
-	}
-	else
-	{
-		GeneratedPackage = GenerationHelper.CreateGeneratedUPackage(Info, OwnerPackage, *GeneratedPackageName);
-	}
-	return GeneratedPackage;
 }
 
 UE::Cook::EPollStatus UCookOnTheFlyServer::TryPopulateGeneratedPackage(UE::Cook::FGenerationHelper& GenerationHelper,
