@@ -220,7 +220,7 @@ void UPCGSubsystem::SetConstructionScriptSourceComponent(UPCGComponent* InCompon
 	{
 		if (AActor* Owner = InComponent->GetOwner())
 		{
-			PerActorConstructionScriptSourceComponents.FindOrAdd(Owner).SourceComponentsMap.Add(InComponent->GetFName(), InComponent);
+			PerActorConstructionScriptSourceComponents.FindOrAdd(Owner).Add(InComponent->GetFName(), InComponent);
 		}
 	}
 }
@@ -230,11 +230,11 @@ bool UPCGSubsystem::RemoveAndCopyConstructionScriptSourceComponent(AActor* InCom
 	OutSourceComponent = nullptr;
 	if (FConstructionScriptSourceComponents* Found = PerActorConstructionScriptSourceComponents.Find(InComponentOwner))
 	{
-		TObjectPtr<UPCGComponent> FoundComponent;
-		if (Found->SourceComponentsMap.RemoveAndCopyValue(InComponentName, FoundComponent))
+		TObjectKey<UPCGComponent> FoundComponent;
+		if (Found->RemoveAndCopyValue(InComponentName, FoundComponent))
 		{
-			OutSourceComponent = FoundComponent;
-			if (Found->SourceComponentsMap.IsEmpty())
+			OutSourceComponent = FoundComponent.ResolveObjectPtrEvenIfGarbage();
+			if (Found->IsEmpty())
 			{
 				PerActorConstructionScriptSourceComponents.Remove(InComponentOwner);
 			}
