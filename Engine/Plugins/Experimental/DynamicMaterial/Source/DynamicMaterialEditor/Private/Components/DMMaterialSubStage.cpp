@@ -55,7 +55,7 @@ void UDMMaterialSubStage::PostEditorDuplicate(UDynamicMaterialModel* InMaterialM
 	}
 	else
 	{
-		UE::DynamicMaterialEditor::Private::LogError(TEXT("Wrong parent component passed to substage."));
+		UE::DynamicMaterialEditor::Private::LogError(TEXT("Wrong parent component passed to substage."), true, this);
 		ParentStage = nullptr;
 		ParentComponent = nullptr;
 		Super::PostEditorDuplicate(InMaterialModel, InParent);

@@ -9,6 +9,8 @@
 #include "Framework/Notifications/NotificationManager.h"
 #include "Widgets/Notifications/SNotificationList.h"
 
+#define LOCTEXT_NAMESPACE "FDMMaterialLayerReference"
+
 namespace UE::DynamicMaterialEditor::Private
 {
 	void SetMask(FExpressionInput& InInputConnector, const FExpressionOutput& InOutputConnector, int32 InChannelOverride)
@@ -70,14 +72,23 @@ namespace UE::DynamicMaterialEditor::Private
 	}
 
 	static bool bAllowUIFeedback = false;
+	static FText LogErrorObjectFormat = LOCTEXT("LogErrorObjectFormat", "%s (Source: %s)");
 
-	void LogError(const FString& InMessage, bool bInToast)
+	void LogError(const FString& InMessage, bool bInToast, const UObject* InSource)
 	{
-		UE_LOG(LogDynamicMaterialEditor, Error, TEXT("%s"), *InMessage);
+		const FString Message = IsValid(InSource)
+			? FString::Printf(TEXT("%s (Source: %s)"), *InMessage, *InSource->GetPathName())
+			: InMessage;
+
+		UE_LOG(LogDynamicMaterialEditor, Error, TEXT("%s"), *Message);
 
 		if (bAllowUIFeedback && bInToast)
 		{
-			FNotificationInfo Info(FText::FromString(InMessage));
+			const FText MessageText = IsValid(InSource)
+				? FText::Format(LogErrorObjectFormat, FText::FromString(InMessage), FText::FromString(InSource->GetPathName()))
+				: FText::FromString(InMessage);
+
+			FNotificationInfo Info(MessageText);
 			Info.ExpireDuration = 5.0f;
 			FSlateNotificationManager::Get().AddNotification(Info);
 		}
@@ -144,3 +155,5 @@ FDMScopedUITransaction::FDMScopedUITransaction(const FText& InSessionName, bool 
 	, UIFeedbackGuard(TGuardValue<bool>(UE::DynamicMaterialEditor::Private::bAllowUIFeedback, true))
 {
 }
+
+#undef LOCTEXT_NAMESPACE
