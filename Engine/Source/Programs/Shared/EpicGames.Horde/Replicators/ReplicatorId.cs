@@ -18,7 +18,7 @@ namespace EpicGames.Horde.Replicators
 	[JsonSchemaString]
 	[TypeConverter(typeof(ReplicatorIdTypeConverter))]
 	[JsonConverter(typeof(ReplicatorIdJsonConverter))]
-	public record struct ReplicatorId(StreamId StreamId, StreamReplicatorId StreamReplicatorId)
+	public readonly record struct ReplicatorId(StreamId StreamId, StreamReplicatorId StreamReplicatorId)
 	{
 		/// <summary>
 		/// Parse a replicator id
@@ -104,7 +104,7 @@ namespace EpicGames.Horde.Replicators
 	[TypeConverter(typeof(StringIdTypeConverter<StreamReplicatorId, StreamReplicatorIdConverter>))]
 	[StringIdConverter(typeof(StreamReplicatorIdConverter))]
 	[CbConverter(typeof(StringIdCbConverter<StreamReplicatorId, StreamReplicatorIdConverter>))]
-	public record struct StreamReplicatorId(StringId Id)
+	public readonly record struct StreamReplicatorId(StringId Id)
 	{
 		/// <summary>
 		/// Constructor

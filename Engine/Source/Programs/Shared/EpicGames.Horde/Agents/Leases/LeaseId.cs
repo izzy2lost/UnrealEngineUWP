@@ -13,7 +13,7 @@ namespace EpicGames.Horde.Agents.Leases
 	[JsonSchemaString]
 	[TypeConverter(typeof(BinaryIdTypeConverter<LeaseId, LeaseIdConverter>))]
 	[BinaryIdConverter(typeof(LeaseIdConverter))]
-	public record struct LeaseId(BinaryId Id)
+	public readonly record struct LeaseId(BinaryId Id)
 	{
 		/// <inheritdoc cref="BinaryId.TryParse(System.String, out BinaryId)"/>
 		public static bool TryParse(string text, out LeaseId leaseId)

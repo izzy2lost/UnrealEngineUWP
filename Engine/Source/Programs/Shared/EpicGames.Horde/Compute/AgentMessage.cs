@@ -226,27 +226,27 @@ namespace EpicGames.Horde.Compute
 	/// <summary>
 	/// Message for reporting an error
 	/// </summary>
-	public record struct ExceptionMessage(string Message, string Description);
+	public readonly record struct ExceptionMessage(string Message, string Description);
 
 	/// <summary>
 	/// Message requesting that the message loop be forked
 	/// </summary>
 	/// <param name="ChannelId">New channel to communicate on</param>
 	/// <param name="BufferSize">Size of the buffer</param>
-	public record struct ForkMessage(int ChannelId, int BufferSize);
+	public readonly record struct ForkMessage(int ChannelId, int BufferSize);
 
 	/// <summary>
 	/// Extract files from a bundle to a path in the remote sandbox
 	/// </summary>
 	/// <param name="Name">Path to extract the files to</param>
 	/// <param name="Locator">Locator for the tree to extract</param>
-	public record struct UploadFilesMessage(string Name, BlobLocator Locator);
+	public readonly record struct UploadFilesMessage(string Name, BlobLocator Locator);
 
 	/// <summary>
 	/// Deletes files or directories in the remote
 	/// </summary>
 	/// <param name="Filter">Filter for files to delete</param>
-	public record struct DeleteFilesMessage(IReadOnlyList<string> Filter);
+	public readonly record struct DeleteFilesMessage(IReadOnlyList<string> Filter);
 
 	/// <summary>
 	/// Message to execute a new child process
@@ -257,25 +257,25 @@ namespace EpicGames.Horde.Compute
 	/// <param name="EnvVars">Environment variables for the child process. Null values unset variables.</param>
 	/// <param name="Flags">Additional execution flags</param>
 	/// <param name="ContainerImageUrl">URL to container image. If specified, process will be executed inside this container</param>
-	public record struct ExecuteProcessMessage(string Executable, IReadOnlyList<string> Arguments, string? WorkingDir, IReadOnlyDictionary<string, string?> EnvVars, ExecuteProcessFlags Flags, string? ContainerImageUrl);
+	public readonly record struct ExecuteProcessMessage(string Executable, IReadOnlyList<string> Arguments, string? WorkingDir, IReadOnlyDictionary<string, string?> EnvVars, ExecuteProcessFlags Flags, string? ContainerImageUrl);
 
 	/// <summary>
 	/// Response from executing a child process
 	/// </summary>
 	/// <param name="ExitCode">Exit code for the process</param>
-	public record struct ExecuteProcessResponseMessage(int ExitCode);
+	public readonly record struct ExecuteProcessResponseMessage(int ExitCode);
 
 	/// <summary>
 	/// Creates a blob read request
 	/// </summary>
-	public record struct ReadBlobMessage(BlobLocator Locator, int Offset, int Length);
+	public readonly record struct ReadBlobMessage(BlobLocator Locator, int Offset, int Length);
 
 	/// <summary>
 	/// Message for running an XOR command
 	/// </summary>
 	/// <param name="Data">Data to xor</param>
 	/// <param name="Value">Value to XOR with</param>
-	public record struct XorRequestMessage(ReadOnlyMemory<byte> Data, byte Value);
+	public readonly record struct XorRequestMessage(ReadOnlyMemory<byte> Data, byte Value);
 
 	/// <summary>
 	/// Wraps various requests across compute channels

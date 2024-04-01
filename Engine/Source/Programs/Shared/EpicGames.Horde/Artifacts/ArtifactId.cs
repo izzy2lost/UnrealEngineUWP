@@ -13,7 +13,7 @@ namespace EpicGames.Horde.Artifacts
 	[JsonSchemaString]
 	[TypeConverter(typeof(BinaryIdTypeConverter<ArtifactId, ArtifactIdConverter>))]
 	[BinaryIdConverter(typeof(ArtifactIdConverter))]
-	public record struct ArtifactId(BinaryId Id)
+	public readonly record struct ArtifactId(BinaryId Id)
 	{
 		/// <inheritdoc cref="BinaryId.Parse(System.String)"/>
 		public static ArtifactId Parse(string text) => new ArtifactId(BinaryId.Parse(text));

@@ -14,7 +14,7 @@ namespace EpicGames.Horde.Accounts
 	[JsonSchemaString]
 	[TypeConverter(typeof(BinaryIdTypeConverter<AccountId, AccountIdConverter>))]
 	[BinaryIdConverter(typeof(AccountIdConverter))]
-	public record struct AccountId(BinaryId Id)
+	public readonly record struct AccountId(BinaryId Id)
 	{
 		/// <inheritdoc cref="BinaryId.Parse(System.String)"/>
 		public static AccountId Parse(string text) => new AccountId(BinaryId.Parse(text));

@@ -417,7 +417,7 @@ namespace EpicGames.Horde.Storage.Bundles.V1
 	/// <summary>
 	/// Collection of node types in a bundle
 	/// </summary>
-	public struct BundleTypeCollection : IReadOnlyList<BlobType>
+	public readonly struct BundleTypeCollection : IReadOnlyList<BlobType>
 	{
 		readonly BlobType[] _types;
 
@@ -486,7 +486,7 @@ namespace EpicGames.Horde.Storage.Bundles.V1
 	/// <summary>
 	/// Collection of imported node references
 	/// </summary>
-	public struct BundleImportCollection : IReadOnlyList<BlobLocator>
+	public readonly struct BundleImportCollection : IReadOnlyList<BlobLocator>
 	{
 		readonly BlobLocator[] _imports;
 
@@ -564,7 +564,7 @@ namespace EpicGames.Horde.Storage.Bundles.V1
 	/// <summary>
 	/// Descriptor for a compression packet
 	/// </summary>
-	public struct BundlePacket
+	public readonly struct BundlePacket
 	{
 		/// <summary>
 		/// Size of this structure when serialized
@@ -633,7 +633,7 @@ namespace EpicGames.Horde.Storage.Bundles.V1
 	/// <summary>
 	/// Collection of information about packets in a bundle
 	/// </summary>
-	public struct BundlePacketCollection : IReadOnlyCollection<BundlePacket>
+	public readonly struct BundlePacketCollection : IReadOnlyCollection<BundlePacket>
 	{
 		readonly BundlePacket[] _packets;
 
@@ -704,7 +704,7 @@ namespace EpicGames.Horde.Storage.Bundles.V1
 	/// <summary>
 	/// Entry for a node exported from an object
 	/// </summary>
-	public struct BundleExport
+	public readonly struct BundleExport
 	{
 		/// <summary>
 		/// Number of bytes in a serialized export object
@@ -791,7 +791,7 @@ namespace EpicGames.Horde.Storage.Bundles.V1
 	/// <summary>
 	/// Entry for a node exported from an object
 	/// </summary>
-	public struct BundleExportCollection : IReadOnlyList<BundleExport>
+	public readonly struct BundleExportCollection : IReadOnlyList<BundleExport>
 	{
 		readonly BundleExport[] _exports;
 
@@ -994,7 +994,7 @@ namespace EpicGames.Horde.Storage.Bundles.V1
 	/// </summary>
 	/// <param name="ImportIdx">Index into the import table of the blob containing the referenced node. Can be -1 for references within the same bundle.</param>
 	/// <param name="NodeIdx">Node imported from the bundle</param>
-	public record struct BundleExportRef(int ImportIdx, int NodeIdx)
+	public readonly record struct BundleExportRef(int ImportIdx, int NodeIdx)
 	{
 		/// <summary>
 		/// Number of bytes in the serialized object
@@ -1033,7 +1033,7 @@ namespace EpicGames.Horde.Storage.Bundles.V1
 	/// <summary>
 	/// Collection of information about exported nodes
 	/// </summary>
-	public struct BundleExportRefCollection : IReadOnlyList<BundleExportRef>
+	public readonly struct BundleExportRefCollection : IReadOnlyList<BundleExportRef>
 	{
 		/// <summary>
 		/// Data used to store this collection

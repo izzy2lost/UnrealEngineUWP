@@ -43,7 +43,7 @@ namespace EpicGames.Horde.Storage.Bundles
 		public long PacketCacheSize { get; set; } = 192 * 1024 * 1024;
 	}
 
-	record struct BundlePageCacheKey(BundleHandle Bundle, int Index)
+	readonly record struct BundlePageCacheKey(BundleHandle Bundle, int Index)
 	{
 		public override string ToString()
 			=> $"bundle-page:{Bundle}:{Index}";

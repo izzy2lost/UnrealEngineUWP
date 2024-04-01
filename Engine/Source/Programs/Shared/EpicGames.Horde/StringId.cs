@@ -17,7 +17,7 @@ namespace EpicGames.Horde
 	[JsonSchemaString]
 	[JsonConverter(typeof(StringIdJsonConverter))]
 	[TypeConverter(typeof(StringIdTypeConverter))]
-	public struct StringId : IEquatable<StringId>, IEquatable<string>, IEquatable<ReadOnlyMemory<char>>
+	public readonly struct StringId : IEquatable<StringId>, IEquatable<string>, IEquatable<ReadOnlyMemory<char>>
 	{
 		/// <summary>
 		/// Enum used to disable validation on string arguments

@@ -15,7 +15,7 @@ namespace EpicGames.Horde.Streams
 	[TypeConverter(typeof(StringIdTypeConverter<StreamId, StreamIdConverter>))]
 	[StringIdConverter(typeof(StreamIdConverter))]
 	[CbConverter(typeof(StringIdCbConverter<StreamId, StreamIdConverter>))]
-	public record struct StreamId(StringId Id)
+	public readonly record struct StreamId(StringId Id)
 	{
 		/// <summary>
 		/// Constructor

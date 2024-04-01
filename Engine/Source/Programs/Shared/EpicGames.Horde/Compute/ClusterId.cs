@@ -18,7 +18,7 @@ namespace EpicGames.Horde.Compute
 	[CbConverter(typeof(ClusterIdCbConverter))]
 	[JsonConverter(typeof(ClusterIdJsonConverter))]
 	[TypeConverter(typeof(ClusterIdTypeConverter))]
-	public struct ClusterId : IEquatable<ClusterId>
+	public readonly struct ClusterId : IEquatable<ClusterId>
 	{
 		/// <summary>
 		/// The text representing this id

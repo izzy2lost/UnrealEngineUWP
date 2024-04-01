@@ -13,7 +13,7 @@ namespace EpicGames.Horde.Tools
 	[JsonSchemaString]
 	[TypeConverter(typeof(BinaryIdTypeConverter<ToolDeploymentId, ToolDeploymentIdConverter>))]
 	[BinaryIdConverter(typeof(ToolDeploymentIdConverter))]
-	public record struct ToolDeploymentId(BinaryId Id)
+	public readonly record struct ToolDeploymentId(BinaryId Id)
 	{
 		/// <inheritdoc cref="BinaryId.Parse(System.String)"/>
 		public static ToolDeploymentId Parse(string text) => new ToolDeploymentId(BinaryId.Parse(text));

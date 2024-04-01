@@ -14,7 +14,7 @@ namespace EpicGames.Horde.Jobs
 	/// identifier with more entropy than just incrementing the value but an identical period before repeating, in order to make URL fragments more distinctive.
 	/// </summary>
 	[TypeConverter(typeof(SubResourceIdTypeConverter))]
-	public struct SubResourceId : IEquatable<SubResourceId>
+	public readonly struct SubResourceId : IEquatable<SubResourceId>
 	{
 		/// <summary>
 		/// The unique identifier value

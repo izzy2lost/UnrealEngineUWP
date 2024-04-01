@@ -18,7 +18,7 @@ namespace EpicGames.Horde.Storage
 	[JsonConverter(typeof(RefNameJsonConverter))]
 	[TypeConverter(typeof(RefNameTypeConverter))]
 	[CbConverter(typeof(RefNameCbConverter))]
-	public struct RefName : IEquatable<RefName>, IComparable<RefName>
+	public readonly struct RefName : IEquatable<RefName>, IComparable<RefName>
 	{
 		/// <summary>
 		/// Empty ref name

@@ -15,7 +15,7 @@ namespace EpicGames.Horde.Jobs.Templates
 	[TypeConverter(typeof(StringIdTypeConverter<TemplateId, TemplateIdConverter>))]
 	[StringIdConverter(typeof(TemplateIdConverter))]
 	[CbConverter(typeof(StringIdCbConverter<TemplateId, TemplateIdConverter>))]
-	public record struct TemplateId(StringId Id)
+	public readonly record struct TemplateId(StringId Id)
 	{
 		/// <summary>
 		/// Constructor

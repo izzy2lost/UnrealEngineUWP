@@ -12,7 +12,7 @@ namespace EpicGames.Horde.Artifacts
 	[JsonSchemaString]
 	[StringIdConverter(typeof(ArtifactTypeConverter))]
 	[TypeConverter(typeof(StringIdTypeConverter<ArtifactType, ArtifactTypeConverter>))]
-	public record struct ArtifactType(StringId Id)
+	public readonly record struct ArtifactType(StringId Id)
 	{
 		/// <summary>
 		/// Default artifact type 

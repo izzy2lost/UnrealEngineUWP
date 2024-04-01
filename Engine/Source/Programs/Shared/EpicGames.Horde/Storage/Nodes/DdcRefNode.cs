@@ -49,7 +49,7 @@ namespace Horde.Server.Ddc
 
 	class DdcRefNodeConverter : BlobConverter<DdcRefNode>
 	{
-		static BlobType s_blobType = new BlobType(DdcRefNode.BlobTypeGuid, 1);
+		static readonly BlobType s_blobType = new BlobType(DdcRefNode.BlobTypeGuid, 1);
 
 		public override DdcRefNode Read(IBlobReader reader, BlobSerializerOptions options)
 		{

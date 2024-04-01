@@ -15,7 +15,7 @@ namespace EpicGames.Horde.Telemetry.Metrics
 	[TypeConverter(typeof(StringIdTypeConverter<MetricId, MetricIdConverter>))]
 	[StringIdConverter(typeof(MetricIdConverter))]
 	[CbConverter(typeof(StringIdCbConverter<MetricId, MetricIdConverter>))]
-	public record struct MetricId(StringId Id)
+	public readonly record struct MetricId(StringId Id)
 	{
 		/// <summary>
 		/// Constructor

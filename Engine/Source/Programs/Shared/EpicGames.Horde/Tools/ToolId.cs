@@ -15,7 +15,7 @@ namespace EpicGames.Horde.Tools
 	[TypeConverter(typeof(StringIdTypeConverter<ToolId, ToolIdConverter>))]
 	[StringIdConverter(typeof(ToolIdConverter))]
 	[CbConverter(typeof(StringIdCbConverter<ToolId, ToolIdConverter>))]
-	public record struct ToolId(StringId Id)
+	public readonly record struct ToolId(StringId Id)
 	{
 		/// <summary>
 		/// Constructor

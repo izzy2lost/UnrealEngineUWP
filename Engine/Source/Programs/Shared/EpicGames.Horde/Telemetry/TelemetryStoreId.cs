@@ -15,7 +15,7 @@ namespace EpicGames.Horde.Telemetry
 	[TypeConverter(typeof(StringIdTypeConverter<TelemetryStoreId, TelemetryStoreIdConverter>))]
 	[StringIdConverter(typeof(TelemetryStoreIdConverter))]
 	[CbConverter(typeof(StringIdCbConverter<TelemetryStoreId, TelemetryStoreIdConverter>))]
-	public record struct TelemetryStoreId(StringId Id)
+	public readonly record struct TelemetryStoreId(StringId Id)
 	{
 		/// <summary>
 		/// Default telemetry store for Horde internal metrics

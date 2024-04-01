@@ -161,7 +161,7 @@ namespace EpicGames.Horde.Storage
 	/// Indicates the maximum age of a entry returned from a cache in the hierarchy
 	/// </summary>
 	/// <param name="Utc">Oldest allowed timestamp for a returned result</param>
-	public record struct RefCacheTime(DateTime Utc)
+	public readonly record struct RefCacheTime(DateTime Utc)
 	{
 		/// <summary>
 		/// Maximum age for a cached value to be returned

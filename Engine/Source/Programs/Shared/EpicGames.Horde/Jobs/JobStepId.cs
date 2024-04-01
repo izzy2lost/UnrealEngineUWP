@@ -13,7 +13,7 @@ namespace EpicGames.Horde.Jobs
 	[JsonSchemaString]
 	[TypeConverter(typeof(SubResourceIdTypeConverter<JobStepId, JobStepIdConverter>))]
 	[SubResourceIdConverter(typeof(JobStepIdConverter))]
-	public record struct JobStepId(SubResourceId Id)
+	public readonly record struct JobStepId(SubResourceId Id)
 	{
 		/// <summary>
 		/// Constructor

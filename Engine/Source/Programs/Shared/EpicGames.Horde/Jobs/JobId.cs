@@ -13,7 +13,7 @@ namespace EpicGames.Horde.Jobs
 	[JsonSchemaString]
 	[TypeConverter(typeof(BinaryIdTypeConverter<JobId, JobIdConverter>))]
 	[BinaryIdConverter(typeof(JobIdConverter))]
-	public record struct JobId(BinaryId Id)
+	public readonly record struct JobId(BinaryId Id)
 	{
 		/// <summary>
 		/// Constant value for an empty job id

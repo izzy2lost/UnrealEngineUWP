@@ -23,7 +23,7 @@ namespace EpicGames.Horde.Storage.Bundles.V2
 		}
 	}
 
-	record struct PacketReaderCacheKey(BundleHandle Bundle, int Offset)
+	readonly record struct PacketReaderCacheKey(BundleHandle Bundle, int Offset)
 	{
 		public override string ToString()
 			=> $"packet-reader:{Bundle}@{Offset}";

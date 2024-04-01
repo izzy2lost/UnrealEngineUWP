@@ -13,7 +13,7 @@ namespace EpicGames.Horde.Users
 	[JsonSchemaString]
 	[TypeConverter(typeof(BinaryIdTypeConverter<UserId, UserIdConverter>))]
 	[BinaryIdConverter(typeof(UserIdConverter))]
-	public record struct UserId(BinaryId Id)
+	public readonly record struct UserId(BinaryId Id)
 	{
 		/// <summary>
 		/// Constant value for empty user id

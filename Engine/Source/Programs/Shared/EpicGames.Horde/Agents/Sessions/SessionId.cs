@@ -13,7 +13,7 @@ namespace EpicGames.Horde.Agents.Sessions
 	[JsonSchemaString]
 	[TypeConverter(typeof(BinaryIdTypeConverter<SessionId, SessionIdConverter>))]
 	[BinaryIdConverter(typeof(SessionIdConverter))]
-	public record struct SessionId(BinaryId Id)
+	public readonly record struct SessionId(BinaryId Id)
 	{
 		/// <summary>
 		/// Default empty value for session id
