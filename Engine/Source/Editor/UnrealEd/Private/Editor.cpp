@@ -826,39 +826,32 @@ void FReimportManager::GetNewReimportPath(UObject* Obj, TArray<FString>& InOutFi
 
 	// Append the Interchange supported translator formats for this object
 	TMultiMap<uint32, UFactory*> DummyFilterIndexToFactory;
+	// Get the list of valid factories
+	for (TObjectIterator<UClass> It; It; ++It)
+	{
+		UClass* CurrentClass = (*It);
+
+		if (CurrentClass->IsChildOf(UFactory::StaticClass()) && !(CurrentClass->HasAnyClassFlags(CLASS_Abstract)))
+		{
+			UFactory* Factory = Cast<UFactory>(CurrentClass->GetDefaultObject());
+			if (Factory->bEditorImport && Factory->DoesSupportClass(Obj->GetClass()))
+			{
+				Factories.Add(Factory);
+			}
+		}
+	}
+	//We now add all the factory extensions
+	if (Factories.Num() > 0)
+	{
+		// Generate the file types and extensions represented by the selected factories
+		ObjectTools::GenerateFactoryFileExtensions(Factories, FileTypes, AllExtensions, DummyFilterIndexToFactory);
+	}
+
 	if (UInterchangeManager::IsInterchangeImportEnabled())
 	{
 		//Get the extension interchange can translate for this object
 		TArray<FString> TranslatorFormats = UInterchangeManager::GetInterchangeManager().GetSupportedFormatsForObject(Obj);
 		ObjectTools::AppendFormatsFileExtensions(TranslatorFormats, FileTypes, AllExtensions, DummyFilterIndexToFactory);
-	}
-
-	// Interchange is either disabled or do not support the given object, check with the legacy factories
-	if (AllExtensions.IsEmpty())
-	{
-		// Get the list of valid factories
-		for (TObjectIterator<UClass> It; It; ++It)
-		{
-			UClass* CurrentClass = (*It);
-
-			if (CurrentClass->IsChildOf(UFactory::StaticClass()) && !(CurrentClass->HasAnyClassFlags(CLASS_Abstract)))
-			{
-				UFactory* Factory = Cast<UFactory>(CurrentClass->GetDefaultObject());
-				if (Factory->bEditorImport && Factory->DoesSupportClass(Obj->GetClass()))
-				{
-					Factories.Add(Factory);
-				}
-			}
-		}
-
-		if (Factories.Num() <= 0)
-		{
-			// No matching factories for this asset, fail
-			return;
-		}
-
-		// Generate the file types and extensions represented by the selected factories
-		ObjectTools::GenerateFactoryFileExtensions(Factories, FileTypes, AllExtensions, DummyFilterIndexToFactory);
 	}
 
 	FString DefaultFolder;

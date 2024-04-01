@@ -403,6 +403,9 @@ void UInterchangeAssetImportData::ClearBackupSourceData() const
 void UInterchangeAssetImportData::ReinstateBackupSourceData()
 {
 #if WITH_EDITORONLY_DATA
-	SourceData = SourceDataBackup;
+	if (SourceDataBackup.SourceFiles.Num() > 0)
+	{
+		SourceData = SourceDataBackup;
+	}
 #endif
 }
