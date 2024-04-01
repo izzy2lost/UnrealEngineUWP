@@ -1128,17 +1128,16 @@ FText SStateTreeViewRow::GetTransitionsIcon(const UStateTreeState& State, const 
 		IconType = IconLevelUp;
 	}
 
-	if (IconType == IconRightArrow)
+	switch (IconType)
 	{
-		return FEditorFontGlyphs::Long_Arrow_Right;
-	}
-	else if (IconType == IconDownArrow)
-	{
-		return FEditorFontGlyphs::Long_Arrow_Down;
-	}
-	else if (IconType == IconLevelUp)
-	{
-		return FEditorFontGlyphs::Level_Up;
+		case IconRightArrow:
+			return FEditorFontGlyphs::Long_Arrow_Right;
+		case IconDownArrow:
+			return FEditorFontGlyphs::Long_Arrow_Down;
+		case IconLevelUp:
+			return FEditorFontGlyphs::Level_Up;
+		default:
+			return FText::GetEmpty();
 	}
 }
 
