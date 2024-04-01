@@ -6118,6 +6118,7 @@ void FStarshipEditorStyle::FStyle::SetupClassIconsAndThumbnails()
 			{TEXT("WidgetBlueprintGeneratedClass")},
 			{TEXT("WindDirectionalSource")},
 			{TEXT("World")},
+			{TEXT("WorldDataLayers")},
 		};
 	
 		// SVG Asset icons
