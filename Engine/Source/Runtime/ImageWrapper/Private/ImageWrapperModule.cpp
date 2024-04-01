@@ -295,7 +295,6 @@ public:
 		}
 		else
 		{
-			UE_LOG(LogImageWrapper,Warning,TEXT("GetImageFormatFromExtension not found : %s\n"),Name);
 			return EImageFormat::Invalid;
 		}
 	}

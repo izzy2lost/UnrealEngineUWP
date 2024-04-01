@@ -324,6 +324,7 @@ enum ETextureSourceCompressionFormat : int
 	TSCF_PNG	UMETA(DisplayName = "PNG"),
 	TSCF_JPEG	UMETA(DisplayName = "JPEG"),
 	TSCF_UEJPEG	UMETA(DisplayName = "UE JPEG"),
+	TSCF_UEDELTA UMETA(DisplayName = "UE Delta"),
 
 	TSCF_MAX
 };
@@ -339,7 +340,7 @@ enum ETextureSourceFormat : int
 	TSF_RGBA16,
 	TSF_RGBA16F,
 
-	// these are mapped to TSF_BGRA8/TSF_BGRE8 on load, so the runtime will never see them after loading :
+	// these are changed to TSF_BGRA8/TSF_BGRE8 on load, so the runtime will never see them after loading :
 	// keep them here to preserve enum values
 	TSF_RGBA8_DEPRECATED,
 	TSF_RGBE8_DEPRECATED,
@@ -349,12 +350,7 @@ enum ETextureSourceFormat : int
 	TSF_R16F,
 	TSF_R32F,
 
-	TSF_MAX,
-
-	// provide aliases to the old names with deprecation warnings
-	//  remove these someday
-	TSF_RGBA8 UE_DEPRECATED(5.1,"Legacy ETextureSourceFormat not supported, use BGRA8") = TSF_RGBA8_DEPRECATED,
-	TSF_RGBE8 UE_DEPRECATED(5.1,"Legacy ETextureSourceFormat not supported, use BGRE8") = TSF_RGBE8_DEPRECATED
+	TSF_MAX
 };
 
 /**

@@ -493,8 +493,13 @@ FLinearColor FLinearColor::LerpUsingHSV( const FLinearColor& From, const FLinear
 */
 FLinearColor FLinearColor::MakeRandomColor()
 {
-	const uint8 Hue = (uint8)(FMath::FRand()*255.f);
-	return FLinearColor::MakeFromHSV8(Hue, 255, 255);
+	// step hue around the ring, with a step relatively prime to 256
+	// this ensures that many calls in a row of this function produce very different values
+	static std::atomic<uint32> s_hue(0);
+	uint32 Hue = s_hue.fetch_add(157,std::memory_order_relaxed);
+	// 157 and 181 are both good steps
+
+	return FLinearColor::MakeFromHSV8((uint8)Hue, 255, 255);
 }
 
 FColor FColor::MakeRandomColor()

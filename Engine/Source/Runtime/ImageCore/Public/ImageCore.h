@@ -217,6 +217,8 @@ struct FImageInfo
 	FORCEINLINE int64 GetWidth()  const { return SizeX; }
 	FORCEINLINE int64 GetHeight() const { return SizeY; }
 	
+	FORCEINLINE int64 GetStrideBytes()  const { return SizeX * GetBytesPerPixel(); }
+
 	FORCEINLINE EGammaSpace GetGammaSpace() const
 	{
 		// Gamma is ignored unless GetFormatNeedsGammaSpace, so make sure it is Linear
@@ -231,11 +233,11 @@ struct FImageInfo
 		checkSlow( X >= 0 && X < SizeX );
 		checkSlow( Y >= 0 && Y < SizeY );
 		checkSlow( Slice >= 0 && Slice < NumSlices );
-
+		
 		int64 Offset = Slice * GetSliceNumPixels();
 		Offset += Y * (int64)SizeX;
 		Offset += X;
-		// Offset is now is pixels
+		// Offset is now in pixels
 		Offset *= GetBytesPerPixel();
 
 		return Offset;

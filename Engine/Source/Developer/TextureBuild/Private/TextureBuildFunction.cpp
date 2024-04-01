@@ -191,7 +191,7 @@ static bool TryReadTextureSourceFromCompactBinary(FCbFieldView Source, UE::Deriv
 		return false;
 	}
 
-	ETextureSourceCompressionFormat CompressionFormat = (ETextureSourceCompressionFormat)Source["CompressionFormat"].AsUInt8();
+	// Source data has no CompressionFormat
 	ETextureSourceFormat SourceFormat = (ETextureSourceFormat)Source["SourceFormat"].AsUInt8();
 
 	ERawImageFormat::Type RawImageFormat = ComputeRawImageFormat(SourceFormat);
@@ -205,42 +205,6 @@ static bool TryReadTextureSourceFromCompactBinary(FCbFieldView Source, UE::Deriv
 
 	const uint8* DecompressedSourceData = (const uint8*)InputBuffer.GetData();
 	int64 DecompressedSourceDataSize = InputBuffer.GetSize();
-
-	TArray64<uint8> IntermediateDecompressedData;
-	if (CompressionFormat != TSCF_None)
-	{
-		switch (CompressionFormat)
-		{
-		case TSCF_JPEG:
-		{
-			TSharedPtr<IImageWrapper> ImageWrapper = FModuleManager::GetModuleChecked<IImageWrapperModule>(FName("ImageWrapper")).CreateImageWrapper(EImageFormat::JPEG);
-			ImageWrapper->SetCompressed((const uint8*)InputBuffer.GetData(), InputBuffer.GetSize());
-			ImageWrapper->GetRaw(SourceFormat == TSF_G8 ? ERGBFormat::Gray : ERGBFormat::BGRA, 8, IntermediateDecompressedData);
-		}
-		break;
-		case TSCF_UEJPEG:
-		{
-			TSharedPtr<IImageWrapper> ImageWrapper = FModuleManager::GetModuleChecked<IImageWrapperModule>(FName("ImageWrapper")).CreateImageWrapper(EImageFormat::UEJPEG);
-			ImageWrapper->SetCompressed((const uint8*)InputBuffer.GetData(), InputBuffer.GetSize());
-			ImageWrapper->GetRaw(SourceFormat == TSF_G8 ? ERGBFormat::Gray : ERGBFormat::BGRA, 8, IntermediateDecompressedData);
-		}
-		break;
-		case TSCF_PNG:
-		{
-			TSharedPtr<IImageWrapper> ImageWrapper = FModuleManager::GetModuleChecked<IImageWrapperModule>(FName("ImageWrapper")).CreateImageWrapper(EImageFormat::PNG);
-			ImageWrapper->SetCompressed((const uint8*)InputBuffer.GetData(), InputBuffer.GetSize());
-			ERGBFormat RawFormat = (SourceFormat == TSF_G8 || SourceFormat == TSF_G16) ? ERGBFormat::Gray : ERGBFormat::RGBA;
-			ImageWrapper->GetRaw(RawFormat, (SourceFormat == TSF_G16 || SourceFormat == TSF_RGBA16) ? 16 : 8, IntermediateDecompressedData);
-		}
-		break;
-		default:
-			UE_LOG(LogTextureBuildFunction, Error, TEXT("Unexpected source compression format encountered while attempting to build a texture."));
-			return false;
-		}
-		DecompressedSourceData = IntermediateDecompressedData.GetData();
-		DecompressedSourceDataSize = IntermediateDecompressedData.Num();
-		InputBuffer.Reset();
-	}
 
 	FCbArrayView MipsCbArrayView = Source["Mips"].AsArrayView();
 	OutMips.Reserve(IntCastChecked<int32>(MipsCbArrayView.Num()));
@@ -260,22 +224,14 @@ static bool TryReadTextureSourceFromCompactBinary(FCbFieldView Source, UE::Deriv
 		check( MipOffset + MipSize <= DecompressedSourceDataSize );
 		check( SourceMip.GetImageSizeBytes() == MipSize );
 
-		if ((MipsCbArrayView.Num() == 1) && (CompressionFormat != TSCF_None))
-		{
-			// In the case where there is only one mip and its already in a TArray, there is no need to allocate new array contents, just use a move instead
-			check( MipOffset == 0 );
-			SourceMip.RawData = MoveTemp(IntermediateDecompressedData);
-		}
-		else
-		{
-			SourceMip.RawData.Reset(MipSize);
-			SourceMip.RawData.AddUninitialized(MipSize);
-			FMemory::Memcpy(
-				SourceMip.RawData.GetData(),
-				DecompressedSourceData + MipOffset,
-				MipSize
-			);
-		}
+		SourceMip.RawData.Reset(MipSize);
+		SourceMip.RawData.AddUninitialized(MipSize);
+
+		FMemory::Memcpy(
+			SourceMip.RawData.GetData(),
+			DecompressedSourceData + MipOffset,
+			MipSize
+		);
 
 		MipSizeX = FMath::Max(MipSizeX / 2, 1);
 		MipSizeY = FMath::Max(MipSizeY / 2, 1);

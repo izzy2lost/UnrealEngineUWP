@@ -306,7 +306,7 @@ struct FTextureSource
 	/** Returns a FMipData structure that wraps around the entire mip chain for read only operations. This is more efficient than calling the above method once per mip. */
 	ENGINE_API FMipData GetMipData(class IImageWrapperModule* ImageWrapperModule);
 
-	/** Computes the size of a single mip. */
+	/** Computes the size of a single mip in bytes */
 	ENGINE_API int64 CalcMipSize(int32 BlockIndex, int32 LayerIndex, int32 MipIndex) const;
 
 	/** Computes the number of bytes per-pixel. */
@@ -331,16 +331,22 @@ struct FTextureSource
 
 	/** Size of texture in blocks */
 	ENGINE_API FIntPoint GetSizeInBlocks() const;
+	
+	/* Total number of pixels in the top mip level over all blocks+layers.
+	This is the pixel count of the source data, not the size of the built virtual canvas. */
+	ENGINE_API int64 GetTotalTopMipPixelCount() const;
 
 	/** Returns the unique ID string for this source art. */
-	FString GetIdString() const;
+	ENGINE_API FString GetIdString() const;
 
 	/** Returns the compression format of the source data in string format for use with the UI. */
-	FString GetSourceCompressionAsString() const;
+	ENGINE_API FString GetSourceCompressionAsString() const;
 
-	/** Returns the compression format of the source data in enum format. */
+	/** Returns the compression format of the source data in enum format.
+	Note "compression" here means the image format of the BulkData (eg. JPEG/PNG), not whether or not the BulkData has Oodle LZ Compression. */
 	FORCEINLINE ETextureSourceCompressionFormat GetSourceCompression() const { return CompressionFormat; }
 	FORCEINLINE bool IsSourceCompressed() const { return GetSourceCompression() != ETextureSourceCompressionFormat::TSCF_None; }
+	ENGINE_API void RemoveCompression();
 
 	/** Get GammaSpace for this Source (asks owner) */
 	ENGINE_API EGammaSpace GetGammaSpace(int LayerIndex) const;
@@ -352,11 +358,11 @@ struct FTextureSource
 	ENGINE_API int GetMippedNumSlices(int NumSlices,int MipIndex) const;
 
 	/** Support for copy/paste */
-	void ExportCustomProperties(FOutputDevice& Out, uint32 Indent);
-	void ImportCustomProperties(const TCHAR* SourceText, FFeedbackContext* Warn);
+	ENGINE_API void ExportCustomProperties(FOutputDevice& Out, uint32 Indent);
+	ENGINE_API void ImportCustomProperties(const TCHAR* SourceText, FFeedbackContext* Warn);
 
 	/** Trivial accessors. These will only give values for Block0 so may not be correct for UDIM/multi-block textures, use GetBlock() for this case. */
-	FGuid GetPersistentId() const { return BulkData.GetIdentifier(); }
+	inline FGuid GetPersistentId() const { return BulkData.GetIdentifier(); }
 	/** GetId() returns a hash of the Id member (data hash) and also the attributes of the Source.
 	( GetId does not just return Id ) **/
 	ENGINE_API FGuid GetId() const;
@@ -367,9 +373,6 @@ struct FTextureSource
 	FORCEINLINE int32 GetNumLayers() const { return NumLayers; }
 	FORCEINLINE int32 GetNumBlocks() const { return Blocks.Num() + 1; }
 	FORCEINLINE ETextureSourceFormat GetFormat(int32 LayerIndex = 0) const { return (LayerIndex == 0) ? Format : LayerFormat[LayerIndex]; }
-	
-	UE_DEPRECATED(5.1, "Use GetSourceCompression instead")
-	FORCEINLINE bool IsPNGCompressed() const { return GetSourceCompression() == ETextureSourceCompressionFormat::TSCF_PNG; }
 	
 	// Warning: bLongLatCubemap is not correct.  LongLat Cubemaps often have bLongLatCubemap == false
 	// bLongLatCubemap is sometimes set to true for cube arrays to disambiguate the case of 6 longlat cubemaps in an array
@@ -494,7 +497,9 @@ struct FTextureSource
 		ENGINE_API FSharedBuffer GetMipData(int32 BlockIndex, int32 LayerIndex, int32 MipIndex) const;
 		ENGINE_API FSharedBuffer GetMipDataWithInfo(int32 InBlockIndex, int32 InLayerIndex, int32 InMipIndex, FImageInfo& OutMipImageInfo) const;
 
-		ENGINE_API bool IsValid() const { return !MipData.IsNull(); }
+		inline bool IsValid() const { return !MipData.IsNull(); }
+
+		inline void ResetData() { MipData.Reset(); }
 
 	private:
 		// We only want to allow FTextureSource to create FMipData objects
@@ -587,6 +592,8 @@ private:
 	/** if Owner != null, check Owner->GetGammaSpace , if it is null, use TornOffGammaSpace
 	* do not check this directly, use GetGammaSpace. **/
 	TArray<EGammaSpace, TInlineAllocator<1>> TornOffGammaSpace;
+	/* For debugging : */
+	FString TornOffOwnerName;
 #endif
 	/** The bulk source data. */
 	UE::Serialization::FEditorBulkData BulkData;
@@ -607,14 +614,22 @@ private:
 	FMutableMemoryView LockMipInternal(int32 BlockIndex, int32 LayerIndex, int32 MipIndex, ELockState RequestedLockState);
 	
 	// As per UpdateChannelLinearMinMax(), except acts on incoming new data rather than locking existing mips.
-	// This only works on uncompressed incoming data - otherwise the channel bounds will get updated on save.
-	void UpdateChannelMinMaxFromIncomingTextureData(FMemoryView InNewTextureData);
+	// InNewTextureData must be uncompressed
+	// UpdateChannelMinMaxFromIncomingTextureData does not use the BulkData or CompressionFormat on the TextureSource
+	//	but it does use the dimensions/blocks/etc. they must be set before calling this.
+	// returns true/false for success/failure.
+	// failure may occur if the size of InNewTextureData does not match the dimensions set in the Texturesource
+	bool UpdateChannelMinMaxFromIncomingTextureData(FMemoryView InNewTextureData);
 	
 	/** Returns the source data fully decompressed */
 	// ImageWrapperModule is not used
 	FSharedBuffer Decompress(class IImageWrapperModule* ImageWrapperModule = nullptr) const;
 	/** Attempt to decompress the source data from a compressed format. All failures will be logged and result in the method returning false */
 	FSharedBuffer TryDecompressData() const;
+	/** Do TSCF_UEDELTA transform.  Returned buffer is same size as source.
+	DoUEDeltaTransform( DoUEDeltaTransform(Buffer,true), false) == Buffer
+	*/
+	FSharedBuffer DoUEDeltaTransform(FSharedBuffer InBuffer,bool bForward) const;
 
 	/** Return true if the source art is not png compressed but could be. */
 	bool CanPNGCompress() const;
@@ -623,12 +638,14 @@ private:
 	/** Retrieve the size and offset for a source mip. The size includes all slices. */
 	int64 CalcMipOffset(int32 BlockIndex, int32 LayerIndex, int32 MipIndex) const;
 	
+	/* total size of source data in bytes */
 	int64 CalcTotalSize() const;
+	/* size of block in bytes, over all layers */
 	int64 CalcBlockSize(int32 BlockIndex) const;
 	int64 CalcLayerSize(int32 BlockIndex, int32 LayerIndex) const;
 	int64 CalcBlockSize(const FTextureSourceBlock& Block) const;
 	int64 CalcLayerSize(const FTextureSourceBlock& Block, int32 LayerIndex) const;
-
+	
 	void InitLayeredImpl(
 		int32 NewSizeX,
 		int32 NewSizeY,

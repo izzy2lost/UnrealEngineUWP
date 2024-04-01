@@ -308,7 +308,7 @@ void FTextureSourceData::GetSourceMips(FTextureSource& Source, IImageWrapperModu
 		}
 
 		// Grab a copy of ALL the mip data, we'll get views in to this later.
-		const FTextureSource::FMipData ScopedMipData = Source.GetMipData(InImageWrapper);
+		FTextureSource::FMipData ScopedMipData = Source.GetMipData(InImageWrapper);
 		if (!ScopedMipData.IsValid())
 		{
 			UE_LOG(LogTexture, Warning, TEXT("Cannot retrieve source data for mips of %s"), *TextureFullName);
@@ -358,9 +358,6 @@ void FTextureSourceData::GetSourceMips(FTextureSource& Source, IImageWrapperModu
 		{
 			TRACE_CPUPROFILER_EVENT_SCOPE(FTextureSourceData::GetSourceMips_CopyMips);
 
-			// @todo Oodle : this is slow
-			// it looks like there are unnecessary allocs and memcpys here
-
 			for (int32 BlockIndex = 0; BlockIndex < Blocks.Num(); ++BlockIndex)
 			{
 				FTextureSourceBlock SourceBlock;
@@ -384,12 +381,22 @@ void FTextureSourceData::GetSourceMips(FTextureSource& Source, IImageWrapperModu
 							check(MipImageInfo.GammaSpace == LayerData.SourceGammaSpace);
 							check(MipImageInfo.Format == LayerData.ImageFormat);
 
+							// @todo Oodle : FIX ME : this is slow; instead use FImageView for MipsPerLayer?
+							// could avoid this if we had an FImage that held a SharedBuffer
+							//	OR perhaps better/easier, make these just use FImageView and point them at the mips
+							//	and keep the ScopedMipData ref alove in BlockData
 							SourceMip.RawData.Reset(MipData.GetSize());
 							SourceMip.RawData.Append((const uint8*)MipData.GetData(), MipData.GetSize());
 						}
 					}
 				}
 			}
+		}
+
+		{
+			//ScopedMipData destructor runs now, which frees the FSharedBuffer, which is slow
+			TRACE_CPUPROFILER_EVENT_SCOPE(FTextureSourceData::GetSourceMips_Free);
+			ScopedMipData.ResetData();
 		}
 	}
 }
@@ -1760,7 +1767,7 @@ static bool DDC1_LoadAndValidateTextureData(
 			TRACE_CPUPROFILER_EVENT_SCOPE(GetAsyncSourceMips);
 			TextureData.GetAsyncSourceMips(ImageWrapper);
 			TextureData.AsyncSource.RemoveBulkData();
-		}
+			}
 
 		if (!bHasCompositeTextureSourceMips)
 		{
@@ -2796,10 +2803,18 @@ public:
 		UE::DerivedData::FBuildDefinitionBuilder DefinitionBuilder = Build.CreateDefinition(TexturePath, FunctionName);
 		DefinitionBuilder.AddConstant(UTF8TEXTVIEW("EngineParameters"), UE::TextureBuildUtilities::TextureEngineParameters::ToCompactBinaryWithDefaults(GenerateTextureEngineParameters()));
 		DefinitionBuilder.AddConstant(UTF8TEXTVIEW("Settings"), SaveTextureBuildSettings(Texture, Settings, 0, bUseCompositeTexture, RequiredMemoryEstimate));
+
+		// Texture.Source must be uncompressed for TextureBuildFunction
+		Texture.Source.RemoveCompression();
+		check( ! Texture.Source.IsSourceCompressed() );
 		DefinitionBuilder.AddInputBulkData(UTF8TEXTVIEW("Source"), Texture.Source.GetPersistentId());
+
 		if (Texture.GetCompositeTexture() && bUseCompositeTexture)
 		{
-			DefinitionBuilder.AddInputBulkData(UTF8TEXTVIEW("CompositeSource"), Texture.GetCompositeTexture()->Source.GetPersistentId());
+			FTextureSource & CompositeSource = Texture.GetCompositeTexture()->Source;
+			CompositeSource.RemoveCompression();
+			check( ! CompositeSource.IsSourceCompressed() );
+			DefinitionBuilder.AddInputBulkData(UTF8TEXTVIEW("CompositeSource"), CompositeSource.GetPersistentId());
 		}
 		return DefinitionBuilder.Build();
 	}

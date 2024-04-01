@@ -35,10 +35,12 @@
 #include "ColorManagement/ColorSpace.h"
 #include "ImageCoreBP.h"
 #include "ImageCoreUtils.h"
+#include "ImageCoreDelta.h"
 #include "ImageUtils.h"
 #include "Algo/Unique.h"
 #include "DeviceProfiles/DeviceProfile.h"
 #include "DeviceProfiles/DeviceProfileManager.h"
+#include "Async/ParallelFor.h"
 
 #if WITH_EDITOR
 #include "DerivedDataBuildVersion.h"
@@ -78,12 +80,6 @@ static TAutoConsoleVariable<int32> CVarVirtualTexturesMenuRestricted(
 	0,
 	TEXT("Restrict virtual texture menu options"),
 	ECVF_Default);
-
-static TAutoConsoleVariable<int32> CVarTexturesComputeChannelMinMaxDuringSave(
-	TEXT("r.TexturesComputeChannelMinMaxDuringSave"),
-	0,
-	TEXT("Whether textures determine per channel min/max on save for early format computation."),
-	ECVF_ReadOnly);
 
 // GSkipInvalidDXTDimensions prevents crash with non-4x4 aligned DXT
 // if the Texture code is working correctly, this should not be necessary
@@ -639,6 +635,7 @@ void UTexture::ValidateSettingsAfterImportOrEdit(bool * pRequiresNotifyMaterials
 
 		if ( bLargeTextureMustBeVT && ! VirtualTextureStreaming && MaxTextureSize == 0 )
 		{
+			// ?? why does this not just use CVarVirtualTextures ??
 			static const auto CVarVirtualTexturesEnabled = IConsoleManager::Get().FindTConsoleVariableDataInt(TEXT("r.VirtualTextures"));
 			check( CVarVirtualTexturesEnabled != nullptr );
 
@@ -1352,13 +1349,6 @@ void UTexture::PreSave(FObjectPreSaveContext ObjectSaveContext)
 
 	if (!GEngine->IsAutosaving() && !ObjectSaveContext.IsProceduralSave())
 	{
-		if (Source.LayerColorInfo.Num() == 0 &&
-			CVarTexturesComputeChannelMinMaxDuringSave.GetValueOnGameThread())
-		{
-			// Decompresses and scans the texture.
-			Source.UpdateChannelLinearMinMax();
-		}
-
 		GWarn->StatusUpdate(0, 0, FText::Format(NSLOCTEXT("UnrealEd", "SavingPackage_CompressingSourceArt", "Compressing source art for texture:  {0}"), FText::FromString(GetName())));
 		Source.Compress();
 	}
@@ -2069,7 +2059,9 @@ void FTextureSource::InitBlocked(const ETextureSourceFormat* InLayerFormats,
 
 	UpdateChannelMinMaxFromIncomingTextureData(Buffer.GetView());
 	BulkData.UpdatePayload(Buffer.MoveToShared(), Owner);
-	BulkData.SetCompressionOptions(UE::Serialization::ECompressionOptions::Default);
+
+	// don't compress BulkData yet, it will be done by Compress() from PreSave()
+	BulkData.SetCompressionOptions(UE::Serialization::ECompressionOptions::Disabled);
 	UseHashAsGuid();
 }
 
@@ -2083,7 +2075,9 @@ void FTextureSource::InitBlocked(const ETextureSourceFormat* InLayerFormats,
 
 	UpdateChannelMinMaxFromIncomingTextureData(NewData.GetPayload().GetView());
 	BulkData.UpdatePayload(MoveTemp(NewData), Owner);
-	BulkData.SetCompressionOptions(UE::Serialization::ECompressionOptions::Default);
+
+	// don't compress BulkData yet, it will be done by Compress() from PreSave()
+	BulkData.SetCompressionOptions(UE::Serialization::ECompressionOptions::Disabled);
 	UseHashAsGuid();
 }
 
@@ -2120,11 +2114,14 @@ void FTextureSource::InitLayered(
 	else
 	{
 		BulkData.UpdatePayload(FUniqueBuffer::Alloc(TotalBytes).MoveToShared(), Owner);
-		// ?? unitialized ??
+		// @todo Oodle : FIX ME ?? unitialized memory ??
+		// ?? with no incoming data this is hashing garbage ???
+		// I think this also does FEditorBulkData::Register !?
 	}
-
-	BulkData.SetCompressionOptions(UE::Serialization::ECompressionOptions::Default);
-	UseHashAsGuid(); // ?? with no incoming data this is hashing garbage ???
+	
+	// don't compress BulkData yet, it will be done by Compress() from PreSave()
+	BulkData.SetCompressionOptions(UE::Serialization::ECompressionOptions::Disabled);
+	UseHashAsGuid();
 }
 
 void FTextureSource::InitLayered(
@@ -2147,7 +2144,9 @@ void FTextureSource::InitLayered(
 
 	UpdateChannelMinMaxFromIncomingTextureData(NewData.GetPayload().GetView());
 	BulkData.UpdatePayload(MoveTemp(NewData), Owner);
-	BulkData.SetCompressionOptions(UE::Serialization::ECompressionOptions::Default);
+
+	// don't compress BulkData yet, it will be done by Compress() from PreSave()
+	BulkData.SetCompressionOptions(UE::Serialization::ECompressionOptions::Disabled);
 	UseHashAsGuid();
 }
 
@@ -2238,18 +2237,14 @@ void FTextureSource::InitWithCompressedSourceData(
 
 	CompressionFormat = NewSourceFormat;
 
-	UpdateChannelMinMaxFromIncomingTextureData(MakeMemoryView(NewData));
+	if ( NewSourceFormat == TSCF_None )
+	{
+		UpdateChannelMinMaxFromIncomingTextureData(MakeMemoryView(NewData));
+	}
 	BulkData.UpdatePayload(FSharedBuffer::Clone(NewData.GetData(), NewData.Num()), Owner);
-	// Disable the internal bulkdata compression if the source data is already compressed
-	if (CompressionFormat == TSCF_None)
-	{
-		BulkData.SetCompressionOptions(UE::Serialization::ECompressionOptions::Default);
-	}
-	else
-	{
-		BulkData.SetCompressionOptions(UE::Serialization::ECompressionOptions::Disabled);
-	}
-	
+
+	// don't compress BulkData yet, it will be done by Compress() from PreSave()
+	BulkData.SetCompressionOptions(UE::Serialization::ECompressionOptions::Disabled);	
 	UseHashAsGuid();
 }
 
@@ -2275,19 +2270,14 @@ void FTextureSource::InitWithCompressedSourceData(
 
 	CompressionFormat = NewSourceFormat;
 	
-	UpdateChannelMinMaxFromIncomingTextureData(NewSourceData.GetPayload().GetView());
-
+	if ( NewSourceFormat == TSCF_None )
+	{
+		UpdateChannelMinMaxFromIncomingTextureData(NewSourceData.GetPayload().GetView());
+	}
 	BulkData.UpdatePayload(MoveTemp(NewSourceData), Owner);
-	// Disable the internal bulkdata compression if the source data is already compressed
-	if (CompressionFormat == TSCF_None)
-	{
-		BulkData.SetCompressionOptions(UE::Serialization::ECompressionOptions::Default);
-	}
-	else
-	{
-		BulkData.SetCompressionOptions(UE::Serialization::ECompressionOptions::Disabled);
-	}
-	
+
+	// don't compress BulkData yet, it will be done by Compress() from PreSave()
+	BulkData.SetCompressionOptions(UE::Serialization::ECompressionOptions::Disabled);	
 	UseHashAsGuid();
 }
 
@@ -2314,7 +2304,52 @@ FTextureSource FTextureSource::CopyTornOff() const
 		Result.TornOffGammaSpace[LayerIndex] = this->GetGammaSpace(LayerIndex);
 	}
 	Result.TornOffTextureClass = Owner->GetTextureClass();
+	Result.TornOffOwnerName = Owner->GetName();
+
 	return Result;
+}
+
+static bool ShouldUseUEDeltaForFormat(ETextureSourceFormat Format)
+{
+	if ( Format == TSF_RGBA16F || Format == TSF_RGBA32F ||
+		Format == TSF_R16F || Format == TSF_R32F )
+	{
+		// float formats work fine in UEDelta , but there just isn't much benefit, so don't bother
+		return false;
+	}
+	else
+	{
+		// note BGRE8 : yes!
+		return true;
+	}
+}
+
+void FTextureSource::RemoveCompression()
+{
+#if WITH_EDITOR
+	FScopeLock BulkDataExclusiveScope(&BulkDataLock.Get());
+#endif
+
+	if ( CompressionFormat != TSCF_None )
+	{
+		// change to TSCF_None
+
+		FSharedBuffer Buffer = Decompress();
+		
+		if (LayerColorInfo.Num() == 0 )
+		{
+			// since we're changing compression, go ahead and also update channel minmax now if not done
+			UpdateChannelMinMaxFromIncomingTextureData(Buffer.GetView());
+		}
+		
+		// BulkData.UpdatePayload does a slow hash update
+		BulkData.UpdatePayload(Buffer, Owner);
+
+		CompressionFormat = TSCF_None;
+	}
+
+	// BulkData LZ options not changed here
+	// also no UseHashAsGuid
 }
 
 void FTextureSource::Compress()
@@ -2324,76 +2359,53 @@ void FTextureSource::Compress()
 #endif
 
 	CheckTextureIsUnlocked(TEXT("Compress"));
-
-	// if bUseOodleOnPNGz0 , do PNG filters but then use Oodle instead of zlib back-end LZ
-	//	should be faster to load and also smaller files (than traditional PNG+zlib)
-	bool bUseOodleOnPNGz0 = true;
-
-	// may already have "CompressionFormat" set
-
-	if (CanPNGCompress()) // Note that this will return false if the data is already a compressed PNG
+	
+	if ( CompressionFormat == TSCF_JPEG || CompressionFormat == TSCF_UEJPEG )
 	{
-		FSharedBuffer Payload = BulkData.GetPayload().Get();
-
-		IImageWrapperModule& ImageWrapperModule = FModuleManager::LoadModuleChecked<IImageWrapperModule>( FName("ImageWrapper") );
-		TSharedPtr<IImageWrapper> ImageWrapper = ImageWrapperModule.CreateImageWrapper( EImageFormat::PNG );
-		
-		ERGBFormat RGBFormat;
-		int BitsPerChannel;
-		switch(Format)
-		{
-		case TSF_G8:
-			RGBFormat = ERGBFormat::Gray;
-			BitsPerChannel = 8;
-			break;
-		case TSF_G16:
-			RGBFormat = ERGBFormat::Gray;
-			BitsPerChannel = 16;
-			break;
-		case TSF_BGRA8:
-		// Legacy bug, must be matched in Compress & Decompress
-		// TODO: TSF_BGRA8 is stored as RGBA, so the R and B channels are swapped in the internal png. Should we fix this?
-			// should have been ERGBFormat::BGRA
-			RGBFormat = ERGBFormat::RGBA;
-			BitsPerChannel = 8;
-			break;
-		case TSF_RGBA16:
-			RGBFormat = ERGBFormat::RGBA;
-			BitsPerChannel = 16;
-			break;
-		default:
-			check(0); // should not get here because we already checked CanPNGCompress()
-			return;
-		}
-
-		if ( ImageWrapper.IsValid() && ImageWrapper->SetRaw(Payload.GetData(), Payload.GetSize(), SizeX, SizeY, RGBFormat, BitsPerChannel ) )
-		{
-			EImageCompressionQuality PngQuality = EImageCompressionQuality::Default; // 0 means default 
-			if ( bUseOodleOnPNGz0 )
-			{
-				PngQuality = EImageCompressionQuality::Uncompressed; // turn off zlib
-			}
-			TArray64<uint8> CompressedData = ImageWrapper->GetCompressed((int32)PngQuality);
-			if ( CompressedData.Num() > 0 )
-			{
-				BulkData.UpdatePayload(MakeSharedBufferFromArray(MoveTemp(CompressedData)), Owner);
-
-				CompressionFormat = TSCF_PNG;
-			}
-		}
-	}
-
-	if ( ( CompressionFormat == TSCF_PNG && bUseOodleOnPNGz0 ) ||
-		CompressionFormat == TSCF_None )
-	{
-		BulkData.SetCompressionOptions(ECompressedBufferCompressor::Kraken,ECompressedBufferCompressionLevel::Fast);
-	}
-	else
-	{
+		// leave JPEG data alone, and no need to apply LZ on top of it
 		BulkData.SetCompressionOptions(UE::Serialization::ECompressionOptions::Disabled);
+		return;
 	}
 
-	// note: we changed BulkData payload here to put PNG data in it
+	// may already have "CompressionFormat" set (eg. to PNG)
+
+	if ( ShouldUseUEDeltaForFormat(Format) )
+	{
+		if ( CompressionFormat != TSCF_UEDELTA )
+		{
+			// change to TSCF_UEDELTA
+
+			// can't just call RemoveCompression here because it uses slow BulkData funcs
+			// RemoveCompression();
+			
+			FSharedBuffer Buffer = Decompress();
+		
+			if (LayerColorInfo.Num() == 0 )
+			{
+				// since we're changing compression, go ahead and also update channel minmax now if not done
+				UpdateChannelMinMaxFromIncomingTextureData(Buffer.GetView());
+			}
+
+			FSharedBuffer DeltaBuffer = DoUEDeltaTransform(Buffer,true);
+			
+			// at this moment it would be easy to try LZ compression on the delta and non-delta data and choose the best
+			// if you care about small uasset size and don't mind a slightly slower encode
+			//  (90% of uasset save time is not in this function)
+
+			// BulkData.UpdatePayload does a slow hash update
+			BulkData.UpdatePayload(DeltaBuffer, Owner);
+
+			CompressionFormat = TSCF_UEDELTA;
+		}
+	}
+	else // not ShouldUseUEDeltaForFormat
+	{
+		RemoveCompression();
+	}
+		
+	BulkData.SetCompressionOptions(ECompressedBufferCompressor::Kraken,ECompressedBufferCompressionLevel::Fast);
+
+	// note: we changed BulkData payload here
 	//	but we do NOT call UseHashAsGuid
 	//	we try to keep "Id" == to the hash of the BulkData when it was the raw data
 	//	the invariant
@@ -2442,7 +2454,7 @@ void FTextureSource::CheckTextureIsUnlocked(const TCHAR* DebugMessage)
 	checkf(LockState == ELockState::None, TEXT("%s cannot be called when FTextureSource is locked for %s access [%s]"), 
 		DebugMessage,
 		LexToString(LockState),
-		Owner ? *Owner->GetFullName() : TEXT("unowned"));	
+		Owner ? *Owner->GetFullName() : *TornOffOwnerName);	
 }
 
 // constructor locks the mip (can fail, pointer will be null)
@@ -2569,6 +2581,7 @@ FMutableMemoryView FTextureSource::LockMipInternal(int32 BlockIndex, int32 Layer
 
 	FMutableMemoryView MipView;
 
+	// @@ overall NumMips or Block.NumMips ?
 	if (BlockIndex < GetNumBlocks() && LayerIndex < NumLayers && MipIndex < NumMips)
 	{
 		if (NumLockedMips > 0 && RequestedLockState != LockState)
@@ -2591,7 +2604,7 @@ FMutableMemoryView FTextureSource::LockMipInternal(int32 BlockIndex, int32 Layer
 				check( RequestedLockState == ELockState::ReadWrite );
 
 				UE_LOG(LogTexture,Error, TEXT("LockMip cannot lock for write when previously locked for read [%s]"), 
-					Owner ? *Owner->GetFullName() : TEXT("unowned"));	
+					Owner ? *Owner->GetFullName() : *TornOffOwnerName);	
 				
 				// no data, you did not get the lock, do not call Unlock
 				return MipView;
@@ -2625,7 +2638,7 @@ FMutableMemoryView FTextureSource::LockMipInternal(int32 BlockIndex, int32 Layer
 		int64 MipSize = CalcMipSize(BlockIndex,LayerIndex,MipIndex);
 
 		MipView.MidInline(MipOffset, MipSize);
-		if (MipView.IsEmpty())
+		if (MipView.GetSize() != MipSize)
 		{
 			UE_LOG(LogTexture,Error,TEXT("Mip Data is too small : %lld < %lld+%lld"), LockedMipData.GetSize(),MipOffset,MipSize); 
 			LockedMipData.Reset();
@@ -2679,7 +2692,8 @@ void FTextureSource::UnlockMip(int32 BlockIndex, int32 LayerIndex, int32 MipInde
 			UE_CLOG(CompressionFormat == TSCF_JPEG, LogTexture, Warning, TEXT("Call to FTextureSource::UnlockMip will cause texture source to lose it's jpeg storage format"));
 
 			BulkData.UpdatePayload(LockedMipData.Release(), Owner);
-			BulkData.SetCompressionOptions(UE::Serialization::ECompressionOptions::Default);
+			// don't compress BulkData yet, it will be done by Compress() from PreSave()
+			BulkData.SetCompressionOptions(UE::Serialization::ECompressionOptions::Disabled);
 
 			CompressionFormat = TSCF_None;
 
@@ -2967,12 +2981,153 @@ FString FTextureSource::GetSourceCompressionAsString() const
 	return StaticEnum<ETextureSourceCompressionFormat>()->GetDisplayNameTextByValue(GetSourceCompression()).ToString();
 }
 
+int64 FTextureSource::GetTotalTopMipPixelCount() const
+{
+	int64 TotalPixels = 0;
+
+	for(int64 BlockIndex=0;BlockIndex<GetNumBlocks();BlockIndex++)
+	{
+		FTextureSourceBlock Block;
+		GetBlock(BlockIndex, Block);
+
+		int64 BlockPixels = (int64) Block.SizeX * Block.SizeY * Block.NumSlices;
+
+		TotalPixels += BlockPixels;
+	}
+
+	TotalPixels *= GetNumLayers();
+
+	return TotalPixels;
+}
+
+FSharedBuffer FTextureSource::DoUEDeltaTransform(FSharedBuffer InBuffer,bool bForward) const
+{
+	int64 InBufferSize = InBuffer.GetSize();		
+	int64 ImageSize = CalcTotalSize();
+	check( InBufferSize == ImageSize );
+
+	if ( ImageSize == 0 )
+	{
+		return InBuffer;
+	}
+	
+	TRACE_CPUPROFILER_EVENT_SCOPE(Texture.DoUEDelta);
+
+	const uint8 * InData = (const uint8 *) InBuffer.GetData();
+
+	// add all FImageViews to an array
+	// large ones, cut here ; maybe also de-slice here (or that can be part of cutting big ones)
+	//	(need a stride)
+	// then ParallelFor over all of them
+	// in the ParallelFor visit each row and call the row delta op
+	//	put the row delta op in another file and SIMD it
+	// limit row length to 8192 bytes so stays in L1 (cut in columns, hence need stride)
+
+	TArray64<FImageViewStrided> ImageViewPortions;
+	ImageViewPortions.Empty(16);
+
+	for(int64 BlockIndex=0;BlockIndex<GetNumBlocks();BlockIndex++)
+	{
+		FTextureSourceBlock Block;
+		GetBlock(BlockIndex, Block);
+
+		for(int64 LayerIndex=0;LayerIndex<GetNumLayers();LayerIndex++)
+		{
+			for(int64 MipIndex=0;MipIndex<Block.NumMips;MipIndex++)
+			{
+				// @@ this is code-duped a lot, factor it out :
+				int64 MipOffset = CalcMipOffset(BlockIndex, LayerIndex, MipIndex);
+				int64 MipSize = CalcMipSize(BlockIndex,LayerIndex,MipIndex);
+				check( MipOffset+MipSize <= ImageSize );
+
+				const uint8 * InPtr = InData + MipOffset;
+
+				FImageView Image;
+				Image.RawData = (void *)InPtr;
+				Image.SizeX = FMath::Max(Block.SizeX >> MipIndex, 1);
+				Image.SizeY = FMath::Max(Block.SizeY >> MipIndex, 1);
+				Image.NumSlices = GetMippedNumSlices(Block.NumSlices,MipIndex);
+				Image.Format = FImageCoreUtils::ConvertToRawImageFormat(GetFormat(LayerIndex));
+				Image.GammaSpace = GetGammaSpace(LayerIndex);
+				
+				check( Image.GetImageSizeBytes() == MipSize );
+				
+				#if 0
+				{
+					// debug dump
+					const FString DumpPath = TEXT("r:\\dump\\");
+					
+					IFileManager::Get().MakeDirectory(*DumpPath);
+
+					FString FileName = DumpPath;
+			
+					// get a texture name that's usable in a file name :
+					//FString Name = Owner->GetFullName();
+					FString Name = Owner ? Owner->GetName() : *TornOffOwnerName;
+					Name = FPaths::MakeValidFileName(Name, TEXT('_'));
+					Name.ReplaceCharInline(TEXT('.'),TEXT('_'));
+					Name.ReplaceCharInline(TEXT(' '),TEXT('_'));
+					Name.ReplaceInline(TEXT("__"),TEXT("_"));
+					Name.ReplaceInline(TEXT("__"),TEXT("_"));
+
+					FileName += Name;
+
+					// image save doesn't work on slices, so do them one by one
+					for(int64 SliceIndex=0;SliceIndex<Image.NumSlices;SliceIndex++)
+					{
+						FImageView Slice = Image.GetSlice(SliceIndex);
+
+						FileName += FString::Printf(TEXT("_%dx%dx%dx%d_%s"),BlockIndex,LayerIndex,MipIndex,SliceIndex,
+							bForward ? TEXT("fwd") : TEXT("rev"));
+					
+						FImageUtils::SaveImageAutoFormat(*FileName,Slice);
+					}
+				}
+				#endif
+
+				FImageCoreDelta::AddSplitStridedViewsForDelta( ImageViewPortions, Image);
+			}
+		}
+	}
+	
+	// Out bytes are same size and layout as In bytes :
+	TArray64<uint8> OutArray;
+	OutArray.SetNumUninitialized(ImageSize);
+	uint8 * OutData = &OutArray[0];
+	
+	// parallel on ImageViewPortions :
+	
+	ParallelFor(TEXT("Texture.DoUEDelta.PF"), ImageViewPortions.Num(), 1, [=](int64 JobIndex)
+	{
+		const FImageViewStrided & Part = ImageViewPortions[JobIndex];
+		const uint8 * InPtr = (const uint8 *)Part.RawData;
+		int64 InOffset = InPtr - InData;
+		uint8 * OutPtr = OutData + InOffset;
+		
+		FImageCoreDelta::DoTransform(Part,OutPtr,bForward);
+	}, EParallelForFlags::Unbalanced);
+
+	return MakeSharedBufferFromArray(MoveTemp(OutArray));
+}
+
 FSharedBuffer FTextureSource::TryDecompressData() const
 {
 	// BulkDataLock should be held before calling this!
 
-	if (NumLayers == 1 && NumSlices == 1 && Blocks.Num() == 0)
+	check( CompressionFormat != TSCF_None );
+
+	if ( CompressionFormat == TSCF_UEDELTA )
 	{
+		// get de-LZ'ed payload :
+		FSharedBuffer Payload = BulkData.GetPayload().Get();
+
+		FSharedBuffer RawBuffer = DoUEDeltaTransform(Payload,false);
+				
+		return RawBuffer;
+	}
+	else if (NumLayers == 1 && NumSlices == 1 && Blocks.Num() == 0)
+	{
+		// PNG or JPEG
 		FSharedBuffer Payload = BulkData.GetPayload().Get();
 
 		FImage Image;
@@ -3205,6 +3360,7 @@ void FTextureSource::RemoveSourceData()
 	ForceGenerateGuid();
 }
 
+// total size in bytes including all blocks and layers
 int64 FTextureSource::CalcTotalSize() const
 {
 	int NumBlocks = GetNumBlocks();
@@ -3658,7 +3814,8 @@ void UTexture::GetBuiltTextureSize(const ITargetPlatformSettings* TargetPlatform
 			}
 		}
 	}
-
+	
+	// ?? why does this not just use CVarVirtualTextures ??
 	static const auto CVarVirtualTexturesEnabled = IConsoleManager::Get().FindTConsoleVariableDataInt(TEXT("r.VirtualTextures")); check(CVarVirtualTexturesEnabled);
 	const bool bVirtualTextureStreaming = CVarVirtualTexturesEnabled->GetValueOnAnyThread() && TargetPlatformSettings->SupportsFeature(ETargetPlatformFeatures::VirtualTextureStreaming) && VirtualTextureStreaming;
 
@@ -4387,6 +4544,7 @@ bool FTextureSource::ComputeChannelLinearMinMax(int32 InLayerIndex, FLinearColor
 	{
 		// The data is already present and locked from the mip0 lock above, this just gets us the imageview
 		// Note we only look at mip 0 ; it is possible that other mips go out of the MinMax bound we find.
+		// -> should probably fix this
 		FTextureSource::FMipLock LockedBlock(ELockState::ReadOnly, const_cast<FTextureSource*>(this), BlockIndex, InLayerIndex, 0);
 		check(LockedBlock.IsValid()); // should be same as validity check above!!
 
@@ -4409,21 +4567,20 @@ bool FTextureSource::ComputeChannelLinearMinMax(int32 InLayerIndex, FLinearColor
 	return true;
 }
 
-void FTextureSource::UpdateChannelMinMaxFromIncomingTextureData(FMemoryView InNewTextureData)
+// UpdateChannelMinMaxFromIncomingTextureData does not use the BulkData or CompressionFormat on the TextureSource
+//	but it does use the dimensions/blocks/etc. they must be set before calling this
+bool FTextureSource::UpdateChannelMinMaxFromIncomingTextureData(FMemoryView InNewTextureData)
 {
-	LayerColorInfo.Empty();
-
-	if (CompressionFormat != TSCF_None)
-	{
-		// Can't look at compressed data.
-		return;
-	}
-
-	bool bSucceeded = true;
+	// InNewTextureData must be uncompressed
+	//	if it's not, will likely hit the check on mip size below
+	
+	LayerColorInfo.SetNum(NumLayers);
 
 	for (int32 LayerIndex = 0; LayerIndex < NumLayers; LayerIndex++)
 	{
-		FTextureSourceLayerColorInfo& LayerInfo = LayerColorInfo.AddDefaulted_GetRef();
+		// some undesirable code dupe of ComputeChannelLinearMinMax, perhaps merge
+
+		FTextureSourceLayerColorInfo& LayerInfo = LayerColorInfo[LayerIndex];
 
 		FLinearColor TotalMin(FLT_MAX, FLT_MAX, FLT_MAX, FLT_MAX);
 		FLinearColor TotalMax(-FLT_MAX, -FLT_MAX, -FLT_MAX, -FLT_MAX);
@@ -4433,6 +4590,8 @@ void FTextureSource::UpdateChannelMinMaxFromIncomingTextureData(FMemoryView InNe
 			FTextureSourceBlock Block;
 			GetBlock(BlockIndex, Block);
 
+			// note: only does mip0 of each layer/block !!
+			// -> should probably fix this
 			int64 MipOffset = CalcMipOffset(BlockIndex, LayerIndex, 0);
 			int64 MipSize = CalcMipSize(BlockIndex, LayerIndex, 0);
 
@@ -4465,7 +4624,8 @@ void FTextureSource::UpdateChannelMinMaxFromIncomingTextureData(FMemoryView InNe
 			else
 			{
 				UE_LOG(LogTexture, Error, TEXT("Invalid mip size in texture source init: passed in size doesn't accomodate all mips!"));
-				bSucceeded = false;
+				LayerColorInfo.Empty();
+				return false;
 			}
 		} // end each block
 
@@ -4473,10 +4633,7 @@ void FTextureSource::UpdateChannelMinMaxFromIncomingTextureData(FMemoryView InNe
 		LayerInfo.ColorMin = TotalMin;
 	} // end each layer
 
-	if (!bSucceeded)
-	{
-		LayerColorInfo.Empty();
-	}
+	return true;
 }
 
 bool FTextureSource::UpdateChannelLinearMinMax()

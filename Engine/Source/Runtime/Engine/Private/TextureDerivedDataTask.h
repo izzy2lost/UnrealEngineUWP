@@ -67,7 +67,7 @@ struct FTextureSourceLayerData
 
 struct FTextureSourceBlockData
 {
-	TArray<TArray<FImage>> MipsPerLayer;
+	TArray<TArray<FImage>> MipsPerLayer; // @@ use FImageView instead
 	int32 BlockX = 0;
 	int32 BlockY = 0;
 	int32 SizeInBlocksX = 1; // Normally each blocks covers a 1x1 block area
