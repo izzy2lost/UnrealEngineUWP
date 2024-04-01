@@ -1136,13 +1136,13 @@ namespace UnrealGameSync
 			UpdateStatusPanel();
 			UpdateSyncActionCheckboxes();
 
+			FlashWindow(ParentForm.Handle, true);
+
 			// Do this last because it may result in the control being disposed
 			if (result == WorkspaceUpdateResult.FailedToSyncLoginExpired)
 			{
 				LoginExpired();
 			}
-
-			FlashWindow(ParentForm.Handle, true);
 		}
 
 		void UpdateBuildListCallback()
