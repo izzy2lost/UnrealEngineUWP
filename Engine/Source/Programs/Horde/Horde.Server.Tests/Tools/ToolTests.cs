@@ -20,7 +20,7 @@ namespace Horde.Server.Tests.Tools
 	[TestClass]
 	public class ToolTests : TestSetup
 	{
-		ToolId _toolId = new ToolId("ugs");
+		readonly ToolId _toolId = new ToolId("ugs");
 
 		public ToolTests()
 		{

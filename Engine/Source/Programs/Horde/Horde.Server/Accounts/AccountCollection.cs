@@ -187,7 +187,7 @@ namespace Horde.Server.Accounts
 
 		const int DuplicateKeyErrorCode = 11000;
 
-		private static AccountId s_defaultAdminAccountId = AccountId.Parse("65d4f282ff286703e0609ccd");
+		private static readonly AccountId s_defaultAdminAccountId = AccountId.Parse("65d4f282ff286703e0609ccd");
 
 		private bool _hasCreatedAdminAccount = false;
 		private readonly IMongoCollection<AccountDocument> _accounts;

@@ -73,7 +73,7 @@ namespace Horde.Server.Replicators
 
 		class StateNodeConverter : BlobConverter<StateNode>
 		{
-			static BlobType s_blobType = new BlobType("{8C874966-4273-2E89-9FAC-ABA46DC89154}", 2);
+			static readonly BlobType s_blobType = new BlobType("{8C874966-4273-2E89-9FAC-ABA46DC89154}", 2);
 
 			public override StateNode Read(IBlobReader reader, BlobSerializerOptions options)
 			{
