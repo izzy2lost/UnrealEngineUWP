@@ -1040,7 +1040,7 @@ bool FMetalCompilerToolchain::ExecMetalAr(EAppleSDKType SDK, const TCHAR* Script
 	bool bSuccess = ExecGenericCommand(TEXT("/bin/sh"), *Command, OutReturnCode, OutStdOut, OutStdErr);
 #else
 	FString Command = FString::Printf(TEXT("/C type \"%s\" | \"%s\" -M"), ScriptFile, *this->MetalArBinaryCommand[SDK]);
-	bool bSuccess = ExecGenericCommand(TEXT("cmd.exe"), *Command, OutReturnCode, OutStdOut, OutStdErr);
+	bool bSuccess = ExecGenericCommand(TEXT("cmd.exe"), *Command, OutReturnCode, OutStdOut, OutStdErr, true /*bIsConsoleApp*/);
 #endif
 	if (!bSuccess)
 	{
@@ -1050,9 +1050,10 @@ bool FMetalCompilerToolchain::ExecMetalAr(EAppleSDKType SDK, const TCHAR* Script
 	return bSuccess;
 }
 
-bool FMetalCompilerToolchain::ExecGenericCommand(const TCHAR* Command, const TCHAR* Params, int32* OutReturnCode, FString* OutStdOut, FString* OutStdErr) const
+bool FMetalCompilerToolchain::ExecGenericCommand(const TCHAR* Command, const TCHAR* Params, int32* OutReturnCode, FString* OutStdOut, FString* OutStdErr, bool bIsConsoleApp) const
 {
 #if PLATFORM_WINDOWS
+	if(bIsConsoleApp)
 	{
 		// Why do we have our own implementation here? Because metal.exe wants to create a console window. 
 		// So if we don't specify the options to CreateProc we end up with tons and tons of windows appearing and disappearing during a cook.
@@ -1083,10 +1084,12 @@ bool FMetalCompilerToolchain::ExecGenericCommand(const TCHAR* Command, const TCH
 
 		return RC == 0;
 	}
-#else
-	// Otherwise use the API
-	return FPlatformProcess::ExecProcess(Command, Params, OutReturnCode, OutStdOut, OutStdErr);
+	else
 #endif
+	{
+		// Otherwise use the API
+		return FPlatformProcess::ExecProcess(Command, Params, OutReturnCode, OutStdOut, OutStdErr);
+	}
 }
 
 bool FMetalCompilerToolchain::CompileMetalShader(FMetalShaderBytecodeJob& Job, FMetalShaderBytecode& Output) const
