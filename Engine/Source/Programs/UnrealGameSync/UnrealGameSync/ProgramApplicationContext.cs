@@ -278,6 +278,11 @@ namespace UnrealGameSync
 
 		private void OnStartupComplete(List<(UserSelectedProjectSettings, ModalTask<OpenProjectInfo>)> startupTasks)
 		{
+			if (_startupWindow == null)
+			{
+				return;
+			}
+
 			// Close the startup window
 			bool visible = _startupWindow!.Visible;
 			_startupWindow = null;
