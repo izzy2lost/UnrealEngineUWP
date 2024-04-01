@@ -620,14 +620,12 @@ namespace PCGSubgraphHelpersExtra
 			UPCGNode* NewlyCreatedDeclNode = NewGraph->ReconstructNewNode(OriginalDeclNode);
 			check(NewlyCreatedDeclNode);
 			NewlyCreatedDeclNode->NodeTitle = OriginalDeclNode->NodeTitle;
-			OriginalToNewNodesMapping.Emplace(OriginalDeclNode, NewlyCreatedDeclNode);
+			NewDeclNode = &OriginalToNewNodesMapping.Emplace(OriginalDeclNode, NewlyCreatedDeclNode);
 
 			UPCGPin* OriginalOutputPin = OriginalDeclNode->GetOutputPin(PCGPinConstants::DefaultOutputLabel);
 			UPCGPin* NewInputPin = NewlyCreatedDeclNode->GetInputPin(PCGPinConstants::DefaultInputLabel);
 			check(OriginalOutputPin && NewInputPin);
 			ConnectPinsBetweenSubgraphBoundaries(OriginalOutputPin, NewInputPin, OriginalOutputPin, /*bIsInput=*/true);
-
-			NewDeclNode = &NewlyCreatedDeclNode;
 		}
 
 		// Patch and connect the edges.
