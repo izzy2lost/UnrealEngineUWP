@@ -234,7 +234,16 @@ void SMaterialPalette::RefreshAssetInRegistry(const FAssetData& InAddedAssetData
 {
 	if (InAddedAssetData.IsInstanceOf(UMaterialFunction::StaticClass()))
 	{
+		bNeedRefresh = true;
+	}
+}
+
+void SMaterialPalette::Tick(const FGeometry& AllottedGeometry, const double InCurrentTime, const float InDeltaTime)
+{
+	if (bNeedRefresh)
+	{
 		RefreshActionsList(true);
+		bNeedRefresh = false;
 	}
 }
 

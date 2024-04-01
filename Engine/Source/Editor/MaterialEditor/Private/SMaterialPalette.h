@@ -60,6 +60,8 @@ protected:
 
 	void RefreshAssetInRegistry(const FAssetData& InAddedAssetData);
 
+	virtual void Tick(const FGeometry& AllottedGeometry, const double InCurrentTime, const float InDeltaTime) override;
+
 protected:
 	/** Pointer back to the material editor that owns us */
 	TWeakPtr<FMaterialEditor> MaterialEditorPtr;
@@ -69,4 +71,6 @@ protected:
 
 	/** Combo box used to select category */
 	TSharedPtr<STextComboBox> CategoryComboBox;
+
+	bool bNeedRefresh = false;
 };
