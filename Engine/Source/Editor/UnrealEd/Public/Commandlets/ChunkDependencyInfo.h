@@ -20,6 +20,14 @@ struct FChunkDependency
 {
 	GENERATED_USTRUCT_BODY()
 
+	FChunkDependency()
+	{};
+
+	FChunkDependency(int32 InChunkId, int32 InParentChunkId)
+		: ChunkID(InChunkId)
+		, ParentChunkID(InParentChunkId)
+	{};
+
 	/** The child chunk */
 	UPROPERTY(EditAnywhere, Category = ChunkInfo)
 	int32 ChunkID = 0;
@@ -79,6 +87,9 @@ private:
 
 	/** Map of child chunks to all parent chunks, computed in BuildChunkDependencyGraph */
 	TMap<int32, TSet<int32>> ChildToParentMap;
+
+	/** Cached array of topologically sorted chunk. */
+	TArray<int32> TopologicallySortedChunks;
 
 	/** Cached value of HighestChunk at time of building */
 	int32 CachedHighestChunk;

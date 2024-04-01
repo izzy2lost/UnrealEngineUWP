@@ -1,10 +1,45 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "Commandlets/ChunkDependencyInfo.h"
+#include "Algo/Sort.h"
 #include "Algo/Unique.h"
+#include "Containers/Queue.h"
 
 DEFINE_LOG_CATEGORY_STATIC(LogChunkDependencyInfo, Log, All);
 
+namespace ChunkDependencyInfo
+{
+	// breadth first traversal
+	static TArray<int32> BuildTopologicallySortedArray(const FChunkDependencyTreeNode* RootNode)
+	{
+		TArray<int32> OutArray;
+		if (!RootNode)
+		{
+			return OutArray;
+		}
+		TQueue<const FChunkDependencyTreeNode*> Nodes;
+		Nodes.Enqueue(RootNode);
+
+		TSet<const FChunkDependencyTreeNode*> ProcessedNodes;
+		const FChunkDependencyTreeNode* CurrentNode = nullptr;
+		while (!Nodes.IsEmpty())
+		{
+			Nodes.Dequeue(CurrentNode);
+			if (ProcessedNodes.Contains(CurrentNode))
+			{
+				continue;
+			}
+			ProcessedNodes.Add(CurrentNode);
+			OutArray.Add(CurrentNode->ChunkID);
+			for (const FChunkDependencyTreeNode& ChildNode : CurrentNode->ChildNodes)
+			{
+				Nodes.Enqueue(&ChildNode);
+			}
+		}
+
+		return OutArray;
+	}
+}
 
 UChunkDependencyInfo::UChunkDependencyInfo(const FObjectInitializer& ObjectInitializer)
 	: Super(ObjectInitializer)
@@ -32,6 +67,7 @@ const FChunkDependencyTreeNode* UChunkDependencyInfo::BuildChunkDependencyGraph(
 	RootTreeNode.ChildNodes.Reset(0);
 
 	ChildToParentMap.Reset();
+	ChildToParentMap.Add(0);
 	CachedHighestChunk = HighestChunk;
 
 	// Ensure the DependencyArray is OK to work with.
@@ -78,6 +114,7 @@ const FChunkDependencyTreeNode* UChunkDependencyInfo::BuildChunkDependencyGraph(
 	}
 
 	AddChildrenRecursive(RootTreeNode, DependencyArray, TSet<int32>());
+	TopologicallySortedChunks = ChunkDependencyInfo::BuildTopologicallySortedArray(&RootTreeNode);
 	return &RootTreeNode;
 }
 
@@ -124,55 +161,51 @@ void UChunkDependencyInfo::RemoveRedundantChunks(TArray<int32>& ChunkIDs) const
 	}
 }
 
-const FChunkDependencyTreeNode* LowestCommonAncestor(const FChunkDependencyTreeNode* RootNode, TSet<int32>& FoundSet, const TSet<int32>& FindSet)
-{
-	if (RootNode)
-	{
-		for (const FChunkDependencyTreeNode& ChildNode : RootNode->ChildNodes)
-		{
-			if (const FChunkDependencyTreeNode* ReturnNode = LowestCommonAncestor(&ChildNode, FoundSet, FindSet))
-			{
-				return ReturnNode;
-			}
-		}
-
-		FoundSet.Add(RootNode->ChunkID);
-
-		for (int32 Item : FindSet)
-		{
-			if (!FoundSet.Contains(Item))
-			{
-				return nullptr;
-			}
-		}
-
-		return RootNode;
-	}
-	return nullptr;
-}
-
-
 int32 UChunkDependencyInfo::FindHighestSharedChunk(const TArray<int32>& ChunkIDs) const
 {
-	if (ChunkIDs.Num() == 0)
+	TArray<int32> TestChunkIds;
+	TestChunkIds.Append(ChunkIDs);
+	Algo::Sort(TestChunkIds);
+	TestChunkIds.SetNum(Algo::Unique(TestChunkIds));
+
+	for (int32 ChunkId : TestChunkIds)
 	{
-		return 0;
-	}
-	if (ChunkIDs.Num() == 1)
-	{
-		return ChunkIDs[0];
+		if (!ChildToParentMap.Contains(ChunkId))
+		{
+			return INDEX_NONE;
+		}
 	}
 
-	TSet<int32> FoundSet;
-	TSet<int32> FindSet;
-	FindSet.Append(ChunkIDs);
-	if (const FChunkDependencyTreeNode* BestParent = LowestCommonAncestor(&RootTreeNode, FoundSet, FindSet))
+	if (TestChunkIds.Num() == 0)
 	{
-		return BestParent->ChunkID;
+		return INDEX_NONE;
 	}
-	else
+	if (TestChunkIds.Num() == 1)
+	{
+		return TestChunkIds[0];
+	}
+
+	TSet<int32> CommonParentSet;
+	CommonParentSet.Append(ChildToParentMap[TestChunkIds[0]]);
+	CommonParentSet.Add(TestChunkIds[0]);
+
+	for (int32 Index = 1; Index < TestChunkIds.Num(); Index++)
+	{
+		TSet<int32> OtherSet;
+		OtherSet.Append(ChildToParentMap[TestChunkIds[Index]]);
+		OtherSet.Add(TestChunkIds[Index]);
+		CommonParentSet = CommonParentSet.Intersect(OtherSet);
+	}
+
+	int32 HighestIndex = INDEX_NONE;
+	for (int32 ChunkId : CommonParentSet)
+	{
+		HighestIndex = FMath::Max(HighestIndex, TopologicallySortedChunks.IndexOfByKey(ChunkId));
+	}
+	if (HighestIndex == INDEX_NONE)
 	{
 		UE_LOG(LogChunkDependencyInfo, Error, TEXT("Unable to find parent."));
 		return 0;
 	}
+	return TopologicallySortedChunks[HighestIndex];
 }
