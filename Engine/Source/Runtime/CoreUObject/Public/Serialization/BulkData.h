@@ -1447,6 +1447,8 @@ public:
 	{
 	public:
 		COREUOBJECT_API FBatchBuilder(int32 MaxCount);
+		/** Returns whether the batch is empty. */
+		COREUOBJECT_API bool IsEmpty() const;
 		/** Read the entire bulk data and copy the result to the specified instance. */
 		COREUOBJECT_API FBatchBuilder& Read(FBulkData& BulkData, EAsyncIOPriorityAndFlags Priority = DefaultPriority);
 		/**

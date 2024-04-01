@@ -1040,6 +1040,11 @@ FBulkDataBatchRequest::FBatchBuilder::FBatchBuilder(int32 MaxCount)
 {
 }
 
+bool FBulkDataBatchRequest::FBatchBuilder::IsEmpty() const
+{
+	return BatchCount == 0;
+}
+
 FBulkDataBatchRequest::FBatchBuilder& FBulkDataBatchRequest::FBatchBuilder::Read(FBulkData& BulkData, EAsyncIOPriorityAndFlags Priority)
 {
 	if (BulkData.IsBulkDataLoaded())

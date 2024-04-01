@@ -118,7 +118,7 @@ void FTexture2DStreamIn_IO::SetIORequests(const FContext& Context)
 			}
 		}
 
-		if (bFailedOnIOError)
+		if (bFailedOnIOError || Batch.IsEmpty())
 		{
 			return;
 		}
