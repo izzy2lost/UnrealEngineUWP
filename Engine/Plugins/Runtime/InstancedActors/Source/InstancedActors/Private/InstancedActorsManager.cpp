@@ -184,6 +184,9 @@ void AInstancedActorsManager::OnAddedToSubsystem(UInstancedActorsSubsystem& InIn
 	{
 		// we need to unregister from the previous subsystem first
 		DespawnAllEntities();
+		// and let registered modifiers go
+		RemoveAllModifierVolumes();
+
 		InstancedActorSubsystem->RemoveManager(ManagerHandle);
 		InstancedActorSubsystem = nullptr;
 		ManagerHandle.Reset();
@@ -1147,6 +1150,21 @@ void AInstancedActorsManager::RemoveModifierVolume(UInstancedActorsModifierVolum
 	PendingModifierVolumeModifiers.RemoveAtSwap(ModifierVolumeIndex);
 
 	ModifierVolume.OnRemovedFromManager(*this);
+}
+
+void AInstancedActorsManager::RemoveAllModifierVolumes()
+{
+	for (TWeakObjectPtr<UInstancedActorsModifierVolumeComponent> WeakVolumeComponent : ModifierVolumes)
+	{
+		if (UInstancedActorsModifierVolumeComponent* VolumeComponent = WeakVolumeComponent.Get())
+		{
+			VolumeComponent->OnRemovedFromManager(*this);
+		}
+	}
+	
+	ModifierVolumes.Reset();
+	PendingModifierVolumes.Reset();
+	PendingModifierVolumeModifiers.Reset();
 }
 
 void AInstancedActorsManager::TryRunPendingModifiers()

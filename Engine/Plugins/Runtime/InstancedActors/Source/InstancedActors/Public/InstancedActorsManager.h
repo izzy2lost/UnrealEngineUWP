@@ -158,6 +158,7 @@ public:
 
 	void AddModifierVolume(UInstancedActorsModifierVolumeComponent& ModifierVolume);
 	void RemoveModifierVolume(UInstancedActorsModifierVolumeComponent& ModifierVolume);
+	void RemoveAllModifierVolumes();
 
 	// Request the persistant data system to re-save this managers persistent data
 	void RequestPersistentDataSave();
