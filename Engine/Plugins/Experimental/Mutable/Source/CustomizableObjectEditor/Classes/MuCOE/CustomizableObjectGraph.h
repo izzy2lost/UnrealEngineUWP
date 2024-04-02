@@ -28,6 +28,9 @@ public:
 
 	void PostDuplicate(bool bDuplicateForPIE) override;
 
+	/** Adds the necessary nodes for a CO to work */
+	void AddEssentialGraphNodes();
+
 private:
 
 	// Request Node Id Update Map

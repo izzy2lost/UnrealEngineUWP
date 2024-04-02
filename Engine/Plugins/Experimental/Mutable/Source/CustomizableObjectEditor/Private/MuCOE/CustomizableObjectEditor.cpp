@@ -522,31 +522,12 @@ TSharedRef<SDockTab> FCustomizableObjectEditor::SpawnTab_InstanceProperties( con
 /** Create new tab for the supplied graph - don't call this directly, call SExplorer->FindTabForGraph.*/
 void FCustomizableObjectEditor::CreateGraphEditorWidget(UEdGraph* InGraph)
 {
-	check(InGraph != NULL);
+	UCustomizableObjectGraph* CustomizableObjectGraph = Cast<UCustomizableObjectGraph>(InGraph);
+	check(CustomizableObjectGraph != NULL);
 
-	// Check whether the graph has a base node and create one if it doesn't since it is required
-	bool bGraphHasBase = false;
+	// Add essential graph nodes if they do not exist
+	CustomizableObjectGraph->AddEssentialGraphNodes();
 
-	for (const TObjectPtr<UEdGraphNode>& AuxNode : InGraph->Nodes)
-	{
-		UCustomizableObjectNodeObject* CustomizableObjectNodeObject = Cast<UCustomizableObjectNodeObject>(AuxNode);
-
-		if (CustomizableObjectNodeObject && CustomizableObjectNodeObject->bIsBase)
-		{
-			bGraphHasBase = true;
-			break;
-		}
-	}
-
-	if (!bGraphHasBase)
-	{
-		FCustomizableObjectSchemaAction_NewNode Action;
-		UCustomizableObjectNodeObject* NodeTemplate = NewObject<UCustomizableObjectNodeObject>();
-
-		Action.NodeTemplate = NodeTemplate;
-		Action.FCustomizableObjectSchemaAction_NewNode::PerformAction(InGraph, nullptr, FVector2D::ZeroVector, false);
-	}
-	
 	GraphEditorCommands = MakeShareable(new FUICommandList);
 
 	TSharedRef<SWidget> TitleBarWidget =

@@ -143,3 +143,27 @@ void UCustomizableObjectGraph::PostDuplicate(bool bDuplicateForPIE)
 
 	Super::PostDuplicate(bDuplicateForPIE);
 }
+
+
+void UCustomizableObjectGraph::AddEssentialGraphNodes()
+{
+	// Check whether the graph has a base node and create one if it doesn't since it is required
+	bool bGraphHasBase = false;
+
+	for (const TObjectPtr<UEdGraphNode>& AuxNode : Nodes)
+	{
+		UCustomizableObjectNodeObject* CustomizableObjectNodeObject = Cast<UCustomizableObjectNodeObject>(AuxNode);
+
+		if (CustomizableObjectNodeObject && CustomizableObjectNodeObject->bIsBase)
+		{
+			bGraphHasBase = true;
+			break;
+		}
+	}
+
+	if (!bGraphHasBase)
+	{
+		UCustomizableObjectNodeObject* NodeTemplate = NewObject<UCustomizableObjectNodeObject>();
+		UCustomizableObjectNodeObject* BaseObjectNode = Cast<UCustomizableObjectNodeObject>(FCustomizableObjectSchemaAction_NewNode::CreateNode(this, nullptr, FVector2D::ZeroVector, Cast<UEdGraphNode>(NodeTemplate)));
+	}
+}
