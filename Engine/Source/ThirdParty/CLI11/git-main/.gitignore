@@ -8,7 +8,7 @@ a.out*
 /*.kdev4
 /.vscode
 /html/*
-!/meson.build
+#!/meson.build
 /CMakeUserPresets.json
 
 /node_modules/*

@@ -211,7 +211,7 @@
 /Engine/Binaries/DotNET/UnrealBuildTool.xml
 /Engine/Binaries/DotNET/AutomationScripts/BuildGraph.Automation.xml
 /Engine/Binaries/DotNET/AutomationScripts/Newtonsoft.Json.xml
-/Engine/Platforms/Hololens/Binaries/DotNET/AutomationTool/AutomationScripts/Platforms/HoloLens/*.xml
+/Engine/Platforms/*/Binaries/DotNET/AutomationTool/AutomationScripts/**/*.xml
 /Engine/Source/Programs/AutomationTool/BuildGraph/BuildGraph.Automation.xml
 
 # Ignore generated files from C# tools
@@ -294,6 +294,3 @@ Engine/Extras/ThirdPartyNotUE/SDKs/HostLinux/**
 
 # Ignore vulkan registry
 /Engine/Source/ThirdParty/Vulkan/share/vulkan/registry/**
-
-# Do NOT ignore meson.build inside CLI11, these are included in official CLI11.git repo
-!/Engine/Source/ThirdParty/CLI11/git-main/**/meson.build
