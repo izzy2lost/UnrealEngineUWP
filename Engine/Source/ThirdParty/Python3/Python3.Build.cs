@@ -5,7 +5,6 @@ using System.Diagnostics;
 using System.Collections.Generic;
 using UnrealBuildTool;
 using System.Linq;
-using System.Text.RegularExpressions;
 
 public class Python3 : ModuleRules
 {
@@ -71,8 +70,7 @@ public class Python3 : ModuleRules
 			{
 				// Strip the Engine directory and then combine the path with the placeholder to ensure the path is delimited correctly
 				EngineRelativePythonRoot = EngineRelativePythonRoot.Remove(0, EngineDir.Length);
-				var reg = new Regex("$\\.py|$\\.pyd|$\\.dll");
-				foreach(string FileName in Directory.EnumerateFiles(PythonSDK.PythonRoot, "*", SearchOption.AllDirectories).Where(path => reg.IsMatch(path)))
+				foreach(string FileName in Directory.EnumerateFiles(PythonSDK.PythonRoot, "*", SearchOption.AllDirectories).Where(path => path.EndsWith(".pyd") || path.EndsWith(".py") || path.EndsWith(".dll")))
 				{
 					RuntimeDependencies.Add(FileName);
 				}
