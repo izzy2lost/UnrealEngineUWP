@@ -4622,7 +4622,7 @@ FVector UCharacterMovementComponent::GetAirControl(float DeltaTime, float TickAi
 
 void UCharacterMovementComponent::SetGravityDirection(const FVector& InNewGravityDir)
 {
-	FVector NewGravityDir = InNewGravityDir;
+	FVector NewGravityDir = InNewGravityDir.GetSafeNormal();
 	if (ensure(!NewGravityDir.IsNearlyZero()))
 	{
 		if (!GravityDirection.Equals(NewGravityDir))
