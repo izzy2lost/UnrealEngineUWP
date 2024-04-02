@@ -74,6 +74,9 @@ public:
 	bool PasteLayer(UDMMaterialLayerObject* InLayer);
 
 	UFUNCTION(BlueprintCallable, Category = "Material Designer")
+	bool CanRemoveLayer(const UDMMaterialLayerObject* InLayer) const;
+
+	UFUNCTION(BlueprintCallable, Category = "Material Designer")
 	bool RemoveLayer(UDMMaterialLayerObject* InLayer);
 
 	UFUNCTION(BlueprintCallable, Category = "Material Designer")
@@ -115,8 +118,11 @@ public:
 	UMaterial* GetPreviewMaterial(EDMMaterialLayerStage InLayerStage);
 
 	UFUNCTION(BlueprintCallable, Category = "Material Designer")
-	bool SetLayerMaterialPropertyAndReplaceOthers(UDMMaterialLayerObject* InLayer, EDMMaterialPropertyType InMaterialProperty, 
-		EDMMaterialPropertyType InReplaceWithProperty);
+	bool SetLayerMaterialPropertyAndReplaceOthers(UDMMaterialLayerObject* InLayer, EDMMaterialPropertyType InPropertyFrom,
+		EDMMaterialPropertyType InPropertyTo);
+
+	UFUNCTION(BlueprintCallable, Category = "Material Designer")
+	bool ChangeMaterialProperty(EDMMaterialPropertyType InPropertyFrom, EDMMaterialPropertyType InPropertyTo);
 
 	//~ Begin UDMMaterialComponent
 	virtual void Update(EDMUpdateType InUpdateType) override;

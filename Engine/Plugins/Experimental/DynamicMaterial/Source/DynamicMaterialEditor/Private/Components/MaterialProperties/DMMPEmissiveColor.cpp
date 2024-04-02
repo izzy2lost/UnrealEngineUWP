@@ -1,6 +1,8 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "Components/MaterialProperties/DMMPEmissiveColor.h"
+
+#include "Components/MaterialProperties/DMMPBaseColor.h"
 #include "Model/DynamicMaterialModelEditorOnlyData.h"
 
 UDMMaterialPropertyEmissiveColor::UDMMaterialPropertyEmissiveColor()
@@ -26,4 +28,9 @@ UMaterialExpression* UDMMaterialPropertyEmissiveColor::GetDefaultInput(
 	const TSharedRef<FDMMaterialBuildState>& InBuildState) const
 {
 	return CreateConstant(InBuildState, FVector::OneVector);
+}
+
+void UDMMaterialPropertyEmissiveColor::OnSlotAdded(UDMMaterialSlot* InSlot)
+{
+	UDMMaterialPropertyBaseColor::AddDefaultRGBLayer(EDMMaterialPropertyType::BaseColor, InSlot);
 }

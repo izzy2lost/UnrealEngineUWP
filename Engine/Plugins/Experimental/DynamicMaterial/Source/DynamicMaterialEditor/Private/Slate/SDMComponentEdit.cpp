@@ -234,6 +234,11 @@ SDMComponentEdit::~SDMComponentEdit()
 
 	if (UDMMaterialStage* Stage = Cast<UDMMaterialStage>(ComponentWeak.Get()))
 	{
+		Stage->SetBeingEdited(false);
+	}
+
+	if (UDMMaterialStage* Stage = Cast<UDMMaterialStage>(ComponentWeak.Get()))
+	{
 		Stage->GetOnUpdate().RemoveAll(this);
 	}
 	else if (UDMMaterialEffect* Effect = Cast<UDMMaterialEffect>(ComponentWeak.Get()))
@@ -257,6 +262,11 @@ void SDMComponentEdit::Construct(const FArguments& InArgs, UDMMaterialComponent*
 			{
 				KeyframeHandler = WorldSubsystem->GetKeyframeHandler();
 			}
+		}
+
+		if (UDMMaterialStage* Stage = Cast<UDMMaterialStage>(InComponent))
+		{
+			Stage->SetBeingEdited(true);
 		}
 
 		ChildSlot

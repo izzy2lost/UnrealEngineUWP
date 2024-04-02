@@ -10,21 +10,22 @@
 class UTexture;
 class UDMMaterialStage;
 
+/** Some short names provided so they fit nicely on buttons! */
 UENUM(BlueprintType)
 enum class EDMMaterialPropertyType : uint8
 {
 	None = 0,
-	BaseColor,
-	EmissiveColor,
+	BaseColor UMETA(ShortName = "RGB"),
+	EmissiveColor UMETA(ShortName = "RGB"),
 	Opacity,
-	OpacityMask,
+	OpacityMask UMETA(ShortName = "Mask"),
 	Roughness,
 	Specular,
 	Metallic,
 	Normal,
-	PixelDepthOffset,
-	WorldPositionOffset,
-	AmbientOcclusion,
+	PixelDepthOffset UMETA(ShortName = "PDO"),
+	WorldPositionOffset UMETA(ShortName = "WPO"),
+	AmbientOcclusion UMETA(ShortName = "AO"),
 	Anisotropy,
 	Refraction,
 	Tangent,

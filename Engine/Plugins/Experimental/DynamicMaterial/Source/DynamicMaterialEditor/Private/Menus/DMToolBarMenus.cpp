@@ -36,6 +36,72 @@ namespace UE::DynamicMaterialEditor::Private
 	static FName ToolBarMaterialExportSectionName = TEXT("MaterialExport");
 	static FName ToolBarMaterialDesignerSettingsSectionName = TEXT("MaterialDesignerSettings");
 
+	void AddToolBarMaterialInstanceChannelListMenu_Execute(const FToolMenuContext& InContext, FName InPresetName)
+	{
+		if (UDMMenuContext* Context = InContext.FindContext<UDMMenuContext>())
+		{
+			if (UDynamicMaterialModel* MaterialModel = Context->GetModel())
+			{
+				if (UDynamicMaterialModelEditorOnlyData* EditorOnlyData = UDynamicMaterialModelEditorOnlyData::Get(MaterialModel))
+				{
+					TSharedPtr<SDMEditor> EditorWidget;
+
+					if (TSharedPtr<SDMSlot> SlotWidget = Context->GetSlotWidget().Pin())
+					{
+						EditorWidget = SlotWidget->GetEditorWidget();
+
+					}
+
+					EditorOnlyData->SetChannelListPreset(InPresetName);
+
+					if (EditorWidget.IsValid())
+					{
+						EditorWidget->RefreshSlotPickerList();
+					}
+				}
+			}
+		}
+	}
+
+	ECheckBoxState AddToolBarMaterialInstanceChannelListMenu_GetCheckState(const FToolMenuContext& InContext, FName InPresetName)
+	{
+		if (UDMMenuContext* Context = InContext.FindContext<UDMMenuContext>())
+		{
+			if (UDynamicMaterialModel* MaterialModel = Context->GetModel())
+			{
+				if (UDynamicMaterialModelEditorOnlyData* EditorOnlyData = UDynamicMaterialModelEditorOnlyData::Get(MaterialModel))
+				{
+					return InPresetName == EditorOnlyData->GetChannelListPreset()
+						? ECheckBoxState::Checked
+						: ECheckBoxState::Unchecked;
+				}
+			}
+		}
+
+		return ECheckBoxState::Undetermined;
+	}
+
+	void AddToolBarMaterialInstanceChannelListMenu(UToolMenu* InMenu)
+	{
+		FToolMenuSection& NewSection = InMenu->AddSection("MaterialType", LOCTEXT("MaterialType", "Material Type"));
+
+		for (const TPair<FName, FDMMaterialChannelListPreset>& Preset : GetDefault<UDynamicMaterialEditorSettings>()->ChannelPresets)
+		{
+			FToolUIAction MaterialChannelListType;
+			MaterialChannelListType.ExecuteAction = FToolMenuExecuteAction::CreateStatic(&AddToolBarMaterialInstanceChannelListMenu_Execute, Preset.Key);
+			MaterialChannelListType.GetActionCheckState = FToolMenuGetActionCheckState::CreateStatic(&AddToolBarMaterialInstanceChannelListMenu_GetCheckState, Preset.Key);
+
+			NewSection.AddMenuEntry(
+				Preset.Key,
+				FText::FromName(Preset.Key),
+				FText::GetEmpty(),
+				TAttribute<FSlateIcon>(),
+				FToolUIActionChoice(MaterialChannelListType),
+				EUserInterfaceActionType::RadioButton
+			);
+		}
+	}
+
 	void AddToolBarMaterialInstanceDomainMenu_Execute(const FToolMenuContext& InContext, EMaterialDomain InDomain)
 	{
 		if (UDMMenuContext* Context = InContext.FindContext<UDMMenuContext>())
@@ -44,7 +110,20 @@ namespace UE::DynamicMaterialEditor::Private
 			{
 				if (UDynamicMaterialModelEditorOnlyData* EditorOnlyData = UDynamicMaterialModelEditorOnlyData::Get(MaterialModel))
 				{
+					TSharedPtr<SDMEditor> EditorWidget;
+
+					if (TSharedPtr<SDMSlot> SlotWidget = Context->GetSlotWidget().Pin())
+					{
+						EditorWidget = SlotWidget->GetEditorWidget();
+
+					}
+
 					EditorOnlyData->SetDomain(InDomain);
+
+					if (EditorWidget.IsValid())
+					{
+						EditorWidget->RefreshSlotPickerList();
+					}
 				}
 			}
 		}
@@ -99,7 +178,7 @@ namespace UE::DynamicMaterialEditor::Private
 				DomainEnum->GetDisplayNameTextByValue(Domain),
 				FText::GetEmpty(),
 				TAttribute<FSlateIcon>(),
-				FToolUIActionChoice(	DomainAction),
+				FToolUIActionChoice(DomainAction),
 				EUserInterfaceActionType::RadioButton
 			);
 		}
@@ -113,7 +192,20 @@ namespace UE::DynamicMaterialEditor::Private
 			{
 				if (UDynamicMaterialModelEditorOnlyData* EditorOnlyData = UDynamicMaterialModelEditorOnlyData::Get(MaterialModel))
 				{
+					TSharedPtr<SDMEditor> EditorWidget;
+
+					if (TSharedPtr<SDMSlot> SlotWidget = Context->GetSlotWidget().Pin())
+					{
+						EditorWidget = SlotWidget->GetEditorWidget();
+
+					}
+
 					EditorOnlyData->SetBlendMode(InBlendMode);
+
+					if (EditorWidget.IsValid())
+					{
+						EditorWidget->RefreshSlotPickerList();
+					}
 				}
 			}
 		}
@@ -182,6 +274,14 @@ namespace UE::DynamicMaterialEditor::Private
 			{
 				if (UDynamicMaterialModelEditorOnlyData* EditorOnlyData = UDynamicMaterialModelEditorOnlyData::Get(MaterialModel))
 				{
+					TSharedPtr<SDMEditor> EditorWidget;
+
+					if (TSharedPtr<SDMSlot> SlotWidget = Context->GetSlotWidget().Pin())
+					{
+						EditorWidget = SlotWidget->GetEditorWidget();
+
+					}
+
 					switch (EditorOnlyData->GetShadingModel())
 					{
 						case EDMMaterialShadingModel::DefaultLit:
@@ -191,6 +291,11 @@ namespace UE::DynamicMaterialEditor::Private
 						case EDMMaterialShadingModel::Unlit:
 							EditorOnlyData->SetShadingModel(EDMMaterialShadingModel::DefaultLit);
 							break;
+					}
+
+					if (EditorWidget.IsValid())
+					{
+						EditorWidget->RefreshSlotPickerList();
 					}
 				}
 			}
@@ -241,7 +346,20 @@ namespace UE::DynamicMaterialEditor::Private
 			{
 				if (UDynamicMaterialModelEditorOnlyData* EditorOnlyData = UDynamicMaterialModelEditorOnlyData::Get(MaterialModel))
 				{
+					TSharedPtr<SDMEditor> EditorWidget;
+
+					if (TSharedPtr<SDMSlot> SlotWidget = Context->GetSlotWidget().Pin())
+					{
+						EditorWidget = SlotWidget->GetEditorWidget();
+
+					}
+
 					EditorOnlyData->SetPixelAnimationFlag(!EditorOnlyData->IsPixelAnimationFlagSet());
+
+					if (EditorWidget.IsValid())
+					{
+						EditorWidget->RefreshSlotPickerList();
+					}					
 				}
 			}
 		}
@@ -286,7 +404,20 @@ namespace UE::DynamicMaterialEditor::Private
 			{
 				if (UDynamicMaterialModelEditorOnlyData* EditorOnlyData = UDynamicMaterialModelEditorOnlyData::Get(MaterialModel))
 				{
+					TSharedPtr<SDMEditor> EditorWidget;
+
+					if (TSharedPtr<SDMSlot> SlotWidget = Context->GetSlotWidget().Pin())
+					{
+						EditorWidget = SlotWidget->GetEditorWidget();
+
+					}
+
 					EditorOnlyData->SetTwoSidedFlag(!EditorOnlyData->IsTwoSidedFlagSet());
+
+					if (EditorWidget.IsValid())
+					{
+						EditorWidget->RefreshSlotPickerList();
+					}					
 				}
 			}
 		}
@@ -331,6 +462,13 @@ namespace UE::DynamicMaterialEditor::Private
 		}
 
 		FToolMenuSection& NewSection = InMenu->AddSection(ToolBarMaterialInstanceSectionName, LOCTEXT("MaterialInstanceSection", "Material Instance"));
+
+		NewSection.AddSubMenu(
+			"ChannelList",
+			LOCTEXT("MaterialInstanceMaterialType", "Material Type"),
+			LOCTEXT("MaterialInstanceMaterialType_ToolTip", "Set the material type (channel list) for the active material designer instance."),
+			FNewToolMenuDelegate::CreateStatic(&AddToolBarMaterialInstanceChannelListMenu)
+		);
 
 		NewSection.AddSubMenu(
 			"Domain",
@@ -435,7 +573,7 @@ namespace UE::DynamicMaterialEditor::Private
 
 			if (!GeneratedMaterial)
 			{
-				UE::DynamicMaterialEditor::Private::LogError(TEXT("Failed to find a generated material to export."));
+				UE::DynamicMaterialEditor::Private::LogError(TEXT("Failed to find a generated material to export."), true, MaterialModel);
 				return;
 			}
 
@@ -863,7 +1001,7 @@ TSharedRef<SWidget> FDMToolBarMenus::MakeEditorLayoutMenu(const TSharedPtr<SDMEd
 	TSharedPtr<SDMSlot> SlotWidget;
 	if (InEditorWidget.IsValid())
 	{
-		TArray<TSharedPtr<SDMSlot>> SlotWidgets = InEditorWidget->GetSlotWidgets();
+		const TArray<TSharedRef<SDMSlot>>& SlotWidgets = InEditorWidget->GetSlotWidgets();
 
 		if (SlotWidgets.IsEmpty() == false)
 		{

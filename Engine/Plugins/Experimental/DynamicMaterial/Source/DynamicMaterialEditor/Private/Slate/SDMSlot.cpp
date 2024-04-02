@@ -73,6 +73,7 @@ SDMSlot::~SDMSlot()
 	{
 		Slot->GetOnPropertiesUpdateDelegate().RemoveAll(this);
 		Slot->GetOnLayersUpdateDelegate().RemoveAll(this);
+		Slot->SetEditingLayers(false);
 	}
 
 	SDMEditor::ClearPropertyHandles(this);
@@ -398,6 +399,9 @@ void SDMSlot::RefreshMainWidget()
 		.OnLayerStageSelected(this, &SDMSlot::OnLayerStageSelected)
 		.PreviewSize(LayerPreviewSize);
 
+	ChildSlot.AttachWidget(SNullWidget::NullWidget);
+	SplitterContainer.Reset();
+
 	SplitterContainer =
 		SNew(SSplitter)
 		.Style(FAppStyle::Get(), "DetailsView.Splitter")
@@ -418,44 +422,44 @@ void SDMSlot::RefreshMainWidget()
 			]
 		]
 
-	+ SSplitter::Slot()
-		.Expose(LayerViewSplitterSlot)
-		.Resizable(true)
-		.SizeRule(SSplitter::ESizeRule::FractionOfParent)
-		.MinSize(50)
-		.Value(LayerViewSplitterLocation)
-		[
-			SNew(SBorder)
-			.Padding(2.0f)
-			.BorderImage(FDynamicMaterialEditorStyle::GetBrush("LayerView.Background"))
-			.HAlign(HAlign_Fill)
-			.VAlign(VAlign_Fill)
+		+ SSplitter::Slot()
+			.Expose(LayerViewSplitterSlot)
+			.Resizable(true)
+			.SizeRule(SSplitter::ESizeRule::FractionOfParent)
+			.MinSize(50)
+			.Value(LayerViewSplitterLocation)
 			[
-				LayerView.ToSharedRef()
+				SNew(SBorder)
+				.Padding(2.0f)
+				.BorderImage(FDynamicMaterialEditorStyle::GetBrush("LayerView.Background"))
+				.HAlign(HAlign_Fill)
+				.VAlign(VAlign_Fill)
+				[
+					LayerView.ToSharedRef()
+				]
 			]
-		]
 
-	+ SSplitter::Slot()
-		.Resizable(false)
-		.SizeRule(SSplitter::ESizeRule::SizeToContent)
-		[
-			CreateLayerButtonsRowWidget()
-		]
-
-	+ SSplitter::Slot()
-		.Expose(ExtraSpaceSplitterSlot)
-		.Resizable(true)
-		.SizeRule(SSplitter::ESizeRule::FractionOfParent)
-		.MinSize(50)
-		.Value(ExtraSpaceSplitterLocation)
-		[
-			SAssignNew(ComponentEditContainer, SScrollBox)
-			+ SScrollBox::Slot()
-			.AutoSize()
+		+ SSplitter::Slot()
+			.Resizable(false)
+			.SizeRule(SSplitter::ESizeRule::SizeToContent)
 			[
-				CreateComponentEditWidget()
+				CreateLayerButtonsRowWidget()
 			]
-		];
+
+		+ SSplitter::Slot()
+			.Expose(ExtraSpaceSplitterSlot)
+			.Resizable(true)
+			.SizeRule(SSplitter::ESizeRule::FractionOfParent)
+			.MinSize(50)
+			.Value(ExtraSpaceSplitterLocation)
+			[
+				SAssignNew(ComponentEditContainer, SScrollBox)
+				+ SScrollBox::Slot()
+				.AutoSize()
+				[
+					CreateComponentEditWidget()
+				]
+			];
 
 	TSharedRef<SVerticalBox> Child = SNew(SVerticalBox);
 
@@ -894,6 +898,7 @@ void SDMSlot::RefreshHeaderPropertyListWidget()
 
 	if (HeaderPropertyListWidget.IsValid())
 	{
+		HeaderPropertyListWidget->SetContent(SNullWidget::NullWidget);
 		HeaderPropertyListWidget->SetContent(CreateHeaderPropertyListWidget());
 	}
 }
@@ -904,6 +909,7 @@ void SDMSlot::RefreshSlotSettingsRowWidget()
 
 	if (SlotSettingsRowContainer.IsValid())
 	{
+		SlotSettingsRowContainer->SetContent(SNullWidget::NullWidget);
 		SlotSettingsRowContainer->SetContent(CreateSlotSettingsRow());
 	}
 }
@@ -1111,11 +1117,6 @@ bool SDMSlot::CanRemoveLayerByIndex(const int32 InLayerIndex) const
 		return false;
 	}
 
-	if (Slot->GetLayers().Num() > 1)
-	{
-		return true;
-	}
-
 	const UDMMaterialLayerObject* LayerToRemove = Slot->GetLayer(InLayerIndex);
 
 	if (!LayerToRemove)
@@ -1123,26 +1124,7 @@ bool SDMSlot::CanRemoveLayerByIndex(const int32 InLayerIndex) const
 		return false;
 	}
 
-	if (UDynamicMaterialModelEditorOnlyData* ModelEditorOnlyData = Slot->GetMaterialModelEditorOnlyData())
-	{
-		const TArray<EDMMaterialPropertyType> Properties = ModelEditorOnlyData->GetMaterialPropertiesForSlot(Slot);
-
-		for (EDMMaterialPropertyType Property : Properties)
-		{
-			switch (Property)
-			{
-				case EDMMaterialPropertyType::BaseColor:
-				case EDMMaterialPropertyType::EmissiveColor:
-					return Slot->GetLayers().Num() > 1;
-
-				default:
-					// Nothing
-					break;
-			}
-		}
-	}
-
-	return true;
+	return Slot->CanRemoveLayer(LayerToRemove);
 }
 
 void SDMSlot::RemoveLayerByIndex(const int32 InLayerIndex, const bool bInSelectNextMaskIfMask)
@@ -1277,19 +1259,15 @@ UDMMaterialLayerObject* SDMSlot::AddNewLayer(UDMMaterialStage* InNewBaseStage, U
 
 		if (Slot->GetLayers().IsEmpty())
 		{
-			switch (ModelEditorOnlyData->GetShadingModel())
+			TArray<EDMMaterialPropertyType> SlotProperties = ModelEditorOnlyData->GetMaterialPropertiesForSlot(Slot);
+
+			if (!SlotProperties.IsEmpty())
 			{
-				case EDMMaterialShadingModel::Unlit:
-					MaterialProperty = EDMMaterialPropertyType::EmissiveColor;
-					break;
-
-				case EDMMaterialShadingModel::DefaultLit:
-					MaterialProperty = EDMMaterialPropertyType::BaseColor;
-					break;
-
-				default:
-					checkNoEntry();
-					break;
+				MaterialProperty = SlotProperties[0];
+			}
+			else
+			{
+				check("Cannot find material property.");
 			}
 		}
 		else

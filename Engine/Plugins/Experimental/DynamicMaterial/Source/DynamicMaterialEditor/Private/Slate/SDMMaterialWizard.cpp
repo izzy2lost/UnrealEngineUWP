@@ -3,6 +3,7 @@
 #include "Slate/SDMMaterialWizard.h"
 
 #include "DMDefs.h"
+#include "DynamicMaterialEditorSettings.h"
 #include "DynamicMaterialEditorStyle.h"
 #include "Engine/EngineTypes.h"
 #include "MaterialDomain.h"
@@ -10,6 +11,8 @@
 #include "Model/DynamicMaterialModelEditorOnlyData.h"
 #include "SDMEditor.h"
 #include "Styling/SlateTypes.h"
+#include "Styling/StyleColors.h"
+#include "Widgets/Colors/SColorBlock.h"
 #include "Widgets/Input/SButton.h"
 #include "Widgets/Input/SCheckBox.h"
 #include "Widgets/Layout/SBox.h"
@@ -30,6 +33,12 @@ namespace UE::DynamicMaterialEditor::Private
 void SDMMaterialWizard::Construct(const FArguments& InArgs, const TSharedRef<SDMEditor>& InEditor)
 {
 	EditorWeak = InEditor;
+
+	for (const TPair<FName, FDMMaterialChannelListPreset>& Preset : GetDefault<UDynamicMaterialEditorSettings>()->ChannelPresets)
+	{
+		CurrentPreset = Preset.Key;
+		break;
+	}
 
 	ChildSlot
 		[
@@ -68,6 +77,56 @@ TSharedRef<SWidget> SDMMaterialWizard::CreateLayout()
 				SNew(STextBlock)
 				.TextStyle(FDynamicMaterialEditorStyle::Get(), "ActorNameBig")
 				.Text(LOCTEXT("MaterialWizard", "Material Wizard"))
+			]
+
+			+ SVerticalBox::Slot()
+			.AutoHeight()
+			.HAlign(HAlign_Left)
+			.Padding(0.0f, SeparationDistance, 0.0f, TitleContentDistance)
+			[
+				SNew(STextBlock)
+				.Text(LOCTEXT("MaterialType", "Material Type"))
+			]
+
+			+ SVerticalBox::Slot()
+			.AutoHeight()
+			.HAlign(EHorizontalAlignment::HAlign_Fill)
+			.Padding(0.0f, 0.f, 0.0f, TitleContentDistance)
+			[
+				CreateChannelPresets()
+			]
+
+			+ SVerticalBox::Slot()
+			.AutoHeight()
+			.HAlign(HAlign_Left)
+			.Padding(0.0f, SeparationDistance, 0.0f, TitleContentDistance)
+			[
+				SNew(STextBlock)
+				.Text(LOCTEXT("AvailableChannels", "Available Channels"))
+			]
+
+			+ SVerticalBox::Slot()
+			.AutoHeight()
+			.HAlign(EHorizontalAlignment::HAlign_Fill)
+			[
+				SAssignNew(PresetChannelContainer, SBox)
+				.HAlign(EHorizontalAlignment::HAlign_Fill)
+				[
+					CreateChannelList()
+				]
+			]
+
+			+ SVerticalBox::Slot()
+			.AutoHeight()
+			.HAlign(HAlign_Fill)
+			.Padding(0.0f, SeparationDistance, 0.0f, 0.f)
+			[
+				SNew(SBox)
+				.HeightOverride(1.f)
+				[
+					SNew(SColorBlock)
+					.Color(FStyleColors::Foreground.GetSpecifiedColor().ToFColor(false))
+				]
 			]
 
 			+ SVerticalBox::Slot()
@@ -152,26 +211,15 @@ TSharedRef<SWidget> SDMMaterialWizard::CreateLayout()
 
 			+ SVerticalBox::Slot()
 			.AutoHeight()
-			.HAlign(HAlign_Left)
-			.Padding(0.0f, SeparationDistance, 0.0f, TitleContentDistance)
+			.HAlign(HAlign_Fill)
+			.Padding(0.0f, SeparationDistance, 0.0f, 0.f)
 			[
-				SNew(STextBlock)
-				.Text(LOCTEXT("Channels", "Channels"))
-			]
-
-			+ SVerticalBox::Slot()
-			.AutoHeight()
-			.HAlign(EHorizontalAlignment::HAlign_Fill)
-			.Padding(0.0f, 0.f, 0.0f, TitleContentDistance)
-			[
-				CreateChannelPresets()
-			]
-
-			+ SVerticalBox::Slot()
-			.AutoHeight()
-			.HAlign(EHorizontalAlignment::HAlign_Fill)
-			[
-				CreateChannelList()
+				SNew(SBox)
+				.HeightOverride(1.f)
+				[
+					SNew(SColorBlock)
+					.Color(FStyleColors::Foreground.GetSpecifiedColor().ToFColor(false))
+				]
 			]
 
 			+ SVerticalBox::Slot()
@@ -368,25 +416,78 @@ TSharedRef<SWidget> SDMMaterialWizard::CreateChannelPresets()
 {
 	using namespace UE::DynamicMaterialEditor::Private;
 
-	return SNew(SHorizontalBox)
-		+ SHorizontalBox::Slot()
-		.AutoWidth()
-		.Padding(0.f, 0.f, TitleContentDistance, 0.f)
-		[
-			SNew(STextBlock)
-			.Text(LOCTEXT("Presets", "Presets"))
-		]
-		+ SHorizontalBox::Slot()
-		[
-			SNew(STextBlock)
-			.Text(INVTEXT("-"))
-		];
+	TSharedRef<SWrapBox> ChannelPresets = SNew(SWrapBox)
+		.UseAllottedSize(true)
+		.InnerSlotPadding(WrapBoxSlotPadding)
+		.Orientation(EOrientation::Orient_Horizontal);
+
+	for (const TPair<FName, FDMMaterialChannelListPreset>& Preset : GetDefault<UDynamicMaterialEditorSettings>()->ChannelPresets)
+	{
+		ChannelPresets->AddSlot()
+			[
+				SNew(SCheckBox)
+					.Style(FAppStyle::Get(), "DetailsView.SectionButton")
+					.HAlign(EHorizontalAlignment::HAlign_Center)
+					.Padding(ButtonPadding)
+					.IsChecked(this, &SDMMaterialWizard::Preset_GetState, Preset.Key)
+					.OnCheckStateChanged(this, &SDMMaterialWizard::Preset_OnChange, Preset.Key)
+					[
+						SNew(STextBlock)
+						.Text(FText::FromName(Preset.Key))
+					]
+			];
+	}
+
+	return ChannelPresets;
 }
 
 TSharedRef<SWidget> SDMMaterialWizard::CreateChannelList()
 {
-	return SNew(STextBlock)
-		.Text(INVTEXT("Full Channel List"));
+	using namespace UE::DynamicMaterialEditor::Private;
+
+	UEnum* MaterialPropertyEnum = StaticEnum<EDMMaterialPropertyType>();
+
+	TSharedRef<SWrapBox> ChannelPresets = SNew(SWrapBox)
+		.UseAllottedSize(true)
+		.InnerSlotPadding(WrapBoxSlotPadding)
+		.Orientation(EOrientation::Orient_Horizontal);
+
+	if (const FDMMaterialChannelListPreset* Preset = GetDefault<UDynamicMaterialEditorSettings>()->ChannelPresets.Find(CurrentPreset))
+	{
+		for (uint8 PropertyIndex = static_cast<uint8>(EDMMaterialPropertyType::None) + 1;
+			PropertyIndex < static_cast<uint8>(EDMMaterialPropertyType::Any);
+			++PropertyIndex)
+		{
+			const EDMMaterialPropertyType Property = static_cast<EDMMaterialPropertyType>(PropertyIndex);
+
+			if (Property == EDMMaterialPropertyType::EmissiveColor || Property == EDMMaterialPropertyType::OpacityMask)
+			{
+				continue;
+			}
+				
+			if (Preset->IsPropertyEnabled(Property))
+			{
+				constexpr const TCHAR* ShortNameName = TEXT("ShortName");
+				const FString ShortName = MaterialPropertyEnum->GetMetaData(ShortNameName, MaterialPropertyEnum->GetIndexByValue(static_cast<int64>(PropertyIndex)));
+
+				ChannelPresets->AddSlot()
+					[
+						SNew(SCheckBox)
+						.Style(FAppStyle::Get(), "DetailsView.SectionButton")
+						.HAlign(EHorizontalAlignment::HAlign_Center)
+						.Padding(ButtonPadding)
+						.IsChecked(false)
+						.IsEnabled(false)
+						[
+							SNew(STextBlock)
+							.Text(!ShortName.IsEmpty() ? FText::FromString(ShortName) : MaterialPropertyEnum->GetDisplayNameTextByValue(static_cast<int64>(Property)))
+						]
+					];
+			}
+		}
+	}
+
+	return ChannelPresets;
 }
 
 TSharedRef<SWidget> SDMMaterialWizard::CreateAcceptButton()
@@ -602,6 +703,26 @@ void SDMMaterialWizard::TwoSided_OnChange(ECheckBoxState InState, bool bInValue)
 	}
 }
 
+ECheckBoxState SDMMaterialWizard::Preset_GetState(FName InPresetName) const
+{
+	return CurrentPreset == InPresetName
+		? ECheckBoxState::Checked
+		: ECheckBoxState::Unchecked;
+}
+
+void SDMMaterialWizard::Preset_OnChange(ECheckBoxState InState, FName InPresetName)
+{
+	if (InState == ECheckBoxState::Checked)
+	{
+		CurrentPreset = InPresetName;
+
+		if (PresetChannelContainer.IsValid())
+		{
+			PresetChannelContainer->SetContent(CreateChannelList());
+		}
+	}
+}
+
 FReply SDMMaterialWizard::Accept_OnClick()
 {
 	if (TSharedPtr<SDMEditor> Editor = GetEditor())
@@ -610,6 +731,7 @@ FReply SDMMaterialWizard::Accept_OnClick()
 		{
 			if (UDynamicMaterialModelEditorOnlyData* EditorOnlyData = UDynamicMaterialModelEditorOnlyData::Get(MaterialModel))
 			{
+				EditorOnlyData->SetChannelListPreset(CurrentPreset);
 				EditorOnlyData->OnWizardComplete();
 				Editor->SetMaterialModel(MaterialModel); // Refresh display
 			}

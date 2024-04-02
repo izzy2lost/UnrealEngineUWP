@@ -2,6 +2,7 @@
 
 #pragma once
 
+#include "DMDefs.h"
 #include "Engine/DeveloperSettings.h"
 #include "Containers/Array.h"
 #include "Engine/Texture.h"
@@ -11,8 +12,9 @@
 
 class FModifierKeysState;
 class UMaterialFunctionInterface;
-struct FPropertyChangedEvent;
 enum EOrientation : int;
+struct FDMMaterialChannelListPreset;
+struct FPropertyChangedEvent;
 
 USTRUCT(BlueprintType)
 struct FDMMaterialEffectList
@@ -24,6 +26,51 @@ struct FDMMaterialEffectList
 
 	UPROPERTY(Config, EditAnywhere, BlueprintReadWrite, Category = "Effects")
 	TArray<TSoftObjectPtr<UMaterialFunctionInterface>> Effects;
+};
+
+USTRUCT(BlueprintType)
+struct FDMMaterialChannelListPreset
+{
+	GENERATED_BODY()
+
+	/** This cannot be disabled. It is here for illustrative purposes only. */
+	UPROPERTY(Config, VisibleAnywhere, BlueprintReadOnly, Category = "Channel")
+	bool bRGB = true;
+
+	UPROPERTY(Config, EditAnywhere, BlueprintReadWrite, Category = "Channel")
+	bool bOpacity = false;
+
+	UPROPERTY(Config, EditAnywhere, BlueprintReadWrite, Category = "Channel")
+	bool bRoughness = false;
+
+	UPROPERTY(Config, EditAnywhere, BlueprintReadWrite, Category = "Channel")
+	bool bSpecular = false;
+
+	UPROPERTY(Config, EditAnywhere, BlueprintReadWrite, Category = "Channel")
+	bool bMetallic = false;
+
+	UPROPERTY(Config, EditAnywhere, BlueprintReadWrite, Category = "Channel")
+	bool bNormal = false;
+
+	UPROPERTY(Config, EditAnywhere, BlueprintReadWrite, Category = "Channel")
+	bool bPixelDepthOffset = false;
+
+	UPROPERTY(Config, EditAnywhere, BlueprintReadWrite, Category = "Channel")
+	bool bWorldPositionOffset = false;
+
+	UPROPERTY(Config, EditAnywhere, BlueprintReadWrite, Category = "Channel")
+	bool bAmbientOcclusion = false;
+
+	UPROPERTY(Config, EditAnywhere, BlueprintReadWrite, Category = "Channel")
+	bool bAnisotropy = false;
+
+	UPROPERTY(Config, EditAnywhere, BlueprintReadWrite, Category = "Channel")
+	bool bRefraction = false;
+
+	UPROPERTY(Config, EditAnywhere, BlueprintReadWrite, Category = "Channel")
+	bool bTangent = false;
+
+	bool IsPropertyEnabled(EDMMaterialPropertyType InProperty) const;
 };
 
 /**
@@ -137,6 +184,9 @@ public:
 	 */
 	UPROPERTY(Config, EditAnywhere, BlueprintReadWrite, Category = "Effects")
 	TArray<FName> CustomEffectsFolders;
+
+	UPROPERTY(Config, EditAnywhere, BlueprintReadWrite, Category = "Channels")
+	TMap<FName, FDMMaterialChannelListPreset> ChannelPresets;
 
 	FOnFinishedChangingProperties OnSettingsChanged;
 

@@ -13,10 +13,13 @@ class DYNAMICMATERIALEDITOR_API UDMMaterialPropertyBaseColor : public UDMMateria
 	GENERATED_BODY()
 
 public:
+	static void AddDefaultRGBLayer(EDMMaterialPropertyType InMaterialProperty, UDMMaterialSlot* InSlot);
+
 	UDMMaterialPropertyBaseColor();
 
 	//~ Begin UDMMaterialProperty
 	virtual bool IsValidForModel(UDynamicMaterialModelEditorOnlyData& InModelEditorOnlyData) const override;
 	virtual UMaterialExpression* GetDefaultInput(const TSharedRef<FDMMaterialBuildState>& InBuildState) const override;
+	virtual void OnSlotAdded(UDMMaterialSlot* InSlot) override;
 	//~ End UDMMaterialProperty
 };

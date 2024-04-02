@@ -58,7 +58,7 @@ public:
 
 	void SetMaterialActor(AActor* InActor);
 
-	const TArray<TSharedPtr<SDMSlot>>& GetSlotWidgets() const { return SlotWidgets; }
+	const TArray<TSharedRef<SDMSlot>>& GetSlotWidgets() const { return SlotWidgets; }
 	TSharedPtr<SDMSlot> GetSlotWidget(UDMMaterialSlot* Slot) const;
 
 	void RefreshGlobalOpacitySlider();
@@ -129,7 +129,7 @@ protected:
 	TWeakObjectPtr<UDynamicMaterialModel> MaterialModelWeak;
 	FDMObjectMaterialProperty ObjectProperty;
 
-	TArray<TSharedPtr<SDMSlot>> SlotWidgets;
+	TArray<TSharedRef<SDMSlot>> SlotWidgets;
 
 	void BindCommands();
 
@@ -142,27 +142,16 @@ protected:
 
 	TSharedRef<SWidget> CreateActorMaterialSlotSelector(const AActor* InActor);
 
-	FReply OnAddSlotButtonClicked();
-
 	void OnMaterialBuilt(UDynamicMaterialModel* InMaterialModel);
 	void OnValuesUpdated(UDynamicMaterialModel* InMaterialModel);
 	void OnSlotsUpdated(UDynamicMaterialModel* InMaterialModel);
 
 	bool IsGlobalOpacityEnabled() const;
 
-	ECheckBoxState GetRGBSlotCheckState_HasSlot() const;
-	void OnRGBSlotCheckStateChanged_HasSlot(ECheckBoxState InCheckState);
-
-	ECheckBoxState GetRGBSlotCheckState_NoSlot() const;
-	void OnRGBSlotCheckStateChanged_NoSlot(ECheckBoxState InCheckState);
-
-	bool GetOpacityButtonEnabled_HasSlot() const;
-	ECheckBoxState GetOpacitySlotCheckState_HasSlot() const;
-	void OnOpacitySlotCheckStateChanged_HasSlot(ECheckBoxState InCheckState);
-
-	bool GetOpacityButtonEnabled_NoSlot() const;
-	ECheckBoxState GetOpacitySlotCheckState_NoSlot() const;
-	void OnOpacitySlotCheckStateChanged_NoSlot(ECheckBoxState InCheckState);
+	bool IsPropertyValidForModel(EDMMaterialPropertyType InProperty) const;
+	ECheckBoxState GetSlotCheckState(EDMMaterialPropertyType InProperty) const;
+	FText GetToolTipForProperty(EDMMaterialPropertyType InProperty) const;
+	void OnSlotCheckStateChanged(ECheckBoxState InCheckState, EDMMaterialPropertyType InProperty);
 
 	FReply OnCreateMaterialButtonClicked(TWeakPtr<FDMObjectMaterialProperty> InMaterialProperty);
 
@@ -170,23 +159,6 @@ protected:
 	TSharedRef<SWidget> MakeToolBarSettingsMenu();
 
 	void OnSettingsChanged(const FPropertyChangedEvent& InPropertyChangedEvent);
-
-	EMaterialDomain GetSelectedDomain() const;
-	void OnDomainChanged(const EMaterialDomain InDomain);
-	bool CanChangeDomain() const;
-
-	EBlendMode GetSelectedBlendMode() const;
-	void OnBlendModeChanged(const EBlendMode InBlendMode);
-	bool CanChangeBlendType() const;
-
-	ECheckBoxState IsMaterialUnlit() const;
-	void OnMaterialUnlitChanged(const ECheckBoxState InNewCheckState);
-
-	bool CanMaterialBeAnimated() const;
-	ECheckBoxState IsMaterialAnimated() const;
-	void OnMaterialAnimatedChanged(const ECheckBoxState InNewCheckState);
-
-	bool CanChangeMaterialShadingModel() const;
 
 	void OnUndo();
 };

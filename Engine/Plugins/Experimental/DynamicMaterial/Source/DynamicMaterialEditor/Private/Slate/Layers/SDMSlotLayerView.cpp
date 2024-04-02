@@ -366,7 +366,6 @@ void SDMSlotLayerView::OnLayerItemSelectionChanged(TSharedPtr<FDMMaterialLayerRe
 				if (UDMMaterialStage* Stage = BaseWidget->GetStage())
 				{
 					Stage->Modify();
-					Stage->SetBeingEdited(false);
 
 					if (InSelectInfo == ESelectInfo::OnMouseClick && SlotWidget.IsValid())
 					{
@@ -380,8 +379,6 @@ void SDMSlotLayerView::OnLayerItemSelectionChanged(TSharedPtr<FDMMaterialLayerRe
 			{
 				if (UDMMaterialStage* Stage = MaskWidget->GetStage())
 				{
-					Stage->SetBeingEdited(false);
-
 					if (InSelectInfo == ESelectInfo::OnMouseClick && SlotWidget.IsValid())
 					{
 						SlotWidget->InvalidateSlotSettingsRowWidget();
@@ -841,7 +838,6 @@ void SDMSlotLayerView::Tick(const FGeometry& InAllottedGeometry, const double In
 			if (UDMMaterialStage* SelectedStage = SelectedStageWeak.Get())
 			{
 				SelectedStage->Modify();
-				SelectedStage->SetBeingEdited(true);
 			}
 		}
 

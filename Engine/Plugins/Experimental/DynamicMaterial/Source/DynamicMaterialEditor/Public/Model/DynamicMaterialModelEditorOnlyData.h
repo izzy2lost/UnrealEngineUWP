@@ -21,9 +21,10 @@ class UDMTextureUV;
 class UDynamicMaterialModel;
 class UDynamicMaterialModelEditorOnlyData;
 class UMaterialExpression;
-struct FDMComponentPathSegment;
 struct FDMComponentPath;
+struct FDMComponentPathSegment;
 struct FDMMaterialBuildState;
+struct FDMMaterialChannelListPreset;
 
 DECLARE_MULTICAST_DELEGATE_OneParam(FDMOnMaterialBuilt, UDynamicMaterialModel*);
 DECLARE_MULTICAST_DELEGATE_OneParam(FDMOnValueListUpdated, UDynamicMaterialModel*);
@@ -47,8 +48,22 @@ class DYNAMICMATERIALEDITOR_API UDynamicMaterialModelEditorOnlyData : public UOb
 
 public:
 	static const FString SlotsPathToken;
-	static const FString RGBSlotPathToken; // @TODO This will probably need to change when other slot types are opened up.
-	static const FString OpacitySlotPathToken; // @TODO This will probably need to change when other slot types are opened up.
+	static const FString RGBSlotPathToken;
+	static const FString OpacitySlotPathToken;
+	static const FString RoughnessPathToken;
+	static const FString SpecularPathToken;
+	static const FString MetallicPathToken;
+	static const FString NormalPathToken;
+	static const FString PixelDepthOffsetPathToken;
+	static const FString WorldPositionOffsetPathToken;
+	static const FString AmbientOcclusionPathToken;
+	static const FString AnisotropyPathToken;
+	static const FString RefractionPathToken;
+	static const FString TangentPathToken;
+	static const FString Custom1PathToken;
+	static const FString Custom2PathToken;
+	static const FString Custom3PathToken;
+	static const FString Custom4PathToken;
 	static const FString PropertiesPathToken;
 
 	static const TArray<EMaterialDomain> SupportedDomains;
@@ -60,6 +75,8 @@ public:
 	static UDynamicMaterialModelEditorOnlyData* Get(IDynamicMaterialModelEditorOnlyDataInterface* InInterface);
 
 	UDynamicMaterialModelEditorOnlyData();
+
+	void Initialize();
 
 	UFUNCTION(BlueprintPure, Category = "Material Designer")
 	UDynamicMaterialModel* GetMaterialModel() const { return MaterialModel; }
@@ -101,6 +118,12 @@ public:
 	void SetTwoSidedFlag(bool bInFlagValue);
 
 	UFUNCTION(BlueprintCallable, Category = "Material Designer")
+	FName GetChannelListPreset() const;
+
+	UFUNCTION(BlueprintCallable, Category = "Material Designer")
+	void SetChannelListPreset(FName InPresetName);
+
+	UFUNCTION(BlueprintCallable, Category = "Material Designer")
 	void OpenMaterialEditor() const;
 
 	UFUNCTION(BlueprintPure, Category = "Material Designer")
@@ -112,17 +135,26 @@ public:
 	UFUNCTION(BlueprintPure, Category = "Material Designer")
 	const TArray<UDMMaterialSlot*>& GetSlots() const { return Slots; }
 
+	/** Gets slot by index. Highly recommended to use GetSlotForMaterialProperty(PropertyType). */
 	UFUNCTION(BlueprintPure, Category = "Material Designer")
 	UDMMaterialSlot* GetSlot(int32 Index) const;
 
+	UFUNCTION(BlueprintPure, Category = "Material Designer")
+	UDMMaterialSlot* GetSlotForMaterialProperty(EDMMaterialPropertyType InType) const;
+
+	/** Adds the next available slot. Highly recommended to use AddSlotForMaterialProperty(PropertyType). */
 	UFUNCTION(BlueprintCallable, Category = "Material Designer")
 	UDMMaterialSlot* AddSlot();
 
 	UFUNCTION(BlueprintCallable, Category = "Material Designer")
-	void RemoveSlot(int32 Index);
+	UDMMaterialSlot* AddSlotForMaterialProperty(EDMMaterialPropertyType InType);
 
-	UFUNCTION(BlueprintPure, Category = "Material Designer")
-	UDMMaterialSlot* GetSlotForMaterialProperty(EDMMaterialPropertyType Property) const;
+	/** Removes the next slot by index. Highly recommended to use RemoveSlotForMaterialProperty(PropertyType). */
+	UFUNCTION(BlueprintCallable, Category = "Material Designer")
+	UDMMaterialSlot* RemoveSlot(int32 Index);
+
+	UFUNCTION(BlueprintCallable, Category = "Material Designer")
+	UDMMaterialSlot* RemoveSlotForMaterialProperty(EDMMaterialPropertyType InType);
 
 	UFUNCTION(BlueprintPure, Category = "Material Designer")
 	TArray<EDMMaterialPropertyType> GetMaterialPropertiesForSlot(UDMMaterialSlot* Slot) const;
@@ -199,6 +231,9 @@ protected:
 	UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, Category = "Material Designer")
 	bool bTwoSidedFlag;
 
+	UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, Category = "Material Designer")
+	FName ChannelListPreset;
+
 	UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, Instanced, Category = "Material Designer")
 	TMap<EDMMaterialPropertyType, TObjectPtr<UDMMaterialProperty>> Properties;
 
@@ -237,6 +272,15 @@ protected:
 	FString GetMaterialPackageName(const FString& MaterialBaseName) const;
 
 	void OnSlotConnectorsUpdated(UDMMaterialSlot* Slot);
+
+	/** Swaps the material properties from one slot to another, unless both slots exist and/or are the same. */
+	void SwapSlotMaterialProperty(EDMMaterialPropertyType InPropertyFrom, EDMMaterialPropertyType InPropertyTo);
+
+	/** 
+	 * Swaps the material properties from one slot to another, unless both slots exist and/or are the same. 
+	 * Ensuring that the To Property exists.
+	 */
+	void EnsureSwapSlotMaterialProperty(EDMMaterialPropertyType InPropertyFrom, EDMMaterialPropertyType InPropertyTo);
 
 	//~ Begin IDynamicMaterialModelEditorOnlyDataInterface
 	virtual void ReinitComponents() override;

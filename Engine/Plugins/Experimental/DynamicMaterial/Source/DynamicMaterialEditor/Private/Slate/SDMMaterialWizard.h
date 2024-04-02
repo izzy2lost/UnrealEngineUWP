@@ -5,6 +5,7 @@
 #include "Templates/SharedPointer.h"
 #include "Widgets/SCompoundWidget.h"
 
+class SBox;
 class SDMEditor;
 class SWidget;
 class UDynamicMaterialModel;
@@ -27,6 +28,8 @@ public:
 
 protected:
 	TWeakPtr<SDMEditor> EditorWeak;
+	FName CurrentPreset;
+	TSharedPtr<SBox> PresetChannelContainer;
 
 	TSharedRef<SWidget> CreateLayout();
 	TSharedRef<SWidget> CreateMaterialDomainOptions();
@@ -57,6 +60,9 @@ protected:
 	bool TwoSided_IsEnabled() const;
 	ECheckBoxState TwoSided_GetState(bool bInValue) const;
 	void TwoSided_OnChange(ECheckBoxState InState, bool bInValue);
+
+	ECheckBoxState Preset_GetState(FName InPresetName) const;
+	void Preset_OnChange(ECheckBoxState InState, FName InPresetName);
 
 	FReply Accept_OnClick();
 };

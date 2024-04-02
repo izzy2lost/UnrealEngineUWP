@@ -39,7 +39,7 @@ UObject* UDynamicMaterialModelFactory::FactoryCreateNew(UClass* Class, UObject* 
 	ModelEditorOnlyData->MaterialModel = NewModel;
 
 	const FDMInitializationGuard InitGuard;
-	ModelEditorOnlyData->AddSlot();
+	ModelEditorOnlyData->Initialize();
 
 	FDynamicMaterialEditorModule::Get().OnMaterialModelCreated(NewModel);
 

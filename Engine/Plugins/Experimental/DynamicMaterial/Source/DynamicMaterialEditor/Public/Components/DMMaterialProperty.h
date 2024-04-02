@@ -10,6 +10,7 @@
 
 class FText;
 class UDMMaterialSlot;
+class UDMMaterialStageInputExpression;
 class UDynamicMaterialModel;
 class UDynamicMaterialModelEditorOnlyData;
 class UMaterialExpression;
@@ -57,6 +58,8 @@ public:
 	virtual void ResetInputConnectionMap();
 
 	virtual UMaterialExpression* GetDefaultInput(const TSharedRef<FDMMaterialBuildState>& InBuildState) const;
+
+	virtual void OnSlotAdded(UDMMaterialSlot* InSlot) {}
 
 	//~ Begin UDMMaterialComponent
 	virtual void Update(EDMUpdateType InUpdateType) override;

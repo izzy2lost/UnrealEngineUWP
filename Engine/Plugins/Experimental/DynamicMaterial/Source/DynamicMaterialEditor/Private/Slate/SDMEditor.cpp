@@ -3,6 +3,7 @@
 #include "SDMEditor.h"
 #include "AssetThumbnail.h"
 #include "Components/DMMaterialLayer.h"
+#include "Components/DMMaterialProperty.h"
 #include "Components/DMMaterialSlot.h"
 #include "Components/DMMaterialValue.h"
 #include "Components/MaterialStageExpressions/DMMSETextureSample.h"
@@ -42,6 +43,7 @@
 #include "Widgets/Layout/SBox.h"
 #include "Widgets/Layout/SExpandableArea.h"
 #include "Widgets/Layout/SScrollBox.h"
+#include "Widgets/Layout/SWrapBox.h"
 #include "Widgets/SBoxPanel.h"
 #include "Widgets/SNullWidget.h"
 #include "Widgets/Text/STextBlock.h"
@@ -576,6 +578,7 @@ TSharedRef<SWidget> SDMEditor::CreateMainLayout()
 		.AutoHeight()
 		.HAlign(HAlign_Fill)
 		.VAlign(VAlign_Top)
+		.Padding(5.f, 0.f)
 		[
 			SAssignNew(SlotPickerContainer, SBox)
 			[
@@ -677,7 +680,10 @@ TSharedRef<SWidget> SDMEditor::CreateParametersArea()
 
 TSharedRef<SWidget> SDMEditor::CreateSlotPickerWidget()
 {
-	TSharedRef<SHorizontalBox> SlotSelector = SNew(SHorizontalBox);
+	TSharedRef<SWrapBox> SlotSelector = SNew(SWrapBox)
+		.UseAllottedSize(true)
+		.InnerSlotPadding(FVector2D(5, 5))
+		.Orientation(EOrientation::Orient_Horizontal);
 
 	UDynamicMaterialModelEditorOnlyData* ModelEditorOnlyData = UDynamicMaterialModelEditorOnlyData::Get(MaterialModelWeak);
 
@@ -686,83 +692,77 @@ TSharedRef<SWidget> SDMEditor::CreateSlotPickerWidget()
 		return SlotSelector;
 	}
 
-	const TArray<UDMMaterialSlot*>& Slots = ModelEditorOnlyData->GetSlots();
+	const FDMMaterialChannelListPreset* Preset = GetDefault<UDynamicMaterialEditorSettings>()->ChannelPresets.Find(ModelEditorOnlyData->GetChannelListPreset());
+	bool bHasBaseColorSlot = !!ModelEditorOnlyData->GetSlotForMaterialProperty(EDMMaterialPropertyType::BaseColor);
 
-	if (Slots.IsEmpty())
-	{
-		return SlotSelector;
-	}
+	UEnum* MaterialPropertyEnum = StaticEnum<EDMMaterialPropertyType>();
 
-	if (Slots.IsValidIndex(0))
+	for (uint8 PropertyIndex = static_cast<uint8>(EDMMaterialPropertyType::None) + 1;
+		PropertyIndex < static_cast<uint8>(EDMMaterialPropertyType::Any);
+		++PropertyIndex)
 	{
-		SlotSelector->AddSlot()
-			.Padding(3.f, 0.f, 3.f, 0.f)
-			[
-				SNew(SCheckBox)
-				.Style(FAppStyle::Get(), "DetailsView.SectionButton")
-				.HAlign(EHorizontalAlignment::HAlign_Center)
-				.IsChecked(this, &SDMEditor::GetRGBSlotCheckState_HasSlot)
-				.OnCheckStateChanged(this, &SDMEditor::OnRGBSlotCheckStateChanged_HasSlot)
-				.Content()
-				[
-					SNew(STextBlock)
-					.Text(LOCTEXT("RGBSlot", "RGB"))
-				]
-			];		
-	}
-	else
-	{
-		SlotSelector->AddSlot()
-			.Padding(3.f, 0.f, 3.f, 0.f)
-			[
-				SNew(SCheckBox)
-				.Style(FAppStyle::Get(), "DetailsView.SectionButton")
-				.HAlign(EHorizontalAlignment::HAlign_Center)
-				.IsChecked(this, &SDMEditor::GetRGBSlotCheckState_NoSlot)
-				.OnCheckStateChanged(this, &SDMEditor::OnRGBSlotCheckStateChanged_NoSlot)
-				.Content()
-				[
-					SNew(STextBlock)
-					.Text(LOCTEXT("RGBSlot", "RGB"))
-				]
-			];
-	}
+		EDMMaterialPropertyType Property = static_cast<EDMMaterialPropertyType>(PropertyIndex);
 
-	if (Slots.IsValidIndex(1))
-	{
-		SlotSelector->AddSlot()
-			.Padding(0.f, 0.f, 3.f, 0.f)
-			[
-				SNew(SCheckBox)
-				.Style(FAppStyle::Get(), "DetailsView.SectionButton")
-				.HAlign(EHorizontalAlignment::HAlign_Center)
-				.IsEnabled(this, &SDMEditor::GetOpacityButtonEnabled_HasSlot)
-				.IsChecked(this, &SDMEditor::GetOpacitySlotCheckState_HasSlot)
-				.OnCheckStateChanged(this, &SDMEditor::OnOpacitySlotCheckStateChanged_HasSlot)
-				.Content()
+		// Filter RGB modes
+		if (bHasBaseColorSlot)
+		{
+			if (Property == EDMMaterialPropertyType::EmissiveColor)
+			{
+				continue;
+			}
+		}
+		else
+		{
+			if (Property == EDMMaterialPropertyType::BaseColor)
+			{
+				continue;
+			}
+		}
+
+		// Filter opacity modes
+		if (Property == EDMMaterialPropertyType::OpacityMask)
+		{
+			if (ModelEditorOnlyData->GetBlendMode() != BLEND_Masked)
+			{
+				continue;
+			}
+		}
+		else
+		{
+			if (ModelEditorOnlyData->GetBlendMode() == BLEND_Masked)
+			{
+				continue;
+			}
+		}
+
+		const bool bIsPropertyEnabled = Preset
+			? Preset->IsPropertyEnabled(Property)
+			: !!ModelEditorOnlyData->GetSlotForMaterialProperty(Property);
+
+		if (bIsPropertyEnabled)
+		{
+			const int32 EnumIndex = MaterialPropertyEnum->GetIndexByValue(static_cast<int64>(Property));
+
+			constexpr const TCHAR* ShortNameName = TEXT("ShortName");
+			const FString ShortName = MaterialPropertyEnum->GetMetaData(ShortNameName, EnumIndex);
+
+			SlotSelector->AddSlot()
 				[
-					SNew(STextBlock)
-					.Text(LOCTEXT("OpacitySlot", "Opacity"))
-				]
-			];		
-	}
-	else
-	{
-		SlotSelector->AddSlot()
-			.Padding(0.f, 0.f, 3.f, 0.f)
-			[
-				SNew(SCheckBox)
-				.Style(FAppStyle::Get(), "DetailsView.SectionButton")
-				.HAlign(EHorizontalAlignment::HAlign_Center)
-				.IsEnabled(this, &SDMEditor::GetOpacityButtonEnabled_HasSlot)
-				.IsChecked(this, &SDMEditor::GetOpacitySlotCheckState_NoSlot)
-				.OnCheckStateChanged(this, &SDMEditor::OnOpacitySlotCheckStateChanged_NoSlot)
-				.Content()
-				[
-					SNew(STextBlock)
-					.Text(LOCTEXT("AddOpacity", "Opacity"))
-				]
-			];
+					SNew(SCheckBox)
+					.Style(FAppStyle::Get(), "DetailsView.SectionButton")
+					.HAlign(EHorizontalAlignment::HAlign_Center)
+					.IsEnabled(this, &SDMEditor::IsPropertyValidForModel, Property)
+					.IsChecked(this, &SDMEditor::GetSlotCheckState, Property)
+					.OnCheckStateChanged(this, &SDMEditor::OnSlotCheckStateChanged, Property)
+					.Padding(FVector2D(5.f, 3.f))
+					.ToolTipText(this, &SDMEditor::GetToolTipForProperty, Property)
+					.Content()
+					[
+						SNew(STextBlock)
+						.Text(!ShortName.IsEmpty() ? FText::FromString(ShortName) : MaterialPropertyEnum->GetDisplayNameTextByValue(static_cast<int64>(Property)))
+					]
+				];
+		}
 	}
 
 	return SlotSelector;
@@ -772,9 +772,9 @@ TSharedPtr<SDMSlot> SDMEditor::GetSlotWidget(UDMMaterialSlot* Slot) const
 {
 	if (ensure(IsValid(Slot)))
 	{
-		for (const TSharedPtr<SDMSlot>& SlotWidget : SlotWidgets)
+		for (const TSharedRef<SDMSlot>& SlotWidget : SlotWidgets)
 		{
-			if (SlotWidget.IsValid() && SlotWidget->GetSlot() == Slot)
+			if (SlotWidget->GetSlot() == Slot)
 			{
 				return SlotWidget;
 			}
@@ -788,6 +788,7 @@ void SDMEditor::RefreshGlobalOpacitySlider()
 {
 	if (GlobalOpacityContainer.IsValid())
 	{
+		GlobalOpacityContainer->SetContent(SNullWidget::NullWidget);
 		GlobalOpacityContainer->SetContent(CreateGlobalOpacityWidget());
 	}
 }
@@ -804,6 +805,7 @@ void SDMEditor::RefreshSlotPickerList()
 {
 	if (SlotPickerContainer.IsValid())
 	{
+		SlotPickerContainer->SetContent(SNullWidget::NullWidget);
 		SlotPickerContainer->SetContent(CreateSlotPickerWidget());
 	}
 }
@@ -812,6 +814,7 @@ void SDMEditor::RefreshSlotsList()
 {
 	if (SlotsContainer.IsValid())
 	{
+		SlotsContainer->SetContent(SNullWidget::NullWidget);
 		SlotsContainer->SetContent(CreateSlotsWidget());
 	}
 }
@@ -885,10 +888,10 @@ void SDMEditor::Tick(const FGeometry& AllottedGeometry, const double InCurrentTi
 		else
 		{
 			bool bHasInvalidSlotWidget = false;
-			for (const TWeakPtr<SDMSlot> SlotWeak : SlotWidgets)
+
+			for (const TSharedRef<SDMSlot>& Slot : SlotWidgets)
 			{
-				TSharedPtr<SDMSlot> Slot = SlotWeak.Pin();
-				if (Slot.IsValid() && !Slot->CheckValidity())
+				if (!Slot->CheckValidity())
 				{
 					bHasInvalidSlotWidget = true;
 					break;
@@ -900,25 +903,6 @@ void SDMEditor::Tick(const FGeometry& AllottedGeometry, const double InCurrentTi
 			}
 		}
 	}
-}
-
-FReply SDMEditor::OnAddSlotButtonClicked()
-{
-	if (!MaterialModelWeak.IsValid())
-	{
-		return FReply::Unhandled();
-	}
-
-	UDynamicMaterialModelEditorOnlyData* ModelEditorOnlyData = UDynamicMaterialModelEditorOnlyData::Get(MaterialModelWeak);
-
-	if (!ModelEditorOnlyData)
-	{
-		return FReply::Unhandled();
-	}
-
-	ModelEditorOnlyData->AddSlot();
-
-	return FReply::Handled();
 }
 
 void SDMEditor::OnMaterialBuilt(UDynamicMaterialModel* InMaterialModel)
@@ -945,94 +929,66 @@ bool SDMEditor::IsGlobalOpacityEnabled() const
 	return false;
 }
 
-ECheckBoxState SDMEditor::GetRGBSlotCheckState_HasSlot() const
+bool SDMEditor::IsPropertyValidForModel(EDMMaterialPropertyType InProperty) const
 {
-	return GetActiveSlotIndex() == 0 ? ECheckBoxState::Checked : ECheckBoxState::Unchecked;
-}
-
-void SDMEditor::OnRGBSlotCheckStateChanged_HasSlot(ECheckBoxState InCheckState)
-{
-	SetActiveSlotIndex(0);
-}
-
-ECheckBoxState SDMEditor::GetRGBSlotCheckState_NoSlot() const
-{
-	return ECheckBoxState::Unchecked;
-}
-
-void SDMEditor::OnRGBSlotCheckStateChanged_NoSlot(ECheckBoxState InCheckState)
-{
-	if (UDynamicMaterialModelEditorOnlyData* ModelEditorOnlyData = UDynamicMaterialModelEditorOnlyData::Get(MaterialModelWeak))
+	if (UDynamicMaterialModel* MaterialModel = MaterialModelWeak.Get())
 	{
-		if (ModelEditorOnlyData->AddSlot())
+		if (UDynamicMaterialModelEditorOnlyData* EditorOnlyData = UDynamicMaterialModelEditorOnlyData::Get(MaterialModel))
 		{
-			RefreshSlotPickerList();
-			SetActiveSlotIndex(0);
+			if (UDMMaterialProperty* Property = EditorOnlyData->GetMaterialProperty(InProperty))
+			{
+				return Property->IsValidForModel(*EditorOnlyData);
+			}
 		}
 	}
-}
-
-bool SDMEditor::GetOpacityButtonEnabled_NoSlot() const
-{
-	if (UDynamicMaterialModelEditorOnlyData* ModelEditorOnlyData = UDynamicMaterialModelEditorOnlyData::Get(MaterialModelWeak))
-	{
-		return ModelEditorOnlyData->GetDomain() != EMaterialDomain::MD_PostProcess
-			&& ModelEditorOnlyData->GetBlendMode() != EBlendMode::BLEND_Opaque;
-	}
 
 	return false;
 }
 
-bool SDMEditor::GetOpacityButtonEnabled_HasSlot() const
+ECheckBoxState SDMEditor::GetSlotCheckState(EDMMaterialPropertyType InProperty)  const
 {
-	if (UDynamicMaterialModelEditorOnlyData* ModelEditorOnlyData = UDynamicMaterialModelEditorOnlyData::Get(MaterialModelWeak))
+	if (SlotWidgets.IsValidIndex(ActiveSlotIndex))
 	{
-		return ModelEditorOnlyData->GetBlendMode() != EBlendMode::BLEND_Opaque;
-	}
-
-	return false;
-}
-
-ECheckBoxState SDMEditor::GetOpacitySlotCheckState_HasSlot() const
-{
-	return GetActiveSlotIndex() == 1 ? ECheckBoxState::Checked : ECheckBoxState::Unchecked;
-}
-
-void SDMEditor::OnOpacitySlotCheckStateChanged_HasSlot(ECheckBoxState InCheckState)
-{
-	SetActiveSlotIndex(1);
-}
-
-ECheckBoxState SDMEditor::GetOpacitySlotCheckState_NoSlot() const
-{
-	return ECheckBoxState::Unchecked;
-}
-
-void SDMEditor::OnOpacitySlotCheckStateChanged_NoSlot(ECheckBoxState InCheckState)
-{
-	if (UDynamicMaterialModelEditorOnlyData* ModelEditorOnlyData = UDynamicMaterialModelEditorOnlyData::Get(MaterialModelWeak))
-	{
-		if (UDMMaterialSlot* NewSlot = ModelEditorOnlyData->AddSlot())
+		if (UDMMaterialSlot* Slot = SlotWidgets[ActiveSlotIndex]->GetSlot())
 		{
-			if (UDMMaterialLayerObject* Layer = NewSlot->GetLayer(0))
+			if (UDynamicMaterialModelEditorOnlyData* EditorOnlyData = Slot->GetMaterialModelEditorOnlyData())
 			{
-				FDMScopedUITransaction Transaction(LOCTEXT("AddOpacitySlot", "Material Designer Add Opacity Slot"));
-				Layer->Modify();
+				return EditorOnlyData->GetSlotForMaterialProperty(InProperty) == Slot
+					? ECheckBoxState::Checked
+					: ECheckBoxState::Unchecked;
+			}
+		}
+	}
 
-				switch (ModelEditorOnlyData->GetBlendMode())
+	return ECheckBoxState::Undetermined;
+}
+
+FText SDMEditor::GetToolTipForProperty(EDMMaterialPropertyType InProperty) const
+{
+	if (!IsPropertyValidForModel(InProperty))
+	{
+		return LOCTEXT("SlotNotCompatible", "This slot is not compatible with the material settings.");
+	}
+
+	return FText::GetEmpty();
+}
+
+void SDMEditor::OnSlotCheckStateChanged(ECheckBoxState InCheckState, EDMMaterialPropertyType InProperty)
+{
+	if (InCheckState == ECheckBoxState::Checked)
+	{
+		for (int32 SlotIndex = 0; SlotIndex < SlotWidgets.Num(); ++SlotIndex)
+		{
+			if (UDMMaterialSlot* Slot = SlotWidgets[SlotIndex]->GetSlot())
+			{
+				if (UDynamicMaterialModelEditorOnlyData* EditorOnlyData = Slot->GetMaterialModelEditorOnlyData())
 				{
-					case EBlendMode::BLEND_Masked:
-						Layer->SetMaterialProperty(EDMMaterialPropertyType::OpacityMask);
-						break;
-
-					default:
-						Layer->SetMaterialProperty(EDMMaterialPropertyType::Opacity);
-						break;
+					if (EditorOnlyData->GetSlotForMaterialProperty(InProperty) == Slot)
+					{
+						SetActiveSlotIndex(SlotIndex);
+					}
 				}
 			}
-
-			RefreshSlotPickerList();
-			SetActiveSlotIndex(1);
 		}
 	}
 }
@@ -1298,6 +1254,8 @@ TSharedRef<SWidget> SDMEditor::CreateSlotsWidget()
 		return CreateEmptySlotsContent();
 	}
 
+	SlotWidgets.Reserve(Slots.Num());
+
 	for (int32 SlotIdx = 0; SlotIdx < Slots.Num(); ++SlotIdx)
 	{
 		UDMMaterialSlot* Slot = Slots[SlotIdx];
@@ -1310,158 +1268,17 @@ TSharedRef<SWidget> SDMEditor::CreateSlotsWidget()
 		SlotWidgets.Add(SlotWidget);
 	}
 
-	return SlotWidgets.IsValidIndex(ActiveSlotIndex)
-		? SlotWidgets[ActiveSlotIndex].ToSharedRef()
-		: SNullWidget::NullWidget;
-}
-
-EMaterialDomain SDMEditor::GetSelectedDomain() const
-{
-	if (UDynamicMaterialModelEditorOnlyData* ModelEditorOnlyData = UDynamicMaterialModelEditorOnlyData::Get(MaterialModelWeak))
+	if (!SlotWidgets.IsValidIndex(ActiveSlotIndex))
 	{
-		return ModelEditorOnlyData->GetDomain();
-	}
-
-	return EMaterialDomain::MD_Surface;
-}
-
-void SDMEditor::OnDomainChanged(const EMaterialDomain InDomain)
-{
-	if (UDynamicMaterialModelEditorOnlyData* ModelEditorOnlyData = UDynamicMaterialModelEditorOnlyData::Get(MaterialModelWeak))
-	{
-		FDMScopedUITransaction Transaction(LOCTEXT("ChangeDomain", "Material Designer Change Domain"));
-		ModelEditorOnlyData->Modify();
-		ModelEditorOnlyData->SetDomain(InDomain);
-
-		RefreshSlotPickerList();
-
-		if (InDomain == EMaterialDomain::MD_PostProcess)
+		if (SlotWidgets.IsEmpty())
 		{
-			SetActiveSlotIndex(0);
+			return SNullWidget::NullWidget;
 		}
-	}
-}
 
-bool SDMEditor::CanChangeDomain() const
-{
-	return true;
-}
-
-EBlendMode SDMEditor::GetSelectedBlendMode() const
-{
-	if (UDynamicMaterialModelEditorOnlyData* ModelEditorOnlyData = UDynamicMaterialModelEditorOnlyData::Get(MaterialModelWeak))
-	{
-		return ModelEditorOnlyData->GetBlendMode();
+		ActiveSlotIndex = 0;
 	}
 
-	return EBlendMode::BLEND_Opaque;
-}
-
-void SDMEditor::OnBlendModeChanged(const EBlendMode InBlendMode)
-{
-	if (UDynamicMaterialModelEditorOnlyData* ModelEditorOnlyData = UDynamicMaterialModelEditorOnlyData::Get(MaterialModelWeak))
-	{
-		FDMScopedUITransaction Transaction(LOCTEXT("ChangeBlendMode", "Material Designer Change Blend Mode"));
-		ModelEditorOnlyData->Modify();
-		ModelEditorOnlyData->SetBlendMode(InBlendMode);
-
-		RefreshSlotPickerList();
-
-		if (InBlendMode == EBlendMode::BLEND_Opaque)
-		{
-			SetActiveSlotIndex(0);
-		}
-	}
-}
-
-bool SDMEditor::CanChangeBlendType() const
-{
-	if (UDynamicMaterialModelEditorOnlyData* ModelEditorOnlyData = UDynamicMaterialModelEditorOnlyData::Get(MaterialModelWeak))
-	{
-		switch (ModelEditorOnlyData->GetDomain())
-		{
-			case EMaterialDomain::MD_Surface:
-			case EMaterialDomain::MD_DeferredDecal:
-				return true;
-		}
-	}
-
-	return false;
-}
-
-ECheckBoxState SDMEditor::IsMaterialUnlit() const
-{
-	if (UDynamicMaterialModelEditorOnlyData* ModelEditorOnlyData = UDynamicMaterialModelEditorOnlyData::Get(MaterialModelWeak))
-	{
-		return ModelEditorOnlyData->GetShadingModel() == EDMMaterialShadingModel::Unlit
-			? ECheckBoxState::Checked : ECheckBoxState::Unchecked;
-	}
-
-	return ECheckBoxState::Unchecked;
-}
-
-void SDMEditor::OnMaterialUnlitChanged(const ECheckBoxState InNewCheckState)
-{
-	if (UDynamicMaterialModelEditorOnlyData* ModelEditorOnlyData = UDynamicMaterialModelEditorOnlyData::Get(MaterialModelWeak))
-	{
-		FDMScopedUITransaction Transaction(LOCTEXT("ChangeShadingModel", "Material Designer Change Shading Model"));
-		ModelEditorOnlyData->Modify();
-		ModelEditorOnlyData->SetShadingModel(InNewCheckState == ECheckBoxState::Checked
-			? EDMMaterialShadingModel::Unlit : EDMMaterialShadingModel::DefaultLit);
-	}
-}
-
-bool SDMEditor::CanMaterialBeAnimated() const
-{
-	if (UDynamicMaterialModelEditorOnlyData* ModelEditorOnlyData = UDynamicMaterialModelEditorOnlyData::Get(MaterialModelWeak))
-	{
-		switch (ModelEditorOnlyData->GetBlendMode())
-		{
-			case EBlendMode::BLEND_Masked:
-			case EBlendMode::BLEND_Opaque:
-				return true;
-
-			default:
-				return false;
-		}
-	}
-
-	return false;
-}
-
-bool SDMEditor::CanChangeMaterialShadingModel() const
-{
-	if (UDynamicMaterialModelEditorOnlyData* ModelEditorOnlyData = UDynamicMaterialModelEditorOnlyData::Get(MaterialModelWeak))
-	{
-		switch (ModelEditorOnlyData->GetDomain())
-		{
-			case EMaterialDomain::MD_Surface:
-				return true;
-		}
-	}
-
-	return false;
-}
-
-ECheckBoxState SDMEditor::IsMaterialAnimated() const
-{
-	if (UDynamicMaterialModelEditorOnlyData* ModelEditorOnlyData = UDynamicMaterialModelEditorOnlyData::Get(MaterialModelWeak))
-	{
-		return ModelEditorOnlyData->IsPixelAnimationFlagSet()
-			? ECheckBoxState::Checked : ECheckBoxState::Unchecked;
-	}
-
-	return ECheckBoxState::Unchecked;
-}
-
-void SDMEditor::OnMaterialAnimatedChanged(const ECheckBoxState InNewCheckState)
-{
-	if (UDynamicMaterialModelEditorOnlyData* ModelEditorOnlyData = UDynamicMaterialModelEditorOnlyData::Get(MaterialModelWeak))
-	{
-		FDMScopedUITransaction Transaction(LOCTEXT("ToggleAnimated", "Material Designer Toggle Animated"));
-		ModelEditorOnlyData->Modify();
-		ModelEditorOnlyData->SetPixelAnimationFlag(InNewCheckState == ECheckBoxState::Checked);
-	}
+	return SlotWidgets[ActiveSlotIndex];
 }
 
 void SDMEditor::OnUndo()

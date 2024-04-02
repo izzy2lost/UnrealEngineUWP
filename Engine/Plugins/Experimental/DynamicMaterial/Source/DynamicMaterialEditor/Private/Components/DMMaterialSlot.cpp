@@ -254,7 +254,6 @@ void UDMMaterialSlot::UpdateOutputConnectorTypes()
 
 	if (LayerObjects.IsEmpty())
 	{
-		UpdateMaterialProperties();
 		return;
 	}
 
@@ -302,24 +301,6 @@ void UDMMaterialSlot::UpdateMaterialProperties()
 
 	if (LayerObjects.IsEmpty())
 	{
-		const TArray<EDMMaterialPropertyType> SlotMaterialProperties = ModelEditorOnlyData->GetMaterialPropertiesForSlot(this);
-
-		for (EDMMaterialPropertyType MaterialProperty : SlotMaterialProperties)
-		{
-			UDMMaterialSlot* CurrentSlot = ModelEditorOnlyData->GetSlotForMaterialProperty(MaterialProperty);
-			check(CurrentSlot == nullptr || CurrentSlot == this);
-
-			if (CurrentSlot == this)
-			{
-				if (GUndo)
-				{
-					ModelEditorOnlyData->Modify();
-				}
-
-				ModelEditorOnlyData->UnassignMaterialProperty(MaterialProperty);
-			}
-		}
-
 		return;
 	}
 
@@ -465,9 +446,6 @@ UDMMaterialLayerObject* UDMMaterialSlot::AddLayerWithMask(EDMMaterialPropertyTyp
 		InNewMask->Modify();
 	}
 
-	InNewBase->SetBeingEdited(false);
-	InNewMask->SetBeingEdited(false);
-
 	UDMMaterialLayerObject* NewLayer = UDMMaterialLayerObject::CreateLayer(this, InMaterialProperty, {InNewBase, InNewMask});
 	LayerObjects.Add(NewLayer);
 
@@ -529,20 +507,45 @@ bool UDMMaterialSlot::PasteLayer(UDMMaterialLayerObject* InLayer)
 	return true;
 }
 
-bool UDMMaterialSlot::RemoveLayer(UDMMaterialLayerObject* InLayer)
+bool UDMMaterialSlot::CanRemoveLayer(const UDMMaterialLayerObject* InLayer) const
 {
 	if (!IsComponentValid())
 	{
 		return false;
 	}
 
-	if (LayerObjects.Num() == 1)
+	check(InLayer);
+	check(InLayer->GetSlot() == this);
+
+	const EDMMaterialPropertyType LayerProperty = InLayer->GetMaterialProperty();
+
+	if (LayerProperty == EDMMaterialPropertyType::BaseColor || LayerProperty == EDMMaterialPropertyType::EmissiveColor)
+	{
+		int32 LayerPropertyCount = 0;
+
+		for (UDMMaterialLayerObject* Layer : LayerObjects)
+		{
+			if (Layer->GetMaterialProperty() == LayerProperty)
+			{
+				++LayerPropertyCount;
+			}
+		}
+
+		if (LayerPropertyCount == 1)
+		{
+			return false;
+		}
+	}
+
+	return InLayer->FindIndex() != INDEX_NONE;
+}
+
+bool UDMMaterialSlot::RemoveLayer(UDMMaterialLayerObject* InLayer)
+{
+	if (!CanRemoveLayer(InLayer))
 	{
 		return false;
 	}
-
-	check(InLayer);
-	check(InLayer->GetSlot() == this);
 
 	const int32 LayerIndex = InLayer->FindIndex();
 
@@ -660,9 +663,7 @@ bool UDMMaterialSlot::ReferencedBySlot(UDMMaterialSlot* InOtherSlot)
 	check(InOtherSlot);
 	check(InOtherSlot != this);
 
-	int32* CountPtr = SlotsReferencedBy.Find(InOtherSlot);
-
-	if (CountPtr)
+	if (int32* CountPtr = SlotsReferencedBy.Find(InOtherSlot))
 	{
 		++(*CountPtr);
 		return false;
@@ -1157,8 +1158,8 @@ void UDMMaterialSlot::UpdatePreviewMaterialProperty(const TSharedRef<FDMMaterial
 	}
 }
 
-bool UDMMaterialSlot::SetLayerMaterialPropertyAndReplaceOthers(UDMMaterialLayerObject* InLayer, EDMMaterialPropertyType InMaterialProperty, 
-	EDMMaterialPropertyType InReplaceWithProperty)
+bool UDMMaterialSlot::SetLayerMaterialPropertyAndReplaceOthers(UDMMaterialLayerObject* InLayer, EDMMaterialPropertyType InPropertyFrom, 
+	EDMMaterialPropertyType InPropertyTo)
 {
 	if (!IsComponentValid())
 	{
@@ -1168,7 +1169,7 @@ bool UDMMaterialSlot::SetLayerMaterialPropertyAndReplaceOthers(UDMMaterialLayerO
 	UDynamicMaterialModelEditorOnlyData* ModelEditorOnlyData = GetMaterialModelEditorOnlyData();
 	check(ModelEditorOnlyData);
 
-	UDMMaterialSlot* CurrentSlot = ModelEditorOnlyData->GetSlotForMaterialProperty(InMaterialProperty);
+	UDMMaterialSlot* CurrentSlot = ModelEditorOnlyData->GetSlotForMaterialProperty(InPropertyFrom);
 
 	if (!CurrentSlot || CurrentSlot == this)
 	{
@@ -1177,7 +1178,7 @@ bool UDMMaterialSlot::SetLayerMaterialPropertyAndReplaceOthers(UDMMaterialLayerO
 			InLayer->Modify();
 		}
 
-		InLayer->SetMaterialProperty(InMaterialProperty);
+		InLayer->SetMaterialProperty(InPropertyFrom);
 		return false; // Could be caused by asynchronous input
 	}
 
@@ -1186,14 +1187,14 @@ bool UDMMaterialSlot::SetLayerMaterialPropertyAndReplaceOthers(UDMMaterialLayerO
 		
 		for (TObjectPtr<UDMMaterialLayerObject>& Layer : CurrentSlot->LayerObjects)
 		{
-			if (Layer->GetMaterialProperty() == InMaterialProperty)
+			if (Layer->GetMaterialProperty() == InPropertyFrom)
 			{
 				if (GUndo)
 				{
 					Layer->Modify();
 				}
 
-				Layer->SetMaterialProperty(InReplaceWithProperty);
+				Layer->SetMaterialProperty(InPropertyTo);
 			}
 
 			if (UDMMaterialStage* BaseStage = Layer->GetStage(EDMMaterialLayerStage::Base))
@@ -1207,10 +1208,10 @@ bool UDMMaterialSlot::SetLayerMaterialPropertyAndReplaceOthers(UDMMaterialLayerO
 						FDMMaterialStageConnectorChannel& Channel = CurrentSlotStageInputMap[InputIdx].Channels[ChannelIdx];
 
 						if (Channel.SourceIndex == FDMMaterialStageConnectorChannel::PREVIOUS_STAGE
-							&& Channel.MaterialProperty == InMaterialProperty)
+							&& Channel.MaterialProperty == InPropertyFrom)
 						{
 							// Delve into class internals, avoiding the const issues above.
-							Channel.MaterialProperty = InReplaceWithProperty;
+							Channel.MaterialProperty = InPropertyTo;
 						}
 					}
 				}
@@ -1226,7 +1227,75 @@ bool UDMMaterialSlot::SetLayerMaterialPropertyAndReplaceOthers(UDMMaterialLayerO
 		}
 	}
 
-	return InLayer->SetMaterialProperty(InMaterialProperty);
+	return InLayer->SetMaterialProperty(InPropertyFrom);
+}
+
+bool UDMMaterialSlot::ChangeMaterialProperty(EDMMaterialPropertyType InPropertyFrom, EDMMaterialPropertyType InReplaceWithProperty)
+{
+	if (!IsComponentValid())
+	{
+		return false;
+	}
+
+	UDynamicMaterialModelEditorOnlyData* ModelEditorOnlyData = GetMaterialModelEditorOnlyData();
+	check(ModelEditorOnlyData);
+
+	FDMUpdateGuard Guard;
+	UDMMaterialLayerObject* FirstLayerObject = nullptr;
+
+	for (TObjectPtr<UDMMaterialLayerObject>& Layer : LayerObjects)
+	{
+		if (Layer->GetMaterialProperty() == InPropertyFrom)
+		{
+			if (GUndo)
+			{
+				Layer->Modify();
+			}
+
+			Layer->SetMaterialProperty(InReplaceWithProperty);
+
+			if (!FirstLayerObject)
+			{
+				FirstLayerObject = Layer;
+			}
+		}
+
+		if (UDMMaterialStage* BaseStage = Layer->GetStage(EDMMaterialLayerStage::Base))
+		{
+			TArray<FDMMaterialStageConnection>& CurrentSlotStageInputMap = BaseStage->GetInputConnectionMap();
+
+			for (int32 InputIdx = 0; InputIdx < CurrentSlotStageInputMap.Num(); ++InputIdx)
+			{
+				for (int32 ChannelIdx = 0; ChannelIdx < CurrentSlotStageInputMap[InputIdx].Channels.Num(); ++ChannelIdx)
+				{
+					FDMMaterialStageConnectorChannel& Channel = CurrentSlotStageInputMap[InputIdx].Channels[ChannelIdx];
+
+					if (Channel.SourceIndex == FDMMaterialStageConnectorChannel::PREVIOUS_STAGE
+						&& Channel.MaterialProperty == InPropertyFrom)
+					{
+						// Delve into class internals, avoiding the const issues above.
+						Channel.MaterialProperty = InReplaceWithProperty;
+					}
+				}
+			}
+		}
+	}
+
+	ModelEditorOnlyData->UnassignMaterialProperty(InPropertyFrom);
+	ModelEditorOnlyData->AssignMaterialPropertyToSlot(InReplaceWithProperty, this);
+
+	if (const FDMMaterialSlotOutputConnectorTypes* ConnectorTypes = OutputConnectorTypes.Find(InPropertyFrom))
+	{
+		OutputConnectorTypes.Emplace(InReplaceWithProperty, *ConnectorTypes);
+		OutputConnectorTypes.Remove(InPropertyFrom);
+	}
+
+	if (FirstLayerObject)
+	{
+		FirstLayerObject->Update(EDMUpdateType::Structure);
+	}
+
+	return true;
 }
 
 void UDMMaterialSlot::DoClean()

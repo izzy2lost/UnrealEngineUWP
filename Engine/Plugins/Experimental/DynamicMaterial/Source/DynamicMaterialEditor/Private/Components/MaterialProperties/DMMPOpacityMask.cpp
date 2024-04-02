@@ -1,6 +1,8 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "Components/MaterialProperties/DMMPOpacityMask.h"
+
+#include "Components/MaterialProperties/DMMPOpacity.h"
 #include "Model/DynamicMaterialModelEditorOnlyData.h"
 
 UDMMaterialPropertyOpacityMask::UDMMaterialPropertyOpacityMask()
@@ -19,4 +21,9 @@ UMaterialExpression* UDMMaterialPropertyOpacityMask::GetDefaultInput(
 	const TSharedRef<FDMMaterialBuildState>& InBuildState) const
 {
 	return CreateConstant(InBuildState, 1.f);
+}
+
+void UDMMaterialPropertyOpacityMask::OnSlotAdded(UDMMaterialSlot* InSlot)
+{
+	UDMMaterialPropertyOpacity::AddDefaultOpacityLayer(EDMMaterialPropertyType::OpacityMask, InSlot);
 }

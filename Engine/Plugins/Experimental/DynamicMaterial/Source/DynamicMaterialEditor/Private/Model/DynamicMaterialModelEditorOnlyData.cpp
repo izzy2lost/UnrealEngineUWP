@@ -4,13 +4,10 @@
 #include "AssetRegistry/AssetRegistryModule.h"
 #include "AssetToolsModule.h"
 #include "Components/DMMaterialLayer.h"
-#include "Components/DMMaterialParameter.h"
 #include "Components/DMMaterialProperty.h"
 #include "Components/DMMaterialSlot.h"
 #include "Components/DMMaterialStage.h"
-#include "Components/DMMaterialStageBlend.h"
 #include "Components/DMMaterialStageThroughputLayerBlend.h"
-#include "Components/DMMaterialSubStage.h"
 #include "Components/DMMaterialValue.h"
 #include "Components/DMTextureUV.h"
 #include "Components/MaterialProperties/DMMPAmbientOcclusion.h"
@@ -28,11 +25,7 @@
 #include "Components/MaterialProperties/DMMPTangent.h"
 #include "Components/MaterialProperties/DMMPWorldPositionOffset.h"
 #include "Components/MaterialStageBlends/DMMSBNormal.h"
-#include "Components/MaterialStageExpressions/DMMSETextureSample.h"
-#include "Components/MaterialStageInputs/DMMSIExpression.h"
-#include "Components/MaterialStageInputs/DMMSIValue.h"
 #include "Components/MaterialValues/DMMaterialValueFloat1.h"
-#include "Components/MaterialValues/DMMaterialValueTexture.h"
 #include "CoreGlobals.h"
 #include "DMComponentPath.h"
 #include "DMDefs.h"
@@ -46,7 +39,6 @@
 #include "IAssetTools.h"
 #include "Material/DynamicMaterialInstance.h"
 #include "Materials/Material.h"
-#include "Materials/MaterialExpressionAppendVector.h"
 #include "Materials/MaterialExpressionMaterialFunctionCall.h"
 #include "Materials/MaterialExpressionMax.h"
 #include "Materials/MaterialExpressionMultiply.h"
@@ -59,10 +51,46 @@
 
 #define LOCTEXT_NAMESPACE "MaterialDesignerModel"
 
-const FString UDynamicMaterialModelEditorOnlyData::SlotsPathToken       = FString(TEXT("Slots"));
-const FString UDynamicMaterialModelEditorOnlyData::RGBSlotPathToken     = FString(TEXT("RGBSlot"));
-const FString UDynamicMaterialModelEditorOnlyData::OpacitySlotPathToken = FString(TEXT("OpacitySlot"));
-const FString UDynamicMaterialModelEditorOnlyData::PropertiesPathToken  = FString(TEXT("Properties"));
+const FString UDynamicMaterialModelEditorOnlyData::SlotsPathToken               = FString(TEXT("Slots"));
+const FString UDynamicMaterialModelEditorOnlyData::RGBSlotPathToken             = FString(TEXT("RGBSlot"));
+const FString UDynamicMaterialModelEditorOnlyData::OpacitySlotPathToken         = FString(TEXT("OpacitySlot"));
+const FString UDynamicMaterialModelEditorOnlyData::RoughnessPathToken           = FString(TEXT("RoughnessSlot"));
+const FString UDynamicMaterialModelEditorOnlyData::SpecularPathToken            = FString(TEXT("SpecularSlot"));
+const FString UDynamicMaterialModelEditorOnlyData::MetallicPathToken            = FString(TEXT("MetallicSlot"));
+const FString UDynamicMaterialModelEditorOnlyData::NormalPathToken              = FString(TEXT("NormalSlot"));
+const FString UDynamicMaterialModelEditorOnlyData::PixelDepthOffsetPathToken    = FString(TEXT("PixelDepthOffsetSlot"));
+const FString UDynamicMaterialModelEditorOnlyData::WorldPositionOffsetPathToken = FString(TEXT("WorldPositionOffsetSlot"));
+const FString UDynamicMaterialModelEditorOnlyData::AmbientOcclusionPathToken    = FString(TEXT("AmbientOcclusionSlot"));
+const FString UDynamicMaterialModelEditorOnlyData::AnisotropyPathToken          = FString(TEXT("AnisotropySlot"));
+const FString UDynamicMaterialModelEditorOnlyData::RefractionPathToken          = FString(TEXT("RefractionSlot"));
+const FString UDynamicMaterialModelEditorOnlyData::TangentPathToken             = FString(TEXT("TangentSlot"));
+const FString UDynamicMaterialModelEditorOnlyData::Custom1PathToken             = FString(TEXT("Custom1Slot"));
+const FString UDynamicMaterialModelEditorOnlyData::Custom2PathToken             = FString(TEXT("Custom2Slot"));
+const FString UDynamicMaterialModelEditorOnlyData::Custom3PathToken             = FString(TEXT("Custom3Slot"));
+const FString UDynamicMaterialModelEditorOnlyData::Custom4PathToken             = FString(TEXT("Custom4Slot"));
+const FString UDynamicMaterialModelEditorOnlyData::PropertiesPathToken          = FString(TEXT("Properties"));
+
+namespace UE::DynamicMaterialEditor::Private
+{
+	const TMap<FString, EDMMaterialPropertyType> TokenToPropertyMap = {
+		{UDynamicMaterialModelEditorOnlyData::RGBSlotPathToken,             EDMMaterialPropertyType::BaseColor},
+		{UDynamicMaterialModelEditorOnlyData::OpacitySlotPathToken,         EDMMaterialPropertyType::Opacity},
+		{UDynamicMaterialModelEditorOnlyData::RoughnessPathToken,           EDMMaterialPropertyType::Roughness},
+		{UDynamicMaterialModelEditorOnlyData::SpecularPathToken,            EDMMaterialPropertyType::Specular},
+		{UDynamicMaterialModelEditorOnlyData::MetallicPathToken,            EDMMaterialPropertyType::Metallic},
+		{UDynamicMaterialModelEditorOnlyData::NormalPathToken,              EDMMaterialPropertyType::Normal},
+		{UDynamicMaterialModelEditorOnlyData::PixelDepthOffsetPathToken,    EDMMaterialPropertyType::PixelDepthOffset},
+		{UDynamicMaterialModelEditorOnlyData::WorldPositionOffsetPathToken, EDMMaterialPropertyType::WorldPositionOffset},
+		{UDynamicMaterialModelEditorOnlyData::AmbientOcclusionPathToken,    EDMMaterialPropertyType::AmbientOcclusion},
+		{UDynamicMaterialModelEditorOnlyData::AnisotropyPathToken,          EDMMaterialPropertyType::Anisotropy},
+		{UDynamicMaterialModelEditorOnlyData::RefractionPathToken,          EDMMaterialPropertyType::Refraction},
+		{UDynamicMaterialModelEditorOnlyData::TangentPathToken,             EDMMaterialPropertyType::Tangent},
+		{UDynamicMaterialModelEditorOnlyData::Custom1PathToken,             EDMMaterialPropertyType::Custom1},
+		{UDynamicMaterialModelEditorOnlyData::Custom2PathToken,             EDMMaterialPropertyType::Custom2},
+		{UDynamicMaterialModelEditorOnlyData::Custom3PathToken,             EDMMaterialPropertyType::Custom3},
+		{UDynamicMaterialModelEditorOnlyData::Custom4PathToken,             EDMMaterialPropertyType::Custom4}
+	};
+}
 
 const TArray<EMaterialDomain> UDynamicMaterialModelEditorOnlyData::SupportedDomains =
 {
@@ -112,8 +140,9 @@ UDynamicMaterialModelEditorOnlyData::UDynamicMaterialModelEditorOnlyData()
 	BlendMode = EBlendMode::BLEND_Translucent;
 	ShadingModel = EDMMaterialShadingModel::Unlit;
 	bPixelAnimationFlag = false;
-	bTwoSidedFlag = false;
+	bTwoSidedFlag = true;
 	bUseWizard = true;
+	ChannelListPreset = NAME_None;
 
 	Properties.Emplace(EDMMaterialPropertyType::BaseColor,           CreateDefaultSubobject<UDMMaterialPropertyBaseColor>(          "MaterialProperty_BaseColor"));
 	Properties.Emplace(EDMMaterialPropertyType::EmissiveColor,       CreateDefaultSubobject<UDMMaterialPropertyEmissiveColor>(      "MaterialProperty_EmissiveColor"));
@@ -141,6 +170,20 @@ UDynamicMaterialModelEditorOnlyData::UDynamicMaterialModelEditorOnlyData()
 	}
 }
 
+void UDynamicMaterialModelEditorOnlyData::Initialize()
+{
+	if (Slots.IsEmpty())
+	{
+		return;
+	}
+
+	// Will choose appropriate type between BaseColor and EmissiveColor
+	AddSlotForMaterialProperty(EDMMaterialPropertyType::BaseColor);
+
+	// Will choose appropriate type between Opacity and OpacityMask
+	AddSlotForMaterialProperty(EDMMaterialPropertyType::Opacity);
+}
+
 UMaterial* UDynamicMaterialModelEditorOnlyData::GetGeneratedMaterial() const
 {
 	return IsValid(MaterialModel) ? MaterialModel->DynamicMaterial : nullptr;
@@ -156,6 +199,7 @@ void UDynamicMaterialModelEditorOnlyData::ResetData()
 	BlendMode = EBlendMode::BLEND_Translucent;
 	ShadingModel = EDMMaterialShadingModel::Unlit;
 	Slots.Empty();
+	PropertySlotMap.Empty();
 	Expressions.Empty();
 }
 
@@ -285,17 +329,19 @@ void UDynamicMaterialModelEditorOnlyData::BuildMaterial(bool bInDirtyAssets)
 		UMaterialExpression* LastPropertyExpression = nullptr;
 		UDMMaterialSlot* Slot = GetSlotForMaterialProperty(Pair.Key);
 
-		if (Slot && !Slot->GetLayers().IsEmpty())
+		if (!Slot || Slot->GetLayers().IsEmpty())
 		{
-			Slot->GenerateExpressions(BuildState);
-
-			if (BuildState->GetSlotExpressions(Slot).IsEmpty())
-			{
-				continue;
-			}
-
-			LastPropertyExpression = BuildState->GetLastSlotPropertyExpression(Slot, Pair.Key);
+			continue;
 		}
+
+		Slot->GenerateExpressions(BuildState);
+
+		if (BuildState->GetSlotExpressions(Slot).IsEmpty())
+		{
+			continue;
+		}
+
+		LastPropertyExpression = BuildState->GetLastSlotPropertyExpression(Slot, Pair.Key);
 
 		if (!LastPropertyExpression)
 		{
@@ -634,6 +680,35 @@ void UDynamicMaterialModelEditorOnlyData::OnWizardComplete()
 	bUseWizard = false;
 }
 
+void UDynamicMaterialModelEditorOnlyData::SetChannelListPreset(FName InPresetName)
+{
+	ChannelListPreset = InPresetName;
+
+	if (const FDMMaterialChannelListPreset* Preset = GetDefault<UDynamicMaterialEditorSettings>()->ChannelPresets.Find(InPresetName))
+	{
+		for (uint8 PropertyIndex = static_cast<uint8>(EDMMaterialPropertyType::None) + 1;
+			PropertyIndex < static_cast<uint8>(EDMMaterialPropertyType::Any);
+			++PropertyIndex)
+		{
+			const EDMMaterialPropertyType Property = static_cast<EDMMaterialPropertyType>(PropertyIndex);
+
+			if (Property == EDMMaterialPropertyType::EmissiveColor || Property == EDMMaterialPropertyType::OpacityMask)
+			{
+				continue;
+			}
+
+			if (Preset->IsPropertyEnabled(Property))
+			{
+				AddSlotForMaterialProperty(Property);
+			}
+			else
+			{
+				RemoveSlotForMaterialProperty(Property);
+			}
+		}
+	}
+}
+
 UDMMaterialComponent* UDynamicMaterialModelEditorOnlyData::GetSubComponentByPath(FDMComponentPath& InPath,
 	const FDMComponentPathSegment& InPathSegment) const
 {
@@ -647,28 +722,6 @@ UDMMaterialComponent* UDynamicMaterialModelEditorOnlyData::GetSubComponentByPath
 			{
 				return Slots[SlotIndex]->GetComponentByPath(InPath);
 			}
-		}
-
-		return nullptr;
-	}
-
-	// @TODO This will probably need to change when other slot types are opened up.
-	if (InPathSegment.GetToken() == RGBSlotPathToken)
-	{
-		if (Slots.IsValidIndex(0))
-		{
-			return Slots[0]->GetComponentByPath(InPath);
-		}
-
-		return nullptr;
-	}
-
-	// @TODO This will probably need to change when other slot types are opened up.
-	if (InPathSegment.GetToken() == OpacitySlotPathToken)
-	{
-		if (Slots.IsValidIndex(1))
-		{
-			return Slots[1]->GetComponentByPath(InPath);
 		}
 
 		return nullptr;
@@ -695,6 +748,17 @@ UDMMaterialComponent* UDynamicMaterialModelEditorOnlyData::GetSubComponentByPath
 		}
 	}
 
+	// Channels
+	using namespace UE::DynamicMaterialEditor::Private;
+
+	if (const EDMMaterialPropertyType* PropertyPtr = TokenToPropertyMap.Find(FString(InPathSegment.GetToken())))
+	{
+		if (const TObjectPtr<UDMMaterialSlot>* SlotPtr = PropertySlotMap.Find(*PropertyPtr))
+		{
+			return (*SlotPtr)->GetComponentByPath(InPath);
+		}
+	}
+
 	return nullptr;
 }
 
@@ -708,6 +772,50 @@ void UDynamicMaterialModelEditorOnlyData::DoBuild_Implementation(bool bInDirtyAs
 	BuildMaterial(bInDirtyAssets);
 }
 
+void UDynamicMaterialModelEditorOnlyData::SwapSlotMaterialProperty(EDMMaterialPropertyType InPropertyFrom, EDMMaterialPropertyType InPropertyTo)
+{
+	UDMMaterialSlot* FromSlot = GetSlotForMaterialProperty(InPropertyFrom);
+	
+	if (!FromSlot)
+	{
+		return;
+	}
+
+	if (UDMMaterialSlot* ToSlot = GetSlotForMaterialProperty(InPropertyTo))
+	{
+		if (ToSlot == FromSlot)
+		{
+			return;
+		}
+
+		RemoveSlotForMaterialProperty(InPropertyFrom);
+	}
+
+	FromSlot->ChangeMaterialProperty(InPropertyFrom, InPropertyTo);
+}
+
+void UDynamicMaterialModelEditorOnlyData::EnsureSwapSlotMaterialProperty(EDMMaterialPropertyType InPropertyFrom, EDMMaterialPropertyType InPropertyTo)
+{
+	if (UDMMaterialSlot* ToSlot = GetSlotForMaterialProperty(InPropertyTo))
+	{
+		if (UDMMaterialSlot* FromSlot = GetSlotForMaterialProperty(InPropertyFrom))
+		{
+			if (ToSlot != FromSlot)
+			{
+				RemoveSlotForMaterialProperty(InPropertyFrom);
+			}
+		}
+	}
+	else if (GetSlotForMaterialProperty(InPropertyFrom))
+	{
+		SwapSlotMaterialProperty(InPropertyFrom, InPropertyTo);
+	}
+	else
+	{
+		AddSlotForMaterialProperty(InPropertyTo);
+	}
+}
+
 void UDynamicMaterialModelEditorOnlyData::SetDomain(TEnumAsByte<EMaterialDomain> InDomain)
 {
 	if (Domain == InDomain)
@@ -719,28 +827,61 @@ void UDynamicMaterialModelEditorOnlyData::SetDomain(TEnumAsByte<EMaterialDomain>
 
 	if (Domain == EMaterialDomain::MD_PostProcess)
 	{
-		// Post process domain only supports a single slot - emissive color. 1 is the opacity slot.
-		if (Slots.IsValidIndex(1))
+		const FDMUpdateGuard Guard;
+
+		// Post process only supports emissive.
+		for (uint8 PropertyIndex = static_cast<uint8>(EDMMaterialPropertyType::None) + 1;
+			PropertyIndex < static_cast<uint8>(EDMMaterialPropertyType::Any);
+			++PropertyIndex)
 		{
-			RemoveSlot(1);
+			const EDMMaterialPropertyType Property = static_cast<EDMMaterialPropertyType>(PropertyIndex);
+
+			switch (Property)
+			{
+				case EDMMaterialPropertyType::BaseColor:
+				case EDMMaterialPropertyType::EmissiveColor:
+					RemoveSlotForMaterialProperty(Property);
+					continue;
+
+				default:
+					// Do nothing
+					break;
+			}			
 		}
+
+		EnsureSwapSlotMaterialProperty(EDMMaterialPropertyType::BaseColor, EDMMaterialPropertyType::EmissiveColor);
 
 		SetShadingModel(EDMMaterialShadingModel::Unlit);
 		SetBlendMode(EBlendMode::BLEND_Opaque);
-
-		// Setting it to unlit will set these to base color. Need to reset them to emissive.
-		if (Slots.IsValidIndex(0))
+	}
+	else if (Domain == EMaterialDomain::MD_DeferredDecal)
+	{
+		// Post process only supports basic types.
+		for (uint8 PropertyIndex = static_cast<uint8>(EDMMaterialPropertyType::None) + 1;
+			PropertyIndex < static_cast<uint8>(EDMMaterialPropertyType::Any);
+			++PropertyIndex)
 		{
-			for (UDMMaterialLayerObject* Layer : Slots[0]->GetLayers())
-			{
-				if (GUndo)
-				{
-					Layer->Modify();
-				}
+			const EDMMaterialPropertyType Property = static_cast<EDMMaterialPropertyType>(PropertyIndex);
 
-				Layer->SetMaterialProperty(EDMMaterialPropertyType::EmissiveColor);
-			}
+			switch (Property)
+			{
+				case EDMMaterialPropertyType::BaseColor:
+				case EDMMaterialPropertyType::EmissiveColor:
+				case EDMMaterialPropertyType::Opacity:
+				case EDMMaterialPropertyType::OpacityMask:
+					RemoveSlotForMaterialProperty(Property);
+					continue;
+
+				default:
+					// Do nothing
+					break;
+			}			
 		}
+
+		EnsureSwapSlotMaterialProperty(EDMMaterialPropertyType::EmissiveColor, EDMMaterialPropertyType::BaseColor);
+
+		SetShadingModel(EDMMaterialShadingModel::DefaultLit);
+		SetBlendMode(EBlendMode::BLEND_Translucent);
 	}
 
 	RequestMaterialBuild();
@@ -755,44 +896,23 @@ void UDynamicMaterialModelEditorOnlyData::SetBlendMode(TEnumAsByte<EBlendMode> I
 
 	BlendMode = InBlendMode;
 
-	if (Slots.IsValidIndex(1))
+	switch (InBlendMode)
 	{
-		// 1 is the opacity slot
-		if (InBlendMode == EBlendMode::BLEND_Opaque)
-		{
-			RemoveSlot(1);
-		}
-		else
-		{
-			for (UDMMaterialLayerObject* Layer : Slots[0]->GetLayers())
-			{
-				if (GUndo)
-				{
-					Layer->Modify();
-				}
-
-				switch (InBlendMode)
-				{
-					case EBlendMode::BLEND_Masked:
-						Layer->SetMaterialProperty(EDMMaterialPropertyType::OpacityMask);
-						break;
-
-					default:
-						Layer->SetMaterialProperty(EDMMaterialPropertyType::Opacity);
-						break;
-				}
-			}
-		}
-	}
-
-	switch (BlendMode)
-	{
-		case EBlendMode::BLEND_Masked:
 		case EBlendMode::BLEND_Opaque:
+			SetPixelAnimationFlag(false);
+			RemoveSlotForMaterialProperty(EDMMaterialPropertyType::Opacity);
+			RemoveSlotForMaterialProperty(EDMMaterialPropertyType::OpacityMask);
 			break;
 
-		default:
+		case EBlendMode::BLEND_Masked:
 			SetPixelAnimationFlag(false);
+			EnsureSwapSlotMaterialProperty(EDMMaterialPropertyType::Opacity, EDMMaterialPropertyType::OpacityMask);
+			break;
+
+		case EBlendMode::BLEND_Translucent:
+		case EBlendMode::BLEND_Additive:
+		case EBlendMode::BLEND_Modulate:
+			EnsureSwapSlotMaterialProperty(EDMMaterialPropertyType::OpacityMask, EDMMaterialPropertyType::Opacity);
 			break;
 	}
 
@@ -808,27 +928,26 @@ void UDynamicMaterialModelEditorOnlyData::SetShadingModel(EDMMaterialShadingMode
 
 	ShadingModel = InShadingModel;
 
-	if (Slots.IsValidIndex(0))
+	EDMMaterialPropertyType FromProperty;
+	EDMMaterialPropertyType ToProperty;
+
+	switch (ShadingModel)
 	{
-		for (UDMMaterialLayerObject* Layer : Slots[0]->GetLayers())
-		{
-			if (GUndo)
-			{
-				Layer->Modify();
-			}
+		case EDMMaterialShadingModel::Unlit:
+			FromProperty = EDMMaterialPropertyType::BaseColor;
+			ToProperty = EDMMaterialPropertyType::EmissiveColor;
+			break;
 
-			switch (ShadingModel)
-			{
-				case EDMMaterialShadingModel::Unlit:
-					Layer->SetMaterialProperty(EDMMaterialPropertyType::EmissiveColor);
-					break;
+		case EDMMaterialShadingModel::DefaultLit:
+			FromProperty = EDMMaterialPropertyType::EmissiveColor;
+			ToProperty = EDMMaterialPropertyType::BaseColor;
+			break;
 
-				default:
-					Layer->SetMaterialProperty(EDMMaterialPropertyType::BaseColor);
-					break;
-			}
-		}
+		default:
+			return;
 	}
+
+	EnsureSwapSlotMaterialProperty(FromProperty, ToProperty);
 
 	RequestMaterialBuild();
 }
@@ -893,6 +1012,11 @@ void UDynamicMaterialModelEditorOnlyData::SetTwoSidedFlag(bool bInFlagValue)
 	RequestMaterialBuild();
 }
 
+FName UDynamicMaterialModelEditorOnlyData::GetChannelListPreset() const
+{
+	return ChannelListPreset;
+}
+
 void UDynamicMaterialModelEditorOnlyData::OpenMaterialEditor() const
 {
 	if (!IsValid(MaterialModel) || !IsValid(MaterialModel->DynamicMaterial))
@@ -931,156 +1055,124 @@ UDMMaterialProperty* UDynamicMaterialModelEditorOnlyData::GetMaterialProperty(ED
 
 UDMMaterialSlot* UDynamicMaterialModelEditorOnlyData::GetSlot(int32 Index) const
 {
-	if (!Slots.IsValidIndex(Index))
+	if (Slots.IsValidIndex(Index))
 	{
-		return nullptr;
+		return Slots[Index];		
 	}
 
-	return Slots[Index];
+	return nullptr;
+}
+
+UDMMaterialSlot* UDynamicMaterialModelEditorOnlyData::GetSlotForMaterialProperty(EDMMaterialPropertyType InType) const
+{
+	if (const TObjectPtr<UDMMaterialSlot>* SlotPtr = PropertySlotMap.Find(InType))
+	{
+		return *SlotPtr;
+	}
+
+	return nullptr;
 }
 
 UDMMaterialSlot* UDynamicMaterialModelEditorOnlyData::AddSlot()
 {
-	EDMMaterialPropertyType NewSlotProperty = EDMMaterialPropertyType::None;
+	constexpr int64 Start = static_cast<int64>(EDMMaterialPropertyType::None) + 1;
+	constexpr int64 End = static_cast<int64>(EDMMaterialPropertyType::Any);
 
-	if (Slots.IsEmpty())
+	for (int64 PropertyIndex = Start; PropertyIndex < End; ++PropertyIndex)
 	{
-		const FDMUpdateGuard Guard;
+		const EDMMaterialPropertyType Property = static_cast<EDMMaterialPropertyType>(PropertyIndex);
 
-		switch (ShadingModel)
+		if (GetSlotForMaterialProperty(Property))
 		{
-			case EDMMaterialShadingModel::DefaultLit:
-				NewSlotProperty = EDMMaterialPropertyType::BaseColor;
-				break;
+			continue;
+		}
 
-			case EDMMaterialShadingModel::Unlit:
-				NewSlotProperty = EDMMaterialPropertyType::EmissiveColor;
-				break;
+		return AddSlotForMaterialProperty(Property);
+	}
 
-			default:
-				checkNoEntry()
+	return nullptr;
+}
+
+UDMMaterialSlot* UDynamicMaterialModelEditorOnlyData::AddSlotForMaterialProperty(EDMMaterialPropertyType InType)
+{
+	if (InType == EDMMaterialPropertyType::BaseColor || InType == EDMMaterialPropertyType::EmissiveColor)
+	{
+		if (Domain == EMaterialDomain::MD_DeferredDecal)
+		{
+			InType = EDMMaterialPropertyType::EmissiveColor;
+		}
+		else
+		{
+			switch (ShadingModel)
+			{
+				case EDMMaterialShadingModel::DefaultLit:
+					InType = EDMMaterialPropertyType::BaseColor;
 					break;
+
+				case EDMMaterialShadingModel::Unlit:
+					InType = EDMMaterialPropertyType::EmissiveColor;
+					break;
+
+				default:
+					checkNoEntry();
+					break;
+			}
 		}
 	}
 	else if (Domain == EMaterialDomain::MD_PostProcess)
 	{
 		return nullptr;
 	}
-	else
+	else if (InType == EDMMaterialPropertyType::Opacity || InType == EDMMaterialPropertyType::OpacityMask)
 	{
-		for (int64 FirstAvailableEnum = static_cast<int64>(EDMMaterialPropertyType::EmissiveColor) + 1; FirstAvailableEnum < static_cast<int64>(EDMMaterialPropertyType::Any); ++FirstAvailableEnum)
+		switch (BlendMode)
 		{
-			EDMMaterialPropertyType FirstAvailableEnumActual = static_cast<EDMMaterialPropertyType>(FirstAvailableEnum);
-
-			if (GetSlotForMaterialProperty(FirstAvailableEnumActual) == nullptr)
-			{
-				NewSlotProperty = FirstAvailableEnumActual;
+			case EBlendMode::BLEND_Translucent:
+			case EBlendMode::BLEND_Additive:
+			case EBlendMode::BLEND_Modulate:
+				InType = EDMMaterialPropertyType::Opacity;
 				break;
-			}
-		}
 
-		if (NewSlotProperty == EDMMaterialPropertyType::None)
-		{
-			return nullptr;
+			case EBlendMode::BLEND_Masked:
+				InType = EDMMaterialPropertyType::OpacityMask;
+				break;
+
+			case EBlendMode::BLEND_Opaque:
+				return nullptr;
+
+			default:
+				checkNoEntry();
+				break;
 		}
+	}
+
+	if (Domain == EMaterialDomain::MD_DeferredDecal && InType != EDMMaterialPropertyType::EmissiveColor)
+	{
+		return nullptr;
+	}
+
+	if (UDMMaterialSlot* ExistingSlot = GetSlotForMaterialProperty(InType))
+	{
+		return ExistingSlot;
 	}
 
 	UDMMaterialSlot* NewSlot = NewObject<UDMMaterialSlot>(this, NAME_None, RF_Transactional);
 	check(NewSlot);
+
+	AssignMaterialPropertyToSlot(InType, NewSlot);
 
 	NewSlot->SetIndex(Slots.Num());
 	Slots.Add(NewSlot);
 	NewSlot->SetComponentState(EDMComponentLifetimeState::Added);
 
 	NewSlot->GetOnConnectorsUpdateDelegate().AddUObject(this, &UDynamicMaterialModelEditorOnlyData::OnSlotConnectorsUpdated);
-	NewSlot->Update(EDMUpdateType::Structure);
 
-	UDMMaterialStage* DefaultStage = UDMMaterialStageBlend::CreateStage(UDMMaterialStageBlendNormal::StaticClass());
-	check(DefaultStage);
-
-	DefaultStage->SetBeingEdited(true);
-
-	UDMMaterialStage* MaskStage = UDMMaterialStageThroughputLayerBlend::CreateStage();
-	check(MaskStage);
-
-	NewSlot->AddLayerWithMask(NewSlotProperty, DefaultStage, MaskStage);
-	NewSlot->SetEditingLayers(true);
-
-	AssignMaterialPropertyToSlot(NewSlotProperty, NewSlot);
-
-	UDMMaterialStageInputExpression* BaseInputExpression = UDMMaterialStageInputExpression::ChangeStageInput_Expression(DefaultStage,
-		UDMMaterialStageExpressionTextureSample::StaticClass(), UDMMaterialStageBlendNormal::InputB,
-		FDMMaterialStageConnectorChannel::WHOLE_CHANNEL, 0,
-		FDMMaterialStageConnectorChannel::WHOLE_CHANNEL);
-
-	switch (NewSlotProperty)
+	if (UDMMaterialProperty* Property = GetMaterialProperty(InType))
 	{
-		case EDMMaterialPropertyType::Opacity:
-		case EDMMaterialPropertyType::OpacityMask:
-			if (UDMMaterialStageExpressionTextureSample* BaseInputTextureSample = Cast<UDMMaterialStageExpressionTextureSample>(BaseInputExpression->GetMaterialStageExpression()))
-			{
-				BaseInputTextureSample->SetClampTextureEnabled(true);
-
-				if (UDMMaterialStage* BaseTextureInputStage = BaseInputExpression->GetSubStage())
-				{
-					const TArray<UDMMaterialStageInput*> BaseTextureStageInputs = BaseTextureInputStage->GetInputs();
-
-					for (UDMMaterialStageInput* BaseTextureStageInput : BaseTextureStageInputs)
-					{
-						if (UDMMaterialStageInputValue* BaseTextureInputValue = Cast<UDMMaterialStageInputValue>(BaseTextureStageInput))
-						{
-							if (UDMMaterialValueTexture* BaseTextureValue = Cast<UDMMaterialValueTexture>(BaseTextureInputValue->GetValue()))
-							{
-								BaseTextureValue->SetDefaultValue(UDynamicMaterialEditorSettings::Get()->DefaultOpacitySlotMask.LoadSynchronous());
-								BaseTextureValue->ApplyDefaultValue();
-								break;
-							}
-						}
-					}
-				}
-			}
-
-			{
-				const TArray<UDMMaterialStageInput*> MaskStageInputs = MaskStage->GetInputs();
-
-				for (UDMMaterialStageInput* MaskStageInput : MaskStageInputs)
-				{
-					if (UDMMaterialStageInputExpression* MaskInputExpression = Cast<UDMMaterialStageInputExpression>(MaskStageInput))
-					{
-						if (UDMMaterialStageExpressionTextureSample* MaskInputTextureSample = Cast<UDMMaterialStageExpressionTextureSample>(MaskInputExpression->GetMaterialStageExpression()))
-						{
-							MaskInputTextureSample->SetClampTextureEnabled(true);
-
-							if (UDMMaterialStage* MaskTextureInputStage = MaskInputExpression->GetSubStage())
-							{
-								const TArray<UDMMaterialStageInput*> MaskTextureStageInputs = MaskTextureInputStage->GetInputs();
-
-								for (UDMMaterialStageInput* MaskTextureStageInput : MaskTextureStageInputs)
-								{
-									if (UDMMaterialStageInputValue* MaskTextureInputValue = Cast<UDMMaterialStageInputValue>(MaskTextureStageInput))
-									{
-										if (UDMMaterialValueTexture* MaskTextureValue = Cast<UDMMaterialValueTexture>(MaskTextureInputValue->GetValue()))
-										{
-											MaskTextureValue->SetDefaultValue(UDynamicMaterialEditorSettings::Get()->DefaultOpaqueTexture.LoadSynchronous());
-											MaskTextureValue->ApplyDefaultValue();
-											break;
-										}
-									}
-								}
-							}
-						}
-
-						break;
-					}
-				}
-			}
-
-			break;
-
-		default:
-			// Do nothing
-			break;
+		Property->OnSlotAdded(NewSlot);
 	}
+
+	NewSlot->Update(EDMUpdateType::Structure);
 
 	OnSlotListUpdateDelegate.Broadcast(MaterialModel);
 
@@ -1089,19 +1181,21 @@ UDMMaterialSlot* UDynamicMaterialModelEditorOnlyData::AddSlot()
 	return NewSlot;
 }
 
-void UDynamicMaterialModelEditorOnlyData::RemoveSlot(int32 Index)
+UDMMaterialSlot* UDynamicMaterialModelEditorOnlyData::RemoveSlot(int32 Index)
 {
 	UDMMaterialSlot* Slot = GetSlot(Index);
-	check(Slot);
+	
+	if (!Slot)
+	{
+		return nullptr;
+	}
 	
 	if (GUndo)
 	{
 		Slot->Modify(/* Always mark dirty */ false);
 	}
 
-	TArray<EDMMaterialPropertyType> SlotProperties = GetMaterialPropertiesForSlot(Slot);
-
-	for (EDMMaterialPropertyType MaterialProperty : SlotProperties)
+	for (EDMMaterialPropertyType MaterialProperty : GetMaterialPropertiesForSlot(Slot))
 	{
 		UnassignMaterialProperty(MaterialProperty);
 	}
@@ -1113,25 +1207,41 @@ void UDynamicMaterialModelEditorOnlyData::RemoveSlot(int32 Index)
 		PropertySlotMap.Remove(*Key);
 	}
 
-	Slots.RemoveAt(Index);
+	const int32 SlotIndex = Slots.IndexOfByKey(Slot);
+
+	if (SlotIndex != INDEX_NONE)
+	{
+		Slots.RemoveAtSwap(SlotIndex);
+		
+		if (Slots.IsValidIndex(SlotIndex))
+		{
+			if (GUndo)
+			{
+				Slots[SlotIndex]->Modify(/* Always mark dirty */ false);
+			}
+
+			Slots[SlotIndex]->SetIndex(SlotIndex);
+		}
+	}
+
 	Slot->GetOnConnectorsUpdateDelegate().RemoveAll(this);
 	Slot->SetComponentState(EDMComponentLifetimeState::Removed);
 
 	RequestMaterialBuild();
 
 	OnSlotListUpdateDelegate.Broadcast(MaterialModel);
+	
+	return Slot;
 }
 
-UDMMaterialSlot* UDynamicMaterialModelEditorOnlyData::GetSlotForMaterialProperty(EDMMaterialPropertyType Property) const
+UDMMaterialSlot* UDynamicMaterialModelEditorOnlyData::RemoveSlotForMaterialProperty(EDMMaterialPropertyType InType)
 {
-	TObjectPtr<UDMMaterialSlot> const* SlotPtr = PropertySlotMap.Find(Property);
-
-	if (!SlotPtr)
+	if (const TObjectPtr<UDMMaterialSlot>* SlotPtr = PropertySlotMap.Find(InType))
 	{
-		return nullptr;
+		return RemoveSlot(Slots.IndexOfByKey(*SlotPtr));
 	}
 
-	return *SlotPtr;
+	return nullptr;
 }
 
 TArray<EDMMaterialPropertyType> UDynamicMaterialModelEditorOnlyData::GetMaterialPropertiesForSlot(UDMMaterialSlot* Slot) const
@@ -1169,7 +1279,11 @@ void UDynamicMaterialModelEditorOnlyData::AssignMaterialPropertyToSlot(EDMMateri
 void UDynamicMaterialModelEditorOnlyData::UnassignMaterialProperty(EDMMaterialPropertyType Property)
 {
 	TObjectPtr<UDMMaterialSlot>* SlotPtr = PropertySlotMap.Find(Property);
-	check(SlotPtr);
+	
+	if (!SlotPtr)
+	{
+		return;
+	}
 
 	PropertySlotMap.Remove(Property);
 	(*SlotPtr)->GetOnPropertiesUpdateDelegate().Broadcast(*SlotPtr);

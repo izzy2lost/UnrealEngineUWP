@@ -14,6 +14,53 @@
 
 #define LOCTEXT_NAMESPACE "MaterialDesignerSettings"
 
+bool FDMMaterialChannelListPreset::IsPropertyEnabled(EDMMaterialPropertyType InProperty) const
+{
+	switch (InProperty)
+	{
+		case EDMMaterialPropertyType::BaseColor:
+		case EDMMaterialPropertyType::EmissiveColor:
+			return bRGB;
+
+		case EDMMaterialPropertyType::Opacity:
+		case EDMMaterialPropertyType::OpacityMask:
+			return bOpacity;
+
+		case EDMMaterialPropertyType::Roughness:
+			return bRoughness;
+
+		case EDMMaterialPropertyType::Specular:
+			return bSpecular;
+
+		case EDMMaterialPropertyType::Metallic:
+			return bMetallic;
+
+		case EDMMaterialPropertyType::Normal:
+			return bNormal;
+
+		case EDMMaterialPropertyType::PixelDepthOffset:
+			return bPixelDepthOffset;
+
+		case EDMMaterialPropertyType::WorldPositionOffset:
+			return bWorldPositionOffset;
+
+		case EDMMaterialPropertyType::AmbientOcclusion:
+			return bAmbientOcclusion;
+
+		case EDMMaterialPropertyType::Anisotropy:
+			return bAnisotropy;
+
+		case EDMMaterialPropertyType::Refraction:
+			return bRefraction;
+
+		case EDMMaterialPropertyType::Tangent:
+			return bTangent;
+
+		default:
+			return false;
+	}
+}
+
 UDynamicMaterialEditorSettings::UDynamicMaterialEditorSettings()
 {
 	CategoryName = TEXT("Plugins");
@@ -27,6 +74,42 @@ UDynamicMaterialEditorSettings::UDynamicMaterialEditorSettings()
 	DefaultOpaqueTexture = TSoftObjectPtr<UTexture>(FSoftObjectPath(TEXT("Texture2D'/Engine/EngineResources/WhiteSquareTexture.WhiteSquareTexture'")));
 	DefaultPreviewCanvasTexture = nullptr;
 	DefaultOpacitySlotMask = TSoftObjectPtr<UTexture>(FSoftObjectPath(TEXT("/Script/Engine.Texture2D'/DynamicMaterial/Textures/T_DM_HorizontalGradient.T_DM_HorizontalGradient'")));
+
+	FDMMaterialChannelListPreset Opaque;
+	Opaque.bRGB = true;
+	Opaque.bOpacity = false;
+
+	FDMMaterialChannelListPreset Translucent;
+	Translucent.bRGB = true;
+	Translucent.bOpacity = true;
+
+	FDMMaterialChannelListPreset PBR;
+	PBR.bRGB = true;
+	PBR.bOpacity = true;
+	PBR.bMetallic = true;
+	PBR.bSpecular = true;
+	PBR.bRoughness = true;
+	PBR.bNormal = true;
+	PBR.bAmbientOcclusion = true;
+
+	FDMMaterialChannelListPreset All;
+	All.bRGB = true;
+	All.bOpacity = true;
+	All.bMetallic = true;
+	All.bSpecular = true;
+	All.bRoughness = true;
+	All.bNormal = true;
+	All.bAmbientOcclusion = true;
+	All.bAnisotropy = true;
+	All.bPixelDepthOffset = true;
+	All.bRefraction = true;
+	All.bTangent = true;
+	All.bWorldPositionOffset = true;
+
+	ChannelPresets.Add(TEXT("Opaque"), Opaque);
+	ChannelPresets.Add(TEXT("Translucent"), Translucent);
+	ChannelPresets.Add(TEXT("PBR"), PBR);
+	ChannelPresets.Add(TEXT("All"), All);		
 }
 
 UDynamicMaterialEditorSettings* UDynamicMaterialEditorSettings::Get()
