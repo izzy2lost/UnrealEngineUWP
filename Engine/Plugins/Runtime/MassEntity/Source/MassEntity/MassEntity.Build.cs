@@ -30,6 +30,13 @@ namespace UnrealBuildTool.Rules
 			{
 				PrivateDependencyModuleNames.Add("MessageLog");
 			}
+
+			if (Target.Configuration != UnrealTargetConfiguration.Shipping
+				&& Target.Configuration != UnrealTargetConfiguration.Test)
+			{
+				// pulling this one in for the testableEnsureMsgf
+				PrivateDependencyModuleNames.Add("AITestSuite");
+			}
 		}
 	}
 }

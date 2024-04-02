@@ -16,9 +16,48 @@ DEFINE_TYPEBITSET(FMassExternalSubsystemBitSet);
 //-----------------------------------------------------------------------------
 // FMassArchetypeSharedFragmentValues
 //-----------------------------------------------------------------------------
+FConstSharedStruct FMassArchetypeSharedFragmentValues::AddConstSharedFragment(const FConstSharedStruct& Fragment)
+{
+	check(Fragment.IsValid());
+	const UScriptStruct* StructType = Fragment.GetScriptStruct();
+	if (!ensureMsgf(ContainsType(StructType) == false, TEXT("Shared Fragment of type %s already added to FMassArchetypeSharedFragmentValues"), *GetNameSafe(StructType)))
+	{
+		FConstSharedStruct ExistingSharedStruct = GetConstSharedFragmentStruct(StructType);
+		ensureMsgf(ExistingSharedStruct.IsValid(), TEXT("Shared Fragment of type %s already added as NON-CONST shared struct"), *GetNameSafe(StructType));
+		return ExistingSharedStruct;
+	}
+
+	check(StructType);
+	SharedFragmentBitSet.Add(*StructType);
+	FConstSharedStruct& StructInstance = ConstSharedFragments.Add_GetRef(Fragment);
+	DirtyHashCache();
+	return StructInstance;
+}
+
+FSharedStruct FMassArchetypeSharedFragmentValues::AddSharedFragment(const FSharedStruct& Fragment)
+{
+	check(Fragment.IsValid());
+	const UScriptStruct* StructType = Fragment.GetScriptStruct();
+	if (!ensureMsgf(ContainsType(StructType) == false, TEXT("Shared Fragment of type %s already added to FMassArchetypeSharedFragmentValues"), *GetNameSafe(StructType)))
+	{
+		FSharedStruct ExistingSharedStruct = GetSharedFragmentStruct(StructType);
+		ensureMsgf(ExistingSharedStruct.IsValid(), TEXT("Shared Fragment of type %s already added as CONST shared struct"), *GetNameSafe(StructType));
+		return ExistingSharedStruct;
+	}
+
+	check(StructType);
+	SharedFragmentBitSet.Add(*StructType);
+	FSharedStruct& StructInstance = SharedFragments.Add_GetRef(Fragment);
+	DirtyHashCache();
+	return StructInstance;
+}
+
 uint32 FMassArchetypeSharedFragmentValues::CalculateHash() const
 {
-	checkf(bSorted, TEXT("Expecting the containers to be sorted for the hash caluclation to be correct"));
+	if (!testableEnsureMsgf(bSorted, TEXT("Expecting the containers to be sorted for the hash caluclation to be consistent")))
+	{
+		return 0;
+	}
 
 	// Fragments are not part of the uniqueness 
 	uint32 Hash = 0;
@@ -33,6 +72,163 @@ uint32 FMassArchetypeSharedFragmentValues::CalculateHash() const
 	}
 
 	return Hash;
+}
+
+namespace UE::Mass::Private
+{
+	template<typename TSharedStruct>
+	int32 CountInvalid(const TArray<TSharedStruct>& View)
+	{
+		int32 Count = 0;
+		for (const TSharedStruct& SharedStruct : View)
+		{
+			const UScriptStruct* StructType = SharedStruct.GetScriptStruct();
+			Count += StructType ? 0 : 1;
+		}
+		return Count;
+	}
+
+	/** Note that this function assumes that both ViewA and ViewB do not contain duplicates */
+	template<typename TSharedStruct, bool bSkipNulls=true>
+	bool ArraysHaveSameContents(const TArray<TSharedStruct>& ViewA, const TArray<TSharedStruct>& ViewB)
+	{
+		if constexpr (bSkipNulls)
+		{
+			const int32 NullstCountA = CountInvalid(ViewA);
+			const int32 NullstCountB = CountInvalid(ViewB);
+			if (ViewA.Num() - NullstCountA != ViewB.Num() - NullstCountB)
+			{
+				return false;
+			}
+		}
+		else if (ViewA.Num() != ViewB.Num())
+		{
+			return false;
+		}
+
+		for (const TSharedStruct& SharedStruct : ViewA)
+		{
+			const UScriptStruct* StructType = SharedStruct.GetScriptStruct();
+			if constexpr (bSkipNulls)
+			{
+				if (StructType == nullptr)
+				{
+					continue;
+				}
+			}
+			const int32 FragmentIndex = ViewB.IndexOfByPredicate(FStructTypeEqualOperator(StructType));
+			if (FragmentIndex == INDEX_NONE)
+			{
+				return false;
+			}
+			if (ViewB[FragmentIndex].CompareStructValues(SharedStruct) == false)
+			{
+				return false;
+			}
+		}
+
+		return true;
+	}
+}
+
+bool FMassArchetypeSharedFragmentValues::HasSameValues(const FMassArchetypeSharedFragmentValues& Other) const
+{
+	if (SharedFragmentBitSet.IsEquivalent(Other.SharedFragmentBitSet) == false)
+	{
+		return false;
+	}
+
+	return UE::Mass::Private::ArraysHaveSameContents(SharedFragments, Other.GetSharedFragments())
+		&& UE::Mass::Private::ArraysHaveSameContents(ConstSharedFragments, Other.GetConstSharedFragments());
+}
+
+int32 FMassArchetypeSharedFragmentValues::Append(const FMassArchetypeSharedFragmentValues& Other)
+{
+	int32 AddedOrModifiedCount = 0;
+
+	for (const FSharedStruct& SharedStruct : Other.GetSharedFragments())
+	{
+		const UScriptStruct* StructType = SharedStruct.GetScriptStruct();
+		check(StructType);
+		if (SharedFragmentBitSet.Contains(*StructType))
+		{
+			const int32 FragmentIndex = SharedFragments.IndexOfByPredicate(FStructTypeEqualOperator(StructType));
+			if (testableEnsureMsgf(FragmentIndex != INDEX_NONE, TEXT("%hs trying to switch const fragment to non-const, type %s")
+				, __FUNCTION__, *StructType->GetName()))
+			{
+				SharedFragments[FragmentIndex] = SharedStruct;
+				++AddedOrModifiedCount;
+			}
+		}
+		else
+		{
+			SharedFragments.Add(SharedStruct);
+			++AddedOrModifiedCount;
+		}
+	}
+
+	for (const FConstSharedStruct& SharedStruct : Other.GetConstSharedFragments())
+	{
+		const UScriptStruct* StructType = SharedStruct.GetScriptStruct();
+		check(StructType);
+		if (SharedFragmentBitSet.Contains(*StructType))
+		{
+			const int32 FragmentIndex = ConstSharedFragments.IndexOfByPredicate(FStructTypeEqualOperator(StructType));
+			if (testableEnsureMsgf(FragmentIndex != INDEX_NONE, TEXT("%hs trying to switch non-const fragment to const, type %s")
+				, __FUNCTION__, *StructType->GetName()))
+			{
+				ConstSharedFragments[FragmentIndex] = SharedStruct;
+				++AddedOrModifiedCount;
+			}
+		}
+		else
+		{
+			ConstSharedFragments.Add(SharedStruct);
+			++AddedOrModifiedCount;
+		}
+	}
+	
+	SharedFragmentBitSet += Other.SharedFragmentBitSet;
+	DirtyHashCache();
+
+	return AddedOrModifiedCount;
+}
+
+int32 FMassArchetypeSharedFragmentValues::Remove(const FMassSharedFragmentBitSet& SharedFragmentToRemoveBitSet)
+{
+	int32 RemovedCount = 0;
+	FMassSharedFragmentBitSet CommonFragments = (SharedFragmentBitSet & SharedFragmentToRemoveBitSet);
+	FMassSharedFragmentBitSet::FIndexIterator It = CommonFragments.GetIndexIterator();
+	while(It)
+	{
+		const UScriptStruct* StructType = CommonFragments.GetTypeAtIndex(*It);
+		check(StructType);
+
+		const int32 RecularFragmentIndex = SharedFragments.IndexOfByPredicate(FStructTypeEqualOperator(StructType));
+		if (RecularFragmentIndex != INDEX_NONE)
+		{
+			SharedFragments[RecularFragmentIndex].Reset();
+			++RemovedCount;
+		}
+		else
+		{
+			const int32 ConstFragmentIndex = ConstSharedFragments.IndexOfByPredicate(FStructTypeEqualOperator(StructType));
+			if (ConstFragmentIndex != INDEX_NONE)
+			{
+				ConstSharedFragments[ConstFragmentIndex].Reset();
+				++RemovedCount;
+			}
+		}
+
+		++It;
+	}
+
+	if (RemovedCount)
+	{
+		SharedFragmentBitSet -= CommonFragments;
+		DirtyHashCache();
+	}
+	return RemovedCount;
 }
 
 //-----------------------------------------------------------------------------

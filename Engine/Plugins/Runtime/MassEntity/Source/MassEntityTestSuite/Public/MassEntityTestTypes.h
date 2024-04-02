@@ -89,7 +89,11 @@ struct FTestChunkFragment_Int : public FMassChunkFragment
 USTRUCT()
 struct FTestSharedFragment_Int : public FMassSharedFragment
 {
+	using FValueType = int32;
+
 	GENERATED_BODY()
+
+	UPROPERTY()
 	int32 Value = 0;
 
 	FTestSharedFragment_Int(const int32 InValue = 0) : Value(InValue) {}
@@ -98,7 +102,11 @@ struct FTestSharedFragment_Int : public FMassSharedFragment
 USTRUCT()
 struct FTestSharedFragment_Float : public FMassSharedFragment
 {
+	using FValueType = float;
+
 	GENERATED_BODY()
+
+	UPROPERTY()
 	float Value = 0.f;
 
 	FTestSharedFragment_Float(const float InValue = 0) : Value(InValue) {}

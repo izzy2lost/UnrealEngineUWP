@@ -9,6 +9,13 @@
 #include "MassExternalSubsystemTraits.h"
 #include "SharedStruct.h"
 #include "MassEntityTypes.generated.h"
+#ifdef WITH_AITESTSUITE
+#include "TestableEnsures.h"
+#else
+#define testableEnsureMsgf ensureMsgf
+#define testableCheckf checkf
+#define testableCheckfReturn(InExpression, ReturnValue, InFormat, ... ) checkf(InExpression, InFormat, ##__VA_ARGS__)
+#endif 
 
 
 MASSENTITY_API DECLARE_LOG_CATEGORY_EXTERN(LogMass, Warning, All);
@@ -240,6 +247,11 @@ struct FMassArchetypeCompositionDescriptor
 	FMassSharedFragmentBitSet SharedFragments;
 };
 
+/** 
+ * Wrapper for const and non-const shared fragment containers that tracks which struct types it holds (via a FMassSharedFragmentBitSet).
+ * Note that having multiple instanced of a given struct type is not supported and Add* functions will fetch the previously 
+ * added fragment instead of adding a new one.
+ */
 struct MASSENTITY_API FMassArchetypeSharedFragmentValues
 {
 	FMassArchetypeSharedFragmentValues() = default;
@@ -263,6 +275,14 @@ struct MASSENTITY_API FMassArchetypeSharedFragmentValues
 		return GetTypeHash(*this) == GetTypeHash(OtherSharedFragmentValues);
 	}
 
+	/** 
+	 * Compares contents of `this` and the Other, and allows different order of elements in both containers.
+	 * Note that the function ignores "nulls", i.e. empty FConstSharedStruct and FSharedStruct instances. The function
+	 * does care however about matching "mode", meaning ConstSharedFragments and SharedFragments arrays are compared
+	 * independently.
+	 */
+	bool HasSameValues(const FMassArchetypeSharedFragmentValues& Other) const;
+
 	FORCEINLINE bool ContainsType(const UScriptStruct* FragmentType) const
 	{
 		return FragmentType != nullptr && SharedFragmentBitSet.Contains(*FragmentType);
@@ -274,21 +294,30 @@ struct MASSENTITY_API FMassArchetypeSharedFragmentValues
 		return SharedFragmentBitSet.Contains(*T::StaticStruct());
 	}
 
-	FORCEINLINE FConstSharedStruct& AddConstSharedFragment(const FConstSharedStruct& Fragment)
-	{
-		DirtyHashCache();
-		check(Fragment.GetScriptStruct());
-		SharedFragmentBitSet.Add(*Fragment.GetScriptStruct());
-		return ConstSharedFragments.Add_GetRef(Fragment);
-	}
+	/** 
+	 * Adds Fragment to the collection. If a fragment of the given FMassSharedFragment subclass has already added then 
+	 * the function will return the previously added instance. In that case the function will also assert if the given type 
+	 * has been added as a CONST shared fragment and if not it will return an empty FConstSharedStruct
+	 */
+	FConstSharedStruct AddConstSharedFragment(const FConstSharedStruct& Fragment);
 
-	FORCEINLINE FSharedStruct AddSharedFragment(const FSharedStruct& Fragment)
-	{
-		DirtyHashCache();
-		check(Fragment.GetScriptStruct());
-		SharedFragmentBitSet.Add(*Fragment.GetScriptStruct());
-		return SharedFragments.Add_GetRef(Fragment);
-	}
+	/**
+	 * Adds Fragment to the collection. If a fragment of the given FMassSharedFragment subclass has already added then
+	 * the function will return the previously added instance. In that case the function will also assert if the given type
+	 * has been added as a NON-CONST shared fragment and if not it will return an empty FSharedStruct
+	 */
+	FSharedStruct AddSharedFragment(const FSharedStruct& Fragment);
+
+	/** 
+	 * Appends contents of Other to `this` instance. All common fragments will get overridden with values in Other.
+	 * Note that changing a fragments "role" (being const or non-const) is not supported and the function will fail an
+	 * ensure when that is attempted.
+	 * @return number of fragments added or changed
+	 */
+	int32 Append(const FMassArchetypeSharedFragmentValues& Other);
+
+	/** Note that the function removes the shared fragments by type */
+	int32 Remove(const FMassSharedFragmentBitSet& SharedFragmentToRemoveBitSet);
 
 	FORCEINLINE const TArray<FConstSharedStruct>& GetConstSharedFragments() const
 	{
@@ -304,11 +333,29 @@ struct MASSENTITY_API FMassArchetypeSharedFragmentValues
 	{
 		return SharedFragments;
 	}
+	
+	FConstSharedStruct GetConstSharedFragmentStruct(const UScriptStruct* StructType) const
+	{
+		const int32 FragmentIndex = ConstSharedFragments.IndexOfByPredicate(FStructTypeEqualOperator(StructType));
+		return FragmentIndex != INDEX_NONE ? ConstSharedFragments[FragmentIndex] : FConstSharedStruct();
+	}
+		
+	FSharedStruct GetSharedFragmentStruct(const UScriptStruct* StructType)
+	{
+		const int32 FragmentIndex = SharedFragments.IndexOfByPredicate(FStructTypeEqualOperator(StructType));
+		return FragmentIndex != INDEX_NONE ? SharedFragments[FragmentIndex] : FSharedStruct();
+	}
+
+	const FMassSharedFragmentBitSet& GetSharedFragmentBitSet() const
+	{
+		return SharedFragmentBitSet;
+	}
 
 	FORCEINLINE void DirtyHashCache()
 	{
 		HashCache = UINT32_MAX;
-		bSorted = false;
+		// we consider a single shared fragment as being "sorted"
+		bSorted = (SharedFragments.Num() + ConstSharedFragments.Num() <= 1) ;
 	}
 
 	FORCEINLINE void CacheHash() const
@@ -346,7 +393,11 @@ struct MASSENTITY_API FMassArchetypeSharedFragmentValues
 
 protected:
 	mutable uint32 HashCache = UINT32_MAX;
-	mutable bool bSorted = true; // When no element in the array, consider already sorted
+	/**
+	 * We consider empty FMassArchetypeSharedFragmentValues a sorted containter.Same goes for a container containing
+	 * a single element, @see DirtyHashCache
+	 */ 
+	mutable bool bSorted = true; 
 	
 	FMassSharedFragmentBitSet SharedFragmentBitSet;
 	TArray<FConstSharedStruct> ConstSharedFragments;
