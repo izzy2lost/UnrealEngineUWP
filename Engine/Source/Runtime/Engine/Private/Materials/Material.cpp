@@ -582,8 +582,7 @@ void UMaterialInterface::InitDefaultMaterials()
 
 		// Now precache PSOs for all the default materials after the default materials are marked initialize
 		// PSO precaching can request default materials so they have to marked as initialized to avoid endless recursion
-		// Skip platforms that do not support MVF, non-MVF path needs mesh information for PSO 
-		if (bInitialized && PipelineStateCache::IsPSOPrecachingEnabled() && RHISupportsManualVertexFetch(GMaxRHIShaderPlatform))
+		if (bInitialized && PipelineStateCache::IsPSOPrecachingEnabled())
 		{
 			PrecacheDefaultMaterialPSOs();
 		}
@@ -592,6 +591,12 @@ void UMaterialInterface::InitDefaultMaterials()
 
 void UMaterialInterface::PrecacheDefaultMaterialPSOs()
 {
+	if (!GIsRHIInitialized || !RHISupportsManualVertexFetch(GMaxRHIShaderPlatform))
+	{
+		// Skip platforms that do not support MVF, non-MVF path needs mesh information for PSO 
+		return;
+	}
+		
 	TArray<FMaterialPSOPrecacheRequestID> MaterialPrecacheRequestIDs;
 
 	FPSOPrecacheParams PrecachePSOParams;

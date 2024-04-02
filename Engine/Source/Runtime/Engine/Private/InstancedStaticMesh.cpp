@@ -767,6 +767,12 @@ void FInstancedStaticMeshVertexFactory::GetVertexElements(
 {
 	FVertexStreamList VertexStreams;
 	GetVertexElements(FeatureLevel, InputStreamType, bSupportsManualVertexFetch, Data, InstanceData, Elements, VertexStreams);
+
+	if (UseGPUScene(GMaxRHIShaderPlatform, GMaxRHIFeatureLevel) 
+		&& !PlatformGPUSceneUsesUniformBufferView(GMaxRHIShaderPlatform))
+	{
+		Elements.Add(FVertexElement(VertexStreams.Num(), 0, VET_UInt, 13, sizeof(uint32), true));
+	}
 }
 
 void FInstancedStaticMeshVertexFactory::GetVertexElements(

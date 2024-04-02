@@ -323,6 +323,11 @@ void FSceneTexturesConfig::Init(const FSceneTexturesConfigInitSettings& InitSett
 			GBufferBindings[Layout] = BindingCache.Bindings[Layout];
 		}
 	}
+
+	if (ShadingPath == EShadingPath::Mobile)
+	{
+		bRequiresDepthAux = MobileRequiresSceneDepthAux(ShaderPlatform);
+	}
 }
 
 void FSceneTexturesConfig::SetupMobileGBufferFlags(bool bRequiresMultiPass)
@@ -374,6 +379,12 @@ uint32 FSceneTexturesConfig::GetGBufferRenderTargetsInfo(FGraphicsPipelineRender
 		const FGBufferBinding& GBufferVelocity = GBufferBindings[GBL_Default].GBufferVelocity;
 		RenderTargetsInfo.RenderTargetFormats[RenderTargetCount] = GBufferVelocity.Format;
 		RenderTargetsInfo.RenderTargetFlags[RenderTargetCount++] = GBufferVelocity.Flags;
+	}
+
+	if (bRequiresDepthAux)
+	{
+		RenderTargetsInfo.RenderTargetFormats[RenderTargetCount] = bPreciseDepthAux ? PF_R32_FLOAT : PF_R16F;
+		RenderTargetsInfo.RenderTargetFlags[RenderTargetCount++] = TexCreate_RenderTargetable | TexCreate_ShaderResource | TexCreate_InputAttachmentRead;
 	}
 
 	// Store final number of render targets

@@ -443,8 +443,12 @@ void FMeshDecalMeshProcessor::CollectPSOInitializers(
 		// Collect decal pass PSOs
 		CollectDeferredDecalPassPSOInitializers(PSOCollectorIndex, FeatureLevel, SceneTexturesConfig, Material, LocalDecalRenderStage, PSOInitializers);
 
-		// Collect decal mesh PSOs
-		CollectDeferredDecalMeshPSOInitializers(SceneTexturesConfig, VertexFactoryData, PreCacheParams, Material, DecalBlendDesc, LocalDecalRenderStage, PSOInitializers);
+		// TODO: need to pass a correct vertex declaration for non-MVF platforms
+		if (RHISupportsManualVertexFetch(ShaderPlatform))
+		{
+			// Collect decal mesh PSOs
+			CollectDeferredDecalMeshPSOInitializers(SceneTexturesConfig, VertexFactoryData, PreCacheParams, Material, DecalBlendDesc, LocalDecalRenderStage, PSOInitializers);
+		}
 	}
 }
 
