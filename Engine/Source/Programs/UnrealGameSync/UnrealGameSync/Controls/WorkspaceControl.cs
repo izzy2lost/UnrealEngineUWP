@@ -912,8 +912,18 @@ namespace UnrealGameSync
 					IArchive? archivePath = GetArchiveForChangeNumber(archiveChannel, changeNumber);
 					if (archivePath == null)
 					{
-						MessageBox.Show(String.Format("There are no compiled {0} binaries for this change. To sync it, you must disable syncing of precompiled editor binaries.", archiveChannel.Name));
+						MessageBox.Show(String.Format("There are no compiled \"{0}\" binaries for this change. To sync it, you must disable syncing of precompiled editor binaries.", archiveChannel.Name));
 						return;
+					}
+
+					PerforceArchiveChannel? perforceArchiveChannel = archiveChannel as PerforceArchiveChannel;
+					if ((perforceArchiveChannel != null) && (perforceArchiveChannel.RequiredBadges.Count > 0))
+					{
+						if (!CanSyncChange(changeNumber))
+						{
+							MessageBox.Show(String.Format("This change has not passed the required tests \"{0}\". To sync it, you must disable syncing of precompiled editor binaries.", String.Join(", ", perforceArchiveChannel.RequiredBadges)));
+							return;
+						}
 					}
 
 					if (archiveChannel.Type == IArchiveChannel.EditorArchiveType)
@@ -2087,7 +2097,46 @@ namespace UnrealGameSync
 			}
 
 			List<IArchiveChannel> selectedArchives = GetSelectedArchiveChannels(GetArchiveChannels());
-			return selectedArchives.Count == 0 || selectedArchives.All(x => GetArchiveForChangeNumber(x, changeNumber) != null);
+			bool returnValue = selectedArchives.Count == 0 || selectedArchives.All(x => GetArchiveForChangeNumber(x, changeNumber) != null);
+
+			// If we can sync this change and we're using perforce archives, let's double check for any required badges
+			if (returnValue && (selectedArchives.Count == 1))
+			{
+				PerforceArchiveChannel? archiveChannel = selectedArchives[0] as PerforceArchiveChannel;
+
+				if ((archiveChannel != null) && (archiveChannel.RequiredBadges.Count > 0))
+				{
+					int currentChangeIdx = _sortedChangeNumbers.BinarySearch(changeNumber);
+					if (currentChangeIdx < 0)
+					{
+						return returnValue;
+					}
+
+					bool foundRequiredBadges = false;
+					bool badgesSuccessful = false;
+
+					for (int idx = currentChangeIdx; idx >= 0; idx--)
+					{
+						int localChangeNumber = _sortedChangeNumbers[idx];
+
+						EventSummary? summary = _eventMonitor.GetSummaryForChange(localChangeNumber);
+
+						if (summary != null)
+						{
+							foundRequiredBadges = DoRequiredBadgesExist(archiveChannel.RequiredBadges, summary.Badges, out badgesSuccessful);
+						}
+
+						if (foundRequiredBadges)
+						{
+							break;
+						}
+					}
+
+					return badgesSuccessful;
+				}
+			}
+
+			return returnValue;
 		}
 
 		/// <summary>
@@ -2097,6 +2146,15 @@ namespace UnrealGameSync
 		/// </summary>
 		private static bool DoRequiredBadgesExist(List<string> requiredBadgeList, List<BadgeData> inBadges)
 		{
+			bool badgesSuccessful;
+			bool badgesExist = DoRequiredBadgesExist(requiredBadgeList, inBadges, out badgesSuccessful);
+			return badgesExist && badgesSuccessful;
+		}
+
+		private static bool DoRequiredBadgesExist(List<string> requiredBadgeList, List<BadgeData> inBadges, out bool badgesSuccessful)
+		{
+			badgesSuccessful = true;
+
 			Dictionary<string, BadgeData> inBadgeDictionary = new Dictionary<string, BadgeData>();
 			foreach (BadgeData badge in inBadges)
 			{
@@ -2109,24 +2167,21 @@ namespace UnrealGameSync
 				BadgeData? badge;
 				if (inBadgeDictionary.TryGetValue(badgeName, out badge))
 				{
-					// If any required badge is not successful then the filter isn't matched.
-					if (!badge.IsSuccess)
-					{
-						return false;
-					}
+					badgesSuccessful = badgesSuccessful && badge.IsSuccess;
 				}
 				else
 				{
-					// required badge not found.
+					// required badge not found, early out
+					badgesSuccessful = false;
 					return false;
 				}
 			}
 
-			// All required badges existed and were successful 
+			// All required badges exist, if they were all successful, "badgesSuccessful" will be set to true
 			return true;
 		}
 
-		private bool CanSyncChangeType(LatestChangeType changeType, ChangesRecord change, EventSummary? summary)
+		private bool CanSyncChangeType(LatestChangeType changeType, int changeNumber, EventSummary? summary)
 		{
 			if (changeType.Good)
 			{
@@ -2138,7 +2193,7 @@ namespace UnrealGameSync
 
 			if (changeType.Starred)
 			{
-				if ((summary == null || summary.LastStarReview == null || summary.LastStarReview.Type != EventType.Starred) && !_promotedChangeNumbers.Contains(change.Number))
+				if ((summary == null || summary.LastStarReview == null || summary.LastStarReview.Type != EventType.Starred) && !_promotedChangeNumbers.Contains(changeNumber))
 				{
 					return false;
 				}
@@ -5343,7 +5398,7 @@ namespace UnrealGameSync
 				{
 					EventSummary? summary = _eventMonitor.GetSummaryForChange(change.Number);
 					if (CanSyncChange(change.Number)
-						&& CanSyncChangeType(changeType, change, summary))
+						&& CanSyncChangeType(changeType, change.Number, summary))
 					{
 						if (changeType.FindNewestGoodContent)
 						{
@@ -5383,6 +5438,11 @@ namespace UnrealGameSync
 
 				EventSummary? summary = _eventMonitor.GetSummaryForChange(nextChangeNumber);
 				if (summary != null && summary.Verdict == ReviewVerdict.Bad)
+				{
+					break;
+				}
+
+				if (!CanSyncChange(nextChangeNumber))
 				{
 					break;
 				}
