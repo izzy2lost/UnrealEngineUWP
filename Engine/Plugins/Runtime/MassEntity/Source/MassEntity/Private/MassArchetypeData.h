@@ -223,8 +223,8 @@ public:
 	void Initialize(const FMassArchetypeCompositionDescriptor& InCompositionDescriptor, const uint32 ArchetypeDataVersion);
 
 	/** 
-	 * A special way of initializing an archetype resulting in a copy of SiblingArchetype's setup with OverrideTags
-	 * replacing original tags of SiblingArchetype
+	 * A special way of initializing an archetype resulting in a copy of BaseArchetype's setup with OverrideTags
+	 * replacing original tags of BaseArchetype
 	 */
 	void InitializeWithSimilar(const FMassArchetypeData& BaseArchetype, FMassArchetypeCompositionDescriptor&& NewComposition, const uint32 ArchetypeDataVersion);
 
@@ -267,8 +267,9 @@ public:
 	 * Moves the entity from this archetype to another, will only copy all matching fragment types
 	 * @param Entity is the entity to move
 	 * @param NewArchetype the archetype to move to
+	 * @param SharedFragmentValuesOverride if provided will override all given Entity's shared fragment values
 	 */
-	void MoveEntityToAnotherArchetype(const FMassEntityHandle Entity, FMassArchetypeData& NewArchetype);
+	void MoveEntityToAnotherArchetype(const FMassEntityHandle Entity, FMassArchetypeData& NewArchetype, const FMassArchetypeSharedFragmentValues* SharedFragmentValuesOverride = nullptr);
 
 	/**
 	 * Set all fragment sources data on specified entity, will check if there are fragment sources type that does not exist in the archetype
@@ -363,8 +364,15 @@ public:
 	//////////////////////////////////////////////////////////////////////
 	// batched api
 	void BatchDestroyEntityChunks(FMassArchetypeEntityCollection::FConstEntityRangeArrayView EntityRangeContainer, TArray<FMassEntityHandle>& OutEntitiesRemoved);
-	void BatchAddEntities(TConstArrayView<FMassEntityHandle> Entities, const FMassArchetypeSharedFragmentValues& SharedFragmentValues, TArray<FMassArchetypeEntityCollection::FArchetypeEntityRange>& OutNewRanges);
-	void BatchMoveEntitiesToAnotherArchetype(const FMassArchetypeEntityCollection& EntityCollection, FMassArchetypeData& NewArchetype, TArray<FMassEntityHandle>& OutEntitiesBeingMoved, TArray<FMassArchetypeEntityCollection::FArchetypeEntityRange>* OutNewChunks = nullptr);
+	void BatchAddEntities(TConstArrayView<FMassEntityHandle> Entities, const FMassArchetypeSharedFragmentValues& SharedFragmentValues
+		, TArray<FMassArchetypeEntityCollection::FArchetypeEntityRange>& OutNewRanges);
+	/** 
+	 * @param SharedFragmentValuesOverride if provided will override shared fragment values for the entities being moved
+	 */
+	void BatchMoveEntitiesToAnotherArchetype(const FMassArchetypeEntityCollection& EntityCollection, FMassArchetypeData& NewArchetype
+		, TArray<FMassEntityHandle>& OutEntitiesBeingMoved, TArray<FMassArchetypeEntityCollection::FArchetypeEntityRange>* OutNewChunks = nullptr
+		, const FMassArchetypeSharedFragmentValues* SharedFragmentValuesToAdd = nullptr
+		, const FMassSharedFragmentBitSet* SharedFragmentToRemoveBitSet = nullptr);
 	void BatchSetFragmentValues(TConstArrayView<FMassArchetypeEntityCollection::FArchetypeEntityRange> EntityCollection, const FMassGenericPayloadViewSlice& Payload);
 
 protected:
