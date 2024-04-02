@@ -2,14 +2,26 @@
 
 #pragma once
 
-#include "CoreMinimal.h"
+#include "CoreTypes.h"
 
-#include "TraceServices/Model/TimingProfiler.h"
+#include "Containers/Array.h"
+#include "Containers/Map.h"
+#include "Containers/Set.h"
+#include "HAL/Platform.h"
+#include "Templates/Function.h"
+#include "UObject/NameTypes.h"
+
 #include <limits>
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
 class IFileHandle;
+
+namespace TraceServices
+{
+	class IAnalysisSession;
+	struct FTimingProfilerEvent;
+}
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -69,16 +81,16 @@ public:
 		 */
 		double IntervalStartTime = -std::numeric_limits<double>::infinity();
 		double IntervalEndTime = +std::numeric_limits<double>::infinity();
+
+		/**
+		 * The time region to be exported.
+		 * If empty, falls back to IntervalStartTime and IntervalEndTime.
+		 */
+		FString Region;
 	};
 
 	struct FExportTimerStatisticsParams : public FExportTimingEventsParams
 	{
-		/**
-		 * The time region to be exported. This is defined by having corresponding "RegionStart:Name" and
-		 * "RegionEnd:Name" bookmarks in the bookmarks channel.
-		 * If empty falls back to IntervalStartTime and IntervalEndTime.
-		 */
-		FString Region;
 	};
 
 	struct FExportCountersParams
@@ -106,9 +118,26 @@ public:
 		double IntervalEndTime = +std::numeric_limits<double>::infinity();
 
 		/**
-		 * If true, will export the operations and the operation values, instead of final values.
+		 * The time region to be exported.
+		 * If empty, falls back to IntervalStartTime and IntervalEndTime.
+		 */
+		FString Region;
+
+		/**
+		 * If true, will export values with the corresponding operation type, instead of the final values.
 		 */
 		bool bExportOps = false;
+	};
+
+	struct FTimeRegionInterval
+	{
+		double StartTime;
+		double EndTime;
+	};
+
+	struct FTimeRegionGroup
+	{
+		TArray<FTimeRegionInterval> Intervals;
 	};
 
 private:
@@ -200,6 +229,10 @@ public:
 
 	void MakeExportTimingEventsColumnList(const FString& InColumnsString, TArray<FName>& OutColumnList) const;
 
+	void GetRegions(const FString& InRegionNamePattern, TMap<FString, FTimeRegionGroup>& OutRegionGroups) const;
+	int32 EnumerateRegions(const TMap<FString, FTimeRegionGroup>& InRegionGroups, const FString& InFilenamePattern,
+		TFunction<void(const FString& /*Filename*/, const FString& /*RegionName*/, double /*IntervalStartTime*/, double /*IntervalEndTime*/)> InCallback) const;
+
 	//////////////////////////////////////////////////////////////////////
 	// Utilities to make FThreadFilterFunc filters.
 
@@ -248,7 +281,9 @@ private:
 	void ExportTimingEvents_InitColumns() const;
 	void ExportTimingEvents_WriteHeader(FExportTimingEventsInternalParams& Params) const;
 	int32 ExportTimingEvents_WriteEvents(FExportTimingEventsInternalParams& Params) const;
+	int32 ExportTimingEventsAsTextByRegions(const FString& FilenamePattern, FExportTimingEventsParams& Params) const;
 	int32 ExportTimerStatisticsAsTextByRegions(const FString& Filename, FExportTimerStatisticsParams& Params) const;
+	int32 ExportCounterAsTextByRegions(const FString& Filename, uint32 CounterId, FExportCounterParams& Params) const;
 
 private:
 	const TraceServices::IAnalysisSession& Session;

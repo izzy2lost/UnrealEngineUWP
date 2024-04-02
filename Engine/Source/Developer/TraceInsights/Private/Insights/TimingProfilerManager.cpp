@@ -4,6 +4,7 @@
 
 #include "MessageLogModule.h"
 #include "Modules/ModuleManager.h"
+#include "TraceServices/Model/Counters.h"
 #include "Widgets/Docking/SDockTab.h"
 #include "WorkspaceMenuStructure.h"
 #include "WorkspaceMenuStructureModule.h"
@@ -664,7 +665,8 @@ bool FTimingProfilerManager::Exec(const TCHAR* Cmd, FOutputDevice& Ar)
 
 		const bool bUseEscape = true;
 		FString Filename = FParse::Token(Cmd, bUseEscape);
-		Ar.Logf(TEXT("  Filename: %s"), *Filename);
+		Filename.TrimQuotesInline();
+		Ar.Logf(TEXT("  Filename: \"%s\""), *Filename);
 
 		Exporter.ExportThreadsAsText(Filename, Params);
 		return true;
@@ -679,7 +681,8 @@ bool FTimingProfilerManager::Exec(const TCHAR* Cmd, FOutputDevice& Ar)
 
 		const bool bUseEscape = true;
 		FString Filename = FParse::Token(Cmd, bUseEscape);
-		Ar.Logf(TEXT("  Filename: %s"), *Filename);
+		Filename.TrimQuotesInline();
+		Ar.Logf(TEXT("  Filename: \"%s\""), *Filename);
 
 		Exporter.ExportTimersAsText(Filename, Params);
 		return true;
@@ -702,7 +705,9 @@ bool FTimingProfilerManager::Exec(const TCHAR* Cmd, FOutputDevice& Ar)
 
 		const bool bUseEscape = true;
 		FString Filename = FParse::Token(Cmd, bUseEscape);
-		Ar.Logf(TEXT("  Filename: %s"), *Filename);
+		Filename.TrimQuotesInline();
+		Ar.Logf(TEXT("  Filename: \"%s\""), *Filename);
+		// '{region}' in Filename (if any) will be replaced with the resolved name of the region.
 
 		while (Cmd && Cmd[0] != TEXT('\0'))
 		{
@@ -716,94 +721,7 @@ bool FTimingProfilerManager::Exec(const TCHAR* Cmd, FOutputDevice& Ar)
 				static constexpr TCHAR TimersToken[] = TEXT("-timers=");
 				static constexpr TCHAR StartTimeToken[] = TEXT("-startTime=");
 				static constexpr TCHAR EndTimeToken[] = TEXT("-endTime=");
-
-				if (Token.StartsWith(ColumnsToken))
-				{
-					// Comma-delimited list of column names. Supports *?-type wildcard.
-					// Default: -columns="ThreadId,TimerId,StartTime,EndTime,Depth"
-					// Example: -columns="*" -columns="TimerName,Duration"
-					Token.RightChopInline(UE_ARRAY_COUNT(ColumnsToken) - 1);
-					Token.TrimQuotesInline();
-					Exporter.MakeExportTimingEventsColumnList(Token, Columns);
-					Params.Columns = &Columns;
-				}
-				else if (Token.StartsWith(ThreadsToken))
-				{
-					// Comma-delimited list of thread names. Supports *?-type wildcard.
-					// Default: -threads="*" (all threads; no filter)
-					// Example: -threads="GameThread" -threads="GPU1,GPU2,GameThread,Render*"
-					Token.RightChopInline(UE_ARRAY_COUNT(ThreadsToken) - 1);
-					Token.TrimQuotesInline();
-					Params.ThreadFilter = Exporter.MakeThreadFilterInclusive(Token, IncludedThreads);
-				}
-				else if (Token.StartsWith(TimersToken))
-				{
-					// Comma-delimited list of timer names. Supports *?-type wildcard.
-					// Default: -timers="*" (all timers; no filter)
-					// Example: -timers="A,B,*z"
-					Token.RightChopInline(UE_ARRAY_COUNT(TimersToken) - 1);
-					Token.TrimQuotesInline();
-					Params.TimingEventFilter = Exporter.MakeTimingEventFilterByTimersInclusive(Token, IncludedTimers);
-				}
-				else if (Token.StartsWith(StartTimeToken))
-				{
-					// Default: -startTime=-infinite
-					// Example: -startTime=10.0
-					Token.RightChopInline(UE_ARRAY_COUNT(StartTimeToken) - 1);
-					Params.IntervalStartTime = atof(TCHAR_TO_ANSI(*Token));
-				}
-				else if (Token.StartsWith(EndTimeToken))
-				{
-					// Default: -endTime=+infinite
-					// Example: -endTime=20.0
-					Token.RightChopInline(UE_ARRAY_COUNT(EndTimeToken) - 1);
-					Params.IntervalEndTime = atof(TCHAR_TO_ANSI(*Token));
-				}
-				else
-				{
-					Ar.Logf(ELogVerbosity::Warning, TEXT("Unknown Cmd Param: %s"), *Token);
-				}
-			}
-		}
-
-		//////////////////////////////////////////////////
-
-		Exporter.ExportTimingEventsAsText(Filename, Params);
-		return true;
-	}
-
-	if (FParse::Command(&Cmd, TEXT("TimingInsights.ExportTimerStatistics")))
-	{
-		Ar.Logf(TEXT("TimingInsights.ExportTimerStatistics %s"), Cmd);
-
-		check(FInsightsManager::Get().IsValid() && FInsightsManager::Get()->GetSession().IsValid());
-		Insights::FTimingExporter Exporter(*FInsightsManager::Get()->GetSession().Get());
-		Insights::FTimingExporter::FExportTimerStatisticsParams Params; // default (all timing events)
-
-		// These variables needs to be in the same scope with the call to Exporter.ExportTimerStatisticsAsText().
-		TArray<FName> Columns; // referenced by Params.Columns
-		TSet<uint32> IncludedThreads; // referenced in Params.ThreadFilter lambda function
-		TSet<uint32> IncludedTimers; // referenced in Params.TimingEventFilter lambda function
-
-		//////////////////////////////////////////////////
-
-		const bool bUseEscape = true;
-		FString Filename = FParse::Token(Cmd, bUseEscape);
-		Ar.Logf(TEXT("  Filename: %s"), *Filename);
-
-		while (Cmd && Cmd[0] != TEXT('\0'))
-		{
-			FString Token;
-			if (FParse::Token(Cmd, Token, bUseEscape))
-			{
-				Ar.Logf(TEXT("  Token: %s"), *Token);
-
-				static constexpr TCHAR ColumnsToken[] = TEXT("-columns=");
-				static constexpr TCHAR ThreadsToken[] = TEXT("-threads=");
-				static constexpr TCHAR TimersToken[] = TEXT("-timers=");
 				static constexpr TCHAR RegionToken[] = TEXT("-region=");
-				static constexpr TCHAR StartTimeToken[] = TEXT("-startTime=");
-				static constexpr TCHAR EndTimeToken[] = TEXT("-endTime=");
 
 				if (Token.StartsWith(ColumnsToken))
 				{
@@ -850,8 +768,109 @@ bool FTimingProfilerManager::Exec(const TCHAR* Cmd, FOutputDevice& Ar)
 				else if (Token.StartsWith(RegionToken))
 				{
 					// Comma-delimited list of region names. Supports *?-type wildcard.
-					// Each region is exported to a separate file. The '*' char in Filename (if any)
-					// will be replaced with the resolved name of the region.
+					// Each region is exported to a separate file.
+					// '{region}' in Filename (if any) will be replaced with the resolved name of the region.
+					// Default: -Region=
+					// Example: -Region="RegionName,Game_*,OtherRegion"
+					Token.RightChopInline(UE_ARRAY_COUNT(RegionToken) - 1);
+					Token.TrimQuotesInline();
+					Params.Region = TCHAR_TO_ANSI(*Token);
+				}
+				else
+				{
+					Ar.Logf(ELogVerbosity::Warning, TEXT("Unknown Cmd Param: %s"), *Token);
+				}
+			}
+		}
+
+		//////////////////////////////////////////////////
+
+		Exporter.ExportTimingEventsAsText(Filename, Params);
+		return true;
+	}
+
+	if (FParse::Command(&Cmd, TEXT("TimingInsights.ExportTimerStatistics")))
+	{
+		Ar.Logf(TEXT("TimingInsights.ExportTimerStatistics %s"), Cmd);
+
+		check(FInsightsManager::Get().IsValid() && FInsightsManager::Get()->GetSession().IsValid());
+		Insights::FTimingExporter Exporter(*FInsightsManager::Get()->GetSession().Get());
+		Insights::FTimingExporter::FExportTimerStatisticsParams Params; // default (all timing events)
+
+		// These variables needs to be in the same scope with the call to Exporter.ExportTimerStatisticsAsText().
+		TArray<FName> Columns; // referenced by Params.Columns
+		TSet<uint32> IncludedThreads; // referenced in Params.ThreadFilter lambda function
+		TSet<uint32> IncludedTimers; // referenced in Params.TimingEventFilter lambda function
+
+		//////////////////////////////////////////////////
+
+		const bool bUseEscape = true;
+		FString Filename = FParse::Token(Cmd, bUseEscape);
+		Filename.TrimQuotesInline();
+		Ar.Logf(TEXT("  Filename: \"%s\""), *Filename);
+		// '{region}' in Filename (if any) will be replaced with the resolved name of the region.
+
+		while (Cmd && Cmd[0] != TEXT('\0'))
+		{
+			FString Token;
+			if (FParse::Token(Cmd, Token, bUseEscape))
+			{
+				Ar.Logf(TEXT("  Token: %s"), *Token);
+
+				static constexpr TCHAR ColumnsToken[] = TEXT("-columns=");
+				static constexpr TCHAR ThreadsToken[] = TEXT("-threads=");
+				static constexpr TCHAR TimersToken[] = TEXT("-timers=");
+				static constexpr TCHAR StartTimeToken[] = TEXT("-startTime=");
+				static constexpr TCHAR EndTimeToken[] = TEXT("-endTime=");
+				static constexpr TCHAR RegionToken[] = TEXT("-region=");
+
+				if (Token.StartsWith(ColumnsToken))
+				{
+					// Comma-delimited list of column names. Supports *?-type wildcard.
+					// Default: -columns="ThreadId,TimerId,StartTime,EndTime,Depth"
+					// Example: -columns="*" -columns="TimerName,Duration"
+					Token.RightChopInline(UE_ARRAY_COUNT(ColumnsToken) - 1);
+					Token.TrimQuotesInline();
+					Exporter.MakeExportTimingEventsColumnList(Token, Columns);
+					Params.Columns = &Columns;
+				}
+				else if (Token.StartsWith(ThreadsToken))
+				{
+					// Comma-delimited list of thread names. Supports *?-type wildcard.
+					// Default: -threads="*" (all threads; no filter)
+					// Example: -threads="GameThread" -threads="GPU1,GPU2,GameThread,Render*"
+					Token.RightChopInline(UE_ARRAY_COUNT(ThreadsToken) - 1);
+					Token.TrimQuotesInline();
+					Params.ThreadFilter = Exporter.MakeThreadFilterInclusive(Token, IncludedThreads);
+				}
+				else if (Token.StartsWith(TimersToken))
+				{
+					// Comma-delimited list of timer names. Supports *?-type wildcard.
+					// Default: -timers="*" (all timers; no filter)
+					// Example: -timers="A,B,*z"
+					Token.RightChopInline(UE_ARRAY_COUNT(TimersToken) - 1);
+					Token.TrimQuotesInline();
+					Params.TimingEventFilter = Exporter.MakeTimingEventFilterByTimersInclusive(Token, IncludedTimers);
+				}
+				else if (Token.StartsWith(StartTimeToken))
+				{
+					// Default: -startTime=-infinite
+					// Example: -startTime=10.0
+					Token.RightChopInline(UE_ARRAY_COUNT(StartTimeToken) - 1);
+					Params.IntervalStartTime = atof(TCHAR_TO_ANSI(*Token));
+				}
+				else if (Token.StartsWith(EndTimeToken))
+				{
+					// Default: -endTime=+infinite
+					// Example: -endTime=20.0
+					Token.RightChopInline(UE_ARRAY_COUNT(EndTimeToken) - 1);
+					Params.IntervalEndTime = atof(TCHAR_TO_ANSI(*Token));
+				}
+				else if (Token.StartsWith(RegionToken))
+				{
+					// Comma-delimited list of region names. Supports *?-type wildcard.
+					// Each region is exported to a separate file.
+					// '{region}' in Filename (if any) will be replaced with the resolved name of the region.
 					// Default: -Region=
 					// Example: -Region="RegionName,Game_*,OtherRegion"
 					Token.RightChopInline(UE_ARRAY_COUNT(RegionToken) - 1);
@@ -872,8 +891,141 @@ bool FTimingProfilerManager::Exec(const TCHAR* Cmd, FOutputDevice& Ar)
 			Params.ThreadFilter = [](unsigned int){ return true; };
 		}
 
-		int32 Result = Exporter.ExportTimerStatisticsAsText(Filename, Params);
-		return Result > 0;
+		Exporter.ExportTimerStatisticsAsText(Filename, Params);
+		return true;
+	}
+
+	if (FParse::Command(&Cmd, TEXT("TimingInsights.ExportCounters")))
+	{
+		Ar.Logf(TEXT("TimingInsights.ExportCounters %s"), Cmd);
+		check(FInsightsManager::Get().IsValid() && FInsightsManager::Get()->GetSession().IsValid());
+		Insights::FTimingExporter Exporter(*FInsightsManager::Get()->GetSession().Get());
+		Insights::FTimingExporter::FExportCountersParams Params; // default
+		Exporter.ExportCountersAsText(Cmd, Params);
+		return true;
+	}
+
+	if (FParse::Command(&Cmd, TEXT("TimingInsights.ExportCounterValues")))
+	{
+		Ar.Logf(TEXT("TimingInsights.ExportCounterValues %s"), Cmd);
+		check(FInsightsManager::Get().IsValid() && FInsightsManager::Get()->GetSession().IsValid());
+		Insights::FTimingExporter Exporter(*FInsightsManager::Get()->GetSession().Get());
+		Insights::FTimingExporter::FExportCounterParams Params; // default
+
+		TArray<FString> Counters; // list of counters to export
+
+		// These variables needs to be in the same scope with the call to Exporter.ExportCounterAsText().
+		TArray<FName> Columns; // referenced by Params.Columns
+
+		//////////////////////////////////////////////////
+
+		const bool bUseEscape = true;
+		FString Filename = FParse::Token(Cmd, bUseEscape);
+		Filename.TrimQuotesInline();
+		Ar.Logf(TEXT("  Filename: \"%s\""), *Filename);
+		// '{counter}' in Filename (if any) will be replaced with the name of the counter.
+		// '{region}' in Filename (if any) will be replaced with the resolved name of the region.
+
+		while (Cmd && Cmd[0] != TEXT('\0'))
+		{
+			FString Token;
+			if (FParse::Token(Cmd, Token, bUseEscape))
+			{
+				static constexpr TCHAR CounterToken[] = TEXT("-counter=");
+				static constexpr TCHAR ColumnsToken[] = TEXT("-columns=");
+				static constexpr TCHAR StartTimeToken[] = TEXT("-startTime=");
+				static constexpr TCHAR EndTimeToken[] = TEXT("-endTime=");
+				static constexpr TCHAR RegionToken[] = TEXT("-region=");
+
+				if (Token.StartsWith(CounterToken))
+				{
+					// Comma-delimited list of counter names. Supports *?-type wildcard.
+					// Default: -counter=
+					// Example: -counter="PC / *"
+					Token.RightChopInline(UE_ARRAY_COUNT(CounterToken) - 1);
+					Token.TrimQuotesInline();
+					Token.ParseIntoArray(Counters, TEXT(","), true);
+				}
+				else if (Token.StartsWith(ColumnsToken))
+				{
+					// Comma-delimited list of column names. Supports *?-type wildcard.
+					// Default: -columns="Time,Value"
+					// Example: -columns="*" -columns="Value"
+					Token.RightChopInline(UE_ARRAY_COUNT(ColumnsToken) - 1);
+					Token.TrimQuotesInline();
+					Exporter.MakeExportTimingEventsColumnList(Token, Columns);
+					Params.Columns = &Columns;
+				}
+				else if (Token.StartsWith(StartTimeToken))
+				{
+					// Default: -startTime=-infinite
+					// Example: -startTime=10.0
+					Token.RightChopInline(UE_ARRAY_COUNT(StartTimeToken) - 1);
+					Params.IntervalStartTime = atof(TCHAR_TO_ANSI(*Token));
+				}
+				else if (Token.StartsWith(EndTimeToken))
+				{
+					// Default: -endTime=+infinite
+					// Example: -endTime=20.0
+					Token.RightChopInline(UE_ARRAY_COUNT(EndTimeToken) - 1);
+					Params.IntervalEndTime = atof(TCHAR_TO_ANSI(*Token));
+				}
+				else if (Token.StartsWith(RegionToken))
+				{
+					// Comma-delimited list of region names. Supports *?-type wildcard.
+					// Each region is exported to a separate file.
+					// '{region}' in Filename (if any) will be replaced with the resolved name of the region.
+					// Default: -Region=
+					// Example: -Region="RegionName,Game_*,OtherRegion"
+					Token.RightChopInline(UE_ARRAY_COUNT(RegionToken) - 1);
+					Token.TrimQuotesInline();
+					Params.Region = TCHAR_TO_ANSI(*Token);
+				}
+				else
+				{
+					Ar.Logf(ELogVerbosity::Warning, TEXT("Unknown Cmd Param: %s"), *Token);
+				}
+			}
+		}
+
+		struct FExportCounterInfo
+		{
+			uint32 Id;
+			FString Name;
+		};
+		TArray<FExportCounterInfo> CountersToExport;
+
+		if (Counters.Num() > 0)
+		{
+			for (const FString& CounterWildcard : Counters)
+			{
+				Ar.Logf(TEXT("  Searching counters with name: \"%s\""), *CounterWildcard);
+			}
+			const TraceServices::IAnalysisSession& Session = *FInsightsManager::Get()->GetSession().Get();
+			TraceServices::FAnalysisSessionReadScope SessionReadScope(Session);
+			const TraceServices::ICounterProvider& CounterProvider = TraceServices::ReadCounterProvider(Session);
+			CounterProvider.EnumerateCounters([&Ar, &Counters, &CountersToExport](uint32 CounterId, const TraceServices::ICounter& Counter)
+			{
+				FString CounterName(Counter.GetName());
+				for (const FString& CounterWildcard : Counters)
+				{
+					if (CounterName.MatchesWildcard(CounterWildcard))
+					{
+						CountersToExport.Add({ CounterId, CounterName });
+						break;
+					}
+				}
+			});
+		}
+
+		Ar.Logf(TEXT("  Exporting values for %d counters..."), CountersToExport.Num());
+		for (const FExportCounterInfo& Counter : CountersToExport)
+		{
+			Ar.Logf(TEXT("  Exporting counter: \"%s\" (id=%d)"), *Counter.Name, Counter.Id);
+			Exporter.ExportCounterAsText(Filename, Counter.Id, Params);
+		}
+
+		return true;
 	}
 
 	return false;

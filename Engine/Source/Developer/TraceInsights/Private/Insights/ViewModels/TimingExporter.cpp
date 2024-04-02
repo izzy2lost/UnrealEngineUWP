@@ -11,6 +11,7 @@
 #include "TraceServices/Model/Counters.h"
 #include "TraceServices/Model/Regions.h"
 #include "TraceServices/Model/Threads.h"
+#include "TraceServices/Model/TimingProfiler.h"
 
 // TraceInsights
 #include "Insights/Common/Stopwatch.h"
@@ -115,7 +116,11 @@ void FTimingExporter::FUtf8Writer::WriteStringBuilder(int32 CacheLen)
 
 int32 FTimingExporter::ExportThreadsAsText(const FString& Filename, FExportThreadsParams& Params) const
 {
-	checkf(Params.Columns == nullptr, TEXT("Custom list of columns is not yet supported!"));
+	if (Params.Columns != nullptr)
+	{
+		UE_LOG(TraceInsights, Error, TEXT("Custom list of columns is not yet supported!"));
+		return -1;
+	}
 
 	FStopwatch Stopwatch;
 	Stopwatch.Start();
@@ -195,7 +200,11 @@ int32 FTimingExporter::ExportThreadsAsText(const FString& Filename, FExportThrea
 
 int32 FTimingExporter::ExportTimersAsText(const FString& Filename, FExportTimersParams& Params) const
 {
-	checkf(Params.Columns == nullptr, TEXT("Custom list of columns is not yet supported!"));
+	if (Params.Columns != nullptr)
+	{
+		UE_LOG(TraceInsights, Error, TEXT("Custom list of columns is not yet supported!"));
+		return -1;
+	}
 
 	FStopwatch Stopwatch;
 	Stopwatch.Start();
@@ -496,8 +505,47 @@ int32 FTimingExporter::ExportTimingEvents_WriteEvents(FExportTimingEventsInterna
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
+int32 FTimingExporter::ExportTimingEventsAsTextByRegions(const FString& FilenamePattern, FExportTimingEventsParams& Params) const
+{
+	TMap<FString, FTimeRegionGroup> RegionGroups;
+	GetRegions(Params.Region, RegionGroups);
+
+	if (RegionGroups.Num() == 0)
+	{
+		UE_LOG(TraceInsights, Error, TEXT("Unable to find any region with name pattern '%s'."), *Params.Region);
+		return -1;
+	}
+
+	FStopwatch Stopwatch;
+	Stopwatch.Start();
+
+	// Export timing statistics for each region.
+	FExportTimingEventsParams RegionParams = Params;
+	RegionParams.Region.Reset();
+	int32 ExportedRegionCount = EnumerateRegions(RegionGroups, FilenamePattern,
+		[this, &RegionParams](const FString& Filename, const FString& RegionName, double IntervalStartTime, double IntervalEndTime)
+		{
+			RegionParams.IntervalStartTime = IntervalStartTime;
+			RegionParams.IntervalEndTime = IntervalEndTime;
+			UE_LOG(TraceInsights, Display, TEXT("Exporting timing statistics for region '%s' [%f .. %f] to '%s'"), *RegionName, RegionParams.IntervalStartTime, RegionParams.IntervalEndTime, *Filename);
+			ExportTimingEventsAsText(Filename, RegionParams);
+		});
+
+	Stopwatch.Stop();
+	const double TotalTime = Stopwatch.GetAccumulatedTime();
+	UE_LOG(TraceInsights, Log, TEXT("Exported timing statistics for %d regions in %.3fs."), ExportedRegionCount, TotalTime);
+	return ExportedRegionCount;
+}
+
+////////////////////////////////////////////////////////////////////////////////////////////////////
+
 int32 FTimingExporter::ExportTimingEventsAsText(const FString& Filename, FExportTimingEventsParams& Params) const
 {
+	if (!Params.Region.IsEmpty())
+	{
+		return ExportTimingEventsAsTextByRegions(Filename, Params);
+	}
+
 	ExportTimingEvents_InitColumns();
 	const TArray<FName>& Columns = Params.Columns ? *Params.Columns : ExportTimingEventsDefaultColumns;
 
@@ -535,12 +583,12 @@ int32 FTimingExporter::ExportTimingEventsAsText(const FString& Filename, FExport
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-int32 FTimingExporter::ExportTimerStatisticsAsTextByRegions(const FString& Filename, FExportTimerStatisticsParams& Params) const
+void FTimingExporter::GetRegions(const FString& InRegionNamePattern, TMap<FString, FTimeRegionGroup>& OutRegionGroups) const
 {
 	class FRegionNameSpec
 	{
 	public:
-		FRegionNameSpec(FString& InNamePatternList)
+		FRegionNameSpec(const FString& InNamePatternList)
 		{
 			InNamePatternList.ParseIntoArray(NamePatterns, TEXT(","), true);
 		}
@@ -560,18 +608,7 @@ int32 FTimingExporter::ExportTimerStatisticsAsTextByRegions(const FString& Filen
 	private:
 		TArray<FString> NamePatterns;
 	};
-	FRegionNameSpec RegionNameSpec(Params.Region);
-
-	struct FTimeRegionInterval
-	{
-		double StartTime;
-		double EndTime;
-	};
-	struct FTimeRegionGroup
-	{
-		TArray<FTimeRegionInterval> Intervals;
-	};
-	TMap<FString, FTimeRegionGroup> RegionGroups;
+	FRegionNameSpec RegionNameSpec(InRegionNamePattern);
 
 	// Detect regions
 	int32 RegionCount = 0;
@@ -581,10 +618,10 @@ int32 FTimingExporter::ExportTimerStatisticsAsTextByRegions(const FString& Filen
 		const TraceServices::IRegionProvider& RegionProvider = TraceServices::ReadRegionProvider(Session);
 		TraceServices::FProviderReadScopeLock RegionProviderScopedLock(RegionProvider);
 
-		UE_LOG(TraceInsights, Log, TEXT("Looking for regions: '%s'"), *Params.Region);
+		UE_LOG(TraceInsights, Log, TEXT("Looking for regions: '%s'"), *InRegionNamePattern);
 
 		RegionProvider.EnumerateRegions(0.0, std::numeric_limits<double>::max(),
-			[&RegionCount, &RegionNameSpec, &RegionGroups](const TraceServices::FTimeRegion& InRegion) -> bool
+			[&RegionCount, &RegionNameSpec, &OutRegionGroups](const TraceServices::FTimeRegion& InRegion) -> bool
 			{
 				if (!RegionNameSpec.Match(InRegion.Text))
 				{
@@ -594,10 +631,10 @@ int32 FTimingExporter::ExportTimerStatisticsAsTextByRegions(const FString& Filen
 				// Handle duplicate region names, individual regions may appear multiple times
 				// we append numbers to allow for unique export filenames.
 				FString RegionName = InRegion.Text;
-				FTimeRegionGroup* ExistingRegionGroup = RegionGroups.Find(RegionName);
+				FTimeRegionGroup* ExistingRegionGroup = OutRegionGroups.Find(RegionName);
 				if (!ExistingRegionGroup)
 				{
-					ExistingRegionGroup = &RegionGroups.Add(RegionName, FTimeRegionGroup{});
+					ExistingRegionGroup = &OutRegionGroups.Add(RegionName, FTimeRegionGroup{});
 				}
 				ExistingRegionGroup->Intervals.Add(FTimeRegionInterval{ InRegion.BeginTime, InRegion.EndTime });
 				++RegionCount;
@@ -607,23 +644,20 @@ int32 FTimingExporter::ExportTimerStatisticsAsTextByRegions(const FString& Filen
 	DetectRegionsStopwatch.Stop();
 	const double DetectRegionsTime = DetectRegionsStopwatch.GetAccumulatedTime();
 	UE_LOG(TraceInsights, Display, TEXT("Detected %d regions in %.3fs."), RegionCount, DetectRegionsTime);
+}
 
-	if (RegionGroups.Num() == 0)
-	{
-		UE_LOG(TraceInsights, Error, TEXT("Unable to find any region with name pattern '%s'."), *Params.Region);
-		return -1;
-	}
+////////////////////////////////////////////////////////////////////////////////////////////////////
 
-	FStopwatch Stopwatch;
-	Stopwatch.Start();
-
-	// Export timing statistics for each region.
+int32 FTimingExporter::EnumerateRegions(const TMap<FString, FTimeRegionGroup>& InRegionGroups, const FString& InFilenamePattern,
+	TFunction<void(const FString& /*Filename*/, const FString& /*RegionName*/, double /*IntervalStartTime*/, double /*IntervalEndTime*/)> InCallback) const
+{
 	constexpr int32 MaxIntervalsPerRegion = 100;
 	constexpr int32 MaxExportedRegions = 10000;
 	int32 ExportedRegionCount = 0;
-	for (auto& KV : RegionGroups)
+
+	for (auto& KV : InRegionGroups)
 	{
-		FString RegionName = KV.Key;
+		FString RegionName(KV.Key);
 		const FString InvalidFileSystemChars = FPaths::GetInvalidFileSystemChars();
 		for (int32 CharIndex = 0; CharIndex < InvalidFileSystemChars.Len(); CharIndex++)
 		{
@@ -635,36 +669,33 @@ int32 FTimingExporter::ExportTimerStatisticsAsTextByRegions(const FString& Filen
 		int32 IntervalIndex = 0;
 		for (const FTimeRegionInterval& Interval : KV.Value.Intervals)
 		{
-			FString RegionFilename;
+			FString Filename(InFilenamePattern);
 			if (IntervalIndex == 0)
 			{
-				RegionFilename = Filename.Replace(TEXT("*"), *RegionName);
+				Filename.ReplaceInline(TEXT("*"), *RegionName); // for backward compatibility
+				Filename.ReplaceInline(TEXT("{region}"), *RegionName);
 			}
 			else
 			{
 				FString UniqueRegionName = FString::Printf(TEXT("%s_%d"), *RegionName, IntervalIndex);
-				RegionFilename = Filename.Replace(TEXT("*"), *UniqueRegionName);
+				Filename.ReplaceInline(TEXT("*"), *UniqueRegionName); // for backward compatibility
+				Filename.ReplaceInline(TEXT("{region}"), *UniqueRegionName);
 			}
 			++IntervalIndex;
 
-			FExportTimerStatisticsParams RegionParams = Params;
-			RegionParams.Region.Reset();
-			RegionParams.IntervalStartTime = Interval.StartTime;
-			RegionParams.IntervalEndTime = Interval.EndTime;
-			UE_LOG(TraceInsights, Display, TEXT("Exporting timing statistics for region '%s' [%f .. %f] to '%s'"), *KV.Key, RegionParams.IntervalStartTime, RegionParams.IntervalEndTime, *RegionFilename);
-			ExportTimerStatisticsAsText(RegionFilename, RegionParams);
+			InCallback(Filename, KV.Key, Interval.StartTime, Interval.EndTime);
 
 			++ExportedRegionCount;
 
 			// Avoid writing too many files...
 			if (IntervalIndex >= MaxIntervalsPerRegion)
 			{
-				UE_LOG(TraceInsights, Error, TEXT("Too many intervals for region '%s'! Exporting timing statistics to separate file per interval for this region is not allowed to continue."), *KV.Key);
+				UE_LOG(TraceInsights, Error, TEXT("Too many intervals for region '%s'! Exporting to separate file per interval for this region is not allowed to continue."), *KV.Key);
 				break;
 			}
 			if (ExportedRegionCount >= MaxExportedRegions)
 			{
-				UE_LOG(TraceInsights, Error, TEXT("Too many regions! Exporting timing statistics to separate file per region is not allowed to continue."));
+				UE_LOG(TraceInsights, Error, TEXT("Too many regions! Exporting to separate file per region is not allowed to continue."));
 				break;
 			}
 		}
@@ -674,6 +705,37 @@ int32 FTimingExporter::ExportTimerStatisticsAsTextByRegions(const FString& Filen
 			break;
 		}
 	}
+
+	return ExportedRegionCount;
+}
+
+////////////////////////////////////////////////////////////////////////////////////////////////////
+
+int32 FTimingExporter::ExportTimerStatisticsAsTextByRegions(const FString& FilenamePattern, FExportTimerStatisticsParams& Params) const
+{
+	TMap<FString, FTimeRegionGroup> RegionGroups;
+	GetRegions(Params.Region, RegionGroups);
+
+	if (RegionGroups.Num() == 0)
+	{
+		UE_LOG(TraceInsights, Error, TEXT("Unable to find any region with name pattern '%s'."), *Params.Region);
+		return -1;
+	}
+
+	FStopwatch Stopwatch;
+	Stopwatch.Start();
+
+	// Export timing statistics for each region.
+	FExportTimerStatisticsParams RegionParams = Params;
+	RegionParams.Region.Reset();
+	int32 ExportedRegionCount = EnumerateRegions(RegionGroups, FilenamePattern,
+		[this, &RegionParams](const FString& Filename, const FString& RegionName, double IntervalStartTime, double IntervalEndTime)
+		{
+			RegionParams.IntervalStartTime = IntervalStartTime;
+			RegionParams.IntervalEndTime = IntervalEndTime;
+			UE_LOG(TraceInsights, Display, TEXT("Exporting timing statistics for region '%s' [%f .. %f] to '%s'"), *RegionName, RegionParams.IntervalStartTime, RegionParams.IntervalEndTime, *Filename);
+			ExportTimerStatisticsAsText(Filename, RegionParams);
+		});
 
 	Stopwatch.Stop();
 	const double TotalTime = Stopwatch.GetAccumulatedTime();
@@ -948,7 +1010,11 @@ FTimingExporter::FTimingEventFilterFunc FTimingExporter::MakeTimingEventFilterBy
 
 int32 FTimingExporter::ExportCountersAsText(const FString& Filename, FExportCountersParams& Params) const
 {
-	checkf(Params.Columns == nullptr, TEXT("Custom list of columns is not yet supported!"));
+	if (Params.Columns != nullptr)
+	{
+		UE_LOG(TraceInsights, Error, TEXT("Custom list of columns is not yet supported!"));
+		return -1;
+	}
 
 	FStopwatch Stopwatch;
 	Stopwatch.Start();
@@ -1019,12 +1085,88 @@ int32 FTimingExporter::ExportCountersAsText(const FString& Filename, FExportCoun
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-int32 FTimingExporter::ExportCounterAsText(const FString& Filename, uint32 CounterId, FExportCounterParams& Params) const
+int32 FTimingExporter::ExportCounterAsTextByRegions(const FString& FilenamePattern, uint32 CounterId, FExportCounterParams& Params) const
 {
-	checkf(Params.Columns == nullptr, TEXT("Custom list of columns is not yet supported!"));
+	TMap<FString, FTimeRegionGroup> RegionGroups;
+	GetRegions(Params.Region, RegionGroups);
+
+	if (RegionGroups.Num() == 0)
+	{
+		UE_LOG(TraceInsights, Error, TEXT("Unable to find any region with name pattern '%s'."), *Params.Region);
+		return -1;
+	}
 
 	FStopwatch Stopwatch;
 	Stopwatch.Start();
+
+	// Export counter for each region.
+	FExportCounterParams RegionParams = Params;
+	RegionParams.Region.Reset();
+	int32 ExportedRegionCount = EnumerateRegions(RegionGroups, FilenamePattern,
+		[this, CounterId, &RegionParams](const FString& Filename, const FString& RegionName, double IntervalStartTime, double IntervalEndTime)
+		{
+			RegionParams.IntervalStartTime = IntervalStartTime;
+			RegionParams.IntervalEndTime = IntervalEndTime;
+			UE_LOG(TraceInsights, Display, TEXT("Exporting counter %u for region '%s' [%f .. %f] to '%s'"), CounterId , *RegionName, RegionParams.IntervalStartTime, RegionParams.IntervalEndTime, *Filename);
+			ExportCounterAsText(Filename, CounterId, RegionParams);
+		});
+
+	Stopwatch.Stop();
+	const double TotalTime = Stopwatch.GetAccumulatedTime();
+	UE_LOG(TraceInsights, Log, TEXT("Exported counter values for %d regions in %.3fs."), ExportedRegionCount, TotalTime);
+	return ExportedRegionCount;
+}
+
+////////////////////////////////////////////////////////////////////////////////////////////////////
+
+int32 FTimingExporter::ExportCounterAsText(const FString& FilenamePattern, uint32 CounterId, FExportCounterParams& Params) const
+{
+	if (Params.Columns != nullptr)
+	{
+		UE_LOG(TraceInsights, Error, TEXT("Custom list of columns is not yet supported!"));
+		return -1;
+	}
+
+	if (!Params.Region.IsEmpty())
+	{
+		return ExportCounterAsTextByRegions(FilenamePattern, CounterId, Params);
+	}
+
+	FStopwatch Stopwatch;
+	Stopwatch.Start();
+
+	FString CounterName;
+
+	if (true) // TraceServices::ReadCounterProvider(Session)
+	{
+		TraceServices::FAnalysisSessionReadScope SessionReadScope(Session);
+		const TraceServices::ICounterProvider& CounterProvider = TraceServices::ReadCounterProvider(Session);
+		CounterProvider.ReadCounter(CounterId,
+			[&](const TraceServices::ICounter& Counter)
+			{
+				CounterName = Counter.GetName();
+			});
+	}
+
+	if (CounterName.IsEmpty())
+	{
+		UE_LOG(TraceInsights, Error, TEXT("Invalid counter!"));
+		return -1;
+	}
+
+	FString Filename(FilenamePattern);
+	if (Filename.Contains(TEXT("{counter}")))
+	{
+		FString CounterFilename(CounterName);
+		const FString InvalidFileSystemChars = FPaths::GetInvalidFileSystemChars();
+		for (int32 CharIndex = 0; CharIndex < InvalidFileSystemChars.Len(); CharIndex++)
+		{
+			FString Char = FString().AppendChar(InvalidFileSystemChars[CharIndex]);
+			CounterFilename.ReplaceInline(*Char, TEXT("_"));
+		}
+		CounterFilename.TrimStartAndEndInline();
+		Filename.ReplaceInline(TEXT("{counter}"), *CounterFilename);
+	}
 
 	IFileHandle* ExportFileHandle = OpenExportFile(*Filename);
 	if (!ExportFileHandle)
@@ -1053,7 +1195,6 @@ int32 FTimingExporter::ExportCounterAsText(const FString& Filename, uint32 Count
 		Writer.AppendLineEnd();
 	}
 
-	FString CounterName;
 	int32 ValueCount = 0;
 
 	// Write values.
@@ -1066,8 +1207,6 @@ int32 FTimingExporter::ExportCounterAsText(const FString& Filename, uint32 Count
 		CounterProvider.ReadCounter(CounterId,
 			[&](const TraceServices::ICounter& Counter)
 			{
-				CounterName = Counter.GetName();
-
 				// Iterate the counter values.
 				if (Params.bExportOps)
 				{
