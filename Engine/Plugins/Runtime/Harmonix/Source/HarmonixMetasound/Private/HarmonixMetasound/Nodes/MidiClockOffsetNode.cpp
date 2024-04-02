@@ -171,58 +171,59 @@ namespace HarmonixMetasound::Nodes::MidiClockOffset
 			for (int32 EventIndex = 0; EventIndex < MidiClockEvents.Num(); ++EventIndex)
 			{
 				const FMidiClockEvent& Event = MidiClockEvents[EventIndex];
-
-				if (Event.Msg.IsType<MidiClockMessageTypes::FSeekTo>())
+				switch (Event.Msg.Type)
 				{
-					const int32 Tick = GetTickWithOffset(Event.Msg.Get<MidiClockMessageTypes::FSeekTo>().ToTick, OffsetBars, OffsetBeats, OffsetMs);
-					FMusicSeekTarget SeekTarget;
-					SeekTarget.Type = ESeekPointType::Millisecond;
-					SeekTarget.Ms = MidiClockOut->GetSongMaps().TickToMs(Tick);
-								
-					MidiClockOut->SeekTo(Event.BlockFrameIndex, SeekTarget, PrerollBars);
-				}
-				else if (Event.Msg.IsType<MidiClockMessageTypes::FReset>())
-				{
-					const int32 Tick = GetTickWithOffset(Event.Msg.Get<MidiClockMessageTypes::FReset>().ToTick, OffsetBars, OffsetBeats, OffsetMs);
-					FMusicSeekTarget SeekTarget;
-					SeekTarget.Type = ESeekPointType::Millisecond;
-					SeekTarget.Ms = MidiClockOut->GetSongMaps().TickToMs(Tick);
-								
-					MidiClockOut->SeekTo(Event.BlockFrameIndex, SeekTarget, PrerollBars);
-				}
-				else if (Event.Msg.IsType<MidiClockMessageTypes::FSeekThru>())
-				{
-					const int32 Tick = GetTickWithOffset(Event.Msg.Get<MidiClockMessageTypes::FSeekThru>().ThruTick, OffsetBars, OffsetBeats, OffsetMs);
-					FMusicSeekTarget SeekTarget;
-					SeekTarget.Type = ESeekPointType::Millisecond;
-					SeekTarget.Ms = MidiClockOut->GetSongMaps().TickToMs(Tick + 1);
-							
-					MidiClockOut->SeekTo(Event.BlockFrameIndex, SeekTarget, PrerollBars);
-				}
-				else if (Event.Msg.IsType<MidiClockMessageTypes::FAdvanceThru>())
-				{
-					const int32 ThruTick = Event.Msg.Get<MidiClockMessageTypes::FAdvanceThru>().ThruTick;
-					const int32 Tick = GetTickWithOffset(ThruTick, OffsetBars, OffsetBeats, OffsetMs);
-						
-					// if our offset changed while we were advancing, seek to the new offset first
-					if (!FMath::IsNearlyEqual(PrevOffsetMs, OffsetMs) || !FMath::IsNearlyEqual(PrevOffsetBeats, OffsetBeats) || PrevOffsetBars != OffsetBars)
+				case FMidiClockMsg::EType::SeekTo:
+				case FMidiClockMsg::EType::Reset:
 					{
-						PrevOffsetMs = OffsetMs;
-						PrevOffsetBars = OffsetBars;
-						PrevOffsetBeats = OffsetBeats;
-
+						const int32 Tick = GetTickWithOffset(Event.Msg.ToTick(), OffsetBars, OffsetBeats, OffsetMs);
 						FMusicSeekTarget SeekTarget;
 						SeekTarget.Type = ESeekPointType::Millisecond;
 						SeekTarget.Ms = MidiClockOut->GetSongMaps().TickToMs(Tick);
 								
 						MidiClockOut->SeekTo(Event.BlockFrameIndex, SeekTarget, PrerollBars);
+						break;
 					}
+				case FMidiClockMsg::EType::SeekThru:
+					{
+						const int32 Tick = GetTickWithOffset(Event.Msg.ThruTick(), OffsetBars, OffsetBeats, OffsetMs);
+						FMusicSeekTarget SeekTarget;
+						SeekTarget.Type = ESeekPointType::Millisecond;
+						SeekTarget.Ms = MidiClockOut->GetSongMaps().TickToMs(Tick + 1);
+							
+						MidiClockOut->SeekTo(Event.BlockFrameIndex, SeekTarget, PrerollBars);
+						break;
+					}
+				case FMidiClockMsg::EType::AdvanceThru:
+					{
+						const int32 Tick = GetTickWithOffset(Event.Msg.ThruTick(), OffsetBars, OffsetBeats, OffsetMs);
+						
+						// if our offset changed while we were advancing, seek to the new offset first
+						if (!FMath::IsNearlyEqual(PrevOffsetMs, OffsetMs) || !FMath::IsNearlyEqual(PrevOffsetBeats, OffsetBeats) || PrevOffsetBars != OffsetBars)
+						{
+							PrevOffsetMs = OffsetMs;
+							PrevOffsetBars = OffsetBars;
+							PrevOffsetBeats = OffsetBeats;
 
-					const float AdvanceToMs = MidiClockOut->GetSongMaps().TickToMs(Tick);
-					const float ClockInSpeed = MidiClockIn->GetSpeedAtBlockSampleFrame(EventIndex);
-					const float AdvanceRatio = MidiClockIn->GetSongMaps().GetTempoAtTick(ThruTick) / MidiClockOut->GetSongMaps().GetTempoAtTick(Tick);
-					MidiClockOut->InformOfCurrentAdvanceRate(ClockInSpeed * AdvanceRatio);
-					MidiClockOut->AdvanceHiResToMs(Event.BlockFrameIndex, AdvanceToMs, true);
+							FMusicSeekTarget SeekTarget;
+							SeekTarget.Type = ESeekPointType::Millisecond;
+							SeekTarget.Ms = MidiClockOut->GetSongMaps().TickToMs(Tick);
+								
+							MidiClockOut->SeekTo(Event.BlockFrameIndex, SeekTarget, PrerollBars);
+						}
+
+						const float AdvanceToMs = MidiClockOut->GetSongMaps().TickToMs(Tick);
+						const float ClockInSpeed = MidiClockIn->GetSpeedAtBlockSampleFrame(EventIndex);
+						const float AdvanceRatio = MidiClockIn->GetSongMaps().GetTempoAtTick(Event.Msg.ThruTick()) / MidiClockOut->GetSongMaps().GetTempoAtTick(Tick);
+						MidiClockOut->InformOfCurrentAdvanceRate(ClockInSpeed * AdvanceRatio);
+						MidiClockOut->AdvanceHiResToMs(Event.BlockFrameIndex, AdvanceToMs, true);
+						break;
+					}
+				case FMidiClockMsg::EType::Loop:
+					{
+						break;
+					}
+							
 				}
 			}
 		}

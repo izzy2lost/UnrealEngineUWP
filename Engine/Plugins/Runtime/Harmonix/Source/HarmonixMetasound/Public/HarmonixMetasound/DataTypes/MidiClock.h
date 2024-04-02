@@ -249,13 +249,11 @@ namespace HarmonixMetasound
 			virtual void SeekThruTick(int32 Tick) override;
 			virtual void AdvanceThruTick(int32 Tick, bool IsPreRoll) override;
 			virtual void OnTempo(int32 TrackIndex, int32 Tick, int32 Tempo, bool IsPreroll = false) override;
-			virtual void OnTimeSig(int32 TrackIndex, int32 Tick, int32 Numerator, int32 Denominator, bool IsPreroll) override;
 			//~ END FMidiPlayCursor Overrides
 			
-			void AddEvent(const FMidiClockEvent& InEvent) const;
+			void AddEvent(const FMidiClockEvent& InEvent);
 		private:
 			FMidiClock* MyMidiClock = nullptr;
-			int32 CurrentAdvanceStartTick = -1;
 		};
 		
 		FMidiClockEventCursor MidiClockEventCursor;
