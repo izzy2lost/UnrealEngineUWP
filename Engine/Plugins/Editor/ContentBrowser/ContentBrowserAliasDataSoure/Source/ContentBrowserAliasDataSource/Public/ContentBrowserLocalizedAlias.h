@@ -21,8 +21,8 @@ struct FContentBrowserLocalizedAlias
 		return Alias != Other.Alias;
 	}
 
-	friend uint32 GetTypeHash(const FContentBrowserLocalizedAlias& Alias)
+	friend uint32 GetTypeHash(const FContentBrowserLocalizedAlias& This)
 	{
-		return GetTypeHash(Alias.Alias);
+		return GetTypeHash(This.Alias);
 	}
 };
