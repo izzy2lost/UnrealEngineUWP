@@ -58,4 +58,7 @@ private:
 
 	/** The value currently being scrubbed to. */
 	float ScrubValue = 0.0f;
+
+	/** The last value set with media player while scrubbing. */
+	float LastScrubValue = -1.0f;
 };
