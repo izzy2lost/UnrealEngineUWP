@@ -19,7 +19,7 @@ TEST_CASE("Core::Async::Mutex", "[Core][Async][Slow][LinuxSkip]")
 	SECTION("FMutex IsLocked() and TryLock()")
 	{
 		FThread Threads[TaskCount];
-		uint32 TasksComplete = 0;
+		std::atomic<uint32> TasksComplete = 0;
 		
 		FMutex Mutex;
 		CHECK(Mutex.TryLock());
@@ -58,7 +58,7 @@ TEST_CASE("Core::Async::Mutex", "[Core][Async][Slow][LinuxSkip]")
 	SECTION("FMutex with TUniqueLock which uses SlowLock() and SlowUnlock()")
 	{
 		FThread Threads[TaskCount];
-		uint32 TasksComplete = 0;
+		std::atomic<uint32> TasksComplete = 0;
 		
 		FMutex Mutex;
 		Mutex.Lock();
