@@ -31,6 +31,36 @@ namespace ContentBrowserAliasDataSource
 					AliasDataSource->LogAliases();
 				}
 			}));
+
+	template <typename AliasType>
+	FName GetAliasName(const AliasType&);
+
+	template <>
+	FName GetAliasName<FName>(const FName& Alias)
+	{
+		return Alias;
+	}
+
+	template <>
+	FName GetAliasName<FContentBrowserLocalizedAlias>(const FContentBrowserLocalizedAlias& Alias)
+	{
+		return Alias.Alias;
+	}
+
+	template <typename AliasType>
+	FText GetAliasDisplayNameOverride(const AliasType&);
+
+	template <>
+	FText GetAliasDisplayNameOverride<FName>(const FName& Alias)
+	{
+		return FText::GetEmpty();
+	}
+
+	template <>
+	FText GetAliasDisplayNameOverride<FContentBrowserLocalizedAlias>(const FContentBrowserLocalizedAlias& Alias)
+	{
+		return Alias.DisplayName;
+	}
 }
 
 FName UContentBrowserAliasDataSource::AliasTagName = "ContentBrowserAliases";
@@ -310,7 +340,18 @@ TArray<FContentBrowserItemPath> UContentBrowserAliasDataSource::GetAliasesForPat
 
 void UContentBrowserAliasDataSource::AddAliases(const FAssetData& Asset, const TArray<FName>& Aliases, const bool bInIsFromMetaData, const bool bSkipPrimaryAssetValidation)
 {
-	for (const FName Alias : Aliases)
+	AddAliasesImpl(Asset, Aliases, bInIsFromMetaData, bSkipPrimaryAssetValidation);
+}
+
+void UContentBrowserAliasDataSource::AddAliases(const FAssetData& Asset, const TArray<FContentBrowserLocalizedAlias>& Aliases, const bool bInIsFromMetaData, const bool bSkipPrimaryAssetValidation)
+{
+	AddAliasesImpl(Asset, Aliases, bInIsFromMetaData, bSkipPrimaryAssetValidation);
+}
+
+template <typename AliasType>
+void UContentBrowserAliasDataSource::AddAliasesImpl(const FAssetData& Asset, const TArray<AliasType>& Aliases, const bool bInIsFromMetaData, const bool bSkipPrimaryAssetValidation)
+{
+	for (const AliasType& Alias : Aliases)
 	{
 		AddAlias(Asset, Alias, bInIsFromMetaData, bSkipPrimaryAssetValidation);
 	}
@@ -318,6 +359,20 @@ void UContentBrowserAliasDataSource::AddAliases(const FAssetData& Asset, const T
 
 void UContentBrowserAliasDataSource::AddAlias(const FAssetData& Asset, const FName Alias, const bool bInIsFromMetaData, const bool bSkipPrimaryAssetValidation)
 {
+	AddAliasImpl(Asset, Alias, bInIsFromMetaData, bSkipPrimaryAssetValidation);
+}
+
+void UContentBrowserAliasDataSource::AddAlias(const FAssetData& Asset, const FContentBrowserLocalizedAlias& Alias, const bool bInIsFromMetaData, const bool bSkipPrimaryAssetValidation)
+{
+	AddAliasImpl(Asset, Alias, bInIsFromMetaData, bSkipPrimaryAssetValidation);
+}
+
+template <typename AliasType>
+void UContentBrowserAliasDataSource::AddAliasImpl(const FAssetData& Asset, const AliasType& AliasToAdd, const bool bInIsFromMetaData, const bool bSkipPrimaryAssetValidation)
+{
+	const FName Alias = ContentBrowserAliasDataSource::GetAliasName(AliasToAdd);
+	const FText AliasDisplayNameOverride = ContentBrowserAliasDataSource::GetAliasDisplayNameOverride(AliasToAdd);
+
 	auto LogErrorMessage = [&Alias, &Asset](const TCHAR* Reason)
 	{
 		UE_LOG(LogContentBrowserAliasDataSource, Warning, TEXT("Cannot add alias %s for %s because: %s"), *Alias.ToString(), *Asset.GetObjectPathString(), Reason);
@@ -376,7 +431,7 @@ void UContentBrowserAliasDataSource::AddAlias(const FAssetData& Asset, const FNa
 
 	AliasesInPackagePath.FindOrAdd(PackagePath).Add(UniqueAlias);
 	AliasesForObjectPath.FindOrAdd(Asset.GetSoftObjectPath()).Add(Alias);
-	AllAliases.Add(UniqueAlias, FAliasData(Asset, PackagePath, *Tokens.Last(), bInIsFromMetaData));
+	AllAliases.Add(UniqueAlias, FAliasData(Asset, PackagePath, AliasDisplayNameOverride.IsEmpty() ? FText::AsCultureInvariant(*Tokens.Last()) : AliasDisplayNameOverride, bInIsFromMetaData));
 	QueueItemDataUpdate(FContentBrowserItemDataUpdate::MakeItemAddedUpdate(CreateAssetFileItem(UniqueAlias)));
 
 	// This logging might get out of control if there ends up being hundreds of thousands of aliases.
@@ -465,12 +520,39 @@ void UContentBrowserAliasDataSource::RemoveAlias(const FSoftObjectPath& ObjectPa
 	}
 }
 
+void UContentBrowserAliasDataSource::AddAliasFolderDisplayName(const FName AliasFolder, const FText& DisplayName)
+{
+	if (const FText* ExistingDisplayName = AliasFolderDisplayNames.Find(AliasFolder);
+		ExistingDisplayName && ExistingDisplayName->IdenticalTo(DisplayName, ETextIdenticalModeFlags::LexicalCompareInvariants))
+	{
+		return;
+	}
+
+	AliasFolderDisplayNames.Add(AliasFolder, DisplayName);
+
+	if (PathTree.PathExists(AliasFolder))
+	{
+		QueueItemDataUpdate(FContentBrowserItemDataUpdate::MakeItemModifiedUpdate(CreateAssetFolderItem(AliasFolder)));
+	}
+}
+
+void UContentBrowserAliasDataSource::RemoveAliasFolderDisplayName(const FName AliasFolder)
+{
+	AliasFolderDisplayNames.Remove(AliasFolder);
+
+	if (PathTree.PathExists(AliasFolder))
+	{
+		QueueItemDataUpdate(FContentBrowserItemDataUpdate::MakeItemModifiedUpdate(CreateAssetFolderItem(AliasFolder)));
+	}
+}
+
 void UContentBrowserAliasDataSource::RebuildAliases()
 {
 	PathTree = FPathTree();
 	AllAliases.Reset();
 	AliasesForObjectPath.Reset();
 	AliasesInPackagePath.Reset();
+	AliasFolderDisplayNames.Reset();
 	AlreadyAddedOriginalAssets.Reset();
 	FilterCache.Reset();
 	RootPathVirtualTree.Reset();
@@ -589,28 +671,40 @@ void UContentBrowserAliasDataSource::ReconcileAliasesFromMetaData(const FAssetDa
 
 void UContentBrowserAliasDataSource::ReconcileAliasesForAsset(const FAssetData& Asset, const TArray<FName>& NewAliases)
 {
+	ReconcileAliasesForAssetImpl(Asset, NewAliases);
+}
+
+void UContentBrowserAliasDataSource::ReconcileAliasesForAsset(const FAssetData& Asset, const TArray<FContentBrowserLocalizedAlias>& NewAliases)
+{
+	ReconcileAliasesForAssetImpl(Asset, NewAliases);
+}
+
+template <typename AliasType>
+void UContentBrowserAliasDataSource::ReconcileAliasesForAssetImpl(const FAssetData& Asset, const TArray<AliasType>& NewAliases)
+{
 	if (ensure(Asset.IsValid()))
 	{
 		const TArray<FName>* ExistingAliasesPtr = AliasesForObjectPath.Find(Asset.GetSoftObjectPath());
 		if (ExistingAliasesPtr)
 		{
-			TArray<FName> AliasesOnlyInExisting, AliasesOnlyInNew;
+			TArray<FName> AliasesOnlyInExisting;
+			TArray<AliasType> AliasesOnlyInNew;
 			FContentBrowserUniqueAlias UniqueAlias = MakeTuple(Asset.GetSoftObjectPath(), NAME_None);
 			for (const FName Alias : *ExistingAliasesPtr)
 			{
 				UniqueAlias.Value = Alias;
 				if (!AllAliases[UniqueAlias].bIsFromMetaData)
 				{
-					if (!NewAliases.Contains(Alias))
+					if (!NewAliases.ContainsByPredicate([&Alias](const AliasType& NewAlias) { return ContentBrowserAliasDataSource::GetAliasName(NewAlias) == Alias; }))
 					{
 						AliasesOnlyInExisting.Add(Alias);
 					}
 				}
 			}
 
-			for (const FName Alias : NewAliases)
+			for (const AliasType& Alias : NewAliases)
 			{
-				if (!ExistingAliasesPtr->Contains(Alias))
+				if (!ExistingAliasesPtr->Contains(ContentBrowserAliasDataSource::GetAliasName(Alias)))
 				{
 					AliasesOnlyInNew.Add(Alias);
 				}
@@ -900,7 +994,7 @@ FContentBrowserItemData UContentBrowserAliasDataSource::CreateAssetFolderItem(co
 
 	const FString FolderItemName = FPackageName::GetShortName(InFolderPath);
 	return FContentBrowserItemData(this, EContentBrowserItemFlags::Type_Folder | EContentBrowserItemFlags::Category_Asset, VirtualizedPath,
-		*FolderItemName, FText::GetEmpty(), MakeShared<FContentBrowserAssetFolderItemDataPayload>(InFolderPath));
+		*FolderItemName, AliasFolderDisplayNames.FindRef(InFolderPath), MakeShared<FContentBrowserAssetFolderItemDataPayload>(InFolderPath));
 }
 
 FContentBrowserItemData UContentBrowserAliasDataSource::CreateAssetFileItem(const FContentBrowserUniqueAlias& Alias)
@@ -918,7 +1012,7 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 		// Since AliasID is PackagePath/AssetName, AssetName should also be passed as the ItemName here. This provides the functionality of
 		// being able to have multiple aliases with the same display name, while still showing their original asset name in the tooltip.
 		return FContentBrowserItemData(this, EContentBrowserItemFlags::Type_File | EContentBrowserItemFlags::Category_Asset, VirtualizedPath,
-			AliasData->AssetData.AssetName, FText::FromName(AliasData->AliasName), MakeShared<FContentBrowserAliasItemDataPayload>(AliasData->AssetData, Alias));
+			AliasData->AssetData.AssetName, AliasData->AliasDisplayName, MakeShared<FContentBrowserAliasItemDataPayload>(AliasData->AssetData, Alias));
 	}
 	return FContentBrowserItemData();
 }

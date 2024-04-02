@@ -6,6 +6,7 @@
 #include "ContentBrowserAssetDataPayload.h"
 #include "ContentBrowserAssetDataSource.h"
 #include "ContentBrowserDataSource.h"
+#include "ContentBrowserLocalizedAlias.h"
 
 #include "AssetRegistry/PathTree.h"
 #include "ContentBrowserAliasDataSource.generated.h"
@@ -112,8 +113,10 @@ public:
 	 * @param bSkipPrimaryAssetValidation 	Use this if the asset being added is not a primary asset/is a re-director but should still be included in the Content Browser. (e.g. Verse classes)
 	 */
 	void AddAliases(const FAssetData& Asset, const TArray<FName>& Aliases, const bool bInIsFromMetaData = false, const bool bSkipPrimaryAssetValidation = false);
+	void AddAliases(const FAssetData& Asset, const TArray<FContentBrowserLocalizedAlias>& Aliases, const bool bInIsFromMetaData = false, const bool bSkipPrimaryAssetValidation = false);
 	/** Add an alias for a given asset. bInIsFromMetaData should only be true if the alias came from the AliasTagName metadata. */
 	void AddAlias(const FAssetData& Asset, const FName Alias, const bool bInIsFromMetaData = false, const bool bSkipPrimaryAssetValidation = false);
+	void AddAlias(const FAssetData& Asset, const FContentBrowserLocalizedAlias& Alias, const bool bInIsFromMetaData = false, const bool bSkipPrimaryAssetValidation = false);
 	/** Remove the given alias from the data source */
 	void RemoveAlias(const FSoftObjectPath& ObjectPath, const FName Alias);
 	/** Remove all aliases for the given object */
@@ -126,6 +129,16 @@ public:
 	UE_DEPRECATED(5.1, "FNames containing full asset paths are deprecated, use FSoftObjectPath instead")
 	void RemoveAliases(const FName ObjectPath);
 
+	/**
+	 * Add a display name override for the given alias folder, eg /MyAliases.
+	 * @note To provide a display name override for an alias itself, use the overloads that take a FContentBrowserLocalizedAlias.
+	 */
+	void AddAliasFolderDisplayName(const FName AliasFolder, const FText& DisplayName);
+	/**
+	 * Remove a display name override for the given alias folder, eg /MyAliases.
+	 */
+	void RemoveAliasFolderDisplayName(const FName AliasFolder);
+
 	/** When called, removes all aliases and triggers delegate for various systems to re-add aliases */
 	void RebuildAliases();
 
@@ -136,6 +149,7 @@ public:
 	void ReconcileAliasesFromMetaData(const FAssetData& Asset);
 	/** Calls AddAlias or RemoveAlias for every alias that doesn't match the stored data for the given asset. */
 	void ReconcileAliasesForAsset(const FAssetData& Asset, const TArray<FName>& NewAliases);
+	void ReconcileAliasesForAsset(const FAssetData& Asset, const TArray<FContentBrowserLocalizedAlias>& NewAliases);
 
 	/** Logs all the content browser aliases */
 	void LogAliases() const;
@@ -144,6 +158,13 @@ protected:
 	virtual void BuildRootPathVirtualTree() override;
 
 private:
+	template <typename AliasType>
+	void AddAliasImpl(const FAssetData& Asset, const AliasType& Alias, const bool bInIsFromMetaData, const bool bSkipPrimaryAssetValidation);
+	template <typename AliasType>
+	void AddAliasesImpl(const FAssetData& Asset, const TArray<AliasType>& Aliases, const bool bInIsFromMetaData, const bool bSkipPrimaryAssetValidation);
+	template <typename AliasType>
+	void ReconcileAliasesForAssetImpl(const FAssetData& Asset, const TArray<AliasType>& NewAliases);
+
 	void OnAssetAdded(const FAssetData& InAssetData);
 	void OnAssetRemoved(const FAssetData& InAssetData);
 	void OnAssetUpdated(const FAssetData& InAssetData);
@@ -165,8 +186,8 @@ private:
 	struct FAliasData
 	{
 		FAliasData() {}
-		FAliasData(const FAssetData& InAssetData, const FName InPackagePath, const FName InName, const bool bInIsFromMetaData = false)
-			: AssetData(InAssetData), PackagePath(InPackagePath), AliasName(InName), bIsFromMetaData(bInIsFromMetaData)
+		FAliasData(const FAssetData& InAssetData, const FName InPackagePath, const FText& InDisplayName, const bool bInIsFromMetaData = false)
+			: AssetData(InAssetData), PackagePath(InPackagePath), AliasDisplayName(InDisplayName), bIsFromMetaData(bInIsFromMetaData)
 		{
 			FNameBuilder AssetNameBuilder(InAssetData.AssetName);
 			{
@@ -194,7 +215,7 @@ private:
 		/** PackageName.SourceAssetName, /MyAliases/SomeAsset.SomeAsset */
 		FSoftObjectPath ObjectPath;
 		/** A non-unique display name for this alias */
-		FName AliasName;
+		FText AliasDisplayName;
 		/** Whether this alias was generated from package metadata or manually through the C++ interface */
 		bool bIsFromMetaData = false;
 	};
@@ -202,12 +223,14 @@ private:
 
 	/** The full folder hierarchy for all alias paths */
 	FPathTree PathTree;
-	/** Alias data keyed by their full alias path, ie /Game/MyData/Aliases/SourceMesh */
+	/** Alias data keyed by their full alias path, eg /Game/MyData/Aliases/SourceMesh */
 	TMap<FContentBrowserUniqueAlias, FAliasData> AllAliases;
-	/** A list of alias paths to display for each asset, ie /Game/Meshes/SourceMesh.SourceMesh */
+	/** A list of alias paths to display for each asset, eg /Game/Meshes/SourceMesh.SourceMesh */
 	TMap<FSoftObjectPath, TArray<FName>> AliasesForObjectPath;
-	/** A list of alias paths to display for each folder, ie /Game/MyData/Aliases */
+	/** A list of alias paths to display for each folder, eg /Game/MyData/Aliases */
 	TMap<FName, TArray<FContentBrowserUniqueAlias>> AliasesInPackagePath;
+	/** Alias folder display names keyed against their alias path, eg /Game/MyData/Aliases/ */
+	TMap<FName, FText> AliasFolderDisplayNames;
 	/** A set used for removing duplicate aliases in the same query, stored here to avoid constant reallocation */
 	TSet<FSoftObjectPath> AlreadyAddedOriginalAssets;
 
