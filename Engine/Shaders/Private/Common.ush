@@ -2144,6 +2144,13 @@ uint DivideAndRoundUp(uint Dividend, uint Divisor, uint DivisorAsBitShift)
 	return (Dividend + Divisor - 1) >> DivisorAsBitShift;
 }
 
+#define DivideAndRoundUp8(Dividend) DivideAndRoundUp((Dividend),    8u,  3u)
+#define DivideAndRoundUp16(Dividend) DivideAndRoundUp((Dividend),  16u,  4u)
+#define DivideAndRoundUp32(Dividend) DivideAndRoundUp((Dividend),  32u,  5u)
+#define DivideAndRoundUp64(Dividend) DivideAndRoundUp((Dividend),  64u,  6u)
+#define DivideAndRoundUp128(Dividend) DivideAndRoundUp((Dividend), 128u, 7u)
+#define DivideAndRoundUp128(Dividend) DivideAndRoundUp((Dividend), 256u, 8u)
+
 float UNorm16ToF32(uint UNorm)
 {
 	return (UNorm & 0xFFFFu) / 65535.0f;

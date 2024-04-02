@@ -111,7 +111,7 @@ void InitializeCardTileIndirectArgsCS(uint3 DispatchThreadId : SV_DispatchThread
 		uint NumCardTiles = CardTileAllocator[0];
 
 		// One thread per card tile
-		WriteDispatchIndirectArgs(RWDispatchCardTilesIndirectArgs, 0, (NumCardTiles + 63) / 64, 1, 1);
+		WriteDispatchIndirectArgs(RWDispatchCardTilesIndirectArgs, 0, DivideAndRoundUp64(NumCardTiles), 1, 1);
 
 		// One thread group per card tile
 		WriteDispatchIndirectArgs(RWDispatchCardTilesIndirectArgs, 1, NumCardTiles, 1, 1);
@@ -518,7 +518,7 @@ void InitializeLightTileIndirectArgsCS(uint3 DispatchThreadId : SV_DispatchThrea
 		WriteDispatchIndirectArgs(RWDispatchLightTilesIndirectArgs, 0, NumLightTiles, 1, 1);
 
 		// NumTilesDiv64
-		WriteDispatchIndirectArgs(RWDispatchLightTilesIndirectArgs, 1, (NumLightTiles + 63) / 64, 1, 1);
+		WriteDispatchIndirectArgs(RWDispatchLightTilesIndirectArgs, 1, DivideAndRoundUp64(NumLightTiles), 1, 1);
 	}
 
 	// Per light card tile array

@@ -370,7 +370,7 @@ void SetCardPageIndexIndirectArgsCS(uint3 DispatchThreadId : SV_DispatchThreadID
 			RWDirectLightingDrawCardPageIndicesIndirectArgs[3] = 0;
 
 			// Thread per page
-			WriteDispatchIndirectArgs(RWDirectLightingDispatchCardPageIndicesIndirectArgs, 0, (NumPageIndices + 63) / 64, 1, 1);
+			WriteDispatchIndirectArgs(RWDirectLightingDispatchCardPageIndicesIndirectArgs, 0, DivideAndRoundUp64(NumPageIndices), 1, 1);
 
 			// Thread per tile
 			WriteDispatchIndirectArgs(RWDirectLightingDispatchCardPageIndicesIndirectArgs, 1, 4 * NumPageIndices, 1, 1);
@@ -386,7 +386,7 @@ void SetCardPageIndexIndirectArgsCS(uint3 DispatchThreadId : SV_DispatchThreadID
 			RWIndirectLightingDrawCardPageIndicesIndirectArgs[3] = 0;
 
 			// Thread per page
-			WriteDispatchIndirectArgs(RWIndirectLightingDispatchCardPageIndicesIndirectArgs, 0, (NumPageIndices + 63) / 64, 1, 1);
+			WriteDispatchIndirectArgs(RWIndirectLightingDispatchCardPageIndicesIndirectArgs, 0, DivideAndRoundUp64(NumPageIndices), 1, 1);
 
 			// Thread per tile
 			WriteDispatchIndirectArgs(RWIndirectLightingDispatchCardPageIndicesIndirectArgs, 1, 4 * NumPageIndices, 1, 1);

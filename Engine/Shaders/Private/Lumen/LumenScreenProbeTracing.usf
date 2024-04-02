@@ -464,16 +464,16 @@ void SetupCompactedTracesIndirectArgsCS(
 	uint3 GroupThreadId : SV_GroupThreadID)
 {
 	// THREADGROUP_SIZE_64
-	WriteDispatchIndirectArgs(RWScreenProbeCompactTracingIndirectArgs, 0, (CompactedTraceTexelAllocator[0] + 64 - 1) / 64, 1, 1);
+	WriteDispatchIndirectArgs(RWScreenProbeCompactTracingIndirectArgs, 0, DivideAndRoundUp64(CompactedTraceTexelAllocator[0]), 1, 1);
 
 	// THREADGROUP_SIZE_32
-	WriteDispatchIndirectArgs(RWScreenProbeCompactTracingIndirectArgs, 1, (CompactedTraceTexelAllocator[0] + 32 - 1) / 32, 1, 1);
+	WriteDispatchIndirectArgs(RWScreenProbeCompactTracingIndirectArgs, 1, DivideAndRoundUp32(CompactedTraceTexelAllocator[0]), 1, 1);
 
 	// LightSample THREADGROUP_SIZE_64
-	WriteDispatchIndirectArgs(RWScreenProbeCompactTracingIndirectArgs, 2, (CompactedTraceTexelAllocator[1] + 64 - 1) / 64, 1, 1);
+	WriteDispatchIndirectArgs(RWScreenProbeCompactTracingIndirectArgs, 2, DivideAndRoundUp64(CompactedTraceTexelAllocator[1]), 1, 1);
 
 	// LightSample THREADGROUP_SIZE_32
-	WriteDispatchIndirectArgs(RWScreenProbeCompactTracingIndirectArgs, 3, (CompactedTraceTexelAllocator[1] + 32 - 1) / 32, 1, 1);
+	WriteDispatchIndirectArgs(RWScreenProbeCompactTracingIndirectArgs, 3, DivideAndRoundUp32(CompactedTraceTexelAllocator[1]), 1, 1);
 }
 
 #endif

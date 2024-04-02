@@ -605,7 +605,7 @@ void ComputeCulledObjectsStartOffsetCS(
 
 	if (DispatchThreadId.x == 0)
 	{
-		RWCompactCulledObjectsIndirectArguments[0] = (NumCulledObjectsToCompact[0] + 63) / 64;
+		RWCompactCulledObjectsIndirectArguments[0] = DivideAndRoundUp64(NumCulledObjectsToCompact[0]);
 		RWCompactCulledObjectsIndirectArguments[1] = 1;
 		RWCompactCulledObjectsIndirectArguments[2] = 1;
 	}
