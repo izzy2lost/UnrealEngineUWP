@@ -10,7 +10,7 @@ class UMovieGraphImagePassBaseNode;
 
 namespace UE::MovieGraph::Rendering
 {
-	struct FMovieGraphRenderDataAccumulationArgs
+	struct MOVIERENDERPIPELINERENDERPASSES_API FMovieGraphRenderDataAccumulationArgs
 	{
 	public:
 		TWeakPtr<FImageOverlappedAccumulator, ESPMode::ThreadSafe> ImageAccumulator;
@@ -25,7 +25,7 @@ namespace UE::MovieGraph::Rendering
 	// Forward Declare
 	void AccumulateSample_TaskThread(TUniquePtr<FImagePixelData>&& InPixelData, const ::UE::MovieGraph::FMovieGraphSampleState InSampleState, const FMovieGraphRenderDataAccumulationArgs& InAccumulationParams);
 
-	struct FViewFamilyInitData
+	struct MOVIERENDERPIPELINERENDERPASSES_API FViewFamilyInitData
 	{
 		FViewFamilyInitData()
 			: RenderTarget(nullptr)
@@ -52,7 +52,7 @@ namespace UE::MovieGraph::Rendering
 	
 
 
-	struct FMovieGraphImagePassBase
+	struct MOVIERENDERPIPELINERENDERPASSES_API FMovieGraphImagePassBase
 	{
 		FMovieGraphImagePassBase() = default;
 		virtual ~FMovieGraphImagePassBase() = default;
