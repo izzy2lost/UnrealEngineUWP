@@ -308,6 +308,18 @@ const FUniversalObjectLocatorFragment* FUniversalObjectLocator::GetLastFragment(
 	return Fragments.Num() != 0 ? &Fragments.Last() : nullptr;
 }
 
+bool FUniversalObjectLocator::ForEachFragment(TFunctionRef<bool(int32, int32, const FUniversalObjectLocatorFragment&)> InFunction) const
+{
+	for (int32 FragmentIndex = 0, NumFragments = Fragments.Num(); FragmentIndex < NumFragments; ++FragmentIndex)
+	{
+		if(!InFunction(FragmentIndex, NumFragments, Fragments[FragmentIndex]))
+		{
+			return false;
+		}
+	}
+
+	return true;
+}
 
 UE::UniversalObjectLocator::EFragmentTypeFlags FUniversalObjectLocator::GetDefaultFlags() const
 {
@@ -608,7 +620,7 @@ bool FUniversalObjectLocator::AddFragment(const UObject* Object, UObject* Contex
 	{
 		return false;
 	}
-
+	
 	// If the initialization needs to be relative to a different context, add a fragment for NewContext as well
 	if (Result.Type == ELocatorType::Relative && Result.RelativeToContext != Context)
 	{
