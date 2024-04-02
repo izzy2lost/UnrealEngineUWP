@@ -72,8 +72,21 @@
 
 #if WITH_PYTHON
 
+#if PY_MAJOR_VERSION >= 3 && PY_MINOR_VERSION >= 11
+	PyUtil::FPyApiBuffer FPythonScriptPlugin::Utf8String= PyUtil::TCHARToPyApiBuffer(TEXT("utf-8"));
+#endif
+
 static PyUtil::FPyApiBuffer NullPyArg = PyUtil::TCHARToPyApiBuffer(TEXT(""));
 static PyUtil::FPyApiChar* NullPyArgPtrs[] = { NullPyArg.GetData() };
+
+FPyObjectPtr MakeEmptyArgvList()
+{
+	// Make a list = [""]
+	FPyObjectPtr PyArgvList = FPyObjectPtr::StealReference(PyList_New(1));
+	PyList_SetItem(PyArgvList.Get(), 0, PyUnicode_FromString(""));
+
+	return PyArgvList;
+}
 
 /** Util struct to set the sys.argv data for Python when executing a file with arguments */
 struct FPythonScopedArgv
@@ -82,6 +95,20 @@ struct FPythonScopedArgv
 	{
 		if (InArgs && *InArgs)
 		{
+#if PY_MAJOR_VERSION >= 3 && PY_MINOR_VERSION >= 11
+			// Moved argv changes to direct sys.argv object access since PySys_SetArgv is deprecated
+			// Make new list and set it to sys.argv
+			FPyObjectPtr PyArgvList = FPyObjectPtr::StealReference(PyList_New(0));
+			FString NextToken;
+			while (FParse::Token(InArgs, NextToken, false))
+			{
+				FPyObjectPtr PyArg;
+				PyConversion::Pythonize(NextToken, PyArg.Get(), PyConversion::ESetErrorState::No);
+				PyList_Append(PyArgvList.Get(), PyArg.Get());
+			}
+
+			PySys_SetObject("argv", PyArgvList.Get());
+#else
 			FString NextToken;
 			while (FParse::Token(InArgs, NextToken, false))
 			{
@@ -93,13 +120,20 @@ struct FPythonScopedArgv
 			{
 				PyCommandLineArgPtrs.Add(PyCommandLineArg.GetData());
 			}
+
+			PySys_SetArgvEx(PyCommandLineArgPtrs.Num(), PyCommandLineArgPtrs.GetData(), 0);
+#endif 
 		}
-		PySys_SetArgvEx(PyCommandLineArgPtrs.Num(), PyCommandLineArgPtrs.GetData(), 0);
 	}
 
 	~FPythonScopedArgv()
 	{
+#if PY_MAJOR_VERSION >= 3 && PY_MINOR_VERSION >= 11
+		FPyObjectPtr PyArgvList = MakeEmptyArgvList();
+		PySys_SetObject("argv", PyArgvList.Get());
+#else
 		PySys_SetArgvEx(1, NullPyArgPtrs, 0);
+#endif
 	}
 
 	TArray<PyUtil::FPyApiBuffer> PyCommandLineArgs;
@@ -791,6 +825,9 @@ void FPythonScriptPlugin::InitializePython()
 
 	const UPythonScriptPluginSettings* PythonPluginSettings = GetDefault<UPythonScriptPluginSettings>();
 
+	// HACK: This env var must be cleared or it carries into python subprocesses and python sys.executable detection breaking venvs
+	FPlatformMisc::SetEnvironmentVar(TEXT("PYTHONEXECUTABLE"),TEXT(""));
+
 	// Set-up the correct program name
 	{
 		FString ProgramName = FPlatformProcess::GetCurrentWorkingDirectory() / FPlatformProcess::ExecutableName(false);
@@ -840,15 +877,45 @@ void FPythonScriptPlugin::InitializePython()
 
 		// Check if the interpreter is should run in isolation mode.
 		int IsolatedInterpreterFlag = PythonPluginSettings->bIsolateInterpreterEnvironment ? 1 : 0;
-		Py_IgnoreEnvironmentFlag = IsolatedInterpreterFlag; // If not zero, ignore all PYTHON* environment variables, e.g. PYTHONPATH, PYTHONHOME, that might be set.
 
-#if PY_MAJOR_VERSION >= 3 && PY_MINOR_VERSION >= 4
+#if PY_MAJOR_VERSION >= 3 && PY_MINOR_VERSION >= 11
+		// Pre-initialize python with utf-8 encoding and possibly isolated mode
+		PyPreConfig PreConfig;
+		PyPreConfig_InitIsolatedConfig(&PreConfig);
+
+		PreConfig.parse_argv = 0;
+		PreConfig.utf8_mode = 1;
+		PreConfig.isolated = IsolatedInterpreterFlag;
+		PreConfig.use_environment = !IsolatedInterpreterFlag;
+
+		Py_PreInitialize(&PreConfig);
+
+		// Create empty init config
+		PyConfig_InitIsolatedConfig(&ModulePyConfig);
+		ModulePyConfig.use_environment = !IsolatedInterpreterFlag;
+#else
+		Py_IgnoreEnvironmentFlag = IsolatedInterpreterFlag; // If not zero, ignore all PYTHON* environment variables, e.g. PYTHONPATH, PYTHONHOME, that might be set.
+#endif
+
+#if PY_MAJOR_VERSION >= 3 && PY_MINOR_VERSION >= 11
+		ModulePyConfig.isolated = IsolatedInterpreterFlag;
+#elif PY_MAJOR_VERSION >= 3 && PY_MINOR_VERSION >= 4
 		Py_IsolatedFlag = IsolatedInterpreterFlag; // If not zero, sys.path contains neither the script's directory nor the user's site-packages directory.
 		Py_SetStandardStreamEncoding("utf-8", nullptr);
 #endif	// PY_MAJOR_VERSION >= 3 && PY_MINOR_VERSION >= 4
+
+#if PY_MAJOR_VERSION >= 3 && PY_MINOR_VERSION >= 11
+		ModulePyConfig.program_name = PyProgramName.GetData();
+		ModulePyConfig.home = PyHomePath.GetData();
+		ModulePyConfig.install_signal_handlers = 0;
+		ModulePyConfig.safe_path = 0;
+
+		Py_InitializeFromConfig(&ModulePyConfig);
+#else
 		Py_SetProgramName(PyProgramName.GetData());
 		Py_SetPythonHome(PyHomePath.GetData());
 		Py_InitializeEx(0); // 0 so Python doesn't override any signal handling
+#endif
 
 #if PY_MAJOR_VERSION >= 3 && PY_MINOR_VERSION < 7
 		// NOTE: Since 3.7, those functions are called by Py_InitializeEx()
@@ -894,7 +961,13 @@ void FPythonScriptPlugin::InitializePython()
 		}
 #endif	// PY_MAJOR_VERSION >= 3 && PY_MINOR_VERSION >= 7
 
+#if PY_MAJOR_VERSION >=3 && PY_MINOR_VERSION >= 11
+		// Set default argv to [""]
+		FPyObjectPtr PyArgvList = MakeEmptyArgvList();
+		PySys_SetObject("argv", PyArgvList.Get());
+#else
 		PySys_SetArgvEx(1, NullPyArgPtrs, 0);
+#endif
 
 		// Enable developer warnings if requested
 		if (IsDeveloperModeEnabled())

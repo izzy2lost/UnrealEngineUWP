@@ -44,15 +44,15 @@ int32 ULearningSocketPPOTrainerServerCommandlet::Main(const FString& Commandline
 	UCommandlet::ParseCommandLine(*Commandline, Tokens, Switches, Params);
 
 	const FString* PythonExecutiblePathParam = Params.Find(TEXT("PythonExecutiblePath"));
-	const FString* SitePackagesPathParam = Params.Find(TEXT("SitePackagesPath"));
+	const FString* ExtraSitePackagesPathParam = Params.Find(TEXT("ExtraSitePackagesPath"));
 	const FString* PythonContentPathParam = Params.Find(TEXT("PythonContentPath"));
 	const FString* IntermediatePathParam = Params.Find(TEXT("IntermediatePath"));
 	const FString* IpAddressParam = Params.Find(TEXT("IpAddress"));
 	const FString* PortParam = Params.Find(TEXT("Port"));
 	const FString* LogSettingsParam = Params.Find(TEXT("LogSettings"));
 
-	const FString PythonExecutiblePath = PythonExecutiblePathParam ? *PythonExecutiblePathParam : UE::Learning::Trainer::GetPythonExecutablePath(FPaths::EngineDir());
-	const FString SitePackagesPath = SitePackagesPathParam ? *SitePackagesPathParam : UE::Learning::Trainer::GetSitePackagesPath(FPaths::EngineDir());
+	const FString PythonExecutiblePath = PythonExecutiblePathParam ? *PythonExecutiblePathParam : UE::Learning::Trainer::GetPythonExecutablePath(FPaths::ProjectIntermediateDir());
+	const FString ExtraSitePackagesPath = ExtraSitePackagesPathParam ? *ExtraSitePackagesPathParam : TEXT("");
 	const FString PythonContentPath = PythonContentPathParam ? *PythonContentPathParam : UE::Learning::Trainer::GetPythonContentPath(FPaths::EngineDir());
 	const FString IntermediatePath = IntermediatePathParam ? *IntermediatePathParam : UE::Learning::Trainer::GetIntermediatePath(FPaths::ProjectIntermediateDir());
 
@@ -79,7 +79,7 @@ int32 ULearningSocketPPOTrainerServerCommandlet::Main(const FString& Commandline
 	
 	UE_LOG(LogLearning, Display, TEXT("---  PPO Training Server Arguments ---"));
 	UE_LOG(LogLearning, Display, TEXT("PythonExecutiblePath: %s"), *PythonExecutiblePath);
-	UE_LOG(LogLearning, Display, TEXT("SitePackagesPath: %s"), *SitePackagesPath);
+	UE_LOG(LogLearning, Display, TEXT("ExtraSitePackagesPath: %s"), *ExtraSitePackagesPath);
 	UE_LOG(LogLearning, Display, TEXT("PythonContentPath: %s"), *PythonContentPath);
 	UE_LOG(LogLearning, Display, TEXT("IntermediatePath: %s"), *IntermediatePath);
 	UE_LOG(LogLearning, Display, TEXT("IpAddress: %s"), IpAddress);
@@ -88,7 +88,7 @@ int32 ULearningSocketPPOTrainerServerCommandlet::Main(const FString& Commandline
 
 	UE::Learning::FSocketPPOTrainerServerProcess ServerProcess(
 		PythonExecutiblePath,
-		SitePackagesPath,
+		ExtraSitePackagesPath,
 		PythonContentPath,
 		IntermediatePath,
 		IpAddress,
@@ -113,7 +113,7 @@ namespace UE::Learning
 	FSharedMemoryPPOTrainer::FSharedMemoryPPOTrainer(
 		const FString& TaskName,
 		const FString& PythonExecutablePath,
-		const FString& SitePackagesPath,
+		const FString& ExtraSitePackagesPath,
 		const FString& PythonContentPath,
 		const FString& IntermediatePath,
 		const FReplayBuffer& ReplayBuffer,
@@ -133,7 +133,6 @@ namespace UE::Learning
 	{
 		UE_LEARNING_CHECK(FPaths::FileExists(PythonExecutablePath));
 		UE_LEARNING_CHECK(FPaths::DirectoryExists(PythonContentPath));
-		UE_LEARNING_CHECK(FPaths::DirectoryExists(SitePackagesPath));
 
 		const int32 ObservationVectorDimensionNum = ReplayBuffer.GetObservations().Num<1>();
 		const int32 ActionVectorDimensionNum = ReplayBuffer.GetActions().Num<1>();
@@ -233,7 +232,7 @@ namespace UE::Learning
 			ConfigObject->SetStringField(TEXT("TrainerType"), TrainerType);
 			ConfigObject->SetStringField(TEXT("TimeStamp"), *TimeStamp);
 
-			ConfigObject->SetStringField(TEXT("SitePackagesPath"), *FileManager.ConvertToAbsolutePathForExternalAppForRead(*SitePackagesPath));
+			ConfigObject->SetStringField(TEXT("ExtraSitePackagesPath"), *FileManager.ConvertToAbsolutePathForExternalAppForRead(*ExtraSitePackagesPath));
 			ConfigObject->SetStringField(TEXT("IntermediatePath"), *FileManager.ConvertToAbsolutePathForExternalAppForRead(*IntermediatePath));
 
 			ConfigObject->SetStringField(TEXT("PolicyGuid"), *Policy.Guid.ToString(EGuidFormats::DigitsWithHyphensInBraces));
@@ -634,7 +633,7 @@ namespace UE::Learning
 
 	FSocketPPOTrainerServerProcess::FSocketPPOTrainerServerProcess(
 		const FString& PythonExecutablePath,
-		const FString& SitePackagesPath,
+		const FString& ExtraSitePackagesPath,
 		const FString& PythonContentPath,
 		const FString& IntermediatePath,
 		const TCHAR* IpAddress,
@@ -644,14 +643,13 @@ namespace UE::Learning
 	{
 		UE_LEARNING_CHECK(FPaths::FileExists(PythonExecutablePath));
 		UE_LEARNING_CHECK(FPaths::DirectoryExists(PythonContentPath));
-		UE_LEARNING_CHECK(FPaths::DirectoryExists(SitePackagesPath));
 
 		IFileManager& FileManager = IFileManager::Get();
 		const FString CommandLineArguments = FString::Printf(TEXT("\"%s\" Socket \"%s:%i\" \"%s\" \"%s\" %i"), 
 			*FileManager.ConvertToAbsolutePathForExternalAppForRead(*(PythonContentPath / TEXT("train_ppo.py"))), 
 			IpAddress, 
 			Port, 
-			*FileManager.ConvertToAbsolutePathForExternalAppForRead(*SitePackagesPath),
+			*FileManager.ConvertToAbsolutePathForExternalAppForRead(*ExtraSitePackagesPath),
 			*FileManager.ConvertToAbsolutePathForExternalAppForRead(*IntermediatePath), 
 			LogSettings == ELogSetting::Normal ? 1 : 0);
 

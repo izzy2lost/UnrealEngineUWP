@@ -14,12 +14,12 @@ from typing import List, Optional, Set, Union
 
 from pathlib import Path
 
-from PySide2 import QtCore
-from PySide2 import QtGui
-from PySide2 import QtUiTools
-from PySide2 import QtWidgets
+from PySide6 import QtCore
+from PySide6 import QtGui
+from PySide6 import QtUiTools
+from PySide6 import QtWidgets
 
-from PySide2.QtWidgets import QWidgetAction, QMenu
+from PySide6.QtWidgets import QWidgetAction, QMenu
 
 from switchboard import config
 from switchboard import config_osc as osc
@@ -134,16 +134,16 @@ class DeviceAdditionalSettingsUI(QtCore.QObject):
         self._update_enable_state()
 
     def _generate_trace_menu_item(self, menu):
-        action_item = QtWidgets.QAction("Enable Unreal Insights Tracing",
-                                        menu, checked=DeviceAdditionalSettingsUI.enable_insight_trace, checkable=True)
+        action_item = QtGui.QAction("Enable Unreal Insights Tracing",
+                                    menu, checked=DeviceAdditionalSettingsUI.enable_insight_trace, checkable=True)
         action_item.setChecked(DeviceAdditionalSettingsUI.enable_insight_trace)
         action_item.triggered.connect(self._set_tracing)
         self._tracing_action = action_item
         return action_item
 
     def _generate_trace_settings_item(self, menu):
-        action_item = QtWidgets.QAction("Unreal Insights Trace Settings...",
-                                        menu, checked=DeviceAdditionalSettingsUI.enable_insight_trace, checkable=True)
+        action_item = QtGui.QAction("Unreal Insights Trace Settings...",
+                                    menu, checked=DeviceAdditionalSettingsUI.enable_insight_trace, checkable=True)
         action_item.setChecked(DeviceAdditionalSettingsUI.enable_insight_trace)
         action_item.triggered.connect(self._set_trace_settings)
         self._tracing_settings = action_item
@@ -902,7 +902,7 @@ class SwitchboardDialog(QtCore.QObject):
                 config_action.setEnabled(False)
 
         # Make a special entry for a config not in the normal area
-        externalconfig_action = QtWidgets.QAction("Browse...", self.window.menu_load_config)
+        externalconfig_action = QtGui.QAction("Browse...", self.window.menu_load_config)
         externalconfig_action.triggered.connect(self._on_open_external_config)
         self.window.menu_load_config.addAction(externalconfig_action)
 

@@ -142,7 +142,7 @@ void InitializePyWrapperEnum(PyGenUtil::FNativePythonModule& ModuleInfo)
 	PyType_Ready(&PyWrapperEnumMetaclassType);
 
 	// Set the metaclass on the enum type
-	Py_TYPE(&PyWrapperEnumType) = &PyWrapperEnumMetaclassType;
+	Py_SET_TYPE(&PyWrapperEnumType, &PyWrapperEnumMetaclassType);
 	if (PyType_Ready(&PyWrapperEnumType) == 0)
 	{
 		static FPyWrapperEnumMetaData MetaData;
