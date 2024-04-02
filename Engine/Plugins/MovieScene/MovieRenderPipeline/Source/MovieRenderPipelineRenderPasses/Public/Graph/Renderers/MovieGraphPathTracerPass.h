@@ -5,7 +5,7 @@
 
 namespace UE::MovieGraph::Rendering
 {
-	struct FMovieGraphPathTracerPass : public FMovieGraphDeferredPass
+	struct MOVIERENDERPIPELINERENDERPASSES_API FMovieGraphPathTracerPass : public FMovieGraphDeferredPass
 	{
 		virtual UMovieGraphImagePassBaseNode* GetParentNode(UMovieGraphEvaluatedConfig* InConfig) const override;
 		virtual void ApplyMovieGraphOverridesToSceneView(TSharedRef<FSceneViewFamilyContext> InOutFamily, const FViewFamilyInitData& InInitData, const UE::MovieGraph::DefaultRenderer::FCameraInfo& InCameraInfo) const override;

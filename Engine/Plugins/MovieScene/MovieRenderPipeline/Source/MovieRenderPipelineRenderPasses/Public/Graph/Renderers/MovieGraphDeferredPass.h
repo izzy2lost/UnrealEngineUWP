@@ -5,7 +5,7 @@
 
 namespace UE::MovieGraph::Rendering
 {
-	struct FMovieGraphDeferredPass : public FMovieGraphImagePassBase
+	struct MOVIERENDERPIPELINERENDERPASSES_API FMovieGraphDeferredPass : public FMovieGraphImagePassBase
 	{
 		// FMovieGraphImagePassBase Interface
 		virtual void Setup(TWeakObjectPtr<UMovieGraphDefaultRenderer> InRenderer, TWeakObjectPtr<UMovieGraphImagePassBaseNode> InRenderPassNode, const FMovieGraphRenderPassLayerData& InLayer) override;

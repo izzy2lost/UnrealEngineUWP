@@ -52,7 +52,10 @@ namespace UE::MovieGraph::DefaultRenderer
 			, DoFSensorScale(1.0f)
 		{}
 
+		/** Minimal view info describing the position and orientation in the world. */
 		FMinimalViewInfo ViewInfo;
+
+		/** The actor that is considered the "owner" of the view. Used by the renderer to respect bOnlyOwnerSee/bOwnerNoSee flags. */
 		class AActor* ViewActor;
 
 		/** The name to use for the {camera_name} token. Filled out by the renderer where possible. */

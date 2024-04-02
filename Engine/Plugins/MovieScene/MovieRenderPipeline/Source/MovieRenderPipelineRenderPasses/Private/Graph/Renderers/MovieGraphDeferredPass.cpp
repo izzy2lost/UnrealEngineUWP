@@ -190,6 +190,7 @@ void FMovieGraphDeferredPass::Render(const FMovieGraphTraversalContext& InFrameT
 		if (LocalPlayerController->PlayerCameraManager)
 		{
 			CameraInfo.ViewInfo = LocalPlayerController->PlayerCameraManager->GetCameraCacheView();
+			CameraInfo.ViewActor = LocalPlayerController->GetViewTarget();
 		}
 
 
