@@ -108,7 +108,7 @@ void FSourceControlViewportToolTips::UpdateCanvas(float DeltaTime)
 			if (Actor.IsValid())
 			{
 				DelayTime += DeltaTime;
-				if (DelayTime >= 0.5f)
+				if (DelayTime >= 0.15f) // See: Slate.TooltipSummonDelay
 				{
 					UpdateToolTip();
 				}
