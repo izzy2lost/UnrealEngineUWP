@@ -100,6 +100,9 @@ public:
 private:
 	FArchive& Inner;
 
+	// Used for the subtree parser
+	FJsonArchiveInputFormatter(FArchive& InInner, TFunction<UObject* (const FPackageIndex)>&& InResolveObject, TSharedPtr<FJsonValue>&& RootObject);
+
 	struct FObjectRecord
 	{
 		FObjectRecord(TSharedPtr<FJsonObject> InJsonObject, int64 InValueCount)
