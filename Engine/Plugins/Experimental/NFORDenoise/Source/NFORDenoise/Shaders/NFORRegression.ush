@@ -1,0 +1,503 @@
+// Copyright Epic Games, Inc. All Rights Reserved.
+
+/*=============================================================================
+	NFORRegression.ush
+=============================================================================*/
+
+// TODO: Improve matrix multiplication with Strassem algorithm.
+// TODO: Improve the robustness of QR decomposition.
+// TODO: Find best iteration number for Newton Schulz Iteration Method.
+// TODO: Unroll with constant dimensions.
+// TODO: Merge duplicate shader code.
+
+#pragma once
+
+#ifndef MATRIX_DIM
+#define MATRIX_DIM 8
+#endif
+
+#define FEATURE_MATRIX_SIZE ((MATRIX_DIM)*(MATRIX_DIM))
+
+#define QR_DECOMPOSITION_TYPE_DEFAULT		0
+#define QR_DECOMPOSITION_TYPE_COLUMN_PIVOT	1
+
+#define QR_DECOMPOSITION_TYPE QR_DECOMPOSITION_TYPE_DEFAULT
+
+
+Buffer<float> A;
+Buffer<float> B;
+
+int2 ADim;
+int2 BDim;
+int NumOfElements;
+int NumOfElementsPerRow;
+
+struct FNFORVector
+{
+	FDFScalar V[MATRIX_DIM];
+};
+
+struct FNFORMatrix
+{
+	FDFScalar M[FEATURE_MATRIX_SIZE];
+};
+
+void Identity(out FNFORMatrix Matrix)
+{
+	for (int i = 0; i < MATRIX_DIM; ++i)
+	{
+		for (int j = 0; j < MATRIX_DIM; ++j)
+		{
+			Matrix.M[i * MATRIX_DIM + j] = DFTwoSum(lerp(0.0f, 1.0f, i == j), 0.0f);
+		}
+	}
+}
+
+FNFORMatrix Copy(in FNFORMatrix Matrix)
+{
+	FNFORMatrix Out;
+
+	for (int i = 0; i < FEATURE_MATRIX_SIZE; ++i)
+	{
+		Out.M[i] = Matrix.M[i];
+	}
+
+	return Out;
+}
+
+FNFORMatrix NFORMatrixMultiply(in FNFORMatrix A, in FNFORMatrix B)
+{
+	FNFORMatrix Ret;
+	for (int i = 0; i < MATRIX_DIM; ++i)
+	{
+		for (int k = 0; k < MATRIX_DIM; ++k)
+		{
+			FDFScalar Sum = (FDFScalar)0;
+			for (int j = 0; j < MATRIX_DIM; ++j)
+			{
+				const FDFScalar DFMultiplyScalar = DFMultiply(A.M[i * MATRIX_DIM + j], B.M[j * MATRIX_DIM + k]);
+				Sum = DFAdd(Sum, DFMultiplyScalar);
+			}
+			Ret.M[i * MATRIX_DIM + k] = Sum;
+		}
+	}
+
+	return Ret;
+}
+
+FDFScalar GetNFORVectorNorm2(in FDFScalar V[MATRIX_DIM], int N)
+{
+	FDFScalar L2Norm = (FDFScalar)0;
+
+	for (int i = 0; i < N; ++i)
+	{
+		L2Norm = DFAdd(L2Norm, DFMultiply(V[i], V[i]));
+	}
+
+	L2Norm = DFSqrt(L2Norm);
+
+	return L2Norm;
+}
+
+void SwapIntVector(inout int V[MATRIX_DIM], int i, int j)
+{
+	int Tmp = V[i];
+	V[i] = V[j];
+	V[j] = Tmp;
+}
+
+void SwampColumn(inout FNFORMatrix Matrix, int i, int j)
+{
+	FDFScalar Tmp;
+	for (int row = 0; row < MATRIX_DIM; ++row)
+	{
+		Tmp = Matrix.M[row * MATRIX_DIM + i];
+		Matrix.M[row * MATRIX_DIM + i] = Matrix.M[row * MATRIX_DIM + j];
+		Matrix.M[row * MATRIX_DIM + j] = Tmp;
+	}
+}
+
+FNFORMatrix SelectSubMatrix(in FNFORMatrix Matrix, int StartRowColumnIndex)
+{
+	FNFORMatrix Ret;
+	for (int j = StartRowColumnIndex; j < MATRIX_DIM; ++j)
+	{
+		for (int k = StartRowColumnIndex; k < MATRIX_DIM; ++k)
+		{
+			Ret.M[(j - StartRowColumnIndex) * MATRIX_DIM + (k - StartRowColumnIndex)] = Matrix.M[j * MATRIX_DIM + k];
+		}
+	}
+	return Ret;
+}
+
+int GetPivot(in FNFORMatrix Matrix, int N)
+{
+	FNFORVector Vector;
+
+	FDFScalar MaxNorm = DFTwoSum(-1.0f, 0.0f);
+	int MaxIndex = 0;
+
+	for (int column = 0; column < N; ++column)
+	{
+		for (int row = 0; row < N; ++row)
+		{
+			Vector.V[row] = Matrix.M[row * MATRIX_DIM + column];
+		}
+		FDFScalar L2Norm = GetNFORVectorNorm2(Vector.V, N);
+		if (DFGreater(L2Norm, MaxNorm))
+		{
+			MaxNorm = L2Norm;
+			MaxIndex = column;
+		}
+	}
+
+	return MaxIndex + (MATRIX_DIM - N);
+}
+
+void HouseHoldReflection(in FDFScalar A[MATRIX_DIM], out FNFORMatrix O, int N)
+{
+	FDFScalar V[MATRIX_DIM];
+
+	for (int i = 0; i < N; ++i)
+	{
+		V[i] = A[i];
+	}
+
+	FDFScalar L2Norm = GetNFORVectorNorm2(V, N);
+
+	V[0] = DFAdd(V[0], DFMultiply(DFSign(A[0]), L2Norm));
+
+	L2Norm = GetNFORVectorNorm2(V, N);
+
+	FDFScalar InvL2Norm = DFDivide(1.0f, L2Norm);
+	for (int i = 0; i < N; ++i)
+	{
+		V[i] = DFMultiply(V[i], InvL2Norm);
+	}
+
+	//I - 2 * vv
+	for (int i = 0; i < N; ++i)
+	{
+		for (int j = 0; j < N; ++j)
+		{
+			O.M[i * MATRIX_DIM + j] = DFSubtract(lerp(0, 1, i == j), DFMultiply(2, DFMultiply(V[i], V[j])));
+		}
+	}
+}
+
+// Calculate AX=B with (Household) QR decomposition and back substitution.
+// TODO: Reduce the memory used in calculation.
+// TODO: Since A matrix is symmetric, try Choleskey Decomposition.
+void QRDecomposition(in FNFORMatrix A, out FNFORMatrix Q, out FNFORMatrix R
+#if QR_DECOMPOSITION_TYPE == QR_DECOMPOSITION_TYPE_COLUMN_PIVOT
+	, out int PivotIndices[MATRIX_DIM]
+#endif
+)
+{
+	Identity(Q);
+	R = Copy(A);
+
+	FNFORMatrix H;
+	FNFORMatrix Reflection;
+	for (int i = 0; i < MATRIX_DIM; ++i)
+	{
+		// Select column with the largest norm as pivot.
+#if QR_DECOMPOSITION_TYPE == QR_DECOMPOSITION_TYPE_COLUMN_PIVOT
+		H = SelectSubMatrix(R, i);
+		int Pivot = GetPivot(H, MATRIX_DIM - i);
+		SwapIntVector(PivotIndices, i, Pivot);
+		SwampColumn(R, i, Pivot);
+#endif
+		// Apply Householder reflection.
+		Identity(H);
+
+		FDFScalar Selection[MATRIX_DIM];
+		for (int j = i; j < MATRIX_DIM; ++j)
+		{
+			Selection[j - i] = R.M[j * MATRIX_DIM + i];
+		}
+
+		HouseHoldReflection(Selection, Reflection, MATRIX_DIM - i);
+
+		for (int j = i; j < MATRIX_DIM; ++j)
+		{
+			for (int k = i; k < MATRIX_DIM; ++k)
+			{
+				H.M[j * MATRIX_DIM + k] = Reflection.M[(j - i) * MATRIX_DIM + (k - i)];
+			}
+		}
+
+		Q = NFORMatrixMultiply(Q, H);
+		R = NFORMatrixMultiply(H, R);
+	}
+}
+
+void QR_Solve(int AOffset, int ASize, int BOffset)
+{
+	FNFORMatrix NA;
+	FNFORMatrix NQ;
+	FNFORMatrix NR;
+
+#if QR_DECOMPOSITION_TYPE == QR_DECOMPOSITION_TYPE_COLUMN_PIVOT
+	int PivotIndices[MATRIX_DIM];
+
+	for (int i = 0; i < MATRIX_DIM; ++i)
+	{
+		PivotIndices[i] = i;
+	}
+#endif
+
+	// QR decomposition.
+	for (int i = 0; i < FEATURE_MATRIX_SIZE; ++i)
+	{
+		NA.M[i] = DFTwoSum(A[AOffset + i], 0.0f);
+	}
+
+	QRDecomposition(NA, NQ, NR
+#if QR_DECOMPOSITION_TYPE == QR_DECOMPOSITION_TYPE_COLUMN_PIVOT
+		, PivotIndices
+#endif
+	);
+
+	// Q^T * B
+	FDFScalar Y[MATRIX_DIM * 3];
+	for (int i = 0; i < MATRIX_DIM; ++i)
+	{
+		for (int k = 0; k < 3; ++k)
+		{
+			FDFScalar Sum = (FDFScalar)0;
+			for (int j = 0; j < MATRIX_DIM; ++j)
+			{
+				Sum = DFAdd(Sum, DFMultiply(NQ.M[j * MATRIX_DIM + i], B[BOffset + j * 3 + k]));
+			}
+
+			Y[i * 3 + k] = Sum;
+		}
+	}
+
+	//back substitution for each color.
+	// RX = Y, Y = Q^T*B
+	FDFScalar X[MATRIX_DIM * 3];
+
+	for (int i = 0; i < (MATRIX_DIM * 3); ++i)
+	{
+		X[i] = DFTwoSum(0.0f, 0.0f);
+	}
+
+	for (int c = 0; c < 3; ++c)
+	{
+		for (int i = MATRIX_DIM - 1; i >= 0; --i)
+		{
+			FDFScalar Ri = NR.M[i * MATRIX_DIM + i];
+			if (DFEquals(Ri, 0.0f))
+			{
+				break;
+			}
+
+			FDFScalar Xc = Y[i * 3 + c];
+
+			for (int j = i + 1; j < MATRIX_DIM; ++j)
+			{
+				Xc = DFSubtract(Xc, DFMultiply(NR.M[i * MATRIX_DIM + j], X[j * 3 + c]));
+			}
+
+			X[i * 3 + c] = DFDivide(Xc, Ri);
+		}
+	}
+
+	//Copy to B matrix.
+#if QR_DECOMPOSITION_TYPE == QR_DECOMPOSITION_TYPE_COLUMN_PIVOT
+	for (int i = 0; i < MATRIX_DIM; ++i)
+	{
+		for (int j = 0; j < 3; ++j)
+		{
+			Result[BOffset + PivotIndices[i] * 3 + j] = DFDemote(X[i * 3 + j]);
+		}
+	}
+#else
+	for (int i = 0; i < (MATRIX_DIM * 3); ++i)
+	{
+		Result[BOffset + i] = DFDemote(X[i]);
+	}
+#endif
+
+}
+
+// Implement the standard Newton-Schulz Iterative method (float and double)
+// Initialization
+// X = I/EclideanNorm(A)
+// For n iterations
+//	Y = X ( 2*I - A * X);
+//	X = Y
+
+void NewtonSchulzIteration(int AOffset, int ASize, int BOffset)
+{
+	float X[MATRIX_DIM * MATRIX_DIM];
+	float XT[MATRIX_DIM * MATRIX_DIM];
+	float TI_AX[MATRIX_DIM * MATRIX_DIM];
+
+#define NUM_INVERSE_ITERATIONS_FLOAT 10
+
+	float EuclideanNorm = 0;
+	for (int i = 0; i < ASize; ++i)
+	{
+		EuclideanNorm += Pow2(A[AOffset + i]);
+	}
+	EuclideanNorm = sqrt(EuclideanNorm);
+
+	// Improve the initial guess with identify matrix scaled by Euclidean norm.
+	for (int i = 0; i < ADim.x; ++i)
+	{
+		for (int j = 0; j < ADim.x; ++j)
+		{
+			if (i == j)
+			{
+				X[i * ADim.x + j] = 1 / EuclideanNorm;
+			}
+			else
+			{
+				X[i * ADim.x + j] = 0;
+			}
+		}
+	}
+
+	// Matrix multiplication of float32 will overflow.
+	UNROLL
+		for (int Step = 0; Step < NUM_INVERSE_ITERATIONS_FLOAT; ++Step)
+		{
+			// 2 I - A * X
+			for (int i = 0; i < ADim.x; ++i)
+			{
+				for (int k = 0; k < ADim.x; ++k)
+				{
+					float Sum = 0;
+					for (int j = 0; j < ADim.x; ++j)
+					{
+						Sum += A[AOffset + (i * ADim.x + j)] * X[j * ADim.x + k];
+					}
+
+					TI_AX[i * ADim.x + k] = -Sum + lerp(0, 2, i == k);
+				}
+			}
+			// X * TI_AX
+			for (int i = 0; i < ADim.x; ++i)
+			{
+				for (int k = 0; k < ADim.x; ++k)
+				{
+					float Sum = 0;
+					for (int j = 0; j < ADim.x; ++j)
+					{
+						Sum += X[i * ADim.x + j] * TI_AX[j * ADim.x + k];
+					}
+					XT[i * ADim.x + k] = Sum;
+				}
+			}
+
+			// Copy back
+			for (int i = 0; i < ASize; ++i)
+			{
+				X[i] = XT[i];
+			}
+		}
+
+	//Calculate approx(A^{-1}) * B.
+	for (int i = 0; i < ADim.x; ++i)
+	{
+		for (int k = 0; k < BDim.y; ++k)
+		{
+			float Sum = 0;
+			for (int j = 0; j < ADim.y; ++j)
+			{
+				Sum += X[i * ADim.x + j] * B[BOffset + j * BDim.y + k];
+			}
+
+			Result[BOffset + i * BDim.y + k] = X[i * ADim.y + k];
+		}
+	}
+}
+
+void NewtonSchulzIterationDouble(int AOffset, int ASize, int BOffset)
+{
+	FDFScalar X[MATRIX_DIM * MATRIX_DIM];
+	FDFScalar XT[MATRIX_DIM * MATRIX_DIM];
+	FDFScalar TI_AX[MATRIX_DIM * MATRIX_DIM];
+
+#define NUM_INVERSE_ITERATIONS_DOUBLE 20
+
+	float EuclideanNorm = 0;
+	for (int i = 0; i < ASize; ++i)
+	{
+		EuclideanNorm += Pow2(A[AOffset + i]);
+	}
+	EuclideanNorm = sqrt(EuclideanNorm);
+
+	// Improve the initial guess with identify matrix scaled by Euclidean norm.
+	for (int i = 0; i < ADim.x; ++i)
+	{
+		for (int j = 0; j < ADim.x; ++j)
+		{
+			if (i == j)
+			{
+				X[i * ADim.x + j] = DFTwoSum(1 / EuclideanNorm, 0.0f);
+			}
+			else
+			{
+				X[i * ADim.x + j] = (FDFScalar)0;
+			}
+		}
+	}
+
+	for (int Step = 0; Step < NUM_INVERSE_ITERATIONS_DOUBLE; ++Step)
+	{
+		// 2 I - A * X
+		for (int i = 0; i < ADim.x; ++i)
+		{
+			for (int k = 0; k < ADim.x; ++k)
+			{
+				FDFScalar Sum = (FDFScalar)0;
+				for (int j = 0; j < ADim.x; ++j)
+				{
+					const FDFScalar DFMultiplyScalar = DFMultiply(A[AOffset + (i * ADim.x + j)], X[j * ADim.x + k]);
+					Sum = DFAdd(Sum, DFMultiplyScalar);
+				}
+
+				TI_AX[i * ADim.x + k] = DFSubtract(lerp(0, 2, i == k), Sum);
+			}
+		}
+		// X * TI_AX
+		for (int i = 0; i < ADim.x; ++i)
+		{
+			for (int k = 0; k < ADim.x; ++k)
+			{
+				FDFScalar Sum = (FDFScalar)0;
+				for (int j = 0; j < ADim.x; ++j)
+				{
+					const FDFScalar DFMultiplyScalar = DFMultiply(X[i * ADim.x + j], TI_AX[j * ADim.x + k]);
+					Sum = DFAdd(Sum, DFMultiplyScalar);
+				}
+				XT[i * ADim.x + k] = Sum;
+			}
+		}
+
+		// copy back
+		for (int i = 0; i < ASize; ++i)
+		{
+			X[i] = XT[i];
+		}
+	}
+
+	//Calculate approx(A^{-1}) * B.
+	for (int i = 0; i < ADim.x; ++i)
+	{
+		for (int k = 0; k < BDim.y; ++k)
+		{
+			FDFScalar Sum = DFTwoSum(0, 0);
+			for (int j = 0; j < ADim.y; ++j)
+			{
+				Sum = DFAdd(Sum, DFMultiply(X[i * ADim.x + j], DFTwoSum(B[BOffset + j * BDim.y + k], 0.0f)));
+			}
+
+			Result[BOffset + i * BDim.y + k] = DFDemote(Sum);
+		}
+	}
+}

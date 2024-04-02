@@ -1,0 +1,1065 @@
+// Copyright Epic Games, Inc. All Rights Reserved.
+
+#include "/Engine/Public/Platform.ush"
+#include "/Engine/Private/Common.ush"
+#include "/Engine/Private/ScreenPass.ush"
+
+#ifndef SOURCE_CHANNEL_COUNT
+#define SOURCE_CHANNEL_COUNT 4
+#endif
+
+#if SOURCE_CHANNEL_COUNT == 1
+#define TPixelValue float
+#elif SOURCE_CHANNEL_COUNT == 2
+#define TPixelValue float2
+#elif SOURCE_CHANNEL_COUNT == 3
+#define TPixelValue float3
+#elif SOURCE_CHANNEL_COUNT == 4
+#define TPixelValue float4
+#endif
+
+#define IMAGE_VARINCE_NORMAL		0
+#define IMAGE_VARIANCE_GREYSCALE	1
+#define IMAGE_VARIANCE_COLORED		2
+
+#ifndef IMAGE_VARIANCE_TYPE
+#define IMAGE_VARIANCE_TYPE IMAGE_VARIANCE_GREYSCALE
+#endif
+
+#define PRE_ALBEDO_DIVIDE_DISABLED	0
+#define PRE_ALBEDO_DIVIDE_EACH		1
+#define PRE_ALBEDO_DIVIDE_FINAL		2
+
+#ifndef PRE_ALBEDO_DIVIDE
+#define PRE_ALBEDO_DIVIDE PRE_ALBEDO_DIVIDE_DISABLED
+#endif
+
+#ifndef APPEND_CONSTANT_DIMENSION_TO_X
+#define APPEND_CONSTANT_DIMENSION_TO_X 0
+#endif
+
+#ifndef NONLOCALMEAN_SEPARATE_SOURCE
+#define NONLOCALMEAN_SEPARATE_SOURCE 0
+#endif
+
+#define NONLOCALMEAN_PATCHONLY		0
+#define NONLOCALMEAN_DISTACNE_PATCH 1
+#define NONLOCALMEAN_WEIGHT_TYPE	NONLOCALMEAN_PATCHONLY
+
+#ifndef NUM_FEATURE
+#define NUM_FEATURE 0
+#endif
+
+#ifndef SMALL_MATRIX_OPTIMIZE
+#define SMALL_MATRIX_OPTIMIZE 0
+#endif
+
+// Sampling steps for performance optimization.
+#ifndef USE_SAMPLING_STEP
+#define USE_SAMPLING_STEP 0
+#endif
+
+#define SAMPLING_TYPE_INCREMENTAL			0
+#define SAMPLING_TYPE_FOCUS_CURRENT_FRAME	1
+
+#define SAMPLING_TYPE SAMPLING_TYPE_FOCUS_CURRENT_FRAME
+
+// Matrix multiplication
+#define WEIGHTED_MULTIPLICATION_QUADRATIC	0	//X^TWX
+#define WEIGHTED_MULTIPLICATION_GENERALIZED	1	//X^TWY
+
+#ifndef WEIGHTED_MULTIPLICATION_TYPE
+#define WEIGHTED_MULTIPLICATION_TYPE WEIGHTED_MULTIPLICATION_QUADRATIC
+#endif
+
+// Reconstruction
+#define RECONSTRUCTION_TYPE_SCATTER 0
+#define RECONSTRUCTION_TYPE_GATHER	1
+
+#ifndef RECONSTRUCTION_TYPE
+#define RECONSTRUCTION_TYPE RECONSTRUCTION_TYPE_SCATTER
+#endif
+
+#define RADIANCE_PREPROCESS_SCALE_FACTOR 0.1f
+#define RADIANCE_POSTPROCESS_INVERSE_SCALE_FACTOR (1/RADIANCE_PREPROCESS_SCALE_FACTOR);
+
+//--------------------------------------------------------------------------------------------------
+// Util and general texture operations
+//--------------------------------------------------------------------------------------------------
+#define TEXTURE_OPS_MULTIPLY		0
+#define TEXTURE_OPS_DIVIDE			1
+#define TEXTURE_OPS_ADD_CONSTANT	2
+#define TEXTURE_OPS_ACCUMULATE		3
+
+#ifndef TEXTURE_OPS
+#define TEXTURE_OPS TEXTURE_OPS_MULTIPLY
+#endif
+
+#ifndef ACCUMULATE_BY_MASK
+#define ACCUMULATE_BY_MASK 0
+#endif
+
+float Length2(TPixelValue Value)
+{
+#if SOURCE_CHANNEL_COUNT == 1
+	return Value * Value;
+#elif SOURCE_CHANNEL_COUNT == 4
+	return length2(Value.rgb);
+#else
+	return length2(Value);
+#endif
+}
+
+TPixelValue GetImageValue(int2 P, Texture2D<TPixelValue> inImage)
+{
+	return inImage.Load(int3(P, 0));
+}
+
+int2 GetMirroredPosition(int2 P, int2 inTextureSize)
+{
+	int2 TextureSizeMax = inTextureSize - 1;
+	P = abs(TextureSizeMax - abs(P - TextureSizeMax));
+	return P;
+}
+
+//--------------------------------------------------------------------------------------------------
+// General texture operations
+Texture2D<TPixelValue> Source;
+Texture2D<uint> Mask;
+RWTexture2D<float4> RWTarget;
+int2 SourcePosition;
+int2 TargetPosition;
+int2 Size;
+int ForceOperation;
+float4 ConstantValue;
+
+float4 LoadSource(uint2 Position)
+{
+	float4 SourceValue = 0;
+
+#if SOURCE_CHANNEL_COUNT == 1
+	SourceValue.x = Source.Load(uint3(Position, 0));
+#elif SOURCE_CHANNEL_COUNT == 2
+	SourceValue.xy = Source.Load(uint3(Position, 0));
+#elif SOURCE_CHANNEL_COUNT == 3
+	SourceValue.xyz = Source.Load(uint3(Position, 0));
+#elif SOURCE_CHANNEL_COUNT == 4
+	SourceValue = Source.Load(uint3(Position, 0));
+#endif
+	return SourceValue;
+}
+
+[numthreads(THREAD_GROUP_SIZE, THREAD_GROUP_SIZE, 1)]
+void TextureOperationCS(in const uint3 DispatchThreadID : SV_DispatchThreadID)
+{
+	if (any(DispatchThreadID.xy >= (uint2)Size))
+	{
+		return;
+	}
+
+	const uint2 Position = DispatchThreadID.xy;
+	const uint2 ResolvedSourcePosition = max(SourcePosition + Position, 0);
+	const uint2 ResolvedTargetPosition = TargetPosition + Position;
+
+	if (all(ResolvedTargetPosition >= 0))
+	{
+#if TEXTURE_OPS == TEXTURE_OPS_MULTIPLY
+		float4 STexel = LoadSource(ResolvedSourcePosition);
+		RWTarget[ResolvedTargetPosition].rgb *= lerp(1.0f, STexel.rgb, (STexel.rgb != 0) | ForceOperation);
+#elif TEXTURE_OPS == TEXTURE_OPS_DIVIDE
+		float4 STexel = LoadSource(ResolvedSourcePosition);
+		RWTarget[ResolvedTargetPosition].rgb /= lerp(1.0f, STexel.rgb, (STexel.rgb != 0) | ForceOperation);
+#elif TEXTURE_OPS == TEXTURE_OPS_ADD_CONSTANT
+		float3 Value = 0;
+#if ACCUMULATE_BY_MASK
+		uint MaskId = clamp(Mask[ResolvedTargetPosition], 0, 3); // support up to 4 masked add.
+		Value = ConstantValue[MaskId];
+#else
+		Value = ConstantValue.rgb;
+#endif
+		RWTarget[ResolvedTargetPosition].rgb += Value;
+#elif TEXTURE_OPS == TEXTURE_OPS_ACCUMULATE
+		float4 STexel = LoadSource(ResolvedSourcePosition);
+		RWTarget[ResolvedTargetPosition] += STexel;
+#endif
+	}
+}
+
+int2 SourceOffset;
+float4 CopyTexturePS(float4 SvPosition : SV_POSITION) : SV_Target0
+{
+	uint2 Position = (uint2)SvPosition.xy + SourceOffset;
+	return Source.Load(uint3(GetMirroredPosition(Position, TextureSize), 0));
+}
+
+//--------------------------------------------------------------------------------------------------
+// Variance definition and functions
+//
+// Assumption: Variance texture is of type float4 and holds std instead
+//
+#define TImageVariance float4
+
+float GetImageVariance(int2 P, Texture2D inVariance, int inVarianceChannelOffset)
+{
+	float Var = 0;
+#if (IMAGE_VARIANCE_TYPE == IMAGE_VARIANCE_NORMAL) | (IMAGE_VARIANCE_TYPE == IMAGE_VARIANCE_GREYSCALE)
+	// The loaded variance is actually the std
+	float Std = inVariance.Load(int3(P, 0))[inVarianceChannelOffset];
+	Var = Pow2(Std);	
+#elif IMAGE_VARIANCE_TYPE == IMAGE_VARIANCE_COLORED
+	// Assume channel independence and use Luminance() for grey scale
+	// calculation.
+	const float3 Constants = float3(0.09, 0.3481, 0.0121);
+	float3 StdRGB = inVariance.Load(int3(P, 0)).rgb;
+	Var = dot(Pow2(StdRGB), Constants);
+#else
+#error IMAGE_VARIANCE_TYPE not supported
+#endif
+	return Var;
+}
+
+//------------------------------------------------------------------------------------------------------
+// Radiance normalization
+//------------------------------------------------------------------------------------------------------
+
+Texture2D<float4> Normal;
+Texture2D<float4> NormalVariance;
+RWTexture2D<uint> RWMask;
+int2 TextureSize;
+
+[numthreads(THREAD_GROUP_SIZE, THREAD_GROUP_SIZE, 1)]
+void ClassifyPreAlbedoDivideMaskIdCS(in const uint3 DispatchThreadID : SV_DispatchThreadID)
+{
+	if (any(DispatchThreadID.xy >= (uint2)TextureSize))
+	{
+		return;
+	}
+
+	const uint2 Position = DispatchThreadID.xy;
+	float4 NormalValues = 0;
+	NormalValues.rgb = Normal.Load(uint3(Position, 0)).rgb;
+	NormalValues.a = NormalVariance.Load(uint3(Position, 0)).b;
+
+	uint MaskId = 0;
+
+	if (all(NormalValues == 0))
+	{
+		MaskId = 1;
+	}
+
+	RWMask[Position] = MaskId;
+}
+
+Texture2D<float4> Albedo;
+RWTexture2D<float4> RWRadianceVariance;
+
+[numthreads(THREAD_GROUP_SIZE, THREAD_GROUP_SIZE, 1)]
+void NormalizeRadianceVarianceByAlbedoCS(in const uint3 DispatchThreadID : SV_DispatchThreadID)
+{
+	if (any(DispatchThreadID.xy >= (uint2)Size))
+	{
+		return;
+	}
+
+	const uint2 Position = DispatchThreadID.xy;
+	float AlbedoLum = Luminance(Albedo.Load(uint3(Position, 0)).rgb);
+
+	// Since r stores the std instead of variance, need to divide albedo instead of albedo^2.
+	RWRadianceVariance[Position].r /= lerp(1.0f, AlbedoLum, AlbedoLum > 0);
+}
+
+//--------------------------------------------------------------------------------------------------
+// Non-local mean definition and function
+//--------------------------------------------------------------------------------------------------
+// When NONLOCALMEAN_SEPARATE_SOURCE == 1, the NLM calculates the distance from source image to target image
+// instead of on its own.
+
+int PatchSize;
+int PatchDistance;
+float Bandwidth;
+
+Texture2D<TPixelValue> Image;
+Texture2D<TImageVariance> Variance;
+
+#if NONLOCALMEAN_SEPARATE_SOURCE
+Texture2D<TPixelValue> TargetImage;
+Texture2D<TImageVariance> TargetVariance;
+#else
+#define TargetImage Image
+#define TargetVariance Variance
+#endif
+
+int VarianceChannelOffset;
+
+float GetSquaredDistance(int2 P, int2 Q, float VarianceScale = 1.0f)
+{
+	// Use mirrored position. Clamp to boarder has artifacts at border.
+	P = GetMirroredPosition(P, TextureSize); 
+	Q = GetMirroredPosition(Q, TextureSize); 
+
+	TPixelValue Cp = GetImageValue(P, Image);
+	TPixelValue Cq = GetImageValue(Q, TargetImage);
+
+	float VarP = GetImageVariance(P, Variance, VarianceChannelOffset) * VarianceScale;
+	float VarQ = GetImageVariance(Q, TargetVariance, VarianceChannelOffset) * VarianceScale;
+
+	const float Epsilon =  1e-8f; // Small enough to preserve dark areas
+
+	float dpq = (Length2(Cp - Cq) - (VarP + min(VarP, VarQ))) / (Epsilon + Pow2(Bandwidth)*(VarP + VarQ));
+	
+	const float MaxDistance = 10000;
+	dpq = min(dpq, MaxDistance);
+
+	return dpq;
+}
+
+float GetPatchSquaredDistance(int2 P, int2 Q)
+{
+	const float VarianceScale = 1.0f;
+
+	// TODO: z-order for performance improvement?
+	float Sum = 0;
+	for (int y = -PatchSize; y < PatchSize; ++y)
+	{
+		for (int x = -PatchSize; x < PatchSize; ++x)
+		{
+			int2 Pij = P + int2(x, y);
+			int2 Qij = Q + int2(x, y);
+			Sum += GetSquaredDistance(Pij, Qij, VarianceScale);
+		}
+	}
+
+	// ||Pp - Pq||^2
+	float PathSquareDistance = max(0, Sum / Pow2(2 * PatchSize + 1));
+	return PathSquareDistance;
+}
+
+// P is on source image, Q is on target image
+float GetNonLocalMeanWeight(int2 P, int2 Q)
+{
+	//TODO: add a box filter?
+	float PatchpqSqaure = GetPatchSquaredDistance(P,Q);
+
+	float NonLocalMeanWeight = 1.0f;
+#if NONLOCALMEAN_WEIGHT_TYPE == NONLOCALMEAN_PATCHONLY
+	NonLocalMeanWeight = FastExp(-PatchpqSqaure);
+#elif NONLOCALMEAN_WEIGHT_TYPE == NONLOCALMEAN_DISTACNE_PATCH
+	const float SigmaS = 2.0f;//TODO: move to CVar
+	NonLocalMeanWeight = FastExp(-length2(P - Q) / (2 * Pow2(SigmaS))) * FastExp(-PatchpqSqaure);
+#endif
+
+#if PRE_ALBEDO_DIVIDE == PRE_ALBEDO_DIVIDE_DISABLED
+	const float kMinFloat16 = 0.000000059604645f;
+	//without albedo divide, below is better when scattering results.
+	NonLocalMeanWeight = max(kMinFloat16, NonLocalMeanWeight);
+#endif
+	return NonLocalMeanWeight;
+}
+
+RWTexture2D<TPixelValue> DenoisedImage;
+RWBuffer<float> NonLocalMeanWeights;
+int DenoisingChannelCount;
+
+[numthreads(THREAD_GROUP_SIZE, THREAD_GROUP_SIZE, 1)]
+void NonLocalMeanFilteringCS(in const uint3 DispatchThreadID : SV_DispatchThreadID)
+{
+	if (any(DispatchThreadID.xy >= TextureSize))
+	{
+		return;
+	}
+	
+	const uint2 Position = DispatchThreadID.xy;
+	float TotalWeights = 0;
+	TPixelValue Result = 0;
+
+	for (int y = -PatchDistance; y <= PatchDistance; ++y)
+	{
+		for (int x = -PatchDistance; x <= PatchDistance; ++x)
+		{
+			int2 Q = Position + int2(x, y);
+			float Weight = GetNonLocalMeanWeight(Position, Q);
+
+			Result += Weight * GetImageValue(GetMirroredPosition(Q, TextureSize), TargetImage);
+			TotalWeights += Weight;
+		}
+	}
+
+	Result = Result / max(1e-6f, TotalWeights);
+
+#if SOURCE_CHANNEL_COUNT == 1
+	DenoisedImage[DispatchThreadID.xy] = Result;
+#else
+	TPixelValue TargetValue = GetImageValue(GetMirroredPosition(Position, TextureSize), TargetImage);
+	for (int i = 0; i < DenoisingChannelCount; ++i)
+	{
+		TargetValue[i] = Result[i];
+	}
+	DenoisedImage[DispatchThreadID.xy] = TargetValue;
+#endif
+}
+
+// Calculate the non-local mean weights for Region
+int4 Region;
+
+[numthreads(THREAD_GROUP_SIZE, THREAD_GROUP_SIZE, 1)]
+void NonLocalMeanWeightsCS(in const uint3 DispatchThreadID : SV_DispatchThreadID)
+{
+	int2 RegionSize = int2(Region.z - Region.x, Region.w - Region.y);
+	if (any(DispatchThreadID.xy >= RegionSize))
+	{
+		return;
+	}
+	const uint2 Position = DispatchThreadID.xy + Region.xy;
+	const int PatchDiameter = 2 * PatchDistance + 1;
+	const int PixelOffset = Pow2(PatchDiameter);
+	const int BufferOffset = (DispatchThreadID.x + DispatchThreadID.y * RegionSize.x) * PixelOffset;
+
+	for (int i = 0; i < PixelOffset; ++i)
+	{
+		int2 Offset = int2(i % PatchDiameter, i / PatchDiameter) - int2(PatchDistance, PatchDistance);
+		int2 Q = Position + Offset;
+		NonLocalMeanWeights[BufferOffset + i] = GetNonLocalMeanWeight(Position, Q);
+	}
+}
+
+//------------------------------------------------------------------------------------------------------
+// Collaborative filtering
+//	1. Tiling
+//------------------------------------------------------------------------------------------------------
+
+RWBuffer<float> Dest;
+int CopyChannelOffset;
+int CopyChannelCount;
+int BufferChannelOffset;
+int BufferChannelSize;
+int4 CopyRegion;
+
+[numthreads(THREAD_GROUP_SIZE, THREAD_GROUP_SIZE, 1)]
+void CopyTextureToBufferCS(in const uint3 DispatchThreadID : SV_DispatchThreadID)
+{
+	uint2 CopyRegionSize = uint2(CopyRegion.z - CopyRegion.x, CopyRegion.w - CopyRegion.y);
+	if (any(DispatchThreadID.xy >= CopyRegionSize))
+	{
+		return;
+	}
+
+	const uint2 Position = DispatchThreadID.xy + CopyRegion.xy;
+	const int BufferOffset = (DispatchThreadID.x + DispatchThreadID.y * CopyRegionSize.x) * BufferChannelSize + BufferChannelOffset;
+
+	// If copy region is outside of the texture region, get a mirror.
+	TPixelValue  PixelValue = Source.Load(uint3(GetMirroredPosition(Position, TextureSize), 0));
+
+	const int EndCopyChannelOffset = CopyChannelOffset + CopyChannelCount;
+
+#if SOURCE_CHANNEL_COUNT == 1
+	Dest[BufferOffset] = PixelValue;
+#else
+	for (int i = CopyChannelOffset; i < EndCopyChannelOffset; ++i)
+	{
+		Dest[BufferOffset + (i - CopyChannelOffset)] = PixelValue[i];
+	}
+#endif
+}
+
+RWTexture2D<float4> RWSource;
+
+[numthreads(THREAD_GROUP_SIZE, THREAD_GROUP_SIZE, 1)]
+void NormalizeTextureCS(in const uint3 DispatchThreadID : SV_DispatchThreadID)
+{
+	if (any(DispatchThreadID.xy >= TextureSize))
+	{
+		return;
+	}
+	
+	const uint2 Position = DispatchThreadID.xy;
+	float4 Texel = RWSource[Position];
+	
+	if (Texel.w == 0)
+	{
+		Texel.w = 1;
+	}
+
+	RWSource[Position] = Texel / Texel.w;
+}
+
+//------------------------------------------------------------------------------------------------------
+//	2. Weighted Least-square solver
+
+Buffer<float> X;
+Buffer<float> W;
+Buffer<float> Y;
+
+RWBuffer<float> Result;
+
+int2 XDim;
+int WDim;
+int NumOfTemporalFrames;
+int NumOfWeigthsPerPixelPerFrame;
+
+#if WEIGHTED_MULTIPLICATION_TYPE == WEIGHTED_MULTIPLICATION_GENERALIZED
+int2 YDim;
+#else
+#define YDim XDim
+#endif
+
+// X, Y is stored per pixel, in each pixel, it stores the pixel footage for each temporal frame
+// Pixel layout example with two data per temporal frame
+// P1                     ...   Pn
+// |F0 F1|F0 F1|F0 F1|
+//   T0     T1   T2
+// 
+// W stores one weight per pixel, when a frame stored, the next frame is stored
+// P1 ... Pn | P1 ... Pn|
+// T0          T1        ...
+
+float GetX(uint2 Position, uint f)
+{
+	const uint Width = TextureSize.x + 2 * PatchDistance;
+	const uint F = XDim.y;
+
+	const uint Index = (Position.y * Width + Position.x) * (F * NumOfTemporalFrames) + f;
+	return X[Index];
+}
+
+float GetX(uint2 Position, uint Db, uint FrameIndex)
+{
+	const uint F = XDim.y;
+	return GetX(Position, FrameIndex * F + Db);
+}
+
+float GetY(int2 Position, int f)
+{
+#if WEIGHTED_MULTIPLICATION_TYPE == WEIGHTED_MULTIPLICATION_GENERALIZED
+	const float Width = TextureSize.x + 2 * PatchDistance;
+	const float F = YDim.y;
+
+	const int Index = (Position.y * Width + Position.x) * (F * NumOfTemporalFrames) + f;
+	return Y[Index];
+#else
+	return GetX(Position, f);
+#endif
+}
+
+float GetW(int2 Position, int WeightIndex, int FrameIndex)
+{
+	const int NumberOfPixels = TextureSize.x * TextureSize.y;
+	const int Index = NumOfWeigthsPerPixelPerFrame *(NumberOfPixels * FrameIndex + (Position.y * TextureSize.x + Position.x)) + WeightIndex;
+	return W[Index];
+}
+
+int2 GetModifiedXyYyDimension()
+{
+	const int ModifiedXyDim = XDim.y + APPEND_CONSTANT_DIMENSION_TO_X;
+#if WEIGHTED_MULTIPLICATION_TYPE == WEIGHTED_MULTIPLICATION_GENERALIZED
+	const int ModifiedYyDim = YDim.y;
+#else
+	const int ModifiedYyDim = YDim.y + APPEND_CONSTANT_DIMENSION_TO_X;
+#endif
+
+	return int2(ModifiedXyDim, ModifiedYyDim);
+}
+
+void WriteResult(int2 Position, int f, float Value)
+{
+	const int2 ModifiedXyYyDim = GetModifiedXyYyDimension();
+	const int Index = (Position.y * TextureSize.x + Position.x) * (ModifiedXyYyDim.x * ModifiedXyYyDim.y) + f;
+	Result[Index] = Value;
+}
+
+#include "/Engine/Private/DoubleFloat.ush"
+
+int SamplingStep;
+
+void SolveMatrixMultiplicationPerMatrixItem(int2 Position, int2 ModifiedXyYyDim, int PatchWidth, int SingleFrameDataCount)
+{
+	for (int i = 0; i < ModifiedXyYyDim.x; ++i)
+	{
+#if WEIGHTED_MULTIPLICATION_TYPE == WEIGHTED_MULTIPLICATION_QUADRATIC
+		for (int k = i; k < ModifiedXyYyDim.y; ++k)
+#else
+		for (int k = 0; k < ModifiedXyYyDim.y; ++k)
+#endif
+		{
+			FDFScalar R = (FDFScalar)0;
+			for (int j = 0; j < XDim.x; ++j)
+			{
+
+				int IndexWithinFrame = j % SingleFrameDataCount;
+				int2 Offset = int2(IndexWithinFrame % PatchWidth, IndexWithinFrame / PatchWidth);
+				int frame_index = j / SingleFrameDataCount;
+
+				float w = GetW(Position, IndexWithinFrame, frame_index); // get w, cache ???, 19*19*T
+
+				int2 TartPosition = Position + Offset;
+
+#if APPEND_CONSTANT_DIMENSION_TO_X
+				float x = 1.0f;
+				float y = 1.0f;
+
+				BRANCH
+					if (i < XDim.y)
+					{
+						x = GetX(TartPosition, XDim.y * frame_index + i);
+					}
+
+				BRANCH
+					if (k < YDim.y)
+					{
+						y = GetY(TartPosition, YDim.y * frame_index + k);
+					}
+#else
+				float x = GetX(TartPosition, XDim.y * frame_index + i); // get x from the ith row X^T
+				float y = GetY(TartPosition, YDim.y * frame_index + k); // get y from the kth column of Y
+#endif
+				R = DFAdd(R, DFMultiply(DFTwoSum(x, 0.0f), DFMultiply(DFTwoSum(sqrt(w), 0.0f), DFTwoSum(y, 0.0f))));
+			}
+
+			float RResolved = DFDemote(R);
+			WriteResult(Position, i * ModifiedXyYyDim.y + k, RResolved);
+
+#if WEIGHTED_MULTIPLICATION_TYPE == WEIGHTED_MULTIPLICATION_QUADRATIC
+			WriteResult(Position, k * ModifiedXyYyDim.y + i, RResolved);
+#endif
+		}
+	}
+}
+
+struct FMatrixCache
+{
+#if WEIGHTED_MULTIPLICATION_TYPE == WEIGHTED_MULTIPLICATION_QUADRATIC
+	float Data[((NUM_FEATURE + APPEND_CONSTANT_DIMENSION_TO_X) * (NUM_FEATURE + APPEND_CONSTANT_DIMENSION_TO_X) + 1) / 2];
+#elif WEIGHTED_MULTIPLICATION_TYPE == WEIGHTED_MULTIPLICATION_GENERALIZED
+	float Data[(NUM_FEATURE + APPEND_CONSTANT_DIMENSION_TO_X) * 3];
+#endif
+};
+
+int SourceFrameIndex;
+
+void MatrixMultiplicationSmallMatrixOptimization(int2 Position, int2 ModifiedXyYyDim, int PatchWidth, int SingleFrameDataCount)
+{	
+	FMatrixCache MatrixCache = (FMatrixCache)0;
+
+	int NumOfFrames = XDim.x / SingleFrameDataCount;
+	int Index = 0;
+
+#if USE_SAMPLING_STEP
+	#if SAMPLING_TYPE == SAMPLING_TYPE_INCREMENTAL
+	//This sampling might lead to incorrect DOF when there is ambiguity using feature to predict
+	//non-DOF background in previous/future frames, and DOF foreground that is the current frame.
+	//we might need to apply regression for each frame instead of using combined frames.
+	for (int step = 0; step < XDim.x; step+=SamplingStep)
+	{
+		int IndexWithinFrame = step / NumOfFrames;
+		int2 Offset = int2(IndexWithinFrame % PatchWidth, IndexWithinFrame / PatchWidth);
+		int2 TartPosition = Position + Offset;
+
+		int t = step % NumOfFrames;
+	#elif SAMPLING_TYPE == SAMPLING_TYPE_FOCUS_CURRENT_FRAME
+		// focus sampling more to the current frames.
+	const int SourceFrame = SourceFrameIndex;
+
+	int PreviousSamplingFrame = NumOfFrames - 1;
+	int IndexWithinFrame = 0;
+	for (int step = 0; step < XDim.x && IndexWithinFrame < SingleFrameDataCount-1; step += SamplingStep)
+	{
+		int t = step % NumOfFrames;
+		if (t < PreviousSamplingFrame && NumOfFrames > 1)
+		{
+			PreviousSamplingFrame = t;
+			t = SourceFrame;
+			IndexWithinFrame += 1;
+		}
+		else
+		{
+			int Tmp = t;
+			t = SourceFrame;
+			PreviousSamplingFrame = Tmp;
+		}
+
+		int2 Offset = int2(IndexWithinFrame % PatchWidth, IndexWithinFrame / PatchWidth);
+		int2 TartPosition = Position + Offset;
+	#endif
+#else
+	for (int j = 0; j < SingleFrameDataCount; ++j)
+	{
+		int IndexWithinFrame = j;
+		int2 Offset = int2(IndexWithinFrame % PatchWidth, IndexWithinFrame / PatchWidth);
+		int2 TartPosition = Position + Offset;
+
+		for (int t = 0; t < NumOfFrames; ++t)
+#endif
+		{
+			int frame_index = t;
+			float sqrtw = sqrt(GetW(Position, IndexWithinFrame, frame_index)); // get w.
+			
+			Index = 0;
+			for (int i = 0; i < ModifiedXyYyDim.x; ++i)
+			{
+#if WEIGHTED_MULTIPLICATION_TYPE == WEIGHTED_MULTIPLICATION_QUADRATIC
+				for (int k = i; k < ModifiedXyYyDim.y; ++k)
+#else
+				for (int k = 0; k < ModifiedXyYyDim.y; ++k)
+#endif
+				{
+
+#if APPEND_CONSTANT_DIMENSION_TO_X
+					float x = 1.0f;
+					float y = 1.0f;
+
+					BRANCH
+						if (i < XDim.y)
+						{
+							x = GetX(TartPosition, XDim.y * frame_index + i);
+						}
+
+					BRANCH
+						if (k < YDim.y)
+						{
+							y = GetY(TartPosition, YDim.y * frame_index + k);
+						}
+#else
+					float x = GetX(TartPosition, XDim.y * frame_index + i); // get x from the ith row X^T
+					float y = GetY(TartPosition, YDim.y * frame_index + k); // get y from the kth column of Y
+#endif
+					MatrixCache.Data[Index] += x * sqrtw * y;
+					++Index;
+				}
+			}
+		}
+	}
+
+	Index = 0;
+	for (int i = 0; i < ModifiedXyYyDim.x; ++i)
+	{
+#if WEIGHTED_MULTIPLICATION_TYPE == WEIGHTED_MULTIPLICATION_QUADRATIC
+		for (int k = i; k < ModifiedXyYyDim.y; ++k)
+#else
+		for (int k = 0; k < ModifiedXyYyDim.y; ++k)
+#endif
+		{
+			float RResolved = MatrixCache.Data[Index++];
+			WriteResult(Position, i * ModifiedXyYyDim.y + k, RResolved);
+
+			#if (WEIGHTED_MULTIPLICATION_TYPE == WEIGHTED_MULTIPLICATION_QUADRATIC)
+				WriteResult(Position, k * ModifiedXyYyDim.y + i, RResolved);
+			#endif
+		}
+	}
+}
+
+[numthreads(THREAD_GROUP_SIZE, THREAD_GROUP_SIZE, 1)]
+void InPlaceBatchedMatrixMultiplicationCS(in const uint3 DispatchThreadID : SV_DispatchThreadID)
+{
+	if (any(DispatchThreadID.xy >= TextureSize))
+	{
+		return;
+	}
+	int2 Position = DispatchThreadID.xy;
+	
+	int PatchWidth = 2 * PatchDistance + 1;
+	int SingleFrameDataCount = Pow2(2 * PatchDistance + 1);//TODO
+	
+	//======================================================================================================
+	// For each pixel, solve the matrix X^T W * Y or X^T W * X
+	// asymptotic complexity O(n^3).
+	// Actual: FxAxN = 21*N  for X^T W Y, where N = 19*19*T, where T = 1,3,5
+	//         FxNxN = 21*N^2 for X^T W X
+	// The time spent for solving the quadratic form increases quadratically, 1, 9, 25.
+	// Improvement: 
+	// 1. Based on "one in ten/twenty rules", we might not need that many Ns.
+	// E.g., if 7x3 weights needed to be predicted, we might shrink 19*19*5 to 19*19*(1~2) observations that is 
+	// distributed over 5 frames.
+	const int2 ModifiedXyYyDim = GetModifiedXyYyDimension();
+
+#if SMALL_MATRIX_OPTIMIZE
+	MatrixMultiplicationSmallMatrixOptimization(Position, ModifiedXyYyDim, PatchWidth, SingleFrameDataCount);
+#else
+	SolveMatrixMultiplicationPerMatrixItem(Position, ModifiedXyYyDim, PatchWidth, SingleFrameDataCount);
+#endif
+}
+
+#define MATRIX_DIM NUM_FEATURE
+#include "NFORRegression.ush"
+
+[numthreads(THREAD_GROUP_SIZE, THREAD_GROUP_SIZE, 1)]
+void LinearSolverCS(in const uint3 DispatchThreadID : SV_DispatchThreadID)
+{
+	const int MatrixIndex = DispatchThreadID.x + DispatchThreadID.y * NumOfElementsPerRow;
+	if (MatrixIndex >= NumOfElements)
+	{
+		return;
+	}
+	const int BSize = BDim.x * BDim.y;
+	const int BOffset = MatrixIndex * BSize;
+	const int ASize = ADim.x * ADim.y;
+	const int AOffset = MatrixIndex * ASize;
+
+	//QR_Solve(AOffset, ASize, BOffset);
+	NewtonSchulzIterationDouble(AOffset, ASize, BOffset);
+}
+
+//===============================================================================================
+// Reconstruct spatial temporal images
+int FrameIndex;
+float AlbedoOffset;
+RWTexture2D<float4> RWReconstruction;
+RWStructuredBuffer<uint4> RWReconstructBuffer;
+RWTexture2D<UlongType> RWReconstructBuffer64;
+
+float GetB(int2 Position, int f)
+{
+	const int Index = (Position.y * TextureSize.x + Position.x) * (BDim.x*BDim.y) + f;
+	return B[Index];
+}
+
+uint4 EncodeFloat4(float4 Value)
+{
+	uint4 fractions = frac(max(Value,0.0f))*0xffff;
+	uint4 Integers = uint4(max(Value, 0.0f));
+	return Integers<<16 | (fractions & 0xffff);
+}
+
+float4 DecodeFloat4(uint4 Value)
+{
+	float4 Decoded = float4(Value>>16) + float4(Value & 0xffff)/65536;
+}
+
+void SaveFloat4ToBufferOrTexture(uint2 Position, float4 Value, uint NumOfScattering)
+{
+#if COMPILER_SUPPORTS_UINT64_IMAGE_ATOMICS
+	float4 XBWFraction = frac(max(Value, 0));
+	uint4 XBWInteger = Value - XBWFraction;
+	XBWInteger = min(XBWInteger, 0xffffffff / NumOfScattering); // Avoid overflow.
+
+	uint4 XBWFractionAsInteger = uint4(XBWFraction * 0xffffffff);
+	{
+		const UlongType R = PackUlongType(uint2(XBWFractionAsInteger.r, XBWInteger.r));
+		ImageInterlockedAddUInt64(RWReconstructBuffer64, uint2(Position.x * 4 + 0, Position.y), R);
+
+		const UlongType G = PackUlongType(uint2(XBWFractionAsInteger.g, XBWInteger.g));
+		ImageInterlockedAddUInt64(RWReconstructBuffer64, uint2(Position.x * 4 + 1, Position.y), G);
+
+		const UlongType B = PackUlongType(uint2(XBWFractionAsInteger.b, XBWInteger.b));
+		ImageInterlockedAddUInt64(RWReconstructBuffer64, uint2(Position.x * 4 + 2, Position.y), B);
+
+		const UlongType A = PackUlongType(uint2(XBWFractionAsInteger.a, XBWInteger.a));
+		ImageInterlockedAddUInt64(RWReconstructBuffer64, uint2(Position.x * 4 + 3, Position.y), A);
+	}
+
+#else
+	int IntermediateBufferIndex = Position.x + Position.y * (TextureSize.x + 2 * PatchDistance);
+	uint4 XBWEncoded = EncodeFloat4(XBW);
+	float4 OldValue = 0;
+	InterlockedAdd(RWReconstructBuffer[IntermediateBufferIndex].x, XBWEncoded.x, OldValue.x);
+	InterlockedAdd(RWReconstructBuffer[IntermediateBufferIndex].y, XBWEncoded.y, OldValue.y);
+	InterlockedAdd(RWReconstructBuffer[IntermediateBufferIndex].z, XBWEncoded.z, OldValue.z);
+	InterlockedAdd(RWReconstructBuffer[IntermediateBufferIndex].w, XBWEncoded.w, OldValue.w);
+
+#endif //COMPILER_SUPPORTS_UINT64_IMAGE_ATOMICS
+}
+
+[numthreads(THREAD_GROUP_SIZE, THREAD_GROUP_SIZE, 1)]
+void ReconstructSpatialTemporalImageCS(in const uint3 DispatchThreadID : SV_DispatchThreadID)
+{
+	if (any(DispatchThreadID.xy >= TextureSize))
+	{
+		return;
+	}
+	int2 Position = DispatchThreadID.xy;
+
+	const int NumOfFeatures = XDim.y;
+	const int PatchSideLength = 2 * PatchDistance + 1;
+
+	// Get the weights for all the pixel's patch's reconstruction
+	const int BWeightStride = BDim.x * BDim.y;
+
+	float3 Weights[NUM_FEATURE]; // 6x3 matrix.
+	
+	// checkf(NUM_FEATURE == XDim.y)
+
+	UNROLL
+	for (int i = 0; i < NUM_FEATURE; ++i)
+	{
+		float3 weight = 0;
+
+		weight.x = GetB(Position, i * BDim.y + 0);
+		weight.y = GetB(Position, i * BDim.y + 1);
+		weight.z = GetB(Position, i * BDim.y + 2);
+		Weights[i] = weight;
+	}
+
+	const int WeightStride = Pow2(PatchSideLength);
+	const int XStride = XDim.y * WeightStride;
+	float4 GatheredValue = 0;
+
+#if PRE_ALBEDO_DIVIDE == PRE_ALBEDO_DIVIDE_EACH
+	float3 Albedo = 0;
+#endif
+
+	// For center frame, reconstruct and scatter the result
+	for (int y = 0; y < PatchSideLength; ++y)
+	{
+		for (int x = 0; x < PatchSideLength; ++x)
+		{
+			int WeightIndex1D = (x + y * PatchSideLength);
+			float w = GetW(Position, WeightIndex1D, FrameIndex);
+
+			uint2 TargetPosition = Position + int2(x, y);
+			float3 Denoised = 0;
+			
+			for (int i = 0; i < NUM_FEATURE; ++i)
+			{
+				float FeatureI = 1.0f; 
+				if (i < NumOfFeatures)
+				{
+					FeatureI = GetX(TargetPosition, i, FrameIndex);
+
+#if PRE_ALBEDO_DIVIDE == PRE_ALBEDO_DIVIDE_EACH
+						//Assume the first three channels are albedo. TODO: use passed in index
+						if (i < 3)
+						{
+							Albedo[i] = FeatureI;
+						}
+#endif
+				}
+				Denoised += FeatureI * Weights[i];
+			}
+
+#if RECONSTRUCTION_TYPE == RECONSTRUCTION_TYPE_SCATTER
+
+#if PRE_ALBEDO_DIVIDE == PRE_ALBEDO_DIVIDE_EACH
+			Denoised *= RADIANCE_PREPROCESS_SCALE_FACTOR * Albedo;
+#elif PRE_ALBEDO_DIVIDE == PRE_ALBEDO_DIVIDE_FINAL
+			Denoised *= RADIANCE_PREPROCESS_SCALE_FACTOR;
+#endif
+			// Scatter the result instead of gathering for the current frame to get high frequency results (better reconstruction).
+			float4 XBW = float4(Denoised * w, w);
+			SaveFloat4ToBufferOrTexture(TargetPosition, XBW, WeightStride);
+
+#elif RECONSTRUCTION_TYPE == RECONSTRUCTION_TYPE_GATHER
+
+#if PRE_ALBEDO_DIVIDE == PRE_ALBEDO_DIVIDE_EACH
+			Denoised *= Albedo;
+#endif
+			GatheredValue += float4(Denoised * w, w);
+#endif
+		}
+	}
+#if RECONSTRUCTION_TYPE == RECONSTRUCTION_TYPE_GATHER
+	// For other frames, after reconstruction, perform reconstruction with the weights.
+	RWReconstruction[Position + PatchDistance] += GatheredValue;
+#endif
+
+}
+
+StructuredBuffer<uint4> StructuredBufferSource;
+Texture2D<UlongType> ReconstructBuffer64;
+
+float DecodeUint64ToFloat(Texture2D<UlongType> inTexture, uint2 Position)
+{
+	const uint2 REncoded = UnpackUlongType(inTexture[Position]);
+	return REncoded.y + float(REncoded.x) / 0xffffffff;
+}
+
+float4 DecodeFloat4FromBufferOrTexture(uint2 Position)
+{
+	float4 DecodedValue = 0;
+#if COMPILER_SUPPORTS_UINT64_IMAGE_ATOMICS
+	float R = DecodeUint64ToFloat(ReconstructBuffer64, uint2(Position.x * 4 + 0, Position.y));
+	float G = DecodeUint64ToFloat(ReconstructBuffer64, uint2(Position.x * 4 + 1, Position.y));
+	float B = DecodeUint64ToFloat(ReconstructBuffer64, uint2(Position.x * 4 + 2, Position.y));
+	float A = DecodeUint64ToFloat(ReconstructBuffer64, uint2(Position.x * 4 + 3, Position.y));
+
+	DecodedValue = float4(R,G,B,A);
+
+#if PRE_ALBEDO_DIVIDE != PRE_ALBEDO_DIVIDE_DISABLED
+	DecodedValue.rgb *= RADIANCE_POSTPROCESS_INVERSE_SCALE_FACTOR;
+#endif
+
+#else
+	int BufferIndex = Position.x + Position.y * TextureSize.x;
+	DecodedValue = DecodeFloat4(StructuredBufferSource[BufferIndex]);
+#endif
+
+	// There would be cases where a is 0 due to w being too small and encoded as 0.
+	// Without rejecting this sample, could see borders artifacts around each tile.
+	DecodedValue = lerp(0, DecodedValue, DecodedValue.a != 0);
+
+	return DecodedValue;
+}
+
+[numthreads(THREAD_GROUP_SIZE, THREAD_GROUP_SIZE, 1)]
+void AccumulateBufferToTextureCS(in const uint3 DispatchThreadID : SV_DispatchThreadID)
+{
+	if (any(DispatchThreadID.xy >= TextureSize))
+	{
+		return;
+	}
+
+	uint2 Position = DispatchThreadID.xy;
+	float4 Color = DecodeFloat4FromBufferOrTexture(Position);
+	RWTarget[DispatchThreadID.xy] += Color;
+}
+
+//------------------------------------------------------------------------------------------------------
+//	Bandwidth selection
+//------------------------------------------------------------------------------------------------------
+
+Texture2D<TPixelValue> FilteredImage;
+RWTexture2D<float> MSE;
+
+[numthreads(THREAD_GROUP_SIZE, THREAD_GROUP_SIZE, 1)]
+void MSEEstimationCS(in const uint3 DispatchThreadID : SV_DispatchThreadID)
+{
+	if (any(DispatchThreadID.xy >= TextureSize))
+	{
+		return;
+	}
+
+	const uint2 Position = DispatchThreadID.xy;
+	float VarC = GetImageVariance(Position, Variance, VarianceChannelOffset);
+	TPixelValue Color = GetImageValue(Position, Image);
+	TPixelValue FilteredColor = GetImageValue(Position, FilteredImage);
+
+	// E[(F-C)^2-Var_C] = Bias^2_F + Var_F - 2Cov(C,F)
+	// Assume there is low correlation between F and C, and low bias of F
+	MSE[Position] = Length2(FilteredColor - Color) - VarC;
+}
+
+Texture2D<float> FilteredMSEs_0;
+Texture2D<float> FilteredMSEs_1;
+RWTexture2D<float> RWSelectionMap;
+
+[numthreads(THREAD_GROUP_SIZE, THREAD_GROUP_SIZE, 1)]
+void GenerateSelectionMapCS(in const uint3 DispatchThreadID : SV_DispatchThreadID)
+{
+	if (any(DispatchThreadID.xy >= TextureSize))
+	{
+		return;
+	}
+
+	const uint2 Position = DispatchThreadID.xy;
+	float MSE0 = FilteredMSEs_0.Load(int3(Position, 0));
+	float MSE1 = FilteredMSEs_1.Load(int3(Position, 0));
+	RWSelectionMap[Position] = MSE0 < MSE1 ? 0.0f : 1.0f;
+}
+
+Texture2D<float4> FilteredImages_0;
+Texture2D<float4> FilteredImages_1;
+Texture2D<float>  SelectionMap;
+RWTexture2D<float4> RWFilteredImage;
+
+[numthreads(THREAD_GROUP_SIZE, THREAD_GROUP_SIZE, 1)]
+void CombineFilteredImageCS(in const uint3 DispatchThreadID : SV_DispatchThreadID)
+{
+	if (any(DispatchThreadID.xy >= TextureSize))
+	{
+		return;
+	}
+
+	const uint2 Position = DispatchThreadID.xy;
+	float4 Color0 = FilteredImages_0.Load(int3(Position, 0));
+	float4 Color1 = FilteredImages_1.Load(int3(Position, 0));
+	float  W = SelectionMap.Load(int3(Position, 0));
+	RWFilteredImage[Position] = lerp(Color0, Color1, W);
+}
