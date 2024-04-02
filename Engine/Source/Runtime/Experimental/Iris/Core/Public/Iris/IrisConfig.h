@@ -35,19 +35,6 @@ IRISCORE_API EReplicationSystem GetUseIrisReplicationCmdlineValue();
 #	define UE_NET_IRIS_CSV_STATS CSV_PROFILER
 #endif
 
-/** Verbose CSV stats is not recommended in shipping builds due to the expected CPU overhead. */
-#if UE_NET_IRIS_CSV_STATS
-#	ifndef UE_NET_IRIS_VERBOSE_CSV_STATS
-#		define UE_NET_IRIS_VERBOSE_CSV_STATS !UE_BUILD_SHIPPING
-#	endif
-#else
-// Force disable UE_NET_IRIS_VERBOSE_CSV_STATS if UE_NET_IRIS_CSV_STATS isn't enabled.
-#	ifdef UE_NET_IRIS_VERBOSE_CSV_STATS
-#		undef UE_NET_IRIS_VERBOSE_CSV_STATS
-#	endif
-#	define UE_NET_IRIS_VERBOSE_CSV_STATS 0
-#endif
-
 /** Enables code that detects non-thread safe access to network data */
 #ifndef UE_NET_THREAD_SAFETY_CHECK
 #	define UE_NET_THREAD_SAFETY_CHECK DO_CHECK

@@ -182,6 +182,9 @@ public:
 	IRISCORE_API void SetClassTypeStatsConfig(FName ClassPathName, FName TypeStatsName);
 	IRISCORE_API void SetClassTypeStatsConfig(const FString& ClassPathName, const FString& TypeStatsName);
 
+	/** Getter for CVar net.Iris.UseVerboseIrisCsvStats which is true if we want per-class iris stats output to CSV */
+	IRISCORE_API bool ShouldUseVerboseCsvStats() const;
+
 public:
 
 	// Debug functions exposed that are triggered via console commands

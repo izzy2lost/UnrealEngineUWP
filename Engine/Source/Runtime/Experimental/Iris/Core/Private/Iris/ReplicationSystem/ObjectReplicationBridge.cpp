@@ -97,6 +97,17 @@ static FAutoConsoleVariableRef CvarEnsureNetRefHandleError(
 	TEXT("Chooses if we should ensure when a NetRefHandleError was reported. -1=never ensure. 0=always ensure. 1..X=ensure only for specific error type")
 );
 
+#if UE_BUILD_SHIPPING
+static bool bUseVerboseIrisCsvStats = false;
+#else
+static bool bUseVerboseIrisCsvStats = true;
+#endif
+static FAutoConsoleVariableRef CVarUseVerboseCsvStats(
+	TEXT("net.Iris.UseVerboseIrisCsvStats"),
+	bUseVerboseIrisCsvStats,
+	TEXT("Whether to use verbose per-class csv stats. Default is false in Shipping, otherwise True.")
+);
+
 UObjectReplicationBridge::FCreateNetRefHandleParams UObjectReplicationBridge::DefaultCreateNetRefHandleParams =
 {
 	.bCanReceive=false, 
@@ -143,6 +154,11 @@ UObjectReplicationBridge::UObjectReplicationBridge()
 UObjectReplicationBridge::~UObjectReplicationBridge()
 {
 	delete PollFrequencyLimiter;
+}
+
+bool UObjectReplicationBridge::ShouldUseVerboseCsvStats() const
+{
+	return bUseVerboseIrisCsvStats;
 }
 
 void UObjectReplicationBridge::Initialize(UReplicationSystem* InReplicationSystem)
@@ -1817,15 +1833,13 @@ void UObjectReplicationBridge::LoadConfig()
 	{
 		for (const FObjectReplicationBridgeTypeStatsConfig& TypeStatsConfig : BridgeConfig->GetTypeStatsConfigs())
 		{
-#if !UE_NET_IRIS_VERBOSE_CSV_STATS
-			// Skip all non shipping TypeStats
-			if (!TypeStatsConfig.bIncludeInMinimalCSVStats)
+			// Skip all non shipping TypeStats unless CVar is set
+			if (!bUseVerboseIrisCsvStats && !TypeStatsConfig.bIncludeInMinimalCSVStats)
 			{
 				continue;
 			}
-#endif			
+			
 			ClassesWithTypeStats.Add(TypeStatsConfig.ClassName, TypeStatsConfig.TypeStatsName);
-
 		}
 	}
 }
