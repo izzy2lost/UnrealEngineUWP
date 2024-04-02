@@ -744,6 +744,11 @@ FSequencer::~FSequencer()
 
 	AcquiredResources.Release();
 
+	if (ViewModel && ViewModel->GetSelection())
+	{
+		ViewModel->GetSelection()->OnChanged.RemoveAll(this);
+	}
+
 	ViewModel.Reset();
 	SequencerWidget.Reset();
 
