@@ -587,8 +587,6 @@ void FVulkanResourceMultiBuffer::ReleaseOwnership()
 {
 	check(LockStatus == ELockStatus::Unlocked);
 
-	FRHIBuffer::ReleaseOwnership();
-
 	uint64 TotalSize = 0;
 	for (int32 Index = 0; Index < BufferAllocs.Num(); ++Index)
 	{
@@ -605,6 +603,8 @@ void FVulkanResourceMultiBuffer::ReleaseOwnership()
 	{
 		UpdateVulkanBufferStats(GetDesc(), TotalSize, false);
 	}
+
+	FRHIBuffer::ReleaseOwnership();
 }
 
 FBufferRHIRef FVulkanDynamicRHI::RHICreateBuffer(FRHICommandListBase& RHICmdList, FRHIBufferDesc const& Desc, ERHIAccess ResourceState, FRHIResourceCreateInfo& CreateInfo)
