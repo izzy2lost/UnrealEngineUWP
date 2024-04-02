@@ -108,6 +108,7 @@ public abstract class ApplePlatform : Platform
 		// so plop a file down in it's place
 		if (SC.StageTargetPlatform.PlatformType == UnrealTargetPlatform.Mac)
 		{
+		    Directory.CreateDirectory(BinaryPath.Directory.FullName);
 			File.WriteAllText(Path.Combine(BinaryPath.Directory.FullName, ".binariesdir"), "");
 		}
 
