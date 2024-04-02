@@ -22,6 +22,8 @@ public:
 	{
 		return true;
 	}
+
+	virtual UWorld* GetWorld() const override;
 	// End of UObject interface
 };
 
