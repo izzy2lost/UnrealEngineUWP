@@ -887,10 +887,7 @@ namespace UnrealBuildTool
 					lock (_actionsToLog)
 					{
 						_actionsToLog.Add(action.SortIndex);
-						if (_actionsToLogTask == null)
-						{
-							_actionsToLogTask = Task.Run(LogActions);
-						}
+						_actionsToLogTask ??= Task.Run(LogActions);
 					}
 				}
 

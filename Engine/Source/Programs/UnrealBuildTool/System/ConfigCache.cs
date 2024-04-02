@@ -339,10 +339,7 @@ namespace UnrealBuildTool
 				}
 			}
 
-			if (CustomConfig == null)
-			{
-				CustomConfig = String.Empty;
-			}
+			CustomConfig ??= String.Empty;
 
 			// Get the key to use for the cache. It cannot be null, so we use the engine directory if a project directory is not given.
 			ConfigHierarchyKey Key = new ConfigHierarchyKey(Type, ProjectDir, Platform, CustomConfig, OverrideStrings, HotfixDir);

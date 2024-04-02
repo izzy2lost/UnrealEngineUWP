@@ -182,10 +182,7 @@ namespace UnrealBuildTool
 				RulesAssembly? CurrentParent = Parent;
 				while (CurrentParent != null && CurrentParent.CompiledAssembly != null)
 				{
-					if (ReferencedAssembies == null)
-					{
-						ReferencedAssembies = new List<string>();
-					}
+					ReferencedAssembies ??= new List<string>();
 
 					ReferencedAssembies.Add(CurrentParent.CompiledAssembly.Location);
 					CurrentParent = CurrentParent.Parent;
@@ -845,10 +842,7 @@ namespace UnrealBuildTool
 				TargetName = TargetDescriptor.GetTestedName(TargetName);
 			}
 
-			if (Architectures == null)
-			{
-				Architectures = UnrealArchitectureConfig.ForPlatform(Platform).ActiveArchitectures(ProjectFile, TargetName);
-			}
+			Architectures ??= UnrealArchitectureConfig.ForPlatform(Platform).ActiveArchitectures(ProjectFile, TargetName);
 
 			bool bFoundTargetName = TargetNameToTargetFile.ContainsKey(TargetName);
 			if (bFoundTargetName == false)

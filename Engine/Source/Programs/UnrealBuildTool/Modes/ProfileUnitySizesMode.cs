@@ -286,10 +286,7 @@ namespace UnrealBuildTool
 			}
 
 			TimingData? BestTimingData = AllTimingData.MinBy(TimingData => TimingData.ExecutorTiming);
-			if (BestTimingData == null)
-			{
-				BestTimingData = AllTimingData[0];
-			}
+			BestTimingData ??= AllTimingData[0];
 			return BestTimingData;
 		}
 

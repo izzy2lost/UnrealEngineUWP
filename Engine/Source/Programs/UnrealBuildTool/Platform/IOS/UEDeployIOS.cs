@@ -1097,11 +1097,11 @@ namespace UnrealBuildTool
 						if (LocalFileExists)
 						{
 							DestFileInfo = new FileInfo(LocalProvisionFile);
-							DestFileInfo.Attributes = DestFileInfo.Attributes & ~FileAttributes.ReadOnly;
+							DestFileInfo.Attributes &= ~FileAttributes.ReadOnly;
 						}
 						File.Copy(Provision, LocalProvisionFile, true);
 						DestFileInfo = new FileInfo(LocalProvisionFile);
-						DestFileInfo.Attributes = DestFileInfo.Attributes & ~FileAttributes.ReadOnly;
+						DestFileInfo.Attributes &= ~FileAttributes.ReadOnly;
 					}
 				}
 			}
@@ -1211,11 +1211,11 @@ namespace UnrealBuildTool
 				if (File.Exists(Environment.GetEnvironmentVariable("HOME") + "/Library/MobileDevice/Provisioning Profiles/" + ProjectProvision))
 				{
 					DestFileInfo = new FileInfo(Environment.GetEnvironmentVariable("HOME") + "/Library/MobileDevice/Provisioning Profiles/" + ProjectProvision);
-					DestFileInfo.Attributes = DestFileInfo.Attributes & ~FileAttributes.ReadOnly;
+					DestFileInfo.Attributes &= ~FileAttributes.ReadOnly;
 				}
 				File.Copy(ProvisionWithPrefix, Environment.GetEnvironmentVariable("HOME") + "/Library/MobileDevice/Provisioning Profiles/" + ProjectProvision, true);
 				DestFileInfo = new FileInfo(Environment.GetEnvironmentVariable("HOME") + "/Library/MobileDevice/Provisioning Profiles/" + ProjectProvision);
-				DestFileInfo.Attributes = DestFileInfo.Attributes & ~FileAttributes.ReadOnly;
+				DestFileInfo.Attributes &= ~FileAttributes.ReadOnly;
 			}
 			if (!File.Exists(ProvisionWithPrefix) || Unreal.IsBuildMachine())
 			{
@@ -1252,11 +1252,11 @@ namespace UnrealBuildTool
 				if (File.Exists(Environment.GetEnvironmentVariable("HOME") + "/Library/MobileDevice/Provisioning Profiles/" + InProjectName + "_Distro.mobileprovision"))
 				{
 					DestFileInfo = new FileInfo(Environment.GetEnvironmentVariable("HOME") + "/Library/MobileDevice/Provisioning Profiles/" + InProjectName + "_Distro.mobileprovision");
-					DestFileInfo.Attributes = DestFileInfo.Attributes & ~FileAttributes.ReadOnly;
+					DestFileInfo.Attributes &= ~FileAttributes.ReadOnly;
 				}
 				File.Copy(ProvisionWithPrefix, Environment.GetEnvironmentVariable("HOME") + "/Library/MobileDevice/Provisioning Profiles/" + InProjectName + "_Distro.mobileprovision", true);
 				DestFileInfo = new FileInfo(Environment.GetEnvironmentVariable("HOME") + "/Library/MobileDevice/Provisioning Profiles/" + InProjectName + "_Distro.mobileprovision");
-				DestFileInfo.Attributes = DestFileInfo.Attributes & ~FileAttributes.ReadOnly;
+				DestFileInfo.Attributes &= ~FileAttributes.ReadOnly;
 			}
 
 			GeneratePList(ProjectFile, Config, InProjectDirectory, bIsUnrealGame, GameExeName, false, InProjectName, InEngineDir, AppDirectory, UPLScripts, BundleID, bBuildAsFramework);
@@ -1265,7 +1265,7 @@ namespace UnrealBuildTool
 			if (File.Exists(AppDirectory + "/" + GameName))
 			{
 				FileInfo GameFileInfo = new FileInfo(AppDirectory + "/" + GameName);
-				GameFileInfo.Attributes = GameFileInfo.Attributes & ~FileAttributes.ReadOnly;
+				GameFileInfo.Attributes &= ~FileAttributes.ReadOnly;
 			}
 
 			// copy the GameName binary

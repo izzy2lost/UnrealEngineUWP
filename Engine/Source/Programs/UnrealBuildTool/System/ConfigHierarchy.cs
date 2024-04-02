@@ -454,7 +454,7 @@ namespace UnrealBuildTool
 			string? Text;
 			if (!TryGetValue(SectionName, KeyName, out Text))
 			{
-				Value = default(T);
+				Value = default;
 				return false;
 			}
 			return Enum.TryParse<T>(Text, out Value);
@@ -486,7 +486,7 @@ namespace UnrealBuildTool
 				return ConfigValueParser.TryParseGeneric( Line, out Value);
 			}
 
-			Value = default(T);
+			Value = default;
 			return false;
 		}
 

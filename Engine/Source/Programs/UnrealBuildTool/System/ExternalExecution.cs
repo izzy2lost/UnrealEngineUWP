@@ -433,10 +433,7 @@ namespace UnrealBuildTool
 					Info.GeneratedCPPFilenameBase = Path.Combine(GeneratedCodeDirectoryUHT.FullName, Info.ModuleName) + ".gen";
 					if (!Module.Rules.bUsePrecompiled)
 					{
-						if (Module.GeneratedCppDirectories == null)
-						{
-							Module.GeneratedCppDirectories = new List<string>();
-						}
+						Module.GeneratedCppDirectories ??= new List<string>();
 						Module.GeneratedCppDirectories.Add(GeneratedCodeDirectoryUHT.FullName);
 					}
 

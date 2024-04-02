@@ -425,10 +425,7 @@ namespace UnrealBuildTool
 		protected bool ReadPackageDataInsideApkFromIni(ConfigHierarchy? Ini)
 		{
 			// make a new one if one wasn't passed in
-			if (Ini == null)
-			{
-				Ini = GetConfigCacheIni(ConfigHierarchyType.Engine);
-			}
+			Ini ??= GetConfigCacheIni(ConfigHierarchyType.Engine);
 
 			// we check this a lot, so make it easy 
 			bool bIniPackageDataInsideApk;
@@ -445,10 +442,7 @@ namespace UnrealBuildTool
 			}
 
 			// make a new one if one wasn't passed in
-			if (Ini == null)
-			{
-				Ini = GetConfigCacheIni(ConfigHierarchyType.Engine);
-			}
+			Ini ??= GetConfigCacheIni(ConfigHierarchyType.Engine);
 
 			// we check this a lot, so make it easy 
 			bool bUseExternalFilesDir;
@@ -478,10 +472,7 @@ namespace UnrealBuildTool
 		public bool IsPackagingForMetaQuest(ConfigHierarchy? Ini = null)
 		{
 			// make a new one if one wasn't passed in
-			if (Ini == null)
-			{
-				Ini = GetConfigCacheIni(ConfigHierarchyType.Engine);
-			}
+			Ini ??= GetConfigCacheIni(ConfigHierarchyType.Engine);
 
 			List<string> TargetOculusDevices = GetTargetOculusMobileDevices(Ini); // Backcompat for deprecated oculus device target setting
 			bool bTargetOculusDevices = (TargetOculusDevices != null && TargetOculusDevices.Count() > 0); // Backcompat for deprecated oculus device target setting
@@ -494,10 +485,7 @@ namespace UnrealBuildTool
 		public bool DisableVerifyOBBOnStartUp(ConfigHierarchy? Ini = null)
 		{
 			// make a new one if one wasn't passed in
-			if (Ini == null)
-			{
-				Ini = GetConfigCacheIni(ConfigHierarchyType.Engine);
-			}
+			Ini ??= GetConfigCacheIni(ConfigHierarchyType.Engine);
 
 			// we check this a lot, so make it easy 
 			bool bDisableVerifyOBBOnStartUp;
@@ -609,7 +597,7 @@ namespace UnrealBuildTool
 
 					// preserve timestamp and clear read-only flags
 					FileInfo DestFileInfo = new FileInfo(DestFilename);
-					DestFileInfo.Attributes = DestFileInfo.Attributes & ~FileAttributes.ReadOnly;
+					DestFileInfo.Attributes &= ~FileAttributes.ReadOnly;
 					File.SetLastWriteTimeUtc(DestFilename, File.GetLastWriteTimeUtc(Filename));
 				}
 			}
@@ -640,7 +628,7 @@ namespace UnrealBuildTool
 				{
 					// remove any read only flags
 					FileInfo FileInfo = new FileInfo(Filename);
-					FileInfo.Attributes = FileInfo.Attributes & ~FileAttributes.ReadOnly;
+					FileInfo.Attributes &= ~FileAttributes.ReadOnly;
 					FileInfo.Delete();
 				}
 				catch (Exception)
@@ -836,7 +824,7 @@ namespace UnrealBuildTool
 
 					// preserve timestamp and clear read-only flags
 					FileInfo DestFileInfo = new FileInfo(DestFilename);
-					DestFileInfo.Attributes = DestFileInfo.Attributes & ~FileAttributes.ReadOnly;
+					DestFileInfo.Attributes &= ~FileAttributes.ReadOnly;
 					File.SetLastWriteTimeUtc(DestFilename, File.GetLastWriteTimeUtc(Filename));
 
 					Logger.LogInformation("Copied file {DestFilename}.", DestFilename);
@@ -1027,7 +1015,7 @@ namespace UnrealBuildTool
 						string EmbeddedAppendDisplayName = "";
 						if (Ini.GetString("/Script/AndroidRuntimeSettings.AndroidRuntimeSettings", "EmbeddedAppendDisplayName", out EmbeddedAppendDisplayName))
 						{
-							VersionDisplayName = VersionDisplayName + EmbeddedAppendDisplayName;
+							VersionDisplayName += EmbeddedAppendDisplayName;
 						}
 					}
 				}
@@ -1460,7 +1448,7 @@ namespace UnrealBuildTool
 					SafeDeleteFile(DestFilename);
 					File.Copy(SourceFilename, DestFilename);
 					FileInfo DestFileInfo = new FileInfo(DestFilename);
-					DestFileInfo.Attributes = DestFileInfo.Attributes & ~FileAttributes.ReadOnly;
+					DestFileInfo.Attributes &= ~FileAttributes.ReadOnly;
 					File.SetLastWriteTimeUtc(DestFilename, File.GetLastWriteTimeUtc(SourceFilename));
 				}
 				else
@@ -3268,7 +3256,7 @@ namespace UnrealBuildTool
 					{
 						// remove any read only flags if invalid so it can be replaced
 						FileInfo DestFileInfo = new FileInfo(Filename);
-						DestFileInfo.Attributes = DestFileInfo.Attributes & ~FileAttributes.ReadOnly;
+						DestFileInfo.Attributes &= ~FileAttributes.ReadOnly;
 
 						//preserve the rest of the file, just fix up this line
 						string NewLine = Line.Replace("\"app_id\">" + XmlAppId + "</string>", "\"app_id\">" + ReplacementId + "</string>");
@@ -5121,7 +5109,7 @@ popd
 
 					// remove any read only flags
 					FileInfo DestFileInfo = new FileInfo(FinalSOName);
-					DestFileInfo.Attributes = DestFileInfo.Attributes & ~FileAttributes.ReadOnly;
+					DestFileInfo.Attributes &= ~FileAttributes.ReadOnly;
 					File.SetLastWriteTimeUtc(FinalSOName, File.GetLastWriteTimeUtc(SourceSOName));
 				}
 
@@ -5397,7 +5385,7 @@ popd
 
 							// preserve timestamp and clear read-only flags
 							FileInfo DestFileInfo = new FileInfo(DestFilename);
-							DestFileInfo.Attributes = DestFileInfo.Attributes & ~FileAttributes.ReadOnly;
+							DestFileInfo.Attributes &= ~FileAttributes.ReadOnly;
 							File.SetLastWriteTimeUtc(DestFilename, File.GetLastWriteTimeUtc(Filename));
 
 							Logger.LogInformation("Copied file {DestFilename}.", DestFilename);

@@ -282,7 +282,7 @@ namespace UnrealBuildTool.XcodeProjectXcconfig
 				}
 				else
 				{
-					GroupName = GroupName ?? (File.Reference.IsUnderDirectory(Unreal.EngineDirectory) ? "EngineReferences" : "ExternalReferences");
+					GroupName ??= (File.Reference.IsUnderDirectory(Unreal.EngineDirectory) ? "EngineReferences" : "ExternalReferences");
 					if (bIsFolder)
 					{
 						AddFolderReference(File.FileRefGuid, File.Reference.MakeRelativeTo(ProjectDirectory), GroupName);

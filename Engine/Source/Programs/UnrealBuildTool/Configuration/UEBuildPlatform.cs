@@ -415,10 +415,7 @@ namespace UnrealBuildTool
 		/// </summary>
 		public IReadOnlySet<string> GetExcludedFolderNames()
 		{
-			if (CachedExcludedFolderNames == null)
-			{
-				CachedExcludedFolderNames = new HashSet<string>(GetPlatformFolderNames().Except(GetIncludedFolderNames()), DirectoryReference.Comparer);
-			}
+			CachedExcludedFolderNames ??= new HashSet<string>(GetPlatformFolderNames().Except(GetIncludedFolderNames()), DirectoryReference.Comparer);
 			return CachedExcludedFolderNames;
 		}
 

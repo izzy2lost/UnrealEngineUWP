@@ -38,10 +38,7 @@ namespace UnrealBuildTool
 		// here this means initializing "StringRegistry" directly to "new UniqueStringRegistry()" may not be executed before FindOrAddByName() has been called as part of initializing a static member variable of another part of the partial struct
 		private static UniqueStringRegistry GetUniqueStringRegistry()
 		{
-			if (StringRegistry == null)
-			{
-				StringRegistry = new UniqueStringRegistry();
-			}
+			StringRegistry ??= new UniqueStringRegistry();
 			return StringRegistry;
 		}
 
@@ -124,7 +121,7 @@ namespace UnrealBuildTool
 		/// <returns></returns>
 		public override bool Equals(object? B)
 		{
-			if (Object.ReferenceEquals(B, null))
+			if (B is null)
 			{
 				return false;
 			}
@@ -369,10 +366,7 @@ namespace UnrealBuildTool
 		// #jira UE-88908 (see above)
 		private static UniqueStringRegistry GetUniqueStringRegistry()
 		{
-			if (StringRegistry == null)
-			{
-				StringRegistry = new UniqueStringRegistry();
-			}
+			StringRegistry ??= new UniqueStringRegistry();
 			return StringRegistry;
 		}
 
@@ -443,7 +437,7 @@ namespace UnrealBuildTool
 		/// <returns></returns>
 		public override bool Equals(object? B)
 		{
-			if (Object.ReferenceEquals(B, null))
+			if (B is null)
 			{
 				return false;
 			}
@@ -594,10 +588,7 @@ namespace UnrealBuildTool
 		// here this means initializing "StringRegistry" directly to "new UniqueStringRegistry()" may not be executed before FindOrAddByName() has been called as part of initializing a static member variable of another part of the partial struct
 		private static UniqueStringRegistry GetUniqueStringRegistry()
 		{
-			if (StringRegistry == null)
-			{
-				StringRegistry = new UniqueStringRegistry();
-			}
+			StringRegistry ??= new UniqueStringRegistry();
 			return StringRegistry;
 		}
 
@@ -674,7 +665,7 @@ namespace UnrealBuildTool
 		/// <returns></returns>
 		public override bool Equals(object? B)
 		{
-			if (Object.ReferenceEquals(B, null))
+			if (B is null)
 			{
 				return false;
 			}

@@ -110,7 +110,7 @@ namespace UnrealBuildTool
 						{
 							if (NonNullableType(FieldInfo.FieldType) != typeof(bool) && Attribute.Value == null && !Prefix.EndsWith("=") && !Prefix.EndsWith(":"))
 							{
-								Prefix = Prefix + "=";
+								Prefix += "=";
 							}
 						}
 						PrefixToParameter.Add(Prefix, new Parameter(Prefix, FieldInfo, Attribute));

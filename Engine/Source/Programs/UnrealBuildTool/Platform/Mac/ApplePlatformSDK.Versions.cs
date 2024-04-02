@@ -26,10 +26,7 @@ namespace UnrealBuildTool
 				DeploymentTarget = GetVersionFromConfig("EditorDeploymentTarget");
 			}
 
-			if (DeploymentTarget == null)
-			{
-				DeploymentTarget = GetRequiredVersionFromConfig("DeploymentTarget");
-			}
+			DeploymentTarget ??= GetRequiredVersionFromConfig("DeploymentTarget");
 
 			return DeploymentTarget;
 		}
@@ -49,10 +46,7 @@ namespace UnrealBuildTool
 				DeploymentTarget = GetVersionFromConfig("EditorBuildTarget");
 			}
 
-			if (DeploymentTarget == null)
-			{
-				DeploymentTarget = GetRequiredVersionFromConfig("BuildTarget");
-			}
+			DeploymentTarget ??= GetRequiredVersionFromConfig("BuildTarget");
 
 			return DeploymentTarget;
 		}

@@ -127,10 +127,7 @@ namespace UnrealBuildTool
 			}
 
 			// Fixup the log path if it wasn't overridden by a config file
-			if (BaseLogFileName == null)
-			{
-				BaseLogFileName = FileReference.Combine(Unreal.EngineProgramSavedDirectory, "UnrealBuildTool", "Log.txt").FullName;
-			}
+			BaseLogFileName ??= FileReference.Combine(Unreal.EngineProgramSavedDirectory, "UnrealBuildTool", "Log.txt").FullName;
 
 			// Create the log file, and flush the startup listener to it
 			if (!Arguments.HasOption("-NoLog") && !Log.HasFileWriter())

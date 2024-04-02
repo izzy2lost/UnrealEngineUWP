@@ -894,7 +894,7 @@ namespace UnrealBuildTool
 					Dir = file.Replace(Path.Combine(EngineDir, "Build", "TVOS"), IntermediateDir);
 					File.Copy(file, Dir, true);
 					FileInfo DestFileInfo = new FileInfo(Dir);
-					DestFileInfo.Attributes = DestFileInfo.Attributes & ~FileAttributes.ReadOnly;
+					DestFileInfo.Attributes &= ~FileAttributes.ReadOnly;
 				}
 				// copy the icons from the game directory if it has any
 				string[][] Images = {
@@ -926,7 +926,7 @@ namespace UnrealBuildTool
 
 						File.Copy(Image, Path.Combine(Dir, Images[Index][1], Images[Index][0]), true);
 						FileInfo DestFileInfo = new FileInfo(Path.Combine(Dir, Images[Index][1], Images[Index][0]));
-						DestFileInfo.Attributes = DestFileInfo.Attributes & ~FileAttributes.ReadOnly;
+						DestFileInfo.Attributes &= ~FileAttributes.ReadOnly;
 					}
 				}
 			}
@@ -953,7 +953,7 @@ namespace UnrealBuildTool
 					Dir = file.Replace(Path.Combine(EngineDir, "Build", "IOS"), IntermediateDir);
 					File.Copy(file, Dir, true);
 					FileInfo DestFileInfo = new FileInfo(Dir);
-					DestFileInfo.Attributes = DestFileInfo.Attributes & ~FileAttributes.ReadOnly;
+					DestFileInfo.Attributes &= ~FileAttributes.ReadOnly;
 				}
 				// copy the icons from the game directory if it has any
 				string[][] Images = {
@@ -984,7 +984,7 @@ namespace UnrealBuildTool
 
 						File.Copy(Image, Path.Combine(Dir, Images[Index][0]), true);
 						FileInfo DestFileInfo = new FileInfo(Path.Combine(Dir, Images[Index][0]));
-						DestFileInfo.Attributes = DestFileInfo.Attributes & ~FileAttributes.ReadOnly;
+						DestFileInfo.Attributes &= ~FileAttributes.ReadOnly;
 					}
 				}
 

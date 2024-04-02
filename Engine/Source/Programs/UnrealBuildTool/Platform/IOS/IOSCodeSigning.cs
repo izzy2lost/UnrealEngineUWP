@@ -1380,12 +1380,12 @@ namespace UnrealBuildTool
 							if (File.Exists(TargetFile))
 							{
 								DestFileInfo = new FileInfo(TargetFile);
-								DestFileInfo.Attributes = DestFileInfo.Attributes & ~FileAttributes.ReadOnly;
+								DestFileInfo.Attributes &= ~FileAttributes.ReadOnly;
 							}
 							_logger?.LogInformation("  Copying {0} -> {1}", Provision, TargetFile);
 							File.Copy(Provision, TargetFile, true);
 							DestFileInfo = new FileInfo(TargetFile);
-							DestFileInfo.Attributes = DestFileInfo.Attributes & ~FileAttributes.ReadOnly;
+							DestFileInfo.Attributes &= ~FileAttributes.ReadOnly;
 							if (!File.Exists(TargetFile))
 							{
 								_logger?.LogInformation("ERROR: Failed to copy {0} -> {1}", Provision, TargetFile);

@@ -108,7 +108,7 @@ namespace UnrealBuildTool
 			else if (Type == 3)
 			{
 				ToolType = "Clean";
-				ConfName = ConfName + " -clean";
+				ConfName += " -clean";
 			}
 
 			FileContent.Append(String.Format("[CustomBuildSystem][BuildConfig{0}][Tool{1}]\n", BuildConfigIndex, ToolType));

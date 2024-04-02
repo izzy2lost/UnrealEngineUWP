@@ -600,7 +600,7 @@ namespace UnrealBuildTool
 					if (!ActionIsNonCyclical.ContainsKey(Action))
 					{
 						string CycleDescription = "";
-						CycleDescription += $"Action #{ActionToIndex[Action].ToString()}: {Action.CommandPath}\n";
+						CycleDescription += $"Action #{ActionToIndex[Action]}: {Action.CommandPath}\n";
 						CycleDescription += $"\twith arguments: {Action.CommandArguments}\n";
 						foreach (FileItem PrerequisiteItem in Action.PrerequisiteItems)
 						{
@@ -623,11 +623,11 @@ namespace UnrealBuildTool
 										CyclicPrerequisiteAction.ProducedItems.ToList();
 									if (CyclicProducedItems.Count == 1)
 									{
-										CycleDescription += $"\t\t{ActionToIndex[CyclicPrerequisiteAction].ToString()} (produces: {CyclicProducedItems[0].AbsolutePath})\n";
+										CycleDescription += $"\t\t{ActionToIndex[CyclicPrerequisiteAction]} (produces: {CyclicProducedItems[0].AbsolutePath})\n";
 									}
 									else
 									{
-										CycleDescription += $"\t\t{ActionToIndex[CyclicPrerequisiteAction].ToString()}\n";
+										CycleDescription += $"\t\t{ActionToIndex[CyclicPrerequisiteAction]}\n";
 										foreach (FileItem CyclicProducedItem in CyclicProducedItems)
 										{
 											CycleDescription += $"\t\t\tproduces:   {CyclicProducedItem.AbsolutePath}\n";

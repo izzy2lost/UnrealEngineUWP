@@ -537,10 +537,7 @@ namespace UnrealBuildTool
 				AppendMacLine(FinalizeAppBundleScript, "cd \"{0}\"", BinariesPath.Replace("$", "\\$"));
 
 				string BundleVersion = LinkEnvironment.BundleVersion!;
-				if (BundleVersion == null)
-				{
-					BundleVersion = LoadEngineDisplayVersion();
-				}
+				BundleVersion ??= LoadEngineDisplayVersion();
 
 				string ExeName = Path.GetFileName(OutputFiles[0].AbsolutePath);
 				bool bIsLauncherProduct = ExeName.StartsWith("EpicGamesLauncher") || ExeName.StartsWith("EpicGamesBootstrapLauncher");
@@ -858,10 +855,7 @@ namespace UnrealBuildTool
 			{
 				// Add the output file to the command-line.
 				string? InstallName = LinkEnvironment.InstallName;
-				if (InstallName == null)
-				{
-					InstallName = String.Format("{0}/{1}", DylibsPath, Path.GetFileName(OutputFile.AbsolutePath).Replace($".dylib_{LinkEnvironment.Architecture}", ".dylib"));
-				}
+				InstallName ??= String.Format("{0}/{1}", DylibsPath, Path.GetFileName(OutputFile.AbsolutePath).Replace($".dylib_{LinkEnvironment.Architecture}", ".dylib"));
 				LinkCommand += String.Format(" -install_name \"{0}\"", InstallName);
 			}
 

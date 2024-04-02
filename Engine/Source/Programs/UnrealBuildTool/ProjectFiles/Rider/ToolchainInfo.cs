@@ -69,7 +69,7 @@ namespace UnrealBuildTool
 
 		public bool Equals(ToolchainInfo? Other)
 		{
-			if (ReferenceEquals(null, Other))
+			if (Other is null)
 			{
 				return false;
 			}
@@ -95,7 +95,7 @@ namespace UnrealBuildTool
 
 		public override bool Equals(object? Obj)
 		{
-			if (ReferenceEquals(null, Obj))
+			if (Obj is null)
 			{
 				return false;
 			}

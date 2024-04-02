@@ -337,7 +337,7 @@ namespace UnrealBuildTool
 			string NewModulePath = ModulePath.Replace('\\', '/');
 			if (!NewModulePath.EndsWith('/'))
 			{
-				NewModulePath = NewModulePath + '/';
+				NewModulePath += '/';
 			}
 			return NewModulePath;
 		}
@@ -357,10 +357,7 @@ namespace UnrealBuildTool
 			Logger.LogInformation($"====================================================");
 
 			// Fixup the log path if it wasn't overridden by a config file
-			if (IWYUBaseLogFileName == null)
-			{
-				IWYUBaseLogFileName = FileReference.Combine(Unreal.EngineProgramSavedDirectory, "UnrealBuildTool", "IWYULog.txt").FullName;
-			}
+			IWYUBaseLogFileName ??= FileReference.Combine(Unreal.EngineProgramSavedDirectory, "UnrealBuildTool", "IWYULog.txt").FullName;
 
 			// Create the log file, and flush the startup listener to it
 			if (!Arguments.HasOption("-NoLog") && !Log.HasFileWriter())
@@ -388,7 +385,7 @@ namespace UnrealBuildTool
 
 			if (TargetDescriptors.Count != 1)
 			{
-				Logger.LogError($"IWYUMode can only handle command lines that produce one target (Cmdline: {Arguments.ToString()})");
+				Logger.LogError($"IWYUMode can only handle command lines that produce one target (Cmdline: {Arguments})");
 				return 0;
 			}
 
@@ -1487,10 +1484,7 @@ namespace UnrealBuildTool
 						// Might be forward declaration.. 
 						if (ForwardDeclarationsToAdd.Remove(Line)) // Skip adding the ones that already exists
 						{
-							if (FirstForwardDeclareLine == null)
-							{
-								FirstForwardDeclareLine = Line;
-							}
+							FirstForwardDeclareLine ??= Line;
 						}
 
 						if (Line.Contains("IWYU pragma: "))
@@ -2202,7 +2196,7 @@ namespace UnrealBuildTool
 				}
 
 				float Percent = 100.0f - (((float)OptimizedSize) / (OptimizedSize + Saved) * 100.0f);
-				Logger.LogInformation($"{Path.GetFileName(File.File)}   {PrettySize(OptimizedSize + Saved)} -> {PrettySize(OptimizedSize)}  (Saved {PrettySize(Saved)} or {Percent.ToString("0.0")}%)");
+				Logger.LogInformation($"{Path.GetFileName(File.File)}   {PrettySize(OptimizedSize + Saved)} -> {PrettySize(OptimizedSize)}  (Saved {PrettySize(Saved)} or {Percent:0.0}%)");
 			}
 			Logger.LogInformation("");
 

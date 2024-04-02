@@ -3007,10 +3007,7 @@ namespace UnrealBuildTool
 								string TargetTypeSuffix = /*EngineTarget.TargetRules!.Type == TargetType.Game ? "" :*/ EngineTarget.TargetRules!.Type.ToString();
 								ProjectFile = FindOrAddProject(GetProjectLocation($"{ProjectName}{TargetTypeSuffix}"), ContentOnlyGameProject.Directory, IncludeInGeneratedProjects: true, bAlreadyExisted: out _);
 							}
-							else if (ProjectFile == null)
-							{
-								ProjectFile = FindOrAddProject(GetProjectLocation(ProjectName), ContentOnlyGameProject.Directory, IncludeInGeneratedProjects: true, bAlreadyExisted: out _);
-							}
+							else ProjectFile ??= FindOrAddProject(GetProjectLocation(ProjectName), ContentOnlyGameProject.Directory, IncludeInGeneratedProjects: true, bAlreadyExisted: out _);
 							ProjectFile.IsForeignProject = true;
 							ProjectFile.IsGeneratedProject = true;
 							ProjectFile.IsStubProject = false;

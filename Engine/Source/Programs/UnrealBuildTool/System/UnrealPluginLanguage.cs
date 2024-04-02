@@ -911,10 +911,7 @@ namespace UnrealBuildTool
 
 		private ConfigCacheIni_UPL GetConfigCacheIni_UPL(string baseIniName)
 		{
-			if (ConfigCache == null)
-			{
-				ConfigCache = new Dictionary<string, ConfigCacheIni_UPL>();
-			}
+			ConfigCache ??= new Dictionary<string, ConfigCacheIni_UPL>();
 			ConfigCacheIni_UPL? config = null;
 			if (!ConfigCache.TryGetValue(baseIniName, out config))
 			{
@@ -991,7 +988,7 @@ namespace UnrealBuildTool
 
 					// remove any read only flags and keep timestamp
 					FileInfo DestFileInfo = new FileInfo(DestFilename);
-					DestFileInfo.Attributes = DestFileInfo.Attributes & ~FileAttributes.ReadOnly;
+					DestFileInfo.Attributes &= ~FileAttributes.ReadOnly;
 					File.SetLastWriteTimeUtc(DestFilename, File.GetLastWriteTimeUtc(Filename));
 				}
 			}
@@ -1786,7 +1783,7 @@ namespace UnrealBuildTool
 
 										// remove any read only flags and keep timestamp
 										FileInfo DestFileInfo = new FileInfo(Dst);
-										DestFileInfo.Attributes = DestFileInfo.Attributes & ~FileAttributes.ReadOnly;
+										DestFileInfo.Attributes &= ~FileAttributes.ReadOnly;
 										File.SetLastWriteTimeUtc(Dst, File.GetLastWriteTimeUtc(Src));
 									}
 								}

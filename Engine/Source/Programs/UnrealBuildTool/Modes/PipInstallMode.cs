@@ -120,10 +120,7 @@ namespace UnrealBuildTool.Modes
 				return 0;
 			}
 
-			if (Action == null)
-			{
-				Action = PipAction.Install;
-			}
+			Action ??= PipAction.Install;
 
 			DirectoryReference ProjectDir = DirectoryReference.FromFile(TargetDescriptor.ProjectFile);
 			DirectoryReference InstallDir = DirectoryReference.Combine(ProjectDir, "Intermediate", "PipInstall");

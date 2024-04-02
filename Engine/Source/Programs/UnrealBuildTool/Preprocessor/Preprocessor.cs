@@ -1284,7 +1284,7 @@ namespace UnrealBuildTool
 			// Add an empty variable argument if one was not specified
 			if (macro.HasVariableArgumentList && arguments.Count == macro.Parameters!.Count - 1)
 			{
-				arguments.Add(new List<Token> { new Token(TokenType.Placemarker, TokenFlags.None) });
+				arguments.Add(new List<Token> { new(TokenType.Placemarker, TokenFlags.None) });
 			}
 
 			// Validate the argument list

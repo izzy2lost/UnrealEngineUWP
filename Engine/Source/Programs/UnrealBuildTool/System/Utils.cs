@@ -628,18 +628,12 @@ namespace UnrealBuildTool
 					if (C != UseDirectorySeparatorChar)
 					{
 						C = UseDirectorySeparatorChar;
-						if (CleanPath == null)
-						{
-							CleanPath = new StringBuilder(FilePath.Substring(0, Index), FilePath.Length);
-						}
+						CleanPath ??= new StringBuilder(FilePath.Substring(0, Index), FilePath.Length);
 					}
 
 					if (bCanCheckDoubleSeparators && C == PrevC)
 					{
-						if (CleanPath == null)
-						{
-							CleanPath = new StringBuilder(FilePath.Substring(0, Index), FilePath.Length);
-						}
+						CleanPath ??= new StringBuilder(FilePath.Substring(0, Index), FilePath.Length);
 						continue;
 					}
 				}

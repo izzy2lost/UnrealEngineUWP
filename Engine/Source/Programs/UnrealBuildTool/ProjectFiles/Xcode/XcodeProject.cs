@@ -622,10 +622,7 @@ namespace UnrealBuildTool.XcodeProjectXcconfig
 			}
 
 			// if the SubPath (or optional AlProjectsubPath) wasn't found, then fall back to engine location
-			if (FinalPath == null)
-			{
-				FinalPath = Path.Combine(Unreal.EngineDirectory.FullName, SubPath);
-			}
+			FinalPath ??= Path.Combine(Unreal.EngineDirectory.FullName, SubPath);
 			if (bMakeRelative)
 			{
 				FinalPath = new FileReference(FinalPath).MakeRelativeTo(XcodeProjectFileLocation.ParentDirectory!);
@@ -818,10 +815,7 @@ namespace UnrealBuildTool.XcodeProjectXcconfig
 		/// <param name="WrittenNodes"></param>
 		public static void WriteNodeAndReferences(StringBuilder Content, XcodeProjectNode Node, ILogger Logger, HashSet<XcodeProjectNode>? WrittenNodes = null)
 		{
-			if (WrittenNodes == null)
-			{
-				WrittenNodes = new();
-			}
+			WrittenNodes ??= new();
 
 			// write the node into the xcode project file
 			Node.Write(Content);
