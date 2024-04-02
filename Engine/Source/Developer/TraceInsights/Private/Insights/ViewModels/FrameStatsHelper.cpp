@@ -54,54 +54,82 @@ void FFrameStatsHelper::ProcessTimeline(TArray<FFrameStatsCachedEvent>& FrameSta
 		TimingProfilerProvider.ReadTimeline(TimelineIndex,
 			[SessionDuration, &FrameStatsEvents, TimerReader, TimerId](const TraceServices::ITimingProfilerProvider::Timeline& Timeline)
 			{
+				struct TaskData
+				{
+					double StartTime;
+					int32 NestedDepth = 0;
+				};
+
+				TArray<TaskData> DataArray;
+
 				TraceServices::ITimeline<TraceServices::FTimingProfilerEvent>::EnumerateAsyncParams Params;
 				Params.IntervalStart = 0;
 				Params.IntervalEnd = SessionDuration;
 				Params.Resolution = 0.0;
-				Params.SetupCallback = [](uint32 NumTasks) {};
-				Params.Callback = [TimerReader, &FrameStatsEvents, SessionDuration, TimerId](double StartTime, double EndTime, uint32 Depth, const TraceServices::FTimingProfilerEvent& Event, uint32 TaskIndex)
+				Params.SetupCallback = [&DataArray](uint32 NumTasks) { DataArray.AddDefaulted(NumTasks); };
+				Params.EventCallback = [TimerReader, &FrameStatsEvents, TimerId, &DataArray](bool bIsEnter, double Time, const TraceServices::FTimingProfilerEvent& Event, uint32 TaskIndex)
 				{
 					const TraceServices::FTimingProfilerTimer* Timer = TimerReader->GetTimer(Event.TimerIndex);
 					if (ensure(Timer != nullptr))
 					{
 						if (Timer->Id == TimerId)
 						{
-							int32 Index = Algo::UpperBoundBy(FrameStatsEvents, StartTime, &FFrameStatsCachedEvent::FrameStartTime);
-							if (Index > 0)
+							TaskData& CurrentTaskData = DataArray[TaskIndex];
+							if (bIsEnter)
 							{
-								--Index;
-							}
-
-							// This can can happen when the event is between frames.
-							if (StartTime > FrameStatsEvents[Index].FrameEndTime)
-							{
-								Index++;
-								if (Index >= FrameStatsEvents.Num())
+								if (CurrentTaskData.NestedDepth == 0)
 								{
-									return TraceServices::EEventEnumerate::Continue;
+									CurrentTaskData.StartTime = Time;
 								}
+
+								++CurrentTaskData.NestedDepth;
 							}
-
-							do
+							else
 							{
-								FFrameStatsCachedEvent& Entry = FrameStatsEvents[Index];
-
-								if (EndTime < Entry.FrameStartTime)
+								check(CurrentTaskData.NestedDepth > 0);
+								if (--CurrentTaskData.NestedDepth > 0)
 								{
 									return TraceServices::EEventEnumerate::Continue;
 								}
 
-								if (StartTime < Entry.FrameStartTime)
+								int32 Index = Algo::UpperBoundBy(FrameStatsEvents, CurrentTaskData.StartTime, &FFrameStatsCachedEvent::FrameStartTime);
+								if (Index > 0)
 								{
-									StartTime = Entry.FrameStartTime;
+									--Index;
 								}
 
-								const double Duration = FMath::Min(EndTime, Entry.FrameEndTime) - StartTime;
-								ensure(Duration >= 0.0f);
-								for (double Value = Entry.Duration.load(); !Entry.Duration.compare_exchange_strong(Value, Value + Duration););
+								// This can can happen when the event is between frames.
+								if (CurrentTaskData.StartTime > FrameStatsEvents[Index].FrameEndTime)
+								{
+									Index++;
+									if (Index >= FrameStatsEvents.Num())
+									{
+										return TraceServices::EEventEnumerate::Continue;
+									}
+								}
 
-								Index++;
-							} while (Index < FrameStatsEvents.Num());
+								double EndTime = Time;
+								do
+								{
+									FFrameStatsCachedEvent& Entry = FrameStatsEvents[Index];
+
+									if (EndTime < Entry.FrameStartTime)
+									{
+										return TraceServices::EEventEnumerate::Continue;
+									}
+
+									if (CurrentTaskData.StartTime < Entry.FrameStartTime)
+									{
+										CurrentTaskData.StartTime = Entry.FrameStartTime;
+									}
+
+									const double Duration = FMath::Min(EndTime, Entry.FrameEndTime) - CurrentTaskData.StartTime;
+									ensure(Duration >= 0.0f);
+									for (double Value = Entry.Duration.load(); !Entry.Duration.compare_exchange_strong(Value, Value + Duration););
+
+									Index++;
+								} while (Index < FrameStatsEvents.Num());
+							}
 						}
 					}
 					return TraceServices::EEventEnumerate::Continue;

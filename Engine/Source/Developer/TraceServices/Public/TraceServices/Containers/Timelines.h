@@ -26,7 +26,8 @@ public:
 	typedef InEventType EventType;
 	typedef TFunctionRef<EEventEnumerate(bool /*bStart*/, double /*Time*/, const EventType& /*Event*/)> EventCallback;
 	typedef TFunctionRef<EEventEnumerate(double /*StartTime*/, double /*EndTime*/, uint32 /*Depth*/, const EventType&/*Event*/)> EventRangeCallback;
-	typedef TFunction<EEventEnumerate(double /*StartTime*/, double /*EndTime*/, uint32 /*Depth*/, const EventType&/*Event*/, uint32 TaskIndex)> AsyncEventRangeCallback;
+	typedef TFunction<EEventEnumerate(double /*StartTime*/, double /*EndTime*/, uint32 /*Depth*/, const EventType&/*Event*/, uint32 /*TaskIndex*/)> AsyncEventRangeCallback;
+	typedef TFunction<EEventEnumerate(bool /*bStart*/, double /*Time*/, const EventType& /*Event*/, uint32 /*TaskIndex*/)> AsyncEventCallback;
 	typedef TFunction<void(uint32 /*NumTasks*/)> TaskInfoCallback;
 
 	struct FTimelineEventInfo
@@ -45,7 +46,10 @@ public:
 		double MaxOccupancy = 0.875; // Leave 1/8 threads free to avoid starvation.
 		EEventSortOrder SortOrder = EEventSortOrder::ByEndTime;
 		typename ITimeline<EventType>::TaskInfoCallback SetupCallback;
-		typename ITimeline<EventType>::AsyncEventRangeCallback Callback;
+
+		// Only one of these 2 callbacks must be set.
+		typename ITimeline<EventType>::AsyncEventRangeCallback EventRangeCallback;
+		typename ITimeline<EventType>::AsyncEventCallback EventCallback;
 	};
 
 	virtual ~ITimeline() = default;

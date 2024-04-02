@@ -430,7 +430,7 @@ void FTimingProfilerTests::RunEnumerateAsyncBenchmark(const FEnumerateTestParams
 					{
 						TaskCheckValues.AddDefaulted(NumTasks);
 					};
-					Params.Callback = [&TaskCheckValues, SessionTime](double EventStartTime, double EventEndTime, uint32 EventDepth, const TraceServices::FTimingProfilerEvent& Event, uint32 TaskIndex)
+					Params.EventRangeCallback = [&TaskCheckValues, SessionTime](double EventStartTime, double EventEndTime, uint32 EventDepth, const TraceServices::FTimingProfilerEvent& Event, uint32 TaskIndex)
 					{
 						EventEndTime = FMath::Min(EventEndTime, SessionTime);
 						TaskCheckValues[TaskIndex].TotalEventDuration += EventEndTime - EventStartTime;
@@ -567,7 +567,7 @@ void FTimingProfilerTests::RunEnumerateAsyncAllTracksBenchmark(const FEnumerateT
 							{
 								TaskCheckValues.AddDefaulted(NumTasks);
 							};
-							Params.Callback = [&OutCheckValues, &TaskCheckValues](double EventStartTime, double EventEndTime, uint32 EventDepth, const TraceServices::FTimingProfilerEvent& Event, uint32 TaskIndex)
+							Params.EventRangeCallback = [&OutCheckValues, &TaskCheckValues](double EventStartTime, double EventEndTime, uint32 EventDepth, const TraceServices::FTimingProfilerEvent& Event, uint32 TaskIndex)
 							{
 								EventEndTime = FMath::Min(EventEndTime, OutCheckValues.SessionDuration);
 								TaskCheckValues[TaskIndex].TotalEventDuration += EventEndTime - EventStartTime;

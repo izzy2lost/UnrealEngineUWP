@@ -623,6 +623,9 @@ public:
 
 	virtual void EnumerateEventsDownSampledAsync(const typename ITimeline<EventType>::EnumerateAsyncParams& EnumerateAsyncParams) const override
 	{
+		// Exactly one of these 2 callbacks must be set.
+		check((EnumerateAsyncParams.EventRangeCallback == nullptr) ^ (EnumerateAsyncParams.EventCallback == nullptr));
+
 		if (EnumerateAsyncParams.IntervalEnd < EnumerateAsyncParams.IntervalStart)
 		{
 			return;
@@ -689,7 +692,8 @@ public:
 			TaskData.EndTime = EnumerateAsyncParams.IntervalEnd;
 			TaskData.SortOrder = EnumerateAsyncParams.SortOrder;
 			TaskData.DetailLevel = &DetailLevel;
-			TaskData.Callback = EnumerateAsyncParams.Callback;
+			TaskData.EventCallback = EnumerateAsyncParams.EventCallback;
+			TaskData.EventRangeCallback = EnumerateAsyncParams.EventRangeCallback;
 
 			TSharedRef<FAsyncTask<FEnumarateAsyncTask>> AsyncTask = MakeShared<FAsyncTask<FEnumarateAsyncTask>>(TaskData);
 			WorkerTasks.Add(AsyncTask);
