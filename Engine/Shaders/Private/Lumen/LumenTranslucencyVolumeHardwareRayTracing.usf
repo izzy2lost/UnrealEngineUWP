@@ -111,7 +111,7 @@ LUMEN_HARDWARE_RAY_TRACING_ENTRY(LumenTranslucencyVolumeHardwareRayTracing)
 			FRadianceCacheCoverage Coverage;
 			Coverage.bValid = false;
 
-			#if USE_RADIANCE_CACHE
+			#if PROBE_SOURCE_MODE == PROBE_SOURCE_MODE_RADIANCE_CACHE
 				Coverage = GetRadianceCacheCoverage(WorldPosition, WorldConeDirection, .5f);
 				
 				if (Coverage.bValid)
@@ -158,7 +158,7 @@ LUMEN_HARDWARE_RAY_TRACING_ENTRY(LumenTranslucencyVolumeHardwareRayTracing)
 			{
 				float Transparency = 1.0f;
 
-			#if USE_FROXEL_PROBES
+			#if PROBE_SOURCE_MODE == PROBE_SOURCE_MODE_FROXEL
 				if (true) // Froxel probes are always valid for the translucency volume froxels.
 				{
 					const float3 FroxelProbeRadiance = GetFroxelProbeLighting(VolumeFroxelProbeRadiance, GridCoordinate, ProbeUV) * View.OneOverPreExposure;
@@ -169,7 +169,7 @@ LUMEN_HARDWARE_RAY_TRACING_ENTRY(LumenTranslucencyVolumeHardwareRayTracing)
 					Transparency = 0.0;
 				}
 				else
-			#elif USE_RADIANCE_CACHE
+			#elif PROBE_SOURCE_MODE == PROBE_SOURCE_MODE_RADIANCE_CACHE
 				if (Coverage.bValid)
 				{
 					SampleRadianceCacheAndApply(Coverage, WorldPosition, WorldConeDirection, ConeHalfAngle, TraceLightingResult.Radiance, Transparency);

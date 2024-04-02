@@ -50,9 +50,8 @@ class FLumenTranslucencyVolumeHardwareRayTracing : public FLumenHardwareRayTraci
 {
 	DECLARE_LUMEN_RAYTRACING_SHADER(FLumenTranslucencyVolumeHardwareRayTracing, Lumen::ERayTracingShaderDispatchSize::DispatchSize1D)
 
-	class FRadianceCache : SHADER_PERMUTATION_BOOL("USE_RADIANCE_CACHE");
-	class FUseFroxelProbes : SHADER_PERMUTATION_BOOL("USE_FROXEL_PROBES");
-	using FPermutationDomain = TShaderPermutationDomain<FLumenHardwareRayTracingShaderBase::FBasePermutationDomain, FRadianceCache, FUseFroxelProbes>;
+	class FProbeSourceMode : SHADER_PERMUTATION_RANGE_INT("PROBE_SOURCE_MODE", 0, 3);
+	using FPermutationDomain = TShaderPermutationDomain<FLumenHardwareRayTracingShaderBase::FBasePermutationDomain, FProbeSourceMode>;
 
 	// Parameters
 	BEGIN_SHADER_PARAMETER_STRUCT(FParameters, )
@@ -125,8 +124,7 @@ void FDeferredShadingSceneRenderer::PrepareLumenHardwareRayTracingTranslucencyVo
 			for (int32 VolumeRadianceCache = 0; VolumeRadianceCache < 2; ++VolumeRadianceCache)
 			{
 				FLumenTranslucencyVolumeHardwareRayTracingRGS::FPermutationDomain PermutationVector;
-				PermutationVector.Set<FLumenTranslucencyVolumeHardwareRayTracingRGS::FRadianceCache>(VolumeRadianceCache > 0);
-				PermutationVector.Set<FLumenTranslucencyVolumeHardwareRayTracingRGS::FUseFroxelProbes>(UseFroxelProbes > 0);
+				PermutationVector.Set<FLumenTranslucencyVolumeHardwareRayTracingRGS::FProbeSourceMode>(UseFroxelProbes > 0 ? 2 : (VolumeRadianceCache > 0 ? 1 : 0));
 
 				TShaderRef<FLumenTranslucencyVolumeHardwareRayTracingRGS> RayGenerationShader = View.ShaderMap->GetShader<FLumenTranslucencyVolumeHardwareRayTracingRGS>(PermutationVector);
 
@@ -186,8 +184,7 @@ void HardwareRayTraceTranslucencyVolume(
 		PassParameters->RadianceCacheParameters = RadianceCacheParameters;
 
 		FLumenTranslucencyVolumeHardwareRayTracingRGS::FPermutationDomain PermutationVector;
-		PermutationVector.Set<FLumenTranslucencyVolumeHardwareRayTracingRGS::FRadianceCache>(RadianceCacheParameters.RadianceProbeIndirectionTexture != nullptr);
-		PermutationVector.Set<FLumenTranslucencyVolumeHardwareRayTracingRGS::FUseFroxelProbes>(VolumeFroxelProbeRadiance != nullptr);
+		PermutationVector.Set<FLumenTranslucencyVolumeHardwareRayTracingRGS::FProbeSourceMode>(VolumeFroxelProbeRadiance != nullptr ? 2 : (RadianceCacheParameters.RadianceProbeIndirectionTexture != nullptr ? 1 : 0));
 
 		const FIntPoint DispatchResolution(VolumeTraceRadiance->Desc.Extent * FIntPoint(VolumeTraceRadiance->Desc.Depth, 1));
 

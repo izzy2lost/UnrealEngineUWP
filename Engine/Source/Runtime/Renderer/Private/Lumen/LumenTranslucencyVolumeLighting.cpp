@@ -498,12 +498,11 @@ class FTranslucencyVolumeTraceVoxelsCS : public FGlobalShader
 	END_SHADER_PARAMETER_STRUCT()
 
 	class FDynamicSkyLight : SHADER_PERMUTATION_BOOL("ENABLE_DYNAMIC_SKY_LIGHT");
-	class FRadianceCache : SHADER_PERMUTATION_BOOL("USE_RADIANCE_CACHE");
-	class FUseFroxelProbes : SHADER_PERMUTATION_BOOL("USE_FROXEL_PROBES");
+	class FProbeSourceMode : SHADER_PERMUTATION_RANGE_INT("PROBE_SOURCE_MODE", 0, 3);
 	class FTraceFromVolume : SHADER_PERMUTATION_BOOL("TRACE_FROM_VOLUME");
 	class FSimpleCoverageBasedExpand : SHADER_PERMUTATION_BOOL("GLOBALSDF_SIMPLE_COVERAGE_BASED_EXPAND");
 
-	using FPermutationDomain = TShaderPermutationDomain<FDynamicSkyLight, FRadianceCache, FUseFroxelProbes, FTraceFromVolume, FSimpleCoverageBasedExpand>;
+	using FPermutationDomain = TShaderPermutationDomain<FDynamicSkyLight, FProbeSourceMode, FTraceFromVolume, FSimpleCoverageBasedExpand>;
 
 	static FIntVector GetGroupSize()
 	{
@@ -761,8 +760,7 @@ void TraceVoxelsTranslucencyVolume(
 
 	FTranslucencyVolumeTraceVoxelsCS::FPermutationDomain PermutationVector;
 	PermutationVector.Set<FTranslucencyVolumeTraceVoxelsCS::FDynamicSkyLight>(bDynamicSkyLight);
-	PermutationVector.Set<FTranslucencyVolumeTraceVoxelsCS::FRadianceCache>(RadianceCacheParameters.RadianceProbeIndirectionTexture != nullptr);
-	PermutationVector.Set<FTranslucencyVolumeTraceVoxelsCS::FUseFroxelProbes>(VolumeFroxelProbeRadiance != nullptr);
+	PermutationVector.Set<FTranslucencyVolumeTraceVoxelsCS::FProbeSourceMode>(VolumeFroxelProbeRadiance != nullptr ? 2 : (RadianceCacheParameters.RadianceProbeIndirectionTexture != nullptr ? 1 : 0));
 	PermutationVector.Set<FTranslucencyVolumeTraceVoxelsCS::FTraceFromVolume>(bTraceFromVolume);
 	PermutationVector.Set<FTranslucencyVolumeTraceVoxelsCS::FSimpleCoverageBasedExpand>(bTraceFromVolume && Lumen::UseGlobalSDFSimpleCoverageBasedExpand());
 	auto ComputeShader = View.ShaderMap->GetShader<FTranslucencyVolumeTraceVoxelsCS>(PermutationVector);

@@ -8,6 +8,10 @@
 
 #include "../BlueNoise.ush"
 
+#define PROBE_SOURCE_MODE_NONE				0
+#define PROBE_SOURCE_MODE_RADIANCE_CACHE	1
+#define PROBE_SOURCE_MODE_FROXEL			2
+
 uint TranslucencyVolumeTracingOctahedronResolution;
 uint3 TranslucencyGIGridSize;
 float3 TranslucencyGIGridZParams;
