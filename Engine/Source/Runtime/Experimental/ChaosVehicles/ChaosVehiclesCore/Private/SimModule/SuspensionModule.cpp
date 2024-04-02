@@ -187,6 +187,7 @@ namespace Chaos
 			SpringDisplacement = Sim->SpringDisplacement;
 			SpringDisplacementVector = -Sim->Setup().SuspensionAxis * Sim->SpringDisplacement + Sim->GetAnimationOffset();
 			SpringSpeed = Sim->SpringSpeed;
+			ImpactNormal = Sim->ImpactNormal;
 
 			AnimFlags = EAnimationFlags::AnimatePosition;
 			AnimationLocOffset = SpringDisplacementVector;
@@ -203,6 +204,7 @@ namespace Chaos
 
 		SpringDisplacement = FMath::Lerp(Current.SpringDisplacement, Next.SpringDisplacement, Alpha);
 		SpringSpeed = FMath::Lerp(Current.SpringSpeed, Next.SpringSpeed, Alpha);
+		ImpactNormal = FMath::Lerp(Current.ImpactNormal, Next.ImpactNormal, Alpha);
 	}
 
 #if !(UE_BUILD_SHIPPING || UE_BUILD_TEST)

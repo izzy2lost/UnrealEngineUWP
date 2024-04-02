@@ -57,6 +57,7 @@ namespace Chaos
 		float SpringDisplacement;
 		FVector SpringDisplacementVector;
 		float SpringSpeed;
+		FVector ImpactNormal;
 	};
 
 	struct CHAOSVEHICLESCORE_API FSuspensionSettings
