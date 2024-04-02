@@ -40,11 +40,12 @@ struct FPosQuat
 		return FTransform(Rotation, Translation);
 	}
 
-	// Note that multiplication operates in the same sense as FTransform (i.e. "backwards")
+	// Note that multiplication operates in the same sense as FQuat - i.e. in reverse compared to FTransform
+	// WorldChildTM = WorldParentTM * ChildRelParentTM
 	FORCEINLINE FPosQuat operator*(const FPosQuat& Other) const
 	{
-		FQuat OutRotation = Other.Rotation * Rotation;
-		FVector OutTranslation = Other.Rotation * (Translation) + Other.Translation;
+		FQuat OutRotation = Rotation * Other.Rotation;
+		FVector OutTranslation = (Rotation * Other.Translation) + Translation;
 		return FPosQuat(OutTranslation, OutRotation);
 	}
 

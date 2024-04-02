@@ -123,7 +123,6 @@ struct FRigidBodyControlRecord
 	UE::PhysicsControl::FPosQuat PreviousTargetTM;
 
 	// Update counter set when the control was last updated.
-	// TODO just store the count we're interested in rather than the whole structure
 	FGraphTraversalCounter ExpectedUpdateCounter;
 
 	// This is the currently active control data. It will be updated just prior to applying

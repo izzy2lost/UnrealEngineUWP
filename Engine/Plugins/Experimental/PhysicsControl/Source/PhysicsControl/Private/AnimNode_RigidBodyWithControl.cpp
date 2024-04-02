@@ -794,7 +794,7 @@ void FAnimNode_RigidBodyWithControl::EvaluateSkeletalControl_AnyThread(FComponen
 				BodyAnimData[BodyIndex].bIsSimulated = !Bodies[BodyIndex]->GetIsKinematic();
 				if (!BodyAnimData[BodyIndex].bIsSimulated)
 				{
-					// TODO support explicit targets for kinematics, like we do for controls
+					// Custom kinematic targets are set subsequently, overriding these.
 					Bodies[BodyIndex]->SetKinematicTarget(PoseData.GetTM(BodyIndex).ToTransform());
 				}
 			}

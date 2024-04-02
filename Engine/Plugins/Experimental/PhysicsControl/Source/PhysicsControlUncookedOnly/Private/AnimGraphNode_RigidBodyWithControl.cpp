@@ -10,6 +10,7 @@
 #include "IPhysicsControlOperatorEditorInterface.h"
 #include "Kismet2/BlueprintEditorUtils.h"
 #include "PhysicsControlOperatorNameGeneration.h"
+#include "PhysicsControlProfileAsset.h"
 
 // Details includes
 #include "PropertyHandle.h"
@@ -103,27 +104,6 @@ void UAnimGraphNode_RigidBodyWithControl::Draw(
 				(bIsPoseWatchEnabled && PoseWatchElementConstraints.IsValid() && PoseWatchElementConstraints->GetIsVisible()))
 			{
 				PhysicsAssetRenderInterface.DebugDrawConstraints(PreviewSkelMeshComp, PhysicsAsset, PDI);
-			}
-		}
-		
-		
-		// Draw Space Controls
-		if (bIsSelected || 
-			(bIsPoseWatchEnabled && 
-				PoseWatchElementWorldSpaceControls.IsValid() && PoseWatchElementWorldSpaceControls->GetIsVisible()))
-		{
-			for (const TMap<FName, FRigidBodyControlRecord>::ElementType& NameRecordPair : RuntimeRigidBodyNode->ControlRecords)
-			{
-				const FRigidBodyControlRecord& ControlRecord = NameRecordPair.Value;
-				if (!ControlRecord.JointHandle || !ControlRecord.IsEnabled())
-				{
-					continue;
-				}
-#if 0
-				// TODO get the targets from the control record and draw them with respect to the physical bodies
-				PDI->DrawPoint(ControlRootTransform.GetTranslation(), FLinearColor::Blue, 5.0f, SDPG_Foreground);
-				PDI->DrawLine(BodyPosition, TargetPosition, FLinearColor::Yellow, SDPG_Foreground);
-#endif
 			}
 		}
 	}
@@ -360,12 +340,35 @@ TArray<TPair<FName, TArray<FName>>> UAnimGraphNode_RigidBodyWithControl::Generat
 		TSet<FName> ControlNames;
 		FPhysicsControlNameRecords NameRecords;
 
-		// TODO This needs to account for the control profile asset
+		// Note that controls can come from the setup data in the node and/or from a profile asset
+		FPhysicsControlCharacterSetupData SetupData;
+		if (IsValid(Node.PhysicsControlProfileAsset))
+		{
+			SetupData = Node.PhysicsControlProfileAsset->CharacterSetupData;
+		}
+		if (Node.bEnableCharacterSetupData)
+		{
+			SetupData += Node.CharacterSetupData;
+		}
+
+		FPhysicsControlAndBodyModifierCreationDatas AdditionalControlAndBodyModifierCreationDatas;
+		if (IsValid(Node.PhysicsControlProfileAsset))
+		{
+			AdditionalControlAndBodyModifierCreationDatas = Node.PhysicsControlProfileAsset->AdditionalControlsAndModifiers;
+		}
+		AdditionalControlAndBodyModifierCreationDatas += Node.AdditionalControlsAndBodyModifiers;
+
+		// Get the list of modifier and control names, based on the setup data
 		UE::PhysicsControl::CollectOperatorNames(
-			&Node, Node.CharacterSetupData, Node.AdditionalControlsAndBodyModifiers,
+			&Node, SetupData, AdditionalControlAndBodyModifierCreationDatas,
 			AllLimbBones, RefSkeleton, Node.OverridePhysicsAsset.Get(), BodyModifierNames, ControlNames, NameRecords);
 
 		// Create any additional sets that have been requested
+		if (IsValid(Node.PhysicsControlProfileAsset))
+		{
+			UE::PhysicsControl::CreateAdditionalSets(
+				Node.PhysicsControlProfileAsset->AdditionalSets, BodyModifierNames, ControlNames, NameRecords);
+		}
 		UE::PhysicsControl::CreateAdditionalSets(Node.AdditionalSets, BodyModifierNames, ControlNames, NameRecords);
 
 		auto TransformOperatorNamesAndTags = [&GeneratedOperatorNames](

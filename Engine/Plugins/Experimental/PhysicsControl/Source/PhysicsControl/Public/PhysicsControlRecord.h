@@ -23,7 +23,6 @@ struct FPhysicsControlRecord
 		UPrimitiveComponent*              InChildComponent)
 		: PhysicsControl(InControl)
 		, ControlTarget(InControlTarget)
-		, ExpectedUpdateCounter(-1)
 		, ParentComponent(InParentComponent)
 		, ChildComponent(InChildComponent)
 	{}
@@ -63,7 +62,7 @@ struct FPhysicsControlRecord
 
 	// Only use the previous target TM if the current counter is equal to this expected counter. The
 	// expected update counter will be set when the control/previous target TM has just been updated.
-	int64 ExpectedUpdateCounter;
+	FGraphTraversalCounter ExpectedUpdateCounter;
 
 	/**  The mesh that will be doing the driving. Blank/non-existent means it will happen in world space */
 	TWeakObjectPtr<UPrimitiveComponent> ParentComponent;

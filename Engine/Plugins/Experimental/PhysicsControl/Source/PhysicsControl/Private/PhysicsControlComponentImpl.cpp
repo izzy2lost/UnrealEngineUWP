@@ -159,8 +159,7 @@ const FPhysicsControl* UPhysicsControlComponent::FindControl(const FName Name) c
 //======================================================================================================================
 void UPhysicsControlComponent::UpdateCachedSkeletalBoneData(float DeltaTime)
 {
-	// Allow the target counter to wrap, after 2e19 frames
-	++CurrentUpdateCounter;
+	CurrentUpdateCounter.Increment();
 
 	for (TPair<TWeakObjectPtr<USkeletalMeshComponent>, UE::PhysicsControl::FPhysicsControlPoseData>&
 		CachedSkeletalMeshDataPair : CachedPoseDatas)
@@ -446,7 +445,7 @@ void UPhysicsControlComponent::CalculateControlTargetData(
 			if (bHaveParentBoneData)
 			{
 				const UE::PhysicsControl::FPosQuat ParentBoneTM = ParentBoneData.CurrentTM;
-				const UE::PhysicsControl::FPosQuat SkeletalDeltaTM = ChildBoneTM * ParentBoneTM.Inverse();
+				const UE::PhysicsControl::FPosQuat SkeletalDeltaTM = ParentBoneTM.Inverse() * ChildBoneTM;
 				// This puts TargetTM in the space of the ParentBone
 				OutSkeletalTargetTM = SkeletalDeltaTM.ToTransform();
 			}
@@ -604,11 +603,14 @@ void UPhysicsControlComponent::ApplyControl(FPhysicsControlRecord& Record)
 		FTransform TargetTM, SkeletalTargetTM;
 		FVector TargetVelocity;
 		FVector TargetAngularVelocity;
-		bool bUsePreviousSkeletalTargetTM = CurrentUpdateCounter == Record.ExpectedUpdateCounter;
+		bool bUsePreviousSkeletalTargetTM = 
+			CurrentUpdateCounter.HasEverBeenUpdated() && 
+			CurrentUpdateCounter.Get() == Record.ExpectedUpdateCounter.Get();
 		CalculateControlTargetData(
 			TargetTM, SkeletalTargetTM, TargetVelocity, TargetAngularVelocity, Record, bUsePreviousSkeletalTargetTM);
 		Record.PreviousSkeletalTargetTM = SkeletalTargetTM;
-		Record.ExpectedUpdateCounter = CurrentUpdateCounter + 1;
+		Record.ExpectedUpdateCounter = CurrentUpdateCounter;
+		Record.ExpectedUpdateCounter.Increment();
 
 		ConstraintInstance->SetLinearPositionTarget(TargetTM.GetTranslation());
 		ConstraintInstance->SetAngularOrientationTarget(TargetTM.GetRotation());

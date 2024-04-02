@@ -72,17 +72,15 @@ void UPhysicsControlComponent::InitializeComponent()
 //======================================================================================================================
 void UPhysicsControlComponent::BeginDestroy()
 {
-	for (TPair<FName, FPhysicsControlRecord>& PhysicsControlRecordPair : ControlRecords)
+	for (TPair<FName, FPhysicsControlRecord>& ControlRecordPair : ControlRecords)
 	{
-		DestroyControl(
-			PhysicsControlRecordPair.Key, EDestroyBehavior::KeepRecord);
+		DestroyControl(ControlRecordPair.Key, EDestroyBehavior::KeepRecord);
 	}
 	ControlRecords.Empty();
 
-	for (TPair<FName, FPhysicsBodyModifierRecord>& PhysicsBodyModifierPair : BodyModifierRecords)
+	for (TPair<FName, FPhysicsBodyModifierRecord>& BodyModifierPair : BodyModifierRecords)
 	{
-		DestroyBodyModifier(
-			PhysicsBodyModifierPair.Key, EDestroyBehavior::KeepRecord);
+		DestroyBodyModifier(BodyModifierPair.Key, EDestroyBehavior::KeepRecord);
 	}
 	BodyModifierRecords.Empty();
 
@@ -2610,11 +2608,10 @@ void UPhysicsControlComponent::DebugDraw(FPrimitiveDrawInterface* PDI) const
 	// Draw gizmos
 	if (bShowDebugVisualization && VisualizationSizeScale > 0)
 	{
-		for (const TPair<FName, FPhysicsControlRecord>& PhysicsControlRecordPair : 
-			ControlRecords)
+		for (const TPair<FName, FPhysicsControlRecord>& ControlRecordPair : ControlRecords)
 		{
-			const FName Name = PhysicsControlRecordPair.Key;
-			const FPhysicsControlRecord& Record = PhysicsControlRecordPair.Value;
+			const FName Name = ControlRecordPair.Key;
+			const FPhysicsControlRecord& Record = ControlRecordPair.Value;
 			DebugDrawControl(PDI, Record, Name);
 		} 
 	}
@@ -2622,14 +2619,13 @@ void UPhysicsControlComponent::DebugDraw(FPrimitiveDrawInterface* PDI) const
 	// Detailed controls - if there's a filter
 	if (!DebugControlDetailFilter.IsEmpty())
 	{
-		for (const TPair<FName, FPhysicsControlRecord>& PhysicsControlRecordPair :
-			ControlRecords)
+		for (const TPair<FName, FPhysicsControlRecord>& ControlRecordPair : ControlRecords)
 		{
-			const FName Name = PhysicsControlRecordPair.Key;
+			const FName Name = ControlRecordPair.Key;
 
 			if (Name.ToString().Contains(DebugControlDetailFilter))
 			{
-				const FPhysicsControlRecord& Record = PhysicsControlRecordPair.Value;
+				const FPhysicsControlRecord& Record = ControlRecordPair.Value;
 
 				const FString ParentComponentName = Record.ParentComponent.IsValid() ?
 					Record.ParentComponent->GetName() : TEXT("NoParent");
@@ -2657,11 +2653,9 @@ void UPhysicsControlComponent::DebugDraw(FPrimitiveDrawInterface* PDI) const
 	if (bShowDebugControlList)
 	{
 		FString AllNames;
-
-		for (const TPair<FName, FPhysicsControlRecord>& PhysicsControlRecordPair :
-			ControlRecords)
+		for (const TPair<FName, FPhysicsControlRecord>& ControlRecordPair : ControlRecords)
 		{
-			const FName Name = PhysicsControlRecordPair.Key;
+			const FName Name = ControlRecordPair.Key;
 			AllNames += Name.ToString() + TEXT(" ");
 			if (AllNames.Len() > 256)
 			{
@@ -2670,22 +2664,19 @@ void UPhysicsControlComponent::DebugDraw(FPrimitiveDrawInterface* PDI) const
 			}
 		}
 		GEngine->AddOnScreenDebugMessage(
-			-1, 0.0f, FColor::White,
-			FString::Printf(TEXT("%d Controls: %s"), ControlRecords.Num(), *AllNames));
-
+			-1, 0.0f, FColor::White, FString::Printf(TEXT("%d Controls: %s"), ControlRecords.Num(), *AllNames));
 	}
 
 	// Detailed body modifiers - if there's a filter
 	if (!DebugBodyModifierDetailFilter.IsEmpty())
 	{
-		for (const TPair<FName, FPhysicsBodyModifierRecord>& PhysicsBodyModifierPair :
-			BodyModifierRecords)
+		for (const TPair<FName, FPhysicsBodyModifierRecord>& BodyModifierPair : BodyModifierRecords)
 		{
-			const FName Name = PhysicsBodyModifierPair.Key;
+			const FName Name = BodyModifierPair.Key;
 
 			if (Name.ToString().Contains(DebugBodyModifierDetailFilter))
 			{
-				const FPhysicsBodyModifierRecord& Record = PhysicsBodyModifierPair.Value;
+				const FPhysicsBodyModifierRecord& Record = BodyModifierPair.Value;
 
 				FString ComponentName = Record.Component.IsValid() ? Record.Component->GetName() : TEXT("None");
 
@@ -2710,9 +2701,9 @@ void UPhysicsControlComponent::DebugDraw(FPrimitiveDrawInterface* PDI) const
 	{
 		FString AllNames;
 
-		for (const TPair<FName, FPhysicsBodyModifierRecord>& PhysicsBodyModifierPair : BodyModifierRecords)
+		for (const TPair<FName, FPhysicsBodyModifierRecord>& BodyModifierPair : BodyModifierRecords)
 		{
-			const FName Name = PhysicsBodyModifierPair.Key;
+			const FName Name = BodyModifierPair.Key;
 			AllNames += Name.ToString() + TEXT(" ");
 			if (AllNames.Len() > 256)
 			{

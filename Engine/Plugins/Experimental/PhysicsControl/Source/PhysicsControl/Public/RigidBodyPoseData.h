@@ -38,11 +38,11 @@ public:
 
 public:
 	void Update(
-		FComponentSpacePoseContext& ComponentSpacePoseContext,
+		FComponentSpacePoseContext&    ComponentSpacePoseContext,
 		const TArray<FOutputBoneData>& OutputBoneData,
 		const ESimulationSpace         SimulationSpace,
-		const FBoneReference& BaseBoneRef,
-		const FGraphTraversalCounter& InUpdateCounter);
+		const FBoneReference&          BaseBoneRef,
+		const FGraphTraversalCounter&  InUpdateCounter);
 
 	UE::PhysicsControl::FPosQuat GetTM(int32 Index) const { return BoneTMs[Index]; }
 	bool IsValidIndex(const int32 Index) const { return BoneTMs.IsValidIndex(Index); }

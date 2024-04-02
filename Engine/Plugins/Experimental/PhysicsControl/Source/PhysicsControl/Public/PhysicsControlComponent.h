@@ -1848,5 +1848,5 @@ protected:
 
 	// Update counter - incremented every tick, and used to check whether previous targets etc are
 	// valid when calculating velocities.
-	int64 CurrentUpdateCounter = 0;
+	FGraphTraversalCounter CurrentUpdateCounter;
 };

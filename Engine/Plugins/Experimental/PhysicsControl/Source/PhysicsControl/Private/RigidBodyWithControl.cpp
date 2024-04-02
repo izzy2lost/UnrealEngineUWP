@@ -196,8 +196,12 @@ ImmediatePhysics::FJointHandle* FAnimNode_RigidBodyWithControl::CreateConstraint
 		Settings.bAngularSwingVelocityDriveEnabled = false;
 		Settings.AngularDriveForceMode = Chaos::EJointForceMode::Acceleration;
 
-		Settings.bMassConditioningEnabled = false; // TODO needed/wanted?
-		Settings.bCollisionEnabled = false; // TODO needed?
+		// For control, we shouldn't be in situations where mass conditioning is needed.
+		Settings.bMassConditioningEnabled = false;
+		// It's not our job to change collision settings - that should come from the physics asset.
+		// However, the naming of this is unclear - if collisions are disabled in the physics asset,
+		// trust that this doesn't enable them.
+		Settings.bCollisionEnabled = true;
 
 		FVector ChildCoMPositionOffset = ChildActorHandle->GetLocalCoMTransform().GetLocation();
 		Settings.ConnectorTransforms[ConstraintChildIndex].SetLocation(ChildCoMPositionOffset);
@@ -366,16 +370,16 @@ void FAnimNode_RigidBodyWithControl::InitControlsAndBodyModifiers(const FReferen
 	TMap<FName, FPhysicsControlLimbBones> AllLimbBones =
 		UE::PhysicsControl::GetLimbBones(SetupData.LimbSetupData, RefSkeleton, GetPhysicsAsset());
 
-	FPhysicsControlAndBodyModifierCreationDatas ControlAndBodyModifierCreationDatas;
+	FPhysicsControlAndBodyModifierCreationDatas AdditionalControlAndBodyModifierCreationDatas;
 	if (IsValid(PhysicsControlProfileAsset))
 	{
-		ControlAndBodyModifierCreationDatas = PhysicsControlProfileAsset->AdditionalControlsAndModifiers;
+		AdditionalControlAndBodyModifierCreationDatas = PhysicsControlProfileAsset->AdditionalControlsAndModifiers;
 	}
-	ControlAndBodyModifierCreationDatas += AdditionalControlsAndBodyModifiers;
+	AdditionalControlAndBodyModifierCreationDatas += AdditionalControlsAndBodyModifiers;
 
 	// An "operator" is a control or a body modifier. This will also add them to sets etc.
 	UE::PhysicsControl::CreateOperatorsForNode(
-		this, SetupData, ControlAndBodyModifierCreationDatas, 
+		this, SetupData, AdditionalControlAndBodyModifierCreationDatas,
 		AllLimbBones, RefSkeleton, GetPhysicsAsset(), NameRecords);
 
 	for (TMap<FName, FRigidBodyControlRecord>::ElementType& NameRecordPair : ControlRecords)
@@ -565,14 +569,14 @@ static UE::PhysicsControl::FPosQuat CalculateTargetTM(
 	const int32                                   ChildBodyIndex)
 {
 	const UE::PhysicsControl::FPosQuat ChildTargetTM =
-		UE::PhysicsControl::FPosQuat(JointSettings.ConnectorTransforms[ConstraintChildIndex]) * 
-		PoseData.GetTM(ChildBodyIndex);
+		PoseData.GetTM(ChildBodyIndex) * 
+		UE::PhysicsControl::FPosQuat(JointSettings.ConnectorTransforms[ConstraintChildIndex]);
 	if (ParentBodyIndex >= 0)
 	{
 		const UE::PhysicsControl::FPosQuat ParentTargetTM =
-			UE::PhysicsControl::FPosQuat(JointSettings.ConnectorTransforms[ConstraintParentIndex]) * 
-			PoseData.GetTM(ParentBodyIndex);
-		return ChildTargetTM * ParentTargetTM.Inverse();
+			PoseData.GetTM(ParentBodyIndex) * 
+			UE::PhysicsControl::FPosQuat(JointSettings.ConnectorTransforms[ConstraintParentIndex]);
+		return ParentTargetTM.Inverse() * ChildTargetTM;
 	}
 	return ChildTargetTM;
 }
@@ -588,7 +592,8 @@ void FAnimNode_RigidBodyWithControl::ApplyControl(FRigidBodyControlRecord& Contr
 		Chaos::FPBDJointConstraintHandle* Constraint = JointHandle->GetConstraint();
 		if (Constraint)
 		{
-			if (ControlRecord.ExpectedUpdateCounter.Get() != PoseData.UpdateCounter.Get())
+			if (!PoseData.UpdateCounter.HasEverBeenUpdated() || 
+				ControlRecord.ExpectedUpdateCounter.Get() != PoseData.UpdateCounter.Get())
 			{
 				// If we missed some intermediate updates, then we don't want to use the previous
 				// positions etc to calculate velocities. This will mean velocity/damping will be
@@ -628,7 +633,7 @@ void FAnimNode_RigidBodyWithControl::ApplyControl(FRigidBodyControlRecord& Contr
 					{
 						UE::PhysicsControl::FPosQuat AnimTargetTM = CalculateTargetTM(
 							JointSettings, PoseData, ControlRecord.ParentBodyIndex, ControlRecord.ChildBodyIndex);
-						TargetTM = TargetTM * AnimTargetTM;
+						TargetTM = AnimTargetTM * TargetTM;
 					}
 
 					Constraint->SetLinearDrivePositionTarget(TargetTM.GetTranslation());
@@ -824,7 +829,7 @@ void FAnimNode_RigidBodyWithControl::ApplyControlsAndModifiers(const FVector& Si
 	// If we've skipped a frame then we need to avoid doing any velocity calculations. Simplest
 	// method is to set DeltaTime to zero.
 	{
-		if (PoseData.UpdateCounter.Get() == INDEX_NONE || 
+		if (!PoseData.UpdateCounter.HasEverBeenUpdated() || 
 			PoseData.UpdateCounter.Get() != PoseData.ExpectedUpdateCounter.Get())
 		{
 			DeltaTime = 0.0f;
@@ -883,7 +888,7 @@ void FAnimNode_RigidBodyWithControl::ApplyKinematicTargets()
 					UE::PhysicsControl::FPosQuat TM(Target.TargetOrientation, Target.TargetPosition);
 					if (Target.bUseSkeletalAnimation)
 					{
-						TM = TM * PoseData.GetTM(BodyIndex);
+						TM = PoseData.GetTM(BodyIndex) * TM;
 					}
 					ActorHandle->SetKinematicTarget(TM.ToTransform());
 				}

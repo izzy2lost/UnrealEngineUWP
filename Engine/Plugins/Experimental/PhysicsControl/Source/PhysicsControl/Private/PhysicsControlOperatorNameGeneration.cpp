@@ -260,7 +260,7 @@ TMap<FName, FPhysicsControlLimbBones> GetLimbBones(
 	const FReferenceSkeleton& RefSkeleton,
 	UPhysicsAsset* const PhysicsAsset)
 {
-	// TODO - Output limb bones are not in the order specified in the skeleton - would be better if they were
+	// Note - Output limb bones are not in the order specified in the skeleton - would be better if they were
 
 	TMap<FName, FPhysicsControlLimbBones> Result;
 
