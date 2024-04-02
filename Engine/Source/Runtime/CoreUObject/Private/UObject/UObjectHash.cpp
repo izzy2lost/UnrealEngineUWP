@@ -2018,7 +2018,7 @@ void LogHashMemoryOverheadStatistics(FOutputDevice& Ar, const bool bShowIndividu
 		const SIZE_T Size = GUObjectArray.GetAllocatedSize();
 		if (bShowIndividualStats)
 		{
-			Ar.Logf(TEXT("Memory used by UObjectArray: %" SIZE_T_FMT " bytes."), Size);
+			Ar.Logf(TEXT("Memory used by UObjectArray: %" SIZE_T_FMT " bytes. (%d UObjects, %d slots) "), Size, GUObjectArray.GetObjectArrayNumMinusAvailable(), GUObjectArray.GetObjectArrayCapacity());
 		}
 		TotalSize += Size;
 	}
