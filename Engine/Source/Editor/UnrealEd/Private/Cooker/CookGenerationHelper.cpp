@@ -8,6 +8,7 @@
 #include "Cooker/IWorkerRequests.h"
 #include "Cooker/PackageTracker.h"
 #include "Misc/CommandLine.h"
+#include "Misc/ConfigCacheIni.h"
 #include "Misc/PackageAccessTrackingOps.h"
 #include "Misc/Parse.h"
 #include "UObject/ReferenceChainSearch.h"
@@ -1223,16 +1224,55 @@ void FCookGenerationInfo::IterativeCookValidateOrClear(FGenerationHelper& Genera
 	}
 }
 
-bool FGenerationHelper::bGeneratorSavedAfterGenerated = false;
+namespace GenerationHelperPrivate
+{
+
+enum class ERequiredSaveOrder
+{
+	None,
+	GeneratorFirst,
+	GeneratedFirst,
+};
+
+ERequiredSaveOrder RequiredSaveOrder = ERequiredSaveOrder::None;
+
+}
 
 void FGenerationHelper::SetBeginCookConfigSettings()
 {
-	bGeneratorSavedAfterGenerated = FParse::Param(FCommandLine::Get(), TEXT("CookGeneratorSavedAfterGenerated"));
+	const TCHAR* CommandLine = FCommandLine::Get();
+
+	FString SaveOrder;
+	GConfig->GetString(TEXT("CookSettings"), TEXT("MPCookGeneratorSaveOrder"), SaveOrder, GEditorIni);
+	FParse::Value(FCommandLine::Get(), TEXT("-MPCookGeneratorSaveOrder="), SaveOrder);
+	if (SaveOrder == TEXT("None"))
+	{
+		GenerationHelperPrivate::RequiredSaveOrder = GenerationHelperPrivate::ERequiredSaveOrder::None;
+	}
+	else if (SaveOrder == TEXT("GeneratorFirst"))
+	{
+		GenerationHelperPrivate::RequiredSaveOrder = GenerationHelperPrivate::ERequiredSaveOrder::GeneratorFirst;
+	}
+	else if (SaveOrder == TEXT("GeneratedFirst"))
+	{
+		GenerationHelperPrivate::RequiredSaveOrder = GenerationHelperPrivate::ERequiredSaveOrder::GeneratedFirst;
+	}
+	else
+	{
+		// UE-211211: Make RequiredSaveOrder::GeneratorFirst the default until we have
+		// changed WorldPartitionCookPackageSplitter to handle the new allowed ordering.
+		GenerationHelperPrivate::RequiredSaveOrder = GenerationHelperPrivate::ERequiredSaveOrder::GeneratorFirst;
+	}
 }
 
-bool FGenerationHelper::IsGeneratorSavedAfterGenerated()
+bool FGenerationHelper::IsGeneratorSavedFirst()
 {
-	return bGeneratorSavedAfterGenerated;
+	return GenerationHelperPrivate::RequiredSaveOrder == GenerationHelperPrivate::ERequiredSaveOrder::GeneratorFirst;
+}
+
+bool FGenerationHelper::IsGeneratedSavedFirst()
+{
+	return GenerationHelperPrivate::RequiredSaveOrder == GenerationHelperPrivate::ERequiredSaveOrder::GeneratedFirst;
 }
 
 }

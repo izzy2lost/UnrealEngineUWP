@@ -3330,7 +3330,7 @@ UE::Cook::EPollStatus UCookOnTheFlyServer::PrepareSaveGenerationPackage(UE::Cook
 		{
 			return EPollStatus::Incomplete;
 		}
-		if (FGenerationHelper::IsGeneratorSavedAfterGenerated() && Info.IsGenerator())
+		if (FGenerationHelper::IsGeneratedSavedFirst() && Info.IsGenerator())
 		{
 			if (GenerationHelper.IsWaitingForQueueResults())
 			{
@@ -3342,6 +3342,13 @@ UE::Cook::EPollStatus UCookOnTheFlyServer::PrepareSaveGenerationPackage(UE::Cook
 				{
 					return EPollStatus::Incomplete;
 				}
+			}
+		}
+		if (FGenerationHelper::IsGeneratorSavedFirst() && !Info.IsGenerator())
+		{
+			if (GenerationHelper.GetOwner().IsInProgress())
+			{
+				return EPollStatus::Incomplete;
 			}
 		}
 		Info.SetSaveStateComplete(FCookGenerationInfo::ESaveState::FinishCachePreMove);

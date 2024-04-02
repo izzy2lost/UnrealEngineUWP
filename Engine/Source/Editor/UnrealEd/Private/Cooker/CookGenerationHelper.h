@@ -333,11 +333,10 @@ public:
 
 	/** Initialize settings from commandline and config files. */
 	static void SetBeginCookConfigSettings();
-	/**
-	 * Debug setting that forces a race-condition behavior. Force generator packages to not save until after
-	 * all generated packages save.
-	 */
-	static bool IsGeneratorSavedAfterGenerated();
+	/** Debug setting that forces an otherwise unspecified order. Generator packages save before the generated do. */
+	static bool IsGeneratorSavedFirst();
+	/** Debug setting that forces an otherwise unspecified order. Generated packages save before their generator does. */
+	static bool IsGeneratedSavedFirst();
 
 private:
 	enum class EInitializeStatus : uint8
@@ -373,8 +372,6 @@ private:
 	bool bUseInternalReferenceToAvoidGarbageCollect = false;
 	bool bNeedCachedPlatformDataBeforeSplit = false;
 	bool bGeneratedList = false;
-
-	static bool bGeneratorSavedAfterGenerated;
 };
 
 
