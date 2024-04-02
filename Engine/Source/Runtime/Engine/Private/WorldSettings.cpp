@@ -50,6 +50,21 @@ ENGINE_API float GNewWorldToMetersScale = 0.0f;
 #if WITH_EDITOR
 AWorldSettings::FOnBookmarkClassChanged AWorldSettings::OnBookmarkClassChanged;
 AWorldSettings::FOnNumberOfBookmarksChanged AWorldSettings::OnNumberOfBoomarksChanged;
+
+namespace WorldSettingsUtils
+{
+	bool CanDeleteOrReplaceCommon(const AWorldSettings* InActor, FText& OutReason)
+	{
+		const ULevel* OwnerLevel = InActor->GetLevel();
+		if (OwnerLevel && OwnerLevel->GetWorldSettings() == InActor)
+		{
+			OutReason = NSLOCTEXT("WorldSettings", "CanDeleteOrReplace_Error_WorldSettings", "Can't delete or replace a level's world settings.");
+			return false;
+		}
+
+		return true;
+	}
+}
 #endif
 AWorldSettings::FOnNaniteSettingsChanged AWorldSettings::OnNaniteSettingsChanged;
 
@@ -670,6 +685,27 @@ void AWorldSettings::CheckForErrors()
 		}
 	}
 }
+
+bool AWorldSettings::CanDeleteSelectedActor(FText& OutReason) const
+{
+	if (!Super::CanDeleteSelectedActor(OutReason))
+	{
+		return false;
+	}
+
+	return WorldSettingsUtils::CanDeleteOrReplaceCommon(this, OutReason);
+}
+
+bool AWorldSettings::CanReplaceSelectedActor(FText& OutReason) const
+{
+	if (!Super::CanReplaceSelectedActor(OutReason))
+	{
+		return false;
+	}
+
+	return WorldSettingsUtils::CanDeleteOrReplaceCommon(this, OutReason);
+}
+
 
 bool AWorldSettings::CanEditChange(const FProperty* InProperty) const
 {

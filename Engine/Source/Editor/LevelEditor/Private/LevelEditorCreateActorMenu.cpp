@@ -218,13 +218,14 @@ class SAssetMenuEntry : public SCompoundWidget
 static bool CanReplaceActors()
 {
 	bool bCanReplace = false;
-
+	FText OutReason;
 	for (FSelectionIterator SelectionIter = GEditor->GetSelectedActorIterator(); SelectionIter; ++SelectionIter)
 	{
 		if (AActor* Actor = Cast<AActor>(*SelectionIter))
 		{ 
 			bCanReplace = true;
-			if(!Actor->IsUserManaged() || FActorEditorUtils::IsABuilderBrush(Actor))
+			
+			if(!Actor->CanReplaceSelectedActor(OutReason))
 			{
 				bCanReplace = false;
 				break;

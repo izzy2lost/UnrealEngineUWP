@@ -2280,6 +2280,9 @@ public:
 	/** When selected can this actor be deleted? */
 	ENGINE_API virtual bool CanDeleteSelectedActor(FText& OutReason) const;
 
+	/** When selected can this actor be replaced */
+	ENGINE_API virtual bool CanReplaceSelectedActor(FText& OutReason) const;
+
 	/** Does this actor supports external packaging? */
 	ENGINE_API virtual bool SupportsExternalPackaging() const;
 #endif

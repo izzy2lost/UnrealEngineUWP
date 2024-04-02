@@ -181,6 +181,8 @@ public:
 	ENGINE_API virtual bool SetIsHiddenEdLayer(bool bIsHiddenEdLayer) override;
 	ENGINE_API virtual bool SupportsLayers() const override;
 	ENGINE_API virtual bool SupportsExternalPackaging() const override;
+	ENGINE_API virtual bool CanDeleteSelectedActor(FText& OutReason) const override;
+	ENGINE_API virtual bool CanReplaceSelectedActor(FText& OutReason) const override;
 public:
 
 	ENGINE_API virtual void InitPosRotScale();

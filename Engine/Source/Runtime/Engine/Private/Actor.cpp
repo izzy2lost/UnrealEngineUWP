@@ -120,6 +120,19 @@ void AActor::FDuplicationSeedInterface::AddEntry(UObject* Source, UObject* Desti
 	DuplicationSeed.Emplace(Source, Destination);
 }
 
+namespace ActorUtils
+{
+	bool CanDeleteOrReplaceCommon(const AActor* InActor, FText& OutReason)
+	{
+		if (!InActor->IsUserManaged())
+		{
+			OutReason = LOCTEXT("CanDeleteOrReplace_Error_UserManaged", "Actor is not user managed");
+			return false;
+		}
+
+		return true;
+	}
+}
 
 #endif
 
@@ -3615,15 +3628,13 @@ static void DispatchOnComponentsCreated(AActor* NewActor)
 
 bool AActor::CanDeleteSelectedActor(FText& OutReason) const
 {
-	if (!IsUserManaged())
-	{
-		OutReason = LOCTEXT("UserManaged", "Actor is not user managed");
-		return false;
-	}
-
-	return true;
+	return ActorUtils::CanDeleteOrReplaceCommon(this, OutReason);
 }
 
+bool AActor::CanReplaceSelectedActor(FText& OutReason) const
+{
+	return ActorUtils::CanDeleteOrReplaceCommon(this, OutReason);
+}
 
 void AActor::PostEditImport()
 {

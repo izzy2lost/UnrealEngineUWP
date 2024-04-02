@@ -34,6 +34,21 @@ bool ABrush::bSuppressBSPRegeneration = false;
 
 // Debug purposes only; an attempt to catch the cause of UE-36265
 const TCHAR* ABrush::GGeometryRebuildCause = nullptr;
+
+namespace BrushUtils
+{
+	bool CanDeleteOrReplaceCommon(const ABrush* InActor, FText& OutReason)
+	{
+		if (FActorEditorUtils::IsABuilderBrush(InActor))
+		{
+			OutReason = NSLOCTEXT("Brush", "CanDeleteOrReplace_Error_BuilderBrush", "Can't delete or replace a builder brush.");
+			return false;
+		}
+
+		return true;
+	}
+}
+
 #endif
 
 DEFINE_LOG_CATEGORY_STATIC(LogBrush, Log, All);
@@ -248,6 +263,26 @@ bool ABrush::SupportsExternalPackaging() const
 {
 	// Base class ABrush actors do not support OFPA
 	return GetClass() != ABrush::StaticClass() && Super::SupportsExternalPackaging();
+}
+
+bool ABrush::CanDeleteSelectedActor(FText& OutReason) const
+{
+	if (!Super::CanDeleteSelectedActor(OutReason))
+	{
+		return false;
+	}
+
+	return BrushUtils::CanDeleteOrReplaceCommon(this, OutReason);
+}
+
+bool ABrush::CanReplaceSelectedActor(FText& OutReason) const
+{
+	if (!Super::CanReplaceSelectedActor(OutReason))
+	{
+		return false;
+	}
+
+	return BrushUtils::CanDeleteOrReplaceCommon(this, OutReason);
 }
 
 void ABrush::PostLoad()

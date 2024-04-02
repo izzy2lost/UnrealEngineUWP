@@ -895,6 +895,8 @@ public:
 	ENGINE_API virtual void CheckForErrors() override;
 	virtual bool IsSelectable() const override { return false; }
 	virtual bool SupportsExternalPackaging() const override { return false; }
+	ENGINE_API virtual bool CanDeleteSelectedActor(FText& OutReason) const override;
+	ENGINE_API virtual bool CanReplaceSelectedActor(FText& OutReason) const override;
 #endif // WITH_EDITOR
 	ENGINE_API virtual void PostInitProperties() override;
 	ENGINE_API virtual void PreInitializeComponents() override;

@@ -720,33 +720,6 @@ bool UUnrealEdEngine::CanDeleteActor(const AActor* InActor, FText* OutReason) co
 		}
 	}
 
-	// TODO: The Brush and WorldSettings logic below should be moved to use the CanDeleteSelectedActor virtual
-
-	if (const ABrush* Brush = Cast<ABrush>(InActor))
-	{
-		if (FActorEditorUtils::IsABuilderBrush(Brush))
-		{
-			if (OutReason)
-			{
-				*OutReason = LOCTEXT("CanDeleteActor_Error_BuilderBrush", "Can't delete a builder brush.");
-			}
-			return false;
-		}
-	}
-
-	if (const AWorldSettings* WorldSettings = Cast<AWorldSettings>(InActor))
-	{
-		const ULevel* OwnerLevel = WorldSettings->GetLevel();
-		if (OwnerLevel && OwnerLevel->GetWorldSettings() == WorldSettings)
-		{
-			if (OutReason)
-			{
-				*OutReason = LOCTEXT("CanDeleteActor_Error_WorldSettings", "Can't delete a level's world settings.");
-			}
-			return false;
-		}
-	}
-
 	return true;
 }
 
