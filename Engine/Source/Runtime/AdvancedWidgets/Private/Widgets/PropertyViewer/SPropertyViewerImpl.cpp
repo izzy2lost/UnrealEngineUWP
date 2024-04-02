@@ -83,7 +83,7 @@ bool FContainer::IsValid() const
 	}
 	else if (const UScriptStruct* ScriptStruct = Cast<UScriptStruct>(Container.Get()))
 	{
-		return (ScriptStruct->StructFlags & (EStructFlags::STRUCT_Trashed)) != 0;
+		return (ScriptStruct->StructFlags & (EStructFlags::STRUCT_Trashed)) == 0;
 	}
 	return false;
 }
