@@ -809,6 +809,25 @@ bool FSetProperty::PassCPPArgsByRef() const
 	return true;
 }
 
+bool FSetProperty::ContainsClearOnFinishDestroyInternal(TArray<const FStructProperty*>& EncounteredStructProps) const
+{
+	check(ElementProp);
+	return ElementProp->ContainsFinishDestroy(EncounteredStructProps);
+}
+
+void FSetProperty::FinishDestroyInternal( void* Data ) const
+{
+	if ((ElementProp->PropertyFlags & (CPF_IsPlainOldData | CPF_NoDestructor)) == 0)
+	{
+		FScriptSetHelper SetHelper(this, Data);
+		for (FScriptSetHelper::FIterator It(SetHelper); It; ++It)
+		{
+			uint8* ElementPtr = SetHelper.GetElementPtr(It);
+			ElementProp->FinishDestroy(ElementPtr);
+		}
+	}
+}
+
 /**
  * Creates new copies of components
  * 

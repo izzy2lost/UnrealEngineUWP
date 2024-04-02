@@ -222,6 +222,8 @@ public:
 	virtual void ClearValueInternal(void* Data) const override;
 	virtual void InitializeValueInternal(void* Data) const override;
 	virtual void DestroyValueInternal(void* Data) const override;
+	virtual bool ContainsClearOnFinishDestroyInternal(TArray<const FStructProperty*>& EncounteredStructProps) const override;
+	virtual void FinishDestroyInternal(void* Data) const override;
 	virtual void InstanceSubobjects(void* Data, void const* DefaultData, UObject* Owner, struct FObjectInstancingGraph* InstanceGraph) override;
 	virtual int32 GetMinAlignment() const override;
 	virtual bool ContainsObjectReference(TArray<const FStructProperty*>& EncounteredStructProps, EPropertyObjectReferenceType InReferenceType = EPropertyObjectReferenceType::Strong) const override;

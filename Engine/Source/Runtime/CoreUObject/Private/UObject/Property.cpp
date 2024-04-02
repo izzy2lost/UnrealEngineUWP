@@ -928,6 +928,16 @@ void FProperty::InitializeValueInternal( void* Dest ) const
 	checkf(0, TEXT("%s failed to handle InitializeValueInternal, but it was not CPF_ZeroConstructor"), *GetFullName());
 }
 
+bool FProperty::ContainsClearOnFinishDestroyInternal( TArray<const FStructProperty*>& EncounteredStructProps ) const
+{
+	return false;
+}
+
+void FProperty::FinishDestroyInternal( void* Data ) const
+{
+	// Empty
+}
+
 /**
  * Verify that modifying this property's value via ImportText is allowed.
  * 

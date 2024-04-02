@@ -929,8 +929,60 @@ public:
 			DestroyValueInternal(ContainerPtrToValuePtr<void>(Dest));
 		}
 	}
+
 protected:
 	COREUOBJECT_API virtual void DestroyValueInternal( void* Dest ) const;
+public:
+
+	/**
+	 * Returns true if the property or any of the child properties should be cleared on FinishDestroy.
+	 */
+	COREUOBJECT_API bool ContainsFinishDestroy(TArray<const FStructProperty*>& EncounteredStructProps) const
+	{
+		// Skip if the property does not need any destroying. 
+		if (PropertyFlags & (CPF_IsPlainOldData | CPF_NoDestructor))
+		{
+			return false;
+		}
+		return ContainsClearOnFinishDestroyInternal(EncounteredStructProps);
+	}
+
+	/**
+	 * Applies appropriate finish destroy actions for the property if needed.
+	 * This is used during UObject destruction to e.g. safely clear values which rely on UScriptStructs. 
+	 * This does the entire fixed size array.
+	 *
+	 * @param	Data		the address of the value for this property that should be handled for finish destroy.
+	 */
+	COREUOBJECT_API void FinishDestroy( void* Data ) const
+	{
+		// Skip if the property does not need any destroying. 
+		if (PropertyFlags & (CPF_IsPlainOldData | CPF_NoDestructor))
+		{
+			return;
+		}
+		FinishDestroyInternal(Data);
+	}
+
+	/**
+	 * Applies appropriate finish destroy actions for the property if needed.
+	 * This is used during UObject destruction to e.g. safely clear values which rely on UScriptStructs. 
+	 * This does the entire fixed size array.
+	 *
+	 * @param	Data		the address of the container containing the value that should be handled for finish destroy.
+	 */
+	COREUOBJECT_API void FinishDestroy_InContainer( void* Data ) const
+	{
+		// Skip if the property does not need any destroying. 
+		if (PropertyFlags & (CPF_IsPlainOldData | CPF_NoDestructor))
+		{
+			return;
+		}
+		FinishDestroyInternal(ContainerPtrToValuePtr<void>(Data));
+	}
+protected:
+	COREUOBJECT_API virtual bool ContainsClearOnFinishDestroyInternal(TArray<const FStructProperty*>& EncounteredStructProps) const;
+	COREUOBJECT_API virtual void FinishDestroyInternal( void* Data ) const;
 public:
 
 	/**
@@ -3410,6 +3462,8 @@ public:
 protected:
 	virtual void ExportText_Internal( FString& ValueStr, const void* PropertyValueOrContainer, EPropertyPointerType PropertyPointerType, const void* DefaultValue, UObject* Parent, int32 PortFlags, UObject* ExportRootScope ) const override;
 	virtual const TCHAR* ImportText_Internal(const TCHAR* Buffer, void* ContainerOrPropertyPtr, EPropertyPointerType PropertyPointerType, UObject* OwnerObject, int32 PortFlags, FOutputDevice* ErrorText) const override;
+	virtual bool ContainsClearOnFinishDestroyInternal(TArray<const FStructProperty*>& EncounteredStructProps) const override;
+	virtual void FinishDestroyInternal(void* Data) const override;
 public:
 	virtual void InitializeValueInternal(void* Dest) const override
 	{
@@ -3546,6 +3600,8 @@ public:
 protected:
 	virtual void ExportText_Internal(FString& ValueStr, const void* PropertyValueOrContainer, EPropertyPointerType PropertyPointerType, const void* DefaultValue, UObject* Parent, int32 PortFlags, UObject* ExportRootScope) const override;
 	virtual const TCHAR* ImportText_Internal(const TCHAR* Buffer, void* ContainerOrPropertyPtr, EPropertyPointerType PropertyPointerType, UObject* OwnerObject, int32 PortFlags, FOutputDevice* ErrorText) const override;
+	virtual bool ContainsClearOnFinishDestroyInternal(TArray<const FStructProperty*>& EncounteredStructProps) const override;
+	virtual void FinishDestroyInternal(void* Data) const override;
 public:
 	virtual void InitializeValueInternal(void* Dest) const override
 	{
@@ -3689,6 +3745,8 @@ public:
 protected:
 	virtual void ExportText_Internal(FString& ValueStr, const void* PropertyValueOrContainer, EPropertyPointerType PropertyPointerType, const void* DefaultValue, UObject* Parent, int32 PortFlags, UObject* ExportRootScope) const override;
 	virtual const TCHAR* ImportText_Internal(const TCHAR* Buffer, void* ContainerOrPropertyPtr, EPropertyPointerType PropertyPointerType, UObject* OwnerObject, int32 PortFlags, FOutputDevice* ErrorText) const override;
+	virtual bool ContainsClearOnFinishDestroyInternal(TArray<const FStructProperty*>& EncounteredStructProps) const override;
+	virtual void FinishDestroyInternal(void* Data) const override;
 public:
 	virtual void CopyValuesInternal(void* Dest, void const* Src, int32 Count) const override;
 	virtual void ClearValueInternal(void* Data) const override;
@@ -5808,6 +5866,8 @@ public:
 protected:
 	virtual void ExportText_Internal( FString& ValueStr, const void* PropertyValueOrContainer, EPropertyPointerType PropertyPointerType, const void* DefaultValue, UObject* Parent, int32 PortFlags, UObject* ExportRootScope ) const override;
 	virtual const TCHAR* ImportText_Internal(const TCHAR* Buffer, void* ContainerOrPropertyPtr, EPropertyPointerType PropertyPointerType, UObject* OwnerObject, int32 PortFlags, FOutputDevice* ErrorText) const override;
+	virtual bool ContainsClearOnFinishDestroyInternal(TArray<const FStructProperty*>& EncounteredStructProps) const override;
+	virtual void FinishDestroyInternal(void* Data) const override;
 public:
 	virtual void CopyValuesInternal( void* Dest, void const* Src, int32 Count  ) const override;
 	virtual void ClearValueInternal( void* Data ) const override;

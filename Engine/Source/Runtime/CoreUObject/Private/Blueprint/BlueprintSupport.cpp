@@ -2616,7 +2616,17 @@ void UObject::DestroyNonNativeProperties()
 
 	for (FProperty* P = GetClass()->DestructorLink; P; P = P->DestructorLinkNext)
 	{
-		P->DestroyValue_InContainer(this);
+		if (!P->GetOwnerClass()->HasAnyClassFlags(CLASS_Native | CLASS_Intrinsic))
+		{
+			// Non-native value, destroy.
+			P->DestroyValue_InContainer(this);
+		}
+		else
+		{
+			// Native value, call to handle finish destroy.
+			// Native properties appear here if they report true on ContainsFinishDestroy() during UStruct::Link().
+			P->FinishDestroy_InContainer(this);
+		}
 	}
 }
 

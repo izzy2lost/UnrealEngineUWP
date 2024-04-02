@@ -1353,6 +1353,45 @@ bool FMapProperty::PassCPPArgsByRef() const
 	return true;
 }
 
+bool FMapProperty::ContainsClearOnFinishDestroyInternal(TArray<const FStructProperty*>& EncounteredStructProps) const
+{
+	check(KeyProp);
+	check(ValueProp);
+	return KeyProp->ContainsFinishDestroy(EncounteredStructProps) || ValueProp->ContainsFinishDestroy(EncounteredStructProps);
+}
+
+void FMapProperty::FinishDestroyInternal( void* Data ) const
+{
+	if (!Data)
+	{
+		return;
+	}
+	
+	check(KeyProp);
+	check(ValueProp);
+
+	const bool bMayHaveFinishDestroyKey   = (KeyProp->PropertyFlags & (CPF_IsPlainOldData | CPF_NoDestructor)) == 0;
+	const bool bMayHaveFinishDestroyValue = (ValueProp->PropertyFlags & (CPF_IsPlainOldData | CPF_NoDestructor)) == 0;
+
+	if (bMayHaveFinishDestroyKey
+		|| bMayHaveFinishDestroyValue)
+	{
+		FScriptMapHelper MapHelper(this, Data);
+		for (FScriptMapHelper::FIterator It(MapHelper.CreateIterator()); It; ++It)
+		{
+			uint8* PairPtr = MapHelper.GetPairPtr(It);
+			if (bMayHaveFinishDestroyKey)
+			{
+				KeyProp->FinishDestroy(PairPtr);
+			}
+			if (bMayHaveFinishDestroyValue)
+			{
+				ValueProp->FinishDestroy(PairPtr + MapLayout.ValueOffset);
+			}
+		}
+	}
+}
+
 /**
  * Creates new copies of components
  * 

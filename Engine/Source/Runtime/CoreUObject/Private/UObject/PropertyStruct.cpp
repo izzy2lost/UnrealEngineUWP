@@ -365,6 +365,68 @@ void FStructProperty::DestroyValueInternal( void* Dest ) const
 	Struct->DestroyStruct(Dest, ArrayDim);
 }
 
+bool FStructProperty::ContainsClearOnFinishDestroyInternal(TArray<const FStructProperty*>& EncounteredStructProps) const
+{
+	// Skip if already being processed.
+	if (EncounteredStructProps.Contains(this))
+	{
+		return false;
+	}
+
+	if (!Struct)
+	{
+		UE_LOG(LogGarbage, Warning, TEXT("Broken FStructProperty does not have a UStruct: %s"), *GetFullName() );
+		return false;
+	}
+
+	if (const UScriptStruct::ICppStructOps* CppStructOps = Struct->GetCppStructOps())
+	{
+		if (CppStructOps->HasClearOnFinishDestroy())
+		{
+			return true;
+		}
+	}
+
+	EncounteredStructProps.Add(this);
+
+	bool bValue = false;
+	for (const FProperty* Property = Struct->PropertyLink; Property; Property = Property->PropertyLinkNext)
+	{
+		if (Property->ContainsFinishDestroy(EncounteredStructProps))
+		{
+			bValue = true;
+			break;
+		}
+	}
+
+	EncounteredStructProps.RemoveSingleSwap(this, EAllowShrinking::No);
+	
+	return bValue;
+}
+
+void FStructProperty::FinishDestroyInternal( void* Data ) const
+{
+	const int32 Stride = Struct->GetStructureSize();
+	
+	if (UScriptStruct::ICppStructOps* CppStructOps = Struct->GetCppStructOps())
+	{
+		if (CppStructOps->HasClearOnFinishDestroy())
+		{
+			Struct->ClearScriptStruct(Data, ArrayDim);
+			return;
+		}
+	}
+	
+	for (int32 ArrayIndex = 0; ArrayIndex < ArrayDim; ArrayIndex++)
+	{
+		uint8* ItemData = (uint8*)Data + ArrayIndex * Stride;
+		for (const FProperty* Property = Struct->PropertyLink; Property; Property = Property->PropertyLinkNext)
+		{
+			Property->FinishDestroy(Property->ContainerPtrToValuePtr<void>(ItemData));
+		}
+	}
+}
+
 /**
  * Creates new copies of components
  * 

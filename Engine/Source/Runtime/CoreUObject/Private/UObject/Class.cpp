@@ -959,10 +959,12 @@ void UStruct::Link(FArchive& Ar, bool bRelinkExistingProperties)
 
 		const UClass* OwnerClass = Property->GetOwnerClass();
 		bool bOwnedByNativeClass = OwnerClass && OwnerClass->HasAnyClassFlags(CLASS_Native | CLASS_Intrinsic);
+		bool bShouldHandleFinishDestroy = Property->ContainsFinishDestroy(EncounteredStructProps);
 
-		if (!Property->HasAnyPropertyFlags(CPF_IsPlainOldData | CPF_NoDestructor) &&
-			!bOwnedByNativeClass) // these would be covered by the native destructor
-		{	
+		if ((!Property->HasAnyPropertyFlags(CPF_IsPlainOldData | CPF_NoDestructor)
+			&& !bOwnedByNativeClass) // these would be covered by the native destructor
+			|| bShouldHandleFinishDestroy)
+		{
 			// things in a struct that need a destructor will still be in here, even though in many cases they will also be destroyed by a native destructor on the whole struct
 			*DestructorLinkPtr = Property;
 			DestructorLinkPtr = &(*DestructorLinkPtr)->DestructorLinkNext;

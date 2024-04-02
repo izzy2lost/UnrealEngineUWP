@@ -272,6 +272,7 @@ struct TStructOpsTypeTraits<FInstancedStruct> : public TStructOpsTypeTraitsBase2
 		WithGetPreloadDependencies = true,
 		WithNetSerializer = true,
 		WithFindInnerPropertyInstance = true,
+		WithClearOnFinishDestroy = true,
 	};
 };
 

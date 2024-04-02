@@ -444,6 +444,21 @@ void FOptionalProperty::DestroyValueInternal(void* Data) const
 	MarkUnset(Data);
 }
 
+bool FOptionalProperty::ContainsClearOnFinishDestroyInternal(TArray<const FStructProperty*>& EncounteredStructProps) const
+{
+	check(ValueProperty);
+	return ValueProperty->ContainsFinishDestroy(EncounteredStructProps);
+}
+
+void FOptionalProperty::FinishDestroyInternal( void* Data ) const
+{
+	check(ValueProperty);
+	if (void* Value = GetValuePointerForReplaceIfSet(Data))
+	{
+		ValueProperty->FinishDestroy(Value);
+	}
+}
+
 void FOptionalProperty::InstanceSubobjects(void* Data, void const* DefaultData, UObject* InOwner, struct FObjectInstancingGraph* InstanceGraph)
 {
 	if (Data && IsSet(Data) && ValueProperty->ContainsInstancedObjectProperty())

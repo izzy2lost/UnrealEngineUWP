@@ -185,6 +185,17 @@ public:
 	FInstancedPropertyBag Bag;
 };
 
+UCLASS()
+class UTestObjectWithInstanceStruct : public UObject
+{
+	GENERATED_BODY()
+
+public:
+	UPROPERTY()
+	FInstancedStruct Value;
+};
+
+
 #if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_2
 #include "CoreMinimal.h"
 #endif

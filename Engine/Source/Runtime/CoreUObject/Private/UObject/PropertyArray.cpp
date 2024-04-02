@@ -1111,6 +1111,29 @@ bool FArrayProperty::PassCPPArgsByRef() const
 	return true;
 }
 
+bool FArrayProperty::ContainsClearOnFinishDestroyInternal(TArray<const FStructProperty*>& EncounteredStructProps) const
+{
+	check(Inner);
+	return Inner->ContainsFinishDestroy(EncounteredStructProps);
+}
+
+void FArrayProperty::FinishDestroyInternal( void* Data ) const
+{
+	if (!Data)
+	{
+		return;
+	}
+	check(Inner);
+	if ((Inner->PropertyFlags & (CPF_IsPlainOldData | CPF_NoDestructor)) == 0)
+	{
+		FScriptArrayHelper ArrayHelper(this, Data);
+		for (int32 ElementIndex = 0; ElementIndex < ArrayHelper.Num(); ElementIndex++)
+		{
+			Inner->FinishDestroy(ArrayHelper.GetRawPtr(ElementIndex));
+		}
+	}	
+}
+
 /**
  * Creates new copies of components
  *

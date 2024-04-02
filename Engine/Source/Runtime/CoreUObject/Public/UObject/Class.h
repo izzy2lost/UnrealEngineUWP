@@ -855,12 +855,13 @@ struct TStructOpsTypeTraitsBase2
 		WithNetDeltaSerializer         = false,                         // struct has a NetDeltaSerialize function for serializing differences in state from a previous NetSerialize operation.
 		WithSerializeFromMismatchedTag = false,                         // struct has a SerializeFromMismatchedTag function for converting from other property tags.
 		WithStructuredSerializeFromMismatchedTag = false,               // struct has an FStructuredArchive-based SerializeFromMismatchedTag function for converting from other property tags.
-		WithPostScriptConstruct        = false,                         // struct has a PostScriptConstruct function which is called after it is constructed in blueprints
+		WithPostScriptConstruct        = false,                         // struct has a PostScriptConstruct func tion which is called after it is constructed in blueprints
 		WithNetSharedSerialization     = false,                         // struct has a NetSerialize function that does not require the package map to serialize its state.
 		WithGetPreloadDependencies     = false,                         // struct has a GetPreloadDependencies function to return all objects that will be Preload()ed when the struct is serialized at load time.
 		WithPureVirtual                = false,                         // struct has PURE_VIRTUAL functions and cannot be constructed when CHECK_PUREVIRTUALS is true
 		WithFindInnerPropertyInstance  = false,							// struct has a FindInnerPropertyInstance function that can provide an FProperty and data pointer when given a property FName
 		WithCanEditChange			   = false,							// struct has an editor-only CanEditChange function that can conditionally make child properties read-only in the details panel (same idea as UObject::CanEditChange)
+		WithClearOnFinishDestroy	   = false,							// struct should be cleared during owner UObject's FinishDestroy. Clearing calls destructor and initializes again to default value. This is intended for structs which may need to access UObject pointer members during destruction. Referenced objects may already have their FinishDestroy() called. Clearing should ensure that no UObject pointer members are used during the final destruction.
 	};
 
 	static constexpr EPropertyObjectReferenceType WithSerializerObjectReferences = EPropertyObjectReferenceType::Conservative; // struct's Serialize method(s) may serialize object references of these types - default Conservative means unknown and object reference collector archives should serialize this struct 
@@ -927,6 +928,7 @@ public:
 			bool HasGetTypeHash : 1;
 			bool IsAbstract : 1;
 			bool HasFindInnerPropertyInstance : 1;
+			bool ClearOnFinishDestroy : 1;
 #if WITH_EDITOR
 			bool HasCanEditChange : 1;
 #endif
@@ -1165,6 +1167,12 @@ public:
 			return GetCapabilities().IsAbstract;
 		}
 
+		/** return true if this struct has a ClearOnFinishDestroy */
+		bool HasClearOnFinishDestroy() const
+		{
+			return GetCapabilities().ClearOnFinishDestroy;
+		}
+
 #if WITH_EDITOR
 		/** Returns true if this struct wants to indicate whether a property can be edited in the details panel */
 		bool HasCanEditChange() const
@@ -1224,6 +1232,7 @@ public:
 				TModels_V<CGetTypeHashable, CPPSTRUCT>,
 				TIsAbstract<CPPSTRUCT>::Value,
 				TTraits::WithFindInnerPropertyInstance,
+				TTraits::WithClearOnFinishDestroy,
 #if WITH_EDITOR
 				TTraits::WithCanEditChange,
 #endif

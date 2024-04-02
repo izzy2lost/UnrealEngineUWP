@@ -110,6 +110,44 @@ namespace FInstancedStructTest
 	};
 	IMPLEMENT_AI_INSTANT_TEST(FTest_InstancedStructBasic, "System.StructUtils.InstancedStruct.Basic");
 
+	struct FTest_InstancedStructCustomScriptStruct : FAITestBase
+	{
+		virtual bool InstantTest() override
+		{
+			// Create the TestObject before UScriptStruct, so that CustomStruct gets destroyed first.
+			TWeakObjectPtr<UTestObjectWithInstanceStruct> TestObject = NewObject<UTestObjectWithInstanceStruct>();
+			check(TestObject.IsValid());
+
+			TWeakObjectPtr<UScriptStruct> CustomStruct = NewObject<UScriptStruct>();
+			check(CustomStruct.IsValid());
+
+			FIntProperty* IntProp = new FIntProperty(CustomStruct.Get(), FName("Int"), RF_Public);
+			check(IntProp);
+			CustomStruct->AddCppProperty(IntProp);
+
+			FStrProperty* StrProp = new FStrProperty(CustomStruct.Get(), FName("String"), RF_Public);
+			check(StrProp);
+			CustomStruct->AddCppProperty(StrProp);
+
+			CustomStruct->SetSuperStruct(nullptr);
+			CustomStruct->Bind();
+			CustomStruct->StaticLink(/*RelinkExistingProperties*/true);
+
+			
+			TestObject->Value.InitializeAs(CustomStruct.Get());
+			AITEST_TRUE("FInstancedStruct created to a specific struct type should be IsValid()", TestObject->Value.IsValid());
+
+			// CustomStruct and TestObject should both get collected.
+			CollectGarbage(GARBAGE_COLLECTION_KEEPFLAGS);
+
+			AITEST_FALSE("CustomStruct should not be valid", CustomStruct.IsValid());
+			AITEST_FALSE("TestObject should not be valid", TestObject.IsValid());
+			
+			return true;
+		}
+	};
+	IMPLEMENT_AI_INSTANT_TEST(FTest_InstancedStructCustomScriptStruct, "System.StructUtils.InstancedStruct.CustomScriptStruct");
+
 }
 
 
