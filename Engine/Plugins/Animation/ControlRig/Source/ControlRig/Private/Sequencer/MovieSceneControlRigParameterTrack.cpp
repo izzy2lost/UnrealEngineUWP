@@ -545,7 +545,7 @@ void UMovieSceneControlRigParameterTrack::HandleOnPostConstructed_GameThread()
 		TArray<FRigControlElement*> SortedControls;
 		ControlRig->GetControlsInOrder(SortedControls);
 #if WITH_EDITOR
-		const FScopedTransaction PostConstructTransation(NSLOCTEXT("ControlRig", "PostConstructTransation", "Post Construct"));
+		const FScopedTransaction PostConstructTransation(NSLOCTEXT("ControlRig", "PostConstructTransation", "Post Construct"), !GIsTransacting);
 #endif		
 		bool bSectionWasDifferent = false;
 		for (UMovieSceneSection* BaseSection : GetAllSections())
