@@ -129,6 +129,20 @@ FHttpRetrySystem::FRequest::FRequest(
 	}
 }
 
+void FHttpRetrySystem::FRequest::BindAdaptorDelegates()
+{
+	if (!bBoundAdaptorDelegates)
+	{
+		bBoundAdaptorDelegates = true;
+
+		// Can't BindRaw&Unbind from ctor&dtor because with thread-safe delegate, it can cause issue when delete this request during complete callback, then unbind the callback
+		HttpRequest->OnProcessRequestComplete().BindThreadSafeSP(this, &FHttpRetrySystem::FRequest::HttpOnProcessRequestComplete);
+		HttpRequest->OnRequestProgress64().BindThreadSafeSP(this, &FHttpRetrySystem::FRequest::HttpOnRequestProgress);
+		HttpRequest->OnStatusCodeReceived().BindThreadSafeSP(this, &FHttpRetrySystem::FRequest::HttpOnStatusCodeReceived);
+		HttpRequest->OnHeaderReceived().BindThreadSafeSP(this, &FHttpRetrySystem::FRequest::HttpOnHeaderReceived);
+	}
+}
+
 bool FHttpRetrySystem::FRequest::ProcessRequest()
 {
 	TSharedRef<FRequest> RetryRequest = StaticCastSharedRef<FRequest>(AsShared());
@@ -139,10 +153,7 @@ bool FHttpRetrySystem::FRequest::ProcessRequest()
 		SetUrlFromRetryDomains();
 	}
 
-	HttpRequest->OnRequestProgress64().BindThreadSafeSP(RetryRequest, &FHttpRetrySystem::FRequest::HttpOnRequestProgress);
-	HttpRequest->OnProcessRequestComplete().BindThreadSafeSP(RetryRequest, &FHttpRetrySystem::FRequest::HttpOnProcessRequestComplete);
-	HttpRequest->OnStatusCodeReceived().BindThreadSafeSP(RetryRequest, &FHttpRetrySystem::FRequest::HttpOnStatusCodeReceived);
-	HttpRequest->OnHeaderReceived().BindThreadSafeSP(RetryRequest, &FHttpRetrySystem::FRequest::HttpOnHeaderReceived);
+	BindAdaptorDelegates();
 
 	TSharedPtr<FManager> RetryManagerPtr = RetryManager.Pin();
 
@@ -181,6 +192,8 @@ void FHttpRetrySystem::FRequest::MoveToNextRetryDomain()
 void FHttpRetrySystem::FRequest::CancelRequest() 
 { 
 	TSharedRef<FRequest, ESPMode::ThreadSafe> RetryRequest = StaticCastSharedRef<FRequest>(AsShared());
+
+	BindAdaptorDelegates();
 
 	if (TSharedPtr<FManager> RetryManagerPtr = RetryManager.Pin())
 	{

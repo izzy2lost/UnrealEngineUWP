@@ -1695,14 +1695,22 @@ TEST_CASE_METHOD(FWaitUntilCompleteHttpFixture, "Cancel http request connect bef
 	HttpRequest->SetVerb(TEXT("GET"));
 	HttpRequest->SetTimeout(7);
 	const double StartTime = FPlatformTime::Seconds();
-	HttpRequest->OnProcessRequestComplete().BindLambda([StartTime](FHttpRequestPtr HttpRequest, FHttpResponsePtr HttpResponse, bool bSucceeded) {
+	++ExpectingExtraCallbacks;
+	HttpRequest->OnProcessRequestComplete().BindLambda([this, StartTime](FHttpRequestPtr HttpRequest, FHttpResponsePtr HttpResponse, bool bSucceeded) {
+		--ExpectingExtraCallbacks;
 		CHECK(!bSucceeded);
 		const double DurationInSeconds = FPlatformTime::Seconds() - StartTime;
 		CHECK(DurationInSeconds < 2.0);
 		CHECK(HttpRequest->GetFailureReason() == EHttpFailureReason::Cancelled);
 	});
-	HttpRequest->ProcessRequest();
-	FPlatformProcess::Sleep(0.5);
+	SECTION("ProcessRequest called")
+	{
+		HttpRequest->ProcessRequest();
+		FPlatformProcess::Sleep(0.5);
+	}
+	SECTION("ProcessRequest not called")
+	{
+	}
 	HttpRequest->CancelRequest();
 	HttpRequest->CancelRequest(); // Duplicated calls to CancelRequest should be fine
 }

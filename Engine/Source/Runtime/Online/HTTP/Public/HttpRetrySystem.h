@@ -149,6 +149,8 @@ namespace FHttpRetrySystem
 		/** Move to the next retry domain from our RetryDomains */
 		void MoveToNextRetryDomain();
 
+		void BindAdaptorDelegates();
+
 		EStatus::Type RetryStatus;
 
 		FRetryLimitCountSetting RetryLimitCountOverride;
@@ -169,6 +171,8 @@ namespace FHttpRetrySystem
 
 		/** Exponential backoff curve */
 		FExponentialBackoffCurve RetryExponentialBackoffCurve;
+
+		bool bBoundAdaptorDelegates = false;
 	};
 }
 
