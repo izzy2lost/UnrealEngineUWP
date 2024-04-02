@@ -371,17 +371,18 @@ namespace HarmonixMetasound::Nodes::StepSequencePlayer
 
 						if (Event.BlockFrameIndex >= StartFrameIndex)
 						{
-							switch (Event.Msg.Type)
+							if (Event.Msg.IsType<MidiClockMessageTypes::FAdvanceThru>())
 							{
-							case FMidiClockMsg::EType::AdvanceThru:
-								AdvanceThruTick(Event.BlockFrameIndex, Event.Msg.ThruTick(), Event.Msg.AsAdvanceThru().IsPreRoll);
-								break;
-							case FMidiClockMsg::EType::SeekThru:
-								SeekThruTick(Event.BlockFrameIndex, Event.Msg.ThruTick());
-								break;
-							case FMidiClockMsg::EType::SeekTo:
-								SeekToTick(Event.BlockFrameIndex, Event.Msg.ToTick());
-								break;
+								const MidiClockMessageTypes::FAdvanceThru& AdvanceThru = Event.Msg.Get<MidiClockMessageTypes::FAdvanceThru>();
+								AdvanceThruTick(Event.BlockFrameIndex, AdvanceThru.ThruTick, AdvanceThru.IsPreRoll);
+							}
+							else if (Event.Msg.IsType<MidiClockMessageTypes::FSeekThru>())
+							{
+								SeekThruTick(Event.BlockFrameIndex, Event.Msg.Get<MidiClockMessageTypes::FSeekThru>().ThruTick);
+							}
+							else if (Event.Msg.IsType<MidiClockMessageTypes::FSeekTo>())
+							{
+								SeekToTick(Event.BlockFrameIndex, Event.Msg.Get<MidiClockMessageTypes::FSeekTo>().ToTick);
 							}
 						}
 					}

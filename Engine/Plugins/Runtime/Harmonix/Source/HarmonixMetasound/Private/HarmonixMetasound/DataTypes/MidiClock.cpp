@@ -435,48 +435,45 @@ namespace HarmonixMetasound
 	
 	void FMidiClock::HandleClockEvent(const FMidiClock& DrivingClock, const FMidiClockEvent& Event, int32 PrerollBars, float Speed)
 	{
-		switch (Event.Msg.Type)
+		if (Event.Msg.IsType<MidiClockMessageTypes::FReset>())
 		{
-		case FMidiClockMsg::EType::Reset:
-			{
-				int32 Tick = CalculateMappedTick(Event.Msg.ToTick());
-				SeekTo(Event.BlockFrameIndex, Tick + 1, PrerollBars);
-				break;
-			}
-		case FMidiClockMsg::EType::Loop:
+			const int32 Tick = CalculateMappedTick(Event.Msg.Get<MidiClockMessageTypes::FReset>().ToTick);
+			SeekTo(Event.BlockFrameIndex, Tick + 1, PrerollBars);
+		}
+		else if (Event.Msg.IsType<MidiClockMessageTypes::FLoop>())
+		{
 			// ignore loops since the driving clock will loop us by seeking
-			break;
-		case FMidiClockMsg::EType::SeekTo:
+		}
+		else if (Event.Msg.IsType<MidiClockMessageTypes::FSeekTo>())
+		{
+			const int32 Tick = CalculateMappedTick(Event.Msg.Get<MidiClockMessageTypes::FSeekTo>().ToTick);
+			SeekTo(Event.BlockFrameIndex, Tick, PrerollBars);
+		}
+		else if (Event.Msg.IsType<MidiClockMessageTypes::FSeekThru>())
+		{
+			const int32 Tick = CalculateMappedTick(Event.Msg.Get<MidiClockMessageTypes::FSeekThru>().ThruTick);
+			SeekTo(Event.BlockFrameIndex, Tick + 1, PrerollBars);
+		}
+		else if (Event.Msg.IsType<MidiClockMessageTypes::FAdvanceThru>())
+		{
+			const MidiClockMessageTypes::FAdvanceThru& AdvanceThru = Event.Msg.Get<MidiClockMessageTypes::FAdvanceThru>();
+			
+			if (AdvanceThru.IsPreRoll)
 			{
-				int32 Tick = CalculateMappedTick(Event.Msg.ToTick());
-				SeekTo(Event.BlockFrameIndex, Tick, PrerollBars);
-				break;
-			}
-		case FMidiClockMsg::EType::SeekThru:
-			{
-				int32 Tick = CalculateMappedTick(Event.Msg.ThruTick());
+				const int32 Tick = CalculateMappedTick(AdvanceThru.ThruTick);
 				SeekTo(Event.BlockFrameIndex, Tick + 1, PrerollBars);
-				break;
 			}
-		case FMidiClockMsg::EType::AdvanceThru:
+			else
 			{
-				if (Event.Msg.AsAdvanceThru().IsPreRoll)
-				{
-					int32 Tick = CalculateMappedTick(Event.Msg.ThruTick());
-					SeekTo(Event.BlockFrameIndex, Tick + 1, PrerollBars);
-					break;
-				}
-
 				// Advance based on the delta ticks, and not based on the absolute tick
-				int32 Tick = GetCurrentMidiTick() + (Event.Msg.ThruTick() - Event.Msg.FromTick());
-				float Ms = GetSongMaps().TickToMs(Tick);
+				const int32 Tick = GetCurrentMidiTick() + (AdvanceThru.ThruTick - AdvanceThru.FromTick);
+				const float Ms = GetSongMaps().TickToMs(Tick);
 
-				float ClockInSpeed = DrivingClock.GetSpeedAtBlockSampleFrame(Event.BlockFrameIndex);
-				float AdvanceRatio = DrivingClock.GetSongMaps().GetTempoAtTick(Event.Msg.FromTick())
+				const float ClockInSpeed = DrivingClock.GetSpeedAtBlockSampleFrame(Event.BlockFrameIndex);
+				const float AdvanceRatio = DrivingClock.GetSongMaps().GetTempoAtTick(AdvanceThru.FromTick)
 								   / GetSongMaps().GetTempoAtTick(GetCurrentMidiTick());
 				InformOfCurrentAdvanceRate(ClockInSpeed * Speed * AdvanceRatio);
 				AdvanceHiResToMs(Event.BlockFrameIndex, Ms, true);
-				break;
 			}
 		}
 	}
@@ -581,49 +578,52 @@ namespace HarmonixMetasound
 		: MyMidiClock(MidiClock)
 	{
 		check(MidiClock);
+
+		// Ignore midi messages, test events, and preroll notes
+		SetMessageFilter(EFilterPassFlags::All & ~(EFilterPassFlags::MidiMessage | EFilterPassFlags::Text | EFilterPassFlags::PreRollNoteOn));
 	}
 
 	void FMidiClock::FMidiClockEventCursor::Reset(bool ForceNoBroadcast /*= false*/)
 	{
 		const int32 FromTick = CurrentTick;
 		FMidiPlayCursor::Reset(ForceNoBroadcast);
-		AddEvent(FMidiClockEvent(MyMidiClock->GetCurrentBlockFrameIndex(), FMidiClockMsg::FReset(FromTick, CurrentTick, ForceNoBroadcast)));
+		AddEvent(FMidiClockEvent(MyMidiClock->GetCurrentBlockFrameIndex(), MidiClockMessageTypes::FReset(FromTick, CurrentTick, ForceNoBroadcast)));
 	}
 
 	void FMidiClock::FMidiClockEventCursor::OnLoop(int32 LoopStartTick, int32 LoopEndTick)
 	{
 		FMidiPlayCursor::OnLoop(LoopStartTick, LoopEndTick);
-		AddEvent(FMidiClockEvent(MyMidiClock->GetCurrentBlockFrameIndex(), FMidiClockMsg::FLoop(LoopStartTick, LoopEndTick)));
+		AddEvent(FMidiClockEvent(MyMidiClock->GetCurrentBlockFrameIndex(), MidiClockMessageTypes::FLoop(LoopStartTick, LoopEndTick)));
 	}
 
 	void FMidiClock::FMidiClockEventCursor::SeekToTick(int32 Tick) 
 	{
 		const int32 FromTick = CurrentTick;
 		FMidiPlayCursor::SeekToTick(Tick);
-		AddEvent(FMidiClockEvent(MyMidiClock->GetCurrentBlockFrameIndex(), FMidiClockMsg::FSeekTo(FromTick, Tick)));
+		AddEvent(FMidiClockEvent(MyMidiClock->GetCurrentBlockFrameIndex(), MidiClockMessageTypes::FSeekTo(FromTick, Tick)));
 	}
 
 	void FMidiClock::FMidiClockEventCursor::SeekThruTick(int32 Tick)
 	{
 		const int32 FromTick = CurrentTick;
 		FMidiPlayCursor::SeekThruTick(Tick);
-		AddEvent(FMidiClockEvent(MyMidiClock->GetCurrentBlockFrameIndex(), FMidiClockMsg::FSeekThru(FromTick, Tick)));
+		AddEvent(FMidiClockEvent(MyMidiClock->GetCurrentBlockFrameIndex(), MidiClockMessageTypes::FSeekThru(FromTick, Tick)));
 	}
 
 	void FMidiClock::FMidiClockEventCursor::AdvanceThruTick(int32 Tick, bool IsPreRoll)
 	{
-		const int32 FromTick = CurrentTick;
+		CurrentAdvanceStartTick = CurrentTick;
 		FMidiPlayCursor::AdvanceThruTick(Tick, IsPreRoll);
-		AddEvent(FMidiClockEvent(MyMidiClock->GetCurrentBlockFrameIndex(), FMidiClockMsg::FAdvanceThru(FromTick, Tick, IsPreRoll)));
+		AddEvent(FMidiClockEvent(MyMidiClock->GetCurrentBlockFrameIndex(), MidiClockMessageTypes::FAdvanceThru(CurrentAdvanceStartTick, Tick, IsPreRoll)));
 	}
 
 	void FMidiClock::FMidiClockEventCursor::OnTempo(int32 TrackIndex, int32 Tick, int32 Tempo, bool IsPreroll)
 	{
-		int32 BlockFrameIndex = MyMidiClock->CurrentBlockFrameIndex;
+		const int32 BlockFrameIndex = MyMidiClock->CurrentBlockFrameIndex;
 
 		check(BlockFrameIndex >= MyMidiClock->TempoChangesInBlock.Last().BlockSampleFrameIndex);
 		MyMidiClock->HasTempoChangeInBlock = true;
-		float Bpm = Harmonix::Midi::Constants::MidiTempoToBPM(Tempo);
+		const float Bpm = Harmonix::Midi::Constants::MidiTempoToBPM(Tempo);
 		if (MyMidiClock->TempoChangesInBlock.Last().BlockSampleFrameIndex == BlockFrameIndex)
 		{
 			MyMidiClock->TempoChangesInBlock.Last().Tempo = Bpm;
@@ -632,9 +632,32 @@ namespace HarmonixMetasound
 		{ 
 			MyMidiClock->TempoChangesInBlock.Add({BlockFrameIndex, 0.0f, Bpm});
 		}
+
+		// This gets fired off as a result of AdvanceThruTick, and we want the event to go in between advances,
+		// so we add an AdvanceThru event up to this tick. But if this tempo event is on the first tick, we don't need to do that.
+		if (Tick > CurrentAdvanceStartTick)
+		{
+			AddEvent(FMidiClockEvent(MyMidiClock->GetCurrentBlockFrameIndex(), MidiClockMessageTypes::FAdvanceThru(CurrentAdvanceStartTick, Tick, IsPreroll)));
+			CurrentAdvanceStartTick = Tick;
+		}
+		
+		AddEvent(FMidiClockEvent(MyMidiClock->GetCurrentBlockFrameIndex(), MidiClockMessageTypes::FTempoChange(Tick, Bpm)));
 	}
 
-	void FMidiClock::FMidiClockEventCursor::AddEvent(const FMidiClockEvent& InEvent)
+	void FMidiClock::FMidiClockEventCursor::OnTimeSig(int32 TrackIndex, int32 Tick, int32 Numerator, int32 Denominator, bool IsPreroll)
+	{
+		// This gets fired off as a result of AdvanceThruTick, and we want the event to go in between advances,
+		// so we add an AdvanceThru event up to this tick. But if this tempo event is on the first tick, we don't need to do that.
+		if (Tick > CurrentAdvanceStartTick)
+		{
+			AddEvent(FMidiClockEvent(MyMidiClock->GetCurrentBlockFrameIndex(), MidiClockMessageTypes::FAdvanceThru(CurrentAdvanceStartTick, Tick, IsPreroll)));
+			CurrentAdvanceStartTick = Tick;
+		}
+		
+		AddEvent(FMidiClockEvent(MyMidiClock->GetCurrentBlockFrameIndex(), MidiClockMessageTypes::FTimeSignatureChange(Tick, { Numerator, Denominator })));
+	}
+
+	void FMidiClock::FMidiClockEventCursor::AddEvent(const FMidiClockEvent& InEvent) const
 	{
 		TArray<FMidiClockEvent>& Events = MyMidiClock->MidiClockEventsInBlock;
 		if (!Events.IsEmpty())
