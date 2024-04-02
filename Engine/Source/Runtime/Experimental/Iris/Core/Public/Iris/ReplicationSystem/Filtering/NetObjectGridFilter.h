@@ -286,6 +286,19 @@ private:
 	TMap<FCellCoord, FCellObjects> Cells;
 	uint32 FrameIndex = 0;
 
+	struct FDebugUpdateCellInfo
+	{
+		FCellCoord Coord;
+		FCellBox NewCellBox;
+		FCellBox PrevCellBox;
+		SIZE_T CellsSize;
+		FVector ObjectPosition;
+		float ObjectCullDistance;
+	};
+
+	// Cached state from UpdateCellInfoForObject().
+	FDebugUpdateCellInfo DebugUpdateCellInfo;
+
 	const UE::Net::Private::FNetRefHandleManager*  NetRefHandleManager = nullptr;
 	const UE::Net::FNetCullDistanceOverrides* NetCullDistanceOverrides = nullptr;
 };

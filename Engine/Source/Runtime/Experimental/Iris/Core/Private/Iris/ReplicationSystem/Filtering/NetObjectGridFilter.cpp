@@ -372,6 +372,15 @@ void UNetObjectGridFilter::UpdateCellInfoForObject(const FObjectLocationInfo& Ob
 					for (int32 Y = NewCellBox.MinY, EndY = NewCellBox.MaxY + 1; Y < EndY; ++Y)
 					{
 						Coord.Y = Y;
+
+						// Temporarily cache the function state for debugging purposes.
+						DebugUpdateCellInfo.Coord = Coord;
+						DebugUpdateCellInfo.NewCellBox = NewCellBox;
+						DebugUpdateCellInfo.PrevCellBox = PrevCellBox;
+						DebugUpdateCellInfo.CellsSize = Cells.Num();
+						DebugUpdateCellInfo.ObjectPosition = PerObjectInfo.Position;
+						DebugUpdateCellInfo.ObjectCullDistance = PerObjectInfo.GetCullDistance();
+
 						FCellObjects& Cell = Cells.FindOrAdd(Coord);
 						Cell.ObjectIndices.Add(ObjectIndex);
 					}
@@ -431,6 +440,14 @@ void UNetObjectGridFilter::UpdateCellInfoForObject(const FObjectLocationInfo& Ob
 							continue;
 						}
 
+						// Temporarily cache the function state for debugging purposes.
+						DebugUpdateCellInfo.Coord = Coord;
+						DebugUpdateCellInfo.NewCellBox = NewCellBox;
+						DebugUpdateCellInfo.PrevCellBox = PrevCellBox;
+						DebugUpdateCellInfo.CellsSize = Cells.Num();
+						DebugUpdateCellInfo.ObjectPosition = PerObjectInfo.Position;
+						DebugUpdateCellInfo.ObjectCullDistance = PerObjectInfo.GetCullDistance();
+
 						FCellObjects& Cell = Cells.FindOrAdd(Coord);
 						Cell.ObjectIndices.Add(ObjectIndex);
 					}
@@ -459,6 +476,9 @@ void UNetObjectGridFilter::CalculateCellBox(const UNetObjectGridFilter::FPerObje
 {
 	const double CullDistance = PerObjectInfo.GetCullDistance();
 	const FVector Position = PerObjectInfo.Position;
+
+	ensureMsgf(!Position.ContainsNaN(), TEXT("Calculating grid cell box based off a position with a NaN for object: %s"), ToCStr(NetRefHandleManager->PrintObjectFromIndex(PerObjectInfo.ObjectIndex)));
+
 	FVector MinPosition = Position - CullDistance;
 	FVector MaxPosition = Position + CullDistance;
 
