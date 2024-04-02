@@ -3163,9 +3163,6 @@ public:
 
 	const uint32 NumRecords = 0;
 
-	virtual FUint32Vector3 GetPlatformData() const = 0;
-	virtual void CalcDispatchBufferSizes(uint32& OutDataBufferSize, uint32& OutExecutionBufferSize) const = 0;
-
 public:
 	FRHIShaderBundle(uint32 InNumRecords)
 		: FRHIResource(RRT_ShaderBundle)

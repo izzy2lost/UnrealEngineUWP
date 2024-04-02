@@ -1048,17 +1048,6 @@ public:
 		: FRHIShaderBundle(InNumRecords)
 	{
 	}
-
-	virtual FUint32Vector3 GetPlatformData() const override
-	{
-		return FUint32Vector3(0u, 0u, 0u);
-	}
-
-	virtual void CalcDispatchBufferSizes(uint32& OutDataBufferSize, uint32& OutExecutionBufferSize) const override
-	{
-		OutDataBufferSize = 4u;
-		OutExecutionBufferSize = 4u;
-	}
 };
 
 class FD3D12GPUFence final : public FRHIGPUFence
