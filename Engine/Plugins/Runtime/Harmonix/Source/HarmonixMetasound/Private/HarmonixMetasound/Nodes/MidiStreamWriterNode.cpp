@@ -123,7 +123,7 @@ namespace HarmonixMetasound::Nodes::MidiStreamWriter
 		void Execute()
 		{
 			SetEnabled(*EnableInPin);
-			if (bEnabled && MidiStreamWriter.IsValid())
+			if (bEnabled && MidiStreamWriter.IsValid() && MidiStreamInPin->GetClock())
 			{
 				MidiStreamWriter->Process(*MidiStreamInPin);
 			}
