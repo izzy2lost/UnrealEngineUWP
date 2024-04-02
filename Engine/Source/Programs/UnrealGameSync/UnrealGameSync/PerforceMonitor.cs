@@ -52,7 +52,7 @@ namespace UnrealGameSync
 		readonly DirectoryReference _cacheFolder;
 		readonly List<KeyValuePair<FileReference, DateTime>> _localConfigFiles;
 		readonly IAsyncDisposer _asyncDisposeTasks;
-		readonly IHordeClient _hordeClient;
+		readonly IHordeClient? _hordeClient;
 
 		string[] prevCodeRules = Array.Empty<string>();
 
@@ -87,7 +87,7 @@ namespace UnrealGameSync
 			_asyncDisposeTasks = serviceProvider.GetRequiredService<IAsyncDisposer>();
 			_synchronizationContext = SynchronizationContext.Current!;
 			_cancellationSource = new CancellationTokenSource();
-			_hordeClient = serviceProvider.GetRequiredService<IHordeClient>();
+			_hordeClient = serviceProvider.GetService<IHordeClient>();
 
 			AvailableArchiveChannels = (new List<IArchiveChannel>()).AsReadOnly();
 		}
