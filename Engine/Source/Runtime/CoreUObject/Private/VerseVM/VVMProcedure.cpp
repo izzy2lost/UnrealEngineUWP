@@ -2,7 +2,6 @@
 
 #if WITH_VERSE_VM || defined(__INTELLISENSE__)
 #include "VerseVM/VVMProcedure.h"
-#include "Templates/MemoryOps.h"
 #include "VerseVM/Inline/VVMAbstractVisitorInline.h"
 #include "VerseVM/Inline/VVMCellInline.h"
 #include "VerseVM/Inline/VVMMarkStackVisitorInline.h"
@@ -15,20 +14,12 @@
 namespace Verse
 {
 
-// Specializations for FRegisterIndex and FValueOperand so we can visit them
+// Specializations for bytecode fields so we can visit them
+
 template <>
 void Visit(FAbstractVisitor& Visitor, FRegisterIndex& Value, const TCHAR* ElementName)
 {
-	if (Visitor.IsLoading())
-	{
-		uint32 Index;
-		Visitor.Visit(Index, ElementName);
-		Value.Index = Index;
-	}
-	else
-	{
-		Visitor.Visit(Value.Index, ElementName);
-	}
+	Visitor.Visit(Value.Index, ElementName);
 }
 
 template <>
@@ -39,20 +30,34 @@ void Visit(FMarkStackVisitor& Visitor, const FRegisterIndex& Value, FMarkStackVi
 template <>
 void Visit(FAbstractVisitor& Visitor, FValueOperand& Value, const TCHAR* ElementName)
 {
-	if (Visitor.IsLoading())
-	{
-		int32 Index;
-		Visitor.Visit(Index, ElementName);
-		Value.Index = Index;
-	}
-	else
-	{
-		Visitor.Visit(Value.Index, ElementName);
-	}
+	Visitor.Visit(Value.Index, ElementName);
 }
 
 template <>
 void Visit(FMarkStackVisitor& Visitor, const FValueOperand& Value, FMarkStackVisitor::ConsumeElementName ElementName)
+{
+}
+
+template <>
+void Visit(FAbstractVisitor& Visitor, FLabelOffset& Value, const TCHAR* ElementName)
+{
+	Visitor.Visit(Value.Offset, ElementName);
+}
+
+template <>
+void Visit(FMarkStackVisitor& Visitor, const FLabelOffset& Value, FMarkStackVisitor::ConsumeElementName ElementName)
+{
+}
+
+template <typename T>
+void Visit(FAbstractVisitor& Visitor, TOperandRange<T>& Value, const TCHAR* ElementName)
+{
+	Visitor.Visit(Value.Index, ElementName);
+	Visitor.Visit(Value.Num, ElementName);
+}
+
+template <typename T>
+void Visit(FMarkStackVisitor& Visitor, const TOperandRange<T>& Value, FMarkStackVisitor::ConsumeElementName ElementName)
 {
 }
 
@@ -75,29 +80,25 @@ struct OperandNeedsSerialization<FValueOperand> : public std::false_type
 {
 };
 
-template <typename CellType>
-struct OperandNeedsSerialization<TWriteBarrier<CellType>> : public std::true_type
+template <typename T>
+struct OperandNeedsSerialization<TOperandRange<T>> : public std::false_type
 {
 };
 
-template <typename ElementType, typename AllocatorType>
-struct OperandNeedsSerialization<TArray<ElementType, AllocatorType>> : public std::true_type
+// Disable VPackage serialization (in the NewClass opcode) for now.
+template <>
+struct OperandNeedsSerialization<TWriteBarrier<VPackage>> : public std::false_type
+{
+};
+
+template <typename CellType>
+struct OperandNeedsSerialization<TWriteBarrier<CellType>> : public std::true_type
 {
 };
 } // namespace Private
 
 DEFINE_DERIVED_VCPPCLASSINFO(VProcedure);
 TGlobalTrivialEmergentTypePtr<&VProcedure::StaticCppClassInfo> VProcedure::GlobalTrivialEmergentType;
-
-VProcedure::~VProcedure()
-{
-	// NOTE: (yiliang.siew) This could be raised to a location such as in `VProgram` when that
-	// exists and each opcode store only the index + size to index into that array, so that we don't
-	// need to store a separate `TArray` of operand values per-opcode struct.
-	ForEachOpCode([](auto& Op) {
-		DestructItem(&Op);
-	});
-}
 
 template <typename FuncType>
 void VProcedure::ForEachOpCode(FuncType&& Func)
@@ -124,17 +125,6 @@ void VProcedure::ForEachOpCode(FuncType&& Func)
 	}
 }
 
-template <typename TVisitor>
-void VProcedure::VisitOpCodes(TVisitor& Visitor)
-{
-	ForEachOpCode([&Visitor](auto& Op) {
-		Op.ForEachOperandNoUnroll([&Visitor](EOperandRole Role, auto& Operand) {
-			using DecayedType = std::decay_t<decltype(Operand)>;
-			Visit(Visitor, Operand, TEXT(""));
-		});
-	});
-}
-
 void VProcedure::SaveOpCodes(FAbstractVisitor& Visitor)
 {
 	int32 ValueCount = 0;
@@ -144,7 +134,7 @@ void VProcedure::SaveOpCodes(FAbstractVisitor& Visitor)
 	// If one is found, we blank out that value in the sanitized op codes to make the output
 	// more deterministic.
 	ForEachOpCode([this, &SanitizedOpCodes, &ValueCount](auto& Op) {
-		Op.ForEachOperandNoUnroll([this, &SanitizedOpCodes, &ValueCount](EOperandRole Role, auto& Operand) {
+		Op.ForEachOperand([this, &SanitizedOpCodes, &ValueCount](EOperandRole Role, auto& Operand, const TCHAR* Name) {
 			using DecayedType = std::decay_t<decltype(Operand)>;
 			if constexpr (Private::OperandNeedsSerialization<DecayedType>::value)
 			{
@@ -164,7 +154,7 @@ void VProcedure::SaveOpCodes(FAbstractVisitor& Visitor)
 	if (ValueCount > 0)
 	{
 		ForEachOpCode([this, &Visitor](auto& Op) {
-			Op.ForEachOperandNoUnroll([this, &Visitor](EOperandRole Role, auto& Operand) {
+			Op.ForEachOperand([this, &Visitor](EOperandRole Role, auto& Operand, const TCHAR* Name) {
 				using DecayedType = std::decay_t<decltype(Operand)>;
 				if constexpr (Private::OperandNeedsSerialization<DecayedType>::value)
 				{
@@ -186,7 +176,7 @@ void VProcedure::LoadOpCodes(FAbstractVisitor& Visitor)
 	{
 		int32 ValueCount = 0;
 		ForEachOpCode([this, &Visitor, &ValueCount](auto& Op) {
-			Op.ForEachOperandNoUnroll([this, &Visitor, &ValueCount](EOperandRole Role, auto& Operand) {
+			Op.ForEachOperand([this, &Visitor, &ValueCount](EOperandRole Role, auto& Operand, const TCHAR* Name) {
 				using DecayedType = std::decay_t<decltype(Operand)>;
 				if constexpr (Private::OperandNeedsSerialization<DecayedType>::value)
 				{
@@ -205,22 +195,47 @@ void VProcedure::VisitReferencesImpl(TVisitor& Visitor)
 {
 	if constexpr (TVisitor::bIsAbstractVisitor)
 	{
-		uint64 ScratchNumConstants = NumConstants;
 		uint64 ScratchNumNamedParams = NumNamedParameters;
-		Visitor.BeginArray(TEXT("Constants"), ScratchNumConstants);
-		Visitor.Visit(Constants, Constants + NumConstants);
+		Visitor.BeginArray(TEXT("NamedParams"), ScratchNumNamedParams);
+		Visitor.Visit(GetNamedParamsBegin(), GetNamedParamsEnd());
 		Visitor.EndArray();
 
-		Visitor.BeginArray(TEXT("NamedParams"), ScratchNumNamedParams);
-		Visitor.Visit(GetNamedParams(), GetNameParamsEnd());
+		uint64 ScratchNumConstants = NumConstants;
+		Visitor.BeginArray(TEXT("Constants"), ScratchNumConstants);
+		Visitor.Visit(GetConstantsBegin(), GetConstantsEnd());
 		Visitor.EndArray();
-		VisitOpCodes(Visitor);
+
+		ForEachOpCode([&Visitor](auto& Op) {
+			Op.ForEachOperand([&Visitor](EOperandRole Role, auto& Operand, const TCHAR* Name) {
+				// Disable VPackage serialization (in the NewClass opcode) for now.
+				using DecayedType = std::decay_t<decltype(Operand)>;
+				if constexpr (!std::is_same_v<DecayedType, TWriteBarrier<VPackage>>)
+				{
+					Visit(Visitor, Operand, Name);
+				}
+			});
+		});
+
+		uint64 ScratchNumOperands = NumOperands;
+		Visitor.BeginArray(TEXT("Operands"), ScratchNumOperands);
+		Visitor.Visit(GetOperandsBegin(), GetOperandsEnd());
+		Visitor.EndArray();
+
+		uint64 ScratchNumLabels = NumLabels;
+		Visitor.BeginArray(TEXT("Labels"), ScratchNumLabels);
+		Visitor.Visit(GetLabelsBegin(), GetLabelsEnd());
+		Visitor.EndArray();
 	}
 	else
 	{
-		Visitor.Visit(Constants, Constants + NumConstants);
-		Visitor.Visit(GetNamedParams(), GetNameParamsEnd());
-		VisitOpCodes(Visitor);
+		Visitor.Visit(GetNamedParamsBegin(), GetNamedParamsEnd());
+		Visitor.Visit(GetConstantsBegin(), GetConstantsEnd());
+
+		ForEachOpCode([&Visitor](auto& Op) {
+			Op.ForEachOperand([&Visitor](EOperandRole Role, auto& Operand, const TCHAR* Name) {
+				Visit(Visitor, Operand, Name);
+			});
+		});
 	}
 }
 
@@ -228,56 +243,83 @@ void VProcedure::SerializeImpl(VProcedure*& This, FAllocationContext Context, FA
 {
 	if (Visitor.IsLoading())
 	{
+		uint32 ScratchNumRegisters = 0;
 		uint32 ScratchNumParameters = 0;
 		uint32 ScratchNumNamedParameters = 0;
-		uint32 ScratchNumRegisters = 0;
 		uint32 ScratchNumConstants = 0;
 		uint64 ScratchNumOpBytes = 0;
+		uint32 ScratchNumOperands = 0;
+		uint32 ScratchNumLabels = 0;
+		Visitor.Visit(ScratchNumRegisters, TEXT("NumRegisters"));
 		Visitor.Visit(ScratchNumParameters, TEXT("NumParameters"));
 		Visitor.Visit(ScratchNumNamedParameters, TEXT("NumNamedParameters"));
-		Visitor.Visit(ScratchNumRegisters, TEXT("NumRegisters"));
 		Visitor.Visit(ScratchNumConstants, TEXT("NumConstants"));
 		Visitor.Visit(ScratchNumOpBytes, TEXT("NumOpBytes"));
+		Visitor.Visit(ScratchNumOperands, TEXT("NumOperands"));
+		Visitor.Visit(ScratchNumLabels, TEXT("NumLabels"));
 
-		This = &VProcedure::New(Context, (uint32)ScratchNumParameters, (uint32)ScratchNumNamedParameters, (uint32)ScratchNumRegisters, (uint32)ScratchNumConstants, (size_t)ScratchNumOpBytes);
-
-		uint64 ScratchNumConstants64 = 0;
-		Visitor.BeginArray(TEXT("Constants"), ScratchNumConstants64);
-		Visitor.Visit(This->Constants, This->Constants + This->NumConstants);
-		Visitor.EndArray();
+		This = &VProcedure::NewUninitialized(Context, (uint32)ScratchNumParameters, (uint32)ScratchNumNamedParameters, (uint32)ScratchNumRegisters, (uint32)ScratchNumConstants, (uint32)ScratchNumOpBytes, (uint32)ScratchNumOperands, (uint32)ScratchNumLabels);
 
 		uint64 ScratchNumNamedParams64 = 0;
 		Visitor.BeginArray(TEXT("NamedParameters"), ScratchNumNamedParams64);
-		Visitor.Visit(This->GetNamedParams(), This->GetNameParamsEnd());
+		Visitor.Visit(This->GetNamedParamsBegin(), This->GetNamedParamsEnd());
+		Visitor.EndArray();
 
+		uint64 ScratchNumConstants64 = 0;
+		Visitor.BeginArray(TEXT("Constants"), ScratchNumConstants64);
+		Visitor.Visit(This->GetConstantsBegin(), This->GetConstantsEnd());
 		Visitor.EndArray();
 
 		This->LoadOpCodes(Visitor);
+
+		uint64 ScratchNumOperands64 = 0;
+		Visitor.BeginArray(TEXT("Operands"), ScratchNumOperands64);
+		Visitor.Visit(This->GetOperandsBegin(), This->GetOperandsEnd());
+		Visitor.EndArray();
+
+		uint64 ScratchNumLabels64 = 0;
+		Visitor.BeginArray(TEXT("Labels"), ScratchNumLabels64);
+		Visitor.Visit(This->GetLabelsBegin(), This->GetLabelsEnd());
+		Visitor.EndArray();
 	}
 	else
 	{
+		uint32 ScratchNumRegisters = This->NumRegisters;
 		uint32 ScratchNumParameters = This->NumParameters;
 		uint32 ScratchNumNamedParameters = This->NumNamedParameters;
-		uint32 ScratchNumRegisters = This->NumRegisters;
 		uint32 ScratchNumConstants = This->NumConstants;
 		uint64 ScratchNumOpBytes = (uint64)This->NumOpBytes;
+		uint32 ScratchNumOperands = This->NumOperands;
+		uint32 ScratchNumLabels = This->NumLabels;
+		Visitor.Visit(ScratchNumRegisters, TEXT("NumRegisters"));
 		Visitor.Visit(ScratchNumParameters, TEXT("NumParameters"));
 		Visitor.Visit(ScratchNumNamedParameters, TEXT("NumNamedParameters"));
-		Visitor.Visit(ScratchNumRegisters, TEXT("NumRegisters"));
 		Visitor.Visit(ScratchNumConstants, TEXT("NumConstants"));
 		Visitor.Visit(ScratchNumOpBytes, TEXT("NumOpBytes"));
-
-		uint64 ScratchNumConstants64 = This->NumConstants;
-		Visitor.BeginArray(TEXT("Constants"), ScratchNumConstants64);
-		Visitor.Visit(This->Constants, This->Constants + This->NumConstants);
-		Visitor.EndArray();
+		Visitor.Visit(ScratchNumOperands, TEXT("NumOperands"));
+		Visitor.Visit(ScratchNumLabels, TEXT("NumLabels"));
 
 		uint64 ScratchNumNamedParams64 = This->NumNamedParameters;
 		Visitor.BeginArray(TEXT("NamedParameters"), ScratchNumNamedParams64);
-		Visitor.Visit(This->GetNamedParams(), This->GetNameParamsEnd());
+		Visitor.Visit(This->GetNamedParamsBegin(), This->GetNamedParamsEnd());
+		Visitor.EndArray();
+
+		uint64 ScratchNumConstants64 = This->NumConstants;
+		Visitor.BeginArray(TEXT("Constants"), ScratchNumConstants64);
+		Visitor.Visit(This->GetConstantsBegin(), This->GetConstantsEnd());
 		Visitor.EndArray();
 
 		This->SaveOpCodes(Visitor);
+
+		uint64 ScratchNumOperands64 = This->NumOperands;
+		Visitor.BeginArray(TEXT("Operands"), ScratchNumOperands64);
+		Visitor.Visit(This->GetOperandsBegin(), This->GetOperandsEnd());
+		Visitor.EndArray();
+
+		uint64 ScratchNumLabels64 = This->NumLabels;
+		Visitor.BeginArray(TEXT("Labels"), ScratchNumLabels64);
+		Visitor.Visit(This->GetLabelsBegin(), This->GetLabelsEnd());
+		Visitor.EndArray();
 	}
 }
 

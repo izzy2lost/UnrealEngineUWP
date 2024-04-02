@@ -35,8 +35,8 @@ void VBytecodeSuspension::VisitReferencesImpl(TVisitor& Visitor)
 {
 	Visitor.Visit(Procedure, TEXT("Procedure"));
 	CaptureSwitch([&Visitor](auto& Captures) {
-		Captures.ForEachOperand([&Visitor](EOperandRole, auto Value) {
-			Visitor.Visit(Value, TEXT("Value")); // Whether or not this is a `VValue` or `TWriteBarrier<T>`, just mark it.
+		Captures.ForEachOperand([&Visitor](EOperandRole, auto& Value, const TCHAR* Name) {
+			Visitor.Visit(Value, Name);
 		});
 	});
 }

@@ -14,34 +14,60 @@ namespace Verse
 {
 struct FAbstractVisitor;
 /*
-This is layed out in Memory:
+This is laid out in memory with (64-bit) pointers followed by (8-byte aligned) instructions followed by (32-bit) integers:
 VProcedure
-TWriteBarrier<VValue>          Constant  [0]
-TWriteBarrier<VValue>          Constant  [1]
-...
-TWriteBarrier<VValue>          Constant  [NumConstants - 1];
 TWriteBarrier<VUniqueString>   NamedParam[0]
 TWriteBarrier<VUniqueString>   NamedParam[1]
 ...
-TWriteBarrier<VUniqueString>   NamedParam[NumNamedParameters - 1];
+TWriteBarrier<VUniqueString>   NamedParam[NumNamedParameters - 1]
+TWriteBarrier<VValue>          Constant  [0]
+TWriteBarrier<VValue>          Constant  [1]
+...
+TWriteBarrier<VValue>          Constant  [NumConstants - 1]
 FOp                            Ops
-  + NumOpBytes                 EOD
+  + NumOpBytes
+FValueOperand                  Operand   [0]
+FValueOperand                  Operand   [1]
+...
+FValueOperand                  Operand   [NumOperands - 1]
+FLabelOffset                   Label     [0]
+FLabelOffset                   Label     [1]
+...
+FLabelOffset                   Label     [NumLabels - 1]
 */
 struct VProcedure : VCell
 {
 	DECLARE_DERIVED_VCPPCLASSINFO(COREUOBJECT_API, VCell);
 	COREUOBJECT_API static TGlobalTrivialEmergentTypePtr<&StaticCppClassInfo> GlobalTrivialEmergentType;
 
-	const uint32 NumParameters;
-	const uint32 NumNamedParameters;
-	const uint32 NumRegisters;
-	const uint32 NumOpBytes;
+	uint32 NumRegisters;
+	uint32 NumParameters;
 
-	const uint32 NumConstants;
-	TWriteBarrier<VValue> Constants[];
+	// Sizes of trailing arrays
+	uint32 NumNamedParameters;
+	uint32 NumConstants;
+	uint32 NumOpBytes;
+	uint32 NumOperands;
+	uint32 NumLabels;
 
-	FOp* GetOpsBegin() { return BitCast<FOp*>(GetNameParamsEnd()); }
+	TWriteBarrier<VCell> Trailing[];
+
+	// Trailing array layout computation
+
+	TWriteBarrier<VUniqueString>* GetNamedParamsBegin() { return BitCast<TWriteBarrier<VUniqueString>*>(&Trailing); }
+	TWriteBarrier<VUniqueString>* GetNamedParamsEnd() { return GetNamedParamsBegin() + NumNamedParameters; }
+
+	TWriteBarrier<VValue>* GetConstantsBegin() { return BitCast<TWriteBarrier<VValue>*>(GetNamedParamsEnd()); }
+	TWriteBarrier<VValue>* GetConstantsEnd() { return GetConstantsBegin() + NumConstants; }
+
+	FOp* GetOpsBegin() { return BitCast<FOp*>(GetConstantsEnd()); }
 	FOp* GetOpsEnd() { return BitCast<FOp*>(BitCast<uint8*>(GetOpsBegin()) + NumOpBytes); }
+
+	FValueOperand* GetOperandsBegin() { return BitCast<FValueOperand*>(GetOpsEnd()); }
+	FValueOperand* GetOperandsEnd() { return GetOperandsBegin() + NumOperands; }
+
+	FLabelOffset* GetLabelsBegin() { return BitCast<FLabelOffset*>(GetOperandsEnd()); }
+	FLabelOffset* GetLabelsEnd() { return GetLabelsBegin() + NumLabels; }
 
 	// In bytes.
 	uint32 BytecodeOffset(const FOp& Bytecode)
@@ -55,71 +81,63 @@ struct VProcedure : VCell
 		return static_cast<uint32>(BitCast<char*>(Data) - BitCast<char*>(GetOpsBegin()));
 	}
 
-	TWriteBarrier<VValue>* GetConstantsBegin()
-	{
-		return Constants;
-	}
-	TWriteBarrier<VValue>* GetConstantsEnd()
-	{
-		return GetConstantsBegin() + NumConstants;
-	}
-
 	void SetConstant(FAllocationContext Context, FConstantIndex ConstantIndex, VValue Value)
 	{
 		checkSlow(ConstantIndex.Index < NumConstants);
-		Constants[ConstantIndex.Index].Set(Context, Value);
+		GetConstantsBegin()[ConstantIndex.Index].Set(Context, Value);
 	}
 
 	VValue GetConstant(FConstantIndex ConstantIndex)
 	{
 		checkSlow(ConstantIndex.Index < NumConstants);
-		return Constants[ConstantIndex.Index].Get();
+		return GetConstantsBegin()[ConstantIndex.Index].Get();
 	}
 
-	TWriteBarrier<VUniqueString>* GetNamedParams()
+	static VProcedure& NewUninitialized(FAllocationContext Context, uint32 NumParameters, uint32 NumNamedParameters, uint32 NumRegisters, uint32 NumConstants, uint32 NumOpBytes, uint32 NumOperands, uint32 NumLabels)
 	{
-		return (TWriteBarrier<VUniqueString>*)GetConstantsEnd();
-	}
-	TWriteBarrier<VUniqueString>* GetNameParamsEnd()
-	{
-		return GetNamedParams() + NumNamedParameters;
-	}
-
-	static VProcedure& New(FAllocationContext Context, uint32 NumParameters, uint32 NumNamedParameters, uint32 NumRegisters, uint32 NumConstants, size_t NumOpBytes)
-	{
-		const size_t NumBytes = offsetof(VProcedure, Constants)
-							  + sizeof(Constants[0]) * NumConstants
-							  + sizeof(TWriteBarrier<VValue>) * NumNamedParameters
-							  + NumOpBytes;
-		return *new (Context.Allocate(Verse::FHeap::DestructorSpace, NumBytes)) VProcedure(Context, NumParameters, NumNamedParameters, NumRegisters, NumConstants, NumOpBytes);
+		const size_t NumBytes = offsetof(VProcedure, Trailing)
+							  + sizeof(TWriteBarrier<VUniqueString>) * NumNamedParameters
+							  + sizeof(TWriteBarrier<VValue>) * NumConstants
+							  + NumOpBytes
+							  + sizeof(FValueOperand) * NumOperands
+							  + sizeof(FLabelOffset) * NumLabels;
+		return *new (Context.AllocateFastCell(NumBytes)) VProcedure(Context, NumParameters, NumNamedParameters, NumRegisters, NumConstants, NumOpBytes, NumOperands, NumLabels);
 	}
 
 	static void SerializeImpl(VProcedure*& This, FAllocationContext Context, FAbstractVisitor& Visitor);
 
 private:
-	VProcedure(FAllocationContext Context, uint32 InNumArguments, uint32 InNumNamedParameters, uint32 InNumRegisters, uint32 InNumConstants, uint32 InNumOpBytes)
+	VProcedure(FAllocationContext Context, uint32 InNumArguments, uint32 InNumNamedParameters, uint32 InNumRegisters, uint32 InNumConstants, uint32 InNumOpBytes, uint32 InNumOperands, uint32 InNumLabels)
 		: VCell(Context, &GlobalTrivialEmergentType.Get(Context))
+		, NumRegisters(InNumRegisters)
 		, NumParameters(InNumArguments)
 		, NumNamedParameters(InNumNamedParameters)
-		, NumRegisters(InNumRegisters)
-		, NumOpBytes(InNumOpBytes)
 		, NumConstants(InNumConstants)
+		, NumOpBytes(InNumOpBytes)
+		, NumOperands(InNumOperands)
+		, NumLabels(InNumLabels)
 	{
-		for (uint32 ConstantIndex = 0; ConstantIndex < NumConstants; ++ConstantIndex)
+		for (TWriteBarrier<VUniqueString>* NamedParam = GetNamedParamsBegin(); NamedParam != GetNamedParamsEnd(); ++NamedParam)
 		{
-			new (&Constants[ConstantIndex]) TWriteBarrier<VValue>{};
+			new (NamedParam) TWriteBarrier<VUniqueString>{};
+		}
+		for (TWriteBarrier<VValue>* Constant = GetConstantsBegin(); Constant != GetConstantsEnd(); ++Constant)
+		{
+			new (Constant) TWriteBarrier<VValue>{};
+		}
+		for (FValueOperand* Operand = GetOperandsBegin(); Operand != GetOperandsEnd(); ++Operand)
+		{
+			new (Operand) FValueOperand{};
+		}
+		for (FLabelOffset* Label = GetLabelsBegin(); Label != GetLabelsEnd(); ++Label)
+		{
+			new (Label) FLabelOffset{};
 		}
 	}
-
-	/// Overridden from `VCell` because we want to ensure that the variadic arguments allocated in the function get de-allocated
-	/// once the function object lifetime ends. Otherwise they would not get their destructors called normally.
-	~VProcedure();
 
 	template <typename FuncType>
 	void ForEachOpCode(FuncType&& Func);
 
-	template <typename TVisitor>
-	void VisitOpCodes(TVisitor& Visitor);
 	void LoadOpCodes(FAbstractVisitor& Visitor);
 	void SaveOpCodes(FAbstractVisitor& Visitor);
 };

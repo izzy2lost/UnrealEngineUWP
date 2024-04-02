@@ -97,5 +97,12 @@ struct FLabelOffset
 		return const_cast<FOp*>(BitCast<const FOp*>(BitCast<const uint8*>(this) + Offset));
 	}
 };
+
+template <typename OperandType>
+struct TOperandRange
+{
+	int32 Index;
+	int32 Num;
+};
 } // namespace Verse
 #endif // WITH_VERSE_VM

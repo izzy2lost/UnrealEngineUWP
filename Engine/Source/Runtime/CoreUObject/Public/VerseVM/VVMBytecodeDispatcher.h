@@ -14,15 +14,15 @@ namespace Verse
 template <typename HandlerType>
 void DispatchOps(FOp* OpsBegin, FOp* OpsEnd, HandlerType& Handler)
 {
-	const FOp* Op = OpsBegin;
+	FOp* Op = OpsBegin;
 	while (Op < OpsEnd)
 	{
 		switch (Op->Opcode)
 		{
-#define VISIT_OP(Name)                                                   \
-	case EOpcode::Name:                                                  \
-		Handler(*static_cast<const FOp##Name*>(Op));                     \
-		Op = BitCast<const FOp*>(static_cast<const FOp##Name*>(Op) + 1); \
+#define VISIT_OP(Name)                                       \
+	case EOpcode::Name:                                      \
+		Handler(*static_cast<FOp##Name*>(Op));               \
+		Op = BitCast<FOp*>(static_cast<FOp##Name*>(Op) + 1); \
 		break;
 			VERSE_ENUM_OPS(VISIT_OP)
 #undef VISIT_OP

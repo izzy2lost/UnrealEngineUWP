@@ -37,18 +37,30 @@ struct FBytecodeCellFormatter : public FDefaultCellFormatter
 
 struct FJumpTargetHandler
 {
+	VProcedure& Procedure;
 	TMap<const FOp*, FString> JumpTargetToLabelIndexMap;
 
 	template <typename OpType>
-	void operator()(const OpType& Op)
+	void operator()(OpType& Op)
 	{
-		Op.ForEachJump([&](const FLabelOffset& LabelOffset) {
-			const FOp* TargetOp = LabelOffset.GetLabeledPC();
-			if (!JumpTargetToLabelIndexMap.Contains(TargetOp))
-			{
-				JumpTargetToLabelIndexMap.Add(TargetOp, FString::Printf(TEXT("L%u"), JumpTargetToLabelIndexMap.Num()));
-			}
-		});
+		Op.ForEachJump(*this);
+	}
+
+	void operator()(FLabelOffset& LabelOffset, const TCHAR* Name)
+	{
+		const FOp* TargetOp = LabelOffset.GetLabeledPC();
+		if (!JumpTargetToLabelIndexMap.Contains(TargetOp))
+		{
+			JumpTargetToLabelIndexMap.Add(TargetOp, FString::Printf(TEXT("L%u"), JumpTargetToLabelIndexMap.Num()));
+		}
+	}
+
+	void operator()(TOperandRange<FLabelOffset> LabelOffsets, const TCHAR* Name)
+	{
+		for (int32 Index = 0; Index < LabelOffsets.Num; ++Index)
+		{
+			(*this)(Procedure.GetLabelsBegin()[LabelOffsets.Index + Index], Name);
+		}
 	}
 };
 
@@ -57,6 +69,7 @@ struct FBytecodePrinter
 	FBytecodePrinter(FAllocationContext Context, VProcedure& Procedure)
 		: Context(Context)
 		, Procedure(Procedure)
+		, JumpTargetHandler{Procedure}
 	{
 		CellFormatter.CellSymbolMap.Add(&Procedure, TEXT("F"));
 
@@ -119,7 +132,7 @@ struct FBytecodePrinter
 	}
 
 	template <typename OpType>
-	void operator()(const OpType& Op)
+	void operator()(OpType& Op)
 	{
 		PrintLabelIfNeeded(&Op);
 
@@ -158,14 +171,74 @@ private:
 		}
 	}
 
-	template <typename OpType>
-	void PrintOpWithOperands(const OpType& Op)
+	template <typename CellType>
+	void PrintValueOperand(TWriteBarrier<CellType>& ValueOperand)
 	{
-		FString Separator = TEXT("");
-		auto ArgSeparator = [&] {
-			FString Result = Separator;
+		if constexpr (TWriteBarrier<CellType>::bIsVValue)
+		{
+			String += ToString(Context, FDefaultCellFormatter{}, ValueOperand.Get());
+		}
+		else
+		{
+			String += ToString(Context, FDefaultCellFormatter{}, *ValueOperand);
+		}
+	}
+
+	void PrintValueOperand(TOperandRange<FValueOperand> ValueOperands)
+	{
+		String += TEXT("(");
+		const TCHAR* Separator = TEXT("");
+		for (int32 Index = 0; Index < ValueOperands.Num; ++Index)
+		{
+			String += Separator;
 			Separator = TEXT(", ");
-			return Result;
+			PrintValueOperand(Procedure.GetOperandsBegin()[ValueOperands.Index + Index]);
+		}
+		String += TEXT(")");
+	}
+
+	template <typename CellType>
+	void PrintValueOperand(TOperandRange<TWriteBarrier<CellType>> ValueOperands)
+	{
+		TWriteBarrier<CellType>* Constants = BitCast<TWriteBarrier<CellType>*>(Procedure.GetConstantsBegin());
+		String += TEXT("(");
+		const TCHAR* Separator = TEXT("");
+		for (int32 Index = 0; Index < ValueOperands.Num; ++Index)
+		{
+			String += Separator;
+			Separator = TEXT(", ");
+			PrintValueOperand(Constants[ValueOperands.Index + Index]);
+		}
+		String += TEXT(")");
+	}
+
+	void PrintJumpOperand(FLabelOffset& Label)
+	{
+		FString* TargetLabel = JumpTargetHandler.JumpTargetToLabelIndexMap.Find(Label.GetLabeledPC());
+		check(TargetLabel);
+		String += *TargetLabel;
+	}
+
+	void PrintJumpOperand(TOperandRange<FLabelOffset> Labels)
+	{
+		String += TEXT("(");
+		const TCHAR* Separator = TEXT("");
+		for (int32 Index = 0; Index < Labels.Num; ++Index)
+		{
+			String += Separator;
+			Separator = TEXT(", ");
+			PrintJumpOperand(Procedure.GetLabelsBegin()[Labels.Index + Index]);
+		}
+		String += TEXT(")");
+	}
+
+	template <typename OpType>
+	void PrintOpWithOperands(OpType& Op)
+	{
+		const TCHAR* Separator = TEXT("");
+		auto PrintSeparator = [&] {
+			String += Separator;
+			Separator = TEXT(", ");
 		};
 
 		bool bPrintedOp = false;
@@ -180,51 +253,35 @@ private:
 
 		// Right now we just assume that Defs come before Uses, but we could rework this
 		// if this ever breaks printing.
-		Op.ForEachOperandWithName([&](EOperandRole Role, auto& Operand, const char* Name) {
-			using DecayedType = std::decay_t<decltype(Operand)>;
-			if constexpr (std::is_same_v<DecayedType, FValueOperand> || std::is_same_v<DecayedType, FRegisterIndex>)
+		Op.ForEachOperand([&](EOperandRole Role, auto& Operand, const TCHAR* Name) {
+			switch (Role)
 			{
-				switch (Role)
-				{
-					case EOperandRole::ClobberDef:
-						PrintValueOperand(Operand);
-						String += TEXT(" <- ");
-						break;
-					case EOperandRole::UnifyDef:
-						PrintValueOperand(Operand);
-						String += TEXT(" = ");
-						break;
-					case EOperandRole::Use:
-						PrintOp();
-						String += ArgSeparator();
-						String += FString::Printf(TEXT("%s: "), *FString(Name));
-						PrintValueOperand(Operand);
-						break;
-					case EOperandRole::Immediate:
-					default:
-						VERSE_UNREACHABLE();
-				}
-			}
-			else
-			{
-				V_DIE_IF(Role != EOperandRole::Immediate);
-				PrintOp();
-				String += ArgSeparator();
-				String += FString::Printf(TEXT("%s: "), *FString(Name));
-				if constexpr (!std::decay_t<decltype(Operand)>::bIsVValue)
-					String += ToString(Context, FDefaultCellFormatter{}, *Operand.Get());
-				else
-					String += ToString(Context, FDefaultCellFormatter{}, Operand.Get());
+				case EOperandRole::ClobberDef:
+					PrintValueOperand(Operand);
+					String += TEXT(" <- ");
+					break;
+				case EOperandRole::UnifyDef:
+					PrintValueOperand(Operand);
+					String += TEXT(" = ");
+					break;
+				case EOperandRole::Use:
+				case EOperandRole::Immediate:
+					PrintOp();
+					PrintSeparator();
+					String.Append(Name).Append(TEXT(": "));
+					PrintValueOperand(Operand);
+					break;
+				default:
+					VERSE_UNREACHABLE();
 			}
 		});
 
 		PrintOp();
 
-		Op.ForEachJumpWithName([&](const FLabelOffset& Label, const char* Name) {
-			FString* TargetLabel = JumpTargetHandler.JumpTargetToLabelIndexMap.Find(Label.GetLabeledPC());
-			check(TargetLabel);
-			String += ArgSeparator();
-			String += FString::Printf(TEXT("%s: %s"), *FString(Name), **TargetLabel);
+		Op.ForEachJump([&](auto& Label, const TCHAR* Name) {
+			PrintSeparator();
+			String.Append(Name).Append(": ");
+			PrintJumpOperand(Label);
 		});
 
 		String += TEXT(")");
