@@ -489,6 +489,9 @@ protected:
 	// Send submix modulation changes to audio devices
 	void PushModulationChanges();
 
+	/** Return the audio device that corresponds to the provided world context object. */
+	static FAudioDevice* GetAudioDeviceFrom(const UObject* WorldContextObject);
+
 	// State handling for bouncing output.
 	TUniquePtr<Audio::FAudioRecordingData> RecordingData;
 
