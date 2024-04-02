@@ -7,7 +7,9 @@
 #include "Cooker/CookDirector.h"
 #include "Cooker/IWorkerRequests.h"
 #include "Cooker/PackageTracker.h"
+#include "Misc/CommandLine.h"
 #include "Misc/PackageAccessTrackingOps.h"
+#include "Misc/Parse.h"
 #include "UObject/ReferenceChainSearch.h"
 
 namespace UE::Cook
@@ -362,11 +364,8 @@ bool FGenerationHelper::TryGenerateList()
 		}
 		bool bCreateAsMap = *SplitterData.GetCreateAsMap();
 
-		FString PackageRoot = SplitterData.GeneratedRootPath.IsEmpty() ?
-			OwnerPackageName.ToString() : SplitterData.GeneratedRootPath;
-
-		FString PackageName = FPaths::RemoveDuplicateSlashes(FString::Printf(TEXT("/%s/%s/%s"),
-			*PackageRoot, GeneratedPackageSubPath, *SplitterData.RelativePath));
+		FString PackageName = ICookPackageSplitter::ConstructGeneratedPackageName(OwnerPackageName,
+			SplitterData.RelativePath, SplitterData.GeneratedRootPath);
 		const FName PackageFName(*PackageName);
 		FPackageData* PackageData = PackageDatas.TryAddPackageDataByPackageName(PackageFName,
 			false /* bRequireExists */, bCreateAsMap);
@@ -1222,6 +1221,18 @@ void FCookGenerationInfo::IterativeCookValidateOrClear(FGenerationHelper& Genera
 		}
 		bFirstPlatform = false;
 	}
+}
+
+bool FGenerationHelper::bGeneratorSavedAfterGenerated = false;
+
+void FGenerationHelper::SetBeginCookConfigSettings()
+{
+	bGeneratorSavedAfterGenerated = FParse::Param(FCommandLine::Get(), TEXT("CookGeneratorSavedAfterGenerated"));
+}
+
+bool FGenerationHelper::IsGeneratorSavedAfterGenerated()
+{
+	return bGeneratorSavedAfterGenerated;
 }
 
 }

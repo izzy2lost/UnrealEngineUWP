@@ -225,11 +225,8 @@ UCookOnTheFlyServer::FOnCookByTheBookStarted UCookOnTheFlyServer::CookByTheBookS
 UCookOnTheFlyServer::FOnCookByTheBookFinished UCookOnTheFlyServer::CookByTheBookFinishedEvent;
 
 
-namespace UE
+namespace UE::Cook
 {
-namespace Cook
-{
-const TCHAR* GeneratedPackageSubPath = TEXT("_Generated_");
 
 // Keep the old behavior of cooking all by default until we implement good feedback in the editor about the missing setting
 static bool bCookAllByDefault = true;
@@ -237,7 +234,7 @@ static FAutoConsoleVariableRef CookAllByDefaultCVar(
 	TEXT("Cook.CookAllByDefault"),
 	bCookAllByDefault,
 	TEXT("When FilesInPath is empty. Cook all packages by default."));
-}
+
 }
 
 /* helper structs functions
@@ -3332,6 +3329,20 @@ UE::Cook::EPollStatus UCookOnTheFlyServer::PrepareSaveGenerationPackage(UE::Cook
 		if (PackageData.GetNumPendingCookedPlatformData() > 0)
 		{
 			return EPollStatus::Incomplete;
+		}
+		if (FGenerationHelper::IsGeneratorSavedAfterGenerated() && Info.IsGenerator())
+		{
+			if (GenerationHelper.IsWaitingForQueueResults())
+			{
+				return EPollStatus::Incomplete;
+			}
+			for (FCookGenerationInfo& GeneratedInfo : GenerationHelper.GetPackagesToGenerate())
+			{
+				if (GeneratedInfo.PackageData && GeneratedInfo.PackageData->IsInProgress())
+				{
+					return EPollStatus::Incomplete;
+				}
+			}
 		}
 		Info.SetSaveStateComplete(FCookGenerationInfo::ESaveState::FinishCachePreMove);
 	}
@@ -10735,6 +10746,7 @@ void UCookOnTheFlyServer::SetBeginCookConfigSettings(FBeginCookContext& BeginCon
 	bHybridIterativeEnabled = Settings.bHybridIterativeEnabled;
 	bHybridIterativeAllowAllClasses = Settings.bHybridIterativeAllowAllClasses;
 	PackageDatas->SetBeginCookConfigSettings(Settings.CookShowInstigator);
+	UE::Cook::FGenerationHelper::SetBeginCookConfigSettings();
 	SetNeverCookPackageConfigSettings(BeginContext, Settings);
 }
 

@@ -7,6 +7,7 @@
 #include "AssetRegistry/IAssetRegistry.h"
 #include "Containers/Array.h"
 #include "Containers/List.h"
+#include "Containers/StringView.h"
 #include "Containers/UnrealString.h"
 #include "CoreMinimal.h"
 #include "Hash/Blake3.h"
@@ -233,13 +234,22 @@ public:
 
 	/** Called when the Owner package needs to be reloaded after a garbage collect in order to populate a generated package. */
 	virtual void OnOwnerReloaded(UPackage* OwnerPackage, UObject* OwnerObject) {}
+
+	// Utility functions for Splitters
+
+	/** The name of the _Generated_ subdirectory that is the parent directory of a splitter's generated packages. */
+	UNREALED_API static const TCHAR* GetGeneratedPackageSubPath();
+
+	/**
+	 * Return the full packagename that will be used for a GeneratedPackage, based on the GeneratorPackage's name and
+	 * on the RelPath and optional GeneratedRootPath that the splitter provides in the FGeneratedPackage it returns from
+	 * GetGenerateList.
+	 */
+	UNREALED_API static FString ConstructGeneratedPackageName(FName OwnerPackageName, FStringView RelPath,
+		FStringView GeneratedRootOverride = FStringView());
 };
 
-namespace UE
-{
-namespace Cook
-{
-namespace Private
+namespace UE::Cook::Private
 {
 
 /** Interface for internal use only (used by REGISTER_COOKPACKAGE_SPLITTER to register an ICookPackageSplitter for a class) */
@@ -262,8 +272,6 @@ private:
 	TLinkedList<FRegisteredCookPackageSplitter*> GlobalListLink;
 };
 
-}
-}
 }
 
 /**

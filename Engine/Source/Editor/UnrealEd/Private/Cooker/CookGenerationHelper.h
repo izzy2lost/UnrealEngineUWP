@@ -308,6 +308,7 @@ public:
 	void ClearKeepForIterative();
 	void SetKeepForQueueResults();
 	void ClearKeepForQueueResults();
+	bool IsWaitingForQueueResults() const;
 	void SetKeepForGeneratorSave();
 	void ClearKeepForGeneratorSave();
 
@@ -329,6 +330,14 @@ public:
 		TUniquePtr<ICookPackageSplitter>& OutSplitterInstance);
 	/** Helper function for Initialize and for TryCreateValidGenerationHelper. */
 	static UPackage* FindOrLoadPackage(UCookOnTheFlyServer& COTFS, FPackageData& OwnerPackageData);
+
+	/** Initialize settings from commandline and config files. */
+	static void SetBeginCookConfigSettings();
+	/**
+	 * Debug setting that forces a race-condition behavior. Force generator packages to not save until after
+	 * all generated packages save.
+	 */
+	static bool IsGeneratorSavedAfterGenerated();
 
 private:
 	enum class EInitializeStatus : uint8
@@ -364,6 +373,8 @@ private:
 	bool bUseInternalReferenceToAvoidGarbageCollect = false;
 	bool bNeedCachedPlatformDataBeforeSplit = false;
 	bool bGeneratedList = false;
+
+	static bool bGeneratorSavedAfterGenerated;
 };
 
 
@@ -557,6 +568,11 @@ inline void FGenerationHelper::SetKeepForQueueResults()
 inline void FGenerationHelper::ClearKeepForQueueResults()
 {
 	ReferenceFromKeepForQueueResults.SafeRelease();
+}
+
+inline bool FGenerationHelper::IsWaitingForQueueResults() const
+{
+	return ReferenceFromKeepForQueueResults.IsValid();
 }
 
 inline void FGenerationHelper::SetKeepForGeneratorSave()

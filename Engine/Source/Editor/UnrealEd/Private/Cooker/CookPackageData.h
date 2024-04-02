@@ -55,8 +55,6 @@ struct FPackageData;
 struct FPackageDataMonitor;
 struct FPendingCookedPlatformDataCancelManager;
 
-extern const TCHAR* GeneratedPackageSubPath;
-
 /**
  * Events in the lifetime of an object related to BeginCacheForCookedPlatformData. Used by the cooker
  * to track which calls have been made and still need to be made.
