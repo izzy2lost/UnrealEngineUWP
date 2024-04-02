@@ -8,6 +8,7 @@
 class FSpawnTabArgs;
 class IMessageToken;
 class UStateTreeState;
+class UStateTreeNodeBlueprintBase;
 
 class IDetailsView;
 class UStateTree;
@@ -81,6 +82,14 @@ private:
 	void Compile();
 	bool CanCompile() const;
 	FSlateIcon GetCompileStatusImage() const;
+
+	FSlateIcon GetNewTaskButtonImage() const;
+	TSharedRef<SWidget> GenerateTaskBPBaseClassesMenu() const;
+
+	FSlateIcon GetNewConditionButtonImage() const;
+	TSharedRef<SWidget> GenerateConditionBPBaseClassesMenu() const;
+	
+	void OnNodeBPBaseClassPicked(UClass* NodeClass) const;
 
 	void UpdateAsset();
 
