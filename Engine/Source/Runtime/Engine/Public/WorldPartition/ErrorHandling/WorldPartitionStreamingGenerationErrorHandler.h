@@ -111,6 +111,8 @@ public:
 	// Helpers
 	static ENGINE_API FString GetActorName(const IWorldPartitionActorDescInstanceView& ActorDescView);
 	static ENGINE_API FString GetFullActorName(const IWorldPartitionActorDescInstanceView& ActorDescView);
+
+	PRAGMA_DISABLE_DEPRECATION_WARNINGS
 	
 	UE_DEPRECATED(5.4, "Use OnInvalidReferenceDataLayers with EDataLayerInvalidReason instead.")
 	virtual void OnInvalidReferenceDataLayers(const IWorldPartitionActorDescInstanceView& ActorDescView, const IWorldPartitionActorDescInstanceView& ReferenceActorDescView) final {}
@@ -162,5 +164,7 @@ public:
 
 	UE_DEPRECATED(5.4, "Use IWorldPartitionActorDescInstanceView version instead")
 	static ENGINE_API FString GetFullActorName(const FWorldPartitionActorDescView& ActorDescView) { return FString(); }
+
+	PRAGMA_ENABLE_DEPRECATION_WARNINGS
 };
 #endif
