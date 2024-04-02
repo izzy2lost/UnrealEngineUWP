@@ -3024,6 +3024,8 @@ void FBlueprintEditor::CreateSubobjectEditors()
 		.OnItemDoubleClicked(this, &FBlueprintEditor::OnComponentDoubleClicked)
 		.SubobjectClassListFilters(ClassFilters);
 	
+	LLM_SCOPE_BYNAME(TEXT("BPCreateSubobjectEditorViewportClient"));
+
 	SubobjectViewport = SAssignNew(SubobjectViewport, SSCSEditorViewport)
 		.BlueprintEditor(SharedThis(this));
 
