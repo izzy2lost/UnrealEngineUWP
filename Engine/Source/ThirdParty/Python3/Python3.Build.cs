@@ -4,7 +4,6 @@ using System.IO;
 using System.Diagnostics;
 using System.Collections.Generic;
 using UnrealBuildTool;
-using System.Linq;
 
 public class Python3 : ModuleRules
 {
@@ -70,9 +69,12 @@ public class Python3 : ModuleRules
 			{
 				// Strip the Engine directory and then combine the path with the placeholder to ensure the path is delimited correctly
 				EngineRelativePythonRoot = EngineRelativePythonRoot.Remove(0, EngineDir.Length);
-				foreach(string FileName in Directory.EnumerateFiles(PythonSDK.PythonRoot, "*", SearchOption.AllDirectories).Where(path => path.EndsWith(".pyd") || path.EndsWith(".py") || path.EndsWith(".dll")))
+				foreach(string FileName in Directory.EnumerateFiles(PythonSDK.PythonRoot, "*", SearchOption.AllDirectories))
 				{
-					RuntimeDependencies.Add(FileName);
+					if(!FileName.EndsWith(".pyc", System.StringComparison.OrdinalIgnoreCase))
+					{
+						RuntimeDependencies.Add(FileName);
+					}
 				}
 				EngineRelativePythonRoot = Path.Combine("{ENGINE_DIR}", EngineRelativePythonRoot); // Can't use $(EngineDir) as the placeholder here as UBT is eating it
 			}
