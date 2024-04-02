@@ -264,6 +264,16 @@ namespace InstallBundleManagerAnalytics
 		const FString InitResultString);
 
 	/**
+	* @EventName InstallBundleManager.FireEvent_InitBundleSourcePlatformChunkInstallComplete
+	* @Trigger Bundle Manager finished async initialization
+	* @Type Client
+	* @EventParam InitResultString String Result code
+	* @Comments
+	*/
+	DEFAULTINSTALLBUNDLEMANAGER_API void FireEvent_InitBundleSourcePlatformChunkInstallComplete(IAnalyticsProviderET* AnalyticsProvider,
+		const FString InitResultString);
+
+	/**
 	 * @EventName InstallBundleManager.BundleLatestClientCheckComplete
 	 *
 	 * @Type Client

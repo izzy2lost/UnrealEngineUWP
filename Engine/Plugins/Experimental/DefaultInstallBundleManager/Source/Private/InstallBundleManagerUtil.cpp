@@ -664,6 +664,17 @@ namespace InstallBundleManagerAnalytics
 			TEXT("InitResultString"), InitResultString));
 	}
 
+	void FireEvent_InitBundleSourcePlatformChunkInstallComplete(IAnalyticsProviderET* AnalyticsProvider, const FString InitResultString)
+	{
+		if (AnalyticsProvider == nullptr || InstallBundleUtil::FInstallBundleSuppressAnalytics::IsEnabled())
+		{
+			return;
+		}
+
+		AnalyticsProvider->RecordEvent(TEXT("InstallBundleManager.InitBundleSourcePlatformChunkInstallComplete"), MakeAnalyticsEventAttributeArray(
+			TEXT("InitResultString"), InitResultString));
+	}
+
 	void FireEvent_BundleLatestClientCheckComplete(IAnalyticsProviderET* AnalyticsProvider, 
 		const FString& BundleName, 
 		bool bSkippedCheck, 
