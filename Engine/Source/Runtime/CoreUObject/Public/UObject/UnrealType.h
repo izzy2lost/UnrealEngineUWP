@@ -6970,12 +6970,13 @@ private:
 		None = 0x0,
 		IsMatch = 0x01,
 
-		ContainerMask = 0xF8,
 		IsOptional = 0x08,
 		IsArray = 0x10,
 		IsMap = 0x20,
 		IsSet = 0x40,
 		IsStruct = 0x80,
+
+		// When adding a new 'container' (needs to be recursed into) flag here, add it to the EPropertyValueFlags_ContainerMask macro too.
 	};
 	FRIEND_ENUM_CLASS_FLAGS(EPropertyValueFlags)
 

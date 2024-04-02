@@ -8,6 +8,8 @@ DEFINE_LOG_CATEGORY(LogType);
 
 ENUM_CLASS_FLAGS(FPropertyValueIterator::EPropertyValueFlags)
 
+#define EPropertyValueFlags_ContainerMask (EPropertyValueFlags::IsOptional | EPropertyValueFlags::IsArray | EPropertyValueFlags::IsMap | EPropertyValueFlags::IsSet | EPropertyValueFlags::IsStruct)
+
 FPropertyValueIterator::FPropertyValueIterator(
 	FFieldClass* InPropertyClass,
 	const UStruct* InStruct,
@@ -89,7 +91,7 @@ FORCEINLINE_DEBUGGABLE bool FPropertyValueIterator::NextValue(EPropertyValueIter
 		// Handle matching properties
 		if (!bIsPropertyMatchProcessed && EnumHasAnyFlags(PropertyValueFlags, EPropertyValueFlags::IsMatch))
 		{
-			if (EnumHasAnyFlags(PropertyValueFlags, EPropertyValueFlags::ContainerMask))
+			if (EnumHasAnyFlags(PropertyValueFlags, EPropertyValueFlags_ContainerMask))
 			{
 				// this match is also a container/struct, so recurse into it next time
 				Entry.NextValueIndex = Entry.ValueIndex;
@@ -98,7 +100,7 @@ FORCEINLINE_DEBUGGABLE bool FPropertyValueIterator::NextValue(EPropertyValueIter
 		}
 
 		// Handle container properties
-		check(EnumHasAnyFlags(PropertyValueFlags, EPropertyValueFlags::ContainerMask));
+		check(EnumHasAnyFlags(PropertyValueFlags, EPropertyValueFlags_ContainerMask));
 		if (InRecursionFlags == EPropertyValueIteratorFlags::FullRecursion)
 		{
 			FPropertyValueStackEntry NewEntry(PropertyValue);
