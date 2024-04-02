@@ -155,7 +155,14 @@ namespace UnrealGameSync
 		{
 			for (; ; )
 			{
-				await Task.Delay(TimeSpan.FromMinutes(5.0), cancellationToken);
+				try
+				{
+					await Task.Delay(TimeSpan.FromMinutes(5.0), cancellationToken);
+				}
+				catch (OperationCanceledException)
+				{
+					break;
+				}
 
 				IPerforceConnection? perforce = null;
 				try
@@ -171,6 +178,10 @@ namespace UnrealGameSync
 				catch (PerforceException ex)
 				{
 					_logger.LogInformation(ex, "Perforce exception while attempting to poll for updates.");
+				}
+				catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+				{
+					break;
 				}
 				catch (Exception ex)
 				{
