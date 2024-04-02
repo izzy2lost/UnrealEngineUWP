@@ -6,6 +6,7 @@
 #include "RenderUtils.h"
 #include "Misc/StringBuilder.h"
 #include "NiagaraComponent.h"
+#include "NiagaraComponentSettings.h"
 #include "NiagaraConstants.h"
 #include "NiagaraCustomVersion.h"
 #include "NiagaraEmitter.h"
@@ -24,7 +25,6 @@
 
 DECLARE_CYCLE_STAT(TEXT("Niagara - Utilities - PrepareRapidIterationParameters"), STAT_Niagara_Utilities_PrepareRapidIterationParameters, STATGROUP_Niagara);
 
-
 //////////////////////////////////////////////////////////////////////////
 
 int32 GNiagaraAllowComputeShaders = 1;
@@ -32,6 +32,7 @@ FAutoConsoleVariableRef CVarAllowComputeShaders(
 	TEXT("fx.NiagaraAllowComputeShaders"),
 	GNiagaraAllowComputeShaders,
 	TEXT("If true, allow the usage compute shaders within Niagara."),
+	FConsoleVariableDelegate::CreateStatic(FNiagaraComponentSettings::RequestUpdateSettings),
 	ECVF_Default);
 
 int32 GNiagaraAllowGPUParticles = 1;
@@ -39,6 +40,7 @@ FAutoConsoleVariableRef CVarAllowGPUParticles(
 	TEXT("fx.NiagaraAllowGPUParticles"),
 	GNiagaraAllowGPUParticles,
 	TEXT("If true, allow the usage of GPU particles for Niagara."),
+	FConsoleVariableDelegate::CreateStatic(FNiagaraComponentSettings::RequestUpdateSettings),
 	ECVF_Scalability | ECVF_Default);
 
 int32 GNiagaraGPUCulling = 1;
@@ -940,24 +942,24 @@ bool FNiagaraUtilities::LogVerboseWarnings()
 }
 #endif
 
-bool FNiagaraUtilities::AllowGPUParticles(EShaderPlatform ShaderPlatform)
+bool FNiagaraUtilities::AllowGPUParticles()
 {
 	return GNiagaraAllowGPUParticles && GNiagaraAllowComputeShaders && GRHISupportsDrawIndirect;
 }
 
-bool FNiagaraUtilities::AllowComputeShaders(EShaderPlatform ShaderPlatform)
+bool FNiagaraUtilities::AllowComputeShaders()
 {
 	return GNiagaraAllowComputeShaders && GRHISupportsDrawIndirect;
 }
 
-bool FNiagaraUtilities::AllowGPUSorting(EShaderPlatform ShaderPlatform)
+bool FNiagaraUtilities::AllowGPUSorting()
 {
 	return FXConsoleVariables::bAllowGPUSorting != 0;
 }
 
-bool FNiagaraUtilities::AllowGPUCulling(EShaderPlatform ShaderPlatform)
+bool FNiagaraUtilities::AllowGPUCulling()
 {
-	return GNiagaraGPUCulling && AllowGPUSorting(ShaderPlatform) && AllowComputeShaders(ShaderPlatform);
+	return GNiagaraGPUCulling && AllowGPUSorting() && AllowComputeShaders();
 }
 
 bool FNiagaraUtilities::AreBufferSRVsAlwaysCreated(EShaderPlatform ShaderPlatform)

@@ -1488,16 +1488,22 @@ namespace FNiagaraUtilities
 #endif
 
 	// Whether GPU particles are currently allowed. Could change depending on config and runtime switches.
-	bool AllowGPUParticles(EShaderPlatform ShaderPlatform);
+	bool AllowGPUParticles();
 
 	// Whether compute shaders are allowed. Could change depending on config and runtime switches.
-	bool AllowComputeShaders(EShaderPlatform ShaderPlatform);
+	bool AllowComputeShaders();
 
 	// Are we able to use the GPU for culling?
-	bool AllowGPUCulling(EShaderPlatform ShaderPlatform);
+	bool AllowGPUCulling();
 
 	// Are we able to use the GPU for sorting?
-	bool AllowGPUSorting(EShaderPlatform ShaderPlatform);
+	bool AllowGPUSorting();
+
+	//-TODO: Consider deprecating these methods if we don't need the ShaderPlatform
+	inline bool AllowGPUParticles(EShaderPlatform ShaderPlatform) { return AllowGPUParticles(); }
+	inline bool AllowComputeShaders(EShaderPlatform ShaderPlatform) { return AllowComputeShaders(); }
+	inline bool AllowGPUCulling(EShaderPlatform ShaderPlatform) { return AllowGPUCulling(); }
+	inline bool AllowGPUSorting(EShaderPlatform ShaderPlatform) { return AllowGPUSorting();  }
 
 	// Helper function to detect if SRVs are always created for buffers or not
 	bool AreBufferSRVsAlwaysCreated(EShaderPlatform ShaderPlatform);

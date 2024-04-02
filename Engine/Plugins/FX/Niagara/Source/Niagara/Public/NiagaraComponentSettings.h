@@ -11,6 +11,7 @@ struct FVersionedNiagaraEmitterData;
 namespace FNiagaraComponentSettings
 {
 	extern void UpdateSettings();
+	extern void RequestUpdateSettings(IConsoleVariable*);
 	extern NIAGARA_API bool IsSystemAllowedToRun(const UNiagaraSystem* System);
 	extern NIAGARA_API bool IsEmitterAllowedToRun(const FVersionedNiagaraEmitterData& EmitterData, const UNiagaraEmitter& NiagaraEmitter);
 };
