@@ -726,7 +726,9 @@ void FVulkanRayTracingScene::BindBuffer(FRHIBuffer* InBuffer, uint32 InBufferOff
 		VkAccelerationStructureKHR NativeAccelerationStructureHandle = Layer.View->InitAsAccelerationStructureView(
 			AccelerationStructureBuffer
 			, LayerOffset
-			, Layer.SizeInfo.ResultSize
+			//, Layer.SizeInfo.ResultSize
+			// TODO: Using whole remaining size instead of Layer.SizeInfo.ResultSize reintruduces a validation error but use of Layer.SizeInfo.ResultSize broke RT on Adreno.
+			, InBuffer->GetSize() - LayerOffset 
 		)->GetAccelerationStructureView().Handle;
 
 		FString DebugNameString = Initializer.DebugName.ToString();
