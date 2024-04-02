@@ -295,6 +295,9 @@ tasks.whenTaskAdded { task ->
 	afs_outfile.withWriter { writer ->
 		afs_infile.withReader { reader ->
 			while ((afs_line = reader.readLine()) != null) {
+				if (afs_line.contains('__ExcludeFromAFS="true"')) {
+					continue;
+				}
 				if (afs_line.contains('android.permission.FOREGROUND_SERVICE_DATA_SYNC')) {
 					afs_hasForeServiceDataPerm = true
 				} else if (afs_line.contains('android.permission.FOREGROUND_SERVICE')) {
