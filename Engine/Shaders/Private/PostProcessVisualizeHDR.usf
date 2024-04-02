@@ -240,7 +240,7 @@ void MainPS(noperspective float4 UVAndScreenPos : TEXCOORD0, float4 SvPosition :
 				OutColor = Texture2DSample(SceneColorTexture, SceneColorSampler, UV); // Influenced area default scene color
 			}
 
-			float LuminanceAvg = SceneLuminance(HDRSceneColorAvg);
+			float LuminanceAvg = Luminance(HDRSceneColorAvg);
 
 			// Luminance
 			int2 TopLeft = OutputViewportCenter + int2(11, 11);
@@ -325,7 +325,7 @@ void MainPS(noperspective float4 UVAndScreenPos : TEXCOORD0, float4 SvPosition :
 			}
 
 			float3 Illuminance = HDRSceneColorAvg * PI;
-			float MeanIlluminance = SceneLuminance(Illuminance);
+			float MeanIlluminance = Luminance(Illuminance);
 
 			int2 TopLeft = IlluminanceMeterCenter + int2(11, 11);
 			// Mean illuminance

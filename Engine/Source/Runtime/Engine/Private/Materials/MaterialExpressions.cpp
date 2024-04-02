@@ -8593,7 +8593,6 @@ UMaterialExpressionDesaturation::UMaterialExpressionDesaturation(const FObjectIn
 	}
 	else
 	{
-		//TODO: Handle MATERIAL_DOMAIN_UI which should remain in sRGB/Rec.709
 		LuminanceFactors = UE::Color::FColorSpace::GetWorking().GetLuminanceFactors();
 	}
 

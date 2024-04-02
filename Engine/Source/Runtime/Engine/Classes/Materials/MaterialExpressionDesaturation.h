@@ -21,8 +21,16 @@ class UMaterialExpressionDesaturation : public UMaterialExpression
 	UPROPERTY()
 	FExpressionInput Fraction;
 
+	/* 
+	 * Luminance factors for converting a color to greyscale.
+	 * 
+	 * The default luminance factors values are now derived from the working color space. For uses cases
+	 * outside scene rendering, users are responsible for updating these factors accordingly. For example,
+	 * factors derived from an AP1 working color space would not be applicable to UI domain materials that
+	 * remain in sRGB/Rec.709 and thus should instead use approximately [0.2126, 0.7152, 0.0722].
+	 */
 	UPROPERTY(EditAnywhere, Category=MaterialExpressionDesaturation, Meta = (ShowAsInputPin = "Advanced"))
-	FLinearColor LuminanceFactors;    // Color component factors for converting a color to greyscale.
+	FLinearColor LuminanceFactors;
 
 
 	//~ Begin UMaterialExpression Interface
