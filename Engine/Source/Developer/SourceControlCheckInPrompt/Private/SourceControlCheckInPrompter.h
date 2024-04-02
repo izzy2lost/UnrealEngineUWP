@@ -30,12 +30,18 @@ private:
 	void OnPackageSaved(const FString& Filename, UPackage* Pkg, FObjectPostSaveContext ObjectSaveContext);
 
 	/**
+	 * Called when a prompt flow should start, which might result in one being shown if
+	 * it's been over a day since the last commit.
+	 */
+	void OnStartPrompt();
+
+	/**
 	 * Called when an executed source control operation completes.
 	 */
 	void OnSourceControlOperationComplete(const FSourceControlOperationRef& InOperation, ECommandResult::Type InResult);
 
 	/**
-	 * Called when a periodic check-in prompt should attempted to be shown.
+	 * Called when a check-in prompt should attempted to be shown.
 	 * @param DeltaTime argument is the time since the last game frame
 	 */
 	bool OnAttemptPrompt(float);
@@ -52,6 +58,11 @@ private:
 	 */
 	bool IsGetSubmittedChangelistsAllowed() const;
 
+	/**
+	 * Called when a check should happen whether a prompt should be shown.
+	 */
+	void CheckPrompt();
+
 private:
 	/** When non empty, contains the package name of the map the prompt will be shown for */
 	FString PromptFlowMapName;
@@ -67,5 +78,8 @@ private:
 
 	/** The project activation time (eg: when was it opened) */
 	FDateTime ProjectActivationTime;
+
+	/** The prompt has been delayed */
+	bool bPromptDelayed;
 
 };

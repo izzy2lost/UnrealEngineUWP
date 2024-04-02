@@ -41,6 +41,7 @@ FSourceControlCheckInPrompter::FSourceControlCheckInPrompter()
 	: PromptFlowMapName()
 	, TimeCheckInPromptShown()
 	, TimeGetSubmittedChangelistsExecuted()
+	, bPromptDelayed(false)
 {
 }
 
@@ -63,6 +64,12 @@ void FSourceControlCheckInPrompter::Init()
 				{
 					ProjectDirectory = SourceControlProjectDir;
 					ProjectActivationTime = FDateTime::UtcNow();
+					bPromptDelayed = false;
+				}
+
+				if (bPromptDelayed)
+				{
+					CheckPrompt();
 				}
 
 				return true;
@@ -70,39 +77,34 @@ void FSourceControlCheckInPrompter::Init()
 	), 60.f);
 }
 
-// Step 1: Initiate the periodic prompt flow whenever a package is saved.
-//         Trigger a SourceControl operation to determine how much changes the user submitted in the past day.
 void FSourceControlCheckInPrompter::OnPackageSaved(const FString& Filename, UPackage* Pkg, FObjectPostSaveContext ObjectSaveContext)
 {
-	FString EditorMapName = GetEditorMapName();
-	if (PromptFlowMapName.IsEmpty() && !EditorMapName.IsEmpty())
+	CheckPrompt();
+}
+
+// Step 1: Initiate the periodic prompt flow.
+//         Trigger a SourceControl operation to determine how much changes the user submitted in the past day.
+void FSourceControlCheckInPrompter::OnStartPrompt()
+{
+	// Execute it with a filter that looks for submitted changelist for the current user in the last day.
+	TSharedRef<FGetSubmittedChangelists> Operation = ISourceControlOperation::Create<FGetSubmittedChangelists>();
+	Operation->SetDateToFilter(FDateTime::UtcNow());
+	Operation->SetDateFromFilter(FDateTime::UtcNow() - IntervalNoCheckins);
+	Operation->SetOwnedFilter(true);
+
+	ISourceControlProvider& SourceControlProvider = ISourceControlModule::Get().GetProvider();
+	if (SourceControlProvider.IsAvailable() && SourceControlProvider.CanExecuteOperation(Operation))
 	{
-		bool bPromptEnabled = CVarSourceControlEnablePeriodicCheckInPrompt.GetValueOnGameThread();
-		bool bIsPromptAllowed = IsPromptAllowed();
-		bool bIsGetSubmittedChangelistsAllowed = IsGetSubmittedChangelistsAllowed();
-		if (bPromptEnabled && bIsPromptAllowed && bIsGetSubmittedChangelistsAllowed)
-		{
-			// Execute it with a filter that looks for submitted changelist for the current user in the last day.
-			TSharedRef<FGetSubmittedChangelists> Operation = ISourceControlOperation::Create<FGetSubmittedChangelists>();
-			Operation->SetDateToFilter(FDateTime::UtcNow());
-			Operation->SetDateFromFilter(FDateTime::UtcNow() - IntervalNoCheckins);
-			Operation->SetOwnedFilter(true);
+		// Start flow.
+		PromptFlowMapName = GetEditorMapName();
 
-			ISourceControlProvider& SourceControlProvider = ISourceControlModule::Get().GetProvider();
-			if (SourceControlProvider.IsAvailable() && SourceControlProvider.CanExecuteOperation(Operation))
-			{
-				// Start flow.
-				PromptFlowMapName = EditorMapName;
+		// Update the time the get submitted changelists operation was last executed.
+		TimeGetSubmittedChangelistsExecuted.Add(PromptFlowMapName, FDateTime::Now());
 
-				// Update the time the get submitted changelists operation was last executed.
-				TimeGetSubmittedChangelistsExecuted.Add(EditorMapName, FDateTime::Now());
-
-				// Execute it asynchronously.
-				SourceControlProvider.Execute(Operation, EConcurrency::Asynchronous,
-					FSourceControlOperationComplete::CreateSP(this, &FSourceControlCheckInPrompter::OnSourceControlOperationComplete)
-				);
-			}
-		}
+		// Execute it asynchronously.
+		SourceControlProvider.Execute(Operation, EConcurrency::Asynchronous,
+			FSourceControlOperationComplete::CreateSP(this, &FSourceControlCheckInPrompter::OnSourceControlOperationComplete)
+		);
 	}
 }
 
@@ -156,6 +158,51 @@ bool FSourceControlCheckInPrompter::OnAttemptPrompt(float)
 	return false;
 }
 
+void FSourceControlCheckInPrompter::CheckPrompt()
+{
+	FString EditorMapName = GetEditorMapName();
+	if (PromptFlowMapName.IsEmpty() && !EditorMapName.IsEmpty())
+	{
+		bool bPromptEnabled = CVarSourceControlEnablePeriodicCheckInPrompt.GetValueOnGameThread();
+		bool bPromptShow = false;
+
+		if (bPromptEnabled)
+		{
+			if (bPromptDelayed)
+			{
+				bPromptShow = true;
+			}
+			else
+			{
+				bool bIsPromptAllowed = IsPromptAllowed();
+				bool bIsGetSubmittedChangelistsAllowed = IsGetSubmittedChangelistsAllowed();
+				bPromptShow = bIsPromptAllowed && bIsGetSubmittedChangelistsAllowed;
+			}
+		}
+
+		if (bPromptShow)
+		{
+			if (FDateTime::UtcNow() - IntervalSessionLength < ProjectActivationTime)
+			{
+				// As the user has not been active in this world for a sufficient amount of time,
+				// the prompt is delayed until the required interval has passed.
+
+				bPromptShow = false;
+				bPromptDelayed = true;
+			}
+			else
+			{
+				bPromptDelayed = false;
+			}
+		}
+
+		if (bPromptEnabled && bPromptShow)
+		{
+			OnStartPrompt();
+		}
+	}
+}
+
 bool FSourceControlCheckInPrompter::IsPromptAllowed() const
 {
 	// Ensure the SourceControl system is available.
@@ -185,12 +232,6 @@ bool FSourceControlCheckInPrompter::IsPromptAllowed() const
 	// Ensure the project activation time applies to the current project.
 	FString SourceControlProjectDir = ISourceControlModule::Get().GetSourceControlProjectDir();
 	if (ProjectDirectory != SourceControlProjectDir)
-	{
-		return false;
-	}
-
-	// Ensure the user has been active in that world for a sufficient amount of time.
-	if (FDateTime::UtcNow() - IntervalSessionLength < ProjectActivationTime)
 	{
 		return false;
 	}
