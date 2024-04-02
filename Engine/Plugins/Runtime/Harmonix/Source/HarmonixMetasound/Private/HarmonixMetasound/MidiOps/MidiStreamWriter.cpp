@@ -18,9 +18,14 @@ namespace Harmonix::Midi::Ops
 		{
 			for (const FMidiClockEvent& ClockEvent : MidiClock->GetMidiClockEventsInBlock())
 			{
-				if (ClockEvent.Msg.Type == FMidiClockMsg::EType::AdvanceThru && !ClockEvent.Msg.AsAdvanceThru().IsPreRoll)
+				if (ClockEvent.Msg.IsType<MidiClockMessageTypes::FAdvanceThru>())
 				{
-					Process(InStream, ClockEvent.Msg.FromTick(), ClockEvent.Msg.ThruTick());
+					const MidiClockMessageTypes::FAdvanceThru& AdvanceThru = ClockEvent.Msg.Get<MidiClockMessageTypes::FAdvanceThru>();
+					
+					if (!AdvanceThru.IsPreRoll)
+					{
+						Process(InStream, AdvanceThru.FromTick, AdvanceThru.ThruTick);
+					}
 				}
 			}
 		}

@@ -221,25 +221,28 @@ namespace HarmonixMetasound
 		{
 			for (const FMidiClockEvent& ClockEvent : MidiClockInPin->GetMidiClockEventsInBlock())
 			{
-				switch (ClockEvent.Msg.Type)
-				{
-				case FMidiClockMsg::EType::AdvanceThru:
-					if (ClockEvent.Msg.AsAdvanceThru().IsPreRoll)
-					{
-						continue;
-					}
-				case FMidiClockMsg::EType::SeekThru:
-					{
-						const bool EventIsSeek = ClockEvent.Msg.Type == FMidiClockMsg::EType::SeekThru;
+				using namespace MidiClockMessageTypes;
 
-						if (ClockEvent.Msg.FromTick() < TriggerTick && ClockEvent.Msg.ThruTick() >= TriggerTick)
-						{
-							if (!EventIsSeek || *TriggerDuringSeekInPin)
-							{
-								TriggerOutPin->TriggerFrame(ClockEvent.BlockFrameIndex);
-							}
-						}
+				bool ShouldTrigger = false;
+
+				if (ClockEvent.Msg.IsType<FAdvanceThru>())
+				{
+					const FAdvanceThru AdvanceThru = ClockEvent.Msg.Get<FAdvanceThru>();
+					ShouldTrigger = !AdvanceThru.IsPreRoll && AdvanceThru.FromTick < TriggerTick && AdvanceThru.ThruTick >= TriggerTick;
+				}
+				else if (ClockEvent.Msg.IsType<FSeekThru>())
+				{
+					if (*TriggerDuringSeekInPin)
+					{
+						const FSeekThru& SeekThru = ClockEvent.Msg.Get<FSeekThru>();
+						ShouldTrigger = SeekThru.FromTick < TriggerTick && SeekThru.ThruTick >= TriggerTick;
 					}
+				}
+				// TODO: SeekTo?
+				
+				if (ShouldTrigger)
+				{
+					TriggerOutPin->TriggerFrame(ClockEvent.BlockFrameIndex);
 				}
 			}
 		}
