@@ -547,7 +547,7 @@ void FGenerationHelper::OnRequestFencePassed(UCookOnTheFlyServer& COTFS)
 	PreviousGeneratedPackages.Empty();
 }
 
-UPackage* FGenerationHelper::TryCreateGeneratedPackage(FCookGenerationInfo& GeneratedInfo)
+UPackage* FGenerationHelper::TryCreateGeneratedPackage(FCookGenerationInfo& GeneratedInfo, bool bResetToEmpty)
 {
 	if (!IsValid())
 	{
@@ -570,16 +570,21 @@ UPackage* FGenerationHelper::TryCreateGeneratedPackage(FCookGenerationInfo& Gene
 	if (GeneratedPackage)
 	{
 		// The package might have been created for the generator's presave, or it might have been created and abandoned
-		// by an earlier save attempt of the generated package. Remove all objects from it; generated packages are
-		// created empty and it is the job of the CookPackageSplitter to populate them.
-		TArray<UObject*> ExistingObjects;
-		GetObjectsWithPackage(GeneratedPackage, ExistingObjects, false /* bIncludeNestedObjects */);
-		if (!ExistingObjects.IsEmpty())
+		// by an earlier save attempt of the generated package.
+		// If bResetToEmpty then we are starting the populate of the generated package and we need to remove all objects
+		// from the package. Generated packages are created empty and it is the job of the CookPackageSplitter to populate
+		// them during save.
+		if (bResetToEmpty)
 		{
-			UObject* TransientPackage = GetTransientPackage();
-			for (UObject* Existing : ExistingObjects)
+			TArray<UObject*> ExistingObjects;
+			GetObjectsWithPackage(GeneratedPackage, ExistingObjects, false /* bIncludeNestedObjects */);
+			if (!ExistingObjects.IsEmpty())
 			{
-				Existing->Rename(nullptr, TransientPackage, REN_DontCreateRedirectors);
+				UObject* TransientPackage = GetTransientPackage();
+				for (UObject* Existing : ExistingObjects)
+				{
+					Existing->Rename(nullptr, TransientPackage, REN_DontCreateRedirectors);
+				}
 			}
 		}
 	}

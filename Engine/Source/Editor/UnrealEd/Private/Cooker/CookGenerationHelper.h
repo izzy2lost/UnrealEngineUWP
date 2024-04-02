@@ -273,7 +273,7 @@ public:
 	/** Called from when the RequestFence added from EndQueueGeneratedPackages has passed. */
 	void OnRequestFencePassed(UCookOnTheFlyServer& COTFS);
 	/** Call CreatePackage and set package header data; or empty it and normalize it if it already exists. */
-	UPackage* TryCreateGeneratedPackage(FCookGenerationInfo& GenerationInfo);
+	UPackage* TryCreateGeneratedPackage(FCookGenerationInfo& GenerationInfo, bool bResetToEmpty);
 	/**
 	 * Clear any data that should only be held when an FPackageData is in the save state, for the given Info. The given
 	 * Info might specify the generator package or one of the generated packages.

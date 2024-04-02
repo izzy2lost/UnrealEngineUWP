@@ -2911,7 +2911,7 @@ void UCookOnTheFlyServer::LoadPackageInQueue(UE::Cook::FPackageData& PackageData
 			return;
 		}
 
-		LoadedPackage = GenerationHelper->TryCreateGeneratedPackage(*Info);
+		LoadedPackage = GenerationHelper->TryCreateGeneratedPackage(*Info, true /* bResetToEmpty */);
 		if (!LoadedPackage)
 		{
 			RejectPackageToLoad(PackageData, TEXT("is a generated package which could not be populated"),
@@ -3567,7 +3567,7 @@ bool UCookOnTheFlyServer::TryConstructGeneratedPackagesForPresave(UE::Cook::FPac
 		SplitterData.RelativePath = Info.RelativePath;
 		SplitterData.GeneratedRootPath = Info.GeneratedRootPath;
 		SplitterData.bCreatedAsMap = Info.IsCreateAsMap();
-		SplitterData.Package = GenerationHelper.TryCreateGeneratedPackage(Info);
+		SplitterData.Package = GenerationHelper.TryCreateGeneratedPackage(Info, false /* bResetToEmpty */);
 		if (!SplitterData.Package)
 		{
 			return false;
