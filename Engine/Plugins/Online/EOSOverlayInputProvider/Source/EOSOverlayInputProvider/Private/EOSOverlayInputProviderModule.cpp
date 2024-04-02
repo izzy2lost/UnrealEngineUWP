@@ -34,7 +34,23 @@ bool FEOSOverlayInputProviderModule::Tick(float DeltaTime)
 {
 	if (IsRenderReady())
 	{
-		ShutdownTicker();
+		// HACK: The EOS input processor needs to be first in the list of input processors,
+		// but will be scooted down the list when new systems register their own processors.
+		// Currently common input also wants to be first and will conflict if this input processor
+		// also requests that index. This conflict will need to be resolved before the EOS social
+		// overlay can be used.
+		// Re-adding the input processor when it is not at its expected location will bump newly
+		// added processors down the list.
+		if (FSlateApplication::IsInitialized() && InputPreprocessor)
+		{
+			const int32 CurrentEOSInputProcessorIndex = FSlateApplication::Get().FindInputPreProcessor(InputPreprocessor);
+			if (CurrentEOSInputProcessorIndex != EOSInputProcessorIndex)
+			{
+				UE_LOG(LogEOSSDK, Verbose, TEXT("[%hs] EOS input processor not at expected index, re-registering. CurrentEOSInputProcessorIndex: %d, ExpectedEOSInputProcessorIndex: %d"), __FUNCTION__, CurrentEOSInputProcessorIndex, EOSInputProcessorIndex);
+				FSlateApplication::Get().UnregisterInputPreProcessor(InputPreprocessor);
+				FSlateApplication::Get().RegisterInputPreProcessor(InputPreprocessor, EOSInputProcessorIndex);
+			}
+		}
 	}
 
 	return true;
@@ -63,7 +79,7 @@ bool FEOSOverlayInputProviderModule::IsRenderReady()
 		InputPreprocessor = MakeShared<FEOSOverlayInputProviderPreProcessor>();
 
 		// Store a pointer to the processor in your module
-		FSlateApplication::Get().RegisterInputPreProcessor(InputPreprocessor, 0);
+		FSlateApplication::Get().RegisterInputPreProcessor(InputPreprocessor, EOSInputProcessorIndex);
 	}
 
 	bRenderReady = true;
