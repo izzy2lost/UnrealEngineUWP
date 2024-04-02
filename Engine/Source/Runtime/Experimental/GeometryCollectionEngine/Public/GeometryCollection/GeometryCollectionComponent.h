@@ -1278,6 +1278,7 @@ public:
 
 #if WITH_EDITOR
 	GEOMETRYCOLLECTIONENGINE_API void SetEmbeddedGeometrySelectable(bool bSelectableIn);
+	GEOMETRYCOLLECTIONENGINE_API void ForceNativeRendering(bool bForce);
 	GEOMETRYCOLLECTIONENGINE_API int32 EmbeddedIndexToTransformIndex(const UInstancedStaticMeshComponent* ISMComponent, int32 InstanceIndex) const;
 	GEOMETRYCOLLECTIONENGINE_API void GetBoneColors(TArray<FColor>& OutColors) const;
 	GEOMETRYCOLLECTIONENGINE_API void GetHiddenTransforms(TArray<bool>& OutHiddenTransforms) const;
@@ -1331,13 +1332,9 @@ public:
 	/** Get any custom renderer. Returns nullptr if none is set. */
 	GEOMETRYCOLLECTIONENGINE_API IGeometryCollectionExternalRenderInterface* GetCustomRenderer() { return CustomRenderer.GetInterface(); }
 
-	
-	/** Enable or disable root proxy component creation when not using a custom renderer - this can be set at runtime */
-	GEOMETRYCOLLECTIONENGINE_API void EnableRootProxyStaticMeshComponents(bool bEnabled);
-
-	/** Enable or disable root proxy for custom rendering - this can be set at runtime */
+	/** Force any custom renderer to render using the broken/decayed path. This can be set at runtime */
 	UFUNCTION(BlueprintCallable, Category = "Physics")
-	GEOMETRYCOLLECTIONENGINE_API void EnableRootProxyForCustomRenderer(bool bEnable);
+	GEOMETRYCOLLECTIONENGINE_API void ForceBrokenForCustomRenderer(bool bForceBroken);
 
 	/** Set a specific root proxy local transform */
 	GEOMETRYCOLLECTIONENGINE_API void SetRootProxyLocalTransform(int32 Index, const FTransform3f& RootProxyTransform);
@@ -1348,13 +1345,16 @@ public:
 	/** Force all GC components to reregister their custom renderer objects. */
 	static GEOMETRYCOLLECTIONENGINE_API void ReregisterAllCustomRenderers();
 
-	/** allow update of the custom renderer ( valid if custom redner is being used ) - true by default */
-	GEOMETRYCOLLECTIONENGINE_API void SetUpdateCustomRenderer(bool bValue) { bUpdateCustomRenderer = bValue; }
-
 	/** update of the custom renderer when post physics sync callback is executing ( valid if custom redner is being used ) - true by default */
 	GEOMETRYCOLLECTIONENGINE_API void SetUpdateCustomRendererOnPostPhysicsSync(bool bValue) { bUpdateCustomRendererOnPostPhysicsSync = bValue; }
 	GEOMETRYCOLLECTIONENGINE_API bool GetUpdateCustomRendererOnPostPhysicsSync() const { return bUpdateCustomRendererOnPostPhysicsSync; }
 
+	UE_DEPRECATED(5.5, "SetUpdateCustomRenderer() shouldn't be called")
+	GEOMETRYCOLLECTIONENGINE_API void SetUpdateCustomRenderer(bool bValue) {}
+	
+	UE_DEPRECATED(5.5, "Please use ForceBrokenForCustomRenderer() instead")
+	UFUNCTION(BlueprintCallable, Category = "Physics", meta = (DeprecatedFunction, DeprecationMessage = "Please use ForceBrokenForCustomRenderer() instead"))
+	GEOMETRYCOLLECTIONENGINE_API void EnableRootProxyForCustomRenderer(bool bEnable) { ForceBrokenForCustomRenderer(!bEnable); }
 
 	GEOMETRYCOLLECTIONENGINE_API bool ShouldUpdateComponentTransformToRootBone() const { return bUpdateComponentTransformToRootBone; }
 
@@ -1471,8 +1471,16 @@ protected:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "ChaosPhysics|Rendering", meta = (editcondition = "bOverrideCustomRenderer", MustImplement = "/Script/GeometryCollectionEngine.GeometryCollectionExternalRenderInterface"))
 	TObjectPtr<UClass> CustomRendererType;
 
-	UPROPERTY()
-	bool bEnableRootProxyForCustomRenderer = true;
+	/** Force the broken state for custom renderer rendering. */
+	uint8 bForceBrokenForCustomRenderer : 1;
+	/** Whether to refresh the custom renderer on physics updates. */
+	uint8 bUpdateCustomRendererOnPostPhysicsSync : 1;
+	/** Custom renderer flag to specify if custom renderer can ever require native fallback. */
+	uint8 bCustomRendererCanUseNativeFallback : 1;
+	/** Custom renderer flag to specify if custom renderer should use native fallback. */
+	uint8 bCustomRendererShouldUseNativeFallback : 1;
+	/** Force native geometry collection rendering. This is used in the editor fracture mode. */
+	uint8 bForceNativeRenderer : 1;
 
 	/** A custom renderer object created from CustomRenderType. */
 	UPROPERTY(Transient)
@@ -1748,8 +1756,10 @@ private:
 	GEOMETRYCOLLECTIONENGINE_API bool IsEmbeddedGeometryValid() const;
 	GEOMETRYCOLLECTIONENGINE_API void ClearEmbeddedGeometry();
 
-	/** return true if a a custom renderer has been set and the feature is enabled */
-	GEOMETRYCOLLECTIONENGINE_API bool CanUseCustomRenderer() const;
+	/** return true if a custom renderer has been set and the feature is enabled */
+	GEOMETRYCOLLECTIONENGINE_API bool IsCustomRendererAvailable() const;
+	/** return true if a custom renderer is active */
+	GEOMETRYCOLLECTIONENGINE_API bool IsUsingCustomRenderer() const;
 
 	GEOMETRYCOLLECTIONENGINE_API void RegisterCustomRenderer();
 	GEOMETRYCOLLECTIONENGINE_API void UnregisterCustomRenderer();
@@ -1804,10 +1814,6 @@ private:
 	/** True if GeometryCollection transforms have changed from previous tick. */
 	bool bIsMoving;
 
-	bool bUpdateCustomRenderer;
-
-	bool bUpdateCustomRendererOnPostPhysicsSync;
-
 private:
 	struct FBrokenAndDecayedStates
 	{
@@ -1844,12 +1850,6 @@ private:
 	void UpdateBrokenAndDecayedStates();
 
 	bool ShouldCreateRootProxyComponents() const;
-	void CreateRootProxyComponentsIfNeeded();
-	void UpdateRootProxyComponentsIfNeeded();
-	void ClearRootProxyComponents();
-
-	TArray<TObjectPtr<UStaticMeshComponent>> RootProxyStaticMeshComponents;
-	bool bEnableRootProxyStaticMeshComponents = true;
 
 	TArray<FTransform3f> RootProxyLocalTransforms;
 

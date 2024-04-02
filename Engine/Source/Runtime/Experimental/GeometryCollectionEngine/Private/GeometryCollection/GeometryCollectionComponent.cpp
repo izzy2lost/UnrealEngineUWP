@@ -131,9 +131,6 @@ FAutoConsoleVariableRef CVarGeometryCollectionEmitRootBreakingEvent(TEXT("p.Chao
 bool GeometryCollectionCreatePhysicsStateInEditor = false;
 FAutoConsoleVariableRef CVarGeometryCollectionCreatePhysicsStateInEditor(TEXT("p.Chaos.GC.CreatePhysicsStateInEditor"), GeometryCollectionCreatePhysicsStateInEditor, TEXT("when on , physics state for a GC will be create in editor ( non PIE )"));
 
-bool GeometryCollectionEnableRootProxyComponents = true;
-FAutoConsoleVariableRef CVarGeometryCollectionRootProxyComponents(TEXT("p.Chaos.GC.EnableRootProxyComponents"), GeometryCollectionEnableRootProxyComponents, TEXT("when on ( by default ) , create root proxy components"));
-
 bool GeometryCollectionUseReplicationV2 = true;
 FAutoConsoleVariableRef CVarGeometryCollectionUseReplicationV2(TEXT("p.Chaos.GC.UseReplicationV2"), GeometryCollectionUseReplicationV2, TEXT("When true use new replication data model"));
 
@@ -632,6 +629,11 @@ UGeometryCollectionComponent::UGeometryCollectionComponent(const FObjectInitiali
 	, bEnableRunTimeDataCollection(false)
 	, RunTimeDataCollectionGuid(FGuid::NewGuid())
 #endif
+	, bForceBrokenForCustomRenderer(false)
+	, bUpdateCustomRendererOnPostPhysicsSync(true)
+	, bCustomRendererCanUseNativeFallback(false)
+	, bCustomRendererShouldUseNativeFallback(false)
+	, bForceNativeRenderer(false)
 	, bEnableReplication(false)
 	, bEnableAbandonAfterLevel(true)
 	, AbandonedCollisionProfileName(UCollisionProfile::CustomCollisionProfileName)
@@ -653,8 +655,6 @@ UGeometryCollectionComponent::UGeometryCollectionComponent(const FObjectInitiali
 	, bIsTransformSelectionModeEnabled(false)
 #endif  // #if GEOMETRYCOLLECTION_EDITOR_SELECTION
 	, bIsMoving(false)
-	, bUpdateCustomRenderer(true)
-	, bUpdateCustomRendererOnPostPhysicsSync(true)
 {
 	// by default tick is registered but disabled, we only need it when we need to update the removal timers
 	// tick will be then enabled only when the root is broken from OnPostPhysicsSync callback
@@ -1091,7 +1091,13 @@ void UGeometryCollectionComponent::UpdateCachedBounds()
 
 bool UGeometryCollectionComponent::ShouldCreateRenderState() const
 {
-	return !CanUseCustomRenderer();
+	// Called once on registration
+	// Returning true here means that we pay overhead of render thread tasks for maintaining render state.
+	// Try and return false whenever possible, but ONLY if there is no chance that we will want to create a scene proxy.
+	return 
+		!IsCustomRendererAvailable() ||  // Custom renderer replaces need for a scene proxy.
+		bCustomRendererCanUseNativeFallback || // Except if custom renderer can require native rendering according to state.
+		!GetWorld()->IsGameWorld(); // Editor worlds need to support fracture editor which forces native rendering.
 }
 
 void UGeometryCollectionComponent::CreateRenderState_Concurrent(FRegisterComponentContext* Context)
@@ -1106,8 +1112,7 @@ FPrimitiveSceneProxy* UGeometryCollectionComponent::CreateSceneProxy()
 
 	FPrimitiveSceneProxy* LocalSceneProxy = nullptr;
 
-	const bool bNotUsingRootProxyComponents = RootProxyStaticMeshComponents.IsEmpty();
-	if (RestCollection && !CanUseCustomRenderer() && bNotUsingRootProxyComponents)
+	if (RestCollection && !IsUsingCustomRenderer())
 	{
 		if (UseNanite(GetScene()->GetShaderPlatform()) &&
 			RestCollection->EnableNanite &&
@@ -1694,6 +1699,17 @@ void UGeometryCollectionComponent::SetEmbeddedGeometrySelectable(bool bSelectabl
 			EmbeddedGeometryComponent->bSelectable = bSelectable;
 			EmbeddedGeometryComponent->bHasPerInstanceHitProxies = bSelectable;
 		}
+	}
+}
+
+void UGeometryCollectionComponent::ForceNativeRendering(bool bForce)
+{
+	if (bForce != bForceNativeRenderer)
+	{
+		bForceNativeRenderer = bForce;
+		UnregisterCustomRenderer();
+		RegisterCustomRenderer();
+		MarkRenderStateDirty();
 	}
 }
 
@@ -3270,6 +3286,12 @@ void UGeometryCollectionComponent::OnUpdateTransform(EUpdateTransformFlags Updat
 	{
 		PhysicsProxy->SetWorldTransform_External(GetComponentTransform());
 	}
+
+	// Make sure that custom renderer is updated at in editor.
+	if (!GetWorld()->IsGameWorld())
+	{
+		RefreshCustomRenderer();
+	}
 }
 
 bool UGeometryCollectionComponent::HasAnySockets() const
@@ -3543,127 +3565,32 @@ void UGeometryCollectionComponent::OnRegister()
 	}
 
 	Super::OnRegister();
-
-	CreateRootProxyComponentsIfNeeded();
 }
 
 void UGeometryCollectionComponent::OnUnregister()
 {
-	ClearRootProxyComponents();
-
 	Super::OnUnregister();
 
 	// Remove any custom renderer.
-	if (CustomRenderer)
-	{
-		UnregisterCustomRenderer();
-		CustomRenderer = nullptr;
-	}
-}
-
-void UGeometryCollectionComponent::EnableRootProxyStaticMeshComponents(bool bEnabled)
-{
-	if (bEnabled != bEnableRootProxyStaticMeshComponents)
-	{
-		bEnableRootProxyStaticMeshComponents = bEnabled;
-
-		if (bEnabled)
-		{
-			CreateRootProxyComponentsIfNeeded();
-		}
-		else
-		{
-			ClearRootProxyComponents();
-		}	
-		MarkRenderStateDirty();
-	}
-	
-}
-
-bool UGeometryCollectionComponent::ShouldCreateRootProxyComponents() const
-{
-	const bool bHasRootProxyMeshes = RestCollection && RestCollection->RootProxyData.ProxyMeshes.Num() > 0;
-	const bool bHasCustomRenderer = CanUseCustomRenderer();
-	return bHasRootProxyMeshes && !bHasCustomRenderer && bEnableRootProxyStaticMeshComponents && GeometryCollectionEnableRootProxyComponents;
-}
-
-void UGeometryCollectionComponent::CreateRootProxyComponentsIfNeeded()
-{
-	ClearRootProxyComponents();
-
-	if (ShouldCreateRootProxyComponents() && GetOwner())
-	{
-		for (const TObjectPtr<UStaticMesh>& ProxyMesh : RestCollection->RootProxyData.ProxyMeshes)
-		{
-			if (UStaticMesh* StaticMesh = ProxyMesh.Get())
-			{
-				const FName UniqueName = MakeUniqueObjectName(GetOwner(), UStaticMeshComponent::StaticClass(), TEXT("GC_RootProxyMesh"));
-				UStaticMeshComponent* MeshComponent = NewObject<UStaticMeshComponent>(GetOwner(), UniqueName, RF_DuplicateTransient | RF_Transient | RF_TextExportTransient);
-
-				MeshComponent->SetStaticMesh(StaticMesh);
-				//MeshComponent->SetRelativeTransform(GetComponentTransform());
-				MeshComponent->SetCanEverAffectNavigation(false);
-				MeshComponent->SetCollisionProfileName(UCollisionProfile::NoCollision_ProfileName);
-				MeshComponent->SetMobility(this->Mobility);
-				MeshComponent->SetupAttachment(this);
-				MeshComponent->RegisterComponent();
-
-				RootProxyStaticMeshComponents.Add(MeshComponent);
-			}
-		}
-	}
-}
-
-void UGeometryCollectionComponent::UpdateRootProxyComponentsIfNeeded()
-{
-	if (RootProxyStaticMeshComponents.Num() > 0 && !bUpdateComponentTransformToRootBone)
-	{
-		if (RestCollection && !IsRootBroken())
-		{
-			const TSharedPtr<FGeometryCollection, ESPMode::ThreadSafe> AssetCollection = RestCollection->GetGeometryCollection();
-			if (AssetCollection)
-			{
-				const int32 RootIndex = RestCollection->GetRootIndex();
-				const FTransform3f RootRestTransform = AssetCollection->Transform[RootIndex];
-				const FTransform3f RootCurrentTransform = ComponentSpaceTransforms.RequestRootTransform();
-				const FTransform RootTransformFromRestPose = FTransform(RootCurrentTransform.GetRelativeTransform(RootRestTransform));
-
-				for (int32 MeshIndex = 0; MeshIndex < RootProxyStaticMeshComponents.Num(); MeshIndex++)
-				{
-					if (TObjectPtr<UStaticMeshComponent> StaticMeshComponent = RootProxyStaticMeshComponents[MeshIndex])
-					{
-						if (RootProxyLocalTransforms.IsValidIndex(MeshIndex))
-						{
-							StaticMeshComponent->SetRelativeTransform(FTransform(RootProxyLocalTransforms[MeshIndex]) * RootTransformFromRestPose);
-						}
-						else
-						{
-							StaticMeshComponent->SetRelativeTransform(RootTransformFromRestPose);
-						}
-					}
-				}
-			}
-		}
-	}
-}
-
-void UGeometryCollectionComponent::ClearRootProxyComponents()
-{
-	for (TObjectPtr<UStaticMeshComponent> StaticMeshComponent : RootProxyStaticMeshComponents)
-	{
-		if (StaticMeshComponent)
-		{
-			StaticMeshComponent->DestroyComponent();
-		}
-	}
-	RootProxyStaticMeshComponents.Empty();
+	UnregisterCustomRenderer();
+	CustomRenderer = nullptr;
 }
 
 void UGeometryCollectionComponent::RegisterCustomRenderer()
 {
-	if (IGeometryCollectionExternalRenderInterface* RendererInterface = CustomRenderer.GetInterface())
+	bCustomRendererCanUseNativeFallback = false;
+
+	if (IsCustomRendererAvailable())
 	{
-		RendererInterface->OnRegisterGeometryCollection(*this);
+		if (IGeometryCollectionExternalRenderInterface* RendererInterface = CustomRenderer.GetInterface())
+		{
+			bCustomRendererCanUseNativeFallback = RendererInterface->CanEverUseNativeFallback();
+
+			if (IsUsingCustomRenderer())
+			{
+				RendererInterface->OnRegisterGeometryCollection(*this);
+			}
+		}
 	}
 }
 
@@ -3878,7 +3805,12 @@ void UGeometryCollectionComponent::OnCreatePhysicsState()
 				// We're skipping over the primitive component so we need to make sure this event gets fired.
 				OnComponentPhysicsStateChanged.Broadcast(this, EComponentPhysicsStateChange::Created);
 			}
-			
+		}
+
+		// Make sure that custom renderer is updated at least once in editor.
+		if (!GetWorld()->IsGameWorld())
+		{
+			RefreshCustomRenderer();
 		}
 	}
 }
@@ -4360,12 +4292,6 @@ void UGeometryCollectionComponent::OnPostPhysicsSync()
 			InitializeRemovalDynamicAttributesIfNeeded();
 		}
 
-		if (RootProxyStaticMeshComponents.Num() > 0)
-		{
-			ClearRootProxyComponents();
-			RecreateRenderState_Concurrent();
-		}
-
 		UpdateRemovalIfNeeded();
 
 		CheckFullyDecayed();
@@ -4462,8 +4388,6 @@ void UGeometryCollectionComponent::UpdateRenderSystemsIfNeeded(bool bDynamicColl
 		{
 			RefreshCustomRenderer();
 		}
-
-		UpdateRootProxyComponentsIfNeeded();
 
 		if (SceneProxy != nullptr)
 		{
@@ -5045,8 +4969,6 @@ void UGeometryCollectionComponent::SetRestCollection(const UGeometryCollection* 
 			UnregisterCustomRenderer();
 			RegisterCustomRenderer();
 		}
-
-		CreateRootProxyComponentsIfNeeded();
 
 		ClearRootProxyLocalTransforms();
 
@@ -6301,9 +6223,9 @@ void UGeometryCollectionComponent::InitializeEmbeddedGeometry()
 	}
 }
 
-void UGeometryCollectionComponent::EnableRootProxyForCustomRenderer(bool bEnable)
+void UGeometryCollectionComponent::ForceBrokenForCustomRenderer(bool bForceBroken)
 { 
-	bEnableRootProxyForCustomRenderer = bEnable;
+	bForceBrokenForCustomRenderer = bForceBroken;
 	RefreshCustomRenderer();
 }
 
@@ -6328,66 +6250,74 @@ void UGeometryCollectionComponent::ClearRootProxyLocalTransforms()
 void UGeometryCollectionComponent::RefreshRootProxies()
 {
 	RefreshCustomRenderer();
-	UpdateRootProxyComponentsIfNeeded();
 }
 
-bool UGeometryCollectionComponent::CanUseCustomRenderer() const 
+bool UGeometryCollectionComponent::IsCustomRendererAvailable() const
 {
-	return bChaos_GC_UseCustomRenderer && CustomRenderer != nullptr && GetWorld()->IsGameWorld();
+	return bChaos_GC_UseCustomRenderer && CustomRenderer != nullptr && FApp::CanEverRender();
+}
+
+bool UGeometryCollectionComponent::IsUsingCustomRenderer() const
+{
+	return IsCustomRendererAvailable() && !(bCustomRendererCanUseNativeFallback && bCustomRendererShouldUseNativeFallback) && !bForceNativeRenderer;
 }
 
 void UGeometryCollectionComponent::RefreshCustomRenderer()
 {
-	if (CanUseCustomRenderer())
+	if (RestCollection == nullptr || !IsCustomRendererAvailable())
 	{
-		// Don't refresh the custom renderer on the server but we still need to do the work of computing component space transforms.
-		const bool bUpdateRenderer = !IsNetMode(NM_DedicatedServer) && bUpdateCustomRenderer;
+		return;
+	}
+	
+	if (IGeometryCollectionExternalRenderInterface* RendererInterface = CustomRenderer.GetInterface())
+	{
+		const int32 RootIndex = GetRootIndex();
+		bool bIsBroken = DynamicCollection ? !DynamicCollection->Active[RootIndex] : false;
 
-		if (IGeometryCollectionExternalRenderInterface* RendererInterface = CustomRenderer.GetInterface())
+#if !(UE_BUILD_SHIPPING)
+		if (CVarNumToForceBreak->GetInt() >= 0)
 		{
-			if (RestCollection != nullptr)
+			bIsBroken = ForcedBroken.Break(this, ComponentSpaceTransforms.RequestAllTransforms());
+		}
+#endif						
+
+		const bool bRenderRootProxy = !bForceBrokenForCustomRenderer && !bIsBroken && (RestCollection->RootProxyData.ProxyMeshes.Num() > 0);
+
+		uint32 StateFlags = 0;
+		StateFlags |= bHiddenInGame || !IsVisible() ? 0 : IGeometryCollectionExternalRenderInterface::EState_Visible;
+		StateFlags |= bRenderRootProxy ? 0 : IGeometryCollectionExternalRenderInterface::EState_Broken;
+		StateFlags |= bForceBrokenForCustomRenderer ? IGeometryCollectionExternalRenderInterface::EState_ForcedBroken : 0;
+
+		// Test if we should change the native rendering fallback state before updating custom renderer.
+		const bool bShouldUseNativeFallback = bCustomRendererCanUseNativeFallback && RendererInterface->ShouldUseNativeFallback(StateFlags);
+		if (bCustomRendererShouldUseNativeFallback != bShouldUseNativeFallback)
+		{
+			bCustomRendererShouldUseNativeFallback = bShouldUseNativeFallback;
+			UnregisterCustomRenderer();
+			RegisterCustomRenderer();
+			MarkRenderStateDirty();
+		}
+
+		if (IsUsingCustomRenderer())
+		{
+			RendererInterface->UpdateState(*RestCollection, GetComponentTransform(), StateFlags);
+
+			if (bRenderRootProxy)
 			{
-				if (bUpdateRenderer)
+				const FTransform CompSpaceRootTransform(ComponentSpaceTransforms.RequestRootTransform());
+				if (RootProxyLocalTransforms.IsEmpty())
 				{
-					const FTransform ComponentTransform = GetComponentTransform();
-					const int32 RootIndex = GetRootIndex();
-
-					bool bIsBroken = DynamicCollection ? !DynamicCollection->Active[RootIndex] : false;
-
-				#if !(UE_BUILD_SHIPPING)
-					if (CVarNumToForceBreak->GetInt() >= 0)
-					{
-						bIsBroken = ForcedBroken.Break(this, ComponentSpaceTransforms.RequestAllTransforms());
-					}
-				#endif						
-
-					const bool bRenderRootProxy = bEnableRootProxyForCustomRenderer && !bIsBroken && (RestCollection->RootProxyData.ProxyMeshes.Num() > 0);
-
-					uint32 StateFlags = 0;
-					StateFlags |= bHiddenInGame || !IsVisible() ? 0 : IGeometryCollectionExternalRenderInterface::EState_Visible;
-					StateFlags |= bRenderRootProxy ? 0 : IGeometryCollectionExternalRenderInterface::EState_Broken;
-					StateFlags |= bEnableRootProxyForCustomRenderer ? 0 : IGeometryCollectionExternalRenderInterface::EState_ForcedBroken;
-
-					RendererInterface->UpdateState(*RestCollection, ComponentTransform, StateFlags);
-
-					if (bRenderRootProxy)
-					{
-						const FTransform CompSpaceRootTransform(ComponentSpaceTransforms.RequestRootTransform());
-						if (RootProxyLocalTransforms.IsEmpty())
-						{
-							RendererInterface->UpdateRootTransform(*RestCollection, CompSpaceRootTransform);
-						}
-						else
-						{
-							RendererInterface->UpdateRootTransforms(*RestCollection, CompSpaceRootTransform, MakeArrayView(RootProxyLocalTransforms));
-						}
-					}
-					else
-					{
-						const TArray<FTransform3f>& CompSpaceTransforms = ComponentSpaceTransforms.RequestAllTransforms();
-						RendererInterface->UpdateTransforms(*RestCollection, CompSpaceTransforms);
-					}
+					RendererInterface->UpdateRootTransform(*RestCollection, CompSpaceRootTransform);
 				}
+				else
+				{
+					RendererInterface->UpdateRootTransforms(*RestCollection, CompSpaceRootTransform, MakeArrayView(RootProxyLocalTransforms));
+				}
+			}
+			else
+			{
+				const TArray<FTransform3f>& CompSpaceTransforms = ComponentSpaceTransforms.RequestAllTransforms();
+				RendererInterface->UpdateTransforms(*RestCollection, CompSpaceTransforms);
 			}
 		}
 	}
@@ -7144,7 +7074,7 @@ void UGeometryCollectionComponent::PostLoad()
 	Super::PostLoad();
 
 	// If there is a rest collection and no custom renderer then precache PSOs required to render the mesh
-	if (RestCollection && !CanUseCustomRenderer())
+	if (RestCollection && !IsCustomRendererAvailable())
 	{
 		PrecachePSOs();
 	}

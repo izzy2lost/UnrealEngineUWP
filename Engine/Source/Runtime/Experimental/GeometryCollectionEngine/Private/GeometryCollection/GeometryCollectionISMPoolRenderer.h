@@ -19,7 +19,7 @@ class UGeometryCollectionISMPoolRenderer : public UObject, public IGeometryColle
 
 public:
 	//~ Begin IGeometryCollectionExternalRenderInterface Interface.
-	virtual void OnRegisterGeometryCollection(UGeometryCollectionComponent const& InComponent) override;
+	virtual void OnRegisterGeometryCollection(UGeometryCollectionComponent& InComponent) override;
 	virtual void OnUnregisterGeometryCollection() override;
 	virtual void UpdateState(UGeometryCollection const& InGeometryCollection, FTransform const& InComponentTransform, uint32 InStateFlags) override;
 	virtual void UpdateRootTransform(UGeometryCollection const& InGeometryCollection, FTransform const& InRootTransform) override;
@@ -35,9 +35,9 @@ public:
 	};
 
 protected:
-	/** Instanced Static Mesh Pool actor that is used to render our meshes. */
+	/** Instanced Static Mesh Pool component that is used to render our meshes. */
 	UPROPERTY(Transient)
-	TObjectPtr<AGeometryCollectionISMPoolActor> ISMPoolActor;
+	TObjectPtr<UGeometryCollectionISMPoolComponent> CachedISMPoolComponent;
 
 	/** Cached component transform. */
 	FTransform ComponentTransform = FTransform::Identity;
@@ -50,6 +50,7 @@ protected:
 	ULevel* OwningLevel = nullptr;
 
 private:
+	UGeometryCollectionISMPoolComponent* GetISMPoolComponent() const;
 	UGeometryCollectionISMPoolComponent* GetOrCreateISMPoolComponent();
 	void InitMergedMeshFromGeometryCollection(UGeometryCollection const& InGeometryCollection);
 	void InitInstancesFromGeometryCollection(UGeometryCollection const& InGeometryCollection);
