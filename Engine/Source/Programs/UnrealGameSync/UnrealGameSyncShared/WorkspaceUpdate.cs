@@ -583,7 +583,7 @@ namespace UnrealGameSync
 
 		public async Task<(WorkspaceUpdateResult, string)> ExecuteAsync(IPerforceSettings perforceSettings, ProjectInfo project, WorkspaceStateWrapper stateMgr, ILogger logger, CancellationToken cancellationToken)
 		{
-			using IPerforceConnection perforce = await PerforceConnection.CreateAsync(perforceSettings, logger);
+			using IPerforceConnection perforce = await PerforceConnection.CreateAsync(new PerforceSettings(perforceSettings) { EnableHangMonitor = false }, logger);
 
 			ReadOnlyWorkspaceState state = stateMgr.Current;
 
