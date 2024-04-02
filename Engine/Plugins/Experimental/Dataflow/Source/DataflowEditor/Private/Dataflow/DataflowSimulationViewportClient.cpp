@@ -8,7 +8,7 @@
 #include "Dataflow/DataflowEditorCollectionComponent.h"
 #include "Dataflow/DataflowEngineSceneHitProxies.h"
 #include "Dataflow/DataflowGraphEditor.h"
-#include "Dataflow/DataflowEditorScenes.h"
+#include "Dataflow/DataflowEditorPreviewSceneBase.h"
 #include "EditorModeManager.h"
 #include "EdModeInteractiveToolsContext.h"
 #include "GraphEditor.h"
@@ -30,7 +30,7 @@ FDataflowSimulationViewportClient::FDataflowSimulationViewportClient(FEditorMode
 	EngineShowFlags.SetSelectionOutline(true);
 	EngineShowFlags.EnableAdvancedFeatures();
 
-	PreviewScene = static_cast<FDataflowPreviewScene*>(InPreviewScene);
+	PreviewScene = static_cast<FDataflowPreviewSceneBase*>(InPreviewScene);
 	bEnableSceneTicking = bCouldTickScene;
 }
 

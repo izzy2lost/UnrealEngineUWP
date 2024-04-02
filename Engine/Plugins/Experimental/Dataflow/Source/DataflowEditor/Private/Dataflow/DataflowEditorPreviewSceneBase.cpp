@@ -1,0 +1,97 @@
+// Copyright Epic Games, Inc. All Rights Reserved.
+
+#include "Dataflow/DataflowEditorPreviewSceneBase.h"
+
+
+#include "AssetEditorModeManager.h"
+#include "Dataflow/DataflowEditor.h"
+#include "Elements/Framework/EngineElementsLibrary.h"
+#include "Selection.h"
+
+#define LOCTEXT_NAMESPACE "FDataflowPreviewSceneBase"
+
+
+bool bDataflowShowFloorDefault = false;
+FAutoConsoleVariableRef CVARDataflowShowFloorDefault(TEXT("p.Dataflow.Editor.ShowFloor"), bDataflowShowFloorDefault, TEXT("Show the floor in the dataflow editor[def:false]"));
+
+
+FDataflowPreviewSceneBase::FDataflowPreviewSceneBase(FPreviewScene::ConstructionValues ConstructionValues, UDataflowEditor* InEditor)
+	: FAdvancedPreviewScene(ConstructionValues)
+	, DataflowEditor(InEditor)
+{
+	check(DataflowEditor);
+	SetFloorVisibility(bDataflowShowFloorDefault, true);
+
+	RootSceneActor = GetWorld()->SpawnActor<AActor>(AActor::StaticClass());
+}
+
+FDataflowPreviewSceneBase::~FDataflowPreviewSceneBase()
+{}
+
+TObjectPtr<UDataflowBaseContent> FDataflowPreviewSceneBase::GetDataflowContent() 
+{ 
+	return DataflowEditor->GetDataflowContent();
+}
+
+const TObjectPtr<UDataflowBaseContent> FDataflowPreviewSceneBase::GetDataflowContent() const 
+{ 
+	return DataflowEditor->GetDataflowContent();
+}
+
+void FDataflowPreviewSceneBase::AddReferencedObjects(FReferenceCollector& Collector)
+{
+	FAdvancedPreviewScene::AddReferencedObjects(Collector);
+	Collector.AddReferencedObject(RootSceneActor);
+	if (GetDataflowContent())
+	{
+		GetDataflowContent()->AddContentObjects(Collector);
+	}
+}
+
+bool FDataflowPreviewSceneBase::IsComponentSelected(const UPrimitiveComponent* InComponent) const
+{
+	if(DataflowModeManager.IsValid())
+	{
+		if (const UTypedElementSelectionSet* const TypedElementSelectionSet = DataflowModeManager->GetEditorSelectionSet())
+		{
+			if (const FTypedElementHandle ComponentElement = UEngineElementsLibrary::AcquireEditorComponentElementHandle(InComponent))
+			{
+				const bool bElementSelected = TypedElementSelectionSet->IsElementSelected(ComponentElement, FTypedElementIsSelectedOptions());
+				return bElementSelected;
+			}
+		}
+	}
+	return false;
+}
+
+FBox FDataflowPreviewSceneBase::GetBoundingBox() const
+{
+	FBox SceneBounds(ForceInitToZero);
+	if(DataflowModeManager.IsValid())
+	{
+		USelection* const SelectedComponents = DataflowModeManager->GetSelectedComponents();
+
+		TArray<TWeakObjectPtr<UObject>> SelectedObjects;
+		const int32 NumSelected = SelectedComponents->GetSelectedObjects(SelectedObjects);
+		
+		if(NumSelected > 0)
+		{
+			for(const TWeakObjectPtr<UObject> SelectedObject : SelectedObjects)
+			{
+				if(const UPrimitiveComponent* SelectedComponent = Cast<UPrimitiveComponent>(SelectedObject))
+				{
+					SceneBounds += SelectedComponent->Bounds.GetBox();
+				}
+			}
+		}
+		else
+		{
+			SceneBounds += RootSceneActor->GetComponentsBoundingBox(true);
+		}
+	}
+	return SceneBounds;
+}
+
+
+#undef LOCTEXT_NAMESPACE
+

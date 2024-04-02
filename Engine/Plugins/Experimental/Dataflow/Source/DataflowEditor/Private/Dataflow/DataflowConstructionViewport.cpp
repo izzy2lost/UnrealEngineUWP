@@ -9,7 +9,8 @@
 #include "EditorModeManager.h"
 #include "Dataflow/DataflowContent.h"
 #include "Dataflow/DataflowConstructionViewportToolbar.h"
-#include "Dataflow/DataflowEditorScenes.h"
+#include "Dataflow/DataflowConstructionScene.h"
+#include "Dataflow/DataflowEditorPreviewSceneBase.h"
 #include "Dataflow/DataflowSimulationPanel.h"
 
 #define LOCTEXT_NAMESPACE "SDataflowConstructionViewport"
@@ -34,7 +35,7 @@ TSharedPtr<SWidget> SDataflowConstructionViewport::MakeViewportToolbar()
 
 void SDataflowConstructionViewport::OnFocusViewportToSelection()
 {
-	if(const FDataflowPreviewScene* PreviewScene = static_cast<FDataflowPreviewScene*>(Client->GetPreviewScene()))
+	if(const FDataflowPreviewSceneBase* PreviewScene = static_cast<FDataflowPreviewSceneBase*>(Client->GetPreviewScene()))
 	{
 		const FBox SceneBoundingBox = PreviewScene->GetBoundingBox();
 		Client->FocusViewportOnBox(SceneBoundingBox);
@@ -81,12 +82,12 @@ void SDataflowConstructionViewport::OnFloatingButtonClicked()
 
 float SDataflowConstructionViewport:: GetViewMinInput() const
 {
-	return static_cast<FDataflowPreviewScene*>(Client->GetPreviewScene())->GetDataflowContent()->GetSimulationRange()[0];
+	return static_cast<FDataflowPreviewSceneBase*>(Client->GetPreviewScene())->GetDataflowContent()->GetSimulationRange()[0];
 }
 
 float SDataflowConstructionViewport::GetViewMaxInput() const
 {
-	return static_cast<FDataflowPreviewScene*>(Client->GetPreviewScene())->GetDataflowContent()->GetSimulationRange()[1];
+	return static_cast<FDataflowPreviewSceneBase*>(Client->GetPreviewScene())->GetDataflowContent()->GetSimulationRange()[1];
 }
 
 

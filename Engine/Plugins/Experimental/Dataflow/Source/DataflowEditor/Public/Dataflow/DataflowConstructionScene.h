@@ -2,21 +2,14 @@
 
 #pragma once
 
-#include "AdvancedPreviewScene.h"
+#include "Dataflow/DataflowEditorPreviewSceneBase.h"
 
-class UDataflowBaseContent;
+class UDataflowEditor;
 class USkeletalMeshComponent;
 class UDynamicMeshComponent;
-class UDataflowComponent;
-class UAnimationAsset;
-class UAnimSingleNodeInstance;
-class UMaterialInterface;
-class FAssetEditorModeManager;
-class ADataflowActor;
 class UMeshElementsVisualizer;
-class UInteractiveToolPropertySet;
 class UDataflowEdNode;
-class UDataflowEditor;
+class UInteractiveToolPropertySet;
 
 namespace UE
 {
@@ -27,59 +20,9 @@ namespace UE
 }
 
 /**
- * Dataflow preview scene
- * @brief the scene is holding all the objects that will be
- * visible and potentially editable within the viewport
- */
-class DATAFLOWEDITOR_API FDataflowPreviewScene : public FAdvancedPreviewScene
-{
-public:
-
-	FDataflowPreviewScene(FPreviewScene::ConstructionValues ConstructionValues, UDataflowEditor* Editor);
-	virtual ~FDataflowPreviewScene();
-	
-	// FGCObject interface
-	virtual void AddReferencedObjects(FReferenceCollector& Collector) override;
-
-	/** Dataflow content accessors */
-	TObjectPtr<UDataflowBaseContent> GetDataflowContent();
-		const TObjectPtr<UDataflowBaseContent> GetDataflowContent() const;
-
-	/** Root scene actor accessors */
-	TObjectPtr<AActor> GetRootActor() { return RootSceneActor; }
-	const TObjectPtr<AActor> GetRootActor() const { return RootSceneActor; }
-
-	/** Dataflow mode manager accessors */
-	TSharedPtr<FAssetEditorModeManager>& GetDataflowModeManager() { return DataflowModeManager; }
-	const TSharedPtr<FAssetEditorModeManager>& GetDataflowModeManager() const { return DataflowModeManager; }
-	
-	/** Build the scene bounding box */
-	FBox GetBoundingBox() const;
-
-	/** Tick data flow scene */
-	virtual void TickDataflowScene(const float DeltaSeconds) {}
-
-	/** Check if a primitive component is selected */
-	bool IsComponentSelected(const UPrimitiveComponent* InComponent) const;
-
-	/** Check if the preview scene can run simulation */
-	virtual bool CanRunSimulation() const {return false;}
-	
-protected:
-	
-	/** Root scene actor */
-	TObjectPtr<AActor> RootSceneActor = nullptr;
-
-	UDataflowEditor* DataflowEditor = nullptr;
-
-	/** Mode Manager for selection */
-	TSharedPtr<FAssetEditorModeManager> DataflowModeManager;
-};
-
-/**
  * Dataflow construction scene holding all the dynamic meshes used/displayed in the dataflow graph
  */
-class DATAFLOWEDITOR_API FDataflowConstructionScene : public FDataflowPreviewScene
+class DATAFLOWEDITOR_API FDataflowConstructionScene : public FDataflowPreviewSceneBase
 {
 	/*(const void* ObjectPointer, const int32 ObjectIndex)*/
 	typedef TPair<TObjectPtr<const UDataflowEdNode>, int32> FDataflowRenderKey;
@@ -145,27 +88,3 @@ private:
 	/** Show the wireframe on render */ 
 	bool bConstructionViewWireframe = true;
 };
-
-
-/**
- * Dataflow simulation scene holding all the dataflow content components
- */
-class DATAFLOWEDITOR_API FDataflowSimulationScene : public FDataflowPreviewScene
-{
-public:
-
-	FDataflowSimulationScene(FPreviewScene::ConstructionValues ConstructionValues, UDataflowEditor* Editor);
-	virtual ~FDataflowSimulationScene();
-
-	/** Tick data flow scene */
-	virtual void TickDataflowScene(const float DeltaSeconds) override;
-	
-	/** Check if the preview scene can run simulation */
-	virtual bool CanRunSimulation() const { return true; }
-
-	void ResetSimulationScene() {}
-	bool HasRenderableGeometry() { return true; }
-
-};
-
-

@@ -21,7 +21,9 @@
 #include "Dataflow/DataflowNodeFactory.h"
 #include "Dataflow/DataflowObject.h"
 #include "Dataflow/DataflowObjectInterface.h"
-#include "Dataflow/DataflowEditorScenes.h"
+#include "Dataflow/DataflowEditorPreviewSceneBase.h"
+#include "Dataflow/DataflowConstructionScene.h"
+#include "Dataflow/DataflowSimulationScene.h"
 #include "Dataflow/DataflowSchema.h"
 #include "Dataflow/DataflowSimulationViewportClient.h"
 #include "DynamicMeshBuilder.h"
@@ -190,7 +192,7 @@ void FDataflowEditorToolkit::CreateEditorModeManager()
 {
 	// Setup the construction manager / scene
 	FBaseCharacterFXEditorToolkit::CreateEditorModeManager();
-	static_cast<FDataflowPreviewScene*>(ObjectScene.Get())->GetDataflowModeManager()
+	static_cast<FDataflowPreviewSceneBase*>(ObjectScene.Get())->GetDataflowModeManager()
 		= StaticCastSharedPtr<FAssetEditorModeManager>(EditorModeManager);
 
 	// Setup the simulation manager / scene
@@ -198,7 +200,7 @@ void FDataflowEditorToolkit::CreateEditorModeManager()
 	StaticCastSharedPtr<FAssetEditorModeManager>(SimulationModeManager)->SetPreviewScene(
 		SimulationScene.Get());
 
-	static_cast<FDataflowPreviewScene*>(SimulationScene.Get())->GetDataflowModeManager()
+	static_cast<FDataflowPreviewSceneBase*>(SimulationScene.Get())->GetDataflowModeManager()
 		= StaticCastSharedPtr<FAssetEditorModeManager>(SimulationModeManager);
 }
 
@@ -591,7 +593,7 @@ void FDataflowEditorToolkit::OnNodeSelectionChanged(const TSet<UObject*>& InNewS
 				}
 			}
 
-			if (TObjectPtr<AActor> RootActor = static_cast<FDataflowPreviewScene*>(ObjectScene.Get())->GetRootActor())
+			if (TObjectPtr<AActor> RootActor = static_cast<FDataflowPreviewSceneBase*>(ObjectScene.Get())->GetRootActor())
 			{
 				for (UActorComponent* ActorComponent : RootActor->GetComponents())
 				{

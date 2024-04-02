@@ -2,7 +2,7 @@
 
 #pragma once
 
-#include "DataflowEditorScenes.h"
+#include "Dataflow/DataflowSimulationScene.h"
 #include "Widgets/SCompoundWidget.h"
 #include "ITransportControl.h"  // EPlaybackMode::Type
 

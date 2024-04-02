@@ -17,7 +17,7 @@
 #include "Dataflow/DataflowEdNode.h"
 #include "Dataflow/DataflowEditorCollectionComponent.h"
 #include "Dataflow/DataflowEditorMode.h"
-#include "Dataflow/DataflowEditorScenes.h"
+#include "Dataflow/DataflowConstructionScene.h"
 #include "Dataflow/DataflowObject.h"
 #include "Dataflow/DataflowSNode.h"
 #include "Dataflow/DataflowGraphEditor.h"

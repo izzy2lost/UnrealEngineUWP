@@ -13,7 +13,7 @@ class ADataflowActor;
 class UTransformProxy;
 class UCombinedTransformGizmo;
 class FTransformGizmoDataBinder;
-class FDataflowPreviewScene;
+class FDataflowPreviewSceneBase;
 class UInputBehaviorSet;
 class USelection;
 
@@ -55,7 +55,7 @@ private:
 	TWeakPtr<FDataflowEditorToolkit> DataflowEditorToolkitPtr = nullptr;
 
 	/** Dataflow preview scene from the toolkit */
-	FDataflowPreviewScene* PreviewScene = nullptr;
+	FDataflowPreviewSceneBase* PreviewScene = nullptr;
 
 	// @todo(brice) : Is this needed?
 	TWeakPtr<FUICommandList> ToolCommandList;

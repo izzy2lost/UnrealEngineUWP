@@ -8,7 +8,7 @@
 #include "Dataflow/DataflowEditorToolkit.h"
 #include "EditorModeManager.h"
 #include "Dataflow/DataflowContent.h"
-#include "Dataflow/DataflowEditorScenes.h"
+#include "Dataflow/DataflowSimulationScene.h"
 #include "Dataflow/DataflowSimulationPanel.h"
 
 #define LOCTEXT_NAMESPACE "SDataflowSimulationViewport"
@@ -55,7 +55,7 @@ void SDataflowSimulationViewport::Construct(const FArguments& InArgs, const FAss
 
 void SDataflowSimulationViewport::OnFocusViewportToSelection()
 {
-	if(const FDataflowPreviewScene* PreviewScene = static_cast<FDataflowPreviewScene*>(Client->GetPreviewScene()))
+	if(const FDataflowPreviewSceneBase* PreviewScene = static_cast<FDataflowPreviewSceneBase*>(Client->GetPreviewScene()))
 	{
 		const FBox SceneBoundingBox = PreviewScene->GetBoundingBox();
 		Client->FocusViewportOnBox(SceneBoundingBox);
@@ -102,12 +102,12 @@ void SDataflowSimulationViewport::OnFloatingButtonClicked()
 
 float SDataflowSimulationViewport:: GetViewMinInput() const
 {
-	return static_cast<FDataflowPreviewScene*>(Client->GetPreviewScene())->GetDataflowContent()->GetSimulationRange()[0];
+	return static_cast<FDataflowPreviewSceneBase*>(Client->GetPreviewScene())->GetDataflowContent()->GetSimulationRange()[0];
 }
 
 float SDataflowSimulationViewport::GetViewMaxInput() const
 {
-	return static_cast<FDataflowPreviewScene*>(Client->GetPreviewScene())->GetDataflowContent()->GetSimulationRange()[1];
+	return static_cast<FDataflowPreviewSceneBase*>(Client->GetPreviewScene())->GetDataflowContent()->GetSimulationRange()[1];
 }
 
 

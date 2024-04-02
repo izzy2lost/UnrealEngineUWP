@@ -1,114 +1,28 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#include "Dataflow/DataflowEditorScenes.h"
+#include "Dataflow/DataflowConstructionScene.h"
 
-#include "Animation/AnimSingleNodeInstance.h"
 #include "AssetEditorModeManager.h"
-#include "Components/DynamicMeshComponent.h"
 #include "Dataflow/CollectionRenderingPatternUtility.h"
-#include "Dataflow/DataflowEditor.h"
 #include "Dataflow/DataflowEditorCollectionComponent.h"
-#include "Dataflow/DataflowContent.h"
+#include "Dataflow/DataflowEditor.h"
+#include "Dataflow/DataflowObject.h"
 #include "Dataflow/DataflowEditorStyle.h"
-#include "Dataflow/DataflowEditorUtil.h"
 #include "Drawing/MeshElementsVisualizer.h"
 #include "Elements/Framework/EngineElementsLibrary.h"
-#include "InteractiveTool.h"
 #include "Selection.h"
 
-#define LOCTEXT_NAMESPACE "FDataflowPreviewScene"
-
-
-bool bDataflowShowFloorDefault = false;
-FAutoConsoleVariableRef CVARDataflowShowFloorDefault(TEXT("p.Dataflow.Editor.ShowFloor"), bDataflowShowFloorDefault, TEXT("Show the floor in the dataflow editor[def:false]"));
+#define LOCTEXT_NAMESPACE "FDataflowConstructionScene"
 
 bool bDataflowShowWireframeInConstructionView = false;
 FAutoConsoleVariableRef CVARDataflowShowWireframeInConstructionView(TEXT("p.Dataflow.Editor.Construction.ShowWireframe"), bDataflowShowWireframeInConstructionView, TEXT("Show the wireframe model in the dataflows construction view[def:true]"));
-
-
-FDataflowPreviewScene::FDataflowPreviewScene(FPreviewScene::ConstructionValues ConstructionValues, UDataflowEditor* InEditor)
-	: FAdvancedPreviewScene(ConstructionValues)
-	, DataflowEditor(InEditor)
-{
-	check(DataflowEditor);
-	SetFloorVisibility(bDataflowShowFloorDefault, true);
-
-	RootSceneActor = GetWorld()->SpawnActor<AActor>(AActor::StaticClass());
-}
-
-FDataflowPreviewScene::~FDataflowPreviewScene()
-{}
-
-TObjectPtr<UDataflowBaseContent> FDataflowPreviewScene::GetDataflowContent() 
-{ 
-	return DataflowEditor->GetDataflowContent();
-}
-
-const TObjectPtr<UDataflowBaseContent> FDataflowPreviewScene::GetDataflowContent() const 
-{ 
-	return DataflowEditor->GetDataflowContent();
-}
-
-void FDataflowPreviewScene::AddReferencedObjects(FReferenceCollector& Collector)
-{
-	FAdvancedPreviewScene::AddReferencedObjects(Collector);
-	Collector.AddReferencedObject(RootSceneActor);
-	if (GetDataflowContent())
-	{
-		GetDataflowContent()->AddContentObjects(Collector);
-	}
-}
-
-bool FDataflowPreviewScene::IsComponentSelected(const UPrimitiveComponent* InComponent) const
-{
-	if(DataflowModeManager.IsValid())
-	{
-		if (const UTypedElementSelectionSet* const TypedElementSelectionSet = DataflowModeManager->GetEditorSelectionSet())
-		{
-			if (const FTypedElementHandle ComponentElement = UEngineElementsLibrary::AcquireEditorComponentElementHandle(InComponent))
-			{
-				const bool bElementSelected = TypedElementSelectionSet->IsElementSelected(ComponentElement, FTypedElementIsSelectedOptions());
-				return bElementSelected;
-			}
-		}
-	}
-	return false;
-}
-
-FBox FDataflowPreviewScene::GetBoundingBox() const
-{
-	FBox SceneBounds(ForceInitToZero);
-	if(DataflowModeManager.IsValid())
-	{
-		USelection* const SelectedComponents = DataflowModeManager->GetSelectedComponents();
-
-		TArray<TWeakObjectPtr<UObject>> SelectedObjects;
-		const int32 NumSelected = SelectedComponents->GetSelectedObjects(SelectedObjects);
-		
-		if(NumSelected > 0)
-		{
-			for(const TWeakObjectPtr<UObject> SelectedObject : SelectedObjects)
-			{
-				if(const UPrimitiveComponent* SelectedComponent = Cast<UPrimitiveComponent>(SelectedObject))
-				{
-					SceneBounds += SelectedComponent->Bounds.GetBox();
-				}
-			}
-		}
-		else
-		{
-			SceneBounds += RootSceneActor->GetComponentsBoundingBox(true);
-		}
-	}
-	return SceneBounds;
-}
 
 //
 // Construction Scene
 //
 
 FDataflowConstructionScene::FDataflowConstructionScene(FPreviewScene::ConstructionValues ConstructionValues, UDataflowEditor* InEditor)
-	: FDataflowPreviewScene(ConstructionValues, InEditor)
+	: FDataflowPreviewSceneBase(ConstructionValues, InEditor)
 {}
 
 FDataflowConstructionScene::~FDataflowConstructionScene()
@@ -149,7 +63,7 @@ void FDataflowConstructionScene::SetVisibility(bool bVisibility, UActorComponent
 
 void FDataflowConstructionScene::AddReferencedObjects(FReferenceCollector& Collector)
 {
-	FDataflowPreviewScene::AddReferencedObjects(Collector);
+	FDataflowPreviewSceneBase::AddReferencedObjects(Collector);
 
 	Collector.AddReferencedObjects(DynamicMeshComponents);
 	Collector.AddReferencedObjects(WireframeElements);
@@ -298,7 +212,7 @@ TObjectPtr<UDynamicMeshComponent>& FDataflowConstructionScene::AddDynamicMeshCom
 	//	DynamicMeshComponent->ValidateMaterialSlots(true, false);
 	//}
 
-	DynamicMeshComponent->SelectionOverrideDelegate = UPrimitiveComponent::FSelectionOverride::CreateRaw(this, &FDataflowPreviewScene::IsComponentSelected);
+	DynamicMeshComponent->SelectionOverrideDelegate = UPrimitiveComponent::FSelectionOverride::CreateRaw(this, &FDataflowPreviewSceneBase::IsComponentSelected);
 	DynamicMeshComponent->UpdateBounds();
 
 	AddComponent(DynamicMeshComponent, DynamicMeshComponent->GetRelativeTransform());	
@@ -404,49 +318,6 @@ void FDataflowConstructionScene::UpdateConstructionScene()
 	{
 		DataflowContent->SetIsDirty(false);
 	}
-}
-
-//
-// FDataflowSimulationScene
-//
-
-FDataflowSimulationScene::FDataflowSimulationScene(FPreviewScene::ConstructionValues ConstructionValues, UDataflowEditor* InEditor)
-	: FDataflowPreviewScene(ConstructionValues, InEditor)
-{
-	if (TObjectPtr<UDataflowBaseContent> DataflowContent = GetDataflowContent())
-	{
-		DataflowContent->RegisterWorldContent(this, RootSceneActor);
-	}
-
-	TInlineComponentArray<UPrimitiveComponent*> PrimComponents;
-	RootSceneActor->GetComponents(PrimComponents);
-
-	for(UPrimitiveComponent* PrimComponent : PrimComponents)
-	{
-		PrimComponent->SelectionOverrideDelegate =
-			UPrimitiveComponent::FSelectionOverride::CreateRaw(this, &FDataflowPreviewScene::IsComponentSelected);
-	}
-}
-
-FDataflowSimulationScene::~FDataflowSimulationScene()
-{
-	TInlineComponentArray<UPrimitiveComponent*> PrimComponents;
-	RootSceneActor->GetComponents(PrimComponents);
-
-	for(UPrimitiveComponent* PrimComponent : PrimComponents)
-	{
-		PrimComponent->SelectionOverrideDelegate.Unbind();
-	}
-
-	if (TObjectPtr<UDataflowBaseContent> DataflowContent = GetDataflowContent())
-	{
-		DataflowContent->UnregisterWorldContent(this);
-	}
-}
-
-void FDataflowSimulationScene::TickDataflowScene(const float DeltaSeconds)
-{
-	GetWorld()->Tick(ELevelTick::LEVELTICK_All, DeltaSeconds);
 }
 
 #undef LOCTEXT_NAMESPACE

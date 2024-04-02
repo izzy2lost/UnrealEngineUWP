@@ -7,7 +7,8 @@
 #include "Dataflow/DataflowEditorMode.h"
 #include "Dataflow/DataflowEditorStyle.h"
 #include "Dataflow/DataflowConstructionViewport.h"
-#include "Dataflow/DataflowEditorScenes.h"
+#include "Dataflow/DataflowEditorPreviewSceneBase.h"
+#include "Dataflow/DataflowConstructionScene.h"
 #include "EdModeInteractiveToolsContext.h"
 #include "Framework/Application/SlateApplication.h"
 #include "InteractiveToolManager.h"
@@ -158,7 +159,7 @@ SBaseCharacterFXEditorViewport* FDataflowEditorModeToolkit::GetViewportWidgetFor
 
 		if (const UDataflowEditorMode* const DataflowEdMode = Cast<UDataflowEditorMode>(Mode))
 		{
-			if (const FDataflowPreviewScene* const PreviewScene = DataflowEdMode->GetDataflowConstructionScene())
+			if (const FDataflowPreviewSceneBase* const PreviewScene = DataflowEdMode->GetDataflowConstructionScene())
 			{
 				if (const UEditorInteractiveToolsContext* const PreviewToolsContext = PreviewScene->GetDataflowModeManager()->GetInteractiveToolsContext())
 				{
