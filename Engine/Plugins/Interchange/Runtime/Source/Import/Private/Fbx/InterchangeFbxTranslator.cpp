@@ -26,7 +26,7 @@
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(InterchangeFbxTranslator)
 
-static bool GInterchangeEnableFBXImport = false;
+static bool GInterchangeEnableFBXImport = true;
 static FAutoConsoleVariableRef CCvarInterchangeEnableFBXImport(
 	TEXT("Interchange.FeatureFlags.Import.FBX"),
 	GInterchangeEnableFBXImport,
