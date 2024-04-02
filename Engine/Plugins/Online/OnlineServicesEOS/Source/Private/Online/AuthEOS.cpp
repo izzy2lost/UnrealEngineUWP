@@ -101,7 +101,7 @@ TOnlineAsyncOpHandle<FAuthLogin> FAuthEOS::Login(FAuthLogin::Params&& Params)
 				if (LoginResult.IsError())
 				{
 					UE_LOG(LogOnlineServices, Warning, TEXT("[FAuthEOS::Login] Failure: LoginEASImpl %s"), *LoginResult.GetErrorValue().GetLogString());
-					Op->SetError(Errors::Unknown(MoveTemp(LoginResult.GetErrorValue())));
+					Op->SetError(MoveTemp(LoginResult.GetErrorValue()));
 				}
 				else
 				{
