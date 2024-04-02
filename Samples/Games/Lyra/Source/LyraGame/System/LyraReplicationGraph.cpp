@@ -784,8 +784,6 @@ void ULyraReplicationGraphNode_AlwaysRelevant_ForConnection::GatherActorListsFor
 
 	CleanupCachedRelevantActors(PastRelevantActorMap);
 
-	Params.OutGatheredReplicationLists.AddReplicationActorList(ReplicationActorList);
-
 	// Always relevant streaming level actors.
 	FPerConnectionActorInfoMap& ConnectionActorInfoMap = Params.ConnectionManager.ActorInfoMap;
 	
@@ -843,6 +841,8 @@ void ULyraReplicationGraphNode_AlwaysRelevant_ForConnection::GatherActorListsFor
 		ReplicationActorList.ConditionalAdd(GameplayDebugger);
 	}
 #endif
+
+	Params.OutGatheredReplicationLists.AddReplicationActorList(ReplicationActorList);
 }
 
 void ULyraReplicationGraphNode_AlwaysRelevant_ForConnection::OnClientLevelVisibilityAdd(FName LevelName, UWorld* StreamingWorld)
