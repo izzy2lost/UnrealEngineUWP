@@ -2404,7 +2404,12 @@ HHitProxy* FSkinnedSceneProxy::CreateHitProxies(UPrimitiveComponent* Component, 
 			for (int32 SectionIndex = 0; SectionIndex < MaterialSections.Num(); ++SectionIndex)
 			{
 				FMaterialSection& Section = MaterialSections[SectionIndex];
-				HHitProxy* ActorHitProxy = Component->CreateMeshHitProxy(SectionIndex, SectionIndex);
+
+				HHitProxy* ActorHitProxy = nullptr;
+				if (Component->GetOwner())
+				{
+					ActorHitProxy = new HActor(Component->GetOwner(), Component, Component->HitProxyPriority, SectionIndex, SectionIndex);
+				}
 
 				if (ActorHitProxy)
 				{
