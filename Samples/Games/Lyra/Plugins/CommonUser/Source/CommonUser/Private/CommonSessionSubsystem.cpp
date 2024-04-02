@@ -434,7 +434,7 @@ UCommonSession_HostSessionRequest* UCommonSessionSubsystem::CreateOnlineHostSess
 	NewRequest->bUseLobbies = bUseLobbiesDefault;
 
 	// We enable presence by default in the primary session used for matchmaking. For online systems that care about presence, only the primary session should have presence enabled
-	NewRequest->bUsePresence = true;
+	NewRequest->bUsePresence = !IsRunningDedicatedServer();
 
 	return NewRequest;
 }

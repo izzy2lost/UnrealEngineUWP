@@ -31,7 +31,7 @@ UCommonSession_HostSessionRequest* ULyraUserFacingExperienceDefinition::CreateHo
 		Result->OnlineMode = ECommonSessionOnlineMode::Online;
 		Result->bUseLobbies = true;
 		// We always enable presence on this session because it is the primary session used for matchmaking. For online systems that care about presence, only the primary session should have presence enabled
-		Result->bUsePresence = true;
+		Result->bUsePresence = !IsRunningDedicatedServer();
 	}
 	Result->MapID = MapID;
 	Result->ModeNameForAdvertisement = UserFacingExperienceName;
