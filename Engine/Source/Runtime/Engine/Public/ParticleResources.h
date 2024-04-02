@@ -72,6 +72,8 @@ public:
 	virtual void InitRHI(FRHICommandListBase& RHICmdList) override;
 	virtual void ReleaseRHI() override;
 
+	static const uint32 Stride = sizeof(FVector4f);
+
 private:
 
 	/** SRV in to the buffer as an array of FVector4f values. */

@@ -1894,7 +1894,9 @@ void InjectNewParticles(FRHICommandList& RHICmdList, FGraphicsPipelineStateIniti
 		// Copy new particles in to the vertex buffer.
 		const int32 ParticlesThisDrawCall = FMath::Min<int32>( ParticleCount, MaxParticlesPerDrawCall );
 		const void* Src = NewParticles.GetData() + FirstParticle;
-		void* Dest = RHICmdList.LockBuffer( ScratchVertexBufferRHI, 0, ParticlesThisDrawCall * sizeof(FNewParticle), RLM_WriteOnly );
+		// Make sure Lock size is a multiple of ScratchVertexBuffer stride
+		const uint32 AlignedLockSize = AlignArbitrary(ParticlesThisDrawCall * sizeof(FNewParticle), GParticleScratchVertexBuffer.Stride);
+		void* Dest = RHICmdList.LockBuffer( ScratchVertexBufferRHI, 0, AlignedLockSize, RLM_WriteOnly);
 		FMemory::Memcpy( Dest, Src, ParticlesThisDrawCall * sizeof(FNewParticle) );
 		RHICmdList.UnlockBuffer( ScratchVertexBufferRHI );
 		ParticleCount -= ParticlesThisDrawCall;
