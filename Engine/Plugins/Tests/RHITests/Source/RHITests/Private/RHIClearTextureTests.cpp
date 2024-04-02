@@ -185,23 +185,27 @@ FTextureRHIRef FStagingTexturePool::CreateTexture2DAtlasStagingFromPool(FRHIComm
 {
 	check(WaitForTextureEvent == nullptr);
 
+	FGraphEventRef WaitForTextureEventLocal;
 	{
 		FRWScopeLock WriteLock(TexturesToReturnToPoolRWLock, SLT_Write);
 		Recycle(RHICmdList);
 		if (AvailableStagingTextures[PixelFormat].Num() == 0)
 		{
-			WaitForTextureEvent = FGraphEvent::CreateGraphEvent();
+			check(WaitForTextureEvent == nullptr);
+			WaitForTextureEventLocal = FGraphEvent::CreateGraphEvent();
+            // Have the text task in-flight warn us when a new texture is ready
+			WaitForTextureEvent = WaitForTextureEventLocal;
 		}
 	}
 
-	if (WaitForTextureEvent)
+	if (WaitForTextureEventLocal)
 	{
 		CLEAR_TEST_SCOPED_NAMED_EVENT_TEXT("WaitForTexture", FColor::Magenta);
-		WaitForTextureEvent->Wait();
+		WaitForTextureEventLocal->Wait();
 		{
 			FRWScopeLock WriteLock(TexturesToReturnToPoolRWLock, SLT_Write);
 			Recycle(RHICmdList);
-			WaitForTextureEvent = nullptr;
+			check(WaitForTextureEvent == nullptr);
 		}
 	}
 
@@ -288,6 +292,8 @@ void FStagingTexturePool::ReturnToPool(const TArray<FTestOperation>& TestOperati
 	if (WaitForTextureEvent)
 	{
 		WaitForTextureEvent->DispatchSubsequents();
+        // We must call DispatchSubsequents only once
+		WaitForTextureEvent = nullptr;
 	}
 
 }
