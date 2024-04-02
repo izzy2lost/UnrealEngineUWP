@@ -66,9 +66,13 @@ bool UCustomizableObjectFactory::ConfigureProperties()
 UObject* UCustomizableObjectFactory::FactoryCreateNew(UClass* Class, UObject* InParent, FName Name, EObjectFlags Flags, UObject* Context, FFeedbackContext* Warn)
 {
 	UCustomizableObject* NewObj = NewObject<UCustomizableObject>(InParent, Class, Name, Flags);
-	NewObj->Source = NewObject<UCustomizableObjectGraph>(NewObj, NAME_None, RF_Transactional);
 
-	if (NewObj && NewObj->Source)
+	if (NewObj)
+	{
+		NewObj->Source = NewObject<UCustomizableObjectGraph>(NewObj, NAME_None, RF_Transactional);
+	}
+
+	if (NewObj->Source)
 	{
 		UCustomizableObjectGraph* CustomizableObjectGraph = Cast<UCustomizableObjectGraph>(NewObj->Source);
 		CustomizableObjectGraph->AddEssentialGraphNodes();
