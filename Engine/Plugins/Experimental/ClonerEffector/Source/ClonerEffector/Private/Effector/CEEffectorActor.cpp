@@ -194,8 +194,7 @@ void ACEEffectorActor::PostDuplicate(EDuplicateMode::Type InDuplicateMode)
 
 void ACEEffectorActor::RegisterToChannel()
 {
-	if (IsValid(this)
-		&& ChannelData.GetIdentifier() == INDEX_NONE)
+	if (IsValid(this) && ChannelData.GetIdentifier() == INDEX_NONE)
 	{
 		// Register this effector to the effector channel
 		if (UCEEffectorSubsystem* EffectorSubsystem = UCEEffectorSubsystem::Get(GetWorld()))
@@ -393,6 +392,8 @@ void ACEEffectorActor::SetRadialMaxRadius(float InRadius)
 
 void ACEEffectorActor::SetTorusRadius(float InRadius)
 {
+	InRadius = FMath::Max(0, InRadius);
+
 	if (FMath::IsNearlyEqual(InRadius, TorusRadius))
 	{
 		return;
@@ -404,6 +405,8 @@ void ACEEffectorActor::SetTorusRadius(float InRadius)
 
 void ACEEffectorActor::SetTorusInnerRadius(float InRadius)
 {
+	InRadius = FMath::Max(0, InRadius);
+
 	if (FMath::IsNearlyEqual(InRadius, TorusInnerRadius))
 	{
 		return;
@@ -415,6 +418,8 @@ void ACEEffectorActor::SetTorusInnerRadius(float InRadius)
 
 void ACEEffectorActor::SetTorusOuterRadius(float InRadius)
 {
+	InRadius = FMath::Max(0, InRadius);
+
 	if (FMath::IsNearlyEqual(InRadius, TorusOuterRadius))
 	{
 		return;
@@ -1009,7 +1014,7 @@ void ACEEffectorActor::OnRadialChanged()
 		return;
 	}
 
-	ChannelData.InnerExtent = FVector::LeftVector;
+	ChannelData.InnerExtent = FVector::RightVector;
 	ChannelData.OuterExtent = FVector(RadialAngle, RadialMinRadius, RadialMaxRadius);
 
 #if WITH_EDITOR
@@ -1031,13 +1036,13 @@ void ACEEffectorActor::OnRadialChanged()
 		UpdateVisualizer(InnerVisualizerId, [this](UDynamicMesh* InMesh)
 		{
 			constexpr FGeometryScriptPrimitiveOptions PrimitiveOptions;
-			UGeometryScriptLibrary_MeshPrimitiveFunctions::AppendDisc(InMesh, PrimitiveOptions, FTransform(FRotator(0, -90, 0)), RadialMaxRadius, 16, 0, 0, RadialAngle / 2, RadialMinRadius);
+			UGeometryScriptLibrary_MeshPrimitiveFunctions::AppendDisc(InMesh, PrimitiveOptions, FTransform(FRotator(0, 90, 0)), RadialMaxRadius, 16, 0, 0, RadialAngle / 2, RadialMinRadius);
 		});
 
 		UpdateVisualizer(OuterVisualizerId, [this](UDynamicMesh* InMesh)
 		{
 			constexpr FGeometryScriptPrimitiveOptions PrimitiveOptions;
-			UGeometryScriptLibrary_MeshPrimitiveFunctions::AppendDisc(InMesh, PrimitiveOptions, FTransform(FRotator(0, -90, 0)), RadialMaxRadius, 16, 0, RadialAngle / 2, RadialAngle, RadialMinRadius);
+			UGeometryScriptLibrary_MeshPrimitiveFunctions::AppendDisc(InMesh, PrimitiveOptions, FTransform(FRotator(0, 90, 0)), RadialMaxRadius, 16, 0, RadialAngle / 2, RadialAngle, RadialMinRadius);
 		});
 	}
 

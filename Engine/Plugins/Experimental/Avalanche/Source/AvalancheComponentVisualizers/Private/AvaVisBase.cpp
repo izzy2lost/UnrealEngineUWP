@@ -41,7 +41,7 @@ bool FAvaVisualizerBase::GetCustomInputCoordinateSystem(const FEditorViewportCli
 	return true;
 }
 
-bool FAvaVisualizerBase::HandleInputDelta(FEditorViewportClient* InViewportClient, FViewport* InViewport, 
+bool FAvaVisualizerBase::HandleInputDelta(FEditorViewportClient* InViewportClient, FViewport* InViewport,
 	FVector& InDeltaTranslate, FRotator& InDeltaRotate, FVector& InDeltaScale)
 {
 	if (!GetEditedComponent() || !GetEditedComponent()->GetOwner())
@@ -328,12 +328,12 @@ float FAvaVisualizerBase::GetIconSizeScale(const FSceneView* InView, const FVect
 
 	static constexpr float DefaultSize = 12.f;
 	float Size = DefaultSize;
-	
-	if (UAvaComponentVisualizersSettings* Settings = UAvaComponentVisualizersSettings::Get())
+
+	if (const UAvaComponentVisualizersSettings* Settings = UAvaComponentVisualizersSettings::Get())
 	{
 		if (Settings->SpriteSize > 0)
 		{
-			Size = UAvaComponentVisualizersSettings::Get()->SpriteSize;
+			Size = Settings->SpriteSize;
 		}
 	}
 
@@ -407,7 +407,7 @@ FVector FAvaVisualizerBase::GetLocalVector(FEditorViewportClient* InViewport, co
 	if (WidgetMode == UE::Widget::WM_None)
 	{
 		return OutVector;
-	}	
+	}
 
 	EAxisList::Type AxisList = InViewport->GetCurrentWidgetAxis(); // Fallback value
 
@@ -465,7 +465,7 @@ bool FAvaVisualizerBase::IsMouseOverComponent(const UActorComponent* Component, 
 	};
 	FVector WorldOrigin;
 	FVector WorldDirection;
-	
+
 	InView->DeprojectFVector2D(MouseLocation, WorldOrigin, WorldDirection);
 
 	FVector CameraRotationVector = (WorldOrigin - InView->ViewLocation).GetUnsafeNormal();
@@ -521,7 +521,14 @@ void FAvaVisualizerBase::TrackingStoppedInternal(FEditorViewportClient* InViewpo
 	SnapOperation.Reset();
 }
 
-void FAvaVisualizerBase::NotifyPropertyModified(UObject* InObject, FProperty* InProperty, 
+void FAvaVisualizerBase::ModifyProperty(UObject* InObject, FProperty* InProperty, EPropertyChangeType::Type InPropertyChangeType, TFunctionRef<void()> InFunction)
+{
+	bHasBeenModified = InObject->Modify();
+	InFunction();
+	NotifyPropertyModified(InObject, InProperty, InPropertyChangeType);
+}
+
+void FAvaVisualizerBase::NotifyPropertyModified(UObject* InObject, FProperty* InProperty,
 	EPropertyChangeType::Type InPropertyChangeType, FProperty* InMemberProperty)
 {
 	TArray<FProperty*> Properties;
@@ -570,7 +577,7 @@ void FAvaVisualizerBase::NotifyPropertyChainModified(UObject* InObject, FPropert
 	{
 		return;
 	}
-	
+
 	FPropertyChangedEvent PropertyChangedEvent(InProperty);
 	FEditPropertyChain PropertyChain;
 	FPropertyChangedChainEvent PropertyChangedChainEvent(PropertyChain, PropertyChangedEvent);
@@ -579,10 +586,10 @@ void FAvaVisualizerBase::NotifyPropertyChainModified(UObject* InObject, FPropert
 	{
 		PropertyChangedChainEvent.PropertyChain.AddHead(ChainProperty);
 	}
-	
+
 	PropertyChangedChainEvent.SetActiveMemberProperty(InMemberChainProperties.Last());
 	PropertyChangedChainEvent.ObjectIteratorIndex = 0;
-	
+
 	TArray<TMap<FString, int32>> ArrayIndices;
 	ArrayIndices.SetNum(1);
 	ArrayIndices[0].Add(InMemberChainProperties.Last()->GetFName().ToString(), InContainerIdx);

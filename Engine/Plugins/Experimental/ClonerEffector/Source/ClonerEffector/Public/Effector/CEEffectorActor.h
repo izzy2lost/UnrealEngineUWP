@@ -135,7 +135,7 @@ public:
 	}
 
 	UFUNCTION(BlueprintCallable, Category="Effector")
-	void SetTorusRadius(float InRadius);
+	CLONEREFFECTOR_API void SetTorusRadius(float InRadius);
 
 	UFUNCTION(BlueprintPure, Category="Effector")
 	float GetTorusRadius() const
@@ -144,7 +144,7 @@ public:
 	}
 
 	UFUNCTION(BlueprintCallable, Category="Effector")
-	void SetTorusInnerRadius(float InRadius);
+	CLONEREFFECTOR_API void SetTorusInnerRadius(float InRadius);
 
 	UFUNCTION(BlueprintPure, Category="Effector")
 	float GetTorusInnerRadius() const
@@ -153,7 +153,7 @@ public:
 	}
 
 	UFUNCTION(BlueprintCallable, Category="Effector")
-	void SetTorusOuterRadius(float InRadius);
+	CLONEREFFECTOR_API void SetTorusOuterRadius(float InRadius);
 
 	UFUNCTION(BlueprintPure, Category="Effector")
 	float GetTorusOuterRadius() const
@@ -738,7 +738,7 @@ private:
 	TObjectPtr<UMaterialInstanceDynamic> OuterVisualizerMaterial;
 
 	/** Used to hold data related to visualizer for updates */
-	UPROPERTY(Transient)
+	UPROPERTY(Transient, NonTransactional)
 	FInstancedPropertyBag VisualizerData;
 #endif
 

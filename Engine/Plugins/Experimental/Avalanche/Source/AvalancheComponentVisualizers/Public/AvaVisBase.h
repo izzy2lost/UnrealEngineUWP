@@ -189,4 +189,6 @@ protected:
 
 	virtual void TrackingStartedInternal(FEditorViewportClient* InViewportClient);
 	virtual void TrackingStoppedInternal(FEditorViewportClient* InViewportClient);
+
+	void ModifyProperty(UObject* InObject, FProperty* InProperty, EPropertyChangeType::Type InPropertyChangeType, TFunctionRef<void()> InFunction);
 };
