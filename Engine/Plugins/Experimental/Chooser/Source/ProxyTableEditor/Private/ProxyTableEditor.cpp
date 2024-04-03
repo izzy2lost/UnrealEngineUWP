@@ -719,7 +719,8 @@ void FProxyTableEditor::DeleteSelectedRows()
 	{
 		ProxyTable->Entries.RemoveAt(RowIndex);
 	}
-	
+
+	ClearSelectedRows();
 	UpdateTableRows();
 }
 	
