@@ -1468,7 +1468,7 @@ bool FAdaptiveStreamingPlayer::InternalHandleThreadMessages()
 				if (ExternalCache.IsValid())
 				{
 					HttpResponseCache.Reset();
-					HttpResponseCache = IHTTPResponseCache::Create(this, MoveTemp(ExternalCache));
+					HttpResponseCache = IHTTPResponseCache::Create(GetOptionValue(OptionKeyResponseCacheMaxByteSize).SafeGetInt64(0), (int32)GetOptionValue(OptionKeyResponseCacheMaxEntries).SafeGetInt64(8192), MoveTemp(ExternalCache));
 				}
 
 				FWorkerThreadMessages::FMessage::FLoadManifest& ev = msg.Data.Get<FWorkerThreadMessages::FMessage::FLoadManifest>();
@@ -4581,7 +4581,7 @@ void FAdaptiveStreamingPlayer::InternalInitialize()
 	EntityCache = IPlayerEntityCache::Create(this);
 
 	// Create an HTTP response cache. Hand over any externally set cache. We do not need it in here any further.
-	HttpResponseCache = IHTTPResponseCache::Create(this, MoveTemp(ExternalCache));
+	HttpResponseCache = IHTTPResponseCache::Create(GetOptionValue(OptionKeyResponseCacheMaxByteSize).SafeGetInt64(0), (int32)GetOptionValue(OptionKeyResponseCacheMaxEntries).SafeGetInt64(8192), MoveTemp(ExternalCache));
 
 	// If all read requests for this player are to be routed to an external reader we need to create a wrapper for it.
 	if (PlayerOptions.GetValue(OptionKeyUseExternalDataReader).SafeGetBool(false))

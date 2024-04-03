@@ -60,6 +60,8 @@ namespace Electra
 	const FName OptionKeyPreferredCodecsAudio(TEXT("preferred_codecs_audio"));
 	const FName OptionKeyPreferredCodecsSubtitles(TEXT("preferred_codecs_subtitles"));
 
+	const FName OptionKeyResponseCacheMaxEntries(TEXT("httpcache_max_entries"));
+	const FName OptionKeyResponseCacheMaxByteSize(TEXT("httpcache_max_bytesize"));
 } // namespace Electra
 
 

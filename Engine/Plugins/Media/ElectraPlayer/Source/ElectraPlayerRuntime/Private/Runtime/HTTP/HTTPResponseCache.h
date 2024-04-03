@@ -12,7 +12,6 @@
 
 namespace Electra
 {
-class IPlayerSessionServices;
 
 class IHTTPResponseCache
 {
@@ -33,7 +32,7 @@ public:
 		FQualityInfo Quality;
 	};
 
-	static TSharedPtrTS<IHTTPResponseCache> Create(IPlayerSessionServices* SessionServices, TSharedPtr<IElectraPlayerDataCache, ESPMode::ThreadSafe> ExternalCache);
+	static TSharedPtrTS<IHTTPResponseCache> Create(int64 InMaxByteCapacity, int32 InMaxEntries, TSharedPtr<IElectraPlayerDataCache, ESPMode::ThreadSafe> ExternalCache);
 
 	virtual ~IHTTPResponseCache() = default;
 
