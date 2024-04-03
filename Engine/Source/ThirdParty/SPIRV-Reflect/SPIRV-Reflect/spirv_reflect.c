@@ -3574,7 +3574,9 @@ static SpvReflectResult ParseExecutionModes(Parser* p_parser, SpvReflectShaderMo
         case SpvExecutionModePostDepthCoverage:
         case SpvExecutionModeStencilRefReplacingEXT:
         case SpvExecutionModeOutputPrimitivesNV:
-        case SpvExecutionModeOutputTrianglesNV:
+		case SpvExecutionModeDerivativeGroupQuadsNV:
+		case SpvExecutionModeDerivativeGroupLinearNV:
+		case SpvExecutionModeOutputTrianglesNV:
           break;
       }
     }
