@@ -92,6 +92,16 @@ enum class ESpawnActorScaleMethod : uint8
 	SelectDefaultAtRuntime					UMETA(Hidden),
 };
 
+/** Determines in what type of LevelInstance the actor is in, if any. */
+UENUM()
+enum class ELevelInstanceType : uint8
+{
+	None,
+	LevelInstance,
+	LevelInstanceEdit,
+	LevelInstancePropertyOverride
+};
+
 #if WITH_EDITORONLY_DATA
 /** Enum defining how actor will be placed in the partition */
 UENUM()
@@ -281,17 +291,13 @@ private:
 	uint8 bForceNetAddressable:1;
 
 #if WITH_EDITORONLY_DATA
-	/** Whether this actor belongs to a level instance which is currently being edited. */
+	/** Whether this actor belongs to a level instance or not and what type of level instance. */
 	UPROPERTY(Transient)
-	uint8 bIsInEditLevelInstance:1;
+	ELevelInstanceType LevelInstanceType;
 
 	/** Whether this actor belongs to a level instance in a level instance hierarchy currently being edited. Itself or its parent level instances. */
 	UPROPERTY(Transient)
 	uint8 bIsInEditLevelInstanceHierarchy:1;
-
-	/** Whether this actor belongs to a level instance  */
-	UPROPERTY(Transient)
-	uint8 bIsInLevelInstance:1;
 
 	friend struct FSetActorIsInLevelInstance;
 
@@ -325,13 +331,25 @@ public:
 	UE_DEPRECATED(5.4, "Call IsInEditLevelInstanceHierarchy/IsInEditLevelInstance instead.")
 	virtual bool IsInEditingLevelInstance() const
 	{
-		return bIsInEditLevelInstance;
+		return IsInEditLevelInstance();
+	}
+
+	/** If true, the actor belongs to a level instance which is currently in an edit mode: edit or property override edit */
+	bool IsInAnyEditLevelInstance() const
+	{
+		return IsInEditLevelInstance() || IsInPropertyOverrideLevelInstance();
 	}
 
 	/** If true, the actor belongs to a level instance which is currently being edited */
 	bool IsInEditLevelInstance() const
 	{
-		return bIsInEditLevelInstance;
+		return LevelInstanceType == ELevelInstanceType::LevelInstanceEdit;
+	}
+
+	/** If true, the actor belongs to a level instance which is currently in property override edit */
+	bool IsInPropertyOverrideLevelInstance() const
+	{
+		return LevelInstanceType == ELevelInstanceType::LevelInstancePropertyOverride;
 	}
 
 	/** If true, the actor belongs to a level instance which is currently being edited or a parent level instance being edited. */
@@ -343,7 +361,7 @@ public:
 	/** If true, the actor belongs to a level instance. */
 	bool IsInLevelInstance() const
 	{
-		return bIsInLevelInstance;
+		return LevelInstanceType != ELevelInstanceType::None;
 	}
 #endif
 
@@ -2303,7 +2321,7 @@ public:
 	//~ End UObject Interface
 
 #if WITH_EDITOR
-	virtual bool CanEditChangeComponent(const UActorComponent* Component, const FProperty* InProperty) const { return true; }
+	ENGINE_API virtual bool CanEditChangeComponent(const UActorComponent* Component, const FProperty* InProperty) const;
 #endif
 
 	//~=============================================================================
@@ -4560,10 +4578,9 @@ private:
 struct FSetActorIsInLevelInstance
 {
 private:
-	FSetActorIsInLevelInstance(AActor* InActor, bool bIsEditing = false)
+	FSetActorIsInLevelInstance(AActor* InActor, ELevelInstanceType InLevelInstanceType)
 	{
-		InActor->bIsInLevelInstance = true;
-		InActor->bIsInEditLevelInstance = bIsEditing;
+		InActor->LevelInstanceType = InLevelInstanceType;
 	}
 
 	friend class ULevelStreamingLevelInstance;

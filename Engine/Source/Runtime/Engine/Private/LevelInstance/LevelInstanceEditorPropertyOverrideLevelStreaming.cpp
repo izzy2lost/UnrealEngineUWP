@@ -336,9 +336,8 @@ void ULevelStreamingLevelInstanceEditorPropertyOverride::OnCurrentStateChanged(E
 		{
 			if (IsValid(Actor))
 			{
-				const bool bIsEditing = true;
-				FSetActorIsInLevelInstance SetIsInLevelInstance(Actor, bIsEditing);
-				Actor->PushLevelInstanceEditingStateToProxies(bIsEditing);
+				FSetActorIsInLevelInstance SetIsInLevelInstance(Actor, ELevelInstanceType::LevelInstancePropertyOverride);
+				Actor->PushLevelInstanceEditingStateToProxies(true);
 			}
 		}
 	}

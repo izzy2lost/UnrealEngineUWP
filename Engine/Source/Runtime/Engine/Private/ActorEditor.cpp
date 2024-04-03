@@ -78,6 +78,17 @@ void AActor::PreEditChange(FProperty* PropertyThatWillChange)
 	}
 }
 
+bool AActor::CanEditChangeComponent(const UActorComponent* Component, const FProperty* InProperty) const
+{
+	// Actors in LevelInstances can't be edited unless they are in any kind of editing level instance (edit or property override)
+	if (IsInLevelInstance() && !IsInAnyEditLevelInstance())
+	{
+		return false;
+	}
+
+	return true;
+}
+
 bool AActor::CanEditChange(const FProperty* PropertyThatWillChange) const
 {
 	if ((PropertyThatWillChange->GetFName() == GET_MEMBER_NAME_CHECKED(AActor, Layers)) ||
@@ -122,6 +133,12 @@ bool AActor::CanEditChange(const FProperty* PropertyThatWillChange) const
 	}
 
 	if (bIsDataLayersProperty && (!SupportsDataLayerType(UDataLayerInstanceWithAsset::StaticClass()) || !IsUserManaged() || GetAttachParentActor()))
+	{
+		return false;
+	}
+
+	// Actors in LevelInstances can't be edited unless they are in any kind of editing level instance (edit or property override)
+	if (IsInLevelInstance() && !IsInAnyEditLevelInstance())
 	{
 		return false;
 	}

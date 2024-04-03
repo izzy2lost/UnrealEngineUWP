@@ -130,6 +130,13 @@ namespace ActorUtils
 			return false;
 		}
 
+		// Actors in LevelInstances can't be deleted unless they are in a regular edit level instance (not property override)
+		if (InActor->IsInLevelInstance() && !InActor->IsInEditLevelInstance())
+		{
+			OutReason = LOCTEXT("CanDeleteOrReplace_Error_NonEditLevelInstance", "Actor is in a non edit level instance");
+			return false;
+		}
+
 		return true;
 	}
 }
@@ -209,8 +216,7 @@ void AActor::InitializeDefaults()
 
 #if WITH_EDITORONLY_DATA
 	bIsInEditLevelInstanceHierarchy = false;
-	bIsInEditLevelInstance = false;
-	bIsInLevelInstance = false;
+	LevelInstanceType = ELevelInstanceType::None;
 	PivotOffset = FVector::ZeroVector;
 #endif
 	SpawnCollisionHandlingMethod = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;

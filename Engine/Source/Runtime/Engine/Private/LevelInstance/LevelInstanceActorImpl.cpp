@@ -316,7 +316,7 @@ void FLevelInstanceActorImpl::EditorGetUnderlyingActors(TSet<AActor*>& OutUnderl
 bool FLevelInstanceActorImpl::IsLockedActor() const
 {
 	AActor* LevelInstanceActor = CastChecked<AActor>(LevelInstance);
-	if (LevelInstanceActor->IsInLevelInstance() && !LevelInstanceActor->IsInEditLevelInstance())
+	if (LevelInstanceActor->IsInLevelInstance() && !LevelInstanceActor->IsInAnyEditLevelInstance())
 	{
 		return true;
 	}

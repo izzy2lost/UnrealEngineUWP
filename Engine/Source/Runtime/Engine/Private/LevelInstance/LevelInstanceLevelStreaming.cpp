@@ -249,7 +249,7 @@ void ULevelStreamingLevelInstance::InitializeActors(const TArray<AActor*>& InAct
 					// Must happen before the actors are registered with the world, which is the case for this delegate.
 					FSetActorInstanceGuid SetActorInstanceGuid(Actor, ContainerID.GetActorGuid(Actor->GetActorGuid()));
 
-					FSetActorIsInLevelInstance SetIsInLevelInstance(Actor);
+					FSetActorIsInLevelInstance SetIsInLevelInstance(Actor, ELevelInstanceType::LevelInstance);
 				}
 			}
 		}
