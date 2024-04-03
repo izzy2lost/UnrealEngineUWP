@@ -36,7 +36,17 @@ struct FArgumentSet
 ////////////////////////////////////////////////////////////////////////////////
 template <typename Type> FArgument TArgument(FStringView Name, FStringView Desc);
 
+#define TARGUMENT_DECL(t) \
+	template <> FArgument TArgument<t>(FStringView Name, FStringView Desc);
 
+TARGUMENT_DECL(FStringView)
+TARGUMENT_DECL(bool)
+TARGUMENT_DECL(uint8)	TARGUMENT_DECL(int8)
+TARGUMENT_DECL(uint16)	TARGUMENT_DECL(int16)
+TARGUMENT_DECL(uint32)	TARGUMENT_DECL(int32)
+TARGUMENT_DECL(uint64)	TARGUMENT_DECL(int64)
+TARGUMENT_DECL(float)	TARGUMENT_DECL(double)
+#undef TARGUMENT_DECL
 
 ////////////////////////////////////////////////////////////////////////////////
 class FContext
