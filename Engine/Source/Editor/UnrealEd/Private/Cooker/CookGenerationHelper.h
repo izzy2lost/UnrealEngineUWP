@@ -221,8 +221,8 @@ public:
 	const FName GetSplitDataObjectName() const;
 	/** Return the Splitter's value for virtual bool UseInternalReferenceToAvoidGarbageCollect(). */
 	bool IsUseInternalReferenceToAvoidGarbageCollect() const;
-	/** Return the Splitter's value for virtual bool NeedCachedPlatformDataBeforeSplit(). */
-	bool IsNeedCachedPlatformDataBeforeSplit() const;
+	/** Return the Splitter's value for virtual bool GeneratedReliesOnGeneratorSave(). */
+	bool IsGeneratedReliesOnGeneratorSave() const;
 	/** Return the cached pointer to the SplitDataObject. Returns null if no longer in memory or marked as garbage. */
 	UObject* GetWeakSplitDataObject() const;
 	/**
@@ -370,7 +370,7 @@ private:
 	FWorkerId WorkerIdThatSavedGenerator = FWorkerId::Invalid();
 	EInitializeStatus InitializeStatus = EInitializeStatus::Uninitialized;
 	bool bUseInternalReferenceToAvoidGarbageCollect = false;
-	bool bNeedCachedPlatformDataBeforeSplit = false;
+	bool bGeneratedReliesOnGeneratorSave = false;
 	bool bGeneratedList = false;
 };
 
@@ -519,10 +519,10 @@ inline bool FGenerationHelper::IsUseInternalReferenceToAvoidGarbageCollect() con
 	return bUseInternalReferenceToAvoidGarbageCollect;
 }
 
-inline bool FGenerationHelper::IsNeedCachedPlatformDataBeforeSplit() const
+inline bool FGenerationHelper::IsGeneratedReliesOnGeneratorSave() const
 {
 	ConditionalInitialize();
-	return bNeedCachedPlatformDataBeforeSplit;
+	return bGeneratedReliesOnGeneratorSave;
 }
 
 inline UObject* FGenerationHelper::GetWeakSplitDataObject() const

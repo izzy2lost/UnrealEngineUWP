@@ -2316,7 +2316,27 @@ UCookOnTheFlyServer::ECookAction UCookOnTheFlyServer::DecideNextCookAction(UE::C
 	UE::Cook::FPackageDataMonitor& Monitor = PackageDatas->GetMonitor();
 	if (Monitor.GetNumUrgent() > 0)
 	{
-		if (Monitor.GetNumUrgent(UE::Cook::EPackageState::Save) > 0)
+		if (!bSaveBusy && Monitor.GetNumUrgent(UE::Cook::EPackageState::Save) > 0)
+		{
+			SetIdleStatus(StackData, EIdleStatus::Active);
+			return ECookAction::Save;
+		}
+		else if (!bLoadBusy && Monitor.GetNumUrgent(UE::Cook::EPackageState::LoadPrepare) > 0)
+		{
+			SetIdleStatus(StackData, EIdleStatus::Active);
+			return ECookAction::Load;
+		}
+		else if (!bLoadBusy && Monitor.GetNumUrgent(UE::Cook::EPackageState::LoadReady) > 0)
+		{
+			SetIdleStatus(StackData, EIdleStatus::Active);
+			return ECookAction::Load;
+		}
+		else if (Monitor.GetNumUrgent(UE::Cook::EPackageState::Request) > 0)
+		{
+			SetIdleStatus(StackData, EIdleStatus::Active);
+			return ECookAction::Request;
+		}
+		else if (Monitor.GetNumUrgent(UE::Cook::EPackageState::Save) > 0)
 		{
 			SetIdleStatus(StackData, EIdleStatus::Active);
 			return ECookAction::Save;
@@ -2330,11 +2350,6 @@ UCookOnTheFlyServer::ECookAction UCookOnTheFlyServer::DecideNextCookAction(UE::C
 		{
 			SetIdleStatus(StackData, EIdleStatus::Active);
 			return ECookAction::Load;
-		}
-		else if (Monitor.GetNumUrgent(UE::Cook::EPackageState::Request) > 0)
-		{
-			SetIdleStatus(StackData, EIdleStatus::Active);
-			return ECookAction::Request;
 		}
 
 		if (Monitor.GetNumUrgent(UE::Cook::EPackageState::AssignedToWorker) > 0)
@@ -3330,7 +3345,13 @@ UE::Cook::EPollStatus UCookOnTheFlyServer::PrepareSaveGenerationPackage(UE::Cook
 		{
 			return EPollStatus::Incomplete;
 		}
-		if (FGenerationHelper::IsGeneratedSavedFirst() && Info.IsGenerator())
+
+		// If generator should not save until after generated, stall it here
+		if (Info.IsGenerator()
+			&& FGenerationHelper::IsGeneratedSavedFirst()
+			// Splitters that declare GeneratedReliesOnGeneratorSave ignore the global setting and
+			// never wait for generated to save
+			&& !GenerationHelper.IsGeneratedReliesOnGeneratorSave())
 		{
 			if (GenerationHelper.IsWaitingForQueueResults())
 			{
@@ -3344,7 +3365,13 @@ UE::Cook::EPollStatus UCookOnTheFlyServer::PrepareSaveGenerationPackage(UE::Cook
 				}
 			}
 		}
-		if (FGenerationHelper::IsGeneratorSavedFirst() && !Info.IsGenerator())
+
+		// If generated should not save until after generator, stall it here
+		if (!Info.IsGenerator()
+			&& (FGenerationHelper::IsGeneratorSavedFirst()
+			// Splitters that declare GeneratedReliesOnGeneratorSave ignore the global setting and
+			// always wait for the generator to save
+				|| GenerationHelper.IsGeneratedReliesOnGeneratorSave()))
 		{
 			if (GenerationHelper.GetOwner().IsInProgress())
 			{
@@ -11484,10 +11511,10 @@ void UCookOnTheFlyServer::GetPackagesToRetract(int32 NumToRetract, TArray<FName>
 		}
 		if (PackageData->IsGenerated())
 		{
-			if (PackageData->IsGeneratedNeedCachedPlatformDataBeforeSplit()
+			if (PackageData->IsGeneratedReliesOnGeneratorSave()
 				|| MPCookGeneratorSplit == UE::Cook::EMPCookGeneratorSplit::AllOnSameWorker)
 			{
-				// With IsNeedCachedPlatformDataBeforeSplit or the AllOnSameWorker setting, GeneratedPackages are
+				// With IsGeneratedReliesOnGeneratorSave or the AllOnSameWorker setting, GeneratedPackages are
 				// constrained to this worker.
 				return false;
 			}
@@ -11498,10 +11525,10 @@ void UCookOnTheFlyServer::GetPackagesToRetract(int32 NumToRetract, TArray<FName>
 				GenerationHelper->GetOwnerInfo().GetSaveState()
 					>= FCookGenerationInfo::ESaveState::QueueGeneratedPackages)
 			{
-				if (GenerationHelper->IsNeedCachedPlatformDataBeforeSplit() ||
+				if (GenerationHelper->IsGeneratedReliesOnGeneratorSave() ||
 					MPCookGeneratorSplit != UE::Cook::EMPCookGeneratorSplit::AnyWorker)
 				{
-					// With IsNeedCachedPlatformDataBeforeSplit or with any MPCookGeneratorSplit setting other than
+					// With IsGeneratedReliesOnGeneratorSave or with any MPCookGeneratorSplit setting other than
 					// AnyWorker, we make assignment decisions based on the worker that saved and queued the generator
 					// package. We do not track queuing separately; we assume it happened on the worker that saved the
 					// package. Therefore, do not allow retraction of a generator package if it has already entered

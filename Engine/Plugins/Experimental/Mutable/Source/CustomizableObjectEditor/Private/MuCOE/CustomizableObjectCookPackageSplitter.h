@@ -47,10 +47,11 @@ public:
 	 */
 	virtual bool UseInternalReferenceToAvoidGarbageCollect() override { return true; }
 	/**
-	 * If true, the cooker will not call any splitter work functions (GetGenerateList, Populate*, PreSave*, PostSave*)
-	 * until BeginCacheForCookedPlatformData has been called for all objects in the generator package.
+	 * If true, the cooker will wait for the generator save to complete before calling Populate and PreSave on the
+	 * generated package. And during MPCook the cooker will load and save generated packages only on the same
+	 * CookWorker that saved the generator package that containes the SplitData object. 
 	 */
-	virtual bool NeedCachedPlatformDataBeforeSplit() override { return true; }
+	virtual bool GeneratedReliesOnGeneratorSave() override { return true; }
 
 private:
 

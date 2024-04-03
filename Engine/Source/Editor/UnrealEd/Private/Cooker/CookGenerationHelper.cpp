@@ -91,8 +91,8 @@ void FGenerationHelper::Initialize(const UObject* InSplitDataObject,
 	SplitDataObjectName = FName(FStringView(InSplitDataObject->GetFullName()));
 	bUseInternalReferenceToAvoidGarbageCollect =
 		CookPackageSplitterInstance->UseInternalReferenceToAvoidGarbageCollect();
-	bNeedCachedPlatformDataBeforeSplit =
-		CookPackageSplitterInstance->NeedCachedPlatformDataBeforeSplit();
+	bGeneratedReliesOnGeneratorSave =
+		CookPackageSplitterInstance->GeneratedReliesOnGeneratorSave();
 }
 
 void FGenerationHelper::InitializeAsInvalid()
@@ -381,7 +381,7 @@ bool FGenerationHelper::TryGenerateList()
 		check(PackageData->GetParentGenerator().IsNone() ||
 			PackageData->GetParentGenerator() == OwnerPackageName);
 		PackageData->SetGenerated(OwnerPackageName);
-		PackageData->SetGeneratedNeedCachedPlatformDataBeforeSplit(bNeedCachedPlatformDataBeforeSplit);
+		PackageData->SetGeneratedReliesOnGeneratorSave(bGeneratedReliesOnGeneratorSave);
 		if (IFileManager::Get().FileExists(*PackageData->GetFileName().ToString()))
 		{
 			UE_LOG(LogCook, Warning,
@@ -408,7 +408,7 @@ bool FGenerationHelper::TryGenerateList()
 			[](const FAssetDependency& A, const FAssetDependency& B) { return A.LexicalLess(B); });
 		GeneratedInfo.PackageDependencies.SetNum(Algo::Unique(GeneratedInfo.PackageDependencies));
 		GeneratedInfo.SetIsCreateAsMap(bCreateAsMap);
-		if (bNeedCachedPlatformDataBeforeSplit ||
+		if (bGeneratedReliesOnGeneratorSave ||
 			COTFS.MPCookGeneratorSplit == EMPCookGeneratorSplit::AllOnSameWorker)
 		{
 			PackageData->SetWorkerAssignmentConstraint(FWorkerId::Local());

@@ -640,9 +640,9 @@ public:
 	 */
 	TRefCountPtr<FGenerationHelper> TryCreateValidParentGenerationHelper();
 
-	/** Get/Set true if this is a generated package and its splitter reports NeedCachedPlatformDataBeforeSplit. */
-	bool IsGeneratedNeedCachedPlatformDataBeforeSplit() const;
-	void SetGeneratedNeedCachedPlatformDataBeforeSplit(bool bValue);
+	/** Get/Set true if this is a generated package and its splitter reports GeneratedReliesOnGeneratorSave. */
+	bool IsGeneratedReliesOnGeneratorSave() const;
+	void SetGeneratedReliesOnGeneratorSave(bool bValue);
 
 	/**
 	 * Return the instigator for this package. The Instigator is the first code location or
@@ -825,7 +825,7 @@ private:
 	uint32 bGenerated : 1;
 	uint32 bKeepReferencedDuringGC : 1;
 	uint32 bWasCookedThisSession : 1;
-	uint32 bGeneratedNeedCachedPlatformDataBeforeSplit : 1;
+	uint32 bGeneratedReliesOnGeneratorSave : 1;
 };
 
 /**
@@ -1469,14 +1469,14 @@ inline FName FPackageData::GetParentGenerator() const
 	return ParentGenerator;
 }
 
-inline bool FPackageData::IsGeneratedNeedCachedPlatformDataBeforeSplit() const
+inline bool FPackageData::IsGeneratedReliesOnGeneratorSave() const
 {
-	return bGeneratedNeedCachedPlatformDataBeforeSplit != 0;
+	return bGeneratedReliesOnGeneratorSave != 0;
 }
 
-inline void FPackageData::SetGeneratedNeedCachedPlatformDataBeforeSplit(bool bValue)
+inline void FPackageData::SetGeneratedReliesOnGeneratorSave(bool bValue)
 {
-	bGeneratedNeedCachedPlatformDataBeforeSplit = (uint32)bValue;
+	bGeneratedReliesOnGeneratorSave = (uint32)bValue;
 }
 
 } // namespace UE::Cook

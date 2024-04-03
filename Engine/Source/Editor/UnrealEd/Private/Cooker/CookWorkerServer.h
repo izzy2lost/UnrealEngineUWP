@@ -400,7 +400,7 @@ struct FDiscoveredPackageReplication
 	FName ParentGenerator;
 	FInstigator Instigator;
 	FDiscoveredPlatformSet Platforms;
-	bool bNeedCachedPlatformDataBeforeSplit = false;
+	bool bGeneratedReliesOnGeneratorSave = false;
 
 private:
 	void Write(FCbWriter& Writer, TConstArrayView<const ITargetPlatform*> OrderedSessionAndSpecialPlatforms) const;

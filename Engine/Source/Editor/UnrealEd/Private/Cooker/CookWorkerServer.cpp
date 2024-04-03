@@ -685,7 +685,7 @@ void FCookWorkerServer::SendPendingPackages()
 		FAssignPackageData& AssignData = AssignDatas.Emplace_GetRef();
 		AssignData.ConstructData = PackageData->CreateConstructData();
 		AssignData.ParentGenerator = PackageData->GetParentGenerator();
-		// We do not record PackageData->IsNeedCachedPlatformDataBeforeSplit(). The CookWorker that created
+		// We do not record PackageData->IsGeneratedReliesOnGeneratorSave(). The CookWorker that created
 		// it knows it, and the Director knows it from FDiscoveredPackageReplication, and the package will not
 		// be sent to other CookWorkers if it is true.
 		AssignData.Instigator = PackageData->GetInstigator();
@@ -1000,7 +1000,7 @@ void FCookWorkerServer::QueueDiscoveredPackage(FDiscoveredPackageReplication&& D
 	if (!DiscoveredPackage.ParentGenerator.IsNone())
 	{
 		PackageData.SetGenerated(DiscoveredPackage.ParentGenerator);
-		PackageData.SetGeneratedNeedCachedPlatformDataBeforeSplit(DiscoveredPackage.bNeedCachedPlatformDataBeforeSplit);
+		PackageData.SetGeneratedReliesOnGeneratorSave(DiscoveredPackage.bGeneratedReliesOnGeneratorSave);
 		FPackageData* GeneratorPackageData = PackageDatas.FindPackageDataByPackageName(
 			DiscoveredPackage.ParentGenerator);
 		if (GeneratorPackageData)
@@ -1047,7 +1047,7 @@ void FCookWorkerServer::QueueDiscoveredPackage(FDiscoveredPackageReplication&& D
 	}
 
 	if (PackageData.IsGenerated()
-		&& (PackageData.IsGeneratedNeedCachedPlatformDataBeforeSplit()
+		&& (PackageData.IsGeneratedReliesOnGeneratorSave()
 				|| COTFS.MPCookGeneratorSplit == EMPCookGeneratorSplit::AllOnSameWorker))
 	{
 		PackageData.SetWorkerAssignmentConstraint(GetWorkerId());
@@ -1374,7 +1374,7 @@ void FDiscoveredPackageReplication::Write(FCbWriter& Writer,
 	Writer << ParentGenerator;
 	Writer << static_cast<uint8>(Instigator.Category);
 	Writer << Instigator.Referencer;
-	Writer << bNeedCachedPlatformDataBeforeSplit;
+	Writer << bGeneratedReliesOnGeneratorSave;
 	WriteToCompactBinary(Writer, Platforms, OrderedSessionAndSpecialPlatforms);
 	Writer.EndArray();
 }
@@ -1404,7 +1404,7 @@ bool FDiscoveredPackageReplication::TryRead(FCbFieldView Field,
 		bOk = false;
 	}
 	bOk = LoadFromCompactBinary(Iter++, Instigator.Referencer) & bOk;
-	bNeedCachedPlatformDataBeforeSplit = Iter->AsBool();
+	bGeneratedReliesOnGeneratorSave = Iter->AsBool();
 	bOk = (!(Iter++)->HasError()) & bOk;
 	bOk = LoadFromCompactBinary(Iter++, Platforms, OrderedSessionAndSpecialPlatforms) & bOk;
 	if (!bOk)

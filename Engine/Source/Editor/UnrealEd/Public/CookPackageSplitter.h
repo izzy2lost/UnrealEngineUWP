@@ -63,12 +63,16 @@ public:
 		return false;
 	}
 	/**
-	 * If true, the cooker will not call any splitter work functions (GetGenerateList, Populate*, PreSave*, PostSave*)
-	 * until BeginCacheForCookedPlatformData has been called for all objects in the generator package. This reduces
-	 * MPCook performance - generated packages have to be saved on the same Worker that saved the generator - but is
-	 * otherwise not a problem.
+	 * If true, the cooker will wait for the generator save to complete before calling Populate and PreSave on the
+	 * generated package. And during MPCook the cooker will load and save generated packages only on the same
+	 * CookWorker that saved the generator package that containes the SplitData object. This election reduces cook
+	 * performance but is otherwise not a problem.
+	 * 
+	 * Examples of dependencies:
+	 *     ShouldSplit call reads data that is written by BeginCacheForCookedPlatformData
+	 *     PopulateGeneratedPackage or PreSaveGeneratedPackage read data that is written by PopulateGeneratorPackage.
 	 */
-	virtual bool NeedCachedPlatformDataBeforeSplit() 
+	virtual bool GeneratedReliesOnGeneratorSave() 
 	{
 		 return false;
 	 }
