@@ -19,9 +19,9 @@ struct FStateTreeRunEnvQueryInstanceData
 	UPROPERTY(EditAnywhere, Category = Out, meta = (RefType = "Vector, Actor", CanRefToArray))
 	FStateTreePropertyRef Result;
 
-	// If set, the query will be run with this object has the owner object. Otherwise the task will use the context one.
-	UPROPERTY(EditAnywhere, Category = Parameter)
-	TObjectPtr<UObject> OptionalQueryOwner = nullptr;
+	// The query will be run with this actor has the owner object.
+	UPROPERTY(EditAnywhere, Category = Context)
+	TObjectPtr<AActor> QueryOwner = nullptr;
 
 	// The query template to run
 	UPROPERTY(EditAnywhere, Category = Parameter)

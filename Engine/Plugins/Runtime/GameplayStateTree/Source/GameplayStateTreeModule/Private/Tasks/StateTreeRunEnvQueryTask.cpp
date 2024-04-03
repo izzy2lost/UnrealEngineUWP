@@ -14,8 +14,7 @@ EStateTreeRunStatus FStateTreeRunEnvQueryTask::EnterState(FStateTreeExecutionCon
 		return EStateTreeRunStatus::Failed;
 	}
 
-	UObject* QueryOwner = InstanceData.OptionalQueryOwner ? InstanceData.OptionalQueryOwner.Get() : Context.GetOwner();
-	FEnvQueryRequest Request(InstanceData.QueryTemplate, QueryOwner);
+	FEnvQueryRequest Request(InstanceData.QueryTemplate, InstanceData.QueryOwner);
 
 	for (FAIDynamicParam& DynamicParam : InstanceData.QueryConfig)
 	{
