@@ -427,7 +427,7 @@ namespace Gauntlet
 			// kill any currently running instance:
 			KillRunningProcess(Install.AndroidPackageName);
 
-			string LaunchActivity = AndroidPlatform.GetLaunchableActivityName();
+			string LaunchActivity = AndroidPlatform.GetLaunchableActivityName(Install.ApkPath);
 
 			Log.Info("Launching {0} on '{1}' ", Install.AndroidPackageName + "/" + LaunchActivity, ToString());
 			Log.Verbose("\t{0}", Install.CommandLine);
@@ -856,6 +856,9 @@ namespace Gauntlet
 			string ExternalFilesPath = StoragePath + "/Android/data/" + Build.AndroidPackageName + "/files/UnrealGame/" + AppConfig.ProjectName;
 			string DeviceBaseDir = Build.UsesExternalFilesDir ? ExternalFilesPath : ExternalStoragePath;
 
+			// path to the APK to install.
+			string ApkPath = Build.SourceApkPath;
+
 			// get the device's external file paths, always clear between runs
 			DeviceExternalStorageSavedPath = string.Format("{0}/{1}/Saved", ExternalStoragePath, AppConfig.ProjectName);
 			DeviceExternalFilesSavedPath = string.Format("{0}/{1}/Saved", ExternalFilesPath, AppConfig.ProjectName);
@@ -907,9 +910,6 @@ namespace Gauntlet
 				// remote dir on the device, create it if it doesn't exist
 				RunAdbDeviceCommand(string.Format("shell mkdir -p {0}/", DeviceExternalStorageSavedPath));
 				RunAdbDeviceCommand(string.Format("shell mkdir -p {0}/", DeviceExternalFilesSavedPath));
-
-				// path to the APK to install.
-				string ApkPath = Build.SourceApkPath;
 
 				// check for a local newer executable
 				if (Globals.Params.ParseParam("dev"))
@@ -1046,7 +1046,7 @@ namespace Gauntlet
 
 			CopyCommandlineFile(AppConfig.CommandLine, Build.AndroidPackageName, AppConfig.ProjectName, Build.UsesExternalFilesDir);
 
-			AndroidAppInstall AppInstall = new AndroidAppInstall(this, AppConfig.ProjectName, Build.AndroidPackageName, AppConfig.CommandLine);
+			AndroidAppInstall AppInstall = new AndroidAppInstall(this, InApkPath: ApkPath, AppConfig.ProjectName, Build.AndroidPackageName, AppConfig.CommandLine);
 
 			return AppInstall;
 		}
@@ -1067,9 +1067,21 @@ namespace Gauntlet
 
 		public string AppTag { get; set; }
 
+		public string ApkPath { get; protected set; }
+
 		public AndroidAppInstall(TargetDeviceAndroid InDevice, string InName, string InAndroidPackageName, string InCommandLine, string InAppTag = "UE")
 		{
 			AndroidDevice = InDevice;
+			Name = InName;
+			AndroidPackageName = InAndroidPackageName;
+			CommandLine = InCommandLine;
+			AppTag = InAppTag;
+		}
+
+		public AndroidAppInstall(TargetDeviceAndroid InDevice, string InApkPath, string InName, string InAndroidPackageName, string InCommandLine, string InAppTag = "UE")
+		{
+			AndroidDevice = InDevice;
+			ApkPath = InApkPath;
 			Name = InName;
 			AndroidPackageName = InAndroidPackageName;
 			CommandLine = InCommandLine;

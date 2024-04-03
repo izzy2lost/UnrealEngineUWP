@@ -13,6 +13,12 @@
 
 	<Property Name="AlternateDevicePoolPlatformsProperty" Value=""/>
 
+	<Property Name="AdbKeysPath" Value=""/>
+
+	<Macro Name="SelectAdbKeysPath" Arguments="BuildPlatform">
+		<!-- Extend this macro and set AdbKeysPath -->
+	</Macro>	
+
 	<!-- Platform specific macros -->
 	<Macro Name="Catch2BuildAppendExtraCMakeArgsPlatform" Arguments="Platform"/>
 	<Macro Name="Catch2BuildAppendExtraCMakeArgs" Arguments="ExtraArgValue">
@@ -131,7 +137,7 @@
 			<Compile Target="$($(TestName)Target)" Configuration="$(Configuration)" Platform="$(Platform)" AllowXGE="false" Arguments="-Mode=Test $($(Platform)$(TestName)ExtraCompilationArgs)"/>
 		</Do>
 	</Macro>
-	<Macro Name="DeployAndTest" Arguments="TestName;Platform">
+	<Macro Name="DeployAndTest" Arguments="TestName;Platform;BuildPlatform">
 		<Property Name="PlatformStageDirName" Value="$(Platform)"/>
 		<Property Name="PlatformStageDirName" Value="Windows" If="'$(Platform)' == 'Win64'"/>
 		<Property Name="DevicePool" Value="$(GauntletDevicePool)" />
@@ -142,11 +148,16 @@
 		<Property Name="TestTags" Value=""/>
 		<Property Name="TestTags" Value="$($(Platform)$(TestName)Tags)" If="'$($(Platform)$(TestName)Tags)' != ''"/>
 		<Property Name="TestTags" Value="$(OverrideTags)" If="'$(OverrideTags)' != ''"/>
+		<Do If="'$(Platform)' == 'Android'">
+			<Property Name="TestArgsExt" Value="$(TestArgsExt) -cleandevice"/>
+		</Do>
 		<Property Name="TestArgsExt" Value="$(TestArgsExt) -tags=&quot;$(TestTags)&quot;"/>
 		<Property Name="TestArgsExt" Value="$(TestArgsExt) --buildmachine" If="$(IsBuildMachine)"/>
 		<Property Name="TestArgsExt" Value="$(TestArgsExt) -timeout=$(PerTestTimeout)"/>
 		<Property Name="TestArgsExt" Value="$(TestArgsExt) $($(TestName)GauntletArgs)"/>
-		<Property Name="TestArgsExt" Value="$(TestArgsExt) -extra-args=&quot;$($(TestName)ExtraArgs)&quot;"/>
+		<Do If="'$($(TestName)ExtraArgs)' != ''">
+			<Property Name="TestArgsExt" Value="$(TestArgsExt) -extra-args=&quot;$($(TestName)ExtraArgs)&quot;"/>
+		</Do>
 		<Property Name="TestArgsExt" Value="$(TestArgsExt) $($(Platform)ExtraArgs)"/>
 		<Property Name="TestArgsExt" Value="$(TestArgsExt) -VerifyLogin" If="$(EnableDeviceLoginVerification)"/>
 		<Do If="'$(Device)' != ''">
@@ -178,6 +189,11 @@
 			<Expand Name="$(Platform)DockerCleanup" AppNameLowercase="$(TestTargetLowercase)"/>
 			<Expand Name="$(Platform)DockerSetup" AppNameLowercase="$(TestTargetLowercase)" AppDir="$(BinariesRelativeForwardSlash)/$(Platform)/$($(TestName)Target)$(TestModeSuffix)"/>
 			<Property Name="TestArgsExt" Value="$(TestArgsExt) -containerized"/>
+		</Do>
+
+		<Do If="'$(Platform)' == 'Android'">
+			<Expand Name="SelectAdbKeysPath" BuildPlatform="$(BuildPlatform)"/>
+			<Property Name="TestArgsExt" Value="$(TestArgsExt) -adbkeys=$(AdbKeysPath) -captureoutput"/>
 		</Do>
 		
 		<Command Name="RunLowLevelTests"
@@ -259,7 +275,7 @@
 						<Node Name="$($(TestName)Short) Tests $(Platform)" Requires="$(TestRequirements)">
 							<Expand Name="BuildAndStageTest" TestName="$(TestName)" Platform="$(Platform)"/>
 							<Do If="'$($(Platform)$(TestName)RunSupported)' == 'True'">
-								<Expand Name="DeployAndTest" TestName="$(TestName)" Platform="$(Platform)"/>
+								<Expand Name="DeployAndTest" TestName="$(TestName)" Platform="$(Platform)" BuildPlatform="$(BuildPlatform)"/>
 							</Do>
 						</Node>
 						<Label Category="Test" Name="$($(TestName)Short) $(Platform)" Requires="$($(TestName)Short) Tests $(Platform)"/>

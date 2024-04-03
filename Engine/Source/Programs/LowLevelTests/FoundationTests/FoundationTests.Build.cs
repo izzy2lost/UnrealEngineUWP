@@ -55,6 +55,15 @@ public class FoundationTests : TestModuleRules
 			}
 			TestMetadata.PlatformCompilationExtraArgs.Add(Platform, PlatformCompilationArgs);
 		}
+
+		// Platform-specific tags
+		TestMetadata.PlatformTags.Add(UnrealTargetPlatform.Linux, "~[.]~[Slow]");
+		TestMetadata.PlatformTags.Add(UnrealTargetPlatform.Android, "~[Perf]~[Slow]~[AndroidSkip]");
+
+		// Allow Android run for this test
+		// Will remove Android from PlatformsRunUnsupported as more diverse types of tests can run on this platform
+		TestMetadata.PlatformsRunUnsupported.Remove(UnrealTargetPlatform.Android);
+
 		UpdateBuildGraphPropertiesFile(TestMetadata);
 	}
 }

@@ -6,6 +6,7 @@ using Gauntlet;
 using System;
 using System.IO;
 using System.Linq;
+using System.Text.RegularExpressions;
 using UnrealBuildBase;
 using UnrealBuildTool;
 
@@ -132,13 +133,7 @@ namespace LowLevelTests
 					ParseLowLevelTestsLog();
 
 					// Print stdout when -captureoutput, certain platforms don't always redirect stdout
-					if (CurrentProcessedLines != null && Context.Options.CaptureOutput)
-					{
-						foreach (string OutputLine in CurrentProcessedLines)
-						{
-							Console.WriteLine(OutputLine);
-						}
-					}
+					PrintLogIfCaptureOutput();
 
 					if (CheckForTimeout())
 					{
@@ -176,6 +171,9 @@ namespace LowLevelTests
 			try
 			{
 				base.StopTest(InReason);
+
+				ParseLowLevelTestsLog();
+				PrintLogIfCaptureOutput();
 
 				if (TestInstance != null && !TestInstance.HasExited)
 				{
@@ -217,7 +215,29 @@ namespace LowLevelTests
 
 				bool? ReportCopied = null;
 				string ReportPath = null;
-				if (!string.IsNullOrEmpty(Context.Options.ReportType))
+
+				int? ExitCodeOverride = null;
+
+				// No reports from Android tests yet. Since adb shell doesn't forward exit code, we look for it in the log output.
+				if (Context.Options.Platform == UnrealTargetPlatform.Android)
+				{
+					Match AndroidExitCodeLog = Regex.Match(TestInstance.StdOut, @"Tests finished with exit code (\d+)");
+					if (AndroidExitCodeLog.Success)
+					{
+						ExitCodeOverride = int.Parse(Regex.Match(AndroidExitCodeLog.Value, @"\d+").Value);
+					}
+					else if (TestInstance.StdOut.Contains("beginning of crash"))
+					{
+						Log.Info("Crash occurred during test.");
+						ExitCodeOverride = -1;
+					}
+					else
+					{
+						Log.Error("Could not find exit code in Android log, assumming failure.");
+						ExitCodeOverride = -1;
+					}
+				}
+				else if (!string.IsNullOrEmpty(Context.Options.ReportType))
 				{
 					ILowLevelTestsReporting LowLevelTestsReporting = Gauntlet.Utils.InterfaceHelpers.FindImplementations<ILowLevelTestsReporting>(true)
 						.Where(B => B.CanSupportPlatform(Context.Options.Platform))
@@ -235,8 +255,8 @@ namespace LowLevelTests
 					}
 				}
 
-
 				string ExitReason = "";
+				int ExitCode = ExitCodeOverride.HasValue ? ExitCodeOverride.Value : TestInstance.ExitCode;
 				if (TestInstance.WasKilled)
 				{
 					if (InReason == StopReason.MaxDuration || LowLevelTestResult == TestResult.TimedOut)
@@ -250,10 +270,10 @@ namespace LowLevelTests
 						ExitReason = $"Process was killed by Gauntlet with reason {InReason.ToString()}.";
 					}
 				}
-				else if (TestInstance.ExitCode != 0)
+				else if (ExitCode != 0)
 				{
 					LowLevelTestResult = TestResult.Failed;
-					ExitReason = $"Process exited with exit code {TestInstance.ExitCode}";
+					ExitReason = $"Process exited with exit code {ExitCode}";
 				}
 				else if (ReportCopied.HasValue && !ReportCopied.Value)
 				{
@@ -299,7 +319,7 @@ namespace LowLevelTests
 				}
 				else // ReportPath == null
 				{
-					if (TestInstance.ExitCode != 0)
+					if (ExitCode != 0)
 					{
 						LowLevelTestResult = TestResult.Failed;
 						ExitReason = "Tests failed (no report to parse)";
@@ -310,7 +330,7 @@ namespace LowLevelTests
 						ExitReason = "Tests passed (no report to parse)";
 					}
 				}
-				Log.Info($"Low level test exited with code {TestInstance.ExitCode} and reason: {ExitReason}");
+				Log.Info($"Low level test exited with code {ExitCode} and reason: {ExitReason}");
 			}
 			catch
 			{
@@ -342,9 +362,20 @@ namespace LowLevelTests
 				CurrentProcessedLines = TestInstance.StdOut
 					.Substring(LastStdoutSeekPos)
 					.Split("\n")
-					.Where(Line => Line.Contains("LogLowLevelTests"))
+					.Where(Line => !string.IsNullOrWhiteSpace(Line))
 					.ToArray();
 				LastStdoutSeekPos = TestInstance.StdOut.Length - 1;
+			}
+		}
+
+		private void PrintLogIfCaptureOutput()
+		{
+			if (CurrentProcessedLines != null && Context.Options.CaptureOutput)
+			{
+				foreach (string OutputLine in CurrentProcessedLines)
+				{
+					Console.WriteLine(OutputLine.TrimEnd(Environment.NewLine.ToCharArray()));
+				}
 			}
 		}
 

@@ -18,7 +18,7 @@
   <Property Name="Win64FoundationTags" Value="" />
   <Property Name="MacFoundationTags" Value="" />
   <Property Name="IOSFoundationTags" Value="" />
-  <Property Name="AndroidFoundationTags" Value="" />
+  <Property Name="AndroidFoundationTags" Value="~[Perf]~[Slow]~[AndroidSkip]" />
   <Property Name="LinuxFoundationTags" Value="~[.]~[Slow]" />
   <Property Name="LinuxArm64FoundationTags" Value="" />
   <Property Name="TVOSFoundationTags" Value="" />
@@ -32,7 +32,7 @@
   <Property Name="Win64FoundationRunSupported" Value="True" />
   <Property Name="MacFoundationRunSupported" Value="True" />
   <Property Name="IOSFoundationRunSupported" Value="False" />
-  <Property Name="AndroidFoundationRunSupported" Value="False" />
+  <Property Name="AndroidFoundationRunSupported" Value="True" />
   <Property Name="LinuxFoundationRunSupported" Value="True" />
   <Property Name="LinuxArm64FoundationRunSupported" Value="True" />
   <Property Name="TVOSFoundationRunSupported" Value="False" />

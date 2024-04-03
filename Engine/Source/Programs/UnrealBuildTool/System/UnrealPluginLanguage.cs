@@ -332,10 +332,10 @@ namespace UnrealBuildTool
 	 * If you must remove files (like development-only files from distribution builds) you can
 	 * use this node:
 	 * 
-	 *	<deleteFiles filespec=""/>
+	 *	<deleteFiles filespec="" recursive=""/>
 	 *	
-	 * It is restricted to only removing files from the BuildDir.  Here is example usage to remove
-	 * the Oculus Signature Files (osig) from the assets directory:
+	 * It is restricted to only removing files from the BuildDir. If recursive is true it will search all subfolders.
+	 * Here is example usage to remove the Oculus Signature Files (osig) from the assets directory:
 	 * 
 	 *	<deleteFiles filespec="assets/oculussig_*"/>
 	 *	
@@ -991,7 +991,7 @@ namespace UnrealBuildTool
 			}
 		}
 
-		private static void DeleteFiles(string Filespec, ILogger Logger)
+		private static void DeleteFiles(string Filespec, bool Recursive, ILogger Logger)
 		{
 			string BaseDir = Path.GetDirectoryName(Filespec)!;
 			string Mask = Path.GetFileName(Filespec);
@@ -1001,7 +1001,7 @@ namespace UnrealBuildTool
 				return;
 			}
 
-			string[] Files = Directory.GetFiles(BaseDir, Mask, SearchOption.TopDirectoryOnly);
+			string[] Files = Directory.GetFiles(BaseDir, Mask, Recursive ? SearchOption.AllDirectories : SearchOption.TopDirectoryOnly);
 			foreach (string Filename in Files)
 			{
 				File.SetAttributes(Filename, FileAttributes.Normal);
@@ -1805,6 +1805,7 @@ namespace UnrealBuildTool
 					case "deleteFiles":
 						{
 							string? Filespec = GetAttribute(CurrentContext, Node, "filespec");
+							bool bRecursive = StringToBool(GetAttribute(CurrentContext, Node, "recursive", true, false, "false"));
 							if (Filespec != null)
 							{
 								if (Filespec.Contains(':') || Filespec.Contains(".."))
@@ -1814,7 +1815,7 @@ namespace UnrealBuildTool
 								else
 								{
 									// force relative to BuildDir (and only from global context so someone doesn't try to be clever)
-									DeleteFiles(Path.Combine(GlobalContext.StringVariables["BuildDir"], Filespec), Logger);
+									DeleteFiles(Path.Combine(GlobalContext.StringVariables["BuildDir"], Filespec), bRecursive, Logger);
 								}
 							}
 						}

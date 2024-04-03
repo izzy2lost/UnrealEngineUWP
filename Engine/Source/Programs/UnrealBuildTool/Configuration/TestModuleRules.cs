@@ -121,12 +121,6 @@ namespace UnrealBuildTool
 				PrivateDependencyModuleNames.Add("LowLevelTestsRunner");
 			}
 
-			// Platforms specific setup
-			if (Target.Platform == UnrealTargetPlatform.Android)
-			{
-				PublicDefinitions.Add("CATCH_CONFIG_NOSTDOUT");
-			}
-
 			if (Target.Platform == UnrealTargetPlatform.IOS || Target.Platform == UnrealTargetPlatform.TVOS)
 			{
 				// Fix missing frameworks from ApplicationCore

@@ -33,6 +33,8 @@ public class AndroidPlatform : Platform
     private const string TargetAndroidLocation = "obb/";
 	private const string TargetAndroidTemp = "/data/local/tmp/";
 
+	private const string DefaultLaunchActivity = "com.epicgames.unreal.SplashActivity";
+
 	public class AdbCreatedProcess : AutomationTool.IProcessResult
 	{
 		private readonly object StopSyncObject = new object();
@@ -3727,7 +3729,7 @@ public class AndroidPlatform : Platform
 	/** Returns the launch activity name to launch (must call GetPackageInfo first), returns "com.epicgames.unreal.SplashActivity" default if not found */
 	public static string GetLaunchableActivityName()
 	{
-		string ReturnValue = "com.epicgames.unreal.SplashActivity";
+		string ReturnValue = DefaultLaunchActivity;
 		if (LaunchableActivityLine != null)
 		{
 			// the line should look like: launchable-activity: name='com.epicgames.unreal.SplashActivity'  label='TappyChicken' icon=''
@@ -3738,6 +3740,15 @@ public class AndroidPlatform : Platform
 			}
 		}
 		return ReturnValue;
+	}
+
+	public static string GetLaunchableActivityName(string ApkName)
+	{
+		if (!string.IsNullOrEmpty(ApkName) && LaunchableActivityLine == null)
+		{
+			GetPackageInfo(ApkName, false);
+		}
+		return GetLaunchableActivityName();
 	}
 
 	/** Returns the app type from the packaged APK metadata, returns "" if not found */

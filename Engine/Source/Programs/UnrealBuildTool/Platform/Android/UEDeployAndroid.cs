@@ -4987,6 +4987,12 @@ namespace UnrealBuildTool
 				// we don't actually need the SO for the bSkipGradleBuild case
 				string? FinalSOName = null;
 				string DestApkDirectory = Path.Combine(ProjectDirectory, "Binaries", "Android");
+				// If OutputPath is not at the same level with DestApkDirectory, then the target was built with binary subfolder
+				string? OutputDirectory = Path.GetDirectoryName(OutputPath);
+				if (OutputDirectory != null && Path.GetRelativePath(DestApkDirectory, OutputDirectory) != OutputDirectory)
+				{
+					DestApkDirectory = OutputDirectory;
+				}
 				string? DestApkName = null;
 				if (bSkipGradleBuild)
 				{

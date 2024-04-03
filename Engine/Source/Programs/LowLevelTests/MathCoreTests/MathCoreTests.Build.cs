@@ -43,6 +43,7 @@ public class MathCoreTests : TestModuleRules
 			}
 			TestMetadata.PlatformCompilationExtraArgs.Add(Platform, PlatformCompilationArgs);
 		}
+		TestMetadata.PlatformsRunUnsupported.Remove(UnrealTargetPlatform.Android);
 		UpdateBuildGraphPropertiesFile(TestMetadata);
 	}
 }

@@ -656,7 +656,7 @@ namespace LowLevelTests
 	{
 		bool CanSupportPlatform(UnrealTargetPlatform InPlatform);
 
-		StagedBuild CreateBuild(UnrealTargetPlatform InPlatform, UnrealTargetConfiguration InConfiguration, string InTestApp, string InBuildPath, bool bSkipStage);
+		IBuild CreateBuild(UnrealTargetPlatform InPlatform, UnrealTargetConfiguration InConfiguration, string InTestApp, string InBuildPath, bool bSkipStage);
 		protected static string GetExecutable(UnrealTargetPlatform InPlatform, UnrealTargetConfiguration InConfiguration, string InTestApp, string InBuildPath, string FileRegEx)
 		{
 			IEnumerable<string> Executables = DirectoryUtils.FindMatchingFiles(InBuildPath, FileRegEx, -1).Select(FileInfo => FileInfo.FullName);
@@ -689,6 +689,12 @@ namespace LowLevelTests
 				{
 					// Mac & Linux executable candidates should have no extension
 					continue;
+				}
+
+				if (InPlatform == UnrealTargetPlatform.Android && BuildExecutableName.StartsWith(InTestApp))
+				{
+					Log.VeryVerbose("Output Executable for Android: {0}", Path.GetRelativePath(InBuildPath, Executable));
+					return Path.GetRelativePath(InBuildPath, Executable);
 				}
 
 				// Development executable does not contain configuration or platform name
@@ -753,7 +759,7 @@ namespace LowLevelTests
 			return InPlatform.IsInGroup(UnrealPlatformGroup.Desktop);
 		}
 
-		public StagedBuild CreateBuild(UnrealTargetPlatform InPlatform, UnrealTargetConfiguration InConfiguration, string InTestApp, string InBuildPath, bool bSkipStage)
+		public IBuild CreateBuild(UnrealTargetPlatform InPlatform, UnrealTargetConfiguration InConfiguration, string InTestApp, string InBuildPath, bool bSkipStage)
 		{
 			string ExecutablePath = ILowLevelTestsBuildFactory.GetExecutable(InPlatform, InConfiguration, InTestApp, InBuildPath, GetExecutableRegex(InPlatform));
 			return new LowLevelTestsBuild(InPlatform, InConfiguration, InBuildPath, ExecutablePath);
@@ -775,6 +781,43 @@ namespace LowLevelTests
 			{
 				throw new AutomationException("Cannot create build for non-desktop platform " + InPlatform);
 			}
+		}
+	}
+
+	public class AndroidLowLevelTestsBuildFactory : ILowLevelTestsBuildFactory
+	{
+		public bool CanSupportPlatform(UnrealTargetPlatform InPlatform)
+		{
+			return InPlatform.IsInGroup(UnrealPlatformGroup.Android);
+		}
+
+		public IBuild CreateBuild(UnrealTargetPlatform InPlatform, UnrealTargetConfiguration InConfiguration, string InTestApp, string InBuildPath, bool bSkipStage)
+		{
+			string ExecutablePath = ILowLevelTestsBuildFactory.GetExecutable(InPlatform, InConfiguration, InTestApp, InBuildPath, GetExecutableRegex(InPlatform));
+			return new AndroidBuild(InConfiguration, $"com.epicgames.{InTestApp}", Path.Combine(InBuildPath, ExecutablePath), new Dictionary<string, string>(), BuildFlags.Packaged | BuildFlags.CanReplaceCommandLine, false, false, false);
+		}
+
+		public string GetExecutableRegex(UnrealTargetPlatform InPlatform)
+		{
+			return @"[A-Za-z0-9_]+(Tests)?(?:-[A-Za-z0-9_]+)?(?:-[A-Za-z0-9_]+)?.apk";
+		}
+	}
+
+	public class AndroidLowLevelTestsReporting : ILowLevelTestsReporting
+	{
+		public bool CanSupportPlatform(UnrealTargetPlatform InPlatform)
+		{
+			return InPlatform.IsInGroup(UnrealPlatformGroup.Android);
+		}
+
+		public string GetTargetReportPath(UnrealTargetPlatform InPlatform, string InTestApp, string InBuildPath)
+		{
+			return string.Format("{0}LLTResults.out", InPlatform.ToString());
+		}
+
+		public string CopyDeviceReportTo(IAppInstall InAppInstall, UnrealTargetPlatform InPlatform, string InTestApp, string InBuildPath, string InTargetDirectory)
+		{
+			throw new NotSupportedException("Reports currently not supported for Android."); 
 		}
 	}
 
@@ -824,7 +867,7 @@ namespace LowLevelTests
 
 		public UnrealTargetPlatform Platform { get; protected set; }
 		public UnrealTargetConfiguration Configuration { get; protected set; }
-		public StagedBuild DiscoveredBuild { get; protected set; }
+		public IBuild DiscoveredBuild { get; protected set; }
 
 		public LowLevelTestsBuildSource(string InTestApp, string InBuildPath, UnrealTargetPlatform InTargetPlatform, UnrealTargetConfiguration InConfiguration, bool InSkipStage)
 		{
@@ -891,7 +934,11 @@ namespace LowLevelTests
 
 				// Set reporting options, filters etc
 				CachedConfig.CommandLineParams.AddRawCommandline("--durations=no");
-				if (!string.IsNullOrEmpty(InReportType))
+				if (CachedConfig.Platform == UnrealTargetPlatform.Android)
+				{
+					CachedConfig.CommandLineParams.AddRawCommandline("--reporter=console");
+				}
+				else if (!string.IsNullOrEmpty(InReportType))
 				{
 					CachedConfig.CommandLineParams.AddRawCommandline(string.Format("--reporter={0}", InReportType));
 					string ReportPath = LowLevelTestsReporting.GetTargetReportPath(Platform, TestApp, BuildPath);

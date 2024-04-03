@@ -27,7 +27,7 @@
   <Property Name="IOSMathCoreRunContainerized" Value="False" />
   <Property Name="AndroidMathCoreTags" Value="" />
   <Property Name="AndroidMathCoreExtraCompilationArgs" Value="-allmodules -architectures=arm64" />
-  <Property Name="AndroidMathCoreRunSupported" Value="False" />
+  <Property Name="AndroidMathCoreRunSupported" Value="True" />
   <Property Name="AndroidMathCoreRunContainerized" Value="False" />
   <Property Name="LinuxMathCoreTags" Value="" />
   <Property Name="LinuxMathCoreExtraCompilationArgs" Value="-allmodules" />

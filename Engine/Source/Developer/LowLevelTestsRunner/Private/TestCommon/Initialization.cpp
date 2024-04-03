@@ -35,14 +35,14 @@ void InitStats()
 
 void UsePlatformFileStubIfRequired()
 {
-#if WITH_ENGINE && UE_LLT_USE_PLATFORM_FILE_STUB
+#if UE_LLT_USE_PLATFORM_FILE_STUB
 	if (IPlatformFile* WrapperFile = FPlatformFileManager::Get().GetPlatformFile(TEXT("PlatformFileStub")))
 	{
 		IPlatformFile* CurrentPlatformFile = &FPlatformFileManager::Get().GetPlatformFile();
 		WrapperFile->Initialize(CurrentPlatformFile, TEXT(""));
 		FPlatformFileManager::Get().SetPlatformFile(*WrapperFile);
 	}
-#endif // WITH_ENGINE && UE_LLT_USE_PLATFORM_FILE_STUB
+#endif // UE_LLT_USE_PLATFORM_FILE_STUB
 }
 
 void SaveDefaultPlatformFile()
