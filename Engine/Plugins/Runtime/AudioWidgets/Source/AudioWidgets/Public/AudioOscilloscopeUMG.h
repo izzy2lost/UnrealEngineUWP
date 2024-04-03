@@ -39,11 +39,11 @@ public:
 #endif
 
 	/** Starts the oscilloscope processing. */
-	UFUNCTION(BlueprintCallable, Category = "Behavior")
+	UFUNCTION(BlueprintCallable, Category = "Audio Widgets| Oscilloscope")
 	void StartProcessing();
 
 	/** Stops the oscilloscope processing. */
-	UFUNCTION(BlueprintCallable, Category = "Behavior")
+	UFUNCTION(BlueprintCallable, Category = "Audio Widgets| Oscilloscope")
 	void StopProcessing();
 
 	/** The oscilloscope panel style */

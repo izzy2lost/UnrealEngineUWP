@@ -90,40 +90,56 @@ public:
 
 public:
 	/** Get output value from normalized linear (0 - 1) based on internal lin to output mapping. */
-	UFUNCTION(BlueprintCallable, Category = "Behavior")
+	UFUNCTION(BlueprintCallable, Category = "Audio Widgets| Audio Slider")
 	float GetOutputValue(const float InSliderValue);
 
 	/** Get normalized linear (0 - 1) value from output based on internal lin to output mapping. */
-	UFUNCTION(BlueprintCallable, Category = "Behavior", meta=(DeprecatedFunction, DeprecationMessage="5.1 - GetLinValue is deprecated, please use GetSliderValue instead."))
+	UFUNCTION(BlueprintCallable, Category = "Audio Widgets| Audio Slider", meta=(DeprecatedFunction, DeprecationMessage="5.1 - GetLinValue is deprecated, please use GetSliderValue instead."))
 	float GetLinValue(const float OutputValue);
 
 	/** Get normalized linear (0 - 1) slider value from output based on internal lin to output mapping. */
-	UFUNCTION(BlueprintCallable, Category = "Behavior")
+	UFUNCTION(BlueprintCallable, Category = "Audio Widgets| Audio Slider")
 	float GetSliderValue(const float OutputValue);
 
 	/** Sets the label background color */
-	UFUNCTION(BlueprintCallable, Category = "Appearance")
+	UFUNCTION(BlueprintCallable, Category = "Audio Widgets| Audio Slider")
 	void SetTextLabelBackgroundColor(FSlateColor InColor);
 
 	/** Sets the units text */
-	UFUNCTION(BlueprintCallable, Category = "Appearance")
+	UFUNCTION(BlueprintCallable, Category = "Audio Widgets| Audio Slider")
 	void SetUnitsText(const FText Units);
 	
 	/** Sets whether the units text is read only*/
-	UFUNCTION(BlueprintCallable, Category = "Appearance")
+	UFUNCTION(BlueprintCallable, Category = "Audio Widgets| Audio Slider")
 	void SetUnitsTextReadOnly(const bool bIsReadOnly);
 
 	/** Sets whether the value text is read only*/
-	UFUNCTION(BlueprintCallable, Category = "Appearance")
+	UFUNCTION(BlueprintCallable, Category = "Audio Widgets| Audio Slider")
 	void SetValueTextReadOnly(const bool bIsReadOnly);
 	
 	/** If true, show text label only on hover; if false always show label. */
-	UFUNCTION(BlueprintCallable, Category = "Appearance")
+	UFUNCTION(BlueprintCallable, Category = "Audio Widgets| Audio Slider")
 	void SetShowLabelOnlyOnHover(const bool bShowLabelOnlyOnHover);
 	
 	/** Sets whether to show the units text */
-	UFUNCTION(BlueprintCallable, Category = "Appearance")
+	UFUNCTION(BlueprintCallable, Category = "Audio Widgets| Audio Slider")
 	void SetShowUnitsText(const bool bShowUnitsText);
+
+	/** Sets the slider background color */
+	UFUNCTION(BlueprintCallable, Category = "Audio Widgets| Audio Slider")
+	void SetSliderBackgroundColor(FLinearColor InValue);
+
+	/** Sets the slider bar color */
+	UFUNCTION(BlueprintCallable, Category = "Audio Widgets| Audio Slider")
+	void SetSliderBarColor(FLinearColor InValue);
+
+	/** Sets the slider thumb color */
+	UFUNCTION(BlueprintCallable, Category = "Audio Widgets| Audio Slider")
+	void SetSliderThumbColor(FLinearColor InValue);
+
+	/** Sets the widget background color */
+	UFUNCTION(BlueprintCallable, Category = "Audio Widgets| Audio Slider")
+	void SetWidgetBackgroundColor(FLinearColor InValue);
 
 	/** The slider's orientation. */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = Appearance)
@@ -132,22 +148,6 @@ public:
 	/** Called when the value is changed by slider or typing. */
 	UPROPERTY(BlueprintAssignable, Category = "Widget Event")
 	FOnFloatValueChangedEvent OnValueChanged;
-
-	/** Sets the slider background color */
-	UFUNCTION(BlueprintCallable, Category = "Appearance")
-	void SetSliderBackgroundColor(FLinearColor InValue);
-
-	/** Sets the slider bar color */
-	UFUNCTION(BlueprintCallable, Category = "Appearance")
-	void SetSliderBarColor(FLinearColor InValue);
-
-	/** Sets the slider thumb color */
-	UFUNCTION(BlueprintCallable, Category = "Appearance")
-	void SetSliderThumbColor(FLinearColor InValue);
-
-	/** Sets the widget background color */
-	UFUNCTION(BlueprintCallable, Category = "Appearance")
-	void SetWidgetBackgroundColor(FLinearColor InValue);
 
 	// UWidget interface
 	virtual void SynchronizeProperties() override;

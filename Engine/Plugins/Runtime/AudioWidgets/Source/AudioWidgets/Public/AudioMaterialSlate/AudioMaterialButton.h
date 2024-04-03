@@ -47,11 +47,11 @@ public:
 	// End of UVisual
 
 		/** Gets the current value of the slider.*/
-	UFUNCTION(BlueprintPure, Category = "Behavior")
+	UFUNCTION(BlueprintPure, Category = "Audio Widgets| Audio Material Button")
 	bool GetIsPressed() const;
 
 	/** Sets the current value of the slider. InValue is Clamped between 0.f - 1.f */
-	UFUNCTION(BlueprintCallable, Category = "Behavior")
+	UFUNCTION(BlueprintCallable, Category = "Audio Widgets| Audio Material Button")
 	void SetIsPressed(bool InPressed);
 
 public:

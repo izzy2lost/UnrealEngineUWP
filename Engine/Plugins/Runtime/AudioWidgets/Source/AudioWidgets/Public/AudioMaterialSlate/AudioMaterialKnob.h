@@ -45,51 +45,51 @@ public:
 	// End of UVisual
 
 	/** Get the current value of the knob.*/
-	UFUNCTION(BlueprintPure, Category = "Behavior")
+	UFUNCTION(BlueprintPure, Category = "Audio Widgets| Audio Material Knob")
 	float GetValue();
 
 	/** Set the current value of the knob. InValue is Clamped between 0.f - 1.f */
-	UFUNCTION(BlueprintCallable, Category = "Behavior")
+	UFUNCTION(BlueprintCallable, Category = "Audio Widgets| Audio Material Knob")
 	void SetValue(float InValue);	
 	
 	/** Set the knobs tune speed. InValue is Clamped between 0.f - 1.f */
-	UFUNCTION(BlueprintCallable, Category = "Behavior")
+	UFUNCTION(BlueprintCallable, Category = "Audio Widgets| Audio Material Knob")
 	void SetTuneSpeed(float InValue);	
 
 	/** Get the Knobs tune speed*/
-	UFUNCTION(BlueprintPure, Category = "Behavior")
+	UFUNCTION(BlueprintPure, Category = "Audio Widgets| Audio Material Knob")
 	float GetTuneSpeed() const;
 	
 	/** Set the knobs fine-tune speed. InValue is Clamped between 0.f - 1.f */
-	UFUNCTION(BlueprintCallable, Category = "Behavior")
+	UFUNCTION(BlueprintCallable, Category = "Audio Widgets| Audio Material Knob")
 	void SetFineTuneSpeed(float InValue);
 
 	/** Get the Knobs fine-tune speed*/
-	UFUNCTION(BlueprintPure, Category = "Behavior")
+	UFUNCTION(BlueprintPure, Category = "Audio Widgets| Audio Material Knob")
 	float GetFineTuneSpeed() const;
 	
 	/** Set the knob to be interactive or fixed */
-	UFUNCTION(BlueprintCallable, Category = "Behavior")
+	UFUNCTION(BlueprintCallable, Category = "Audio Widgets| Audio Material Knob")
 	void SetLocked(bool InLocked);	
 
 	/** Get whether the knob is interactive or fixed.*/
-	UFUNCTION(BlueprintPure, Category = "Behavior")
+	UFUNCTION(BlueprintPure, Category = "Audio Widgets| Audio Material Knob")
 	bool GetIsLocked() const;
 	
 	/** Set the knob to use steps when turning On Mouse move */
-	UFUNCTION(BlueprintCallable, Category = "Behavior")
+	UFUNCTION(BlueprintCallable, Category = "Audio Widgets| Audio Material Knob")
 	void SetMouseUsesStep(bool InUsesStep);
 
 	/** Get whether the knob uses steps when tuning On Mouse move*/
-	UFUNCTION(BlueprintPure, Category = "Behavior")
+	UFUNCTION(BlueprintPure, Category = "Audio Widgets| Audio Material Knob")
 	bool GetMouseUsesStep() const;
 
 	/** Set the amount to adjust the value when using steps*/
-	UFUNCTION(BlueprintCallable, Category = "Behavior")
+	UFUNCTION(BlueprintCallable, Category = "Audio Widgets| Audio Material Knob")
 	void SetStepSize(float InValue);
 
 	/** Get Step Size*/
-	UFUNCTION(BlueprintPure, Category = "Behavior")
+	UFUNCTION(BlueprintPure, Category = "Audio Widgets| Audio Material Knob")
 	float GetStepSize() const;
 
 public:

@@ -94,39 +94,39 @@ public:
 public:
 
  	/** Gets the current linear value of the meter. */
- 	UFUNCTION(BlueprintCallable, Category="Behavior")
+ 	UFUNCTION(BlueprintCallable, Category = "Audio Widgets| Audio Meter")
 	TArray<FMeterChannelInfo> GetMeterChannelInfo() const;
  
  	/** Sets the current meter values. */
- 	UFUNCTION(BlueprintCallable, Category="Behavior")
+ 	UFUNCTION(BlueprintCallable, Category = "Audio Widgets| Audio Meter")
  	void SetMeterChannelInfo(const TArray<FMeterChannelInfo>& InMeterChannelInfo);
 
 	/** Sets the background color */
-	UFUNCTION(BlueprintCallable, Category = "Appearance")
+	UFUNCTION(BlueprintCallable, Category = "Audio Widgets| Audio Meter")
 	void SetBackgroundColor(FLinearColor InValue);
 
 	/** Sets the meter background color */
-	UFUNCTION(BlueprintCallable, Category="Appearance")
+	UFUNCTION(BlueprintCallable, Category = "Audio Widgets| Audio Meter")
 	void SetMeterBackgroundColor(FLinearColor InValue);
 
 	/** Sets the meter value color */
-	UFUNCTION(BlueprintCallable, Category = "Appearance")
+	UFUNCTION(BlueprintCallable, Category = "Audio Widgets| Audio Meter")
 	void SetMeterValueColor(FLinearColor InValue);
 
 	/** Sets the meter peak color */
-	UFUNCTION(BlueprintCallable, Category = "Appearance")
+	UFUNCTION(BlueprintCallable, Category = "Audio Widgets| Audio Meter")
 	void SetMeterPeakColor(FLinearColor InValue);
 
 	/** Sets the meter clipping color */
-	UFUNCTION(BlueprintCallable, Category = "Appearance")
+	UFUNCTION(BlueprintCallable, Category = "Audio Widgets| Audio Meter")
 	void SetMeterClippingColor(FLinearColor InValue);
 
 	/** Sets the meter scale color */
-	UFUNCTION(BlueprintCallable, Category = "Appearance")
+	UFUNCTION(BlueprintCallable, Category = "Audio Widgets| Audio Meter")
 	void SetMeterScaleColor(FLinearColor InValue);
 
 	/** Sets the meter scale color */
-	UFUNCTION(BlueprintCallable, Category = "Appearance")
+	UFUNCTION(BlueprintCallable, Category = "Audio Widgets| Audio Meter")
 	void SetMeterScaleLabelColor(FLinearColor InValue);
 
 	// UWidget interface

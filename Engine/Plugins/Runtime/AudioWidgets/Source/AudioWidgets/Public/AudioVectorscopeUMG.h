@@ -36,11 +36,11 @@ public:
 #endif
 
 	/** Starts the vectorscope processing. */
-	UFUNCTION(BlueprintCallable, Category = "Behavior")
+	UFUNCTION(BlueprintCallable, Category = "Audio Widgets| Vectorscope")
 	void StartProcessing();
 
 	/** Stops the vectorscope processing. */
-	UFUNCTION(BlueprintCallable, Category = "Behavior")
+	UFUNCTION(BlueprintCallable, Category = "Audio Widgets| Vectorscope")
 	void StopProcessing();
 
 	/** The vectorscope panel style */

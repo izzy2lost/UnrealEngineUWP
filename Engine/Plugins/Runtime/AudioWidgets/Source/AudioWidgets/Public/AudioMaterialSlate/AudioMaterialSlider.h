@@ -45,51 +45,51 @@ public:
 	// End of UVisual
 
 	/** Gets the current value of the slider.*/
-	UFUNCTION(BlueprintPure, Category = "Behavior")
+	UFUNCTION(BlueprintPure, Category = "Audio Widgets| Audio Material Slider")
 	float GetValue() const;
 
 	/** Sets the current value of the slider. InValue is Clamped between 0.f - 1.f */
-	UFUNCTION(BlueprintCallable, Category = "Behavior")
+	UFUNCTION(BlueprintCallable, Category = "Audio Widgets| Audio Material Slider")
 	void SetValue(float InValue);
 
 	/** Set the tune speed of the slider. InValue is Clamped between 0.f - 1.f */
-	UFUNCTION(BlueprintCallable, Category = "Behavior")
+	UFUNCTION(BlueprintCallable, Category = "Audio Widgets| Audio Material Slider")
 	void SetTuneSpeed(const float InValue);
 
 	/** Get slider tune speed*/
-	UFUNCTION(BlueprintPure, Category = "Behavior")
+	UFUNCTION(BlueprintPure, Category = "Audio Widgets| Audio Material Slider")
 	float GetTuneSpeed() const;
 
 	/** Set the fine-tune speed of the slider. InValue is Clamped between 0.f - 1.f */
-	UFUNCTION(BlueprintCallable, Category = "Behavior")
+	UFUNCTION(BlueprintCallable, Category = "Audio Widgets| Audio Material Slider")
 	void SetFineTuneSpeed(const float InValue);
 
 	/** Get slider fine-tune speed*/
-	UFUNCTION(BlueprintPure, Category = "Behavior")
+	UFUNCTION(BlueprintPure, Category = "Audio Widgets| Audio Material Slider")
 	float GetFineTuneSpeed() const;
 
 	/** Set the slider to be interactive or fixed */
-	UFUNCTION(BlueprintCallable, Category = "Behavior")
+	UFUNCTION(BlueprintCallable, Category = "Audio Widgets| Audio Material Slider")
 	void SetLocked(bool bInLocked);
 
 	/** Get whether the slider is interactive or fixed.*/
-	UFUNCTION(BlueprintPure, Category = "Behavior")
+	UFUNCTION(BlueprintPure, Category = "Audio Widgets| Audio Material Slider")
 	bool GetIsLocked() const;
 
 	/** Sets the slider to use steps when turning On Mouse move */
-	UFUNCTION(BlueprintCallable, Category = "Behavior")
+	UFUNCTION(BlueprintCallable, Category = "Audio Widgets| Audio Material Slider")
 	void SetMouseUsesStep(bool bInUsesStep);
 
 	/** Get whether the slider uses steps when turning On Mouse move*/
-	UFUNCTION(BlueprintPure, Category = "Behavior")
+	UFUNCTION(BlueprintPure, Category = "Audio Widgets| Audio Material Slider")
 	bool GetMouseUsesStep() const;
 
 	/** Sets the amount to adjust the value when using steps*/
-	UFUNCTION(BlueprintCallable, Category = "Behavior")
+	UFUNCTION(BlueprintCallable, Category = "Audio Widgets| Audio Material Slider")
 	void SetStepSize(float InValue);
 
 	/** Get Step Size*/
-	UFUNCTION(BlueprintPure, Category = "Behavior")
+	UFUNCTION(BlueprintPure, Category = "Audio Widgets| Audio Material Slider")
 	float GetStepSize() const;
 
 public:

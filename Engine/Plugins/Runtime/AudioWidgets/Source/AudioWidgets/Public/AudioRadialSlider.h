@@ -86,63 +86,63 @@ public:
 
 public: 
 	/** Get output value from normalized linear (0 - 1) based on internal lin to output mapping. */
-	UFUNCTION(BlueprintCallable, Category = "Behavior")
+	UFUNCTION(BlueprintCallable, Category = "Audio Widgets| Audio Radial Slider")
 	float GetOutputValue(const float InSliderValue);
 
 	/** Get normalized linear (0 - 1) slider value from output based on internal lin to output mapping. */
-	UFUNCTION(BlueprintCallable, Category = "Behavior")
+	UFUNCTION(BlueprintCallable, Category = "Audio Widgets| Audio Radial Slider")
 	float GetSliderValue(const float OutputValue);
 
 	/** Sets the widget layout */
-	UFUNCTION(BlueprintCallable, Category = "Appearance")
+	UFUNCTION(BlueprintCallable, Category = "Audio Widgets| Audio Radial Slider")
 	void SetWidgetLayout(EAudioRadialSliderLayout InLayout);
 
 	/** Sets the label background color */
-	UFUNCTION(BlueprintCallable, Category = "Appearance")
+	UFUNCTION(BlueprintCallable, Category = "Audio Widgets| Audio Radial Slider")
 	void SetCenterBackgroundColor(FLinearColor InValue);
 
 	/** Sets the slider progress color */
-	UFUNCTION(BlueprintCallable, Category = "Appearance")
+	UFUNCTION(BlueprintCallable, Category = "Audio Widgets| Audio Radial Slider")
 	void SetSliderProgressColor(FLinearColor InValue);
 
 	/** Sets the slider bar color */
-	UFUNCTION(BlueprintCallable, Category = "Appearance")
+	UFUNCTION(BlueprintCallable, Category = "Audio Widgets| Audio Radial Slider")
 	void SetSliderBarColor(FLinearColor InValue);
 
 	/** Sets the start and end of the hand as a ratio to the slider radius (so 0.0 to 1.0 is from the slider center to the handle). */
-	UFUNCTION(BlueprintCallable, Category = "Appearance")
+	UFUNCTION(BlueprintCallable, Category = "Audio Widgets| Audio Radial Slider")
 	void SetHandStartEndRatio(const FVector2D InHandStartEndRatio);
 
 	/** Sets the label background color */
-	UFUNCTION(BlueprintCallable, Category = "Appearance")
+	UFUNCTION(BlueprintCallable, Category = "Audio Widgets| Audio Radial Slider")
 	void SetTextLabelBackgroundColor(FSlateColor InColor);
 
 	/** Sets the units text */
-	UFUNCTION(BlueprintCallable, Category = "Appearance")
+	UFUNCTION(BlueprintCallable, Category = "Audio Widgets| Audio Radial Slider")
 	void SetUnitsText(const FText Units);
 	
 	/** Sets whether the units text is read only*/
-	UFUNCTION(BlueprintCallable, Category = "Appearance")
+	UFUNCTION(BlueprintCallable, Category = "Audio Widgets| Audio Radial Slider")
 	void SetUnitsTextReadOnly(const bool bIsReadOnly);
 
 	/** Sets whether the value text is read only*/
-	UFUNCTION(BlueprintCallable, Category = "Appearance")
+	UFUNCTION(BlueprintCallable, Category = "Audio Widgets| Audio Radial Slider")
 	void SetValueTextReadOnly(const bool bIsReadOnly);
 	
 	/** If true, show text label only on hover; if false always show label. */
-	UFUNCTION(BlueprintCallable, Category = "Appearance")
+	UFUNCTION(BlueprintCallable, Category = "Audio Widgets| Audio Radial Slider")
 	void SetShowLabelOnlyOnHover(const bool bShowLabelOnlyOnHover);
 	
 	/** Sets whether to show the units text */
-	UFUNCTION(BlueprintCallable, Category = "Appearance")
+	UFUNCTION(BlueprintCallable, Category = "Audio Widgets| Audio Radial Slider")
 	void SetShowUnitsText(const bool bShowUnitsText);
 
 	/** Sets the slider thickness */
-	UFUNCTION(BlueprintCallable, Category = "Appearance")
+	UFUNCTION(BlueprintCallable, Category = "Audio Widgets| Audio Radial Slider")
 	void SetSliderThickness(const float InThickness);
 	
 	/** Sets the output range */
-	UFUNCTION(BlueprintCallable, Category = "Behavior")
+	UFUNCTION(BlueprintCallable, Category = "Audio Widgets| Audio Radial Slider")
 	void SetOutputRange(const FVector2D InOutputRange);
 
 	// UWidget interface

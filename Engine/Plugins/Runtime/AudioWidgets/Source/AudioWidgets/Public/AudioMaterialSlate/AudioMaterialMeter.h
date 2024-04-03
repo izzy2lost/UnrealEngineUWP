@@ -49,11 +49,11 @@ public:
 	// End of UVisual
 
 	/** Gets the current linear values of the meter. */
-	UFUNCTION(BlueprintCallable, Category = "Behavior")
+	UFUNCTION(BlueprintCallable, Category = "Audio Widgets| Audio Material Meter")
 	TArray<FMeterChannelInfo> GetMeterChannelInfo() const;
 
 	/** Sets the current meter values. */
-	UFUNCTION(BlueprintCallable, Category = "Behavior")
+	UFUNCTION(BlueprintCallable, Category = "Audio Widgets| Audio Material Meter")
 	void SetMeterChannelInfo(const TArray<FMeterChannelInfo>& InMeterChannelInfo);
 
 public:
