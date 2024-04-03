@@ -4847,7 +4847,9 @@ void UCharacterMovementComponent::PhysFalling(float deltaTime, int32 Iterations)
 					const FVector PawnLocation = UpdatedComponent->GetComponentLocation();
 					FFindFloorResult FloorResult;
 					FindFloor(PawnLocation, FloorResult, false);
-					if (FloorResult.IsWalkableFloor() && IsValidLandingSpot(PawnLocation, FloorResult.HitResult))
+
+					// Note that we only care about capsule sweep floor results, since the line trace may detect a lower walkable surface that our falling capsule wouldn't actually reach yet.
+					if (!FloorResult.bLineTrace && FloorResult.IsWalkableFloor() && IsValidLandingSpot(PawnLocation, FloorResult.HitResult))
 					{
 						remainingTime += subTimeTickRemaining;
 						ProcessLanded(FloorResult.HitResult, remainingTime, Iterations);
