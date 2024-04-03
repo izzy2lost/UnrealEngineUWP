@@ -1003,6 +1003,11 @@ void UContextualAnimSceneActorComponent::LeaveScene()
 
 		RestoreMovementState(*Binding);
 
+		if (UMotionWarpingComponent* MotionWarpComp = Binding->GetMotionWarpingComponent())
+		{
+			MotionWarpComp->RemoveAllWarpTargets();
+		}
+
 		// Notify the other actors in the interaction
 		// @TODO: This should be refactored so only the leader of the interaction maintains the full bindings
 		for (const FContextualAnimSceneBinding& OtherBinding : Bindings)
