@@ -60,7 +60,7 @@ bool UWorldPartition::GatherPackagesToCook(IWorldPartitionCookPackageContext& Co
 			const UExternalDataLayerAsset* ExternalDataLayerAsset = InCookPackageObject->GetExternalDataLayerAsset();
 			const FString ExternalContentRoot = ExternalDataLayerAsset ? ExternalDataLayerManager->GetExternalDataLayerLevelRootPath(ExternalDataLayerAsset) : FString();
 			const FString& Root = ExternalDataLayerAsset ? ExternalContentRoot : WorldPackageName;
-			if (InCookPackageObject->IsLevelPackage() ? CookContext.AddLevelStreamingPackageToGenerate(this, Root, InPackageName) : CookContext.AddGenericPackageToGenerate(this, Root, InPackageName))
+			if (CookContext.AddPackageToGenerate(this, InCookPackageObject, Root, InPackageName))
 			{
 				return;
 			}
@@ -108,10 +108,10 @@ bool UWorldPartition::PrepareGeneratorPackageForCook(IWorldPartitionCookPackageC
 
 bool UWorldPartition::PopulateGeneratorPackageForCook(IWorldPartitionCookPackageContext& CookContext, const TArray<FWorldPartitionCookPackage*>& InPackagesToCook, TArray<UPackage*>& OutModifiedPackages)
 {
-	auto OnPopulateGeneratorPackageForCook = [this](const FWorldPartitionCookPackage* InPackageToCook)
+	auto OnPopulateGeneratorPackageForCook = [this, &CookContext](const FWorldPartitionCookPackage* InPackageToCook)
 	{
 		IWorldPartitionCookPackageObject* CookPackageObject = GetCookPackageObject(*InPackageToCook);
-		return CookPackageObject && CookPackageObject->OnPopulateGeneratorPackageForCook(InPackageToCook->GetPackage());
+		return CookPackageObject && CookPackageObject->OnPopulateGeneratorPackageForCook(CookContext, InPackageToCook->GetPackage());
 	};
 
 	TArray<const FWorldPartitionCookPackage*> GenericPackagesToCook;
@@ -161,7 +161,7 @@ bool UWorldPartition::PopulateGeneratedPackageForCook(IWorldPartitionCookPackage
 	OutModifiedPackages.Reset();
 	if (IWorldPartitionCookPackageObject* CookPackageObject = GetCookPackageObject(InPackageToCook))
 	{
-		if (CookPackageObject->OnPopulateGeneratedPackageForCook(InPackageToCook.GetPackage(), OutModifiedPackages))
+		if (CookPackageObject->OnPopulateGeneratedPackageForCook(CookContext, InPackageToCook.GetPackage(), OutModifiedPackages))
 		{
 			// Since PopulateGeneratedPackageForCook on the external streaming object package changes its outer (which affects its cells object path) and can be
 			// called after a call to PopulateGeneratedPackageForCook on a package of any cell external streaming object, we need to generate the cell path manually.

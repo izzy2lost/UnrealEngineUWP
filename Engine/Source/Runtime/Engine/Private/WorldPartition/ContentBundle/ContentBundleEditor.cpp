@@ -414,7 +414,7 @@ bool FContentBundleEditor::GatherPackagesToCook(class IWorldPartitionCookPackage
 	{
 		ExternalStreamingObject->ForEachStreamingCells([this, &bIsSuccess, &CookContext](UWorldPartitionRuntimeCell& RuntimeCell)
 		{
-			if (const FWorldPartitionCookPackage* CookPackage = CookContext.AddLevelStreamingPackageToGenerate(this, ContentBundlePaths::GetCookedContentBundleLevelFolder(*this), RuntimeCell.GetPackageNameToCreate()))
+			if (const FWorldPartitionCookPackage* CookPackage = CookContext.AddPackageToGenerate(this, &RuntimeCell, ContentBundlePaths::GetCookedContentBundleLevelFolder(*this), RuntimeCell.GetPackageNameToCreate()))
 			{
 				CookPackageIdsToCell.Emplace(CookPackage->PackageId, &RuntimeCell);
 			}
@@ -425,7 +425,7 @@ bool FContentBundleEditor::GatherPackagesToCook(class IWorldPartitionCookPackage
 			}
 		});
 		
-		const FWorldPartitionCookPackage* CookPackage = CookContext.AddGenericPackageToGenerate(this, ContentBundlePaths::GetCookedContentBundleLevelFolder(*this), GetExternalStreamingObjectPackageName());
+		const FWorldPartitionCookPackage* CookPackage = CookContext.AddPackageToGenerate(this, ExternalStreamingObject, ContentBundlePaths::GetCookedContentBundleLevelFolder(*this), GetExternalStreamingObjectPackageName());
 		if (CookPackage == nullptr)
 		{
 			UE_LOG(LogContentBundle, Error, TEXT("%s[Cook] Failed to add streaming object package in cook context."), *ContentBundle::Log::MakeDebugInfoString(*this));
@@ -455,7 +455,7 @@ bool FContentBundleEditor::PopulateGeneratorPackageForCook(class IWorldPartition
 					// Make sure the cell outer is set to the  ExternalStreamingObject so it will be saved in the right package at the end of the cook.
 					check(Cell->GetOuter() == ExternalStreamingObject);
 
-					if (!Cell->OnPopulateGeneratorPackageForCook(CookPackage->GetPackage()))
+					if (!Cell->OnPopulateGeneratorPackageForCook(CookContext, CookPackage->GetPackage()))
 					{
 						UE_LOG(LogContentBundle, Error, TEXT("%s[Cook] Failed to prepare cell with package %s for cook."), *ContentBundle::Log::MakeDebugInfoString(*this), *CookPackage->RelativePath);
 						bIsSuccess = false;
@@ -463,13 +463,13 @@ bool FContentBundleEditor::PopulateGeneratorPackageForCook(class IWorldPartition
 				}
 				else
 				{
-					UE_LOG(LogContentBundle, Error, TEXT("%s[Cook] Could not find cell for package %s while populating generator pacakges."), *ContentBundle::Log::MakeDebugInfoString(*this), *CookPackage->RelativePath);
+					UE_LOG(LogContentBundle, Error, TEXT("%s[Cook] Could not find cell for package %s while populating generator packages."), *ContentBundle::Log::MakeDebugInfoString(*this), *CookPackage->RelativePath);
 					bIsSuccess = false;
 				}
 			}
 		}
 
-		ExternalStreamingObject->OnPopulateGeneratorPackageForCook(nullptr);
+		ExternalStreamingObject->OnPopulateGeneratorPackageForCook(CookContext, nullptr);
 	}
 	
 
@@ -492,7 +492,7 @@ bool FContentBundleEditor::PopulateGeneratedPackageForCook(class IWorldPartition
 				if (!Cell->IsAlwaysLoaded())
 				{
 					TArray<UPackage*> ModifiedPackages;
-					if (Cell->OnPopulateGeneratedPackageForCook(PackageToCook.GetPackage(), OutModifiedPackages))
+					if (Cell->OnPopulateGeneratedPackageForCook(CookContext, PackageToCook.GetPackage(), OutModifiedPackages))
 					{
 						UWorld* CellWorld = FindObject<UWorld>(PackageToCook.GetPackage(), *GetInjectedWorld()->GetName());
 						if (CellWorld != nullptr)
@@ -536,7 +536,7 @@ bool FContentBundleEditor::PopulateGeneratedPackageForCook(class IWorldPartition
 	}
 	else
 	{
-		if (!ExternalStreamingObject->OnPopulateGeneratedPackageForCook(PackageToCook.GetPackage(), OutModifiedPackages))
+		if (!ExternalStreamingObject->OnPopulateGeneratedPackageForCook(CookContext, PackageToCook.GetPackage(), OutModifiedPackages))
 		{
 			UE_LOG(LogContentBundle, Error, TEXT("%s[Cook] Failed to rename streaming object package."), *ContentBundle::Log::MakeDebugInfoString(*this));
 			bIsSuccess = false;

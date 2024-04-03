@@ -13,6 +13,8 @@
 #include "Misc/ArchiveMD5.h"
 #if WITH_EDITOR
 #include "WorldPartition/Cook/WorldPartitionCookPackage.h"
+#include "WorldPartition/Cook/WorldPartitionCookPackageContextInterface.h"
+#include "UObject/ObjectSaveContext.h"
 #endif
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(WorldPartitionRuntimeHash)
@@ -114,28 +116,46 @@ FString URuntimeHashExternalStreamingObjectBase::GetPackageNameToCreate() const
 	return FString();
 }
 
-bool URuntimeHashExternalStreamingObjectBase::OnPopulateGeneratorPackageForCook(UPackage* InPackage)
+bool URuntimeHashExternalStreamingObjectBase::PrepareForCook(const IWorldPartitionCookPackageContext& InCookContext)
 {
-	ForEachStreamingCells([this](UWorldPartitionRuntimeCell& Cell)
+	bool bResult = true;
+	ForEachStreamingCells([this, &bResult, &InCookContext](UWorldPartitionRuntimeCell& Cell)
 	{
-		UWorldPartitionRuntimeLevelStreamingCell* RuntimeCell = CastChecked<UWorldPartitionRuntimeLevelStreamingCell>(&Cell);
-		UWorldPartitionLevelStreamingDynamic* LevelStreamingDynamic = RuntimeCell->GetLevelStreaming();
-		FWorldPartitionRuntimeCellStreamingData& CellStreamingData = CellToStreamingData.Add(RuntimeCell->GetFName());
-		CellStreamingData.PackageName = LevelStreamingDynamic->GetWorldAsset().GetLongPackageName();
-		// SoftObjectPath will be automatically remapped when ExternalStreamingObject will be instanced/loaded at runtime
-		CellStreamingData.WorldAsset = LevelStreamingDynamic->GetWorldAsset().ToSoftObjectPath();
+		// Make cell is ready for cook
+		if (Cell.PrepareCellForCook(InCookContext))
+		{
+			UWorldPartitionRuntimeLevelStreamingCell* RuntimeCell = CastChecked<UWorldPartitionRuntimeLevelStreamingCell>(&Cell);
+			UWorldPartitionLevelStreamingDynamic* LevelStreamingDynamic = RuntimeCell->GetLevelStreaming();
+			FWorldPartitionRuntimeCellStreamingData& CellStreamingData = CellToStreamingData.Add(RuntimeCell->GetFName());
+			CellStreamingData.PackageName = LevelStreamingDynamic->GetWorldAsset().GetLongPackageName();
+			// SoftObjectPath will be automatically remapped when ExternalStreamingObject will be instanced/loaded at runtime
+			CellStreamingData.WorldAsset = LevelStreamingDynamic->GetWorldAsset().ToSoftObjectPath();
 
-		// Level streaming are outered to the world and would not be saved within the ExternalStreamingObject.
-		// Do not save them, instead they will be created once the external streaming object is loaded at runtime. 
-		LevelStreamingDynamic->SetFlags(RF_Transient);
+			// Level streaming are outered to the world and would not be saved within the ExternalStreamingObject.
+			// Do not save them, instead they will be created once the external streaming object is loaded at runtime. 
+			LevelStreamingDynamic->SetFlags(RF_Transient);
+		}
+		else
+		{
+			bResult = false;
+		}
 	});
-	return true;
+	return bResult;
 }
 
-bool URuntimeHashExternalStreamingObjectBase::OnPopulateGeneratedPackageForCook(UPackage* InPackage, TArray<UPackage*>& OutModifiedPackages)
+bool URuntimeHashExternalStreamingObjectBase::OnPopulateGeneratorPackageForCook(const IWorldPartitionCookPackageContext& InCookContext, UPackage* InGeneratedPackage)
 {
-	// We provide a new name for the URuntimeHashExternalStreamingObjectBase in the package so that we have a stable name (for cook determinism)
-	return Rename(TEXT("RuntimeHashExternalStreamingObjectBase"), InPackage, REN_DontCreateRedirectors);
+	return PrepareForCook(InCookContext);
+}
+
+bool URuntimeHashExternalStreamingObjectBase::OnPopulateGeneratedPackageForCook(const IWorldPartitionCookPackageContext& InCookContext, UPackage* InGeneratedPackage, TArray<UPackage*>& OutModifiedPackages)
+{
+	if (PrepareForCook(InCookContext))
+	{
+		// We provide a new name for the URuntimeHashExternalStreamingObjectBase in the package so that we have a stable name (for cook determinism)
+		return Rename(TEXT("RuntimeHashExternalStreamingObjectBase"), InGeneratedPackage, REN_DontCreateRedirectors);
+	}
+	return false;
 }
 
 void URuntimeHashExternalStreamingObjectBase::DumpStateLog(FHierarchicalLogArchive& Ar)

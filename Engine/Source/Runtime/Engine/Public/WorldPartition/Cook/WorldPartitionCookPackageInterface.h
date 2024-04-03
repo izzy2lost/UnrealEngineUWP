@@ -6,6 +6,7 @@
 #include "WorldPartitionCookPackageInterface.generated.h"
 
 class UExternalDataLayerAsset;
+class IWorldPartitionCookPackageContext;
 
 UINTERFACE(MinimalAPI)
 class UWorldPartitionCookPackageObject : public UInterface
@@ -23,7 +24,7 @@ public:
 	virtual const UExternalDataLayerAsset* GetExternalDataLayerAsset() const = 0;
 	virtual FString GetPackageNameToCreate() const = 0;
 	virtual bool OnPrepareGeneratorPackageForCook(TArray<UPackage*>& OutModifiedPackages) = 0;
-	virtual bool OnPopulateGeneratorPackageForCook(UPackage* InPackage) = 0;
-	virtual bool OnPopulateGeneratedPackageForCook(UPackage* InPackage, TArray<UPackage*>& OutModifiedPackages) = 0;
+	virtual bool OnPopulateGeneratorPackageForCook(const IWorldPartitionCookPackageContext& InCookContext, UPackage* InPackage) = 0;
+	virtual bool OnPopulateGeneratedPackageForCook(const IWorldPartitionCookPackageContext& InCookContext, UPackage* InPackage, TArray<UPackage*>& OutModifiedPackages) = 0;
 #endif
 };

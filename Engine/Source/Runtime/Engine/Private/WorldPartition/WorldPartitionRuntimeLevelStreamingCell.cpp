@@ -15,6 +15,10 @@
 #include "UObject/Package.h"
 #include "UObject/AssetRegistryTagsContext.h"
 
+#if WITH_EDITOR
+#include "WorldPartition/Cook/WorldPartitionCookPackageContextInterface.h"
+#endif
+
 #include UE_INLINE_GENERATED_CPP_BY_NAME(WorldPartitionRuntimeLevelStreamingCell)
 
 UWorldPartitionRuntimeLevelStreamingCell::UWorldPartitionRuntimeLevelStreamingCell(const FObjectInitializer& ObjectInitializer)
@@ -417,24 +421,27 @@ bool UWorldPartitionRuntimeLevelStreamingCell::OnPrepareGeneratorPackageForCook(
 }
 
 // Do all necessary work to prepare cell object for cook.
-bool UWorldPartitionRuntimeLevelStreamingCell::PrepareCellForCook(UPackage* InPackage)
+bool UWorldPartitionRuntimeLevelStreamingCell::PrepareCellForCook(const IWorldPartitionCookPackageContext& InCookContext, UPackage* InGeneratedPackage)
 {
 	// LevelStreaming could already be created
 	if (!LevelStreaming && GetActorCount() > 0)
 	{
-		if (!InPackage)
+		FString PackageName = InCookContext.GetGeneratedPackagePath(this);
+		check(!InGeneratedPackage || (PackageName == InGeneratedPackage->GetName()));
+		if (PackageName.IsEmpty())
 		{
 			return false;
 		}
-
-		LevelStreaming = CreateLevelStreaming(InPackage->GetName());
+		// Validation
+		check(PackageName.Contains(GetPackageNameToCreate()));
+		LevelStreaming = CreateLevelStreaming(PackageName);
 	}
 	return true;
 }
 
-bool UWorldPartitionRuntimeLevelStreamingCell::OnPopulateGeneratorPackageForCook(UPackage* InPackage)
+bool UWorldPartitionRuntimeLevelStreamingCell::OnPopulateGeneratorPackageForCook(const IWorldPartitionCookPackageContext& InCookContext, UPackage* InGeneratedPackage)
 {
-	return PrepareCellForCook(InPackage);
+	return PrepareCellForCook(InCookContext, InGeneratedPackage);
 }
 
 // Helper used by UWorldPartitionRuntimeLevelStreamingCell::OnPopulateGeneratedPackageForCook
@@ -473,7 +480,7 @@ private:
 	friend class UWorldPartitionRuntimeLevelStreamingCell;
 };
 
-bool UWorldPartitionRuntimeLevelStreamingCell::OnPopulateGeneratedPackageForCook(UPackage* InPackage, TArray<UPackage*>& OutModifiedPackages)
+bool UWorldPartitionRuntimeLevelStreamingCell::OnPopulateGeneratedPackageForCook(const IWorldPartitionCookPackageContext& InCookContext, UPackage* InPackage, TArray<UPackage*>& OutModifiedPackages)
 {
 	check(!IsAlwaysLoaded());
 	if (!InPackage)
@@ -484,7 +491,7 @@ bool UWorldPartitionRuntimeLevelStreamingCell::OnPopulateGeneratedPackageForCook
 	if (GetActorCount() > 0)
 	{
 		// When cook splitter doesn't use deferred populate, cell needs to be prepared here.
-		if (!PrepareCellForCook(InPackage))
+		if (!PrepareCellForCook(InCookContext, InPackage))
 		{
 			return false;
 		}

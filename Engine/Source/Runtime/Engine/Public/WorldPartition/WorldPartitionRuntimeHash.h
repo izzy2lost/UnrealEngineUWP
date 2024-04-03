@@ -88,13 +88,14 @@ public:
 	ENGINE_API virtual const UExternalDataLayerAsset* GetExternalDataLayerAsset() const override { return ExternalDataLayerAsset; }
 	ENGINE_API virtual FString GetPackageNameToCreate() const override;
 	ENGINE_API virtual bool OnPrepareGeneratorPackageForCook(TArray<UPackage*>& OutModifiedPackages) override { return true; }
-	ENGINE_API virtual bool OnPopulateGeneratorPackageForCook(UPackage* InPackage) override;
-	ENGINE_API virtual bool OnPopulateGeneratedPackageForCook(UPackage* InPackage, TArray<UPackage*>& OutModifiedPackages) override;
+	ENGINE_API virtual bool OnPopulateGeneratorPackageForCook(const IWorldPartitionCookPackageContext& InCookContext, UPackage* InPackage) override;
+	ENGINE_API virtual bool OnPopulateGeneratedPackageForCook(const IWorldPartitionCookPackageContext& InCookContext, UPackage* InPackage, TArray<UPackage*>& OutModifiedPackages) override;
 	//~End IWorldPartitionCookPackageObject interface
 
 protected:
 	virtual void DumpStateLog(FHierarchicalLogArchive& Ar);
 	UWorldPartitionRuntimeCell* GetCellForCookPackage(const FString& InCookPackageName) const;
+	bool PrepareForCook(const IWorldPartitionCookPackageContext& InCookContext);
 #endif
 
 public:

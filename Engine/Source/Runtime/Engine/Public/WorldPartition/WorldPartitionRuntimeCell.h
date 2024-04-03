@@ -321,19 +321,21 @@ class UWorldPartitionRuntimeCell : public UObject, public IWorldPartitionCell, p
 	ENGINE_API virtual int32 GetActorCount() const PURE_VIRTUAL(UWorldPartitionRuntimeCell::GetActorCount, return 0;);
 
 	// Cook methods
-	virtual bool PrepareCellForCook(UPackage* InPackage) { return OnPopulateGeneratorPackageForCook(InPackage); }
+	UE_DEPRECATED(5.5, "Use version with IWorldPartitionCookPackageContext")
+	virtual bool PrepareCellForCook(UPackage* InPackage) { return false; }
+	ENGINE_API virtual bool PrepareCellForCook(const IWorldPartitionCookPackageContext& InCookContext, UPackage* InGeneratedPackage = nullptr) { return true; }
 	UE_DEPRECATED(5.4, "PopulateGeneratorPackageForCook is deprecated, it was replaced by OnPrepareGeneratorPackageForCook")
 	ENGINE_API virtual bool PopulateGeneratorPackageForCook(TArray<UPackage*>& OutModifiedPackages) { return OnPrepareGeneratorPackageForCook(OutModifiedPackages); }
 	UE_DEPRECATED(5.4, "PopulateGeneratedPackageForCook is deprecated, it was replaced by OnPopulateGeneratedPackageForCook")
-	ENGINE_API virtual bool PopulateGeneratedPackageForCook(UPackage* InPackage, TArray<UPackage*>& OutModifiedPackages) { return OnPopulateGeneratedPackageForCook(InPackage, OutModifiedPackages); }
+	ENGINE_API virtual bool PopulateGeneratedPackageForCook(UPackage* InPackage, TArray<UPackage*>& OutModifiedPackages) { return false; }
 
 	//~Begin IWorldPartitionCookPackageObject
 	ENGINE_API virtual bool IsLevelPackage() const override { return true; }
 	ENGINE_API virtual const UExternalDataLayerAsset* GetExternalDataLayerAsset() const override { return ExternalDataLayerAsset; }
 	ENGINE_API virtual FString GetPackageNameToCreate() const { return FString(); }
 	ENGINE_API virtual bool OnPrepareGeneratorPackageForCook(TArray<UPackage*>& OutModifiedPackages) override { return true; }
-	ENGINE_API virtual bool OnPopulateGeneratorPackageForCook(UPackage* InPackage) override { return true; }
-	ENGINE_API virtual bool OnPopulateGeneratedPackageForCook(UPackage* InPackage, TArray<UPackage*>& OutModifiedPackages) override { return true; }
+	ENGINE_API virtual bool OnPopulateGeneratorPackageForCook(const IWorldPartitionCookPackageContext& InCookContext, UPackage* InPackage) override { return true; }
+	ENGINE_API virtual bool OnPopulateGeneratedPackageForCook(const IWorldPartitionCookPackageContext& InCookContext, UPackage* InPackage, TArray<UPackage*>& OutModifiedPackages) override { return true; }
 	//~End IWorldPartitionCookPackageObject
 
 	ENGINE_API virtual void DumpStateLog(FHierarchicalLogArchive& Ar) const;
