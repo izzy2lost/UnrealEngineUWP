@@ -1579,7 +1579,7 @@ void SPathView::SyncToVirtualPaths(TArrayView<const FName> VirtualPathsToSync, c
 		TreeViewPtr->ClearSelection();
 
 		// SyncTreeItems should now only contain items which aren't already shown explicitly or implicitly (as a child)
-		for (const TSharedPtr<FTreeItem>& Item : SyncTreeItems)
+		for (const TSharedRef<FTreeItem>& Item : SyncTreeItems)
 		{
 			RecursiveExpandParents(Item);
 			TreeViewPtr->SetItemSelection(Item, true);
