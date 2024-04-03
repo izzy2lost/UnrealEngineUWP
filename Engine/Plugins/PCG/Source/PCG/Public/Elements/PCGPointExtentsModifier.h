@@ -2,9 +2,8 @@
 
 #pragma once
 
+#include "PCGPointOperationElementBase.h"
 #include "PCGSettings.h"
-
-#include "Elements/PCGPointProcessingElementBase.h"
 
 #include "PCGPointExtentsModifier.generated.h"
 
@@ -47,13 +46,8 @@ public:
 	EPCGPointExtentsModifierMode Mode = EPCGPointExtentsModifierMode::Set;
 };
 
-class FPCGPointExtentsModifier : public FPCGPointProcessingElementBase
+class FPCGPointExtentsModifier : public FPCGPointOperationElementBase
 {
 protected:
-	virtual bool ExecuteInternal(FPCGContext* Context) const override;
+	virtual bool ExecuteInternal(FPCGContext* InContext) const override;
 };
-
-#if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_2
-#include "CoreMinimal.h"
-#include "PCGNode.h"
-#endif
