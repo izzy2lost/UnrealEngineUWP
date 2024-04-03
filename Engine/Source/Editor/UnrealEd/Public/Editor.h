@@ -114,6 +114,8 @@ struct FEditorDelegates
 	DECLARE_MULTICAST_DELEGATE_TwoParams(FOnNewActorsDropped, const TArray<UObject*>&, const TArray<AActor*>&);
 	/** delegate type for triggering when new actors are placed on to the viewport. Triggers before NewActorsDropped if placement is caused by a drop action */
 	DECLARE_MULTICAST_DELEGATE_TwoParams(FOnNewActorsPlaced, UObject*, const TArray<AActor*>&);
+	/** delegate type for triggering when an actor is replaced by another one in the editor. Triggers once AActor::EditorReplacedActor is completed */
+	DECLARE_MULTICAST_DELEGATE_TwoParams(FOnEditorActorReplaced, AActor*, AActor*);
 	/** delegate type for when attempting to apply an object to an actor */
 	DECLARE_MULTICAST_DELEGATE_TwoParams(FOnApplyObjectToActor, UObject*, AActor*);
 	/** delegate type for triggering when grid snapping has changed */
@@ -290,6 +292,8 @@ struct FEditorDelegates
 	static UNREALED_API FOnNewActorsDropped OnNewActorsDropped;
 	/** Called when new actors are placed in the viewport */
 	static UNREALED_API FOnNewActorsPlaced OnNewActorsPlaced;
+	/** Called when an actor is replaced in the editor (once AActor::EditorReplacedActor is completed). The first parameter is the old actor, the second is the new actor. */
+	static UNREALED_API FOnEditorActorReplaced OnEditorActorReplaced;
 	/** Called when grid snapping is changed */
 	static UNREALED_API FOnGridSnappingChanged OnGridSnappingChanged;
 	/** Called when a lighting build has started */

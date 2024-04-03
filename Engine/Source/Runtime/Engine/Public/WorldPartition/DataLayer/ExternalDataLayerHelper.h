@@ -52,6 +52,8 @@ public:
 private:
 
 #if WITH_EDITOR
+	ENGINE_API static const UExternalDataLayerAsset* GetExternalDataLayerAssetFromObject(const UObject* InContextObject);
+
 	/** 
 	 * Validates that all actors can change their External Data Layer to the new provided value (supports passing null) 
 	 * Returns false if any actor fails and fills OutFailureReason with the reason (if non-null). 
@@ -66,6 +68,8 @@ private:
 
 	friend class FDataLayerEditorModule;
 	friend class UDataLayerEditorSubsystem;
+	friend class UExternalDataLayerEngineSubsystem;
+	friend class UContentBundleEditingSubmodule;
 #endif
 	static constexpr FStringView GetExternalDataLayerFolder() { return ExternalDataLayerFolder; }
 	static constexpr FStringView ExternalDataLayerFolder = TEXTVIEW("/EDL/");

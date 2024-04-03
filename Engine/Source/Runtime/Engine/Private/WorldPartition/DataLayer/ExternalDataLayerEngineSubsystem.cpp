@@ -115,21 +115,7 @@ void UExternalDataLayerEngineSubsystem::OnGetLevelExternalActorsPaths(const FStr
 
 bool UExternalDataLayerEngineSubsystem::OnResolveLevelMountPoint(const FString& InLevelPackageName, const UObject* InLevelMountPointContext, FString& OutResolvedLevelMountPoint)
 {
-	const UExternalDataLayerAsset* ExternalDataLayerAssetContext = nullptr;
-	if (InLevelMountPointContext)
-	{
-		ExternalDataLayerAssetContext = Cast<UExternalDataLayerAsset>(InLevelMountPointContext);
-		if (!ExternalDataLayerAssetContext && InLevelMountPointContext->Implements<UDataLayerInstanceProvider>())
-		{
-			ExternalDataLayerAssetContext = CastChecked<IDataLayerInstanceProvider>(InLevelMountPointContext)->GetRootExternalDataLayerAsset();
-		}
-		if (!ExternalDataLayerAssetContext && InLevelMountPointContext->IsA<AActor>())
-		{
-			ExternalDataLayerAssetContext = CastChecked<AActor>(InLevelMountPointContext)->GetExternalDataLayerAsset();
-		}
-	}
-
-	if (ExternalDataLayerAssetContext)
+	if (const UExternalDataLayerAsset* ExternalDataLayerAssetContext = FExternalDataLayerHelper::GetExternalDataLayerAssetFromObject(InLevelMountPointContext))
 	{
 		OutResolvedLevelMountPoint = FExternalDataLayerHelper::GetExternalDataLayerLevelRootPath(ExternalDataLayerAssetContext, InLevelPackageName);
 		return true;

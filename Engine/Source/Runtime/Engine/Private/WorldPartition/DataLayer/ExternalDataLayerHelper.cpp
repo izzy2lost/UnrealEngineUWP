@@ -352,6 +352,24 @@ bool FExternalDataLayerHelper::IsExternalDataLayerPath(FStringView InExternalDat
 	return false;
 }
 
+const UExternalDataLayerAsset* FExternalDataLayerHelper::GetExternalDataLayerAssetFromObject(const UObject* InContextObject)
+{
+	const UExternalDataLayerAsset* ExternalDataLayerAssetContext = nullptr;
+	if (InContextObject)
+	{
+		ExternalDataLayerAssetContext = Cast<UExternalDataLayerAsset>(InContextObject);
+		if (!ExternalDataLayerAssetContext && InContextObject->Implements<UDataLayerInstanceProvider>())
+		{
+			ExternalDataLayerAssetContext = CastChecked<IDataLayerInstanceProvider>(InContextObject)->GetRootExternalDataLayerAsset();
+		}
+		if (!ExternalDataLayerAssetContext && InContextObject->IsA<AActor>())
+		{
+			ExternalDataLayerAssetContext = CastChecked<AActor>(InContextObject)->GetExternalDataLayerAsset();
+		}
+	}
+	return ExternalDataLayerAssetContext;
+}
+
 #endif
 
 #undef LOCTEXT_NAMESPACE

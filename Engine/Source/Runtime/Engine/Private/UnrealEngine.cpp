@@ -152,6 +152,7 @@ UnrealEngine.cpp: Implements the UEngine class and helpers.
 #include "TextureCompiler.h"
 #include "GenericPlatform/GenericPlatformCrashContext.h"
 #include "Framework/Notifications/NotificationManager.h"
+#include "WorldPartition/DataLayer/ExternalDataLayerAsset.h"
 #endif
 // @todo this is here only due to circular dependency to AIModule. To be removed
 
@@ -17366,6 +17367,7 @@ void UEngine::CopyPropertiesForUnrelatedObjects(UObject* OldObject, UObject* New
 #if WITH_EDITOR
 	FGuid NewActorGuid;
 	FGuid NewActorInstanceGuid;
+	const UExternalDataLayerAsset* NewExternalDataLayerAsset = nullptr;
 #endif
 
 	// Bad idea to write data to an actor while its components are registered
@@ -17380,6 +17382,7 @@ void UEngine::CopyPropertiesForUnrelatedObjects(UObject* OldObject, UObject* New
 #if WITH_EDITOR
 		NewActorGuid = NewActor->GetActorGuid();
 		NewActorInstanceGuid = NewActor->GetActorInstanceGuid();
+		NewExternalDataLayerAsset = NewActor->GetExternalDataLayerAsset();
 #endif
 	}
 
@@ -17612,6 +17615,20 @@ void UEngine::CopyPropertiesForUnrelatedObjects(UObject* OldObject, UObject* New
 		if (NewActorInstanceGuid.IsValid())
 		{
 			FSetActorInstanceGuid SetActorInstanceGuid(NewActor, NewActorInstanceGuid);
+		}
+
+		// Restore External Data Layer Asset
+		const UExternalDataLayerAsset* ExternalDataLayerAsset = NewActor->GetExternalDataLayerAsset();
+		if (!GIsReinstancing  && (ExternalDataLayerAsset != NewExternalDataLayerAsset))
+		{
+			if (ExternalDataLayerAsset)
+			{
+				FAssignActorDataLayer::RemoveDataLayerAsset(NewActor, ExternalDataLayerAsset);
+			}
+			if (NewExternalDataLayerAsset)
+			{
+				FAssignActorDataLayer::AddDataLayerAsset(NewActor, NewExternalDataLayerAsset);
+			}
 		}
 #endif
 	}

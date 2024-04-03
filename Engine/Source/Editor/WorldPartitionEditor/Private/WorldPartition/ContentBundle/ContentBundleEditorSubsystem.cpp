@@ -1,18 +1,18 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 #include "WorldPartition/ContentBundle/ContentBundleEditorSubsystem.h"
 #include "WorldPartition/ContentBundle/ContentBundleEngineSubsystem.h"
-#include "WorldPartition/ContentBundle/ContentBundle.h"
+#include "WorldPartition/ContentBundle/ContentBundleWorldSubsystem.h"
 #include "WorldPartition/ContentBundle/ContentBundleDescriptor.h"
-#include "WorldPartition/ContentBundle/ContentBundle.h"
 #include "WorldPartition/ContentBundle/ContentBundleEditor.h"
+#include "WorldPartition/ContentBundle/ContentBundleLog.h"
+#include "WorldPartition/ContentBundle/ContentBundle.h"
 #include "WorldPartition/DataLayer/ExternalDataLayerManager.h"
 #include "WorldPartition/DataLayer/ExternalDataLayerInstance.h"
 #include "WorldPartition/DataLayer/ExternalDataLayerAsset.h"
 #include "WorldPartition/WorldPartition.h"
 #include "Subsystems/ActorEditorContextSubsystem.h"
+#include "DataLayer/DataLayerEditorSubsystem.h"
 #include "Engine/Selection.h"
-#include "WorldPartition/ContentBundle/ContentBundleWorldSubsystem.h"
-#include "WorldPartition/ContentBundle/ContentBundleLog.h"
 #include "Styling/AppStyle.h"
 #include "Widgets/Images/SImage.h"
 #include "Widgets/SBoxPanel.h"
@@ -80,9 +80,7 @@ void UContentBundleEditingSubmodule::ApplyContext(AActor* InActor)
 	}
 
 	// Prefer override spawning External Data Layer over Content Bundles
-	const UExternalDataLayerAsset* ExternalDataLayerAsset = Cast<UExternalDataLayerAsset>(ULevel::GetOverrideSpawningLevelMountPointObject());
-	const UExternalDataLayerManager* ExternalDataLayerManager = UExternalDataLayerManager::GetExternalDataLayerManager(InActor);
-	if (const UExternalDataLayerInstance* OverrideSpawningExternalDataLayerInstance = (ExternalDataLayerAsset && ExternalDataLayerManager) ? ExternalDataLayerManager->GetExternalDataLayerInstance(ExternalDataLayerAsset) : nullptr)
+	if (const UExternalDataLayerInstance* SpawningExternalDataLayerInstance = ULevel::GetOverrideSpawningLevelMountPointObject() ? UDataLayerEditorSubsystem::Get()->GetActorSpawningExternalDataLayerInstance(InActor) : nullptr)
 	{
 		return;
 	}
@@ -98,7 +96,7 @@ void UContentBundleEditingSubmodule::OnExecuteActorEditorContextAction(UWorld* I
 	switch (InType)
 	{
 	case EActorEditorContextAction::ApplyContext:
-		ApplyContext(InActor);
+		// For backward compatibility, Content Bundle will only apply context trough OnLevelActorAdded
 		break;
 	case EActorEditorContextAction::ResetContext:
 		if (TSharedPtr<FContentBundleEditor> EditingContentBundle = GetEditorContentBundle(EditingContentBundleGuid))

@@ -27,6 +27,7 @@
 #include "WorldPartition/DataLayer/ActorDataLayer.h"
 #include "WorldPartition/DataLayer/DataLayerInstance.h"
 #include "WorldPartition/DataLayer/WorldDataLayers.h"
+#include "LevelEditorDragDropHandler.h"
 
 #include "DataLayerEditorSubsystem.generated.h"
 
@@ -44,10 +45,10 @@ class UObject;
 class UWorld;
 class UWorldPartition;
 class UExternalDataLayerAsset;
-struct FLevelEditorDragDropWorldSurrogateReferencingObject;
 struct FFrame;
 enum class EExternalDataLayerRegistrationState : uint8;
 template<typename TItemType> class IFilter;
+namespace WorldPartitionTests { class FExternalDataLayerTest; }
 
 USTRUCT(BlueprintType)
 struct DATALAYEREDITOR_API FDataLayerCreationParameters
@@ -760,10 +761,14 @@ private:
 	bool IsActorValidForDataLayerForClasses(AActor* Actor, const TSet<TSubclassOf<UDataLayerInstance>>& DataLayerInstanceClasses);
 
 	// External Data Layer methods
-	void OnActorPreSpawnInitialization(AActor* Actor);
-	static const UExternalDataLayerAsset* GetReferencingWorldSurrogateObjectForObject(UWorld* ReferencingWorld, const FSoftObjectPath& ObjectPath);
-	TUniquePtr<FLevelEditorDragDropWorldSurrogateReferencingObject> OnLevelEditorDragDropWorldSurrogateReferencingObject(UWorld* ReferencingWorld, const FSoftObjectPath& Object);
+	void OnActorPreSpawnInitialization(AActor* InActor);
+	void OnNewActorsPlaced(UObject* InObjToUse, const TArray<AActor*>& InPlacedActors);
+	void OnEditorActorReplaced(AActor* InOldActor, AActor* InNewActor);
 	void OnExternalDataLayerAssetRegistrationStateChanged(const UExternalDataLayerAsset* ExternalDataLayerAsset, EExternalDataLayerRegistrationState OldState, EExternalDataLayerRegistrationState NewState);
+	TUniquePtr<FLevelEditorDragDropWorldSurrogateReferencingObject> OnLevelEditorDragDropWorldSurrogateReferencingObject(UWorld* ReferencingWorld, const FSoftObjectPath& Object);
+	void ApplyContext(AActor* InActor, bool bInForceTryApply = false);
+	const UExternalDataLayerInstance* GetActorSpawningExternalDataLayerInstance(AActor* InActor) const;
+	static const UExternalDataLayerAsset* GetReferencingWorldSurrogateObjectForObject(UWorld* ReferencingWorld, const FSoftObjectPath& ObjectPath);
 
 	/** Contains Data Layers that contain actors that are part of the editor selection */
 	mutable TSet<TWeakObjectPtr<const UDataLayerInstance>> SelectedDataLayersFromEditorSelection;
@@ -807,7 +812,9 @@ private:
 	TOptional<FText> LastWarningNotification;
 
 	friend class FDataLayersBroadcast;
+	friend class UContentBundleEditingSubmodule;
 	friend struct FExternalDataLayerWorldSurrogateReferencingObject;
+	friend class WorldPartitionTests::FExternalDataLayerTest;
 };
 
 template<class DataLayerInstanceType, typename ...Args>

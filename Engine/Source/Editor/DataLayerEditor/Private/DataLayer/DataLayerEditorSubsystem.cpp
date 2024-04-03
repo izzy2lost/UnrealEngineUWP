@@ -65,6 +65,7 @@
 #include "WorldPartition/DataLayer/ExternalDataLayerEngineSubsystem.h"
 #include "WorldPartition/DataLayer/WorldDataLayers.h"
 #include "WorldPartition/WorldPartition.h"
+#include "WorldPartition/IWorldPartitionEditorModule.h"
 
 class SWidget;
 
@@ -96,7 +97,10 @@ private:
 	void Initialize();
 	void OnEditorMapChange(uint32 MapChangeFlags = 0) { DataLayerEditorSubsystem->EditorMapChange(); }
 	void OnPostUndoRedo() { DataLayerEditorSubsystem->PostUndoRedo(); }
+	void OnNewActorsPlaced(UObject* ObjToUse, const TArray<AActor*>& PlacedActors) { DataLayerEditorSubsystem->OnNewActorsPlaced(ObjToUse, PlacedActors); }
+	void OnEditorActorReplaced(AActor* OldActor, AActor* NewActor) {  DataLayerEditorSubsystem->OnEditorActorReplaced(OldActor, NewActor); }
 	void OnCurrentLevelChanged(ULevel* InNewLevel, ULevel* InOldLevel, UWorld* InWorld) { DataLayerEditorSubsystem->EditorRefreshDataLayerBrowser(); }
+	void OnPostWorldInitialization(UWorld* World, const UWorld::InitializationValues IVS) { if (World == DataLayerEditorSubsystem->GetWorld()) { DataLayerEditorSubsystem->EditorMapChange(); } }
 	void OnObjectPostEditChange(UObject* Object, FPropertyChangedEvent& PropertyChangedEvent);
 	void OnLevelActorsAdded(AActor* InActor) { DataLayerEditorSubsystem->InitializeNewActorDataLayers(InActor); }
 	void OnLevelSelectionChanged(UObject* InObject) { DataLayerEditorSubsystem->OnSelectionChanged(); }
@@ -129,7 +133,10 @@ void FDataLayersBroadcast::Deinitialize()
 		{
 			FEditorDelegates::MapChange.RemoveAll(this);
 			FEditorDelegates::PostUndoRedo.RemoveAll(this);
+			FEditorDelegates::OnNewActorsPlaced.RemoveAll(this);
+			FEditorDelegates::OnEditorActorReplaced.RemoveAll(this);
 			FWorldDelegates::OnCurrentLevelChanged.RemoveAll(this);
+			FWorldDelegates::OnPostWorldInitialization.RemoveAll(this);
 			FCoreUObjectDelegates::OnObjectPropertyChanged.RemoveAll(this);
 			if (GEngine)
 			{
@@ -154,7 +161,10 @@ void FDataLayersBroadcast::Initialize()
 		bIsInitialized = true;
 		FEditorDelegates::MapChange.AddRaw(this, &FDataLayersBroadcast::OnEditorMapChange);
 		FEditorDelegates::PostUndoRedo.AddRaw(this, &FDataLayersBroadcast::OnPostUndoRedo);
+		FEditorDelegates::OnNewActorsPlaced.AddRaw(this, &FDataLayersBroadcast::OnNewActorsPlaced);
+		FEditorDelegates::OnEditorActorReplaced.AddRaw(this, &FDataLayersBroadcast::OnEditorActorReplaced);
 		FWorldDelegates::OnCurrentLevelChanged.AddRaw(this, &FDataLayersBroadcast::OnCurrentLevelChanged);
+		FWorldDelegates::OnPostWorldInitialization.AddRaw(this, &FDataLayersBroadcast::OnPostWorldInitialization);
 		FCoreUObjectDelegates::OnObjectPropertyChanged.AddRaw(this, &FDataLayersBroadcast::OnObjectPostEditChange);
 		GEngine->OnLevelActorAdded().AddRaw(this, &FDataLayersBroadcast::OnLevelActorsAdded);
 		USelection::SelectionChangedEvent.AddRaw(this, &FDataLayersBroadcast::OnLevelSelectionChanged);
@@ -367,31 +377,78 @@ void UDataLayerEditorSubsystem::Deinitialize()
 #endif
 }
 
-void UDataLayerEditorSubsystem::OnActorPreSpawnInitialization(AActor* InActor)
+const UExternalDataLayerInstance* UDataLayerEditorSubsystem::GetActorSpawningExternalDataLayerInstance(AActor* InActor) const
 {
-	check(!InActor->GetExternalDataLayerAsset());
-	if (InActor->bIsEditorPreviewActor || !InActor->IsPackageExternal())
+	if (GIsReinstancing || InActor->bIsEditorPreviewActor || !InActor->IsPackageExternal())
 	{
-		return;
+		return nullptr;
+	}
+		
+	const UWorld* OwningWorld = InActor->GetWorld();
+	if (!OwningWorld || (OwningWorld != GetWorld()))
+	{
+		return nullptr;
 	}
 
-	const UWorld* OwningWorld = InActor->GetWorld();
-	if (OwningWorld && (OwningWorld == GetWorld()))
+	// For backward compatibility, don't resolve an External Data Layer when there's a Content Bundle in the Actor Editor Context
+	if (IWorldPartitionEditorModule::Get().IsEditingContentBundle())
 	{
-		// Prefer override spawning External Data Layer over actor editor context External Data Layer
-		const UExternalDataLayerAsset* OverrideSpawningExternalDataLayer = Cast<UExternalDataLayerAsset>(ULevel::GetOverrideSpawningLevelMountPointObject());
-		const UExternalDataLayerAsset* ExternalDataLayerAsset = OverrideSpawningExternalDataLayer ? OverrideSpawningExternalDataLayer : GetActorEditorContextCurrentExternalDataLayer();
+		return nullptr;
+	}
 
-		UExternalDataLayerManager* ExternalDataLayerManager = UExternalDataLayerManager::GetExternalDataLayerManager(OwningWorld);
-		if (const UExternalDataLayerInstance* ExternalDataLayerInstance = ExternalDataLayerAsset ? ExternalDataLayerManager->GetExternalDataLayerInstance(ExternalDataLayerAsset) : nullptr)
+	const UObject* OverrideSpawningLevelMountPointObject = ULevel::GetOverrideSpawningLevelMountPointObject();
+	const UExternalDataLayerManager* ExternalDataLayerManager = UExternalDataLayerManager::GetExternalDataLayerManager(OwningWorld);
+	
+	// Try to get the external data layer for from the override spawning object
+	const UExternalDataLayerAsset* ResolvedExternalDataLayerAsset = FExternalDataLayerHelper::GetExternalDataLayerAssetFromObject(OverrideSpawningLevelMountPointObject);
+	if (!ResolvedExternalDataLayerAsset)
+	{
+		// If none found, try matching an external data layer with the override spawning object
+		ResolvedExternalDataLayerAsset = ExternalDataLayerManager ? ExternalDataLayerManager->GetMatchingExternalDataLayerAssetForObjectPath(OverrideSpawningLevelMountPointObject) : nullptr;
+	}
+	if (!ResolvedExternalDataLayerAsset)
+	{
+		// If none found, try matching an external data layer with the actor class
+		ResolvedExternalDataLayerAsset = ExternalDataLayerManager ? ExternalDataLayerManager->GetMatchingExternalDataLayerAssetForObjectPath(InActor->GetClass()) : nullptr;
+	}
+	if (!ResolvedExternalDataLayerAsset)
+	{
+		// Fallback on actor editor context external data layer
+		ResolvedExternalDataLayerAsset = GetActorEditorContextCurrentExternalDataLayer();
+	}
+
+	const UExternalDataLayerInstance* ResolvedExternalDataLayerInstance = ResolvedExternalDataLayerAsset ? ExternalDataLayerManager->GetExternalDataLayerInstance(ResolvedExternalDataLayerAsset) : nullptr;
+	return ResolvedExternalDataLayerInstance;
+}
+
+void UDataLayerEditorSubsystem::OnActorPreSpawnInitialization(AActor* InActor)
+{
+	if (const UExternalDataLayerInstance* ExternalDataLayerInstance = GetActorSpawningExternalDataLayerInstance(InActor))
+	{
+		check(!InActor->GetExternalDataLayerAsset());
+		FText FailureReason;
+		if (!FExternalDataLayerHelper::MoveActorsToExternalDataLayer({ InActor }, ExternalDataLayerInstance, &FailureReason))
 		{
-			FText FailureReason;
-			if (!FExternalDataLayerHelper::MoveActorsToExternalDataLayer({ InActor }, ExternalDataLayerInstance, &FailureReason))
-			{
-				UE_LOG(LogWorldPartition, Warning, TEXT("%s"), *FailureReason.ToString());
-				LastWarningNotification = FailureReason;
-			}
+			UE_LOG(LogWorldPartition, Warning, TEXT("%s"), *FailureReason.ToString());
+			LastWarningNotification = FailureReason;
 		}
+	}
+}
+
+void UDataLayerEditorSubsystem::OnEditorActorReplaced(AActor* InOldActor, AActor* InNewActor)
+{
+	// Try to apply the current context on the new replacing actor
+	const bool bForceTryApply = true;
+	ApplyContext(InNewActor, bForceTryApply);
+}
+
+void UDataLayerEditorSubsystem::OnNewActorsPlaced(UObject* InObjToUse, const TArray<AActor*>& InPlacedActors)
+{
+	for (AActor* PlacedActor : InPlacedActors)
+	{
+		// Try to apply the current context after actor is placed
+		const bool bForceTryApply = true;
+		ApplyContext(PlacedActor, bForceTryApply);
 	}
 }
 
@@ -453,6 +510,46 @@ void UDataLayerEditorSubsystem::BeginDestroy()
 	Super::BeginDestroy();
 }
 
+void UDataLayerEditorSubsystem::ApplyContext(AActor* InActor, bool bInForceTryApply)
+{
+	if (GIsReinstancing || InActor->bIsEditorPreviewActor || !InActor->IsPackageExternal() || (InActor->GetWorld() != GetWorld()))
+	{
+		return;
+	}
+
+	// Try to apply context External Data Layer (this operation can fail if asset referencing validation fails)
+	const UExternalDataLayerAsset* CurrentExternalDataLayer = GetActorEditorContextCurrentExternalDataLayer();
+	const UExternalDataLayerAsset* ActorExternalDataLayerAsset = InActor->GetExternalDataLayerAsset();
+	if (CurrentExternalDataLayer && (ActorExternalDataLayerAsset != CurrentExternalDataLayer))
+	{
+		// Don't apply if there's a valid override spawning External Data Layer (see OnActorPreSpawnInitialization)
+		const UExternalDataLayerInstance* SpawningExternalDataLayer = ULevel::GetOverrideSpawningLevelMountPointObject() ? GetActorSpawningExternalDataLayerInstance(InActor) : nullptr;
+		if (!SpawningExternalDataLayer || bInForceTryApply)
+		{
+			UExternalDataLayerManager* ExternalDataLayerManager = UExternalDataLayerManager::GetExternalDataLayerManager(InActor);
+			if (const UExternalDataLayerInstance* CurrentExternalDataLayerInstance = CurrentExternalDataLayer ? ExternalDataLayerManager->GetExternalDataLayerInstance(CurrentExternalDataLayer) : nullptr)
+			{
+				FText FailureReason;
+				if (!FExternalDataLayerHelper::MoveActorsToExternalDataLayer({ InActor }, CurrentExternalDataLayerInstance, &FailureReason))
+				{
+					UE_LOG(LogWorldPartition, Warning, TEXT("%s"), *FailureReason.ToString());
+					LastWarningNotification = FailureReason;
+				}
+			}
+		}
+	}
+
+	// Apply context Data Layers (except External Data Layer)
+	UDataLayerManager* DataLayerManager = UDataLayerManager::GetDataLayerManager(InActor->GetWorld());
+	TArray<UDataLayerInstance*> DataLayerInstances = DataLayerManager->GetActorEditorContextDataLayers();
+	if (!DataLayerInstances.IsEmpty())
+	{
+		DataLayerInstances.SetNum(Algo::RemoveIf(DataLayerInstances, [](UDataLayerInstance* DataLayerInstance) { return DataLayerInstance->IsA<UExternalDataLayerInstance>(); }));
+		AddActorToDataLayers(InActor, DataLayerInstances);
+		InActor->FixupDataLayers();
+	}
+}
+
 void UDataLayerEditorSubsystem::OnExecuteActorEditorContextAction(UWorld* InWorld, const EActorEditorContextAction& InType, AActor* InActor)
 {
 	UE_CLOG(!InWorld, LogDataLayerEditorSubsystem, Error, TEXT("%s - Failed because world in null."), ANSI_TO_TCHAR(__FUNCTION__));
@@ -463,36 +560,7 @@ void UDataLayerEditorSubsystem::OnExecuteActorEditorContextAction(UWorld* InWorl
 		case EActorEditorContextAction::ApplyContext:
 			check(InActor && InActor->GetWorld() == InWorld);
 			{
-				// Try to apply context External Data Layer (this operation can fail if asset referencing validation fails)
-				// Don't apply if there's a valid override spawning External Data Layer (see OnActorPreSpawnInitialization)
-				const UExternalDataLayerAsset* OverrideSpawningExternalDataLayer = Cast<UExternalDataLayerAsset>(ULevel::GetOverrideSpawningLevelMountPointObject());
-				if (!OverrideSpawningExternalDataLayer)
-				{
-					const UExternalDataLayerAsset* CurrentExternalDataLayer = GetActorEditorContextCurrentExternalDataLayer();
-					const UExternalDataLayerAsset* ActorExternalDataLayerAsset = InActor->GetExternalDataLayerAsset();
-					if (CurrentExternalDataLayer && (ActorExternalDataLayerAsset != CurrentExternalDataLayer))
-					{
-						UExternalDataLayerManager* ExternalDataLayerManager = UExternalDataLayerManager::GetExternalDataLayerManager(InActor);
-						if (const UExternalDataLayerInstance* CurrentExternalDataLayerInstance = CurrentExternalDataLayer ? ExternalDataLayerManager->GetExternalDataLayerInstance(CurrentExternalDataLayer) : nullptr)
-						{
-							FText FailureReason;
-							if (!FExternalDataLayerHelper::MoveActorsToExternalDataLayer({ InActor }, CurrentExternalDataLayerInstance, &FailureReason))
-							{
-								UE_LOG(LogWorldPartition, Warning, TEXT("%s"), *FailureReason.ToString());
-								LastWarningNotification = FailureReason;
-							}
-						}
-					}
-				}
-
-				// Apply context Data Layers (except External Data Layer)
-				TArray<UDataLayerInstance*> DataLayerInstances = DataLayerManager->GetActorEditorContextDataLayers();
-				if (!DataLayerInstances.IsEmpty())
-				{
-					DataLayerInstances.SetNum(Algo::RemoveIf(DataLayerInstances, [](UDataLayerInstance* DataLayerInstance) { return DataLayerInstance->IsA<UExternalDataLayerInstance>(); }));
-					AddActorToDataLayers(InActor, DataLayerInstances);
-					InActor->FixupDataLayers();
-				}
+				ApplyContext(InActor);
 			}
 			break;
 		case EActorEditorContextAction::ResetContext:
@@ -1731,7 +1799,7 @@ void UDataLayerEditorSubsystem::OnSelectionChanged()
 
 const UExternalDataLayerAsset* UDataLayerEditorSubsystem::GetReferencingWorldSurrogateObjectForObject(UWorld* ReferencingWorld, const FSoftObjectPath& ObjectPath)
 {
-	UExternalDataLayerManager* ExternalDataLayerManager = UExternalDataLayerManager::GetExternalDataLayerManager(ReferencingWorld);
+	const UExternalDataLayerManager* ExternalDataLayerManager = UExternalDataLayerManager::GetExternalDataLayerManager(ReferencingWorld);
 	if (const UExternalDataLayerAsset* ExternalDataLayerAsset = ExternalDataLayerManager ? ExternalDataLayerManager->GetMatchingExternalDataLayerAssetForObjectPath(ObjectPath) : nullptr)
 	{
 		const UDataLayerInstance* ExternalDataLayerInstance = UDataLayerManager::GetDataLayerManager(ReferencingWorld)->GetDataLayerInstance(ExternalDataLayerAsset);
@@ -1782,9 +1850,13 @@ private:
 
 TUniquePtr<FLevelEditorDragDropWorldSurrogateReferencingObject> UDataLayerEditorSubsystem::OnLevelEditorDragDropWorldSurrogateReferencingObject(UWorld* ReferencingWorld, const FSoftObjectPath& Object)
 {
-	if (const UExternalDataLayerAsset* ExternalDataLayerAsset = GetReferencingWorldSurrogateObjectForObject(ReferencingWorld, Object))
+	// For backward compatibility, don't try to find a world surrogate object when there's a Content Bundle in the actor editor context
+	if (!IWorldPartitionEditorModule::Get().IsEditingContentBundle())
 	{
-		return MakeUnique<FExternalDataLayerWorldSurrogateReferencingObject>(ExternalDataLayerAsset);
+		if (const UExternalDataLayerAsset* ExternalDataLayerAsset = GetReferencingWorldSurrogateObjectForObject(ReferencingWorld, Object))
+		{
+			return MakeUnique<FExternalDataLayerWorldSurrogateReferencingObject>(ExternalDataLayerAsset);
+		}
 	}
 	return nullptr;
 }

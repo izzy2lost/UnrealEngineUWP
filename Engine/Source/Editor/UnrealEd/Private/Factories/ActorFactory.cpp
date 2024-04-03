@@ -464,6 +464,13 @@ bool UActorFactory::PreSpawnActor( UObject* Asset, FTransform& InOutLocation)
 
 AActor* UActorFactory::SpawnActor(UObject* InAsset, ULevel* InLevel, const FTransform& InTransform, const FActorSpawnParameters& InSpawnParams)
 {
+	// If not already set, provide an override spawning level mount point object using the asset used to spawn the actor
+	TUniquePtr<FScopedOverrideSpawningLevelMountPointObject> ScopeSpawningMountPoint;
+	if (!ULevel::GetOverrideSpawningLevelMountPointObject())
+	{
+		ScopeSpawningMountPoint = MakeUnique<FScopedOverrideSpawningLevelMountPointObject>(InAsset);
+	}
+	
 	ULevel* LocalLevel = ValidateSpawnActorLevel(InLevel, InSpawnParams);
 
 	AActor* DefaultActor = GetDefaultActor(FAssetData(InAsset));

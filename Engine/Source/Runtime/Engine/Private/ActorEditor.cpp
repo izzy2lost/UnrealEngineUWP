@@ -30,6 +30,7 @@
 #include "WorldPartition/DataLayer/DeprecatedDataLayerInstance.h"
 #include "WorldPartition/DataLayer/ExternalDataLayerInstance.h"
 #include "WorldPartition/DataLayer/ExternalDataLayerAsset.h"
+#include "WorldPartition/ContentBundle/ContentBundlePaths.h"
 #include "LevelInstance/LevelInstanceSubsystem.h"
 #include "ActorFolder.h"
 #include "WorldPersistentFolders.h"
@@ -1493,7 +1494,13 @@ void AActor::SetFolderPath_Recursively(const FName& NewFolderPath)
 // Ideally, this should be revisited to implement something more generic.
 void AActor::EditorReplacedActor(AActor* OldActor)
 {
-	ContentBundleGuid = OldActor->ContentBundleGuid;
+	// Don't update Content Bundle if new actor is using External Data Layer
+	if (!ExternalDataLayerAsset)
+	{
+		// We can't rely on OldActor to transfer the ContentBundleGuid as it could have moved to a different Content Bundle
+		// Resolve ContentBundleGuid from ActorPackage
+		ContentBundleGuid = ContentBundlePaths::GetContentBundleGuidFromExternalActorPackagePath(GetPackage()->GetFName().ToString());
+	}
 
 	SetActorLabel(OldActor->GetActorLabel());
 	Tags = OldActor->Tags;
@@ -1512,11 +1519,15 @@ void AActor::EditorReplacedActor(AActor* OldActor)
 	TArray<const UDataLayerInstance*> ConstDataLayerInstances = OldActor->GetDataLayerInstancesInternal(bUseLevelContext, bIncludeParentDataLayers);
 	if (!ConstDataLayerInstances.IsEmpty())
 	{
+		// Transfer old data layers (except the external data layer as it is handled at actor spawning)
 		TArray<UDataLayerInstance*> DataLayerInstances;
-		Algo::Transform(ConstDataLayerInstances, DataLayerInstances, [](const UDataLayerInstance* ConstDataLayerInstance) { return const_cast<UDataLayerInstance*>(ConstDataLayerInstance); });
+		Algo::TransformIf(ConstDataLayerInstances, DataLayerInstances, [](const UDataLayerInstance* ConstDataLayerInstance) { return !ConstDataLayerInstance->IsA<UExternalDataLayerInstance>(); }, [](const UDataLayerInstance* ConstDataLayerInstance) { return const_cast<UDataLayerInstance*>(ConstDataLayerInstance); });
 		IDataLayerEditorModule& EditorModule = FModuleManager::LoadModuleChecked<IDataLayerEditorModule>("DataLayerEditor");
 		EditorModule.AddActorToDataLayers(this, DataLayerInstances);
 	}
+
+	// Broadcast that actor was replaced
+	FEditorDelegates::OnEditorActorReplaced.Broadcast(OldActor, this);
 }
 
 void AActor::CheckForDeprecated()

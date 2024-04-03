@@ -24,6 +24,7 @@
 #include UE_INLINE_GENERATED_CPP_BY_NAME(WorldDataLayers)
 
 #if WITH_EDITOR
+#include "ActorEditorContext/ScopedActorEditorContextSetExternalDataLayerAsset.h"
 #include "WorldPartition/WorldPartitionEditorPerProjectUserSettings.h"
 #include "WorldPartition/DataLayer/WorldDataLayersActorDesc.h"
 #include "WorldPartition/ContentBundle/ContentBundleEditorSubsystemInterface.h"
@@ -689,6 +690,9 @@ AWorldDataLayers* AWorldDataLayers::Create(const FActorSpawnParameters& SpawnPar
 
 	if (!WorldDataLayers)
 	{
+		// Make sure there's no context while creating the AWorldDataLayers (avoids generating any warnings while spawning)
+		FScopedActorEditorContextSetExternalDataLayerAsset ScopeDisableCurrentEDL(nullptr);
+		FScopedOverrideSpawningLevelMountPointObject ScopeDisableOverrideEDL(nullptr);
 		UWorld* World = SpawnParameters.OverrideLevel->GetWorld();
 		WorldDataLayers = World->SpawnActor<AWorldDataLayers>(AWorldDataLayers::StaticClass(), SpawnParameters);
 	}

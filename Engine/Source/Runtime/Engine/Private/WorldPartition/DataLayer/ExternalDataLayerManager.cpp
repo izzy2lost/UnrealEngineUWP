@@ -531,7 +531,7 @@ const UExternalDataLayerAsset* UExternalDataLayerManager::GetActorEditorContextC
 	return nullptr;
 }
 
-const UExternalDataLayerAsset* UExternalDataLayerManager::GetMatchingExternalDataLayerAssetForObjectPath(const FSoftObjectPath& InObjectPath)
+const UExternalDataLayerAsset* UExternalDataLayerManager::GetMatchingExternalDataLayerAssetForObjectPath(const FSoftObjectPath& InObjectPath) const
 {
 	const FName MountPoint = FPackageName::GetPackageMountPoint(InObjectPath.ToString());
 
