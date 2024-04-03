@@ -250,8 +250,14 @@ TArray<FTypedElementHandle> UTypedElementCommonActions::PasteNormalizedElements(
 				{
 					if (FCString::Strcmp(TypedElementChar, Buffer) == 0)
 					{
+						// Trim any spaces at the start of the line
+						while(PositionInLine[0] == TEXT(' '))
+						{
+							++PositionInLine;
+						}
+
 						FName TypeName;
-						if (!FParse::Value(++PositionInLine, TEXT("Type="), TypeName))
+						if (!FParse::Value(PositionInLine, TEXT("Type="), TypeName))
 						{
 							continue;
 						}
