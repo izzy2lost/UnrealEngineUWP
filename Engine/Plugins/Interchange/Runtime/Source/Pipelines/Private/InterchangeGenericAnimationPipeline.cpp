@@ -36,9 +36,9 @@ bool UInterchangeGenericAnimationPipeline::CanEditChange(const FProperty* InProp
 }
 #endif
 
-void UInterchangeGenericAnimationPipeline::AdjustSettingsForContext(EInterchangePipelineContext ImportType, TObjectPtr<UObject> ReimportAsset)
+void UInterchangeGenericAnimationPipeline::AdjustSettingsForContext(EInterchangePipelineContext ImportType, TObjectPtr<UObject> ReimportAsset, const UInterchangeBaseNodeContainer* InBaseNodeContainer)
 {
-	Super::AdjustSettingsForContext(ImportType, ReimportAsset);
+	Super::AdjustSettingsForContext(ImportType, ReimportAsset, InBaseNodeContainer);
 
 #if WITH_EDITOR
 	check(CommonSkeletalMeshesAndAnimationsProperties.IsValid());

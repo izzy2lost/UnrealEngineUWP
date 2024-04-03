@@ -477,6 +477,13 @@ void SInterchangePipelineConfigurationDialog::Construct(const FArguments& InArgs
 		ensure(bReimport);
 	}
 	
+	FText ReuseSettingsTooltipText = LOCTEXT("InspectorGraphWindow_ReuseSettingsTooltipText", "When importing multiple files this checkbox allow users to use the same settings for source of the same extension.");
+	const bool bTranslatorThreadSafe = Translator.IsValid() ? Translator->IsThreadSafe() : false;
+	if (!bTranslatorThreadSafe)
+	{
+		FString Extension = SourceData.IsValid() ? FPaths::GetExtension(SourceData->GetFilename()) : TEXT("N/A");
+		ReuseSettingsTooltipText = FText::Format(LOCTEXT("InspectorGraphWindow_ReuseSettingsNotThreadSafeTooltipText", "{0} translator is not thread safe and must use the same settings for subsequent files"), FText::FromString(Extension));
+	}
 
 	check(OutPipelines);
 
@@ -646,14 +653,23 @@ void SInterchangePipelineConfigurationDialog::Construct(const FArguments& InArgs
 					.Padding(4.f, 0.f)
 					[
 						SNew(STextBlock)
+						.IsEnabled(bTranslatorThreadSafe)
 						.Text(LOCTEXT("InspectorGraphWindow_ReuseSettings", "Use the same settings for subsequent files"))
+						.ToolTipText(ReuseSettingsTooltipText)
 					]
 					+ SHorizontalBox::Slot()
 					.Padding(4.f, 0.f)
 					[
 						SAssignNew(UseSameSettingsForAllCheckBox, SCheckBox)
 						.IsChecked(true)
-						.IsEnabled(this, &SInterchangePipelineConfigurationDialog::IsImportButtonEnabled)
+						.IsEnabled_Lambda([this, bTranslatorThreadSafe]()
+							{
+								if (!bTranslatorThreadSafe)
+								{
+									return false;
+								}
+								return IsImportButtonEnabled();
+							})
 					]
 				]
 				+ SHorizontalBox::Slot()

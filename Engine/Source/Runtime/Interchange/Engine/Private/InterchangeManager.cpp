@@ -1115,7 +1115,7 @@ bool UInterchangeManager::ConvertImportData(const UObject* SourceImportData, FIm
 				{
 					if (UInterchangePipelineBase* GeneratedPipeline = UE::Interchange::GeneratePipelineInstance(PipelinePath))
 					{
-						GeneratedPipeline->AdjustSettingsForContext(EInterchangePipelineContext::AssetImport, nullptr);
+						GeneratedPipeline->AdjustSettingsForContext(EInterchangePipelineContext::AssetImport, nullptr, nullptr);
 						if (GeneratedPipeline->IsA(ConvertedPipelineClass))
 						{
 							//We found a match, so we will use the default pipeline stacks
@@ -1653,6 +1653,8 @@ UInterchangeManager::ImportInternal(const FString& ContentPath, const UInterchan
 	TSharedRef<UE::Interchange::FImportAsyncHelper, ESPMode::ThreadSafe> AsyncHelper = CreateAsyncHelper(TaskData, ImportAssetParameters);
 	AsyncHelper->UniqueId = UniqueId;
 
+	//We support only one source currently
+
 	//Create a duplicate of the source data, we need to be multithread safe so we copy it to control the life cycle. The async helper will hold it and delete it when the import task will be completed.
 	UInterchangeSourceData* DuplicateSourceData = Cast<UInterchangeSourceData>(StaticDuplicateObject(SourceData, GetTransientPackage()));
 	//Array of source data to build one graph per source
@@ -1678,10 +1680,26 @@ UInterchangeManager::ImportInternal(const FString& ContentPath, const UInterchan
 	for (int32 SourceDataIndex = 0; SourceDataIndex < AsyncHelper->SourceDatas.Num(); ++SourceDataIndex)
 	{
 		AsyncHelper->BaseNodeContainers.Add(TStrongObjectPtr<UInterchangeBaseNodeContainer>(NewObject<UInterchangeBaseNodeContainer>(GetTransientPackage(), NAME_None)));
-		check(AsyncHelper->BaseNodeContainers[SourceDataIndex].IsValid());
+		if (!ensureMsgf(AsyncHelper->BaseNodeContainers[SourceDataIndex].IsValid(), TEXT("Interchange node conatainer is invalid.")))
+		{
+			return EarlyExit();
+		}
 	}
 
+	if (!ensureMsgf(AsyncHelper->Translators.Num() == AsyncHelper->SourceDatas.Num(), TEXT("Each interchange source data should have a translator")))
+	{
+		return EarlyExit();
+	}
 	
+	//We need at least one translator
+	if(!ensure(AsyncHelper->Translators.IsValidIndex(SourceIndex)))
+	{
+		return EarlyExit();
+	}
+	
+	//Make sure we point on the first translator
+	AsyncTranslator = AsyncHelper->Translators[SourceIndex];
+
 	UInterchangePipelineConfigurationBase* RegisteredPipelineConfiguration = nullptr;
 
 	//In runtime we do not have any pipeline configurator
@@ -1698,21 +1716,23 @@ UInterchangeManager::ImportInternal(const FString& ContentPath, const UInterchan
 	}
 #endif
 	
-	auto AdjustPipelineSettingForContext = [bIsReimport, bImportScene, &TaskData](UInterchangePipelineBase* Pipeline)
-	{
-		EInterchangePipelineContext Context;
-		if (bIsReimport)
-		{
-			Context = bImportScene ? EInterchangePipelineContext::SceneReimport : EInterchangePipelineContext::AssetReimport;
-		}
-		else
-		{
-			Context = bImportScene ? EInterchangePipelineContext::SceneImport : EInterchangePipelineContext::AssetImport;
-		}
+	UInterchangeBaseNodeContainer* BaseNodeContainer = AsyncHelper->BaseNodeContainers[SourceIndex].Get();
 
-		Pipeline->AdjustSettingsForContext(Context, TaskData.ReimportObject);
-		Pipeline->DestinationName = TaskData.DestinationName;
-	};
+	auto AdjustPipelineSettingForContext = [bIsReimport, bImportScene, &TaskData, BaseNodeContainer](UInterchangePipelineBase* Pipeline)
+		{
+			EInterchangePipelineContext Context;
+			if (bIsReimport)
+			{
+				Context = bImportScene ? EInterchangePipelineContext::SceneReimport : EInterchangePipelineContext::AssetReimport;
+			}
+			else
+			{
+				Context = bImportScene ? EInterchangePipelineContext::SceneImport : EInterchangePipelineContext::AssetImport;
+			}
+
+			Pipeline->AdjustSettingsForContext(Context, TaskData.ReimportObject, BaseNodeContainer);
+			Pipeline->DestinationName = TaskData.DestinationName;
+		};
 
 	const bool bSkipImportDialog = AsyncTranslator ? ImportAllWithSamePipelines.Contains(AsyncTranslator->GetClass()) : false;
 	if (bSkipImportDialog)
@@ -1741,25 +1761,6 @@ UInterchangeManager::ImportInternal(const FString& ContentPath, const UInterchan
 		const bool bShowPipelineStacksConfigurationDialog = false;
 #endif
 
-		auto TranslateSourceFile = [&AsyncHelper]()
-		{
-			LLM_SCOPE_BYNAME(TEXT("Interchange"));
-			FScopedSlowTask Progress(2.f, NSLOCTEXT("InterchangeManager", "TranslatingSourceFile...", "Translating source file..."));
-			Progress.MakeDialog();
-			Progress.EnterProgressFrame(1.f);
-			//Translate the source
-			FGraphEventArray PipelinePrerequistes;
-			check(AsyncHelper->Translators.Num() == AsyncHelper->SourceDatas.Num());
-			for (int32 SourceDataIndex = 0; SourceDataIndex < AsyncHelper->SourceDatas.Num(); ++SourceDataIndex)
-			{
-				//Log the source we begin importing
-				UE_LOG(LogInterchangeEngine, Display, TEXT("Interchange start importing source [%s]"), *AsyncHelper->SourceDatas[SourceDataIndex]->ToDisplayString());
-				int32 TranslatorTaskIndex = AsyncHelper->TranslatorTasks.Add(TGraphTask<UE::Interchange::FTaskTranslator>::CreateTask(nullptr, ENamedThreads::GameThread).ConstructAndDispatchWhenReady(SourceDataIndex, AsyncHelper));
-				AsyncHelper->TranslatorTasks[TranslatorTaskIndex]->Wait();
-			}
-			Progress.EnterProgressFrame(1.f);
-		};
-
 		if (FEngineAnalytics::IsAvailable())
 		{
 			Attribs.Add(FAnalyticsEventAttribute(TEXT("ShowImportDialog"), bShowPipelineStacksConfigurationDialog));
@@ -1770,6 +1771,48 @@ UInterchangeManager::ImportInternal(const FString& ContentPath, const UInterchan
 		const FName ReimportPipelineName = TEXT("ReimportPipeline");
 		TArray<FInterchangeStackInfo> PipelineStacks;
 		TArray<UInterchangePipelineBase*> OutPipelines;
+
+		//If we need to display the dialog we want to translate the source file before showing it
+		if (RegisteredPipelineConfiguration && bShowPipelineStacksConfigurationDialog)
+		{
+			//Make sure we dont translate with a non thread translator that is already lock
+			bool* NonParallelTranslatorLock = nullptr;
+			bool bTranslatorIsThreadSafe = AsyncTranslator->IsThreadSafe();
+			if (!bTranslatorIsThreadSafe)
+			{
+				NonParallelTranslatorLock = NonParallelTranslatorLocks.Find(AsyncTranslator->GetClass());
+				//Add a NonParallelTranslatorLocks for this translator class
+				if (!NonParallelTranslatorLock)
+				{
+					//Create a boolean lock and initialize it to false
+					NonParallelTranslatorLock = &NonParallelTranslatorLocks.FindOrAdd(AsyncTranslator->GetClass());
+					*NonParallelTranslatorLock = false;
+				}
+			}
+
+			if (ensure(NonParallelTranslatorLock && !(*NonParallelTranslatorLock)))
+			{
+				FScopedSlowTask Progress(2.f, NSLOCTEXT("InterchangeManager", "TranslatingSourceFile...", "Translating source file..."));
+				Progress.MakeDialog();
+				Progress.EnterProgressFrame(1.f);
+				//Translate the source
+				FGraphEventArray PipelinePrerequistes;
+				for (int32 SourceDataIndex = 0; SourceDataIndex < AsyncHelper->SourceDatas.Num(); ++SourceDataIndex)
+				{
+					//Log the source we begin importing
+					UE_LOG(LogInterchangeEngine, Display, TEXT("Interchange start importing source [%s]"), *AsyncHelper->SourceDatas[SourceDataIndex]->ToDisplayString());
+					int32 TranslatorTaskIndex = AsyncHelper->TranslatorTasks.Add(TGraphTask<UE::Interchange::FTaskTranslator>::CreateTask(nullptr, ENamedThreads::GameThread).ConstructAndDispatchWhenReady(SourceDataIndex, AsyncHelper));
+					AsyncHelper->TranslatorTasks[TranslatorTaskIndex]->Wait();
+				}
+				Progress.EnterProgressFrame(1.f);
+			}
+			else
+			{
+				//If we already have a running non thread safe translator, we cannot translate here
+				UE_LOG(LogInterchangeEngine, Error, TEXT("Interchange cannot translate simultanously multiple file with a non thread safe translator. Source file [%s]"), *AsyncHelper->SourceDatas[SourceIndex]->ToDisplayString());
+			}
+		}
+		
 
 		//Fill the Stacks before showing the UI
 		if (bIsReimport)
@@ -1856,8 +1899,6 @@ UInterchangeManager::ImportInternal(const FString& ContentPath, const UInterchan
 		{
 			if (RegisteredPipelineConfiguration && bShowPipelineStacksConfigurationDialog && !bIsUnattended)
 			{
-				TranslateSourceFile();
-				UInterchangeBaseNodeContainer* BaseNodeContainer = AsyncHelper->BaseNodeContainers[SourceIndex].Get();
 				//Show the dialog, a plugin should have registered this dialog. We use a plugin to be able to use editor code when doing UI
 				EInterchangePipelineConfigurationDialogResult DialogResult = RegisteredPipelineConfiguration->ScriptedShowReimportPipelineConfigurationDialog(PipelineStacks, OutPipelines, DuplicateSourceData, AsyncTranslator, BaseNodeContainer, ImportAssetParameters.ReimportAsset);
 				if (DialogResult == EInterchangePipelineConfigurationDialogResult::Cancel)
@@ -1885,8 +1926,6 @@ UInterchangeManager::ImportInternal(const FString& ContentPath, const UInterchan
 		{
 			if (RegisteredPipelineConfiguration && bShowPipelineStacksConfigurationDialog)
 			{
-				TranslateSourceFile();
-				UInterchangeBaseNodeContainer* BaseNodeContainer = AsyncHelper->BaseNodeContainers[SourceIndex].Get();
 				//Show the dialog, a plugin should have register this dialog. We use a plugin to be able to use editor code when doing UI
 				EInterchangePipelineConfigurationDialogResult DialogResult = bImportScene
 					? RegisteredPipelineConfiguration->ScriptedShowScenePipelineConfigurationDialog(PipelineStacks, OutPipelines, DuplicateSourceData, AsyncTranslator, BaseNodeContainer)

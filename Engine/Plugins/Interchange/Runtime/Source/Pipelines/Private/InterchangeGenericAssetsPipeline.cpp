@@ -125,23 +125,23 @@ bool UInterchangeGenericAssetsPipeline::IsSettingsAreValid(TOptional<FText>& Out
 	return Super::IsSettingsAreValid(OutInvalidReason);
 }
 
-void UInterchangeGenericAssetsPipeline::AdjustSettingsForContext(EInterchangePipelineContext ImportType, TObjectPtr<UObject> ReimportAsset)
+void UInterchangeGenericAssetsPipeline::AdjustSettingsForContext(EInterchangePipelineContext ImportType, TObjectPtr<UObject> ReimportAsset, const UInterchangeBaseNodeContainer* InBaseNodeContainer)
 {
-	Super::AdjustSettingsForContext(ImportType, ReimportAsset);
+	Super::AdjustSettingsForContext(ImportType, ReimportAsset, InBaseNodeContainer);
 
 	if (MaterialPipeline)
 	{
-		MaterialPipeline->AdjustSettingsForContext(ImportType, ReimportAsset);
+		MaterialPipeline->AdjustSettingsForContext(ImportType, ReimportAsset, InBaseNodeContainer);
 	}
 
 	if (MeshPipeline)
 	{
-		MeshPipeline->AdjustSettingsForContext(ImportType, ReimportAsset);
+		MeshPipeline->AdjustSettingsForContext(ImportType, ReimportAsset, InBaseNodeContainer);
 	}
 
 	if (AnimationPipeline)
 	{
-		AnimationPipeline->AdjustSettingsForContext(ImportType, ReimportAsset);
+		AnimationPipeline->AdjustSettingsForContext(ImportType, ReimportAsset, InBaseNodeContainer);
 	}
 }
 
@@ -433,7 +433,7 @@ void UInterchangeGenericAssetsPipeline::CreateMaterialConflict(UStaticMesh* Stat
 		}
 	}
 	//Compare and cache the results
-	bool bHasConflict = false;
+	bool bHasConflict = MaterialNodePerMaterialSlotName.IsEmpty() && AssetImportMaterialNames.Num() > 1; //If there is no material dependencies for the mesh factory node and we have more then one material in the static mesh, we have a conflict
 	TArray<int32> MatchMaterials;
 	int32 MatchMaterialCount = 0;
 	int32 ImportMaterialIndex = 0;

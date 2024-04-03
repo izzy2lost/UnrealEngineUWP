@@ -189,7 +189,7 @@ TFuture<bool> UInterchangeMeshUtilities::InternalImportCustomLod(TSharedPtr<TPro
 			}
 			if (ensure(GeneratedPipeline))
 			{
-				GeneratedPipeline->AdjustSettingsForContext(ImportType, nullptr);
+				GeneratedPipeline->AdjustSettingsForContext(ImportType, nullptr, nullptr);
 				ImportAssetParameters.OverridePipelines.Add(GeneratedPipeline);
 			}
 		}
@@ -205,7 +205,7 @@ TFuture<bool> UInterchangeMeshUtilities::InternalImportCustomLod(TSharedPtr<TPro
 			if (UInterchangePipelineBase* GenericPipeline = NewObject<UInterchangePipelineBase>(GetTransientPackage(), GenericPipelineClass))
 			{
 				GenericPipeline->ClearFlags(EObjectFlags::RF_Standalone | EObjectFlags::RF_Public);
-				GenericPipeline->AdjustSettingsForContext(ImportType, nullptr);
+				GenericPipeline->AdjustSettingsForContext(ImportType, nullptr, nullptr);
 				ImportAssetParameters.OverridePipelines.Add(GenericPipeline);
 			}
 		}

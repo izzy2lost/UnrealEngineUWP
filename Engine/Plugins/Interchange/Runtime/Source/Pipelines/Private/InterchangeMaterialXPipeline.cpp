@@ -682,9 +682,9 @@ UInterchangeMaterialXPipeline::UInterchangeMaterialXPipeline()
 	}
 }
 
-void UInterchangeMaterialXPipeline::AdjustSettingsForContext(EInterchangePipelineContext ImportType, TObjectPtr<UObject> ReimportAsset)
+void UInterchangeMaterialXPipeline::AdjustSettingsForContext(EInterchangePipelineContext ImportType, TObjectPtr<UObject> ReimportAsset, const UInterchangeBaseNodeContainer* InBaseNodeContainer)
 {
-	Super::AdjustSettingsForContext(ImportType, ReimportAsset);
+	Super::AdjustSettingsForContext(ImportType, ReimportAsset, InBaseNodeContainer);
 
 	if (!MaterialXSettings->AreRequiredPackagesLoaded())
 	{

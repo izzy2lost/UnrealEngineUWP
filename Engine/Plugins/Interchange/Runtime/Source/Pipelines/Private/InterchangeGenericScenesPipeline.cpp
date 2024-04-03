@@ -218,9 +218,9 @@ namespace UE::Interchange::Private
 	}
 }
 
-void UInterchangeGenericLevelPipeline::AdjustSettingsForContext(EInterchangePipelineContext ImportType, TObjectPtr<UObject> ReimportAsset)
+void UInterchangeGenericLevelPipeline::AdjustSettingsForContext(EInterchangePipelineContext ImportType, TObjectPtr<UObject> ReimportAsset, const UInterchangeBaseNodeContainer* InBaseNodeContainer)
 {
-	Super::AdjustSettingsForContext(ImportType, ReimportAsset);
+	Super::AdjustSettingsForContext(ImportType, ReimportAsset, InBaseNodeContainer);
 
 	bIsReimportContext = ReimportAsset != nullptr;
 }

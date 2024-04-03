@@ -566,7 +566,10 @@ UInterchangeFactoryBase::FImportAssetResult UInterchangeStaticMeshFactory::EndIm
 					//This is an unmatched section, its either added or we did not recover the name
 					int32 MaterialSlotIndex = StaticMesh->GetMaterialIndexFromImportedMaterialSlotName(SlotNames[PolygonGroupID]);
 					//Missing material slot should have been added before
-					ensure(MaterialSlotIndex != INDEX_NONE);
+					if (MaterialSlotIndex == INDEX_NONE)
+					{
+						MaterialSlotIndex = 0;
+					}
 					NewSectionInfoMapData.Add(FMeshSectionInfo(MaterialSlotIndex));
 				}
 			}

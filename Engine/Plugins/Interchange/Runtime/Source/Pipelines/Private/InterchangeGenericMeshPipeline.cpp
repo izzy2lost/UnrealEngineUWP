@@ -21,9 +21,9 @@
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(InterchangeGenericMeshPipeline)
 
-void UInterchangeGenericMeshPipeline::AdjustSettingsForContext(EInterchangePipelineContext ImportType, TObjectPtr<UObject> ReimportAsset)
+void UInterchangeGenericMeshPipeline::AdjustSettingsForContext(EInterchangePipelineContext ImportType, TObjectPtr<UObject> ReimportAsset, const UInterchangeBaseNodeContainer* InBaseNodeContainer)
 {
-	Super::AdjustSettingsForContext(ImportType, ReimportAsset);
+	Super::AdjustSettingsForContext(ImportType, ReimportAsset, InBaseNodeContainer);
 
 #if WITH_EDITOR
 
@@ -75,6 +75,23 @@ void UInterchangeGenericMeshPipeline::AdjustSettingsForContext(EInterchangePipel
 	TArray<FString> HideSubCategories;
 	if (ImportType == EInterchangePipelineContext::AssetReimport)
 	{
+		bool bContainSkeletalMesh = false;
+		bool bContainStaticMesh = false;
+
+		if (InBaseNodeContainer)
+		{
+			InBaseNodeContainer->BreakableIterateNodesOfType<UInterchangeMeshNode>([&bContainSkeletalMesh, &bContainStaticMesh](const FString& NodeUid, UInterchangeMeshNode* MeshNode)
+				{
+					if (!MeshNode->IsMorphTarget())
+					{
+						MeshNode->IsSkinnedMesh() ? bContainSkeletalMesh = true : bContainStaticMesh = true;
+					}
+					return bContainSkeletalMesh && bContainStaticMesh;
+				});
+		}
+
+		CommonMeshesProperties->bAutoDetectMeshType = false;
+
 		HideSubCategories.Add(TEXT("Build"));
 		if (USkeletalMesh* SkeletalMesh = Cast<USkeletalMesh>(ReimportAsset))
 		{
@@ -87,7 +104,7 @@ void UInterchangeGenericMeshPipeline::AdjustSettingsForContext(EInterchangePipel
 			}
 			bImportStaticMeshes = false;
 			HideCategories.Add(StaticMeshesCategory);
-			if(SkeletalMeshImportContentType == EInterchangeSkeletalMeshContentType::Geometry)
+			if(!bContainSkeletalMesh || SkeletalMeshImportContentType == EInterchangeSkeletalMeshContentType::Geometry)
 			{
 				CommonMeshesProperties->ForceAllMeshAsType = EInterchangeForceMeshType::IFMT_SkeletalMesh;
 			}
@@ -96,6 +113,11 @@ void UInterchangeGenericMeshPipeline::AdjustSettingsForContext(EInterchangePipel
 		{
 			HideCategories.Add(SkeletalMeshesCategory);
 			HideCategories.Add(CommonSkeletalMeshesAndAnimationCategory);
+			
+			if (!bContainStaticMesh)
+			{
+				CommonMeshesProperties->ForceAllMeshAsType = EInterchangeForceMeshType::IFMT_StaticMesh;
+			}
 		}
 		else if (UAnimSequence* AnimSequence = Cast<UAnimSequence>(ReimportAsset))
 		{

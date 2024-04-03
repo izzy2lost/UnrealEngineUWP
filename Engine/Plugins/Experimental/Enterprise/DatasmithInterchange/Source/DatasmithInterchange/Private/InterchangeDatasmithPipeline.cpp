@@ -120,28 +120,28 @@ UInterchangeDatasmithPipeline::UInterchangeDatasmithPipeline()
 	AnimationPipeline->CommonSkeletalMeshesAndAnimationsProperties = CommonSkeletalMeshesAndAnimationsProperties;
 }
 
-void UInterchangeDatasmithPipeline::AdjustSettingsForContext(EInterchangePipelineContext ImportType, TObjectPtr<UObject> ReimportAsset)
+void UInterchangeDatasmithPipeline::AdjustSettingsForContext(EInterchangePipelineContext ImportType, TObjectPtr<UObject> ReimportAsset, const UInterchangeBaseNodeContainer* InBaseNodeContainer)
 {
-	Super::AdjustSettingsForContext(ImportType, ReimportAsset);
+	Super::AdjustSettingsForContext(ImportType, ReimportAsset, InBaseNodeContainer);
 
 	if (MaterialPipeline)
 	{
-		MaterialPipeline->AdjustSettingsForContext(ImportType, ReimportAsset);
+		MaterialPipeline->AdjustSettingsForContext(ImportType, ReimportAsset, InBaseNodeContainer);
 	}
 
 	if (MeshPipeline)
 	{
-		MeshPipeline->AdjustSettingsForContext(ImportType, ReimportAsset);
+		MeshPipeline->AdjustSettingsForContext(ImportType, ReimportAsset, InBaseNodeContainer);
 	}
 
 	if (LevelPipeline)
 	{
-		LevelPipeline->AdjustSettingsForContext(ImportType, ReimportAsset);
+		LevelPipeline->AdjustSettingsForContext(ImportType, ReimportAsset, InBaseNodeContainer);
 	}
 
 	if (AnimationPipeline)
 	{
-		AnimationPipeline->AdjustSettingsForContext(ImportType, ReimportAsset);
+		AnimationPipeline->AdjustSettingsForContext(ImportType, ReimportAsset, InBaseNodeContainer);
 	}
 }
 
@@ -150,7 +150,7 @@ void UInterchangeDatasmithPipeline::PostDuplicate(bool bDuplicateForPIE)
 	// Only adjust settings if there is anything cached.
 	if (CachePipelineContext != EInterchangePipelineContext::None)
 	{
-		AdjustSettingsForContext(CachePipelineContext, CacheReimportObject.Get());
+		AdjustSettingsForContext(CachePipelineContext, CacheReimportObject.Get(), nullptr);
 	}
 }
 

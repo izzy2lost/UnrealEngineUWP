@@ -37,7 +37,7 @@ void UInterchangePipelineBase::SaveSettings(const FName PipelineStackName)
 	GConfig->Flush(0);
 }
 
-void UInterchangePipelineBase::AdjustSettingsForContext(EInterchangePipelineContext ReimportType, TObjectPtr<UObject> ReimportAsset)
+void UInterchangePipelineBase::AdjustSettingsForContext(EInterchangePipelineContext ReimportType, TObjectPtr<UObject> ReimportAsset, const UInterchangeBaseNodeContainer* BaseNodeContainer)
 {
 	CachePipelineContext = ReimportType;
 	CacheReimportObject = ReimportAsset;
@@ -61,7 +61,7 @@ void UInterchangePipelineBase::AdjustSettingsForContext(EInterchangePipelineCont
 void UInterchangePipelineBase::AdjustSettingsFromCache()
 {
 	PropertiesStates = CachePropertiesStates;
-	AdjustSettingsForContext(CachePipelineContext, CacheReimportObject.Get());
+	AdjustSettingsForContext(CachePipelineContext, CacheReimportObject.Get(), nullptr);
 }
 
 void UInterchangePipelineBase::TransferAdjustSettings(UInterchangePipelineBase* SourcePipeline)
