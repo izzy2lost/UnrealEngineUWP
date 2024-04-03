@@ -12,11 +12,30 @@
 class FPaintArgs;
 class FSlateWindowElementList;
 
+class AUDIOWIDGETS_API SAudioMeterBase
+	: public SLeafWidget
+{
+public:
+
+	SLATE_BEGIN_ARGS(SAudioMeterBase){}
+
+	SLATE_END_ARGS()
+
+	/** Is the active timer registered to refresh the meter channel info. */
+	bool bIsActiveTimerRegistered = false;
+
+public:
+
+	virtual void SetMeterChannelInfo(const TAttribute<TArray<FMeterChannelInfo>>& InMeterChannelInfo) = 0;
+	virtual TArray<FMeterChannelInfo> GetMeterChannelInfo() const = 0;
+
+};
+
 /**
  * A Slate slider control is a linear scale and draggable handle.
  */
 class AUDIOWIDGETS_API SAudioMeter
-	: public SLeafWidget
+	: public SAudioMeterBase
 {
 public:
 
@@ -76,8 +95,8 @@ public:
 	 */
 	void Construct(const SAudioMeter::FArguments& InDeclaration);
 
-	void SetMeterChannelInfo(const TAttribute<TArray<FMeterChannelInfo>>& InMeterChannelInfo);
-	TArray<FMeterChannelInfo> GetMeterChannelInfo() const;
+	void SetMeterChannelInfo(const TAttribute<TArray<FMeterChannelInfo>>& InMeterChannelInfo) override;
+	TArray<FMeterChannelInfo> GetMeterChannelInfo() const override;
 
 	/** Set the Orientation attribute */
 	void SetOrientation(EOrientation InOrientation);
@@ -89,9 +108,6 @@ public:
 	void SetMeterClippingColor(FSlateColor InMeterPeakColor);
 	void SetMeterScaleColor(FSlateColor InMeterScaleColor);
 	void SetMeterScaleLabelColor(FSlateColor InMeterScaleLabelColor);
-
-	/** Is the active timer registered to refresh the meter channel info. */
-	bool bIsActiveTimerRegistered = false;
 
 public:
 

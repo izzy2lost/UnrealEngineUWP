@@ -4,6 +4,7 @@
 
 #include "Algo/AnyOf.h"
 #include "AudioDevice.h"
+#include "AudioMaterialSlate/SAudioMaterialMeter.h"
 #include "AudioMeterStyle.h"
 #include "AudioOscilloscope.h"
 #include "AudioSpectrumAnalyzer.h"
@@ -92,6 +93,17 @@ namespace Metasound
 {
 	namespace Editor
 	{
+		namespace EditorPrivate
+		{
+			int32 UseAudioMaterialWidgets = 0;
+			FAutoConsoleVariableRef CVarUseAudioMaterialWidgets(
+				TEXT("au.MetaSound.Editor.EnableAudioMaterialAnalyzers"),
+				UseAudioMaterialWidgets,
+				TEXT("Are new AudioMaterialWidgets used for visualization for the Metasound Analyzers, if implemented.\n")
+				TEXT("0: Disabled (default), !0: Enabled"),
+				ECVF_Default);
+		}//Metasound::Editor::EditorPrivate
+
 		static const TArray<FText> NodeSectionNames
 		{
 			LOCTEXT("NodeSectionName_Invalid", "INVALID"),
@@ -1233,7 +1245,9 @@ namespace Metasound
 
 					if (!OutputMeter.IsValid())
 					{
-						OutputMeter = MakeShared<AudioWidgets::FAudioMeter>(MetaSoundSource->NumChannels, AudioDeviceId);
+
+						bool bUseAudioMaterialWidgets = EditorPrivate::UseAudioMaterialWidgets == 0 ? false : true;
+						OutputMeter = MakeShared<AudioWidgets::FAudioMeter>(MetaSoundSource->NumChannels, AudioDeviceId, nullptr, bUseAudioMaterialWidgets);
 					}
 					else if (OutputMeter->GetAudioBus()->GetNumChannels() != MetaSoundSource->NumChannels)
 					{
@@ -1796,7 +1810,7 @@ namespace Metasound
 					})
 				);
 
-				TSharedPtr<SAudioMeter> OutputMeterWidget = OutputMeter->GetWidget();
+				TSharedPtr<SAudioMeterBase> OutputMeterWidget = OutputMeter->GetWidget<SAudioMeterBase>();
 				if (OutputMeterWidget.IsValid())
 				{
 					if (!OutputMeterWidget->bIsActiveTimerRegistered)
@@ -1810,7 +1824,7 @@ namespace Metasound
 								}
 								else
 								{
-									TSharedRef<SAudioMeter> MeterRef = OutputMeter->GetWidget();
+									TSharedRef<SAudioMeterBase> MeterRef = OutputMeter->GetWidget<SAudioMeterBase>();
 									MeterRef->bIsActiveTimerRegistered = false;
 									return EActiveTimerReturnType::Stop;
 								}

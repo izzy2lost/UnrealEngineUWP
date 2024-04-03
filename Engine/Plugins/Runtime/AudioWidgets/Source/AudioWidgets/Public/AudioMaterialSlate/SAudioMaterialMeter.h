@@ -5,9 +5,9 @@
 #include "AudioMaterialSlate/AudioMaterialSlateTypes.h"
 #include "AudioMeterTypes.h"
 #include "Framework/SlateDelegates.h"
+#include "SAudioMeter.h"
 #include "Styling/ISlateStyle.h"
 #include "Styling/SlateWidgetStyleAsset.h"
-#include "Widgets/SLeafWidget.h"
 
 class UWidget;
 struct FMeterChannelInfo;
@@ -16,7 +16,7 @@ struct FMeterChannelInfo;
  * A simple slate that renders the meter in single material and modifies the material on value change.
  *
  */
-class AUDIOWIDGETS_API SAudioMaterialMeter : public SLeafWidget
+class AUDIOWIDGETS_API SAudioMaterialMeter : public SAudioMeterBase
 {
 public:
 	SLATE_BEGIN_ARGS(SAudioMaterialMeter)
@@ -54,10 +54,10 @@ public:
 	TArray<TWeakObjectPtr<UMaterialInstanceDynamic>> ApplyNewMaterial();
 
 	/**Set the MeterChannelInfo attribute*/
-	void SetMeterChannelInfo(const TAttribute<TArray<FMeterChannelInfo>>& InMeterChannelInfo);
+	void SetMeterChannelInfo(const TAttribute<TArray<FMeterChannelInfo>>& InMeterChannelInfo) override;
 
 	/**Get the MeterChannelInfo attribute*/
-	TArray<FMeterChannelInfo> GetMeterChannelInfo() const;
+	TArray<FMeterChannelInfo> GetMeterChannelInfo() const override;
 
 private:
 

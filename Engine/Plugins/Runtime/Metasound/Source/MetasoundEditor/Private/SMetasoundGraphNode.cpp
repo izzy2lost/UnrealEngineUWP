@@ -66,9 +66,9 @@ namespace Metasound
 		{
 			int32 UseAudioMaterialWidgets = 0;
 			FAutoConsoleVariableRef CVarUseAudioMaterialWidgets(
-				TEXT("au.MetaSound.Editor.UseAudioMaterialSlates"),
+				TEXT("au.MetaSound.Editor.EnableAudioMaterialNodes"),
 				UseAudioMaterialWidgets,
-				TEXT("Are new AudioMaterialWidgets used for visualization in the Metasound editor, if implemented.\n")
+				TEXT("Are new AudioMaterialWidgets used for visualization for the Metasound nodes, if implemented.\n")
 				TEXT("0: Disabled (default), !0: Enabled"),
 				ECVF_Default);
 		}// Metasound::Editor::GraphNodePrivate

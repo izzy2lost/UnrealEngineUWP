@@ -21,6 +21,7 @@
 #include "AudioMeter.generated.h"
 
 // Forward Declarations
+class SAudioMaterialMeter;
 class SAudioMeter;
 class UWorld;
 
@@ -157,14 +158,21 @@ namespace AudioWidgets
 	{
 	public:
 		UE_DEPRECATED(5.4, "Use the FAudioMeter constructor that uses Audio::FDeviceId.")
-		FAudioMeter(int32 InNumChannels, UWorld& InWorld, TObjectPtr<UAudioBus> InExternalAudioBus = nullptr); // OPTIONAL PARAM InExternalAudioBus: An audio meter can be constructed from this audio bus.
+		FAudioMeter(int32 InNumChannels, UWorld& InWorld, TObjectPtr<UAudioBus> InExternalAudioBus = nullptr); 
 		
-		FAudioMeter(const int32 InNumChannels, const Audio::FDeviceId InAudioDeviceId, TObjectPtr<UAudioBus> InExternalAudioBus = nullptr); // OPTIONAL PARAM InExternalAudioBus: An audio meter can be constructed from this audio bus.
+		//** OPTIONAL PARAM InExternalAudioBus: An audio meter can be constructed from this audio bus. , InbUseAudioMaterialWidget: Is the AudioMaterialWidgets used for analyzer visualization.*/
+		FAudioMeter(const int32 InNumChannels, const Audio::FDeviceId InAudioDeviceId, TObjectPtr<UAudioBus> InExternalAudioBus = nullptr, bool InbUseAudioMaterialWidget = false); 
 		~FAudioMeter();
 
 		UAudioBus* GetAudioBus() const;
 
 		TSharedRef<SAudioMeter> GetWidget() const;
+
+		template<class T>
+		TSharedRef<T> GetWidget() const
+		{
+			return StaticCastSharedRef<T>(Widget->AsShared());
+		};
 
 		UE_DEPRECATED(5.4, "Use the Init method that uses Audio::FDeviceId.")
 		void Init(int32 InNumChannels, UWorld& InWorld, TObjectPtr<UAudioBus> InExternalAudioBus = nullptr);
@@ -193,7 +201,7 @@ namespace AudioWidgets
 		TStrongObjectPtr<UMeterSettings> Settings;
 
 		/** MetaSound Output Meter widget */
-		TSharedPtr<SAudioMeter> Widget;
+		TSharedPtr<SAudioMeterBase> Widget;
 
 		bool bUseExternalAudioBus = false;
 	};
