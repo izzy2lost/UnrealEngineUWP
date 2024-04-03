@@ -1606,7 +1606,7 @@ void FCustomizableObjectEditorViewportClient::BakeInstance()
 	UCustomizableObjectInstance* Instance = CustomizableObjectEditorPtr.Pin()->GetPreviewInstance();
 	if (!Instance)
 	{
-		UE_LOG(LogMutable, Error, TEXT("No Mutable Customizable Object Instnace was found in the current editor."));
+		UE_LOG(LogMutable, Error, TEXT("No Mutable Customizable Object instance was found in the current editor."));
 		return;
 	}
 	
@@ -1624,7 +1624,7 @@ void FCustomizableObjectEditorViewportClient::OnInstanceForBakingUpdate(const FU
 	// Early exit if no instance was provided
 	if (!BakeTempInstance)
 	{
-		UE_LOG(LogMutable, Error, TEXT("No Mutable Customizable Object Instnace was provided for the baking."));
+		UE_LOG(LogMutable, Error, TEXT("No Mutable Customizable Object instance was provided for the baking."));
 		return;
 	}
 
@@ -1649,12 +1649,16 @@ void FCustomizableObjectEditorViewportClient::OnInstanceForBakingUpdate(const FU
 	
 	if (FolderDlg->ShowModal() != EAppReturnType::Cancel)
 	{
+		TArray<TPair<EPackageSaveResolutionType,UPackage*>> SavedPackages;
 		BakeCustomizableObjectInstance(
 			*BakeTempInstance,
 			FolderDlg->GetFileName(),
 			FolderDlg->GetAssetPath(),
 			FolderDlg->GetExportAllResources(),
-			FolderDlg->GetGenerateConstantMaterialInstances());
+			FolderDlg->GetGenerateConstantMaterialInstances(),
+			false,
+			false,
+			SavedPackages);
 	}
 	
 	BakeTempInstance = nullptr;

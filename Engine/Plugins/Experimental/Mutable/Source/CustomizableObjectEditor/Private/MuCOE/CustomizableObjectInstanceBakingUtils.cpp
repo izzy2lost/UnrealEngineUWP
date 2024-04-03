@@ -1,6 +1,7 @@
 ﻿// Copyright Epic Games, Inc. All Rights Reserved.
 
-#include "CustomizableObjectInstanceBakingUtils.h"
+#include "MuCOE/CustomizableObjectInstanceBakingUtils.h"
+
 #include "MuCOE/CustomizableObjectEditor.h"
 
 #include "Misc/MessageDialog.h"
@@ -15,6 +16,7 @@
 #include "MuCO/CustomizableObject.h"
 #include "MuCO/CustomizableObjectInstanceAssetUserData.h"
 #include "MuCO/CustomizableObjectMipDataProvider.h"
+#include "MuCO/ICustomizableObjectEditorModule.h"
 #include "MuT/UnrealPixelFormatOverride.h"
 #include "Rendering/SkeletalMeshModel.h"
 
@@ -158,22 +160,26 @@ bool GetUniqueResourceName(const UObject* InResource, FString& ResourceName, TAr
 	return true;
 }
 
-
 /**
  * Ensures the resource we want to save is ready to be saved. It handles closing it's editor and warning the user about possible overriding of resources.
  * @param InAssetSavePath The directory path where to save the baked object
  * @param InObjName The name of the object to be baked
- * @param bUsedGrantedOverridingRights Control flag that determines if the user has given or not permission to override resources already in disk
+ * @param bOverridePermissionGranted Control flag that determines if the user has given or not permission to override resources already in disk
+ * @param bIsUnattended
+ * @param OutSaveResolution
  * @return True if the operation was successful, false otherwise
  */
-bool ManageBakingAction(const FString& InAssetSavePath, const FString& InObjName, bool& bUsedGrantedOverridingRights)
+bool ManageBakingAction(const FString& InAssetSavePath, const FString& InObjName, bool& bOverridePermissionGranted, const bool& bIsUnattended, EPackageSaveResolutionType& OutSaveResolution)
 {
-	FString PackagePath = InAssetSavePath + "/" + InObjName;
-	UPackage* ExistingPackage = FindPackage(NULL, *PackagePath);
+	// Before the value provided by "bOverridePermissionGranted" was being updated due to user request but not it is not. It will stay as is if unatended an
+	// will get updated if this gets to be an attended execution.
+	
+	const FString PackagePath = InAssetSavePath + "/" + InObjName;
+	UPackage* ExistingPackage = FindPackage(nullptr, *PackagePath);
 
 	if (!ExistingPackage)
 	{
-		FString PackageFilePath = PackagePath + "." + InObjName;
+		const FString PackageFilePath = PackagePath + "." + InObjName;
 
 		FString PackageFileName;
 		if (FPackageName::DoesPackageExist(PackageFilePath, &PackageFileName))
@@ -182,8 +188,15 @@ bool ManageBakingAction(const FString& InAssetSavePath, const FString& InObjName
 		}
 		else
 		{
-			// if package does not exists
-			bUsedGrantedOverridingRights = false;
+			// if package does not exist
+			
+			if (!bIsUnattended)
+			{
+				// If the run is attended (the user is participating in it) then we will take care in consideration his decision what he wants.
+				bOverridePermissionGranted = false;
+			}
+
+			OutSaveResolution = EPackageSaveResolutionType::NewFile;
 			return true;
 		}
 	}
@@ -209,40 +222,64 @@ bool ManageBakingAction(const FString& InAssetSavePath, const FString& InObjName
 			}
 		}
 
-		if (!bUsedGrantedOverridingRights)
+		// If the execution requires user interaction and we have no permission to override the existing file ask him if he wants or not to override data
+		if (!bIsUnattended && !bOverridePermissionGranted)
 		{
+			check (!FApp::IsUnattended())
 			const FText Caption = LOCTEXT("Already existing baked files", "Already existing baked files");
 			const FText Message = FText::Format(LOCTEXT("OverwriteBakedInstance", "Instance baked files already exist in selected destination \"{0}\", this action will overwrite them."), FText::AsCultureInvariant(InAssetSavePath));
 
-			// We need to guard this case since it may crash the editor if we are running an unattended commandlet and we try to generate this dialog
-			if (!FApp::IsUnattended())
+			if (FMessageDialog::Open(EAppMsgType::OkCancel, Message, Caption) == EAppReturnType::Cancel)
 			{
-				if (FMessageDialog::Open(EAppMsgType::OkCancel, Message, Caption) == EAppReturnType::Cancel)
-				{
-					return false;
-				}
-			}
-			else
-			{
-				UE_LOG(LogMutable, Error, TEXT("%s - %s"), *Caption.ToString(), *Message.ToString());
+				return false;		// if the user cancels then we will still have no rights for overriding data
 			}
 
-
-			bUsedGrantedOverridingRights = true;
+			UE_LOG(LogMutable, Error, TEXT("%s - %s"), *Caption.ToString(), *Message.ToString());
+			
+			// If the user accepts the prompt then we will consider we have a green light to override the asset
+			bOverridePermissionGranted = true;
 		}
-
+		
+		// At this point we may or may not have permission to delete the existing asset
+		
+		// Delete the old asset if we have permission to do so
 		UObject* ExistingObject = StaticFindObject(UObject::StaticClass(), ExistingPackage, *InObjName);
 		if (ExistingObject)
 		{
-			ExistingPackage->FullyLoad();
+			// Based on if we have or not permission to override the file do or do not so
+			if (bOverridePermissionGranted)
+			{
+				ExistingPackage->FullyLoad();
 
-			TArray<UObject*> ObjectsToDelete;
-			ObjectsToDelete.Add(ExistingObject);
+				TArray<UObject*> ObjectsToDelete;
+				ObjectsToDelete.Add(ExistingObject);
+				
+				const FText Message = FText::Format(LOCTEXT("AssetOverriden", "The COI asset \"{0}\" already exists and will be overriden due to user demand."), FText::FromString(ExistingPackage->GetName()));
+				UE_LOG(LogMutable,Warning,TEXT("%s"), *Message.ToString());
 
-			// Delete objects in the package with the same name as the one we want to create
-			const uint32 NumObjectsDeleted = ObjectTools::ForceDeleteObjects(ObjectsToDelete, false);
+				// Notify the caller we did proceed with the override (performed later)
+				OutSaveResolution = EPackageSaveResolutionType::Overriden;
+				
+				// Delete objects in the package with the same name as the one we want to create
+				const uint32 NumObjectsDeleted = ObjectTools::ForceDeleteObjects(ObjectsToDelete, false);
+				return NumObjectsDeleted == ObjectsToDelete.Num();
+			}
+			else
+			{
+				// Notify the caller that the override will not be performed
+				OutSaveResolution = EPackageSaveResolutionType::UnableToOverride;
+				
+				// Report that the file will not get overriden since we have no permission to do so
+				const FText UnableToOverrideMessage = FText::Format(LOCTEXT("AssetCanNotBeOverriden", "Could not replace the COI asset \"{0}\" as it already exists."), FText::FromString(ExistingPackage->GetName()));
+				UE_LOG(LogMutable,Error,TEXT("%s"), *UnableToOverrideMessage.ToString());
 
-			return NumObjectsDeleted == ObjectsToDelete.Num();
+				return false;
+			}
+		}
+		else
+		{
+			// Notify the caller that no override was required
+			OutSaveResolution = EPackageSaveResolutionType::NewFile;
 		}
 	}
 
@@ -257,10 +294,15 @@ namespace PreBakeSystemSettings
 }
 
 
+// Prevents the execution of the baking in parallel for the baking operation. It will not prevent other updates from running (not baking updates)
+// So you are encouraged to halt all other updates while you are baking instances
+static bool bIsUpdateForBakingRunning = false;
+
+
 void PrepareForBaking()
 {
 	// Implementation of the bake operation
-	UCustomizableObjectSystem* System =  UCustomizableObjectSystem::GetInstanceChecked();
+	UCustomizableObjectSystem* System = UCustomizableObjectSystem::GetInstanceChecked();
 	
 	// The instance in the editor viewport does not have high quality mips in the platform data because streaming is enabled.
 	// Disable streaming and retry with a newly generated temp instance.
@@ -282,11 +324,24 @@ void RestoreCustomizableObjectSettings(const FUpdateContext& Result)
 	System->SetProgressiveMipStreamingEnabled(PreBakeSystemSettings::bIsProgressiveMipStreamingEnabled);
 	System->SetOnlyGenerateRequestedLODsEnabled(PreBakeSystemSettings::bIsOnlyGenerateRequestedLODsEnabled);
 	System->SetImagePixelFormatOverride(nullptr);
+
+	// Tell the system we have finished the update and that we can schedule another "for baking" update
+	bIsUpdateForBakingRunning = false;
 }
 
 
 void UpdateInstanceForBaking(UCustomizableObjectInstance& InInstance, FInstanceUpdateNativeDelegate& InInstanceUpdateDelegate)
 {
+	if (bIsUpdateForBakingRunning)
+	{
+		UE_LOG(LogMutable, Error, TEXT("The COInstance update for baking could not be scheduled. Another instance is being updated for baking."));
+		InInstanceUpdateDelegate.Broadcast({EUpdateResult::Error});
+		return;
+	}
+
+	// Set the update for the baking of the instance as running so we prevent other baking updates while we do run our own
+	bIsUpdateForBakingRunning = true;
+	
 	// Prepare the customizable object system for baking
 	PrepareForBaking();
 	
@@ -295,16 +350,23 @@ void UpdateInstanceForBaking(UCustomizableObjectInstance& InInstance, FInstanceU
 	
 	// Schedule the update
 	InInstance.UpdateSkeletalMeshAsyncResult(InInstanceUpdateDelegate,true,true);
+
+	UE_LOG(LogMutable, Display, TEXT("The COInstance Update operation for baking was succesfuly scheduled."));
 }
 
 
-void BakeCustomizableObjectInstance(
+bool BakeCustomizableObjectInstance(
 	UCustomizableObjectInstance& InInstance,
 	const FString& FileName,
 	const FString& AssetPath,
 	const bool bExportAllResources,
-	const bool bGenerateConstantMaterialInstances)
+	const bool bGenerateConstantMaterialInstances,
+	bool bHasPermissionToOverride,
+	bool bIsUnattendedExecution,
+	TArray<TPair<EPackageSaveResolutionType,UPackage*>>& OutSavedPackages)
 {
+	OutSavedPackages.Reset();
+	
 	// Ensure that the state of the COI provided is valid --------------------------------------------------------------------------------------------
 	UCustomizableObject* InstanceCO = InInstance.GetCustomizableObject();
 	check (InstanceCO);
@@ -319,7 +381,7 @@ void BakeCustomizableObjectInstance(
 		.Notification(true)
 		.Log();
 
-		return;
+		return false;
 	}
 	
 	if (InstanceCO->GetPrivate()->Status.Get() == FCustomizableObjectStatus::EState::Loading)
@@ -331,25 +393,26 @@ void BakeCustomizableObjectInstance(
 		.Notification(true)
 		.Log();
 
-		return;
+		return false;
 	}
 	
 	if (!ValidateProvidedFileName(FileName))
 	{
 		UE_LOG(LogMutable, Error, TEXT("The FileName for the instance baking is not valid."));
-		return;
+		return false;
 	}
 
 	if (!ValidateProvidedAssetPath(FileName,AssetPath,InstanceCO))
 	{
 		UE_LOG(LogMutable, Error, TEXT("The AssetPath for the instance baking is not valid."));
-		return;
+		return false;
 	}
 	
 	// Exit early if the provided instance does not have a skeletal mesh
 	if (!InInstance.HasAnySkeletalMesh())
 	{
-		return;
+		UE_LOG(LogMutable, Error, TEXT("The provided instance does not have an skeletal mesh."));
+		return false;
 	}
 
 	// COI Validation completed : Proceed with the baking operation ----------------------------------------------------------------------------------
@@ -365,12 +428,16 @@ void BakeCustomizableObjectInstance(
 		.Log();
 	}
 	
+	// Set the overriding flag to true or false:
+	//	- We ask the user at least once about if he is willing to override old baked data (attended operation) and this makes the flag change 
+	//	- We never ask the user (and therefore the value in bUsedGrantedOverridingRights never changes) when we work in Unattended mode.
+	bool bUsedGrantedOverridingRights = bHasPermissionToOverride;
+	if (FApp::IsUnattended() || GIsRunningUnattendedScript)
+	{
+		bIsUnattendedExecution = true;
+	}
 	
-	// Set the overriding flag to false wo we ask the user at least once about if he is willing to override old baked data
-	bool bUsedGrantedOverridingRights = false;
-
-	TArray<UPackage*> PackagesToSave;
-
+	
 	const int32 NumComponents = InInstance.GetNumComponents();
 	for (int32 ComponentIndex = 0; ComponentIndex < NumComponents; ++ComponentIndex)
 	{
@@ -449,9 +516,10 @@ void BakeCustomizableObjectInstance(
 									continue;
 								}
 
-								if (!ManageBakingAction(AssetPath, ResourceName, bUsedGrantedOverridingRights))
+								EPackageSaveResolutionType SaveType = EPackageSaveResolutionType::None;
+								if (!ManageBakingAction(AssetPath, ResourceName, bUsedGrantedOverridingRights, bIsUnattendedExecution, SaveType))
 								{
-									return;
+									return false;
 								}
 
 								// Recover original name of the texture parameter value, now substituted by the generated Mutable texture
@@ -476,7 +544,9 @@ void BakeCustomizableObjectInstance(
 								UTexture2D* DupTex = FUnrealBakeHelpers::BakeHelper_CreateAssetTexture(SrcTex, ResourceName, PackageName, OriginalTexture, true, FakeReplacementMap, bUsedGrantedOverridingRights);
 								ArrayCachedElement.Add(ResourceName);
 								ArrayCachedObject.Add(DupTex);
-								PackagesToSave.Add(DupTex->GetPackage());
+								
+								TPair<EPackageSaveResolutionType, UPackage*> PackageToSave {SaveType, DupTex->GetPackage()};
+								OutSavedPackages.Add(PackageToSave);
 
 								if (OriginalTexture != nullptr)
 								{
@@ -513,9 +583,10 @@ void BakeCustomizableObjectInstance(
 
 							if (ArrayCachedElement.Find(ResourceName) == INDEX_NONE)
 							{
-								if (!ManageBakingAction(AssetPath, ResourceName, bUsedGrantedOverridingRights))
+								EPackageSaveResolutionType SaveType = EPackageSaveResolutionType::None;
+								if (!ManageBakingAction(AssetPath, ResourceName, bUsedGrantedOverridingRights, bIsUnattendedExecution, SaveType ))
 								{
-									return;
+									return false;
 								}
 
 								PackageName = AssetPath + FString("/") + ResourceName;
@@ -523,7 +594,9 @@ void BakeCustomizableObjectInstance(
 								DuplicatedObject = FUnrealBakeHelpers::BakeHelper_DuplicateAsset(Texture, ResourceName, PackageName, true, FakeReplacementMap, bUsedGrantedOverridingRights, false);
 								ArrayCachedElement.Add(ResourceName);
 								ArrayCachedObject.Add(DuplicatedObject);
-								PackagesToSave.Add(DuplicatedObject->GetPackage());
+
+								TPair<EPackageSaveResolutionType, UPackage*> PackageToSave {SaveType, DuplicatedObject->GetPackage()};
+								OutSavedPackages.Add(PackageToSave);
 
 								UTexture* DupTexture = Cast<UTexture>(DuplicatedObject);
 								TextureReplacementMaps[m].Add(i, DupTexture);
@@ -550,9 +623,10 @@ void BakeCustomizableObjectInstance(
 						continue;
 					}
 
-					if (!ManageBakingAction(AssetPath, ResourceName, bUsedGrantedOverridingRights))
+					EPackageSaveResolutionType SaveType = EPackageSaveResolutionType::None;
+					if (!ManageBakingAction(AssetPath, ResourceName, bUsedGrantedOverridingRights, bIsUnattendedExecution, SaveType))
 					{
-						return;
+						return false;
 					}
 
 					PackageName = AssetPath + FString("/") + ResourceName;
@@ -562,7 +636,9 @@ void BakeCustomizableObjectInstance(
 					ArrayCachedElement.Add(ResourceName);
 					ArrayCachedObject.Add(DuplicatedObject);
 					ReplacementMap.Add(Interface, DuplicatedObject);
-					PackagesToSave.Add(DuplicatedObject->GetPackage());
+
+					TPair<EPackageSaveResolutionType, UPackage*> PackageToSave {SaveType, DuplicatedObject->GetPackage()};
+					OutSavedPackages.Add(PackageToSave);
 
 					FUnrealBakeHelpers::CopyAllMaterialParameters(DuplicatedObject, Interface, TextureReplacementMaps[m]);
 				}
@@ -585,9 +661,10 @@ void BakeCustomizableObjectInstance(
 					continue;
 				}
 
-				if (!ManageBakingAction(AssetPath, MatObjName, bUsedGrantedOverridingRights))
+				EPackageSaveResolutionType SaveType = EPackageSaveResolutionType::None;
+				if (!ManageBakingAction(AssetPath, MatObjName, bUsedGrantedOverridingRights, bIsUnattendedExecution, SaveType))
 				{
-					return;
+					return false;
 				}
 
 				FString MatPkgName = AssetPath + FString("/") + MatObjName;
@@ -595,7 +672,10 @@ void BakeCustomizableObjectInstance(
 					MatPkgName, false, ReplacementMap, bUsedGrantedOverridingRights, bGenerateConstantMaterialInstances);
 				ArrayCachedObject.Add(DupMat);
 				ArrayCachedElement.Add(MatObjName);
-				PackagesToSave.Add(DupMat->GetPackage());
+
+				TPair<EPackageSaveResolutionType, UPackage*> PackageToSave {SaveType, DupMat->GetPackage()};
+				OutSavedPackages.Add(PackageToSave);
+		
 
 				UMaterialInstance* Inst = Cast<UMaterialInstance>(Interface);
 
@@ -640,9 +720,10 @@ void BakeCustomizableObjectInstance(
 											continue;
 										}
 
-										if (!ManageBakingAction(AssetPath, TexObjName, bUsedGrantedOverridingRights))
+										EPackageSaveResolutionType TextureSaveType = EPackageSaveResolutionType::None;
+										if (!ManageBakingAction(AssetPath, TexObjName, bUsedGrantedOverridingRights, bIsUnattendedExecution, TextureSaveType))
 										{
-											return;
+											return false;
 										}
 
 										FString TexPkgName = AssetPath + FString("/") + TexObjName;
@@ -650,7 +731,10 @@ void BakeCustomizableObjectInstance(
 										UTexture2D* DupTex = FUnrealBakeHelpers::BakeHelper_CreateAssetTexture(SrcTex, TexObjName, TexPkgName, nullptr, false, FakeReplacementMap, bUsedGrantedOverridingRights);
 										ArrayCachedObject.Add(DupTex);
 										ArrayCachedElement.Add(TexObjName);
-										PackagesToSave.Add(DupTex->GetPackage());
+
+										TPair<EPackageSaveResolutionType, UPackage*> TexturePackageToSave {TextureSaveType, DupTex->GetPackage()};
+										OutSavedPackages.Add(TexturePackageToSave);
+										
 
 										if (InstDynamic)
 										{
@@ -695,9 +779,10 @@ void BakeCustomizableObjectInstance(
 			if (bTransient || bExportAllResources)
 			{
 				FString SkeletonName = ObjectName + "_Skeleton";
-				if (!ManageBakingAction(AssetPath, SkeletonName, bUsedGrantedOverridingRights))
+				EPackageSaveResolutionType SaveType = EPackageSaveResolutionType::None;
+				if (!ManageBakingAction(AssetPath, SkeletonName, bUsedGrantedOverridingRights, bIsUnattendedExecution, SaveType))
 				{
-					return;
+					return false;
 				}
 
 				FString SkeletonPkgName = AssetPath + FString("/") + SkeletonName;
@@ -705,22 +790,26 @@ void BakeCustomizableObjectInstance(
 					SkeletonPkgName, false, ReplacementMap, bUsedGrantedOverridingRights, false);
 
 				ArrayCachedObject.Add(DuplicatedSkeleton);
-				PackagesToSave.Add(DuplicatedSkeleton->GetPackage());
+				TPair<EPackageSaveResolutionType, UPackage*> PackageToSave {SaveType, DuplicatedSkeleton->GetPackage()};
+				OutSavedPackages.Add(PackageToSave);
 				ReplacementMap.Add(Mesh->GetSkeleton(), DuplicatedSkeleton);
 			}
 		}
 
 		// Skeletal Mesh
-		if (!ManageBakingAction(AssetPath, ObjectName, bUsedGrantedOverridingRights))
+		EPackageSaveResolutionType SaveType = EPackageSaveResolutionType::None;
+		if (!ManageBakingAction(AssetPath, ObjectName, bUsedGrantedOverridingRights, bIsUnattendedExecution, SaveType))
 		{
-			return;
+			return false;
 		}
 
 		FString PkgName = AssetPath + FString("/") + ObjectName;
 		UObject* DupObject = FUnrealBakeHelpers::BakeHelper_DuplicateAsset(Mesh, ObjectName, PkgName, 
 			false, ReplacementMap, bUsedGrantedOverridingRights, false);
 		ArrayCachedObject.Add(DupObject);
-		PackagesToSave.Add(DupObject->GetPackage());
+
+		TPair<EPackageSaveResolutionType, UPackage*> PackageToSave {SaveType, DupObject->GetPackage()};
+		OutSavedPackages.Add(PackageToSave);
 
 		Mesh->Build();
 
@@ -769,10 +858,32 @@ void BakeCustomizableObjectInstance(
 	// Save the packages generated during the baking operation  --------------------------------------------------------------------------------------
 	
 	// Complete the baking by saving the packages we have cached during the baking operation
-	if (PackagesToSave.Num())
+	if (OutSavedPackages.Num())
 	{
-		FEditorFileUtils::PromptForCheckoutAndSave(PackagesToSave, false, !FApp::IsUnattended());
+		// Prepare the list of assets we want to provide to "PromptForCheckoutAndSave" for saving
+		TArray<UPackage*> PackagesToSaveProxy;
+		PackagesToSaveProxy.Reserve(OutSavedPackages.Num());
+		for (TPair<EPackageSaveResolutionType, UPackage*> DataToSave : OutSavedPackages)
+		{
+			PackagesToSaveProxy.Push(DataToSave.Value);
+		}
+
+		// List of packages that could not be saved
+		TArray<UPackage*> FailedToSavePackages;
+		const bool bWasSavingSuccessful = FEditorFileUtils::PromptForCheckoutAndSave(PackagesToSaveProxy, false, !bIsUnattendedExecution, &FailedToSavePackages, false, false) == FEditorFileUtils::EPromptReturnCode::PR_Success;
+
+		// Remove all packages that were going to be saved but failed to do so
+		const int32 RemovedPackagesCount = OutSavedPackages.RemoveAll([&](const TPair<EPackageSaveResolutionType, UPackage*> ToSavePackage)
+		{
+			return FailedToSavePackages.Contains(ToSavePackage.Value);
+		});
+		OutSavedPackages.Shrink();
+
+		return RemovedPackagesCount > 0 ? false : bWasSavingSuccessful;
 	}
+	
+	// The operation will fail if no packages are there to save
+	return false;
 }
 
 #undef LOCTEXT_NAMESPACE 

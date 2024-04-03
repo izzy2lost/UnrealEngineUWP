@@ -9,8 +9,6 @@
 
 #include "CustomizableObjectInstance.generated.h"
 
-struct FMutableModelImageProperties;
-
 namespace mu
 {
 	class Image;
@@ -33,9 +31,122 @@ struct FTexturePlatformData;
 struct FMutableModelImageProperties;
 
 
+
+/**
+ * Represents what kind of saving procedure was performed to save the package
+ */
+UENUM()
+enum class EPackageSaveResolutionType : uint8
+{
+	None = 0,
+
+	/** The package got saved as a new file. */
+	NewFile,
+
+	/** The package was already present in disk so the old package was deleted and a new one was saved on its place */
+	Overriden,
+
+	/** Error type : An overriding was required but due to an error or lack of user permission it could not be done. */
+	UnableToOverride
+};
+
+
+/**
+ * Data structure that exposes the path to a baked package and also what type of save was performed (an override, a standard save with a new file...)
+ */
+USTRUCT(BlueprintType, Blueprintable)
+struct FBakedResourceData
+{
+	GENERATED_BODY()
+
+	/**
+	 * The way the package represented by this object was saved onto disk.
+	 */
+	UPROPERTY(BlueprintReadOnly, Category = CustomizableObjectInstanceBaker)
+	EPackageSaveResolutionType SaveType = EPackageSaveResolutionType::None;
+
+	/**
+	 * The path used by the saved package.
+	 */
+	UPROPERTY(BlueprintReadOnly, Category = CustomizableObjectInstanceBaker)
+	FString AssetPath;
+};
+
+
+/**
+ * Structure returned as output of the baking operation. May contain a filled collection of FBakedResourceData objects and also the success end state of the
+ * baking operation. 
+ */
+USTRUCT(BlueprintType, Blueprintable)
+struct FCustomizableObjectInstanceBakeOutput
+{
+	GENERATED_BODY()
+
+	/**
+	 * Success state for the baking operation. True for success and false for failure.
+	 */
+	UPROPERTY(BlueprintReadOnly, Category = CustomizableObjectInstanceBaker)
+	bool bWasBakeSuccessful = false;
+
+	/**
+	 * Collection of FBakedResourceData representing all saved packages during the baking operation. It may be empty if the operation failed.
+	 */
+	UPROPERTY(BlueprintReadOnly, Category = CustomizableObjectInstanceBaker)
+	TArray<FBakedResourceData> SavedPackages;
+};
+
+
+DECLARE_DYNAMIC_DELEGATE_OneParam(FBakeOperationCompletedDelegate, const FCustomizableObjectInstanceBakeOutput, BakeOperationOutput);
+
+
+/**
+ * Configuration data structure designed to serve as variable container for the customizable object instance baking methods.
+ */
+USTRUCT(BlueprintType, Blueprintable)
+struct FBakingConfiguration
+{
+	GENERATED_BODY()
+
+	/**
+	 * The path where to save the baked resources. EX /Game/MyBakingTest
+	 */
+	UPROPERTY(BlueprintReadWrite, Blueprintable, Category = CustomizableObjectInstanceBaker)
+	FString OutputPath = TEXT("/Game");
+	
+	/**
+	 * The name to be used as base (prefix) during the naming of the exported resources
+	 */
+	UPROPERTY(BlueprintReadWrite, Blueprintable, Category = CustomizableObjectInstanceBaker)
+	FString OutputFilesBaseName;
+
+	/**
+	 * Determines if we want a full or partial export
+	 */
+	UPROPERTY(BlueprintReadWrite, Blueprintable, Category = CustomizableObjectInstanceBaker)
+	bool bExportAllResourcesOnBake = false;
+	
+	/**
+	 *  Determines if we want (or not) to generate constant material instances for each of the material instances found in the mutable instance
+	 */
+	UPROPERTY(BlueprintReadWrite, Blueprintable, Category = CustomizableObjectInstanceBaker)
+	bool bGenerateConstantMaterialInstancesOnBake = false;
+	
+	/**
+	 * Flag that determines if we should override already exported files or if we should not. If we encounter files to override and we have not permission to override them then the baking operation will fail.
+	 */
+	UPROPERTY(BlueprintReadWrite, Blueprintable, Category = CustomizableObjectInstanceBaker)
+	bool bAllowOverridingOfFiles = false;
+
+	/**
+	 * Callback executed once the baking operation gets completed. It will return the end success state and also some data about the assets saved.
+	 */
+	UPROPERTY(BlueprintReadWrite, Blueprintable, Category = CustomizableObjectInstanceBaker)
+	FBakeOperationCompletedDelegate OnBakeOperationCompletedCallback;
+};
+
+
 // Priority for the mutable update queue, Low is the normal distance-based priority, High is normally used for discards and Mid for LOD downgrades
 enum class EQueuePriorityType : uint8 { High, Med, Med_Low, Low };
-
 
 /** Result of all the checks just before beginning an update. */
 enum class EUpdateRequired : uint8
@@ -581,6 +692,15 @@ public:
 
 	const TArray<uint16>& GetRequestedLODsPerComponent() const;
 
+#if WITH_EDITOR
+	/**
+	 * Performs the baking of the instance resources in an async fashion. Bind yourself to the callback present in InBakingConfiguration to get notified in case it fails
+	 * @param InBakingConfiguration The configuration to be using for the baking operation
+	 */
+	UFUNCTION(BlueprintCallable, Category = CustomizableObjectInstanceBaking)
+	void Bake(const FBakingConfiguration& InBakingConfiguration);
+#endif
+	
 	UCustomizableInstancePrivate* GetPrivate() const;
 
 private:

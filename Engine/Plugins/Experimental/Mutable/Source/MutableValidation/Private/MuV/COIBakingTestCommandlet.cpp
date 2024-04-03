@@ -104,7 +104,7 @@ int32 UCOIBakingTestCommandlet::Main(const FString& Params)
 		InstanceUpdateDelegate.AddStatic(&OnInstanceUpdate);
 		
 		bIsInstanceBeingUpdated = true;
-		UE_LOG(LogMutable,Display,TEXT("Invoking instance update."));
+		UE_LOG(LogMutable, Display, TEXT("Scheduling instance update."));
 		UpdateInstanceForBaking(*TargetInstance, InstanceUpdateDelegate);
 		
 		// Now tick the engine so the instance gets updated while running in the commandlet context
@@ -130,6 +130,7 @@ int32 UCOIBakingTestCommandlet::Main(const FString& Params)
 	
 
 	// Bake the instance
+	bool bWasBakingSuccessful = false;
 	{
 		const FString BakedResourcesFileName = "MuBakedInstances";
 		
@@ -160,14 +161,17 @@ int32 UCOIBakingTestCommandlet::Main(const FString& Params)
 		{
 			UE_LOG(LogMutable,Display,TEXT("Starting Instance Baking operation."));
 			{
-				BakeCustomizableObjectInstance(
+				TArray<TPair<EPackageSaveResolutionType,UPackage*>> SavedPackages;
+				bWasBakingSuccessful = BakeCustomizableObjectInstance(
 					*TargetInstance,
 					FString::Printf(TEXT("%s_Bake"), *TargetInstance->GetName()),
 					LocalBakingDirectory,
 					true,
-					true);
+					true,
+					true,
+					true,
+					SavedPackages);
 			}
-			UE_LOG(LogMutable,Display,TEXT("Instance Baking operation has been completed."));
 			
 			// Delete the target directory where we did save the baked instance
 			if (!IFileManager::Get().DeleteDirectory(*GlobalBakingDirectory,true,true))
@@ -182,8 +186,17 @@ int32 UCOIBakingTestCommandlet::Main(const FString& Params)
 			return 1;
 		}
 	}
-	
-	return 0;
+
+	if (bWasBakingSuccessful)
+	{
+		UE_LOG(LogMutable, Display, TEXT("Instance Baking operation has been completed succesfully."));
+		return 0;
+	}
+	else
+	{
+		UE_LOG(LogMutable, Display, TEXT("Instance Baking operation has been completed with errors."));
+		return 1;
+	}
 }
 
 

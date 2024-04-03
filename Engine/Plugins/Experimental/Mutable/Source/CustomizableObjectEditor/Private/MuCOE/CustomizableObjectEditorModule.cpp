@@ -63,6 +63,7 @@
 #include "UObject/UObjectIterator.h"
 #include "Subsystems/PlacementSubsystem.h"
 #include "Components/SkeletalMeshComponent.h"
+#include "MuCOE/CustomizableObjectInstanceBaker.h"
 
 class AActor;
 class FString;
@@ -583,6 +584,25 @@ bool FCustomizableObjectEditorModule::IsCompilationOutOfDate(const UCustomizable
 	}
 
 	return !OutOfDatePackages->IsEmpty();	
+}
+
+
+void FCustomizableObjectEditorModule::BakeCustomizableObjectInstance(UCustomizableObjectInstance* InTargetInstance, const FBakingConfiguration& InBakingConfig)
+{
+	UCustomizableObjectInstanceBaker* InstanceBaker = NewObject<UCustomizableObjectInstanceBaker>();
+
+	// Add the heap object to the root so we prevent it from being removed. It will get removed from there once it finishes it's work.
+	InstanceBaker->AddToRoot();
+	
+	// On baker operation completed just remove it from the root so it gets eventually destroyed by the GC system
+	const TSharedPtr<FOnBakerFinishedWork> OnBakerFinishedWorkCallback = MakeShared<FOnBakerFinishedWork>();
+	OnBakerFinishedWorkCallback->BindLambda([InstanceBaker]
+	{
+		InstanceBaker->RemoveFromRoot();
+	});
+	
+	// Ask for the baking of the instance
+	InstanceBaker->BakeInstance(InTargetInstance, InBakingConfig, OnBakerFinishedWorkCallback);
 }
 
 

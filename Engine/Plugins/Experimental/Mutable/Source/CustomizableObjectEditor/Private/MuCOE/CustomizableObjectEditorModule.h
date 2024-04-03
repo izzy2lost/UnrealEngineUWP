@@ -7,12 +7,14 @@
 #include "MuCOE/CustomizableObjectEditorLogger.h"
 #include "Toolkits/AssetEditorToolkit.h"
 
+struct FBakingConfiguration;
 class USkeletalMeshComponent;
 class FPropertyEditorModule;
 class FExtensibilityManager;
 class ICustomizableObjectEditor;
 class ICustomizableObjectInstanceEditor;
 class ICustomizableObjectDebugger;
+class FBakeOperationCompletedDelegate;
 
 
 /** Get a list of packages that are used by the compilation but are not directly referenced.
@@ -35,6 +37,7 @@ public:
 	// ICustomizableObjectEditorModule interface
 	virtual FCustomizableObjectEditorLogger& GetLogger() override;
 	virtual bool IsCompilationOutOfDate(const UCustomizableObject& Object, TArray<FName>* OutOfDatePackages) const override;
+	virtual void BakeCustomizableObjectInstance(UCustomizableObjectInstance* InTargetInstance, const FBakingConfiguration& InBakingConfig) override;
 
 	virtual TSharedPtr<FExtensibilityManager> GetCustomizableObjectEditorToolBarExtensibilityManager() override { return CustomizableObjectEditor_ToolBarExtensibilityManager; }
 	virtual TSharedPtr<FExtensibilityManager> GetCustomizableObjectEditorMenuExtensibilityManager() override { return CustomizableObjectEditor_MenuExtensibilityManager; }
@@ -55,7 +58,7 @@ private:
 	FCustomizableObjectEditorLogger Logger;
 
 	// Command to look for Customizable Object Instance in the player pawn of the current world and open its Customizable Object Instance Editor
-	IConsoleCommand* LaunchCOIECommand;
+	IConsoleCommand* LaunchCOIECommand = nullptr;
 
 	FTSTicker::FDelegateHandle WarningsTickerHandle;
 	

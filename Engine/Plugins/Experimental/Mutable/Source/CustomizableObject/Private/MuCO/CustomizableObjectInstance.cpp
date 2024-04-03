@@ -42,6 +42,7 @@
 #include "RenderingThread.h"
 #include "SkeletalMergingLibrary.h"
 #include "UnrealMutableImageProvider.h"
+#include "MuCO/ICustomizableObjectEditorModule.h"
 #include "UObject/ObjectSaveContext.h"
 #include "UObject/UObjectIterator.h"
 #include "Widgets/Notifications/SNotificationList.h"
@@ -6449,6 +6450,29 @@ const TArray<uint16>& UCustomizableObjectInstance::GetRequestedLODsPerComponent(
 {
 	return Descriptor.RequestedLODLevels;
 }
+
+
+#if WITH_EDITOR
+void UCustomizableObjectInstance::Bake(const FBakingConfiguration& InBakingConfiguration)
+{
+	if (ICustomizableObjectEditorModule* Module = ICustomizableObjectEditorModule::Get())
+	{
+		Module->BakeCustomizableObjectInstance(this, InBakingConfiguration);
+	}
+	else
+	{
+		// Notify of the error
+		UE_LOG(LogMutable, Error, TEXT("The module \" ICustomizableObjectEditorModule \" could not be loaded and therefore the baking operation could not be started."));
+		if (InBakingConfiguration.OnBakeOperationCompletedCallback.IsBound())
+		{
+			FCustomizableObjectInstanceBakeOutput Output;
+			Output.bWasBakeSuccessful = false;
+			Output.SavedPackages.Empty();
+			InBakingConfiguration.OnBakeOperationCompletedCallback.Execute(Output);
+		}
+	}
+}
+#endif
 
 
 USkeletalMesh* UCustomizableObjectInstance::GetSkeletalMesh(int32 ComponentIndex) const
