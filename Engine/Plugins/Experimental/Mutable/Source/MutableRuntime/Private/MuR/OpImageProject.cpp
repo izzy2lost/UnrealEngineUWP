@@ -3055,9 +3055,9 @@ void CreateMeshOptimisedForProjection(Mesh* Result, int layout)
     Result->GetVertexBuffers().SetBufferCount( 1 );
     Result->GetIndexBuffers().SetBufferCount( 1 );
 
-    MESH_BUFFER_SEMANTIC semantics[3] =	{ MBS_TEXCOORDS,	MBS_POSITION,	MBS_NORMAL };
+    EMeshBufferSemantic semantics[3] =	{ MBS_TEXCOORDS,	MBS_POSITION,	MBS_NORMAL };
     int semanticIndices[3] =			{ 0,				0,				0 };
-    MESH_BUFFER_FORMAT formats[3] =		{ MBF_FLOAT32,		MBF_FLOAT32,	MBF_FLOAT32 };
+    EMeshBufferFormat formats[3] =		{ MBF_FLOAT32,		MBF_FLOAT32,	MBF_FLOAT32 };
     int componentCounts[3] =			{ 2,				3,				3 };
     int offsets[3] =					{ 0,				8,				20 };
     semanticIndices[0] = layout;
@@ -3067,9 +3067,9 @@ void CreateMeshOptimisedForProjection(Mesh* Result, int layout)
               formats, componentCounts,
               offsets );
 
-    MESH_BUFFER_SEMANTIC isemantics[1] =	{ MBS_VERTEXINDEX };
+    EMeshBufferSemantic isemantics[1] =	{ MBS_VERTEXINDEX };
     int isemanticIndices[1] =				{ 0 };
-    MESH_BUFFER_FORMAT iformats[1] =		{ MBF_UINT32 };
+    EMeshBufferFormat iformats[1] =		{ MBF_UINT32 };
     int icomponentCounts[1] =				{ 1 };
     int ioffsets[1] =						{ 0 };
     Result->GetIndexBuffers().SetBuffer
@@ -3086,9 +3086,9 @@ void CreateMeshOptimisedForWrappingProjection(Mesh* Result, int layout)
     Result->GetVertexBuffers().SetBufferCount( 1 );
     Result->GetIndexBuffers().SetBufferCount( 1 );
 
-    MESH_BUFFER_SEMANTIC semantics[4] =	{ MBS_TEXCOORDS,	MBS_POSITION,	MBS_NORMAL,     MBS_LAYOUTBLOCK };
+    EMeshBufferSemantic semantics[4] =	{ MBS_TEXCOORDS,	MBS_POSITION,	MBS_NORMAL,     MBS_LAYOUTBLOCK };
     int semanticIndices[4] =			{ 0,				0,				0,              0 };
-    MESH_BUFFER_FORMAT formats[4] =		{ MBF_FLOAT32,		MBF_FLOAT32,	MBF_FLOAT32,    MBF_UINT32 };
+    EMeshBufferFormat formats[4] =		{ MBF_FLOAT32,		MBF_FLOAT32,	MBF_FLOAT32,    MBF_UINT32 };
     int componentCounts[4] =			{ 2,				3,				3,              1 };
     int offsets[4] =					{ 0,				8,				20,             32 };
     semanticIndices[0] = layout;
@@ -3099,9 +3099,9 @@ void CreateMeshOptimisedForWrappingProjection(Mesh* Result, int layout)
               formats, componentCounts,
               offsets );
 
-    MESH_BUFFER_SEMANTIC isemantics[1] =	{ MBS_VERTEXINDEX };
+    EMeshBufferSemantic isemantics[1] =	{ MBS_VERTEXINDEX };
     int isemanticIndices[1] =				{ 0 };
-    MESH_BUFFER_FORMAT iformats[1] =		{ MBF_UINT32 };
+    EMeshBufferFormat iformats[1] =		{ MBF_UINT32 };
     int icomponentCounts[1] =				{ 1 };
     int ioffsets[1] =						{ 0 };
     Result->GetIndexBuffers().SetBuffer

@@ -426,7 +426,7 @@ namespace mu { namespace
         {
             for (int32 c = 0; c < MBSPriv2.m_buffers[b].m_channels.Num(); ++c)
             {
-                MESH_BUFFER_SEMANTIC Sem = MBSPriv2.m_buffers[b].m_channels[c].m_semantic;
+                EMeshBufferSemantic Sem = MBSPriv2.m_buffers[b].m_channels[c].m_semantic;
                 int32 SemIndex = MBSPriv2.m_buffers[b].m_channels[c].m_semanticIndex;
 
                 UntypedMeshBufferIteratorConst It(pBase->GetVertexBuffers(), Sem, SemIndex);
@@ -522,11 +522,11 @@ namespace mu { namespace
 		const FMeshBufferSet& MBSPriv = Base->GetVertexBuffers();
 		for (int32 b = 0; b < MBSPriv.m_buffers.Num(); ++b)
 		{
-			const TArray<mu::MESH_BUFFER_CHANNEL>& Channels = MBSPriv.m_buffers[b].m_channels;
+			const TArray<mu::FMeshBufferChannel>& Channels = MBSPriv.m_buffers[b].m_channels;
 
 			for (int32 c = 0; c < Channels.Num(); ++c)
 			{
-				MESH_BUFFER_SEMANTIC Sem = Channels[c].m_semantic;
+				EMeshBufferSemantic Sem = Channels[c].m_semantic;
 				if (Sem != MBS_TEXCOORDS)
 				{
 					continue;
@@ -642,9 +642,9 @@ namespace mu { namespace
 			Result->GetVertexBuffers().SetBufferCount(1);
 
 			// Vertex index channel
-			MESH_BUFFER_SEMANTIC Semantic = MBS_VERTEXINDEX;
+			EMeshBufferSemantic Semantic = MBS_VERTEXINDEX;
 			int32 SemanticIndex = 0;
-			MESH_BUFFER_FORMAT Format = MBF_UINT32;
+			EMeshBufferFormat Format = MBF_UINT32;
 			int32 Components = 1;
 			int32 Offsets = 0;
 

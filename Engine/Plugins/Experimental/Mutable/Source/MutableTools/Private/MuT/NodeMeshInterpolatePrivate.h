@@ -30,14 +30,14 @@ namespace mu
 				semanticIndex = 0;
 			}
 
-			CHANNEL( MESH_BUFFER_SEMANTIC asemantic,
+			CHANNEL( EMeshBufferSemantic asemantic,
                      int32_t asemanticIndex )
 			{
 				semantic = asemantic;
 				semanticIndex = asemanticIndex;
 			}
 
-			MESH_BUFFER_SEMANTIC semantic;
+			EMeshBufferSemantic semantic;
             int32_t semanticIndex;
 
 			//-------------------------------------------------------------------------------------

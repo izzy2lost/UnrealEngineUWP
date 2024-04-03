@@ -684,8 +684,8 @@ bool Mesh::HasCompatibleFormat( const Mesh* pOther ) const
         check( m_IndexBuffers.GetBufferChannelCount(0) == 1 );
         check( pOther->GetIndexBuffers().GetBufferChannelCount(0) == 1 );
 
-        const MESH_BUFFER& dest = m_IndexBuffers.m_buffers[0];
-        const MESH_BUFFER& source = pOther->GetIndexBuffers().m_buffers[0];
+        const FMeshBuffer& dest = m_IndexBuffers.m_buffers[0];
+        const FMeshBuffer& source = pOther->GetIndexBuffers().m_buffers[0];
 
         compatible &= dest.m_channels[0].m_format == source.m_channels[0].m_format;
     }
@@ -700,8 +700,8 @@ bool Mesh::HasCompatibleFormat( const Mesh* pOther ) const
     //-----------------
     for ( int vb = 0; vb<m_VertexBuffers.GetBufferCount(); ++vb )
     {
-        const MESH_BUFFER& dest = m_VertexBuffers.m_buffers[vb];
-        const MESH_BUFFER& source = pOther->GetVertexBuffers().m_buffers[vb];
+        const FMeshBuffer& dest = m_VertexBuffers.m_buffers[vb];
+        const FMeshBuffer& source = pOther->GetVertexBuffers().m_buffers[vb];
 
         // TODO: More checks about channels formats and semantics
         //compatible &= GetVertexBufferElementSize(vb) == pOther->GetVertexBufferElementSize(vb);
@@ -783,9 +783,9 @@ bool Mesh::IsSameVertex
     {
         for ( int c=0; same && c<m_VertexBuffers.GetBufferChannelCount(b); ++c )
         {
-            MESH_BUFFER_SEMANTIC semantic;
+            EMeshBufferSemantic semantic;
             int semanticIndex = 0;
-            MESH_BUFFER_FORMAT format;
+            EMeshBufferFormat format;
             int components;
             int offset = 0;
             m_VertexBuffers.GetChannel( b, c, &semantic, &semanticIndex, &format, &components, &offset );
@@ -808,9 +808,9 @@ bool Mesh::IsSameVertex
             other.m_VertexBuffers.FindChannel( semantic, semanticIndex, &otherBuffer, &otherChannel );
             check( otherBuffer>=0 && otherChannel>=0 );
 
-            MESH_BUFFER_SEMANTIC otherSemantic;
+            EMeshBufferSemantic otherSemantic;
             int otherSemanticIndex = 0;
-            MESH_BUFFER_FORMAT otherFormat;
+            EMeshBufferFormat otherFormat;
             int otherComponents;
             int otherOffset;
             other.m_VertexBuffers.GetChannel
@@ -1444,9 +1444,9 @@ void Mesh::CheckIntegrity() const
 
             for ( int c=0; c<m_IndexBuffers.GetBufferChannelCount(b); ++c )
             {
-                MESH_BUFFER_SEMANTIC semantic;
+                EMeshBufferSemantic semantic;
                 int semanticIndex = 0;
-                MESH_BUFFER_FORMAT format;
+                EMeshBufferFormat format;
                 int components;
                 int offset = 0;
                 m_IndexBuffers.GetChannel
@@ -1502,9 +1502,9 @@ void Mesh::CheckIntegrity() const
             int channelCount = m_VertexBuffers.GetBufferChannelCount( b );
             for ( int c = 0; c < channelCount; ++c )
             {
-                MESH_BUFFER_SEMANTIC semantic;
+                EMeshBufferSemantic semantic;
                 int semanticIndex = 0;
-                MESH_BUFFER_FORMAT format;
+                EMeshBufferFormat format;
                 int components;
                 int offset = 0;
                 m_VertexBuffers.GetChannel
@@ -1604,7 +1604,7 @@ static bool StaticMeshFormatIdentify_Project( const Mesh* pM )
 
     if ( res )
     {
-        const MESH_BUFFER_CHANNEL& chan =
+        const FMeshBufferChannel& chan =
                 pM->m_VertexBuffers.m_buffers[0].m_channels[0];
 
         res &= chan.m_semantic == MBS_TEXCOORDS;
@@ -1617,7 +1617,7 @@ static bool StaticMeshFormatIdentify_Project( const Mesh* pM )
 
     if ( res )
     {
-        const MESH_BUFFER_CHANNEL& chan =
+        const FMeshBufferChannel& chan =
                 pM->m_VertexBuffers.m_buffers[0].m_channels[1];
 
         res &= chan.m_semantic == MBS_POSITION;
@@ -1629,7 +1629,7 @@ static bool StaticMeshFormatIdentify_Project( const Mesh* pM )
 
     if ( res )
     {
-        const MESH_BUFFER_CHANNEL& chan =
+        const FMeshBufferChannel& chan =
                 pM->m_VertexBuffers.m_buffers[0].m_channels[2];
 
         res &= chan.m_semantic == MBS_NORMAL;
@@ -1647,7 +1647,7 @@ static bool StaticMeshFormatIdentify_Project( const Mesh* pM )
 
     if ( res )
     {
-        const MESH_BUFFER_CHANNEL& chan =
+        const FMeshBufferChannel& chan =
                 pM->m_IndexBuffers.m_buffers[0].m_channels[0];
 
         res &= chan.m_semantic == MBS_VERTEXINDEX;
@@ -1678,7 +1678,7 @@ static bool StaticMeshFormatIdentify_ProjectWrapping( const Mesh* pM )
 
     if ( res )
     {
-        const MESH_BUFFER_CHANNEL& chan = pM->m_VertexBuffers.m_buffers[0].m_channels[0];
+        const FMeshBufferChannel& chan = pM->m_VertexBuffers.m_buffers[0].m_channels[0];
 
         res &= chan.m_semantic == MBS_TEXCOORDS;
         res &= chan.m_format == MBF_FLOAT32;
@@ -1690,7 +1690,7 @@ static bool StaticMeshFormatIdentify_ProjectWrapping( const Mesh* pM )
 
     if ( res )
     {
-        const MESH_BUFFER_CHANNEL& chan = pM->m_VertexBuffers.m_buffers[0].m_channels[1];
+        const FMeshBufferChannel& chan = pM->m_VertexBuffers.m_buffers[0].m_channels[1];
 
         res &= chan.m_semantic == MBS_POSITION;
         res &= chan.m_format == MBF_FLOAT32;
@@ -1701,7 +1701,7 @@ static bool StaticMeshFormatIdentify_ProjectWrapping( const Mesh* pM )
 
     if ( res )
     {
-        const MESH_BUFFER_CHANNEL& chan = pM->m_VertexBuffers.m_buffers[0].m_channels[2];
+        const FMeshBufferChannel& chan = pM->m_VertexBuffers.m_buffers[0].m_channels[2];
 
         res &= chan.m_semantic == MBS_NORMAL;
         res &= chan.m_format == MBF_FLOAT32;
@@ -1712,7 +1712,7 @@ static bool StaticMeshFormatIdentify_ProjectWrapping( const Mesh* pM )
 
     if ( res )
     {
-        const MESH_BUFFER_CHANNEL& chan = pM->m_VertexBuffers.m_buffers[0].m_channels[3];
+        const FMeshBufferChannel& chan = pM->m_VertexBuffers.m_buffers[0].m_channels[3];
 
         res &= chan.m_semantic == MBS_LAYOUTBLOCK;
         res &= chan.m_format == MBF_UINT32;
@@ -1730,7 +1730,7 @@ static bool StaticMeshFormatIdentify_ProjectWrapping( const Mesh* pM )
 
     if ( res )
     {
-        const MESH_BUFFER_CHANNEL& chan = pM->m_IndexBuffers.m_buffers[0].m_channels[0];
+        const FMeshBufferChannel& chan = pM->m_IndexBuffers.m_buffers[0].m_channels[0];
 
         res &= chan.m_semantic == MBS_VERTEXINDEX;
         res &= chan.m_format == MBF_UINT32;
@@ -1767,13 +1767,13 @@ namespace
                 + FString::Printf(TEXT("%d"), elemCount)
                 + " elements.\n";
 
-        for( const MESH_BUFFER& buf : bufset.m_buffers )
+        for( const FMeshBuffer& buf : bufset.m_buffers )
         {
             const uint8* pData = buf.m_data.GetData();
 
             out += "    Buffer with "+ FString::Printf(TEXT("%d"), buf.m_channels.Num())
                     + " channels and "+ FString::Printf(TEXT("%d"), buf.m_elementSize)+" elementsize\n";
-            for( const MESH_BUFFER_CHANNEL& chan : buf.m_channels )
+            for( const FMeshBufferChannel& chan : buf.m_channels )
             {
                 out += "      Channel with format: "+ FString::Printf(TEXT("%d"), chan.m_format)
                         + " semantic: "+ FString::Printf(TEXT("%d"), chan.m_semantic)

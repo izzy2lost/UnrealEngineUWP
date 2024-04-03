@@ -83,7 +83,7 @@ namespace mu
 
 
 	//---------------------------------------------------------------------------------------------
-	void NodeMeshInterpolate::SetChannel( int i, MESH_BUFFER_SEMANTIC semantic, int semanticIndex )
+	void NodeMeshInterpolate::SetChannel( int i, EMeshBufferSemantic semantic, int semanticIndex )
 	{
 		check( i>=0 && i<m_pD->m_channels.Num() );
 

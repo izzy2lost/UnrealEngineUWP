@@ -11,16 +11,12 @@ namespace mu
 {
 
 	// Forward definitions
-	class NodeMeshFormat;
-	typedef Ptr<NodeMeshFormat> NodeMeshFormatPtr;
-	typedef Ptr<const NodeMeshFormat> NodeMeshFormatPtrConst;
-
 	class InputArchive;
 	class FMeshBufferSet;
 	class OutputArchive;
 
-	//! This node can change the buffer formats of a mesh vertices, indices and faces.
-	//! \ingroup model
+	/** This node can change the buffer formats of a mesh vertices, indices and faces.
+	*/
 	class MUTABLETOOLS_API NodeMeshFormat : public NodeMesh
 	{
 	public:
@@ -33,7 +29,7 @@ namespace mu
 
 		void SerialiseWrapper(OutputArchive& arch) const override;
 		static void Serialise( const NodeMeshFormat* pNode, OutputArchive& arch );
-		static NodeMeshFormatPtr StaticUnserialise( InputArchive& arch );
+		static Ptr<NodeMeshFormat> StaticUnserialise( InputArchive& arch );
 
 		//-----------------------------------------------------------------------------------------
 		// Node Interface
@@ -46,24 +42,33 @@ namespace mu
 		// Own Interface
 		//-----------------------------------------------------------------------------------------
 
-		//! Source mesh to be re-formatted
-		NodeMeshPtr GetSource() const;
+		/** Mesh to be reformatted. */
+		Ptr<NodeMesh> GetSource() const;
 		void SetSource( NodeMesh* );
 
-		//! Get and set the MeshBufferSet that defines the new format for the mesh vertices. These
-		//! buffers don't really contain any data (they have 0 elements) but they define the
-		//! structure. If this is null, the vertex buffers will not be changed.
+		/** Access the MeshBufferSet that defines the new format for the mesh vertices.These
+		* buffers don't really contain any data (they have 0 elements) but they define the
+		* structure. If this is null, the vertex buffers will not be changed.
+		*/
 		FMeshBufferSet& GetVertexBuffers();
 
-		//! Get and set the MeshBufferSet that defines the new format for the mesh indices. These
-		//! buffers don't really contain any data (they have 0 elements) but they define the
-		//! structure. If this is null, the vertex buffers will not be changed.
+		/** Access the MeshBufferSet that defines the new format for the mesh indices. These
+		* buffers don't really contain any data (they have 0 elements) but they define the
+		* structure. If this is null, the vertex buffers will not be changed.
+		*/
 		FMeshBufferSet& GetIndexBuffers();
 
-		//! Get and set the MeshBufferSet that defines the new format for the mesh faces. These
-		//! buffers don't really contain any data (they have 0 elements) but they define the
-		//! structure. If this is null, the vertex buffers will not be changed.
+		/** Access the MeshBufferSet that defines the new format for the mesh faces. These
+		* buffers don't really contain any data (they have 0 elements) but they define the
+		* structure. If this is null, the vertex buffers will not be changed.
+		*/
 		FMeshBufferSet& GetFaceBuffers();
+
+		/** Optimize the buffers is possible. This may change the target format to reduce the number
+		* of channels or even the type if possible to minimize size.
+		* By default it is disabled.
+		*/
+		void SetOptimizeBuffers(bool bEnable);
 
 		//-----------------------------------------------------------------------------------------
 		// Interface pattern

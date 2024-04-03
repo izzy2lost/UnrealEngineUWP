@@ -138,9 +138,9 @@ void SetSurfaceFormat( FMutableGraphGenerationContext& GenerationContext,
 		{
 			const int32 ElementSize = sizeof(int32);
 			constexpr int32 ChannelCount = 1;
-			const MESH_BUFFER_SEMANTIC Semantics[ChannelCount] = { MBS_OTHER };
+			const EMeshBufferSemantic Semantics[ChannelCount] = { MBS_OTHER };
 			const int32 SemanticIndices[ChannelCount] = { 0 };
-			const MESH_BUFFER_FORMAT Formats[ChannelCount] = { MBF_INT32 };
+			const EMeshBufferFormat Formats[ChannelCount] = { MBF_INT32 };
 			const int32 Components[ChannelCount] = { 1 };
 			const int32 Offsets[ChannelCount] = { 0 };
 
@@ -151,9 +151,9 @@ void SetSurfaceFormat( FMutableGraphGenerationContext& GenerationContext,
 		{
 			const int32 ElementSize = sizeof(uint16);
 			constexpr int32 ChannelCount = 1;
-			const MESH_BUFFER_SEMANTIC Semantics[ChannelCount] = { MBS_OTHER };
+			const EMeshBufferSemantic Semantics[ChannelCount] = { MBS_OTHER };
 			const int32 SemanticIndices[ChannelCount] = { 1 };
-			const MESH_BUFFER_FORMAT Formats[ChannelCount] = { MBF_UINT16 };
+			const EMeshBufferFormat Formats[ChannelCount] = { MBF_UINT16 };
 			const int32 Components[ChannelCount] = { 1 };
 			const int32 Offsets[ChannelCount] = { 0 };
 
@@ -164,9 +164,9 @@ void SetSurfaceFormat( FMutableGraphGenerationContext& GenerationContext,
 		{
 			const int32 ElementSize = sizeof(uint16);
 			constexpr int32 ChannelCount = 1;
-			const MESH_BUFFER_SEMANTIC Semantics[ChannelCount] = { MBS_OTHER };
+			const EMeshBufferSemantic Semantics[ChannelCount] = { MBS_OTHER };
 			const int32 SemanticIndices[ChannelCount] = { 2 };
-			const MESH_BUFFER_FORMAT Formats[ChannelCount] = { MBF_UINT16 };
+			const EMeshBufferFormat Formats[ChannelCount] = { MBF_UINT16 };
 			const int32 Components[ChannelCount] = { 1 };
 			const int32 Offsets[ChannelCount] = { 0 };
 
@@ -181,9 +181,9 @@ void SetSurfaceFormat( FMutableGraphGenerationContext& GenerationContext,
 		using namespace mu;
 		const int32 ElementSize = sizeof(int32);
 		constexpr int32 ChannelCount = 1;
-		const MESH_BUFFER_SEMANTIC Semantics[ChannelCount] = { MBS_OTHER };
+		const EMeshBufferSemantic Semantics[ChannelCount] = { MBS_OTHER };
 		const int32 SemanticIndices[ChannelCount] = { bWithRealTimeMorphs ? 3 : 0 };
-		const MESH_BUFFER_FORMAT Formats[ChannelCount] = { MBF_INT32 };
+		const EMeshBufferFormat Formats[ChannelCount] = { MBF_INT32 };
 		const int32 Components[ChannelCount] = { 1 };
 		const int32 Offsets[ChannelCount] = { 0 };
 
@@ -367,7 +367,7 @@ mu::NodeSurfacePtr GenerateMutableSourceSurface(const UEdGraphPin * Pin, FMutabl
 			{
 				SurfNode->SetMeshCount(1);
 
-				mu::NodeMeshFormatPtr MeshFormatNode = new mu::NodeMeshFormat();
+				mu::Ptr<mu::NodeMeshFormat> MeshFormatNode = new mu::NodeMeshFormat();
 				MeshFormatNode->SetSource(MeshNode.get());
 				SetSurfaceFormat( GenerationContext,
 						MeshFormatNode->GetVertexBuffers(), MeshFormatNode->GetIndexBuffers(), MeshData,
@@ -375,6 +375,10 @@ mu::NodeSurfacePtr GenerateMutableSourceSurface(const UEdGraphPin * Pin, FMutabl
 						GenerationContext.Options.bRealTimeMorphTargetsEnabled, 
 						GenerationContext.Options.bClothingEnabled,
 						GenerationContext.Options.b16BitBoneWeightsEnabled);
+
+				// \TODO: Make it an option?
+				MeshFormatNode->SetOptimizeBuffers(true);
+
 				MeshFormatNode->SetMessageContext(Node);
 
 				SurfNode->SetMesh(0, MeshFormatNode);
@@ -1119,7 +1123,7 @@ mu::NodeSurfacePtr GenerateMutableSourceSurface(const UEdGraphPin * Pin, FMutabl
 					GenerationContext.Compiler->CompilerLog(LOCTEXT("ExtendMaterialLayoutMissing","Skeletal Mesh without Layout Node linked to an Extend Material. A 4x4 layout will be added as default layout."), Node);
 				}
 
-				mu::NodeMeshFormatPtr MeshFormat = new mu::NodeMeshFormat();
+				mu::Ptr<mu::NodeMeshFormat> MeshFormat = new mu::NodeMeshFormat();
 				SetSurfaceFormat( GenerationContext,
 						MeshFormat->GetVertexBuffers(), MeshFormat->GetIndexBuffers(), MeshData,
 						GenerationContext.Options.CustomizableObjectNumBoneInfluences,

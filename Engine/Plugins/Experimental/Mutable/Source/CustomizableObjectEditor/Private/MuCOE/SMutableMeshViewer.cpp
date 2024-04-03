@@ -613,8 +613,8 @@ void SMutableMeshViewer::FillTargetBufferSetDataArray(const mu::FMeshBufferSet& 
 		{
 			TSharedPtr<FBufferChannelElement> NewChannelDefinition = MakeShareable(new FBufferChannelElement());
 
-			mu::MESH_BUFFER_SEMANTIC BufferChannelSemantic = mu::MESH_BUFFER_SEMANTIC::MBS_NONE;
-			mu::MESH_BUFFER_FORMAT BufferFormat = mu::MESH_BUFFER_FORMAT::MBF_NONE;
+			mu::EMeshBufferSemantic BufferChannelSemantic = mu::EMeshBufferSemantic::MBS_NONE;
+			mu::EMeshBufferFormat BufferFormat = mu::EMeshBufferFormat::MBF_NONE;
 			int32 BufferComponentCount = 0;
 			int32 SemanticIndex = -1;
 

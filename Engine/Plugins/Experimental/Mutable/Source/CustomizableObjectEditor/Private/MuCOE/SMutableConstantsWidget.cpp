@@ -1171,7 +1171,15 @@ void SMutableConstantsWidget::LoadConstantMeshes()
 		ConstantMeshElement->MeshPtr = MutableProgramPtr->ConstantMeshes[MeshIndex].Value;
 		ConstantMeshElement->IndexOnSourceVector = MeshIndex;
 		
-		ConstantMeshesAccumulatedSize += ConstantMeshElement->MeshPtr->GetDataSize();
+		uint64 ThisMeshSize = ConstantMeshElement->MeshPtr->GetDataSize();
+
+		// Actual core disk size would be:
+		//mu::OutputMemoryStream Stream;
+		//mu::OutputArchive Archive{ &Stream };
+		//ConstantMeshElement->MeshPtr->Serialise(Archive);
+		//uint64 OtherSize = Stream.GetBufferSize();
+
+		ConstantMeshesAccumulatedSize += ThisMeshSize;
 		
 		ConstantMeshElements.Add(ConstantMeshElement);
 	}

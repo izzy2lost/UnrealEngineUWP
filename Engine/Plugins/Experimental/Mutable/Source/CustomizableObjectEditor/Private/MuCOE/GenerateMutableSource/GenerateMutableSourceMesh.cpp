@@ -866,9 +866,9 @@ mu::MeshPtr ConvertSkeletalMeshToMutable(const USkeletalMesh* InSkeletalMesh, co
 		using namespace mu;
 		const int ElementSize = sizeof(FSoftSkinVertex);
 		const int ChannelCount = 9;
-		const MESH_BUFFER_SEMANTIC Semantics[ChannelCount] = { MBS_POSITION, MBS_TANGENT, MBS_BINORMAL, MBS_NORMAL, MBS_TEXCOORDS, MBS_TEXCOORDS, MBS_TEXCOORDS, MBS_TEXCOORDS, MBS_COLOUR };
+		const EMeshBufferSemantic Semantics[ChannelCount] = { MBS_POSITION, MBS_TANGENT, MBS_BINORMAL, MBS_NORMAL, MBS_TEXCOORDS, MBS_TEXCOORDS, MBS_TEXCOORDS, MBS_TEXCOORDS, MBS_COLOUR };
 		const int SemanticIndices[ChannelCount] = { 0, 0, 0, 0, 0, 1, 2, 3, 0 };
-		const MESH_BUFFER_FORMAT Formats[ChannelCount] = { MBF_FLOAT32, MBF_FLOAT32, MBF_FLOAT32, MBF_FLOAT32, MBF_FLOAT32, MBF_FLOAT32, MBF_FLOAT32, MBF_FLOAT32, MBF_NUINT8 };
+		const EMeshBufferFormat Formats[ChannelCount] = { MBF_FLOAT32, MBF_FLOAT32, MBF_FLOAT32, MBF_FLOAT32, MBF_FLOAT32, MBF_FLOAT32, MBF_FLOAT32, MBF_FLOAT32, MBF_NUINT8 };
 		int Components[ChannelCount] = { 3, 3, 3, 4, 2, 2, 2, 2, 4 };
 
 		constexpr size_t SoftSkinVertexUVsElemSize = sizeof(TDecay<decltype(DeclVal<FSoftSkinVertex>().UVs[0])>::Type);
@@ -893,12 +893,12 @@ mu::MeshPtr ConvertSkeletalMeshToMutable(const USkeletalMesh* InSkeletalMesh, co
 		using namespace mu;
 		const int ElementSize = sizeof(FSoftSkinVertex);
 		const int ChannelCount = 11;
-		const MESH_BUFFER_SEMANTIC Semantics[ChannelCount] = { MBS_POSITION, MBS_TANGENT, MBS_BINORMAL, MBS_NORMAL, MBS_TEXCOORDS, MBS_TEXCOORDS, MBS_TEXCOORDS, MBS_TEXCOORDS, MBS_COLOUR, MBS_BONEINDICES, MBS_BONEWEIGHTS };
+		const EMeshBufferSemantic Semantics[ChannelCount] = { MBS_POSITION, MBS_TANGENT, MBS_BINORMAL, MBS_NORMAL, MBS_TEXCOORDS, MBS_TEXCOORDS, MBS_TEXCOORDS, MBS_TEXCOORDS, MBS_COLOUR, MBS_BONEINDICES, MBS_BONEWEIGHTS };
 		const int SemanticIndices[ChannelCount] = { 0, 0, 0, 0, 0, 1, 2, 3, 0, 0, 0 };
 
 		// TODO: Remove BoneWeightFormat after merge
-		MESH_BUFFER_FORMAT BoneWeightFormat = sizeof(TDecay<decltype(DeclVal<FSoftSkinVertex>().InfluenceWeights[0])>::Type) == 1 ? MBF_NUINT8 : MBF_NUINT16;
-		const MESH_BUFFER_FORMAT Formats[ChannelCount] = { MBF_FLOAT32, MBF_FLOAT32, MBF_FLOAT32, MBF_FLOAT32, MBF_FLOAT32, MBF_FLOAT32, MBF_FLOAT32, MBF_FLOAT32, MBF_NUINT8, MBF_UINT16, BoneWeightFormat };
+		EMeshBufferFormat BoneWeightFormat = sizeof(TDecay<decltype(DeclVal<FSoftSkinVertex>().InfluenceWeights[0])>::Type) == 1 ? MBF_NUINT8 : MBF_NUINT16;
+		const EMeshBufferFormat Formats[ChannelCount] = { MBF_FLOAT32, MBF_FLOAT32, MBF_FLOAT32, MBF_FLOAT32, MBF_FLOAT32, MBF_FLOAT32, MBF_FLOAT32, MBF_FLOAT32, MBF_NUINT8, MBF_UINT16, BoneWeightFormat };
 
 		int Components[ChannelCount] = { 3, 3, 3, 4, 2, 2, 2, 2, 4, 4, 4 };
 		if (GenerationContext.Options.CustomizableObjectNumBoneInfluences != ECustomizableObjectNumBoneInfluences::Four && 
@@ -1122,9 +1122,9 @@ mu::MeshPtr ConvertSkeletalMeshToMutable(const USkeletalMesh* InSkeletalMesh, co
 			using namespace mu;
 			const int32 ElementSize = sizeof(int32);
 			const int32 ChannelCount = 1;
-			const MESH_BUFFER_SEMANTIC Semantics[ChannelCount] = { MBS_OTHER };
+			const EMeshBufferSemantic Semantics[ChannelCount] = { MBS_OTHER };
 			const int32 SemanticIndices[ChannelCount] = { 0 };
-			const MESH_BUFFER_FORMAT Formats[ChannelCount] = { MBF_INT32 };
+			const EMeshBufferFormat Formats[ChannelCount] = { MBF_INT32 };
 			int32 Components[ChannelCount] = { 1 };
 			const int32 Offsets[ChannelCount] = { 0 };
 
@@ -1136,9 +1136,9 @@ mu::MeshPtr ConvertSkeletalMeshToMutable(const USkeletalMesh* InSkeletalMesh, co
 			using namespace mu;
 			const int32 ElementSize = sizeof(uint16);
 			const int32 ChannelCount = 1;
-			const MESH_BUFFER_SEMANTIC Semantics[ChannelCount] = { MBS_OTHER };
+			const EMeshBufferSemantic Semantics[ChannelCount] = { MBS_OTHER };
 			const int32 SemanticIndices[ChannelCount] = { 1 };
-			const MESH_BUFFER_FORMAT Formats[ChannelCount] = { MBF_UINT16 };
+			const EMeshBufferFormat Formats[ChannelCount] = { MBF_UINT16 };
 			int32 Components[ChannelCount] = { 1 };
 			const int32 Offsets[ChannelCount] = { 0 };
 
@@ -1150,9 +1150,9 @@ mu::MeshPtr ConvertSkeletalMeshToMutable(const USkeletalMesh* InSkeletalMesh, co
 			using namespace mu;
 			const int32 ElementSize = sizeof(uint16);
 			const int32 ChannelCount = 1;
-			const MESH_BUFFER_SEMANTIC Semantics[ChannelCount] = { MBS_OTHER };
+			const EMeshBufferSemantic Semantics[ChannelCount] = { MBS_OTHER };
 			const int32 SemanticIndices[ChannelCount] = { 2 };
-			const MESH_BUFFER_FORMAT Formats[ChannelCount] = { MBF_UINT16 };
+			const EMeshBufferFormat Formats[ChannelCount] = { MBF_UINT16 };
 			int32 Components[ChannelCount] = { 1 };
 			const int32 Offsets[ChannelCount] = { 0 };
 
@@ -1269,9 +1269,9 @@ mu::MeshPtr ConvertSkeletalMeshToMutable(const USkeletalMesh* InSkeletalMesh, co
 			using namespace mu;
 			const int32 ElementSize = sizeof(int32);
 			const int32 ChannelCount = 1;
-			const MESH_BUFFER_SEMANTIC Semantics[ChannelCount] = { MBS_OTHER };
+			const EMeshBufferSemantic Semantics[ChannelCount] = { MBS_OTHER };
 			const int32 SemanticIndices[ChannelCount] = { GenerationContext.Options.bRealTimeMorphTargetsEnabled ? 3 : 0 };
-			const MESH_BUFFER_FORMAT Formats[ChannelCount] = { MBF_INT32 };
+			const EMeshBufferFormat Formats[ChannelCount] = { MBF_INT32 };
 			int32 Components[ChannelCount] = { 1 };
 			const int32 Offsets[ChannelCount] = { 0 };
 
@@ -1411,7 +1411,7 @@ mu::MeshPtr ConvertSkeletalMeshToMutable(const USkeletalMesh* InSkeletalMesh, co
 
 		// TODO: Remove BoneWeightFormat after merge
 		const int32 BoneWeightTypeSizeBytes = sizeof(TDecay<decltype(DeclVal<FRawSkinWeight>().InfluenceWeights[0])>::Type);
-		MESH_BUFFER_FORMAT BoneWeightFormat = BoneWeightTypeSizeBytes == 1 ? MBF_NUINT8 : MBF_NUINT16;
+		EMeshBufferFormat BoneWeightFormat = BoneWeightTypeSizeBytes == 1 ? MBF_NUINT8 : MBF_NUINT16;
 
 		// Limit skinning weights if necessary
 		const int32 MutableBonesPerVertex = bUseUnlimitedInfluences ?
@@ -1496,9 +1496,9 @@ mu::MeshPtr ConvertSkeletalMeshToMutable(const USkeletalMesh* InSkeletalMesh, co
 			// Set up SkinWeightPRofile BufferData
 			const int32 ElementSize = sizeof(int32) + sizeof(FBoneIndexType) + BoneWeightTypeSizeBytes;
 			const int32 ChannelCount = 3;
-			const MESH_BUFFER_SEMANTIC Semantics[ChannelCount] = { MBS_OTHER, MBS_BONEINDICES, MBS_BONEWEIGHTS };
+			const EMeshBufferSemantic Semantics[ChannelCount] = { MBS_OTHER, MBS_BONEINDICES, MBS_BONEWEIGHTS };
 			const int32 SemanticIndices[ChannelCount] = { ProfileSemanticIndex, ProfileSemanticIndex, ProfileSemanticIndex };
-			const MESH_BUFFER_FORMAT Formats[ChannelCount] = { MBF_INT32, MBF_UINT16, BoneWeightFormat };
+			const EMeshBufferFormat Formats[ChannelCount] = { MBF_INT32, MBF_UINT16, BoneWeightFormat };
 			const int32 Components[ChannelCount] = { 1, MutableBonesPerVertex, MutableBonesPerVertex };
 			const int32 Offsets[ChannelCount] = { 0, sizeof(int32), sizeof(int32) + BoneIndicesSize };
 
@@ -1524,12 +1524,12 @@ mu::MeshPtr ConvertSkeletalMeshToMutable(const USkeletalMesh* InSkeletalMesh, co
 
 		const int32 FinalElementSize = sizeof(uint32_t);
 		const int32 ChannelCount = 1;
-		const MESH_BUFFER_SEMANTIC Semantics[ChannelCount] = { MBS_VERTEXINDEX };
+		const EMeshBufferSemantic Semantics[ChannelCount] = { MBS_VERTEXINDEX };
 		const int32 SemanticIndices[ChannelCount] = { 0 };
 		// We force 32 bit indices, since merging meshes may create vertex buffers bigger than the initial mesh
 		// and for now the mutable runtime doesn't handle it.
 		// \TODO: go back to 16-bit indices when possible.
-		MESH_BUFFER_FORMAT Formats[ChannelCount] = { MBF_UINT32 };
+		EMeshBufferFormat Formats[ChannelCount] = { MBF_UINT32 };
 		const int32 Components[ChannelCount] = { 1 };
 		const int32 Offsets[ChannelCount] = { 0 };
 
@@ -1840,9 +1840,9 @@ mu::MeshPtr ConvertStaticMeshToMutable(const UStaticMesh* StaticMesh, int32 LODI
 
 			const int ElementSize = 12;
 			const int ChannelCount = 1;
-			const MESH_BUFFER_SEMANTIC Semantics[ChannelCount] = { MBS_POSITION };
+			const EMeshBufferSemantic Semantics[ChannelCount] = { MBS_POSITION };
 			const int SemanticIndices[ChannelCount] = { 0 };
-			const MESH_BUFFER_FORMAT Formats[ChannelCount] = { MBF_FLOAT32 };
+			const EMeshBufferFormat Formats[ChannelCount] = { MBF_FLOAT32 };
 			const int Components[ChannelCount] = { 3 };
 			const int Offsets[ChannelCount] = { 0 };
 
@@ -1857,9 +1857,9 @@ mu::MeshPtr ConvertStaticMeshToMutable(const UStaticMesh* StaticMesh, int32 LODI
 		{
 			const FStaticMeshVertexBuffer& VertexBuffer = StaticMesh->GetRenderData()->LODResources[LODIndex].VertexBuffers.StaticMeshVertexBuffer;
 
-			MESH_BUFFER_SEMANTIC Semantics[2];
+			EMeshBufferSemantic Semantics[2];
 			int SemanticIndices[2];
-			MESH_BUFFER_FORMAT Formats[2];
+			EMeshBufferFormat Formats[2];
 			int Components[2];
 			int Offsets[2];
 
@@ -1899,9 +1899,9 @@ mu::MeshPtr ConvertStaticMeshToMutable(const UStaticMesh* StaticMesh, int32 LODI
 			int texChannels = VertexBuffer.GetNumTexCoords();
 			int ChannelCount = texChannels;
 
-			MESH_BUFFER_SEMANTIC* Semantics = new MESH_BUFFER_SEMANTIC[ChannelCount];
+			EMeshBufferSemantic* Semantics = new EMeshBufferSemantic[ChannelCount];
 			int* SemanticIndices = new int[ChannelCount];
-			MESH_BUFFER_FORMAT* Formats = new MESH_BUFFER_FORMAT[ChannelCount];
+			EMeshBufferFormat* Formats = new EMeshBufferFormat[ChannelCount];
 			int* Components = new int[ChannelCount];
 			int* Offsets = new int[ChannelCount];
 
@@ -1909,7 +1909,7 @@ mu::MeshPtr ConvertStaticMeshToMutable(const UStaticMesh* StaticMesh, int32 LODI
 			int currentOffset = 0;
 
 			int texChannelSize;
-			MESH_BUFFER_FORMAT texChannelFormat;
+			EMeshBufferFormat texChannelFormat;
 			if (VertexBuffer.GetUseFullPrecisionUVs())
 			{
 				texChannelSize = 2 * 4;
@@ -1959,9 +1959,9 @@ mu::MeshPtr ConvertStaticMeshToMutable(const UStaticMesh* StaticMesh, int32 LODI
 		using namespace mu;
 		const int ElementSize = 2;
 		const int ChannelCount = 1;
-		const MESH_BUFFER_SEMANTIC Semantics[ChannelCount] = { MBS_VERTEXINDEX };
+		const EMeshBufferSemantic Semantics[ChannelCount] = { MBS_VERTEXINDEX };
 		const int SemanticIndices[ChannelCount] = { 0 };
-		MESH_BUFFER_FORMAT Formats[ChannelCount] = { MBF_UINT16 };
+		EMeshBufferFormat Formats[ChannelCount] = { MBF_UINT16 };
 		const int Components[ChannelCount] = { 1 };
 		const int Offsets[ChannelCount] = { 0 };
 

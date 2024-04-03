@@ -2,42 +2,41 @@
 
 #pragma once
 
-#include "MuR/Mesh.h"
-
+#include "MuR/Platform.h"
 
 namespace mu
 {
-class FMeshBufferSet;
+	class Mesh;
+	class FMeshBufferSet;
 
-	//---------------------------------------------------------------------------------------------
-	//! Convert a mesh format into another one.
-	//! Slow implementation, but it should never happen at run-time
-	//! \param keepSystemBuffers Will keep the internal system buffers even if they are not in the
-	//! original format. If they are, they will be duplicated, so be careful.
-	//---------------------------------------------------------------------------------------------
+	/** Convert a mesh format into another one.
+	* Slow implementation, but it should never happen at run-time
+	* \param keepSystemBuffers Will keep the internal system buffers even if they are not in the
+	* original format. If they are, they will be duplicated, so be careful.
+	*/
 	MUTABLERUNTIME_API extern void MeshFormat
 		(
 			Mesh* Result,
-			const Mesh* pSource,
-			const Mesh* pFormat,
-			bool keepSystemBuffers,
-			bool formatVertices,
-			bool formatIndices,
-			bool formatFaces,
-			bool ignoreMissingChannels,
+			const Mesh* Source,
+			const Mesh* Format,
+			bool bKeepSystemBuffers,
+			bool bFormatVertices,
+			bool bFormatIndices,
+			bool bFormatFaces,
+			bool bIgnoreMissingChannels,
 			bool& bOutSuccess
 		);
 
 
-    //---------------------------------------------------------------------------------------------
-    //! Fill a meshbuffer from result with the current data in source but keeping the format
-    //! already in the result.
-    //---------------------------------------------------------------------------------------------
+    /** Fill a mesh buffer from result with the current data in source but keeping the format already in the result. */
     void MeshFormatBuffer
         (
-            const FMeshBufferSet& pSource,
-            FMeshBufferSet& pResult,
-            int bufferIndex
+            const FMeshBufferSet& Source,
+            FMeshBufferSet& Result,
+            int32 BufferIndex
         );
+
+	/** Try to reduce the mesh size by reducing the component count, and data type of some buffers. */
+	void MeshOptimizeBuffers( Mesh* );
 
 }

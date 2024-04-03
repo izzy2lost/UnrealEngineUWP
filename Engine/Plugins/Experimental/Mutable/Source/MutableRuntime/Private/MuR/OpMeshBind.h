@@ -137,8 +137,8 @@ namespace mu
 	{
 		constexpr static int ElementSize = sizeof(FReshapeVertexBindingData);
 		constexpr static int Channels = 4;
-		constexpr static MESH_BUFFER_SEMANTIC Semantics[Channels] = { MBS_BARYCENTRICCOORDS, MBS_DISTANCE, MBS_TRIANGLEINDEX, MBS_OTHER };
-		constexpr static MESH_BUFFER_FORMAT Formats[Channels] = { MBF_FLOAT32, MBF_FLOAT32, MBF_INT32, MBF_FLOAT32 };
+		constexpr static EMeshBufferSemantic Semantics[Channels] = { MBS_BARYCENTRICCOORDS, MBS_DISTANCE, MBS_TRIANGLEINDEX, MBS_OTHER };
+		constexpr static EMeshBufferFormat Formats[Channels] = { MBF_FLOAT32, MBF_FLOAT32, MBF_INT32, MBF_FLOAT32 };
 		constexpr static int Components[Channels] = { 2, 1, 1, 3+3+1 };
 		constexpr static int Offsets[Channels] = { 0, 8, 12, 16 };
 
@@ -164,8 +164,8 @@ namespace mu
 	{
 		constexpr static int ElementSize = sizeof(FReshapeVertexBindingData);
 		constexpr static int Channels = 4;
-		constexpr static MESH_BUFFER_SEMANTIC Semantics[Channels] = { MBS_BARYCENTRICCOORDS, MBS_DISTANCE, MBS_TRIANGLEINDEX, MBS_OTHER };
-		constexpr static MESH_BUFFER_FORMAT Formats[Channels] = { MBF_FLOAT32, MBF_FLOAT32, MBF_INT32, MBF_FLOAT32 };
+		constexpr static EMeshBufferSemantic Semantics[Channels] = { MBS_BARYCENTRICCOORDS, MBS_DISTANCE, MBS_TRIANGLEINDEX, MBS_OTHER };
+		constexpr static EMeshBufferFormat Formats[Channels] = { MBF_FLOAT32, MBF_FLOAT32, MBF_INT32, MBF_FLOAT32 };
 		constexpr static int Components[Channels] = { 2, 1, 1, 1 };
 		constexpr static int Offsets[Channels] = { 0, 8, 12, 16 };
 
@@ -181,8 +181,8 @@ namespace mu
 	{
 		constexpr static int ElementSize = sizeof(int32);
 		constexpr static int Channels = 1;
-		constexpr static MESH_BUFFER_SEMANTIC Semantics[Channels] = { MBS_OTHER };
-		constexpr static MESH_BUFFER_FORMAT Formats[Channels] = { MBF_INT32 };
+		constexpr static EMeshBufferSemantic Semantics[Channels] = { MBS_OTHER };
+		constexpr static EMeshBufferFormat Formats[Channels] = { MBF_INT32 };
 		constexpr static int Components[Channels] = { 1 };
 		constexpr static int Offsets[Channels] = { 0 };
 		constexpr static int SemanticIndices[Channels] = { 0 };
@@ -211,8 +211,8 @@ namespace mu
 	struct FClipDeformVertexBindingDataBufferDescriptor
 	{
 		constexpr static int Channels = 3;
-		constexpr static MESH_BUFFER_SEMANTIC Semantics[Channels] = { MBS_BARYCENTRICCOORDS, MBS_TRIANGLEINDEX, MBS_OTHER };
-		constexpr static MESH_BUFFER_FORMAT Formats[Channels] = { MBF_FLOAT32, MBF_INT32, MBF_FLOAT32 };
+		constexpr static EMeshBufferSemantic Semantics[Channels] = { MBS_BARYCENTRICCOORDS, MBS_TRIANGLEINDEX, MBS_OTHER };
+		constexpr static EMeshBufferFormat Formats[Channels] = { MBF_FLOAT32, MBF_INT32, MBF_FLOAT32 };
 		constexpr static int Components[Channels] = { 2, 1, 1 };
 		constexpr static int Offsets[Channels] = { 0, 8, 12 };
 
@@ -1140,8 +1140,8 @@ namespace mu
 			SkeletonBuffer.SetBuffer(0, sizeof(FReshapePointBindingData), BufDesc.Channels, BufDesc.Semantics, BufDesc.SemanticIndices, BufDesc.Formats, BufDesc.Components);
 
 			// Bone indices buffer
-			MESH_BUFFER_SEMANTIC BoneSemantics[1] = { MBS_OTHER };
-			MESH_BUFFER_FORMAT BoneFormats[1] = { MBF_INT32 };
+			EMeshBufferSemantic BoneSemantics[1] = { MBS_OTHER };
+			EMeshBufferFormat BoneFormats[1] = { MBF_INT32 };
 			int BoneSemanticIndices[1] = { 0 };
 			int BoneComponents[1] = { 1 };
 			int BoneOffsets[1] = { 0 };

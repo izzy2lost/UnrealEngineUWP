@@ -677,7 +677,7 @@ namespace mu
             bool used = false;
             for (int c=0; !used && c<pMesh->GetVertexBuffers().GetBufferChannelCount(v); ++c)
             {
-                MESH_BUFFER_SEMANTIC semantic;
+                EMeshBufferSemantic semantic;
                 pMesh->GetVertexBuffers().GetChannel(v,c,&semantic,
                                                       nullptr, nullptr, nullptr, nullptr);
                 used = (( (UINT64_C(1)<<semantic) ) & usedSemantics) != 0;
@@ -685,7 +685,7 @@ namespace mu
 
             if (!used)
             {
-                TArray<MESH_BUFFER>& buffers = pMesh->GetVertexBuffers().m_buffers;
+                TArray<FMeshBuffer>& buffers = pMesh->GetVertexBuffers().m_buffers;
                 buffers.RemoveAt(v);
             }
             else

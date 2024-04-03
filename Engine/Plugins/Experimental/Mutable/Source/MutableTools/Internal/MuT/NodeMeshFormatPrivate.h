@@ -4,8 +4,6 @@
 
 #include "MuT/NodeMeshPrivate.h"
 #include "MuT/NodeMeshFormat.h"
-#include "MuT/AST.h"
-
 
 namespace mu
 {
@@ -18,46 +16,54 @@ namespace mu
 		static FNodeType s_type;
 
 		//! Source mesh to transform
-		NodeMeshPtr m_pSource;
+		Ptr<NodeMesh> Source;
 
-		//! New mesh format. The buffers in the sets have no elements, but they define the formats.
-		//! If they are null it means that they are left with the original format.
-		FMeshBufferSet m_VertexBuffers;
-		FMeshBufferSet m_IndexBuffers;
-		FMeshBufferSet m_FaceBuffers;
+		/** New mesh format.The buffers in the sets have no elements, but they define the formats. */
+		FMeshBufferSet VertexBuffers;
+		FMeshBufferSet IndexBuffers;
+		FMeshBufferSet FaceBuffers;
+		
+		/** */
+		bool bOptimizeBuffers = false;
 
 		//!
 		void Serialise( OutputArchive& arch ) const
 		{
-            uint32_t ver = 4;
+            uint32 ver = 5;
 			arch << ver;
 
-			arch << m_pSource;
-			arch << m_VertexBuffers;
-			arch << m_IndexBuffers;
-			arch << m_FaceBuffers;
+			arch << Source;
+			arch << VertexBuffers;
+			arch << IndexBuffers;
+			arch << FaceBuffers;
+			arch << bOptimizeBuffers;
 		}
 
 		//!
 		void Unserialise( InputArchive& arch )
 		{
-            uint32_t ver;
+            uint32 ver;
 			arch >> ver;
-            check(ver>=3 && ver<=4);
+            check(ver>=3 && ver<=5);
 
-			arch >> m_pSource;
-			arch >> m_VertexBuffers;
-			arch >> m_IndexBuffers;
-			arch >> m_FaceBuffers;
+			arch >> Source;
+			arch >> VertexBuffers;
+			arch >> IndexBuffers;
+			arch >> FaceBuffers;
 			if (ver == 3)
 			{
 				bool bDummy;
 				arch >> bDummy;
 			}
+
+			if (ver >= 5)
+			{
+				arch >> bOptimizeBuffers;
+			}
 		}
 
 		// NodeMesh::Private interface
-        NodeLayoutPtr GetLayout( int index ) const override;
+        Ptr<NodeLayout> GetLayout( int32 index ) const override;
 	};
 
 

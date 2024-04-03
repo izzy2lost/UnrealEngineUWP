@@ -63,13 +63,13 @@ namespace mu
 			const UntypedMeshBufferIterator& BaseTangentIter = BaseTangentFrameIters[1];
 			const UntypedMeshBufferIterator& BaseBiNormalIter = BaseTangentFrameIters[0];
 
-            const MESH_BUFFER_FORMAT NormalFormat = BaseNormalIter.GetFormat();
+            const EMeshBufferFormat NormalFormat = BaseNormalIter.GetFormat();
             const int32 NormalComps = BaseNormalIter.GetComponents();
 
-            const MESH_BUFFER_FORMAT TangentFormat = BaseTangentIter.GetFormat();
+            const EMeshBufferFormat TangentFormat = BaseTangentIter.GetFormat();
             const int32 TangentComps = BaseTangentIter.GetComponents();
 
-            const MESH_BUFFER_FORMAT BiNormalFormat = BaseBiNormalIter.GetFormat();
+            const EMeshBufferFormat BiNormalFormat = BaseBiNormalIter.GetFormat();
             const int32 BiNormalComps = BaseBiNormalIter.GetComponents();
 
 			// When normal is packed, binormal channel is not expected. It is not a big deal if it's there but we would be doing extra unused work in that case. 
@@ -189,7 +189,7 @@ namespace mu
                     UntypedMeshBufferIterator ChannelBaseIter = BaseChannelsIters[ChannelIndex] + VertexIndex;
 					UntypedMeshBufferIteratorConst ChannelMorphIter = MorphChannelsIters[ChannelIndex] + MorphIndex;
                    
-                    const MESH_BUFFER_FORMAT DestChannelFormat = BaseChannelsIters[ChannelIndex].GetFormat();
+                    const EMeshBufferFormat DestChannelFormat = BaseChannelsIters[ChannelIndex].GetFormat();
                     const int32 DestChannelComps = BaseChannelsIters[ChannelIndex].GetComponents();
 
                     // Apply Morph to range found above.
@@ -245,7 +245,7 @@ namespace mu
 			for (int32 ChannelIndex = 1; ChannelIndex < ChannelsNum; ++ChannelIndex)
 			{
 				const FMeshBufferSet& MBSPriv = RefTarget->GetVertexBuffers();
-				MESH_BUFFER_SEMANTIC Sem = MBSPriv.m_buffers[0].m_channels[ChannelIndex].m_semantic;
+				EMeshBufferSemantic Sem = MBSPriv.m_buffers[0].m_channels[ChannelIndex].m_semantic;
 				int32 SemIndex = MBSPriv.m_buffers[0].m_channels[ChannelIndex].m_semanticIndex;
 			
 				if (Sem == MBS_NORMAL && bBaseHasNormals)

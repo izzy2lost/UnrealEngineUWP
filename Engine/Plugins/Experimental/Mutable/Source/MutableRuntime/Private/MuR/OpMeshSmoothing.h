@@ -563,7 +563,7 @@ namespace mu
 		}
 
 		// Copy positions to the collapsed vertices.
-		const SIZE_T PositionElemSize = GetMeshFormatData(DstPositionBegin.GetFormat()).m_size * DstPositionBegin.GetComponents(); 
+		const SIZE_T PositionElemSize = GetMeshFormatData(DstPositionBegin.GetFormat()).SizeInBytes * DstPositionBegin.GetComponents();
 		for (int32 VertexIndex = 0; VertexIndex < NumVertices; ++VertexIndex)
 		{
 			const int32 MappedIndex = UniqueVertexMap[VertexIndex];  

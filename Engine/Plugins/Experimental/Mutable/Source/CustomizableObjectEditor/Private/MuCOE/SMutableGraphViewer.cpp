@@ -540,7 +540,7 @@ void SMutableGraphViewer::GetChildrenForInfo(TSharedPtr<FMutableGraphTreeElement
 	{
 		mu::NodeMeshFormat* MeshFormatVar = StaticCast<mu::NodeMeshFormat*>(ParentNode);
 		mu::NodeMeshFormat::Private* Private = MeshFormatVar->GetPrivate();
-		AddChildFunc(Private->m_pSource.get(), FString::Printf(TEXT("SOURCE MESH")));
+		AddChildFunc(Private->Source.get(), FString::Printf(TEXT("SOURCE MESH")));
 	}
 
 	else if (ParentNode->GetType() == mu::NodePatchImage::GetStaticType())

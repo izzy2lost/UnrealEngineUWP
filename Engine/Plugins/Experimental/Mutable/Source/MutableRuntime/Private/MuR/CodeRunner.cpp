@@ -1096,7 +1096,7 @@ namespace mu
                 Ptr<const Mesh> pBase = LoadMesh(FCacheAddress(BaseAt,item));
                 Ptr<const Mesh> pTarget = LoadMesh(FCacheAddress(TargetAt,item));
 
-				TArray<MESH_BUFFER_SEMANTIC, TInlineAllocator<8>> Semantics;
+				TArray<EMeshBufferSemantic, TInlineAllocator<8>> Semantics;
 				TArray<int32, TInlineAllocator<8>> SemanticIndices;
 
 				uint8 bIgnoreTextureCoords = 0;
@@ -1117,7 +1117,7 @@ namespace mu
 					FMemory::Memcpy(&SemanticIndex, data, sizeof(uint8)); 
 					data += sizeof(uint8);
 
-					Semantics.Add(MESH_BUFFER_SEMANTIC(Semantic));
+					Semantics.Add(EMeshBufferSemantic(Semantic));
 					SemanticIndices.Add(SemanticIndex);
                 }
 
@@ -1791,20 +1791,20 @@ namespace mu
             	MUTABLE_CPUPROFILER_SCOPE(ME_FORMAT_1)
             		
                 Ptr<const Mesh> Source = LoadMesh(FCacheAddress(args.source,item));
-                Ptr<const Mesh> pFormat = LoadMesh(FCacheAddress(args.format,item));
+                Ptr<const Mesh> Format = LoadMesh(FCacheAddress(args.format,item));
 
 				if (Source)
 				{
-					uint8 flags = args.buffers;
-					if (!pFormat && !(flags & OP::MeshFormatArgs::BT_RESETBUFFERINDICES))
+					uint8 Flags = args.Flags;
+					if (!Format && !(Flags & OP::MeshFormatArgs::ResetBufferIndices))
 					{
 						StoreMesh(item, Source);
 					}
-					else if (!pFormat)
+					else if (!Format)
 					{
 						Ptr<Mesh> Result = CloneOrTakeOver(Source);
 
-						if (flags & OP::MeshFormatArgs::BT_RESETBUFFERINDICES)
+						if (Flags & OP::MeshFormatArgs::ResetBufferIndices)
 						{
 							Result->ResetBufferIndices();
 						}
@@ -1816,29 +1816,35 @@ namespace mu
 						Ptr<Mesh> Result = CreateMesh();
 
 						bool bOutSuccess = false;
-						MeshFormat(Result.get(), Source.get(), pFormat.get(),
+						MeshFormat(Result.get(), Source.get(), Format.get(),
 							true,
-							(flags & OP::MeshFormatArgs::BT_VERTEX) != 0,
-							(flags & OP::MeshFormatArgs::BT_INDEX) != 0,
-							(flags & OP::MeshFormatArgs::BT_FACE) != 0,
-							(flags & OP::MeshFormatArgs::BT_IGNORE_MISSING) != 0,
+							(Flags & OP::MeshFormatArgs::Vertex) != 0,
+							(Flags & OP::MeshFormatArgs::Index) != 0,
+							(Flags & OP::MeshFormatArgs::Face) != 0,
+							(Flags & OP::MeshFormatArgs::IgnoreMissing) != 0,
 							bOutSuccess);
 
 						check(bOutSuccess);
 
-						if (flags & OP::MeshFormatArgs::BT_RESETBUFFERINDICES)
+						if (Flags & OP::MeshFormatArgs::ResetBufferIndices)
 						{
 							Result->ResetBufferIndices();
 						}
 
+						if (Flags & OP::MeshFormatArgs::OptimizeBuffers)
+						{
+							MUTABLE_CPUPROFILER_SCOPE(MeshOptimizeBuffers)
+							MeshOptimizeBuffers(Result.get());
+						}
+
 						Release(Source);
-						Release(pFormat);
+						Release(Format);
 						StoreMesh(item, Result);
 					}
 				}
 				else
 				{
-					Release(pFormat);
+					Release(Format);
 					StoreMesh(item, nullptr);
 				}
                 break;

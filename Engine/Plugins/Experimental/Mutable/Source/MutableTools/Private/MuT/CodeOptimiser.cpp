@@ -678,7 +678,7 @@ namespace mu
 						const ASTOpImageRasterMesh* Raster = static_cast<const ASTOpImageRasterMesh*>(SubgraphRoot.get());
 						// If this operation is only rastering the mesh UVs, reduce it to constant. Otherwise avoid reducing it
 						// for the case of a constant projector of a large set of possible images. We don't want to generate all the
-						// projected version of the images beforehand. TODO: Make it a comptile-time option?
+						// projected version of the images beforehand. TODO: Make it a compile-time option?
 						bHasSpecialOpInSubgraph = Raster->image.child().get() != nullptr;
 						break;
 					}

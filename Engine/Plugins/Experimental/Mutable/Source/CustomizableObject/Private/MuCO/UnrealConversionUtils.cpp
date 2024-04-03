@@ -88,41 +88,73 @@ namespace UnrealConversionUtils
 			const void* InMutableData,
 			const uint32 MutableDataSize)
 		{
-			FSkinWeightDataVertexBuffer* VertexBuffer = OutVertexWeightBuffer.GetDataVertexBuffer();
-			VertexBuffer->SetMaxBoneInfluences(NumBoneInfluences);
-			VertexBuffer->Init(NumBones, NumVertices);
-
-			bool bIsVariableBonesPerVertex = OutVertexWeightBuffer.GetDataVertexBuffer()->GetVariableBonesPerVertex();
-			check(!FGPUBaseSkinVertexFactory::UseUnlimitedBoneInfluences(NumBoneInfluences) || bIsVariableBonesPerVertex);
-
 			OutVertexWeightBuffer.SetNeedsCPUAccess(bNeedCPUAccess);
 
-			if (NumVertices)
+			FSkinWeightDataVertexBuffer* VertexBuffer = OutVertexWeightBuffer.GetDataVertexBuffer();
+			VertexBuffer->SetMaxBoneInfluences(NumBoneInfluences);
+
+			if (!NumVertices)
 			{
-				void* Data = VertexBuffer->GetWeightData();
+				return;
+			}
 
-				uint32 OutVertexWeightBufferSize = OutVertexWeightBuffer.GetDataVertexBuffer()->GetVertexDataSize();
+			int32 MaxBoneInfluences = VertexBuffer->GetMaxBoneInfluences();
+			if (MaxBoneInfluences == NumBoneInfluences)
+			{
+				VertexBuffer->Init(NumBones, NumVertices);
+				uint32 OutVertexWeightBufferSize = VertexBuffer->GetVertexDataSize();
 				ensure(MutableDataSize == OutVertexWeightBufferSize);
-
+				void* Data = VertexBuffer->GetWeightData();
 				FMemory::Memcpy(Data, InMutableData, OutVertexWeightBufferSize);
+			}
+			else
+			{
+				// We need to expand it with blank data interleaved
+				uint32 MutableVertexDataSize = MutableDataSize / NumVertices;
+				uint32 FinalVertexDataSize = ( MutableDataSize / NumBones) * MaxBoneInfluences;
+				VertexBuffer->Init(NumVertices*MaxBoneInfluences, NumVertices);
+				uint32 OutVertexWeightBufferSize = VertexBuffer->GetVertexDataSize();
+				ensure(FinalVertexDataSize*NumVertices == OutVertexWeightBufferSize);
 
-				if (bIsVariableBonesPerVertex)
+				int32 BoneIndexSize = OutVertexWeightBuffer.GetBoneIndexByteSize();
+				int32 WeightSize = OutVertexWeightBuffer.GetBoneWeightByteSize();
+
+				const uint8* MutableData = reinterpret_cast<const uint8*>(InMutableData);
+				uint8* Data = VertexBuffer->GetWeightData();
+				FMemory::Memzero(Data, OutVertexWeightBufferSize);
+				for (int32 V=0; V<NumVertices; ++V)
 				{
-					OutVertexWeightBuffer.RebuildLookupVertexBuffer();
+					// Bone indices
+					FMemory::Memcpy(Data, MutableData, NumBoneInfluences*BoneIndexSize);
+					MutableData += NumBoneInfluences * BoneIndexSize;
+					Data += MaxBoneInfluences * BoneIndexSize;
 
-					{
-						MUTABLE_CPUPROFILER_SCOPE(OptimizeVertexAndLookupBuffers);
-
-						// Everything in this scope is optional and makes extra copies, but will optimize the variable bone
-						// influences buffers. Without it, the vertices are assumed to have a constant NumBoneInfluences per vertex.
-						TArray<FSkinWeightInfo> TempVertices;
-						OutVertexWeightBuffer.GetSkinWeights(TempVertices);
-
-						// The assignment operator actually optimizes the DataVertexBuffer
-						OutVertexWeightBuffer = TempVertices;
-					}
+					// Weights
+					FMemory::Memcpy(Data, MutableData, NumBoneInfluences * WeightSize);
+					MutableData += NumBoneInfluences * WeightSize;
+					Data += MaxBoneInfluences * WeightSize;
 				}
 			}
+
+			bool bIsVariableBonesPerVertex = VertexBuffer->GetVariableBonesPerVertex();
+			check(!FGPUBaseSkinVertexFactory::UseUnlimitedBoneInfluences(NumBoneInfluences) || bIsVariableBonesPerVertex);
+			if (bIsVariableBonesPerVertex)
+			{
+				OutVertexWeightBuffer.RebuildLookupVertexBuffer();
+
+				{
+					MUTABLE_CPUPROFILER_SCOPE(OptimizeVertexAndLookupBuffers);
+
+					// Everything in this scope is optional and makes extra copies, but will optimize the variable bone
+					// influences buffers. Without it, the vertices are assumed to have a constant NumBoneInfluences per vertex.
+					TArray<FSkinWeightInfo> TempVertices;
+					OutVertexWeightBuffer.GetSkinWeights(TempVertices);
+
+					// The assignment operator actually optimizes the DataVertexBuffer
+					OutVertexWeightBuffer = TempVertices;
+				}
+			}
+	
 		}
 	}
 
@@ -218,7 +250,7 @@ namespace UnrealConversionUtils
 			MutableMeshVertexBuffers.GetBufferData(MUTABLE_VERTEXBUFFER_TEXCOORDS)
 		);
 
-		mu::MESH_BUFFER_FORMAT BoneIndexFormat = mu::MBF_NONE;
+		mu::EMeshBufferFormat BoneIndexFormat = mu::MBF_NONE;
 		int32 NumBoneInfluences = 0;
 		int32 BoneIndexBuffer = -1;
 		int32 BoneIndexChannel = -1;
@@ -229,7 +261,7 @@ namespace UnrealConversionUtils
 				nullptr, nullptr, &BoneIndexFormat, &NumBoneInfluences, nullptr);
 		}
 
-		mu::MESH_BUFFER_FORMAT BoneWeightFormat = mu::MBF_NONE;
+		mu::EMeshBufferFormat BoneWeightFormat = mu::MBF_NONE;
 		int32 BoneWeightBuffer = -1;
 		int32 BoneWeightChannel = -1;
 		MutableMeshVertexBuffers.FindChannel(mu::MBS_BONEWEIGHTS, 0, &BoneWeightBuffer, &BoneWeightChannel);
@@ -265,8 +297,8 @@ namespace UnrealConversionUtils
 		{
 			if (MutableMeshVertexBuffers.GetBufferChannelCount(Buffer) > 0)
 			{
-				mu::MESH_BUFFER_SEMANTIC Semantic;
-				mu::MESH_BUFFER_FORMAT Format;
+				mu::EMeshBufferSemantic Semantic;
+				mu::EMeshBufferFormat Format;
 				int32 SemanticIndex;
 				int32 ComponentCount;
 				int32 Offset;
@@ -312,7 +344,7 @@ namespace UnrealConversionUtils
 			MutableMeshVertexBuffers.GetBufferData(MUTABLE_VERTEXBUFFER_TEXCOORDS)
 		);
 
-		mu::MESH_BUFFER_FORMAT BoneIndexFormat = mu::MBF_NONE;
+		mu::EMeshBufferFormat BoneIndexFormat = mu::MBF_NONE;
 		int32 NumBoneInfluences = 0;
 		int32 BoneIndexBuffer = -1;
 		int32 BoneIndexChannel = -1;
@@ -323,7 +355,7 @@ namespace UnrealConversionUtils
 				nullptr, nullptr, &BoneIndexFormat, &NumBoneInfluences, nullptr);
 		}
 
-		mu::MESH_BUFFER_FORMAT BoneWeightFormat = mu::MBF_NONE;
+		mu::EMeshBufferFormat BoneWeightFormat = mu::MBF_NONE;
 		int32 BoneWeightBuffer = -1;
 		int32 BoneWeightChannel = -1;
 		MutableMeshVertexBuffers.FindChannel(mu::MBS_BONEWEIGHTS, 0, &BoneWeightBuffer, &BoneWeightChannel);
@@ -359,8 +391,8 @@ namespace UnrealConversionUtils
 		{
 			if (MutableMeshVertexBuffers.GetBufferChannelCount(Buffer) > 0)
 			{
-				mu::MESH_BUFFER_SEMANTIC Semantic;
-				mu::MESH_BUFFER_FORMAT Format;
+				mu::EMeshBufferSemantic Semantic;
+				mu::EMeshBufferFormat Format;
 				int32 SemanticIndex;
 				int32 ComponentCount;
 				int32 Offset;
@@ -466,7 +498,7 @@ namespace UnrealConversionUtils
 		const int32 BoneIndexSize = b16BitBoneIndices ? 2 : 1;
 
 		// BoneWeights channel info
-		mu::MESH_BUFFER_FORMAT Format;
+		mu::EMeshBufferFormat Format;
 		int32 MutableNumInfluences;
 		int32 Offset;
 		MutableMeshVertexBuffers.GetChannel(BoneIndexBuffer, 2, nullptr, nullptr, &Format, &MutableNumInfluences, &Offset);

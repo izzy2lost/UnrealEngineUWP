@@ -17,8 +17,8 @@ namespace mu
 	inline void ConvertData
 		(
 			int channel,
-			void* pResult, MESH_BUFFER_FORMAT resultFormat,
-			const void* pSource, MESH_BUFFER_FORMAT sourceFormat
+			void* pResult, EMeshBufferFormat resultFormat,
+			const void* pSource, EMeshBufferFormat sourceFormat
 		)
 	{
 		switch ( resultFormat )

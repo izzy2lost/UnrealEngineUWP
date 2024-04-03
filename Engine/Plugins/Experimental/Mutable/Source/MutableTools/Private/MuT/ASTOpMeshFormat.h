@@ -18,7 +18,8 @@ namespace mu
 
 		ASTChild Source;
 		ASTChild Format;
-		uint8_t Buffers = 0;
+		uint8 Flags = 0;
+		bool bOptimizeBuffers = false;
 
 	public:
 

@@ -12,9 +12,9 @@ void MutableMeshBufferUtils::SetupVertexPositionsBuffer(const int32& InCurrentVe
 	using namespace mu;
 	const int32 ElementSize = sizeof(FPositionVertex);
 	constexpr int32 ChannelCount = 1;
-	const MESH_BUFFER_SEMANTIC Semantics[ChannelCount] = {MBS_POSITION};
+	const EMeshBufferSemantic Semantics[ChannelCount] = {MBS_POSITION};
 	const int32 SemanticIndices[ChannelCount] = {0};
-	const MESH_BUFFER_FORMAT Formats[ChannelCount] = {MBF_FLOAT32};
+	const EMeshBufferFormat Formats[ChannelCount] = {MBF_FLOAT32};
 	const int32 Components[ChannelCount] = {3};
 	const int32 Offsets[ChannelCount] =
 	{
@@ -36,9 +36,9 @@ void MutableMeshBufferUtils::SetupTangentBuffer(const int32& InCurrentVertexBuff
 	using namespace mu;
 	const int32 ElementSize = sizeof(TangentType);
 	constexpr int32 ChannelCount = 2;
-	const MESH_BUFFER_SEMANTIC Semantics[ChannelCount] = {MBS_TANGENT, MBS_NORMAL};
+	const EMeshBufferSemantic Semantics[ChannelCount] = {MBS_TANGENT, MBS_NORMAL};
 	const int32 SemanticIndices[ChannelCount] = {0, 0};
-	const MESH_BUFFER_FORMAT Formats[ChannelCount] = {MBF_PACKEDDIRS8, MBF_PACKEDDIRS8_W_TANGENTSIGN};
+	const EMeshBufferFormat Formats[ChannelCount] = {MBF_PACKEDDIRS8, MBF_PACKEDDIRS8_W_TANGENTSIGN};
 	const int32 Components[ChannelCount] = {4, 4};
 	const int32 Offsets[ChannelCount] =
 	{
@@ -61,10 +61,10 @@ void MutableMeshBufferUtils::SetupTexCoordinatesBuffer(const int32& InCurrentVer
 	using namespace mu;
 	const int32 ElementSize = sizeof(UVType) * InChannelCount;
 	constexpr int32 MaxChannelCount = MaxTexCordChannelCount;
-	const MESH_BUFFER_SEMANTIC Semantics[MaxChannelCount] = {
+	const EMeshBufferSemantic Semantics[MaxChannelCount] = {
 		MBS_TEXCOORDS, MBS_TEXCOORDS, MBS_TEXCOORDS, MBS_TEXCOORDS
 	};
-	const MESH_BUFFER_FORMAT Formats[MaxChannelCount] = {MBF_FLOAT32, MBF_FLOAT32, MBF_FLOAT32, MBF_FLOAT32};
+	const EMeshBufferFormat Formats[MaxChannelCount] = {MBF_FLOAT32, MBF_FLOAT32, MBF_FLOAT32, MBF_FLOAT32};
 	const int32 Components[MaxChannelCount] = {2, 2, 2, 2};
 	const int32 Offsets[MaxChannelCount] =
 	{
@@ -97,10 +97,10 @@ void MutableMeshBufferUtils::SetupSkinBuffer(const int32& InCurrentVertexBuffer,
 	using namespace mu;
 	const int32 ElementSize = (MaxBoneWeightTypeSizeBytes + MaxBoneIndexTypeSizeBytes) * MaxNumBonesPerVertex;
 	constexpr int32 ChannelCount = 2;
-	const MESH_BUFFER_SEMANTIC Semantics[ChannelCount] = {MBS_BONEINDICES, MBS_BONEWEIGHTS};
+	const EMeshBufferSemantic Semantics[ChannelCount] = {MBS_BONEINDICES, MBS_BONEWEIGHTS};
 	const int32 SemanticIndices[ChannelCount] = {0, 0};
 
-	MESH_BUFFER_FORMAT Formats[ChannelCount] = {MBF_UINT8, MBF_NUINT8};
+	EMeshBufferFormat Formats[ChannelCount] = {MBF_UINT8, MBF_NUINT8};
 	switch (MaxBoneIndexTypeSizeBytes)
 	{
 	case 0: // Fallback to something in this case.
@@ -151,9 +151,9 @@ void MutableMeshBufferUtils::SetupVertexColorBuffer(const int32& InCurrentVertex
 	using namespace mu;
 	const int32 ElementSize = sizeof(FColor);
 	constexpr int32 ChannelCount = 1;
-	const MESH_BUFFER_SEMANTIC Semantics[ChannelCount] = {MBS_COLOUR};
+	const EMeshBufferSemantic Semantics[ChannelCount] = {MBS_COLOUR};
 	const int32 SemanticIndices[ChannelCount] = {0};
-	const MESH_BUFFER_FORMAT Formats[ChannelCount] = {MBF_NUINT8};
+	const EMeshBufferFormat Formats[ChannelCount] = {MBF_NUINT8};
 	const int32 Components[ChannelCount] = {4};
 	const int32 Offsets[ChannelCount] = {0};
 	check(ElementSize == 4);
@@ -171,12 +171,12 @@ void MutableMeshBufferUtils::SetupIndexBuffer(mu::FMeshBufferSet& OutTargetIndex
 	const int32 ElementSize = sizeof(uint32);
 	//SkeletalMesh->GetImportedResource()->LODModels[LOD].MultiSizeIndexContainer.GetDataTypeSize();
 	constexpr int32 ChannelCount = 1;
-	const MESH_BUFFER_SEMANTIC Semantics[ChannelCount] = {MBS_VERTEXINDEX};
+	const EMeshBufferSemantic Semantics[ChannelCount] = {MBS_VERTEXINDEX};
 	const int32 SemanticIndices[ChannelCount] = {0};
 	// We force 32 bit indices, since merging meshes may create vertex buffers bigger than the initial mesh
 	// and for now the mutable runtime doesn't handle it.
 	// \TODO: go back to 16-bit indices when possible.
-	MESH_BUFFER_FORMAT Formats[ChannelCount] = {MBF_UINT32};
+	EMeshBufferFormat Formats[ChannelCount] = {MBF_UINT32};
 	const int32 Components[ChannelCount] = {1};
 	const int32 Offsets[ChannelCount] = {0};
 
@@ -195,10 +195,10 @@ void MutableMeshBufferUtils::SetupSkinWeightProfileBuffer(const int32& InCurrent
 	using namespace mu;
 	const int32 ElementSize = sizeof(int32) + (MaxBoneIndexTypeSizeBytes + 1) * MaxNumBonesPerVertex;
 	constexpr int32 ChannelCount = 3;
-	const MESH_BUFFER_SEMANTIC Semantics[ChannelCount] = { MBS_OTHER, MBS_BONEINDICES, MBS_BONEWEIGHTS };
+	const EMeshBufferSemantic Semantics[ChannelCount] = { MBS_OTHER, MBS_BONEINDICES, MBS_BONEWEIGHTS };
 	const int32 SemanticIndices[ChannelCount] = { SemanticsIndex, SemanticsIndex, SemanticsIndex };
 
-	MESH_BUFFER_FORMAT Formats[ChannelCount] = { MBF_INT32, MBF_UINT8, MBF_NUINT8 };
+	EMeshBufferFormat Formats[ChannelCount] = { MBF_INT32, MBF_UINT8, MBF_NUINT8 };
 	switch (MaxBoneIndexTypeSizeBytes)
 	{
 	case 1: Formats[1] = mu::MBF_UINT8;

@@ -295,9 +295,9 @@ namespace mu
 
 			// TODO
 			check(Layout->GetBlockCount() < MAX_uint16);
-			const MESH_BUFFER_SEMANTIC semantic = MBS_LAYOUTBLOCK;
+			const EMeshBufferSemantic semantic = MBS_LAYOUTBLOCK;
 			const int32 semanticIndex = int32(currentLayoutChannel);
-			const MESH_BUFFER_FORMAT format = MBF_UINT16;
+			const EMeshBufferFormat format = MBF_UINT16;
 			const int32 components = 1;
 			const int32 offset = 0;
 			currentLayoutMesh->GetVertexBuffers().SetBuffer
@@ -390,9 +390,9 @@ namespace mu
 		check(buffer >= 0);
 		check(channel >= 0);
 
-		MESH_BUFFER_SEMANTIC semantic;
+		EMeshBufferSemantic semantic;
 		int semanticIndex;
-		MESH_BUFFER_FORMAT format;
+		EMeshBufferFormat format;
 		int components;
 		int offset;
 		currentLayoutMesh->GetVertexBuffers().GetChannel
@@ -1420,9 +1420,9 @@ namespace mu
 				{
 					int newBuffer = pCloned->GetVertexBuffers().GetBufferCount();
 					pCloned->GetVertexBuffers().SetBufferCount(newBuffer + 1);
-					MESH_BUFFER_SEMANTIC semantic = MBS_VERTEXINDEX;
+					EMeshBufferSemantic semantic = MBS_VERTEXINDEX;
 					int semanticIndex = 0;
-					MESH_BUFFER_FORMAT format = MBF_UINT32;
+					EMeshBufferFormat format = MBF_UINT32;
 					int components = 1;
 					int offset = 0;
 					pCloned->GetVertexBuffers().SetBuffer
@@ -1475,42 +1475,47 @@ namespace mu
     {
         NodeMeshFormat::Private& node = *format->GetPrivate();
 
-        if ( node.m_pSource )
+        if ( node.Source )
         {
 			FMeshGenerationOptions Options = InOptions;
 
 			FMeshGenerationResult baseResult;
-			GenerateMesh(Options,baseResult, node.m_pSource);
+			GenerateMesh(Options,baseResult, node.Source);
             Ptr<ASTOpMeshFormat> op = new ASTOpMeshFormat();
             op->Source = baseResult.meshOp;
-            op->Buffers = 0;
+            op->Flags = 0;
 
-            MeshPtr pFormatMesh = new Mesh();
+            Ptr<Mesh> FormatMesh = new Mesh();
 
-            if (node.m_VertexBuffers.GetBufferCount())
+            if (node.VertexBuffers.GetBufferCount())
             {
-                op->Buffers |= OP::MeshFormatArgs::BT_VERTEX;
-                pFormatMesh->m_VertexBuffers = node.m_VertexBuffers;
+                op->Flags |= OP::MeshFormatArgs::Vertex;
+                FormatMesh->m_VertexBuffers = node.VertexBuffers;
             }
 
-            if (node.m_IndexBuffers.GetBufferCount())
+            if (node.IndexBuffers.GetBufferCount())
             {
-				op->Buffers |= OP::MeshFormatArgs::BT_INDEX;
-                pFormatMesh->m_IndexBuffers = node.m_IndexBuffers;
+				op->Flags |= OP::MeshFormatArgs::Index;
+                FormatMesh->m_IndexBuffers = node.IndexBuffers;
             }
 
-            if (node.m_FaceBuffers.GetBufferCount())
+            if (node.FaceBuffers.GetBufferCount())
             {
-                op->Buffers |= OP::MeshFormatArgs::BT_FACE;
-                pFormatMesh->m_FaceBuffers = node.m_FaceBuffers;
+                op->Flags |= OP::MeshFormatArgs::Face;
+                FormatMesh->m_FaceBuffers = node.FaceBuffers;
             }
+
+			if (node.bOptimizeBuffers)
+			{
+				op->Flags |= OP::MeshFormatArgs::OptimizeBuffers;
+			}
 
             Ptr<ASTOpConstantResource> cop = new ASTOpConstantResource();
             cop->Type = OP_TYPE::ME_CONSTANT;
-            cop->SetValue( pFormatMesh, m_compilerOptions->OptimisationOptions.DiskCacheContext );
+            cop->SetValue( FormatMesh, m_compilerOptions->OptimisationOptions.DiskCacheContext );
             op->Format = cop;
 
-            m_constantMeshes.Add(pFormatMesh);
+            m_constantMeshes.Add(FormatMesh);
 
             OutResult.meshOp = op;
             OutResult.baseMeshOp = baseResult.baseMeshOp;

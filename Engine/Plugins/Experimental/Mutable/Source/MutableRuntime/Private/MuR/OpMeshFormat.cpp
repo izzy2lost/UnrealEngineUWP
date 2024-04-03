@@ -17,141 +17,12 @@
 #include "MuR/MutableTrace.h"
 #include "MuR/Ptr.h"
 #include "MuR/RefCounted.h"
+#include "MuR/MutableRuntimeModule.h"
 
 #include "GPUSkinPublicDefs.h"
 
-
 namespace mu
 {
-
-	namespace
-	{
-
-#define MUTABLE_VERTEX_MERGE_TEX_RANGE          1024
-#define MUTABLE_TANGENT_GENERATION_EPSILON_1    0.000001f
-#define MUTABLE_TANGENT_GENERATION_EPSILON_2    0.001f
-#define MUTABLE_TANGENT_MIN_AXIS_DIFFERENCE     0.999f
-
-		//struct TVertex
-		//{
-
-		//	TVertex() = default;
-
-		//	TVertex(const FVector3f& p, const FVector3f& n, const FVector2f& t)
-		//	{
-		//		pos = p;
-		//		nor = n;
-		//		tex = t;
-		//	}
-
-		//	FVector3f pos;
-		//	FVector3f nor;
-		//	FVector2f tex;
-
-		//	inline bool operator< (const TVertex& other) const
-		//	{
-		//		if (pos < other.pos)
-		//			return true;
-		//		if (other.pos < pos)
-		//			return false;
-
-		//		if (nor < other.nor)
-		//			return true;
-		//		if (other.nor < nor)
-		//			return false;
-
-		//		// Compare the texture coordinates with a particular precission.
-		//		FIntVector2 uv0 = FIntVector2(int32(tex[0] * MUTABLE_VERTEX_MERGE_TEX_RANGE),
-		//			int32(tex[1] * MUTABLE_VERTEX_MERGE_TEX_RANGE));
-		//		FIntVector2 uv1 = FIntVector2(int32(other.tex[0] * MUTABLE_VERTEX_MERGE_TEX_RANGE),
-		//			int32(other.tex[1] * MUTABLE_VERTEX_MERGE_TEX_RANGE));
-
-		//		if (uv0 < uv1)
-		//			return true;
-		//		if (uv1 < uv0)
-		//			return false;
-
-		//		return false;
-		//	}
-
-		//	inline bool operator== (const TVertex& other) const
-		//	{
-		//		return  !((*this) < other)
-		//			&&
-		//			!(other < (*this));
-		//	}
-		//};
-
-
-		//struct TFace
-		//{
-		//	FVector3f T;
-		//	FVector3f B;
-		//	FVector3f N;
-
-		//	TFace()
-		//		: T(0, 0, 0)
-		//		, B(0, 0, 0)
-		//		, N(0, 0, 0)
-		//	{}
-
-		//	TFace
-		//	(
-		//		const FVector3f& v1,
-		//		const FVector3f& v2,
-		//		const FVector3f& v3,
-		//		const FVector2f& w1,
-		//		const FVector2f& w2,
-		//		const FVector2f& w3
-		//	)
-		//	{
-		//		FVector3f E1 = v2 - v1;
-		//		FVector3f E2 = v3 - v1;
-
-		//		FVector2f UV1 = w2 - w1;
-		//		FVector2f UV2 = w3 - w1;
-
-		//		float  UVdet = UV1[0] * UV2[1] - UV2[0] * UV1[1];
-
-		//		N = FVector3f::CrossProduct(E1, E2);
-		//		N.Normalize();
-
-		//		if (!(fabs(UVdet) <= MUTABLE_TANGENT_GENERATION_EPSILON_1))
-		//		{
-		//			double r = 1.0 / UVdet;
-
-		//			T = FVector3f
-		//				(
-		//					(UV2[1] * E1[0] - UV1[1] * E2[0]),
-		//					(UV2[1] * E1[1] - UV1[1] * E2[1]),
-		//					(UV2[1] * E1[2] - UV1[1] * E2[2])
-		//					);
-
-		//			B = FVector3f
-		//				(
-		//					(UV1[0] * E2[0] - UV2[0] * E1[0]),
-		//					(UV1[0] * E2[1] - UV2[0] * E1[1]),
-		//					(UV1[0] * E2[2] - UV2[0] * E1[2])
-		//					);
-
-		//			T = T * float(r);
-		//			B = B * float(r);
-
-		//			T.Normalize();
-		//			B.Normalize();
-		//		}
-		//		else
-		//		{
-		//			T = FVector3f(0, 0, 0);
-		//			B = FVector3f(0, 0, 0);
-		//			N = FVector3f(0, 0, 0);
-		//		}
-		//	}
-
-		//};
-
-	}
-
 
 	//-------------------------------------------------------------------------------------------------
 	void MeshFormatBuffer
@@ -169,9 +40,9 @@ namespace mu
 			for (int c = 0; c < Result.GetBufferChannelCount(b); ++c)
 			{
 				// Find this channel in the source mesh
-				MESH_BUFFER_SEMANTIC resultSemantic;
+				EMeshBufferSemantic resultSemantic;
 				int resultSemanticIndex;
-				MESH_BUFFER_FORMAT resultFormat;
+				EMeshBufferFormat resultFormat;
 				int resultComponents;
 				int resultOffset;
 				Result.GetChannel
@@ -188,7 +59,7 @@ namespace mu
 				(resultSemantic, resultSemanticIndex, &sourceBuffer, &sourceChannel);
 
 				int resultElemSize = Result.GetElementSize(b);
-				int resultChannelSize = GetMeshFormatData(resultFormat).m_size * resultComponents;
+				int resultChannelSize = GetMeshFormatData(resultFormat).SizeInBytes * resultComponents;
 				uint8_t* pResultBuf = Result.GetBufferData(b);
 				pResultBuf += resultOffset;
 
@@ -269,9 +140,9 @@ namespace mu
 				else
 				{
 					// Get the data about the source format
-					MESH_BUFFER_SEMANTIC sourceSemantic;
+					EMeshBufferSemantic sourceSemantic;
 					int sourceSemanticIndex;
-					MESH_BUFFER_FORMAT sourceFormat;
+					EMeshBufferFormat sourceFormat;
 					int sourceComponents;
 					int sourceOffset;
 					Source.GetChannel
@@ -371,8 +242,8 @@ namespace mu
 									// Add zeros. TODO: Warning?
 									FMemory::Memzero
 									(
-										pResultBuf + GetMeshFormatData(resultFormat).m_size * i,
-										GetMeshFormatData(resultFormat).m_size
+										pResultBuf + GetMeshFormatData(resultFormat).SizeInBytes * i,
+										GetMeshFormatData(resultFormat).SizeInBytes
 									);
 								}
 							}
@@ -432,9 +303,9 @@ namespace mu
 			// offsets.
 			for (int b = 0; b < Result.GetBufferCount(); ++b)
 			{
-				TArray<MESH_BUFFER_SEMANTIC> resultSemantics;
+				TArray<EMeshBufferSemantic> resultSemantics;
 				TArray<int> resultSemanticIndexs;
-				TArray<MESH_BUFFER_FORMAT> resultFormats;
+				TArray<EMeshBufferFormat> resultFormats;
 				TArray<int> resultComponentss;
 				TArray<int> resultOffsets;
 				int offset = 0;
@@ -442,9 +313,9 @@ namespace mu
 				// For every channel in this buffer
 				for (int c = 0; c < Result.GetBufferChannelCount(b); ++c)
 				{
-					MESH_BUFFER_SEMANTIC resultSemantic;
+					EMeshBufferSemantic resultSemantic;
 					int resultSemanticIndex;
-					MESH_BUFFER_FORMAT resultFormat;
+					EMeshBufferFormat resultFormat;
 					int resultComponents;
 
 					// Find this channel in the source mesh
@@ -469,7 +340,7 @@ namespace mu
 						resultComponentss.Add(resultComponents);
 						resultOffsets.Add(offset);
 
-						offset += GetMeshFormatData(resultFormat).m_size * resultComponents;
+						offset += GetMeshFormatData(resultFormat).SizeInBytes * resultComponents;
 					}
 				}
 
@@ -491,7 +362,7 @@ namespace mu
 
 
 		// For every vertex buffer in result
-		int vCount = Source.GetElementCount();
+		int32 vCount = Source.GetElementCount();
 		Result.SetElementCount(vCount);
 		for (int b = 0; b < Result.GetBufferCount(); ++b)
 		{
@@ -507,9 +378,9 @@ namespace mu
 				// Detect system buffers and clone them unmodified.
 				if (Source.GetBufferChannelCount(b) > 0)
 				{
-					MESH_BUFFER_SEMANTIC sourceSemantic;
+					EMeshBufferSemantic sourceSemantic;
 					int sourceSemanticIndex;
-					MESH_BUFFER_FORMAT sourceFormat;
+					EMeshBufferFormat sourceFormat;
 					int sourceComponents;
 					int sourceOffset;
 					Source.GetChannel
@@ -580,7 +451,7 @@ namespace mu
 				const int32 ChannelCount = VertexBuffers.GetBufferChannelCount(BufferIndex);
 				for (int32 ChannelIndex = 0; ChannelIndex < ChannelCount; ++ChannelIndex)
 				{
-					const MESH_BUFFER_CHANNEL& Channel = VertexBuffers.m_buffers[BufferIndex].m_channels[ChannelIndex];
+					const FMeshBufferChannel& Channel = VertexBuffers.m_buffers[BufferIndex].m_channels[ChannelIndex];
 
 					if (Channel.m_semantic == MBS_BONEINDICES)
 					{
@@ -605,7 +476,7 @@ namespace mu
 								++it;
 							}
 
-							MESH_BUFFER_FORMAT& format = formBuffs.m_buffers[resultBuf].m_channels[resultChan].m_format;
+							EMeshBufferFormat& format = formBuffs.m_buffers[resultBuf].m_channels[resultChan].m_format;
 							if (maxBoneIndex > 0xffff && (format == MBF_UINT8 || format == MBF_UINT16))
 							{
 								format = MBF_UINT32;
@@ -634,11 +505,8 @@ namespace mu
 
 		// \todo Make sure that the vertex indices will fit in this format, or extend it.
 
-
-
 		if (formatVertices)
 		{
-
 			FormatBufferSet(pSource->GetVertexBuffers(), Result->GetVertexBuffers(),
 				keepSystemBuffers, ignoreMissingChannels, true);
 		}
@@ -699,4 +567,89 @@ namespace mu
 		Result->EnsureSurfaceData();
 	}
 
+
+	void MeshOptimizeBuffers( Mesh* InMesh )
+	{
+		if (!InMesh)
+		{
+			return;
+		}
+
+		FMeshBufferSet& VertexBuffers = InMesh->m_VertexBuffers;
+
+		// Reduce the number of influences if possible
+		constexpr int32 SemanticIndex = 0;
+		
+		UntypedMeshBufferIteratorConst WeightIt(VertexBuffers, MBS_BONEWEIGHTS, SemanticIndex);
+		if (WeightIt.ptr())
+		{
+			int32 BufferInfluences = WeightIt.GetComponents();
+			int32 RealInfluences = 0;
+
+			for (int32 VertexIndex = 0; VertexIndex < VertexBuffers.GetElementCount(); ++VertexIndex)
+			{
+				int32 ThisVertexInfluences = 0;
+
+				switch (WeightIt.GetFormat())
+				{
+				case MBF_NUINT8:
+				{
+					const uint8* Data = reinterpret_cast<const uint8*>(WeightIt.ptr());
+					for (int32 InfluenceIndex = 0; InfluenceIndex < BufferInfluences; ++InfluenceIndex)
+					{
+						if (*Data>0)
+						{
+							++ThisVertexInfluences;
+						}
+						++Data;
+					}
+					break;
+				}
+
+				default:
+					// Unsupported
+					check(false);
+					break;
+				}
+
+				++WeightIt;
+
+				RealInfluences = FMath::Max(RealInfluences,ThisVertexInfluences);
+			}
+
+			if (RealInfluences<BufferInfluences)
+			{
+				// Remove the useless influences from the buffer.
+
+				// \todo: This is a generic innefficient way
+				FMeshBufferSet NewVertexBuffers;
+				NewVertexBuffers.m_buffers = VertexBuffers.m_buffers;
+
+				for (FMeshBuffer& Buffer: NewVertexBuffers.m_buffers)
+				{
+					int32 OffsetDelta = 0;
+					for (FMeshBufferChannel& Channel : Buffer.m_channels)
+					{
+						Channel.m_offset += OffsetDelta;
+
+						if (Channel.m_semanticIndex == SemanticIndex
+							&&
+							(Channel.m_semantic == MBS_BONEWEIGHTS || Channel.m_semantic == MBS_BONEINDICES)
+							)
+						{
+							Channel.m_componentCount = RealInfluences;
+							OffsetDelta -= (BufferInfluences - RealInfluences) * GetMeshFormatData(Channel.m_format).SizeInBytes;
+						}
+					}
+
+					Buffer.m_elementSize += OffsetDelta;
+				}
+
+				FormatBufferSet( VertexBuffers, NewVertexBuffers, true, false, true);
+
+				InMesh->m_VertexBuffers = NewVertexBuffers;
+			}
+		}
+
+	}
 }

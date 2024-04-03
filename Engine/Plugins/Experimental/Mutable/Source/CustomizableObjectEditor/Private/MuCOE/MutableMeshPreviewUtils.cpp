@@ -58,8 +58,8 @@ namespace MutableMeshPreviewUtils
 					const int32 BufferChannelCount = OriginVertexBuffers.GetBufferChannelCount(BufferIndex);
 					for (int32 ChannelIndex = 0; ChannelIndex < BufferChannelCount; ChannelIndex ++)
 					{
-						mu::MESH_BUFFER_SEMANTIC BufferSemantic = mu::MESH_BUFFER_SEMANTIC::MBS_NONE;
-						mu::MESH_BUFFER_FORMAT BufferFormat = mu::MESH_BUFFER_FORMAT::MBF_NONE;
+						mu::EMeshBufferSemantic BufferSemantic = mu::EMeshBufferSemantic::MBS_NONE;
+						mu::EMeshBufferFormat BufferFormat = mu::EMeshBufferFormat::MBF_NONE;
 						int32 BufferComponentCount = 0;
 						int32 SemanticIndex = 0;
 
@@ -77,14 +77,14 @@ namespace MutableMeshPreviewUtils
 
 						switch (BufferSemantic)
 						{
-							case mu::MESH_BUFFER_SEMANTIC::MBS_COLOUR:
+							case mu::EMeshBufferSemantic::MBS_COLOUR:
 							{
 								// Does the original mesh have vert color data?
 								bOriginDoesHaveVertexColorData = true;
 								break;
 							}
 
-							case mu::MESH_BUFFER_SEMANTIC::MBS_TEXCOORDS:
+							case mu::EMeshBufferSemantic::MBS_TEXCOORDS:
 							{
 								// Store the texture semantic index to be later used during the buffer formatting process on  mu::MeshFormat
 								TextureSemanticIndices[NumbOfTextCoordChannels] = SemanticIndex;
@@ -94,18 +94,18 @@ namespace MutableMeshPreviewUtils
 								break;
 							}
 
-							case mu::MESH_BUFFER_SEMANTIC::MBS_BONEINDICES:
+							case mu::EMeshBufferSemantic::MBS_BONEINDICES:
 							{
 								// Store the amount of bones a vertex can be skinned to.
 								MaxNumBonesPerVertex = BufferComponentCount;
-								BoneIndicesSizeBytes = BufferFormat == mu::MESH_BUFFER_FORMAT::MBF_INT16 ? 2 : 1;
+								BoneIndicesSizeBytes = BufferFormat == mu::EMeshBufferFormat::MBF_INT16 ? 2 : 1;
 								break;
 							}
 
-							case mu::MESH_BUFFER_SEMANTIC::MBS_BONEWEIGHTS:
+							case mu::EMeshBufferSemantic::MBS_BONEWEIGHTS:
 							{
 								// Store the amount of bones a vertex can be skinned to.
-								BoneWeightsSizeBytes = BufferFormat == mu::MESH_BUFFER_FORMAT::MBF_NUINT16 ? 2 : 1;
+								BoneWeightsSizeBytes = BufferFormat == mu::EMeshBufferFormat::MBF_NUINT16 ? 2 : 1;
 								break;
 							}
 
@@ -201,7 +201,7 @@ namespace MutableMeshPreviewUtils
 			int32 Channel = -1;
 
 			// POSITION BUFFER INDEX CHECK
-			VertexBuffers.FindChannel(mu::MESH_BUFFER_SEMANTIC::MBS_POSITION, 0, &Buffer, &Channel);
+			VertexBuffers.FindChannel(mu::EMeshBufferSemantic::MBS_POSITION, 0, &Buffer, &Channel);
 			if (Buffer == -1)
 			{
 				if (bLogFindingsToConsole)
@@ -225,7 +225,7 @@ namespace MutableMeshPreviewUtils
 			}
 
 			// TANGENT BUFFER INDEX CHECK
-			VertexBuffers.FindChannel(mu::MESH_BUFFER_SEMANTIC::MBS_TANGENT, 0, &Buffer, &Channel);
+			VertexBuffers.FindChannel(mu::EMeshBufferSemantic::MBS_TANGENT, 0, &Buffer, &Channel);
 			if (Buffer == -1)
 			{
 				if (bLogFindingsToConsole)
@@ -249,7 +249,7 @@ namespace MutableMeshPreviewUtils
 			}
 
 			// TEX COORDS BUFFER INDEX CHECK
-			VertexBuffers.FindChannel(mu::MESH_BUFFER_SEMANTIC::MBS_TEXCOORDS, 0, &Buffer, &Channel);
+			VertexBuffers.FindChannel(mu::EMeshBufferSemantic::MBS_TEXCOORDS, 0, &Buffer, &Channel);
 			if (Buffer == -1)
 			{
 				if (bLogFindingsToConsole)

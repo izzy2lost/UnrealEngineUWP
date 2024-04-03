@@ -877,20 +877,24 @@ namespace mu
             ADDRESS source;
             ADDRESS format;
 
-            typedef enum
+            enum
             {
-                BT_VERTEX			= 1,
-                BT_INDEX			= 2,
-                BT_FACE				= 4,
-                //! This flag will not add blank channels for the channels in the format mesh but not
-                //! in the source mesh.
-                BT_IGNORE_MISSING	= 16,
-                //! This flag will force the reset of buffer indices to 0
-                BT_RESETBUFFERINDICES = 32
-            } BUFFER_TYPE;
+                Vertex				= 1 << 0,
+                Index				= 1 << 1,
+                Face				= 1 << 2,
 
-            //! Flag combination, selecting the buffers to reformat. The rest are left untouched.
-            uint8 buffers;
+                /** This flag will not add blank channels for the channels in the format mesh but not in the source mesh. */
+				IgnoreMissing		= 1 << 4,
+
+                /** This flag will force the reset of buffer indices to 0. */
+                ResetBufferIndices	= 1 << 5,
+
+				/** This flag will add a step to reduce some buffers size by removing components and changing the types if possible. */
+				OptimizeBuffers		= 1 << 6
+			} EFlags;
+
+            //! EFlags combination, selecting the buffers to reformat and other options.
+            uint8 Flags;
 
         };
 

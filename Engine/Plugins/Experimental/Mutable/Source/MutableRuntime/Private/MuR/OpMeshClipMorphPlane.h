@@ -140,7 +140,7 @@ namespace mu
 
 			for (int32 vb = 0; vb < pBase->GetVertexBuffers().m_buffers.Num(); ++vb)
 			{
-				const MESH_BUFFER& result = pBase->GetVertexBuffers().m_buffers[vb];
+				const FMeshBuffer& result = pBase->GetVertexBuffers().m_buffers[vb];
 
 				int elemSize = pBase->GetVertexBuffers().GetElementSize((int)vb);
 				//int firstSize = firstCount * elemSize;
@@ -148,9 +148,9 @@ namespace mu
 				for (int c = 0; c < pBase->GetVertexBuffers().GetBufferChannelCount((int)vb); ++c)
 				{
 					// Get info about the destination channel
-					MESH_BUFFER_SEMANTIC semantic = MBS_NONE;
+					EMeshBufferSemantic semantic = MBS_NONE;
 					int semanticIndex = 0;
-					MESH_BUFFER_FORMAT format = MBF_NONE;
+					EMeshBufferFormat format = MBF_NONE;
 					int components = 0;
 					int offset = 0;
 					pBase->GetVertexBuffers().GetChannel((int)vb, c, &semantic, &semanticIndex, &format, &components, &offset);
@@ -295,7 +295,7 @@ namespace mu
 		{
 			for (int32 c = 0; c < MBSPriv.m_buffers[b].m_channels.Num(); ++c)
 			{
-				MESH_BUFFER_SEMANTIC sem = MBSPriv.m_buffers[b].m_channels[c].m_semantic;
+				EMeshBufferSemantic sem = MBSPriv.m_buffers[b].m_channels[c].m_semantic;
 				int semIndex = MBSPriv.m_buffers[b].m_channels[c].m_semanticIndex;
 
 				UntypedMeshBufferIterator it(Result->GetVertexBuffers(), sem, semIndex);

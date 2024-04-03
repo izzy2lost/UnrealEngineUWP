@@ -14,7 +14,7 @@ namespace mu
 	//---------------------------------------------------------------------------------------------
     inline void MeshDifference( Mesh* Result, const Mesh* pBase, const Mesh* pTarget,
                                    int numChannels,
-                                   const MESH_BUFFER_SEMANTIC* semantics,
+                                   const EMeshBufferSemantic* semantics,
                                    const int* semanticIndices,
                                    bool ignoreTexCoords, bool& bOutSuccess)
 
@@ -47,7 +47,7 @@ namespace mu
 		uint32 vcount = pBase->GetVertexBuffers().GetElementCount();		
 
 		// If no channels were specified, get them all
-		TArray<MESH_BUFFER_SEMANTIC> allSemantics;		
+		TArray<EMeshBufferSemantic> allSemantics;		
 		TArray<int> allSemanticIndices;
 		if ( !numChannels )
 		{
@@ -55,7 +55,7 @@ namespace mu
 			{
 				for ( int c=0; c<pBase->GetVertexBuffers().GetBufferChannelCount(vb); ++c )
 				{
-					MESH_BUFFER_SEMANTIC sem = MBS_NONE;
+					EMeshBufferSemantic sem = MBS_NONE;
 					int semIndex = 0;
 					pBase->GetVertexBuffers().GetChannel( vb, c,
 															&sem, &semIndex,
@@ -124,9 +124,9 @@ namespace mu
 			Result->GetVertexBuffers().SetElementCount( differentVertexCount );			
 			Result->GetVertexBuffers().SetBufferCount( 1 );								
 
-			TArray<MESH_BUFFER_SEMANTIC> semantic;
+			TArray<EMeshBufferSemantic> semantic;
 			TArray<int> semanticIndex;
-			TArray<MESH_BUFFER_FORMAT> format;
+			TArray<EMeshBufferFormat> format;
 			TArray<int> components;
 			TArray<int> offsets;
 			int offset = 0;										

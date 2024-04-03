@@ -65,19 +65,19 @@ namespace mu
 
 		_MBF_FORCE32BITS = 0xFFFFFFFF
 
-	} MESH_BUFFER_FORMAT;
+	} EMeshBufferFormat;
 
 	//!
 	struct FMeshBufferFormatData
 	{
-		//! Size per component
-		unsigned m_size;
+		/** Size per component in bytes. */
+		uint8 SizeInBytes;
 
-		//! log 2 of the max value if integer
-		uint8_t m_maxValueBits;
+		/** log 2 of the max value if integer. */
+		uint8 MaxValueBits;
 	};
 
-	MUTABLERUNTIME_API const FMeshBufferFormatData& GetMeshFormatData(MESH_BUFFER_FORMAT format);
+	MUTABLERUNTIME_API const FMeshBufferFormatData& GetMeshFormatData(EMeshBufferFormat format);
 
 
 	//! Semantics of the mesh buffers
@@ -124,13 +124,13 @@ namespace mu
 		MBS_COUNT,
 
         _MBS_FORCE32BITS = 0xFFFFFFFF
-	} MESH_BUFFER_SEMANTIC;
+	} EMeshBufferSemantic;
 
 
 	//!
-	struct MESH_BUFFER_CHANNEL
+	struct FMeshBufferChannel
 	{
-		MESH_BUFFER_CHANNEL()
+		FMeshBufferChannel()
 		{
 			m_semantic = MBS_NONE;
 			m_format = MBF_NONE;
@@ -140,10 +140,10 @@ namespace mu
 		}
 
 		//!
-		MESH_BUFFER_SEMANTIC m_semantic;
+		EMeshBufferSemantic m_semantic;
 
 		//!
-		MESH_BUFFER_FORMAT m_format;
+		EMeshBufferFormat m_format;
 
 		//! Index of the semantic, in case there are more than one of this type.
 		uint8 m_semanticIndex;
@@ -155,7 +155,7 @@ namespace mu
 		uint16 m_componentCount;
 
 		//!
-		inline bool operator==(const MESH_BUFFER_CHANNEL& o) const
+		inline bool operator==(const FMeshBufferChannel& o) const
 		{
 			return (m_semantic == o.m_semantic) &&
 				(m_format == o.m_format) &&
@@ -167,19 +167,19 @@ namespace mu
 	};
 
 
-	struct MESH_BUFFER
+	struct FMeshBuffer
 	{
 		template<typename Type>
 		using TMemoryTrackedArray = TArray<Type, FDefaultMemoryTrackingAllocator<MemoryCounters::FMeshMemoryCounter>>;
 
 		//!
-		MESH_BUFFER()
+		FMeshBuffer()
 		{
 			m_elementSize = 0;
 		}
 
 		//!
-		TArray<MESH_BUFFER_CHANNEL> m_channels;
+		TArray<FMeshBufferChannel> m_channels;
 
 		//!
 		TMemoryTrackedArray<uint8> m_data;
@@ -194,7 +194,7 @@ namespace mu
 		inline void Unserialise(mu::InputArchive& arch);
 
 		//!
-		inline bool operator==(const MESH_BUFFER& o) const
+		inline bool operator==(const FMeshBuffer& o) const
 		{
 			bool equal = (m_channels == o.m_channels);
 			if (equal) equal = (m_elementSize == o.m_elementSize);
@@ -214,7 +214,7 @@ namespace mu
 		uint32 m_elementCount = 0;
 
 		//!
-		TArray<MESH_BUFFER> m_buffers;
+		TArray<FMeshBuffer> m_buffers;
 
 		//!
 		void Serialise(OutputArchive& arch) const;
@@ -265,9 +265,9 @@ namespace mu
 			(
 				int32 buffer,
 				int32 channel,
-				MESH_BUFFER_SEMANTIC* pSemantic,
+				EMeshBufferSemantic* pSemantic,
 				int32* pSemanticIndex,
-				MESH_BUFFER_FORMAT* pFormat,
+				EMeshBufferFormat* pFormat,
 				int32* pComponentCount,
 				int32* pOffset
 			) const;
@@ -286,9 +286,9 @@ namespace mu
 				int32 buffer,
 				int32 elementSize,
 				int32 channelCount,
-				const MESH_BUFFER_SEMANTIC* pSemantics=nullptr,
+				const EMeshBufferSemantic* pSemantics=nullptr,
 				const int32* pSemanticIndices=nullptr,
-				const MESH_BUFFER_FORMAT* pFormats=nullptr,
+				const EMeshBufferFormat* pFormats=nullptr,
 				const int32* pComponentCounts=nullptr,
 				const int32* pOffsets=nullptr
 			);
@@ -301,9 +301,9 @@ namespace mu
 			(
 				int32 buffer,
 				int32 channelIndex,
-				MESH_BUFFER_SEMANTIC semantic,
+				EMeshBufferSemantic semantic,
 				int32 semanticIndice,
-				MESH_BUFFER_FORMAT format,
+				EMeshBufferFormat format,
 				int32 componentCount,
 				int32 offset
 			);
@@ -331,9 +331,9 @@ namespace mu
 		//! channel index of the channel inside the buffer returned at [buffer]
 		void FindChannel
 			(
-				MESH_BUFFER_SEMANTIC semantic,
-				int semanticIndex,
-				int* pBuffer, int* pChannel
+				EMeshBufferSemantic semantic,
+				int32 semanticIndex,
+				int32* pBuffer, int32* pChannel
 			) const;
 
 		//! Get the offset in bytes of the data of this channel inside an element data.
@@ -368,7 +368,7 @@ namespace mu
 
 		//! Compare the mesh buffer with another one, but ignore internal data like generated
 		//! vertex indices.
-		bool IsSpecialBufferToIgnoreInSimilar(const MESH_BUFFER& b) const;
+		bool IsSpecialBufferToIgnoreInSimilar(const FMeshBuffer& b) const;
 
 		//! Compare the mesh buffer with another one, but ignore internal data like generated
 		//! vertex indices. Be aware this method compares the data byte by byte without checking
@@ -390,9 +390,9 @@ namespace mu
 	};	
 
 	
-	MUTABLE_DEFINE_POD_SERIALISABLE(MESH_BUFFER_CHANNEL);
-	MUTABLE_DEFINE_POD_VECTOR_SERIALISABLE(MESH_BUFFER_CHANNEL);
-	MUTABLE_DEFINE_ENUM_SERIALISABLE(MESH_BUFFER_FORMAT);
-	MUTABLE_DEFINE_ENUM_SERIALISABLE(MESH_BUFFER_SEMANTIC);
+	MUTABLE_DEFINE_POD_SERIALISABLE(FMeshBufferChannel);
+	MUTABLE_DEFINE_POD_VECTOR_SERIALISABLE(FMeshBufferChannel);
+	MUTABLE_DEFINE_ENUM_SERIALISABLE(EMeshBufferFormat);
+	MUTABLE_DEFINE_ENUM_SERIALISABLE(EMeshBufferSemantic);
 }
 

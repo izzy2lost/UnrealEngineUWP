@@ -46,17 +46,17 @@ namespace mu
 			check(pSecond->GetIndexBuffers().GetBufferCount() <= 1);
 			Result->GetIndexBuffers().SetBufferCount(1);
 
-			MESH_BUFFER& ResultIndexBuffer = Result->GetIndexBuffers().m_buffers[0];
+			FMeshBuffer& ResultIndexBuffer = Result->GetIndexBuffers().m_buffers[0];
 
-			const MESH_BUFFER& FirstIndexBuffer = pFirst->GetIndexBuffers().m_buffers[0];
-			const MESH_BUFFER& SecondIndexBuffer = pSecond->GetIndexBuffers().m_buffers[0];
+			const FMeshBuffer& FirstIndexBuffer = pFirst->GetIndexBuffers().m_buffers[0];
+			const FMeshBuffer& SecondIndexBuffer = pSecond->GetIndexBuffers().m_buffers[0];
 
 			// Avoid unused variable warnings
 			(void)FirstIndexBuffer;
 			(void)SecondIndexBuffer;
 
 			// This will be changed below if need to change the format of the index buffers.
-			MESH_BUFFER_FORMAT IndexBufferFormat = MBF_NONE;
+			EMeshBufferFormat IndexBufferFormat = MBF_NONE;
 
 			if (FirstCount && SecondCount)
 			{
@@ -66,7 +66,7 @@ namespace mu
 
 				// We need to know the total number of vertices in case we need to adjust the index buffer format.
 				const uint64 totalVertexCount = pFirst->GetVertexBuffers().GetElementCount() + pSecond->GetVertexBuffers().GetElementCount();
-				const uint64 maxValueBits = GetMeshFormatData(pFirst->GetIndexBuffers().m_buffers[0].m_channels[0].m_format).m_maxValueBits;
+				const uint64 maxValueBits = GetMeshFormatData(pFirst->GetIndexBuffers().m_buffers[0].m_channels[0].m_format).MaxValueBits;
 				const uint64 maxSupportedVertices = uint64(1) << maxValueBits;
 				
 				if (totalVertexCount > maxSupportedVertices)
@@ -87,7 +87,7 @@ namespace mu
 				ResultIndexBuffer.m_channels[0].m_componentCount = 1;
 				ResultIndexBuffer.m_channels[0].m_semanticIndex = 0;
 				ResultIndexBuffer.m_channels[0].m_offset = 0;
-				ResultIndexBuffer.m_elementSize = GetMeshFormatData(IndexBufferFormat).m_size;
+				ResultIndexBuffer.m_elementSize = GetMeshFormatData(IndexBufferFormat).SizeInBytes;
 			}
 			else if (FirstCount)
 			{
@@ -340,16 +340,16 @@ namespace mu
 			// Merge only the buffers present in the first mesh
 			for (int32 b = 0; b < Result->GetFaceBuffers().GetBufferCount(); ++b)
 			{
-				const MESH_BUFFER& first = pFirst->GetFaceBuffers().m_buffers[b];
+				const FMeshBuffer& first = pFirst->GetFaceBuffers().m_buffers[b];
 
-				MESH_BUFFER& result = Result->GetFaceBuffers().m_buffers[b];
+				FMeshBuffer& result = Result->GetFaceBuffers().m_buffers[b];
 				result.m_channels = first.m_channels;
 				result.m_elementSize = first.m_elementSize;
 				result.m_data.SetNum(result.m_elementSize * (FirstCount + SecondCount));
 
-				MESH_BUFFER_SEMANTIC semantic = MBS_NONE;
+				EMeshBufferSemantic semantic = MBS_NONE;
 				int semanticIndex = 0;
-				MESH_BUFFER_FORMAT type = MBF_NONE;
+				EMeshBufferFormat type = MBF_NONE;
 				int components = 0;
 				int offset = 0;
 				pFirst->GetFaceBuffers().GetChannel
@@ -373,7 +373,7 @@ namespace mu
 
 					if (otherBuffer >= 0)
 					{
-						const MESH_BUFFER& second =
+						const FMeshBuffer& second =
 							pSecond->GetFaceBuffers().m_buffers[otherBuffer];
 						check(first.m_channels == second.m_channels);
 
@@ -757,7 +757,7 @@ namespace mu
 
 			// Check if the format of the BoneIndex buffer has to change
 			bool bChangeBoneIndicesFormat = false;
-			MESH_BUFFER_FORMAT BoneIndexFormat = MaxNumBonesInBoneMaps > MAX_uint8 ? MBF_UINT16 : MBF_UINT8;
+			EMeshBufferFormat BoneIndexFormat = MaxNumBonesInBoneMaps > MAX_uint8 ? MBF_UINT16 : MBF_UINT8;
 
 			// Iterate all vertex buffers to check if we need to format bone indices
 			{
@@ -766,7 +766,7 @@ namespace mu
 					const FMeshBufferSet& VertexBuffers = pFirst->GetVertexBuffers();
 					for (int32 VertexBufferIndex = 0; !bChangeBoneIndicesFormat && VertexBufferIndex < VertexBuffers.m_buffers.Num(); ++VertexBufferIndex)
 					{
-						const MESH_BUFFER& Buffer = VertexBuffers.m_buffers[VertexBufferIndex];
+						const FMeshBuffer& Buffer = VertexBuffers.m_buffers[VertexBufferIndex];
 
 						const int32 elemSize = VertexBuffers.GetElementSize(VertexBufferIndex);
 						const int32 firstSize = FirstCount * elemSize;
@@ -788,7 +788,7 @@ namespace mu
 					const FMeshBufferSet& VertexBuffers = pSecond->GetVertexBuffers();
 					for (int32 VertexBufferIndex = 0; !bChangeBoneIndicesFormat && VertexBufferIndex < VertexBuffers.m_buffers.Num(); ++VertexBufferIndex)
 					{
-						const MESH_BUFFER& Buffer = VertexBuffers.m_buffers[VertexBufferIndex];
+						const FMeshBuffer& Buffer = VertexBuffers.m_buffers[VertexBufferIndex];
 
 						const int32 elemSize = VertexBuffers.GetElementSize(VertexBufferIndex);
 						const int32 firstSize = FirstCount * elemSize;
@@ -823,8 +823,8 @@ namespace mu
 
 				for ( int32 vb = 0; vb<vbcount; ++vb )
 				{
-					MESH_BUFFER& result = Result->GetVertexBuffers().m_buffers[vb];
-					const MESH_BUFFER& first = pFirst->GetVertexBuffers().m_buffers[vb];
+					FMeshBuffer& result = Result->GetVertexBuffers().m_buffers[vb];
+					const FMeshBuffer& first = pFirst->GetVertexBuffers().m_buffers[vb];
 
 					result.m_channels = first.m_channels;
 					result.m_elementSize = first.m_elementSize;
@@ -843,7 +843,7 @@ namespace mu
 								);
 						if ( sb>=0 )
 						{
-							const MESH_BUFFER& second = pSecond->GetVertexBuffers().m_buffers[sb];
+							const FMeshBuffer& second = pSecond->GetVertexBuffers().m_buffers[sb];
 
 							if ( second.m_channels[sc].m_componentCount
 								 >
@@ -865,7 +865,7 @@ namespace mu
                             result.m_channels[c].m_offset = (uint8_t)offset;
 							offset += result.m_channels[c].m_componentCount
 									*
-									GetMeshFormatData(result.m_channels[c].m_format).m_size;
+									GetMeshFormatData(result.m_channels[c].m_format).SizeInBytes;
 						}
 						result.m_elementSize = offset;
 					}
@@ -873,11 +873,11 @@ namespace mu
 
                 // See if we need to add additional buffers from the second mesh (like vertex colours or additional UV Channels)
                 // This is a bit ad-hoc: we only add buffers containing all new channels
-                for ( const MESH_BUFFER& buf : pSecond->GetVertexBuffers().m_buffers )
+                for ( const FMeshBuffer& buf : pSecond->GetVertexBuffers().m_buffers )
                 {
                     bool someChannel = false;
                     bool allNewChannels = true;
-					for (const MESH_BUFFER_CHANNEL& chan : buf.m_channels)
+					for (const FMeshBufferChannel& chan : buf.m_channels)
 					{
 						// Skip system buffers
 						if (chan.m_semantic == MBS_VERTEXINDEX
@@ -910,7 +910,7 @@ namespace mu
 
 							if (foundBuffer >= 0)
 							{
-								MESH_BUFFER& Buffer = VertexBuffers.m_buffers[foundBuffer];
+								FMeshBuffer& Buffer = VertexBuffers.m_buffers[foundBuffer];
 								Buffer.m_channels.Insert(chan, foundChannel + 1);
 
 								// Update offsets
@@ -920,7 +920,7 @@ namespace mu
 									Buffer.m_channels[c].m_offset = (uint8)Offset;
 									Offset += Buffer.m_channels[c].m_componentCount
 										*
-										GetMeshFormatData(Buffer.m_channels[c].m_format).m_size;
+										GetMeshFormatData(Buffer.m_channels[c].m_format).SizeInBytes;
 								}
 								Buffer.m_elementSize = Offset;
 							}
@@ -940,7 +940,7 @@ namespace mu
 					FMeshBufferSet& VertexBuffers = Result->GetVertexBuffers();
 					for (int32 VertexBufferIndex = 0; VertexBufferIndex < VertexBuffers.m_buffers.Num(); ++VertexBufferIndex)
 					{
-						MESH_BUFFER& result = VertexBuffers.m_buffers[VertexBufferIndex];
+						FMeshBuffer& result = VertexBuffers.m_buffers[VertexBufferIndex];
 
 						const int32 ChannelsCount = VertexBuffers.GetBufferChannelCount(VertexBufferIndex);
 						for (int32 ChannelIndex = 0; ChannelIndex < ChannelsCount; ++ChannelIndex)
@@ -956,7 +956,7 @@ namespace mu
 									result.m_channels[AuxChannelIndex].m_offset = (uint8_t)offset;
 									offset += result.m_channels[AuxChannelIndex].m_componentCount
 										*
-										GetMeshFormatData(result.m_channels[AuxChannelIndex].m_format).m_size;
+										GetMeshFormatData(result.m_channels[AuxChannelIndex].m_format).SizeInBytes;
 								}
 								result.m_elementSize = offset;
 							}
@@ -1021,8 +1021,8 @@ namespace mu
 				MUTABLE_CPUPROFILER_SCOPE(CopyVertexData);
 				for (int32 vb = 0; vb < Result->GetVertexBuffers().m_buffers.Num(); ++vb)
 				{
-					MESH_BUFFER& result = Result->GetVertexBuffers().m_buffers[vb];
-					const MESH_BUFFER& second = pVSecond->GetVertexBuffers().m_buffers[vb];
+					FMeshBuffer& result = Result->GetVertexBuffers().m_buffers[vb];
+					const FMeshBuffer& second = pVSecond->GetVertexBuffers().m_buffers[vb];
 
 					if (SecondCount)
 					{
@@ -1048,7 +1048,7 @@ namespace mu
 				FMeshBufferSet& VertexBuffers = Result->GetVertexBuffers();
 				for (int32 VertexBufferIndex = 0; VertexBufferIndex < VertexBuffers.m_buffers.Num(); ++VertexBufferIndex)
 				{
-					MESH_BUFFER& ResultBuffer = VertexBuffers.m_buffers[VertexBufferIndex];
+					FMeshBuffer& ResultBuffer = VertexBuffers.m_buffers[VertexBufferIndex];
 
 					const int32 ElemSize = VertexBuffers.GetElementSize(VertexBufferIndex);
 					const int32 FirstSize = FirstCount * ElemSize;

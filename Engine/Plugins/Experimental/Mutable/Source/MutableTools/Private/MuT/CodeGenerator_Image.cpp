@@ -1444,10 +1444,10 @@ namespace mu
                 cop->SetValue(FormatMeshResult, m_compilerOptions->OptimisationOptions.DiskCacheContext);
 
                 Ptr<ASTOpMeshFormat> FormatOp = new ASTOpMeshFormat();
-				FormatOp->Buffers = OP::MeshFormatArgs::BT_VERTEX
-                        | OP::MeshFormatArgs::BT_INDEX
-                        | OP::MeshFormatArgs::BT_FACE
-                        | OP::MeshFormatArgs::BT_RESETBUFFERINDICES;
+				FormatOp->Flags = OP::MeshFormatArgs::Vertex
+                        | OP::MeshFormatArgs::Index
+                        | OP::MeshFormatArgs::Face
+                        | OP::MeshFormatArgs::ResetBufferIndices;
 				FormatOp->Format = cop;
 				FormatOp->Source = CurrentMeshToProjectOp;
 				CurrentMeshToProjectOp = FormatOp;
@@ -1476,10 +1476,10 @@ namespace mu
                 cop->SetValue(FormatMeshResult, m_compilerOptions->OptimisationOptions.DiskCacheContext);
 
                 Ptr<ASTOpMeshFormat> FormatOp = new ASTOpMeshFormat();
-				FormatOp->Buffers = OP::MeshFormatArgs::BT_VERTEX
-					| OP::MeshFormatArgs::BT_INDEX
-					| OP::MeshFormatArgs::BT_FACE
-					| OP::MeshFormatArgs::BT_RESETBUFFERINDICES;
+				FormatOp->Flags = OP::MeshFormatArgs::Vertex
+					| OP::MeshFormatArgs::Index
+					| OP::MeshFormatArgs::Face
+					| OP::MeshFormatArgs::ResetBufferIndices;
 				FormatOp->Format = cop;
 				FormatOp->Source = CurrentMeshToProjectOp;
 				CurrentMeshToProjectOp = FormatOp;

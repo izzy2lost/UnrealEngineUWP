@@ -31,9 +31,9 @@ namespace mu
 		}
 
 		// Get the information about the texture coordinates channel
-		MESH_BUFFER_SEMANTIC semantic;
+		EMeshBufferSemantic semantic;
 		int32 semanticIndex;
-		MESH_BUFFER_FORMAT format;
+		EMeshBufferFormat format;
 		int32 components;
 		int32 offset;
 		pApplied->GetVertexBuffers().GetChannel( buffer, channel, &semantic, &semanticIndex, &format, &components, &offset );

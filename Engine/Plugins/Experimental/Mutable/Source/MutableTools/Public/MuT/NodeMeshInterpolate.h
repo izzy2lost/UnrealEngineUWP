@@ -74,7 +74,7 @@ namespace mu
 		void SetChannelCount( int );
 
 		//! Set a channel to interpolate from the mesh.
-		void SetChannel( int index, MESH_BUFFER_SEMANTIC semantic, int semanticIndex );
+		void SetChannel( int index, EMeshBufferSemantic semantic, int semanticIndex );
 
 		//-----------------------------------------------------------------------------------------
 		// Interface pattern

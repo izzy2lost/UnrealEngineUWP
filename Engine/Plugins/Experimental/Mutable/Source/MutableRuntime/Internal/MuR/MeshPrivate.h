@@ -19,8 +19,8 @@ namespace mu
 	inline void GetMeshBuf
 		(
 			Mesh* pMesh,
-			MESH_BUFFER_SEMANTIC semantic,
-			MESH_BUFFER_FORMAT expectedFormat,
+			EMeshBufferSemantic semantic,
+			EMeshBufferFormat expectedFormat,
 			int expectedComponents,
             uint8_t*& pBuf,
 			int& elemSize
@@ -35,9 +35,9 @@ namespace mu
 		pMesh->GetVertexBuffers().FindChannel( semantic, 0, &buffer, &channel );
 		check( buffer>=0 && channel>=0 );
 
-		MESH_BUFFER_SEMANTIC realSemantic = MBS_NONE;
+		EMeshBufferSemantic realSemantic = MBS_NONE;
 		int realSemanticIndex = 0;
-		MESH_BUFFER_FORMAT format = MBF_NONE;
+		EMeshBufferFormat format = MBF_NONE;
 		int components = 0;
 		int offset = 0;
 		pMesh->GetVertexBuffers().GetChannel( buffer, channel, &realSemantic, &realSemanticIndex, &format, &components, &offset );
@@ -54,8 +54,8 @@ namespace mu
 	inline void GetMeshBuf
 		(
 			const Mesh* pMesh,
-			MESH_BUFFER_SEMANTIC semantic,
-			MESH_BUFFER_FORMAT expectedFormat,
+			EMeshBufferSemantic semantic,
+			EMeshBufferFormat expectedFormat,
 			int expectedComponents,
             const uint8_t*& pBuf,
 			int& elemSize
@@ -70,9 +70,9 @@ namespace mu
 		pMesh->GetVertexBuffers().FindChannel( semantic, 0, &buffer, &channel );
 		check( buffer>=0 && channel>=0 );
 
-		MESH_BUFFER_SEMANTIC realSemantic = MBS_NONE;
+		EMeshBufferSemantic realSemantic = MBS_NONE;
 		int realSemanticIndex = 0;
-		MESH_BUFFER_FORMAT format = MBF_NONE;
+		EMeshBufferFormat format = MBF_NONE;
 		int components = 0;
 		int offset = 0;
 		pMesh->GetVertexBuffers().GetChannel
@@ -106,7 +106,7 @@ namespace mu
 		inline UntypedMeshBufferIterator
 			(
 				FMeshBufferSet& bufferSet,
-				MESH_BUFFER_SEMANTIC semantic,
+				EMeshBufferSemantic semantic,
 				int semanticIndex = 0
 			)
 		{
@@ -116,7 +116,7 @@ namespace mu
 
 			if ( buffer>=0 && channel>=0 )
 			{
-				MESH_BUFFER_SEMANTIC realSemantic = MBS_NONE;
+				EMeshBufferSemantic realSemantic = MBS_NONE;
 				int realSemanticIndex = 0;
 				m_format = MBF_NONE;
 				m_components = 0;
@@ -190,7 +190,7 @@ namespace mu
 			return m_elementSize;
 		}
 
-		inline MESH_BUFFER_FORMAT GetFormat() const
+		inline EMeshBufferFormat GetFormat() const
 		{
 			return m_format;
 		}
@@ -275,7 +275,7 @@ namespace mu
 
 		int m_elementSize;
         uint8_t* m_pBuf;
-		MESH_BUFFER_FORMAT m_format;
+		EMeshBufferFormat m_format;
 		int m_components;
 	};
 
@@ -283,17 +283,17 @@ namespace mu
 	//---------------------------------------------------------------------------------------------
 	//! Class to iterate a specific buffer channel with known type
 	//---------------------------------------------------------------------------------------------
-	template<MESH_BUFFER_FORMAT FORMAT, class CTYPE, int COMPONENTS>
+	template<EMeshBufferFormat FORMAT, class CTYPE, int COMPONENTS>
 	class MeshBufferIteratorConst;
 
-	template<MESH_BUFFER_FORMAT FORMAT, class CTYPE, int COMPONENTS>
+	template<EMeshBufferFormat FORMAT, class CTYPE, int COMPONENTS>
 	class MUTABLERUNTIME_API MeshBufferIterator : public UntypedMeshBufferIterator
 	{
 	public:
 		inline MeshBufferIterator
 			(
 				FMeshBufferSet& bufferSet,
-				MESH_BUFFER_SEMANTIC semantic,
+				EMeshBufferSemantic semantic,
 				int semanticIndex = 0
 			)
 			: UntypedMeshBufferIterator( bufferSet, semantic, semanticIndex )
@@ -307,9 +307,9 @@ namespace mu
 				
 				if (buffer >= 0 && channel >= 0)
 				{
-					MESH_BUFFER_SEMANTIC realSemantic = MBS_NONE;
+					EMeshBufferSemantic realSemantic = MBS_NONE;
 					int realSemanticIndex = 0;
-					MESH_BUFFER_FORMAT format = MBF_NONE;
+					EMeshBufferFormat format = MBF_NONE;
 					int components = 0;
 					int offset = 0;
 					bufferSet.GetChannel
@@ -372,7 +372,7 @@ namespace mu
 		inline UntypedMeshBufferIteratorConst
 			(
 				const FMeshBufferSet& bufferSet,
-				MESH_BUFFER_SEMANTIC semantic,
+				EMeshBufferSemantic semantic,
 				int semanticIndex = 0
 			)
 		{
@@ -382,7 +382,7 @@ namespace mu
 
 			if ( buffer>=0 && channel>=0 )
 			{
-				MESH_BUFFER_SEMANTIC realSemantic = MBS_NONE;
+				EMeshBufferSemantic realSemantic = MBS_NONE;
 				int realSemanticIndex = 0;
 				m_format = MBF_NONE;
 				m_components = 0;
@@ -460,7 +460,7 @@ namespace mu
 			return m_elementSize;
 		}
 
-        inline MESH_BUFFER_FORMAT GetFormat() const
+        inline EMeshBufferFormat GetFormat() const
         {
             return m_format;
         }
@@ -537,7 +537,7 @@ namespace mu
 
 		int m_elementSize = 0;
         const uint8_t* m_pBuf = nullptr;
-		MESH_BUFFER_FORMAT m_format = MBF_NONE;
+		EMeshBufferFormat m_format = MBF_NONE;
 		int m_components = 0;
 	};
 
@@ -547,7 +547,7 @@ namespace mu
 	//---------------------------------------------------------------------------------------------
 	//! Class to iterate a specific buffer channel of a constant buffer set
 	//---------------------------------------------------------------------------------------------
-	template<MESH_BUFFER_FORMAT FORMAT, class CTYPE, int COMPONENTS>
+	template<EMeshBufferFormat FORMAT, class CTYPE, int COMPONENTS>
 	class MUTABLERUNTIME_API MeshBufferIteratorConst : public UntypedMeshBufferIteratorConst
 	{
 	public:
@@ -560,7 +560,7 @@ namespace mu
 		inline MeshBufferIteratorConst
 			(
 				const FMeshBufferSet& bufferSet,
-				MESH_BUFFER_SEMANTIC semantic,
+				EMeshBufferSemantic semantic,
 				int semanticIndex = 0
 			)
 			: UntypedMeshBufferIteratorConst( bufferSet, semantic, semanticIndex )
@@ -574,9 +574,9 @@ namespace mu
 
 				if (buffer >= 0 && channel >= 0)
 				{
-					MESH_BUFFER_SEMANTIC realSemantic = MBS_NONE;
+					EMeshBufferSemantic realSemantic = MBS_NONE;
 					int realSemanticIndex = 0;
-					MESH_BUFFER_FORMAT format = MBF_NONE;
+					EMeshBufferFormat format = MBF_NONE;
 					int components = 0;
 					int offset = 0;
 					bufferSet.GetChannel

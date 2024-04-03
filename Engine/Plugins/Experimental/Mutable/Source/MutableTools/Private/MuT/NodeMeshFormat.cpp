@@ -33,50 +33,50 @@ class FMeshBufferSet;
 	//---------------------------------------------------------------------------------------------
 	NodeMeshPtr NodeMeshFormat::GetSource() const
 	{
-		return m_pD->m_pSource;
+		return m_pD->Source;
 	}
 
 
-	//---------------------------------------------------------------------------------------------
 	void NodeMeshFormat::SetSource( NodeMesh* pValue )
 	{
-		m_pD->m_pSource = pValue;
+		m_pD->Source = pValue;
 	}
 
 
-	//---------------------------------------------------------------------------------------------
 	FMeshBufferSet& NodeMeshFormat::GetVertexBuffers()
 	{
-		return m_pD->m_VertexBuffers;
+		return m_pD->VertexBuffers;
 	}
 
 
-	//---------------------------------------------------------------------------------------------
 	FMeshBufferSet& NodeMeshFormat::GetIndexBuffers()
 	{
-		return m_pD->m_IndexBuffers;
+		return m_pD->IndexBuffers;
 	}
 
 
-	//---------------------------------------------------------------------------------------------
 	FMeshBufferSet& NodeMeshFormat::GetFaceBuffers()
 	{
-		return m_pD->m_FaceBuffers;
+		return m_pD->FaceBuffers;
+	}
+
+	void NodeMeshFormat::SetOptimizeBuffers(bool bEnable)
+	{
+		m_pD->bOptimizeBuffers = bEnable;
 	}
 
 
-	//---------------------------------------------------------------------------------------------
-	NodeLayoutPtr NodeMeshFormat::Private::GetLayout( int index ) const
+	Ptr<NodeLayout> NodeMeshFormat::Private::GetLayout( int32 index ) const
 	{
-		NodeLayoutPtr pResult;
+		Ptr<NodeLayout> Result;
 
-		if ( m_pSource )
+		if ( Source )
 		{
-			NodeMesh::Private* pPrivate = static_cast<NodeMesh::Private*>( m_pSource->GetBasePrivate() );
-			pResult = pPrivate->GetLayout( index );
+			NodeMesh::Private* Private = static_cast<NodeMesh::Private*>( Source->GetBasePrivate() );
+			Result = Private->GetLayout( index );
 		}
 
-		return pResult;
+		return Result;
 	}
 
 }

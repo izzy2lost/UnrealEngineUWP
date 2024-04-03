@@ -13,10 +13,10 @@
 
 namespace mu
 {
-	MUTABLE_IMPLEMENT_POD_SERIALISABLE(MESH_BUFFER_CHANNEL);
-	MUTABLE_IMPLEMENT_POD_VECTOR_SERIALISABLE(MESH_BUFFER_CHANNEL);
-	MUTABLE_IMPLEMENT_ENUM_SERIALISABLE(MESH_BUFFER_FORMAT);
-	MUTABLE_IMPLEMENT_ENUM_SERIALISABLE(MESH_BUFFER_SEMANTIC);
+	MUTABLE_IMPLEMENT_POD_SERIALISABLE(FMeshBufferChannel);
+	MUTABLE_IMPLEMENT_POD_VECTOR_SERIALISABLE(FMeshBufferChannel);
+	MUTABLE_IMPLEMENT_ENUM_SERIALISABLE(EMeshBufferFormat);
+	MUTABLE_IMPLEMENT_ENUM_SERIALISABLE(EMeshBufferSemantic);
 
 	
 	//---------------------------------------------------------------------------------------------
@@ -50,7 +50,7 @@ namespace mu
 
 
 	//---------------------------------------------------------------------------------------------
-	const FMeshBufferFormatData& GetMeshFormatData(MESH_BUFFER_FORMAT format)
+	const FMeshBufferFormatData& GetMeshFormatData(EMeshBufferFormat format)
 	{
 		check(format >= 0);
 		check(format < MBF_COUNT);
@@ -95,7 +95,7 @@ namespace mu
 		// allow it if no other allocation will be done.  
 		const EAllowShrinking AllowShrinking = (Count == 0) ? EAllowShrinking::Yes : EAllowShrinking::No;
 
-		for (MESH_BUFFER& buf : m_buffers)
+		for (FMeshBuffer& buf : m_buffers)
 		{
 			buf.m_data.SetNumUninitialized(buf.m_elementSize * Count, AllowShrinking);
 		}
@@ -136,9 +136,9 @@ namespace mu
 	(
 		int32 buffer,
 		int32 channel,
-		MESH_BUFFER_SEMANTIC* pSemantic,
+		EMeshBufferSemantic* pSemantic,
 		int32* pSemanticIndex,
-		MESH_BUFFER_FORMAT* pFormat,
+		EMeshBufferFormat* pFormat,
 		int32* pComponentCount,
 		int32* pOffset
 	) const
@@ -146,7 +146,7 @@ namespace mu
 		check(buffer >= 0 && buffer < m_buffers.Num());
 		check(channel >= 0 && channel < m_buffers[buffer].m_channels.Num());
 
-		const MESH_BUFFER_CHANNEL& chan = m_buffers[buffer].m_channels[channel];
+		const FMeshBufferChannel& chan = m_buffers[buffer].m_channels[channel];
 
 		if (pSemantic)
 		{
@@ -181,9 +181,9 @@ namespace mu
 		int32 buffer,
 		int32 elementSize,
 		int32 channelCount,
-		const MESH_BUFFER_SEMANTIC* pSemantics,
+		const EMeshBufferSemantic* pSemantics,
 		const int32* pSemanticIndices,
-		const MESH_BUFFER_FORMAT* pFormats,
+		const EMeshBufferFormat* pFormats,
 		const int32* pComponentCount,
 		const int32* pOffsets
 	)
@@ -191,28 +191,25 @@ namespace mu
 		check(buffer >= 0 && buffer < m_buffers.Num());
 		LLM_SCOPE_BYNAME(TEXT("MutableRuntime"));
 
-		MESH_BUFFER& buf = m_buffers[buffer];
+		FMeshBuffer& buf = m_buffers[buffer];
 
-		unsigned minElemSize = 0;
+		int32 MinElemSize = 0;
 		buf.m_channels.SetNum(channelCount);
 		for (int c = 0; c < channelCount; ++c)
 		{
-			MESH_BUFFER_CHANNEL& chan = buf.m_channels[c];
+			FMeshBufferChannel& chan = buf.m_channels[c];
 			chan.m_semantic = pSemantics ? pSemantics[c] : MBS_NONE;
 			chan.m_semanticIndex = pSemanticIndices ? ((uint8_t)pSemanticIndices[c]) : 0;
 			chan.m_format = pFormats ? pFormats[c] : MBF_NONE;
 			chan.m_componentCount = pComponentCount ? ((uint16)pComponentCount[c]) : 0;
 			chan.m_offset = pOffsets ? ((uint8_t)pOffsets[c]) : 0;
 
-			minElemSize = FMath::Max
-			(
-				minElemSize,
-				chan.m_offset + chan.m_componentCount * GetMeshFormatData(chan.m_format).m_size
-			);
+			int32 ThisChannelMinElemSize = chan.m_offset + chan.m_componentCount * GetMeshFormatData(chan.m_format).SizeInBytes;			
+			MinElemSize = FMath::Max(MinElemSize, ThisChannelMinElemSize);
 		}
 
 		// Set the user specified element size, or enlarge it if it was too small
-		buf.m_elementSize = FMath::Max(elementSize, int32(minElemSize));
+		buf.m_elementSize = FMath::Max(elementSize, MinElemSize);
 
 		// Update the buffer data
 		buf.m_data.SetNumUninitialized(buf.m_elementSize * m_elementCount, EAllowShrinking::No);
@@ -223,9 +220,9 @@ namespace mu
 	(
 		int32 buffer,
 		int32 channelIndex,
-		MESH_BUFFER_SEMANTIC semantic,
+		EMeshBufferSemantic semantic,
 		int32 semanticIndex,
-		MESH_BUFFER_FORMAT format,
+		EMeshBufferFormat format,
 		int32 componentCount,
 		int32 offset
 	)
@@ -238,7 +235,7 @@ namespace mu
 
 		LLM_SCOPE_BYNAME(TEXT("MutableRuntime"));
 
-		MESH_BUFFER& buf = m_buffers[buffer];
+		FMeshBuffer& buf = m_buffers[buffer];
 
 		if (!(channelIndex >= 0 && channelIndex < buf.m_channels.Num()))
 		{
@@ -246,7 +243,7 @@ namespace mu
 			return;
 		}
 
-		MESH_BUFFER_CHANNEL& chan = buf.m_channels[channelIndex];
+		FMeshBufferChannel& chan = buf.m_channels[channelIndex];
 		chan.m_semantic = semantic;
 		chan.m_semanticIndex = uint8_t(semanticIndex);
 		chan.m_format = format;
@@ -291,7 +288,7 @@ namespace mu
 	//---------------------------------------------------------------------------------------------
 	void FMeshBufferSet::FindChannel
 	(
-		MESH_BUFFER_SEMANTIC semantic, int32 semanticIndex,
+		EMeshBufferSemantic semantic, int32 semanticIndex,
 		int32* pBuffer, int32* pChannel
 	) const
 	{
@@ -433,7 +430,7 @@ namespace mu
 
 		if (fromIndex != toIndex)
 		{
-			for (MESH_BUFFER& b : m_buffers)
+			for (FMeshBuffer& b : m_buffers)
 			{
 				FMemory::Memcpy(&b.m_data[b.m_elementSize * toIndex],
 					&b.m_data[b.m_elementSize * fromIndex],
@@ -444,7 +441,7 @@ namespace mu
 
 
 	//-----------------------------------------------------------------------------------------
-	bool FMeshBufferSet::IsSpecialBufferToIgnoreInSimilar(const MESH_BUFFER& b) const
+	bool FMeshBufferSet::IsSpecialBufferToIgnoreInSimilar(const FMeshBuffer& b) const
 	{
 		if (b.m_channels.Num() == 1
 			&&
@@ -499,8 +496,8 @@ namespace mu
 			const int32 ThisNumChannels = m_buffers[I].m_channels.Num();
 			const int32 OtherNumChannels = m_buffers[J].m_channels.Num();
 
-			const MESH_BUFFER& ThisBuffer = m_buffers[I];
-			const MESH_BUFFER& OtherBuffer = Other.m_buffers[J];
+			const FMeshBuffer& ThisBuffer = m_buffers[I];
+			const FMeshBuffer& OtherBuffer = Other.m_buffers[J];
 
 			if (!(ThisBuffer.m_channels == OtherBuffer.m_channels && ThisBuffer.m_elementSize==OtherBuffer.m_elementSize))
 			{
@@ -516,8 +513,8 @@ namespace mu
 						continue;
 					}
 
-					const SIZE_T SizeA = GetMeshFormatData(ThisBuffer.m_channels[C].m_format).m_size * ThisBuffer.m_channels[C].m_componentCount;
-					const SIZE_T SizeB = GetMeshFormatData(OtherBuffer.m_channels[C].m_format).m_size * OtherBuffer.m_channels[C].m_componentCount;
+					const SIZE_T SizeA = GetMeshFormatData(ThisBuffer.m_channels[C].m_format).SizeInBytes * ThisBuffer.m_channels[C].m_componentCount;
+					const SIZE_T SizeB = GetMeshFormatData(OtherBuffer.m_channels[C].m_format).SizeInBytes * OtherBuffer.m_channels[C].m_componentCount;
 
 					if (SizeA != SizeB)
 					{
@@ -627,9 +624,9 @@ namespace mu
 		uint8_t currentIndices[MBS_COUNT];
 		memset(currentIndices, 0, sizeof(currentIndices));
 
-		for (MESH_BUFFER& b : m_buffers)
+		for (FMeshBuffer& b : m_buffers)
 		{
-			for (MESH_BUFFER_CHANNEL& c : b.m_channels)
+			for (FMeshBufferChannel& c : b.m_channels)
 			{
 				c.m_semanticIndex = currentIndices[c.m_semantic];
 				currentIndices[c.m_semantic]++;
@@ -641,8 +638,8 @@ namespace mu
 	//-----------------------------------------------------------------------------------------
 	void FMeshBufferSet::UpdateOffsets(int32 b)
 	{
-		uint8_t offset = 0;
-		for (MESH_BUFFER_CHANNEL& c : m_buffers[b].m_channels)
+		uint32 offset = 0;
+		for (FMeshBufferChannel& c : m_buffers[b].m_channels)
 		{
 			if (c.m_offset < offset)
 			{
@@ -652,7 +649,7 @@ namespace mu
 			{
 				offset = c.m_offset;
 			}
-			offset += uint8_t(c.m_componentCount * GetMeshFormatData(c.m_format).m_size);
+			offset += c.m_componentCount * GetMeshFormatData(c.m_format).SizeInBytes;
 		}
 
 		if (m_buffers[b].m_elementSize < offset)
@@ -661,7 +658,7 @@ namespace mu
 
 	
 	//-----------------------------------------------------------------------------------------
-	void MESH_BUFFER::Serialise(OutputArchive& arch) const
+	void FMeshBuffer::Serialise(OutputArchive& arch) const
 	{
 		arch << m_channels;
 		arch << m_data;
@@ -670,7 +667,7 @@ namespace mu
 
 	
 	//-----------------------------------------------------------------------------------------
-	void MESH_BUFFER::Unserialise(InputArchive& arch)
+	void FMeshBuffer::Unserialise(InputArchive& arch)
 	{
 		arch >> m_channels;
 		arch >> m_data;

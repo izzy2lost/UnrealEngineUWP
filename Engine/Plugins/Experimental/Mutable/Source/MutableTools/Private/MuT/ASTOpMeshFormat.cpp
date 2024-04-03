@@ -45,7 +45,7 @@ bool ASTOpMeshFormat::IsEqual(const ASTOp& otherUntyped) const
 	if (otherUntyped.GetOpType() == GetOpType())
 	{
 		const ASTOpMeshFormat* other = static_cast<const ASTOpMeshFormat*>(&otherUntyped);
-        return Source==other->Source && Format==other->Format && Buffers==other->Buffers;
+        return Source==other->Source && Format==other->Format && Flags ==other->Flags;
     }
     return false;
 }
@@ -64,7 +64,8 @@ mu::Ptr<ASTOp> ASTOpMeshFormat::Clone(MapChildFuncRef mapChild) const
 	mu::Ptr<ASTOpMeshFormat> n = new ASTOpMeshFormat();
     n->Source = mapChild(Source.child());
     n->Format = mapChild(Format.child());
-	n->Buffers = Buffers;
+	n->Flags = Flags;
+	n->bOptimizeBuffers = bOptimizeBuffers;
     return n;
 }
 
@@ -84,13 +85,17 @@ void ASTOpMeshFormat::Link( FProgram& program, FLinkerOptions* )
         OP::MeshFormatArgs args;
         FMemory::Memzero( &args, sizeof(args) );
 
-		args.buffers = Buffers;
-        if (Source) args.source = Source->linkedAddress;
-        if (Format) args.format = Format->linkedAddress;
+		args.Flags = Flags;
+		if (bOptimizeBuffers)
+		{
+			args.Flags = args.Flags | OP::MeshFormatArgs::OptimizeBuffers;
+		}
+
+		if (Source) args.source = Source->linkedAddress;
+		if (Format) args.format = Format->linkedAddress;
 
         linkedAddress = (OP::ADDRESS)program.m_opAddress.Num();
-        //program.m_code.push_back(op);
-        program.m_opAddress.Add((uint32_t)program.m_byteCode.Num());
+        program.m_opAddress.Add((uint32)program.m_byteCode.Num());
         AppendCode(program.m_byteCode,OP_TYPE::ME_FORMAT);
         AppendCode(program.m_byteCode,args);
     }
@@ -162,9 +167,9 @@ namespace
 
 		int offset = 0;
 		int numChannels = 0;
-		TArray<MESH_BUFFER_SEMANTIC> semantics;
+		TArray<EMeshBufferSemantic> semantics;
 		TArray<int> semanticIndices;
-		TArray<MESH_BUFFER_FORMAT> formats;
+		TArray<EMeshBufferFormat> formats;
 		TArray<int> components;
 		TArray<int> offsets;
 
@@ -174,7 +179,7 @@ namespace
 		formats.Add(MBF_UINT32);
 		components.Add(1);
 		offsets.Add(offset);
-		offset += components[numChannels] * GetMeshFormatData(formats[numChannels]).m_size;
+		offset += components[numChannels] * GetMeshFormatData(formats[numChannels]).SizeInBytes;
 		numChannels++;
 
 		// Add the vertex channels from the new format
@@ -183,9 +188,9 @@ namespace
 			for (int c = 0; c < pTargetFormat->GetVertexBuffers().GetBufferChannelCount(vb); ++c)
 			{
 				// Channel info
-				MESH_BUFFER_SEMANTIC semantic;
+				EMeshBufferSemantic semantic;
 				int semanticIndex;
-				MESH_BUFFER_FORMAT format;
+				EMeshBufferFormat format;
 				int component;
 				pTargetFormat->GetVertexBuffers().GetChannel
 				(vb, c, &semantic, &semanticIndex, &format, &component, nullptr);
@@ -197,7 +202,7 @@ namespace
 				components.Add(component);
 				offsets.Add(offset);
 				offset += components[numChannels]
-					* GetMeshFormatData(formats[numChannels]).m_size;
+					* GetMeshFormatData(formats[numChannels]).SizeInBytes;
 				numChannels++;
 			}
 		}
@@ -288,9 +293,7 @@ mu::Ptr<ASTOp> Sink_MeshFormatAST::Visit(const mu::Ptr<ASTOp>& at, const ASTOpMe
 		if (newOp->Target)
 		{
 			mu::Ptr<ASTOpMeshFormat> newFormat = mu::Clone<ASTOpMeshFormat>(currentFormatOp);
-			newFormat->Buffers =
-				OP::MeshFormatArgs::BT_VERTEX
-				| OP::MeshFormatArgs::BT_IGNORE_MISSING;
+			newFormat->Flags = OP::MeshFormatArgs::Vertex | OP::MeshFormatArgs::IgnoreMissing;
 			newFormat->Format = targetMorphFormatAt;
 
 			newOp->Target = Visit(newOp->Target.child(), newFormat.get());
@@ -330,9 +333,7 @@ mu::Ptr<ASTOp> Sink_MeshFormatAST::Visit(const mu::Ptr<ASTOp>& at, const ASTOpMe
 			if (newOp->children[newOp->op.args.MeshInterpolate.targets[t]])
 			{
 				mu::Ptr<ASTOpMeshFormat> newFormat = mu::Clone<ASTOpMeshFormat>(currentFormatOp);
-				newFormat->Buffers =
-					OP::MeshFormatArgs::BT_VERTEX
-					| OP::MeshFormatArgs::BT_IGNORE_MISSING;
+				newFormat->Flags = OP::MeshFormatArgs::Vertex | OP::MeshFormatArgs::IgnoreMissing;
 				newFormat->Format = targetMorphFormatAt;
 
 				newOp->SetChild(newOp->op.args.MeshInterpolate.targets[t], Visit(newOp->children[newOp->op.args.MeshInterpolate.targets[t]].child(), newFormat.get()));

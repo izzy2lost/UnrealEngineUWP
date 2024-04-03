@@ -36,7 +36,7 @@ namespace mu
 
             for ( int32 c=0; c<MBSPriv.m_buffers[b].m_channels.Num(); ++c )
             {
-                MESH_BUFFER_SEMANTIC sem = MBSPriv.m_buffers[b].m_channels[c].m_semantic;
+                EMeshBufferSemantic sem = MBSPriv.m_buffers[b].m_channels[c].m_semantic;
                 int semIndex = MBSPriv.m_buffers[b].m_channels[c].m_semanticIndex;
 
                 UntypedMeshBufferIterator it( Result->GetVertexBuffers(), sem, semIndex );
