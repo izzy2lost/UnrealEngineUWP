@@ -250,4 +250,9 @@ struct SEQUENCER_API FSequencerUtilities
 	static void SaveCurrentMovieSceneAs(TSharedRef<ISequencer> Sequencer);
 	static void SynchronizeExternalSelectionWithSequencerSelection (TSharedRef<ISequencer> Sequencer);
 	static TRange<FFrameNumber> GetTimeBounds(TSharedRef<ISequencer> Sequencer);
+
+	// Functions allowing menus to be built for modifying bindings
+	static void AddChangeClassMenu(FMenuBuilder& MenuBuilder, TSharedRef<ISequencer> Sequencer, FGuid Guid, int32 BindingIndex, TFunction<void()> OnBindingChanged);
+	static void HandleTemplateActorClassPicked(UClass* ChosenClass, TSharedRef<ISequencer> Sequencer, FGuid Guid, int32 BindingIndex, TFunction<void()> OnBindingChanged);
+	static void AddConvertBindingMenu(FMenuBuilder& MenuBuilder, TSharedRef<ISequencer> Sequencer, FGuid Guid, int32 BindingIndex, TFunction<void()> OnBindingChanged);
 };

@@ -108,7 +108,7 @@ private:
 * An implementation of UMovieSceneSpawnableActorBindingBase that matches the old FMovieSceneSpawnable spawnable implementation, allowing the spawning 
 * of Actors from a UObject template which is serialized inside the Sequence.
 */
-UCLASS(BlueprintType, MinimalAPI, EditInlineNew, DefaultToInstanced)
+UCLASS(BlueprintType, MinimalAPI, EditInlineNew, DefaultToInstanced, Meta=(DisplayName="Spawnable Actor"))
 class UMovieSceneSpawnableActorBinding
 	: public UMovieSceneSpawnableActorBindingBase
 {

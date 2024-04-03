@@ -8594,7 +8594,21 @@ void FSequencer::SaveSelectedNodesSpawnableState()
 		SlowTask.EnterProgressFrame();
 		if (TViewModelPtr<IObjectBindingExtension> ObjectBindingNode = OutlinerSelectionNode.ImplicitCast())
 		{
-			SpawnRegister->SaveDefaultSpawnableState(ObjectBindingNode->GetObjectGuid(), ActiveTemplateIDs.Top(), GetSharedPlaybackState());
+			if (const FMovieSceneSpawnable* Spawnable = MovieScene->FindSpawnable(ObjectBindingNode->GetObjectGuid()))
+			{
+				SpawnRegister->SaveDefaultSpawnableState(ObjectBindingNode->GetObjectGuid(), 0, ActiveTemplateIDs.Top(), GetSharedPlaybackState());
+			}
+			else if (const FMovieSceneBindingReferences* BindingReferences = Sequence->GetBindingReferences())
+			{
+				TArrayView<const FMovieSceneBindingReference> AllReferences = BindingReferences->GetReferences(ObjectBindingNode->GetObjectGuid());
+				for (int32 Index = 0; Index < AllReferences.Num(); ++Index)
+				{
+					if (AllReferences[Index].CustomBinding && AllReferences[Index].CustomBinding->WillSpawnObject(GetSharedPlaybackState()))
+					{
+						SpawnRegister->SaveDefaultSpawnableState(ObjectBindingNode->GetObjectGuid(), Index, ActiveTemplateIDs.Top(), GetSharedPlaybackState());
+					}
+				}
+			}
 
 			if (GWarn->ReceivedUserCancel())
 			{

@@ -60,12 +60,272 @@
 #include "Bindings/MovieSceneSpawnableActorBinding.h"
 #include "Bindings/MovieSceneSpawnableActorBindingCustomization.h"
 #include "Bindings/MovieSceneCustomBinding.h"
+#include "DetailWidgetRow.h"
+#include "IPropertyTypeCustomization.h"
+#include "IDetailChildrenBuilder.h"
+#include "Widgets/Input/SComboBox.h"
+#include "DetailLayoutBuilder.h"
+#include "IPropertyTypeCustomization.h"
+#include "IPropertyUtilities.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(LevelSequenceEditorSubsystem)
 
 DEFINE_LOG_CATEGORY(LogLevelSequenceEditor);
 
 #define LOCTEXT_NAMESPACE "LevelSequenceEditor"
+
+
+class FMovieSceneBindingPropertyInfoDetailCustomization : public IPropertyTypeCustomization
+{
+public:
+	FMovieSceneBindingPropertyInfoDetailCustomization(TWeakPtr<ISequencer> InSequencer, UMovieScene* InMovieScene, FGuid InBindingGuid, ULevelSequenceEditorSubsystem* InLevelSequenceEditorSubsystem);
+
+	// Begin IDetailCustomization interface
+	virtual void CustomizeHeader(TSharedRef<IPropertyHandle> PropertyHandle, FDetailWidgetRow& HeaderRow, IPropertyTypeCustomizationUtils& CustomizationUtils) override;
+	virtual void CustomizeChildren(TSharedRef<IPropertyHandle> PropertyHandle, IDetailChildrenBuilder& ChildBuilder, IPropertyTypeCustomizationUtils& CustomizationUtils) override;
+	//~ End IDetailCustomization interface
+
+private:
+
+	TSharedRef<SWidget> OnGetConvertMenuContent(IDetailChildrenBuilder& StructBuilder, IPropertyTypeCustomizationUtils& CustomizationUtils);
+	TSharedRef<SWidget> OnGetChangeClassMenuContent(IDetailChildrenBuilder& StructBuilder, IPropertyTypeCustomizationUtils& CustomizationUtils);
+
+	TWeakPtr<ISequencer> SequencerPtr;
+	TObjectPtr<UMovieScene> MovieScene = nullptr;
+	TObjectPtr<ULevelSequenceEditorSubsystem> LevelSequenceEditorSubsystem;
+	FGuid BindingGuid;
+	int32 BindingIndex = 0;
+
+	TSharedPtr<IPropertyHandle> StructPropertyHandle;
+
+	TArray<TSharedPtr<FText>> BindingTypeNames;
+};
+
+FMovieSceneBindingPropertyInfoDetailCustomization::FMovieSceneBindingPropertyInfoDetailCustomization(TWeakPtr<ISequencer> InSequencer, UMovieScene* InMovieScene, FGuid InBindingGuid, ULevelSequenceEditorSubsystem* InLevelSequenceEditorSubsystem)
+	: SequencerPtr(InSequencer)
+	, MovieScene(InMovieScene)
+	, LevelSequenceEditorSubsystem(InLevelSequenceEditorSubsystem)
+	, BindingGuid(InBindingGuid)
+{
+
+}
+
+void FMovieSceneBindingPropertyInfoDetailCustomization::CustomizeHeader(TSharedRef<IPropertyHandle> InStructPropertyHandle, FDetailWidgetRow& HeaderRow, IPropertyTypeCustomizationUtils& CustomizationUtils)
+{
+	TSharedPtr<IPropertyUtilities> PropertyUtils = CustomizationUtils.GetPropertyUtilities();
+
+	HeaderRow.NameContent()
+		[
+			InStructPropertyHandle->CreatePropertyNameWidget()
+		]
+	.ValueContent()
+		[
+			InStructPropertyHandle->CreatePropertyValueWidget()
+		];
+
+	StructPropertyHandle = InStructPropertyHandle;
+}
+
+void FMovieSceneBindingPropertyInfoDetailCustomization::CustomizeChildren(TSharedRef<IPropertyHandle> InStructPropertyHandle, IDetailChildrenBuilder& StructBuilder, IPropertyTypeCustomizationUtils& CustomizationUtils)
+{
+	TSharedPtr<ISequencer> Sequencer = SequencerPtr.Pin();
+	if (Sequencer.IsValid() && InStructPropertyHandle->IsValidHandle())
+	{
+		UMovieSceneSequence* Sequence = MovieScene->GetTypedOuter<UMovieSceneSequence>();
+		TArray<void*> StructPtrs;
+		StructPropertyHandle->AccessRawData(StructPtrs);
+		FMovieSceneBindingPropertyInfo* BindingPropertyInfo = (StructPtrs.Num() == 1) ? reinterpret_cast<FMovieSceneBindingPropertyInfo*>(StructPtrs[0]) : nullptr;
+		if (BindingPropertyInfo)
+		{
+			BindingIndex = InStructPropertyHandle->GetArrayIndex();
+			int32 InitialIndex = 0;
+			BindingTypeNames.Add(MakeShared<FText>(LOCTEXT("BindingType_Possessable", "Possessable")));
+			TArrayView<const TSubclassOf<UMovieSceneCustomBinding>> SupportedBindingTypes = Sequencer->GetSupportedCustomBindingTypes();
+			int32 BindingTypeIndex = 1;
+			for (const TSubclassOf<UMovieSceneCustomBinding>& CustomBindingType : SupportedBindingTypes)
+			{
+				if (CustomBindingType)
+				{
+					if (BindingPropertyInfo->CustomBinding && BindingPropertyInfo->CustomBinding->GetClass() == CustomBindingType)
+					{
+						InitialIndex = BindingTypeIndex;
+					}
+					BindingTypeNames.Add(MakeShared<FText>(CustomBindingType->GetDefaultObject<UMovieSceneCustomBinding>()->GetBindingTypePrettyName()));
+				}
+				BindingTypeIndex++;
+			}
+
+			FDetailWidgetRow& BindingTypeRow = StructBuilder.AddCustomRow(LOCTEXT("BindingPropertyType", "Binding Type"));
+			BindingTypeRow.NameContent()
+				[
+					SNew(STextBlock)
+					.Text(LOCTEXT("BindingPropertyType", "Binding Type"))
+					.ToolTipText(LOCTEXT("BindingPropertyType_Tooltip", "The type of binding for this object binding track entry"))
+					.Font(IDetailLayoutBuilder::GetDetailFont())
+				];
+			BindingTypeRow.ValueContent()
+				[
+					SNew(SComboBox<TSharedPtr<FText>>)
+					.OptionsSource(&BindingTypeNames)
+					.InitiallySelectedItem(BindingTypeNames[InitialIndex])
+					.OnSelectionChanged_Lambda([this, InStructPropertyHandle, SupportedBindingTypes, BindingPropertyInfo, &StructBuilder, &CustomizationUtils](TSharedPtr<FText> NewValue, ESelectInfo::Type)
+					{
+						int32 CurrentIndex = BindingTypeNames.IndexOfByPredicate([&](const TSharedPtr<FText>& In) {
+							return In == NewValue;
+							});
+						if (CurrentIndex == 0)
+						{
+							// Possessable- clear everything
+							BindingPropertyInfo->ResolveFlags = ELocatorResolveFlags::None;
+							BindingPropertyInfo->Locator = FUniversalObjectLocator();
+							BindingPropertyInfo->CustomBinding = nullptr;
+						}
+						else
+						{
+							// Custom binding
+							UClass* BindingTypeClass = SupportedBindingTypes[CurrentIndex - 1];
+							BindingPropertyInfo->Locator = FUniversalObjectLocator();
+							BindingPropertyInfo->ResolveFlags = ELocatorResolveFlags::None;
+							BindingPropertyInfo->CustomBinding = NewObject<UMovieSceneCustomBinding>(MovieScene.Get(), BindingTypeClass, NAME_None, EObjectFlags::RF_Transient);
+						}
+
+						// Force reset the view
+						TSharedPtr<IPropertyHandle> LocatorProperty = StructPropertyHandle->GetChildHandle(GET_MEMBER_NAME_CHECKED(FMovieSceneBindingPropertyInfo, Locator));
+						if (LocatorProperty.IsValid())
+						{
+							CustomizationUtils.GetPropertyUtilities()->NotifyFinishedChangingProperties(FPropertyChangedEvent(LocatorProperty->GetProperty()));
+						}
+						StructBuilder.GetParentCategory().GetParentLayout().ForceRefreshDetails();
+
+					})
+				.OnGenerateWidget_Lambda([](TSharedPtr<FText> Item)
+					{
+						return SNew(STextBlock).Text(*Item.Get());
+					})
+				.InitiallySelectedItem(BindingTypeNames[InitialIndex])
+				[
+					SNew(STextBlock)
+					.Margin(FMargin(0.0f, 2.0f))
+					.Text_Lambda([this, InitialIndex]() { return *BindingTypeNames[InitialIndex].Get(); })
+				]
+			];
+
+			// Only show certain menus if we have a currently bound object
+			
+			if (MovieSceneHelpers::GetSingleBoundObject(Sequence, BindingGuid, Sequencer->GetSharedPlaybackState(), BindingIndex) != nullptr)
+			{
+				FDetailWidgetRow& ConvertToRow = StructBuilder.AddCustomRow(LOCTEXT("ConvertBindingTo", "Convert Binding To..."));
+				ConvertToRow.WholeRowContent()
+					[
+						SNew(SComboButton)
+						.OnGetMenuContent(FOnGetContent::CreateLambda([this, &StructBuilder, &CustomizationUtils]() { return OnGetConvertMenuContent(StructBuilder, CustomizationUtils); }))
+					.ComboButtonStyle(FAppStyle::Get(), "SimpleComboButton")
+					.ButtonContent()
+					[
+						SNew(STextBlock).Text(LOCTEXT("ConvertBindingTo", "Convert Binding To..."))
+					]
+					];
+
+				// Show Change class and save default state menus for spawnables
+				if (MovieSceneHelpers::IsBoundToSpawnable(Sequence, BindingGuid, Sequencer->GetSharedPlaybackState(), BindingIndex))
+				{
+					FDetailWidgetRow& ChangeClassRow = StructBuilder.AddCustomRow(LOCTEXT("ChangeClass", "Change Class..."));
+					ChangeClassRow.WholeRowContent()
+						[
+							SNew(SComboButton)
+							.OnGetMenuContent(FOnGetContent::CreateLambda([this, &StructBuilder, &CustomizationUtils]() { return OnGetChangeClassMenuContent(StructBuilder, CustomizationUtils); }))
+						.ComboButtonStyle(FAppStyle::Get(), "SimpleComboButton")
+						.ButtonContent()
+						[
+							SNew(STextBlock).Text(LOCTEXT("ChangeClass", "Change Class..."))
+						]
+						];
+
+					// Save Default State
+					FDetailWidgetRow& SaveDefaultStateRow = StructBuilder.AddCustomRow(LOCTEXT("SaveDefaultState", "Save Default State"));
+					SaveDefaultStateRow.WholeRowContent()
+						[
+							SNew(SButton)
+							.Text(LOCTEXT("SaveDefaultState", "Save Default State"))
+						.ToolTipText(LOCTEXT("SaveDefaultState_Tooltip", "Save the current state of this spawnable as default properties"))
+						.OnClicked_Lambda([this]()
+							{
+								TSharedPtr<ISequencer> Sequencer = SequencerPtr.Pin();
+								if (Sequencer.IsValid())
+								{
+									Sequencer->GetSpawnRegister().SaveDefaultSpawnableState(BindingGuid, BindingIndex, Sequencer->GetFocusedTemplateID(), Sequencer->GetSharedPlaybackState());
+								}
+								return FReply::Handled();
+							})
+						];
+				}
+			}
+
+
+
+			if (InitialIndex == 0)
+			{
+				// Show locator property
+				TSharedPtr<IPropertyHandle> LocatorProperty = StructPropertyHandle->GetChildHandle(GET_MEMBER_NAME_CHECKED(FMovieSceneBindingPropertyInfo, Locator));
+				if (LocatorProperty.IsValid())
+				{
+					StructBuilder.AddProperty(LocatorProperty.ToSharedRef());
+				}
+			}
+			else
+			{
+				// Show instanced binding type property
+				TSharedPtr<IPropertyHandle> CustomBindingProperty = StructPropertyHandle->GetChildHandle(GET_MEMBER_NAME_CHECKED(FMovieSceneBindingPropertyInfo, CustomBinding));
+				if (CustomBindingProperty.IsValid())
+				{
+					StructBuilder.AddProperty(CustomBindingProperty.ToSharedRef()).CustomWidget(true)
+						.NameContent()
+						[
+							SNew(STextBlock)
+							.Text(LOCTEXT("BindingProperties", "Binding Properties"))
+							.Font(IDetailLayoutBuilder::GetDetailFont())
+						];
+				}
+			}
+		}
+	}
+}
+
+TSharedRef<SWidget> FMovieSceneBindingPropertyInfoDetailCustomization::OnGetConvertMenuContent(IDetailChildrenBuilder& StructBuilder, IPropertyTypeCustomizationUtils& CustomizationUtils)
+{
+	FMenuBuilder MenuBuilder(true, nullptr, nullptr, true);
+
+	TSharedPtr<ISequencer> Sequencer = SequencerPtr.Pin();
+	if (Sequencer.IsValid() && StructPropertyHandle->IsValidHandle())
+	{
+		FSequencerUtilities::AddConvertBindingMenu(MenuBuilder, Sequencer.ToSharedRef(), BindingGuid, BindingIndex, [this, &StructBuilder, &CustomizationUtils]()
+			{
+				if (IDetailsView* DetailsView = StructBuilder.GetParentCategory().GetParentLayout().GetDetailsView())
+				{
+					LevelSequenceEditorSubsystem->RefreshBindingDetails(DetailsView, BindingGuid);
+				}				
+			});
+	}
+	return MenuBuilder.MakeWidget();
+}
+
+TSharedRef<SWidget> FMovieSceneBindingPropertyInfoDetailCustomization::OnGetChangeClassMenuContent(IDetailChildrenBuilder& StructBuilder, IPropertyTypeCustomizationUtils& CustomizationUtils)
+{
+	FMenuBuilder MenuBuilder(true, nullptr, nullptr, true);
+
+	TSharedPtr<ISequencer> Sequencer = SequencerPtr.Pin();
+	if (Sequencer.IsValid() && StructPropertyHandle->IsValidHandle())
+	{
+		FSequencerUtilities::AddChangeClassMenu(MenuBuilder, Sequencer.ToSharedRef(), BindingGuid, BindingIndex, [this, &StructBuilder, &CustomizationUtils]()
+			{
+				if (IDetailsView* DetailsView = StructBuilder.GetParentCategory().GetParentLayout().GetDetailsView())
+				{
+					LevelSequenceEditorSubsystem->RefreshBindingDetails(DetailsView, BindingGuid);
+				}
+			});
+	}
+	return MenuBuilder.MakeWidget();
+}
 
 void ULevelSequenceEditorSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 {
@@ -263,6 +523,11 @@ void ULevelSequenceEditorSubsystem::AddBindingDetailCustomizations(TSharedRef<ID
 		if (MovieScene)
 		{
 			FPropertyEditorModule& PropertyEditor = FModuleManager::Get().LoadModuleChecked<FPropertyEditorModule>(TEXT("PropertyEditor"));
+			DetailsView->RegisterInstancedCustomPropertyTypeLayout(FMovieSceneBindingPropertyInfo::StaticStruct()->GetFName(), FOnGetPropertyTypeCustomizationInstance::CreateLambda([](TWeakPtr<ISequencer> InSequencer, UMovieScene* InMovieScene, FGuid InBindingGuid, ULevelSequenceEditorSubsystem* LevelSequenceEditorSubsystem)
+				{
+					return MakeShared<FMovieSceneBindingPropertyInfoDetailCustomization>(InSequencer, InMovieScene, InBindingGuid, LevelSequenceEditorSubsystem);
+				}, ActiveSequencer.ToWeakPtr(), MovieScene, BindingGuid, this));
+			
 			DetailsView->RegisterInstancedCustomPropertyLayout(UMovieSceneSpawnableActorBinding::StaticClass(), FOnGetDetailCustomizationInstance::CreateStatic(&FMovieSceneSpawnableActorBindingBaseCustomization::MakeInstance, ActiveSequencer.ToWeakPtr(), MovieScene, BindingGuid));
 		}
 	}
@@ -1874,18 +2139,6 @@ void ULevelSequenceEditorSubsystem::AddBindingPropertiesMenu(FMenuBuilder& MenuB
 	}
 	if (FMovieSceneBindingReferences* BindingReferences = Sequence->GetBindingReferences())
 	{
-		BindingPropertyInfoList = NewObject<UMovieSceneBindingPropertyInfoList>();
-
-		Algo::Transform(BindingReferences->GetReferences(ObjectBindings[0]), BindingPropertyInfoList->Bindings, [this](const FMovieSceneBindingReference& Reference)
-			{ 
-				UMovieSceneCustomBinding* CopiedBinding = nullptr;
-				if (Reference.CustomBinding)
-				{
-					CopiedBinding = Cast<UMovieSceneCustomBinding>(StaticDuplicateObject(Reference.CustomBinding, BindingPropertyInfoList.Get()));
-				}
-				return FMovieSceneBindingPropertyInfo{ Reference.Locator, Reference.ResolveFlags, Reference.CustomBinding };
-			});
-
 		MenuBuilder.AddMenuSeparator();
 
 		NotifyHook = FBindingPropertiesNotifyHook(Sequence);
@@ -1906,12 +2159,11 @@ void ULevelSequenceEditorSubsystem::AddBindingPropertiesMenu(FMenuBuilder& MenuB
 			DetailsViewArgs.NotifyHook = &NotifyHook;
 		}
 
-
 		TSharedRef<IDetailsView> DetailsView = FModuleManager::GetModuleChecked<FPropertyEditorModule>("PropertyEditor").CreateDetailView(DetailsViewArgs);
 
 		AddBindingDetailCustomizations(DetailsView, Sequencer, ObjectBindings[0]);
 
-		DetailsView->SetObject(BindingPropertyInfoList.Get(), true);
+		RefreshBindingDetails(&DetailsView.Get(), ObjectBindings[0]);
 		DetailsView->OnFinishedChangingProperties().AddUObject(this, &ULevelSequenceEditorSubsystem::OnFinishedChangingLocators, DetailsView, ObjectBindings[0]);
 
 		MenuBuilder.AddWidget(DetailsView, FText::GetEmpty(), true);
@@ -2237,6 +2489,40 @@ void ULevelSequenceEditorSubsystem::RebindComponent(const TArray<FMovieSceneBind
 	if (bAnythingChanged)
 	{
 		Sequencer->NotifyMovieSceneDataChanged(EMovieSceneDataChangeType::MovieSceneStructureItemsChanged);
+	}
+}
+
+void ULevelSequenceEditorSubsystem::RefreshBindingDetails(IDetailsView* DetailsView, FGuid ObjectBindingID)
+{
+	if (DetailsView == nullptr)
+	{
+		return;
+	}
+	TSharedPtr<ISequencer> Sequencer = GetActiveSequencer();
+	if (Sequencer == nullptr)
+	{
+		return;
+	}
+
+	UMovieSceneSequence* Sequence = Sequencer->GetFocusedMovieSceneSequence();
+	if (!Sequence)
+	{
+		return;
+	}
+	if (FMovieSceneBindingReferences* BindingReferences = Sequence->GetBindingReferences())
+	{
+		BindingPropertyInfoList = NewObject<UMovieSceneBindingPropertyInfoList>();
+		Algo::Transform(BindingReferences->GetReferences(ObjectBindingID), BindingPropertyInfoList->Bindings, [this](const FMovieSceneBindingReference& Reference)
+			{
+				UMovieSceneCustomBinding* CopiedBinding = nullptr;
+				if (Reference.CustomBinding)
+				{
+					CopiedBinding = Cast<UMovieSceneCustomBinding>(StaticDuplicateObject(Reference.CustomBinding, BindingPropertyInfoList.Get()));
+				}
+				return FMovieSceneBindingPropertyInfo{ Reference.Locator, Reference.ResolveFlags, Reference.CustomBinding };
+			});
+
+		DetailsView->SetObject(BindingPropertyInfoList.Get(), true);
 	}
 }
 

@@ -200,7 +200,7 @@ void FLevelSequenceCustomization::ExtendObjectBindingContextMenu(FMenuBuilder& M
 		MenuBuilder.AddSubMenu(
 			LOCTEXT("ChangeClassLabel", "Change Class"),
 			LOCTEXT("ChangeClassTooltip", "Change the class (object template) that this spawns from"),
-			FNewMenuDelegate::CreateRaw(this, &FLevelSequenceCustomization::AddChangeClassMenu, ObjectBindingModel));
+			FNewMenuDelegate::CreateLambda([=](FMenuBuilder& MenuBuilder) { FSequencerUtilities::AddChangeClassMenu(MenuBuilder, Sequencer.ToSharedRef(), ObjectBindingID, 0, TFunction<void()>()); }));
 
 		MenuBuilder.AddMenuEntry(
 			LOCTEXT("ContinuouslyRespawn", "Continuously Respawn"),
@@ -229,7 +229,11 @@ void FLevelSequenceCustomization::ExtendObjectBindingContextMenu(FMenuBuilder& M
 		);
 
 		MenuBuilder.AddMenuEntry(FSequencerCommands::Get().SaveCurrentSpawnableState);
-		MenuBuilder.AddMenuEntry(FSequencerCommands::Get().ConvertToPossessable);
+
+		MenuBuilder.AddSubMenu(
+			LOCTEXT("ConvertBindingLabel", "Convert Binding To..."),
+			LOCTEXT("ConvertBindingLabelTooltip", "Convert this binding into another binding type"),
+			FNewMenuDelegate::CreateLambda([=](FMenuBuilder& MenuBuilder) { FSequencerUtilities::AddConvertBindingMenu(MenuBuilder, Sequencer.ToSharedRef(), ObjectBindingID, 0, TFunction<void()>()); }));
 
 		MenuBuilder.AddSubMenu(
 				LOCTEXT("DynamicSpawn", "Dynamic Spawn"),
@@ -248,6 +252,14 @@ void FLevelSequenceCustomization::ExtendObjectBindingContextMenu(FMenuBuilder& M
 			bMultipleBindings = BindingReferences->GetReferences(ObjectBindingID).Num() > 1;
 		}
 
+		if (!bMultipleBindings)
+		{
+			MenuBuilder.AddSubMenu(
+				LOCTEXT("ConvertBindingLabel", "Convert Binding To..."),
+				LOCTEXT("ConvertBindingLabelTooltip", "Convert this binding into another binding type"),
+				FNewMenuDelegate::CreateLambda([=](FMenuBuilder& MenuBuilder) {FSequencerUtilities::AddConvertBindingMenu(MenuBuilder, Sequencer.ToSharedRef(), ObjectBindingID, 0, TFunction<void()>()); }));
+		}
+
 		// Regular possessable
 		if (!bCustomBinding)
 		{
@@ -261,34 +273,6 @@ void FLevelSequenceCustomization::ExtendObjectBindingContextMenu(FMenuBuilder& M
 						LOCTEXT("DynamicPossession", "Dynamic Possession"),
 						LOCTEXT("DynamicPossessionTooltip", "Specify a Blueprint method that will find a compatible actor for this binding"),
 						FNewMenuDelegate::CreateRaw(this, &FLevelSequenceCustomization::AddDynamicPossessionMenu, ObjectBindingModel));
-				}
-				// Custom bindings
-				TArrayView<const FMovieSceneBindingReference> BindingReferencesList = Sequencer->GetFocusedMovieSceneSequence()->GetBindingReferences()->GetReferences(ObjectBindingID);
-				if (BindingReferencesList.Num() == 1)
-				{
-					const FMovieSceneBindingReference& CurrentBindingReference = BindingReferencesList[0];
-					TArrayView<TWeakObjectPtr<>> BoundObjects = Sequencer->FindBoundObjects(ObjectBindingID, Sequencer->GetFocusedTemplateID());
-					if (BoundObjects.Num() == 1)
-					{
-						if (UObject* CurrentBoundObject = BoundObjects[0].Get())
-						{
-							TArrayView<const TSubclassOf<UMovieSceneCustomBinding>> PrioritySortedCustomBindingTypes = Sequencer->GetSupportedCustomBindingTypes();
-							for (const TSubclassOf<UMovieSceneCustomBinding>& CustomBindingType : PrioritySortedCustomBindingTypes)
-							{
-								if (CustomBindingType
-									&& (!CurrentBindingReference.CustomBinding
-										|| CurrentBindingReference.CustomBinding->GetClass() != CustomBindingType)
-									&& CustomBindingType->GetDefaultObject<UMovieSceneCustomBinding>()->SupportsConversionFromBinding(CurrentBindingReference, CurrentBoundObject))
-								{
-									MenuBuilder.AddMenuEntry(
-										FText::Format(LOCTEXT("ConvertToCustomBinding", "Convert to {0}"), CustomBindingType->GetDefaultObject<UMovieSceneCustomBinding>()->GetBindingTypePrettyName()),
-										FText::Format(LOCTEXT("ConvertToCustomBindingTooltip", "Convert selected binding to {0}"), CustomBindingType->GetDefaultObject<UMovieSceneCustomBinding>()->GetBindingTypePrettyName()),
-										FSlateIcon(),
-										FUIAction(FExecuteAction::CreateRaw(this, &FLevelSequenceCustomization::ConvertToCustomBinding, ObjectBindingModel, CustomBindingType)));
-								}
-							}
-						}
-					}
 				}
 			}
 			MenuBuilder.EndSection();
@@ -308,37 +292,13 @@ void FLevelSequenceCustomization::ExtendObjectBindingContextMenu(FMenuBuilder& M
 					MenuBuilder.AddSubMenu(
 						LOCTEXT("ChangeClassLabel", "Change Class"),
 						LOCTEXT("ChangeClassTooltip", "Change the class (object template) that this spawns from"),
-						FNewMenuDelegate::CreateRaw(this, &FLevelSequenceCustomization::AddChangeClassMenu, ObjectBindingModel));
-
-					// Binding conversions
-					MenuBuilder.AddMenuEntry(FSequencerCommands::Get().ConvertToPossessable);
-
-					// Custom bindings
-					TArrayView<const FMovieSceneBindingReference> BindingReferencesList = Sequencer->GetFocusedMovieSceneSequence()->GetBindingReferences()->GetReferences(ObjectBindingID);
-					if (BindingReferencesList.Num() == 1)
-					{
-						const FMovieSceneBindingReference& CurrentBindingReference = BindingReferencesList[0];
-						UObject* CurrentBoundObject = Sequencer->FindSpawnedObjectOrTemplate(ObjectBindingID);
-						if (CurrentBoundObject)
-						{
-							TArrayView<const TSubclassOf<UMovieSceneCustomBinding>> PrioritySortedCustomBindingTypes = Sequencer->GetSupportedCustomBindingTypes();
-							for (const TSubclassOf<UMovieSceneCustomBinding>& CustomBindingType : PrioritySortedCustomBindingTypes)
-							{
-								if (CustomBindingType
-									&& CurrentBindingReference.CustomBinding
-									&& CurrentBindingReference.CustomBinding->GetClass() != CustomBindingType
-									&& CustomBindingType->GetDefaultObject<UMovieSceneCustomBinding>()->SupportsConversionFromBinding(CurrentBindingReference, CurrentBoundObject))
-								{
-									MenuBuilder.AddMenuEntry(
-										FText::Format(LOCTEXT("ConvertToCustomBinding", "Convert to {0}"), CustomBindingType->GetDefaultObject<UMovieSceneCustomBinding>()->GetBindingTypePrettyName()),
-										FText::Format(LOCTEXT("ConvertToCustomBindingTooltip", "Convert selected binding to {0}"), CustomBindingType->GetDefaultObject<UMovieSceneCustomBinding>()->GetBindingTypePrettyName()),
-										FSlateIcon(),
-										FUIAction(FExecuteAction::CreateRaw(this, &FLevelSequenceCustomization::ConvertToCustomBinding, ObjectBindingModel, CustomBindingType)));
-								}
-							}
-						}
-					}
-				}
+						FNewMenuDelegate::CreateLambda([=](FMenuBuilder& MenuBuilder) { FSequencerUtilities::AddChangeClassMenu(MenuBuilder, Sequencer.ToSharedRef(), ObjectBindingID, 0, TFunction<void()>()); }));
+				}		
+				
+				MenuBuilder.AddSubMenu(
+					LOCTEXT("DynamicSpawn", "Dynamic Spawn"),
+					LOCTEXT("DynamicSpawnTooltip", "Specify a Blueprint method that will spawn or otherwise acquire a compatible actor for this binding"),
+					FNewMenuDelegate::CreateRaw(this, &FLevelSequenceCustomization::AddDynamicSpawnMenu, ObjectBindingModel));
 			}
 			else
 			{
@@ -547,111 +507,6 @@ void FLevelSequenceCustomization::SetSelectedNodesSpawnableLevel(TSharedPtr<FObj
 	}
 }
 
-void FLevelSequenceCustomization::AddChangeClassMenu(FMenuBuilder& MenuBuilder, TSharedPtr<FObjectBindingModel> ObjectBindingModel)
-{
-	TSharedPtr<ISequencer> Sequencer = WeakSequencer.Pin();
-	TSharedPtr<FSequencerEditorViewModel> EditorViewModel = Sequencer->GetViewModel();
-
-	FGuid ObjectBindingID = ObjectBindingModel->GetObjectGuid();
-	UMovieScene* MovieScene = Sequencer->GetFocusedMovieSceneSequence()->GetMovieScene();
-
-	FClassViewerInitializationOptions Options;
-	Options.Mode = EClassViewerMode::ClassPicker;
-	Options.bIsPlaceableOnly = true;
-	
-	FMovieSceneSpawnable* Spawnable = MovieScene->FindSpawnable(ObjectBindingID);
-	if (Spawnable)
-	{
-		Options.bIsActorsOnly = true;
-	}
-	else if (const FMovieSceneBindingReferences* BindingReferences = Sequencer->GetFocusedMovieSceneSequence()->GetBindingReferences())
-	{
-		TArrayView<const FMovieSceneBindingReference> BindingReferencesList = BindingReferences->GetReferences(ObjectBindingID);
-		if (BindingReferencesList.Num() == 1 && BindingReferencesList[0].CustomBinding && BindingReferencesList[0].CustomBinding->WillSpawnObject(Sequencer->GetSharedPlaybackState()))
-		{
-			// Class filter for the custom binding type
-			class FCustomBindingClassFilter : public IClassViewerFilter
-			{
-			public:
-				bool IsClassAllowed(const FClassViewerInitializationOptions& InInitOptions, const UClass* InClass, TSharedRef< FClassViewerFilterFuncs > InFilterFuncs) override
-				{
-					return CustomBinding && InClass && CustomBinding->SupportsBindingCreationFromObject(InClass->GetDefaultObject());
-				}
-
-				virtual bool IsUnloadedClassAllowed(const FClassViewerInitializationOptions& InInitOptions, const TSharedRef< const IUnloadedBlueprintData > InClass, TSharedRef< FClassViewerFilterFuncs > InFilterFuncs) override
-				{
-					if (const UClass* ClassWithin = InClass->GetClassWithin())
-					{
-						return IsClassAllowed(InInitOptions, ClassWithin, InFilterFuncs);
-					}
-					return false;
-				}
-
-				TObjectPtr<UMovieSceneCustomBinding> CustomBinding;
-			};
-
-			TSharedRef<FCustomBindingClassFilter> ClassFilter = MakeShared<FCustomBindingClassFilter>();
-			ClassFilter->CustomBinding = BindingReferencesList[0].CustomBinding;
-			Options.ClassFilters.Add(ClassFilter);
-		}
-		else
-		{
-			return;
-		}
-	}
-	else
-	{
-		return;
-	}
-
-	FClassViewerModule& ClassViewerModule = FModuleManager::LoadModuleChecked<FClassViewerModule>("ClassViewer");
-
-
-	const UClass* ClassForObjectBinding = ObjectBindingModel->FindObjectClass();
-	if (ClassForObjectBinding)
-	{
-		Options.ViewerTitleString = FText::FromString(TEXT("Change from: ") + ClassForObjectBinding->GetFName().ToString());
-	}
-	else
-	{
-		Options.ViewerTitleString = FText::FromString(TEXT("Change from: (empty)"));
-	}
-
-	MenuBuilder.AddWidget(
-		SNew(SBox)
-		.MinDesiredWidth(300.0f)
-		.MaxDesiredHeight(400.0f)
-		[
-			ClassViewerModule.CreateClassViewer(Options, FOnClassPicked::CreateRaw(
-				this, &FLevelSequenceCustomization::HandleTemplateActorClassPicked, ObjectBindingModel))
-		],
-		FText(), true, false
-	);
-}
-
-void FLevelSequenceCustomization::HandleTemplateActorClassPicked(UClass* ChosenClass, TSharedPtr<FObjectBindingModel> ObjectBindingModel)
-{
-	TSharedPtr<ISequencer> Sequencer = WeakSequencer.Pin();
-	UMovieScene* MovieScene = Sequencer->GetFocusedMovieSceneSequence()->GetMovieScene();
-
-	FGuid ObjectBindingID = ObjectBindingModel->GetObjectGuid();
-
-	FSlateApplication::Get().DismissAllMenus();
-
-	FScopedTransaction Transaction(LOCTEXT("ChangeClass", "Change Class"));
-
-	MovieScene->Modify();
-
-	TValueOrError<FNewSpawnable, FText> Result = Sequencer->GetSpawnRegister().CreateNewSpawnableType(*ChosenClass, *MovieScene, nullptr);
-	if (Result.IsValid())
-	{
-		MovieSceneHelpers::SetObjectTemplate(Sequencer->GetFocusedMovieSceneSequence(), ObjectBindingID, Result.GetValue().ObjectTemplate, Sequencer->GetSharedPlaybackState());
-
-		Sequencer->GetSpawnRegister().DestroySpawnedObject(ObjectBindingID, Sequencer->GetFocusedTemplateID(), *Sequencer.Get());
-		Sequencer->ForceEvaluate();
-	}
-}
-
 void FLevelSequenceCustomization::AddDynamicSpawnMenu(FMenuBuilder& MenuBuilder, TSharedPtr<FObjectBindingModel> ObjectBindingModel)
 {
 	TSharedPtr<ISequencer> Sequencer = WeakSequencer.Pin();
@@ -680,14 +535,6 @@ void FLevelSequenceCustomization::AddDynamicPossessionMenu(FMenuBuilder& MenuBui
 	}
 
 	ObjectBindingModel->AddDynamicBindingMenu(MenuBuilder, Possessable->DynamicBinding);
-}
-
-void FLevelSequenceCustomization::ConvertToCustomBinding(TSharedPtr<FObjectBindingModel> ObjectBindingModel, TSubclassOf<UMovieSceneCustomBinding> CustomBindingType)
-{
-	if (WeakSequencer.IsValid() && ObjectBindingModel.IsValid() && CustomBindingType)
-	{
-		FSequencerUtilities::ConvertToCustomBinding(WeakSequencer.Pin().ToSharedRef(), ObjectBindingModel->GetObjectGuid(), CustomBindingType);
-	}
 }
 
 } // namespace UE::Sequencer

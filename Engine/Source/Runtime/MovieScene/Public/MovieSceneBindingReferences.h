@@ -182,6 +182,17 @@ struct FMovieSceneBindingReferences
 	MOVIESCENE_API void ResolveBinding(const FMovieSceneBindingResolveParams& BindingResolveParams, const UE::UniversalObjectLocator::FResolveParams& LocatorResolveParams, TSharedPtr<const UE::MovieScene::FSharedPlaybackState> SharedPlaybackState, TArray<UObject*, TInlineAllocator<1>>& OutObjects) const;
 
 	/**
+	 * Resolve a binding for the specified ID and BindingIndex using a given context
+	 *
+	 * @param ObjectId					The ID to associate the object with
+	 * @param BindingResolveParams		Resolve parameters
+	 * @param LocatorResolveParams      Locator-specific resolve parameters
+	 * @param SharedPlaybackState       Shared Playback State from the Sequencer
+	 * @return The single bound objects if it exists
+	 * */
+	MOVIESCENE_API UObject* ResolveSingleBinding(const FMovieSceneBindingResolveParams& BindingResolveParams, int32 BindingIndex, const UE::UniversalObjectLocator::FResolveParams& LocatorResolveParams, TSharedPtr<const UE::MovieScene::FSharedPlaybackState> SharedPlaybackState) const;
+
+	/**
 	 * Resolve a binding for the specified ID using a given context
 	 *
 	 * @param ObjectId					The ID to associate the object with
@@ -209,7 +220,8 @@ struct FMovieSceneBindingReferences
 
 private:
 
-	void ResolveBindingFromLocator(int32 Index, const UE::UniversalObjectLocator::FResolveParams& LocatorResolveParams, TArray<UObject*, TInlineAllocator<1>>& OutObjects) const;
+	UObject* ResolveBindingInternal(const FMovieSceneBindingResolveParams& BindingResolveParams, const UE::UniversalObjectLocator::FResolveParams& LocatorResolveParams, int32 BindingIndex, int32 InternalIndex, TSharedPtr<const UE::MovieScene::FSharedPlaybackState> SharedPlaybackState) const;
+	UObject* ResolveBindingFromLocator(int32 Index, const UE::UniversalObjectLocator::FResolveParams& LocatorResolveParams) const;
 
 	/** The map from object binding ID to an array of references that pertain to that ID */
 	UPROPERTY()

@@ -158,7 +158,8 @@ void FMovieSceneBindingReferences::RemoveBinding(const FGuid& ObjectId)
 	}
 }
 
-void FMovieSceneBindingReferences::ResolveBindingFromLocator(int32 Index, const UE::UniversalObjectLocator::FResolveParams& ResolveParams, TArray<UObject*, TInlineAllocator<1>>& OutObjects) const
+
+UObject* FMovieSceneBindingReferences::ResolveBindingFromLocator(int32 Index, const UE::UniversalObjectLocator::FResolveParams& ResolveParams) const
 {
 	// Add our resolve param flags
 	if (ResolveParams.Context)
@@ -170,10 +171,21 @@ void FMovieSceneBindingReferences::ResolveBindingFromLocator(int32 Index, const 
 	}
 
 	UObject* ResolvedObject = SortedReferences[Index].Locator.Resolve(ResolveParams).SyncGet().Object;
-	ResolvedObject = UE::MovieScene::FindBoundObjectProxy(ResolvedObject);
-	if (ResolvedObject)
+	return UE::MovieScene::FindBoundObjectProxy(ResolvedObject);
+}
+
+UObject* FMovieSceneBindingReferences::ResolveBindingInternal(const FMovieSceneBindingResolveParams& BindingResolveParams, const UE::UniversalObjectLocator::FResolveParams& LocatorResolveParams, int32 BindingIndex, int32 InternalIndex, TSharedPtr<const UE::MovieScene::FSharedPlaybackState> SharedPlaybackState) const
+{
+	// If a custom binding is present and we have valid shared playback state, resolve the custom binding
+	if (SortedReferences[InternalIndex].CustomBinding && SharedPlaybackState.IsValid())
 	{
-		OutObjects.Add(ResolvedObject);
+		UObject* ResolvedObject = SortedReferences[InternalIndex].CustomBinding->ResolveBinding(BindingResolveParams, BindingIndex, SharedPlaybackState.ToSharedRef()).Object;
+		return UE::MovieScene::FindBoundObjectProxy(ResolvedObject);
+	}
+	else
+	{
+		// Otherwise, attempt to resolve via the locator
+		return ResolveBindingFromLocator(InternalIndex, LocatorResolveParams);
 	}
 }
 
@@ -193,7 +205,11 @@ void FMovieSceneBindingReferences::ResolveBinding(const FGuid& ObjectId, const U
 
 	for (int32 Index = StartIndex; Index < Num && SortedReferences[Index].ID == ObjectId; ++Index)
 	{
-		ResolveBindingFromLocator(Index, ResolveParams, OutObjects);
+		UObject* ResolvedObject = ResolveBindingFromLocator(Index, ResolveParams);
+		if (ResolvedObject)
+		{
+			OutObjects.Add(ResolvedObject);
+		}
 	}
 }
 
@@ -204,22 +220,22 @@ void FMovieSceneBindingReferences::ResolveBinding(const FMovieSceneBindingResolv
 
 	for (int32 Index = StartIndex; Index < Num && SortedReferences[Index].ID == BindingResolveParams.ObjectBindingID; ++Index)
 	{
-		// If a custom binding is present and we have valid shared playback state, resolve the custom binding
-		if (SortedReferences[Index].CustomBinding && SharedPlaybackState.IsValid())
+		UObject* ResolvedObject = ResolveBindingInternal(BindingResolveParams, LocatorResolveParams, Index - StartIndex, Index, SharedPlaybackState);
+		if (ResolvedObject)
 		{
-			UObject* ResolvedObject = SortedReferences[Index].CustomBinding->ResolveBinding(BindingResolveParams, Index - StartIndex, SharedPlaybackState.ToSharedRef()).Object;
-			ResolvedObject = UE::MovieScene::FindBoundObjectProxy(ResolvedObject);
-			if (ResolvedObject)
-			{
-				OutObjects.Add(ResolvedObject);
-			}
-		}
-		else
-		{
-			// Otherwise, attempt to resolve via the locator
-			ResolveBindingFromLocator(Index, LocatorResolveParams, OutObjects);
+			OutObjects.Add(ResolvedObject);
 		}
 	}
+}
+
+UObject* FMovieSceneBindingReferences::ResolveSingleBinding(const FMovieSceneBindingResolveParams& BindingResolveParams, int32 BindingIndex, const UE::UniversalObjectLocator::FResolveParams& LocatorResolveParams, TSharedPtr<const UE::MovieScene::FSharedPlaybackState> SharedPlaybackState) const
+{
+	const int32 Index = Algo::LowerBoundBy(SortedReferences, BindingResolveParams.ObjectBindingID, &FMovieSceneBindingReference::ID) + BindingIndex;
+	if (SortedReferences.IsValidIndex(Index) && SortedReferences[Index].ID == BindingResolveParams.ObjectBindingID)
+	{
+		return ResolveBindingInternal(BindingResolveParams, LocatorResolveParams, BindingIndex, Index, SharedPlaybackState);
+	}
+	return nullptr;
 }
 
 void FMovieSceneBindingReferences::RemoveObjects(const FGuid& ObjectId, const TArray<UObject*>& InObjects, UObject* InContext)

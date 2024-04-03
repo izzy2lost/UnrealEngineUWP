@@ -55,14 +55,14 @@ struct FMovieSceneBindingPropertyInfo
 	GENERATED_BODY()
 
 	// Locator for the entry
-	UPROPERTY(EditAnywhere, Category = "Default", meta=(AllowedLocators="Actor"))
+	UPROPERTY(EditAnywhere, Category = "Default", meta=(AllowedLocators="Actor", DisplayName="Actor"))
 	FUniversalObjectLocator Locator;
 
 	// Flags for how to resolve the locator
 	UPROPERTY()
 	ELocatorResolveFlags ResolveFlags = ELocatorResolveFlags::None;
 
-	UPROPERTY(Instanced, EditAnywhere, Category = "Default", meta=(AllowEditInlineCustomization))
+	UPROPERTY(Instanced, VisibleAnywhere, Category = "Default", meta=(EditInline, AllowEditInlineCustomization, DisplayName="Custom Binding Type"))
 	UMovieSceneCustomBinding* CustomBinding = nullptr;
 };
 
@@ -228,6 +228,9 @@ public:
 	/** Rebind the component binding to the requested component */
 	UFUNCTION(BlueprintCallable, Category = "Level Sequence Editor")
 	void RebindComponent(const TArray<FMovieSceneBindingProxy>& ComponentBindings, const FName& ComponentName);
+
+	// Refreshes the binding details when the bindings change in the menu
+	void RefreshBindingDetails(IDetailsView* DetailsView, FGuid ObjectBindingID);
 
 private:
 	/** Used by Baking transforms*/

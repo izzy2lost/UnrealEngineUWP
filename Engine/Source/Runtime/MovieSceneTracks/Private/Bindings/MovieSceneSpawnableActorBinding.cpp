@@ -128,9 +128,22 @@ UObject* UMovieSceneSpawnableActorBindingBase::SpawnObjectInternal(UWorld* World
 	{
 		FString BindingName = GetDesiredBindingName();
 		FString ActorLabel = !BindingName.IsEmpty() ? BindingName : SpawnName.ToString();
+
 		if (FMovieScenePossessable* Possessable = MovieScene.FindPossessable(BindingId))
 		{
 			ActorLabel = Possessable->GetName();
+
+			if (UMovieSceneSequence* Sequence = MovieScene.GetTypedOuter<UMovieSceneSequence>())
+			{
+				if (const FMovieSceneBindingReferences* BindingReferences = Sequence->GetBindingReferences())
+				{
+					if (BindingReferences->GetReferences(BindingId).Num() > 1)
+					{
+						// If there are multiple bound objects, use the Object Template actor label instead of the possessable name
+						ActorLabel = ActorTemplate->GetActorLabel();
+					}
+				}
+			}
 		}
 		SpawnedActor->SetActorLabel(ActorLabel);
 	}

@@ -18,6 +18,7 @@
 #include "UObject/Package.h"
 #include "MovieSceneBindingReferences.h"
 #include "Bindings/MovieSceneSpawnableBinding.h"
+#include "Evaluation/MovieSceneEvaluationState.h"
 
 bool MovieSceneHelpers::IsSectionKeyable(const UMovieSceneSection* Section)
 {
@@ -708,6 +709,39 @@ bool MovieSceneHelpers::IsBoundToSpawnable(UMovieSceneSequence* Sequence, const 
 		}
 	}
 	return false;
+}
+
+
+UObject* MovieSceneHelpers::GetSingleBoundObject(UMovieSceneSequence* Sequence, const FGuid& ObjectId, TSharedRef<const UE::MovieScene::FSharedPlaybackState> SharedPlaybackState, int32 BindingIndex)
+{
+	if (Sequence)
+	{
+		if (UMovieScene* MovieScene = Sequence->GetMovieScene())
+		{
+			if (FMovieSceneEvaluationState* EvaluationState = SharedPlaybackState->FindCapability<FMovieSceneEvaluationState>())
+			{
+				FMovieSceneSequenceIDRef SequenceID = EvaluationState->FindSequenceId(Sequence);
+
+				if (MovieScene->FindSpawnable(ObjectId))
+				{
+					TArrayView<TWeakObjectPtr<>> BoundObjects = EvaluationState->FindBoundObjects(FMovieSceneEvaluationOperand(SequenceID, ObjectId), SharedPlaybackState);
+					if (BoundObjects.Num() > 0)
+					{
+						return BoundObjects[0].Get();
+					}
+				}
+
+				const FMovieSceneBindingReferences* Refs = Sequence->GetBindingReferences();
+				if (Refs)
+				{
+					UE::UniversalObjectLocator::FResolveParams LocatorResolveParams(SharedPlaybackState->GetPlaybackContext());
+					FMovieSceneBindingResolveParams BindingResolveParams{ Sequence, ObjectId, SequenceID };
+					return Refs->ResolveSingleBinding(BindingResolveParams, BindingIndex, LocatorResolveParams, SharedPlaybackState);
+				}
+			}
+		}
+	}
+	return nullptr;
 }
 
 UObject* MovieSceneHelpers::GetObjectTemplate(UMovieSceneSequence* Sequence, const FGuid& ObjectId, TSharedRef<const UE::MovieScene::FSharedPlaybackState> SharedPlaybackState, int32 BindingIndex)

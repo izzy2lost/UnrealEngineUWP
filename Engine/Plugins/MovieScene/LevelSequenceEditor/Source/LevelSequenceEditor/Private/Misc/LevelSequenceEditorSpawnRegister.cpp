@@ -140,13 +140,13 @@ void FLevelSequenceEditorSpawnRegister::PreDestroyObject(UObject& Object, const 
 }
 
 #if WITH_EDITOR
-void FLevelSequenceEditorSpawnRegister::SaveDefaultSpawnableState(const FGuid& BindingId, FMovieSceneSequenceIDRef TemplateID, TSharedRef<const FSharedPlaybackState> SharedPlaybackState)
+void FLevelSequenceEditorSpawnRegister::SaveDefaultSpawnableState(const FGuid& BindingId, int32 BindingIndex, FMovieSceneSequenceIDRef TemplateID, TSharedRef<const FSharedPlaybackState> SharedPlaybackState)
 {
 	if (UMovieSceneSequence* Sequence = SharedPlaybackState->GetSequence(TemplateID))
 	{
-		if (UObject* Object = FindSpawnedObject(BindingId, TemplateID, 0).Get())
+		if (UObject* Object = FindSpawnedObject(BindingId, TemplateID, BindingIndex).Get())
 		{
-			SaveDefaultSpawnableStateImpl(BindingId, 0, Sequence, Object, SharedPlaybackState);
+			SaveDefaultSpawnableStateImpl(BindingId, BindingIndex, Sequence, Object, SharedPlaybackState);
 			Sequence->MarkPackageDirty();
 		}
 	}
@@ -177,7 +177,7 @@ void FLevelSequenceEditorSpawnRegister::SaveDefaultSpawnableStateImpl(const FGui
 
 
 	// Copy the template
-	MovieSceneHelpers::CopyObjectTemplate(Sequence, BindingId ,SpawnedObject, SharedPlaybackState);
+	MovieSceneHelpers::CopyObjectTemplate(Sequence, BindingId ,SpawnedObject, SharedPlaybackState, BindingIndex);
 
 	if (FTrackedObjectState* TrackedState = TrackedObjects.Find(SpawnedObject))
 	{
