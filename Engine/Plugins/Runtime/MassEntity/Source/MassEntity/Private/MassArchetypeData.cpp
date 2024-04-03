@@ -987,6 +987,9 @@ void FMassArchetypeData::BatchAddEntities(TConstArrayView<FMassEntityHandle> Ent
 {
 	SCOPE_CYCLE_COUNTER(STAT_Mass_ArchetypeBatchAdd);
 
+	testableCheckfReturn(SharedFragmentValues.HasExactFragmentTypesMatch(GetCompositionDescriptor().SharedFragments)
+		, return, TEXT("%hs parameter SharedFragmentValues doesn't match archetype's composition"), __FUNCTION__);
+
 	FMassArchetypeEntityCollection::FArchetypeEntityRange ResultSubchunk;
 	ResultSubchunk.ChunkIndex = 0;
 	int32 NumberMoved = 0;
@@ -1014,6 +1017,23 @@ void FMassArchetypeData::BatchMoveEntitiesToAnotherArchetype(const FMassArchetyp
 	, const FMassSharedFragmentBitSet* SharedFragmentToRemoveBitSet)
 {
 	check(&NewArchetype != this);
+
+	if (SharedFragmentValuesToAdd || SharedFragmentToRemoveBitSet)
+	{
+		// verify the new archetype's shared fragment composition matches current archetype's composition modified as requested
+		FMassSharedFragmentBitSet NewSharedFragmentsBitset = GetSharedFragmentBitSet();
+		if (SharedFragmentToRemoveBitSet)
+		{
+			NewSharedFragmentsBitset -= *SharedFragmentToRemoveBitSet;
+		}
+		if (SharedFragmentValuesToAdd)
+		{
+			NewSharedFragmentsBitset += SharedFragmentValuesToAdd->GetSharedFragmentBitSet();
+		}
+		
+		testableCheckfReturn(NewArchetype.GetCompositionDescriptor().SharedFragments == NewSharedFragmentsBitset
+			, return, TEXT("%hs parameter SharedFragmentValues doesn't match archetype's composition"), __FUNCTION__);
+	}
 
 	TArray<FMassArchetypeEntityCollection::FArchetypeEntityRange> Subchunks(EntityCollection.GetRanges());
 
@@ -1063,6 +1083,8 @@ void FMassArchetypeData::BatchMoveEntitiesToAnotherArchetype(const FMassArchetyp
 				{
 					NewSharedValues.Append(*SharedFragmentValuesToAdd);
 				}
+				NewSharedValues.Sort();
+
 				ResultSubChunk = NewArchetype.PrepareNextEntitiesSpanInternal(MakeArrayView(DyingEntityPtr + NumberMoved, EntityRange.Length - NumberMoved)
 					, NewSharedValues, ResultSubChunk.ChunkIndex);
 			}
