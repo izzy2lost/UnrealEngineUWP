@@ -19,6 +19,7 @@
 #include "UObject/Package.h"
 #include "UObject/PropertyHelper.h"
 #include "UObject/PropertyTypeName.h"
+#include "UObject/PropertyVisitor.h"
 #include "UObject/SoftObjectPath.h"
 #include "UObject/UnrealTypePrivate.h"
 #include "UObject/UObjectGlobals.h"
@@ -1334,6 +1335,19 @@ namespace UE::CoreUObject::Private
 		UE_LOG(LogProperty, Fatal, TEXT("Invalid property size %u when linking property %s of size %d"), InvalidPropertySize, *Prop->GetFullName(), Prop->GetSize());
 		for (;;);
 	}
+}
+
+EPropertyVisitorControlFlow FProperty::Visit(void* Data, const TFunctionRef<EPropertyVisitorControlFlow(const FPropertyVisitorPath&, void*)> InFunc) const
+{
+	FPropertyVisitorPath Path(FPropertyVisitorInfo(this));
+	return Visit(Path, Data, InFunc);
+}
+
+EPropertyVisitorControlFlow FProperty::Visit(FPropertyVisitorPath& Path, void* Data, const TFunctionRef<EPropertyVisitorControlFlow(const FPropertyVisitorPath& /*Path*/, void* /*Data*/)> InFunc) const
+{
+	checkf(Path.Top().Property == this, TEXT("The property set in the info has to match to this property"));
+
+	return InFunc(Path, Data);
 }
 
 int32 FProperty::SetupOffset()

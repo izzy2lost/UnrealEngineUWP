@@ -587,3 +587,13 @@ bool FInstancedStruct::FindInnerPropertyInstance(FName PropertyName, const FProp
 
 	return false;
 }
+
+EPropertyVisitorControlFlow FInstancedStruct::Visit(FPropertyVisitorPath& Path, const TFunctionRef<EPropertyVisitorControlFlow(const FPropertyVisitorPath& /*Path*/, void* /*Data*/)> InFunc)
+{
+	if (!ScriptStruct || !StructMemory)
+	{
+		return EPropertyVisitorControlFlow::StepOver;
+	}
+
+	return ScriptStruct->Visit(Path, StructMemory, InFunc);
+}

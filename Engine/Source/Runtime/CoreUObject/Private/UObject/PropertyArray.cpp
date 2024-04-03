@@ -1345,3 +1345,35 @@ bool FArrayProperty::CanSerializeFromTypeName(UE::FPropertyTypeName Type) const
 	check(LocalInner);
 	return LocalInner->CanSerializeFromTypeName(Type.GetParameter(0));
 }
+
+EPropertyVisitorControlFlow FArrayProperty::Visit(FPropertyVisitorPath& Path, void* Data, const TFunctionRef<EPropertyVisitorControlFlow(const FPropertyVisitorPath& /*Path*/, void* /*Data*/)> InFunc) const
+{
+	// Indicate in the path that this property contains inner properties
+	Path.Top().bContainsInnerProperties = true;
+
+	EPropertyVisitorControlFlow RetVal = Super::Visit(Path, Data, InFunc);
+
+	if (RetVal == EPropertyVisitorControlFlow::StepInto)
+	{
+		checkf(Inner, TEXT("Expecting a valid inner property type"));
+		FScriptArrayHelper ArrayHelper(this, Data);
+
+		FPropertyVisitorScope Scope(Path, FPropertyVisitorInfo(Inner));
+
+		const int32 ArrayNum = ArrayHelper.Num();
+		for (int32 ContainerIndex = 0; ContainerIndex < ArrayNum; ContainerIndex++)
+		{
+			Path.Top().SetIndex(ContainerIndex, EPropertyVisitorInfoType::ContainerIndex);
+			RetVal = Inner->Visit(Path, ArrayHelper.GetRawPtr(ContainerIndex), InFunc);
+			if (RetVal == EPropertyVisitorControlFlow::Stop)
+			{
+				return EPropertyVisitorControlFlow::Stop;
+			}
+			if (RetVal == EPropertyVisitorControlFlow::StepOut)
+			{
+				return EPropertyVisitorControlFlow::StepOver;
+			}
+		}
+	}
+	return RetVal;
+}

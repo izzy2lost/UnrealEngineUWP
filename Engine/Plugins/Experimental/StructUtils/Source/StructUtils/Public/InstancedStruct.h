@@ -154,6 +154,7 @@ public:
 	void GetPreloadDependencies(TArray<UObject*>& OutDeps);
 	bool NetSerialize(FArchive& Ar, class UPackageMap* Map, bool& bOutSuccess);
 	bool FindInnerPropertyInstance(FName PropertyName, const FProperty*& OutProp, const void*& OutData) const;
+	EPropertyVisitorControlFlow Visit(FPropertyVisitorPath& Path, const TFunctionRef<EPropertyVisitorControlFlow(const FPropertyVisitorPath& /*Path*/, void* /*Data*/)> InFunc);
 
 	/** Returns struct type. */
 	const UScriptStruct* GetScriptStruct() const
@@ -273,6 +274,7 @@ struct TStructOpsTypeTraits<FInstancedStruct> : public TStructOpsTypeTraitsBase2
 		WithNetSerializer = true,
 		WithFindInnerPropertyInstance = true,
 		WithClearOnFinishDestroy = true,
+		WithVisitor = true,
 	};
 };
 

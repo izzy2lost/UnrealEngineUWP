@@ -757,6 +757,54 @@ void UStruct::CollectBytecodeAndPropertyReferencedObjectsRecursively()
 	}
 }
 
+EPropertyVisitorControlFlow UStruct::Visit(void* Data, const TFunctionRef<EPropertyVisitorControlFlow(const FPropertyVisitorPath& /*Path*/, void* /*Data*/)> InFunc) const
+{
+	FPropertyVisitorPath Path;
+	return Visit(Path, Data, InFunc);
+}
+
+EPropertyVisitorControlFlow UStruct::Visit(FPropertyVisitorPath& Path, void* Data, const TFunctionRef<EPropertyVisitorControlFlow(const FPropertyVisitorPath& /*Path*/, void* /*Data*/)> InFunc) const
+{
+	EPropertyVisitorControlFlow RetVal = EPropertyVisitorControlFlow::StepOver;
+	for (const FProperty* Property = PropertyLink; Property; Property = Property->PropertyLinkNext)
+	{
+		FPropertyVisitorScope Scope(Path, FPropertyVisitorInfo(Property));
+
+		// ArrayDim of one means it is just a single property, not a static array
+		if(Property->ArrayDim == 1)
+		{
+			RetVal = Property->Visit(Path, Property->ContainerPtrToValuePtr<void>(Data), InFunc);
+			if (RetVal == EPropertyVisitorControlFlow::Stop)
+			{
+				return EPropertyVisitorControlFlow::Stop;
+			}
+			if (RetVal == EPropertyVisitorControlFlow::StepOut)
+			{
+				return EPropertyVisitorControlFlow::StepOver;
+			}
+		}
+		else
+		{
+			// In the case of a static array, we need to setup the EPropertyVisitorInfoType
+			for (int32 StaticArrayIndex = 0; StaticArrayIndex < Property->ArrayDim; ++StaticArrayIndex)
+			{
+				Path.Top().SetIndex(StaticArrayIndex, EPropertyVisitorInfoType::StaticArrayIndex);
+				RetVal = Property->Visit(Path, Property->ContainerPtrToValuePtr<void>(Data, StaticArrayIndex), InFunc);
+
+				if (RetVal == EPropertyVisitorControlFlow::Stop)
+				{
+					return EPropertyVisitorControlFlow::Stop;
+				}
+				if (RetVal == EPropertyVisitorControlFlow::StepOut)
+				{
+					return EPropertyVisitorControlFlow::StepOver;
+				}
+			}
+		}
+	}
+	return RetVal;
+}
+
 void UStruct::PreloadChildren(FArchive& Ar)
 {
 	for (UField* Field = Children; Field; Field = Field->Next)
@@ -2956,6 +3004,12 @@ void UScriptStruct::PrepareCppStructOps()
 	}
 #endif
 
+	if (CppStructOps->HasVisitor())
+	{
+		UE_LOG(LogClass, Verbose, TEXT("Native struct %s has native property Visit."), *GetName());
+		StructFlags = EStructFlags(StructFlags | STRUCT_Visitor);
+	}
+
 	check(!bPrepareCppStructOpsCompleted); // recursion is unacceptable
 	bPrepareCppStructOpsCompleted = true;
 }
@@ -3430,6 +3484,25 @@ bool UScriptStruct::FindInnerPropertyInstance(FName PropertyName, const void* Da
 	}
 	
 	return false;
+}
+
+EPropertyVisitorControlFlow UScriptStruct::Visit(FPropertyVisitorPath& Path, void* Data, const TFunctionRef<EPropertyVisitorControlFlow(const FPropertyVisitorPath& /*Path*/, void* /*Data*/)> InFunc) const
+{
+	const EPropertyVisitorControlFlow RetVal = UStruct::Visit(Path, Data, InFunc);
+	if (RetVal == EPropertyVisitorControlFlow::Stop)
+	{
+		return EPropertyVisitorControlFlow::Stop;
+	}
+	if (RetVal == EPropertyVisitorControlFlow::StepOut)
+	{
+		return EPropertyVisitorControlFlow::StepOver;
+	}
+	if (StructFlags & STRUCT_Visitor)
+	{
+		checkf(CppStructOps && CppStructOps->HasVisitor(), TEXT("Expecting to have a visitor implementation when STRUCT_Visitor is set"));
+		return CppStructOps->Visit(Path, Data, InFunc);
+	}
+	return RetVal;
 }
 
 void UScriptStruct::ClearScriptStruct(void* Dest, int32 ArrayDim) const

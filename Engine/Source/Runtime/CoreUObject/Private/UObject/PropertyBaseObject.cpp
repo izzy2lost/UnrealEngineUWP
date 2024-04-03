@@ -753,3 +753,20 @@ bool FObjectPropertyBase::SameType(const FProperty* Other) const
 	return (Super::SameType(Other) || (Other && Other->IsA<FObjectPropertyBase>() && ((FObjectPropertyBase*)Other)->AllowObjectTypeReinterpretationTo(this))) && 
 			 (PropertyClass == ((FObjectPropertyBase*)Other)->PropertyClass);
 }
+
+EPropertyVisitorControlFlow FObjectPropertyBase::Visit(FPropertyVisitorPath& Path, void* Data, const TFunctionRef<EPropertyVisitorControlFlow(const FPropertyVisitorPath& /*Path*/, void* /*Data*/)> InFunc) const
+{
+	// Indicate in the path that this property contains inner properties
+	Path.Top().bContainsInnerProperties = true;
+
+	EPropertyVisitorControlFlow RetVal = Super::Visit(Path, Data, InFunc);
+
+	if (RetVal == EPropertyVisitorControlFlow::StepInto)
+	{
+		if (const TObjectPtr<UObject> Object = GetObjectPropertyValue(Data))
+		{
+			RetVal = Object->GetClass()->Visit(Path, Object, InFunc);
+		}
+	}
+	return RetVal;
+}

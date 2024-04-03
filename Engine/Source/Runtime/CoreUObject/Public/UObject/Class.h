@@ -65,6 +65,7 @@
 #include "UObject/Object.h"
 #include "UObject/ObjectMacros.h"
 #include "UObject/PropertyTag.h"
+#include "UObject/PropertyVisitor.h"
 #include "UObject/ReflectedTypeAccessors.h"
 #include "UObject/Script.h"
 #include "UObject/TopLevelAssetPath.h"
@@ -724,6 +725,27 @@ public:
 	 */
 	COREUOBJECT_API void CollectBytecodeAndPropertyReferencedObjectsRecursively();
 
+	/**
+	 * Visits this property and allows recursion into the inner properties
+	 * This method allows callers to visit inner properties without knowing about its container type as opposed to TPropertyIterator.
+	 * This visit property pattern facilitates the recursion into user defined properties and allows users to add specific visit logic on UStruct via traits. 
+	 * @param Data to the property to visit
+	 * @param InFunc to call on each visited property, the return value controls what is the next behavior once this property has been visited
+	 * @return the new action to take one visited this property
+	 */
+	COREUOBJECT_API EPropertyVisitorControlFlow Visit(void* Data, const TFunctionRef<EPropertyVisitorControlFlow(const FPropertyVisitorPath& /*Path*/, void* /*Data*/)> InFunc) const;
+
+	/**
+	 * Visits this property and allows recursion into the inner properties
+	 * This method allows callers to visit inner properties without knowing about its container type as opposed to TPropertyIterator.
+	 * This visit property pattern facilitates the recursion into user defined properties and allows users to add specific visit logic on UStruct via traits. 
+	 * @param Path that was computed until we reached this property
+	 * @param Data to the property to visit
+	 * @param InFunc to call on each visited property, the return value controls what is the next behavior once this property has been visited
+	 * @return the new action to take one visited this property
+	 */
+	COREUOBJECT_API virtual EPropertyVisitorControlFlow Visit(FPropertyVisitorPath& Path, void* Data, const TFunctionRef<EPropertyVisitorControlFlow(const FPropertyVisitorPath& /*Path*/, void* /*Data*/)> InFunc) const;
+
 protected:
 
 	/** Returns the property name from the guid */
@@ -837,6 +859,9 @@ enum EStructFlags
 
 	/** If set, this struct will have CanEditChange on it in the editor to determine if a child property can be edited */
 	STRUCT_CanEditChange = 0x02000000,
+
+	/** If set, this struct will have Visit on it to allow custom property visiting implementation */
+	STRUCT_Visitor = 0x04000000,
 	
 	/** Struct flags that are automatically inherited */
 	STRUCT_Inherit				= STRUCT_HasInstancedReference|STRUCT_Atomic,
@@ -875,6 +900,7 @@ struct TStructOpsTypeTraitsBase2
 		WithFindInnerPropertyInstance  = false,							// struct has a FindInnerPropertyInstance function that can provide an FProperty and data pointer when given a property FName
 		WithCanEditChange			   = false,							// struct has an editor-only CanEditChange function that can conditionally make child properties read-only in the details panel (same idea as UObject::CanEditChange)
 		WithClearOnFinishDestroy	   = false,							// struct should be cleared during owner UObject's FinishDestroy. Clearing calls destructor and initializes again to default value. This is intended for structs which may need to access UObject pointer members during destruction. Referenced objects may already have their FinishDestroy() called. Clearing should ensure that no UObject pointer members are used during the final destruction.
+		WithVisitor					   = false,							// struct has Visit function that allows to visit additional properties
 	};
 
 	static constexpr EPropertyObjectReferenceType WithSerializerObjectReferences = EPropertyObjectReferenceType::Conservative; // struct's Serialize method(s) may serialize object references of these types - default Conservative means unknown and object reference collector archives should serialize this struct 
@@ -945,6 +971,7 @@ public:
 #if WITH_EDITOR
 			bool HasCanEditChange : 1;
 #endif
+			bool HasVisitor : 1;
 		};
 
 		/**
@@ -1195,7 +1222,15 @@ public:
 		/** Returns true if this struct would allow the given property to be edited in the details panel. */
 		virtual bool CanEditChange(const FEditPropertyChain& PropertyChain, const void* Data) const = 0;
 #endif
-		
+
+		/** Returns true if this struct wants to indicate whether it has a custom impl for visiting properties */
+		bool HasVisitor() const
+		{
+			return GetCapabilities().HasVisitor;
+		}
+		/** Structs property visitor signature */
+		virtual EPropertyVisitorControlFlow Visit(FPropertyVisitorPath& Path, void* Data, const TFunctionRef<EPropertyVisitorControlFlow(const FPropertyVisitorPath& /*Path*/, void* /*Data*/)> InFunc) const = 0;
+
 	private:
 		/** sizeof() of the structure **/
 		const int32 Size;
@@ -1249,6 +1284,7 @@ public:
 #if WITH_EDITOR
 				TTraits::WithCanEditChange,
 #endif
+				TTraits::WithVisitor,
 			};
 			return Capabilities;
 		}
@@ -1552,6 +1588,18 @@ public:
 			}
 		}
 #endif // WITH_EDITOR
+
+		virtual EPropertyVisitorControlFlow Visit(FPropertyVisitorPath& Path, void* Data, const TFunctionRef<EPropertyVisitorControlFlow(const FPropertyVisitorPath& /*Path*/, void* /*Data*/)> InFunc) const override
+		{
+			if constexpr (TStructOpsTypeTraits<CPPSTRUCT>::WithVisitor)
+			{
+				return ((CPPSTRUCT*)Data)->Visit(Path, InFunc);
+			}
+			else
+			{
+				return EPropertyVisitorControlFlow::StepOver;
+			}
+		}
 	};
 
 	/** Template for noexport classes to autoregister before main starts **/
@@ -1799,6 +1847,9 @@ public:
 	 * @return				whether the property instance was found
 	 */
 	virtual COREUOBJECT_API bool FindInnerPropertyInstance(FName PropertyName, const void* Data, const FProperty*& OutProp, const void*& OutData) const;
+
+	/* Custom visit implementation for structs */
+	virtual COREUOBJECT_API EPropertyVisitorControlFlow Visit(FPropertyVisitorPath& Path, void* Data, const TFunctionRef<EPropertyVisitorControlFlow(const FPropertyVisitorPath& /*Path*/, void* /*Data*/)> InFunc) const override;
 };
 
 /*-----------------------------------------------------------------------------

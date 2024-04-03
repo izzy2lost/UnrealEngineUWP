@@ -1151,3 +1151,34 @@ bool FSetProperty::CanSerializeFromTypeName(UE::FPropertyTypeName Type) const
 	check(LocalElementProp);
 	return LocalElementProp->CanSerializeFromTypeName(Type.GetParameter(0));
 }
+
+EPropertyVisitorControlFlow FSetProperty::Visit(FPropertyVisitorPath& Path, void* Data, const TFunctionRef<EPropertyVisitorControlFlow(const FPropertyVisitorPath& /*Path*/, void* /*Data*/)> InFunc) const
+{
+	// Indicate in the path that this property contains inner properties
+	Path.Top().bContainsInnerProperties = true;
+
+	EPropertyVisitorControlFlow RetVal = Super::Visit(Path, Data, InFunc);
+
+	if (RetVal == EPropertyVisitorControlFlow::StepInto)
+	{
+		checkf(ElementProp, TEXT("Expecting a valid inner property type"));
+		FScriptSetHelper SetHelper(this, Data);
+
+		FPropertyVisitorScope Scope(Path, FPropertyVisitorInfo(ElementProp));
+		for (FScriptSetHelper::FIterator It(SetHelper); It; ++It)
+		{
+			// visit element
+			Path.Top().SetIndex(It.GetLogicalIndex(), EPropertyVisitorInfoType::ContainerIndex);
+			RetVal = ElementProp->Visit(Path, SetHelper.GetElementPtr(It), InFunc);
+			if (RetVal == EPropertyVisitorControlFlow::Stop)
+			{
+				return EPropertyVisitorControlFlow::Stop;
+			}
+			if (RetVal == EPropertyVisitorControlFlow::StepOut)
+			{
+				return EPropertyVisitorControlFlow::StepOver;
+			}
+		}
+	}
+	return RetVal;
+}
