@@ -417,7 +417,7 @@ const UExternalDataLayerInstance* UDataLayerEditorSubsystem::GetActorSpawningExt
 		ResolvedExternalDataLayerAsset = GetActorEditorContextCurrentExternalDataLayer();
 	}
 
-	const UExternalDataLayerInstance* ResolvedExternalDataLayerInstance = ResolvedExternalDataLayerAsset ? ExternalDataLayerManager->GetExternalDataLayerInstance(ResolvedExternalDataLayerAsset) : nullptr;
+	const UExternalDataLayerInstance* ResolvedExternalDataLayerInstance = (ResolvedExternalDataLayerAsset && ExternalDataLayerManager) ? ExternalDataLayerManager->GetExternalDataLayerInstance(ResolvedExternalDataLayerAsset) : nullptr;
 	return ResolvedExternalDataLayerInstance;
 }
 
