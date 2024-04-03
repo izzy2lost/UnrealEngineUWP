@@ -14,21 +14,22 @@ namespace UnrealBuildTool
 		/// <summary>
 		/// Array of supported platforms
 		/// </summary>
-		public readonly UnrealTargetPlatform[] Platforms;
+		public UnrealTargetPlatform[] Platforms { get; }
 
 		/// <summary>
 		/// Initialize the attribute with a list of platforms
 		/// </summary>
-		/// <param name="Platforms">Variable-length array of platform arguments</param>
-		public SupportedPlatformsAttribute(params string[] Platforms)
+		/// <param name="platforms">Variable-length array of platform arguments</param>
+		[System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1019:Define accessors for attribute arguments", Justification = "Unneeded")]
+		public SupportedPlatformsAttribute(params string[] platforms)
 		{
 			try
 			{
-				this.Platforms = Array.ConvertAll(Platforms, x => UnrealTargetPlatform.Parse(x));
+				Platforms = Array.ConvertAll(platforms, x => UnrealTargetPlatform.Parse(x));
 			}
-			catch (BuildException Ex)
+			catch (BuildException ex)
 			{
-				EpicGames.Core.ExceptionUtils.AddContext(Ex, "while parsing a SupportedPlatforms attribute");
+				EpicGames.Core.ExceptionUtils.AddContext(ex, "while parsing a SupportedPlatforms attribute");
 				throw;
 			}
 		}
@@ -36,10 +37,11 @@ namespace UnrealBuildTool
 		/// <summary>
 		/// Initialize the attribute with all the platforms in a given category
 		/// </summary>
-		/// <param name="Category">Category of platforms to add</param>
-		public SupportedPlatformsAttribute(UnrealPlatformClass Category)
+		/// <param name="category">Category of platforms to add</param>
+		[System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1019:Define accessors for attribute arguments", Justification = "Unneeded")]
+		public SupportedPlatformsAttribute(UnrealPlatformClass category)
 		{
-			Platforms = Utils.GetPlatformsInClass(Category);
+			Platforms = Utils.GetPlatformsInClass(category);
 		}
 	}
 }

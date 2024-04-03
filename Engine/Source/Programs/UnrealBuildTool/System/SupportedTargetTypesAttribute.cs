@@ -13,15 +13,15 @@ namespace UnrealBuildTool
 		/// <summary>
 		/// Array of supported target types
 		/// </summary>
-		public readonly TargetType[] TargetTypes;
+		public TargetType[] TargetTypes { get; }
 
 		/// <summary>
 		/// Initialize the attribute with a list of target types
 		/// </summary>
-		/// <param name="TargetTypes">Variable-length array of target type arguments</param>
-		public SupportedTargetTypesAttribute(params TargetType[] TargetTypes)
+		/// <param name="targetTypes">Variable-length array of target type arguments</param>
+		public SupportedTargetTypesAttribute(params TargetType[] targetTypes)
 		{
-			this.TargetTypes = TargetTypes;
+			TargetTypes = targetTypes;
 		}
 	}
 }

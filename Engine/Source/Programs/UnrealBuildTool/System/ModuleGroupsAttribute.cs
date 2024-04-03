@@ -4,8 +4,6 @@ using System;
 
 namespace UnrealBuildTool
 {
-#nullable enable
-
 	/// <summary>
 	/// Attribute which can be applied to a ModuleRules-dervied class to indicate which module groups it belongs to
 	/// </summary>
@@ -15,15 +13,15 @@ namespace UnrealBuildTool
 		/// <summary>
 		/// Array of module group names
 		/// </summary>
-		public readonly string[] ModuleGroups;
+		public string[] ModuleGroups { get; }
 
 		/// <summary>
 		/// Initialize the attribute with a list of module groups
 		/// </summary>
-		/// <param name="ModuleGroups">Variable-length array of module group arguments</param>
-		public ModuleGroupsAttribute(params string[] ModuleGroups)
+		/// <param name="moduleGroups">Variable-length array of module group arguments</param>
+		public ModuleGroupsAttribute(params string[] moduleGroups)
 		{
-			this.ModuleGroups = ModuleGroups;
+			ModuleGroups = moduleGroups;
 		}
 	}
 }

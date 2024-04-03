@@ -13,15 +13,15 @@ namespace UnrealBuildTool
 		/// <summary>
 		/// Array of supported platforms
 		/// </summary>
-		public readonly UnrealTargetConfiguration[] Configurations;
+		public UnrealTargetConfiguration[] Configurations { get; }
 
 		/// <summary>
 		/// Initialize the attribute with a list of configurations
 		/// </summary>
-		/// <param name="Configurations">Variable-length array of configuration arguments</param>
-		public SupportedConfigurationsAttribute(params UnrealTargetConfiguration[] Configurations)
+		/// <param name="configurations">Variable-length array of configuration arguments</param>
+		public SupportedConfigurationsAttribute(params UnrealTargetConfiguration[] configurations)
 		{
-			this.Configurations = Configurations;
+			Configurations = configurations;
 		}
 	}
 }

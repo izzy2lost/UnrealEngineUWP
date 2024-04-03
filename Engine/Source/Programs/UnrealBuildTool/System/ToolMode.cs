@@ -67,22 +67,22 @@ namespace UnrealBuildTool
 		/// <summary>
 		/// Name of this mode
 		/// </summary>
-		public string Name;
+		public string Name { get; }
 
 		/// <summary>
 		/// Options for executing this mode
 		/// </summary>
-		public ToolModeOptions Options;
+		public ToolModeOptions Options { get; }
 
 		/// <summary>
 		/// Constructor
 		/// </summary>
-		/// <param name="Name">Name of the mode</param>
-		/// <param name="Options">Options for this mode</param>
-		public ToolModeAttribute(string Name, ToolModeOptions Options)
+		/// <param name="name">Name of the mode</param>
+		/// <param name="options">Options for this mode</param>
+		public ToolModeAttribute(string name, ToolModeOptions options)
 		{
-			this.Name = Name;
-			this.Options = Options;
+			Name = name;
+			Options = options;
 		}
 	}
 

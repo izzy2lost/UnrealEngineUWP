@@ -13,15 +13,15 @@ namespace UnrealBuildTool
 		/// <summary>
 		/// Message to display to the user if the method is overridden.
 		/// </summary>
-		public string Message;
+		public string Message { get; }
 
 		/// <summary>
 		/// Constructor
 		/// </summary>
-		/// <param name="Message">Message to display to the user if the method is overridden</param>
-		public ObsoleteOverrideAttribute(string Message)
+		/// <param name="message">Message to display to the user if the method is overridden</param>
+		public ObsoleteOverrideAttribute(string message)
 		{
-			this.Message = Message;
+			Message = message;
 		}
 	}
 }
