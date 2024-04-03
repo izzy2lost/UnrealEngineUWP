@@ -169,6 +169,8 @@ public:
 	 */
 	virtual IMovieScenePlaybackClient* GetPlaybackClient() { return nullptr; }
 
+	const IMovieScenePlaybackClient* GetPlaybackClient() const { return const_cast<IMovieScenePlayer*>(this)->GetPlaybackClient(); }
+
 	/**
 	 * Obtain an object responsible for managing movie scene spawnables
 	 */

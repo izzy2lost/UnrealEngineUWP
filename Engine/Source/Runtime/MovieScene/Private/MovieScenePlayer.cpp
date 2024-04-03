@@ -130,14 +130,21 @@ void IMovieScenePlayer::ResolveBoundObjects(UE::UniversalObjectLocator::FResolve
 	using namespace UE::UniversalObjectLocator;
 	using namespace UE::MovieScene;
 
-	if (const FMovieSceneBindingReferences* BindingReferences = InSequence.GetBindingReferences())
+	const IMovieScenePlaybackClient* PlaybackClient = GetPlaybackClient();
+
+	bool bAllowDefault = PlaybackClient ? PlaybackClient->RetrieveBindingOverrides(InBindingId, SequenceID, OutObjects) : true;
+
+	if (bAllowDefault)
 	{
-		FMovieSceneBindingResolveParams BindingResolveParams{ &InSequence, InBindingId, SequenceID };
-		BindingReferences->ResolveBinding(BindingResolveParams, LocatorResolveParams, ConstCastSharedPtr<const UE::MovieScene::FSharedPlaybackState>(const_cast<IMovieScenePlayer*>(this)->FindSharedPlaybackState()), OutObjects);
-	}
-	else
-	{
-		InSequence.LocateBoundObjects(InBindingId, LocatorResolveParams, OutObjects);
+		if (const FMovieSceneBindingReferences* BindingReferences = InSequence.GetBindingReferences())
+		{
+			FMovieSceneBindingResolveParams BindingResolveParams{ &InSequence, InBindingId, SequenceID };
+			BindingReferences->ResolveBinding(BindingResolveParams, LocatorResolveParams, ConstCastSharedPtr<const UE::MovieScene::FSharedPlaybackState>(const_cast<IMovieScenePlayer*>(this)->FindSharedPlaybackState()), OutObjects);
+		}
+		else
+		{
+			InSequence.LocateBoundObjects(InBindingId, LocatorResolveParams, OutObjects);
+		}
 	}
 }
 
