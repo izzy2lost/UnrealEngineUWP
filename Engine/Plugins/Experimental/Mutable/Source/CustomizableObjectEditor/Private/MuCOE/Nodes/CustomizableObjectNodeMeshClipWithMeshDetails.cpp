@@ -12,6 +12,7 @@
 #include "MuCOE/Nodes/CustomizableObjectNodeStaticMesh.h"
 #include "PropertyCustomizationHelpers.h"
 #include "ScopedTransaction.h"
+#include "MuCO/CustomizableObjectPrivate.h"
 #include "Widgets/Input/SButton.h"
 #include "Widgets/Input/SEditableTextBox.h"
 #include "Widgets/Input/STextComboBox.h"
@@ -131,7 +132,7 @@ void FCustomizableObjectNodeMeshClipWithMeshDetails::CustomizeDetails(IDetailLay
 		TArray<UCustomizableObjectNodeMaterial*> ArrayMaterialNodes;
 		if (SelectedCO != nullptr)
 		{
-			SelectedCO->Source->GetNodesOfClass<UCustomizableObjectNodeMaterial>(ArrayMaterialNodes);
+			SelectedCO->GetPrivate()->GetSource()->GetNodesOfClass<UCustomizableObjectNodeMaterial>(ArrayMaterialNodes);
 		}
 
 		for (const UCustomizableObjectNodeMaterial* MaterialNode : ArrayMaterialNodes)
@@ -300,7 +301,7 @@ void FCustomizableObjectNodeMeshClipWithMeshDetails::OnMeshClipWithMeshNodeCombo
 	if (Selection.IsValid() && (SelectedCO != nullptr))
 	{
 		TArray<UCustomizableObjectNodeMaterial*> ArrayMaterialNode;
-		SelectedCO->Source->GetNodesOfClass<UCustomizableObjectNodeMaterial>(ArrayMaterialNode);
+		SelectedCO->GetPrivate()->GetSource()->GetNodesOfClass<UCustomizableObjectNodeMaterial>(ArrayMaterialNode);
 
 		const FScopedTransaction Transaction(LOCTEXT("ChangedClipMeshWithMeshMaterialTransaction", "Changed Clip Mesh With Mesh Material"));
 		Node->Modify();

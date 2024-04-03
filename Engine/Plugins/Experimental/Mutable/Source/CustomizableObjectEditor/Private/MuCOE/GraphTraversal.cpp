@@ -3,6 +3,7 @@
 #include "MuCOE/GraphTraversal.h"
 
 #include "AssetRegistry/AssetRegistryModule.h"
+#include "MuCO/CustomizableObjectPrivate.h"
 #include "MuCOE/CustomizableObjectPin.h"
 #include "MuCOE/EdGraphSchema_CustomizableObject.h"
 #include "MuCOE/Nodes/CustomizableObjectNodeEnumParameter.h"
@@ -173,7 +174,7 @@ UCustomizableObjectNodeObject* GetRootNode(UCustomizableObject* Object, bool& bO
 	// Look for the base object node
 	UCustomizableObjectNodeObject* Root = nullptr;
 	TArray<UCustomizableObjectNodeObject*> ObjectNodes;
-	Object->Source->GetNodesOfClass<UCustomizableObjectNodeObject>(ObjectNodes);
+	Object->GetPrivate()->GetSource()->GetNodesOfClass<UCustomizableObjectNodeObject>(ObjectNodes);
 
 	bOutMultipleBaseObjectsFound = false;
 

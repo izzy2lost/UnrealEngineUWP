@@ -123,13 +123,13 @@ bool FCustomizableObjectCompiler::IsRootObject(const UCustomizableObject* Object
 	// Look for the base object node
 	UCustomizableObjectNodeObject* Root = nullptr;
 	TArray<UCustomizableObjectNodeObject*> ObjectNodes;
-	if (!Object->Source || !Object->Source->Nodes.Num())
+	if (!Object->GetPrivate()->GetSource() || !Object->GetPrivate()->GetSource()->Nodes.Num())
 	{
 		// Conservative approach.
 		return true;
 	}
 
-	Object->Source->GetNodesOfClass<UCustomizableObjectNodeObject>(ObjectNodes);
+	Object->GetPrivate()->GetSource()->GetNodesOfClass<UCustomizableObjectNodeObject>(ObjectNodes);
 
 	for (TArray<UCustomizableObjectNodeObject*>::TIterator It(ObjectNodes); It; ++It)
 	{
@@ -384,7 +384,7 @@ void FCustomizableObjectCompiler::ProcessChildObjectsRecursively(UCustomizableOb
 			GenerationContext.GroupIdToExternalNodeMap.Add(Root->ParentObjectGroupId, Root);
 
 			TArray<UCustomizableObjectNodeObjectGroup*> GroupNodes;
-			ChildObject->Source->GetNodesOfClass<UCustomizableObjectNodeObjectGroup>(GroupNodes);
+			ChildObject->GetPrivate()->GetSource()->GetNodesOfClass<UCustomizableObjectNodeObjectGroup>(GroupNodes);
 
 			if (GroupNodes.Num() > 0) // Only grafs with group nodes should have child grafs
 			{
@@ -497,7 +497,7 @@ mu::NodeObjectPtr FCustomizableObjectCompiler::GenerateMutableRoot(
 {
 	check(Object);
 	
-	if (!Object->Source)
+	if (!Object->GetPrivate()->GetSource())
 	{
 		ErrorMsg = LOCTEXT("NoSource", "Object with no valid graph found. Object not build.");
 
@@ -600,7 +600,7 @@ mu::NodeObjectPtr FCustomizableObjectCompiler::GenerateMutableRoot(
 			(Object->MeshCompileType == EMutableCompileMeshType::AddWorkingSetAndChildren))
 		{
 			TArray<UCustomizableObjectNodeObjectGroup*> GroupNodes;
-			Object->Source->GetNodesOfClass<UCustomizableObjectNodeObjectGroup>(GroupNodes);
+			Object->GetPrivate()->GetSource()->GetNodesOfClass<UCustomizableObjectNodeObjectGroup>(GroupNodes);
 
 			if (GroupNodes.Num() > 0) // Only graphs with group nodes should have child graphs
 			{

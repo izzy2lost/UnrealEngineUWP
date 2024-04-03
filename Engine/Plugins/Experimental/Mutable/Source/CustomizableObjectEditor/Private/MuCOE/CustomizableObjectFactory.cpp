@@ -66,69 +66,72 @@ bool UCustomizableObjectFactory::ConfigureProperties()
 UObject* UCustomizableObjectFactory::FactoryCreateNew(UClass* Class, UObject* InParent, FName Name, EObjectFlags Flags, UObject* Context, FFeedbackContext* Warn)
 {
 	UCustomizableObject* NewObj = NewObject<UCustomizableObject>(InParent, Class, Name, Flags);
-
-	if (NewObj)
+	if (!NewObj)
 	{
-		NewObj->Source = NewObject<UCustomizableObjectGraph>(NewObj, NAME_None, RF_Transactional);
+		return NewObj;
+	}
+	
+	UCustomizableObjectGraph* Source = NewObject<UCustomizableObjectGraph>(NewObj, NAME_None, RF_Transactional);
+	if (!Source)
+	{
+		return NewObj;
 	}
 
-	if (NewObj->Source)
+	NewObj->GetPrivate()->GetSource() = Source;
+	
+	Source->AddEssentialGraphNodes();
+
+	UCustomizableObjectNodeObject* BaseObjectNode = nullptr;
+
+	for (const TObjectPtr<UEdGraphNode>& AuxNode : Source->Nodes)
 	{
-		UCustomizableObjectGraph* CustomizableObjectGraph = Cast<UCustomizableObjectGraph>(NewObj->Source);
-		CustomizableObjectGraph->AddEssentialGraphNodes();
+		UCustomizableObjectNodeObject* BaseNode = Cast<UCustomizableObjectNodeObject>(AuxNode);
 
-		UCustomizableObjectNodeObject* BaseObjectNode = nullptr;
-
-		for (const TObjectPtr<UEdGraphNode>& AuxNode : NewObj->Source->Nodes)
+		if (BaseNode && BaseNode->bIsBase)
 		{
-			UCustomizableObjectNodeObject* BaseNode = Cast<UCustomizableObjectNodeObject>(AuxNode);
+			BaseObjectNode = BaseNode;
+			break;
+		}
+	}
 
-			if (BaseNode && BaseNode->bIsBase)
-			{
-				BaseObjectNode = BaseNode;
-				break;
-			}
+	if (!CreationSettings.bEmptyObject)
+	{
+		if (!BaseObjectNode)
+		{
+			return NewObj;
 		}
 
-		if (!CreationSettings.bEmptyObject)
+		if (CreationSettings.bIsChildObject && CreationSettings.ParentObject.IsValid())
 		{
-			if (!BaseObjectNode)
+			BaseObjectNode->ParentObject = CreationSettings.ParentObject.Get();
+
+			TArray<UCustomizableObjectNodeObjectGroup*> GroupNodes;
+			CreationSettings.ParentObject->GetPrivate()->GetSource()->GetNodesOfClass<UCustomizableObjectNodeObjectGroup>(GroupNodes);
+
+			for (UCustomizableObjectNodeObjectGroup* GroupNode : GroupNodes)
 			{
-				return NewObj;
-			}
-
-			if (CreationSettings.bIsChildObject && CreationSettings.ParentObject.IsValid())
-			{
-				BaseObjectNode->ParentObject = CreationSettings.ParentObject.Get();
-
-				TArray<UCustomizableObjectNodeObjectGroup*> GroupNodes;
-				CreationSettings.ParentObject->Source->GetNodesOfClass<UCustomizableObjectNodeObjectGroup>(GroupNodes);
-
-				for (UCustomizableObjectNodeObjectGroup* GroupNode : GroupNodes)
+				if (GroupNode->GroupName == CreationSettings.GroupNodeName)
 				{
-					if (GroupNode->GroupName == CreationSettings.GroupNodeName)
-					{
-						BaseObjectNode->ParentObjectGroupId = GroupNode->NodeGuid;
+					BaseObjectNode->ParentObjectGroupId = GroupNode->NodeGuid;
 
-						break;
-					}
-				}
-
-				if (NewObj->GetPrivate())
-				{
-					NewObj->GetPrivate()->SetIsChildObject(true);
+					break;
 				}
 			}
-			else
-			{
-				BaseObjectNode->NumMeshComponents = CreationSettings.NumMeshComponents;
 
-				for (int32 MeshIndex = 0; MeshIndex < CreationSettings.ReferenceSkeletalMeshes.Num(); ++MeshIndex)
+			if (NewObj->GetPrivate())
+			{
+				NewObj->GetPrivate()->SetIsChildObject(true);
+			}
+		}
+		else
+		{
+			BaseObjectNode->NumMeshComponents = CreationSettings.NumMeshComponents;
+
+			for (int32 MeshIndex = 0; MeshIndex < CreationSettings.ReferenceSkeletalMeshes.Num(); ++MeshIndex)
+			{
+				if (CreationSettings.ReferenceSkeletalMeshes[MeshIndex].IsValid())
 				{
-					if (CreationSettings.ReferenceSkeletalMeshes[MeshIndex].IsValid())
-					{
-						NewObj->ReferenceSkeletalMeshes.Add(CreationSettings.ReferenceSkeletalMeshes[MeshIndex].Get());
-					}
+					NewObj->ReferenceSkeletalMeshes.Add(CreationSettings.ReferenceSkeletalMeshes[MeshIndex].Get());
 				}
 			}
 		}
@@ -532,7 +535,7 @@ void FCustomizableObjectFactoryUI::GenerateGroupOptions()
 	if (Options.ParentObject.IsValid())
 	{
 		TArray<UCustomizableObjectNodeObjectGroup*> GroupNodes;
-		Options.ParentObject->Source->GetNodesOfClass<UCustomizableObjectNodeObjectGroup>(GroupNodes);
+		Options.ParentObject->GetPrivate()->GetSource()->GetNodesOfClass<UCustomizableObjectNodeObjectGroup>(GroupNodes);
 
 		for (UCustomizableObjectNodeObjectGroup* GroupNode : GroupNodes)
 		{

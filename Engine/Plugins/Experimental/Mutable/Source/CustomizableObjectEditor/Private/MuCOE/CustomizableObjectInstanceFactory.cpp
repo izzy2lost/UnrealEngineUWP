@@ -8,6 +8,7 @@
 #include "Engine/SkeletalMesh.h"
 #include "Modules/ModuleManager.h"
 #include "MuCO/CustomizableObjectInstance.h"
+#include "MuCO/CustomizableObjectPrivate.h"
 #include "MuCO/CustomizableSkeletalComponent.h"
 #include "MuCO/CustomizableSkeletalMeshActor.h"
 #include "MuCOE/Nodes/CustomizableObjectNodeObject.h"
@@ -169,10 +170,10 @@ int32 UCustomizableObjectInstanceFactory::GetNumberOfComponents(UCustomizableObj
 
 	if (const UCustomizableObject* CustomizableObject = COInstance->GetCustomizableObject();
 		CustomizableObject &&
-		CustomizableObject->Source)
+		CustomizableObject->GetPrivate()->GetSource())
 	{
 		TArray<UCustomizableObjectNodeObject*> RootNodes;
-		CustomizableObject->Source->GetNodesOfClass<UCustomizableObjectNodeObject>(RootNodes);
+		CustomizableObject->GetPrivate()->GetSource()->GetNodesOfClass<UCustomizableObjectNodeObject>(RootNodes);
 
 		for (int32 i = 0; i < RootNodes.Num(); ++i)
 		{

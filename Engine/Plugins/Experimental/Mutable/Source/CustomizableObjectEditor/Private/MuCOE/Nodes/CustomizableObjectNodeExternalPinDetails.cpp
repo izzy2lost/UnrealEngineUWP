@@ -10,6 +10,7 @@
 #include "MuCOE/UnrealEditorPortabilityHelpers.h"
 #include "PropertyCustomizationHelpers.h"
 #include "ScopedTransaction.h"
+#include "MuCO/CustomizableObjectPrivate.h"
 #include "Widgets/Input/STextComboBox.h"
 
 
@@ -55,7 +56,7 @@ void FCustomizableObjectNodeExternalPinDetails::CustomizeDetails( IDetailLayoutB
 			const UCustomizableObjectNodeExposePin* SelectedNodeExposePin = Node->GetNodeExposePin();
 
 			TArray<UCustomizableObjectNodeExposePin*> GroupNodes;
-			Node->ExternalObject->Source->GetNodesOfClass<UCustomizableObjectNodeExposePin>(GroupNodes);
+			Node->ExternalObject->GetPrivate()->GetSource()->GetNodesOfClass<UCustomizableObjectNodeExposePin>(GroupNodes);
 
 			TSharedPtr<FString> ItemToSelect;
 
@@ -118,7 +119,7 @@ void FCustomizableObjectNodeExternalPinDetails::OnGroupNodeComboBoxSelectionChan
 	if (Node->ExternalObject)
 	{
 		TArray<UCustomizableObjectNodeExposePin*> GroupNodes;
-		Node->ExternalObject->Source->GetNodesOfClass<UCustomizableObjectNodeExposePin>(GroupNodes);
+		Node->ExternalObject->GetPrivate()->GetSource()->GetNodesOfClass<UCustomizableObjectNodeExposePin>(GroupNodes);
 
 		for (UCustomizableObjectNodeExposePin* NodeExposePin: GroupNodes)
 		{

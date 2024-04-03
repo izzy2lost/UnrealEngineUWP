@@ -762,6 +762,10 @@ public:
 	TArray<FCustomizableObjectStreamedResourceData>& GetStreamedExtensionData();
 	
 	TArray<FCustomizableObjectStreamedResourceData>& GetStreamedResourceData();
+
+#if WITH_EDITORONLY_DATA
+	TObjectPtr<UEdGraph>& GetSource() const;
+#endif
 	
 	/** Cache of generated SkeletalMeshes */
 	FMeshCache MeshCache;

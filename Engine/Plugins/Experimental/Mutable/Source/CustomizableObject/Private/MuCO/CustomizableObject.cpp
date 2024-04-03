@@ -2002,6 +2002,14 @@ TArray<FCustomizableObjectStreamedResourceData>& UCustomizableObjectPrivate::Get
 }
 
 
+#if WITH_EDITORONLY_DATA
+TObjectPtr<UEdGraph>& UCustomizableObjectPrivate::GetSource() const
+{
+	return GetPublic()->Source;
+}
+#endif
+
+
 //-------------------------------------------------------------------------------------------------
 //-------------------------------------------------------------------------------------------------
 //-------------------------------------------------------------------------------------------------

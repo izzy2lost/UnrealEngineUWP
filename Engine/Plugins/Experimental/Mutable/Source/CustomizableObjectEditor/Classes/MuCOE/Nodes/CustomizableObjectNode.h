@@ -5,6 +5,7 @@
 #include "EdGraph/EdGraph.h" // IWYU pragma: keep
 #include "EdGraph/EdGraphPin.h"
 #include "MuCO/CustomizableObject.h"
+#include "MuCO/CustomizableObjectPrivate.h"
 
 #include "CustomizableObjectNode.generated.h"
 
@@ -328,10 +329,10 @@ FNodeType* GetCustomizableObjectExternalNode(UCustomizableObject* Object, const 
 {
 	FNodeType* Result = nullptr;
 
-	if (Object && Object->Source && NodeGuid.IsValid())
+	if (Object && Object->GetPrivate()->GetSource() && NodeGuid.IsValid())
 	{
 		TArray<FNodeType*> GroupNodes;
-		Object->Source->GetNodesOfClass<FNodeType>(GroupNodes);
+		Object->GetPrivate()->GetSource()->GetNodesOfClass<FNodeType>(GroupNodes);
 
 		for (FNodeType* GroupNode : GroupNodes)
 		{

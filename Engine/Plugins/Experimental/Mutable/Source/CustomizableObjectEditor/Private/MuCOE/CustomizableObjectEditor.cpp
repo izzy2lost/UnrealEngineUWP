@@ -425,7 +425,7 @@ void FCustomizableObjectEditor::CreatePreviewInstance()
 
 	if (GraphEditor.IsValid())
 	{
-		for (TObjectPtr<UEdGraphNode>& Node : CustomizableObject->Source->Nodes)
+		for (TObjectPtr<UEdGraphNode>& Node : CustomizableObject->GetPrivate()->GetSource()->Nodes)
 		{
 			GraphEditor->RefreshNode(*Node);
 		}
@@ -620,7 +620,7 @@ TSharedRef<SDockTab> FCustomizableObjectEditor::SpawnTab_Graph( const FSpawnTabA
 {
 	check( Args.GetTabId().TabType == GraphTabId );
 
-	CreateGraphEditorWidget(CustomizableObject->Source);
+	CreateGraphEditorWidget(CustomizableObject->GetPrivate()->GetSource());
 
 	TSharedRef<SDockTab> DockTab = SNew(SDockTab)
 		.Label( FText::FromString( GetTabPrefix() + LOCTEXT( "SourceGraph", "Source Graph" ).ToString() ) )
@@ -785,7 +785,7 @@ void FCustomizableObjectEditor::RedoGraphAction()
 bool FCustomizableObjectEditor::GroupNodeIsLinkedToParentByName(UCustomizableObjectNodeObject* Node, UCustomizableObject* Test, const FString& ParentGroupName)
 {
 	TArray<UCustomizableObjectNodeObjectGroup*> GroupNodes;
-	Test->Source->GetNodesOfClass<UCustomizableObjectNodeObjectGroup>(GroupNodes);
+	Test->GetPrivate()->GetSource()->GetNodesOfClass<UCustomizableObjectNodeObjectGroup>(GroupNodes);
 
 	for (UCustomizableObjectNodeObjectGroup* GroupNode : GroupNodes)
 	{
@@ -1539,7 +1539,7 @@ void FCustomizableObjectEditor::CompileObject()
 		return;
 	}
 
-	if (CustomizableObject->Source)
+	if (CustomizableObject->GetPrivate()->GetSource())
 	{
 		FCompilationOptions Options = CustomizableObject->CompileOptions;
 		Options.bSilentCompilation = false;
@@ -1757,7 +1757,7 @@ void FCustomizableObjectEditor::NotifyPostChange( const FPropertyChangedEvent& P
 	if (OuterClass && OuterClass->IsChildOf(UCustomizableObjectNode::StaticClass()))
 	{
 		FPropertyChangedEvent Event(PropertyThatChanged);
-		CustomizableObject->Source->PostEditChangeProperty(Event);
+		CustomizableObject->GetPrivate()->GetSource()->PostEditChangeProperty(Event);
 		CustomizableObject->PostEditChangeProperty(Event);
 
 		if (GraphEditor.IsValid())
@@ -1860,7 +1860,7 @@ void FCustomizableObjectEditor::PasteNodesHere(const FVector2D& Location)
 {
 	// Undo/Redo support
 	const FScopedTransaction Transaction( LOCTEXT("CustomizableObjectEditorPaste", "Customizable Object Editor Editor: Paste") );
-	CustomizableObject->Source->Modify();
+	CustomizableObject->GetPrivate()->GetSource()->Modify();
 	CustomizableObject->Modify();
 
 	// Clear the selection set (newly pasted stuff will be selected)
@@ -1872,7 +1872,7 @@ void FCustomizableObjectEditor::PasteNodesHere(const FVector2D& Location)
 
 	// Import the nodes
 	TSet<UEdGraphNode*> PastedNodes;
-	FEdGraphUtilities::ImportNodesFromText(CustomizableObject->Source, TextToImport, /*out*/ PastedNodes);
+	FEdGraphUtilities::ImportNodesFromText(CustomizableObject->GetPrivate()->GetSource(), TextToImport, /*out*/ PastedNodes);
 	
 	//Average position of nodes so we can move them while still maintaining relative distances to each other
 	FVector2D AvgNodePosition(0.0f,0.0f);
@@ -1971,7 +1971,7 @@ bool FCustomizableObjectEditor::CanPasteNodes() const
 
 	FPlatformApplicationMisc::ClipboardPaste(ClipboardContent);
 
-	return FEdGraphUtilities::CanImportNodesFromText(CustomizableObject->Source, ClipboardContent);
+	return FEdGraphUtilities::CanImportNodesFromText(CustomizableObject->GetPrivate()->GetSource(), ClipboardContent);
 }
 
 
@@ -2361,7 +2361,7 @@ UCustomizableObject* FCustomizableObjectEditor::GetAbsoluteCOParent(const UCusto
 	{
 		//Get all the NodeObjects
 		TArray<UCustomizableObjectNodeObject*> ObjectNodes;
-		Root->ParentObject->Source->GetNodesOfClass<UCustomizableObjectNodeObject>(ObjectNodes);
+		Root->ParentObject->GetPrivate()->GetSource()->GetNodesOfClass<UCustomizableObjectNodeObject>(ObjectNodes);
 		if (!ObjectNodes.IsEmpty())
 		{
 			//Getting the parent of the root
@@ -2459,7 +2459,7 @@ void FCustomizableObjectEditor::GetExternalChildObjects(const UCustomizableObjec
 			}
 
 			TArray<UCustomizableObjectNodeObjectGroup*> GroupNodes;
-			ChildObject->Source->GetNodesOfClass<UCustomizableObjectNodeObjectGroup>(GroupNodes);
+			ChildObject->GetPrivate()->GetSource()->GetNodesOfClass<UCustomizableObjectNodeObjectGroup>(GroupNodes);
 
 			if (GroupNodes.Num() > 0) // Only grafs with group nodes should have child grafs
 			{
@@ -2482,10 +2482,10 @@ void FCustomizableObjectEditor::CreatePreviewComponents()
 	// Getting the number of mesh components from the root node
 	int32 NumMeshComponents = 0;
 
-	if (CustomizableObject->Source)
+	if (CustomizableObject->GetPrivate()->GetSource())
 	{
 		TArray<UCustomizableObjectNodeObject*> RootNode;
-		CustomizableObject->Source->GetNodesOfClass< UCustomizableObjectNodeObject>(RootNode);
+		CustomizableObject->GetPrivate()->GetSource()->GetNodesOfClass< UCustomizableObjectNodeObject>(RootNode);
 
 		for (int32 i = 0; i < RootNode.Num(); ++i)
 		{

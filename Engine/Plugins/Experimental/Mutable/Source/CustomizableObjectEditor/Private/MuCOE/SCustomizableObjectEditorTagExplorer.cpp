@@ -246,9 +246,9 @@ TSharedRef<SWidget> SCustomizableObjectEditorTagExplorer::OnGetTagsMenuContent()
 
 void SCustomizableObjectEditorTagExplorer::FillTagInformation(UCustomizableObject * Object, TArray<FString>& Tags)
 {
-	if (Object->Source)
+	if (Object->GetPrivate()->GetSource())
 	{
-		for (const TObjectPtr<UEdGraphNode>& Node : Object->Source->Nodes)
+		for (const TObjectPtr<UEdGraphNode>& Node : Object->GetPrivate()->GetSource()->Nodes)
 		{
 			if (UCustomizableObjectNodeMaterial* TypedNodeMat = Cast<UCustomizableObjectNodeMaterial>(Node))
 			{

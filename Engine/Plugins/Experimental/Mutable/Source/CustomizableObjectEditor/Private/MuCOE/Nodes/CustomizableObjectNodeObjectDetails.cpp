@@ -15,6 +15,7 @@
 #include "MuCOE/UnrealEditorPortabilityHelpers.h"
 #include "PropertyCustomizationHelpers.h"
 #include "ScopedTransaction.h"
+#include "MuCO/CustomizableObjectPrivate.h"
 #include "Widgets/Input/SComboButton.h"
 #include "Widgets/Input/STextComboBox.h"
 #include "Widgets/Text/STextBlock.h"
@@ -86,7 +87,7 @@ void FCustomizableObjectNodeObjectDetails::CustomizeDetails( IDetailLayoutBuilde
 			if (Node->ParentObject)
 			{
 				TArray<UCustomizableObjectNodeObjectGroup*> GroupNodes;
-				Node->ParentObject->Source->GetNodesOfClass<UCustomizableObjectNodeObjectGroup>(GroupNodes);
+				Node->ParentObject->GetPrivate()->GetSource()->GetNodesOfClass<UCustomizableObjectNodeObjectGroup>(GroupNodes);
 
 				TSharedPtr<FString> ItemToSelect;
 
@@ -257,7 +258,7 @@ void FCustomizableObjectNodeObjectDetails::OnGroupNodeComboBoxSelectionChanged(T
 	if (Selection.IsValid() && Node->ParentObject != nullptr)
 	{
 		TArray<UCustomizableObjectNodeObjectGroup*> GroupNodes;
-		Node->ParentObject->Source->GetNodesOfClass<UCustomizableObjectNodeObjectGroup>(GroupNodes);
+		Node->ParentObject->GetPrivate()->GetSource()->GetNodesOfClass<UCustomizableObjectNodeObjectGroup>(GroupNodes);
 
 		for (UCustomizableObjectNodeObjectGroup* GroupNode : GroupNodes)
 		{

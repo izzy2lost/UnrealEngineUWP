@@ -575,11 +575,11 @@ public:
 	UPROPERTY(EditAnywhere, Category = CompileOptions)
 	TArray<TSoftObjectPtr<UCustomizableObject>> WorkingSet;
 
+private:
 	// Editor graph
 	UPROPERTY()
 	TObjectPtr<UEdGraph> Source;
 
-private:
 	// Used to verify the derived data matches this version of the Customizable Object.
 	UPROPERTY()
 	FGuid VersionId;

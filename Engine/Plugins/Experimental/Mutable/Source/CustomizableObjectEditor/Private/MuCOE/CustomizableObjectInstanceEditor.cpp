@@ -706,7 +706,7 @@ void FCustomizableObjectInstanceEditor::Tick(float InDeltaTime)
 	if (Compiler && Compiler->Tick())
 	{
 		if (const UCustomizableObject* CustomizableObject = CustomizableObjectInstance->GetCustomizableObject();
-			CustomizableObject && CustomizableObject->Source)
+			CustomizableObject && CustomizableObject->GetPrivate()->GetSource())
 		{
 			if (PreviewCustomizableSkeletalComponents.Num() > 0)
 			{

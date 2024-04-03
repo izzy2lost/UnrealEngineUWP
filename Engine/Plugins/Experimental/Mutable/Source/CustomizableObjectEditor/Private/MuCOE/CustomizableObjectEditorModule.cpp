@@ -469,7 +469,7 @@ void GetReferencingPackages(const UCustomizableObject& Object, TArray<FName>& Ob
 		}
 
 		TArray<UCustomizableObjectNodeTable*> TableNodes;
-		ChildCustomizableObject->Source->GetNodesOfClass(TableNodes);
+		ChildCustomizableObject->GetPrivate()->GetSource()->GetNodesOfClass(TableNodes);
 
 		FARFilter Filter;
 		Filter.ClassPaths.Add(FTopLevelAssetPath(UDataTable::StaticClass()));
