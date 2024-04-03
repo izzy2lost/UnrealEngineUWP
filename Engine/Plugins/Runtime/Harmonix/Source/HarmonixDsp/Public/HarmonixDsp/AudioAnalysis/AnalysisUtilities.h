@@ -2,6 +2,9 @@
 
 #pragma once
 
+#include "HAL/Platform.h"
+#include "Math/UnrealMathUtility.h"
+
 struct FHarmonixAudioAnalyzerOutputSettings;
 
 namespace Harmonix::Dsp::AudioAnalysis
