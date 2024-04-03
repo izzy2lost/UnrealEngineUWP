@@ -837,7 +837,17 @@ void BuildNaniteMaterialBins(FScene* Scene, FPrimitiveSceneInfo* PrimitiveSceneI
 						FNaniteRasterPipeline& RasterPipeline = PipelinesCommand.RasterPipelines.Emplace_GetRef();
 						RasterPipeline.RasterMaterial = MaterialSection.RasterMaterialProxy;
 						RasterPipeline.bIsTwoSided = !!MaterialSection.MaterialRelevance.bTwoSided;
-						RasterPipeline.bSplineMesh = NaniteProxy->IsSplineMesh();
+						// Spline and Skinned mesh are mutually exclusive
+						RasterPipeline.bSkinnedMesh = NaniteProxy->IsSkinnedMesh();
+						if (RasterPipeline.bSkinnedMesh)
+						{
+							RasterPipeline.bSplineMesh = false;
+						}
+						else
+						{
+							RasterPipeline.bSplineMesh = NaniteProxy->IsSplineMesh();
+						}
+						
 						RasterPipeline.bPerPixelEval = MaterialSection.MaterialRelevance.bMasked ||
 													   MaterialSection.MaterialRelevance.bUsesPixelDepthOffset;
 

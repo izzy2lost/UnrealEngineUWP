@@ -68,8 +68,6 @@ void GetNaniteMaterialSceneData(FVisibleCluster VisibleCluster, inout FPrimitive
 
 #if IS_NANITE_RASTER_PASS
 
-// TODO: PROG_RASTER
-
 struct FVertexFactoryInput
 {
 };
@@ -190,7 +188,9 @@ half3x3 CalcVertexTangentToLocal(FPrimitiveSceneData PrimitiveData, FInstanceSce
 		TangentToLocal = GetTangentBasis(Vert.RawAttributeData.TangentZ);
 	}
 
-#if USE_SPLINEDEFORM
+#if USE_SKINNING
+	// TODO: Nanite-Skinning
+#elif USE_SPLINEDEFORM
 	BRANCH
 	if ((PrimitiveData.Flags & PRIMITIVE_SCENE_DATA_FLAG_SPLINE_MESH) != 0 &&
 		(InstanceData.Flags & INSTANCE_SCENE_DATA_FLAG_HAS_PAYLOAD_EXTENSION) != 0)
@@ -571,7 +571,9 @@ FMaterialPixelParameters FetchNaniteMaterialPixelParameters(FPrimitiveSceneData 
 		0, 0, 1
 	};
 
-#if USE_SPLINEDEFORM
+#if USE_SKINNING
+	// TODO: Nanite-Skinning
+#elif USE_SPLINEDEFORM
 	BRANCH
 	if ((PrimitiveData.Flags & PRIMITIVE_SCENE_DATA_FLAG_SPLINE_MESH) != 0 &&
 		(InstanceData.Flags & INSTANCE_SCENE_DATA_FLAG_HAS_PAYLOAD_EXTENSION) != 0)

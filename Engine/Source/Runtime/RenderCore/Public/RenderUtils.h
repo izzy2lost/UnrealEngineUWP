@@ -394,6 +394,7 @@ RENDERCORE_API bool NaniteWorkGraphMaterialsSupported();
 RENDERCORE_API bool NaniteLegacyMaterialsSupported();
 RENDERCORE_API bool NaniteTessellationSupported();
 RENDERCORE_API bool NaniteSplineMeshesSupported();
+RENDERCORE_API bool NaniteSkinnedMeshesSupported();
 
 RENDERCORE_API bool UseNaniteComputeMaterials();
 RENDERCORE_API bool UseNaniteFastTileClear();

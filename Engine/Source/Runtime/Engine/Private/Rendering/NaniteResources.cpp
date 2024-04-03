@@ -102,6 +102,12 @@ static TAutoConsoleVariable<int32> CVarNaniteAllowSplineMeshes(
 	TEXT("Whether to enable support for Nanite spline meshes"),
 	ECVF_RenderThreadSafe | ECVF_ReadOnly);
 
+static TAutoConsoleVariable<int32> CVarNaniteAllowSkinnedMeshes(
+	TEXT("r.Nanite.AllowSkinnedMeshes"),
+	0, // TODO: Nanite-Skinning - HEAVY WIP
+	TEXT("Whether to enable support for Nanite skinned meshes"),
+	ECVF_RenderThreadSafe | ECVF_ReadOnly);
+
 int32 GNaniteAllowMaskedMaterials = 1;
 FAutoConsoleVariableRef CVarNaniteAllowMaskedMaterials(
 	TEXT("r.Nanite.AllowMaskedMaterials"),
@@ -465,6 +471,14 @@ void FVertexFactory::ModifyCompilationEnvironment(const FVertexFactoryShaderPerm
 			// shading bin and permute the PS.
 			OutEnvironment.SetDefine(TEXT("USE_SPLINEDEFORM"), 1);
 			OutEnvironment.SetDefine(TEXT("USE_SPLINE_MESH_SCENE_RESOURCES"), UseSplineMeshSceneResources(Parameters.Platform));
+		}
+	}
+
+	if (NaniteSkinnedMeshesSupported())
+	{
+		if (Parameters.MaterialParameters.bIsUsedWithSkeletalMesh || Parameters.MaterialParameters.bIsDefaultMaterial)
+		{
+			OutEnvironment.SetDefine(TEXT("USE_SKINNING"), 1);
 		}
 	}
 
@@ -2782,6 +2796,14 @@ void FNaniteVertexFactory::ModifyCompilationEnvironment(const FVertexFactoryShad
 			// shading bin and permute the CS.
 			OutEnvironment.SetDefine(TEXT("USE_SPLINEDEFORM"), 1);
 			OutEnvironment.SetDefine(TEXT("USE_SPLINE_MESH_SCENE_RESOURCES"), UseSplineMeshSceneResources(Parameters.Platform));
+		}
+	}
+
+	if (NaniteSkinnedMeshesSupported())
+	{
+		if (Parameters.MaterialParameters.bIsUsedWithSkeletalMesh || Parameters.MaterialParameters.bIsDefaultMaterial)
+		{
+			OutEnvironment.SetDefine(TEXT("USE_SKINNING"), 1);
 		}
 	}
 

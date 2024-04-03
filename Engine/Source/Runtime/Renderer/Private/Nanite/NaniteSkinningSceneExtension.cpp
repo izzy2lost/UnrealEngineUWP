@@ -68,8 +68,8 @@ END_SHADER_PARAMETER_STRUCT()
 
 DECLARE_SCENE_UB_STRUCT(FNaniteSkinningParameters, NaniteSkinning, RENDERER_API)
 
-// TODO: Nanite-Skinning
-#define NANITE_SKINNING_WIP 0
+// TODO: Nanite-Skinning [Need to safely populate UpdateList - for now we can defrag and full re-upload to GPU scene every frame]
+#define NANITE_SKINNING_WIP 1
 
 namespace Nanite
 {
@@ -86,11 +86,7 @@ IMPLEMENT_SCENE_EXTENSION(FSkinningSceneExtension);
 
 bool FSkinningSceneExtension::ShouldCreateExtension(FScene& InScene)
 {
-#if NANITE_SKINNING_WIP
-	return DoesRuntimeSupportNanite(GetFeatureLevelShaderPlatform(InScene.GetFeatureLevel()), true, true);
-#else
-	return false;
-#endif
+	return NaniteSkinnedMeshesSupported() && DoesRuntimeSupportNanite(GetFeatureLevelShaderPlatform(InScene.GetFeatureLevel()), true, true);
 }
 
 void FSkinningSceneExtension::InitExtension(FScene& InScene)

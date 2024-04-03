@@ -45,6 +45,7 @@
 #include "Rendering/RenderCommandPipes.h"
 #include "Rendering/NaniteResources.h"
 #include "ProfilingDebugging/AssetMetadataTrace.h"
+#include "ComponentRecreateRenderStateContext.h"
 #include "NaniteSceneProxy.h"
 
 DEFINE_LOG_CATEGORY_STATIC(LogSkinnedMeshComp, Log, All);
@@ -89,6 +90,24 @@ static FAutoConsoleVariableRef CVarReleasePreviousLODInfoOnInitialization(
 	TEXT("Whether to flush the render thread (incurring a game thread stall) and clean existing LOD info when re-initializating."),
 	ECVF_Default
 );
+
+int32 GSkinnedMeshRenderNanite = 1;
+static FAutoConsoleVariableRef CVarSkinnedMeshRenderNanite(
+	TEXT("r.SkinnedMesh.RenderNanite"),
+	GSkinnedMeshRenderNanite,
+	TEXT("When true, allows skinned meshes to render as Nanite when enabled on the mesh (otherwise uses fallback mesh)."),
+	FConsoleVariableDelegate::CreateLambda(
+		[](IConsoleVariable* InVariable)
+		{
+			FGlobalComponentRecreateRenderStateContext Context;
+		}
+	)
+);
+
+static bool ShouldRenderNaniteSkinnedMeshes()
+{
+	return NaniteSkinnedMeshesSupported() && GSkinnedMeshRenderNanite != 0;
+}
 
 namespace FAnimUpdateRateManager
 {
@@ -1572,7 +1591,7 @@ bool USkinnedMeshComponent::IsMaterialSlotNameValid(FName MaterialSlotName) cons
 bool USkinnedMeshComponent::ShouldNaniteSkin()
 {
 	const EShaderPlatform ShaderPlatform = GetScene() ? GetScene()->GetShaderPlatform() : GMaxRHIShaderPlatform;
-	return UseNanite(ShaderPlatform) && HasValidNaniteData();
+	return ShouldRenderNaniteSkinnedMeshes() && UseNanite(ShaderPlatform) && HasValidNaniteData();
 }
 
 bool USkinnedMeshComponent::ShouldCPUSkin()

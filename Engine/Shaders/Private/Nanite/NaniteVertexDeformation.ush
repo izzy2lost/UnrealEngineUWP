@@ -68,15 +68,43 @@ struct FNanitePostDeformVertex
 	FNaniteRawAttributeData RawAttributeData;
 };
 
-FNanitePostDeformVertex DeformLocalNaniteVertex(FPrimitiveSceneData PrimitiveData, FInstanceSceneData InstanceData, FNaniteLocalVertex Input)
+FNanitePostDeformVertex DeformLocalNaniteVertex(FPrimitiveSceneData PrimitiveData, FInstanceSceneData InstanceData, FCluster Cluster, FNaniteLocalVertex Input)
 {
 	FNanitePostDeformVertex Output;
 	Output.VertIndex			= Input.VertIndex;
-	Output.PointLocal			= Input.Position;
-	Output.Position				= Input.Position;
 	Output.Normal				= half3(Input.RawAttributeData.TangentZ);
 	Output.SplineDist			= 0.0f;
 	Output.RawAttributeData		= Input.RawAttributeData;
+
+	Output.PointLocal = Input.Position;
+
+#if USE_SKINNING
+	BRANCH
+	if ((PrimitiveData.Flags & PRIMITIVE_SCENE_DATA_FLAG_SKINNED_MESH) != 0)
+	{
+		FNaniteSkinningHeader SkinningHeader = LoadNaniteSkinningHeader(InstanceData.PrimitiveId);
+
+		float3 SkinnedPosition = float3(0.0f, 0.0f, 0.0f);
+		float3 SkinnedNormal = float3(0.0f, 0.0f, 0.0f);
+
+		LOOP
+		for (uint InfluenceIndex = 0; InfluenceIndex < Cluster.NumBones; ++InfluenceIndex)
+		{
+			uint BoneIndex = 0;
+			float BoneWeight = 0.0f;
+			DecodeBoneInfluence(Cluster, Input.VertIndex, InfluenceIndex, BoneIndex, BoneWeight);
+
+			const float3x4 BoneTransform = LoadNaniteBoneTransform(SkinningHeader.TransformBufferOffset + BoneIndex);
+			SkinnedPosition += mul(BoneTransform, float4(Input.Position, 1.0f)) * BoneWeight;
+			SkinnedNormal += mul(BoneTransform, float4(Output.Normal, 1.0f)) * BoneWeight;
+		}
+
+		Input.Position = SkinnedPosition;
+		Output.Normal = SkinnedNormal;
+	}
+#endif
+
+	Output.Position = Input.Position;
 
 #if USE_SPLINEDEFORM
 	BRANCH
@@ -95,7 +123,7 @@ FNanitePostDeformVertex DeformLocalNaniteVertex(FPrimitiveSceneData PrimitiveDat
 
 FNanitePostDeformVertex FetchAndDeformLocalNaniteVertex(FPrimitiveSceneData PrimitiveData, FInstanceSceneData InstanceData, FCluster Cluster, uint VertIndex, uint CompileTimeMaxTexCoords)
 {
-	return DeformLocalNaniteVertex(PrimitiveData, InstanceData, FetchLocalNaniteVertex(Cluster, VertIndex, CompileTimeMaxTexCoords));
+	return DeformLocalNaniteVertex(PrimitiveData, InstanceData, Cluster, FetchLocalNaniteVertex(Cluster, VertIndex, CompileTimeMaxTexCoords));
 }
 
 void FetchAndDeformLocalNaniteTriangle(FPrimitiveSceneData PrimitiveData, FInstanceSceneData InstanceData, FCluster Cluster, uint3 VertIndexes, uint CompileTimeMaxTexCoords, inout FNanitePostDeformVertex OutVerts[3])
@@ -106,6 +134,6 @@ void FetchAndDeformLocalNaniteTriangle(FPrimitiveSceneData PrimitiveData, FInsta
 	UNROLL_N(3)
 	for(uint i = 0; i < 3; ++i)
 	{
-		OutVerts[i] = DeformLocalNaniteVertex(PrimitiveData, InstanceData, InVerts[i]);
+		OutVerts[i] = DeformLocalNaniteVertex(PrimitiveData, InstanceData, Cluster, InVerts[i]);
 	}
 }

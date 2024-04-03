@@ -1327,6 +1327,13 @@ bool NaniteSplineMeshesSupported()
 	return bAllowSplineMeshes;
 }
 
+bool NaniteSkinnedMeshesSupported()
+{
+	static const auto AllowSkinnedMeshes = IConsoleManager::Get().FindTConsoleVariableDataInt(TEXT("r.Nanite.AllowSkinnedMeshes"));
+	static const bool bAllowSkinnedMeshes = (AllowSkinnedMeshes && AllowSkinnedMeshes->GetValueOnAnyThread() != 0);
+	return bAllowSkinnedMeshes;
+}
+
 bool UseNaniteTessellation()
 {
 	static const auto TessellationVar = IConsoleManager::Get().FindTConsoleVariableDataInt(TEXT("r.Nanite.Tessellation"));

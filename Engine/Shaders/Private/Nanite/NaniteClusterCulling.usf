@@ -133,6 +133,8 @@ void TransformNodeCullingBounds(
 {
 	Bounds.MeshMinDeformScale = Bounds.NodeMaxDeformScale = 1.0f;
 
+	// TODO: Nanite-Skinning
+
 #if USE_SPLINEDEFORM
 	// To reduce the cost of register pressure from loading the spline mesh parameters, we loop once for each spline
 	// mesh instance in the wave so the compiler can treat the parameters as uniform across the entire wave as an

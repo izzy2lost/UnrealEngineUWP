@@ -514,8 +514,9 @@ struct FNaniteRasterPipeline
 	bool bForceDisableWPO = false;
 	bool bWPODisableDistance = false;
 	bool bSplineMesh = false;
+	bool bSkinnedMesh = false;
 
-	static FNaniteRasterPipeline GetFixedFunctionPipeline(bool bIsTwoSided, bool bSplineMesh);
+	static FNaniteRasterPipeline GetFixedFunctionPipeline(bool bIsTwoSided, bool bSplineMesh, bool bSkinnedMesh);
 
 	inline uint32 GetPipelineHash() const
 	{
@@ -543,6 +544,7 @@ struct FNaniteRasterPipeline
 		HashKey.MaterialFlags |= bIsTwoSided ? 0x1u : 0x0u;
 		HashKey.MaterialFlags |= bForceDisableWPO ? 0x2u : 0x0u;
 		HashKey.MaterialFlags |= bSplineMesh ? 0x4u : 0x0u;
+		HashKey.MaterialFlags |= bSkinnedMesh ? 0x8u : 0x0u;
 		HashKey.MaterialHash   = FHashKey::PointerHash(RasterMaterial);
 
 		HashKey.DisplacementScaling = DisplacementScaling;
@@ -565,7 +567,7 @@ struct FNaniteRasterPipeline
 			else
 			{
 				// The secondary bin can be a non-programmable, fixed-function bin
-				OutSecondary = GetFixedFunctionPipeline(bIsTwoSided, bSplineMesh);
+				OutSecondary = GetFixedFunctionPipeline(bIsTwoSided, bSplineMesh, bSkinnedMesh);
 			}
 			return true;
 		}
@@ -616,6 +618,7 @@ struct FNaniteRasterMaterialCacheKey
 			uint16 bIsDepthOnly				: 1;
 			uint16 bIsTwoSided				: 1;
 			uint16 bSplineMesh				: 1;
+			uint16 bSkinnedMesh				: 1;
 		};
 
 		uint16 Packed = 0;
@@ -770,6 +773,7 @@ private:
 		FNaniteRasterBin RasterBin;
 		uint8 TwoSided : 1;
 		uint8 Spline   : 1;
+		uint8 Skinned  : 1;
 	};
 
 	TArray<FFixedFunctionBin, TInlineAllocator<4u>> FixedFunctionBins;
