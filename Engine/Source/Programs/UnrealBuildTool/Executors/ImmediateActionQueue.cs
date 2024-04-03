@@ -529,7 +529,7 @@ namespace UnrealBuildTool
 		{
 			for (int actionIndex = _firstPendingAction; actionIndex != Actions.Length; ++actionIndex)
 			{
-				var actionState = Actions[actionIndex];
+				ActionState actionState = Actions[actionIndex];
 				if (actionState.Status == ActionStatus.Queued &&
 					actionState.Phase == ActionPhase.Compile &&
 					GetActionReadyState(actionState) == ActionReadyState.Ready)

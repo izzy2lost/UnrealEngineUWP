@@ -227,7 +227,7 @@ namespace UnrealBuildTool
 		/// <summary>
 		/// Plugins that this plugin should never depend on
 		/// </summary>
-		public String[]? DisallowedPlugins;
+		public string[]? DisallowedPlugins;
 
 		/// <summary>
 		/// The JsonObject created from reading a .uplugin on disk or from parsing a json text 

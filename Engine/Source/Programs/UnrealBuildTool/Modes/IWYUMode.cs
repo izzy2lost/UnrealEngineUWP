@@ -1649,7 +1649,7 @@ namespace UnrealBuildTool
 				}
 
 				List<string> NewLines = new(ExistingLines.Length);
-				SortedSet<String> LinesRemoved = new();
+				SortedSet<string> LinesRemoved = new();
 
 				if (!HasIncludes)
 				{

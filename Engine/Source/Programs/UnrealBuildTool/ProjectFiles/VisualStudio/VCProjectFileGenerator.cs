@@ -303,7 +303,7 @@ namespace UnrealBuildTool
 		}
 
 		/// <inheritdoc/>
-		protected override void ConfigureProjectFileGeneration(String[] Arguments, ref bool IncludeAllPlatforms, ILogger Logger)
+		protected override void ConfigureProjectFileGeneration(string[] Arguments, ref bool IncludeAllPlatforms, ILogger Logger)
 		{
 			// Call parent implementation first
 			base.ConfigureProjectFileGeneration(Arguments, ref IncludeAllPlatforms, Logger);
@@ -426,7 +426,7 @@ namespace UnrealBuildTool
 
 			public override string ToString()
 			{
-				return String.Format("{0}={1} {2} {3}{4}", VCSolutionConfigAndPlatformName, Configuration, Platform, TargetConfigurationName, Architecture != null ? " " + Architecture : string.Empty);
+				return String.Format("{0}={1} {2} {3}{4}", VCSolutionConfigAndPlatformName, Configuration, Platform, TargetConfigurationName, Architecture != null ? " " + Architecture : String.Empty);
 			}
 
 			public VCSolutionConfigCombination(string VCSolutionConfigAndPlatformName)
@@ -1079,7 +1079,7 @@ namespace UnrealBuildTool
 					{
 						ProjectTarget ProjectTarget = SolutionConfigKeyValue.Value.Item2.Item1;
 
-						var AddSolutionConfig = (UnrealArch? Arch, List<VCSolutionConfigCombination> OutSolutionConfigs) =>
+						Action<UnrealArch?, List<VCSolutionConfigCombination>> AddSolutionConfig = (UnrealArch? Arch, List<VCSolutionConfigCombination> OutSolutionConfigs) =>
 						{
 							// e.g.  "Development|Win64 = Development|Win64"
 							string SolutionConfigName = SolutionConfigKeyValue.Key;

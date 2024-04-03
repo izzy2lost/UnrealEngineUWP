@@ -104,7 +104,7 @@ namespace UnrealBuildTool
 		/// <param name="bLinkFramework">Link the framework into the executable</param>
 		/// <param name="bCopyFramework">Copy the framework to the target's Framework directory</param>
 		/// <param name="Logger">Logger for diagnostic output</param>
-		public UEBuildFramework(String Name, DirectoryReference FrameworkDirectory, string? CopyBundledAssets, bool bLinkFramework, bool bCopyFramework, ILogger Logger)
+		public UEBuildFramework(string Name, DirectoryReference FrameworkDirectory, string? CopyBundledAssets, bool bLinkFramework, bool bCopyFramework, ILogger Logger)
 		{
 			this.Name = Name;
 			this.FrameworkDirectory = FrameworkDirectory;

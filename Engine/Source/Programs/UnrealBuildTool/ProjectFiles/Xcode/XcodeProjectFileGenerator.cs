@@ -240,7 +240,7 @@ namespace UnrealBuildTool
 		private string PrimaryProjectNameForPlatform(UnrealTargetPlatform? Platform)
 		{
 			string ProjectName = PrimaryProjectName;
-			if (!string.IsNullOrEmpty(SingleTargetName))
+			if (!String.IsNullOrEmpty(SingleTargetName))
 			{
 				ProjectName = $"{ProjectName}_{SingleTargetName}";
 			}

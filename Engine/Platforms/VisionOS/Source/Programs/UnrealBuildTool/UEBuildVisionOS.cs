@@ -12,7 +12,7 @@ namespace UnrealBuildTool
 		public override string RuntimeDevices => "7";
 		public override string RuntimeVersion => "1.0";
 
-		public VisionOSProjectSettings(FileReference? ProjectFile, String? Bundle)
+		public VisionOSProjectSettings(FileReference? ProjectFile, string? Bundle)
 			: base(ProjectFile, UnrealTargetPlatform.VisionOS, Bundle)
 		{
 		}

@@ -2022,7 +2022,7 @@ namespace UnrealBuildTool
 			if (Target.WindowsPlatform.bEnableAddressSanitizer)
 			{
 				DirectoryReference ASanRuntimeDir;
-				String ASanArchSuffix;
+				string ASanArchSuffix;
 				if (EnvVars.Architecture == UnrealArch.X64)
 				{
 					ASanRuntimeDir = DirectoryReference.Combine(EnvVars.ToolChainDir, "bin", "Hostx64", "x64");

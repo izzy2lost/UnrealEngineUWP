@@ -874,7 +874,7 @@ namespace UnrealBuildTool
 		/// <param name="Arguments">Command-line arguments</param>
 		/// <param name="bCacheDataForEditor">If true, write out target data for the editor</param>
 		/// <param name="Logger">Logger for output</param>
-		public virtual bool GenerateProjectFiles(PlatformProjectGeneratorCollection PlatformProjectGenerators, String[] Arguments, bool bCacheDataForEditor, ILogger Logger)
+		public virtual bool GenerateProjectFiles(PlatformProjectGeneratorCollection PlatformProjectGenerators, string[] Arguments, bool bCacheDataForEditor, ILogger Logger)
 		{
 			bool bSuccess = true;
 
@@ -1428,7 +1428,7 @@ namespace UnrealBuildTool
 		/// <param name="Arguments">Arguments passed into the program</param>
 		/// <param name="IncludeAllPlatforms">True if all platforms should be included</param>
 		/// <param name="Logger">Logger for output</param>
-		protected virtual void ConfigureProjectFileGeneration(String[] Arguments, ref bool IncludeAllPlatforms, ILogger Logger)
+		protected virtual void ConfigureProjectFileGeneration(string[] Arguments, ref bool IncludeAllPlatforms, ILogger Logger)
 		{
 			if (PlatformNames != null)
 			{
@@ -1453,7 +1453,7 @@ namespace UnrealBuildTool
 						while (PlatformList.Length > 0)
 						{
 							string PlatformString = PlatformList;
-							Int32 PlusIdx = PlatformList.IndexOf("+");
+							int PlusIdx = PlatformList.IndexOf("+");
 							if (PlusIdx != -1)
 							{
 								PlatformString = PlatformList.Substring(0, PlusIdx);
@@ -2563,7 +2563,7 @@ namespace UnrealBuildTool
 			while (!Path.IsRootDirectory())
 			{
 				// Figure out which game project this target belongs to
-				foreach (var (Game, GameDescriptor) in AllGames.Zip(AllGameDescriptors))
+				foreach ((FileReference Game, ProjectDescriptor GameDescriptor) in AllGames.Zip(AllGameDescriptors))
 				{
 					// the source and the actual game directory are conceptually the same
 					if (Path == Game.Directory || Path == DirectoryReference.Combine(Game.Directory, "Source"))
@@ -2699,7 +2699,7 @@ namespace UnrealBuildTool
 			PlatformProjectGeneratorCollection PlatformProjectGenerators,
 			List<FileReference> AllGames,
 			List<FileReference> AllTargetFiles,
-			String[] Arguments,
+			string[] Arguments,
 			List<ProjectFile> EngineProjects,
 			List<ProjectFile> GameProjects,
 			Dictionary<ProjectFile, FileReference> ProjectFileToUProjectFile,

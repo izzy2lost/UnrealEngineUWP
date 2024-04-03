@@ -341,7 +341,7 @@ namespace UnrealBuildTool
 		/// <param name="Key">Out: The definition name</param>
 		/// <param name="Value">Out: The definition value or null if it has none</param>
 		/// <returns>Pair representing macro name and value.</returns>
-		private void SplitDefinitionAndValue(string Definition, out String Key, out String Value)
+		private void SplitDefinitionAndValue(string Definition, out string Key, out string Value)
 		{
 			int EqualsIndex = Definition.IndexOf('=');
 			if (EqualsIndex >= 0)
@@ -363,8 +363,8 @@ namespace UnrealBuildTool
 		/// <param name="Logger">Logger for output</param>
 		private void WriteDefineSection(ref StringBuilder FileContent, ILogger Logger)
 		{
-			String Key = "";
-			String Value = "";
+			string Key = "";
+			string Value = "";
 
 			List<string> DefineHolder = new List<string>();
 

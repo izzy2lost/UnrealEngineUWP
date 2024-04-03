@@ -151,7 +151,7 @@ namespace UnrealBuildTool
 		/// Which MSVC CRT Redist version to use
 		/// </summary>
 		[XmlConfigFile]
-		public static String MsvcCRTRedistVersion = "";
+		public static string MsvcCRTRedistVersion = "";
 
 		/// <summary>
 		/// Which MSVC Compiler version to use
@@ -799,7 +799,7 @@ namespace UnrealBuildTool
 			string? Value = String.Empty;
 			if (OptionsDictionary.TryGetValue(Key, out Value))
 			{
-				return Value.Trim(new Char[] { '\"' });
+				return Value.Trim(new char[] { '\"' });
 			}
 
 			if (ProblemIfNotFound)
@@ -997,14 +997,14 @@ namespace UnrealBuildTool
 				AddText($"\t\t'$Root$/msobj{platformVersionNumber}.dll'\n");
 				AddText($"\t\t'$Root$/mspdb{platformVersionNumber}.dll'\n");
 
-				List<String> PotentialMSVCRedistPaths = new List<String>(Directory.EnumerateDirectories(String.Format("{0}/Redist/MSVC", VCEnv.GetVCInstallDirectory())));
+				List<string> PotentialMSVCRedistPaths = new List<string>(Directory.EnumerateDirectories(String.Format("{0}/Redist/MSVC", VCEnv.GetVCInstallDirectory())));
 				string? PrefferedMSVCRedistPath = null;
 				string? FinalMSVCRedistPath = "";
 
 				if (MsvcCRTRedistVersion.Length > 0)
 				{
 					PrefferedMSVCRedistPath = PotentialMSVCRedistPaths.Find(
-						delegate (String str)
+						delegate (string str)
 						{
 							return str.Contains(MsvcCRTRedistVersion);
 						});
@@ -1026,7 +1026,7 @@ namespace UnrealBuildTool
 					}
 				}
 
-				PotentialMSVCRedistPaths = new List<String>(Directory.EnumerateDirectories(String.Format("{0}/{1}", PrefferedMSVCRedistPath, VCEnv.Architecture)));
+				PotentialMSVCRedistPaths = new List<string>(Directory.EnumerateDirectories(String.Format("{0}/{1}", PrefferedMSVCRedistPath, VCEnv.Architecture)));
 
 				FinalMSVCRedistPath = PotentialMSVCRedistPaths.Find(x => x.Contains(".CRT"));
 

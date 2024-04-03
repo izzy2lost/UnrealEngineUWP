@@ -430,7 +430,7 @@ namespace UnrealBuildTool
 		}
 
 		public override bool GenerateProjectFiles(PlatformProjectGeneratorCollection PlatformProjectGenerators,
-			String[] arguments, bool bCacheDataForEditor, ILogger Logger)
+			string[] arguments, bool bCacheDataForEditor, ILogger Logger)
 		{
 			ConfigureProjectFileGeneration();
 

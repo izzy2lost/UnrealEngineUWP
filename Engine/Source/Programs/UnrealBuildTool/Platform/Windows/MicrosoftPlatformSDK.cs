@@ -50,7 +50,7 @@ namespace UnrealBuildTool
 			return null;
 		}
 
-		public override bool TryConvertVersionToInt(string? StringValue, out UInt64 OutValue, string? Hint)
+		public override bool TryConvertVersionToInt(string? StringValue, out ulong OutValue, string? Hint)
 		{
 			OutValue = 0;
 

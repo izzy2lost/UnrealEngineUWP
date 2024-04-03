@@ -600,7 +600,7 @@ namespace UnrealBuildTool
 			}
 		}
 
-		void IPPDataReceivedHandler(Object Sender, DataReceivedEventArgs Line, ILogger Logger)
+		void IPPDataReceivedHandler(object Sender, DataReceivedEventArgs Line, ILogger Logger)
 		{
 			if ((Line != null) && (Line.Data != null))
 			{

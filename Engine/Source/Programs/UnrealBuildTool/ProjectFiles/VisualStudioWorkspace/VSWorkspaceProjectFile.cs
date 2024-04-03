@@ -172,7 +172,7 @@ namespace UnrealBuildTool
 				CppCompileEnvironment BinaryCompileEnvironment = Binary.CreateBinaryCompileEnvironment(GlobalCompileEnvironment);
 				IEnumerable<UEBuildModuleCPP> CandidateModules = Binary.Modules.Where(x => x is UEBuildModuleCPP).Cast<UEBuildModuleCPP>();
 
-				foreach (var ModuleCpp in CandidateModules)
+				foreach (UEBuildModuleCPP ModuleCpp in CandidateModules)
 				{
 					if (!ModuleNames.Add(ModuleCpp.Name))
 					{
@@ -236,7 +236,7 @@ namespace UnrealBuildTool
 			Result.Defines.AddRange(Module.Rules.bTreatAsEngineModule ? Array.Empty<string>() : Module.Rules.Target.ProjectDefinitions);
 			Result.Defines.AddRange(Module.GetEmptyApiMacros());
 
-			var ForcedIncludes = ModuleCompileEnvironment.ForceIncludeFiles.ToList();
+			List<FileItem> ForcedIncludes = ModuleCompileEnvironment.ForceIncludeFiles.ToList();
 			if (ModuleCompileEnvironment.PrecompiledHeaderAction == PrecompiledHeaderAction.Include)
 			{
 				FileItem IncludeHeader = FileItem.GetItemByFileReference(ModuleCompileEnvironment.PrecompiledHeaderIncludeFilename!);

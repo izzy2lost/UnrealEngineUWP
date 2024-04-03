@@ -84,7 +84,7 @@ namespace UnrealBuildTool.XcodeProjectXcconfig
 	class UnrealBatchedFiles
 	{
 		// build settings that cause uniqueness
-		public IEnumerable<String>? ForceIncludeFiles = null;
+		public IEnumerable<string>? ForceIncludeFiles = null;
 		// @todo can we actually use this effectively with indexing other than fotced include?
 		public FileReference? PCHFile = null;
 		public bool bEnableRTTI = false;
@@ -1442,7 +1442,7 @@ namespace UnrealBuildTool.XcodeProjectXcconfig
 				};
 
 				// make a string like --exclude=/Info.plist --exclude=/Manifest_* ...
-				string ExcludeString = string.Join(" ", Exclusions.Select(x => (x[0] == '+' ? "--include" : "--exclude") + $"=\\\"{x.Substring(1)}\\\""));
+				string ExcludeString = String.Join(" ", Exclusions.Select(x => (x[0] == '+' ? "--include" : "--exclude") + $"=\\\"{x.Substring(1)}\\\""));
 
 				CopyScript.AddRange(new string[]
 				{

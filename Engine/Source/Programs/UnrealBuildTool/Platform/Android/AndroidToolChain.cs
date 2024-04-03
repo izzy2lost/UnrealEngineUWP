@@ -91,7 +91,7 @@ namespace UnrealBuildTool
 		};
 
 		public string? NDKToolchainVersion;
-		public UInt64 NDKVersionInt;
+		public ulong NDKVersionInt;
 
 		int ClangVersionMajor = -1;
 		int ClangVersionMinor = -1;
@@ -319,7 +319,7 @@ namespace UnrealBuildTool
 			return NDKVersionInt;
 		}
 
-		public UInt64 GetNdkVersionInt()
+		public ulong GetNdkVersionInt()
 		{
 			return NDKVersionInt;
 		}
@@ -1671,7 +1671,7 @@ namespace UnrealBuildTool
 
 		// captures stderr from clang
 		private static string LinkerCommandline = "";
-		public static void OutputReceivedForLinker(Object Sender, DataReceivedEventArgs Line)
+		public static void OutputReceivedForLinker(object Sender, DataReceivedEventArgs Line)
 		{
 			if ((Line != null) && (Line.Data != null) && (Line.Data.Contains("--sysroot")))
 			{
@@ -1720,7 +1720,7 @@ namespace UnrealBuildTool
 			*/
 		}
 
-		public static void OutputReceivedDataEventHandler(Object Sender, DataReceivedEventArgs Line, ILogger Logger)
+		public static void OutputReceivedDataEventHandler(object Sender, DataReceivedEventArgs Line, ILogger Logger)
 		{
 			if ((Line != null) && (Line.Data != null))
 			{

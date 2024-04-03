@@ -526,7 +526,7 @@ namespace UnrealBuildTool
 			return Bytes.ToArray();
 		}
 
-		private static byte[] ParseAnsiStringToByteArray(string InString, Int32 InRequiredLength)
+		private static byte[] ParseAnsiStringToByteArray(string InString, int InRequiredLength)
 		{
 			List<byte> Bytes = new List<byte>();
 

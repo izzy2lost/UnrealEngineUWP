@@ -44,7 +44,7 @@ namespace UnrealBuildTool
 
 		/** Allows you to override the maximum binary size allowed to be passed to objcopy.exe when cross building on Windows. */
 		/** Max value is 2GB, due to bat file limitation */
-		protected UInt64 MaxBinarySizeOverrideForObjcopy = 0;
+		protected ulong MaxBinarySizeOverrideForObjcopy = 0;
 
 		/** Platform SDK to use */
 		protected LinuxPlatformSDK PlatformSDK;

@@ -60,7 +60,7 @@ namespace UnrealBuildTool
 
 			if (TargetDescriptors.Count > 1)
 			{
-				throw new BuildException($"Only one target must be specified in test mode but we got {string.Join(", ", TargetDescriptors.Select(T => T.Name))} instead.");
+				throw new BuildException($"Only one target must be specified in test mode but we got {String.Join(", ", TargetDescriptors.Select(T => T.Name))} instead.");
 			}
 
 			TargetDescriptor TestTargetDescriptor = TargetDescriptors.First();
@@ -147,7 +147,7 @@ namespace UnrealBuildTool
 				}
 			}
 
-			foreach(var Module in Visited)
+			foreach(UEBuildModule Module in Visited)
 			{
 				SetupTestsTargetForModule(Module, Logger);
 			}

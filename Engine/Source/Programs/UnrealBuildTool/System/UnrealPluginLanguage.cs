@@ -595,7 +595,7 @@ namespace UnrealBuildTool
 			}
 		}
 
-		public String? GetLastError() { return LastError; }
+		public string? GetLastError() { return LastError; }
 
 		public bool GetTrace() { return bGlobalTrace; }
 		public void SetTrace() { bGlobalTrace = true; }
@@ -2658,14 +2658,14 @@ namespace UnrealBuildTool
 			{
 				if (bPerArchBuildDir)
 				{
-					String ActiveArch = Arch;
+					string ActiveArch = Arch;
 					if (ArchRemapping != null && ArchRemapping.ContainsKey(ActiveArch))
 					{
 						ActiveArch = ArchRemapping[ActiveArch];
 					}
-					String ArchBuildDirectory = Path.Combine(GlobalContext.StringVariables["BuildDir"], ActiveArch.Replace("-", "_"));
-					String ArchBuildDir = ArchBuildDirectory.Replace("\\", "/");
-					String ArchAbsBuildDir = Path.GetFullPath(ArchBuildDir).Replace("\\", "/");
+					string ArchBuildDirectory = Path.Combine(GlobalContext.StringVariables["BuildDir"], ActiveArch.Replace("-", "_"));
+					string ArchBuildDir = ArchBuildDirectory.Replace("\\", "/");
+					string ArchAbsBuildDir = Path.GetFullPath(ArchBuildDir).Replace("\\", "/");
 
 					// add it to all the architecture contexts (overrides global context)
 					for (int Index = 1; Index <= ContextIndex; Index++)
@@ -3219,7 +3219,7 @@ namespace UnrealBuildTool
 		/// </summary>
 		public void ParseIniFile(FileReference Filename, ILogger Logger)
 		{
-			String[]? IniLines = null;
+			string[]? IniLines = null;
 			List<Command>? Commands = null;
 			if (!FileCache.ContainsKey(Filename.FullName))
 			{

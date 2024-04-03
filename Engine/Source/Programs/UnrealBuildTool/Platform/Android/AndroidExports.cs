@@ -22,7 +22,7 @@ namespace UnrealBuildTool
 		/// Returns the Current NDK Version
 		/// </summary>
 		/// <returns>The NDK Version</returns>
-		UInt64 GetNdkVersionInt();
+		ulong GetNdkVersionInt();
 	}
 
 	/// <summary>

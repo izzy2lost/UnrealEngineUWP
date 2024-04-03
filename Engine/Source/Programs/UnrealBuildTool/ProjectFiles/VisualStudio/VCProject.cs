@@ -492,7 +492,7 @@ namespace UnrealBuildTool
 
 			public override string ToString()
 			{
-				return String.Format("{0} {1} {2}", ProjectTarget, Platform, Configuration, Architecture != null ? " " + Architecture : string.Empty);
+				return String.Format("{0} {1} {2}", ProjectTarget, Platform, Configuration, Architecture != null ? " " + Architecture : String.Empty);
 			}
 		}
 
@@ -614,7 +614,7 @@ namespace UnrealBuildTool
 				{
 					Arguments.Add("/Zc:enumTypes");
 				}
-				return string.Join(' ', Arguments);
+				return String.Join(' ', Arguments);
 			}
 			return String.Empty;
 		}
@@ -688,7 +688,7 @@ namespace UnrealBuildTool
 										continue;
 									}
 
-									var AddProjectAndTargetCombination = (UnrealArch? Arch) =>
+									Action<UnrealArch?> AddProjectAndTargetCombination = (UnrealArch? Arch) =>
 									{
 										PlatformProjectGenerator? PlatformProjectGenerator = PlatformProjectGenerators.GetPlatformProjectGenerator(Platform, bInAllowFailure: true);
 										string ProjectPlatformName;
@@ -722,7 +722,7 @@ namespace UnrealBuildTool
 
 										if (CreateDistinctConfigName)
 										{
-											ProjectConfigurationName = string.Format("{0}{1}_{2}", Platform.ToString(), Arch != null ? "_" + Arch.ToString() : string.Empty, Configuration.ToString());
+											ProjectConfigurationName = String.Format("{0}{1}_{2}", Platform.ToString(), Arch != null ? "_" + Arch.ToString() : String.Empty, Configuration.ToString());
 										}
 
 										TargetType TargetConfigurationType = ProjectTarget.TargetRules!.Type;
@@ -1324,8 +1324,8 @@ namespace UnrealBuildTool
 			}
 
 			// Check to see if all the source settings are the same
-			string CommonForcedIncludes = string.Empty;
-			string CommonAdditionalOptions = string.Empty;
+			string CommonForcedIncludes = String.Empty;
+			string CommonAdditionalOptions = String.Empty;
 			{
 				if (DirectoryToForceIncludePaths.Any())
 				{
@@ -1342,7 +1342,7 @@ namespace UnrealBuildTool
 					string? PchFileToCheck = DirectoryToPchFile.Values.FirstOrDefault();
 					if (DirectoryToPchFile.Values.All(x => x == PchFileToCheck))
 					{
-						if (!string.IsNullOrEmpty(PchFileToCheck))
+						if (!String.IsNullOrEmpty(PchFileToCheck))
 						{
 							CommonAdditionalOptions = $"/Yu\"{PchFileToCheck}\"";
 						}
@@ -1361,12 +1361,12 @@ namespace UnrealBuildTool
 				VCPreprocessorDefinitions.Append(CurDef);
 			}
 
-			var GetAdditionalOptionsString = (TargetRules? TargetRules) =>
+			Func<TargetRules?, string> GetAdditionalOptionsString = (TargetRules? TargetRules) =>
 			{
-				return string.Format("{0} {1}{2}{3}", GetCppStandardCompileArgument(GetIntelliSenseCppVersion()),
+				return String.Format("{0} {1}{2}{3}", GetCppStandardCompileArgument(GetIntelliSenseCppVersion()),
 					GetEnableCoroutinesArgument(),
-					DefaultRules != null ? (" " + GetConformanceCompileArguments(DefaultRules)) : string.Empty,
-					CommonAdditionalOptions.Length > 0 ? (" " + CommonAdditionalOptions) : string.Empty);
+					DefaultRules != null ? (" " + GetConformanceCompileArguments(DefaultRules)) : String.Empty,
+					CommonAdditionalOptions.Length > 0 ? (" " + CommonAdditionalOptions) : String.Empty);
 			};
 			
 			string DefaultAdditionalOptions = GetAdditionalOptionsString(DefaultRules);
@@ -1377,7 +1377,7 @@ namespace UnrealBuildTool
 				//      this data uniquely for each target configuration.  IntelliSense may behave better if we did that, but it will result in a LOT more
 				//      data being stored into the project file, and might make the IDE perform worse when switching configurations!
 				VCProjectFileContent.AppendLine("  <PropertyGroup>");
-				VCProjectFileContent.AppendLine("    <NMakePreprocessorDefinitions>$(NMakePreprocessorDefinitions){0}</NMakePreprocessorDefinitions>", (VCPreprocessorDefinitions.Length > 0 ? (";" + VCPreprocessorDefinitions) : string.Empty));
+				VCProjectFileContent.AppendLine("    <NMakePreprocessorDefinitions>$(NMakePreprocessorDefinitions){0}</NMakePreprocessorDefinitions>", (VCPreprocessorDefinitions.Length > 0 ? (";" + VCPreprocessorDefinitions) : String.Empty));
 				// NOTE: Setting the IncludePath property rather than NMakeIncludeSearchPath results in significantly less
 				// memory usage, because NMakeIncludeSearchPath metadata is duplicated to each output item. Functionality should be identical for
 				// intellisense results.
@@ -1421,7 +1421,7 @@ namespace UnrealBuildTool
 				{
 					StringBuilder CommonProjectFileContent = new StringBuilder();
 
-					var AddProperties = (IDictionary<DirectoryReference, string> DirectoryToStringDict, string CommonPropertyPrefix, string PropertyNamePrefix, string PropertyValuePrefix) =>
+					Action<IDictionary<DirectoryReference, string>, string, string, string> AddProperties = (IDictionary<DirectoryReference, string> DirectoryToStringDict, string CommonPropertyPrefix, string PropertyNamePrefix, string PropertyValuePrefix) =>
 					{
 						Dictionary<string, string> UpdatedValues = new();
 						List<KeyValuePair<DirectoryReference, string>> KVPList = DirectoryToStringDict.ToList();
@@ -1454,7 +1454,7 @@ namespace UnrealBuildTool
 						Dictionary<string, string> ValueToCommonPropertyDict = new();
 						{
 							Dictionary<string, int> ValueAndCount = new();
-							foreach (var PropertyValue in UpdatedValues.Keys)
+							foreach (string PropertyValue in UpdatedValues.Keys)
 							{
 								if (!String.IsNullOrEmpty(PropertyValue))
 								{
@@ -1473,12 +1473,12 @@ namespace UnrealBuildTool
 								}
 							}
 
-							var CommonProperties = ValueAndCount.Where(kvp => kvp.Value > 1).Select(kvp => kvp.Key).ToList();
+							List<string> CommonProperties = ValueAndCount.Where(kvp => kvp.Value > 1).Select(kvp => kvp.Key).ToList();
 							CommonProperties.Sort();
 
 							// Write out the common property values
 							int CommonPropertyValueIndex = 0;
-							foreach (var CommonProperty in CommonProperties)
+							foreach (string? CommonProperty in CommonProperties)
 							{
 								string PropertyName = CommonPropertyPrefix;
 								if (CommonPropertyValueIndex > 0)
@@ -1594,12 +1594,12 @@ namespace UnrealBuildTool
 						if (TryGetBuildEnvironment(Directory, out BuildEnvironment? BuildEnvironment))
 						{
 							StringBuilder ClCompileInfo = new();
-							if (DirectoryToIncludeSearchPaths.TryGetValue(Directory, out string? DirectoryToIncludeSearchPathValue) && !string.IsNullOrEmpty(DirectoryToIncludeSearchPathValue))
+							if (DirectoryToIncludeSearchPaths.TryGetValue(Directory, out string? DirectoryToIncludeSearchPathValue) && !String.IsNullOrEmpty(DirectoryToIncludeSearchPathValue))
 							{
 								ClCompileInfo.AppendLine($"      <AdditionalIncludeDirectories>$({DirectoryToIncludeSearchPathValue})</AdditionalIncludeDirectories>");
 							}
 
-							if (DirectoryToForceIncludePaths.TryGetValue(Directory, out string? DirectoryToForceIncludePathValue) && !string.IsNullOrEmpty(DirectoryToForceIncludePathValue))
+							if (DirectoryToForceIncludePaths.TryGetValue(Directory, out string? DirectoryToForceIncludePathValue) && !String.IsNullOrEmpty(DirectoryToForceIncludePathValue))
 							{
 								ClCompileInfo.AppendLine($"      <ForcedIncludeFiles>$({DirectoryToForceIncludePathValue})</ForcedIncludeFiles>");
 							}
@@ -1871,10 +1871,10 @@ namespace UnrealBuildTool
 
 				// Check if <PropertyGroup> with same "Condition" attribute already exist in the current document.
 				// If yes, update required properties in existing <PropertyGroup> but preserve any other property in current document order.
-				if (CurrentPropertyGroups.TryGetValue(Attribute, out var CurrentPropertyGroup))
+				if (CurrentPropertyGroups.TryGetValue(Attribute, out XElement? CurrentPropertyGroup))
 				{
 					// Preserve values from current document for relevant properties by patching corresponding properties in new document. 
-					var ElementsToPreserveValuesFrom = CurrentPropertyGroup
+					IEnumerable<XElement> ElementsToPreserveValuesFrom = CurrentPropertyGroup
 						.Elements()
 						.Where(Element => UserFileSettings.PropertiesToPatchOrderButPreserveValue.Contains(Element.Name.LocalName));
 					foreach (XElement CurrentElement in ElementsToPreserveValuesFrom)

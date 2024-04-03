@@ -894,7 +894,7 @@ namespace UnrealBuildTool
 
 				if (VisitedIncludes.Add(TranformedHeaderInclude))
 				{
-					var SearchForFileItem = (DirectoryReference dir) =>
+					Func<DirectoryReference, FileItem> SearchForFileItem = (DirectoryReference dir) =>
 					{
 						FileReference FileRef = FileReference.Combine(dir, TranformedHeaderInclude);
 						HashSet<FileReference>? Files = GetIncludeFiles(FileRef.Directory);
@@ -911,7 +911,7 @@ namespace UnrealBuildTool
 					// search through the include paths if the file isn't relative
 					if (IncludeFileItem == null)
 					{
-						foreach (var IncludePath in CompileEnvironment.UserIncludePaths)
+						foreach (DirectoryReference IncludePath in CompileEnvironment.UserIncludePaths)
 						{
 							IncludeFileItem = SearchForFileItem(IncludePath);
 							if (IncludeFileItem != null)
@@ -988,7 +988,7 @@ namespace UnrealBuildTool
 
 			bool FoundAllModules = true;
 			HashSet<UEBuildModule> OptModules = new();
-			foreach (var IncludeFile in FoundIncludeFileItems)
+			foreach (FileItem IncludeFile in FoundIncludeFileItems)
 			{
 				if (CompileEnvironment.MetadataCache.UsesAPIDefine(IncludeFile) || CompileEnvironment.MetadataCache.ContainsReflectionMarkup(IncludeFile))
 				{

@@ -78,8 +78,8 @@ namespace UnrealBuildTool
 				MakeGameProjectFile + "\n" +
 				"TARGETS ="
 			);
-			String MakeProjectCmdArg = "";
-			String MakeBuildCommand = "";
+			string MakeProjectCmdArg = "";
+			string MakeBuildCommand = "";
 			foreach (ProjectFile Project in GeneratedProjectFiles)
 			{
 				foreach (ProjectTarget TargetFile in Project.ProjectTargets.OfType<ProjectTarget>())

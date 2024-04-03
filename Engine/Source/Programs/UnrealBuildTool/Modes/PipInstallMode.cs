@@ -463,8 +463,8 @@ namespace UnrealBuildTool.Modes
 		private static bool CompatiblePlatform(string? PlatformField, UnrealTargetPlatform Platform)
 		{
 			return (PlatformField == null)
-				|| string.Equals(PlatformField, Platform.ToString(), StringComparison.InvariantCultureIgnoreCase)
-				|| string.Equals(PlatformField, "All", StringComparison.InvariantCultureIgnoreCase);
+				|| String.Equals(PlatformField, Platform.ToString(), StringComparison.InvariantCultureIgnoreCase)
+				|| String.Equals(PlatformField, "All", StringComparison.InvariantCultureIgnoreCase);
 		}
 
 		private string? ParseVenvVersion(DirectoryReference VenvDir)
@@ -778,7 +778,7 @@ namespace UnrealBuildTool.Modes
 		}
 		public void OutputData(DataReceivedEventArgs DataLine)
 		{
-			if (string.IsNullOrEmpty(DataLine.Data))
+			if (String.IsNullOrEmpty(DataLine.Data))
 			{
 				return;
 			}
@@ -787,7 +787,7 @@ namespace UnrealBuildTool.Modes
 		}
 		public void ErrorData(DataReceivedEventArgs ErrorLine)
 		{
-			if (string.IsNullOrEmpty(ErrorLine.Data))
+			if (String.IsNullOrEmpty(ErrorLine.Data))
 			{
 				return;
 			}
@@ -814,7 +814,7 @@ namespace UnrealBuildTool.Modes
 		{
 			// NOTE: By default python's logging functionality writes to stderr (at least on windows)
 			//       but we run this code for both stdout/stderr anyway
-			if (string.IsNullOrEmpty(DataLine.Data))
+			if (String.IsNullOrEmpty(DataLine.Data))
 			{
 				return;
 			}
@@ -825,7 +825,7 @@ namespace UnrealBuildTool.Modes
 		{
 			// NOTE: By default python's logging functionality writes to stderr (at least on windows)
 			//       but we run this code for both stdout/stderr anyway
-			if (string.IsNullOrEmpty(ErrorLine.Data))
+			if (String.IsNullOrEmpty(ErrorLine.Data))
 			{
 				return;
 			}
@@ -900,7 +900,7 @@ namespace UnrealBuildTool.Modes
 		}
 		public void OutputData(DataReceivedEventArgs DataLine)
 		{
-			if (string.IsNullOrEmpty(DataLine.Data))
+			if (String.IsNullOrEmpty(DataLine.Data))
 			{
 				return;
 			}
@@ -909,7 +909,7 @@ namespace UnrealBuildTool.Modes
 		}
 		public void ErrorData(DataReceivedEventArgs ErrorLine)
 		{
-			if (string.IsNullOrEmpty(ErrorLine.Data))
+			if (String.IsNullOrEmpty(ErrorLine.Data))
 			{
 				return;
 			}
@@ -981,7 +981,7 @@ namespace UnrealBuildTool.Modes
 		public void OutputData(DataReceivedEventArgs DataLine)
 		{
 			// Currently we assume only one pip command so it should be finished on (null)
-			if (string.IsNullOrEmpty(DataLine.Data))
+			if (String.IsNullOrEmpty(DataLine.Data))
 				return;
 
 			string CheckStr = DataLine.Data.Trim();
@@ -1016,7 +1016,7 @@ namespace UnrealBuildTool.Modes
 
 		public void ErrorData(DataReceivedEventArgs ErrorLine)
 		{
-			if (string.IsNullOrEmpty(ErrorLine.Data))
+			if (String.IsNullOrEmpty(ErrorLine.Data))
 			{
 				return;
 			}

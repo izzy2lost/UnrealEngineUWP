@@ -277,7 +277,7 @@ namespace UnrealBuildTool
 					if (a.bIsGCCCompiler)
 					{
 						// Look for any prerequisite actions that produce .pch files and add any .cpp files they depend on
-						var ExplicitInputFiles = Job["explicit_input_files"] as List<Dictionary<string, object>>;
+						List<Dictionary<string, object>>? ExplicitInputFiles = Job["explicit_input_files"] as List<Dictionary<string, object>>;
 
 						if (ExplicitInputFiles != null)
 						{

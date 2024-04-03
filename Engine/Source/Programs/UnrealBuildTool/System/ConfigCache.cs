@@ -318,7 +318,7 @@ namespace UnrealBuildTool
 			string CustomConfig, CommandLineArguments CmdLineArgs, DirectoryReference? HotfixDir = null)
 		{
 			// Handle command line overrides
-			List<String> OverrideStrings = new List<String>();
+			List<string> OverrideStrings = new List<string>();
 
 			string IniConfigArgPrefix = "-ini:" + Enum.GetName(typeof(ConfigHierarchyType), Type) + ":";
 			string CustomConfigPrefix = "-CustomConfig=";

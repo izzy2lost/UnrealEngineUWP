@@ -317,7 +317,7 @@ namespace UnrealBuildTool
 		/// <returns>The string to append to the user file</returns>
 		public virtual string GetVisualStudioUserFileStrings(VisualStudioUserFileSettings VCUserFileSettings, VSSettings InVSSettings, string InConditionString, TargetRules InTargetRules, FileReference TargetRulesPath, FileReference ProjectFilePath, FileReference? NMakeOutputPath, string ProjectName, string? ForeignUProjectPath)
 		{
-			return string.Empty;
+			return String.Empty;
 		}
 
 		/// <summary>

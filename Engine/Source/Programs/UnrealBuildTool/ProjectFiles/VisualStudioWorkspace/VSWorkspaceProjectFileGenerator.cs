@@ -141,7 +141,7 @@ namespace UnrealBuildTool
 		}
 
 		public override bool GenerateProjectFiles(PlatformProjectGeneratorCollection PlatformProjectGenerators,
-			String[] Arguments, bool bCacheDataForEditor, ILogger Logger)
+			string[] Arguments, bool bCacheDataForEditor, ILogger Logger)
 		{
 			bool IncludeAllPlatforms = true;
 			ConfigureProjectFileGeneration(Arguments, ref IncludeAllPlatforms, Logger);

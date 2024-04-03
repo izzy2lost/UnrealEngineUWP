@@ -255,7 +255,7 @@ namespace UnrealBuildTool
 			return S.ToString();
 		}
 
-		String EmitBytecodeAndCaptureDefs()
+		string EmitBytecodeAndCaptureDefs()
 		{
 			StringBuilder S = new StringBuilder();
 			S.Append(Preamble());
@@ -316,8 +316,8 @@ namespace UnrealBuildTool
 
 				// Constructor
 				bool bWriteBarrier = Inst.Args.Any(Arg => Arg.Role == Role.Immediate && Arg.Arity == Arity.Fixed);
-				var Context = bWriteBarrier ? Extensions.Yield("FAccessContext Context") : Enumerable.Empty<string>();
-				var Operands = Inst.Args.Select(Arg =>
+				IEnumerable<string> Context = bWriteBarrier ? Extensions.Yield("FAccessContext Context") : Enumerable.Empty<string>();
+				IEnumerable<string> Operands = Inst.Args.Select(Arg =>
 				{
 					switch (Arg.Arity)
 					{
@@ -346,7 +346,7 @@ namespace UnrealBuildTool
 							return "UnknownArity";
 					}
 				});
-				var Constants = Inst.Consts.Select(Const =>
+				IEnumerable<string> Constants = Inst.Consts.Select(Const =>
 				{
 					switch (Const.Arity)
 					{
@@ -358,7 +358,7 @@ namespace UnrealBuildTool
 							return "UnknownArity";
 					}
 				});
-				S.Append($"    {Inst.CppName}({string.Join(", ", Context.Concat(Operands).Concat(Constants))})\n");
+				S.Append($"    {Inst.CppName}({String.Join(", ", Context.Concat(Operands).Concat(Constants))})\n");
 				S.Append("        : FOp(StaticOpcode)\n");
 				foreach (Argument Arg in Inst.Args)
 				{
@@ -445,8 +445,8 @@ namespace UnrealBuildTool
 
 				// Generate the constructor.
 				{
-					var Context = Extensions.Yield("FAccessContext Context");
-					var Operands = Inst.Args.Select(Arg =>
+					IEnumerable<string> Context = Extensions.Yield("FAccessContext Context");
+					IEnumerable<string> Operands = Inst.Args.Select(Arg =>
 					{
 						switch (Arg.Arity)
 						{
@@ -475,9 +475,9 @@ namespace UnrealBuildTool
 								return $"UnknownArity {Arg.Name}";
 						}
 					});
-					var EffectToken = Inst._CapturesEffectToken ? Extensions.Yield("VValue EffectToken") : Enumerable.Empty<string>();
-					var ReturnEffectToken = Inst._CreatesNewReturnEffectToken ? Extensions.Yield("VValue ReturnEffectToken") : Enumerable.Empty<string>();
-					var Constants = Inst.Consts.Select(Const =>
+					IEnumerable<string> EffectToken = Inst._CapturesEffectToken ? Extensions.Yield("VValue EffectToken") : Enumerable.Empty<string>();
+					IEnumerable<string> ReturnEffectToken = Inst._CreatesNewReturnEffectToken ? Extensions.Yield("VValue ReturnEffectToken") : Enumerable.Empty<string>();
+					IEnumerable<string> Constants = Inst.Consts.Select(Const =>
 					{
 						switch (Const.Arity)
 						{
@@ -489,7 +489,7 @@ namespace UnrealBuildTool
 								return $"UnknownArity {Const.Name}";
 						}
 					});
-					S.Append($"    {Inst.CppCapturesName}({string.Join(", ", Context.Concat(Operands).Concat(EffectToken).Concat(ReturnEffectToken).Concat(Constants))})\n");
+					S.Append($"    {Inst.CppCapturesName}({String.Join(", ", Context.Concat(Operands).Concat(EffectToken).Concat(ReturnEffectToken).Concat(Constants))})\n");
 					string Prefix = ":";
 					foreach (Argument Arg in Inst.Args)
 					{

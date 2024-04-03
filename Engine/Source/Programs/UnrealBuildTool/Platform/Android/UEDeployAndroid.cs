@@ -477,7 +477,7 @@ namespace UnrealBuildTool
 			List<string> TargetOculusDevices = GetTargetOculusMobileDevices(Ini); // Backcompat for deprecated oculus device target setting
 			bool bTargetOculusDevices = (TargetOculusDevices != null && TargetOculusDevices.Count() > 0); // Backcompat for deprecated oculus device target setting
 
-			bool result = Ini.GetBool("/Script/AndroidRuntimeSettings.AndroidRuntimeSettings", "bPackageForMetaQuest", out var bPackageForMetaQuest);
+			bool result = Ini.GetBool("/Script/AndroidRuntimeSettings.AndroidRuntimeSettings", "bPackageForMetaQuest", out bool bPackageForMetaQuest);
 
 			return (result && bPackageForMetaQuest) || bTargetOculusDevices;
 		}
@@ -861,12 +861,12 @@ namespace UnrealBuildTool
 			}
 		}
 
-		public string GetUnrealBuildFilePath(String EngineDirectory)
+		public string GetUnrealBuildFilePath(string EngineDirectory)
 		{
 			return Path.GetFullPath(Path.Combine(EngineDirectory, "Build/Android/Java"));
 		}
 
-		public string GetUnrealPreBuiltFilePath(String EngineDirectory)
+		public string GetUnrealPreBuiltFilePath(string EngineDirectory)
 		{
 			return Path.GetFullPath(Path.Combine(EngineDirectory, "Build/Android/Prebuilt"));
 		}
@@ -876,12 +876,12 @@ namespace UnrealBuildTool
 			return Path.Combine("src", "com", "epicgames", "unreal");
 		}
 
-		public string GetUnrealJavaFilePath(String EngineDirectory)
+		public string GetUnrealJavaFilePath(string EngineDirectory)
 		{
 			return Path.GetFullPath(Path.Combine(GetUnrealBuildFilePath(EngineDirectory), GetUnrealJavaSrcPath()));
 		}
 
-		public string GetUnrealJavaBuildSettingsFileName(String EngineDirectory)
+		public string GetUnrealJavaBuildSettingsFileName(string EngineDirectory)
 		{
 			return Path.Combine(GetUnrealJavaFilePath(EngineDirectory), "JavaBuildSettings.java");
 		}
@@ -1456,7 +1456,7 @@ namespace UnrealBuildTool
 					Logger.LogWarning("{ANDROID_VULKAN_VALIDATION_LAYER} vulkan layer not found at {VulkanLayersDir}, skipping", ANDROID_VULKAN_VALIDATION_LAYER, VulkanLayersDir);
 				}
 
-				String DebugVulkanLayerDirectory = "";
+				string DebugVulkanLayerDirectory = "";
 				AndroidPlatformSDK.GetPath(Ini, "/Script/AndroidRuntimeSettings.AndroidRuntimeSettings", "DebugVulkanLayerDirectory", out DebugVulkanLayerDirectory);
 				Logger.LogInformation("DebugVulkanLayerDirectory {LayerDir}", DebugVulkanLayerDirectory);
 
@@ -1508,7 +1508,7 @@ namespace UnrealBuildTool
 				case AndroidToolChain.ClangSanitizer.HwAddress:
 				{
 					// no need to bundle asan .so in NDK r26b+
-					LibName = ToolChain.HasEmbeddedHWASanSupport() ? string.Empty : "hwasan";
+					LibName = ToolChain.HasEmbeddedHWASanSupport() ? String.Empty : "hwasan";
 					break;
 				}
 				case AndroidToolChain.ClangSanitizer.UndefinedBehavior:
@@ -1522,7 +1522,7 @@ namespace UnrealBuildTool
 					break;
 			}
 
-			string SanitizerFullLibName = string.IsNullOrEmpty(LibName) ? string.Empty : "libclang_rt." + LibName + Architecture + "-android.so";
+			string SanitizerFullLibName = String.IsNullOrEmpty(LibName) ? String.Empty : "libclang_rt." + LibName + Architecture + "-android.so";
 
 			// NDK r26b+ needs different wrap.sh script
 			string WrapShName = Sanitizer == AndroidToolChain.ClangSanitizer.HwAddress && ToolChain.HasEmbeddedHWASanSupport() ? "hwasan.sh" : "asan.sh";
@@ -1536,11 +1536,11 @@ namespace UnrealBuildTool
 			string LibsVersion = VersionFile.ReadLine()!;
 			VersionFile.Close();
 
-			string SanitizerLib = string.IsNullOrEmpty(SanitizerFullLibName) ?
-				string.Empty :
+			string SanitizerLib = String.IsNullOrEmpty(SanitizerFullLibName) ?
+				String.Empty :
 				Path.Combine(Environment.ExpandEnvironmentVariables("%NDKROOT%"), "toolchains", "llvm", "prebuilt", PlatformHostName, (ToolChain.HasEmbeddedHWASanSupport() ? "lib" : "lib64"), "clang", LibsVersion, "lib", "linux", SanitizerFullLibName);
 
-			if (!string.IsNullOrEmpty(SanitizerLib))
+			if (!String.IsNullOrEmpty(SanitizerLib))
 			{
 				if (File.Exists(SanitizerLib))
 				{
@@ -2137,7 +2137,7 @@ namespace UnrealBuildTool
 					DestApkName = AndroidToolChain.InlineArchName(DestApkName, Arch);
 				}
 
-				List<String> InputFiles = new List<string>();
+				List<string> InputFiles = new List<string>();
 				// check to see if the libUnreal.so is out of date before trying the slow make apk process
 				if (!bDontBundleLibrariesInAPK)
 				{
@@ -2145,12 +2145,12 @@ namespace UnrealBuildTool
 				}
 
 				// add all files in jni and libs subfolders
-				foreach (var SoDirName in new [] {"jni", "libs"})
+				foreach (string? SoDirName in new [] {"jni", "libs"})
 				{
 					string SoDirPath = Path.Combine(IntermediateAndroidPath, ArchRemapping[GetNDKArch(Arch)], SoDirName, GetNDKArch(Arch));
 					if (Directory.Exists(SoDirPath))
 					{
-						var files = Directory.EnumerateFiles(SoDirPath, "*.*", SearchOption.AllDirectories);
+						IEnumerable<string> files = Directory.EnumerateFiles(SoDirPath, "*.*", SearchOption.AllDirectories);
 						InputFiles.AddRange(files);
 					}
 				}
@@ -2805,7 +2805,7 @@ namespace UnrealBuildTool
 			{
 				Text.AppendLine("\t<dist:module dist:instant=\"true\" />");
 				Text.AppendLine("\t<queries>");
-				Text.AppendLine(string.Format("\t\t<package android:name=\"{0}\" />", PackageName));
+				Text.AppendLine(String.Format("\t\t<package android:name=\"{0}\" />", PackageName));
 				Text.AppendLine("\t</queries>");
 			}
 
@@ -2932,7 +2932,7 @@ namespace UnrealBuildTool
 			}
 
 			// Figure out the required startup permissions if targetting devices supporting runtime permissions
-			String StartupPermissions = "";
+			string StartupPermissions = "";
 			if (TargetSDKVersion >= 23)
 			{
 				if (Configuration != "Shipping" || !bUseExternalFilesDir)
@@ -2996,7 +2996,7 @@ namespace UnrealBuildTool
 			// Declare the remaining 7 OpenGL program compiling services. (all derived from OGLProgramService)
 			for (int i = 1; i < 8; i++)
 			{
-				String serviceLine = String.Format("		<service android:name=\"com.epicgames.unreal.psoservices.OGLProgramService{0}\" android:process=\":psoprogramservice{0}\" />", i);
+				string serviceLine = String.Format("		<service android:name=\"com.epicgames.unreal.psoservices.OGLProgramService{0}\" android:process=\":psoprogramservice{0}\" />", i);
 				Text.AppendLine(serviceLine);
 			}
 
@@ -3005,7 +3005,7 @@ namespace UnrealBuildTool
 			// Declare the remaining 7 Vulkan program compiling services. (all derived from VulkanProgramService)
 			for (int i = 1; i < 8; i++)
 			{
-				String serviceLine = String.Format("		<service android:name=\"com.epicgames.unreal.psoservices.VulkanProgramService{0}\" android:process=\":psoprogramservice{0}\" />", i);
+				string serviceLine = String.Format("		<service android:name=\"com.epicgames.unreal.psoservices.VulkanProgramService{0}\" android:process=\":psoprogramservice{0}\" />", i);
 				Text.AppendLine(serviceLine);
 			}
 
@@ -3202,7 +3202,7 @@ namespace UnrealBuildTool
 			Ini.GetString("/Script/AndroidRuntimeSettings.AndroidRuntimeSettings", "GamesAppID", out IniAppId);
 
 			//validate the value found in the AndroidRuntimeSettings
-			Int64 Value;
+			long Value;
 			if (IniAppId.Length == 0 || !Int64.TryParse(IniAppId, out Value))
 			{
 				bInvalidIniAppId = true;
@@ -3210,7 +3210,7 @@ namespace UnrealBuildTool
 
 			bool bInvalid = false;
 			string ReplacementId = "";
-			String Filename = Path.Combine(UnrealBuildPath, "res", "values", "GooglePlayAppID.xml");
+			string Filename = Path.Combine(UnrealBuildPath, "res", "values", "GooglePlayAppID.xml");
 			if (File.Exists(Filename))
 			{
 				string[] FileContent = File.ReadAllLines(Filename);
@@ -4360,7 +4360,7 @@ namespace UnrealBuildTool
 			// Generate the OBB and Shim files here
 			string ObbFileLocation = ProjectDirectory + "/Saved/StagedBuilds/Android" + CookFlavor + ".obb";
 			string PatchFileLocation = ProjectDirectory + "/Saved/StagedBuilds/Android" + CookFlavor + ".patch.obb";
-			List<string> RequiredOBBFiles = new List<String> { ObbFileLocation };
+			List<string> RequiredOBBFiles = new List<string> { ObbFileLocation };
 			if (File.Exists(PatchFileLocation))
 			{
 				RequiredOBBFiles.Add(PatchFileLocation);
@@ -4857,7 +4857,7 @@ namespace UnrealBuildTool
 			{
 				{"${EXECUTABLE_NAME}", ApplicationDisplayName!},
 				{"${PY_VISUALIZER_PATH}", Path.GetFullPath(Path.Combine(EngineDirectory, "Extras", "LLDBDataFormatters", "UEDataFormatters_2ByteChars.py"))},
-				{"${IDEA_RUN_CONFIGURATION_SYMBOL_PATHS}", string.Join("", LLDBExtraSymbolsDirectories.Select(x => $"\n\t\t\t<symbol_dirs symbol_path=\"{x}\" />"))}
+				{"${IDEA_RUN_CONFIGURATION_SYMBOL_PATHS}", String.Join("", LLDBExtraSymbolsDirectories.Select(x => $"\n\t\t\t<symbol_dirs symbol_path=\"{x}\" />"))}
 			};
 
 			// steps run for each build combination (note: there should only be one GPU in future)
@@ -4962,7 +4962,7 @@ namespace UnrealBuildTool
 				string CompileSDKVersion = SDKAPILevel.Replace("android-", "");
 
 				// Write the manifest to the correct locations (cache and real)
-				String ManifestFile = Path.Combine(IntermediateAndroidPath, Arch + "_AndroidManifest.xml");
+				string ManifestFile = Path.Combine(IntermediateAndroidPath, Arch + "_AndroidManifest.xml");
 				File.WriteAllText(ManifestFile, Manifest);
 				ManifestFile = Path.Combine(UnrealBuildPath, "AndroidManifest.xml");
 				File.WriteAllText(ManifestFile, Manifest);
@@ -5016,7 +5016,7 @@ namespace UnrealBuildTool
 
 					Ini.GetString("/Script/AndroidFileServerEditor.AndroidFileServerRuntimeSettings", "SecurityToken", out string AFSToken);
 
-					AFSToken = string.IsNullOrEmpty(AFSToken) ? "" : " -k " + AFSToken;
+					AFSToken = String.IsNullOrEmpty(AFSToken) ? "" : " -k " + AFSToken;
 
 					string AFSExecutable = Path.Combine(Unreal.EngineDirectory.ToString(), @"Binaries/DotNET/Android/UnrealAndroidFileTool", GetAFSExecutable(UnrealTargetPlatform.Win64, Logger));
 					string AFS = $"{AFSExecutable} -p {PackageName}{AFSToken}";
@@ -5222,7 +5222,7 @@ popd
 				PrepareJavaLibsForGradle(JavaLibsDir, UnrealBuildGradlePath, MinSDKVersion.ToString(), TargetSDKVersion.ToString(), CompileSDKVersion, BuildToolsVersion, NDKArch);
 
 				// Create local.properties
-				String LocalPropertiesFilename = Path.Combine(UnrealBuildGradlePath, "local.properties");
+				string LocalPropertiesFilename = Path.Combine(UnrealBuildGradlePath, "local.properties");
 				StringBuilder LocalProperties = new StringBuilder();
 				//				LocalProperties.AppendLine(string.Format("ndk.dir={0}", Environment.GetEnvironmentVariable("NDKROOT")!.Replace("\\", "/")));
 				LocalProperties.AppendLine(String.Format("sdk.dir={0}", Environment.GetEnvironmentVariable("ANDROID_HOME")!.Replace("\\", "/")));
@@ -5335,7 +5335,7 @@ popd
 				// make sure destination exists
 				Directory.CreateDirectory(UnrealGradleDest);
 
-				String ABIFilter = "";
+				string ABIFilter = "";
 
 				// loop through and merge the different architecture gradle directories
 				foreach (Tuple<UnrealArch, string> build in BuildList)
@@ -5902,7 +5902,7 @@ popd
 			return true;
 		}
 
-		public static void OutputReceivedDataEventHandler(Object Sender, DataReceivedEventArgs Line, ILogger Logger)
+		public static void OutputReceivedDataEventHandler(object Sender, DataReceivedEventArgs Line, ILogger Logger)
 		{
 			if ((Line != null) && (Line.Data != null))
 			{
@@ -6365,8 +6365,8 @@ import java.util.Collection;
 						}
 
 						// rewrite the manifest if different
-						String NewManifestText = ManifestXML.ToString();
-						String OldManifestText = "";
+						string NewManifestText = ManifestXML.ToString();
+						string OldManifestText = "";
 						if (File.Exists(GradleManifest))
 						{
 							OldManifestText = File.ReadAllText(GradleManifest);
@@ -6413,8 +6413,8 @@ import java.util.Collection;
 
 				// rewrite the build.gradle if different
 				string BuildGradleFilename = Path.Combine(GradleProjectPath, "build.gradle");
-				String NewBuildGradleText = BuildGradleContent.ToString();
-				String OldBuildGradleText = "";
+				string NewBuildGradleText = BuildGradleContent.ToString();
+				string OldBuildGradleText = "";
 				if (File.Exists(BuildGradleFilename))
 				{
 					OldBuildGradleText = File.ReadAllText(BuildGradleFilename);

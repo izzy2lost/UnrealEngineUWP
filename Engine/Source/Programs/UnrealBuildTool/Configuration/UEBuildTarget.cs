@@ -1503,7 +1503,7 @@ namespace UnrealBuildTool
 			IEnumerable<ObsoleteAttribute> ObsoleteAttributes = module.Rules.GetType().GetCustomAttributes<ObsoleteAttribute>();
 			if (ObsoleteAttributes.Any())
 			{
-				string Message = string.Join(", ", ObsoleteAttributes.Select(x => x.Message ?? "<unknown reason>"));
+				string Message = String.Join(", ", ObsoleteAttributes.Select(x => x.Message ?? "<unknown reason>"));
 				logger.LogWarning($"Warning: Referenced Module '{module.Name}' is obsolete: '{Message}'");
 			}
 

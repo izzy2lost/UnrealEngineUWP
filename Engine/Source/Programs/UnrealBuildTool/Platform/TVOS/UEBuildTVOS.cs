@@ -13,7 +13,7 @@ namespace UnrealBuildTool
 		/// </summary>
 		public override string RuntimeDevices => "3";
 
-		public TVOSProjectSettings(FileReference? ProjectFile, String? Bundle)
+		public TVOSProjectSettings(FileReference? ProjectFile, string? Bundle)
 			: base(ProjectFile, UnrealTargetPlatform.TVOS, Bundle)
 		{
 		}
