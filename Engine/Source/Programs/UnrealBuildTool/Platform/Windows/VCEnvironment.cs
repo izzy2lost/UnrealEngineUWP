@@ -277,7 +277,7 @@ namespace UnrealBuildTool
 			string ArchFolder = Architecture.WindowsSystemLibDir;
 
 			// Add the standard Visual C++ library paths
-			if(Compiler.IsIntel() && bAllowClangLinker)
+			if (Compiler.IsIntel() && bAllowClangLinker)
 			{
 				VersionNumber ClangVersion = MicrosoftPlatformSDK.GetClangVersionForIntelCompiler(CompilerPath);
 				return DirectoryReference.Combine(CompilerDir, "lib", "clang", ClangVersion.GetComponent(0).ToString(), "lib", "windows");

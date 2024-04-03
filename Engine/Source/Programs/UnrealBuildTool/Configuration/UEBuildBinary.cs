@@ -156,7 +156,7 @@ namespace UnrealBuildTool
 			this.IntermediateDirectory = IntermediateDirectory;
 			this.bAllowExports = bAllowExports;
 			this.bBuildAdditionalConsoleApp = bBuildAdditionalConsoleApp;
-			this.bBuildConsoleAppOnly = bBuildConsoleAppOnly;			
+			this.bBuildConsoleAppOnly = bBuildConsoleAppOnly;
 			this.PrimaryModule = PrimaryModule;
 			this.bUsePrecompiled = bUsePrecompiled;
 
@@ -282,17 +282,17 @@ namespace UnrealBuildTool
 			// Create the import library if needed
 			OutputFiles.AddRange(ToolChain.LinkImportLibrary(BinaryLinkEnvironment, Graph));
 
-			
+
 			// Override the build to be a console app (i.e. only build a console app)
 			if (bBuildConsoleAppOnly)
-			{				
+			{
 				BinaryLinkEnvironment.bIsBuildingConsoleApplication = true;
 				BinaryLinkEnvironment.bCodeCoverage = CompileEnvironment.bCodeCoverage;
 				BinaryLinkEnvironment.WindowsEntryPointOverride = "WinMainCRTStartup";       // For WinMain() instead of "main()" for Launch module
 				BinaryLinkEnvironment.OutputFilePaths = BinaryLinkEnvironment.OutputFilePaths.Select(Path => GetAdditionalConsoleAppPath(Path)).ToList();
-			} 
+			}
 			else if (bBuildAdditionalConsoleApp)
-			{				
+			{
 				// Produce additional binary but link it as a console app
 				LinkEnvironment ConsoleAppLinkEnvironment = new LinkEnvironment(BinaryLinkEnvironment);
 				ConsoleAppLinkEnvironment.bIsBuildingConsoleApplication = true;
@@ -310,12 +310,12 @@ namespace UnrealBuildTool
 				}
 			}
 
-	
+
 
 			// Link the binary.
 			FileItem[] Executables = ToolChain.LinkAllFiles(BinaryLinkEnvironment, false, Graph);
 			OutputFiles.AddRange(Executables);
-			
+
 			// Save all the output items for this binary. This is used for hot-reload, and excludes any items added in PostBuild (such as additional files copied into the app).
 			if (Target.LinkType == TargetLinkType.Modular)
 			{
@@ -566,7 +566,8 @@ namespace UnrealBuildTool
 					{
 						AddBuildProductAndDebugFiles(GetAdditionalConsoleAppPath(OutputFilePath), OutputType, DebugExtensions, BuildProducts, ToolChain, bCreateDebugInfo);
 					}
-				} else 
+				}
+				else
 				{
 					foreach (FileReference OutputFilePath in OutputFilePaths)
 					{

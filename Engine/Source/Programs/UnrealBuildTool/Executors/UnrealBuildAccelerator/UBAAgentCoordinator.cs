@@ -1,8 +1,8 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-using EpicGames.Core;
 using System;
 using System.Threading.Tasks;
+using EpicGames.Core;
 
 namespace UnrealBuildTool
 {
@@ -16,7 +16,7 @@ namespace UnrealBuildTool
 		void Start(ImmediateActionQueue queue, Func<LinkedAction, bool> canRunRemotely);
 
 		void Stop();
-	
+
 		Task CloseAsync();
 	}
 }

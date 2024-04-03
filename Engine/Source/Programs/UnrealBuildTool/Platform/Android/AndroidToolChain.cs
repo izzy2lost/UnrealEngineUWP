@@ -1043,7 +1043,7 @@ namespace UnrealBuildTool
 				// This is used by Crypto code in Core
 				ModifiedInputFiles.Add(FileItem.GetItemByPath(GetCpuFeaturesPath()));
 				HasHandledCoreModule.Add(CompileEnvironment.Architecture);
-				
+
 			}
 
 			return base.CompileCPPFiles(CompileEnvironment, ModifiedInputFiles, OutputDir, ModuleName, Graph);

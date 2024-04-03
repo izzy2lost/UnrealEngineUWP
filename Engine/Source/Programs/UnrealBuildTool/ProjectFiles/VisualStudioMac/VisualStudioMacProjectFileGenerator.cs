@@ -107,14 +107,15 @@ namespace UnrealBuildTool
 						new XElement(NS + "Target",
 							new XAttribute("Name", "CleanUpStaleDlls"),
 							new XAttribute("AfterTargets", "Build"),
-							AutomationProjectFiles.SelectMany(AutomationProject => {
-									string BaseFilename = FileReference.Combine(AutomationToolBinariesDir, AutomationProject.ProjectFilePath.GetFileNameWithoutExtension()).FullName;
-									return new List<XElement>() {
-										new XElement(NS + "Delete",	new XAttribute("Files", BaseFilename + ".dll")),
-										new XElement(NS + "Delete",	new XAttribute("Files", BaseFilename + ".dll.config")),
-										new XElement(NS + "Delete",	new XAttribute("Files", BaseFilename + ".pdb"))
+							AutomationProjectFiles.SelectMany(AutomationProject =>
+							{
+								string BaseFilename = FileReference.Combine(AutomationToolBinariesDir, AutomationProject.ProjectFilePath.GetFileNameWithoutExtension()).FullName;
+								return new List<XElement>() {
+										new XElement(NS + "Delete", new XAttribute("Files", BaseFilename + ".dll")),
+										new XElement(NS + "Delete", new XAttribute("Files", BaseFilename + ".dll.config")),
+										new XElement(NS + "Delete", new XAttribute("Files", BaseFilename + ".pdb"))
 									};
-								}
+							}
 							)
 						)
 					)

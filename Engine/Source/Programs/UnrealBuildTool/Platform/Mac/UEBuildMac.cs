@@ -279,7 +279,7 @@ namespace UnrealBuildTool
 		public override void GetExternalBuildMetadata(FileReference? ProjectFile, StringBuilder Metadata)
 		{
 			base.GetExternalBuildMetadata(ProjectFile, Metadata);
-			
+
 			Metadata.AppendLine("xcode-select: {0}", AppleToolChainSettings.XcodeDeveloperDir);
 		}
 	}
@@ -460,7 +460,7 @@ namespace UnrealBuildTool
 			// don't do any target platform stuff if SDK is not available
 			bool bIsPlatformAvailableForTarget = UEBuildPlatform.IsPlatformAvailableForTarget(Platform, Target, bIgnoreSDKCheck: true);
 			bool bIsPlatformAvailableForTargetWithSDK = UEBuildPlatform.IsPlatformAvailableForTarget(Platform, Target);
-			
+
 			if (!bIsPlatformAvailableForTarget)
 			{
 				return;

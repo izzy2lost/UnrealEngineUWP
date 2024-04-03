@@ -6,7 +6,6 @@ using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
 using System.IO;
 using System.Linq;
-using System.Runtime.InteropServices;
 using System.Security;
 using System.Text;
 using System.Text.RegularExpressions;
@@ -14,10 +13,9 @@ using System.Threading.Tasks;
 using System.Xml;
 using System.Xml.Linq;
 using EpicGames.Core;
+using Microsoft.CodeAnalysis;
 using Microsoft.Extensions.Logging;
 using UnrealBuildBase;
-using Newtonsoft.Json.Linq;
-using Microsoft.CodeAnalysis;
 using static UnrealBuildTool.PlatformProjectGenerator;
 
 namespace UnrealBuildTool
@@ -1368,7 +1366,7 @@ namespace UnrealBuildTool
 					DefaultRules != null ? (" " + GetConformanceCompileArguments(DefaultRules)) : String.Empty,
 					CommonAdditionalOptions.Length > 0 ? (" " + CommonAdditionalOptions) : String.Empty);
 			};
-			
+
 			string DefaultAdditionalOptions = GetAdditionalOptionsString(DefaultRules);
 
 			// Write common IntelliSense info
@@ -1416,7 +1414,7 @@ namespace UnrealBuildTool
 				WriteConfiguration(ProjectName, Combination, VCProjectFileContent, PlatformProjectGenerators, bGenerateUserFileContent ? VCUserFileContent : null, bGenerateUserFileContent ? VCUserFileSettings : null);
 			}
 
-			{ 
+			{
 				// Collapse common values
 				{
 					StringBuilder CommonProjectFileContent = new StringBuilder();
@@ -1895,7 +1893,7 @@ namespace UnrealBuildTool
 						.Elements()
 						.Where(Element => UserFileSettings.PropertiesToPatch.Contains(Element.Name.LocalName))
 						.ToArray();
-					
+
 					// Check if all properties are already has the correct value and order, and skip patching if so.
 					if (CurrentPropertyGroupElementsForPatch.Length == NewPropertyGroupElementsForPatch.Length &&
 						!CurrentPropertyGroupElementsForPatch.Where((CurrentProperty, i) => CurrentProperty.Name != NewPropertyGroupElementsForPatch[i].Name || CurrentProperty.Value != NewPropertyGroupElementsForPatch[i].Value).Any())
@@ -2709,5 +2707,4 @@ namespace UnrealBuildTool
 		/// Cache of parsed info about this project
 		protected readonly Dictionary<UnrealTargetConfiguration, CsProjectInfo> CachedProjectInfo = new Dictionary<UnrealTargetConfiguration, CsProjectInfo>();
 	}
-
 }

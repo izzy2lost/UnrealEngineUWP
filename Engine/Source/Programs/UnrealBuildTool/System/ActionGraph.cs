@@ -308,7 +308,6 @@ namespace UnrealBuildTool
 						{
 							WarnPaths.Add(PrerequisiteItem.Location);
 						}
-
 					}
 
 					foreach (FileItem ProducedItem in Action.ProducedItems)

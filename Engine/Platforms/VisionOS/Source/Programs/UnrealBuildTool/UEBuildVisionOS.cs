@@ -1,6 +1,5 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-using System;
 using EpicGames.Core;
 using Microsoft.Extensions.Logging;
 
@@ -63,19 +62,19 @@ namespace UnrealBuildTool
 
 			if (!Target.bBuildRequiresCookedData)
 			{
-			    if (Target.Platform == UnrealTargetPlatform.Mac || Target.Platform == UnrealTargetPlatform.Win64)
-			    {
-				    if ((ModuleName == "Engine" && Target.bBuildDeveloperTools) ||
-					    (ModuleName == "TargetPlatform" && Target.bForceBuildTargetPlatforms))
-				    {
+				if (Target.Platform == UnrealTargetPlatform.Mac || Target.Platform == UnrealTargetPlatform.Win64)
+				{
+					if ((ModuleName == "Engine" && Target.bBuildDeveloperTools) ||
+						(ModuleName == "TargetPlatform" && Target.bForceBuildTargetPlatforms))
+					{
 						Rules.DynamicallyLoadedModuleNames.Add("VisionOSTargetPlatformSettings");
 						if (bIsPlatformAvailableForTargetWithSDK)
 						{
 							Rules.DynamicallyLoadedModuleNames.Add("VisionOSTargetPlatform");
 							Rules.DynamicallyLoadedModuleNames.Add("VisionOSTargetPlatformControls");
 						}
-				    }
-			    }
+					}
+				}
 			}
 
 			if (ModuleName == "UnrealEd" && bIsPlatformAvailableForTargetWithSDK)

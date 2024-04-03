@@ -130,7 +130,7 @@ namespace UnrealBuildTool
 			if (Target.Platform == UnrealTargetPlatform.IOS || Target.Platform == UnrealTargetPlatform.TVOS)
 			{
 				// Fix missing frameworks from ApplicationCore
-				
+
 				// Needed for CADisplayLink
 				PublicFrameworks.Add("QuartzCore");
 
@@ -452,7 +452,8 @@ namespace UnrealBuildTool
 			/// <summary>
 			/// Type of Catch2 report, defaults to console.
 			/// </summary>
-			public string ReportType {
+			public string ReportType
+			{
 				get => ReportTypePrivate;
 				set => ReportTypePrivate = value;
 			}
@@ -472,10 +473,10 @@ namespace UnrealBuildTool
 			/// Depercated, use GauntletArgs or ExtraArgs instead to help indicate arguments to launch the test under.
 			/// </summary>
 			public string InitialExtraArgs
-			{ 
+			{
 				get;
 				[Obsolete]
-				set; 
+				set;
 			}
 
 			/// <summary>
@@ -553,7 +554,6 @@ namespace UnrealBuildTool
 				get => PlatformRunContainerizedPrivate;
 				set => PlatformRunContainerizedPrivate = value;
 			}
-
 		}
 #pragma warning restore 8618
 	}

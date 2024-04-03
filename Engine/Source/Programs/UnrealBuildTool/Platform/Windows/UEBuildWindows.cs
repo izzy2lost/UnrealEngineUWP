@@ -339,7 +339,7 @@ namespace UnrealBuildTool
 		[ConfigFile(ConfigHierarchyType.Engine, "/Script/WindowsTargetPlatform.WindowsTargetSettings", "bVCExtendedWarningInfo")]
 		[XmlConfigFile(Category = "WindowsPlatform")]
 		[CommandLine("-VCExtendedWarningInfo")]
-		[CommandLine("-VCDisableExtendedWarningInfo", Value ="false")]
+		[CommandLine("-VCDisableExtendedWarningInfo", Value = "false")]
 		public bool bVCExtendedWarningInfo = true;
 
 		/// <summary>
@@ -1036,7 +1036,7 @@ namespace UnrealBuildTool
 			{
 				case System.Runtime.InteropServices.Architecture.Arm64:
 					return UnrealArch.Arm64;
-				default: 
+				default:
 					return UnrealArch.X64;
 			}
 		}

@@ -1395,7 +1395,7 @@ namespace UnrealBuildTool
 			string? BaseTargetName;
 			if (ThisRules.RequiresUniqueEnvironment(RulesAssembly, Arguments, PropNamesThatRequiredUnique, out BaseTargetName))
 			{
-				throw new BuildException("{0} modifies the values of properties: [ {1} ]. This is not allowed, as {0} has build products in common with {2}.\nRemove the modified setting, change {0} to use a unique build environment by setting 'BuildEnvironment = TargetBuildEnvironment.Unique;' in the {3} constructor, or set bOverrideBuildEnvironment = true to force this setting on.", 
+				throw new BuildException("{0} modifies the values of properties: [ {1} ]. This is not allowed, as {0} has build products in common with {2}.\nRemove the modified setting, change {0} to use a unique build environment by setting 'BuildEnvironment = TargetBuildEnvironment.Unique;' in the {3} constructor, or set bOverrideBuildEnvironment = true to force this setting on.",
 					ThisTargetName, String.Join(", ", PropNamesThatRequiredUnique.Select(x => $"{x.Key}: {x.Value.Item1} != {x.Value.Item2}")), BaseTargetName, ThisRules.GetType().Name);
 			}
 
@@ -2670,7 +2670,7 @@ namespace UnrealBuildTool
 				HashSet<FileItem> RetainOutputItems = new HashSet<FileItem>();
 
 				UEBuildPlugin? ForeignBuildPlugin = BuildPlugins!.Find(x => x.File == ForeignPlugin);
-				
+
 				foreach (UEBuildPlugin Plugin in BuildPlugins)
 				{
 					// Retain foreign plugin dependencies if it was specified.
@@ -2708,7 +2708,7 @@ namespace UnrealBuildTool
 				string ExecutableExt = BuildPlatform.GetBinaryExtension(UEBuildBinaryType.Executable);
 				HashSet<string> DebugInfoExtensions = new(BuildPlatform.GetDebugInfoExtensions(Rules, UEBuildBinaryType.DynamicLinkLibrary)
 					.Concat(BuildPlatform.GetDebugInfoExtensions(Rules, UEBuildBinaryType.Executable)));
-				HashSet<string> MapInfoExtensions = Platform.IsInGroup(UnrealPlatformGroup.Microsoft) ? new(new string[]{ ".map" , ".objpaths" }) : new();
+				HashSet<string> MapInfoExtensions = Platform.IsInGroup(UnrealPlatformGroup.Microsoft) ? new(new string[] { ".map", ".objpaths" }) : new();
 				BuildProducts.AddRange(RuntimeDependencyTargetFileToSourceFile.Select(x =>
 				{
 					string Ext = x.Key.GetExtension();
@@ -4765,9 +4765,9 @@ namespace UnrealBuildTool
 			// Construct the output paths for this target's executable
 			DirectoryReference OutputDirectory;
 			// if we are building a program with a project file, and we are making a unique build environment, output the program to that project's binaries
-			bool bIsUniqueBuildProgramWithExternalProject = 
-					Rules.Type == TargetType.Program && Rules.BuildEnvironment == TargetBuildEnvironment.Unique && 
-					Rules.File.IsUnderDirectory(Unreal.EngineDirectory) && 
+			bool bIsUniqueBuildProgramWithExternalProject =
+					Rules.Type == TargetType.Program && Rules.BuildEnvironment == TargetBuildEnvironment.Unique &&
+					Rules.File.IsUnderDirectory(Unreal.EngineDirectory) &&
 					ProjectFile != null && !ProjectFile.IsUnderDirectory(Unreal.EngineDirectory);
 
 			if (bIsUniqueBuildProgramWithExternalProject)
@@ -4780,7 +4780,7 @@ namespace UnrealBuildTool
 			else if (ProjectFile != null && (bCompileMonolithic || !bUseSharedBuildEnvironment) && (Rules.File.IsUnderDirectory(ProjectDirectory)))
 			{
 				OutputDirectory = GetOutputDirectoryForExecutable(ProjectDirectory, Rules.File);
-				
+
 			}
 			else
 			{
@@ -5015,7 +5015,7 @@ namespace UnrealBuildTool
 			{
 				GlobalCompileEnvironment.Definitions.Add("WITH_COREUOBJECT=0");
 			}
-			
+
 			if (Rules.bEnableTrace)
 			{
 				GlobalCompileEnvironment.Definitions.Add("UE_TRACE_ENABLED=1");

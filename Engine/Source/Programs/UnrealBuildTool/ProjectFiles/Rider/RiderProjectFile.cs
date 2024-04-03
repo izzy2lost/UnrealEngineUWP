@@ -524,7 +524,7 @@ namespace UnrealBuildTool
 			{
 				Writer.WriteValue(Path.FullName);
 			}
-			
+
 			PlatformProjectGenerator? ProjGenerator = PlatformProjectGenerators.GetPlatformProjectGenerator(Target.Platform, true);
 			if (ProjGenerator != null)
 			{

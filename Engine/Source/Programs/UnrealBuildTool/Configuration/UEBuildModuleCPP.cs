@@ -1291,7 +1291,7 @@ namespace UnrealBuildTool
 			{
 				return false;
 			}
-			
+
 			if (ModuleCompileEnvironment.bValidateFormatStrings != CompileEnvironment.bValidateFormatStrings)
 			{
 				return false;
@@ -1970,7 +1970,8 @@ namespace UnrealBuildTool
 		/// <returns>True if optimization should be enabled</returns>
 		public static bool ShouldEnableOptimization(ModuleRules.CodeOptimization Setting, UnrealTargetConfiguration Configuration, bool bIsEngineModule, bool bCodeCoverage)
 		{
-			if (bCodeCoverage) {
+			if (bCodeCoverage)
+			{
 				return false;
 			}
 			switch (Setting)
@@ -2142,7 +2143,7 @@ namespace UnrealBuildTool
 			AddDefinitions(Result.Definitions, PublicDefinitions);
 
 			Result.Definitions.AddRange(Rules.PrivateDefinitions);
-			
+
 			if (Rules.Name == "BuildSettings")
 			{
 				Result.Definitions.Add(String.Format("UE_WITH_DEBUG_INFO={0}", BaseCompileEnvironment.bCreateDebugInfo ? "1" : "0"));

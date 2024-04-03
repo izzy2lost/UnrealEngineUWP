@@ -1293,7 +1293,7 @@ namespace UnrealBuildTool
 		{
 			ProcessStartInfo StartInfo = new ProcessStartInfo();
 			StartInfo.FileName = AndroidToolChain.GetStripExecutablePath(UnrealArch).Trim('"');
-			string StripCommand = bStripAll ? "--strip-unneeded" : "--strip-debug"; 
+			string StripCommand = bStripAll ? "--strip-unneeded" : "--strip-debug";
 			StartInfo.Arguments = $"{StripCommand} -o \"{TargetFileName}\" \"{SourceFileName}\"";
 			StartInfo.UseShellExecute = false;
 			StartInfo.CreateNoWindow = true;
@@ -1464,7 +1464,7 @@ namespace UnrealBuildTool
 				{
 					DebugVulkanLayerDirectory = Environment.ExpandEnvironmentVariables(DebugVulkanLayerDirectory);
 					if (!Path.IsPathRooted(DebugVulkanLayerDirectory))
-						DebugVulkanLayerDirectory = Path.Combine(Unreal.RootDirectory.ToString(), DebugVulkanLayerDirectory); 
+						DebugVulkanLayerDirectory = Path.Combine(Unreal.RootDirectory.ToString(), DebugVulkanLayerDirectory);
 					string LayersDir = Path.Combine(DebugVulkanLayerDirectory, NDKArch);
 
 					if (Directory.Exists(LayersDir))
@@ -1506,11 +1506,11 @@ namespace UnrealBuildTool
 			switch (Sanitizer)
 			{
 				case AndroidToolChain.ClangSanitizer.HwAddress:
-				{
-					// no need to bundle asan .so in NDK r26b+
-					LibName = ToolChain.HasEmbeddedHWASanSupport() ? String.Empty : "hwasan";
-					break;
-				}
+					{
+						// no need to bundle asan .so in NDK r26b+
+						LibName = ToolChain.HasEmbeddedHWASanSupport() ? String.Empty : "hwasan";
+						break;
+					}
 				case AndroidToolChain.ClangSanitizer.UndefinedBehavior:
 					LibName = "ubsan_standalone";
 					break;
@@ -2145,7 +2145,7 @@ namespace UnrealBuildTool
 				}
 
 				// add all files in jni and libs subfolders
-				foreach (string? SoDirName in new [] {"jni", "libs"})
+				foreach (string? SoDirName in new[] { "jni", "libs" })
 				{
 					string SoDirPath = Path.Combine(IntermediateAndroidPath, ArchRemapping[GetNDKArch(Arch)], SoDirName, GetNDKArch(Arch));
 					if (Directory.Exists(SoDirPath))
@@ -2764,7 +2764,7 @@ namespace UnrealBuildTool
 			if (bIsMakeAAREnabled)
 			{
 				// Note: dist was added for SingleInstanceService to allow instant module features, but need feedback if this will cause any issues since according to docs (https://developer.android.com/guide/playcore/feature-delivery/instant) An instant-enabled module cannot use background services. Additionally, such a module cannot send notifications when running in the background.
-				
+
 				Text.AppendLine("<manifest xmlns:android=\"http://schemas.android.com/apk/res/android\" xmlns:dist=\"http://schemas.android.com/apk/distribution\" xmlns:tools=\"http://schemas.android.com/tools\"");
 			}
 			else
@@ -3077,7 +3077,7 @@ namespace UnrealBuildTool
 					Text.AppendLine("\t<uses-permission android:name=\"android.permission.RECEIVE_BOOT_COMPLETED\"/>");
 				}
 
-				if(!bPackageForMetaQuest)
+				if (!bPackageForMetaQuest)
 				{
 					Text.AppendLine("\t<uses-permission android:name=\"android.permission.MODIFY_AUDIO_SETTINGS\"/>");
 					Text.AppendLine("\t<uses-permission android:name=\"android.permission.VIBRATE\"/>");
@@ -4127,7 +4127,7 @@ namespace UnrealBuildTool
 
 			// this feature requires extra step to install the app besides just .apk install
 			// limit where the feature is enabled because we're not in control of deployment step but in VS/AGDE and UAT
-			if (!(bFromMSBuild || bIsFromUAT)) 
+			if (!(bFromMSBuild || bIsFromUAT))
 			{
 				Logger?.LogInformation("bDontBundleLibrariesInAPK is set to false, due to not called from MSBuild or UAT (bFromMSBuild={bFromMSBuild}, bIsFromUAT={bIsFromUAT}), use \"-ForceDontBundleLibrariesInAPK=true\" to override.", bFromMSBuild, bIsFromUAT);
 				return false;
@@ -4256,7 +4256,7 @@ namespace UnrealBuildTool
 			string UnrealBuildFilesPath_NFL = GetUnrealBuildFilePath(Path.Combine(EngineDirectory, "Restricted", "NotForLicensees"));
 			string UnrealBuildFilesPath_NR = GetUnrealBuildFilePath(Path.Combine(EngineDirectory, "Restricted", "NoRedist"));
 			string GameBuildFilesPath = Path.Combine(ProjectDirectory, "Build", "Android");
-			string GameBuildFilesPath_NFL = Path.Combine(Path.Combine(ProjectDirectory, "Restricted","NotForLicensees"), "Build", "Android");
+			string GameBuildFilesPath_NFL = Path.Combine(Path.Combine(ProjectDirectory, "Restricted", "NotForLicensees"), "Build", "Android");
 			string GameBuildFilesPath_NR = Path.Combine(Path.Combine(ProjectDirectory, "Restricted", "NoRedist"), "Build", "Android");
 
 			// get a list of unique NDK architectures enabled for build
@@ -4278,7 +4278,7 @@ namespace UnrealBuildTool
 			// see if last time matches the skipGradle setting
 			string BuildTypeFilename = Path.Combine(IntermediateAndroidPath, "BuildType.txt");
 			string BuildTypeID = bSkipGradleBuild ? "Embedded" : "Standalone";
-			
+
 			// hwasan on NDK r26b+ requires wrap.sh that needs to be unpacked
 			if (Sanitizer != AndroidToolChain.ClangSanitizer.None && (Sanitizer != AndroidToolChain.ClangSanitizer.HwAddress || ToolChain.HasEmbeddedHWASanSupport()))
 			{
@@ -4584,7 +4584,7 @@ namespace UnrealBuildTool
 					{
 						Directory.CreateDirectory(LLDBExtraSymbolsDirectory);
 					}
-					
+
 					string LLDBExtraSymbolsFile = Path.Combine(LLDBExtraSymbolsDirectory, "libUnreal.so");
 					bool LLDBExtraSymbolsFileIsPresent = File.Exists(LLDBExtraSymbolsFile);
 
@@ -4921,7 +4921,7 @@ namespace UnrealBuildTool
 				if (bHasAndroidStudioProject)
 				{
 					//Path.Combine(UnrealBuildFilesPath, "gradle")
-					ExcludeFolders = new string[]{ "gradle", ".gradle", ".idea", "app", "runConfigurations" };
+					ExcludeFolders = new string[] { "gradle", ".gradle", ".idea", "app", "runConfigurations" };
 				}
 
 				//Copy build files to the intermediate folder in this order (later overrides earlier):
@@ -4983,7 +4983,7 @@ namespace UnrealBuildTool
 
 				// we don't actually need the SO for the bSkipGradleBuild case
 				string? FinalSOName = null;
-				string DestApkDirectory = Path.Combine(ProjectDirectory, "Binaries","Android");
+				string DestApkDirectory = Path.Combine(ProjectDirectory, "Binaries", "Android");
 				string? DestApkName = null;
 				if (bSkipGradleBuild)
 				{
@@ -5084,7 +5084,7 @@ popd
 					{
 						throw new BuildException("Can't make an APK without the jni directory [{0}/jni]", UnrealBuildFilesPath);
 					}
-					
+
 					// Delete the push script if exists
 					string SOPushScriptName = Path.Combine(Path.GetDirectoryName(DestApkName)!, "Push_" + Path.GetFileNameWithoutExtension(DestApkName) + "_so.bat");
 					SafeDeleteFile(SOPushScriptName);
@@ -5982,7 +5982,8 @@ popd
 				}
 			}
 
-			if (bDontBundleLibrariesInAPK) {
+			if (bDontBundleLibrariesInAPK)
+			{
 				LoadUnrealDefault = @"		System.load(GameApplication.getAppContext().getFilesDir().getAbsolutePath() + ""/libUnreal.so"");";
 
 				GameActivityImportAdditionsDefault = @"
@@ -6017,7 +6018,9 @@ import java.util.Collection;
 		return baseClassLoader;
 	}
 ";
-			} else {
+			}
+			else
+			{
 				LoadUnrealDefault = @"		System.loadLibrary(""Unreal"");";
 			}
 
@@ -6037,7 +6040,7 @@ import java.util.Collection;
 					break;
 			}
 
-			Dictionary<string, string> Replacements = new Dictionary<string, string>{				
+			Dictionary<string, string> Replacements = new Dictionary<string, string>{
 				{ "//$${gameActivityMemStatAdditions}$$", UPL.ProcessPluginNode(NDKArch, "gameActivityMemStatAdditions", "")},
 				{ "//$${gameActivityImportAdditions}$$", UPL.ProcessPluginNode(NDKArch, "gameActivityImportAdditions", GameActivityImportAdditionsDefault)},
 				{ "//$${gameActivityPostImportAdditions}$$", UPL.ProcessPluginNode(NDKArch, "gameActivityPostImportAdditions", "")},

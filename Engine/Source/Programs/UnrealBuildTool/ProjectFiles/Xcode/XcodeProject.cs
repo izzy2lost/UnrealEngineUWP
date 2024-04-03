@@ -5,7 +5,6 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Text;
-using System.Xml.Linq;
 using EpicGames.Core;
 using Microsoft.CodeAnalysis;
 using Microsoft.Extensions.Logging;
@@ -599,7 +598,7 @@ namespace UnrealBuildTool.XcodeProjectXcconfig
 			return null;
 		}
 
-		public string ProjectOrEnginePath(string SubPath, bool bMakeRelative, string? AltProjectSubPath=null)
+		public string ProjectOrEnginePath(string SubPath, bool bMakeRelative, string? AltProjectSubPath = null)
 		{
 			string? FinalPath = null;
 			if (ProductDirectory != Unreal.EngineDirectory)
@@ -961,9 +960,9 @@ namespace UnrealBuildTool.XcodeProjectXcconfig
 		public void AddFramework(DirectoryReference Framework, string FileRefGuid)
 		{
 			XcodeSourceFile FrameworkSource = new XcodeSourceFile(new FileReference(Framework.FullName), null, FileRefGuid);
-			FileCollection.ProcessFile(FrameworkSource, true, false, "Frameworks", ""); ;
+			FileCollection.ProcessFile(FrameworkSource, true, false, "Frameworks", "");
+			;
 			FileItems.Add(FrameworkSource);
-
 		}
 	}
 
@@ -1055,7 +1054,7 @@ namespace UnrealBuildTool.XcodeProjectXcconfig
 					Content.WriteLine(4, $"\"VALID_ARCHS[sdk=macos*]\" = \"{SupportedMacArchitectures}\";");
 				}
 			}
-				
+
 			Content.WriteLine(3, "};");
 			Content.WriteLine(3, $"name = \"{Info.DisplayName}\";");
 			Content.WriteLine(2, "};");
@@ -1430,7 +1429,8 @@ namespace UnrealBuildTool.XcodeProjectXcconfig
 						$"  rm -rf \\\"${{CONFIGURATION_BUILD_DIR}}/${{CONTENTS_FOLDER_PATH}}{SyncDestSubdir}\\\"",
 						"  exit -0",
 						"fi",
-					}); ;
+					});
+					;
 				}
 
 				// when we bring stated data into the .app, we have to skip some temp stuff that went into it
@@ -1510,7 +1510,7 @@ namespace UnrealBuildTool.XcodeProjectXcconfig
 			string AssetsPath = UnrealData.ProjectOrEnginePath(AssetsSubPath, false, AssetsAltSubPath);
 			ResourcesBuildPhase.AddResource(new FileReference(AssetsPath));
 			StoryboardPath = UnrealData.FindFile(StoryboardPaths, Platform, false);
-			
+
 			if (StoryboardPath != null)
 			{
 				ResourcesBuildPhase.AddResource(new FileReference(StoryboardPath));
@@ -1673,7 +1673,7 @@ namespace UnrealBuildTool.XcodeProjectXcconfig
 		private string GetPlistSigningName(string ProvisionSetting, ILogger Logger)
 		{
 			string? SigningName;
-			lock(PlistFileMap)
+			lock (PlistFileMap)
 			{
 				if (!PlistFileMap.TryGetValue(ProvisionSetting, out SigningName))
 				{
@@ -1814,7 +1814,7 @@ namespace UnrealBuildTool.XcodeProjectXcconfig
 					{
 						SupportedPlatforms += " iphonesimulator";
 					}
-				
+
 					DeploymentTargetKey = "IPHONEOS_DEPLOYMENT_TARGET";
 					SupportedDevices = UnrealData.IOSProjectSettings!.RuntimeDevices;
 					DeploymentTarget = UnrealData.IOSProjectSettings.RuntimeVersion;
@@ -1858,7 +1858,6 @@ namespace UnrealBuildTool.XcodeProjectXcconfig
 					{
 						ExtraConfigLines.Add($"INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES");
 					}
-
 				}
 				else
 				{

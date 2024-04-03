@@ -1,7 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 using System;
-using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -77,8 +76,8 @@ namespace UnrealBuildTool
 						}
 
 						// Skip Editor for all platforms except for current platform
-						if (ProjectTarget.TargetRules.Type == TargetType.Editor && 
-							(BuildHostPlatform.Current.Platform != Platform || 
+						if (ProjectTarget.TargetRules.Type == TargetType.Editor &&
+							(BuildHostPlatform.Current.Platform != Platform ||
 							(Configuration == UnrealTargetConfiguration.Test || Configuration == UnrealTargetConfiguration.Shipping)))
 						{
 							continue;

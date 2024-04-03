@@ -7,8 +7,6 @@ using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using UnrealBuildTool.Artifacts;
 
-#nullable enable
-
 namespace UnrealBuildToolTests
 {
 

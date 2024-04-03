@@ -1,7 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-using System.Linq;
 using System.Diagnostics;
+using System.Linq;
 using EpicGames.Core;
 
 namespace UnrealBuildTool
@@ -138,7 +138,7 @@ namespace UnrealBuildTool
 
 		JsonObject ToJsonObject()
 		{
-			JsonObject localizationTargetObject= new JsonObject();
+			JsonObject localizationTargetObject = new JsonObject();
 			localizationTargetObject.AddOrSetFieldValue("Name", Name);
 			localizationTargetObject.AddOrSetFieldValue("LoadingPolicy", LoadingPolicy.ToString());
 			localizationTargetObject.AddOrSetFieldValue("ConfigGenerationPolicy", ConfigGenerationPolicy.ToString());

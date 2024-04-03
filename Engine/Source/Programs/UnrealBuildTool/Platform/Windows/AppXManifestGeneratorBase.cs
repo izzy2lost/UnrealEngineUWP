@@ -19,7 +19,7 @@ namespace UnrealBuildTool
 	{
 		/// config section for platform-specific target settings
 		protected virtual string IniSection_PlatformTargetSettings => String.Format("/Script/{0}PlatformEditor.{0}TargetSettings", Platform.ToString());
-		
+
 		/// config section for  platform-specific general target settings (i.e. settings with are unrelated to manifest generation)
 		protected virtual string? IniSection_GeneralPlatformSettings => null;
 
@@ -61,7 +61,7 @@ namespace UnrealBuildTool
 
 		/// Logger for output
 		protected readonly ILogger Logger;
-		
+
 		/// Whether we have logged the deprecation warning for PerCultureResources CultureId being replaced by StageIdOverrides
 		protected static bool bHasWarnedAboutDeprecatedCultureId = false;
 
@@ -246,8 +246,8 @@ namespace UnrealBuildTool
 
 			// read StageId overrides
 			bool bHasStageIdOverrides = false;
-			if (EngineIni!.GetString(IniSection_PlatformTargetSettings, "StageIdOverrides", out string? StageIdOverridesString) && 
-				ConfigHierarchy.TryParseAsMap(StageIdOverridesString, out Dictionary<string,string>? StageIdOverrides))
+			if (EngineIni!.GetString(IniSection_PlatformTargetSettings, "StageIdOverrides", out string? StageIdOverridesString) &&
+				ConfigHierarchy.TryParseAsMap(StageIdOverridesString, out Dictionary<string, string>? StageIdOverrides))
 			{
 				bHasStageIdOverrides = true;
 				UEStageIdToAppXCultureId = StageIdOverrides;

@@ -950,7 +950,7 @@ namespace UnrealBuildTool
 			}
 			return Results;
 		}
-		
+
 		public void LinkDebuggerVisualizers(List<FileItem> OutFiles, UEToolChain ToolChain, ILogger Logger)
 		{
 			foreach (FileItem NatvisSourceFile in NatvisFiles)

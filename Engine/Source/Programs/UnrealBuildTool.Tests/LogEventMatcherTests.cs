@@ -8,8 +8,6 @@ using EpicGames.Core;
 using Microsoft.Extensions.Logging;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 
-#nullable enable
-
 namespace UnrealBuildToolTests
 {
 	[TestClass]

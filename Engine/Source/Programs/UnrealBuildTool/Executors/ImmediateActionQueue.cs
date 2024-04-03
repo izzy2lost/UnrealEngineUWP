@@ -489,7 +489,6 @@ namespace UnrealBuildTool
 							}
 						}
 					}
-
 				}, null, 1000, 1000);
 			}
 
@@ -573,7 +572,7 @@ namespace UnrealBuildTool
 						{
 							_lastActionChange++;
 						}
-						
+
 						// Otherwise if nothing was found, remember that we have already scanned at this change.
 						else if ((runAction == null || action == null) && runner != null)
 						{
@@ -778,7 +777,7 @@ namespace UnrealBuildTool
 			int old = Interlocked.Or(ref _startManyFlags, Running | ScanRequested);
 			if (old == 0)
 			{
-				for(; ; )
+				for (; ; )
 				{
 
 					// Clear the changed flag since we are about to scan
@@ -969,7 +968,7 @@ namespace UnrealBuildTool
 				{
 					continue;
 				}
-					
+
 				if (filterFunc != null && !filterFunc(Actions[actionIndex].Action))
 				{
 					continue;

@@ -5,7 +5,6 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
 using System.Net.Http;
-using System.Net.Http.Headers;
 using System.Runtime.InteropServices;
 using System.Threading;
 using System.Threading.Tasks;
@@ -80,7 +79,7 @@ namespace UnrealBuildTool
 			_crypto = owner.Crypto;
 
 			ServiceCollection services = new();
-			services.AddHorde(options => 
+			services.AddHorde(options =>
 			{
 				options.ServerUrl = serverUrl;
 				options.AccessToken = accessToken;
@@ -373,7 +372,7 @@ namespace UnrealBuildTool
 				return null;
 			}
 
-			Uri? server = (hordeConfig.HordeServer == null)? null : new Uri(hordeConfig.HordeServer);
+			Uri? server = (hordeConfig.HordeServer == null) ? null : new Uri(hordeConfig.HordeServer);
 			string? token = hordeConfig.HordeToken;
 
 			ConnectionMode? connectionMode = Enum.TryParse(hordeConfig.HordeConnectionMode, true, out ConnectionMode cm) ? cm : null;

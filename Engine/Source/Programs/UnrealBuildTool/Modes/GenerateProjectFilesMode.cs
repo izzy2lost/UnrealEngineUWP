@@ -239,7 +239,7 @@ namespace UnrealBuildTool
 				}
 				// remember if we only wanted a single target (similar to -game -project, except usable with progarms without uprojects)
 				Generator.SingleTargetName = SingleTargetName;
-				
+
 				Generators[ProjectFileFormat] = Generator;
 			}
 

@@ -1569,7 +1569,7 @@ namespace UnrealBuildTool
 							case "-INCLUDETEMPTARGETS":
 								bIncludeTempTargets = true;
 								break;
-							
+
 							case "-FORCEUPDATEALL":
 								bForceUpdateAllFiles = true;
 								break;
@@ -2619,7 +2619,7 @@ namespace UnrealBuildTool
 								}
 								else
 								{
-									return new List<ProjectFile>{ FoundProjects[0]};
+									return new List<ProjectFile> { FoundProjects[0] };
 								}
 							}
 						}
@@ -3007,7 +3007,8 @@ namespace UnrealBuildTool
 								string TargetTypeSuffix = /*EngineTarget.TargetRules!.Type == TargetType.Game ? "" :*/ EngineTarget.TargetRules!.Type.ToString();
 								ProjectFile = FindOrAddProject(GetProjectLocation($"{ProjectName}{TargetTypeSuffix}"), ContentOnlyGameProject.Directory, IncludeInGeneratedProjects: true, bAlreadyExisted: out _);
 							}
-							else ProjectFile ??= FindOrAddProject(GetProjectLocation(ProjectName), ContentOnlyGameProject.Directory, IncludeInGeneratedProjects: true, bAlreadyExisted: out _);
+							else
+								ProjectFile ??= FindOrAddProject(GetProjectLocation(ProjectName), ContentOnlyGameProject.Directory, IncludeInGeneratedProjects: true, bAlreadyExisted: out _);
 							ProjectFile.IsForeignProject = true;
 							ProjectFile.IsGeneratedProject = true;
 							ProjectFile.IsStubProject = false;

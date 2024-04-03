@@ -406,7 +406,13 @@ namespace UnrealBuildTool
 		/// </summary>
 		public static void SaveAll()
 		{
-			Parallel.ForEach(GlobalPartitions.Values, Cache => { if (Cache.bModified) { Cache.Write(); } });
+			Parallel.ForEach(GlobalPartitions.Values, Cache =>
+			{
+				if (Cache.bModified)
+				{
+					Cache.Write();
+				}
+			});
 		}
 
 		/// <summary>

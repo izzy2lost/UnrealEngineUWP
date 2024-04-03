@@ -138,11 +138,11 @@ namespace UnrealBuildTool
 					if (ProjectFile != null)
 					{
 						string? DefaultTargetName = ProjectFileGenerator.GetProjectDefaultTargetNameForType(ProjectFile.Directory, TargetRules.Type);
-						
+
 						// GetProjectDefaultTargetNameForType returns
 						if (DefaultTargetName != null)
 						{
-							bIsDefaultTarget = DefaultTargetName == TargetName;   
+							bIsDefaultTarget = DefaultTargetName == TargetName;
 						}
 					}
 

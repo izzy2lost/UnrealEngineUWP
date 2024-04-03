@@ -491,12 +491,12 @@ namespace UnrealBuildTool
 				Arguments.Add("/Gw");
 			}
 
-            // Reduce optimizations for huge functions, may improve compile time a the expense of speed for functions over the threshold
-            if (Target.WindowsPlatform.Compiler.IsMSVC() && Target.WindowsPlatform.bReducedOptimizeHugeFunctions)
-            {
-                Arguments.Add("/d2ReducedOptimizeHugeFunctions");
-                Arguments.Add($"/d2ReducedOptimizeThreshold:{Target.WindowsPlatform.ReducedOptimizeHugeFunctionsThreshold}");
-            }
+			// Reduce optimizations for huge functions, may improve compile time a the expense of speed for functions over the threshold
+			if (Target.WindowsPlatform.Compiler.IsMSVC() && Target.WindowsPlatform.bReducedOptimizeHugeFunctions)
+			{
+				Arguments.Add("/d2ReducedOptimizeHugeFunctions");
+				Arguments.Add($"/d2ReducedOptimizeThreshold:{Target.WindowsPlatform.ReducedOptimizeHugeFunctionsThreshold}");
+			}
 
 			// Separate functions for linker.
 			Arguments.Add("/Gy");
@@ -1124,7 +1124,7 @@ namespace UnrealBuildTool
 				{
 					Arguments.Add("/await:strict");
 				}
-				else if(Target.WindowsPlatform.Compiler.IsClang() && !Target.WindowsPlatform.Compiler.IsIntel())
+				else if (Target.WindowsPlatform.Compiler.IsClang() && !Target.WindowsPlatform.Compiler.IsIntel())
 				{
 					Arguments.Add("-fcoroutines-ts");
 				}
@@ -1360,17 +1360,17 @@ namespace UnrealBuildTool
 				//Arguments.Add("/PDBCompress"); // Do not turn this on, it makes link times almost 2x slower. This is _only_ to save local disk space. Will _not_ make actual file smaller for network transfer
 			}
 
-            // Reduce optimizations for huge functions, may improve compile time a the expense of speed for functions over the threshold
-            if (Target.WindowsPlatform.Compiler.IsMSVC() && Target.WindowsPlatform.bReducedOptimizeHugeFunctions)
-            {
-                Arguments.Add("/d2:\"-ReducedOptimizeHugeFunctions\"");
-                Arguments.Add($"/d2:\"-ReducedOptimizeThreshold:{Target.WindowsPlatform.ReducedOptimizeHugeFunctionsThreshold}\"");
-            }
+			// Reduce optimizations for huge functions, may improve compile time a the expense of speed for functions over the threshold
+			if (Target.WindowsPlatform.Compiler.IsMSVC() && Target.WindowsPlatform.bReducedOptimizeHugeFunctions)
+			{
+				Arguments.Add("/d2:\"-ReducedOptimizeHugeFunctions\"");
+				Arguments.Add($"/d2:\"-ReducedOptimizeThreshold:{Target.WindowsPlatform.ReducedOptimizeHugeFunctionsThreshold}\"");
+			}
 
-            //
-            //	Shipping & LTCG
-            //
-            if (LinkEnvironment.bAllowLTCG)
+			//
+			//	Shipping & LTCG
+			//
+			if (LinkEnvironment.bAllowLTCG)
 			{
 				// Use link-time code generation.
 				Arguments.Add("/LTCG");
@@ -1385,10 +1385,10 @@ namespace UnrealBuildTool
 			//
 			if (LinkEnvironment.Configuration == CppConfiguration.Shipping)
 			{
-   				if (!Target.WindowsPlatform.Compiler.IsClang() || !Target.WindowsPlatform.bAllowClangLinker)
-	   			{
+				if (!Target.WindowsPlatform.Compiler.IsClang() || !Target.WindowsPlatform.bAllowClangLinker)
+				{
 					// Generate an EXE checksum.
-	 				// Not supported by lld-link
+					// Not supported by lld-link
 					Arguments.Add("/RELEASE");
 				}
 			}
@@ -1870,7 +1870,7 @@ namespace UnrealBuildTool
 			// Clang static analysis doesn't create object files, so treat the dependency list file as the output
 			if (Target.WindowsPlatform.Compiler.IsClang() && Target.StaticAnalyzer == StaticAnalyzer.Default)
 			{
-				Result.ObjectFiles.AddRange(Actions.Where(x => x.DependencyListFile != null ).Select(x => x.DependencyListFile!));
+				Result.ObjectFiles.AddRange(Actions.Where(x => x.DependencyListFile != null).Select(x => x.DependencyListFile!));
 			}
 			Result.CompiledModuleInterfaces.AddRange(Actions.Where(x => x.CompiledModuleInterfaceFile != null).Select(x => x.CompiledModuleInterfaceFile!));
 			Result.PrecompiledHeaderFile = Actions.Select(x => x.CreatePchFile).Where(x => x != null).FirstOrDefault();
@@ -2725,10 +2725,10 @@ namespace UnrealBuildTool
 
 				// prefer a PGD file that matches the output file
 				string PGDFile = Path.Combine(LinkEnvironment.PGODirectory!, LinkEnvironment.PGOFilenamePrefix + ".pgd");
-				string[] PGCFiles = {};
-				
+				string[] PGCFiles = { };
+
 				bool bUsingMergedPGD = false;
-				
+
 				// check if we are using a pre-merged pgd file, if so use it instead
 				if (LinkEnvironment.PGOMergedFilenamePrefix != null)
 				{

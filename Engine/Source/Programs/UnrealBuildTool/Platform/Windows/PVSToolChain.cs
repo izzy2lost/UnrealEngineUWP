@@ -1,8 +1,5 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-using EpicGames.Core;
-using Microsoft.Extensions.Logging;
-using Newtonsoft.Json;
 using System;
 using System.Collections.Generic;
 using System.Collections.Immutable;
@@ -13,6 +10,9 @@ using System.Text;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 using System.Xml.Serialization;
+using EpicGames.Core;
+using Microsoft.Extensions.Logging;
+using Newtonsoft.Json;
 using UnrealBuildBase;
 
 namespace UnrealBuildTool
@@ -491,7 +491,6 @@ namespace UnrealBuildTool
 							{
 								Logger.LogWarning(KnownLogEvents.Compiler, "{Path}({LineNumber}): warning {WarningCode}: {WarningMessage}", LogValue.SourceFile(file, FileName), LineNumber, ErrorInfo.Code, ErrorInfo.Message);
 							}
-
 						}
 						catch (Exception Ex)
 						{
@@ -891,7 +890,7 @@ namespace UnrealBuildTool
 
 				if (AnalyzerVersion.CompareTo(new Version("7.30")) >= 0)
 				{
-					ConfigFileContents.Append("new-output-format=yes\n"); ;
+					ConfigFileContents.Append("new-output-format=yes\n");
 				}
 
 				string BaseFileName = PreprocessedFileItem.Location.GetFileName();

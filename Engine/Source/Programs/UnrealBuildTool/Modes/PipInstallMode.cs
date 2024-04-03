@@ -3,14 +3,13 @@
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-using Microsoft.Extensions.Logging;
-using EpicGames.Core;
-using UnrealBuildBase;
 using System.IO;
+using System.Linq;
 using System.Text.RegularExpressions;
+using System.Threading.Tasks;
+using EpicGames.Core;
+using Microsoft.Extensions.Logging;
+using UnrealBuildBase;
 
 namespace UnrealBuildTool.Modes
 {
@@ -20,7 +19,7 @@ namespace UnrealBuildTool.Modes
 	[ToolMode("PipInstall", ToolModeOptions.XmlConfig | ToolModeOptions.BuildPlatformsHostOnly | ToolModeOptions.SingleInstance | ToolModeOptions.StartPrefetchingEngine | ToolModeOptions.ShowExecutionTime)]
 	class PipInstallMode : ToolMode
 	{
-		private enum ActionBits: byte
+		private enum ActionBits : byte
 		{
 			NoOp = 0,
 			GenReqs = 1,
@@ -30,7 +29,7 @@ namespace UnrealBuildTool.Modes
 			ViewLicenses = 16,
 		}
 
-		public enum PipAction: byte
+		public enum PipAction : byte
 		{
 			OnlySetupParse = ActionBits.SetupPip | ActionBits.ParseReqs,
 			OnlyInstall = ActionBits.InstallReqs,
@@ -114,7 +113,7 @@ namespace UnrealBuildTool.Modes
 			}
 
 			UEBuildTarget Target = UEBuildTarget.Create(TargetDescriptor, BuildConfiguration, Logger);
-			if ( Target.TargetType != TargetType.Editor )
+			if (Target.TargetType != TargetType.Editor)
 			{
 				Logger.LogWarning("PipInstall unsupported for non-editor target: {TargetName} (Skipping)", TargetDescriptor.Name);
 				return 0;
@@ -144,7 +143,7 @@ namespace UnrealBuildTool.Modes
 				{
 					return 1;
 				}
-			}	
+			}
 
 			if ((Action & (PipAction)ActionBits.SetupPip) != 0)
 			{
@@ -230,7 +229,7 @@ namespace UnrealBuildTool.Modes
 			{
 				// Only delete virtual environment if version mismatch
 				FileReference VenvConfig = FileReference.Combine(InstallDir, "pyvenv.cfg");
-				if ( FileReference.Exists(VenvConfig) )
+				if (FileReference.Exists(VenvConfig))
 				{
 					CleanVenvDir();
 				}
@@ -245,7 +244,7 @@ namespace UnrealBuildTool.Modes
 				return;
 			}
 
-			using (IBaseCmdProgressLogger SimpleLogger =new SimpleCmdLogger(Logger))
+			using (IBaseCmdProgressLogger SimpleLogger = new SimpleCmdLogger(Logger))
 			{
 				const string PyInterpVerCheckCmd = "import sys; exit(0) if f'{sys.version_info[0]}.{sys.version_info[1]}.{sys.version_info[2]}' == sys.argv[1] else exit(1)";
 				if (RunPythonCmd(EnginePythonInterp, $"-c \"{PyInterpVerCheckCmd}\" \"{PythonVenvVer}\"", SimpleLogger) != 0)
@@ -272,7 +271,7 @@ namespace UnrealBuildTool.Modes
 			}
 
 			List<PluginInfo> CheckPlugins = new List<PluginInfo>();
-			if ( bAllPlugins )
+			if (bAllPlugins)
 			{
 				CheckPlugins.AddAll(Plugins.ReadEnginePlugins(Unreal.EngineDirectory).ToArray());
 				CheckPlugins.AddAll(Plugins.ReadProjectPlugins(Target.ProjectDirectory).ToArray());
@@ -451,7 +450,7 @@ namespace UnrealBuildTool.Modes
 			foreach (JsonObject PlatformReqs in RequirementsJson)
 			{
 				PlatformReqs.TryGetStringField("Platform", out string? PlatformField);
-				if (!CompatiblePlatform(PlatformField,Platform))
+				if (!CompatiblePlatform(PlatformField, Platform))
 				{
 					continue;
 				}
@@ -477,7 +476,7 @@ namespace UnrealBuildTool.Modes
 
 			string ConfigInfo = FileReference.ReadAllText(VenvConfig);
 			Match m = Regex.Match(ConfigInfo, @"version\s*=\s*(\d+\.\d+\.\d+)", RegexOptions.IgnoreCase);
-			if ( !m.Success )
+			if (!m.Success)
 			{
 				Logger.LogWarning("PipInstall: Unable to match venv version config: {VenvFile}", ConfigInfo);
 				return null;
@@ -495,7 +494,7 @@ namespace UnrealBuildTool.Modes
 			}
 
 			// HACK: On windows these script files are set read-only and can't be deleted
-			foreach (FileReference File in DirectoryReference.EnumerateFiles(DirectoryReference.Combine(InstallDir,"Scripts")))
+			foreach (FileReference File in DirectoryReference.EnumerateFiles(DirectoryReference.Combine(InstallDir, "Scripts")))
 			{
 				FileReference.SetAttributes(File, FileAttributes.Normal);
 			}
@@ -528,7 +527,7 @@ namespace UnrealBuildTool.Modes
 			{
 				Args += "--index-url " + ForceIndexUrl;
 			}
-			else if ( ExtraUrls != null )
+			else if (ExtraUrls != null)
 			{
 				foreach (string Url in ExtraUrls)
 				{
@@ -795,9 +794,9 @@ namespace UnrealBuildTool.Modes
 			Logger.LogError("{ErrorData}", ErrorLine.Data);
 		}
 
-		public void Dispose() {}
+		public void Dispose() { }
 
-		public void FinishProgress() {}
+		public void FinishProgress() { }
 	}
 
 	/// <summary>
@@ -939,7 +938,7 @@ namespace UnrealBuildTool.Modes
 
 		// Start strings to use 
 		private static readonly string[] MatchStrs = { "Requirement", "Collecting", "Installing" };
-		private readonly Dictionary<string,string> LogReplaceStrs = new();
+		private readonly Dictionary<string, string> LogReplaceStrs = new();
 
 		public PipProgressLogger(ILogger InLogger, string message, int GuessSteps)
 		{
@@ -967,7 +966,7 @@ namespace UnrealBuildTool.Modes
 
 		string ReplaceMatchStr(string CheckStr)
 		{
-			foreach(KeyValuePair<string,string> ChkPair in LogReplaceStrs)
+			foreach (KeyValuePair<string, string> ChkPair in LogReplaceStrs)
 			{
 				if (CheckStr.Contains(ChkPair.Key))
 				{

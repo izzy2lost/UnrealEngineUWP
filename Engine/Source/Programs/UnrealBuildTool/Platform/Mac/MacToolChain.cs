@@ -2,7 +2,6 @@
 
 using System;
 using System.Collections.Generic;
-using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Text.RegularExpressions;
@@ -35,7 +34,7 @@ namespace UnrealBuildTool
 		/// </summary>
 		/// <param name="bVerbose">Whether to output verbose logging</param>
 		/// <param name="Logger">Logger for output</param>
-		public MacToolChainSettings(bool bVerbose, ILogger Logger) 
+		public MacToolChainSettings(bool bVerbose, ILogger Logger)
 			: base("MacOSX", null, "macos", bVerbose, Logger)
 		{
 		}
@@ -380,7 +379,7 @@ namespace UnrealBuildTool
 					FinalExeDir = ExeAbsolutePath + ".app/Contents/MacOS";
 				}
 				string RelativePath = Utils.MakePathRelativeTo(LibraryDir, FinalExeDir).Replace("\\", "/");
-				
+
 
 				if (bCanUseMultipleRPATHs)
 				{

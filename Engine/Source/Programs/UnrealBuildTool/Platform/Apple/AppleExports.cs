@@ -169,7 +169,7 @@ namespace UnrealBuildTool
 		/// <param name="bForceDummySigning">If true, force signing with the - identity</param>
 		/// <returns>xcode's exit code</returns>
 		public static int BuildWithStubXcodeProject(FileReference? ProjectFile, UnrealTargetPlatform Platform, UnrealArchitectures Architectures, UnrealTargetConfiguration Configuration,
-			string TargetName, XcodeBuildMode BuildMode, ILogger Logger, string ExtraOptions = "", bool bForceDummySigning=false)
+			string TargetName, XcodeBuildMode BuildMode, ILogger Logger, string ExtraOptions = "", bool bForceDummySigning = false)
 		{
 			DirectoryReference? GeneratedProjectFile;
 			// we don't use distro flag when making a modern project
@@ -200,7 +200,7 @@ namespace UnrealBuildTool
 				if (bUseAutomaticCodeSigning)
 				{
 					ExtraOptions += " -allowProvisioningUpdates";
-	
+
 					// handle AppStore Connect settings
 					bool bUseAppStoreConnect;
 					SharedPlatformIni.TryGetValue("/Script/MacTargetPlatform.XcodeProjectSettings", "bUseAppStoreConnect", out bUseAppStoreConnect);

@@ -147,7 +147,7 @@ namespace UnrealBuildTool
 				}
 			}
 
-			foreach(UEBuildModule Module in Visited)
+			foreach (UEBuildModule Module in Visited)
 			{
 				SetupTestsTargetForModule(Module, Logger);
 			}

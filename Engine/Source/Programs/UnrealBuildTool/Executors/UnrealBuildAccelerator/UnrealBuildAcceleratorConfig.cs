@@ -164,7 +164,7 @@ namespace UnrealBuildTool
 		[XmlConfigFile(Category = "UnrealBuildAccelerator")]
 		[CommandLine("-UBAStoreObjFilesCompressed", Value = "true")]
 		public bool bStoreObjFilesCompressed { get; set; }
-		
+
 		/// <summary>
 		/// Threshold for when executor should output logging for the process. Defaults to never
 		/// </summary>

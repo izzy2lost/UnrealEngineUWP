@@ -326,7 +326,7 @@ namespace UnrealBuildTool
 
 		private void AddCompilerLTOFlags(List<string> Arguments)
 		{
-			 AddLTOFlags(Arguments, false);
+			AddLTOFlags(Arguments, false);
 		}
 
 		private void AddLinkerLTOFlags(List<string> Arguments)
@@ -625,7 +625,10 @@ namespace UnrealBuildTool
 			string? Key = SplitData.ElementAtOrDefault(0);
 			string? Value = SplitData.ElementAtOrDefault(1);
 
-			if (String.IsNullOrEmpty(Key)) { return ""; }
+			if (String.IsNullOrEmpty(Key))
+			{
+				return "";
+			}
 			if (!String.IsNullOrEmpty(Value))
 			{
 				if (!Value.StartsWith("\"") && (Value.Contains(' ') || Value.Contains('$')))

@@ -1,11 +1,10 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 using System;
-using System.Collections.Generic;
 
 namespace UnrealBuildTool
 {
-	#nullable enable
+#nullable enable
 
 	/// <summary>
 	/// Attribute which can be applied to a ModuleRules-dervied class to indicate which module groups it belongs to

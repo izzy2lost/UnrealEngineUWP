@@ -69,7 +69,7 @@ namespace UnrealBuildTool
 				string Line = L;
 				if (Line.Contains(".cpp.bc", System.StringComparison.Ordinal) ||
 					Line.Contains(".cpp.d", System.StringComparison.Ordinal) ||
-					Line.Contains(".cpp.i", System.StringComparison.Ordinal) || 
+					Line.Contains(".cpp.i", System.StringComparison.Ordinal) ||
 					Line.Contains(".cpp.json", System.StringComparison.Ordinal) ||
 					Line.Contains(".cpp.o", System.StringComparison.Ordinal))
 				{

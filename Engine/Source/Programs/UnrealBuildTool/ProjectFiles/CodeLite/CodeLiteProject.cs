@@ -22,7 +22,10 @@ namespace UnrealBuildTool
 		// Check if the XElement is empty.
 		bool IsEmpty(IEnumerable<XElement> en)
 		{
-			foreach (XElement c in en) { return false; }
+			foreach (XElement c in en)
+			{
+				return false;
+			}
 			return true;
 		}
 

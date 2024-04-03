@@ -730,7 +730,7 @@ namespace UnrealBuildTool
 			{
 				Rules.GlobalDefinitions.Add("UE_REFERENCE_COLLECTOR_REQUIRE_OBJECTPTR=1");
 			}
-			
+
 			// Until VNI fully supports the new VM, we need the ability to have both the old and new
 			// available in some rare cases.  If we are using the old VM and the target hasn't overridden
 			// the new VM define, then set the define based on the old VM flag.
@@ -765,7 +765,7 @@ namespace UnrealBuildTool
 
 			// make sure any SDK overrides are valid
 			if (bValidateSDK)
-			{ 
+			{
 				ValidateSDKs(Rules);
 			}
 

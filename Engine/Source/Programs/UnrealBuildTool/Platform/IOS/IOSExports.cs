@@ -171,7 +171,8 @@ namespace UnrealBuildTool
 				using (Process Process = new Process())
 				{
 					Process.StartInfo.FileName = "/usr/bin/xcrun";
-					Process.StartInfo.Arguments = IOSToolChain.GetAssetCatalogArgs(Platform, ResourcesDir.FullName, OutputFile.Directory.FullName); ;
+					Process.StartInfo.Arguments = IOSToolChain.GetAssetCatalogArgs(Platform, ResourcesDir.FullName, OutputFile.Directory.FullName);
+					;
 					Process.StartInfo.UseShellExecute = false;
 					Utils.RunLocalProcess(Process);
 				}

@@ -1107,7 +1107,16 @@ namespace UnrealBuildTool
 		/// are used, and checks that source files include their matching header first.
 		/// </summary>
 		[Obsolete("Deprecated in UE5.2 - Use IWYUSupport instead.")]
-		public bool bEnforceIWYU { set { if (!value) { IWYUSupport = IWYUSupport.None; } } }
+		public bool bEnforceIWYU
+		{
+			set
+			{
+				if (!value)
+				{
+					IWYUSupport = IWYUSupport.None;
+				}
+			}
+		}
 
 		/// <summary>
 		/// Allows "include what you use" to modify the source code when run. bEnforceIWYU must be true for this variable to matter.

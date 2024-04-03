@@ -17,12 +17,12 @@ namespace UnrealBuildTool
 {
 	class IOSToolChainSettings : AppleToolChainSettings
 	{
-		public IOSToolChainSettings(ILogger Logger) 
+		public IOSToolChainSettings(ILogger Logger)
 			: this("iPhoneOS", "iPhoneSimulator", "ios", Logger)
 		{
 		}
 
-		protected IOSToolChainSettings(string DevicePlatformName, string SimulatorPlatformName, string TargetOSName, ILogger Logger) 
+		protected IOSToolChainSettings(string DevicePlatformName, string SimulatorPlatformName, string TargetOSName, ILogger Logger)
 			: base(DevicePlatformName, SimulatorPlatformName, TargetOSName, true, Logger)
 		{
 		}
@@ -724,7 +724,7 @@ namespace UnrealBuildTool
 			return OutputFile;
 		}
 
-		public static void PackageStub(string BinaryPath, string GameName, string ExeName, bool bUseModernXcode, bool bPerformDummySigning=false)
+		public static void PackageStub(string BinaryPath, string GameName, string ExeName, bool bUseModernXcode, bool bPerformDummySigning = false)
 		{
 			// create the ipa
 			string IPAName = BinaryPath + "/" + ExeName + ".stub";

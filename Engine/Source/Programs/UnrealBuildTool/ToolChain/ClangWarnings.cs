@@ -1,7 +1,5 @@
 ﻿// Copyright Epic Games, Inc. All Rights Reserved.
 
-using EpicGames.UHT.Utils;
-using Microsoft.Extensions.Logging;
 using System.Collections.Generic;
 using EpicGames.Core;
 

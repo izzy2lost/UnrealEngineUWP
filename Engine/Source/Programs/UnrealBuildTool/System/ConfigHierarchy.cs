@@ -481,9 +481,9 @@ namespace UnrealBuildTool
 		/// <returns>True if the key exists and could be parsed</returns>
 		public bool TryGetValueGeneric<T>(string SectionName, string KeyName, [NotNullWhen(true)] out T? Value) where T : new()
 		{
-			if (TryGetValue(SectionName, KeyName, out string? Line ))
+			if (TryGetValue(SectionName, KeyName, out string? Line))
 			{
-				return ConfigValueParser.TryParseGeneric( Line, out Value);
+				return ConfigValueParser.TryParseGeneric(Line, out Value);
 			}
 
 			Value = default;
@@ -499,7 +499,7 @@ namespace UnrealBuildTool
 		/// <returns>True if the key exists and could be parsed</returns>
 		public bool TryGetValuesGeneric<T>(string SectionName, string KeyName, [NotNullWhen(true)] out T[]? Values) where T : new()
 		{
-			if (TryGetValues(SectionName, KeyName, out IReadOnlyList<string>? Lines ))
+			if (TryGetValues(SectionName, KeyName, out IReadOnlyList<string>? Lines))
 			{
 				return ConfigValueParser.TryParseArrayGeneric(Lines.ToArray(), out Values);
 			}
@@ -949,7 +949,7 @@ namespace UnrealBuildTool
 		/// <param name="Line">Line of text to parse</param>
 		/// <param name="Map">Receives dictionary for the config map</param>
 		/// <returns>True if a map was parsed, false otherwise</returns>
-		public static bool TryParseAsMap(string Line, [NotNullWhen(true)] out Dictionary<string,string>? Map)
+		public static bool TryParseAsMap(string Line, [NotNullWhen(true)] out Dictionary<string, string>? Map)
 		{
 			// read outer array
 			if (!TryParse(Line, out string[]? Array))
@@ -959,10 +959,10 @@ namespace UnrealBuildTool
 			}
 
 			// read each pair - they're stored in the same way as an array of 2
-			Dictionary<string,string> NewMap = new Dictionary<string, string>();
+			Dictionary<string, string> NewMap = new Dictionary<string, string>();
 			foreach (string ArrayItem in Array)
 			{
-				if (!TryParse( ArrayItem, out string[]? Pairs) || Pairs.Length != 2)
+				if (!TryParse(ArrayItem, out string[]? Pairs) || Pairs.Length != 2)
 				{
 					Map = null;
 					return false;

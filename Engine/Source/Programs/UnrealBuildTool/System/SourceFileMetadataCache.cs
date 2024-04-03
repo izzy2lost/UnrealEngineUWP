@@ -561,7 +561,8 @@ namespace UnrealBuildTool
 		{
 			SourceFileMetadataCache Cache = Caches.GetOrAdd(Location, _ =>
 			{
-				return new SourceFileMetadataCache(Location, BaseDirectory, Parent, Logger); ;
+				return new SourceFileMetadataCache(Location, BaseDirectory, Parent, Logger);
+				;
 			});
 
 			Debug.Assert(Cache.BaseDirectory == BaseDirectory);
@@ -575,7 +576,13 @@ namespace UnrealBuildTool
 		/// </summary>
 		public static void SaveAll()
 		{
-			Parallel.ForEach(Caches.Values, Cache => { if (Cache.bModified) { Cache.Write(); } });
+			Parallel.ForEach(Caches.Values, Cache =>
+			{
+				if (Cache.bModified)
+				{
+					Cache.Write();
+				}
+			});
 		}
 
 		/// <summary>

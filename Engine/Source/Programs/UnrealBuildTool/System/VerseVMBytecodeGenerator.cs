@@ -1,11 +1,11 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-using EpicGames.Core;
-using Microsoft.Extensions.Logging;
 using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
+using EpicGames.Core;
+using Microsoft.Extensions.Logging;
 
 namespace UnrealBuildTool
 {
@@ -420,7 +420,7 @@ namespace UnrealBuildTool
 							}
 							break;
 					}
-                }
+				}
 				if (Inst._CapturesEffectToken)
 				{
 					S.Append($"    TWriteBarrier<VValue> EffectToken;\n");
@@ -803,21 +803,21 @@ namespace UnrealBuildTool
 				.CreatesNewReturnEffectToken()
 				.Suspends();
 
-            Inst("CallNamed")
-                .Arg("Dest", Role.UnifyDef)
-                .Arg("Callee", Role.Use)
-                .Arg("Arguments", Role.Use, Arity.Variadic)
-                .Arg("NamedArguments", Role.Immediate, Arity.Variadic, "VUniqueString")
-                .CapturesEffectToken()
-                .CreatesNewReturnEffectToken()
-                .Suspends();
+			Inst("CallNamed")
+				.Arg("Dest", Role.UnifyDef)
+				.Arg("Callee", Role.Use)
+				.Arg("Arguments", Role.Use, Arity.Variadic)
+				.Arg("NamedArguments", Role.Immediate, Arity.Variadic, "VUniqueString")
+				.CapturesEffectToken()
+				.CreatesNewReturnEffectToken()
+				.Suspends();
 
-            Inst("JumpIfInitialized")
-                .Arg("RegIdx", Role.Use)
-                .Jump("JumpOffset")
-                .Suspends();
+			Inst("JumpIfInitialized")
+				.Arg("RegIdx", Role.Use)
+				.Jump("JumpOffset")
+				.Suspends();
 
-            Inst("Return")
+			Inst("Return")
 				.Arg("Value", Role.Use);
 
 			Inst("NewVar")

@@ -1,13 +1,13 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-using EpicGames.Core;
-using EpicGames.Core.Telemetry;
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
 using System.Net.Http;
 using System.Text.Json.Serialization;
+using EpicGames.Core;
+using EpicGames.Core.Telemetry;
 using UnrealBuildBase;
 
 namespace UnrealBuildTool

@@ -491,7 +491,7 @@ namespace UnrealBuildTool
 				ModuleFileToContext[ModuleFile] = PluginContext;
 			}
 		}
-		
+
 		/// <summary>
 		/// Gets the filename that declares the given type.
 		/// </summary>

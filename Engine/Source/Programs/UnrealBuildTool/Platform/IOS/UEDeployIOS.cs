@@ -383,10 +383,10 @@ namespace UnrealBuildTool
 
 				Text.AppendLine("\t<key>UISupportedInterfaceOrientations~ipad</key>");
 				Text.AppendLine("\t<array>");
-					Text.AppendLine($"\t\t<string>UIInterfaceOrientationPortrait</string>");
-					Text.AppendLine($"\t\t<string>UIInterfaceOrientationPortraitUpsideDown</string>");
-					Text.AppendLine($"\t\t<string>UIInterfaceOrientationLandscapeLeft</string>");
-					Text.AppendLine($"\t\t<string>UIInterfaceOrientationLandscapeRight</string>");
+				Text.AppendLine($"\t\t<string>UIInterfaceOrientationPortrait</string>");
+				Text.AppendLine($"\t\t<string>UIInterfaceOrientationPortraitUpsideDown</string>");
+				Text.AppendLine($"\t\t<string>UIInterfaceOrientationLandscapeLeft</string>");
+				Text.AppendLine($"\t\t<string>UIInterfaceOrientationLandscapeRight</string>");
 				Text.AppendLine("\t</array>");
 			}
 
@@ -516,7 +516,8 @@ namespace UnrealBuildTool
 			// generate the Info.plist for future use
 			string BuildDirectory = ProjectDirectory + "/Build/IOS";
 			string IntermediateDirectory = ProjectDirectory + "/Intermediate/IOS";
-			string PListFile = IntermediateDirectory + "/" + GameName + "-Info.plist"; ;
+			string PListFile = IntermediateDirectory + "/" + GameName + "-Info.plist";
+			;
 			ProjectName = !String.IsNullOrEmpty(ProjectName) ? ProjectName : GameName;
 			VersionUtilities.BuildDirectory = BuildDirectory;
 			VersionUtilities.GameName = GameName;

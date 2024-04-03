@@ -1308,7 +1308,13 @@ namespace UnrealBuildTool
 				Output = new StringBuilder();
 
 				StringBuilder OutputLocal = Output;
-				DataReceivedEventHandler OutputHandler = (E, Args) => { if (Args.Data != null) { OutputLocal.Append(Args.Data); } };
+				DataReceivedEventHandler OutputHandler = (E, Args) =>
+				{
+					if (Args.Data != null)
+					{
+						OutputLocal.Append(Args.Data);
+					}
+				};
 
 				SSHProcess.StartInfo.FileName = SshExe.FullName;
 				SSHProcess.StartInfo.WorkingDirectory = SshExe.Directory.FullName;
