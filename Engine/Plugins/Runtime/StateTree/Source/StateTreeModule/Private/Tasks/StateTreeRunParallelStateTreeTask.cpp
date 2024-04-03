@@ -13,29 +13,31 @@ FStateTreeRunParallelStateTreeTask::FStateTreeRunParallelStateTreeTask()
 EStateTreeRunStatus FStateTreeRunParallelStateTreeTask::EnterState(FStateTreeExecutionContext& Context, const FStateTreeTransitionResult& Transitions) const
 {
 	FInstanceDataType& InstanceData = Context.GetInstanceData(*this);
-	if (!InstanceData.StateTree.IsValid())
+	const FStateTreeReference& StateTreeToRun = GetStateTreeToRun(Context, InstanceData);
+	if (!StateTreeToRun.IsValid())
 	{
 		return EStateTreeRunStatus::Failed;
 	}
 
-	FStateTreeExecutionContext ParallelTreeContext(Context, *InstanceData.StateTree.GetStateTree(), InstanceData.TreeInstanceData);
+	InstanceData.RunningStateTree = StateTreeToRun.GetStateTree();
+	FStateTreeExecutionContext ParallelTreeContext(Context, *InstanceData.RunningStateTree, InstanceData.TreeInstanceData);
 	if (!ParallelTreeContext.IsValid())
 	{
 		return EStateTreeRunStatus::Failed;
 	}
 
-	return ParallelTreeContext.Start(&InstanceData.StateTree.GetParameters());
+	return ParallelTreeContext.Start(&StateTreeToRun.GetParameters());
 }
 
 EStateTreeRunStatus FStateTreeRunParallelStateTreeTask::Tick(FStateTreeExecutionContext& Context, const float DeltaTime) const
 {
 	FInstanceDataType& InstanceData = Context.GetInstanceData(*this);
-	if (!InstanceData.StateTree.IsValid())
+	if (!InstanceData.RunningStateTree)
 	{
 		return EStateTreeRunStatus::Failed;
 	}
 
-	FStateTreeExecutionContext ParallelTreeContext(Context, *InstanceData.StateTree.GetStateTree(), InstanceData.TreeInstanceData);
+	FStateTreeExecutionContext ParallelTreeContext(Context, *InstanceData.RunningStateTree, InstanceData.TreeInstanceData);
 	if (!ParallelTreeContext.IsValid())
 	{
 		return EStateTreeRunStatus::Failed;
@@ -47,18 +49,31 @@ EStateTreeRunStatus FStateTreeRunParallelStateTreeTask::Tick(FStateTreeExecution
 void FStateTreeRunParallelStateTreeTask::ExitState(FStateTreeExecutionContext& Context, const FStateTreeTransitionResult& Transition) const
 {
 	FInstanceDataType& InstanceData = Context.GetInstanceData(*this);
-	if (!InstanceData.StateTree.IsValid())
+	if (!InstanceData.RunningStateTree)
 	{
 		return;
 	}
 
-	FStateTreeExecutionContext ParallelTreeContext(Context, *InstanceData.StateTree.GetStateTree(), InstanceData.TreeInstanceData);
+	FStateTreeExecutionContext ParallelTreeContext(Context, *InstanceData.RunningStateTree, InstanceData.TreeInstanceData);
 	if (!ParallelTreeContext.IsValid())
 	{
 		return;
 	}
 
 	ParallelTreeContext.Stop();
+}
+
+const FStateTreeReference& FStateTreeRunParallelStateTreeTask::GetStateTreeToRun(FStateTreeExecutionContext& Context, FInstanceDataType& InstanceData) const
+{
+	if (StateTreeOverrideTag.IsValid())
+	{
+		if (const FStateTreeReference* Override = Context.GetLinkedStateTreeOverrideForTag(StateTreeOverrideTag))
+		{
+			return *Override;
+		}
+	}
+
+	return InstanceData.StateTree;
 }
 
 #if WITH_EDITOR

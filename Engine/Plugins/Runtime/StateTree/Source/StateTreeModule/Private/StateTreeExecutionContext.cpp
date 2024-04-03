@@ -124,6 +124,7 @@ FStateTreeExecutionContext::FStateTreeExecutionContext(UObject& InOwner, const U
 FStateTreeExecutionContext::FStateTreeExecutionContext(const FStateTreeExecutionContext& InContextToCopy, const UStateTree& InStateTree, FStateTreeInstanceData& InInstanceData)
 	: FStateTreeExecutionContext(InContextToCopy.Owner, InStateTree, InInstanceData, InContextToCopy.CollectExternalDataDelegate)
 {
+	LinkedStateTreeOverrides = InContextToCopy.LinkedStateTreeOverrides;
 	const bool bIsSameSchema = RootStateTree.GetSchema()->GetClass() == InContextToCopy.GetStateTree()->GetSchema()->GetClass();
 	if (bIsSameSchema)
 	{

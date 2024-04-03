@@ -19,6 +19,9 @@ struct FStateTreeRunParallelStateTreeTaskInstanceData
 
 	UPROPERTY(Transient)
 	FStateTreeInstanceData TreeInstanceData;
+
+	UPROPERTY(Transient)
+	TObjectPtr<const UStateTree> RunningStateTree = nullptr;
 };
 
 /**
@@ -45,4 +48,10 @@ protected:
 	virtual void PostEditInstanceDataChangeChainProperty(const FPropertyChangedChainEvent& PropertyChangedEvent, FStateTreeDataView InstanceDataView) override;
 	virtual void PostLoad(FStateTreeDataView InstanceDataView) override;
 #endif // WITH_EDITOR
+
+	const FStateTreeReference& GetStateTreeToRun(FStateTreeExecutionContext& Context, FInstanceDataType& InstanceData) const;
+
+	/** If set the task will look at the linked state tree override to replace the state tree it's running. */
+	UPROPERTY(EditAnywhere, Category = Parameter)
+	FGameplayTag StateTreeOverrideTag;
 };
