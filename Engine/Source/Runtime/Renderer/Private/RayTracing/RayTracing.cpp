@@ -159,6 +159,7 @@ namespace RayTracing
 		bool bTwoSided : 1 = false;
 		bool bIsSky : 1 = false;
 		bool bAllSegmentsTranslucent : 1 = true;
+		bool bAllSegmentsReverseCulling : 1 = true;
 
 		const FRayTracingGeometryInstance* CachedRayTracingInstance = nullptr;
 		TArrayView<const int32> CachedRayTracingMeshCommandIndices; // Pointer to FPrimitiveSceneInfo::CachedRayTracingMeshCommandIndicesPerLOD data
@@ -180,6 +181,7 @@ namespace RayTracing
 			Key ^= bTwoSided ? 0x1ull << 45 : 0x0;
 			Key ^= bIsSky ? 0x1ull << 46 : 0x0;
 			Key ^= bAllSegmentsTranslucent ? 0x1ull << 47 : 0x0;
+			Key ^= bAllSegmentsReverseCulling ? 0x1ull << 48 : 0x0;
 			return Key ^ reinterpret_cast<uint64>(RayTracingGeometryRHI);
 		}
 
@@ -582,6 +584,7 @@ namespace RayTracing
 										RelevantPrimitive->bTwoSided |= RayTracingMeshCommand.bTwoSided;
 										RelevantPrimitive->bIsSky |= RayTracingMeshCommand.bIsSky;
 										RelevantPrimitive->bAllSegmentsTranslucent &= RayTracingMeshCommand.bIsTranslucent;
+										RelevantPrimitive->bAllSegmentsReverseCulling &= RayTracingMeshCommand.bReverseCulling;
 									}
 									else
 									{
@@ -899,6 +902,11 @@ namespace RayTracing
 							if (InstanceMaskAndFlags.bDoubleSided)
 							{
 								SceneInfo->CachedRayTracingInstance.Flags |= ERayTracingInstanceFlags::TriangleCullDisable;
+							}
+
+							if (InstanceMaskAndFlags.bReverseCulling)
+							{
+								SceneInfo->CachedRayTracingInstance.Flags |= ERayTracingInstanceFlags::TriangleCullReverse;
 							}
 
 							SceneInfo->bCachedRayTracingInstanceAnySegmentsDecal = InstanceMaskAndFlags.bAnySegmentsDecal;
@@ -1252,6 +1260,10 @@ namespace RayTracing
 							if (RelevantPrimitive.bTwoSided)
 							{
 								RayTracingInstance.Flags |= ERayTracingInstanceFlags::TriangleCullDisable;
+							}
+							if (RelevantPrimitive.bAllSegmentsReverseCulling)
+							{
+								RayTracingInstance.Flags |= ERayTracingInstanceFlags::TriangleCullReverse;
 							}
 							AddDebugRayTracingInstanceFlags(RayTracingInstance.Flags);
 

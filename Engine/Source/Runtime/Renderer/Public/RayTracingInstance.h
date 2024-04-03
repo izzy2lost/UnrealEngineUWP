@@ -15,6 +15,7 @@ struct FRayTracingMaskAndFlags
 		: Mask(0xFF)
 		, bForceOpaque(false)
 		, bDoubleSided(false)
+		, bReverseCulling(false)
 		, bAnySegmentsDecal(false)
 		, bAllSegmentsDecal(false)
 	{}
@@ -27,6 +28,9 @@ struct FRayTracingMaskAndFlags
 
 	/** Whether ray hits should be registered for front and back faces. */
 	uint8 bDoubleSided : 1;
+	
+	/** Whether front and back facings should be reversed. */
+	uint8 bReverseCulling : 1;
 
 	/** Whether any or all of the segments in the instance are decals. */
 	uint8 bAnySegmentsDecal : 1;

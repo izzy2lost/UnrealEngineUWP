@@ -2354,6 +2354,7 @@ public:
 	bool bIsSky = false;
 	bool bIsTranslucent = false;
 	bool bTwoSided = false;
+	bool bReverseCulling = false;
 
 	RENDERER_API void SetRayTracingShaderBindingsForHitGroup(
 		FRayTracingLocalShaderBindingWriter* BindingWriter,
