@@ -19,12 +19,12 @@ namespace UnrealBuildTool
 		/// <summary>
 		/// IOS Simulator
 		/// </summary>
-		public static UnrealArch IOSSimulator = FindOrAddByName("iossimulator", bIsX64: false);
+		public static UnrealArch IOSSimulator { get; } = FindOrAddByName("iossimulator", bIsX64: false);
 
 		/// <summary>
 		/// TVOS Simulator
 		/// </summary>
-		public static UnrealArch TVOSSimulator = FindOrAddByName("tvossimulator", bIsX64: false);
+		public static UnrealArch TVOSSimulator { get; } = FindOrAddByName("tvossimulator", bIsX64: false);
 
 		private static IReadOnlyDictionary<UnrealArch, string> AppleToolchainArchitectures = new Dictionary<UnrealArch, string>()
 		{

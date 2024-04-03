@@ -19,7 +19,7 @@ namespace UnrealBuildTool
 		/// <summary>
 		/// Version of Arm64 that can interop with X64 (Emulation Compatible)
 		/// </summary>
-		public static UnrealArch Arm64ec = FindOrAddByName("arm64ec", bIsX64: false);
+		public static UnrealArch Arm64ec { get; } = FindOrAddByName("arm64ec", bIsX64: false);
 
 		private struct WindowsArchInfo
 		{
