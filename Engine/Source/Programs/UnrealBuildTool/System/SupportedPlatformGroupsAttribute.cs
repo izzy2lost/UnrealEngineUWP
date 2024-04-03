@@ -10,7 +10,7 @@ namespace UnrealBuildTool
 	/// Attribute which can be applied to a TargetRules-dervied class to indicate which platforms it supports
 	/// </summary>
 	[AttributeUsage(AttributeTargets.Class, AllowMultiple = true)]
-	public class SupportedPlatformGroupsAttribute : SupportedPlatformsAttribute
+	public sealed class SupportedPlatformGroupsAttribute : SupportedPlatformsAttribute
 	{
 		/// <summary>
 		/// Initialize the attribute with a list of platform groups

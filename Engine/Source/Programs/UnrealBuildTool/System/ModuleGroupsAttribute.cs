@@ -11,7 +11,7 @@ namespace UnrealBuildTool
 	/// Attribute which can be applied to a ModuleRules-dervied class to indicate which module groups it belongs to
 	/// </summary>
 	[AttributeUsage(AttributeTargets.Class, AllowMultiple = true)]
-	public class ModuleGroupsAttribute : Attribute
+	public sealed class ModuleGroupsAttribute : Attribute
 	{
 		/// <summary>
 		/// Array of module group names

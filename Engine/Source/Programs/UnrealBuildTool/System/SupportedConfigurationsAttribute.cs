@@ -8,7 +8,7 @@ namespace UnrealBuildTool
 	/// Attribute which can be applied to a TargetRules-dervied class to indicate which configurations it supports
 	/// </summary>
 	[AttributeUsage(AttributeTargets.Class, AllowMultiple = true)]
-	public class SupportedConfigurationsAttribute : Attribute
+	public sealed class SupportedConfigurationsAttribute : Attribute
 	{
 		/// <summary>
 		/// Array of supported platforms
