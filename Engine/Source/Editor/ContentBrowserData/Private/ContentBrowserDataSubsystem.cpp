@@ -98,6 +98,13 @@ void UContentBrowserDataSubsystem::Initialize(FSubsystemCollectionBase& Collecti
 		{
 			HandleDataSourceRegistered(DataSourceFeatureName, ModularFeatures.GetModularFeatureImplementation(DataSourceFeatureName, AvailableDataSourcesIndex));
 		}
+
+		/**
+		 * If any view already exist refresh them now instead of waiting.
+		 * This avoid asking for the view that where just created to refresh their data next frame during the editor initialization.
+		 */ 
+		bPendingItemDataRefreshedNotification = false;
+		ItemDataRefreshedDelegate.Broadcast();
 	}
 
 	ModularFeatures.OnModularFeatureRegistered().AddUObject(this, &UContentBrowserDataSubsystem::HandleDataSourceRegistered);
@@ -160,7 +167,9 @@ bool UContentBrowserDataSubsystem::ActivateDataSource(const FName Name)
 			DataSource->SetDataSink(this);
 			ActiveDataSources.Add(Name, DataSource);
 			ActiveDataSourcesDiscoveringContent.Add(Name);
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
 			NotifyItemDataRefreshed();
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
 			return true;
 		}
 		else
@@ -181,7 +190,9 @@ bool UContentBrowserDataSubsystem::DeactivateDataSource(const FName Name)
 		DataSource->SetDataSink(nullptr);
 		ActiveDataSources.Remove(Name);
 		ActiveDataSourcesDiscoveringContent.Remove(Name);
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
 		NotifyItemDataRefreshed();
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
 		return true;
 	}
 
@@ -205,7 +216,9 @@ void UContentBrowserDataSubsystem::ActivateAllDataSources()
 		// Merge this array as it may contain sources that we've not yet discovered, so can't activate yet
 		EnabledDataSources.AddUnique(ActiveDataSourcePair.Key);
 	}
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
 	NotifyItemDataRefreshed();
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
 }
 
 void UContentBrowserDataSubsystem::DeactivateAllDataSources()
@@ -223,7 +236,10 @@ void UContentBrowserDataSubsystem::DeactivateAllDataSources()
 	ActiveDataSources.Reset();
 	EnabledDataSources.Reset();
 	ActiveDataSourcesDiscoveringContent.Reset();
+
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
 	NotifyItemDataRefreshed();
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
 }
 
 TArray<FName> UContentBrowserDataSubsystem::GetAvailableDataSources() const

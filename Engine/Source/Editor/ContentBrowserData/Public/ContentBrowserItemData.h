@@ -743,6 +743,7 @@ public:
 	/**
 	 * Notify a wholesale item data update, for data sources that can't provide delta-updates.
 	 */
+	 UE_DEPRECATED(5.5, "NotifyItemDataRefreshed is deprecated, for editor performance reasons no external systems should be able to request a full refresh.")
 	virtual void NotifyItemDataRefreshed() = 0;
 
 	/**

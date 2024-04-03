@@ -556,7 +556,9 @@ void UContentBrowserDataSource::NotifyItemDataRefreshed()
 {
 	if (DataSink)
 	{
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
 		DataSink->NotifyItemDataRefreshed();
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	}
 }
 

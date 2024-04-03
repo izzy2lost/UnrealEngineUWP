@@ -431,6 +431,8 @@ private:
 
 	//~ IContentBrowserItemDataSink interface
 	virtual void QueueItemDataUpdate(FContentBrowserItemDataUpdate&& InUpdate) override;
+
+	UE_DEPRECATED(5.5, "NotifyItemDataRefreshed is deprecated, for editor performance reasons no external systems should be able to request a full refresh.")
 	virtual void NotifyItemDataRefreshed() override;
 
 	/**
