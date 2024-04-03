@@ -2266,6 +2266,7 @@ class COREUOBJECT_API FFloatProperty : public TProperty_Numeric<float>
 	FFloatProperty(FFieldVariant InOwner, const FName& InName, EObjectFlags InObjectFlags)
 		: TProperty_Numeric(InOwner, InName, InObjectFlags)
 	{
+		PropertyFlags |= CPF_HasGetValueTypeHash;
 	}
 
 	/**
@@ -2281,6 +2282,12 @@ class COREUOBJECT_API FFloatProperty : public TProperty_Numeric<float>
 	{
 	}
 #endif // WITH_EDITORONLY_DATA
+
+	virtual bool Identical(const void* A, const void* B, uint32 PortFlags) const override;
+
+protected:
+
+	virtual uint32 GetValueTypeHashInternal(const void* Src) const override;
 };
 
 /*-----------------------------------------------------------------------------
@@ -2297,6 +2304,7 @@ class COREUOBJECT_API FDoubleProperty : public TProperty_Numeric<double>
 	FDoubleProperty(FFieldVariant InOwner, const FName& InName, EObjectFlags InObjectFlags)
 		: TProperty_Numeric(InOwner, InName, InObjectFlags)
 	{
+		PropertyFlags |= CPF_HasGetValueTypeHash;
 	}
 
 	/**
@@ -2310,8 +2318,15 @@ class COREUOBJECT_API FDoubleProperty : public TProperty_Numeric<double>
 	explicit FDoubleProperty(UField* InField)
 		: TProperty_Numeric(InField)
 	{
+		PropertyFlags |= CPF_HasGetValueTypeHash;
 	}
 #endif // WITH_EDITORONLY_DATA
+
+	virtual bool Identical(const void* A, const void* B, uint32 PortFlags) const override;
+
+protected:
+
+	virtual uint32 GetValueTypeHashInternal(const void* Src) const override;
 };
 
 // Note: Stub only. Used to provide FNativeClassHeaderGenerator::PropertyNew with a way to track an as yet unaliased FFloatProperty/FDoubleProperty within the header tool, which will be resolved to the correct type at run time.

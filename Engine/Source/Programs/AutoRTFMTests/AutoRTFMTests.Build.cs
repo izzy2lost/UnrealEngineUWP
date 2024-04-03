@@ -32,5 +32,7 @@ public class AutoRTFMTests : ModuleRules
 			{
 				"Runtime/Core/Private"
 			});
+
+		FPSemantics = FPSemanticsMode.Precise;
 	}
 }

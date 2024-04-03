@@ -15,7 +15,6 @@ public class CoreUObject : ModuleRules
 				new string[]
 				{
 					"libpas",
-					"CoreVerseVM",
 				}
 			);
 		}
@@ -42,6 +41,7 @@ public class CoreUObject : ModuleRules
 			{
 				"Core",
 				"TraceLog",
+				"CorePreciseFP",
 			}
 		);
 

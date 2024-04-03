@@ -317,9 +317,11 @@ FUInt64Property::FUInt64Property(FFieldVariant InOwner, const UECodeGen_Private:
 FFloatProperty::FFloatProperty(FFieldVariant InOwner, const UECodeGen_Private::FFloatPropertyParams& Prop)
 	: TProperty_Numeric(InOwner, (const UECodeGen_Private::FPropertyParamsBaseWithOffset&)Prop)
 {
+	PropertyFlags |= CPF_HasGetValueTypeHash;
 }
 
 FDoubleProperty::FDoubleProperty(FFieldVariant InOwner, const UECodeGen_Private::FDoublePropertyParams& Prop)
 	: TProperty_Numeric(InOwner, (const UECodeGen_Private::FPropertyParamsBaseWithOffset&)Prop)
 {
+	PropertyFlags |= CPF_HasGetValueTypeHash;
 }

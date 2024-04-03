@@ -8,6 +8,7 @@
 #include <atomic>
 #include <vector>
 #include <cstring>
+#include <cmath>
 #include "Logging/LogMacros.h"
 
 DECLARE_LOG_CATEGORY_EXTERN(LogAutoRTFMTests, Display, All)
@@ -285,4 +286,36 @@ TEST_CASE("stm.memset")
 	{
 		REQUIRE(42 == (unsigned)Datas[i]);
 	}
+}
+
+TEST_CASE("libc.isnan(float)")
+{
+	float X = 0.0f;
+	float Y = NAN;
+	bool bXIsNaN = true;
+	bool bYIsNaN = false;
+	auto Transaction = AutoRTFM::Transact([&]()
+	{
+		bXIsNaN = std::isnan(X);
+		bYIsNaN = std::isnan(Y);
+	});
+	REQUIRE(AutoRTFM::ETransactionResult::Committed == Transaction);
+	REQUIRE(false == bXIsNaN);
+	REQUIRE(true == bYIsNaN);
+}
+
+TEST_CASE("libc.isnan(double)")
+{
+	double X = 0.0;
+	double Y = NAN;
+	bool bXIsNaN = true;
+	bool bYIsNaN = false;
+	auto Transaction = AutoRTFM::Transact([&]()
+	{
+		bXIsNaN = std::isnan(X);
+		bYIsNaN = std::isnan(Y);
+	});
+	REQUIRE(AutoRTFM::ETransactionResult::Committed == Transaction);
+	REQUIRE(false == bXIsNaN);
+	REQUIRE(true == bYIsNaN);
 }
