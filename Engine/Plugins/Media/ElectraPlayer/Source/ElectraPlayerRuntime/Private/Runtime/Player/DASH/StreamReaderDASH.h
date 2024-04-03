@@ -271,6 +271,7 @@ private:
 		void HandleRequestMP4();
 		void HandleRequestMKV();
 
+		void SetupInitSegmentDownloadStatsFromRequestAndConnectionInfo(Metrics::FSegmentDownloadStats& ds, const TSharedPtrTS<FStreamSegmentRequestDASH>& Request, const HTTP::FConnectionInfo* ci, bool bWasSuccessful);
 		FErrorDetail LoadInitSegment(TSharedPtrTS<FMPDLoadRequestDASH>& OutLoadRequest, Metrics::FSegmentDownloadStats& OutStats, const TSharedPtrTS<FStreamSegmentRequestDASH>& Request);
 		FErrorDetail GetInitSegment(TSharedPtrTS<const IParserISO14496_12>& OutMP4InitSegment, const TSharedPtrTS<FStreamSegmentRequestDASH>& InRequest);
 		FErrorDetail GetInitSegment(TSharedPtrTS<const IParserMKV>& OutMKVInitSegment, const TSharedPtrTS<FStreamSegmentRequestDASH>& InRequest);
