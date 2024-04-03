@@ -20,6 +20,7 @@ using System.IO;
 using System.Linq;
 using System.Runtime.Serialization;
 using System.Runtime.Versioning;
+using System.Threading;
 using System.Threading.Tasks;
 using EpicGames.Core;
 using Microsoft.Extensions.Logging;
@@ -69,7 +70,7 @@ namespace UnrealBuildTool
 
 	///////////////////////////////////////////////////////////////////////
 
-	class FASTBuild : ActionExecutor
+	sealed class FASTBuild : ActionExecutor
 	{
 		/// <summary>
 		/// Executor to use for local actions
@@ -169,6 +170,13 @@ namespace UnrealBuildTool
 			XmlConfig.ApplyTo(this);
 
 			LocalExecutor = new ParallelExecutor(MaxLocalActions, bAllCores, bCompactOutput, Logger);
+		}
+
+		/// <inheritdoc/>
+		public new void Dispose()
+		{
+			LocalExecutor.Dispose();
+			base.Dispose();
 		}
 
 		public override string Name => "FASTBuild";

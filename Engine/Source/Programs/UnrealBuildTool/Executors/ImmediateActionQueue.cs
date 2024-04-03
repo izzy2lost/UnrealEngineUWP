@@ -803,7 +803,10 @@ namespace UnrealBuildTool
 		public void Dispose()
 		{
 			_cpuUtilizationTimer?.Dispose();
+			_cpuUtilizationTimer = null;
+			CancellationTokenSource.Dispose();
 			ProcessGroup.Dispose();
+			ProgressWriter.Dispose();
 		}
 
 		/// <summary>

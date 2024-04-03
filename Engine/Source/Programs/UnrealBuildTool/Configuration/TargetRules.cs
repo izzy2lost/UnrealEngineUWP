@@ -2880,7 +2880,7 @@ namespace UnrealBuildTool
 		/// Constructor.
 		/// </summary>
 		/// <param name="target">Information about the target being built</param>
-		public TargetRules(TargetInfo target)
+		protected TargetRules(TargetInfo target)
 		{
 			DefaultName = target.Name;
 			Platform = target.Platform;

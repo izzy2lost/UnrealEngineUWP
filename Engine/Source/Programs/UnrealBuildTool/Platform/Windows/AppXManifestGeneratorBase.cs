@@ -71,7 +71,7 @@ namespace UnrealBuildTool
 		/// <summary>
 		/// Create a manifest generator for the given platform variant.
 		/// </summary>
-		public AppXManifestGeneratorBase(UnrealTargetPlatform InPlatform, ILogger InLogger)
+		protected AppXManifestGeneratorBase(UnrealTargetPlatform InPlatform, ILogger InLogger)
 		{
 			Platform = InPlatform;
 			Logger = InLogger;

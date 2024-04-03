@@ -173,7 +173,7 @@ namespace UnrealBuildTool
 	/// <summary>
 	/// Encapsulates a hierarchy of config files, merging sections from them together on request 
 	/// </summary>
-	public class ConfigHierarchy
+	public sealed class ConfigHierarchy : IDisposable
 	{
 		/// <summary>
 		/// Array of 
@@ -198,6 +198,14 @@ namespace UnrealBuildTool
 		{
 			this.Files = Files.ToArray();
 		}
+
+		#region IDisposible
+		/// <inheritdoc/>
+		public void Dispose()
+		{
+			NameToSectionLock.Dispose();
+		}
+		#endregion
 
 		/// <summary>
 		/// Names of all sections in all config files
