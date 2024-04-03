@@ -300,6 +300,18 @@ void FOptimusExecutionDomainCustomization::CustomizeHeader(
 
 					return LOCTEXT("MultipleValues", "Multiple Values");
 				})
+				.ColorAndOpacity_Lambda([InPropertyHandle, this]()
+				{
+					if (TOptional<FOptimusExecutionDomain> ExecutionDomain = TryGetSingleExecutionDomain(InPropertyHandle))
+					{
+						if (!ExecutionDomain->IsDefined())
+						{
+							return FSlateColor(FLinearColor::Red);
+						}
+					}
+
+					return FSlateColor::UseStyle();
+				})
 			]
 		]
 		+ SWidgetSwitcher::Slot()

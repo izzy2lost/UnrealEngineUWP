@@ -244,6 +244,11 @@ FOptimus_ComputeKernelResult UOptimusNode_ComputeKernelBase::CreateComputeKernel
 
 TOptional<FText> UOptimusNode_ComputeKernelBase::ValidateForCompile(const FOptimusPinTraversalContext& InContext) const
 {
+	if (!GetExecutionDomain().IsDefined())
+	{
+		return LOCTEXT("NoExecutionDomain", "Kernel has undefined Execution Domain, please use the Details panel to select a valid domain");
+	}
+	
 	auto GetStructTypeDefFromPin = [](const UOptimusNodePin* InPin) -> TOptional<FText>
 	{
 		const FOptimusDataTypeHandle TypeHandle = InPin->GetDataType();
