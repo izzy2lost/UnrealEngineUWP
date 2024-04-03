@@ -25,6 +25,7 @@ namespace Chaos::Private
 		HashSize = FMath::RoundUpToPowerOfTwo(Chaos_Collision_MeshManifoldHashSize);
 		FaceNormalDotThreshold = Chaos_Collision_MeshContactNormalThreshold;
 		EdgeNormalDotRejectTolerance = Chaos_Collision_MeshContactNormalRejectionThreshold;
+		BackFaceCullTolerance = FReal(1.e-6);
 		BarycentricTolerance = FReal(1.e-3);
 		MaxContactsBufferSize = 1000;
 		bCullBackFaces = true;
@@ -180,7 +181,7 @@ namespace Chaos::Private
 			FTriangleContactPointData& ContactPointData = ContactDatas[ContactIndex];
 
 			// Reject back-faces
-			if (!!Settings.bCullBackFaces && (ContactPointData.GetContactNormalDotTriangleNormal() < 0))
+			if (!!Settings.bCullBackFaces && (ContactPointData.GetContactNormalDotTriangleNormal() < -Settings.BackFaceCullTolerance))
 			{
 				ContactPointData.SetDisabled();
 				continue;

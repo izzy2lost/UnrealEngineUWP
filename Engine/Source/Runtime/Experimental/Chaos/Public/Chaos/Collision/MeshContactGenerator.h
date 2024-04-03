@@ -22,6 +22,9 @@ namespace Chaos::Private
 		// Triangle edge/vertex contacts that are more than this far from a valid normal (dot product) will be rejected rather than corrected
 		FReal EdgeNormalDotRejectTolerance;
 
+		// When backface culling is enabled, the tolerance for the dot product of the contact normal against the face normal
+		FReal BackFaceCullTolerance;
+
 		// Used to determine whether a contact is on an edge or vertex
 		FReal BarycentricTolerance;
 
@@ -54,6 +57,12 @@ namespace Chaos::Private
 	{
 	public:
 		FMeshContactGenerator(const FMeshContactGeneratorSettings& InSettings);
+
+		// Enable or disable the normal fixup
+		void SetFixNormalsEnabled(const bool bInFixNormals)
+		{
+			Settings.bFixNormals = bInFixNormals;
+		}
 
 		// Clear and initialize buffers
 		void BeginCollect(const int32 InNumTriangles)

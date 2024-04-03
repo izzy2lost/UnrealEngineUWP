@@ -2,49 +2,22 @@
 #include "Chaos/Collision/ConvexTriangleContactPoint.h"
 #include "Chaos/Collision/ContactPoint.h"
 #include "Chaos/Collision/ContactTriangles.h"
+#include "Chaos/Collision/ConvexContactPoint.h"
 #include "Chaos/Collision/ConvexContactPointUtilities.h"
-#include "Chaos/Collision/ConvexFeature.h"
+#include "Chaos/Collision/SATConvexTriangle.h"
 #include "Chaos/CollisionOneShotManifolds.h"
 #include "Chaos/Convex.h"
 #include "Chaos/DebugDrawQueue.h"
 #include "Chaos/SAT.h"
 #include "Chaos/Triangle.h"
+#include "Chaos/Utilities.h"
 #include "Misc/MemStack.h"
-
-//UE_DISABLE_OPTIMIZATION
-
-// Method to use when checking edge pairs in convex-triangle SAT
-// 0: Iterate over convex edges, use IsMinkowskiSumConvexTriangle to skip invalid edge pairs
-// 1: Iterate over convex faces, then their edges. This has the advantage we don't need the edge list on FConvex
-#define CHAOS_CONVEX_TRIANGLE_EDGEEDGE_METHOD 0
 
 namespace Chaos
 {
 	extern FRealSingle Chaos_Collision_GJKEpsilon;
 	extern FRealSingle Chaos_Collision_EPAEpsilon;
-
-	// Check whether the convex-triangle edge pair form part of the Minkowski Sum. Only edge pairs
-	// that contribute to the Minkowki Sum surface need to be checked for separation. The inputs
-	// are the convex normals for the two faces that share the convex edge, and the normal and
-	// edge vector of the triangle.
-	// 
-	// This is a custom version of IsMinkowskiSum for triangles where the two normals are directly
-	// opposing and therefore the regular edge vector calculation returns zero.
-	// 
-	// @param A ConvexNormalA
-	// @param B ConvexNormalB
-	// @param BA ConvexEdge
-	// @param C TriNormal (negated)
-	// @param DC TriEdge
-	bool IsMinkowskiSumConvexTriangle(const FVec3& A, const FVec3& B, const FVec3& BA, const FVec3& C, const FVec3& DC)
-	{
-		const FReal CBA = FVec3::DotProduct(C, BA);		// TriNormal | ConvexEdge
-		const FReal ADC = FVec3::DotProduct(A, DC);		// ConvexNormalA | TriEdge
-		const FReal BDC = FVec3::DotProduct(B, DC);		// ConvexNormalB | TriEdge
-
-		const FReal Tolerance = 1.e-2f;
-		return ((ADC * BDC) < -Tolerance) && ((CBA * BDC) > Tolerance);
-	}
+	extern bool bChaos_Collision_UseConvexTriangleGJKSAT;
 
 	// Clip the vertices of a triangle to a face of a convex, using some arbitrary vector as the clipping axis
 	// (the axis is assumed to not be parallel to the convex face surface).
@@ -277,7 +250,7 @@ namespace Chaos
 				// NOTE: This relies on the ordering of the edge planes from above. 
 				// I.e., we require Sign(ConvexEdgePlaneNormalA x ConvexEdgePlaneNormalB) == Sign(ConvexEdgeV1 - ConvexEdgeV0)
 				// Also note that we must pass the negated triangle normal in
-				if (!IsMinkowskiSumConvexTriangle(ConvexEdgePlaneNormalA, ConvexEdgePlaneNormalB, ConvexEdgeV1 - ConvexEdgeV0, -TriN, TriEdgeV1 - TriEdgeV0))
+				if (!Private::IsOnMinkowskiSumConvexTriangle(ConvexEdgePlaneNormalA, ConvexEdgePlaneNormalB, ConvexEdgeV1 - ConvexEdgeV0, -TriN, TriEdgeV1 - TriEdgeV0))
 				{
 					continue;
 				}
@@ -579,7 +552,7 @@ namespace Chaos::Private
 {
 	// Generate a contact manifold between a convex and a triangle, given the closest feature (i.e., single Contact point)
 	template <typename ConvexType>
-	void ConvexTriangleManifoldFromContact(const ConvexType& Convex, const FTriangle& Triangle, const FVec3& TriangleNormal, const FConvexContactPoint& Contact, const FReal CullDistance, FContactPointLargeManifold& OutManifold)
+	void ConvexTriangleManifoldFromContact(const ConvexType& Convex, const FTriangle& Triangle, const FVec3& TriangleNormal, const FConvexContactPoint& Contact, const FReal CullDistance, FContactPointManifold& OutManifold)
 	{
 		// Convex plane
 		const int32 ConvexPlaneIndex = Contact.Features[0].PlaneIndex;
@@ -650,7 +623,7 @@ namespace Chaos::Private
 		}
 		check(ClippedVertices.Num() <= OutManifold.Max());
 
-		const EContactPointType ContactType = EContactPointType::Unknown;
+		const EContactPointType ContactType = Contact.GetContactPointType();
 
 		// Add the clipped points to the contact list
 		const auto& AddContact = [&CullDistance, &ContactType, &SeparatingAxis, &OutManifold](const FVec3& ConvexX, const FVec3 TriX, const FReal Distance)
@@ -719,7 +692,7 @@ namespace Chaos::Private
 		const FVec3& TriangleNormal, 
 		const FConvexContactPoint& Contact,
 		const FReal CullDistance, 
-		FContactPointLargeManifold& OutManifold);
+		FContactPointManifold& OutManifold);
 
 	template void ConvexTriangleManifoldFromContact(
 		const TImplicitObjectInstanced<FImplicitConvex3>& Convex,
@@ -727,7 +700,7 @@ namespace Chaos::Private
 		const FVec3& TriangleNormal,
 		const FConvexContactPoint& Contact,
 		const FReal CullDistance, 
-		FContactPointLargeManifold& OutManifold);
+		FContactPointManifold& OutManifold);
 
 	template void ConvexTriangleManifoldFromContact(
 		const TImplicitObjectScaled<FImplicitConvex3>& Convex,
@@ -735,7 +708,7 @@ namespace Chaos::Private
 		const FVec3& TriangleNormal,
 		const FConvexContactPoint& Contact,
 		const FReal CullDistance,
-		FContactPointLargeManifold& OutManifold);
+		FContactPointManifold& OutManifold);
 
 	template void ConvexTriangleManifoldFromContact(
 		const FImplicitBox3& Convex,
@@ -743,7 +716,7 @@ namespace Chaos::Private
 		const FVec3& TriangleNormal,
 		const FConvexContactPoint& Contact,
 		const FReal CullDistance,
-		FContactPointLargeManifold& OutManifold);
+		FContactPointManifold& OutManifold);
 
 	template void ConvexTriangleManifoldFromContact(
 		const TImplicitObjectScaled<FImplicitBox3>& Convex,
@@ -751,7 +724,7 @@ namespace Chaos::Private
 		const FVec3& TriangleNormal,
 		const FConvexContactPoint& Contact,
 		const FReal CullDistance,
-		FContactPointLargeManifold& OutManifold);
+		FContactPointManifold& OutManifold);
 
 	template void ConvexTriangleManifoldFromContact(
 		const TImplicitObjectInstanced<FImplicitBox3>& Convex,
@@ -759,272 +732,151 @@ namespace Chaos::Private
 		const FVec3& TriangleNormal,
 		const FConvexContactPoint& Contact,
 		const FReal CullDistance,
-		FContactPointLargeManifold& OutManifold);
+		FContactPointManifold& OutManifold);
 
 
 	// Generate a single contact point between a convex and a triangle
+	// NOTE: Does not fill in the Feature properties of OutContactPoint (see GetConvexFeature for that)
 	template <typename ConvexType>
-	bool ConvexTriangleContactPoint(const ConvexType& Convex, const FTriangle& Triangle, const FReal CullDistance, FContactPoint& OutContactPoint)
+	bool ConvexTriangleContactPoint(const ConvexType& Convex, const FTriangle& Triangle, const FVec3& TriangleNormal, const FReal CullDistanceSq, FConvexContactPoint& OutContactPoint)
 	{
-		// The GJK version has issues with exactly touching shapes. 
-		// E.g., see failing unit test EPARealFailures_TouchingBoxTriangle
-#if 1
+		const FReal GJKEpsilon = Chaos_Collision_GJKEpsilon;
+		const FReal EPAEpsilon = Chaos_Collision_EPAEpsilon;
 		const TGJKCoreShape<ConvexType> GJKConvex(Convex, Convex.GetMargin());
 		const TGJKShape<FTriangle> GJKTriangle(Triangle);
 
-		FReal UnusedMaxMarginDelta = FReal(0);
-		int32 ConvexVertexIndex = INDEX_NONE;
-		int32 TriangleVertexIndex = INDEX_NONE;
-		FReal Penetration;
-		FVec3 ConvexClosest, TriangleClosest, ConvexNormal;
-		const FReal GJKEpsilon = Chaos_Collision_GJKEpsilon;
-		const FReal EPAEpsilon = Chaos_Collision_EPAEpsilon;
-
-		FVec3 InitialGJKDir = FVec3(1, 0, 0);
-
-		const bool bHaveContact = GJKPenetrationSameSpace(
-			GJKConvex,
-			GJKTriangle,
-			Penetration,
-			ConvexClosest,
-			TriangleClosest,
-			ConvexNormal,
-			ConvexVertexIndex,
-			TriangleVertexIndex,
-			UnusedMaxMarginDelta,
-			InitialGJKDir,
-			GJKEpsilon, EPAEpsilon);
-
-		if (bHaveContact && (-Penetration < CullDistance))
+		// The GJKPenetrationSameSpace version uses EPA which has issues with almost exactly touching shapes. 
+		// E.g., see failing unit test EPARealFailures_TouchingBoxTriangle
+		if (bChaos_Collision_UseConvexTriangleGJKSAT)
 		{
-			OutContactPoint.ShapeContactPoints[0] = ConvexClosest;
-			OutContactPoint.ShapeContactPoints[1] = TriangleClosest;
-			OutContactPoint.ShapeContactNormal = -ConvexNormal;
-			OutContactPoint.ContactType = EContactPointType::Unknown;
-			OutContactPoint.Phi = -Penetration;
-			OutContactPoint.FaceIndex = INDEX_NONE;
-			return true;
+			// Use GJK to find closest features. This will abort if the margin-reduced shapes are closer than GJKEpsilon or overlap
+			constexpr FReal InvalidDistance = std::numeric_limits<FReal>::max();
+			FReal Distance = InvalidDistance;
+			FVec3 ConvexClosest, TriangleClosest, ConvexNormal;
+
+			const FVec3 InitialV = GJKDistanceInitialVFromDirection(GJKConvex, GJKTriangle, Triangle.GetCentroid());
+
+			const EGJKDistanceResult GJKResult = GJKDistance(
+				GJKConvex, GJKTriangle, InitialV, 
+				Distance, ConvexClosest, TriangleClosest, ConvexNormal, 
+				GJKEpsilon);
+
+			// GJK did not provide a result if the margin-reduced shapes overlap, so run SAT to calculate the minimum separating axis
+			if (GJKResult == EGJKDistanceResult::DeepContact)
+			{
+				return Private::SATConvexTriangle(
+					Convex, Triangle, TriangleNormal, 
+					CullDistanceSq, OutContactPoint);
+			}
+
+			// We are separated, or ovelap within marging so fill in the output
+			check(Distance != InvalidDistance);
+			if (Utilities::SignedSquare(Distance) < CullDistanceSq)
+			{
+				OutContactPoint.ShapeContactPoints[0] = ConvexClosest;
+				OutContactPoint.ShapeContactPoints[1] = TriangleClosest;
+				OutContactPoint.ShapeContactNormal = -ConvexNormal;
+				OutContactPoint.Phi = Distance;
+				return true;
+			}
+		}
+		else
+		{
+			FReal UnusedMaxMarginDelta = FReal(0);
+			int32 ConvexVertexIndex = INDEX_NONE;
+			int32 TriangleVertexIndex = INDEX_NONE;
+			FReal Penetration;
+			FVec3 ConvexClosest, TriangleClosest, ConvexNormal;
+			FVec3 InitialGJKDir = FVec3(1, 0, 0);
+
+			const bool bHaveContact = GJKPenetrationSameSpace(
+				GJKConvex, GJKTriangle, 
+				Penetration, ConvexClosest, TriangleClosest, ConvexNormal, ConvexVertexIndex, TriangleVertexIndex, UnusedMaxMarginDelta, 
+				InitialGJKDir, GJKEpsilon, EPAEpsilon);
+
+			if (bHaveContact && (FMath::Square(Penetration) < CullDistanceSq))
+			{
+				OutContactPoint.ShapeContactPoints[0] = ConvexClosest;
+				OutContactPoint.ShapeContactPoints[1] = TriangleClosest;
+				OutContactPoint.ShapeContactNormal = -ConvexNormal;
+				OutContactPoint.Phi = -Penetration;
+				return true;
+			}
 		}
 
 		return false;
-#else
-
-#endif
 	}
 
 	template bool ConvexTriangleContactPoint(
 		const FImplicitConvex3& Convex,
 		const FTriangle& Triangle,
+		const FVec3& TriangleNormal,
 		const FReal CullDistance,
-		FContactPoint& OutContactPoint);
+		FConvexContactPoint& OutContactPoint);
 
 	template bool ConvexTriangleContactPoint(
 		const TImplicitObjectInstanced<FImplicitConvex3>& Convex,
 		const FTriangle& Triangle,
+		const FVec3& TriangleNormal,
 		const FReal CullDistance,
-		FContactPoint& OutContactPoint);
+		FConvexContactPoint& OutContactPoint);
 
 	template bool ConvexTriangleContactPoint(
 		const TImplicitObjectScaled<FImplicitConvex3>& Convex,
 		const FTriangle& Triangle,
+		const FVec3& TriangleNormal,
 		const FReal CullDistance,
-		FContactPoint& OutContactPoint);
+		FConvexContactPoint& OutContactPoint);
 
 	template bool ConvexTriangleContactPoint(
 		const FImplicitBox3& Convex,
 		const FTriangle& Triangle,
+		const FVec3& TriangleNormal,
 		const FReal CullDistance,
-		FContactPoint& OutContactPoint);
+		FConvexContactPoint& OutContactPoint);
 
 	template bool ConvexTriangleContactPoint(
 		const TImplicitObjectScaled<FImplicitBox3>& Convex,
 		const FTriangle& Triangle,
+		const FVec3& TriangleNormal,
 		const FReal CullDistance,
-		FContactPoint& OutContactPoint);
+		FConvexContactPoint& OutContactPoint);
 
 	template bool ConvexTriangleContactPoint(
 		const TImplicitObjectInstanced<FImplicitBox3>& Convex,
 		const FTriangle& Triangle,
+		const FVec3& TriangleNormal,
 		const FReal CullDistance,
-		FContactPoint& OutContactPoint);
+		FConvexContactPoint& OutContactPoint);
 
-
-	// Get the convex feature at the specific position and normal
-	template<typename ConvexType>
-	bool GetConvexFeature(const ConvexType& Convex, const FVec3& Position, const FVec3& Normal, Private::FConvexFeature& OutFeature)
-	{
-		const FReal NormalTolerance = FReal(1.e-6);
-		const FReal PositionTolerance = FReal(1.e-4);
-		const FReal ToleranceSizeMultiplier = Convex.BoundingBox().Extents().GetAbsMax();
-		const FReal EdgeNormalTolerance = ToleranceSizeMultiplier * FReal(1.e-3);
-
-		int32 BestPlaneIndex = INDEX_NONE;
-		FReal BestPlaneDotNormal = FReal(-1);
-
-		// Get the support vertex along the normal (which must point away from the convex)
-		int SupportVertexIndex = INDEX_NONE;
-		Convex.SupportCore(Normal, 0, nullptr, SupportVertexIndex);
-
-		if (SupportVertexIndex != INDEX_NONE)
-		{
-			// See if the normal matches a face normal for any face using the vertex
-			int32 VertexPlanes[16];
-			int32 NumVertexPlanes = Convex.FindVertexPlanes(SupportVertexIndex, VertexPlanes, UE_ARRAY_COUNT(VertexPlanes));
-			for (int32 VertexPlaneIndex = 0; VertexPlaneIndex < NumVertexPlanes; ++VertexPlaneIndex)
-			{
-				const int32 PlaneIndex = VertexPlanes[VertexPlaneIndex];
-				FVec3 PlaneN, PlaneX;
-				Convex.GetPlaneNX(PlaneIndex, PlaneN, PlaneX);
-				const FReal PlaneDotNormal = FVec3::DotProduct(PlaneN, Normal);
-				if (FMath::IsNearlyEqual(PlaneDotNormal, FReal(1), NormalTolerance))
-				{
-					OutFeature.FeatureType = Private::EConvexFeatureType::Plane;
-					OutFeature.PlaneIndex = PlaneIndex;
-					OutFeature.PlaneFeatureIndex = 0;
-					return true;
-				}
-
-				if (PlaneDotNormal > BestPlaneDotNormal)
-				{
-					BestPlaneIndex = PlaneIndex;
-					BestPlaneDotNormal = PlaneDotNormal;
-				}
-			}
-
-			// See if any of the edges using the vertex are perpendicular to the normal
-			// @todo(chaos): we could visit the vertex edges here rather than use the plane edges
-			if (BestPlaneIndex != INDEX_NONE)
-			{
-				int32 BestPlaneVertexIndex = INDEX_NONE;
-
-				const int32 NumPlaneVertices = Convex.NumPlaneVertices(BestPlaneIndex);
-				for (int32 PlaneVertexIndex = 0; PlaneVertexIndex < NumPlaneVertices; ++PlaneVertexIndex)
-				{
-					const int32 VertexIndex0 = Convex.GetPlaneVertex(BestPlaneIndex, PlaneVertexIndex);
-					const int32 VertexIndex1 = (PlaneVertexIndex == NumPlaneVertices - 1) ? Convex.GetPlaneVertex(BestPlaneIndex, 0) : Convex.GetPlaneVertex(BestPlaneIndex, PlaneVertexIndex + 1);
-
-					if (VertexIndex0 == SupportVertexIndex)
-					{
-						BestPlaneVertexIndex = PlaneVertexIndex;
-					}
-
-					if ((VertexIndex0 == SupportVertexIndex) || (VertexIndex1 == SupportVertexIndex))
-					{
-						const FVec3 Vertex0 = Convex.GetVertex(VertexIndex0);
-						const FVec3 Vertex1 = Convex.GetVertex(VertexIndex1);
-						const FVec3 EdgeDelta = Vertex1 - Vertex0;
-						const FReal EdgeDotNormal = FVec3::DotProduct(EdgeDelta, Normal);
-						if (FMath::Abs(EdgeDotNormal) < EdgeNormalTolerance)
-						{
-							// @todo(chaos): we need to be able to get an EdgeIndex (probably half edge index)
-							// Also, we probably want both the plane index and the edge index
-							OutFeature.FeatureType = Private::EConvexFeatureType::Edge;
-							OutFeature.PlaneIndex = BestPlaneIndex;
-							OutFeature.PlaneFeatureIndex = PlaneVertexIndex;
-							return true;
-						}
-					}
-				}
-
-				// Not a face or edge, so it should be the SupportVertex, but we need to specify the 
-				// plane and plane-index rather than the convex vertex index (which we found just above)
-				if (BestPlaneVertexIndex != INDEX_NONE)
-				{
-					OutFeature.FeatureType = Private::EConvexFeatureType::Vertex;
-					OutFeature.PlaneIndex = BestPlaneIndex;
-					OutFeature.PlaneFeatureIndex = BestPlaneVertexIndex;
-				}
-				return true;
-			}
-		}
-
-		return false;
-	}
-
-	// Get the triangle feature at the specific position and normal
-	template<>
-	bool GetConvexFeature(const FTriangle& Triangle, const FVec3& Position, const FVec3& Normal, Private::FConvexFeature& OutFeature)
-	{
-		// @todo(chaos): pass in the triangle normal - we almost certainly calculated it elsewhere
-		// NOTE: The normal epsilon needs to be less than the maximu error that GJK/EPA produces when it hits a degenerate
-		// case, which can happen when we have almost exact face-to-face contact. The max error is hard to know, since it 
-		// depends on the state of GJK on the iteration before it hits its tolerance, but seems to be typically ~0.01
-		const FReal NormalEpsilon = FReal(0.02);
-		const FVec3 TriangleNormal = Triangle.GetNormal();
-		const FReal NormalDot = FVec3::DotProduct(Normal, TriangleNormal);
-		if (FMath::IsNearlyEqual(NormalDot, FReal(1), NormalEpsilon))
-		{
-			OutFeature.FeatureType = Private::EConvexFeatureType::Plane;
-			OutFeature.PlaneIndex = 0;
-			OutFeature.PlaneFeatureIndex = 0;
-			return true;
-		}
-
-		const FReal BarycentricTolerance = FReal(1.e-6);
-		int32 VertexIndex0, VertexIndex1;
-		if (GetTriangleEdgeVerticesAtPosition(Position, &Triangle.GetVertex(0), VertexIndex0, VertexIndex1, BarycentricTolerance))
-		{
-			if ((VertexIndex0 != INDEX_NONE) && (VertexIndex1 != INDEX_NONE))
-			{
-				OutFeature.FeatureType = Private::EConvexFeatureType::Edge;
-				OutFeature.PlaneIndex = 0;
-				OutFeature.PlaneFeatureIndex = VertexIndex0;
-				return true;
-			}
-			else if (VertexIndex0 != INDEX_NONE)
-			{
-				OutFeature.FeatureType = Private::EConvexFeatureType::Vertex;
-				OutFeature.PlaneIndex = 0;
-				OutFeature.PlaneFeatureIndex = VertexIndex0;
-				return true;
-			}
-			else if (VertexIndex1 != INDEX_NONE)
-			{
-				OutFeature.FeatureType = Private::EConvexFeatureType::Vertex;
-				OutFeature.PlaneIndex = 0;
-				OutFeature.PlaneFeatureIndex = VertexIndex1;
-				return true;
-			}
-		}
-
-		return false;
-	}
 
 	// Generate the contact point and closest feature types between a convex and a triangle
 	template<typename ConvexType>
-	bool FindClosestFeatures(const ConvexType& Convex, const FRigidTransform3& ConvexTransform, const FTriangle& Triangle, const FVec3& ConvexRelativeMovement, const FReal CullDistance, FConvexContactPoint& OutContact)
+	bool FindClosestFeatures(const ConvexType& Convex, const FRigidTransform3& ConvexTransform, const FTriangle& Triangle, const FVec3& TriangleNormal, const FVec3& ConvexRelativeMovement, const FReal CullDistance, FConvexContactPoint& OutContactPoint)
 	{
 		// Find the closest point on the convex and triangle that we will use to generate the manifold
-		// NOTE: use an upper limit on cull distance here since the real cull distance depends on the motion against the contact normal
-		const FReal EarlyCullDistance = TNumericLimits<FReal>::Max();
-		FContactPoint ContactPoint;
-		if (!Private::ConvexTriangleContactPoint(Convex, Triangle, EarlyCullDistance, ContactPoint))
+		// NOTE: use an upper limit on cull distance here since the real cull distance depends on the motion against the contact normal which we don't know yet
+		const FReal EarlyCullDistanceSq = TNumericLimits<FReal>::Max();	// @todo(chaos): put something useful here
+		if (!Private::ConvexTriangleContactPoint(Convex, Triangle, TriangleNormal, EarlyCullDistanceSq, OutContactPoint))
 		{
 			return false;
 		}
 
 		// Now check the cull distance, taking movement into account
-		const FReal SeparationWithMotion = ContactPoint.Phi + FVec3::DotProduct(ConvexRelativeMovement, ContactPoint.ShapeContactNormal);
-		if ((ContactPoint.Phi > CullDistance) && (SeparationWithMotion > CullDistance))
+		const FReal SeparationWithMotion = OutContactPoint.Phi + FVec3::DotProduct(ConvexRelativeMovement, OutContactPoint.ShapeContactNormal);
+		if ((OutContactPoint.Phi > CullDistance) && (SeparationWithMotion > CullDistance))
 		{
 			return false;
 		}
 
-		// Initialize outputs
-		OutContact.Init();
-		OutContact.ShapeContactPoints[0] = ContactPoint.ShapeContactPoints[0];
-		OutContact.ShapeContactPoints[1] = ContactPoint.ShapeContactPoints[1];
-		OutContact.ShapeContactNormal = ContactPoint.ShapeContactNormal;
-		OutContact.Phi = ContactPoint.Phi;
-
 		// Find the triangle feature at the contact point
-		if (!Private::GetConvexFeature(Triangle, OutContact.ShapeContactPoints[1], OutContact.ShapeContactNormal, OutContact.Features[1]))
+		if (!Private::GetTriangleFeature(Triangle, TriangleNormal, OutContactPoint.ShapeContactPoints[1], OutContactPoint.ShapeContactNormal, OutContactPoint.Features[1]))
 		{
 			return false;
 		}
 
 		// Find the convex feature at the contact point
-		if (!Private::GetConvexFeature(Convex, OutContact.ShapeContactPoints[0], -OutContact.ShapeContactNormal, OutContact.Features[0]))
+		if (!Private::GetConvexFeature(Convex, OutContactPoint.ShapeContactPoints[0], -OutContactPoint.ShapeContactNormal, OutContactPoint.Features[0]))
 		{
 			return false;
 		}
@@ -1036,7 +888,8 @@ namespace Chaos::Private
 		const FImplicitConvex3& Convex,
 		const FRigidTransform3& ConvexTransform, 
 		const FTriangle& Triangle, 
-		const FVec3& ConvexRelativeMovement, 
+		const FVec3& TriangleNormal,
+		const FVec3& ConvexRelativeMovement,
 		const FReal CullDistance, 
 		FConvexContactPoint& OutContact);
 
@@ -1044,6 +897,7 @@ namespace Chaos::Private
 		const TImplicitObjectInstanced<FImplicitConvex3>& Convex,
 		const FRigidTransform3& ConvexTransform,
 		const FTriangle& Triangle,
+		const FVec3& TriangleNormal,
 		const FVec3& ConvexRelativeMovement,
 		const FReal CullDistance,
 		FConvexContactPoint& OutContact);
@@ -1052,6 +906,7 @@ namespace Chaos::Private
 		const TImplicitObjectScaled<FImplicitConvex3>& Convex,
 		const FRigidTransform3& ConvexTransform,
 		const FTriangle& Triangle,
+		const FVec3& TriangleNormal,
 		const FVec3& ConvexRelativeMovement,
 		const FReal CullDistance,
 		FConvexContactPoint& OutContact);
@@ -1060,6 +915,7 @@ namespace Chaos::Private
 		const FImplicitBox3& Convex,
 		const FRigidTransform3& ConvexTransform,
 		const FTriangle& Triangle,
+		const FVec3& TriangleNormal,
 		const FVec3& ConvexRelativeMovement,
 		const FReal CullDistance,
 		FConvexContactPoint& OutContact);
@@ -1068,6 +924,7 @@ namespace Chaos::Private
 		const TImplicitObjectScaled<FImplicitBox3>& Convex,
 		const FRigidTransform3& ConvexTransform,
 		const FTriangle& Triangle,
+		const FVec3& TriangleNormal,
 		const FVec3& ConvexRelativeMovement,
 		const FReal CullDistance,
 		FConvexContactPoint& OutContact);
@@ -1076,6 +933,7 @@ namespace Chaos::Private
 		const TImplicitObjectInstanced<FImplicitBox3>& Convex,
 		const FRigidTransform3& ConvexTransform,
 		const FTriangle& Triangle,
+		const FVec3& TriangleNormal,
 		const FVec3& ConvexRelativeMovement,
 		const FReal CullDistance,
 		FConvexContactPoint& OutContact);

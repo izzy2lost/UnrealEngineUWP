@@ -110,6 +110,15 @@ namespace Chaos
 	bool bChaos_Collision_EnableMACDFallback = false;
 	FAutoConsoleVariableRef CVarChaos_Collision_EnableMACDFallback(TEXT("p.Chaos.Collision.EnableMACDFallback"), bChaos_Collision_EnableMACDFallback, TEXT(""));
 
+	// We have 2 MACD algorithms to test, selected by bChaos_Collision_EnableMACDPreManifoldFix
+	// false: Use the original algorithm which generates a manifold for every triangle and then uses the mesh information to correct the normal of each manifold point.
+	// true: Use the new algorithm which generates the closest feature and fixes its normal based on the mesh information, and then generates a manifold based on that.
+	// The second method does a much better job at handling deep collisions where a single convex-triangle contact might generate a contact that pushes the convex out
+	// of the triangle edge, even though the triangle is part of a mesh and pushing out of the edge is not a valid option. However this option is also more likely to 
+	// generate ghost collisions with nearby faces when moving very fast.
+	bool bChaos_Collision_EnableMACDPreManifoldFix = true;
+	FAutoConsoleVariableRef CVarChaos_Collision_EnableMACDPreManifoldFix(TEXT("p.Chaos.Collision.EnableMACDPreManifoldFix"), bChaos_Collision_EnableMACDPreManifoldFix, TEXT(""));
+
 	// Whether to use the new index-less GJK. 
 	// @todo(chaos): This should be removed once soaked for a bit (enabled 7 June 2022)
 	bool bChaos_Collision_UseGJK2 = false;
@@ -131,6 +140,11 @@ namespace Chaos
 
 	bool bChaos_Collision_UseConvexTriMesh2 = true;
 	FAutoConsoleVariableRef CVarChaos_Collision_UseConvexTriMesh2(TEXT("p.Chaos.Collision.UseConvexTriMesh2"), bChaos_Collision_UseConvexTriMesh2, TEXT(""));
+
+	// true: use GJK and then SAT if the shapes overlap
+	// false: use GJK and then EPA if the shapes overlap
+	bool bChaos_Collision_UseConvexTriangleGJKSAT = true;
+	FAutoConsoleVariableRef CVarChaos_Collision_UseConvexTriangleSAT(TEXT("p.Chaos.Collision.UseConvexTriangleGJKSAT"), bChaos_Collision_UseConvexTriangleGJKSAT, TEXT(""));
 
 	namespace Collisions
 	{

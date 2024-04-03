@@ -598,6 +598,8 @@ namespace Chaos
 			return V;
 		}
 
+		// Get the closest point on a line segment between P1 and Q1 and a 
+		// second line segment between P2 and Q2
 		// For implementation notes, see "Realtime Collision Detection", Christer Ericson, 2005
 		inline void NearestPointsOnLineSegments(
 			const FVec3& P1, const FVec3& Q1,
@@ -624,12 +626,12 @@ namespace Chaos
 			{
 				// Both segments are points
 			}
-			else if (A <= Epsilon)
+			else if (A <= EpsilonSq)
 			{
 				// First segment (only) is a point
 				T = FMath::Clamp<FReal>(F / E, Min, Max);
 			}
-			else if (E <= Epsilon)
+			else if (E <= EpsilonSq)
 			{
 				// Second segment (only) is a point
 				S = FMath::Clamp<FReal>(-C / A, Min, Max);
@@ -654,6 +656,62 @@ namespace Chaos
 					S = FMath::Clamp<FReal>((B - C) / A, Min, Max);
 					T = 1.0f;
 				}
+			}
+
+			C1 = P1 + S * D1;
+			C2 = P2 + T * D2;
+		}
+
+		// Get the closest point on a line segment between SegmentBegin and SegmentEnd to an infinite
+		// line through LinePos along LineVector in both direction.
+		// For implementation notes, see "Realtime Collision Detection", Christer Ericson, 2005
+		inline void NearestPointsOnLineSegmentToLine(
+			const FVec3& SegmentBegin, const FVec3& SegmentEnd,
+			const FVec3& LinePos, const FVec3& LineVector,
+			FReal& S, FReal& T,
+			FVec3& C1, FVec3& C2,
+			const FReal Epsilon = 1.e-4f)
+		{
+			const FReal EpsilonSq = Epsilon * Epsilon;
+			const FVec3& P1 = SegmentBegin;
+			const FVec3& Q1 = SegmentEnd;
+			const FVec3& P2 = LinePos;
+			const FVec3 D1 = Q1 - P1;
+			const FVec3& D2 = LineVector;
+			const FVec3 R = P1 - P2;
+			const FReal A = FVec3::DotProduct(D1, D1);
+			const FReal B = FVec3::DotProduct(D1, D2);
+			const FReal C = FVec3::DotProduct(D1, R);
+			const FReal E = FVec3::DotProduct(D2, D2);
+			const FReal F = FVec3::DotProduct(D2, R);
+			constexpr FReal Min = 0, Max = 1;
+
+			S = 0.0f;
+			T = 0.0f;
+
+			if ((A <= EpsilonSq) && (B <= EpsilonSq))
+			{
+				// Both segments are points
+			}
+			else if (A <= EpsilonSq)
+			{
+				// First segment (only) is a point
+				T = F / E;
+			}
+			else if (E <= EpsilonSq)
+			{
+				// Second line (only) is a point (i.e., LineVector is zero)
+				S = FMath::Clamp<FReal>(-C / A, Min, Max);
+			}
+			else
+			{
+				// Non-degenrate case - we have two lines
+				const FReal Denom = A * E - B * B;
+				if (Denom != 0.0f)
+				{
+					S = FMath::Clamp<FReal>((B * F - C * E) / Denom, Min, Max);
+				}
+				T = (B * S + F) / E;
 			}
 
 			C1 = P1 + S * D1;
