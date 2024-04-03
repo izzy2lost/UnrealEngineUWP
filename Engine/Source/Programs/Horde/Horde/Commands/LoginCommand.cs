@@ -1,7 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 using System.ComponentModel;
-using System.Net.Http.Headers;
 using EpicGames.Core;
 using EpicGames.Horde;
 using EpicGames.Horde.Server;
