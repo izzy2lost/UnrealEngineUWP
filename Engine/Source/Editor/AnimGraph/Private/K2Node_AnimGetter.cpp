@@ -241,7 +241,14 @@ void UK2Node_AnimGetter::GetMenuActions(FBlueprintActionDatabaseRegistrar& Actio
 
 void UK2Node_AnimGetter::ValidateNodeDuringCompilation(class FCompilerResultsLog& MessageLog) const
 {
-	if (SourceNode == nullptr)
+	const bool bAssetPlayerIndexRequired = GetterRequiresParameter(GetTargetFunction(), TEXT("AssetPlayerIndex"));
+	const bool bMachineIndexRequired = GetterRequiresParameter(GetTargetFunction(), TEXT("MachineIndex"));
+	const bool bTransitionIndexRequired = GetterRequiresParameter(GetTargetFunction(), TEXT("TransitionIndex"));
+	const bool bStateIndexRequired = GetterRequiresParameter(GetTargetFunction(), TEXT("StateIndex"));
+
+	const bool bSourceNodeRequired = bAssetPlayerIndexRequired || bMachineIndexRequired || bTransitionIndexRequired || bStateIndexRequired;
+
+	if (bSourceNodeRequired && SourceNode == nullptr)
 	{
 		MessageLog.Error(TEXT("@@ contains invalid data. Please delete and recreate the node."), this);
 	}
