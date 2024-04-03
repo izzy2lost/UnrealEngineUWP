@@ -164,6 +164,18 @@ float3 SampleExtinction(inout FVolumeSampleContext Context)
 	return Extinction;
 }
 
+float3 SampleEmission(inout FVolumeSampleContext Context)
+{
+	float3 Emission = SampleEmissive(Context.PixelMaterialInputs);
+	return Emission;
+}
+
+float3 SampleAlbedo(inout FVolumeSampleContext Context)
+{
+	float3 Albedo = SampleAlbedo(Context.PixelMaterialInputs);
+	return Albedo;
+}
+
 uint GetLinearIndex(uint Face, uint2 PixelCoord)
 {
 	uint LinearIndex = Face * ShadowResolution.x * ShadowResolution.y + PixelCoord.y * ShadowResolution.x + PixelCoord.x;

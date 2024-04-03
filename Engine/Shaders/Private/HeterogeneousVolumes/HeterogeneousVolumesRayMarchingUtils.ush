@@ -6,6 +6,8 @@
 
 #include "../ForwardShadowingCommon.ush"
 #include "../VolumeLightingCommon.ush"
+#include "../LightData.ush"
+#include "../DeferredLightingCommon.ush"
 
 #include "../SHCommon.ush"
 #define FrontLayerTranslucencyReflectionsStruct LumenGIVolumeStruct
