@@ -2832,7 +2832,7 @@ namespace impl
 				TEXT("Task_Mutable_GetImages"),
 				[OperationData]()
 				{
-					CustomizableObjectSystem::ImplDeprecated::Task_Mutable_GetImages(OperationData);
+					Task_Mutable_GetImages(OperationData);
 				});
 		}
 
