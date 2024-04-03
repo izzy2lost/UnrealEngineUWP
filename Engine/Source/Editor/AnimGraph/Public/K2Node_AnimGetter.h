@@ -37,7 +37,7 @@ struct FNodeSpawnData
 	UPROPERTY()
 	FText CachedTitle;
 
-	// The node the spawned getter accesses
+	// The node the spawned getter accesses, if any
 	UPROPERTY()
 	TObjectPtr<UAnimGraphNode_Base> SourceNode;
 
