@@ -667,18 +667,50 @@ void FGameplayTagContainer::AppendTags(FGameplayTagContainer const& Other)
 {
 	CONDITIONAL_SCOPE_CYCLE_COUNTER(STAT_FGameplayTagContainer_AppendTags, GEnableGameplayTagDetailedStats);
 
-	GameplayTags.Reserve(GameplayTags.Num() + Other.GameplayTags.Num());
-	ParentTags.Reserve(ParentTags.Num() + Other.ParentTags.Num());
-
+	int32 OldTagNum = GameplayTags.Num();
+	GameplayTags.Reserve(OldTagNum + Other.GameplayTags.Num());
 	// Add other container's tags to our own
 	for(const FGameplayTag& OtherTag : Other.GameplayTags)
 	{
-		GameplayTags.AddUnique(OtherTag);
+		int32 SearchIndex = 0;
+		while (true)
+		{
+			if (SearchIndex >= OldTagNum)
+			{
+				// Stop searching once we've looked at all existing tags, this is faster when appending large containers
+				GameplayTags.Add(OtherTag);
+				break;
+			}
+			else if (GameplayTags[SearchIndex] == OtherTag)
+			{
+				// Matching tag found, stop searching
+				break;
+			}
+
+			SearchIndex++;
+		}
 	}
 
+	// This function is called enough that the code duplication is faster than a lambda
+	OldTagNum = ParentTags.Num();
+	ParentTags.Reserve(OldTagNum + Other.ParentTags.Num());
 	for (const FGameplayTag& OtherTag : Other.ParentTags)
 	{
-		ParentTags.AddUnique(OtherTag);
+		int32 SearchIndex = 0;
+		while (true)
+		{
+			if (SearchIndex >= OldTagNum)
+			{
+				ParentTags.Add(OtherTag);
+				break;
+			}
+			else if (ParentTags[SearchIndex] == OtherTag)
+			{
+				break;
+			}
+
+			SearchIndex++;
+		}
 	}
 }
 
