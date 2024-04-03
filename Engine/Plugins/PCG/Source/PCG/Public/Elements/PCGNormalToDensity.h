@@ -1,8 +1,8 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 #pragma once
 
+#include "PCGPointOperationElementBase.h"
 #include "PCGSettings.h"
-#include "Elements/PCGPointProcessingElementBase.h"
 
 #include "PCGNormalToDensity.generated.h"
 
@@ -60,9 +60,9 @@ public:
 	PCGNormalToDensityMode DensityMode = PCGNormalToDensityMode::Set;
 };
 
-class FPCGNormalToDensityElement : public FPCGPointProcessingElementBase
+class FPCGNormalToDensityElement : public FPCGPointOperationElementBase
 {
 protected:
-	virtual bool ExecuteInternal(FPCGContext* Context) const override;
+	virtual bool ExecuteInternal(FPCGContext* InContext) const override;
 };
 
