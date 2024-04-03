@@ -2475,7 +2475,9 @@ uint32 FOnlineSessionEOS::FindEOSSession(int32 SearchingPlayerNum, const TShared
 		const FOnlineSessionSearchParam& SearchParam = It.Value();
 
 		// Game server keys are skipped
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
 		if (Key == SEARCH_DEDICATED_ONLY || Key == SETTING_MAPNAME || Key == SEARCH_EMPTY_SERVERS_ONLY || Key == SEARCH_SECURE_SERVERS_ONLY || Key == SEARCH_PRESENCE || Key == SEARCH_LOBBIES)
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
 		{
 			continue;
 		}
@@ -4528,7 +4530,9 @@ uint32 FOnlineSessionEOS::FindLobbySession(int32 SearchingPlayerNum, const TShar
 			const FOnlineSessionSearchParam& SearchParam = It.Value();
 
 			// Game server keys are skipped
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
 			if (Key == SEARCH_DEDICATED_ONLY || Key == SETTING_MAPNAME || Key == SEARCH_EMPTY_SERVERS_ONLY || Key == SEARCH_SECURE_SERVERS_ONLY || Key == SEARCH_PRESENCE || Key == SEARCH_LOBBIES)
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
 			{
 				continue;
 			}

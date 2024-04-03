@@ -96,7 +96,9 @@ public:
 
 		if (bSearchingPresence)
 		{
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
 			QuerySettings.Set(SEARCH_PRESENCE, true, EOnlineComparisonOp::Equals);
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
 		}
 
 		for (FSessionSettings::TConstIterator It(SettingsOverride.Settings); It; ++It)

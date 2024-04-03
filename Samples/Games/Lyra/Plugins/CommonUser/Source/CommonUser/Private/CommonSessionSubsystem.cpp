@@ -205,11 +205,6 @@ public:
 		PingBucketSize = 50;
 
 		QuerySettings.Set(SETTING_ONLINESUBSYSTEM_VERSION, true, EOnlineComparisonOp::Equals);
-		
-		if (InSearchRequest->bUsePresence)
-		{
-			QuerySettings.Set(SEARCH_PRESENCE, true, EOnlineComparisonOp::Equals);
-		}
 
 		if (InSearchRequest->bUseLobbies)
 		{
@@ -230,8 +225,6 @@ public:
 		FindLobbyParams.MaxResults = 10;
 
 		FindLobbyParams.Filters.Emplace(FFindLobbySearchFilter{ SETTING_ONLINESUBSYSTEM_VERSION, ESchemaAttributeComparisonOp::Equals, true });
-
-		FindLobbyParams.Filters.Emplace(FFindLobbySearchFilter{ SEARCH_PRESENCE, ESchemaAttributeComparisonOp::Equals, InSearchRequest->bUsePresence });
 	}
 public:
 	FFindLobbies::Params FindLobbyParams;
@@ -447,9 +440,6 @@ UCommonSession_SearchSessionRequest* UCommonSessionSubsystem::CreateOnlineSearch
 	NewRequest->OnlineMode = ECommonSessionOnlineMode::Online;
 
 	NewRequest->bUseLobbies = bUseLobbiesDefault;
-
-	// We enable presence by default on primary session searches. For online systems that care about presence, only primary session searches should have presence enabled
-	NewRequest->bUsePresence = true;
 
 	return NewRequest;
 }
@@ -849,7 +839,6 @@ void UCommonSessionSubsystem::QuickPlaySession(APlayerController* JoiningOrHosti
 	HostRequestPtr->bUseLobbies = bUseLobbiesDefault;
 	HostRequestPtr->bUsePresence = true;
 	QuickPlayRequest->bUseLobbies = bUseLobbiesDefault;
-	QuickPlayRequest->bUsePresence = true;
 
 	NotifySessionInformationUpdated(ECommonSessionInformationState::Matchmaking);
 	FindSessionsInternal(JoiningOrHostingPlayer, CreateQuickPlaySearchSettings(HostRequest, QuickPlayRequest));

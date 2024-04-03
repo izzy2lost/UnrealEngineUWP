@@ -33,7 +33,7 @@ class UFindSessionsCallbackProxy : public UOnlineBlueprintCallProxyBase
 
 	// Searches for advertised sessions with the default online subsystem
 	UFUNCTION(BlueprintCallable, meta=(BlueprintInternalUseOnly = "true", WorldContext="WorldContextObject"), Category = "Online|Session")
-	static UFindSessionsCallbackProxy* FindSessions(UObject* WorldContextObject, class APlayerController* PlayerController, int32 MaxResults, bool bUseLAN);
+	static UFindSessionsCallbackProxy* FindSessions(UObject* WorldContextObject, class APlayerController* PlayerController, int32 MaxResults, bool bUseLAN, bool bUseLobbies);
 
 	UFUNCTION(BlueprintPure, Category = "Online|Session")
 	static int32 GetPingInMs(const FBlueprintSessionResult& Result);
@@ -70,6 +70,9 @@ private:
 
 	// Whether or not to search LAN
 	bool bUseLAN;
+
+	// Whether or not to search for Lobbies instead of Sessions
+	bool bUseLobbies;
 
 	// Maximum number of results to return
 	int MaxResults;

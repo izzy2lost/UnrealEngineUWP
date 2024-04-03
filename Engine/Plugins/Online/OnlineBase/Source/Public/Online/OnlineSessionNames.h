@@ -125,8 +125,11 @@
 #define SEARCH_NONEMPTY_SERVERS_ONLY FName(TEXT("NONEMPTYONLY"))
 /** Search for secure servers only (value is true/false) */
 #define SEARCH_SECURE_SERVERS_ONLY FName(TEXT("SECUREONLY"))
+
 /** Search for presence sessions only (value is true/false) */
-#define SEARCH_PRESENCE FName(TEXT("PRESENCESEARCH"))
+UE_DEPRECATED(5.5, "SEARCH_PRESENCE (\"PRESENCESEARCH\") is deprecated and will soon stop being a valid UE-defined key. Please consult upgrade notes for more details")
+const FName SEARCH_PRESENCE = FName(TEXT("PRESENCESEARCH"));
+
 /** Search for a match with min player availability (value is int) */
 #define SEARCH_MINSLOTSAVAILABLE FName(TEXT("MINSLOTSAVAILABLE"))
 /** Exclude all matches where any unique ids in a given array are present (value is string of the form "uniqueid1;uniqueid2;uniqueid3") */

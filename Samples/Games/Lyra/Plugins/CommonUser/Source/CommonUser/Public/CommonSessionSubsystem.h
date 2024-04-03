@@ -169,10 +169,6 @@ public:
 	UPROPERTY(BlueprintReadWrite, Category = Session)
 	bool bUseLobbies;
 
-	/** True if this request should look for presence-enabled lobbies or sessions */
-	UPROPERTY(BlueprintReadWrite, Category = Session)
-	bool bUsePresence;
-
 	/** List of all found sessions, will be valid when OnSearchFinished is called */
 	UPROPERTY(BlueprintReadOnly, Category=Session)
 	TArray<TObjectPtr<UCommonSession_SearchResult>> Results;
