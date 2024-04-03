@@ -41,6 +41,7 @@
 #include "Misc/Optional.h"
 #include "Misc/Paths.h"
 #include "SAssetView.h"
+#include "Settings/ContentBrowserSettings.h"
 #include "SFilterList.h"
 #include "SPathView.h"
 #include "SlateOptMacros.h"
@@ -938,4 +939,59 @@ bool ContentBrowserUtils::ShouldShowRedirectors(TSharedPtr<SFilterList> Filters)
 	return false;
 }
 
+FContentBrowserInstanceConfig* ContentBrowserUtils::GetContentBrowserConfig(FName InstanceName)
+{
+	if (InstanceName.IsNone())
+	{
+		return nullptr;
+	}
+
+	FContentBrowserInstanceConfig* Config = UContentBrowserConfig::Get()->Instances.Find(InstanceName);
+	if (Config == nullptr)
+	{
+		return nullptr;
+	}
+
+	return Config;
+}
+
+FPathViewConfig* ContentBrowserUtils::GetPathViewConfig(FName InstanceName)
+{
+	if (InstanceName.IsNone())
+	{
+		return nullptr;
+	}
+
+	FContentBrowserInstanceConfig* Config = UContentBrowserConfig::Get()->Instances.Find(InstanceName);
+	if (Config == nullptr)
+	{
+		return nullptr;
+	}
+
+	return &Config->PathView;
+}
+
+EContentBrowserItemAttributeFilter ContentBrowserUtils::GetContentBrowserItemAttributeFilter(FName InstanceName)
+{
+	const UContentBrowserSettings* ContentBrowserSettings = GetDefault<UContentBrowserSettings>();
+	bool bDisplayEngineContent = ContentBrowserSettings->GetDisplayEngineFolder();
+	bool bDisplayPluginContent = ContentBrowserSettings->GetDisplayPluginFolders();
+	bool bDisplayDevelopersContent = ContentBrowserSettings->GetDisplayDevelopersFolder();
+	bool bDisplayL10NContent = ContentBrowserSettings->GetDisplayL10NFolder();
+
+	// check to see if we have an instance config that overrides the defaults in UContentBrowserSettings
+	if (FContentBrowserInstanceConfig* EditorConfig = GetContentBrowserConfig(InstanceName))
+	{
+		bDisplayEngineContent = EditorConfig->bShowEngineContent;
+		bDisplayPluginContent = EditorConfig->bShowPluginContent;
+		bDisplayDevelopersContent = EditorConfig->bShowDeveloperContent;
+		bDisplayL10NContent = EditorConfig->bShowLocalizedContent;
+	}
+
+	return EContentBrowserItemAttributeFilter::IncludeProject
+		 | (bDisplayEngineContent ? EContentBrowserItemAttributeFilter::IncludeEngine : EContentBrowserItemAttributeFilter::IncludeNone)
+		 | (bDisplayPluginContent ? EContentBrowserItemAttributeFilter::IncludePlugins : EContentBrowserItemAttributeFilter::IncludeNone)
+		 | (bDisplayDevelopersContent ? EContentBrowserItemAttributeFilter::IncludeDeveloper : EContentBrowserItemAttributeFilter::IncludeNone)
+		 | (bDisplayL10NContent ? EContentBrowserItemAttributeFilter::IncludeLocalized : EContentBrowserItemAttributeFilter::IncludeNone);
+}
 #undef LOCTEXT_NAMESPACE

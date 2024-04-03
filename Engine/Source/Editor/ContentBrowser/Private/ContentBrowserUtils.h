@@ -24,9 +24,12 @@ class SWidget;
 struct FARFilter;
 struct FAssetData;
 struct FContentBrowserDataFilter;
+struct FContentBrowserInstanceConfig;
 struct FContentBrowserItem;
 struct FContentBrowserItemPath;
+struct FPathViewConfig;
 enum class EContentBrowserIsFolderVisibleFlags : uint8;
+enum class EContentBrowserItemAttributeFilter : uint8;
 
 namespace ContentBrowserUtils
 {
@@ -144,4 +147,22 @@ namespace ContentBrowserUtils
 	
 	/** Returns whether the content browser should be showing redirectors based on the current filter state or content browser settings */
 	bool ShouldShowRedirectors(TSharedPtr<SFilterList> Filters);
+
+	/**
+	 * Returns config settings for the given content browser name.
+	 * A name of none returns null.
+	 */
+	FContentBrowserInstanceConfig* GetContentBrowserConfig(FName InstanceName);
+	
+	/** 
+	 * returns config settings for the path view for the given content browser name.
+	 * A name of none returns null.
+	 */
+	FPathViewConfig* GetPathViewConfig(FName InstanceName);
+
+	/**
+	 * Returns the attribute filter to use when retrieving conent browser data for the given instance.
+	 * An instance name of None gives global settings.
+	 */
+	EContentBrowserItemAttributeFilter GetContentBrowserItemAttributeFilter(FName InstanceName);
 }

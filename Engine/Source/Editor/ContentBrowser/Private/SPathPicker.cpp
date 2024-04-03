@@ -42,6 +42,7 @@ void SPathPicker::Construct( const FArguments& InArgs )
 	OnGetPathContextMenuExtender = InArgs._PathPickerConfig.OnGetPathContextMenuExtender;
 	bOnPathSelectedPassesVirtualPaths = InArgs._PathPickerConfig.bOnPathSelectedPassesVirtualPaths;
 
+	// clang-format off
 	ChildSlot
 	[
 		SAssignNew(PathViewPtr, SPathView)
@@ -55,20 +56,15 @@ void SPathPicker::Construct( const FArguments& InArgs )
 		.SelectionMode(ESelectionMode::Single)
 		.CustomFolderPermissionList(InArgs._PathPickerConfig.CustomFolderPermissionList)
 		.ShowFavorites(InArgs._PathPickerConfig.bShowFavorites)
+		.DefaultPath(InArgs._PathPickerConfig.bAddDefaultPath ? InArgs._PathPickerConfig.DefaultPath : FString{})
 	];
+	// clang-format on
 
 	const FString& DefaultPath = InArgs._PathPickerConfig.DefaultPath;
-	if ( !DefaultPath.IsEmpty() && PathViewPtr->InternalPathPassesBlockLists(*DefaultPath))
+	if (!DefaultPath.IsEmpty() && PathViewPtr->InternalPathPassesBlockLists(*DefaultPath))
 	{
 		const FName VirtualPath = IContentBrowserDataModule::Get().GetSubsystem()->ConvertInternalPathToVirtual(*DefaultPath);
-		if (InArgs._PathPickerConfig.bAddDefaultPath && !PathViewPtr->FindTreeItem(VirtualPath))
-		{
-			const FString DefaultPathLeafName = FPaths::GetPathLeaf(VirtualPath.ToString());
-			PathViewPtr->AddFolderItem(FContentBrowserItemData(nullptr, EContentBrowserItemFlags::Type_Folder, VirtualPath, *DefaultPathLeafName, FText(), nullptr), /*bUserNamed*/false);
-		}
-
-		PathViewPtr->SetSelectedPaths({ VirtualPath.ToString() });
-
+		// Path is created by SPathView::Construct if necessary
 		if (InArgs._PathPickerConfig.bNotifyDefaultPathSelected)
 		{
 			if (bOnPathSelectedPassesVirtualPaths)

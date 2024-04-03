@@ -3,6 +3,7 @@
 
 #include "SContentBrowser.h"
 
+#include "Algo/AnyOf.h"
 #include "AssetContextMenu.h"
 #include "AssetRegistry/ARFilter.h"
 #include "AssetRegistry/AssetData.h"
@@ -1627,16 +1628,9 @@ void SContentBrowser::PrepareToSyncItems(TArrayView<const FContentBrowserItem> I
 	// Check to see if any item paths don't exist (this can happen if we haven't ticked since the path was created)
 	if (!bRepopulate)
 	{
-		for (const FContentBrowserItem& ItemToSync : ItemsToSync)
-		{
-			const FName VirtualPath = *FPaths::GetPath(ItemToSync.GetVirtualPath().ToString());
-			TSharedPtr<FTreeItem> Item = PathViewPtr->FindTreeItem(VirtualPath);
-			if (!Item.IsValid())
- 			{
-				bRepopulate = true;
- 				break;
- 			}
-		}
+		bRepopulate = Algo::AnyOf(ItemsToSync, [this](const FContentBrowserItem& Item) {
+			return !PathViewPtr->DoesItemExist(Item.GetVirtualPath());
+		});
 	}
 	
 	if (bDisableFiltersThatHideAssets)

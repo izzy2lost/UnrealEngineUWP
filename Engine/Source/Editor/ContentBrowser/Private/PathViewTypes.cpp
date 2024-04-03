@@ -2,6 +2,7 @@
 
 #include "PathViewTypes.h"
 
+#include "Algo/Copy.h"
 #include "Containers/UnrealString.h"
 #include "ContentBrowserItemData.h"
 #include "HAL/Platform.h"
@@ -57,9 +58,34 @@ void FTreeItem::RemoveItemData(const FContentBrowserItemData& InItemData)
 	Item.Remove(InItemData);
 }
 
+void FTreeItem::SetItemData(FContentBrowserItem InItem)
+{
+	Item = MoveTemp(InItem);
+}
+
 const FContentBrowserItem& FTreeItem::GetItem() const
 {
 	return Item;
+}
+
+void FTreeItem::SetVisible(bool bInIsVisible)
+{
+	bIsVisible = bInIsVisible;
+}
+
+void FTreeItem::SetHasVisibleDescendants(bool bValue)
+{
+	bHasVisibleDescendants = bValue;
+}
+
+bool FTreeItem::GetHasVisibleDescendants() const
+{
+	return bHasVisibleDescendants;
+}
+
+bool FTreeItem::IsVisible() const
+{
+	return bIsVisible || bHasVisibleDescendants;
 }
 
 FSimpleMulticastDelegate& FTreeItem::OnRenameRequested()
@@ -93,9 +119,36 @@ bool FTreeItem::IsChildOf(const FTreeItem& InParent)
 	return false;
 }
 
+void FTreeItem::AddChild(const TSharedRef<FTreeItem>& InChild)
+{
+	checkSlow(!AllChildren.Contains(InChild));
+	AllChildren.Add(InChild);
+	InChild->Parent = AsWeak();
+	bChildrenRequireSort = true;
+}
+
+void FTreeItem::RemoveChild(const TSharedRef<FTreeItem>& InChild)
+{
+	if (InChild->Parent == AsWeak())
+	{
+		AllChildren.Remove(InChild);
+		InChild->Parent = nullptr;
+	}
+}
+
+void FTreeItem::RemoveAllChildren()
+{
+	AllChildren.Reset();
+}
+
+TConstArrayView<TSharedPtr<FTreeItem>> FTreeItem::GetChildren() const
+{
+	return AllChildren;
+}
+
 TSharedPtr<FTreeItem> FTreeItem::GetChild(const FName InChildFolderName) const
 {
-	for (const TSharedPtr<FTreeItem>& Child : Children)
+	for (const TSharedPtr<FTreeItem>& Child : AllChildren)
 	{
 		if (Child->Item.GetItemName() == InChildFolderName)
 		{
@@ -106,6 +159,11 @@ TSharedPtr<FTreeItem> FTreeItem::GetChild(const FName InChildFolderName) const
 	return nullptr;
 }
 
+TSharedPtr<FTreeItem> FTreeItem::GetParent() const
+{
+	return Parent.Pin();
+}
+
 TSharedPtr<FTreeItem> FTreeItem::FindItemRecursive(const FName InFullPath)
 {
 	if (InFullPath == Item.GetVirtualPath())
@@ -113,7 +171,7 @@ TSharedPtr<FTreeItem> FTreeItem::FindItemRecursive(const FName InFullPath)
 		return SharedThis(this);
 	}
 
-	for (const TSharedPtr<FTreeItem>& Child : Children)
+	for (const TSharedPtr<FTreeItem>& Child : AllChildren)
 	{
 		if (TSharedPtr<FTreeItem> ChildItem = Child->FindItemRecursive(InFullPath))
 		{
@@ -124,38 +182,35 @@ TSharedPtr<FTreeItem> FTreeItem::FindItemRecursive(const FName InFullPath)
 	return nullptr;
 }
 
+void FTreeItem::ForAllChildrenRecursive(TFunctionRef<void(const TSharedRef<FTreeItem>&)> Functor)
+{
+	for (const TSharedPtr<FTreeItem>& Child : AllChildren)
+	{
+		if (Child.IsValid())
+		{
+			Functor(Child.ToSharedRef());
+			Child->ForAllChildrenRecursive(Functor);
+		}
+	}
+}
+
 void FTreeItem::RequestSortChildren()
 {
 	bChildrenRequireSort = true;
 }
 
-void FTreeItem::SortChildrenIfNeeded()
+void FTreeItem::GetSortedVisibleChildren(TArray<TSharedPtr<FTreeItem>>& OutChildren)
 {
 	if (bChildrenRequireSort)
 	{
-		if (SortOverride.IsBound())
-		{
-			SortOverride.Execute(this, Children);
-		}
-		else
-		{
-			Children.Sort([](TSharedPtr<FTreeItem> A, TSharedPtr<FTreeItem> B) -> bool
-			{
-				return A->Item.GetDisplayName().ToString() < B->Item.GetDisplayName().ToString();
-			});
-		}
-
+		UE::PathView::DefaultSort(AllChildren);
 		bChildrenRequireSort = false;
 	}
+	OutChildren.Reset();
+	Algo::CopyIf(AllChildren, OutChildren, UE_PROJECTION_MEMBER(FTreeItem, IsVisible));
 }
 
 bool FTreeItem::IsDisplayOnlyFolder() const
 {
 	return GetItem().IsDisplayOnlyFolder();
 }
-
-void FTreeItem::SetSortOverride(FSortTreeItemChildrenDelegate& InSortOverride)
-{
-	SortOverride = InSortOverride;
-}
-

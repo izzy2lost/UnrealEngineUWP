@@ -106,7 +106,7 @@ void SAssetTreeItem::Construct( const FArguments& InArgs )
 	{
 		if (ContentBrowserUtils::ShouldShowPluginFolderIcon() && Item.IsInPlugin())
 		{
-			TSharedPtr<FTreeItem> Parent = InArgs._TreeItem->Parent.Pin();
+			TSharedPtr<FTreeItem> Parent = InArgs._TreeItem->GetParent();
 			if (!Parent.IsValid() || !Parent->GetItem().IsInPlugin())
 			{
 				FolderType = EFolderType::PluginRoot;
@@ -126,7 +126,7 @@ void SAssetTreeItem::Construct( const FArguments& InArgs )
 		}
 	}
 
-	bool bIsRoot = !InArgs._TreeItem->Parent.IsValid();
+	bool bIsRoot = !InArgs._TreeItem->GetParent().IsValid();
 
 	ChildSlot
 	[
