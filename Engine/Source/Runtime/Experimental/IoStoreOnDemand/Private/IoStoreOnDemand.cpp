@@ -24,7 +24,6 @@
 #include "Serialization/Archive.h"
 #include "Serialization/CompactBinarySerialization.h"
 #include "Serialization/CompactBinaryWriter.h"
-#include "Serialization/CustomVersion.h"
 #include "Serialization/LargeMemoryWriter.h"
 #include "Serialization/MemoryReader.h"
 #include "Statistics.h"
@@ -440,22 +439,6 @@ bool LoadFromCompactBinary(FCbFieldView Field, FOnDemandTocEntry& OutTocEntry)
 
 FArchive& operator<<(FArchive& Ar, FOnDemandTocContainerEntry& ContainerEntry)
 {
-	if (Ar.IsLoading())
-	{
-		const FCustomVersion* CustomVersion = Ar.GetCustomVersions().GetVersion(FOnDemandToc::VersionGuid);
-		check(CustomVersion);
-		const uint32 TocVersion = IntCastChecked<uint32>(CustomVersion->Version);
-
-		if (TocVersion >= uint32(EOnDemandTocVersion::ContainerId))
-		{
-			Ar << ContainerEntry.ContainerId;
-		}
-	}
-	else
-	{
-		Ar << ContainerEntry.ContainerId;
-	}
-
 	Ar << ContainerEntry.ContainerName;
 	Ar << ContainerEntry.EncryptionKeyGuid;
 	Ar << ContainerEntry.Entries;
@@ -572,38 +555,6 @@ FArchive& operator<<(FArchive& Ar, FOnDemandTocSentinel& Sentinel)
 	return Ar;
 }
 
-FArchive& operator<<(FArchive& Ar, FOnDemandTocAdditionalFile& AdditionalFile)
-{
-	Ar << AdditionalFile.Hash;
-	Ar << AdditionalFile.Filename;
-	Ar << AdditionalFile.FileSize;
-	return Ar;
-}
-
-FCbWriter& operator<<(FCbWriter& Writer, const FOnDemandTocAdditionalFile& AdditionalFile)
-{
-	Writer.BeginObject();
-	Writer.AddHash(UTF8TEXTVIEW("Hash"), AdditionalFile.Hash);
-	Writer.AddString(UTF8TEXTVIEW("Filename"), AdditionalFile.Filename);
-	Writer.AddInteger(UTF8TEXTVIEW("Filename"), AdditionalFile.FileSize);
-	Writer.EndObject();
-
-	return Writer;
-}
-
-bool LoadFromCompactBinary(FCbFieldView Field, FOnDemandTocAdditionalFile& AdditionalFile)
-{
-	if (FCbObjectView Obj = Field.AsObjectView())
-	{
-		AdditionalFile.Hash = Obj["Hash"].AsHash();
-		AdditionalFile.Filename = FString(Obj["Filename"].AsString());
-		AdditionalFile.FileSize = Obj["FileSize"].AsUInt64();
-		return true;
-	}
-
-	return false;
-}
-
 FArchive& operator<<(FArchive& Ar, FOnDemandToc& Toc)
 {
 	Ar << Toc.Header;
@@ -620,11 +571,6 @@ FArchive& operator<<(FArchive& Ar, FOnDemandToc& Toc)
 	}
 	Ar << Toc.Containers;
 
-	if (uint32(Toc.Header.Version) >= uint32(EOnDemandTocVersion::AdditionalFiles))
-	{
-		Ar << Toc.AdditionalFiles;
-	}
-
 	return Ar;
 }
 
@@ -639,17 +585,6 @@ FCbWriter& operator<<(FCbWriter& Writer, const FOnDemandToc& Toc)
 		Writer << Container;
 	}
 	Writer.EndArray();
-
-	if (Toc.AdditionalFiles.Num() > 0)
-	{
-		Writer.BeginArray(UTF8TEXTVIEW("Files"));
-		for (const FOnDemandTocAdditionalFile& File : Toc.AdditionalFiles)
-		{
-			Writer << File;
-		}
-		Writer.EndArray();
-	}
-
 	Writer.EndObject();
 	
 	return Writer;
@@ -681,19 +616,6 @@ bool LoadFromCompactBinary(FCbFieldView Field, FOnDemandToc& OutToc)
 			if (!LoadFromCompactBinary(ArrayField, OutToc.Containers.AddDefaulted_GetRef()))
 			{
 				return false;
-			}
-		}
-
-		if (uint32(OutToc.Header.Version) >= uint32(EOnDemandTocVersion::AdditionalFiles))
-		{
-			FCbArrayView Files = Obj["Files"].AsArrayView();
-			OutToc.AdditionalFiles.Reserve(int32(Files.Num()));
-			for (FCbFieldView ArrayField : Files)
-			{
-				if (!LoadFromCompactBinary(ArrayField, OutToc.AdditionalFiles.AddDefaulted_GetRef()))
-				{
-					return false;
-				}
 			}
 		}
 
@@ -2457,9 +2379,9 @@ FIoStatus ListTocs(const FIoStoreListTocsParams& Params)
 ////////////////////////////////////////////////////////////////////////////////
 void FIoStoreOnDemandModule::SetBulkOptionalEnabled(bool bInEnabled)
 {
-	if (HttpIoDispatcherBackend.IsValid())
+	if (Backend.IsValid())
 	{
-		HttpIoDispatcherBackend->SetBulkOptionalEnabled(bInEnabled);
+		Backend->SetBulkOptionalEnabled(bInEnabled);
 	}
 	else
 	{
@@ -2470,9 +2392,9 @@ void FIoStoreOnDemandModule::SetBulkOptionalEnabled(bool bInEnabled)
 
 void FIoStoreOnDemandModule::SetEnabled(bool bInEnabled)
 {
-	if (HttpIoDispatcherBackend.IsValid())
+	if (Backend.IsValid())
 	{
-		HttpIoDispatcherBackend->SetEnabled(bInEnabled);
+		Backend->SetEnabled(bInEnabled);
 	}
 	else
 	{
@@ -2483,9 +2405,9 @@ void FIoStoreOnDemandModule::SetEnabled(bool bInEnabled)
 
 void FIoStoreOnDemandModule::AbandonCache()
 {
-	if (HttpIoDispatcherBackend.IsValid())
+	if (Backend.IsValid())
 	{
-		HttpIoDispatcherBackend->AbandonCache();
+		Backend->AbandonCache();
 	}
 	else
 	{
@@ -2496,14 +2418,14 @@ void FIoStoreOnDemandModule::AbandonCache()
 
 bool FIoStoreOnDemandModule::IsEnabled() const
 {
-	return HttpIoDispatcherBackend.IsValid()? HttpIoDispatcherBackend->IsEnabled():DeferredAbandonCache.IsSet();
+	return Backend.IsValid()? Backend->IsEnabled():DeferredAbandonCache.IsSet();
 }
 
 void FIoStoreOnDemandModule::ReportAnalytics(TArray<FAnalyticsEventAttribute>& OutAnalyticsArray) const
 {
-	if (HttpIoDispatcherBackend.IsValid())
+	if (Backend.IsValid())
 	{
-		HttpIoDispatcherBackend->ReportAnalytics(OutAnalyticsArray);
+		Backend->ReportAnalytics(OutAnalyticsArray);
 	}
 }
 
@@ -2531,7 +2453,7 @@ void FIoStoreOnDemandModule::InitializeInternal()
 #endif
 
 	// Make sure we haven't called initialize before
-	check(!HttpIoDispatcherBackend.IsValid());
+	check(!Backend.IsValid());
 
 	FOnDemandEndpoint Endpoint;
 	
@@ -2590,8 +2512,8 @@ void FIoStoreOnDemandModule::InitializeInternal()
 			(CacheConfig.DiskQuota > 0) ? TEXT("init-fail") : TEXT("zero-quota"));
 	}
 
-	HttpIoDispatcherBackend = MakeOnDemandIoDispatcherBackend(MoveTemp(Cache));
-	HttpIoDispatcherBackend->Mount(Endpoint);
+	Backend = MakeOnDemandIoDispatcherBackend(MoveTemp(Cache));
+	Backend->Mount(Endpoint);
 	int32 BackendPriority = -10;
 #if !UE_BUILD_SHIPPING
 	if (FParse::Param(CommandLine, TEXT("Ias")))
@@ -2604,14 +2526,14 @@ void FIoStoreOnDemandModule::InitializeInternal()
 	// Setup any states changes issued before initialization
 	if (DeferredEnabled.IsSet())
 	{
-		HttpIoDispatcherBackend->SetEnabled(*DeferredEnabled);
+		Backend->SetEnabled(*DeferredEnabled);
 	}
 	if (DeferredBulkOptionalEnabled.IsSet())
 	{
-		HttpIoDispatcherBackend->SetBulkOptionalEnabled(*DeferredBulkOptionalEnabled);
+		Backend->SetBulkOptionalEnabled(*DeferredBulkOptionalEnabled);
 	}
 	
-	FIoDispatcher::Get().Mount(HttpIoDispatcherBackend.ToSharedRef(), BackendPriority);
+	FIoDispatcher::Get().Mount(Backend.ToSharedRef(), BackendPriority);
 }
 	
 void FIoStoreOnDemandModule::StartupModule()
@@ -2646,7 +2568,7 @@ EOnDemandInitResult FIoStoreOnDemandModule::Initialize()
 
 	InitializeInternal();
 
-	return HttpIoDispatcherBackend.IsValid() ? EOnDemandInitResult::Success : EOnDemandInitResult::Disabled;
+	return Backend.IsValid() ? EOnDemandInitResult::Success : EOnDemandInitResult::Disabled;
 };
 
 #endif // UE_IAS_CUSTOM_INITIALIZATION

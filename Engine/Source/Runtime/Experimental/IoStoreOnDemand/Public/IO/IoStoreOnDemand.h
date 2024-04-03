@@ -4,7 +4,6 @@
 
 #include "Containers/UnrealString.h"
 #include "IO/IoChunkId.h"
-#include "IO/IoContainerId.h"
 #include "IO/IoHash.h"
 #include "IO/IoStatus.h"
 #include "Misc/Guid.h"
@@ -54,8 +53,6 @@ enum class EOnDemandTocVersion : uint32
 	BlockHash32		= 3,
 	NoRawHash		= 4,
 	Meta			= 5,
-	ContainerId		= 6,
-	AdditionalFiles	= 7,
 
 	LatestPlusOne,
 	Latest			= (LatestPlusOne - 1)
@@ -116,7 +113,6 @@ UE_API bool LoadFromCompactBinary(FCbFieldView Field, FOnDemandTocEntry& OutTocE
 
 struct FOnDemandTocContainerEntry
 {
-	FIoContainerId ContainerId;
 	FString ContainerName;
 	FString EncryptionKeyGuid;
 	TArray<FOnDemandTocEntry> Entries;
@@ -146,18 +142,6 @@ private:
 	uint8 Data[SentinelSize] = { 0 };
 };
 
-struct FOnDemandTocAdditionalFile
-{
-	FIoHash Hash;
-	FString Filename;
-	uint64 FileSize = 0;
-
-	UE_API friend FArchive& operator<<(FArchive& Ar, FOnDemandTocAdditionalFile& AdditionalFile);
-	UE_API friend FCbWriter& operator<<(FCbWriter& Writer, const FOnDemandTocAdditionalFile& AdditionalFile);
-};
-
-UE_API bool LoadFromCompactBinary(FCbFieldView Field, FOnDemandTocAdditionalFile& AdditionalFile);
-
 struct FOnDemandToc
 {
 	FOnDemandToc() = default;
@@ -174,7 +158,6 @@ struct FOnDemandToc
 	FOnDemandTocHeader Header;
 	FTocMeta Meta;
 	TArray<FOnDemandTocContainerEntry> Containers;
-	TArray<FOnDemandTocAdditionalFile> AdditionalFiles;
 
 	UE_API friend FArchive& operator<<(FArchive& Ar, FOnDemandToc& Toc);
 	UE_API friend FCbWriter& operator<<(FCbWriter& Writer, const FOnDemandToc& Toc);
@@ -346,7 +329,7 @@ class FIoStoreOnDemandModule
 {
 private:
 	void InitializeInternal();
-	TSharedPtr<IOnDemandIoDispatcherBackend> HttpIoDispatcherBackend;
+	TSharedPtr<IOnDemandIoDispatcherBackend> Backend;
 	// Deferred state requests if called before backend
 	// is initialized
 	TOptional<bool> DeferredEnabled;
