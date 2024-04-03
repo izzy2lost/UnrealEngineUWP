@@ -810,8 +810,7 @@ bool PreprocessShader(
 			HasError |= (Diagnostic->error_level == PP_RESULT_MODE_error);
 			
 			FString Message = Diagnostic->message;
-			// ignore stb warnings (for now?)
-			if (Diagnostic->error_level == PP_RESULT_MODE_error)
+			if (Diagnostic->error_level == PP_RESULT_MODE_error || Diagnostic->error_level == PP_RESULT_MODE_warning)
 			{
 				FString Filename = Diagnostic->where->filename;
 				Output.LogError(MoveTemp(Filename), MoveTemp(Message), Diagnostic->where->line_number);

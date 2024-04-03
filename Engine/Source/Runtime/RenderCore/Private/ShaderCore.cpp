@@ -1582,6 +1582,8 @@ public:
 			PreprocessShaderInternal(Compiler, Job);
 		}
 
+		Job.Output.Errors.Append(Job.PreprocessOutput.Errors);
+		
 		// decompress if necessary; this is a no-op if source is not compressed.
 		Job.PreprocessOutput.DecompressCode();
 
