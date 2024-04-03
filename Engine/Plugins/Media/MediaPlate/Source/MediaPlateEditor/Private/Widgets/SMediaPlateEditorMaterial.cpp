@@ -77,7 +77,11 @@ FReply SMediaPlateEditorMaterial::OnBrowseMaterial() const
 			{
 				TArray<UObject*> ObjectsToSync;
 				ObjectsToSync.Add(BaseMaterial);
-				GEditor->SyncBrowserToObjects(ObjectsToSync);
+
+				if (GEditor)
+				{
+					GEditor->SyncBrowserToObjects(ObjectsToSync);
+				}
 			}
 		}
 	}

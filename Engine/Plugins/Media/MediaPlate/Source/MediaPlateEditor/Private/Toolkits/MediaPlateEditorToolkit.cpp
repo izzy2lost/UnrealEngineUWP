@@ -44,9 +44,16 @@ FMediaPlateEditorToolkit::~FMediaPlateEditorToolkit()
 {
 	FReimportManager::Instance()->OnPreReimport().RemoveAll(this);
 	FReimportManager::Instance()->OnPostReimport().RemoveAll(this);
-	
-	GEngine->OnLevelActorDeleted().RemoveAll(this);
-	GEditor->UnregisterForUndo(this);
+
+	if (GEngine)
+	{
+		GEngine->OnLevelActorDeleted().RemoveAll(this);
+	}
+
+	if (GEditor)
+	{
+		GEditor->UnregisterForUndo(this);
+	}
 }
 
 /* FMediaPlateEditorToolkit interface
@@ -63,7 +70,11 @@ void FMediaPlateEditorToolkit::Initialize(UMediaPlateComponent* InMediaPlate, co
 
 	// support undo/redo
 	MediaPlate->SetFlags(RF_Transactional);
-	GEditor->RegisterForUndo(this);
+
+	if (GEditor)
+	{
+		GEditor->RegisterForUndo(this);
+	}
 
 	BindCommands();
 
@@ -136,7 +147,10 @@ void FMediaPlateEditorToolkit::Initialize(UMediaPlateComponent* InMediaPlate, co
 		EditorModule->MediaPlateStartedPlayback(MediaPlate);
 	}
 
-	GEngine->OnLevelActorDeleted().AddSP(this, &FMediaPlateEditorToolkit::OnActorDeleted);
+	if (GEngine)
+	{
+		GEngine->OnLevelActorDeleted().AddSP(this, &FMediaPlateEditorToolkit::OnActorDeleted);
+	}
 }
 
 /* FAssetEditorToolkit interface

@@ -910,7 +910,7 @@ FReply FMediaPlateCustomization::OnOpenMediaPlate()
 	}
 
 	// Open the editor.
-	if (AssetArray.Num() > 0)
+	if (GEditor && AssetArray.Num() > 0)
 	{
 		GEditor->GetEditorSubsystem<UAssetEditorSubsystem>()->OpenEditorForAssets(AssetArray);
 	}

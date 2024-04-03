@@ -257,14 +257,14 @@ void FMediaPlateEditorModule::UnregisterPlacementModeItems()
 
 void FMediaPlateEditorModule::OnPostEngineInit()
 {
-	UEditorAssetSubsystem* EditorAssetSubsystem = GEditor->GetEditorSubsystem<UEditorAssetSubsystem>();
-	if (EditorAssetSubsystem != nullptr)
-	{
-		EditorAssetSubsystem->GetOnExtractAssetFromFile().AddRaw(this, &FMediaPlateEditorModule::ExtractAssetDataFromFiles);
-	}
-
 	if (GEditor)
 	{
+		UEditorAssetSubsystem* EditorAssetSubsystem = GEditor->GetEditorSubsystem<UEditorAssetSubsystem>();
+		if (EditorAssetSubsystem != nullptr)
+		{
+			EditorAssetSubsystem->GetOnExtractAssetFromFile().AddRaw(this, &FMediaPlateEditorModule::ExtractAssetDataFromFiles);
+		}
+
 		GEditor->OnLevelActorAdded().AddRaw(this, &FMediaPlateEditorModule::OnLevelActorAdded);
 	}
 }
