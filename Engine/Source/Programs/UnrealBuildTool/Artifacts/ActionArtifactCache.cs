@@ -89,7 +89,7 @@ namespace UnrealBuildTool.Artifacts
 		/// <param name="path">Path to artifact</param>
 		/// <param name="hash">Hash of the artifact</param>
 		/// <returns>The artifact</returns>
-		private ArtifactFile CreateArtifact(ArtifactDirectoryTree tree, string path, IoHash hash)
+		private static ArtifactFile CreateArtifact(ArtifactDirectoryTree tree, string path, IoHash hash)
 		{
 			return new(tree, new Utf8String(path), hash);
 		}
@@ -168,7 +168,7 @@ namespace UnrealBuildTool.Artifacts
 		/// <returns>Action artifact cache object</returns>
 		public static IActionArtifactCache CreateHordeFileCache(DirectoryReference directory, CppDependencyCache cppDependencyCache, ILogger logger)
 		{
-			IArtifactCache artifactCache = HordeStorageArtifactCache.CreateFileCache(directory, /*logger*/ NullLogger.Instance, false);
+			IArtifactCache artifactCache = HordeStorageArtifactCache.CreateFileCache(directory, NullLogger.Instance, false);
 			return new ActionArtifactCache(artifactCache, cppDependencyCache, logger);
 		}
 
@@ -239,7 +239,7 @@ namespace UnrealBuildTool.Artifacts
 					{
 						if (LogCacheMisses)
 						{
-							_logger.LogInformation("Artifact Cache Miss: Content hash different {actionDescription}/{File}", actionDescription, item.FullName);
+							_logger.LogInformation("Artifact Cache Miss: Content hash different {ActionDescription}/{File}", actionDescription, item.FullName);
 						}
 						match = false;
 						break;
@@ -432,7 +432,7 @@ namespace UnrealBuildTool.Artifacts
 				string[] lines = new string[files.Count];
 				for (int index = 0; index < files.Count; index++)
 				{
-					ArtifactFile artifact = directoryMapping.GetArtifact(action, files[index], waits[index].Result);
+					ArtifactFile artifact = directoryMapping.GetArtifact(action, files[index], await waits[index]);
 					lines[index] = $"{GetArtifactTreeName(artifact)} {artifact.Tree} {artifact.Name} {artifact.ContentHash}";
 				}
 				Array.Sort(lines, StringComparer.Ordinal);
@@ -495,7 +495,7 @@ namespace UnrealBuildTool.Artifacts
 		/// <param name="substitutions">Substitutions when a given input is found</param>
 		/// <param name="outputs">Destination list</param>
 		/// <param name="inputs">Source inputs</param>
-		private void AddFileItems(HashSet<FileItem> uniques, Dictionary<FileItem, List<FileItem>>? substitutions, List<FileItem> outputs, IEnumerable<FileItem> inputs)
+		private static void AddFileItems(HashSet<FileItem> uniques, Dictionary<FileItem, List<FileItem>>? substitutions, List<FileItem> outputs, IEnumerable<FileItem> inputs)
 		{
 			if (substitutions != null)
 			{

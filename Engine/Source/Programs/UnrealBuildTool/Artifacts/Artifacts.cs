@@ -13,7 +13,7 @@ namespace UnrealBuildTool.Artifacts
 	/// <summary>
 	/// Artifacts can exist in different directory roots.
 	/// </summary>
-	public enum ArtifactDirectoryTree : byte
+	public enum ArtifactDirectoryTree
 	{
 
 		/// <summary>
@@ -38,7 +38,7 @@ namespace UnrealBuildTool.Artifacts
 	/// <param name="Tree">Directory tree containing the artifact</param>
 	/// <param name="Name">Name of the artifact</param>
 	/// <param name="ContentHash">Hash of the artifact contents</param>
-	public record struct ArtifactFile(ArtifactDirectoryTree Tree, Utf8String Name, IoHash ContentHash)
+	public readonly record struct ArtifactFile(ArtifactDirectoryTree Tree, Utf8String Name, IoHash ContentHash)
 	{
 		/// <summary>
 		/// The full path of the artifact
@@ -75,7 +75,7 @@ namespace UnrealBuildTool.Artifacts
 		public IArtifactDirectoryMapping? DirectoryMapping { get; set; } = null;
 
 		/// <inheritdoc/>
-		public override int GetHashCode()
+		public readonly override int GetHashCode()
 		{
 			return HashCode.Combine(Key.GetHashCode(), ActionKey.GetHashCode(), Inputs.GetHashCode(), Outputs.GetHashCode());
 		}

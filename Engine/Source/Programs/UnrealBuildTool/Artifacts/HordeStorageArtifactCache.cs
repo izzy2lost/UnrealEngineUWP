@@ -11,7 +11,6 @@ using EpicGames.Horde.Storage;
 using EpicGames.Horde.Storage.Bundles;
 using EpicGames.Horde.Storage.Nodes;
 using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Logging.Abstractions;
 
 namespace UnrealBuildTool.Artifacts
 {
@@ -73,7 +72,6 @@ namespace UnrealBuildTool.Artifacts
 		{
 			LeafChunkedDataNodeOptions leafOptions = new(512 * 1024, 1 * 1024 * 1024, 2 * 1024 * 1024);
 			InteriorChunkedDataNodeOptions interiorOptions = new(1, 10, 20);
-			ChunkingOptions options = new() { LeafOptions = leafOptions, InteriorOptions = interiorOptions };
 
 			using LeafChunkedDataWriter fileWriter = new(writer, leafOptions);
 			int index = 0;
@@ -155,7 +153,7 @@ namespace UnrealBuildTool.Artifacts
 	/// <summary>
 	/// Class for managing artifacts using horde storage
 	/// </summary>
-	public class HordeStorageArtifactCache : IArtifactCache
+	public sealed class HordeStorageArtifactCache : IArtifactCache, IDisposable
 	{
 		/// <summary>
 		/// Defines the theoretical max number of pending actions to write
@@ -166,11 +164,6 @@ namespace UnrealBuildTool.Artifacts
 		/// Underlying storage object
 		/// </summary>
 		private IStorageClient? _store = null;
-
-		/// <summary>
-		/// Logger to be used
-		/// </summary>
-		private readonly ILogger _logger;
 
 		/// <summary>
 		/// Task used to wait on ready state
@@ -206,13 +199,22 @@ namespace UnrealBuildTool.Artifacts
 			private set => Interlocked.Exchange(ref _state, (int)value);
 		}
 
+		/// <inheritdoc/>
+		public void Dispose()
+		{
+			_store?.Dispose();
+			_pendingWritesFlushTask?.Dispose();
+			_pendingWritesFlushTask = null;
+			_semaphore.Dispose();
+		}
+
 		/// <summary>
 		/// Create a memory only cache
 		/// </summary>
 		/// <returns>Storage client instance</returns>
 		public static IArtifactCache CreateMemoryCache(ILogger logger)
 		{
-			HordeStorageArtifactCache cache = new(BundleStorageClient.CreateInMemory(logger), logger)
+			HordeStorageArtifactCache cache = new(BundleStorageClient.CreateInMemory(logger))
 			{
 				State = ArtifactCacheState.Available
 			};
@@ -228,8 +230,8 @@ namespace UnrealBuildTool.Artifacts
 		/// <returns>Storage client instance</returns>
 		public static IArtifactCache CreateFileCache(DirectoryReference directory, ILogger logger, bool cleanDirectory)
 		{
-			HordeStorageArtifactCache cache = new(null, logger);
-			cache._readyTask = Task.Run(() => cache.InitFileCache(directory, NullLogger.Instance, cleanDirectory));
+			HordeStorageArtifactCache cache = new(null);
+			cache._readyTask = Task.Run(() => cache.InitFileCache(directory, logger, cleanDirectory));
 			return cache;
 		}
 
@@ -237,11 +239,9 @@ namespace UnrealBuildTool.Artifacts
 		/// Constructor
 		/// </summary>
 		/// <param name="storage">Storage object to use</param>
-		/// <param name="logger">Logging destination</param>
-		private HordeStorageArtifactCache(IStorageClient? storage, ILogger logger)
+		private HordeStorageArtifactCache(IStorageClient? storage)
 		{
 			_store = storage;
-			_logger = logger;
 			_pendingWrites = new(MaxPendingSize);
 		}
 
@@ -468,7 +468,7 @@ namespace UnrealBuildTool.Artifacts
 					RefName refName = GetRefName(artifactAction.Key);
 
 					// Locate the destination collection for this key
-					ArtifactActionCollectionNode? node = _store!.TryReadRefTargetAsync<ArtifactActionCollectionNode>(refName, default, cancellationToken: cancellationToken).Result;
+					ArtifactActionCollectionNode? node = await _store!.TryReadRefTargetAsync<ArtifactActionCollectionNode>(refName, default, cancellationToken: cancellationToken);
 					node ??= new ArtifactActionCollectionNode();
 
 					// Update the artifact action collection
