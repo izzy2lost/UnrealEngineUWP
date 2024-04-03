@@ -485,31 +485,6 @@ TSharedRef<SWidget> SNiagaraOverviewStackNode::CreateTitleWidget_Default(TShared
 			];
 	}
 
-	if (!GetDefault<UNiagaraSettings>()->bStatelessEmittersEnabled)
-	{
-		TSharedPtr<FNiagaraEmitterHandleViewModel> EmitterHandleViewModel = EmitterHandleViewModelWeak.Pin();
-		FNiagaraEmitterHandle* EmitterHandle = EmitterHandleViewModel.IsValid() ? EmitterHandleViewModel->GetEmitterHandle() : nullptr;
-		if (EmitterHandle && EmitterHandle->GetEmitterMode() != ENiagaraEmitterMode::Standard)
-		{
-			DefaultTitle =
-				SNew(SVerticalBox)
-				+ SVerticalBox::Slot()
-				.Padding(0, 0, 5, 0)
-				.AutoHeight()
-				[
-					SNew(STextBlock)
-						.Text(LOCTEXT("StatelessNotEnabled", "Lightweight not enabled in project settings."))
-						.Font(FCoreStyle::GetDefaultFontStyle("Regular", 8.f))
-						.OverflowPolicy(ETextOverflowPolicy::Ellipsis)
-						.AutoWrapText(true)
-				]
-				+ SVerticalBox::Slot()
-				[
-					DefaultTitle
-				];
-		}
-	}
-	
 	TSharedPtr<SWidget> TitleWidget = SNew(SHorizontalBox)
 	// Summary View Controls
 	+ SHorizontalBox::Slot()

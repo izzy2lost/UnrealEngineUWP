@@ -301,12 +301,6 @@ class FNiagaraEditorOnlyDataUtilities : public INiagaraEditorOnlyDataUtilities
 	{
 		TOptional<FNiagaraSystemStateData> SystemStateData;
 
-		// Never allow if stateless is not enabled
-		if (!GetDefault<UNiagaraSettings>()->bStatelessEmittersEnabled)
-		{
-			return SystemStateData;
-		}
-
 		// All emitters must be stateless currently
 		// We can perhaps look at this again, but we always write Emitter.RandomSeed currently even with an empty script
 		for (const FNiagaraEmitterHandle& EmitterHandle : System.GetEmitterHandles())

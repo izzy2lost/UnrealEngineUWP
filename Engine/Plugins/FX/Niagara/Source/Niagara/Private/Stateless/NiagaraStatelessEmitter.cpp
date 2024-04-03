@@ -132,8 +132,7 @@ bool UNiagaraStatelessEmitter::NeedsLoadForTargetPlatform(const ITargetPlatform*
 		return false;
 	}
 
-	const bool bStatelessEnabled = GetDefault<UNiagaraSettings>()->bStatelessEmittersEnabled;
-	const bool bIsEnabled = Platforms.IsEnabledForPlatform(TargetPlatform->IniPlatformName()) && bStatelessEnabled;
+	const bool bIsEnabled = Platforms.IsEnabledForPlatform(TargetPlatform->IniPlatformName());
 	if (!bIsEnabled)
 	{
 		UE_LOG(LogNiagara, Verbose, TEXT("Pruned emitter %s for platform %s"), *GetFullName(), *TargetPlatform->DisplayName().ToString())
@@ -255,7 +254,6 @@ void UNiagaraStatelessEmitter::CacheFromCompiledData()
 
 	StatelessEmitterData->bCanEverExecute = NiagaraStatelessInternal::IsValid(*StatelessEmitterData);
 	StatelessEmitterData->bCanEverExecute &= Platforms.IsActive();
-	StatelessEmitterData->bCanEverExecute &= GetDefault<UNiagaraSettings>()->bStatelessEmittersEnabled;
 
 	// Build buffers that are shared across all instances
 	//-OPT: We should be able to build and serialize this data as part of the UNiagaraStatelessEmitter, potentially all of this data even since it's immutable and does not change at runtime
