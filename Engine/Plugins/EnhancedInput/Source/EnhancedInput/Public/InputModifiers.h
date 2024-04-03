@@ -132,6 +132,7 @@ class UInputModifierDeadZone : public UInputModifier
 public:
 
 	// Threshold below which input is ignored
+	// This value should always be lower then the UpperThreshold.
 	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Category=Settings, Config, meta=(ClampMin=0, ClampMax=1))
 	float LowerThreshold = 0.2f;
 
@@ -143,6 +144,12 @@ public:
 	EDeadZoneType Type = EDeadZoneType::Radial;
 
 protected:
+
+#if WITH_EDITOR
+	virtual EDataValidationResult IsDataValid(class FDataValidationContext& Context) const override;
+	virtual void PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent) override;
+#endif
+
 	virtual FInputActionValue ModifyRaw_Implementation(const UEnhancedPlayerInput* PlayerInput, FInputActionValue CurrentValue, float DeltaTime) override;
 
 	// Visualize as black when unmodified. Red when blocked (with differing intensities to indicate axes)

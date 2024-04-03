@@ -123,6 +123,37 @@ FLinearColor UInputModifierNegate::GetVisualizationColor_Implementation(FInputAc
 * Dead zones
 */
 
+#if WITH_EDITOR
+EDataValidationResult UInputModifierDeadZone::IsDataValid(class FDataValidationContext& Context) const
+{
+	EDataValidationResult Result = CombineDataValidationResults(Super::IsDataValid(Context), EDataValidationResult::Valid);
+
+	// You cannot scale a boolean value
+	if (LowerThreshold > UpperThreshold)
+	{
+		Result = EDataValidationResult::Invalid;
+		Context.AddError(LOCTEXT("InputModifierDeadZone", "The 'Lower Threshold' cannot be greater then the 'Upper Threshold' of a deadzone."));
+	}
+
+	return Result;
+}
+
+void UInputModifierDeadZone::PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent)
+{
+	Super::PostEditChangeProperty(PropertyChangedEvent);
+
+	const FName MemberPropertyName = PropertyChangedEvent.GetMemberPropertyName();
+	if (MemberPropertyName == GET_MEMBER_NAME_CHECKED(UInputModifierDeadZone, LowerThreshold))
+	{
+		// Clamp the lower threshold to the upper threshold value.
+		if (LowerThreshold > UpperThreshold)
+		{
+			LowerThreshold = UpperThreshold;
+		}
+	}
+}
+#endif	// WITH_EDITOR
+
 FInputActionValue UInputModifierDeadZone::ModifyRaw_Implementation(const UEnhancedPlayerInput* PlayerInput, FInputActionValue CurrentValue, float DeltaTime)
 {
 	EInputActionValueType ValueType = CurrentValue.GetValueType();
