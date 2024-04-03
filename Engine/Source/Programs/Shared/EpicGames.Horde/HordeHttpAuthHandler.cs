@@ -100,15 +100,26 @@ namespace EpicGames.Horde
 		readonly IHttpClientFactory _httpClientFactory;
 		readonly IOptions<HordeOptions> _options;
 		readonly ILogger _logger;
+		
+		// Allow these to be overridden in tests
+		readonly ITokenStore? _tokenStore;
+		readonly IOidcTokenManager? _oidcTokenManager;
 
 		/// <summary>
 		/// Constructor
 		/// </summary>
-		public HordeHttpAuthHandlerState(IHttpClientFactory httpClientFactory, IOptions<HordeOptions> options, ILogger<HordeHttpAuthHandler> logger)
+		public HordeHttpAuthHandlerState(
+			IHttpClientFactory httpClientFactory,
+			IOptions<HordeOptions> options,
+			ILogger<HordeHttpAuthHandler> logger,
+			ITokenStore? tokenStore = null,
+			IOidcTokenManager? oidcTokenManager = null)
 		{
 			_httpClientFactory = httpClientFactory;
 			_options = options;
 			_logger = logger;
+			_tokenStore = tokenStore;
+			_oidcTokenManager = oidcTokenManager;
 		}
 
 		/// <inheritdoc/>
@@ -291,19 +302,8 @@ namespace EpicGames.Horde
 
 			string oidcProvider = authConfig.ProfileName ?? "Horde";
 
-			Dictionary<string, string?> values = new Dictionary<string, string?>();
-			values[$"Providers:{oidcProvider}:DisplayName"] = oidcProvider;
-			values[$"Providers:{oidcProvider}:ServerUri"] = authConfig.ServerUrl;
-			values[$"Providers:{oidcProvider}:ClientId"] = authConfig.ClientId;
-			values[$"Providers:{oidcProvider}:RedirectUri"] = localRedirectUrl;
-
-			ConfigurationBuilder builder = new ConfigurationBuilder();
-			builder.AddInMemoryCollection(values);
-
-			IConfiguration configuration = builder.Build();
-
-			using ITokenStore tokenStore = TokenStoreFactory.CreateTokenStore();
-			OidcTokenManager oidcTokenManager = OidcTokenManager.CreateTokenManager(configuration, tokenStore, new List<string>() { oidcProvider });
+			using ITokenStore tokenStore = CreateTokenStore();
+			IOidcTokenManager oidcTokenManager = CreateOidcTokenManager(tokenStore, authConfig, localRedirectUrl);
 
 			OidcTokenInfo? result = null;
 			if (oidcTokenManager.GetStatusForProvider(oidcProvider) != OidcStatus.NotLoggedIn)
@@ -324,6 +324,33 @@ namespace EpicGames.Horde
 			}
 
 			return new AuthState(authConfig.Method, result, interactive);
+		}
+		
+		private ITokenStore CreateTokenStore()
+		{
+			return _tokenStore ?? TokenStoreFactory.CreateTokenStore();
+		}
+
+		private IOidcTokenManager CreateOidcTokenManager(ITokenStore tokenStore, GetAuthConfigResponse authConfig, string localRedirectUrl)
+		{
+			if (_oidcTokenManager != null)
+			{
+				return _oidcTokenManager;
+			}
+			
+			string oidcProvider = authConfig.ProfileName ?? "Horde";
+
+			Dictionary<string, string?> values = new ();
+			values[$"Providers:{oidcProvider}:DisplayName"] = oidcProvider;
+			values[$"Providers:{oidcProvider}:ServerUri"] = authConfig.ServerUrl;
+			values[$"Providers:{oidcProvider}:ClientId"] = authConfig.ClientId;
+			values[$"Providers:{oidcProvider}:RedirectUri"] = localRedirectUrl;
+			
+			ConfigurationBuilder builder = new ();
+			builder.AddInMemoryCollection(values);
+			IConfiguration configuration = builder.Build();
+			
+			return OidcTokenManager.CreateTokenManager(configuration, tokenStore, new List<string>() { oidcProvider });
 		}
 	}
 }
