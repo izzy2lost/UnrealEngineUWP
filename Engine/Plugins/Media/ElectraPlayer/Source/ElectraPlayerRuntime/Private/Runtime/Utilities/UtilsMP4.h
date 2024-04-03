@@ -4,6 +4,7 @@
 
 #include <CoreMinimal.h>
 #include <Misc/Variant.h>
+#include "HTTP/HTTPManager.h"
 #include "Utils/MPEG/ElectraUtilsMP4.h"
 #include "MediaStreamMetadata.h"
 
@@ -13,6 +14,12 @@ namespace Electra
 class UtilsMP4
 {
 public:
+	static constexpr uint32 Make4CC(const uint8 A, const uint8 B, const uint8 C, const uint8 D)
+	{
+		return (static_cast<uint32>(A) << 24) | (static_cast<uint32>(B) << 16) | (static_cast<uint32>(C) << 8) | static_cast<uint32>(D);
+	}
+
+
 	/**
 	 * This class parses metadata embedded in an mp4 / ISO14496-12 file.
 	 * Presently only the structure as used and defined by Apple iTunes is supported.
@@ -77,6 +84,38 @@ public:
 		uint32 NumTotalItems = 0;
 	};
 
+
+	class FMP4RootBoxLocator
+	{
+	public:
+		struct FBoxInfo
+		{
+			int64 Size = 0;
+			int64 Offset = 0;
+			uint32 Type = 0;
+			uint8 UUID[16] {};
+			TSharedPtrTS<IElectraHttpManager::FReceiveBuffer> DataBuffer;
+		};
+		FMP4RootBoxLocator() = default;
+		~FMP4RootBoxLocator();
+		DECLARE_DELEGATE_RetVal(bool, FCancellationCheckDelegate);
+		bool LocateRootBoxes(TArray<FBoxInfo>& OutBoxInfos, const TSharedPtrTS<IElectraHttpManager>& InHTTPManager, const FString& InURL, const TArray<uint32>& InFirstBoxes, const TArray<uint32>& InStopAfterBoxes, const TArray<uint32>& InReadDataOfBoxes, FCancellationCheckDelegate InCheckCancellationDelegate);
+
+		int64 GetFileSize() const
+		{ return FileSize; }
+		bool DidDownloadFail() const
+		{ return bHasErrored; }
+		const HTTP::FConnectionInfo& GetConnectionInfo() const
+		{ return ConnectionInfo; }
+
+		const FString& GetErrorMessage() const
+		{ return ErrorMsg; }
+	private:
+		HTTP::FConnectionInfo ConnectionInfo;
+		FString ErrorMsg;
+		int64 FileSize = -1;
+		volatile bool bHasErrored = false;
+	};
 
 };
 
