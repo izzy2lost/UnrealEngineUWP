@@ -91,21 +91,12 @@ namespace UnrealGameSync
 		public override string ToolTip
 			=> HasAny() ? "" : $"No valid archives found at {DepotPath}";
 
-		// Get an optional list of badges that have to be green for this archive to be syncable
-
-		public List<string> RequiredBadges { get; init; } = new List<string>();
-
-		public PerforceArchiveChannel(string name, string type, string depotPath, string? target, List<string>? requiredBadges)
+		public PerforceArchiveChannel(string name, string type, string depotPath, string? target)
 			: base(name, type)
 		{
 			Target = target;
 			DepotPath = depotPath;
 			Target = target;
-
-			if (requiredBadges != null)
-			{
-				RequiredBadges = requiredBadges;
-			}
 		}
 
 		public override bool Equals(object? other)
@@ -176,11 +167,8 @@ namespace UnrealGameSync
 
 			string type = obj.GetValue("Type", null) ?? name;
 
-			List<string> requiredBadges = new List<string>();
-			requiredBadges.AddRange(obj.GetValue("RequiredBadges", "").Split(new char[] { ',' }, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries));
-
 			// Build a new list of zipped binaries
-			channel = new PerforceArchiveChannel(name, type, depotPath, target, requiredBadges);
+			channel = new PerforceArchiveChannel(name, type, depotPath, target);
 			return true;
 		}
 
@@ -225,7 +213,7 @@ namespace UnrealGameSync
 				if (legacyEditorArchivePath != null)
 				{
 					// Only Perforce uses the legacy method
-					PerforceArchiveChannel legacyChannel = new PerforceArchiveChannel("Editor", "Editor", legacyEditorArchivePath, null, null);
+					PerforceArchiveChannel legacyChannel = new PerforceArchiveChannel("Editor", "Editor", legacyEditorArchivePath, null);
 					await legacyChannel.FindArtifactsAsync(perforce, cancellationToken);
 					channels.Add(legacyChannel);
 				}

@@ -419,6 +419,7 @@ namespace UnrealGameSync
 		public List<ConfigObject> BuildSteps { get; init; } = new List<ConfigObject>();
 		public FilterType FilterType { get; set; }
 		public HashSet<string> FilterBadges { get; init; } = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+		public List<string> RequiredBadges { get; init; } = new List<string>();
 
 		static readonly object _syncRoot = new object();
 

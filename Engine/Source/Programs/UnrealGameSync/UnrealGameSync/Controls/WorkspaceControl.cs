@@ -288,6 +288,16 @@ namespace UnrealGameSync
 			_projectSettings = settings.FindOrAddProjectSettings(openProjectInfo.ProjectInfo, openProjectInfo.WorkspaceSettings, _logger);
 			_hordeClient = serviceProvider.GetService<IHordeClient>();
 
+			ConfigFile projectConfigFile = openProjectInfo.LatestProjectConfigFile;
+			if (projectConfigFile != null)
+			{
+				string? requiredBadges;
+				if (TryGetProjectSetting(projectConfigFile, "RequiredBadges", out requiredBadges))
+				{
+					 _projectSettings.RequiredBadges.AddRange(requiredBadges.Split(new char[] { ',' }, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries));
+				}
+			}
+
 			DesiredTaskbarState = Tuple.Create(TaskbarState.NoProgress, 0.0f);
 
 			System.Reflection.PropertyInfo doubleBufferedProperty = typeof(Control).GetProperty("DoubleBuffered", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!;
@@ -916,16 +926,6 @@ namespace UnrealGameSync
 						return;
 					}
 
-					PerforceArchiveChannel? perforceArchiveChannel = archiveChannel as PerforceArchiveChannel;
-					if ((perforceArchiveChannel != null) && (perforceArchiveChannel.RequiredBadges.Count > 0))
-					{
-						if (!CanSyncChange(changeNumber))
-						{
-							MessageBox.Show(String.Format("This change has not passed the required tests \"{0}\". To sync it, you must disable syncing of precompiled editor binaries.", String.Join(", ", perforceArchiveChannel.RequiredBadges)));
-							return;
-						}
-					}
-
 					if (archiveChannel.Type == IArchiveChannel.EditorArchiveType)
 					{
 						context.Options &= ~(WorkspaceUpdateOptions.Build | WorkspaceUpdateOptions.GenerateProjectFiles | WorkspaceUpdateOptions.OpenSolutionAfterSync);
@@ -938,6 +938,15 @@ namespace UnrealGameSync
 					}
 
 					context.ArchiveTypeToArchive[archiveChannel.Type] = archivePath;
+				}
+
+				if ((selectedArchiveChannels.Count > 0) && (_projectSettings.RequiredBadges.Count > 0))
+				{
+					if (!CanSyncChange(changeNumber))
+					{
+						MessageBox.Show(String.Format("This change has not passed the required tests \"{0}\". To sync it, you must disable syncing of precompiled editor binaries.", String.Join(", ", _projectSettings.RequiredBadges)));
+						return;
+					}
 				}
 			}
 			StartWorkspaceUpdate(context, callback);
@@ -2099,41 +2108,36 @@ namespace UnrealGameSync
 			List<IArchiveChannel> selectedArchives = GetSelectedArchiveChannels(GetArchiveChannels());
 			bool returnValue = selectedArchives.Count == 0 || selectedArchives.All(x => GetArchiveForChangeNumber(x, changeNumber) != null);
 
-			// If we can sync this change and we're using perforce archives, let's double check for any required badges
-			if (returnValue && (selectedArchives.Count == 1))
+			// If we can sync this change and we're using archives, let's double check for any required badges
+			if (returnValue && (selectedArchives.Count > 0) && (_projectSettings.RequiredBadges.Count > 0))
 			{
-				PerforceArchiveChannel? archiveChannel = selectedArchives[0] as PerforceArchiveChannel;
-
-				if ((archiveChannel != null) && (archiveChannel.RequiredBadges.Count > 0))
+				int currentChangeIdx = _sortedChangeNumbers.BinarySearch(changeNumber);
+				if (currentChangeIdx < 0)
 				{
-					int currentChangeIdx = _sortedChangeNumbers.BinarySearch(changeNumber);
-					if (currentChangeIdx < 0)
-					{
-						return returnValue;
-					}
-
-					bool foundRequiredBadges = false;
-					bool badgesSuccessful = false;
-
-					for (int idx = currentChangeIdx; idx >= 0; idx--)
-					{
-						int localChangeNumber = _sortedChangeNumbers[idx];
-
-						EventSummary? summary = _eventMonitor.GetSummaryForChange(localChangeNumber);
-
-						if (summary != null)
-						{
-							foundRequiredBadges = DoRequiredBadgesExist(archiveChannel.RequiredBadges, summary.Badges, out badgesSuccessful);
-						}
-
-						if (foundRequiredBadges)
-						{
-							break;
-						}
-					}
-
-					return badgesSuccessful;
+					return returnValue;
 				}
+
+				bool foundRequiredBadges = false;
+				bool badgesSuccessful = false;
+
+				for (int idx = currentChangeIdx; idx >= 0; idx--)
+				{
+					int localChangeNumber = _sortedChangeNumbers[idx];
+
+					EventSummary? summary = _eventMonitor.GetSummaryForChange(localChangeNumber);
+
+					if (summary != null)
+					{
+						foundRequiredBadges = DoRequiredBadgesExist(_projectSettings.RequiredBadges, summary.Badges, out badgesSuccessful);
+					}
+
+					if (foundRequiredBadges)
+					{
+						break;
+					}
+				}
+
+				return badgesSuccessful;
 			}
 
 			return returnValue;
