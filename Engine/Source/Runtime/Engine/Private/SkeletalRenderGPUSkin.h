@@ -27,6 +27,18 @@ class FRayTracingSkinnedGeometryUpdateQueue;
 class FSkeletalMeshObjectGPUSkin;
 class FVertexOffsetBuffers;
 
+enum class ESkeletalMeshGPUSkinTechnique : uint8
+{
+	// Skinning is performed inline when the mesh is rendered in the mesh pass.
+	Inline,
+
+	// Skinning is performed by the GPU skin cache but falls back to the inline mode on a per-section basis if the skin cache is full.
+	GPUSkinCache,
+
+	// Skinning is performed by the mesh deformer graph.
+	MeshDeformer
+};
+
 /** 
 * Stores the updated matrices needed to skin the verts.
 * Created by the game thread and sent to the rendering thread as an update 
@@ -140,16 +152,8 @@ public:
 	UE_DEPRECATED(5.2, "Use USkinnedMeshComponent::GetUpdateClothSimulationData_AnyThread() instead.")
 	ENGINE_API bool UpdateClothSimulationData(USkinnedMeshComponent* InMeshComponent);
 
-	// Whether this LOD is allowed to use the skin cache feature
-	uint8 bIsSkinCacheAllowed : 1;
-	
-	// Whether animation is done with a mesh deformer.
-	uint8 bHasMeshDeformer : 1;
-
-	// Whether to update dynamic bone & cloth sim data immediately, not to wait until GDME or defer update to RHIThread.
-	// When set to true, it is the equivalent of r.DeferSkeletalDynamicDataUpdateUntilGDME=0 and r.RHICmdDeferSkeletalLockAndFillToRHIThread=0.
-	// When set to false, r.DeferSkeletalDynamicDataUpdateUntilGDME and r.RHICmdDeferSkeletalLockAndFillToRHIThread values are respected.
-	uint8 bForceUpdateDynamicDataImmediately : 1;
+	/** The skinning technique to use for this mesh LOD. */
+	ESkeletalMeshGPUSkinTechnique GPUSkinTechnique;
 
 #if RHI_RAYTRACING
 	uint8 bAnySegmentUsesWorldPositionOffset : 1;
@@ -366,9 +370,8 @@ public:
 	ENGINE_API virtual void ReleaseResources() override;
 	ENGINE_API virtual void Update(int32 LODIndex,USkinnedMeshComponent* InMeshComponent,const FMorphTargetWeightMap& InActiveMorphTargets, const TArray<float>& InMorphTargetWeights, EPreviousBoneTransformUpdateMode PreviousBoneTransformUpdateMode, const FExternalMorphWeightData& InExternalMorphWeightData) override;
 	ENGINE_API void UpdateDynamicData_RenderThread(FGPUSkinCache* GPUSkinCache, FRHICommandList& RHICmdList, FDynamicSkelMeshObjectDataGPUSkin* InDynamicData, FSceneInterface* Scene, uint64 FrameNumberToPrepare, uint32 RevisionNumber, uint32 PreviousRevisionNumber, bool bRecreating);
-	ENGINE_API virtual void PreGDMECallback(FRHICommandList& RHICmdList, FGPUSkinCache* GPUSkinCache, uint32 FrameNumber) override;
 	ENGINE_API virtual const FVertexFactory* GetSkinVertexFactory(const FSceneView* View, int32 LODIndex,int32 ChunkIdx, ESkinVertexFactoryMode VFMode = ESkinVertexFactoryMode::Default) const override;
-	ENGINE_API virtual const FSkinBatchVertexFactoryUserData* GetVertexFactoryUserData(const int32 LODIndex, int32 ChunkIdx, ESkinVertexFactoryMode VFMode) const override;
+	ENGINE_API virtual const FVertexFactory* GetStaticSkinVertexFactory(int32 LODIndex, int32 ChunkIdx, ESkinVertexFactoryMode VFMode) const override;
 	ENGINE_API virtual TArray<FTransform>* GetComponentSpaceTransforms() const override;
 	ENGINE_API virtual const TArray<FMatrix44f>& GetReferenceToLocalMatrices() const override;
 	ENGINE_API virtual bool GetCachedGeometry(FCachedGeometry& OutCachedGeometry) const override;
@@ -486,6 +489,11 @@ public:
 
 	static ENGINE_API void GetUsedVertexFactoryData(FSkeletalMeshRenderData* SkelMeshRenderData, int32 InLOD, USkinnedMeshComponent* SkinnedMeshComponent, FSkelMeshRenderSection& RenderSection, ERHIFeatureLevel::Type InFeatureLevel, bool bHasMorphTargets, FPSOPrecacheVertexFactoryDataList& VertexFactoryDataList);
 
+	inline ESkeletalMeshGPUSkinTechnique GetGPUSkinTechnique(int32 LODIndex)
+	{
+		return LODs[LODIndex].GPUSkinTechnique;
+	}
+
 protected:
 	friend class FSkeletalMeshDeformerHelpers;
 
@@ -503,88 +511,45 @@ protected:
 		/** one passthrough vertex factory for each chunk */
 		TArray<TUniquePtr<FGPUSkinPassthroughVertexFactory>> PassthroughVertexFactories;
 
-		/** Vertex factory defining both the base mesh as well as the morph delta vertex decals */
-		TArray<TUniquePtr<FGPUBaseSkinVertexFactory>> MorphVertexFactories;
-
-		/** Vertex factory defining both the base mesh as well as the APEX cloth vertex data */
-		TArray<TUniquePtr<FGPUBaseSkinAPEXClothVertexFactory>> ClothVertexFactories;
-
-		/** 
+		/**
 		 * Init default vertex factory resources for this LOD 
 		 *
 		 * @param VertexBuffers - available vertex buffers to reference in vertex factory streams
 		 * @param Sections - relevant section information (either original or from swapped influence)
+		 * @param VertexAttributeMask - the mask of vertex attributes that can be written to by the passthrough vertex factory
 		 */
-		void InitVertexFactories(const FVertexFactoryBuffers& VertexBuffers, const TArray<FSkelMeshRenderSection>& Sections, ERHIFeatureLevel::Type FeatureLevel);
-		/** 
-		 * Release default vertex factory resources for this LOD 
-		 */
+		void InitVertexFactories(
+			const FVertexFactoryBuffers& VertexBuffers,
+			const TArray<FSkelMeshRenderSection>& Sections,
+			ERHIFeatureLevel::Type FeatureLevel,
+			FGPUSkinPassthroughVertexFactory::EVertexAttributeFlags VertexAttributeMask,
+			ESkeletalMeshGPUSkinTechnique GPUSkinTechnique);
+
 		void ReleaseVertexFactories();
-		/** 
-		 * Init morph vertex factory resources for this LOD 
-		 *
-		 * @param VertexBuffers - available vertex buffers to reference in vertex factory streams
-		 * @param Sections - relevant section information (either original or from swapped influence)
-		 */
-		void InitMorphVertexFactories(const FVertexFactoryBuffers& VertexBuffers, const TArray<FSkelMeshRenderSection>& Sections, bool bInUsePerBoneMotionBlur, ERHIFeatureLevel::Type InFeatureLevel);
-		/** 
-		 * Release morph vertex factory resources for this LOD 
-		 */
-		void ReleaseMorphVertexFactories();
-		/** 
-		 * Init APEX cloth vertex factory resources for this LOD 
-		 *
-		 * @param VertexBuffers - available vertex buffers to reference in vertex factory streams
-		 * @param Sections - relevant section information (either original or from swapped influence)
-		 */
-		void InitAPEXClothVertexFactories(const FVertexFactoryBuffers& VertexBuffers, const TArray<FSkelMeshRenderSection>& Sections, ERHIFeatureLevel::Type InFeatureLevel);
-		/** 
-		 * Release morph vertex factory resources for this LOD 
-		 */
-		void ReleaseAPEXClothVertexFactories();
-		
+
 		/** Refreshes the VertexFactor::FDataType to rebind any vertex buffers */
 		void UpdateVertexFactoryData(const FVertexFactoryBuffers& VertexBuffers);
 
-		/**
-		 * Clear factory arrays
-		 */
-		void ClearFactories()
+		uint64 GetResourceSize() const
 		{
-			VertexFactories.Empty();
-			MorphVertexFactories.Empty();
-			ClothVertexFactories.Empty();
+			return VertexFactories.GetAllocatedSize() + PassthroughVertexFactories.GetAllocatedSize();
 		}
 
-		/**
-		 * @return memory in bytes of size of the vertex factories and their matrices
-		 */
-		SIZE_T GetResourceSize()
-		{
-			SIZE_T Size = 0;
-			Size += VertexFactories.GetAllocatedSize();
-
-			Size += MorphVertexFactories.GetAllocatedSize();
-
-			Size += ClothVertexFactories.GetAllocatedSize();
-
-			return Size;
-		}	
-
-		private:
-			FVertexFactoryData(const FVertexFactoryData&);
-			FVertexFactoryData& operator=(const FVertexFactoryData&);
+	private:
+		FVertexFactoryData(const FVertexFactoryData&);
+		FVertexFactoryData& operator=(const FVertexFactoryData&);
 	};
 
 	/** vertex data for rendering a single LOD */
 	struct FSkeletalMeshObjectLOD
 	{
-		FSkeletalMeshObjectLOD(FSkeletalMeshRenderData* InSkelMeshRenderData,int32 InLOD, ERHIFeatureLevel::Type InFeatureLevel, FMorphVertexBufferPool* InRecreateBufferPool)
+		FSkeletalMeshObjectLOD(FSkeletalMeshRenderData* InSkelMeshRenderData, int32 InLOD, ERHIFeatureLevel::Type InFeatureLevel, FMorphVertexBufferPool* InRecreateBufferPool, ESkeletalMeshGPUSkinTechnique InSkinTechnique)
 			: SkelMeshRenderData(InSkelMeshRenderData)
 			, LODIndex(InLOD)
 			, FeatureLevel(InFeatureLevel)
 			, MeshObjectWeightBuffer(nullptr)
 			, MeshObjectColorBuffer(nullptr)
+			, GPUSkinTechnique(InSkinTechnique)
 		{
 			if (InRecreateBufferPool)
 			{
@@ -601,7 +566,11 @@ protected:
 		 * @param MeshLODInfo - information about the state of the bone influence swapping
 		 * @param CompLODInfo - information about this LOD from the skeletal component 
 		 */
-		void InitResources(const FSkelMeshObjectLODInfo& MeshLODInfo, FSkelMeshComponentLODInfo* CompLODInfo, ERHIFeatureLevel::Type FeatureLevel);
+		void InitResources(
+			const FSkelMeshObjectLODInfo& MeshLODInfo,
+			FSkelMeshComponentLODInfo* CompLODInfo,
+			ERHIFeatureLevel::Type FeatureLevel,
+			FGPUSkinPassthroughVertexFactory::EVertexAttributeFlags VertexAttributeMask);
 
 		/** 
 		 * Release rendering resources for this LOD 
@@ -614,11 +583,6 @@ protected:
 		 * @param Chunks - relevant chunk information (either original or from swapped influence)
 		 */
 		void InitMorphResources(const FSkelMeshObjectLODInfo& MeshLODInfo, bool bInUsePerBoneMotionBlur, ERHIFeatureLevel::Type FeatureLevel);
-
-		/** 
-		 * Release rendering resources for the morph stream of this LOD
-		 */
-		void ReleaseMorphResources();
 
 		/**
 		 * @return memory in bytes of size of the resources for this LOD
@@ -649,6 +613,9 @@ protected:
 
 		/** Mesh deformer output buffers */
 		FMeshDeformerGeometry DeformerGeometry;
+
+		/** The preferred skinning technique to use for this mesh LOD. */
+		ESkeletalMeshGPUSkinTechnique GPUSkinTechnique;
 
 		/**
 		 * Update the contents of the morphtarget vertex buffer by accumulating all 
@@ -681,11 +648,6 @@ protected:
 	*/
 	ENGINE_API void InitMorphResources(bool bInUsePerBoneMotionBlur, const TArray<float>& MorphTargetWeights);
 
-	/** 
-	* Release morph rendering resources for each LOD. 
-	*/
-	ENGINE_API void ReleaseMorphResources();
-
 	ENGINE_API void ProcessUpdatedDynamicData(EGPUSkinCacheEntryMode Mode, FGPUSkinCache* GPUSkinCache, FRHICommandList& RHICmdList, uint32 FrameNumberToPrepare, uint32 RevisionNumber, uint32 PreviousRevisionNumber, bool bMorphNeedsUpdate, int32 LODIndex, bool bRecreating);
 
 	ENGINE_API virtual void UpdateMorphVertexBuffer(FRHICommandList& RHICmdList, EGPUSkinCacheEntryMode Mode, FSkeletalMeshObjectLOD& LOD, const FSkeletalMeshLODRenderData& LODData, bool bGPUSkinCacheEnabled, FMorphVertexBuffer& MorphVertexBuffer);
@@ -694,28 +656,18 @@ protected:
 	TArray<struct FSkeletalMeshObjectLOD> LODs;
 
 	/** Data that is updated dynamically and is needed for rendering */
-	FDynamicSkelMeshObjectDataGPUSkin* DynamicData;
-
-	/** True if we are doing a deferred update later in GDME. */
-	bool bNeedsUpdateDeferred;
-
-	/** If true and we are doing a deferred update, then also update the morphs */
-	bool bMorphNeedsUpdateDeferred;
+	FDynamicSkelMeshObjectDataGPUSkin* DynamicData = nullptr;
+	
+	/** last updated bone transform revision number */
+	uint32 LastBoneTransformRevisionNumber = 0;
 
 	/** true if the morph resources have been initialized */
-	bool bMorphResourcesInitialized;
-
-	/** last updated bone transform revision number */
-	uint32 LastBoneTransformRevisionNumber;
-
-	/** true to indicate that a subclass is handling the update of the morph vertex buffer and that it should always be called */
-	bool bAlwaysUpdateMorphVertexBuffer;
+	bool bMorphResourcesInitialized = false;
 
 private:
 	ENGINE_API FSkeletalMeshObjectGPUSkin(const FSkeletalMeshObjectGPUSkin&);
 	ENGINE_API FSkeletalMeshObjectGPUSkin& operator=(const FSkeletalMeshObjectGPUSkin&);
 };
-
 
 class FGPUMorphUpdateCS : public FGlobalShader
 {

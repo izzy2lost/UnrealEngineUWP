@@ -23,6 +23,7 @@ FSkeletalMeshObjectStatic::FSkeletalMeshObjectStatic(USkinnedMeshComponent* InMe
 	}
 
 	InitResources(InMeshComponent);
+	bSupportsStaticRelevance = true;
 }
 
 FSkeletalMeshObjectStatic::~FSkeletalMeshObjectStatic()
@@ -166,8 +167,12 @@ void FSkeletalMeshObjectStatic::ReleaseResources()
 
 const FVertexFactory* FSkeletalMeshObjectStatic::GetSkinVertexFactory(const FSceneView* View, int32 LODIndex, int32 ChunkIdx, ESkinVertexFactoryMode VFMode) const
 {
-	check(LODs.IsValidIndex(LODIndex));
 	return &LODs[LODIndex].VertexFactory; 
+}
+
+const FVertexFactory* FSkeletalMeshObjectStatic::GetStaticSkinVertexFactory(int32 LODIndex, int32 ChunkIdx, ESkinVertexFactoryMode VFMode) const
+{
+	return &LODs[LODIndex].VertexFactory;
 }
 
 TArray<FTransform>* FSkeletalMeshObjectStatic::GetComponentSpaceTransforms() const

@@ -175,6 +175,13 @@ const FVertexFactory* FSkeletalMeshObjectNanite::GetSkinVertexFactory(const FSce
 	//return &LODs[LODIndex].VertexFactory;
 }
 
+const FVertexFactory* FSkeletalMeshObjectNanite::GetStaticSkinVertexFactory(int32 LODIndex, int32 ChunkIdx, ESkinVertexFactoryMode VFMode) const
+{
+	check(LODs.IsValidIndex(LODIndex));
+	return nullptr;
+	//return &LODs[LODIndex].VertexFactory;
+}
+
 TArray<FTransform>* FSkeletalMeshObjectNanite::GetComponentSpaceTransforms() const
 {
 #if !(UE_BUILD_SHIPPING || UE_BUILD_TEST)

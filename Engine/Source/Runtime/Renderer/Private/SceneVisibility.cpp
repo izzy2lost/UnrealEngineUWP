@@ -1401,14 +1401,25 @@ void FRelevancePacket::ComputeRelevance(FDynamicPrimitiveIndexList& DynamicPrimi
 
 		if (bStaticRelevance && (bDrawRelevance || bShadowRelevance))
 		{
+			const FDesiredLODLevel DesiredLODLevel = PrimitiveSceneProxy->GetDesiredLODLevel_RenderThread(&View);
+
 			int32 PrimitiveIndex = BitIndex;
 			const FPrimitiveBounds& Bounds = Scene.PrimitiveBounds[PrimitiveIndex];
 			const bool bIsPrimitiveDistanceCullFading = View.PrimitiveFadeUniformBufferMap[PrimitiveIndex];
 
-			const int8 CurFirstLODIdx = PrimitiveSceneProxy->GetCurrentFirstLODIdx_RenderThread();
-			check(CurFirstLODIdx >= 0);
+			check(DesiredLODLevel.LOD >= 0);
 			float MeshScreenSizeSquared = 0;
-			FLODMask LODToRender = ComputeLODForMeshes(PrimitiveSceneInfo->StaticMeshRelevances, View, Bounds.BoxSphereBounds.Origin, Bounds.BoxSphereBounds.SphereRadius, PrimitiveSceneInfo->GpuLodInstanceRadius, ViewData.ForcedLODLevel, MeshScreenSizeSquared, CurFirstLODIdx, ViewData.LODScale);
+
+			FLODMask LODToRender;
+
+			if (DesiredLODLevel.IsFixed())
+			{
+				LODToRender.SetLOD(DesiredLODLevel.LOD);
+			}
+			else
+			{
+				LODToRender = ComputeLODForMeshes(PrimitiveSceneInfo->StaticMeshRelevances, View, Bounds.BoxSphereBounds.Origin, Bounds.BoxSphereBounds.SphereRadius, PrimitiveSceneInfo->GpuLodInstanceRadius, ViewData.ForcedLODLevel, MeshScreenSizeSquared, DesiredLODLevel.LOD, ViewData.LODScale);
+			}
 
 			PrimitivesLODMask.AddPrim(FRelevancePacket::FPrimitiveLODMask(PrimitiveIndex, LODToRender));
 

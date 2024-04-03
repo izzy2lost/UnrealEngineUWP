@@ -19,6 +19,7 @@
 #include "MeshUVChannelInfo.h"
 #include "SkeletalMeshTypes.h"
 #include "RenderMath.h"
+#include "Async/Mutex.h"
 
 class FPrimitiveDrawInterface;
 class FVertexFactory;
@@ -100,9 +101,8 @@ public:
 	 * Called by FSkeletalMeshObject prior to GDME. This allows the GPU skin version to update bones etc now that we know we are going to render
 	 * @param FrameNumber from GFrameNumber
 	 */
-	virtual void PreGDMECallback(FRHICommandList& RHICmdList, class FGPUSkinCache* GPUSkinCache, uint32 FrameNumber)
-	{
-	}
+	UE_DEPRECATED(5.5, "PreGDMECallback is no longer used")
+	virtual void PreGDMECallback(FRHICommandList& RHICmdList, class FGPUSkinCache* GPUSkinCache, uint32 FrameNumber) {}
 
 	/**
 	 * @param	View - View, must not be 0, allows to cull depending on showflags (normally not needed/used in SHIPPING)
@@ -113,10 +113,11 @@ public:
 	virtual const FVertexFactory* GetSkinVertexFactory(const FSceneView* View, int32 LODIndex, int32 ChunkIdx, ESkinVertexFactoryMode VFMode = ESkinVertexFactoryMode::Default) const = 0;
 
 	/**
-	 * @param	LODIndex - Index to LODs
-	 * @param	ChunkIdx - Index to render sections.
-	 * @return	VertexFactoryUserData for storing on a FMeshBatch.
-	 */
+     * Called by DrawStaticElements to cache mesh draw commands for skeletal meshes.
+     */
+	virtual const FVertexFactory* GetStaticSkinVertexFactory(int32 LODIndex, int32 ChunkIdx, ESkinVertexFactoryMode VFMode) const = 0;
+
+	UE_DEPRECATED(5.5, "This method is no longer in use")
 	virtual const FSkinBatchVertexFactoryUserData* GetVertexFactoryUserData(const int32 LODIndex, int32 ChunkIdx, ESkinVertexFactoryMode VFMode) const { return nullptr; }
 
 	/**
@@ -183,7 +184,7 @@ public:
 	 *	This is called from the rendering thread (PreRender) so be very careful what you read/write to.
 	 * @param FrameNumber from ViewFamily.FrameNumber
 	 */
-	void UpdateMinDesiredLODLevel(const FSceneView* View, const FBoxSphereBounds& Bounds, int32 FrameNumber);
+	void UpdateMinDesiredLODLevel(const FSceneView* View, const FBoxSphereBounds& Bounds);
 
 	/**
 	 *	Return true if this does have valid dynamic data to render
@@ -326,6 +327,11 @@ public:
 		return FeatureLevel;
 	}
 
+	bool SupportsStaticRelevance() const
+	{
+		return bSupportsStaticRelevance;
+	}
+
 	/**
 	 * Returns the display factor for the given LOD level
 	 *
@@ -352,10 +358,16 @@ protected:
 	/** Used to keep track of the first call to UpdateMinDesiredLODLevel each frame. from ViewFamily.FrameNumber */
 	uint32 LastFrameNumber;
 
+	/** Guards the call to UpdateMinDesiredLODLevel */
+	UE::FMutex DesiredLODLevelMutex;
+
 	/** 
 	 *	If true, per-bone motion blur is enabled for this object. This includes is the system overwrites the skeletal mesh setting.
 	 */
 	bool bUsePerBoneMotionBlur;
+
+	/** If true, the skeletal mesh will take the static relevance path using cached mesh draw commands. */
+	bool bSupportsStaticRelevance = false;
 
 	/** Used for dynamic stats */
 	TStatId StatId;

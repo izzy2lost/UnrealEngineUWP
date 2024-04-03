@@ -1698,10 +1698,17 @@ FLODMask FProjectedShadowInfo::CalcAndUpdateLODToRender(FViewInfo& CurrentView, 
 	if (ForcedLOD > -1 || !ShadowLODToRender.IsValid() || bShadowLODDistanceFactorEnabled)
 	{
 		float MeshScreenSizeSquared = 0;
-		const int8 CurFirstLODIdx = PrimitiveSceneInfo->Proxy->GetCurrentFirstLODIdx_RenderThread();
+		const FDesiredLODLevel DesiredLODLevel = PrimitiveSceneInfo->Proxy->GetDesiredLODLevel_RenderThread(&CurrentView);
 
-		const float LODScale = ShadowLODDistanceFactor * CurrentView.LODDistanceFactor * GetCachedScalabilityCVars().StaticMeshLODDistanceScale;
-		ShadowLODToRender = ComputeLODForMeshes(PrimitiveSceneInfo->StaticMeshRelevances, CurrentView, Bounds.Origin, Bounds.SphereRadius, PrimitiveSceneInfo->GpuLodInstanceRadius, ForcedLOD, MeshScreenSizeSquared, CurFirstLODIdx, LODScale);
+		if (DesiredLODLevel.IsFixed())
+		{
+			ShadowLODToRender.SetLOD(DesiredLODLevel.LOD);
+		}
+		else
+		{
+			const float LODScale = ShadowLODDistanceFactor * CurrentView.LODDistanceFactor * GetCachedScalabilityCVars().StaticMeshLODDistanceScale;
+			ShadowLODToRender = ComputeLODForMeshes(PrimitiveSceneInfo->StaticMeshRelevances, CurrentView, Bounds.Origin, Bounds.SphereRadius, PrimitiveSceneInfo->GpuLodInstanceRadius, ForcedLOD, MeshScreenSizeSquared, DesiredLODLevel.LOD, LODScale);
+		}
 
 		// TODO: support caching when ShadowLODDistanceFactorEnabled (cascades of the same type (regular/far) could reuse results)
 		if (!bShadowLODDistanceFactorEnabled)
@@ -2016,10 +2023,9 @@ bool FProjectedShadowInfo::AddSubjectPrimitive(FDynamicShadowsTaskData& TaskData
 						}
 					}
 
-					// Update visibility for meshes which weren't visible in the main views or were visible with static relevance
-					if (!CurrentView.PrimitiveVisibilityMap[PrimitiveId] || CurrentView.PrimitiveViewRelevanceMap[PrimitiveId].bStaticRelevance)
+					if (CurrentView.PrimitiveViewRelevanceMap[PrimitiveId].bStaticRelevance)
 					{
-						bDrawingStaticMeshes |= ShouldDrawStaticMeshes(CurrentView, PrimitiveSceneInfo);						
+						bDrawingStaticMeshes |= ShouldDrawStaticMeshes(CurrentView, PrimitiveSceneInfo);
 					}
 				}
 			}
@@ -2238,8 +2244,7 @@ uint64 FProjectedShadowInfo::AddSubjectPrimitive_AnyThread(
 					}
 				}
 
-				// Update visibility for meshes which weren't visible in the main views or were visible with static relevance
-				if (bStaticRelevance || !CurrentView->PrimitiveVisibilityMap[PrimitiveId])
+				if (bStaticRelevance)
 				{
 					bDrawingStaticMeshes |= ShouldDrawStaticMeshes_AnyThread(
 						*CurrentView,

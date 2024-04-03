@@ -225,24 +225,29 @@ void FSkeletalMeshDeformerHelpers::UpdateVertexFactoryBufferOverrides(FRHIComman
 	FGPUSkinPassthroughVertexFactory::FAddVertexAttributeDesc Desc;
 	Desc.FrameNumber = DeformerGeometry.PositionUpdatedFrame;
 
+	bool bAssignedAttributes = false;
+
 	if (DeformerGeometry.PositionSRV)
 	{
-		Desc.VertexAttributes.Add(FGPUSkinPassthroughVertexFactory::VertexPosition);
+		Desc.StreamBuffers[FGPUSkinPassthroughVertexFactory::VertexPosition] = DeformerGeometry.Position->GetRHI();
 		Desc.SRVs[FGPUSkinPassthroughVertexFactory::Position] = DeformerGeometry.PositionSRV;
 		Desc.SRVs[FGPUSkinPassthroughVertexFactory::PreviousPosition] = DeformerGeometry.PrevPositionSRV;
+		bAssignedAttributes = true;
 	}
 	if (DeformerGeometry.TangentSRV)
 	{
-		Desc.VertexAttributes.Add(FGPUSkinPassthroughVertexFactory::VertexTangent);
+		Desc.StreamBuffers[FGPUSkinPassthroughVertexFactory::VertexTangent] = DeformerGeometry.Tangent->GetRHI();
 		Desc.SRVs[FGPUSkinPassthroughVertexFactory::Tangent] = DeformerGeometry.TangentSRV;
+		bAssignedAttributes = true;
 	}
 	if (DeformerGeometry.ColorSRV)
 	{
-		Desc.VertexAttributes.Add(FGPUSkinPassthroughVertexFactory::VertexColor);
+		Desc.StreamBuffers[FGPUSkinPassthroughVertexFactory::VertexColor] = DeformerGeometry.Color->GetRHI();
 		Desc.SRVs[FGPUSkinPassthroughVertexFactory::Color] = DeformerGeometry.ColorSRV;
+		bAssignedAttributes = true;
 	}
 
-	if (Desc.VertexAttributes.Num() == 0)
+	if (!bAssignedAttributes)
 	{
 		return;
 	}
@@ -284,12 +289,8 @@ void FSkeletalMeshDeformerHelpers::ResetVertexFactoryBufferOverrides(FSkeletalMe
 	const int32 NumSections = InMeshObject->GetRenderSections(LODIndex).Num();
 	for (int32 SectionIndex = 0; SectionIndex < NumSections; ++SectionIndex)
 	{
-		FGPUBaseSkinVertexFactory const* BaseVertexFactory = MeshObjectGPU->GetBaseSkinVertexFactory(LODIndex, SectionIndex);
 		FGPUSkinPassthroughVertexFactory* TargetVertexFactory = LOD.GPUSkinVertexFactories.PassthroughVertexFactories[SectionIndex].Get();
-		TargetVertexFactory->ResetVertexAttributes();
-		FGPUSkinPassthroughVertexFactory::FDataType Data;
-		BaseVertexFactory->CopyDataTypeForLocalVertexFactory(Data);
-		TargetVertexFactory->SetData(RHICmdList, Data);
+		TargetVertexFactory->ResetVertexAttributes(RHICmdList);
 	}
 
 #if RHI_RAYTRACING

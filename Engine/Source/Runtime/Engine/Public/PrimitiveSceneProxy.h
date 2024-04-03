@@ -57,6 +57,39 @@ namespace RayTracing
 }
 #endif
 
+struct FDesiredLODLevel
+{
+	enum class EType : uint8
+	{
+		// LOD is the first in a set of LODs that can be selected from.
+		First,
+
+		// LOD is fixed to a pre-selected level.
+		Fixed
+	};
+
+	static FDesiredLODLevel CreateFixed(uint8 LOD)
+	{
+		return FDesiredLODLevel(LOD, EType::Fixed);
+	}
+	
+	static FDesiredLODLevel CreateFirst(uint8 LOD)
+	{
+		return FDesiredLODLevel(LOD, EType::First);
+	}
+
+	FDesiredLODLevel(uint8 InLOD, EType InType)
+		: LOD(InLOD)
+		, Type(InType)
+	{}
+
+	bool IsFixed() const { return Type == EType::Fixed; }
+	bool IsFirst() const { return Type == EType::First; }
+
+	uint8 LOD = 0;
+	EType Type = EType::First;
+};
+
 /** Data for a simple dynamic light. */
 class FSimpleLightEntry
 {
@@ -1073,6 +1106,8 @@ public:
 	FORCEINLINE bool IsDrawnInEditor() const { return DrawInEditor; }
 
 	virtual uint8 GetCurrentFirstLODIdx_RenderThread() const { return 0; }
+
+	virtual FDesiredLODLevel GetDesiredLODLevel_RenderThread(const FSceneView* View) const { return FDesiredLODLevel::CreateFirst(0); }
 
 	/** Returns a scale to apply to ScreenSize used in LOD calculation. */
 	virtual float GetLodScreenSizeScale() const { return 1.f; }

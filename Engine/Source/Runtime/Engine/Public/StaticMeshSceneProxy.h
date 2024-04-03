@@ -77,6 +77,11 @@ public:
 		return GetCurrentFirstLODIdx_Internal();
 	}
 
+	virtual FDesiredLODLevel GetDesiredLODLevel_RenderThread(const FSceneView* View) const final override
+	{
+		return FDesiredLODLevel::CreateFirst(GetCurrentFirstLODIdx_Internal());
+	}
+
 	ENGINE_API virtual int32 GetLightMapCoordinateIndex() const override;
 
 	ENGINE_API virtual bool GetInstanceWorldPositionOffsetDisableDistance(float& OutWPODisableDistance) const override;

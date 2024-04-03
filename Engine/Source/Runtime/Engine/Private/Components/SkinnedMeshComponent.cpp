@@ -453,8 +453,6 @@ USkinnedMeshComponent::USkinnedMeshComponent(const FObjectInitializer& ObjectIni
 	bNeedToFlipSpaceBaseBuffers = false;
 	bBoneVisibilityDirty = false;
 
-	bForceUpdateDynamicDataImmediately = false;
-
 	bCanEverAffectNavigation = false;
 	LeaderBoneMapCacheCount = 0;
 	bSyncAttachParentLOD = true;
@@ -1061,8 +1059,6 @@ void USkinnedMeshComponent::CreateRenderState_Concurrent(FRegisterComponentConte
 		PreviousMeshObject = nullptr;
 	}
 
-	Super::CreateRenderState_Concurrent(Context);
-
 	if (GetSkinnedAsset())
 	{
 		BoneTransformUpdateMethodQueue.Reset();
@@ -1122,6 +1118,8 @@ void USkinnedMeshComponent::CreateRenderState_Concurrent(FRegisterComponentConte
 		Desc.OwnerName = GetSkinnedAsset() != nullptr ? GetSkinnedAsset()->GetFName() : GetFName();
 		MeshDeformerInstance->EnqueueWork(Desc);
 	}
+
+	Super::CreateRenderState_Concurrent(Context);
 }
 
 void USkinnedMeshComponent::DestroyRenderState_Concurrent()
@@ -1182,7 +1180,6 @@ void USkinnedMeshComponent::SendRenderDynamicData_Concurrent()
 {
 	SCOPE_CYCLE_COUNTER(STAT_SkelCompUpdateTransform);
 
-	Super::SendRenderDynamicData_Concurrent();
 
 #if WITH_EDITOR
 	if (GetSkinnedAsset() && GetSkinnedAsset()->IsCompiling())
@@ -1248,6 +1245,8 @@ void USkinnedMeshComponent::SendRenderDynamicData_Concurrent()
 			DeformerInstanceForLOD->EnqueueWork(Desc);
 		}
 	}
+
+	Super::SendRenderDynamicData_Concurrent();
 }
 
 void USkinnedMeshComponent::ClearMotionVector()

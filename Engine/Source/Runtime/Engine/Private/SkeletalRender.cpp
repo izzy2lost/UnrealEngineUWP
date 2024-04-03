@@ -116,10 +116,13 @@ FSkeletalMeshObject::~FSkeletalMeshObject()
 {
 }
 
-void FSkeletalMeshObject::UpdateMinDesiredLODLevel(const FSceneView* View, const FBoxSphereBounds& Bounds, int32 FrameNumber)
+void FSkeletalMeshObject::UpdateMinDesiredLODLevel(const FSceneView* View, const FBoxSphereBounds& Bounds)
 {
+	check(View);
+	check(View->Family);
+
 	// Thumbnail rendering doesn't contribute to MinDesiredLODLevel calculation
-	if (View->Family && (View->Family->bThumbnailRendering || !View->Family->GetIsInFocus()))
+	if ((View->Family->bThumbnailRendering || !View->Family->GetIsInFocus()))
 	{
 		return;
 	}
@@ -128,8 +131,9 @@ void FSkeletalMeshObject::UpdateMinDesiredLODLevel(const FSceneView* View, const
 	float LODScale = FMath::Clamp(SkeletalMeshLODRadiusScale->GetValueOnRenderThread(), 0.25f, 1.0f);
 
 	const float ScreenRadiusSquared = ComputeBoundsScreenRadiusSquared(Bounds.Origin, Bounds.SphereRadius, *View) * LODScale * LODScale;
+	const uint32 FrameNumber = View->Family->FrameNumber;
 
-	checkf( SkeletalMeshLODInfo.Num() == SkeletalMeshRenderData->LODRenderData.Num(), TEXT("Mismatched LOD arrays. SkeletalMeshLODInfo.Num() = %d, SkeletalMeshRenderData->LODRenderData.Num() = %d"), SkeletalMeshLODInfo.Num(), SkeletalMeshRenderData->LODRenderData.Num());
+	checkf(SkeletalMeshLODInfo.Num() == SkeletalMeshRenderData->LODRenderData.Num(), TEXT("Mismatched LOD arrays. SkeletalMeshLODInfo.Num() = %d, SkeletalMeshRenderData->LODRenderData.Num() = %d"), SkeletalMeshLODInfo.Num(), SkeletalMeshRenderData->LODRenderData.Num());
 
 	// Need the current LOD
 	const int32 CurrentLODLevel = GetLOD();
@@ -138,27 +142,34 @@ void FSkeletalMeshObject::UpdateMinDesiredLODLevel(const FSceneView* View, const
 	int32 NewLODLevel = 0;
 
 	// Look for a lower LOD if the EngineShowFlags is enabled
-	if( View->Family && 1==View->Family->EngineShowFlags.LOD )
+	if (View->Family->EngineShowFlags.LOD)
 	{
 		// Iterate from worst to best LOD
-		for(int32 LODLevel = SkeletalMeshRenderData->LODRenderData.Num()-1; LODLevel > 0; LODLevel--)
+		for (int32 LODLevel = SkeletalMeshRenderData->LODRenderData.Num() - 1; LODLevel > 0; LODLevel--)
 		{
 			// Get ScreenSize for this LOD
 			float ScreenSize = SkeletalMeshLODInfo[LODLevel].ScreenSize.GetValue();
 
 			// If we are considering shifting to a better (lower) LOD, bias with hysteresis.
-			if(LODLevel  <= CurrentLODLevel)
+			if (LODLevel  <= CurrentLODLevel)
 			{
 				ScreenSize += SkeletalMeshLODInfo[LODLevel].LODHysteresis;
 			}
 
 			// If have passed this boundary, use this LOD
-			if(FMath::Square(ScreenSize * 0.5f) > ScreenRadiusSquared)
+			if (FMath::Square(ScreenSize * 0.5f) > ScreenRadiusSquared)
 			{
 				NewLODLevel = LODLevel;
 				break;
 			}
 		}
+	}
+
+	// When rendering multiple views we need to guard the assignment with a mutex since relevance can occur in parallel.
+	const bool bMultiView = View->Family->Views.Num() > 1;
+	if (bMultiView)
+	{
+		DesiredLODLevelMutex.Lock();
 	}
 
 	if (!LastFrameNumber)
@@ -183,6 +194,11 @@ void FSkeletalMeshObject::UpdateMinDesiredLODLevel(const FSceneView* View, const
 	{
 		WorkingMaxDistanceFactor = FMath::Max(WorkingMaxDistanceFactor, ScreenRadiusSquared);
 		WorkingMinDesiredLODLevel = FMath::Min(WorkingMinDesiredLODLevel, NewLODLevel);
+	}
+
+	if (bMultiView)
+	{
+		DesiredLODLevelMutex.Unlock();
 	}
 }
 

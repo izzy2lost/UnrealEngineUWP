@@ -73,6 +73,7 @@ FSkeletalMeshObjectCPUSkin::FSkeletalMeshObjectCPUSkin(USkinnedMeshComponent* In
 	}
 
 	InitResources(InMeshComponent);
+	bSupportsStaticRelevance = true;
 }
 
 
@@ -314,6 +315,11 @@ void FSkeletalMeshObjectCPUSkin::CacheVertices(int32 LODIndex, bool bForce, FRHI
 }
 
 const FVertexFactory* FSkeletalMeshObjectCPUSkin::GetSkinVertexFactory(const FSceneView* View, int32 LODIndex, int32 ChunkIdx, ESkinVertexFactoryMode VFMode) const
+{
+	return GetStaticSkinVertexFactory(LODIndex, ChunkIdx, VFMode);
+}
+
+const FVertexFactory* FSkeletalMeshObjectCPUSkin::GetStaticSkinVertexFactory(int32 LODIndex, int32 ChunkIdx, ESkinVertexFactoryMode VFMode) const
 {
 	check( LODs.IsValidIndex(LODIndex) );
 	return &LODs[LODIndex].VertexFactory;

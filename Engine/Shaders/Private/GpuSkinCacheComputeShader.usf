@@ -33,7 +33,7 @@ void GetMorphBuffer(uint VertexIndex, out float3 DeltaPosition, out half3 DeltaT
  {
 	// see CPU code: "check(MorphStride == sizeof(float) * 6);"
 	// in floats
-	// 3 + 3 floats because of the format defined in InitMorphVertexFactoryComponents / FMorphGPUSkinVertex
+	// 3 + 3 floats because of the format defined in FMorphGPUSkinVertex
 	uint Offset = VertexIndex * (3 + 3);
 
 	DeltaPosition = float3(

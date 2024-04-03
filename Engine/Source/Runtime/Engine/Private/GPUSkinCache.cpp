@@ -24,6 +24,7 @@ GPUSkinCache.cpp: Performs skinning on a compute shader into a buffer to avoid v
 #include "RenderingThread.h"
 #include "Stats/StatsTrace.h"
 #include "UObject/UObjectIterator.h"
+#include "ComponentRecreateRenderStateContext.h"
 
 DEFINE_STAT(STAT_GPUSkinCache_TotalNumChunks);
 DEFINE_STAT(STAT_GPUSkinCache_TotalNumVertices);
@@ -273,12 +274,6 @@ public:
 	{
 		const TArray<FSkelMeshRenderSection>& Sections = InGPUSkin->GetRenderSections(LOD);
 		DispatchData.AddDefaulted(Sections.Num());
-		BatchElementsUserData.AddZeroed(Sections.Num());
-		for (int32 Index = 0; Index < Sections.Num(); ++Index)
-		{
-			BatchElementsUserData[Index].SkinCacheEntry = this;
-			BatchElementsUserData[Index].SectionIndex = Index;
-		}
 
 		UpdateSkinWeightBuffer();
 	}
@@ -391,11 +386,11 @@ public:
 		{
 			FGPUSkinPassthroughVertexFactory::FAddVertexAttributeDesc Desc;
 			Desc.FrameNumber = SourceVertexFactory->GetShaderData().UpdatedFrameNumber;
-			Desc.VertexAttributes.Add(FGPUSkinPassthroughVertexFactory::VertexPosition);
-			Desc.VertexAttributes.Add(FGPUSkinPassthroughVertexFactory::VertexTangent);
-			Desc.SRVs[FGPUSkinPassthroughVertexFactory::Position] = GetPositionRWBuffer()->Buffer.SRV;
-			Desc.SRVs[FGPUSkinPassthroughVertexFactory::PreviousPosition] = GetPreviousPositionRWBuffer()->Buffer.SRV;
-			Desc.SRVs[FGPUSkinPassthroughVertexFactory::Tangent] = GetTangentRWBuffer()->Buffer.SRV;
+			Desc.StreamBuffers[FGPUSkinPassthroughVertexFactory::EVertexAttribute::VertexPosition] = GetPositionRWBuffer()->Buffer.Buffer;
+			Desc.StreamBuffers[FGPUSkinPassthroughVertexFactory::EVertexAttribute::VertexTangent] = GetTangentRWBuffer()->Buffer.Buffer;
+			Desc.SRVs[FGPUSkinPassthroughVertexFactory::EShaderResource::Position] = GetPositionRWBuffer()->Buffer.SRV;
+			Desc.SRVs[FGPUSkinPassthroughVertexFactory::EShaderResource::PreviousPosition] = GetPreviousPositionRWBuffer()->Buffer.SRV;
+			Desc.SRVs[FGPUSkinPassthroughVertexFactory::EShaderResource::Tangent] = GetTangentRWBuffer()->Buffer.SRV;
 			TargetVertexFactory->SetVertexAttributes(RHICmdList, SourceVertexFactory, Desc);
 		}
 	};
@@ -551,8 +546,6 @@ public:
 		Data.SourceVertexFactory = InSourceVertexFactory;
 		Data.TargetVertexFactory = InTargetVertexFactory;
 
-		InTargetVertexFactory->ResetVertexAttributes();
-
 		int32 RecomputeTangentsMode = GSkinCacheRecomputeTangents;
 		if (RecomputeTangentsMode > 0)
 		{
@@ -588,7 +581,6 @@ protected:
 	EGPUSkinCacheEntryMode Mode;
 	FGPUSkinCache::FRWBuffersAllocation* PositionAllocation;
 	FGPUSkinCache* SkinCache;
-	TArray<FSkinBatchVertexFactoryUserData> BatchElementsUserData;
 	TArray<FSectionDispatchData> DispatchData;
 	FSkeletalMeshObjectGPUSkin* GPUSkin;
 	int BoneInfluenceType;
@@ -1994,30 +1986,6 @@ void FGPUSkinCache::Release(FGPUSkinCacheEntry*& SkinCacheEntry)
 	}
 }
 
-void FGPUSkinCache::GetShaderVertexStreams(
-	const FGPUSkinCacheEntry* Entry, 
-	int32 Section,
-	const FGPUSkinPassthroughVertexFactory* VertexFactory,
-	FVertexInputStreamArray& VertexStreams)
-{
-	INC_DWORD_STAT(STAT_GPUSkinCache_NumSetVertexStreams);
-	check(Entry);
-	check(Entry->IsSectionValid(Section));
-	check(Entry->SkinCache);
-
-	FGPUSkinCacheEntry::FSectionDispatchData const& DispatchData = Entry->DispatchData[Section];
-
-	const int32 PositionStreamIndex = VertexFactory->GetAttributeStreamIndex(FGPUSkinPassthroughVertexFactory::EVertexAtttribute::VertexPosition);
-	check(PositionStreamIndex > -1);
-	VertexStreams.Add(FVertexInputStream(PositionStreamIndex, 0, DispatchData.GetPositionRWBuffer()->Buffer.Buffer));
-
-	const int32 TangentStreamIndex = VertexFactory->GetAttributeStreamIndex(FGPUSkinPassthroughVertexFactory::EVertexAtttribute::VertexTangent);
-	if (TangentStreamIndex > -1 && DispatchData.GetTangentRWBuffer())
-	{
-		VertexStreams.Add(FVertexInputStream(TangentStreamIndex, 0, DispatchData.GetTangentRWBuffer()->Buffer.Buffer));
-	}
-}
-
 void FGPUSkinCache::PrepareUpdateSkinning(FGPUSkinCacheEntry* Entry, int32 Section, uint32 RevisionNumber, TArray<FSkinCacheRWBuffer*>* OverlappedUAVs)
 {
 	FGPUSkinCacheEntry::FSectionDispatchData& DispatchData = Entry->DispatchData[Section];
@@ -2216,11 +2184,6 @@ void FGPUSkinCache::ReleaseSkinCacheEntry(FGPUSkinCacheEntry* SkinCacheEntry)
 {
 	FGPUSkinCache* SkinCache = SkinCacheEntry->SkinCache;
 
-	for (FGPUSkinCacheEntry::FSectionDispatchData& SectionData : SkinCacheEntry->GetDispatchData())
-	{
-		SectionData.TargetVertexFactory->ResetVertexAttributes();
-	}
-
 	FRWBuffersAllocation* PositionAllocation = SkinCacheEntry->PositionAllocation;
 	if (PositionAllocation)
 	{
@@ -2241,12 +2204,7 @@ void FGPUSkinCache::ReleaseSkinCacheEntry(FGPUSkinCacheEntry* SkinCacheEntry)
 
 bool FGPUSkinCache::IsEntryValid(FGPUSkinCacheEntry* SkinCacheEntry, int32 Section)
 {
-	return SkinCacheEntry->IsSectionValid(Section);
-}
-
-const FSkinBatchVertexFactoryUserData* FGPUSkinCache::GetVertexFactoryUserData(FGPUSkinCacheEntry* Entry, int32 Section)
-{
-	return Entry != nullptr ? &Entry->BatchElementsUserData[Section] : nullptr;
+	return SkinCacheEntry && SkinCacheEntry->IsSectionValid(Section);
 }
 
 void FGPUSkinCache::InvalidateAllEntries()
@@ -2374,8 +2332,19 @@ void FGPUSkinCache::CVarSinkFunction()
 			GSkinCacheRecomputeTangents = NewRecomputeTangentsValue;
 			GSkinCacheSceneMemoryLimitInMB = NewSceneMaxSizeInMb;
 			++GGPUSkinCacheFlushCounter;
+		});
+
+		TArray<UActorComponent*> Components;
+
+		for (USkinnedMeshComponent* Component : TObjectRange<USkinnedMeshComponent>())
+		{
+			if (Component->IsRegistered() && Component->IsRenderStateCreated())
+			{
+				Components.Emplace(Component);
+			}
 		}
-		);
+
+		FGlobalComponentRecreateRenderStateContext Context(Components);
 	}
 }
 

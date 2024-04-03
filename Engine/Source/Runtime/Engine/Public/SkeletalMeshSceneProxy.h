@@ -112,6 +112,8 @@ public:
 		return GetCurrentFirstLODIdx_Internal();
 	}
 
+	ENGINE_API virtual FDesiredLODLevel GetDesiredLODLevel_RenderThread(const FSceneView* View) const final override;
+
 	ENGINE_API bool GetCachedGeometry(struct FCachedGeometry& OutCachedGeometry) const;
 
 	const FSkeletalMeshObject* GetMeshObject() const { return MeshObject; }

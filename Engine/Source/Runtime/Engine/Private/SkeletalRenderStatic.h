@@ -32,6 +32,7 @@ public:
 	virtual void EnableOverlayRendering(bool bEnabled, const TArray<int32>* InBonesOfInterest, const TArray<UMorphTarget*>* InMorphTargetOfInterest) override {};
 	virtual bool IsCPUSkinned() const override { return true; }
 	ENGINE_API virtual const FVertexFactory* GetSkinVertexFactory(const FSceneView* View, int32 LODIndex, int32 ChunkIdx, ESkinVertexFactoryMode VFMode = ESkinVertexFactoryMode::Default) const override;
+	ENGINE_API virtual const FVertexFactory* GetStaticSkinVertexFactory(int32 LODIndex, int32 ChunkIdx, ESkinVertexFactoryMode VFMode) const override;
 	ENGINE_API virtual TArray<FTransform>* GetComponentSpaceTransforms() const override;
 	ENGINE_API virtual const TArray<FMatrix44f>& GetReferenceToLocalMatrices() const override;
 	virtual int32 GetLOD() const override;

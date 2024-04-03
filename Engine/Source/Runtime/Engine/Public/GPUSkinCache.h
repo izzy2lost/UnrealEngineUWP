@@ -57,7 +57,6 @@ struct FClothSimulData;
 struct FSkelMeshRenderSection;
 struct FVertexBufferAndSRV;
 struct FRayTracingGeometrySegment;
-struct FSkinBatchVertexFactoryUserData;
 
 extern bool ShouldWeCompileGPUSkinVFShaders(EShaderPlatform Platform, ERHIFeatureLevel::Type FeatureLevel);
 
@@ -151,15 +150,7 @@ public:
 		FGPUSkinCacheEntry*& InOutEntry
 		);
 
-	static void GetShaderVertexStreams(
-		const FGPUSkinCacheEntry* Entry,
-		int32 Section,
-		const FGPUSkinPassthroughVertexFactory* VertexFactory,
-		FVertexInputStreamArray& VertexStreams);
-
 	static void Release(FGPUSkinCacheEntry*& SkinCacheEntry);
-
-	static const FSkinBatchVertexFactoryUserData* GetVertexFactoryUserData(FGPUSkinCacheEntry* Entry, int32 Section);
 
 	static bool IsEntryValid(FGPUSkinCacheEntry* SkinCacheEntry, int32 Section);
 	static FColor GetVisualizationDebugColor(const FName& GPUSkinCacheVisualizationMode, FGPUSkinCacheEntry* Entry, FGPUSkinCacheEntry* RayTracingEntry, uint32 SectionIndex);

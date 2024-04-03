@@ -4,7 +4,6 @@
 
 FMeshDeformerGeometry::FMeshDeformerGeometry()
 {
-	VertexFactoryUserData.DeformerGeometry = this;
 }
 
 void FMeshDeformerGeometry::Reset()

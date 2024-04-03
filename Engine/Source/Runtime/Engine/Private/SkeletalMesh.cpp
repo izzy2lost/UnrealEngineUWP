@@ -137,6 +137,13 @@ static TAutoConsoleVariable<int32> CVarRayTracingSkeletalMeshLODBias(
 	TEXT("Final LOD level to use in ray tracing is the sum of this global bias and the bias set on each skeletal mesh asset."),
 	ECVF_RenderThreadSafe);
 
+bool GSkeletalMeshUseCachedMDCs = true;
+static FAutoConsoleVariableRef CVarSkeletalMeshUseCachedMDCs(
+	TEXT("r.SkeletalMesh.UseCachedMDCs"),
+	GSkeletalMeshUseCachedMDCs,
+	TEXT("Whether skeletal meshes will take the cached MDC path."),
+	ECVF_RenderThreadSafe);
+
 const TCHAR* GSkeletalMeshMinLodQualityLevelCVarName = TEXT("r.SkeletalMesh.MinLodQualityLevel");
 const TCHAR* GSkeletalMeshMinLodQualityLevelScalabilitySection = TEXT("ViewDistanceQuality");
 int32 GSkeletalMeshMinLodQualityLevel = -1;
@@ -6273,6 +6280,8 @@ FSkeletalMeshSceneProxy::FSkeletalMeshSceneProxy(const USkinnedMeshComponent* Co
 	{		
 		bAllowApproximateOcclusion = (bAllowApproximateOcclusion || bRenderStatic);
 	}
+
+	bStaticElementsAlwaysUseProxyPrimitiveUniformBuffer = true;
 }
 
 
@@ -6413,7 +6422,7 @@ HHitProxy* FSkeletalMeshSceneProxy::CreateHitProxies(UPrimitiveComponent* Compon
 
 void FSkeletalMeshSceneProxy::DrawStaticElements(FStaticPrimitiveDrawInterface* PDI)
 {
-	if (!MeshObject || !bRenderStatic)
+	if (!MeshObject)
 	{
 		return;
 	}
@@ -6429,7 +6438,7 @@ void FSkeletalMeshSceneProxy::DrawStaticElements(FStaticPrimitiveDrawInterface* 
 		for (int32 LODIndex = ClampedMinLOD; LODIndex < NumLODs; ++LODIndex)
 		{
 			const FSkeletalMeshLODRenderData& LODData = SkeletalMeshRenderData->LODRenderData[LODIndex];
-			
+
 			if (LODSections.Num() > 0 && LODData.GetNumVertices() > 0)
 			{
 				float ScreenSize = MeshObject->GetScreenSize(LODIndex);
@@ -6440,17 +6449,18 @@ void FSkeletalMeshSceneProxy::DrawStaticElements(FStaticPrimitiveDrawInterface* 
 				{
 					const FSkelMeshRenderSection& Section = Iter.GetSection();
 					const int32 SectionIndex = Iter.GetSectionElementIndex();
-					const FSectionElementInfo& SectionElementInfo = Iter.GetSectionElementInfo();
-					const FVertexFactory* VertexFactory = MeshObject->GetSkinVertexFactory(nullptr, LODIndex, SectionIndex);
-				
+					const FVertexFactory* VertexFactory = MeshObject->GetStaticSkinVertexFactory(LODIndex, SectionIndex, ESkinVertexFactoryMode::Default);
+
 					if (!VertexFactory)
 					{
-						// Hide this part
+						// hide this part
 						continue;
 					}
 
+					const FSectionElementInfo& SectionElementInfo = Iter.GetSectionElementInfo();
+
 					// If hidden skip the draw
-					if (MeshObject->IsMaterialHidden(LODIndex, SectionElementInfo.UseMaterialIndex))
+					if (MeshObject->IsMaterialHidden(LODIndex, SectionElementInfo.UseMaterialIndex) || Section.bDisabled)
 					{
 						continue;
 					}
@@ -6462,7 +6472,7 @@ void FSkeletalMeshSceneProxy::DrawStaticElements(FStaticPrimitiveDrawInterface* 
 						PDI->SetHitProxy(SectionElementInfo.HitProxy);
 					}
 				#endif // WITH_EDITOR
-								
+
 					FMeshBatch MeshElement;
 					FMeshBatchElement& BatchElement = MeshElement.Elements[0];
 					MeshElement.DepthPriorityGroup = PrimitiveDPG;
@@ -6476,13 +6486,14 @@ void FSkeletalMeshSceneProxy::DrawStaticElements(FStaticPrimitiveDrawInterface* 
 					MeshElement.Type = PT_TriangleList;
 					MeshElement.LODIndex = LODIndex;
 					MeshElement.SegmentIndex = SectionIndex;
-						
+
+					BatchElement.PrimitiveUniformBuffer = GetUniformBuffer();
 					BatchElement.FirstIndex = Section.BaseIndex;
 					BatchElement.MinVertexIndex = Section.BaseVertexIndex;
 					BatchElement.MaxVertexIndex = LODData.GetNumVertices() - 1;
 					BatchElement.NumPrimitives = Section.NumTriangles;
 					BatchElement.IndexBuffer = LODData.MultiSizeIndexContainer.GetIndexBuffer();
-													
+
 					PDI->DrawMesh(MeshElement, ScreenSize);
 
 					if (OverlayMaterial != nullptr)
@@ -6512,11 +6523,12 @@ void FSkeletalMeshSceneProxy::GetDynamicMeshElements(const TArray<const FSceneVi
 
 void FSkeletalMeshSceneProxy::GetMeshElementsConditionallySelectable(const TArray<const FSceneView*>& Views, const FSceneViewFamily& ViewFamily, bool bInSelectable, uint32 VisibilityMap, FMeshElementCollector& Collector) const
 {
-	if( !MeshObject )
+	if (!MeshObject)
 	{
 		return;
-	}	
-	MeshObject->PreGDMECallback(Collector.GetRHICommandList(), ViewFamily.Scene->GetGPUSkinCache(), ViewFamily.FrameCounter);
+	}
+
+	TRACE_CPUPROFILER_EVENT_SCOPE(SkeletalMesh);
 
 	const FEngineShowFlags& EngineShowFlags = ViewFamily.EngineShowFlags;
 
@@ -6529,23 +6541,6 @@ void FSkeletalMeshSceneProxy::GetMeshElementsConditionallySelectable(const TArra
 	}
 	else
 	{
-		if (UNLIKELY(!Views.IsEmpty() && IStereoRendering::IsStereoEyeView(*Views[0])))
-		{
-			const FSceneView& View = GetLODView(*Views[0]);
-			MeshObject->UpdateMinDesiredLODLevel(&View, GetBounds(), ViewFamily.FrameNumber);
-		}
-		else
-		{
-			for (int32 ViewIndex = 0; ViewIndex < Views.Num(); ViewIndex++)
-			{
-				if (VisibilityMap & (1 << ViewIndex))
-				{
-					const FSceneView* View = Views[ViewIndex];
-					MeshObject->UpdateMinDesiredLODLevel(View, GetBounds(), ViewFamily.FrameNumber);
-				}
-			}
-		}
-
 		const int32 LODIndex = MeshObject->GetLOD();
 		check(LODIndex < SkeletalMeshRenderData->LODRenderData.Num());
 		const FSkeletalMeshLODRenderData& LODData = SkeletalMeshRenderData->LODRenderData[LODIndex];
@@ -6650,9 +6645,6 @@ void FSkeletalMeshSceneProxy::CreateBaseMeshBatch(const FSceneView* View, const 
 	BatchElement.MinVertexIndex = LODData.RenderSections[SectionIndex].GetVertexBufferIndex();
 	BatchElement.MaxVertexIndex = LODData.RenderSections[SectionIndex].GetVertexBufferIndex() + LODData.RenderSections[SectionIndex].GetNumVertices() - 1;
 
-	FSkinBatchVertexFactoryUserData const* VertexFactoryUserData = MeshObject->GetVertexFactoryUserData(LODIndex, SectionIndex, VFMode);
-	BatchElement.VertexFactoryUserData = (void*)VertexFactoryUserData;
-
 	BatchElement.PrimitiveUniformBuffer = GetUniformBuffer();
 	BatchElement.NumPrimitives = LODData.RenderSections[SectionIndex].NumTriangles;
 }
@@ -6660,6 +6652,11 @@ void FSkeletalMeshSceneProxy::CreateBaseMeshBatch(const FSceneView* View, const 
 uint8 FSkeletalMeshSceneProxy::GetCurrentFirstLODIdx_Internal() const
 {
 	return SkeletalMeshRenderData->CurrentFirstLODIdx;
+}
+
+FDesiredLODLevel FSkeletalMeshSceneProxy::GetDesiredLODLevel_RenderThread(const FSceneView* View) const
+{
+	return FDesiredLODLevel::CreateFixed(MeshObject->GetLOD());
 }
 
 bool FSkeletalMeshSceneProxy::GetCachedGeometry(FCachedGeometry& OutCachedGeometry) const 
@@ -6672,12 +6669,6 @@ void FSkeletalMeshSceneProxy::GetDynamicElementsSection(const TArray<const FScen
 	const FSectionElementInfo& SectionElementInfo, bool bInSelectable, FMeshElementCollector& Collector ) const
 {
 	const FSkelMeshRenderSection& Section = LODData.RenderSections[SectionIndex];
-
-	//// If hidden skip the draw
-	//if (Section.bDisabled || MeshObject->IsMaterialHidden(LODIndex,SectionElementInfo.UseMaterialIndex))
-	//{
-	//	return;
-	//}
 
 #if !WITH_EDITOR
 	const bool bIsSelected = false;
@@ -7083,10 +7074,13 @@ bool FSkeletalMeshSceneProxy::GetWorldMatrices( FMatrix& OutLocalToWorld, FMatri
  */
 FPrimitiveViewRelevance FSkeletalMeshSceneProxy::GetViewRelevance(const FSceneView* View) const
 {
+	// View relevance is updated once per frame per view across all views in the frame (including shadows) so we update the LOD level for next frame here.
+	MeshObject->UpdateMinDesiredLODLevel(View, GetBounds());
+
 	FPrimitiveViewRelevance Result;
 	Result.bDrawRelevance = IsShown(View) && View->Family->EngineShowFlags.SkeletalMeshes;
 	Result.bShadowRelevance = IsShadowCast(View);
-	Result.bStaticRelevance = bRenderStatic && !IsRichView(*View->Family);
+	Result.bStaticRelevance = (bRenderStatic || GSkeletalMeshUseCachedMDCs) && MeshObject->SupportsStaticRelevance() && !IsRichView(*View->Family);
 	Result.bDynamicRelevance = !Result.bStaticRelevance;
 	Result.bRenderCustomDepth = ShouldRenderCustomDepth();
 	Result.bRenderInMainPass = ShouldRenderInMainPass();
