@@ -522,13 +522,7 @@ public:
 	};
 
 	// Returns the singleton registry
-	FORCEINLINE static FRigVMRegistry_RWLock& Get()
-	{
-		// static in a function scope ensures that the GC system is initiated before 
-		// the registry constructor is called
-		static FRigVMRegistry_RWLock s_RigVMRegistry;
-		return s_RigVMRegistry;
-	}
+	static FRigVMRegistry_RWLock& Get();
 
 	static FRigVMRegistry_NoLock& Get(ELockType InLockType) = delete;
 	static const FRigVMRegistry_NoLock& GetForRead() = delete;
