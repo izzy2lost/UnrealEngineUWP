@@ -24,7 +24,8 @@ namespace
 
 		virtual bool Receive(uint8* Results, int32 Size) const override
 		{
-			return (HostSocket->Receive(Results, Size) == IPlatformHostSocket::EResultNet::Ok);
+			uint64 BytesReceived;
+			return (HostSocket->Receive(Results, Size, BytesReceived) == IPlatformHostSocket::EResultNet::Ok);
 		}
 
 		virtual bool Send(const uint8* Buffer, int32 Size) const override

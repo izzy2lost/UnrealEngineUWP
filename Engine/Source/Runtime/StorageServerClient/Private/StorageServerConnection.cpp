@@ -16,47 +16,15 @@
 #include "SocketSubsystem.h"
 #include "Sockets.h"
 #include "IO/PackageStore.h"
+#include "StorageSocketConnectionBackend.h"
+#include "StoragePlatformConnectionBackend.h"
+#include "GenericPlatform/GenericPlatformHostCommunication.h"
 
 #if !UE_BUILD_SHIPPING
 
 DEFINE_LOG_CATEGORY_STATIC(LogStorageServerConnection, Log, All);
 
 TRACE_DECLARE_MEMORY_COUNTER(ZenHttpClientSerializedBytes, TEXT("ZenClient/SerializedBytes"));
-
-static TArray<TSharedPtr<FInternetAddr>> GetAddressFromString(ISocketSubsystem& SocketSubsystem, TArrayView<const FString> HostAddresses, const int32 Port)
-{
-	TArray<TSharedPtr<FInternetAddr>> InternetAddresses;
-	FString ModifiedHostAddr;
-
-	for (const FString& HostAddr : HostAddresses)
-	{
-		// Numeric IPV6 addresses can be enclosed in brackets, and must have the brackets stripped before calling GetAddressFromString
-		const FString* EffectiveHostAddr = &HostAddr;
-		if (!HostAddr.IsEmpty() && HostAddr[0] == TEXT('[') && HostAddr[HostAddr.Len() - 1] == TEXT(']'))
-		{
-			ModifiedHostAddr = FStringView(HostAddr).Mid(1,HostAddr.Len() - 2);
-			EffectiveHostAddr = &ModifiedHostAddr;
-		}
-		TSharedPtr<FInternetAddr> Addr = SocketSubsystem.GetAddressFromString(*EffectiveHostAddr);
-
-		if (!Addr.IsValid() || !Addr->IsValid())
-		{
-			FAddressInfoResult GAIRequest = SocketSubsystem.GetAddressInfo(**EffectiveHostAddr, nullptr, EAddressInfoFlags::Default, NAME_None);
-			if (GAIRequest.ReturnCode == SE_NO_ERROR && GAIRequest.Results.Num() > 0)
-			{
-				Addr = GAIRequest.Results[0].Address;
-			}
-		}
-
-		if (Addr.IsValid() && Addr->IsValid())
-		{
-			Addr->SetPort(Port);
-			InternetAddresses.Emplace(MoveTemp(Addr));
-		}
-	}
-
-	return InternetAddresses;
-}
 
 static uint64 GetCompressedOffset(const FCompressedBuffer& Buffer, uint64 RawOffset)
 {
@@ -84,7 +52,7 @@ FStorageServerRequest::FStorageServerRequest(FAnsiStringView Verb, FAnsiStringVi
 		<< "Accept: " << GetMimeTypeString(Accept) << "\r\n";
 }
 
-FSocket* FStorageServerRequest::Send(FStorageServerConnection& Owner, bool bLogOnError)
+IStorageConnectionSocket* FStorageServerRequest::Send(FStorageServerConnection& Owner, bool bLogOnError)
 {
 	if (BodyBuffer.Num())
 	{
@@ -93,32 +61,30 @@ FSocket* FStorageServerRequest::Send(FStorageServerConnection& Owner, bool bLogO
 	HeaderBuffer << "\r\n";
 	int32 BytesLeft = HeaderBuffer.Len();
 	
-	auto Send = [](FSocket* Socket, const uint8* Data, int32 Length)
+	auto Send = [](IStorageConnectionSocket* Socket, const uint8* Data, int32 Length)
 	{
 		int32 BytesLeft = Length;
 		while (BytesLeft > 0)
 		{
-			int32 BytesSent;
-			if (!Socket->Send(Data, BytesLeft, BytesSent))
+			if (!Socket->Send(Data, BytesLeft))
 			{
 				return false;
 			}
-			check(BytesSent >= 0);
-			BytesLeft -= BytesSent;
-			Data += BytesSent;
+			BytesLeft -= BytesLeft;
 		}
 		return true;
 	};
 
 	int32 Attempts = 0;
+	FStorageConnectionBackend* Backend = Owner.GetConnectionBackend();
 	while (Attempts < 10)
 	{
-		FSocket* Socket;
-		FSocket* SocketFromPool;
-		Socket = SocketFromPool = Owner.AcquireSocketFromPool();
+		IStorageConnectionSocket* Socket;
+		IStorageConnectionSocket* SocketFromPool;
+		Socket = SocketFromPool = Backend->AcquireSocketFromPool();
 		if (!Socket)
 		{
-			Socket = Owner.AcquireNewSocket();
+			Socket = Backend->AcquireNewSocket();
 			if (!Socket)
 			{
 				++Attempts;
@@ -129,7 +95,7 @@ FSocket* FStorageServerRequest::Send(FStorageServerConnection& Owner, bool bLogO
 		if (!Send(Socket, reinterpret_cast<const uint8*>(HeaderBuffer.GetData()), HeaderBuffer.Len()) ||
 			!Send(Socket, BodyBuffer.GetData(), BodyBuffer.Num()))
 		{
-			Owner.ReleaseSocket(Socket, false);
+			Backend->ReleaseSocket(Socket, false);
 			if (!SocketFromPool)
 			{
 				++Attempts;
@@ -138,6 +104,7 @@ FSocket* FStorageServerRequest::Send(FStorageServerConnection& Owner, bool bLogO
 		}
 		return Socket;
 	}
+
 	if (bLogOnError)
 	{
 		UE_LOG(LogStorageServerConnection, Fatal, TEXT("Failed sending request to storage server."));
@@ -152,7 +119,7 @@ void FStorageServerRequest::Serialize(void* V, int64 Length)
 	FMemory::Memcpy(Dest, V, Length);
 }
 
-FStorageServerResponse::FStorageServerResponse(FStorageServerConnection& InOwner, FSocket& InSocket)
+FStorageServerResponse::FStorageServerResponse(FStorageServerConnection& InOwner, IStorageConnectionSocket& InSocket)
 	: Owner(InOwner)
 	, Socket(&InSocket)
 {
@@ -163,7 +130,7 @@ FStorageServerResponse::FStorageServerResponse(FStorageServerConnection& InOwner
 	{
 		for (;;)
 		{
-			int32 BytesRead;
+			uint64 BytesRead;
 			InSocket.Recv(Buffer, 1024, BytesRead, ESocketReceiveFlags::Peek);
 			FAnsiStringView ResponseView(reinterpret_cast<const ANSICHAR*>(Buffer), BytesRead);
 			int32 LineEndIndex;
@@ -203,7 +170,7 @@ FStorageServerResponse::FStorageServerResponse(FStorageServerConnection& InOwner
 	{
 		TArray<uint8> ErrorBuffer;
 		ErrorBuffer.SetNumUninitialized(ContentLength + 1);
-		int32 BytesRead = 0;
+		uint64 BytesRead = 0;
 		InSocket.Recv(ErrorBuffer.GetData(), ContentLength, BytesRead, ESocketReceiveFlags::WaitAll);
 
 		if (BytesRead > 0)
@@ -247,7 +214,7 @@ FStorageServerChunkBatchRequest& FStorageServerChunkBatchRequest::AddChunk(const
 
 bool FStorageServerChunkBatchRequest::Issue(TFunctionRef<void(uint32 ChunkCount, uint32* ChunkIndices, uint64* ChunkSizes, FStorageServerResponse& ChunkDataStream)> OnResponse)
 {
-	FSocket* Socket = Send(Owner);
+	IStorageConnectionSocket* Socket = Send(Owner);
 	if (!Socket)
 	{
 		UE_LOG(LogStorageServerConnection, Fatal, TEXT("Failed to send chunk batch request to storage server."));
@@ -300,7 +267,7 @@ bool FStorageServerChunkBatchRequest::Issue(TFunctionRef<void(uint32 ChunkCount,
 
 void FStorageServerResponse::ReleaseSocket(bool bKeepAlive)
 {
-	Owner.ReleaseSocket(Socket, bKeepAlive);
+	Owner.GetConnectionBackend()->ReleaseSocket(Socket, bKeepAlive);
 	Socket = nullptr;
 }
 
@@ -325,7 +292,7 @@ void FStorageServerResponse::Serialize(void* V, int64 Length)
 	while (RemainingBytesToRead)
 	{
 		uint64 BytesToRead32 = FMath::Min(RemainingBytesToRead, static_cast<uint64>(INT32_MAX));
-		int32 BytesRead;
+		uint64 BytesRead;
 		if (!Socket->Recv(Destination, static_cast<int32>(BytesToRead32), BytesRead, ESocketReceiveFlags::WaitAll))
 		{
 			UE_LOG(LogStorageServerConnection, Fatal, TEXT("Failed reading %d bytes from socket"), BytesToRead32);
@@ -348,12 +315,6 @@ int64 FStorageServerResponse::SerializeChunk(FStorageServerSerializationContext&
 {
 	if (ContentLength == 0)
 	{
-		return 0;
-	}
-
-	if (!Socket)
-	{
-		UE_LOG(LogStorageServerConnection, Fatal, TEXT("Trying to read %lld bytes from released socket"), ContentLength);
 		return 0;
 	}
 
@@ -394,12 +355,6 @@ int64 FStorageServerResponse::SerializeChunkTo(FMutableMemoryView Memory, uint64
 {
 	if (ContentLength == 0)
 	{
-		return 0;
-	}
-
-	if (!Socket)
-	{
-		UE_LOG(LogStorageServerConnection, Fatal, TEXT("Trying to read %lld bytes from released socket"), ContentLength);
 		return 0;
 	}
 
@@ -470,6 +425,43 @@ FCbObject FStorageServerResponse::GetResponseObject()
 	return Payload.AsObject();
 }
 
+FStorageConnectionBackend::FStorageConnectionBackend(FStorageServerConnection& InOwner)
+	: Owner(InOwner)
+{
+}
+
+bool FStorageConnectionBackend::Initialize(TArrayView<const FString> InHostAddresses, int32 InPort, const TCHAR* InProjectNameOverride, const TCHAR* InPlatformNameOverride)
+{
+	InitOplog(InProjectNameOverride, InPlatformNameOverride);
+
+	return InitializeInternal(InHostAddresses, InPort);
+}
+
+void FStorageConnectionBackend::InitOplog(const TCHAR* InProjectNameOverride, const TCHAR* InPlatformNameOverride)
+{
+	OplogPath.Append("/prj/");
+	if (InProjectNameOverride)
+	{
+		OplogPath.Append(TCHAR_TO_ANSI(InProjectNameOverride));
+	}
+	else
+	{
+		OplogPath.Append(TCHAR_TO_ANSI(*FApp::GetZenStoreProjectId()));
+	}
+	OplogPath.Append("/oplog/");
+	if (InPlatformNameOverride)
+	{
+		OplogPath.Append(TCHAR_TO_ANSI(InPlatformNameOverride));
+	}
+	else
+	{
+		TArray<FString> TargetPlatformNames;
+		FPlatformMisc::GetValidTargetPlatforms(TargetPlatformNames);
+		check(TargetPlatformNames.Num() > 0);
+		OplogPath.Append(TCHAR_TO_ANSI(*TargetPlatformNames[0]));
+	}
+}
+
 FStorageServerConnection::FStorageServerConnection()
 	: SocketSubsystem(*ISocketSubsystem::Get())
 {
@@ -477,23 +469,10 @@ FStorageServerConnection::FStorageServerConnection()
 
 FStorageServerConnection::~FStorageServerConnection()
 {
-	for (FSocket* Socket : SocketPool)
-	{
-		Socket->Close();
-		delete Socket;
-	}
 }
 
 bool FStorageServerConnection::Initialize(TArrayView<const FString> InHostAddresses, int32 InPort, const TCHAR* InProjectNameOverride, const TCHAR* InPlatformNameOverride)
 {
-	TArray<TSharedPtr<FInternetAddr>> HostAddresses = GetAddressFromString(SocketSubsystem, InHostAddresses, InPort);
-
-	if (!HostAddresses.Num())
-	{
-		UE_LOG(LogStorageServerConnection, Fatal, TEXT("No valid Zen store host address specified"));
-		return false;
-	}
-	
 	OplogPath.Append("/prj/");
 	if (InProjectNameOverride)
 	{
@@ -516,160 +495,12 @@ bool FStorageServerConnection::Initialize(TArrayView<const FString> InHostAddres
 		OplogPath.Append(TCHAR_TO_ANSI(*TargetPlatformNames[0]));
 	}
 
-	const int32 ServerVersion = HandshakeRequest(HostAddresses);
-	if (ServerVersion != 1)
+	if (!CreateConnectionBackend(InHostAddresses, InPort))
 	{
 		return false;
 	}
 
-	UE_LOG(LogStorageServerConnection, Display, TEXT("Connected to Zen storage server at '%s'"), *ServerAddr->ToString(true));
-
-	return true;
-}
-
-void FStorageServerConnection::SortHostAddressesByLocalSubnet(TArrayView<const TSharedPtr<FInternetAddr>> HostAddresses, TArray<TSharedPtr<FInternetAddr>>& SortedHostAddresses)
-{
-	//no sorting needed cases
-	if (HostAddresses.Num() == 0)
-		return;
-
-	if (HostAddresses.Num() == 1)
-	{
-		SortedHostAddresses.Push(HostAddresses[0]);
-		return;
-	}
-
-	//Sorting logic:
-	//1 only on desktop, if it's an IPV6 address loopback (ends with ":1")
-	//2 only on desktop, if it's and IPV4 address loopback (starts with "127.0.0")
-	//3 if the host IPV4 subnet match the client subnet (xxx.xxx.xxx)
-	//4 remaining addresses
-	bool bCanBindAll = false;
-	bool bAppendPort = false;
-	TSharedPtr<FInternetAddr> localAddr = SocketSubsystem.GetLocalHostAddr(*GLog, bCanBindAll);
-	FString localAddrStringSubnet = localAddr->ToString(bAppendPort);
-
-	int32 localLastDotPos = INDEX_NONE;
-	if (localAddrStringSubnet.FindLastChar(TEXT('.'), localLastDotPos))
-	{
-		localAddrStringSubnet = localAddrStringSubnet.LeftChop(localAddrStringSubnet.Len() - localLastDotPos);
-	}
-
-	TArray<TSharedPtr<FInternetAddr>> IPV6Loopback;
-	TArray<TSharedPtr<FInternetAddr>> IPV4Loopback;
-	TArray<TSharedPtr<FInternetAddr>> RegularAddresses;
-
-	for (const TSharedPtr<FInternetAddr>& Addr : HostAddresses)
-	{
-		FString tempAddrStringSubnet = Addr->ToString(bAppendPort);
-
-#if PLATFORM_DESKTOP
-		if (Addr->GetProtocolType() == FNetworkProtocolTypes::IPv6)
-		{
-			if (tempAddrStringSubnet.EndsWith(":1"))
-			{
-				IPV6Loopback.Push(Addr);
-				continue;
-			}
-		}
-		else
-		{
-			if (tempAddrStringSubnet.StartsWith("127.0.0."))
-			{
-				IPV4Loopback.Push(Addr);
-				continue;
-			}
-		}
-#endif
-		int32 LastDotPos = INDEX_NONE;
-		if (tempAddrStringSubnet.FindLastChar(TEXT('.'), LastDotPos))
-		{
-			tempAddrStringSubnet = tempAddrStringSubnet.LeftChop(tempAddrStringSubnet.Len() - LastDotPos);
-		}
-
-		if (localAddrStringSubnet.Equals(tempAddrStringSubnet))
-			RegularAddresses.Insert(Addr, 0);
-		else
-			RegularAddresses.Push(Addr);
-	}
-
-
-	for (const TSharedPtr<FInternetAddr>& Addrv6lb : IPV6Loopback)
-	{
-		SortedHostAddresses.Push(Addrv6lb);
-	}
-
-	for (const TSharedPtr<FInternetAddr>& Addrv4lb : IPV4Loopback)
-	{
-		SortedHostAddresses.Push(Addrv4lb);
-	}
-
-	for (const TSharedPtr<FInternetAddr>& RegularAddr : RegularAddresses)
-	{
-		SortedHostAddresses.Push(RegularAddr);
-	}
-}
-
-int32 FStorageServerConnection::HandshakeRequest(TArrayView<const TSharedPtr<FInternetAddr>> HostAddresses)
-{
-	TAnsiStringBuilder<256> ResourceBuilder;
-	ResourceBuilder.Append(OplogPath);
-
-	// We sort the host address trying to match the local subnet in order to improve the chances of a successful connection at the first attempt.
-	TArray<TSharedPtr<FInternetAddr>> SortedAddresses;
-	SortHostAddressesByLocalSubnet(HostAddresses, SortedAddresses);
-
-	for (TSharedPtr<FInternetAddr>& Addr : SortedAddresses)
-	{
-		Hostname.Reset();
-		Hostname.Append(TCHAR_TO_ANSI(*Addr->ToString(false)));
-		ServerAddr = Addr;
-		
-		UE_LOG(LogStorageServerConnection, Display, TEXT("Trying to handshake with Zen at '%s'"), *Addr->ToString(true));
-
-		// Handshakes are done with a limited connection timeout so that we can find out if the destination is unreachable
-		// in a timely manner.
-		const float ConnectionTimeoutSeconds = 5.0f;
-		FSocket* ConnectSocket = AcquireNewSocket(ConnectionTimeoutSeconds);
-		if (!ConnectSocket)
-		{
-			continue;
-		}
-		ReleaseSocket(ConnectSocket, true);
-
-		FStorageServerRequest Request("GET", *ResourceBuilder, Hostname);
-		if (FSocket* Socket = Request.Send(*this, false))
-		{
-			FStorageServerResponse Response(*this, *Socket);
-
-			if (Response.IsOk())
-			{
-				FCbObject ResponseObj = Response.GetResponseObject();
-
-				// we currently don't have any concept of protocol versioning, if
-				// we succeed in communicating with the endpoint we're good since
-				// any breaking API change would need to be done in a backward
-				// compatible manner
-
-				return 1;
-			}
-			else
-			{
-				UE_LOG(LogStorageServerConnection, Fatal, TEXT("Failed to handshake with Zen at %s. '%s'"), *ServerAddr->ToString(true), *Response.GetErrorMessage());
-			}
-		}
-		else
-		{
-			UE_LOG(LogStorageServerConnection, Warning, TEXT("Failed to send handshake request to Zen at %s."), *ServerAddr->ToString(true));
-		}
-	}
-
-	UE_LOG(LogStorageServerConnection, Error, TEXT("Failed to handshake with Zen at any of host addresses."));
-
-	Hostname.Reset();
-	ServerAddr.Reset();
-
-	return -1;
+	return ConnectionBackend->Initialize(InHostAddresses, InPort, InProjectNameOverride, InPlatformNameOverride);
 }
 
 void FStorageServerConnection::PackageStoreRequest(TFunctionRef<void(FPackageStoreEntryResource&&)> Callback)
@@ -679,7 +510,7 @@ void FStorageServerConnection::PackageStoreRequest(TFunctionRef<void(FPackageSto
 	TAnsiStringBuilder<256> ResourceBuilder;
 	ResourceBuilder.Append(OplogPath).Append("/entries?fieldfilter=packagestoreentry");
 	FStorageServerRequest Request("GET", *ResourceBuilder, Hostname, EStorageServerContentType::CompressedBinary);
-	FSocket* Socket = Request.Send(*this);
+	IStorageConnectionSocket* Socket = Request.Send(*this);
 	if (!Socket)
 	{
 		UE_LOG(LogStorageServerConnection, Fatal, TEXT("Failed to send oplog request to storage server at %s."), *ServerAddr->ToString(true));
@@ -709,7 +540,7 @@ void FStorageServerConnection::FileManifestRequest(TFunctionRef<void(FIoChunkId 
 	TAnsiStringBuilder<256> ResourceBuilder;
 	ResourceBuilder.Append(OplogPath).Append("/files?filter=client");
 	FStorageServerRequest Request("GET", *ResourceBuilder, Hostname, EStorageServerContentType::CbObject);
-	FSocket* Socket = Request.Send(*this);
+	IStorageConnectionSocket* Socket = Request.Send(*this);
 	if (!Socket)
 	{
 		UE_LOG(LogStorageServerConnection, Fatal, TEXT("Failed to send file manifest request to storage server at %s."), *ServerAddr->ToString(true));
@@ -748,7 +579,7 @@ int64 FStorageServerConnection::ChunkSizeRequest(const FIoChunkId& ChunkId)
 	ResourceBuilder << "/" << ChunkId << "/info";
 
 	FStorageServerRequest Request("GET", *ResourceBuilder, Hostname, EStorageServerContentType::CbObject);
-	FSocket* Socket = Request.Send(*this);
+	IStorageConnectionSocket* Socket = Request.Send(*this);
 	if (!Socket)
 	{
 		UE_LOG(LogStorageServerConnection, Fatal, TEXT("Failed to send chunk size request to storage server at %s."), *ServerAddr->ToString(true));
@@ -809,7 +640,7 @@ bool FStorageServerConnection::ReadChunkRequest(const FIoChunkId& ChunkId, uint6
 	}
 
 	FStorageServerRequest Request("GET", *ResourceBuilder, Hostname, EStorageServerContentType::CompressedBinary);
-	FSocket* Socket = Request.Send(*this);
+	IStorageConnectionSocket* Socket = Request.Send(*this);
 	if (!Socket)
 	{
 		UE_LOG(LogStorageServerConnection, Fatal, TEXT("Failed to send chunk read request to storage server at %s."), *ServerAddr->ToString(true));
@@ -839,66 +670,48 @@ FStorageServerChunkBatchRequest FStorageServerConnection::NewChunkBatchRequest()
 	return FStorageServerChunkBatchRequest(*this, *ResourceBuilder, Hostname);
 }
 
-FSocket* FStorageServerConnection::AcquireSocketFromPool()
-{
-	FScopeLock Lock(&SocketPoolCritical);
-	if (!SocketPool.IsEmpty())
-	{
-		return SocketPool.Pop(EAllowShrinking::No);
-	}
-	return nullptr;
-}
-
-FSocket* FStorageServerConnection::AcquireNewSocket(float TimeoutSeconds)
-{
-	FSocket* Socket = SocketSubsystem.CreateSocket(NAME_Stream, TEXT("StorageServer"), ServerAddr->GetProtocolType());
-	check(Socket);
-
-	if (TimeoutSeconds > 0.0f)
-	{
-		Socket->SetNonBlocking(true);
-		ON_SCOPE_EXIT
-		{
-			Socket->SetNonBlocking(false);
-		};
-
-		if (Socket->Connect(*ServerAddr) && Socket->Wait(ESocketWaitConditions::WaitForWrite, FTimespan::FromSeconds(TimeoutSeconds)))
-		{
-			return Socket;
-		}
-	}
-	else
-	{
-		if (Socket->Connect(*ServerAddr))
-		{
-			return Socket;
-		}
-	}
-
-	delete Socket;
-	return nullptr;
-}
-
 FString FStorageServerConnection::GetHostAddr() const
 {
 	return ServerAddr.IsValid() ? ServerAddr->ToString(false) : FString();
 }
 
-void FStorageServerConnection::ReleaseSocket(FSocket* Socket, bool bKeepAlive)
+bool FStorageServerConnection::CreateConnectionBackend(TArrayView<const FString> HostAddresses, int32 Port)
 {
-	if (bKeepAlive)
+	FString PlatformAddress;
+	for (const FString& Addr : HostAddresses)
 	{
-		uint32 PendingDataSize;
-		if (!Socket->HasPendingData(PendingDataSize))
+		if (Addr.Contains(TEXT("platform://")))
 		{
-			FScopeLock Lock(&SocketPoolCritical);
-			SocketPool.Push(Socket);
-			return;
+			PlatformAddress = Addr;
 		}
-		UE_LOG(LogStorageServerConnection, Fatal, TEXT("Socket was not fully drained"));
 	}
-	Socket->Close();
-	delete Socket;
+
+	if (!PlatformAddress.IsEmpty())
+	{
+		ConnectionBackend = MakeUnique<FStorageServerPlatformConnectionBackend>(*this);
+	}
+	else
+	{
+		ConnectionBackend = MakeUnique<FStorageSocketConnectionBackend>(*this, *ISocketSubsystem::Get());
+	}
+
+	return ConnectionBackend != nullptr;
+}
+
+bool FStorageServerConnection::CreatePlatformBackend(const FString& HostAddresses, int32 Port)
+{
+	ConnectionBackend = MakeUnique<FStorageServerPlatformConnectionBackend>(*this);
+	if (!ConnectionBackend)
+	{
+		return false;
+	}
+
+	return true;
+}
+
+FStorageConnectionBackend* FStorageServerConnection::GetConnectionBackend() const
+{
+	return ConnectionBackend.Get();
 }
 
 #endif

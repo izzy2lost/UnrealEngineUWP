@@ -8,6 +8,7 @@
 #include "Misc/StringBuilder.h"
 #include "Memory/MemoryFwd.h"
 #include "Templates/SharedPointer.h"
+#include "SocketTypes.h"
 
 #if !UE_BUILD_SHIPPING
 
@@ -17,6 +18,10 @@ class FInternetAddr;
 class FSocket;
 class FStorageServerChunkBatchRequest;
 class FStorageServerConnection;
+class FStorageConnectionBackend;
+class FStorageSocketConnectionBackend;
+class FStorageServerPlatformConnectionBackend;
+class IStorageConnectionSocket;
 class ISocketSubsystem;
 struct FPackageStoreEntryResource;
 
@@ -75,6 +80,8 @@ class FStorageServerRequest
 	EStorageServerContentType AcceptContentType() const;
 protected:
 	friend FStorageServerConnection;
+	friend FStorageSocketConnectionBackend;
+	friend FStorageServerPlatformConnectionBackend;
 
 	FStorageServerRequest(
 		FAnsiStringView Verb,
@@ -82,7 +89,7 @@ protected:
 		FAnsiStringView Hostname,
 		EStorageServerContentType Accept = EStorageServerContentType::Binary);
 
-	FSocket* Send(FStorageServerConnection& Owner, bool bLogOnError = true);
+	IStorageConnectionSocket* Send(FStorageServerConnection& Owner, bool bLogOnError = true);
 	virtual void Serialize(void* V, int64 Length) override;
 
 	EStorageServerContentType AcceptType;
@@ -143,13 +150,15 @@ public:
 
 private:
 	friend FStorageServerConnection;
+	friend FStorageSocketConnectionBackend;
+	friend FStorageServerPlatformConnectionBackend;
 	friend FStorageServerChunkBatchRequest;
 
-	FStorageServerResponse(FStorageServerConnection& Owner, FSocket& Socket);
+	FStorageServerResponse(FStorageServerConnection& Owner, IStorageConnectionSocket& Socket);
 	void ReleaseSocket(bool bKeepAlive);
 
 	FStorageServerConnection& Owner;
-	FSocket* Socket = nullptr;
+	IStorageConnectionSocket* Socket = nullptr;
 	int64 ContentLength = 0;
 	int64 Position = 0;
 	int32 ErrorCode;
@@ -174,6 +183,40 @@ private:
 	int32 ChunkCountOffset = 0;
 };
 
+class IStorageConnectionSocket
+{
+public:
+	IStorageConnectionSocket() = default;
+	IStorageConnectionSocket(const IStorageConnectionSocket&) = delete;
+	virtual ~IStorageConnectionSocket() = default;
+
+	virtual bool Send(const uint8* Data, const uint64 DataSize)                                                      = 0;
+	virtual bool Recv(uint8* Data, const uint64 DataSize, uint64& BytesRead, ESocketReceiveFlags::Type ReceiveFlags) = 0;
+	virtual bool HasPendingData(uint64& PendingDataSize) const                                                       = 0;
+	virtual void Close()                                                                                             = 0;
+};
+
+class FStorageConnectionBackend
+{
+public:
+	FStorageConnectionBackend(FStorageServerConnection& InOwner);
+	virtual ~FStorageConnectionBackend() = default;
+
+	bool Initialize(TArrayView<const FString> InHostAddresses, int32 InPort, const TCHAR* InProjectNameOverride, const TCHAR* InPlatformNameOverride);
+
+	virtual IStorageConnectionSocket* AcquireSocketFromPool() = 0;
+	virtual IStorageConnectionSocket* AcquireNewSocket(float TimeoutSeconds = -1.f) = 0;
+	virtual void ReleaseSocket(IStorageConnectionSocket* Socket, bool bKeepAlive) = 0;
+	
+protected:
+	void InitOplog(const TCHAR* InProjectNameOverride, const TCHAR* InPlatformNameOverride);
+	virtual bool InitializeInternal(TArrayView<const FString> InHostAddresses, int32 Port) = 0;
+
+protected:
+	FStorageServerConnection& Owner;
+	TAnsiStringBuilder<1024> OplogPath;
+};
+
 class FStorageServerConnection
 {
 public:
@@ -195,18 +238,17 @@ private:
 	friend FStorageServerResponse;
 	friend FStorageServerChunkBatchRequest;
 
-	void SortHostAddressesByLocalSubnet(TArrayView<const TSharedPtr<FInternetAddr>> HostAddresses, TArray<TSharedPtr<FInternetAddr>>& SortedHostAddresses);
-	int32 HandshakeRequest(TArrayView<const TSharedPtr<FInternetAddr>> HostAddresses);
-	FSocket* AcquireSocketFromPool();
-	FSocket* AcquireNewSocket(float TimeoutSeconds = -1.0f);
-	void ReleaseSocket(FSocket* Socket, bool bKeepAlive);
+	bool CreateConnectionBackend(TArrayView<const FString> HostAddresses, int32 Port);
+	bool CreatePlatformBackend(const FString& HostAddresses, int32 Port);
+
+	FStorageConnectionBackend* GetConnectionBackend() const;
 
 	ISocketSubsystem& SocketSubsystem;
 	TAnsiStringBuilder<1024> OplogPath;
 	TSharedPtr<FInternetAddr> ServerAddr;
 	TAnsiStringBuilder<1024> Hostname;
-	FCriticalSection SocketPoolCritical;
-	TArray<FSocket*> SocketPool;
+	TUniquePtr<FStorageConnectionBackend> ConnectionBackend;
+	FCriticalSection BackendCS;
 };
 
 #endif

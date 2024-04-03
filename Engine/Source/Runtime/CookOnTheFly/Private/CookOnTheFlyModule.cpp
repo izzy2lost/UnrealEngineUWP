@@ -127,6 +127,11 @@ private:
 			ServerStartupWaitTime = FTimespan::FromSeconds(ServerWaitTimeInSeconds);
 		}
 
+		if (FParse::Param(FCommandLine::Get(), TEXT("ZenPlatformProtocol")))
+		{
+			HostIpList.Add("platform://");
+		}
+
 		return { HostIpList, ServerStartupWaitTime };
 	}
 };
