@@ -76,9 +76,12 @@ protected:
 			for (const FShowFlagData& ShowFlag : *ShowFlags)
 			{
 				const uint32 ShowFlagIndex = ShowFlag.EngineShowFlagIndex;
+
+				// Temporary workaround: ShowFlag.DisplayName can sometimes be blank, so the non-display name is used instead.
+				const FText ShowFlagText = FText::FromName(ShowFlag.ShowFlagName);
 				
 				FlagGroup.AddWidgetRow()
-				.FilterString(ShowFlag.DisplayName)
+				.FilterString(ShowFlagText)
 				.NameContent()
 				[
 					SNew(SHorizontalBox)
@@ -105,7 +108,7 @@ protected:
 					[
 						SNew(STextBlock)
 						.IsEnabled_Lambda([ShowFlagObject, ShowFlagIndex]() { return ShowFlagObject->IsShowFlagOverridden(ShowFlagIndex); })
-						.Text(ShowFlag.DisplayName)
+						.Text(ShowFlagText)
 						.Font(CustomizationUtils.GetRegularFont())
 					]
 				]
