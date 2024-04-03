@@ -2,6 +2,7 @@
 
 #pragma once
 
+#include "AudioOscilloscopeEnums.h"
 #include "AudioOscilloscopePanelStyle.h"
 #include "AudioWidgetsEnums.h"
 #include "Components/Widget.h"
@@ -82,17 +83,21 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Oscilloscope Values")
 	EYAxisLabelsUnit AmplitudeGridLabelsUnit = EYAxisLabelsUnit::Linear;
 
-	/** Show/Hide the trigger threshold line. */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Oscilloscope Values")
-	bool bShowTriggerThresholdLine = false;
+	/** The trigger detection behavior. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Oscilloscope Values", meta = (EditCondition = "CanTriggeringBeSet()", EditConditionHides))
+	EAudioOscilloscopeTriggerMode TriggerMode = EAudioOscilloscopeTriggerMode::None;
 
 	/** The trigger threshold position in the Y axis. */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Oscilloscope Values", meta = (UIMin = -1, UIMax = 1, ClampMin = -1, ClampMax = 1))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Oscilloscope Values", meta = (UIMin = -1, UIMax = 1, ClampMin = -1, ClampMax = 1, EditCondition = "CanTriggeringBeSet() && TriggerMode != EAudioOscilloscopeTriggerMode::None", EditConditionHides))
 	float TriggerThreshold = 0.0f;
 
 	/** Show/Hide advanced panel layout. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Oscilloscope Values", meta = (DesignerRebuild = "True"))
 	EAudioPanelLayoutType PanelLayoutType = EAudioPanelLayoutType::Basic;
+
+	/** The channel to analyze with the oscilloscope (only available if PanelLayoutType is set to "Advanced"). */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Oscilloscope Values", meta = (EditCondition = "PanelLayoutType == EAudioPanelLayoutType::Advanced", EditConditionHides))
+	int32 ChannelToAnalyze = 1;
 
 private:
 	void CreateDummyOscilloscopeWidget();
@@ -102,6 +107,9 @@ private:
 	// UWidget overrides
 	virtual TSharedRef<SWidget> RebuildWidget() override;
 	
+	UFUNCTION()
+	bool CanTriggeringBeSet();
+
 	// The underlying audio samples data provider
 	TSharedPtr<AudioWidgets::FWaveformAudioSamplesDataProvider> AudioSamplesDataProvider;
 
@@ -112,6 +120,8 @@ private:
 	static constexpr uint32 DummySampleRate   = 48000;
 	static constexpr int32 DummyMaxNumSamples = DummySampleRate * 5;
 	static constexpr int32 DummyNumChannels   = 1;
+
+	int32 NumChannels = DummyNumChannels;
 
 	TArray<float> DummyAudioSamples;
 	FFixedSampledSequenceView DummyDataView;

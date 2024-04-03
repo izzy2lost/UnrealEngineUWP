@@ -147,8 +147,13 @@ namespace AudioWidgets
 
 	void FWaveformAudioSamplesDataProvider::SetChannelToAnalyze(const int32 InChannel)
 	{
-		ChannelIndexToAnalyze = InChannel - 1;
-		ResetAudioBuffers();
+		const int32 ChannelIndex = InChannel - 1;
+
+		if (ChannelIndex != ChannelIndexToAnalyze)
+		{
+			ChannelIndexToAnalyze = ChannelIndex;
+			ResetAudioBuffers();
+		}
 	}
 
 	void FWaveformAudioSamplesDataProvider::SetTriggerMode(const EAudioOscilloscopeTriggerMode InTriggerMode)

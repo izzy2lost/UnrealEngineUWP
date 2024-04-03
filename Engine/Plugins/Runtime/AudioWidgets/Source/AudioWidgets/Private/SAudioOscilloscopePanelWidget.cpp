@@ -373,6 +373,12 @@ void SAudioOscilloscopePanelWidget::CreateChannelCombobox()
 
 	auto OnChannelSelectionChanged = [this](TSharedPtr<FString> InChannel, ESelectInfo::Type InSelectInfo)
 	{
+		if (!InChannel.IsValid())
+		{
+			UE_LOG(LogAudioWidgets, Verbose, TEXT("Oscilloscope channel selection changed but the TSharedPtr that carries the channel number FString is null."));
+			return;
+		}
+
 		SelectedChannelPtr = InChannel;
 		ChannelCombobox->SetSelectedItem(SelectedChannelPtr);
 
@@ -413,6 +419,12 @@ void SAudioOscilloscopePanelWidget::CreateTriggerModeCombobox()
 
 	auto OnTriggerModeSelectionChanged = [this](TSharedPtr<EAudioOscilloscopeTriggerMode> InTriggerMode, ESelectInfo::Type InSelectInfo)
 	{
+		if (!InTriggerMode.IsValid())
+		{
+			UE_LOG(LogAudioWidgets, Verbose, TEXT("Oscilloscope trigger mode selection changed but the TSharedPtr that carries the trigger mode is null."));
+			return;
+		}
+
 		SelectedTriggerModePtr = InTriggerMode;
 		TriggerModeCombobox->SetSelectedItem(SelectedTriggerModePtr);
 
@@ -507,7 +519,7 @@ void SAudioOscilloscopePanelWidget::CreateTriggerThresholdKnob()
 
 	auto OnRadialSliderEnabledLambda = [this]()
 	{
-		return *SelectedTriggerModePtr.Get() != EAudioOscilloscopeTriggerMode::None;
+		return SelectedTriggerModePtr.IsValid() ? *SelectedTriggerModePtr.Get() != EAudioOscilloscopeTriggerMode::None : false;
 	};
 
 	TriggerThresholdKnob = SNew(SAudioRadialSlider)
@@ -518,7 +530,7 @@ void SAudioOscilloscopePanelWidget::CreateTriggerThresholdKnob()
 	.IsEnabled_Lambda(OnRadialSliderEnabledLambda); // In normalized range, range will change below
 
 	TriggerThresholdKnob->SetShowUnitsText(false);
-	TriggerThresholdKnob->SetOutputRange(FVector2D(-1.0f, 1.0f));
+	TriggerThresholdKnob->SetOutputRange(TriggerThresholdKnobOutputRange);
 }
 
 void SAudioOscilloscopePanelWidget::CreateTimeWindowKnob()
@@ -581,7 +593,7 @@ void SAudioOscilloscopePanelWidget::CreateTimeWindowKnob()
 	.OnMouseCaptureBegin_Lambda(OnRadialSliderMouseCaptureBeginLambda)
 	.OnMouseCaptureEnd_Lambda(OnRadialSliderMouseCaptureEndLambda);
 
-	TimeWindowKnob->SetOutputRange(FVector2D(10.0f, 5000.0f));
+	TimeWindowKnob->SetOutputRange(TimeWindowKnobOutputRange);
 	TimeWindowKnob->SetUnitsText(FText::FromString("ms"));
 
 	TimeWindowKnob->OnValueChanged.BindLambda(OnValueChangedLambda);
@@ -647,7 +659,7 @@ void SAudioOscilloscopePanelWidget::CreateAnalysisPeriodKnob()
 	.OnMouseCaptureBegin_Lambda(OnRadialSliderMouseCaptureBeginLambda)
 	.OnMouseCaptureEnd_Lambda(OnRadialSliderMouseCaptureEndLambda);
 
-	AnalysisPeriodKnob->SetOutputRange(FVector2D(10.0f, 1000.0f));
+	AnalysisPeriodKnob->SetOutputRange(AnalysisPeriodKnobOutputRange);
 	AnalysisPeriodKnob->SetUnitsText(FText::FromString("ms"));
 
 	AnalysisPeriodKnob->OnValueChanged.BindLambda(OnValueChangedLambda);
@@ -689,14 +701,48 @@ void SAudioOscilloscopePanelWidget::SetYAxisLabelsVisibility(const bool InbIsVis
 	ValueGridOverlay->SetHideLabels(!InbIsVisible);
 }
 
-void SAudioOscilloscopePanelWidget::SetTriggerThreshold(float InTriggerThreshold)
+void SAudioOscilloscopePanelWidget::SetChannelToAnalyze(const int32 InChannelToAnalyze)
 {
-	TriggerThresholdLineWidget->SetTriggerThreshold(InTriggerThreshold);
+	if (ChannelCombobox.IsValid())
+	{
+		ChannelCombobox->SetSelectedItem(MakeShareable(new FString(FString::FromInt(InChannelToAnalyze))));
+	}
 }
 
-void SAudioOscilloscopePanelWidget::SetTriggerThresholdVisibility(const bool InbIsVisible)
+void SAudioOscilloscopePanelWidget::SetTriggerMode(const EAudioOscilloscopeTriggerMode InTriggerMode)
 {
-	TriggerThresholdLineWidget->SetVisibility(InbIsVisible ? EVisibility::Visible : EVisibility::Hidden);
+	TriggerThresholdLineWidget->SetVisibility(InTriggerMode != EAudioOscilloscopeTriggerMode::None ? EVisibility::Visible : EVisibility::Hidden);
+
+	if (TriggerModeCombobox.IsValid())
+	{
+		TriggerModeCombobox->SetSelectedItem(MakeShareable(new EAudioOscilloscopeTriggerMode(InTriggerMode)));
+	}
+}
+
+void SAudioOscilloscopePanelWidget::SetTriggerThreshold(const float InTriggerThreshold)
+{
+	TriggerThresholdLineWidget->SetTriggerThreshold(InTriggerThreshold);
+
+	if (TriggerThresholdKnob.IsValid())
+	{
+		TriggerThresholdKnob->SetSliderValue(FMath::GetMappedRangeValueUnclamped(TriggerThresholdKnobOutputRange, { 0.0, 1.0 }, InTriggerThreshold));
+	}
+}
+
+void SAudioOscilloscopePanelWidget::SetTimeWindow(const float InTimeWindow)
+{
+	if (TimeWindowKnob.IsValid())
+	{
+		TimeWindowKnob->SetSliderValue(FMath::GetMappedRangeValueUnclamped(TimeWindowKnobOutputRange, { 0.0, 1.0 }, InTimeWindow));
+	}
+}
+
+void SAudioOscilloscopePanelWidget::SetAnalysisPeriod(const float InAnalysisPeriod)
+{
+	if (AnalysisPeriodKnob.IsValid())
+	{
+		AnalysisPeriodKnob->SetSliderValue(FMath::GetMappedRangeValueUnclamped(AnalysisPeriodKnobOutputRange, { 0.0, 1.0 }, InAnalysisPeriod));
+	}
 }
 
 void SAudioOscilloscopePanelWidget::UpdateSequenceRulerStyle(const FFixedSampleSequenceRulerStyle UpdatedStyle)
