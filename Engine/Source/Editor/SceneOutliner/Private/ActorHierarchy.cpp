@@ -50,8 +50,7 @@ void FActorHierarchy::Create_Internal(FActorHierarchy* Hierarchy, const TWeakObj
 	GEngine->OnActorFolderAdded().AddRaw(Hierarchy, &FActorHierarchy::OnActorFolderAdded);
 	GEngine->OnActorFoldersUpdatedEvent().AddRaw(Hierarchy, &FActorHierarchy::OnActorFoldersUpdatedEvent);
 
-	IWorldPartitionEditorModule& WorldPartitionEditorModule = FModuleManager::LoadModuleChecked<IWorldPartitionEditorModule>("WorldPartitionEditor");
-	WorldPartitionEditorModule.OnWorldPartitionCreated().AddRaw(Hierarchy, &FActorHierarchy::OnWorldPartitionCreated);
+	IWorldPartitionEditorModule::Get().OnWorldPartitionCreated().AddRaw(Hierarchy, &FActorHierarchy::OnWorldPartitionCreated);
 
 	if (World.IsValid())
 	{
@@ -100,8 +99,7 @@ FActorHierarchy::~FActorHierarchy()
 		GEngine->OnActorFoldersUpdatedEvent().RemoveAll(this);
 	}
 
-	IWorldPartitionEditorModule& WorldPartitionEditorModule = FModuleManager::LoadModuleChecked<IWorldPartitionEditorModule>("WorldPartitionEditor");
-	WorldPartitionEditorModule.OnWorldPartitionCreated().RemoveAll(this);
+	IWorldPartitionEditorModule::Get().OnWorldPartitionCreated().RemoveAll(this);
 
 	if (RepresentingWorld.IsValid())
 	{

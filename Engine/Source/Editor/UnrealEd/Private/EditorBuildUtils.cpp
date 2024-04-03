@@ -1401,9 +1401,8 @@ void FEditorBuildUtils::TriggerHierarchicalLODBuilder(UWorld* InWorld)
 {
 	if (InWorld->IsPartitionedWorld())
 	{
-		IWorldPartitionEditorModule& WorldPartitionEditorModule = FModuleManager::LoadModuleChecked<IWorldPartitionEditorModule>("WorldPartitionEditor");
 		TSubclassOf<UWorldPartitionBuilder> WorldPartitionHLODsBuilder = FindObjectChecked<UClass>(nullptr, TEXT("/Script/UnrealEd.WorldPartitionHLODsBuilder"), true);
-		WorldPartitionEditorModule.RunBuilder(WorldPartitionHLODsBuilder, InWorld);
+		IWorldPartitionEditorModule::Get().RunBuilder(WorldPartitionHLODsBuilder, InWorld);
 	}
 	else
 	{
@@ -1416,9 +1415,8 @@ void FEditorBuildUtils::TriggerMinimapBuilder(UWorld* InWorld)
 {
 	if (InWorld->IsPartitionedWorld())
 	{
-		IWorldPartitionEditorModule& WorldPartitionEditorModule = FModuleManager::LoadModuleChecked<IWorldPartitionEditorModule>("WorldPartitionEditor");
 		TSubclassOf<UWorldPartitionBuilder> WorldPartitionMiniMapBuilder = FindObjectChecked<UClass>(nullptr, TEXT("/Script/UnrealEd.WorldPartitionMiniMapBuilder"), true);
-		WorldPartitionEditorModule.RunBuilder(WorldPartitionMiniMapBuilder, InWorld);
+		IWorldPartitionEditorModule::Get().RunBuilder(WorldPartitionMiniMapBuilder, InWorld);
 	}
 }
 
@@ -1426,9 +1424,8 @@ void FEditorBuildUtils::TriggerLandscapeSplineMeshesBuilder(UWorld* InWorld)
 {
 	if (InWorld->IsPartitionedWorld())
 	{
-		IWorldPartitionEditorModule& WorldPartitionEditorModule = FModuleManager::LoadModuleChecked<IWorldPartitionEditorModule>("WorldPartitionEditor");
 		TSubclassOf<UWorldPartitionBuilder> WorldPartitionLandscapeSplineMeshesBuilder = FindObjectChecked<UClass>(nullptr, TEXT("/Script/UnrealEd.WorldPartitionLandscapeSplineMeshesBuilder"), true);
-		WorldPartitionEditorModule.RunBuilder(WorldPartitionLandscapeSplineMeshesBuilder, InWorld);
+		IWorldPartitionEditorModule::Get().RunBuilder(WorldPartitionLandscapeSplineMeshesBuilder, InWorld);
 	}
 }
 

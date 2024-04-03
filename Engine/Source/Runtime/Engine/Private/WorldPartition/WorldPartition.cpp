@@ -607,8 +607,7 @@ void UWorldPartition::Initialize(UWorld* InWorld, const FTransform& InTransform)
 		{			
 			PinnedActors = new FLoaderAdapterPinnedActors(OuterWorld);
 		
-			IWorldPartitionEditorModule& WorldPartitionEditorModule = FModuleManager::LoadModuleChecked<IWorldPartitionEditorModule>("WorldPartitionEditor");
-			ForceLoadedActors = WorldPartitionEditorModule.GetEnableLoadingInEditor() ? nullptr : new FLoaderAdapterActorList(OuterWorld);
+			ForceLoadedActors = IWorldPartitionEditorModule::Get().GetEnableLoadingInEditor() ? nullptr : new FLoaderAdapterActorList(OuterWorld);
 		}
 	}
 
@@ -888,8 +887,7 @@ void UWorldPartition::OnPostBugItGoCalled(const FVector& Loc, const FRotator& Ro
 		const FVector LoadExtent(UWorldPartition::LoadingRangeBugItGo, UWorldPartition::LoadingRangeBugItGo, HALF_WORLD_MAX);
 		const FBox LoadCellsBox(Loc - LoadExtent, Loc + LoadExtent);
 
-		IWorldPartitionEditorModule& WorldPartitionEditorModule = FModuleManager::LoadModuleChecked<IWorldPartitionEditorModule>("WorldPartitionEditor");
-		if (WorldPartitionEditorModule.GetEnableLoadingInEditor())
+		if (IWorldPartitionEditorModule::Get().GetEnableLoadingInEditor())
 		{
 			UWorldPartitionEditorLoaderAdapter* EditorLoaderAdapter = CreateEditorLoaderAdapter<FLoaderAdapterShape>(World, LoadCellsBox, TEXT("BugItGo"));
 			EditorLoaderAdapter->GetLoaderAdapter()->Load();
@@ -1426,9 +1424,7 @@ void UWorldPartition::OnEnableLoadingInEditorChanged()
 		ForceLoadedActors = nullptr;
 	}
 
-	IWorldPartitionEditorModule& WorldPartitionEditorModule = FModuleManager::LoadModuleChecked<IWorldPartitionEditorModule>("WorldPartitionEditor");
-
-	if (!WorldPartitionEditorModule.GetEnableLoadingInEditor())
+	if (!IWorldPartitionEditorModule::Get().GetEnableLoadingInEditor())
 	{
 		UWorld* OuterWorld = GetTypedOuter<UWorld>();
 		check(OuterWorld);

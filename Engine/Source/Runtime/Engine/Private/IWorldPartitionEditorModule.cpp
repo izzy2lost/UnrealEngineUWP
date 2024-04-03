@@ -3,13 +3,13 @@
 #include "WorldPartition/IWorldPartitionEditorModule.h"
 #include "Modules/ModuleManager.h"
 
-IWorldPartitionEditorModule* IWorldPartitionEditorModule::Instance = nullptr;
-
+/**
+* Singleton-like access to this module's interface.  This is just for convenience!
+* Beware of calling this during the shutdown phase, though.  Your module might have been unloaded already.
+*
+* @return Returns singleton instance, loading the module on demand if needed
+*/
 IWorldPartitionEditorModule& IWorldPartitionEditorModule::Get()
 {
-	if (!Instance)
-	{
-		Instance = &FModuleManager::LoadModuleChecked<IWorldPartitionEditorModule>("WorldPartitionEditor");
-	}
-	return *Instance;
+	return FModuleManager::LoadModuleChecked<IWorldPartitionEditorModule>("WorldPartitionEditor");
 }

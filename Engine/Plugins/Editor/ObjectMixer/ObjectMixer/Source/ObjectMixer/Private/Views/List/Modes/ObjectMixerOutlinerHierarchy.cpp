@@ -50,8 +50,7 @@ TUniquePtr<FObjectMixerOutlinerHierarchy> FObjectMixerOutlinerHierarchy::Create(
 	GEngine->OnActorFolderAdded().AddRaw(Hierarchy, &FObjectMixerOutlinerHierarchy::OnActorFolderAdded);
 	GEngine->OnActorFoldersUpdatedEvent().AddRaw(Hierarchy, &FObjectMixerOutlinerHierarchy::OnActorFoldersUpdatedEvent);
 
-	IWorldPartitionEditorModule& WorldPartitionEditorModule = FModuleManager::LoadModuleChecked<IWorldPartitionEditorModule>("WorldPartitionEditor");
-	WorldPartitionEditorModule.OnWorldPartitionCreated().AddRaw(Hierarchy, &FObjectMixerOutlinerHierarchy::OnWorldPartitionCreated);
+	IWorldPartitionEditorModule::Get().OnWorldPartitionCreated().AddRaw(Hierarchy, &FObjectMixerOutlinerHierarchy::OnWorldPartitionCreated);
 
 	if (World.IsValid())
 	{

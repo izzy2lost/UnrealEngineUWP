@@ -79,8 +79,7 @@ void AWorldPartitionMiniMap::CheckForErrors()
 		int32 EffectiveWorldUnitsPerPixel = 0;
 		GetMiniMapResolution(EffectiveMinimapImageSizeX, EffectiveMinimapImageSizeY, EffectiveWorldUnitsPerPixel);
 
-		IWorldPartitionEditorModule& WorldPartitionEditorModule = FModuleManager::LoadModuleChecked<IWorldPartitionEditorModule>("WorldPartitionEditor");
-		if (EffectiveWorldUnitsPerPixel > WorldPartitionEditorModule.GetMinimapLowQualityWorldUnitsPerPixelThreshold())
+		if (EffectiveWorldUnitsPerPixel > IWorldPartitionEditorModule::Get().GetMinimapLowQualityWorldUnitsPerPixelThreshold())
 		{
 			FMessageLog("MapCheck").Warning()
 				->AddToken(FUObjectToken::Create(this))

@@ -92,7 +92,4 @@ public:
 
 	/** Return the commandlet post-execution event */
 	virtual FOnPostExecuteCommandlet& OnPostExecuteCommandlet() = 0;
-
-private:
-	static IWorldPartitionEditorModule* Instance;
 };

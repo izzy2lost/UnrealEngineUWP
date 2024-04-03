@@ -574,7 +574,6 @@ void PCGWorldPartitionBuilder::Build(const TArray<FString>& Args)
 {
 	if (UWorld* World = (GEditor ? GEditor->GetEditorWorldContext().World() : nullptr))
 	{
-		IWorldPartitionEditorModule& WorldPartitionEditorModule = FModuleManager::LoadModuleChecked<IWorldPartitionEditorModule>("WorldPartitionEditor");
 		IWorldPartitionEditorModule::FRunBuilderParams Params;
 		Params.BuilderClass = UPCGWorldPartitionBuilder::StaticClass();
 		Params.World = World;
@@ -587,6 +586,6 @@ void PCGWorldPartitionBuilder::Build(const TArray<FString>& Args)
 			Params.ExtraArgs += Arg;
 		}
 
-		WorldPartitionEditorModule.RunBuilder(Params);
+		IWorldPartitionEditorModule::Get().RunBuilder(Params);
 	}
 }
