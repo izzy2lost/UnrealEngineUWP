@@ -233,7 +233,7 @@ EActiveTimerReturnType SEditorPerformanceStatusBarWidget::UpdateState(double InC
 
 	if (WarningCount > 0)
 	{
-		if (WarningCount == 0)
+		if (WarningCount == 1)
 		{
 			EditorPerformanceStateMessage = FText::FromString(*FString::Printf(TEXT("There Is 1 Warning.\n\nView Performance Report For Details.")));
 		}
