@@ -8,25 +8,23 @@ public class NNERuntimeORT : ModuleRules
 	{
 		PCHUsage = PCHUsageMode.UseExplicitOrSharedPCHs;
 
-		PrivateDependencyModuleNames.AddRange
-			(
-			new string[] {
-				"Core",
-				"CoreUObject",
-				"Engine",
-				"NNE",
-				"NNEOnnxruntime",
-				"Projects",
-				"RenderCore"
-			}
-		);
+		PrivateDependencyModuleNames.AddRange(new string[]
+		{
+			"Core",
+			"CoreUObject",
+			"Engine",
+			"NNE",
+			"NNEOnnxruntime",
+			"Projects",
+			"RenderCore",
+			"DeveloperSettings"
+		});
 
 		if (Target.Platform == UnrealTargetPlatform.Win64)
 		{
 			PrivateDependencyModuleNames.AddRange(new string[]
 			{
 				"D3D12RHI",
-				"DirectML",
 				"RHI"
 			});
 
@@ -35,7 +33,6 @@ public class NNERuntimeORT : ModuleRules
 				"DirectML",
 				"DX12"
 			});
-
 		}
 	}
 }

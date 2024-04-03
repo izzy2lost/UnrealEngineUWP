@@ -2,13 +2,10 @@
 
 #pragma once
 
-#include "CoreMinimal.h"
-#include "NNEOnnxruntime.h"
 #include "NNERuntime.h"
 #include "NNERuntimeCPU.h"
 #include "NNERuntimeGPU.h"
 #include "NNERuntimeRDG.h"
-#include "Templates/UniquePtr.h"
 #include "UObject/Class.h"
 #include "UObject/Object.h"
 #include "UObject/UObjectBaseUtility.h"
@@ -17,7 +14,7 @@
 
 namespace UE::NNERuntimeORT::Private
 {
-	class NNERuntimeORTDmlImpl;
+	class FEnvironment;
 }
 
 UCLASS()
@@ -26,7 +23,7 @@ class UNNERuntimeORTCpu : public UObject, public INNERuntime, public INNERuntime
 	GENERATED_BODY()
 
 private:
-	TSharedPtr<Ort::Env> ORTEnvironment;
+	TSharedPtr<UE::NNERuntimeORT::Private::FEnvironment> Environment;
 
 public:
 	static FGuid GUID;
@@ -34,8 +31,8 @@ public:
 
 	virtual ~UNNERuntimeORTCpu() = default;
 
-	void Init();
-		
+	void Init(TSharedRef<UE::NNERuntimeORT::Private::FEnvironment> InEnvironment);
+
 	virtual FString GetRuntimeName() const override;
 	
 	virtual ECanCreateModelDataStatus CanCreateModelData(const FString& FileType, TConstArrayView<uint8> FileData, const TMap<FString, TConstArrayView<uint8>>& AdditionalFileData, const FGuid& FileId, const ITargetPlatform* TargetPlatform) const override;
@@ -47,23 +44,22 @@ public:
 };
 
 UCLASS()
-class UNNERuntimeORTDmlEditor : public UObject, public INNERuntime, public INNERuntimeGPU, public INNERuntimeRDG
+class UNNERuntimeORTDml : public UObject, public INNERuntime, public INNERuntimeGPU, public INNERuntimeRDG
 {
 	GENERATED_BODY()
 
 	using ECanCreateModelCommonStatus = UE::NNE::EResultStatus;
 
 private:
-	TUniquePtr<UE::NNERuntimeORT::Private::NNERuntimeORTDmlImpl> Impl;
+	TSharedPtr<UE::NNERuntimeORT::Private::FEnvironment> Environment;
 
 public:
 	static FGuid GUID;
 	static int32 Version;
 	
-	UNNERuntimeORTDmlEditor();
-	virtual ~UNNERuntimeORTDmlEditor() = default;
+	virtual ~UNNERuntimeORTDml() = default;
 
-	void Init();
+	void Init(TSharedRef<UE::NNERuntimeORT::Private::FEnvironment> InEnvironment);
 
 	virtual FString GetRuntimeName() const override;
 
@@ -76,33 +72,7 @@ public:
 
 	virtual ECanCreateModelRDGStatus CanCreateModelRDG(TObjectPtr<UNNEModelData> ModelData) const override;
 	virtual TSharedPtr<UE::NNE::IModelRDG> CreateModelRDG(TObjectPtr<UNNEModelData> ModelData) override;
-};
-
-UCLASS()
-class UNNERuntimeORTDml : public UObject, public INNERuntime, public INNERuntimeRDG
-{
-	GENERATED_BODY()
-
-	using ECanCreateModelCommonStatus = UE::NNE::EResultStatus;
 
 private:
-	TUniquePtr<UE::NNERuntimeORT::Private::NNERuntimeORTDmlImpl> Impl;
-
-public:
-	static FGuid GUID;
-	static int32 Version;
-	
-	UNNERuntimeORTDml();
-	virtual ~UNNERuntimeORTDml() = default;
-
-	void Init();
-
-	virtual FString GetRuntimeName() const override;
-
-	virtual ECanCreateModelDataStatus CanCreateModelData(const FString& FileType, TConstArrayView<uint8> FileData, const TMap<FString, TConstArrayView<uint8>>& AdditionalFileData, const FGuid& FileId, const ITargetPlatform* TargetPlatform) const override;
-	virtual TSharedPtr<UE::NNE::FSharedModelData> CreateModelData(const FString& FileType, TConstArrayView<uint8> FileData, const TMap<FString, TConstArrayView<uint8>>& AdditionalFileData, const FGuid& FileId, const ITargetPlatform* TargetPlatform) override;
-	virtual FString GetModelDataIdentifier(const FString& FileType, TConstArrayView<uint8> FileData, const TMap<FString, TConstArrayView<uint8>>& AdditionalFileData, const FGuid& FileId, const ITargetPlatform* TargetPlatform) const override;
-
-	virtual ECanCreateModelRDGStatus CanCreateModelRDG(TObjectPtr<UNNEModelData> ModelData) const override;
-	virtual TSharedPtr<UE::NNE::IModelRDG> CreateModelRDG(TObjectPtr<UNNEModelData> ModelData) override;
+	ECanCreateModelCommonStatus CanCreateModelCommon(const TObjectPtr<UNNEModelData> ModelData) const;
 };

@@ -8,40 +8,65 @@
 #include "NNE.h"
 #include "NNEOnnxruntime.h"
 #include "NNERuntimeORT.h"
+#include "NNERuntimeORTEnv.h"
+#include "NNERuntimeORTSettings.h"
 #include "UObject/WeakInterfacePtr.h"
 
-namespace UE::NNERuntimeORT::Private::DllHelper
+namespace UE::NNERuntimeORT::Private
 {
-	bool GetDllHandle(const FString& DllPath, TArray<void*>& DllHandles)
+	namespace DllHelper
 	{
-		void *DllHandle = nullptr;
-
-		if (!FPaths::FileExists(DllPath))
+		bool GetDllHandle(const FString& DllPath, TArray<void*>& DllHandles)
 		{
-			UE_LOG(LogNNE, Error, TEXT("Failed to find the third party library %s."), *DllPath);
-			return false;
-		}
-		
-		DllHandle = FPlatformProcess::GetDllHandle(*DllPath);
+			void *DllHandle = nullptr;
 
-		if (!DllHandle)
+			if (!FPaths::FileExists(DllPath))
+			{
+				UE_LOG(LogNNE, Error, TEXT("Failed to find the third party library %s."), *DllPath);
+				return false;
+			}
+			
+			DllHandle = FPlatformProcess::GetDllHandle(*DllPath);
+
+			if (!DllHandle)
+			{
+				UE_LOG(LogNNE, Error, TEXT("Failed to load the third party library %s."), *DllPath);
+				return false;
+			}
+
+			DllHandles.Add(DllHandle);
+			return true;
+		}
+	} // namespace DllHelper
+
+	namespace EnvironmentHelper
+	{
+		void CreateOrtEnvFromSettings(const UNNERuntimeORTSettings* Settings, FEnvironment& Environment)
 		{
-			UE_LOG(LogNNE, Error, TEXT("Failed to load the third party library %s."), *DllPath);
-			return false;
+#if WITH_EDITOR
+			FThreadingOptions ThreadingOptions = Settings->EditorThreadingOptions;
+#else
+			FThreadingOptions ThreadingOptions = Settings->GameThreadingOptions;
+#endif
+
+			UE::NNERuntimeORT::Private::FEnvironment::FConfig Config{};
+			Config.bUseGlobalThreadPool = ThreadingOptions.bUseGlobalThreadPool;
+			Config.IntraOpNumThreads = ThreadingOptions.IntraOpNumThreads;
+			Config.InterOpNumThreads = ThreadingOptions.InterOpNumThreads;
+
+			Environment.CreateOrtEnv(Config);
 		}
-
-		DllHandles.Add(DllHandle);
-		return true;
-	}
-
-} // namespace UE::NNERuntimeRDG::Private::Dml
+	} // EnvironmentHelper
+} // namespace UE::NNERuntimeRDG::Private
 
 void FNNERuntimeORTModule::StartupModule()
 {
+	using namespace UE::NNERuntimeORT::Private;
+
 	const FString PluginDir = IPluginManager::Get().FindPlugin("NNERuntimeORT")->GetBaseDir();
 	const FString OrtSharedLibPath = FPaths::Combine(PluginDir, TEXT(PREPROCESSOR_TO_STRING(ONNXRUNTIME_SHAREDLIB_PATH)));
 
-	if (!UE::NNERuntimeORT::Private::DllHelper::GetDllHandle(OrtSharedLibPath, DllHandles))
+	if (!DllHelper::GetDllHandle(OrtSharedLibPath, DllHandles))
 	{
 		UE_LOG(LogNNE, Error, TEXT("Failed to load ONNX Runtime shared library. ORT Runtimes won't be available."));
 		return;
@@ -53,7 +78,7 @@ void FNNERuntimeORTModule::StartupModule()
 	const FString ModuleDir = FPlatformProcess::GetModulesDirectory();
 	const FString DirectMLSharedLibPath = FPaths::Combine(ModuleDir, TEXT(PREPROCESSOR_TO_STRING(DIRECTML_PATH)), TEXT("DirectML.dll"));
 
-	const bool bDirectMLDllLoaded = UE::NNERuntimeORT::Private::DllHelper::GetDllHandle(DirectMLSharedLibPath, DllHandles);
+	const bool bDirectMLDllLoaded = DllHelper::GetDllHandle(DirectMLSharedLibPath, DllHandles);
 	if (!bDirectMLDllLoaded)
 	{
 		UE_LOG(LogNNE, Error, TEXT("Failed to load DirectML shared library. ORT Dml Runtime won't be available."));
@@ -68,53 +93,52 @@ void FNNERuntimeORTModule::StartupModule()
 	}
 
 	Ort::InitApi(OrtApiFunctions->OrtGetApiBase()->GetApi(ORT_API_VERSION));
+	
+	Environment = MakeShared<FEnvironment>();
+
+	EnvironmentHelper::CreateOrtEnvFromSettings(GetDefault<UNNERuntimeORTSettings>(), *Environment);
 
 #if PLATFORM_WINDOWS
 	if (bDirectMLDllLoaded)
 	{
-#if WITH_EDITOR
-		// NNE runtime ORT Dml startup
-		NNERuntimeORTDmlEditor = NewObject<UNNERuntimeORTDmlEditor>();
-		if (NNERuntimeORTDmlEditor.IsValid())
-		{
-			TWeakInterfacePtr<INNERuntime> RuntimeDmlInterface(NNERuntimeORTDmlEditor.Get());
-
-			NNERuntimeORTDmlEditor->Init();
-			NNERuntimeORTDmlEditor->AddToRoot();
-			UE::NNE::RegisterRuntime(RuntimeDmlInterface);
-		}
-#else
 		// NNE runtime ORT Dml startup
 		NNERuntimeORTDml = NewObject<UNNERuntimeORTDml>();
 		if (NNERuntimeORTDml.IsValid())
 		{
 			TWeakInterfacePtr<INNERuntime> RuntimeDmlInterface(NNERuntimeORTDml.Get());
 
-			NNERuntimeORTDml->Init();
+			NNERuntimeORTDml->Init(Environment.ToSharedRef());
 			NNERuntimeORTDml->AddToRoot();
 			UE::NNE::RegisterRuntime(RuntimeDmlInterface);
 		}
-#endif // WITH_EDITOR
 	}
 #endif // PLATFORM_WINDOWS
 
-#if WITH_EDITOR
 	// NNE runtime ORT Cpu startup
 	NNERuntimeORTCpu = NewObject<UNNERuntimeORTCpu>();
 	if (NNERuntimeORTCpu.IsValid())
 	{
 		TWeakInterfacePtr<INNERuntime> RuntimeCPUInterface(NNERuntimeORTCpu.Get());
 
-		NNERuntimeORTCpu->Init();
+		NNERuntimeORTCpu->Init(Environment.ToSharedRef());
 		NNERuntimeORTCpu->AddToRoot();
 		UE::NNE::RegisterRuntime(RuntimeCPUInterface);
 	}
-#endif // WITH_EDITOR
+
+#if WITH_EDITOR
+	GetMutableDefault<UNNERuntimeORTSettings>()->OnSettingChanged().AddRaw(this, &FNNERuntimeORTModule::OnSettingsChanged);
+#endif
 }
 
 void FNNERuntimeORTModule::ShutdownModule()
 {
 #if WITH_EDITOR
+	if(UObjectInitialized())
+	{
+		GetMutableDefault<UNNERuntimeORTSettings>()->OnSettingChanged().RemoveAll(this);
+	}
+#endif
+
 	// NNE runtime ORT Cpu shutdown
 	if (NNERuntimeORTCpu.IsValid())
 	{
@@ -126,16 +150,6 @@ void FNNERuntimeORTModule::ShutdownModule()
 	}
 
 	// NNE runtime ORT Dml shutdown
-	if (NNERuntimeORTDmlEditor.IsValid())
-	{
-		TWeakInterfacePtr<INNERuntime> RuntimeDmlInterface(NNERuntimeORTDmlEditor.Get());
-
-		UE::NNE::UnregisterRuntime(RuntimeDmlInterface);
-		NNERuntimeORTDmlEditor->RemoveFromRoot();
-		NNERuntimeORTDmlEditor.Reset();
-	}
-#else
-	// NNE runtime ORT Dml shutdown
 	if (NNERuntimeORTDml.IsValid())
 	{
 		TWeakInterfacePtr<INNERuntime> RuntimeDmlInterface(NNERuntimeORTDml.Get());
@@ -144,7 +158,8 @@ void FNNERuntimeORTModule::ShutdownModule()
 		NNERuntimeORTDml->RemoveFromRoot();
 		NNERuntimeORTDml.Reset();
 	}
-#endif // WITH_EDITOR
+
+	Environment.Reset();
 
 	// Free the dll handles
 	for(void* DllHandle : DllHandles)
@@ -153,5 +168,15 @@ void FNNERuntimeORTModule::ShutdownModule()
 	}
 	DllHandles.Empty();
 }
+
+#if WITH_EDITOR
+void FNNERuntimeORTModule::OnSettingsChanged(UObject* InObject, struct FPropertyChangedEvent& InPropertyChangedEvent)
+{
+	UE_LOG(LogNNE, Log, TEXT("Settings %s changed: %s"), *InObject->GetName(), *InPropertyChangedEvent.GetPropertyName().ToString());
+	UE_LOG(LogNNE, Warning, TEXT("It is recommended to restart the Editor if settings %s changed! Otherwise they might not be fully applied."), *InObject->GetName());
+
+	UE::NNERuntimeORT::Private::EnvironmentHelper::CreateOrtEnvFromSettings(CastChecked<UNNERuntimeORTSettings>(InObject), *Environment);
+}
+#endif
 
 IMPLEMENT_MODULE(FNNERuntimeORTModule, NNERuntimeORT);

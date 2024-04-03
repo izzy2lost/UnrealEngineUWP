@@ -5,6 +5,7 @@
 #include "HAL/IConsoleManager.h"
 #include "HAL/PlatformMisc.h"
 #include "NNERuntimeORT.h"
+#include "NNERuntimeORTSettings.h"
 #include "NNERuntimeORTUtils.h"
 #include "RenderGraphUtils.h"
 
@@ -40,11 +41,46 @@ namespace UE::NNERuntimeORT::Private
 namespace Detail
 {
 
+	FRuntimeConf MakeRuntimeConfigFromSettings(const UNNERuntimeORTSettings* Settings)
+	{
+		FRuntimeConf Result{};
+
+#if WITH_EDITOR
+			FThreadingOptions ThreadingOptions = Settings->EditorThreadingOptions;
+#else
+			FThreadingOptions ThreadingOptions = Settings->GameThreadingOptions;
+#endif
+
+		Result.bUseGlobalThreadPool = ThreadingOptions.bUseGlobalThreadPool;
+		Result.IntraOpNumThreads = ThreadingOptions.IntraOpNumThreads;
+		Result.InterOpNumThreads = ThreadingOptions.InterOpNumThreads;
+		Result.ExecutionMode = ThreadingOptions.ExecutionMode == EExecutionMode::SEQUENTIAL ? ExecutionMode::ORT_SEQUENTIAL : ExecutionMode::ORT_PARALLEL;
+
+		return Result;
+	}
+
 TUniquePtr<Ort::SessionOptions> CreateSessionOptionsDefault(const FRuntimeConf &RuntimeConf)
 {
 	TUniquePtr<Ort::SessionOptions> SessionOptions = MakeUnique<Ort::SessionOptions>();
+
+	// Configure Threading
+	if (RuntimeConf.bUseGlobalThreadPool)
+	{
+		SessionOptions->DisablePerSessionThreads();
+	}
+	else
+	{
+		SessionOptions->SetIntraOpNumThreads(RuntimeConf.IntraOpNumThreads);
+		SessionOptions->SetInterOpNumThreads(RuntimeConf.InterOpNumThreads);
+	}
+
+	SessionOptions->SetExecutionMode(RuntimeConf.ExecutionMode);
+
+	// Configure Graph optimization
 	SessionOptions->SetGraphOptimizationLevel(RuntimeConf.OptimizationLevel);
 
+
+	// Configure Profiling
 	if (CVarNNERuntimeORTEnableProfiling.GetValueOnGameThread())
 	{
 		FString ProfilingFilePrefix("NNERuntimeORTProfile_");
@@ -64,6 +100,12 @@ TUniquePtr<Ort::SessionOptions> CreateSessionOptionsDefault(const FRuntimeConf &
 TUniquePtr<Ort::SessionOptions> CreateSessionOptionsForDirectML(const FRuntimeConf &RuntimeConf)
 {
 	TUniquePtr<Ort::SessionOptions> SessionOptions = CreateSessionOptionsDefault(RuntimeConf);
+	if (!SessionOptions.IsValid())
+	{
+		return {};
+	}
+
+	// Configure for DirectML
 	SessionOptions->SetExecutionMode(ExecutionMode::ORT_SEQUENTIAL);
 	SessionOptions->DisableMemPattern();
 
@@ -148,7 +190,7 @@ TUniquePtr<Ort::SessionOptions> CreateSessionOptionsForDirectML(const FRuntimeCo
 } // namespace Detail
 
 template <class ModelInterface, class TensorBinding> 
-FModelInstanceORTBase<ModelInterface, TensorBinding>::FModelInstanceORTBase(const FRuntimeConf& InRuntimeConf, TSharedPtr<Ort::Env> InEnvironment)
+FModelInstanceORTBase<ModelInterface, TensorBinding>::FModelInstanceORTBase(const FRuntimeConf& InRuntimeConf, TSharedRef<FEnvironment> InEnvironment)
 	: RuntimeConf(InRuntimeConf), Environment(InEnvironment)
 {
 
@@ -177,7 +219,7 @@ bool FModelInstanceORTBase<ModelInterface, TensorBinding>::Init(TConstArrayView<
 			return false;
 		}
 
-		Session = MakeUnique<Ort::Session>(*Environment, ModelBuffer.GetData(), ModelBuffer.Num(), *SessionOptions);
+		Session = MakeUnique<Ort::Session>(Environment->GetOrtEnv(), ModelBuffer.GetData(), ModelBuffer.Num(), *SessionOptions);
 
 		if (!ConfigureTensors(true))
 		{
@@ -368,10 +410,9 @@ typename ModelInterface::ERunSyncStatus FModelInstanceORTBase<ModelInterface, Te
 	return ModelInterface::ERunSyncStatus::Ok;
 }
 
-#if WITH_EDITOR
 TSharedPtr<NNE::IModelInstanceCPU> FModelORTCpu::CreateModelInstanceCPU()
 {
-	const FRuntimeConf Conf;
+	const FRuntimeConf Conf = Detail::MakeRuntimeConfigFromSettings(GetDefault<UNNERuntimeORTSettings>());
 	FModelInstanceORTCpu* ModelInstance = new FModelInstanceORTCpu(Conf, Environment);
 
 	check(ModelData.IsValid());
@@ -385,7 +426,7 @@ TSharedPtr<NNE::IModelInstanceCPU> FModelORTCpu::CreateModelInstanceCPU()
 	return TSharedPtr<NNE::IModelInstanceCPU>(IModelInstance);
 }
 
-FModelORTCpu::FModelORTCpu(TSharedPtr<Ort::Env> InEnvironment, const TSharedPtr<UE::NNE::FSharedModelData>& InModelData) :
+FModelORTCpu::FModelORTCpu(TSharedRef<FEnvironment> InEnvironment, const TSharedPtr<UE::NNE::FSharedModelData>& InModelData) :
 	Environment(InEnvironment), ModelData(InModelData)
 {
 }
@@ -407,12 +448,11 @@ bool FModelInstanceORTCpu::InitializedAndConfigureMembers()
 
 	return true;
 }
-#endif // WITH_EDITOR
 
 #if PLATFORM_WINDOWS
 TSharedPtr<NNE::IModelInstanceGPU> FModelORTDmlGPU::CreateModelInstanceGPU()
 {
-	const FRuntimeConf Conf;
+	const FRuntimeConf Conf = Detail::MakeRuntimeConfigFromSettings(GetDefault<UNNERuntimeORTSettings>());
 	FModelInstanceORTDmlGPU* ModelInstance = new FModelInstanceORTDmlGPU(Conf, Environment);
 
 	check(ModelData.IsValid());
@@ -426,7 +466,7 @@ TSharedPtr<NNE::IModelInstanceGPU> FModelORTDmlGPU::CreateModelInstanceGPU()
 	return TSharedPtr<NNE::IModelInstanceGPU>(IModelInstance);
 }
 
-FModelORTDmlGPU::FModelORTDmlGPU(TSharedPtr<Ort::Env> InEnvironment, const TSharedPtr<UE::NNE::FSharedModelData>& InModelData) :
+FModelORTDmlGPU::FModelORTDmlGPU(TSharedRef<FEnvironment> InEnvironment, const TSharedPtr<UE::NNE::FSharedModelData>& InModelData) :
 	Environment(InEnvironment), ModelData(InModelData)
 {
 }
@@ -447,7 +487,7 @@ bool FModelInstanceORTDmlGPU::InitializedAndConfigureMembers()
 	return true;
 }
 
-FModelORTDmlRDG::FModelORTDmlRDG(TSharedRef<Ort::Env> InEnvironment, TSharedRef<UE::NNE::FSharedModelData> InModelData) :
+FModelORTDmlRDG::FModelORTDmlRDG(TSharedRef<FEnvironment> InEnvironment, TSharedRef<UE::NNE::FSharedModelData> InModelData) :
 	Environment(InEnvironment), ModelData(InModelData)
 {
 }
@@ -463,7 +503,7 @@ TSharedPtr<NNE::IModelInstanceRDG> FModelORTDmlRDG::CreateModelInstanceRDG()
 	return ModelInstance;
 }
 
-FModelInstanceORTDmlRDG::FModelInstanceORTDmlRDG(TSharedRef<UE::NNE::FSharedModelData> InModelData, const FRuntimeConf& InRuntimeConf, TSharedRef<Ort::Env> InEnvironment)
+FModelInstanceORTDmlRDG::FModelInstanceORTDmlRDG(TSharedRef<UE::NNE::FSharedModelData> InModelData, const FRuntimeConf& InRuntimeConf, TSharedRef<FEnvironment> InEnvironment)
 	:  ModelData(InModelData), RuntimeConf(InRuntimeConf), Environment(InEnvironment)
 {}
 
@@ -488,11 +528,11 @@ bool FModelInstanceORTDmlRDG::Init()
 		SessionOptions = Detail::CreateSessionOptionsForDirectML(RuntimeConf);
 		if (!SessionOptions.IsValid())
 		{
-			UE_LOG(LogNNE, Error, TEXT("FModelInstanceORTDmlRDG::Init(): Failed to create session options."));
+			UE_LOG(LogNNE, Error, TEXT("FModelInstanceORTDmlRDG::Init(): Failed to configure session options for DirectML Execution Provider."));
 			return false;
 		}
 
-		Session = MakeUnique<Ort::Session>(*Environment, ModelBuffer.GetData(), ModelBuffer.Num(), *SessionOptions);
+		Session = MakeUnique<Ort::Session>(Environment->GetOrtEnv(), ModelBuffer.GetData(), ModelBuffer.Num(), *SessionOptions);
 
 		if (!ConfigureTensors(*Session))
 		{
@@ -681,7 +721,7 @@ FModelInstanceORTDmlRDG::ESetInputTensorShapesStatus FModelInstanceORTDmlRDG::Se
 	TConstArrayView<uint8> ModelBuffer = TConstArrayView<uint8>(&(ModelData->GetView().GetData()[GuidSize + VersionSize]), ModelData->GetView().Num() - GuidSize - VersionSize);
 	check(!ModelBuffer.IsEmpty());
 
-	Session = MakeUnique<Ort::Session>(*Environment, ModelBuffer.GetData(), ModelBuffer.Num(), *SessionOptions);
+	Session = MakeUnique<Ort::Session>(Environment->GetOrtEnv(), ModelBuffer.GetData(), ModelBuffer.Num(), *SessionOptions);
 
 	// Need to configure output tensors with new session (to apply free dimension overrides)
 	if (!ConfigureTensors(*Session, false))

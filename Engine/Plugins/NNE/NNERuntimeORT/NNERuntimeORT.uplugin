@@ -19,7 +19,7 @@
 		{
 			"Name": "NNERuntimeORT",
 			"Type": "RuntimeAndProgram",
-			"LoadingPhase": "Default",
+			"LoadingPhase": "PreDefault",
 			"PlatformAllowList": [ "Win64", "Linux", "Mac" ]
 		}
 	]
