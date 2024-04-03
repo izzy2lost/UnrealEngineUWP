@@ -24,7 +24,18 @@ using Microsoft.Extensions.Options;
 
 namespace EpicGames.OIDC
 {
-	public class OidcTokenManager
+	public interface IOidcTokenManager
+	{
+		public Task<OidcTokenInfo> LoginAsync(string providerIdentifier, CancellationToken cancellationToken = default);
+
+		public Task<OidcTokenInfo> GetAccessToken(string providerIdentifier, CancellationToken cancellationToken = default);
+
+		public Task<OidcTokenInfo?> TryGetAccessToken(string providerIdentifier, CancellationToken cancellationToken = default);
+
+		public OidcStatus GetStatusForProvider(string providerIdentifier);
+	}
+	
+	public class OidcTokenManager : IOidcTokenManager
 	{
 		private readonly object _lockObject = new object();
 		private readonly Dictionary<string, OidcTokenClient> _tokenClients = new Dictionary<string, OidcTokenClient>(StringComparer.OrdinalIgnoreCase);
@@ -126,6 +137,7 @@ namespace EpicGames.OIDC
 			return _tokenClients.Any(pair => pair.Value.GetStatus() == OidcStatus.NotLoggedIn);
 		}
 
+		/// <inheritdoc/>
 		public async Task<OidcTokenInfo> LoginAsync(string providerIdentifier, CancellationToken cancellationToken = default)
 		{
 			OidcTokenClient tokenClient = _tokenClients[providerIdentifier];
@@ -140,16 +152,19 @@ namespace EpicGames.OIDC
 			return tokenInfo;
 		}
 
+		/// <inheritdoc/>
 		public Task<OidcTokenInfo> GetAccessToken(string providerIdentifier, CancellationToken cancellationToken = default)
 		{
 			return _tokenClients[providerIdentifier].GetAccessTokenAsync(cancellationToken);
 		}
 
+		/// <inheritdoc/>
 		public Task<OidcTokenInfo?> TryGetAccessToken(string providerIdentifier, CancellationToken cancellationToken = default)
 		{
 			return _tokenClients[providerIdentifier].TryGetAccessTokenAsync(cancellationToken);
 		}
 
+		/// <inheritdoc/>
 		public OidcStatus GetStatusForProvider(string providerIdentifier)
 		{
 			return _tokenClients[providerIdentifier].GetStatus();
@@ -158,8 +173,19 @@ namespace EpicGames.OIDC
 
 	public enum OidcStatus
 	{
+		/// <summary>
+		/// Both access and refresh token are valid
+		/// </summary>
 		Connected,
+		
+		/// <summary>
+		/// No refresh token is set and requires login
+		/// </summary>
 		NotLoggedIn,
+		
+		/// <summary>
+		/// Access token has not been generated or has expired, and needs refreshing 
+		/// </summary>
 		TokenRefreshRequired
 	}
 
@@ -167,6 +193,10 @@ namespace EpicGames.OIDC
 	{
 		public string? RefreshToken { get; set; }
 		public string? AccessToken { get; set; }
+		
+		/// <summary>
+		/// When access token expires
+		/// </summary>
 		public DateTimeOffset TokenExpiry { get; set; }
 
 		public bool IsValid => RefreshToken != null && AccessToken != null;
@@ -562,17 +592,22 @@ namespace EpicGames.OIDC
 
 		public OidcStatus GetStatus()
 		{
-			if (String.IsNullOrEmpty(_refreshToken))
+			return GetStatus(_refreshToken, _accessToken, _tokenExpiry);
+		}
+		
+		public static OidcStatus GetStatus(string? refreshToken, string? accessToken, DateTimeOffset accessTokenExpiry)
+		{
+			if (String.IsNullOrEmpty(refreshToken))
 			{
 				return OidcStatus.NotLoggedIn;
 			}
 
-			if (String.IsNullOrEmpty(_accessToken))
+			if (String.IsNullOrEmpty(accessToken))
 			{
 				return OidcStatus.TokenRefreshRequired;
 			}
 
-			if (_tokenExpiry < DateTime.Now)
+			if (accessTokenExpiry < DateTime.Now)
 			{
 				return OidcStatus.TokenRefreshRequired;
 			}
