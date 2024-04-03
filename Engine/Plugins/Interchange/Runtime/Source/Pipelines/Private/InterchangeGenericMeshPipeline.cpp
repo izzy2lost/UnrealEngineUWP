@@ -44,6 +44,7 @@ void UInterchangeGenericMeshPipeline::AdjustSettingsForContext(EInterchangePipel
 	{
 		bCreatePhysicsAsset = false;
 		PhysicsAsset = nullptr;
+		LodGroup = NAME_None;
 		
 		if (ImportType == EInterchangePipelineContext::AssetAlternateSkinningImport
 			|| ImportType == EInterchangePipelineContext::AssetAlternateSkinningReimport)
