@@ -67,7 +67,7 @@ void UAudioVectorscope::CreateVectorscopeWidget()
 
 	if (PanelLayoutType == EAudioPanelLayoutType::Advanced)
 	{
-		VectorscopePanelWidget->OnTimeWindowValueChanged.AddSP(AudioSamplesDataProvider.Get(), &FWaveformAudioSamplesDataProvider::SetTimeWindow);
+		VectorscopePanelWidget->OnDisplayPersistenceValueChanged.AddSP(AudioSamplesDataProvider.Get(), &FWaveformAudioSamplesDataProvider::SetTimeWindow);
 	}
 }
 
@@ -107,6 +107,12 @@ void UAudioVectorscope::SynchronizeProperties()
 		}
 	}
 
+	if (AudioSamplesDataProvider.IsValid())
+	{
+		AudioSamplesDataProvider->SetTimeWindow(DisplayPersistenceMs);
+		AudioSamplesDataProvider->RequestSequenceView(TRange<double>::Inclusive(0, 1));
+	}
+
 	if (VectorscopePanelWidget.IsValid())
 	{
 		if (PanelLayoutType != VectorscopePanelWidget->GetPanelLayoutType() && AudioSamplesDataProvider.IsValid())
@@ -118,6 +124,8 @@ void UAudioVectorscope::SynchronizeProperties()
 		VectorscopePanelWidget->SetValueGridOverlayMaxNumDivisions(GridDivisions);
 
 		VectorscopePanelWidget->UpdateSequenceVectorViewerStyle(VectorscopeStyle.VectorViewerStyle);
+
+		VectorscopePanelWidget->SetDisplayPersistence(DisplayPersistenceMs);
 		VectorscopePanelWidget->SetVectorViewerScaleFactor(Scale);
 
 		VectorscopePanelWidget->SetGridVisibility(bShowGrid);

@@ -60,7 +60,7 @@ public:
 	int32 GridDivisions = 2;
 
 	/** For how long the audio samples should persist in the screen (in milliseconds). */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Vectorscope Values", meta = (UIMin = 10.0, UIMax = 100.0, ClampMin = 10.0, ClampMax = 100.0))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Vectorscope Values", meta = (UIMin = 10.0, UIMax = 500.0, ClampMin = 10.0, ClampMax = 500.0))
 	float DisplayPersistenceMs = 60.0f;
 
 	/** The scale for the displayed audio samples. */

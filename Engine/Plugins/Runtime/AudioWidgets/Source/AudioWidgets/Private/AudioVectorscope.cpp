@@ -54,7 +54,7 @@ namespace AudioWidgets
 
 		if (InPanelLayoutType == EAudioPanelLayoutType::Advanced)
 		{
-			VectorscopePanelWidget->OnTimeWindowValueChanged.AddSP(AudioSamplesDataProvider.Get(), &FWaveformAudioSamplesDataProvider::SetTimeWindow);
+			VectorscopePanelWidget->OnDisplayPersistenceValueChanged.AddSP(AudioSamplesDataProvider.Get(), &FWaveformAudioSamplesDataProvider::SetTimeWindow);
 		}
 	}
 
