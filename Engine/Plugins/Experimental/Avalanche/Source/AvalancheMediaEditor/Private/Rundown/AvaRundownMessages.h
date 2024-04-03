@@ -2,6 +2,7 @@
 
 #pragma once
 
+#include "Broadcast/Channel/AvaBroadcastMediaOutputInfo.h"
 #include "Rundown/AvaRundownPage.h"
 #include "AvaRundownMessages.generated.h"
 
@@ -526,6 +527,18 @@ public:
 	UPROPERTY()
 	FString Name;
 
+	UPROPERTY()
+	FAvaBroadcastMediaOutputInfo OutputInfo;
+	
+	UPROPERTY()
+	EAvaBroadcastOutputState OutputState = EAvaBroadcastOutputState::Invalid;
+	
+	UPROPERTY()
+	EAvaBroadcastIssueSeverity IssueSeverity = EAvaBroadcastIssueSeverity::None;
+
+	UPROPERTY()
+	TArray<FString> IssueMessages;
+
 	/**
 	 * Raw Json string representing a serialized UMediaOutput.
 	 */
@@ -576,6 +589,12 @@ struct FAvaRundownChannel
 public:
 	UPROPERTY()
 	FString Name;
+
+	UPROPERTY()
+	EAvaBroadcastChannelState State = EAvaBroadcastChannelState::Offline;
+
+	UPROPERTY()
+	EAvaBroadcastIssueSeverity IssueSeverity = EAvaBroadcastIssueSeverity::None;
 
 	UPROPERTY()
 	TArray<FAvaRundownOutputDeviceItem> Devices;

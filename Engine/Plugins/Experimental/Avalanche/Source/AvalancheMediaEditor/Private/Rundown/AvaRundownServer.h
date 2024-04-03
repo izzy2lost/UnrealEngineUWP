@@ -37,6 +37,7 @@ public:
 	void PageChannelChanged(const UAvaRundown* InRundown, const FAvaRundownPage& InPage, const FString& InChannelName) const;
 	void PageAnimSettingsChanged(const UAvaRundown* InRundown, const FAvaRundownPage& InPage) const;
 	void OnBroadcastChannelListChanged(const FAvaBroadcastProfile& InProfile) const;
+	void OnBroadcastChannelChanged(const FAvaBroadcastOutputChannel& InChannel, EAvaBroadcastChannelChange InChange) const;
 	void OnAssetAddedOrRemoved(const FAssetData& InAssetData) const;
 
 	/** Returns the endpoint's message address. */
