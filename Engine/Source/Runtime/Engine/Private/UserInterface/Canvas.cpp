@@ -93,22 +93,22 @@ FTexture* GetTextureForCanvasItem(UTexture* RenderTexture)
 	}
 }
 
-void FCanvasWordWrapper::Execute(const TCHAR* const InString, const FTextSizingParameters& InParameters, TArray<FWrappedStringElement>& OutStrings, FWrappedLineData* const OutWrappedLineData)
+void FCanvasWordWrapper::Execute(FStringView InString, const FTextSizingParameters& InParameters, TArray<FWrappedStringElement>& OutStrings, FWrappedLineData* const OutWrappedLineData)
 {
 	SCOPE_CYCLE_COUNTER(STAT_Canvas_WordWrappingTime);
 
-	FWrappingState WrappingState(InString, FCString::Strlen(InString), InParameters, OutStrings, OutWrappedLineData);
+	FWrappingState WrappingState(InString, InParameters, OutStrings, OutWrappedLineData);
 	if (WrappingState.WrappedLineData)
 	{
 		WrappingState.WrappedLineData->Empty();
 	}
 
-	if (WrappingState.StringLength > 0)
+	if (!WrappingState.String.IsEmpty())
 	{
-		GraphemeBreakIterator->SetString(WrappingState.String, WrappingState.StringLength);
-		LineBreakIterator->SetString(WrappingState.String, WrappingState.StringLength);
+		GraphemeBreakIterator->SetStringRef(WrappingState.String);
+		LineBreakIterator->SetStringRef(WrappingState.String);
 
-		for(int32 i = 0; i < WrappingState.StringLength; ++i) // Sanity check: Doesn't seem valid to have more lines than code units.
+		for(int32 i = 0; i < WrappingState.String.Len(); ++i) // Sanity check: Doesn't seem valid to have more lines than code units.
 		{	
 			if( !ProcessLine(WrappingState) )
 			{
@@ -121,17 +121,18 @@ void FCanvasWordWrapper::Execute(const TCHAR* const InString, const FTextSizingP
 bool FCanvasWordWrapper::ProcessLine(FWrappingState& WrappingState)
 {
 	bool bHasAddedLine = false;
-	if(WrappingState.StartIndex < WrappingState.StringLength)
+	const int32 StringLength = WrappingState.String.Len();
+	if (WrappingState.StartIndex < StringLength)
 	{
-		int32 BreakIndex = FindFirstMandatoryBreakBetween(WrappingState, WrappingState.StringLength);
+		int32 BreakIndex = FindFirstMandatoryBreakBetween(WrappingState, StringLength);
 
 		int32 NextStartIndex;
-		if( BreakIndex == INDEX_NONE || !DoesSubstringFit(WrappingState, BreakIndex) )
+		if (BreakIndex == INDEX_NONE || !DoesSubstringFit(WrappingState, BreakIndex))
 		{
 			BreakIndex = INDEX_NONE;
 			int32 WrapIndex = FindIndexAtOrAfterWrapWidth(WrappingState);
 
-			if (WrapIndex == WrappingState.StringLength)
+			if (WrapIndex == StringLength)
 			{
 				BreakIndex = WrapIndex;
 			}
@@ -175,12 +176,12 @@ bool FCanvasWordWrapper::ProcessLine(FWrappingState& WrappingState)
 			bHasAddedLine = true;
 		}
 
-		while (NextStartIndex < WrappingState.StringLength && FText::IsWhitespace(WrappingState.String[NextStartIndex]))
+		while (NextStartIndex < StringLength && FText::IsWhitespace(WrappingState.String[NextStartIndex]))
 		{
 			++NextStartIndex;
 		}
 
-		if(WrappingState.WrappedLineData)
+		if (WrappingState.WrappedLineData)
 		{
 			WrappingState.WrappedLineData->Emplace(WrappingState.StartIndex, BreakIndex);
 		}
@@ -194,7 +195,7 @@ bool FCanvasWordWrapper::DoesSubstringFit(FWrappingState& WrappingState, const i
 {
 	FTextSizingParameters MeasureParameters(WrappingState.Parameters);
 	int32 Unused;
-	UCanvas::MeasureStringInternal( MeasureParameters, WrappingState.String + WrappingState.StartIndex, EndIndex - WrappingState.StartIndex, 0, UCanvas::ELastCharacterIndexFormat::Unused, Unused );
+	UCanvas::MeasureStringInternal( MeasureParameters, WrappingState.String.Mid(WrappingState.StartIndex, EndIndex - WrappingState.StartIndex), 0, UCanvas::ELastCharacterIndexFormat::Unused, Unused );
 	return MeasureParameters.DrawXL <= WrappingState.Parameters.DrawXL;
 }
 
@@ -202,16 +203,16 @@ int32 FCanvasWordWrapper::FindIndexAtOrAfterWrapWidth(FWrappingState& WrappingSt
 {
 	FTextSizingParameters MeasureParameters(WrappingState.Parameters);
 	int32 Return = INDEX_NONE;
-	UCanvas::MeasureStringInternal(MeasureParameters, WrappingState.String + WrappingState.StartIndex, WrappingState.StringLength - WrappingState.StartIndex, WrappingState.Parameters.DrawXL, UCanvas::ELastCharacterIndexFormat::CharacterAtOffset, Return);
+	UCanvas::MeasureStringInternal(MeasureParameters, WrappingState.String.RightChop(WrappingState.StartIndex), WrappingState.Parameters.DrawXL, UCanvas::ELastCharacterIndexFormat::CharacterAtOffset, Return);
 	return WrappingState.StartIndex + Return;
 }
 
 void FCanvasWordWrapper::AddLine(FWrappingState& WrappingState, const int32 EndIndex)
 {
 	FTextSizingParameters MeasureParameters(WrappingState.Parameters);
-	FString Substring(EndIndex - WrappingState.StartIndex, WrappingState.String + WrappingState.StartIndex);
-	FWrappedStringElement Element(*Substring, 0.0f, 0.0f);
-	UCanvas::CanvasStringSize(MeasureParameters, *Element.Value);
+	const FStringView Substring(WrappingState.String.Mid(WrappingState.StartIndex, EndIndex - WrappingState.StartIndex));
+	UCanvas::CanvasStringSize(MeasureParameters, Substring);
+	FWrappedStringElement Element(FString(Substring), 0.0f, 0.0f);
 	Element.LineExtent.X = MeasureParameters.DrawXL;
 	Element.LineExtent.Y = MeasureParameters.DrawYL;
 	WrappingState.Results.Add(Element);
@@ -225,7 +226,7 @@ int32 FCanvasWordWrapper::FindFirstMandatoryBreakBetween(FWrappingState& Wrappin
 		const TCHAR Previous = WrappingState.String[i - 1];
 		if( FChar::IsLinebreak(Previous) ) // Line break occurs *after* linebreak character.
 		{
-			const TCHAR* const Current = i < WrapIndex ? WrappingState.String + i : NULL;
+			const TCHAR* const Current = i < WrapIndex ? &WrappingState.String[i] : nullptr;
 			if(	Previous != FChar::CarriageReturn || !(Current && *Current == FChar::LineFeed) ) // Line break cannot occur within CR LF pair.
 			{
 				BreakIndex = i;
@@ -1068,10 +1069,10 @@ void FCanvas::DrawTile(double X, double Y, double SizeX, double SizeY, float U, 
 	DrawItem(TileItem);
 }
 
-int32 FCanvas::DrawShadowedString(double StartX, double StartY, const TCHAR* Text, const UFont* Font, const FLinearColor& Color, const FLinearColor& ShadowColor)
+int32 FCanvas::DrawShadowedString(double StartX, double StartY, FStringView Text, const UFont* Font, const FLinearColor& Color, const FLinearColor& ShadowColor)
 {
 	const float Z = 1.0f;
-	FCanvasTextItem TextItem( FVector2D( StartX, StartY ), FText::FromString( Text ), Font, Color);
+	FCanvasTextStringViewItem TextItem( FVector2D( StartX, StartY ), Text, Font, Color);
 	// just render text in single pass for distance field drop shadow
 	if (Font && Font->ImportOptions.bUseDistanceFieldAlpha)
 	{	
@@ -1110,16 +1111,16 @@ int32 FCanvas::DrawShadowedText(double StartX, double StartY, const FText& Text,
 	return TextItem.DrawnSize.Y;	
 }
 
-void FCanvas::WrapString( FTextSizingParameters& Parameters, const float InCurX, const TCHAR* const pText, TArray<FWrappedStringElement>& out_Lines, FCanvasWordWrapper::FWrappedLineData* const OutWrappedLineData)
+void FCanvas::WrapString(FTextSizingParameters& Parameters, const float InCurX, FStringView Text, TArray<FWrappedStringElement>& out_Lines, FCanvasWordWrapper::FWrappedLineData* const OutWrappedLineData)
 {
 	if (!WordWrapper.IsValid())
 	{
 		WordWrapper = MakeShareable(new FCanvasWordWrapper());
 	}
-	UCanvas::WrapString( *WordWrapper, Parameters, InCurX, pText, out_Lines, OutWrappedLineData);
+	UCanvas::WrapString( *WordWrapper, Parameters, InCurX, Text, out_Lines, OutWrappedLineData);
 }
 
-ENGINE_API void StringSize(const UFont* Font,int32& XL,int32& YL,const TCHAR* Text)
+ENGINE_API void StringSize(const UFont* Font,int32& XL,int32& YL, FStringView Text)
 {
 	// this functionality has been moved to a static function in UIString
 	FTextSizingParameters Parameters(Font,1.f,1.f);
@@ -1147,7 +1148,7 @@ static void GetDefaultCharSize( const UFont* DrawFont, float& DefaultCharWidth, 
 	}
 }
 
-void UCanvas::MeasureStringInternal( FTextSizingParameters& Parameters, const TCHAR* const pText, const int32 TextLength, const int32 StopAfterHorizontalOffset, const ELastCharacterIndexFormat CharIndexFormat, int32& OutLastCharacterIndex )
+void UCanvas::MeasureStringInternal(FTextSizingParameters& Parameters, FStringView Text, const int32 StopAfterHorizontalOffset, const ELastCharacterIndexFormat CharIndexFormat, int32& OutLastCharacterIndex)
 {
 	// initialize output so it always makes some sense
 	OutLastCharacterIndex = INDEX_NONE;
@@ -1155,7 +1156,7 @@ void UCanvas::MeasureStringInternal( FTextSizingParameters& Parameters, const TC
 	Parameters.DrawXL = 0.f;
 	Parameters.DrawYL = 0.f;
 
-	if( Parameters.DrawFont )
+	if (Parameters.DrawFont)
 	{
 		// get a default character width and height to be used for non-renderable characters
 		float DefaultCharWidth, DefaultCharHeight;
@@ -1167,38 +1168,35 @@ void UCanvas::MeasureStringInternal( FTextSizingParameters& Parameters, const TC
 		const float ScaleY = Parameters.Scaling.Y;
 
 		const float DefaultCharIncrement = Parameters.SpacingAdjust.X * ScaleX;
-		const float DefaultScaledHeight = DefaultCharHeight * ScaleY + Parameters.SpacingAdjust.Y * ScaleY;
-		const TCHAR* pCurrentPos;
-		const TCHAR* pPrevPos = nullptr;
-		for ( pCurrentPos = pText; *pCurrentPos && pCurrentPos < pText + TextLength; ++pCurrentPos )
+		const TCHAR* const BeginPos = Text.GetData();
+		const TCHAR* const EndPos = Text.GetData() + Text.Len();
+		const TCHAR* CurrentPos;
+		const TCHAR* PrevPos = nullptr;
+		for (CurrentPos = BeginPos; CurrentPos < EndPos && *CurrentPos; ++CurrentPos)
 		{
 			float CharWidth, CharHeight;
-			const TCHAR* const pNextPos = pCurrentPos + 1;
 
-			TCHAR Ch = *pCurrentPos;
+			const TCHAR Ch = *CurrentPos;
 			Parameters.DrawFont->GetCharSize(Ch, CharWidth, CharHeight);
-			if ( CharHeight == 0 && Ch == TEXT('\n') )
+			if (CharHeight == 0 && Ch == TEXT('\n'))
 			{
 				CharHeight = DefaultCharHeight;
 			}
 
 			float CharSpacing = DefaultCharIncrement;
-			if ( pPrevPos )
+			if (PrevPos)
 			{
-				CharSpacing += Parameters.DrawFont->GetCharKerning( *pPrevPos, Ch ) * ScaleX;
+				CharSpacing += Parameters.DrawFont->GetCharKerning(*PrevPos, Ch) * ScaleX;
 			}
 
 			CharWidth *= ScaleX;
 			CharHeight *= ScaleY;
 
-			// never add character spacing if the next character is whitespace
-			if ( !FChar::IsWhitespace(*pNextPos) )
+			// If we have another character that isn't whitespace, append the character spacing
+			const TCHAR* const NextPos = CurrentPos + 1;
+			if (NextPos < EndPos && *NextPos && !FChar::IsWhitespace(*NextPos))
 			{
-				// if we have another character, append the character spacing
-				if ( *pNextPos )
-				{
-					CharWidth += CharSpacing;
-				}
+				CharWidth += CharSpacing;
 			}
 
 			const float ScaledVertSpacing = Parameters.SpacingAdjust.Y * ScaleY;
@@ -1207,47 +1205,52 @@ void UCanvas::MeasureStringInternal( FTextSizingParameters& Parameters, const TC
 			Parameters.DrawYL = FMath::Max<float>(Parameters.DrawYL, CharHeight + ScaledVertSpacing );
 
 			// Were we asked to stop measuring after the specified horizontal offset in pixels?
-			if( StopAfterHorizontalOffset != INDEX_NONE )
+			if (StopAfterHorizontalOffset != INDEX_NONE)
 			{
-				if( CharIndexFormat == ELastCharacterIndexFormat::CharacterAtOffset )
+				if (CharIndexFormat == ELastCharacterIndexFormat::CharacterAtOffset)
 				{
 					// Round our test toward the character's center position
 					const float TotalCharWidth = CharWidth + Parameters.DrawFont->GetCharHorizontalOffset(Ch);
-					if( StopAfterHorizontalOffset < Parameters.DrawXL - TotalCharWidth / 2 )
+					if (StopAfterHorizontalOffset < Parameters.DrawXL - TotalCharWidth / 2)
 					{
 						// We've reached the stopping point, so bail
 						break;
 					}
 				}
-				else if( CharIndexFormat == ELastCharacterIndexFormat::LastWholeCharacterBeforeOffset )
+				else if (CharIndexFormat == ELastCharacterIndexFormat::LastWholeCharacterBeforeOffset)
 				{
-					if( StopAfterHorizontalOffset < Parameters.DrawXL - CharWidth )
+					if (StopAfterHorizontalOffset < Parameters.DrawXL - CharWidth)
 					{
-						--pCurrentPos;
+						--CurrentPos;
 						// We've reached the stopping point, so bail
 						break;
 					}
 				}
 			}
 
-			pPrevPos = pCurrentPos;
+			PrevPos = CurrentPos;
 		}
 
-		OutLastCharacterIndex = pCurrentPos - pText;
+		OutLastCharacterIndex = CurrentPos - Text.GetData();
 	}
 }
 
-void UCanvas::CanvasStringSize( FTextSizingParameters& Parameters, const TCHAR* const pText )
+void UCanvas::MeasureStringInternal(FTextSizingParameters& Parameters, const TCHAR* const Text, const int32 TextLength, const int32 StopAfterHorizontalOffset, const ELastCharacterIndexFormat CharIndexFormat, int32& OutLastCharacterIndex)
 {
-	int32 Unused;
-	MeasureStringInternal(Parameters, pText, FCString::Strlen(pText), 0, ELastCharacterIndexFormat::Unused, Unused);
+	MeasureStringInternal(Parameters, MakeStringView(Text, TextLength), StopAfterHorizontalOffset, CharIndexFormat, OutLastCharacterIndex);
 }
 
-void UCanvas::WrapString( FCanvasWordWrapper& Wrapper, FTextSizingParameters& Parameters, const float InCurX, const TCHAR* const pText, TArray<FWrappedStringElement>& out_Lines, FCanvasWordWrapper::FWrappedLineData* const OutWrappedLineData)
+void UCanvas::CanvasStringSize(FTextSizingParameters& Parameters, FStringView Text)
+{
+	int32 Unused;
+	MeasureStringInternal(Parameters, Text, 0, ELastCharacterIndexFormat::Unused, Unused);
+}
+
+void UCanvas::WrapString( FCanvasWordWrapper& Wrapper, FTextSizingParameters& Parameters, const float InCurX, FStringView Text, TArray<FWrappedStringElement>& out_Lines, FCanvasWordWrapper::FWrappedLineData* const OutWrappedLineData)
 {
 	if (Parameters.DrawFont)
 	{
-		Wrapper.Execute(pText, Parameters, out_Lines, OutWrappedLineData);
+		Wrapper.Execute(Text, Parameters, out_Lines, OutWrappedLineData);
 	}
 	else
 	{
@@ -1255,9 +1258,9 @@ void UCanvas::WrapString( FCanvasWordWrapper& Wrapper, FTextSizingParameters& Pa
 	}
 }
 
-void UCanvas::WrapString( FTextSizingParameters& Parameters, const float InCurX, const TCHAR* const pText, TArray<FWrappedStringElement>& out_Lines, FCanvasWordWrapper::FWrappedLineData* const OutWrappedLineData)
+void UCanvas::WrapString( FTextSizingParameters& Parameters, const float InCurX, FStringView Text, TArray<FWrappedStringElement>& out_Lines, FCanvasWordWrapper::FWrappedLineData* const OutWrappedLineData)
 {
-	Canvas->WrapString(Parameters, InCurX, pText, out_Lines, OutWrappedLineData);
+	Canvas->WrapString(Parameters, InCurX, Text, out_Lines, OutWrappedLineData);
 }
 
 /*-----------------------------------------------------------------------------
@@ -1591,7 +1594,7 @@ void UCanvas::DrawTile( UTexture* Tex, float X, float Y, float XL, float YL, flo
 }
 
 
-void UCanvas::ClippedStrLen( const UFont* Font, float ScaleX, float ScaleY, int32& XL, int32& YL, const TCHAR* Text )
+void UCanvas::ClippedStrLen(const UFont* Font, float ScaleX, float ScaleY, int32& XL, int32& YL, FStringView Text)
 {
 	XL = 0;
 	YL = 0;
@@ -1616,15 +1619,20 @@ void VARARGS UCanvas::WrappedStrLenf( const UFont* Font, float ScaleX, float Sca
 
 float UCanvas::DrawText(const UFont* InFont, const FText& InText, float X, float Y, float XScale, float YScale, const FFontRenderInfo& RenderInfo)
 {
+	return DrawText(InFont, InText.ToString(), X, Y, XScale, YScale, RenderInfo);
+}
+
+float UCanvas::DrawText(const UFont* InFont, FStringView InText, float X, float Y, float XScale, float YScale, const FFontRenderInfo& RenderInfo)
+{
 	ensure(InFont);
 	int32		XL		= 0;
 	int32		YL		= 0; 
 	// need this call in any case to update YL and XL - one of them will be needed anyway
-	WrappedPrint(RenderInfo.bClipText == false, X, Y, XL, YL, InFont, XScale, YScale, bCenterX, bCenterY, *InText.ToString(), RenderInfo);
+	WrappedPrint(RenderInfo.bClipText == false, X, Y, XL, YL, InFont, XScale, YScale, bCenterX, bCenterY, InText, RenderInfo);
 
 	if (RenderInfo.bClipText)
 	{
-		FCanvasTextItem TextItem(FVector2D(FMath::TruncToFloat(OrgX + X), FMath::TruncToFloat(OrgY + Y)), InText, InFont, DrawColor);
+		FCanvasTextStringViewItem TextItem(FVector2D(FMath::TruncToFloat(OrgX + X), FMath::TruncToFloat(OrgY + Y)), InText, InFont, DrawColor);
 		TextItem.Scale = FVector2D( XScale, YScale ), 
 		TextItem.BlendMode = SE_BLEND_Translucent;
 		TextItem.FontRenderInfo = RenderInfo;
@@ -1634,12 +1642,16 @@ float UCanvas::DrawText(const UFont* InFont, const FText& InText, float X, float
 	return (float)YL;
 }
 
-float UCanvas::DrawText(const UFont* InFont, const FString& InText, float X, float Y, float XScale, float YScale, const FFontRenderInfo& RenderInfo)
+#if !PLATFORM_TCHAR_IS_UTF8CHAR
+
+float UCanvas::DrawText(const UFont* InFont, FAnsiStringView InText, float X, float Y, float XScale, float YScale, const FFontRenderInfo& RenderInfo)
 {
-	return DrawText(InFont, FText::FromString(InText), X, Y, XScale, YScale, RenderInfo);
+	return DrawText(InFont, StringCast<TCHAR>(InText.GetData(), InText.Len()), X, Y, XScale, YScale, RenderInfo);
 }
 
-int32 UCanvas::WrappedPrint(bool Draw, float X, float Y, int32& out_XL, int32& out_YL, const UFont* Font, float ScaleX, float ScaleY, bool bCenterTextX, bool bCenterTextY, const TCHAR* Text, const FFontRenderInfo& RenderInfo) 
+#endif // !PLATFORM_TCHAR_IS_UTF8CHAR
+
+int32 UCanvas::WrappedPrint(bool Draw, float X, float Y, int32& out_XL, int32& out_YL, const UFont* Font, float ScaleX, float ScaleY, bool bCenterTextX, bool bCenterTextY, FStringView Text, const FFontRenderInfo& RenderInfo)
 {
 	if (ClipX < 0 || ClipY < 0)
 	{
@@ -1698,7 +1710,7 @@ int32 UCanvas::WrappedPrint(bool Draw, float X, float Y, int32& out_XL, int32& o
 		{
 			int32 TempX;
 			int32 TempY;
-			ClippedStrLen(Font, ScaleX, ScaleY, TempX, TempY, *WrappedString.Value);
+			ClippedStrLen(Font, ScaleX, ScaleY, TempX, TempY, WrappedString.Value);
 			LineXL = TempX;
 		}
 		XL = FMath::Max<float>(XL, LineXL);
@@ -1711,17 +1723,30 @@ int32 UCanvas::WrappedPrint(bool Draw, float X, float Y, int32& out_XL, int32& o
 	return WrappedStrings.Num();
 }
 
-void UCanvas::StrLen(const UFont* InFont, const FString& InText, float& XL, float& YL, bool bDPIAware)
+void UCanvas::StrLen(const UFont* InFont, FStringView InText, float& XL, float& YL, bool bDPIAware)
 {
 	UCanvas::StrLen(InFont, InText, XL, YL, bDPIAware, Canvas);
 }
-void UCanvas::StrLen(const UFont* InFont, const FString& InText, double& XL, double& YL, bool bDPIAware)
+void UCanvas::StrLen(const UFont* InFont, FStringView InText, double& XL, double& YL, bool bDPIAware)
 {
 	UCanvas::StrLen(InFont, InText, XL, YL, bDPIAware, Canvas);
 }
 
+#if !PLATFORM_TCHAR_IS_UTF8CHAR
 
-void UCanvas::StrLen(const UFont* InFont, const FString& InText, float& XL, float& YL, bool bDPIAware, FCanvas* InCanvas)
+void UCanvas::StrLen(const UFont* InFont, FAnsiStringView InText, float& XL, float& YL, bool bDPIAware)
+{
+	return StrLen(InFont, StringCast<TCHAR>(InText.GetData(), InText.Len()), XL, YL, bDPIAware);
+}
+
+void UCanvas::StrLen(const UFont* InFont, FAnsiStringView InText, double& XL, double& YL, bool bDPIAware)
+{
+	return StrLen(InFont, StringCast<TCHAR>(InText.GetData(), InText.Len()), XL, YL, bDPIAware);
+}
+
+#endif // !PLATFORM_TCHAR_IS_UTF8CHAR
+
+void UCanvas::StrLen(const UFont* InFont, FStringView InText, float& XL, float& YL, bool bDPIAware, FCanvas* InCanvas)
 {
 	if (InFont == NULL)
 	{
@@ -1732,7 +1757,7 @@ void UCanvas::StrLen(const UFont* InFont, const FString& InText, float& XL, floa
 		if (InFont->FontCacheType == EFontCacheType::Offline || bDPIAware == false)
 		{
 			FTextSizingParameters Parameters(InFont, 1.0f, 1.0f);
-			UCanvas::CanvasStringSize(Parameters, *InText);
+			UCanvas::CanvasStringSize(Parameters, InText);
 			XL = Parameters.DrawXL;
 			YL = Parameters.DrawYL;
 		}
@@ -1747,7 +1772,7 @@ void UCanvas::StrLen(const UFont* InFont, const FString& InText, float& XL, floa
 	}
 }
 
-void UCanvas::StrLen(const UFont* InFont, const FString& InText, double& XL, double& YL, bool bDPIAware, FCanvas* InCanvas)
+void UCanvas::StrLen(const UFont* InFont, FStringView InText, double& XL, double& YL, bool bDPIAware, FCanvas* InCanvas)
 {
 	float XLF = static_cast<float>(XL);
 	float YLF = static_cast<float>(YL);
@@ -1756,7 +1781,21 @@ void UCanvas::StrLen(const UFont* InFont, const FString& InText, double& XL, dou
 	YL = YLF;
 }
 
-void UCanvas::TextSize(const UFont* InFont, const FString& InText, float& XL, float& YL, float ScaleX, float ScaleY)
+#if !PLATFORM_TCHAR_IS_UTF8CHAR
+
+void UCanvas::StrLen(const UFont* InFont, FAnsiStringView InText, float& XL, float& YL, bool bDPIAware, FCanvas* InCanvas)
+{
+	return StrLen(InFont, StringCast<TCHAR>(InText.GetData(), InText.Len()), XL, YL, bDPIAware, InCanvas);
+}
+
+void UCanvas::StrLen(const UFont* InFont, FAnsiStringView InText, double& XL, double& YL, bool bDPIAware, FCanvas* InCanvas)
+{
+	return StrLen(InFont, StringCast<TCHAR>(InText.GetData(), InText.Len()), XL, YL, bDPIAware, InCanvas);
+}
+
+#endif // !PLATFORM_TCHAR_IS_UTF8CHAR
+
+void UCanvas::TextSize(const UFont* InFont, FStringView InText, float& XL, float& YL, float ScaleX, float ScaleY)
 {
 	int32 XLi, YLi;
 
@@ -1766,12 +1805,12 @@ void UCanvas::TextSize(const UFont* InFont, const FString& InText, float& XL, fl
 		return;
 	}
 
-	ClippedStrLen(InFont, ScaleX, ScaleY, XLi, YLi, *InText);
+	ClippedStrLen(InFont, ScaleX, ScaleY, XLi, YLi, InText);
 
 	XL = XLi;
 	YL = YLi;
 }
-void UCanvas::TextSize(const UFont* InFont, const FString& InText, double& XL, double& YL, double ScaleX, double ScaleY)
+void UCanvas::TextSize(const UFont* InFont, FStringView InText, double& XL, double& YL, double ScaleX, double ScaleY)
 {
 	float XLF = static_cast<float>(XL);
 	float YLF = static_cast<float>(YL);
@@ -1779,6 +1818,20 @@ void UCanvas::TextSize(const UFont* InFont, const FString& InText, double& XL, d
 	XL = XLF;
 	YL = YLF;
 }
+
+#if !PLATFORM_TCHAR_IS_UTF8CHAR
+
+void UCanvas::TextSize(const UFont* InFont, FAnsiStringView InText, float& XL, float& YL, float ScaleX, float ScaleY)
+{
+	return TextSize(InFont, StringCast<TCHAR>(InText.GetData(), InText.Len()), XL, YL, ScaleX, ScaleY);
+}
+
+void UCanvas::TextSize(const UFont* InFont, FAnsiStringView InText, double& XL, double& YL, double ScaleX, double ScaleY)
+{
+	return TextSize(InFont, StringCast<TCHAR>(InText.GetData(), InText.Len()), XL, YL, ScaleX, ScaleY);
+}
+
+#endif // !PLATFORM_TCHAR_IS_UTF8CHAR
 
 FVector UCanvas::Project(FVector Location, bool bClampToZeroPlane) const 
 {

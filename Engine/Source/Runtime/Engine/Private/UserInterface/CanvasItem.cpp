@@ -919,21 +919,18 @@ void FCanvasTextItemBase::Draw( class FCanvas* InCanvas )
 	DrawStringInternal( InCanvas, DrawPos, DrawColor, TextEffects);
 }
 
-FCanvasTextItem::~FCanvasTextItem()
-{
-}
-
-EFontCacheType FCanvasTextItem::GetFontCacheType() const
+EFontCacheType FCanvasSimpleTextItem::GetFontCacheType() const
 {
 	return Font->FontCacheType;
 }
 
-bool FCanvasTextItem::HasValidText() const
+// Declaration is pure-virtual, but we provide an implementation to allow checking the validity of the font in derived classes.
+bool FCanvasSimpleTextItem::HasValidText() const
 {
-	return Font && !Text.IsEmpty();
+	return Font != nullptr;
 }
 
-ESimpleElementBlendMode FCanvasTextItem::GetTextBlendMode( const bool bHasShadow ) const
+ESimpleElementBlendMode FCanvasSimpleTextItem::GetTextBlendMode( const bool bHasShadow ) const
 {
 	ESimpleElementBlendMode BlendModeToUse = BlendMode;
 	if (Font->ImportOptions.bUseDistanceFieldAlpha)
@@ -958,7 +955,7 @@ ESimpleElementBlendMode FCanvasTextItem::GetTextBlendMode( const bool bHasShadow
 	return BlendModeToUse;
 }
 
-FVector2D FCanvasTextItem::GetTextSize(float DPIScale) const
+FVector2D FCanvasSimpleTextItem::GetTextSizeInternal(FStringView Text, float DPIScale) const
 {
 	FVector2D MeasuredTextSize = FVector2D::ZeroVector;
 	switch( GetFontCacheType() )
@@ -966,7 +963,7 @@ FVector2D FCanvasTextItem::GetTextSize(float DPIScale) const
 	case EFontCacheType::Offline:
 		{
 			FTextSizingParameters Parameters( Font, Scale.X ,Scale.Y );
-			UCanvas::CanvasStringSize( Parameters, *Text.ToString() );
+			UCanvas::CanvasStringSize( Parameters, Text);
 			MeasuredTextSize.X = Parameters.DrawXL;
 			MeasuredTextSize.Y = Parameters.DrawYL;
 		}
@@ -976,7 +973,7 @@ FVector2D FCanvasTextItem::GetTextSize(float DPIScale) const
 		{
 			const FSlateFontInfo LegacyFontInfo = (SlateFontInfo.IsSet()) ? SlateFontInfo.GetValue() : Font->GetLegacySlateFontInfo();
 			const TSharedRef<FSlateFontMeasure> FontMeasure = FSlateApplication::Get().GetRenderer()->GetFontMeasureService();
-			MeasuredTextSize = FontMeasure->Measure( Text, LegacyFontInfo, DPIScale) * Scale;
+			MeasuredTextSize = FontMeasure->Measure(Text, LegacyFontInfo, DPIScale) * Scale;
 		}
 		break;
 
@@ -986,16 +983,16 @@ FVector2D FCanvasTextItem::GetTextSize(float DPIScale) const
 	return MeasuredTextSize;
 }
 
-void FCanvasTextItem::DrawStringInternal(FCanvas* InCanvas, const FVector2D& DrawPos, const FLinearColor& InColor, TArrayView<FTextEffect> TextEffects)
+void FCanvasSimpleTextItem::DrawStringInternal(FCanvas* InCanvas, FStringView Text, const FVector2D& DrawPos, const FLinearColor& InColor, TArrayView<FTextEffect> TextEffects)
 {
 	switch(GetFontCacheType())
 	{
 	case EFontCacheType::Offline:
-		DrawStringInternal_OfflineCache(InCanvas, DrawPos, InColor, TextEffects);
+		DrawStringInternal_OfflineCache(InCanvas, Text, DrawPos, InColor, TextEffects);
 		break;
 
 	case EFontCacheType::Runtime:
-		DrawStringInternal_RuntimeCache(InCanvas, DrawPos, InColor, TextEffects);
+		DrawStringInternal_RuntimeCache(InCanvas, Text, DrawPos, InColor, TextEffects);
 		break;
 
 	default:
@@ -1003,15 +1000,14 @@ void FCanvasTextItem::DrawStringInternal(FCanvas* InCanvas, const FVector2D& Dra
 	}
 }
 
-void FCanvasTextItem::DrawStringInternal_OfflineCache(FCanvas* InCanvas, const FVector2D& DrawPos, const FLinearColor& InColor, TArrayView<FTextEffect> TextEffects)
+void FCanvasSimpleTextItem::DrawStringInternal_OfflineCache(FCanvas* InCanvas, FStringView Text, const FVector2D& DrawPos, const FLinearColor& InColor, TArrayView<FTextEffect> TextEffects)
 {
 	QUICK_SCOPE_CYCLE_COUNTER(DrawStringInternal_OfflineCache);
 
 	DrawnSize = FVector2D::ZeroVector;
 
 	// Nothing to do if no text
-	const FString& TextString = Text.ToString();
-	if( TextString.Len() == 0 )
+	if (Text.IsEmpty())
 	{
 		return;
 	}
@@ -1024,12 +1020,11 @@ void FCanvasTextItem::DrawStringInternal_OfflineCache(FCanvas* InCanvas, const F
 
 	const float CharIncrement = ( (float)Font->Kerning + HorizSpacingAdjust ) * Scale.X;
 
-	const TArray< TCHAR, FString::AllocatorType >& Chars = TextString.GetCharArray();
 	// Draw all characters in string.
-	const int32 TextLen = TextString.Len();
+	const int32 TextLen = Text.Len();
 	for( int32 i=0; i < TextLen; i++ )
 	{
-		int32 Ch = (int32)Font->RemapChar(Chars[i]);
+		int32 Ch = (int32)Font->RemapChar(Text[i]);
 
 		// Skip invalid characters.
 		if (!Font->Characters.IsValidIndex(Ch))
@@ -1045,7 +1040,7 @@ void FCanvasTextItem::DrawStringInternal_OfflineCache(FCanvas* InCanvas, const F
 			DrawnSize.Y = Font->GetMaxCharHeight() * Scale.Y;
 		}
 
-		if (FChar::IsLinebreak(Chars[i]))
+		if (FChar::IsLinebreak(Text[i]))
 		{
 			// Set current character offset to the beginning of next line.
 			CurrentPos.X = 0.0f;
@@ -1135,7 +1130,7 @@ void FCanvasTextItem::DrawStringInternal_OfflineCache(FCanvas* InCanvas, const F
 			AddTriangles(FVector2f::ZeroVector, InColor);
 
 			// if we have another non-whitespace character to render, add the font's kerning.
-			if ( Chars[i+1] && !FChar::IsWhitespace(Chars[i+1]) )
+			if (Text.IsValidIndex(i+1) && !FChar::IsWhitespace(Text[i+1]) )
 			{
 				SizeX += CharIncrement;
 			}
@@ -1152,7 +1147,7 @@ void FCanvasTextItem::DrawStringInternal_OfflineCache(FCanvas* InCanvas, const F
 	}
 }
 
-void FCanvasTextItem::DrawStringInternal_RuntimeCache(FCanvas* InCanvas, const FVector2D& DrawPos, const FLinearColor& InColor, TArrayView<FTextEffect> TextEffects)
+void FCanvasSimpleTextItem::DrawStringInternal_RuntimeCache(FCanvas* InCanvas, FStringView Text, const FVector2D& DrawPos, const FLinearColor& InColor, TArrayView<FTextEffect> TextEffects)
 {
 	QUICK_SCOPE_CYCLE_COUNTER(DrawStringInternal_RuntimeCache);
 
@@ -1161,8 +1156,7 @@ void FCanvasTextItem::DrawStringInternal_RuntimeCache(FCanvas* InCanvas, const F
 	DrawnSize = FVector2D::ZeroVector;
 
 	// Nothing to do if no text
-	const FString& TextString = Text.ToString();
-	if( TextString.Len() == 0 )
+	if (Text.IsEmpty())
 	{
 		return;
 	}
@@ -1198,10 +1192,10 @@ void FCanvasTextItem::DrawStringInternal_RuntimeCache(FCanvas* InCanvas, const F
 	float LineX = PosX;
 
 	TCHAR PreviousChar = 0;
-	const int32 TextLen = TextString.Len();
+	const int32 TextLen = Text.Len();
 	for (int32 CharIndex = 0; CharIndex < TextLen; ++CharIndex)
 	{
-		const TCHAR CurrentChar = TextString[CharIndex];
+		const TCHAR CurrentChar = Text[CharIndex];
 
 		if (DrawnSize.Y == 0)
 		{
@@ -1342,6 +1336,46 @@ void FCanvasTextItem::DrawStringInternal_RuntimeCache(FCanvas* InCanvas, const F
 			PreviousChar = CurrentChar;
 		}
 	}
+}
+
+bool FCanvasTextItem::HasValidText() const
+{
+	return FCanvasSimpleTextItem::HasValidText() && !Text.IsEmpty();
+}
+
+FVector2D FCanvasTextItem::GetTextSize(float DPIScale) const
+{
+	return GetTextSizeInternal(Text.ToString(), DPIScale);
+}
+
+void FCanvasTextItem::DrawStringInternal(FCanvas* InCanvas, const FVector2D& DrawPos, const FLinearColor& DrawColor, TArrayView<FTextEffect> TextEffects)
+{
+	FCanvasSimpleTextItem::DrawStringInternal(InCanvas, Text.ToString(), DrawPos, DrawColor, TextEffects);
+}
+
+void FCanvasTextItem::DrawStringInternal_OfflineCache(FCanvas* InCanvas, const FVector2D& DrawPos, const FLinearColor& DrawColor, TArrayView<FTextEffect> TextEffects)
+{
+	FCanvasSimpleTextItem::DrawStringInternal_OfflineCache(InCanvas, Text.ToString(), DrawPos, DrawColor, TextEffects);
+}
+
+void FCanvasTextItem::DrawStringInternal_RuntimeCache(FCanvas* InCanvas, const FVector2D& DrawPos, const FLinearColor& DrawColor, TArrayView<FTextEffect> TextEffects)
+{
+	FCanvasSimpleTextItem::DrawStringInternal_RuntimeCache(InCanvas, Text.ToString(), DrawPos, DrawColor, TextEffects);
+}
+
+bool FCanvasTextStringViewItem::HasValidText() const
+{
+	return FCanvasSimpleTextItem::HasValidText() && !Text.IsEmpty();
+}
+
+FVector2D FCanvasTextStringViewItem::GetTextSize(float DPIScale) const
+{
+	return GetTextSizeInternal(Text, DPIScale);
+}
+
+void FCanvasTextStringViewItem::DrawStringInternal(FCanvas* InCanvas, const FVector2D& DrawPos, const FLinearColor& DrawColor, TArrayView<FTextEffect> TextEffects)
+{
+	return FCanvasSimpleTextItem::DrawStringInternal(InCanvas, Text, DrawPos, DrawColor, TextEffects);
 }
 
 bool FCanvasShapedTextItem::HasValidText() const
