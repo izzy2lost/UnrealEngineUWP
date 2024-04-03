@@ -6,16 +6,16 @@
 #include "UObject/ObjectPtr.h"
 
 class IPersonaPreviewScene;
-class UPhysicsControlProfileAsset;
-class UPhysicsControlProfileAssetEditorSkeletalMeshComponent;
+class UPhysicsControlAsset;
+class UPhysicsControlAssetEditorSkeletalMeshComponent;
 
 /**
  * Helper/container for data used by the Physics Control Profile Editor 
  */
-class FPhysicsControlProfileEditorData
+class FPhysicsControlAssetEditorData
 {
 public:
-	FPhysicsControlProfileEditorData();
+	FPhysicsControlAssetEditorData();
 
 	/** Initializes members */
 	void Initialize(const TSharedRef<IPersonaPreviewScene>& InPreviewScene);
@@ -25,10 +25,10 @@ public:
 
 public:
 	/** The asset being inspected */
-	TObjectPtr<UPhysicsControlProfileAsset> PhysicsControlProfileAsset;
+	TObjectPtr<UPhysicsControlAsset> PhysicsControlAsset;
 
 	/** Skeletal mesh component specialized for this asset editor */
-	UPhysicsControlProfileAssetEditorSkeletalMeshComponent* EditorSkelComp;
+	UPhysicsControlAssetEditorSkeletalMeshComponent* EditorSkelComp;
 
 	/** The physics control component used for testing/simulating on the character */
 	class UPhysicsControlComponent* PhysicsControlComponent;

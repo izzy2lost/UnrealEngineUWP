@@ -1,6 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#include "PhysicsControlProfileAsset.h"
+#include "PhysicsControlAsset.h"
 #include "Engine/SkeletalMesh.h"
 
 //#ifdef WITH_EDITOR
@@ -9,18 +9,18 @@
 
 
 //======================================================================================================================
-UPhysicsControlProfileAsset::UPhysicsControlProfileAsset()
+UPhysicsControlAsset::UPhysicsControlAsset()
 {
 	// This needs to be explored further - a possible way to hook into the BP compilation. However, we would also
 	// need to make sure we don't compile (and get marked as dirty) if there are no changes.
 //#ifdef WITH_EDITOR
-//	GEditor->OnBlueprintCompiled().AddUObject(this, &UPhysicsControlProfileAsset::Compile);
+//	GEditor->OnBlueprintCompiled().AddUObject(this, &UPhysicsControlAsset::Compile);
 //#endif
 }
 
 #if WITH_EDITOR
 //======================================================================================================================
-void UPhysicsControlProfileAsset::ShowCompiledData() const
+void UPhysicsControlAsset::ShowCompiledData() const
 {
 	UE_LOG(LogTemp, Log, TEXT("Character setup data:"));
 	for (const FPhysicsControlLimbSetupData& LimbSetupData : CharacterSetupData.LimbSetupData)
@@ -55,7 +55,7 @@ void UPhysicsControlProfileAsset::ShowCompiledData() const
 }
 
 //======================================================================================================================
-void UPhysicsControlProfileAsset::Compile()
+void UPhysicsControlAsset::Compile()
 {
 	CharacterSetupData = GetCharacterSetupData();
 	AdditionalControlsAndModifiers = GetAdditionalControlsAndModifiers();
@@ -67,7 +67,7 @@ void UPhysicsControlProfileAsset::Compile()
 }
 
 //======================================================================================================================
-FPhysicsControlCharacterSetupData UPhysicsControlProfileAsset::GetCharacterSetupData() const
+FPhysicsControlCharacterSetupData UPhysicsControlAsset::GetCharacterSetupData() const
 {
 	FPhysicsControlCharacterSetupData CompiledCharacterSetupData;
 	if (ParentAsset.LoadSynchronous())
@@ -79,7 +79,7 @@ FPhysicsControlCharacterSetupData UPhysicsControlProfileAsset::GetCharacterSetup
 }
 
 //======================================================================================================================
-FPhysicsControlAndBodyModifierCreationDatas UPhysicsControlProfileAsset::GetAdditionalControlsAndModifiers() const
+FPhysicsControlAndBodyModifierCreationDatas UPhysicsControlAsset::GetAdditionalControlsAndModifiers() const
 {
 	FPhysicsControlAndBodyModifierCreationDatas CompiledAdditionalControlsAndModifiers;
 	if (ParentAsset.LoadSynchronous())
@@ -92,7 +92,7 @@ FPhysicsControlAndBodyModifierCreationDatas UPhysicsControlProfileAsset::GetAddi
 }
 
 //======================================================================================================================
-FPhysicsControlSetUpdates UPhysicsControlProfileAsset::GetAdditionalSets() const
+FPhysicsControlSetUpdates UPhysicsControlAsset::GetAdditionalSets() const
 {
 	FPhysicsControlSetUpdates CompiledAdditionalSets;
 	if (ParentAsset.LoadSynchronous())
@@ -104,7 +104,7 @@ FPhysicsControlSetUpdates UPhysicsControlProfileAsset::GetAdditionalSets() const
 }
 
 //======================================================================================================================
-TArray<FPhysicsControlControlAndModifierUpdates> UPhysicsControlProfileAsset::GetInitialControlAndModifierUpdates() const
+TArray<FPhysicsControlControlAndModifierUpdates> UPhysicsControlAsset::GetInitialControlAndModifierUpdates() const
 {
 	TArray<FPhysicsControlControlAndModifierUpdates> CompiledInitialControlAndModifierUpdates;
 	if (ParentAsset.LoadSynchronous())
@@ -116,14 +116,14 @@ TArray<FPhysicsControlControlAndModifierUpdates> UPhysicsControlProfileAsset::Ge
 }
 
 //======================================================================================================================
-TMap<FName, FPhysicsControlControlAndModifierUpdates> UPhysicsControlProfileAsset::GetProfiles() const
+TMap<FName, FPhysicsControlControlAndModifierUpdates> UPhysicsControlAsset::GetProfiles() const
 {
 	TMap<FName, FPhysicsControlControlAndModifierUpdates> CompiledProfiles;
 	if (ParentAsset.LoadSynchronous())
 	{
 		CompiledProfiles = ParentAsset->GetProfiles();
 	}
-	for (const TSoftObjectPtr<UPhysicsControlProfileAsset>& AdditionalProfileAsset : AdditionalProfileAssets)
+	for (const TSoftObjectPtr<UPhysicsControlAsset>& AdditionalProfileAsset : AdditionalProfileAssets)
 	{
 		if (AdditionalProfileAsset.LoadSynchronous())
 		{
@@ -138,14 +138,14 @@ TMap<FName, FPhysicsControlControlAndModifierUpdates> UPhysicsControlProfileAsse
 
 #if WITH_EDITOR
 //======================================================================================================================
-const FName UPhysicsControlProfileAsset::GetPreviewMeshPropertyName()
+const FName UPhysicsControlAsset::GetPreviewMeshPropertyName()
 {
-	return GET_MEMBER_NAME_STRING_CHECKED(UPhysicsControlProfileAsset, PreviewSkeletalMesh);
+	return GET_MEMBER_NAME_STRING_CHECKED(UPhysicsControlAsset, PreviewSkeletalMesh);
 };
 #endif
 
 //======================================================================================================================
-void UPhysicsControlProfileAsset::SetPreviewMesh(USkeletalMesh* PreviewMesh, bool bMarkAsDirty)
+void UPhysicsControlAsset::SetPreviewMesh(USkeletalMesh* PreviewMesh, bool bMarkAsDirty)
 {
 #if WITH_EDITOR
 	PreviewSkeletalMesh = PreviewMesh;
@@ -153,7 +153,7 @@ void UPhysicsControlProfileAsset::SetPreviewMesh(USkeletalMesh* PreviewMesh, boo
 }
 
 //======================================================================================================================
-USkeletalMesh* UPhysicsControlProfileAsset::GetPreviewMesh() const
+USkeletalMesh* UPhysicsControlAsset::GetPreviewMesh() const
 {
 #if WITH_EDITOR
 	return PreviewSkeletalMesh.LoadSynchronous();

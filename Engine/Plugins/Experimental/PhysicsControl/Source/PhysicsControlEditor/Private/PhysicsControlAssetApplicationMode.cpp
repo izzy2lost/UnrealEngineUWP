@@ -1,25 +1,25 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#include "PhysicsControlProfileApplicationMode.h"
-#include "PhysicsControlProfileEditorToolkit.h"
+#include "PhysicsControlAssetApplicationMode.h"
+#include "PhysicsControlAssetEditorToolkit.h"
 #include "PersonaModule.h"
 #include "Modules/ModuleManager.h"
 #include "PersonaTabs.h"
 
-#define LOCTEXT_NAMESPACE "PhysicsControlProfileApplicationMode"
+#define LOCTEXT_NAMESPACE "PhysicsControlAssetApplicationMode"
 
-FName FPhysicsControlProfileApplicationMode::ModeName("PhysicsControlProfileAssetEditMode");
+FName FPhysicsControlAssetApplicationMode::ModeName("PhysicsControlAssetEditMode");
 
 //======================================================================================================================
-FPhysicsControlProfileApplicationMode::FPhysicsControlProfileApplicationMode(
+FPhysicsControlAssetApplicationMode::FPhysicsControlAssetApplicationMode(
 	TSharedRef<FWorkflowCentricApplication> InHostingApp,
 	TSharedRef<IPersonaPreviewScene>        InPreviewScene)
 	: 
-	FApplicationMode(PhysicsControlProfileEditorModes::Editor)
+	FApplicationMode(PhysicsControlAssetEditorModes::Editor)
 {
-	EditorToolkit = StaticCastSharedRef<FPhysicsControlProfileEditorToolkit>(InHostingApp);
-	TSharedRef<FPhysicsControlProfileEditorToolkit> PhysicsControlProfileEditor = 
-		StaticCastSharedRef<FPhysicsControlProfileEditorToolkit>(InHostingApp);
+	EditorToolkit = StaticCastSharedRef<FPhysicsControlAssetEditorToolkit>(InHostingApp);
+	TSharedRef<FPhysicsControlAssetEditorToolkit> PhysicsControlAssetEditor = 
+		StaticCastSharedRef<FPhysicsControlAssetEditorToolkit>(InHostingApp);
 
 	FPersonaViewportArgs ViewportArgs(InPreviewScene);
 	ViewportArgs.bAlwaysShowTransformToolbar = true;
@@ -28,17 +28,17 @@ FPhysicsControlProfileApplicationMode::FPhysicsControlProfileApplicationMode(
 	ViewportArgs.bShowLODMenu = true;
 	ViewportArgs.bShowPlaySpeedMenu = false;
 	ViewportArgs.bShowPhysicsMenu = false;
-	ViewportArgs.ContextName = TEXT("PhysicsControlProfileEditor.Viewport");
+	ViewportArgs.ContextName = TEXT("PhysicsControlAssetEditor.Viewport");
 	ViewportArgs.OnViewportCreated = FOnViewportCreated::CreateSP(
-		PhysicsControlProfileEditor, &FPhysicsControlProfileEditorToolkit::HandleViewportCreated);
+		PhysicsControlAssetEditor, &FPhysicsControlAssetEditorToolkit::HandleViewportCreated);
 
 	// Register Persona tabs.
 	FPersonaModule& PersonaModule = FModuleManager::LoadModuleChecked<FPersonaModule>("Persona");
 	TabFactories.RegisterFactory(PersonaModule.CreatePersonaViewportTabFactory(InHostingApp, ViewportArgs));
-	TabFactories.RegisterFactory(PersonaModule.CreateDetailsTabFactory(InHostingApp, FOnDetailsCreated::CreateSP(&PhysicsControlProfileEditor.Get(), &FPhysicsControlProfileEditorToolkit::HandleDetailsCreated)));
+	TabFactories.RegisterFactory(PersonaModule.CreateDetailsTabFactory(InHostingApp, FOnDetailsCreated::CreateSP(&PhysicsControlAssetEditor.Get(), &FPhysicsControlAssetEditorToolkit::HandleDetailsCreated)));
 
 	// Create tab layout.
-	TabLayout = FTabManager::NewLayout("Standalone_PhysicsControlProfileEditor_Layout_v0.001")
+	TabLayout = FTabManager::NewLayout("Standalone_PhysicsControlAssetEditor_Layout_v0.001")
 		->AddArea
 		(
 			FTabManager::NewPrimaryArea()
@@ -78,9 +78,9 @@ FPhysicsControlProfileApplicationMode::FPhysicsControlProfileApplicationMode(
 }
 
 //======================================================================================================================
-void FPhysicsControlProfileApplicationMode::RegisterTabFactories(TSharedPtr<FTabManager> InTabManager)
+void FPhysicsControlAssetApplicationMode::RegisterTabFactories(TSharedPtr<FTabManager> InTabManager)
 {
-	TSharedPtr<FPhysicsControlProfileEditorToolkit> Editor = EditorToolkit.Pin();
+	TSharedPtr<FPhysicsControlAssetEditorToolkit> Editor = EditorToolkit.Pin();
 	Editor->RegisterTabSpawners(InTabManager.ToSharedRef());
 	Editor->PushTabFactories(TabFactories);
 	FApplicationMode::RegisterTabFactories(InTabManager);

@@ -1,36 +1,36 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#include "PhysicsControlProfileAssetActions.h"
-#include "PhysicsControlProfileAsset.h"
-#include "PhysicsControlProfileEditorToolkit.h"
+#include "PhysicsControlAssetActions.h"
+#include "PhysicsControlAsset.h"
+#include "PhysicsControlAssetEditorToolkit.h"
 
 //======================================================================================================================
-UClass* FPhysicsControlProfileAssetActions::GetSupportedClass() const
+UClass* FPhysicsControlAssetActions::GetSupportedClass() const
 {
-	return UPhysicsControlProfileAsset::StaticClass();
+	return UPhysicsControlAsset::StaticClass();
 }
 
 //======================================================================================================================
-FText FPhysicsControlProfileAssetActions::GetName() const
+FText FPhysicsControlAssetActions::GetName() const
 {
 	return INVTEXT("Physics Control Profile");
 }
 
 //======================================================================================================================
-FColor FPhysicsControlProfileAssetActions::GetTypeColor() const
+FColor FPhysicsControlAssetActions::GetTypeColor() const
 {
 	// Match the "standard" physics color - they tend to be variations around this value
 	return FColor(255, 192, 128);
 }
 
 //======================================================================================================================
-uint32 FPhysicsControlProfileAssetActions::GetCategories()
+uint32 FPhysicsControlAssetActions::GetCategories()
 {
 	return EAssetTypeCategories::Physics;
 }
 
 //======================================================================================================================
-void FPhysicsControlProfileAssetActions::OpenAssetEditor(
+void FPhysicsControlAssetActions::OpenAssetEditor(
 	const TArray<UObject*>& InObjects, TSharedPtr<IToolkitHost> EditWithinLevelEditor)
 {
 	const EToolkitMode::Type Mode = 
@@ -38,9 +38,9 @@ void FPhysicsControlProfileAssetActions::OpenAssetEditor(
 
 	for (UObject* Object : InObjects)
 	{
-		if (UPhysicsControlProfileAsset* Asset = Cast<UPhysicsControlProfileAsset>(Object))
+		if (UPhysicsControlAsset* Asset = Cast<UPhysicsControlAsset>(Object))
 		{
-			TSharedRef<FPhysicsControlProfileEditorToolkit> NewEditor(new FPhysicsControlProfileEditorToolkit());
+			TSharedRef<FPhysicsControlAssetEditorToolkit> NewEditor(new FPhysicsControlAssetEditorToolkit());
 			NewEditor->InitAssetEditor(Mode, EditWithinLevelEditor, Asset);
 		}
 	}

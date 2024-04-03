@@ -1,34 +1,34 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#include "PhysicsControlProfileEditorData.h"
-#include "PhysicsControlProfileAsset.h"
+#include "PhysicsControlAssetEditorData.h"
+#include "PhysicsControlAsset.h"
 #include "Engine/SkeletalMesh.h"
 #include "Misc/MessageDialog.h"
 
-#define LOCTEXT_NAMESPACE "PhysicsControlProfileEditorData"
+#define LOCTEXT_NAMESPACE "PhysicsControlAssetEditorData"
 
 //======================================================================================================================
-FPhysicsControlProfileEditorData::FPhysicsControlProfileEditorData()
+FPhysicsControlAssetEditorData::FPhysicsControlAssetEditorData()
 {
 }
 
 //======================================================================================================================
-void FPhysicsControlProfileEditorData::Initialize(const TSharedRef<IPersonaPreviewScene>& InPreviewScene)
+void FPhysicsControlAssetEditorData::Initialize(const TSharedRef<IPersonaPreviewScene>& InPreviewScene)
 {
 	PreviewScene = InPreviewScene;
 
 	EditorSkelComp = nullptr;
 	PhysicsControlComponent = nullptr;
-	FSoftObjectPath PreviewMeshStringRef = PhysicsControlProfileAsset->PreviewSkeletalMesh.ToSoftObjectPath();
+	FSoftObjectPath PreviewMeshStringRef = PhysicsControlAsset->PreviewSkeletalMesh.ToSoftObjectPath();
 
 	// Support undo/redo
-	PhysicsControlProfileAsset->SetFlags(RF_Transactional);
+	PhysicsControlAsset->SetFlags(RF_Transactional);
 }
 
 //======================================================================================================================
-void FPhysicsControlProfileEditorData::CachePreviewMesh()
+void FPhysicsControlAssetEditorData::CachePreviewMesh()
 {
-	USkeletalMesh* PreviewMesh = PhysicsControlProfileAsset->PreviewSkeletalMesh.LoadSynchronous();
+	USkeletalMesh* PreviewMesh = PhysicsControlAsset->PreviewSkeletalMesh.LoadSynchronous();
 
 	if (PreviewMesh == nullptr)
 	{
@@ -38,10 +38,10 @@ void FPhysicsControlProfileEditorData::CachePreviewMesh()
 		PreviewMesh = (USkeletalMesh*)StaticLoadObject(USkeletalMesh::StaticClass(), NULL, TEXT("/Engine/EngineMeshes/SkeletalCube.SkeletalCube"), NULL, LOAD_None, NULL);
 		check(PreviewMesh);
 
-		PhysicsControlProfileAsset->PreviewSkeletalMesh = PreviewMesh;
+		PhysicsControlAsset->PreviewSkeletalMesh = PreviewMesh;
 
 		FMessageDialog::Open(EAppMsgType::Ok, FText::Format(
-			LOCTEXT("Error_PhysicsControlProfileAssetHasNoSkelMesh", "Warning: Physics Control Profile Asset has no skeletal mesh assigned.\nFor now, a simple default skeletal mesh ({0}) will be used.\nYou can fix this by opening the asset and choosing another skeletal mesh from the toolbar."),
+			LOCTEXT("Error_PhysicsControlAssetHasNoSkelMesh", "Warning: Physics Control Profile Asset has no skeletal mesh assigned.\nFor now, a simple default skeletal mesh ({0}) will be used.\nYou can fix this by opening the asset and choosing another skeletal mesh from the toolbar."),
 			FText::FromString(PreviewMesh->GetFullName())));
 	}
 	else if (PreviewMesh->GetSkeleton() == nullptr)
@@ -50,10 +50,10 @@ void FPhysicsControlProfileEditorData::CachePreviewMesh()
 		PreviewMesh = (USkeletalMesh*)StaticLoadObject(USkeletalMesh::StaticClass(), NULL, TEXT("/Engine/EngineMeshes/SkeletalCube.SkeletalCube"), NULL, LOAD_None, NULL);
 		check(PreviewMesh);
 
-		PhysicsControlProfileAsset->PreviewSkeletalMesh = PreviewMesh;
+		PhysicsControlAsset->PreviewSkeletalMesh = PreviewMesh;
 
 		FMessageDialog::Open(EAppMsgType::Ok, FText::Format(
-			LOCTEXT("Error_PhysicsControlProfileAssetHasNoSkelMeshSkeleton", "Warning: Physics Control Profile Asset has a skeletal mesh with no skeleton assigned.\nFor now, a simple default skeletal mesh ({0}) will be used.\nYou can fix this by opening the asset and choosing another skeletal mesh from the toolbar, or repairing the skeleton."),
+			LOCTEXT("Error_PhysicsControlAssetHasNoSkelMeshSkeleton", "Warning: Physics Control Profile Asset has a skeletal mesh with no skeleton assigned.\nFor now, a simple default skeletal mesh ({0}) will be used.\nYou can fix this by opening the asset and choosing another skeletal mesh from the toolbar, or repairing the skeleton."),
 			FText::FromString(PreviewMesh->GetFullName())));
 	}
 }

@@ -4,8 +4,8 @@
 #include "PhysicsControlComponent.h"
 #include "PhysicsControlComponentVisualizer.h"
 #include "OperatorEditor/OperatorEditor.h"
-#include "PhysicsControlProfileAssetActions.h"
-#include "PhysicsControlProfileEditorMode.h"
+#include "PhysicsControlAssetActions.h"
+#include "PhysicsControlAssetEditorMode.h"
 #include "UnrealEdGlobals.h"
 #include "Editor/UnrealEdEngine.h"
 #include "Features/IModularFeatures.h"
@@ -18,12 +18,12 @@ static const FName PhysicsControlEditorModule_PhysicsControlEditorInterface("Phy
 void FPhysicsControlEditorModule::StartupModule()
 {
 	IAssetTools& AssetTools = FModuleManager::LoadModuleChecked<FAssetToolsModule>("AssetTools").Get();
-	PhysicsControlProfileAssetActions = MakeShared<FPhysicsControlProfileAssetActions>();
-	AssetTools.RegisterAssetTypeActions(PhysicsControlProfileAssetActions.ToSharedRef());
+	PhysicsControlAssetActions = MakeShared<FPhysicsControlAssetActions>();
+	AssetTools.RegisterAssetTypeActions(PhysicsControlAssetActions.ToSharedRef());
 
-	FEditorModeRegistry::Get().RegisterMode<FPhysicsControlProfileEditorMode>(
-		FPhysicsControlProfileEditorMode::ModeName, 
-		LOCTEXT("PhysicsControlProfileEditorMode", "PhysicsControlProfile"), 
+	FEditorModeRegistry::Get().RegisterMode<FPhysicsControlAssetEditorMode>(
+		FPhysicsControlAssetEditorMode::ModeName, 
+		LOCTEXT("PhysicsControlAssetEditorMode", "PhysicsControlAsset"), 
 		FSlateIcon(), false);
 
 	if (GUnrealEd)
@@ -60,12 +60,12 @@ void FPhysicsControlEditorModule::ShutdownModule()
 	}
 	
 	// Physics Control Profile editor/asset is disabled for now
-	FEditorModeRegistry::Get().UnregisterMode(FPhysicsControlProfileEditorMode::ModeName);
+	FEditorModeRegistry::Get().UnregisterMode(FPhysicsControlAssetEditorMode::ModeName);
 
 	if (FModuleManager::Get().IsModuleLoaded("AssetTools"))
 	{
 		FAssetToolsModule::GetModule().Get().UnregisterAssetTypeActions(
-			PhysicsControlProfileAssetActions.ToSharedRef());
+			PhysicsControlAssetActions.ToSharedRef());
 	}
 
 	if (GUnrealEd)

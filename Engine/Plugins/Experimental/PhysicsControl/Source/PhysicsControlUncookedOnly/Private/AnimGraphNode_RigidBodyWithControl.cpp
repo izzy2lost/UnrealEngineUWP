@@ -10,7 +10,7 @@
 #include "IPhysicsControlOperatorEditorInterface.h"
 #include "Kismet2/BlueprintEditorUtils.h"
 #include "PhysicsControlOperatorNameGeneration.h"
-#include "PhysicsControlProfileAsset.h"
+#include "PhysicsControlAsset.h"
 
 // Details includes
 #include "PropertyHandle.h"
@@ -342,9 +342,9 @@ TArray<TPair<FName, TArray<FName>>> UAnimGraphNode_RigidBodyWithControl::Generat
 
 		// Note that controls can come from the setup data in the node and/or from a profile asset
 		FPhysicsControlCharacterSetupData SetupData;
-		if (IsValid(Node.PhysicsControlProfileAsset))
+		if (IsValid(Node.PhysicsControlAsset))
 		{
-			SetupData = Node.PhysicsControlProfileAsset->CharacterSetupData;
+			SetupData = Node.PhysicsControlAsset->CharacterSetupData;
 		}
 		if (Node.bEnableCharacterSetupData)
 		{
@@ -352,9 +352,9 @@ TArray<TPair<FName, TArray<FName>>> UAnimGraphNode_RigidBodyWithControl::Generat
 		}
 
 		FPhysicsControlAndBodyModifierCreationDatas AdditionalControlAndBodyModifierCreationDatas;
-		if (IsValid(Node.PhysicsControlProfileAsset))
+		if (IsValid(Node.PhysicsControlAsset))
 		{
-			AdditionalControlAndBodyModifierCreationDatas = Node.PhysicsControlProfileAsset->AdditionalControlsAndModifiers;
+			AdditionalControlAndBodyModifierCreationDatas = Node.PhysicsControlAsset->AdditionalControlsAndModifiers;
 		}
 		AdditionalControlAndBodyModifierCreationDatas += Node.AdditionalControlsAndBodyModifiers;
 
@@ -364,10 +364,10 @@ TArray<TPair<FName, TArray<FName>>> UAnimGraphNode_RigidBodyWithControl::Generat
 			AllLimbBones, RefSkeleton, Node.OverridePhysicsAsset.Get(), BodyModifierNames, ControlNames, NameRecords);
 
 		// Create any additional sets that have been requested
-		if (IsValid(Node.PhysicsControlProfileAsset))
+		if (IsValid(Node.PhysicsControlAsset))
 		{
 			UE::PhysicsControl::CreateAdditionalSets(
-				Node.PhysicsControlProfileAsset->AdditionalSets, BodyModifierNames, ControlNames, NameRecords);
+				Node.PhysicsControlAsset->AdditionalSets, BodyModifierNames, ControlNames, NameRecords);
 		}
 		UE::PhysicsControl::CreateAdditionalSets(Node.AdditionalSets, BodyModifierNames, ControlNames, NameRecords);
 

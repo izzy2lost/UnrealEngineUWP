@@ -1,6 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#include "PhysicsControlProfileEditorToolkit.h"
+#include "PhysicsControlAssetEditorToolkit.h"
 
 #include "AnimationEditorPreviewActor.h"
 #include "EditorModeManager.h"
@@ -8,30 +8,30 @@
 #include "IPersonaToolkit.h"
 #include "Modules/ModuleManager.h"
 #include "PersonaModule.h"
-#include "PhysicsControlProfileApplicationMode.h"
-#include "PhysicsControlProfileAsset.h"
-#include "PhysicsControlProfileEditorMode.h"
+#include "PhysicsControlAssetApplicationMode.h"
+#include "PhysicsControlAsset.h"
+#include "PhysicsControlAssetEditorMode.h"
 #include "Animation/DebugSkelMeshComponent.h"
 #include "AnimPreviewInstance.h"
-#include "PhysicsControlProfileEditorData.h"
+#include "PhysicsControlAssetEditorData.h"
 
-#define LOCTEXT_NAMESPACE "PhysicsControlProfileEditorToolkit"
+#define LOCTEXT_NAMESPACE "PhysicsControlAssetEditorToolkit"
 
-const FName PhysicsControlProfileEditorModes::Editor("PhysicsControlProfileEditorMode");
-const FName PhysicsControlProfileEditorAppName = FName(TEXT("PhysicsControlProfileEditorApp"));
+const FName PhysicsControlAssetEditorModes::Editor("PhysicsControlAssetEditorMode");
+const FName PhysicsControlAssetEditorAppName = FName(TEXT("PhysicsControlAssetEditorApp"));
 
 //======================================================================================================================
-void FPhysicsControlProfileEditorToolkit::InitAssetEditor(
+void FPhysicsControlAssetEditorToolkit::InitAssetEditor(
 	const EToolkitMode::Type        Mode,
 	const TSharedPtr<IToolkitHost>& InitToolkitHost,
-	UPhysicsControlProfileAsset*    InPhysicsControlProfileAsset)
+	UPhysicsControlAsset*    InPhysicsControlAsset)
 {
 	bIsInitialized = false;
 
 	// Initialise EditorData
 	{
-		EditorData = MakeShared<FPhysicsControlProfileEditorData>();
-		EditorData->PhysicsControlProfileAsset = InPhysicsControlProfileAsset;
+		EditorData = MakeShared<FPhysicsControlAssetEditorData>();
+		EditorData->PhysicsControlAsset = InPhysicsControlAsset;
 		EditorData->CachePreviewMesh();
 	}
 
@@ -39,10 +39,10 @@ void FPhysicsControlProfileEditorToolkit::InitAssetEditor(
 	{
 		FPersonaToolkitArgs PersonaToolkitArgs;
 		PersonaToolkitArgs.OnPreviewSceneCreated = FOnPreviewSceneCreated::FDelegate::CreateSP(
-			this, &FPhysicsControlProfileEditorToolkit::HandlePreviewSceneCreated);
+			this, &FPhysicsControlAssetEditorToolkit::HandlePreviewSceneCreated);
 		FPersonaModule& PersonaModule = FModuleManager::LoadModuleChecked<FPersonaModule>("Persona");
-		PersonaToolkit = PersonaModule.CreatePersonaToolkit(InPhysicsControlProfileAsset, PersonaToolkitArgs);
-		PersonaModule.RecordAssetOpened(FAssetData(InPhysicsControlProfileAsset));
+		PersonaToolkit = PersonaModule.CreatePersonaToolkit(InPhysicsControlAsset, PersonaToolkitArgs);
+		PersonaModule.RecordAssetOpened(FAssetData(InPhysicsControlAsset));
 	}
 
 	// Note - we might want to make a custom skeleton tree view here, based on showing either the
@@ -56,23 +56,23 @@ void FPhysicsControlProfileEditorToolkit::InitAssetEditor(
 	FAssetEditorToolkit::InitAssetEditor(
 		Mode,
 		InitToolkitHost,
-		PhysicsControlProfileEditorAppName,
+		PhysicsControlAssetEditorAppName,
 		FTabManager::FLayout::NullLayout,
 		bCreateDefaultStandaloneMenu,
 		bCreateDefaultToolbar,
-		InPhysicsControlProfileAsset);
+		InPhysicsControlAsset);
 
 	// Create and set the application mode.
-	ApplicationMode = new FPhysicsControlProfileApplicationMode(SharedThis(this), PersonaToolkit->GetPreviewScene());
-	AddApplicationMode(PhysicsControlProfileEditorModes::Editor, MakeShareable(ApplicationMode));
-	SetCurrentMode(PhysicsControlProfileEditorModes::Editor);
+	ApplicationMode = new FPhysicsControlAssetApplicationMode(SharedThis(this), PersonaToolkit->GetPreviewScene());
+	AddApplicationMode(PhysicsControlAssetEditorModes::Editor, MakeShareable(ApplicationMode));
+	SetCurrentMode(PhysicsControlAssetEditorModes::Editor);
 
 	// Activate the editor mode.
-	GetEditorModeManager().SetDefaultMode(FPhysicsControlProfileEditorMode::ModeName);
-	GetEditorModeManager().ActivateMode(FPhysicsControlProfileEditorMode::ModeName);
+	GetEditorModeManager().SetDefaultMode(FPhysicsControlAssetEditorMode::ModeName);
+	GetEditorModeManager().ActivateMode(FPhysicsControlAssetEditorMode::ModeName);
 
-	FPhysicsControlProfileEditorMode* EditorMode = GetEditorModeManager().
-		GetActiveModeTyped<FPhysicsControlProfileEditorMode>(FPhysicsControlProfileEditorMode::ModeName);
+	FPhysicsControlAssetEditorMode* EditorMode = GetEditorModeManager().
+		GetActiveModeTyped<FPhysicsControlAssetEditorMode>(FPhysicsControlAssetEditorMode::ModeName);
 	EditorMode->SetEditorToolkit(this);
 
 	bIsInitialized = true;
@@ -80,7 +80,7 @@ void FPhysicsControlProfileEditorToolkit::InitAssetEditor(
 
 
 //======================================================================================================================
-void FPhysicsControlProfileEditorToolkit::RegisterTabSpawners(const TSharedRef<FTabManager>& InTabManager)
+void FPhysicsControlAssetEditorToolkit::RegisterTabSpawners(const TSharedRef<FTabManager>& InTabManager)
 {
 	WorkspaceMenuCategory = InTabManager->AddLocalWorkspaceMenuCategory(LOCTEXT("WorkspaceMenu_MLDeformerEditor", "ML Deformer Editor"));
 	auto WorkspaceMenuCategoryRef = WorkspaceMenuCategory.ToSharedRef();
@@ -89,57 +89,57 @@ void FPhysicsControlProfileEditorToolkit::RegisterTabSpawners(const TSharedRef<F
 }
 
 //======================================================================================================================
-void FPhysicsControlProfileEditorToolkit::UnregisterTabSpawners(const TSharedRef<FTabManager>& InTabManager)
+void FPhysicsControlAssetEditorToolkit::UnregisterTabSpawners(const TSharedRef<FTabManager>& InTabManager)
 {
 	FAssetEditorToolkit::UnregisterTabSpawners(InTabManager);
 }
 
 //======================================================================================================================
-FName FPhysicsControlProfileEditorToolkit::GetToolkitFName() const
+FName FPhysicsControlAssetEditorToolkit::GetToolkitFName() const
 {
-	return FName("PhysicsControlProfileEditor");
+	return FName("PhysicsControlAssetEditor");
 }
 
 //======================================================================================================================
-FText FPhysicsControlProfileEditorToolkit::GetBaseToolkitName() const
+FText FPhysicsControlAssetEditorToolkit::GetBaseToolkitName() const
 {
-	return LOCTEXT("PhysicsControlProfilekEditorAppLabel", "Physics Control Profile Editor");
+	return LOCTEXT("PhysicsControlAssetEditorAppLabel", "Physics Control Asset Editor");
 }
 
 //======================================================================================================================
-FText FPhysicsControlProfileEditorToolkit::GetToolkitName() const
+FText FPhysicsControlAssetEditorToolkit::GetToolkitName() const
 {
 	FFormatNamedArguments Args;
-	Args.Add(TEXT("AssetName"), FText::FromString(EditorData->PhysicsControlProfileAsset->GetName()));
-	return FText::Format(LOCTEXT("PhysicsControlProfileEditorToolkitName", "{AssetName}"), Args);
+	Args.Add(TEXT("AssetName"), FText::FromString(EditorData->PhysicsControlAsset->GetName()));
+	return FText::Format(LOCTEXT("PhysicsControlAssetEditorToolkitName", "{AssetName}"), Args);
 }
 
 //======================================================================================================================
-FLinearColor FPhysicsControlProfileEditorToolkit::GetWorldCentricTabColorScale() const
+FLinearColor FPhysicsControlAssetEditorToolkit::GetWorldCentricTabColorScale() const
 {
 	return FLinearColor::White;
 }
 
 //======================================================================================================================
-FString FPhysicsControlProfileEditorToolkit::GetWorldCentricTabPrefix() const
+FString FPhysicsControlAssetEditorToolkit::GetWorldCentricTabPrefix() const
 {
-	return TEXT("PhysicsControlProfileEditor");
+	return TEXT("PhysicsControlAssetEditor");
 }
 
 //======================================================================================================================
-void FPhysicsControlProfileEditorToolkit::AddReferencedObjects(FReferenceCollector& Collector)
+void FPhysicsControlAssetEditorToolkit::AddReferencedObjects(FReferenceCollector& Collector)
 {
-	Collector.AddReferencedObject(EditorData->PhysicsControlProfileAsset);
+	Collector.AddReferencedObject(EditorData->PhysicsControlAsset);
 }
 
 //======================================================================================================================
-TStatId FPhysicsControlProfileEditorToolkit::GetStatId() const
+TStatId FPhysicsControlAssetEditorToolkit::GetStatId() const
 {
-	RETURN_QUICK_DECLARE_CYCLE_STAT(FPhysicsControlProfileEditorToolkit, STATGROUP_Tickables);
+	RETURN_QUICK_DECLARE_CYCLE_STAT(FPhysicsControlAssetEditorToolkit, STATGROUP_Tickables);
 }
 
 //======================================================================================================================
-TSharedRef<IPersonaToolkit> FPhysicsControlProfileEditorToolkit::GetPersonaToolkit() const
+TSharedRef<IPersonaToolkit> FPhysicsControlAssetEditorToolkit::GetPersonaToolkit() const
 {
 	return PersonaToolkit.ToSharedRef();
 }
@@ -150,7 +150,7 @@ TSharedRef<IPersonaToolkit> FPhysicsControlProfileEditorToolkit::GetPersonaToolk
 // - MLDeformerEditorToolkit
 // - IKRigToolkit
 // though note that they all do things differently!
-void FPhysicsControlProfileEditorToolkit::HandlePreviewSceneCreated(
+void FPhysicsControlAssetEditorToolkit::HandlePreviewSceneCreated(
 	const TSharedRef<IPersonaPreviewScene>& InPersonaPreviewScene)
 {
 	EditorData->PreviewScene = InPersonaPreviewScene;
@@ -167,13 +167,13 @@ void FPhysicsControlProfileEditorToolkit::HandlePreviewSceneCreated(
 
 	// Setup and apply an anim instance to the skeletal mesh component
 	ViewportAnimInstance = NewObject<UAnimPreviewInstance>(
-		ViewportSkeletalMeshComponent, TEXT("PhysicsControlProfileEditorAnimInstance"));
+		ViewportSkeletalMeshComponent, TEXT("PhysicsControlAssetEditorAnimInstance"));
 	ViewportSkeletalMeshComponent->PreviewInstance = ViewportAnimInstance;
 	//ViewportAnimInstance->InitializeAnimation();
 
 	// Set the skeletal mesh on the component, using the asset. Note that this will change if/when
 	// the asset doesn't hold a mesh.
-	USkeletalMesh* Mesh = EditorData->PhysicsControlProfileAsset->PreviewSkeletalMesh.Get();
+	USkeletalMesh* Mesh = EditorData->PhysicsControlAsset->PreviewSkeletalMesh.Get();
 	ViewportSkeletalMeshComponent->SetSkeletalMesh(Mesh);
 
 	// apply mesh to the preview scene
@@ -186,33 +186,33 @@ void FPhysicsControlProfileEditorToolkit::HandlePreviewSceneCreated(
 }
 
 //======================================================================================================================
-void FPhysicsControlProfileEditorToolkit::HandleViewportCreated(const TSharedRef<IPersonaViewport>& InPersonaViewport)
+void FPhysicsControlAssetEditorToolkit::HandleViewportCreated(const TSharedRef<IPersonaViewport>& InPersonaViewport)
 {
 	PersonaViewport = InPersonaViewport;
 }
 
 //======================================================================================================================
-void FPhysicsControlProfileEditorToolkit::ShowEmptyDetails() const
+void FPhysicsControlAssetEditorToolkit::ShowEmptyDetails() const
 {
-	DetailsView->SetObject(EditorData->PhysicsControlProfileAsset);
+	DetailsView->SetObject(EditorData->PhysicsControlAsset);
 }
 
 //======================================================================================================================
-void FPhysicsControlProfileEditorToolkit::HandleDetailsCreated(const TSharedRef<class IDetailsView>& InDetailsView)
+void FPhysicsControlAssetEditorToolkit::HandleDetailsCreated(const TSharedRef<class IDetailsView>& InDetailsView)
 {
 	DetailsView = InDetailsView;
 	DetailsView->OnFinishedChangingProperties().AddSP(
-		this, &FPhysicsControlProfileEditorToolkit::OnFinishedChangingDetails);
+		this, &FPhysicsControlAssetEditorToolkit::OnFinishedChangingDetails);
 	ShowEmptyDetails();
 }
 
 //======================================================================================================================
-void FPhysicsControlProfileEditorToolkit::OnFinishedChangingDetails(const FPropertyChangedEvent& PropertyChangedEvent)
+void FPhysicsControlAssetEditorToolkit::OnFinishedChangingDetails(const FPropertyChangedEvent& PropertyChangedEvent)
 {
-	const bool bPreviewMeshChanged = PropertyChangedEvent.GetPropertyName() == UPhysicsControlProfileAsset::GetPreviewMeshPropertyName();
+	const bool bPreviewMeshChanged = PropertyChangedEvent.GetPropertyName() == UPhysicsControlAsset::GetPreviewMeshPropertyName();
 	if (bPreviewMeshChanged)
 	{
-		USkeletalMesh* Mesh = EditorData->PhysicsControlProfileAsset->PreviewSkeletalMesh.LoadSynchronous();
+		USkeletalMesh* Mesh = EditorData->PhysicsControlAsset->PreviewSkeletalMesh.LoadSynchronous();
 		ViewportSkeletalMeshComponent->SetSkeletalMesh(Mesh);
 		EditorData->CachePreviewMesh();
 	}

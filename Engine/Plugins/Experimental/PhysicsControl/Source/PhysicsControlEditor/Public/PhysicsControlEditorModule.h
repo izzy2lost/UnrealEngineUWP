@@ -8,7 +8,7 @@
 
 
 class FPhysicsControlOperatorEditor;
-class FPhysicsControlProfileAssetActions;
+class FPhysicsControlAssetActions;
 
 /**
  * Module handles the Physics Control Profile editor, and also the Physics Control Visualizer
@@ -24,7 +24,7 @@ public:
 private:
 
 	TArray<FName> VisualizersToUnregisterOnShutdown;
-	TSharedPtr<FPhysicsControlProfileAssetActions> PhysicsControlProfileAssetActions;
+	TSharedPtr<FPhysicsControlAssetActions> PhysicsControlAssetActions;
 
 	FPhysicsControlOperatorEditor* EditorInterface = nullptr;
 };

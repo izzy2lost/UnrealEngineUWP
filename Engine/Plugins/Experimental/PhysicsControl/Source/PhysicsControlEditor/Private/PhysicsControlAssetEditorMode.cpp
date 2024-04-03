@@ -1,38 +1,38 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#include "PhysicsControlProfileEditorMode.h"
+#include "PhysicsControlAssetEditorMode.h"
 #include "PhysicsControlEditorModule.h"
-#include "PhysicsControlProfileEditorToolkit.h"
+#include "PhysicsControlAssetEditorToolkit.h"
 #include "AssetEditorModeManager.h"
 
-FName FPhysicsControlProfileEditorMode::ModeName("PhysicsControlProfileAssetEditMode");
+FName FPhysicsControlAssetEditorMode::ModeName("PhysicsControlAssetEditMode");
 
 //======================================================================================================================
-bool FPhysicsControlProfileEditorMode::GetCameraTarget(FSphere& OutTarget) const
+bool FPhysicsControlAssetEditorMode::GetCameraTarget(FSphere& OutTarget) const
 {
 	return false;
 }
 
 //======================================================================================================================
-IPersonaPreviewScene& FPhysicsControlProfileEditorMode::GetAnimPreviewScene() const
+IPersonaPreviewScene& FPhysicsControlAssetEditorMode::GetAnimPreviewScene() const
 {
 	return *static_cast<IPersonaPreviewScene*>(static_cast<FAssetEditorModeManager*>(Owner)->GetPreviewScene());
 }
 
 //======================================================================================================================
-void FPhysicsControlProfileEditorMode::Render(const FSceneView* View, FViewport* Viewport, FPrimitiveDrawInterface* PDI)
+void FPhysicsControlAssetEditorMode::Render(const FSceneView* View, FViewport* Viewport, FPrimitiveDrawInterface* PDI)
 {
 	FEdMode::Render(View, Viewport, PDI);
 }
 
 //======================================================================================================================
-void FPhysicsControlProfileEditorMode::Tick(FEditorViewportClient* ViewportClient, float DeltaTime)
+void FPhysicsControlAssetEditorMode::Tick(FEditorViewportClient* ViewportClient, float DeltaTime)
 {
 	FEdMode::Tick(ViewportClient, DeltaTime);
 }
 
 //======================================================================================================================
-void FPhysicsControlProfileEditorMode::DrawHUD(FEditorViewportClient* ViewportClient, FViewport* Viewport, const FSceneView* View, FCanvas* Canvas)
+void FPhysicsControlAssetEditorMode::DrawHUD(FEditorViewportClient* ViewportClient, FViewport* Viewport, const FSceneView* View, FCanvas* Canvas)
 {
 	FEdMode::DrawHUD(ViewportClient, Viewport, View, Canvas);
 }

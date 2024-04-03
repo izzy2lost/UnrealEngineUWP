@@ -7,7 +7,7 @@
 
 #include "Interfaces/Interface_PreviewMeshProvider.h"
 
-#include "PhysicsControlProfileAsset.generated.h"
+#include "PhysicsControlAsset.generated.h"
 
 class USkeletalMesh;
 
@@ -22,11 +22,11 @@ class USkeletalMesh;
  * customized for certain characters or scenarios.
  */
 UCLASS(BlueprintType)
-class PHYSICSCONTROL_API UPhysicsControlProfileAsset : public UObject, public IInterface_PreviewMeshProvider
+class PHYSICSCONTROL_API UPhysicsControlAsset : public UObject, public IInterface_PreviewMeshProvider
 {
 	GENERATED_BODY()
 public:
-	UPhysicsControlProfileAsset();
+	UPhysicsControlAsset();
 
 	// Data that have been compiled from a combination of inherited and "My" data.
 
@@ -67,14 +67,14 @@ public:
 #if WITH_EDITORONLY_DATA
 	/** A profile asset to inherit from (can be null). If set, we will just add/modify data in that */
 	UPROPERTY(EditAnywhere, Category = Inheritance)
-	TSoftObjectPtr<UPhysicsControlProfileAsset> ParentAsset;
+	TSoftObjectPtr<UPhysicsControlAsset> ParentAsset;
 
 	/** 
 	 * Additional profile assets from which profiles (not the setup data, extra sets etc) will be added 
 	 * to this asset.
 	 */
 	UPROPERTY(EditAnywhere, Category = Inheritance)
-	TArray<TSoftObjectPtr<UPhysicsControlProfileAsset>> AdditionalProfileAssets;
+	TArray<TSoftObjectPtr<UPhysicsControlAsset>> AdditionalProfileAssets;
 
 	/**
 	* The skeletal mesh to use for generating controls and previewing. If it turns out this 

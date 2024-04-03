@@ -1,20 +1,20 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#include "PhysicsControlProfileAssetFactory.h"
-#include "PhysicsControlProfileAsset.h"
+#include "PhysicsControlAssetFactory.h"
+#include "PhysicsControlAsset.h"
 
 //======================================================================================================================
-UPhysicsControlProfileAssetFactory::UPhysicsControlProfileAssetFactory(const FObjectInitializer& ObjectInitializer)
+UPhysicsControlAssetFactory::UPhysicsControlAssetFactory(const FObjectInitializer& ObjectInitializer)
 	: Super(ObjectInitializer)
 {
-	SupportedClass = UPhysicsControlProfileAsset::StaticClass();
+	SupportedClass = UPhysicsControlAsset::StaticClass();
 	bCreateNew = true;
 	bEditAfterNew = false;
 }
 
 //======================================================================================================================
-UObject* UPhysicsControlProfileAssetFactory::FactoryCreateNew(
+UObject* UPhysicsControlAssetFactory::FactoryCreateNew(
 	UClass* Class, UObject* InParent, FName Name, EObjectFlags Flags, UObject* Context, FFeedbackContext* Warn)
 {
-	return NewObject<UPhysicsControlProfileAsset>(InParent, Class, Name, Flags, Context);
+	return NewObject<UPhysicsControlAsset>(InParent, Class, Name, Flags, Context);
 }

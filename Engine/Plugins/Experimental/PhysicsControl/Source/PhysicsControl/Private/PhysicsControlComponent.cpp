@@ -2102,7 +2102,7 @@ void UPhysicsControlComponent::CreateControlsAndBodyModifiersFromControlProfileA
 	UPrimitiveComponent*    WorldComponent,
 	FName                   WorldBoneName)
 {
-	if (!PhysicsControlProfileAsset.IsValid())
+	if (!PhysicsControlAsset.IsValid())
 	{
 		UE_LOG(LogPhysicsControl, Warning,
 			TEXT("CreateControlsAndBodyModifiersFromControlProfile - unable to get/load the control profile asset"));
@@ -2120,16 +2120,16 @@ void UPhysicsControlComponent::CreateControlsAndBodyModifiersFromControlProfileA
 		AllWorldSpaceControls, LimbWorldSpaceControls, AllParentSpaceControls, LimbParentSpaceControls, 
 		AllBodyModifiers, LimbBodyModifiers,
 		SkeletalMeshComponent,
-		PhysicsControlProfileAsset->CharacterSetupData.LimbSetupData,
-		PhysicsControlProfileAsset->CharacterSetupData.DefaultWorldSpaceControlData,
-		PhysicsControlProfileAsset->CharacterSetupData.DefaultParentSpaceControlData,
-		PhysicsControlProfileAsset->CharacterSetupData.DefaultBodyModifierData,
+		PhysicsControlAsset->CharacterSetupData.LimbSetupData,
+		PhysicsControlAsset->CharacterSetupData.DefaultWorldSpaceControlData,
+		PhysicsControlAsset->CharacterSetupData.DefaultParentSpaceControlData,
+		PhysicsControlAsset->CharacterSetupData.DefaultBodyModifierData,
 		WorldComponent,
 		WorldBoneName);
 
 	// Create additional controls
 	for (const TPair<FName, FPhysicsControlCreationData>& ControlPair : 
-		PhysicsControlProfileAsset->AdditionalControlsAndModifiers.Controls)
+		PhysicsControlAsset->AdditionalControlsAndModifiers.Controls)
 	{
 		FName ControlName = ControlPair.Key;
 		const FPhysicsControlCreationData& ControlCreationData = ControlPair.Value;
@@ -2148,7 +2148,7 @@ void UPhysicsControlComponent::CreateControlsAndBodyModifiersFromControlProfileA
 
 	// Create additional modifiers
 	for (const TPair<FName, FPhysicsBodyModifierCreationData>& ModifierPair : 
-		PhysicsControlProfileAsset->AdditionalControlsAndModifiers.Modifiers)
+		PhysicsControlAsset->AdditionalControlsAndModifiers.Modifiers)
 	{
 		FName ModifierName = ModifierPair.Key;
 		const FPhysicsBodyModifierCreationData& ModifierCreationData = ModifierPair.Value;
@@ -2165,9 +2165,9 @@ void UPhysicsControlComponent::CreateControlsAndBodyModifiersFromControlProfileA
 
 	// Create any additional sets that have been requested
 	UE::PhysicsControl::CreateAdditionalSets(
-		PhysicsControlProfileAsset->AdditionalSets, BodyModifierRecords, ControlRecords, NameRecords);
+		PhysicsControlAsset->AdditionalSets, BodyModifierRecords, ControlRecords, NameRecords);
 
-	for (FPhysicsControlControlAndModifierUpdates& Updates : PhysicsControlProfileAsset->InitialControlAndModifierUpdates)
+	for (FPhysicsControlControlAndModifierUpdates& Updates : PhysicsControlAsset->InitialControlAndModifierUpdates)
 	{
 		ApplyControlAndModifierUpdates(Updates);
 	}
@@ -2176,7 +2176,7 @@ void UPhysicsControlComponent::CreateControlsAndBodyModifiersFromControlProfileA
 //======================================================================================================================
 void UPhysicsControlComponent::InvokeControlProfile(FName ProfileName)
 {
-	if (!PhysicsControlProfileAsset.IsValid())
+	if (!PhysicsControlAsset.IsValid())
 	{
 		if (bWarnAboutInvalidNames)
 		{
@@ -2187,7 +2187,7 @@ void UPhysicsControlComponent::InvokeControlProfile(FName ProfileName)
 	}
 
 	const FPhysicsControlControlAndModifierUpdates* ControlAndModifierUpdates =
-		PhysicsControlProfileAsset->Profiles.Find(ProfileName);
+		PhysicsControlAsset->Profiles.Find(ProfileName);
 
 	if (!ControlAndModifierUpdates)
 	{

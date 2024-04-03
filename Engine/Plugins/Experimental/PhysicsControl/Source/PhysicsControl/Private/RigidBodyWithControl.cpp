@@ -4,7 +4,7 @@
 
 #include "PhysicsControlOperatorNameGeneration.h"
 #include "PhysicsControlLog.h"
-#include "PhysicsControlProfileAsset.h"
+#include "PhysicsControlAsset.h"
 #include "PhysicsControlComponentHelpers.h"
 
 #include "Animation/AnimInstance.h"
@@ -357,9 +357,9 @@ void FAnimNode_RigidBodyWithControl::InitControlsAndBodyModifiers(const FReferen
 	check(ControlRecords.IsEmpty()); // Controls should not exist when this function is called.
 
 	FPhysicsControlCharacterSetupData SetupData;
-	if (IsValid(PhysicsControlProfileAsset))
+	if (IsValid(PhysicsControlAsset))
 	{
-		SetupData = PhysicsControlProfileAsset->CharacterSetupData;
+		SetupData = PhysicsControlAsset->CharacterSetupData;
 	}
 	if (bEnableCharacterSetupData)
 	{
@@ -371,9 +371,9 @@ void FAnimNode_RigidBodyWithControl::InitControlsAndBodyModifiers(const FReferen
 		UE::PhysicsControl::GetLimbBones(SetupData.LimbSetupData, RefSkeleton, GetPhysicsAsset());
 
 	FPhysicsControlAndBodyModifierCreationDatas AdditionalControlAndBodyModifierCreationDatas;
-	if (IsValid(PhysicsControlProfileAsset))
+	if (IsValid(PhysicsControlAsset))
 	{
-		AdditionalControlAndBodyModifierCreationDatas = PhysicsControlProfileAsset->AdditionalControlsAndModifiers;
+		AdditionalControlAndBodyModifierCreationDatas = PhysicsControlAsset->AdditionalControlsAndModifiers;
 	}
 	AdditionalControlAndBodyModifierCreationDatas += AdditionalControlsAndBodyModifiers;
 
@@ -389,10 +389,10 @@ void FAnimNode_RigidBodyWithControl::InitControlsAndBodyModifiers(const FReferen
 	}
 
 	// Create any additional sets that have been requested
-	if (IsValid(PhysicsControlProfileAsset))
+	if (IsValid(PhysicsControlAsset))
 	{
 		UE::PhysicsControl::CreateAdditionalSets(
-			PhysicsControlProfileAsset->AdditionalSets, ModifierRecords, ControlRecords, NameRecords);
+			PhysicsControlAsset->AdditionalSets, ModifierRecords, ControlRecords, NameRecords);
 	}
 	UE::PhysicsControl::CreateAdditionalSets(AdditionalSets, ModifierRecords, ControlRecords, NameRecords);
 
@@ -951,10 +951,10 @@ void FAnimNode_RigidBodyWithControl::InvokeControlProfile(FName ControlProfileNa
 void FAnimNode_RigidBodyWithControl::ApplyCurrentControlProfile()
 {
 	// We shouldn't have a hitch here, since the asset (if set) will already have been loaded 
-	if (IsValid(PhysicsControlProfileAsset))
+	if (IsValid(PhysicsControlAsset))
 	{
 		const FPhysicsControlControlAndModifierUpdates* Updates = 
-			PhysicsControlProfileAsset->Profiles.Find(CurrentControlProfile);
+			PhysicsControlAsset->Profiles.Find(CurrentControlProfile);
 		if (Updates)
 		{
 			ApplyControlAndBodyModifierDatas(

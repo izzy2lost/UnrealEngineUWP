@@ -5,7 +5,7 @@
 #include "PhysicsControlData.h"
 #include "PhysicsControlLimbData.h"
 #include "PhysicsControlNameRecords.h"
-#include "PhysicsControlProfileAsset.h"
+#include "PhysicsControlAsset.h"
 #include "PhysicsControlRecord.h"
 #include "PhysicsControlPoseData.h"
 
@@ -1606,8 +1606,12 @@ public:
 public:
 	// Public property data
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = PhysicsControlProfile)
-	TSoftObjectPtr<UPhysicsControlProfileAsset> PhysicsControlProfileAsset;
+	/**
+	 * Optional PhysicsControlAsset to use. If this is set, then controls can be instantiated from the asset. 
+	 * Individual profiles can subsequently be "invoked" referencing the named profiles in the asset.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = PhysicsControlAsset)
+	TSoftObjectPtr<UPhysicsControlAsset> PhysicsControlAsset;
 
 	/**
 	 * If the component moves by more than this distance then it is treated as a teleport,

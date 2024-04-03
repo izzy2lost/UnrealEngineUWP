@@ -5,7 +5,7 @@
 #include "CoreMinimal.h"
 #include "AssetTypeActions_Base.h"
 
-class FPhysicsControlProfileAssetActions : public FAssetTypeActions_Base
+class FPhysicsControlAssetActions : public FAssetTypeActions_Base
 {
 public:
 	UClass* GetSupportedClass() const override;

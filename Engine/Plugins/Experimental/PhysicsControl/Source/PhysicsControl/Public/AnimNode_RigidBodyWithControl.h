@@ -26,7 +26,7 @@ struct FBodyInstance;
 struct FConstraintInstance;
 
 class FEvent;
-class UPhysicsControlProfileAsset;
+class UPhysicsControlAsset;
 class UPhysicsAsset;
 
 extern TAutoConsoleVariable<int32> CVarEnableRigidBodyNodeWithControl;
@@ -281,12 +281,12 @@ public:
 	bool bEnableControls;
 
 	/** 
-	 * Physics control profile asset to use. This is optional, but if it has been set, then it will be used 
+	 * Physics control asset to use. This is optional, but if it has been set, then it will be used 
 	 * during creation of controls/body modifiers. Note that this can be modified at runtime in the Animation 
 	 * Blueprint via the Animation Node functions.
 	 */
 	UPROPERTY(EditAnywhere, Category = ControlSetup)
-	TObjectPtr<UPhysicsControlProfileAsset> PhysicsControlProfileAsset;
+	TObjectPtr<UPhysicsControlAsset> PhysicsControlAsset;
 
 	/**
 	 * A map of bone names to "body" names, the latter being used to assign names to controls/modifiers. 

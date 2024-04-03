@@ -4,14 +4,14 @@
 
 #include "CoreMinimal.h"
 #include "Factories/Factory.h"
-#include "PhysicsControlProfileAssetFactory.generated.h"
+#include "PhysicsControlAssetFactory.generated.h"
 
 UCLASS()
-class UPhysicsControlProfileAssetFactory : public UFactory
+class UPhysicsControlAssetFactory : public UFactory
 {
 	GENERATED_BODY()
 public:
-	UPhysicsControlProfileAssetFactory(const FObjectInitializer& ObjectInitializer);
+	UPhysicsControlAssetFactory(const FObjectInitializer& ObjectInitializer);
 	UObject* FactoryCreateNew(
 		UClass* Class, UObject* InParent, FName Name, EObjectFlags Flags, UObject* Context, FFeedbackContext* Warn);
 };

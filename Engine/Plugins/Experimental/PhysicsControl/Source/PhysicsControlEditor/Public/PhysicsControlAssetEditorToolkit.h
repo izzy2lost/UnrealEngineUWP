@@ -9,12 +9,12 @@
 #include "IPersonaViewport.h"
 #include "PersonaAssetEditorToolkit.h"
 
-class FPhysicsControlProfileApplicationMode;
-class FPhysicsControlProfileEditorData;
+class FPhysicsControlAssetApplicationMode;
+class FPhysicsControlAssetEditorData;
 class UAnimPreviewInstance;
-class UPhysicsControlProfileAsset;
+class UPhysicsControlAsset;
 
-namespace PhysicsControlProfileEditorModes
+namespace PhysicsControlAssetEditorModes
 {
 	extern const FName Editor;
 }
@@ -22,7 +22,7 @@ namespace PhysicsControlProfileEditorModes
 /**
  * The main toolkit/editor for working with Physics Control Profile assets
  */
-class PHYSICSCONTROLEDITOR_API FPhysicsControlProfileEditorToolkit :
+class PHYSICSCONTROLEDITOR_API FPhysicsControlAssetEditorToolkit :
 	public FPersonaAssetEditorToolkit,
 	public IHasPersonaToolkit,
 	public FGCObject,
@@ -30,7 +30,7 @@ class PHYSICSCONTROLEDITOR_API FPhysicsControlProfileEditorToolkit :
 	public FTickableEditorObject
 {
 public:
-	friend class FPhysicsControlProfileApplicationMode;
+	friend class FPhysicsControlAssetApplicationMode;
 
 public:
 
@@ -38,7 +38,7 @@ public:
 	void InitAssetEditor(
 		const EToolkitMode::Type        Mode,
 		const TSharedPtr<IToolkitHost>& InitToolkitHost,
-		UPhysicsControlProfileAsset*    InPhysicsControlProfileAsset);
+		UPhysicsControlAsset*    InPhysicsControlAsset);
 
 	// FAssetEditorToolkit overrides.
 	virtual void RegisterTabSpawners(const TSharedRef<FTabManager>& InTabManager) override;
@@ -51,7 +51,7 @@ public:
 	// ~END FAssetEditorToolkit overrides.
 
 	// FGCObject overrides.
-	virtual FString GetReferencerName() const override { return TEXT("FPhysicsControlProfileEditorToolkit"); }
+	virtual FString GetReferencerName() const override { return TEXT("FPhysicsControlAssetEditorToolkit"); }
 	virtual void AddReferencedObjects(FReferenceCollector& Collector) override;
 	// ~END FGCObject overrides.
 
@@ -83,12 +83,12 @@ private:
 	TSharedPtr<IPersonaViewport> PersonaViewport = nullptr;
 
 	/** Data and methods shared across multiple classes */
-	TSharedPtr<FPhysicsControlProfileEditorData> EditorData;
+	TSharedPtr<FPhysicsControlAssetEditorData> EditorData;
 
 	// Asset properties tab 
 	TSharedPtr<IDetailsView> DetailsView;
 
-	FPhysicsControlProfileApplicationMode* ApplicationMode = nullptr;
+	FPhysicsControlAssetApplicationMode* ApplicationMode = nullptr;
 
 	// viewport anim instance 
 	UPROPERTY(transient, NonTransactional)

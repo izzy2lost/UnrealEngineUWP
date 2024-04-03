@@ -5,18 +5,18 @@
 #include "CoreMinimal.h"
 #include "IPersonaEditMode.h"
 
-class FPhysicsControlProfileEditorToolkit;
+class FPhysicsControlAssetEditorToolkit;
 
 /**
  * The Physics Control Profile Persona editor mode.
  */
-class PHYSICSCONTROLEDITOR_API FPhysicsControlProfileEditorMode	: public IPersonaEditMode
+class PHYSICSCONTROLEDITOR_API FPhysicsControlAssetEditorMode	: public IPersonaEditMode
 {
 public:
 	/** The name of the mode. */
 	static FName ModeName;
 
-	void SetEditorToolkit(FPhysicsControlProfileEditorToolkit* InToolkit) { PhysicsControlProfileEditorToolkit = InToolkit; }
+	void SetEditorToolkit(FPhysicsControlAssetEditorToolkit* InToolkit) { PhysicsControlAssetEditorToolkit = InToolkit; }
 
 	// IPersonaEditMode overrides.
 	virtual bool GetCameraTarget(FSphere& OutTarget) const override;
@@ -36,5 +36,5 @@ public:
 	// ~END FEdMode overrides.
 
 protected:
-	FPhysicsControlProfileEditorToolkit* PhysicsControlProfileEditorToolkit = nullptr;
+	FPhysicsControlAssetEditorToolkit* PhysicsControlAssetEditorToolkit = nullptr;
 };
