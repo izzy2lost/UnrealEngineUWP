@@ -113,7 +113,6 @@ namespace TypedElementQueryBuilder
 	FSimpleQuery::FSimpleQuery(ITypedElementDataStorageInterface::FQueryDescription* Query)
 		: Query(Query)
 	{
-		Query->bSimpleQuery = true;
 	}
 
 	FSimpleQuery& FSimpleQuery::All(const UScriptStruct* Target)

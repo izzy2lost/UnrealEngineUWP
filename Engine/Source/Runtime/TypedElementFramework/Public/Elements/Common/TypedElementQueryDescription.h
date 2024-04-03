@@ -94,7 +94,5 @@ namespace TypedElementDataStorage
 		FMetaData MetaData;
 
 		EActionType Action;
-		/** If true, this query only has simple operations and is guaranteed to be executed fully and at optimal performance. */
-		bool bSimpleQuery{ false };
 	};
 } // namespace TypedElementDataStorage

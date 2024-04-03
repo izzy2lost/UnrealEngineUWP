@@ -184,27 +184,20 @@ TypedElementDataStorage::FQueryResult FTypedElementExtendedQueryStore::RunQuery(
 
 	if (FTypedElementExtendedQuery* QueryData = Get(Query))
 	{
-		if (QueryData->Description.bSimpleQuery)
+		switch (QueryData->Description.Action)
 		{
-			switch (QueryData->Description.Action)
-			{
-			case ActionType::None:
-				Result.Completed = CompletionType::Fully;
-				break;
-			case ActionType::Select:
-				// Fall through: There's nothing to callback to, so only return the total count.
-			case ActionType::Count:
-				Result.Count = QueryData->NativeQuery.GetNumMatchingEntities(EntityManager);
-				Result.Completed = CompletionType::Fully;
-				break;
-			default:
-				Result.Completed = CompletionType::Unsupported;
-				break;
-			}
-		}
-		else
-		{
+		case ActionType::None:
+			Result.Completed = CompletionType::Fully;
+			break;
+		case ActionType::Select:
+			// Fall through: There's nothing to callback to, so only return the total count.
+		case ActionType::Count:
+			Result.Count = QueryData->NativeQuery.GetNumMatchingEntities(EntityManager);
+			Result.Completed = CompletionType::Fully;
+			break;
+		default:
 			Result.Completed = CompletionType::Unsupported;
+			break;
 		}
 	}
 	else
@@ -549,43 +542,40 @@ bool FTypedElementExtendedQueryStore::SetupConditions(
 		return true;
 	}
 
-	if (ensureMsgf(Query.bSimpleQuery, TEXT("The Data Storage back-end currently only supports simple queries.")))
+	if (ensureMsgf(Query.ConditionTypes.Num() == Query.ConditionOperators.Num(),
+		TEXT("The types and operators for a typed element query have gone out of sync.")))
 	{
-		if (ensureMsgf(Query.ConditionTypes.Num() == Query.ConditionOperators.Num(),
-			TEXT("The types and operators for a typed element query have gone out of sync.")))
+		const DSI::FQueryDescription::FOperator* Operand = Query.ConditionOperators.GetData();
+		for (DSI::FQueryDescription::EOperatorType Type : Query.ConditionTypes)
 		{
-			const DSI::FQueryDescription::FOperator* Operand = Query.ConditionOperators.GetData();
-			for (DSI::FQueryDescription::EOperatorType Type : Query.ConditionTypes)
+			EMassFragmentPresence Presence;
+			switch (Type)
 			{
-				EMassFragmentPresence Presence;
-				switch (Type)
-				{
-				case DSI::FQueryDescription::EOperatorType::SimpleAll:
-					Presence = EMassFragmentPresence::All;
-					break;
-				case DSI::FQueryDescription::EOperatorType::SimpleAny:
-					Presence = EMassFragmentPresence::Any;
-					break;
-				case DSI::FQueryDescription::EOperatorType::SimpleNone:
-					Presence = EMassFragmentPresence::None;
-					break;
-				default:
-					continue;
-				}
-
-				if (Operand->Type->IsChildOf(FMassTag::StaticStruct()))
-				{
-					NativeQuery.AddTagRequirement(*(Operand->Type), Presence);
-				}
-				else if (Operand->Type->IsChildOf(FMassFragment::StaticStruct()))
-				{
-					NativeQuery.AddRequirement(Operand->Type.Get(), EMassFragmentAccess::None, Presence);
-				}
-
-				++Operand;
+			case DSI::FQueryDescription::EOperatorType::SimpleAll:
+				Presence = EMassFragmentPresence::All;
+				break;
+			case DSI::FQueryDescription::EOperatorType::SimpleAny:
+				Presence = EMassFragmentPresence::Any;
+				break;
+			case DSI::FQueryDescription::EOperatorType::SimpleNone:
+				Presence = EMassFragmentPresence::None;
+				break;
+			default:
+				continue;
 			}
-			return true;
+
+			if (Operand->Type->IsChildOf(FMassTag::StaticStruct()))
+			{
+				NativeQuery.AddTagRequirement(*(Operand->Type), Presence);
+			}
+			else if (Operand->Type->IsChildOf(FMassFragment::StaticStruct()))
+			{
+				NativeQuery.AddRequirement(Operand->Type.Get(), EMassFragmentAccess::None, Presence);
+			}
+
+			++Operand;
 		}
+		return true;
 	}
 	return false;
 }
