@@ -116,6 +116,24 @@ void FRigVMGraphFunctionHeader::PostDuplicateHost(const FString& InOldPathName, 
 	}
 }
 
+FRigVMGraphFunctionHeader FRigVMGraphFunctionHeader::FindGraphFunctionHeader(const FString& InHostPath, const FName& InFunctionName, bool* bOutIsPublic, FString* OutErrorMessage)
+{
+	if(const FRigVMGraphFunctionData* FunctionData = FRigVMGraphFunctionData::FindFunctionData(InHostPath, InFunctionName, bOutIsPublic, OutErrorMessage))
+	{
+		return FunctionData->Header;
+	}
+	return FRigVMGraphFunctionHeader(); 
+}
+
+FRigVMGraphFunctionHeader FRigVMGraphFunctionHeader::FindGraphFunctionHeader(const FRigVMGraphFunctionIdentifier& InIdentifier, bool* bOutIsPublic, FString* OutErrorMessage)
+{
+	if(const FRigVMGraphFunctionData* FunctionData = FRigVMGraphFunctionData::FindFunctionData(InIdentifier, bOutIsPublic, OutErrorMessage))
+	{
+		return FunctionData->Header;
+	}
+	return FRigVMGraphFunctionHeader(); 
+}
+
 bool FRigVMGraphFunctionData::IsMutable() const
 {
 	return Header.IsMutable();
@@ -126,26 +144,98 @@ void FRigVMGraphFunctionData::PostDuplicateHost(const FString& InOldHostPathName
 	Header.PostDuplicateHost(InOldHostPathName, InNewHostPathName);
 }
 
-FRigVMGraphFunctionData* FRigVMGraphFunctionData::FindFunctionData(const FRigVMGraphFunctionIdentifier& InIdentifier, bool* bOutIsPublic)
+FRigVMGraphFunctionData* FRigVMGraphFunctionData::FindFunctionData(const FString& InHostPath, const FName& InFunctionName, bool* bOutIsPublic, FString* OutErrorMessage)
 {
-	IRigVMGraphFunctionHost* FunctionHost = nullptr;
-	if (UObject* FunctionHostObj = InIdentifier.HostObject.TryLoad())
+	FRigVMGraphFunctionHeader InvalidHeader;
+
+	UObject* HostObject = StaticLoadObject(UObject::StaticClass(), NULL, *InHostPath, NULL, LOAD_None, NULL);
+	if (!HostObject)
 	{
-		FunctionHost = Cast<IRigVMGraphFunctionHost>(FunctionHostObj);									
+		if(OutErrorMessage)
+		{
+			*OutErrorMessage = FString::Printf(TEXT("Failed to load the Host object %s."), *InHostPath);
+		}
+		return nullptr;
 	}
 
+	IRigVMGraphFunctionHost* FunctionHost = Cast<IRigVMGraphFunctionHost>(HostObject);
 	if (!FunctionHost)
 	{
+		if(OutErrorMessage)
+		{
+			*OutErrorMessage = TEXT("Host object is not a IRigVMGraphFunctionHost.");
+		}
 		return nullptr;
 	}
 
 	FRigVMGraphFunctionStore* FunctionStore = FunctionHost->GetRigVMGraphFunctionStore();
 	if (!FunctionStore)
 	{
+		if(OutErrorMessage)
+		{
+			*OutErrorMessage = TEXT("Host object does not contain a function store.");
+		}
 		return nullptr;
 	}
 
-	return FunctionStore->FindFunction(InIdentifier, bOutIsPublic);
+	FRigVMGraphFunctionData* Data = FunctionStore->FindFunctionByName(InFunctionName, bOutIsPublic);
+	if (!Data)
+	{
+		if(OutErrorMessage)
+		{
+			*OutErrorMessage = FString::Printf(TEXT("Function %s not found in host %s."), *InFunctionName.ToString(), *InHostPath);
+		}
+		return nullptr;
+	}
+
+	return Data;
+}
+
+FRigVMGraphFunctionData* FRigVMGraphFunctionData::FindFunctionData(const FRigVMGraphFunctionIdentifier& InIdentifier, bool* bOutIsPublic, FString* OutErrorMessage)
+{
+	IRigVMGraphFunctionHost* FunctionHost = nullptr;
+	if (UObject* FunctionHostObj = InIdentifier.HostObject.TryLoad())
+	{
+		FunctionHost = Cast<IRigVMGraphFunctionHost>(FunctionHostObj);									
+	}
+	else
+	{
+		if(OutErrorMessage)
+		{
+			*OutErrorMessage = FString::Printf(TEXT("Failed to load the Host object %s."), *InIdentifier.HostObject.ToString());
+		}
+		return nullptr;
+	}
+
+	if (!FunctionHost)
+	{
+		if(OutErrorMessage)
+		{
+			*OutErrorMessage = TEXT("Host object is not a IRigVMGraphFunctionHost.");
+		}
+		return nullptr;
+	}
+
+	FRigVMGraphFunctionStore* FunctionStore = FunctionHost->GetRigVMGraphFunctionStore();
+	if (!FunctionStore)
+	{
+		if(OutErrorMessage)
+		{
+			*OutErrorMessage = TEXT("Host object does not contain a function store.");
+		}
+		return nullptr;
+	}
+
+	if(FRigVMGraphFunctionData* FunctionData = FunctionStore->FindFunction(InIdentifier, bOutIsPublic))
+	{
+		return FunctionData;
+	}
+
+	if(OutErrorMessage)
+	{
+		*OutErrorMessage = FString::Printf(TEXT("Function %s not found in host %s."), *InIdentifier.GetFunctionName(), *InIdentifier.HostObject.ToString());
+	}
+	return nullptr;
 }
 
 

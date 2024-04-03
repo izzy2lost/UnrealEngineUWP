@@ -393,6 +393,34 @@ struct RIGVM_API FRigVMGraphFunctionIdentifier
 		return HostObject == Other.HostObject && LibraryNode == Other.LibraryNode;
 	}
 
+	bool IsValid() const
+	{
+		return !HostObject.IsNull() && !LibraryNode.IsNull();
+	}
+
+	FString GetFunctionName() const
+	{
+		if(IsValid())
+		{
+			const FString Path = LibraryNode.ToString();
+			FString NodeName;
+			if(Path.Split(TEXT("."), nullptr, &NodeName, ESearchCase::CaseSensitive, ESearchDir::FromEnd))
+			{
+				return NodeName;
+			}
+		}
+		return FString();
+	}
+	
+	FName GetFunctionFName() const
+	{
+		if(!IsValid())
+		{
+			return NAME_None;
+		}
+		return *GetFunctionName();
+	}
+
 	friend FArchive& operator<<(FArchive& Ar, FRigVMGraphFunctionIdentifier& Data)
 	{
 		Ar << Data.LibraryNode;
@@ -446,7 +474,7 @@ struct RIGVM_API FRigVMGraphFunctionHeader
 
 	bool IsMutable() const;
 
-	bool IsValid() const { return !LibraryPointer.HostObject.IsNull(); }
+	bool IsValid() const { return LibraryPointer.IsValid(); }
 
 	FString GetHash() const
 	{
@@ -510,6 +538,10 @@ struct RIGVM_API FRigVMGraphFunctionHeader
 	}
 
 	void PostDuplicateHost(const FString& InOldPathName, const FString& InNewPathName);
+
+	static FRigVMGraphFunctionHeader FindGraphFunctionHeader(const FString& InHostPath, const FName& InFunctionName, bool* bOutIsPublic = nullptr, FString* OutErrorMessage = nullptr);
+
+	static FRigVMGraphFunctionHeader FindGraphFunctionHeader(const FRigVMGraphFunctionIdentifier& InIdentifier, bool* bOutIsPublic = nullptr, FString* OutErrorMessage = nullptr);
 };
 
 USTRUCT(BlueprintType)
@@ -556,7 +588,9 @@ struct RIGVM_API FRigVMGraphFunctionData
 
 	void PostDuplicateHost(const FString& InOldPathName, const FString& InNewPathName);
 
-	static FRigVMGraphFunctionData* FindFunctionData(const FRigVMGraphFunctionIdentifier& InIdentifier, bool* bOutIsPublic = nullptr);	
+	static FRigVMGraphFunctionData* FindFunctionData(const FString& InHostPath, const FName& InFunctionName, bool* bOutIsPublic = nullptr, FString* OutErrorMessage = nullptr);	
+
+	static FRigVMGraphFunctionData* FindFunctionData(const FRigVMGraphFunctionIdentifier& InIdentifier, bool* bOutIsPublic = nullptr, FString* OutErrorMessage = nullptr);	
 
 	static FString GetArgumentNameFromPinHash(const FString& InPinHash);
 	

@@ -11247,6 +11247,33 @@ bool URigVMController::SetExposedPinIndex(const FName& InPinName, int32 InNewInd
 	return true;
 }
 
+FRigVMGraphFunctionHeader URigVMController::FindGraphFunctionHeaderByName(FString InHostPath, FName InFunctionName) const
+{
+	FString ErrorMessage;
+	const FRigVMGraphFunctionHeader Header = FRigVMGraphFunctionHeader::FindGraphFunctionHeader(InHostPath, InFunctionName, nullptr, &ErrorMessage);
+	if(!Header.IsValid() && !ErrorMessage.IsEmpty())
+	{
+		ReportError(ErrorMessage);
+	}
+	return Header;
+}
+
+FRigVMGraphFunctionHeader URigVMController::FindGraphFunctionHeader(FRigVMGraphFunctionIdentifier InFunctionIdentifier) const
+{
+	FString ErrorMessage;
+	const FRigVMGraphFunctionHeader Header = FRigVMGraphFunctionHeader::FindGraphFunctionHeader(InFunctionIdentifier, nullptr, &ErrorMessage);
+	if(!Header.IsValid() && !ErrorMessage.IsEmpty())
+	{
+		ReportError(ErrorMessage);
+	}
+	return Header;
+}
+
+FRigVMGraphFunctionIdentifier URigVMController::FindGraphFunctionIdentifier(FString InHostPath, FName InFunctionName) const
+{
+	return FindGraphFunctionHeaderByName(InHostPath, InFunctionName).LibraryPointer;
+}
+
 URigVMFunctionReferenceNode* URigVMController::AddFunctionReferenceNode(URigVMLibraryNode* InFunctionDefinition, const FVector2D& InNodePosition, const FString& InNodeName, bool bSetupUndoRedo, bool bPrintPythonCommand)
 {
 	if (!IsValidGraph())
@@ -11265,6 +11292,238 @@ URigVMFunctionReferenceNode* URigVMController::AddFunctionReferenceNode(URigVMLi
 	}
 
 	return nullptr;
+}
+
+bool URigVMController::SwapFunctionReferenceByName(const FName& InFunctionReferenceNodeName, const FRigVMGraphFunctionIdentifier& InNewFunctionIdentifier, bool bSetupUndoRedo, bool bPrintPythonCommand)
+{
+	if (!IsValidGraph())
+	{
+		return false;
+	}
+
+	if (!bIsTransacting && !IsGraphEditable())
+	{
+		return false;
+	}
+
+	URigVMFunctionReferenceNode* Node = Cast<URigVMFunctionReferenceNode>(GetGraph()->FindNodeByName(InFunctionReferenceNodeName));
+	if(Node == nullptr)
+	{
+		ReportErrorf(TEXT("Cannot find function reference node '%s'."), *InFunctionReferenceNodeName.ToString());
+		return false;
+	}
+
+	return SwapFunctionReference(Node, InNewFunctionIdentifier, bSetupUndoRedo, bPrintPythonCommand);
+}
+
+bool URigVMController::SwapFunctionReference(URigVMFunctionReferenceNode* InFunctionReferenceNode, const FRigVMGraphFunctionIdentifier& InNewFunctionIdentifier, bool bSetupUndoRedo, bool bPrintPythonCommand)
+{
+	if (!IsValidNodeForGraph(InFunctionReferenceNode))
+	{
+		return false;
+	}
+
+	if (!bIsTransacting && !IsGraphEditable())
+	{
+		return false;
+	}
+
+	if(!InNewFunctionIdentifier.IsValid())
+	{
+		ReportWarning(TEXT("The provided new function identifier is not valid."));
+		return false;
+	}
+
+	if(InFunctionReferenceNode->GetReferencedFunctionHeader().LibraryPointer == InNewFunctionIdentifier)
+	{
+		ReportWarning(TEXT("The old and new function definitions are the same. No swap required."));
+		return false;
+	}
+
+	FRigVMReplaceNodesAction Action;
+	if(bSetupUndoRedo)
+	{
+		Action = FRigVMReplaceNodesAction(this, {InFunctionReferenceNode});
+		Action.SetTitle(TEXT("Swap Function Reference"));
+	}
+
+	const TMap<FString, FPinState> PinStates = GetPinStates(InFunctionReferenceNode);
+	const TArray<FLinkedPath> LinkedPaths = GetLinkedPaths(InFunctionReferenceNode);
+	FastBreakLinkedPaths(LinkedPaths, false);
+
+	InFunctionReferenceNode->Modify();
+	InFunctionReferenceNode->ReferencedFunctionHeader.LibraryPointer = InNewFunctionIdentifier;
+	InFunctionReferenceNode->UpdateFunctionHeaderFromHost();
+	RepopulatePinsOnNode(InFunctionReferenceNode, false, false, false);
+
+	ApplyPinStates(InFunctionReferenceNode, PinStates, {}, false);
+	RestoreLinkedPaths(LinkedPaths, FRestoreLinkedPathSettings(), false);
+
+	TArray<FRigVMExternalVariable> ExternalVariables;
+	if (GetExternalVariablesDelegate.IsBound())
+	{
+		ExternalVariables.Append(GetExternalVariablesDelegate.Execute(GetGraph()));
+	}
+
+	TArray<FName> MappedVariablesToRemove;
+	for(const TPair<FName, FName>& Pair : InFunctionReferenceNode->VariableMap)
+	{
+		const FRigVMExternalVariable* OuterExternalVariable = ExternalVariables.FindByPredicate([Pair](const FRigVMExternalVariable& ExternalVariable) -> bool
+		{
+			return ExternalVariable.Name == Pair.Key;
+		});
+
+		const FRigVMExternalVariable* InnerExternalVariable = InFunctionReferenceNode->ReferencedFunctionHeader.ExternalVariables.FindByPredicate([Pair](const FRigVMExternalVariable& ExternalVariable) -> bool
+		{
+			return ExternalVariable.Name == Pair.Value;
+		});
+
+		if(OuterExternalVariable && InnerExternalVariable)
+		{
+			const TRigVMTypeIndex OuterTypeIndex = OuterExternalVariable->GetTypeIndex();
+			const TRigVMTypeIndex InnerTypeIndex = InnerExternalVariable->GetTypeIndex();
+			if(FRigVMRegistry::Get().CanMatchTypes(OuterTypeIndex, InnerTypeIndex, true))
+			{
+				continue;
+			}
+		}
+
+		MappedVariablesToRemove.Add(Pair.Key);
+	}
+	for(const FName& MappedVariableToRemove : MappedVariablesToRemove)
+	{
+		InFunctionReferenceNode->VariableMap.Remove(MappedVariableToRemove);
+	}
+	
+	if (bSetupUndoRedo)
+	{
+		Action.StoreNode(InFunctionReferenceNode, false);
+		GetActionStack()->AddAction(Action);
+	}
+
+	if (bPrintPythonCommand)
+	{
+		const FString GraphName = GetSchema()->GetSanitizedGraphName(GetGraph()->GetGraphName());
+		const FString FunctionRefNodeName = GetSchema()->GetSanitizedNodeName(InFunctionReferenceNode->GetName());
+		const FString NewFunctionDefinitionName = GetSchema()->GetSanitizedNodeName(InNewFunctionIdentifier.GetFunctionName());
+
+		RigVMPythonUtils::Print(GetSchema()->GetGraphOuterName(GetGraph()), 
+			FString::Printf(TEXT("new_definition = blueprint.get_controller_by_name('%s').find_graph_function_header('%s', '%s')"),
+					*GraphName,
+					*InNewFunctionIdentifier.HostObject.ToString(),
+					*NewFunctionDefinitionName));
+
+		RigVMPythonUtils::Print(GetSchema()->GetGraphOuterName(GetGraph()), 
+			FString::Printf(TEXT("blueprint.get_controller_by_name('%s').swap_function_reference_by_name('%s', new_definition)"),
+					*GraphName,
+					*FunctionRefNodeName));
+	}
+
+	return true;
+}
+
+bool URigVMController::SwapAllFunctionReferences(const FRigVMGraphFunctionIdentifier& InOldFunctionIdentifier, const FRigVMGraphFunctionIdentifier& InNewFunctionIdentifier, bool bSetupUndoRedo, bool bPrintPythonCommand)
+{
+	if (!IsValidGraph())
+	{
+		return false;
+	}
+
+	if (!bIsTransacting && !IsGraphEditable())
+	{
+		return false;
+	}
+
+	if(!InOldFunctionIdentifier.IsValid())
+	{
+		ReportWarning(TEXT("The provided old function identifier is not valid."));
+		return false;
+	}
+
+	if(!InNewFunctionIdentifier.IsValid())
+	{
+		ReportWarning(TEXT("The provided new function identifier is not valid."));
+		return false;
+	}
+
+	if(InOldFunctionIdentifier == InNewFunctionIdentifier)
+	{
+		ReportWarning(TEXT("The old and new function identifier are the same. No swap required."));
+		return false;
+	}
+
+	URigVMGraph* Graph = GetGraph();
+	check(Graph);
+
+	if (Graph->IsA<URigVMFunctionLibrary>())
+	{
+		ReportError(TEXT("Cannot swap function reference nodes within function library graphs."));
+		return false;
+	}
+
+	TArray<URigVMFunctionReferenceNode*> FunctionReferenceNodes;
+	for(TObjectPtr<URigVMNode>& Node : Graph->Nodes)
+	{
+		if(URigVMFunctionReferenceNode* FunctionReferenceNode = Cast<URigVMFunctionReferenceNode>(Node))
+		{
+			if(FunctionReferenceNode->GetReferencedFunctionHeader().LibraryPointer == InOldFunctionIdentifier)
+			{
+				FunctionReferenceNodes.Add(FunctionReferenceNode);
+			}
+		}
+	}
+
+	if(FunctionReferenceNodes.IsEmpty())
+	{
+		return false;
+	}
+	
+	if (bSetupUndoRedo && FunctionReferenceNodes.Num() > 1)
+	{
+		OpenUndoBracket(TEXT("Swap All Function References"));
+	}
+
+	for(URigVMFunctionReferenceNode* Node : FunctionReferenceNodes)
+	{
+		if(!SwapFunctionReference(Node, InNewFunctionIdentifier, bSetupUndoRedo, false))
+		{
+			if (bSetupUndoRedo && FunctionReferenceNodes.Num() > 1)
+			{
+				CancelUndoBracket();
+			}
+			return false;
+		}
+	}
+
+	if (bSetupUndoRedo && FunctionReferenceNodes.Num() > 1)
+	{
+		CloseUndoBracket();
+	}
+
+	if (bPrintPythonCommand)
+	{
+		const FString GraphName = GetSchema()->GetSanitizedGraphName(GetGraph()->GetGraphName());
+		const FString OldFunctionDefinitionName = GetSchema()->GetSanitizedNodeName(InOldFunctionIdentifier.GetFunctionName());
+		const FString NewFunctionDefinitionName = GetSchema()->GetSanitizedNodeName(InNewFunctionIdentifier.GetFunctionName());
+
+		RigVMPythonUtils::Print(GetSchema()->GetGraphOuterName(GetGraph()), 
+			FString::Printf(TEXT("old_definition = blueprint.get_controller_by_name('%s').find_graph_function_header('%s', '%s')"),
+					*GraphName,
+					*InOldFunctionIdentifier.HostObject.ToString(),
+					*OldFunctionDefinitionName));
+
+		RigVMPythonUtils::Print(GetSchema()->GetGraphOuterName(GetGraph()), 
+			FString::Printf(TEXT("new_definition = blueprint.get_controller_by_name('%s').find_graph_function_header('%s', '%s')"),
+					*GraphName,
+					*InNewFunctionIdentifier.HostObject.ToString(),
+					*NewFunctionDefinitionName));
+
+		RigVMPythonUtils::Print(GetSchema()->GetGraphOuterName(GetGraph()), 
+			FString::Printf(TEXT("blueprint.get_controller_by_name('%s').swap_all_function_references(old_definition, new_definition)"),
+					*GraphName));
+	}
+	
+	return true;
 }
 
 URigVMFunctionReferenceNode* URigVMController::AddFunctionReferenceNodeFromDescription(const FRigVMGraphFunctionHeader& InFunctionDefinition, const FVector2D& InNodePosition, const FString& InNodeName, bool bSetupUndoRedo, bool bPrintPythonCommand)
@@ -11396,28 +11655,13 @@ URigVMFunctionReferenceNode* URigVMController::AddExternalFunctionReferenceNode(
 		return nullptr;
 	}
 
-	UObject* HostObject = StaticLoadObject(UObject::StaticClass(), NULL, *InHostPath, NULL, LOAD_None, NULL);
-	if (!HostObject)
+	const FRigVMGraphFunctionHeader Header = FindGraphFunctionHeaderByName(InHostPath, InFunctionName);
+	if(!Header.IsValid())
 	{
-		ReportErrorf(TEXT("Failed to load the Host object %s."), *InHostPath);
 		return nullptr;
 	}
 
-	IRigVMGraphFunctionHost* FunctionHost = Cast<IRigVMGraphFunctionHost>(HostObject);
-	if (!FunctionHost)
-	{
-		ReportError(TEXT("Host object is not a IRigVMGraphFunctionHost."));
-		return nullptr;
-	}
-
-	FRigVMGraphFunctionData* Data = FunctionHost->GetRigVMGraphFunctionStore()->FindFunctionByName(InFunctionName);
-	if (!Data)
-	{
-		ReportErrorf(TEXT("Function %s not found in host %s."), *InFunctionName.ToString(), *InHostPath);
-		return nullptr;
-	}
-
-	return AddFunctionReferenceNodeFromDescription(Data->Header, InNodePosition, InNodeName, bSetupUndoRedo, bPrintPythonCommand);
+	return AddFunctionReferenceNodeFromDescription(Header, InNodePosition, InNodeName, bSetupUndoRedo, bPrintPythonCommand);
 }
 
 bool URigVMController::SetRemappedVariable(URigVMFunctionReferenceNode* InFunctionRefNode,
