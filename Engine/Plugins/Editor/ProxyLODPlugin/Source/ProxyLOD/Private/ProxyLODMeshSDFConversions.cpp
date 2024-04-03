@@ -6,94 +6,6 @@
 
 #include "CoreMinimal.h"
 
-//#include <exception>
-
-
-bool ProxyLOD::MeshArrayToSDFVolume(const FMeshDescriptionArrayAdapter& MeshAdapter, openvdb::FloatGrid::Ptr& SDFGrid, openvdb::Int32Grid* PolyIndexGrid)
-{
-	TRACE_CPUPROFILER_EVENT_SCOPE(ProxyLOD::MeshArrayToSDFVolume)
-
-	bool success = true;
-	try
-	{
-		const float HalfBandWidth = 2.f;
-		int Flags = 0;
-		{
-			TRACE_CPUPROFILER_EVENT_SCOPE(OpenVDB::MeshToVolume)
-			SDFGrid = openvdb::tools::meshToVolume<openvdb::FloatGrid>(MeshAdapter, MeshAdapter.GetTransform(), HalfBandWidth /*exterior*/, HalfBandWidth/*interior*/, Flags, PolyIndexGrid);
-		}
-
-		// reduce memory footprint, increase the sparseness.
-		{
-			TRACE_CPUPROFILER_EVENT_SCOPE(OpenVDB::PruneLevelSet)
-			openvdb::tools::pruneLevelSet(SDFGrid->tree(), HalfBandWidth, -HalfBandWidth);
-		}
-	}
-	catch (std::bad_alloc& )
-	{
-		success = false;
-		if (SDFGrid)
-		{
-			SDFGrid->tree().clear(); // free any memory held in the smart pointers in the grid
-		}
-		if (PolyIndexGrid)
-		{
-			PolyIndexGrid->clear();
-		}
-	}
-
-#if 0
-	// Used in testing
-	openvdb::tree::LeafManager<openvdb::FloatTree> leafManager(SDFGrid->tree());
-
-	// The number of 8x8x8 voxel bricks.
-	size_t leafCount = leafManager.leafCount();
-	// number of voxels with real distance values
-	size_t activeCount = SDFGrid->tree().activeLeafVoxelCount();
-	// total amount of memory used.
-	size_t numByets = SDFGrid->tree().memUsage();
-#endif
-
-	return success;
-
-}
-
-
-bool ProxyLOD::MeshArrayToSDFVolume(const FMeshDescriptionAdapter& MeshAdapter, openvdb::FloatGrid::Ptr& SDFGrid, openvdb::Int32Grid* PolyIndexGrid)
-{
-	TRACE_CPUPROFILER_EVENT_SCOPE(ProxyLOD::MeshArrayToSDFVolume)
-
-	bool success = true;
-	try
-	{
-		const float HalfBandWidth = 2.f;
-		int Flags = 0;
-		{
-			TRACE_CPUPROFILER_EVENT_SCOPE(OpenVDB::MeshToVolume)
-			SDFGrid = openvdb::tools::meshToVolume<openvdb::FloatGrid>(MeshAdapter, MeshAdapter.GetTransform(), HalfBandWidth /*exterior*/, HalfBandWidth/*interior*/, Flags, PolyIndexGrid);
-		}
-
-		// reduce memory footprint, increase the spareness.
-		{
-			TRACE_CPUPROFILER_EVENT_SCOPE(OpenVDB::PruneLevelSet)
-			openvdb::tools::pruneLevelSet(SDFGrid->tree(), HalfBandWidth, -HalfBandWidth);
-		}
-	}
-	catch (std::bad_alloc&)
-	{
-		success = false;
-		if (SDFGrid)
-		{
-			SDFGrid->tree().clear(); // free any memory held in the smart pointers in the grid
-		}
-		if (PolyIndexGrid)
-		{
-			PolyIndexGrid->clear();
-		}
-	}
-	return success;
-}
-
 
 /**
 * Generate a new SDF (with narrow band thickness of 2) that represents moving the zero crossing
@@ -109,7 +21,7 @@ bool ProxyLOD::MeshArrayToSDFVolume(const FMeshDescriptionAdapter& MeshAdapter, 
 *
 * @return A new SDF that represents a dilation or erosion (expansion or contraction) of the original SDF
 */
-static openvdb::FloatGrid::Ptr OffsetSDF(const openvdb::FloatGrid::Ptr InSDFVolume, const double WSOffset, const double ResultVolexSize)
+static openvdb::FloatGrid::Ptr OffsetSDF(const openvdb::FloatGrid::Ptr InSDFVolume, const double WSOffset, const double ResultVoxelSize)
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(OffsetSDF)
 	// Extract the iso-surface with offset DilationInVoxels.
@@ -129,20 +41,13 @@ static openvdb::FloatGrid::Ptr OffsetSDF(const openvdb::FloatGrid::Ptr InSDFVolu
 		openvdb::tools::volumeToMesh(*InSDFVolume, MixedPolyMesh.Points, MixedPolyMesh.Triangles, MixedPolyMesh.Quads, IsoValue, 0.001);
 	}
 
-	// convert the mesh to FMeshDescription
-	FMeshDescription RawMesh;
-	FStaticMeshAttributes(RawMesh).Register();
-	ProxyLOD::MixedPolyMeshToRawMesh(MixedPolyMesh, RawMesh);
-
 	// Create a new empty grid with the same transform and metadata
 	openvdb::FloatGrid::Ptr OutSDFVolume = openvdb::FloatGrid::create(*InSDFVolume);
-	OutSDFVolume->setTransform(openvdb::math::Transform::createLinearTransform(ResultVolexSize));
+	OutSDFVolume->setTransform(openvdb::math::Transform::createLinearTransform(ResultVoxelSize));
 
-	// Wrap so we can re-voxelize with bandwidth 2
-	FMeshDescriptionAdapter  MeshAdapter(RawMesh, OutSDFVolume->transform());
-
-	// Re-voxelize
-	ProxyLOD::MeshArrayToSDFVolume(MeshAdapter, OutSDFVolume);
+	// Re-voxelize with bandwidth 2
+	MixedPolyMesh.Transform = OutSDFVolume->transform();
+	ProxyLOD::MeshToSDFVolume(MixedPolyMesh, OutSDFVolume->transform(), OutSDFVolume);
 
 	return OutSDFVolume;
 }
@@ -150,7 +55,7 @@ static openvdb::FloatGrid::Ptr OffsetSDF(const openvdb::FloatGrid::Ptr InSDFVolu
 
 void ProxyLOD::CloseGaps(openvdb::FloatGrid::Ptr InOutSDFVolume, const double GapRadius, const int32 MaxDilations)
 {
-	// Implimentaiton notes:
+	// Implementation notes:
 	// This functions by first inflating (dilate) the geometry SDF (moving the surface outward along the normal) an amount 
 	// GapRadius.  Doing this may bring surfaces into contact, thus closing gaps.
 	// Next the geometry SDF with merged gaps is deflated (erode) to a size that should be slightly smaller than the original geometry.

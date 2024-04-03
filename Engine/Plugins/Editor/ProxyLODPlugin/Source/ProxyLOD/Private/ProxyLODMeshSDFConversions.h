@@ -12,10 +12,10 @@ namespace ProxyLOD
 {
 
 	/**
-	* Generate a single sparse Signed Distance Field (SDF) Grid from the polys managed by MeshAdapter,  
+	* Generate a single sparse Signed Distance Field (SDF) Grid from the polys managed by InMesh,  
 	* Optionally store the index of the closest poly is recorded in a sparse PolyIndexGrid.  
 	*
-	* @param  InMeshAdapter     Source polygons to be voxelized.
+	* @param  InMesh			Source polygons to be voxelized.
 	* @param  OutSDFGrid        Resulting sparse signed distance field.
 	* @param  OutPolyIndexGrid  Optional resulting sparse grid. For each voxel with valid distance in the OutSDFGrid
 	*                           the index of the closest poly will be recorded in the corresponding voxel 
@@ -23,13 +23,11 @@ namespace ProxyLOD
 	*
 	* @retun 'true' is success, 'false' will generally be an out of memory error.
 	*/
-	bool MeshArrayToSDFVolume( const FMeshDescriptionArrayAdapter& InMeshAdapter,
-	                           openvdb::FloatGrid::Ptr& OutSDFGrid,
-		                       openvdb::Int32Grid* OutPolyIndexGrid = nullptr);
-
-	bool MeshArrayToSDFVolume( const FMeshDescriptionAdapter& InMeshAdapter,
-		                       openvdb::FloatGrid::Ptr& OutSDFGrid,
-		                       openvdb::Int32Grid* OutPolyIndexGrid = nullptr);
+	template <typename SrcMeshType>
+	bool MeshToSDFVolume( const SrcMeshType& InMesh,
+						  const openvdb::math::Transform& InTransform,
+	                      openvdb::FloatGrid::Ptr& OutSDFGrid,
+		                  openvdb::Int32Grid* OutPolyIndexGrid = nullptr);
 
 	/**
 	* Extract the isosurface (=IsoValue) of the given SDF volume, in the form of triangle mesh.
@@ -99,7 +97,42 @@ namespace ProxyLOD
 
 }
 
+template <typename SrcMeshType>
+bool ProxyLOD::MeshToSDFVolume(const SrcMeshType& InMesh, const openvdb::math::Transform& InTransform, openvdb::FloatGrid::Ptr& SDFGrid, openvdb::Int32Grid* PolyIndexGrid)
+{
+	TRACE_CPUPROFILER_EVENT_SCOPE(ProxyLOD::MeshToSDFVolume)
 
+	bool bSuccess = true;
+	try
+	{
+		const float HalfBandWidth = 2.f;
+		int Flags = 0;
+		{
+			TRACE_CPUPROFILER_EVENT_SCOPE(OpenVDB::MeshToVolume)
+			SDFGrid = openvdb::tools::meshToVolume<openvdb::FloatGrid>(InMesh, InTransform, HalfBandWidth /*exterior*/, HalfBandWidth/*interior*/, Flags, PolyIndexGrid);
+		}
+
+		// reduce memory footprint, increase the sparseness.
+		{
+			TRACE_CPUPROFILER_EVENT_SCOPE(OpenVDB::PruneLevelSet)
+			openvdb::tools::pruneLevelSet(SDFGrid->tree(), HalfBandWidth, -HalfBandWidth);
+		}
+	}
+	catch (std::bad_alloc&)
+	{
+		bSuccess = false;
+		if (SDFGrid)
+		{
+			SDFGrid->tree().clear(); // free any memory held in the smart pointers in the grid
+		}
+		if (PolyIndexGrid)
+		{
+			PolyIndexGrid->clear();
+		}
+	}
+
+	return bSuccess;
+}
 
 
 template <typename DstMeshType>
@@ -118,9 +151,6 @@ void ProxyLOD::SDFVolumeToMesh(const openvdb::FloatGrid::ConstPtr SDFVolume, con
 	// Convert to Quad Mesh - extracting iso-surface defined by IsoValue
 
 	openvdb::tools::volumeToMesh(*SDFVolume, TempMixedPolyMesh.Points, TempMixedPolyMesh.Triangles, TempMixedPolyMesh.Quads, IsoValue, Adaptivity);
-
-	//TestUniqueVertexes(SimpleMesh);
-
 	
 	MixedPolyMeshToAOSMesh(TempMixedPolyMesh, OutMesh);
 }

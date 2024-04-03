@@ -83,15 +83,74 @@ void ResizeInializedArray(TArray<ValueType>& Array, int32 Size)
 }
 /**
 * Mesh type that holds minimal required data for openvdb iso-surface extraction 
-* interface.
+* interface. Implements the openvdb MeshDataAdapter interface.
 * 
-* NB: std::vector required by openvdb interface.
+* NB: std::vector required by the openvdb interface.
 */
 struct FMixedPolyMesh
 {
 	std::vector<openvdb::Vec3s> Points;
 	std::vector<openvdb::Vec4I> Quads;
 	std::vector<openvdb::Vec3I> Triangles;
+	openvdb::math::Transform	Transform;
+
+	// ~MeshDataAdapter Interface Begin
+	// https://www.openvdb.org/documentation/doxygen/interfaceMeshDataAdapter.html
+	
+	// Total number of polygons
+	size_t polygonCount() const
+	{
+		return Quads.size() + Triangles.size();
+	}
+
+	// Total number of points (vertex locations)
+	size_t pointCount() const
+	{
+		return Points.size();
+	}
+
+	// Vertex count for polygon n
+	size_t vertexCount(size_t n) const
+	{
+		return PolygonIsQuad(n) ? 4 : 3;
+	}
+
+	// Return position pos in local grid index space for polygon n and vertex v
+	void getIndexSpacePoint(size_t n, size_t v, openvdb::Vec3d& pos) const
+	{
+		if (PolygonIsQuad(n))
+		{
+			pos = Points[Quads[GetQuadIndex(n)][v]];
+		}
+		else
+		{
+			pos = Points[Triangles[GetTriangleIndex(n)][v]];
+		}
+
+		pos = Transform.worldToIndex(pos);
+	}
+	// ~MeshDataAdapter Interface End
+
+private:
+	bool PolygonIsQuad(size_t n) const
+	{
+		return n < Quads.size();
+	}
+
+	bool PolygonIsTriangle(size_t n) const
+	{
+		return n >= Triangles.size();
+	}
+
+	size_t GetQuadIndex(size_t n) const
+	{
+		return n;
+	}
+
+	size_t GetTriangleIndex(size_t n) const
+	{
+		return n - Quads.size();
+	}
 };
 
 /**
