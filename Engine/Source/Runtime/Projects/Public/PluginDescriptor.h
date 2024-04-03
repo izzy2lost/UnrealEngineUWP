@@ -165,6 +165,9 @@ struct FPluginDescriptor
 
 	/** Additional fields to write */
 	TMap<FString, TSharedPtr<FJsonValue>> AdditionalFieldsToWrite;
+
+	/** Additional fields to remove when updating the Json */
+	TSet<FString> AdditionalFieldsToRemove;
 #endif
 
 	/** Return the .uplugin extension (with dot) */

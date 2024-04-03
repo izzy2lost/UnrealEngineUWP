@@ -99,6 +99,7 @@ bool FPluginDescriptor::Load(const TCHAR* FileName, FText* OutFailReason /*= nul
 #if WITH_EDITOR
 	CachedJson.Reset();
 	AdditionalFieldsToWrite.Reset();
+	AdditionalFieldsToRemove.Reset();
 #endif // WITH_EDITOR
 
 	FString Text;
@@ -124,6 +125,7 @@ bool FPluginDescriptor::Read(const FString& Text, FText* OutFailReason /*= nullp
 #if WITH_EDITOR
 	CachedJson.Reset();
 	AdditionalFieldsToWrite.Reset();
+	AdditionalFieldsToRemove.Reset();
 #endif // WITH_EDITOR
 
 	// Deserialize a JSON object from the string
@@ -136,6 +138,7 @@ bool FPluginDescriptor::Read(const FString& Text, FText* OutFailReason /*= nullp
 #if WITH_EDITOR
 			CachedJson = JsonObject;
 			AdditionalFieldsToWrite.Reset();
+			AdditionalFieldsToRemove.Reset();
 #endif // WITH_EDITOR
 			return true;
 		}
@@ -566,6 +569,11 @@ void FPluginDescriptor::UpdateJson(FJsonObject& JsonObject) const
 	for (const auto& KVP : AdditionalFieldsToWrite)
 	{
 		JsonObject.SetField(KVP.Key, FJsonValue::Duplicate(KVP.Value));
+	}
+
+	for (const FString& Field : AdditionalFieldsToRemove)
+	{
+		JsonObject.RemoveField(Field);
 	}
 #endif //if WITH_EDITOR
 }
