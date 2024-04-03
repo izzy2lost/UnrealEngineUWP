@@ -16,7 +16,7 @@
 #include "UObject/ConstructorHelpers.h"
 #endif
 
-ACEEffectorActor::FOnEffectorIdentifierChanged ACEEffectorActor::OnEffectorRefreshClonerDelegate;
+DEFINE_LOG_CATEGORY_STATIC(LogCEEffectorActor, Log, All);
 
 ACEEffectorActor::ACEEffectorActor()
 {
@@ -189,6 +189,15 @@ void ACEEffectorActor::PostDuplicate(EDuplicateMode::Type InDuplicateMode)
 {
 	Super::PostDuplicate(InDuplicateMode);
 
+	for (const TWeakObjectPtr<ACEClonerActor>& ClonerWeak : ClonersWeak)
+	{
+		if (ACEClonerActor* Cloner = ClonerWeak.Get())
+		{
+			UE_LOG(LogCEEffectorActor, Log, TEXT("Linking effector %s to cloner %s after duplication"), *GetActorNameOrLabel(), *Cloner->GetActorNameOrLabel())
+			Cloner->LinkEffector(this);
+		}
+	}
+
 	OnEffectorChanged();
 }
 
@@ -215,6 +224,26 @@ void ACEEffectorActor::OnEffectorSubsystemInitialized(const UWorld* InWorld)
 	{
 		OnEffectorChanged();
 	}
+}
+
+void ACEEffectorActor::OnClonerLinked(ACEClonerActor* InCloner)
+{
+	if (!IsValid(InCloner) || ClonersWeak.Contains(InCloner))
+	{
+		return;
+	}
+
+	ClonersWeak.Add(InCloner);
+}
+
+void ACEEffectorActor::OnClonerUnlinked(ACEClonerActor* InCloner)
+{
+	if (!IsValid(InCloner) || !ClonersWeak.Contains(InCloner))
+	{
+		return;
+	}
+
+	ClonersWeak.Remove(InCloner);
 }
 
 FCEClonerEffectorChannelData& ACEEffectorActor::GetChannelData()
@@ -1384,7 +1413,13 @@ void ACEEffectorActor::OnForceEnabledChanged()
 	if (bEnabled)
 	{
 		// Refresh cloners to reset clones transform
-		OnEffectorRefreshClonerDelegate.Broadcast(this);
+		for (const TWeakObjectPtr<ACEClonerActor>& ClonerWeak : ClonersWeak)
+		{
+			if (ACEClonerActor* Cloner = ClonerWeak.Get())
+			{
+				Cloner->RequestClonerUpdate();
+			}
+		}
 	}
 
 	OnForceOptionsChanged();

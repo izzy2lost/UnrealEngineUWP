@@ -432,10 +432,6 @@ public:
 #endif
 
 protected:
-	/** Used to trigger a refresh on linked cloner */
-	DECLARE_MULTICAST_DELEGATE_OneParam(FOnEffectorIdentifierChanged, ACEEffectorActor* /** InEffectorActor */)
-	static FOnEffectorIdentifierChanged OnEffectorRefreshClonerDelegate;
-
 	static constexpr int32 InnerVisualizerId = 0;
 	static constexpr int32 OuterVisualizerId = 1;
 	static constexpr TCHAR VisualizerColorName[] = TEXT("VisualizerColor");
@@ -461,6 +457,9 @@ protected:
 	void RegisterToChannel();
 	int32 GetChannelIdentifier() const;
 	void OnEffectorSubsystemInitialized(const UWorld* InWorld);
+
+	void OnClonerLinked(ACEClonerActor* InCloner);
+	void OnClonerUnlinked(ACEClonerActor* InCloner);
 
 	FCEClonerEffectorChannelData& GetChannelData();
 
@@ -745,6 +744,10 @@ private:
 	/** Transient effector channel data */
 	UPROPERTY(VisibleInstanceOnly, Transient, DuplicateTransient, TextExportTransient, NonTransactional, AdvancedDisplay, Category="Effector")
 	FCEClonerEffectorChannelData ChannelData;
+
+	/** Cloners linked to this effector, used to refresh or relink on duplicate */
+	UPROPERTY(SkipSerialization, NonTransactional)
+	TArray<TWeakObjectPtr<ACEClonerActor>> ClonersWeak;
 
 #if WITH_EDITOR
 	/** Used for PECP */

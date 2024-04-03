@@ -473,7 +473,6 @@ protected:
 	void OnClonerSystemChanged();
 
 	void OnEffectorIdentifierChanged(ACEEffectorActor* InEffector, int32 InOldIdentifier, int32 InNewIdentifier);
-	void OnEffectorRefreshCloner(ACEEffectorActor* InEffector);
 
 	void OnEffectorsChanged();
 	void OnEnabledChanged();
@@ -697,6 +696,10 @@ private:
 	/** Effectors linked to this cloner */
 	UPROPERTY(EditInstanceOnly, Category="Cloner", meta=(DisplayName="Effectors"))
 	TArray<TWeakObjectPtr<ACEEffectorActor>> EffectorsWeak;
+
+	/** Copy of effectors linked to this cloner to compare diffs */
+	UPROPERTY(Transient, DuplicateTransient, TextExportTransient, NonTransactional)
+	TSet<TWeakObjectPtr<ACEEffectorActor>> EffectorsInternalWeak;
 
 	float TreeUpdateDeltaTime = 0.f;
 

@@ -56,7 +56,6 @@ ACEClonerActor::ACEClonerActor()
 		ClonerComponent->OnClonerMeshUpdated.AddUObject(this, &ACEClonerActor::OnClonerMeshUpdated);
 
 		UCEEffectorSubsystem::OnEffectorIdentifierChangedDelegate.AddUObject(this, &ACEClonerActor::OnEffectorIdentifierChanged);
-		ACEEffectorActor::OnEffectorRefreshClonerDelegate.AddUObject(this, &ACEClonerActor::OnEffectorRefreshCloner);
 
 		const TArray<FString> LayoutNames = GetClonerLayoutNames();
 
@@ -1022,14 +1021,6 @@ void ACEClonerActor::OnEffectorIdentifierChanged(ACEEffectorActor* InEffector, i
 	}
 }
 
-void ACEClonerActor::OnEffectorRefreshCloner(ACEEffectorActor* InEffector)
-{
-	if (EffectorsWeak.Contains(InEffector))
-	{
-		RequestClonerUpdate();
-	}
-}
-
 void ACEClonerActor::OnEffectorsChanged()
 {
 	const FCEClonerEffectorDataInterfaces* EffectorDataInterfaces = GetEffectorDataInterfaces();
@@ -1042,6 +1033,26 @@ void ACEClonerActor::OnEffectorsChanged()
 	// Remove duplicates
 	const TSet<TWeakObjectPtr<ACEEffectorActor>> SetEffectorsWeak(EffectorsWeak);
 	EffectorsWeak = SetEffectorsWeak.Array();
+
+	// Removed effectors
+	for (const TWeakObjectPtr<ACEEffectorActor>& EffectorWeak : EffectorsInternalWeak.Difference(SetEffectorsWeak))
+	{
+		if (ACEEffectorActor* Effector = EffectorWeak.Get())
+		{
+			Effector->OnClonerUnlinked(this);
+		}
+	}
+
+	// Added effectors
+	for (const TWeakObjectPtr<ACEEffectorActor>& EffectorWeak : SetEffectorsWeak.Difference(EffectorsInternalWeak))
+	{
+		if (ACEEffectorActor* Effector = EffectorWeak.Get())
+		{
+			Effector->OnClonerLinked(this);
+		}
+	}
+
+	EffectorsInternalWeak = SetEffectorsWeak;
 
 	TArray<int32> EffectorIndexes;
 	EffectorIndexes.Reserve(EffectorsWeak.Num());

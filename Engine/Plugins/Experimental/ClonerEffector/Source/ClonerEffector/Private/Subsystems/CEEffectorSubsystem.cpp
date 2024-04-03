@@ -88,6 +88,22 @@ bool UCEEffectorSubsystem::UnregisterChannelEffector(ACEEffectorActor* InEffecto
 	return bUnregistered;
 }
 
+ACEEffectorActor* UCEEffectorSubsystem::GetEffectorByChannelIdentifier(int32 InIdentifier) const
+{
+	if (EffectorsWeak.IsValidIndex(InIdentifier))
+	{
+		if (ACEEffectorActor* Effector = EffectorsWeak[InIdentifier].Get())
+		{
+			if (Effector->GetChannelIdentifier() == InIdentifier)
+			{
+				return Effector;
+			}
+		}
+	}
+
+	return nullptr;
+}
+
 void UCEEffectorSubsystem::UpdateEffectorChannel()
 {
 	const UWorld* World = GetWorld();

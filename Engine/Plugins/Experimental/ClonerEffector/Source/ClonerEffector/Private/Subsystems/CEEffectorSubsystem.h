@@ -39,6 +39,8 @@ public:
 	/** Unregister an effector actor used within a effector channel */
 	bool UnregisterChannelEffector(ACEEffectorActor* InEffector);
 
+	ACEEffectorActor* GetEffectorByChannelIdentifier(int32 InIdentifier) const;
+
 protected:
 	//~ Begin FTickableGameObject interface
 	virtual bool IsTickableInEditor() const override;
