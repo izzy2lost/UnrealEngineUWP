@@ -834,21 +834,51 @@ namespace SharedPointerInternals
 		TReferenceControllerBase<Mode>* ReferenceController;
 	};
 
-	/** Templated helper function (const) that creates a shared pointer/reference from an object instance */
-	template <class SharedPtrType, class ObjectType, class OtherType, ESPMode Mode>
-	FORCEINLINE void EnableSharedFromThis(const volatile SharedPtrType* InSharedPtr, const volatile ObjectType* InObject)
-	{
-		static_assert(SharedPtrType::Mode == Mode, "You cannot use a TSharedPtr of one mode with a type which inherits TSharedFromThis of another mode");
 
-		if (InObject)
+	/** Templated helper function (const) that creates a shared pointer from an object instance */
+	template< class SharedPtrType, class ObjectType, class OtherType, ESPMode Mode >
+	FORCEINLINE void EnableSharedFromThis( TSharedPtr< SharedPtrType, Mode > const* InSharedPtr, ObjectType const* InObject, TSharedFromThis< OtherType, Mode > const* InShareable )
+	{
+		if( InShareable != nullptr )
 		{
-			const_cast<const TSharedFromThis<OtherType, Mode>*>(InObject)->UpdateWeakReferenceInternal(const_cast<const SharedPtrType*>(InSharedPtr), const_cast<ObjectType*>(InObject));
+			InShareable->UpdateWeakReferenceInternal( InSharedPtr, const_cast< ObjectType* >( InObject ) );
+		}
+	}
+
+
+	/** Templated helper function that creates a shared pointer from an object instance */
+	template< class SharedPtrType, class ObjectType, class OtherType, ESPMode Mode >
+	FORCEINLINE void EnableSharedFromThis( TSharedPtr< SharedPtrType, Mode >* InSharedPtr, ObjectType const* InObject, TSharedFromThis< OtherType, Mode > const* InShareable )
+	{
+		if( InShareable != nullptr )
+		{
+			InShareable->UpdateWeakReferenceInternal( InSharedPtr, const_cast< ObjectType* >( InObject ) );
+		}
+	}
+
+
+	/** Templated helper function (const) that creates a shared reference from an object instance */
+	template< class SharedRefType, class ObjectType, class OtherType, ESPMode Mode >
+	FORCEINLINE void EnableSharedFromThis( TSharedRef< SharedRefType, Mode > const* InSharedRef, ObjectType const* InObject, TSharedFromThis< OtherType, Mode > const* InShareable )
+	{
+		if( InShareable != nullptr )
+		{
+			InShareable->UpdateWeakReferenceInternal( InSharedRef, const_cast< ObjectType* >( InObject ) );
+		}
+	}
+
+
+	/** Templated helper function that creates a shared reference from an object instance */
+	template< class SharedRefType, class ObjectType, class OtherType, ESPMode Mode >
+	FORCEINLINE void EnableSharedFromThis( TSharedRef< SharedRefType, Mode >* InSharedRef, ObjectType const* InObject, TSharedFromThis< OtherType, Mode > const* InShareable )
+	{
+		if( InShareable != nullptr )
+		{
+			InShareable->UpdateWeakReferenceInternal( InSharedRef, const_cast< ObjectType* >( InObject ) );
 		}
 	}
 
 
 	/** Templated helper catch-all function, accomplice to the above helper functions */
-	constexpr void EnableSharedFromThis(const volatile void*, const volatile void*)
-	{
-	}
+	constexpr void EnableSharedFromThis( ... ) { }
 }
