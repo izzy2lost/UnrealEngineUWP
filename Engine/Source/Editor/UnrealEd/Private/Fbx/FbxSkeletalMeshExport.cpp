@@ -363,7 +363,7 @@ FbxNode* FFbxExporter::CreateMesh(const USkeletalMesh* SkelMesh, const TCHAR* Me
 		FbxSurfaceMaterial* FbxMaterial = nullptr;
 		if (LODIndex == 0)
 		{
-			if (MatInterface && !FbxMaterials.Find(MatInterface))
+			if (MatInterface)
 			{
 				FbxMaterial = ExportMaterial(MatInterface);
 			}
