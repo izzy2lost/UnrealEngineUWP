@@ -604,6 +604,37 @@ EPathFollowingRequestResult::Type AAIController::MoveToLocation(const FVector& D
 	return MoveTo(MoveReq);
 }
 
+void AAIController::MergePaths(const FNavPathSharedPtr& InitialPath, FNavPathSharedPtr& InOutMergedPath) const
+{
+	if (!InitialPath.IsValid() || !InitialPath->IsValid())
+	{
+		UE_VLOG_UELOG(this, LogAINavigation, Error, TEXT("%hs: InitialPath is Invalid"), __FUNCTION__);
+		return;
+	}
+
+	if (!InOutMergedPath.IsValid() || !InOutMergedPath->IsValid())
+	{
+		UE_VLOG_UELOG(this, LogAINavigation, Error, TEXT("%hs: InOutMergedPath is Invalid"), __FUNCTION__);
+		return;
+	}
+
+	const TArray<FNavPathPoint>& InitialPathPoints = InitialPath->GetPathPoints();
+	TArray<FNavPathPoint>& InOutPathPoints = InOutMergedPath->GetPathPoints();
+
+	if (!InitialPathPoints.Last().Location.Equals(InOutPathPoints[0].Location))
+	{
+		UE_VLOG_UELOG(this, LogAINavigation, Error, TEXT("%hs: last %s and first %s points don't match."), __FUNCTION__, *InitialPathPoints.Last().Location.ToString(), *InOutPathPoints[0].Location.ToString());
+		return;
+	}
+
+	// We don't want to keep path points that have already been traversed, so only merge the points starting from "CurrentPathIndex".
+	const int32 StartingPointIndex = PathFollowingComponent ? PathFollowingComponent->GetCurrentPathIndex() : 0;
+	if (StartingPointIndex < InitialPathPoints.Num())
+	{
+		InOutPathPoints.Insert(&InitialPathPoints[StartingPointIndex], InitialPathPoints.Num() - StartingPointIndex - 1, 0);
+	}
+}
+
 FPathFollowingRequestResult AAIController::MoveTo(const FAIMoveRequest& MoveRequest, FNavPathSharedPtr* OutPath)
 {
 	// both MoveToActor and MoveToLocation can be called from blueprints/script and should keep only single movement request at the same time.
@@ -679,11 +710,29 @@ FPathFollowingRequestResult AAIController::MoveTo(const FAIMoveRequest& MoveRequ
 	{
 		FPathFindingQuery PFQuery;
 
-		const bool bValidQuery = BuildPathfindingQuery(MoveRequest, PFQuery);
+		bool bShouldMergePaths = false;
+		FVector StartLocation = GetNavAgentLocation();
+		if (MoveRequest.ShouldStartFromPreviousPath())
+		{
+			FNavPathSharedPtr CurrentPath = PathFollowingComponent->GetPath();
+			if (CurrentPath.IsValid() && CurrentPath->IsValid() && CurrentPath->GetPathPoints().Num() > 0)
+			{
+				StartLocation = CurrentPath->GetPathPoints().Last();
+				bShouldMergePaths = true;
+			}
+		}
+
+		const bool bValidQuery = BuildPathfindingQuery(MoveRequest, StartLocation, PFQuery);
 		if (bValidQuery)
 		{
 			FNavPathSharedPtr Path;
 			FindPathForMoveRequest(MoveRequest, PFQuery, Path);
+
+			if (bShouldMergePaths && Path.IsValid())
+			{
+				// Merge the newly generated path with the current one
+				MergePaths(PathFollowingComponent->GetPath(), Path);
+			}
 
 			const FAIRequestID RequestID = Path.IsValid() ? RequestMove(MoveRequest, Path) : FAIRequestID::InvalidRequest;
 			if (RequestID.IsValid())
@@ -758,7 +807,12 @@ bool AAIController::ShouldPostponePathUpdates() const
 	return Super::ShouldPostponePathUpdates();
 }
 
-bool AAIController::BuildPathfindingQuery(const FAIMoveRequest& MoveRequest, FPathFindingQuery& Query) const
+bool AAIController::BuildPathfindingQuery(const FAIMoveRequest& MoveRequest, FPathFindingQuery& OutQuery) const
+{
+	return BuildPathfindingQuery(MoveRequest, GetNavAgentLocation(), OutQuery);
+}
+
+bool AAIController::BuildPathfindingQuery(const FAIMoveRequest& MoveRequest, const FVector& StartLocation, FPathFindingQuery& OutQuery) const
 {
 	bool bResult = false;
 
@@ -785,18 +839,18 @@ bool AAIController::BuildPathfindingQuery(const FAIMoveRequest& MoveRequest, FPa
 		}
 
 		FSharedConstNavQueryFilter NavFilter = UNavigationQueryFilter::GetQueryFilter(*NavData, this, MoveRequest.GetNavigationFilter());
-		Query = FPathFindingQuery(*this, *NavData, GetNavAgentLocation(), GoalLocation, NavFilter);
-		Query.SetAllowPartialPaths(MoveRequest.IsUsingPartialPaths());
-		Query.SetRequireNavigableEndLocation(MoveRequest.IsNavigableEndLocationRequired());
+		OutQuery = FPathFindingQuery(*this, *NavData, StartLocation, GoalLocation, NavFilter);
+		OutQuery.SetAllowPartialPaths(MoveRequest.IsUsingPartialPaths());
+		OutQuery.SetRequireNavigableEndLocation(MoveRequest.IsNavigableEndLocationRequired());
 		if (MoveRequest.IsApplyingCostLimitFromHeuristic())
 		{
 			const float HeuristicScale = NavFilter->GetHeuristicScale();
-			Query.CostLimit = FPathFindingQuery::ComputeCostLimitFromHeuristic(Query.StartLocation, Query.EndLocation, HeuristicScale, MoveRequest.GetCostLimitFactor(), MoveRequest.GetMinimumCostLimit()); 
+			OutQuery.CostLimit = FPathFindingQuery::ComputeCostLimitFromHeuristic(OutQuery.StartLocation, OutQuery.EndLocation, HeuristicScale, MoveRequest.GetCostLimitFactor(), MoveRequest.GetMinimumCostLimit()); 
 		}
 
 		if (PathFollowingComponent)
 		{
-			PathFollowingComponent->OnPathfindingQuery(Query);
+			PathFollowingComponent->OnPathfindingQuery(OutQuery);
 		}
 
 		bResult = true;

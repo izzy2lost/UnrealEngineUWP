@@ -90,6 +90,10 @@ class UBTTask_MoveTo : public UBTTask_BlackboardBase
 	UPROPERTY()
 	uint32 bStopOnOverlapNeedsUpdate : 1;
 
+	/** if set, the path request will start from the end of the previous path (if any), and the generated path will be merged with the remaining points of the previous path */
+	UPROPERTY(Category = Node, EditAnywhere)
+	uint32 bStartFromPreviousPath : 1;
+
 	/** if set, move will use pathfinding. Not exposed on purpose, please use BTTask_MoveDirectlyToward */
 	uint32 bUsePathfinding : 1;
 

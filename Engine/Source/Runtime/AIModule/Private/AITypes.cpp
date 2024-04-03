@@ -163,7 +163,7 @@ FAIMoveRequest::FAIMoveRequest() :
 	GoalActor(nullptr), GoalLocation(FAISystem::InvalidLocation), FilterClass(nullptr),
 	bInitialized(false), bMoveToActor(false),
 	bUsePathfinding(true), bAllowPartialPath(true), bRequireNavigableEndLocation(true), bApplyCostLimitFromHeuristic(false), bProjectGoalOnNavigation(true),
-	bReachTestIncludesAgentRadius(true), bReachTestIncludesGoalRadius(true), bCanStrafe(false),
+	bStartFromPreviousPath(false), bReachTestIncludesAgentRadius(true), bReachTestIncludesGoalRadius(true), bCanStrafe(false),
 	AcceptanceRadius(UPathFollowingComponent::DefaultAcceptanceRadius), CostLimitFactor(FLT_MAX), MinimumCostLimit(0.f),
 	UserFlags(0)
 {
@@ -173,7 +173,7 @@ FAIMoveRequest::FAIMoveRequest(const AActor* InGoalActor) :
 	GoalActor(const_cast<AActor*>(InGoalActor)), GoalLocation(FAISystem::InvalidLocation), FilterClass(nullptr),
 	bInitialized(true), bMoveToActor(true),
 	bUsePathfinding(true), bAllowPartialPath(true), bRequireNavigableEndLocation(true), bApplyCostLimitFromHeuristic(false), bProjectGoalOnNavigation(true),
-	bReachTestIncludesAgentRadius(true), bReachTestIncludesGoalRadius(true), bCanStrafe(false),
+	bStartFromPreviousPath(false), bReachTestIncludesAgentRadius(true), bReachTestIncludesGoalRadius(true), bCanStrafe(false),
 	AcceptanceRadius(UPathFollowingComponent::DefaultAcceptanceRadius), CostLimitFactor(FLT_MAX), MinimumCostLimit(0.f),
 	UserFlags(0)
 {
@@ -183,7 +183,7 @@ FAIMoveRequest::FAIMoveRequest(const FVector& InGoalLocation) :
 	GoalActor(nullptr), GoalLocation(InGoalLocation), FilterClass(nullptr),
 	bInitialized(true), bMoveToActor(false),
 	bUsePathfinding(true), bAllowPartialPath(true), bRequireNavigableEndLocation(true), bApplyCostLimitFromHeuristic(false), bProjectGoalOnNavigation(true),
-	bReachTestIncludesAgentRadius(true), bReachTestIncludesGoalRadius(true), bCanStrafe(false),
+	bStartFromPreviousPath(false), bReachTestIncludesAgentRadius(true), bReachTestIncludesGoalRadius(true), bCanStrafe(false),
 	AcceptanceRadius(UPathFollowingComponent::DefaultAcceptanceRadius), CostLimitFactor(FLT_MAX), MinimumCostLimit(0.f),
 	UserFlags(0)
 {
@@ -226,11 +226,12 @@ bool FAIMoveRequest::UpdateGoalLocation(const FVector& NewLocation) const
 
 FString FAIMoveRequest::ToString() const
 {
-	return FString::Printf(TEXT("%s(%s) Mode(%s) Filter(%s) AcceptanceRadius(%.1f%s)"),
+	return FString::Printf(TEXT("%s(%s) Mode(%s) Filter(%s) AcceptanceRadius(%.1f%s) StartsFromPreviousPath(%s))"),
 		bMoveToActor ? TEXT("Actor") : TEXT("Location"), bMoveToActor ? *GetNameSafe(GoalActor.Get()) : *GoalLocation.ToString(),
 		bUsePathfinding ? (bAllowPartialPath ? TEXT("partial path") : TEXT("complete path")) : TEXT("direct"),
 		*GetNameSafe(FilterClass),
-		AcceptanceRadius, bReachTestIncludesAgentRadius || (bMoveToActor && bReachTestIncludesGoalRadius) ? TEXT(" + overlap") : TEXT("")
+		AcceptanceRadius, bReachTestIncludesAgentRadius || (bMoveToActor && bReachTestIncludesGoalRadius) ? TEXT(" + overlap") : TEXT(""),
+		bStartFromPreviousPath ? TEXT("Yes") : TEXT("No")
 		);
 }
 

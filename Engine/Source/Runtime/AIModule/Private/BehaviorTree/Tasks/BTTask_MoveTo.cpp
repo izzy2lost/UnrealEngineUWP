@@ -27,8 +27,8 @@ UBTTask_MoveTo::UBTTask_MoveTo(const FObjectInitializer& ObjectInitializer) : Su
 	bRequireNavigableEndLocation = true;
 	bProjectGoalLocation = true;
 	bUsePathfinding = true;
-
 	bStopOnOverlapNeedsUpdate = true;
+	bStartFromPreviousPath = false;
 
 	ObservedBlackboardValueTolerance = AcceptableRadius * 0.95f;
 
@@ -92,6 +92,7 @@ EBTNodeResult::Type UBTTask_MoveTo::PerformMoveTask(UBehaviorTreeComponent& Owne
 		MoveReq.SetRequireNavigableEndLocation(bRequireNavigableEndLocation);
 		MoveReq.SetProjectGoalLocation(bProjectGoalLocation);
 		MoveReq.SetUsePathfinding(bUsePathfinding);
+		MoveReq.SetStartFromPreviousPath(bStartFromPreviousPath);
 
 		if (BlackboardKey.SelectedKeyType == UBlackboardKeyType_Object::StaticClass())
 		{

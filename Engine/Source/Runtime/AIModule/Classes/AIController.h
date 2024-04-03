@@ -214,7 +214,10 @@ public:
 	AIMODULE_API virtual void FindPathForMoveRequest(const FAIMoveRequest& MoveRequest, FPathFindingQuery& Query, FNavPathSharedPtr& OutPath) const;
 
 	/** Helper function for creating pathfinding query for this agent from move request data */
-	AIMODULE_API bool BuildPathfindingQuery(const FAIMoveRequest& MoveRequest, FPathFindingQuery& Query) const;
+	AIMODULE_API bool BuildPathfindingQuery(const FAIMoveRequest& MoveRequest, FPathFindingQuery& OutQuery) const;
+
+	/** Helper function for creating pathfinding query for this agent from move request data and starting location */
+	AIMODULE_API bool BuildPathfindingQuery(const FAIMoveRequest& MoveRequest, const FVector& StartLocation, FPathFindingQuery& OutQuery) const;
 
 	UE_DEPRECATED_FORGAME(4.13, "This function is now deprecated, please use FindPathForMoveRequest() for adjusting Query or BuildPathfindingQuery() for getting one.")
 	AIMODULE_API virtual bool PreparePathfinding(const FAIMoveRequest& MoveRequest, FPathFindingQuery& Query);
@@ -268,6 +271,9 @@ public:
 
 protected:
 	AIMODULE_API virtual void CleanupBrainComponent();
+
+	/** Merges the remaining points of InitialPath, with the points of InOutMergedPath. The resulting merged path is outputted into InOutMergedPath. */
+	AIMODULE_API virtual void MergePaths(const FNavPathSharedPtr& InitialPath, FNavPathSharedPtr& InOutMergedPath) const;
 
 public:
 	/**
