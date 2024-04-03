@@ -209,7 +209,11 @@ namespace UnrealGameSync
 
 				if (launcherSettings.HordeServer != null)
 				{
-					services.AddHorde(options => options.ServerUrl = new Uri(launcherSettings.HordeServer));
+					services.AddHorde(options =>
+					{
+						options.ServerUrl = new Uri(launcherSettings.HordeServer);
+						options.AllowAuthPrompt = false;
+					});
 				}
 
 				ServiceProvider serviceProvider = services.BuildServiceProvider();
