@@ -2839,7 +2839,8 @@ namespace impl
 
 		// Next Task: Load Unreal Assets
 		//-------------------------------------------------------------
-		UE::Tasks::FTask Game_LoadUnrealAssets = ObjectInstancePrivateData->LoadAdditionalAssetsAndDataAsync(OperationData, UCustomizableObjectSystem::GetInstance()->GetPrivate()->StreamableManager);
+		FStreamableManager* StreamManager = System->GetPrivate()->bBlocking ? nullptr : &System->GetPrivate()->StreamableManager;
+		UE::Tasks::FTask Game_LoadUnrealAssets = ObjectInstancePrivateData->LoadAdditionalAssetsAndData(OperationData, StreamManager);
 
 		// Next-next Task: Convert Resources
 		//-------------------------------------------------------------
@@ -4173,6 +4174,9 @@ void UCustomizableObjectSystemPrivate::UpdateResourceStreaming(float DeltaTime, 
 
 int32 UCustomizableObjectSystemPrivate::BlockTillAllRequestsFinished(float TimeLimit, bool bLogResults)
 {
+	bBlocking = true;
+	ON_SCOPE_EXIT {bBlocking = false; };
+	
 	const double BlockEndTime = FPlatformTime::Seconds() + TimeLimit;
 
 	int32 RemainingWork = TNumericLimits<int32>::Max();

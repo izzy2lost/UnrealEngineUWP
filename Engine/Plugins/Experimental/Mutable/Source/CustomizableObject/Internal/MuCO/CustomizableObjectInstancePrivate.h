@@ -219,8 +219,9 @@ public:
 
 	void ReuseTexture(UTexture2D* Texture, TSharedRef<FTexturePlatformData, ESPMode::ThreadSafe>& PlatformData);
 
-	/** Returns the task that will be called when all assets and data are loaded, may be already completed if no assets or data needs loading */
-	UE::Tasks::FTask LoadAdditionalAssetsAndDataAsync(const TSharedRef<FUpdateContextPrivate>& OperationData, FStreamableManager &StreamableManager);
+	/** Returns the task that will be called when all assets and data are loaded, may be already completed if no assets or data needs loading.
+	 * If no StreamableManager is provided, it will load assets synchronously. */
+	UE::Tasks::FTask LoadAdditionalAssetsAndData(const TSharedRef<FUpdateContextPrivate>& OperationData, FStreamableManager* StreamableManager);
 
 	void AdditionalAssetsAsyncLoaded(UCustomizableObjectInstance* Public);
 
