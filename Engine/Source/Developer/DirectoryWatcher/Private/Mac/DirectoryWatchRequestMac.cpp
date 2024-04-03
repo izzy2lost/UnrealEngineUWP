@@ -3,6 +3,7 @@
 #include "DirectoryWatchRequestMac.h"
 #include "HAL/PlatformFileManager.h"
 #include "GenericPlatform/GenericPlatformFile.h"
+#include "Mac/CocoaThread.h"
 
 void DirectoryWatchMacCallback( ConstFSEventStreamRef StreamRef, void* WatchRequestPtr, size_t EventCount, void* EventPaths, const FSEventStreamEventFlags EventFlags[], const FSEventStreamEventId EventIDs[] )
 {
@@ -10,7 +11,9 @@ void DirectoryWatchMacCallback( ConstFSEventStreamRef StreamRef, void* WatchRequ
 	check(WatchRequest);
 	check(WatchRequest->EventStream == StreamRef);
 
-	WatchRequest->ProcessChanges( EventCount, EventPaths, EventFlags);
+	GameThreadCall(^{
+		WatchRequest->ProcessChanges( EventCount, EventPaths, EventFlags);
+	});
 }
 
 // ============================================================================================================================
@@ -33,7 +36,6 @@ void FDirectoryWatchRequestMac::Shutdown( void )
 		check(EventStream);
 
 		FSEventStreamStop(EventStream);
-		FSEventStreamUnscheduleFromRunLoop(EventStream, CFRunLoopGetCurrent(), kCFRunLoopDefaultMode);
 		FSEventStreamInvalidate(EventStream);
 		FSEventStreamRelease(EventStream);
 
@@ -89,7 +91,7 @@ bool FDirectoryWatchRequestMac::Init(const FString& InDirectory)
 		return false;
 	}
 
-	FSEventStreamScheduleWithRunLoop( EventStream, CFRunLoopGetCurrent(), kCFRunLoopDefaultMode );
+	FSEventStreamSetDispatchQueue( EventStream, dispatch_get_main_queue() );
 	FSEventStreamStart( EventStream );
 
 	bRunning = true;

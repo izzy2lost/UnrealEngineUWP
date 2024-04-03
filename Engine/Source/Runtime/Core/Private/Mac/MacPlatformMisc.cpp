@@ -61,6 +61,11 @@ extern CORE_API bool GIsGPUCrashed;
 #define MAC_GRAPHICS_INI GEngineIni
 #endif
 
+#if MAC_OS_X_VERSION_MAX_ALLOWED < 120000
+	// use old constant on old macos, since kIOMainPortDefault was introduced in macOS 12
+	#define kIOMainPortDefault kIOMasterPortDefault
+#endif
+
 /*------------------------------------------------------------------------------
  Console variables.
  ------------------------------------------------------------------------------*/
@@ -287,7 +292,7 @@ struct FMacApplicationInfo
 		ParentProcess = TempSysCtlBuffer;
 		
 		MachineUUID = TEXT("00000000-0000-0000-0000-000000000000");
-		io_service_t PlatformExpert = IOServiceGetMatchingService(kIOMasterPortDefault,IOServiceMatching("IOPlatformExpertDevice"));
+		io_service_t PlatformExpert = IOServiceGetMatchingService(kIOMainPortDefault,IOServiceMatching("IOPlatformExpertDevice"));
 		if(PlatformExpert)
 		{
 			CFTypeRef SerialNumberAsCFString = IORegistryEntryCreateCFProperty(PlatformExpert,CFSTR(kIOPlatformUUIDKey),kCFAllocatorDefault, 0);
@@ -677,7 +682,7 @@ TArray<uint8> FMacPlatformMisc::GetMacAddress()
 		CFDictionarySetValue(MatchingDict, CFSTR(kIOPropertyMatchKey), PropertyMatchDict);
 		CFRelease(PropertyMatchDict);
 
-		if (IOServiceGetMatchingServices(kIOMasterPortDefault, MatchingDict, &InterfaceIterator) != KERN_SUCCESS)
+		if (IOServiceGetMatchingServices(kIOMainPortDefault, MatchingDict, &InterfaceIterator) != KERN_SUCCESS)
 		{
 			UE_LOG(LogMac, Warning, TEXT("GetMacAddress failed - error getting matching services"));
 			return Result;
@@ -1210,7 +1215,7 @@ public:
 		// Enumerate the GPUs via IOKit to avoid dragging in OpenGL
 		io_iterator_t Iterator;
 		CFMutableDictionaryRef MatchDictionary = IOServiceMatching(GetIOServiceMatchingName());
-		if(IOServiceGetMatchingServices(kIOMasterPortDefault, MatchDictionary, &Iterator) == kIOReturnSuccess)
+		if(IOServiceGetMatchingServices(kIOMainPortDefault, MatchDictionary, &Iterator) == kIOReturnSuccess)
 		{
 			uint32 Index = 0;
 			io_registry_entry_t ServiceEntry;
@@ -1296,7 +1301,7 @@ public:
 				CFMutableDictionaryRef MatchDictionary = IORegistryEntryIDMatching(DeviceRegistryID);
 				if(MatchDictionary)
 				{
-					io_registry_entry_t ServiceEntry = IOServiceGetMatchingService(kIOMasterPortDefault, MatchDictionary);
+					io_registry_entry_t ServiceEntry = IOServiceGetMatchingService(kIOMainPortDefault, MatchDictionary);
 					if(ServiceEntry)
 					{
 						io_iterator_t ParentIterator;
@@ -1791,7 +1796,7 @@ int32 FMacPlatformMisc::MacOSXVersionCompare(uint8 Major, uint8 Minor, uint8 Rev
 FString FMacPlatformMisc::GetOperatingSystemId()
 {
 	FString Result;
-	io_service_t Entry = IOServiceGetMatchingService(kIOMasterPortDefault, IOServiceMatching("IOPlatformExpertDevice"));
+	io_service_t Entry = IOServiceGetMatchingService(kIOMainPortDefault, IOServiceMatching("IOPlatformExpertDevice"));
 	if (Entry)
 	{
 		CFTypeRef UUID = IORegistryEntryCreateCFProperty(Entry, CFSTR(kIOPlatformUUIDKey), kCFAllocatorDefault, 0);

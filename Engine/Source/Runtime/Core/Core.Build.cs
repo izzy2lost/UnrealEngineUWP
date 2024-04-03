@@ -102,7 +102,7 @@ public class Core : ModuleRules
 				"zlib",
 				"PLCrashReporter"
 				);
-			PublicFrameworks.AddRange(new string[] { "Cocoa", "Carbon", "IOKit", "Security" });
+			PublicFrameworks.AddRange(new string[] { "Cocoa", "Carbon", "IOKit", "Security", "UniformTypeIdentifiers" });
 
 			PrivateDependencyModuleNames.Add("mimalloc");
 			PrivateDefinitions.Add("PLATFORM_BUILDS_MIMALLOC=1");

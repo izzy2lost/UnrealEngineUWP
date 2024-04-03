@@ -9,6 +9,7 @@
 #include "Misc/ConfigCacheIni.h"
 #include "Misc/Guid.h"
 #include "HAL/FileManager.h"
+#import <UniformTypeIdentifiers/UniformTypeIdentifiers.h>
 
 #define LOCTEXT_NAMESPACE "DesktopPlatform"
 
@@ -127,8 +128,8 @@ private:
 	}
 	else
 	{
-		// Allow all file types
-		[DialogPanel setAllowedFileTypes:nil];
+		// Allow all file types (empty array means all types)
+		DialogPanel.allowedContentTypes = @[];
 	}
 }
 
@@ -146,7 +147,8 @@ private:
 	NSString* ExtsToParse = [AllowedFileTypes objectAtIndex:index * 2 + 1];
 	if( [ExtsToParse compare:@"*.*"] == NSOrderedSame )
 	{
-		[DialogPanel setAllowedFileTypes: nil];
+		// Allow all file types (empty array means all types)
+		DialogPanel.allowedContentTypes = @[];
 	}
 	else
 	{
@@ -156,10 +158,10 @@ private:
 		for( int32 Index = 0; Index < [ExtensionsWildcards count]; ++Index )
 		{
 			NSString* Temp = [[ExtensionsWildcards objectAtIndex:Index] stringByTrimmingCharactersInSet:[NSCharacterSet characterSetWithCharactersInString:@"*."]];
-			[Extensions addObject: Temp];
+			[Extensions addObject: [UTType typeWithFilenameExtension:Temp]];
 		}
 
-		[DialogPanel setAllowedFileTypes: Extensions];
+		DialogPanel.allowedContentTypes = Extensions;
 	}
 }
 
