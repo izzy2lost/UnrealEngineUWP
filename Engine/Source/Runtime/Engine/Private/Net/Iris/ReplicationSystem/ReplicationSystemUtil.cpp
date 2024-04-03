@@ -480,8 +480,15 @@ void FReplicationSystemUtil::FlushNetDormancy(UReplicationSystem* ReplicationSys
 			}
 		}
 	}
-	else
+	else if (Actor->HasActorBegunPlay() || Actor->IsActorBeginningPlay())
 	{
+		// Call BeginReplication for DORM_Initial actors the first time their dormancy is flushed
+		// (since it's not called when they BeginPlay).
+		// 
+		// We still don't want to call BeginReplication before BeginPlay though:
+		// -The actor and its components/subobjects may not be completely set up for replication yet
+		// -If the actor is DormInitial, and is flushed before BeginPlay, its dormancy state will change to DormantAll and it will BeginReplication normally
+
 		UE_CLOG(!Actor->GetIsReplicated(), LogIris, Warning, TEXT("FReplicationSystemUtil::FlushNetDormancy Actor %s that is not replicated"), ToCStr(Actor->GetName()));
 		UE_CLOG(!bWasDormInitial, LogIris, Display, TEXT("FReplicationSystemUtil::FlushNetDormancy For not replicated Actor %s is not initially dormant"), ToCStr(Actor->GetName()));
 
