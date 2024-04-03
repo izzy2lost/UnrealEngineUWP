@@ -172,7 +172,6 @@ private:
 	 *	will cause crashes if the underlying code does try to issue commands. 
 	 */
 	uint8 bAllowParallelCommands : 1 = true;
-	uint8 bRequiresGameThreadExecution : 1 = false;
 	uint8 bRequiresMutatingWorldAccess : 1 = false;
 
 	EMassExecutionContextType ExpectedContextType = EMassExecutionContextType::Local;

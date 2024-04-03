@@ -179,18 +179,18 @@ void UMassProcessor::PostInitProperties()
 	{
 		ConfigureQueries();
 
-		bool bNeedsGameThread = false;
-		for (FMassEntityQuery* QueryPtr : OwnedQueries)
+		bool bNeedsGameThread = ProcessorRequirements.DoesRequireGameThreadExecution();
+		for (const FMassEntityQuery* QueryPtr : OwnedQueries)
 		{
 			CA_ASSUME(QueryPtr);
 			bNeedsGameThread = (bNeedsGameThread || QueryPtr->DoesRequireGameThreadExecution());
 		}
-		
+
 		UE_CLOG(bRequiresGameThreadExecution != bNeedsGameThread, LogMass, Verbose
-			, TEXT("%s is marked bRequiresGameThreadExecution = %s, while the registered quries' requirement indicate the opposite")
+			, TEXT("%s is marked bRequiresGameThreadExecution = %s, while the registered queries' or processor requirements indicate the opposite")
 			, *GetProcessorName(), bRequiresGameThreadExecution ? TEXT("TRUE") : TEXT("FALSE"));
 
-		// better safe than sorry - if queries indicate the game thread execution is required then we marked the whole processor as such
+		// better safe than sorry - if queries or processor requirements indicate the game thread execution is required, then we marked the whole processor as such
 		bRequiresGameThreadExecution = bRequiresGameThreadExecution || bNeedsGameThread;
 	}
 #if CPUPROFILERTRACE_ENABLED
