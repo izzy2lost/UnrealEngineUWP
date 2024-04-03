@@ -940,7 +940,7 @@ namespace UnrealGameSync
 					context.ArchiveTypeToArchive[archiveChannel.Type] = archivePath;
 				}
 
-				if ((selectedArchiveChannels.Count > 0) && (_projectSettings.RequiredBadges.Count > 0))
+				if ((selectedArchiveChannels.Count == 1) && (!selectedArchiveChannels[0].IgnoreRequiredBadges) && (_projectSettings.RequiredBadges.Count > 0))
 				{
 					if (!CanSyncChange(changeNumber))
 					{
@@ -2109,7 +2109,7 @@ namespace UnrealGameSync
 			bool returnValue = selectedArchives.Count == 0 || selectedArchives.All(x => GetArchiveForChangeNumber(x, changeNumber) != null);
 
 			// If we can sync this change and we're using archives, let's double check for any required badges
-			if (returnValue && (selectedArchives.Count > 0) && (_projectSettings.RequiredBadges.Count > 0))
+			if (returnValue && (selectedArchives.Count == 1) && (!selectedArchives[0].IgnoreRequiredBadges) && (_projectSettings.RequiredBadges.Count > 0))
 			{
 				int currentChangeIdx = _sortedChangeNumbers.BinarySearch(changeNumber);
 				if (currentChangeIdx < 0)
