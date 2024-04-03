@@ -179,6 +179,9 @@ private:
 	/** Called when object are replaced, blueprint for example */
 	void OnObjectReplaced(const TMap<UObject*, UObject*>& InObjectReplaced);
 
+	/** Called when PIE begins */
+	void PostPIEStarted(const bool bInIsSimulating);
+
 	/** Called when PIE ends */
 	void OnEndPIE(const bool bInIsSimulating);
 
